@@ -3,7 +3,7 @@
  * Website: http://tacorp.vn
  */
 
-namespace Lab.WebApi.DTOs
+namespace Lab.Application.DTOs
 {
     /// <summary>
     /// Description: DTO phản hồi thông tin người dùng được Mapster ánh xạ từ Entity cls_User
@@ -28,7 +28,7 @@ namespace Lab.WebApi.DTOs
         public string? vEmail { get; set; }
 
         /// <summary>
-        /// Description: Ngày tạo định dạng hiển thị đẹp (dd/MM/yyyy HH:mm:ss) tự động chuyển đổi bởi Mapster
+        /// Description: Ngày tạo định dạng hiển thị đẹp (dd/MM/yyyy HH:mm:ss)
         /// </summary>
         public string? vFormattedCreateDate { get; set; }
     }

@@ -4,15 +4,15 @@
  */
 
 using Microsoft.AspNetCore.Mvc;
-using MapsterMapper;
-using Lab.WebApi.Entities;
-using Lab.WebApi.Infrastructure;
-using Lab.WebApi.DTOs;
+using Lab.Application.DTOs;
+using Lab.Application.Services;
+using Lab.Domain.Entities;
+using Lab.Infrastructure.Persistence;
 
 namespace Lab.WebApi.Controllers
 {
     /// <summary>
-    /// Description: API Controller xử lý các yêu cầu thao tác dữ liệu người dùng (User) tích hợp Mapster DI
+    /// Description: API Controller tiếp nhận request quản lý Người dùng và điều phối xuống Application Service
     /// Author: Antigravity
     /// Create Date: 17/07/2026
     /// </summary>
@@ -21,36 +21,28 @@ namespace Lab.WebApi.Controllers
     public class cls_UserController : ControllerBase
     {
         /// <summary>
-        /// Description: Instance dịch vụ cơ sở dữ liệu SqlSugar
-        /// Author: Antigravity
-        /// Create Date: 17/07/2026
+        /// Description: Application Service xử lý nghiệp vụ Người dùng
+        /// </summary>
+        private readonly Icls_UserService vUserService;
+
+        /// <summary>
+        /// Description: DB Context để phục vụ api khởi tạo database
         /// </summary>
         private readonly cls_SqlSugarDb vSqlDb;
 
         /// <summary>
-        /// Description: Instance IMapper được tiêm (inject) từ DI Container
-        /// Author: Antigravity
-        /// Create Date: 20/07/2026
+        /// Description: Hàm khởi tạo UserController tiếp nhận Application Service và SqlSugarDb qua DI
         /// </summary>
-        private readonly IMapper vMapper;
-
-        /// <summary>
-        /// Description: Hàm khởi tạo UserController tiếp nhận IMapper qua Dependency Injection
-        /// Author: Antigravity
-        /// Create Date: 17/07/2026
-        /// </summary>
-        /// <param name="objSqlDb">Instance dịch vụ database SqlSugar</param>
-        /// <param name="objMapper">Instance IMapper được tiêm từ DI Container</param>
-        public cls_UserController(cls_SqlSugarDb objSqlDb, IMapper objMapper)
+        /// <param name="objUserService">Instance Icls_UserService được inject</param>
+        /// <param name="objSqlDb">Instance DB Context được inject</param>
+        public cls_UserController(Icls_UserService objUserService, cls_SqlSugarDb objSqlDb)
         {
+            vUserService = objUserService;
             vSqlDb = objSqlDb;
-            vMapper = objMapper;
         }
 
         /// <summary>
         /// Description: Khởi tạo database và đồng bộ các bảng (Code First) từ Entity
-        /// Author: Antigravity
-        /// Create Date: 17/07/2026
         /// </summary>
         /// <returns>Thông báo kết quả thực thi</returns>
         [HttpPost("init-db")]
@@ -68,9 +60,7 @@ namespace Lab.WebApi.Controllers
         }
 
         /// <summary>
-        /// Description: Lấy toàn bộ danh sách người dùng trong hệ thống và tự động Map sang DTO qua IMapper DI
-        /// Author: Antigravity
-        /// Create Date: 17/07/2026
+        /// Description: Lấy toàn bộ danh sách người dùng DTO
         /// </summary>
         /// <returns>Danh sách DTO người dùng</returns>
         [HttpGet]
@@ -78,11 +68,7 @@ namespace Lab.WebApi.Controllers
         {
             try
             {
-                var lstUserEntities = vSqlDb.vClient.Queryable<cls_User>().ToList();
-                
-                // Ánh xạ sang List DTO sử dụng dịch vụ IMapper được inject
-                var lstUserDtos = vMapper.Map<List<cls_UserDto>>(lstUserEntities);
-
+                var lstUserDtos = vUserService.fn_GetAllUsers();
                 return Ok(lstUserDtos);
             }
             catch (Exception objEx)
@@ -92,11 +78,9 @@ namespace Lab.WebApi.Controllers
         }
 
         /// <summary>
-        /// Description: Thêm mới một người dùng vào cơ sở dữ liệu
-        /// Author: Antigravity
-        /// Create Date: 17/07/2026
+        /// Description: Thêm mới một người dùng vào hệ thống
         /// </summary>
-        /// <param name="objUser">Thông tin người dùng muốn thêm</param>
+        /// <param name="objUser">Thông tin thực thể người dùng</param>
         /// <returns>Kết quả thêm mới thành công</returns>
         [HttpPost]
         public IActionResult fn_AddUser([FromBody] cls_User objUser)
@@ -105,11 +89,10 @@ namespace Lab.WebApi.Controllers
             {
                 if (objUser == null)
                 {
-                    return BadRequest("Dữ liệu người dùng trống!");
+                    return BadRequest("Dữ liệu người dùng không được để trống!");
                 }
 
-                objUser.dtCreateDate = DateTime.Now;
-                var intInsertCount = vSqlDb.vClient.Insertable(objUser).ExecuteCommand();
+                var intInsertCount = vUserService.fn_AddUser(objUser);
                 return Ok($"Đã thêm thành công {intInsertCount} người dùng!");
             }
             catch (Exception objEx)
@@ -120,17 +103,15 @@ namespace Lab.WebApi.Controllers
 
         /// <summary>
         /// Description: Xóa một người dùng theo Id định danh
-        /// Author: Antigravity
-        /// Create Date: 17/07/2026
         /// </summary>
-        /// <param name="intId">Định danh của người dùng cần xóa</param>
+        /// <param name="intId">Định danh người dùng cần xóa</param>
         /// <returns>Kết quả xóa thành công</returns>
         [HttpDelete("{intId}")]
         public IActionResult fn_DeleteUser(int intId)
         {
             try
             {
-                var intDeleteCount = vSqlDb.vClient.Deleteable<cls_User>().In(intId).ExecuteCommand();
+                var intDeleteCount = vUserService.fn_DeleteUser(intId);
                 if (intDeleteCount > 0)
                 {
                     return Ok($"Đã xóa thành công người dùng có Id {intId}!");
@@ -144,12 +125,10 @@ namespace Lab.WebApi.Controllers
         }
 
         /// <summary>
-        /// Description: Endpoint kiểm thử nhận Entity truyền vào và sử dụng IMapper DI ánh xạ trực tiếp sang DTO
-        /// Author: Antigravity
-        /// Create Date: 20/07/2026
+        /// Description: Endpoint kiểm thử nhận Entity truyền vào và sử dụng Mapster qua Service ánh xạ sang DTO
         /// </summary>
         /// <param name="objUserEntity">Thực thể người dùng đầu vào</param>
-        /// <returns>Đối tượng DTO sau khi được IMapper DI ánh xạ</returns>
+        /// <returns>Đối tượng DTO sau khi được ánh xạ</returns>
         [HttpPost("test-mapster")]
         public IActionResult fn_TestMapster([FromBody] cls_User objUserEntity)
         {
@@ -160,17 +139,11 @@ namespace Lab.WebApi.Controllers
                     return BadRequest("Dữ liệu đầu vào không hợp lệ!");
                 }
 
-                if (!objUserEntity.dtCreateDate.HasValue)
-                {
-                    objUserEntity.dtCreateDate = DateTime.Now;
-                }
-
-                // Cú pháp Mapster chuẩn sử dụng IMapper DI Container
-                var objMappedDto = vMapper.Map<cls_UserDto>(objUserEntity);
+                var objMappedDto = vUserService.fn_MapToDto(objUserEntity);
 
                 return Ok(new
                 {
-                    strNote = "Đã ánh xạ thành công từ Entity (cls_User) sang DTO (cls_UserDto) bằng IMapper qua DI!",
+                    strNote = "Đã ánh xạ thành công từ Entity (cls_User) sang DTO (cls_UserDto) qua tầng Application Service!",
                     objOriginalEntity = objUserEntity,
                     objMappedDto = objMappedDto
                 });

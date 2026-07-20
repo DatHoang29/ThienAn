@@ -3,7 +3,7 @@
  * Website: http://tacorp.vn
  */
 
-namespace Lab.WebApi.DTOs
+namespace Lab.Application.DTOs
 {
     /// <summary>
     /// Description: DTO chứa dữ liệu phản hồi của đối tượng chia bảng SplitTestTable

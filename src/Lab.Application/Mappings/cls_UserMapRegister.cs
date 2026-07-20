@@ -4,10 +4,10 @@
  */
 
 using Mapster;
-using Lab.WebApi.Entities;
-using Lab.WebApi.DTOs;
+using Lab.Domain.Entities;
+using Lab.Application.DTOs;
 
-namespace Lab.WebApi.Infrastructure.Mappings
+namespace Lab.Application.Mappings
 {
     /// <summary>
     /// Description: Lớp cấu hình quy tắc ánh xạ Mapster chuyên biệt cho đối tượng Người dùng (cls_User -> cls_UserDto)
@@ -24,7 +24,6 @@ namespace Lab.WebApi.Infrastructure.Mappings
         /// <param name="objConfig">Đối tượng TypeAdapterConfig của Mapster</param>
         public void Register(TypeAdapterConfig objConfig)
         {
-            // Cấu hình quy tắc Map từ Entity cls_User sang DTO cls_UserDto
             objConfig.NewConfig<cls_User, cls_UserDto>()
                 .Map(dest => dest.vId, src => src.intId)
                 .Map(dest => dest.vUserName, src => src.strUserName)

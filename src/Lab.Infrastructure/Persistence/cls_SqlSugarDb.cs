@@ -3,10 +3,11 @@
  * Website: http://tacorp.vn
  */
 
+using Microsoft.Extensions.Configuration;
 using SqlSugar;
-using Lab.WebApi.Entities;
+using Lab.Domain.Entities;
 
-namespace Lab.WebApi.Infrastructure
+namespace Lab.Infrastructure.Persistence
 {
     /// <summary>
     /// Description: Dịch vụ cấu hình và khởi tạo SqlSugar Client, xử lý tự động tạo DB và bảng (Code First)

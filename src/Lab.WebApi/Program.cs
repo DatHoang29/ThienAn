@@ -3,23 +3,32 @@
  * Website: http://tacorp.vn
  */
 
-using System.Reflection;
 using Mapster;
-using MapsterMapper;
-using Lab.WebApi.Infrastructure;
+using Lab.Application.Services;
+using Lab.Domain.Repositories;
+using Lab.Infrastructure.Persistence;
+using Lab.Infrastructure.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // 1. Đăng ký các Controller của ứng dụng Web API
 builder.Services.AddControllers();
 
-// 2. Đăng ký lớp Singleton quản lý cơ sở dữ liệu SqlSugar
+// 2. Đăng ký tầng Infrastructure (SqlSugar Context & Repositories)
 builder.Services.AddSingleton<cls_SqlSugarDb>();
+builder.Services.AddScoped<Icls_UserRepository, cls_UserRepository>();
+builder.Services.AddScoped<Icls_SplitTestRepository, cls_SplitTestRepository>();
 
-// 3. Đăng ký Mapster vào ServiceCollection thông qua Dependency Injection (AddMapster)
+// 3. Đăng ký tầng Application (Services)
+builder.Services.AddScoped<Icls_UserService, cls_UserService>();
+builder.Services.AddScoped<Icls_SplitTestService, cls_SplitTestService>();
+
+// 4. Đăng ký và Cấu hình Mapster Scan từ tầng Application Assembly
+var objAppAssembly = typeof(Icls_UserService).Assembly;
+TypeAdapterConfig.GlobalSettings.Scan(objAppAssembly);
 builder.Services.AddMapster();
 
-// 4. Cấu hình Swagger / OpenAPI để tạo giao diện thử nghiệm API trực quan
+// 5. Cấu hình Swagger / OpenAPI
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -31,8 +40,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Lab API v1");
-        c.RoutePrefix = "swagger"; // Truy cập Swagger tại http://localhost:<port>/swagger
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Lab API v1 (DDD)");
+        c.RoutePrefix = "swagger";
     });
 }
 

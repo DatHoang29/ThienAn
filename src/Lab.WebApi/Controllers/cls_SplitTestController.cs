@@ -4,13 +4,12 @@
  */
 
 using Microsoft.AspNetCore.Mvc;
-using Lab.WebApi.Entities;
-using Lab.WebApi.Infrastructure;
+using Lab.Application.Services;
 
 namespace Lab.WebApi.Controllers
 {
     /// <summary>
-    /// Description: API Controller kiểm thử tính năng chia bảng (Table Splitting) theo phút bằng SqlSugar
+    /// Description: API Controller kiểm thử tính năng chia bảng (SplitTable) theo DDD
     /// Author: Antigravity
     /// Create Date: 20/07/2026
     /// </summary>
@@ -19,50 +18,36 @@ namespace Lab.WebApi.Controllers
     public class cls_SplitTestController : ControllerBase
     {
         /// <summary>
-        /// Description: Instance dịch vụ cơ sở dữ liệu SqlSugar
-        /// Author: Antigravity
-        /// Create Date: 20/07/2026
+        /// Description: Application Service xử lý nghiệp vụ chia bảng
         /// </summary>
-        private readonly cls_SqlSugarDb vSqlDb;
+        private readonly Icls_SplitTestService vSplitService;
 
         /// <summary>
-        /// Description: Hàm khởi tạo Controller
-        /// Author: Antigravity
-        /// Create Date: 20/07/2026
+        /// Description: Hàm khởi tạo Controller tiếp nhận SplitTestService qua DI
         /// </summary>
-        /// <param name="objSqlDb">Instance dịch vụ database SqlSugar</param>
-        public cls_SplitTestController(cls_SqlSugarDb objSqlDb)
+        /// <param name="objSplitService">Instance Icls_SplitTestService được inject</param>
+        public cls_SplitTestController(Icls_SplitTestService objSplitService)
         {
-            vSqlDb = objSqlDb;
+            vSplitService = objSplitService;
         }
 
         /// <summary>
-        /// Description: Thêm mới bản ghi vào bảng chia theo phút (SqlSugar sẽ tự động tạo bảng theo phút nếu chưa có)
-        /// Author: Antigravity
-        /// Create Date: 20/07/2026
+        /// Description: Thêm mới bản ghi vào bảng chia theo ngày
         /// </summary>
         /// <param name="strName">Tên dữ liệu nhập vào</param>
-        /// <returns>Bản ghi vừa được tạo cùng với ID Snowflake và tên bảng tương ứng</returns>
+        /// <returns>Bản ghi DTO vừa tạo và tên bảng tương ứng</returns>
         [HttpPost]
         public IActionResult fn_InsertData([FromQuery] string strName)
         {
             try
             {
-                var objNewRecord = new cls_SplitTestTable
-                {
-                    vName = strName,
-                    vCreateTime = DateTime.Now
-                };
-
-                // SqlSugar tự động sinh Snowflake ID và tự động tạo bảng theo định dạng phút nếu chưa có
-                var longGeneratedId = vSqlDb.vClient.Insertable(objNewRecord).SplitTable().ExecuteReturnSnowflakeId();
-                objNewRecord.vId = longGeneratedId;
+                var (objDto, strTableName) = vSplitService.fn_InsertSplitData(strName);
 
                 return Ok(new
                 {
-                    strMessage = "Thêm thành công vào bảng phân chia theo ngày!",
-                    objData = objNewRecord,
-                    strTableName = $"tbl_SplitTestTable_{objNewRecord.vCreateTime:yyyyMMdd}"
+                    strMessage = "Thêm thành công vào bảng phân chia theo ngày (Kiến trúc DDD)!",
+                    objData = objDto,
+                    strTableName = strTableName
                 });
             }
             catch (Exception objEx)
@@ -72,22 +57,15 @@ namespace Lab.WebApi.Controllers
         }
 
         /// <summary>
-        /// Description: Truy vấn toàn bộ dữ liệu từ tất cả các bảng phân chia theo phút đã được tạo
-        /// Author: Antigravity
-        /// Create Date: 20/07/2026
+        /// Description: Truy vấn toàn bộ dữ liệu từ tất cả các bảng phân chia
         /// </summary>
-        /// <returns>Danh sách dữ liệu hợp nhất từ các bảng phân chia</returns>
+        /// <returns>Danh sách DTO hợp nhất</returns>
         [HttpGet]
         public IActionResult fn_GetAllSplitData()
         {
             try
             {
-                // Gọi .SplitTable() để SqlSugar tự động UNION ALL tất cả các bảng phân chia
-                var lstData = vSqlDb.vClient.Queryable<cls_SplitTestTable>()
-                                           .SplitTable()
-                                           .OrderBy(it => it.vCreateTime, SqlSugar.OrderByType.Desc)
-                                           .ToList();
-
+                var lstData = vSplitService.fn_GetAllSplitData();
                 return Ok(lstData);
             }
             catch (Exception objEx)
@@ -97,24 +75,17 @@ namespace Lab.WebApi.Controllers
         }
 
         /// <summary>
-        /// Description: Truy vấn dữ liệu phân chia theo khoảng thời gian (Tối ưu hóa: chỉ quét các bảng trong khoảng thời gian chỉ định)
-        /// Author: Antigravity
-        /// Create Date: 20/07/2026
+        /// Description: Truy vấn dữ liệu phân chia theo khoảng thời gian
         /// </summary>
         /// <param name="dtBegin">Thời gian bắt đầu</param>
         /// <param name="dtEnd">Thời gian kết thúc</param>
-        /// <returns>Danh sách bản ghi phù hợp</returns>
+        /// <returns>Danh sách DTO phù hợp</returns>
         [HttpGet("by-time-range")]
         public IActionResult fn_GetByTimeRange([FromQuery] DateTime dtBegin, [FromQuery] DateTime dtEnd)
         {
             try
             {
-                // Truy vấn tối ưu chỉ trên các bảng tương ứng với khoảng thời gian dtBegin -> dtEnd
-                var lstData = vSqlDb.vClient.Queryable<cls_SplitTestTable>()
-                                           .SplitTable(dtBegin, dtEnd)
-                                           .Where(it => it.vCreateTime >= dtBegin && it.vCreateTime <= dtEnd)
-                                           .ToList();
-
+                var lstData = vSplitService.fn_GetByTimeRange(dtBegin, dtEnd);
                 return Ok(lstData);
             }
             catch (Exception objEx)
@@ -124,9 +95,7 @@ namespace Lab.WebApi.Controllers
         }
 
         /// <summary>
-        /// Description: Lấy danh sách tên các bảng phân chia đã thực tế được tạo trong cơ sở dữ liệu
-        /// Author: Antigravity
-        /// Create Date: 20/07/2026
+        /// Description: Lấy danh sách tên các bảng phân chia thực tế đã sinh ra trong DB
         /// </summary>
         /// <returns>Danh sách tên bảng</returns>
         [HttpGet("tables")]
@@ -134,11 +103,7 @@ namespace Lab.WebApi.Controllers
         {
             try
             {
-                var lstAllTables = vSqlDb.vClient.DbMaintenance.GetTableInfoList();
-                var lstSplitTables = lstAllTables.Where(it => it.Name.StartsWith("tbl_SplitTestTable_"))
-                                                 .Select(it => it.Name)
-                                                 .ToList();
-
+                var lstSplitTables = vSplitService.fn_GetCreatedTables();
                 return Ok(lstSplitTables);
             }
             catch (Exception objEx)

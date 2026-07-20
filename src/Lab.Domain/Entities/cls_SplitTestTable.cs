@@ -5,10 +5,10 @@
 
 using SqlSugar;
 
-namespace Lab.WebApi.Entities
+namespace Lab.Domain.Entities
 {
     /// <summary>
-    /// Description: Thực thể kiểm thử chia bảng tự động (Table Splitting) theo phút
+    /// Description: Thực thể kiểm thử chia bảng tự động (Table Splitting) theo ngày
     /// Author: Antigravity
     /// Create Date: 20/07/2026
     /// </summary>

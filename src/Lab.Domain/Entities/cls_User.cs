@@ -5,7 +5,7 @@
 
 using SqlSugar;
 
-namespace Lab.WebApi.Entities
+namespace Lab.Domain.Entities
 {
     /// <summary>
     /// Description: Thực thể đại diện cho bảng User trong cơ sở dữ liệu
