@@ -1,0 +1,17 @@
+# .NET / C#
+[Bb]in/
+[Oo]bj/
+.dotnet-home/
+*.user
+*.userosscache
+*.sln.docstates
+
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
