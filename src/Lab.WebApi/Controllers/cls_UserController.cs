@@ -4,7 +4,6 @@
  */
 
 using Microsoft.AspNetCore.Mvc;
-using Mapster;
 using MapsterMapper;
 using Lab.WebApi.Entities;
 using Lab.WebApi.Infrastructure;
@@ -13,7 +12,7 @@ using Lab.WebApi.DTOs;
 namespace Lab.WebApi.Controllers
 {
     /// <summary>
-    /// Description: API Controller xử lý các yêu cầu thao tác dữ liệu người dùng (User) tích hợp Mapster DI và Projection
+    /// Description: API Controller xử lý các yêu cầu thao tác dữ liệu người dùng (User) tích hợp Mapster DI
     /// Author: Antigravity
     /// Create Date: 17/07/2026
     /// </summary>
@@ -29,7 +28,7 @@ namespace Lab.WebApi.Controllers
         private readonly cls_SqlSugarDb vSqlDb;
 
         /// <summary>
-        /// Description: Instance IMapper được tiêm (inject) từ DI Container theo chuẩn tài liệu Mapster
+        /// Description: Instance IMapper được tiêm (inject) từ DI Container
         /// Author: Antigravity
         /// Create Date: 20/07/2026
         /// </summary>
@@ -69,7 +68,7 @@ namespace Lab.WebApi.Controllers
         }
 
         /// <summary>
-        /// Description: Lấy toàn bộ danh sách người dùng trong hệ thống và map bằng Extension .Adapt<T>() chuẩn tài liệu
+        /// Description: Lấy toàn bộ danh sách người dùng trong hệ thống và tự động Map sang DTO qua IMapper DI
         /// Author: Antigravity
         /// Create Date: 17/07/2026
         /// </summary>
@@ -80,9 +79,9 @@ namespace Lab.WebApi.Controllers
             try
             {
                 var lstUserEntities = vSqlDb.vClient.Queryable<cls_User>().ToList();
-
-                // Cách 1 (Static Extension): Dùng .Adapt<T>() y hệt tài liệu basic usage
-                var lstUserDtos = lstUserEntities.Adapt<List<cls_UserDto>>();
+                
+                // Ánh xạ sang List DTO sử dụng dịch vụ IMapper được inject
+                var lstUserDtos = vMapper.Map<List<cls_UserDto>>(lstUserEntities);
 
                 return Ok(lstUserDtos);
             }
@@ -145,61 +144,14 @@ namespace Lab.WebApi.Controllers
         }
 
         /// <summary>
-        /// Description: Truy vấn danh sách người dùng từ DB và sử dụng IMapper (DI) để map y hệt tài liệu
-        /// Author: Antigravity
-        /// Create Date: 20/07/2026
-        /// </summary>
-        /// <returns>Danh sách DTO người dùng được ánh xạ bằng DI IMapper</returns>
-        [HttpGet("mapped-list-di")]
-        public IActionResult fn_GetMappedUsersDi()
-        {
-            try
-            {
-                var lstUserEntities = vSqlDb.vClient.Queryable<cls_User>().ToList();
-
-                // Cách 2 (DI IMapper): Dùng vMapper.Map<T>() chuẩn DI như trong tài liệu
-                var lstUserDtos = vMapper.Map<List<cls_UserDto>>(lstUserEntities);
-
-                return Ok(lstUserDtos);
-            }
-            catch (Exception objEx)
-            {
-                return BadRequest($"Lỗi khi ánh xạ bằng IMapper DI: {objEx.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Description: Truy vấn dữ liệu sử dụng Queryable Projection (ProjectToType) của Mapster
-        /// Author: Antigravity
-        /// Create Date: 20/07/2026
-        /// </summary>
-        /// <returns>Danh sách DTO được chiếu (ProjectToType) trực tiếp</returns>
-        [HttpGet("projected-list")]
-        public IActionResult fn_GetProjectedUsers()
-        {
-            try
-            {
-                // Sử dụng .ProjectToType<cls_UserDto>() trên IQueryable y hệt tài liệu Mapster
-                var lstQueryable = vSqlDb.vClient.Queryable<cls_User>().ToList().AsQueryable();
-                var lstUserDtos = lstQueryable.ProjectToType<cls_UserDto>().ToList();
-
-                return Ok(lstUserDtos);
-            }
-            catch (Exception objEx)
-            {
-                return BadRequest($"Lỗi khi dùng ProjectToType: {objEx.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Description: Endpoint thử nghiệm nhận Entity và sử dụng .Adapt<T>() chuẩn tài liệu
+        /// Description: Endpoint kiểm thử nhận Entity truyền vào và sử dụng IMapper DI ánh xạ trực tiếp sang DTO
         /// Author: Antigravity
         /// Create Date: 20/07/2026
         /// </summary>
         /// <param name="objUserEntity">Thực thể người dùng đầu vào</param>
-        /// <returns>Đối tượng DTO sau khi được Adapt</returns>
-        [HttpPost("test-mapster-basic")]
-        public IActionResult fn_TestMapsterBasic([FromBody] cls_User objUserEntity)
+        /// <returns>Đối tượng DTO sau khi được IMapper DI ánh xạ</returns>
+        [HttpPost("test-mapster")]
+        public IActionResult fn_TestMapster([FromBody] cls_User objUserEntity)
         {
             try
             {
@@ -213,19 +165,19 @@ namespace Lab.WebApi.Controllers
                     objUserEntity.dtCreateDate = DateTime.Now;
                 }
 
-                // Cú pháp chuẩn y hệt tài liệu Basic usage: sourceObject.Adapt<Destination>()
-                var objMappedDto = objUserEntity.Adapt<cls_UserDto>();
+                // Cú pháp Mapster chuẩn sử dụng IMapper DI Container
+                var objMappedDto = vMapper.Map<cls_UserDto>(objUserEntity);
 
                 return Ok(new
                 {
-                    strNote = "Đã ánh xạ bằng cú pháp chuẩn y hệt tài liệu: sourceObject.Adapt<Destination>()",
+                    strNote = "Đã ánh xạ thành công từ Entity (cls_User) sang DTO (cls_UserDto) bằng IMapper qua DI!",
                     objOriginalEntity = objUserEntity,
                     objMappedDto = objMappedDto
                 });
             }
             catch (Exception objEx)
             {
-                return BadRequest($"Lỗi ánh xạ Adapt: {objEx.Message}");
+                return BadRequest($"Lỗi ánh xạ Mapster: {objEx.Message}");
             }
         }
     }
