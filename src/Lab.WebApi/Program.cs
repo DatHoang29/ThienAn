@@ -16,10 +16,9 @@ builder.Services.AddControllers();
 // 2. Đăng ký lớp Singleton quản lý cơ sở dữ liệu SqlSugar
 builder.Services.AddSingleton<cls_SqlSugarDb>();
 
-// 3. Đăng ký và Cấu hình Mapster
+// 3. Đăng ký Mapster vào ServiceCollection thông qua Dependency Injection (AddMapster)
 TypeAdapterConfig.GlobalSettings.Scan(Assembly.GetExecutingAssembly());
-builder.Services.AddSingleton(TypeAdapterConfig.GlobalSettings);
-builder.Services.AddScoped<IMapper, ServiceMapper>();
+builder.Services.AddMapster();
 
 // 4. Cấu hình Swagger / OpenAPI để tạo giao diện thử nghiệm API trực quan
 builder.Services.AddEndpointsApiExplorer();

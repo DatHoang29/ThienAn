@@ -5,13 +5,15 @@
 
 using Microsoft.AspNetCore.Mvc;
 using Mapster;
+using MapsterMapper;
 using Lab.WebApi.Entities;
 using Lab.WebApi.Infrastructure;
+using Lab.WebApi.DTOs;
 
 namespace Lab.WebApi.Controllers
 {
     /// <summary>
-    /// Description: API Controller xử lý các yêu cầu thao tác dữ liệu người dùng (User)
+    /// Description: API Controller xử lý các yêu cầu thao tác dữ liệu người dùng (User) tích hợp Mapster DI và Projection
     /// Author: Antigravity
     /// Create Date: 17/07/2026
     /// </summary>
@@ -27,14 +29,23 @@ namespace Lab.WebApi.Controllers
         private readonly cls_SqlSugarDb vSqlDb;
 
         /// <summary>
-        /// Description: Hàm khởi tạo UserController
+        /// Description: Instance IMapper được tiêm (inject) từ DI Container theo chuẩn tài liệu Mapster
+        /// Author: Antigravity
+        /// Create Date: 20/07/2026
+        /// </summary>
+        private readonly IMapper vMapper;
+
+        /// <summary>
+        /// Description: Hàm khởi tạo UserController tiếp nhận IMapper qua Dependency Injection
         /// Author: Antigravity
         /// Create Date: 17/07/2026
         /// </summary>
-        /// <param name="objSqlDb">Instance dịch vụ database SqlSugar được inject vào</param>
-        public cls_UserController(cls_SqlSugarDb objSqlDb)
+        /// <param name="objSqlDb">Instance dịch vụ database SqlSugar</param>
+        /// <param name="objMapper">Instance IMapper được tiêm từ DI Container</param>
+        public cls_UserController(cls_SqlSugarDb objSqlDb, IMapper objMapper)
         {
             vSqlDb = objSqlDb;
+            vMapper = objMapper;
         }
 
         /// <summary>
@@ -130,39 +141,62 @@ namespace Lab.WebApi.Controllers
         }
 
         /// <summary>
-        /// Description: Truy vấn danh sách người dùng từ DB và sử dụng Mapster để ánh xạ sang DTO (cls_UserDto)
+        /// Description: Truy vấn danh sách người dùng từ DB và sử dụng IMapper được inject qua DI để ánh xạ sang DTO (cls_UserDto)
         /// Author: Antigravity
         /// Create Date: 20/07/2026
         /// </summary>
-        /// <returns>Danh sách DTO người dùng đã được định dạng bởi Mapster</returns>
-        [HttpGet("mapped-list")]
-        public IActionResult fn_GetMappedUsers()
+        /// <returns>Danh sách DTO người dùng được ánh xạ bằng DI IMapper</returns>
+        [HttpGet("mapped-list-di")]
+        public IActionResult fn_GetMappedUsersDi()
         {
             try
             {
-                // 1. Truy vấn dữ liệu thực thể từ DB qua SqlSugar
+                // 1. Truy vấn danh sách Entity từ DB
                 var lstUserEntities = vSqlDb.vClient.Queryable<cls_User>().ToList();
 
-                // 2. Sử dụng Mapster để chuyển đổi (Adapt) từ List<cls_User> sang List<cls_UserDto>
-                var lstUserDtos = lstUserEntities.Adapt<List<Lab.WebApi.DTOs.cls_UserDto>>();
+                // 2. Sử dụng IMapper instance (được inject vào Constructor) để Map
+                var lstUserDtos = vMapper.From(lstUserEntities).AdaptToType<List<cls_UserDto>>();
 
                 return Ok(lstUserDtos);
             }
             catch (Exception objEx)
             {
-                return BadRequest($"Lỗi khi ánh xạ bằng Mapster: {objEx.Message}");
+                return BadRequest($"Lỗi khi ánh xạ bằng IMapper DI: {objEx.Message}");
             }
         }
 
         /// <summary>
-        /// Description: Endpoint thử nghiệm nhận Entity truyền vào và sử dụng Mapster ánh xạ trực tiếp sang DTO để kiểm tra kết quả trên Swagger UI
+        /// Description: Truy vấn dữ liệu sử dụng Queryable Projection (ProjectToType) của Mapster
+        /// Author: Antigravity
+        /// Create Date: 20/07/2026
+        /// </summary>
+        /// <returns>Danh sách DTO được chiếu (ProjectToType) trực tiếp</returns>
+        [HttpGet("projected-list")]
+        public IActionResult fn_GetProjectedUsers()
+        {
+            try
+            {
+                // Sử dụng .ProjectToType<cls_UserDto>() trên IQueryable như trong tài liệu Mapster
+                var lstQueryable = vSqlDb.vClient.Queryable<cls_User>().ToList().AsQueryable();
+                var lstUserDtos = lstQueryable.ProjectToType<cls_UserDto>().ToList();
+
+                return Ok(lstUserDtos);
+            }
+            catch (Exception objEx)
+            {
+                return BadRequest($"Lỗi khi dùng ProjectToType: {objEx.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Description: Endpoint thử nghiệm nhận Entity và sử dụng IMapper DI ánh xạ trực tiếp sang DTO
         /// Author: Antigravity
         /// Create Date: 20/07/2026
         /// </summary>
         /// <param name="objUserEntity">Thực thể người dùng đầu vào</param>
-        /// <returns>Đối tượng DTO sau khi được Mapster ánh xạ</returns>
-        [HttpPost("test-mapster")]
-        public IActionResult fn_TestMapsterEntityIntoDto([FromBody] cls_User objUserEntity)
+        /// <returns>Đối tượng DTO sau khi được IMapper DI ánh xạ</returns>
+        [HttpPost("test-mapster-di")]
+        public IActionResult fn_TestMapsterDiEntityIntoDto([FromBody] cls_User objUserEntity)
         {
             try
             {
@@ -176,19 +210,19 @@ namespace Lab.WebApi.Controllers
                     objUserEntity.dtCreateDate = DateTime.Now;
                 }
 
-                // Thực hiện ánh xạ Mapster từ Entity -> DTO
-                var objMappedDto = objUserEntity.Adapt<Lab.WebApi.DTOs.cls_UserDto>();
+                // Thực hiện ánh xạ bằng instance vMapper (IMapper DI)
+                var objMappedDto = vMapper.From(objUserEntity).AdaptToType<cls_UserDto>();
 
                 return Ok(new
                 {
-                    strNote = "Mapster đã ánh xạ thành công từ Entity (cls_User) sang DTO (cls_UserDto)",
+                    strNote = "Đã ánh xạ thành công từ Entity sang DTO sử dụng IMapper qua Dependency Injection!",
                     objOriginalEntity = objUserEntity,
                     objMappedDto = objMappedDto
                 });
             }
             catch (Exception objEx)
             {
-                return BadRequest($"Lỗi ánh xạ Mapster: {objEx.Message}");
+                return BadRequest($"Lỗi ánh xạ IMapper DI: {objEx.Message}");
             }
         }
     }
