@@ -17,7 +17,6 @@ builder.Services.AddControllers();
 builder.Services.AddSingleton<cls_SqlSugarDb>();
 
 // 3. Đăng ký Mapster vào ServiceCollection thông qua Dependency Injection (AddMapster)
-TypeAdapterConfig.GlobalSettings.Scan(Assembly.GetExecutingAssembly());
 builder.Services.AddMapster();
 
 // 4. Cấu hình Swagger / OpenAPI để tạo giao diện thử nghiệm API trực quan

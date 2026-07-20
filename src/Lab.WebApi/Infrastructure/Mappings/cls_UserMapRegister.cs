@@ -7,17 +7,17 @@ using Mapster;
 using Lab.WebApi.Entities;
 using Lab.WebApi.DTOs;
 
-namespace Lab.WebApi.Infrastructure
+namespace Lab.WebApi.Infrastructure.Mappings
 {
     /// <summary>
-    /// Description: Cấu hình ánh xạ Mapster giữa các lớp Thực thể (Entity) và DTO
+    /// Description: Lớp cấu hình quy tắc ánh xạ Mapster chuyên biệt cho đối tượng Người dùng (cls_User -> cls_UserDto)
     /// Author: Antigravity
     /// Create Date: 20/07/2026
     /// </summary>
-    public class cls_MapsterRegister : IRegister
+    public class cls_UserMapRegister : IRegister
     {
         /// <summary>
-        /// Description: Phương thức đăng ký cấu hình các thuộc tính tương ứng
+        /// Description: Phương thức đăng ký quy tắc Mapster cho module User
         /// Author: Antigravity
         /// Create Date: 20/07/2026
         /// </summary>
