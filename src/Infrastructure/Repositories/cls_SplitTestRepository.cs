@@ -3,19 +3,16 @@
  * Website: http://tacorp.vn
  */
 
-using SqlSugar;
-using Domain.Entities;
-using Domain.Repositories;
 using Infrastructure.Persistence;
 
 namespace Infrastructure.Repositories
 {
     /// <summary>
-    /// Description: Lớp cài đặt cụ thể Repository xử lý chia bảng SplitTable sử dụng SqlSugar ORM
+    /// Description: Lớp cài đặt cụ thể Repository xử lý chia bảng SplitTable (Kế thừa IScoped để tự động đăng ký Scoped DI)
     /// Author: Antigravity
     /// Create Date: 20/07/2026
     /// </summary>
-    public class cls_SplitTestRepository : Icls_SplitTestRepository
+    public class cls_SplitTestRepository : Icls_SplitTestRepository, IScoped
     {
         /// <summary>
         /// Description: Instance SqlSugar Database Context

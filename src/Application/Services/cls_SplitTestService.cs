@@ -3,19 +3,14 @@
  * Website: http://tacorp.vn
  */
 
-using Mapster;
-using Application.DTOs;
-using Domain.Entities;
-using Domain.Repositories;
-
 namespace Application.Services
 {
     /// <summary>
-    /// Description: Lớp dịch vụ xử lý nghiệp vụ chia bảng SplitTest (Application Service)
+    /// Description: Lớp dịch vụ xử lý nghiệp vụ chia bảng SplitTest (Kế thừa IScoped để tự động Scan DI Scoped)
     /// Author: Antigravity
     /// Create Date: 20/07/2026
     /// </summary>
-    public class cls_SplitTestService : Icls_SplitTestService
+    public class cls_SplitTestService : Icls_SplitTestService, IScoped
     {
         /// <summary>
         /// Description: Instance Repository truy cập cơ sở dữ liệu chia bảng

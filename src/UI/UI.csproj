@@ -7,10 +7,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Furion.Pure" Version="4.9.7.21" />
     <PackageReference Include="Mapster" Version="10.0.11" />
     <PackageReference Include="Mapster.DependencyInjection" Version="10.0.11" />
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.8" />
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
   </ItemGroup>
 
   <ItemGroup>

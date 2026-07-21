@@ -3,19 +3,14 @@
  * Website: http://tacorp.vn
  */
 
-using Mapster;
-using Application.DTOs;
-using Domain.Entities;
-using Domain.Repositories;
-
 namespace Application.Services
 {
     /// <summary>
-    /// Description: Lớp cài đặt dịch vụ nghiệp vụ Người dùng (User Application Service)
+    /// Description: Lớp cài đặt dịch vụ nghiệp vụ Người dùng (Kế thừa IScoped để tự động Scan DI Scoped)
     /// Author: Antigravity
     /// Create Date: 20/07/2026
     /// </summary>
-    public class cls_UserService : Icls_UserService
+    public class cls_UserService : Icls_UserService, IScoped
     {
         /// <summary>
         /// Description: Instance Repository truy cập dữ liệu người dùng

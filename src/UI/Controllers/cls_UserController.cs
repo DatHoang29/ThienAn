@@ -3,21 +3,16 @@
  * Website: http://tacorp.vn
  */
 
-using Microsoft.AspNetCore.Mvc;
-using Application.DTOs;
-using Application.Services;
-using Domain.Entities;
-using Infrastructure.Persistence;
-
-namespace WebApi.Controllers
+namespace UI.Controllers
 {
     /// <summary>
-    /// Description: API Controller tiếp nhận request quản lý Người dùng và điều phối xuống Application Service
+    /// Description: Controller thuộc tầng UI tiếp nhận HTTP/UI Request quản lý Người dùng
     /// Author: Antigravity
     /// Create Date: 17/07/2026
     /// </summary>
     [ApiController]
     [Route("api/User")]
+    [cls_AuditLogActionFilter] // 5.3.8 Áp dụng Action Filter Attribute (AOP Audit Log) cho toàn bộ Controller
     public class cls_UserController : ControllerBase
     {
         /// <summary>
@@ -66,39 +61,26 @@ namespace WebApi.Controllers
         [HttpGet]
         public IActionResult fn_GetAllUsers()
         {
-            try
-            {
-                var lstUserDtos = vUserService.fn_GetAllUsers();
-                return Ok(lstUserDtos);
-            }
-            catch (Exception objEx)
-            {
-                return BadRequest($"Lỗi: {objEx.Message}");
-            }
+            var lstUserDtos = vUserService.fn_GetAllUsers();
+            return Ok(lstUserDtos);
         }
 
         /// <summary>
-        /// Description: Thêm mới một người dùng vào hệ thống
+        /// Description: Thêm mới một người dùng vào hệ thống (Áp dụng ServiceFilter Authorization để kiểm tra API Key)
         /// </summary>
         /// <param name="objUser">Thông tin thực thể người dùng</param>
         /// <returns>Kết quả thêm mới thành công</returns>
         [HttpPost]
+        [ServiceFilter(typeof(cls_AuthorizationFilter))] // 5.3.6 Áp dụng Auth Filter cho phép kiểm tra Header X-Api-Key
         public IActionResult fn_AddUser([FromBody] cls_User objUser)
         {
-            try
+            if (objUser == null)
             {
-                if (objUser == null)
-                {
-                    return BadRequest("Dữ liệu người dùng không được để trống!");
-                }
+                return BadRequest("Dữ liệu người dùng không được để trống!");
+            }
 
-                var intInsertCount = vUserService.fn_AddUser(objUser);
-                return Ok($"Đã thêm thành công {intInsertCount} người dùng!");
-            }
-            catch (Exception objEx)
-            {
-                return BadRequest($"Lỗi: {objEx.Message}");
-            }
+            var intInsertCount = vUserService.fn_AddUser(objUser);
+            return Ok($"Đã thêm thành công {intInsertCount} người dùng!");
         }
 
         /// <summary>
@@ -107,21 +89,15 @@ namespace WebApi.Controllers
         /// <param name="intId">Định danh người dùng cần xóa</param>
         /// <returns>Kết quả xóa thành công</returns>
         [HttpDelete("{intId}")]
+        [ServiceFilter(typeof(cls_AuthorizationFilter))] // 5.3.6 Áp dụng Auth Filter
         public IActionResult fn_DeleteUser(int intId)
         {
-            try
+            var intDeleteCount = vUserService.fn_DeleteUser(intId);
+            if (intDeleteCount > 0)
             {
-                var intDeleteCount = vUserService.fn_DeleteUser(intId);
-                if (intDeleteCount > 0)
-                {
-                    return Ok($"Đã xóa thành công người dùng có Id {intId}!");
-                }
-                return NotFound($"Không tìm thấy người dùng có Id {intId} để xóa!");
+                return Ok($"Đã xóa thành công người dùng có Id {intId}!");
             }
-            catch (Exception objEx)
-            {
-                return BadRequest($"Lỗi: {objEx.Message}");
-            }
+            return NotFound($"Không tìm thấy người dùng có Id {intId} để xóa!");
         }
 
         /// <summary>
@@ -132,26 +108,30 @@ namespace WebApi.Controllers
         [HttpPost("test-mapster")]
         public IActionResult fn_TestMapster([FromBody] cls_User objUserEntity)
         {
-            try
+            if (objUserEntity == null)
             {
-                if (objUserEntity == null)
-                {
-                    return BadRequest("Dữ liệu đầu vào không hợp lệ!");
-                }
-
-                var objMappedDto = vUserService.fn_MapToDto(objUserEntity);
-
-                return Ok(new
-                {
-                    strNote = "Đã ánh xạ thành công từ Entity (cls_User) sang DTO (cls_UserDto) qua tầng Application Service!",
-                    objOriginalEntity = objUserEntity,
-                    objMappedDto = objMappedDto
-                });
+                return BadRequest("Dữ liệu đầu vào không hợp lệ!");
             }
-            catch (Exception objEx)
+
+            var objMappedDto = vUserService.fn_MapToDto(objUserEntity);
+
+            return Ok(new
             {
-                return BadRequest($"Lỗi ánh xạ Mapster: {objEx.Message}");
-            }
+                strNote = "Đã ánh xạ thành công từ Entity (cls_User Pure POCO) sang DTO (cls_UserDto) qua tầng Application Service!",
+                objOriginalEntity = objUserEntity,
+                objMappedDto = objMappedDto
+            });
+        }
+
+        /// <summary>
+        /// Description: Endpoint kiểm thử Exception Filter toàn cục (Cố tình tung ra ngoại lệ Exception)
+        /// </summary>
+        /// <returns>Sẽ được cls_GlobalExceptionFilter bắt lại và format JSON chuẩn</returns>
+        [HttpGet("test-exception")]
+        public IActionResult fn_TestException()
+        {
+            // Cố tình tung ra lỗi Exception để thử nghiệm Exception Filter toàn cục (5.3.9)
+            throw new InvalidOperationException("Lỗi thử nghiệm Exception Filter AOP!");
         }
     }
 }

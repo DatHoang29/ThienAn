@@ -3,13 +3,10 @@
  * Website: http://tacorp.vn
  */
 
-using Microsoft.AspNetCore.Mvc;
-using Application.Services;
-
-namespace WebApi.Controllers
+namespace UI.Controllers
 {
     /// <summary>
-    /// Description: API Controller kiểm thử tính năng chia bảng (SplitTable) theo DDD
+    /// Description: Controller thuộc tầng UI nhận HTTP/UI Request kiểm thử chia bảng (SplitTable) theo DDD
     /// Author: Antigravity
     /// Create Date: 20/07/2026
     /// </summary>
@@ -45,7 +42,7 @@ namespace WebApi.Controllers
 
                 return Ok(new
                 {
-                    strMessage = "Thêm thành công vào bảng phân chia theo ngày (Kiến trúc DDD)!",
+                    strMessage = "Thêm thành công vào bảng phân chia theo ngày (Pure POCO Domain + UI Layer)!",
                     objData = objDto,
                     strTableName = strTableName
                 });

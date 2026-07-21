@@ -3,19 +3,16 @@
  * Website: http://tacorp.vn
  */
 
-using SqlSugar;
-using Domain.Entities;
-using Domain.Repositories;
 using Infrastructure.Persistence;
 
 namespace Infrastructure.Repositories
 {
     /// <summary>
-    /// Description: Lớp cài đặt cụ thể Repository xử lý dữ liệu Người dùng sử dụng SqlSugar ORM
+    /// Description: Lớp cài đặt cụ thể Repository xử lý dữ liệu Người dùng (Kế thừa IScoped để tự động đăng ký Scoped DI)
     /// Author: Antigravity
     /// Create Date: 20/07/2026
     /// </summary>
-    public class cls_UserRepository : Icls_UserRepository
+    public class cls_UserRepository : Icls_UserRepository, IScoped
     {
         /// <summary>
         /// Description: Instance SqlSugar Database Context

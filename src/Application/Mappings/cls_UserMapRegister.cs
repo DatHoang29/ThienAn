@@ -3,32 +3,26 @@
  * Website: http://tacorp.vn
  */
 
-using Mapster;
-using Domain.Entities;
-using Application.DTOs;
-
 namespace Application.Mappings
 {
     /// <summary>
-    /// Description: Lớp cấu hình quy tắc ánh xạ Mapster chuyên biệt cho đối tượng Người dùng (cls_User -> cls_UserDto)
+    /// Description: Khai báo các quy tắc ánh xạ Mapster cho thực thể Người dùng
     /// Author: Antigravity
     /// Create Date: 20/07/2026
     /// </summary>
     public class cls_UserMapRegister : IRegister
     {
         /// <summary>
-        /// Description: Phương thức đăng ký quy tắc Mapster cho module User
-        /// Author: Antigravity
-        /// Create Date: 20/07/2026
+        /// Description: Định nghĩa quy tắc mapping giữa cls_User và cls_UserDto
         /// </summary>
-        /// <param name="objConfig">Đối tượng TypeAdapterConfig của Mapster</param>
-        public void Register(TypeAdapterConfig objConfig)
+        /// <param name="config">Đối tượng cấu hình TypeAdapterConfig của Mapster</param>
+        public void Register(TypeAdapterConfig config)
         {
-            objConfig.NewConfig<cls_User, cls_UserDto>()
+            config.NewConfig<cls_User, cls_UserDto>()
                 .Map(dest => dest.vId, src => src.intId)
                 .Map(dest => dest.vUserName, src => src.strUserName)
                 .Map(dest => dest.vEmail, src => src.strEmail)
-                .Map(dest => dest.vFormattedCreateDate, src => src.dtCreateDate.HasValue ? src.dtCreateDate.Value.ToString("dd/MM/yyyy HH:mm:ss") : "Chưa xác định");
+                .Map(dest => dest.vFormattedCreateDate, src => src.dtCreateDate.HasValue ? src.dtCreateDate.Value.ToString("dd/MM/yyyy HH:mm:ss") : string.Empty);
         }
     }
 }

@@ -3,25 +3,20 @@
  * Website: http://tacorp.vn
  */
 
-using SqlSugar;
-
 namespace Domain.Entities
 {
     /// <summary>
-    /// Description: Thực thể kiểm thử chia bảng tự động (Table Splitting) theo ngày
+    /// Description: Thực thể kiểm thử chia bảng thuần túy (Pure POCO Domain Entity - Không dính líu ORM/DB)
     /// Author: Antigravity
     /// Create Date: 20/07/2026
     /// </summary>
-    [SplitTable(SplitType.Day)]
-    [SugarTable("tbl_SplitTestTable_{year}{month}{day}")]
     public class cls_SplitTestTable
     {
         /// <summary>
-        /// Description: Mã định danh khóa chính (Dùng Snowflake ID, không dùng tự tăng int)
+        /// Description: Mã định danh khóa chính (Snowflake ID)
         /// Author: Antigravity
         /// Create Date: 20/07/2026
         /// </summary>
-        [SugarColumn(IsPrimaryKey = true, ColumnName = "Id")]
         public long vId { get; set; }
 
         /// <summary>
@@ -29,16 +24,13 @@ namespace Domain.Entities
         /// Author: Antigravity
         /// Create Date: 20/07/2026
         /// </summary>
-        [SugarColumn(ColumnName = "Name", Length = 100, IsNullable = true)]
         public string? vName { get; set; }
 
         /// <summary>
-        /// Description: Thời gian tạo (Trường phân chia bảng - SplitField)
+        /// Description: Thời gian tạo (Trường dùng để phân chia bảng)
         /// Author: Antigravity
         /// Create Date: 20/07/2026
         /// </summary>
-        [SplitField]
-        [SugarColumn(ColumnName = "CreateTime")]
         public DateTime vCreateTime { get; set; }
     }
 }
