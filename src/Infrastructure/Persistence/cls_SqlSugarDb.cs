@@ -6,7 +6,7 @@
 namespace Infrastructure.Persistence
 {
     /// <summary>
-    /// Description: Dịch vụ cấu hình và khởi tạo SqlSugar Client (Kế thừa ISingleton để tự động đăng ký Singleton DI)
+    /// Description: Dịch vụ cấu hình và khởi tạo SqlSugar Client, chứa toàn bộ cấu hình Mapping ORM của Infrastructure (Kế thừa ISingleton để tự động đăng ký Singleton DI)
     /// Author: Antigravity
     /// Create Date: 17/07/2026
     /// </summary>

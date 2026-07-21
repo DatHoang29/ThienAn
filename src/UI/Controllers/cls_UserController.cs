@@ -6,7 +6,7 @@
 namespace UI.Controllers
 {
     /// <summary>
-    /// Description: Controller thuộc tầng UI tiếp nhận HTTP/UI Request quản lý Người dùng
+    /// Description: Controller thuộc tầng UI tiếp nhận HTTP/UI Request quản lý Người dùng và điều phối xuống Application Service
     /// Author: Antigravity
     /// Create Date: 17/07/2026
     /// </summary>
