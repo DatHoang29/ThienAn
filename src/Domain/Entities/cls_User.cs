@@ -3,24 +3,20 @@
  * Website: http://tacorp.vn
  */
 
-using SqlSugar;
-
 namespace Domain.Entities
 {
     /// <summary>
-    /// Description: Thực thể đại diện cho bảng User trong cơ sở dữ liệu
+    /// Description: Thực thể người dùng thuần túy (Pure POCO Domain Entity - Không dính líu ORM/DB)
     /// Author: Antigravity
     /// Create Date: 17/07/2026
     /// </summary>
-    [SugarTable("tbl_User")]
     public class cls_User
     {
         /// <summary>
-        /// Description: Định danh duy nhất của người dùng (Khóa chính, tự tăng)
+        /// Description: Định danh duy nhất của người dùng
         /// Author: Antigravity
         /// Create Date: 17/07/2026
         /// </summary>
-        [SugarColumn(IsPrimaryKey = true, IsIdentity = true, ColumnName = "Id")]
         public int intId { get; set; }
 
         /// <summary>
@@ -28,7 +24,6 @@ namespace Domain.Entities
         /// Author: Antigravity
         /// Create Date: 17/07/2026
         /// </summary>
-        [SugarColumn(ColumnName = "UserName", Length = 50, IsNullable = false)]
         public string strUserName { get; set; } = null!;
 
         /// <summary>
@@ -36,7 +31,6 @@ namespace Domain.Entities
         /// Author: Antigravity
         /// Create Date: 17/07/2026
         /// </summary>
-        [SugarColumn(ColumnName = "Email", Length = 100, IsNullable = true)]
         public string? strEmail { get; set; }
 
         /// <summary>
@@ -44,7 +38,6 @@ namespace Domain.Entities
         /// Author: Antigravity
         /// Create Date: 17/07/2026
         /// </summary>
-        [SugarColumn(ColumnName = "CreateDate", IsNullable = true)]
         public DateTime? dtCreateDate { get; set; }
     }
 }

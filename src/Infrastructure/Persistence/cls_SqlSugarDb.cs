@@ -10,7 +10,7 @@ using Domain.Entities;
 namespace Infrastructure.Persistence
 {
     /// <summary>
-    /// Description: Dịch vụ cấu hình và khởi tạo SqlSugar Client, xử lý tự động tạo DB và bảng (Code First)
+    /// Description: Dịch vụ cấu hình và khởi tạo SqlSugar Client, chứa toàn bộ cấu hình Mapping ORM của Infrastructure
     /// Author: Antigravity
     /// Create Date: 17/07/2026
     /// </summary>
@@ -24,7 +24,7 @@ namespace Infrastructure.Persistence
         public readonly SqlSugarScope vClient;
 
         /// <summary>
-        /// Description: Hàm khởi tạo, đọc cấu hình kết nối và thiết lập SqlSugarScope
+        /// Description: Hàm khởi tạo, cấu hình chuỗi kết nối và đăng ký Mapping ORM ngoài (External Mapping) cho POCO Entities
         /// Author: Antigravity
         /// Create Date: 17/07/2026
         /// </summary>
@@ -37,7 +37,65 @@ namespace Infrastructure.Persistence
             {
                 ConnectionString = strConnectionString,
                 DbType = DbType.SqlServer,
-                IsAutoCloseConnection = true
+                IsAutoCloseConnection = true,
+                ConfigureExternalServices = new ConfigureExternalServices
+                {
+                    // Cấu hình Mapping ORM tách biệt hoàn toàn khỏi Domain Entities (Fluent / Code-based Mapping)
+                    EntityService = (objProperty, objColumn) =>
+                    {
+                        // 1. Cấu hình bảng và cột cho Thực thể cls_User
+                        if (objProperty.DeclaringType == typeof(cls_User))
+                        {
+                            objColumn.DbTableName = "tbl_User";
+
+                            if (objProperty.Name == nameof(cls_User.intId))
+                            {
+                                objColumn.IsPrimarykey = true;
+                                objColumn.IsIdentity = true;
+                                objColumn.DbColumnName = "Id";
+                            }
+                            else if (objProperty.Name == nameof(cls_User.strUserName))
+                            {
+                                objColumn.DbColumnName = "UserName";
+                                objColumn.Length = 50;
+                                objColumn.IsNullable = false;
+                            }
+                            else if (objProperty.Name == nameof(cls_User.strEmail))
+                            {
+                                objColumn.DbColumnName = "Email";
+                                objColumn.Length = 100;
+                                objColumn.IsNullable = true;
+                            }
+                            else if (objProperty.Name == nameof(cls_User.dtCreateDate))
+                            {
+                                objColumn.DbColumnName = "CreateDate";
+                                objColumn.IsNullable = true;
+                            }
+                        }
+
+                        // 2. Cấu hình chia bảng (SplitTable) cho Thực thể cls_SplitTestTable
+                        if (objProperty.DeclaringType == typeof(cls_SplitTestTable))
+                        {
+                            objColumn.DbTableName = "tbl_SplitTestTable_{year}{month}{day}";
+
+                            if (objProperty.Name == nameof(cls_SplitTestTable.vId))
+                            {
+                                objColumn.IsPrimarykey = true;
+                                objColumn.DbColumnName = "Id";
+                            }
+                            else if (objProperty.Name == nameof(cls_SplitTestTable.vName))
+                            {
+                                objColumn.DbColumnName = "Name";
+                                objColumn.Length = 100;
+                                objColumn.IsNullable = true;
+                            }
+                            else if (objProperty.Name == nameof(cls_SplitTestTable.vCreateTime))
+                            {
+                                objColumn.DbColumnName = "CreateTime";
+                            }
+                        }
+                    }
+                }
             },
             objDb =>
             {

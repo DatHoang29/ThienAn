@@ -9,10 +9,10 @@ using Application.Services;
 using Domain.Entities;
 using Infrastructure.Persistence;
 
-namespace WebApi.Controllers
+namespace Presentation.Controllers
 {
     /// <summary>
-    /// Description: API Controller tiếp nhận request quản lý Người dùng và điều phối xuống Application Service
+    /// Description: Controller thuộc tầng Presentation tiếp nhận HTTP/UI Request quản lý Người dùng và điều phối xuống Application Service
     /// Author: Antigravity
     /// Create Date: 17/07/2026
     /// </summary>
@@ -143,7 +143,7 @@ namespace WebApi.Controllers
 
                 return Ok(new
                 {
-                    strNote = "Đã ánh xạ thành công từ Entity (cls_User) sang DTO (cls_UserDto) qua tầng Application Service!",
+                    strNote = "Đã ánh xạ thành công từ Entity (cls_User Pure POCO) sang DTO (cls_UserDto) qua tầng Application Service!",
                     objOriginalEntity = objUserEntity,
                     objMappedDto = objMappedDto
                 });
