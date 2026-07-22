@@ -6,17 +6,17 @@
 namespace UI.Controllers
 {
     /// <summary>
-    /// Description: Controller thuộc tầng UI tiếp nhận HTTP/UI Request quản lý Người dùng và điều phối xuống Application Service
+    /// Description: Controller thuộc tầng UI tiếp nhận HTTP/UI Request quản lý Người dùng sử dụng Wolverine Mediator
     /// Author: Antigravity
     /// Create Date: 17/07/2026
     /// </summary>
     [ApiController]
     [Route("api/User")]
-    [cls_AuditLogActionFilter] // 5.3.8 Áp dụng Action Filter Attribute (AOP Audit Log) cho toàn bộ Controller
+    [cls_AuditLogActionFilter] // Áp dụng Action Filter AOP
     public class cls_UserController : ControllerBase
     {
         /// <summary>
-        /// Description: Application Service xử lý nghiệp vụ Người dùng
+        /// Description: Application Service để truy vấn dữ liệu (Queries - CQRS)
         /// </summary>
         private readonly Icls_UserService vUserService;
 
@@ -28,7 +28,7 @@ namespace UI.Controllers
         /// <summary>
         /// Description: Hàm khởi tạo UserController tiếp nhận Application Service và SqlSugarDb qua DI
         /// </summary>
-        /// <param name="objUserService">Instance Icls_UserService được inject</param>
+        /// <param name="objUserService">Instance Icls_UserService được inject cho luồng Query</param>
         /// <param name="objSqlDb">Instance DB Context được inject</param>
         public cls_UserController(Icls_UserService objUserService, cls_SqlSugarDb objSqlDb)
         {
@@ -55,7 +55,7 @@ namespace UI.Controllers
         }
 
         /// <summary>
-        /// Description: Lấy toàn bộ danh sách người dùng DTO
+        /// Description: Lấy toàn bộ danh sách người dùng DTO (Luồng Query)
         /// </summary>
         /// <returns>Danh sách DTO người dùng</returns>
         [HttpGet]
@@ -66,38 +66,50 @@ namespace UI.Controllers
         }
 
         /// <summary>
-        /// Description: Thêm mới một người dùng vào hệ thống (Áp dụng ServiceFilter Authorization để kiểm tra API Key)
+        /// Description: Thêm mới một người dùng bằng Wolverine Mediator (Luồng Command - CQRS)
         /// </summary>
-        /// <param name="objUser">Thông tin thực thể người dùng</param>
+        /// <param name="objUser">Thông tin thực thể người dùng nhận từ Body</param>
+        /// <param name="bus">IMessageBus của Wolverine được tiêm qua Parameter (Method Injection)</param>
         /// <returns>Kết quả thêm mới thành công</returns>
         [HttpPost]
-        [ServiceFilter(typeof(cls_AuthorizationFilter))] // 5.3.6 Áp dụng Auth Filter cho phép kiểm tra Header X-Api-Key
-        public IActionResult fn_AddUser([FromBody] cls_User objUser)
+        [ServiceFilter(typeof(cls_AuthorizationFilter))] // Bộ lọc Auth
+        public async Task<IActionResult> fn_AddUser([FromBody] cls_User objUser, [FromServices] IMessageBus bus)
         {
             if (objUser == null)
             {
                 return BadRequest("Dữ liệu người dùng không được để trống!");
             }
 
-            var intInsertCount = vUserService.fn_AddUser(objUser);
-            return Ok($"Đã thêm thành công {intInsertCount} người dùng!");
+            // Đóng gói dữ liệu đầu vào thành Mệnh lệnh (Command)
+            var command = new cls_CreateUserCommand(objUser.strUserName, objUser.strEmail);
+
+            // Gửi qua Command Bus của Wolverine để tự động chuyển tiếp tới cls_CreateUserHandler xử lý
+            var intInsertCount = await bus.InvokeAsync<int>(command);
+
+            return Ok($"[Wolverine Mediator] Đã thêm thành công {intInsertCount} người dùng!");
         }
 
         /// <summary>
-        /// Description: Xóa một người dùng theo Id định danh
+        /// Description: Xóa một người dùng bằng Wolverine Mediator (Luồng Command - CQRS)
         /// </summary>
         /// <param name="intId">Định danh người dùng cần xóa</param>
+        /// <param name="bus">IMessageBus của Wolverine được tiêm qua Parameter (Method Injection)</param>
         /// <returns>Kết quả xóa thành công</returns>
         [HttpDelete("{intId}")]
-        [ServiceFilter(typeof(cls_AuthorizationFilter))] // 5.3.6 Áp dụng Auth Filter
-        public IActionResult fn_DeleteUser(int intId)
+        [ServiceFilter(typeof(cls_AuthorizationFilter))] // Bộ lọc Auth
+        public async Task<IActionResult> fn_DeleteUser(int intId, [FromServices] IMessageBus bus)
         {
-            var intDeleteCount = vUserService.fn_DeleteUser(intId);
+            // Đóng gói dữ liệu đầu vào thành Mệnh lệnh xóa (Command)
+            var command = new cls_DeleteUserCommand(intId);
+
+            // Gửi qua Command Bus của Wolverine để tự động chuyển tiếp tới cls_DeleteUserHandler xử lý
+            var intDeleteCount = await bus.InvokeAsync<int>(command);
+
             if (intDeleteCount > 0)
             {
-                return Ok($"Đã xóa thành công người dùng có Id {intId}!");
+                return Ok($"[Wolverine Mediator] Đã xóa thành công người dùng có Id {intId}!");
             }
-            return NotFound($"Không tìm thấy người dùng có Id {intId} để xóa!");
+            return NotFound($"[Wolverine Mediator] Không tìm thấy người dùng có Id {intId} để xóa!");
         }
 
         /// <summary>
@@ -130,7 +142,6 @@ namespace UI.Controllers
         [HttpGet("test-exception")]
         public IActionResult fn_TestException()
         {
-            // Cố tình tung ra lỗi Exception để thử nghiệm Exception Filter toàn cục (5.3.9)
             throw new InvalidOperationException("Lỗi thử nghiệm Exception Filter AOP!");
         }
     }

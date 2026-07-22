@@ -1,0 +1,7 @@
+{
+    "dotrush.roslyn.projectOrSolutionFiles": [
+        "/mnt/d/Study/Projects/Education/src/Services/Education.csproj"
+    ],
+    "postman.settings.dotenv-detection-notification-visibility": false,
+    "java.compile.nullAnalysis.mode": "automatic"
+}

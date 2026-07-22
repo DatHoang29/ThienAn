@@ -22,7 +22,8 @@ namespace Application.Mappings
                 .Map(dest => dest.vId, src => src.intId)
                 .Map(dest => dest.vUserName, src => src.strUserName)
                 .Map(dest => dest.vEmail, src => src.strEmail)
-                .Map(dest => dest.vFormattedCreateDate, src => src.dtCreateDate.HasValue ? src.dtCreateDate.Value.ToString("dd/MM/yyyy HH:mm:ss") : string.Empty);
-        }
+                .Map(dest => dest.vFormattedCreateDate, src => src.dtCreateDate.HasValue ? src.dtCreateDate.Value.ToString("dd/MM/yyyy HH:mm:ss") : string.Empty)
+                ;
     }
+        }
 }
