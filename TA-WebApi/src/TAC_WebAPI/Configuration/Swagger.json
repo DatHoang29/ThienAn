@@ -1,0 +1,25 @@
+{
+  "SpecificationDocumentSettings": {
+    "RoutePrefix": "api",
+    "DocumentTitle": "Default",
+    "GroupOpenApiInfos": [
+      {
+        "Group": "Default",
+        "Title": "Default",
+        "Description": "API document",
+        "Version": "1.0.0",
+        "Order": 1000
+      }
+      
+    ],
+    "DefaultGroupName": "Default", //Default
+    "DocExpansionState": "List", // List、Full、None
+    "EnableAllGroups": true,
+    "LoginInfo": {
+      "Enabled": true, // Swagger Auth
+      "CheckUrl": "/api/swagger/checkUrl",
+      "SubmitUrl": "/api/swagger/submitUrl"
+    },
+    "EnumToNumber": true // Enum to number
+  }
+}

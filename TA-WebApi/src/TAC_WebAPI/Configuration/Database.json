@@ -1,0 +1,52 @@
+{
+  "DbConnection": {
+    "EnableConsoleSql": true, // Bật Log console
+    "ConnectionConfigs": [
+      {
+        "ConfigId": "Default", // "Default"
+        "DbType": "SqlServer", // MySql、SqlServer、Sqlite、Oracle、PostgreSQL、Dm、Kdbndp、Oscar、MySqlConnector、Access、OpenGauss、QuestDB、HG、ClickHouse、GBase、Odbc、Custom
+        "ConnectionString": "Server=.;Database=PROD_WebCore;MultipleActiveResultSets=true;User ID=sa;Password=123;TrustServerCertificate=True",
+        "DbSettings": {
+          "EnableInitDb": true, // Init DB
+          "EnableDiffLog": false, // Enable DiffLog
+          "EnableUnderLine": false // CamelCase
+        },
+        "TableSettings": {
+          "EnableInitTable": true, // Init Table
+          "EnableIncreTable": false //Enable incremental
+        },
+        "SeedSettings": {
+          "EnableInitSeed": true, // Init Seed Data
+          "EnableIncreSeed": false // Enable incremental
+        },
+        "SlaveSettings": [
+          //{
+          //  "HitRate": 10,
+          //  "ConnectionString": "Server=.;Database=PROD_ITS2_S;MultipleActiveResultSets=true;User ID=sa;Password=123;TrustServerCertificate=True"
+          //}
+        ]
+      },
+      {
+        "ConfigId": "LogDefault", // "LogDefault for write log"
+        "DbType": "SqlServer", // MySql、SqlServer、Sqlite、Oracle、PostgreSQL、Dm、Kdbndp、Oscar、MySqlConnector、Access、OpenGauss、QuestDB、HG、ClickHouse、GBase、Odbc、Custom
+        "ConnectionString": "Server=.;Database=PROD_WebCore_Log;MultipleActiveResultSets=true;User ID=sa;Password=123;TrustServerCertificate=True", 
+        "DbSettings": {
+          "EnableInitDb": true, // Init DB
+          "EnableDiffLog": false, // Enable DiffLog
+          "EnableUnderLine": false // CamelCase
+        },
+        "TableSettings": {
+          "EnableInitTable": true, // Init Table
+          "EnableIncreTable": false //Enable incremental
+        },
+        "SeedSettings": {
+          "EnableInitSeed": true, // Init Seed Data
+          "EnableIncreSeed": false // Enable incremental
+        },
+        "SlaveSettings": [
+
+        ]
+      }
+    ]
+  }
+}

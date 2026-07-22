@@ -1,0 +1,13 @@
+{
+  "param.VMS_ACCIDENT_MESSAGE_ROW1": "Accident Ahead",
+  "param.VMS_ACCIDENT_MESSAGE_ROW2": "Please reduce your speed and follow the instructions",
+  "param.VMS_FIRE_MESSAGE_ROW1": "Fire Ahead",
+  "param.VMS_FIRE_MESSAGE_ROW2": "Please take a different direction",
+  "param.VMS_INCIDENT_MESSAGE_ROW1": "Incident Ahead",
+  "param.VMS_INCIDENT_MESSAGE_ROW2": "Please follow the instructions",
+  "param.VMS_TRAFFIC_JAM_MESSAGE_ROW1": "Traffic Jam Ahead",
+  "param.VMS_TRAFFIC_JAM_MESSAGE_ROW2": "Please follow the directions",
+  "param.VMS_FA_MESSAGE_ROW1": "Warning Fire Ahead",
+  "param.VMS_FA_MESSAGE_ROW2": "Please Other Way",
+  "fe.base.button.cancel": "Cancel"
+}

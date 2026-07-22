@@ -1,0 +1,59 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning",
+      "Microsoft.EntityFrameworkCore": "Information"
+    },
+    "File": {
+      "Enabled": false, // Log File
+      "FileName": "logs/{0:yyyyMMdd}_{1}.log", // Log file name
+      "Append": true, // Append
+      // "MinimumLevel": "Information", // Level
+      "FileSizeLimitBytes": 10485760, // 10M=10*1024*1024
+      "MaxRollingFiles": 30 // Max files
+    },
+    "Database": {
+      "Enabled": true, // Log DB
+      "MinimumLevel": "Information"
+    },
+    "Monitor": {
+      "GlobalEnabled": true, // Enable global log interception
+      "IncludeOfMethods": [], // Intercept specific methods, effective when GlobalEnabled=false
+      "ExcludeOfMethods": [], // Exclude specific methods, effective when GlobalEnabled=true
+      "BahLogLevel": "Information", // Oops.Oh and Oops.Bah business log output level
+      "WithReturnValue": true, // Whether to include return values, default true
+      "ReturnValueThreshold": 500, // Return value string threshold, default 0 for full output
+      "JsonBehavior": "None", // Whether to output JSON, default None (OnlyJson, All)
+      "JsonIndented": false, // Whether to format JSON
+      "UseUtcTimestamp": false, // Time format UTC, LOCAL
+      "ConsoleLog": true // Whether to display console logs
+    }
+  }
+  //, //Nlog setting
+  //"NLog": {
+  //  "throwConfigExceptions": true,
+  //  "targets": {
+  //    "async": true,
+  //    "logfile": {
+  //      "type": "File",
+  //      "fileName": "D:/Logs/nlog-${shortdate}.log"
+  //    },
+  //    "logconsole": {
+  //      "type": "ColoredConsole"
+  //    }
+  //  },
+  //  "rules": [
+  //    {
+  //      "logger": "*",
+  //      "minLevel": "Info",
+  //      "writeTo": "logconsole"
+  //    },
+  //    {
+  //      "logger": "*",
+  //      "minLevel": "Error",
+  //      "writeTo": "logfile"
+  //    }
+  //  ]
+  //}
+}

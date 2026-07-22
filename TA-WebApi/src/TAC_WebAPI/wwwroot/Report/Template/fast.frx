@@ -1,0 +1,56 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Report ScriptLanguage="CSharp" ReportInfo.Created="10/12/2024 09:13:46" ReportInfo.Modified="10/24/2024 08:28:46" ReportInfo.CreatorVersion="2024.2.0.0">
+  <Dictionary>
+    <JsonDataSourceConnection Name="Connection" ConnectionString="rijcmlqCn5XYQep+rYe1HwHQetMtH3MI0dRAQ/srQ+KKvT1znnmuVkALteKB8moUrPESiwNQb4ByKYTtEu5bhxVFwdbeWO75FJiQjFUlRO2LbBqf+F7vn1UlzAo/g6ha8pZnbxRJdT6v6SjC9uD/UxlxTcqFJZAYAPcEdxDeXtvLEz7ago9JqxKNMlnigUYG+kUh+1nkvBhc88KG27ibS0wUNMMR4lslfR59M9DydAWwTIBsIMjcyd3ePt/LrxwMDBnQ4sR1bquJb3AbhyMSQi8mi9BJz2Vgg5ZSlQ4cY7cVVDrdVfw+dFEZ9ljpJOjMBch6uRSefzVyCU6zAOFgmHwYk7R/G7qyu9Vru5gvHaFoHFejkbv2eItWzWQ4OvNO00WBOVirKuFmGMyC7FtohVcx/Jv6hK4UmSlNHx9+0GJzghs6G8AdmFRgUIwtOGNKOJ79IT5lcWOHKjR6t3iWDy5kDCoLl96gkAvfyiFyBk1wXjlUy+3JbysLKiK+eN3ZaEx0raq36JxWeiDkLjJIL8BfXvy8eVCpgEHiz7p3KzAB2IBf+2q7QqNRVYh70u3Ps7uqWNRaIG1CkYK2sQvnU4CNNuWH539woZE+YjmleV+trOww8/4Z0xAIM2a4O87Lgjc9YG99CDH2iattxjzMFL/7mtJng==">
+      <JsonTableDataSource Name="JSON" Alias="Test" DataType="FastReport.Utils.Json.JsonArray" Enabled="true" TableName="Test" SimpleStructure="true">
+        <JsonTableDataSource Name="table" DataType="FastReport.JsonBase" Enabled="true" SimpleStructure="true">
+          <Column Name="id" DataType="System.String"/>
+          <Column Name="name" DataType="System.String"/>
+        </JsonTableDataSource>
+        <Column Name="image" DataType="System.String"/>
+      </JsonTableDataSource>
+    </JsonDataSourceConnection>
+    <JsonDataSourceConnection Name="Connection1" ConnectionString="rijcmlqap9wg4OIay16G343eKjG/SurlaPBh7T1smmnZgZ17ye5qToSM5pbj+JqhdNXVPgRfKxNDLphkEeXMgcD0s1fdieQWlDHvvGT+XFnhfYvcC78I7XKZ8Iuk78S8RUTlchIvOapfzZy897f949fQ+L33YrbIf7sE+McU1GRfZU8ktrYZeM1efhe17lm7UDjs7DNzRJ3PQSA/b4JDRTUZNpY+o8uO9MCozMuUi9aZefHespbbMOiEoFKLumR7jrNvxIQ2XA8MWDHcfASRQtA7zls79Ux9AmsSZF95kBFQ4To8/wGjsil7/B4GDKlP03BjT4tFZOIkWquwMcj+aXWVkBCOFXYcrjleLb3QXNz2oLQ8WNMzaE5YXr98mRXMsyOl8LfdOQS9Ghb5MOT9CMYgnzIJXRh+ZAPN1ACQItTNOpz0zsX1GP0mI+MZfPPqGb5gx8XQfLOaf05EhVRpQdw7zI3Bb5Aj8lKNTifMIp1Didk0JySD2opJVsAYluQbbZHTB5d840djaUHeocjj6C4eR+RIUd8DCXx/4tsHkiopuG6CYCJGEg3kjXrxst3iDS2NMtDDQOKCPD/pzuxpUdzxjwcVk8Wt54usOtIn5khqkN7G7ZyyCXz0q7N4Db46asBWHaI+UU5qQvI6YLKPt0Psj+RFA+CnCRCir1C8koOH5LUEug=">
+      <JsonTableDataSource Name="JSON1" DataType="FastReport.Utils.Json.JsonArray" Enabled="true" TableName="JSON" SimpleStructure="true">
+        <JsonTableDataSource Name="list" DataType="FastReport.JsonBase" Enabled="true" SimpleStructure="true">
+          <Column Name="code" DataType="System.String"/>
+          <Column Name="name" DataType="System.String"/>
+        </JsonTableDataSource>
+        <Column Name="image" DataType="System.String"/>
+      </JsonTableDataSource>
+    </JsonDataSourceConnection>
+  </Dictionary>
+  <ReportPage Name="Page1" Watermark.Font="Arial, 60pt">
+    <ReportTitleBand Name="ReportTitle1" Width="718.2" Height="37.8">
+      <TextObject Name="Text1" Left="226.8" Top="9.45" Width="292.95" Height="18.9" Text="DEMO BÁO CÁO THÁNG 10" Font="Arial, 10pt, style=Bold"/>
+    </ReportTitleBand>
+    <PageHeaderBand Name="PageHeader1" Top="41.8" Width="718.2" Height="170.1">
+      <PictureObject Name="Picture1" Left="132.3" Top="9.45" Width="444.15" Height="141.75" DataColumn="Test.image"/>
+    </PageHeaderBand>
+    <DataBand Name="Data1" Top="215.9" Width="718.2" Height="88.83" DataSource="table">
+      <TableObject Name="Table1" Left="18.9" Top="9.45" Width="443.19" Height="79.38">
+        <TableColumn Name="Column1" Width="147.73"/>
+        <TableColumn Name="Column2" Width="147.73"/>
+        <TableColumn Name="Column3" Width="147.73"/>
+        <TableRow Name="Row1" Height="39.69">
+          <TableCell Name="Cell1" Text="STT" Font="Arial, 10pt"/>
+          <TableCell Name="Cell2" Text="Code" Font="Arial, 10pt"/>
+          <TableCell Name="Cell3" Text="Name" Font="Arial, 10pt"/>
+        </TableRow>
+        <TableRow Name="Row2" Height="39.69">
+          <TableCell Name="Cell6" Font="Arial, 10pt"/>
+          <TableCell Name="Cell7" Text="[Test.table.id]" Font="Arial, 10pt"/>
+          <TableCell Name="Cell8" Text="[Test.table.name]" Font="Arial, 10pt"/>
+        </TableRow>
+      </TableObject>
+    </DataBand>
+    <DataBand Name="Data2" Top="308.73" Width="718.2" Height="103.95" DataSource="list">
+      <TextObject Name="Text3" Left="47.25" Top="37.8" Width="94.5" Height="18.9" Text="[JSON1.list.code]" Font="Arial, 10pt, style=Bold"/>
+      <TextObject Name="Text4" Left="207.9" Top="37.8" Width="151.2" Height="18.9" Text="[JSON1.list.name]" Font="Arial, 10pt, style=Bold"/>
+      <TextObject Name="Text5" Left="529.2" Top="37.8" Width="170.1" Height="18.9" Text="[JSON1.image]" Font="Arial, 10pt, style=Bold"/>
+    </DataBand>
+    <PageFooterBand Name="PageFooter1" Top="416.68" Width="718.2" Height="47.25">
+      <TextObject Name="Text2" Left="226.8" Top="18.9" Width="292.95" Height="18.9" Text="DEMO BÁO CÁO THÁNG 10" Font="Arial, 10pt"/>
+    </PageFooterBand>
+  </ReportPage>
+</Report>

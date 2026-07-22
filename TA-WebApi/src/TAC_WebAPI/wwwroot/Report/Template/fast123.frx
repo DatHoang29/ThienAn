@@ -1,0 +1,64 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Report ScriptLanguage="CSharp" ReportInfo.Created="10/12/2024 09:13:46" ReportInfo.Modified="10/28/2024 10:18:53" ReportInfo.CreatorVersion="2024.2.0.0">
+  <Dictionary>
+    <JsonDataSourceConnection Name="Connection" ConnectionString="rijcmlqCn5XYQep+rYe1HwHQetMtH3MI0dRAQ/srQ+KKvT1znn7tEvJf/nCRFAhdESaCrjWJC0dC/NjatZrg4b7stln4mOScp5kqjYvc8M158HCCzK31wWbZ4DSvIUJTt2iB4C1yo/ejc+H4XJ7p5VZx6sT0hnqxAWgHta3NsBkG/Z4jimtDXgKxeK6enLvvaeHoud6OH0MM1F8Jybi2H1uvx7PKtU9DhNTy+1f/38sLGV+a60yLeCeEhvfAT/XoR+W27hv1H6WGd7doiFjVO94P+O/rQ0xR3ZSmGGT3Jd2Z0oCiuVv4sMhVe554weSIFBGbwVkvNPqLfdVyOJse77yQV2r5nTY4Ng20E1fzfhOeEvVg1mOUn77AWF/wIDg4NUghhKQFWzWihHd6oXKQ3AG7f7JbvBWpnYW59vm+G4aYH1gKAfs6WewDrY2NqztYGWbdBWiDmNLg5a5bEnxo74Je0+vedkSSB1i2tiB88sUunA5cL5ffCYdzSD2LyiutlXQ9nFoX6Lz3D8X9fuGsG65HVuZHYuCCDBjUNQL4gnHrG6rmi8Q4RUiG9xFYzDJuxxqvkU0LWF7ys1aNp9vLKq/1Y8wgifmS9yFpD7ipm6H3IzpPqharT4KCch8LgRpcPvdMVeyp0RKxdHzudhVPZ4cVhz/v08XW1DIaRcvXL8ofXsFIrmrdBxg8VsYIZzDmeJn15/fL28fF3ToX0BH7ZJvRjPwZENihWAbOx/H2vET3iNsYqtiqck1fp4GyOzGDi7Ifn2WslIbrWjPDxYLG9kc51XuQuam8qePRMgd0qZWKOdkOL05h0xG69Wx8CmhbbxcUae7Xhwkaf7dmkZpOYaNS4/CiJ0fatsbpjDW47QABVdGKSjgWayEcnW6mKX2orbaZej++74GJ8OmbmpyuT8HY5cd4XtFhVUYSq3PlGnjs1DPu1FFqF0YGdXyAy352BV3Ace9g9B2hUyy+mYWb+auqlX/Y47o+fIiIws1NTOgqC+m28rrBDJnaRK6CHy3csqXEmTd">
+      <JsonTableDataSource Name="JSON" DataType="FastReport.Utils.Json.JsonArray" Enabled="true" TableName="JSON" SimpleStructure="true">
+        <JsonTableDataSource Name="table" DataType="FastReport.JsonBase" Enabled="true" SimpleStructure="true">
+          <Column Name="id" DataType="System.String"/>
+          <Column Name="name" DataType="System.String"/>
+        </JsonTableDataSource>
+        <JsonTableDataSource Name="list" DataType="FastReport.JsonBase" Enabled="true" SimpleStructure="true">
+          <Column Name="id" DataType="System.String"/>
+          <Column Name="name" DataType="System.String"/>
+        </JsonTableDataSource>
+        <Column Name="parameter" DataType="FastReport.JsonBase">
+          <Column Name="image" DataType="System.String"/>
+          <Column Name="title" DataType="System.String"/>
+          <Column Name="subtitle" DataType="System.String"/>
+          <Column Name="footer" DataType="System.String"/>
+        </Column>
+      </JsonTableDataSource>
+    </JsonDataSourceConnection>
+  </Dictionary>
+  <ReportPage Name="Page1" Watermark.Font="Arial, 60pt">
+    <ReportTitleBand Name="ReportTitle1" Width="718.2" Height="283.5">
+      <TextObject Name="Text5" Left="179.55" Top="47.25" Width="292.95" Height="18.9" Text="[JSON.parameter.subtitle]" Font="Arial, 10pt, style=Bold"/>
+      <TextObject Name="Text6" Left="179.55" Top="9.45" Width="292.95" Height="18.9" Text="[JSON.parameter.title]" Font="Arial, 10pt, style=Bold"/>
+      <PictureObject Name="Picture1" Left="151.2" Top="94.5" Width="349.65" Height="141.75" DataColumn="JSON.parameter.image"/>
+    </ReportTitleBand>
+    <PageHeaderBand Name="PageHeader1" Top="287.5" Width="718.2" Height="47.25"/>
+    <DataBand Name="Data1" Top="338.75" Width="718.2" Height="37.8" DataSource="JSON">
+      <TableObject Name="Table2" Left="18.9" Top="9.45" Width="446.04" Height="28.35">
+        <TableColumn Name="Column4" Width="148.68"/>
+        <TableColumn Name="Column5" Width="148.68"/>
+        <TableColumn Name="Column6" Width="148.68"/>
+        <TableRow Name="Row3" Height="28.35">
+          <TableCell Name="Cell10" Text="STT" Font="Arial, 10pt"/>
+          <TableCell Name="Cell11" Text="Code" Font="Arial, 10pt"/>
+          <TableCell Name="Cell12" Text="Name" Font="Arial, 10pt"/>
+        </TableRow>
+      </TableObject>
+      <DataBand Name="Data3" Top="380.55" Width="718.2" Height="39.69" DataSource="table">
+        <TableObject Name="Table1" Left="18.9" Width="443.19" Height="39.69">
+          <TableColumn Name="Column1" Width="147.73"/>
+          <TableColumn Name="Column2" Width="147.73"/>
+          <TableColumn Name="Column3" Width="147.73"/>
+          <TableRow Name="Row2" Height="39.69">
+            <TableCell Name="Cell6" Text="[Row#]" Font="Arial, 10pt"/>
+            <TableCell Name="Cell7" Text="[JSON.table.id]" Font="Arial, 10pt"/>
+            <TableCell Name="Cell9" Text="[JSON.table.name]" Font="Arial, 10pt"/>
+          </TableRow>
+        </TableObject>
+      </DataBand>
+    </DataBand>
+    <DataBand Name="Data2" Top="424.24" Width="718.2" Height="103.95">
+      <DataBand Name="Data4" Top="532.19" Width="718.2" Height="37.8" DataSource="list">
+        <TextObject Name="Text4" Left="330.75" Top="9.45" Width="94.5" Height="18.9" Text="[JSON.list.name]" Font="Arial, 10pt, style=Bold"/>
+        <TextObject Name="Text3" Left="170.1" Top="9.45" Width="94.5" Height="18.9" Text="[JSON.list.id]" Font="Arial, 10pt, style=Bold"/>
+      </DataBand>
+    </DataBand>
+    <PageFooterBand Name="PageFooter1" Top="573.99" Width="718.2" Height="47.25">
+      <TextObject Name="Text7" Left="179.55" Top="18.9" Width="292.95" Height="18.9" Text="[JSON.parameter.footer]" Font="Arial, 10pt, style=Bold"/>
+    </PageFooterBand>
+  </ReportPage>
+</Report>

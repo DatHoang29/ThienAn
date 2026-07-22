@@ -1,0 +1,12 @@
+﻿{
+
+  "Cache": {
+    "Prefix": "tac_", // Prefix
+    "CacheType": "Memory", // Memory、Redis
+    "Redis": {
+      "Configuration": "server=redis-17463.c299.asia-northeast1-1.gce.redns.redis-cloud.com:17463,password=POWeU2YBl09mi0FPRTGVEd9vr0byopbn", // Redis connection
+      "Prefix": "tac_", // Redis Prefix
+      "MaxMessageSize": "1048576" // Maximum message size Default 1024 * 1024
+    }
+  }
+}

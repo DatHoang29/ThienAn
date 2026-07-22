@@ -1,0 +1,14 @@
+{
+  "fe.base.button.cancel": "Bỏ qua",
+  "fe.base.button.confirm": "Xác nhận",
+  "param.VMS_ACCIDENT_MESSAGE_ROW1": "Phía trước có tai nạn",
+  "param.VMS_ACCIDENT_MESSAGE_ROW2": "Vui lòng giảm tốc độ và theo chỉ dẫn",
+  "param.VMS_FIRE_MESSAGE_ROW1": "Phía trước có cháy",
+  "param.VMS_FIRE_MESSAGE_ROW2": "Vui lòng đi hướng khác",
+  "param.VMS_INCIDENT_MESSAGE_ROW1": "Phía trước có sự cố",
+  "param.VMS_INCIDENT_MESSAGE_ROW2": "Vui lòng làm theo chỉ dẫn",
+  "param.VMS_TRAFFIC_JAM_MESSAGE_ROW1": "Phía trước đang kẹt xe",
+  "param.VMS_TRAFFIC_JAM_MESSAGE_ROW2": "Vui lòng di chuyển theo chỉ dẫn",
+  "param.VMS_FA_MESSAGE_ROW1": "Cảnh báo có cháy phía trước",
+  "param.VMS_FA_MESSAGE_ROW2": "Vui lòng đi hướng khác"
+}

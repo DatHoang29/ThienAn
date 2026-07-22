@@ -1,0 +1,38 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="FastReport">
+      <HintPath>..\..\..\..\libs\Reports\FastReportFree\FastReport.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="FastReport.OpenSource.Export.PdfSimple">
+      <HintPath>..\..\..\..\libs\Reports\FastReportFree\FastReport.OpenSource.Export.PdfSimple.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="FastReport.OpenSource.Web">
+      <HintPath>..\..\..\..\libs\Reports\FastReportFree\FastReport.OpenSource.Web.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Modules.Report.Base">
+      <HintPath>..\..\..\DLLs\Modules.Report.Base.dll</HintPath>
+    </Reference>
+    <Reference Include="Modules.Report.Carbone">
+      <HintPath>..\..\..\DLLs\Modules.Report.Carbone.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Modules.Report.FastReport">
+      <HintPath>..\..\..\DLLs\Modules.Report.FastReport.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Shared.Infrastructure">
+      <HintPath>..\..\..\DLLs\Shared.Infrastructure.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>

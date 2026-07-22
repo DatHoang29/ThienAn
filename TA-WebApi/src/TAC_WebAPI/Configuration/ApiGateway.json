@@ -1,0 +1,6 @@
+{
+  "ApiGateway": {
+
+    "BaseUrl": "http://localhost:4401"
+  } 
+}

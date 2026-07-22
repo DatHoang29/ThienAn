@@ -1,0 +1,6 @@
+{
+  "Hangfire": {
+    "ConnectionString": "Server=.;Initial Catalog=PROD_WebCore;MultipleActiveResultSets=true;User ID=sa;Password=123;TrustServerCertificate=True",
+    "Enable": false
+  }
+}
