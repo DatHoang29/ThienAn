@@ -107,3 +107,13 @@ Sửa luồng gửi mail chức năng A module A
 Reviewer: SonTH
 CR: CR0001-thay-doi-luong-gui-mail
 ```
+
+---
+
+## 🚫 4. Quy Định Tự Động Hóa Đối Với Trợ Lý AI (AI Execution Rules)
+
+Đối với Trợ lý AI (Antigravity Agent), tuyệt đối tuân thủ 2 nguyên tắc sau khi làm việc trong dự án:
+
+1.  **KHÔNG TỰ ĐỘNG CHẠY LỆNH BUILD (`dotnet build`)**: AI không được tự động chạy lệnh `dotnet build` hoặc bất kỳ lệnh biên dịch nào sau khi chỉnh sửa code, trừ khi người dùng yêu cầu trực tiếp.
+2.  **KHÔNG TỰ ĐỘNG COMMIT VÀ PUSH GIT (`git commit` / `git push`)**: AI không được tự động chạy `git add`, `git commit`, hay `git push` code lên repository dưới bất kỳ hình thức nào. Quyền commit và push code hoàn toàn thuộc về lập trình viên.
+
