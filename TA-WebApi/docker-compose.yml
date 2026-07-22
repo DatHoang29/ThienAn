@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: ta-webapi-sqlserver
+    restart: always
+    ports:
+      - "1433:1433"
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=YourStrong@Password123
+      - MSSQL_SA_PASSWORD=YourStrong@Password123
+    volumes:
+      - ta-mssql-data:/var/opt/mssql
+
+volumes:
+  ta-mssql-data:

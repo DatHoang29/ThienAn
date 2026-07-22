@@ -1,9 +1,9 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.1.32210.238
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TAC_WebAPI", "src\TAC_WebAPI\TAC_WebAPI.csproj", "{08905F51-7A2E-42B6-8B31-FEB357794C6D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TAC_WebAPI", "src\API\TAC_WebAPI.csproj", "{08905F51-7A2E-42B6-8B31-FEB357794C6D}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Modules", "Modules", "{FE2B3EB9-FC58-4301-AB82-983982C24AED}"
 EndProject

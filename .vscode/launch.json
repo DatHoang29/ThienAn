@@ -6,9 +6,9 @@
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build",
-      "program": "${workspaceFolder}/TA-WebApi/src/TAC_WebAPI/bin/Debug/net8.0/TAC_WebAPI.dll",
+      "program": "${workspaceFolder}/TA-WebApi/src/API/bin/Debug/net8.0/TAC_WebAPI.dll",
       "args": [],
-      "cwd": "${workspaceFolder}/TA-WebApi/src/TAC_WebAPI",
+      "cwd": "${workspaceFolder}/TA-WebApi/src/API",
       "stopAtEntry": false,
       "internalConsoleOptions": "openOnSessionStart",
       "serverReadyAction": {
@@ -21,7 +21,7 @@
         "DOTNET_CLI_HOME": "${workspaceFolder}/.dotnet-home"
       },
       "sourceFileMap": {
-        "/Views": "${workspaceFolder}/TA-WebApi/src/TAC_WebAPI/Views"
+        "/Views": "${workspaceFolder}/TA-WebApi/src/API/Views"
       }
     },
     {

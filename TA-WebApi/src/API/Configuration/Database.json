@@ -5,7 +5,7 @@
       {
         "ConfigId": "Default", // "Default"
         "DbType": "SqlServer", // MySql、SqlServer、Sqlite、Oracle、PostgreSQL、Dm、Kdbndp、Oscar、MySqlConnector、Access、OpenGauss、QuestDB、HG、ClickHouse、GBase、Odbc、Custom
-        "ConnectionString": "Server=.;Database=PROD_WebCore;MultipleActiveResultSets=true;User ID=sa;Password=123;TrustServerCertificate=True",
+        "ConnectionString": "Server=localhost,1433;Database=PROD_WebCore;MultipleActiveResultSets=true;User ID=sa;Password=YourStrong@Password123;TrustServerCertificate=True",
         "DbSettings": {
           "EnableInitDb": true, // Init DB
           "EnableDiffLog": false, // Enable DiffLog
@@ -29,7 +29,7 @@
       {
         "ConfigId": "LogDefault", // "LogDefault for write log"
         "DbType": "SqlServer", // MySql、SqlServer、Sqlite、Oracle、PostgreSQL、Dm、Kdbndp、Oscar、MySqlConnector、Access、OpenGauss、QuestDB、HG、ClickHouse、GBase、Odbc、Custom
-        "ConnectionString": "Server=.;Database=PROD_WebCore_Log;MultipleActiveResultSets=true;User ID=sa;Password=123;TrustServerCertificate=True", 
+        "ConnectionString": "Server=localhost,1433;Database=PROD_WebCore_Log;MultipleActiveResultSets=true;User ID=sa;Password=YourStrong@Password123;TrustServerCertificate=True", 
         "DbSettings": {
           "EnableInitDb": true, // Init DB
           "EnableDiffLog": false, // Enable DiffLog

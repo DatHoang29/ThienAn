@@ -38,7 +38,7 @@
     {
       "label": "docker:up",
       "type": "shell",
-      "command": "docker compose up -d",
+      "command": "docker compose -f ${workspaceFolder}/TA-WebApi/docker-compose.yml up -d",
       "presentation": {
         "reveal": "always",
         "panel": "shared",
@@ -48,7 +48,7 @@
     {
       "label": "docker:down",
       "type": "shell",
-      "command": "docker compose down",
+      "command": "docker compose -f ${workspaceFolder}/TA-WebApi/docker-compose.yml down",
       "presentation": {
         "reveal": "always",
         "panel": "shared",
