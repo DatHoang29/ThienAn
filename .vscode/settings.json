@@ -1,7 +1,9 @@
 {
     "dotrush.roslyn.projectOrSolutionFiles": [
-        "/mnt/d/Study/Projects/Education/src/Services/Education.csproj"
+        "${workspaceFolder}/TA-WebApi/Temp_TAC_WebAPI.sln"
     ],
+    "dotnet.defaultSolution": "TA-WebApi/Temp_TAC_WebAPI.sln",
+    "omnisharp.defaultProjectFile": "TA-WebApi/Temp_TAC_WebAPI.sln",
     "postman.settings.dotenv-detection-notification-visibility": false,
     "java.compile.nullAnalysis.mode": "automatic",
     "todo-tree.ripgrep": "/opt/homebrew/bin/rg"

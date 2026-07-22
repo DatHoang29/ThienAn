@@ -7,6 +7,23 @@
       "type": "process",
       "args": [
         "build",
+        "${workspaceFolder}/TA-WebApi/Temp_TAC_WebAPI.sln",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary"
+      ],
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": false
+      }
+    },
+    {
+      "label": "build-lab",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
         "${workspaceFolder}/Lab.slnx",
         "/property:GenerateFullPaths=true",
         "/consoleloggerparameters:NoSummary"
