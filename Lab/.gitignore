@@ -9,6 +9,8 @@
 # IDE / Editor
 .idea/
 .vscode/
+.claude/
+./agents/
 *.swp
 *~
 
