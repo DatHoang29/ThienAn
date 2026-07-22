@@ -10,7 +10,7 @@
 .idea/
 .vscode/
 .claude/
-./agents/
+.agents/
 *.swp
 *~
 
