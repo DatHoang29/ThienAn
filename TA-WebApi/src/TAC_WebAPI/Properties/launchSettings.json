@@ -5,28 +5,26 @@
     "anonymousAuthentication": true,
     "iisExpress": {
       "applicationUrl": "http://localhost:4401"
-      //"sslPort": 44321
     }
   },
   "profiles": {
     "IIS Express": {
       "commandName": "IISExpress",
       "launchBrowser": true,
-      "launchUrl": "api",
+      "launchUrl": "swagger",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       },
-      "applicationUrl": "https://*:5001;http://*:5000"
-
+      "applicationUrl": "http://localhost:4401"
     },
     "TAC_WebAPI": {
       "commandName": "Project",
       "launchBrowser": true,
-      "launchUrl": "api",
+      "launchUrl": "swagger",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       },
-      "applicationUrl": "https://*:5001;http://*:5000",
+      "applicationUrl": "http://localhost:5005",
       "dotnetRunMessages": "true"
     }
   }

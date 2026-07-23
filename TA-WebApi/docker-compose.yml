@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   sqlserver:
-    image: mcr.microsoft.com/mssql/server:2022-latest
+    image: mcr.microsoft.com/azure-sql-edge:latest
     container_name: ta-webapi-sqlserver
     restart: always
     ports:

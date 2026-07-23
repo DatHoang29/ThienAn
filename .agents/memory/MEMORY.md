@@ -4,5 +4,5 @@
 - [preferences] KHÔNG tự động commit Git và KHÔNG tự động start server/app → user-preferences.md
 
 ## Project
-- [project] Always create a new dedicated branch for major code changes → project-conventions.md
-- [rules] Quy định chung phòng phần mềm (comments, naming, commits) → ../rules/thienan_quy_dinh_chung.md
+- [project] Docker SQL Server trên macOS (Apple Silicon) BẮT BUỘC dùng `azure-sql-edge:latest` → project-conventions.md
+- [rules] Quy định chung phòng phần mềm (comments, naming, commits, AI rules) → ../rules/thienan_quy_dinh_chung.md
