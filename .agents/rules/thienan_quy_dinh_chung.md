@@ -118,6 +118,8 @@ CR: CR0001-thay-doi-luong-gui-mail
 2.  **KHÔNG TỰ ĐỘNG COMMIT VÀ PUSH GIT (`git commit` / `git push`)**: AI không được tự động chạy `git add`, `git commit`, hay `git push` code lên repository dưới bất kỳ hình thức nào. Quyền commit và push code hoàn toàn thuộc về lập trình viên.
 3.  **QUY ĐỊNH DOCKER SQL SERVER TRÊN MAC**: Máy tính chạy môi trường macOS (đặc biệt chip Apple Silicon M1/M2/M3/M4) **BẮT BUỘC** dùng Docker image `mcr.microsoft.com/azure-sql-edge:latest`. TUYỆT ĐỐI KHÔNG dùng `mcr.microsoft.com/mssql/server:2022-latest` vì bản x86_64 sẽ bị crash tràn bộ nhớ QEMU (`Invalid mapping of address`).
 4.  **QUY ĐỊNH MODULE SHARES CONTROLLER**: BaseController trong `Modules.Shares.Controllers` bắt buộc thiết lập `GroupName = "Share"` và `BasePath = "api/vms"`.
+5.  **QUY ĐỊNH ENTITY CLASS**: Tất cả các Entity class trong hệ thống bắt buộc phải kế thừa `EntityTenant` (từ `Shared.Core.Domain`).
+
 
 
 
