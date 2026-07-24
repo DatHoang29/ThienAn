@@ -13,8 +13,16 @@ updated: 2026-07-23
 ## Docker & Infrastructure Rules
 - **Docker SQL Server on macOS**: ALWAYS use `mcr.microsoft.com/azure-sql-edge:latest` for SQL Server containers on macOS (Apple Silicon M1/M2/M3/M4). NEVER use `mcr.microsoft.com/mssql/server:2022-latest` as x86_64 emulation under QEMU causes immediate memory crashes (`Invalid mapping of address`).
 
-## Code Style & Comments
-- **Clean Code & Minimal Comments**: DO NOT add redundant XML comments (`/// <summary>...`) or unnecessary explanation comments on classes, methods, or properties unless explicitly required. Keep code clean, concise, direct, and self-documenting.
+## Code Style & Class Header Comments
+- **Class Header XML Comments Required**: Every new or updated class MUST include an XML summary header block formatted as follows:
+```csharp
+/// <summary>
+/// [Description / Table Name]
+/// Author: [Author Name]
+/// Created date: [dd/MM/yyyy]
+/// </summary>
+```
+
 
 ## Entity Conventions
 - **Entity Inheritance**: All Entity classes MUST inherit from `EntityTenant` (from `Shared.Core.Domain`).

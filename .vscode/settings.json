@@ -1,4 +1,6 @@
 {
+    "git.showIgnoreWarning": false,
+    "git.ignoreLimitWarning": true,
     "postman.settings.dotenv-detection-notification-visibility": false,
     "java.compile.nullAnalysis.mode": "automatic",
     "todo-tree.ripgrep.ripgrep": "/opt/homebrew/bin/rg",
