@@ -119,14 +119,15 @@ CR: CR0001-thay-doi-luong-gui-mail
 3.  **QUY ĐỊNH DOCKER SQL SERVER TRÊN MAC**: Máy tính chạy môi trường macOS (đặc biệt chip Apple Silicon M1/M2/M3/M4) **BẮT BUỘC** dùng Docker image `mcr.microsoft.com/azure-sql-edge:latest`. TUYỆT ĐỐI KHÔNG dùng `mcr.microsoft.com/mssql/server:2022-latest` vì bản x86_64 sẽ bị crash tràn bộ nhớ QEMU (`Invalid mapping of address`).
 4.  **QUY ĐỊNH MODULE SHARES CONTROLLER**: BaseController trong `Modules.Shares.Controllers` bắt buộc thiết lập `GroupName = "Share"` và `BasePath = "api/vms"`.
 5.  **QUY ĐỊNH ENTITY CLASS**: Tất cả các Entity class trong hệ thống bắt buộc phải kế thừa `EntityTenant` (từ `Shared.Core.Domain`).
-6.  **QUY ĐỊNH HEADER COMMENT CỦA CLASS**: Mỗi Class khi tạo mới hoặc cập nhật BẮT BUỘC phải có khối XML summary comment ở đầu Class theo mẫu:
+6.  **QUY ĐỊNH HEADER COMMENT CỦA CLASS**: Mỗi Class khi tạo mới hoặc cập nhật BẮT BUỘC phải có khối XML summary comment ở đầu Class theo mẫu (Author luôn là **Đạt**):
 ```csharp
 /// <summary>
 /// [Mô tả chức năng / Tên bảng]
-/// Author: [Tên tác giả]
+/// Author: Đạt
 /// Created date: [dd/MM/yyyy]
 /// </summary>
 ```
+
 
 
 
