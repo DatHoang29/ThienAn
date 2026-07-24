@@ -2,27 +2,24 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": ".NET Core Launch (TAC_WebAPI)",
+      "name": ".NET Core Launch (TA-ITS015-WebAPI-ShareData)",
       "type": "coreclr",
       "request": "launch",
-      "preLaunchTask": "build",
-      "program": "${workspaceFolder}/TA-WebApi/src/TAC_WebAPI/bin/Debug/net8.0/TAC_WebAPI.dll",
+      "preLaunchTask": "build-its015",
+      "program": "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/TAC_WebAPI/bin/Debug/net8.0/TAC_WebAPI.dll",
       "args": [],
-      "cwd": "${workspaceFolder}/TA-WebApi/src/TAC_WebAPI",
+      "cwd": "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/TAC_WebAPI",
       "stopAtEntry": false,
       "internalConsoleOptions": "openOnSessionStart",
       "serverReadyAction": {
         "action": "openExternally",
         "pattern": "\\bNow listening on:\\s+https?://(?:\\[::\\]|[^:]+):(\\d+)",
-        "uriFormat": "http://localhost:%s/api"
+        "uriFormat": "http://localhost:%s/swagger"
       },
       "env": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "ASPNETCORE_URLS": "http://localhost:5005",
         "DOTNET_CLI_HOME": "${workspaceFolder}/.dotnet-home"
-      },
-      "sourceFileMap": {
-        "/Views": "${workspaceFolder}/TA-WebApi/src/TAC_WebAPI/Views"
       }
     },
     {
