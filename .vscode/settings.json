@@ -3,7 +3,5 @@
     "git.ignoreLimitWarning": true,
     "postman.settings.dotenv-detection-notification-visibility": false,
     "java.compile.nullAnalysis.mode": "automatic",
-    "todo-tree.ripgrep.ripgrep": "/opt/homebrew/bin/rg",
-    "todo-tree.ripgrep.ripgrepPath": "/opt/homebrew/bin/rg",
-    "todo-tree.ripgrep": "/opt/homebrew/bin/rg"
+    "todo-tree.ripgrep.ripgrep": "/opt/homebrew/bin/rg"
 }
