@@ -8,8 +8,7 @@
       "args": [
         "build",
         "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/Temp_TAC_WebAPI.sln",
-        "/property:GenerateFullPaths=true",
-        "/consoleloggerparameters:NoSummary"
+        "/property:GenerateFullPaths=true"
       ],
       "problemMatcher": "$msCompile",
       "presentation": {
