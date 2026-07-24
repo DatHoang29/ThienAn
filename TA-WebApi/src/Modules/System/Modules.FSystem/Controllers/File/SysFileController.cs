@@ -14,7 +14,7 @@ namespace Modules.FSystem.Controllers.File;
 /// </summary>
 public class SysFileController : Modules.System.Controllers.File.SysFileController
 {
-    public SysFileController(UserManager userManager, SqlSugarRepository<SysFile> sysFileRep, IOptions<UploadOptions> uploadOptions, IUploadService uploadService) : base(userManager, sysFileRep, uploadOptions, uploadService)
+    public SysFileController(UserManager userManager, SqlSugarRepository<SysFile> sysFileRep, IOptions<UploadOptions> uploadOptions, IUploadService uploadService, BaseCacheService sysCacheService) : base(userManager, sysFileRep, uploadOptions, uploadService, sysCacheService)
     {
     }
 }

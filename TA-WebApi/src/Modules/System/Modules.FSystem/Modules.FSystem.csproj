@@ -17,7 +17,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\Shared\Shared.DTO\Shared.DTO.csproj" />
-    <ProjectReference Include="..\..\..\Shared\Shared.Reference\Shared.Reference.csproj" />
     <ProjectReference Include="..\..\..\Shared\Shared.Utility\Shared.Utility.csproj" />
   </ItemGroup>
 

@@ -16,7 +16,7 @@
           "EnableIncreTable": false //Enable incremental
         },
         "SeedSettings": {
-          "EnableInitSeed": true, // Init Seed Data
+          "EnableInitSeed": false, // Init Seed Data
           "EnableIncreSeed": false // Enable incremental
         },
         "SlaveSettings": [
@@ -40,7 +40,7 @@
           "EnableIncreTable": false //Enable incremental
         },
         "SeedSettings": {
-          "EnableInitSeed": true, // Init Seed Data
+          "EnableInitSeed": false, // Init Seed Data
           "EnableIncreSeed": false // Enable incremental
         },
         "SlaveSettings": [

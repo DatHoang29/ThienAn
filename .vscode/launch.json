@@ -13,8 +13,8 @@
       "internalConsoleOptions": "openOnSessionStart",
       "serverReadyAction": {
         "action": "openExternally",
-        "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
-        "uriFormat": "%s/swagger"
+        "pattern": "\\bNow listening on:\\s+https?://(?:\\[::\\]|[^:]+):(\\d+)",
+        "uriFormat": "http://localhost:%s/api"
       },
       "env": {
         "ASPNETCORE_ENVIRONMENT": "Development",
@@ -37,8 +37,8 @@
       "internalConsoleOptions": "openOnSessionStart",
       "serverReadyAction": {
         "action": "openExternally",
-        "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
-        "uriFormat": "%s/swagger"
+        "pattern": "\\bNow listening on:\\s+https?://(?:\\[::\\]|[^:]+):(\\d+)",
+        "uriFormat": "http://localhost:%s/api"
       },
       "env": {
         "ASPNETCORE_ENVIRONMENT": "Development",

@@ -16,7 +16,7 @@
     "DocExpansionState": "List", // List、Full、None
     "EnableAllGroups": true,
     "LoginInfo": {
-      "Enabled": true, // Swagger Auth
+      "Enabled": false, // Swagger Auth
       "CheckUrl": "/api/swagger/checkUrl",
       "SubmitUrl": "/api/swagger/submitUrl"
     },

@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
   </PropertyGroup>
@@ -18,11 +18,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Remove="ResponseWrapper\Result.zip" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\Shared.Reference\Shared.Reference.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Reference Include="Shared.Core">
+      <HintPath>..\..\DLLs\Shared.Core.dll</HintPath>
+    </Reference>
+  </ItemGroup>
 </Project>

@@ -1,4 +1,4 @@
-﻿using FluentValidation.AspNetCore;
+using FluentValidation.AspNetCore;
 using Furion;
 using Hangfire;
 using JasperFx.CodeGeneration;
@@ -35,6 +35,7 @@ namespace TAC_WebAPI
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
+            services.AddResponseCompression();
             services.AddWolverine(opts =>
             {
                 opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Dynamic;

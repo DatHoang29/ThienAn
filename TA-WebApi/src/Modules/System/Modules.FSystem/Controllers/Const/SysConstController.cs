@@ -1,5 +1,6 @@
-﻿using System.Reflection;
+using System.Reflection;
 using Microsoft.AspNetCore.Authorization;
+using Shared.Infrastructure.Controllers;
 
 namespace Modules.FSystem.Controllers.Const;
 
@@ -7,7 +8,7 @@ namespace Modules.FSystem.Controllers.Const;
 /// System Constant Service 
 /// </summary>
 [AllowAnonymous]
-public class SysConstController : Modules.System.Controllers.Const.SysConstController
+public class SysConstController : CommonBaseController
 {
    
 }
