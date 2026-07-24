@@ -6,5 +6,7 @@
     "omnisharp.defaultProjectFile": "TA-WebApi/Temp_TAC_WebAPI.sln",
     "postman.settings.dotenv-detection-notification-visibility": false,
     "java.compile.nullAnalysis.mode": "automatic",
+    "todo-tree.ripgrep.ripgrep": "/opt/homebrew/bin/rg",
+    "todo-tree.ripgrep.ripgrepPath": "/opt/homebrew/bin/rg",
     "todo-tree.ripgrep": "/opt/homebrew/bin/rg"
 }
