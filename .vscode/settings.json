@@ -1,9 +1,4 @@
 {
-    "dotrush.roslyn.projectOrSolutionFiles": [
-        "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/Temp_TAC_WebAPI.sln"
-    ],
-    "dotnet.defaultSolution": "TA-ITS015-WebAPI-ShareData-V1.0/Temp_TAC_WebAPI.sln",
-    "omnisharp.defaultProjectFile": "TA-ITS015-WebAPI-ShareData-V1.0/Temp_TAC_WebAPI.sln",
     "postman.settings.dotenv-detection-notification-visibility": false,
     "java.compile.nullAnalysis.mode": "automatic",
     "todo-tree.ripgrep.ripgrep": "/opt/homebrew/bin/rg",
