@@ -29,7 +29,11 @@ updated: 2026-07-23
 - **Entity Inheritance**: All Entity classes MUST inherit from `EntityTenant` (from `Shared.Core.Domain`).
 
 
+## Minimal Diff & Maintenance Rules
+- **Minimal Diff Principle**: ONLY modify files and code strictly necessary to accomplish the requested feature or bugfix. NEVER auto-upgrade package versions (`PackageReference` in `.csproj`), edit unrelated shared projects (`Shared.Reference`), or modify existing files outside the task scope unless explicitly instructed by the user.
+
 ## Module Architecture & Controller Conventions
+
 - **New Module Structure**: Standardize all new modules to place Entities, DTOs, Enums, and Interfaces into `Modules.[TênHệ].Core` (e.g., `Modules.Shares.Core`), while Controllers, Services, and Extensions live in `Modules.[TênHệ]` (e.g., `Modules.Shares`).
 - **Report Sub-modules**: If creating a dedicated Report sub-project, name it `Modules.[TênHệ].Report` (e.g., `Modules.Shares.Report`), with namespace `Modules.Shares.Report.Controllers` and `GroupName = "ShareReport"`. If inside `Modules.Shares`, place in `Controllers/Report/`.
 - **BaseController for Shares Module**: Always use `GroupName = "Share"` and `BasePath = "api/vms"` in `Modules.Shares.Controllers.BaseController`. Use `[ApiDescriptionSettings(GroupName)]` for Swagger Auto-Discovery.
