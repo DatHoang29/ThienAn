@@ -118,7 +118,7 @@ CR: CR0001-thay-doi-luong-gui-mail
 2.  **KHÔNG TỰ ĐỘNG COMMIT VÀ PUSH GIT (`git commit` / `git push`)**: AI không được tự động chạy `git add`, `git commit`, hay `git push` code lên repository dưới bất kỳ hình thức nào. Quyền commit và push code hoàn toàn thuộc về lập trình viên.
 3.  **TỐI THIỂU HÓA THAY ĐỔI (MINIMAL DIFF PRINCIPLE)**: AI CHỈ ĐƯỢC PHÉP chỉnh sửa/thêm code đối với các file và nội dung thực sự phục vụ trực tiếp cho tính năng mới hoặc bug được yêu cầu. TUYỆT ĐỐI KHÔNG tự động upgrade phiên bản thư viện (`PackageReference` trong `.csproj`), không format/touch vào các file không liên quan, không làm thay đổi các file dùng chung (`Shared.Reference`, `appsettings.json`,...) trừ khi có chỉ định rõ ràng từ người dùng.
 4.  **QUY ĐỊNH DOCKER SQL SERVER TRÊN MAC**: Máy tính chạy môi trường macOS (đặc biệt chip Apple Silicon M1/M2/M3/M4) **BẮT BUỘC** dùng Docker image `mcr.microsoft.com/azure-sql-edge:latest`. TUYỆT ĐỐI KHÔNG dùng `mcr.microsoft.com/mssql/server:2022-latest` vì bản x86_64 sẽ bị crash tràn bộ nhớ QEMU (`Invalid mapping of address`).
-5.  **QUY ĐỊNH MODULE SHARES CONTROLLER**: BaseController trong `Modules.Shares.Controllers` bắt buộc thiết lập `GroupName = "Share"` và `BasePath = "api/vms"`.
+5.  **QUY ĐỊNH SWAGGER GROUPNAME KHI TẠO CONTROLLER**: Mỗi Module/Sub-module khi tạo Controller/BaseController **BẮT BUỘC** phải định nghĩa hằng số `GroupName` (Ví dụ: `GroupName = "ShareData"`) và `BasePath` (Ví dụ: `BasePath = "api/vms"`), gán attribute `[ApiDescriptionSettings(GroupName)]` để Furion/Swagger Auto-Discovery tự động phát hiện và hiển thị trên dropdown UI, tuyệt đối KHÔNG cấu hình khai báo thủ công trong `Swagger.json`.
 6.  **QUY ĐỊNH ENTITY CLASS**: Tất cả các Entity class trong hệ thống bắt buộc phải kế thừa `EntityTenant` (từ `Shared.Core.Domain`).
 7.  **QUY ĐỊNH HEADER COMMENT CỦA CLASS**: Mỗi Class khi tạo mới hoặc cập nhật BẮT BUỘC phải có khối XML summary comment ở đầu Class theo mẫu (Author luôn là **Đạt**):
 ```csharp
@@ -137,18 +137,18 @@ Các hệ thống / Module phát triển mới về sau bắt buộc tuân thủ
 
 1. **Phân tách Project Layer**:
    * **`Modules.[TênHệ].Core`**: Chứa toàn bộ Entity, DTO (Data Transfer Object), Interfaces, Enums và Business Core Logic của Module.
-     * *Ví dụ:* `Modules.Shares.Core` chứa các Entities (`SharesConfig.cs`,...), DTOs.
+     * *Ví dụ:* `Modules.ShareData.Core` chứa các Entities (`SharesConfig.cs`,...), DTOs.
    * **`Modules.[TênHệ]`**: Chứa Controllers, Application Services, API Endpoints, Dependency Injection Extensions.
-     * *Ví dụ:* `Modules.Shares` chứa `SharesConfigController.cs`, `BaseController.cs`, Services.
+     * *Ví dụ:* `Modules.ShareData` chứa `SharesConfigController.cs`, `BaseController.cs`, Services.
 
 2. **Cấu hình BaseController & Swagger Auto-Discovery**:
-   * Mỗi Module có file `BaseController.cs` riêng nằm tại `Modules.[TênHệ].Controllers`.
+   * Mỗi Module bắt buộc có file `BaseController.cs` riêng nằm tại `Modules.[TênHệ].Controllers`.
    * Khai báo hằng số `GroupName` và sử dụng attribute `[ApiDescriptionSettings(GroupName)]` để Swagger tự động quét nhóm API (Auto-Discovery), không tự ý chỉnh sửa thủ công file `Swagger.json`.
    ```csharp
-   namespace Modules.Shares.Controllers
+   namespace Modules.ShareData.Controllers
    {
        /// <summary>
-       /// Base Controller của Module Shares
+       /// Base Controller của Module ShareData
        /// Author: Đạt
        /// Created date: 24/07/2026
        /// </summary>
@@ -156,7 +156,7 @@ Các hệ thống / Module phát triển mới về sau bắt buộc tuân thủ
        [Route(BasePath + "/[controller]")]
        public abstract class BaseController : AppControllerBase
        {
-           public const string GroupName = "Share";
+           public const string GroupName = "ShareData";
            public const string BasePath = "api/vms";
        }
    }
