@@ -29,8 +29,13 @@ updated: 2026-07-23
 - **Entity Inheritance**: All Entity classes MUST inherit from `EntityTenant` (from `Shared.Core.Domain`).
 
 
-## Module Shares & Controller Conventions
-- **BaseController for Shares Module**: Always use `GroupName = "Share"` and `BasePath = "api/vms"` in `Modules.Shares.Controllers.BaseController`.
+## Module Architecture & Controller Conventions
+- **New Module Structure**: Standardize all new modules to place Entities, DTOs, Enums, and Interfaces into `Modules.[TênHệ].Core` (e.g., `Modules.Shares.Core`), while Controllers, Services, and Extensions live in `Modules.[TênHệ]` (e.g., `Modules.Shares`).
+- **Report Sub-modules**: If creating a dedicated Report sub-project, name it `Modules.[TênHệ].Report` (e.g., `Modules.Shares.Report`), with namespace `Modules.Shares.Report.Controllers` and `GroupName = "ShareReport"`. If inside `Modules.Shares`, place in `Controllers/Report/`.
+- **BaseController for Shares Module**: Always use `GroupName = "Share"` and `BasePath = "api/vms"` in `Modules.Shares.Controllers.BaseController`. Use `[ApiDescriptionSettings(GroupName)]` for Swagger Auto-Discovery.
+- **Inter-Module Communication**: Prefer Event Bus (`MessBus`) for decoupled communication, or Refit API Interfaces in `Shared.Utility.Apis.[TênHệ]` for synchronous calls.
 - **Git Rules**: Never run `git commit` or `git push` automatically. Always leave modified files uncommitted for developer manual review and commit.
+
+
 
 

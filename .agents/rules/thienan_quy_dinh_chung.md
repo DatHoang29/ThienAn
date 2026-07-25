@@ -128,6 +128,55 @@ CR: CR0001-thay-doi-luong-gui-mail
 /// </summary>
 ```
 
+---
+
+## 🏗️ 5. Quy Định Cấu Hình & Thiết Kế Module (Module Architecture & Configuration Rules)
+
+Các hệ thống / Module phát triển mới về sau bắt buộc tuân thủ mô hình thiết kế chuẩn như sau:
+
+1. **Phân tách Project Layer**:
+   * **`Modules.[TênHệ].Core`**: Chứa toàn bộ Entity, DTO (Data Transfer Object), Interfaces, Enums và Business Core Logic của Module.
+     * *Ví dụ:* `Modules.Shares.Core` chứa các Entities (`SharesConfig.cs`,...), DTOs.
+   * **`Modules.[TênHệ]`**: Chứa Controllers, Application Services, API Endpoints, Dependency Injection Extensions.
+     * *Ví dụ:* `Modules.Shares` chứa `SharesConfigController.cs`, `BaseController.cs`, Services.
+
+2. **Cấu hình BaseController & Swagger Auto-Discovery**:
+   * Mỗi Module có file `BaseController.cs` riêng nằm tại `Modules.[TênHệ].Controllers`.
+   * Khai báo hằng số `GroupName` và sử dụng attribute `[ApiDescriptionSettings(GroupName)]` để Swagger tự động quét nhóm API (Auto-Discovery), không tự ý chỉnh sửa thủ công file `Swagger.json`.
+   ```csharp
+   namespace Modules.Shares.Controllers
+   {
+       /// <summary>
+       /// Base Controller của Module Shares
+       /// Author: Đạt
+       /// Created date: 24/07/2026
+       /// </summary>
+       [ApiDescriptionSettings(GroupName)]
+       [Route(BasePath + "/[controller]")]
+       public abstract class BaseController : AppControllerBase
+       {
+           public const string GroupName = "Share";
+           public const string BasePath = "api/vms";
+       }
+   }
+   ```
+
+3. **Quy định đặt tên & cấu trúc cho Sub-module / Controller Báo cáo (Report)**:
+   * **Trường hợp tách thành Sub-project Báo cáo riêng biệt**:
+     * Đặt tên Project là: **`Modules.[TênHệ].Report`** (Nằm trong thư mục `src/Modules/[TênHệ]/Modules.[TênHệ].Report/`).
+     * Nếu có Entities/DTOs riêng cho báo cáo: Tạo **`Modules.[TênHệ].Report.Core`**.
+     * Namespace Controller: `Modules.[TênHệ].Report.Controllers`.
+     * BaseController của Report quy định `GroupName = "[TênHệ]Report"` (ví dụ `GroupName = "ShareReport"`) và `BasePath = "api/vms/[TênHệ]Report"`.
+   * **Trường hợp nằm chung trong Project `Modules.[TênHệ]`**:
+     * Đặt trong thư mục `Controllers/Report/` (ví dụ `Modules.Shares/Controllers/Report/`).
+     * Kế thừa `BaseController` chung của Module hoặc tạo `ReportBaseController` riêng nếu muốn gom thành Group Swagger riêng (`ShareReport`).
+
+4. **Giao tiếp giữa các Module (Inter-Module Communication)**:
+   * **Ưu tiên hàng đầu**: Sử dụng Event Bus (`MessBus`) để đảm bảo Loose Coupling (các Module không phụ thuộc trực tiếp code của nhau).
+   * **Trường hợp gọi trực tiếp Sync**: Sử dụng Refit API Interface trong `Shared.Utility.Apis.[TênHệ]` hoặc Inject Service Interface.
+
+
+
 
 
 
