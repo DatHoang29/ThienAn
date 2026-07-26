@@ -176,11 +176,54 @@ Các hệ thống / Module phát triển mới về sau bắt buộc tuân thủ
    * **Ưu tiên hàng đầu**: Sử dụng Event Bus (`MessBus`) để đảm bảo Loose Coupling (các Module không phụ thuộc trực tiếp code của nhau).
    * **Trường hợp gọi trực tiếp Sync**: Sử dụng Refit API Interface trong `Shared.Utility.Apis.[TênHệ]` hoặc Inject Service Interface.
 
+5. **Cấu Trúc Chi Tiết Thư Mục Module & Xử Lý API (Wolverine & FluentValidation)**:
+   * Mỗi thực thể/chức năng chính trong Project `Modules.[TênHệ]` phải được cấu trúc thành một thư mục riêng biệt đặt trong `Controllers/<TênChứcNăng>/` với các thư mục con sau:
+     * **`Controllers/<TênChứcNăng>/<TênChứcNăng>Controller.cs`**: Controller siêu mỏng (Thin Controller), **BẮT BUỘC** chỉ dùng `MessBus.InvokeAsync()` để gọi Commands/Queries. Không viết bất kỳ logic nghiệp vụ nào tại đây.
+     * **`Commands/`**: Chứa Handler xử lý Ghi (Add/Update/Delete). **BẮT BUỘC** implement `IWolverineHandler` và định nghĩa các hàm `HandleAsync(<InputType> command)`. Dùng `Mapster` để map DTO sang Entity.
+     * **`Queries/`**: Chứa Handler xử lý Đọc (Page/GetList/GetById). Các truy vấn phân trang phải trả về `SqlSugarPagedList<Output>`, sử dụng `.OrderBuilder()` và `.ToPagedListAsync()`.
+     * **`Dto/`**: Chứa DTO Input và Output:
+       * Input: `PageXxxInput` (kế thừa `BasePageInput`), `AddXxxInput` (kế thừa Entity gốc), `UpdateXxxInput` (kế thừa `AddXxxInput`), `DeleteXxxInput` (kế thừa `BaseIdInput`).
+       * Output: `XxxOutput` / `PageXxxOutput` (kế thừa Entity gốc).
+     * **`Validators/`**: Chứa `AbstractValidator<T>` (FluentValidation) kiểm tra tính hợp lệ dữ liệu đầu vào của Add/Update/Delete.
+   * **GlobalUsings.cs**: Mỗi module bắt buộc phải có file `GlobalUsings.cs` khai báo tối thiểu:
+     ```csharp
+     global using Furion.DependencyInjection;
+     global using Furion.FriendlyException;
+     global using Microsoft.AspNetCore.Mvc;
+     global using Shared.Core.Domain;
+     global using SqlSugar;
+     global using System.ComponentModel;
+     global using System.Data;
+     global using System.Linq.Dynamic.Core;
+     global using Wolverine.Attributes;
+     [assembly: WolverineModule]
+     ```
 
+---
 
+## 🧪 6. Quy Định Thiết Kế & Viết Test (Testing Rules)
 
+Tất cả các bài kiểm thử tự động (Integration/Unit Tests) bắt buộc tuân theo cấu trúc gọn nhẹ và quy tắc viết test sau:
 
+### 1. Cấu Trúc Thư Mục
+Dự án test nằm trực tiếp trong thư mục `tests/` của repo gốc (không lồng subfolder project):
+```
+tests/
+├── test.csproj                            ← Project file test (Target net10.0)
+├── TestHost.cs                            ← WebApplicationFactory chính (override DB, tắt Hangfire)
+├── GlobalUsings.cs                        ← Chứa global using chung (Xunit, System.Net...) để tránh IDE0005
+└── Modules/
+    └── <TênModule>/
+        └── <TênModule>Tests.cs            ← File test của module (IClassFixture<TestHost>)
+```
 
+### 2. Triết Lý Viết Test
+* **Tập trung vào Happy Path**: Chỉ tập trung viết test cho các luồng chính (**Happy Path** của Queries & Commands). 
+* **Không viết test validation/business lẻ tẻ**: Tránh viết nhiều test case kiểm tra FluentValidation hoặc lỗi biên nhỏ lẻ, vì khi luồng Happy Path chạy thành công thì hệ thống đã tự động chạy qua bộ `Validator` và `Handler` tương ứng (đã kiểm nghiệm được DI hoạt động và logic Validator/Handler chạy đúng).
 
-
-
+### 3. Quy Tắc Đặt Tên & Định Dạng
+* **File test**: `<TênModule>Tests.cs` (không dùng hậu tố `IntegrationTests.cs`).
+* **Class test**: `<TênModule>Tests`.
+* **Namespace**: `TAC_WebAPI.IntegrationTests.Modules.<TênModule>`.
+* **Tên phương thức test**: Định dạng **PascalCase**, hậu tố **Test**, **tuyệt đối không dùng dấu gạch dưới `_`**.
+* **Thứ tự**: Sắp xếp các Happy Case của Queries lên trước, sau đó đến các Happy Case của Commands (ví dụ: `QueryPageReturnsSuccessTest`, `CommandAddReturnsSuccessTest`).
