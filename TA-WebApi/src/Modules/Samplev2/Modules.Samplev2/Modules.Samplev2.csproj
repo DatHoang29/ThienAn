@@ -16,10 +16,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\Shared\Shared.DTO\Shared.DTO.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
     <Reference Include="Shared.Core">
       <HintPath>..\..\..\DLLs\Shared.Core.dll</HintPath>
     </Reference>

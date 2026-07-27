@@ -18,17 +18,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Modules\CfgSystem\Modules.CfgSystem\Modules.CfgSystem.csproj" />
-    <ProjectReference Include="..\Modules\Report\Modules.Report.Demo\Modules.Report.Demo.csproj" />
-    <ProjectReference Include="..\Modules\Report\Modules.Report.FBase\Modules.Report.FBase.csproj">
+<ProjectReference Include="..\Modules\Report\Modules.Report.FBase\Modules.Report.FBase.csproj">
       <CopyLocalSatelliteAssemblies>True</CopyLocalSatelliteAssemblies>
       <Private>True</Private>
       <ReferenceOutputAssembly></ReferenceOutputAssembly>
     </ProjectReference>
-    <ProjectReference Include="..\Modules\Samplev2\Modules.Sample.Report\Modules.Sample.Report.csproj" />
-    <ProjectReference Include="..\Modules\Samplev2\Modules.Samplev2\Modules.Samplev2.csproj" />
-    <ProjectReference Include="..\Modules\System\Modules.FSystem\Modules.FSystem.csproj" />
-  </ItemGroup>
+    </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="FastReport.Compat" Version="2025.1.0" />
