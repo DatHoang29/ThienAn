@@ -32,14 +32,5 @@ updated: 2026-07-23
 ## Minimal Diff & Maintenance Rules
 - **Minimal Diff Principle**: ONLY modify files and code strictly necessary to accomplish the requested feature or bugfix. NEVER auto-upgrade package versions (`PackageReference` in `.csproj`), edit unrelated shared projects (`Shared.Reference`), or modify existing files outside the task scope unless explicitly instructed by the user.
 
-## Module Architecture & Controller Conventions
-
-- **New Module Structure**: Standardize all new modules to place Entities, DTOs, Enums, and Interfaces into `Modules.[TênHệ].Core` (e.g., `Modules.Shares.Core`), while Controllers, Services, and Extensions live in `Modules.[TênHệ]` (e.g., `Modules.Shares`).
-- **Report Sub-modules**: If creating a dedicated Report sub-project, name it `Modules.[TênHệ].Report` (e.g., `Modules.Shares.Report`), with namespace `Modules.Shares.Report.Controllers` and `GroupName = "ShareReport"`. If inside `Modules.Shares`, place in `Controllers/Report/`.
-- **Swagger GroupName on Controllers**: When creating a Controller or BaseController for any module, ALWAYS define `GroupName` (e.g. `GroupName = "ShareData"`) and `BasePath` (e.g. `BasePath = "api/vms"`), decorated with `[ApiDescriptionSettings(GroupName)]` for Furion Swagger Auto-Discovery. NEVER manually edit `Swagger.json`.
-- **Inter-Module Communication**: Prefer Event Bus (`MessBus`) for decoupled communication, or Refit API Interfaces in `Shared.Utility.Apis.[TênHệ]` for synchronous calls.
-- **Git Rules**: Never run `git commit` or `git push` automatically. Always leave modified files uncommitted for developer manual review and commit.
-
-
 
 
