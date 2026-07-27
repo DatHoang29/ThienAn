@@ -23,6 +23,7 @@ updated: 2026-07-23
 /// </summary>
 - **Single-Statement If Braces**: Đối với câu lệnh `if` chỉ chứa 1 dòng thực thi (VD: `if (isCodeExists) throw Oops.Oh(...);`), KHÔNG DÙNG dấu ngoặc nhọn `{}`.
 - **Using Directives Instead of Inline Namespaces**: BẮT BUỘC dùng `using` directive ở đầu file (VD: `using Modules.ShareData.Core.Entities;`) để gọi tên class ngắn gọn (VD: `EshPartner`) thay vì gõ namespace dài inline trong code (VD: `Core.Entities.EshPartner`).
+- **No Unnecessary Using Directives (IDE0005)**: KHÔNG import `using` mà không sử dụng trong file. Chỉ thêm `using` khi thực sự cần dùng type/namespace đó trong code.
 
 
 
@@ -34,6 +35,11 @@ updated: 2026-07-23
 - **Shared Enums for ShareData**: Tất cả các Enum dùng chung cho Module ShareData (ESHARE V1) được định nghĩa trong `Modules.ShareData.Core.Enums.EshEnums` (`DataSourceKind`, `MappingDirection`, `DatatypeIdEnum`, `SubDirection`, `SubMode`, `SubState`, `PublishFormat`, `PubState`, `ExportStatus`, `PartnerStatus`, `ProtocolProfile`).
 - **Validators Directory Conventions**: Mỗi feature/controller trong module (VD: `Controllers/EshDataSource/`, `Controllers/EshPartner/`) BẮT BUỘC có thư mục `Validators/` chứa các class FluentValidation (`Add[Entity]Validator`, `Update[Entity]Validator`, `Delete[Entity]Validator` kế thừa `AbstractValidator<T>`) tương tự cấu trúc chuẩn trong `Modules.Samplev2/Controllers/Category/Validators/`.
 
+## EntityTenant Base Class Properties (CRITICAL)
+- **Property thời gian**: Base class `EntityTenant` dùng `CreateTime` và `UpdateTime` (KHÔNG phải `CreatedTime` hay `UpdatedTime`). Khi tạo Output DTO hoặc mapping, BẮT BUỘC dùng đúng tên:
+  - ✅ `entity.CreateTime` / `entity.UpdateTime`
+  - ❌ `entity.CreatedTime` / `entity.UpdatedTime` → sẽ gây lỗi `CS1061`
+- **Property ID**: Base class dùng `ID` (viết HOA cả hai ký tự), KHÔNG phải `Id`.
 
 
 
