@@ -209,7 +209,7 @@ Tất cả các bài kiểm thử tự động (Integration/Unit Tests) bắt bu
 Dự án test nằm trực tiếp trong thư mục `tests/` của repo gốc (không lồng subfolder project):
 ```
 tests/
-├── test.csproj                            ← Project file test (Target net10.0)
+├── test.csproj                            ← Project file test (Target net8.0)
 ├── TestHost.cs                            ← WebApplicationFactory chính (override DB, tắt Hangfire)
 ├── GlobalUsings.cs                        ← Chứa global using chung (Xunit, System.Net...) để tránh IDE0005
 └── Modules/
@@ -217,9 +217,18 @@ tests/
         └── <TênModule>Tests.cs            ← File test của module (IClassFixture<TestHost>)
 ```
 
-### 2. Triết Lý Viết Test
+### 2. Triết Lý & Phương Pháp Viết Test
 * **Tập trung vào Happy Path**: Chỉ tập trung viết test cho các luồng chính (**Happy Path** của Queries & Commands). 
-* **Không viết test validation/business lẻ tẻ**: Tránh viết nhiều test case kiểm tra FluentValidation hoặc lỗi biên nhỏ lẻ, vì khi luồng Happy Path chạy thành công thì hệ thống đã tự động chạy qua bộ `Validator` và `Handler` tương ứng (đã kiểm nghiệm được DI hoạt động và logic Validator/Handler chạy đúng).
+* **Gọi trực tiếp qua Wolverine `IMessageBus` (Bypass Controller/HTTP)**: 
+  - **Lợi ích**: Giúp quá trình chạy test cực kỳ nhanh, bỏ qua lớp kiểm tra quyền JWT Authentication/Authorization phiền phức và **100% bắt được breakpoint** khi debug bằng VS Code (do cùng chạy trên 1 luồng xử lý chính).
+  - **Cách gọi**: Inject `IMessageBus` từ `TestHost.Services` và gọi trực tiếp:
+    - *Queries (Phân trang)*: `var result = await _bus.InvokeAsync<SqlSugarPagedList<OutputDTO>>(new InputDTO { ... });`
+    - *Commands (Thêm/Sửa/Xóa)*: `await _bus.InvokeAsync(payload);`
+* **Kiểm tra trạng thái DB trực tiếp**: Đối với các Command (Add/Update/Delete), sau khi gọi `_bus.InvokeAsync`, hãy resolve `ISqlSugarClient` từ scope của Host để query và so sánh trực tiếp dữ liệu trong DB (ví dụ: `Assert.NotNull(added)`, `Assert.Null(deleted)`).
+* **Cấu trúc SqlSugarPagedList**: Đối tượng phân trang trả về là `SqlSugarPagedList<T>`, truy xuất dữ liệu danh sách qua thuộc tính **`.Records`** (kiểu `IEnumerable<T>`), không phải `.List` hay `.Rows`.
+* **Cơ chế Tự Dọn Dẹp Dữ Liệu Cục Bộ (Dispose)**:
+  - Lớp Test bắt buộc kế thừa **`IDisposable`**.
+  - Triển khai phương thức **`Dispose()`** để tự động chạy sau mỗi hàm test, thực hiện `DELETE` tất cả các bản ghi/ID mock vừa chèn vào DB. Không drop database khi tắt host.
 
 ### 3. Quy Tắc Đặt Tên & Định Dạng
 * **File test**: `<TênModule>Tests.cs` (không dùng hậu tố `IntegrationTests.cs`).
