@@ -25,12 +25,18 @@ updated: 2026-07-23
 
 
 
-## Entity Conventions
+## Entity Conventions & Length Constants
 - **Entity Inheritance**: All Entity classes MUST inherit from `EntityTenant` (from `Shared.Core.Domain`).
+- **EntityConst for Column Lengths**: BẮT BUỘC dùng các hằng số `EntityConst` (từ namespace `Shared.DTO.Constants.Application`, VD: `EntityConst.Length32`, `EntityConst.Length64`, `EntityConst.Length128`, `EntityConst.Length256`, `EntityConst.Length512`, `EntityConst.KeyFieldLength`) cho tất cả attribute `[SugarColumn(Length = ...)]` và `[MaxLength(...)]` trong Entity và DTO. KHÔNG ĐƯỢC dùng số hardcode trực tiếp (như `Length = 32`).
+- **Shared Enums for ShareData**: Tất cả các Enum dùng chung cho Module ShareData (ESHARE V1) được định nghĩa trong `Modules.ShareData.Core.Enums.EshEnums` (`DataSourceKind`, `MappingDirection`, `DatatypeIdEnum`, `SubDirection`, `SubMode`, `SubState`, `PublishFormat`, `PubState`, `ExportStatus`, `PartnerStatus`, `ProtocolProfile`).
+
+
 
 
 ## Minimal Diff & Maintenance Rules
+- **DO NOT auto-run `dotnet build`**: KHÔNG tự động chạy lệnh `dotnet build` sau khi tạo/sửa code trừ khi người dùng yêu cầu trực tiếp.
 - **Minimal Diff Principle**: ONLY modify files and code strictly necessary to accomplish the requested feature or bugfix. NEVER auto-upgrade package versions (`PackageReference` in `.csproj`), edit unrelated shared projects (`Shared.Reference`), or modify existing files outside the task scope unless explicitly instructed by the user.
+
 
 
 
