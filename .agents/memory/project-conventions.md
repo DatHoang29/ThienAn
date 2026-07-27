@@ -21,7 +21,10 @@ updated: 2026-07-23
 /// Author: Đạt
 /// Created date: [dd/MM/yyyy]
 /// </summary>
-```
+- **Single-Statement If Braces**: Đối với câu lệnh `if` chỉ chứa 1 dòng thực thi (VD: `if (isCodeExists) throw Oops.Oh(...);`), KHÔNG DÙNG dấu ngoặc nhọn `{}`.
+- **Using Directives Instead of Inline Namespaces**: BẮT BUỘC dùng `using` directive ở đầu file (VD: `using Modules.ShareData.Core.Entities;`) để gọi tên class ngắn gọn (VD: `EshPartner`) thay vì gõ namespace dài inline trong code (VD: `Core.Entities.EshPartner`).
+
+
 
 
 
@@ -29,6 +32,8 @@ updated: 2026-07-23
 - **Entity Inheritance**: All Entity classes MUST inherit from `EntityTenant` (from `Shared.Core.Domain`).
 - **EntityConst for Column Lengths**: BẮT BUỘC dùng các hằng số `EntityConst` (từ namespace `Shared.DTO.Constants.Application`, VD: `EntityConst.Length32`, `EntityConst.Length64`, `EntityConst.Length128`, `EntityConst.Length256`, `EntityConst.Length512`, `EntityConst.KeyFieldLength`) cho tất cả attribute `[SugarColumn(Length = ...)]` và `[MaxLength(...)]` trong Entity và DTO. KHÔNG ĐƯỢC dùng số hardcode trực tiếp (như `Length = 32`).
 - **Shared Enums for ShareData**: Tất cả các Enum dùng chung cho Module ShareData (ESHARE V1) được định nghĩa trong `Modules.ShareData.Core.Enums.EshEnums` (`DataSourceKind`, `MappingDirection`, `DatatypeIdEnum`, `SubDirection`, `SubMode`, `SubState`, `PublishFormat`, `PubState`, `ExportStatus`, `PartnerStatus`, `ProtocolProfile`).
+- **Validators Directory Conventions**: Mỗi feature/controller trong module (VD: `Controllers/EshDataSource/`, `Controllers/EshPartner/`) BẮT BUỘC có thư mục `Validators/` chứa các class FluentValidation (`Add[Entity]Validator`, `Update[Entity]Validator`, `Delete[Entity]Validator` kế thừa `AbstractValidator<T>`) tương tự cấu trúc chuẩn trong `Modules.Samplev2/Controllers/Category/Validators/`.
+
 
 
 
