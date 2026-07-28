@@ -1,7 +1,7 @@
 # Memory Index
 
 ## User Preferences
-- [preferences] KHÔNG tự động commit Git và KHÔNG tự động start server/app → user-preferences.md
+- [preferences] Quy định và sở thích làm việc người dùng Thiên An → thienan_user-preferences.md
 
 ## Project
 - [project] Docker SQL Server trên macOS (Apple Silicon) BẮT BUỘC dùng `azure-sql-edge:latest` → project-conventions.md

@@ -4,7 +4,7 @@ created: 2026-07-21
 updated: 2026-07-22
 ---
 
-# User Preferences
+# Thiên An User Preferences
 
 ## Workflow & Execution Rules
 - **DO NOT auto-run `dotnet build`**: The AI must NOT automatically execute `dotnet build` or compilation commands after code changes unless explicitly requested by the user.
@@ -20,3 +20,15 @@ updated: 2026-07-22
 - **MAPSTER MAPPER LOCATION CONVENTION**: KHÔNG tạo thư mục `Mappings` riêng rẽ để chứa file Register tập trung. Tất cả cấu hình ánh xạ Mapster (`IRegister`) BẮT BUỘC viết trực tiếp bên trong file DTO Output tương ứng (VD: `EshPartnerOutput.cs` chứa `public class EshPartnerMapper : IRegister`, `MenuOutput.cs` / `SysMenuOutput.cs` chứa mapper tương ứng).
 - **NO EXTRA/DESIGN-TIME CLASSES IN VALIDATORS**: Validator chỉ khai báo duy nhất 1 Constructor nhận `IStringLocalizer lz` (hoặc `localizer`), KHÔNG tự ý chèn các class phụ/mock như `DesignTimeLocalizer` hay constructor không tham số `: this(...)`.
 - **DISTINGUISH REFERENCE FROM ACTION**: Khi người dùng yêu cầu "tham khảo", "xem thử", "giải thích" hoặc hỏi ý kiến, AI BẮT BUỘC phải phân tích và trả lời thảo luận trước, KHÔNG ĐƯỢC tự ý nhảy vào áp dụng hoặc thêm/sửa code khi chưa có xác nhận từ người dùng.
+- **SINGLE-PROJECT MODULE ARCHITECTURE (Cấu trúc Modules 2.1.3)**: Tất cả các module đều BẮT BUỘC phải theo cấu trúc project duy nhất (VD: `Modules.ShareData.csproj`), không tách làm project `.Core` phụ. Thư mục project module bao gồm:
+  - `Controllers`: Chứa xử lý các API truy cập từ bên ngoài.
+  - `Core`: Chứa các phần căn bản của module, bao gồm Abstraction, Entity, Exception.
+  - `[Bắt buộc] Extensions`: Chứa các class khai báo module và các thư viện tích hợp. Thư mục này bắt buộc phải có để khai báo sử dụng.
+  - `Infrastructure`: Chứa các phần xử lý liên quan tới CSDL (`BaseRepository.cs`), xử lý dữ liệu (`Services/`).
+  - `GlobalUsings.cs`
+  *(Nếu module không có phần nào thì có thể bỏ qua phần đó, nhưng tuyệt đối không tự tạo project phụ rải rác).*
+- **MODULE LOCALIZATION SPECIFICATION (Dịch thuật 2.1.4)**:
+  - Tất cả các Module có sử dụng dịch thuật BẮT BUỘC tạo file `Core/Exceptions/BaseMsg.cs` kế thừa `BaseLocaleManager` (từ `Shared.DTO.Constants.Localization`).
+  - Trong `BaseMsg`, tạo các class đại diện cho từng Chức năng/Entity (VD: `EshPartner`, `EshDataSource`...).
+  - Trong mỗi class chức năng, chia thành các class con chứa hằng số dịch thuật: `Validation`, `Message`, `Exception`, `Entity` (group action).
+  - BẮT BUỘC có xml doc comment `/// <summary> Nội dung hiển thị tiếng Việt </summary>` trên mỗi hằng số để phục vụ việc tra cứu, tìm kiếm và debug sau này.
