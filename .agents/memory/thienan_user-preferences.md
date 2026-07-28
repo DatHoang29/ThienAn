@@ -32,7 +32,7 @@ updated: 2026-07-22
   - Tất cả các Module có sử dụng dịch thuật BẮT BUỘC tạo file `Core/Exceptions/BaseMsg.cs` kế thừa `BaseLocaleManager` (từ `Shared.DTO.Constants.Localization`).
   - Trong `BaseMsg`, tạo các class đại diện cho từng Chức năng/Entity (VD: `EshPartner`, `EshDataSource`...).
   - Trong mỗi class chức năng, chia thành các class con chứa hằng số dịch thuật: `Validation`, `Message`, `Exception`, `Entity` (group action).
-  - BẮT BUỘC có xml doc comment `/// <summary> Nội dung hiển thị tiếng Việt </summary>` trên mỗi hằng số để phục vụ việc tra cứu, tìm kiếm và debug sau này.
+  - **Vị trí thư mục Resources**: Thư mục `Resources` nằm ngang hàng với `Controllers`, `Core`, `Extensions`, `Infrastructure` trong root project của Module (VD: `Modules.ShareData/Resources/vi-VN.json`). KHÔNG đặt bên trong thư mục `Controllers`. Dịch thuật được cập nhật đồng bộ vào `src/TAC_WebAPI/Resources/` để hệ thống load đầy đủ.
 - **SQLSUGAR DB FIRST SPECIFICATION (Quy trình DB First 2.1.5)**:
   1. Cấu hình chuỗi kết nối mới trong file `Database.json` với `ConfigId` tương ứng. Tắt tất cả các cài đặt khởi tạo tự động trong `DbSettings` (`Enable... = false`).
   2. **Bắt buộc thuộc tính `[Tenant(ConfigId)]`**: Tất cả các Entity sinh ra hoặc tạo tay cho DB First BẮT BUỘC phải có thuộc tính `[Tenant("ConfigId_Tuong_Ung")]` trên đầu class Entity.
