@@ -1,6 +1,6 @@
 -- ============================================================================
 -- SEED DEMO DATA - Module ShareData (ESHARE V1)
--- Database: [test] / ConfigId: dev_its10
+-- Database: [dev_its10] / ConfigId: dev_its10
 -- Author: Đạt
 -- Created date: 29/07/2026
 -- Description: Giả lập dữ liệu demo cho các bảng master/cấu hình.
@@ -9,7 +9,7 @@
 --              → MappingProfile → FieldMapping → Subscription
 -- ============================================================================
 
-USE [test];
+USE [dev_its10];
 GO
 
 -- ============================================================================
