@@ -112,22 +112,14 @@ CR: CR0001-thay-doi-luong-gui-mail
 
 ## 🚫 4. Quy Định Tự Động Hóa Đối Với Trợ Lý AI (AI Execution Rules)
 
-Đối với Trợ lý AI (Antigravity Agent), tuyệt đối tuân thủ 2 nguyên tắc sau khi làm việc trong dự án:
+Đối với Trợ lý AI (Antigravity Agent), tuyệt đối tuân thủ **3 nguyên tắc** sau khi làm việc trong dự án:
 
 1.  **KHÔNG TỰ ĐỘNG CHẠY LỆNH BUILD (`dotnet build`)**: AI không được tự động chạy lệnh `dotnet build` hoặc bất kỳ lệnh biên dịch nào sau khi chỉnh sửa code, trừ khi người dùng yêu cầu trực tiếp.
 2.  **KHÔNG TỰ ĐỘNG COMMIT VÀ PUSH GIT (`git commit` / `git push`)**: AI không được tự động chạy `git add`, `git commit`, hay `git push` code lên repository dưới bất kỳ hình thức nào. Quyền commit và push code hoàn toàn thuộc về lập trình viên.
 3.  **TỐI THIỂU HÓA THAY ĐỔI (MINIMAL DIFF PRINCIPLE)**: AI CHỈ ĐƯỢC PHÉP chỉnh sửa/thêm code đối với các file và nội dung thực sự phục vụ trực tiếp cho tính năng mới hoặc bug được yêu cầu. TUYỆT ĐỐI KHÔNG tự động upgrade phiên bản thư viện (`PackageReference` trong `.csproj`), không format/touch vào các file không liên quan, không làm thay đổi các file dùng chung (`Shared.Reference`, `appsettings.json`,...) trừ khi có chỉ định rõ ràng từ người dùng.
-4.  **QUY ĐỊNH DOCKER SQL SERVER TRÊN MAC**: Máy tính chạy môi trường macOS (đặc biệt chip Apple Silicon M1/M2/M3/M4) **BẮT BUỘC** dùng Docker image `mcr.microsoft.com/azure-sql-edge:latest`. TUYỆT ĐỐI KHÔNG dùng `mcr.microsoft.com/mssql/server:2022-latest` vì bản x86_64 sẽ bị crash tràn bộ nhớ QEMU (`Invalid mapping of address`).
-5.  **QUY ĐỊNH SWAGGER GROUPNAME KHI TẠO CONTROLLER**: Mỗi Module/Sub-module khi tạo Controller/BaseController **BẮT BUỘC** phải định nghĩa hằng số `GroupName` (Ví dụ: `GroupName = "ShareData"`) và `BasePath` (Ví dụ: `BasePath = "api/vms"`), gán attribute `[ApiDescriptionSettings(GroupName)]` để Furion/Swagger Auto-Discovery tự động phát hiện và hiển thị trên dropdown UI, tuyệt đối KHÔNG cấu hình khai báo thủ công trong `Swagger.json`.
-6.  **QUY ĐỊNH ENTITY CLASS**: Tất cả các Entity class trong hệ thống bắt buộc phải kế thừa `EntityTenant` (từ `Shared.Core.Domain`).
-7.  **QUY ĐỊNH HEADER COMMENT CỦA CLASS**: Mỗi Class khi tạo mới hoặc cập nhật BẮT BUỘC phải có khối XML summary comment ở đầu Class theo mẫu (Author luôn là **Đạt**):
-```csharp
-/// <summary>
-/// [Mô tả chức năng / Tên bảng]
-/// Author: Đạt
-/// Created date: [dd/MM/yyyy]
-/// </summary>
-```
+
+> [!NOTE]
+> Các quy chuẩn code/hạ tầng chung của dự án (Docker, Entity, Swagger, header comment...) áp dụng cho **cả người lẫn AI** — xem tại mục 5 bên dưới, không lặp lại ở đây để tránh trùng lặp nội dung.
 
 ---
 
@@ -143,7 +135,7 @@ Các hệ thống / Module phát triển mới về sau bắt buộc tuân thủ
 
 2. **Cấu hình BaseController & Swagger Auto-Discovery**:
    * Mỗi Module bắt buộc có file `BaseController.cs` riêng nằm tại `Modules.[TênHệ].Controllers`.
-   * Khai báo hằng số `GroupName` và sử dụng attribute `[ApiDescriptionSettings(GroupName)]` để Swagger tự động quét nhóm API (Auto-Discovery), không tự ý chỉnh sửa thủ công file `Swagger.json`.
+   * Khai báo hằng số `GroupName` (VD: `GroupName = "ShareData"`) và `BasePath` (VD: `BasePath = "api/vms"`), gán attribute `[ApiDescriptionSettings(GroupName)]` để Furion/Swagger tự động quét nhóm API (Auto-Discovery). Tuyệt đối KHÔNG cấu hình khai báo thủ công trong `Swagger.json`.
    ```csharp
    namespace Modules.ShareData.Controllers
    {
@@ -198,6 +190,19 @@ Các hệ thống / Module phát triển mới về sau bắt buộc tuân thủ
      global using Wolverine.Attributes;
      [assembly: WolverineModule]
      ```
+
+6. **Quy định Entity Class**: Tất cả các Entity class trong hệ thống bắt buộc phải kế thừa `EntityTenant` (từ `Shared.Core.Domain`).
+
+7. **Quy định Header Comment của Class**: Mỗi Class khi tạo mới hoặc cập nhật BẮT BUỘC phải có khối XML summary comment ở đầu Class theo mẫu (Author luôn là **Đạt**):
+   ```csharp
+   /// <summary>
+   /// [Mô tả chức năng / Tên bảng]
+   /// Author: Đạt
+   /// Created date: [dd/MM/yyyy]
+   /// </summary>
+   ```
+
+8. **Quy định Docker SQL Server trên Mac**: Máy tính chạy môi trường macOS (đặc biệt chip Apple Silicon M1/M2/M3/M4) **BẮT BUỘC** dùng Docker image `mcr.microsoft.com/azure-sql-edge:latest`. TUYỆT ĐỐI KHÔNG dùng `mcr.microsoft.com/mssql/server:2022-latest` vì bản x86_64 sẽ bị crash tràn bộ nhớ QEMU (`Invalid mapping of address`).
 
 ---
 
