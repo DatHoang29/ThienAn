@@ -239,5 +239,5 @@ tests/
 * **File test**: `<TênModule>Tests.cs` (không dùng hậu tố `IntegrationTests.cs`).
 * **Class test**: `<TênModule>Tests`.
 * **Namespace**: `TAC_WebAPI.IntegrationTests.Modules.<TênModule>`.
-* **Tên phương thức test**: Định dạng **PascalCase**, hậu tố **Test**, **tuyệt đối không dùng dấu gạch dưới `_`**.
+* **Tên phương thức test**: Sử dụng dấu gạch dưới **`_`** để phân tách các phần trong tên phương thức theo định dạng `Feature_Scenario_ExpectedResult` hoặc `Feature_Scenario_ExpectedResult_Test` (ví dụ: `CronJob_SavedQuery_SqlGeneration_Test`, `PartnerQuery_GetById_ReturnsSuccess_Test`).
 * **Thứ tự**: Sắp xếp các Happy Case của Queries lên trước, sau đó đến các Happy Case của Commands (ví dụ: `QueryPageReturnsSuccessTest`, `CommandAddReturnsSuccessTest`).
