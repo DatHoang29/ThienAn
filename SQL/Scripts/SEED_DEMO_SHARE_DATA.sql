@@ -338,29 +338,29 @@ VALUES
     (N'SUB-001', N'SUB-TRAFFIC-SGTVT', N'PTN-001', N'OUTBOUND',
      N'SN-2026-0001', N'101', N'BATCH',
      N'{"cron":"*/5 * * * *","timezone":"Asia/Ho_Chi_Minh"}',
-     300, NULL, GETDATE(),
+     300, NULL, DATEADD(SECOND, -10, GETDATE()),
      N'IDLE', NULL, N'RAW', 1, N'ACTIVE',
      N'DS-001', N'MP-001', NULL, 0,
      NULL, NULL, DATEADD(DAY, -30, GETDATE()), DATEADD(DAY, -29, GETDATE()), N'admin',
      1, GETDATE(), 1, 1, NULL),
 
-    -- SUB2: Sự cố → VEC (Realtime)
+    -- SUB2: Sự cố → VEC (Batch 5 phút)
     (N'SUB-002', N'SUB-INCIDENT-VEC', N'PTN-002', N'OUTBOUND',
-     N'SN-2026-0002', N'103', N'REALTIME',
-     NULL,
-     0, NULL, NULL,
+     N'SN-2026-0002', N'103', N'BATCH',
+     N'{"cron":"*/5 * * * *","timezone":"Asia/Ho_Chi_Minh"}',
+     300, NULL, DATEADD(SECOND, -10, GETDATE()),
      N'IDLE', NULL, N'RAW', 1, N'ACTIVE',
      N'DS-003', N'MP-002', N'EVT-002', 5,
      NULL, NULL, DATEADD(DAY, -25, GETDATE()), DATEADD(DAY, -24, GETDATE()), N'admin',
      1, GETDATE(), 1, 1, NULL),
 
-    -- SUB3: Thời tiết ← Đài KTTV (Batch 15 phút - Inbound - PAUSED)
-    (N'SUB-003', N'SUB-WEATHER-IN', N'PTN-004', N'INBOUND',
+    -- SUB3: Thời tiết ← Đài KTTV (Batch 15 phút - Outbound - ACTIVE)
+    (N'SUB-003', N'SUB-WEATHER-IN', N'PTN-004', N'OUTBOUND',
      N'SN-2026-0003', N'106', N'BATCH',
      N'{"cron":"*/15 * * * *","timezone":"Asia/Ho_Chi_Minh"}',
-     900, NULL, NULL,
-     N'DISABLED', NULL, N'RAW', 3, N'PAUSED',
-     NULL, N'MP-003', NULL, 0,
+     900, NULL, DATEADD(SECOND, -10, GETDATE()),
+     N'IDLE', NULL, N'RAW', 3, N'ACTIVE',
+     N'DS-004', N'MP-003', NULL, 0,
      NULL, NULL, DATEADD(DAY, -20, GETDATE()), DATEADD(DAY, -19, GETDATE()), N'admin',
      1, GETDATE(), 1, 1, NULL),
 
@@ -368,29 +368,29 @@ VALUES
     (N'SUB-004', N'SUB-VMS-QLDB3', N'PTN-003', N'OUTBOUND',
      N'SN-2026-0004', N'102', N'BATCH',
      N'{"cron":"*/10 * * * *","timezone":"Asia/Ho_Chi_Minh"}',
-     600, NULL, GETDATE(),
+     600, NULL, DATEADD(SECOND, -10, GETDATE()),
      N'IDLE', NULL, N'ZIP', 2, N'ACTIVE',
      N'DS-002', N'MP-004', NULL, 0,
      NULL, NULL, DATEADD(DAY, -15, GETDATE()), DATEADD(DAY, -14, GETDATE()), N'admin',
      1, GETDATE(), 1, 1, NULL),
 
-    -- SUB5: Camera AI → CII (On-demand - PENDING)
+    -- SUB5: Camera AI → CII (Batch 5 phút - ACTIVE)
     (N'SUB-005', N'SUB-CAMERA-CII', N'PTN-005', N'OUTBOUND',
-     N'SN-2026-0005', N'109', N'ON_DEMAND',
-     NULL,
-     0, NULL, NULL,
-     N'IDLE', NULL, N'GZIP', 3, N'PENDING',
+     N'SN-2026-0005', N'109', N'BATCH',
+     N'{"cron":"*/5 * * * *","timezone":"Asia/Ho_Chi_Minh"}',
+     300, NULL, DATEADD(SECOND, -10, GETDATE()),
+     N'IDLE', NULL, N'GZIP', 3, N'ACTIVE',
      N'DS-006', N'MP-005', NULL, 0,
-     NULL, NULL, DATEADD(DAY, -3, GETDATE()), NULL, NULL,
+     NULL, NULL, DATEADD(DAY, -3, GETDATE()), DATEADD(DAY, -2, GETDATE()), N'admin',
      1, GETDATE(), 1, 1, NULL),
 
-    -- SUB6: Camera AI realtime → SGTVT HCM
+    -- SUB6: Camera AI -> SGTVT HCM (Batch 5 phút)
     (N'SUB-006', N'SUB-CAMERA-SGTVT-RT', N'PTN-001', N'OUTBOUND',
-     N'SN-2026-0006', N'109', N'REALTIME',
-     NULL,
-     0, NULL, NULL,
+     N'SN-2026-0006', N'109', N'BATCH',
+     N'{"cron":"*/5 * * * *","timezone":"Asia/Ho_Chi_Minh"}',
+     300, NULL, DATEADD(SECOND, -10, GETDATE()),
      N'IDLE', NULL, N'RAW', 1, N'ACTIVE',
-     N'DS-006', NULL, N'EVT-003', 2,
+     N'DS-006', N'MP-001', N'EVT-003', 2,
      NULL, NULL, DATEADD(DAY, -5, GETDATE()), DATEADD(DAY, -4, GETDATE()), N'admin',
      1, GETDATE(), 1, 1, NULL);
 GO
