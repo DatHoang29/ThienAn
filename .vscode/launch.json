@@ -6,7 +6,7 @@
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-worker",
-      "program": "${workspaceFolder}/TA-ShareData-WorkerService/bin/Debug/net8.0/TA-ShareData-WorkerService.dll",
+      "program": "${workspaceFolder}/TA-ShareData-WorkerService/bin/Debug/net10.0/TA-ShareData-WorkerService.dll",
       "args": [],
       "cwd": "${workspaceFolder}/TA-ShareData-WorkerService",
       "stopAtEntry": false,
