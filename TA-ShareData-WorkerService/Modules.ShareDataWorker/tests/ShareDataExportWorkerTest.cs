@@ -898,6 +898,265 @@ namespace TA_ShareData_WorkerService.Tests
 
             Assert.Null(exception);
         }
+
+        [Fact]
+        public async Task WorkerService_IncrementalExport_AvoidsDuplicates_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<ShareDataExportService>>();
+            var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
+
+            var partner = new EshPartner
+            {
+                Code = "TEST_INC_PARTNER",
+                Name = "Incremental Test Partner",
+                Status = EshEnums.PartnerStatus.Enabled
+            };
+            await db.Insertable(partner).ExecuteCommandAsync();
+
+            var dataSource = new EshDataSource
+            {
+                Code = "TEST_INC_DS",
+                Name = "Incremental Traffic Data",
+                Kind = EshEnums.DataSourceKind.FieldPicker,
+                Table = "TmsTrafficData",
+                TopN = 100
+            };
+            await db.Insertable(dataSource).ExecuteCommandAsync();
+
+            var mapping = new EshMappingProfile
+            {
+                Code = "TEST_INC_MAP",
+                Name = "Incremental Mapping"
+            };
+            await db.Insertable(mapping).ExecuteCommandAsync();
+
+            var f1 = new EshFieldMapping
+            {
+                MappingProfileId = mapping.ID,
+                SourceKey = "LocationCode",
+                TargetKey = "locationCode",
+                OrderNo = 1
+            };
+            var f2 = new EshFieldMapping
+            {
+                MappingProfileId = mapping.ID,
+                SourceKey = "UpdateTime",
+                TargetKey = "updateTime",
+                OrderNo = 2
+            };
+            await db.Insertable(new List<EshFieldMapping> { f1, f2 }).ExecuteCommandAsync();
+
+            var sub = new EshSubscription
+            {
+                SerialNbr = "SUB-INC-001",
+                PartnerId = partner.ID,
+                DataSourceId = dataSource.ID,
+                MappingProfileId = mapping.ID,
+                State = EshEnums.SubState.Active,
+                Direction = EshEnums.SubDirection.Outbound,
+                Mode = EshEnums.SubMode.Batch,
+                RunStatus = EshEnums.RunStatus.Idle,
+                NextTimeRun = DateTime.Now.AddSeconds(-10),
+                LastTimeRun = new DateTime(2026, 1, 1, 1, 0, 0)
+            };
+            await db.Insertable(sub).ExecuteCommandAsync();
+
+            var item1 = new TmsTrafficData
+            {
+                LocationCode = "LocationCode_INC_1",
+                VehicleCount = 10,
+                UpdateTime = new DateTime(2026, 1, 1, 1, 0, 30)
+            };
+            await db.Insertable(item1).ExecuteCommandAsync();
+
+            var workerService = new ShareDataExportService(scopeFactory, logger);
+            await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+
+            var updatedSub = await db.Queryable<EshSubscription>().InSingleAsync(sub.ID);
+            Assert.NotNull(updatedSub.LastTimeRun);
+
+            var item2 = new TmsTrafficData
+            {
+                LocationCode = "LocationCode_INC_2",
+                VehicleCount = 20,
+                UpdateTime = DateTime.Now.AddSeconds(10)
+            };
+            await db.Insertable(item2).ExecuteCommandAsync();
+
+            updatedSub.NextTimeRun = DateTime.Now.AddSeconds(-10);
+            await db.Updateable(updatedSub).ExecuteCommandAsync();
+
+            await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+
+            var logs = await db.Queryable<EshExportLog>()
+                .Where(l => l.SubscriptionId == sub.ID)
+                .OrderBy(l => l.ExportedAt, OrderByType.Asc)
+                .ToListAsync();
+
+            Assert.True(logs.Count >= 2);
+            Assert.True(logs[0].RecordCount >= 1);
+            Assert.Equal(1, logs[1].RecordCount);
+        }
+
+        [Fact]
+        public async Task WorkerService_IncrementalExport_WhenTableHasNoTimeColumn_DoesNotCrash_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<ShareDataExportService>>();
+            var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
+
+            var partner = new EshPartner
+            {
+                Code = "TEST_NOTIME_PARTNER",
+                Name = "No Time Col Partner",
+                Status = EshEnums.PartnerStatus.Enabled
+            };
+            await db.Insertable(partner).ExecuteCommandAsync();
+
+            var dataSource = new EshDataSource
+            {
+                Code = "TEST_NOTIME_DS",
+                Name = "No Time Col DS",
+                Kind = EshEnums.DataSourceKind.FieldPicker,
+                Table = "EshPartner",
+                TopN = 50
+            };
+            await db.Insertable(dataSource).ExecuteCommandAsync();
+
+            var mapping = new EshMappingProfile
+            {
+                Code = "TEST_NOTIME_MAP",
+                Name = "No Time Col Mapping"
+            };
+            await db.Insertable(mapping).ExecuteCommandAsync();
+
+            var f1 = new EshFieldMapping
+            {
+                MappingProfileId = mapping.ID,
+                SourceKey = "Code",
+                TargetKey = "code",
+                OrderNo = 1
+            };
+            await db.Insertable(f1).ExecuteCommandAsync();
+
+            var sub = new EshSubscription
+            {
+                SerialNbr = "SUB-NOTIME-001",
+                PartnerId = partner.ID,
+                DataSourceId = dataSource.ID,
+                MappingProfileId = mapping.ID,
+                State = EshEnums.SubState.Active,
+                Direction = EshEnums.SubDirection.Outbound,
+                Mode = EshEnums.SubMode.Batch,
+                RunStatus = EshEnums.RunStatus.Idle,
+                NextTimeRun = DateTime.Now.AddSeconds(-10),
+                LastTimeRun = DateTime.Now.AddMinutes(-10)
+            };
+            await db.Insertable(sub).ExecuteCommandAsync();
+
+            var workerService = new ShareDataExportService(scopeFactory, logger);
+
+            var exception = await Record.ExceptionAsync(async () =>
+            {
+                await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+            });
+
+            Assert.Null(exception);
+
+            var logs = await db.Queryable<EshExportLog>()
+                .Where(l => l.SubscriptionId == sub.ID)
+                .ToListAsync();
+
+            Assert.NotEmpty(logs);
+            Assert.Equal(EshEnums.ExportStatus.Success, logs[0].Status);
+        }
+
+        [Fact]
+        public async Task WorkerService_IncrementalExport_WithLogTimeColumn_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<ShareDataExportService>>();
+            var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
+
+            var partner = new EshPartner
+            {
+                Code = "TEST_LOGTIME_PARTNER",
+                Name = "LogTime Partner",
+                Status = EshEnums.PartnerStatus.Enabled
+            };
+            await db.Insertable(partner).ExecuteCommandAsync();
+
+            var dataSource = new EshDataSource
+            {
+                Code = "TEST_LOGTIME_DS",
+                Name = "LogTime DS",
+                Kind = EshEnums.DataSourceKind.FieldPicker,
+                Table = "TmsTrafficData",
+                TopN = 50
+            };
+            await db.Insertable(dataSource).ExecuteCommandAsync();
+
+            var mapping = new EshMappingProfile
+            {
+                Code = "TEST_LOGTIME_MAP",
+                Name = "LogTime Mapping"
+            };
+            await db.Insertable(mapping).ExecuteCommandAsync();
+
+            var f1 = new EshFieldMapping
+            {
+                MappingProfileId = mapping.ID,
+                SourceKey = "LocationCode",
+                TargetKey = "locationCode",
+                OrderNo = 1
+            };
+            var f2 = new EshFieldMapping
+            {
+                MappingProfileId = mapping.ID,
+                SourceKey = "LogTime",
+                TargetKey = "logTime",
+                OrderNo = 2
+            };
+            await db.Insertable(new List<EshFieldMapping> { f1, f2 }).ExecuteCommandAsync();
+
+            var sub = new EshSubscription
+            {
+                SerialNbr = "SUB-LOGTIME-001",
+                PartnerId = partner.ID,
+                DataSourceId = dataSource.ID,
+                MappingProfileId = mapping.ID,
+                State = EshEnums.SubState.Active,
+                Direction = EshEnums.SubDirection.Outbound,
+                Mode = EshEnums.SubMode.Batch,
+                RunStatus = EshEnums.RunStatus.Idle,
+                NextTimeRun = DateTime.Now.AddSeconds(-10),
+                LastTimeRun = new DateTime(2026, 1, 1, 1, 0, 0)
+            };
+            await db.Insertable(sub).ExecuteCommandAsync();
+
+            var item = new TmsTrafficData
+            {
+                LocationCode = "LogTime_Loc_1",
+                VehicleCount = 5,
+                LogTime = new DateTime(2026, 1, 1, 1, 30, 0)
+            };
+            await db.Insertable(item).ExecuteCommandAsync();
+
+            var workerService = new ShareDataExportService(scopeFactory, logger);
+            await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+
+            var logs = await db.Queryable<EshExportLog>()
+                .Where(l => l.SubscriptionId == sub.ID)
+                .ToListAsync();
+
+            Assert.NotEmpty(logs);
+            Assert.Equal(EshEnums.ExportStatus.Success, logs[0].Status);
+            Assert.Equal(1, logs[0].RecordCount);
+        }
     }
 
     [SugarTable("TmsTrafficData")]

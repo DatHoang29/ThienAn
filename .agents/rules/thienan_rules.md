@@ -233,7 +233,11 @@ tests/
 * **Cấu trúc SqlSugarPagedList**: Đối tượng phân trang trả về là `SqlSugarPagedList<T>`, truy xuất dữ liệu danh sách qua thuộc tính **`.Records`** (kiểu `IEnumerable<T>`), không phải `.List` hay `.Rows`.
 * **Cơ chế Tự Dọn Dẹp Dữ Liệu Cục Bộ (Dispose)**:
   - Lớp Test bắt buộc kế thừa **`IDisposable`**.
-  - Triển khai phương thức **`Dispose()`** để tự động chạy sau mỗi hàm test, thực hiện `DELETE` tất cả các bản ghi/ID mock vừa chèn vào DB. Không drop database khi tắt host.
+  - Triển khai phương thức **`Dispose()`** để tự động chạy sau mỗi hàm test, thực hiện `DELETE` tất cả các bản ghi/ID mock thuộc module nội bộ vừa chèn vào DB. Không drop database khi tắt host.
+* **Cách ly dữ liệu test & Không xóa bảng nghiệp vụ ngoài (Read-Only Target Tables)**:
+  - Bảng dữ liệu nghiệp vụ thuộc hệ thống ngoài hoặc module khác (như `TmsTrafficData`, `TmsOrder`...) là bảng ĐỌC (READ-ONLY).
+  - AI TUYỆT ĐỐI KHÔNG ĐƯỢC thực thi các câu lệnh `DELETE` hay `TRUNCATE` trên các bảng dữ liệu nghiệp vụ này (cả trong code runtime lẫn trong bài test `Dispose()`).
+  - Mọi bài test BẮT BUỘC tự cách ly dữ liệu test bằng cách chèn bản ghi mới và dùng mốc thời gian (`UpdateTime > lastTimeRun`), đảm bảo bài test chạy chính xác 100% mà KHÔNG CẦN xóa hay làm ảnh hưởng đến dữ liệu sẵn có của hệ thống khác.
 
 ### 3. Quy Tắc Đặt Tên & Định Dạng
 * **File test**: `<TênModule>Tests.cs` (không dùng hậu tố `IntegrationTests.cs`).

@@ -100,7 +100,7 @@ namespace TA_ShareData_WorkerService.Infrastructure.Services
                 return;
             }
 
-            var (sql, errorMessage) = BuildExportSql(dataSource, fieldMappings);
+            var (sql, errorMessage) = BuildExportSql(dataSource, fieldMappings, sub.LastTimeRun);
             if (!string.IsNullOrEmpty(errorMessage))
             {
                 await LogExportResultAsync(db, sub, 0, 0, null, EshEnums.ExportStatus.Failed, errorMessage);
@@ -111,7 +111,7 @@ namespace TA_ShareData_WorkerService.Infrastructure.Services
 
             try
             {
-                var dt = await db.Ado.GetDataTableAsync(sql, new { topN = topNValue });
+                var dt = await db.Ado.GetDataTableAsync(sql, new { topN = topNValue, lastTimeRun = sub.LastTimeRun });
                 var (exportDataList, transformError) = TransformDataTableToExportPayload(dt, fieldMappings);
 
                 if (!string.IsNullOrEmpty(transformError))
@@ -154,7 +154,7 @@ namespace TA_ShareData_WorkerService.Infrastructure.Services
                     {
                         RunStatus = EshEnums.RunStatus.Idle,
                         ProcessLockId = null,
-                        LastTimeRun = finishedTime,
+                        LastTimeRun = now,
                         NextTimeRun = nextTimeRun,
                         UpdateTime = finishedTime
                     })
@@ -163,15 +163,19 @@ namespace TA_ShareData_WorkerService.Infrastructure.Services
             }
         }
 
-        private static (string Sql, string? ErrorMessage) BuildExportSql(EshDataSource dataSource, List<EshFieldMapping> fieldMappings)
+        private static (string Sql, string? ErrorMessage) BuildExportSql(EshDataSource dataSource, List<EshFieldMapping> fieldMappings, DateTime? lastTimeRun)
         {
+            var hasLastTime = lastTimeRun.HasValue;
+
             if (dataSource.Kind == EshEnums.DataSourceKind.FieldPicker)
             {
                 if (string.IsNullOrWhiteSpace(dataSource.Table))
                     return (string.Empty, BaseMsg.ExportValidation.TableEmptyForPicker);
 
                 var selectColumns = string.Join(", ", fieldMappings.Select(f => $"[{f.SourceKey}]"));
-                return ($"SELECT TOP (@topN) {selectColumns} FROM [{dataSource.Table}]", null);
+                var timeCol = hasLastTime ? FindTimeColumn(fieldMappings) : null;
+                var whereClause = !string.IsNullOrEmpty(timeCol) ? $" WHERE [{timeCol}] > @lastTimeRun ORDER BY [{timeCol}] ASC" : "";
+                return ($"SELECT TOP (@topN) {selectColumns} FROM [{dataSource.Table}]{whereClause}", null);
             }
 
             if (dataSource.Kind == EshEnums.DataSourceKind.SavedQuery)
@@ -196,10 +200,35 @@ namespace TA_ShareData_WorkerService.Infrastructure.Services
                     trimmedQuery = Regex.Replace(trimmedQuery, @"^SELECT\b", "SELECT TOP 100 PERCENT", RegexOptions.IgnoreCase);
                 }
 
-                return ($"SELECT TOP (@topN) * FROM ({trimmedQuery}) AS temp_query", null);
+                var timeCol = hasLastTime ? FindTimeColumn(fieldMappings, trimmedQuery) : null;
+                var whereClause = !string.IsNullOrEmpty(timeCol) ? $" WHERE temp_query.[{timeCol}] > @lastTimeRun ORDER BY temp_query.[{timeCol}] ASC" : "";
+                return ($"SELECT TOP (@topN) * FROM ({trimmedQuery}) AS temp_query{whereClause}", null);
             }
 
             return (string.Empty, BaseMsg.ExportValidation.UnsupportedDataSource);
+        }
+
+        private static string? FindTimeColumn(List<EshFieldMapping> fieldMappings, string? queryText = null)
+        {
+            var candidates = new[] { "UpdateTime", "CreateTime", "CreatedTime", "LogTime", "UpdatedDate", "CreatedDate", "ExportedAt", "Timestamp", "Time" };
+
+            foreach (var candidate in candidates)
+            {
+                var mapped = fieldMappings.FirstOrDefault(f => candidate.Equals(f.SourceKey, StringComparison.OrdinalIgnoreCase));
+                if (mapped != null && !string.IsNullOrWhiteSpace(mapped.SourceKey))
+                    return mapped.SourceKey;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryText))
+            {
+                foreach (var candidate in candidates)
+                {
+                    if (Regex.IsMatch(queryText, $@"\b{candidate}\b", RegexOptions.IgnoreCase))
+                        return candidate;
+                }
+            }
+
+            return null;
         }
 
         private static (List<Dictionary<string, object?>> Data, string? ErrorMessage) TransformDataTableToExportPayload(DataTable dt, List<EshFieldMapping> fieldMappings)
