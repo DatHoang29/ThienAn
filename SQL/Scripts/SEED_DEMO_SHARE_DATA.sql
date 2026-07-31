@@ -52,6 +52,8 @@ IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[EshSub
     ALTER TABLE [dbo].[EshSubscription] ALTER COLUMN [QoS] INT NULL;
 
 -- Clean dữ liệu theo đúng thứ tự phụ thuộc (Foreign Key)
+DELETE FROM [dbo].[EshExportLog];
+DELETE FROM [dbo].[EshSystemLog];
 DELETE FROM [dbo].[EshSubscription];
 DELETE FROM [dbo].[EshFieldMapping];
 DELETE FROM [dbo].[EshMappingProfile];

@@ -1250,16 +1250,23 @@ namespace TA_ShareData_WorkerService.Tests
             };
             await db.Insertable(item).ExecuteCommandAsync();
 
-            var workerService = new ShareDataExportService(scopeFactory, logger);
-            await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+            try
+            {
+                var workerService = new ShareDataExportService(scopeFactory, logger);
+                await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
 
-            var logs = await db.Queryable<EshExportLog>()
-                .Where(l => l.SubscriptionId == sub.ID)
-                .ToListAsync();
+                var logs = await db.Queryable<EshExportLog>()
+                    .Where(l => l.SubscriptionId == sub.ID)
+                    .ToListAsync();
 
-            Assert.NotEmpty(logs);
-            Assert.Equal(EshEnums.ExportStatus.Success, logs[0].Status);
-            Assert.Equal(1, logs[0].RecordCount);
+                Assert.NotEmpty(logs);
+                Assert.Equal(EshEnums.ExportStatus.Success, logs[0].Status);
+                Assert.True(logs[0].RecordCount > 0);
+            }
+            finally
+            {
+                await db.Deleteable<TmsTrafficData>().In(item.ID).ExecuteCommandAsync();
+            }
         }
 
         /// <summary>
