@@ -180,9 +180,20 @@ namespace TA_ShareData_WorkerService.Infrastructure.Services
                     return (string.Empty, BaseMsg.ExportValidation.TableEmptyForPicker);
 
                 var selectColumns = string.Join(", ", fieldMappings.Select(f => $"[{f.SourceKey}]"));
+                var delCol = FindDeleteColumn(fieldMappings);
                 var timeCol = hasLastTime ? FindTimeColumn(fieldMappings) : null;
-                var whereClause = !string.IsNullOrEmpty(timeCol) ? $" WHERE [{timeCol}] > @lastTimeRun ORDER BY [{timeCol}] ASC" : "";
-                return ($"SELECT TOP (@topN) {selectColumns} FROM [{dataSource.Table}]{whereClause}", null);
+
+                var whereConditions = new List<string>();
+                if (!string.IsNullOrEmpty(delCol))
+                    whereConditions.Add($"([{delCol}] IS NULL OR [{delCol}] = 0)");
+
+                if (!string.IsNullOrEmpty(timeCol))
+                    whereConditions.Add($"[{timeCol}] > @lastTimeRun");
+
+                var whereClause = whereConditions.Count > 0 ? " WHERE " + string.Join(" AND ", whereConditions) : "";
+                var orderClause = !string.IsNullOrEmpty(timeCol) ? $" ORDER BY [{timeCol}] ASC" : "";
+
+                return ($"SELECT TOP (@topN) {selectColumns} FROM [{dataSource.Table}]{whereClause}{orderClause}", null);
             }
 
             if (dataSource.Kind == EshEnums.DataSourceKind.SavedQuery)
@@ -207,12 +218,46 @@ namespace TA_ShareData_WorkerService.Infrastructure.Services
                     trimmedQuery = Regex.Replace(trimmedQuery, @"^SELECT\b", "SELECT TOP 100 PERCENT", RegexOptions.IgnoreCase);
                 }
 
+                var delCol = FindDeleteColumn(fieldMappings, trimmedQuery);
                 var timeCol = hasLastTime ? FindTimeColumn(fieldMappings, trimmedQuery) : null;
-                var whereClause = !string.IsNullOrEmpty(timeCol) ? $" WHERE temp_query.[{timeCol}] > @lastTimeRun ORDER BY temp_query.[{timeCol}] ASC" : "";
-                return ($"SELECT TOP (@topN) * FROM ({trimmedQuery}) AS temp_query{whereClause}", null);
+
+                var whereConditions = new List<string>();
+                if (!string.IsNullOrEmpty(delCol))
+                    whereConditions.Add($"(temp_query.[{delCol}] IS NULL OR temp_query.[{delCol}] = 0)");
+
+                if (!string.IsNullOrEmpty(timeCol))
+                    whereConditions.Add($"temp_query.[{timeCol}] > @lastTimeRun");
+
+                var whereClause = whereConditions.Count > 0 ? " WHERE " + string.Join(" AND ", whereConditions) : "";
+                var orderClause = !string.IsNullOrEmpty(timeCol) ? $" ORDER BY temp_query.[{timeCol}] ASC" : "";
+
+                return ($"SELECT TOP (@topN) * FROM ({trimmedQuery}) AS temp_query{whereClause}{orderClause}", null);
             }
 
             return (string.Empty, BaseMsg.ExportValidation.UnsupportedDataSource);
+        }
+
+        private static string? FindDeleteColumn(List<EshFieldMapping> fieldMappings, string? queryText = null)
+        {
+            var candidates = new[] { "IsDelete", "IsDeleted", "IsDel" };
+
+            foreach (var candidate in candidates)
+            {
+                var mapped = fieldMappings.FirstOrDefault(f => candidate.Equals(f.SourceKey, StringComparison.OrdinalIgnoreCase));
+                if (mapped != null && !string.IsNullOrWhiteSpace(mapped.SourceKey))
+                    return mapped.SourceKey;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queryText))
+            {
+                foreach (var candidate in candidates)
+                {
+                    if (Regex.IsMatch(queryText, $@"\b{candidate}\b", RegexOptions.IgnoreCase))
+                        return candidate;
+                }
+            }
+
+            return null;
         }
 
         private static string? FindTimeColumn(List<EshFieldMapping> fieldMappings, string? queryText = null)

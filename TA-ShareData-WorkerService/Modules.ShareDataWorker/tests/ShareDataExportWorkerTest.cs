@@ -1261,6 +1261,86 @@ namespace TA_ShareData_WorkerService.Tests
             Assert.Equal(EshEnums.ExportStatus.Success, logs[0].Status);
             Assert.Equal(1, logs[0].RecordCount);
         }
+
+        /// <summary>
+        /// Kiểm thử tự động nhận diện và lọc bản ghi xóa mềm (IsDelete IS NULL OR IsDelete = 0)
+        /// Author: Đạt
+        /// Created date: 31/07/2026
+        /// </summary>
+        [Fact]
+        public async Task WorkerService_IncrementalExport_WithSoftDeleteColumn_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<ShareDataExportService>>();
+            var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
+
+            var partner = new EshPartner
+            {
+                Code = "TEST_SOFTDEL_PARTNER",
+                Name = "Soft Delete Partner",
+                Status = EshEnums.PartnerStatus.Enabled
+            };
+            await db.Insertable(partner).ExecuteCommandAsync();
+
+            var dataSource = new EshDataSource
+            {
+                Code = "TEST_SOFTDEL_DS",
+                Name = "Soft Delete DS",
+                Kind = EshEnums.DataSourceKind.FieldPicker,
+                Table = "EshPartner",
+                TopN = 50
+            };
+            await db.Insertable(dataSource).ExecuteCommandAsync();
+
+            var mapping = new EshMappingProfile
+            {
+                Code = "TEST_SOFTDEL_MAP",
+                Name = "Soft Delete Mapping"
+            };
+            await db.Insertable(mapping).ExecuteCommandAsync();
+
+            var f1 = new EshFieldMapping
+            {
+                MappingProfileId = mapping.ID,
+                SourceKey = "Code",
+                TargetKey = "code",
+                OrderNo = 1
+            };
+            var f2 = new EshFieldMapping
+            {
+                MappingProfileId = mapping.ID,
+                SourceKey = "IsDelete",
+                TargetKey = "isDelete",
+                OrderNo = 2
+            };
+            await db.Insertable(new List<EshFieldMapping> { f1, f2 }).ExecuteCommandAsync();
+
+            var sub = new EshSubscription
+            {
+                SerialNbr = "SUB-SOFTDEL-001",
+                PartnerId = partner.ID,
+                DataSourceId = dataSource.ID,
+                MappingProfileId = mapping.ID,
+                State = EshEnums.SubState.Active,
+                Direction = EshEnums.SubDirection.Outbound,
+                Mode = EshEnums.SubMode.Batch,
+                RunStatus = EshEnums.RunStatus.Idle,
+                NextTimeRun = DateTime.Now.AddSeconds(-10),
+                LastTimeRun = DateTime.Now.AddSeconds(-5)
+            };
+            await db.Insertable(sub).ExecuteCommandAsync();
+
+            var workerService = new ShareDataExportService(scopeFactory, logger);
+            await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+
+            var logs = await db.Queryable<EshExportLog>()
+                .Where(l => l.SubscriptionId == sub.ID)
+                .ToListAsync();
+
+            Assert.NotEmpty(logs);
+            Assert.Equal(EshEnums.ExportStatus.Success, logs[0].Status);
+        }
     }
 
     [SugarTable("TmsTrafficData")]
