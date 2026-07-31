@@ -5,18 +5,18 @@ using SqlSugar;
 using System.Data;
 using TA_ShareData_WorkerService.Core.Entities;
 using TA_ShareData_WorkerService.Core.Enums;
-using TA_ShareData_WorkerService.Workers;
+using TA_ShareData_WorkerService.Infrastructure.Services;
 using Xunit;
 using Xunit.Abstractions;
 
 namespace TA_ShareData_WorkerService.Tests
 {
-    public class ShareDataExportWorkerTest : IDisposable
+    public class ShareDataExportServiceTest : IDisposable
     {
         public IHost HostInstance { get; }
         public IServiceProvider Services => HostInstance.Services;
 
-        public ShareDataExportWorkerTest()
+        public ShareDataExportServiceTest()
         {
             HostInstance = Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
                 .ConfigureServices((hostContext, services) =>
@@ -29,6 +29,7 @@ namespace TA_ShareData_WorkerService.Tests
                         IsAutoCloseConnection = true,
                         InitKeyType = InitKeyType.Attribute
                     }));
+                    services.AddScoped<TA_ShareData_WorkerService.Infrastructure.Services.IShareDataExportService, TA_ShareData_WorkerService.Infrastructure.Services.ShareDataExportService>();
                 })
                 .Build();
 
@@ -57,12 +58,12 @@ namespace TA_ShareData_WorkerService.Tests
         }
     }
 
-    public class WorkerServiceTests : IClassFixture<ShareDataExportWorkerTest>
+    public class WorkerServiceTests : IClassFixture<ShareDataExportServiceTest>
     {
-        private readonly ShareDataExportWorkerTest _host;
+        private readonly ShareDataExportServiceTest _host;
         private readonly ITestOutputHelper _output;
 
-        public WorkerServiceTests(ShareDataExportWorkerTest host, ITestOutputHelper output)
+        public WorkerServiceTests(ShareDataExportServiceTest host, ITestOutputHelper output)
         {
             _host = host;
             _output = output;
@@ -73,7 +74,7 @@ namespace TA_ShareData_WorkerService.Tests
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<ShareDataExportWorker>>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<ShareDataExportService>>();
             var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
 
             var partner = new EshPartner
@@ -137,7 +138,7 @@ namespace TA_ShareData_WorkerService.Tests
             };
             await db.Insertable(subscription).ExecuteCommandAsync();
 
-            var workerService = new ShareDataExportWorker(scopeFactory, logger);
+            var workerService = new ShareDataExportService(scopeFactory, logger);
             await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
 
             var updatedSub = await db.Queryable<EshSubscription>().InSingleAsync(subscription.ID);
@@ -175,7 +176,7 @@ namespace TA_ShareData_WorkerService.Tests
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<ShareDataExportWorker>>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<ShareDataExportService>>();
             var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
 
             var trafficRecord = new TmsTrafficData
@@ -247,7 +248,7 @@ namespace TA_ShareData_WorkerService.Tests
             };
             await db.Insertable(subscription).ExecuteCommandAsync();
 
-            var workerService = new ShareDataExportWorker(scopeFactory, logger);
+            var workerService = new ShareDataExportService(scopeFactory, logger);
             await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
 
             var updatedSub = await db.Queryable<EshSubscription>().InSingleAsync(subscription.ID);
@@ -285,7 +286,7 @@ namespace TA_ShareData_WorkerService.Tests
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<ShareDataExportWorker>>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<ShareDataExportService>>();
             var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
 
             var partner = new EshPartner
@@ -342,7 +343,7 @@ namespace TA_ShareData_WorkerService.Tests
             };
             await db.Insertable(subscription).ExecuteCommandAsync();
 
-            var workerService = new ShareDataExportWorker(scopeFactory, logger);
+            var workerService = new ShareDataExportService(scopeFactory, logger);
             await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
 
             var updatedSub = await db.Queryable<EshSubscription>().InSingleAsync(subscription.ID);
@@ -413,7 +414,7 @@ namespace TA_ShareData_WorkerService.Tests
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<ShareDataExportWorker>>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<ShareDataExportService>>();
             var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
 
             var partner = new EshPartner { Code = "TEST_WORKER_FORBIDDEN", Name = "Forbidden SQL Partner", Status = EshEnums.PartnerStatus.Enabled };
@@ -459,7 +460,7 @@ namespace TA_ShareData_WorkerService.Tests
             };
             await db.Insertable(subscription).ExecuteCommandAsync();
 
-            var workerService = new ShareDataExportWorker(scopeFactory, logger);
+            var workerService = new ShareDataExportService(scopeFactory, logger);
             await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
 
             var exportLogs = await db.Queryable<EshExportLog>()
@@ -476,7 +477,7 @@ namespace TA_ShareData_WorkerService.Tests
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<ShareDataExportWorker>>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<ShareDataExportService>>();
             var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
 
             var partner = new EshPartner { Code = "TEST_WORKER_NON_SELECT", Name = "Non SELECT Partner", Status = EshEnums.PartnerStatus.Enabled };
@@ -522,7 +523,7 @@ namespace TA_ShareData_WorkerService.Tests
             };
             await db.Insertable(subscription).ExecuteCommandAsync();
 
-            var workerService = new ShareDataExportWorker(scopeFactory, logger);
+            var workerService = new ShareDataExportService(scopeFactory, logger);
             await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
 
             var exportLogs = await db.Queryable<EshExportLog>()
@@ -539,7 +540,7 @@ namespace TA_ShareData_WorkerService.Tests
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<ShareDataExportWorker>>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<ShareDataExportService>>();
             var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
 
             var partner = new EshPartner { Code = "TEST_WORKER_LOCK", Name = "Lock Recovery Partner", Status = EshEnums.PartnerStatus.Enabled };
@@ -587,7 +588,7 @@ namespace TA_ShareData_WorkerService.Tests
             };
             await db.Insertable(stuckSubscription).ExecuteCommandAsync();
 
-            var workerService = new ShareDataExportWorker(scopeFactory, logger);
+            var workerService = new ShareDataExportService(scopeFactory, logger);
             await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
 
             var updatedSub = await db.Queryable<EshSubscription>().InSingleAsync(stuckSubscription.ID);
@@ -607,7 +608,7 @@ namespace TA_ShareData_WorkerService.Tests
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<ShareDataExportWorker>>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<ShareDataExportService>>();
             var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
 
             var list = new List<TmsTrafficData>();
@@ -666,7 +667,7 @@ namespace TA_ShareData_WorkerService.Tests
             };
             await db.Insertable(subscription).ExecuteCommandAsync();
 
-            var workerService = new ShareDataExportWorker(scopeFactory, logger);
+            var workerService = new ShareDataExportService(scopeFactory, logger);
             await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
 
             var exportLogs = await db.Queryable<EshExportLog>()
@@ -686,7 +687,7 @@ namespace TA_ShareData_WorkerService.Tests
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<ShareDataExportWorker>>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<ShareDataExportService>>();
 
             var partner = new EshPartner { Code = "TEST_WORKER_MULTI", Name = "Đối tác test đa luồng", Status = EshEnums.PartnerStatus.Enabled };
             await db.Insertable(partner).ExecuteCommandAsync();
@@ -744,7 +745,7 @@ namespace TA_ShareData_WorkerService.Tests
             };
             await db.Insertable(new[] { sub1, sub2 }).ExecuteCommandAsync();
 
-            var workerService = new ShareDataExportWorker(scopeFactory, logger);
+            var workerService = new ShareDataExportService(scopeFactory, logger);
             await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
 
             var logs = await db.Queryable<EshExportLog>()
@@ -761,7 +762,7 @@ namespace TA_ShareData_WorkerService.Tests
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<ShareDataExportWorker>>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<ShareDataExportService>>();
 
             var partner = new EshPartner { Code = "TEST_WORKER_ORDER", Name = "Đối tác test ORDER BY", Status = EshEnums.PartnerStatus.Enabled };
             await db.Insertable(partner).ExecuteCommandAsync();
@@ -806,7 +807,7 @@ namespace TA_ShareData_WorkerService.Tests
             };
             await db.Insertable(sub).ExecuteCommandAsync();
 
-            var workerService = new ShareDataExportWorker(scopeFactory, logger);
+            var workerService = new ShareDataExportService(scopeFactory, logger);
             await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
 
             var logs = await db.Queryable<EshExportLog>()
@@ -823,7 +824,7 @@ namespace TA_ShareData_WorkerService.Tests
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<ShareDataExportWorker>>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<ShareDataExportService>>();
 
             var partner = new EshPartner { Code = "TEST_WORKER_LASTUPDATED", Name = "Đối tác test LastUpdated", Status = EshEnums.PartnerStatus.Enabled };
             await db.Insertable(partner).ExecuteCommandAsync();
@@ -868,7 +869,7 @@ namespace TA_ShareData_WorkerService.Tests
             };
             await db.Insertable(sub).ExecuteCommandAsync();
 
-            var workerService = new ShareDataExportWorker(scopeFactory, logger);
+            var workerService = new ShareDataExportService(scopeFactory, logger);
             await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
 
             var logs = await db.Queryable<EshExportLog>()
@@ -885,11 +886,11 @@ namespace TA_ShareData_WorkerService.Tests
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<ShareDataExportWorker>>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<ShareDataExportService>>();
 
             await db.Deleteable<EshSubscription>().ExecuteCommandAsync();
 
-            var workerService = new ShareDataExportWorker(scopeFactory, logger);
+            var workerService = new ShareDataExportService(scopeFactory, logger);
 
             var exception = await Record.ExceptionAsync(async () =>
             {

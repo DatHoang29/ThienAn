@@ -1,23 +1,15 @@
-using SqlSugar;
-using System.Data;
-using System.Security.Cryptography;
-using System.Text.Json;
-using System.Text.RegularExpressions;
-using TA_ShareData_WorkerService.Core.Entities;
-using TA_ShareData_WorkerService.Core.Enums;
-using TA_ShareData_WorkerService.Core.Utilities;
-
-namespace TA_ShareData_WorkerService.Workers
+namespace TA_ShareData_WorkerService.Infrastructure.Services
 {
     /// <summary>
-    /// Standalone Background Worker Service xử lý kết xuất & truyền dữ liệu định kỳ theo CronJob (ESHARE V1)
+    /// Background Worker Service xử lý kết xuất & truyền dữ liệu định kỳ theo CronJob (ESHARE V1)
     /// Author: Đạt
     /// Created date: 31/07/2026
     /// </summary>
-    public class ShareDataExportWorker(IServiceScopeFactory scopeFactory, ILogger<ShareDataExportWorker> logger) : BackgroundService
+    public class ShareDataExportService(IServiceScopeFactory scopeFactory, ILogger<ShareDataExportService> logger) : BackgroundService, IShareDataExportService
     {
         private readonly IServiceScopeFactory _scopeFactory = scopeFactory;
-        private readonly ILogger<ShareDataExportWorker> _logger = logger;
+        private readonly ILogger<ShareDataExportService> _logger = logger;
+
         private static readonly TimeSpan CheckInterval = TimeSpan.FromSeconds(5);
         private static readonly TimeSpan LockTimeout = TimeSpan.FromMinutes(1);
         private static readonly IReadOnlyList<string> ForbiddenSqlKeywords = ["DROP", "DELETE", "UPDATE", "INSERT", "EXEC", "TRUNCATE", "ALTER", "--", "/*"];
@@ -26,7 +18,7 @@ namespace TA_ShareData_WorkerService.Workers
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("🚀 [ShareDataExportWorker] Started background worker service at: {Time}", DateTimeOffset.Now);
+            _logger.LogInformation(BaseMsg.Worker.Started, DateTimeOffset.Now);
 
             while (!stoppingToken.IsCancellationRequested)
             {
@@ -36,15 +28,17 @@ namespace TA_ShareData_WorkerService.Workers
                 }
                 catch (Exception ex)
                 {
-                    _LogInformationMsg($"❌ Lỗi xảy ra trong chu kỳ chạy của ShareDataExportWorker. Chi tiết: {ex.Message}");
+#if DEBUG
+                    _logger.LogInformation(BaseMsg.Worker.CycleError, ex.Message);
+#endif
                 }
                 await Task.Delay(CheckInterval, stoppingToken);
             }
 
-            _logger.LogInformation("🛑 [ShareDataExportWorker] Stopping background worker service at: {Time}", DateTimeOffset.Now);
+            _logger.LogInformation(BaseMsg.Worker.Stopping, DateTimeOffset.Now);
         }
 
-        public async Task ProcessBatchSubscriptionsAsync(CancellationToken stoppingToken)
+        public async Task ProcessBatchSubscriptionsAsync(CancellationToken stoppingToken = default)
         {
             await using var scope = _scopeFactory.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
@@ -94,7 +88,7 @@ namespace TA_ShareData_WorkerService.Workers
             var mapping = await db.Queryable<EshMappingProfile>().InSingleAsync(sub.MappingProfileId);
             if (mapping == null)
             {
-                await _LogExportResultAsync(db, sub, 0, 0, null, EshEnums.ExportStatus.Failed, "Mapping profile không tồn tại hoặc đã bị xóa.");
+                await _LogExportResultAsync(db, sub, 0, 0, null, EshEnums.ExportStatus.Failed, BaseMsg.ExportValidation.ProfileNotFound);
                 return;
             }
 
@@ -105,14 +99,14 @@ namespace TA_ShareData_WorkerService.Workers
 
             if (fieldMappings.Count == 0)
             {
-                await _LogExportResultAsync(db, sub, 0, 0, null, EshEnums.ExportStatus.Failed, "Mapping profile không có cấu hình field mapping nào.");
+                await _LogExportResultAsync(db, sub, 0, 0, null, EshEnums.ExportStatus.Failed, BaseMsg.ExportValidation.FieldMappingEmpty);
                 return;
             }
 
             var dataSource = await db.Queryable<EshDataSource>().InSingleAsync(sub.DataSourceId);
             if (dataSource == null)
             {
-                await _LogExportResultAsync(db, sub, 0, 0, null, EshEnums.ExportStatus.Failed, "Nguồn dữ liệu không tồn tại.");
+                await _LogExportResultAsync(db, sub, 0, 0, null, EshEnums.ExportStatus.Failed, BaseMsg.ExportValidation.DataSourceNotFound);
                 return;
             }
 
@@ -184,7 +178,7 @@ namespace TA_ShareData_WorkerService.Workers
             if (dataSource.Kind == EshEnums.DataSourceKind.FieldPicker)
             {
                 if (string.IsNullOrWhiteSpace(dataSource.Table))
-                    return (string.Empty, "Tên bảng nguồn không được để trống khi chọn loại FIELD_PICKER.");
+                    return (string.Empty, BaseMsg.ExportValidation.TableEmptyForPicker);
 
                 var selectColumns = string.Join(", ", fieldMappings.Select(f => $"[{f.SourceKey}]"));
                 return ($"SELECT TOP (@topN) {selectColumns} FROM [{dataSource.Table}]", null);
@@ -193,18 +187,18 @@ namespace TA_ShareData_WorkerService.Workers
             if (dataSource.Kind == EshEnums.DataSourceKind.SavedQuery)
             {
                 if (string.IsNullOrWhiteSpace(dataSource.QueryText))
-                    return (string.Empty, "Câu lệnh SQL QueryText không được để trống khi chọn loại SAVED_QUERY.");
+                    return (string.Empty, BaseMsg.ExportValidation.QueryEmptyForSavedQuery);
 
                 var trimmedQuery = dataSource.QueryText.Trim();
                 if (!trimmedQuery.StartsWith("SELECT", StringComparison.OrdinalIgnoreCase))
-                    return (string.Empty, "QueryText phải bắt đầu bằng SELECT.");
+                    return (string.Empty, BaseMsg.ExportValidation.QueryMustStartWithSelect);
 
                 var forbiddenKw = ForbiddenSqlKeywords.FirstOrDefault(kw => (kw == "--" || kw == "/*")
                         ? trimmedQuery.Contains(kw, StringComparison.OrdinalIgnoreCase)
                         : Regex.IsMatch(trimmedQuery, $@"\b{kw}\b", RegexOptions.IgnoreCase));
 
                 if (forbiddenKw != null)
-                    return (string.Empty, $"QueryText chứa từ khóa bị cấm: '{forbiddenKw}'.");
+                    return (string.Empty, string.Format(BaseMsg.ExportValidation.ForbiddenKeyword, forbiddenKw));
 
                 if (Regex.IsMatch(trimmedQuery, @"\bORDER\s+BY\b", RegexOptions.IgnoreCase) &&
                     !Regex.IsMatch(trimmedQuery, @"\bTOP\b", RegexOptions.IgnoreCase))
@@ -215,7 +209,7 @@ namespace TA_ShareData_WorkerService.Workers
                 return ($"SELECT TOP (@topN) * FROM ({trimmedQuery}) AS temp_query", null);
             }
 
-            return (string.Empty, "Loại DataSource không được hỗ trợ.");
+            return (string.Empty, BaseMsg.ExportValidation.UnsupportedDataSource);
         }
 
         private static (List<Dictionary<string, object?>> Data, string? ErrorMessage) _TransformDataTableToExportPayload(DataTable dt, List<EshFieldMapping> fieldMappings)
@@ -242,7 +236,7 @@ namespace TA_ShareData_WorkerService.Workers
             ).ToList();
 
             if (missingRequiredList.Count > 0)
-                return (exportDataList, $"Thiếu field bắt buộc: {string.Join(", ", missingRequiredList.Distinct())}");
+                return (exportDataList, string.Format(BaseMsg.ExportValidation.MissingRequiredFields, string.Join(", ", missingRequiredList.Distinct())));
 
             return (exportDataList, null);
         }
@@ -262,7 +256,7 @@ namespace TA_ShareData_WorkerService.Workers
                 Hash = hash,
                 Status = status,
                 ErrorMessage = errorMessage,
-                CreatedBy = "ShareDataExportWorker"
+                CreatedBy = "ShareDataExportService"
             };
 
             await db.Insertable(exportLog).ExecuteCommandAsync();
