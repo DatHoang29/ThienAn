@@ -5,7 +5,7 @@ namespace TA_ShareData_WorkerService.Infrastructure.Services
     /// Author: Đạt
     /// Created date: 31/07/2026
     /// </summary>
-    public class ShareDataExportService(IServiceScopeFactory scopeFactory, ILogger<ShareDataExportService> logger) : BackgroundService, IShareDataExportService
+    public class ShareDataExportService(IServiceScopeFactory scopeFactory, ILogger<ShareDataExportService> logger) : BackgroundService
     {
         private readonly IServiceScopeFactory _scopeFactory = scopeFactory;
         private readonly ILogger<ShareDataExportService> _logger = logger;

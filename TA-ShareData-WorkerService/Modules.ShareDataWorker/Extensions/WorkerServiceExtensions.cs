@@ -12,21 +12,15 @@ namespace TA_ShareData_WorkerService.Extensions
             var connectionString = configuration.GetConnectionString("DefaultConnection")
                                    ?? "Server=localhost;Database=dev_its10;Trusted_Connection=True;TrustServerCertificate=True;";
 
-            services.AddScoped<ISqlSugarClient>(sp =>
+            services.AddScoped<ISqlSugarClient>(sp => new SqlSugarScope(new ConnectionConfig
             {
-                var sqlSugar = new SqlSugarScope(new ConnectionConfig()
-                {
-                    ConnectionString = connectionString,
-                    DbType = SqlSugar.DbType.SqlServer,
-                    IsAutoCloseConnection = true,
-                    InitKeyType = InitKeyType.Attribute
-                });
-                return sqlSugar;
-            });
+                ConnectionString = connectionString,
+                DbType = SqlSugar.DbType.SqlServer,
+                IsAutoCloseConnection = true,
+                InitKeyType = InitKeyType.Attribute
+            }));
 
-            services.AddSingleton<ShareDataExportService>();
-            services.AddHostedService(sp => sp.GetRequiredService<ShareDataExportService>());
-            services.AddScoped<IShareDataExportService>(sp => sp.GetRequiredService<ShareDataExportService>());
+            services.AddHostedService<ShareDataExportService>();
 
             return services;
         }

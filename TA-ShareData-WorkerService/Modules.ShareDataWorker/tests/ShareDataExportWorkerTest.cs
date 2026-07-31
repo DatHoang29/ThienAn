@@ -29,7 +29,6 @@ namespace TA_ShareData_WorkerService.Tests
                         IsAutoCloseConnection = true,
                         InitKeyType = InitKeyType.Attribute
                     }));
-                    services.AddScoped<TA_ShareData_WorkerService.Infrastructure.Services.IShareDataExportService, TA_ShareData_WorkerService.Infrastructure.Services.ShareDataExportService>();
                 })
                 .Build();
 
