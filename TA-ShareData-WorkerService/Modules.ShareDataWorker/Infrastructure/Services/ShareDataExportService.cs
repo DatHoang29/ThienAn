@@ -107,8 +107,7 @@ namespace TA_ShareData_WorkerService.Infrastructure.Services
                 return;
             }
 
-            int topNValue = dataSource.TopN is > 0 and <= 10000 ? dataSource.TopN : 1000;
-
+            var  topNValue = dataSource.TopN is > 0 and <= 10000 ? dataSource.TopN : 1000;
             try
             {
                 var dt = await db.Ado.GetDataTableAsync(sql, new { topN = topNValue, lastTimeRun = sub.LastTimeRun });
@@ -133,11 +132,22 @@ namespace TA_ShareData_WorkerService.Infrastructure.Services
                 var hashBytes = SHA256.HashData(jsonBytes);
                 var fileHash = Convert.ToHexString(hashBytes);
 
+                // Kiểm tra xem trong EshExportLog đã tồn tại fileHash này cho Subscription hay chưa
+                var isHashExisted = await db.Queryable<EshExportLog>()
+                    .AnyAsync(l => l.SubscriptionId == sub.ID && l.Hash == fileHash && l.Status == EshEnums.ExportStatus.Success);
+                if (isHashExisted)
+                {
+                    LogInformationMsg($"ℹ️ FileHash {fileHash} đã tồn tại cho Subscription ID {sub.ID}. Bỏ qua ghi file JSON.");
+                    await LogExportResultAsync(db, sub, 0, 0, null, EshEnums.ExportStatus.Success, "FileHash đã tồn tại (Trùng dữ liệu đã xuất đợt trước)", fileHash);
+                    return;
+                }
+
                 var partner = await db.Queryable<EshPartner>().InSingleAsync(sub.PartnerId);
                 var vendorCode = partner?.Code ?? sub.PartnerId ?? EshEnums.SystemConstants.Unknown;
                 var dataTypeId = sub.DatatypeId ?? EshEnums.SystemConstants.Unknown;
                 var relativePath = EshExportPathHelper.GenerateExportRelativePath(vendorCode, dataTypeId, now);
                 var fullPath = Path.Combine(Directory.GetCurrentDirectory(), relativePath);
+
                 var directoryPath = Path.GetDirectoryName(fullPath);
                 if (!string.IsNullOrEmpty(directoryPath) && !Directory.Exists(directoryPath))
                     Directory.CreateDirectory(directoryPath);
@@ -327,7 +337,7 @@ namespace TA_ShareData_WorkerService.Infrastructure.Services
                 Hash = hash,
                 Status = status,
                 ErrorMessage = errorMessage,
-                CreatedBy = "ShareDataExportService"
+                CreatedBy = nameof(ShareDataExportService),
             };
 
             await db.Insertable(exportLog).ExecuteCommandAsync();
