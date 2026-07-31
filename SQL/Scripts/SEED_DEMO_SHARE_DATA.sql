@@ -159,7 +159,7 @@ VALUES
 
     (N'DS-004', N'DS-WEATHER', N'Dữ liệu thời tiết',
      N'SAVED_QUERY', N'dev_its10', NULL, NULL,
-     N'SELECT w.StationCode, w.Temperature, w.Humidity, w.WindSpeed, w.Visibility, w.RainFall, w.RecordTime FROM vw_Weather w WHERE w.RecordTime >= DATEADD(HOUR, -24, GETDATE())',
+     N'SELECT w.StationCode, w.Temperature, w.Humidity, w.WindSpeed, w.Visibility, w.RainFall, w.RecordTime FROM vw_Weather w WHERE w.RecordTime IS NOT NULL',
      5000,
      1, GETDATE(), 1, 1, NULL),
 
@@ -171,7 +171,7 @@ VALUES
 
     (N'DS-006', N'DS-VEHICLE-DET', N'Phát hiện phương tiện',
      N'SAVED_QUERY', N'dev_its10', NULL, NULL,
-     N'SELECT d.CameraId, d.PlateNumber, d.VehicleType, d.Color, d.Speed, d.DetectedAt, d.Direction FROM vw_VehicleDetection d WHERE d.DetectedAt >= DATEADD(HOUR, -1, GETDATE()) ORDER BY d.DetectedAt DESC',
+     N'SELECT d.CameraId, d.PlateNumber, d.VehicleType, d.Color, d.Speed, d.DetectedAt, d.Direction FROM vw_VehicleDetection d WHERE d.DetectedAt IS NOT NULL ORDER BY d.DetectedAt DESC',
      10000,
      1, GETDATE(), 1, 1, NULL);
 
