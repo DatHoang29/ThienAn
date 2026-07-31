@@ -11,12 +11,12 @@ using Xunit.Abstractions;
 
 namespace TA_ShareData_WorkerService.Tests
 {
-    public class WorkerTestHost : IDisposable
+    public class ShareDataExportWorkerTest : IDisposable
     {
         public IHost HostInstance { get; }
         public IServiceProvider Services => HostInstance.Services;
 
-        public WorkerTestHost()
+        public ShareDataExportWorkerTest()
         {
             HostInstance = Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
                 .ConfigureServices((hostContext, services) =>
@@ -57,12 +57,12 @@ namespace TA_ShareData_WorkerService.Tests
         }
     }
 
-    public class WorkerServiceTests : IClassFixture<WorkerTestHost>
+    public class WorkerServiceTests : IClassFixture<ShareDataExportWorkerTest>
     {
-        private readonly WorkerTestHost _host;
+        private readonly ShareDataExportWorkerTest _host;
         private readonly ITestOutputHelper _output;
 
-        public WorkerServiceTests(WorkerTestHost host, ITestOutputHelper output)
+        public WorkerServiceTests(ShareDataExportWorkerTest host, ITestOutputHelper output)
         {
             _host = host;
             _output = output;
