@@ -242,6 +242,7 @@ tests/
 ### 3. Quy Tắc Đặt Tên & Định Dạng
 * **File test**: `<TênModule>Tests.cs` (không dùng hậu tố `IntegrationTests.cs`).
 * **Class test**: `<TênModule>Tests`.
+* **Comment XML Summary Bắt Buộc Trên Hàm Test**: Mọi phương thức kiểm thử (`[Fact]` / `[Theory]`) BẮT BUỘC có comment XML `/// <summary>` theo thứ tự chuẩn: mô tả chức năng test, `Author: Đạt` ở giữa, và `Created date: DD/MM/YYYY` ở dòng cuối.
 * **Namespace**: `TAC_WebAPI.IntegrationTests.Modules.<TênModule>`.
 * **Tên phương thức test**: Sử dụng dấu gạch dưới **`_`** để phân tách các phần trong tên phương thức theo định dạng `Feature_Scenario_ExpectedResult` hoặc `Feature_Scenario_ExpectedResult_Test` (ví dụ: `CronJob_SavedQuery_SqlGeneration_Test`, `PartnerQuery_GetById_ReturnsSuccess_Test`).
 * **Thứ tự**: Sắp xếp các Happy Case của Queries lên trước, sau đó đến các Happy Case của Commands (ví dụ: `QueryPageReturnsSuccessTest`, `CommandAddReturnsSuccessTest`).

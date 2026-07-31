@@ -666,18 +666,25 @@ namespace TA_ShareData_WorkerService.Tests
             };
             await db.Insertable(subscription).ExecuteCommandAsync();
 
-            var workerService = new ShareDataExportService(scopeFactory, logger);
-            await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+            try
+            {
+                var workerService = new ShareDataExportService(scopeFactory, logger);
+                await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
 
-            var exportLogs = await db.Queryable<EshExportLog>()
-                .Where(l => l.SubscriptionId == subscription.ID)
-                .ToListAsync();
-            Assert.NotEmpty(exportLogs);
-            Assert.Equal(EshEnums.ExportStatus.Success, exportLogs[0].Status);
+                var exportLogs = await db.Queryable<EshExportLog>()
+                    .Where(l => l.SubscriptionId == subscription.ID)
+                    .ToListAsync();
+                Assert.NotEmpty(exportLogs);
+                Assert.Equal(EshEnums.ExportStatus.Success, exportLogs[0].Status);
 
-            var fullPath = Path.Combine(Directory.GetCurrentDirectory(), exportLogs[0].FilePath ?? string.Empty);
-            if (File.Exists(fullPath))
-                File.Delete(fullPath);
+                var fullPath = Path.Combine(Directory.GetCurrentDirectory(), exportLogs[0].FilePath ?? string.Empty);
+                if (File.Exists(fullPath))
+                    File.Delete(fullPath);
+            }
+            finally
+            {
+                await db.Deleteable<TmsTrafficData>().In(list.Select(x => x.ID)).ExecuteCommandAsync();
+            }
         }
 
         [Fact]
@@ -899,6 +906,11 @@ namespace TA_ShareData_WorkerService.Tests
             Assert.Null(exception);
         }
 
+        /// <summary>
+        /// Kiểm thử tính năng xuất tăng dần không trùng lặp dữ liệu đợt trước dựa vào cột UpdateTime
+        /// Author: Đạt
+        /// Created date: 31/07/2026
+        /// </summary>
         [Fact]
         public async Task WorkerService_IncrementalExport_AvoidsDuplicates_Test()
         {
@@ -1000,6 +1012,11 @@ namespace TA_ShareData_WorkerService.Tests
             Assert.Equal(1, logs[1].RecordCount);
         }
 
+        /// <summary>
+        /// Kiểm thử trường hợp bảng nguồn không có cột mốc thời gian (không bị crash nổ SQL Invalid column name)
+        /// Author: Đạt
+        /// Created date: 31/07/2026
+        /// </summary>
         [Fact]
         public async Task WorkerService_IncrementalExport_WhenTableHasNoTimeColumn_DoesNotCrash_Test()
         {
@@ -1074,6 +1091,11 @@ namespace TA_ShareData_WorkerService.Tests
             Assert.Equal(EshEnums.ExportStatus.Success, logs[0].Status);
         }
 
+        /// <summary>
+        /// Kiểm thử khả năng tự động nhận diện cột mốc thời gian tên khác UpdateTime (cụ thể là LogTime)
+        /// Author: Đạt
+        /// Created date: 31/07/2026
+        /// </summary>
         [Fact]
         public async Task WorkerService_IncrementalExport_WithLogTimeColumn_Test()
         {
@@ -1134,7 +1156,7 @@ namespace TA_ShareData_WorkerService.Tests
                 Mode = EshEnums.SubMode.Batch,
                 RunStatus = EshEnums.RunStatus.Idle,
                 NextTimeRun = DateTime.Now.AddSeconds(-10),
-                LastTimeRun = new DateTime(2026, 1, 1, 1, 0, 0)
+                LastTimeRun = DateTime.Now.AddSeconds(-5)
             };
             await db.Insertable(sub).ExecuteCommandAsync();
 
@@ -1142,7 +1164,7 @@ namespace TA_ShareData_WorkerService.Tests
             {
                 LocationCode = "LogTime_Loc_1",
                 VehicleCount = 5,
-                LogTime = new DateTime(2026, 1, 1, 1, 30, 0)
+                LogTime = DateTime.Now.AddSeconds(10)
             };
             await db.Insertable(item).ExecuteCommandAsync();
 
