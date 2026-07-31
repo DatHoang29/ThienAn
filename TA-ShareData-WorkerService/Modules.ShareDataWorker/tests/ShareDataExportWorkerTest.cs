@@ -1092,6 +1092,88 @@ namespace TA_ShareData_WorkerService.Tests
         }
 
         /// <summary>
+        /// Kiểm thử trường hợp không có dữ liệu mới (0 bản ghi): Không được tạo file JSON ra đĩa
+        /// Author: Đạt
+        /// Created date: 31/07/2026
+        /// </summary>
+        [Fact]
+        public async Task WorkerService_WhenNoDataExists_ShouldNotCreateJsonFile_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<ShareDataExportService>>();
+            var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
+
+            var partner = new EshPartner
+            {
+                Code = "TEST_NODATA_PARTNER",
+                Name = "No Data Partner",
+                Status = EshEnums.PartnerStatus.Enabled
+            };
+            await db.Insertable(partner).ExecuteCommandAsync();
+
+            var dataSource = new EshDataSource
+            {
+                Code = "TEST_NODATA_DS",
+                Name = "No Data DS",
+                Kind = EshEnums.DataSourceKind.FieldPicker,
+                Table = "TmsTrafficData",
+                TopN = 50
+            };
+            await db.Insertable(dataSource).ExecuteCommandAsync();
+
+            var mapping = new EshMappingProfile
+            {
+                Code = "TEST_NODATA_MAP",
+                Name = "No Data Mapping"
+            };
+            await db.Insertable(mapping).ExecuteCommandAsync();
+
+            var f1 = new EshFieldMapping
+            {
+                MappingProfileId = mapping.ID,
+                SourceKey = "LocationCode",
+                TargetKey = "locationCode",
+                OrderNo = 1
+            };
+            var f2 = new EshFieldMapping
+            {
+                MappingProfileId = mapping.ID,
+                SourceKey = "UpdateTime",
+                TargetKey = "updateTime",
+                OrderNo = 2
+            };
+            await db.Insertable(new List<EshFieldMapping> { f1, f2 }).ExecuteCommandAsync();
+
+            var sub = new EshSubscription
+            {
+                SerialNbr = "SUB-NODATA-001",
+                PartnerId = partner.ID,
+                DataSourceId = dataSource.ID,
+                MappingProfileId = mapping.ID,
+                State = EshEnums.SubState.Active,
+                Direction = EshEnums.SubDirection.Outbound,
+                Mode = EshEnums.SubMode.Batch,
+                RunStatus = EshEnums.RunStatus.Idle,
+                NextTimeRun = DateTime.Now.AddSeconds(-10),
+                LastTimeRun = DateTime.Now.AddDays(10)
+            };
+            await db.Insertable(sub).ExecuteCommandAsync();
+
+            var workerService = new ShareDataExportService(scopeFactory, logger);
+            await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+
+            var logs = await db.Queryable<EshExportLog>()
+                .Where(l => l.SubscriptionId == sub.ID)
+                .ToListAsync();
+
+            Assert.NotEmpty(logs);
+            Assert.Equal(EshEnums.ExportStatus.Success, logs[0].Status);
+            Assert.Equal(0, logs[0].RecordCount);
+            Assert.Null(logs[0].FilePath);
+        }
+
+        /// <summary>
         /// Kiểm thử khả năng tự động nhận diện cột mốc thời gian tên khác UpdateTime (cụ thể là LogTime)
         /// Author: Đạt
         /// Created date: 31/07/2026

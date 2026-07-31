@@ -120,9 +120,16 @@ namespace TA_ShareData_WorkerService.Infrastructure.Services
                     return;
                 }
 
+                var recordCount = (long)exportDataList.Count;
+                if (recordCount == 0)
+                {
+                    LogInformationMsg($"ℹ️ Không có dữ liệu mới cho Subscription ID {sub.ID}. Bỏ qua xuất file JSON.");
+                    await LogExportResultAsync(db, sub, 0, 0, null, EshEnums.ExportStatus.Success, "Không có dữ liệu mới");
+                    return;
+                }
+
                 var jsonBytes = JsonSerializer.SerializeToUtf8Bytes(exportDataList);
                 var byteSize = (long)jsonBytes.Length;
-                var recordCount = (long)exportDataList.Count;
                 var hashBytes = SHA256.HashData(jsonBytes);
                 var fileHash = Convert.ToHexString(hashBytes);
 
