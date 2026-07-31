@@ -7,7 +7,7 @@
       "type": "process",
       "args": [
         "build",
-        "${workspaceFolder}/TA-ShareData-WorkerService.sln",
+        "${workspaceFolder}/Modules.ShareDataWorker/TA-ShareData-WorkerService.sln",
         "/property:GenerateFullPaths=true"
       ],
       "problemMatcher": "$msCompile",

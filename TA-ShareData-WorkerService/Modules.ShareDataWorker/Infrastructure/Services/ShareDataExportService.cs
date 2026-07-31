@@ -13,8 +13,7 @@ namespace TA_ShareData_WorkerService.Infrastructure.Services
         private static readonly TimeSpan CheckInterval = TimeSpan.FromSeconds(5);
         private static readonly TimeSpan LockTimeout = TimeSpan.FromMinutes(1);
         private static readonly IReadOnlyList<string> ForbiddenSqlKeywords = ["DROP", "DELETE", "UPDATE", "INSERT", "EXEC", "TRUNCATE", "ALTER", "--", "/*"];
-        private const int DefaultIntervalSeconds = 300;
-        private const int MaxConcurrency = 2;
+        private const int DefaultIntervalSeconds = 60;
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
@@ -28,9 +27,7 @@ namespace TA_ShareData_WorkerService.Infrastructure.Services
                 }
                 catch (Exception ex)
                 {
-#if DEBUG
-                    _logger.LogInformation(BaseMsg.Worker.CycleError, ex.Message);
-#endif
+                    LogInformationMsg("❌ Lỗi trong quá trình xử lý kết xuất dữ liệu: {ErrorMessage}", ex.Message);
                 }
                 await Task.Delay(CheckInterval, stoppingToken);
             }
@@ -67,18 +64,11 @@ namespace TA_ShareData_WorkerService.Infrastructure.Services
                 .Where(s => s.ProcessLockId == processLockId && s.RunStatus == EshEnums.RunStatus.Running)
                 .ToListAsync(stoppingToken);
 
-            await Parallel.ForEachAsync(subs, new ParallelOptions
-            {
-                MaxDegreeOfParallelism = MaxConcurrency,
-                CancellationToken = stoppingToken
-            }, async (sub, ct) =>
-            {
-                if (!ct.IsCancellationRequested)
-                    await _ExecuteExportAsync(sub);
-            });
+            foreach (var sub in subs)
+                if (!stoppingToken.IsCancellationRequested) await ExecuteExportAsync(sub);
         }
 
-        private async Task _ExecuteExportAsync(EshSubscription sub)
+        private async Task ExecuteExportAsync(EshSubscription sub)
         {
             await using var scope = _scopeFactory.CreateAsyncScope();
             var baseClient = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
@@ -88,7 +78,7 @@ namespace TA_ShareData_WorkerService.Infrastructure.Services
             var mapping = await db.Queryable<EshMappingProfile>().InSingleAsync(sub.MappingProfileId);
             if (mapping == null)
             {
-                await _LogExportResultAsync(db, sub, 0, 0, null, EshEnums.ExportStatus.Failed, BaseMsg.ExportValidation.ProfileNotFound);
+                await LogExportResultAsync(db, sub, 0, 0, null, EshEnums.ExportStatus.Failed, BaseMsg.ExportValidation.ProfileNotFound);
                 return;
             }
 
@@ -99,21 +89,21 @@ namespace TA_ShareData_WorkerService.Infrastructure.Services
 
             if (fieldMappings.Count == 0)
             {
-                await _LogExportResultAsync(db, sub, 0, 0, null, EshEnums.ExportStatus.Failed, BaseMsg.ExportValidation.FieldMappingEmpty);
+                await LogExportResultAsync(db, sub, 0, 0, null, EshEnums.ExportStatus.Failed, BaseMsg.ExportValidation.FieldMappingEmpty);
                 return;
             }
 
             var dataSource = await db.Queryable<EshDataSource>().InSingleAsync(sub.DataSourceId);
             if (dataSource == null)
             {
-                await _LogExportResultAsync(db, sub, 0, 0, null, EshEnums.ExportStatus.Failed, BaseMsg.ExportValidation.DataSourceNotFound);
+                await LogExportResultAsync(db, sub, 0, 0, null, EshEnums.ExportStatus.Failed, BaseMsg.ExportValidation.DataSourceNotFound);
                 return;
             }
 
-            var (sql, errorMessage) = _BuildExportSql(dataSource, fieldMappings);
+            var (sql, errorMessage) = BuildExportSql(dataSource, fieldMappings);
             if (!string.IsNullOrEmpty(errorMessage))
             {
-                await _LogExportResultAsync(db, sub, 0, 0, null, EshEnums.ExportStatus.Failed, errorMessage);
+                await LogExportResultAsync(db, sub, 0, 0, null, EshEnums.ExportStatus.Failed, errorMessage);
                 return;
             }
 
@@ -122,11 +112,11 @@ namespace TA_ShareData_WorkerService.Infrastructure.Services
             try
             {
                 var dt = await db.Ado.GetDataTableAsync(sql, new { topN = topNValue });
-                var (exportDataList, transformError) = _TransformDataTableToExportPayload(dt, fieldMappings);
+                var (exportDataList, transformError) = TransformDataTableToExportPayload(dt, fieldMappings);
 
                 if (!string.IsNullOrEmpty(transformError))
                 {
-                    await _LogExportResultAsync(db, sub, 0, 0, null, EshEnums.ExportStatus.Failed, transformError);
+                    await LogExportResultAsync(db, sub, 0, 0, null, EshEnums.ExportStatus.Failed, transformError);
                     return;
                 }
 
@@ -146,12 +136,12 @@ namespace TA_ShareData_WorkerService.Infrastructure.Services
                     Directory.CreateDirectory(directoryPath);
 
                 await File.WriteAllBytesAsync(fullPath, jsonBytes);
-                await _LogExportResultAsync(db, sub, recordCount, byteSize, relativePath, EshEnums.ExportStatus.Success, null, fileHash);
+                await LogExportResultAsync(db, sub, recordCount, byteSize, relativePath, EshEnums.ExportStatus.Success, null, fileHash);
             }
             catch (Exception ex)
             {
-                _LogInformationMsg($"❌ Lỗi kết xuất dữ liệu cho Subscription ID {sub.ID}: {ex.Message}");
-                await _LogExportResultAsync(db, sub, 0, 0, null, EshEnums.ExportStatus.Failed, ex.Message);
+                LogInformationMsg($"❌ Lỗi kết xuất dữ liệu cho Subscription ID {sub.ID}: {ex.Message}");
+                await LogExportResultAsync(db, sub, 0, 0, null, EshEnums.ExportStatus.Failed, ex.Message);
             }
             finally
             {
@@ -173,7 +163,7 @@ namespace TA_ShareData_WorkerService.Infrastructure.Services
             }
         }
 
-        private static (string Sql, string? ErrorMessage) _BuildExportSql(EshDataSource dataSource, List<EshFieldMapping> fieldMappings)
+        private static (string Sql, string? ErrorMessage) BuildExportSql(EshDataSource dataSource, List<EshFieldMapping> fieldMappings)
         {
             if (dataSource.Kind == EshEnums.DataSourceKind.FieldPicker)
             {
@@ -212,7 +202,7 @@ namespace TA_ShareData_WorkerService.Infrastructure.Services
             return (string.Empty, BaseMsg.ExportValidation.UnsupportedDataSource);
         }
 
-        private static (List<Dictionary<string, object?>> Data, string? ErrorMessage) _TransformDataTableToExportPayload(DataTable dt, List<EshFieldMapping> fieldMappings)
+        private static (List<Dictionary<string, object?>> Data, string? ErrorMessage) TransformDataTableToExportPayload(DataTable dt, List<EshFieldMapping> fieldMappings)
         {
             var existingColumns = dt.Columns.Cast<DataColumn>().Select(c => c.ColumnName).ToHashSet(StringComparer.OrdinalIgnoreCase);
             var missingRequiredList = new List<string>();
@@ -241,7 +231,7 @@ namespace TA_ShareData_WorkerService.Infrastructure.Services
             return (exportDataList, null);
         }
 
-        private static async Task _LogExportResultAsync(ISqlSugarClient db, EshSubscription sub, long recordCount, long byteSize, string? filePath, string? status, string? errorMessage = null, string? hash = null)
+        private static async Task LogExportResultAsync(SqlSugarClient db, EshSubscription sub, long recordCount, long byteSize, string? filePath, string? status, string? errorMessage = null, string? hash = null)
         {
             var exportLog = new EshExportLog
             {
@@ -262,10 +252,10 @@ namespace TA_ShareData_WorkerService.Infrastructure.Services
             await db.Insertable(exportLog).ExecuteCommandAsync();
         }
 
-        private void _LogInformationMsg(string message)
+        private void LogInformationMsg(string message, params object?[] args)
         {
 #if DEBUG
-            _logger.LogInformation("{Message}", message);
+            _logger.LogInformation(message, args);
 #endif
         }
     }
