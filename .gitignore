@@ -3,3 +3,7 @@
 .idea/
 .dotnet-home/
 [Ll]ibrary/
+[Bb]in/
+[Oo]bj/
+logs/
+*.user

@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!--
+    ITS.Sync.Core là tầng thuần (pure): chỉ chứa Abstractions, Models, Enums.
+    Không phụ thuộc SqlSugar/TMS/Shared.Core hay bất kỳ package hạ tầng nào.
+  -->
+
+</Project>

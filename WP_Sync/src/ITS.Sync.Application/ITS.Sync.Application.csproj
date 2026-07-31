@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Tầng ứng dụng dùng Abstractions/Models (Core) và Persistence (Infrastructure). -->
+    <ProjectReference Include="..\ITS.Sync.Core\ITS.Sync.Core.csproj" />
+    <ProjectReference Include="..\ITS.Sync.Infrastructure\ITS.Sync.Infrastructure.csproj" />
+    <!-- Entity SysConfigType/SysConfigData/SysOpConfig : EntityTenant -->
+    <ProjectReference Include="..\..\..\TA-ITS015-WebAPI-ShareData-V1.0\src\Modules\CfgSystem\Modules.CfgSystem\Modules.CfgSystem.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- EntityTenant (ID, IsDelete, audit...) nằm trong Shared.Core.dll -->
+    <Reference Include="Modules.System">
+      <HintPath>..\..\..\TA-ITS015-WebAPI-ShareData-V1.0\src\DLLs\Modules.System.dll</HintPath>
+    </Reference>
+    <Reference Include="Shared.Core">
+      <HintPath>..\..\..\TA-ITS015-WebAPI-ShareData-V1.0\src\DLLs\Shared.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Shared.Infrastructure">
+      <HintPath>..\..\..\TA-ITS015-WebAPI-ShareData-V1.0\src\DLLs\Shared.Infrastructure.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.10" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.10" />
+    <PackageReference Include="SqlSugarCore" Version="5.1.4.216" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,19 @@
+{
+  "DbConnection": {
+    "EnableConsoleSql": true,
+    "ConnectionConfigs": [
+      {
+        "ConfigId": "Source",
+        "DbType": "SqlServer",
+        //"ConnectionString": "Server=localhost;Database=DEV_ITS10;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=true"
+        "ConnectionString": "Server=10.10.8.30;Database=DEV_ITS10;MultipleActiveResultSets=true;User ID=sa;Password=Tac@@1234;TrustServerCertificate=True"
+      },
+      {
+        "ConfigId": "Target",
+        "DbType": "SqlServer",
+        //"ConnectionString": "Server=localhost;Database=DEV_ITS015_WP;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=true"
+        "ConnectionString": "Server=10.10.8.30;Database=DEV_ITS015_WP;MultipleActiveResultSets=true;User ID=sa;Password=Tac@@1234;TrustServerCertificate=True"
+      }
+    ]
+  }
+}
