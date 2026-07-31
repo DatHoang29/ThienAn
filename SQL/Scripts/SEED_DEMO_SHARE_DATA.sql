@@ -64,13 +64,17 @@ DELETE FROM [dbo].[EshPartner];
 PRINT N'✅ Đã dọn dẹp schema cũ & xóa dữ liệu cũ thành công.';
 
 -- ============================================================================
--- BƯỚC 0.1: TẠO MOCK VIEWS/TABLES DEMO NẾU CHƯA TỒN TẠI
+-- BƯỚC 0.1: TẠO/CẬP NHẬT MOCK VIEWS/TABLES DEMO VỚI THỜI GIAN CỐ ĐỊNH (KHÔNG DÙNG GETDATE())
 -- ============================================================================
-IF NOT EXISTS (SELECT 1 FROM sys.views WHERE name = 'vw_TrafficFlow')
-    EXEC(N'CREATE VIEW vw_TrafficFlow AS SELECT N''ST-01'' AS StationId, 1 AS LaneNo, 65.5 AS Speed, 120 AS Volume, 15.2 AS Occupancy, GETDATE() AS RecordTime;');
+IF OBJECT_ID('vw_TrafficFlow', 'V') IS NOT NULL
+    EXEC(N'ALTER VIEW vw_TrafficFlow AS SELECT N''ST-01'' AS StationId, 1 AS LaneNo, 65.5 AS Speed, 120 AS Volume, 15.2 AS Occupancy, CAST(''2026-07-31 08:00:00'' AS DATETIME) AS RecordTime;');
+ELSE
+    EXEC(N'CREATE VIEW vw_TrafficFlow AS SELECT N''ST-01'' AS StationId, 1 AS LaneNo, 65.5 AS Speed, 120 AS Volume, 15.2 AS Occupancy, CAST(''2026-07-31 08:00:00'' AS DATETIME) AS RecordTime;');
 
-IF NOT EXISTS (SELECT 1 FROM sys.views WHERE name = 'vw_VmsStatus')
-    EXEC(N'CREATE VIEW vw_VmsStatus AS SELECT N''VMS-01'' AS VmsId, N''Km 12+300'' AS Location, N''Tốc độ tối đa 80km/h'' AS CurrentMessage, N''NORMAL'' AS DisplayMode, GETDATE() AS LastUpdated, 1 AS IsActive;');
+IF OBJECT_ID('vw_VmsStatus', 'V') IS NOT NULL
+    EXEC(N'ALTER VIEW vw_VmsStatus AS SELECT N''VMS-01'' AS VmsId, N''Km 12+300'' AS Location, N''Tốc độ tối đa 80km/h'' AS CurrentMessage, N''NORMAL'' AS DisplayMode, CAST(''2026-07-31 08:00:00'' AS DATETIME) AS LastUpdated, 1 AS IsActive;');
+ELSE
+    EXEC(N'CREATE VIEW vw_VmsStatus AS SELECT N''VMS-01'' AS VmsId, N''Km 12+300'' AS Location, N''Tốc độ tối đa 80km/h'' AS CurrentMessage, N''NORMAL'' AS DisplayMode, CAST(''2026-07-31 08:00:00'' AS DATETIME) AS LastUpdated, 1 AS IsActive;');
 
 IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'tbl_Incident')
     CREATE TABLE tbl_Incident (
@@ -78,16 +82,20 @@ IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'tbl_Incident')
         Latitude DECIMAL(18,6), Longitude DECIMAL(18,6), Severity INT, ReportedAt DATETIME, Status NVARCHAR(32)
     );
 
-IF NOT EXISTS (SELECT 1 FROM sys.views WHERE name = 'vw_Weather')
-    EXEC(N'CREATE VIEW vw_Weather AS SELECT N''W-01'' AS StationCode, 31.5 AS Temperature, 75.0 AS Humidity, 12.0 AS WindSpeed, 10.0 AS Visibility, 0.0 AS RainFall, GETDATE() AS RecordTime;');
+IF OBJECT_ID('vw_Weather', 'V') IS NOT NULL
+    EXEC(N'ALTER VIEW vw_Weather AS SELECT N''W-01'' AS StationCode, 31.5 AS Temperature, 75.0 AS Humidity, 12.0 AS WindSpeed, 10.0 AS Visibility, 0.0 AS RainFall, CAST(''2026-07-31 08:00:00'' AS DATETIME) AS RecordTime;');
+ELSE
+    EXEC(N'CREATE VIEW vw_Weather AS SELECT N''W-01'' AS StationCode, 31.5 AS Temperature, 75.0 AS Humidity, 12.0 AS WindSpeed, 10.0 AS Visibility, 0.0 AS RainFall, CAST(''2026-07-31 08:00:00'' AS DATETIME) AS RecordTime;');
 
 IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'tbl_ParkingLot')
     CREATE TABLE tbl_ParkingLot (
         LotId NVARCHAR(64), LotName NVARCHAR(128), TotalSlots INT, AvailableSlots INT, OccupancyRate DECIMAL(5,2), UpdatedAt DATETIME
     );
 
-IF NOT EXISTS (SELECT 1 FROM sys.views WHERE name = 'vw_VehicleDetection')
-    EXEC(N'CREATE VIEW vw_VehicleDetection AS SELECT N''CAM-01'' AS CameraId, N''51H-12345'' AS PlateNumber, N''CAR'' AS VehicleType, N''WHITE'' AS Color, 60.0 AS Speed, GETDATE() AS DetectedAt, N''NORTH'' AS Direction;');
+IF OBJECT_ID('vw_VehicleDetection', 'V') IS NOT NULL
+    EXEC(N'ALTER VIEW vw_VehicleDetection AS SELECT N''CAM-01'' AS CameraId, N''51H-12345'' AS PlateNumber, N''CAR'' AS VehicleType, N''WHITE'' AS Color, 60.0 AS Speed, CAST(''2026-07-31 08:00:00'' AS DATETIME) AS DetectedAt, N''NORTH'' AS Direction;');
+ELSE
+    EXEC(N'CREATE VIEW vw_VehicleDetection AS SELECT N''CAM-01'' AS CameraId, N''51H-12345'' AS PlateNumber, N''CAR'' AS VehicleType, N''WHITE'' AS Color, 60.0 AS Speed, CAST(''2026-07-31 08:00:00'' AS DATETIME) AS DetectedAt, N''NORTH'' AS Direction;');
 
 -- ============================================================================
 -- 1. EshPartner (Đối tác chia sẻ dữ liệu)
