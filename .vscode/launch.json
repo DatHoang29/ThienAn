@@ -2,6 +2,20 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": ".NET Core Launch (TA-ShareData-WorkerService)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-worker",
+      "program": "${workspaceFolder}/TA-ShareData-WorkerService/bin/Debug/net8.0/TA-ShareData-WorkerService.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/TA-ShareData-WorkerService",
+      "stopAtEntry": false,
+      "console": "internalConsole",
+      "env": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    },
+    {
       "name": ".NET Core Launch (TA-ITS015-WebAPI-ShareData)",
       "type": "coreclr",
       "request": "launch",
