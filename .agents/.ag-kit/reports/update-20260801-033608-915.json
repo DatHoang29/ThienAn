@@ -1,0 +1,896 @@
+{
+  "schemaVersion": 1,
+  "runId": "20260801-033608-915",
+  "strategy": "merge",
+  "toolkitVersion": "2026.7.27",
+  "createdAt": "2026-08-01T03:36:09.036Z",
+  "backupDir": "/Users/hoangquydat/ThienAn/.ag-kit-backups/20260801-033608-915",
+  "summary": {
+    "actions": 35,
+    "conflicts": 99,
+    "preserved": 2,
+    "unchanged": 87
+  },
+  "actions": [
+    {
+      "type": "add",
+      "file": "CHANGELOG.md",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "DEPENDENCY_GRAPH.md",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "README.md",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "VERSION",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "antigravity.json",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "hooks.json",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "hooks/README.md",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "hooks/antigravity-contract.schema.json",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "hooks/antigravity-doctor.mjs",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "hooks/antigravity-hooks.schema.json",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "hooks/build-plugin.mjs",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "hooks/plugin/GEMINI.md",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "hooks/plugin/gemini-extension.template.json",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "hooks/sync-mcp.mjs",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "hooks/tests/antigravity.test.mjs",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "hooks/validate-tool-call.mjs",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "manifest.json",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "manifest.lock.json",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "memory/feedback-history.md",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "memory/project-conventions.md",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "memory/tech-decisions.md",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "memory/user-preferences.md",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "schemas/component-frontmatter.schema.json",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "schemas/manifest-lock.schema.json",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "schemas/manifest.schema.json",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "schemas/memory.schema.json",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "scripts/README.md",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "scripts/component_registry.py",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "scripts/dependency_graph.py",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "scripts/generate_manifest.py",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "scripts/tests/test_toolkit.py",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "scripts/validate_kit.py",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "scripts/validation_runner.py",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "skills/performance-profiling/scripts/bundle_analyzer.py",
+      "reason": "new incoming file on legacy installation"
+    },
+    {
+      "type": "add",
+      "file": "skills/vulnerability-scanner/scripts/dependency_analyzer.py",
+      "reason": "new incoming file on legacy installation"
+    }
+  ],
+  "conflicts": [
+    {
+      "file": "ARCHITECTURE.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "04e6fc616a398f859aadb4d87e468aa1f326fdb1af738139a927bfda88007f89",
+      "incomingHash": "d76626492126b02b5562ec8a88bc9fcc5401932c252ede64415c98a1805fa392",
+      "oldHash": null
+    },
+    {
+      "file": "agent/backend-specialist.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "cb6cc6eb99ed980e37de7c6e75266c70e44ece23f01d4e3b502ec91e9dc7988a",
+      "incomingHash": "65087ad56011ce55231f2754c3bdbb1c32ee14fa24ae9f389c0a7a67c178f1fd",
+      "oldHash": null
+    },
+    {
+      "file": "agent/code-archaeologist.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "df8aed1d41c96652e91c41f66858f6b95dbd2d07e48ba87009ef9189f5301e0f",
+      "incomingHash": "a0c654b885773c425f6a1c3f35ac7a1d509ed32e08a4e2daf373ddc5c6c805f3",
+      "oldHash": null
+    },
+    {
+      "file": "agent/database-architect.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "7138e50e85292de0d5d1b7232f98df3217c2ae656cb8fc98cabae4bd8d0022af",
+      "incomingHash": "1649c5ba554eca2674df75c50229cc00463aed1400d3b6d55131d8f4b12f3c76",
+      "oldHash": null
+    },
+    {
+      "file": "agent/debugger.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "397bd1bd98f7f9e49ffd7ada647d573b0d70e2167e01c83671561f6b729cf8a4",
+      "incomingHash": "5b73decefc6834500ed5f27390021d2ea11e1397c40dd101d6a664217fbbaeac",
+      "oldHash": null
+    },
+    {
+      "file": "agent/devops-engineer.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "21c0c290287657c09ef409fe819bd8f61fbd8b1d2dfe6722c5ed5e9d18b5581c",
+      "incomingHash": "5be0ea4c3735f07fa7aa0f6a01cc687491f203d62474620b8921c3164b90d66f",
+      "oldHash": null
+    },
+    {
+      "file": "agent/documentation-writer.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "6f526c266ce5b28224c350766c6e898f067e604aa6ff6cb1a9a02201f16987fe",
+      "incomingHash": "81a9c80c4a2efbcf15422de72fa289d9a9889c8262af6e3ae69eb2a582826a72",
+      "oldHash": null
+    },
+    {
+      "file": "agent/explorer-agent.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "12c0e8249a15b13c5d4e4a0d31aa049c3852539ccdd4076e176be515302829c8",
+      "incomingHash": "e326feb00e9b609f167aa40ddf62561ded0b0e03fee385da760492c79ccb71d4",
+      "oldHash": null
+    },
+    {
+      "file": "agent/frontend-specialist.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "75a9bfcece93d6ffe0c7cb8502cc9354c75be0dfeefcc3543fbf21495d81df54",
+      "incomingHash": "a381e047cec9f9bea3f96075e5b10ca087428d8dee2f6f42e94119968f476115",
+      "oldHash": null
+    },
+    {
+      "file": "agent/game-developer.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "4605981bea57506a792604f165edb5e17767544220e758435e13959ade7494dd",
+      "incomingHash": "dcf76d9bc8d220bb801094eed091255118b7aff9203a8a7b98e10128030dcfd8",
+      "oldHash": null
+    },
+    {
+      "file": "agent/mobile-developer.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "74c014c2e0c8369513960675af5fe2258bc3a3c85876bcead320894b7c43a186",
+      "incomingHash": "cf9d2ebc6015dc3e2aab092711b111a22cb822e36b3f12d4e351818ecfab6677",
+      "oldHash": null
+    },
+    {
+      "file": "agent/orchestrator.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "65adf0f0caca979729310971c82148a26a7d8c8af3ba55ddacc59cdcf2c4ba85",
+      "incomingHash": "ad8bc39b0ea88df822df4597a0eec90424eb1cbd4418213c29a6f33ced3e5269",
+      "oldHash": null
+    },
+    {
+      "file": "agent/penetration-tester.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "3832971154882bda01e66a3bd1e58d3020429d7fc3d93e75fabfdb32511eefd5",
+      "incomingHash": "842b8684209208fd03dbf181f8fe7b5e84933732fe3d4f1bd8bf18af338b67cb",
+      "oldHash": null
+    },
+    {
+      "file": "agent/performance-optimizer.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "301efdd75e7c587dda824574ec7f4823432ff02c5d9a26cf9898e3240dd754ab",
+      "incomingHash": "932e6ac2b3f1ecbdf230f9b2ea326208f1f829217ca5066cb46c6bfe5e44c873",
+      "oldHash": null
+    },
+    {
+      "file": "agent/product-manager.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "b0969d8982110a86fec821ec5b44226b7cac40b939593cd587cd8ab134eeb1d1",
+      "incomingHash": "2ecae9a7a24f2001ca4f60a96731fede4987b43d6e15603fda1e24481fa86c79",
+      "oldHash": null
+    },
+    {
+      "file": "agent/product-owner.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "49fa0bbc8a4e51409b1306f8f6762cc787e0698fb321760f850916fb5d5d1e49",
+      "incomingHash": "229c881c9f6df95ce3d4f5b58e3abd4e1e5d3da600e8bbf9aad506bb1cdba34d",
+      "oldHash": null
+    },
+    {
+      "file": "agent/project-planner.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "ec0e90060868e7a76d4b3923a60394b7e95fe25f745f314a85595c99d1464c23",
+      "incomingHash": "c64493da3b016eec1978f06c3b81d4e1440df950a3c056e918ccd855335e18b0",
+      "oldHash": null
+    },
+    {
+      "file": "agent/qa-automation-engineer.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "4b7f498702c33d06dc9fa0125acc47024c93cb2a8d8cbd03ae1f1fa6a3d04da6",
+      "incomingHash": "e2ab31b6b355c786bd5a1670ba61afe5cf0adde38dcc093c11a8e3a5da54633a",
+      "oldHash": null
+    },
+    {
+      "file": "agent/security-auditor.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "67bf6c0415708c32874b77ee93a206d28fff0281b0798a5ca5c5ff941978f74c",
+      "incomingHash": "a526994748a427bf906459664ecdd0131aeb29b8f3dae8a09969af2f75c8a752",
+      "oldHash": null
+    },
+    {
+      "file": "agent/seo-specialist.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "1fb071c98be6e7046e2a57f3dd0a624d5127a23ac3cd1f1bccf20de7afd6c5d2",
+      "incomingHash": "13bba95dd76154f16f9ecbf52d20f8e9cb946085e209dc1339f1f68dcea4c2f0",
+      "oldHash": null
+    },
+    {
+      "file": "agent/test-engineer.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "366ba5025b01e8886c209f1e8a13dc5c958d7ce4d1ffa64e2f117d9e0b1bc259",
+      "incomingHash": "3e12917431abd98809198d0d167b75ae7f4e5c4c27862a010227dda8d71724d7",
+      "oldHash": null
+    },
+    {
+      "file": "mcp_config.json",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "562a3eb2f121cd1c8e9f0708efde7e231529001801fc433f65021f5b66a9428e",
+      "incomingHash": "cb41a099a03068860be9da7cc94c8eb9914f84d487cd8f8c1fffd7d021ff7688",
+      "oldHash": null
+    },
+    {
+      "file": "memory/MEMORY.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "aaca4dab4e8cafd850a78433d0d5add5da7ab4f999e2d97eaabee077bb5c9cc1",
+      "incomingHash": "b553a654b8a59d7dcc102d4e38e77474e060c6a718cfed1ffe09528caa7abcfa",
+      "oldHash": null
+    },
+    {
+      "file": "rules/code-rules.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "e58a5e55ba68e6cd0aef7574ce0ea0153e58e5c1bf94b9c5a5d16bd472d56ff9",
+      "incomingHash": "3e602c516f195ddeb6fb986aa8cead49a0ebae8a48720f738d4642146dd510a5",
+      "oldHash": null
+    },
+    {
+      "file": "rules/core-protocol.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "ed07139956d973d7413d63de100ba1e9fbfa64faa80dfd0bb7152ed919ef01c6",
+      "incomingHash": "647becf363128a82e65ed9628f9ab82b0142692825b7f94f0e264ad6d1cacba2",
+      "oldHash": null
+    },
+    {
+      "file": "rules/design-rules.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "dbad5664c3aa4ca067c46ed0f919bdf663a08ad42972e0bb4df6f6b635e9fe17",
+      "incomingHash": "73ee8f120e85939d04a7153bd7d2336cfb7d3025c9c6fc4b9003eca97e3f228b",
+      "oldHash": null
+    },
+    {
+      "file": "rules/quick-reference.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "baebf3550ece339019314f409e9d00214daf897c484f2897d0e1c12fef6c7772",
+      "incomingHash": "f077e962ea7ad1a5afc51efca8f3d27c68b895398e0f0f153c118a9cb635593c",
+      "oldHash": null
+    },
+    {
+      "file": "rules/request-routing.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "4f8f7b3cfec515b5665af034a3c31d2411a4ecaf52558928b4893f392c17a07d",
+      "incomingHash": "2e5e04fc7b500e77c41d3875e4cf3769c83243d78dc419e441b2944aceecbb4d",
+      "oldHash": null
+    },
+    {
+      "file": "rules/universal-rules.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "9c95178dcac122d62f35bc15bee5408f7d6811fe2c3ce747d6d650862d222764",
+      "incomingHash": "8f03f437aa32909f473573c75754b671cb47344de82a18c4f8926db6a41c2388",
+      "oldHash": null
+    },
+    {
+      "file": "scripts/checklist.py",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "cdc82ed68948026969a881ebade2ff104b6f17abb3846760af364e12fe70892c",
+      "incomingHash": "4f4583b494c6cccdb9f0e01bae333032e381fab9607b2b574dcbf84080864ec3",
+      "oldHash": null
+    },
+    {
+      "file": "scripts/verify_all.py",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "d31cc4d5179b3066f8faa60ae0c4335af517bedb9a4206c640fa587bcb2ff4e4",
+      "incomingHash": "8a8d5f45cb2d76dbd34464ce81954c8e8f8b350f1ca39d98ea305595f827c2e6",
+      "oldHash": null
+    },
+    {
+      "file": "skills/api-patterns/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "f9036c069e81e885349184c8f74f1307c470c9f9ea63156c925701fd3623cbe7",
+      "incomingHash": "b9f16c4cb87d14f0ad9407556481e25b63312eb86602520f6533776d8ad19550",
+      "oldHash": null
+    },
+    {
+      "file": "skills/app-builder/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "08c151a65e26d319e31e4f80da6cf32e25882bc212df9ddb4b69acede2a36015",
+      "incomingHash": "567a69668c386e4fc314ef9dfcad9c6c43c8103e64df658c1aa03f429795675a",
+      "oldHash": null
+    },
+    {
+      "file": "skills/architecture/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "15e554ae19d7796009856eefeb89662750885bb9fbabee458bb236b084d793ab",
+      "incomingHash": "e07339f434caca281c697308775f2f21b77f819a74160a03b6b2e4cc3ac743c3",
+      "oldHash": null
+    },
+    {
+      "file": "skills/bash-linux/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "675edf313c583fe024e4068ba5fb0e2810e69f209b052750d74f469a637702ce",
+      "incomingHash": "63885db9a511e5975d5323a74a661d134528486400a11100bec5775d9ef79784",
+      "oldHash": null
+    },
+    {
+      "file": "skills/batch-operations/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "1b0217d1eb1d4690413acd8741f3ecc6417f0bf1ba97a0f931c9450bf583ac84",
+      "incomingHash": "da8b913ac1f900e84baf4edb8767b5cb6be15786a71f16ccfd4fb15ca91d9ad2",
+      "oldHash": null
+    },
+    {
+      "file": "skills/behavioral-modes/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "301bfc26e46827ab75ba0f68720acab9184aecc4b23a43b078270980ffd0d446",
+      "incomingHash": "b7c314b48af3e7f38ca0ad4ebb870f721e94778caea207996601896ccc66f47b",
+      "oldHash": null
+    },
+    {
+      "file": "skills/brainstorming/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "cd52dd0506549a226dc32f13eb30451dec2820f5fd06b722b7b128fe9ea512b2",
+      "incomingHash": "2094bb5967e78a296698057fc0634cd0146ac75ffc1a7b180f6065e009483542",
+      "oldHash": null
+    },
+    {
+      "file": "skills/clean-code/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "cb5f2861a2e8c80300ddf7150f10c90985f368bea9f98386f846b7cdb677624b",
+      "incomingHash": "24acc3a81caeb7dd0572b1cedf6e10fbbbfaf23400cd1aed85a960437529eb91",
+      "oldHash": null
+    },
+    {
+      "file": "skills/code-review-checklist/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "768c7529b8b900628d8e8f2975bb283b112e3c1d63b2ec042bc01afe8f664441",
+      "incomingHash": "07b20413aa0d000202b6582c6050121cd8520bef701cc050a636651900de4838",
+      "oldHash": null
+    },
+    {
+      "file": "skills/code-review-graph/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "c20a179e66c673e9fc3020ff3212553ac1e3e8222f4c7c0a69ceff0e02b6067d",
+      "incomingHash": "9e59161bbd8b251f4bc2076299192f8e0d7d89c9e54a12e3c33057e7e8dcf63d",
+      "oldHash": null
+    },
+    {
+      "file": "skills/context-compression/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "205b8e2f8b80abc129f47a1e80d3aa501533eff6f03e16bdee12ab4c78a12d2f",
+      "incomingHash": "1165b2a4192249ce6597fbbeb61853f6e699f5de5f37addb75fa87326d5197b9",
+      "oldHash": null
+    },
+    {
+      "file": "skills/coordinator-mode/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "8a14a8d86dc3117d8572d64bdb80ff36f355c148ae92e6a5a0bc610bdf65b867",
+      "incomingHash": "a3c074d5e87655cf34703f19fa7a8eefaeb4498e8017df4c73554d717d3ffc14",
+      "oldHash": null
+    },
+    {
+      "file": "skills/database-design/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "7828884c044ec00800645f45c0b997ebec262a7c0f238e96d1c42a8d9aed0f46",
+      "incomingHash": "f1561bf94e3605673d4d5985012c8df94c5658b6f3852824847aa546c9c2c050",
+      "oldHash": null
+    },
+    {
+      "file": "skills/deployment-procedures/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "8f169e1d892f711d942fd91ebb382b878dba05e935ac352017afef2b26eebffc",
+      "incomingHash": "cddf606b695ef344537072860a524e6d59dbb7e8d430fec620689b31372d4931",
+      "oldHash": null
+    },
+    {
+      "file": "skills/design-spec/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "8ff2ab2600bbdba3641e9b1d558f593b252d24b7d643a9f10284dcd07b203929",
+      "incomingHash": "ca2d60c173c15622baab0fdde86a9437a462234809e0d40a08a1d86fc8927ee9",
+      "oldHash": null
+    },
+    {
+      "file": "skills/documentation-templates/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "5cdd325648694942b46071fece1d51339015d0d6aa71ff217b9d23bc33ac3329",
+      "incomingHash": "7bd982463b301a37286a8ee7fd8761904898e8b91b9974d70fabe28b34464587",
+      "oldHash": null
+    },
+    {
+      "file": "skills/frontend-architecture/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "5b17ef982b56df432e0e00d90898cdb55d20dff3f5c975ae87b2240be43e981d",
+      "incomingHash": "59e1b096240f3f6b9a0f4347ea042fb72e8c06870ee06cb2f6e83d7edcd014f1",
+      "oldHash": null
+    },
+    {
+      "file": "skills/frontend-design/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "2cc7daa62fbc22d67cf1db99bdc67da28233a845592f291f1fee0022ee974ec5",
+      "incomingHash": "1109d14dd1ea94880b22dbe693f546b3e6f271f42aaf0ed2df88ab1c08c67f1b",
+      "oldHash": null
+    },
+    {
+      "file": "skills/frontend-design/scripts/accessibility_checker.py",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "07de15cb02bfbddb87e405fd8e73b43a2da7b82c4ad8800aecc2d71a9813efc3",
+      "incomingHash": "0256579c7390c68734dae5c862e291656c56df38321a115a3a5d15e7b47a4058",
+      "oldHash": null
+    },
+    {
+      "file": "skills/game-development/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "08f48753048194e82bafc665f3fe556103b8ccc1c24d2b8919be172b9c14e33e",
+      "incomingHash": "a6f0f9e1b4eec46282f20e0c2c60cf22fbfac96c87e5b3e28c5cc88869a98625",
+      "oldHash": null
+    },
+    {
+      "file": "skills/geo-fundamentals/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "8765ac68d12a1b88cd6d4818850fe7f53c8f28d89fdb6596348145049d00c892",
+      "incomingHash": "d4ca6f9c889408bf5e35ae3f39377dbf60502bc754053623b6ea7f42190e4125",
+      "oldHash": null
+    },
+    {
+      "file": "skills/geo-fundamentals/scripts/geo_checker.py",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "512cf855e5ab3441e2db4578a3c3a51baf3c34461a1735d02dfb079a73fb2522",
+      "incomingHash": "8731bf8ac07209f68fe2f5d2d61df7bb7dfb6cf6a7bb98d061424c0bfed8f78b",
+      "oldHash": null
+    },
+    {
+      "file": "skills/i18n-localization/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "e7dbb466c2ce99e66faba972a12cadf0e878da712d735c1295c9daf854e6bc36",
+      "incomingHash": "356847a4d612633c2531b0c49367cc82ac6d88546b97a3fe4aea05dc515a017f",
+      "oldHash": null
+    },
+    {
+      "file": "skills/i18n-localization/scripts/i18n_checker.py",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "a90946f9ffee5fc83b1dbdbd001616eceb299101bf255efaec4601cecf210379",
+      "incomingHash": "f01da31b02cfdc45d899efb351867f36be6812f4466406b7cf5a3f3f14c4e1b2",
+      "oldHash": null
+    },
+    {
+      "file": "skills/intelligent-routing/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "2fd4a86ec3f7b23b07e93d56f0fcb7021af72599c7e9bdfa71ced5845b959149",
+      "incomingHash": "d0ad66b14912955ed6c74f25db17c440b839d9ea1be058f0f698fc111d27f0ea",
+      "oldHash": null
+    },
+    {
+      "file": "skills/lint-and-validate/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "29e945a8a349f72e1cd479ca2223a390ad4de4d4d68d3490eab0959b6f078fc6",
+      "incomingHash": "f56e3bc04bd64e01c23e451ce4523ec7ae4c3efc56476c22bf97f4bcec21d947",
+      "oldHash": null
+    },
+    {
+      "file": "skills/lint-and-validate/scripts/type_coverage.py",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "e654d5eeae187976700da0739b4e62f35e2829d3c61b88cd08da19b99eb164f9",
+      "incomingHash": "442f1559edd31dcd320eaaf2ecfc03d2e99f0dc8c42b7fd3ae5c3263073c7993",
+      "oldHash": null
+    },
+    {
+      "file": "skills/mcp-builder/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "9274698034a852ff55807bc48aa167775e92c112c5253dab5c696771f3aee968",
+      "incomingHash": "28a677abc684028d02453a17c459940eb3a2e2580d619439bb9c7ceb8a96af2f",
+      "oldHash": null
+    },
+    {
+      "file": "skills/memory-system/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "dd2638b4a6e23ba8a65ca3c7bb4b033e3163ffbe85e1cc9bbd45fd2f17e53227",
+      "incomingHash": "40ffe215156b4f2a9c799fd2abde3934defee4dc3c82a891798fb18c150bda50",
+      "oldHash": null
+    },
+    {
+      "file": "skills/mobile-design/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "bc5f2ebaf02cf8dc776f00284e2a7a8d8e308189e19f7e7897974ac101588cf2",
+      "incomingHash": "8ecbbfe0b7db716c750210fa2ca9476eadc39d15d0bab57c57ed2546cdb28745",
+      "oldHash": null
+    },
+    {
+      "file": "skills/nextjs-react-expert/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "daaf45bc1e2576b5a53e53528c0f9cb35f642033b0c08ed9b3b6b840e17e7106",
+      "incomingHash": "1db0736663af55a5df009b0e937576fee5cba166b48d98cfcd8b2010fada1d28",
+      "oldHash": null
+    },
+    {
+      "file": "skills/nextjs-react-expert/scripts/react_performance_checker.py",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "c8f71522ac5b8191fba9197b54139951caa06652042933279a36b988cd571452",
+      "incomingHash": "aae59d1e0aa1b58acd3fdac4701b3822956c6057d932794822ef4ee3342a7781",
+      "oldHash": null
+    },
+    {
+      "file": "skills/nodejs-best-practices/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "d9ed59d3deff83914dac06b4dc16c0a043bf5885f9aa9469941035ea25916527",
+      "incomingHash": "da0e84eb6dd2f9784860209ce451725d32a5743a685084bd077d69503aa7e706",
+      "oldHash": null
+    },
+    {
+      "file": "skills/parallel-agents/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "f819d15d4e782127fe3c1c232909b4ccaf24626bf5ce3ce7d000ded57920445c",
+      "incomingHash": "f61769e3ba2298d8311bdf75b2a69c0138640422255ed9449286c10e224e7892",
+      "oldHash": null
+    },
+    {
+      "file": "skills/performance-profiling/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "2647a359191bb7e57b8e173c00b2714c0193bc06b6a057331fa6e631cf90efb7",
+      "incomingHash": "91bd2041ab8447ad6fc6fa16d4e0e414adc2ee38e4df6fd27f1810e4e982ca0c",
+      "oldHash": null
+    },
+    {
+      "file": "skills/performance-profiling/scripts/lighthouse_audit.py",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "7e3928f1ac24e472fd9b0bc390f223379d8ce3e3d9ff6136e557ac4bdad7f52c",
+      "incomingHash": "45157873f60d7649b2224f90ddef6caa9f0f02848ab2e62af6adefecb6741067",
+      "oldHash": null
+    },
+    {
+      "file": "skills/plan-writing/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "2057ccb86b4720defa64adceff3e42d495628646c2fe634f29c89a791e4eaa4e",
+      "incomingHash": "2698f0dcae134d9ef587d4a2e00bc6901a251b24691f393faf581917bf80b248",
+      "oldHash": null
+    },
+    {
+      "file": "skills/powershell-windows/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "b824e1f131f5dba27c0fe9b7285445ca93e2f01b9e750922364a033a2e5f2130",
+      "incomingHash": "a2e47e73f225ca24627e2d7109a9805acfeb4b59e8ac4c683ef8994dea8e432f",
+      "oldHash": null
+    },
+    {
+      "file": "skills/python-patterns/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "31a24fcd6b8220445b0aa9112718b8e5504b925b964458b9c03823beef235f07",
+      "incomingHash": "bab8eb299ef8f97bfdf8dc9d68a19ab1f84b9a1e86a852a84b7fa943d97cc2f6",
+      "oldHash": null
+    },
+    {
+      "file": "skills/red-team-tactics/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "ca7c7675df276cd0803fb5bd8a21457544ac1ebe7edc3fb38a04b5f9a0718c13",
+      "incomingHash": "fc3e8f0fe1f6d569b4d6633def69a1d117708774038f487783fed6e4e41a30b7",
+      "oldHash": null
+    },
+    {
+      "file": "skills/rust-pro/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "2ff0825d49afd4178166164d04bc313a0d57374e35cec5be55e7364022303522",
+      "incomingHash": "924138d4a20304953c55b02c1bd2467752b8076da5945952b8e9275bbfdd036f",
+      "oldHash": null
+    },
+    {
+      "file": "skills/seo-fundamentals/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "d11ddbfd4408d0645ed1abd3e48edfd25a12118ca17d7f04672281b4db410f91",
+      "incomingHash": "4ab2efde333caa34a75efe7a8bf76b49d7e39abd0ecc6ceef6a1c8042141f2af",
+      "oldHash": null
+    },
+    {
+      "file": "skills/server-management/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "f7097f79f1c4fd108d04ad1d1e1fb569d88a1f62bf9216a8a02e837e5d6268cb",
+      "incomingHash": "4f2e4243a8e1e45482479dd033f654f59c56ada89ebf87ec561f86f79f54662d",
+      "oldHash": null
+    },
+    {
+      "file": "skills/simplify-code/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "e30085617f4620f2877db2d5d9d6f280d7ad15f718ac6e9502bf59b8bc89372d",
+      "incomingHash": "1e2ab8d06593f6f95381f6b7a7d18e0fa998bb0147fd823c56f4158023d0164b",
+      "oldHash": null
+    },
+    {
+      "file": "skills/skillify/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "63272b4522c1018ab5a5fddef7163dd0e6266308d659351dd6b37a217683fe22",
+      "incomingHash": "e95a98f0baba2687c9cf73dbacc89c1abccc572f1ce1f095b7834bc7da99158a",
+      "oldHash": null
+    },
+    {
+      "file": "skills/systematic-debugging/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "f1de8a286f596ffafc9288c39c8cd0caef9a1806f9bec2a9d7b46841c3dcca93",
+      "incomingHash": "b41274eb9a63576dedf3df94b7cae59d6e1c62bff522a9114565f5768631f8de",
+      "oldHash": null
+    },
+    {
+      "file": "skills/tailwind-patterns/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "ba57ef43ece4d7679546f9bed99c0a05c15c8ef280347f678489e35e0b305ca7",
+      "incomingHash": "01b89bc9fd4750ec293934d343b0f49bc369157bf71a45fd109a0f631ed8e076",
+      "oldHash": null
+    },
+    {
+      "file": "skills/tdd-workflow/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "196665ec171ebe8085a0b3c41e2a88f4339b94046034f6f0717a0a774bf990f1",
+      "incomingHash": "c758378bc135150af5cc5fc990c1612a19541631c064d69388397ef9e514323a",
+      "oldHash": null
+    },
+    {
+      "file": "skills/testing-patterns/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "a4f9657110607523adfef2f03d64a2a82cc8b78ef8b58ca2947e409617f2c579",
+      "incomingHash": "72f7e12eff41c4bad55b37fbcd734be23420e4e4473cf7a90876487477aecfc7",
+      "oldHash": null
+    },
+    {
+      "file": "skills/verify-changes/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "e3ef09f7b6f857db5749a4db5523424c02b901e8851794a651bdf76ed8ecb789",
+      "incomingHash": "a4ab56f9b3e8f4dce5295fd8497a97a7e82e16036eaf93fff2a25f1e0ef9b495",
+      "oldHash": null
+    },
+    {
+      "file": "skills/vulnerability-scanner/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "f6f169a57d9cc07aeb8cb1bf0724ca2c11a1f91ab5f4e234bab54ebd97547a79",
+      "incomingHash": "8c0d6ad513e2e03d43aea5286253478b794e1432d8b577159cc11226a29189a0",
+      "oldHash": null
+    },
+    {
+      "file": "skills/vulnerability-scanner/scripts/security_scan.py",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "5a066b5ffeb57b29187aaa83f570279cb3b05f39521169a4ae407d19d37dc482",
+      "incomingHash": "be09bd7dce3a70836633d03191016bc88602dd2a79995908e47c62bc2622dda3",
+      "oldHash": null
+    },
+    {
+      "file": "skills/web-design-guidelines/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "cc48e0b0fed9750d97abb4fea6e9083174bf78f53c618cb28a5f8805bf609516",
+      "incomingHash": "5c781632c2ab558830fa9008b6de0bb20ea5231d4086a1e742e85df4ea739f8b",
+      "oldHash": null
+    },
+    {
+      "file": "skills/webapp-testing/SKILL.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "45fe29fbdc9140154f5a57b326275a22ebdd2dec60ce612fdcee79b19d15916b",
+      "incomingHash": "2a0dd4918f666a5dddfabe2e227a1f0870f076b5158ea5d0fd90ce9456d666d3",
+      "oldHash": null
+    },
+    {
+      "file": "skills/webapp-testing/scripts/playwright_runner.py",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "122aedbf4fead451d04423857a7048fecf83e76ad4bfdc608787bca3fb3fbd5d",
+      "incomingHash": "8c476485e415a63fa3b278e09b205d26aa08a8edbed12dc3293d1cdcafd0d063",
+      "oldHash": null
+    },
+    {
+      "file": "workflows/brainstorm.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "737f1abb5c3b36afe88f24a85418be5dc3895f9855b766e425cc9c839a2eaf96",
+      "incomingHash": "ea1afbfdf20318962fe18e067ff779b560325aa85b2378a9024f31d789dda399",
+      "oldHash": null
+    },
+    {
+      "file": "workflows/coordinate.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "ff9b7b0cfe53a022a45caeafe9a225eaf1b8b49689d95c07a3b721d44ba4d03b",
+      "incomingHash": "f786cd07db35d49849f4d4155df378b9a4bd1539f3501a90547056683535b268",
+      "oldHash": null
+    },
+    {
+      "file": "workflows/create.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "40d7e512c564f91a01ad88c0f721ba82c49482efd3d816104fc55987baf7e917",
+      "incomingHash": "11d5cb3a60b71db9d6a8184bcc3f5c6e27f3b005a8b9c38c2ea6d60c6623a553",
+      "oldHash": null
+    },
+    {
+      "file": "workflows/debug.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "96af930583709686f4f8a29d07012e89eb69825259e8bddd42043485a1fe8c83",
+      "incomingHash": "1a6fbfe0ea48a3590d08c8db842b7cf9b7906f953b10e24cd525b7fd6b53070d",
+      "oldHash": null
+    },
+    {
+      "file": "workflows/deploy.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "51ecd74d9384084d378d8e4b063be8e51db55374bd625f27f2a01f1a21db2cc6",
+      "incomingHash": "f3141b4125f8c49c6cb34986a75473589a2b4d53ca9ac092b9677a0c0186c158",
+      "oldHash": null
+    },
+    {
+      "file": "workflows/enhance.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "f0b777ff067a2cf0aed2829d278ef4db987b0b3eacb75e5a0116f8b9580ce422",
+      "incomingHash": "fd913ca826afb2e2cbd54a4e316cf3ea5d779d56e02ae3b0a8cc99feecdbc736",
+      "oldHash": null
+    },
+    {
+      "file": "workflows/orchestrate.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "4183e6d54112388b7d5d7bdddc9b3ee50c3df19ead62bf73dc4b8ba841fe5f12",
+      "incomingHash": "00d3469acb4d465b8d7b54fb42524bb36cd45ee2cd2c8b997b2b57b35cdc8f6f",
+      "oldHash": null
+    },
+    {
+      "file": "workflows/plan.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "fd38b352a9c19f792058b238e786048ed08ee87fdaff0bde8ccb41830314cc32",
+      "incomingHash": "4766b0ce3958eeb4050ad4099a61aa661747a39c2140eace148d3d5b4c480ddc",
+      "oldHash": null
+    },
+    {
+      "file": "workflows/preview.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "174f3bd559e8b5d815d95eb640ddc46e0fecd27eb76e6a57ec0d78b022279716",
+      "incomingHash": "94f948c78916a473838a04b15860b9490b25c2a8b39f0d211f63884ec33a8bd1",
+      "oldHash": null
+    },
+    {
+      "file": "workflows/remember.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "fd44ac332872bb6f9013c74b7fa2a689eea57679006be8273ba6134bd7947a75",
+      "incomingHash": "58ae91f31bca164f2a1c3c2d102e676e431c5898a42212a92d2d54f2a545a5fe",
+      "oldHash": null
+    },
+    {
+      "file": "workflows/status.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "536ad487e0370cfcb165220482314ce13f9f801b7b50571723d7acdba6696508",
+      "incomingHash": "ba73c7150258f6f3eef33fbc28cf7e6dbf9f77d20f3ef140b3c8182232e2a999",
+      "oldHash": null
+    },
+    {
+      "file": "workflows/test.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "420414646890deadc487ee12e89fb831084aa825de7aefab0b4414fc8ee9ddd8",
+      "incomingHash": "bd06ae644376e3cc2661f1a623504247445c86a83dfb0df92ed5f0eccdef60ea",
+      "oldHash": null
+    },
+    {
+      "file": "workflows/verify.md",
+      "reason": "legacy installation has no baseline and file differs from incoming",
+      "currentHash": "30789908253d49a76db5db285fbc04200e883abb3ae9bf97ce31e44b9cbd1e98",
+      "incomingHash": "2dc26bcbe24c7e71571953da75629521ea3d7a0a444a7101e3601b39864971fc",
+      "oldHash": null
+    }
+  ],
+  "preserved": [
+    {
+      "file": "memory/thienan_user-preferences.md",
+      "reason": "local-only file on legacy installation"
+    },
+    {
+      "file": "rules/thienan_rules.md",
+      "reason": "local-only file on legacy installation"
+    }
+  ]
+}
