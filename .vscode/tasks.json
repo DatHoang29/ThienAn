@@ -64,6 +64,43 @@
         "panel": "dedicated",
         "focus": false
       }
+    },
+    {
+      "label": "build-lab",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/Lab.slnx",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary"
+      ],
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": false
+      }
+    },
+    {
+      "label": "docker:up",
+      "type": "shell",
+      "command": "docker compose -f ${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/docker-compose.yml up -d",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "focus": false
+      }
+    },
+    {
+      "label": "docker:down",
+      "type": "shell",
+      "command": "docker compose -f ${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/docker-compose.yml down",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "focus": false
+      }
     }
   ]
 }
