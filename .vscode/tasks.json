@@ -2,6 +2,37 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "build-worker",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareData/Modules.ShareDataWorker/TA-ShareData-WorkerService.csproj",
+        "/property:GenerateFullPaths=true"
+      ],
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": false
+      }
+    },
+    {
+      "label": "test-worker",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "test",
+        "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareData/Modules.ShareDataWorker/tests/TA-ShareData-WorkerService.Tests.csproj"
+      ],
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": false
+      }
+    },
+    {
       "label": "build-its015",
       "command": "dotnet",
       "type": "process",
@@ -18,28 +49,12 @@
       }
     },
     {
-      "label": "build-worker",
-      "command": "dotnet",
-      "type": "process",
-      "args": [
-        "build",
-        "${workspaceFolder}/TA-ShareData-WorkerService/TA-ShareData-WorkerService.sln",
-        "/property:GenerateFullPaths=true"
-      ],
-      "problemMatcher": "$msCompile",
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated",
-        "focus": false
-      }
-    },
-    {
       "label": "build",
       "command": "dotnet",
       "type": "process",
       "args": [
         "build",
-        "${workspaceFolder}/TA-WebApi/Temp_TAC_WebAPI.sln",
+        "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/Temp_TAC_WebAPI.sln",
         "/property:GenerateFullPaths=true",
         "/consoleloggerparameters:NoSummary"
       ],
@@ -47,43 +62,6 @@
       "presentation": {
         "reveal": "always",
         "panel": "dedicated",
-        "focus": false
-      }
-    },
-    {
-      "label": "build-lab",
-      "command": "dotnet",
-      "type": "process",
-      "args": [
-        "build",
-        "${workspaceFolder}/Lab.slnx",
-        "/property:GenerateFullPaths=true",
-        "/consoleloggerparameters:NoSummary"
-      ],
-      "problemMatcher": "$msCompile",
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated",
-        "focus": false
-      }
-    },
-    {
-      "label": "docker:up",
-      "type": "shell",
-      "command": "docker compose -f ${workspaceFolder}/TA-WebApi/docker-compose.yml up -d",
-      "presentation": {
-        "reveal": "always",
-        "panel": "shared",
-        "focus": false
-      }
-    },
-    {
-      "label": "docker:down",
-      "type": "shell",
-      "command": "docker compose -f ${workspaceFolder}/TA-WebApi/docker-compose.yml down",
-      "presentation": {
-        "reveal": "always",
-        "panel": "shared",
         "focus": false
       }
     }
