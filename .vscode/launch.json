@@ -6,9 +6,9 @@
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-worker",
-      "program": "${workspaceFolder}/TA-ShareData-WorkerService/bin/Debug/net10.0/TA-ShareData-WorkerService.dll",
+      "program": "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareData/Modules.ShareDataWorker/bin/Debug/net8.0/TA-ShareData-WorkerService.dll",
       "args": [],
-      "cwd": "${workspaceFolder}/TA-ShareData-WorkerService",
+      "cwd": "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareData/Modules.ShareDataWorker",
       "stopAtEntry": false,
       "console": "internalConsole",
       "env": {
