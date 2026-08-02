@@ -7,7 +7,7 @@
         "@modelcontextprotocol/server-mssql"
       ],
       "env": {
-        "MSSQL_CONNECTION_STRING": "Server=localhost,14333;Database=dev_its10;User ID=sa;Password=Password123!;TrustServerCertificate=True;"
+        "MSSQL_CONNECTION_STRING": "Server=localhost,14333;Database=dev_its10;User ID=sa;Password=Password123!;TrustServerCertificate=True;ApplicationIntent=ReadOnly;"
       }
     }
   }
