@@ -25,6 +25,6 @@ When user's prompt is NOT in English:
 - **Code**: Concise, direct, no over-engineering. Self-documenting.
 - **Testing**: Mandatory. Pyramid (Unit > Int > E2E) + AAA Pattern.
 - **Performance**: Measure first. Adhere to current Core Web Vitals standards.
-- **Infra/Safety**: 5-Phase Deployment. Verify secrets security.
+- **Formatting**: Single-statement `if` MUST ALWAYS break line and indent (e.g. `if (condition)\n    return;`). NEVER write inline on the same line (`if (condition) return;`).
 
 ---
