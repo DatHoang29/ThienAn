@@ -26,7 +26,6 @@ BEGIN TRY
         [LastTimeRun] = NULL,
         [NextTimeRun] = GETDATE(),
         [RunStatus] = N'Idle',
-        [ProcessLockId] = NULL,
         [UpdateTime] = GETDATE();
 
     COMMIT TRANSACTION;
