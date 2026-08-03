@@ -87,3 +87,21 @@ description: Apply when writing, building, refactoring, or fixing code — proje
 > 🔴 **Agents & Skills can invoke ANY script** via `python .agents/skills/<skill>/scripts/<script>.py`
 
 ---
+
+## 🛠️ .NET & Solution Troubleshooting Protocol
+
+**Khi gặp lỗi thiếu tham chiếu, không nhận diện được Test trong IDE, hoặc lỗi khi debug:**
+
+1. **Kiểm tra đăng ký trong Solution (`.sln`):**
+   - Mọi dự án mới tạo (đặc biệt là `*.Tests.csproj`) BẮT BUỘC phải được thêm vào file `.sln` chính của workspace.
+   - Nếu IDE/VS Code không quét được test hoặc báo thiếu reference, hãy kiểm tra và chạy:
+     `dotnet sln <path-to-sln> add <path-to-csproj>`
+   - Lệnh tự động thêm tất cả project: `dotnet sln <sln-file> add $(find . -name "*.csproj")`
+
+2. **Quy tắc thực thi lệnh .NET:**
+   - KHÔNG KHUYÊN DÙNG chạy trực tiếp file đơn lẻ dạng `dotnet File.cs` cho project xUnit/C#.
+   - LUÔN LUÔN dùng `dotnet test <csproj_or_sln>` hoặc `dotnet build` để nạp đủ các thư viện và dependency.
+
+3. **Vòng đời Test (xUnit Lifecycle):**
+   - Khi có khởi tạo DB / Host nặng, BẮT BUỘC dùng `IClassFixture<T>` để tránh gọi constructor N lần gây đụng độ `DROP TABLE` khi chạy test song song.
+

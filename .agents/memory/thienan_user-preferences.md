@@ -85,3 +85,6 @@ updated: 2026-07-29
        `_baseRepository.Context.DbFirst.SettingClassDescriptionTemplate(it => it + "\r\n [Tenant(\"" + ConfigId + "\")]").IsCreateAttribute().StringNullable().CreateClassFile(directoryPath, nameSpace);`
      - **Chỉ mở mã sinh tự động 1 lần đầu** khi cần khởi tạo số lượng lớn hoặc có thay đổi cấu trúc DB nhiều. Khi cấu trúc DB ổn định hoặc chỉ thay đổi ít, tiến hành đóng/comment đoạn mã DbFirst lại và cập nhật thủ công trực tiếp trên class Entity.
   4. Chú ý kiểm tra lại đường dẫn tuyệt đối `directoryPath` tới thư mục `Core/Entities/DbFirst/` của module để tương thích môi trường máy cá nhân.
+  5. Khi gặp lỗi IDE không bắt được Unit Test hoặc báo thiếu tham chiếu (Missing reference/assembly):
+     - Kiểm tra xem project (nhất là `*.Tests.csproj`) đã được add vào file `.sln` chưa. Chạy lệnh `dotnet sln <sln-file> add <csproj-file>` để tự động fix.
+     - Kiểm tra xUnit lifecycle: Dùng `IClassFixture` khi có khởi tạo DB/Host nặng để tránh đụng độ `DROP TABLE` khi test song song.
