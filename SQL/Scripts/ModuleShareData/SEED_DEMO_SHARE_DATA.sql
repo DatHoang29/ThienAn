@@ -3,7 +3,6 @@
 -- Database: [dev_its10] / ConfigId: dev_its10
 -- Author: Đạt
 -- Created date: 29/07/2026
--- Updated date: 03/08/2026 (Cập nhật chuẩn bảng WebAPI theo shareData-assessment.md)
 -- Description: Script nạp dữ liệu demo chuẩn cho các bảng Esh master/cấu hình.
 --              Chỉ tác động đến các bảng Esh, KHÔNG tạo bảng giả lập/mock view.
 --              Thứ tự INSERT theo dependency: Partner → DataSource → EventSource
