@@ -193,7 +193,7 @@ Các hệ thống / Module phát triển mới về sau bắt buộc tuân thủ
 
 6. **Quy định Entity Class**: Tất cả các Entity class trong hệ thống bắt buộc phải kế thừa `EntityTenant` (từ `Shared.Core.Domain`).
 
-7. **Quy định Header Comment của Class**: Mỗi Class khi tạo mới hoặc cập nhật BẮT BUỘC phải có khối XML summary comment ở đầu Class theo mẫu (Author luôn là **Đạt**):
+7. **Quy định Header Comment của Class**: Mỗi Class khi tạo mới hoặc cập nhật BẮT BUỘC phải có khối XML summary comment ở đầu Class theo mẫu (Author luôn là **Đạt**, chỉ dùng `Created date:`, KHÔNG dùng `Updated date:`):
    ```csharp
    /// <summary>
    /// [Mô tả chức năng / Tên bảng]
@@ -242,7 +242,7 @@ tests/
 ### 3. Quy Tắc Đặt Tên & Định Dạng
 * **File test**: `<TênModule>Tests.cs` (không dùng hậu tố `IntegrationTests.cs`).
 * **Class test**: `<TênModule>Tests`.
-* **Comment XML Summary Bắt Buộc Trên Hàm Test**: Mọi phương thức kiểm thử (`[Fact]` / `[Theory]`) BẮT BUỘC có comment XML `/// <summary>` theo thứ tự chuẩn: mô tả chức năng test, `Author: Đạt` ở giữa, và `Created date: DD/MM/YYYY` ở dòng cuối.
+* **Comment XML Summary Bắt Buộc Trên Hàm Test**: Mọi phương thức kiểm thử (`[Fact]` / `[Theory]`) BẮT BUỘC có comment XML `/// <summary>` theo thứ tự chuẩn: mô tả chức năng test, `Author: Đạt` ở giữa, và `Created date: DD/MM/YYYY` ở dòng cuối. BỎ HẲN và KHÔNG DÙNG field `Updated date:`.
 * **Namespace**: `TAC_WebAPI.IntegrationTests.Modules.<TênModule>`.
 * **Tên phương thức test**: Sử dụng dấu gạch dưới **`_`** để phân tách các phần trong tên phương thức theo định dạng `Feature_Scenario_ExpectedResult` hoặc `Feature_Scenario_ExpectedResult_Test` (ví dụ: `CronJob_SavedQuery_SqlGeneration_Test`, `PartnerQuery_GetById_ReturnsSuccess_Test`).
 * **Thứ tự**: Sắp xếp các Happy Case của Queries lên trước, sau đó đến các Happy Case của Commands (ví dụ: `QueryPageReturnsSuccessTest`, `CommandAddReturnsSuccessTest`).
