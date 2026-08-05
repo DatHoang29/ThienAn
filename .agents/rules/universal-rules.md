@@ -36,8 +36,9 @@ When user's prompt is NOT in English:
 
 ---
 
-## 🛑 Manual SQL Execution Rule (Mandatory Rule)
+## 🛑 Strict Manual SQL Execution Rule (Mandatory Rule)
 
-- **NO Auto-Executing Database Mutations**: When creating or updating SQL scripts (`.SQL`), ONLY write or modify the file on disk. NEVER automatically run or execute DDL/DML script files (`INSERT`, `UPDATE`, `DELETE`, `ALTER`, `DROP`) against databases (remote or local) without explicit user instruction.
-- **User Review First**: Always present the script file to the user for review so they can manually inspect and execute it themselves.
+- **ABSOLUTELY NO Auto-Executing Database Mutations**: When creating or updating SQL scripts (`.SQL`) or database configurations, ONLY write or modify files on disk. 
+- **FORBIDDEN Auto-Mutations**: NEVER automatically run or execute any DDL/DML operations (`INSERT`, `UPDATE`, `DELETE`, `ALTER`, `DROP`, `TRUNCATE`) against any database (remote or local, via scripts, C# code, or tools) without explicit prior request from the user.
+- **User Review First**: Always present the generated SQL script file to the user for inspection so they can manually review and execute it themselves.
 
