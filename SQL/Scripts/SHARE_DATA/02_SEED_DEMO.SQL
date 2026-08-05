@@ -15,32 +15,44 @@ BEGIN TRANSACTION;
 
 BEGIN TRY
 
-    -- 1. XOÁ DỮ LIỆU CŨ TRÁNH XUNG ĐỘT
-    DELETE FROM [dbo].[EshFieldMapping] WHERE [MappingProfileId] IN (SELECT [ID] FROM [dbo].[EshMappingProfile] WHERE [Code] LIKE 'MP-DEMO-%');
-    DELETE FROM [dbo].[EshSubscription] WHERE [SerialNbr] LIKE 'SUB-DEMO-%';
-    DELETE FROM [dbo].[EshMappingProfile] WHERE [Code] LIKE 'MP-DEMO-%';
-    DELETE FROM [dbo].[EshDataSource] WHERE [Code] LIKE 'DS-DEMO-%';
-    DELETE FROM [dbo].[EshPartner] WHERE [Code] LIKE 'PTN-DEMO-%';
+    -- 0. KIỂM TRA BẢNG CSDL TỒN TẠI CHƯA
+    IF OBJECT_ID('dbo.EshPartner', 'U') IS NULL
+    BEGIN
+        RAISERROR(N'⚠️ Chưa tìm thấy các bảng CSDL ShareData! Vui lòng chạy file 01_CREATE_TABLES.SQL trước khi nạp Seed Data.', 16, 1);
+        RETURN;
+    END;
+
+    -- 1. XOÁ DỮ LIỆU CŨ TRÁNH XUNG ĐỘT (NẾU BẢNG ĐÃ TỒN TẠI)
+    IF OBJECT_ID('dbo.EshFieldMapping', 'U') IS NOT NULL
+        DELETE FROM [dbo].[EshFieldMapping] WHERE [MappingProfileId] IN (SELECT [ID] FROM [dbo].[EshMappingProfile] WHERE [Code] LIKE 'MP-DEMO-%');
+    IF OBJECT_ID('dbo.EshSubscription', 'U') IS NOT NULL
+        DELETE FROM [dbo].[EshSubscription] WHERE [SerialNbr] LIKE 'SUB-DEMO-%';
+    IF OBJECT_ID('dbo.EshMappingProfile', 'U') IS NOT NULL
+        DELETE FROM [dbo].[EshMappingProfile] WHERE [Code] LIKE 'MP-DEMO-%';
+    IF OBJECT_ID('dbo.EshDataSource', 'U') IS NOT NULL
+        DELETE FROM [dbo].[EshDataSource] WHERE [Code] LIKE 'DS-DEMO-%';
+    IF OBJECT_ID('dbo.EshPartner', 'U') IS NOT NULL
+        DELETE FROM [dbo].[EshPartner] WHERE [Code] LIKE 'PTN-DEMO-%';
 
     -- 2. THÊM 6 ĐỐI TÁC DEMO (PTN-DEMO-001 ➔ PTN-DEMO-006)
-    INSERT INTO [dbo].[EshPartner] ([ID], [Code], [Name], [SecretKey], [Status], [TenantId], [CreateTime], [IsDelete])
+    INSERT INTO [dbo].[EshPartner] ([ID], [Code], [Name], [Status], [TenantId], [CreateTime], [IsDelete])
     VALUES
-    ('P-DEMO-001', 'PTN-DEMO-001', N'Sở Giao thông Vận tải Hà Nội',   'SECRET_KEY_SGTVT_HN', 'ENABLED', '1', GETDATE(), 0),
-    ('P-DEMO-002', 'PTN-DEMO-002', N'Cục Cảnh sát Giao thông (C08)', 'SECRET_KEY_C08_BCA',  'ENABLED', '1', GETDATE(), 0),
-    ('P-DEMO-003', 'PTN-DEMO-003', N'Cục Đường bộ Việt Nam',          'SECRET_KEY_CDB_VN',   'ENABLED', '1', GETDATE(), 0),
-    ('P-DEMO-004', 'PTN-DEMO-004', N'Trung tâm Khí tượng Thủy văn',   'SECRET_KEY_KTTV_NB',  'ENABLED', '1', GETDATE(), 0),
-    ('P-DEMO-005', 'PTN-DEMO-005', N'Công ty Đầu tư Thu phí VETC',     'SECRET_KEY_VETC_ETC', 'ENABLED', '1', GETDATE(), 0),
-    ('P-DEMO-006', 'PTN-DEMO-006', N'Công ty Thu phí Tự động VDTC',    'SECRET_KEY_VDTC_ETC', 'ENABLED', '1', GETDATE(), 0);
+    ('P-DEMO-001', 'PTN-DEMO-001', N'Sở Giao thông Vận tải Hà Nội',   'ENABLED', '1', GETDATE(), 0),
+    ('P-DEMO-002', 'PTN-DEMO-002', N'Cục Cảnh sát Giao thông (C08)', 'ENABLED', '1', GETDATE(), 0),
+    ('P-DEMO-003', 'PTN-DEMO-003', N'Cục Đường bộ Việt Nam',          'ENABLED', '1', GETDATE(), 0),
+    ('P-DEMO-004', 'PTN-DEMO-004', N'Trung tâm Khí tượng Thủy văn',   'ENABLED', '1', GETDATE(), 0),
+    ('P-DEMO-005', 'PTN-DEMO-005', N'Công ty Đầu tư Thu phí VETC',     'ENABLED', '1', GETDATE(), 0),
+    ('P-DEMO-006', 'PTN-DEMO-006', N'Công ty Thu phí Tự động VDTC',    'ENABLED', '1', GETDATE(), 0);
 
     -- 3. THÊM 6 NGUỒN DỮ LIỆU (DS-DEMO-001 ➔ DS-DEMO-006)
     INSERT INTO [dbo].[EshDataSource] ([ID], [Code], [Name], [Kind], [Table], [QueryText], [TopN], [TenantId], [CreateTime], [IsDelete])
     VALUES
-    ('DS-DEMO-001', 'DS-DEMO-001', N'Nguồn Dữ liệu Giao thông (FieldPicker)', 'FieldPicker', 'TmsTrafficData', NULL, 100, '1', GETDATE(), 0),
-    ('DS-DEMO-002', 'DS-DEMO-002', N'Nguồn Dữ liệu Đăng kiểm Xe (SavedQuery)', 'SavedQuery', NULL, N'SELECT LocationCode AS VehicleNo, VehicleCount AS Speed FROM TmsTrafficData', 50, '1', GETDATE(), 0),
-    ('DS-DEMO-003', 'DS-DEMO-003', N'Nguồn Dữ liệu Sự cố Giao thông (FieldPicker)', 'FieldPicker', 'TmsTrafficData', NULL, 100, '1', GETDATE(), 0),
-    ('DS-DEMO-004', 'DS-DEMO-004', N'Nguồn Dữ liệu Khí tượng Thủy văn (FieldPicker)', 'FieldPicker', 'TmsTrafficData', NULL, 100, '1', GETDATE(), 0),
-    ('DS-DEMO-005', 'DS-DEMO-005', N'Nguồn Dữ liệu Thu phí Không dừng (SavedQuery)', 'SavedQuery', NULL, N'SELECT LocationCode AS StationCode, VehicleCount AS FeeAmount FROM TmsTrafficData', 100, '1', GETDATE(), 0),
-    ('DS-DEMO-006', 'DS-DEMO-006', N'Nguồn Dữ liệu Sự kiện Xe (SavedQuery)', 'SavedQuery', NULL, N'SELECT LocationCode AS PlateNo, LogTime AS EventTime FROM TmsTrafficData', 100, '1', GETDATE(), 0);
+    ('DS-DEMO-001', 'DS-DEMO-001', N'Nguồn Dữ liệu Giao thông (FIELD_PICKER)', 'FIELD_PICKER', 'TmsTrafficData', NULL, 100, '1', GETDATE(), 0),
+    ('DS-DEMO-002', 'DS-DEMO-002', N'Nguồn Dữ liệu Đăng kiểm Xe (SAVED_QUERY)', 'SAVED_QUERY', NULL, N'SELECT LocationCode AS VehicleNo, VehicleCount AS Speed FROM TmsTrafficData', 50, '1', GETDATE(), 0),
+    ('DS-DEMO-003', 'DS-DEMO-003', N'Nguồn Dữ liệu Sự cố Giao thông (FIELD_PICKER)', 'FIELD_PICKER', 'TmsTrafficData', NULL, 100, '1', GETDATE(), 0),
+    ('DS-DEMO-004', 'DS-DEMO-004', N'Nguồn Dữ liệu Khí tượng Thủy văn (FIELD_PICKER)', 'FIELD_PICKER', 'TmsTrafficData', NULL, 100, '1', GETDATE(), 0),
+    ('DS-DEMO-005', 'DS-DEMO-005', N'Nguồn Dữ liệu Thu phí Không dừng (SAVED_QUERY)', 'SAVED_QUERY', NULL, N'SELECT LocationCode AS StationCode, VehicleCount AS FeeAmount FROM TmsTrafficData', 100, '1', GETDATE(), 0),
+    ('DS-DEMO-006', 'DS-DEMO-006', N'Nguồn Dữ liệu Sự kiện Xe (SAVED_QUERY)', 'SAVED_QUERY', NULL, N'SELECT LocationCode AS PlateNo, LogTime AS EventTime FROM TmsTrafficData', 100, '1', GETDATE(), 0);
 
     -- 4. THÊM 6 HỒ SƠ ÁNH XẠ (MP-DEMO-001 ➔ MP-DEMO-006) VỚI DATATYPE_ID KHÔNG TRÙNG NHAU
     INSERT INTO [dbo].[EshMappingProfile] ([ID], [Code], [Name], [PartnerId], [DatatypeId], [Direction], [DataSourceId], [IsActive], [TenantId], [CreateTime], [IsDelete])
@@ -84,18 +96,6 @@ BEGIN TRY
     ('SUB-D-004', 'SUB-DEMO-004', 'P-DEMO-004', 'SHARE_KTTV_01',    'MP-DEMO-004', 'DS-DEMO-004', 'OUTBOUND', 'BATCH', 'ACTIVE', 'IDLE', NULL, 30, GETDATE(), '1', GETDATE(), 0),
     ('SUB-D-005', 'SUB-DEMO-005', 'P-DEMO-005', 'SHARE_THUPHI_01',  'MP-DEMO-005', 'DS-DEMO-005', 'OUTBOUND', 'BATCH', 'ACTIVE', 'IDLE', NULL, 30, GETDATE(), '1', GETDATE(), 0),
     ('SUB-D-006', 'SUB-DEMO-006', 'P-DEMO-006', 'SHARE_EVENT_01',   'MP-DEMO-006', 'DS-DEMO-006', 'OUTBOUND', 'BATCH', 'ACTIVE', 'IDLE', NULL, 30, GETDATE(), '1', GETDATE(), 0);
-
-    -- 7. THÊM DỮ LIỆU MẪU BẢNG TRAFFIC DATA (TmsTrafficData)
-    IF NOT EXISTS (SELECT 1 FROM [dbo].[TmsTrafficData])
-    BEGIN
-        INSERT INTO [dbo].[TmsTrafficData] ([ID], [LocationCode], [VehicleCount], [DetectTime], [LogTime], [TenantId], [CreateTime], [IsDelete])
-        VALUES
-        ('TR-001', 'TRAM_CAU_DIEN',   1250, GETDATE(), GETDATE(), '1', GETDATE(), 0),
-        ('TR-002', 'TRAM_PHAP_VAN',   3400, GETDATE(), GETDATE(), '1', GETDATE(), 0),
-        ('TR-003', 'TRAM_NOI_BAI',    2100, GETDATE(), GETDATE(), '1', GETDATE(), 0),
-        ('TR-004', 'TRAM_HA_DONG',    1850, GETDATE(), GETDATE(), '1', GETDATE(), 0),
-        ('TR-005', 'TRAM_LONG_BIEN',  2900, GETDATE(), GETDATE(), '1', GETDATE(), 0);
-    END;
 
     COMMIT TRANSACTION;
     PRINT N'✅ Nạp dữ liệu mẫu ShareData cho 6 Subscriptions thành công 100%!';

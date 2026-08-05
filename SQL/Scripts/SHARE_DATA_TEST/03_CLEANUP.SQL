@@ -1,12 +1,12 @@
 -- ============================================================================
--- MODULE: SHARE DATA (ESHARE V1)
--- FILE: 03_CLEANUP_SHARE_DATA.SQL
--- DESCRIPTION: Dọn Dệp Dữ Liệu Mẫu & Reset Trạng Thái Subscriptions ShareData
+-- MODULE: SHARE DATA (ESHARE V1) - TEST DATABASE
+-- FILE: 03_CLEANUP.SQL
+-- DESCRIPTION: Dọn Dệp Dữ Liệu Mẫu & Reset Trạng Thái Subscriptions Trong CSDL [test]
 -- AUTHOR: Antigravity AI
 -- CREATED DATE: 2026-08-05
 -- ============================================================================
 
-USE [dev_its10];
+USE [test];
 GO
 
 SET NOCOUNT ON;
@@ -32,7 +32,7 @@ BEGIN TRY
         DELETE FROM [dbo].[EshEventSource] WHERE [PartnerCode] LIKE 'PTN-DEMO-%';
 
     COMMIT TRANSACTION;
-    PRINT N'✅ Dọn dẹp dữ liệu mẫu ShareData thành công!';
+    PRINT N'✅ Dọn dẹp dữ liệu mẫu ShareData trong CSDL [test] thành công!';
 
 END TRY
 BEGIN CATCH

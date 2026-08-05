@@ -1,12 +1,12 @@
 -- ============================================================================
--- MODULE: SHARE DATA (ESHARE V1)
--- FILE: 01_CREATE_TABLES_SHARE_DATA.SQL
--- DESCRIPTION: Tạo các bảng CSDL cho Module Trao đổi & Chia sẻ Dữ liệu (ShareData)
+-- MODULE: SHARE DATA (ESHARE V1) - TEST DATABASE
+-- FILE: 01_CREATE_TABLES.SQL
+-- DESCRIPTION: Tạo các bảng CSDL cho Module ShareData trong CSDL [test]
 -- AUTHOR: Antigravity AI
 -- CREATED DATE: 2026-08-05
 -- ============================================================================
 
-USE [dev_its10];
+USE [test];
 GO
 
 -- 1. BẢNG ĐỐI TÁC (EshPartner)
@@ -40,7 +40,7 @@ BEGIN
         [ID]          NVARCHAR(64)   NOT NULL PRIMARY KEY,
         [Code]        NVARCHAR(64)   NULL,
         [Name]        NVARCHAR(256)  NOT NULL,
-        [Kind]        NVARCHAR(32)   NOT NULL, -- FieldPicker | SavedQuery
+        [Kind]        NVARCHAR(32)   NOT NULL, -- FIELD_PICKER | SAVED_QUERY
         [Table]       NVARCHAR(128)  NULL,
         [QueryText]   NVARCHAR(MAX)  NULL,
         [TopN]        INT            NULL DEFAULT 1000,
