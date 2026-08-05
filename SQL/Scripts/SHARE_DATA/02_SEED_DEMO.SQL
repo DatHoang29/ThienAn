@@ -55,12 +55,12 @@ BEGIN TRY
     -- 4. THÊM 6 HỒ SƠ ÁNH XẠ VỚI DATATYPE_ID THEO CHUẨN MÃ GÓI TIN (101 -> 109)
     INSERT INTO [dbo].[ShareDataMappingProfile] ([ID], [Code], [Name], [VendorId], [DatatypeId], [Direction], [DataSourceId], [IsActive], [TenantId], [CreateTime], [IsDelete])
     VALUES
-    ('MP-DEMO-001', 'MP-DEMO-001', N'Ánh xạ Lưu lượng GT (Gói 101)', 'P-DEMO-001', 101, 'OUT', 'DS-DEMO-001', 1, '1', GETDATE(), 0),
-    ('MP-DEMO-002', 'MP-DEMO-002', N'Ánh xạ Hình ảnh CCTV (Gói 102)', 'P-DEMO-002', 102, 'OUT', 'DS-DEMO-002', 1, '1', GETDATE(), 0),
-    ('MP-DEMO-003', 'MP-DEMO-003', N'Ánh xạ Dò xe VDS (Gói 103)',     'P-DEMO-003', 103, 'OUT', 'DS-DEMO-003', 1, '1', GETDATE(), 0),
-    ('MP-DEMO-004', 'MP-DEMO-004', N'Ánh xạ Định danh xe (Gói 105)', 'P-DEMO-004', 105, 'OUT', 'DS-DEMO-004', 1, '1', GETDATE(), 0),
-    ('MP-DEMO-005', 'MP-DEMO-005', N'Ánh xạ Sự cố GT (Gói 107)',    'P-DEMO-005', 107, 'OUT', 'DS-DEMO-005', 1, '1', GETDATE(), 0),
-    ('MP-DEMO-006', 'MP-DEMO-006', N'Ánh xạ Thu phí ETC (Gói 109)',  'P-DEMO-006', 109, 'OUT', 'DS-DEMO-006', 1, '1', GETDATE(), 0);
+    ('MP-DEMO-001', 'MP-DEMO-001', N'Ánh xạ Lưu lượng GT (Gói 101)', 'P-DEMO-001', '101', 'OUT', 'DS-DEMO-001', 1, '1', GETDATE(), 0),
+    ('MP-DEMO-002', 'MP-DEMO-002', N'Ánh xạ Hình ảnh CCTV (Gói 102)', 'P-DEMO-002', '102', 'OUT', 'DS-DEMO-002', 1, '1', GETDATE(), 0),
+    ('MP-DEMO-003', 'MP-DEMO-003', N'Ánh xạ Dò xe VDS (Gói 103)',     'P-DEMO-003', '103', 'OUT', 'DS-DEMO-003', 1, '1', GETDATE(), 0),
+    ('MP-DEMO-004', 'MP-DEMO-004', N'Ánh xạ Định danh xe (Gói 105)', 'P-DEMO-004', '105', 'OUT', 'DS-DEMO-004', 1, '1', GETDATE(), 0),
+    ('MP-DEMO-005', 'MP-DEMO-005', N'Ánh xạ Sự cố GT (Gói 107)',    'P-DEMO-005', '107', 'OUT', 'DS-DEMO-005', 1, '1', GETDATE(), 0),
+    ('MP-DEMO-006', 'MP-DEMO-006', N'Ánh xạ Thu phí ETC (Gói 109)',  'P-DEMO-006', '109', 'OUT', 'DS-DEMO-006', 1, '1', GETDATE(), 0);
 
     -- 5. THÊM 6 SUBSCRIPTIONS ĐẦU RA HOẠT ĐỘNG VỚI MÃ GÓI TIN CHUẨN (101, 102, 103, 105, 107, 109)
     INSERT INTO [dbo].[ShareDataSubscription] 

@@ -73,7 +73,7 @@ BEGIN
         [Code]         NVARCHAR(64)  NULL,
         [Name]         NVARCHAR(256) NULL,
         [VendorId]     NVARCHAR(64)  NULL,
-        [DatatypeId]   INT           NULL,
+        [DatatypeId]   NVARCHAR(64)  NULL,
         [Direction]    NVARCHAR(32)  NULL DEFAULT 'OUT', -- OUT | IN
         [DataSourceId] NVARCHAR(64)  NULL,
         [MappingsJson] NVARCHAR(MAX) NULL,
