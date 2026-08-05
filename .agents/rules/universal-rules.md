@@ -34,3 +34,10 @@ When user's prompt is NOT in English:
 - **Strict Module Scope**: All SQL scripts (DDL & DML) generated or updated for a module MUST ONLY target tables within that module's official entity scope (e.g., for `ShareData` module: `EshPartner`, `EshDataSource`, `EshMappingProfile`, `EshFieldMapping`, `EshSubscription`, `EshExportLog`, `EshSystemLog`, `EshEventSource`).
 - **FORBIDDEN Outside Operations**: NEVER perform `CREATE`, `ALTER`, `DROP`, `INSERT`, `UPDATE`, or `DELETE` operations on tables owned by other modules (such as `TmsTrafficData`, `TmsWeather`, `TmsIncident`, `TollTransactionOut`...). External tables belong strictly to their host modules and must never be created, altered, or mutated by another module's scripts.
 
+---
+
+## 🛑 Manual SQL Execution Rule (Mandatory Rule)
+
+- **NO Auto-Executing Database Mutations**: When creating or updating SQL scripts (`.SQL`), ONLY write or modify the file on disk. NEVER automatically run or execute DDL/DML script files (`INSERT`, `UPDATE`, `DELETE`, `ALTER`, `DROP`) against databases (remote or local) without explicit user instruction.
+- **User Review First**: Always present the script file to the user for review so they can manually inspect and execute it themselves.
+
