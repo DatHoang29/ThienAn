@@ -1,8 +1,8 @@
 -- ============================================================================
--- MODULE: SHARE DATA (ESHARE V1)
+-- MODULE: SHARE DATA (SHARE DATA V1)
 -- FILE: 04_DROP_TABLES.SQL
 -- DESCRIPTION: Xóa Hẳn Các Bảng CSDL Của Module ShareData (DROP TABLES)
--- AUTHOR: Antigravity AI
+-- AUTHOR: Đạt
 -- CREATED DATE: 2026-08-05
 -- ============================================================================
 
@@ -15,20 +15,19 @@ BEGIN TRANSACTION;
 
 BEGIN TRY
 
-    -- 1. XOÁ CÁC BẢNG LOG & SỰ KIỆN
-    IF OBJECT_ID('dbo.EshExportLog', 'U') IS NOT NULL DROP TABLE dbo.EshExportLog;
-    IF OBJECT_ID('dbo.EshSystemLog', 'U') IS NOT NULL DROP TABLE dbo.EshSystemLog;
-    IF OBJECT_ID('dbo.EshEventSource', 'U') IS NOT NULL DROP TABLE dbo.EshEventSource;
+    -- 1. XOÁ CÁC BẢNG LOG & PHIÊN & SỰ KIỆN
+    IF OBJECT_ID('dbo.ShareDataActivityLog', 'U') IS NOT NULL DROP TABLE dbo.ShareDataActivityLog;
+    IF OBJECT_ID('dbo.ShareDataSession', 'U') IS NOT NULL DROP TABLE dbo.ShareDataSession;
+    IF OBJECT_ID('dbo.ShareDataEventSource', 'U') IS NOT NULL DROP TABLE dbo.ShareDataEventSource;
 
     -- 2. XOÁ CÁC BẢNG CẤU HÌNH & ÁNH XẠ
-    IF OBJECT_ID('dbo.EshSubscription', 'U') IS NOT NULL DROP TABLE dbo.EshSubscription;
-    IF OBJECT_ID('dbo.EshFieldMapping', 'U') IS NOT NULL DROP TABLE dbo.EshFieldMapping;
-    IF OBJECT_ID('dbo.EshMappingProfile', 'U') IS NOT NULL DROP TABLE dbo.EshMappingProfile;
-    IF OBJECT_ID('dbo.EshDataSource', 'U') IS NOT NULL DROP TABLE dbo.EshDataSource;
-    IF OBJECT_ID('dbo.EshPartner', 'U') IS NOT NULL DROP TABLE dbo.EshPartner;
+    IF OBJECT_ID('dbo.ShareDataSubscription', 'U') IS NOT NULL DROP TABLE dbo.ShareDataSubscription;
+    IF OBJECT_ID('dbo.ShareDataMappingProfile', 'U') IS NOT NULL DROP TABLE dbo.ShareDataMappingProfile;
+    IF OBJECT_ID('dbo.ShareDataDataSource', 'U') IS NOT NULL DROP TABLE dbo.ShareDataDataSource;
+    IF OBJECT_ID('dbo.ShareDataPartner', 'U') IS NOT NULL DROP TABLE dbo.ShareDataPartner;
 
     COMMIT TRANSACTION;
-    PRINT N'🔥 Đã xoá toàn bộ 8 bảng CSDL thuộc Scope Module ShareData thành công!';
+    PRINT N'🔥 Đã xoá toàn bộ 7 bảng CSDL thuộc Scope Module ShareData thành công!';
 
 END TRY
 BEGIN CATCH

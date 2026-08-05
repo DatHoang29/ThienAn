@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "mssql": {
+    "mssql_dev": {
       "command": "npx",
       "args": [
         "-y",
@@ -8,6 +8,26 @@
       ],
       "env": {
         "MSSQL_CONNECTION_STRING": "Server=localhost,14333;Database=dev_its10;User ID=sa;Password=Password123!;TrustServerCertificate=True;ApplicationIntent=ReadOnly;"
+      }
+    },
+    "mssql_test": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mssql-mcp-server"
+      ],
+      "env": {
+        "MSSQL_CONNECTION_STRING": "Server=localhost,14333;Database=test;User ID=sa;Password=Password123!;TrustServerCertificate=True;ApplicationIntent=ReadOnly;"
+      }
+    },
+    "mssql_demo": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mssql-mcp-server"
+      ],
+      "env": {
+        "MSSQL_CONNECTION_STRING": "Server=10.10.8.30;Database=DEV_ITS10_Log;User ID=sa;Password=Tac@@1234;TrustServerCertificate=True;ApplicationIntent=ReadOnly;"
       }
     }
   }
