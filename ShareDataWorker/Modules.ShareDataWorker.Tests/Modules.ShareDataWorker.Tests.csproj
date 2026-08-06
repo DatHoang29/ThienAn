@@ -24,9 +24,4 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0-preview.1.25080.5" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\Modules.ShareDataWorker\Modules.ShareDataWorker.csproj" />
-    <ProjectReference Include="..\Modules.ShareDataWorker.Core\Modules.ShareDataWorker.Core.csproj" />
-  </ItemGroup>
-
 </Project>
