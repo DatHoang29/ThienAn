@@ -4,8 +4,6 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <UserSecretsId>dotnet-Modules.ShareDataWorker</UserSecretsId>
-    <DefaultItemExcludes>$(DefaultItemExcludes);tests\**;tests/**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
