@@ -19,7 +19,7 @@ BEGIN TRY
     IF OBJECT_ID('dbo.ShareDataActivityLog', 'U') IS NOT NULL 
         DELETE FROM [dbo].[ShareDataActivityLog] WHERE [DatatypeId] LIKE 'SHARE_%';
     IF OBJECT_ID('dbo.ShareDataSubscription', 'U') IS NOT NULL 
-        DELETE FROM [dbo].[ShareDataSubscription] WHERE [SerialNbr] LIKE 'SUB-DEMO-%';
+        DELETE FROM [dbo].[ShareDataSubscription] WHERE [Code] LIKE 'SUB-DEMO-%';
     IF OBJECT_ID('dbo.ShareDataMappingProfile', 'U') IS NOT NULL 
         DELETE FROM [dbo].[ShareDataMappingProfile] WHERE [Code] LIKE 'MP-DEMO-%';
     IF OBJECT_ID('dbo.ShareDataDataSource', 'U') IS NOT NULL 
