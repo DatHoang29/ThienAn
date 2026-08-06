@@ -3,7 +3,12 @@
     "PreToolUse": [
       {
         "matcher": "Bash",
-        "command": "node .agents/hooks/validate-tool-call.mjs"
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .agents/hooks/validate-tool-call.mjs"
+          }
+        ]
       }
     ]
   }
