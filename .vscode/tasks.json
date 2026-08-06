@@ -7,7 +7,7 @@
       "type": "process",
       "args": [
         "build",
-        "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareData/Modules.ShareDataWorker/Modules.ShareDataWorker.csproj",
+        "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareDataWorker/ShareDataWorker/ShareDataWorker.csproj",
         "/property:GenerateFullPaths=true"
       ],
       "problemMatcher": "$msCompile",
@@ -23,7 +23,7 @@
       "type": "process",
       "args": [
         "test",
-        "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareData/Modules.ShareDataWorker/tests/Modules.ShareDataWorker.Tests.csproj"
+        "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareDataWorker/ShareDataWorker.Tests/ShareDataWorker.Tests.csproj"
       ],
       "problemMatcher": "$msCompile",
       "presentation": {

@@ -2,13 +2,13 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": ".NET Core Launch (Modules.ShareDataWorker - Local)",
+      "name": ".NET Core Launch (ShareDataWorker - Local)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-worker",
-      "program": "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareData/Modules.ShareDataWorker/bin/Debug/net10.0/Modules.ShareDataWorker.dll",
+      "program": "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareDataWorker/ShareDataWorker/bin/Debug/net10.0/ShareDataWorker.dll",
       "args": [],
-      "cwd": "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareData/Modules.ShareDataWorker",
+      "cwd": "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareDataWorker/ShareDataWorker",
       "stopAtEntry": false,
       "console": "internalConsole",
       "env": {
@@ -16,13 +16,13 @@
       }
     },
     {
-      "name": ".NET Core Launch (Modules.ShareDataWorker - Demo)",
+      "name": ".NET Core Launch (ShareDataWorker - Demo)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-worker",
-      "program": "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareData/Modules.ShareDataWorker/bin/Debug/net10.0/Modules.ShareDataWorker.dll",
+      "program": "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareDataWorker/ShareDataWorker/bin/Debug/net10.0/ShareDataWorker.dll",
       "args": [],
-      "cwd": "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareData/Modules.ShareDataWorker",
+      "cwd": "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareDataWorker/ShareDataWorker",
       "stopAtEntry": false,
       "console": "internalConsole",
       "env": {
@@ -49,6 +49,6 @@
         "ASPNETCORE_URLS": "http://localhost:5005",
         "DOTNET_CLI_HOME": "${workspaceFolder}/.dotnet-home"
       }
-    },
+    }
   ]
 }
