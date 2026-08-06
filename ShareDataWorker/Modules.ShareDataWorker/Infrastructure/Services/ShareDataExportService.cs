@@ -225,7 +225,7 @@ namespace Modules.ShareDataWorker.Infrastructure.Services
             {
                 try
                 {
-                    await ProcessBatchSubscriptionsAsync(stoppingToken);
+                    await ProcessBatchSubscriptions(stoppingToken);
                 }
                 catch (Exception ex)
                 {
@@ -243,7 +243,7 @@ namespace Modules.ShareDataWorker.Infrastructure.Services
         /// Description: Xử lý lô các Subscriptions đến hạn kết xuất dữ liệu
         /// Created date: 04/08/2026
         /// </summary>
-        public async Task ProcessBatchSubscriptionsAsync(CancellationToken stoppingToken = default)
+        public async Task ProcessBatchSubscriptions(CancellationToken stoppingToken = default)
         {
             await using var scope = scopeFactory.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
@@ -297,7 +297,7 @@ namespace Modules.ShareDataWorker.Infrastructure.Services
         /// Description: Truy vấn dữ liệu cho Subscription theo cấu hình Entity mới ShareDataDataSource, với Fallback về PacketQueryRegistry
         /// Created date: 05/08/2026
         /// </summary>
-        private async Task<List<object>> FetchDataForSubscriptionAsync(SqlSugarClient db, ShareDataSubscription sub)
+        private async Task<List<object>> FetchDataForSubscription(SqlSugarClient db, ShareDataSubscription sub)
         {
             List<object>? data = null;
             ShareDataMappingProfile? mp = null;
@@ -376,16 +376,16 @@ namespace Modules.ShareDataWorker.Infrastructure.Services
                 {
                     var queryError = $"Không tìm thấy hàm truy vấn dữ liệu cho Subscription ID {sub.ID} (Gói tin {sub.DatatypeId}).";
                     LogInformationMsg($"❌ {queryError}");
-                    await LogExportResultAsync(db, sub, partner, 0, 0, null, EshEnums.ExportStatus.Failed, queryError);
+                    await LogExportResult(db, sub, partner, 0, 0, null, EshEnums.ExportStatus.Failed, queryError);
                     return;
                 }
 
                 // 2. Thực hiện truy vấn dữ liệu sau khi đã xác nhận Subscription hợp lệ
-                var data = await FetchDataForSubscriptionAsync(db, sub);
+                var data = await FetchDataForSubscription(db, sub);
                 if (data == null || data.Count == 0)
                 {
                     LogInformationMsg($"ℹ️ Không có dữ liệu mới cho Subscription ID {sub.ID}. Bỏ qua xuất file JSON.");
-                    await LogExportResultAsync(db, sub, partner, 0, 0, null, EshEnums.ExportStatus.Success, "Không có dữ liệu mới");
+                    await LogExportResult(db, sub, partner, 0, 0, null, EshEnums.ExportStatus.Success, "Không có dữ liệu mới");
                     return;
                 }
 
@@ -401,13 +401,13 @@ namespace Modules.ShareDataWorker.Infrastructure.Services
                     Directory.CreateDirectory(directoryPath);
 
                 await File.WriteAllBytesAsync(fullPath, jsonBytes);
-                await LogExportResultAsync(db, sub, partner, data.Count, byteSize, relativePath, EshEnums.ExportStatus.Success);
+                await LogExportResult(db, sub, partner, data.Count, byteSize, relativePath, EshEnums.ExportStatus.Success);
                 LogInformationMsg($"✅ Kết xuất dữ liệu THÀNH CÔNG cho Subscription ID {sub.ID} ({data.Count} bản ghi, {byteSize} bytes) -> File: {relativePath}");
             }
             catch (Exception ex)
             {
                 LogInformationMsg($"❌ Lỗi kết xuất dữ liệu cho Subscription ID {sub.ID}: {ex.Message}");
-                await LogExportResultAsync(db, sub, partner, 0, 0, null, EshEnums.ExportStatus.Failed, ex.Message);
+                await LogExportResult(db, sub, partner, 0, 0, null, EshEnums.ExportStatus.Failed, ex.Message);
             }
             finally
             {
@@ -449,7 +449,7 @@ namespace Modules.ShareDataWorker.Infrastructure.Services
         /// Description: Ghi nhận nhật ký kết xuất dữ liệu vào bảng ShareDataActivityLog với đầy đủ trường chuẩn truyền nhận
         /// Created date: 04/08/2026
         /// </summary>
-        private static async Task LogExportResultAsync(SqlSugarClient db, ShareDataSubscription sub, ShareDataPartner? partner,
+        private static async Task LogExportResult(SqlSugarClient db, ShareDataSubscription sub, ShareDataPartner? partner,
             long recordCount, long byteSize, string? filePath, string? status, string? errorMessage = null)
         {
             var isSuccess = status == EshEnums.ExportStatus.Success;

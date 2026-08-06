@@ -98,7 +98,7 @@ namespace Modules.ShareDataWorker.Tests
             _host = host;
         }
 
-        private static async Task AssertPacketJsonSchemaAsync(
+        private static async Task AssertPacketJsonSchema(
             ISqlSugarClient db,
             string subscriptionId,
             EshEnums.DatatypeIdEnum datatypeEnum,
@@ -191,7 +191,7 @@ namespace Modules.ShareDataWorker.Tests
             try
             {
                 var workerService = new ShareDataExportService(scopeFactory, logger);
-                await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+                await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
                 var updatedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(stuckSubscription.ID);
                 Assert.NotNull(updatedSub);
@@ -287,9 +287,9 @@ namespace Modules.ShareDataWorker.Tests
             try
             {
                 var workerService = new ShareDataExportService(scopeFactory, logger);
-                await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+                await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
-                await AssertPacketJsonSchemaAsync(db, sub.ID, EshEnums.DatatypeIdEnum.TrafficFlow);
+                await AssertPacketJsonSchema(db, sub.ID, EshEnums.DatatypeIdEnum.TrafficFlow);
             }
             finally
             {
@@ -360,7 +360,7 @@ namespace Modules.ShareDataWorker.Tests
             try
             {
                 var workerService = new ShareDataExportService(scopeFactory, logger);
-                await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+                await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
                 var logs = await db.Queryable<ShareDataActivityLog>()
                     .Where(l => l.SubscriptionId == sub.ID)
@@ -431,9 +431,9 @@ namespace Modules.ShareDataWorker.Tests
             try
             {
                 var workerService = new ShareDataExportService(scopeFactory, logger);
-                await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+                await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
-                await AssertPacketJsonSchemaAsync(db, sub.ID, EshEnums.DatatypeIdEnum.CctvImage);
+                await AssertPacketJsonSchema(db, sub.ID, EshEnums.DatatypeIdEnum.CctvImage);
             }
             finally
             {
@@ -484,9 +484,9 @@ namespace Modules.ShareDataWorker.Tests
             try
             {
                 var workerService = new ShareDataExportService(scopeFactory, logger);
-                await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+                await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
-                await AssertPacketJsonSchemaAsync(db, sub.ID, EshEnums.DatatypeIdEnum.VehicleDetection);
+                await AssertPacketJsonSchema(db, sub.ID, EshEnums.DatatypeIdEnum.VehicleDetection);
             }
             finally
             {
@@ -554,9 +554,9 @@ namespace Modules.ShareDataWorker.Tests
             try
             {
                 var workerService = new ShareDataExportService(scopeFactory, logger);
-                await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+                await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
-                await AssertPacketJsonSchemaAsync(db, sub.ID, EshEnums.DatatypeIdEnum.TrafficIncident);
+                await AssertPacketJsonSchema(db, sub.ID, EshEnums.DatatypeIdEnum.TrafficIncident);
             }
             finally
             {
@@ -607,9 +607,9 @@ namespace Modules.ShareDataWorker.Tests
             try
             {
                 var workerService = new ShareDataExportService(scopeFactory, logger);
-                await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+                await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
-                await AssertPacketJsonSchemaAsync(db, sub.ID, EshEnums.DatatypeIdEnum.VmsDisplay);
+                await AssertPacketJsonSchema(db, sub.ID, EshEnums.DatatypeIdEnum.VmsDisplay);
             }
             finally
             {
@@ -675,9 +675,9 @@ namespace Modules.ShareDataWorker.Tests
             try
             {
                 var workerService = new ShareDataExportService(scopeFactory, logger);
-                await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+                await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
-                await AssertPacketJsonSchemaAsync(db, sub.ID, EshEnums.DatatypeIdEnum.TollCollection);
+                await AssertPacketJsonSchema(db, sub.ID, EshEnums.DatatypeIdEnum.TollCollection);
             }
             finally
             {
@@ -722,7 +722,7 @@ namespace Modules.ShareDataWorker.Tests
             await db.Insertable(sub).ExecuteCommandAsync();
 
             var workerService = new ShareDataExportService(scopeFactory, logger);
-            await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+            await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
             var logs = await db.Queryable<ShareDataActivityLog>()
                 .Where(l => l.SubscriptionId == sub.ID)
@@ -776,7 +776,7 @@ namespace Modules.ShareDataWorker.Tests
             try
             {
                 var workerService = new ShareDataExportService(scopeFactory, logger);
-                await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+                await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
                 var logs = await db.Queryable<ShareDataActivityLog>()
                     .Where(l => l.SubscriptionId == sub.ID)
@@ -844,7 +844,7 @@ namespace Modules.ShareDataWorker.Tests
             try
             {
                 var workerService = new ShareDataExportService(scopeFactory, logger);
-                await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+                await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
                 var logs = await db.Queryable<ShareDataActivityLog>()
                     .Where(l => l.SubscriptionId == sub.ID)
@@ -906,7 +906,7 @@ namespace Modules.ShareDataWorker.Tests
             await db.Insertable(sub).ExecuteCommandAsync();
 
             var workerService = new ShareDataExportService(scopeFactory, logger);
-            await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+            await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
             var logs = await db.Queryable<ShareDataActivityLog>()
                 .Where(l => l.SubscriptionId == sub.ID)
@@ -962,7 +962,7 @@ namespace Modules.ShareDataWorker.Tests
             try
             {
                 var workerService = new ShareDataExportService(scopeFactory, logger);
-                await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+                await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
                 var logs = await db.Queryable<ShareDataActivityLog>()
                     .Where(l => l.SubscriptionId == sub.ID)
@@ -1024,7 +1024,7 @@ namespace Modules.ShareDataWorker.Tests
             try
             {
                 var workerService = new ShareDataExportService(scopeFactory, logger);
-                await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+                await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
                 var logs = await db.Queryable<ShareDataActivityLog>()
                     .Where(l => l.SubscriptionId == sub.ID)
@@ -1087,7 +1087,7 @@ namespace Modules.ShareDataWorker.Tests
             ]
         };
 
-        private static async Task SeedTestDataForPacketAsync(ISqlSugarClient db, EshEnums.DatatypeIdEnum datatypeEnum, string uniqueId)
+        private static async Task SeedTestDataForPacket(ISqlSugarClient db, EshEnums.DatatypeIdEnum datatypeEnum, string uniqueId)
         {
             var now = DateTime.Now;
             switch (datatypeEnum)
@@ -1132,7 +1132,7 @@ namespace Modules.ShareDataWorker.Tests
             }
         }
 
-        private static async Task CleanupTestDataForPacketAsync(ISqlSugarClient db, EshEnums.DatatypeIdEnum datatypeEnum, string uniqueId)
+        private static async Task CleanupTestDataForPacket(ISqlSugarClient db, EshEnums.DatatypeIdEnum datatypeEnum, string uniqueId)
         {
             switch (datatypeEnum)
             {
@@ -1201,7 +1201,7 @@ namespace Modules.ShareDataWorker.Tests
             var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
 
             var uniqueId = Guid.NewGuid().ToString("N");
-            await SeedTestDataForPacketAsync(db, datatypeEnum, uniqueId);
+            await SeedTestDataForPacket(db, datatypeEnum, uniqueId);
 
             var partner = new ShareDataPartner
             {
@@ -1227,14 +1227,14 @@ namespace Modules.ShareDataWorker.Tests
             try
             {
                 var workerService = new ShareDataExportService(scopeFactory, logger);
-                await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+                await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
                 Assert.True(ExpectedPacketFields.TryGetValue(datatypeEnum, out var expectedFields), $"Chưa khai báo expected fields cho gói {datatypeEnum}");
-                await AssertPacketJsonSchemaAsync(db, sub.ID, datatypeEnum, expectedFields);
+                await AssertPacketJsonSchema(db, sub.ID, datatypeEnum, expectedFields);
             }
             finally
             {
-                await CleanupTestDataForPacketAsync(db, datatypeEnum, uniqueId);
+                await CleanupTestDataForPacket(db, datatypeEnum, uniqueId);
             }
         }
 
@@ -1291,7 +1291,7 @@ namespace Modules.ShareDataWorker.Tests
             try
             {
                 var workerService = new ShareDataExportService(scopeFactory, logger);
-                await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+                await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
                 var logs = await db.Queryable<ShareDataActivityLog>()
                     .Where(l => l.SubscriptionId == sub1.ID || l.SubscriptionId == sub2.ID)
@@ -1382,9 +1382,9 @@ namespace Modules.ShareDataWorker.Tests
             try
             {
                 var workerService = new ShareDataExportService(scopeFactory, logger);
-                await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+                await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
-                await AssertPacketJsonSchemaAsync(db, sub.ID, EshEnums.DatatypeIdEnum.Weather);
+                await AssertPacketJsonSchema(db, sub.ID, EshEnums.DatatypeIdEnum.Weather);
             }
             finally
             {
@@ -1435,7 +1435,7 @@ namespace Modules.ShareDataWorker.Tests
             try
             {
                 var workerService = new ShareDataExportService(scopeFactory, logger);
-                await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+                await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
                 var logs = await db.Queryable<ShareDataActivityLog>()
                     .Where(l => l.SubscriptionId == sub.ID)
@@ -1502,7 +1502,7 @@ namespace Modules.ShareDataWorker.Tests
             try
             {
                 var workerService = new ShareDataExportService(scopeFactory, logger);
-                await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+                await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
                 var logs = await db.Queryable<ShareDataActivityLog>()
                     .Where(l => l.SubscriptionId == sub.ID)
@@ -1567,7 +1567,7 @@ namespace Modules.ShareDataWorker.Tests
             await db.Insertable(sub).ExecuteCommandAsync();
 
             var workerService = new ShareDataExportService(scopeFactory, logger);
-            await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+            await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
             var logs = await db.Queryable<ShareDataActivityLog>()
                 .Where(l => l.SubscriptionId == sub.ID)
@@ -1641,7 +1641,7 @@ namespace Modules.ShareDataWorker.Tests
             try
             {
                 var workerService = new ShareDataExportService(scopeFactory, logger);
-                await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+                await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
                 var logs = await db.Queryable<ShareDataActivityLog>()
                     .Where(l => l.SubscriptionId == sub.ID)
@@ -1721,7 +1721,7 @@ namespace Modules.ShareDataWorker.Tests
             try
             {
                 var workerService = new ShareDataExportService(scopeFactory, logger);
-                await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+                await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
                 var logs = await db.Queryable<ShareDataActivityLog>()
                     .Where(l => l.SubscriptionId == sub.ID)
@@ -1785,7 +1785,7 @@ namespace Modules.ShareDataWorker.Tests
             await db.Insertable(sub).ExecuteCommandAsync();
 
             var workerService = new ShareDataExportService(scopeFactory, logger);
-            await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+            await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
             var logs = await db.Queryable<ShareDataActivityLog>()
                 .Where(l => l.SubscriptionId == sub.ID)
@@ -1829,7 +1829,7 @@ namespace Modules.ShareDataWorker.Tests
             await db.Insertable(sub).ExecuteCommandAsync();
 
             var workerService = new ShareDataExportService(scopeFactory, logger);
-            await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+            await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
             var logs = await db.Queryable<ShareDataActivityLog>()
                 .Where(l => l.SubscriptionId == sub.ID)
@@ -1896,9 +1896,9 @@ namespace Modules.ShareDataWorker.Tests
             try
             {
                 var workerService = new ShareDataExportService(scopeFactory, logger);
-                await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+                await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
-                await AssertPacketJsonSchemaAsync(db, sub.ID, EshEnums.DatatypeIdEnum.VehicleIdentification);
+                await AssertPacketJsonSchema(db, sub.ID, EshEnums.DatatypeIdEnum.VehicleIdentification);
             }
             finally
             {
@@ -1946,9 +1946,9 @@ namespace Modules.ShareDataWorker.Tests
             try
             {
                 var workerService = new ShareDataExportService(scopeFactory, logger);
-                await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+                await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
-                await AssertPacketJsonSchemaAsync(db, sub.ID, EshEnums.DatatypeIdEnum.WeighInMotion);
+                await AssertPacketJsonSchema(db, sub.ID, EshEnums.DatatypeIdEnum.WeighInMotion);
             }
             finally
             {
@@ -2015,9 +2015,9 @@ namespace Modules.ShareDataWorker.Tests
             try
             {
                 var workerService = new ShareDataExportService(scopeFactory, logger);
-                await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+                await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
-                await AssertPacketJsonSchemaAsync(db, sub.ID, EshEnums.DatatypeIdEnum.PublicMessaging);
+                await AssertPacketJsonSchema(db, sub.ID, EshEnums.DatatypeIdEnum.PublicMessaging);
             }
             finally
             {
@@ -2069,9 +2069,9 @@ namespace Modules.ShareDataWorker.Tests
             try
             {
                 var workerService = new ShareDataExportService(scopeFactory, logger);
-                await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+                await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
-                await AssertPacketJsonSchemaAsync(db, sub.ID, EshEnums.DatatypeIdEnum.InterCenterExchange);
+                await AssertPacketJsonSchema(db, sub.ID, EshEnums.DatatypeIdEnum.InterCenterExchange);
             }
             finally
             {
@@ -2123,7 +2123,7 @@ namespace Modules.ShareDataWorker.Tests
             try
             {
                 var workerService = new ShareDataExportService(scopeFactory, logger);
-                await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+                await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
                 var logs = await db.Queryable<ShareDataActivityLog>()
                     .Where(l => l.SubscriptionId == sub.ID)
@@ -2185,7 +2185,7 @@ namespace Modules.ShareDataWorker.Tests
             try
             {
                 var workerService = new ShareDataExportService(scopeFactory, logger);
-                await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+                await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
                 var logs = await db.Queryable<ShareDataActivityLog>()
                     .Where(l => l.SubscriptionId == sub.ID)
@@ -2272,7 +2272,7 @@ namespace Modules.ShareDataWorker.Tests
             try
             {
                 var workerService = new ShareDataExportService(scopeFactory, logger);
-                await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+                await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
                 var logs = await db.Queryable<ShareDataActivityLog>()
                     .Where(l => l.SubscriptionId == sub.ID)
@@ -2362,7 +2362,7 @@ namespace Modules.ShareDataWorker.Tests
             try
             {
                 var workerService = new ShareDataExportService(scopeFactory, logger);
-                await workerService.ProcessBatchSubscriptionsAsync(CancellationToken.None);
+                await workerService.ProcessBatchSubscriptions(CancellationToken.None);
 
                 var logs = await db.Queryable<ShareDataActivityLog>()
                     .Where(l => l.SubscriptionId == sub.ID)
