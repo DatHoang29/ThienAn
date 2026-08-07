@@ -92,6 +92,11 @@ IF COL_LENGTH('dbo.ShareDataActivityLog', 'Code') IS NULL
     ALTER TABLE [dbo].[ShareDataActivityLog] ADD [Code] NVARCHAR(256) NULL;
 GO
 
+-- Cột chu kỳ riêng cho từng đăng ký (worker sở hữu). Bỏ trống -> worker dùng mặc định 30 giây.
+IF COL_LENGTH('dbo.ShareDataSubscription', 'IntervalSeconds') IS NULL
+    ALTER TABLE [dbo].[ShareDataSubscription] ADD [IntervalSeconds] INT NULL;
+GO
+
 -- ============================================================================
 -- 2. GIỮ LẠI DỮ LIỆU SerialNbr DẠNG CHỮ TRƯỚC KHI ĐỔI KIỂU
 -- ============================================================================
@@ -135,20 +140,20 @@ GO
 --      LastTimeRun = mốc dữ liệu đã kết xuất tới (chỉ tiến khi xuất thành công)
 --    KHÔNG dùng UpdateTime cho hai việc trên: đó là cột kiểm toán dùng chung,
 --    bất kỳ thao tác cập nhật nào của API cũng ghi đè.
---    XOÁ RunStatus và IntervalSeconds: cơ chế chống chạy trùng chỉ dựa vào lease
---    NextTimeRun, không cần cột trạng thái riêng. Chu kỳ chạy dùng hằng
---    DefaultIntervalSeconds (30 giây) trong mã nguồn.
+--    GIỮ LẠI cả IntervalSeconds — chu kỳ kết xuất riêng của từng đăng ký:
+--      IntervalSeconds = chu kỳ (giây); bỏ trống hoặc <= 0 thì worker dùng mặc định 30 giây.
+--      Doc TechInfo đòi chu kỳ theo từng cặp (đối tác × gói tin): A-101 30s, A-102 60s, B-101 50s.
+--    XOÁ RunStatus: cơ chế chống chạy trùng chỉ dựa vào lease NextTimeRun,
+--    không cần cột trạng thái riêng.
 -- ============================================================================
 IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'index_ShareDataSubscription_Scheduler'
                                        AND object_id = OBJECT_ID('dbo.ShareDataSubscription'))
     DROP INDEX [index_ShareDataSubscription_Scheduler] ON [dbo].[ShareDataSubscription];
 GO
 
-EXEC #DropDefaultConstraint 'dbo.ShareDataSubscription', 'IntervalSeconds';
 EXEC #DropDefaultConstraint 'dbo.ShareDataSubscription', 'RunStatus';
 GO
 
-IF COL_LENGTH('dbo.ShareDataSubscription', 'IntervalSeconds') IS NOT NULL ALTER TABLE [dbo].[ShareDataSubscription] DROP COLUMN [IntervalSeconds];
 IF COL_LENGTH('dbo.ShareDataSubscription', 'RunStatus')       IS NOT NULL ALTER TABLE [dbo].[ShareDataSubscription] DROP COLUMN [RunStatus];
 GO
 

@@ -201,6 +201,7 @@ BEGIN
         [DatatypeId]       NVARCHAR(32)  NULL,   -- mã nhóm shareData_type (101..111)
         [Mode]             NVARCHAR(16)  NULL DEFAULT 'PERIODIC',   -- SINGLE | EVENT | PERIODIC
         [ScheduleJson]     NVARCHAR(MAX) NULL,
+        [IntervalSeconds]  INT           NULL,   -- chu kỳ riêng (giây); NULL -> worker dùng mặc định 30s
         [Format]           NVARCHAR(8)   NULL DEFAULT 'DATA',       -- DATA | FILE
         [Priority]         INT           NULL DEFAULT 5,
         [Guaranteed]       BIT           NULL DEFAULT 0,
