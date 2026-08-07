@@ -28,9 +28,9 @@ namespace Module.ShareData.Core.Entities
         [SugarColumn(IsNullable = true)]
         public int? SerialNbr { get; set; }
 
-        /// <summary>Loại dữ liệu chia sẻ (101–111).</summary>
-        [SugarColumn(IsNullable = true)]
-        public int? DatatypeId { get; set; }
+        /// <summary>Mã loại dữ liệu chia sẻ — lấy từ bảng cấu hình, nhóm shareData_type.</summary>
+        [SugarColumn(IsNullable = true, Length = EntityConst.Length32)]
+        public string? DatatypeId { get; set; }
 
         /// <summary>Chế độ: SINGLE | EVENT | PERIODIC.</summary>
         [SugarColumn(IsNullable = true, Length = EntityConst.Length16, ColumnDescription = "SINGLE | EVENT | PERIODIC")]
@@ -101,5 +101,9 @@ namespace Module.ShareData.Core.Entities
 
         [SugarColumn(IsNullable = true, Length = EntityConst.Length256)]
         public string? Remark { get; set; }
+
+        [SugarColumn(IsNullable = true)]
+        public DateTime? LastTimeRun { get; set; }
+
     }
 }

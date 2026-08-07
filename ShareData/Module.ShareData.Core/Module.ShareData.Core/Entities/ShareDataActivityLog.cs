@@ -97,9 +97,9 @@ namespace Module.ShareData.Core.Entities
         [SugarColumn(IsNullable = true, Length = EntityConst.Length8, ColumnDescription = "SND | RCV")]
         public string? TransferDirection { get; set; }
 
-        /// <summary>Loại dữ liệu chia sẻ (101–111).</summary>
-        [SugarColumn(IsNullable = true)]
-        public int? DatatypeId { get; set; }
+        /// <summary>Mã loại dữ liệu chia sẻ — lấy từ bảng cấu hình, nhóm shareData_type.</summary>
+        [SugarColumn(IsNullable = true, Length = EntityConst.Length32)]
+        public string? DatatypeId { get; set; }
 
         /// <summary>Serial number của gói xuất bản.</summary>
         [SugarColumn(IsNullable = true)]

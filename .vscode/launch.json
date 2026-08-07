@@ -2,7 +2,18 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": ".NET Core Launch (ShareDataWorker - Local)",
+      "name": ".NET Core Launch (ShareDataWorker - Server 10.10.8.30)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-worker",
+      "program": "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareDataWorker/ShareDataWorker/bin/Debug/net10.0/ShareDataWorker.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareDataWorker/ShareDataWorker",
+      "stopAtEntry": false,
+      "console": "internalConsole"
+    },
+    {
+      "name": ".NET Core Launch (ShareDataWorker - Local Docker)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-worker",
@@ -12,42 +23,7 @@
       "stopAtEntry": false,
       "console": "internalConsole",
       "env": {
-        "DOTNET_ENVIRONMENT": "Development"
-      }
-    },
-    {
-      "name": ".NET Core Launch (ShareDataWorker - Demo)",
-      "type": "coreclr",
-      "request": "launch",
-      "preLaunchTask": "build-worker",
-      "program": "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareDataWorker/ShareDataWorker/bin/Debug/net10.0/ShareDataWorker.dll",
-      "args": [],
-      "cwd": "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareDataWorker/ShareDataWorker",
-      "stopAtEntry": false,
-      "console": "internalConsole",
-      "env": {
-        "DOTNET_ENVIRONMENT": "Demo"
-      }
-    },
-    {
-      "name": ".NET Core Launch (TA-ITS015-WebAPI-ShareData)",
-      "type": "coreclr",
-      "request": "launch",
-      "preLaunchTask": "build-its015",
-      "program": "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/TAC_WebAPI/bin/Debug/net8.0/TAC_WebAPI.dll",
-      "args": [],
-      "cwd": "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/TAC_WebAPI",
-      "stopAtEntry": false,
-      "internalConsoleOptions": "openOnSessionStart",
-      "serverReadyAction": {
-        "action": "openExternally",
-        "pattern": "\\bNow listening on:\\s+https?://(?:\\[::\\]|[^:]+):(\\d+)",
-        "uriFormat": "http://localhost:%s/api"
-      },
-      "env": {
-        "ASPNETCORE_ENVIRONMENT": "Development",
-        "ASPNETCORE_URLS": "http://localhost:5005",
-        "DOTNET_CLI_HOME": "${workspaceFolder}/.dotnet-home"
+        "DOTNET_ENVIRONMENT": "Local"
       }
     }
   ]

@@ -116,7 +116,7 @@ BEGIN
         [ID]           NVARCHAR(64)  NOT NULL PRIMARY KEY,
         [Name]         NVARCHAR(128) NULL,
         [VendorId]     NVARCHAR(64)  NULL,
-        [DatatypeId]   INT           NULL,   -- 101..111
+        [DatatypeId]   NVARCHAR(32)  NULL,   -- mã nhóm shareData_type (101..111)
         [Direction]    NVARCHAR(8)   NULL,   -- OUT | IN
         [DataSourceId] NVARCHAR(64)  NULL,
         [MappingsJson] NVARCHAR(MAX) NULL,
@@ -198,7 +198,7 @@ BEGIN
         [SessionId]        NVARCHAR(64)  NULL,
         [Direction]        NVARCHAR(16)  NULL DEFAULT 'OUTBOUND',   -- OUTBOUND | INBOUND
         [SerialNbr]        INT           NULL,
-        [DatatypeId]       INT           NULL,   -- 101..111
+        [DatatypeId]       NVARCHAR(32)  NULL,   -- mã nhóm shareData_type (101..111)
         [Mode]             NVARCHAR(16)  NULL DEFAULT 'PERIODIC',   -- SINGLE | EVENT | PERIODIC
         [ScheduleJson]     NVARCHAR(MAX) NULL,
         [Format]           NVARCHAR(8)   NULL DEFAULT 'DATA',       -- DATA | FILE
@@ -258,7 +258,7 @@ BEGIN
         [SubscriptionId]    NVARCHAR(64)   NULL,
         [SessionId]         NVARCHAR(64)   NULL,
         [TransferDirection] NVARCHAR(8)    NULL,   -- SND | RCV
-        [DatatypeId]        INT            NULL,
+        [DatatypeId]        NVARCHAR(32)   NULL,
         [SerialNbr]         INT            NULL,
         [PacketNbr]         INT            NULL,
         [PduType]           NVARCHAR(32)   NULL,

@@ -115,7 +115,8 @@ END;
 GO
 
 -- ============================================================================
--- 3. ĐỔI KIỂU SerialNbr / DatatypeId SANG INT
+-- 3. ĐỔI KIỂU SerialNbr SANG INT, DatatypeId SANG NVARCHAR(32)
+--    DatatypeId là MÃ trong bảng cấu hình nhóm shareData_type, không phải số học.
 -- ============================================================================
 EXEC #DropDefaultConstraint 'dbo.ShareDataSubscription', 'SerialNbr';
 EXEC #DropDefaultConstraint 'dbo.ShareDataSubscription', 'DatatypeId';
@@ -123,8 +124,8 @@ EXEC #DropDefaultConstraint 'dbo.ShareDataActivityLog', 'DatatypeId';
 GO
 
 ALTER TABLE [dbo].[ShareDataSubscription]  ALTER COLUMN [SerialNbr]  INT NULL;
-ALTER TABLE [dbo].[ShareDataSubscription]  ALTER COLUMN [DatatypeId] INT NULL;
-ALTER TABLE [dbo].[ShareDataActivityLog]   ALTER COLUMN [DatatypeId] INT NULL;
+ALTER TABLE [dbo].[ShareDataSubscription]  ALTER COLUMN [DatatypeId] NVARCHAR(32) NULL;
+ALTER TABLE [dbo].[ShareDataActivityLog]   ALTER COLUMN [DatatypeId] NVARCHAR(32) NULL;
 GO
 
 -- ============================================================================
