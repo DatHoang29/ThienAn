@@ -51,13 +51,13 @@ BEGIN TRY
 
     -- 1. XOÁ DỮ LIỆU CŨ TRÁNH XUNG ĐỘT (NẾU BẢNG ĐÃ TỒN TẠI)
     IF OBJECT_ID('dbo.ShareDataSubscription', 'U') IS NOT NULL
-        DELETE FROM [dbo].[ShareDataSubscription] WHERE [Code] LIKE 'SUB-DEMO-%';
+        DELETE FROM [dbo].[ShareDataSubscription] WHERE [Code] LIKE 'SUB-DEMO-%' OR [ID] LIKE 'SUB-D-%';
     IF OBJECT_ID('dbo.ShareDataMappingProfile', 'U') IS NOT NULL
-        DELETE FROM [dbo].[ShareDataMappingProfile] WHERE [Code] LIKE 'MP-DEMO-%';
+        DELETE FROM [dbo].[ShareDataMappingProfile] WHERE [Code] LIKE 'MP-DEMO-%' OR [ID] LIKE 'MP-DEMO-%';
     IF OBJECT_ID('dbo.ShareDataDataSource', 'U') IS NOT NULL
-        DELETE FROM [dbo].[ShareDataDataSource] WHERE [Code] LIKE 'DS-DEMO-%';
+        DELETE FROM [dbo].[ShareDataDataSource] WHERE [Code] LIKE 'DS-DEMO-%' OR [ID] LIKE 'DS-DEMO-%';
     IF OBJECT_ID('dbo.ShareDataPartner', 'U') IS NOT NULL
-        DELETE FROM [dbo].[ShareDataPartner] WHERE [Code] LIKE 'PTN-DEMO-%';
+        DELETE FROM [dbo].[ShareDataPartner] WHERE [Code] LIKE 'PTN-DEMO-%' OR [ID] LIKE 'P-DEMO-%';
 
     -- 2. THÊM 6 ĐỐI TÁC DEMO (PTN-DEMO-001 ➔ PTN-DEMO-006)
     INSERT INTO [dbo].[ShareDataPartner] ([ID], [Code], [Name], [Status], [TenantId], [CreateTime], [IsDelete])
