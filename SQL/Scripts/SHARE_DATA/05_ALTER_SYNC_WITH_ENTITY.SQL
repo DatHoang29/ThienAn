@@ -18,7 +18,34 @@
 --   Nhờ vậy script CHẠY LẠI ĐƯỢC nhiều lần mà không lỗi.
 -- ============================================================================
 
+-- ============================================================================
+-- CHỐT CHẶN SERVER
+--   File .sql KHÔNG chọn được server — server do kết nối của trình soạn thảo
+--   quyết định. Điền tên server bạn MUỐN chạy vào @ServerKyVong để script tự
+--   dừng nếu chạy nhầm máy. Để trống thì bỏ qua kiểm.
+--   Xem tên server hiện tại: SELECT @@SERVERNAME
+-- ============================================================================
+SET NOEXEC OFF;
+
+DECLARE @ServerKyVong SYSNAME = N'';   -- ví dụ: N'aa0914ef791d'
+
+IF @ServerKyVong <> N'' AND @@SERVERNAME <> @ServerKyVong
+BEGIN
+    RAISERROR(N'DUNG LAI: dang o server [%s] nhung ky vong [%s]. Khong thuc thi gi ca.',
+              16, 1, @@SERVERNAME, @ServerKyVong);
+    SET NOEXEC ON;
+END;
+GO
+
+-- Ép về đúng database của môi trường local. Đổi tên ở đây nếu dùng database khác.
+-- Đặt SAU chốt chặn để khi sai server thì NOEXEC đã bật, câu USE này cũng không chạy.
 USE [dev_its10];
+GO
+
+PRINT N'▶ Server: ' + @@SERVERNAME
+    + N' | Database: ' + DB_NAME()
+    + N' | Login: ' + SUSER_SNAME()
+    + N' | Phiên bản: ' + CONVERT(NVARCHAR(100), SERVERPROPERTY('Edition'));
 GO
 
 SET XACT_ABORT ON;
@@ -212,4 +239,7 @@ COMMIT TRANSACTION;
 GO
 
 PRINT N'✅ Đồng bộ schema ShareData về đúng Entity gốc hoàn tất.';
+GO
+
+SET NOEXEC OFF;
 GO

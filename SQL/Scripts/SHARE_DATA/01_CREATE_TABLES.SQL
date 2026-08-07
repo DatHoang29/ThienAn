@@ -15,12 +15,41 @@
 -- dev_its10 đang dùng DATETIME), KHÔNG dùng BIT.
 -- ============================================================================
 
+-- ============================================================================
+-- CHỐT CHẶN SERVER
+--   File .sql KHÔNG chọn được server — server do kết nối của trình soạn thảo
+--   quyết định. Nhưng script có thể kiểm tra rồi tự dừng nếu chạy nhầm máy.
+--
+--   Điền tên server bạn MUỐN chạy vào @ServerKyVong. Để trống thì bỏ qua kiểm.
+--   Xem tên server hiện tại bằng: SELECT @@SERVERNAME
+-- ============================================================================
+SET NOEXEC OFF;
+
+DECLARE @ServerKyVong SYSNAME = N'';   -- ví dụ: N'aa0914ef791d'
+
+IF @ServerKyVong <> N'' AND @@SERVERNAME <> @ServerKyVong
+BEGIN
+    RAISERROR(N'DUNG LAI: dang o server [%s] nhung ky vong [%s]. Khong tao bang nao ca.',
+              16, 1, @@SERVERNAME, @ServerKyVong);
+    SET NOEXEC ON;   -- chặn toàn bộ batch phía sau trong cùng phiên
+END;
+GO
+
+-- Ép về đúng database của môi trường local. Đổi tên ở đây nếu dùng database khác.
+-- Đặt SAU chốt chặn để khi sai server thì NOEXEC đã bật, câu USE này cũng không chạy.
 USE [dev_its10];
+GO
+
+PRINT N'▶ Server: ' + @@SERVERNAME
+    + N' | Database: ' + DB_NAME()
+    + N' | Login: ' + SUSER_SNAME()
+    + N' | Phiên bản: ' + CONVERT(NVARCHAR(100), SERVERPROPERTY('Edition'));
 GO
 
 -- 1. BẢNG ĐỐI TÁC (ShareDataPartner)
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ShareDataPartner')
 BEGIN
+    PRINT N'  → đang tạo ShareDataPartner...';
     CREATE TABLE [dbo].[ShareDataPartner] (
         [ID]                 NVARCHAR(64)  NOT NULL PRIMARY KEY,
         [Name]               NVARCHAR(128) NULL,
@@ -52,6 +81,7 @@ GO
 -- 2. BẢNG NGUỒN DỮ LIỆU (ShareDataDataSource)
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ShareDataDataSource')
 BEGIN
+    PRINT N'  → đang tạo ShareDataDataSource...';
     CREATE TABLE [dbo].[ShareDataDataSource] (
         [ID]          NVARCHAR(64)   NOT NULL PRIMARY KEY,
         [Name]        NVARCHAR(128)  NULL,
@@ -81,6 +111,7 @@ GO
 -- 3. BẢNG HỒ SƠ ÁNH XẠ DỮ LIỆU (ShareDataMappingProfile)
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ShareDataMappingProfile')
 BEGIN
+    PRINT N'  → đang tạo ShareDataMappingProfile...';
     CREATE TABLE [dbo].[ShareDataMappingProfile] (
         [ID]           NVARCHAR(64)  NOT NULL PRIMARY KEY,
         [Name]         NVARCHAR(128) NULL,
@@ -106,6 +137,7 @@ GO
 -- 4. BẢNG NGUỒN SỰ KIỆN (ShareDataEventSource)
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ShareDataEventSource')
 BEGIN
+    PRINT N'  → đang tạo ShareDataEventSource...';
     CREATE TABLE [dbo].[ShareDataEventSource] (
         [ID]           NVARCHAR(64)  NOT NULL PRIMARY KEY,
         [Name]         NVARCHAR(128) NULL,
@@ -128,6 +160,7 @@ GO
 -- 5. BẢNG PHIÊN KẾT NỐI (ShareDataSession)
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ShareDataSession')
 BEGIN
+    PRINT N'  → đang tạo ShareDataSession...';
     CREATE TABLE [dbo].[ShareDataSession] (
         [ID]                     NVARCHAR(64)  NOT NULL PRIMARY KEY,
         [PartnerId]              NVARCHAR(64)  NULL,
@@ -158,6 +191,7 @@ GO
 -- 6. BẢNG ĐĂNG KÝ CHIA SẺ (ShareDataSubscription)
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ShareDataSubscription')
 BEGIN
+    PRINT N'  → đang tạo ShareDataSubscription...';
     CREATE TABLE [dbo].[ShareDataSubscription] (
         [ID]               NVARCHAR(64)  NOT NULL PRIMARY KEY,
         [PartnerId]        NVARCHAR(64)  NULL,
@@ -204,6 +238,7 @@ GO
 -- 7. BẢNG NHẬT KÝ HOẠT ĐỘNG (ShareDataActivityLog)
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ShareDataActivityLog')
 BEGIN
+    PRINT N'  → đang tạo ShareDataActivityLog...';
     CREATE TABLE [dbo].[ShareDataActivityLog] (
         [ID]                NVARCHAR(64)   NOT NULL PRIMARY KEY,
         [LogType]           NVARCHAR(16)   NULL,   -- CONFIG | TRANSFER
@@ -251,5 +286,5 @@ BEGIN
 END;
 GO
 
-PRINT N'✅ Tạo bảng Module ShareData hoàn tất.';
+PRINT N'✅ Chạy xong 01_CREATE_TABLES. Xem 2 bảng kết quả ở trên để kiểm chứng.';
 GO
