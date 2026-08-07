@@ -101,35 +101,27 @@ ALTER TABLE [dbo].[ShareDataActivityLog]   ALTER COLUMN [DatatypeId] INT NULL;
 GO
 
 -- ============================================================================
--- 4. XOÁ 2 CỘT KHÔNG CÓ TRONG ENTITY GỐC
+-- 4. XOÁ CỘT KHÔNG CÓ TRONG ENTITY
 --    GIỮ LẠI NextTimeRun và LastTimeRun — worker sở hữu hai cột này:
 --      NextTimeRun = thời điểm chạy kế tiếp, kiêm lock lease (luôn ghi mỗi chu kỳ)
 --      LastTimeRun = mốc dữ liệu đã kết xuất tới (chỉ tiến khi xuất thành công)
 --    KHÔNG dùng UpdateTime cho hai việc trên: đó là cột kiểm toán dùng chung,
 --    bất kỳ thao tác cập nhật nào của API cũng ghi đè.
---    RunStatus bị bỏ, worker mượn RowStatus. Chu kỳ chạy dùng hằng
---    DefaultIntervalSeconds trong mã nguồn thay cho IntervalSeconds.
+--    XOÁ RunStatus và IntervalSeconds: cơ chế chống chạy trùng chỉ dựa vào lease
+--    NextTimeRun, không cần cột trạng thái riêng. Chu kỳ chạy dùng hằng
+--    DefaultIntervalSeconds (30 giây) trong mã nguồn.
 -- ============================================================================
 IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'index_ShareDataSubscription_Scheduler'
                                        AND object_id = OBJECT_ID('dbo.ShareDataSubscription'))
     DROP INDEX [index_ShareDataSubscription_Scheduler] ON [dbo].[ShareDataSubscription];
 GO
 
--- Chuyển trạng thái thực thi sang RowStatus trước khi bỏ cột RunStatus
-IF COL_LENGTH('dbo.ShareDataSubscription', 'RunStatus') IS NOT NULL
-    EXEC sp_executesql N'UPDATE [dbo].[ShareDataSubscription] SET [RowStatus] = ISNULL([RunStatus], ''IDLE'');';
-GO
-
-EXEC #DropDefaultConstraint 'dbo.ShareDataSubscription', 'RunStatus';
 EXEC #DropDefaultConstraint 'dbo.ShareDataSubscription', 'IntervalSeconds';
+EXEC #DropDefaultConstraint 'dbo.ShareDataSubscription', 'RunStatus';
 GO
 
-IF COL_LENGTH('dbo.ShareDataSubscription', 'RunStatus')       IS NOT NULL ALTER TABLE [dbo].[ShareDataSubscription] DROP COLUMN [RunStatus];
 IF COL_LENGTH('dbo.ShareDataSubscription', 'IntervalSeconds') IS NOT NULL ALTER TABLE [dbo].[ShareDataSubscription] DROP COLUMN [IntervalSeconds];
-GO
-
-EXEC #DropDefaultConstraint 'dbo.ShareDataSubscription', 'RowStatus';
-ALTER TABLE [dbo].[ShareDataSubscription] ADD CONSTRAINT [DF_ShareDataSubscription_RowStatus] DEFAULT 'IDLE' FOR [RowStatus];
+IF COL_LENGTH('dbo.ShareDataSubscription', 'RunStatus')       IS NOT NULL ALTER TABLE [dbo].[ShareDataSubscription] DROP COLUMN [RunStatus];
 GO
 
 CREATE NONCLUSTERED INDEX [index_ShareDataSubscription_Scheduler]

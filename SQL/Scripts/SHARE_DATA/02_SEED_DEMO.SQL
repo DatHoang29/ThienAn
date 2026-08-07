@@ -64,14 +64,14 @@ BEGIN TRY
 
     -- 5. THÊM 6 SUBSCRIPTIONS ĐẦU RA HOẠT ĐỘNG VỚI MÃ GÓI TIN CHUẨN (101, 102, 103, 105, 107, 109)
     INSERT INTO [dbo].[ShareDataSubscription] 
-    ([ID], [Code], [SerialNbr], [PartnerId], [DatatypeId], [MappingProfileId], [DataSourceId], [Direction], [Mode], [State], [RowStatus], [NextTimeRun], [TenantId], [CreateTime], [IsDelete])
+    ([ID], [Code], [SerialNbr], [PartnerId], [DatatypeId], [MappingProfileId], [DataSourceId], [Direction], [Mode], [State], [NextTimeRun], [TenantId], [CreateTime], [IsDelete])
     VALUES
-    ('SUB-D-001', 'SUB-DEMO-001', 1, 'P-DEMO-001', 101, 'MP-DEMO-001', 'DS-DEMO-001', 'OUTBOUND', 'PERIODIC', 'ACTIVE', 'IDLE', GETDATE(), '1', GETDATE(), NULL),
-    ('SUB-D-002', 'SUB-DEMO-002', 2, 'P-DEMO-002', 102, 'MP-DEMO-002', 'DS-DEMO-002', 'OUTBOUND', 'PERIODIC', 'ACTIVE', 'IDLE', GETDATE(), '1', GETDATE(), NULL),
-    ('SUB-D-003', 'SUB-DEMO-003', 3, 'P-DEMO-003', 103, 'MP-DEMO-003', 'DS-DEMO-003', 'OUTBOUND', 'PERIODIC', 'ACTIVE', 'IDLE', GETDATE(), '1', GETDATE(), NULL),
-    ('SUB-D-004', 'SUB-DEMO-004', 4, 'P-DEMO-004', 105, 'MP-DEMO-004', 'DS-DEMO-004', 'OUTBOUND', 'PERIODIC', 'ACTIVE', 'IDLE', GETDATE(), '1', GETDATE(), NULL),
-    ('SUB-D-005', 'SUB-DEMO-005', 5, 'P-DEMO-005', 107, 'MP-DEMO-005', 'DS-DEMO-005', 'OUTBOUND', 'PERIODIC', 'ACTIVE', 'IDLE', GETDATE(), '1', GETDATE(), NULL),
-    ('SUB-D-006', 'SUB-DEMO-006', 6, 'P-DEMO-006', 109, 'MP-DEMO-006', 'DS-DEMO-006', 'OUTBOUND', 'PERIODIC', 'ACTIVE', 'IDLE', GETDATE(), '1', GETDATE(), NULL);
+    ('SUB-D-001', 'SUB-DEMO-001', 1, 'P-DEMO-001', 101, 'MP-DEMO-001', 'DS-DEMO-001', 'OUTBOUND', 'PERIODIC', 'ACTIVE', GETDATE(), '1', GETDATE(), NULL),
+    ('SUB-D-002', 'SUB-DEMO-002', 2, 'P-DEMO-002', 102, 'MP-DEMO-002', 'DS-DEMO-002', 'OUTBOUND', 'PERIODIC', 'ACTIVE', GETDATE(), '1', GETDATE(), NULL),
+    ('SUB-D-003', 'SUB-DEMO-003', 3, 'P-DEMO-003', 103, 'MP-DEMO-003', 'DS-DEMO-003', 'OUTBOUND', 'PERIODIC', 'ACTIVE', GETDATE(), '1', GETDATE(), NULL),
+    ('SUB-D-004', 'SUB-DEMO-004', 4, 'P-DEMO-004', 105, 'MP-DEMO-004', 'DS-DEMO-004', 'OUTBOUND', 'PERIODIC', 'ACTIVE', GETDATE(), '1', GETDATE(), NULL),
+    ('SUB-D-005', 'SUB-DEMO-005', 5, 'P-DEMO-005', 107, 'MP-DEMO-005', 'DS-DEMO-005', 'OUTBOUND', 'PERIODIC', 'ACTIVE', GETDATE(), '1', GETDATE(), NULL),
+    ('SUB-D-006', 'SUB-DEMO-006', 6, 'P-DEMO-006', 109, 'MP-DEMO-006', 'DS-DEMO-006', 'OUTBOUND', 'PERIODIC', 'ACTIVE', GETDATE(), '1', GETDATE(), NULL);
 
     COMMIT TRANSACTION;
     PRINT N'✅ Nạp dữ liệu mẫu ShareData cho 6 Subscriptions thành công 100%!';

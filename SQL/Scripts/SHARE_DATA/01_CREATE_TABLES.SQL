@@ -59,6 +59,10 @@ BEGIN
         [DbRef]       NVARCHAR(64)   NULL,
         [TableOrView] NVARCHAR(128)  NULL,
         [FieldsJson]  NVARCHAR(MAX)  NULL,
+        -- SAVED_QUERY: viết @lastTime để worker lọc tăng dần, VD:
+        --   SELECT ID, DetectTime, Speed FROM TmsTrafficData WHERE DetectTime > @lastTime
+        -- Chu kỳ đầu (chưa có LastTimeRun) worker truyền mốc sàn 1900-01-01 và tự gắn
+        -- OPTION (RECOMPILE) để kế hoạch quét toàn bảng không bị cache lại cho chu kỳ sau.
         [QueryText]   NVARCHAR(MAX)  NULL,
         [TopN]        INT            NULL,
         [Remark]      NVARCHAR(256)  NULL,
@@ -188,8 +192,7 @@ BEGIN
         [CreateUId]        NVARCHAR(64)  NULL DEFAULT '1',
         [UpdateTime]       DATETIME      NULL,
         [UpdateUId]        NVARCHAR(64)  NULL,
-        -- Worker mượn RowStatus làm trạng thái thực thi: IDLE | RUNNING | DISABLED
-        [RowStatus]        NVARCHAR(32)  NULL DEFAULT 'IDLE',
+        [RowStatus]        NVARCHAR(32)  NULL DEFAULT '1',
         [IsDelete]         DATETIME      NULL
     );
 
