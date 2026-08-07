@@ -6,9 +6,9 @@
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-worker",
-      "program": "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareDataWorker/ShareDataWorker/bin/Debug/net10.0/ShareDataWorker.dll",
+      "program": "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareDataModule/ShareDataWorker/bin/Debug/net10.0/ShareDataWorker.dll",
       "args": [],
-      "cwd": "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareDataWorker/ShareDataWorker",
+      "cwd": "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareDataModule/ShareDataWorker",
       "stopAtEntry": false,
       "console": "internalConsole"
     },
@@ -17,9 +17,9 @@
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-worker",
-      "program": "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareDataWorker/ShareDataWorker/bin/Debug/net10.0/ShareDataWorker.dll",
+      "program": "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareDataModule/ShareDataWorker/bin/Debug/net10.0/ShareDataWorker.dll",
       "args": [],
-      "cwd": "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareDataWorker/ShareDataWorker",
+      "cwd": "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareDataModule/ShareDataWorker",
       "stopAtEntry": false,
       "console": "internalConsole",
       "env": {
