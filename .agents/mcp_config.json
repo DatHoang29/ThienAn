@@ -29,7 +29,7 @@
         "mssql-mcp-server"
       ],
       "env": {
-        "MSSQL_CONNECTION_STRING": "Server=10.10.8.30;Database=DEV_ITS10_Log;User ID=sa;Password=Tac@@1234;TrustServerCertificate=True;ApplicationIntent=ReadOnly;",
+        "MSSQL_CONNECTION_STRING": "Server=10.10.8.30;Database=DEV_ITS10;User ID=sa;Password=Tac@@1234;TrustServerCertificate=True;ApplicationIntent=ReadOnly;",
         "MSSQL_ENABLE_EXECUTE_QUERY": "true"
       }
     }
