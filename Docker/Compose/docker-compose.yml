@@ -1,9 +1,8 @@
-version: '3.8'
-
 services:
   tac-sqlserver:
     image: mcr.microsoft.com/azure-sql-edge:1.0.7
     container_name: tac_webapi_sqlserver
+    user: root
     restart: always
     ports:
       - "14333:1433"
