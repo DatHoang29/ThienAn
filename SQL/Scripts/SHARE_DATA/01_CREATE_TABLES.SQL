@@ -63,7 +63,8 @@ BEGIN
         [DatagramSize]       INT           NULL,
         [ResponseTimeoutSec] INT           NULL,
         [UseTls]             BIT           NULL DEFAULT 0,
-        [Status]             NVARCHAR(16)  NULL DEFAULT 'ENABLED',   -- CONFIGURED | ENABLED | DISABLED
+        [Status]             INT           NULL DEFAULT 1,     -- 1 = Enable, 0 = Disable
+        [SessionState]       INT           NULL DEFAULT 0,     -- 1 = Connected, 0 = Disconnected
         [OrderNo]            INT           NULL DEFAULT 100,
         [Remark]             NVARCHAR(256) NULL,
         [Code]               NVARCHAR(256) NULL,
@@ -206,7 +207,7 @@ BEGIN
         [Priority]         INT           NULL DEFAULT 5,
         [Guaranteed]       BIT           NULL DEFAULT 0,
         [Persistent]       BIT           NULL DEFAULT 0,
-        [State]            NVARCHAR(16)  NULL DEFAULT 'ACTIVE',     -- PENDING | ACTIVE | PAUSED | REJECTED | CANCELLED | EXPIRED
+        [State]            INT           NULL DEFAULT 1,     -- 0=Pending, 1=Active, 2=Paused, 3=Rejected, 4=Cancelled, 5=Expired
         -- Mốc dữ liệu đã kết xuất tới, chỉ tiến khi xuất thành công có bản ghi
         [LastTimeRun]      DATETIME      NULL,
         -- Thời điểm chạy kế tiếp, kiêm lock lease giữa nhiều worker

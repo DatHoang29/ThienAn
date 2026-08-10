@@ -27,7 +27,7 @@ GO
 
 -- Ép về đúng database của môi trường local. Đổi tên ở đây nếu dùng database khác.
 -- Đặt SAU chốt chặn để khi sai server thì NOEXEC đã bật, câu USE này cũng không chạy.
-USE [dev_its10];
+USE [test];
 GO
 
 PRINT N'▶ Server: ' + @@SERVERNAME
