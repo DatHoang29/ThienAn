@@ -5,3 +5,4 @@
 
 ## Project
 - [rules] Quy định chung phòng phần mềm (comments, naming, commits, AI rules) → ../rules/thienan_quy_dinh_chung.md
+- [project] ShareData Worker V1 Pending Implementation (Entities/Logic, No API) → sharedata-pending-implementation.md
