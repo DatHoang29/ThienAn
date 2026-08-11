@@ -25,6 +25,7 @@ When user's prompt is NOT in English:
 - **Code**: Concise, direct, no over-engineering. Self-documenting.
 - **Testing**: Mandatory. Pyramid (Unit > Int > E2E) + AAA Pattern.
 - **Performance**: Measure first. Adhere to current Core Web Vitals standards.
+- **No Hardcoded Magic Strings**: NEVER write hardcoded string literals (e.g. status codes, state names) directly in business logic queries or conditional logic. ALWAYS define and use strongly-typed Enums or Constants (e.g., `ShareDataEnum.IncidentState`).
 - **Formatting**: Single-statement `if` MUST ALWAYS break line and indent (e.g. `if (condition)\n    return;`). NEVER write inline on the same line (`if (condition) return;`).
 - **Object Initializer Formatting**: Object initializers with multiple properties (e.g., `new TmsEquipment { ID = eqId, Code = "...", ... }`) MUST ALWAYS break lines and format properties on separate indented lines (one property per line). NEVER write multi-property object initializations inline on a single horizontal line.
 - **No Duplicate XML Comments**: NEVER generate stacked or duplicate `/// <summary>` XML comment blocks on any class, method, or property. Each symbol MUST have at most ONE concise `<summary>` block. Always update existing docstrings in-place.
