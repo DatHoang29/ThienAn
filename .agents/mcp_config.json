@@ -22,7 +22,7 @@
         "MSSQL_ENABLE_EXECUTE_QUERY": "true"
       }
     },
-    "mssql_demo": {
+    "mssql_staging": {
       "command": "npx",
       "args": [
         "-y",

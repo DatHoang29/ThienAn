@@ -52,6 +52,6 @@ When user's prompt is NOT in English:
 
 ## 🔒 MCP Database Read-Only Rule (Mandatory Rule)
 
-- **Strict MCP Read-Only Mode**: ALL database interactions executed via MCP servers (`mssql_dev`, `mssql_demo`, `mssql_test`, etc.) MUST be strictly READ-ONLY. Allowed tools & queries are limited to inspecting schemas and reading data (`SELECT` queries, `list_tables`, `describe_table`, `sample_data`, `get_relationships`, etc.).
+- **Strict MCP Read-Only Mode**: ALL database interactions executed via MCP servers (`mssql_dev`, `mssql_staging`, `mssql_test`, etc.) MUST be strictly READ-ONLY. Allowed tools & queries are limited to inspecting schemas and reading data (`SELECT` queries, `list_tables`, `describe_table`, `sample_data`, `get_relationships`, etc.).
 - **ABSOLUTELY FORBIDDEN MCP Operations**: NEVER execute any `INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `TRUNCATE`, `CREATE`, or stored procedure execution mutating state via any MCP database tool under any circumstances.
 
