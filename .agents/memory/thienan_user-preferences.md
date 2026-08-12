@@ -41,7 +41,7 @@ updated: 2026-07-29
 - **ENTITY UPDATE IS AUTHORITATIVE DESIGN SOURCE (Thư mục Entity gốc từ thiết kế)**: Khi có thư mục `EntityUpdate` hoặc bất kỳ bộ Entity gốc nào được đưa vào từ team thiết kế, đó là **bản thiết kế chính thức (source of truth)**. AI BẮT BUỘC phải đồng bộ entity trong code hiện tại theo ĐÚNG cấu trúc, kiểu dữ liệu, tên property, và attribute của bản thiết kế gốc. TUYỆT ĐỐI KHÔNG ĐƯỢC tự ý đề xuất phương án thay thế hoặc giữ nguyên kiểu cũ nếu bản thiết kế gốc đã thay đổi. Khi phát hiện khác biệt, AI phải báo cáo rõ sự khác biệt và thực hiện đồng bộ theo hướng bản thiết kế gốc, KHÔNG đề xuất đi ngược lại.
 
 ## Code Style & Class Conventions
-- **USE PRIMARY CONSTRUCTORS**: BẮT BUỘC sử dụng C# 12 Primary Constructors cho tất cả các class có inject dependency (VD: `public class MyService(ILogger<MyService> logger)`). KHÔNG DÙNG constructor truyền thống gán biến thủ công `_logger = logger;`.
+- **USE PRIMARY CONSTRUCTORS**: BẮT BUỘC sử dụng C# 12 Primary Constructors cho tất cả các class có inject dependency. **QUY TẮC ĐẶT TÊN**: Các dependency được inject qua Primary Constructors BẮT BUỘC phải viết hoa chữ cái đầu (PascalCase) để đóng vai trò như public read-only properties (VD: `public class MyService(ILogger<MyService> Logger, IOutboundService OutboundService)`). KHÔNG DÙNG kiểu camelCase (`logger`) và KHÔNG DÙNG constructor truyền thống gán biến thủ công `_logger = logger;`.
 - **Class Header XML Comments Required**: Every new or updated class MUST include an XML summary header block formatted as follows (Author is always `Đạt`, ONLY `Created date:`, NO `Updated date:`):
 ```csharp
 /// <summary>
