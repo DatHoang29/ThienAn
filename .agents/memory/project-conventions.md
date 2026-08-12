@@ -19,3 +19,4 @@ updated: 2026-07-12
 - **DTO vs Anonymous Objects**: Khi dữ liệu CÓ XỬ LÝ logic nội bộ thì PHẢI tạo **DTO**. Nếu dữ liệu CHỈ MAP để gửi đi (bên khác xử lý) thì PHẢI dùng **Anonymous Objects** (hoặc `Dictionary`).
 - **Namespaces**: Không dùng Full Namespace dài dòng trong thân class (VD: `ShareDataWorker.Core.Dto...`). Bắt buộc khai báo `using` ở đầu file.
 - **Null Reference (CS8601)**: Tuyệt đối chú ý gán giá trị dự phòng (VD: `?? string.Empty`) để dập tắt cảnh báo CS8601 khi gán string? cho string.
+- **Async Method Naming**: Tuyệt đối không thêm hậu tố `Async` vào tên các phương thức bất đồng bộ (VD: Dùng `HandleIncomingConnection` thay vì `HandleIncomingConnectionAsync`).
