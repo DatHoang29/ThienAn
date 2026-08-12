@@ -31,6 +31,7 @@ When user's prompt is NOT in English:
 - **Multi-Condition LINQ Formatting**: LINQ/SqlSugar queries with multiple conditions (e.g. `.Where(s => s.IsDelete == null && s.Direction == ... && s.Mode != ...)` MUST ALWAYS break lines per condition — either by splitting into separate chained `.Where(...)` calls (one condition per `.Where`) or breaking each `&&` / `||` clause onto separate indented lines. NEVER write long multi-condition logic on a single horizontal line.
 - **No Duplicate XML Comments**: NEVER generate stacked or duplicate `/// <summary>` XML comment blocks on any class, method, or property. Each symbol MUST have at most ONE concise `<summary>` block. Always update existing docstrings in-place.
 - **Async Method Naming**: Do NOT append the `Async` suffix to asynchronous method names (e.g. use `ProcessBatchSubscriptions` instead of `ProcessBatchSubscriptionsAsync`), as the method return type (`Task` / `Task<T>`) already explicitly indicates asynchrony.
+- **Dependency Injection Naming**: ALWAYS name injected dependencies in constructors using camelCase (e.g., `IFileExportService fileExportService`). NEVER use PascalCase (e.g., `IFileExportService FileExportService`) for constructor parameters or injected fields.
 - **C# / .NET CA2263**: ALWAYS prefer generic `Enum.IsDefined<TEnum>(value)` (or `Enum.IsDefined(enumValue)` in .NET 7+) over the non-generic `Enum.IsDefined(typeof(TEnum), value)` to prevent unnecessary object boxing and reflection overhead.
 
 ---
