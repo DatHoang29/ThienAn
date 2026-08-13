@@ -68,10 +68,11 @@ Khi thực hiện commit code, phần tiêu đề (summary) của commit bắt b
 ### ✍️ Cú Pháp Thông Điệp Commit (Commit Format)
 
 #### Cú pháp Summary:
-`[Keyword]: [TaskCode] - [noi-dung-cong-viec-dung-cau-hanh-dong]`
+`[Keyword]: [TaskCode (nếu có)] - [noi-dung-cong-viec-dung-cau-hanh-dong]`
+*(Ví dụ: `feat: XD1.2.2.5 - add map location` hoặc `fix: fix map location`)*
 
 > [!TIP]
-> Nên thống nhất một ngôn ngữ chung (tiếng Việt hoặc tiếng Anh) xuyên suốt dự án.
+> Nên thống nhất một ngôn ngữ chung (tiếng Việt hoặc tiếng Anh) xuyên suốt dự án. Tên công việc viết thường, có thể dùng dấu gạch ngang hoặc tiếng Việt có dấu tùy quy định nhóm.
 
 #### Cấu trúc Description chi tiết:
 1.  **Dòng đầu tiên:** Ghi lại nội dung Summary.
@@ -95,9 +96,7 @@ Khi thực hiện commit code, phần tiêu đề (summary) của commit bắt b
 
 #### Ví dụ 2: Cấu trúc đầy đủ của một Commit Message
 ```text
-fix: sửa luồng gửi mail chức năng A module A
-
-Sửa luồng gửi mail chức năng A module A
+fix!: XD1.2.2.7 - thay đổi luồng gửi mail chức năng A module A
 
 
 - Thay đổi luồng thứ tự nhân sự duyệt cho phép gửi mail
