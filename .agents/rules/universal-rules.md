@@ -33,6 +33,7 @@ When user's prompt is NOT in English:
 - **Async Method Naming**: Do NOT append the `Async` suffix to asynchronous method names (e.g. use `ProcessBatchSubscriptions` instead of `ProcessBatchSubscriptionsAsync`), as the method return type (`Task` / `Task<T>`) already explicitly indicates asynchrony.
 - **Dependency Injection Naming**: ALWAYS name injected dependencies in constructors using camelCase (e.g., `IFileExportService fileExportService`). NEVER use PascalCase (e.g., `IFileExportService FileExportService`) for constructor parameters or injected fields.
 - **C# / .NET CA2263**: ALWAYS prefer generic `Enum.IsDefined<TEnum>(value)` (or `Enum.IsDefined(enumValue)` in .NET 7+) over the non-generic `Enum.IsDefined(typeof(TEnum), value)` to prevent unnecessary object boxing and reflection overhead.
+- **Primary Constructor ([IDE0290](https://learn.microsoft.com/dotnet/fundamentals/code-analysis/style-rules/ide0290))**: ALWAYS prefer and use C# Primary Constructors (e.g., `public class MyService(ILogger<MyService> logger, IConfiguration configuration) : IMyService`) for classes, records, structs, and dependency injection services whenever possible, instead of declaring explicit constructor bodies with boilerplate private backing fields, unless an explicit constructor body or multi-constructor chaining is strictly required.
 
 ---
 

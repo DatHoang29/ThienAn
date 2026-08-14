@@ -202,6 +202,7 @@ Các hệ thống / Module phát triển mới về sau bắt buộc tuân thủ
    ```
 
 8. **Quy định Docker SQL Server trên Mac**: Máy tính chạy môi trường macOS (đặc biệt chip Apple Silicon M1/M2/M3/M4) **BẮT BUỘC** dùng Docker image `mcr.microsoft.com/azure-sql-edge:latest`. TUYỆT ĐỐI KHÔNG dùng `mcr.microsoft.com/mssql/server:2022-latest` vì bản x86_64 sẽ bị crash tràn bộ nhớ QEMU (`Invalid mapping of address`).
+9. **Quy định Primary Constructor ([IDE0290](https://learn.microsoft.com/dotnet/fundamentals/code-analysis/style-rules/ide0290))**: Luôn ưu tiên và áp dụng C# Primary Constructors (ví dụ: `public class MyService(ILogger<MyService> logger, IConfiguration configuration) : IMyService`) cho các class, record, struct và Dependency Injection services bất cứ khi nào có thể, thay vì khai báo thân constructor tường minh kèm các field private thủ công, trừ khi bắt buộc phải có thân constructor hoặc constructor chaining phức tạp.
 
 ---
 
