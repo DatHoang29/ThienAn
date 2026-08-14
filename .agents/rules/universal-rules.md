@@ -57,6 +57,11 @@ When user's prompt is NOT in English:
 
 ## 🔒 MCP Database Read-Only Rule (Mandatory Rule)
 
+- **Priority 1 - Mandatory MCP for Database Operations**: Khi cần tra cứu, kiểm tra schema, đọc dữ liệu CSDL (Dev, Staging, Test), AI BẮT BUỘC đọc file cấu hình `@[.agents/mcp_config.json]` và khởi tạo Subagent với `enable_mcp_tools: true` để gọi trực tiếp các MCP server (`mssql_staging`, `mssql_dev`, `mssql_test`).
+- **MCP Failure Reporting & Fallback Protocol**: 
+  - Nếu MCP server gặp sự cố (không kết nối được, lỗi runtime, hoặc thiếu tool), AI **BẮT BUỘC BÁO CÁO RÕ LỖI MCP CHO NGƯỜI DÙNG BIẾT TRƯỚC**.
+  - **CHỈ KHI** không còn cách nào khác qua MCP và được người dùng đồng ý, AI mới được phép sử dụng script PowerShell/Shell để truy vấn CSDL ở chế độ strictly READ-ONLY.
 - **Strict MCP Read-Only Mode**: ALL database interactions executed via MCP servers (`mssql_dev`, `mssql_staging`, `mssql_test`, etc.) MUST be strictly READ-ONLY. Allowed tools & queries are limited to inspecting schemas and reading data (`SELECT` queries, `list_tables`, `describe_table`, `sample_data`, `get_relationships`, etc.).
-- **ABSOLUTELY FORBIDDEN MCP Operations**: NEVER execute any `INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `TRUNCATE`, `CREATE`, or stored procedure execution mutating state via any MCP database tool under any circumstances.
+- **ABSOLUTELY FORBIDDEN Database Mutations**: NEVER execute any `INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `TRUNCATE`, `CREATE`, or stored procedure execution mutating state via MCP or scripts under any circumstances without explicit user request.
+
 
