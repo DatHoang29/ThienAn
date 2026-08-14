@@ -1,4 +1,14 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(rmdir \"c:/ThienAn/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareDataModule/ShareDataWorker.Core/Dto/DatexControl/\")",
+      "Bash(rmdir \"c:/ThienAn/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareDataModule/ShareDataWorker/Infrastructure/Services/FileExport/\")"
+    ],
+    "additionalDirectories": [
+      "c:\\ThienAn\\TA-ITS015-WebAPI-ShareData-V1.0\\src\\Modules\\ShareDataModule\\ShareDataWorker.Core\\Dto\\DatexControl",
+      "c:\\ThienAn\\TA-ITS015-WebAPI-ShareData-V1.0\\src\\Modules\\ShareDataModule\\ShareDataWorker\\Infrastructure\\Services\\FileExport"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {

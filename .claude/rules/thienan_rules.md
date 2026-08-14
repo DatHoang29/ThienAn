@@ -215,18 +215,18 @@ Dự án test nằm trực tiếp trong thư mục `tests/` của repo gốc (kh
 ```
 tests/
 ├── test.csproj                            ← Project file test (Target net8.0)
-├── TestHost.cs                            ← WebApplicationFactory chính (override DB, tắt Hangfire)
+├── Host.cs                                ← WebApplicationFactory chính (override DB, tắt Hangfire)
 ├── GlobalUsings.cs                        ← Chứa global using chung (Xunit, System.Net...) để tránh IDE0005
 └── Modules/
     └── <TênModule>/
-        └── <TênModule>Tests.cs            ← File test của module (IClassFixture<TestHost>)
+        └── <TênModule>Tests.cs            ← File test của module (IClassFixture<Host>)
 ```
 
 ### 2. Triết Lý & Phương Pháp Viết Test
 * **Tập trung vào Happy Path**: Chỉ tập trung viết test cho các luồng chính (**Happy Path** của Queries & Commands). 
 * **Gọi trực tiếp qua Wolverine `IMessageBus` (Bypass Controller/HTTP)**: 
   - **Lợi ích**: Giúp quá trình chạy test cực kỳ nhanh, bỏ qua lớp kiểm tra quyền JWT Authentication/Authorization phiền phức và **100% bắt được breakpoint** khi debug bằng VS Code (do cùng chạy trên 1 luồng xử lý chính).
-  - **Cách gọi**: Inject `IMessageBus` từ `TestHost.Services` và gọi trực tiếp:
+  - **Cách gọi**: Inject `IMessageBus` từ `Host.Services` và gọi trực tiếp:
     - *Queries (Phân trang)*: `var result = await _bus.InvokeAsync<SqlSugarPagedList<OutputDTO>>(new InputDTO { ... });`
     - *Commands (Thêm/Sửa/Xóa)*: `await _bus.InvokeAsync(payload);`
 * **Kiểm tra trạng thái DB trực tiếp**: Đối với các Command (Add/Update/Delete), sau khi gọi `_bus.InvokeAsync`, hãy resolve `ISqlSugarClient` từ scope của Host để query và so sánh trực tiếp dữ liệu trong DB (ví dụ: `Assert.NotNull(added)`, `Assert.Null(deleted)`).
