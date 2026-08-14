@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(rmdir \"c:/ThienAn/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareDataModule/ShareDataWorker.Core/Dto/DatexControl/\")",
-      "Bash(rmdir \"c:/ThienAn/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareDataModule/ShareDataWorker/Infrastructure/Services/FileExport/\")"
+      "Bash(rmdir \"c:/ThienAn/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareDataModule/ShareDataWorker/Infrastructure/Services/FileExport/\")",
+      "Bash(dotnet tool *)",
+      "Bash(dotnet --list-runtimes)"
     ],
     "additionalDirectories": [
       "c:\\ThienAn\\TA-ITS015-WebAPI-ShareData-V1.0\\src\\Modules\\ShareDataModule\\ShareDataWorker.Core\\Dto\\DatexControl",
