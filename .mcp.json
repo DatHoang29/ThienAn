@@ -1,36 +1,60 @@
 {
   "mcpServers": {
     "mssql_dev": {
-      "command": "npx",
+      "command": "dotnet",
       "args": [
-        "-y",
-        "mssql-mcp-server"
+        "tool",
+        "run",
+        "--allow-roll-forward",
+        "dab",
+        "start",
+        "--mcp-stdio",
+        "role:anonymous",
+        "--LogLevel",
+        "Error",
+        "--config",
+        "dab-config.dev.json"
       ],
       "env": {
-        "MSSQL_CONNECTION_STRING": "Server=localhost,14333;Database=dev_its10;User ID=sa;Password=Password123!;TrustServerCertificate=True;ApplicationIntent=ReadOnly;",
-        "MSSQL_ENABLE_EXECUTE_QUERY": "true"
+        "ASPNETCORE_URLS": "http://127.0.0.1:0"
       }
     },
     "mssql_test": {
-      "command": "npx",
+      "command": "dotnet",
       "args": [
-        "-y",
-        "mssql-mcp-server"
+        "tool",
+        "run",
+        "--allow-roll-forward",
+        "dab",
+        "start",
+        "--mcp-stdio",
+        "role:anonymous",
+        "--LogLevel",
+        "Error",
+        "--config",
+        "dab-config.test.json"
       ],
       "env": {
-        "MSSQL_CONNECTION_STRING": "Server=localhost,14333;Database=test;User ID=sa;Password=Password123!;TrustServerCertificate=True;ApplicationIntent=ReadOnly;",
-        "MSSQL_ENABLE_EXECUTE_QUERY": "true"
+        "ASPNETCORE_URLS": "http://127.0.0.1:0"
       }
     },
     "mssql_staging": {
-      "command": "npx",
+      "command": "dotnet",
       "args": [
-        "-y",
-        "mssql-mcp-server"
+        "tool",
+        "run",
+        "--allow-roll-forward",
+        "dab",
+        "start",
+        "--mcp-stdio",
+        "role:anonymous",
+        "--LogLevel",
+        "Error",
+        "--config",
+        "dab-config.staging.json"
       ],
       "env": {
-        "MSSQL_CONNECTION_STRING": "Server=10.10.8.30;Database=dev_its10;User ID=sa;Password=Tac@@1234;TrustServerCertificate=True;ApplicationIntent=ReadOnly;",
-        "MSSQL_ENABLE_EXECUTE_QUERY": "true"
+        "ASPNETCORE_URLS": "http://127.0.0.1:0"
       }
     }
   }

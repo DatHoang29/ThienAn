@@ -1,0 +1,2151 @@
+﻿{
+    "$schema":  "https://github.com/Azure/data-api-builder/releases/download/v2.0.10/dab.draft.schema.json",
+    "data-source":  {
+                        "database-type":  "mssql",
+                        "connection-string":  "Server=localhost,14333;Database=test;User ID=sa;Password=Password123!;TrustServerCertificate=True;ApplicationIntent=ReadOnly;",
+                        "options":  {
+                                        "set-session-context":  false
+                                    }
+                    },
+    "runtime":  {
+                    "rest":  {
+                                 "enabled":  false
+                             },
+                    "graphql":  {
+                                    "enabled":  false
+                                },
+                    "mcp":  {
+                                "enabled":  true
+                            },
+                    "host":  {
+                                 "cors":  {
+                                              "origins":  [
+
+                                                          ],
+                                              "allow-credentials":  false
+                                          },
+                                 "authentication":  {
+                                                        "provider":  "Unauthenticated"
+                                                    },
+                                 "mode":  "development"
+                             },
+                    "telemetry":  {
+                                      "open-telemetry":  {
+                                                             "enabled":  false
+                                                         }
+                                  }
+                },
+    "autoentities":  {
+
+                     },
+    "entities":  {
+                     "AggregatedCounter":  {
+                                               "source":  {
+                                                              "object":  "HangFire.AggregatedCounter",
+                                                              "type":  "table"
+                                                          },
+                                               "description":  "Entity AggregatedCounter in Test (localhost:14333/test) database",
+                                               "permissions":  [
+                                                                   {
+                                                                       "role":  "anonymous",
+                                                                       "actions":  [
+                                                                                       {
+                                                                                           "action":  "read"
+                                                                                       }
+                                                                                   ]
+                                                                   }
+                                                               ]
+                                           },
+                     "CctvDashboard":  {
+                                           "source":  {
+                                                          "object":  "dbo.CctvDashboard",
+                                                          "type":  "table"
+                                                      },
+                                           "description":  "Entity CctvDashboard in Test (localhost:14333/test) database",
+                                           "permissions":  [
+                                                               {
+                                                                   "role":  "anonymous",
+                                                                   "actions":  [
+                                                                                   {
+                                                                                       "action":  "read"
+                                                                                   }
+                                                                               ]
+                                                               }
+                                                           ]
+                                       },
+                     "CctvDashboardItem":  {
+                                               "source":  {
+                                                              "object":  "dbo.CctvDashboardItem",
+                                                              "type":  "table"
+                                                          },
+                                               "description":  "Entity CctvDashboardItem in Test (localhost:14333/test) database",
+                                               "permissions":  [
+                                                                   {
+                                                                       "role":  "anonymous",
+                                                                       "actions":  [
+                                                                                       {
+                                                                                           "action":  "read"
+                                                                                       }
+                                                                                   ]
+                                                                   }
+                                                               ]
+                                           },
+                     "CctvDevice":  {
+                                        "source":  {
+                                                       "object":  "dbo.CctvDevice",
+                                                       "type":  "table"
+                                                   },
+                                        "description":  "Entity CctvDevice in Test (localhost:14333/test) database",
+                                        "permissions":  [
+                                                            {
+                                                                "role":  "anonymous",
+                                                                "actions":  [
+                                                                                {
+                                                                                    "action":  "read"
+                                                                                }
+                                                                            ]
+                                                            }
+                                                        ]
+                                    },
+                     "CctvTemplate":  {
+                                          "source":  {
+                                                         "object":  "dbo.CctvTemplate",
+                                                         "type":  "table"
+                                                     },
+                                          "description":  "Entity CctvTemplate in Test (localhost:14333/test) database",
+                                          "permissions":  [
+                                                              {
+                                                                  "role":  "anonymous",
+                                                                  "actions":  [
+                                                                                  {
+                                                                                      "action":  "read"
+                                                                                  }
+                                                                              ]
+                                                              }
+                                                          ]
+                                      },
+                     "Counter":  {
+                                     "source":  {
+                                                    "object":  "HangFire.Counter",
+                                                    "type":  "table"
+                                                },
+                                     "description":  "Entity Counter in Test (localhost:14333/test) database",
+                                     "permissions":  [
+                                                         {
+                                                             "role":  "anonymous",
+                                                             "actions":  [
+                                                                             {
+                                                                                 "action":  "read"
+                                                                             }
+                                                                         ]
+                                                         }
+                                                     ]
+                                 },
+                     "FmsEquipmentHistory":  {
+                                                 "source":  {
+                                                                "object":  "dbo.FmsEquipmentHistory",
+                                                                "type":  "table"
+                                                            },
+                                                 "description":  "Entity FmsEquipmentHistory in Test (localhost:14333/test) database",
+                                                 "permissions":  [
+                                                                     {
+                                                                         "role":  "anonymous",
+                                                                         "actions":  [
+                                                                                         {
+                                                                                             "action":  "read"
+                                                                                         }
+                                                                                     ]
+                                                                     }
+                                                                 ]
+                                             },
+                     "FmsTopology":  {
+                                         "source":  {
+                                                        "object":  "dbo.FmsTopology",
+                                                        "type":  "table"
+                                                    },
+                                         "description":  "Entity FmsTopology in Test (localhost:14333/test) database",
+                                         "permissions":  [
+                                                             {
+                                                                 "role":  "anonymous",
+                                                                 "actions":  [
+                                                                                 {
+                                                                                     "action":  "read"
+                                                                                 }
+                                                                             ]
+                                                             }
+                                                         ]
+                                     },
+                     "Hash":  {
+                                  "source":  {
+                                                 "object":  "HangFire.Hash",
+                                                 "type":  "table"
+                                             },
+                                  "description":  "Entity Hash in Test (localhost:14333/test) database",
+                                  "permissions":  [
+                                                      {
+                                                          "role":  "anonymous",
+                                                          "actions":  [
+                                                                          {
+                                                                              "action":  "read"
+                                                                          }
+                                                                      ]
+                                                      }
+                                                  ]
+                              },
+                     "Job":  {
+                                 "source":  {
+                                                "object":  "HangFire.Job",
+                                                "type":  "table"
+                                            },
+                                 "description":  "Entity Job in Test (localhost:14333/test) database",
+                                 "permissions":  [
+                                                     {
+                                                         "role":  "anonymous",
+                                                         "actions":  [
+                                                                         {
+                                                                             "action":  "read"
+                                                                         }
+                                                                     ]
+                                                     }
+                                                 ]
+                             },
+                     "JobParameter":  {
+                                          "source":  {
+                                                         "object":  "HangFire.JobParameter",
+                                                         "type":  "table"
+                                                     },
+                                          "description":  "Entity JobParameter in Test (localhost:14333/test) database",
+                                          "permissions":  [
+                                                              {
+                                                                  "role":  "anonymous",
+                                                                  "actions":  [
+                                                                                  {
+                                                                                      "action":  "read"
+                                                                                  }
+                                                                              ]
+                                                              }
+                                                          ]
+                                      },
+                     "JobQueue":  {
+                                      "source":  {
+                                                     "object":  "HangFire.JobQueue",
+                                                     "type":  "table"
+                                                 },
+                                      "description":  "Entity JobQueue in Test (localhost:14333/test) database",
+                                      "permissions":  [
+                                                          {
+                                                              "role":  "anonymous",
+                                                              "actions":  [
+                                                                              {
+                                                                                  "action":  "read"
+                                                                              }
+                                                                          ]
+                                                          }
+                                                      ]
+                                  },
+                     "List":  {
+                                  "source":  {
+                                                 "object":  "HangFire.List",
+                                                 "type":  "table"
+                                             },
+                                  "description":  "Entity List in Test (localhost:14333/test) database",
+                                  "permissions":  [
+                                                      {
+                                                          "role":  "anonymous",
+                                                          "actions":  [
+                                                                          {
+                                                                              "action":  "read"
+                                                                          }
+                                                                      ]
+                                                      }
+                                                  ]
+                              },
+                     "PriceListDetail":  {
+                                             "source":  {
+                                                            "object":  "dbo.PriceListDetail",
+                                                            "type":  "table"
+                                                        },
+                                             "description":  "Entity PriceListDetail in Test (localhost:14333/test) database",
+                                             "permissions":  [
+                                                                 {
+                                                                     "role":  "anonymous",
+                                                                     "actions":  [
+                                                                                     {
+                                                                                         "action":  "read"
+                                                                                     }
+                                                                                 ]
+                                                                 }
+                                                             ]
+                                         },
+                     "RptManagement":  {
+                                           "source":  {
+                                                          "object":  "dbo.RptManagement",
+                                                          "type":  "table"
+                                                      },
+                                           "description":  "Entity RptManagement in Test (localhost:14333/test) database",
+                                           "permissions":  [
+                                                               {
+                                                                   "role":  "anonymous",
+                                                                   "actions":  [
+                                                                                   {
+                                                                                       "action":  "read"
+                                                                                   }
+                                                                               ]
+                                                               }
+                                                           ]
+                                       },
+                     "SampCategory":  {
+                                          "source":  {
+                                                         "object":  "dbo.SampCategory",
+                                                         "type":  "table"
+                                                     },
+                                          "description":  "Entity SampCategory in Test (localhost:14333/test) database",
+                                          "permissions":  [
+                                                              {
+                                                                  "role":  "anonymous",
+                                                                  "actions":  [
+                                                                                  {
+                                                                                      "action":  "read"
+                                                                                  }
+                                                                              ]
+                                                              }
+                                                          ]
+                                      },
+                     "SampSecurity":  {
+                                          "source":  {
+                                                         "object":  "dbo.SampSecurity",
+                                                         "type":  "table"
+                                                     },
+                                          "description":  "Entity SampSecurity in Test (localhost:14333/test) database",
+                                          "permissions":  [
+                                                              {
+                                                                  "role":  "anonymous",
+                                                                  "actions":  [
+                                                                                  {
+                                                                                      "action":  "read"
+                                                                                  }
+                                                                              ]
+                                                              }
+                                                          ]
+                                      },
+                     "Schema":  {
+                                    "source":  {
+                                                   "object":  "HangFire.Schema",
+                                                   "type":  "table"
+                                               },
+                                    "description":  "Entity Schema in Test (localhost:14333/test) database",
+                                    "permissions":  [
+                                                        {
+                                                            "role":  "anonymous",
+                                                            "actions":  [
+                                                                            {
+                                                                                "action":  "read"
+                                                                            }
+                                                                        ]
+                                                        }
+                                                    ]
+                                },
+                     "Server":  {
+                                    "source":  {
+                                                   "object":  "HangFire.Server",
+                                                   "type":  "table"
+                                               },
+                                    "description":  "Entity Server in Test (localhost:14333/test) database",
+                                    "permissions":  [
+                                                        {
+                                                            "role":  "anonymous",
+                                                            "actions":  [
+                                                                            {
+                                                                                "action":  "read"
+                                                                            }
+                                                                        ]
+                                                        }
+                                                    ]
+                                },
+                     "Set":  {
+                                 "source":  {
+                                                "object":  "HangFire.Set",
+                                                "type":  "table"
+                                            },
+                                 "description":  "Entity Set in Test (localhost:14333/test) database",
+                                 "permissions":  [
+                                                     {
+                                                         "role":  "anonymous",
+                                                         "actions":  [
+                                                                         {
+                                                                             "action":  "read"
+                                                                         }
+                                                                     ]
+                                                     }
+                                                 ]
+                             },
+                     "ShareDataActivityLog":  {
+                                                  "source":  {
+                                                                 "object":  "dbo.ShareDataActivityLog",
+                                                                 "type":  "table"
+                                                             },
+                                                  "description":  "Entity ShareDataActivityLog in Test (localhost:14333/test) database",
+                                                  "permissions":  [
+                                                                      {
+                                                                          "role":  "anonymous",
+                                                                          "actions":  [
+                                                                                          {
+                                                                                              "action":  "read"
+                                                                                          }
+                                                                                      ]
+                                                                      }
+                                                                  ]
+                                              },
+                     "ShareDataDataSource":  {
+                                                 "source":  {
+                                                                "object":  "dbo.ShareDataDataSource",
+                                                                "type":  "table"
+                                                            },
+                                                 "description":  "Entity ShareDataDataSource in Test (localhost:14333/test) database",
+                                                 "permissions":  [
+                                                                     {
+                                                                         "role":  "anonymous",
+                                                                         "actions":  [
+                                                                                         {
+                                                                                             "action":  "read"
+                                                                                         }
+                                                                                     ]
+                                                                     }
+                                                                 ]
+                                             },
+                     "ShareDataEventSource":  {
+                                                  "source":  {
+                                                                 "object":  "dbo.ShareDataEventSource",
+                                                                 "type":  "table"
+                                                             },
+                                                  "description":  "Entity ShareDataEventSource in Test (localhost:14333/test) database",
+                                                  "permissions":  [
+                                                                      {
+                                                                          "role":  "anonymous",
+                                                                          "actions":  [
+                                                                                          {
+                                                                                              "action":  "read"
+                                                                                          }
+                                                                                      ]
+                                                                      }
+                                                                  ]
+                                              },
+                     "ShareDataMappingProfile":  {
+                                                     "source":  {
+                                                                    "object":  "dbo.ShareDataMappingProfile",
+                                                                    "type":  "table"
+                                                                },
+                                                     "description":  "Entity ShareDataMappingProfile in Test (localhost:14333/test) database",
+                                                     "permissions":  [
+                                                                         {
+                                                                             "role":  "anonymous",
+                                                                             "actions":  [
+                                                                                             {
+                                                                                                 "action":  "read"
+                                                                                             }
+                                                                                         ]
+                                                                         }
+                                                                     ]
+                                                 },
+                     "ShareDataPartner":  {
+                                              "source":  {
+                                                             "object":  "dbo.ShareDataPartner",
+                                                             "type":  "table"
+                                                         },
+                                              "description":  "Entity ShareDataPartner in Test (localhost:14333/test) database",
+                                              "permissions":  [
+                                                                  {
+                                                                      "role":  "anonymous",
+                                                                      "actions":  [
+                                                                                      {
+                                                                                          "action":  "read"
+                                                                                      }
+                                                                                  ]
+                                                                  }
+                                                              ]
+                                          },
+                     "ShareDataSession":  {
+                                              "source":  {
+                                                             "object":  "dbo.ShareDataSession",
+                                                             "type":  "table"
+                                                         },
+                                              "description":  "Entity ShareDataSession in Test (localhost:14333/test) database",
+                                              "permissions":  [
+                                                                  {
+                                                                      "role":  "anonymous",
+                                                                      "actions":  [
+                                                                                      {
+                                                                                          "action":  "read"
+                                                                                      }
+                                                                                  ]
+                                                                  }
+                                                              ]
+                                          },
+                     "ShareDataSubscription":  {
+                                                   "source":  {
+                                                                  "object":  "dbo.ShareDataSubscription",
+                                                                  "type":  "table"
+                                                              },
+                                                   "description":  "Entity ShareDataSubscription in Test (localhost:14333/test) database",
+                                                   "permissions":  [
+                                                                       {
+                                                                           "role":  "anonymous",
+                                                                           "actions":  [
+                                                                                           {
+                                                                                               "action":  "read"
+                                                                                           }
+                                                                                       ]
+                                                                       }
+                                                                   ]
+                                               },
+                     "State":  {
+                                   "source":  {
+                                                  "object":  "HangFire.State",
+                                                  "type":  "table"
+                                              },
+                                   "description":  "Entity State in Test (localhost:14333/test) database",
+                                   "permissions":  [
+                                                       {
+                                                           "role":  "anonymous",
+                                                           "actions":  [
+                                                                           {
+                                                                               "action":  "read"
+                                                                           }
+                                                                       ]
+                                                       }
+                                                   ]
+                               },
+                     "SysAccess":  {
+                                       "source":  {
+                                                      "object":  "dbo.SysAccess",
+                                                      "type":  "table"
+                                                  },
+                                       "description":  "Entity SysAccess in Test (localhost:14333/test) database",
+                                       "permissions":  [
+                                                           {
+                                                               "role":  "anonymous",
+                                                               "actions":  [
+                                                                               {
+                                                                                   "action":  "read"
+                                                                               }
+                                                                           ]
+                                                           }
+                                                       ]
+                                   },
+                     "SysApp":  {
+                                    "source":  {
+                                                   "object":  "dbo.SysApp",
+                                                   "type":  "table"
+                                               },
+                                    "description":  "Entity SysApp in Test (localhost:14333/test) database",
+                                    "permissions":  [
+                                                        {
+                                                            "role":  "anonymous",
+                                                            "actions":  [
+                                                                            {
+                                                                                "action":  "read"
+                                                                            }
+                                                                        ]
+                                                        }
+                                                    ]
+                                },
+                     "SysConfig":  {
+                                       "source":  {
+                                                      "object":  "dbo.SysConfig",
+                                                      "type":  "table"
+                                                  },
+                                       "description":  "Entity SysConfig in Test (localhost:14333/test) database",
+                                       "permissions":  [
+                                                           {
+                                                               "role":  "anonymous",
+                                                               "actions":  [
+                                                                               {
+                                                                                   "action":  "read"
+                                                                               }
+                                                                           ]
+                                                           }
+                                                       ]
+                                   },
+                     "SysConfigData":  {
+                                           "source":  {
+                                                          "object":  "dbo.SysConfigData",
+                                                          "type":  "table"
+                                                      },
+                                           "description":  "Entity SysConfigData in Test (localhost:14333/test) database",
+                                           "permissions":  [
+                                                               {
+                                                                   "role":  "anonymous",
+                                                                   "actions":  [
+                                                                                   {
+                                                                                       "action":  "read"
+                                                                                   }
+                                                                               ]
+                                                               }
+                                                           ]
+                                       },
+                     "SysConfigType":  {
+                                           "source":  {
+                                                          "object":  "dbo.SysConfigType",
+                                                          "type":  "table"
+                                                      },
+                                           "description":  "Entity SysConfigType in Test (localhost:14333/test) database",
+                                           "permissions":  [
+                                                               {
+                                                                   "role":  "anonymous",
+                                                                   "actions":  [
+                                                                                   {
+                                                                                       "action":  "read"
+                                                                                   }
+                                                                               ]
+                                                               }
+                                                           ]
+                                       },
+                     "SysDictData":  {
+                                         "source":  {
+                                                        "object":  "dbo.SysDictData",
+                                                        "type":  "table"
+                                                    },
+                                         "description":  "Entity SysDictData in Test (localhost:14333/test) database",
+                                         "permissions":  [
+                                                             {
+                                                                 "role":  "anonymous",
+                                                                 "actions":  [
+                                                                                 {
+                                                                                     "action":  "read"
+                                                                                 }
+                                                                             ]
+                                                             }
+                                                         ]
+                                     },
+                     "SysDictType":  {
+                                         "source":  {
+                                                        "object":  "dbo.SysDictType",
+                                                        "type":  "table"
+                                                    },
+                                         "description":  "Entity SysDictType in Test (localhost:14333/test) database",
+                                         "permissions":  [
+                                                             {
+                                                                 "role":  "anonymous",
+                                                                 "actions":  [
+                                                                                 {
+                                                                                     "action":  "read"
+                                                                                 }
+                                                                             ]
+                                                             }
+                                                         ]
+                                     },
+                     "SysFile":  {
+                                     "source":  {
+                                                    "object":  "dbo.SysFile",
+                                                    "type":  "table"
+                                                },
+                                     "description":  "Entity SysFile in Test (localhost:14333/test) database",
+                                     "permissions":  [
+                                                         {
+                                                             "role":  "anonymous",
+                                                             "actions":  [
+                                                                             {
+                                                                                 "action":  "read"
+                                                                             }
+                                                                         ]
+                                                         }
+                                                     ]
+                                 },
+                     "SysMenu":  {
+                                     "source":  {
+                                                    "object":  "dbo.SysMenu",
+                                                    "type":  "table"
+                                                },
+                                     "description":  "Entity SysMenu in Test (localhost:14333/test) database",
+                                     "permissions":  [
+                                                         {
+                                                             "role":  "anonymous",
+                                                             "actions":  [
+                                                                             {
+                                                                                 "action":  "read"
+                                                                             }
+                                                                         ]
+                                                         }
+                                                     ]
+                                 },
+                     "SysOpConfig":  {
+                                         "source":  {
+                                                        "object":  "dbo.SysOpConfig",
+                                                        "type":  "table"
+                                                    },
+                                         "description":  "Entity SysOpConfig in Test (localhost:14333/test) database",
+                                         "permissions":  [
+                                                             {
+                                                                 "role":  "anonymous",
+                                                                 "actions":  [
+                                                                                 {
+                                                                                     "action":  "read"
+                                                                                 }
+                                                                             ]
+                                                             }
+                                                         ]
+                                     },
+                     "SysOrg":  {
+                                    "source":  {
+                                                   "object":  "dbo.SysOrg",
+                                                   "type":  "table"
+                                               },
+                                    "description":  "Entity SysOrg in Test (localhost:14333/test) database",
+                                    "permissions":  [
+                                                        {
+                                                            "role":  "anonymous",
+                                                            "actions":  [
+                                                                            {
+                                                                                "action":  "read"
+                                                                            }
+                                                                        ]
+                                                        }
+                                                    ]
+                                },
+                     "SysPlugin":  {
+                                       "source":  {
+                                                      "object":  "dbo.SysPlugin",
+                                                      "type":  "table"
+                                                  },
+                                       "description":  "Entity SysPlugin in Test (localhost:14333/test) database",
+                                       "permissions":  [
+                                                           {
+                                                               "role":  "anonymous",
+                                                               "actions":  [
+                                                                               {
+                                                                                   "action":  "read"
+                                                                               }
+                                                                           ]
+                                                           }
+                                                       ]
+                                   },
+                     "SysPos":  {
+                                    "source":  {
+                                                   "object":  "dbo.SysPos",
+                                                   "type":  "table"
+                                               },
+                                    "description":  "Entity SysPos in Test (localhost:14333/test) database",
+                                    "permissions":  [
+                                                        {
+                                                            "role":  "anonymous",
+                                                            "actions":  [
+                                                                            {
+                                                                                "action":  "read"
+                                                                            }
+                                                                        ]
+                                                        }
+                                                    ]
+                                },
+                     "SysRole":  {
+                                     "source":  {
+                                                    "object":  "dbo.SysRole",
+                                                    "type":  "table"
+                                                },
+                                     "description":  "Entity SysRole in Test (localhost:14333/test) database",
+                                     "permissions":  [
+                                                         {
+                                                             "role":  "anonymous",
+                                                             "actions":  [
+                                                                             {
+                                                                                 "action":  "read"
+                                                                             }
+                                                                         ]
+                                                         }
+                                                     ]
+                                 },
+                     "SysRoleMenu":  {
+                                         "source":  {
+                                                        "object":  "dbo.SysRoleMenu",
+                                                        "type":  "table"
+                                                    },
+                                         "description":  "Entity SysRoleMenu in Test (localhost:14333/test) database",
+                                         "permissions":  [
+                                                             {
+                                                                 "role":  "anonymous",
+                                                                 "actions":  [
+                                                                                 {
+                                                                                     "action":  "read"
+                                                                                 }
+                                                                             ]
+                                                             }
+                                                         ]
+                                     },
+                     "SysRoleOrg":  {
+                                        "source":  {
+                                                       "object":  "dbo.SysRoleOrg",
+                                                       "type":  "table"
+                                                   },
+                                        "description":  "Entity SysRoleOrg in Test (localhost:14333/test) database",
+                                        "permissions":  [
+                                                            {
+                                                                "role":  "anonymous",
+                                                                "actions":  [
+                                                                                {
+                                                                                    "action":  "read"
+                                                                                }
+                                                                            ]
+                                                            }
+                                                        ]
+                                    },
+                     "SysTenant":  {
+                                       "source":  {
+                                                      "object":  "dbo.SysTenant",
+                                                      "type":  "table"
+                                                  },
+                                       "description":  "Entity SysTenant in Test (localhost:14333/test) database",
+                                       "permissions":  [
+                                                           {
+                                                               "role":  "anonymous",
+                                                               "actions":  [
+                                                                               {
+                                                                                   "action":  "read"
+                                                                               }
+                                                                           ]
+                                                           }
+                                                       ]
+                                   },
+                     "SysTerminology":  {
+                                            "source":  {
+                                                           "object":  "dbo.SysTerminology",
+                                                           "type":  "table"
+                                                       },
+                                            "description":  "Entity SysTerminology in Test (localhost:14333/test) database",
+                                            "permissions":  [
+                                                                {
+                                                                    "role":  "anonymous",
+                                                                    "actions":  [
+                                                                                    {
+                                                                                        "action":  "read"
+                                                                                    }
+                                                                                ]
+                                                                }
+                                                            ]
+                                        },
+                     "SysUser":  {
+                                     "source":  {
+                                                    "object":  "dbo.SysUser",
+                                                    "type":  "table"
+                                                },
+                                     "description":  "Entity SysUser in Test (localhost:14333/test) database",
+                                     "permissions":  [
+                                                         {
+                                                             "role":  "anonymous",
+                                                             "actions":  [
+                                                                             {
+                                                                                 "action":  "read"
+                                                                             }
+                                                                         ]
+                                                         }
+                                                     ]
+                                 },
+                     "SysUserExtOrg":  {
+                                           "source":  {
+                                                          "object":  "dbo.SysUserExtOrg",
+                                                          "type":  "table"
+                                                      },
+                                           "description":  "Entity SysUserExtOrg in Test (localhost:14333/test) database",
+                                           "permissions":  [
+                                                               {
+                                                                   "role":  "anonymous",
+                                                                   "actions":  [
+                                                                                   {
+                                                                                       "action":  "read"
+                                                                                   }
+                                                                               ]
+                                                               }
+                                                           ]
+                                       },
+                     "SysUserRole":  {
+                                         "source":  {
+                                                        "object":  "dbo.SysUserRole",
+                                                        "type":  "table"
+                                                    },
+                                         "description":  "Entity SysUserRole in Test (localhost:14333/test) database",
+                                         "permissions":  [
+                                                             {
+                                                                 "role":  "anonymous",
+                                                                 "actions":  [
+                                                                                 {
+                                                                                     "action":  "read"
+                                                                                 }
+                                                                             ]
+                                                             }
+                                                         ]
+                                     },
+                     "TmsDutySchedule":  {
+                                             "source":  {
+                                                            "object":  "dbo.TmsDutySchedule",
+                                                            "type":  "table"
+                                                        },
+                                             "description":  "Entity TmsDutySchedule in Test (localhost:14333/test) database",
+                                             "permissions":  [
+                                                                 {
+                                                                     "role":  "anonymous",
+                                                                     "actions":  [
+                                                                                     {
+                                                                                         "action":  "read"
+                                                                                     }
+                                                                                 ]
+                                                                 }
+                                                             ]
+                                         },
+                     "TmsDutyScheduleChangeRequest":  {
+                                                          "source":  {
+                                                                         "object":  "dbo.TmsDutyScheduleChangeRequest",
+                                                                         "type":  "table"
+                                                                     },
+                                                          "description":  "Entity TmsDutyScheduleChangeRequest in Test (localhost:14333/test) database",
+                                                          "permissions":  [
+                                                                              {
+                                                                                  "role":  "anonymous",
+                                                                                  "actions":  [
+                                                                                                  {
+                                                                                                      "action":  "read"
+                                                                                                  }
+                                                                                              ]
+                                                                              }
+                                                                          ]
+                                                      },
+                     "TmsDutyScheduleDetail":  {
+                                                   "source":  {
+                                                                  "object":  "dbo.TmsDutyScheduleDetail",
+                                                                  "type":  "table"
+                                                              },
+                                                   "description":  "Entity TmsDutyScheduleDetail in Test (localhost:14333/test) database",
+                                                   "permissions":  [
+                                                                       {
+                                                                           "role":  "anonymous",
+                                                                           "actions":  [
+                                                                                           {
+                                                                                               "action":  "read"
+                                                                                           }
+                                                                                       ]
+                                                                       }
+                                                                   ]
+                                               },
+                     "TmsDutyScheduleHistory":  {
+                                                    "source":  {
+                                                                   "object":  "dbo.TmsDutyScheduleHistory",
+                                                                   "type":  "table"
+                                                               },
+                                                    "description":  "Entity TmsDutyScheduleHistory in Test (localhost:14333/test) database",
+                                                    "permissions":  [
+                                                                        {
+                                                                            "role":  "anonymous",
+                                                                            "actions":  [
+                                                                                            {
+                                                                                                "action":  "read"
+                                                                                            }
+                                                                                        ]
+                                                                        }
+                                                                    ]
+                                                },
+                     "TmsEquipment":  {
+                                          "source":  {
+                                                         "object":  "dbo.TmsEquipment",
+                                                         "type":  "table"
+                                                     },
+                                          "description":  "Entity TmsEquipment in Test (localhost:14333/test) database",
+                                          "permissions":  [
+                                                              {
+                                                                  "role":  "anonymous",
+                                                                  "actions":  [
+                                                                                  {
+                                                                                      "action":  "read"
+                                                                                  }
+                                                                              ]
+                                                              }
+                                                          ]
+                                      },
+                     "TmsEquipmentEventRule":  {
+                                                   "source":  {
+                                                                  "object":  "dbo.TmsEquipmentEventRule",
+                                                                  "type":  "table"
+                                                              },
+                                                   "description":  "Entity TmsEquipmentEventRule in Test (localhost:14333/test) database",
+                                                   "permissions":  [
+                                                                       {
+                                                                           "role":  "anonymous",
+                                                                           "actions":  [
+                                                                                           {
+                                                                                               "action":  "read"
+                                                                                           }
+                                                                                       ]
+                                                                       }
+                                                                   ]
+                                               },
+                     "TmsEquipmentType":  {
+                                              "source":  {
+                                                             "object":  "dbo.TmsEquipmentType",
+                                                             "type":  "table"
+                                                         },
+                                              "description":  "Entity TmsEquipmentType in Test (localhost:14333/test) database",
+                                              "permissions":  [
+                                                                  {
+                                                                      "role":  "anonymous",
+                                                                      "actions":  [
+                                                                                      {
+                                                                                          "action":  "read"
+                                                                                      }
+                                                                                  ]
+                                                                  }
+                                                              ]
+                                          },
+                     "TmsEventType":  {
+                                          "source":  {
+                                                         "object":  "dbo.TmsEventType",
+                                                         "type":  "table"
+                                                     },
+                                          "description":  "Entity TmsEventType in Test (localhost:14333/test) database",
+                                          "permissions":  [
+                                                              {
+                                                                  "role":  "anonymous",
+                                                                  "actions":  [
+                                                                                  {
+                                                                                      "action":  "read"
+                                                                                  }
+                                                                              ]
+                                                              }
+                                                          ]
+                                      },
+                     "TmsIncident":  {
+                                         "source":  {
+                                                        "object":  "dbo.TmsIncident",
+                                                        "type":  "table"
+                                                    },
+                                         "description":  "Entity TmsIncident in Test (localhost:14333/test) database",
+                                         "permissions":  [
+                                                             {
+                                                                 "role":  "anonymous",
+                                                                 "actions":  [
+                                                                                 {
+                                                                                     "action":  "read"
+                                                                                 }
+                                                                             ]
+                                                             }
+                                                         ]
+                                     },
+                     "TmsIncidentControl":  {
+                                                "source":  {
+                                                               "object":  "dbo.TmsIncidentControl",
+                                                               "type":  "table"
+                                                           },
+                                                "description":  "Entity TmsIncidentControl in Test (localhost:14333/test) database",
+                                                "permissions":  [
+                                                                    {
+                                                                        "role":  "anonymous",
+                                                                        "actions":  [
+                                                                                        {
+                                                                                            "action":  "read"
+                                                                                        }
+                                                                                    ]
+                                                                    }
+                                                                ]
+                                            },
+                     "TmsMaintenanceAlert":  {
+                                                 "source":  {
+                                                                "object":  "dbo.TmsMaintenanceAlert",
+                                                                "type":  "table"
+                                                            },
+                                                 "description":  "Entity TmsMaintenanceAlert in Test (localhost:14333/test) database",
+                                                 "permissions":  [
+                                                                     {
+                                                                         "role":  "anonymous",
+                                                                         "actions":  [
+                                                                                         {
+                                                                                             "action":  "read"
+                                                                                         }
+                                                                                     ]
+                                                                     }
+                                                                 ]
+                                             },
+                     "TmsMaintenanceAlertRule":  {
+                                                     "source":  {
+                                                                    "object":  "dbo.TmsMaintenanceAlertRule",
+                                                                    "type":  "table"
+                                                                },
+                                                     "description":  "Entity TmsMaintenanceAlertRule in Test (localhost:14333/test) database",
+                                                     "permissions":  [
+                                                                         {
+                                                                             "role":  "anonymous",
+                                                                             "actions":  [
+                                                                                             {
+                                                                                                 "action":  "read"
+                                                                                             }
+                                                                                         ]
+                                                                         }
+                                                                     ]
+                                                 },
+                     "TmsMaintenanceGuide":  {
+                                                 "source":  {
+                                                                "object":  "dbo.TmsMaintenanceGuide",
+                                                                "type":  "table"
+                                                            },
+                                                 "description":  "Entity TmsMaintenanceGuide in Test (localhost:14333/test) database",
+                                                 "permissions":  [
+                                                                     {
+                                                                         "role":  "anonymous",
+                                                                         "actions":  [
+                                                                                         {
+                                                                                             "action":  "read"
+                                                                                         }
+                                                                                     ]
+                                                                     }
+                                                                 ]
+                                             },
+                     "TmsMaintenanceHistory":  {
+                                                   "source":  {
+                                                                  "object":  "dbo.TmsMaintenanceHistory",
+                                                                  "type":  "table"
+                                                              },
+                                                   "description":  "Entity TmsMaintenanceHistory in Test (localhost:14333/test) database",
+                                                   "permissions":  [
+                                                                       {
+                                                                           "role":  "anonymous",
+                                                                           "actions":  [
+                                                                                           {
+                                                                                               "action":  "read"
+                                                                                           }
+                                                                                       ]
+                                                                       }
+                                                                   ]
+                                               },
+                     "TmsMaintenanceSchedule":  {
+                                                    "source":  {
+                                                                   "object":  "dbo.TmsMaintenanceSchedule",
+                                                                   "type":  "table"
+                                                               },
+                                                    "description":  "Entity TmsMaintenanceSchedule in Test (localhost:14333/test) database",
+                                                    "permissions":  [
+                                                                        {
+                                                                            "role":  "anonymous",
+                                                                            "actions":  [
+                                                                                            {
+                                                                                                "action":  "read"
+                                                                                            }
+                                                                                        ]
+                                                                        }
+                                                                    ]
+                                                },
+                     "TmsMaintenanceScheduleEquipment":  {
+                                                             "source":  {
+                                                                            "object":  "dbo.TmsMaintenanceScheduleEquipment",
+                                                                            "type":  "table"
+                                                                        },
+                                                             "description":  "Entity TmsMaintenanceScheduleEquipment in Test (localhost:14333/test) database",
+                                                             "permissions":  [
+                                                                                 {
+                                                                                     "role":  "anonymous",
+                                                                                     "actions":  [
+                                                                                                     {
+                                                                                                         "action":  "read"
+                                                                                                     }
+                                                                                                 ]
+                                                                                 }
+                                                                             ]
+                                                         },
+                     "TmsMaintenanceTask":  {
+                                                "source":  {
+                                                               "object":  "dbo.TmsMaintenanceTask",
+                                                               "type":  "table"
+                                                           },
+                                                "description":  "Entity TmsMaintenanceTask in Test (localhost:14333/test) database",
+                                                "permissions":  [
+                                                                    {
+                                                                        "role":  "anonymous",
+                                                                        "actions":  [
+                                                                                        {
+                                                                                            "action":  "read"
+                                                                                        }
+                                                                                    ]
+                                                                    }
+                                                                ]
+                                            },
+                     "TmsMap":  {
+                                    "source":  {
+                                                   "object":  "dbo.TmsMap",
+                                                   "type":  "table"
+                                               },
+                                    "description":  "Entity TmsMap in Test (localhost:14333/test) database",
+                                    "permissions":  [
+                                                        {
+                                                            "role":  "anonymous",
+                                                            "actions":  [
+                                                                            {
+                                                                                "action":  "read"
+                                                                            }
+                                                                        ]
+                                                        }
+                                                    ]
+                                },
+                     "TmsMapDetail":  {
+                                          "source":  {
+                                                         "object":  "dbo.TmsMapDetail",
+                                                         "type":  "table"
+                                                     },
+                                          "description":  "Entity TmsMapDetail in Test (localhost:14333/test) database",
+                                          "permissions":  [
+                                                              {
+                                                                  "role":  "anonymous",
+                                                                  "actions":  [
+                                                                                  {
+                                                                                      "action":  "read"
+                                                                                  }
+                                                                              ]
+                                                              }
+                                                          ]
+                                      },
+                     "TmsMapLocation":  {
+                                            "source":  {
+                                                           "object":  "dbo.TmsMapLocation",
+                                                           "type":  "table"
+                                                       },
+                                            "description":  "Entity TmsMapLocation in Test (localhost:14333/test) database",
+                                            "permissions":  [
+                                                                {
+                                                                    "role":  "anonymous",
+                                                                    "actions":  [
+                                                                                    {
+                                                                                        "action":  "read"
+                                                                                    }
+                                                                                ]
+                                                                }
+                                                            ]
+                                        },
+                     "TmsModules":  {
+                                        "source":  {
+                                                       "object":  "dbo.TmsModules",
+                                                       "type":  "table"
+                                                   },
+                                        "description":  "Entity TmsModules in Test (localhost:14333/test) database",
+                                        "permissions":  [
+                                                            {
+                                                                "role":  "anonymous",
+                                                                "actions":  [
+                                                                                {
+                                                                                    "action":  "read"
+                                                                                }
+                                                                            ]
+                                                            }
+                                                        ]
+                                    },
+                     "TmsPatrolTeam":  {
+                                           "source":  {
+                                                          "object":  "dbo.TmsPatrolTeam",
+                                                          "type":  "table"
+                                                      },
+                                           "description":  "Entity TmsPatrolTeam in Test (localhost:14333/test) database",
+                                           "permissions":  [
+                                                               {
+                                                                   "role":  "anonymous",
+                                                                   "actions":  [
+                                                                                   {
+                                                                                       "action":  "read"
+                                                                                   }
+                                                                               ]
+                                                               }
+                                                           ]
+                                       },
+                     "TmsPatrolTeamMember":  {
+                                                 "source":  {
+                                                                "object":  "dbo.TmsPatrolTeamMember",
+                                                                "type":  "table"
+                                                            },
+                                                 "description":  "Entity TmsPatrolTeamMember in Test (localhost:14333/test) database",
+                                                 "permissions":  [
+                                                                     {
+                                                                         "role":  "anonymous",
+                                                                         "actions":  [
+                                                                                         {
+                                                                                             "action":  "read"
+                                                                                         }
+                                                                                     ]
+                                                                     }
+                                                                 ]
+                                             },
+                     "TmsSignalLog":  {
+                                          "source":  {
+                                                         "object":  "dbo.TmsSignalLog",
+                                                         "type":  "table"
+                                                     },
+                                          "description":  "Entity TmsSignalLog in Test (localhost:14333/test) database",
+                                          "permissions":  [
+                                                              {
+                                                                  "role":  "anonymous",
+                                                                  "actions":  [
+                                                                                  {
+                                                                                      "action":  "read"
+                                                                                  }
+                                                                              ]
+                                                              }
+                                                          ]
+                                      },
+                     "TmsTrafficAnalysis":  {
+                                                "source":  {
+                                                               "object":  "dbo.TmsTrafficAnalysis",
+                                                               "type":  "table"
+                                                           },
+                                                "description":  "Entity TmsTrafficAnalysis in Test (localhost:14333/test) database",
+                                                "permissions":  [
+                                                                    {
+                                                                        "role":  "anonymous",
+                                                                        "actions":  [
+                                                                                        {
+                                                                                            "action":  "read"
+                                                                                        }
+                                                                                    ]
+                                                                    }
+                                                                ]
+                                            },
+                     "TmsTrafficData":  {
+                                            "source":  {
+                                                           "object":  "dbo.TmsTrafficData",
+                                                           "type":  "table"
+                                                       },
+                                            "description":  "Entity TmsTrafficData in Test (localhost:14333/test) database",
+                                            "permissions":  [
+                                                                {
+                                                                    "role":  "anonymous",
+                                                                    "actions":  [
+                                                                                    {
+                                                                                        "action":  "read"
+                                                                                    }
+                                                                                ]
+                                                                }
+                                                            ]
+                                        },
+                     "TmsTrafficPlan":  {
+                                            "source":  {
+                                                           "object":  "dbo.TmsTrafficPlan",
+                                                           "type":  "table"
+                                                       },
+                                            "description":  "Entity TmsTrafficPlan in Test (localhost:14333/test) database",
+                                            "permissions":  [
+                                                                {
+                                                                    "role":  "anonymous",
+                                                                    "actions":  [
+                                                                                    {
+                                                                                        "action":  "read"
+                                                                                    }
+                                                                                ]
+                                                                }
+                                                            ]
+                                        },
+                     "TmsTrafficPlanWorkDetail":  {
+                                                      "source":  {
+                                                                     "object":  "dbo.TmsTrafficPlanWorkDetail",
+                                                                     "type":  "table"
+                                                                 },
+                                                      "description":  "Entity TmsTrafficPlanWorkDetail in Test (localhost:14333/test) database",
+                                                      "permissions":  [
+                                                                          {
+                                                                              "role":  "anonymous",
+                                                                              "actions":  [
+                                                                                              {
+                                                                                                  "action":  "read"
+                                                                                              }
+                                                                                          ]
+                                                                          }
+                                                                      ]
+                                                  },
+                     "TmsTrafficStatistic":  {
+                                                 "source":  {
+                                                                "object":  "dbo.TmsTrafficStatistic",
+                                                                "type":  "table"
+                                                            },
+                                                 "description":  "Entity TmsTrafficStatistic in Test (localhost:14333/test) database",
+                                                 "permissions":  [
+                                                                     {
+                                                                         "role":  "anonymous",
+                                                                         "actions":  [
+                                                                                         {
+                                                                                             "action":  "read"
+                                                                                         }
+                                                                                     ]
+                                                                     }
+                                                                 ]
+                                             },
+                     "TmsVehicleFilter":  {
+                                              "source":  {
+                                                             "object":  "dbo.TmsVehicleFilter",
+                                                             "type":  "table"
+                                                         },
+                                              "description":  "Entity TmsVehicleFilter in Test (localhost:14333/test) database",
+                                              "permissions":  [
+                                                                  {
+                                                                      "role":  "anonymous",
+                                                                      "actions":  [
+                                                                                      {
+                                                                                          "action":  "read"
+                                                                                      }
+                                                                                  ]
+                                                                  }
+                                                              ]
+                                          },
+                     "TmsVehicleFilterHistory":  {
+                                                     "source":  {
+                                                                    "object":  "dbo.TmsVehicleFilterHistory",
+                                                                    "type":  "table"
+                                                                },
+                                                     "description":  "Entity TmsVehicleFilterHistory in Test (localhost:14333/test) database",
+                                                     "permissions":  [
+                                                                         {
+                                                                             "role":  "anonymous",
+                                                                             "actions":  [
+                                                                                             {
+                                                                                                 "action":  "read"
+                                                                                             }
+                                                                                         ]
+                                                                         }
+                                                                     ]
+                                                 },
+                     "TmsVehicleRegistration":  {
+                                                    "source":  {
+                                                                   "object":  "dbo.TmsVehicleRegistration",
+                                                                   "type":  "table"
+                                                               },
+                                                    "description":  "Entity TmsVehicleRegistration in Test (localhost:14333/test) database",
+                                                    "permissions":  [
+                                                                        {
+                                                                            "role":  "anonymous",
+                                                                            "actions":  [
+                                                                                            {
+                                                                                                "action":  "read"
+                                                                                            }
+                                                                                        ]
+                                                                        }
+                                                                    ]
+                                                },
+                     "TmsWeather":  {
+                                        "source":  {
+                                                       "object":  "dbo.TmsWeather",
+                                                       "type":  "table"
+                                                   },
+                                        "description":  "Entity TmsWeather in Test (localhost:14333/test) database",
+                                        "permissions":  [
+                                                            {
+                                                                "role":  "anonymous",
+                                                                "actions":  [
+                                                                                {
+                                                                                    "action":  "read"
+                                                                                }
+                                                                            ]
+                                                            }
+                                                        ]
+                                    },
+                     "TmsWorkContact":  {
+                                            "source":  {
+                                                           "object":  "dbo.TmsWorkContact",
+                                                           "type":  "table"
+                                                       },
+                                            "description":  "Entity TmsWorkContact in Test (localhost:14333/test) database",
+                                            "permissions":  [
+                                                                {
+                                                                    "role":  "anonymous",
+                                                                    "actions":  [
+                                                                                    {
+                                                                                        "action":  "read"
+                                                                                    }
+                                                                                ]
+                                                                }
+                                                            ]
+                                        },
+                     "TmsWorkDetail":  {
+                                           "source":  {
+                                                          "object":  "dbo.TmsWorkDetail",
+                                                          "type":  "table"
+                                                      },
+                                           "description":  "Entity TmsWorkDetail in Test (localhost:14333/test) database",
+                                           "permissions":  [
+                                                               {
+                                                                   "role":  "anonymous",
+                                                                   "actions":  [
+                                                                                   {
+                                                                                       "action":  "read"
+                                                                                   }
+                                                                               ]
+                                                               }
+                                                           ]
+                                       },
+                     "TmsWorkDetailContact":  {
+                                                  "source":  {
+                                                                 "object":  "dbo.TmsWorkDetailContact",
+                                                                 "type":  "table"
+                                                             },
+                                                  "description":  "Entity TmsWorkDetailContact in Test (localhost:14333/test) database",
+                                                  "permissions":  [
+                                                                      {
+                                                                          "role":  "anonymous",
+                                                                          "actions":  [
+                                                                                          {
+                                                                                              "action":  "read"
+                                                                                          }
+                                                                                      ]
+                                                                      }
+                                                                  ]
+                                              },
+                     "TmsWorkExecute":  {
+                                            "source":  {
+                                                           "object":  "dbo.TmsWorkExecute",
+                                                           "type":  "table"
+                                                       },
+                                            "description":  "Entity TmsWorkExecute in Test (localhost:14333/test) database",
+                                            "permissions":  [
+                                                                {
+                                                                    "role":  "anonymous",
+                                                                    "actions":  [
+                                                                                    {
+                                                                                        "action":  "read"
+                                                                                    }
+                                                                                ]
+                                                                }
+                                                            ]
+                                        },
+                     "TmsWorkExecuteHistory":  {
+                                                   "source":  {
+                                                                  "object":  "dbo.TmsWorkExecuteHistory",
+                                                                  "type":  "table"
+                                                              },
+                                                   "description":  "Entity TmsWorkExecuteHistory in Test (localhost:14333/test) database",
+                                                   "permissions":  [
+                                                                       {
+                                                                           "role":  "anonymous",
+                                                                           "actions":  [
+                                                                                           {
+                                                                                               "action":  "read"
+                                                                                           }
+                                                                                       ]
+                                                                       }
+                                                                   ]
+                                               },
+                     "TmsWorkUnit":  {
+                                         "source":  {
+                                                        "object":  "dbo.TmsWorkUnit",
+                                                        "type":  "table"
+                                                    },
+                                         "description":  "Entity TmsWorkUnit in Test (localhost:14333/test) database",
+                                         "permissions":  [
+                                                             {
+                                                                 "role":  "anonymous",
+                                                                 "actions":  [
+                                                                                 {
+                                                                                     "action":  "read"
+                                                                                 }
+                                                                             ]
+                                                             }
+                                                         ]
+                                     },
+                     "TmsZone":  {
+                                     "source":  {
+                                                    "object":  "dbo.TmsZone",
+                                                    "type":  "table"
+                                                },
+                                     "description":  "Entity TmsZone in Test (localhost:14333/test) database",
+                                     "permissions":  [
+                                                         {
+                                                             "role":  "anonymous",
+                                                             "actions":  [
+                                                                             {
+                                                                                 "action":  "read"
+                                                                             }
+                                                                         ]
+                                                         }
+                                                     ]
+                                 },
+                     "TmsZoneEquipment":  {
+                                              "source":  {
+                                                             "object":  "dbo.TmsZoneEquipment",
+                                                             "type":  "table"
+                                                         },
+                                              "description":  "Entity TmsZoneEquipment in Test (localhost:14333/test) database",
+                                              "permissions":  [
+                                                                  {
+                                                                      "role":  "anonymous",
+                                                                      "actions":  [
+                                                                                      {
+                                                                                          "action":  "read"
+                                                                                      }
+                                                                                  ]
+                                                                  }
+                                                              ]
+                                          },
+                     "TmsZoneStatus":  {
+                                           "source":  {
+                                                          "object":  "dbo.TmsZoneStatus",
+                                                          "type":  "table"
+                                                      },
+                                           "description":  "Entity TmsZoneStatus in Test (localhost:14333/test) database",
+                                           "permissions":  [
+                                                               {
+                                                                   "role":  "anonymous",
+                                                                   "actions":  [
+                                                                                   {
+                                                                                       "action":  "read"
+                                                                                   }
+                                                                               ]
+                                                               }
+                                                           ]
+                                       },
+                     "TollLane":  {
+                                      "source":  {
+                                                     "object":  "dbo.TollLane",
+                                                     "type":  "table"
+                                                 },
+                                      "description":  "Entity TollLane in Test (localhost:14333/test) database",
+                                      "permissions":  [
+                                                          {
+                                                              "role":  "anonymous",
+                                                              "actions":  [
+                                                                              {
+                                                                                  "action":  "read"
+                                                                              }
+                                                                          ]
+                                                          }
+                                                      ]
+                                  },
+                     "TollMasterData":  {
+                                            "source":  {
+                                                           "object":  "dbo.TollMasterData",
+                                                           "type":  "table"
+                                                       },
+                                            "description":  "Entity TollMasterData in Test (localhost:14333/test) database",
+                                            "permissions":  [
+                                                                {
+                                                                    "role":  "anonymous",
+                                                                    "actions":  [
+                                                                                    {
+                                                                                        "action":  "read"
+                                                                                    }
+                                                                                ]
+                                                                }
+                                                            ]
+                                        },
+                     "TollPriceListDetail":  {
+                                                 "source":  {
+                                                                "object":  "dbo.TollPriceListDetail",
+                                                                "type":  "table"
+                                                            },
+                                                 "description":  "Entity TollPriceListDetail in Test (localhost:14333/test) database",
+                                                 "permissions":  [
+                                                                     {
+                                                                         "role":  "anonymous",
+                                                                         "actions":  [
+                                                                                         {
+                                                                                             "action":  "read"
+                                                                                         }
+                                                                                     ]
+                                                                     }
+                                                                 ]
+                                             },
+                     "TollRoad":  {
+                                      "source":  {
+                                                     "object":  "dbo.TollRoad",
+                                                     "type":  "table"
+                                                 },
+                                      "description":  "Entity TollRoad in Test (localhost:14333/test) database",
+                                      "permissions":  [
+                                                          {
+                                                              "role":  "anonymous",
+                                                              "actions":  [
+                                                                              {
+                                                                                  "action":  "read"
+                                                                              }
+                                                                          ]
+                                                          }
+                                                      ]
+                                  },
+                     "TollStation":  {
+                                         "source":  {
+                                                        "object":  "dbo.TollStation",
+                                                        "type":  "table"
+                                                    },
+                                         "description":  "Entity TollStation in Test (localhost:14333/test) database",
+                                         "permissions":  [
+                                                             {
+                                                                 "role":  "anonymous",
+                                                                 "actions":  [
+                                                                                 {
+                                                                                     "action":  "read"
+                                                                                 }
+                                                                             ]
+                                                             }
+                                                         ]
+                                     },
+                     "TollSyncLog":  {
+                                         "source":  {
+                                                        "object":  "dbo.TollSyncLog",
+                                                        "type":  "table"
+                                                    },
+                                         "description":  "Entity TollSyncLog in Test (localhost:14333/test) database",
+                                         "permissions":  [
+                                                             {
+                                                                 "role":  "anonymous",
+                                                                 "actions":  [
+                                                                                 {
+                                                                                     "action":  "read"
+                                                                                 }
+                                                                             ]
+                                                             }
+                                                         ]
+                                     },
+                     "TollTariff":  {
+                                        "source":  {
+                                                       "object":  "dbo.TollTariff",
+                                                       "type":  "table"
+                                                   },
+                                        "description":  "Entity TollTariff in Test (localhost:14333/test) database",
+                                        "permissions":  [
+                                                            {
+                                                                "role":  "anonymous",
+                                                                "actions":  [
+                                                                                {
+                                                                                    "action":  "read"
+                                                                                }
+                                                                            ]
+                                                            }
+                                                        ]
+                                    },
+                     "TollTicketOutSummary":  {
+                                                  "source":  {
+                                                                 "object":  "dbo.TollTicketOutSummary",
+                                                                 "type":  "table"
+                                                             },
+                                                  "description":  "Entity TollTicketOutSummary in Test (localhost:14333/test) database",
+                                                  "permissions":  [
+                                                                      {
+                                                                          "role":  "anonymous",
+                                                                          "actions":  [
+                                                                                          {
+                                                                                              "action":  "read"
+                                                                                          }
+                                                                                      ]
+                                                                      }
+                                                                  ]
+                                              },
+                     "TollTransaction":  {
+                                             "source":  {
+                                                            "object":  "dbo.TollTransaction",
+                                                            "type":  "table"
+                                                        },
+                                             "description":  "Entity TollTransaction in Test (localhost:14333/test) database",
+                                             "permissions":  [
+                                                                 {
+                                                                     "role":  "anonymous",
+                                                                     "actions":  [
+                                                                                     {
+                                                                                         "action":  "read"
+                                                                                     }
+                                                                                 ]
+                                                                 }
+                                                             ]
+                                         },
+                     "TollTransactionIn":  {
+                                               "source":  {
+                                                              "object":  "dbo.TollTransactionIn",
+                                                              "type":  "table"
+                                                          },
+                                               "description":  "Entity TollTransactionIn in Test (localhost:14333/test) database",
+                                               "permissions":  [
+                                                                   {
+                                                                       "role":  "anonymous",
+                                                                       "actions":  [
+                                                                                       {
+                                                                                           "action":  "read"
+                                                                                       }
+                                                                                   ]
+                                                                   }
+                                                               ]
+                                           },
+                     "TollTransactionOut":  {
+                                                "source":  {
+                                                               "object":  "dbo.TollTransactionOut",
+                                                               "type":  "table"
+                                                           },
+                                                "description":  "Entity TollTransactionOut in Test (localhost:14333/test) database",
+                                                "permissions":  [
+                                                                    {
+                                                                        "role":  "anonymous",
+                                                                        "actions":  [
+                                                                                        {
+                                                                                            "action":  "read"
+                                                                                        }
+                                                                                    ]
+                                                                    }
+                                                                ]
+                                            },
+                     "VdsData":  {
+                                     "source":  {
+                                                    "object":  "dbo.VdsData",
+                                                    "type":  "table"
+                                                },
+                                     "description":  "Entity VdsData in Test (localhost:14333/test) database",
+                                     "permissions":  [
+                                                         {
+                                                             "role":  "anonymous",
+                                                             "actions":  [
+                                                                             {
+                                                                                 "action":  "read"
+                                                                             }
+                                                                         ]
+                                                         }
+                                                     ]
+                                 },
+                     "VdsEvent":  {
+                                      "source":  {
+                                                     "object":  "dbo.VdsEvent",
+                                                     "type":  "table"
+                                                 },
+                                      "description":  "Entity VdsEvent in Test (localhost:14333/test) database",
+                                      "permissions":  [
+                                                          {
+                                                              "role":  "anonymous",
+                                                              "actions":  [
+                                                                              {
+                                                                                  "action":  "read"
+                                                                              }
+                                                                          ]
+                                                          }
+                                                      ]
+                                  },
+                     "VdsIncident":  {
+                                         "source":  {
+                                                        "object":  "dbo.VdsIncident",
+                                                        "type":  "table"
+                                                    },
+                                         "description":  "Entity VdsIncident in Test (localhost:14333/test) database",
+                                         "permissions":  [
+                                                             {
+                                                                 "role":  "anonymous",
+                                                                 "actions":  [
+                                                                                 {
+                                                                                     "action":  "read"
+                                                                                 }
+                                                                             ]
+                                                             }
+                                                         ]
+                                     },
+                     "VdsStatisticLane":  {
+                                              "source":  {
+                                                             "object":  "dbo.VdsStatisticLane",
+                                                             "type":  "table"
+                                                         },
+                                              "description":  "Entity VdsStatisticLane in Test (localhost:14333/test) database",
+                                              "permissions":  [
+                                                                  {
+                                                                      "role":  "anonymous",
+                                                                      "actions":  [
+                                                                                      {
+                                                                                          "action":  "read"
+                                                                                      }
+                                                                                  ]
+                                                                  }
+                                                              ]
+                                          },
+                     "VdsStatisticRaw":  {
+                                             "source":  {
+                                                            "object":  "dbo.VdsStatisticRaw",
+                                                            "type":  "table"
+                                                        },
+                                             "description":  "Entity VdsStatisticRaw in Test (localhost:14333/test) database",
+                                             "permissions":  [
+                                                                 {
+                                                                     "role":  "anonymous",
+                                                                     "actions":  [
+                                                                                     {
+                                                                                         "action":  "read"
+                                                                                     }
+                                                                                 ]
+                                                                 }
+                                                             ]
+                                         },
+                     "VdsTrafficData":  {
+                                            "source":  {
+                                                           "object":  "dbo.VdsTrafficData",
+                                                           "type":  "table"
+                                                       },
+                                            "description":  "Entity VdsTrafficData in Test (localhost:14333/test) database",
+                                            "permissions":  [
+                                                                {
+                                                                    "role":  "anonymous",
+                                                                    "actions":  [
+                                                                                    {
+                                                                                        "action":  "read"
+                                                                                    }
+                                                                                ]
+                                                                }
+                                                            ]
+                                        },
+                     "VmsCurrent":  {
+                                        "source":  {
+                                                       "object":  "dbo.VmsCurrent",
+                                                       "type":  "table"
+                                                   },
+                                        "description":  "Entity VmsCurrent in Test (localhost:14333/test) database",
+                                        "permissions":  [
+                                                            {
+                                                                "role":  "anonymous",
+                                                                "actions":  [
+                                                                                {
+                                                                                    "action":  "read"
+                                                                                }
+                                                                            ]
+                                                            }
+                                                        ]
+                                    },
+                     "VmsEventDefault":  {
+                                             "source":  {
+                                                            "object":  "dbo.VmsEventDefault",
+                                                            "type":  "table"
+                                                        },
+                                             "description":  "Entity VmsEventDefault in Test (localhost:14333/test) database",
+                                             "permissions":  [
+                                                                 {
+                                                                     "role":  "anonymous",
+                                                                     "actions":  [
+                                                                                     {
+                                                                                         "action":  "read"
+                                                                                     }
+                                                                                 ]
+                                                                 }
+                                                             ]
+                                         },
+                     "VmsImage":  {
+                                      "source":  {
+                                                     "object":  "dbo.VmsImage",
+                                                     "type":  "table"
+                                                 },
+                                      "description":  "Entity VmsImage in Test (localhost:14333/test) database",
+                                      "permissions":  [
+                                                          {
+                                                              "role":  "anonymous",
+                                                              "actions":  [
+                                                                              {
+                                                                                  "action":  "read"
+                                                                              }
+                                                                          ]
+                                                          }
+                                                      ]
+                                  },
+                     "VmsMessage":  {
+                                        "source":  {
+                                                       "object":  "dbo.VmsMessage",
+                                                       "type":  "table"
+                                                   },
+                                        "description":  "Entity VmsMessage in Test (localhost:14333/test) database",
+                                        "permissions":  [
+                                                            {
+                                                                "role":  "anonymous",
+                                                                "actions":  [
+                                                                                {
+                                                                                    "action":  "read"
+                                                                                }
+                                                                            ]
+                                                            }
+                                                        ]
+                                    },
+                     "VmsProcess":  {
+                                        "source":  {
+                                                       "object":  "dbo.VmsProcess",
+                                                       "type":  "table"
+                                                   },
+                                        "description":  "Entity VmsProcess in Test (localhost:14333/test) database",
+                                        "permissions":  [
+                                                            {
+                                                                "role":  "anonymous",
+                                                                "actions":  [
+                                                                                {
+                                                                                    "action":  "read"
+                                                                                }
+                                                                            ]
+                                                            }
+                                                        ]
+                                    },
+                     "VmsProcessImg":  {
+                                           "source":  {
+                                                          "object":  "dbo.VmsProcessImg",
+                                                          "type":  "table"
+                                                      },
+                                           "description":  "Entity VmsProcessImg in Test (localhost:14333/test) database",
+                                           "permissions":  [
+                                                               {
+                                                                   "role":  "anonymous",
+                                                                   "actions":  [
+                                                                                   {
+                                                                                       "action":  "read"
+                                                                                   }
+                                                                               ]
+                                                               }
+                                                           ]
+                                       },
+                     "VmsTemplate":  {
+                                         "source":  {
+                                                        "object":  "dbo.VmsTemplate",
+                                                        "type":  "table"
+                                                    },
+                                         "description":  "Entity VmsTemplate in Test (localhost:14333/test) database",
+                                         "permissions":  [
+                                                             {
+                                                                 "role":  "anonymous",
+                                                                 "actions":  [
+                                                                                 {
+                                                                                     "action":  "read"
+                                                                                 }
+                                                                             ]
+                                                             }
+                                                         ]
+                                     },
+                     "WpCategory":  {
+                                        "source":  {
+                                                       "object":  "dbo.WpCategory",
+                                                       "type":  "table"
+                                                   },
+                                        "description":  "Entity WpCategory in Test (localhost:14333/test) database",
+                                        "permissions":  [
+                                                            {
+                                                                "role":  "anonymous",
+                                                                "actions":  [
+                                                                                {
+                                                                                    "action":  "read"
+                                                                                }
+                                                                            ]
+                                                            }
+                                                        ]
+                                    },
+                     "WpConfig":  {
+                                      "source":  {
+                                                     "object":  "dbo.WpConfig",
+                                                     "type":  "table"
+                                                 },
+                                      "description":  "Entity WpConfig in Test (localhost:14333/test) database",
+                                      "permissions":  [
+                                                          {
+                                                              "role":  "anonymous",
+                                                              "actions":  [
+                                                                              {
+                                                                                  "action":  "read"
+                                                                              }
+                                                                          ]
+                                                          }
+                                                      ]
+                                  },
+                     "WpMenu":  {
+                                    "source":  {
+                                                   "object":  "dbo.WpMenu",
+                                                   "type":  "table"
+                                               },
+                                    "description":  "Entity WpMenu in Test (localhost:14333/test) database",
+                                    "permissions":  [
+                                                        {
+                                                            "role":  "anonymous",
+                                                            "actions":  [
+                                                                            {
+                                                                                "action":  "read"
+                                                                            }
+                                                                        ]
+                                                        }
+                                                    ]
+                                },
+                     "WpPost":  {
+                                    "source":  {
+                                                   "object":  "dbo.WpPost",
+                                                   "type":  "table"
+                                               },
+                                    "description":  "Entity WpPost in Test (localhost:14333/test) database",
+                                    "permissions":  [
+                                                        {
+                                                            "role":  "anonymous",
+                                                            "actions":  [
+                                                                            {
+                                                                                "action":  "read"
+                                                                            }
+                                                                        ]
+                                                        }
+                                                    ]
+                                },
+                     "WpPriceList":  {
+                                         "source":  {
+                                                        "object":  "dbo.WpPriceList",
+                                                        "type":  "table"
+                                                    },
+                                         "description":  "Entity WpPriceList in Test (localhost:14333/test) database",
+                                         "permissions":  [
+                                                             {
+                                                                 "role":  "anonymous",
+                                                                 "actions":  [
+                                                                                 {
+                                                                                     "action":  "read"
+                                                                                 }
+                                                                             ]
+                                                             }
+                                                         ]
+                                     },
+                     "WpPriceListDetail":  {
+                                               "source":  {
+                                                              "object":  "dbo.WpPriceListDetail",
+                                                              "type":  "table"
+                                                          },
+                                               "description":  "Entity WpPriceListDetail in Test (localhost:14333/test) database",
+                                               "permissions":  [
+                                                                   {
+                                                                       "role":  "anonymous",
+                                                                       "actions":  [
+                                                                                       {
+                                                                                           "action":  "read"
+                                                                                       }
+                                                                                   ]
+                                                                   }
+                                                               ]
+                                           },
+                     "WpStatistical":  {
+                                           "source":  {
+                                                          "object":  "dbo.WpStatistical",
+                                                          "type":  "table"
+                                                      },
+                                           "description":  "Entity WpStatistical in Test (localhost:14333/test) database",
+                                           "permissions":  [
+                                                               {
+                                                                   "role":  "anonymous",
+                                                                   "actions":  [
+                                                                                   {
+                                                                                       "action":  "read"
+                                                                                   }
+                                                                               ]
+                                                               }
+                                                           ]
+                                       },
+                     "WpToll":  {
+                                    "source":  {
+                                                   "object":  "dbo.WpToll",
+                                                   "type":  "table"
+                                               },
+                                    "description":  "Entity WpToll in Test (localhost:14333/test) database",
+                                    "permissions":  [
+                                                        {
+                                                            "role":  "anonymous",
+                                                            "actions":  [
+                                                                            {
+                                                                                "action":  "read"
+                                                                            }
+                                                                        ]
+                                                        }
+                                                    ]
+                                },
+                     "WpTrafficLaw":  {
+                                          "source":  {
+                                                         "object":  "dbo.WpTrafficLaw",
+                                                         "type":  "table"
+                                                     },
+                                          "description":  "Entity WpTrafficLaw in Test (localhost:14333/test) database",
+                                          "permissions":  [
+                                                              {
+                                                                  "role":  "anonymous",
+                                                                  "actions":  [
+                                                                                  {
+                                                                                      "action":  "read"
+                                                                                  }
+                                                                              ]
+                                                              }
+                                                          ]
+                                      }
+                 }
+}

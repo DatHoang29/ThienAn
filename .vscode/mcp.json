@@ -1,27 +1,63 @@
 {
   "servers": {
-    "mongodb-mcp-server": {
-      "command": "npx",
+    "mssql_dev": {
+      "type": "stdio",
+      "command": "dotnet",
       "args": [
-        "-y",
-        "mongodb-mcp-server"
+        "tool",
+        "run",
+        "--allow-roll-forward",
+        "dab",
+        "start",
+        "--mcp-stdio",
+        "role:anonymous",
+        "--LogLevel",
+        "Error",
+        "--config",
+        "${workspaceFolder}/dab-config.dev.json"
       ],
       "env": {
-        "MDB_MCP_CONNECTION_STRING": "mongodb://localhost:27017/shopDev"
+        "ASPNETCORE_URLS": "http://127.0.0.1:0"
       }
     },
-    "github-mcp-server": {
-      "command": "docker",
+    "mssql_test": {
+      "type": "stdio",
+      "command": "dotnet",
       "args": [
+        "tool",
         "run",
-        "-i",
-        "--rm",
-        "-e",
-        "GITHUB_PERSONAL_ACCESS_TOKEN",
-        "ghcr.io/github/github-mcp-server"
+        "--allow-roll-forward",
+        "dab",
+        "start",
+        "--mcp-stdio",
+        "role:anonymous",
+        "--LogLevel",
+        "Error",
+        "--config",
+        "${workspaceFolder}/dab-config.test.json"
       ],
       "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": ""
+        "ASPNETCORE_URLS": "http://127.0.0.1:0"
+      }
+    },
+    "mssql_staging": {
+      "type": "stdio",
+      "command": "dotnet",
+      "args": [
+        "tool",
+        "run",
+        "--allow-roll-forward",
+        "dab",
+        "start",
+        "--mcp-stdio",
+        "role:anonymous",
+        "--LogLevel",
+        "Error",
+        "--config",
+        "${workspaceFolder}/dab-config.staging.json"
+      ],
+      "env": {
+        "ASPNETCORE_URLS": "http://127.0.0.1:0"
       }
     }
   }
