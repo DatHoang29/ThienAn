@@ -2,6 +2,69 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "build-webapi-v1",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/TAC_WebAPI/TAC_WebAPI.csproj",
+        "/property:GenerateFullPaths=true"
+      ],
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": false
+      }
+    },
+    {
+      "label": "build-tests-v1",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/tests/test.csproj",
+        "/property:GenerateFullPaths=true"
+      ],
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": false
+      }
+    },
+    {
+      "label": "test-v1",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "test",
+        "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/tests/test.csproj"
+      ],
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": false
+      }
+    },
+    {
+      "label": "build-sln-v1",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/TAC_WebAPI.sln",
+        "/property:GenerateFullPaths=true"
+      ],
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": false
+      }
+    },
+    {
       "label": "build-worker",
       "command": "dotnet",
       "type": "process",
@@ -33,59 +96,9 @@
       }
     },
     {
-      "label": "build-its015",
-      "command": "dotnet",
-      "type": "process",
-      "args": [
-        "build",
-        "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/Temp_TAC_WebAPI.sln",
-        "/property:GenerateFullPaths=true"
-      ],
-      "problemMatcher": "$msCompile",
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated",
-        "focus": false
-      }
-    },
-    {
-      "label": "build",
-      "command": "dotnet",
-      "type": "process",
-      "args": [
-        "build",
-        "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/Temp_TAC_WebAPI.sln",
-        "/property:GenerateFullPaths=true",
-        "/consoleloggerparameters:NoSummary"
-      ],
-      "problemMatcher": "$msCompile",
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated",
-        "focus": false
-      }
-    },
-    {
-      "label": "build-lab",
-      "command": "dotnet",
-      "type": "process",
-      "args": [
-        "build",
-        "${workspaceFolder}/Lab.slnx",
-        "/property:GenerateFullPaths=true",
-        "/consoleloggerparameters:NoSummary"
-      ],
-      "problemMatcher": "$msCompile",
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated",
-        "focus": false
-      }
-    },
-    {
       "label": "docker:up",
       "type": "shell",
-      "command": "docker compose -f ${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/docker-compose.yml up -d",
+      "command": "docker compose -f ${workspaceFolder}/Docker/Compose/docker-compose.yml up -d",
       "presentation": {
         "reveal": "always",
         "panel": "shared",
@@ -95,7 +108,7 @@
     {
       "label": "docker:down",
       "type": "shell",
-      "command": "docker compose -f ${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/docker-compose.yml down",
+      "command": "docker compose -f ${workspaceFolder}/Docker/Compose/docker-compose.yml down",
       "presentation": {
         "reveal": "always",
         "panel": "shared",

@@ -2,7 +2,25 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": ".NET Core Launch (ShareDataWorker - Server 10.10.8.30)",
+      "name": "Launch TAC_WebAPI (TA-ITS015-WEBAPI-V1.0)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-webapi-v1",
+      "program": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/TAC_WebAPI/bin/Debug/net10.0/TAC_WebAPI.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/TAC_WebAPI",
+      "stopAtEntry": false,
+      "serverReadyAction": {
+        "action": "openUrl",
+        "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
+        "uriFormat": "%s/api"
+      },
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    },
+    {
+      "name": "Launch ShareDataWorker (Server 10.10.8.30)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-worker",
@@ -13,7 +31,7 @@
       "console": "internalConsole"
     },
     {
-      "name": ".NET Core Launch (ShareDataWorker - Local Docker)",
+      "name": "Launch ShareDataWorker (Local Docker)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-worker",
