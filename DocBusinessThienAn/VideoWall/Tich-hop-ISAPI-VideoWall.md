@@ -6,10 +6,10 @@
 
 ```
 Module.VideoWall.Core/
-  Abstracts/
+  Interfaces/
     IVwDeviceClient.cs          — interface giao tiếp thiết bị (never-throw)
-    VwIsapiResult.cs            — record kết quả Ok()/Fail(), có bản generic <T>
   Dto/Isapi/
+    VwIsapiResult.cs            — record kết quả Ok()/Fail(), có bản generic <T>
     VwIsapiResponse.cs          — DTO response (XML) từ thiết bị
     VwIsapiWindowRequest.cs     — DTO request (XML) gửi lên thiết bị
 
@@ -98,6 +98,8 @@ Mọi thao tác ghi thiết bị đều theo đúng 1 khuôn: **gọi thiết b�
 | `DeviceWindowSyncFailed` | `DeleteAllWindowsAsync`/`AddWindowAsync` lỗi trong lúc resync |
 | `DeviceSaveSceneFailed` | `SaveSceneDataAsync` lỗi sau khi resync xong |
 
+**Lưu ý hợp đồng never-throw**: `VwIsapiCredentialStore.EnsureRegistered` throw `InvalidOperationException` khi controller thiếu `IP` — ban đầu lọt qua cả 2 catch trong `VwIsapiClient.SendAsync` (chỉ bắt `InvalidOperationException` có `InnerException is XmlException`, hoặc `HttpRequestException`/`TaskCanceledException`/`OperationCanceledException`), khiến `IVwDeviceClient` VI PHẠM chính hợp đồng never-throw mà nó tự khai báo. Đã thêm catch riêng cho trường hợp này (`VwIsapiClient.cs`, `SendAsync`) — mọi controller thiếu IP giờ trả `VwIsapiResult.Fail(...)` thay vì throw thẳng ra ngoài Wolverine. **Design gap còn lại (chưa sửa, cần quyết định nghiệp vụ)**: `VwWindowSceneCommandHandler.SyncSceneWindowsToDeviceAsync` chủ động bỏ qua đồng bộ nếu `controller.IP` rỗng (mục 5), nhưng `VwSceneWorkflowCommandHandler` (kịch bản toàn tường) thì KHÔNG lọc controller thiếu IP trước khi gọi thiết bị — nếu trong toàn bộ hệ thống có bất kỳ controller nào (kể cả không liên quan bức tường đang activate) thiếu IP, activate toàn tường sẽ fail-fast do chính controller đó, dù nó không nên chặn hoạt động của các controller khác.
+
 ## 8. Những điểm CHƯA xác nhận trên thiết bị thật (rủi ro cần lưu ý khi go-live)
 
 - **`AddWindow` response shape** — suy đoán theo tài liệu vendor (`<ID>` trong `ResponseStatus`), tài liệu đo thật (`API_Postman_Videowall.md`) liệt kê rõ API này "CHƯA CHẠY" trên thiết bị đo.
@@ -111,7 +113,8 @@ Mọi thao tác ghi thiết bị đều theo đúng 1 khuôn: **gọi thiết b�
 Xem chi tiết đầy đủ ở [`tests/README.MD`](../../TA-ITS015-WEBAPI-V1.0/tests/README.MD). Tóm tắt riêng phần thiết bị:
 
 - `VwIsapiClientTests.cs` — mock XML response ở tầng HTTP (`FakeIsapiHttpMessageHandler`), dùng nguyên văn response đo thật khi có, có chú thích rõ chỗ nào là suy đoán.
-- `VwSceneTests.cs` / `VwWindowSceneTests.cs` — test handler-level qua `FakeVwDeviceClient` (fake toàn bộ `IVwDeviceClient`, điều khiển kết quả qua field static), kiểm cả case thành công lẫn fail-fast không ghi DB.
+- `VwSceneTests.cs` / `VwWindowSceneTests.cs` — test handler-level qua `FakeVwDeviceClient` (fake toàn bộ `IVwDeviceClient`, điều khiển kết quả qua field static + `SaveSceneDataCallCount` để "spy" số lần gọi + `ActivateSceneResultByController` để giả lập từng controller trả kết quả khác nhau), kiểm cả case thành công lẫn fail-fast không ghi DB — bao gồm: gate `capabilities` (`isSupportScene=false`), `saveData` lỗi, xoá window cuối cùng vẫn phải gọi `saveData` (test hồi quy), và kịch bản toàn tường nhiều controller có 1 controller lỗi giữa vòng lặp (không ghi DB cho bất kỳ controller nào).
+- `VwIsapiCredentialStoreTests.cs` — test thuần (không Host/DB/mạng) cho lớp build URI + đăng ký Digest credential, phần chạy trước MỌI request tới thiết bị.
 - `VwIsapiClientLiveSmokeTests.cs` — chạy thật với thiết bị vật lý, mặc định **Skipped** (`Xunit.SkippableFact`) nếu chưa điền IP/Account/Password vào 3 hằng số đầu file. Chỉ gọi 2 API đọc an toàn (`GetCapabilities`/`GetActiveScene`), tuyệt đối không gọi Activate/AddWindow thật để tránh đổi hình đang chiếu trên tường khi test.
 
 ## 10. Tham chiếu
