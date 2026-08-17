@@ -38,6 +38,8 @@ When user's prompt is NOT in English:
 - **Remove Unused Using Directives ([IDE0005](https://learn.microsoft.com/dotnet/fundamentals/code-analysis/style-rules/ide0005))**: ALWAYS check for and remove unnecessary/unused `using` directives (`using ...;`) after creating or editing any C# code file to keep imports clean, minimal, and prevent IDE0005 warnings and CS0105 duplicates.
 - **Test Class & Helper Naming Suffix**: ALWAYS use `Test` or `Tests` as a SUFFIX for all test classes, test helper/mock/stub classes, and test methods (e.g. `StringLocalizerTest`, `VwControllerTests`, `VwControllerCommand_AddVwController_InsertsRecord_Test`). NEVER prefix with `Test` (e.g. do NOT use `TestStringLocalizer` or `TestVwController`).
 - **Auto-Cleanup Temporary Plan Files**: ALWAYS automatically delete temporary plan files created at the repository root (e.g. `{task-slug}.md`, `ide0290-primary.md`, etc.) upon completing task execution, to prevent leftover artifact clutter in the workspace.
+- **Command & Validator Integration Testing**: When writing integration tests for Commands (Delete, BatchDelete, Update, Add) that have a FluentValidation Validator, ALWAYS test the negative validation rule first (e.g. assert that an invalid/null ID payload returns `Assert.False(invalidResult.IsValid)`) BEFORE performing the Arrange insert into the database (`_db.Insertable`) and invoking the command.
+
 
 ---
 
