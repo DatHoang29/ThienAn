@@ -3,7 +3,8 @@
 > Nguồn: ISAPI Controller – Videowall Controller (chương 9.7, tr.332–499). Số trang = trang PDF gốc.
 > Kiến trúc dự án: 4 controller độc lập (4 IP, digest auth) • mọi nguồn qua HDMI input • scene lưu trong DB BE • 1 window không vượt ranh giới controller.
 
-> Nguồn dữ liệu: `VideoWall_ISAPI_API_List.xlsx`. Chi tiết request/response của từng API xem tại [09-api-reference.md](09-api-reference.md).
+> Nguồn dữ liệu: `VideoWall_ISAPI_API_List.xlsx`. Chi tiết request/response lý thuyết của từng API xem tại [09-api-reference.md](09-api-reference.md).
+> 🌟 **Dữ liệu thực tế & Bẫy phần cứng đo tại trạm:** Xem cẩm nang chi tiết tại [09-practical-guide-and-tested-responses.md](09-practical-guide-and-tested-responses.md).
 
 ---
 
