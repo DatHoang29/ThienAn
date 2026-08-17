@@ -1,8 +1,8 @@
-# Sổ Tay Thực Thi & Tham Chiếu Response Thực Tế — ISAPI Video Wall Controller
+# 9B. Sổ Tay Thực Thi & Tham Chiếu Response Thực Tế — ISAPI Video Wall Controller
 
 > **Tài liệu hợp nhất:** Toàn bộ kết quả đo kiểm thực tế, bản đồ phần cứng, hệ toạ độ, cơ chế xác thực Digest và các bẫy kỹ thuật của phân hệ Video Wall Controller tại trạm Thiên An.  
 > **Thiết bị đo kiểm:** Hikvision `DS-C66S-H88-CL` · Serial Number: `GW2405704` · IP: `10.10.9.236` · HTTP Port: `80`.  
-> **Tài liệu đối chiếu gốc:** [**`09-api-reference.md`**](file:///c:/ThienAn/DocBusinessThienAn/VideoWall/ISAPI-Videowall-Controller/09-api-reference.md), [**`00-api-catalog.md`**](file:///c:/ThienAn/DocBusinessThienAn/VideoWall/ISAPI-Videowall-Controller/00-api-catalog.md) & *DS-C66S Series Datasheet*.  
+> **Tài liệu đối chiếu gốc:** [**`09A-api-reference.md`**](file:///c:/ThienAn/DocBusinessThienAn/VideoWall/ISAPI-Videowall-Controller/09A-api-reference.md), [**`00-api-catalog.md`**](file:///c:/ThienAn/DocBusinessThienAn/VideoWall/ISAPI-Videowall-Controller/00-api-catalog.md) & *DS-C66S Series Datasheet*.  
 > **Ký hiệu nhận biết:** 🟢 Đã kiểm chứng chạy OK · ❌ Lỗi / Thất bại · ⚠️ Lưu ý kỹ thuật · 🔴 Điểm khác biệt/sai khác so với tài liệu lý thuyết của hãng.
 
 ---

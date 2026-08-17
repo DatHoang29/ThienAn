@@ -162,4 +162,4 @@ URL: `GET /ISAPI/DisplayDev/VideoWall/<videoWallID>/windows/status`.
 
 ---
 
-← [7. Video (General)](07-video-general.md) · [Index](README.md) · [9. API Reference](09-api-reference.md) →
+← [7. Video (General)](07-video-general.md) · [Index](README.md) · [9A. API Reference](09A-api-reference.md) →
