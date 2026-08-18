@@ -98,3 +98,18 @@ updated: 2026-07-29
   5. Khi gặp lỗi IDE không bắt được Unit Test hoặc báo thiếu tham chiếu (Missing reference/assembly):
      - Kiểm tra xem project (nhất là `*.Tests.csproj`) đã được add vào file `.sln` chưa. Chạy lệnh `dotnet sln <sln-file> add <csproj-file>` để tự động fix.
      - Kiểm tra xUnit lifecycle: Dùng `IClassFixture` khi có khởi tạo DB/Host nặng để tránh đụng độ `DROP TABLE` khi test song song.
+
+## Frontend / Vue.js SFC Code Conventions
+- **VUE SFC SECTION ORDERING ([Mandatory])**: Trong tất cả các file component Vue.js (`.vue`), thứ tự các khối BẮT BUỘC phải tuân thủ chuẩn:
+  1. `<script setup lang="ts">` (hoặc `<script>`) **đặt ở ĐẦU TIÊN**.
+  2. `<template>` (Giao diện UI / HTML) **đặt ở THỨ HAI**.
+  3. `<style scoped>` (CSS / SCSS) **đặt ở CUỐI CÙNG**.
+  TUYỆT ĐỐI KHÔNG đặt `<template>` trước `<script>`.
+- **VUE `<script setup>` INTERNAL STRUCTURE ([Mandatory])**: Nội dung bên trong khối `<script setup>` BẮT BUỘC phải được sắp xếp theo thứ tự phân tầng mạch lạc:
+  1. **Imports** (Thư viện ngoài, component con, composables/hooks, types/interfaces) luôn ở đầu dòng.
+  2. **Props / Emits / Models** (`defineProps`, `defineEmits`, `defineModel`).
+  3. **Reactive State & Stores** (`ref`, `reactive`, Pinia store instances).
+  4. **Computed & Watchers** (`computed`, `watch`, `watchEffect`).
+  5. **Lifecycle Hooks** (`onMounted`, `onActivated`, `onUnmounted`...).
+  6. **Methods & Event Handlers** (Các hàm xử lý sự kiện, hàm gọi API, logic nghiệp vụ).
+  7. **Expose** (`defineExpose` nếu có).

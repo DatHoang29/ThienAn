@@ -40,6 +40,19 @@ When user's prompt is NOT in English:
 - **Auto-Cleanup Temporary Plan Files**: ALWAYS automatically delete temporary plan files created at the repository root (e.g. `{task-slug}.md`, `ide0290-primary.md`, etc.) upon completing task execution, to prevent leftover artifact clutter in the workspace.
 - **Command & Validator Integration Testing**: When writing integration tests for Commands (Delete, BatchDelete, Update, Add) that have a FluentValidation Validator, ALWAYS test the negative validation rule first (e.g. assert that an invalid/null ID payload returns `Assert.False(invalidResult.IsValid)`) BEFORE performing the Arrange insert into the database (`_db.Insertable`) and invoking the command.
 - **No Fully-Qualified Type Names in Code Bodies / Signatures**: ALWAYS import namespaces via top-level `using` directives (or `global using`) and use clean, unqualified short type names (e.g. `VwIsapiInputChannelsResponse`, `SqlSugarPagedList<T>`). NEVER write long fully-qualified type paths inline (e.g. `Module.VideoWall.Core.Dto.Isapi.VwIsapiInputChannelsResponse`) in controller return types, method arguments, generics, or object instantiations, unless strictly required to resolve ambiguous naming collisions.
+- **Vue SFC Section Ordering ([Mandatory])**: Trong tất cả các file component Vue.js (`.vue`), thứ tự các khối BẮT BUỘC phải tuân thủ chuẩn:
+  1. `<script setup lang="ts">` (hoặc `<script>`) **đặt ở ĐẦU TIÊN**.
+  2. `<template>` (Giao diện UI / HTML) **đặt ở THỨ HAI**.
+  3. `<style scoped>` (CSS / SCSS) **đặt ở CUỐI CÙNG**.
+  TUYỆT ĐỐI KHÔNG đặt `<template>` trước `<script>`.
+- **Vue `<script setup>` Internal Structure ([Mandatory])**: Nội dung bên trong khối `<script setup>` BẮT BUỘC phải được sắp xếp theo thứ tự phân tầng mạch lạc:
+  1. **Imports** (Thư viện ngoài, component con, composables/hooks, types/interfaces) luôn ở đầu dòng.
+  2. **Props / Emits / Models** (`defineProps`, `defineEmits`, `defineModel`).
+  3. **Reactive State & Stores** (`ref`, `reactive`, Pinia store instances).
+  4. **Computed & Watchers** (`computed`, `watch`, `watchEffect`).
+  5. **Lifecycle Hooks** (`onMounted`, `onActivated`, `onUnmounted`...).
+  6. **Methods & Event Handlers** (Các hàm xử lý sự kiện, hàm gọi API, logic nghiệp vụ).
+  7. **Expose** (`defineExpose` nếu có).
 
 
 ---
