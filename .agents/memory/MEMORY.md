@@ -7,3 +7,6 @@
 - [rules] Quy định chung phòng phần mềm (comments, naming, commits, AI rules) → ../rules/thienan_quy_dinh_chung.md
 - [project] DTO/Anonymous Rules, C# Namespaces, CS8601 Null Checks → project-conventions.md
 - [project] Kế hoạch & Kiến trúc Test Project đầu tiên (tests/) Module.VideoWall → task-videowall-test-project.md
+
+## Reference
+- [reference] Luồng nghiệp vụ chính HN-CL luôn tra cứu tại INDEX.md (DocBusinessThienAn/HữuNghị-ChiLăng) → docbusiness-hn-cl-index.md
