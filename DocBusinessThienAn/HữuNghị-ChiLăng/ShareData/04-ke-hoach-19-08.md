@@ -1,6 +1,7 @@
-# ĐẶC TẢ YÊU CẦU — VIDEOWALL & SHARE DATA (v2)
+# ĐẶC TẢ YÊU CẦU — SHARE DATA (Kế hoạch 19/08)
 
-> Nguồn: nội dung cuộc họp + file `KeHoachTiepTheo.txt`.
+> Nguồn: nội dung cuộc họp + file `KeHoachTiepTheo.txt` — tách riêng phần Share Data từ `Plan_19_08.md`.
+> Phần VideoWall xem tại [`../VideoWall/Plan_19_08.md`](../VideoWall/Plan_19_08.md).
 > Các mục đánh dấu **[Cần chốt]** là chỗ chưa có kết luận.
 > Các mục đánh dấu **🆕** là bổ sung từ file kế hoạch mới.
 
@@ -13,8 +14,6 @@
 | Hạng mục | Nội dung | Thời điểm |
 |---|---|---|
 | Share Data | Luồng gửi/nhận + ánh xạ + giao thức + log | Deadline **ngày 9** — đã xin gia hạn nhưng **không được dời** |
-| VideoWall | Form/dịch vụ test luồng tích hợp thiết bị | Bắt đầu **tuần sau**, **2 ngày** test |
-| VideoWall — TCP 🆕 | Đề xuất kiểm thử qua **TCP** với thiết bị | **Qua tuần** (đang xem xét) |
 | Bảng cấu hình đầy đủ | Cấu hình mapping động qua UI | Trong tháng |
 | Tối ưu / chuẩn hóa lại | Refactor, tối ưu | Tháng sau |
 | Hạ tầng HA 🆕 | High availability cho server | **T9–T10** |
@@ -207,44 +206,11 @@ Nếu (Datetime.Now − lastTime) > X phút:
 
 ---
 
-## 2. VIDEOWALL
-
-### 2.1. Hiện trạng
-
-- Thiết bị có **hai màn hình** (một cái chưa xác định rõ chức năng).
-- Bên đối tác **mới lắp lần đầu**, cấu hình còn nguyên bản → thuận lợi.
-
-### 2.2. Yêu cầu cần làm
-
-1. **Làm form / dịch vụ test luồng tích hợp với thiết bị** 🆕 — đây là hạng mục chính, không chỉ là khảo sát.
-2. **Thử split màn hình** theo vị trí mong muốn.
-3. Xác định **cơ chế điều khiển**: điều khiển layout bằng cách nào, giao thức gì.
-4. Kiểm tra khả năng **tự liên kết lại** giữa các vùng hiển thị trong các trường hợp khác nhau.
-
-### 2.3. Giao thức kết nối 🆕
-
-- Đề xuất **kiểm thử qua TCP** với thiết bị — **qua tuần** mới triển khai, hiện đang **xem xét**.
-- Cần xác định trước: cổng TCP, định dạng lệnh (chuỗi ASCII hay binary), có cần giữ kết nối thường trực (keep-alive) hay mở/đóng theo từng lệnh, cơ chế xác nhận phản hồi.
-
-### 2.4. Kế hoạch
-
-- Bắt đầu **tuần sau**, dành **2 ngày** test trực tiếp.
-- Cần **estimate thời gian** cho cả VideoWall và Share Data.
-
-### 2.5. [Cần chốt]
-
-- Hãng / model của videowall controller.
-- Tài liệu API / bộ lệnh TCP của thiết bị.
-- Số layout preset cần hỗ trợ và cách lưu preset.
-- VideoWall có cần lấy nguồn hiển thị từ VMS không, hay chỉ điều khiển layout.
-
----
-
-## 3. RÀNG BUỘC HẠ TẦNG ẢNH HƯỞNG TRỰC TIẾP ĐẾN SHARE DATA 🆕
+## 2. RÀNG BUỘC HẠ TẦNG ẢNH HƯỞNG TRỰC TIẾP ĐẾN SHARE DATA 🆕
 
 > Không phải hạng mục riêng, nhưng **quyết định cách viết dịch vụ ShareData ngay từ bây giờ** — làm sai kiến trúc thì T9–T10 phải viết lại.
 
-### 3.1. High Availability (T9–T10)
+### 2.1. High Availability (T9–T10)
 
 - Lộ trình: **active–passive** (1 node hoạt động) → tiến tới **active–active** (tất cả node cùng chạy).
 - **HA ở mức service:** 1 máy chạy / 1 máy stop → thỏa yêu cầu, không cần xử lý gì thêm.
@@ -259,14 +225,14 @@ Gợi ý hiện thực (chọn 1, **[Cần chốt]**):
 - Lock qua NATS / Redis.
 - Cấu hình chỉ định 1 node là "scheduler node".
 
-### 3.2. File cấu hình & file tạm
+### 2.2. File cấu hình & file tạm
 
 - **Không lưu trong `wwwroot`** (mỗi node có `wwwroot` riêng → lệch cấu hình).
 - Phải **lưu chung**, hướng đề xuất: **UNC path** (thư mục chia sẻ mạng).
 - Áp dụng cho cả **file cấu hình** và **file tạm** (file xuất ra ở chiều gửi, file nhận về ở chiều nhận).
 - **[Cần chốt]** Đường dẫn UNC cụ thể, tài khoản có quyền ghi, cơ chế dọn file tạm.
 
-### 3.3. Notification & message bus (từ T9)
+### 2.3. Notification & message bus (từ T9)
 
 - Kiến trúc: **Web + NATS + CSDL time-series**.
 - **Tất cả dịch vụ phải xử lý qua NATS** và **ghi log xử lý**.
@@ -275,7 +241,9 @@ Gợi ý hiện thực (chọn 1, **[Cần chốt]**):
 
 ---
 
-## 4. THỨ TỰ ƯU TIÊN ĐỀ XUẤT
+## 3. THỨ TỰ ƯU TIÊN ĐỀ XUẤT
+
+> Số thứ tự giữ nguyên theo bản gốc `Plan_19_08.md` để dễ đối chiếu khi họp — mục #7, #8 (VideoWall) nằm ở tài liệu VideoWall.
 
 | # | Việc | Ghi chú |
 |---|---|---|
@@ -285,8 +253,6 @@ Gợi ý hiện thực (chọn 1, **[Cần chốt]**):
 | 4 | Bảng mapping (ánh xạ trường) hai chiều | Làm trước bảng chuẩn hóa |
 | 5 | Bảng chuẩn hóa (ánh xạ giá trị) hai chiều | |
 | 6 | Bảng nguồn dữ liệu + bảng đầu ra + bảng kết nối đối tác | |
-| 7 | VideoWall: form/dịch vụ test tích hợp thiết bị, split màn hình | Tuần sau, 2 ngày |
-| 8 | VideoWall: kiểm thử TCP với thiết bị | Qua tuần |
 | 9 | Cơ chế lastId/lastTime + catch-up lịch sử | Chống mất dữ liệu |
 | 10 | Kịch bản test VDS: tải cao, tắt/bật dịch vụ, cắt request | |
 | 11 | Chuẩn bị cho HA: lock chạy 1 lần, file cấu hình ra UNC path | Trước T9 |
@@ -294,7 +260,7 @@ Gợi ý hiện thực (chọn 1, **[Cần chốt]**):
 
 ---
 
-## 5. DANH SÁCH CÂU HỎI CẦN CHỐT
+## 4. DANH SÁCH CÂU HỎI CẦN CHỐT
 
 **Share Data**
 
@@ -306,12 +272,6 @@ Gợi ý hiện thực (chọn 1, **[Cần chốt]**):
 6. Bên thứ ba (PC08 / trung tâm khu vực) đã có **tài liệu đặc tả gói tin** chưa?
 7. API **nhật ký thao tác** do ai làm, đặc tả ra sao?
 8. **Chu kỳ chạy định kỳ** cụ thể (3 phút? vài tiếng?) và ngưỡng `X` phút cho catch-up lịch sử?
-
-**VideoWall**
-
-9. Hãng / model controller và **tài liệu bộ lệnh TCP / API**?
-10. Số lượng **preset layout** cần hỗ trợ và cách lưu?
-11. VideoWall có tích hợp **nguồn hiển thị từ VMS** không?
 
 **Hạ tầng**
 

@@ -32,9 +32,11 @@ DocBusinessThienAn/
     ├── ShareData/
     │   ├── 01-yeu-cau-nghiep-vu.md           🤖 yêu cầu hệ thống phần mềm chia sẻ dữ liệu
     │   ├── 02-mapping-goi-tin-101-111.md     🤖 mapping field gói tin 101–111
-    │   └── 03-audit-20260812.md              🤖👤 báo cáo audit ShareDataWorker
+    │   ├── 03-audit-20260812.md              🤖👤 báo cáo audit ShareDataWorker
+    │   └── 04-ke-hoach-19-08.md              🤖 kế hoạch họp 19/08 (phần Share Data)
     └── VideoWall/
         ├── HIKVISION_ISAPI_VIDEOWALL_GLOSSARY.md   🤖👤 từ điển thuật ngữ — đọc đầu tiên
+        ├── Plan_19_08.md                     🤖 kế hoạch họp 19/08 (phần VideoWall)
         ├── API/                              🤖 Postman collection + environment
         ├── Controller-phan-cung/             🤖 + images/ 👤 hướng dẫn phần cứng DS-C66S
         ├── ISAPI-Videowall-Controller/       🤖 + images/ 👤 bộ tài liệu API ISAPI (00→10)
@@ -59,12 +61,14 @@ DocBusinessThienAn/
 | `01-yeu-cau-nghiep-vu.md` | 28 KB · 569 dòng | Yêu cầu hệ thống phần mềm chia sẻ dữ liệu (TMC-PM-ITS-ESHARE / TA-ShareData), trích từ Chỉ dẫn kỹ thuật HN-CL | Nguồn yêu cầu gốc — đọc trước khi đụng vào ShareDataWorker |
 | `02-mapping-goi-tin-101-111.md` | 20 KB · 233 dòng | Mapping từng field payload (camelCase) ↔ bảng/cột WebAPI cho gói tin 101–111, kèm quy tắc tính toán | Khi implement/sửa mapping, chốt hợp đồng API với đội tích hợp |
 | `03-audit-20260812.md` | 16 KB · 110 dòng | Báo cáo audit `ShareDataWorker`, `.Core`, `.Tests` (bản gộp 14/08/2026) — gồm cả các quyết định "đã chốt / không làm" | Khi cần biết trạng thái & nợ kỹ thuật hiện tại của module |
+| `04-ke-hoach-19-08.md` | 12 KB · 220 dòng | Đặc tả yêu cầu + kế hoạch họp 19/08 (phần Share Data): luồng gửi/nhận, mapping, chuẩn hóa, ràng buộc HA/NATS, câu hỏi cần chốt. Tách từ `Plan_19_08.md` gốc, phần VideoWall xem `VideoWall/Plan_19_08.md` | Khi cần bối cảnh nghiệp vụ + deadline hiện tại của ShareDataWorker |
 
 ### HN-CL / VideoWall
 
 | File | Kích thước | Nội dung | Khi nào đọc |
 |---|---|---|---|
 | `HIKVISION_ISAPI_VIDEOWALL_GLOSSARY.md` | 24 KB · 258 dòng | Từ điển thuật ngữ + hướng dẫn nghiệp vụ Video Wall | **Đọc đầu tiên** khi mới vào phân hệ Video Wall |
+| `Plan_19_08.md` | 3 KB · 70 dòng | Đặc tả yêu cầu + kế hoạch họp 19/08 (phần VideoWall): form/dịch vụ test tích hợp thiết bị, giao thức TCP, câu hỏi cần chốt. Tách từ `Plan_19_08.md` gốc, phần Share Data xem `ShareData/04-ke-hoach-19-08.md` | Khi cần bối cảnh & deadline hiện tại của hạng mục VideoWall |
 | `ISAPI-Videowall-Controller/README.md` | 8 KB | Mục lục bộ tài liệu ISAPI (chuyển đổi từ PDF 512 trang) | Điểm vào của bộ 00→10 |
 | `ISAPI-Videowall-Controller/00-api-catalog.md` | 44 KB · 305 dòng | Danh mục API decoding & video wall (chương 9.7, tr.332–499) kèm số trang PDF gốc | Tra nhanh "có API nào cho việc này" |
 | `ISAPI-Videowall-Controller/01-reading-guide.md` | < 1 KB | Hướng dẫn cách đọc bộ tài liệu | Lần đầu mở bộ tài liệu |
@@ -114,4 +118,4 @@ Toàn bộ nằm trong `_source/` và `images/`. **AI không cần và không n�
 4. File `.md` vượt ~500 KB nên tách nhỏ hoặc ghi chú rõ "chỉ đọc theo đoạn" trong INDEX (như `09A-api-reference.md`).
 5. Thêm file mới → cập nhật bảng trong INDEX.md này.
 
-_Cập nhật lần cuối: 18/08/2026._
+_Cập nhật lần cuối: 19/08/2026._
