@@ -1,0 +1,61 @@
+{
+  "mcpServers": {
+    "mssql_dev": {
+      "command": "dotnet",
+      "args": [
+        "tool",
+        "run",
+        "--allow-roll-forward",
+        "dab",
+        "start",
+        "--mcp-stdio",
+        "role:anonymous",
+        "--LogLevel",
+        "Error",
+        "--config",
+        "dab-config.dev.json"
+      ],
+      "env": {
+        "ASPNETCORE_URLS": "http://127.0.0.1:0"
+      }
+    },
+    "mssql_test": {
+      "command": "dotnet",
+      "args": [
+        "tool",
+        "run",
+        "--allow-roll-forward",
+        "dab",
+        "start",
+        "--mcp-stdio",
+        "role:anonymous",
+        "--LogLevel",
+        "Error",
+        "--config",
+        "dab-config.test.json"
+      ],
+      "env": {
+        "ASPNETCORE_URLS": "http://127.0.0.1:0"
+      }
+    },
+    "mssql_staging": {
+      "command": "dotnet",
+      "args": [
+        "tool",
+        "run",
+        "--allow-roll-forward",
+        "dab",
+        "start",
+        "--mcp-stdio",
+        "role:anonymous",
+        "--LogLevel",
+        "Error",
+        "--config",
+        "dab-config.staging.json"
+      ],
+      "env": {
+        "ASPNETCORE_URLS": "http://127.0.0.1:0"
+      }
+    }
+  }
+}
