@@ -1,8 +1,8 @@
-# Master AI Harness - ThienAn (Claude Code / Desktop)
+# Master AI Steering - ThienAn (Kiro AI IDE)
 
-> 🔴 **CRITICAL DIRECTIVE FOR CLAUDE:**
+> 🔴 **CRITICAL STEERING DIRECTIVE FOR KIRO AI:**
 > All architecture rules, specialist agents, modular skills, workflows, lifecycle hooks, memory, contracts, scripts, and MCP configurations are centralized in the **`.agents/`** directory.
-> You MUST use your file inspection tools (`View`, `Read`, `Grep`) to inspect and strictly execute from `.agents/` before answering or modifying code.
+> You MUST inspect and strictly execute from `.agents/` before answering or modifying code.
 
 ---
 
@@ -58,17 +58,9 @@ When executing slash commands, follow the corresponding workflow file:
 ### 7. 📜 Contracts & Schemas (`.agents/schemas/`)
 - Component schemas & runtime contracts in `.agents/schemas/`.
 
-### 8. 🔌 Database & MCP (`.mcp.json` / `dab-config.dev.json`)
+### 8. 🔌 Database & MCP (`.kiro/settings/mcp.json` / `dab-config.dev.json`)
 - **`mssql_dev`**: Connects to MS SQL Dev (`localhost:14333/dev_its10`) via Data API Builder (DAB) using `.agents/dab-config.dev.json`.
 - **Strictly READ-ONLY**: Use MCP only to inspect tables, describe schemas, and read test data. NEVER execute state mutations.
-
----
-
-## 🛠️ Build & Test Commands
-- Backend WebAPI: `dotnet build src/TAC_WebAPI/TAC_WebAPI.csproj`
-- Backend ShareData: `dotnet build src/Services/ShareData/ShareDataWorker/ShareDataWorker.csproj`
-- Run Tests: `dotnet test tests/test.csproj`
-- Frontend: `cd TA-ITS015-WEBVUE-V1.0 && npm run build`
 
 ---
 

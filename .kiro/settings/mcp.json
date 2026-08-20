@@ -13,7 +13,7 @@
         "--LogLevel",
         "Error",
         "--config",
-        "dab-config.dev.json"
+        ".agents/dab-config.dev.json"
       ],
       "env": {
         "ASPNETCORE_URLS": "http://127.0.0.1:0"
@@ -32,7 +32,7 @@
         "--LogLevel",
         "Error",
         "--config",
-        "dab-config.test.json"
+        ".agents/dab-config.test.json"
       ],
       "env": {
         "ASPNETCORE_URLS": "http://127.0.0.1:0"
@@ -51,7 +51,7 @@
         "--LogLevel",
         "Error",
         "--config",
-        "dab-config.staging.json"
+        ".agents/dab-config.staging.json"
       ],
       "env": {
         "ASPNETCORE_URLS": "http://127.0.0.1:0"

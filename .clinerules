@@ -1,8 +1,8 @@
-# Master AI Harness - ThienAn (Claude Code / Desktop)
+# Master AI Harness - ThienAn (Cline & Roo Code)
 
-> 🔴 **CRITICAL DIRECTIVE FOR CLAUDE:**
+> 🔴 **CRITICAL DIRECTIVE FOR CLINE / ROO CODE:**
 > All architecture rules, specialist agents, modular skills, workflows, lifecycle hooks, memory, contracts, scripts, and MCP configurations are centralized in the **`.agents/`** directory.
-> You MUST use your file inspection tools (`View`, `Read`, `Grep`) to inspect and strictly execute from `.agents/` before answering or modifying code.
+> You MUST use your file inspection tools (`read_file`, `list_files`, `execute_command`) to inspect and strictly execute from `.agents/` before answering or modifying code.
 
 ---
 
@@ -15,8 +15,8 @@
 - **`code-rules.md`**: 4-phase planning, Socratic Gate, test pyramid, AAA pattern.
 - **`thienan_rules.md`**: Git branch naming (`feat/`, `fix/`, `release/`), semantic commit conventions.
 
-### 2. 🤖 Specialist Agents (`.agents/agent/`)
-Adopt the persona, guidelines, and frontmatter skills from:
+### 2. 🤖 Specialist Agents & Modes (`.agents/agent/` & `.roomodes`)
+Switch mode via `.roomodes` or adopt personas in:
 - `backend-specialist.md`: C# .NET, ASP.NET Core, SqlSugar, ShareDataWorker, C2C protocol.
 - `frontend-specialist.md`: Vue.js 3, TypeScript, Vite, Pinia, Tailwind CSS.
 - `database-architect.md`: MS SQL Server, DAB, database schema design & indexing.
@@ -61,14 +61,6 @@ When executing slash commands, follow the corresponding workflow file:
 ### 8. 🔌 Database & MCP (`.mcp.json` / `dab-config.dev.json`)
 - **`mssql_dev`**: Connects to MS SQL Dev (`localhost:14333/dev_its10`) via Data API Builder (DAB) using `.agents/dab-config.dev.json`.
 - **Strictly READ-ONLY**: Use MCP only to inspect tables, describe schemas, and read test data. NEVER execute state mutations.
-
----
-
-## 🛠️ Build & Test Commands
-- Backend WebAPI: `dotnet build src/TAC_WebAPI/TAC_WebAPI.csproj`
-- Backend ShareData: `dotnet build src/Services/ShareData/ShareDataWorker/ShareDataWorker.csproj`
-- Run Tests: `dotnet test tests/test.csproj`
-- Frontend: `cd TA-ITS015-WEBVUE-V1.0 && npm run build`
 
 ---
 

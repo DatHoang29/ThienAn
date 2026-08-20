@@ -1,7 +1,6 @@
 {
-  "servers": {
+  "mcpServers": {
     "mssql_dev": {
-      "type": "stdio",
       "command": "dotnet",
       "args": [
         "tool",
@@ -14,14 +13,13 @@
         "--LogLevel",
         "Error",
         "--config",
-        "${workspaceFolder}/dab-config.dev.json"
+        ".agents/dab-config.dev.json"
       ],
       "env": {
         "ASPNETCORE_URLS": "http://127.0.0.1:0"
       }
     },
     "mssql_test": {
-      "type": "stdio",
       "command": "dotnet",
       "args": [
         "tool",
@@ -34,14 +32,13 @@
         "--LogLevel",
         "Error",
         "--config",
-        "${workspaceFolder}/dab-config.test.json"
+        ".agents/dab-config.test.json"
       ],
       "env": {
         "ASPNETCORE_URLS": "http://127.0.0.1:0"
       }
     },
     "mssql_staging": {
-      "type": "stdio",
       "command": "dotnet",
       "args": [
         "tool",
@@ -54,7 +51,7 @@
         "--LogLevel",
         "Error",
         "--config",
-        "${workspaceFolder}/dab-config.staging.json"
+        ".agents/dab-config.staging.json"
       ],
       "env": {
         "ASPNETCORE_URLS": "http://127.0.0.1:0"
