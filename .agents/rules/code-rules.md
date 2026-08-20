@@ -105,3 +105,8 @@ description: Apply when writing, building, refactoring, or fixing code — proje
 3. **Vòng đời Test (xUnit Lifecycle):**
    - Khi có khởi tạo DB / Host nặng, BẮT BUỘC dùng `IClassFixture<T>` để tránh gọi constructor N lần gây đụng độ `DROP TABLE` khi chạy test song song.
 
+4. **Kiểm tra Connection String trước khi `dotnet test` (BẮT BUỘC):**
+   - Trước khi thực thi `dotnet test`, BẮT BUỘC kiểm tra cấu hình: Tất cả Connection Strings của RDBMS (SQL Server, PostgreSQL, v.v.) và NoSQL/Cache (Redis) phải trỏ về **LOCAL** (`localhost`, `127.0.0.1`, `(localdb)`, `.`).
+   - Nếu phát hiện bất kỳ chuỗi kết nối nào trỏ tới server từ xa (như `10.10.8.30` hoặc remote IP/host), **HỦY NGAY LẬP TỨC VÀ BÁO CÁO LẠI CHO NGƯỜI DÙNG**.
+
+
