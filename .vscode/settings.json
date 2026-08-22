@@ -1,5 +1,5 @@
 {
-    "dotnet.defaultSolution": "TA-ITS015-WEBAPI-V1.0/src/TAC_WebAPI.sln",
+    "dotnet.defaultSolution": "tests/ThienAn.Tests.slnx",
     "git.showIgnoreWarning": false,
     "git.ignoreLimitWarning": true,
     "postman.settings.dotenv-detection-notification-visibility": false,
