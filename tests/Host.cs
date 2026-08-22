@@ -1,5 +1,4 @@
 using Furion;
-using Furion.DatabaseAccessor;
 using Hangfire;
 using JasperFx.CodeGeneration;
 using Lamar.Microsoft.DependencyInjection;
@@ -8,13 +7,9 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Modules.System.Extensions;
 using NewLife.Caching;
-using Shared.Core.Contracts;
 using Shared.Core.Extensions;
 using Shared.Core.Security;
-using Shared.Core.Settings;
 using Shared.Core.Settings.Options;
-using Shared.Infrastructure.Cache;
-using Shared.Infrastructure.Extensions;
 using Shared.Infrastructure.Localization;
 using System.Globalization;
 using System.Reflection;
@@ -54,8 +49,6 @@ public partial class Host : IAsyncLifetime
 {
     private const string TestDatabaseName = "test";
     private const string TestCultureName = "vi-VN";
-    private const int CommandTimeoutSeconds = 30;
-    private const int DefaultStringLength = 128;
 
     private const string DefaultLocalConnectionString =
         "Server=localhost,14333;Database=test;User Id=sa;Password=Password123!;TrustServerCertificate=true;";

@@ -9,8 +9,5 @@ global using Wolverine;
 global using Xunit;
 
 // ─── Shared của dự án ───
-global using Shared.DTO.Constants.Application;
 global using Shared.DTO.Enums;
 global using Shared.Infrastructure.Extensions;
-global using Shared.Infrastructure.Persistence.SqlSugar;
-global using Shared.Infrastructure.Services;
