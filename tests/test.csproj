@@ -1,0 +1,154 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- PHẦN 1 = cố định. PHẦN 2 = sửa khi repo thêm/bớt module. -->
+
+  <!-- ══════════════════ PHẦN 1 — CỐ ĐỊNH ══════════════════ -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsTestProject>true</IsTestProject>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- Gốc repo product. Project test nằm NGOÀI repo nên mọi đường dẫn đi qua đây, đổi tên/vị trí
+       repo thì chỉ sửa 1 chỗ. Dấu \ vẫn chạy trên macOS (MSBuild tự chuẩn hoá). -->
+  <PropertyGroup>
+    <RepoRoot>..\TA-ITS015-WEBAPI-V1.0</RepoRoot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.0" />
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.0-preview.*" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.0.*" />  <!-- Guard Zero-Trust dùng SqlConnectionStringBuilder -->
+  </ItemGroup>
+
+  <!-- Reference CỨNG, thiếu là lỗi thật nên không bọc điều kiện.
+       TAC_WebAPI kéo theo toàn bộ module nó tham chiếu (VideoWall, ShareData, TMS, TOLL...). -->
+  <ItemGroup>
+    <ProjectReference Include="$(RepoRoot)\src\TAC_WebAPI\TAC_WebAPI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Shared.Infrastructure">   <!-- SqlSugarRepository, BaseCacheService, SqlSugarSetup -->
+      <HintPath>$(RepoRoot)\src\DLLs\Shared.Infrastructure.dll</HintPath>
+    </Reference>
+    <Reference Include="Shared.Core">             <!-- EntityTenant, Options, Contracts -->
+      <HintPath>$(RepoRoot)\src\DLLs\Shared.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Shared.Core.Security">    <!-- LicenseService, KeyManager -->
+      <HintPath>$(RepoRoot)\src\DLLs\Shared.Core.Security.dll</HintPath>
+    </Reference>
+    <Reference Include="Modules.System">          <!-- AddSystemModule -->
+      <HintPath>$(RepoRoot)\src\DLLs\Modules.System.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <!--
+  ══════════════════ PHẦN 2 — TUỲ BIẾN THEO MODULE ══════════════════
+
+  tests/ nằm ở repo NGOÀI (c:\ThienAn), product ở repo TRONG (TA-ITS015-WEBAPI-V1.0). Hai repo độc
+  lập nên đổi nhánh product KHÔNG đổi file test. Sinh ra 3 kiểu build đỏ, PHẦN 2 xử lý cả 3:
+    MSB3202  ProjectReference trỏ vào csproj không còn      -> 2.4 bọc Condition
+    CS0246   test của module vắng mặt vẫn bị biên dịch      -> 2.5 Compile Remove
+    CS0234   module CÒN nhưng feature bên trong THIẾU       -> cờ tổng hợp neo vào file nguồn feature
+
+  THÊM MODULE MỚI (ví dụ TMS) = 3 chỗ:
+    2.1  <TmsModuleProject>$(RepoRoot)\src\Modules\TMS\Modules.TMS\Modules.TMS.csproj</TmsModuleProject>
+    2.2  <HasTmsModule>false</HasTmsModule>
+         <HasTmsModule Condition="Exists('$(TmsModuleProject)')">true</HasTmsModule>
+    2.5  <ItemGroup Condition="'$(HasTmsModule)' != 'true'">
+           <Compile Remove="Modules\TMS\**\*.cs" /><None Include="Modules\TMS\**\*.cs" />
+         </ItemGroup>
+    (2.4 chỉ cần khi module KHÔNG được TAC_WebAPI tham chiếu sẵn.)
+  -->
+
+  <!-- 2.1 — Đường dẫn dùng chung cho Exists() ở 2.2 và ProjectReference ở 2.4. -->
+  <PropertyGroup>
+    <ShareDataWorkerProject>$(RepoRoot)\src\Services\ShareData\ShareDataWorker\ShareDataWorker.csproj</ShareDataWorkerProject>
+    <ShareDataWorkerCoreProject>$(RepoRoot)\src\Services\ShareData\ShareDataWorker.Core\ShareDataWorker.Core.csproj</ShareDataWorkerCoreProject>
+    <ShareDataModuleProject>$(RepoRoot)\src\Modules\ShareData\Module.ShareData\Module.ShareData.csproj</ShareDataModuleProject>
+    <VideoWallModuleProject>$(RepoRoot)\src\Modules\VideoWall\Module.VideoWall\Module.VideoWall.csproj</VideoWallModuleProject>
+
+    <!-- Neo mức FEATURE: csproj Module.VideoWall còn nguyên nhưng nhánh đang checkout có thể chưa có
+         phần ISAPI. Test VideoWall dùng IVwISAPIDeviceClient / VwISAPIMockServerHikvision xuyên suốt
+         VwWindowScene, VwScene, VwController nên thiếu ISAPI là cả bộ không biên dịch được. -->
+    <VideoWallIsapiSource>$(RepoRoot)\src\Modules\VideoWall\Module.VideoWall.Core\Interfaces\IVwISAPIDeviceClient.cs</VideoWallIsapiSource>
+  </PropertyGroup>
+
+  <!-- 2.2 — Cờ có/không mặt. Mỗi cờ 2 dòng: mặc định false rồi ghi đè true, để cờ không bị rỗng khi
+       in log ở 2.6. Property tham chiếu property khác BẮT BUỘC khai báo sau chúng. -->
+  <PropertyGroup>
+    <!-- ShareDataWorker cần ĐỦ 2 project vì test dùng type của cả hai. -->
+    <HasShareDataWorker>false</HasShareDataWorker>
+    <HasShareDataWorker Condition="Exists('$(ShareDataWorkerProject)') And Exists('$(ShareDataWorkerCoreProject)')">true</HasShareDataWorker>
+
+    <HasShareDataModule>false</HasShareDataModule>
+    <HasShareDataModule Condition="Exists('$(ShareDataModuleProject)')">true</HasShareDataModule>
+
+    <HasVideoWallModule>false</HasVideoWallModule>
+    <HasVideoWallModule Condition="Exists('$(VideoWallModuleProject)')">true</HasVideoWallModule>
+
+    <!-- Test ShareData dùng type của CẢ ShareDataWorker.Core (ShareDataEnum, DataExportService)
+         VÀ Module.ShareData.Core (ShareDataPartner, ShareDataActivityLog). -->
+    <CanCompileShareDataTests>false</CanCompileShareDataTests>
+    <CanCompileShareDataTests Condition="'$(HasShareDataWorker)' == 'true' And '$(HasShareDataModule)' == 'true'">true</CanCompileShareDataTests>
+
+    <!-- Cần CẢ module VÀ feature ISAPI. Có module mà thiếu ISAPI thì đỏ CS0234 + CS0246. -->
+    <CanCompileVideoWallTests>false</CanCompileVideoWallTests>
+    <CanCompileVideoWallTests Condition="'$(HasVideoWallModule)' == 'true' And Exists('$(VideoWallIsapiSource)')">true</CanCompileVideoWallTests>
+  </PropertyGroup>
+
+  <!-- 2.3 — Symbol cho #if trong C#. Nhờ đây Host.cs khai module TƯỜNG MINH mà vẫn build được khi
+       module bị xoá; đổi lại so với reflection: gõ sai tên là lỗi biên dịch ngay, không âm thầm bỏ qua. -->
+  <PropertyGroup Condition="'$(HasVideoWallModule)' == 'true'">
+    <DefineConstants>$(DefineConstants);HAS_VIDEOWALL</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(HasShareDataModule)' == 'true'">
+    <DefineConstants>$(DefineConstants);HAS_SHAREDATA</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(HasShareDataWorker)' == 'true'">
+    <DefineConstants>$(DefineConstants);HAS_SHAREDATAWORKER</DefineConstants>
+  </PropertyGroup>
+
+  <!-- 2.4 — Chỉ ShareDataWorker cần khai vì nó là project riêng của test; VideoWall/ShareData đã vào
+       build theo đường TAC_WebAPI ở PHẦN 1. -->
+  <ItemGroup Condition="'$(HasShareDataWorker)' == 'true'">
+    <ProjectReference Include="$(ShareDataWorkerProject)" />
+    <ProjectReference Include="$(ShareDataWorkerCoreProject)" />
+  </ItemGroup>
+
+  <!--
+  2.5 — Loại file test của module vắng mặt khỏi biên dịch. SDK tự nạp mọi **/*.cs vào Compile trước
+  khi đọc file này nên chỉ còn cách Remove ra; Remove không xoá file trên đĩa. <None Include> chỉ để
+  IDE vẫn hiện file trong Solution Explorer, xoá đi build vẫn xanh.
+  Phải loại ĐỦ cả file test VÀ file scaffolding (GlobalUsings.<Module>.cs, Host.<Module>.cs) — vì thế
+  mọi file của một module BẮT BUỘC nằm trong Modules\<Tên>\ để 1 pattern quét trúng hết.
+  Kiểm chứng: dotnet msbuild tests/test.csproj -getItem:Compile
+  -->
+  <ItemGroup Condition="'$(CanCompileShareDataTests)' != 'true'">
+    <Compile Remove="Modules\ShareData\**\*.cs" />
+    <None Include="Modules\ShareData\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(CanCompileVideoWallTests)' != 'true'">
+    <Compile Remove="Modules\VideoWall\**\*.cs" />
+    <None Include="Modules\VideoWall\**\*.cs" />
+  </ItemGroup>
+
+  <!-- 2.6 — In bản đồ module trước khi build, không có thì việc loại test diễn ra IM LẶNG.
+       Importance="high" để hiện cả khi dotnet build -v m. -->
+  <Target Name="ReportOptionalTestModules" BeforeTargets="BeforeBuild">
+    <Message Importance="high" Text="[TEST MODULES] Module.VideoWall=$(HasVideoWallModule) (ISAPI=$(CanCompileVideoWallTests)) | Module.ShareData=$(HasShareDataModule) | ShareDataWorker=$(HasShareDataWorker)" />
+    <Message Importance="high" Condition="'$(HasShareDataWorker)' != 'true'" Text="[TEST MODULES] ShareDataWorker(.Core) không tồn tại -> bỏ ProjectReference." />
+    <Message Importance="high" Condition="'$(CanCompileShareDataTests)' != 'true'" Text="[TEST MODULES] Loại khỏi biên dịch: tests/Modules/ShareData/**" />
+    <Message Importance="high" Condition="'$(HasVideoWallModule)' == 'true' And '$(CanCompileVideoWallTests)' != 'true'" Text="[TEST MODULES] Module.VideoWall có nhưng thiếu feature ISAPI (Module.VideoWall.Core\Interfaces\IVwISAPIDeviceClient.cs) -> loại tests/Modules/VideoWall/**" />
+    <Message Importance="high" Condition="'$(HasVideoWallModule)' != 'true'" Text="[TEST MODULES] Loại khỏi biên dịch: tests/Modules/VideoWall/**" />
+  </Target>
+
+</Project>
