@@ -1,4 +1,19 @@
 <Solution>
+  <Folder Name="/TA-ITS015-WEBAPI-V1.0/" />
+  <Folder Name="/TA-ITS015-WEBAPI-V1.0/src/" />
+  <Folder Name="/TA-ITS015-WEBAPI-V1.0/src/Modules/" />
+  <Folder Name="/TA-ITS015-WEBAPI-V1.0/src/Modules/CCTV/" />
+  <Folder Name="/TA-ITS015-WEBAPI-V1.0/src/Modules/ShareData/" />
+  <Folder Name="/TA-ITS015-WEBAPI-V1.0/src/Modules/ShareData/Module.ShareData.Core/" />
+  <Folder Name="/TA-ITS015-WEBAPI-V1.0/src/Modules/TMS/" />
+  <Folder Name="/TA-ITS015-WEBAPI-V1.0/src/Modules/TOLL/" />
+  <Folder Name="/TA-ITS015-WEBAPI-V1.0/src/Modules/VMS/" />
+  <Folder Name="/TA-ITS015-WEBAPI-V1.0/src/Services/" />
+  <Folder Name="/TA-ITS015-WEBAPI-V1.0/src/Services/ShareData/">
+    <Project Path="TA-ITS015-WEBAPI-V1.0/src/Services/ShareData/ShareDataWorker.Core/ShareDataWorker.Core.csproj" />
+    <Project Path="TA-ITS015-WEBAPI-V1.0/src/Services/ShareData/ShareDataWorker/ShareDataWorker.csproj" />
+  </Folder>
+  <Folder Name="/TA-ITS015-WEBAPI-V1.0/src/Shared/" />
   <Project Path="TA-ITS015-WEBAPI-V1.0/src/Modules/CCTV/Module.CCTV/Module.CCTV.csproj" />
   <Project Path="TA-ITS015-WEBAPI-V1.0/src/Modules/CfgSystem/Modules.CfgSystem.Core/Modules.CfgSystem.Core.csproj" />
   <Project Path="TA-ITS015-WEBAPI-V1.0/src/Modules/CfgSystem/Modules.CfgSystem/Modules.CfgSystem.csproj" />
