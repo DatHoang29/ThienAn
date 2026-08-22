@@ -1,5 +1,5 @@
 {
-    "dotnet.defaultSolution": "tests/ThienAn.Tests.slnx",
+    "dotnet.defaultSolution": "ThienAn.Tests.slnx",
     "git.showIgnoreWarning": false,
     "git.ignoreLimitWarning": true,
     "postman.settings.dotenv-detection-notification-visibility": false,
