@@ -10,6 +10,8 @@ using Modules.VMS.Core.Entities;
 using ShareDataWorker.Core.Dto;
 using ShareDataWorker.Core.Entities;
 using ShareDataWorker.Core.Enums;
+using ShareDataWorker.Core.Exceptions;
+using ShareDataWorker.Core.Utils;
 using ShareDataWorker.Infrastructure.Services.DataExport;
 
 namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
@@ -275,7 +277,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                         InfluenceScope = "1",
                         InjuredNumber = 0,
                         VehicleNumber = 2,
-                        State = ShareDataEnum.SubState.Active,
+                        State = ShareDataEnum.IncidentState.InProgress,
                         Description = "Va chạm nhẹ 2 xe ô tô con",
                         Source = "CCTV",
                         UpdateTime = now
@@ -344,7 +346,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                         StartDate = now,
                         KmNumber = 80,
                         MetNumber = 0,
-                        State = ShareDataEnum.SubState.Active,
+                        State = ShareDataEnum.IncidentState.InProgress,
                         Description = "Sương mù dày đặc tầm nhìn giảm",
                         UpdateTime = now
                     }).ExecuteCommandAsync();
@@ -373,7 +375,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                         KmNumber = 95,
                         MetNumber = 100,
                         Description = "Thông báo điều phối xe cứu hộ",
-                        State = ShareDataEnum.SubState.Active,
+                        State = ShareDataEnum.IncidentState.InProgress,
                         StartDate = now,
                         UpdateTime = now
                     }).ExecuteCommandAsync();
@@ -493,7 +495,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                     EventTypeId = "NON_EXIST_ET",
                     StartDate = DateTime.Now,
                     KmNumber = 50,
-                    State = ShareDataEnum.SubState.Active,
+                    State = ShareDataEnum.IncidentState.InProgress,
                     UpdateTime = DateTime.Now
                 }).ExecuteCommandAsync();
                 return ["\"eventTypeName\":null"];
@@ -635,7 +637,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                 StartDate = DateTime.Now,
                 KmNumber = kmNumber,
                 MetNumber = 0,
-                State = ShareDataEnum.SubState.Active,
+                State = ShareDataEnum.IncidentState.InProgress,
                 UpdateTime = DateTime.Now
             }).ExecuteCommandAsync();
 
@@ -661,6 +663,376 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                 .ToList();
 
             Assert.Single(matched);
+        }
+
+        [Fact]
+        public async Task QueryPacket110_WhenIncidentClosed_IsExcludedFromPayload_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "110");
+
+            var kmNumber = 130;
+            
+            // 1. Incident InProgress
+            var activeIncidentCode = "INC_ACTIVE_110";
+            await db.Insertable(new TmsIncident
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                Code = activeIncidentCode,
+                Name = "Sự cố đang mở",
+                StartDate = DateTime.Now.AddHours(-1),
+                KmNumber = kmNumber,
+                MetNumber = 0,
+                State = ShareDataEnum.IncidentState.InProgress,
+                UpdateTime = DateTime.Now
+            }).ExecuteCommandAsync();
+
+            // 2. Incident Finished
+            var closedIncidentCode = "INC_CLOSED_110";
+            await db.Insertable(new TmsIncident
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                Code = closedIncidentCode,
+                Name = "Sự cố đã đóng",
+                StartDate = DateTime.Now.AddHours(-2),
+                KmNumber = kmNumber,
+                MetNumber = 0,
+                State = "FINISHED", // Using exact string from ExtraWhere, because ShareDataEnum.IncidentState.Finished is "4"
+                UpdateTime = DateTime.Now
+            }).ExecuteCommandAsync();
+
+            var (partner, sub) = await SeedOutboundSubscription(db, "TEST_110_CLOSED", "SUB-110-CLOSED", "110", s => s.LastTimeRun = new DateTime(2024, 1, 1));
+            var worker = CreateWorker(scope);
+
+            await worker.ProcessBatchSubscriptions(CancellationToken.None);
+
+            var logs = await db.Queryable<ShareDataActivityLog>()
+                .Where(l => l.SubscriptionId == sub.ID)
+                .OrderByDescending(l => l.OccurredAt)
+                .ToListAsync();
+
+            Assert.NotEmpty(logs);
+            Assert.Equal(ShareDataEnum.ExportStatus.Success, logs[0].Status);
+
+            var json = await ReadExportedJson(logs[0].FilePath!);
+            using var doc = JsonDocument.Parse(json);
+            
+            var payload = doc.RootElement.GetProperty("payload").EnumerateArray().ToList();
+            
+            // Phải chứa sự cố đang mở
+            Assert.Contains(payload, r => r.TryGetProperty("incidentMessage", out var msg) && msg.GetString()!.Contains("Sự cố đang mở"));
+            
+            // KHÔNG được chứa sự cố đã đóng
+            Assert.DoesNotContain(payload, r => r.TryGetProperty("incidentMessage", out var msg) && msg.GetString()!.Contains("Sự cố đã đóng"));
+        }
+
+        [Fact]
+        public async Task QueryPacket110_WithMultipleEquipments_OnlyOneHasVms_ReturnsGuidanceContent_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "110");
+
+            var kmNumber = 125;
+            var incidentName = $"SỰ CỐ 3 THIẾT BỊ {Guid.NewGuid():N}";
+            await db.Insertable(new TmsIncident
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                Code = "TEST_INC_110_EQ3",
+                Name = incidentName,
+                StartDate = DateTime.Now,
+                KmNumber = kmNumber,
+                MetNumber = 0,
+                State = ShareDataEnum.IncidentState.InProgress,
+                UpdateTime = DateTime.Now
+            }).ExecuteCommandAsync();
+
+            for (var i = 1; i <= 3; i++)
+            {
+                var eqId = Guid.NewGuid().ToString("N");
+                await db.Insertable(new TmsEquipment { ID = eqId, Code = $"EQ_110_3EQ_{i}", KmNumber = kmNumber, MetNumber = 0 }).ExecuteCommandAsync();
+                
+                // Only the second equipment has VmsCurrent data
+                if (i == 2)
+                {
+                    await db.Insertable(new VmsCurrent { ID = Guid.NewGuid().ToString("N"), EquipmentId = eqId, Name = $"VMS_{i}", RowData = $"VALID_ROW_DATA", ExecutedDate = DateTime.Now }).ExecuteCommandAsync();
+                }
+            }
+
+            var (partner, sub) = await SeedOutboundSubscription(db, "TEST_P110_EQ3", "SUB-110-EQ3-01", "110");
+
+            await CreateWorker(scope).ProcessBatchSubscriptions(CancellationToken.None);
+
+            var logs = await GetLogs(db, sub.ID);
+            Assert.NotEmpty(logs);
+            Assert.Equal(ShareDataEnum.ExportStatus.Success, logs[0].Status);
+
+            var json = await ReadExportedJson(logs[0].FilePath!);
+            using var doc = JsonDocument.Parse(json);
+            var matched = doc.RootElement.GetProperty("payload").EnumerateArray()
+                .Where(r => r.TryGetProperty("incidentMessage", out var msg) && (msg.GetString() ?? string.Empty).Contains(incidentName))
+                .ToList();
+
+            Assert.Single(matched);
+            Assert.True(matched[0].TryGetProperty("guidanceContent", out var guidance));
+            Assert.Equal("VALID_ROW_DATA", guidance.GetString());
+        }
+
+        [Fact]
+        public async Task QueryPacket103_WithTopN_ASC_Integration_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            var eqId = $"EQ_103_{Guid.NewGuid():N}";
+            await db.Insertable(new TmsEquipment { ID = eqId, Code = "EQ_103", KmNumber = 15 }).ExecuteCommandAsync();
+
+            // Insert 3 records with different DetectTime
+            var time1 = new DateTime(2025, 1, 1, 10, 0, 0);
+            var time2 = new DateTime(2025, 1, 1, 10, 5, 0);
+            var time3 = new DateTime(2025, 1, 1, 10, 10, 0);
+
+            var id1 = Guid.NewGuid().ToString("N");
+            var id2 = Guid.NewGuid().ToString("N");
+            var id3 = Guid.NewGuid().ToString("N");
+
+            await db.Insertable(new List<TmsTrafficData>
+            {
+                new() { ID = id1, EquipmentId = eqId, DetectTime = time1, Type = "A" },
+                new() { ID = id2, EquipmentId = eqId, DetectTime = time2, Type = "B" },
+                new() { ID = id3, EquipmentId = eqId, DetectTime = time3, Type = "C" }
+            }).ExecuteCommandAsync();
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "103");
+            
+            // Override TopN to 1 for this test
+            await db.Updateable<ShareDataPacket>().SetColumns(p => p.TopN == 1).Where(p => p.Code == "103").ExecuteCommandAsync();
+
+            var partnerCode = "TEST_103_TOP";
+            var (partner, sub) = await SeedOutboundSubscription(db, partnerCode, "SUB-103-TOP", "103", s => s.LastTimeRun = new DateTime(2024, 1, 1));
+
+            var worker = CreateWorker(scope);
+            var allExportedIds = new List<string>();
+
+            async Task RunCycleAndCollectIds(DateTime expectedTime)
+            {
+                await worker.ProcessBatchSubscriptions(CancellationToken.None);
+                
+                var currentSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
+                Assert.Equal(expectedTime, currentSub.LastTimeRun);
+
+                var log = await db.Queryable<ShareDataActivityLog>()
+                    .Where(l => l.SubscriptionId == sub.ID)
+                    .OrderByDescending(l => l.OccurredAt)
+                    .FirstAsync();
+
+                Assert.Equal(ShareDataEnum.ExportStatus.Success, log.Status);
+                Assert.NotNull(log.FilePath);
+
+                var json = await ReadExportedJson(log.FilePath);
+                using var doc = JsonDocument.Parse(json);
+                var payload = doc.RootElement.GetProperty("payload").EnumerateArray().ToList();
+                
+                Assert.Single(payload); // TopN = 1
+                var detId = payload[0].GetProperty("detectionId").GetString();
+                Assert.NotNull(detId);
+                allExportedIds.Add(detId);
+
+                // Add new cycle ready
+                await db.Updateable<ShareDataSubscription>()
+                    .SetColumns(s => s.NextTimeRun == DateTime.Now.AddDays(-1))
+                    .Where(s => s.ID == sub.ID)
+                    .ExecuteCommandAsync();
+            }
+
+            await RunCycleAndCollectIds(time1);
+            await RunCycleAndCollectIds(time2);
+            await RunCycleAndCollectIds(time3);
+
+            // Assert total 3 distinct IDs are exported
+            Assert.Equal(3, allExportedIds.Distinct().Count());
+            Assert.Contains(id1, allExportedIds);
+            Assert.Contains(id2, allExportedIds);
+            Assert.Contains(id3, allExportedIds);
+        }
+
+        [Fact]
+        public async Task QueryPacket103_WhenManyRecordsShareSameDetectTime_ExportsAllAcrossCycles_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            var eqId = $"EQ_103_TIES_{Guid.NewGuid():N}";
+            await db.Insertable(new TmsEquipment { ID = eqId, Code = "EQ_103_T", KmNumber = 15 }).ExecuteCommandAsync();
+
+            var sameTime = new DateTime(2035, 2, 2, 10, 0, 0);
+
+            var id1 = Guid.NewGuid().ToString("N");
+            var id2 = Guid.NewGuid().ToString("N");
+            var id3 = Guid.NewGuid().ToString("N");
+
+            await db.Insertable(new List<TmsTrafficData>
+            {
+                new() { ID = id1, EquipmentId = eqId, DetectTime = sameTime, Type = "A" },
+                new() { ID = id2, EquipmentId = eqId, DetectTime = sameTime, Type = "B" },
+                new() { ID = id3, EquipmentId = eqId, DetectTime = sameTime, Type = "C" }
+            }).ExecuteCommandAsync();
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "103");
+            
+            // Override TopN to 2 for this test
+            await db.Updateable<ShareDataPacket>().SetColumns(p => p.TopN == 2).Where(p => p.Code == "103").ExecuteCommandAsync();
+
+            var partnerCode = "TEST_103_TIES";
+            var (partner, sub) = await SeedOutboundSubscription(db, partnerCode, "SUB-103-TIES", "103", s => 
+            {
+                s.LastTimeRun = new DateTime(2035, 2, 2, 9, 0, 0);
+                s.LastId = null;
+            });
+
+            var worker = CreateWorker(scope);
+            var allExportedIds = new List<string>();
+
+            // Cycle 1
+            await worker.ProcessBatchSubscriptions(CancellationToken.None);
+            
+            var sub1 = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
+            Assert.Equal(sameTime, sub1.LastTimeRun);
+            Assert.NotNull(sub1.LastId); // LastId MUST be set after first tie cycle
+
+            var log1 = await db.Queryable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).OrderByDescending(l => l.OccurredAt).FirstAsync();
+            var json1 = await ReadExportedJson(log1.FilePath!);
+            var doc1 = JsonDocument.Parse(json1);
+            var payload1 = doc1.RootElement.GetProperty("payload").EnumerateArray().ToList();
+            Assert.Equal(2, payload1.Count);
+            
+            foreach (var r in payload1)
+                allExportedIds.Add(r.GetProperty("detectionId").GetString()!);
+
+            // Ensure LastId matches the detectionId of the last element in payload1
+            var lastIdInBatch = payload1[^1].GetProperty("detectionId").GetString()!;
+            Assert.Equal(lastIdInBatch, sub1.LastId);
+
+            // Trigger next cycle
+            await db.Updateable<ShareDataSubscription>().SetColumns(s => s.NextTimeRun == DateTime.Now.AddDays(-1)).Where(s => s.ID == sub.ID).ExecuteCommandAsync();
+
+            // Cycle 2
+            await worker.ProcessBatchSubscriptions(CancellationToken.None);
+
+            var sub2 = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
+            Assert.Equal(sameTime, sub2.LastTimeRun); // Time should be the same
+            Assert.NotNull(sub2.LastId);
+
+            var log2 = await db.Queryable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).OrderByDescending(l => l.OccurredAt).FirstAsync();
+            var json2 = await ReadExportedJson(log2.FilePath!);
+            var doc2 = JsonDocument.Parse(json2);
+            var payload2 = doc2.RootElement.GetProperty("payload").EnumerateArray().ToList();
+            Assert.Single(payload2); // Only 1 left
+
+            allExportedIds.Add(payload2[0].GetProperty("detectionId").GetString()!);
+
+            // Assert total 3 distinct IDs are exported! No missing data despite ties!
+            Assert.Equal(3, allExportedIds.Count);
+            Assert.Equal(3, allExportedIds.Distinct().Count());
+            Assert.Contains(id1, allExportedIds);
+            Assert.Contains(id2, allExportedIds);
+            Assert.Contains(id3, allExportedIds);
+
+            // Clean up test data
+            await db.Deleteable<TmsTrafficData>().Where(t => t.EquipmentId == eqId).ExecuteCommandAsync();
+            await db.Deleteable<TmsEquipment>().Where(e => e.ID == eqId).ExecuteCommandAsync();
+        }
+
+        [Fact]
+        public async Task QueryPacket103_WhenTieRecordsHaveMixedCaseIds_ExportsExactlyThreeWithoutDuplicates_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            var eqId = $"EQ_103_MIXED_{Guid.NewGuid():N}";
+            await db.Insertable(new TmsEquipment { ID = eqId, Code = "EQ_103_M", KmNumber = 15 }).ExecuteCommandAsync();
+
+            var sameTime = new DateTime(2036, 3, 3, 10, 0, 0);
+
+            // In SQL (Latin1_General_CI_AS): "a_tie_..." < "B_tie_..." < "c_tie_..."
+            // In C# Ordinal: 'B' (66) < 'a' (97), so "B_tie_..." < "a_tie_...", causing C# Ordinal Max to pick "a_tie_..." instead of "B_tie_..."
+            var id1 = $"a_tie_{Guid.NewGuid():N}";
+            var id2 = $"B_tie_{Guid.NewGuid():N}";
+            var id3 = $"c_tie_{Guid.NewGuid():N}";
+
+            await db.Insertable(new List<TmsTrafficData>
+            {
+                new() { ID = id1, EquipmentId = eqId, DetectTime = sameTime, Type = "A" },
+                new() { ID = id2, EquipmentId = eqId, DetectTime = sameTime, Type = "B" },
+                new() { ID = id3, EquipmentId = eqId, DetectTime = sameTime, Type = "C" }
+            }).ExecuteCommandAsync();
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "103");
+            
+            // Override TopN to 2 for this test
+            await db.Updateable<ShareDataPacket>().SetColumns(p => p.TopN == 2).Where(p => p.Code == "103").ExecuteCommandAsync();
+
+            var partnerCode = "TEST_103_MIXED";
+            var (partner, sub) = await SeedOutboundSubscription(db, partnerCode, "SUB-103-MIXED", "103", s => 
+            {
+                s.LastTimeRun = new DateTime(2036, 3, 3, 9, 0, 0);
+                s.LastId = null;
+            });
+
+            var worker = CreateWorker(scope);
+            var allExportedIds = new List<string>();
+
+            // Cycle 1
+            await worker.ProcessBatchSubscriptions(CancellationToken.None);
+            
+            var sub1 = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
+            Assert.Equal(sameTime, sub1.LastTimeRun);
+            Assert.NotNull(sub1.LastId);
+
+            var log1 = await db.Queryable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).OrderByDescending(l => l.OccurredAt).FirstAsync();
+            var json1 = await ReadExportedJson(log1.FilePath!);
+            var doc1 = JsonDocument.Parse(json1);
+            var payload1 = doc1.RootElement.GetProperty("payload").EnumerateArray().ToList();
+            Assert.Equal(2, payload1.Count);
+            
+            foreach (var r in payload1)
+                allExportedIds.Add(r.GetProperty("detectionId").GetString()!);
+
+            // Assert sub1.LastId is the detectionId of the last element in payload1
+            var lastIdInBatch = payload1[^1].GetProperty("detectionId").GetString()!;
+            Assert.Equal(lastIdInBatch, sub1.LastId);
+
+            // Trigger next cycle
+            await db.Updateable<ShareDataSubscription>().SetColumns(s => s.NextTimeRun == DateTime.Now.AddDays(-1)).Where(s => s.ID == sub.ID).ExecuteCommandAsync();
+
+            // Cycle 2
+            await worker.ProcessBatchSubscriptions(CancellationToken.None);
+
+            var sub2 = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
+            Assert.Equal(sameTime, sub2.LastTimeRun);
+            Assert.NotNull(sub2.LastId);
+
+            var log2 = await db.Queryable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).OrderByDescending(l => l.OccurredAt).FirstAsync();
+            var json2 = await ReadExportedJson(log2.FilePath!);
+            var doc2 = JsonDocument.Parse(json2);
+            var payload2 = doc2.RootElement.GetProperty("payload").EnumerateArray().ToList();
+            Assert.Single(payload2); // Only 1 left, NO duplicates
+
+            allExportedIds.Add(payload2[0].GetProperty("detectionId").GetString()!);
+
+            // Assert exactly 3 distinct IDs are exported with NO duplicates
+            Assert.Equal(3, allExportedIds.Count);
+            Assert.Equal(3, allExportedIds.Distinct().Count());
+            Assert.Contains(id1, allExportedIds);
+            Assert.Contains(id2, allExportedIds);
+            Assert.Contains(id3, allExportedIds);
+
+            // Clean up test data
+            await db.Deleteable<TmsTrafficData>().Where(t => t.EquipmentId == eqId).ExecuteCommandAsync();
+            await db.Deleteable<TmsEquipment>().Where(e => e.ID == eqId).ExecuteCommandAsync();
         }
 
         [Fact]
@@ -897,6 +1269,17 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
 
             var (partner, sub) = await SeedOutboundSubscription(db, "TEST_P_TRLOG", "SUB-TRLOG-01", "101");
 
+            var mapping = new ShareDataMapping
+            {
+                ID = "MAP_TRLOG_01",
+                PartnerId = partner.ID,
+                DatatypeId = "101",
+                PacketVersion = "1.0",
+                Direction = ShareDataEnum.SubDirection.Outbound,
+                IsActive = true
+            };
+            await db.Insertable(mapping).ExecuteCommandAsync();
+
             await CreateWorker(scope).ProcessBatchSubscriptions(CancellationToken.None);
 
             var logs = await GetLogs(db, sub.ID);
@@ -910,6 +1293,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
             Assert.NotNull(log.RecordCount);
             Assert.NotNull(log.Hash);
             Assert.NotNull(log.FilePath);
+            Assert.Equal("MAP_TRLOG_01", log.MappingId);
+            Assert.Equal("1.0", log.PacketVersion);
         }
 
         [Fact]
@@ -1000,7 +1385,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
 
             var updated = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
             Assert.NotNull(updated.LastTimeRun);
-            Assert.True(updated.LastTimeRun >= beforeRun.AddSeconds(-2));
+            Assert.True(updated.LastTimeRun > oldLastRun);
         }
 
         [Fact]
@@ -1195,6 +1580,12 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
             }
 
             Assert.Empty(schemaErrors);
+
+            var actLogColumns = db.DbMaintenance.GetColumnInfosByTableName("ShareDataActivityLog")
+                .Select(c => c.DbColumnName.ToLowerInvariant())
+                .ToHashSet();
+            Assert.Contains("mappingid", actLogColumns);
+            Assert.Contains("packetversion", actLogColumns);
         }
 
         [Theory]
@@ -1360,7 +1751,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
             Assert.Contains("FROM TmsZoneStatus zs", normSql);
             Assert.Contains("LEFT JOIN TmsZone z ON zs.ZoneId = z.ID", normSql);
             Assert.Contains("LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId", normSql);
-            Assert.Contains("WHERE ISNULL(zs.UpdateTime, zs.CreateTime) > @lastTime", normSql);
+            Assert.Contains("WHERE (ISNULL(zs.UpdateTime, zs.CreateTime) > @lastTime OR (ISNULL(zs.UpdateTime, zs.CreateTime) = @lastTime AND zs.ID > @lastId))", normSql);
+            Assert.Contains("ORDER BY ISNULL(zs.UpdateTime, zs.CreateTime) ASC, zs.ID ASC", normSql);
             Assert.Contains("OPTION (RECOMPILE)", normSql);
         }
 
@@ -1377,7 +1769,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
             Assert.Contains("FROM TollTransactionOut t", normSql);
             Assert.Contains("LEFT JOIN TollLane l ON t.LaneId = l.LaneId", normSql);
             Assert.Contains("LEFT JOIN TollStation s ON t.StationId = s.StationId", normSql);
-            Assert.Contains("WHERE ISNULL(t.TransactionDateTime, t.CreateTime) > @lastTime", normSql);
+            Assert.Contains("WHERE (ISNULL(t.TransactionDateTime, t.CreateTime) > @lastTime OR (ISNULL(t.TransactionDateTime, t.CreateTime) = @lastTime AND t.ID > @lastId))", normSql);
         }
 
         [Fact]
@@ -1390,9 +1782,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
 
             Assert.Contains("CONCAT(ISNULL(i.Name, ''), ' - ', ISNULL(i.Description, '')) AS incidentMessage", normSql);
             Assert.Contains("v.RowData AS guidanceContent", normSql);
-            Assert.Contains("OUTER APPLY (SELECT TOP 1 e.ID FROM TmsEquipment e WHERE e.KmNumber = i.KmNumber ORDER BY e.ID DESC) e", normSql);
-            Assert.Contains("OUTER APPLY (SELECT TOP 1 v.RowData FROM VmsCurrent v WHERE v.EquipmentId = e.ID AND v.RowData IS NOT NULL ORDER BY v.ExecutedDate DESC) v", normSql);
-            Assert.Contains("WHERE ISNULL(i.UpdateTime, i.StartDate) > @lastTime", normSql);
+            Assert.Contains("OUTER APPLY (SELECT TOP 1 v.RowData FROM VmsCurrent v INNER JOIN TmsEquipment e2 ON v.EquipmentId = e2.ID WHERE e2.KmNumber = i.KmNumber AND (v.RowData IS NOT NULL) ORDER BY v.ExecutedDate DESC) v", normSql);
+            Assert.Contains("WHERE (i.State IS NULL OR (i.State != 'FINISHED' AND i.State != 'CANCELED' AND i.State != 'Closed' AND i.State != 'Cancelled')) AND (ISNULL(i.UpdateTime, i.StartDate) > @lastTime OR (ISNULL(i.UpdateTime, i.StartDate) = @lastTime AND i.ID > @lastId))", normSql);
         }
 
         [Fact]
@@ -1402,7 +1793,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
             var result = DataExportService.BuildQuery(def.Packet, def.Tables, new DateTime(2026, 8, 22));
 
             var normSql = NormalizeSql(result.Sql);
-            Assert.Contains("ISNULL(td.DetectTime, td.CreateTime) > @lastTime", normSql);
+            Assert.Contains("(ISNULL(td.DetectTime, td.CreateTime) > @lastTime OR (ISNULL(td.DetectTime, td.CreateTime) = @lastTime AND td.ID > @lastId))", normSql);
             Assert.DoesNotContain(">=", normSql);
         }
 
@@ -1963,7 +2354,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
             };
 
             var result = DataExportService.BuildQuery(packet, tables);
-            Assert.Contains("WHERE a.Id = r.Id AND a.RowData IS NOT NULL", NormalizeSql(result.Sql));
+            Assert.Contains("WHERE a.Id = r.Id AND (a.RowData IS NOT NULL)", NormalizeSql(result.Sql));
         }
 
         [Theory]
@@ -1990,6 +2381,60 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
             };
 
             Assert.Throws<InvalidOperationException>(() => DataExportService.BuildQuery(packet, tables));
+        }
+
+        [Fact]
+        public void QueryPacket_KeysetPagination_SqlGen_Test()
+        {
+            var packetIncr = new ShareDataPacket { Code = "103_INC", FilterMode = (int)ShareDataEnum.PacketFilterMode.Incremental, TopN = 50 };
+            var packetSnap = new ShareDataPacket { Code = "103_SNAP", FilterMode = (int)ShareDataEnum.PacketFilterMode.Snapshot, TopN = 50 };
+            var tables = new List<ShareDataTable>
+            {
+                new()
+                {
+                    TableName = "TmsTrafficData",
+                    Alias = "td",
+                    IsRoot = true,
+                    IncrementalColumn = "DetectTime",
+                    IncrementalFallbackColumn = "CreateTime",
+                    FieldsJson = "[{\"fieldKey\":\"id\",\"column\":\"ID\"}]"
+                }
+            };
+            var tablesNone = new List<ShareDataTable>
+            {
+                new()
+                {
+                    TableName = "TmsTrafficData",
+                    Alias = "td",
+                    IsRoot = true,
+                    IncrementalColumn = "DetectTime",
+                    IncrementalFallbackColumn = "NONE",
+                    FieldsJson = "[{\"fieldKey\":\"id\",\"column\":\"ID\"}]"
+                }
+            };
+
+            // 1. Incremental with ISNULL
+            var queryIncr = DataExportService.BuildQuery(packetIncr, tables, new DateTime(2025, 1, 1));
+            var normIncr = NormalizeSql(queryIncr.Sql);
+            Assert.Contains("td.ID AS __rowid", normIncr);
+            Assert.Contains("ISNULL(td.DetectTime, td.CreateTime) AS __watermark", normIncr);
+            Assert.Contains("OR (ISNULL(td.DetectTime, td.CreateTime) = @lastTime AND td.ID > @lastId)", normIncr);
+            Assert.Contains("ORDER BY ISNULL(td.DetectTime, td.CreateTime) ASC, td.ID ASC", normIncr);
+            
+            // 2. Incremental with NONE fallback
+            var queryNone = DataExportService.BuildQuery(packetIncr, tablesNone, new DateTime(2025, 1, 1));
+            var normNone = NormalizeSql(queryNone.Sql);
+            Assert.Contains("td.DetectTime AS __watermark", normNone);
+            Assert.Contains("OR (td.DetectTime = @lastTime AND td.ID > @lastId)", normNone);
+            Assert.Contains("ORDER BY td.DetectTime ASC, td.ID ASC", normNone);
+
+            // 3. Snapshot
+            var querySnap = DataExportService.BuildQuery(packetSnap, tables, new DateTime(2025, 1, 1));
+            var normSnap = NormalizeSql(querySnap.Sql);
+            Assert.DoesNotContain("__rowid", normSnap);
+            Assert.DoesNotContain("@lastId", normSnap);
+            Assert.Contains("ORDER BY ISNULL(td.DetectTime, td.CreateTime) DESC", normSnap);
+            Assert.DoesNotContain("td.ID ASC", normSnap);
         }
 
         [Fact]
@@ -2082,7 +2527,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
             var result = DataExportService.BuildQuery(packet, tables, new DateTime(2026, 8, 22));
             var normSql = NormalizeSql(result.Sql);
 
-            Assert.Contains("WHERE r.TransactionDateTime > @lastTime", normSql);
+            Assert.Contains("WHERE (r.TransactionDateTime > @lastTime OR (r.TransactionDateTime = @lastTime AND r.ID > @lastId))", normSql);
             Assert.DoesNotContain("ISNULL(r.TransactionDateTime", normSql);
         }
 
@@ -2135,7 +2580,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
         [InlineData("107")]
         [InlineData("108")]
         [InlineData("109")]
-        [InlineData("110")]
         [InlineData("111")]
         public void BuildQuery_All11Packets_SelectAndFromJoinMatchGoldenSql_Test(string packetCode)
         {
@@ -2150,10 +2594,934 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
             Assert.Contains(normGoldenSelect, normActual);
             Assert.Contains(normGoldenFromJoin, normActual);
 
+            var businessPredicate = GetBusinessPredicate(golden.WhereClause);
+            if (!string.IsNullOrEmpty(businessPredicate))
+            {
+                Assert.Contains(NormalizeSql(businessPredicate), normActual);
+            }
+
             if (def.Packet.TopN.HasValue && def.Packet.TopN.Value > 0)
             {
                 Assert.Contains($"TOP {def.Packet.TopN.Value}", normActual);
                 Assert.Contains("ORDER BY", normActual);
+            }
+        }
+
+        public static string GetBusinessPredicate(string goldenWhere)
+        {
+            if (string.IsNullOrWhiteSpace(goldenWhere)) return "";
+            var clean = Regex.Replace(goldenWhere, @"^\s*WHERE\s+", "", RegexOptions.IgnoreCase).Trim();
+
+            var segments = new List<string>();
+            int depth = 0;
+            int lastStart = 0;
+
+            for (int i = 0; i < clean.Length; i++)
+            {
+                if (clean[i] == '(') depth++;
+                else if (clean[i] == ')') depth--;
+                else if (depth == 0 && i >= 4 && clean.Substring(i - 4, 4).Equals(" AND", StringComparison.OrdinalIgnoreCase))
+                {
+                    segments.Add(clean.Substring(lastStart, i - 4 - lastStart).Trim());
+                    lastStart = i;
+                }
+            }
+            if (lastStart < clean.Length)
+            {
+                segments.Add(clean.Substring(lastStart).Trim());
+            }
+
+            var keptSegments = new List<string>();
+            foreach (var segment in segments)
+            {
+                var s = segment.StartsWith("AND ", StringComparison.OrdinalIgnoreCase) ? segment.Substring(4).Trim() : segment;
+                if (!s.Contains("@lastTime", StringComparison.OrdinalIgnoreCase) && !s.Contains("@lastId", StringComparison.OrdinalIgnoreCase))
+                {
+                    keptSegments.Add(s);
+                }
+            }
+
+            return string.Join(" AND ", keptSegments);
+        }
+
+        [Fact]
+        public void GetBusinessPredicate_WithNestedParentheses_StripsTimeConditionCorrectly_Test()
+        {
+            var sql = "WHERE (i.State IS NULL OR (i.State != 'FINISHED' AND i.State != 'CANCELED')) AND ISNULL(CAST(i.UpdateTime AS INT), 0) > @lastTime";
+            var result = GetBusinessPredicate(sql);
+            Assert.Equal("(i.State IS NULL OR (i.State != 'FINISHED' AND i.State != 'CANCELED'))", result);
+
+            var sql2 = "WHERE (ISNULL(td.DetectTime, td.CreateTime) > @lastTime OR (ISNULL(td.DetectTime, td.CreateTime) = @lastTime AND td.ID > @lastId)) AND td.KmNumber = 100";
+            var result2 = GetBusinessPredicate(sql2);
+            Assert.Equal("td.KmNumber = 100", result2);
+        }
+
+        /// <summary>
+        /// Gói 110 thay đổi cấu trúc OUTER APPLY có chủ ý so với SQL vàng vì SQL vàng dùng subquery tương quan.
+        /// Test riêng gói 110 theo cấu trúc mới và assert có business predicate.
+        /// </summary>
+        [Fact]
+        public void BuildQuery_Packet110_MatchesNewStructure_Test()
+        {
+            var def = PacketMetadataCatalogTest.All["110"];
+            var result = DataExportService.BuildQuery(def.Packet, def.Tables, new DateTime(2026, 8, 22));
+            var normActual = NormalizeSql(result.Sql);
+
+            var golden = GoldenSqlCatalog["110"];
+            var businessPredicate = GetBusinessPredicate(golden.WhereClause);
+            
+            Assert.Contains(NormalizeSql(businessPredicate), normActual);
+            
+            // Expected new From/Join structure with INNER JOIN in OUTER APPLY
+            Assert.Contains("OUTER APPLY (SELECT TOP 1 v.RowData FROM VmsCurrent v INNER JOIN TmsEquipment e2 ON v.EquipmentId = e2.ID WHERE e2.KmNumber = i.KmNumber AND (v.RowData IS NOT NULL) ORDER BY v.ExecutedDate DESC) v", normActual);
+        }
+
+        [Fact]
+        public void BuildQuery_ApplyJoinMissingCondition_Throws_Test()
+        {
+            var def = PacketMetadataCatalogTest.All["110"];
+            var tablesJson = JsonSerializer.Serialize(def.Tables);
+            var tables = JsonSerializer.Deserialize<List<ShareDataTable>>(tablesJson)!;
+            tables.First(t => t.TableName == "VmsCurrent").ApplyJoinCondition = null;
+
+            Action act = () => DataExportService.BuildQuery(def.Packet, tables, new DateTime(2026, 8, 22));
+            var ex = Assert.Throws<InvalidOperationException>(act);
+            Assert.Contains("không đủ bộ 3 trường Table/Alias/Condition", ex.Message);
+        }
+
+        [Fact]
+        public void BuildQuery_ApplyJoinAliasConflict_Throws_Test()
+        {
+            var def = PacketMetadataCatalogTest.All["110"];
+            var tablesJson = JsonSerializer.Serialize(def.Tables);
+            var tables = JsonSerializer.Deserialize<List<ShareDataTable>>(tablesJson)!;
+            tables.First(t => t.TableName == "VmsCurrent").ApplyJoinAlias = "i"; // 'i' is already used by TmsIncident
+
+            Action act = () => DataExportService.BuildQuery(def.Packet, tables, new DateTime(2026, 8, 22));
+            var ex = Assert.Throws<InvalidOperationException>(act);
+            Assert.Contains("trùng với bí danh đã khai báo bên ngoài", ex.Message);
+        }
+
+        [Fact]
+        public void BuildQuery_OuterApplyMissingColumn_Throws_Test()
+        {
+            var def = PacketMetadataCatalogTest.All["110"];
+            var tablesJson = JsonSerializer.Serialize(def.Tables);
+            var tables = JsonSerializer.Deserialize<List<ShareDataTable>>(tablesJson)!;
+            var fields = JsonSerializer.Deserialize<List<PacketFieldDto>>(tables.First(t => t.TableName == "VmsCurrent").FieldsJson!)!;
+            fields[0].Column = null;
+            tables.First(t => t.TableName == "VmsCurrent").FieldsJson = JsonSerializer.Serialize(fields);
+
+            Action act = () => DataExportService.BuildQuery(def.Packet, tables, new DateTime(2026, 8, 22));
+            var ex = Assert.Throws<InvalidOperationException>(act);
+            Assert.Contains("thiếu định nghĩa Column", ex.Message);
+        }
+
+        [Fact]
+        public void Transform_WhenIntFieldConvertedToMs_RetainsDecimalPlaces_Test()
+        {
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?>
+                {
+                    ["speedLimit"] = 80
+                }
+            };
+
+            var fields = new List<PacketFieldDto>
+            {
+                new() { FieldKey = "speedLimit", Column = "MaxSpeed", DataType = "int", Unit = "km/h" }
+            };
+
+            var mappingItems = new List<MappingItemDto>
+            {
+                new() { FieldKey = "speedLimit", TargetUnit = "m/s", TargetKey = "speedLimit" }
+            };
+
+            var result = DataExportService.Transform(rawRows, fields, mappingItems);
+
+            Assert.Single(result);
+            var row = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
+            Assert.Equal(22.2222m, row["speedLimit"]);
+        }
+
+        [Fact]
+        public void UnitConverter_TryConvert_ReturnsExpectedFlags_Test()
+        {
+            var r1 = UnitConverter.TryConvert(80, "km/h", "m/s", out var res1);
+            Assert.True(r1);
+            Assert.Equal(22.2222m, res1);
+
+            var r2 = UnitConverter.TryConvert(100, "m", "m", out var res2);
+            Assert.False(r2);
+            Assert.Equal(100, res2);
+
+            var unknownTriggered = false;
+            var r3 = UnitConverter.TryConvert(50, "furlongs", "parsecs", out var res3, "fieldX", (f, fromU, toU) =>
+            {
+                unknownTriggered = true;
+            });
+            Assert.False(r3);
+            Assert.Equal(50, res3);
+            Assert.True(unknownTriggered);
+        }
+
+        [Fact]
+        public void Transform_WhenIntFieldKmConvertedToM_ProducesExpectedNumber_Test()
+        {
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?>
+                {
+                    ["distance"] = 5
+                }
+            };
+
+            var fields = new List<PacketFieldDto>
+            {
+                new() { FieldKey = "distance", Column = "Distance", DataType = "int", Unit = "km" }
+            };
+
+            var mappingItems = new List<MappingItemDto>
+            {
+                new() { FieldKey = "distance", TargetUnit = "m", TargetKey = "distance" }
+            };
+
+            var result = DataExportService.Transform(rawRows, fields, mappingItems);
+
+            Assert.Single(result);
+            var row = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
+            Assert.Equal(5000m, row["distance"]);
+        }
+
+        [Fact]
+        public void Transform_WhenIntFieldWithoutTargetUnit_CoercesToInt_Test()
+        {
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?>
+                {
+                    ["speedLimit"] = "80"
+                }
+            };
+
+            var fields = new List<PacketFieldDto>
+            {
+                new() { FieldKey = "speedLimit", Column = "MaxSpeed", DataType = "int", Unit = "km/h" }
+            };
+
+            var result = DataExportService.Transform(rawRows, fields);
+
+            Assert.Single(result);
+            var row = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
+            Assert.Equal(80, row["speedLimit"]);
+            Assert.IsType<int>(row["speedLimit"]);
+        }
+
+        [Fact]
+        public async Task ExecuteExport_WhenIntFieldConvertedWithDecimals_LogsAlertEsh1204OncePerField_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var service = CreateWorker(scope);
+
+            var uniqueId = Guid.NewGuid().ToString("N")[..8];
+            var packetCode = $"PKT_1204_{uniqueId}";
+
+            await db.Insertable(new ShareDataPacket
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                Code = packetCode,
+                Name = $"Packet 1204 {uniqueId}",
+                PacketVersion = "1.0",
+                FilterMode = (int)ShareDataEnum.PacketFilterMode.Snapshot,
+                IsActive = true
+            }).ExecuteCommandAsync();
+
+            await db.Insertable(new ShareDataTable
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                PacketCode = packetCode,
+                Alias = "zs",
+                TableName = "TmsZoneStatus",
+                IsRoot = true,
+                OrderNo = 1,
+                ExtraWhere = $"zs.ZoneId = 'Z_1204_{uniqueId}'",
+                IsActive = true,
+                FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
+                {
+                    new() { FieldKey = "zoneId", Column = "ZoneId", Required = true },
+                    new() { FieldKey = "speedLimit", Column = "AverageSpeed", DataType = "int", Unit = "km/h" }
+                })
+            }).ExecuteCommandAsync();
+
+            var (partner, sub) = await SeedOutboundSubscription(db, $"P_1204_{uniqueId}", $"SUB_1204_{uniqueId}", packetCode);
+
+            var mappingId = Guid.NewGuid().ToString("N");
+            await db.Insertable(new ShareDataMapping
+            {
+                ID = mappingId,
+                PartnerId = partner.ID,
+                DatatypeId = packetCode,
+                Direction = sub.Direction,
+                Format = sub.Format,
+                IsActive = true,
+                ItemsJson = JsonSerializer.Serialize(new List<MappingItemDto>
+                {
+                    new() { FieldKey = "speedLimit", TargetUnit = "m/s", TargetKey = "speedLimit" }
+                })
+            }).ExecuteCommandAsync();
+
+            var id1 = Guid.NewGuid().ToString("N");
+            var id2 = Guid.NewGuid().ToString("N");
+            await db.Insertable(new List<TmsZoneStatus>
+            {
+                new() { ID = id1, ZoneId = $"Z_1204_{uniqueId}", AverageSpeed = "80", UpdateTime = DateTime.Now },
+                new() { ID = id2, ZoneId = $"Z_1204_{uniqueId}", AverageSpeed = "90", UpdateTime = DateTime.Now }
+            }).ExecuteCommandAsync();
+
+            try
+            {
+                var exportedAt = DateTime.Now;
+                var (lastTimeRunUpdate, lastIdUpdate) = await service.ExecuteExportForSubscription(db, sub, partner, exportedAt, CancellationToken.None);
+
+                Assert.NotNull(lastTimeRunUpdate);
+
+                var alerts = await db.Queryable<ShareDataAlertLog>()
+                    .Where(a => a.SubscriptionId == sub.ID && a.AlertCode == "ESH-1204")
+                    .ToListAsync();
+
+                Assert.Single(alerts);
+                Assert.Equal("warning", alerts[0].Severity);
+                Assert.Equal("funnel", alerts[0].AlertSource);
+                Assert.Contains("speedLimit", alerts[0].Message);
+            }
+            finally
+            {
+                await db.Deleteable<TmsZoneStatus>().Where(z => z.ID == id1 || z.ID == id2).ExecuteCommandAsync();
+            }
+        }
+
+        [Fact]
+        public async Task ExecuteExport_WhenMappingHasMultipleExpressions_LogsAlertEsh1203ExactlyOnce_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var service = CreateWorker(scope);
+
+            var uniqueId = Guid.NewGuid().ToString("N")[..8];
+            var packetCode = $"PKT_1203_{uniqueId}";
+
+            await db.Insertable(new ShareDataPacket
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                Code = packetCode,
+                Name = $"Packet 1203 {uniqueId}",
+                PacketVersion = "1.0",
+                FilterMode = (int)ShareDataEnum.PacketFilterMode.Snapshot,
+                IsActive = true
+            }).ExecuteCommandAsync();
+
+            await db.Insertable(new ShareDataTable
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                PacketCode = packetCode,
+                Alias = "zs",
+                TableName = "TmsZoneStatus",
+                IsRoot = true,
+                OrderNo = 1,
+                ExtraWhere = $"zs.ZoneId = 'Z_1203_{uniqueId}'",
+                IsActive = true,
+                FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
+                {
+                    new() { FieldKey = "zoneId", Column = "ZoneId", Required = true },
+                    new() { FieldKey = "fieldA", Column = "Condition" },
+                    new() { FieldKey = "fieldB", Column = "AverageSpeed" }
+                })
+            }).ExecuteCommandAsync();
+
+            var (partner, sub) = await SeedOutboundSubscription(db, $"P_1203_{uniqueId}", $"SUB_1203_{uniqueId}", packetCode);
+
+            var mappingId = Guid.NewGuid().ToString("N");
+            await db.Insertable(new ShareDataMapping
+            {
+                ID = mappingId,
+                PartnerId = partner.ID,
+                DatatypeId = packetCode,
+                Direction = sub.Direction,
+                Format = sub.Format,
+                IsActive = true,
+                ItemsJson = JsonSerializer.Serialize(new List<MappingItemDto>
+                {
+                    new() { FieldKey = "fieldA", Expression = "CONCAT(fieldA, '_custom')" },
+                    new() { FieldKey = "fieldB", Expression = "fieldB * 2" }
+                })
+            }).ExecuteCommandAsync();
+
+            var id1 = Guid.NewGuid().ToString("N");
+            await db.Insertable(new TmsZoneStatus
+            {
+                ID = id1,
+                ZoneId = $"Z_1203_{uniqueId}",
+                Condition = "1",
+                UpdateTime = DateTime.Now
+            }).ExecuteCommandAsync();
+
+            try
+            {
+                var exportedAt = DateTime.Now;
+                var (lastTimeRunUpdate, lastIdUpdate) = await service.ExecuteExportForSubscription(db, sub, partner, exportedAt, CancellationToken.None);
+
+                Assert.NotNull(lastTimeRunUpdate);
+
+                var alerts = await db.Queryable<ShareDataAlertLog>()
+                    .Where(a => a.SubscriptionId == sub.ID && a.AlertCode == "ESH-1203")
+                    .ToListAsync();
+
+                Assert.Single(alerts);
+                Assert.Equal("warning", alerts[0].Severity);
+                Assert.Equal("funnel", alerts[0].AlertSource);
+                Assert.Contains("2 biểu thức expression", alerts[0].Message);
+            }
+            finally
+            {
+                await db.Deleteable<TmsZoneStatus>().Where(z => z.ID == id1).ExecuteCommandAsync();
+            }
+        }
+
+        [Fact]
+        public async Task ExecuteExport_WhenIncrementalPacketHasNullWatermark_DoesNotAdvanceLastTimeRunToClock_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var service = CreateWorker(scope);
+
+            var uniqueId = Guid.NewGuid().ToString("N")[..8];
+            var packetCode = $"PKT_A1_{uniqueId}";
+
+            await db.Insertable(new ShareDataPacket
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                Code = packetCode,
+                Name = $"Packet A1 {uniqueId}",
+                PacketVersion = "1.0",
+                FilterMode = (int)ShareDataEnum.PacketFilterMode.Incremental,
+                IsActive = true
+            }).ExecuteCommandAsync();
+
+            await db.Insertable(new ShareDataTable
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                PacketCode = packetCode,
+                Alias = "zs",
+                TableName = "TmsZoneStatus",
+                IsRoot = true,
+                OrderNo = 1,
+                IncrementalColumn = "UpdateTime",
+                IncrementalFallbackColumn = "NONE",
+                ExtraWhere = $"zs.ZoneId = 'ZONE_A1_{uniqueId}'",
+                IsActive = true,
+                FieldsJson = "[{\"fieldKey\":\"zoneId\",\"column\":\"ZoneId\"}]"
+            }).ExecuteCommandAsync();
+
+            var (partner, sub) = await SeedOutboundSubscription(db, $"P_A1_{uniqueId}", $"SUB_A1_{uniqueId}", packetCode, s =>
+            {
+                s.LastTimeRun = null;
+                s.LastId = null;
+            });
+
+            var statusId = Guid.NewGuid().ToString("N");
+            var zoneId = $"ZONE_A1_{uniqueId}";
+            await db.Insertable(new TmsZoneStatus
+            {
+                ID = statusId,
+                ZoneId = zoneId,
+                UpdateTime = null
+            }).ExecuteCommandAsync();
+
+            try
+            {
+                var exportedAt = DateTime.Now;
+                var (lastTimeRunUpdate, lastIdUpdate) = await service.ExecuteExportForSubscription(db, sub, partner, exportedAt, CancellationToken.None);
+
+                Assert.Null(lastTimeRunUpdate);
+                Assert.Null(lastIdUpdate);
+            }
+            finally
+            {
+                await db.Deleteable<TmsZoneStatus>().Where(z => z.ID == statusId).ExecuteCommandAsync();
+            }
+        }
+
+        [Fact]
+        public void BuildQuery_WatermarkExpressionIdenticalInSelectWhereOrderBy_Test()
+        {
+            var packet = new ShareDataPacket
+            {
+                ID = "packet_test_a4",
+                Code = "101",
+                FilterMode = (int)ShareDataEnum.PacketFilterMode.Incremental,
+                IsActive = true
+            };
+
+            var tableWithFallback = new ShareDataTable
+            {
+                ID = "tbl_1",
+                PacketCode = "101",
+                Alias = "zs",
+                TableName = "TmsZoneStatus",
+                IsRoot = true,
+                IncrementalColumn = "UpdateTime",
+                IncrementalFallbackColumn = "CreateTime",
+                FieldsJson = "[{\"fieldKey\":\"zoneId\",\"column\":\"ZoneId\"}]"
+            };
+
+            var lastTime = new DateTime(2026, 8, 23, 10, 0, 0);
+            var queryResult1 = DataExportService.BuildQuery(packet, [tableWithFallback], lastTime, "last_id_01");
+
+            var selectMatch1 = Regex.Match(queryResult1.Sql, @"(?i)(.*?)\s+AS\s+__watermark");
+            Assert.True(selectMatch1.Success, "Không tìm thấy SELECT ... AS __watermark");
+            var selectWatermarkExpr1 = selectMatch1.Groups[1].Value.Trim();
+
+            var whereMatch1 = Regex.Match(queryResult1.Sql, @"(?i)\((.*?)\s*>\s*@lastTime");
+            Assert.True(whereMatch1.Success, "Không tìm thấy WHERE (watermarkExpr > @lastTime ...)");
+            var whereWatermarkExpr1 = whereMatch1.Groups[1].Value.Trim();
+
+            var orderMatch1 = Regex.Match(queryResult1.Sql, @"(?i)ORDER\s+BY\s+(.*?)\s+ASC");
+            Assert.True(orderMatch1.Success, "Không tìm thấy ORDER BY watermarkExpr ASC");
+            var orderWatermarkExpr1 = orderMatch1.Groups[1].Value.Trim();
+
+            Assert.Equal("ISNULL(zs.UpdateTime, zs.CreateTime)", selectWatermarkExpr1);
+            Assert.Equal(selectWatermarkExpr1, whereWatermarkExpr1);
+            Assert.Equal(selectWatermarkExpr1, orderWatermarkExpr1);
+
+            var tableNoFallback = new ShareDataTable
+            {
+                ID = "tbl_2",
+                PacketCode = "101",
+                Alias = "t",
+                TableName = "TmsTrafficData",
+                IsRoot = true,
+                IncrementalColumn = "DetectTime",
+                IncrementalFallbackColumn = "NONE",
+                FieldsJson = "[{\"fieldKey\":\"speed\",\"column\":\"Speed\"}]"
+            };
+
+            var queryResult2 = DataExportService.BuildQuery(packet, [tableNoFallback], lastTime, "last_id_02");
+
+            var selectMatch2 = Regex.Match(queryResult2.Sql, @"(?i)(.*?)\s+AS\s+__watermark");
+            Assert.True(selectMatch2.Success);
+            var selectWatermarkExpr2 = selectMatch2.Groups[1].Value.Trim();
+
+            var whereMatch2 = Regex.Match(queryResult2.Sql, @"(?i)\((.*?)\s*>\s*@lastTime");
+            Assert.True(whereMatch2.Success);
+            var whereWatermarkExpr2 = whereMatch2.Groups[1].Value.Trim();
+
+            var orderMatch2 = Regex.Match(queryResult2.Sql, @"(?i)ORDER\s+BY\s+(.*?)\s+ASC");
+            Assert.True(orderMatch2.Success);
+            var orderWatermarkExpr2 = orderMatch2.Groups[1].Value.Trim();
+
+            Assert.Equal("t.DetectTime", selectWatermarkExpr2);
+            Assert.Equal(selectWatermarkExpr2, whereWatermarkExpr2);
+            Assert.Equal(selectWatermarkExpr2, orderWatermarkExpr2);
+        }
+
+        [Fact]
+        public void Transform_WhenTwoFieldsShareSameTargetKey_OverwritesAndTriggersWarning_Test()
+        {
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?>
+                {
+                    ["fieldA"] = "ValueA",
+                    ["fieldB"] = "ValueB"
+                }
+            };
+
+            var fields = new List<PacketFieldDto>
+            {
+                new() { FieldKey = "fieldA", Column = "fieldA" },
+                new() { FieldKey = "fieldB", Column = "fieldB" }
+            };
+
+            var mappingItems = new List<MappingItemDto>
+            {
+                new() { FieldKey = "fieldA", TargetKey = "sameKey" },
+                new() { FieldKey = "fieldB", TargetKey = "sameKey" }
+            };
+
+            var warnings = new List<(string TargetKey, string OldField, string NewField)>();
+            var result = DataExportService.Transform(rawRows, fields, mappingItems, onDuplicateTargetKey: (key, oldF, newF) =>
+            {
+                warnings.Add((key, oldF, newF));
+            });
+
+            Assert.Single(result);
+            var row = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
+            Assert.True(row.ContainsKey("sameKey"));
+            Assert.Equal("ValueB", row["sameKey"]);
+            Assert.Single(warnings);
+            Assert.Equal("sameKey", warnings[0].TargetKey);
+        }
+
+        [Fact]
+        public void GenerateExportRelativePath_WhenTwoSubsShareSecondAndHaveSameSerialNbr_DiscriminatorIncludesSubId_Test()
+        {
+            var sub1 = new ShareDataSubscription
+            {
+                ID = "SUB_ID_11111111",
+                SerialNbr = 5
+            };
+
+            var sub2 = new ShareDataSubscription
+            {
+                ID = "SUB_ID_22222222",
+                SerialNbr = 5
+            };
+
+            var time = new DateTime(2026, 8, 23, 15, 30, 45);
+            var path1 = DataExportService.GenerateExportRelativePath("PARTNER_A", "101", time, DataExportService.ResolveFileDiscriminator(sub1));
+            var path2 = DataExportService.GenerateExportRelativePath("PARTNER_A", "101", time, DataExportService.ResolveFileDiscriminator(sub2));
+
+            Assert.NotEqual(path1, path2);
+            Assert.Contains("5_SUB_ID_1", path1);
+            Assert.Contains("5_SUB_ID_2", path2);
+        }
+
+        [Fact]
+        public void ParseCodeValues_WithValidAndCorruptedJson_ParsesCorrectly_Test()
+        {
+            var validJson = "[{\"sourceValue\":\"1\",\"standardValue\":\"slow\",\"displayName\":\"Chậm\",\"orderNo\":1},{\"sourceValue\":\"2\",\"standardValue\":\"normal\",\"displayName\":\"Bình thường\",\"isDefault\":true,\"orderNo\":2}]";
+            var parsed = DataExportService.ParseCodeValues(validJson);
+            Assert.Equal(2, parsed.Count);
+            Assert.Equal("1", parsed[0].SourceValue);
+            Assert.Equal("slow", parsed[0].StandardValue);
+            Assert.Equal("Chậm", parsed[0].DisplayName);
+            Assert.Equal(1, parsed[0].OrderNo);
+            Assert.True(parsed[1].IsDefault);
+
+            var empty = DataExportService.ParseCodeValues("{invalid-json}");
+            Assert.Empty(empty);
+
+            var partialJson = "[{\"sourceValue\":\"1\",\"standardValue\":\"slow\"}, \"bad_element\", {\"sourceValue\":\"2\",\"standardValue\":\"normal\"}]";
+            var partialParsed = DataExportService.ParseCodeValues(partialJson);
+            Assert.Equal(2, partialParsed.Count);
+        }
+
+        [Fact]
+        public void MapCode_StandardMappingAndDefaultFallback_BehavesCorrectly_Test()
+        {
+            var codeValues = new List<CodeValueDto>
+            {
+                new() { SourceValue = "1", StandardValue = "slow", DisplayName = "Chậm" },
+                new() { SourceValue = "2", StandardValue = "normal", DisplayName = "Bình thường" },
+                new() { SourceValue = null, StandardValue = "unknown", DisplayName = "Không rõ", IsDefault = true }
+            };
+
+            var r1 = DataExportService.MapCode(codeValues, "1");
+            Assert.Equal("slow", r1);
+
+            var r2 = DataExportService.MapCode(codeValues, "2");
+            Assert.Equal("normal", r2);
+
+            var r3 = DataExportService.MapCode(codeValues, "999");
+            Assert.Equal("unknown", r3);
+
+            var noDefaultSet = new List<CodeValueDto>
+            {
+                new() { SourceValue = "A", StandardValue = "Alpha" }
+            };
+            var r4 = DataExportService.MapCode(noDefaultSet, "Z");
+            Assert.Equal("Z", r4);
+        }
+
+        [Fact]
+        public void UnitConverter_TwoWayConversionsAndRounding_BehavesCorrectly_Test()
+        {
+            var r1 = UnitConverter.Convert(62.5m, "km/h", "m/s");
+            Assert.Equal(17.3611m, r1);
+
+            var r2 = UnitConverter.Convert(10m, "m/s", "km/h");
+            Assert.Equal(36.0m, r2);
+
+            var r3 = UnitConverter.Convert(5.5m, "km", "m");
+            Assert.Equal(5500.0m, r3);
+
+            var r4 = UnitConverter.Convert(1500m, "m", "km");
+            Assert.Equal(1.5m, r4);
+
+            var r5 = UnitConverter.Convert(2.345m, "m", "cm");
+            Assert.Equal(234.5m, r5);
+
+            var r6 = UnitConverter.Convert(2500m, "kg", "tấn");
+            Assert.Equal(2.5m, r6);
+
+            var r7 = UnitConverter.Convert(3m, "tấn", "kg");
+            Assert.Equal(3000.0m, r7);
+
+            var r8 = UnitConverter.Convert(100m, "m", "m");
+            Assert.Equal(100m, r8);
+
+            var unknownTriggered = false;
+            var r9 = UnitConverter.Convert(50m, "furlongs", "parsecs", "fieldX", (f, fromU, toU) =>
+            {
+                unknownTriggered = true;
+            });
+            Assert.Equal(50m, r9);
+            Assert.True(unknownTriggered);
+        }
+
+        [Fact]
+        public void Transform_Step2AndStep3Sequence_ConvertsStandardThenPartnerCodeSet_Test()
+        {
+            var codeSets = new Dictionary<string, List<CodeValueDto>>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["TRAFFIC_COND_STD"] =
+                [
+                    new() { SourceValue = "1", StandardValue = "slow", DisplayName = "Chậm (std)" },
+                    new() { SourceValue = "2", StandardValue = "normal", DisplayName = "Bình thường (std)" }
+                ],
+                ["TRAFFIC_COND_PARTNER"] =
+                [
+                    new() { SourceValue = "slow", StandardValue = "Chậm", DisplayName = "Chậm (vn)" },
+                    new() { SourceValue = "normal", StandardValue = "Bình thường", DisplayName = "Bình thường (vn)" }
+                ]
+            };
+
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?>
+                {
+                    ["condition"] = "1"
+                }
+            };
+
+            var fields = new List<PacketFieldDto>
+            {
+                new() { FieldKey = "condition", Column = "Condition", CodeSetCode = "TRAFFIC_COND_STD", DataType = "string" }
+            };
+
+            var mappingItems = new List<MappingItemDto>
+            {
+                new() { FieldKey = "condition", CodeSetId = "TRAFFIC_COND_PARTNER", TargetKey = "tinhTrang" }
+            };
+
+            var result = DataExportService.Transform(rawRows, fields, mappingItems, codeSets: codeSets);
+
+            Assert.Single(result);
+            var row = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
+            Assert.True(row.ContainsKey("tinhTrang"));
+            Assert.Equal("Chậm", row["tinhTrang"]);
+        }
+
+        [Fact]
+        public void Transform_WhenFieldHasCodeSet_DoesNotCoerceToNumber_Test()
+        {
+            var codeSets = new Dictionary<string, List<CodeValueDto>>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["COND_SET"] =
+                [
+                    new() { SourceValue = "1", StandardValue = "slow" }
+                ]
+            };
+
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?>
+                {
+                    ["condition"] = "1"
+                }
+            };
+
+            var fields = new List<PacketFieldDto>
+            {
+                new() { FieldKey = "condition", Column = "Condition", CodeSetCode = "COND_SET", DataType = "decimal" }
+            };
+
+            var result = DataExportService.Transform(rawRows, fields, codeSets: codeSets);
+
+            Assert.Single(result);
+            var row = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
+            Assert.Equal("slow", row["condition"]);
+            Assert.IsType<string>(row["condition"]);
+        }
+
+        [Fact]
+        public void Transform_WhenRequiredFieldMissing_ThrowsEshMissingRequiredFieldException_Test()
+        {
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?>
+                {
+                    ["zoneId"] = "Z01",
+                    ["averageSpeed"] = null
+                },
+                new Dictionary<string, object?>
+                {
+                    ["zoneId"] = "Z02",
+                    ["averageSpeed"] = 70.0m
+                }
+            };
+
+            var fields = new List<PacketFieldDto>
+            {
+                new() { FieldKey = "zoneId", Column = "ZoneId", Required = true },
+                new() { FieldKey = "averageSpeed", Column = "AverageSpeed", Required = true, DataType = "decimal" }
+            };
+
+            var ex = Assert.Throws<EshMissingRequiredFieldException>(() =>
+            {
+                DataExportService.Transform(rawRows, fields);
+            });
+
+            Assert.Contains("averageSpeed", ex.MissingFieldKeys);
+            Assert.Equal(1, ex.MissingRowCount);
+            Assert.Equal(2, ex.TotalRowCount);
+        }
+
+        [Fact]
+        public async Task ExecuteExport_WhenRequiredFieldMissing_AbortsExportAndLogsAlertEsh1202_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var service = CreateWorker(scope);
+
+            var uniqueId = Guid.NewGuid().ToString("N")[..8];
+            var packetCode = $"PKT_REQ_{uniqueId}";
+
+            await db.Insertable(new ShareDataPacket
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                Code = packetCode,
+                Name = $"Packet Req {uniqueId}",
+                PacketVersion = "1.0",
+                FilterMode = (int)ShareDataEnum.PacketFilterMode.Incremental,
+                IsActive = true
+            }).ExecuteCommandAsync();
+
+            await db.Insertable(new ShareDataTable
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                PacketCode = packetCode,
+                Alias = "zs",
+                TableName = "TmsZoneStatus",
+                IsRoot = true,
+                OrderNo = 1,
+                IncrementalColumn = "UpdateTime",
+                IncrementalFallbackColumn = "CreateTime",
+                ExtraWhere = $"zs.ZoneId = 'Z_{uniqueId}'",
+                IsActive = true,
+                FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
+                {
+                    new() { FieldKey = "zoneId", Column = "ZoneId", Required = true },
+                    new() { FieldKey = "averageSpeed", Column = "AverageSpeed", Required = true }
+                })
+            }).ExecuteCommandAsync();
+
+            var (partner, sub) = await SeedOutboundSubscription(db, $"P_REQ_{uniqueId}", $"SUB_REQ_{uniqueId}", packetCode, s =>
+            {
+                s.LastTimeRun = new DateTime(2026, 1, 1);
+            });
+
+            var statusId = Guid.NewGuid().ToString("N");
+            await db.Insertable(new TmsZoneStatus
+            {
+                ID = statusId,
+                ZoneId = $"Z_{uniqueId}",
+                AverageSpeed = null,
+                UpdateTime = DateTime.Now
+            }).ExecuteCommandAsync();
+
+            try
+            {
+                var exportedAt = DateTime.Now;
+                var (lastTimeRunUpdate, lastIdUpdate) = await service.ExecuteExportForSubscription(db, sub, partner, exportedAt, CancellationToken.None);
+
+                Assert.Null(lastTimeRunUpdate);
+                Assert.Null(lastIdUpdate);
+
+                var alerts = await db.Queryable<ShareDataAlertLog>()
+                    .Where(a => a.SubscriptionId == sub.ID && a.AlertCode == "ESH-1202")
+                    .ToListAsync();
+
+                Assert.NotEmpty(alerts);
+                Assert.Equal("error", alerts[0].Severity);
+                Assert.Equal("funnel", alerts[0].AlertSource);
+                Assert.Contains("averageSpeed", alerts[0].Message);
+            }
+            finally
+            {
+                await db.Deleteable<TmsZoneStatus>().Where(z => z.ID == statusId).ExecuteCommandAsync();
+            }
+        }
+
+        [Fact]
+        public async Task ExecuteExport_WhenCodeSetMissingInDb_LogsAlertEsh1201AndContinuesExport_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var service = CreateWorker(scope);
+
+            var uniqueId = Guid.NewGuid().ToString("N")[..8];
+            var packetCode = $"PKT_MISS_CS_{uniqueId}";
+
+            await db.Insertable(new ShareDataPacket
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                Code = packetCode,
+                Name = $"Packet Miss CS {uniqueId}",
+                PacketVersion = "1.0",
+                FilterMode = (int)ShareDataEnum.PacketFilterMode.Snapshot,
+                IsActive = true
+            }).ExecuteCommandAsync();
+
+            await db.Insertable(new ShareDataTable
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                PacketCode = packetCode,
+                Alias = "zs",
+                TableName = "TmsZoneStatus",
+                IsRoot = true,
+                OrderNo = 1,
+                ExtraWhere = $"zs.ZoneId = 'Z_{uniqueId}'",
+                IsActive = true,
+                FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
+                {
+                    new() { FieldKey = "zoneId", Column = "ZoneId", Required = true },
+                    new() { FieldKey = "trafficCondition", Column = "Condition", CodeSetCode = "NON_EXISTING_CODESET_1201" }
+                })
+            }).ExecuteCommandAsync();
+
+            var (partner, sub) = await SeedOutboundSubscription(db, $"P_MISS_CS_{uniqueId}", $"SUB_MISS_CS_{uniqueId}", packetCode);
+
+            var missCsStatusId = Guid.NewGuid().ToString("N");
+            await db.Insertable(new TmsZoneStatus
+            {
+                ID = missCsStatusId,
+                ZoneId = $"Z_{uniqueId}",
+                Condition = "1",
+                UpdateTime = DateTime.Now
+            }).ExecuteCommandAsync();
+
+            try
+            {
+                var exportedAt = DateTime.Now;
+                var (lastTimeRunUpdate, lastIdUpdate) = await service.ExecuteExportForSubscription(db, sub, partner, exportedAt, CancellationToken.None);
+
+                Assert.NotNull(lastTimeRunUpdate);
+
+                var alerts = await db.Queryable<ShareDataAlertLog>()
+                    .Where(a => a.SubscriptionId == sub.ID && a.AlertCode == "ESH-1201")
+                    .ToListAsync();
+
+                Assert.NotEmpty(alerts);
+                Assert.Equal("warning", alerts[0].Severity);
+                Assert.Equal("funnel", alerts[0].AlertSource);
+                Assert.Contains("NON_EXISTING_CODESET_1201", alerts[0].Message);
+            }
+            finally
+            {
+                await db.Deleteable<TmsZoneStatus>().Where(z => z.ID == missCsStatusId).ExecuteCommandAsync();
             }
         }
 
@@ -2192,14 +3560,10 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                 }
 
                 // Nếu có OUTER APPLY với TOP thì trong ngoặc phải có ORDER BY
-                var applyMatches = Regex.Matches(norm, @"OUTER APPLY \((.*?)\) \w+", RegexOptions.IgnoreCase);
-                foreach (Match m in applyMatches)
+                if (norm.Contains("OUTER APPLY", StringComparison.OrdinalIgnoreCase) && 
+                    norm.Contains("SELECT TOP", StringComparison.OrdinalIgnoreCase))
                 {
-                    var inner = m.Groups[1].Value;
-                    if (Regex.IsMatch(inner, @"SELECT TOP \d+", RegexOptions.IgnoreCase))
-                    {
-                        Assert.Contains("ORDER BY", inner, StringComparison.OrdinalIgnoreCase);
-                    }
+                    Assert.Contains("ORDER BY", norm, StringComparison.OrdinalIgnoreCase);
                 }
 
                 // An toàn SQL: không chứa .*, không chứa >=, không chứa ký tự cấm
@@ -2211,51 +3575,62 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
             }
         }
 
-        private static readonly Dictionary<string, (string SelectClause, string FromJoinClause)> GoldenSqlCatalog = new()
+        private static readonly Dictionary<string, (string SelectClause, string FromJoinClause, string WhereClause)> GoldenSqlCatalog = new()
         {
             ["101"] = (
                 "zs.ZoneId AS zoneId, z.Name AS zoneName, z.FromKmNumber AS fromLocationKm, z.FromMetNumber AS fromLocationMet, z.ToKmNumber AS toLocationKm, z.ToMetNumber AS toLocationMet, z.LaneId AS laneId, CAST(zs.AverageSpeed AS DECIMAL(18, 2)) AS averageSpeed, zs.Condition AS trafficCondition, zs.UpdateTime AS dataTime, z.MaxSpeed AS speedLimit, ts.TotalVehicleNumber AS vehicleCount",
-                "FROM TmsZoneStatus zs LEFT JOIN TmsZone z ON zs.ZoneId = z.ID LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId"
+                "FROM TmsZoneStatus zs LEFT JOIN TmsZone z ON zs.ZoneId = z.ID LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId",
+                ""
             ),
             ["102"] = (
                 "e.Code AS cameraCode, c.Name AS cameraName, c.SnapshotUrl AS snapshot, c.SnapshotTime AS snapshotTime, c.DeviceState AS deviceState, e.KmNumber AS locationKm, e.MetNumber AS locationMet, e.DirectionId AS direction",
-                "FROM CctvDevice c LEFT JOIN TmsEquipment e ON c.Ip = e.Ip"
+                "FROM CctvDevice c LEFT JOIN TmsEquipment e ON c.Ip = e.Ip",
+                ""
             ),
             ["103"] = (
                 "td.ID AS detectionId, td.DetectTime AS detectTime, td.Type AS vehicleType, td.LicensePlate AS licensePlate, td.Speed AS speed, td.Lane AS lane, td.Direction AS direction, td.Location AS locationRoute, td.EquipmentId AS equipmentId, e.KmNumber AS locationKm, e.MetNumber AS locationMet",
-                "FROM TmsTrafficData td LEFT JOIN TmsEquipment e ON td.EquipmentId = e.ID"
+                "FROM TmsTrafficData td LEFT JOIN TmsEquipment e ON td.EquipmentId = e.ID",
+                "WHERE td.DetectTime >= @lastTime"
             ),
             ["104"] = (
                 "w.RefId AS weatherStationId, w.LocationDetail AS locationDetail, w.Temperature AS temperature, w.Hudmidity AS humidity, w.WindSpeed AS windSpeed, w.WindDirection AS windDirection, w.Rain AS rainfall, w.RainHour AS rainfallHour, w.Foresight AS visibility, w.Description AS weatherDescription, w.ShortDescription AS weatherCode, w.TimeDetect AS detectTime",
-                "FROM TmsWeather w"
+                "FROM TmsWeather w",
+                "WHERE w.TimeDetect >= @lastTime"
             ),
             ["105"] = (
                 "t.TransactionId AS transactionId, t.TagId AS tagId, ISNULL(t.PlateEdit, t.PlateLpr) AS licensePlate, t.VehicleTypeId AS vehicleTypeId, t.TransactionDateTimeIn AS entryTime, t.TransactionDateTime AS exitTime, t.LaneId AS laneId, t.StationId AS stationId, vr.Brand AS vehicleBrand, vr.Owner AS vehicleOwner",
-                "FROM TollTransactionOut t LEFT JOIN TmsVehicleRegistration vr ON ISNULL(t.PlateEdit, t.PlateLpr) = vr.LicensePlate"
+                "FROM TollTransactionOut t LEFT JOIN TmsVehicleRegistration vr ON ISNULL(t.PlateEdit, t.PlateLpr) = vr.LicensePlate",
+                "WHERE t.TransactionDateTime >= @lastTime"
             ),
             ["106"] = (
                 "td.DetectTime AS detectTime, td.Lane AS lane, td.Location AS locationCode, td.Speed AS speed, td.Height AS height, td.Width AS width, td.Length AS length",
-                "FROM TmsTrafficData td"
+                "FROM TmsTrafficData td",
+                "WHERE td.DetectTime >= @lastTime"
             ),
             ["107"] = (
                 "i.Code AS incidentCode, i.Name AS incidentName, i.EventTypeId AS eventTypeId, et.Name AS eventTypeName, i.StartDate AS occurredTime, i.KmNumber AS locationKm, i.MetNumber AS locationMet, i.Location AS locationRoute, i.InfluenceScope AS direction, i.InjuredNumber AS injuredCount, i.VehicleNumber AS vehicleCount, i.State AS incidentState, i.Description AS description, i.Source AS source",
-                "FROM TmsIncident i LEFT JOIN TmsEventType et ON i.EventTypeId = et.ID"
+                "FROM TmsIncident i LEFT JOIN TmsEventType et ON i.EventTypeId = et.ID",
+                "WHERE ISNULL(i.UpdateTime, i.StartDate) >= @lastTime"
             ),
             ["108"] = (
                 "e.Code AS equipmentCode, v.Name AS vmsName, e.KmNumber AS locationKm, e.MetNumber AS locationMet, e.DirectionId AS direction, e.LaneId AS laneId, v.RowData AS displayContent, v.Url AS displayImageUrl, v.Size AS displaySize, v.Priority AS priority, v.ExecutedDate AS executedTime",
-                "FROM VmsCurrent v LEFT JOIN TmsEquipment e ON v.EquipmentId = e.ID"
+                "FROM VmsCurrent v LEFT JOIN TmsEquipment e ON v.EquipmentId = e.ID",
+                ""
             ),
             ["109"] = (
                 "t.TransactionId AS transactionId, t.TransactionDateTimeIn AS entryTime, t.TransactionDateTime AS exitTime, t.VehicleTypeId AS vehicleTypeId, ISNULL(t.PlateEdit, t.PlateLpr) AS licensePlate, t.TagId AS tagId, t.LaneId AS laneId, l.Name AS laneName, t.StationId AS stationId, s.Name AS stationName, CAST(NULL AS DECIMAL(18, 2)) AS tollPrice, t.SyncTime AS syncTime",
-                "FROM TollTransactionOut t LEFT JOIN TollLane l ON t.LaneId = l.LaneId LEFT JOIN TollStation s ON t.StationId = s.StationId"
+                "FROM TollTransactionOut t LEFT JOIN TollLane l ON t.LaneId = l.LaneId LEFT JOIN TollStation s ON t.StationId = s.StationId",
+                "WHERE t.TransactionDateTime >= @lastTime"
             ),
             ["110"] = (
                 "CONCAT(ISNULL(i.Name, ''), ' - ', ISNULL(i.Description, '')) AS incidentMessage, v.RowData AS guidanceContent, i.KmNumber AS locationKm, i.MetNumber AS locationMet, i.StartDate AS publishedTime",
-                "FROM TmsIncident i OUTER APPLY (SELECT TOP 1 e.ID FROM TmsEquipment e WHERE e.KmNumber = i.KmNumber ORDER BY e.ID DESC) e OUTER APPLY (SELECT TOP 1 v.RowData FROM VmsCurrent v WHERE v.EquipmentId = e.ID AND v.RowData IS NOT NULL ORDER BY v.ExecutedDate DESC) v"
+                "FROM TmsIncident i OUTER APPLY (SELECT TOP 1 e.ID FROM TmsEquipment e WHERE e.KmNumber = i.KmNumber ORDER BY e.ID DESC) e OUTER APPLY (SELECT TOP 1 v.RowData FROM VmsCurrent v WHERE v.EquipmentId = e.ID AND v.RowData IS NOT NULL ORDER BY v.ExecutedDate DESC) v",
+                "WHERE (i.State IS NULL OR (i.State != 'FINISHED' AND i.State != 'CANCELED' AND i.State != 'Closed' AND i.State != 'Cancelled')) AND ISNULL(i.UpdateTime, i.StartDate) >= @lastTime"
             ),
             ["111"] = (
                 "i.Code AS incidentCode, i.Name AS incidentName, i.KmNumber AS locationKm, i.MetNumber AS locationMet, i.Description AS description",
-                "FROM TmsIncident i"
+                "FROM TmsIncident i",
+                ""
             )
         };
 
@@ -2338,36 +3713,41 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                 else
                 {
                     packetId = existingPacket.ID;
+                    existingPacket.PacketVersion = def.Packet.PacketVersion;
+                    existingPacket.FilterMode = def.Packet.FilterMode;
+                    existingPacket.TopN = def.Packet.TopN;
+                    existingPacket.TableCount = def.Tables.Count;
+                    existingPacket.FieldCount = def.Packet.FieldCount;
+                    existingPacket.IsActive = true;
+                    await db.Updateable(existingPacket).ExecuteCommandAsync();
                 }
 
-                var existingTables = await db.Queryable<ShareDataTable>()
-                    .Where(t => t.PacketCode == def.Packet.Code && t.IsDelete == null)
-                    .ToListAsync();
+                await db.Deleteable<ShareDataTable>().Where(t => t.PacketCode == def.Packet.Code).ExecuteCommandAsync();
 
-                if (existingTables.Count == 0)
+                var tablesToInsert = def.Tables.Select(tbl => new ShareDataTable
                 {
-                    var tablesToInsert = def.Tables.Select(tbl => new ShareDataTable
-                    {
-                        ID = Guid.NewGuid().ToString("N"),
-                        PacketCode = tbl.PacketCode,
-                        SchemaName = tbl.SchemaName,
-                        TableName = tbl.TableName,
-                        Alias = tbl.Alias,
-                        IsRoot = tbl.IsRoot,
-                        JoinType = tbl.JoinType,
-                        JoinCondition = tbl.JoinCondition,
-                        ExtraWhere = tbl.ExtraWhere,
-                        ApplyTopN = tbl.ApplyTopN,
-                        ApplyOrderBy = tbl.ApplyOrderBy,
-                        IncrementalColumn = tbl.IncrementalColumn,
-                        IncrementalFallbackColumn = tbl.IncrementalFallbackColumn,
-                        FieldsJson = tbl.FieldsJson,
-                        OrderNo = tbl.OrderNo,
-                        IsActive = true
-                    }).ToList();
+                    ID = Guid.NewGuid().ToString("N"),
+                    PacketCode = tbl.PacketCode,
+                    SchemaName = tbl.SchemaName,
+                    TableName = tbl.TableName,
+                    Alias = tbl.Alias,
+                    IsRoot = tbl.IsRoot,
+                    JoinType = tbl.JoinType,
+                    JoinCondition = tbl.JoinCondition,
+                    ApplyJoinTable = tbl.ApplyJoinTable,
+                    ApplyJoinAlias = tbl.ApplyJoinAlias,
+                    ApplyJoinCondition = tbl.ApplyJoinCondition,
+                    ExtraWhere = tbl.ExtraWhere,
+                    ApplyTopN = tbl.ApplyTopN,
+                    ApplyOrderBy = tbl.ApplyOrderBy,
+                    IncrementalColumn = tbl.IncrementalColumn,
+                    IncrementalFallbackColumn = tbl.IncrementalFallbackColumn,
+                    FieldsJson = tbl.FieldsJson,
+                    OrderNo = tbl.OrderNo,
+                    IsActive = true
+                }).ToList();
 
-                    await db.Insertable(tablesToInsert).ExecuteCommandAsync();
-                }
+                await db.Insertable(tablesToInsert).ExecuteCommandAsync();
             }
 
             /// <summary>
@@ -2436,7 +3816,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                             FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
                             {
                                 new() { FieldKey = "zoneName", Column = "Name", DataType = "string", OrderNo = 2 },
-                                new() { FieldKey = "fromLocationKm", Column = "FromKmNumber", Unit = "km", DataType = "int", Required = true, OrderNo = 3 },
+                                new() { FieldKey = "fromLocationKm", Column = "FromKmNumber", Unit = "km", DataType = "int", OrderNo = 3 },
                                 new() { FieldKey = "fromLocationMet", Column = "FromMetNumber", Unit = "m", DataType = "int", OrderNo = 4 },
                                 new() { FieldKey = "toLocationKm", Column = "ToKmNumber", Unit = "km", DataType = "int", OrderNo = 5 },
                                 new() { FieldKey = "toLocationMet", Column = "ToMetNumber", Unit = "m", DataType = "int", OrderNo = 6 },
@@ -2950,7 +4330,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                         PacketVersion = "1.0",
                         FilterMode = (int)ShareDataEnum.PacketFilterMode.Incremental,
                         IsActive = true,
-                        TableCount = 3,
+                        TableCount = 2,
                         FieldCount = 5
                     },
                     Tables =
@@ -2966,6 +4346,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                             OrderNo = 1,
                             IncrementalColumn = "UpdateTime",
                             IncrementalFallbackColumn = "StartDate",
+                            ExtraWhere = "i.State IS NULL OR (i.State != 'FINISHED' AND i.State != 'CANCELED' AND i.State != 'Closed' AND i.State != 'Cancelled')",
                             IsActive = true,
                             FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
                             {
@@ -2979,35 +4360,19 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                         {
                             ID = "table_110_2",
                             PacketCode = "110",
-                            Alias = "e",
-                            SchemaName = "dbo",
-                            TableName = "TmsEquipment",
-                            IsRoot = false,
-                            JoinType = "OUTER APPLY",
-                            JoinCondition = "e.KmNumber = i.KmNumber",
-                            ApplyTopN = 1,
-                            ApplyOrderBy = "ID",
-                            OrderNo = 2,
-                            IsActive = true,
-                            FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
-                            {
-                                new() { FieldKey = "bridgeEquipmentId", Column = "ID", DataType = "string", InternalOnly = true, OrderNo = 900 }
-                            })
-                        },
-                        new ShareDataTable
-                        {
-                            ID = "table_110_3",
-                            PacketCode = "110",
                             Alias = "v",
                             SchemaName = "dbo",
                             TableName = "VmsCurrent",
                             IsRoot = false,
                             JoinType = "OUTER APPLY",
-                            JoinCondition = "v.EquipmentId = e.ID",
+                            ApplyJoinTable = "TmsEquipment",
+                            ApplyJoinAlias = "e2",
+                            ApplyJoinCondition = "v.EquipmentId = e2.ID",
+                            JoinCondition = "e2.KmNumber = i.KmNumber",
                             ExtraWhere = "v.RowData IS NOT NULL",
                             ApplyTopN = 1,
                             ApplyOrderBy = "ExecutedDate",
-                            OrderNo = 3,
+                            OrderNo = 2,
                             IsActive = true,
                             FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
                             {

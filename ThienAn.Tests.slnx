@@ -74,6 +74,13 @@
     <Project Path="TA-ITS015-WEBAPI-V1.0/src/Services/ShareData/ShareDataWorker.Core/ShareDataWorker.Core.csproj" />
     <Project Path="TA-ITS015-WEBAPI-V1.0/src/Services/ShareData/ShareDataWorker/ShareDataWorker.csproj" />
   </Folder>
+  <Folder Name="/TA-ITS015-WEBAPI-V1.0/src/Services/WP_Sync/" />
+  <Folder Name="/TA-ITS015-WEBAPI-V1.0/src/Services/WP_Sync/src/">
+    <Project Path="TA-ITS015-WEBAPI-V1.0/src/Services/WP_Sync/src/ITS.Sync.Application/ITS.Sync.Application.csproj" />
+    <Project Path="TA-ITS015-WEBAPI-V1.0/src/Services/WP_Sync/src/ITS.Sync.Core/ITS.Sync.Core.csproj" />
+    <Project Path="TA-ITS015-WEBAPI-V1.0/src/Services/WP_Sync/src/ITS.Sync.Infrastructure/ITS.Sync.Infrastructure.csproj" />
+    <Project Path="TA-ITS015-WEBAPI-V1.0/src/Services/WP_Sync/src/ITS.Sync.Worker/ITS.Sync.Worker.csproj" />
+  </Folder>
   <Folder Name="/TA-ITS015-WEBAPI-V1.0/src/Shared/">
     <Project Path="TA-ITS015-WEBAPI-V1.0/src/Shared/Shared.DTO/Shared.DTO.csproj" />
     <Project Path="TA-ITS015-WEBAPI-V1.0/src/Shared/Shared.Reference/Shared.Reference.csproj" />
