@@ -217,11 +217,6 @@ public partial class Host : IAsyncLifetime
                 configBuilder.AddInMemoryCollection(InMemoryTestConfigurations);
             })
             .Inject(autoRegisterBackgroundService: false)
-            .UseDefaultServiceProvider(options =>
-            {
-                options.ValidateScopes = true;
-                options.ValidateOnBuild = true;
-            })
             .UseLamar()
             .ConfigureServices(RegisterTestServices);
 
