@@ -1220,6 +1220,38 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
         }
 
         [Fact]
+        public async Task ProcessBatchSubscriptions_WhenManySubscriptionsRunInParallel_NoSqlSugarThreadingError_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
+            var uniqueId = Guid.NewGuid().ToString("N")[..8];
+            await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.TrafficFlow, uniqueId);
+
+            var subIds = new List<string>();
+            for (var i = 0; i < 10; i++)
+            {
+                var pCode = $"P_PAR_{uniqueId}_{i}";
+                var sCode = $"SUB_PAR_{uniqueId}_{i}";
+                var (partner, sub) = await SeedOutboundSubscription(db, pCode, sCode, "101");
+                subIds.Add(sub.ID);
+            }
+
+            await CreateWorker(scope).ProcessBatchSubscriptions(CancellationToken.None);
+
+            var logs = await db.Queryable<ShareDataActivityLog>()
+                .Where(l => subIds.Contains(l.SubscriptionId!))
+                .ToListAsync();
+
+            Assert.Equal(10, logs.Count);
+            Assert.All(logs, l => Assert.Equal(ShareDataEnum.ExportStatus.Success, l.Status));
+
+            var filePaths = logs.Select(l => l.FilePath).Where(f => !string.IsNullOrEmpty(f)).Distinct().ToList();
+            Assert.Equal(10, filePaths.Count);
+        }
+
+        [Fact]
         public async Task ProcessBatchSubscriptions_WhenStateChangedToPausedDuringExecution_PreservesPausedState_Test()
         {
             using var scope = _host.Services.CreateScope();
@@ -3583,7 +3615,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                 ""
             ),
             ["102"] = (
-                "e.Code AS cameraCode, c.Name AS cameraName, c.SnapshotUrl AS snapshot, c.SnapshotTime AS snapshotTime, c.DeviceState AS deviceState, e.KmNumber AS locationKm, e.MetNumber AS locationMet, e.DirectionId AS direction",
+                "e.Code AS cameraCode, c.Name AS cameraName, NULL AS snapshot, c.SnapshotTime AS snapshotTime, c.DeviceState AS deviceState, e.KmNumber AS locationKm, e.MetNumber AS locationMet, e.DirectionId AS direction",
                 "FROM CctvDevice c LEFT JOIN TmsEquipment e ON c.Ip = e.Ip",
                 ""
             ),
@@ -3873,7 +3905,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                             FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
                             {
                                 new() { FieldKey = "cameraName", Column = "Name", DataType = "string", OrderNo = 2 },
-                                new() { FieldKey = "snapshot", Column = "SnapshotUrl", DataType = "string", OrderNo = 3 },
+                                // §1.9: snapshot lấy qua cameraSnapshotService (tải file JPEG thật/base64 từ Camera API theo chu kỳ), không lấy trực tiếp từ CSDL
+                                new() { FieldKey = "snapshot", Column = "SnapshotUrl", DataType = "string", OrderNo = 3, NoSource = true },
                                 new() { FieldKey = "snapshotTime", Column = "SnapshotTime", DataType = "datetime", OrderNo = 4 },
                                 new() { FieldKey = "deviceState", Column = "DeviceState", DataType = "int", OrderNo = 5 }
                             })
