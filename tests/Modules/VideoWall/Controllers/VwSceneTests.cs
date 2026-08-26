@@ -1,3 +1,6 @@
+using Module.VideoWall.Core.Dto.ISAPI;
+using Module.VideoWall.Core.Interfaces;
+
 namespace Tests.Modules.VideoWall;
 
 /// <summary>
@@ -5,52 +8,13 @@ namespace Tests.Modules.VideoWall;
 /// Created date: 15/08/2026
 /// </summary>
 [Collection("api")]
-public class VwSceneTests(Host host) : IDisposable
+public class VwSceneTests(Host host)
 {
     private const string TestPrefix = "TEST_VWSCN_";
     private readonly IMessageBus _bus = host.Services.GetRequiredService<IMessageBus>();
     private readonly ISqlSugarClient _db = host.Services.GetRequiredService<ISqlSugarClient>();
     private readonly BaseCacheService _cache = host.Services.GetRequiredService<BaseCacheService>();
     private readonly IStringLocalizer _localizer = host.Localizer;
-
-    /// <summary>VwEventTriggerLog.TargetSceneId lưu scene.ID (GUID), không mang TestPrefix như
-    /// Code — chỉ các test có gọi VwActiveSceneInput (ghi log) mới cần track vào đây để dọn dẹp.</summary>
-    private readonly List<string> _activatedSceneIds = [];
-
-    /// <summary>
-    /// Author: Đạt
-    /// Description: Dọn dẹp dữ liệu test trong CSDL và cache sau khi thực thi xong test suite
-    /// Created date: 15/08/2026
-    /// </summary>
-    public void Dispose()
-    {
-        host.MockServer.ResetDefaults();
-
-        _db.Deleteable<VwScene>()
-            .Where(u => u.Code != null && u.Code.StartsWith(TestPrefix))
-            .ExecuteCommand();
-
-        _db.Deleteable<VwController>()
-            .Where(u => u.Code != null && u.Code.StartsWith(TestPrefix))
-            .ExecuteCommand();
-
-        _db.Deleteable<VwEventRule>()
-            .Where(u => u.Code != null && u.Code.StartsWith(TestPrefix))
-            .ExecuteCommand();
-
-        if (_activatedSceneIds.Count > 0)
-        {
-            _db.Deleteable<VwEventTriggerLog>()
-                .Where(u => _activatedSceneIds.Contains(u.TargetSceneId!))
-                .ExecuteCommand();
-        }
-
-        _cache.Remove(CacheConst.Vw.VwScene);
-        _cache.RemoveByPrefixKey(CacheConst.Vw.VwController);
-        _cache.RemoveByPrefixKey(CacheConst.Vw.VwEventRule);
-        _cache.RemoveByPrefixKey(CacheConst.Vw.VwEventTriggerLog);
-        GC.SuppressFinalize(this);
-    }
 
     /// <summary>
     /// Description: Kiểm tra phân trang VwScene trả về danh sách hợp lệ
@@ -350,7 +314,6 @@ public class VwSceneTests(Host host) : IDisposable
             CreateTime = DateTime.Now
         };
         await _db.Insertable(scene).ExecuteCommandAsync();
-        _activatedSceneIds.Add(scene.ID);
 
         var input = new VwActiveSceneInput
         {
@@ -387,7 +350,6 @@ public class VwSceneTests(Host host) : IDisposable
             CreateTime = DateTime.Now
         };
         await _db.Insertable(scene).ExecuteCommandAsync();
-        _activatedSceneIds.Add(scene.ID);
 
         var eventTypeId = $"EVENT_{Guid.NewGuid():N}";
         var ruleCode = $"{TestPrefix}{Guid.NewGuid():N}";
@@ -499,6 +461,8 @@ public class VwSceneTests(Host host) : IDisposable
     [Fact]
     public async Task VwSceneWorkflow_ActivateScene_WithMappedDevice_PushesToDeviceAndUpdatesDb_Test()
     {
+        host.MockServer.ResetDefaults();
+
         // Arrange
         var ctrlCode = $"{TestPrefix}{Guid.NewGuid():N}";
         var sceneCode = $"{TestPrefix}{Guid.NewGuid():N}";
@@ -526,7 +490,6 @@ public class VwSceneTests(Host host) : IDisposable
             CreateTime = DateTime.Now
         };
         await _db.Insertable(scene).ExecuteCommandAsync();
-        _activatedSceneIds.Add(scene.ID);
 
         var input = new VwActiveSceneInput { Code = sceneCode };
 
@@ -554,6 +517,8 @@ public class VwSceneTests(Host host) : IDisposable
         bool simulateDeviceFailure,
         bool isSupportScene)
     {
+        host.MockServer.ResetDefaults();
+
         // Arrange
         var ctrlCode = $"{TestPrefix}{Guid.NewGuid():N}";
         var sceneCode = $"{TestPrefix}{Guid.NewGuid():N}";
@@ -581,7 +546,6 @@ public class VwSceneTests(Host host) : IDisposable
             CreateTime = DateTime.Now
         };
         await _db.Insertable(scene).ExecuteCommandAsync();
-        _activatedSceneIds.Add(scene.ID);
 
         host.MockServer.SimulateDeviceFailure = simulateDeviceFailure;
         host.MockServer.IsSupportScene = isSupportScene;
@@ -611,6 +575,8 @@ public class VwSceneTests(Host host) : IDisposable
     [Fact]
     public async Task VwSceneWorkflow_ActivateScene_WholeWall_PartialDeviceFailure_ThrowsAndDoesNotUpdateAnyController_Test()
     {
+        host.MockServer.ResetDefaults();
+
         // Arrange
         var sceneCode = $"{TestPrefix}{Guid.NewGuid():N}";
 
@@ -649,7 +615,6 @@ public class VwSceneTests(Host host) : IDisposable
             CreateTime = DateTime.Now
         };
         await _db.Insertable(scene).ExecuteCommandAsync();
-        _activatedSceneIds.Add(scene.ID);
 
         var input = new VwActiveSceneInput { Code = sceneCode };
 
@@ -665,7 +630,7 @@ public class VwSceneTests(Host host) : IDisposable
         Assert.Equal(BaseEnums.ActiveScene.DeActivate, dbScene.ActiveScene);
 
         var triggerLog = await _db.Queryable<VwEventTriggerLog>()
-            .FirstAsync(u => u.TargetSceneId == scene.ID);
+            .FirstAsync(u => u.SceneId == scene.ID);
         Assert.NotNull(triggerLog);
         Assert.Equal(BaseEnums.SuccessEnums.Fail, triggerLog.Success);
     }
@@ -674,7 +639,7 @@ public class VwSceneTests(Host host) : IDisposable
 
     /// <summary>
     /// Author: Đạt
-    /// Description: Kích hoạt trực tiếp bằng SceneCode phải ghi log Success với TargetSceneId đúng
+    /// Description: Kích hoạt trực tiếp bằng SceneCode phải ghi log Success với SceneId đúng
     ///              và RuleId rỗng (không đi qua VwEventRule).
     /// Created date: 16/08/2026
     /// </summary>
@@ -692,7 +657,6 @@ public class VwSceneTests(Host host) : IDisposable
             CreateTime = DateTime.Now
         };
         await _db.Insertable(scene).ExecuteCommandAsync();
-        _activatedSceneIds.Add(scene.ID);
 
         var input = new VwActiveSceneInput { Code = uniqueCode };
 
@@ -704,7 +668,7 @@ public class VwSceneTests(Host host) : IDisposable
             .FirstAsync(u => u.ID == result.TriggerLogId);
 
         Assert.NotNull(log);
-        Assert.Equal(scene.ID, log.TargetSceneId);
+        Assert.Equal(scene.ID, log.SceneId);
         Assert.Equal(BaseEnums.SuccessEnums.Success, log.Success);
         Assert.Null(log.RuleId);
     }
@@ -729,7 +693,6 @@ public class VwSceneTests(Host host) : IDisposable
             CreateTime = DateTime.Now
         };
         await _db.Insertable(scene).ExecuteCommandAsync();
-        _activatedSceneIds.Add(scene.ID);
 
         var eventTypeId = $"EVENT_{Guid.NewGuid():N}";
         var ruleCode = $"{TestPrefix}{Guid.NewGuid():N}";
@@ -754,7 +717,7 @@ public class VwSceneTests(Host host) : IDisposable
             .FirstAsync(u => u.ID == result.TriggerLogId);
 
         Assert.NotNull(log);
-        Assert.Equal(scene.ID, log.TargetSceneId);
+        Assert.Equal(scene.ID, log.SceneId);
         Assert.Equal(BaseEnums.SuccessEnums.Success, log.Success);
         Assert.Equal(rule.ID, log.RuleId);
         Assert.Equal(eventTypeId, log.EventTypeId);
@@ -763,7 +726,7 @@ public class VwSceneTests(Host host) : IDisposable
     /// <summary>
     /// Author: Đạt
     /// Description: Kích hoạt kịch bản đã Disable ném ngoại lệ nhưng vẫn phải ghi 1 bản ghi log
-    ///              Fail với TargetSceneId đúng — không được bỏ sót log khi thất bại.
+    ///              Fail với SceneId đúng — không được bỏ sót log khi thất bại.
     /// Created date: 16/08/2026
     /// </summary>
     [Fact]
@@ -780,7 +743,6 @@ public class VwSceneTests(Host host) : IDisposable
             CreateTime = DateTime.Now
         };
         await _db.Insertable(scene).ExecuteCommandAsync();
-        _activatedSceneIds.Add(scene.ID);
 
         var input = new VwActiveSceneInput { Code = uniqueCode };
 
@@ -789,12 +751,54 @@ public class VwSceneTests(Host host) : IDisposable
 
         // Assert
         var log = await _db.Queryable<VwEventTriggerLog>()
-            .Where(u => u.TargetSceneId == scene.ID)
+            .Where(u => u.SceneId == scene.ID)
             .OrderByDescending(u => u.CreateTime)
             .FirstAsync();
 
         Assert.NotNull(log);
         Assert.Equal(BaseEnums.SuccessEnums.Fail, log.Success);
+    }
+
+    /// <summary>
+    /// Author: Đạt
+    /// Description: Đọc kịch bản đang hoạt động trên thiết bị qua IVwISAPIDeviceClient sau khi ActivateScene và xác thực tăng GetActiveSceneCallCount.
+    /// Created date: 26/08/2026
+    /// </summary>
+    [Fact]
+    public async Task VwSceneWorkflow_GetActiveScene_ReturnsCurrentRunningScene_Test()
+    {
+        host.MockServer.ResetDefaults();
+        var client = host.Services.GetRequiredService<IVwISAPIDeviceClient>();
+        var controller = new VwController
+        {
+            ID = $"ctrl-scn-act-{Guid.NewGuid():N}",
+            Name = "Test Active Scene Controller",
+            Code = $"{TestPrefix}CTRL_ACT_{Guid.NewGuid():N}",
+            IP = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPort}",
+            Account = VwISAPIMockServerHikvision.DefaultUser,
+            PassWord = VwISAPIMockServerHikvision.DefaultPassword,
+            Status = BaseEnums.StatusEnum.Enable
+        };
+
+        // 1. GetActiveScene ban đầu (mặc định SID = 1)
+        var result1 = await client.GetActiveSceneAsync(controller, wallNo: 2);
+        Assert.NotNull(result1);
+        Assert.True(result1.Success);
+        Assert.NotNull(result1.Data);
+        Assert.Equal(1, result1.Data.SceneId);
+        Assert.True(host.MockServer.GetActiveSceneCallCount >= 1);
+
+        // 2. Kích hoạt sang scene SID 3
+        var actResult = await client.ActivateSceneAsync(controller, "3", wallNo: 2);
+        Assert.True(actResult.Success);
+
+        // 3. GetActiveScene sau kích hoạt phải trả về SID 3
+        var result2 = await client.GetActiveSceneAsync(controller, wallNo: 2);
+        Assert.NotNull(result2);
+        Assert.True(result2.Success);
+        Assert.NotNull(result2.Data);
+        Assert.Equal(3, result2.Data.SceneId);
+        Assert.True(host.MockServer.GetActiveSceneCallCount >= 2);
     }
 
     #endregion

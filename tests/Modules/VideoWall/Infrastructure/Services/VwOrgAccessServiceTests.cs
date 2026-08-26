@@ -1,6 +1,13 @@
 using Furion;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Module.VideoWall.Core.Options;
+using Module.VideoWall.Infrastructure;
+using Module.VideoWall.Infrastructure.Services.Access;
 using Shared.Core.Utilities.Constants;
+using Shared.Infrastructure.Services;
 using System.Security.Claims;
 
 namespace Tests.Modules.VideoWall
@@ -13,26 +20,28 @@ namespace Tests.Modules.VideoWall
     /// Created date: 17/08/2026
     /// </summary>
     [Collection("api")]
-    public class VwOrgAccessServiceTests(Host host) : IDisposable
+    public class VwOrgAccessServiceTests(Host host)
     {
         private const string TestPrefix = "TEST_VWORG_";
         private readonly ISqlSugarClient _db = host.Services.GetRequiredService<ISqlSugarClient>();
         private readonly IHttpContextAccessor _httpContextAccessor = host.Services.GetRequiredService<IHttpContextAccessor>();
 
-        public void Dispose()
-        {
-            _httpContextAccessor.HttpContext = null;
-
-            _db.Deleteable<VwController>()
-                .Where(u => u.Code != null && u.Code.StartsWith(TestPrefix))
-                .ExecuteCommand();
-
-            GC.SuppressFinalize(this);
-        }
-
         // VwOrgAccessService là Scoped nên phải resolve qua scope riêng (gate module đã nằm ở constructor)
-        private VwOrgAccessService GetOrgAccessService()
-            => host.Services.CreateScope().ServiceProvider.GetRequiredService<VwOrgAccessService>();
+        private VwOrgAccessService GetOrgAccessService(VwDeviceOptions? customDeviceOptions = null)
+        {
+            var scope = host.Services.CreateScope();
+            if (customDeviceOptions == null)
+                return scope.ServiceProvider.GetRequiredService<VwOrgAccessService>();
+
+            return new VwOrgAccessService(
+                scope.ServiceProvider.GetRequiredService<BaseRepository<VwController>>(),
+                scope.ServiceProvider.GetRequiredService<BaseRepository<VwScreen>>(),
+                scope.ServiceProvider.GetRequiredService<BaseRepository<VwSource>>(),
+                scope.ServiceProvider.GetRequiredService<BaseRepository<VwScene>>(),
+                scope.ServiceProvider.GetRequiredService<UserManager>(),
+                Microsoft.Extensions.Options.Options.Create(customDeviceOptions),
+                scope.ServiceProvider.GetRequiredService<ILogger<VwOrgAccessService>>());
+        }
 
         private void SetRestrictedUser(string orgId)
         {
@@ -207,6 +216,71 @@ namespace Tests.Modules.VideoWall
             var resolved = await GetOrgAccessService().ResolveSceneControllerIdAsync(null);
 
             Assert.Equal(soleCtrl.ID, resolved);
+        }
+
+        /// <summary>
+        /// Author: Đạt
+        /// Description: Khi cấu hình BypassPermission = true (môi trường non-Production), tài khoản thường vẫn được cấp FullAccess.
+        /// Created date: 24/08/2026
+        /// </summary>
+        [Fact]
+        public async Task VwOrgAccessService_BypassPermissionEnabled_GrantsFullAccess_Test()
+        {
+            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+            SetRestrictedUser(orgId);
+
+            // PHẢI là App.HostEnvironment, KHÔNG phải host.Services.GetRequiredService<IHostEnvironment>().
+            // Hai lời gọi đó trả về HAI instance KHÁC NHAU (đã đo bằng ReferenceEquals), mà
+            // VwOrgAccessService.IsPermissionBypassed đọc qua App.HostEnvironment — set lên instance của
+            // host.Services thì production code không thấy gì.
+            var hostEnv = App.HostEnvironment;
+            var originalEnv = hostEnv.EnvironmentName;
+
+            try
+            {
+                hostEnv.EnvironmentName = Environments.Development;
+
+                var srv = GetOrgAccessService(new VwDeviceOptions { BypassPermission = true });
+                var scope = await srv.GetScopeAsync();
+
+                Assert.True(srv.IsFullAccess);
+                Assert.True(scope.IsFullAccess);
+            }
+            finally
+            {
+                hostEnv.EnvironmentName = originalEnv;
+            }
+        }
+
+        /// <summary>
+        /// Author: Đạt
+        /// Description: Cờ BypassPermission = true bị vô hiệu hóa an toàn nếu chạy trong môi trường Production (ngăn ngừa lỗ hổng phân quyền).
+        /// Created date: 24/08/2026
+        /// </summary>
+        [Fact]
+        public async Task VwOrgAccessService_BypassPermissionEnabled_InProduction_IsIgnored_Test()
+        {
+            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+            SetRestrictedUser(orgId);
+
+            // Xem chú thích ở test Development phía trên: phải sửa đúng instance App.HostEnvironment.
+            var hostEnv = App.HostEnvironment;
+            var originalEnv = hostEnv.EnvironmentName;
+
+            try
+            {
+                hostEnv.EnvironmentName = Environments.Production;
+
+                var srv = GetOrgAccessService(new VwDeviceOptions { BypassPermission = true });
+                var scope = await srv.GetScopeAsync();
+
+                Assert.False(srv.IsFullAccess);
+                Assert.False(scope.IsFullAccess);
+            }
+            finally
+            {
+                hostEnv.EnvironmentName = originalEnv;
+            }
         }
 
         #endregion

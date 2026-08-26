@@ -1,3 +1,6 @@
+using Module.VideoWall.Core.Dto.ISAPI;
+using Module.VideoWall.Core.Interfaces;
+
 namespace Tests.Modules.VideoWall;
 
 /// <summary>
@@ -5,7 +8,7 @@ namespace Tests.Modules.VideoWall;
 /// Created date: 15/08/2026
 /// </summary>
 [Collection("api")]
-public class VwWindowSceneTests(Host host) : IDisposable
+public class VwWindowSceneTests(Host host)
 {
     private const string TestPrefix = "TEST_VWWIN_";
     private readonly IMessageBus _bus = host.Services.GetRequiredService<IMessageBus>();
@@ -13,40 +16,6 @@ public class VwWindowSceneTests(Host host) : IDisposable
     private readonly BaseCacheService _cache = host.Services.GetRequiredService<BaseCacheService>();
     private readonly NewLife.Caching.ICacheProvider _cacheProvider = host.Services.GetRequiredService<NewLife.Caching.ICacheProvider>();
     private readonly IStringLocalizer _localizer = host.Localizer;
-
-    /// <summary>
-    /// Author: Đạt
-    /// Description: Dọn dẹp dữ liệu test trong CSDL và cache sau khi thực thi xong test suite
-    /// Created date: 15/08/2026
-    /// </summary>
-    public void Dispose()
-    {
-        host.MockServer.ResetDefaults();
-
-        _db.Deleteable<VwWindowScene>()
-            .Where(u => u.Code != null && u.Code.StartsWith(TestPrefix))
-            .ExecuteCommand();
-
-        _db.Deleteable<VwScene>()
-            .Where(u => u.Code != null && u.Code.StartsWith(TestPrefix))
-            .ExecuteCommand();
-
-        _db.Deleteable<VwSource>()
-            .Where(u => u.Code != null && u.Code.StartsWith(TestPrefix))
-            .ExecuteCommand();
-
-        _db.Deleteable<VwScreen>()
-            .Where(u => u.Code != null && u.Code.StartsWith(TestPrefix))
-            .ExecuteCommand();
-
-        _db.Deleteable<VwController>()
-            .Where(u => u.Code != null && u.Code.StartsWith(TestPrefix))
-            .ExecuteCommand();
-
-        _cache.RemoveByPrefixKey(CacheConst.Vw.VwWindowScene);
-        _cache.Remove(CacheConst.Vw.VwScene);
-        GC.SuppressFinalize(this);
-    }
 
     /// <summary>
     /// Description: Kiểm tra phân trang VwWindowScene trả về danh sách hợp lệ
@@ -360,24 +329,25 @@ public class VwWindowSceneTests(Host host) : IDisposable
         };
         await _db.Insertable(new[] { ctrlA, ctrlB }).ExecuteCommandAsync();
 
-        // Panel 0 thuộc Controller A (GridCol = 0, GridRow = 0 -> x: 0..3840, y: 0..2160)
+        var baseColA = Random.Shared.Next(100, 10000) * 10;
+        // Panel 0 thuộc Controller A (GridCol = baseColA, GridRow = 0)
         var screenA = new VwScreen
         {
             Code = $"{TestPrefix}SCR_A_{Guid.NewGuid():N}",
             Name = "Panel A",
             ControllerId = ctrlA.ID,
-            GridCol = 0,
+            GridCol = baseColA,
             GridRow = 0,
             Status = BaseEnums.StatusEnum.Enable,
             CreateTime = DateTime.Now
         };
-        // Panel 1 thuộc Controller B (GridCol = 1, GridRow = 0 -> x: 3840..7680, y: 0..2160)
+        // Panel 1 thuộc Controller B (GridCol = baseColA + 1, GridRow = 0)
         var screenB = new VwScreen
         {
             Code = $"{TestPrefix}SCR_B_{Guid.NewGuid():N}",
             Name = "Panel B",
             ControllerId = ctrlB.ID,
-            GridCol = 1,
+            GridCol = baseColA + 1,
             GridRow = 0,
             Status = BaseEnums.StatusEnum.Enable,
             CreateTime = DateTime.Now
@@ -395,13 +365,13 @@ public class VwWindowSceneTests(Host host) : IDisposable
         };
         await _db.Insertable(sceneA).ExecuteCommandAsync();
 
-        // Cố gắng đặt cửa sổ tràn sang toạ độ của Panel B (X = 4000)
+        // Cố gắng đặt cửa sổ tràn sang toạ độ của Panel B
         var input = new VwAddWindowSceneInput
         {
             Code = $"{TestPrefix}WIN_OVERLAP_{Guid.NewGuid():N}",
             Name = "Illegal Overlapping Window",
             SceneId = sceneA.ID,
-            X = 4000,
+            X = (baseColA + 1) * VwSceneRegionService.PanelWidthPx + 160,
             Y = 100,
             W = 800,
             H = 600,
@@ -437,13 +407,14 @@ public class VwWindowSceneTests(Host host) : IDisposable
         };
         await _db.Insertable(ctrl).ExecuteCommandAsync();
 
+        var baseColDev = Random.Shared.Next(100, 10000) * 10;
         var screen = new VwScreen
         {
             ID = Guid.NewGuid().ToString(),
             Code = $"{TestPrefix}SCR_DEV_{Guid.NewGuid():N}",
             Name = "Panel Dev",
             ControllerId = ctrl.ID,
-            GridCol = 0,
+            GridCol = baseColDev,
             GridRow = 0,
             Status = BaseEnums.StatusEnum.Enable,
             CreateTime = DateTime.Now
@@ -467,7 +438,7 @@ public class VwWindowSceneTests(Host host) : IDisposable
             Code = uniqueCode,
             Name = "Window With Device Sync",
             SceneId = scene.ID,
-            X = 100,
+            X = baseColDev * VwSceneRegionService.PanelWidthPx + 100,
             Y = 100,
             W = 800,
             H = 600,
@@ -514,13 +485,14 @@ public class VwWindowSceneTests(Host host) : IDisposable
         };
         await _db.Insertable(ctrl).ExecuteCommandAsync();
 
+        var baseColFail = Random.Shared.Next(100, 10000) * 10;
         var screen = new VwScreen
         {
             ID = Guid.NewGuid().ToString(),
             Code = $"{TestPrefix}SCR_FAIL_{Guid.NewGuid():N}",
             Name = "Panel Fail",
             ControllerId = ctrl.ID,
-            GridCol = 0,
+            GridCol = baseColFail,
             GridRow = 0,
             Status = BaseEnums.StatusEnum.Enable,
             CreateTime = DateTime.Now
@@ -549,7 +521,7 @@ public class VwWindowSceneTests(Host host) : IDisposable
             Code = uniqueCode,
             Name = "Window Device Fails",
             SceneId = scene.ID,
-            X = 100,
+            X = baseColFail * VwSceneRegionService.PanelWidthPx + 100,
             Y = 100,
             W = 800,
             H = 600,
@@ -564,7 +536,6 @@ public class VwWindowSceneTests(Host host) : IDisposable
         Assert.Null(inserted);
     }
 
-
     /// <summary>
     /// Author: Đạt
     /// Description: Test hồi quy cho lỗi đã phát hiện + sửa: trước đây SyncSceneWindowsToDeviceAsync
@@ -577,6 +548,8 @@ public class VwWindowSceneTests(Host host) : IDisposable
     [Fact]
     public async Task VwWindowSceneCommand_DeleteLastWindowInScene_StillCallsSaveSceneData_Test()
     {
+        host.MockServer.ResetDefaults();
+
         // Arrange
         var ctrl = new VwController
         {
@@ -591,13 +564,14 @@ public class VwWindowSceneTests(Host host) : IDisposable
         };
         await _db.Insertable(ctrl).ExecuteCommandAsync();
 
+        var baseColLast = Random.Shared.Next(100, 10000) * 10;
         var screen = new VwScreen
         {
             ID = Guid.NewGuid().ToString(),
             Code = $"{TestPrefix}SCR_LAST_{Guid.NewGuid():N}",
             Name = "Panel Last",
             ControllerId = ctrl.ID,
-            GridCol = 0,
+            GridCol = baseColLast,
             GridRow = 0,
             Status = BaseEnums.StatusEnum.Enable,
             CreateTime = DateTime.Now
@@ -623,7 +597,7 @@ public class VwWindowSceneTests(Host host) : IDisposable
             Code = uniqueCode,
             Name = "Only Window In Scene",
             SceneId = scene.ID,
-            X = 0,
+            X = baseColLast * VwSceneRegionService.PanelWidthPx,
             Y = 0,
             W = 800,
             H = 600,
@@ -656,7 +630,11 @@ public class VwWindowSceneTests(Host host) : IDisposable
     {
         host.MockServer.ResetDefaults();
 
-        // 1. Arrange: 2 Controllers, 2 Panels ghép ngang
+        // 1. Arrange: Xoá controller/screen cũ để kịch bản toàn tường chỉ thấy đúng 2 controller của bài test
+        await _db.Deleteable<VwController>().ExecuteCommandAsync();
+        await _db.Deleteable<VwScreen>().ExecuteCommandAsync();
+
+        var baseColWW = Random.Shared.Next(100, 10000) * 10;
         var ctrlA = new VwController
         {
             ID = Guid.NewGuid().ToString(),
@@ -687,7 +665,7 @@ public class VwWindowSceneTests(Host host) : IDisposable
             Code = $"{TestPrefix}SCR_WW_A_{Guid.NewGuid():N}",
             Name = "Screen WW A",
             ControllerId = ctrlA.ID,
-            GridCol = 0,
+            GridCol = baseColWW,
             GridRow = 0,
             Status = BaseEnums.StatusEnum.Enable,
             CreateTime = DateTime.Now
@@ -698,7 +676,7 @@ public class VwWindowSceneTests(Host host) : IDisposable
             Code = $"{TestPrefix}SCR_WW_B_{Guid.NewGuid():N}",
             Name = "Screen WW B",
             ControllerId = ctrlB.ID,
-            GridCol = 1,
+            GridCol = baseColWW + 1,
             GridRow = 0,
             Status = BaseEnums.StatusEnum.Enable,
             CreateTime = DateTime.Now
@@ -723,7 +701,7 @@ public class VwWindowSceneTests(Host host) : IDisposable
             Code = $"{TestPrefix}WIN_WW_{Guid.NewGuid():N}",
             Name = "Cross Controller Window",
             SceneId = wholeWallScene.ID,
-            X = 0,
+            X = baseColWW * VwSceneRegionService.PanelWidthPx,
             Y = 0,
             W = VwSceneRegionService.PanelWidthPx * 2, // Chiếm cả 2 controller
             H = VwSceneRegionService.PanelHeightPx,
@@ -756,7 +734,11 @@ public class VwWindowSceneTests(Host host) : IDisposable
     {
         host.MockServer.ResetDefaults();
 
-        // 1. Arrange: 2 Controllers, 2 Panels ghép ngang, 1 Scene toàn tường có 1 Window
+        // 1. Arrange: Xoá controller/screen cũ để kịch bản toàn tường chỉ thấy đúng 2 controller của bài test
+        await _db.Deleteable<VwController>().ExecuteCommandAsync();
+        await _db.Deleteable<VwScreen>().ExecuteCommandAsync();
+
+        var baseColDel = Random.Shared.Next(100, 10000) * 10;
         var ctrlA = new VwController
         {
             ID = Guid.NewGuid().ToString(),
@@ -787,7 +769,7 @@ public class VwWindowSceneTests(Host host) : IDisposable
             Code = $"{TestPrefix}SCR_WW_DEL_A_{Guid.NewGuid():N}",
             Name = "Screen WW Del A",
             ControllerId = ctrlA.ID,
-            GridCol = 0,
+            GridCol = baseColDel,
             GridRow = 0,
             Status = BaseEnums.StatusEnum.Enable,
             CreateTime = DateTime.Now
@@ -798,7 +780,7 @@ public class VwWindowSceneTests(Host host) : IDisposable
             Code = $"{TestPrefix}SCR_WW_DEL_B_{Guid.NewGuid():N}",
             Name = "Screen WW Del B",
             ControllerId = ctrlB.ID,
-            GridCol = 1,
+            GridCol = baseColDel + 1,
             GridRow = 0,
             Status = BaseEnums.StatusEnum.Enable,
             CreateTime = DateTime.Now
@@ -824,7 +806,7 @@ public class VwWindowSceneTests(Host host) : IDisposable
             Code = $"{TestPrefix}WIN_WW_DEL_{Guid.NewGuid():N}",
             Name = "Window To Delete",
             SceneId = wholeWallScene.ID,
-            X = 0,
+            X = baseColDel * VwSceneRegionService.PanelWidthPx,
             Y = 0,
             W = VwSceneRegionService.PanelWidthPx * 2,
             H = VwSceneRegionService.PanelHeightPx,
@@ -985,13 +967,14 @@ public class VwWindowSceneTests(Host host) : IDisposable
         };
         await _db.Insertable(scene).ExecuteCommandAsync();
 
+        var baseColTop = Random.Shared.Next(100, 10000) * 10;
         var screen = new VwScreen
         {
             ID = Guid.NewGuid().ToString(),
             Code = $"{TestPrefix}SCR_TOP_{Guid.NewGuid():N}",
             Name = "Screen Top Test",
             ControllerId = controller.ID,
-            GridCol = 0,
+            GridCol = baseColTop,
             GridRow = 0,
             Status = BaseEnums.StatusEnum.Enable,
             CreateTime = DateTime.Now
@@ -1017,7 +1000,7 @@ public class VwWindowSceneTests(Host host) : IDisposable
             Name = "Window Top Test",
             SceneId = scene.ID,
             SourceId = source.ID,
-            X = 0,
+            X = baseColTop * VwSceneRegionService.PanelWidthPx,
             Y = 0,
             W = 1920,
             H = 1080,
@@ -1082,13 +1065,14 @@ public class VwWindowSceneTests(Host host) : IDisposable
         };
         await _db.Insertable(scene).ExecuteCommandAsync();
 
+        var baseColBot = Random.Shared.Next(100, 10000) * 10;
         var screen = new VwScreen
         {
             ID = Guid.NewGuid().ToString(),
             Code = $"{TestPrefix}SCR_BOT_{Guid.NewGuid():N}",
             Name = "Screen Bottom Test",
             ControllerId = controller.ID,
-            GridCol = 0,
+            GridCol = baseColBot,
             GridRow = 0,
             Status = BaseEnums.StatusEnum.Enable,
             CreateTime = DateTime.Now
@@ -1114,7 +1098,7 @@ public class VwWindowSceneTests(Host host) : IDisposable
             Name = "Window Bottom Test",
             SceneId = scene.ID,
             SourceId = source.ID,
-            X = 0,
+            X = baseColBot * VwSceneRegionService.PanelWidthPx,
             Y = 0,
             W = 1920,
             H = 1080,
@@ -1210,5 +1194,71 @@ public class VwWindowSceneTests(Host host) : IDisposable
         var updated = await _db.Queryable<VwWindowScene>().FirstAsync(u => u.ID == window.ID);
         Assert.NotNull(updated);
         Assert.True(updated.ZIndex > 1);
+    }
+
+    /// <summary>
+    /// Author: Đạt
+    /// Description: Cập nhật toạ độ cửa sổ trên MockServer qua IVwISAPIDeviceClient và xác thực tăng bộ đếm UpdateWindowCallCount.
+    /// Created date: 26/08/2026
+    /// </summary>
+    [Fact]
+    public async Task VwWindowSceneCommand_UpdateWindow_UpdatesGeometryAndIncrementsMockCount_Test()
+    {
+        host.MockServer.ResetDefaults();
+        var client = host.Services.GetRequiredService<IVwISAPIDeviceClient>();
+        var controller = new VwController
+        {
+            ID = $"ctrl-win-upd-{Guid.NewGuid():N}",
+            Name = "Test Window Update Controller",
+            Code = $"{TestPrefix}CTRL_UPD_{Guid.NewGuid():N}",
+            IP = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPort}",
+            Account = VwISAPIMockServerHikvision.DefaultUser,
+            PassWord = VwISAPIMockServerHikvision.DefaultPassword,
+            Status = BaseEnums.StatusEnum.Enable
+        };
+
+        var windowRequest = new VwISAPIWindowRequest
+        {
+            Rect = new VwISAPIRect
+            {
+                Coordinate = new VwISAPICoordinate { X = 100, Y = 100 },
+                Width = 1920,
+                Height = 1080
+            }
+        };
+
+        var result = await client.UpdateWindowAsync(controller, "33554433", windowRequest, wallNo: 2);
+
+        Assert.NotNull(result);
+        Assert.True(result.Success);
+        Assert.True(host.MockServer.UpdateWindowCallCount >= 1);
+    }
+
+    /// <summary>
+    /// Author: Đạt
+    /// Description: Xoá một cửa sổ đơn lẻ trên MockServer qua IVwISAPIDeviceClient và xác thực tăng bộ đếm DeleteWindowCallCount.
+    /// Created date: 26/08/2026
+    /// </summary>
+    [Fact]
+    public async Task VwWindowSceneCommand_DeleteSingleWindow_DeletesOneAndIncrementsMockCount_Test()
+    {
+        host.MockServer.ResetDefaults();
+        var client = host.Services.GetRequiredService<IVwISAPIDeviceClient>();
+        var controller = new VwController
+        {
+            ID = $"ctrl-win-del-{Guid.NewGuid():N}",
+            Name = "Test Window Delete Controller",
+            Code = $"{TestPrefix}CTRL_DEL_{Guid.NewGuid():N}",
+            IP = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPort}",
+            Account = VwISAPIMockServerHikvision.DefaultUser,
+            PassWord = VwISAPIMockServerHikvision.DefaultPassword,
+            Status = BaseEnums.StatusEnum.Enable
+        };
+
+        var result = await client.DeleteWindowAsync(controller, "33554433", wallNo: 2);
+
+        Assert.NotNull(result);
+        Assert.True(result.Success);
+        Assert.True(host.MockServer.DeleteWindowCallCount >= 1);
     }
 }

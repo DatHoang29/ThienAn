@@ -6,27 +6,13 @@ namespace Tests.Modules.VideoWall
     /// Created date: 17/08/2026
     /// </summary>
     [Collection("api")]
-    public class VwEventRuleTests(Host host) : IDisposable
+    public class VwEventRuleTests(Host host)
     {
         private const string TestPrefix = "TEST_VWEVENTRULE_";
         private readonly IMessageBus _bus = host.Services.GetRequiredService<IMessageBus>();
         private readonly ISqlSugarClient _db = host.Services.GetRequiredService<ISqlSugarClient>();
         private readonly BaseCacheService _cache = host.Services.GetRequiredService<BaseCacheService>();
         private readonly IStringLocalizer _localizer = host.Localizer;
-
-        public void Dispose()
-        {
-            _db.Deleteable<VwEventRule>()
-                .Where(u => u.Code != null && u.Code.StartsWith(TestPrefix))
-                .ExecuteCommand();
-
-            _db.Deleteable<VwScene>()
-                .Where(u => u.Code != null && u.Code.StartsWith(TestPrefix))
-                .ExecuteCommand();
-
-            _cache.RemoveByPrefixKey(CacheConst.Vw.VwEventRule);
-            GC.SuppressFinalize(this);
-        }
 
         /// <summary>
         /// Author: Đạt

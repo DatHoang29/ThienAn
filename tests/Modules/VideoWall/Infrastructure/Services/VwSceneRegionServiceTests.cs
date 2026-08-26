@@ -9,30 +9,13 @@ namespace Tests.Modules.VideoWall
     /// Created date: 17/08/2026
     /// </summary>
     [Collection("api")]
-    public class VwSceneRegionServiceTests(Host host) : IDisposable
+    public class VwSceneRegionServiceTests(Host host)
     {
         private const string TestPrefix = "TEST_VWREGION_";
         private readonly ISqlSugarClient _db = host.Services.GetRequiredService<ISqlSugarClient>();
         // VwSceneRegionService là Scoped nên phải resolve qua scope riêng (gate module đã nằm ở constructor)
         private VwSceneRegionService GetRegionService()
             => host.Services.CreateScope().ServiceProvider.GetRequiredService<VwSceneRegionService>();
-
-        public void Dispose()
-        {
-            _db.Deleteable<VwScreen>()
-                .Where(u => u.Code != null && u.Code.StartsWith(TestPrefix))
-                .ExecuteCommand();
-
-            _db.Deleteable<VwScene>()
-                .Where(u => u.Code != null && u.Code.StartsWith(TestPrefix))
-                .ExecuteCommand();
-
-            _db.Deleteable<VwController>()
-                .Where(u => u.Code != null && u.Code.StartsWith(TestPrefix))
-                .ExecuteCommand();
-
-            GC.SuppressFinalize(this);
-        }
 
         #region Region Boundary & Coverage Tests
 
@@ -98,12 +81,13 @@ namespace Tests.Modules.VideoWall
             };
             await _db.Insertable(ctrl).ExecuteCommandAsync();
 
+            var baseCol = Random.Shared.Next(100, 10000) * 10;
             var screen = new VwScreen
             {
                 Code = $"{TestPrefix}SCR_OK_{Guid.NewGuid():N}",
                 Name = "Owner Panel",
                 ControllerId = ctrlId,
-                GridCol = 0,
+                GridCol = baseCol,
                 GridRow = 0,
                 Status = BaseEnums.StatusEnum.Enable,
                 CreateTime = DateTime.Now,
@@ -123,7 +107,7 @@ namespace Tests.Modules.VideoWall
             await _db.Insertable(scene).ExecuteCommandAsync();
 
             var exception = await Record.ExceptionAsync(() =>
-                GetRegionService().EnsureWindowInsideSceneRegionAsync(scene.ID, 100, 100, 1920, 1080, "Window Inside"));
+                GetRegionService().EnsureWindowInsideSceneRegionAsync(scene.ID, baseCol * VwSceneRegionService.PanelWidthPx + 100, 100, 1920, 1080, "Window Inside"));
 
             Assert.Null(exception);
         }
@@ -326,6 +310,29 @@ namespace Tests.Modules.VideoWall
             Assert.Equal(0, slice2.Y);
             Assert.Equal(960, slice2.W);
             Assert.Equal(1920, slice2.H);
+        }
+
+        /// <summary>
+        /// Author: Đạt
+        /// Description: ToIsapiLocalRect hỗ trợ cấu hình baseOutputSize tuỳ biến (ví dụ 960) và quy đổi tỉ lệ chính xác theo giá trị đó.
+        /// Created date: 24/08/2026
+        /// </summary>
+        [Fact]
+        public void VwSceneRegionService_ToIsapiLocalRect_CustomBaseOutputSize_ScalesAccordingly_Test()
+        {
+            var (x, y, w, h) = VwSceneRegionService.ToIsapiLocalRect(
+                originCol: 0,
+                originRow: 0,
+                x: 0,
+                y: 0,
+                w: VwSceneRegionService.PanelWidthPx,
+                h: VwSceneRegionService.PanelHeightPx,
+                baseOutputSize: 960);
+
+            Assert.Equal(0, x);
+            Assert.Equal(0, y);
+            Assert.Equal(960, w);
+            Assert.Equal(960, h);
         }
 
         #endregion

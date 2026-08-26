@@ -5,28 +5,13 @@ namespace Tests.Modules.VideoWall;
 /// Created date: 15/08/2026
 /// </summary>
 [Collection("api")]
-public class VwControllerTests(Host host) : IDisposable
+public class VwControllerTests(Host host)
 {
     private const string TestPrefix = "TEST_VWCTRL_";
     private readonly IMessageBus _bus = host.Services.GetRequiredService<IMessageBus>();
     private readonly ISqlSugarClient _db = host.Services.GetRequiredService<ISqlSugarClient>();
     private readonly BaseCacheService _cache = host.Services.GetRequiredService<BaseCacheService>();
     private readonly IStringLocalizer _localizer = host.Localizer;
-
-    /// <summary>
-    /// Author: Đạt
-    /// Description: Dọn dẹp dữ liệu test trong CSDL sau khi thực thi xong test suite
-    /// Created date: 15/08/2026
-    /// </summary>
-    public void Dispose()
-    {
-        _db.Deleteable<VwController>()
-            .Where(u => u.Code != null && u.Code.StartsWith(TestPrefix))
-            .ExecuteCommand();
-
-        _cache.RemoveByPrefixKey(CacheConst.Vw.VwController);
-        GC.SuppressFinalize(this);
-    }
 
     /// <summary>
     /// Description: Kiểm tra phân trang VwController trả về danh sách hợp lệ
@@ -192,11 +177,12 @@ public class VwControllerTests(Host host) : IDisposable
         await _db.Insertable(controller).ExecuteCommandAsync();
         _cache.RemoveByPrefixKey(CacheConst.Vw.VwController);
 
+        var updatedName = $"{TestPrefix}Updated_{Guid.NewGuid():N}";
         var updateInput = new VwUpdateControllerInput
         {
             ID = controller.ID,
             Code = uniqueCode,
-            Name = "Updated Controller Name",
+            Name = updatedName,
             IP = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPort}",
             Account = "admin",
             PassWord = "Password123!",
@@ -217,7 +203,7 @@ public class VwControllerTests(Host host) : IDisposable
             .FirstAsync(u => u.ID == controller.ID && u.IsDelete == null);
 
         Assert.NotNull(updated);
-        Assert.Equal("Updated Controller Name", updated.Name);
+        Assert.Equal(updatedName, updated.Name);
     }
 
     /// <summary>
@@ -374,7 +360,7 @@ public class VwControllerTests(Host host) : IDisposable
     public async Task VwControllerCommand_UpdateVwController_ResetsCircuitBreaker_Test()
     {
         var client = host.Services.GetRequiredService<IVwISAPIDeviceClient>();
-        var testIp = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPort}";
+        var testIp = "127.0.0.1:18099";
 
         // Gây lỗi để Circuit Breaker khóa testIp
         client.RecordCircuitBreakerFailure(testIp, 401);
@@ -395,20 +381,28 @@ public class VwControllerTests(Host host) : IDisposable
         await _db.Insertable(ctrl).ExecuteCommandAsync();
         _cache.RemoveByPrefixKey(CacheConst.Vw.VwController);
 
-        var updateInput = new VwUpdateControllerInput
+        try
         {
-            ID = ctrl.ID,
-            Name = "Updated Controller Name",
-            IP = testIp,
-            Account = "admin",
-            PassWord = "NewPasswordCorrect",
-            Status = BaseEnums.StatusEnum.Enable
-        };
+            var updateInput = new VwUpdateControllerInput
+            {
+                ID = ctrl.ID,
+                Name = "Updated Controller Name",
+                IP = testIp,
+                Account = "admin",
+                PassWord = "NewPasswordCorrect",
+                Status = BaseEnums.StatusEnum.Enable
+            };
 
-        // Act: cập nhật thông tin
-        await _bus.InvokeAsync(updateInput);
+            // Act: cập nhật thông tin
+            await _bus.InvokeAsync(updateInput);
 
-        // Assert: Circuit Breaker cho testIp đã được tự động Reset (không còn bị blocked)
-        Assert.False(client.IsCircuitBreakerBlocked(testIp, out _));
+            // Assert: Circuit Breaker cho testIp đã được tự động Reset (không còn bị blocked)
+            Assert.False(client.IsCircuitBreakerBlocked(testIp, out _));
+        }
+        finally
+        {
+            client.ResetCircuitBreaker(testIp);
+            await _db.Deleteable<VwController>().Where(u => u.ID == ctrl.ID).ExecuteCommandAsync();
+        }
     }
 }

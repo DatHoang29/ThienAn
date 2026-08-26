@@ -4,11 +4,27 @@
 
   <!-- ══════════════════ PHẦN 1 — CỐ ĐỊNH ══════════════════ -->
 
+  <!--
+  ĐA NỀN TẢNG (net10.0 + net10.0-windows):
+    - net10.0        : nền chính, chạy trên macOS/Linux/Windows. TOÀN BỘ test hiện có nằm ở đây.
+    - net10.0-windows: CHỈ để nạp thêm test của client WPF. Module.VideoWall.WPF là net10.0-windows,
+                       assembly net10.0 KHÔNG tham chiếu được (lỗi cứng NU1201) nên buộc phải có
+                       nhánh TFM riêng.
+  Hệ quả PHẢI biết:
+    - macOS/Linux : nhánh windows BIÊN DỊCH được (EnableWindowsTargeting) nhưng KHÔNG CHẠY được
+                    (thiếu runtime Microsoft.WindowsDesktop.App) => test Wpf chỉ chạy trên Windows.
+                    Lọc theo tên `~VideoWall.Wpf` ở đây sẽ báo xanh mà chạy 0 test — đừng coi là đã test.
+    - Windows     : `dotnet test` chạy LẦN LƯỢT cả 2 TFM nên bộ test hiện có chạy 2 lượt (tuần tự,
+                    không đụng CSDL `test` hay port MockServer 18080-18083, nhưng CI lâu gấp đôi).
+                    Chạy đúng một nền: `dotnet test tests/test.csproj -f net10.0`.
+  -->
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks>net10.0;net10.0-windows</TargetFrameworks>
     <IsTestProject>true</IsTestProject>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- Cho phép biên dịch nhánh windows trên máy dev macOS/Linux. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
 
   <!-- Gốc repo product. Project test nằm NGOÀI repo nên mọi đường dẫn đi qua đây, đổi tên/vị trí
@@ -77,6 +93,9 @@
          phần ISAPI. Test VideoWall dùng IVwISAPIDeviceClient / VwISAPIMockServerHikvision xuyên suốt
          VwWindowScene, VwScene, VwController nên thiếu ISAPI là cả bộ không biên dịch được. -->
     <VideoWallIsapiSource>$(RepoRoot)\src\Modules\VideoWall\Module.VideoWall.Core\Interfaces\IVwISAPIDeviceClient.cs</VideoWallIsapiSource>
+
+    <!-- Client WPF (net10.0-windows). Project RIÊNG, TAC_WebAPI không tham chiếu nên phải tự khai. -->
+    <VideoWallWpfProject>$(RepoRoot)\src\Modules\VideoWall\Module.VideoWall.WPF\Module.VideoWall.WPF.csproj</VideoWallWpfProject>
   </PropertyGroup>
 
   <!-- 2.2 — Cờ có/không mặt. Mỗi cờ 2 dòng: mặc định false rồi ghi đè true, để cờ không bị rỗng khi
@@ -100,12 +119,24 @@
     <!-- Cần CẢ module VÀ feature ISAPI. Có module mà thiếu ISAPI thì đỏ CS0234 + CS0246. -->
     <CanCompileVideoWallTests>false</CanCompileVideoWallTests>
     <CanCompileVideoWallTests Condition="'$(HasVideoWallModule)' == 'true' And Exists('$(VideoWallIsapiSource)')">true</CanCompileVideoWallTests>
+
+    <HasVideoWallWpf>false</HasVideoWallWpf>
+    <HasVideoWallWpf Condition="Exists('$(VideoWallWpfProject)')">true</HasVideoWallWpf>
+
+    <!-- Test Wpf cần ĐỦ 3 điều kiện: có project client WPF, có bộ test VideoWall nền (dùng chung
+         Host + MockServer + entity để seed), VÀ đang build ở TFM windows. -->
+    <CanCompileVideoWallWpfTests>false</CanCompileVideoWallWpfTests>
+    <CanCompileVideoWallWpfTests Condition="'$(HasVideoWallWpf)' == 'true' And '$(CanCompileVideoWallTests)' == 'true' And '$(TargetFramework)' == 'net10.0-windows'">true</CanCompileVideoWallWpfTests>
   </PropertyGroup>
 
   <!-- 2.3 — Symbol cho #if trong C#. Nhờ đây Host.cs khai module TƯỜNG MINH mà vẫn build được khi
        module bị xoá; đổi lại so với reflection: gõ sai tên là lỗi biên dịch ngay, không âm thầm bỏ qua. -->
   <PropertyGroup Condition="'$(HasVideoWallModule)' == 'true'">
     <DefineConstants>$(DefineConstants);HAS_VIDEOWALL</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(CanCompileVideoWallWpfTests)' == 'true'">
+    <DefineConstants>$(DefineConstants);HAS_VIDEOWALL_WPF</DefineConstants>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(HasShareDataModule)' == 'true'">
@@ -122,6 +153,16 @@
     <ProjectReference Include="$(ShareDataWorkerProject)" />
     <ProjectReference Include="$(ShareDataWorkerCoreProject)" />
   </ItemGroup>
+
+  <!-- Client WPF chỉ tham chiếu được ở TFM windows; nhánh net10.0 không được chạm (đỏ NU1201).
+       Tham chiếu ASSEMBLY (không nạp nguồn) là điều kiện then chốt: DTO client cố ý TRÙNG TÊN NGẮN
+       với DTO backend (VwSetupSceneStep, VwProbeDeviceOutput...), nạp nguồn vào cùng compilation với
+       các global using Module.VideoWall.Core.Dto.* sẽ đỏ CS0104 ngay trong file của client. -->
+  <ItemGroup Condition="'$(CanCompileVideoWallWpfTests)' == 'true'">
+    <ProjectReference Include="$(VideoWallWpfProject)" />
+
+  </ItemGroup>
+
 
   <!--
   2.5 — Loại file test của module vắng mặt khỏi biên dịch. SDK tự nạp mọi **/*.cs vào Compile trước
@@ -141,6 +182,14 @@
     <None Include="Modules\VideoWall\**\*.cs" />
   </ItemGroup>
 
+  <!-- Test client WPF gom hết trong Modules\VideoWall\Wpf\ nên 1 pattern loại trúng cả file test
+       lẫn file scaffolding (Host.VideoWallWpf.cs). Điều kiện RIÊNG so với khối trên vì nhánh net10.0
+       vẫn biên dịch các test VideoWall khác, chỉ bỏ đúng thư mục Wpf. -->
+  <ItemGroup Condition="'$(CanCompileVideoWallWpfTests)' != 'true'">
+    <Compile Remove="Modules\VideoWall\Wpf\**\*.cs" />
+    <None Include="Modules\VideoWall\Wpf\**\*.cs" />
+  </ItemGroup>
+
   <!-- 2.6 — In bản đồ module trước khi build, không có thì việc loại test diễn ra IM LẶNG.
        Importance="high" để hiện cả khi dotnet build -v m. -->
   <Target Name="ReportOptionalTestModules" BeforeTargets="BeforeBuild">
@@ -149,6 +198,8 @@
     <Message Importance="high" Condition="'$(CanCompileShareDataTests)' != 'true'" Text="[TEST MODULES] Loại khỏi biên dịch: tests/Modules/ShareData/**" />
     <Message Importance="high" Condition="'$(HasVideoWallModule)' == 'true' And '$(CanCompileVideoWallTests)' != 'true'" Text="[TEST MODULES] Module.VideoWall có nhưng thiếu feature ISAPI (Module.VideoWall.Core\Interfaces\IVwISAPIDeviceClient.cs) -> loại tests/Modules/VideoWall/**" />
     <Message Importance="high" Condition="'$(HasVideoWallModule)' != 'true'" Text="[TEST MODULES] Loại khỏi biên dịch: tests/Modules/VideoWall/**" />
+    <Message Importance="high" Text="[TEST MODULES] TFM=$(TargetFramework) | Module.VideoWall.WPF=$(HasVideoWallWpf) (test Wpf=$(CanCompileVideoWallWpfTests))" />
+    <Message Importance="high" Condition="'$(HasVideoWallWpf)' == 'true' And '$(TargetFramework)' != 'net10.0-windows'" Text="[TEST MODULES] TFM $(TargetFramework) không tham chiếu được net10.0-windows -> loại tests/Modules/VideoWall/Wpf/** (bộ này CHỈ chạy ở net10.0-windows trên Windows)." />
   </Target>
 
 </Project>

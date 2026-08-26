@@ -42,7 +42,6 @@ bị guard Zero-Trust chặn nếu trỏ ra ngoài `localhost` / `127.0.0.1` / `
 | | `VwSceneRegionServiceTests.cs` | 11 | Kiểm tra vùng, quy đổi toạ độ uniformCoordinate (1920×1920), cắt lát đa controller |
 | | `VwISAPIDeviceServiceTests.cs` | 9 | Digest Credentials, Base URI, refresh credential theo IP/Port |
 | | `VwOrgAccessServiceTests.cs` | 7 | Phân quyền đơn vị OrgId: FullAccess vs. Restricted Org |
-| **VideoWall — Smoke** | `VwISAPIDeviceSmokeTests.cs` | 4 | **Skipped có chủ ý** — chỉ chạy tay khi có thiết bị Hikvision thật |
 
 Toàn bộ test VideoWall chạy qua `VwISAPIMockServerHikvision` (HttpListener thật trên `127.0.0.1`,
 port 18080-18083), không phụ thuộc thiết bị phần cứng hay mạng ngoài.

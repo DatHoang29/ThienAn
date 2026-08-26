@@ -1,13 +1,10 @@
 using Furion;
-using Hangfire;
-using JasperFx.CodeGeneration;
-using Lamar.Microsoft.DependencyInjection;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
-using Modules.System.Extensions;
 using NewLife.Caching;
-using Shared.Core.Extensions;
 using Shared.Core.Security;
 using Shared.Core.Settings.Options;
 using Shared.Infrastructure.Localization;
@@ -15,16 +12,6 @@ using System.Globalization;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
-
-#if HAS_SHAREDATA
-using Module.ShareData.Extensions;
-#endif
-#if HAS_VIDEOWALL
-using Module.VideoWall.Extensions;
-#endif
-#if HAS_SHAREDATAWORKER
-using ShareDataWorker.Extensions;
-#endif
 
 namespace Tests;
 
@@ -124,21 +111,41 @@ public partial class Host : IAsyncLifetime
         ["Logging:Database:Enabled"] = "false"
     };
 
-    private IHost? _host;
-
+    private WebApplicationFactory<TAC_WebAPI.Program>? _host;
+    private HttpClient? _apiClient;
+    public HttpClient ApiClient => _apiClient ?? throw new InvalidOperationException("Host not initialized");
     public IServiceProvider Services => _host?.Services ?? throw new InvalidOperationException("Host not initialized");
-
+    public IServiceProvider ApiServices => Services;
     public IStringLocalizer Localizer => Services.GetRequiredService<IStringLocalizer>();
+    public HttpClient CreateApiClient(params DelegatingHandler[] handlers) => _host?.CreateDefaultClient(handlers) ?? throw new InvalidOperationException("Host not initialized");
 
     public async Task InitializeAsync()
     {
         Console.OutputEncoding = Encoding.UTF8;
         ApplyTestCulture();
+        EnsureValidTestLicense();
 
-        _host = BuildHostBuilder().Build();
+        _host = new WebApplicationFactory<TAC_WebAPI.Program>()
+            .WithWebHostBuilder(builder =>
+            {
+                builder.UseSetting("Urls", "http://127.0.0.1:0");
+
+                builder.ConfigureAppConfiguration((_, configBuilder) =>
+                {
+                    configBuilder.Sources.Clear();
+                    configBuilder.AddInMemoryCollection(InMemoryTestConfigurations);
+                });
+
+                builder.ConfigureServices(services =>
+                {
+#if HAS_SHAREDATAWORKER
+                    ShareDataWorker.Extensions.ShareDataWorkerExtensions.AddShareDataWorkerCoreServices(services);
+#endif
+                });
+            });
+
+        _apiClient = _host.CreateClient();
         GuardAllConnectionsLocal(_host.Services);
-
-        await _host.StartAsync();
         BindFurionRootServices(_host.Services);
         StartModuleTestServers();
 
@@ -148,13 +155,13 @@ public partial class Host : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        StopModuleTestServers();
+        _apiClient?.Dispose();
+        _apiClient = null;
 
-        if (_host != null)
-        {
-            await _host.StopAsync();
-            _host.Dispose();
-        }
+        _host?.Dispose();
+        _host = null;
+
+        StopModuleTestServers();
     }
 
     public void ClearAllData()
@@ -207,62 +214,6 @@ public partial class Host : IAsyncLifetime
         CultureInfo.DefaultThreadCurrentUICulture = culture;
         Thread.CurrentThread.CurrentCulture = culture;
         Thread.CurrentThread.CurrentUICulture = culture;
-    }
-
-    private static IHostBuilder BuildHostBuilder() =>
-        Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
-            .ConfigureAppConfiguration((ctx, configBuilder) =>
-            {
-                configBuilder.Sources.Clear();
-                configBuilder.AddInMemoryCollection(InMemoryTestConfigurations);
-            })
-            .Inject(autoRegisterBackgroundService: false)
-            .UseLamar()
-            .ConfigureServices(RegisterTestServices);
-
-    private static void RegisterTestServices(HostBuilderContext ctx, IServiceCollection services)
-    {
-        var config = ctx.Configuration;
-
-        EnsureValidTestLicense();
-        services.AddSharedInfrastructure(config);
-        services.AddSharedApplication(config);
-
-        services.AddWolverine(opts =>
-        {
-            opts.Policies.AutoApplyTransactions();
-            opts.Durability.Mode = DurabilityMode.MediatorOnly;
-            opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Dynamic;
-        });
-
-        if (config["Hangfire:Enable"]?.ToLower() == "true")
-        {
-            services.AddHangfire(x => x.UseSqlServerStorage(config["Hangfire:ConnectionString"]
-                ?? config["DbConnection:ConnectionConfigs:0:ConnectionString"]));
-            services.AddHangfireServer();
-        }
-
-        services.AddSerialization(config);
-        services.AddDatabaseAccessor();
-        services.AddSingleton<IStringLocalizerFactory, JsonStringLocalizerFactory>();
-        services.AddSystemModule(config);
-
-        RegisterConditionalModules(services, config);
-    }
-
-    private static void RegisterConditionalModules(IServiceCollection services, IConfiguration config)
-    {
-#if HAS_SHAREDATA
-        services.AddShareDataModule(config);
-#endif
-
-#if HAS_VIDEOWALL
-        services.AddVWModule(config);
-#endif
-
-#if HAS_SHAREDATAWORKER
-        services.AddShareDataWorkerCoreServices();
-#endif
     }
 
     private static void EnsureValidTestLicense()
@@ -381,7 +332,8 @@ public partial class Host : IAsyncLifetime
         || value.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
         || value.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
         || value.StartsWith("ws://", StringComparison.OrdinalIgnoreCase)
-        || value.StartsWith("wss://", StringComparison.OrdinalIgnoreCase);
+        || value.StartsWith("wss://", StringComparison.OrdinalIgnoreCase)
+        ;
 
     private static void GuardSqlConnectionIsLocal(string? connectionString, string targetName)
     {

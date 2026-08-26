@@ -61,6 +61,7 @@ DocBusinessThienAn/
 | `videowall_plan.md` | 4.5 KB · 138 dòng | Đặc tả yêu cầu + kế hoạch họp **19/08 và 25/08** gộp theo mốc ngày (form/dịch vụ test tích hợp thiết bị, giao thức TCP, câu hỏi cần chốt + ghi chú thô 25/08 về công cụ WPF). Phần Share Data cùng giai đoạn xem `ShareData/sharedata_plan.md` | Khi cần bối cảnh & deadline hiện tại của hạng mục VideoWall |
 | `ISAPI-Videowall-Controller/README.md` | 8 KB | Mục lục bộ tài liệu ISAPI (chuyển đổi từ PDF 512 trang) | Điểm vào của bộ 00→10 |
 | `ISAPI-Videowall-Controller/00-api-catalog.md` | 44 KB · 305 dòng | Danh mục API decoding & video wall (chương 9.7, tr.332–499) kèm số trang PDF gốc | Tra nhanh "có API nào cho việc này" |
+| `ISAPI-Videowall-Controller/00B-api-list-full.md` | 238 dòng | Chuyển đổi từ `_source/VideoWall_ISAPI_API_List.xlsx` — bảng đầy đủ 116 API (12 nhóm 9.7.1→9.7.11), mỗi API gắn nhãn Dùng chính / Tùy chọn-mở rộng / Ngoài phạm vi | Tra cứu dạng bảng đầy đủ, đối chiếu API nào thật sự dùng cho dự án |
 | `ISAPI-Videowall-Controller/01-reading-guide.md` | < 1 KB | Hướng dẫn cách đọc bộ tài liệu | Lần đầu mở bộ tài liệu |
 | `ISAPI-Videowall-Controller/02-overview.md` | 4 KB | Tổng quan thiết bị & hệ thống | Nắm bối cảnh |
 | `ISAPI-Videowall-Controller/03-isapi-framework.md` | 8 KB | Khung ISAPI: URL, method, digest auth, mã lỗi | Trước khi gọi API lần đầu |

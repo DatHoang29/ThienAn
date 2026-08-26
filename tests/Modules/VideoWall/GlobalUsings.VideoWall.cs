@@ -7,6 +7,7 @@
 // ═══════════════════════════════════════════════════════════════════════════════════════════
 
 // ─── Entities / Interfaces / Services của Module.VideoWall ───
+global using Module.VideoWall.Core.Constants;
 global using Module.VideoWall.Core.Entities;
 global using Module.VideoWall.Core.Interfaces;
 global using Module.VideoWall.Infrastructure.Services.Access;
@@ -14,7 +15,9 @@ global using Module.VideoWall.Infrastructure.Services.Scene;
 
 // ─── DTO theo từng nhóm nghiệp vụ ───
 global using Module.VideoWall.Core.Dto.Controller;
+global using Module.VideoWall.Core.Dto.DeviceSetup;
 global using Module.VideoWall.Core.Dto.EventRule;
+global using Module.VideoWall.Core.Dto.EventTriggerLog;
 global using Module.VideoWall.Core.Dto.ISAPI;
 global using Module.VideoWall.Core.Dto.Scene;
 global using Module.VideoWall.Core.Dto.Schedule;
@@ -25,7 +28,9 @@ global using Module.VideoWall.Core.Dto.WindowScene;
 
 // ─── Validators (FluentValidation) dùng cho Negative Test First ───
 global using Module.VideoWall.Controllers.Controller.Validators;
+global using Module.VideoWall.Controllers.DeviceSetup.Validators;
 global using Module.VideoWall.Controllers.EventRule.Validators;
+global using Module.VideoWall.Controllers.EventTriggerLog.Validators;
 global using Module.VideoWall.Controllers.Scene.Validators;
 global using Module.VideoWall.Controllers.Schedule.Validators;
 global using Module.VideoWall.Controllers.Screen.Validators;

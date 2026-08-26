@@ -6,27 +6,13 @@ namespace Tests.Modules.VideoWall
     /// Created date: 17/08/2026
     /// </summary>
     [Collection("api")]
-    public class VwScheduleTests(Host host) : IDisposable
+    public class VwScheduleTests(Host host)
     {
         private const string TestPrefix = "TEST_VWSCHEDULE_";
         private readonly IMessageBus _bus = host.Services.GetRequiredService<IMessageBus>();
         private readonly ISqlSugarClient _db = host.Services.GetRequiredService<ISqlSugarClient>();
         private readonly BaseCacheService _cache = host.Services.GetRequiredService<BaseCacheService>();
         private readonly IStringLocalizer _localizer = host.Localizer;
-
-        public void Dispose()
-        {
-            _db.Deleteable<VwSchedule>()
-                .Where(u => u.Code != null && u.Code.StartsWith(TestPrefix))
-                .ExecuteCommand();
-
-            _db.Deleteable<VwScene>()
-                .Where(u => u.Code != null && u.Code.StartsWith(TestPrefix))
-                .ExecuteCommand();
-
-            _cache.RemoveByPrefixKey(CacheConst.Vw.VwSchedule);
-            GC.SuppressFinalize(this);
-        }
 
         /// <summary>
         /// Author: Đạt
