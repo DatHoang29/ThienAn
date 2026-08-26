@@ -103,10 +103,10 @@ description: Apply when writing, building, refactoring, or fixing code — proje
    - LUÔN LUÔN dùng `dotnet test <csproj_or_sln>` hoặc `dotnet build` để nạp đủ các thư viện và dependency.
 
 3. **Vòng đời Test (xUnit Lifecycle):**
-   - Khi có khởi tạo DB / Host nặng, BẮT BUỘC dùng `IClassFixture<T>` để tránh gọi constructor N lần gây đụng độ `DROP TABLE` khi chạy test song song.
+   - Khi có khởi tạo DB / Host nặng, BẮT BUỘC dùng `ICollectionFixture<Host>` và gắn `[Collection("api")]` trên class test (trong đó `Host` triển khai `IAsyncLifetime`, không phải `IDisposable`) để chia sẻ fixture duy nhất cho cả collection, tránh gọi constructor N lần gây đụng độ khi chạy test song song.
+   - Việc xóa/dọn dẹp dữ liệu test chỉ thực hiện duy nhất 1 lần ở tầng `Host.cs` (`ClearAllData()`). Các bài test tự cô lập dữ liệu bằng GUID / Prefix ngẫu nhiên, TUYỆT ĐỐI KHÔNG viết `Dispose()` dọn dữ liệu ở từng `TestClass`.
 
-4. **Kiểm tra Connection String trước khi `dotnet test` (BẮT BUỘC):**
-   - Trước khi thực thi `dotnet test`, BẮT BUỘC kiểm tra cấu hình: Tất cả Connection Strings của RDBMS (SQL Server, PostgreSQL, v.v.) và NoSQL/Cache (Redis) phải trỏ về **LOCAL** (`localhost`, `127.0.0.1`, `(localdb)`, `.`).
-   - Nếu phát hiện bất kỳ chuỗi kết nối nào trỏ tới server từ xa (như `10.10.8.30` hoặc remote IP/host), **HỦY NGAY LẬP TỨC VÀ BÁO CÁO LẠI CHO NGƯỜI DÙNG**.
+4. **Kiểm tra Connection String trước khi `dotnet test`:**
+   > Chuỗi kết nối khi test: xem mục "Strict Local Database Rule for Testing" trong universal-rules.md.
 
 

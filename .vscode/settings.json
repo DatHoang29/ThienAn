@@ -1,8 +1,3 @@
 {
-    "dotnet.defaultSolution": "ThienAn.Tests.slnx",
-    "git.showIgnoreWarning": false,
-    "git.ignoreLimitWarning": true,
-    "postman.settings.dotenv-detection-notification-visibility": false,
-    "java.compile.nullAnalysis.mode": "automatic",
-    "todo-tree.ripgrep.ripgrep": "/opt/homebrew/bin/rg"
+    "dotnet.defaultSolution": "TA-ITS015-WEBAPI-V1.0/src/TAC_WebAPI.sln"
 }

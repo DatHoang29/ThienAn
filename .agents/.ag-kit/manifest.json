@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "toolkitVersion": "2026.7.27",
   "installedAt": "2026-08-01T03:36:09.036Z",
-  "updatedAt": "2026-08-14T06:10:28.800Z",
-  "lastRunId": "20260814-061020-214",
+  "updatedAt": "2026-08-26T04:09:15.420Z",
+  "lastRunId": "20260826-040913-324",
   "files": {
     "agent/backend-specialist.md": "65087ad56011ce55231f2754c3bdbb1c32ee14fa24ae9f389c0a7a67c178f1fd",
     "agent/code-archaeologist.md": "a0c654b885773c425f6a1c3f35ac7a1d509ed32e08a4e2daf373ddc5c6c805f3",

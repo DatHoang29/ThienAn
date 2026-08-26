@@ -109,6 +109,24 @@ CR: CR0001-thay-doi-luong-gui-mail
 
 ---
 
+### 🏭 Ngoại Lệ Định Dạng Commit Cho Dự Án ThienAn (Nhánh WebAPI / WebVue)
+
+Riêng khi commit trên nhánh thuộc 2 repo `TA-ITS015-WEBAPI-V1.0` và `TA-ITS015-WEBVUE-V1.0`, dòng Summary
+**KHÔNG** dùng cú pháp `[Keyword]: [TaskCode] - [noi-dung]` ở mục 3 trên, mà dùng LẠI NGUYÊN VĂN tên nhánh
+(đúng Cú Pháp 2 ở mục 1) làm dòng Summary — tức `[BranchKey]/[yyyyMMdd]-[TaskCode]-[ten-cong-viec-viet-thuong-khong-dau]`.
+Phần Description chi tiết vẫn liệt kê từng dòng công việc đã thực hiện trong lần commit, **KHÔNG** cần dấu
+gạch đầu dòng `-` như cấu trúc chung.
+
+*Ví dụ:*
+```text
+feat/20260826-XD001.5.5-Service-tich-hop-du-lieu
+
+Hoàn thiện api share data
+Cấu hình lưu chuẩn json db
+```
+
+---
+
 ## 🚫 4. Quy Định Tự Động Hóa Đối Với Trợ Lý AI (AI Execution Rules)
 
 Đối với Trợ lý AI (Antigravity Agent), tuyệt đối tuân thủ **3 nguyên tắc** sau khi làm việc trong dự án:
@@ -116,10 +134,10 @@ CR: CR0001-thay-doi-luong-gui-mail
 1.  **KHÔNG TỰ ĐỘNG CHẠY LỆNH BUILD (`dotnet build`)**: AI không được tự động chạy lệnh `dotnet build` hoặc bất kỳ lệnh biên dịch nào sau khi chỉnh sửa code, trừ khi người dùng yêu cầu trực tiếp.
 2.  **KHÔNG TỰ ĐỘNG COMMIT VÀ PUSH GIT (`git commit` / `git push`)**: AI không được tự động chạy `git add`, `git commit`, hay `git push` code lên repository dưới bất kỳ hình thức nào. Quyền commit và push code hoàn toàn thuộc về lập trình viên.
 3.  **TỐI THIỂU HÓA THAY ĐỔI (MINIMAL DIFF PRINCIPLE)**: AI CHỈ ĐƯỢC PHÉP chỉnh sửa/thêm code đối với các file và nội dung thực sự phục vụ trực tiếp cho tính năng mới hoặc bug được yêu cầu. TUYỆT ĐỐI KHÔNG tự động upgrade phiên bản thư viện (`PackageReference` trong `.csproj`), không format/touch vào các file không liên quan, không làm thay đổi các file dùng chung (`Shared.Reference`, `appsettings.json`,...) trừ khi có chỉ định rõ ràng từ người dùng.
-4.  **TỰ ĐỘNG DỌN DẸP FILE KẾ HOẠCH TẠM ({task-slug}.md)**: Sau khi hoàn thành thực thi toàn bộ công việc của một kế hoạch, AI BẮT BUỘC phải tự động xóa bỏ các file kế hoạch tạm thời đã tạo ở thư mục gốc (ví dụ `{task-slug}.md`, `ide0290-primary.md`,...), không để tồn đọng rác trong kho mã nguồn.
 
 > [!NOTE]
-> Các quy chuẩn code/hạ tầng chung của dự án (Docker, Entity, Swagger, header comment...) áp dụng cho **cả người lẫn AI** — xem tại mục 5 bên dưới, không lặp lại ở đây để tránh trùng lặp nội dung.
+> - Tự động dọn dẹp file kế hoạch tạm: xem mục "Auto-Cleanup Completed Prompt & Plan Files" trong `universal-rules.md`.
+> - Các quy chuẩn code/hạ tầng chung của dự án (Docker, Entity, Swagger, header comment...) áp dụng cho **cả người lẫn AI** — xem tại mục 5 bên dưới, không lặp lại ở đây để tránh trùng lặp nội dung.
 
 ---
 
@@ -204,8 +222,8 @@ Các hệ thống / Module phát triển mới về sau bắt buộc tuân thủ
 
 8. **Quy định Docker SQL Server trên Mac**: Máy tính chạy môi trường macOS (đặc biệt chip Apple Silicon M1/M2/M3/M4) **BẮT BUỘC** dùng Docker image `mcr.microsoft.com/azure-sql-edge:latest`. TUYỆT ĐỐI KHÔNG dùng `mcr.microsoft.com/mssql/server:2022-latest` vì bản x86_64 sẽ bị crash tràn bộ nhớ QEMU (`Invalid mapping of address`).
 9. **Quy định Primary Constructor ([IDE0290](https://learn.microsoft.com/dotnet/fundamentals/code-analysis/style-rules/ide0290))**: Luôn ưu tiên và áp dụng C# Primary Constructors (ví dụ: `public class MyService(ILogger<MyService> logger, IConfiguration configuration) : IMyService`) cho các class, record, struct và Dependency Injection services bất cứ khi nào có thể, thay vì khai báo thân constructor tường minh kèm các field private thủ công, trừ khi bắt buộc phải có thân constructor hoặc constructor chaining phức tạp.
-10. **Quy định Structured Logging ([CA1873](https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1873))**: Luôn sử dụng message template cho `ILogger` (ví dụ: `_logger.LogInformation("Processing {Id} for {Partner}", id, partner)`), TUYỆT ĐỐI KHÔNG dùng string interpolation `$""` (ví dụ: `_logger.LogInformation($"Processing {id}...")`) hoặc truyền các biểu thức tính toán tốn kém (`string.Join`, `.Count()`, LINQ) trực tiếp vào tham số log. Kiểm tra `_logger.IsEnabled(...)` trước khi xử lý dữ liệu log nặng để tránh cấp phát bộ nhớ lãng phí khi tắt log.
-11. **Quy định Tự Động Xóa Using Thừa ([IDE0005](https://learn.microsoft.com/dotnet/fundamentals/code-analysis/style-rules/ide0005))**: Sau mỗi lần tạo mới hoặc chỉnh sửa file code C#, **BẮT BUỘC** phải rà soát và xóa bỏ tất cả các chỉ thị `using ...;` không còn sử dụng hoặc bị trùng lặp với `GlobalUsings.cs` (CS0105 / IDE0005) để giữ mã nguồn gọn gàng và không sinh cảnh báo build.
+10. **Quy định Structured Logging ([CA1873](https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1873))**: Xem mục "Structured Logging ([CA1873]...)" trong `universal-rules.md`.
+11. **Quy định Tự Động Xóa Using Thừa ([IDE0005](https://learn.microsoft.com/dotnet/fundamentals/code-analysis/style-rules/ide0005))**: Xem mục "Tự Động Xóa Using Thừa ([IDE0005]...)" trong `universal-rules.md`.
 
 ---
 
@@ -217,30 +235,29 @@ Tất cả các bài kiểm thử tự động (Integration/Unit Tests) bắt bu
 Dự án test nằm trực tiếp trong thư mục `tests/` của repo gốc (không lồng subfolder project):
 ```
 tests/
-├── test.csproj                            ← Project file test (Target net8.0)
-├── Host.cs                                ← WebApplicationFactory chính (override DB, tắt Hangfire)
+├── test.csproj                            ← Project file test (Target net10.0)
+├── Host.cs                                ← Host.CreateDefaultBuilder() + Lamar (IAsyncLifetime, override DB, tắt Hangfire)
 ├── GlobalUsings.cs                        ← Chứa global using chung (Xunit, System.Net...) để tránh IDE0005
 └── Modules/
     └── <TênModule>/
-        └── <TênModule>Tests.cs            ← File test của module (IClassFixture<Host>)
+        ├── Host.<TênModule>.cs            ← Partial method cấu hình riêng cho module
+        ├── GlobalUsings.<TênModule>.cs    ← Global using riêng cho module
+        └── <TênModule>Tests.cs            ← File test của module (xem vòng đời fixture tại code-rules.md)
 ```
 
 ### 2. Triết Lý & Phương Pháp Viết Test
+* **Vòng đời Fixture & Collection**: Xem quy định vòng đời fixture tại mục 3 trong `code-rules.md` (`ICollectionFixture<Host>` + `[Collection("api")]`).
 * **Tập trung vào Happy Path**: Chỉ tập trung viết test cho các luồng chính (**Happy Path** của Queries & Commands). 
 * **Gọi trực tiếp qua Wolverine `IMessageBus` (Bypass Controller/HTTP)**: 
   - **Lợi ích**: Giúp quá trình chạy test cực kỳ nhanh, bỏ qua lớp kiểm tra quyền JWT Authentication/Authorization phiền phức và **100% bắt được breakpoint** khi debug bằng VS Code (do cùng chạy trên 1 luồng xử lý chính).
   - **Cách gọi**: Inject `IMessageBus` từ `Host.Services` và gọi trực tiếp:
     - *Queries (Phân trang)*: `var result = await _bus.InvokeAsync<SqlSugarPagedList<OutputDTO>>(new InputDTO { ... });`
     - *Commands (Thêm/Sửa/Xóa)*: `await _bus.InvokeAsync(payload);`
+* **Kiểm tra Validator Bắt Buộc Trực Tiếp Trong Test Command (Không Tách File Riêng)**: Khi viết test cho bất kỳ Command nào (Add, Update, Delete, BatchDelete, Ping, Probe, Sync, Setup, Reset, Workflow commands...) có validator FluentValidation tương ứng: BẮT BUỘC phải thực hiện kiểm thử validator trực tiếp trong luồng test của class test Controller/Command tương ứng (ví dụ: `var valResult = await new XxxValidator().ValidateAsync(input); Assert.True(valResult.IsValid, ...);`) trước khi gửi qua `_bus.InvokeAsync(payload)`. TUYỆT ĐỐI KHÔNG TÁCH CLASS/FILE TEST VALIDATOR RIÊNG BIỆT (như `*ValidatorTests.cs`). Đối với các case lỗi (negative validation), kiểm tra `Assert.False(invalidResult.IsValid)` trực tiếp trong bài test tương ứng.
 * **Kiểm tra trạng thái DB trực tiếp**: Đối với các Command (Add/Update/Delete), sau khi gọi `_bus.InvokeAsync`, hãy resolve `ISqlSugarClient` từ scope của Host để query và so sánh trực tiếp dữ liệu trong DB (ví dụ: `Assert.NotNull(added)`, `Assert.Null(deleted)`).
 * **Cấu trúc SqlSugarPagedList**: Đối tượng phân trang trả về là `SqlSugarPagedList<T>`, truy xuất dữ liệu danh sách qua thuộc tính **`.Records`** (kiểu `IEnumerable<T>`), không phải `.List` hay `.Rows`.
-* **Cơ chế Tự Dọn Dẹp Dữ Liệu Cục Bộ (Dispose)**:
-  - Lớp Test bắt buộc kế thừa **`IDisposable`**.
-  - Triển khai phương thức **`Dispose()`** để tự động chạy sau mỗi hàm test, thực hiện `DELETE` tất cả các bản ghi/ID mock thuộc module nội bộ vừa chèn vào DB. Không drop database khi tắt host.
-* **Cách ly dữ liệu test & Không xóa bảng nghiệp vụ ngoài (Read-Only Target Tables)**:
-  - Bảng dữ liệu nghiệp vụ thuộc hệ thống ngoài hoặc module khác (như `TmsTrafficData`, `TmsOrder`...) là bảng ĐỌC (READ-ONLY).
-  - AI TUYỆT ĐỐI KHÔNG ĐƯỢC thực thi các câu lệnh `DELETE` hay `TRUNCATE` trên các bảng dữ liệu nghiệp vụ này (cả trong code runtime lẫn trong bài test `Dispose()`).
-  - Mọi bài test BẮT BUỘC tự cách ly dữ liệu test bằng cách chèn bản ghi mới và dùng mốc thời gian (`UpdateTime > lastTimeRun`), đảm bảo bài test chạy chính xác 100% mà KHÔNG CẦN xóa hay làm ảnh hưởng đến dữ liệu sẵn có của hệ thống khác.
+* **Dọn Dẹp Dữ Liệu Tập Trung Duy Nhất Ở Tầng Host**: Toàn bộ việc dọn dẹp / xóa dữ liệu test chỉ được thực hiện tập trung duy nhất ở tầng **Host** (thông qua `ClearAllData()` khi khởi tạo `ICollectionFixture<Host>`). TUYỆT ĐỐI KHÔNG viết logic `Dispose()` để `DELETE` hay `TRUNCATE` dữ liệu trong từng `TestClass`.
+* **Cô Lập Dữ Liệu Test Bằng GUID / Unique ID**: Mọi bài test BẮT BUỘC tự cô lập dữ liệu bằng cách sinh mã định danh duy nhất (GUID / `Guid.NewGuid():N` / `TestPrefix` ngẫu nhiên) cho các bản ghi tạo mới trong bước Arrange, đảm bảo các bài test chạy song song hoặc tuần tự hoàn toàn độc lập và không bao giờ xung đột dữ liệu với nhau. Bảng dữ liệu nghiệp vụ ngoài (READ-ONLY) tuyệt đối không chạy lệnh xóa/sửa.
 
 ### 3. Quy Tắc Đặt Tên & Định Dạng
 * **File test**: `<TênModule>Tests.cs` (không dùng hậu tố `IntegrationTests.cs`).
@@ -254,6 +271,6 @@ tests/
   /// </summary>
   ```
   *(BỎ HẲN và KHÔNG DÙNG field `Updated date:`)*.
-* **Namespace**: `TAC_WebAPI.IntegrationTests.Modules.<TênModule>`.
+* **Namespace**: `Tests` (gốc) và `Tests.Modules.<Module>.<ĐườngDẫnCon>` (ví dụ: `Tests.Modules.VideoWall.MockServer`).
 * **Tên phương thức test**: Sử dụng dấu gạch dưới **`_`** để phân tách các phần trong tên phương thức theo định dạng `Feature_Scenario_ExpectedResult` hoặc `Feature_Scenario_ExpectedResult_Test` (ví dụ: `CronJob_SavedQuery_SqlGeneration_Test`, `PartnerQuery_GetById_ReturnsSuccess_Test`).
 * **Thứ tự**: Sắp xếp các Happy Case của Queries lên trước, sau đó đến các Happy Case của Commands (ví dụ: `QueryPageReturnsSuccessTest`, `CommandAddReturnsSuccessTest`).

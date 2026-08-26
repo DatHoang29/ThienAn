@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Launch TAC_WebAPI (TA-ITS015-WEBAPI-V1.0)",
+      "name": "Launch TAC_WebAPI (Local Docker)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-webapi-v1",
@@ -16,33 +16,139 @@
         "uriFormat": "%s/api"
       },
       "env": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DbConnection__ConnectionConfigs__0__ConnectionString": "Server=localhost,14333;Database=DEV_ITS10;MultipleActiveResultSets=true;User ID=sa;Password=Password123!;TrustServerCertificate=True",
+        "DbConnection__ConnectionConfigs__1__ConnectionString": "Server=localhost,14333;Database=DEV_ITS10_Log;MultipleActiveResultSets=true;User ID=sa;Password=Password123!;TrustServerCertificate=True"
       }
     },
     {
-      "name": "Launch ShareDataWorker (Server 10.10.8.30)",
+      "name": "Launch TAC_WebAPI (Server 10.10.8.30)",
       "type": "coreclr",
       "request": "launch",
-      "preLaunchTask": "build-worker",
-      "program": "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareDataModule/ShareDataWorker/bin/Debug/net10.0/ShareDataWorker.dll",
+      "preLaunchTask": "build-webapi-v1",
+      "program": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/TAC_WebAPI/bin/Debug/net10.0/TAC_WebAPI.dll",
       "args": [],
-      "cwd": "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareDataModule/ShareDataWorker",
+      "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/TAC_WebAPI",
       "stopAtEntry": false,
-      "console": "internalConsole"
+      "serverReadyAction": {
+        "action": "openUrl",
+        "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
+        "uriFormat": "%s/api"
+      },
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DbConnection__ConnectionConfigs__0__ConnectionString": "Server=10.10.8.30;Database=DEV_ITS10;MultipleActiveResultSets=true;User ID=sa;Password=Tac@@1234;TrustServerCertificate=True",
+        "DbConnection__ConnectionConfigs__1__ConnectionString": "Server=10.10.8.30;Database=DEV_ITS10_Log;MultipleActiveResultSets=true;User ID=sa;Password=Tac@@1234;TrustServerCertificate=True"
+      }
     },
+
     {
-      "name": "Launch ShareDataWorker (Local Docker)",
+      "name": "Launch ITS.Sync.Worker (WP_Sync Local Docker)",
       "type": "coreclr",
       "request": "launch",
-      "preLaunchTask": "build-worker",
-      "program": "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareDataModule/ShareDataWorker/bin/Debug/net10.0/ShareDataWorker.dll",
+      "preLaunchTask": "build-sync-worker",
+      "program": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/WP_Sync/src/ITS.Sync.Worker/bin/Debug/net10.0/ITS.Sync.Worker.dll",
       "args": [],
-      "cwd": "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareDataModule/ShareDataWorker",
+      "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/WP_Sync/src/ITS.Sync.Worker",
       "stopAtEntry": false,
       "console": "internalConsole",
       "env": {
-        "DOTNET_ENVIRONMENT": "Local"
+        "DOTNET_ENVIRONMENT": "Development",
+        "DbConnection__ConnectionConfigs__0__ConnectionString": "Server=localhost,14333;Database=DEV_ITS10;MultipleActiveResultSets=true;User ID=sa;Password=Password123!;TrustServerCertificate=True",
+        "DbConnection__ConnectionConfigs__1__ConnectionString": "Server=localhost,14333;Database=DEV_ITS015_WP;MultipleActiveResultSets=true;User ID=sa;Password=Password123!;TrustServerCertificate=True"
       }
+    },
+    {
+      "name": "Launch ITS.Sync.Worker (WP_Sync Server 10.10.8.30)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-sync-worker",
+      "program": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/WP_Sync/src/ITS.Sync.Worker/bin/Debug/net10.0/ITS.Sync.Worker.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/WP_Sync/src/ITS.Sync.Worker",
+      "stopAtEntry": false,
+      "console": "internalConsole",
+      "env": {
+        "DOTNET_ENVIRONMENT": "Production",
+        "DbConnection__ConnectionConfigs__0__ConnectionString": "Server=10.10.8.30;Database=DEV_ITS10;MultipleActiveResultSets=true;User ID=sa;Password=Tac@@1234;TrustServerCertificate=True",
+        "DbConnection__ConnectionConfigs__1__ConnectionString": "Server=10.10.8.30;Database=DEV_ITS015_WP;MultipleActiveResultSets=true;User ID=sa;Password=Tac@@1234;TrustServerCertificate=True"
+      }
+    },
+    {
+      "name": "Launch ITS.Sync.Wpf (WP_Sync UI Local Docker)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-sync-wpf",
+      "program": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/WP_Sync/src/ITS.Sync.Wpf/bin/Debug/net10.0-windows/ITS.Sync.Wpf.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/WP_Sync/src/ITS.Sync.Wpf",
+      "stopAtEntry": false,
+      "console": "internalConsole",
+      "env": {
+        "DOTNET_ENVIRONMENT": "Development",
+        "DbConnection__ConnectionConfigs__0__ConnectionString": "Server=localhost,14333;Database=DEV_ITS10;MultipleActiveResultSets=true;User ID=sa;Password=Password123!;TrustServerCertificate=True",
+        "DbConnection__ConnectionConfigs__1__ConnectionString": "Server=localhost,14333;Database=DEV_ITS015_WP;MultipleActiveResultSets=true;User ID=sa;Password=Password123!;TrustServerCertificate=True"
+      }
+    },
+    {
+      "name": "Launch ITS.Sync.Wpf (WP_Sync UI Server 10.10.8.30)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-sync-wpf",
+      "program": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/WP_Sync/src/ITS.Sync.Wpf/bin/Debug/net10.0-windows/ITS.Sync.Wpf.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/WP_Sync/src/ITS.Sync.Wpf",
+      "stopAtEntry": false,
+      "console": "internalConsole",
+      "env": {
+        "DOTNET_ENVIRONMENT": "Production",
+        "DbConnection__ConnectionConfigs__0__ConnectionString": "Server=10.10.8.30;Database=DEV_ITS10;MultipleActiveResultSets=true;User ID=sa;Password=Tac@@1234;TrustServerCertificate=True",
+        "DbConnection__ConnectionConfigs__1__ConnectionString": "Server=10.10.8.30;Database=DEV_ITS015_WP;MultipleActiveResultSets=true;User ID=sa;Password=Tac@@1234;TrustServerCertificate=True"
+      }
+    },
+    {
+      "name": "Launch Module.VideoWall.WPF (Local WebAPI)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-videowall-wpf",
+      "program": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Modules/VideoWall/Module.VideoWall.WPF/bin/Debug/net10.0-windows/Module.VideoWall.WPF.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Modules/VideoWall/Module.VideoWall.WPF",
+      "stopAtEntry": false,
+      "console": "internalConsole",
+      "env": {
+        "Api__BaseUrl": "http://localhost:5005"
+      }
+    },
+    {
+      "name": "Launch Module.VideoWall.WPF (Server 10.10.8.30)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-videowall-wpf",
+      "program": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Modules/VideoWall/Module.VideoWall.WPF/bin/Debug/net10.0-windows/Module.VideoWall.WPF.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Modules/VideoWall/Module.VideoWall.WPF",
+      "stopAtEntry": false,
+      "console": "internalConsole",
+      "env": {
+        "Api__BaseUrl": "http://10.10.8.30:5005"
+      }
+    },
+    {
+      "name": "Launch VideoWall Mock Server (Fake Device)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-mockserver-runner",
+      "program": "${workspaceFolder}/scripts/VwMockServerRunner/bin/Debug/net10.0/VwMockServerRunner.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/scripts/VwMockServerRunner",
+      "stopAtEntry": false,
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Attach to Process (.NET Core)",
+      "type": "coreclr",
+      "request": "attach"
     }
   ]
 }

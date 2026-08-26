@@ -13,7 +13,6 @@ updated: 2026-08-18
 - 👤 **`_source/` (PDF/XLSX/zip) và `images/`**: Chỉ dành cho người xem, **KHÔNG nạp vào ngữ cảnh AI** (đã có bản `.md` tương ứng).
 
 ## 2. Cấu trúc các phân hệ nghiệp vụ chính (tra cứu qua INDEX.md)
-- **`BusinessAnalysis/`** — `Business_Analysis_HN_CL_2.md`: Yêu cầu chức năng/phi chức năng toàn bộ 16 phân hệ (ITS Lõi, TMC-TMS, VMS, VDS, CCTV, Web, ShareData, VideoWall, Giám sát mạng, Thu phí...).
 - **`ShareData/`** — `01-yeu-cau-nghiep-vu.md` (đọc trước khi sửa ShareDataWorker), `02-mapping-goi-tin-101-111.md` (mapping payload ↔ DB), `03-audit-20260812.md` (hiện trạng nợ kỹ thuật).
 - **`VideoWall/`** — Đọc `HIKVISION_ISAPI_VIDEOWALL_GLOSSARY.md` đầu tiên. Bộ API ISAPI ở `ISAPI-Videowall-Controller/00→10`. File `09A-api-reference.md` rất lớn (1.6 MB) — chỉ `grep_search` theo endpoint cụ thể, không đọc nguyên file. Khi có mâu thuẫn giữa `09A` (spec hãng) và `09B-practical-guide-and-tested-responses.md` (đo thật trên DS-C66S-H88-CL) → ưu tiên `09B`.
 

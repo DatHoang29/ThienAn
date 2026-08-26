@@ -17,15 +17,68 @@
         "focus": false
       }
     },
+
+    {
+      "label": "build-sync-worker",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/WP_Sync/src/ITS.Sync.Worker/ITS.Sync.Worker.csproj",
+        "/property:GenerateFullPaths=true"
+      ],
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": false
+      }
+    },
+    {
+      "label": "build-sync-wpf",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/WP_Sync/src/ITS.Sync.Wpf/ITS.Sync.Wpf.csproj",
+        "/property:GenerateFullPaths=true"
+      ],
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": false
+      }
+    },
+    {
+      "label": "build-videowall-wpf",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Modules/VideoWall/Module.VideoWall.WPF/Module.VideoWall.WPF.csproj",
+        "/property:GenerateFullPaths=true"
+      ],
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": false
+      }
+    },
     {
       "label": "build-tests-v1",
       "command": "dotnet",
       "type": "process",
       "args": [
         "build",
-        "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/tests/test.csproj",
+        "${workspaceFolder}/tests/test.csproj",
         "/property:GenerateFullPaths=true"
       ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
       "problemMatcher": "$msCompile",
       "presentation": {
         "reveal": "always",
@@ -39,7 +92,27 @@
       "type": "process",
       "args": [
         "test",
-        "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/tests/test.csproj"
+        "${workspaceFolder}/tests/test.csproj"
+      ],
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": false
+      }
+    },
+    {
+      "label": "build-mockserver-runner",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/scripts/VwMockServerRunner/VwMockServerRunner.csproj",
+        "/property:GenerateFullPaths=true"
       ],
       "problemMatcher": "$msCompile",
       "presentation": {
@@ -56,37 +129,6 @@
         "build",
         "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/TAC_WebAPI.sln",
         "/property:GenerateFullPaths=true"
-      ],
-      "problemMatcher": "$msCompile",
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated",
-        "focus": false
-      }
-    },
-    {
-      "label": "build-worker",
-      "command": "dotnet",
-      "type": "process",
-      "args": [
-        "build",
-        "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareDataModule/ShareDataWorker/ShareDataWorker.csproj",
-        "/property:GenerateFullPaths=true"
-      ],
-      "problemMatcher": "$msCompile",
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated",
-        "focus": false
-      }
-    },
-    {
-      "label": "test-worker",
-      "command": "dotnet",
-      "type": "process",
-      "args": [
-        "test",
-        "${workspaceFolder}/TA-ITS015-WebAPI-ShareData-V1.0/src/Modules/ShareDataModule/ShareDataWorker.Tests/ShareDataWorker.Tests.csproj"
       ],
       "problemMatcher": "$msCompile",
       "presentation": {

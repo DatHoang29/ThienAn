@@ -1,0 +1,2713 @@
+{
+  "info": {
+    "_postman_id": "97218e74-c2a8-4c17-8110-b35f38bd3c95",
+    "name": "VideoWallISAPI",
+    "description": "# Bộ Postman Collection — Đo Kiểm Toàn Diện ISAPI Video Wall Controller (DS-C66S-H88-CL)\n\n> Bộ kịch bản kiểm thử tích hợp đầy đủ giao thức ISAPI cho thiết bị điều khiển Video Wall Hikvision DS-C66S-H88-CL qua API trung gian của Backend Thiên An (`/api/videowall/vwdevicesetup/*`) và kiểm tra đối chiếu trực tiếp.\n> Tài liệu nguồn sự thật: `09A-api-reference.md` và `09B-practical-guide-and-tested-responses.md`.\n\n---\n\n## 📌 10 NGUYÊN TẮC CỐT LÕI (09B §1)\n\n1. **Không có API Login độc lập**: Kết nối thiết bị thành công khi `GET /ISAPI/Security/userCheck` trả về HTTP `200` với xác thực Digest.\n2. **Cơ chế 2 Round-trip là bình thường**: Lần đầu nhận `401 Unauthorized` kèm challenge `WWW-Authenticate`, lần hai gửi kèm header `Authorization` tính đúng hash nhận `200 OK`. Thấy 2 dòng log cho 1 lệnh là hoàn toàn chính xác.\n3. **Quy tắc chống khóa IP (Circuit Breaker)**: Sai mật khẩu 2 lần liên tiếp -> **DỪNG NGAY LẬP TỨC**. Thiết bị có tính năng khóa IP (`illaccess`) nhưng firmware không trả về `retryLoginTime`.\n4. **Postman Digest Auth có lỗi parser**: Runtime Postman bị lỗi khi gặp challenge không có trường `algorithm` (mặc định MD5). Bộ collection này đã bật `disableRetryRequest: true` cho folder gọi trực tiếp.\n5. **ID tổ hợp byte (Byte Packing)**: Hikvision dùng ID tổ hợp byte (`0x01070003` = `17235971`). Phải đọc ID từ API Probe, không hardcode số thứ tự 1..N.\n6. **Hệ toạ độ ảo ô VUÔNG 1920×1920**: `baseOutputSize = 1920` áp dụng cho cả chiều rộng và chiều cao mỗi màn hình. Giới hạn `range:[0,1920]` trong tài liệu lý thuyết là SAI; thực tế `height=3840` hoạt động hoàn hảo.\n7. **Lệnh PUT chỉ gửi payload tối thiểu**: Tuyệt đối không lấy toàn bộ XML của lệnh `GET` ném sang `PUT` (sẽ dính lỗi element rỗng hoặc trường read-only dẫn đến `badParameters`).\n8. **Luôn gọi Capabilities trước API chức năng**: Kiểm tra cờ hỗ trợ (`isSupportScene`, `isSupportScreenCtrl`, `isSupportCutOffSetting`...) trước khi gửi lệnh.\n9. **Giao diện Web Controller cũng gọi ISAPI**: Mở F12 Network trên Web thiết bị để kiểm tra URL và body XML/JSON khi cần đối chiếu.\n10. **Sandbox an toàn trên Wall 1 (`unbound`)**: Luôn thử nghiệm tạo/sửa trên tường rỗng (Wall 1) trước khi can thiệp vào tường đang xuất hình thật (Wall 2).\n\n---\n\n## ⚠️ BẢNG BẪY KỸ THUẬT QUAN TRỌNG\n\n- **Bẫy #10 (KHOÁ THIẾT BỊ)**: Sai mật khẩu 2 lần liên tiếp là thiết bị **KHOÁ IP HOÀN TOÀN**, không thể mở lại qua mạng. Tuyệt đối không thử mật khẩu bừa bãi trên thiết bị thật; thử nghiệm Digest sai chỉ thực hiện trên Mock Server (port 18080).\n- **Bẫy #3 (Sai chính tả firmware)**: Firmware viết sai `decoingDevice` (thiếu chữ `d`). Gõ đúng `decodingDevice` sẽ bị 404. URL chuẩn: `GET /ISAPI/DisplayDev/decoingDevice/status?format=json`.\n- **Bẫy #4 (Sai chính tả XML)**: Trường màu nền bị thiếu chữ `n`: `backgroudColor`. Gõ đúng `backgroundColor` sẽ báo `badParameters`.\n- **Bẫy #9 (Query String trong Digest)**: Khi tính Digest hash `HA2 = MD5(method:uri)`, `uri` bắt buộc phải kèm cả query string (`/ISAPI/DisplayDev/decoingDevice/status?format=json`).\n\n---\n\n## 🚀 THỨ TỰ THỰC THI & CẤU TRÚC FOLDER\n\n1. **Folder `0. Thiên An APIs (typed)`**: Chạy tuần tự Ping -> Probe -> SyncSources -> SetupScene (dryRun) -> ResetCircuitBreaker -> Passthrough. Khảo sát và tích hợp qua Backend Thiên An.\n2. **Folder `Controller`**: Quản lý bộ điều khiển (Digest Auth, DeviceInfo, Capabilities, Time, Reboot/FactoryReset).\n3. **Folder `SlotPort`**: Quản lý khe cắm board và giải mã (decoingDevice status, nhiệt độ phần cứng).\n4. **Folder `Screen`**: Quản lý màn hình vật lý & cổng ra (Outputs channels, VideoWall outputs, CloseAll).\n5. **Folder `Source`**: Quản lý nguồn tín hiệu đầu vào (Inputs channels, camera, ma trận).\n6. **Folder `WallTopology`**: Quản lý cấu hình tường hiển thị (VideoWall, Capabilities, Scale, Gán outputs).\n7. **Folder `Scene`**: Quản lý kịch bản trình chiếu (isRunning, Activate, SaveData).\n8. **Folder `WindowScene`**: Quản lý layout cửa sổ trên tường (Windows list, Rect resize, Delete all).\n9. **Folder `D. Gọi trực tiếp thiết bị`**: Đối chiếu trực tiếp với thiết bị qua Digest Auth (không qua backend).\n",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "23276782"
+  },
+  "variable": [
+    {
+      "key": "beBase",
+      "value": "http://localhost:5005",
+      "type": "string"
+    },
+    {
+      "key": "deviceScheme",
+      "value": "http",
+      "type": "string"
+    },
+    {
+      "key": "deviceIp",
+      "value": "10.10.9.236",
+      "type": "string"
+    },
+    {
+      "key": "devicePort",
+      "value": "80",
+      "type": "string"
+    },
+    {
+      "key": "deviceUser",
+      "value": "admin",
+      "type": "string"
+    },
+    {
+      "key": "devicePass",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "controllerId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "sceneId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "sceneSid",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "wallSandbox",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "wallLive",
+      "value": "2",
+      "type": "string"
+    },
+    {
+      "key": "outputId",
+      "value": "17235971",
+      "type": "string"
+    },
+    {
+      "key": "inputId",
+      "value": "16842753",
+      "type": "string"
+    },
+    {
+      "key": "windowId",
+      "value": "33554433",
+      "type": "string"
+    },
+    {
+      "key": "subWindowId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "sandboxWindowId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "liveWindowsSnapshot",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "allowDanger",
+      "value": "no",
+      "type": "string"
+    },
+    {
+      "key": "allowLive",
+      "value": "no",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Thiên An APIs (typed)",
+      "item": [
+        {
+          "name": "Ping (Xác nhận Digest Auth)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/ping",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "ping"
+              ]
+            },
+            "description": "POST /api/videowall/vwdevicesetup/ping\nKiểm tra kết nối và Digest Auth tới thiết bị. Trả về VwSetupSceneStep."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 từ backend\", () => pm.response.to.have.status(200));",
+                  "const step = pm.response.json();",
+                  "pm.test(\"Thiết bị phản hồi thành công\", () => pm.expect(step.success, step.message || \"\").to.be.true);",
+                  "pm.test(\"HTTP thiết bị = 200\", () => pm.expect(step.httpStatus).to.eql(200));",
+                  "console.log(step.responseXml);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Probe (Khảo sát toàn diện & lưu biến)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{controllerId}}\",\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/probe",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "probe"
+              ]
+            },
+            "description": "POST /api/videowall/vwdevicesetup/probe\nKhảo sát thiết bị chỉ-đọc, trả về danh sách tường, outputs, inputs. Tự động lưu wallLive, outputId, inputId vào collection variables."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 từ backend\", () => pm.response.to.have.status(200));",
+                  "const out = pm.response.json();",
+                  "pm.test(\"Kết nối được thiết bị\", () => pm.expect(out.reachable).to.be.true);",
+                  "if (out.wallNo) { pm.collectionVariables.set(\"wallLive\", out.wallNo); console.log(\"Saved wallLive:\", out.wallNo); }",
+                  "const normal = (out.outputs || []).find(o => o.outputPortAccessStatus === \"normal\");",
+                  "if (normal) { pm.collectionVariables.set(\"outputId\", normal.outputId); console.log(\"Saved outputId:\", normal.outputId); }",
+                  "const inp = (out.inputChannels || [])[0];",
+                  "if (inp) { pm.collectionVariables.set(\"inputId\", inp.id); console.log(\"Saved inputId:\", inp.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SyncSources (Khảo sát kênh đầu vào, apply=false)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{controllerId}}\",\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  },\n  \"apply\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/syncsources",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "syncsources"
+              ]
+            },
+            "description": "POST /api/videowall/vwdevicesetup/syncsources\nKhảo sát đồng bộ SignalNo giữa thiết bị và cơ sở dữ liệu (chế độ preview an toàn apply=false)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 từ backend\", () => pm.response.to.have.status(200));",
+                  "const out = pm.response.json();",
+                  "pm.test(\"Khảo sát đồng bộ thành công\", () => pm.expect(out.inputChannels).to.be.an(\"array\").that.is.not.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SetupScene (Thử nghiệm dựng kịch bản, dryRun=true)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{controllerId}}\",\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  },\n  \"sceneId\": \"{{sceneId}}\",\n  \"dryRun\": true,\n  \"activate\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/setupscene",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "setupscene"
+              ]
+            },
+            "description": "POST /api/videowall/vwdevicesetup/setupscene\nDựng kịch bản 8 bước ở chế độ mô phỏng dryRun=true (không ghi xuống thiết bị)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 từ backend\", () => pm.response.to.have.status(200));",
+                  "const out = pm.response.json();",
+                  "pm.test(\"Setup scene dryRun hoàn thành\", () => pm.expect(out.dryRun).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "ResetCircuitBreaker (Xóa khóa ngắt mạch theo IP)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"controllerId\": null,\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/resetcircuitbreaker",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "resetcircuitbreaker"
+              ]
+            },
+            "description": "POST /api/videowall/vwdevicesetup/resetcircuitbreaker\nXóa bộ đếm và trạng thái khóa ngắt mạch cho thiết bị theo device.ip, đồng thời quên cache tường."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 hoặc 204 từ backend\", () => pm.expect(pm.response.code).to.be.oneOf([200, 204]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Passthrough — Mẫu tự do (gõ path tay)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  },\n  \"method\": \"GET\",\n  \"path\": \"ISAPI/DisplayDev/VideoWall/capabilities\",\n  \"body\": null,\n  \"contentType\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/isapi",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "isapi"
+              ]
+            },
+            "description": "POST /api/videowall/vwdevicesetup/isapi\nEndpoint chuyển tiếp ISAPI thô cho phép người dùng tùy biến Method, Path, Body XML tự do."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 từ backend\", () => pm.response.to.have.status(200));",
+                  "const step = pm.response.json();",
+                  "pm.test(\"Thiết bị phản hồi thành công\", () => pm.expect(step.success, step.message || \"\").to.be.true);",
+                  "pm.test(\"HTTP thiết bị = 200\", () => pm.expect(step.httpStatus).to.eql(200));",
+                  "if (step.responseXml) {",
+                  "    console.log(\"Response XML:\", step.responseXml);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Nhóm 6 API nghiệp vụ cấp cao của backend Thiên An. Luồng chạy tuần tự để xác thực hệ thống: Ping -> Probe -> SyncSources -> SetupScene (dryRun) -> ResetCircuitBreaker."
+    },
+    {
+      "name": "Controller",
+      "item": [
+        {
+          "name": "GET — Xác thực Digest (userCheck)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  },\n  \"method\": \"GET\",\n  \"path\": \"ISAPI/Security/userCheck\",\n  \"body\": null,\n  \"contentType\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/isapi",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "isapi"
+              ]
+            },
+            "description": "Nguồn: 09B §A.1\n\nXác nhận tính hợp lệ của tài khoản Digest Auth."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 từ backend\", () => pm.response.to.have.status(200));",
+                  "const step = pm.response.json();",
+                  "pm.test(\"Thiết bị phản hồi thành công\", () => pm.expect(step.success, step.message || \"\").to.be.true);",
+                  "pm.test(\"HTTP thiết bị = 200\", () => pm.expect(step.httpStatus).to.eql(200));",
+                  "if (step.responseXml) {",
+                  "    console.log(\"Response XML:\", step.responseXml);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET — Thông tin thiết bị (deviceInfo)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  },\n  \"method\": \"GET\",\n  \"path\": \"ISAPI/System/deviceInfo\",\n  \"body\": null,\n  \"contentType\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/isapi",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "isapi"
+              ]
+            },
+            "description": "Nguồn: 09A §9.1.3.1 / 09B §A.2\n\nLấy model máy, firmware version, serial number và macAddress."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 từ backend\", () => pm.response.to.have.status(200));",
+                  "const step = pm.response.json();",
+                  "pm.test(\"Thiết bị phản hồi thành công\", () => pm.expect(step.success, step.message || \"\").to.be.true);",
+                  "pm.test(\"HTTP thiết bị = 200\", () => pm.expect(step.httpStatus).to.eql(200));",
+                  "if (step.responseXml) {",
+                  "    console.log(\"Response XML:\", step.responseXml);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET — Năng lực màn hình tổng thể (capabilities)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  },\n  \"method\": \"GET\",\n  \"path\": \"ISAPI/DisplayDev/capabilities\",\n  \"body\": null,\n  \"contentType\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/isapi",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "isapi"
+              ]
+            },
+            "description": "Nguồn: 09A §9.7.5.1 / 09B §A.3\n\nNăng lực tổng thể của DisplayDev (09A §9.7.5.1)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 từ backend\", () => pm.response.to.have.status(200));",
+                  "const step = pm.response.json();",
+                  "pm.test(\"Thiết bị phản hồi thành công\", () => pm.expect(step.success, step.message || \"\").to.be.true);",
+                  "pm.test(\"HTTP thiết bị = 200\", () => pm.expect(step.httpStatus).to.eql(200));",
+                  "if (step.responseXml) {",
+                  "    console.log(\"Response XML:\", step.responseXml);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET — Thời gian hệ thống (time)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  },\n  \"method\": \"GET\",\n  \"path\": \"ISAPI/System/time\",\n  \"body\": null,\n  \"contentType\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/isapi",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "isapi"
+              ]
+            },
+            "description": "Nguồn: 09A §9.1.10.1 / 09B §A.4\n\nĐọc cấu hình thời gian và máy chủ NTP đồng bộ cho 4 Controller."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 từ backend\", () => pm.response.to.have.status(200));",
+                  "const step = pm.response.json();",
+                  "pm.test(\"Thiết bị phản hồi thành công\", () => pm.expect(step.success, step.message || \"\").to.be.true);",
+                  "pm.test(\"HTTP thiết bị = 200\", () => pm.expect(step.httpStatus).to.eql(200));",
+                  "if (step.responseXml) {",
+                  "    console.log(\"Response XML:\", step.responseXml);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT — Cài đặt thời gian hệ thống (time)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  },\n  \"method\": \"PUT\",\n  \"path\": \"ISAPI/System/time\",\n  \"body\": \"<?xml version=\\\"1.0\\\" encoding=\\\"UTF-8\\\"?>\\n<Time xmlns=\\\"http://www.isapi.org/ver20/XMLSchema\\\" version=\\\"2.0\\\">\\n  <timeMode>NTP</timeMode>\\n  <timeZone>CST-7:00:00</timeZone>\\n</Time>\",\n  \"contentType\": \"application/xml\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/isapi",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "isapi"
+              ]
+            },
+            "description": "⚠️ CHƯA xác nhận trên thiết bị thật — tra cứu từ 09A-api-reference.md (§9.1.10.2), dùng để thăm dò.\nNguồn: 09A §9.1.10.2\n\nPUT /ISAPI/System/time\nCài đặt chế độ đồng bộ thời gian (NTP / manual) và múi giờ cho bộ điều khiển Video Wall."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 từ Backend\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Thiết bị phản hồi hợp lệ\", () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.be.an(\"object\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "⛔ PUT — Khởi động lại thiết bị (reboot)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  },\n  \"method\": \"PUT\",\n  \"path\": \"ISAPI/System/reboot\",\n  \"body\": null,\n  \"contentType\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/isapi",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "isapi"
+              ]
+            },
+            "description": "Nguồn: 09B §8\n\n⛔ NGUY HIỂM: Khởi động lại phần cứng Video Wall Controller. Mất tín hiệu hiển thị toàn bộ trạm trong thời gian reboot (2-3 phút)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 từ backend\", () => pm.response.to.have.status(200));",
+                  "const step = pm.response.json();",
+                  "pm.test(\"Thiết bị phản hồi thành công\", () => pm.expect(step.success, step.message || \"\").to.be.true);",
+                  "pm.test(\"HTTP thiết bị = 200\", () => pm.expect(step.httpStatus).to.eql(200));",
+                  "if (step.responseXml) {",
+                  "    console.log(\"Response XML:\", step.responseXml);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "⛔ PUT — Reset mặc định nhà máy (factoryReset)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  },\n  \"method\": \"PUT\",\n  \"path\": \"ISAPI/System/factoryReset\",\n  \"body\": null,\n  \"contentType\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/isapi",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "isapi"
+              ]
+            },
+            "description": "Nguồn: 09B §8\n\n⛔ CỰC KỲ NGUY HIỂM: Xoá trắng cấu hình thiết bị về mặc định nhà sản xuất. Mất toàn bộ cấu hình mạng, tài khoản, cấu hình tường, phân giải. KHÔNG CÓ CÁCH PHỤC HỒI QUA MẠNG."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 từ backend\", () => pm.response.to.have.status(200));",
+                  "const step = pm.response.json();",
+                  "pm.test(\"Thiết bị phản hồi thành công\", () => pm.expect(step.success, step.message || \"\").to.be.true);",
+                  "pm.test(\"HTTP thiết bị = 200\", () => pm.expect(step.httpStatus).to.eql(200));",
+                  "if (step.responseXml) {",
+                  "    console.log(\"Response XML:\", step.responseXml);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "SlotPort",
+      "item": [
+        {
+          "name": "GET — Trạng thái phần cứng & slot giải mã (decoingDevice status)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  },\n  \"method\": \"GET\",\n  \"path\": \"ISAPI/DisplayDev/decoingDevice/status?format=json\",\n  \"body\": null,\n  \"contentType\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/isapi",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "isapi"
+              ]
+            },
+            "description": "Nguồn: 09A §9.7.2.1 / 09B §A.5\n\n⚠️ Lưu ý Bẫy #3: Firmware viết sai chính tả 'decoingDevice' (thiếu chữ d). Trả về JSON trạng thái card input/output, nhiệt độ backplane và CPU."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 từ backend\", () => pm.response.to.have.status(200));",
+                  "const step = pm.response.json();",
+                  "pm.test(\"Thiết bị phản hồi thành công\", () => pm.expect(step.success, step.message || \"\").to.be.true);",
+                  "pm.test(\"HTTP thiết bị = 200\", () => pm.expect(step.httpStatus).to.eql(200));",
+                  "if (step.responseXml) {",
+                  "    console.log(\"Response XML:\", step.responseXml);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Screen",
+      "item": [
+        {
+          "name": "GET — Danh sách kênh Output (outputs/channels)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  },\n  \"method\": \"GET\",\n  \"path\": \"ISAPI/DisplayDev/Video/outputs/channels\",\n  \"body\": null,\n  \"contentType\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/isapi",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "isapi"
+              ]
+            },
+            "description": "Nguồn: 09A §9.7.3.4 / 09B §B.3\n\nDanh sách 8 kênh đầu ra HDMI của thiết bị."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 từ backend\", () => pm.response.to.have.status(200));",
+                  "const step = pm.response.json();",
+                  "pm.test(\"Thiết bị phản hồi thành công\", () => pm.expect(step.success, step.message || \"\").to.be.true);",
+                  "pm.test(\"HTTP thiết bị = 200\", () => pm.expect(step.httpStatus).to.eql(200));",
+                  "if (step.responseXml) {",
+                  "    console.log(\"Response XML:\", step.responseXml);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET — Danh sách Output gắn trên tường (VideoWall outputs)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  },\n  \"method\": \"GET\",\n  \"path\": \"ISAPI/DisplayDev/VideoWall/{{wallLive}}/outputs\",\n  \"body\": null,\n  \"contentType\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/isapi",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "isapi"
+              ]
+            },
+            "description": "Nguồn: 09A §9.7.5.5 / 09B §B.4\n\nDanh sách các cổng Output được gắn vào Video Wall {{wallLive}}."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 từ backend\", () => pm.response.to.have.status(200));",
+                  "const step = pm.response.json();",
+                  "pm.test(\"Thiết bị phản hồi thành công\", () => pm.expect(step.success, step.message || \"\").to.be.true);",
+                  "pm.test(\"HTTP thiết bị = 200\", () => pm.expect(step.httpStatus).to.eql(200));",
+                  "if (step.responseXml) {",
+                  "    console.log(\"Response XML:\", step.responseXml);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT — Tắt màn hình kèm OutputID (closeAll)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  },\n  \"method\": \"PUT\",\n  \"path\": \"ISAPI/DisplayDev/ScreenCtrl/closeAll\",\n  \"body\": \"<ScreenCtrl xmlns=\\\"http://www.isapi.org/ver20/XMLSchema\\\" version=\\\"2.0\\\">\\n  <OutputID>{{outputId}}</OutputID>\\n  <action>close</action>\\n</ScreenCtrl>\",\n  \"contentType\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/isapi",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "isapi"
+              ]
+            },
+            "description": "Nguồn: 09B §F.1\n\nPUT /ISAPI/DisplayDev/ScreenCtrl/closeAll KÈM <OutputID>{{outputId}}</OutputID>\nThử nghiệm gửi lệnh tắt màn hình. Nếu chưa cắm dây serial RS-232, thiết bị sẽ trả invalidOperation mã 4 (đây là KẾT QUẢ HỢP LỆ)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const step = pm.response.json();",
+                  "pm.test(\"Gọi được thiết bị\", () => pm.expect(step.httpStatus).to.be.oneOf([200]));",
+                  "pm.test(\"Kết quả hợp lệ (Thành công hoặc invalidOperation do chưa cắm RS-232)\", () => {",
+                  "    const ok = step.success;",
+                  "    const needSerial = (step.responseXml || \"\").includes(\"invalidOperation\");",
+                  "    pm.expect(ok || needSerial, \"Thất bại vì lý do khác invalidOperation\").to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "⛔ PUT — Tắt toàn bộ màn hình không OutputID (closeAll)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  },\n  \"method\": \"PUT\",\n  \"path\": \"ISAPI/DisplayDev/ScreenCtrl/closeAll\",\n  \"body\": \"<ScreenCtrl version=\\\"2.0\\\" xmlns=\\\"http://www.isapi.org/ver20/XMLSchema\\\"><action>close</action></ScreenCtrl>\",\n  \"contentType\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/isapi",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "isapi"
+              ]
+            },
+            "description": "Nguồn: 09B §8\n\n⛔ NGUY HIỂM: Tắt toàn bộ màn hình ghép qua RS-232/485. KHÔNG CÓ CÁCH BẬT LẠI QUA MẠNG nếu không có thiết bị phát lệnh RS-232 mở màn."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 từ backend\", () => pm.response.to.have.status(200));",
+                  "const step = pm.response.json();",
+                  "pm.test(\"Thiết bị phản hồi thành công\", () => pm.expect(step.success, step.message || \"\").to.be.true);",
+                  "pm.test(\"HTTP thiết bị = 200\", () => pm.expect(step.httpStatus).to.eql(200));",
+                  "if (step.responseXml) {",
+                  "    console.log(\"Response XML:\", step.responseXml);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Source",
+      "item": [
+        {
+          "name": "GET — Danh sách kênh Input (inputs/channels)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  },\n  \"method\": \"GET\",\n  \"path\": \"ISAPI/DisplayDev/Video/inputs/channels\",\n  \"body\": null,\n  \"contentType\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/isapi",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "isapi"
+              ]
+            },
+            "description": "Nguồn: 09A §9.7.4.8 / 09B §B.5\n\nDanh sách 8 kênh đầu vào HDMI của thiết bị."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 từ backend\", () => pm.response.to.have.status(200));",
+                  "const step = pm.response.json();",
+                  "pm.test(\"Thiết bị phản hồi thành công\", () => pm.expect(step.success, step.message || \"\").to.be.true);",
+                  "pm.test(\"HTTP thiết bị = 200\", () => pm.expect(step.httpStatus).to.eql(200));",
+                  "if (step.responseXml) {",
+                  "    console.log(\"Response XML:\", step.responseXml);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "WallTopology",
+      "item": [
+        {
+          "name": "GET — Danh sách tường Video Wall (VideoWall)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  },\n  \"method\": \"GET\",\n  \"path\": \"ISAPI/DisplayDev/VideoWall\",\n  \"body\": null,\n  \"contentType\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/isapi",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "isapi"
+              ]
+            },
+            "description": "Nguồn: 09A §9.7.5.2 / 09B §B.1\n\nDanh sách toàn bộ Video Wall được định nghĩa trên thiết bị."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 từ backend\", () => pm.response.to.have.status(200));",
+                  "const step = pm.response.json();",
+                  "pm.test(\"Thiết bị phản hồi thành công\", () => pm.expect(step.success, step.message || \"\").to.be.true);",
+                  "pm.test(\"HTTP thiết bị = 200\", () => pm.expect(step.httpStatus).to.eql(200));",
+                  "if (step.responseXml) {",
+                  "    console.log(\"Response XML:\", step.responseXml);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT — Đổi tên cấu hình tường (VideoWall)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  },\n  \"method\": \"PUT\",\n  \"path\": \"ISAPI/DisplayDev/VideoWall/{{wallSandbox}}\",\n  \"body\": \"<VideoWall version=\\\"2.0\\\" xmlns=\\\"http://www.isapi.org/ver20/XMLSchema\\\"><id>{{wallSandbox}}</id><name>VideoWall1_TEST</name></VideoWall>\",\n  \"contentType\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/isapi",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "isapi"
+              ]
+            },
+            "description": "Nguồn: 09B §D.2\n\nPUT /ISAPI/DisplayDev/VideoWall/{{wallSandbox}}\nThử nghiệm đổi tên Wall 1 (Sandbox an toàn không gắn màn hình). Gửi payload tối thiểu."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 từ backend\", () => pm.response.to.have.status(200));",
+                  "const step = pm.response.json();",
+                  "pm.test(\"Thiết bị phản hồi thành công\", () => pm.expect(step.success, step.message || \"\").to.be.true);",
+                  "pm.test(\"HTTP thiết bị = 200\", () => pm.expect(step.httpStatus).to.eql(200));",
+                  "if (step.responseXml) {",
+                  "    console.log(\"Response XML:\", step.responseXml);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET — Năng lực tường Video Wall (VideoWall capabilities)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  },\n  \"method\": \"GET\",\n  \"path\": \"ISAPI/DisplayDev/VideoWall/capabilities\",\n  \"body\": null,\n  \"contentType\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/isapi",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "isapi"
+              ]
+            },
+            "description": "Nguồn: 09A §9.7.5.6 / 09B §B.2\n\nNăng lực chi tiết của phân hệ Video Wall (09A §9.7.5.6) — Backend đang sử dụng endpoint này."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 từ backend\", () => pm.response.to.have.status(200));",
+                  "const step = pm.response.json();",
+                  "pm.test(\"Thiết bị phản hồi thành công\", () => pm.expect(step.success, step.message || \"\").to.be.true);",
+                  "pm.test(\"HTTP thiết bị = 200\", () => pm.expect(step.httpStatus).to.eql(200));",
+                  "if (step.responseXml) {",
+                  "    console.log(\"Response XML:\", step.responseXml);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST — Lấy quy mô ma trận tường (GetVideoWallScale)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  },\n  \"method\": \"POST\",\n  \"path\": \"ISAPI/DisplayDev/VideoWall/GetVideoWallScale?format=json\",\n  \"body\": null,\n  \"contentType\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/isapi",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "isapi"
+              ]
+            },
+            "description": "⚠️ CHƯA xác nhận trên thiết bị thật — path lấy từ 08-decoding-and-video-wall.md, dùng để thăm dò.\nNguồn: 08-decoding-and-video-wall.md dòng 110 & 136\n\nPOST /ISAPI/DisplayDev/VideoWall/GetVideoWallScale?format=json\nLấy thông số quy mô ma trận hiển thị của Video Wall (số hàng, số cột, chiều rộng/chiều cao hàng cột)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 từ Backend\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Thiết bị phản hồi hợp lệ\", () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.be.an(\"object\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST — Sửa quy mô ma trận tường (ModifyVideoWallScale)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  },\n  \"method\": \"POST\",\n  \"path\": \"ISAPI/DisplayDev/VideoWall/ModifyVideoWallScale?format=json\",\n  \"body\": \"{\\n  \\\"videoWallNo\\\": {{wallSandbox}},\\n  \\\"rowNum\\\": 2,\\n  \\\"columnNum\\\": 2\\n}\",\n  \"contentType\": \"application/json\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/isapi",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "isapi"
+              ]
+            },
+            "description": "⚠️ CHƯA xác nhận trên thiết bị thật — path lấy từ 08-decoding-and-video-wall.md, dùng để thăm dò.\nNguồn: 08-decoding-and-video-wall.md dòng 110 & 136\n\nPOST /ISAPI/DisplayDev/VideoWall/ModifyVideoWallScale?format=json\nChỉnh sửa quy mô ma trận hiển thị của Video Wall (số hàng, số cột, kích thước ô)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 từ Backend\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Thiết bị phản hồi hợp lệ\", () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.be.an(\"object\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST — Gán cổng Output vào tường (VideoWall outputs)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  },\n  \"method\": \"POST\",\n  \"path\": \"ISAPI/DisplayDev/VideoWall/{{wallSandbox}}/outputs\",\n  \"body\": \"<?xml version=\\\"1.0\\\" encoding=\\\"UTF-8\\\"?>\\n<VideoWallOutputList xmlns=\\\"http://www.isapi.org/ver20/XMLSchema\\\" version=\\\"2.0\\\">\\n  <VideoWallOutput>\\n    <id>{{outputId}}</id>\\n  </VideoWallOutput>\\n</VideoWallOutputList>\",\n  \"contentType\": \"application/xml\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/isapi",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "isapi"
+              ]
+            },
+            "description": "⚠️ CHƯA xác nhận trên thiết bị thật — path lấy từ 08-decoding-and-video-wall.md, dùng để thăm dò.\nNguồn: 08-decoding-and-video-wall.md dòng 112 & 144\n\nPOST /ISAPI/DisplayDev/VideoWall/{videoWallID}/outputs\nLiên kết / gán các cổng đầu ra (outputs) vào màn hình hiển thị của Video Wall."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 từ Backend\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Thiết bị phản hồi hợp lệ\", () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.be.an(\"object\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Scene",
+      "item": [
+        {
+          "name": "GET — Kịch bản đang hiển thị (scene isRunning)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  },\n  \"method\": \"GET\",\n  \"path\": \"ISAPI/DisplayDev/VideoWall/{{wallLive}}/scene/isRunning\",\n  \"body\": null,\n  \"contentType\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/isapi",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "isapi"
+              ]
+            },
+            "description": "Nguồn: 09A §9.7.7.6 / 09B §C.1\n\nKiểm tra kịch bản trình chiếu đang kích hoạt hiện tại."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 từ backend\", () => pm.response.to.have.status(200));",
+                  "const step = pm.response.json();",
+                  "pm.test(\"Thiết bị phản hồi thành công\", () => pm.expect(step.success, step.message || \"\").to.be.true);",
+                  "pm.test(\"HTTP thiết bị = 200\", () => pm.expect(step.httpStatus).to.eql(200));",
+                  "if (step.responseXml) {",
+                  "    console.log(\"Response XML:\", step.responseXml);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT — Kích hoạt kịch bản lên tường (scene activate)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  },\n  \"method\": \"PUT\",\n  \"path\": \"ISAPI/DisplayDev/VideoWall/{{wallSandbox}}/scene/{{sceneSid}}/activate\",\n  \"body\": null,\n  \"contentType\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/isapi",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "isapi"
+              ]
+            },
+            "description": "Nguồn: 09A §9.7.7.3 / 09B §C.2\n\nPUT /ISAPI/DisplayDev/VideoWall/{{wallSandbox}}/scene/{{sceneSid}}/activate\nKích hoạt Scene SID 1 trên Sandbox."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 từ backend\", () => pm.response.to.have.status(200));",
+                  "const step = pm.response.json();",
+                  "pm.test(\"Thiết bị phản hồi thành công\", () => pm.expect(step.success, step.message || \"\").to.be.true);",
+                  "pm.test(\"HTTP thiết bị = 200\", () => pm.expect(step.httpStatus).to.eql(200));",
+                  "if (step.responseXml) {",
+                  "    console.log(\"Response XML:\", step.responseXml);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT — Lưu bố cục kịch bản vào bộ nhớ (scene saveData)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  },\n  \"method\": \"PUT\",\n  \"path\": \"ISAPI/DisplayDev/VideoWall/{{wallSandbox}}/scene/{{sceneSid}}/saveData\",\n  \"body\": \"<Scene version=\\\"2.0\\\" xmlns=\\\"http://www.isapi.org/ver20/XMLSchema\\\"><id>{{sceneSid}}</id><name>TEST_SCENE_SANDBOX</name></Scene>\",\n  \"contentType\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/isapi",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "isapi"
+              ]
+            },
+            "description": "Nguồn: 09A §9.7.7.4 / 09B §C.3\n\nPUT /ISAPI/DisplayDev/VideoWall/{{wallSandbox}}/scene/{{sceneSid}}/saveData\nLưu layout hiện tại của sandbox vào Scene SID 1."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 từ backend\", () => pm.response.to.have.status(200));",
+                  "const step = pm.response.json();",
+                  "pm.test(\"Thiết bị phản hồi thành công\", () => pm.expect(step.success, step.message || \"\").to.be.true);",
+                  "pm.test(\"HTTP thiết bị = 200\", () => pm.expect(step.httpStatus).to.eql(200));",
+                  "if (step.responseXml) {",
+                  "    console.log(\"Response XML:\", step.responseXml);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "WindowScene",
+      "item": [
+        {
+          "name": "GET — Danh sách cửa sổ trên tường (windows)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  },\n  \"method\": \"GET\",\n  \"path\": \"ISAPI/DisplayDev/VideoWall/{{wallLive}}/windows\",\n  \"body\": null,\n  \"contentType\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/isapi",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "isapi"
+              ]
+            },
+            "description": "Nguồn: 09A §9.7.11.2 / 09B §D.1\n\nDanh sách các cửa sổ đang hiển thị trên Wall 2."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 từ backend\", () => pm.response.to.have.status(200));",
+                  "const step = pm.response.json();",
+                  "pm.test(\"Thiết bị phản hồi thành công\", () => pm.expect(step.success, step.message || \"\").to.be.true);",
+                  "pm.test(\"HTTP thiết bị = 200\", () => pm.expect(step.httpStatus).to.eql(200));",
+                  "if (step.responseXml) {",
+                  "    console.log(\"Response XML:\", step.responseXml);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT — Đổi toạ độ kích thước cửa sổ (windows rect)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  },\n  \"method\": \"PUT\",\n  \"path\": \"ISAPI/DisplayDev/VideoWall/{{wallLive}}/windows/{{windowId}}\",\n  \"body\": \"<WallWindow xmlns=\\\"http://www.isapi.org/ver20/XMLSchema\\\" version=\\\"2.0\\\">\\n  <id>{{windowId}}</id>\\n  <wndOperateMode>uniformCoordinate</wndOperateMode>\\n  <Rect>\\n    <Coordinate><x>0</x><y>0</y></Coordinate>\\n    <width>1920</width>\\n    <height>3840</height>\\n  </Rect>\\n</WallWindow>\",\n  \"contentType\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/isapi",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "isapi"
+              ]
+            },
+            "description": "Nguồn: 09B §E.2 / 09A §9.7.11.6\n\nPUT /ISAPI/DisplayDev/VideoWall/{{wallLive}}/windows/{{windowId}}\nKéo cửa sổ hiện có {{windowId}} phủ toàn bộ 2 màn hình ghép (1920x3840)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 từ backend\", () => pm.response.to.have.status(200));",
+                  "const step = pm.response.json();",
+                  "pm.test(\"Thiết bị phản hồi thành công\", () => pm.expect(step.success, step.message || \"\").to.be.true);",
+                  "pm.test(\"HTTP thiết bị = 200\", () => pm.expect(step.httpStatus).to.eql(200));",
+                  "if (step.responseXml) {",
+                  "    console.log(\"Response XML:\", step.responseXml);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "⛔ DELETE — Xóa toàn bộ cửa sổ trên tường (windows)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"device\": {\n    \"ip\": \"{{deviceIp}}\",\n    \"port\": {{devicePort}},\n    \"account\": \"{{deviceUser}}\",\n    \"password\": \"{{devicePass}}\",\n    \"skipPasswordCheck\": false\n  },\n  \"method\": \"DELETE\",\n  \"path\": \"ISAPI/DisplayDev/VideoWall/{{wallLive}}/windows\",\n  \"body\": null,\n  \"contentType\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{beBase}}/api/videowall/vwdevicesetup/isapi",
+              "host": [
+                "{{beBase}}"
+              ],
+              "path": [
+                "api",
+                "videowall",
+                "vwdevicesetup",
+                "isapi"
+              ]
+            },
+            "description": "Nguồn: 09B §8\n\n⛔ NGUY HIỂM: Xoá trắng toàn bộ cửa sổ trên tường thật Wall 2. Màn hình ghép sẽ mất hoàn toàn layout đang hiển thị."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 từ backend\", () => pm.response.to.have.status(200));",
+                  "const step = pm.response.json();",
+                  "pm.test(\"Thiết bị phản hồi thành công\", () => pm.expect(step.success, step.message || \"\").to.be.true);",
+                  "pm.test(\"HTTP thiết bị = 200\", () => pm.expect(step.httpStatus).to.eql(200));",
+                  "if (step.responseXml) {",
+                  "    console.log(\"Response XML:\", step.responseXml);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "D. Gọi trực tiếp thiết bị (không qua backend)",
+      "item": [
+        {
+          "name": "D.1 Định danh & Năng lực thiết bị (Trực tiếp)",
+          "item": [
+            {
+              "name": "[Trực tiếp] [09B §A.1] Kiểm tra Digest Auth (userCheck)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{deviceScheme}}://{{deviceIp}}:{{devicePort}}/ISAPI/Security/userCheck",
+                  "protocol": "{{deviceScheme}}",
+                  "host": [
+                    "{{deviceIp}}"
+                  ],
+                  "port": "{{devicePort}}",
+                  "path": [
+                    "ISAPI",
+                    "Security",
+                    "userCheck"
+                  ]
+                },
+                "description": "Gọi trực tiếp tới thiết bị qua Digest Auth."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200 từ thiết bị\", () => pm.response.to.have.status(200));",
+                      "console.log(\"Raw device response:\", pm.response.text());"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "[Trực tiếp] [09A §9.1.3.1] Lấy thông tin thiết bị (deviceInfo)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{deviceScheme}}://{{deviceIp}}:{{devicePort}}/ISAPI/System/deviceInfo",
+                  "protocol": "{{deviceScheme}}",
+                  "host": [
+                    "{{deviceIp}}"
+                  ],
+                  "port": "{{devicePort}}",
+                  "path": [
+                    "ISAPI",
+                    "System",
+                    "deviceInfo"
+                  ]
+                },
+                "description": "Gọi trực tiếp tới thiết bị lấy deviceInfo."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200 từ thiết bị\", () => pm.response.to.have.status(200));",
+                      "console.log(\"Raw device response:\", pm.response.text());"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "[Trực tiếp] [09A §9.7.5.1] Năng lực màn hình tổng thể (capabilities)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{deviceScheme}}://{{deviceIp}}:{{devicePort}}/ISAPI/DisplayDev/capabilities",
+                  "protocol": "{{deviceScheme}}",
+                  "host": [
+                    "{{deviceIp}}"
+                  ],
+                  "port": "{{devicePort}}",
+                  "path": [
+                    "ISAPI",
+                    "DisplayDev",
+                    "capabilities"
+                  ]
+                },
+                "description": "Gọi trực tiếp DisplayDev/capabilities."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200 từ thiết bị\", () => pm.response.to.have.status(200));",
+                      "console.log(\"Raw device response:\", pm.response.text());"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "[Trực tiếp] [09A §9.7.5.6] Năng lực Video Wall (VideoWall/capabilities)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{deviceScheme}}://{{deviceIp}}:{{devicePort}}/ISAPI/DisplayDev/VideoWall/capabilities",
+                  "protocol": "{{deviceScheme}}",
+                  "host": [
+                    "{{deviceIp}}"
+                  ],
+                  "port": "{{devicePort}}",
+                  "path": [
+                    "ISAPI",
+                    "DisplayDev",
+                    "VideoWall",
+                    "capabilities"
+                  ]
+                },
+                "description": "Gọi trực tiếp VideoWall/capabilities."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200 từ thiết bị\", () => pm.response.to.have.status(200));",
+                      "console.log(\"Raw device response:\", pm.response.text());"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "[Trực tiếp] [09A §9.7.2.1] Phần cứng & nhiệt độ slot (decoingDevice)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{deviceScheme}}://{{deviceIp}}:{{devicePort}}/ISAPI/DisplayDev/decoingDevice/status?format=json",
+                  "protocol": "{{deviceScheme}}",
+                  "host": [
+                    "{{deviceIp}}"
+                  ],
+                  "port": "{{devicePort}}",
+                  "path": [
+                    "ISAPI",
+                    "DisplayDev",
+                    "decoingDevice",
+                    "status"
+                  ],
+                  "query": [
+                    {
+                      "key": "format",
+                      "value": "json"
+                    }
+                  ]
+                },
+                "description": "Gọi trực tiếp decoingDevice status JSON."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200 từ thiết bị\", () => pm.response.to.have.status(200));",
+                      "console.log(\"Raw device response:\", pm.response.text());"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "[Trực tiếp] [09A §9.1.10.1] Thời gian hệ thống NTP (time)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{deviceScheme}}://{{deviceIp}}:{{devicePort}}/ISAPI/System/time",
+                  "protocol": "{{deviceScheme}}",
+                  "host": [
+                    "{{deviceIp}}"
+                  ],
+                  "port": "{{devicePort}}",
+                  "path": [
+                    "ISAPI",
+                    "System",
+                    "time"
+                  ]
+                },
+                "description": "Gọi trực tiếp System/time."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200 từ thiết bị\", () => pm.response.to.have.status(200));",
+                      "console.log(\"Raw device response:\", pm.response.text());"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "[Trực tiếp] [09A §9.1.8.1] Năng lực cổng Serial (Serial/capabilities)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{deviceScheme}}://{{deviceIp}}:{{devicePort}}/ISAPI/System/Serial/capabilities",
+                  "protocol": "{{deviceScheme}}",
+                  "host": [
+                    "{{deviceIp}}"
+                  ],
+                  "port": "{{devicePort}}",
+                  "path": [
+                    "ISAPI",
+                    "System",
+                    "Serial",
+                    "capabilities"
+                  ]
+                },
+                "description": "Gọi trực tiếp Serial capabilities."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200 từ thiết bị\", () => pm.response.to.have.status(200));",
+                      "console.log(\"Raw device response:\", pm.response.text());"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "[Trực tiếp] [09A §9.7.1.2] Năng lực các Board (Board/capabilities)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{deviceScheme}}://{{deviceIp}}:{{devicePort}}/ISAPI/System/Board/capabilities",
+                  "protocol": "{{deviceScheme}}",
+                  "host": [
+                    "{{deviceIp}}"
+                  ],
+                  "port": "{{devicePort}}",
+                  "path": [
+                    "ISAPI",
+                    "System",
+                    "Board",
+                    "capabilities"
+                  ]
+                },
+                "description": "Gọi trực tiếp Board capabilities."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200 từ thiết bị\", () => pm.response.to.have.status(200));",
+                      "console.log(\"Raw device response:\", pm.response.text());"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "[Trực tiếp] [09A §9.7.1.4] Năng lực trạng thái Board (status/capabilities)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{deviceScheme}}://{{deviceIp}}:{{devicePort}}/ISAPI/System/Board/status/capabilities",
+                  "protocol": "{{deviceScheme}}",
+                  "host": [
+                    "{{deviceIp}}"
+                  ],
+                  "port": "{{devicePort}}",
+                  "path": [
+                    "ISAPI",
+                    "System",
+                    "Board",
+                    "status",
+                    "capabilities"
+                  ]
+                },
+                "description": "Gọi trực tiếp Board status capabilities."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200 từ thiết bị\", () => pm.response.to.have.status(200));",
+                      "console.log(\"Raw device response:\", pm.response.text());"
+                    ]
+                  }
+                }
+              ]
+            }
+          ],
+          "description": "Bản song song trực tiếp của Folder 1."
+        },
+        {
+          "name": "D.2 Khảo sát Layout & Kênh (Trực tiếp)",
+          "item": [
+            {
+              "name": "[Trực tiếp] [09A §9.7.5.2] Danh sách Video Wall",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{deviceScheme}}://{{deviceIp}}:{{devicePort}}/ISAPI/DisplayDev/VideoWall",
+                  "protocol": "{{deviceScheme}}",
+                  "host": [
+                    "{{deviceIp}}"
+                  ],
+                  "port": "{{devicePort}}",
+                  "path": [
+                    "ISAPI",
+                    "DisplayDev",
+                    "VideoWall"
+                  ]
+                },
+                "description": "Gọi trực tiếp VideoWall."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200 từ thiết bị\", () => pm.response.to.have.status(200));",
+                      "console.log(\"Raw device response:\", pm.response.text());"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "[Trực tiếp] [09A §9.7.5.4] Chi tiết Video Wall {{wallLive}}",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{deviceScheme}}://{{deviceIp}}:{{devicePort}}/ISAPI/DisplayDev/VideoWall/{{wallLive}}",
+                  "protocol": "{{deviceScheme}}",
+                  "host": [
+                    "{{deviceIp}}"
+                  ],
+                  "port": "{{devicePort}}",
+                  "path": [
+                    "ISAPI",
+                    "DisplayDev",
+                    "VideoWall",
+                    "{{wallLive}}"
+                  ]
+                },
+                "description": "Gọi trực tiếp VideoWall/{{wallLive}}."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200 từ thiết bị\", () => pm.response.to.have.status(200));",
+                      "console.log(\"Raw device response:\", pm.response.text());"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "[Trực tiếp] [09A §9.7.5.5] Danh sách Output của Wall {{wallLive}}",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{deviceScheme}}://{{deviceIp}}:{{devicePort}}/ISAPI/DisplayDev/VideoWall/{{wallLive}}/outputs",
+                  "protocol": "{{deviceScheme}}",
+                  "host": [
+                    "{{deviceIp}}"
+                  ],
+                  "port": "{{devicePort}}",
+                  "path": [
+                    "ISAPI",
+                    "DisplayDev",
+                    "VideoWall",
+                    "{{wallLive}}",
+                    "outputs"
+                  ]
+                },
+                "description": "Gọi trực tiếp VideoWall/{{wallLive}}/outputs."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200 từ thiết bị\", () => pm.response.to.have.status(200));",
+                      "console.log(\"Raw device response:\", pm.response.text());"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "[Trực tiếp] [09A §9.7.11.2] Danh sách Window trên Wall {{wallLive}}",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{deviceScheme}}://{{deviceIp}}:{{devicePort}}/ISAPI/DisplayDev/VideoWall/{{wallLive}}/windows",
+                  "protocol": "{{deviceScheme}}",
+                  "host": [
+                    "{{deviceIp}}"
+                  ],
+                  "port": "{{devicePort}}",
+                  "path": [
+                    "ISAPI",
+                    "DisplayDev",
+                    "VideoWall",
+                    "{{wallLive}}",
+                    "windows"
+                  ]
+                },
+                "description": "Gọi trực tiếp VideoWall/{{wallLive}}/windows."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200 từ thiết bị\", () => pm.response.to.have.status(200));",
+                      "console.log(\"Raw device response:\", pm.response.text());"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "[Trực tiếp] [09A §9.7.11.14] Năng lực Window trên Wall {{wallLive}}",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{deviceScheme}}://{{deviceIp}}:{{devicePort}}/ISAPI/DisplayDev/VideoWall/{{wallLive}}/windows/capabilities",
+                  "protocol": "{{deviceScheme}}",
+                  "host": [
+                    "{{deviceIp}}"
+                  ],
+                  "port": "{{devicePort}}",
+                  "path": [
+                    "ISAPI",
+                    "DisplayDev",
+                    "VideoWall",
+                    "{{wallLive}}",
+                    "windows",
+                    "capabilities"
+                  ]
+                },
+                "description": "Gọi trực tiếp VideoWall/{{wallLive}}/windows/capabilities."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200 từ thiết bị\", () => pm.response.to.have.status(200));",
+                      "console.log(\"Raw device response:\", pm.response.text());"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "[Trực tiếp] [09A §9.7.7.1] Danh sách Scene trên Wall {{wallLive}}",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{deviceScheme}}://{{deviceIp}}:{{devicePort}}/ISAPI/DisplayDev/VideoWall/{{wallLive}}/scene",
+                  "protocol": "{{deviceScheme}}",
+                  "host": [
+                    "{{deviceIp}}"
+                  ],
+                  "port": "{{devicePort}}",
+                  "path": [
+                    "ISAPI",
+                    "DisplayDev",
+                    "VideoWall",
+                    "{{wallLive}}",
+                    "scene"
+                  ]
+                },
+                "description": "Gọi trực tiếp VideoWall/{{wallLive}}/scene."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200 từ thiết bị\", () => pm.response.to.have.status(200));",
+                      "console.log(\"Raw device response:\", pm.response.text());"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "[Trực tiếp] [09A §9.7.7.6] Scene đang chạy trên Wall {{wallLive}}",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{deviceScheme}}://{{deviceIp}}:{{devicePort}}/ISAPI/DisplayDev/VideoWall/{{wallLive}}/scene/isRunning",
+                  "protocol": "{{deviceScheme}}",
+                  "host": [
+                    "{{deviceIp}}"
+                  ],
+                  "port": "{{devicePort}}",
+                  "path": [
+                    "ISAPI",
+                    "DisplayDev",
+                    "VideoWall",
+                    "{{wallLive}}",
+                    "scene",
+                    "isRunning"
+                  ]
+                },
+                "description": "Gọi trực tiếp VideoWall/{{wallLive}}/scene/isRunning."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200 từ thiết bị\", () => pm.response.to.have.status(200));",
+                      "console.log(\"Raw device response:\", pm.response.text());"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "[Trực tiếp] [09A §9.7.7.5] Năng lực Scene trên Wall {{wallLive}}",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{deviceScheme}}://{{deviceIp}}:{{devicePort}}/ISAPI/DisplayDev/VideoWall/{{wallLive}}/scene/capabilities",
+                  "protocol": "{{deviceScheme}}",
+                  "host": [
+                    "{{deviceIp}}"
+                  ],
+                  "port": "{{devicePort}}",
+                  "path": [
+                    "ISAPI",
+                    "DisplayDev",
+                    "VideoWall",
+                    "{{wallLive}}",
+                    "scene",
+                    "capabilities"
+                  ]
+                },
+                "description": "Gọi trực tiếp VideoWall/{{wallLive}}/scene/capabilities."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200 từ thiết bị\", () => pm.response.to.have.status(200));",
+                      "console.log(\"Raw device response:\", pm.response.text());"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "[Trực tiếp] [09A §9.7.3.4] Danh sách kênh Output",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{deviceScheme}}://{{deviceIp}}:{{devicePort}}/ISAPI/DisplayDev/Video/outputs/channels",
+                  "protocol": "{{deviceScheme}}",
+                  "host": [
+                    "{{deviceIp}}"
+                  ],
+                  "port": "{{devicePort}}",
+                  "path": [
+                    "ISAPI",
+                    "DisplayDev",
+                    "Video",
+                    "outputs",
+                    "channels"
+                  ]
+                },
+                "description": "Gọi trực tiếp Video/outputs/channels."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200 từ thiết bị\", () => pm.response.to.have.status(200));",
+                      "console.log(\"Raw device response:\", pm.response.text());"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "[Trực tiếp] [09A §9.7.3.5] Chi tiết Output {{outputId}}",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{deviceScheme}}://{{deviceIp}}:{{devicePort}}/ISAPI/DisplayDev/Video/outputs/channels/{{outputId}}",
+                  "protocol": "{{deviceScheme}}",
+                  "host": [
+                    "{{deviceIp}}"
+                  ],
+                  "port": "{{devicePort}}",
+                  "path": [
+                    "ISAPI",
+                    "DisplayDev",
+                    "Video",
+                    "outputs",
+                    "channels",
+                    "{{outputId}}"
+                  ]
+                },
+                "description": "Gọi trực tiếp Output {{outputId}}."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200 từ thiết bị\", () => pm.response.to.have.status(200));",
+                      "console.log(\"Raw device response:\", pm.response.text());"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "[Trực tiếp] [09A §9.7.3.7] Năng lực Output {{outputId}}",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{deviceScheme}}://{{deviceIp}}:{{devicePort}}/ISAPI/DisplayDev/Video/outputs/channels/{{outputId}}/capabilities",
+                  "protocol": "{{deviceScheme}}",
+                  "host": [
+                    "{{deviceIp}}"
+                  ],
+                  "port": "{{devicePort}}",
+                  "path": [
+                    "ISAPI",
+                    "DisplayDev",
+                    "Video",
+                    "outputs",
+                    "channels",
+                    "{{outputId}}",
+                    "capabilities"
+                  ]
+                },
+                "description": "Gọi trực tiếp Output capabilities."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200 từ thiết bị\", () => pm.response.to.have.status(200));",
+                      "console.log(\"Raw device response:\", pm.response.text());"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "[Trực tiếp] [09A §9.7.3.9] Năng lực chung Output channels",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{deviceScheme}}://{{deviceIp}}:{{devicePort}}/ISAPI/DisplayDev/Video/outputs/channels/capabilities",
+                  "protocol": "{{deviceScheme}}",
+                  "host": [
+                    "{{deviceIp}}"
+                  ],
+                  "port": "{{devicePort}}",
+                  "path": [
+                    "ISAPI",
+                    "DisplayDev",
+                    "Video",
+                    "outputs",
+                    "channels",
+                    "capabilities"
+                  ]
+                },
+                "description": "Gọi trực tiếp Output channels capabilities."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200 từ thiết bị\", () => pm.response.to.have.status(200));",
+                      "console.log(\"Raw device response:\", pm.response.text());"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "[Trực tiếp] [09A §9.7.4.8] Danh sách kênh Input",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{deviceScheme}}://{{deviceIp}}:{{devicePort}}/ISAPI/DisplayDev/Video/inputs/channels",
+                  "protocol": "{{deviceScheme}}",
+                  "host": [
+                    "{{deviceIp}}"
+                  ],
+                  "port": "{{devicePort}}",
+                  "path": [
+                    "ISAPI",
+                    "DisplayDev",
+                    "Video",
+                    "inputs",
+                    "channels"
+                  ]
+                },
+                "description": "Gọi trực tiếp Video/inputs/channels."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200 từ thiết bị\", () => pm.response.to.have.status(200));",
+                      "console.log(\"Raw device response:\", pm.response.text());"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "[Trực tiếp] [09A §9.7.4.11] Chi tiết Input {{inputId}}",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{deviceScheme}}://{{deviceIp}}:{{devicePort}}/ISAPI/DisplayDev/Video/inputs/channels/{{inputId}}",
+                  "protocol": "{{deviceScheme}}",
+                  "host": [
+                    "{{deviceIp}}"
+                  ],
+                  "port": "{{devicePort}}",
+                  "path": [
+                    "ISAPI",
+                    "DisplayDev",
+                    "Video",
+                    "inputs",
+                    "channels",
+                    "{{inputId}}"
+                  ]
+                },
+                "description": "Gọi trực tiếp Input {{inputId}}."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200 từ thiết bị\", () => pm.response.to.have.status(200));",
+                      "console.log(\"Raw device response:\", pm.response.text());"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "[Trực tiếp] [09A §9.7.4.23] Năng lực kênh Input",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{deviceScheme}}://{{deviceIp}}:{{devicePort}}/ISAPI/DisplayDev/Video/inputs/channels/capabilities",
+                  "protocol": "{{deviceScheme}}",
+                  "host": [
+                    "{{deviceIp}}"
+                  ],
+                  "port": "{{devicePort}}",
+                  "path": [
+                    "ISAPI",
+                    "DisplayDev",
+                    "Video",
+                    "inputs",
+                    "channels",
+                    "capabilities"
+                  ]
+                },
+                "description": "Gọi trực tiếp Input channels capabilities."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200 từ thiết bị\", () => pm.response.to.have.status(200));",
+                      "console.log(\"Raw device response:\", pm.response.text());"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "[Trực tiếp] [09A §9.7.4.7] Năng lực Video tổng thể",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{deviceScheme}}://{{deviceIp}}:{{devicePort}}/ISAPI/DisplayDev/Video/capabilities",
+                  "protocol": "{{deviceScheme}}",
+                  "host": [
+                    "{{deviceIp}}"
+                  ],
+                  "port": "{{devicePort}}",
+                  "path": [
+                    "ISAPI",
+                    "DisplayDev",
+                    "Video",
+                    "capabilities"
+                  ]
+                },
+                "description": "Gọi trực tiếp Video capabilities."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200 từ thiết bị\", () => pm.response.to.have.status(200));",
+                      "console.log(\"Raw device response:\", pm.response.text());"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "[Trực tiếp] [09A §9.7.4.1] Năng lực Audio tổng thể",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{deviceScheme}}://{{deviceIp}}:{{devicePort}}/ISAPI/DisplayDev/Audio/capabilities",
+                  "protocol": "{{deviceScheme}}",
+                  "host": [
+                    "{{deviceIp}}"
+                  ],
+                  "port": "{{devicePort}}",
+                  "path": [
+                    "ISAPI",
+                    "DisplayDev",
+                    "Audio",
+                    "capabilities"
+                  ]
+                },
+                "description": "Gọi trực tiếp Audio capabilities."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200 từ thiết bị\", () => pm.response.to.have.status(200));",
+                      "console.log(\"Raw device response:\", pm.response.text());"
+                    ]
+                  }
+                }
+              ]
+            }
+          ],
+          "description": "Bản song song trực tiếp của Folder 2."
+        }
+      ],
+      "description": "Nhóm request gọi trực tiếp tới thiết bị IP:port qua Digest Auth (không thông qua Backend Thiên An). Dùng để đối chiếu XML thô của thiết bị với dữ liệu parse từ Backend.\n\n⚠️ Đã cấu hình protocolProfileBehavior.disableRetryRequest = true để tránh lỗi parser challenge của Postman (Bẫy #1 & #4).",
+      "auth": {
+        "type": "digest",
+        "digest": [
+          {
+            "key": "algorithm",
+            "value": "MD5",
+            "type": "string"
+          },
+          {
+            "key": "username",
+            "value": "{{deviceUser}}",
+            "type": "string"
+          },
+          {
+            "key": "password",
+            "value": "{{devicePass}}",
+            "type": "string"
+          }
+        ]
+      },
+      "protocolProfileBehavior": {
+        "disableRetryRequest": true
+      }
+    }
+  ]
+}
