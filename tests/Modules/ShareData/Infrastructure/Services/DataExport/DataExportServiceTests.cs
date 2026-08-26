@@ -8,7 +8,6 @@ using Modules.TMS.Core.Entities;
 using Modules.TOLL.Core.Entities;
 using Modules.VMS.Core.Entities;
 using ShareDataWorker.Core.Dto;
-using ShareDataWorker.Core.Entities;
 using ShareDataWorker.Core.Enums;
 using ShareDataWorker.Core.Exceptions;
 using ShareDataWorker.Core.Utils;
@@ -60,7 +59,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                 .ToListAsync();
 
             Assert.NotEmpty(logs);
-            Assert.True(logs[0].Status == "SUCCESS", $"Export failed. DB ErrorMessage: {logs[0].ErrorMessage}");
+            Assert.True(logs[0].Success == BaseEnums.SuccessEnums.Success, $"Export failed. DB ErrorMessage: {logs[0].ErrorMessage}");
             Assert.True(logs[0].RecordCount > 0);
 
             Assert.False(string.IsNullOrEmpty(logs[0].FilePath), "FilePath của ExportLog không được để rỗng");
@@ -116,8 +115,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                 Code = subCode,
                 PartnerId = partner.ID,
                 DatatypeId = datatypeId,
-                Direction = ShareDataEnum.SubDirection.Outbound,
-                Mode = ShareDataEnum.SubMode.Periodic,
+                Direction = BaseEnums.Direction.Outbound,
+                Mode = BaseEnums.SubMode.Periodic,
                 State = BaseEnums.SubSubscriptionState.Active,
                 NextTimeRun = DateTime.Now.AddSeconds(-10),
                 IntervalSeconds = 30
@@ -459,7 +458,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
 
             var logs = await GetLogs(db, sub.ID);
             Assert.NotEmpty(logs);
-            Assert.Equal(ShareDataEnum.ExportStatus.Success, logs[0].Status);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
             Assert.True(logs[0].RecordCount > 0);
 
             if (!string.IsNullOrEmpty(logs[0].FilePath))
@@ -544,7 +543,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
 
             var logs = await GetLogs(db, sub.ID);
             Assert.NotEmpty(logs);
-            Assert.Equal(ShareDataEnum.ExportStatus.Success, logs[0].Status);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
 
             var jsonContent = await ReadExportedJson(logs[0].FilePath!);
             Assert.Contains(newMarker, jsonContent);
@@ -592,7 +591,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
 
             var logs = await GetLogs(db, sub.ID);
             Assert.NotEmpty(logs);
-            Assert.Equal(ShareDataEnum.ExportStatus.Success, logs[0].Status);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
 
             var jsonContent = await ReadExportedJson(logs[0].FilePath!);
             Assert.Contains(marker1, jsonContent);
@@ -654,7 +653,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
 
             var logs = await GetLogs(db, sub.ID);
             Assert.NotEmpty(logs);
-            Assert.Equal(ShareDataEnum.ExportStatus.Success, logs[0].Status);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
 
             var json = await ReadExportedJson(logs[0].FilePath!);
             using var doc = JsonDocument.Parse(json);
@@ -714,7 +713,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                 .ToListAsync();
 
             Assert.NotEmpty(logs);
-            Assert.Equal(ShareDataEnum.ExportStatus.Success, logs[0].Status);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
 
             var json = await ReadExportedJson(logs[0].FilePath!);
             using var doc = JsonDocument.Parse(json);
@@ -768,7 +767,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
 
             var logs = await GetLogs(db, sub.ID);
             Assert.NotEmpty(logs);
-            Assert.Equal(ShareDataEnum.ExportStatus.Success, logs[0].Status);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
 
             var json = await ReadExportedJson(logs[0].FilePath!);
             using var doc = JsonDocument.Parse(json);
@@ -829,7 +828,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                     .OrderByDescending(l => l.OccurredAt)
                     .FirstAsync();
 
-                Assert.Equal(ShareDataEnum.ExportStatus.Success, log.Status);
+                Assert.Equal(BaseEnums.SuccessEnums.Success, log.Success);
                 Assert.NotNull(log.FilePath);
 
                 var json = await ReadExportedJson(log.FilePath);
@@ -1047,7 +1046,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
 
             var logs = await GetLogs(db, sub.ID);
             Assert.Single(logs);
-            Assert.Equal(ShareDataEnum.ExportStatus.Failed, logs[0].Status);
+            Assert.Equal(BaseEnums.SuccessEnums.Fail, logs[0].Success);
             Assert.Contains("active", logs[0].ErrorMessage);
         }
 
@@ -1082,7 +1081,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
 
             var logs = await GetLogs(db, sub.ID);
             Assert.Single(logs);
-            Assert.Equal(ShareDataEnum.ExportStatus.Failed, logs[0].Status);
+            Assert.Equal(BaseEnums.SuccessEnums.Fail, logs[0].Success);
             Assert.NotNull(logs[0].ErrorMessage);
         }
 
@@ -1103,14 +1102,9 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                 ID = Guid.NewGuid().ToString("N"),
                 PartnerId = partner.ID,
                 DatatypeId = "101",
-                Direction = ShareDataEnum.SubDirection.Outbound,
+                Direction = BaseEnums.Direction.Outbound,
                 IsActive = true,
-                TargetRootEntity = "BB",
-                ItemsJson = JsonSerializer.Serialize(new List<object>
-                {
-                    new { fieldKey = "averageSpeed", targetKey = "vanToc", targetEntity = "BB" },
-                    new { fieldKey = "trafficCondition", isExcluded = true }
-                })
+                TargetShapeJson = @"{ ""BB"": { ""vanToc"": { ""$field"": ""averageSpeed"" } }, ""trafficCondition"": { ""$exclude"": true } }"
             };
             await db.Insertable(mapping).ExecuteCommandAsync();
 
@@ -1118,7 +1112,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
 
             var logs = await GetLogs(db, sub.ID);
             Assert.Single(logs);
-            Assert.Equal(ShareDataEnum.ExportStatus.Success, logs[0].Status);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
 
             var json = await ReadExportedJson(logs[0].FilePath!);
             Assert.Contains("\"BB\"", json);
@@ -1127,14 +1121,14 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
         }
 
         [Theory]
-        [InlineData("INBOUND", false, true, true, true, false)]
-        [InlineData("OUTBOUND", true, true, true, true, false)]
-        [InlineData("OUTBOUND", false, false, true, true, false)]
-        [InlineData("OUTBOUND", false, true, false, true, false)]
-        [InlineData("OUTBOUND", false, true, true, false, false)]
-        [InlineData("OUTBOUND", false, true, true, true, true)]
+        [InlineData(BaseEnums.Direction.Inbound, false, true, true, true, false)]
+        [InlineData(BaseEnums.Direction.Outbound, true, true, true, true, false)]
+        [InlineData(BaseEnums.Direction.Outbound, false, false, true, true, false)]
+        [InlineData(BaseEnums.Direction.Outbound, false, true, false, true, false)]
+        [InlineData(BaseEnums.Direction.Outbound, false, true, true, false, false)]
+        [InlineData(BaseEnums.Direction.Outbound, false, true, true, true, true)]
         public async Task ProcessBatchSubscriptions_ScanExclusions_IsSkipped_Test(
-            string direction, bool isSoftDeleted, bool isPartnerActive, bool isSessionConnected, bool isDue, bool expectPickedUp)
+            BaseEnums.Direction direction, bool isSoftDeleted, bool isPartnerActive, bool isSessionConnected, bool isDue, bool expectPickedUp)
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
@@ -1156,7 +1150,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                 PartnerId = partner.ID,
                 DatatypeId = "101",
                 Direction = direction,
-                Mode = ShareDataEnum.SubMode.Periodic,
+                Mode = BaseEnums.SubMode.Periodic,
                 State = BaseEnums.SubSubscriptionState.Active,
                 NextTimeRun = isDue ? DateTime.Now.AddSeconds(-10) : DateTime.Now.AddMinutes(10),
                 IsDelete = isSoftDeleted ? DateTime.Now : null
@@ -1245,7 +1239,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                 .ToListAsync();
 
             Assert.Equal(10, logs.Count);
-            Assert.All(logs, l => Assert.Equal(ShareDataEnum.ExportStatus.Success, l.Status));
+            Assert.All(logs, l => Assert.Equal(BaseEnums.SuccessEnums.Success, l.Success));
 
             var filePaths = logs.Select(l => l.FilePath).Where(f => !string.IsNullOrEmpty(f)).Distinct().ToList();
             Assert.Equal(10, filePaths.Count);
@@ -1307,7 +1301,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                 PartnerId = partner.ID,
                 DatatypeId = "101",
                 PacketVersion = "1.0",
-                Direction = ShareDataEnum.SubDirection.Outbound,
+                Direction = BaseEnums.Direction.Outbound,
                 IsActive = true
             };
             await db.Insertable(mapping).ExecuteCommandAsync();
@@ -1318,9 +1312,9 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
             Assert.NotEmpty(logs);
             var log = logs[0];
 
-            Assert.Equal(ShareDataEnum.LogType.Transfer, log.LogType);
-            Assert.Equal(ShareDataEnum.LogAction.Send, log.Action);
-            Assert.Equal(ShareDataEnum.ExportStatus.Success, log.Status);
+            Assert.Equal(BaseEnums.LogTypeEnum.Transfer, log.LogType);
+            Assert.Equal(BaseEnums.ActivityAction.Send, log.Action);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, log.Success);
             Assert.NotNull(log.ByteSize);
             Assert.NotNull(log.RecordCount);
             Assert.NotNull(log.Hash);
@@ -1367,7 +1361,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
 
             var logs = await GetLogs(db, sub.ID);
             Assert.Single(logs);
-            Assert.Equal(ShareDataEnum.ExportStatus.Success, logs[0].Status);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
         }
 
         [Fact]
@@ -1386,7 +1380,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
 
             var logs = await GetLogs(db, sub.ID);
             Assert.Single(logs);
-            Assert.Equal(ShareDataEnum.ExportStatus.Success, logs[0].Status);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
             Assert.Equal(0, logs[0].RecordCount);
 
             var updated = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
@@ -1412,7 +1406,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
 
             var logs = await GetLogs(db, sub.ID);
             Assert.Single(logs);
-            Assert.Equal(ShareDataEnum.ExportStatus.Success, logs[0].Status);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
             Assert.True(logs[0].RecordCount > 0);
 
             var updated = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
@@ -1464,7 +1458,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                 var logs = await GetLogs(db, sub.ID);
                 Assert.True(logs.Count >= 2);
                 var latestLog = logs[0];
-                Assert.Equal(ShareDataEnum.ExportStatus.Success, latestLog.Status);
+                Assert.Equal(BaseEnums.SuccessEnums.Success, latestLog.Success);
                 Assert.True(latestLog.RecordCount > 0);
 
                 var json = await ReadExportedJson(latestLog.FilePath!);
@@ -1509,7 +1503,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
 
                 var logs = await GetLogs(db, sub.ID);
                 Assert.Single(logs);
-                Assert.Equal(ShareDataEnum.ExportStatus.Failed, logs[0].Status);
+                Assert.Equal(BaseEnums.SuccessEnums.Fail, logs[0].Success);
                 Assert.False(string.IsNullOrWhiteSpace(logs[0].ErrorMessage));
 
                 var updated = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
@@ -1535,7 +1529,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
 
             var (partner, sub) = await SeedOutboundSubscription(db, "TEST_P_SINGLE", "SUB-SINGLE-01", "101", s =>
             {
-                s.Mode = ShareDataEnum.SubMode.Single;
+                s.Mode = BaseEnums.SubMode.Single;
                 s.NextTimeRun = DateTime.Now.AddSeconds(-10);
             });
 
@@ -1543,7 +1537,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
 
             var logs = await GetLogs(db, sub.ID);
             Assert.Single(logs);
-            Assert.Equal(ShareDataEnum.ExportStatus.Success, logs[0].Status);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
 
             var updatedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
             Assert.Equal(BaseEnums.SubSubscriptionState.Expired, updatedSub.State);
@@ -1566,7 +1560,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                 typeof(ShareDataCodeSet),
                 typeof(ShareDataAlertLog),
                 typeof(ShareDataSession),
-                typeof(ShareDataEventSource),
+                
                 typeof(TmsZoneStatus),
                 typeof(TmsZone),
                 typeof(TmsTrafficStatistic),
@@ -2200,12 +2194,13 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                 new() { FieldKey = "vehicleCount", Column = "VehicleCount", DataType = "int" }
             };
 
-            var mappingItems = new List<MappingItemDto>
-            {
-                new() { FieldKey = "vehicleCount", IsExcluded = true }
-            };
+            var targetShapeJson = @"{
+                ""zoneId"": { ""$field"": ""zoneId"" },
+                ""averageSpeed"": { ""$field"": ""averageSpeed"" },
+                ""vehicleCount"": { ""$exclude"": true }
+            }";
 
-            var result = DataExportService.Transform(rawRows, fields, mappingItems);
+            var result = DataExportService.Transform(rawRows, fields, targetShapeJson);
 
             Assert.Single(result);
             var row = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
@@ -2232,12 +2227,14 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                 new() { FieldKey = "averageSpeed", Column = "AverageSpeed", DataType = "decimal" }
             };
 
-            var mappingItems = new List<MappingItemDto>
-            {
-                new() { FieldKey = "averageSpeed", TargetKey = "tocDoTB", TargetEntity = "trafficMetric" }
-            };
+            var targetShapeJson = @"{
+                ""zoneId"": { ""$field"": ""zoneId"" },
+                ""trafficMetric"": {
+                    ""tocDoTB"": { ""$field"": ""averageSpeed"" }
+                }
+            }";
 
-            var result = DataExportService.Transform(rawRows, fields, mappingItems);
+            var result = DataExportService.Transform(rawRows, fields, targetShapeJson);
 
             Assert.Single(result);
             var row = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
@@ -2266,12 +2263,15 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                 new() { FieldKey = "averageSpeed", Column = "AverageSpeed", DataType = "decimal" }
             };
 
-            var mappingItems = new List<MappingItemDto>
-            {
-                new() { FieldKey = "averageSpeed", DefaultValue = "0.0" }
-            };
+            var targetShapeJson = @"{
+                ""zoneId"": { ""$field"": ""zoneId"" },
+                ""averageSpeed"": {
+                    ""$field"": ""averageSpeed"",
+                    ""$extend"": { ""defaultValue"": ""0.0"" }
+                }
+            }";
 
-            var result = DataExportService.Transform(rawRows, fields, mappingItems);
+            var result = DataExportService.Transform(rawRows, fields, targetShapeJson);
 
             Assert.Single(result);
             var row = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
@@ -2318,50 +2318,34 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
         }
 
         [Fact]
-        public void ParseMappingItems_WhenArrayFormat_ParsesCorrectly_Test()
-        {
-            var json = @"[
-                { ""fieldKey"": ""averageSpeed"", ""targetKey"": ""tocDoTB"", ""isExcluded"": false },
-                { ""fieldKey"": ""vehicleCount"", ""isExcluded"": true }
-            ]";
-
-            var items = DataExportService.ParseMappingItems(json);
-
-            Assert.Equal(2, items.Count);
-            Assert.Equal("averageSpeed", items[0].FieldKey);
-            Assert.Equal("tocDoTB", items[0].TargetKey);
-            Assert.False(items[0].IsExcluded);
-
-            Assert.Equal("vehicleCount", items[1].FieldKey);
-            Assert.True(items[1].IsExcluded);
-        }
-
-        [Fact]
-        public void ParseMappingItems_WhenObjectDictionaryFormat_ParsesCorrectly_Test()
+        public void ReadShape_WhenTargetShapeJsonParsed_ExtractsFieldsAndExpressions_Test()
         {
             var json = @"{
-                ""averageSpeed"": ""tocDoTrungBinh"",
-                ""trafficCondition"": { ""targetKey"": ""tinhTrangGiaoThong"", ""defaultValue"": ""BINH_THUONG"" }
+                ""trafficMetric"": {
+                    ""tocDoTB"": { ""$field"": ""averageSpeed"", ""$extend"": { ""expression"": ""averageSpeed * 1.0"", ""codeSet"": ""COND_SET"" } }
+                },
+                ""extraInfo"": { ""$field"": ""vehicleCount"" }
             }";
 
-            var items = DataExportService.ParseMappingItems(json);
+            var (fields, codeSets) = DataExportService.ReadShape(json);
 
-            Assert.Equal(2, items.Count);
-            var item1 = items.FirstOrDefault(i => i.FieldKey == "averageSpeed");
-            Assert.NotNull(item1);
-            Assert.Equal("tocDoTrungBinh", item1.TargetKey);
+            Assert.Contains("averageSpeed", fields);
+            Assert.Contains("vehicleCount", fields);
+            Assert.Contains("COND_SET", codeSets);
 
-            var item2 = items.FirstOrDefault(i => i.FieldKey == "trafficCondition");
-            Assert.NotNull(item2);
-            Assert.Equal("tinhTrangGiaoThong", item2.TargetKey);
-            Assert.Equal("BINH_THUONG", item2.DefaultValue?.ToString());
+            var (exprFields, _) = DataExportService.ReadShapeExpressions(json);
+            Assert.Contains("averageSpeed", exprFields);
         }
 
         [Fact]
-        public void ParseMappingItems_WhenInvalidJson_ReturnsEmpty_Test()
+        public void ReadShape_WhenInvalidJson_ReturnsEmpty_Test()
         {
-            Assert.Empty(DataExportService.ParseMappingItems("invalid json"));
-            Assert.Empty(DataExportService.ParseMappingItems(null));
+            var (fields, codeSets) = DataExportService.ReadShape("invalid json");
+            Assert.Empty(fields);
+            Assert.Empty(codeSets);
+
+            var (exprFields, _) = DataExportService.ReadShapeExpressions(null);
+            Assert.Empty(exprFields);
         }
 
         [Fact]
@@ -2376,10 +2360,9 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                     TableName = "ApplyTbl",
                     Alias = "a",
                     IsRoot = false,
-                    JoinType = "OUTER APPLY",
+                    ApplyTopN = 1,
                     JoinCondition = "a.Id = r.Id",
                     ExtraWhere = "a.RowData IS NOT NULL",
-                    ApplyTopN = 1,
                     ApplyOrderBy = "ExecutedDate",
                     FieldsJson = "[{\"fieldKey\":\"rd\",\"column\":\"RowData\"}]"
                 }
@@ -2403,10 +2386,9 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                     TableName = "ApplyTbl",
                     Alias = "a",
                     IsRoot = false,
-                    JoinType = "OUTER APPLY",
+                    ApplyTopN = 1,
                     JoinCondition = "a.Id = r.Id",
                     ExtraWhere = maliciousExtraWhere,
-                    ApplyTopN = 1,
                     ApplyOrderBy = "ExecutedDate",
                     FieldsJson = "[{\"fieldKey\":\"rd\",\"column\":\"RowData\"}]"
                 }
@@ -2481,7 +2463,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                     TableName = "ApplyTbl",
                     Alias = "a",
                     IsRoot = false,
-                    JoinType = "OUTER APPLY",
                     JoinCondition = "a.Id = r.Id",
                     ExtraWhere = "ghost.Col IS NOT NULL",
                     ApplyTopN = 1,
@@ -2505,7 +2486,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                     TableName = "ApplyTbl",
                     Alias = "a",
                     IsRoot = false,
-                    JoinType = "OUTER APPLY",
                     JoinCondition = "a.Id = r.Id",
                     ApplyTopN = 1,
                     ApplyOrderBy = null,
@@ -2528,7 +2508,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                     TableName = "ApplyTbl",
                     Alias = "a",
                     IsRoot = false,
-                    JoinType = "OUTER APPLY",
                     JoinCondition = "a.Id = r.Id",
                     ApplyTopN = 1,
                     ApplyOrderBy = "ID",
@@ -2765,12 +2744,11 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                 new() { FieldKey = "speedLimit", Column = "MaxSpeed", DataType = "int", Unit = "km/h" }
             };
 
-            var mappingItems = new List<MappingItemDto>
-            {
-                new() { FieldKey = "speedLimit", TargetUnit = "m/s", TargetKey = "speedLimit" }
-            };
+            var targetShapeJson = @"{
+                ""speedLimit"": { ""$field"": ""speedLimit"", ""$extend"": { ""targetUnit"": ""m/s"" } }
+            }";
 
-            var result = DataExportService.Transform(rawRows, fields, mappingItems);
+            var result = DataExportService.Transform(rawRows, fields, targetShapeJson);
 
             Assert.Single(result);
             var row = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
@@ -2814,12 +2792,11 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                 new() { FieldKey = "distance", Column = "Distance", DataType = "int", Unit = "km" }
             };
 
-            var mappingItems = new List<MappingItemDto>
-            {
-                new() { FieldKey = "distance", TargetUnit = "m", TargetKey = "distance" }
-            };
+            var targetShapeJson = @"{
+                ""distance"": { ""$field"": ""distance"", ""$extend"": { ""targetUnit"": ""m"" } }
+            }";
 
-            var result = DataExportService.Transform(rawRows, fields, mappingItems);
+            var result = DataExportService.Transform(rawRows, fields, targetShapeJson);
 
             Assert.Single(result);
             var row = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
@@ -2898,10 +2875,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                 Direction = sub.Direction,
                 Format = sub.Format,
                 IsActive = true,
-                ItemsJson = JsonSerializer.Serialize(new List<MappingItemDto>
-                {
-                    new() { FieldKey = "speedLimit", TargetUnit = "m/s", TargetKey = "speedLimit" }
-                })
+                TargetShapeJson = @"{ ""speedLimit"": { ""$field"": ""speedLimit"", ""$extend"": { ""targetUnit"": ""m/s"" } } }"
             }).ExecuteCommandAsync();
 
             var id1 = Guid.NewGuid().ToString("N");
@@ -2924,8 +2898,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                     .ToListAsync();
 
                 Assert.Single(alerts);
-                Assert.Equal("warning", alerts[0].Severity);
-                Assert.Equal("funnel", alerts[0].AlertSource);
+                Assert.Equal(BaseEnums.AlertSeverity.Warning, alerts[0].Severity);
+                Assert.Equal(BaseEnums.AlertSource.Funnel, alerts[0].AlertSource);
                 Assert.Contains("speedLimit", alerts[0].Message);
             }
             finally
@@ -2983,11 +2957,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                 Direction = sub.Direction,
                 Format = sub.Format,
                 IsActive = true,
-                ItemsJson = JsonSerializer.Serialize(new List<MappingItemDto>
-                {
-                    new() { FieldKey = "fieldA", Expression = "CONCAT(fieldA, '_custom')" },
-                    new() { FieldKey = "fieldB", Expression = "fieldB * 2" }
-                })
+                TargetShapeJson = @"{ ""fieldA"": { ""$field"": ""fieldA"", ""$extend"": { ""expression"": ""CONCAT(fieldA, '_custom')"" } }, ""fieldB"": { ""$field"": ""fieldB"", ""$extend"": { ""expression"": ""fieldB * 2"" } } }"
             }).ExecuteCommandAsync();
 
             var id1 = Guid.NewGuid().ToString("N");
@@ -3011,8 +2981,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                     .ToListAsync();
 
                 Assert.Single(alerts);
-                Assert.Equal("warning", alerts[0].Severity);
-                Assert.Equal("funnel", alerts[0].AlertSource);
+                Assert.Equal(BaseEnums.AlertSeverity.Warning, alerts[0].Severity);
+                Assert.Equal(BaseEnums.AlertSource.Funnel, alerts[0].AlertSource);
                 Assert.Contains("2 biểu thức expression", alerts[0].Message);
             }
             finally
@@ -3176,24 +3146,16 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                 new() { FieldKey = "fieldB", Column = "fieldB" }
             };
 
-            var mappingItems = new List<MappingItemDto>
-            {
-                new() { FieldKey = "fieldA", TargetKey = "sameKey" },
-                new() { FieldKey = "fieldB", TargetKey = "sameKey" }
-            };
+            var targetShapeJson = @"{
+                ""renamedField"": { ""$field"": ""fieldA"" }
+            }";
 
-            var warnings = new List<(string TargetKey, string OldField, string NewField)>();
-            var result = DataExportService.Transform(rawRows, fields, mappingItems, onDuplicateTargetKey: (key, oldF, newF) =>
-            {
-                warnings.Add((key, oldF, newF));
-            });
+            var result = DataExportService.Transform(rawRows, fields, targetShapeJson);
 
             Assert.Single(result);
             var row = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
-            Assert.True(row.ContainsKey("sameKey"));
-            Assert.Equal("ValueB", row["sameKey"]);
-            Assert.Single(warnings);
-            Assert.Equal("sameKey", warnings[0].TargetKey);
+            Assert.True(row.ContainsKey("renamedField"));
+            Assert.Equal("ValueA", row["renamedField"]);
         }
 
         [Fact]
@@ -3333,12 +3295,11 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                 new() { FieldKey = "condition", Column = "Condition", CodeSetCode = "TRAFFIC_COND_STD", DataType = "string" }
             };
 
-            var mappingItems = new List<MappingItemDto>
-            {
-                new() { FieldKey = "condition", CodeSetId = "TRAFFIC_COND_PARTNER", TargetKey = "tinhTrang" }
-            };
+            var targetShapeJson = @"{
+                ""tinhTrang"": { ""$field"": ""condition"", ""$extend"": { ""codeSet"": ""TRAFFIC_COND_PARTNER"" } }
+            }";
 
-            var result = DataExportService.Transform(rawRows, fields, mappingItems, codeSets: codeSets);
+            var result = DataExportService.Transform(rawRows, fields, targetShapeJson, codeSets: codeSets);
 
             Assert.Single(result);
             var row = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
@@ -3477,8 +3438,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                     .ToListAsync();
 
                 Assert.NotEmpty(alerts);
-                Assert.Equal("error", alerts[0].Severity);
-                Assert.Equal("funnel", alerts[0].AlertSource);
+                Assert.Equal(BaseEnums.AlertSeverity.Error, alerts[0].Severity);
+                Assert.Equal(BaseEnums.AlertSource.Funnel, alerts[0].AlertSource);
                 Assert.Contains("averageSpeed", alerts[0].Message);
             }
             finally
@@ -3547,8 +3508,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                     .ToListAsync();
 
                 Assert.NotEmpty(alerts);
-                Assert.Equal("warning", alerts[0].Severity);
-                Assert.Equal("funnel", alerts[0].AlertSource);
+                Assert.Equal(BaseEnums.AlertSeverity.Warning, alerts[0].Severity);
+                Assert.Equal(BaseEnums.AlertSource.Funnel, alerts[0].AlertSource);
                 Assert.Contains("NON_EXISTING_CODESET_1201", alerts[0].Message);
             }
             finally
@@ -3736,8 +3697,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                         PacketVersion = def.Packet.PacketVersion,
                         FilterMode = def.Packet.FilterMode,
                         TopN = def.Packet.TopN,
-                        TableCount = def.Tables.Count,
-                        FieldCount = def.Packet.FieldCount,
                         IsActive = true
                     };
                     await db.Insertable(newPacket).ExecuteCommandAsync();
@@ -3748,8 +3707,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                     existingPacket.PacketVersion = def.Packet.PacketVersion;
                     existingPacket.FilterMode = def.Packet.FilterMode;
                     existingPacket.TopN = def.Packet.TopN;
-                    existingPacket.TableCount = def.Tables.Count;
-                    existingPacket.FieldCount = def.Packet.FieldCount;
                     existingPacket.IsActive = true;
                     await db.Updateable(existingPacket).ExecuteCommandAsync();
                 }
@@ -3808,8 +3765,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                         PacketVersion = "1.0",
                         FilterMode = (int)ShareDataEnum.PacketFilterMode.Incremental,
                         IsActive = true,
-                        TableCount = 3,
-                        FieldCount = 12
                     },
                     Tables =
                     [
@@ -3841,7 +3796,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                             SchemaName = "dbo",
                             TableName = "TmsZone",
                             IsRoot = false,
-                            JoinType = "LEFT",
+                            JoinType = BaseEnums.PacketJoinType.Left,
                             JoinCondition = "zs.ZoneId = z.ID",
                             OrderNo = 2,
                             IsActive = true,
@@ -3864,7 +3819,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                             SchemaName = "dbo",
                             TableName = "TmsTrafficStatistic",
                             IsRoot = false,
-                            JoinType = "LEFT",
+                            JoinType = BaseEnums.PacketJoinType.Left,
                             JoinCondition = "zs.ZoneId = ts.ZoneId",
                             OrderNo = 3,
                             IsActive = true,
@@ -3887,8 +3842,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                         PacketVersion = "1.0",
                         FilterMode = (int)ShareDataEnum.PacketFilterMode.Snapshot,
                         IsActive = true,
-                        TableCount = 2,
-                        FieldCount = 8
                     },
                     Tables =
                     [
@@ -3919,7 +3872,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                             SchemaName = "dbo",
                             TableName = "TmsEquipment",
                             IsRoot = false,
-                            JoinType = "LEFT",
+                            JoinType = BaseEnums.PacketJoinType.Left,
                             JoinCondition = "c.Ip = e.Ip",
                             OrderNo = 2,
                             IsActive = true,
@@ -3946,8 +3899,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                         FilterMode = (int)ShareDataEnum.PacketFilterMode.Incremental,
                         TopN = 50,
                         IsActive = true,
-                        TableCount = 2,
-                        FieldCount = 11
                     },
                     Tables =
                     [
@@ -3984,7 +3935,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                             SchemaName = "dbo",
                             TableName = "TmsEquipment",
                             IsRoot = false,
-                            JoinType = "LEFT",
+                            JoinType = BaseEnums.PacketJoinType.Left,
                             JoinCondition = "td.EquipmentId = e.ID",
                             OrderNo = 2,
                             IsActive = true,
@@ -4008,8 +3959,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                         PacketVersion = "1.0",
                         FilterMode = (int)ShareDataEnum.PacketFilterMode.Incremental,
                         IsActive = true,
-                        TableCount = 1,
-                        FieldCount = 12
                     },
                     Tables =
                     [
@@ -4055,8 +4004,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                         PacketVersion = "1.0",
                         FilterMode = (int)ShareDataEnum.PacketFilterMode.Incremental,
                         IsActive = true,
-                        TableCount = 2,
-                        FieldCount = 10
                     },
                     Tables =
                     [
@@ -4092,7 +4039,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                             SchemaName = "dbo",
                             TableName = "TmsVehicleRegistration",
                             IsRoot = false,
-                            JoinType = "LEFT",
+                            JoinType = BaseEnums.PacketJoinType.Left,
                             JoinCondition = "ISNULL(t.PlateEdit, t.PlateLpr) = vr.LicensePlate",
                             OrderNo = 2,
                             IsActive = true,
@@ -4117,8 +4064,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                         FilterMode = (int)ShareDataEnum.PacketFilterMode.Incremental,
                         TopN = 50,
                         IsActive = true,
-                        TableCount = 1,
-                        FieldCount = 7
                     },
                     Tables =
                     [
@@ -4159,8 +4104,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                         PacketVersion = "1.0",
                         FilterMode = (int)ShareDataEnum.PacketFilterMode.Incremental,
                         IsActive = true,
-                        TableCount = 2,
-                        FieldCount = 14
                     },
                     Tables =
                     [
@@ -4201,7 +4144,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                             SchemaName = "dbo",
                             TableName = "TmsEventType",
                             IsRoot = false,
-                            JoinType = "LEFT",
+                            JoinType = BaseEnums.PacketJoinType.Left,
                             JoinCondition = "i.EventTypeId = et.ID",
                             OrderNo = 2,
                             IsActive = true,
@@ -4224,8 +4167,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                         PacketVersion = "1.0",
                         FilterMode = (int)ShareDataEnum.PacketFilterMode.Snapshot,
                         IsActive = true,
-                        TableCount = 2,
-                        FieldCount = 11
                     },
                     Tables =
                     [
@@ -4257,7 +4198,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                             SchemaName = "dbo",
                             TableName = "TmsEquipment",
                             IsRoot = false,
-                            JoinType = "LEFT",
+                            JoinType = BaseEnums.PacketJoinType.Left,
                             JoinCondition = "v.EquipmentId = e.ID",
                             OrderNo = 2,
                             IsActive = true,
@@ -4284,8 +4225,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                         PacketVersion = "1.0",
                         FilterMode = (int)ShareDataEnum.PacketFilterMode.Incremental,
                         IsActive = true,
-                        TableCount = 3,
-                        FieldCount = 12
                     },
                     Tables =
                     [
@@ -4323,7 +4262,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                             SchemaName = "dbo",
                             TableName = "TollLane",
                             IsRoot = false,
-                            JoinType = "LEFT",
+                            JoinType = BaseEnums.PacketJoinType.Left,
                             JoinCondition = "t.LaneId = l.LaneId",
                             OrderNo = 2,
                             IsActive = true,
@@ -4340,7 +4279,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                             SchemaName = "dbo",
                             TableName = "TollStation",
                             IsRoot = false,
-                            JoinType = "LEFT",
+                            JoinType = BaseEnums.PacketJoinType.Left,
                             JoinCondition = "t.StationId = s.StationId",
                             OrderNo = 3,
                             IsActive = true,
@@ -4363,8 +4302,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                         PacketVersion = "1.0",
                         FilterMode = (int)ShareDataEnum.PacketFilterMode.Incremental,
                         IsActive = true,
-                        TableCount = 2,
-                        FieldCount = 5
                     },
                     Tables =
                     [
@@ -4397,7 +4334,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                             SchemaName = "dbo",
                             TableName = "VmsCurrent",
                             IsRoot = false,
-                            JoinType = "OUTER APPLY",
                             ApplyJoinTable = "TmsEquipment",
                             ApplyJoinAlias = "e2",
                             ApplyJoinCondition = "v.EquipmentId = e2.ID",
@@ -4426,8 +4362,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport
                         PacketVersion = "1.0",
                         FilterMode = (int)ShareDataEnum.PacketFilterMode.Incremental,
                         IsActive = true,
-                        TableCount = 1,
-                        FieldCount = 5
                     },
                     Tables =
                     [

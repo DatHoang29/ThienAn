@@ -66,7 +66,7 @@ When executing slash commands, follow the corresponding workflow file:
 
 ## 🛠️ Build & Test Commands
 - Backend WebAPI: `dotnet build src/TAC_WebAPI/TAC_WebAPI.csproj`
-- Backend ShareData: `dotnet build src/Services/ShareData/ShareDataWorker/ShareDataWorker.csproj`
+- Backend ShareData: `dotnet build src/Services/ShareDataWorker/ShareDataWorker.csproj`
 - Run Tests: `dotnet test tests/test.csproj`
 - Frontend: `cd TA-ITS015-WEBVUE-V1.0 && npm run build`
 

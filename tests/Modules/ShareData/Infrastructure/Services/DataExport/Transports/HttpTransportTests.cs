@@ -7,7 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Module.ShareData.Core.Entities;
 using ShareDataWorker.Core.Dto;
-using ShareDataWorker.Core.Entities;
 using ShareDataWorker.Core.Enums;
 using ShareDataWorker.Core.Interfaces;
 using ShareDataWorker.Infrastructure.Services.DataExport;
@@ -232,9 +231,9 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport.Transports
             {
                 ID = "SYS_LOG_FAIL_TEST",
                 OccurredAt = DateTime.Now,
-                LogType = ShareDataEnum.LogType.Transfer,
-                Action = "TEST",
-                Status = "Success"
+                LogType = BaseEnums.LogTypeEnum.Transfer,
+                Action = BaseEnums.ActivityAction.Send,
+                Success = BaseEnums.SuccessEnums.Success
             }).ExecuteCommandAsync();
 
             var initialLastTime = new DateTime(2026, 1, 1, 0, 0, 0);
@@ -244,8 +243,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport.Transports
                 PartnerId = partner.ID,
                 DatatypeId = packet.Code,
                 State = BaseEnums.SubSubscriptionState.Active,
-                Mode = ShareDataEnum.SubMode.Periodic,
-                Direction = ShareDataEnum.SubDirection.Outbound,
+                Mode = BaseEnums.SubMode.Periodic,
+                Direction = BaseEnums.Direction.Outbound,
                 ScheduleJson = "{\"intervalSeconds\":60}",
                 LastTimeRun = initialLastTime,
                 LastId = "INIT_ID"
@@ -283,7 +282,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataExport.Transports
                 .OrderByDescending(l => l.OccurredAt)
                 .ToListAsync();
             Assert.NotEmpty(logs);
-            Assert.Equal(ShareDataEnum.ExportStatus.Failed, logs[0].Status);
+            Assert.Equal(BaseEnums.SuccessEnums.Fail, logs[0].Success);
         }
 
         private class MockHttpServer : IDisposable

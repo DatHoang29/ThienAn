@@ -84,8 +84,8 @@
 
   <!-- 2.1 — Đường dẫn dùng chung cho Exists() ở 2.2 và ProjectReference ở 2.4. -->
   <PropertyGroup>
-    <ShareDataWorkerProject>$(RepoRoot)\src\Services\ShareData\ShareDataWorker\ShareDataWorker.csproj</ShareDataWorkerProject>
-    <ShareDataWorkerCoreProject>$(RepoRoot)\src\Services\ShareData\ShareDataWorker.Core\ShareDataWorker.Core.csproj</ShareDataWorkerCoreProject>
+    <ShareDataWorkerProject>$(RepoRoot)\src\Services\ShareDataWorker\ShareDataWorker.csproj</ShareDataWorkerProject>
+    <ShareDataWorkerCoreProject>$(RepoRoot)\src\Services\ShareDataWorker.Core\ShareDataWorker.Core.csproj</ShareDataWorkerCoreProject>
     <ShareDataModuleProject>$(RepoRoot)\src\Modules\ShareData\Module.ShareData\Module.ShareData.csproj</ShareDataModuleProject>
     <VideoWallModuleProject>$(RepoRoot)\src\Modules\VideoWall\Module.VideoWall\Module.VideoWall.csproj</VideoWallModuleProject>
 
