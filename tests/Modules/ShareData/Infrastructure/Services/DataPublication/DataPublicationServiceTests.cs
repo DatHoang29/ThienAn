@@ -1975,6 +1975,185 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
 
         #endregion
 
+        #region Fix (a) Prefix Number Matching Tests
+
+        [Theory]
+        [InlineData("103_vdsData", (int)ShareDataEnum.PacketFilterMode.Incremental)]
+        [InlineData("106_wimData", (int)ShareDataEnum.PacketFilterMode.Incremental)]
+        [InlineData("109_etcData", (int)ShareDataEnum.PacketFilterMode.Incremental)]
+        [InlineData("103", (int)ShareDataEnum.PacketFilterMode.Incremental)]
+        [InlineData("101_commonData", (int)ShareDataEnum.PacketFilterMode.Snapshot)]
+        [InlineData("102_cctvDevice", (int)ShareDataEnum.PacketFilterMode.Snapshot)]
+        [InlineData("105_tollTransaction", (int)ShareDataEnum.PacketFilterMode.Snapshot)]
+        [InlineData("PKT_INC_DATA", (int)ShareDataEnum.PacketFilterMode.Incremental)]
+        public void ResolveFilterMode_WithPrefixCodes_ReturnsCorrectFilterMode_Test(string code, int expectedMode)
+        {
+            var packet = new ShareDataPacket { Code = code };
+            var mode = DataPublicationService.ResolveFilterMode(packet);
+            Assert.Equal(expectedMode, mode);
+        }
+
+        [Theory]
+        [InlineData("103_vdsData", 50)]
+        [InlineData("106_wimData", 50)]
+        [InlineData("109_etcData", 50)]
+        [InlineData("103", 50)]
+        [InlineData("101_commonData", null)]
+        [InlineData("102_cctvDevice", null)]
+        public void ResolveTopN_WithPrefixCodes_ReturnsExpectedTopN_Test(string code, int? expectedTopN)
+        {
+            var packet = new ShareDataPacket { Code = code };
+            var topN = DataPublicationService.ResolveTopN(packet);
+            Assert.Equal(expectedTopN, topN);
+        }
+
+        [Theory]
+        [InlineData("103_vdsData", 103)]
+        [InlineData(" 106_wimData ", 106)]
+        [InlineData("109", 109)]
+        [InlineData("invalid", null)]
+        [InlineData("", null)]
+        [InlineData(null, null)]
+        public void ExtractPacketNumber_ExtractsNumericPrefixCorrectly_Test(string? code, int? expected)
+        {
+            var result = DataPublicationService.ExtractPacketNumber(code);
+            Assert.Equal(expected, result);
+        }
+
+        #endregion
+
+        #region Fix (e) $each / $as Aggregate Mode Tests
+
+        [Fact]
+        public void Transform_WithEachAndAs_ProducesSingleEnvelopeWithArrayData_Test()
+        {
+            // Arrange
+            var shapeJson = @"
+            {
+                ""headerInfo"": ""TEST_HEADER"",
+                ""data"": {
+                    ""$each"": true,
+                    ""$as"": {
+                        ""zId"": { ""$field"": ""zoneId"" },
+                        ""spd"": { ""$field"": ""averageSpeed"" }
+                    }
+                }
+            }";
+
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?> { ["zoneId"] = "Z01", ["averageSpeed"] = 60.5m },
+                new Dictionary<string, object?> { ["zoneId"] = "Z02", ["averageSpeed"] = 75.0m },
+                new Dictionary<string, object?> { ["zoneId"] = "Z03", ["averageSpeed"] = 80.0m }
+            };
+
+            var fields = new List<PacketFieldDto>
+            {
+                new() { FieldKey = "zoneId", Column = "ZoneId" },
+                new() { FieldKey = "averageSpeed", Column = "AverageSpeed" }
+            };
+
+            // Act
+            var result = DataPublicationService.Transform(rawRows, fields, shapeJson);
+
+            // Assert
+            Assert.Single(result);
+            var envelope = result[0] as IDictionary<string, object?>;
+            Assert.NotNull(envelope);
+            Assert.Equal("TEST_HEADER", envelope["headerInfo"]);
+
+            var dataList = envelope["data"] as List<object?>;
+            Assert.NotNull(dataList);
+            Assert.Equal(3, dataList.Count);
+
+            var firstItem = dataList[0] as IDictionary<string, object?>;
+            Assert.NotNull(firstItem);
+            Assert.Equal("Z01", firstItem["zId"]);
+            Assert.Equal(60.5m, firstItem["spd"]);
+
+            var thirdItem = dataList[2] as IDictionary<string, object?>;
+            Assert.NotNull(thirdItem);
+            Assert.Equal("Z03", thirdItem["zId"]);
+            Assert.Equal(80.0m, thirdItem["spd"]);
+        }
+
+        [Fact]
+        public void Transform_WithoutEach_MaintainsOriginalPerRowBehavior_Test()
+        {
+            // Arrange
+            var shapeJson = @"
+            {
+                ""zId"": { ""$field"": ""zoneId"" },
+                ""spd"": { ""$field"": ""averageSpeed"" }
+            }";
+
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?> { ["zoneId"] = "Z01", ["averageSpeed"] = 60.5m },
+                new Dictionary<string, object?> { ["zoneId"] = "Z02", ["averageSpeed"] = 75.0m }
+            };
+
+            var fields = new List<PacketFieldDto>
+            {
+                new() { FieldKey = "zoneId", Column = "ZoneId" },
+                new() { FieldKey = "averageSpeed", Column = "AverageSpeed" }
+            };
+
+            // Act
+            var result = DataPublicationService.Transform(rawRows, fields, shapeJson);
+
+            // Assert
+            Assert.Equal(2, result.Count);
+            var item1 = result[0] as IDictionary<string, object?>;
+            Assert.NotNull(item1);
+            Assert.Equal("Z01", item1["zId"]);
+        }
+
+        #endregion
+
+        #region Fix (guard) Recursion Depth Guard Tests
+
+        [Fact]
+        public void Evaluate_DeeplyNestedUnaryOrParentheses_RejectsGracefully_Test()
+        {
+            // Arrange - expression with 35 nested levels (> MaxRecursionDepth = 32)
+            var row = new Dictionary<string, object?> { ["x"] = 5m };
+            var deepExpr = string.Concat(Enumerable.Repeat("-(", 35)) + "x" + new string(')', 35);
+
+            // Act
+            var ok = DataPublicationService.TryEvaluate(deepExpr, row, out var result, out var error);
+
+            // Assert
+            Assert.False(ok);
+            Assert.NotNull(error);
+            Assert.Contains("sâu", error, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void SerializeEnvelopeToXmlBytes_DeeplyNestedDictionary_TruncatesAtMaxDepth_Test()
+        {
+            // Arrange - deeply nested dictionary (100 levels)
+            var current = new Dictionary<string, object?>();
+            var root = current;
+            for (var i = 0; i < 100; i++)
+            {
+                var child = new Dictionary<string, object?>();
+                current[$"level_{i}"] = child;
+                current = child;
+            }
+            current["leaf"] = "done";
+
+            var header = new Dictionary<string, object?> { ["sender"] = "SYSTEM" };
+            var data = new List<object> { root };
+
+            // Act & Assert (must not throw StackOverflowException)
+            var xmlBytes = DataPublicationService.SerializeEnvelopeToXmlBytes(header, data);
+            Assert.NotNull(xmlBytes);
+            Assert.True(xmlBytes.Length > 0);
+        }
+
+        #endregion
+
         private static readonly Dictionary<string, (string SelectClause, string FromJoinClause, string WhereClause)> GoldenSqlCatalog = new()
         {
             ["101"] = (
