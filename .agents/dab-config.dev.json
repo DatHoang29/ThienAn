@@ -2,7 +2,7 @@
   "$schema": "https://github.com/Azure/data-api-builder/releases/download/v2.0.10/dab.draft.schema.json",
   "data-source": {
     "database-type": "mssql",
-    "connection-string": "Server=localhost,14333;Database=dev_its10;User ID=sa;Password=Password123!;TrustServerCertificate=True;ApplicationIntent=ReadOnly;",
+    "connection-string": "@env('DAB_DEV_CONNECTION_STRING')",
     "options": {
       "set-session-context": false
     }

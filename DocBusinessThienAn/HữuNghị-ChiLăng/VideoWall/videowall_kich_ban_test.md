@@ -6,18 +6,15 @@
 
 ## Chuẩn bị (2 tiến trình, đúng thứ tự)
 
-```
-1. MockServer:  cd scripts/VwMockServerRunner && dotnet run
-                → nghe 127.0.0.1:18080-18083, account admin / Password123!
-                (Dùng khi giả lập hoặc test các lệnh nguy hiểm; khi cắm thiết bị thật thì bỏ qua MockServer)
-2. WPF Tool:    cd src/Modules/VideoWall/Module.VideoWall.WPF && dotnet run
-```
+MockServer: cd scripts/VwMockServerRunner && dotnet run → nghe 127.0.0.1:18080-18083, account admin / Password123! (Dùng khi giả lập hoặc test các lệnh nguy hiểm; khi cắm thiết bị thật thì bỏ qua MockServer)
+WPF Tool: cd src/Modules/VideoWall/Module.VideoWall.WPF && dotnet run
+
 
 Mở app → vào thẳng `MainWindow`:
 - **Thanh tiêu đề & Kết nối (trên cùng)**: IP, Port, Tài khoản, Mật khẩu, Tường số, nút "Kết nối (Ping)" và "Khảo sát (Probe)".
 - **Khung "Kết quả khảo sát (Probe)"**: LUÔN hiển thị (không còn thu gọn được), nằm NGAY DƯỚI khung Test API, chứa 2 bảng: Tường, Cổng ra / Kênh vào (bảng "Lệch CSDL ↔ thiết bị" đã bỏ — Direct Mode không có CSDL nào để so sánh).
 - **Khung kiểm thử 11 nhóm API ISAPI (trung tâm)**: 11 `TabItem` theo đúng thứ tự 9.7.1 → 9.7.11, chia đôi mỗi tab:
-  - Cột trái: Danh sách API trong nhóm (Method badge màu sắc: GET xanh dương, POST xanh lá, PUT cam, DELETE đỏ).
+  - Cột trái: Danh sách API trong nhóm (Method badge màu sắc: GET xanh dương, POST xanh lá, PUT cam, DELETE đỏ). Tên API trong danh sách hiển thị **bằng tiếng Việt**.
   - Cột giữa: Form nhập tham số động (Path params, Body fields, Dropdown enum).
   - Cột phải: Khung "Phản hồi từ thiết bị (Response)" cố định.
 - **Thanh thực thi ISAPI chung** (trên khung 11 tab): Method badge + ô **Endpoint sửa tay được** (gõ trực tiếp nếu cần chỉnh nhanh, không bắt buộc chọn từ danh sách) + nút "Gửi ISAPI".
@@ -55,45 +52,45 @@ Mở app → vào thẳng `MainWindow`:
 
 | Mục | Method | Tên API | Mức | Ghi chú |
 |---|---|---|---|---|
-| 9.7.1.1 | PUT | Set parameters of a specified sub-board | ⚪ | ✅🧵 `BoardID` path, `slotNo`+`fullFrameEnable` body |
-| 9.7.1.2 | GET | Get sub-board capability | ⚪ | 📝 không tham số |
-| 9.7.1.3 | PUT | Set parameters of all sub-boards | ⚪ | ✅🧵 field giống 9.7.1.1, gửi 1 phần tử |
-| 9.7.1.4 | GET | Get capability of the status of all sub-boards | 🟢 | 📝 không tham số |
+| 9.7.1.1 | PUT | Cấu hình tham số của 1 sub-board được chỉ định | ⚪ | ✅🧵 `BoardID` path, `slotNo`+`fullFrameEnable` body |
+| 9.7.1.2 | GET | Lấy khả năng của sub-board | ⚪ | 📝 không tham số |
+| 9.7.1.3 | PUT | Cấu hình tham số của tất cả sub-board | ⚪ | ✅🧵 field giống 9.7.1.1, gửi 1 phần tử |
+| 9.7.1.4 | GET | Lấy khả năng trạng thái của tất cả sub-board | 🟢 | 📝 không tham số |
 
 ### Tab 2 — Decoding (9.7.2) — 16 API
 
 | Mục | Method | Tên API | Mức | Ghi chú |
 |---|---|---|---|---|
-| 9.7.2.1 | GET | Get decoding device status | 🟢 | 📝 |
-| 9.7.2.2 | GET | Get network pre-monitor parameters of a video wall | ⚪ | 📝 `videoWallID` |
-| 9.7.2.3 | PUT | Set network pre-monitor parameters of a video wall | ⚪ | ✅ resolution/frameRate/bitRate... |
-| 9.7.2.4 | GET | Get sub window configuration capability | ⚪ | 📝 `videoWallID/VWMWID/VWSWID` |
-| 9.7.2.5 | PUT | Start dynamic decoding | 🟢 | 📝 `videoWallID/VWMWID/VWSWID` |
-| 9.7.2.6 | GET | Get decoding status of all sub windows of a specific window | 🟢 | 📝 |
-| 9.7.2.7 | PUT | Stop dynamic decoding | 🟢 | 📝 |
-| 9.7.2.8 | GET | Get decoding status of all sub-windows of all windows | 🟢 | 📝 `videoWallID` — API giám sát lõi, poll 3-5s |
-| 9.7.2.9 | GET | Get sub-board stream exporting configurations | ⚪ | 📝 |
-| 9.7.2.10 | PUT | Set sub-board stream exporting configurations | ⚪ | ✅ body JSON (`enabled`), không phải XML |
-| 9.7.2.11 | GET | Get capability of default decoding delay parameters | ⚪ | 📝 |
-| 9.7.2.12 | GET | Get default decoding delay parameters | ⚪ | 📝 |
-| 9.7.2.13 | PUT | Set default decoding delay parameters | ⚪ | ✅ body JSON (`defaultDecodeDelayParam` enum) |
-| 9.7.2.14 | GET | Get network pre-monitoring parameters of all video walls | ⚪ | 📝 |
-| 9.7.2.15 | PUT | Set network pre-monitoring parameters of all video walls | ⚪ | ✅🧵 field giống 9.7.2.3, gửi 1 phần tử |
-| 9.7.2.16 | GET | Get capability of network pre-monitoring parameters of video wall | ⚪ | 📝 |
+| 9.7.2.1 | GET | Lấy trạng thái thiết bị giải mã | 🟢 | 📝 |
+| 9.7.2.2 | GET | Lấy tham số pre-monitor mạng của 1 tường ghép | ⚪ | 📝 `videoWallID` |
+| 9.7.2.3 | PUT | Cấu hình tham số pre-monitor mạng của 1 tường ghép | ⚪ | ✅ resolution/frameRate/bitRate... |
+| 9.7.2.4 | GET | Lấy khả năng cấu hình cửa sổ con | ⚪ | 📝 `videoWallID/VWMWID/VWSWID` |
+| 9.7.2.5 | PUT | Bắt đầu giải mã động | 🟢 | 📝 `videoWallID/VWMWID/VWSWID` |
+| 9.7.2.6 | GET | Lấy trạng thái giải mã của tất cả cửa sổ con thuộc 1 cửa sổ cụ thể | 🟢 | 📝 |
+| 9.7.2.7 | PUT | Dừng giải mã động | 🟢 | 📝 |
+| 9.7.2.8 | GET | Lấy trạng thái giải mã của tất cả cửa sổ con thuộc tất cả cửa sổ | 🟢 | 📝 `videoWallID` — API giám sát lõi, poll 3-5s |
+| 9.7.2.9 | GET | Lấy cấu hình xuất stream của sub-board | ⚪ | 📝 |
+| 9.7.2.10 | PUT | Cấu hình xuất stream của sub-board | ⚪ | ✅ body JSON (`enabled`), không phải XML |
+| 9.7.2.11 | GET | Lấy khả năng tham số độ trễ giải mã mặc định | ⚪ | 📝 |
+| 9.7.2.12 | GET | Lấy tham số độ trễ giải mã mặc định | ⚪ | 📝 |
+| 9.7.2.13 | PUT | Cấu hình tham số độ trễ giải mã mặc định | ⚪ | ✅ body JSON (`defaultDecodeDelayParam` enum) |
+| 9.7.2.14 | GET | Lấy tham số pre-monitor mạng của tất cả tường ghép | ⚪ | 📝 |
+| 9.7.2.15 | PUT | Cấu hình tham số pre-monitor mạng của tất cả tường ghép | ⚪ | ✅🧵 field giống 9.7.2.3, gửi 1 phần tử |
+| 9.7.2.16 | GET | Lấy khả năng tham số pre-monitor mạng của tường ghép | ⚪ | 📝 |
 
 ### Tab 3 — Output (9.7.3) — 9 API
 
 | Mục | Method | Tên API | Mức | Ghi chú |
 |---|---|---|---|---|
-| 9.7.3.1 | GET | Get the audio output channels' parameters | ⚪ | 📝 |
-| 9.7.3.2 | PUT | Set parameters of all audio output channels | ⚪ | ✅🧵 `sourceType` enum chưa đủ (⚠️ đọc GET thật trước khi khoá cứng) |
-| 9.7.3.3 | PUT | Set parameters of all video outputs | ⚪ | ✅🧵 nhiều field, `PortInBoard` để ReadOnly |
-| 9.7.3.4 | GET | Get basic parameters of all video outputs | 🟢 | 📝 |
-| 9.7.3.5 | GET | Get parameters of a specific video output | 🟢 | 📝 `channelID` |
-| 9.7.3.6 | PUT | Set parameters of a specific video output | 🟢 | ✅ `channelID`, `id`, `portType` dropdown |
-| 9.7.3.7 | GET | Get the capability of a specific video output | 🟢 | 📝 `channelID` |
-| 9.7.3.8 | PUT | Set parameters of all video output channels | ⚪ | ✅ body đơn (KHÔNG phải List dù tên "all" — đúng theo tài liệu gốc, không phải lỗi) |
-| 9.7.3.9 | GET | Get the configuration capability of all video output channels | ⚪ | 📝 |
+| 9.7.3.1 | GET | Lấy tham số của các kênh xuất audio | ⚪ | 📝 |
+| 9.7.3.2 | PUT | Cấu hình tham số của tất cả kênh xuất audio | ⚪ | ✅🧵 `sourceType` enum chưa đủ (⚠️ đọc GET thật trước khi khoá cứng) |
+| 9.7.3.3 | PUT | Cấu hình tham số của tất cả cổng xuất video | ⚪ | ✅🧵 nhiều field, `PortInBoard` để ReadOnly |
+| 9.7.3.4 | GET | Lấy tham số cơ bản của tất cả cổng xuất video | 🟢 | 📝 |
+| 9.7.3.5 | GET | Lấy tham số của 1 cổng xuất video cụ thể | 🟢 | 📝 `channelID` |
+| 9.7.3.6 | PUT | Cấu hình tham số của 1 cổng xuất video cụ thể | 🟢 | ✅ `channelID`, `id`, `portType` dropdown |
+| 9.7.3.7 | GET | Lấy khả năng của 1 cổng xuất video cụ thể | 🟢 | 📝 `channelID` |
+| 9.7.3.8 | PUT | Cấu hình tham số của tất cả kênh xuất video | ⚪ | ✅ body đơn (KHÔNG phải List dù tên "all" — đúng theo tài liệu gốc, không phải lỗi) |
+| 9.7.3.9 | GET | Lấy khả năng cấu hình của tất cả kênh xuất video | ⚪ | 📝 |
 
 ### Tab 4 — Input (9.7.4) — 34 API
 
@@ -101,60 +98,60 @@ Mở app → vào thẳng `MainWindow`:
 
 | Mục | Method | Tên API | Mức | Ghi chú |
 |---|---|---|---|---|
-| 9.7.4.1 | GET | Get the audio capabilities | ⚪ | 📝 |
-| 9.7.4.2 | GET | Get capability set of adding signal source group | ⚪ | 📝 |
-| 9.7.4.3 | POST | Get signal source groups | ⚪ | 📝 POST nhưng không có body |
-| 9.7.4.4 | GET | Get capability of editing signal source group | ⚪ | 📝 |
-| 9.7.4.5 | GET | Get capability of no signal parameters of signal source | ⚪ | 📝 |
-| 9.7.4.6 | GET | Get no signal parameters of signal source | ⚪ | 📝 |
-| 9.7.4.7 | GET | Get video capabilities | ⚪ | 📝 |
-| 9.7.4.8 | GET | Get parameters of all video input channels | 🟢 | 📝 chạy trước tiên để lấy `channelID` thật |
-| 9.7.4.9 | PUT | Set parameters of all video input channels | ⚪ | ✅🧵 field giống 9.7.4.10, gửi 1 phần tử |
-| 9.7.4.10 | PUT | Set parameters of a specified signal source | 🟢 | ✅ đổi tên nguồn ("Cổng 3" → "Dashboard GT") |
-| 9.7.4.11 | GET | Get parameters of a specific signal source | ⚪ | 📝 `channelID` |
-| 9.7.4.12 | GET | Get color parameters of a specific signal source | ⚪ | 📝 `channelID` |
-| 9.7.4.13 | PUT | Set color parameters of a specified signal source | ⚪ | ✅ brightness/contrast/saturation/hue/sharpness 0-100 |
-| 9.7.4.14 | GET | Get the color configuration capability of a signal source | ⚪ | 📝 `channelID` |
-| 9.7.4.15 | GET | Get picture cropping parameters of a specific signal source | 🟢 | 📝 `channelID` |
-| 9.7.4.16 | PUT | Set picture cropping parameters of a specified signal source | 🟢 | ✅ BẮT BUỘC cho composite window toàn tường |
-| 9.7.4.17 | GET | Get the capability of configuring picture cropping parameters | ⚪ | 📝 `channelID` |
-| 9.7.4.18 | GET | Get captured pictures | 🟢 | 📝 `channelID` — ⚠️ Response là ảnh JPEG nhị phân, không phải text |
-| 9.7.4.19 | GET | Get the capability of configuring image position adjustment parameters | ⚪ | 📝 `channelID` |
-| 9.7.4.20 | PUT | Set the custom resolution of a specified signal source | ⚪ | ✅ `id`/`imageWidth`/`imageHeight` bắt buộc — sai bội số alignment sẽ lỗi |
-| 9.7.4.21 | GET | Get the capability of customizing the resolution of a specified signal source | ⚪ | 📝 `channelID` |
-| 9.7.4.22 | GET | Get the OSD configuration capability of a signal source | ⚪ | 📝 `channelID` |
-| 9.7.4.23 | GET | Get the video input capability | ⚪ | 📝 |
-| 9.7.4.24 | GET | Get splicing configuration of all signal resources | ⚪ | 📝 |
-| 9.7.4.25 | PUT | Set jointing parameters of a specified signal source | ⚪ | ✅🚧 danh sách kênh ghép nhập dạng chuỗi cách nhau dấu phẩy (Advanced) |
-| 9.7.4.26 | GET | Get splicing parameters of a signal source | ⚪ | 📝 `channelID` |
-| 9.7.4.27 | GET | Get signal source splicing capability | ⚪ | 📝 |
-| 9.7.4.28 | GET | Get all video streams' parameters | ⚫ | 📝 ngoài phạm vi (stream mạng) |
-| 9.7.4.29 | PUT | Set all video stream parameters | ⚫ | ⛔ ngoài phạm vi — gọi thô qua Endpoint nếu thật sự cần |
-| 9.7.4.30 | PUT | Set parameters of a specific video stream | ⚫ | ⛔ ngoài phạm vi |
-| 9.7.4.31 | DELETE | Delete parameters of a specific video stream | ⚫ | 🔴 ngoài phạm vi + xoá thật |
-| 9.7.4.32 | GET | Get parameters of a specified video stream | ⚫ | 📝 ngoài phạm vi |
-| 9.7.4.33 | GET | Get video stream capability | ⚫ | 📝 ngoài phạm vi |
-| 9.7.4.34 | GET | Get capability of searching for network input source parameters | ⚫ | 📝 ngoài phạm vi |
+| 9.7.4.1 | GET | Lấy khả năng audio | ⚪ | 📝 |
+| 9.7.4.2 | GET | Lấy khả năng thêm nhóm nguồn tín hiệu | ⚪ | 📝 |
+| 9.7.4.3 | POST | Lấy danh sách nhóm nguồn tín hiệu | ⚪ | 📝 POST nhưng không có body |
+| 9.7.4.4 | GET | Lấy khả năng sửa nhóm nguồn tín hiệu | ⚪ | 📝 |
+| 9.7.4.5 | GET | Lấy khả năng tham số khi mất tín hiệu của nguồn tín hiệu | ⚪ | 📝 |
+| 9.7.4.6 | GET | Lấy tham số khi mất tín hiệu của nguồn tín hiệu | ⚪ | 📝 |
+| 9.7.4.7 | GET | Lấy khả năng video | ⚪ | 📝 |
+| 9.7.4.8 | GET | Lấy tham số của tất cả kênh vào video | 🟢 | 📝 chạy trước tiên để lấy `channelID` thật |
+| 9.7.4.9 | PUT | Cấu hình tham số của tất cả kênh vào video | ⚪ | ✅🧵 field giống 9.7.4.10, gửi 1 phần tử |
+| 9.7.4.10 | PUT | Cấu hình tham số của 1 nguồn tín hiệu được chỉ định | 🟢 | ✅ đổi tên nguồn ("Cổng 3" → "Dashboard GT") |
+| 9.7.4.11 | GET | Lấy tham số của 1 nguồn tín hiệu cụ thể | ⚪ | 📝 `channelID` |
+| 9.7.4.12 | GET | Lấy tham số màu của 1 nguồn tín hiệu cụ thể | ⚪ | 📝 `channelID` |
+| 9.7.4.13 | PUT | Cấu hình tham số màu của 1 nguồn tín hiệu được chỉ định | ⚪ | ✅ brightness/contrast/saturation/hue/sharpness 0-100 |
+| 9.7.4.14 | GET | Lấy khả năng cấu hình màu của nguồn tín hiệu | ⚪ | 📝 `channelID` |
+| 9.7.4.15 | GET | Lấy tham số cắt ảnh của 1 nguồn tín hiệu cụ thể | 🟢 | 📝 `channelID` |
+| 9.7.4.16 | PUT | Cấu hình tham số cắt ảnh của 1 nguồn tín hiệu được chỉ định | 🟢 | ✅ BẮT BUỘC cho composite window toàn tường |
+| 9.7.4.17 | GET | Lấy khả năng cấu hình tham số cắt ảnh của nguồn tín hiệu | ⚪ | 📝 `channelID` |
+| 9.7.4.18 | GET | Lấy ảnh đã chụp | 🟢 | 📝 `channelID` — ⚠️ Response là ảnh JPEG nhị phân, không phải text |
+| 9.7.4.19 | GET | Lấy khả năng cấu hình tham số chỉnh vị trí ảnh của nguồn tín hiệu | ⚪ | 📝 `channelID` |
+| 9.7.4.20 | PUT | Cấu hình độ phân giải tuỳ chỉnh của 1 nguồn tín hiệu được chỉ định | ⚪ | ✅ `id`/`imageWidth`/`imageHeight` bắt buộc — sai bội số alignment sẽ lỗi |
+| 9.7.4.21 | GET | Lấy khả năng tuỳ chỉnh độ phân giải của 1 nguồn tín hiệu được chỉ định | ⚪ | 📝 `channelID` |
+| 9.7.4.22 | GET | Lấy khả năng cấu hình OSD của nguồn tín hiệu | ⚪ | 📝 `channelID` |
+| 9.7.4.23 | GET | Lấy khả năng kênh vào video | ⚪ | 📝 |
+| 9.7.4.24 | GET | Lấy cấu hình ghép của tất cả nguồn tín hiệu | ⚪ | 📝 |
+| 9.7.4.25 | PUT | Cấu hình tham số ghép của 1 nguồn tín hiệu được chỉ định | ⚪ | ✅🚧 danh sách kênh ghép nhập dạng chuỗi cách nhau dấu phẩy (Advanced) |
+| 9.7.4.26 | GET | Lấy tham số ghép của nguồn tín hiệu | ⚪ | 📝 `channelID` |
+| 9.7.4.27 | GET | Lấy khả năng ghép của nguồn tín hiệu | ⚪ | 📝 |
+| 9.7.4.28 | GET | Lấy tham số của tất cả stream video | ⚫ | 📝 ngoài phạm vi (stream mạng) |
+| 9.7.4.29 | PUT | Cấu hình tham số của tất cả stream video | ⚫ | ⛔ ngoài phạm vi — gọi thô qua Endpoint nếu thật sự cần |
+| 9.7.4.30 | PUT | Cấu hình tham số của 1 stream video cụ thể | ⚫ | ⛔ ngoài phạm vi |
+| 9.7.4.31 | DELETE | Xoá tham số của 1 stream video cụ thể | ⚫ | 🔴 ngoài phạm vi + xoá thật |
+| 9.7.4.32 | GET | Lấy tham số của 1 stream video được chỉ định | ⚫ | 📝 ngoài phạm vi |
+| 9.7.4.33 | GET | Lấy khả năng stream video | ⚫ | 📝 ngoài phạm vi |
+| 9.7.4.34 | GET | Lấy khả năng tìm tham số nguồn tín hiệu mạng | ⚫ | 📝 ngoài phạm vi |
 
 ### Tab 5 — Video Wall (9.7.5) — 6 API, toàn bộ 🟢 Dùng chính
 
 | Mục | Method | Tên API | Ghi chú |
 |---|---|---|---|
-| 9.7.5.1 | GET | Get the capability of video wall controller | 📝 gọi ĐẦU TIÊN khi kết nối máy mới |
-| 9.7.5.2 | GET | Get parameters of all video walls | 📝 ⚠️ Copy `<WallOutputList>`/`<WallWindowList>` từ Response để dùng cho 9.7.5.3 |
-| 9.7.5.3 | PUT | Set parameters of a specific video wall | ✅ Form Hybrid: field phẳng + 2 ô dán XML thô `WallOutputList`/`WallWindowList` (bắt buộc tick xác nhận) |
-| 9.7.5.4 | GET | Get parameters of a specific video wall | 📝 `videoWallID` |
-| 9.7.5.5 | GET | Get linked screen parameters of all outputs | 📝 nguồn sự thật map SCR-xx ↔ ô lưới ↔ channelID |
-| 9.7.5.6 | GET | Get video wall capabilities | 📝 maxWallNums, maxWindowNums, baseOutputSize |
+| 9.7.5.1 | GET | Lấy khả năng của bộ điều khiển tường ghép | 📝 gọi ĐẦU TIÊN khi kết nối máy mới |
+| 9.7.5.2 | GET | Lấy tham số của tất cả tường ghép | 📝 Response trả về danh sách tất cả tường, mỗi tường có sẵn `<WallOutputList>`/`<WallWindowList>` lồng bên trong — dùng để đối chiếu hoặc nạp trực tiếp cho 9.7.5.3 |
+| 9.7.5.3 | PUT | Cấu hình tham số của 1 tường ghép cụ thể | ✅ Form Hybrid — nhập bảng "Danh sách cổng ra"/"Danh sách cửa sổ tường" (tự sinh XML `WallOutputList`/`WallWindowList`), hoặc dán XML rồi bấm "Nạp từ XML thô bên dưới" để đổ lên bảng. Có 2 nút "💾 Lưu làm cấu hình gốc" / "↩ Khôi phục cấu hình gốc" để lưu/trả lại đúng cấu hình đang chạy trước khi test (không còn checkbox xác nhận) |
+| 9.7.5.4 | GET | Lấy tham số của 1 tường ghép cụ thể | 📝 `videoWallID` |
+| 9.7.5.5 | GET | Lấy tham số màn hình liên kết của tất cả cổng xuất | 📝 nguồn sự thật map SCR-xx ↔ ô lưới ↔ channelID |
+| 9.7.5.6 | GET | Lấy khả năng của tường ghép | 📝 maxWallNums, maxWindowNums, baseOutputSize |
 
 ### Tab 6 — Plan (9.7.6) — 4 API, toàn bộ ⚪ (nhóm mới)
 
 | Mục | Method | Tên API | Ghi chú |
 |---|---|---|---|
-| 9.7.6.1 | POST | Add a plan | ✅🚧 cấu trúc lồng sâu (`ActTimeDetail`/`PlanDetailList`) — kiểm tra kỹ Request XML trong log trước khi tin |
-| 9.7.6.2 | GET | Get configuration capability of a specific plan | 📝 `videoWallID`, `planTemplateID` |
-| 9.7.6.3 | GET | Get plan configuration capability | 📝 `videoWallID` |
-| 9.7.6.4 | GET | Get the current plan | 📝 `videoWallID` |
+| 9.7.6.1 | POST | Thêm 1 plan | ✅🚧 cấu trúc lồng sâu (`ActTimeDetail`/`PlanDetailList`) — kiểm tra kỹ Request XML trong log trước khi tin |
+| 9.7.6.2 | GET | Lấy khả năng cấu hình của 1 plan cụ thể | 📝 `videoWallID`, `planTemplateID` |
+| 9.7.6.3 | GET | Lấy khả năng cấu hình plan | 📝 `videoWallID` |
+| 9.7.6.4 | GET | Lấy plan hiện tại | 📝 `videoWallID` |
 
 ### Tab 7 — Scene (9.7.7) — 9 API, toàn bộ ⚪ (nhóm mới)
 
@@ -162,34 +159,34 @@ Mở app → vào thẳng `MainWindow`:
 
 | Mục | Method | Tên API | Ghi chú |
 |---|---|---|---|
-| 9.7.7.1 | GET | Get all scenes' parameters | 📝 `videoWallID` |
-| 9.7.7.2 | PUT | Set parameters of a specific scene | ✅ chỉ `id`+`name` |
-| 9.7.7.3 | PUT | Switch to a specific scene | 🔴📝 KÍCH HOẠT scene thật, đổi ngay layout đang chiếu — chỉ test khi chủ ý. Lỗi `inSceneSwitchingPleaseDoNotOperate` = đang chuyển dở, thử lại sau |
-| 9.7.7.4 | PUT | Save the current scene | 🔴📝 **GHI ĐÈ scene thật** bằng bố cục đang chạy. Lưu ý: thiết bị KHÔNG lưu được virtual-LED/ảnh nền qua lệnh này (`isSupportSaveSceneVirLed/BaseMap=false` đã đo thật) — CSDL backend phải tự bù phần đó |
-| 9.7.7.5 | GET | Get scene configuration capability | 📝 `videoWallID` — maxSceneNums |
-| 9.7.7.6 | GET | Get the current scene | 📝 `videoWallID` |
-| 9.7.7.7 | GET | Get scene control parameters capability | 📝 |
-| 9.7.7.8 | GET | Get scene control parameters | 📝 |
-| 9.7.7.9 | PUT | Set scene control parameters | ✅ body JSON, không path param |
+| 9.7.7.1 | GET | Lấy tham số của tất cả scene | 📝 `videoWallID` |
+| 9.7.7.2 | PUT | Cấu hình tham số của 1 scene cụ thể | ✅ chỉ `id`+`name` |
+| 9.7.7.3 | PUT | Chuyển sang 1 scene cụ thể | 🔴📝 KÍCH HOẠT scene thật, đổi ngay layout đang chiếu — chỉ test khi chủ ý. Lỗi `inSceneSwitchingPleaseDoNotOperate` = đang chuyển dở, thử lại sau |
+| 9.7.7.4 | PUT | Lưu scene hiện tại | 🔴📝 **GHI ĐÈ scene thật** bằng bố cục đang chạy. Lưu ý: thiết bị KHÔNG lưu được virtual-LED/ảnh nền qua lệnh này (`isSupportSaveSceneVirLed/BaseMap=false` đã đo thật) — CSDL backend phải tự bù phần đó |
+| 9.7.7.5 | GET | Lấy khả năng cấu hình scene | 📝 `videoWallID` — maxSceneNums |
+| 9.7.7.6 | GET | Lấy scene hiện tại | 📝 `videoWallID` |
+| 9.7.7.7 | GET | Lấy khả năng tham số điều khiển scene | 📝 |
+| 9.7.7.8 | GET | Lấy tham số điều khiển scene | 📝 |
+| 9.7.7.9 | PUT | Cấu hình tham số điều khiển scene | ✅ body JSON, không path param |
 
 ### Tab 8 — Screen (9.7.8) — 1 API, 🟢 Dùng chính
 
 | Mục | Method | Tên API | Ghi chú |
 |---|---|---|---|
-| 9.7.8.1 | PUT | Close all screens | 🔴 **TẮT TẤT CẢ MÀN HÌNH** — chỉ test trên MockServer, tuyệt đối không gửi lên thiết bị thật đang chiếu. Không có API bật-lại/bật-từng-màn (cần RS-232/485 riêng) |
+| 9.7.8.1 | PUT | Đóng tất cả màn hình | 🔴 **TẮT TẤT CẢ MÀN HÌNH** — chỉ test trên MockServer, tuyệt đối không gửi lên thiết bị thật đang chiếu. Không có API bật-lại/bật-từng-màn (cần RS-232/485 riêng) |
 
 ### Tab 9 — Text (LED) (9.7.9) — 8 API, toàn bộ ⚪ (nhóm mới)
 
 | Mục | Method | Tên API | Ghi chú |
 |---|---|---|---|
-| 9.7.9.1 | PUT | Set parameters of all virtual LEDs | ✅🧵🚧 nhiều enum (font/màu/định dạng giờ), gửi 1 phần tử |
-| 9.7.9.2 | GET | Get parameters of all virtual LEDs | 📝 `videoWallID` |
-| 9.7.9.3 | POST | Add all virtual LEDs | ✅🚧 body đơn (không phải List dù tên "all"), có thêm field clock/weather khi chọn `ledType` tương ứng |
-| 9.7.9.4 | GET | Get parameters of a specified LED | 📝 `videoWallID`/`SubtitlesID` |
-| 9.7.9.5 | DELETE | Delete a specific virtual LED | 🔴 xoá thật — chỉ test MockServer trừ khi chủ ý |
-| 9.7.9.6 | PUT | Set parameters of a specific virtual LED | ✅🚧 |
-| 9.7.9.7 | GET | Get the virtual LED configuration capability | 📝 |
-| 9.7.9.8 | GET | Get configuration capability of all virtual LEDs | 📝 `videoWallID` |
+| 9.7.9.1 | PUT | Cấu hình tham số của tất cả LED ảo | ✅🧵🚧 nhiều enum (font/màu/định dạng giờ), gửi 1 phần tử |
+| 9.7.9.2 | GET | Lấy tham số của tất cả LED ảo | 📝 `videoWallID` |
+| 9.7.9.3 | POST | Thêm tất cả LED ảo | ✅🚧 body đơn (không phải List dù tên "all"), có thêm field clock/weather khi chọn `ledType` tương ứng |
+| 9.7.9.4 | GET | Lấy tham số của 1 LED được chỉ định | 📝 `videoWallID`/`SubtitlesID` |
+| 9.7.9.5 | DELETE | Xoá 1 LED ảo cụ thể | 🔴 xoá thật — chỉ test MockServer trừ khi chủ ý |
+| 9.7.9.6 | PUT | Cấu hình tham số của 1 LED ảo cụ thể | ✅🚧 |
+| 9.7.9.7 | GET | Lấy khả năng cấu hình LED ảo | 📝 |
+| 9.7.9.8 | GET | Lấy khả năng cấu hình của tất cả LED ảo | 📝 `videoWallID` |
 
 ### Tab 10 — Wallpaper (9.7.10) — 8 API, toàn bộ ⚪ (nhóm mới)
 
@@ -197,36 +194,36 @@ Mở app → vào thẳng `MainWindow`:
 
 | Mục | Method | Tên API | Ghi chú |
 |---|---|---|---|
-| 9.7.10.1 | GET | Get configuration capability of background picture window | 📝 `videoWallID`/`mapFileID` |
-| 9.7.10.2 | GET | Get the capability of all background pictures | 📝 `videoWallID` |
-| 9.7.10.3 | PUT | Set parameters of all background pictures | ✅🧵 chỉ `name` chắc chắn có tác dụng, gửi 1 phần tử |
-| 9.7.10.4 | DELETE | Delete a specific background picture | 🔴 xoá thật |
-| 9.7.10.5 | PUT | Set parameters of a specific background picture | ✅ giống 9.7.10.3 |
-| 9.7.10.6 | GET | Get parameters of a background picture | 📝 `mapFileID` |
-| 9.7.10.7 | GET | Get the background picture configuration capability | 📝 |
-| 9.7.10.8 | GET | Get configuration of all background pictures | 📝 query `isGetBaseMapFile` |
+| 9.7.10.1 | GET | Lấy khả năng cấu hình cửa sổ ảnh nền | 📝 `videoWallID`/`mapFileID` |
+| 9.7.10.2 | GET | Lấy khả năng của tất cả ảnh nền | 📝 `videoWallID` |
+| 9.7.10.3 | PUT | Cấu hình tham số của tất cả ảnh nền | ✅🧵 chỉ `name` chắc chắn có tác dụng, gửi 1 phần tử |
+| 9.7.10.4 | DELETE | Xoá 1 ảnh nền cụ thể | 🔴 xoá thật |
+| 9.7.10.5 | PUT | Cấu hình tham số của 1 ảnh nền cụ thể | ✅ giống 9.7.10.3 |
+| 9.7.10.6 | GET | Lấy tham số của 1 ảnh nền | 📝 `mapFileID` |
+| 9.7.10.7 | GET | Lấy khả năng cấu hình ảnh nền | 📝 |
+| 9.7.10.8 | GET | Lấy cấu hình của tất cả ảnh nền | 📝 query `isGetBaseMapFile` |
 
 ### Tab 11 — Window (9.7.11) — 17 API
 
 | Mục | Method | Tên API | Mức | Ghi chú |
 |---|---|---|---|---|
-| 9.7.11.1 | GET | Get LED or LCD areas | ⚪ | 📝 `videoWallID` |
-| 9.7.11.2 | GET | Get all windows' parameters | 🟢 | 📝 vẽ lưới khi load |
-| 9.7.11.3 | DELETE | Delete all windows | 🟢 | 🔴 xoá TẤT CẢ window của 1 wall — chỉ test MockServer trừ khi chủ ý |
-| 9.7.11.4 | POST | Add a window | 🟢 | ✅ Form DTO chuyên dụng — `Rect` hệ uniformCoordinate, bảng `SubWindowList` thêm/xoá được |
-| 9.7.11.5 | GET | Get parameters configuration of a specific window | 🟢 | 📝 `VWMWID` |
-| 9.7.11.6 | PUT | Set parameters of a specific window | 🟢 | ✅ Form DTO chuyên dụng — move/resize/đổi nguồn |
-| 9.7.11.7 | DELETE | Delete a specific window | 🟢 | 🔴 xoá 1 window |
-| 9.7.11.8 | PUT | Bottom the window | 🟢 | 📝 đưa xuống đáy z-order |
-| 9.7.11.9 | GET | Get single configuration capabilities of sub-windows | ⚪ | 📝 |
-| 9.7.11.10 | GET | Get parameters of decoding delay | ⚪ | 📝 |
-| 9.7.11.11 | GET | Get decoding delay capability | ⚪ | 📝 |
-| 9.7.11.12 | GET | Get the configuration capability of full-frame-rate fluent video mode | ⚪ | 📝 |
-| 9.7.11.13 | PUT | Top the window | 🟢 | 📝 đưa lên đỉnh z-order |
-| 9.7.11.14 | GET | Get the window configuration capability of the video wall | 🟢 | 📝 lỗi đa client: `multipleVideowallClientConflict` |
-| 9.7.11.15 | GET | Get the parameters configuration capability of sub-stream in multi-screen mode | ⚪ | 📝 |
-| 9.7.11.16 | GET | Get the configuration parameters of the stream type for streaming | ⚪ | 📝 |
-| 9.7.11.17 | GET | Get the pre-editing capability of video wall | ⚪ | 📝 |
+| 9.7.11.1 | GET | Lấy vùng LED hoặc LCD | ⚪ | 📝 `videoWallID` |
+| 9.7.11.2 | GET | Lấy tham số của tất cả cửa sổ | 🟢 | 📝 vẽ lưới khi load |
+| 9.7.11.3 | DELETE | Xoá tất cả cửa sổ | 🟢 | 🔴 xoá TẤT CẢ window của 1 wall — chỉ test MockServer trừ khi chủ ý |
+| 9.7.11.4 | POST | Thêm 1 cửa sổ | 🟢 | ✅ Form DTO chuyên dụng — `Rect` hệ uniformCoordinate, bảng `SubWindowList` thêm/xoá được |
+| 9.7.11.5 | GET | Lấy cấu hình tham số của 1 cửa sổ cụ thể | 🟢 | 📝 `VWMWID` |
+| 9.7.11.6 | PUT | Cấu hình tham số của 1 cửa sổ cụ thể | 🟢 | ✅ Form DTO chuyên dụng — move/resize/đổi nguồn |
+| 9.7.11.7 | DELETE | Xoá 1 cửa sổ cụ thể | 🟢 | 🔴 xoá 1 window |
+| 9.7.11.8 | PUT | Hạ cửa sổ xuống dưới cùng | 🟢 | 📝 đưa xuống đáy z-order |
+| 9.7.11.9 | GET | Lấy khả năng cấu hình đơn lẻ của cửa sổ con | ⚪ | 📝 |
+| 9.7.11.10 | GET | Lấy tham số độ trễ giải mã | ⚪ | 📝 |
+| 9.7.11.11 | GET | Lấy khả năng độ trễ giải mã | ⚪ | 📝 |
+| 9.7.11.12 | GET | Lấy khả năng cấu hình chế độ video mượt full-frame-rate | ⚪ | 📝 |
+| 9.7.11.13 | PUT | Đưa cửa sổ lên trên cùng | 🟢 | 📝 đưa lên đỉnh z-order |
+| 9.7.11.14 | GET | Lấy khả năng cấu hình cửa sổ của tường ghép | 🟢 | 📝 lỗi đa client: `multipleVideowallClientConflict` |
+| 9.7.11.15 | GET | Lấy khả năng cấu hình tham số sub-stream ở chế độ đa màn hình | ⚪ | 📝 |
+| 9.7.11.16 | GET | Lấy tham số cấu hình loại stream khi có nhiều cửa sổ | ⚪ | 📝 |
+| 9.7.11.17 | GET | Lấy khả năng pre-editing của tường ghép | ⚪ | 📝 |
 
 ---
 
@@ -243,10 +240,10 @@ Mở app → vào thẳng `MainWindow`:
 **An toàn — có thể test trên thiết bị thật:**
 - [ ] Vào app trực tiếp, không yêu cầu đăng nhập; Ping & Probe thành công
 - [ ] Khung Probe hiển thị đúng 2 bảng (Tường, Cổng ra/Kênh vào), không còn bảng Lệch CSDL
-- [ ] Cả 11 tab hiển thị đúng danh sách API, chuyển tab không làm mất lựa chọn đã chọn ở tab khác
+- [ ] Cả 11 tab hiển thị đúng danh sách API bằng tiếng Việt, chuyển tab không làm mất lựa chọn đã chọn ở tab khác
 - [ ] Toàn bộ API GET (📝, phần lớn trong 116 API) gửi được, Response hợp lệ
 - [ ] Endpoint sửa tay được — gõ thử 1 giá trị rồi gửi ngay, không bị ghi đè
-- [ ] Tab 5 (Video Wall): làm đủ chu trình 9.7.5.2 → copy XML → 9.7.5.3 (tick xác nhận) → 9.7.5.4 xác nhận đã đổi
+- [ ] Tab 5 (Video Wall): làm đủ chu trình 9.7.5.2 → nhập/nạp bảng Output+Window ở 9.7.5.3 → thử "Lưu làm cấu hình gốc" và "Khôi phục cấu hình gốc" → 9.7.5.4 xác nhận đã đổi
 - [ ] Tab 11 (Window): 9.7.11.4 thêm window (kèm SubWindows) → 9.7.11.6 sửa → 9.7.11.8/.13 đổi z-order → 9.7.11.7 xoá đúng 1 window
 
 **Chỉ test trên MockServer (ghi/xoá thật, có thể phá cấu hình đang chạy):**
