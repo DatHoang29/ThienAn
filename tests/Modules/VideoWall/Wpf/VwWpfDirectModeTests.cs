@@ -4,6 +4,8 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Module.VideoWall.WPF.Api.Direct;
+using Module.VideoWall.WPF.ViewModels;
+using Module.VideoWall.WPF.ViewModels.Isapi;
 using Xunit;
 
 namespace Tests.Modules.VideoWall.Wpf;
@@ -45,6 +47,67 @@ public class VwWpfDirectModeTests(Host host)
         
         Assert.True(result.Success);
         Assert.Contains("VideoWallCap", result.ResponseXml);
+    }
+
+    [Fact]
+    public async Task DirectMode_SendIsapi_ListWrapper_AudioOutputChannelList_HasWrapperInRequestXml()
+    {
+        host.MockServer.ResetDefaults();
+        var preset = VwIsapiPresetList.Presets.First(p => p.Section == "9.7.3.2");
+        var formVm = new VwIsapiFormViewModel(preset);
+        var idField = formVm.AllFields.First(f => f.Definition.Key == "id");
+        var enabledField = formVm.AllFields.First(f => f.Definition.Key == "enabled");
+        idField.Value = "1";
+        enabledField.Value = "true";
+
+        var body = formVm.BuildBody(out var error);
+        Assert.Null(error);
+        Assert.NotNull(body);
+
+        var publisher = new RecordingPublisherTest();
+        var isApiClient = BuildIsapiClient();
+        var client = new VwDirectDeviceConnectionClient(isApiClient, publisher);
+
+        var step = await client.SendIsapi(preset.Method, formVm.BuildPath(), body, null);
+
+        Assert.NotNull(step);
+        Assert.NotNull(step.RequestXml);
+        Assert.Contains("<AudioOutputChannelList", step.RequestXml);
+        Assert.Contains("<AudioOutputChannel>", step.RequestXml);
+        Assert.Contains("<id>1</id>", step.RequestXml);
+        Assert.Contains("<enabled>true</enabled>", step.RequestXml);
+        Assert.Contains("</AudioOutputChannelList>", step.RequestXml);
+
+        var lastNotification = Assert.Single(publisher.DeviceStepRows);
+        Assert.Contains("<AudioOutputChannelList", lastNotification.Step.RequestXml);
+    }
+
+    [Fact]
+    public async Task DirectMode_SendIsapi_JsonBody_SendsJsonPayloadToMockServer()
+    {
+        host.MockServer.ResetDefaults();
+        var preset = VwIsapiPresetList.Presets.First(p => p.Section == "9.7.2.10");
+        var formVm = new VwIsapiFormViewModel(preset);
+        var enabledField = formVm.AllFields.First(f => f.Definition.Key == "enabled");
+        enabledField.Value = "true";
+
+        var body = formVm.BuildBody(out var error);
+        Assert.Null(error);
+        Assert.NotNull(body);
+        Assert.Contains("\"enabled\": true", body);
+
+        var publisher = new RecordingPublisherTest();
+        var isApiClient = BuildIsapiClient();
+        var client = new VwDirectDeviceConnectionClient(isApiClient, publisher);
+
+        var step = await client.SendIsapi(preset.Method, formVm.BuildPath(), body, "application/json");
+
+        Assert.NotNull(step);
+        Assert.NotNull(step.RequestXml);
+        Assert.Contains("\"enabled\": true", step.RequestXml);
+
+        var lastNotification = Assert.Single(publisher.DeviceStepRows);
+        Assert.Contains("\"enabled\": true", lastNotification.Step.RequestXml);
     }
 
     [Fact]
