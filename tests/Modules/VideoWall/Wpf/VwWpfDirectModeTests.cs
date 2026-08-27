@@ -209,6 +209,100 @@ public class VwWpfDirectModeTests(Host host)
         Assert.Equal(1, host.MockServer.NonceExpiryTriggerCount);
     }
 
+    [Fact]
+    public async Task DirectMode_SendIsapi_DecodeStart_DoesNotTriggerSwitchSource()
+    {
+        host.MockServer.ResetDefaults();
+        var client = BuildDirectClient(host);
+
+        var step = await client.SendIsapi("PUT", "ISAPI/DisplayDev/VideoWall/1/windows/33554433/sub/1/start", null, null);
+
+        Assert.NotNull(step);
+        Assert.Equal(200, step.HttpStatus);
+        Assert.Equal(0, host.MockServer.SwitchSourceCallCount);
+    }
+
+    [Fact]
+    public async Task DirectMode_SendIsapi_DecodeStatus_ReturnsDecodeStatusXml()
+    {
+        host.MockServer.ResetDefaults();
+        var client = BuildDirectClient(host);
+
+        var step = await client.SendIsapi("GET", "ISAPI/DisplayDev/VideoWall/1/windows/status", null, null);
+
+        Assert.NotNull(step);
+        Assert.Equal(200, step.HttpStatus);
+        Assert.NotNull(step.ResponseXml);
+        Assert.Contains("AllSubWndDecodeStatus", step.ResponseXml);
+        Assert.DoesNotContain("WallWindowList", step.ResponseXml);
+    }
+
+    [Fact]
+    public async Task DirectMode_SendIsapi_AudioOutputs_ReturnsAudioOutputChannelList()
+    {
+        host.MockServer.ResetDefaults();
+        var client = BuildDirectClient(host);
+
+        var step = await client.SendIsapi("GET", "ISAPI/DisplayDev/Audio/outputs/channels", null, null);
+
+        Assert.NotNull(step);
+        Assert.Equal(200, step.HttpStatus);
+        Assert.NotNull(step.ResponseXml);
+        Assert.Contains("AudioOutputChannelList", step.ResponseXml);
+        Assert.DoesNotContain("VideoOutputChannelList", step.ResponseXml);
+    }
+
+    [Fact]
+    public async Task DirectMode_SendIsapi_GetCapturedPicture_ReturnsJpegBinary()
+    {
+        host.MockServer.ResetDefaults();
+        var client = BuildDirectClient(host);
+
+        var step = await client.SendIsapi("GET", "ISAPI/DisplayDev/Video/inputs/channels/16842753/picture", null, null);
+
+        Assert.NotNull(step);
+        Assert.Equal(200, step.HttpStatus);
+        Assert.Equal(0, host.MockServer.GetInputChannelsCallCount);
+    }
+
+    [Fact]
+    public async Task DirectMode_SendIsapi_GetSpecificVideoWall_ReturnsVideoWallXml()
+    {
+        host.MockServer.ResetDefaults();
+        var client = BuildDirectClient(host);
+
+        var step = await client.SendIsapi("GET", "ISAPI/DisplayDev/VideoWall/1", null, null);
+
+        Assert.NotNull(step);
+        Assert.Equal(200, step.HttpStatus);
+        Assert.NotNull(step.ResponseXml);
+        Assert.Contains("<VideoWall", step.ResponseXml);
+        Assert.DoesNotContain("<VideoWallList", step.ResponseXml);
+    }
+
+    [Fact]
+    public async Task DirectMode_SendIsapi_All116Presets_ReturnHttpStatus200_AndValidResponses()
+    {
+        host.MockServer.ResetDefaults();
+        var client = BuildDirectClient(host);
+
+        Assert.Equal(116, VwIsapiPresetList.Presets.Count);
+
+        foreach (var preset in VwIsapiPresetList.Presets)
+        {
+            var resolvedUrl = System.Text.RegularExpressions.Regex.Replace(preset.Url, @"\{[^}]+\}", "1");
+            var body = preset.Method is "PUT" or "POST" ? "<dummy/>" : null;
+            var contentType = preset.Url.Contains("format=json") ? "application/json" : "application/xml";
+            if (contentType == "application/json" && body != null)
+                body = "{}";
+
+            var step = await client.SendIsapi(preset.Method, resolvedUrl, body, contentType);
+
+            Assert.True(step.HttpStatus == 200, $"Preset {preset.Section} ({preset.Method} {resolvedUrl}) failed with status {step.HttpStatus}: {step.Message}");
+            Assert.False(string.IsNullOrWhiteSpace(step.ResponseXml), $"Preset {preset.Section} ({preset.Method} {resolvedUrl}) returned empty response");
+        }
+    }
+
     private static VwDirectISAPIClient BuildIsapiClient()
     {
         var credentials = new VwDirectDeviceCredentials("127.0.0.1", 18080, "admin", "Password123!");

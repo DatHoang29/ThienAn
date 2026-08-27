@@ -1,34 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- PHẦN 1 = cố định. PHẦN 2 = sửa khi repo thêm/bớt module. -->
-
-  <!-- ══════════════════ PHẦN 1 — CỐ ĐỊNH ══════════════════ -->
-
-  <!--
-  ĐA NỀN TẢNG (net10.0 + net10.0-windows):
-    - net10.0        : nền chính, chạy trên macOS/Linux/Windows. TOÀN BỘ test hiện có nằm ở đây.
-    - net10.0-windows: CHỈ để nạp thêm test của client WPF. Module.VideoWall.WPF là net10.0-windows,
-                       assembly net10.0 KHÔNG tham chiếu được (lỗi cứng NU1201) nên buộc phải có
-                       nhánh TFM riêng.
-  Hệ quả PHẢI biết:
-    - macOS/Linux : nhánh windows BIÊN DỊCH được (EnableWindowsTargeting) nhưng KHÔNG CHẠY được
-                    (thiếu runtime Microsoft.WindowsDesktop.App) => test Wpf chỉ chạy trên Windows.
-                    Lọc theo tên `~VideoWall.Wpf` ở đây sẽ báo xanh mà chạy 0 test — đừng coi là đã test.
-    - Windows     : `dotnet test` chạy LẦN LƯỢT cả 2 TFM nên bộ test hiện có chạy 2 lượt (tuần tự,
-                    không đụng CSDL `test` hay port MockServer 18080-18083, nhưng CI lâu gấp đôi).
-                    Chạy đúng một nền: `dotnet test tests/test.csproj -f net10.0`.
-  -->
+  <!-- Cấu hình TargetFrameworks: net10.0 (Backend/Core) & net10.0-windows (WPF Client) -->
   <PropertyGroup>
     <TargetFrameworks>net10.0;net10.0-windows</TargetFrameworks>
     <IsTestProject>true</IsTestProject>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <!-- Cho phép biên dịch nhánh windows trên máy dev macOS/Linux. -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
 
-  <!-- Gốc repo product. Project test nằm NGOÀI repo nên mọi đường dẫn đi qua đây, đổi tên/vị trí
-       repo thì chỉ sửa 1 chỗ. Dấu \ vẫn chạy trên macOS (MSBuild tự chuẩn hoá). -->
+  <!-- Gốc mã nguồn chính -->
   <PropertyGroup>
     <RepoRoot>..\TA-ITS015-WEBAPI-V1.0</RepoRoot>
   </PropertyGroup>
@@ -39,69 +20,44 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.0" />
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.0-preview.*" />
-    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.0.*" />  <!-- Guard Zero-Trust dùng SqlConnectionStringBuilder -->
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.0.*" />
   </ItemGroup>
 
-  <!-- Reference CỨNG, thiếu là lỗi thật nên không bọc điều kiện.
-       TAC_WebAPI kéo theo toàn bộ module nó tham chiếu (VideoWall, ShareData, TMS, TOLL...). -->
+  <!-- Dự án Web API chính -->
   <ItemGroup>
     <ProjectReference Include="$(RepoRoot)\src\TAC_WebAPI\TAC_WebAPI.csproj" />
   </ItemGroup>
 
+  <!-- Thư viện chia sẻ -->
   <ItemGroup>
-    <Reference Include="Shared.Infrastructure">   <!-- SqlSugarRepository, BaseCacheService, SqlSugarSetup -->
+    <Reference Include="Shared.Infrastructure">
       <HintPath>$(RepoRoot)\src\DLLs\Shared.Infrastructure.dll</HintPath>
     </Reference>
-    <Reference Include="Shared.Core">             <!-- EntityTenant, Options, Contracts -->
+    <Reference Include="Shared.Core">
       <HintPath>$(RepoRoot)\src\DLLs\Shared.Core.dll</HintPath>
     </Reference>
-    <Reference Include="Shared.Core.Security">    <!-- LicenseService, KeyManager -->
+    <Reference Include="Shared.Core.Security">
       <HintPath>$(RepoRoot)\src\DLLs\Shared.Core.Security.dll</HintPath>
     </Reference>
-    <Reference Include="Modules.System">          <!-- AddSystemModule -->
+    <Reference Include="Modules.System">
       <HintPath>$(RepoRoot)\src\DLLs\Modules.System.dll</HintPath>
     </Reference>
   </ItemGroup>
 
-  <!--
-  ══════════════════ PHẦN 2 — TUỲ BIẾN THEO MODULE ══════════════════
+  <!-- ══════════════════ CẤU HÌNH ĐIỀU KIỆN THEO MODULE ══════════════════ -->
 
-  tests/ nằm ở repo NGOÀI (c:\ThienAn), product ở repo TRONG (TA-ITS015-WEBAPI-V1.0). Hai repo độc
-  lập nên đổi nhánh product KHÔNG đổi file test. Sinh ra 3 kiểu build đỏ, PHẦN 2 xử lý cả 3:
-    MSB3202  ProjectReference trỏ vào csproj không còn      -> 2.4 bọc Condition
-    CS0246   test của module vắng mặt vẫn bị biên dịch      -> 2.5 Compile Remove
-    CS0234   module CÒN nhưng feature bên trong THIẾU       -> cờ tổng hợp neo vào file nguồn feature
-
-  THÊM MODULE MỚI (ví dụ TMS) = 3 chỗ:
-    2.1  <TmsModuleProject>$(RepoRoot)\src\Modules\TMS\Modules.TMS\Modules.TMS.csproj</TmsModuleProject>
-    2.2  <HasTmsModule>false</HasTmsModule>
-         <HasTmsModule Condition="Exists('$(TmsModuleProject)')">true</HasTmsModule>
-    2.5  <ItemGroup Condition="'$(HasTmsModule)' != 'true'">
-           <Compile Remove="Modules\TMS\**\*.cs" /><None Include="Modules\TMS\**\*.cs" />
-         </ItemGroup>
-    (2.4 chỉ cần khi module KHÔNG được TAC_WebAPI tham chiếu sẵn.)
-  -->
-
-  <!-- 2.1 — Đường dẫn dùng chung cho Exists() ở 2.2 và ProjectReference ở 2.4. -->
+  <!-- Đường dẫn project module kiểm tra tồn tại -->
   <PropertyGroup>
     <ShareDataWorkerProject>$(RepoRoot)\src\Services\ShareDataWorker\ShareDataWorker.csproj</ShareDataWorkerProject>
     <ShareDataWorkerCoreProject>$(RepoRoot)\src\Services\ShareDataWorker.Core\ShareDataWorker.Core.csproj</ShareDataWorkerCoreProject>
     <ShareDataModuleProject>$(RepoRoot)\src\Modules\ShareData\Module.ShareData\Module.ShareData.csproj</ShareDataModuleProject>
     <VideoWallModuleProject>$(RepoRoot)\src\Modules\VideoWall\Module.VideoWall\Module.VideoWall.csproj</VideoWallModuleProject>
-
-    <!-- Neo mức FEATURE: csproj Module.VideoWall còn nguyên nhưng nhánh đang checkout có thể chưa có
-         phần ISAPI. Test VideoWall dùng IVwISAPIDeviceClient / VwISAPIMockServerHikvision xuyên suốt
-         VwWindowScene, VwScene, VwController nên thiếu ISAPI là cả bộ không biên dịch được. -->
     <VideoWallIsapiSource>$(RepoRoot)\src\Modules\VideoWall\Module.VideoWall.Core\Interfaces\IVwISAPIDeviceClient.cs</VideoWallIsapiSource>
-
-    <!-- Client WPF (net10.0-windows). Project RIÊNG, TAC_WebAPI không tham chiếu nên phải tự khai. -->
     <VideoWallWpfProject>$(RepoRoot)\src\Modules\VideoWall\Module.VideoWall.WPF\Module.VideoWall.WPF.csproj</VideoWallWpfProject>
   </PropertyGroup>
 
-  <!-- 2.2 — Cờ có/không mặt. Mỗi cờ 2 dòng: mặc định false rồi ghi đè true, để cờ không bị rỗng khi
-       in log ở 2.6. Property tham chiếu property khác BẮT BUỘC khai báo sau chúng. -->
+  <!-- Cờ kích hoạt biên dịch theo module có sẵn trong nhánh -->
   <PropertyGroup>
-    <!-- ShareDataWorker cần ĐỦ 2 project vì test dùng type của cả hai. -->
     <HasShareDataWorker>false</HasShareDataWorker>
     <HasShareDataWorker Condition="Exists('$(ShareDataWorkerProject)') And Exists('$(ShareDataWorkerCoreProject)')">true</HasShareDataWorker>
 
@@ -111,26 +67,23 @@
     <HasVideoWallModule>false</HasVideoWallModule>
     <HasVideoWallModule Condition="Exists('$(VideoWallModuleProject)')">true</HasVideoWallModule>
 
-    <!-- Test ShareData dùng type của CẢ ShareDataWorker.Core (ShareDataEnum, DataExportService)
-         VÀ Module.ShareData.Core (ShareDataPartner, ShareDataActivityLog). -->
+    <!-- Test ShareData: Yêu cầu cả ShareDataWorker và Module.ShareData -->
     <CanCompileShareDataTests>false</CanCompileShareDataTests>
     <CanCompileShareDataTests Condition="'$(HasShareDataWorker)' == 'true' And '$(HasShareDataModule)' == 'true'">true</CanCompileShareDataTests>
 
-    <!-- Cần CẢ module VÀ feature ISAPI. Có module mà thiếu ISAPI thì đỏ CS0234 + CS0246. -->
+    <!-- Test VideoWall: Yêu cầu Module.VideoWall và interface ISAPI -->
     <CanCompileVideoWallTests>false</CanCompileVideoWallTests>
     <CanCompileVideoWallTests Condition="'$(HasVideoWallModule)' == 'true' And Exists('$(VideoWallIsapiSource)')">true</CanCompileVideoWallTests>
 
     <HasVideoWallWpf>false</HasVideoWallWpf>
     <HasVideoWallWpf Condition="Exists('$(VideoWallWpfProject)')">true</HasVideoWallWpf>
 
-    <!-- Test Wpf cần ĐỦ 3 điều kiện: có project client WPF, có bộ test VideoWall nền (dùng chung
-         Host + MockServer + entity để seed), VÀ đang build ở TFM windows. -->
+    <!-- Test WPF: Yêu cầu project client WPF, test VideoWall nền và TFM net10.0-windows -->
     <CanCompileVideoWallWpfTests>false</CanCompileVideoWallWpfTests>
     <CanCompileVideoWallWpfTests Condition="'$(HasVideoWallWpf)' == 'true' And '$(CanCompileVideoWallTests)' == 'true' And '$(TargetFramework)' == 'net10.0-windows'">true</CanCompileVideoWallWpfTests>
   </PropertyGroup>
 
-  <!-- 2.3 — Symbol cho #if trong C#. Nhờ đây Host.cs khai module TƯỜNG MINH mà vẫn build được khi
-       module bị xoá; đổi lại so với reflection: gõ sai tên là lỗi biên dịch ngay, không âm thầm bỏ qua. -->
+  <!-- Hằng số biên dịch (#if HAS_*) dùng trong Host.cs -->
   <PropertyGroup Condition="'$(HasVideoWallModule)' == 'true'">
     <DefineConstants>$(DefineConstants);HAS_VIDEOWALL</DefineConstants>
   </PropertyGroup>
@@ -147,31 +100,18 @@
     <DefineConstants>$(DefineConstants);HAS_SHAREDATAWORKER</DefineConstants>
   </PropertyGroup>
 
-  <!-- 2.4 — Chỉ ShareDataWorker cần khai vì nó là project riêng của test; VideoWall/ShareData đã vào
-       build theo đường TAC_WebAPI ở PHẦN 1. -->
+  <!-- Tham chiếu ShareDataWorker nếu có -->
   <ItemGroup Condition="'$(HasShareDataWorker)' == 'true'">
     <ProjectReference Include="$(ShareDataWorkerProject)" />
     <ProjectReference Include="$(ShareDataWorkerCoreProject)" />
   </ItemGroup>
 
-  <!-- Client WPF chỉ tham chiếu được ở TFM windows; nhánh net10.0 không được chạm (đỏ NU1201).
-       Tham chiếu ASSEMBLY (không nạp nguồn) là điều kiện then chốt: DTO client cố ý TRÙNG TÊN NGẮN
-       với DTO backend (VwSetupSceneStep, VwProbeDeviceOutput...), nạp nguồn vào cùng compilation với
-       các global using Module.VideoWall.Core.Dto.* sẽ đỏ CS0104 ngay trong file của client. -->
+  <!-- Tham chiếu Client WPF (chỉ ở TFM net10.0-windows) -->
   <ItemGroup Condition="'$(CanCompileVideoWallWpfTests)' == 'true'">
     <ProjectReference Include="$(VideoWallWpfProject)" />
-
   </ItemGroup>
 
-
-  <!--
-  2.5 — Loại file test của module vắng mặt khỏi biên dịch. SDK tự nạp mọi **/*.cs vào Compile trước
-  khi đọc file này nên chỉ còn cách Remove ra; Remove không xoá file trên đĩa. <None Include> chỉ để
-  IDE vẫn hiện file trong Solution Explorer, xoá đi build vẫn xanh.
-  Phải loại ĐỦ cả file test VÀ file scaffolding (GlobalUsings.<Module>.cs, Host.<Module>.cs) — vì thế
-  mọi file của một module BẮT BUỘC nằm trong Modules\<Tên>\ để 1 pattern quét trúng hết.
-  Kiểm chứng: dotnet msbuild tests/test.csproj -getItem:Compile
-  -->
+  <!-- Loại bỏ file test của module vắng mặt khỏi biên dịch -->
   <ItemGroup Condition="'$(CanCompileShareDataTests)' != 'true'">
     <Compile Remove="Modules\ShareData\**\*.cs" />
     <None Include="Modules\ShareData\**\*.cs" />
@@ -182,24 +122,20 @@
     <None Include="Modules\VideoWall\**\*.cs" />
   </ItemGroup>
 
-  <!-- Test client WPF gom hết trong Modules\VideoWall\Wpf\ nên 1 pattern loại trúng cả file test
-       lẫn file scaffolding (Host.VideoWallWpf.cs). Điều kiện RIÊNG so với khối trên vì nhánh net10.0
-       vẫn biên dịch các test VideoWall khác, chỉ bỏ đúng thư mục Wpf. -->
   <ItemGroup Condition="'$(CanCompileVideoWallWpfTests)' != 'true'">
     <Compile Remove="Modules\VideoWall\Wpf\**\*.cs" />
     <None Include="Modules\VideoWall\Wpf\**\*.cs" />
   </ItemGroup>
 
-  <!-- 2.6 — In bản đồ module trước khi build, không có thì việc loại test diễn ra IM LẶNG.
-       Importance="high" để hiện cả khi dotnet build -v m. -->
+  <!-- Báo cáo trạng thái module trước khi build -->
   <Target Name="ReportOptionalTestModules" BeforeTargets="BeforeBuild">
     <Message Importance="high" Text="[TEST MODULES] Module.VideoWall=$(HasVideoWallModule) (ISAPI=$(CanCompileVideoWallTests)) | Module.ShareData=$(HasShareDataModule) | ShareDataWorker=$(HasShareDataWorker)" />
     <Message Importance="high" Condition="'$(HasShareDataWorker)' != 'true'" Text="[TEST MODULES] ShareDataWorker(.Core) không tồn tại -> bỏ ProjectReference." />
     <Message Importance="high" Condition="'$(CanCompileShareDataTests)' != 'true'" Text="[TEST MODULES] Loại khỏi biên dịch: tests/Modules/ShareData/**" />
-    <Message Importance="high" Condition="'$(HasVideoWallModule)' == 'true' And '$(CanCompileVideoWallTests)' != 'true'" Text="[TEST MODULES] Module.VideoWall có nhưng thiếu feature ISAPI (Module.VideoWall.Core\Interfaces\IVwISAPIDeviceClient.cs) -> loại tests/Modules/VideoWall/**" />
+    <Message Importance="high" Condition="'$(HasVideoWallModule)' == 'true' And '$(CanCompileVideoWallTests)' != 'true'" Text="[TEST MODULES] Module.VideoWall có nhưng thiếu feature ISAPI -> loại tests/Modules/VideoWall/**" />
     <Message Importance="high" Condition="'$(HasVideoWallModule)' != 'true'" Text="[TEST MODULES] Loại khỏi biên dịch: tests/Modules/VideoWall/**" />
     <Message Importance="high" Text="[TEST MODULES] TFM=$(TargetFramework) | Module.VideoWall.WPF=$(HasVideoWallWpf) (test Wpf=$(CanCompileVideoWallWpfTests))" />
-    <Message Importance="high" Condition="'$(HasVideoWallWpf)' == 'true' And '$(TargetFramework)' != 'net10.0-windows'" Text="[TEST MODULES] TFM $(TargetFramework) không tham chiếu được net10.0-windows -> loại tests/Modules/VideoWall/Wpf/** (bộ này CHỈ chạy ở net10.0-windows trên Windows)." />
+    <Message Importance="high" Condition="'$(HasVideoWallWpf)' == 'true' And '$(TargetFramework)' != 'net10.0-windows'" Text="[TEST MODULES] TFM $(TargetFramework) không tham chiếu được net10.0-windows -> loại tests/Modules/VideoWall/Wpf/**." />
   </Target>
 
 </Project>
