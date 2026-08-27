@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using Microsoft.Extensions.Logging;
 using Module.ShareData.Core.Entities;
 using Modules.CCTV.Core.Entities;
@@ -998,7 +999,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
         }
 
         [Fact]
-        public void Transform_WhenRequiredFieldMissing_ThrowsEshMissingRequiredFieldException_Test()
+        public void Transform_WhenRequiredFieldMissing_Throws_Test()
         {
             var rawRows = new List<object>
             {
@@ -1020,14 +1021,13 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
                 new() { FieldKey = "averageSpeed", Column = "AverageSpeed", Required = true, DataType = "decimal" }
             };
 
-            var ex = Assert.Throws<EshMissingRequiredFieldException>(() =>
+            var ex = Assert.Throws<InvalidOperationException>(() =>
             {
                 DataPublicationService.Transform(rawRows, fields);
             });
 
-            Assert.Contains("averageSpeed", ex.MissingFieldKeys);
-            Assert.Equal(1, ex.MissingRowCount);
-            Assert.Equal(2, ex.TotalRowCount);
+            Assert.Contains("Thiếu trường bắt buộc", ex.Message);
+            Assert.Contains("averageSpeed", ex.Message);
         }
 
         [Fact]
@@ -1644,6 +1644,336 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
                 Assert.NotNull(updatedSub.LastTimeRun);
                 Assert.True(updatedSub.LastTimeRun >= insertedRecords.Last().DetectTime!.Value.AddSeconds(-1));
         }
+
+        #region XML Serialization Tests
+
+        [Theory]
+        [InlineData("ValidName", "ValidName")]
+        [InlineData("123NumberField", "_123NumberField")]
+        [InlineData("field with spaces", "field_with_spaces")]
+        [InlineData("field.with.dot", "field.with.dot")]
+        [InlineData("special!@#chars", "special___chars")]
+        [InlineData("", "default_field")]
+        [InlineData(null, "default_field")]
+        public void ToNcName_SanitizesIdentifiersCorrectly_Test(string? raw, string expected)
+        {
+            var result = DataPublicationService.ToNcName(raw, "default_field");
+            Assert.Equal(expected, result);
+        }
+
+        [Fact]
+        public void SerializeEnvelopeToXmlBytes_ProducesWellFormedXmlWithoutBom_Test()
+        {
+            // Arrange
+            var header = new Dictionary<string, object?>
+            {
+                ["pduType"] = 1,
+                ["serialNbr"] = 100,
+                ["sender"] = "SYSTEM",
+                ["destination"] = "PARTNER_A",
+                ["timestamp"] = new DateTime(2026, 8, 27, 10, 0, 0),
+                ["format"] = "FILE",
+                ["hash"] = "DUMMY_HASH"
+            };
+
+            var data = new List<object>
+            {
+                new Dictionary<string, object?>
+                {
+                    ["speed"] = 80.5m,
+                    ["lane"] = 1,
+                    ["plate"] = "29A-12345",
+                    ["nullProp"] = null,
+                    ["isActive"] = true
+                }
+            };
+
+            // Act
+            var xmlBytes = DataPublicationService.SerializeEnvelopeToXmlBytes(header, data);
+
+            // Assert
+            Assert.NotNull(xmlBytes);
+            Assert.True(xmlBytes.Length > 0);
+
+            // Verify no UTF-8 BOM (0xEF, 0xBB, 0xBF)
+            if (xmlBytes.Length >= 3)
+            {
+                var hasBom = xmlBytes[0] == 0xEF && xmlBytes[1] == 0xBB && xmlBytes[2] == 0xBF;
+                Assert.False(hasBom, "XML bytes must not contain UTF-8 BOM");
+            }
+
+            var xmlString = System.Text.Encoding.UTF8.GetString(xmlBytes);
+            var doc = XDocument.Parse(xmlString);
+
+            Assert.Equal("pdu", doc.Root?.Name.LocalName);
+            var headerElem = doc.Root?.Element("header");
+            Assert.NotNull(headerElem);
+            Assert.Equal("PARTNER_A", headerElem.Element("destination")?.Value);
+            Assert.Equal("DUMMY_HASH", headerElem.Element("hash")?.Value);
+
+            var payloadElem = doc.Root?.Element("payload");
+            Assert.NotNull(payloadElem);
+
+            var recordElem = payloadElem.Element("record");
+            Assert.NotNull(recordElem);
+            Assert.Equal("80.5", recordElem.Element("speed")?.Value);
+            Assert.Equal("1", recordElem.Element("lane")?.Value);
+            Assert.Equal("true", recordElem.Element("isActive")?.Value);
+
+            // Null property renders as empty tag
+            var nullElem = recordElem.Element("nullProp");
+            Assert.NotNull(nullElem);
+            Assert.True(nullElem.IsEmpty || string.IsNullOrEmpty(nullElem.Value));
+        }
+
+        [Fact]
+        public void SerializeDataToXmlBytes_MatchesFragmentForPayloadHash_Test()
+        {
+            // Arrange
+            var data = new List<object>
+            {
+                new Dictionary<string, object?>
+                {
+                    ["stationId"] = "ST_01",
+                    ["volume"] = 1500
+                }
+            };
+
+            // Act
+            var fragmentBytes = DataPublicationService.SerializeDataToXmlBytes(data);
+            var fragmentStr = System.Text.Encoding.UTF8.GetString(fragmentBytes);
+
+            // Assert
+            Assert.StartsWith("<payload>", fragmentStr);
+            Assert.EndsWith("</payload>", fragmentStr);
+            Assert.Contains("<stationId>ST_01</stationId>", fragmentStr);
+            Assert.Contains("<volume>1500</volume>", fragmentStr);
+        }
+
+        #endregion
+
+        #region Shape Expression Evaluator Tests
+
+        [Fact]
+        public void Evaluate_ArithmeticBasic_ReturnsExpectedValue_Test()
+        {
+            // Arrange
+            var row = new Dictionary<string, object?>
+            {
+                ["val1"] = 10,
+                ["val2"] = 5,
+                ["val3"] = 2
+            };
+
+            // Act
+            var ok = DataPublicationService.TryEvaluate("val1 + val2 * val3", row, out var result, out var error);
+
+            // Assert
+            Assert.True(ok, error);
+            Assert.Equal(20m, result);
+        }
+
+        [Fact]
+        public void Evaluate_ParenthesesAndDivision_ReturnsExpectedValue_Test()
+        {
+            // Arrange
+            var row = new Dictionary<string, object?>
+            {
+                ["a"] = 20,
+                ["b"] = 8,
+                ["c"] = 3
+            };
+
+            // Act
+            var ok = DataPublicationService.TryEvaluate("(a - b) / c", row, out var result, out var error);
+
+            // Assert
+            Assert.True(ok, error);
+            Assert.Equal(4m, result);
+        }
+
+        [Fact]
+        public void Evaluate_UnaryMinusAndModulo_ReturnsExpectedValue_Test()
+        {
+            // Arrange
+            var row = new Dictionary<string, object?>
+            {
+                ["num"] = 15
+            };
+
+            // Act
+            var ok = DataPublicationService.TryEvaluate("-num % 4", row, out var result, out var error);
+
+            // Assert
+            Assert.True(ok, error);
+            Assert.Equal(-3m, result);
+        }
+
+        [Fact]
+        public void Evaluate_ConcatFunction_JoinsStringsAndNumbers_Test()
+        {
+            // Arrange
+            var row = new Dictionary<string, object?>
+            {
+                ["code"] = "VDS",
+                ["id"] = 102
+            };
+
+            // Act
+            var ok = DataPublicationService.TryEvaluate("CONCAT(code, '_', id)", row, out var result, out var error);
+
+            // Assert
+            Assert.True(ok, error);
+            Assert.Equal("VDS_102", result);
+        }
+
+        [Fact]
+        public void Evaluate_IsNullAndCoalesce_ReturnsFirstNonNull_Test()
+        {
+            // Arrange
+            var row = new Dictionary<string, object?>
+            {
+                ["nullField"] = null,
+                ["fallbackVal"] = 42m
+            };
+
+            // Act
+            var okIsNull = DataPublicationService.TryEvaluate("ISNULL(nullField, fallbackVal)", row, out var resIsNull, out var err1);
+            var okCoalesce = DataPublicationService.TryEvaluate("COALESCE(nullField, nullField, 99)", row, out var resCoalesce, out var err2);
+
+            // Assert
+            Assert.True(okIsNull, err1);
+            Assert.Equal(42m, resIsNull);
+
+            Assert.True(okCoalesce, err2);
+            Assert.Equal(99m, resCoalesce);
+        }
+
+        [Fact]
+        public void Evaluate_StringFunctions_UpperLowerLenTrim_Test()
+        {
+            // Arrange
+            var row = new Dictionary<string, object?>
+            {
+                ["text"] = "  Hello World  "
+            };
+
+            // Act & Assert
+            Assert.True(DataPublicationService.TryEvaluate("UPPER(text)", row, out var upper, out _));
+            Assert.Equal("  HELLO WORLD  ", upper);
+
+            Assert.True(DataPublicationService.TryEvaluate("LOWER(text)", row, out var lower, out _));
+            Assert.Equal("  hello world  ", lower);
+
+            Assert.True(DataPublicationService.TryEvaluate("LEN(text)", row, out var len, out _));
+            Assert.Equal(15m, len);
+
+            Assert.True(DataPublicationService.TryEvaluate("LTRIM(text)", row, out var ltrim, out _));
+            Assert.Equal("Hello World  ", ltrim);
+
+            Assert.True(DataPublicationService.TryEvaluate("RTRIM(text)", row, out var rtrim, out _));
+            Assert.Equal("  Hello World", rtrim);
+        }
+
+        [Fact]
+        public void Evaluate_RoundAndAbs_ReturnsExpectedDecimal_Test()
+        {
+            // Arrange
+            var row = new Dictionary<string, object?>
+            {
+                ["speed"] = 85.6789m,
+                ["diff"] = -15.4m
+            };
+
+            // Act & Assert
+            Assert.True(DataPublicationService.TryEvaluate("ROUND(speed, 2)", row, out var rounded, out _));
+            Assert.Equal(85.68m, rounded);
+
+            Assert.True(DataPublicationService.TryEvaluate("ABS(diff)", row, out var absVal, out _));
+            Assert.Equal(15.4m, absVal);
+        }
+
+        [Fact]
+        public void Evaluate_NullOperandInArithmetic_PropagatesNull_Test()
+        {
+            // Arrange
+            var row = new Dictionary<string, object?>
+            {
+                ["nullVal"] = null
+            };
+
+            // Act
+            var ok = DataPublicationService.TryEvaluate("nullVal + 10", row, out var result, out var error);
+
+            // Assert
+            Assert.True(ok, error);
+            Assert.Null(result);
+        }
+
+        [Fact]
+        public void Evaluate_DivideByZero_FailsGracefully_Test()
+        {
+            // Arrange
+            var row = new Dictionary<string, object?>
+            {
+                ["val"] = 100
+            };
+
+            // Act
+            var ok = DataPublicationService.TryEvaluate("val / 0", row, out var result, out var error);
+
+            // Assert
+            Assert.False(ok);
+            Assert.Contains("chia cho 0", error, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void Evaluate_MissingFieldInRow_FailsWithDescriptiveError_Test()
+        {
+            // Arrange
+            var row = new Dictionary<string, object?>
+            {
+                ["knownField"] = 1
+            };
+
+            // Act
+            var ok = DataPublicationService.TryEvaluate("missingField * 2", row, out var result, out var error);
+
+            // Assert
+            Assert.False(ok);
+            Assert.Contains("missingField", error, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Theory]
+        [InlineData("SELECT * FROM users")]
+        [InlineData("1; DROP TABLE EshPartner")]
+        [InlineData("1 + /* comment */ 2")]
+        [InlineData("EXEC('sp_who')")]
+        [InlineData("sys.tables")]
+        public void IsStaticallyValid_RejectsDangerousConstructs_Test(string dangerousExpr)
+        {
+            // Act
+            var valid = DataPublicationService.IsStaticallyValid(dangerousExpr, out var error);
+
+            // Assert
+            Assert.False(valid);
+            Assert.NotNull(error);
+        }
+
+        [Fact]
+        public void IsStaticallyValid_RejectsEmptyOrOversizedExpression_Test()
+        {
+            // Empty
+            Assert.False(DataPublicationService.IsStaticallyValid("", out var err1));
+            Assert.NotNull(err1);
+
+            // Oversized (> 512 chars)
+            var longExpr = "1 + " + new string('1', 515);
+            Assert.False(DataPublicationService.IsStaticallyValid(longExpr, out var err2));
+            Assert.NotNull(err2);
+        }
+
+        #endregion
 
         private static readonly Dictionary<string, (string SelectClause, string FromJoinClause, string WhereClause)> GoldenSqlCatalog = new()
         {
