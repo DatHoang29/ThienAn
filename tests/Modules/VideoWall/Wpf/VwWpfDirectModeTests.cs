@@ -54,14 +54,12 @@ public class VwWpfDirectModeTests(Host host)
     {
         host.MockServer.ResetDefaults();
         var preset = VwIsapiPresetList.Presets.First(p => p.Section == "9.7.3.2");
-        var formVm = new VwIsapiFormViewModel(preset);
-        var idField = formVm.AllFields.First(f => f.Definition.Key == "id");
-        var enabledField = formVm.AllFields.First(f => f.Definition.Key == "enabled");
-        idField.Value = "1";
-        enabledField.Value = "true";
+        var formVm = new VwIsapiFormViewModel(preset)
+        {
+            RawBody = "<AudioOutputChannelList xmlns=\"http://www.isapi.org/ver20/XMLSchema\"><AudioOutputChannel><id>1</id><enabled>true</enabled></AudioOutputChannel></AudioOutputChannelList>"
+        };
 
-        var body = formVm.BuildBody(out var error);
-        Assert.Null(error);
+        var body = formVm.RawBody;
         Assert.NotNull(body);
 
         var publisher = new RecordingPublisherTest();
@@ -87,12 +85,12 @@ public class VwWpfDirectModeTests(Host host)
     {
         host.MockServer.ResetDefaults();
         var preset = VwIsapiPresetList.Presets.First(p => p.Section == "9.7.2.10");
-        var formVm = new VwIsapiFormViewModel(preset);
-        var enabledField = formVm.AllFields.First(f => f.Definition.Key == "enabled");
-        enabledField.Value = "true";
+        var formVm = new VwIsapiFormViewModel(preset)
+        {
+            RawBody = "{ \"enabled\": true }"
+        };
 
-        var body = formVm.BuildBody(out var error);
-        Assert.Null(error);
+        var body = formVm.RawBody;
         Assert.NotNull(body);
         Assert.Contains("\"enabled\": true", body);
 

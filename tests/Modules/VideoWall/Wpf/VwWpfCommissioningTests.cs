@@ -255,9 +255,9 @@ public class VwWpfCommissioningTests(Host host)
         // Assert
         Assert.NotNull(connection.ProbeResult);
         Assert.True(connection.ProbeResult!.Reachable, connection.StatusMessage);
-        Assert.NotEmpty(connection.ProbeWalls);
-        Assert.NotEmpty(connection.ProbeOutputs);
-        Assert.NotEmpty(connection.ProbeInputChannels);
+        Assert.NotEmpty(connection.ProbeResult.Walls);
+        Assert.NotEmpty(connection.ProbeResult.Outputs);
+        Assert.NotEmpty(connection.ProbeResult.InputChannels);
 
         var expectedRows = connection.ProbeResult.Steps?.Count ?? 0;
         Assert.True(expectedRows > 0, "Probe phải trả về ít nhất một bước ISAPI.");
