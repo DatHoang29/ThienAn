@@ -23,7 +23,7 @@ public class VwWpfStandaloneModeTests(Host host)
         var activityPublisher = new ActivityPublisher(publisher, NullLogger<ActivityPublisher>.Instance);
         var invoker = new ApiInvoker(new InMemoryApiClientFactoryTest(host.ApiClient), activityPublisher);
         var apiClient = new VideoWallApiClient(invoker, publisher, activityPublisher);
-        var viewModel = new ConnectionViewModel(apiClient, activityPublisher, publisher)
+        var viewModel = new ConnectionViewModel(apiClient, activityPublisher, publisher, new UserConfirmationTest(true))
         {
             IsDirectMode = true,
             AdHocIp = "127.0.0.1",

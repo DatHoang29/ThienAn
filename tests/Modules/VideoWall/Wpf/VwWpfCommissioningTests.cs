@@ -142,8 +142,9 @@ public class VwWpfCommissioningTests(Host host)
     }
 
     private static ConnectionViewModel BuildConnection(VwWpfClientStackTest stack, VwController controller) =>
-        new(stack.ApiClient, stack.ActivityPublisher, stack.Publisher)
+        new(stack.ApiClient, stack.ActivityPublisher, stack.Publisher, new UserConfirmationTest(true))
         {
+            IsDirectMode = false,
             SelectedController = new WpfDto.VwControllerDto
             {
                 ID = controller.ID,
@@ -851,7 +852,7 @@ public class VwWpfCommissioningTests(Host host)
         // Arrange
         var (controller, _, _, _) = await SeedWallAsync();
         var stack = BuildClientStack();
-        var connection = new ConnectionViewModel(stack.ApiClient, stack.ActivityPublisher, stack.Publisher);
+        var connection = new ConnectionViewModel(stack.ApiClient, stack.ActivityPublisher, stack.Publisher, new UserConfirmationTest(true));
 
         // Act
         await connection.LoadControllersCommand.ExecuteAsync(null);
@@ -923,7 +924,7 @@ public class VwWpfCommissioningTests(Host host)
     public void VwWpfConnectionViewModel_IsapiPresets_SelectionSetsMethodAndPath_Test()
     {
         var stack = BuildClientStack();
-        var vm = new ConnectionViewModel(stack.ApiClient, stack.ActivityPublisher, stack.Publisher);
+        var vm = new ConnectionViewModel(stack.ApiClient, stack.ActivityPublisher, stack.Publisher, new UserConfirmationTest(true));
 
         Assert.NotEmpty(vm.IsapiPresets);
         Assert.Contains(vm.IsapiPresets, p => p.Section == "9.7.5.6" && p.Method == "GET");
