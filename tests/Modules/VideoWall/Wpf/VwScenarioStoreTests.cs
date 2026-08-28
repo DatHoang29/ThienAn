@@ -247,4 +247,104 @@ public class VwScenarioStoreTests : IDisposable
 
         Assert.Contains("Nhập đủ 2 EventTypeId", vm.StatusMessage);
     }
+
+    [Fact]
+    public void ScenarioViewModel_BuiltInScenarios_InitializedCorrectly_Test()
+    {
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var invoker = new ApiInvoker(new InMemoryApiClientFactoryTest(new HttpClient()), activityPub);
+        var apiClient = new VideoWallApiClient(invoker, recordingPub, activityPub);
+        var connection = new ConnectionViewModel(apiClient, activityPub, recordingPub, new UserConfirmationTest(true));
+        var vm = new ScenarioViewModel(connection, activityPub, recordingPub, apiClient);
+
+        Assert.Equal(3, vm.BuiltInScenarios.Count);
+        Assert.Contains("1. Thiết lập scene (không chụp hình)", vm.BuiltInScenarios[0].Name);
+        Assert.Contains("2. Thiết lập scene (có chụp hình)", vm.BuiltInScenarios[1].Name);
+        Assert.Contains("3. Active scene", vm.BuiltInScenarios[2].Name);
+        Assert.NotNull(vm.SelectedBuiltInScenario);
+        Assert.Equal(400, vm.DelayBetweenStepsMs);
+    }
+
+    [Fact]
+    public async Task ScenarioViewModel_ErrorValidationSuite_RunsAllThreeCases_Test()
+    {
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var invoker = new ApiInvoker(new InMemoryApiClientFactoryTest(new HttpClient()), activityPub);
+        var apiClient = new VideoWallApiClient(invoker, recordingPub, activityPub);
+        var connection = new ConnectionViewModel(apiClient, activityPub, recordingPub, new UserConfirmationTest(true));
+        var vm = new ScenarioViewModel(connection, activityPub, recordingPub, apiClient)
+        {
+            DelayBetweenStepsMs = 0
+        };
+
+        await vm.RunErrorValidationSuiteCommand.ExecuteAsync(null);
+
+        Assert.Contains("Đã chạy xong bộ kiểm thử lỗi", vm.StatusMessage);
+        var logs = recordingPub.ActivityRows;
+        Assert.Contains(logs, l => l.Activity.Detail.Contains("Case A"));
+        Assert.Contains(logs, l => l.Activity.Detail.Contains("Case B"));
+        Assert.Contains(logs, l => l.Activity.Detail.Contains("Case C"));
+    }
+
+    [Fact]
+    public async Task ScenarioViewModel_OverlappingSizeTest_DirectMode_Executes_Test()
+    {
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var invoker = new ApiInvoker(new InMemoryApiClientFactoryTest(new HttpClient()), activityPub);
+        var apiClient = new VideoWallApiClient(invoker, recordingPub, activityPub);
+        var connection = new ConnectionViewModel(apiClient, activityPub, recordingPub, new UserConfirmationTest(true))
+        {
+            IsDirectMode = true,
+            AdHocIp = "127.0.0.1",
+            AdHocPort = 80,
+            AdHocAccount = "admin",
+            AdHocPassword = "password"
+        };
+        var vm = new ScenarioViewModel(connection, activityPub, recordingPub, apiClient);
+
+        await vm.RunOverlappingSizeTestCommand.ExecuteAsync(null);
+
+        Assert.Contains("Đã hoàn thành kịch bản 2 nguồn tranh vùng", vm.StatusMessage);
+        var logs = recordingPub.ActivityRows;
+        Assert.Contains(logs, l => l.Activity.Detail.Contains("Đã dựng 2 cửa sổ tranh vùng"));
+    }
+
+    [Fact]
+    public async Task SceneSetupViewModel_MaxWindowNums_BlocksWhenExceeded_Test()
+    {
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var invoker = new ApiInvoker(new InMemoryApiClientFactoryTest(new HttpClient()), activityPub);
+        var apiClient = new VideoWallApiClient(invoker, recordingPub, activityPub);
+        var connection = new ConnectionViewModel(apiClient, activityPub, recordingPub, new UserConfirmationTest(true))
+        {
+            ProbeResult = new Module.VideoWall.WPF.Api.Dto.VwProbeDeviceOutput
+            {
+                MaxWindowNums = 2,
+                MaxSceneNums = 128
+            }
+        };
+
+        var vm = new SceneSetupViewModel(apiClient, activityPub, connection, new UserConfirmationTest(true))
+        {
+            CurrentScene = new Module.VideoWall.WPF.Api.Dto.VwSceneDto
+            {
+                ID = "scene-test-1",
+                Code = "SCN-1",
+                Name = "Test Scene"
+            }
+        };
+
+        // Thêm 3 dòng vào WindowRows (vượt quá MaxWindowNums = 2)
+        vm.WindowRows.Add(new WindowSceneRow { Label = "W1", Width = 100, Height = 100, X = 0, Y = 0, ZIndex = 1, SelectedSource = new Module.VideoWall.WPF.Api.Dto.VwSourceDto { ID = "s1" } });
+        vm.WindowRows.Add(new WindowSceneRow { Label = "W2", Width = 100, Height = 100, X = 100, Y = 0, ZIndex = 1, SelectedSource = new Module.VideoWall.WPF.Api.Dto.VwSourceDto { ID = "s2" } });
+        vm.WindowRows.Add(new WindowSceneRow { Label = "W3", Width = 100, Height = 100, X = 200, Y = 0, ZIndex = 1, SelectedSource = new Module.VideoWall.WPF.Api.Dto.VwSourceDto { ID = "s3" } });
+
+        await vm.ApplyOverlappingWindowsCommand.ExecuteAsync(null);
+
+        Assert.Contains("vượt quá giới hạn tối đa của thiết bị", vm.StatusMessage);
+    }
 }

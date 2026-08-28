@@ -801,5 +801,115 @@ public class VwSceneTests(Host host)
         Assert.True(host.MockServer.GetActiveSceneCallCount >= 2);
     }
 
+    [Fact]
+    public async Task VwSceneWorkflow_ActivateByEvent_PicksHigherPriority_WhenMultipleRulesExist_Test()
+    {
+        // Arrange
+        var eventTypeId = $"EVT_PRIO_{Guid.NewGuid():N}";
+
+        var sceneLow = new VwScene
+        {
+            Code = $"{TestPrefix}SCN_LOW_{Guid.NewGuid():N}",
+            Name = "Scene Low Priority",
+            Status = BaseEnums.StatusEnum.Enable,
+            ActiveScene = BaseEnums.ActiveScene.DeActivate,
+            CreateTime = DateTime.Now.AddMinutes(-10)
+        };
+        var sceneNormal = new VwScene
+        {
+            Code = $"{TestPrefix}SCN_NORM_{Guid.NewGuid():N}",
+            Name = "Scene Normal Priority",
+            Status = BaseEnums.StatusEnum.Enable,
+            ActiveScene = BaseEnums.ActiveScene.DeActivate,
+            CreateTime = DateTime.Now
+        };
+        await _db.Insertable(new[] { sceneLow, sceneNormal }).ExecuteCommandAsync();
+
+        var ruleLow = new VwEventRule
+        {
+            Code = $"{TestPrefix}RULE_LOW_{Guid.NewGuid():N}",
+            EventTypeId = eventTypeId,
+            TargetSceneId = sceneLow.ID,
+            Priority = "LOW",
+            Status = BaseEnums.StatusEnum.Enable,
+            CreateTime = DateTime.Now.AddMinutes(-5)
+        };
+        var ruleNormal = new VwEventRule
+        {
+            Code = $"{TestPrefix}RULE_NORM_{Guid.NewGuid():N}",
+            EventTypeId = eventTypeId,
+            TargetSceneId = sceneNormal.ID,
+            Priority = "NORMAL",
+            Status = BaseEnums.StatusEnum.Enable,
+            CreateTime = DateTime.Now
+        };
+        await _db.Insertable(new[] { ruleLow, ruleNormal }).ExecuteCommandAsync();
+
+        var input = new VwActiveSceneInput { EventTypeId = eventTypeId };
+
+        // Act
+        var result = await _bus.InvokeAsync<VwActiveSceneOutput>(input);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(sceneNormal.ID, result.ID);
+        Assert.Equal(sceneNormal.Code, result.Code);
+    }
+
+    [Fact]
+    public async Task VwSceneWorkflow_ActivateByEvent_PicksCriticalOverHigh_Test()
+    {
+        // Arrange
+        var eventTypeId = $"EVT_CRIT_{Guid.NewGuid():N}";
+
+        var sceneHigh = new VwScene
+        {
+            Code = $"{TestPrefix}SCN_HIGH_{Guid.NewGuid():N}",
+            Name = "Scene High Priority",
+            Status = BaseEnums.StatusEnum.Enable,
+            ActiveScene = BaseEnums.ActiveScene.DeActivate,
+            CreateTime = DateTime.Now.AddMinutes(-10)
+        };
+        var sceneCritical = new VwScene
+        {
+            Code = $"{TestPrefix}SCN_CRIT_{Guid.NewGuid():N}",
+            Name = "Scene Critical Priority",
+            Status = BaseEnums.StatusEnum.Enable,
+            ActiveScene = BaseEnums.ActiveScene.DeActivate,
+            CreateTime = DateTime.Now
+        };
+        await _db.Insertable(new[] { sceneHigh, sceneCritical }).ExecuteCommandAsync();
+
+        var ruleHigh = new VwEventRule
+        {
+            Code = $"{TestPrefix}RULE_HIGH_{Guid.NewGuid():N}",
+            EventTypeId = eventTypeId,
+            TargetSceneId = sceneHigh.ID,
+            Priority = "HIGH",
+            Status = BaseEnums.StatusEnum.Enable,
+            CreateTime = DateTime.Now.AddMinutes(-5)
+        };
+        var ruleCritical = new VwEventRule
+        {
+            Code = $"{TestPrefix}RULE_CRIT_{Guid.NewGuid():N}",
+            EventTypeId = eventTypeId,
+            TargetSceneId = sceneCritical.ID,
+            Priority = "CRITICAL",
+            Status = BaseEnums.StatusEnum.Enable,
+            CreateTime = DateTime.Now
+        };
+        await _db.Insertable(new[] { ruleHigh, ruleCritical }).ExecuteCommandAsync();
+
+        var input = new VwActiveSceneInput { EventTypeId = eventTypeId };
+
+        // Act
+        var result = await _bus.InvokeAsync<VwActiveSceneOutput>(input);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(sceneCritical.ID, result.ID);
+        Assert.Equal(sceneCritical.Code, result.Code);
+    }
+
     #endregion
 }
