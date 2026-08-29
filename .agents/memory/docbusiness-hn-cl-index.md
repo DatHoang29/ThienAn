@@ -14,7 +14,7 @@ updated: 2026-08-18
 
 ## 2. Cấu trúc các phân hệ nghiệp vụ chính (tra cứu qua INDEX.md)
 - **`ShareData/`** — `01-yeu-cau-nghiep-vu.md` (đọc trước khi sửa ShareDataWorker), `02-mapping-goi-tin-101-111.md` (mapping payload ↔ DB), `03-audit-20260812.md` (hiện trạng nợ kỹ thuật).
-- **`VideoWall/`** — Đọc `HIKVISION_ISAPI_VIDEOWALL_GLOSSARY.md` đầu tiên. Bộ API ISAPI ở `ISAPI-Videowall-Controller/00→10`. File `09A-api-reference.md` rất lớn (1.6 MB) — chỉ `grep_search` theo endpoint cụ thể, không đọc nguyên file. Khi có mâu thuẫn giữa `09A` (spec hãng) và `09B-practical-guide-and-tested-responses.md` (đo thật trên DS-C66S-H88-CL) → ưu tiên `09B`.
+- **`VideoWall/`** — Mở `VideoWall/README.md` để biết đọc gì (chia 2 khu). **Khu 1 reference ISAPI**: đọc `KeyWord/HIKVISION_ISAPI_VIDEOWALL_GLOSSARY.md` đầu tiên; bộ API ISAPI ở `ISAPI-Videowall-Controller/00→10`; `09A-api-reference.md` rất lớn (1.7 MB) — chỉ `grep` theo endpoint, không đọc nguyên file; mâu thuẫn `09A` (spec hãng) vs `09B` (đo thật) → ưu tiên `09B`. **Khu 2 công cụ WPF**: `videowall-record-replay.md` (Ghi/Phát lại — tài liệu chính), `videowall-test-2ngay.md` (checklist đi test), `videowall_plan.md` + `transcript-videowall-28082026.md` (gốc).
 
 ## 3. Cách thức áp dụng khi nhận yêu cầu
 1. Khi user hỏi về nghiệp vụ hoặc yêu cầu implement/sửa đổi tính năng liên quan đến phân hệ bất kỳ, **mở `DocBusinessThienAn/HữuNghị-ChiLăng/INDEX.md` trước** để xác định đúng tài liệu nghiệp vụ gốc.
