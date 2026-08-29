@@ -1,19 +1,19 @@
 ---
 name: videowall-record-replay-plan
-description: VideoWall WPF tool — Record/Replay mechanism and offline test harness implemented & verified
+description: VideoWall WPF tool — Live mode + continuous auto-log + Scenarios architecture
 metadata:
   type: project
 ---
 
-Chế độ **Ghi / Phát lại (Record/Replay)** cho công cụ `Module.VideoWall.WPF` đã **hoàn thành và kiểm thử toàn diện ngày 2026-08-29**.
+Công cụ `Module.VideoWall.WPF` đã được **đơn giản hoá**: bỏ Record/Replay/Tape, tập trung vào chế độ **Trực tiếp (Live) + Tự động ghi Log liên tục ra file + Kịch bản**:
 
 **Đã triển khai:**
-- **Lõi Record/Replay**: `VwDeviceIoMode` (Live, Record, Replay), `VwTape`, `VwTapeEntry`, `VwTapeStore` (hỗ trợ streaming JSONL append, save/load JSON và export log), `VwReplayHandler` (DelegatingHandler tự động tee ghi khi Record, bắt request và trả canned responses khi Replay, log Warning khi missing entry), `VwDirectClientFactory` gộp pipeline handler `VwDirectDigestHandler -> VwReplayHandler -> HttpClientHandler`.
-- **UI WPF**: Row 1 MainWindow thêm RadioButtons chọn Live/Record/Replay, chọn file Tape, hiển thị cảnh báo banner vàng khi đang ở chế độ Replay, nút "Lưu thành tape" từ ActivityLog.
-- **Harness & Fixture**: `SampleData/sample-tape.json` chứa specs DS-C30S-S11, test suite `tests/Modules/VideoWall/Wpf/VwReplayHandlerTests.cs` (5 bài test kiểm tra probe, add window, 404 missing entry, guardrail max windows, tape serialization). Toàn bộ 65 bài test WPF chạy xanh.
-- **Tài liệu** (`DocBusinessThienAn/HữuNghị-ChiLăng/VideoWall/`, đã gom & chia khu 2026-08-29):
-  - `README.md` — chỉ mục "chia khu": Khu 1 reference thiết bị/ISAPI, Khu 2 công cụ WPF.
-  - `videowall-record-replay.md` — **tài liệu chính** (đã gộp bản tổng hợp cũ + runbook cũ thành 1 file). 5 phần: A bối cảnh & quyết định · B cơ chế & thiết kế ("tape là gì", 3 chế độ, handler chain) · C runbook vận hành · D bảng phạm vi offline vs tại chỗ · E kiểm thử tự động.
-  - `videowall-test-2ngay.md` — checklist tick-box đi test 2 ngày tại TCB (Ngày 1 / Ngày 2 / "thế nào là đủ" 6 tiêu chí).
-  - `videowall_plan.md`, `transcript-videowall-28082026.md` — bản gốc lịch sử, không sửa.
+- **Live & Direct Pipeline**: `VwDirectClientFactory` thiết lập chuỗi kết nối trực tiếp `VwDirectDigestHandler -> HttpClientHandler`, hỗ trợ xác thực Digest Auth tự động cho thiết bị phần cứng (DS-C30S-S11).
+- **Tự động ghi Log liên tục (Auto Session Logging)**: Trong `MainViewModel`, mỗi thao tác gửi/nhận hay sự kiện được tự động append vào file `%LOCALAPPDATA%\Module.VideoWall.WPF\Logs\session_{yyyyMMdd_HHmmss}.jsonl`. Nút "Xuất log" giữ nguyên để xuất snapshot gộp khi cần.
+- **Kịch bản (Scenario)**: Tab Kịch bản cho phép cấu hình chuỗi gọi nhiều API liên tiếp, chỉnh `DelayBetweenStepsMs`, lưu kịch bản, và "Chạy tiếp từ bước N (Resume)".
+- **UI Responsive**: Header kết nối Row 1 và thanh công cụ Kịch bản được bọc trong `WrapPanel` tự động ngắt dòng khi cửa sổ co nhỏ. Tab Thiết lập Scene phân tách dọc Hàng 2 (Dựng cửa sổ) và Hàng 3 (Cửa sổ đã lưu) với `GridSplitter`.
+- **Tài liệu**:
+  - `videowall-record-replay.md` — kiến trúc Live + auto-log + Kịch bản.
+  - `videowall-test-local.md` — chạy test tự động và MockServer riêng `scripts/VwMockServerRunner`.
+  - `videowall-test-2ngay.md` — checklist kiểm thử 2 ngày tại hiện trường.
 

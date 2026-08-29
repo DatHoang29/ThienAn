@@ -13,7 +13,7 @@
     <!-- Dùng lại nguyên file mock server trong tests/ qua Link thay vì ProjectReference tới
          test.csproj — test.csproj kéo theo toàn bộ TAC_WebAPI + tham chiếu DB, trong khi
          VwISAPIMockServerHikvision chỉ cần System.Net.HttpListener thuần. -->
-    <Compile Include="..\..\tests\Modules\VideoWall\MockServer\VwISAPIMockServerHikvision.cs" Link="VwISAPIMockServerHikvision.cs" />
+    <Compile Include="..\..\tests\Modules\VideoWall\MockServer\*.cs" LinkBase="MockServer" />
   </ItemGroup>
 
 </Project>
