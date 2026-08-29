@@ -8,7 +8,9 @@ updated: 2026-07-29
 
 ## Git Workflow
 - Always create a new dedicated branch for major code changes.
-- Branch name format should follow: `feature/[task-slug]` or `fix/[bug-slug]`.
+- Branch name format follows `.agents/rules/thienan_rules.md`: `feat/`, `fix/`, `release/` with a
+  date + task-code prefix (e.g. `feat/20260826-XD001.5.5-Service-tich-hop-du-lieu`). (KHÔNG dùng
+  `feature/` — đã lỗi thời.)
 - **DO NOT auto-commit or push Git**: AI KHÔNG ĐƯỢC tự ý thực hiện `git add .` hoặc `git commit` full thư mục. Chỉ khi người dùng yêu cầu commit và chính người dùng tự chọn/đưa file vào Staged Changes (`git add` thủ công), AI mới thực hiện commit đúng các file trong Staged Changes đó.
 - **DESCRIPTIVE COMMIT MESSAGE CONVENTION**: Nội dung commit message BẮT BUỘC phải mô tả rõ ràng, chính xác theo tính năng thực tế đã áp dụng (dùng chuẩn Semantic Commit như `feat(module): description`, `refactor(module): description`, `fix(module): description`...). KHÔNG dùng các chuỗi chung chung ngắn ngủi như "up", "test".
 
@@ -62,6 +64,11 @@ updated: 2026-07-29
 ```
 - **Using Directives Instead of Inline Namespaces**: BẮT BUỘC dùng `using` directive ở đầu file (VD: `using Modules.ShareData.Core.Entities;`) để gọi tên class ngắn gọn (VD: `EshPartner`) thay vì gõ namespace dài inline trong code (VD: `Core.Entities.EshPartner`).
 - **No Unnecessary Using Directives (IDE0005)**: KHÔNG import `using` mà không sử dụng trong file. Chỉ thêm `using` khi thực sự cần dùng type/namespace đó trong code.
+- **DTO vs Anonymous Objects**: Dữ liệu CÓ xử lý logic nội bộ → tạo **DTO**. Dữ liệu CHỈ map để gửi đi (bên khác xử lý) → dùng **Anonymous Object** (hoặc `Dictionary`).
+- **Null Reference (CS8601)**: Luôn gán giá trị dự phòng (`?? string.Empty`) khi gán `string?` cho `string` để dập cảnh báo CS8601.
+- **Async Method Naming**: KHÔNG thêm hậu tố `Async` vào tên phương thức bất đồng bộ (dùng `HandleIncomingConnection`, không phải `HandleIncomingConnectionAsync`).
+- **ASP.NET Core Configuration**: Ưu tiên `config.GetConnectionString("Default")` thay vì truy vấn key phân cấp thô (`config["DbConnection:ConnectionConfigs:0:ConnectionString"]`).
+- **Command & Validator Integration Testing (No separate validator test files)**: Kiểm thử Validator (FluentValidation) TRỰC TIẾP trong luồng test của class test Controller/Command tương ứng (`var validator = new XxxValidator();` → `validator.ValidateAsync(input)`). TUYỆT ĐỐI KHÔNG tách file/class test validator riêng.
 
 ## Entity Conventions & Length Constants
 - **Entity Inheritance**: All Entity classes MUST inherit from `EntityTenant` (from `Shared.Core.Domain`).
@@ -93,6 +100,7 @@ updated: 2026-07-29
   - **Vị trí thư mục Resources**: Thư mục `Resources` nằm ngang hàng với `Controllers`, `Core`, `Extensions`, `Infrastructure` trong root project của Module (VD: `Modules.ShareData/Resources/vi-VN.json`). KHÔNG đặt bên trong thư mục `Controllers`. Dịch thuật được cập nhật đồng bộ vào `src/TAC_WebAPI/Resources/` để hệ thống load đầy đủ.
 
 ## SqlSugar Db First Rules
+- **SqlSugar CodeFirst Reflection (`inherit: false`)**: Khi quét entity để tạo bảng qua CodeFirst (`InitTables`), BẮT BUỘC dùng `t.IsDefined(typeof(SugarTable), inherit: false)` để DTO kế thừa Entity (`AddXxxInput : EntityBase`, `PageXxxOutput : EntityBase`) không bị nhận nhầm và tự tạo bảng.
 - **SQLSUGAR DB FIRST SPECIFICATION (Quy trình DB First 2.1.5)**:
   1. Cấu hình chuỗi kết nối mới trong file `Database.json` với `ConfigId` tương ứng. Tắt tất cả các cài đặt khởi tạo tự động trong `DbSettings` (`Enable... = false`).
   2. **Bắt buộc thuộc tính `[Tenant(ConfigId)]`**: Tất cả các Entity sinh ra hoặc tạo tay cho DB First BẮT BUỘC phải có thuộc tính `[Tenant("ConfigId_Tuong_Ung")]` trên đầu class Entity.
