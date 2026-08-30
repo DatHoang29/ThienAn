@@ -974,4 +974,39 @@ public class VwWpfCommissioningTests
         Assert.Equal("PUT", vm.IsapiMethod);
         Assert.Equal("ISAPI/DisplayDev/ScreenCtrl/closeAll", vm.IsapiPath);
     }
+
+    [Fact]
+    public async Task VwWpfSceneSetup_SeedSampleScenesCommand_PopulatesPresetScenesAndWindows_Test()
+    {
+        // Arrange
+        var (controller, screenA, screenB, source) = SeedWallAsync();
+        var stack = BuildClientStack();
+        var connection = BuildConnection(stack, controller, screenA, screenB, source);
+        var confirmation = new UserConfirmationTest(answer: false);
+        var sceneSetup = new SceneSetupViewModel(stack.ActivityPublisher, connection, confirmation, stack.Publisher);
+
+        // Act: Click "Nạp 3 Scene mẫu"
+        await sceneSetup.SeedSampleScenesCommand.ExecuteAsync(null);
+
+        // Assert: 3 sample scenes are populated and Scene 1 is selected
+        Assert.True(sceneSetup.Scenes.Count >= 3);
+        Assert.Contains(sceneSetup.Scenes, s => s.Code == "VWSCENE_SAMPLE_01");
+        Assert.Contains(sceneSetup.Scenes, s => s.Code == "VWSCENE_SAMPLE_02");
+        Assert.Contains(sceneSetup.Scenes, s => s.Code == "VWSCENE_SAMPLE_03");
+        Assert.NotNull(sceneSetup.CurrentScene);
+        Assert.Equal("VWSCENE_SAMPLE_01", sceneSetup.CurrentScene.Code);
+        Assert.Equal(16, sceneSetup.SceneWindows.Count);
+
+        // Switch to Scene 2: Ban đêm (Bản đồ sự cố & 4 Trạm thu phí)
+        sceneSetup.CurrentScene = sceneSetup.Scenes.First(s => s.Code == "VWSCENE_SAMPLE_02");
+        Assert.Equal(5, sceneSetup.SceneWindows.Count);
+        Assert.Contains(sceneSetup.SceneWindows, w => w.W == 1280 && w.H == 1080);
+        Assert.Equal(4, sceneSetup.SceneWindows.Count(w => w.W == 640 && w.H == 270));
+
+        // Switch to Scene 3: Khẩn cấp (Full màn hình tai nạn)
+        sceneSetup.CurrentScene = sceneSetup.Scenes.First(s => s.Code == "VWSCENE_SAMPLE_03");
+        Assert.Single(sceneSetup.SceneWindows);
+        Assert.Equal(1920, sceneSetup.SceneWindows[0].W);
+        Assert.Equal(1080, sceneSetup.SceneWindows[0].H);
+    }
 }

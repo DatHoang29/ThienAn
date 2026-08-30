@@ -79,15 +79,16 @@ Thao tác kiểm tra (2 nút riêng, bấm lần lượt — Probe KHÔNG tự c
 | **Cổng ra** | `Output Port` | Cổng cắm dây cáp (HDMI/DVI) từ bộ điều khiển vào từng chiếc màn hình. Cổng 1 cắm Màn hình 1, Cổng 2 cắm Màn hình 2. |
 | **Nguồn tín hiệu** | `Input Source` | Các luồng hình ảnh đầu vào đưa vào bộ điều khiển (ví dụ: Nguồn 1 = Camera Nút giao A, Nguồn 2 = Camera Nút giao B, Nguồn 3 = Màn hình máy tính bản đồ giao thông). |
 | **Cửa sổ** | `Window` | Một khung hình chữ nhật hiển thị video của 1 camera trên bức tường. Cửa sổ có thể nằm gọn trong 1 màn hình, hoặc phóng to kéo dài phủ qua 2, 4 màn hình cùng lúc (như phóng to cửa sổ trên Windows). |
-| **Scene (Kịch bản hiển thị)** | `Scene / Layout` | Là **"một bức tranh toàn cảnh"** lưu lại trạng thái của toàn bộ bức tường tại một thời điểm: Có bao nhiêu cửa sổ, vị trí ở đâu, và mỗi cửa sổ đang phát camera nào. <br>• *Ví dụ*: `Scene Giờ cao điểm` (mở 4 camera ngã tư), `Scene Ban đêm` (chiếu bản đồ ở giữa và 2 camera trạm thu phí hai bên), `Scene Khẩn cấp` (phóng to camera sự cố ra giữa tường). Giúp người trực đổi giao diện tường chỉ bằng 1 nút bấm trong 1 giây mà không phải kéo tay từng camera. |
+| **Scene (Kịch bản hiển thị)** | `Scene / Layout` | Là **"một bức tranh toàn cảnh"** lưu lại trạng thái của toàn bộ bức tường tại một thời điểm: Có bao nhiêu cửa sổ, vị trí ở đâu, và mỗi cửa sổ đang phát camera nào. <br>• *Ví dụ*: `Scene Giờ cao điểm` (mở 16 camera nút giao), `Scene Ban đêm` (chiếu bản đồ ở giữa và 4 camera trạm thu phí), `Scene Khẩn cấp` (phóng to camera sự cố ra giữa tường). Giúp người trực đổi giao diện tường chỉ bằng 1 nút bấm trong 1 giây mà không phải kéo tay từng camera. |
+| **Scenario (Kịch bản kiểm thử / Chuỗi API)** | `Scenario / Automation Sequence` | Là **"một chuỗi hành động động gồm nhiều bước API nối tiếp nhau theo thời gian"** (ví dụ: Bước 1 khảo sát cổng ra $\rightarrow$ Chờ 400ms $\rightarrow$ Bước 2 mở cửa sổ camera $\rightarrow$ Chờ 1000ms $\rightarrow$ Bước 3 chuyển nguồn). Giúp kỹ sư tự động hoá kiểm thử phần cứng, đo độ trễ và bắt mã lỗi mà không cần click tay từng bước. |
 | **Bố cục cửa sổ trực quan** | `Visual Window Layout` | Công cụ tự động tính toán toạ độ pixel (X, Y, Rộng, Cao) trên giao diện thay vì người dùng phải tự tính toán số liệu thủ công. Chỉ cần tick chọn màn hình và nguồn, phần mềm tự tạo cửa sổ vừa khít màn hình. |
 | **Đẩy cấu hình xuống thiết bị** | `Push to Device` | Khi bạn dựng Scene trên phần mềm, cấu hình đó mới chỉ lưu tạm trong máy tính bạn. Bấm **"🚀 ĐẨY XUỐNG THIẾT BỊ"** sẽ gửi chuỗi lệnh ISAPI xuống bộ điều khiển thật: Xoá cửa sổ cũ, mở các cửa sổ mới đúng vị trí và kích hoạt bức tranh Scene mới lên tường màn hình thật. |
 | **Chạy thử** | `DryRun` | Chế độ "diễn tập an toàn": Phần mềm chạy thử quy trình đẩy cấu hình, kiểm tra toạ độ và in ra màn hình log, nhưng **chưa gửi lệnh ghi thật** xuống thiết bị, giúp bạn kiểm tra trước mà không sợ làm loạn màn hình thật. |
 | **Lớp xếp chồng** | `Z-Index` | Thứ tự đè lên nhau của các cửa sổ: `Z-Index = 1` nằm ở dưới làm nền, `Z-Index = 2` nằm đè lên trên (như cửa sổ bản đồ to ở dưới, ô camera nhỏ đè lên góc). |
 
 > 📌 **Phân biệt quan trọng giữa Tab 1 và Tab 2**:
-> - **Tab 1: "Thiết lập Scene"** = Quản lý **Bố cục màn hình tĩnh** (dựng cách xếp các ô camera hiển thị trên tường, lưu thành Scene và đẩy xuống thiết bị).
-> - **Tab 2: "Kịch bản"** = Quản lý **Chuỗi kiểm thử tự động (Automation Sequence)** (chạy một chuỗi nhiều bước gọi API liên tiếp nhau để kiểm tra phần cứng hoặc đo đạc).
+> - **Tab 1: "Thiết lập Scene"** = Quản lý **Bố cục màn hình tĩnh (Scene)** (dựng cách xếp các ô camera hiển thị trên tường, lưu thành Scene và đẩy xuống thiết bị).
+> - **Tab 2: "Kịch bản (Scenario)"** = Quản lý **Chuỗi kiểm thử tự động (Scenario / Automation Sequence)** (chạy một chuỗi nhiều bước gọi API liên tiếp nhau để kiểm tra phần cứng hoặc đo đạc).
 
 ---
 
@@ -113,11 +114,12 @@ Thao tác kiểm tra (2 nút riêng, bấm lần lượt — Probe KHÔNG tự c
 Tab này được thiết kế thành **4 Khung chức năng** từ trên xuống dưới. Bạn có thể kéo rê 2 thanh ngang xám mỏng (`GridSplitter`) giữa Khung 1-2 và Khung 2-3 để điều chỉnh độ cao theo ý muốn.
 
 #### 2.1. Khung 1 — Thiết lập Kịch bản (Scene)
-1. [ ] Nhìn vào danh sách **"Nguồn tín hiệu"**: Đã tự động có sẵn 2 kênh từ Probe (Kênh 1, Kênh 2).
-2. [ ] Nhìn vào bảng **"Màn hình vật lý"**:
-   - Nếu bảng trống (lần đầu chạy): Chọn Cổng ra ở ô thả xuống (VD: `Output 1`) → chọn Cột 0 Hàng 0 → bấm **"➕ Thêm màn"**. Tiếp tục chọn `Output 2` → chọn Cột 1 Hàng 0 → bấm **"➕ Thêm màn"**.
-   - Bảng sẽ hiện 2 màn hình ghép ngang (Cột 0 và Cột 1). Danh sách này được lưu tự động trên máy tính của bạn (`VwLocalScreenStore`), mở app lần sau không cần tạo lại.
-3. [ ] Tạo một Scene mới: Nhập tên `SCENE_BAN_NGAY` vào ô Tên kịch bản → bấm **"➕ Tạo mới"** → Tên kịch bản vừa tạo sẽ xuất hiện ở ô chọn kịch bản hiện tại.
+1. [ ] **Nạp 3 Scene mẫu thực tế**: Bấm nút **"📋 Nạp 3 Scene mẫu"** trên thanh công cụ Khung 1. Hệ thống sẽ tự động tạo sẵn 3 kịch bản thực tế chuẩn mẫu:
+   - **Scene 1 (Giờ cao điểm: 16 Cam nút giao)**: Mở 16 camera giám sát nút giao trọng điểm, chia lưới đều 4×4 (kích thước 480×270 mỗi ô, phủ kín toàn bộ tường 1920×1080).
+   - **Scene 2 (Ban đêm: Bản đồ sự cố & 4 Trạm thu phí)**: Mở Bản đồ sự cố toàn tuyến chiếm 2/3 màn hình bên trái (1280×1080) và 4 ô camera trạm thu phí bên phải (640×270 mỗi ô).
+   - **Scene 3 (Khẩn cấp: Phóng to camera tai nạn)**: Phóng to 1 camera duy nhất chiếm 100% diện tích toàn màn hình (1920×1080) tại điểm xảy ra sự cố.
+   - *Kiểm tra*: Bấm vào ô chọn kịch bản ("Kịch bản:"), chọn lần lượt từng Scene và quan sát Khung 3 ("Cửa sổ đã lưu") tự động tải danh sách các cửa sổ tương ứng.
+2. [ ] Tạo thêm Scene thủ công theo ý muốn: Nhập tên `SCENE_TUY_CHINH` vào ô Tên kịch bản → bấm **"➕ Tạo mới"** → Tên kịch bản vừa tạo sẽ xuất hiện ở ô chọn kịch bản hiện tại.
 
 #### 2.2. Khung 2 — Dựng cửa sổ (Windows)
 Chọn 1 trong 2 chế độ dựng bố cục:
@@ -148,11 +150,20 @@ Chọn 1 trong 2 chế độ dựng bố cục:
 
 ---
 
-### Bước 3 — Tab 2 "Kịch bản" (Tự động hoá chuỗi API & Kiểm thử phần cứng)
+### Bước 3 — Tab 2 "Kịch bản (Scenario)" (Tự động hoá chuỗi API & Kiểm thử phần cứng)
 
-> 💡 **Lưu ý**: Khác với Tab 1 dùng để thiết kế hình ảnh hiển thị trên tường, **Tab 2 là công cụ kiểm tra tự động hoá** dành cho kỹ sư để chạy hàng loạt các lệnh API liên tiếp nhằm kiểm tra độ bền và bắt lỗi thiết bị.
+> 💡 **Giải thích Keyword: Scenario (Kịch bản kiểm thử / Chuỗi API tự động) là gì?**
+> - **Định nghĩa:** Khác với `Scene` (chỉ là ảnh chụp bố cục tĩnh các ô camera trên màn hình lớn ở Tab 1), **Scenario** là một **kịch bản chuỗi hành động động** gồm nhiều bước gọi API ISAPI liên tiếp nhau theo thời gian, có thời gian chờ (delay mili-giây) giữa các bước.
+> - **Ví dụ thực tế**:
+>   * *Bước 1:* Gọi API đọc danh sách cổng ra màn hình (`GET /ISAPI/DisplayDev/ScreenCtrl/channels`).
+>   * *Chờ 400ms.*
+>   * *Bước 2:* Gọi API mở cửa sổ camera số 1 (`PUT /ISAPI/DisplayDev/ScreenCtrl/openWindow`).
+>   * *Chờ 1000ms.*
+>   * *Bước 3:* Gọi API chuyển sang nguồn camera số 2 (`PUT /ISAPI/DisplayDev/ScreenCtrl/switchSource`).
+> - **Mục đích của Tab 2 (Scenario):** Giúp kỹ sư tự động hoá kiểm thử phần cứng, đo độ trễ của thiết bị Hikvision và diễn tập các kịch bản vận hành mà không cần click chuột gọi từng API thủ công.
+> - **Tính năng Resume (Chạy tiếp từ bước lỗi):** Nếu kịch bản đang chạy 10 bước mà bước 4 bị rớt mạng hoặc timeout, nút chạy sẽ tự động đổi thành **"▶ Chạy tiếp từ bước #4"** để tiếp tục mà không cần chạy lại từ đầu.
 
-**3a. Danh sách kịch bản gộp (cột trái "1. Danh sách kịch bản")** ✅
+**3a. Danh sách Scenario gộp (cột trái "1. Danh sách kịch bản (Scenario)")** ✅
 1. [ ] Nhìn cột trái → thấy **3 mục 📦 built-in ở đầu danh sách** ("📦 1. Thiết lập scene (không chụp hình)", "📦 2. ... (có chụp hình)", "📦 3. Active scene"), tiếp theo là các Scene bạn vừa tạo ở Tab 1 (`SCENE_BAN_NGAY`, v.v.).
 2. [ ] Chọn 1 mục 📦 built-in → nút **"Xoá"** tự mờ đi (bảo vệ kịch bản mặc định của hệ thống).
 3. [ ] Chọn 1 mục do bạn tự tạo → nút **"Xoá"** sáng lên để có thể xoá.

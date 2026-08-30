@@ -201,10 +201,23 @@ Khi có nhiều cửa sổ nằm đè lên nhau:
 > - **Scene (Tab 1)**: Là **bố cục hiển thị tĩnh trên tường** (vị trí các ô camera hiển thị trên màn hình lớn ngoài đời).
 > - **Scenario / Chuỗi kiểm thử (Tab 2)**: Là **kịch bản tự động hoá chuỗi API** (chạy liên tiếp nhiều bước gọi API để kiểm tra chức năng và đo tốc độ thiết bị).
 
-### 5.3. Schedule / Patrol (Lập lịch & Tuần tra Tự động)
+### 5.3. Scenario (Kịch bản Kiểm thử / Chuỗi Tự động hoá API — Tab 2)
+- **Định nghĩa:** Là một kịch bản chuỗi hành động động (Automation Sequence) gồm nhiều bước gọi API ISAPI liên tiếp nhau theo thời gian, có thời gian chờ (delay tính bằng mili-giây) giữa các bước.
+- **Mục đích sử dụng:**
+  1. Tự động hóa kiểm thử phần cứng Video Wall mà không cần kỹ sư phải gõ hay click gọi từng API thủ công.
+  2. Đo thời gian đáp ứng (latency) và kiểm tra độ ổn định của bộ điều khiển Hikvision.
+  3. Hỗ trợ tính năng **Resume (Chạy tiếp từ bước lỗi)**: Khi xảy ra mất mạng hoặc lỗi ở bước $N$, kỹ sư chỉ cần khắc phục và bấm chạy tiếp từ bước $N$ mà không phải chạy lại từ đầu.
+- **Ví dụ thực tế:**
+  - *Bước 1:* Gọi `GET /ISAPI/DisplayDev/ScreenCtrl/channels` (Khảo sát các cổng ra).
+  - *Chờ 400ms.*
+  - *Bước 2:* Gọi `PUT /ISAPI/DisplayDev/ScreenCtrl/openWindow` (Mở cửa sổ camera số 1).
+  - *Chờ 500ms.*
+  - *Bước 3:* Gọi `PUT /ISAPI/DisplayDev/ScreenCtrl/switchSource` (Đổi sang camera số 2).
+
+### 5.4. Schedule / Patrol (Lập lịch & Tuần tra Tự động)
 - **Định nghĩa:** Cơ chế tự động luân phiên kích hoạt các Scene theo một thời gian biểu định sẵn (ví dụ: Tự động đổi giữa Scene 1, Scene 2, Scene 3 mỗi 30 giây).
 
-### 5.4. Event Rule & Trigger Linkage (Quy tắc Sự kiện & Tự động hóa)
+### 5.5. Event Rule & Trigger Linkage (Quy tắc Sự kiện & Tự động hóa)
 - **Định nghĩa:** Cơ chế liên kết giữa các cảm biến / hệ thống ngoại vi với Video Wall:
   - *Trigger:* Nhận tin nhắn sự kiện từ phân hệ TMS/FMS (như *"Phát hiện xe đi ngược chiều"*, *"Cháy trong hầm"*).
   - *Action:* Video Wall tự động nhảy sang Scene cảnh báo hoặc tự động mở cửa sổ camera tại vị trí sự cố lên tường màn hình trung tâm.

@@ -262,4 +262,60 @@ public sealed class VwLocalStoresTests : IDisposable
         Assert.Equal(win2.ID, after[0].ID);
         Assert.Equal("Win 2", after[0].Name);
     }
+
+    [Fact]
+    public void VwLocalSceneStore_SeedSampleScenes_GeneratesThreeRealisticScenesWithWindows_Test()
+    {
+        // Arrange
+        const string deviceKey = "10.10.8.200";
+        var sources = new List<VwSourceDto>
+        {
+            new() { ID = "src-01", Name = "CAM-01" },
+            new() { ID = "src-02", Name = "CAM-02" },
+            new() { ID = "src-03", Name = "CAM-03" },
+        };
+
+        // Act
+        var seeded = VwLocalSceneStore.SeedSampleScenes(deviceKey, _tempDirectory, sources);
+
+        // Assert 1: Exactly 3 scenes generated
+        Assert.Equal(3, seeded.Count);
+
+        // Scene 1: Giờ cao điểm (16 Cam nút giao)
+        var s1 = seeded.First(s => s.Code == "VWSCENE_SAMPLE_01");
+        Assert.Equal("1", s1.OutputId);
+        Assert.Equal(4, s1.GridCols);
+        Assert.Equal(4, s1.GridRows);
+        var s1Windows = VwLocalSceneStore.ListWindowScenes(deviceKey, s1.ID!, _tempDirectory);
+        Assert.Equal(16, s1Windows.Count);
+        Assert.All(s1Windows, w =>
+        {
+            Assert.Equal(480, w.W);
+            Assert.Equal(270, w.H);
+            Assert.Equal(1, w.ZIndex);
+        });
+
+        // Scene 2: Ban đêm (Bản đồ sự cố + 4 Trạm thu phí)
+        var s2 = seeded.First(s => s.Code == "VWSCENE_SAMPLE_02");
+        Assert.Equal("2", s2.OutputId);
+        var s2Windows = VwLocalSceneStore.ListWindowScenes(deviceKey, s2.ID!, _tempDirectory);
+        Assert.Equal(5, s2Windows.Count);
+        var mapWindow = s2Windows.First(w => w.W == 1280 && w.H == 1080);
+        Assert.Contains("Bản đồ", mapWindow.Name);
+        var tollWindows = s2Windows.Where(w => w.W == 640 && w.H == 270).ToList();
+        Assert.Equal(4, tollWindows.Count);
+
+        // Scene 3: Khẩn cấp (Full màn hình tai nạn)
+        var s3 = seeded.First(s => s.Code == "VWSCENE_SAMPLE_03");
+        Assert.Equal("3", s3.OutputId);
+        var s3Windows = VwLocalSceneStore.ListWindowScenes(deviceKey, s3.ID!, _tempDirectory);
+        Assert.Single(s3Windows);
+        Assert.Equal(1920, s3Windows[0].W);
+        Assert.Equal(1080, s3Windows[0].H);
+
+        // Act 2: Re-seeding overwrites cleanly without duplication
+        var reseeded = VwLocalSceneStore.SeedSampleScenes(deviceKey, _tempDirectory, sources);
+        var allScenes = VwLocalSceneStore.ListScenes(deviceKey, _tempDirectory);
+        Assert.Equal(3, allScenes.Count);
+    }
 }
