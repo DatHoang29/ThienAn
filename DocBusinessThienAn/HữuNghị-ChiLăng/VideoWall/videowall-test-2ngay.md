@@ -1,15 +1,15 @@
 # Checklist test 2 ngày tại TCB (nội bộ)
 
-> Bản nội bộ — mang theo khi đi hiện trường. Bối cảnh & cơ chế: [`videowall-record-replay.md`](videowall-record-replay.md).
+> Bản nội bộ — mang theo khi đi hiện trường. Bối cảnh & cơ chế: [`videowall-kien-truc-van-hanh.md`](videowall-kien-truc-van-hanh.md).
 > Thiết bị: **Hikvision DS-C30S-S11** (1 controller, 12 màn). **Không đụng phần cứng.**
 
-## Nguyên tắc
+## Nguyên tắc (Thống nhất trong cuộc họp 28/08)
 
-- Tương tác qua IP (ISAPI/HTTP). Không mở/tháo/đổi phần cứng, không đổi dây genlock.
-- Log **tự động ghi liên tục ngay khi mở app, không cần bật gì** — mọi request/response tự vào file `%LOCALAPPDATA%\Module.VideoWall.WPF\Logs\session_*.jsonl`. ⚠️ Không có nút "chế độ Ghi" để bật/tắt — nó luôn chạy sẵn.
-- Chụp màn hình từng bước: màn tường · web quản lý controller · màn công cụ · (khi lỗi) đèn báo controller.
-- 1 case khó quá **~1 giờ** không xong → **skip**, ghi lại "chưa xong + dữ liệu kèm theo", làm việc khác. ⚠️ Về nhà xử tiếp bằng cách **đọc lại file log JSONL đã lưu** — KHÔNG có công cụ "Phát lại (Replay)" tự chạy lại request cũ, phải tự tay làm lại theo đúng thông số đã ghi trong log.
-- Bình thường → chụp là đủ. Lỗi → lấy log chi tiết + mã lỗi.
+- **Tương tác qua IP (ISAPI/HTTP)**: Không mở/tháo/đổi phần cứng, không đổi dây genlock của khách hàng.
+- **Tự động ghi log ra file để theo dõi**: Mọi thao tác gửi request và dữ liệu phản hồi từ thiết bị đều tự động ghi nối tiếp vào file `%LOCALAPPDATA%\Module.VideoWall.WPF\Logs\session_*.jsonl` để làm căn cứ phân tích và đối chiếu sau này.
+- **Chụp ảnh màn hình các bước**: Màn hình tường · web quản lý controller · màn hình app WPF · (khi có lỗi) đèn báo trên bộ điều khiển.
+- **Quy tắc 1 giờ**: Nếu gặp một case khó quá **~1 giờ** không xong → **skip**, ghi chú lại "chưa xong + dữ liệu gửi/nhận", chuyển sang làm việc khác. Về nhà mở file log JSONL để phân tích chi tiết, không ngâm lâu ảnh hưởng tiến độ chung.
+- Bình thường → chụp ảnh màn hình tường là đủ. Lỗi → lấy log chi tiết + mã lỗi thiết bị trả về.
 
 ---
 
@@ -25,12 +25,17 @@
 - [ ] **Tải file cấu hình từ web quản lý** của controller (Maintenance/Security → Backup) — đây là bản backup CHÍNH, đầy đủ nhất (cơ chế gốc của hãng). Sau khi test xong, phục hồi lại bằng đúng file này qua web quản lý.
 - [ ] Clone kịch bản đang chạy ra bản riêng để test (không đụng bản gốc).
 
-### 3. Bố cục scene — chạy DryRun trước, rồi đẩy thật
-- [ ] **Scene KHÔNG chồng**: mỗi màn 1 cửa sổ phủ kín, lưới 4×3 (xác nhận cách xếp khi tới nơi). Đẩy thật → nhìn tường → chụp.
-- [ ] **Scene CHỒNG cửa sổ**: 2 nguồn xếp lớp — 1 to làm nền (ZIndex 1), 1 nhỏ đè lên (ZIndex 2). Đẩy → nhìn → chụp.
-- [ ] **Chia nhỏ 1 cửa sổ**: 1 nguồn chia 4 / 6 / 9 ô.
-- [ ] **Canh size khi 2 trigger**: dựng tình huống 2 vùng tranh nhau → canh 1 nhỏ 1 lớn.
-- [ ] **Activate scene**: tạo 2–3 scene, chuyển qua lại, xem tường đổi đúng. Chụp mỗi lần.
+### 3. Bố cục scene (Bố cục các ô camera trên tường) — chạy DryRun trước, rồi đẩy thật
+> 💡 *Ghi nhớ nhanh*: 
+> - **Scene**: Là "bức tranh toàn cảnh" lưu lại vị trí các ô camera trên tường tại 1 thời điểm.
+> - **DryRun (Chạy thử)**: Diễn tập an toàn, kiểm tra tính toán toạ độ và log mà chưa gửi lệnh đổi màn hình thật.
+> - **Đẩy thật**: Gửi lệnh ISAPI xuống thiết bị để xoá cũ, tạo mới các ô camera và kích hoạt Scene lên tường thật.
+
+- [ ] **Scene KHÔNG chồng** (Tab 1, Chế độ A): Mỗi màn hình chiếu 1 camera độc lập phủ kín 100%, lưới 4×3 (xác nhận cách xếp khi tới nơi). Bật DryRun kiểm tra trước → Tắt DryRun bấm Đẩy thật → nhìn tường màn hình đổi đúng → chụp ảnh.
+- [ ] **Scene CHỒNG cửa sổ** (Tab 1, Chế độ B): 2 nguồn camera xếp lớp — 1 ô to làm nền (ZIndex 1), 1 ô nhỏ đè lên góc (ZIndex 2, Picture-in-Picture). Đẩy thật → nhìn tường → chụp ảnh.
+- [ ] **Chia nhỏ 1 cửa sổ**: 1 nguồn chia 4 / 6 / 9 ô camera.
+- [ ] **Canh size khi 2 trigger** (Tab 2): Dựng tình huống 2 vùng tranh nhau → canh 1 nhỏ 1 lớn.
+- [ ] **Activate scene**: Tạo 2–3 scene khác nhau, bấm nút kích hoạt chuyển qua lại giữa các scene, xem tường đổi tức thì trong 1 giây. Chụp ảnh mỗi lần.
 
 ### 4. Case lỗi — làm sớm (dễ bị vướng)
 - [ ] **Sai số màn**: khai 21 màn khi thiết bị chỉ 12 → thiết bị **phải báo lỗi**. Chụp mã lỗi, ghi vào file.
@@ -61,6 +66,6 @@ Không cần test hết mọi thứ — đủ khi:
 - [ ] 1. Kết nối + Probe + Backup + Restore **chạy được trên thiết bị thật**.
 - [ ] 2. Mỗi loại bố cục **ít nhất 1 lần đẩy thật, thấy tường đổi đúng, có ảnh**: scene không chồng / scene chồng / activate.
 - [ ] 3. **Ít nhất 2 case lỗi** (sai số màn + SID sai) có **mã lỗi thật của thiết bị** ghi ra file.
-- [ ] 4. Có **file log JSONL tự động** (không phải công cụ riêng — luôn ghi sẵn) + ảnh cho mọi bước.
+- [ ] 4. Có **file log JSONL tự động lưu toàn bộ dữ liệu gửi/nhận** + ảnh chụp cho mọi bước.
 - [ ] 5. Cấu hình khách **trả về nguyên trạng**, có xác nhận của khách.
 - [ ] 6. Case nào > 1 giờ không ra → đã ghi "chưa xong + dữ liệu kèm theo" (không cố đấm).

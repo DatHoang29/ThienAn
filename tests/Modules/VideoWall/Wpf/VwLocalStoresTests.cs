@@ -239,4 +239,27 @@ public sealed class VwLocalStoresTests : IDisposable
         Assert.Single(scenesDev2);
         Assert.Equal("Scene on Dev2", scenesDev2[0].Name);
     }
+
+    [Fact]
+    public void VwLocalSceneStore_DeleteWindowScenes_RemovesMultipleWindowsBatch_Test()
+    {
+        // Arrange
+        const string deviceKey = "10.0.0.99";
+        var scene = VwLocalSceneStore.AddScene(deviceKey, new VwSceneDto { Name = "Scene Test" }, _tempDirectory);
+        var win1 = VwLocalSceneStore.AddWindowScene(deviceKey, new VwWindowSceneDto { SceneId = scene.ID, Name = "Win 1" }, _tempDirectory);
+        var win2 = VwLocalSceneStore.AddWindowScene(deviceKey, new VwWindowSceneDto { SceneId = scene.ID, Name = "Win 2" }, _tempDirectory);
+        var win3 = VwLocalSceneStore.AddWindowScene(deviceKey, new VwWindowSceneDto { SceneId = scene.ID, Name = "Win 3" }, _tempDirectory);
+
+        var before = VwLocalSceneStore.ListWindowScenes(deviceKey, scene.ID!, _tempDirectory);
+        Assert.Equal(3, before.Count);
+
+        // Act: Delete win1 and win3
+        VwLocalSceneStore.DeleteWindowScenes(deviceKey, [win1.ID!, win3.ID!], _tempDirectory);
+
+        // Assert: Only win2 remains
+        var after = VwLocalSceneStore.ListWindowScenes(deviceKey, scene.ID!, _tempDirectory);
+        Assert.Single(after);
+        Assert.Equal(win2.ID, after[0].ID);
+        Assert.Equal("Win 2", after[0].Name);
+    }
 }

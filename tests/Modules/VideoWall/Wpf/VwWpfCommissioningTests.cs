@@ -585,6 +585,151 @@ public class VwWpfCommissioningTests
 
     /// <summary>
     /// Author: Đạt
+    /// Description: Xoá nhiều cửa sổ: khi chưa tick chọn cửa sổ nào thì hiển thị thông báo nhắc nhở.
+    /// Created date: 30/08/2026
+    /// </summary>
+    [Fact]
+    public async Task VwWpfSceneSetup_DeleteSelectedSceneWindows_WhenNoSelection_ShowsMessage_Test()
+    {
+        // Arrange
+        var (controller, screenA, screenB, source) = SeedWallAsync();
+        var stack = BuildClientStack();
+        var connection = BuildConnection(stack, controller, screenA, screenB, source);
+        var confirmation = new UserConfirmationTest(answer: true);
+        var sceneSetup = await CreateSceneWithWindowsAsync(stack, connection, confirmation, source);
+
+        // Act
+        await sceneSetup.DeleteSelectedSceneWindowsCommand.ExecuteAsync(null);
+
+        // Assert
+        Assert.Equal(0, confirmation.CallCount);
+        Assert.Contains("ít nhất", sceneSetup.StatusMessage);
+        Assert.Equal(2, sceneSetup.SceneWindows.Count);
+    }
+
+    /// <summary>
+    /// Author: Đạt
+    /// Description: Multi-select & Xoá hàng loạt: chọn tất cả và xoá sạch toàn bộ cửa sổ đã chọn.
+    /// Created date: 30/08/2026
+    /// </summary>
+    [Fact]
+    public async Task VwWpfSceneSetup_DeleteSelectedSceneWindows_RemovesAllSelected_Test()
+    {
+        // Arrange
+        var (controller, screenA, screenB, source) = SeedWallAsync();
+        var stack = BuildClientStack();
+        var connection = BuildConnection(stack, controller, screenA, screenB, source);
+        var confirmation = new UserConfirmationTest(answer: true);
+        var sceneSetup = await CreateSceneWithWindowsAsync(stack, connection, confirmation, source);
+        var sceneId = sceneSetup.CurrentScene!.ID!;
+
+        // Act: Chọn tất cả
+        sceneSetup.IsAllSceneWindowsSelected = true;
+        Assert.True(sceneSetup.SceneWindows.All(w => w.IsSelected));
+
+        await sceneSetup.DeleteSelectedSceneWindowsCommand.ExecuteAsync(null);
+
+        // Assert
+        Assert.Equal(1, confirmation.CallCount);
+        Assert.Empty(sceneSetup.SceneWindows);
+        var remaining = VwLocalSceneStore.ListWindowScenes(connection.DeviceKey, sceneId);
+        Assert.Empty(remaining);
+    }
+
+    /// <summary>
+    /// Author: Đạt
+    /// Description: Multi-select & Xoá chỉ các mục được chọn: giữ lại các mục không tick.
+    /// Created date: 30/08/2026
+    /// </summary>
+    [Fact]
+    public async Task VwWpfSceneSetup_DeleteSelectedSceneWindows_RemovesOnlySelected_Test()
+    {
+        // Arrange
+        var (controller, screenA, screenB, source) = SeedWallAsync();
+        var stack = BuildClientStack();
+        var connection = BuildConnection(stack, controller, screenA, screenB, source);
+        var confirmation = new UserConfirmationTest(answer: true);
+        var sceneSetup = await CreateSceneWithWindowsAsync(stack, connection, confirmation, source);
+        var sceneId = sceneSetup.CurrentScene!.ID!;
+
+        var doomedId = sceneSetup.SceneWindows[0].ID!;
+        var keptId = sceneSetup.SceneWindows[1].ID!;
+
+        // Act: Chỉ chọn mục đầu tiên
+        sceneSetup.SceneWindows[0].IsSelected = true;
+        sceneSetup.SceneWindows[1].IsSelected = false;
+
+        await sceneSetup.DeleteSelectedSceneWindowsCommand.ExecuteAsync(null);
+
+        // Assert
+        Assert.Equal(1, confirmation.CallCount);
+        Assert.Single(sceneSetup.SceneWindows);
+        Assert.Equal(keptId, sceneSetup.SceneWindows[0].ID);
+
+        var remaining = VwLocalSceneStore.ListWindowScenes(connection.DeviceKey, sceneId);
+        Assert.Single(remaining);
+        Assert.Equal(keptId, remaining[0].ID);
+    }
+
+    /// <summary>
+    /// Author: Đạt
+    /// Description: Multi-select & Xoá hàng loạt: khi người dùng bấm KHÔNG ở hộp thoại xác nhận,
+    ///              toàn bộ cửa sổ phải còn nguyên vẹn trong store và UI.
+    /// Created date: 30/08/2026
+    /// </summary>
+    [Fact]
+    public async Task VwWpfSceneSetup_DeleteSelectedSceneWindows_WhenCancelled_LeavesWindowsUntouched_Test()
+    {
+        // Arrange
+        var (controller, screenA, screenB, source) = SeedWallAsync();
+        var stack = BuildClientStack();
+        var connection = BuildConnection(stack, controller, screenA, screenB, source);
+        var confirmation = new UserConfirmationTest(answer: false);
+        var sceneSetup = await CreateSceneWithWindowsAsync(stack, connection, confirmation, source);
+        var sceneId = sceneSetup.CurrentScene!.ID!;
+
+        // Act: Chọn tất cả rồi bấm xoá nhưng từ chối xác nhận
+        sceneSetup.IsAllSceneWindowsSelected = true;
+        await sceneSetup.DeleteSelectedSceneWindowsCommand.ExecuteAsync(null);
+
+        // Assert
+        Assert.Equal(1, confirmation.CallCount);
+        Assert.Contains("huỷ", sceneSetup.StatusMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(2, sceneSetup.SceneWindows.Count);
+
+        var remaining = VwLocalSceneStore.ListWindowScenes(connection.DeviceKey, sceneId);
+        Assert.Equal(2, remaining.Count);
+    }
+
+    /// <summary>
+    /// Author: Đạt
+    /// Description: Toggle IsAllSceneWindowsSelected đồng bộ trạng thái IsSelected của toàn bộ các dòng.
+    /// Created date: 30/08/2026
+    /// </summary>
+    [Fact]
+    public async Task VwWpfSceneSetup_IsAllSceneWindowsSelected_TogglesAllRows_Test()
+    {
+        // Arrange
+        var (controller, screenA, screenB, source) = SeedWallAsync();
+        var stack = BuildClientStack();
+        var connection = BuildConnection(stack, controller, screenA, screenB, source);
+        var confirmation = new UserConfirmationTest(answer: true);
+        var sceneSetup = await CreateSceneWithWindowsAsync(stack, connection, confirmation, source);
+
+        Assert.Equal(2, sceneSetup.SceneWindows.Count);
+        Assert.True(sceneSetup.SceneWindows.All(w => !w.IsSelected));
+
+        // Act 1: Chọn tất cả
+        sceneSetup.IsAllSceneWindowsSelected = true;
+        Assert.True(sceneSetup.SceneWindows.All(w => w.IsSelected));
+
+        // Act 2: Bỏ chọn tất cả
+        sceneSetup.IsAllSceneWindowsSelected = false;
+        Assert.True(sceneSetup.SceneWindows.All(w => !w.IsSelected));
+    }
+
+    /// <summary>
+    /// Author: Đạt
     /// Description: Bấm Xoá kịch bản rồi CHỌN KHÔNG ở hộp thoại — kịch bản phải còn nguyên.
     /// Created date: 25/08/2026
     /// </summary>

@@ -6,7 +6,7 @@ Thư mục này gồm **2 khu** khác mục đích. Xác định bạn đang là
 |---|---|
 | Tìm hiểu nghiệp vụ / yêu cầu dự án | Khu 2 → `videowall_plan.md`, `transcript-videowall-28082026.md` |
 | Tra bộ lệnh ISAPI / kiểu response thiết bị | Khu 1 → `ISAPI-Videowall-Controller/` (đọc `README.md` trước) |
-| Dùng / nâng cấp công cụ WPF (Ghi / Phát lại) | Khu 2 → `videowall-record-replay.md` |
+| Tìm hiểu kiến trúc công cụ WPF (Thiết lập Scene & Auto-Log) | Khu 2 → `videowall-kien-truc-van-hanh.md` |
 | Thử công cụ tại máy (không có thiết bị) | Khu 2 → `videowall-test-local.md` |
 | Chuẩn bị đi test 2 ngày | Khu 2 → `videowall-test-2ngay.md` |
 | Xem thông số phần cứng DS-C30S-S11 | `_source/DS-C30S-S11_Datasheet_20250324.md` |
@@ -24,11 +24,11 @@ Thư mục này gồm **2 khu** khác mục đích. Xác định bạn đang là
 | `TableSQL/Vw_Tables_Analysis_And_Design.md` | Phân tích & thiết kế bảng CSDL `Vw*` |
 | `_source/` | PDF / XLSX gốc + `DS-C30S-S11_Datasheet_20250324.md` (datasheet đã convert) — **PDF chỉ cho người xem** |
 
-## KHU 2 — Công cụ WPF (Live Mode & Tự động ghi Log) *(kế hoạch & vận hành)*
+## KHU 2 — Công cụ WPF (Live Mode: Thiết lập Scene & Tự động ghi Log) *(kế hoạch & vận hành)*
 
 | File | Nội dung | Đọc khi |
 |---|---|---|
-| `videowall-record-replay.md` | **Tài liệu chính.** Phần A bối cảnh & quyết định (chỉ 2 tầng WPF ↔ Thiết bị) · B cơ chế & thiết kế (Auto session log, chuỗi handler Digest, layout Response động) · C runbook (Vận hành tại hiện trường & Kịch bản) | luôn bắt đầu ở đây |
+| `videowall-kien-truc-van-hanh.md` | **Tài liệu chính.** Phần A bối cảnh & quyết định (chỉ 2 tầng WPF ↔ Thiết bị) · B cơ chế & thiết kế (Auto session log, chuỗi handler Digest, layout Response động) · C runbook (Vận hành tại hiện trường & Kịch bản) | luôn bắt đầu ở đây |
 | `videowall-test-local.md` | 2 cách chạy thử công cụ tại máy không cần thiết bị: Bộ test tự động .NET · MockServer riêng (`scripts/VwMockServerRunner`) + app WPF (đầy đủ các bước kiểm thử) | thử sản phẩm trước |
 | `videowall-test-2ngay.md` | Checklist tick-box đi test 2 ngày tại TCB: Ngày 1 / Ngày 2 / "thế nào là đủ" | trước & trong chuyến đi |
 | `videowall_plan.md` | Đặc tả yêu cầu gốc — gộp họp 19/08 + 25/08 (bản lịch sử, không sửa) | đối chiếu yêu cầu ban đầu |
@@ -36,5 +36,4 @@ Thư mục này gồm **2 khu** khác mục đích. Xác định bạn đang là
 
 ---
 
-*Con trỏ trong bộ nhớ: `.agents/memory/videowall-record-replay-plan.md`,
-`.agents/memory/docbusiness-hn-cl-index.md`.*
+*Con trỏ trong bộ nhớ: `.agents/memory/videowall-record-replay-plan.md`.*

@@ -13,8 +13,5 @@ Công cụ `Module.VideoWall.WPF` đã được **đơn giản hoá**: bỏ Reco
 - **Local Storage**: `VwLocalScreenStore` và `VwLocalSceneStore` lưu cấu hình màn hình và kịch bản độc lập theo `deviceKey` tại local.
 - **Kịch bản (Scenario)**: Tab Kịch bản cho phép cấu hình chuỗi gọi nhiều API liên tiếp, chỉnh `DelayBetweenStepsMs`, lưu kịch bản, và "▶ Chạy tiếp từ bước #N (Resume)". Bộ kiểm thử lỗi hỗ trợ công tắc "Gửi thật để xem mã lỗi thiết bị".
 - **Khung Response Động**: Khung Response toàn màn hình tự động hiển thị ở Tab 3..13 ISAPI và tự động ẩn ở Tab 1 & Tab 2, thanh `GridSplitter` chính và phụ kéo thả trơn tru không sinh mảng trắng.
-- **Tài liệu**:
-  - `videowall-record-replay.md` — kiến trúc Live + auto-log + Kịch bản + Local Store.
-  - `videowall-test-local.md` — chạy test tự động và MockServer riêng `scripts/VwMockServerRunner`.
-  - `videowall-test-2ngay.md` — checklist kiểm thử 2 ngày tại hiện trường.
+- **Tài liệu**: Danh mục tài liệu chuẩn và hướng dẫn kiểm thử được quản lý duy nhất tại [`DocBusinessThienAn/HữuNghị-ChiLăng/VideoWall/README.md`](../DocBusinessThienAn/HữuNghị-ChiLăng/VideoWall/README.md).
 

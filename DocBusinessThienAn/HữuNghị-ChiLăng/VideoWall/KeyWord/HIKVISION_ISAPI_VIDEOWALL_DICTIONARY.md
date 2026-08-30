@@ -191,9 +191,15 @@ Khi có nhiều cửa sổ nằm đè lên nhau:
   - `Scene 2 (Ban đêm)`: Mở bản đồ sự cố toàn tuyến và 4 camera trạm thu phí.
   - `Scene 3 (Khẩn cấp)`: Phóng to toàn màn hình camera nơi xảy ra tai nạn giao thông.
 
-### 5.2. Scene SaveData & Scene Activate
+### 5.2. Scene SaveData, Scene Activate & Push to Device (Đẩy cấu hình xuống thiết bị)
 - **`SaveData`:** Lưu bố cục cửa sổ đang hiển thị trên tường vào bộ nhớ của Controller thành một mã Scene ID.
 - **`Activate`:** Lệnh chuyển đổi tường màn hình sang bố cục của Scene ID mong muốn (thời gian chuyển cảnh thường diễn ra tức thì dưới 1 giây).
+- **`Push to Device` (Đẩy cấu hình xuống thiết bị):** Toàn trình tự động từ ứng dụng máy tính gửi chuỗi lệnh ISAPI xuống bộ điều khiển: Xoá cửa sổ cũ, mở các cửa sổ mới đúng toạ độ, gán đúng camera, lưu thành Scene và kích hoạt Scene đó sáng lên tường màn hình thật.
+- **`DryRun` (Chạy thử an toàn):** Chế độ mô phỏng toàn bộ quy trình đẩy cấu hình và ghi log kiểm tra toạ độ nhưng chưa gửi lệnh ghi thật xuống phần cứng, giúp kiểm tra tính đúng đắn trước khi làm thay đổi màn hình thật.
+
+> 💡 **Phân biệt quan trọng: Scene vs Scenario**:
+> - **Scene (Tab 1)**: Là **bố cục hiển thị tĩnh trên tường** (vị trí các ô camera hiển thị trên màn hình lớn ngoài đời).
+> - **Scenario / Chuỗi kiểm thử (Tab 2)**: Là **kịch bản tự động hoá chuỗi API** (chạy liên tiếp nhiều bước gọi API để kiểm tra chức năng và đo tốc độ thiết bị).
 
 ### 5.3. Schedule / Patrol (Lập lịch & Tuần tra Tự động)
 - **Định nghĩa:** Cơ chế tự động luân phiên kích hoạt các Scene theo một thời gian biểu định sẵn (ví dụ: Tự động đổi giữa Scene 1, Scene 2, Scene 3 mỗi 30 giây).
@@ -309,7 +315,7 @@ cộng dồn toàn thiết bị — nên chọn đúng WallNo trước khi thao 
 | **ResponseStatus / statusCode** (§1.5) | `VwSetupSceneStep.HttpStatus` / `.Message` | Hiện ở khung Log; "Bộ kiểm thử lỗi" Tab 2 đọc field này để in `[PASS]`/`[FAIL]` |
 | **Digest Authentication** (§1.3) | `VwDirectDigestHandler` | MockServer local mặc định KHÔNG kiểm tra hash password thật (`VerifyDigestResponseHash=false`) — thiết bị thật thì có |
 | **Circuit Breaker** (§6.2) | `FailedAuthLockoutThreshold` trong MockServer | Chỉ bật được qua `dotnet test`, không qua UI |
-| **Event Rule & Trigger Linkage** (§5.4) | ~~Đã xoá khỏi app~~ | Thuộc tầng Backend/DB — ngoài phạm vi test Direct Mode (§A3 `videowall-record-replay.md`) |
+| **Event Rule & Trigger Linkage** (§5.4) | ~~Đã xoá khỏi app~~ | Thuộc tầng Backend/DB — ngoài phạm vi test Direct Mode (§A3 `videowall-kien-truc-van-hanh.md`) |
 | **Schedule / Patrol** (§5.3) | Tab "Lịch" (`ScheduleViewModel`) | Chưa gắn vào MainWindow — orphan, ngoài phạm vi hiện tại |
 
 ---

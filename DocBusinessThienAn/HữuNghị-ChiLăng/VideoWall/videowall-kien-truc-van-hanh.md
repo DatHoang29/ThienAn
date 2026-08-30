@@ -1,9 +1,14 @@
-# VideoWall — Chế độ Trực tiếp (Live) + Tự động ghi Log + Kịch bản cho công cụ WPF
+# VideoWall — Kiến Trúc Công Cụ WPF, Tự Động Ghi Log & Kịch Bản Hiện Trường
 
 > Tài liệu tổng hợp (bối cảnh + thiết kế + runbook + phạm vi). Nguồn: `videowall_plan.md`
 > (19/08 + 25/08), `transcript-videowall-28082026.md` (28/08), datasheet
 > `_source/DS-C30S-S11_Datasheet_20250324.md`, mã nguồn `Module.VideoWall.WPF`.
 > Checklist đi test 2 ngày: [`videowall-test-2ngay.md`](videowall-test-2ngay.md).
+
+> 💡 **Đính chính quan trọng theo cuộc họp ngày 28/08/2026**:
+> Hệ thống **hoàn toàn không có tính năng "Record / Replay"** (ghi lệnh rồi phát lại tự động). Quá trình kiểm thử là **tương tác trực tiếp 2 tầng (WPF ↔ Thiết bị qua IP)**. Công cụ tập trung vào 2 mục tiêu cốt lõi:
+> 1. **Thiết lập Scene & Bố cục hiển thị trực quan (Tab 1)**: Dựng các ô camera trên tường màn hình và đẩy cấu hình xuống thiết bị.
+> 2. **Tự động ghi Log ra file để theo dõi (Auto Session Logging)**: Toàn bộ lệnh gửi và dữ liệu nhận được tự động lưu ra file `.jsonl` trên máy tính để đối chiếu, phân tích khi cần.
 
 ---
 
@@ -82,15 +87,24 @@ flowchart LR
 
 1. Mở `Module.VideoWall.WPF.exe`.
 2. Nhập IP / Port (`80`) / Account (`admin`) / Password thiết bị tại thanh kết nối trên cùng (Row 0).
-3. Bấm **Ping** để xác nhận kết nối và Digest Auth.
+3. Bấm **Ping** để xác nhận kết nối mạng và Digest Auth.
 4. Bấm **Probe** để khảo sát giới hạn phần cứng (capabilities, danh sách tường, cổng ra, cổng vào). Đây là bước bắt buộc trước khi nạp dữ liệu ở Tab 1.
 5. Thực hiện các bài test:
-   - **Tab 1 "Thiết lập Scene"**: Bấm *"🔄 Nạp màn hình & nguồn"* (Nguồn lấy từ Probe, Màn hình & Scene nạp/lưu local JSON) → Gán màn hình theo Output → Dựng scene → Đẩy xuống thiết bị (`DryRun` hoặc đẩy thật).
-   - **Tab 2 "Kịch bản"**: Tự động hoá chuỗi API, kiểm thử tranh vùng, bộ kiểm thử lỗi (có công tắc *"Gửi thật để xem mã lỗi thiết bị"*).
+   - **Tab 1 "Thiết lập Scene" (Quản lý Bố cục hiển thị tĩnh)**:
+     - Dựng các ô camera hiển thị trên tường màn hình thật (hỗ trợ kéo dãn chiều cao các khung qua GridSplitter).
+     - *Khung 1*: Gán màn hình theo Cổng ra và tạo tên Scene mới.
+     - *Khung 2*: Chọn Chế độ A (Màn không chồng - mỗi màn 1 camera) hoặc Chế độ B (Màn chồng - xếp lớp Z-Index).
+     - *Khung 3*: Quản lý danh sách cửa sổ đã lưu của Scene, hỗ trợ CheckBox chọn nhiều và nút Xoá hàng loạt.
+     - *Khung 4*: Bật `DryRun` để kiểm tra trước an toàn, hoặc tắt `DryRun` rồi bấm **"🚀 ĐẨY XUỐNG THIẾT BỊ"** để phát hình ảnh thật ra tường.
+   - **Tab 2 "Kịch bản" (Quản lý Chuỗi API tự động hoá)**:
+     - Dành cho kỹ sư chạy hàng loạt lệnh API liên tiếp để đo kiểm phần cứng và bắt lỗi thiết bị.
+     - Tự động hoá chuỗi API, kiểm thử tranh vùng, bộ kiểm thử lỗi (có công tắc *"Gửi thật để xem mã lỗi thiết bị"*).
    - **Tab 3–13**: 11 nhóm ISAPI direct, xem phản hồi XML/JSON tức thời ở khung Response.
 6. Mọi bước gửi/nhận đều tự động lưu vào file log `%LOCALAPPDATA%\Module.VideoWall.WPF\Logs\session_*.jsonl`.
 
-## C2. Tab Kịch bản (Scenario)
+## C2. Tab Kịch bản (Automation Scenario)
+
+> 💡 *Phân biệt rõ ràng*: **Tab 1** dùng để thiết kế bức tranh hiển thị hình ảnh ngoài đời thực của Video Wall. Còn **Tab 2** là kịch bản chạy chuỗi lệnh code/API tự động để kiểm thử kỹ thuật.
 
 - Hỗ trợ xây dựng và lưu các chuỗi gọi nhiều API liên tiếp theo thứ tự có định cấu hình thời gian chờ (`DelayBetweenStepsMs`, mặc định 400ms theo datasheet).
 - Tính năng **Chạy tiếp từ bước #N (Resume)** tự động khôi phục luồng tại bước gặp lỗi kết nối/timeout mà không phải chạy lại từ đầu.
