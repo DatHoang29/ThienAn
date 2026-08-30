@@ -22,16 +22,20 @@
 | Năng lực (datasheet) | 8 video wall · tối đa 40 màn/tường · chia ô 1/4/6/8/9/16 · layer/cổng 8×1080p hoặc 4×4K · 128 scene · 128 plan · trễ auto-switch 400 ms · 16 cửa sổ mở · trễ giải mã 50 ms (local) / 200 ms (network) |
 | Kết nối | Digest auth, NAT, web client, keyboard mạng/serial, ONVIF |
 
-## A3. RÀNG BUỘC PHẠM VI — CHỈ 2 TẦNG: WPF ↔ THIẾT BỊ
+## A3. PHẠM VI — CHỈ 2 TẦNG: WPF ↔ THIẾT BỊ (đã áp dụng trong code, không còn là kỷ luật tự giác)
 
-Đợt này **chỉ đụng giao diện WPF và thiết bị**. Bỏ hết database, tầng service C# phía server, Backend mode của công cụ.
+Ban đầu đây là quyết định phạm vi cho đợt test; giờ **đã sửa thẳng trong code** — Backend Mode không còn tồn tại như một lựa chọn nữa, không phải "cố tránh đụng" mà là **đã bị gỡ khỏi các ViewModel đang dùng**.
 
-| Bỏ qua đợt này | Vì sao |
+| Đã gỡ khỏi code | Hiện trạng |
 |---|---|
-| Backend mode (`VideoWallApiClient` → TAC_WebAPI) | Đi qua tầng service + DB |
-| Tab **Lịch** (`ScheduleViewModel`) | Chạy hoàn toàn qua backend |
-| "Bắn 2 trigger" (`ActivateSceneByEvent`) | Backend `VwEventRule` |
-| `Module.VideoWall` / `Module.VideoWall.Core` (server) | Tầng service |
+| Backend mode / toggle Direct-Backend | `ConnectionViewModel.IsDirectMode` giờ là `=> true` cố định; `Controllers`/`SelectedController`/`LoadControllers` đã xoá |
+| `VwBackendDeviceConnectionClient.cs` | Đã xoá file |
+| `VwDeviceDefaultCaptureOrchestrator.cs` & `VwDeviceDefaultRestoreOrchestrator.cs` & `VwDeviceDefaultStore.cs` | Đã xoá sạch 3 file (bỏ hẳn tính năng "Chụp lại mặc định" / "Khôi phục mặc định" trên UI và code, dùng backup web của controller) |
+| Nút "Nạp lại kết nối" (`ReloadAppCommand`) | Đã xoá sạch khỏi UI và ViewModel |
+| `VideoWallApiClient` trong Tab 1/Tab 2 | Đã thay bằng `VwLocalSceneStore`/`VwLocalScreenStore` (JSON local) + `ProbeResult.InputChannels` cho nguồn tín hiệu |
+| Tab **Lịch** (`ScheduleViewModel`) | Vẫn orphan, chưa từng gắn vào MainWindow — không đổi |
+| "Bắn 2 trigger" (`ActivateSceneByEvent`) / "So khớp ưu tiên VwEventRule" | Đã xoá hẳn khỏi UI và ViewModel (không chỉ né, mà không còn tồn tại) |
+| `VideoWallApiClient.cs` | Vẫn còn file (do `ScheduleViewModel` orphan còn phụ thuộc), nhưng không route nào đang dùng của Tab 1/2 gọi tới nữa |
 
 ⇒ Đường duy nhất: **WPF → `VwDirectISAPIClient` (HTTP/ISAPI + Digest) → DS-C30S-S11**.
 
@@ -56,12 +60,19 @@ Mọi lệnh tới thiết bị đi qua `VwDirectISAPIClient` với chuỗi hand
 flowchart LR
     VM[ViewModels / Orchestrators] --> Factory[VwDirectClientFactory]
     Factory --> DH[VwDirectDigestHandler]
-    DH --> HH[HttpClientHandler]
+    DH --> HH[SocketsHttpHandler]
     HH --> Dev[(DS-C30S-S11)]
 ```
+(`SocketsHttpHandler` — nâng cấp từ `HttpClientHandler` cũ, tự tune connection pool 15s/idle 5s, connect timeout 10s, để đỡ lỗi mất kết nối keep-alive khi thiết bị đóng socket giữa chừng.)
 
 - Xác thực Digest Auth tự động thực hiện trên từng request gửi tới thiết bị.
-- Guardrail `maxWindowNums` trong `VwDirectSetupSceneOrchestrator` bảo vệ tường ghép không bị đẩy vượt quá số lượng cửa sổ hỗ trợ.
+- Guardrail `maxWindowNums` và `maxSceneNums` trong `VwDirectSetupSceneOrchestrator` bảo vệ tường ghép không bị đẩy vượt quá số lượng cửa sổ/kịch bản hỗ trợ.
+
+## B3. Cấu trúc Layout & Khung Response Động
+
+- **Tab 1 (Thiết lập Scene)** & **Tab 2 (Kịch bản)**: Khung Response và thanh kéo phụ tự động ẩn (`Height = 0`), nhường toàn bộ diện tích cho thiết lập và kịch bản.
+- **Tab 3..13 (11 Nhóm ISAPI)**: Khung Response rộng toàn màn hình tự động hiển thị bên dưới TabControl (giữa TabControl và Bảng Logs) với thanh kéo dãn `GridSplitter` riêng.
+- **Thanh GridSplitter chính**: Luôn kéo dãn giữa Khung Workspace (TabControl + Response) và Bảng Logs hoạt động mượt mà, không sinh mảng trắng.
 
 ---
 
@@ -70,12 +81,17 @@ flowchart LR
 ## C1. Tại hiện trường
 
 1. Mở `Module.VideoWall.WPF.exe`.
-2. Nhập IP / Port (`80`) / Account (`admin`) / Password thiết bị tại thanh kết nối trên cùng.
+2. Nhập IP / Port (`80`) / Account (`admin`) / Password thiết bị tại thanh kết nối trên cùng (Row 0).
 3. Bấm **Ping** để xác nhận kết nối và Digest Auth.
-4. Thực hiện các bài test (Tab 1–11 ISAPI direct, Tab 12 Dựng cửa sổ/Scene, Tab 13 Kịch bản).
-5. Mọi bước gửi/nhận đều tự động lưu vào file log `%LOCALAPPDATA%\Module.VideoWall.WPF\Logs\session_*.jsonl`.
+4. Bấm **Probe** để khảo sát giới hạn phần cứng (capabilities, danh sách tường, cổng ra, cổng vào). Đây là bước bắt buộc trước khi nạp dữ liệu ở Tab 1.
+5. Thực hiện các bài test:
+   - **Tab 1 "Thiết lập Scene"**: Bấm *"🔄 Nạp màn hình & nguồn"* (Nguồn lấy từ Probe, Màn hình & Scene nạp/lưu local JSON) → Gán màn hình theo Output → Dựng scene → Đẩy xuống thiết bị (`DryRun` hoặc đẩy thật).
+   - **Tab 2 "Kịch bản"**: Tự động hoá chuỗi API, kiểm thử tranh vùng, bộ kiểm thử lỗi (có công tắc *"Gửi thật để xem mã lỗi thiết bị"*).
+   - **Tab 3–13**: 11 nhóm ISAPI direct, xem phản hồi XML/JSON tức thời ở khung Response.
+6. Mọi bước gửi/nhận đều tự động lưu vào file log `%LOCALAPPDATA%\Module.VideoWall.WPF\Logs\session_*.jsonl`.
 
 ## C2. Tab Kịch bản (Scenario)
 
 - Hỗ trợ xây dựng và lưu các chuỗi gọi nhiều API liên tiếp theo thứ tự có định cấu hình thời gian chờ (`DelayBetweenStepsMs`, mặc định 400ms theo datasheet).
-- Tính năng **Chạy tiếp từ bước N (Resume)** tự động khôi phục luồng tại bước gặp lỗi kết nối/timeout mà không phải chạy lại từ đầu.
+- Tính năng **Chạy tiếp từ bước #N (Resume)** tự động khôi phục luồng tại bước gặp lỗi kết nối/timeout mà không phải chạy lại từ đầu.
+- Bộ kiểm thử lỗi tích hợp công tắc **"Gửi thật để xem mã lỗi thiết bị"** giúp linh hoạt giữa 2 chế độ: Chặn sớm an toàn bằng Probe hoặc gửi thật để ghi nhận mã lỗi thực tế của phần cứng.

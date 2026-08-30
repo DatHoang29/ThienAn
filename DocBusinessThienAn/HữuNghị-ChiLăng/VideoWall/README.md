@@ -18,18 +18,18 @@ Thư mục này gồm **2 khu** khác mục đích. Xác định bạn đang là
 | Mục | Nội dung |
 |---|---|
 | `ISAPI-Videowall-Controller/` | Bộ tài liệu ISAPI controller: `README.md` → `00-api-catalog` → `01`…`10`; `09A-api-reference.md` **1.7 MB — chỉ `grep` theo endpoint, không đọc nguyên file**; `09B-practical-guide-and-tested-responses.md` = đo thật (ưu tiên `09B` khi mâu thuẫn `09A`); `VideoWall_ISAPI_API_List.md` |
-| `KeyWord/HIKVISION_ISAPI_VIDEOWALL_GLOSSARY.md` | Bảng thuật ngữ ISAPI VideoWall — **đọc đầu tiên** khi mới vào |
+| `KeyWord/HIKVISION_ISAPI_VIDEOWALL_DICTIONARY.md` | Bảng thuật ngữ ISAPI VideoWall — **đọc đầu tiên** khi mới vào |
 | `API/README.md` | Ghi chú API |
 | `Controller-phan-cung/Controller-phan-cung.md` | Tài liệu phần cứng controller |
 | `TableSQL/Vw_Tables_Analysis_And_Design.md` | Phân tích & thiết kế bảng CSDL `Vw*` |
 | `_source/` | PDF / XLSX gốc + `DS-C30S-S11_Datasheet_20250324.md` (datasheet đã convert) — **PDF chỉ cho người xem** |
 
-## KHU 2 — Công cụ WPF (Record / Replay) *(kế hoạch & vận hành)*
+## KHU 2 — Công cụ WPF (Live Mode & Tự động ghi Log) *(kế hoạch & vận hành)*
 
 | File | Nội dung | Đọc khi |
 |---|---|---|
-| `videowall-record-replay.md` | **Tài liệu chính.** Phần A bối cảnh & quyết định (ràng buộc 2 tầng, TCP vs HTTP) · B cơ chế & thiết kế ("tape là gì", 3 chế độ, handler chain) · C runbook (Ghi tại hiện trường / Phát lại tại văn phòng) · D bảng phạm vi offline vs tại chỗ · E kiểm thử tự động | luôn bắt đầu ở đây |
-| `videowall-test-local.md` | 3 cách chạy thử công cụ tại máy không cần thiết bị: Phát lại + tape mẫu · test tự động · MockServer Hikvision (`scripts/VwMockServerRunner`) + app WPF | thử sản phẩm trước |
+| `videowall-record-replay.md` | **Tài liệu chính.** Phần A bối cảnh & quyết định (chỉ 2 tầng WPF ↔ Thiết bị) · B cơ chế & thiết kế (Auto session log, chuỗi handler Digest, layout Response động) · C runbook (Vận hành tại hiện trường & Kịch bản) | luôn bắt đầu ở đây |
+| `videowall-test-local.md` | 2 cách chạy thử công cụ tại máy không cần thiết bị: Bộ test tự động .NET · MockServer riêng (`scripts/VwMockServerRunner`) + app WPF (đầy đủ các bước kiểm thử) | thử sản phẩm trước |
 | `videowall-test-2ngay.md` | Checklist tick-box đi test 2 ngày tại TCB: Ngày 1 / Ngày 2 / "thế nào là đủ" | trước & trong chuyến đi |
 | `videowall_plan.md` | Đặc tả yêu cầu gốc — gộp họp 19/08 + 25/08 (bản lịch sử, không sửa) | đối chiếu yêu cầu ban đầu |
 | `transcript-videowall-28082026.md` | Transcript đầy đủ buổi họp chuẩn bị 28/08 (bản lịch sử, không sửa) | tra chi tiết ai nói gì |

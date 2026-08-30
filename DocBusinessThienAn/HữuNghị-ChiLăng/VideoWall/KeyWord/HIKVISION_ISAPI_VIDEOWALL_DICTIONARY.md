@@ -12,6 +12,7 @@
 5. [Kịch bản Hiển thị, Luồng Công việc & Lập lịch (Scenes, Workflow & Scheduling)](#5-kịch-bản-hiển-thị-luồng-công-việc--lập-lịch)
 6. [Bảo mật, Xác thực & Quản trị Thiết bị (Security, Auth & Device Management)](#6-bảo-mật-xác-thực--quản-trị-thiết-bị)
 7. [Bảng Tra cứu Nhanh Các Từ Viết Tắt (Acronyms & Abbreviations)](#7-bảng-tra-cứu-nhanh-các-từ-viết-tắt)
+8. [Cây Phụ thuộc Gộp & Map sang Code Thực tế (Dependency Tree & Code Mapping)](#8-cây-phụ-thuộc-gộp--map-sang-code-thực-tế)
 
 ---
 
@@ -253,6 +254,63 @@ Khi có nhiều cửa sổ nằm đè lên nhau:
 | **PiP** | Picture in Picture | Chế độ hiển thị hình ảnh lồng trong hình ảnh (cửa sổ nhỏ nằm trong cửa sổ to). |
 | **BNC / HDMI / DVI / DP** | Bayonet Neill–Concelman / High-Definition Multimedia Interface / Digital Visual Interface / DisplayPort | Các chuẩn giao tiếp cáp truyền dẫn tín hiệu hình ảnh phần cứng. |
 | **RS-232 / RS-485 / RS-422** | Recommended Standard 232 / 485 / 422 | Chuẩn giao tiếp truyền thông nối tiếp (Serial Port) kết nối cảm biến/bàn phím điều khiển. |
+
+---
+
+## 8. CÂY PHỤ THUỘC GỘP & MAP SANG CODE THỰC TẾ
+
+> Mục này gộp quan hệ giữa các khái niệm ở mục 1-6 thành **1 sơ đồ duy nhất**, và chỉ ra
+> đúng chỗ từng khái niệm nằm trong mã nguồn `Module.VideoWall.WPF` (công cụ WPF đang dùng để
+> test trực tiếp DS-C30S-S11). Đọc mục này SAU khi đã đọc qua mục 2, 4, 5 — nó không thay thế
+> phần định nghĩa, chỉ nối các định nghĩa đó lại với nhau.
+
+### 8.1. Cây phụ thuộc (từ to tới nhỏ)
+
+```text
+Controller (bộ điều khiển — 1 con DS-C30S-S11, gõ IP/Port/Account/Password để nối)
+ │
+ ├── Slot & SlotPort (khe cắm card + cổng vật lý trên card)
+ │     ├── Input Channel (cổng vào — HDMI/DVI/DP hoặc luồng IP)
+ │     └── Output Port (cổng ra — dây kéo tới 1 màn hình thật)
+ │
+ └── Video Wall / WallNo  ← 1 controller có TỐI ĐA 8 Wall, ĐỘC LẬP nhau
+       │
+       ├── Topology / Wall Scale (bố cục lưới Row×Column của Wall đó)
+       │     └── Screen (từng tấm màn hình thật, gắn vào 1 Output Port,
+       │                  có toạ độ Row/Column trong Wall)
+       │
+       └── Scene (kịch bản — LUÔN thuộc về đúng 1 Wall, không có Scene "lơ lửng")
+             │
+             └── Window (cửa sổ — thuộc về 1 Scene, toạ độ X/Y/W/H tuyệt đối
+                          trên Wall, có thể tràn qua nhiều Screen = "Spanning")
+                   │
+                   ├── Signal Source (nguồn đang chiếu trong Window đó,
+                   │                   lấy từ 1 Input Channel)
+                   ├── Z-Index / Layering (thứ tự chồng lớp khi 2 Window đè nhau)
+                   └── Sub-Window (chia nhỏ bên trong 1 Window: 1/4/9/16-split)
+```
+
+**Quy tắc quan trọng nhất rút ra từ cây này**: Scene và Window **luôn buộc chặt vào 1 Wall
+cụ thể**. Mọi giới hạn (`maxWindowNums`, `maxSceneNums`) cũng tính **theo từng Wall**, không
+cộng dồn toàn thiết bị — nên chọn đúng WallNo trước khi thao tác là bắt buộc, không phải tuỳ chọn.
+
+### 8.2. Map keyword → chỗ trong code/UI
+
+| Keyword (mục tham chiếu) | Trong code/UI `Module.VideoWall.WPF` | Ghi chú |
+|---|---|---|
+| **Controller** (§2.2) | Thanh kết nối trên cùng MainWindow (IP/Port/Account/Password) | Không còn `VwControllerDto`/danh sách chọn từ CSDL — đã bỏ Backend Mode |
+| **Video Wall / WallNo** (§2.1) | `ConnectionViewModel.WallNo`, `ProbeResult.Walls` | Phải nhập tay, không tự chọn — tránh đẩy nhầm Wall |
+| **Screen** (§2.4) | `VwScreenDto` + `VwLocalScreenStore` (file JSON local) — nút "➕ Thêm màn" / "🗑 Xoá màn" ở Tab 1 (đọc từ `ProbeResult.Outputs`) | |
+| **Input Channel → Signal Source** (§3.1, §3.2) | `VwSourceDto`, lấy trực tiếp từ `ProbeResult.InputChannels` mỗi lần Probe | Tự động đồng bộ khi Probe — luôn là dữ liệu thật của thiết bị |
+| **Scene** (§5.1) | `VwSceneDto` + `VwLocalSceneStore` — mục "1. Thiết lập Kịch bản (Scene)" Tab 1 | |
+| **Window / Sub-Window** (§4.1, §4.2) | `VwWindowSceneDto` — mục "2. Dựng cửa sổ" Tab 1 | Chế độ "Màn KHÔNG chồng" = 1 Window/Screen ("▶ Dựng cửa sổ phủ kín"); "Màn CHỒNG" = nhập tay X/Y/W/H/ZIndex ("▶ Dựng cửa sổ xếp lớp") |
+| **Z-Index / Layering** (§4.4) | `ZIndex` trên Window | Dùng ở chế độ "Màn CHỒNG" Tab 1, kịch bản "2 nguồn tranh vùng" Tab 2 |
+| **SaveData / Activate** (§5.2) | Nút "🚀 ĐẨY XUỐNG THIẾT BỊ" (`PushToDevice`) | Tạo Window thật trên thiết bị; Activate = cờ `ActivateAfterPush` |
+| **ResponseStatus / statusCode** (§1.5) | `VwSetupSceneStep.HttpStatus` / `.Message` | Hiện ở khung Log; "Bộ kiểm thử lỗi" Tab 2 đọc field này để in `[PASS]`/`[FAIL]` |
+| **Digest Authentication** (§1.3) | `VwDirectDigestHandler` | MockServer local mặc định KHÔNG kiểm tra hash password thật (`VerifyDigestResponseHash=false`) — thiết bị thật thì có |
+| **Circuit Breaker** (§6.2) | `FailedAuthLockoutThreshold` trong MockServer | Chỉ bật được qua `dotnet test`, không qua UI |
+| **Event Rule & Trigger Linkage** (§5.4) | ~~Đã xoá khỏi app~~ | Thuộc tầng Backend/DB — ngoài phạm vi test Direct Mode (§A3 `videowall-record-replay.md`) |
+| **Schedule / Patrol** (§5.3) | Tab "Lịch" (`ScheduleViewModel`) | Chưa gắn vào MainWindow — orphan, ngoài phạm vi hiện tại |
 
 ---
 *Tài liệu được biên soạn đồng bộ với mã nguồn phân hệ `Module.VideoWall` tại WebAPI `TA-ITS015-WEBAPI-V1.0`.*

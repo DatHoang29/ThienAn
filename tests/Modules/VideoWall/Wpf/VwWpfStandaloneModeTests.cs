@@ -10,64 +10,33 @@ using Module.VideoWall.WPF.Api.Direct;
 using Module.VideoWall.WPF.Storage;
 using Module.VideoWall.WPF.ViewModels;
 using Services.Shared.Events;
+using Tests.Modules.VideoWall.MockServer;
 using Xunit;
 
 namespace Tests.Modules.VideoWall.Wpf;
 
-[Collection("api")]
-public class VwWpfStandaloneModeTests(Host host)
+public class VwWpfStandaloneModeTests
 {
     [Fact]
     public void DirectMode_InitialStatusAndProbeSummary_AreEmpty()
     {
         var publisher = new RecordingPublisherTest();
         var activityPublisher = new ActivityPublisher(publisher, NullLogger<ActivityPublisher>.Instance);
-        var invoker = new ApiInvoker(new InMemoryApiClientFactoryTest(host.ApiClient), activityPublisher);
-        var apiClient = new VideoWallApiClient(invoker, publisher, activityPublisher);
-        var viewModel = new ConnectionViewModel(apiClient, activityPublisher, publisher, new UserConfirmationTest(true));
+        var viewModel = new ConnectionViewModel(activityPublisher, publisher, new UserConfirmationTest(true));
 
         Assert.Equal(string.Empty, viewModel.StatusMessage);
         Assert.Equal(string.Empty, viewModel.ProbeSummary);
     }
 
-    [Fact]
-    public async Task DirectMode_Connect_DoesNotTriggerAutoCaptureSnapshot()
-    {
-        host.MockServer.ResetDefaults();
 
-        var defaultPath = VwDeviceDefaultStore.GetFilePath("127.0.0.1", 1);
-        if (File.Exists(defaultPath))
-            File.Delete(defaultPath);
-
-        var publisher = new RecordingPublisherTest();
-        var activityPublisher = new ActivityPublisher(publisher, NullLogger<ActivityPublisher>.Instance);
-        var invoker = new ApiInvoker(new InMemoryApiClientFactoryTest(host.ApiClient), activityPublisher);
-        var apiClient = new VideoWallApiClient(invoker, publisher, activityPublisher);
-        var viewModel = new ConnectionViewModel(apiClient, activityPublisher, publisher, new UserConfirmationTest(true))
-        {
-            IsDirectMode = true,
-            AdHocIp = "127.0.0.1",
-            AdHocPort = 18080,
-            AdHocAccount = "admin",
-            AdHocPassword = "hik12345",
-            WallNo = 1
-        };
-
-        await viewModel.ConnectCommand.ExecuteAsync(null);
-
-        Assert.True(viewModel.IsConnected);
-        Assert.False(VwDeviceDefaultStore.Exists("127.0.0.1", 1));
-    }
 
     [Fact]
     public void SceneSetupViewModel_OverlappingAndIndividualMode_TwoWaySwitching_Works()
     {
         var publisher = new RecordingPublisherTest();
         var activityPublisher = new ActivityPublisher(publisher, NullLogger<ActivityPublisher>.Instance);
-        var invoker = new ApiInvoker(new InMemoryApiClientFactoryTest(host.ApiClient), activityPublisher);
-        var apiClient = new VideoWallApiClient(invoker, publisher, activityPublisher);
-        var connection = new ConnectionViewModel(apiClient, activityPublisher, publisher, new UserConfirmationTest(true));
-        var viewModel = new SceneSetupViewModel(apiClient, activityPublisher, connection, new UserConfirmationTest(true));
+        var connection = new ConnectionViewModel(activityPublisher, publisher, new UserConfirmationTest(true));
+        var viewModel = new SceneSetupViewModel(activityPublisher, connection, new UserConfirmationTest(true));
 
         Assert.True(viewModel.IsIndividualMode);
         Assert.False(viewModel.IsOverlappingMode);
@@ -86,9 +55,7 @@ public class VwWpfStandaloneModeTests(Host host)
     {
         var publisher = new RecordingPublisherTest();
         var activityPublisher = new ActivityPublisher(publisher, NullLogger<ActivityPublisher>.Instance);
-        var invoker = new ApiInvoker(new InMemoryApiClientFactoryTest(host.ApiClient), activityPublisher);
-        var apiClient = new VideoWallApiClient(invoker, publisher, activityPublisher);
-        var connection = new ConnectionViewModel(apiClient, activityPublisher, publisher, new UserConfirmationTest(true));
+        var connection = new ConnectionViewModel(activityPublisher, publisher, new UserConfirmationTest(true));
 
         var testScenarioName = $"test_auto_load_{Guid.NewGuid():N}";
         var testData = new VwScenarioData
@@ -104,7 +71,7 @@ public class VwWpfStandaloneModeTests(Host host)
 
         try
         {
-            var viewModel = new ScenarioViewModel(connection, activityPublisher, publisher, apiClient, new UserConfirmationTest(true));
+            var viewModel = new ScenarioViewModel(connection, activityPublisher, publisher, new UserConfirmationTest(true));
             publisher.Clear();
 
             viewModel.LoadScenarioByName(testScenarioName);
@@ -124,11 +91,9 @@ public class VwWpfStandaloneModeTests(Host host)
     {
         var publisher = new RecordingPublisherTest();
         var activityPublisher = new ActivityPublisher(publisher, NullLogger<ActivityPublisher>.Instance);
-        var invoker = new ApiInvoker(new InMemoryApiClientFactoryTest(host.ApiClient), activityPublisher);
-        var apiClient = new VideoWallApiClient(invoker, publisher, activityPublisher);
-        var connection = new ConnectionViewModel(apiClient, activityPublisher, publisher, new UserConfirmationTest(true));
+        var connection = new ConnectionViewModel(activityPublisher, publisher, new UserConfirmationTest(true));
 
-        var viewModel = new ScenarioViewModel(connection, activityPublisher, publisher, apiClient, new UserConfirmationTest(true));
+        var viewModel = new ScenarioViewModel(connection, activityPublisher, publisher, new UserConfirmationTest(true));
 
         Assert.Equal(116, viewModel.AllPresets.Count);
 
@@ -152,11 +117,9 @@ public class VwWpfStandaloneModeTests(Host host)
     {
         var publisher = new RecordingPublisherTest();
         var activityPublisher = new ActivityPublisher(publisher, NullLogger<ActivityPublisher>.Instance);
-        var invoker = new ApiInvoker(new InMemoryApiClientFactoryTest(host.ApiClient), activityPublisher);
-        var apiClient = new VideoWallApiClient(invoker, publisher, activityPublisher);
-        var connection = new ConnectionViewModel(apiClient, activityPublisher, publisher, new UserConfirmationTest(true));
+        var connection = new ConnectionViewModel(activityPublisher, publisher, new UserConfirmationTest(true));
 
-        var viewModel = new ScenarioViewModel(connection, activityPublisher, publisher, apiClient, new UserConfirmationTest(true));
+        var viewModel = new ScenarioViewModel(connection, activityPublisher, publisher, new UserConfirmationTest(true));
         viewModel.Steps.Clear();
 
         var presetA = viewModel.AllPresets.First(p => p.Section == "9.7.5.2");
@@ -185,19 +148,18 @@ public class VwWpfStandaloneModeTests(Host host)
     [Fact]
     public async Task DirectMode_PingProbeIsapi_WorksWithoutBackend()
     {
-        host.MockServer.ResetDefaults();
+        const int port = 18102;
+        using var mockServer = new VwISAPIMockServerHikvision();
+        mockServer.Start(port);
         
         var publisher = new RecordingPublisherTest();
         var activityPublisher = new ActivityPublisher(publisher, NullLogger<ActivityPublisher>.Instance);
-        var invoker = new ApiInvoker(new InMemoryApiClientFactoryTest(host.ApiClient), activityPublisher);
-        var apiClient = new VideoWallApiClient(invoker, publisher, activityPublisher);
-        var viewModel = new ConnectionViewModel(apiClient, activityPublisher, publisher, new UserConfirmationTest(true))
+        var viewModel = new ConnectionViewModel(activityPublisher, publisher, new UserConfirmationTest(true))
         {
-            IsDirectMode = true,
             AdHocIp = "127.0.0.1",
-            AdHocPort = 18080,
+            AdHocPort = port,
             AdHocAccount = "admin",
-            AdHocPassword = "hik12345"
+            AdHocPassword = "Password123!"
         };
 
         await viewModel.ConnectCommand.ExecuteAsync(null);
@@ -218,9 +180,11 @@ public class VwWpfStandaloneModeTests(Host host)
     [Fact]
     public async Task DirectMode_PushWindows_CreatesWindowsOnDevice()
     {
-        host.MockServer.ResetDefaults();
+        const int port = 18103;
+        using var mockServer = new VwISAPIMockServerHikvision();
+        mockServer.Start(port);
 
-        var credentials = new VwDirectDeviceCredentials("127.0.0.1", 18080, "admin", "hik12345");
+        var credentials = new VwDirectDeviceCredentials("127.0.0.1", port, "admin", "Password123!");
         var digestHandler = new VwDirectDigestHandler { InnerHandler = new HttpClientHandler() };
         var httpClient = new HttpClient(digestHandler)
         {
@@ -233,6 +197,7 @@ public class VwWpfStandaloneModeTests(Host host)
         var input = new VwDirectPushSceneInput
         {
             SceneId = 1,
+            WallNo = 1,
             DryRun = false,
             Windows =
             [
@@ -244,15 +209,17 @@ public class VwWpfStandaloneModeTests(Host host)
         var result = await orchestrator.Execute(input, default);
 
         Assert.True(result.Success);
-        Assert.True(host.MockServer.AddWindowCallCount >= 2);
+        Assert.True(mockServer.AddWindowCallCount >= 2);
     }
 
     [Fact]
     public async Task DirectMode_AddWindow_CreatesSingleWindowOnDevice()
     {
-        host.MockServer.ResetDefaults();
+        const int port = 18104;
+        using var mockServer = new VwISAPIMockServerHikvision();
+        mockServer.Start(port);
 
-        var credentials = new VwDirectDeviceCredentials("127.0.0.1", 18080, "admin", "Password123!");
+        var credentials = new VwDirectDeviceCredentials("127.0.0.1", port, "admin", "Password123!");
         var digestHandler = new VwDirectDigestHandler { InnerHandler = new HttpClientHandler() };
         var httpClient = new HttpClient(digestHandler)
         {
@@ -291,6 +258,6 @@ public class VwWpfStandaloneModeTests(Host host)
         var result = await isApiClient.AddWindow(1, req, default);
 
         Assert.True(result.Success);
-        Assert.True(host.MockServer.AddWindowCallCount >= 1);
+        Assert.True(mockServer.AddWindowCallCount >= 1);
     }
 }
