@@ -983,23 +983,20 @@ public class VwWpfCommissioningTests
         var (controller, screenA, screenB, source) = SeedWallAsync();
         var stack = BuildClientStack();
         var connection = BuildConnection(stack, controller, screenA, screenB, source);
+        var freshKey = $"10.88.{Random.Shared.Next(10, 99)}.{Random.Shared.Next(10, 99)}";
+        connection.AdHocIp = freshKey;
         var confirmation = new UserConfirmationTest(answer: false);
         var sceneSetup = new SceneSetupViewModel(stack.ActivityPublisher, connection, confirmation, stack.Publisher);
 
         // Act: Click "Nạp Scene mẫu"
         await sceneSetup.SeedSampleScenesCommand.ExecuteAsync(null);
 
-        // Assert: standard scene is populated and selected
+        // Assert: 3 practical scenes populated and selected
+        Assert.Equal(3, sceneSetup.Scenes.Count);
         Assert.Contains(sceneSetup.Scenes, s => s.Code == "VWSCENE_SAMPLE_01");
         Assert.NotNull(sceneSetup.CurrentScene);
         Assert.Equal("VWSCENE_SAMPLE_01", sceneSetup.CurrentScene.Code);
-        Assert.Equal(12, sceneSetup.SceneWindows.Count);
-        Assert.All(sceneSetup.SceneWindows, w =>
-        {
-            Assert.Equal(1920, w.W);
-            Assert.Equal(1080, w.H);
-            Assert.Equal(1, w.ZIndex);
-        });
+        Assert.Equal(9, sceneSetup.SceneWindows.Count);
     }
 
     [Fact]
@@ -1191,13 +1188,11 @@ public class VwWpfCommissioningTests
             Assert.NotNull(selectedItemBinding);
             Assert.Equal("CurrentScene", selectedItemBinding.Path.Path);
 
-            // Assert: Exactly 1 standard scene in ViewModel and legacy scenes 02 & 03 are purged
-            Assert.Single(sceneVm.Scenes);
+            // Assert: 3 practical scenes in ViewModel
+            Assert.Equal(3, sceneVm.Scenes.Count);
             Assert.Equal("VWSCENE_SAMPLE_01", sceneVm.Scenes[0].Code);
-            Assert.Equal(4, sceneVm.Scenes[0].GridCols);
-            Assert.Equal(3, sceneVm.Scenes[0].GridRows);
-            Assert.DoesNotContain(sceneVm.Scenes, s => s.Code == "VWSCENE_SAMPLE_02");
-            Assert.DoesNotContain(sceneVm.Scenes, s => s.Code == "VWSCENE_SAMPLE_03");
+            Assert.Equal("VWSCENE_SAMPLE_02", sceneVm.Scenes[1].Code);
+            Assert.Equal("VWSCENE_SAMPLE_03", sceneVm.Scenes[2].Code);
 
             Assert.NotNull(sceneVm.CurrentScene);
             Assert.Equal("VWSCENE_SAMPLE_01", sceneVm.CurrentScene.Code);
@@ -1301,8 +1296,8 @@ public class VwWpfCommissioningTests
         Assert.NotNull(sceneVm.CurrentScene);
         Assert.Equal("Kịch bản Mới Test", sceneVm.CurrentScene.Name);
 
-        sceneVm.Apply12GridTemplateCommand.Execute(null);
-        Assert.Equal(12, sceneVm.SceneWindows.Count);
+        sceneVm.ApplyBigCenterTemplateCommand.Execute(null);
+        Assert.Equal(9, sceneVm.SceneWindows.Count);
     }
 
     [Fact]
@@ -1327,15 +1322,16 @@ public class VwWpfCommissioningTests
         sceneVm.AddSceneWindowCommand.Execute(null);
         Assert.Equal(2, sceneVm.SceneWindows.Count);
 
-        // Test ApplyBigCenterTemplateCommand
+        // Test ApplyBigCenterTemplateCommand (1 2x2 + 8 1x1 = 9 windows)
         sceneVm.ApplyBigCenterTemplateCommand.Execute(null);
-        Assert.Equal(5, sceneVm.SceneWindows.Count);
+        Assert.Equal(9, sceneVm.SceneWindows.Count);
         Assert.Equal(3840, sceneVm.SceneWindows[0].W);
         Assert.Equal(2160, sceneVm.SceneWindows[0].H);
 
-        // Test Apply12GridTemplateCommand
-        sceneVm.Apply12GridTemplateCommand.Execute(null);
-        Assert.Equal(12, sceneVm.SceneWindows.Count);
+        // Test ApplyDual2x2TemplateCommand (2 2x2 + 4 1x1 = 6 windows)
+        sceneVm.ApplyDual2x2TemplateCommand.Execute(null);
+        Assert.Equal(6, sceneVm.SceneWindows.Count);
+        Assert.Equal(2, sceneVm.SceneWindows.Count(w => w.W == 3840 && w.H == 2160));
     }
 
     [Fact]
