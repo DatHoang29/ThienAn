@@ -11,7 +11,7 @@
 ### 1. 📋 Workspace Rules (`.agents/rules/`) — P0 (Highest Priority)
 - **`core-protocol.md`**: Mandatory skill announcement format: `📚 Using skill: @[skill-name]...`
 - **`request-routing.md`**: Mandatory agent announcement: `🤖 Applying knowledge of @[agent-name]...`
-- **`universal-rules.md`**: Clean Code, single-statement `if` indentation, object initializers (1 prop/line), LINQ formatting, Primary Constructors on new classes only, structured logging (`CA1873`), strict module scope, no live DB mutations, strict local DB for `dotnet test`, auto-cleanup completed prompt files.
+- **`universal-rules.md`**: Clean Code, single-statement `if` indentation, object initializers (1 prop/line), LINQ formatting, Primary Constructors on new classes only, structured logging (`CA1873`), strict module scope, no live DB mutations, strict local DB for `dotnet test`, targeted WPF process killing only (never kill all `dotnet`/`testhost`), auto-cleanup completed prompt files.
 - **`code-rules.md`**: 4-phase planning, Socratic Gate, test pyramid, AAA pattern.
 - **`thienan_rules.md`**: Git branch naming (`feat/`, `fix/`, `release/`), semantic commit conventions.
 

@@ -113,5 +113,18 @@ When user's prompt is NOT in English:
 - **CANCEL & REPORT ON REMOTE DETECTED**: Trước khi chạy `dotnet test`, nếu phát hiện bất kỳ chuỗi kết nối nào trong `appsettings.json`, `appsettings.Local.json`, `appsettings.Test.json`, `Host.cs`, hoặc cấu hình test trỏ tới máy chủ từ xa / IP remote (ví dụ: `10.10.8.30`, domain staging/prod/dev remote...), AI **BẮT BUỘC PHẢI HỦY (CANCEL) NGAY LẬP TỨC VIỆC CHẠY TEST VÀ BÁO CÁO LẠI CHO NGƯỜI DÙNG**.
 - **FORBIDDEN Remote Database Testing**: TUYỆT ĐỐI KHÔNG ĐƯỢC PHÉP chạy test khi chuỗi kết nối tới RDBMS hoặc Redis không phải là local, để ngăn ngừa hoàn toàn nguy cơ làm sai lệch, rò rỉ hoặc xoá/thao tác dữ liệu trên hệ thống server từ xa.
 
+---
+
+## 🛑 Quy Tắc Kill Tiến Trình Khi Rebuild / Chạy WPF (WPF Process Termination Rule [Mandatory Rule])
+
+- **CHỈ ĐƯỢC PHÉP Kill Riêng Tiến Trình WPF**: Mỗi lần rebuild, re-run hoặc chạy test liên quan tới module WPF, nếu cần giải phóng file DLL / EXE bị lock, AI **CHỈ ĐƯỢC PHÉP tắt duy nhất tiến trình WPF** (`Module.VideoWall.WPF` / `Module.VideoWall.WPF.exe`).
+- **TUYỆT ĐỐI KHÔNG Kill Hết Các Tiến Trình Khác (FORBIDDEN Wildcard Kill)**: 
+  - **CẤM** chạy các lệnh quét/kill diện rộng như `Stop-Process -Name "dotnet"`, `Get-Process testhost*,dotnet* | Stop-Process`, `taskkill /f /im dotnet.exe` hoặc kill hàng loạt tiến trình `dotnet*` / `testhost*`.
+  - Việc kill diện rộng sẽ làm tắt nhầm các dịch vụ WebAPI, Worker, background services, IDE test runner hoặc MockServer độc lập đang chạy của người dùng.
+- **Lệnh PowerShell Chuẩn Xác (Targeted Kill Only)**:
+  ```powershell
+  Get-Process -Name "Module.VideoWall.WPF" -ErrorAction SilentlyContinue | Stop-Process -Force
+  ```
+
 
 
