@@ -1078,7 +1078,7 @@ public class VwWpfCommissioningTests
     }
 
     [Fact]
-    public void VwWpfSceneSetupTabView_GridSplitterAndDataGridLayout_IsValid_Test()
+    public void VwWpfSceneSetupTabView_SingleUnifiedGridLayout_IsValid_Test()
     {
         RunOnStaThread(() =>
         {
@@ -1086,21 +1086,17 @@ public class VwWpfCommissioningTests
             var rootGrid = view.Content as System.Windows.Controls.Grid;
             Assert.NotNull(rootGrid);
 
-            // Row 1 (Khung 2: Windows) starts at MinHeight (180px) and Row 3 (Khung 3: Saved Windows) is Star
-            Assert.True(rootGrid.RowDefinitions[1].Height.IsAbsolute || rootGrid.RowDefinitions[1].Height.IsStar);
-            Assert.Equal(180, rootGrid.RowDefinitions[1].MinHeight);
-            Assert.True(rootGrid.RowDefinitions[3].Height.IsStar);
+            // Row 1 (Khung 2: Bố cục ô Camera trên Tường) is Star with MinHeight >= 200
+            Assert.True(rootGrid.RowDefinitions[1].Height.IsStar);
+            Assert.True(rootGrid.RowDefinitions[1].MinHeight >= 200);
 
-            // Row 2 (GridSplitter) must have fixed pixel height >= 3
-            Assert.True(rootGrid.RowDefinitions[2].Height.IsAbsolute);
-            Assert.True(rootGrid.RowDefinitions[2].Height.Value >= 3);
-
-            var splitters = rootGrid.Children.OfType<System.Windows.Controls.GridSplitter>().ToList();
-            var sceneSplitter = splitters.FirstOrDefault(s => System.Windows.Controls.Grid.GetRow(s) == 2);
-            Assert.NotNull(sceneSplitter);
-            Assert.Equal(System.Windows.Controls.GridResizeBehavior.PreviousAndNext, sceneSplitter.ResizeBehavior);
-            Assert.Equal(System.Windows.Controls.GridResizeDirection.Rows, sceneSplitter.ResizeDirection);
-            Assert.True(sceneSplitter.ShowsPreview);
+            // Verify single unified DataGrid exists in Row 1
+            var frame2Border = rootGrid.Children.OfType<System.Windows.Controls.Border>().FirstOrDefault(b => System.Windows.Controls.Grid.GetRow(b) == 1);
+            Assert.NotNull(frame2Border);
+            var innerGrid = frame2Border.Child as System.Windows.Controls.Grid;
+            Assert.NotNull(innerGrid);
+            var dataGrids = FindVisualChildren<System.Windows.Controls.DataGrid>(innerGrid).ToList();
+            Assert.NotEmpty(dataGrids);
         });
     }
 
@@ -1130,20 +1126,184 @@ public class VwWpfCommissioningTests
             var stackPanels = firstWrapPanel.Children.OfType<System.Windows.Controls.StackPanel>().ToList();
             Assert.Contains(stackPanels, sp => sp.Children.OfType<System.Windows.Controls.Grid>().Any(g => g.Children.OfType<System.Windows.Controls.ComboBox>().Any()));
 
-            // Khung 2 (Row 1): Border bottom must be 0 and corner radius bottom must be 0
+            // Khung 2 (Row 1): Single unified Camera grid border
             var frame2Border = rootGrid.Children.OfType<System.Windows.Controls.Border>().FirstOrDefault(b => System.Windows.Controls.Grid.GetRow(b) == 1);
             Assert.NotNull(frame2Border);
-            Assert.Equal(0, frame2Border.BorderThickness.Bottom);
-            Assert.Equal(0, frame2Border.CornerRadius.BottomLeft);
-            Assert.Equal(0, frame2Border.CornerRadius.BottomRight);
-
-            // Khung 3 (Row 3): Border top must be 0 and corner radius top must be 0
-            var frame3Border = rootGrid.Children.OfType<System.Windows.Controls.Border>().FirstOrDefault(b => System.Windows.Controls.Grid.GetRow(b) == 3);
-            Assert.NotNull(frame3Border);
-            Assert.Equal(0, frame3Border.BorderThickness.Top);
-            Assert.Equal(0, frame3Border.CornerRadius.TopLeft);
-            Assert.Equal(0, frame3Border.CornerRadius.TopRight);
+            Assert.Equal(4, frame2Border.CornerRadius.TopLeft);
+            Assert.Equal(4, frame2Border.CornerRadius.BottomRight);
         });
+    }
+
+    [Fact]
+    public void VwWpfSceneSetupTabView_NoSeedSampleScenesButton_AutomaticSeedingOnStartup_Test()
+    {
+        RunOnStaThread(() =>
+        {
+            var view = new SceneSetupTabView();
+            var allButtons = FindVisualChildren<System.Windows.Controls.Button>(view).ToList();
+
+            // Verify there is NO "Nạp 3 Scene mẫu" button in the view
+            Assert.DoesNotContain(allButtons, b => b.Content?.ToString()?.Contains("Nạp") == true);
+            Assert.DoesNotContain(allButtons, b => b.Content?.ToString()?.Contains("mẫu") == true);
+
+            // Verify ViewModel auto-seeds default scenes on startup
+            var (controller, screenA, screenB, source) = SeedWallAsync();
+            var stack = BuildClientStack();
+            var connection = BuildConnection(stack, controller, screenA, screenB, source);
+            var freshKey = $"10.99.{Random.Shared.Next(10, 99)}.{Random.Shared.Next(10, 99)}";
+            connection.AdHocIp = freshKey;
+            var sceneVm = new SceneSetupViewModel(stack.ActivityPublisher, connection, new UserConfirmationTest(true), stack.Publisher);
+
+            Assert.True(sceneVm.Scenes.Count >= 3);
+            Assert.NotNull(sceneVm.CurrentScene);
+            Assert.True(sceneVm.SceneWindows.Count > 0);
+        });
+    }
+
+    [Fact]
+    public void VwWpfSceneSetupTabView_CameraDropdown_And_SizePreset_UpdatesValues_Test()
+    {
+        var row = new SceneWindowRow(new WpfDto.VwWindowSceneDto
+        {
+            ID = "win-1",
+            Name = "Ô 1",
+            SourceId = "src-1",
+            W = 1920,
+            H = 1080,
+            ZIndex = 1
+        });
+
+        Assert.Equal("Toàn màn (1x1)", row.SizeLabel);
+        Assert.NotNull(row.SelectedSizePreset);
+        Assert.Equal("1x1 (1 Màn)", row.SelectedSizePreset.Name);
+
+        // Test changing size preset to 2x2
+        var preset2x2 = SceneWindowRow.AvailableSizePresets.First(p => p.Name.Contains("2x2"));
+        row.SelectedSizePreset = preset2x2;
+        Assert.Equal(3840, row.W);
+        Assert.Equal(2160, row.H);
+        Assert.Equal("Khối lớn (2x2)", row.SizeLabel);
+
+        var newSource = new WpfDto.VwSourceDto
+        {
+            ID = "src-cam-99",
+            Name = "Camera IC99",
+            SignalNo = 99
+        };
+
+        row.SelectedSource = newSource;
+        Assert.Equal("src-cam-99", row.SourceId);
+        Assert.Equal(newSource, row.SelectedSource);
+    }
+
+    [Fact]
+    public async Task VwWpfSceneSetupTabView_CreateNewScene_AutoPopulates12Grid_Test()
+    {
+        var (controller, screenA, screenB, source) = SeedWallAsync();
+        var stack = BuildClientStack();
+        var connection = BuildConnection(stack, controller, screenA, screenB, source);
+        var freshKey = $"10.88.{Random.Shared.Next(10, 99)}.{Random.Shared.Next(10, 99)}";
+        connection.AdHocIp = freshKey;
+        var sceneVm = new SceneSetupViewModel(stack.ActivityPublisher, connection, new UserConfirmationTest(true), stack.Publisher);
+
+        sceneVm.StartCreateNewSceneCommand.Execute(null);
+        Assert.True(sceneVm.IsCreatingNewScene);
+        Assert.Empty(sceneVm.SceneWindows);
+
+        sceneVm.SceneName = "Kịch bản Mới Test";
+        await sceneVm.CreateSceneCommand.ExecuteAsync(null);
+
+        Assert.False(sceneVm.IsCreatingNewScene);
+        Assert.NotNull(sceneVm.CurrentScene);
+        Assert.Equal("Kịch bản Mới Test", sceneVm.CurrentScene.Name);
+
+        sceneVm.Apply12GridTemplateCommand.Execute(null);
+        Assert.Equal(12, sceneVm.SceneWindows.Count);
+    }
+
+    [Fact]
+    public void VwWpfSceneSetupTabView_AddSceneWindow_And_LayoutTemplates_Test()
+    {
+        var (controller, screenA, screenB, source) = SeedWallAsync();
+        var stack = BuildClientStack();
+        var connection = BuildConnection(stack, controller, screenA, screenB, source);
+        var freshKey = $"10.77.{Random.Shared.Next(10, 99)}.{Random.Shared.Next(10, 99)}";
+        connection.AdHocIp = freshKey;
+        var sceneVm = new SceneSetupViewModel(stack.ActivityPublisher, connection, new UserConfirmationTest(true), stack.Publisher);
+
+        Assert.NotNull(sceneVm.CurrentScene);
+
+        // Test ApplyFullWallTemplateCommand
+        sceneVm.ApplyFullWallTemplateCommand.Execute(null);
+        Assert.Single(sceneVm.SceneWindows);
+        Assert.Equal(7680, sceneVm.SceneWindows[0].W);
+        Assert.Equal(5760, sceneVm.SceneWindows[0].H);
+
+        // Test AddSceneWindowCommand
+        sceneVm.AddSceneWindowCommand.Execute(null);
+        Assert.Equal(2, sceneVm.SceneWindows.Count);
+
+        // Test ApplyBigCenterTemplateCommand
+        sceneVm.ApplyBigCenterTemplateCommand.Execute(null);
+        Assert.Equal(5, sceneVm.SceneWindows.Count);
+        Assert.Equal(3840, sceneVm.SceneWindows[0].W);
+        Assert.Equal(2160, sceneVm.SceneWindows[0].H);
+
+        // Test Apply12GridTemplateCommand
+        sceneVm.Apply12GridTemplateCommand.Execute(null);
+        Assert.Equal(12, sceneVm.SceneWindows.Count);
+    }
+
+    [Fact]
+    public async Task VwWpfSceneSetupTabView_AddWindow_SelectsRow_EnablesDeleteButton_Test()
+    {
+        var (controller, screenA, screenB, source) = SeedWallAsync();
+        var stack = BuildClientStack();
+        var connection = BuildConnection(stack, controller, screenA, screenB, source);
+        var freshKey = $"10.66.{Random.Shared.Next(10, 99)}.{Random.Shared.Next(10, 99)}";
+        connection.AdHocIp = freshKey;
+        var sceneVm = new SceneSetupViewModel(stack.ActivityPublisher, connection, new UserConfirmationTest(true), stack.Publisher);
+
+        // Apply 1-window template
+        sceneVm.ApplyFullWallTemplateCommand.Execute(null);
+        Assert.Single(sceneVm.SceneWindows);
+
+        // Add a new window
+        sceneVm.AddSceneWindowCommand.Execute(null);
+        Assert.Equal(2, sceneVm.SceneWindows.Count);
+
+        // The newly added window should be selected and Delete command should be executable
+        Assert.NotNull(sceneVm.SelectedSceneWindow);
+        Assert.True(sceneVm.DeleteSelectedSceneWindowsCommand.CanExecute(null));
+
+        // Execute DeleteSelectedSceneWindowsCommand -> deletes selected row
+        await sceneVm.DeleteSelectedSceneWindowsCommand.ExecuteAsync(null);
+        Assert.Single(sceneVm.SceneWindows);
+    }
+
+    [Fact]
+    public void VwWpfSceneSetupTabView_CreateNewSceneMode_HidesSceneDropdown_Test()
+    {
+        var (controller, screenA, screenB, source) = SeedWallAsync();
+        var stack = BuildClientStack();
+        var connection = BuildConnection(stack, controller, screenA, screenB, source);
+        var freshKey = $"10.55.{Random.Shared.Next(10, 99)}.{Random.Shared.Next(10, 99)}";
+        connection.AdHocIp = freshKey;
+        var sceneVm = new SceneSetupViewModel(stack.ActivityPublisher, connection, new UserConfirmationTest(true), stack.Publisher);
+
+        // Initially in normal mode
+        Assert.False(sceneVm.IsCreatingNewScene);
+        Assert.True(sceneVm.IsNotCreatingNewScene);
+
+        // Start creating new scene
+        sceneVm.StartCreateNewSceneCommand.Execute(null);
+        Assert.True(sceneVm.IsCreatingNewScene);
+        Assert.False(sceneVm.IsNotCreatingNewScene);
+
+        // Cancel creating new scene -> returns to normal mode
+        sceneVm.CancelCreateNewSceneCommand.Execute(null);
+        Assert.False(sceneVm.IsCreatingNewScene);
+        Assert.True(sceneVm.IsNotCreatingNewScene);
     }
 
     [Fact]

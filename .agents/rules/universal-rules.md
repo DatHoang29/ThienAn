@@ -115,15 +115,20 @@ When user's prompt is NOT in English:
 
 ---
 
-## 🛑 Quy Tắc Kill Tiến Trình Khi Rebuild / Chạy WPF (WPF Process Termination Rule [Mandatory Rule])
+## 🛑 Quy Tắc Kill & Tự Động Khởi Động Lại WPF (WPF Process Termination & Auto-Restart Rule [Mandatory Rule])
 
-- **CHỈ ĐƯỢC PHÉP Kill Riêng Tiến Trình WPF**: Mỗi lần rebuild, re-run hoặc chạy test liên quan tới module WPF, nếu cần giải phóng file DLL / EXE bị lock, AI **CHỈ ĐƯỢC PHÉP tắt duy nhất tiến trình WPF** (`Module.VideoWall.WPF` / `Module.VideoWall.WPF.exe`).
+- **CHỈ ĐƯỢC PHÉP Kill Riêng Tiến Trình WPF**: Mỗi lần rebuild, re-run hoặc chạy test liên quan tới module WPF, nếu cần giải phóng file DLL / EXE bị lock, AI **CHỈ ĐƯỢC PHÉP tắt duy nhất tiến trình WPF** (`Module.VideoWall.WPF` / `Module.VideoWall.WPF.exe` hoặc PID đang lock file DLL này).
 - **TUYỆT ĐỐI KHÔNG Kill Hết Các Tiến Trình Khác (FORBIDDEN Wildcard Kill)**: 
   - **CẤM** chạy các lệnh quét/kill diện rộng như `Stop-Process -Name "dotnet"`, `Get-Process testhost*,dotnet* | Stop-Process`, `taskkill /f /im dotnet.exe` hoặc kill hàng loạt tiến trình `dotnet*` / `testhost*`.
   - Việc kill diện rộng sẽ làm tắt nhầm các dịch vụ WebAPI, Worker, background services, IDE test runner hoặc MockServer độc lập đang chạy của người dùng.
-- **Lệnh PowerShell Chuẩn Xác (Targeted Kill Only)**:
+- **Lệnh PowerShell Kill Chuẩn Xác (Targeted Kill Only)**:
   ```powershell
   Get-Process -Name "Module.VideoWall.WPF" -ErrorAction SilentlyContinue | Stop-Process -Force
+  ```
+- **TỰ ĐỘNG KHỞI ĐỘNG LẠI (AUTO-RESTART) WPF SAU KHI SỬA XONG [BẮT BUỘC]**:
+  - Mỗi khi AI đã tắt/kill tiến trình WPF để giải phóng file lock / chạy test, **sau khi hoàn thành các sửa đổi code và toàn bộ test đã pass**, AI **BẮT BUỘC TỰ ĐỘNG CHẠY LẠI (START)** ứng dụng WPF cho người dùng dưới dạng background task daemon (`IsDaemon: true`) để người dùng có ngay giao diện để kiểm tra:
+  ```powershell
+  dotnet run --project TA-ITS015-WEBAPI-V1.0/src/Modules/VideoWall/Module.VideoWall.WPF/Module.VideoWall.WPF.csproj
   ```
 
 
