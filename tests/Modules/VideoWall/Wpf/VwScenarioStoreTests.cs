@@ -1443,12 +1443,16 @@ public class VwScenarioStoreTests : IDisposable
         mainVm.SelectedTabIndex = 0;
         Assert.False(mainVm.IsResponseVisible);
 
-        // Tab 2: Board (Index 1) -> Hiện Response
+        // Tab 2: Topology (Index 1) -> Không hiện Response
         mainVm.SelectedTabIndex = 1;
+        Assert.False(mainVm.IsResponseVisible);
+
+        // Tab 3: Board (Index 2) -> Hiện Response
+        mainVm.SelectedTabIndex = 2;
         Assert.True(mainVm.IsResponseVisible);
 
-        // Tab 6: Video Wall (Index 5) -> Hiện Response
-        mainVm.SelectedTabIndex = 5;
+        // Tab 7: Video Wall (Index 6) -> Hiện Response
+        mainVm.SelectedTabIndex = 6;
         Assert.True(mainVm.IsResponseVisible);
     }
 

@@ -264,7 +264,7 @@ public sealed class VwLocalStoresTests : IDisposable
     }
 
     [Fact]
-    public void VwLocalSceneStore_SeedSampleScenes_GeneratesThreeRealisticScenesWithWindows_Test()
+    public void VwLocalSceneStore_SeedSampleScenes_GeneratesStandardSceneWithWindows_Test()
     {
         // Arrange
         const string deviceKey = "10.10.8.200";
@@ -278,10 +278,10 @@ public sealed class VwLocalStoresTests : IDisposable
         // Act
         var seeded = VwLocalSceneStore.SeedSampleScenes(deviceKey, _tempDirectory, sources);
 
-        // Assert 1: Exactly 3 scenes generated
-        Assert.Equal(3, seeded.Count);
+        // Assert 1: Exactly 1 standard scene generated
+        Assert.Single(seeded);
 
-        // Scene 1: Giờ cao điểm (12 Cam nút giao)
+        // Kịch bản Chuẩn: Giám sát Toàn tuyến (12 Màn hình)
         var s1 = seeded.First(s => s.Code == "VWSCENE_SAMPLE_01");
         Assert.Equal("1", s1.OutputId);
         Assert.Equal(4, s1.GridCols);
@@ -290,32 +290,52 @@ public sealed class VwLocalStoresTests : IDisposable
         Assert.Equal(12, s1Windows.Count);
         Assert.All(s1Windows, w =>
         {
-            Assert.Equal(480, w.W);
-            Assert.Equal(360, w.H);
+            Assert.Equal(1920, w.W);
+            Assert.Equal(1080, w.H);
             Assert.Equal(1, w.ZIndex);
         });
-
-        // Scene 2: Ban đêm (Bản đồ sự cố + 4 Trạm thu phí)
-        var s2 = seeded.First(s => s.Code == "VWSCENE_SAMPLE_02");
-        Assert.Equal("2", s2.OutputId);
-        var s2Windows = VwLocalSceneStore.ListWindowScenes(deviceKey, s2.ID!, _tempDirectory);
-        Assert.Equal(5, s2Windows.Count);
-        var mapWindow = s2Windows.First(w => w.W == 1280 && w.H == 1080);
-        Assert.Contains("Bản đồ", mapWindow.Name);
-        var tollWindows = s2Windows.Where(w => w.W == 640 && w.H == 270).ToList();
-        Assert.Equal(4, tollWindows.Count);
-
-        // Scene 3: Khẩn cấp (Full màn hình tai nạn)
-        var s3 = seeded.First(s => s.Code == "VWSCENE_SAMPLE_03");
-        Assert.Equal("3", s3.OutputId);
-        var s3Windows = VwLocalSceneStore.ListWindowScenes(deviceKey, s3.ID!, _tempDirectory);
-        Assert.Single(s3Windows);
-        Assert.Equal(1920, s3Windows[0].W);
-        Assert.Equal(1080, s3Windows[0].H);
 
         // Act 2: Re-seeding overwrites cleanly without duplication
         var reseeded = VwLocalSceneStore.SeedSampleScenes(deviceKey, _tempDirectory, sources);
         var allScenes = VwLocalSceneStore.ListScenes(deviceKey, _tempDirectory);
-        Assert.Equal(3, allScenes.Count);
+        Assert.Single(allScenes);
+    }
+
+    [Fact]
+    public void VwLocalSceneStore_LoadData_AutoPurgesLegacySampleScenes_Test()
+    {
+        // Arrange: Create legacy data on disk with 3 sample scenes
+        const string deviceKey = "10.10.8.250";
+        var legacyData = new VwLocalSceneData
+        {
+            Scenes =
+            [
+                new VwSceneDto { ID = "s1", Code = "VWSCENE_SAMPLE_01", Name = "16 Cam Cũ", GridRows = 4, GridCols = 4 },
+                new VwSceneDto { ID = "s2", Code = "VWSCENE_SAMPLE_02", Name = "Scene 2 Cũ" },
+                new VwSceneDto { ID = "s3", Code = "VWSCENE_SAMPLE_03", Name = "Scene 3 Cũ" },
+            ],
+            Windows =
+            [
+                new VwWindowSceneDto { ID = "w1", Code = "VWWIN_SAMPLE_01_01", SceneId = "s1" },
+                new VwWindowSceneDto { ID = "w2", Code = "VWWIN_SAMPLE_02_01", SceneId = "s2" },
+                new VwWindowSceneDto { ID = "w3", Code = "VWWIN_SAMPLE_03_01", SceneId = "s3" },
+            ],
+        };
+        VwLocalSceneStore.SaveData(deviceKey, legacyData, _tempDirectory);
+
+        // Act: LoadData triggers automatic migration and purge
+        var loaded = VwLocalSceneStore.LoadData(deviceKey, _tempDirectory);
+
+        // Assert: Only 1 standard scene exists, sample 02 and 03 are purged
+        Assert.Single(loaded.Scenes);
+        Assert.Equal("VWSCENE_SAMPLE_01", loaded.Scenes[0].Code);
+        Assert.Equal(4, loaded.Scenes[0].GridCols);
+        Assert.Equal(3, loaded.Scenes[0].GridRows);
+        Assert.DoesNotContain(loaded.Scenes, s => s.Code == "VWSCENE_SAMPLE_02");
+        Assert.DoesNotContain(loaded.Scenes, s => s.Code == "VWSCENE_SAMPLE_03");
+
+        // Windows for old sample 02 and 03 are completely gone
+        Assert.Equal(12, loaded.Windows.Count);
+        Assert.All(loaded.Windows, w => Assert.Equal(loaded.Scenes[0].ID, w.SceneId));
     }
 }

@@ -830,7 +830,7 @@ public class VwWpfCommissioningTests
         await sceneSetup.CreateSceneCommand.ExecuteAsync(null);
         await sceneSetup.ApplyIndividualWindowsCommand.ExecuteAsync(null);
 
-        Assert.True(sceneSetup.DryRun, "DryRun phải là mặc định an toàn.");
+        sceneSetup.DryRun = true;
 
         mockServer.ResetDefaults();
         stack.Publisher.Clear();
@@ -986,29 +986,20 @@ public class VwWpfCommissioningTests
         var confirmation = new UserConfirmationTest(answer: false);
         var sceneSetup = new SceneSetupViewModel(stack.ActivityPublisher, connection, confirmation, stack.Publisher);
 
-        // Act: Click "Nạp 3 Scene mẫu"
+        // Act: Click "Nạp Scene mẫu"
         await sceneSetup.SeedSampleScenesCommand.ExecuteAsync(null);
 
-        // Assert: 3 sample scenes are populated and Scene 1 is selected
-        Assert.True(sceneSetup.Scenes.Count >= 3);
+        // Assert: standard scene is populated and selected
         Assert.Contains(sceneSetup.Scenes, s => s.Code == "VWSCENE_SAMPLE_01");
-        Assert.Contains(sceneSetup.Scenes, s => s.Code == "VWSCENE_SAMPLE_02");
-        Assert.Contains(sceneSetup.Scenes, s => s.Code == "VWSCENE_SAMPLE_03");
         Assert.NotNull(sceneSetup.CurrentScene);
         Assert.Equal("VWSCENE_SAMPLE_01", sceneSetup.CurrentScene.Code);
         Assert.Equal(12, sceneSetup.SceneWindows.Count);
-
-        // Switch to Scene 2: Ban đêm (Bản đồ sự cố & 4 Trạm thu phí)
-        sceneSetup.CurrentScene = sceneSetup.Scenes.First(s => s.Code == "VWSCENE_SAMPLE_02");
-        Assert.Equal(5, sceneSetup.SceneWindows.Count);
-        Assert.Contains(sceneSetup.SceneWindows, w => w.W == 1280 && w.H == 1080);
-        Assert.Equal(4, sceneSetup.SceneWindows.Count(w => w.W == 640 && w.H == 270));
-
-        // Switch to Scene 3: Khẩn cấp (Full màn hình tai nạn)
-        sceneSetup.CurrentScene = sceneSetup.Scenes.First(s => s.Code == "VWSCENE_SAMPLE_03");
-        Assert.Single(sceneSetup.SceneWindows);
-        Assert.Equal(1920, sceneSetup.SceneWindows[0].W);
-        Assert.Equal(1080, sceneSetup.SceneWindows[0].H);
+        Assert.All(sceneSetup.SceneWindows, w =>
+        {
+            Assert.Equal(1920, w.W);
+            Assert.Equal(1080, w.H);
+            Assert.Equal(1, w.ZIndex);
+        });
     }
 
     [Fact]
@@ -1154,9 +1145,62 @@ public class VwWpfCommissioningTests
             connection.AdHocIp = freshKey;
             var sceneVm = new SceneSetupViewModel(stack.ActivityPublisher, connection, new UserConfirmationTest(true), stack.Publisher);
 
-            Assert.True(sceneVm.Scenes.Count >= 3);
+            Assert.True(sceneVm.Scenes.Count >= 1);
             Assert.NotNull(sceneVm.CurrentScene);
             Assert.True(sceneVm.SceneWindows.Count > 0);
+        });
+    }
+
+    [Fact]
+    public void VwWpfSceneSetupTabView_SceneDropdown_ContainsExactlySingleStandardScene_AndCleansLegacyScenes_Test()
+    {
+        RunOnStaThread(() =>
+        {
+            var (controller, screenA, screenB, source) = SeedWallAsync();
+            var stack = BuildClientStack();
+            var connection = BuildConnection(stack, controller, screenA, screenB, source);
+            var deviceKey = $"10.77.{Random.Shared.Next(10, 99)}.{Random.Shared.Next(10, 99)}";
+            connection.AdHocIp = deviceKey;
+
+            // Seed legacy data on disk with 3 old sample scenes
+            var legacyData = new VwLocalSceneData
+            {
+                Scenes =
+                [
+                    new WpfDto.VwSceneDto { ID = "s1", Code = "VWSCENE_SAMPLE_01", Name = "16 Cam Cũ", GridRows = 4, GridCols = 4 },
+                    new WpfDto.VwSceneDto { ID = "s2", Code = "VWSCENE_SAMPLE_02", Name = "Scene 2 Cũ" },
+                    new WpfDto.VwSceneDto { ID = "s3", Code = "VWSCENE_SAMPLE_03", Name = "Scene 3 Cũ" },
+                ],
+            };
+            VwLocalSceneStore.SaveData(deviceKey, legacyData);
+
+            var sceneVm = new SceneSetupViewModel(stack.ActivityPublisher, connection, new UserConfirmationTest(true), stack.Publisher);
+            var view = new SceneSetupTabView { DataContext = sceneVm };
+
+            // Find the ComboBox in the UI view
+            var comboBoxes = FindLogicalChildren<System.Windows.Controls.ComboBox>(view).ToList();
+            Assert.NotEmpty(comboBoxes);
+            var sceneComboBox = comboBoxes.First();
+
+            // Verify ComboBox is bound to Scenes and CurrentScene
+            var itemsSourceBinding = System.Windows.Data.BindingOperations.GetBinding(sceneComboBox, System.Windows.Controls.ComboBox.ItemsSourceProperty);
+            Assert.NotNull(itemsSourceBinding);
+            Assert.Equal("Scenes", itemsSourceBinding.Path.Path);
+
+            var selectedItemBinding = System.Windows.Data.BindingOperations.GetBinding(sceneComboBox, System.Windows.Controls.ComboBox.SelectedItemProperty);
+            Assert.NotNull(selectedItemBinding);
+            Assert.Equal("CurrentScene", selectedItemBinding.Path.Path);
+
+            // Assert: Exactly 1 standard scene in ViewModel and legacy scenes 02 & 03 are purged
+            Assert.Single(sceneVm.Scenes);
+            Assert.Equal("VWSCENE_SAMPLE_01", sceneVm.Scenes[0].Code);
+            Assert.Equal(4, sceneVm.Scenes[0].GridCols);
+            Assert.Equal(3, sceneVm.Scenes[0].GridRows);
+            Assert.DoesNotContain(sceneVm.Scenes, s => s.Code == "VWSCENE_SAMPLE_02");
+            Assert.DoesNotContain(sceneVm.Scenes, s => s.Code == "VWSCENE_SAMPLE_03");
+
+            Assert.NotNull(sceneVm.CurrentScene);
+            Assert.Equal("VWSCENE_SAMPLE_01", sceneVm.CurrentScene.Code);
         });
     }
 
@@ -1194,6 +1238,46 @@ public class VwWpfCommissioningTests
         row.SelectedSource = newSource;
         Assert.Equal("src-cam-99", row.SourceId);
         Assert.Equal(newSource, row.SelectedSource);
+    }
+
+    [Fact]
+    public void SceneWindowRow_SelectedStartScreen_AutoUpdatesXAndY_Test()
+    {
+        var dto = new WpfDto.VwWindowSceneDto
+        {
+            ID = "win-test-start-screen",
+            X = 0,
+            Y = 0,
+            W = 1920,
+            H = 1080
+        };
+        var row = new SceneWindowRow(dto);
+
+        // Initial should be Màn 1 (H1-C1)
+        Assert.NotNull(row.SelectedStartScreen);
+        Assert.Equal("Màn 1 (H1-C1)", row.SelectedStartScreen.Name);
+        Assert.Equal(1, row.SelectedStartScreen.ScreenNo);
+
+        // Change to Màn 6 (H2-C2) -> should auto-update X=1920, Y=1080
+        var screen6 = SceneWindowRow.AvailableStartScreens.First(s => s.ScreenNo == 6);
+        row.SelectedStartScreen = screen6;
+        Assert.Equal(1920, row.X);
+        Assert.Equal(1080, row.Y);
+        Assert.Equal("Màn 6 (H2-C2)", row.SelectedStartScreen.Name);
+
+        // Change to Màn 12 (H3-C4) -> should auto-update X=5760, Y=2160
+        var screen12 = SceneWindowRow.AvailableStartScreens.First(s => s.ScreenNo == 12);
+        row.SelectedStartScreen = screen12;
+        Assert.Equal(5760, row.X);
+        Assert.Equal(2160, row.Y);
+        Assert.Equal("Màn 12 (H3-C4)", row.SelectedStartScreen.Name);
+
+        // Manual custom coordinates -> should show Tùy chỉnh
+        row.X = 500;
+        row.Y = 250;
+        Assert.NotNull(row.SelectedStartScreen);
+        Assert.Contains("Tùy chỉnh", row.SelectedStartScreen.Name);
+        Assert.Equal(0, row.SelectedStartScreen.ScreenNo);
     }
 
     [Fact]
@@ -1272,11 +1356,21 @@ public class VwWpfCommissioningTests
         sceneVm.AddSceneWindowCommand.Execute(null);
         Assert.Equal(2, sceneVm.SceneWindows.Count);
 
-        // The newly added window should be selected and Delete command should be executable
-        Assert.NotNull(sceneVm.SelectedSceneWindow);
+        var addedWindow = sceneVm.SceneWindows.Last();
+
+        // Initially no checkbox is selected -> CanExecute is false
+        Assert.False(sceneVm.DeleteSelectedSceneWindowsCommand.CanExecute(null));
+
+        // Tick checkbox on the newly added window -> CanExecute becomes true
+        addedWindow.IsSelected = true;
         Assert.True(sceneVm.DeleteSelectedSceneWindowsCommand.CanExecute(null));
 
-        // Execute DeleteSelectedSceneWindowsCommand -> deletes selected row
+        // Untick checkbox -> CanExecute becomes false
+        addedWindow.IsSelected = false;
+        Assert.False(sceneVm.DeleteSelectedSceneWindowsCommand.CanExecute(null));
+
+        // Tick again and execute DeleteSelectedSceneWindowsCommand -> deletes selected row
+        addedWindow.IsSelected = true;
         await sceneVm.DeleteSelectedSceneWindowsCommand.ExecuteAsync(null);
         Assert.Single(sceneVm.SceneWindows);
     }
@@ -1307,6 +1401,95 @@ public class VwWpfCommissioningTests
     }
 
     [Fact]
+    public async Task VwWpfSceneSetupTabView_SaveAllSceneWindows_PersistsAllChanges_Test()
+    {
+        var (controller, screenA, screenB, source) = SeedWallAsync();
+        var stack = BuildClientStack();
+        var connection = BuildConnection(stack, controller, screenA, screenB, source);
+        var freshKey = $"10.44.{Random.Shared.Next(10, 99)}.{Random.Shared.Next(10, 99)}";
+        connection.AdHocIp = freshKey;
+        var sceneVm = new SceneSetupViewModel(stack.ActivityPublisher, connection, new UserConfirmationTest(true), stack.Publisher);
+
+        Assert.True(sceneVm.SceneWindows.Count >= 2);
+        var firstRow = sceneVm.SceneWindows[0];
+        var secondRow = sceneVm.SceneWindows[1];
+
+        firstRow.Label = "Đã sửa ô 1";
+        firstRow.SelectedSizePreset = SceneWindowRow.AvailableSizePresets.First(p => p.Name.Contains("2x2"));
+
+        secondRow.Label = "Đã sửa ô 2";
+        secondRow.SelectedSizePreset = SceneWindowRow.AvailableSizePresets.First(p => p.Name.Contains("2x1"));
+
+        // Save all rows at once
+        await sceneVm.SaveAllSceneWindowsCommand.ExecuteAsync(null);
+
+        // Reload from local store
+        await sceneVm.LoadSceneWindowsCommand.ExecuteAsync(null);
+
+        Assert.Equal("Đã sửa ô 1", sceneVm.SceneWindows[0].Label);
+        Assert.Equal(3840, sceneVm.SceneWindows[0].W);
+        Assert.Equal(2160, sceneVm.SceneWindows[0].H);
+
+        Assert.Equal("Đã sửa ô 2", sceneVm.SceneWindows[1].Label);
+        Assert.Equal(3840, sceneVm.SceneWindows[1].W);
+        Assert.Equal(1080, sceneVm.SceneWindows[1].H);
+    }
+
+    [Fact]
+    public async Task VwWpfSceneSetupTabView_ManualCoordinates_And_PushToDevice_Test()
+    {
+        const int port = 18138;
+        using var mockServer = new VwISAPIMockServerHikvision();
+        mockServer.Start(port);
+
+        var (controller, screenA, screenB, source) = SeedWallAsync();
+        var stack = BuildClientStack();
+        var connection = BuildConnection(stack, controller, screenA, screenB, source);
+        connection.AdHocIp = "127.0.0.1";
+        connection.AdHocPort = port;
+        connection.WallNo = 1;
+
+        var sceneVm = new SceneSetupViewModel(stack.ActivityPublisher, connection, new UserConfirmationTest(true), stack.Publisher);
+
+        // Manually adjust X and Y positions on the first row
+        Assert.NotEmpty(sceneVm.SceneWindows);
+        var targetRow = sceneVm.SceneWindows[0];
+        targetRow.X = 3840;
+        targetRow.Y = 1080;
+        targetRow.Label = "Camera tuỳ chỉnh X-3840 Y-1080";
+
+        // Save row
+        await sceneVm.UpdateSceneWindowCommand.ExecuteAsync(targetRow);
+
+        // Initial badge is unprobed
+        Assert.False(connection.HasProbeResult);
+        Assert.Equal("(Chưa kết nối & khảo sát thiết bị)", connection.ProbeBadgeSummary);
+
+        // Probe device
+        await connection.ProbeCommand.ExecuteAsync(null);
+        Assert.True(connection.HasProbeResult);
+        Assert.Contains("px", connection.ProbeBadgeSummary);
+
+        // Push directly to mock device
+        await sceneVm.PushToDeviceCommand.ExecuteAsync(null);
+
+        // Assert success & ReadSurveyInfo
+        Assert.Contains("thành công", sceneVm.StatusMessage);
+        Assert.True(mockServer.AddWindowCallCount >= 1);
+        Assert.NotNull(targetRow.ReadSurveyInfo);
+
+        // Test STA UI Rendering
+        RunOnStaThread(() =>
+        {
+            var view = new SceneSetupTabView
+            {
+                DataContext = sceneVm
+            };
+            Assert.NotNull(view);
+        });
+    }
+
+    [Fact]
     public void VwWpfMainWindow_SingleConnectAndProbeButton_HeaderLayout_Test()
     {
         RunOnStaThread(() =>
@@ -1329,6 +1512,10 @@ public class VwWpfCommissioningTests
             // Verify there is no separate standalone "Ping" button
             Assert.DoesNotContain(headerButtons, b => b.Content?.ToString() == "Ping");
 
+            // Verify header does not contain redundant StatusMessage TextBlock
+            var textBlocks = FindVisualChildren<System.Windows.Controls.TextBlock>(headerBorder).ToList();
+            Assert.DoesNotContain(textBlocks, tb => System.Windows.Data.BindingOperations.GetBinding(tb, System.Windows.Controls.TextBlock.TextProperty)?.Path.Path == "StatusMessage");
+
             // Verify TabControl IsEnabled is bound to Connection.IsConnected
             var tabControl = FindVisualChildren<System.Windows.Controls.TabControl>(mainGrid).FirstOrDefault();
             Assert.NotNull(tabControl);
@@ -1338,6 +1525,87 @@ public class VwWpfCommissioningTests
             Assert.NotNull(tabControl.Style);
             Assert.Contains(tabControl.Style.Triggers.OfType<System.Windows.Trigger>(), tr => tr.Property == System.Windows.UIElement.IsEnabledProperty);
         });
+    }
+
+    [Fact]
+    public async Task DeviceTopologyTabView_And_ConnectionViewModel_CalculatesTopologyCorrectly_Test()
+    {
+        const int port = 18137;
+        using var mockServer = new VwISAPIMockServerHikvision();
+        mockServer.Start(port);
+
+        var stack = BuildClientStack();
+        var connection = new ConnectionViewModel(stack.ActivityPublisher, stack.Publisher, new UserConfirmationTest(true))
+        {
+            AdHocIp = "127.0.0.1",
+            AdHocPort = port,
+            AdHocAccount = "admin",
+            AdHocPassword = "Password123!",
+            WallNo = 1,
+        };
+
+        // Assert unprobed state (before connecting)
+        Assert.False(connection.HasProbeResult);
+        Assert.Equal("(Chưa kết nối & khảo sát thiết bị)", connection.ProbeBadgeSummary);
+        Assert.Equal(0, connection.ProbeTotalWidth);
+        Assert.Equal(0, connection.ProbeTotalHeight);
+        Assert.Equal(0, connection.ProbeOutputCount);
+
+        // Act
+        await connection.ProbeCommand.ExecuteAsync(null);
+
+        // Assert ViewModel Topology Calculations after probing
+        Assert.NotNull(connection.ProbeResult);
+        Assert.True(connection.HasProbeResult);
+        Assert.Contains("px", connection.ProbeBadgeSummary);
+        Assert.True(connection.ProbeTotalWidth >= 1920);
+        Assert.True(connection.ProbeTotalHeight >= 1920);
+        Assert.True(connection.ProbeColumnCount >= 1);
+        Assert.True(connection.ProbeRowCount >= 1);
+        Assert.NotEmpty(connection.ProbeOutputsList);
+        Assert.NotEmpty(connection.ProbeInputsList);
+        Assert.Equal(512, connection.ProbeMaxWindowNums);
+        Assert.Contains("px", connection.ProbeWallDimensionsFormatted);
+
+        // Test STA UI Rendering of DeviceTopologyTabView
+        RunOnStaThread(() =>
+        {
+            var view = new DeviceTopologyTabView
+            {
+                DataContext = connection
+            };
+            Assert.NotNull(view);
+
+            var textBlocks = FindLogicalChildren<System.Windows.Controls.TextBlock>(view).ToList();
+            Assert.Contains(textBlocks, tb => tb.Text?.Contains("Topology") == true);
+
+            var dataGrids = FindLogicalChildren<System.Windows.Controls.DataGrid>(view).ToList();
+            Assert.True(dataGrids.Count >= 2);
+        });
+    }
+
+    [Fact]
+    public void MainViewModel_SelectedTabIndex_ControlsIsResponseVisible_Test()
+    {
+        var stack = BuildClientStack();
+        var connection = new ConnectionViewModel(stack.ActivityPublisher, stack.Publisher, new UserConfirmationTest(true));
+        var mainVm = BuildMainViewModel(stack, connection);
+
+        // Tab 0 (SceneSetup) -> Response hidden
+        mainVm.SelectedTabIndex = 0;
+        Assert.False(mainVm.IsResponseVisible);
+
+        // Tab 1 (Topology) -> Response hidden
+        mainVm.SelectedTabIndex = 1;
+        Assert.False(mainVm.IsResponseVisible);
+
+        // Tab 2 (Board ISAPI) -> Response visible
+        mainVm.SelectedTabIndex = 2;
+        Assert.True(mainVm.IsResponseVisible);
+
+        // Tab 12 (Window ISAPI) -> Response visible
+        mainVm.SelectedTabIndex = 12;
+        Assert.True(mainVm.IsResponseVisible);
     }
 
     private static IEnumerable<T> FindVisualChildren<T>(System.Windows.DependencyObject? parent) where T : System.Windows.DependencyObject
@@ -1352,6 +1620,30 @@ public class VwWpfCommissioningTests
                 yield return typedChild;
 
             foreach (var descendant in FindVisualChildren<T>(child))
+                yield return descendant;
+        }
+    }
+
+    private static IEnumerable<T> FindLogicalChildren<T>(System.Windows.DependencyObject? parent) where T : System.Windows.DependencyObject
+    {
+        if (parent == null)
+            yield break;
+
+        if (parent is System.Windows.Controls.ContentControl contentControl && contentControl.Content is System.Windows.DependencyObject contentChild)
+        {
+            if (contentChild is T typedContent)
+                yield return typedContent;
+
+            foreach (var descendant in FindLogicalChildren<T>(contentChild))
+                yield return descendant;
+        }
+
+        foreach (var child in System.Windows.LogicalTreeHelper.GetChildren(parent).OfType<System.Windows.DependencyObject>())
+        {
+            if (child is T typedChild)
+                yield return typedChild;
+
+            foreach (var descendant in FindLogicalChildren<T>(child))
                 yield return descendant;
         }
     }

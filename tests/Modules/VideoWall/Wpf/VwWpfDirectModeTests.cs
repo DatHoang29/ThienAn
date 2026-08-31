@@ -2,9 +2,13 @@ using System;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging.Abstractions;
+using Module.VideoWall.WPF.Api;
 using Module.VideoWall.WPF.Api.Direct;
+using Module.VideoWall.WPF.Interaction;
 using Module.VideoWall.WPF.ViewModels;
 using Module.VideoWall.WPF.ViewModels.Isapi;
+using Services.Shared.Events;
 using Tests.Modules.VideoWall.MockServer;
 using Xunit;
 
@@ -358,6 +362,41 @@ public class VwWpfDirectModeTests
                 Assert.False(string.IsNullOrWhiteSpace(step.ResponseXml), $"Preset {preset.Section} ({preset.Method} {resolvedUrl}) returned empty response");
             }
         }
+    }
+
+    [Fact]
+    public async Task ConnectionViewModel_SendIsapiCommand_DoesNotOverwriteStatusMessageWithIsapiGetText_Test()
+    {
+        const int port = 18136;
+        using var mockServer = new VwISAPIMockServerHikvision();
+        mockServer.Start(port);
+
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true))
+        {
+            AdHocIp = "127.0.0.1",
+            AdHocPort = port,
+            AdHocAccount = "admin",
+            AdHocPassword = "Password123!",
+            WallNo = 1,
+            StatusMessage = "Probe trực tiếp xong: WallNo 1, max 64 windows.",
+        };
+
+        connection.IsapiMethod = "GET";
+        connection.IsapiPath = "ISAPI/DisplayDev/Audio/capabilities";
+
+        // Act
+        await connection.SendIsapiCommand.ExecuteAsync(null);
+
+        // Assert: Response is populated, activity log published, but StatusMessage does NOT have verbose ISAPI GET text
+        Assert.False(string.IsNullOrWhiteSpace(connection.IsapiResponse));
+        Assert.DoesNotContain("ISAPI GET", connection.StatusMessage);
+        Assert.DoesNotContain("Xem chi tiết ở tab Log", connection.StatusMessage);
+        Assert.Equal("Probe trực tiếp xong: WallNo 1, max 64 windows.", connection.StatusMessage);
+
+        // Verify activity log received the log row
+        Assert.Contains(recordingPub.ActivityRows, a => a.Activity.Detail.Contains("ISAPI/DisplayDev/Audio/capabilities"));
     }
 
     private static VwDirectISAPIClient BuildIsapiClient(int port)
