@@ -1,24 +1,35 @@
-# Checklist test 2 ngày tại TCB (nội bộ)
+# Checklist test 2 ngày tại TCB (Hiện trường)
 
-> Bản nội bộ — mang theo khi đi hiện trường. Bối cảnh & cơ chế: [`videowall-kien-truc-van-hanh.md`](videowall-kien-truc-van-hanh.md).
-> Thiết bị: **Hikvision DS-C30S-S11** (1 controller, 12 màn). **Không đụng phần cứng.**
+> Bản nội bộ — mang theo khi đi hiện trường tại trạm điều hành TCB (Hữu Nghị – Chi Lăng).
+> Thiết bị: **Hikvision DS-C30S-S11** (1 controller, 12 màn ghép 4×3). **Không đụng phần cứng.**
 
-## Nguyên tắc (Thống nhất trong cuộc họp 28/08)
+---
 
-- **Tương tác qua IP (ISAPI/HTTP)**: Không mở/tháo/đổi phần cứng, không đổi dây genlock của khách hàng.
-- **Tự động ghi log ra file để theo dõi**: Mọi thao tác gửi request và dữ liệu phản hồi từ thiết bị đều tự động ghi nối tiếp vào file `%LOCALAPPDATA%\Module.VideoWall.WPF\Logs\session_*.jsonl` để làm căn cứ phân tích và đối chiếu sau này.
-- **Chụp ảnh màn hình các bước**: Màn hình tường · web quản lý controller · màn hình app WPF · (khi có lỗi) đèn báo trên bộ điều khiển.
-- **Quy tắc 1 giờ**: Nếu gặp một case khó quá **~1 giờ** không xong → **skip**, ghi chú lại "chưa xong + dữ liệu gửi/nhận", chuyển sang làm việc khác. Về nhà mở file log JSONL để phân tích chi tiết, không ngâm lâu ảnh hưởng tiến độ chung.
-- Bình thường → chụp ảnh màn hình tường là đủ. Lỗi → lấy log chi tiết + mã lỗi thiết bị trả về.
+## 🎯 Bối Cảnh & Kiến Trúc 2 Tầng (WPF ↔ Thiết Bị)
+
+- **Phạm vi trực tiếp (Direct Mode Only)**: Ứng dụng `Module.VideoWall.WPF` kết nối thẳng tới IP bộ điều khiển qua HTTP/ISAPI + Digest Auth. Không qua Backend trung gian, không chạm vào dây cáp phần cứng hay genlock của khách hàng.
+- **Tự động ghi log ra file (Auto Session Logging)**: Mọi thao tác gửi request và dữ liệu phản hồi XML/JSON từ thiết bị đều tự động ghi nối tiếp vào file `%LOCALAPPDATA%\Module.VideoWall.WPF\Logs\session_{yyyyMMdd_HHmmss}.jsonl` để làm căn cứ đối chiếu và phân tích sau này.
+- **Quy tắc 1 giờ**: Nếu gặp một case khó quá **~1 giờ** không giải quyết được → **Skip**, ghi chú lại "chưa xong + dữ liệu gửi/nhận", chuyển sang làm việc khác. Về nhà mở file log JSONL để phân tích chi tiết.
+
+---
+
+## 💡 Phân Định Rõ Ràng Giữa Tab 1 và Tab 2
+
+| Tab | Tên chức năng | Mục đích & Nghiệp vụ |
+|---|---|---|
+| **Tab 1** | **Thiết lập Scene** | **Bố cục hiển thị tĩnh (Scene)**: Dựng các ô camera trên tường 12 màn hình (Lưới $4 \times 3$, Xếp lớp Picture-in-Picture) và đẩy xuống phần cứng (`🚀 ĐẨY XUỐNG THIẾT BỊ`). |
+| **Tab 2** | **Kịch bản (Scenario)** | **Chuỗi API kiểm thử tự động (Automation Sequence)**: Chạy hàng loạt lệnh API liên tiếp có độ trễ (`DelayBetweenStepsMs = 400ms`), kiểm thử tranh vùng và bộ kiểm thử 3 trường hợp lỗi biên (có công tắc gửi thật). |
 
 ---
 
 ## NGÀY 1 — luồng chính + case khó
 
-### 1. Kết nối & khảo sát
-- [ ] Cắm mạng/PC vào controller; nhập IP / Port `80` / Account `admin` / Password.
-- [ ] Bấm **Ping** → "kết nối thành công". Chụp.
-- [ ] Bấm **Probe** → đọc được: capabilities (maxWindow / maxScene), danh sách wall, outputs (12 màn), input channels. Chụp.
+### 1. Kết nối & Khảo sát thiết bị (1-Click)
+- [ ] Cắm mạng/PC vào controller; nhập IP / Port `80` / Account `admin` / Password tại thanh trên cùng.
+- [ ] Bấm **🔍 Kết nối & Khảo sát** (Nút chính duy nhất) → Kỳ vọng:
+  - Kiểm tra kết nối mạng + Digest Auth thành công.
+  - Tự động đọc thông số phần cứng: `capabilities` (maxWindow = 16, maxScene = 128), danh sách tường (`WallNo = 1`), 12 cổng ra màn hình (Outputs) và danh sách camera (Inputs).
+  - Tự động mở khóa (Unlock) toàn bộ các Tab làm việc bên dưới và nạp dữ liệu sang Tab 1. Chụp ảnh màn hình.
 - [ ] Ghi lại: IP, port, serial port, vị trí cuộn dây (hỏi người quản lý khu vực).
 
 ### 2. Backup — BẮT BUỘC, làm trước khi thay đổi gì

@@ -9,6 +9,7 @@ using Module.VideoWall.WPF.Api;
 using Module.VideoWall.WPF.Auth;
 using Module.VideoWall.WPF.Storage;
 using Module.VideoWall.WPF.ViewModels;
+using Module.VideoWall.WPF.Views;
 using Services.Shared.Events;
 using Tests.Modules.VideoWall.MockServer;
 using Xunit;
@@ -995,7 +996,7 @@ public class VwWpfCommissioningTests
         Assert.Contains(sceneSetup.Scenes, s => s.Code == "VWSCENE_SAMPLE_03");
         Assert.NotNull(sceneSetup.CurrentScene);
         Assert.Equal("VWSCENE_SAMPLE_01", sceneSetup.CurrentScene.Code);
-        Assert.Equal(16, sceneSetup.SceneWindows.Count);
+        Assert.Equal(12, sceneSetup.SceneWindows.Count);
 
         // Switch to Scene 2: Ban đêm (Bản đồ sự cố & 4 Trạm thu phí)
         sceneSetup.CurrentScene = sceneSetup.Scenes.First(s => s.Code == "VWSCENE_SAMPLE_02");
@@ -1008,5 +1009,254 @@ public class VwWpfCommissioningTests
         Assert.Single(sceneSetup.SceneWindows);
         Assert.Equal(1920, sceneSetup.SceneWindows[0].W);
         Assert.Equal(1080, sceneSetup.SceneWindows[0].H);
+    }
+
+    [Fact]
+    public void VwWpfSceneSetup_StartAndCancelCreateNewScene_RollsBackState_Test()
+    {
+        // Arrange
+        var (controller, screenA, screenB, source) = SeedWallAsync();
+        var stack = BuildClientStack();
+        var connection = BuildConnection(stack, controller, screenA, screenB, source);
+        var confirmation = new UserConfirmationTest(answer: false);
+        var sceneSetup = new SceneSetupViewModel(stack.ActivityPublisher, connection, confirmation, stack.Publisher);
+
+        var initialScene = sceneSetup.CurrentScene;
+        Assert.NotNull(initialScene);
+        Assert.False(sceneSetup.IsCreatingNewScene);
+
+        // Act 1: Click "Tạo mới"
+        sceneSetup.StartCreateNewSceneCommand.Execute(null);
+
+        // Assert 1: Inputs are cleared and in creating state
+        Assert.True(sceneSetup.IsCreatingNewScene);
+        Assert.Empty(sceneSetup.SceneName);
+        Assert.Null(sceneSetup.GridCols);
+        Assert.Null(sceneSetup.GridRows);
+        Assert.Contains("Đang tạo kịch bản mới", sceneSetup.CurrentSceneSummary);
+
+        // Act 2: Click "Huỷ"
+        sceneSetup.CancelCreateNewSceneCommand.Execute(null);
+
+        // Assert 2: Rolled back to previous selected scene
+        Assert.False(sceneSetup.IsCreatingNewScene);
+        Assert.Equal(initialScene.ID, sceneSetup.CurrentScene?.ID);
+        Assert.Equal(initialScene.Name, sceneSetup.SceneName);
+        Assert.Contains($"Đang chọn: {initialScene.Name}", sceneSetup.CurrentSceneSummary);
+    }
+
+    [Fact]
+    public void VwWpfMainWindow_GridSplitterLayout_IsValidAndDraggable_Test()
+    {
+        RunOnStaThread(() =>
+        {
+            var (controller, screenA, screenB, source) = SeedWallAsync();
+            var stack = BuildClientStack();
+            var connection = BuildConnection(stack, controller, screenA, screenB, source);
+            var mainVm = BuildMainViewModel(stack, connection);
+
+            var window = new MainWindow(mainVm);
+            var mainGrid = window.Content as System.Windows.Controls.Grid;
+            Assert.NotNull(mainGrid);
+
+            // Row 1 (TabControl) and Row 3 (Logs) must be Star rows to allow resizing
+            Assert.True(mainGrid.RowDefinitions[1].Height.IsStar);
+            Assert.True(mainGrid.RowDefinitions[3].Height.IsStar);
+
+            // Row 2 (GridSplitter) must have fixed pixel height >= 3, not Auto
+            Assert.True(mainGrid.RowDefinitions[2].Height.IsAbsolute);
+            Assert.True(mainGrid.RowDefinitions[2].Height.Value >= 3);
+
+            // Find GridSplitter at Row 2
+            var splitters = mainGrid.Children.OfType<System.Windows.Controls.GridSplitter>().ToList();
+            var logSplitter = splitters.FirstOrDefault(s => System.Windows.Controls.Grid.GetRow(s) == 2);
+            Assert.NotNull(logSplitter);
+            Assert.Equal(System.Windows.Controls.GridResizeBehavior.PreviousAndNext, logSplitter.ResizeBehavior);
+            Assert.Equal(System.Windows.Controls.GridResizeDirection.Rows, logSplitter.ResizeDirection);
+            Assert.True(logSplitter.ShowsPreview);
+        });
+    }
+
+    [Fact]
+    public void VwWpfSceneSetupTabView_GridSplitterAndDataGridLayout_IsValid_Test()
+    {
+        RunOnStaThread(() =>
+        {
+            var view = new SceneSetupTabView();
+            var rootGrid = view.Content as System.Windows.Controls.Grid;
+            Assert.NotNull(rootGrid);
+
+            // Row 1 (Khung 2: Windows) starts at MinHeight (180px) and Row 3 (Khung 3: Saved Windows) is Star
+            Assert.True(rootGrid.RowDefinitions[1].Height.IsAbsolute || rootGrid.RowDefinitions[1].Height.IsStar);
+            Assert.Equal(180, rootGrid.RowDefinitions[1].MinHeight);
+            Assert.True(rootGrid.RowDefinitions[3].Height.IsStar);
+
+            // Row 2 (GridSplitter) must have fixed pixel height >= 3
+            Assert.True(rootGrid.RowDefinitions[2].Height.IsAbsolute);
+            Assert.True(rootGrid.RowDefinitions[2].Height.Value >= 3);
+
+            var splitters = rootGrid.Children.OfType<System.Windows.Controls.GridSplitter>().ToList();
+            var sceneSplitter = splitters.FirstOrDefault(s => System.Windows.Controls.Grid.GetRow(s) == 2);
+            Assert.NotNull(sceneSplitter);
+            Assert.Equal(System.Windows.Controls.GridResizeBehavior.PreviousAndNext, sceneSplitter.ResizeBehavior);
+            Assert.Equal(System.Windows.Controls.GridResizeDirection.Rows, sceneSplitter.ResizeDirection);
+            Assert.True(sceneSplitter.ShowsPreview);
+        });
+    }
+
+    [Fact]
+    public void VwWpfSceneSetupTabView_HeaderAndBorders_LayoutStructure_Test()
+    {
+        RunOnStaThread(() =>
+        {
+            var view = new SceneSetupTabView();
+            var rootGrid = view.Content as System.Windows.Controls.Grid;
+            Assert.NotNull(rootGrid);
+
+            // Khung 1 (Row 0): Check Header + Scene ComboBox on the same first WrapPanel
+            var frame1Border = rootGrid.Children.OfType<System.Windows.Controls.Border>().FirstOrDefault(b => System.Windows.Controls.Grid.GetRow(b) == 0);
+            Assert.NotNull(frame1Border);
+            var frame1Stack = frame1Border.Child as System.Windows.Controls.StackPanel;
+            Assert.NotNull(frame1Stack);
+
+            var firstWrapPanel = frame1Stack.Children.OfType<System.Windows.Controls.WrapPanel>().FirstOrDefault();
+            Assert.NotNull(firstWrapPanel);
+
+            // Verify Title, Create button, and ComboBox are all children of the first WrapPanel
+            var textBlocks = firstWrapPanel.Children.OfType<System.Windows.Controls.TextBlock>().ToList();
+            Assert.Contains(textBlocks, tb => tb.Text.Contains("Thiết lập Kịch bản"));
+            var buttons = firstWrapPanel.Children.OfType<System.Windows.Controls.Button>().ToList();
+            Assert.Contains(buttons, b => b.Content?.ToString()?.Contains("Tạo mới") == true);
+            var stackPanels = firstWrapPanel.Children.OfType<System.Windows.Controls.StackPanel>().ToList();
+            Assert.Contains(stackPanels, sp => sp.Children.OfType<System.Windows.Controls.Grid>().Any(g => g.Children.OfType<System.Windows.Controls.ComboBox>().Any()));
+
+            // Khung 2 (Row 1): Border bottom must be 0 and corner radius bottom must be 0
+            var frame2Border = rootGrid.Children.OfType<System.Windows.Controls.Border>().FirstOrDefault(b => System.Windows.Controls.Grid.GetRow(b) == 1);
+            Assert.NotNull(frame2Border);
+            Assert.Equal(0, frame2Border.BorderThickness.Bottom);
+            Assert.Equal(0, frame2Border.CornerRadius.BottomLeft);
+            Assert.Equal(0, frame2Border.CornerRadius.BottomRight);
+
+            // Khung 3 (Row 3): Border top must be 0 and corner radius top must be 0
+            var frame3Border = rootGrid.Children.OfType<System.Windows.Controls.Border>().FirstOrDefault(b => System.Windows.Controls.Grid.GetRow(b) == 3);
+            Assert.NotNull(frame3Border);
+            Assert.Equal(0, frame3Border.BorderThickness.Top);
+            Assert.Equal(0, frame3Border.CornerRadius.TopLeft);
+            Assert.Equal(0, frame3Border.CornerRadius.TopRight);
+        });
+    }
+
+    [Fact]
+    public void VwWpfMainWindow_SingleConnectAndProbeButton_HeaderLayout_Test()
+    {
+        RunOnStaThread(() =>
+        {
+            var (controller, screenA, screenB, source) = SeedWallAsync();
+            var stack = BuildClientStack();
+            var connection = BuildConnection(stack, controller, screenA, screenB, source);
+            var mainVm = BuildMainViewModel(stack, connection);
+
+            var window = new MainWindow(mainVm);
+            var mainGrid = window.Content as System.Windows.Controls.Grid;
+            Assert.NotNull(mainGrid);
+
+            var headerBorder = mainGrid.Children.OfType<System.Windows.Controls.Border>().FirstOrDefault(b => System.Windows.Controls.Grid.GetRow(b) == 0);
+            Assert.NotNull(headerBorder);
+
+            // Verify the single merged Connect & Probe button exists
+            var headerButtons = FindVisualChildren<System.Windows.Controls.Button>(headerBorder).ToList();
+            Assert.Contains(headerButtons, b => b.Content?.ToString()?.Contains("Khảo sát") == true);
+            // Verify there is no separate standalone "Ping" button
+            Assert.DoesNotContain(headerButtons, b => b.Content?.ToString() == "Ping");
+
+            // Verify TabControl IsEnabled is bound to Connection.IsConnected
+            var tabControl = FindVisualChildren<System.Windows.Controls.TabControl>(mainGrid).FirstOrDefault();
+            Assert.NotNull(tabControl);
+            var isEnabledBinding = System.Windows.Data.BindingOperations.GetBinding(tabControl, System.Windows.UIElement.IsEnabledProperty);
+            Assert.NotNull(isEnabledBinding);
+            Assert.Equal("Connection.IsConnected", isEnabledBinding.Path.Path);
+            Assert.NotNull(tabControl.Style);
+            Assert.Contains(tabControl.Style.Triggers.OfType<System.Windows.Trigger>(), tr => tr.Property == System.Windows.UIElement.IsEnabledProperty);
+        });
+    }
+
+    private static IEnumerable<T> FindVisualChildren<T>(System.Windows.DependencyObject? parent) where T : System.Windows.DependencyObject
+    {
+        if (parent == null)
+            yield break;
+
+        for (int i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
+            if (child is T typedChild)
+                yield return typedChild;
+
+            foreach (var descendant in FindVisualChildren<T>(child))
+                yield return descendant;
+        }
+    }
+
+    private static readonly object AppInitLock = new();
+
+    private static void RunOnStaThread(Action action)
+    {
+        Exception? exception = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                lock (AppInitLock)
+                {
+                    if (System.Windows.Application.Current == null)
+                    {
+                        var app = new System.Windows.Application();
+                        app.Resources["BoolToVisibility"] = new System.Windows.Controls.BooleanToVisibilityConverter();
+                        app.Resources["InverseBoolToVisibility"] = new Module.VideoWall.WPF.Interaction.InverseBoolToVisibilityConverter();
+                        app.Resources["NullToVisibility"] = new Module.VideoWall.WPF.Interaction.NullToVisibilityConverter();
+                        app.Resources["InverseNullToVisibility"] = new Module.VideoWall.WPF.Interaction.InverseNullToVisibilityConverter();
+                        app.Resources["StatusColorConverter"] = new Module.VideoWall.WPF.Interaction.StatusColorConverter();
+
+                        app.Resources["FieldLabel"] = new System.Windows.Style(typeof(System.Windows.Controls.TextBlock));
+                        app.Resources["ToolbarButton"] = new System.Windows.Style(typeof(System.Windows.Controls.Button));
+                        app.Resources["PrimaryButton"] = new System.Windows.Style(typeof(System.Windows.Controls.Button));
+                        app.Resources["AccentButton"] = new System.Windows.Style(typeof(System.Windows.Controls.Button));
+                        app.Resources["SectionHeader"] = new System.Windows.Style(typeof(System.Windows.Controls.TextBlock));
+                        app.Resources["ReadOnlyGrid"] = new System.Windows.Style(typeof(System.Windows.Controls.DataGrid));
+                    }
+                }
+
+                action();
+            }
+            catch (Exception ex)
+            {
+                exception = ex;
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        if (exception != null)
+        {
+            throw exception;
+        }
+    }
+
+    private static MainViewModel BuildMainViewModel(VwWpfClientStackTest stack, ConnectionViewModel connection)
+    {
+        var confirmation = new UserConfirmationTest(true);
+        var sceneSetup = new SceneSetupViewModel(stack.ActivityPublisher, connection, confirmation, stack.Publisher);
+        var parameters = new ParametersViewModel(connection);
+        var schedule = new ScheduleViewModel(stack.ApiClient, stack.ActivityPublisher);
+        var scenario = new ScenarioViewModel(connection, stack.ActivityPublisher, stack.Publisher, confirmation);
+
+        return new MainViewModel(
+            stack.Session,
+            stack.ActivityPublisher,
+            connection,
+            parameters,
+            sceneSetup,
+            schedule,
+            scenario);
     }
 }

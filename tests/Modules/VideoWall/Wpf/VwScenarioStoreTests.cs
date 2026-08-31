@@ -131,57 +131,43 @@ public class VwScenarioStoreTests : IDisposable
     [Fact]
     public void SeedScenarios_AllFiveSeedFiles_ExistAndHaveValidStructure()
     {
-        var dir = VwScenarioStore.GetScenariosDirectory();
-        if (!Directory.Exists(dir))
-            return;
+        var defaults = VwScenarioStore.GetDefaultScenarios();
+        Assert.Equal(5, defaults.Count);
 
-        var seed1 = VwScenarioStore.Load("Thiết lập scene có chụp hình");
-        if (seed1 != null)
-        {
-            Assert.Equal("Thiết lập scene có chụp hình", seed1.Name);
-            Assert.Equal(4, seed1.Steps.Count);
-            Assert.Equal("9.7.5.3", seed1.Steps[0].Section);
-            Assert.Equal("9.7.7.2", seed1.Steps[1].Section);
-            Assert.Equal("9.7.7.4", seed1.Steps[2].Section);
-            Assert.Equal("9.7.4.18", seed1.Steps[3].Section);
-        }
+        var seed1 = VwScenarioStore.Load("1. Thiết lập scene (không chụp hình)");
+        Assert.NotNull(seed1);
+        Assert.Equal(4, seed1.Steps.Count);
+        Assert.Equal("9.7.5.2", seed1.Steps[0].Section);
+        Assert.Equal("9.7.5.3", seed1.Steps[1].Section);
+        Assert.Equal("9.7.7.2", seed1.Steps[2].Section);
+        Assert.Equal("9.7.7.4", seed1.Steps[3].Section);
 
-        var seed2 = VwScenarioStore.Load("Thiết lập scene không chụp hình");
-        if (seed2 != null)
-        {
-            Assert.Equal("Thiết lập scene không chụp hình", seed2.Name);
-            Assert.Equal(3, seed2.Steps.Count);
-            Assert.Equal("9.7.5.3", seed2.Steps[0].Section);
-            Assert.Equal("9.7.7.2", seed2.Steps[1].Section);
-            Assert.Equal("9.7.7.4", seed2.Steps[2].Section);
-        }
+        var seed2 = VwScenarioStore.Load("2. Thiết lập scene (có chụp hình)");
+        Assert.NotNull(seed2);
+        Assert.Equal(5, seed2.Steps.Count);
+        Assert.Equal("9.7.5.2", seed2.Steps[0].Section);
+        Assert.Equal("9.7.5.3", seed2.Steps[1].Section);
+        Assert.Equal("9.7.7.2", seed2.Steps[2].Section);
+        Assert.Equal("9.7.7.4", seed2.Steps[3].Section);
+        Assert.Equal("9.7.4.18", seed2.Steps[4].Section);
 
-        var seed3 = VwScenarioStore.Load("Active scene");
-        if (seed3 != null)
-        {
-            Assert.Equal("Active scene", seed3.Name);
-            Assert.Equal(2, seed3.Steps.Count);
-            Assert.Equal("9.7.7.3", seed3.Steps[0].Section);
-            Assert.Equal("9.7.7.6", seed3.Steps[1].Section);
-        }
+        var seed3 = VwScenarioStore.Load("3. Active scene");
+        Assert.NotNull(seed3);
+        Assert.Equal(2, seed3.Steps.Count);
+        Assert.Equal("9.7.7.3", seed3.Steps[0].Section);
+        Assert.Equal("9.7.7.6", seed3.Steps[1].Section);
 
-        var seed4 = VwScenarioStore.Load("Màn hình không chồng nhau");
-        if (seed4 != null)
-        {
-            Assert.Equal("Màn hình không chồng nhau", seed4.Name);
-            Assert.Equal(2, seed4.Steps.Count);
-            Assert.Equal("9.7.11.3", seed4.Steps[0].Section);
-            Assert.Equal("9.7.5.3", seed4.Steps[1].Section);
-        }
+        var seed4 = VwScenarioStore.Load("4. Màn hình không chồng nhau");
+        Assert.NotNull(seed4);
+        Assert.Equal(2, seed4.Steps.Count);
+        Assert.Equal("9.7.11.3", seed4.Steps[0].Section);
+        Assert.Equal("9.7.5.3", seed4.Steps[1].Section);
 
-        var seed5 = VwScenarioStore.Load("Màn hình chồng nhau");
-        if (seed5 != null)
-        {
-            Assert.Equal("Màn hình chồng nhau", seed5.Name);
-            Assert.Equal(2, seed5.Steps.Count);
-            Assert.Equal("9.7.11.3", seed5.Steps[0].Section);
-            Assert.Equal("9.7.5.3", seed5.Steps[1].Section);
-        }
+        var seed5 = VwScenarioStore.Load("5. Màn hình chồng nhau");
+        Assert.NotNull(seed5);
+        Assert.Equal(2, seed5.Steps.Count);
+        Assert.Equal("9.7.11.3", seed5.Steps[0].Section);
+        Assert.Equal("9.7.5.3", seed5.Steps[1].Section);
     }
 
     [Fact]
@@ -232,7 +218,7 @@ public class VwScenarioStoreTests : IDisposable
     }
 
     [Fact]
-    public void ScenarioViewModel_UnifiedScenarioList_ContainsBuiltInAndSaved_Test()
+    public void ScenarioViewModel_UnifiedScenarioList_ContainsDefaultScenarios_Test()
     {
         // Arrange
         var recordingPub = new RecordingPublisherTest();
@@ -240,14 +226,11 @@ public class VwScenarioStoreTests : IDisposable
         var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true));
         var vm = new ScenarioViewModel(connection, activityPub, recordingPub, new UserConfirmationTest(true));
 
-        // Act & Assert 1: Mặc định có đúng 3 mục built-in ở đầu
-        Assert.True(vm.ScenarioList.Count >= 3);
-        Assert.True(vm.ScenarioList[0].IsBuiltIn);
-        Assert.True(vm.ScenarioList[1].IsBuiltIn);
-        Assert.True(vm.ScenarioList[2].IsBuiltIn);
-        Assert.StartsWith("📦", vm.ScenarioList[0].DisplayName);
-        Assert.StartsWith("📦", vm.ScenarioList[1].DisplayName);
-        Assert.StartsWith("📦", vm.ScenarioList[2].DisplayName);
+        // Act & Assert 1: Mặc định có các kịch bản chuẩn
+        Assert.True(vm.ScenarioList.Count >= 5);
+        Assert.Contains(vm.ScenarioList, s => s.DisplayName.Contains("Thiết lập scene (không chụp hình)"));
+        Assert.Contains(vm.ScenarioList, s => s.DisplayName.Contains("Thiết lập scene (có chụp hình)"));
+        Assert.Contains(vm.ScenarioList, s => s.DisplayName.Contains("Active scene"));
 
         // Act 2: Thêm bước và lưu kịch bản mới
         var testScenarioName = $"UnitTest_Unified_{Guid.NewGuid():N}";
@@ -255,33 +238,14 @@ public class VwScenarioStoreTests : IDisposable
         vm.AddStepCommand.Execute(VwIsapiPresetList.Presets.First());
         vm.SaveScenarioCommand.Execute(null);
 
-        // Assert 2: Danh sách có thêm mục saved với IsBuiltIn = false
-        var savedItem = vm.ScenarioList.FirstOrDefault(s => !s.IsBuiltIn && s.SavedFileName == testScenarioName);
+        // Assert 2: Danh sách có thêm mục saved
+        var savedItem = vm.ScenarioList.FirstOrDefault(s => s.SavedFileName == testScenarioName);
         Assert.NotNull(savedItem);
         Assert.Equal(testScenarioName, savedItem.DisplayName);
-        Assert.False(savedItem.IsBuiltIn);
 
         // Dọn dẹp
         vm.SelectedScenarioItem = savedItem;
         vm.DeleteScenarioCommand.Execute(null);
-    }
-
-    [Fact]
-    public void ScenarioViewModel_WhenBuiltInSelected_DeleteCommandIsDisabled_Test()
-    {
-        // Arrange
-        var recordingPub = new RecordingPublisherTest();
-        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
-        var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true));
-        var vm = new ScenarioViewModel(connection, activityPub, recordingPub, new UserConfirmationTest(true));
-
-        // Act: Chọn mục built-in
-        vm.SelectedScenarioItem = vm.ScenarioList.First(s => s.IsBuiltIn);
-
-        // Assert: Nút Xoá bị khoá, IsBuiltInSelected = true, RunSelectedScenarioCommand bật
-        Assert.True(vm.IsBuiltInSelected);
-        Assert.False(vm.DeleteScenarioCommand.CanExecute(null));
-        Assert.True(vm.RunSelectedScenarioCommand.CanExecute(null));
     }
 
     [Fact]
@@ -294,20 +258,16 @@ public class VwScenarioStoreTests : IDisposable
         var vm = new ScenarioViewModel(connection, activityPub, recordingPub, new UserConfirmationTest(true));
 
         var testName = $"UnitTest_SavedLoad_{Guid.NewGuid():N}";
+        vm.NewScenarioCommand.Execute(null);
         vm.ScenarioName = testName;
         var preset = VwIsapiPresetList.Presets.First(p => p.Section == "9.7.5.2");
         vm.AddStepCommand.Execute(preset);
         vm.SaveScenarioCommand.Execute(null);
 
-        // Act: Đổi sang mục Built-in rồi chọn lại mục Saved
-        vm.SelectedScenarioItem = vm.ScenarioList.First(s => s.IsBuiltIn);
-        Assert.True(vm.IsBuiltInSelected);
-
-        var savedItem = vm.ScenarioList.First(s => !s.IsBuiltIn && s.SavedFileName == testName);
+        var savedItem = vm.ScenarioList.First(s => s.SavedFileName == testName);
         vm.SelectedScenarioItem = savedItem;
 
         // Assert
-        Assert.False(vm.IsBuiltInSelected);
         Assert.Single(vm.Steps);
         Assert.Equal("9.7.5.2", vm.Steps[0].Preset.Section);
         Assert.True(vm.DeleteScenarioCommand.CanExecute(null));
@@ -325,41 +285,25 @@ public class VwScenarioStoreTests : IDisposable
         var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true));
         var vm = new ScenarioViewModel(connection, activityPub, recordingPub, new UserConfirmationTest(true));
 
-        // Case 1: Built-in scenario luôn có thể chạy ngay (không phụ thuộc Steps)
-        vm.SelectedScenarioItem = vm.ScenarioList.First(s => s.IsBuiltIn);
-        Assert.True(vm.RunSelectedScenarioCommand.CanExecute(null));
-
-        // Case 2: Kịch bản trống tự tạo chưa có bước nào -> Không thể chạy
+        // Case 1: Kịch bản trống chưa có bước nào -> Không thể chạy
         vm.NewScenarioCommand.Execute(null);
         Assert.False(vm.RunSelectedScenarioCommand.CanExecute(null));
 
-        // Case 3: Thêm bước vào kịch bản -> Bật lại nút chạy
+        // Case 2: Thêm bước vào kịch bản -> Bật lại nút chạy
         vm.AddStepCommand.Execute(VwIsapiPresetList.Presets.First());
-        var item = new VwScenarioListItem
-        {
-            DisplayName = "Test Custom",
-            IsBuiltIn = false,
-            BuiltIn = null,
-            SavedFileName = "TestCustom",
-        };
-        vm.SelectedScenarioItem = item;
         Assert.True(vm.RunSelectedScenarioCommand.CanExecute(null));
     }
 
     [Fact]
-    public void ScenarioViewModel_BuiltInScenarios_InitializedCorrectly_Test()
+    public void ScenarioViewModel_DefaultScenarios_InitializedCorrectly_Test()
     {
         var recordingPub = new RecordingPublisherTest();
         var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
         var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true));
         var vm = new ScenarioViewModel(connection, activityPub, recordingPub, new UserConfirmationTest(true));
 
-        Assert.Equal(3, vm.BuiltInScenarios.Count);
-        Assert.Contains("1. Thiết lập scene (không chụp hình)", vm.BuiltInScenarios[0].Name);
-        Assert.Contains("2. Thiết lập scene (có chụp hình)", vm.BuiltInScenarios[1].Name);
-        Assert.Contains("3. Active scene", vm.BuiltInScenarios[2].Name);
+        Assert.True(vm.ScenarioList.Count >= 5);
         Assert.NotNull(vm.SelectedScenarioItem);
-        Assert.True(vm.SelectedScenarioItem.IsBuiltIn);
         Assert.Equal(400, vm.DelayBetweenStepsMs);
     }
 
@@ -646,7 +590,7 @@ public class VwScenarioStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task ScenarioViewModel_RunBuiltInSetupScene_WithoutSnapshot_ExecutesOrchestratorAndPublishesSteps_Test()
+    public async Task ScenarioViewModel_RunSetupSceneScenario_ExecutesSuccessfully_Test()
     {
         const int port = 18095;
         using var mockServer = new VwISAPIMockServerHikvision();
@@ -664,66 +608,19 @@ public class VwScenarioStoreTests : IDisposable
         };
         var vm = new ScenarioViewModel(connection, activityPub, recordingPub, new UserConfirmationTest(true))
         {
-            BuiltInDryRun = false,
             DelayBetweenStepsMs = 0,
-            BuiltInSceneName = "TestScene_NoSnap",
         };
 
-        // Chọn kịch bản built-in #1 (không chụp hình)
+        // Chọn kịch bản #1 (không chụp hình)
         vm.SelectedScenarioItem = vm.ScenarioList.First(s => s.DisplayName.Contains("1. Thiết lập scene (không chụp hình)"));
         await vm.RunSelectedScenarioCommand.ExecuteAsync(null);
 
-        Assert.Contains("Đã hoàn thành kịch bản", vm.StatusMessage);
+        Assert.Contains("Hoàn thành kịch bản", vm.StatusMessage);
         Assert.NotEmpty(recordingPub.DeviceStepRows);
-        Assert.Contains(recordingPub.DeviceStepRows, r => r.Activity.Detail.StartsWith("BuiltInSetupScene"));
-        Assert.True(mockServer.AddWindowCallCount >= 2);
     }
 
     [Fact]
-    public async Task ScenarioViewModel_RunBuiltInSetupScene_WithSnapshot_CapturesXmlAndSavesFile_Test()
-    {
-        const int port = 18096;
-        using var mockServer = new VwISAPIMockServerHikvision();
-        mockServer.Start(port);
-
-        var recordingPub = new RecordingPublisherTest();
-        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
-        var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true))
-        {
-            AdHocIp = "127.0.0.1",
-            AdHocPort = port,
-            AdHocAccount = "admin",
-            AdHocPassword = "Password123!",
-            WallNo = 1,
-        };
-        var vm = new ScenarioViewModel(connection, activityPub, recordingPub, new UserConfirmationTest(true))
-        {
-            BuiltInDryRun = false,
-            DelayBetweenStepsMs = 0,
-            BuiltInSceneName = "TestScene_WithSnap",
-        };
-
-        // Chọn kịch bản built-in #2 (có chụp hình)
-        vm.SelectedScenarioItem = vm.ScenarioList.First(s => s.DisplayName.Contains("2. Thiết lập scene (có chụp hình)"));
-        await vm.RunSelectedScenarioCommand.ExecuteAsync(null);
-
-        Assert.Contains("Đã hoàn thành kịch bản", vm.StatusMessage);
-        Assert.NotNull(vm.LastSnapshotSavedPath);
-        Assert.True(File.Exists(vm.LastSnapshotSavedPath));
-
-        var savedXml = File.ReadAllText(vm.LastSnapshotSavedPath);
-        Assert.Contains("<WallWindowList", savedXml);
-
-        // Dọn dẹp file snapshot sau khi test
-        try
-        {
-            File.Delete(vm.LastSnapshotSavedPath);
-        }
-        catch { }
-    }
-
-    [Fact]
-    public async Task ScenarioViewModel_RunBuiltInActiveScene_ExecutesSuccessfully_Test()
+    public async Task ScenarioViewModel_RunActiveSceneScenario_ExecutesSuccessfully_Test()
     {
         const int port = 18097;
         using var mockServer = new VwISAPIMockServerHikvision();
@@ -741,16 +638,14 @@ public class VwScenarioStoreTests : IDisposable
         };
         var vm = new ScenarioViewModel(connection, activityPub, recordingPub, new UserConfirmationTest(true))
         {
-            BuiltInDryRun = false,
-            BuiltInSelectedSceneCode = "1",
-            BuiltInWallNo = 1,
+            DelayBetweenStepsMs = 0,
         };
 
-        // Chọn kịch bản built-in #3 (Active scene)
+        // Chọn kịch bản #3 (Active scene)
         vm.SelectedScenarioItem = vm.ScenarioList.First(s => s.DisplayName.Contains("3. Active scene"));
         await vm.RunSelectedScenarioCommand.ExecuteAsync(null);
 
-        Assert.Contains("Đã kích hoạt kịch bản SID 1 trên thiết bị", vm.StatusMessage);
+        Assert.Contains("Hoàn thành kịch bản", vm.StatusMessage);
     }
 
     [Fact]
@@ -927,11 +822,6 @@ public class VwScenarioStoreTests : IDisposable
 
         // Test Error suite blocked
         await vm.RunErrorValidationSuiteCommand.ExecuteAsync(null);
-        Assert.Contains("Cần nhập WallNo", vm.StatusMessage);
-
-        // Test Built-in scenario blocked
-        vm.SelectedScenarioItem = vm.ScenarioList.First();
-        await vm.RunSelectedScenarioCommand.ExecuteAsync(null);
         Assert.Contains("Cần nhập WallNo", vm.StatusMessage);
 
         Assert.Empty(recordingPub.DeviceStepRows);
@@ -1470,6 +1360,7 @@ public class VwScenarioStoreTests : IDisposable
         };
 
         var vm = new ScenarioViewModel(connection, activityPub, recordingPub, new UserConfirmationTest(true));
+        vm.NewScenarioCommand.Execute(null);
         var preset = Module.VideoWall.WPF.ViewModels.VwIsapiPresetList.Presets.First(p => p.Section == "9.7.1.1");
         var step = new Module.VideoWall.WPF.ViewModels.VwScenarioStepViewModel(preset);
         var boardField = step.Form.PathFields.First(f => f.Definition.Key == "BoardID");

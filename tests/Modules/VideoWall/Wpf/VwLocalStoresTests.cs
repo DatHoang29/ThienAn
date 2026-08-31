@@ -281,17 +281,17 @@ public sealed class VwLocalStoresTests : IDisposable
         // Assert 1: Exactly 3 scenes generated
         Assert.Equal(3, seeded.Count);
 
-        // Scene 1: Giờ cao điểm (16 Cam nút giao)
+        // Scene 1: Giờ cao điểm (12 Cam nút giao)
         var s1 = seeded.First(s => s.Code == "VWSCENE_SAMPLE_01");
         Assert.Equal("1", s1.OutputId);
         Assert.Equal(4, s1.GridCols);
-        Assert.Equal(4, s1.GridRows);
+        Assert.Equal(3, s1.GridRows);
         var s1Windows = VwLocalSceneStore.ListWindowScenes(deviceKey, s1.ID!, _tempDirectory);
-        Assert.Equal(16, s1Windows.Count);
+        Assert.Equal(12, s1Windows.Count);
         Assert.All(s1Windows, w =>
         {
             Assert.Equal(480, w.W);
-            Assert.Equal(270, w.H);
+            Assert.Equal(360, w.H);
             Assert.Equal(1, w.ZIndex);
         });
 

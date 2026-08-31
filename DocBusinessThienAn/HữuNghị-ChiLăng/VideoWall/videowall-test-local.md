@@ -47,11 +47,12 @@ dotnet run --project src/Modules/VideoWall/Module.VideoWall.WPF
 
 Thanh kết nối (Row 0):
 - IP `127.0.0.1` · Port `18080` · Account `admin` · Password **bất kỳ** (mock không kiểm tra hash mật khẩu — chỉ cần account `admin` + có header Digest).
-- Thanh kết nối chỉ gồm: IP, Port, Account, Password, WallNo, nút **Ping**, nút **Probe** và thông báo trạng thái (đã bỏ các nút thừa: *Chụp/Khôi phục mặc định*, *Nạp lại kết nối*).
+- Thanh kết nối gồm: IP, Port, Account, Password, WallNo, nút **🔍 Kết nối & Khảo sát** và thông báo trạng thái.
 
-Thao tác kiểm tra (2 nút riêng, bấm lần lượt — Probe KHÔNG tự chạy theo Ping):
-- Bấm **Ping** → chỉ kiểm tra kết nối + xác thực Digest Auth, kết quả báo "kết nối thành công", chưa đọc số liệu gì.
-- Bấm tiếp **Probe** (nút riêng, bắt buộc trước khi nạp dữ liệu ở Tab 1) → trả về đầy đủ: 2 wall (`VideoWall1`, `HoangNhu`), 2 output, 2 input channel, `maxWindowNums=512`, `maxSceneNums=128`, `isSupportScene=true`.
+Thao tác kiểm tra (1 nút bấm duy nhất):
+- Khi mới mở app: Toàn bộ 13 Tab bên dưới ở trạng thái **vô hiệu hóa và mờ nhẹ (`Opacity: 0.45`)**.
+- Bấm **🔍 Kết nối & Khảo sát** → Hệ thống tự động kiểm tra kết nối mạng + xác thực Digest Auth + đọc đầy đủ thông số phần cứng: 2 wall (`VideoWall1`, `HoangNhu`), 2 output, 2 input channel, `maxWindowNums=512`, `maxSceneNums=128`, `isSupportScene=true`.
+- Ngay sau khi thành công: Toàn bộ các Tab lập tức **mở khóa sáng rõ (100%)**, tự động chuyển danh sách Cổng ra và Nguồn tín hiệu sang Tab 1.
 - **Tab 3–13** (11 nhóm ISAPI: Board, Decoding, Output...): Khung **Response** rộng toàn màn hình tự động hiển thị bên dưới TabControl (có GridSplitter kéo dãn linh hoạt) → gửi GET/PUT/POST ISAPI bất kỳ và xem ngay response XML/JSON.
 - **Tab 1 "Thiết lập Scene" / Tab 2 "Kịch bản"**: Khung Response tự động ẩn gọn (`Height = 0`), nhường 100% diện tích cho bảng thiết lập và kịch bản.
 - Mọi thao tác đều tự động ghi log vào file `%LOCALAPPDATA%\Module.VideoWall.WPF\Logs\session_*.jsonl`.
@@ -115,7 +116,7 @@ Tab này được thiết kế thành **4 Khung chức năng** từ trên xuốn
 
 #### 2.1. Khung 1 — Thiết lập Kịch bản (Scene)
 1. [ ] **Nạp 3 Scene mẫu thực tế**: Bấm nút **"📋 Nạp 3 Scene mẫu"** trên thanh công cụ Khung 1. Hệ thống sẽ tự động tạo sẵn 3 kịch bản thực tế chuẩn mẫu:
-   - **Scene 1 (Giờ cao điểm: 16 Cam nút giao)**: Mở 16 camera giám sát nút giao trọng điểm, chia lưới đều 4×4 (kích thước 480×270 mỗi ô, phủ kín toàn bộ tường 1920×1080).
+   - **Scene 1 (Giờ cao điểm: 12 Cam nút giao)**: Mở 12 camera giám sát nút giao trọng điểm, chia lưới đều 4×3 (kích thước 480×360 mỗi ô, phủ kín toàn bộ tường 1920×1080).
    - **Scene 2 (Ban đêm: Bản đồ sự cố & 4 Trạm thu phí)**: Mở Bản đồ sự cố toàn tuyến chiếm 2/3 màn hình bên trái (1280×1080) và 4 ô camera trạm thu phí bên phải (640×270 mỗi ô).
    - **Scene 3 (Khẩn cấp: Phóng to camera tai nạn)**: Phóng to 1 camera duy nhất chiếm 100% diện tích toàn màn hình (1920×1080) tại điểm xảy ra sự cố.
    - *Kiểm tra*: Bấm vào ô chọn kịch bản ("Kịch bản:"), chọn lần lượt từng Scene và quan sát Khung 3 ("Cửa sổ đã lưu") tự động tải danh sách các cửa sổ tương ứng.
@@ -194,11 +195,11 @@ Chọn 1 trong 2 chế độ dựng bố cục:
 ---
 
 ### Bước 4 — Kiểm thử các trường hợp lỗi phần cứng sâu (Qua mã nguồn Test)
-1. [ ] Tại terminal thư mục `d:\ThienAn`, chạy lệnh:
+1. [ ] Tại terminal thư mục `c:\ThienAn`, chạy lệnh:
    ```powershell
    dotnet test tests/test.csproj -f net10.0-windows --filter "FullyQualifiedName~Tests.Modules.VideoWall.Wpf"
    ```
-2. [ ] Kỳ vọng: **Toàn bộ 105/105 tests đều PASS (màu xanh)** — bao gồm các tình huống mất kết nối mạng, sai mật khẩu làm khoá IP, token hết hạn, và kiểm tra xoá cửa sổ hàng loạt.
+2. [ ] Kỳ vọng: **Toàn bộ 110/110 tests đều PASS (màu xanh)** — bao gồm các tình huống mất kết nối mạng, sai mật khẩu làm khoá IP, token hết hạn, kiểm tra xoá cửa sổ hàng loạt và các ràng buộc bố cục giao diện tự động.
 
 ---
 
@@ -216,5 +217,5 @@ Chọn 1 trong 2 chế độ dựng bố cục:
 | **Tab 2 — Bộ kiểm thử lỗi** | ✅ Hoàn chỉnh | Có công tắc gửi thật xem mã lỗi Hikvision |
 | **Tab 3..13 — 11 nhóm ISAPI** | ✅ Hoàn chỉnh | Tra cứu và gửi lệnh ISAPI trực tiếp, màn hình phản hồi XML/JSON toàn diện |
 | **Ghi Log tự động** | ✅ Hoàn chỉnh | Tự động ghi file JSONL ngầm liên tục, có nút xuất file nhanh |
-| **Kiểm thử tự động** | ✅ 105/105 PASS | Bao phủ đầy đủ các kịch bản biên và phần cứng |
+| **Kiểm thử tự động** | ✅ 110/110 PASS | Bao phủ đầy đủ các kịch bản biên, giao diện và phần cứng |
 

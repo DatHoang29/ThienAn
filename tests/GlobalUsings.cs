@@ -1,3 +1,7 @@
+// ─── System Usings ───
+global using System.IO;
+global using System.Net.Http;
+
 // ─── Microsoft Extensions ───
 global using Microsoft.Extensions.Configuration;
 global using Microsoft.Extensions.DependencyInjection;
