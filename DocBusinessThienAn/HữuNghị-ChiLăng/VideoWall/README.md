@@ -6,8 +6,7 @@ Thư mục này gồm **2 khu** khác mục đích. Xác định bạn đang là
 |---|---|
 | Tìm hiểu nghiệp vụ / yêu cầu dự án | Khu 2 → `videowall_plan.md`, `transcript-videowall-28082026.md` |
 | Tra bộ lệnh ISAPI / kiểu response thiết bị | Khu 1 → `ISAPI-Videowall-Controller/` (đọc `README.md` trước) |
-| Thử công cụ tại máy (không có thiết bị) | Khu 2 → `videowall-test-local.md` |
-| Chuẩn bị đi test 2 ngày tại hiện trường TCB | Khu 2 → `videowall-test-2ngay.md` |
+| **Kịch bản test API & Vận hành 12 màn hình** | **Khu 2 → `KichBan_VideoWall_DS-C30S-S11_12Man.md` (Tài liệu chuẩn duy nhất)** |
 | Xem thông số phần cứng DS-C30S-S11 | `_source/DS-C30S-S11_Datasheet_20250324.md` |
 
 ---
@@ -26,8 +25,7 @@ Thư mục này gồm **2 khu** khác mục đích. Xác định bạn đang là
 
 | File | Nội dung | Đọc khi |
 |---|---|---|
-| `videowall-test-local.md` | **Tài liệu thử local.** 2 cách chạy thử công cụ tại máy không cần thiết bị: Bộ test tự động .NET (110 tests) · MockServer riêng (`scripts/VwMockServerRunner`) + app WPF (đầy đủ các bước kiểm thử, từ khóa cốt lõi) | thử sản phẩm trước |
-| `videowall-test-2ngay.md` | **Tài liệu hiện trường.** Bối cảnh & kiến trúc 2 tầng (WPF ↔ Thiết bị qua IP) · Checklist tick-box đi test 2 ngày tại TCB: Ngày 1 / Ngày 2 / "thế nào là đủ" | trước & trong chuyến đi |
+| `KichBan_VideoWall_DS-C30S-S11_12Man.md` | **Tài liệu kịch bản chuẩn duy nhất.** 20 kịch bản test API chi tiết (KB-01 → KB-20) cho bộ điều khiển DS-C30S-S11 / 12 màn hình lưới 4×3, toạ độ ảo 7680×5760, công thức ID, mã lỗi và runbook kiểm thử | Đọc trước khi test & vận hành |
 | `videowall_plan.md` | Đặc tả yêu cầu gốc — gộp họp 19/08 + 25/08 (bản lịch sử, không sửa) | đối chiếu yêu cầu ban đầu |
 | `transcript-videowall-28082026.md` | Transcript đầy đủ buổi họp chuẩn bị 28/08 (bản lịch sử, không sửa) | tra chi tiết ai nói gì |
 
