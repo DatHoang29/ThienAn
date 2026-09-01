@@ -95,7 +95,7 @@ public class VwWpfStandaloneModeTests
 
         var viewModel = new ScenarioViewModel(connection, activityPublisher, publisher, new UserConfirmationTest(true));
 
-        Assert.Equal(116, viewModel.AllPresets.Count);
+        Assert.Equal(135, viewModel.AllPresets.Count);
 
         viewModel.SelectedApiGroup = "Screen";
         Assert.NotEmpty(viewModel.FilteredPresets);

@@ -291,7 +291,8 @@ public class VwWpfDirectModeTests
             Assert.NotNull(step);
             Assert.Equal(200, step.HttpStatus);
             Assert.NotNull(step.ResponseXml);
-            Assert.Contains("AllSubWndDecodeStatus", step.ResponseXml);
+            Assert.Contains("WallWindowStatusList", step.ResponseXml);
+            Assert.Contains("isDecoding", step.ResponseXml);
             Assert.DoesNotContain("WallWindowList", step.ResponseXml);
         }
     }
@@ -343,12 +344,12 @@ public class VwWpfDirectModeTests
     }
 
     [Fact]
-    public async Task DirectMode_SendIsapi_All116Presets_ReturnHttpStatus200_AndValidResponses()
+    public async Task DirectMode_SendIsapi_All135Presets_ReturnHttpStatus200_AndValidResponses()
     {
         var (client, mockServer) = BuildDirectClient(18135);
         using (mockServer)
         {
-            Assert.Equal(116, VwIsapiPresetList.Presets.Count);
+            Assert.Equal(135, VwIsapiPresetList.Presets.Count);
 
             foreach (var preset in VwIsapiPresetList.Presets)
             {
@@ -564,6 +565,187 @@ public class VwWpfDirectModeTests
 
         mainVm.SelectedTabIndex = 11;
         Assert.True(mainVm.IsResponseVisible);
+    }
+
+    [Fact]
+    public async Task DirectMode_SendIsapi_SDKActivateStatus_ReturnsActivatedXml_Test()
+    {
+        var (client, mockServer) = BuildDirectClient(18136);
+        using (mockServer)
+        {
+            var step = await client.SendIsapi("GET", "SDK/activateStatus", null, null);
+
+            Assert.NotNull(step);
+            Assert.Equal(200, step.HttpStatus);
+            Assert.NotNull(step.ResponseXml);
+            Assert.Contains("<Activated>true</Activated>", step.ResponseXml);
+        }
+    }
+
+    [Fact]
+    public async Task DirectMode_SendIsapi_SystemEndpoints_ReturnExpectedXml_Test()
+    {
+        var (client, mockServer) = BuildDirectClient(18137);
+        using (mockServer)
+        {
+            var devInfo = await client.SendIsapi("GET", "ISAPI/System/deviceInfo", null, null);
+            Assert.Equal(200, devInfo.HttpStatus);
+            Assert.Contains("DS-C30S-S11", devInfo.ResponseXml);
+
+            var time = await client.SendIsapi("GET", "ISAPI/System/time", null, null);
+            Assert.Equal(200, time.HttpStatus);
+            Assert.Contains("<Time", time.ResponseXml);
+
+            var ports = await client.SendIsapi("GET", "ISAPI/System/Serial/ports", null, null);
+            Assert.Equal(200, ports.HttpStatus);
+            Assert.Contains("SerialPortList", ports.ResponseXml);
+
+            var portCaps = await client.SendIsapi("GET", "ISAPI/System/Serial/ports/capabilities", null, null);
+            Assert.Equal(200, portCaps.HttpStatus);
+            Assert.Contains("SerialPortCap", portCaps.ResponseXml);
+
+            var serialCaps = await client.SendIsapi("GET", "ISAPI/System/Serial/capabilities", null, null);
+            Assert.Equal(200, serialCaps.HttpStatus);
+            Assert.Contains("SerialCap", serialCaps.ResponseXml);
+        }
+    }
+
+    [Fact]
+    public async Task DirectMode_SendIsapi_StatefulSceneCRUD_Test()
+    {
+        var (client, mockServer) = BuildDirectClient(18138);
+        using (mockServer)
+        {
+            var list1 = await client.SendIsapi("GET", "ISAPI/DisplayDev/VideoWall/1/scene", null, null);
+            Assert.Equal(200, list1.HttpStatus);
+            Assert.Contains("Default Scene", list1.ResponseXml);
+
+            var post = await client.SendIsapi("POST", "ISAPI/DisplayDev/VideoWall/1/scene", "<WallScene><name>Scene Alpha</name></WallScene>", "application/xml");
+            Assert.Equal(200, post.HttpStatus);
+            Assert.Contains("<ID>2</ID>", post.ResponseXml);
+
+            var list2 = await client.SendIsapi("GET", "ISAPI/DisplayDev/VideoWall/1/scene", null, null);
+            Assert.Contains("Scene Alpha", list2.ResponseXml);
+
+            // Export all scenes
+            var exportRes = await client.SendIsapi("GET", "ISAPI/DisplayDev/VideoWall/1/scene/export?format=json", null, "application/json");
+            Assert.Equal(200, exportRes.HttpStatus);
+            Assert.Contains("SceneExport", exportRes.ResponseXml);
+
+            // Import scenes
+            var importRes = await client.SendIsapi("POST", "ISAPI/DisplayDev/VideoWall/1/scene/import?format=json", "{\"SceneImport\":{\"data\":\"dGVzdA==\"}}", "application/json");
+            Assert.Equal(200, importRes.HttpStatus);
+            Assert.Contains("<ID>3</ID>", importRes.ResponseXml);
+
+            // Copy scene 1
+            var copyRes = await client.SendIsapi("PUT", "ISAPI/DisplayDev/VideoWall/1/scene/1/copy", null, null);
+            Assert.Equal(200, copyRes.HttpStatus);
+
+            var del = await client.SendIsapi("DELETE", "ISAPI/DisplayDev/VideoWall/1/scene/2", null, null);
+            Assert.Equal(200, del.HttpStatus);
+
+            var list3 = await client.SendIsapi("GET", "ISAPI/DisplayDev/VideoWall/1/scene", null, null);
+            Assert.DoesNotContain("Scene Alpha", list3.ResponseXml);
+        }
+    }
+
+    [Fact]
+    public async Task DirectMode_SendIsapi_StatefulPlanCRUD_Test()
+    {
+        var (client, mockServer) = BuildDirectClient(18139);
+        using (mockServer)
+        {
+            var list1 = await client.SendIsapi("GET", "ISAPI/DisplayDev/VideoWall/1/plan", null, null);
+            Assert.Equal(200, list1.HttpStatus);
+            Assert.Contains("Default Plan", list1.ResponseXml);
+
+            var post = await client.SendIsapi("POST", "ISAPI/DisplayDev/VideoWall/1/plan", "<WallPlan><name>Plan Beta</name></WallPlan>", "application/xml");
+            Assert.Equal(200, post.HttpStatus);
+            Assert.Contains("<ID>2</ID>", post.ResponseXml);
+
+            var put = await client.SendIsapi("PUT", "ISAPI/DisplayDev/VideoWall/1/plan/2", "<WallPlan><name>Plan Beta Updated</name></WallPlan>", "application/xml");
+            Assert.Equal(200, put.HttpStatus);
+
+            var start = await client.SendIsapi("PUT", "ISAPI/DisplayDev/VideoWall/1/plan/2/start", null, null);
+            Assert.Equal(200, start.HttpStatus);
+
+            var running = await client.SendIsapi("GET", "ISAPI/DisplayDev/VideoWall/1/plan/isRunning", null, null);
+            Assert.Equal(200, running.HttpStatus);
+            Assert.Contains("<planID>2</planID>", running.ResponseXml);
+
+            var stop = await client.SendIsapi("PUT", "ISAPI/DisplayDev/VideoWall/1/plan/2/stop", null, null);
+            Assert.Equal(200, stop.HttpStatus);
+
+            var stopped = await client.SendIsapi("GET", "ISAPI/DisplayDev/VideoWall/1/plan/isRunning", null, null);
+            Assert.Contains("<planID>0</planID>", stopped.ResponseXml);
+
+            var del = await client.SendIsapi("DELETE", "ISAPI/DisplayDev/VideoWall/1/plan/2", null, null);
+            Assert.Equal(200, del.HttpStatus);
+
+            var list2 = await client.SendIsapi("GET", "ISAPI/DisplayDev/VideoWall/1/plan", null, null);
+            Assert.DoesNotContain("Plan Beta", list2.ResponseXml);
+        }
+    }
+
+    [Fact]
+    public void DirectMode_WpfSceneSetup_UniformTileSize_CoordinateGrid_Test()
+    {
+        Assert.Equal(1920, Module.VideoWall.WPF.Api.Direct.Isapi.VwDirectDeviceConstants.UniformTileSize);
+        Assert.Equal(1920, Module.VideoWall.WPF.Api.Direct.Isapi.VwDirectDeviceConstants.BaseOutputSize);
+
+        var col = 2;
+        var row = 1;
+        var expectedX = col * Module.VideoWall.WPF.Api.Direct.Isapi.VwDirectDeviceConstants.UniformTileSize;
+        var expectedY = row * Module.VideoWall.WPF.Api.Direct.Isapi.VwDirectDeviceConstants.UniformTileSize;
+
+        Assert.Equal(3840, expectedX);
+        Assert.Equal(1920, expectedY);
+    }
+
+    [Fact]
+    public async Task DirectMode_WpfScenario_ActivateScene_CallsCorrectEndpoint_Test()
+    {
+        var (client, mockServer) = BuildDirectClient(18140);
+        using (mockServer)
+        {
+            var res = await client.SendIsapi("PUT", "ISAPI/DisplayDev/VideoWall/1/scene/3/activate", null, null);
+            Assert.Equal(200, res.HttpStatus);
+            Assert.Contains("OK", res.ResponseXml);
+        }
+    }
+
+    [Fact]
+    public async Task DirectMode_SendIsapi_SubWindowDecodeStatus_ReturnsWallWindowStatusListShape_Test()
+    {
+        var (client, mockServer) = BuildDirectClient(18141);
+        using (mockServer)
+        {
+            var step = await client.SendIsapi("GET", "ISAPI/DisplayDev/VideoWall/1/windows/33554433/sub/1/status", null, null);
+            Assert.Equal(200, step.HttpStatus);
+            Assert.Contains("WallWindowStatusList", step.ResponseXml);
+            Assert.Contains("<isDecoding>true</isDecoding>", step.ResponseXml);
+            Assert.DoesNotContain("DynamicDecodeStatus", step.ResponseXml);
+        }
+    }
+
+    [Fact]
+    public async Task DirectMode_SendIsapi_ScreenCtrlCloseAll_Flags_Test()
+    {
+        var (client, mockServer) = BuildDirectClient(18142);
+        using (mockServer)
+        {
+            // Default: throws invalidOperation (simulates unplugged RS232)
+            var step1 = await client.SendIsapi("PUT", "ISAPI/DisplayDev/ScreenCtrl/closeAll", null, null);
+            Assert.Equal(200, step1.HttpStatus);
+            Assert.Contains("invalidOperation", step1.ResponseXml);
+
+            // Flag enabled (--closeall-ok): returns OK
+            mockServer.ScreenCtrlCloseAllThrowsInvalidOperation = false;
+            var step2 = await client.SendIsapi("PUT", "ISAPI/DisplayDev/ScreenCtrl/closeAll", null, null);
+            Assert.Equal(200, step2.HttpStatus);
+            Assert.Contains("<statusCode>1</statusCode>", step2.ResponseXml);
+            Assert.Contains("<statusString>OK</statusString>", step2.ResponseXml);
+        }
     }
 
     private static VwDirectISAPIClient BuildIsapiClient(int port)

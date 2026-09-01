@@ -74,6 +74,71 @@ public partial class VwISAPIMockServerHikvision
         // 1. SECURITY & CAPABILITIES
         // ═════════════════════════════════════════════════════════════════════
 
+        // M2: Device Info
+        if (method == "GET" && MatchRoute("ISAPI/System/deviceInfo", path))
+        {
+            await WriteXmlResponseAsync(res, HttpStatusCode.OK, """
+                <DeviceInfo xmlns="http://www.isapi.org/ver20/XMLSchema" version="2.0">
+                  <deviceName>DS-C30S-S11</deviceName>
+                  <deviceID>1</deviceID>
+                  <model>DS-C30S-S11</model>
+                  <serialNumber>DS-C30S-S1120260101MOCK00001</serialNumber>
+                  <macAddress>00:11:22:33:44:55</macAddress>
+                  <firmwareVersion>V2.5.0</firmwareVersion>
+                  <firmwareReleasedDate>2026-01-01</firmwareReleasedDate>
+                  <hardwareVersion>0x0</hardwareVersion>
+                  <deviceStatus>normal</deviceStatus>
+                </DeviceInfo>
+                """);
+            return true;
+        }
+
+        // M2: System Time
+        if (method == "GET" && MatchRoute("ISAPI/System/time", path))
+        {
+            var now = DateTime.Now;
+            await WriteXmlResponseAsync(res, HttpStatusCode.OK, $"""
+                <Time xmlns="http://www.isapi.org/ver20/XMLSchema" version="2.0">
+                  <timeMode>NTP</timeMode>
+                  <localTime>{now:yyyy-MM-ddTHH:mm:sszzz}</localTime>
+                  <timeZone>CST-7:00:00</timeZone>
+                </Time>
+                """);
+            return true;
+        }
+
+        // M2: Serial Ports
+        if (method == "GET" && MatchRoute("ISAPI/System/Serial/ports", path))
+        {
+            await WriteXmlResponseAsync(res, HttpStatusCode.OK, """
+                <SerialPortList xmlns="http://www.isapi.org/ver20/XMLSchema" version="2.0">
+                  <SerialPort>
+                    <id>1</id>
+                    <serialPortType>RS485</serialPortType>
+                    <baudRate>9600</baudRate>
+                    <dataBits>8</dataBits>
+                    <parityType>none</parityType>
+                    <stopBits>1</stopBits>
+                  </SerialPort>
+                </SerialPortList>
+                """);
+            return true;
+        }
+
+        // M2: Serial Ports Capabilities
+        if (method == "GET" && MatchRoute("ISAPI/System/Serial/ports/capabilities", path))
+        {
+            await WriteXmlResponseAsync(res, HttpStatusCode.OK, """
+                <SerialPortCap xmlns="http://www.isapi.org/ver20/XMLSchema" version="2.0">
+                  <baudRate opt="9600,19200,38400,57600,115200" />
+                  <dataBits opt="5,6,7,8" />
+                  <parityType opt="none,even,odd" />
+                  <stopBits opt="1,2" />
+                </SerialPortCap>
+                """);
+            return true;
+        }
+
         // A. GET /ISAPI/Security/userCheck
         if (method == "GET" && MatchRoute("ISAPI/Security/userCheck", path))
         {
@@ -271,13 +336,36 @@ public partial class VwISAPIMockServerHikvision
         }
 
         // 9.7.2.6. GET /ISAPI/DisplayDev/VideoWall/{videoWallID}/windows/{VWMWID}/sub/{VWSWID}/status
-        if (method == "GET" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}/windows/{VWMWID}/sub/{VWSWID}/status", path, out _))
+        if (method == "GET" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}/windows/{VWMWID}/sub/{VWSWID}/status", path, out var subStatusParams))
         {
+            var vwmwid = subStatusParams.TryGetValue("VWMWID", out var w) ? w : "33554433";
+            var vwswid = subStatusParams.TryGetValue("VWSWID", out var s) ? s : "1";
             await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
                 <?xml version="1.0" encoding="UTF-8"?>
-                <DynamicDecodeStatus version="2.0" xmlns="{{Ns}}">
-                  <status>decoding</status>
-                </DynamicDecodeStatus>
+                <WallWindowStatusList xmlns="{{Ns}}" version="2.0">
+                  <WallWindowStatus>
+                    <id>{{vwmwid}}</id>
+                    <windowMode>1</windowMode>
+                    <SubWinStatusList>
+                      <SubWinStatus>
+                        <id>{{vwswid}}</id>
+                        <isLinked>true</isLinked>
+                        <isDecoding>true</isDecoding>
+                        <isDecodingEnabled>true</isDecodingEnabled>
+                        <imageWidth>1920</imageWidth>
+                        <imageHeight>1080</imageHeight>
+                        <videoFPS>25</videoFPS>
+                        <streamRate>4096</streamRate>
+                        <videoType>H.264</videoType>
+                        <wndDecodeType>dynamic</wndDecodeType>
+                        <SubWindowParam>
+                          <signalMode>video input</signalMode>
+                          <videoInputChannelID>16842753</videoInputChannelID>
+                        </SubWindowParam>
+                      </SubWinStatus>
+                    </SubWinStatusList>
+                  </WallWindowStatus>
+                </WallWindowStatusList>
                 """);
             return true;
         }
@@ -287,13 +375,26 @@ public partial class VwISAPIMockServerHikvision
         {
             await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
                 <?xml version="1.0" encoding="UTF-8"?>
-                <AllSubWndDecodeStatus version="2.0" xmlns="{{Ns}}">
-                  <SubWndDecodeStatus>
-                    <windowId>33554433</windowId>
-                    <subWndId>1</subWndId>
-                    <status>decoding</status>
-                  </SubWndDecodeStatus>
-                </AllSubWndDecodeStatus>
+                <WallWindowStatusList xmlns="http://www.isapi.org/ver20/XMLSchema" version="2.0">
+                  <WallWindowStatus>
+                    <id>33554433</id>
+                    <windowMode>1</windowMode>
+                    <SubWinStatusList>
+                      <SubWinStatus>
+                        <id>1</id>
+                        <isLinked>true</isLinked>
+                        <isDecoding>true</isDecoding>
+                        <isDecodingEnabled>true</isDecodingEnabled>
+                        <imageWidth>1920</imageWidth>
+                        <imageHeight>1080</imageHeight>
+                        <videoFPS>25</videoFPS>
+                        <streamRate>4096</streamRate>
+                        <videoType>H.264</videoType>
+                        <wndDecodeType>dynamic</wndDecodeType>
+                      </SubWinStatus>
+                    </SubWinStatusList>
+                  </WallWindowStatus>
+                </WallWindowStatusList>
                 """);
             return true;
         }
@@ -980,7 +1081,7 @@ public partial class VwISAPIMockServerHikvision
         }
 
         // ═════════════════════════════════════════════════════════════════════
-        // 9. MỞ RỘNG THEO TỪNG NHÓM NGHIỆP VỤ (116/116 PRESETS)
+        // 9. MỞ RỘNG THEO TỪNG NHÓM NGHIỆP VỤ (135/135 PRESETS)
         // ═════════════════════════════════════════════════════════════════════
         if (await TryHandleBoardAsync(context, method, path))
             return true;

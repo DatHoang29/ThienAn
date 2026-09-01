@@ -331,14 +331,14 @@ public class VwWpfCommissioningTests
 
         var expectedX = new[]
         {
-            screenA.GridCol!.Value * VwWallProfile.PanelWidthPx,
-            screenB.GridCol!.Value * VwWallProfile.PanelWidthPx,
+            screenA.GridCol!.Value * Module.VideoWall.WPF.Api.Direct.Isapi.VwDirectDeviceConstants.UniformTileSize,
+            screenB.GridCol!.Value * Module.VideoWall.WPF.Api.Direct.Isapi.VwDirectDeviceConstants.UniformTileSize,
         }.OrderBy(value => value).ToList();
 
         var actualX = windows.Select(window => window.X ?? -1).OrderBy(value => value).ToList();
         Assert.Equal(expectedX, actualX);
 
-        var expectedY = screenA.GridRow!.Value * VwWallProfile.PanelHeightPx;
+        var expectedY = screenA.GridRow!.Value * Module.VideoWall.WPF.Api.Direct.Isapi.VwDirectDeviceConstants.UniformTileSize;
         Assert.All(windows, window => Assert.Equal(expectedY, window.Y));
 
         Assert.Equal(2, actualX.Distinct().Count());

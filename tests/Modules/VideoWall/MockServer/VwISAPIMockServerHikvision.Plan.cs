@@ -12,6 +12,15 @@ public partial class VwISAPIMockServerHikvision
         // 9.7.6.1. Add a plan [POST ISAPI/DisplayDev/VideoWall/{videoWallID}/plan]
         if (method == "POST" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}/plan", path))
         {
+            var name = "New Plan";
+            if (!string.IsNullOrWhiteSpace(LastReceivedBody))
+            {
+                var match = System.Text.RegularExpressions.Regex.Match(LastReceivedBody, @"<name>(.*?)</name>");
+                if (match.Success)
+                    name = match.Groups[1].Value;
+            }
+            var id = NextPlanId++;
+            PlanStore[id] = name;
             await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
                 <?xml version="1.0" encoding="UTF-8"?>
                 <ResponseStatus version="1.0" xmlns="{{Ns}}">
@@ -19,7 +28,92 @@ public partial class VwISAPIMockServerHikvision
                   <statusCode>1</statusCode>
                   <statusString>OK</statusString>
                   <subStatusCode>ok</subStatusCode>
-                  <ID>1</ID>
+                  <ID>{{id}}</ID>
+                </ResponseStatus>
+                """);
+            return true;
+        }
+
+        // M5: GET plan list [GET ISAPI/DisplayDev/VideoWall/{videoWallID}/plan]
+        if (method == "GET" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}/plan", path))
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("""<WallPlanList xmlns="http://www.isapi.org/ver20/XMLSchema" version="2.0">""");
+            foreach (var kvp in PlanStore)
+            {
+                sb.AppendLine($"  <WallPlan><id>{kvp.Key}</id><name>{kvp.Value}</name></WallPlan>");
+            }
+            sb.AppendLine("</WallPlanList>");
+            await WriteXmlResponseAsync(res, HttpStatusCode.OK, sb.ToString());
+            return true;
+        }
+
+        // M5: PUT update plan [PUT ISAPI/DisplayDev/VideoWall/{videoWallID}/plan/{planTemplateID}]
+        if (method == "PUT" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}/plan/{planTemplateID}", path, out var putParams))
+        {
+            if (int.TryParse(putParams["planTemplateID"], out var putId) && PlanStore.ContainsKey(putId))
+            {
+                var match = System.Text.RegularExpressions.Regex.Match(LastReceivedBody ?? "", @"<name>(.*?)</name>");
+                if (match.Success)
+                    PlanStore[putId] = match.Groups[1].Value;
+            }
+            await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <ResponseStatus version="1.0" xmlns="{{Ns}}">
+                  <requestURL>{{path}}</requestURL>
+                  <statusCode>1</statusCode>
+                  <statusString>OK</statusString>
+                  <subStatusCode>ok</subStatusCode>
+                </ResponseStatus>
+                """);
+            return true;
+        }
+
+        // M5: DELETE plan [DELETE ISAPI/DisplayDev/VideoWall/{videoWallID}/plan/{planTemplateID}]
+        if (method == "DELETE" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}/plan/{planTemplateID}", path, out var delParams))
+        {
+            if (int.TryParse(delParams["planTemplateID"], out var delId))
+                PlanStore.Remove(delId);
+            await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <ResponseStatus version="1.0" xmlns="{{Ns}}">
+                  <requestURL>{{path}}</requestURL>
+                  <statusCode>1</statusCode>
+                  <statusString>OK</statusString>
+                  <subStatusCode>ok</subStatusCode>
+                </ResponseStatus>
+                """);
+            return true;
+        }
+
+        // M5: PUT start plan [PUT .../plan/{planTemplateID}/start]
+        if (method == "PUT" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}/plan/{planTemplateID}/start", path, out var startParams))
+        {
+            if (int.TryParse(startParams["planTemplateID"], out var startId))
+                ActivePlanId = startId;
+            await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <ResponseStatus version="1.0" xmlns="{{Ns}}">
+                  <requestURL>{{path}}</requestURL>
+                  <statusCode>1</statusCode>
+                  <statusString>OK</statusString>
+                  <subStatusCode>ok</subStatusCode>
+                </ResponseStatus>
+                """);
+            return true;
+        }
+
+        // M5: PUT stop plan [PUT .../plan/{planTemplateID}/stop]
+        if (method == "PUT" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}/plan/{planTemplateID}/stop", path))
+        {
+            ActivePlanId = null;
+            await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <ResponseStatus version="1.0" xmlns="{{Ns}}">
+                  <requestURL>{{path}}</requestURL>
+                  <statusCode>1</statusCode>
+                  <statusString>OK</statusString>
+                  <subStatusCode>ok</subStatusCode>
                 </ResponseStatus>
                 """);
             return true;
@@ -112,14 +206,13 @@ public partial class VwISAPIMockServerHikvision
         // 9.7.6.4. Get the current plan [GET ISAPI/DisplayDev/VideoWall/{videoWallID}/plan/isRunning]
         if (method == "GET" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}/plan/isRunning", path))
         {
-            await WriteXmlResponseAsync(res, HttpStatusCode.OK, """
-<?xml version="1.0" encoding="UTF-8"?>
-<RunningPlan xmlns="http://www.isapi.org/ver20/XMLSchema" version="2.0">
-  <planID>
-    1
-  </planID>
-</RunningPlan>
-""");
+            var planIdXml = ActivePlanId.HasValue ? $"<planID>{ActivePlanId.Value}</planID>" : "<planID>0</planID>";
+            await WriteXmlResponseAsync(res, HttpStatusCode.OK, $"""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <RunningPlan xmlns="http://www.isapi.org/ver20/XMLSchema" version="2.0">
+                  {planIdXml}
+                </RunningPlan>
+                """);
             return true;
         }
 

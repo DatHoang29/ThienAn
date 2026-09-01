@@ -65,6 +65,12 @@ namespace Tests.Modules.VideoWall.MockServer
         /// </summary>
         public int MaxSceneNums { get; set; } = DefaultMaxSceneNums;
 
+        public Dictionary<int, string> SceneStore { get; } = new() { [1] = "Default Scene" };
+        public int NextSceneId { get; set; } = 2;
+        public Dictionary<int, string> PlanStore { get; } = new() { [1] = "Default Plan" };
+        public int NextPlanId { get; set; } = 2;
+        public int? ActivePlanId { get; set; } = 1;
+
         public int ActiveSceneId { get; set; } = 1;
         public bool SimulateSaveDataFailure { get; set; }
         public bool SimulateMethodNotAllowed { get; set; }
@@ -174,6 +180,13 @@ namespace Tests.Modules.VideoWall.MockServer
             IsSupportScene = true;
             MaxSceneNums = DefaultMaxSceneNums;
             ActiveSceneId = 1;
+            SceneStore.Clear();
+            SceneStore[1] = "Default Scene";
+            NextSceneId = 2;
+            PlanStore.Clear();
+            PlanStore[1] = "Default Plan";
+            NextPlanId = 2;
+            ActivePlanId = 1;
             SimulateSaveDataFailure = false;
             SimulateMethodNotAllowed = false;
             SimulateBadXmlFormat = false;
@@ -313,6 +326,17 @@ namespace Tests.Modules.VideoWall.MockServer
                           <statusString>Device Locked</statusString>
                           <subStatusCode>ipAddressLocked</subStatusCode>
                         </ResponseStatus>
+                        """);
+                    return;
+                }
+
+                // M1: /SDK/activateStatus — liveness, KHÔNG yêu cầu digest (KB-01 #1)
+                if (method == "GET" && path.TrimStart('/').Equals("SDK/activateStatus", StringComparison.OrdinalIgnoreCase))
+                {
+                    await WriteXmlResponseAsync(res, HttpStatusCode.OK, """
+                        <Activated xmlns="http://www.isapi.org/ver20/XMLSchema" version="2.0">
+                          <Activated>true</Activated>
+                        </Activated>
                         """);
                     return;
                 }
