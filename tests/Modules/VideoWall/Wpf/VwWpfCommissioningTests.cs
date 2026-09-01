@@ -1047,9 +1047,11 @@ public class VwWpfCommissioningTests
             var mainGrid = window.Content as System.Windows.Controls.Grid;
             Assert.NotNull(mainGrid);
 
-            // Row 1 (TabControl) and Row 3 (Logs) must be Star rows to allow resizing
+            // Row 1 (TabControl) is Star and Row 3 (Logs) is 190px with MinHeight >= 60
             Assert.True(mainGrid.RowDefinitions[1].Height.IsStar);
-            Assert.True(mainGrid.RowDefinitions[3].Height.IsStar);
+            Assert.True(mainGrid.RowDefinitions[3].Height.IsAbsolute || mainGrid.RowDefinitions[3].Height.IsStar);
+            Assert.Equal(190, mainGrid.RowDefinitions[3].Height.Value);
+            Assert.True(mainGrid.RowDefinitions[3].MinHeight >= 60);
 
             // Row 2 (GridSplitter) must have fixed pixel height >= 3, not Auto
             Assert.True(mainGrid.RowDefinitions[2].Height.IsAbsolute);
@@ -1074,17 +1076,12 @@ public class VwWpfCommissioningTests
             var rootGrid = view.Content as System.Windows.Controls.Grid;
             Assert.NotNull(rootGrid);
 
-            // Row 1 (Khung 2: Bố cục ô Camera trên Tường) is Star with MinHeight >= 200
-            Assert.True(rootGrid.RowDefinitions[1].Height.IsStar);
-            Assert.True(rootGrid.RowDefinitions[1].MinHeight >= 200);
+            // Row 2 (TabControl: Sub-tabs Bố cục & Cổng) is Star
+            Assert.True(rootGrid.RowDefinitions[2].Height.IsStar);
 
-            // Verify single unified DataGrid exists in Row 1
-            var frame2Border = rootGrid.Children.OfType<System.Windows.Controls.Border>().FirstOrDefault(b => System.Windows.Controls.Grid.GetRow(b) == 1);
-            Assert.NotNull(frame2Border);
-            var innerGrid = frame2Border.Child as System.Windows.Controls.Grid;
-            Assert.NotNull(innerGrid);
-            var dataGrids = FindVisualChildren<System.Windows.Controls.DataGrid>(innerGrid).ToList();
-            Assert.NotEmpty(dataGrids);
+            // Verify TabControl exists at Row 2
+            var tabControl = rootGrid.Children.OfType<System.Windows.Controls.TabControl>().FirstOrDefault(b => System.Windows.Controls.Grid.GetRow(b) == 2);
+            Assert.NotNull(tabControl);
         });
     }
 
@@ -1119,6 +1116,33 @@ public class VwWpfCommissioningTests
             Assert.NotNull(frame2Border);
             Assert.Equal(4, frame2Border.CornerRadius.TopLeft);
             Assert.Equal(4, frame2Border.CornerRadius.BottomRight);
+        });
+    }
+
+    [Fact]
+    public void VwWpfSceneSetupTabView_WrapPanelsAndResponsiveWidths_Test()
+    {
+        RunOnStaThread(() =>
+        {
+            var view = new SceneSetupTabView();
+            var rootGrid = view.Content as System.Windows.Controls.Grid;
+            Assert.NotNull(rootGrid);
+
+            // 1. Frame 1 (Row 0): Check ComboBox width >= 340 and WrapPanels
+            var frame1Border = rootGrid.Children.OfType<System.Windows.Controls.Border>().FirstOrDefault(b => System.Windows.Controls.Grid.GetRow(b) == 0);
+            Assert.NotNull(frame1Border);
+            var comboBox = FindVisualChildren<System.Windows.Controls.ComboBox>(frame1Border).FirstOrDefault();
+            Assert.NotNull(comboBox);
+            Assert.True(comboBox.Width >= 380 || comboBox.MinWidth >= 340);
+
+            // 2. Row 3: Commissioning WrapPanel and wrapped hint text
+            var row3Border = rootGrid.Children.OfType<System.Windows.Controls.Border>().FirstOrDefault(b => System.Windows.Controls.Grid.GetRow(b) == 3);
+            Assert.NotNull(row3Border);
+            var row3Wrap = row3Border.Child as System.Windows.Controls.WrapPanel;
+            Assert.NotNull(row3Wrap);
+
+            var hintTextBlocks = FindVisualChildren<System.Windows.Controls.TextBlock>(row3Border).ToList();
+            Assert.Contains(hintTextBlocks, tb => tb.TextWrapping == System.Windows.TextWrapping.Wrap);
         });
     }
 
@@ -1560,8 +1584,7 @@ public class VwWpfCommissioningTests
         Assert.True(connection.ProbeRowCount >= 1);
         Assert.NotEmpty(connection.ProbeOutputsList);
         Assert.NotEmpty(connection.ProbeInputsList);
-        Assert.Equal(512, connection.ProbeMaxWindowNums);
-        Assert.Contains("px", connection.ProbeWallDimensionsFormatted);
+        Assert.Contains("màn hình", connection.ProbeWallDimensionsFormatted);
 
         // Test STA UI Rendering of DeviceTopologyTabView
         RunOnStaThread(() =>
@@ -1587,20 +1610,20 @@ public class VwWpfCommissioningTests
         var connection = new ConnectionViewModel(stack.ActivityPublisher, stack.Publisher, new UserConfirmationTest(true));
         var mainVm = BuildMainViewModel(stack, connection);
 
-        // Tab 0 (SceneSetup) -> Response hidden
+        // Tab 0 (SceneSetup & Topology) -> Response hidden
         mainVm.SelectedTabIndex = 0;
         Assert.False(mainVm.IsResponseVisible);
 
-        // Tab 1 (Topology) -> Response hidden
+        // Tab 1 (Board ISAPI) -> Response visible
         mainVm.SelectedTabIndex = 1;
-        Assert.False(mainVm.IsResponseVisible);
+        Assert.True(mainVm.IsResponseVisible);
 
-        // Tab 2 (Board ISAPI) -> Response visible
+        // Tab 2 (Decoding ISAPI) -> Response visible
         mainVm.SelectedTabIndex = 2;
         Assert.True(mainVm.IsResponseVisible);
 
-        // Tab 12 (Window ISAPI) -> Response visible
-        mainVm.SelectedTabIndex = 12;
+        // Tab 11 (Window ISAPI) -> Response visible
+        mainVm.SelectedTabIndex = 11;
         Assert.True(mainVm.IsResponseVisible);
     }
 

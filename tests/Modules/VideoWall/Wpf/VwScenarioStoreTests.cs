@@ -1439,20 +1439,20 @@ public class VwScenarioStoreTests : IDisposable
 
         var mainVm = new MainViewModel(sessionState, activityPub, connection, paramsVm, sceneSetup, schedule, scenario);
 
-        // Tab 1: Thiết lập Scene (Index 0) -> Không hiện Response
+        // Tab 1: Thiết lập Scene & Bố cục (Index 0) -> Không hiện Response
         mainVm.SelectedTabIndex = 0;
         Assert.False(mainVm.IsResponseVisible);
 
-        // Tab 2: Topology (Index 1) -> Không hiện Response
+        // Tab 2: Bo mạch (Index 1) -> Hiện Response
         mainVm.SelectedTabIndex = 1;
-        Assert.False(mainVm.IsResponseVisible);
-
-        // Tab 3: Board (Index 2) -> Hiện Response
-        mainVm.SelectedTabIndex = 2;
         Assert.True(mainVm.IsResponseVisible);
 
-        // Tab 7: Video Wall (Index 6) -> Hiện Response
-        mainVm.SelectedTabIndex = 6;
+        // Tab 6: Video Wall (Index 5) -> Hiện Response
+        mainVm.SelectedTabIndex = 5;
+        Assert.True(mainVm.IsResponseVisible);
+
+        // Tab 12: Cửa sổ (Index 11) -> Hiện Response
+        mainVm.SelectedTabIndex = 11;
         Assert.True(mainVm.IsResponseVisible);
     }
 

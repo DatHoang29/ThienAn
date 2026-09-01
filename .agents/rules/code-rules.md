@@ -47,7 +47,7 @@ description: Apply when writing, building, refactoring, or fixing code — proje
 1. ANALYSIS → Research, questions
 2. PLANNING → `{task-slug}.md`, task breakdown
 3. SOLUTIONING → Architecture, design (NO CODE!)
-4. IMPLEMENTATION → Code + tests
+4. IMPLEMENTATION → Code + tests (BẮT BUỘC: chạy lại toàn bộ test liên quan + bổ sung test case mới cho code/UI/logic mới tạo)
 
 ---
 

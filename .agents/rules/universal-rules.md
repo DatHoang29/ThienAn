@@ -76,6 +76,10 @@ When user's prompt is NOT in English:
   5. **Lifecycle Hooks** (`onMounted`, `onActivated`, `onUnmounted`...).
   6. **Methods & Event Handlers** (Các hàm xử lý sự kiện, hàm gọi API, logic nghiệp vụ).
   7. **Expose** (`defineExpose` nếu có).
+- **Tự Động Chạy Lại Test & Bổ Sung Test Case Mới Khi Sửa Code / Thêm UI / Sửa Logic ([Mandatory])**: Bất cứ khi nào tạo mới hoặc chỉnh sửa code (C#, XAML, ViewModel, Service, Handler, Controller, API...), thêm mới UI (component, view, layout, control, button, validator...), hoặc sửa đổi logic nghiệp vụ/giao diện: AI **BẮT BUỘC** phải:
+  1. **Chạy lại toàn bộ bài test liên quan (`dotnet test ...`)** để đảm bảo 100% test cases pass và không bị hồi quy (regression) hay gãy giao diện/build.
+  2. **Viết bổ sung test case mới** nếu tính năng/UI logic/nghiệp vụ mới tạo chưa có bài test bao phủ (tuân thủ nghiêm ngặt chuẩn AAA, kiểm thử luồng thực tế và mock I/O HTTP/thiết bị, đặt tên file và thư mục mirror 1-1).
+  *Tuyệt đối KHÔNG coi nhiệm vụ là hoàn thành khi chưa chạy test xác minh hoặc chưa bổ sung test case cần thiết.*
 
 
 ---

@@ -5,7 +5,9 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
 using Module.VideoWall.WPF.Api;
 using Module.VideoWall.WPF.Api.Direct;
+using Module.VideoWall.WPF.Auth;
 using Module.VideoWall.WPF.Interaction;
+using Module.VideoWall.WPF.Storage;
 using Module.VideoWall.WPF.ViewModels;
 using Module.VideoWall.WPF.ViewModels.Isapi;
 using Services.Shared.Events;
@@ -397,6 +399,171 @@ public class VwWpfDirectModeTests
 
         // Verify activity log received the log row
         Assert.Contains(recordingPub.ActivityRows, a => a.Activity.Detail.Contains("ISAPI/DisplayDev/Audio/capabilities"));
+    }
+
+    [Fact]
+    public async Task DirectMode_ConnectionViewModel_ConnectCommand_PingDevice_SetsConnected_Test()
+    {
+        const int port = 18137;
+        using var mockServer = new VwISAPIMockServerHikvision();
+        mockServer.Start(port);
+
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true))
+        {
+            AdHocIp = "127.0.0.1",
+            AdHocPort = port,
+            AdHocAccount = "admin",
+            AdHocPassword = "Password123!",
+        };
+
+        // Act: Click Connect
+        await connection.ConnectCommand.ExecuteAsync(null);
+
+        // Assert
+        Assert.True(connection.IsConnected);
+        Assert.Contains("Kết nối trực tiếp thành công", connection.StatusMessage);
+    }
+
+    [Fact]
+    public async Task DirectMode_ConnectionViewModel_ProbeCommand_PopulatesDynamicOutputResolution_Test()
+    {
+        const int port = 18138;
+        using var mockServer = new VwISAPIMockServerHikvision();
+        mockServer.Start(port);
+
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true))
+        {
+            AdHocIp = "127.0.0.1",
+            AdHocPort = port,
+            AdHocAccount = "admin",
+            AdHocPassword = "Password123!",
+            WallNo = 1,
+        };
+
+        // Act: Run Probe
+        await connection.ProbeCommand.ExecuteAsync(null);
+
+        // Assert
+        Assert.True(connection.HasProbeResult);
+        Assert.Equal("1920 × 3840 px", connection.ProbeTotalDimensionText);
+        Assert.Equal("2 Cổng (Màn hình)", connection.ProbeOutputCountText);
+        Assert.Equal("1920 × 1920 px / cổng ra", connection.ProbeOutputResolutionSummary);
+        Assert.Equal("Lưới 1 × 2 — 2 màn hình", connection.ProbeWallDimensionsFormatted);
+    }
+
+    [Fact]
+    public void DirectMode_ConnectionViewModel_UnprobedState_ReturnsDashesAndUnprobedNotice_Test()
+    {
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true));
+
+        // Assert: Before probing, all dynamic text properties return dashes and no hardcoded dimensions
+        Assert.False(connection.HasProbeResult);
+        Assert.Equal("-- × --", connection.ProbeTotalDimensionText);
+        Assert.Equal("-- Cổng", connection.ProbeOutputCountText);
+        Assert.Equal("-- Kênh", connection.ProbeInputCountText);
+        Assert.Equal("--", connection.ProbeMaxWindowNumsText);
+        Assert.Equal("--", connection.ProbeMaxSceneNumsText);
+        Assert.Equal("(Chưa khảo sát)", connection.ProbeOutputResolutionSummary);
+        Assert.Equal("(Chưa khảo sát)", connection.ProbeWallDimensionsFormatted);
+    }
+
+    [Fact]
+    public void DirectMode_ConnectionViewModel_BuildDirectISAPIClient_ReturnsClientWhenConfigured_Test()
+    {
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true))
+        {
+            AdHocIp = "127.0.0.1",
+            AdHocPort = 18080,
+            AdHocAccount = "admin",
+            AdHocPassword = "Password123!"
+        };
+
+        var isapiClient = connection.BuildDirectISAPIClient();
+
+        Assert.NotNull(isapiClient);
+    }
+
+    [Fact]
+    public async Task DirectMode_SceneSetupViewModel_ActivateSceneCommand_CallsIsapiActivate_UpdatesStoreAndStatus_Test()
+    {
+        const int port = 18139;
+        using var mockServer = new VwISAPIMockServerHikvision();
+        mockServer.Start(port);
+
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true))
+        {
+            AdHocIp = "127.0.0.1",
+            AdHocPort = port,
+            AdHocAccount = "admin",
+            AdHocPassword = "Password123!",
+            WallNo = 1,
+        };
+
+        var sceneSetup = new SceneSetupViewModel(activityPub, connection, new UserConfirmationTest(true), recordingPub);
+        var targetScene = sceneSetup.Scenes.FirstOrDefault() ?? new Module.VideoWall.WPF.Api.Dto.VwSceneDto
+        {
+            ID = "TEST_SCENE_ACTIVE",
+            Name = "Kịch bản Kiểm thử Active",
+            Code = "SCENE_TEST_ACT",
+            OutputId = "2"
+        };
+        if (!sceneSetup.Scenes.Contains(targetScene))
+            sceneSetup.Scenes.Add(targetScene);
+
+        sceneSetup.CurrentScene = targetScene;
+
+        // Act: Execute ActivateSceneCommand
+        await sceneSetup.ActivateSceneCommand.ExecuteAsync(null);
+
+        // Assert: ActiveScene is set, store is updated, and status message reports success with SID
+        Assert.NotNull(sceneSetup.ActiveScene);
+        Assert.Equal(targetScene.ID, sceneSetup.ActiveScene.ID);
+        Assert.Contains("Đã kích hoạt thành công kịch bản", sceneSetup.StatusMessage);
+
+        var activeSceneInStore = VwLocalSceneStore.GetActiveScene("127.0.0.1");
+        Assert.NotNull(activeSceneInStore);
+        Assert.Equal(targetScene.ID, activeSceneInStore.ID);
+    }
+
+    [Fact]
+    public void DirectMode_MainViewModel_IsResponseVisible_Tab0False_Tab1PlusTrue_Test()
+    {
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var session = new SessionState();
+        var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true));
+        var invoker = new ApiInvoker(new InMemoryApiClientFactoryTest(new HttpClient()), activityPub);
+        var apiClient = new VideoWallApiClient(invoker, recordingPub, activityPub);
+        var parameters = new ParametersViewModel(connection);
+        var sceneSetup = new SceneSetupViewModel(activityPub, connection, new UserConfirmationTest(true), recordingPub);
+        var schedule = new ScheduleViewModel(apiClient, activityPub);
+        var scenario = new ScenarioViewModel(connection, activityPub, recordingPub, new UserConfirmationTest(true));
+
+        var mainVm = new MainViewModel(session, activityPub, connection, parameters, sceneSetup, schedule, scenario);
+
+        // Tab 0: Thiết lập Scene & Bố cục -> IsResponseVisible must be false
+        mainVm.SelectedTabIndex = 0;
+        Assert.False(mainVm.IsResponseVisible);
+
+        // Tab 1..11 (ISAPI tabs): IsResponseVisible must be true
+        mainVm.SelectedTabIndex = 1;
+        Assert.True(mainVm.IsResponseVisible);
+
+        mainVm.SelectedTabIndex = 5;
+        Assert.True(mainVm.IsResponseVisible);
+
+        mainVm.SelectedTabIndex = 11;
+        Assert.True(mainVm.IsResponseVisible);
     }
 
     private static VwDirectISAPIClient BuildIsapiClient(int port)
