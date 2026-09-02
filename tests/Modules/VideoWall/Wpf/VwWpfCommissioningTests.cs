@@ -874,6 +874,91 @@ public class VwWpfCommissioningTests
 
     /// <summary>
     /// Author: Đạt
+    /// Description: Thêm ô mới, chỉnh sửa tên ô (Name) trong bảng rồi bấm Lưu cấu hình -> 
+    ///              Khi chuyển kịch bản qua lại hoặc tải lại, tên ô đã sửa được lưu và phục hồi chính xác.
+    /// Created date: 02/09/2026
+    /// </summary>
+    [Fact]
+    public async Task VwWpfSceneSetup_AddNewWindow_EditName_SavedAndPersists_Test()
+    {
+        // Arrange
+        var (controller, screenA, screenB, source) = SeedWallAsync();
+        var stack = BuildClientStack();
+        var connection = BuildConnection(stack, controller, screenA, screenB, source);
+        var confirmation = new UserConfirmationTest(answer: true);
+        var sceneSetup = await CreateSceneWithWindowsAsync(stack, connection, confirmation, source);
+
+        var scene1 = sceneSetup.CurrentScene!;
+        var scene1Id = scene1.ID!;
+
+        // Tạo thêm Scene 2 để chuyển qua lại
+        sceneSetup.SceneName = "Kịch bản 2 Đổi Tên";
+        sceneSetup.SceneOutputId = "2";
+        await sceneSetup.CreateSceneCommand.ExecuteAsync(null);
+        var scene2 = sceneSetup.Scenes.First(s => s.Name == "Kịch bản 2 Đổi Tên");
+
+        // Quay lại Scene 1
+        sceneSetup.CurrentScene = scene1;
+        Assert.Equal(2, sceneSetup.SceneWindows.Count);
+
+        // Act 1: Thêm ô mới và đổi tên ô
+        sceneSetup.AddSceneWindowCommand.Execute(null);
+        Assert.Equal(3, sceneSetup.SceneWindows.Count);
+
+        var newWindowRow = sceneSetup.SceneWindows.Last();
+        newWindowRow.Name = "Camera Đoạn Trực Tuyến 01";
+
+        // Act 2: Bấm Lưu cấu hình
+        await sceneSetup.SaveAllSceneWindowsCommand.ExecuteAsync(null);
+
+        // Act 3: Chuyển sang Scene 2 rồi quay lại Scene 1
+        sceneSetup.CurrentScene = scene2;
+        sceneSetup.CurrentScene = scene1;
+
+        // Assert: Ô mới vẫn tồn tại và giữ đúng tên đã sửa
+        Assert.Equal(3, sceneSetup.SceneWindows.Count);
+        var restoredRow = sceneSetup.SceneWindows.Last();
+        Assert.Equal("Camera Đoạn Trực Tuyến 01", restoredRow.Name);
+
+        // Assert: Trong file lưu trữ cục bộ có đúng tên ô mới
+        var inStore = VwLocalSceneStore.ListWindowScenes(connection.DeviceKey, scene1Id);
+        Assert.Equal(3, inStore.Count);
+        Assert.Contains(inStore, w => w.Name == "Camera Đoạn Trực Tuyến 01");
+    }
+
+    /// <summary>
+    /// Author: Đạt
+    /// Description: Thêm ô mới và đổi tên ô nhưng CHƯA LƯU, khi bấm Đặt lại (Reset) thì 
+    ///              ô mới và tên tạm thời bị huỷ bỏ, khôi phục lại danh sách ô đã lưu ban đầu.
+    /// Created date: 02/09/2026
+    /// </summary>
+    [Fact]
+    public async Task VwWpfSceneSetup_AddNewWindow_EditName_DiscardedWhenReset_Test()
+    {
+        // Arrange
+        var (controller, screenA, screenB, source) = SeedWallAsync();
+        var stack = BuildClientStack();
+        var connection = BuildConnection(stack, controller, screenA, screenB, source);
+        var confirmation = new UserConfirmationTest(answer: true);
+        var sceneSetup = await CreateSceneWithWindowsAsync(stack, connection, confirmation, source);
+
+        Assert.Equal(2, sceneSetup.SceneWindows.Count);
+
+        // Act: Thêm ô mới và đổi tên
+        sceneSetup.AddSceneWindowCommand.Execute(null);
+        Assert.Equal(3, sceneSetup.SceneWindows.Count);
+        sceneSetup.SceneWindows.Last().Name = "Tên Ô Chưa Lưu";
+
+        // Bấm Đặt lại
+        sceneSetup.ResetSceneWindowsCommand.Execute(null);
+
+        // Assert: Khôi phục về 2 ô gốc, không chứa tên tạm thời
+        Assert.Equal(2, sceneSetup.SceneWindows.Count);
+        Assert.DoesNotContain(sceneSetup.SceneWindows, w => w.Name == "Tên Ô Chưa Lưu");
+    }
+
+    /// <summary>
+    /// Author: Đạt
     /// Description: Bấm Xoá kịch bản rồi CHỌN KHÔNG ở hộp thoại — kịch bản phải còn nguyên.
     /// Created date: 25/08/2026
     /// </summary>
@@ -1381,7 +1466,7 @@ public class VwWpfCommissioningTests
 
         Assert.Equal("Toàn màn (1x1)", row.SizeLabel);
         Assert.NotNull(row.SelectedSizePreset);
-        Assert.Equal("1x1 (1 Màn)", row.SelectedSizePreset.Name);
+        Assert.Equal("1x1", row.SelectedSizePreset.Name);
 
         // Test changing size preset to 2x2
         var preset2x2 = SceneWindowRow.AvailableSizePresets.First(p => p.Name.Contains("2x2"));
@@ -1574,23 +1659,23 @@ public class VwWpfCommissioningTests
         // When probed with Wall 2 (4 screens)
         SceneWindowRow.StartScreenProvider = () => new List<StartScreenPreset>
         {
-            new("Màn 1 (H1-C1)", 0, 0, 1, 1, 1),
-            new("Màn 2 (H1-C2)", 1920, 0, 2, 1, 2),
-            new("Màn 3 (H2-C1)", 0, 1920, 3, 2, 1),
-            new("Màn 4 (H2-C2)", 1920, 1920, 4, 2, 2)
+            new("Màn 1", 0, 0, 1, 1, 1),
+            new("Màn 2", 1920, 0, 2, 1, 2),
+            new("Màn 3", 0, 1920, 3, 2, 1),
+            new("Màn 4", 1920, 1920, 4, 2, 2)
         };
 
-        // Initial should match Màn 1 (H1-C1)
+        // Initial should match Màn 1
         Assert.NotNull(row.SelectedStartScreen);
-        Assert.Equal("Màn 1 (H1-C1)", row.SelectedStartScreen.Name);
+        Assert.Equal("Màn 1", row.SelectedStartScreen.Name);
         Assert.Equal(1, row.SelectedStartScreen.ScreenNo);
 
-        // Change to Màn 4 (H2-C2) -> should auto-update X=1920, Y=1920
+        // Change to Màn 4 -> should auto-update X=1920, Y=1920
         var screen4 = SceneWindowRow.AvailableStartScreens.First(s => s.ScreenNo == 4);
         row.SelectedStartScreen = screen4;
         Assert.Equal(1920, row.X);
         Assert.Equal(1920, row.Y);
-        Assert.Equal("Màn 4 (H2-C2)", row.SelectedStartScreen.Name);
+        Assert.Equal("Màn 4", row.SelectedStartScreen.Name);
 
         // Manual custom coordinates -> should show Tùy chỉnh
         row.X = 500;

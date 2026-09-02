@@ -1054,8 +1054,8 @@ public class VwScenarioStoreTests : IDisposable
 
         // Sau khi nạp ProbeResult của Wall 2: Danh sách màn bắt đầu co lại đúng 4 màn hình!
         Assert.Equal(4, sceneSetup.AvailableStartScreens.Count);
-        Assert.Equal("Màn 1 (H1-C1)", sceneSetup.AvailableStartScreens[0].Name);
-        Assert.Equal("Màn 4 (H2-C2)", sceneSetup.AvailableStartScreens[3].Name);
+        Assert.Equal("Màn 1", sceneSetup.AvailableStartScreens[0].Name);
+        Assert.Equal("Màn 4", sceneSetup.AvailableStartScreens[3].Name);
     }
 
     [Fact]
@@ -1087,14 +1087,14 @@ public class VwScenarioStoreTests : IDisposable
     [Fact]
     public void SceneWindowRow_SelectedSizePreset_MatchesUniformAndStandardSizes_Test()
     {
-        // 1. Tường 1 (1920x1920) -> Phải map về 1x1 (1 Màn)
+        // 1. Tường 1 (1920x1920) -> Phải map về 1x1
         var row1 = new SceneWindowRow(new Module.VideoWall.WPF.Api.Dto.VwWindowSceneDto
         {
             W = 1920,
             H = 1920,
         });
         Assert.NotNull(row1.SelectedSizePreset);
-        Assert.Equal("1x1 (1 Màn)", row1.SelectedSizePreset.Name);
+        Assert.Equal("1x1", row1.SelectedSizePreset.Name);
         Assert.Contains(row1.SelectedSizePreset, SceneWindowRow.AvailableSizePresets);
 
         // 2. Chuẩn 1080p (1920x1080) -> Phải map về 1x1
@@ -1107,19 +1107,45 @@ public class VwScenarioStoreTests : IDisposable
         Assert.Contains("1x1", row2.SelectedSizePreset.Name);
         Assert.Contains(row2.SelectedSizePreset, SceneWindowRow.AvailableSizePresets);
 
-        // 3. Khối lớn 2x2 (3840x3840) -> Phải map về 2x2 (4 Màn lớn)
+        // 3. Khối lớn 2x2 (3840x3840) -> Phải map về 2x2
         var row3 = new SceneWindowRow(new Module.VideoWall.WPF.Api.Dto.VwWindowSceneDto
         {
             W = 3840,
             H = 3840,
         });
         Assert.NotNull(row3.SelectedSizePreset);
-        Assert.Equal("2x2 (4 Màn lớn)", row3.SelectedSizePreset.Name);
+        Assert.Equal("2x2", row3.SelectedSizePreset.Name);
 
         // 4. Đổi kích thước qua SelectedSizePreset -> W và H phải tự cập nhật
         row1.SelectedSizePreset = SceneWindowRow.AvailableSizePresets.First(p => p.Name.StartsWith("2x1"));
         Assert.Equal(3840, row1.W);
         Assert.Equal(1920, row1.H);
+    }
+
+    [Fact]
+    public void SceneWindowRow_NameProperty_UpdatesUnderlyingDto_AndNotifies_Test()
+    {
+        var dto = new Module.VideoWall.WPF.Api.Dto.VwWindowSceneDto
+        {
+            Name = "Ô 1 Ban đầu",
+            Label = "Màn 1",
+            OrderNo = 1
+        };
+        var row = new SceneWindowRow(dto);
+
+        var propertyChangedList = new List<string>();
+        row.PropertyChanged += (s, e) =>
+        {
+            if (e.PropertyName != null)
+                propertyChangedList.Add(e.PropertyName);
+        };
+
+        // Chỉnh sửa tên ô
+        row.Name = "Camera Thu Phí Làn 1";
+
+        Assert.Equal("Camera Thu Phí Làn 1", row.Name);
+        Assert.Equal("Camera Thu Phí Làn 1", dto.Name);
+        Assert.Contains(nameof(SceneWindowRow.Name), propertyChangedList);
     }
 
     [Fact]
