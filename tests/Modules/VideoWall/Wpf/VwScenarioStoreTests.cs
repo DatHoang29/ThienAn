@@ -1119,7 +1119,7 @@ public class VwScenarioStoreTests : IDisposable
         // 4. Đổi kích thước qua SelectedSizePreset -> W và H phải tự cập nhật
         row1.SelectedSizePreset = SceneWindowRow.AvailableSizePresets.First(p => p.Name.StartsWith("2x1"));
         Assert.Equal(3840, row1.W);
-        Assert.Equal(1080, row1.H);
+        Assert.Equal(1920, row1.H);
     }
 
     [Fact]

@@ -599,7 +599,7 @@ public class VwWpfDirectModeTests
         var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
         var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true))
         {
-            AdHocIp = "127.0.0.1",
+            AdHocIp = "127.0.0.139",
             AdHocPort = port,
             AdHocAccount = "admin",
             AdHocPassword = "Password123!",
@@ -615,7 +615,7 @@ public class VwWpfDirectModeTests
             Code = "SCENE_ACT_CUSTOM",
             OutputId = "1"
         };
-        VwLocalSceneStore.AddScene(connection.DeviceKey, targetScene);
+        VwLocalSceneStore.SaveData(connection.DeviceKey, new VwLocalSceneData { Scenes = [targetScene] });
         sceneSetup.Scenes.Clear();
         sceneSetup.Scenes.Add(targetScene);
         sceneSetup.CurrentScene = targetScene;

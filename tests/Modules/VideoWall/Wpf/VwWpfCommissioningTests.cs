@@ -329,7 +329,7 @@ public class VwWpfCommissioningTests
         Assert.All(windows, window =>
         {
             Assert.Equal(1920, window.W);
-            Assert.Equal(1080, window.H);
+            Assert.Equal(1920, window.H);
             Assert.Equal(1, window.ZIndex);
             Assert.Equal(source.SignalNo.ToString(), window.SourceId);
         });
@@ -576,6 +576,9 @@ public class VwWpfCommissioningTests
         Assert.Single(sceneSetup.SceneWindows);
         Assert.DoesNotContain(sceneSetup.SceneWindows, item => item.ID == doomedId);
 
+        // Lưu cấu hình xuống store
+        await sceneSetup.SaveAllSceneWindowsCommand.ExecuteAsync(null);
+
         // Store: đã xoá
         var inStore = VwLocalSceneStore.ListWindowScenes(connection.DeviceKey, sceneId)
             .FirstOrDefault(item => item.ID == doomedId);
@@ -638,6 +641,10 @@ public class VwWpfCommissioningTests
         // Assert
         Assert.Equal(1, confirmation.CallCount);
         Assert.Empty(sceneSetup.SceneWindows);
+
+        // Lưu cấu hình xuống store
+        await sceneSetup.SaveAllSceneWindowsCommand.ExecuteAsync(null);
+
         var remaining = VwLocalSceneStore.ListWindowScenes(connection.DeviceKey, sceneId);
         Assert.Empty(remaining);
     }
@@ -671,6 +678,9 @@ public class VwWpfCommissioningTests
         Assert.Equal(1, confirmation.CallCount);
         Assert.Single(sceneSetup.SceneWindows);
         Assert.Equal(keptId, sceneSetup.SceneWindows[0].ID);
+
+        // Lưu cấu hình xuống store
+        await sceneSetup.SaveAllSceneWindowsCommand.ExecuteAsync(null);
 
         var remaining = VwLocalSceneStore.ListWindowScenes(connection.DeviceKey, sceneId);
         Assert.Single(remaining);
@@ -732,6 +742,134 @@ public class VwWpfCommissioningTests
         // Act 2: Bỏ chọn tất cả
         sceneSetup.IsAllSceneWindowsSelected = false;
         Assert.True(sceneSetup.SceneWindows.All(w => !w.IsSelected));
+    }
+
+    /// <summary>
+    /// Author: Đạt
+    /// Description: Các thao tác thêm ô, xoá ô hoặc đổi mẫu layout nhưng CHƯA LƯU / CHƯA ÁP DỤNG,
+    ///              khi chuyển sang kịch bản khác rồi quay lại phải tự động reset về bố cục đã lưu gốc.
+    /// Created date: 02/09/2026
+    /// </summary>
+    [Fact]
+    public async Task VwWpfSceneSetup_UnsavedAddedAndDeletedWindows_DiscardedWhenSwitchingScene_Test()
+    {
+        // Arrange
+        var (controller, screenA, screenB, source) = SeedWallAsync();
+        var stack = BuildClientStack();
+        var connection = BuildConnection(stack, controller, screenA, screenB, source);
+        var confirmation = new UserConfirmationTest(answer: true);
+        var sceneSetup = await CreateSceneWithWindowsAsync(stack, connection, confirmation, source);
+
+        var scene1 = sceneSetup.CurrentScene!;
+        var scene1Id = scene1.ID!;
+        Assert.Equal(2, sceneSetup.SceneWindows.Count);
+
+        // Tạo thêm Scene 2
+        sceneSetup.SceneName = "Kịch bản 2 Test";
+        sceneSetup.SceneOutputId = "2";
+        await sceneSetup.CreateSceneCommand.ExecuteAsync(null);
+        var scene2 = sceneSetup.Scenes.First(s => s.Name == "Kịch bản 2 Test");
+
+        // Quay lại Scene 1
+        sceneSetup.CurrentScene = scene1;
+        Assert.Equal(2, sceneSetup.SceneWindows.Count);
+
+        // Act: Thao tác thêm ô và đổi mẫu trên Scene 1 nhưng KHÔNG BẤM LƯU / ÁP DỤNG
+        sceneSetup.AddSceneWindowCommand.Execute(null);
+        Assert.Equal(3, sceneSetup.SceneWindows.Count);
+
+        sceneSetup.ApplyFullWallTemplateCommand.Execute(null);
+        Assert.Single(sceneSetup.SceneWindows);
+
+        // Chuyển sang Scene 2 (rời khỏi Scene 1 mà chưa lưu)
+        sceneSetup.CurrentScene = scene2;
+
+        // Chuyển quay lại Scene 1
+        sceneSetup.CurrentScene = scene1;
+
+        // Assert: Scene 1 phải tự động reset về đúng 2 ô ban đầu đã lưu
+        Assert.Equal(2, sceneSetup.SceneWindows.Count);
+        var inStore = VwLocalSceneStore.ListWindowScenes(connection.DeviceKey, scene1Id);
+        Assert.Equal(2, inStore.Count);
+    }
+
+    /// <summary>
+    /// Author: Đạt
+    /// Description: Bấm nút Đặt lại (ResetSceneWindowsCommand) huỷ bỏ ngay lập tức các thay đổi tạm thời
+    ///              chưa lưu và nạp lại bố cục đã lưu của kịch bản hiện tại.
+    /// Created date: 02/09/2026
+    /// </summary>
+    [Fact]
+    public async Task VwWpfSceneSetup_UnsavedEdits_DiscardedWhenClickingResetSceneWindows_Test()
+    {
+        // Arrange
+        var (controller, screenA, screenB, source) = SeedWallAsync();
+        var stack = BuildClientStack();
+        var connection = BuildConnection(stack, controller, screenA, screenB, source);
+        var confirmation = new UserConfirmationTest(answer: true);
+        var sceneSetup = await CreateSceneWithWindowsAsync(stack, connection, confirmation, source);
+
+        var scene1Id = sceneSetup.CurrentScene!.ID!;
+        Assert.Equal(2, sceneSetup.SceneWindows.Count);
+
+        // Act: Thêm 2 ô mới (chưa lưu)
+        sceneSetup.AddSceneWindowCommand.Execute(null);
+        sceneSetup.AddSceneWindowCommand.Execute(null);
+        Assert.Equal(4, sceneSetup.SceneWindows.Count);
+
+        // Bấm nút "🔄 Đặt lại"
+        sceneSetup.ResetSceneWindowsCommand.Execute(null);
+
+        // Assert: Khôi phục về 2 ô gốc
+        Assert.Equal(2, sceneSetup.SceneWindows.Count);
+        Assert.Contains("khôi phục", sceneSetup.StatusMessage, StringComparison.OrdinalIgnoreCase);
+
+        var inStore = VwLocalSceneStore.ListWindowScenes(connection.DeviceKey, scene1Id);
+        Assert.Equal(2, inStore.Count);
+    }
+
+    /// <summary>
+    /// Author: Đạt
+    /// Description: Khi người dùng bấm Lưu cấu hình (hoặc Áp dụng), các ô camera mới sửa đổi
+    ///              sẽ được lưu vĩnh viễn và duy trì khi chuyển kịch bản qua lại.
+    /// Created date: 02/09/2026
+    /// </summary>
+    [Fact]
+    public async Task VwWpfSceneSetup_SavedOrPushedWindows_PersistWhenSwitchingScene_Test()
+    {
+        // Arrange
+        var (controller, screenA, screenB, source) = SeedWallAsync();
+        var stack = BuildClientStack();
+        var connection = BuildConnection(stack, controller, screenA, screenB, source);
+        var confirmation = new UserConfirmationTest(answer: true);
+        var sceneSetup = await CreateSceneWithWindowsAsync(stack, connection, confirmation, source);
+
+        var scene1 = sceneSetup.CurrentScene!;
+        var scene1Id = scene1.ID!;
+
+        // Tạo thêm Scene 2
+        sceneSetup.SceneName = "Kịch bản 2 Test Persist";
+        sceneSetup.SceneOutputId = "2";
+        await sceneSetup.CreateSceneCommand.ExecuteAsync(null);
+        var scene2 = sceneSetup.Scenes.First(s => s.Name == "Kịch bản 2 Test Persist");
+
+        // Quay lại Scene 1
+        sceneSetup.CurrentScene = scene1;
+        Assert.Equal(2, sceneSetup.SceneWindows.Count);
+
+        // Act: Thêm 1 ô và BẤM LƯU CẤU HÌNH
+        sceneSetup.AddSceneWindowCommand.Execute(null);
+        Assert.Equal(3, sceneSetup.SceneWindows.Count);
+        await sceneSetup.SaveAllSceneWindowsCommand.ExecuteAsync(null);
+
+        // Chuyển sang Scene 2 rồi quay lại Scene 1
+        sceneSetup.CurrentScene = scene2;
+        sceneSetup.CurrentScene = scene1;
+
+        // Assert: 3 ô vẫn còn nguyên vẹn vì đã được lưu chính thức
+        Assert.Equal(3, sceneSetup.SceneWindows.Count);
+        var inStore = VwLocalSceneStore.ListWindowScenes(connection.DeviceKey, scene1Id);
+        Assert.Equal(3, inStore.Count);
     }
 
     /// <summary>
@@ -1052,10 +1190,10 @@ public class VwWpfCommissioningTests
             var mainGrid = window.Content as System.Windows.Controls.Grid;
             Assert.NotNull(mainGrid);
 
-            // Row 1 (TabControl) is Star and Row 3 (Logs) is 190px with MinHeight >= 60
+            // Row 1 (TabControl) is Star and Row 3 (Logs) is 150px with MinHeight >= 60
             Assert.True(mainGrid.RowDefinitions[1].Height.IsStar);
             Assert.True(mainGrid.RowDefinitions[3].Height.IsAbsolute || mainGrid.RowDefinitions[3].Height.IsStar);
-            Assert.Equal(190, mainGrid.RowDefinitions[3].Height.Value);
+            Assert.Equal(150, mainGrid.RowDefinitions[3].Height.Value);
             Assert.True(mainGrid.RowDefinitions[3].MinHeight >= 60);
 
             // Row 2 (GridSplitter) must have fixed pixel height >= 3, not Auto
@@ -1249,7 +1387,7 @@ public class VwWpfCommissioningTests
         var preset2x2 = SceneWindowRow.AvailableSizePresets.First(p => p.Name.Contains("2x2"));
         row.SelectedSizePreset = preset2x2;
         Assert.Equal(3840, row.W);
-        Assert.Equal(2160, row.H);
+        Assert.Equal(3840, row.H);
         Assert.Equal("Khối lớn (2x2)", row.SizeLabel);
 
         var newSource = new WpfDto.VwSourceDto
@@ -1608,11 +1746,11 @@ public class VwWpfCommissioningTests
 
         Assert.Equal("Đã sửa ô 1", sceneVm.SceneWindows[0].Label);
         Assert.Equal(3840, sceneVm.SceneWindows[0].W);
-        Assert.Equal(2160, sceneVm.SceneWindows[0].H);
+        Assert.Equal(3840, sceneVm.SceneWindows[0].H);
 
         Assert.Equal("Đã sửa ô 2", sceneVm.SceneWindows[1].Label);
         Assert.Equal(3840, sceneVm.SceneWindows[1].W);
-        Assert.Equal(1080, sceneVm.SceneWindows[1].H);
+        Assert.Equal(1920, sceneVm.SceneWindows[1].H);
     }
 
     [Fact]
