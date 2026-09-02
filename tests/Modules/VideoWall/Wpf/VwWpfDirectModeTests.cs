@@ -35,25 +35,25 @@ public class VwWpfDirectModeTests
         var (client, mockServer) = BuildDirectClient(18122);
         using (mockServer)
         {
-            // Probe không có WallNo -> tự động phân giải tường đầu tiên và nạp đầy đủ Walls & Outputs (2 màn hình)
+            // Probe không có WallNo -> tự động phân giải tường đầu tiên và nạp đầy đủ Walls & Outputs (12 màn hình)
             var resultWithoutWall = await client.Probe(null);
             Assert.True(resultWithoutWall.Reachable);
             Assert.NotEmpty(resultWithoutWall.Walls!);
-            Assert.Equal(2, resultWithoutWall.Outputs!.Count);
+            Assert.Equal(12, resultWithoutWall.Outputs!.Count);
             Assert.Equal(1, resultWithoutWall.WallNo);
 
-            // Probe WallNo=1 -> đọc 2 Outputs của Wall 1
+            // Probe WallNo=1 -> đọc 12 Outputs của Wall 1
             var resultWithWall1 = await client.Probe(1);
             Assert.True(resultWithWall1.Reachable);
             Assert.NotEmpty(resultWithWall1.Walls!);
-            Assert.Equal(2, resultWithWall1.Outputs!.Count);
+            Assert.Equal(12, resultWithWall1.Outputs!.Count);
             Assert.Equal(1, resultWithWall1.WallNo);
 
-            // Probe WallNo=2 (hoangnhu) -> đọc 4 Outputs của Wall 2 (lưới 2x2)
+            // Probe WallNo=2 -> đọc 12 Outputs của Wall 2 (lưới 4x3)
             var resultWithWall2 = await client.Probe(2);
             Assert.True(resultWithWall2.Reachable);
             Assert.NotEmpty(resultWithWall2.Walls!);
-            Assert.Equal(4, resultWithWall2.Outputs!.Count);
+            Assert.Equal(12, resultWithWall2.Outputs!.Count);
             Assert.Equal(2, resultWithWall2.WallNo);
         }
     }
@@ -546,10 +546,10 @@ public class VwWpfDirectModeTests
 
         // Assert
         Assert.True(connection.HasProbeResult);
-        Assert.Equal("1920 × 3840 px", connection.ProbeTotalDimensionText);
-        Assert.Equal("2 Cổng (Màn hình)", connection.ProbeOutputCountText);
+        Assert.Equal("7680 × 5760 px", connection.ProbeTotalDimensionText);
+        Assert.Equal("12 Cổng (Màn hình)", connection.ProbeOutputCountText);
         Assert.Equal("1920 × 1920 px / cổng ra", connection.ProbeOutputResolutionSummary);
-        Assert.Equal("Lưới 1 × 2 — 2 màn hình", connection.ProbeWallDimensionsFormatted);
+        Assert.Equal("Lưới 4 × 3 — 12 màn hình", connection.ProbeWallDimensionsFormatted);
     }
 
     [Fact]
@@ -679,12 +679,12 @@ public class VwWpfDirectModeTests
         {
             var resWall1 = await client.SendIsapi("GET", "ISAPI/DisplayDev/VideoWall/1/scene", null, null);
             Assert.Equal(200, resWall1.HttpStatus);
-            Assert.Contains("2 Ô dọc", resWall1.ResponseXml);
+            Assert.Contains("Hữu Nghị - Chi Lăng", resWall1.ResponseXml);
 
             var resWall2 = await client.SendIsapi("GET", "ISAPI/DisplayDev/VideoWall/2/scene", null, null);
             Assert.Equal(200, resWall2.HttpStatus);
-            Assert.Contains("Lưới 2×2", resWall2.ResponseXml);
-            Assert.Contains("Toàn tường 2×2", resWall2.ResponseXml);
+            Assert.Contains("Hữu Nghị - Chi Lăng", resWall2.ResponseXml);
+            Assert.Contains("Sự cố Trọng điểm", resWall2.ResponseXml);
         }
     }
 
@@ -770,7 +770,7 @@ public class VwWpfDirectModeTests
         {
             var list1 = await client.SendIsapi("GET", "ISAPI/DisplayDev/VideoWall/1/scene", null, null);
             Assert.Equal(200, list1.HttpStatus);
-            Assert.Contains("Giám sát Tuyến", list1.ResponseXml);
+            Assert.Contains("Hữu Nghị - Chi Lăng", list1.ResponseXml);
 
             var post = await client.SendIsapi("POST", "ISAPI/DisplayDev/VideoWall/1/scene", "<WallScene><name>Scene Alpha</name></WallScene>", "application/xml");
             Assert.Equal(200, post.HttpStatus);

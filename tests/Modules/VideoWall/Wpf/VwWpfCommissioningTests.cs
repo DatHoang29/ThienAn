@@ -1140,14 +1140,15 @@ public class VwWpfCommissioningTests
             Assert.NotNull(comboBox);
             Assert.True(comboBox.Width >= 380 || comboBox.MinWidth >= 340);
 
-            // 2. Row 3: Commissioning WrapPanel and wrapped hint text
+            // 2. Row 3: Commissioning WrapPanel and compact buttons with ToolTips
             var row3Border = rootGrid.Children.OfType<System.Windows.Controls.Border>().FirstOrDefault(b => System.Windows.Controls.Grid.GetRow(b) == 3);
             Assert.NotNull(row3Border);
             var row3Wrap = row3Border.Child as System.Windows.Controls.WrapPanel;
             Assert.NotNull(row3Wrap);
 
-            var hintTextBlocks = FindVisualChildren<System.Windows.Controls.TextBlock>(row3Border).ToList();
-            Assert.Contains(hintTextBlocks, tb => tb.TextWrapping == System.Windows.TextWrapping.Wrap);
+            var row3Buttons = row3Wrap.Children.OfType<System.Windows.Controls.Button>().ToList();
+            Assert.NotEmpty(row3Buttons);
+            Assert.All(row3Buttons, b => Assert.True(b.Height <= 26 && b.ToolTip != null));
         });
     }
 
@@ -1483,7 +1484,7 @@ public class VwWpfCommissioningTests
         Assert.Equal("Kịch bản Mới Test", sceneVm.CurrentScene.Name);
 
         sceneVm.ApplyBigCenterTemplateCommand.Execute(null);
-        Assert.Equal(9, sceneVm.SceneWindows.Count);
+        Assert.Equal(2, sceneVm.SceneWindows.Count);
     }
 
     [Fact]
@@ -1498,26 +1499,23 @@ public class VwWpfCommissioningTests
 
         Assert.NotNull(sceneVm.CurrentScene);
 
-        // Test ApplyFullWallTemplateCommand
+        // Test ApplyFullWallTemplateCommand (fits exact wall size)
         sceneVm.ApplyFullWallTemplateCommand.Execute(null);
         Assert.Single(sceneVm.SceneWindows);
-        Assert.Equal(7680, sceneVm.SceneWindows[0].W);
-        Assert.Equal(5760, sceneVm.SceneWindows[0].H);
+        Assert.Equal(sceneVm.TotalWallWidth, sceneVm.SceneWindows[0].W);
+        Assert.Equal(sceneVm.TotalWallHeight, sceneVm.SceneWindows[0].H);
 
         // Test AddSceneWindowCommand
         sceneVm.AddSceneWindowCommand.Execute(null);
         Assert.Equal(2, sceneVm.SceneWindows.Count);
 
-        // Test ApplyBigCenterTemplateCommand (1 2x2 + 8 1x1 = 9 windows)
+        // Test ApplyBigCenterTemplateCommand (adapts to 2 physical screens = 2 windows)
         sceneVm.ApplyBigCenterTemplateCommand.Execute(null);
-        Assert.Equal(9, sceneVm.SceneWindows.Count);
-        Assert.Equal(3840, sceneVm.SceneWindows[0].W);
-        Assert.Equal(2160, sceneVm.SceneWindows[0].H);
+        Assert.Equal(2, sceneVm.SceneWindows.Count);
 
-        // Test ApplyDual2x2TemplateCommand (2 2x2 + 4 1x1 = 6 windows)
+        // Test ApplyDual2x2TemplateCommand (adapts to 2 physical screens = 2 windows)
         sceneVm.ApplyDual2x2TemplateCommand.Execute(null);
-        Assert.Equal(6, sceneVm.SceneWindows.Count);
-        Assert.Equal(2, sceneVm.SceneWindows.Count(w => w.W == 3840 && w.H == 2160));
+        Assert.Equal(2, sceneVm.SceneWindows.Count);
     }
 
     [Fact]

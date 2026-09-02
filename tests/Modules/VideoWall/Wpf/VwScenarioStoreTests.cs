@@ -966,8 +966,8 @@ public class VwScenarioStoreTests : IDisposable
         Assert.NotEmpty(connection.ProbeResult.Outputs);
         Assert.True(connection.ProbeTotalWidth > 0);
         Assert.True(connection.ProbeTotalHeight > 0);
-        Assert.Equal("1920 × 3840 px", connection.ProbeTotalDimensionText);
-        Assert.Equal("2 Cổng (Màn hình)", connection.ProbeOutputCountText);
+        Assert.Equal("7680 × 5760 px", connection.ProbeTotalDimensionText);
+        Assert.Equal("12 Cổng (Màn hình)", connection.ProbeOutputCountText);
         Assert.Contains("Tường #1", connection.StatusMessage);
     }
 
@@ -1120,6 +1120,83 @@ public class VwScenarioStoreTests : IDisposable
         row1.SelectedSizePreset = SceneWindowRow.AvailableSizePresets.First(p => p.Name.StartsWith("2x1"));
         Assert.Equal(3840, row1.W);
         Assert.Equal(1080, row1.H);
+    }
+
+    [Fact]
+    public void VisualWallCanvas_SnapToGrid_And_BoundingBox_Calculations_Test()
+    {
+        // 1. SnapToGrid: làm tròn khi kéo gần mép 1920px (độ lệch < 300px)
+        Assert.Equal(1920, Module.VideoWall.WPF.Controls.VisualWallCanvas.SnapToGrid(1950));
+        Assert.Equal(1920, Module.VideoWall.WPF.Controls.VisualWallCanvas.SnapToGrid(1850));
+        Assert.Equal(3840, Module.VideoWall.WPF.Controls.VisualWallCanvas.SnapToGrid(3800));
+        Assert.Equal(0, Module.VideoWall.WPF.Controls.VisualWallCanvas.SnapToGrid(50));
+
+        // Khi ở giữa (độ lệch >= 300px) -> giữ nguyên toạ độ tuỳ chỉnh
+        Assert.Equal(1000, Module.VideoWall.WPF.Controls.VisualWallCanvas.SnapToGrid(1000));
+
+        // 2. SnapSize: làm tròn kích thước
+        Assert.Equal(1920, Module.VideoWall.WPF.Controls.VisualWallCanvas.SnapSize(1900));
+        Assert.Equal(3840, Module.VideoWall.WPF.Controls.VisualWallCanvas.SnapSize(3850));
+
+        // 3. Tính toán Bounding Box của toàn bộ tường (TotalWallWidth / TotalWallHeight)
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true))
+        {
+            ProbeResult = new Module.VideoWall.WPF.Api.Dto.VwProbeDeviceOutput
+            {
+                Reachable = true,
+                Outputs =
+                [
+                    new() { Id = 1, OutputId = 1, Rect = new() { Width = 1920, Height = 1080, Coordinate = new() { X = 0, Y = 0 } } },
+                    new() { Id = 2, OutputId = 2, Rect = new() { Width = 1920, Height = 1080, Coordinate = new() { X = 1920, Y = 0 } } },
+                    new() { Id = 3, OutputId = 3, Rect = new() { Width = 1920, Height = 1080, Coordinate = new() { X = 0, Y = 1920 } } },
+                    new() { Id = 4, OutputId = 4, Rect = new() { Width = 1920, Height = 1080, Coordinate = new() { X = 1920, Y = 1920 } } },
+                ]
+            }
+        };
+
+        var sceneVm = new SceneSetupViewModel(activityPub, connection, new UserConfirmationTest(true), recordingPub);
+        sceneVm.SyncFromProbeResult();
+
+        // 4 màn hình 2x2 -> Chiều rộng tối thiểu 3840, Chiều cao tối thiểu 3840
+        Assert.Equal(3840, sceneVm.TotalWallWidth);
+        Assert.Equal(3840, sceneVm.TotalWallHeight);
+    }
+
+    [Fact]
+    public void SceneSetupViewModel_Selection_And_SetGeometry_TwoWaySync_Test()
+    {
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true));
+        var sceneVm = new SceneSetupViewModel(activityPub, connection, new UserConfirmationTest(true), recordingPub)
+        {
+            CurrentScene = new Module.VideoWall.WPF.Api.Dto.VwSceneDto { ID = "scn-sync-test", Name = "Test Sync" }
+        };
+
+        var row1 = new SceneWindowRow(new Module.VideoWall.WPF.Api.Dto.VwWindowSceneDto { ID = "w1", OrderNo = 1, X = 0, Y = 0, W = 1920, H = 1920 });
+        var row2 = new SceneWindowRow(new Module.VideoWall.WPF.Api.Dto.VwWindowSceneDto { ID = "w2", OrderNo = 2, X = 1920, Y = 0, W = 1920, H = 1920 });
+        sceneVm.SceneWindows.Add(row1);
+        sceneVm.SceneWindows.Add(row2);
+
+        // 1. Đồng bộ chọn trên Canvas -> DataGrid và IsActiveSelected
+        sceneVm.SelectWindowFromCanvas(row1);
+        Assert.Equal(row1, sceneVm.SelectedSceneWindow);
+        Assert.True(row1.IsActiveSelected);
+        Assert.False(row2.IsActiveSelected);
+
+        sceneVm.SelectedSceneWindow = row2;
+        Assert.False(row1.IsActiveSelected);
+        Assert.True(row2.IsActiveSelected);
+
+        // 2. Kéo thả SetGeometry -> Cập nhật W, H, X, Y và SizeLabel
+        row1.SetGeometry(1920, 1920, 3840, 2160);
+        Assert.Equal(1920, row1.X);
+        Assert.Equal(1920, row1.Y);
+        Assert.Equal(3840, row1.W);
+        Assert.Equal(2160, row1.H);
+        Assert.Equal("Khối lớn (2x2)", row1.SizeLabel);
     }
 
     [Fact]

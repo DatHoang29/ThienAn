@@ -458,50 +458,42 @@ public partial class VwISAPIMockServerHikvision
         if (method == "GET" && MatchRoute("ISAPI/DisplayDev/Video/outputs/channels", path))
         {
             GetOutputChannelsCallCount++;
-            var status1 = NotConnectedOutputChannels.Contains(17235971) ? "notConnected" : "normal";
-            var status2 = NotConnectedOutputChannels.Contains(17235972) ? "notConnected" : "normal";
-
-            await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
+            var sb = new System.Text.StringBuilder();
+            sb.Append($"""
                 <?xml version="1.0" encoding="UTF-8"?>
-                <VideoOutputChannelList version="2.0" xmlns="{{Ns}}">
-                  <VideoOutputChannel>
-                    <id>17235971</id>
-                    <portType>HDMI</portType>
-                    <timeSequenceMode>standard</timeSequenceMode>
-                    <name>Output 7-3</name>
-                    <OutputResolution>
-                      <resolution>1920*1080@60HZ</resolution>
-                      <imageWidth>0</imageWidth>
-                      <imageHeight>0</imageHeight>
-                    </OutputResolution>
-                    <PortInBoard>
-                      <boardID>7</boardID>
-                      <portID>3</portID>
-                      <ipAddress>10.10.9.236</ipAddress>
-                      <port>13191</port>
-                    </PortInBoard>
-                    <outputPortAccessStatus>{{status1}}</outputPortAccessStatus>
-                  </VideoOutputChannel>
-                  <VideoOutputChannel>
-                    <id>17235972</id>
-                    <portType>HDMI</portType>
-                    <timeSequenceMode>standard</timeSequenceMode>
-                    <name>Output 7-4</name>
-                    <OutputResolution>
-                      <resolution>1920*1080@60HZ</resolution>
-                      <imageWidth>0</imageWidth>
-                      <imageHeight>0</imageHeight>
-                    </OutputResolution>
-                    <PortInBoard>
-                      <boardID>7</boardID>
-                      <portID>4</portID>
-                      <ipAddress>10.10.9.236</ipAddress>
-                      <port>13191</port>
-                    </PortInBoard>
-                    <outputPortAccessStatus>{{status2}}</outputPortAccessStatus>
-                  </VideoOutputChannel>
-                </VideoOutputChannelList>
+                <VideoOutputChannelList version="2.0" xmlns="{Ns}">
                 """);
+            for (var i = 1; i <= 12; i++)
+            {
+                var chanId = 17235970 + i;
+                var status = NotConnectedOutputChannels.Contains(chanId) ? "notConnected" : "normal";
+                var boardId = (i - 1) / 4 + 7;
+                var portId = (i - 1) % 4 + 1;
+                var row = (i - 1) / 4 + 1;
+                var col = (i - 1) % 4 + 1;
+                sb.Append($"""
+                  <VideoOutputChannel>
+                    <id>{chanId}</id>
+                    <portType>HDMI</portType>
+                    <timeSequenceMode>standard</timeSequenceMode>
+                    <name>Output {i} (H{row}-C{col})</name>
+                    <OutputResolution>
+                      <resolution>1920*1080@60HZ</resolution>
+                      <imageWidth>0</imageWidth>
+                      <imageHeight>0</imageHeight>
+                    </OutputResolution>
+                    <PortInBoard>
+                      <boardID>{boardId}</boardID>
+                      <portID>{portId}</portID>
+                      <ipAddress>10.10.9.236</ipAddress>
+                      <port>13191</port>
+                    </PortInBoard>
+                    <outputPortAccessStatus>{status}</outputPortAccessStatus>
+                  </VideoOutputChannel>
+                """);
+            }
+            sb.Append("</VideoOutputChannelList>");
+            await WriteXmlResponseAsync(res, HttpStatusCode.OK, sb.ToString());
             return true;
         }
 
@@ -619,35 +611,49 @@ public partial class VwISAPIMockServerHikvision
         if (method == "GET" && MatchRoute("ISAPI/DisplayDev/Video/inputs/channels", path))
         {
             GetInputChannelsCallCount++;
-            await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
+            var itsChannels = new (int Id, string Type, string Name, string Status)[]
+            {
+                (16842753, "IPCamera", "Camera Km01 - Nút giao Hữu Nghị", "normal"),
+                (16842754, "IPCamera", "Camera Km15 - Cầu vượt Chi Lăng", "normal"),
+                (16842755, "IPCamera", "Camera Km28 - Trạm thu phí Bắc", "normal"),
+                (16842756, "IPCamera", "Camera Km42 - Trạm thu phí Nam", "normal"),
+                (16842757, "IPCamera", "Camera Km55 - Trạm dừng nghỉ", "normal"),
+                (16842758, "IPCamera", "Camera Km70 - Hầm chui Dân sinh", "normal"),
+                (16842759, "IPCamera", "Camera Km85 - Trạm cân Km05", "normal"),
+                (16842760, "IPCamera", "Camera Km99 - Đội CSGT Tuần tra", "normal"),
+                (16842761, "HDMI", "Bản đồ GIS Tuyến Hữu Nghị - Chi Lăng", "normal"),
+                (16842762, "HDMI", "HDMI 1 - Máy chủ Điều hành TOC", "normal"),
+                (16842763, "HDMI", "HDMI 2 - Dashboard Giám sát ITS", "normal"),
+                (16842764, "HDMI", "HDMI 3 - Cảnh báo Sự cố Tự động", "normal"),
+            };
+
+            var sb = new System.Text.StringBuilder();
+            sb.Append($"""
                 <?xml version="1.0" encoding="UTF-8"?>
-                <VideoInputChannelList version="2.0" xmlns="{{Ns}}">
-                  <VideoInputChannel>
-                    <id>16842753</id>
-                    <inputPortType>HDMI</inputPortType>
-                    <name>Input 1-1</name>
-                    <videoInputChannelAccessStatus>normal</videoInputChannelAccessStatus>
-                    <PortInBoard>
-                      <boardID>1</boardID>
-                      <portID>1</portID>
-                      <ipAddress>127.0.0.1</ipAddress>
-                      <port>13191</port>
-                    </PortInBoard>
-                  </VideoInputChannel>
-                  <VideoInputChannel>
-                    <id>16842754</id>
-                    <inputPortType>HDMI</inputPortType>
-                    <name>Input 1-2</name>
-                    <videoInputChannelAccessStatus>notConnected</videoInputChannelAccessStatus>
-                    <PortInBoard>
-                      <boardID>1</boardID>
-                      <portID>2</portID>
-                      <ipAddress>127.0.0.1</ipAddress>
-                      <port>13191</port>
-                    </PortInBoard>
-                  </VideoInputChannel>
-                </VideoInputChannelList>
+                <VideoInputChannelList version="2.0" xmlns="{Ns}">
                 """);
+            for (var i = 0; i < itsChannels.Length; i++)
+            {
+                var ch = itsChannels[i];
+                var boardId = (i / 4) + 1;
+                var portId = (i % 4) + 1;
+                sb.Append($"""
+                  <VideoInputChannel>
+                    <id>{ch.Id}</id>
+                    <inputPortType>{ch.Type}</inputPortType>
+                    <name>{ch.Name}</name>
+                    <videoInputChannelAccessStatus>{ch.Status}</videoInputChannelAccessStatus>
+                    <PortInBoard>
+                      <boardID>{boardId}</boardID>
+                      <portID>{portId}</portID>
+                      <ipAddress>127.0.0.1</ipAddress>
+                      <port>13191</port>
+                    </PortInBoard>
+                  </VideoInputChannel>
+                """);
+            }
+            sb.Append("</VideoInputChannelList>");
+            await WriteXmlResponseAsync(res, HttpStatusCode.OK, sb.ToString());
             return true;
         }
 
@@ -703,64 +709,30 @@ public partial class VwISAPIMockServerHikvision
         {
             GetOutputsCallCount++;
             var wallId = p.GetValueOrDefault("videoWallID", "1");
-            if (wallId == "2")
+            var sb = new System.Text.StringBuilder();
+            sb.Append($"""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <WallOutputList version="2.0" xmlns="{Ns}">
+                """);
+            for (var i = 1; i <= 12; i++)
             {
-                await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
-                    <?xml version="1.0" encoding="UTF-8"?>
-                    <WallOutputList version="2.0" xmlns="{{Ns}}">
-                      <WallOutput>
-                        <id>1</id>
-                        <outputID>17235971</outputID>
-                        <Rect><Coordinate><x>0</x><y>0</y></Coordinate><width>1920</width><height>1920</height></Rect>
-                        <outputWinNum>1</outputWinNum>
-                        <coordinateMode>uniformCoordinate</coordinateMode>
-                      </WallOutput>
-                      <WallOutput>
-                        <id>2</id>
-                        <outputID>17235972</outputID>
-                        <Rect><Coordinate><x>1920</x><y>0</y></Coordinate><width>1920</width><height>1920</height></Rect>
-                        <outputWinNum>1</outputWinNum>
-                        <coordinateMode>uniformCoordinate</coordinateMode>
-                      </WallOutput>
-                      <WallOutput>
-                        <id>3</id>
-                        <outputID>17235973</outputID>
-                        <Rect><Coordinate><x>0</x><y>1920</y></Coordinate><width>1920</width><height>1920</height></Rect>
-                        <outputWinNum>1</outputWinNum>
-                        <coordinateMode>uniformCoordinate</coordinateMode>
-                      </WallOutput>
-                      <WallOutput>
-                        <id>4</id>
-                        <outputID>17235974</outputID>
-                        <Rect><Coordinate><x>1920</x><y>1920</y></Coordinate><width>1920</width><height>1920</height></Rect>
-                        <outputWinNum>1</outputWinNum>
-                        <coordinateMode>uniformCoordinate</coordinateMode>
-                      </WallOutput>
-                    </WallOutputList>
-                    """);
+                var chanId = 17235970 + i;
+                var col = (i - 1) % 4;
+                var row = (i - 1) / 4;
+                var x = col * 1920;
+                var y = row * 1920;
+                sb.Append($"""
+                  <WallOutput>
+                    <id>{i}</id>
+                    <outputID>{chanId}</outputID>
+                    <Rect><Coordinate><x>{x}</x><y>{y}</y></Coordinate><width>1920</width><height>1920</height></Rect>
+                    <outputWinNum>1</outputWinNum>
+                    <coordinateMode>uniformCoordinate</coordinateMode>
+                  </WallOutput>
+                """);
             }
-            else
-            {
-                await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
-                    <?xml version="1.0" encoding="UTF-8"?>
-                    <WallOutputList version="2.0" xmlns="{{Ns}}">
-                      <WallOutput>
-                        <id>2</id>
-                        <outputID>17235971</outputID>
-                        <Rect><Coordinate><x>0</x><y>0</y></Coordinate><width>1920</width><height>1920</height></Rect>
-                        <outputWinNum>1</outputWinNum>
-                        <coordinateMode>uniformCoordinate</coordinateMode>
-                      </WallOutput>
-                      <WallOutput>
-                        <id>3</id>
-                        <outputID>17235972</outputID>
-                        <Rect><Coordinate><x>0</x><y>1920</y></Coordinate><width>1920</width><height>1920</height></Rect>
-                        <outputWinNum>1</outputWinNum>
-                        <coordinateMode>uniformCoordinate</coordinateMode>
-                      </WallOutput>
-                    </WallOutputList>
-                    """);
-            }
+            sb.Append("</WallOutputList>");
+            await WriteXmlResponseAsync(res, HttpStatusCode.OK, sb.ToString());
             return true;
         }
 
@@ -897,55 +869,47 @@ public partial class VwISAPIMockServerHikvision
         if (method == "GET" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}/windows", path))
         {
             GetWindowsCallCount++;
-            await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
+            var sb = new System.Text.StringBuilder();
+            sb.Append($"""
                 <?xml version="1.0" encoding="UTF-8"?>
-                <WallWindowList version="2.0" xmlns="{{Ns}}">
-                  <WallWindow>
-                    <id>33554433</id>
-                    <wndOperateMode>uniformCoordinate</wndOperateMode>
-                    <Rect>
-                      <Coordinate><x>0</x><y>0</y></Coordinate>
-                      <width>1920</width>
-                      <height>1920</height>
-                    </Rect>
-                    <layerIdx>67108865</layerIdx>
-                    <windowMode>1</windowMode>
-                    <wndShowMode>subWndMode</wndShowMode>
-                    <SubWindowList>
-                      <SubWindow>
-                        <id>1</id>
-                        <SubWindowParam>
-                          <signalMode>video input</signalMode>
-                          <videoInputChannelID>16842753</videoInputChannelID>
-                        </SubWindowParam>
-                      </SubWindow>
-                    </SubWindowList>
-                    <wndLockKeep>false</wndLockKeep>
-                  </WallWindow>
-                  <WallWindow>
-                    <id>33554434</id>
-                    <wndOperateMode>uniformCoordinate</wndOperateMode>
-                    <Rect>
-                      <Coordinate><x>0</x><y>1920</y></Coordinate>
-                      <width>1920</width>
-                      <height>1920</height>
-                    </Rect>
-                    <layerIdx>67108866</layerIdx>
-                    <windowMode>1</windowMode>
-                    <wndShowMode>subWndMode</wndShowMode>
-                    <SubWindowList>
-                      <SubWindow>
-                        <id>1</id>
-                        <SubWindowParam>
-                          <signalMode>video input</signalMode>
-                          <videoInputChannelID>16842753</videoInputChannelID>
-                        </SubWindowParam>
-                      </SubWindow>
-                    </SubWindowList>
-                    <wndLockKeep>false</wndLockKeep>
-                  </WallWindow>
-                </WallWindowList>
+                <WallWindowList version="2.0" xmlns="{Ns}">
                 """);
+            for (var i = 1; i <= 12; i++)
+            {
+                var winId = 33554432 + i;
+                var layerIdx = 67108864 + i;
+                var col = (i - 1) % 4;
+                var row = (i - 1) / 4;
+                var x = col * 1920;
+                var y = row * 1920;
+                var inputId = 16842752 + i;
+                sb.Append($"""
+                  <WallWindow>
+                    <id>{winId}</id>
+                    <wndOperateMode>uniformCoordinate</wndOperateMode>
+                    <Rect>
+                      <Coordinate><x>{x}</x><y>{y}</y></Coordinate>
+                      <width>1920</width>
+                      <height>1920</height>
+                    </Rect>
+                    <layerIdx>{layerIdx}</layerIdx>
+                    <windowMode>1</windowMode>
+                    <wndShowMode>subWndMode</wndShowMode>
+                    <SubWindowList>
+                      <SubWindow>
+                        <id>1</id>
+                        <SubWindowParam>
+                          <signalMode>video input</signalMode>
+                          <videoInputChannelID>{inputId}</videoInputChannelID>
+                        </SubWindowParam>
+                      </SubWindow>
+                    </SubWindowList>
+                    <wndLockKeep>false</wndLockKeep>
+                  </WallWindow>
+                """);
+            }
+            sb.Append("</WallWindowList>");
+            await WriteXmlResponseAsync(res, HttpStatusCode.OK, sb.ToString());
             return true;
         }
 
