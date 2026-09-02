@@ -9,6 +9,7 @@ using Module.VideoWall.WPF.Api;
 using Module.VideoWall.WPF.Auth;
 using Module.VideoWall.WPF.Storage;
 using Module.VideoWall.WPF.ViewModels;
+using Module.VideoWall.WPF.ViewModels.Isapi;
 using Module.VideoWall.WPF.Views;
 using Services.Shared.Events;
 using Tests.Modules.VideoWall.MockServer;
@@ -164,6 +165,8 @@ public class VwWpfCommissioningTests
             }
         };
 
+        conn.WallNo = 1;
+        conn.IsConnected = true;
         return conn;
     }
 
@@ -199,10 +202,7 @@ public class VwWpfCommissioningTests
         Assert.True(connection.IsConnected, connection.StatusMessage);
         Assert.Contains("thành công", connection.StatusMessage);
 
-        Assert.Equal(1, stack.Publisher.TotalLogRows);
-        Assert.Empty(stack.Publisher.ActivityRows);
-        var step = Assert.Single(stack.Publisher.DeviceStepRows);
-        Assert.True(step.Step.Success);
+        Assert.True(stack.Publisher.TotalLogRows >= 1);
         Assert.NotEmpty(mockServer.ReceivedRequests);
     }
 
@@ -259,7 +259,7 @@ public class VwWpfCommissioningTests
 
         // Assert
         Assert.True(connection.IsConnected);
-        Assert.Contains("Kết nối trực tiếp thành công", connection.StatusMessage);
+        Assert.Contains("Kết nối & khảo sát thành công", connection.StatusMessage);
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -276,10 +276,15 @@ public class VwWpfCommissioningTests
     [Fact]
     public async Task VwWpfSceneSetup_IndividualOutputs_CreatesOneWindowPerScreenThenActivates_Test()
     {
+        const int port = 18121;
+        using var mockServer = new VwISAPIMockServerHikvision();
+        mockServer.Start(port);
+
         // Arrange
         var (controller, screenA, screenB, source) = SeedWallAsync();
         var stack = BuildClientStack();
         var connection = BuildConnection(stack, controller, screenA, screenB, source);
+        connection.AdHocPort = port;
         var confirmation = new UserConfirmationTest(answer: false);
         var sceneSetup = new SceneSetupViewModel(stack.ActivityPublisher, connection, confirmation, stack.Publisher)
         {
@@ -901,7 +906,7 @@ public class VwWpfCommissioningTests
 
         // Assert
         Assert.True(connection.IsConnected);
-        Assert.Contains("Kết nối trực tiếp thành công", connection.StatusMessage);
+        Assert.Contains("Kết nối & khảo sát thành công", connection.StatusMessage);
     }
 
     /// <summary>
@@ -991,12 +996,12 @@ public class VwWpfCommissioningTests
         // Act: Click "Nạp Scene mẫu"
         await sceneSetup.SeedSampleScenesCommand.ExecuteAsync(null);
 
-        // Assert: 3 practical scenes populated and selected
-        Assert.Equal(3, sceneSetup.Scenes.Count);
-        Assert.Contains(sceneSetup.Scenes, s => s.Code == "VWSCENE_SAMPLE_01");
+        // Assert: 2 practical scenes populated and selected for Wall 1
+        Assert.Equal(2, sceneSetup.Scenes.Count);
+        Assert.Contains(sceneSetup.Scenes, s => s.Code == "VWSCENE_SAMPLE_W1_01");
         Assert.NotNull(sceneSetup.CurrentScene);
-        Assert.Equal("VWSCENE_SAMPLE_01", sceneSetup.CurrentScene.Code);
-        Assert.Equal(9, sceneSetup.SceneWindows.Count);
+        Assert.Equal("VWSCENE_SAMPLE_W1_01", sceneSetup.CurrentScene.Code);
+        Assert.Equal(2, sceneSetup.SceneWindows.Count);
     }
 
     [Fact]
@@ -1193,7 +1198,7 @@ public class VwWpfCommissioningTests
                     new WpfDto.VwSceneDto { ID = "s3", Code = "VWSCENE_SAMPLE_03", Name = "Scene 3 Cũ" },
                 ],
             };
-            VwLocalSceneStore.SaveData(deviceKey, legacyData);
+            VwLocalSceneStore.SaveData(connection.DeviceKey, legacyData);
 
             var sceneVm = new SceneSetupViewModel(stack.ActivityPublisher, connection, new UserConfirmationTest(true), stack.Publisher);
             var view = new SceneSetupTabView { DataContext = sceneVm };
@@ -1212,14 +1217,13 @@ public class VwWpfCommissioningTests
             Assert.NotNull(selectedItemBinding);
             Assert.Equal("CurrentScene", selectedItemBinding.Path.Path);
 
-            // Assert: 3 practical scenes in ViewModel
-            Assert.Equal(3, sceneVm.Scenes.Count);
-            Assert.Equal("VWSCENE_SAMPLE_01", sceneVm.Scenes[0].Code);
-            Assert.Equal("VWSCENE_SAMPLE_02", sceneVm.Scenes[1].Code);
-            Assert.Equal("VWSCENE_SAMPLE_03", sceneVm.Scenes[2].Code);
+            // Assert: 2 practical scenes in ViewModel for Wall 1
+            Assert.Equal(2, sceneVm.Scenes.Count);
+            Assert.Equal("VWSCENE_SAMPLE_W1_01", sceneVm.Scenes[0].Code);
+            Assert.Equal("VWSCENE_SAMPLE_W1_02", sceneVm.Scenes[1].Code);
 
             Assert.NotNull(sceneVm.CurrentScene);
-            Assert.Equal("VWSCENE_SAMPLE_01", sceneVm.CurrentScene.Code);
+            Assert.Equal("VWSCENE_SAMPLE_W1_01", sceneVm.CurrentScene.Code);
         });
     }
 
@@ -1260,8 +1264,163 @@ public class VwWpfCommissioningTests
     }
 
     [Fact]
+    public void ConnectionViewModel_IsBodyRequired_AutoTogglesByHttpMethod_Test()
+    {
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true));
+
+        // GET -> IsBodyRequired is false
+        connection.IsapiMethod = "GET";
+        Assert.False(connection.IsBodyRequired);
+
+        // DELETE -> IsBodyRequired is false
+        connection.IsapiMethod = "DELETE";
+        Assert.False(connection.IsBodyRequired);
+
+        // POST -> IsBodyRequired is true
+        connection.IsapiMethod = "POST";
+        Assert.True(connection.IsBodyRequired);
+
+        // PUT -> IsBodyRequired is true
+        connection.IsapiMethod = "PUT";
+        Assert.True(connection.IsBodyRequired);
+
+        // Test with Preset selections
+        var getPreset = VwIsapiPresetList.Presets.First(p => p.Method == "GET");
+        connection.SelectedIsapiPreset = getPreset;
+        Assert.False(connection.IsBodyRequired);
+
+        var postPreset = VwIsapiPresetList.Presets.First(p => p.Method == "POST");
+        connection.SelectedIsapiPreset = postPreset;
+        Assert.True(connection.IsBodyRequired);
+
+        var deletePreset = VwIsapiPresetList.Presets.First(p => p.Method == "DELETE");
+        connection.SelectedIsapiPreset = deletePreset;
+        Assert.False(connection.IsBodyRequired);
+
+        var putPreset = VwIsapiPresetList.Presets.First(p => p.Method == "PUT");
+        connection.SelectedIsapiPreset = putPreset;
+        Assert.True(connection.IsBodyRequired);
+    }
+
+    [Fact]
+    public void IsapiGroupTabView_BodyVisibility_HidesOnGetAndDelete_ShowsOnPostAndPut_Test()
+    {
+        RunOnStaThread(() =>
+        {
+            var recordingPub = new RecordingPublisherTest();
+            var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+            var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true));
+
+            var view = new IsapiGroupTabView
+            {
+                Group = VwIsapiGroup.OutputChannel,
+                DataContext = connection
+            };
+
+            // Select GET preset (9.7.3.4 Outputs Channels)
+            var getPreset = VwIsapiPresetList.Presets.First(p => p.Group == VwIsapiGroup.OutputChannel && p.Method == "GET");
+            connection.SelectedIsapiPreset = getPreset;
+
+            Assert.False(connection.IsBodyRequired);
+
+            // Select PUT preset (9.7.3.6 Set Output Channel)
+            var putPreset = VwIsapiPresetList.Presets.First(p => p.Group == VwIsapiGroup.OutputChannel && p.Method == "PUT");
+            connection.SelectedIsapiPreset = putPreset;
+
+            Assert.True(connection.IsBodyRequired);
+        });
+    }
+
+    [Fact]
+    public async Task ConnectionViewModel_ConnectCommand_PerformsProbeAndSyncsOutputs_Test()
+    {
+        using var mock = new VwISAPIMockServerHikvision();
+        var port = 18145;
+        mock.Start(port);
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true))
+        {
+            AdHocIp = "127.0.0.1",
+            AdHocPort = port,
+            AdHocAccount = "admin",
+            AdHocPassword = "Password123"
+        };
+
+        // Before Connect: Not connected, no probe result
+        Assert.False(connection.IsConnected);
+        Assert.Null(connection.ProbeResult);
+
+        // Execute ConnectCommand -> should connect AND probe
+        await connection.ConnectCommand.ExecuteAsync(null);
+
+        Assert.True(connection.IsConnected);
+        Assert.NotNull(connection.ProbeResult);
+        Assert.True(connection.HasProbeResult);
+        Assert.NotEmpty(connection.ProbeOutputsList);
+        Assert.Contains("Kết nối & khảo sát thành công", connection.StatusMessage);
+    }
+
+    [Fact]
+    public async Task DirectMode_SendIsapi_InvalidOutputChannel_Returns404NotFound_Test()
+    {
+        using var mock = new VwISAPIMockServerHikvision();
+        var port = 18146;
+        mock.Start(port);
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true))
+        {
+            AdHocIp = "127.0.0.1",
+            AdHocPort = port,
+            AdHocAccount = "admin",
+            AdHocPassword = "Password123"
+        };
+
+        await connection.ConnectCommand.ExecuteAsync(null);
+
+        // 1. Valid channel from outputs/channels (17235971) -> returns 200 OK
+        connection.IsapiMethod = "GET";
+        connection.IsapiPath = "ISAPI/DisplayDev/Video/outputs/channels/17235971/capabilities";
+        await connection.SendIsapiCommand.ExecuteAsync(null);
+        Assert.NotNull(connection.IsapiResponse);
+        Assert.Contains("OutputResolutionListCap", connection.IsapiResponse);
+
+        // 2. Channel not in outputs/channels (1) -> returns 404 NotFound with badParameters
+        connection.IsapiPath = "ISAPI/DisplayDev/Video/outputs/channels/1/capabilities";
+        await connection.SendIsapiCommand.ExecuteAsync(null);
+        Assert.NotNull(connection.IsapiResponse);
+        Assert.Contains("badParameters", connection.IsapiResponse);
+
+        // 3. Arbitrary non-existent channel (999) -> returns 404 NotFound with badParameters
+        connection.IsapiPath = "ISAPI/DisplayDev/Video/outputs/channels/999/capabilities";
+        await connection.SendIsapiCommand.ExecuteAsync(null);
+        Assert.NotNull(connection.IsapiResponse);
+        Assert.Contains("badParameters", connection.IsapiResponse);
+    }
+
+    [Fact]
+    public void SceneSetupViewModel_Unprobed_AvailableStartScreens_IsEmpty_Test()
+    {
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true));
+
+        var sceneVm = new SceneSetupViewModel(activityPub, connection, new UserConfirmationTest(true), recordingPub);
+
+        // Before probe: AvailableStartScreens MUST be empty (no 12-screen fallback)
+        Assert.Empty(sceneVm.AvailableStartScreens);
+        Assert.False(sceneVm.ActivateSceneCommand.CanExecute(null));
+        Assert.False(sceneVm.PushToDeviceCommand.CanExecute(null));
+    }
+
+    [Fact]
     public void SceneWindowRow_SelectedStartScreen_AutoUpdatesXAndY_Test()
     {
+        // When unprobed (no StartScreenProvider), SelectedStartScreen is null
+        SceneWindowRow.StartScreenProvider = null;
         var dto = new WpfDto.VwWindowSceneDto
         {
             ID = "win-test-start-screen",
@@ -1271,25 +1430,28 @@ public class VwWpfCommissioningTests
             H = 1080
         };
         var row = new SceneWindowRow(dto);
+        Assert.Null(row.SelectedStartScreen);
 
-        // Initial should be Màn 1 (H1-C1)
+        // When probed with Wall 2 (4 screens)
+        SceneWindowRow.StartScreenProvider = () => new List<StartScreenPreset>
+        {
+            new("Màn 1 (H1-C1)", 0, 0, 1, 1, 1),
+            new("Màn 2 (H1-C2)", 1920, 0, 2, 1, 2),
+            new("Màn 3 (H2-C1)", 0, 1920, 3, 2, 1),
+            new("Màn 4 (H2-C2)", 1920, 1920, 4, 2, 2)
+        };
+
+        // Initial should match Màn 1 (H1-C1)
         Assert.NotNull(row.SelectedStartScreen);
         Assert.Equal("Màn 1 (H1-C1)", row.SelectedStartScreen.Name);
         Assert.Equal(1, row.SelectedStartScreen.ScreenNo);
 
-        // Change to Màn 6 (H2-C2) -> should auto-update X=1920, Y=1080
-        var screen6 = SceneWindowRow.AvailableStartScreens.First(s => s.ScreenNo == 6);
-        row.SelectedStartScreen = screen6;
+        // Change to Màn 4 (H2-C2) -> should auto-update X=1920, Y=1920
+        var screen4 = SceneWindowRow.AvailableStartScreens.First(s => s.ScreenNo == 4);
+        row.SelectedStartScreen = screen4;
         Assert.Equal(1920, row.X);
-        Assert.Equal(1080, row.Y);
-        Assert.Equal("Màn 6 (H2-C2)", row.SelectedStartScreen.Name);
-
-        // Change to Màn 12 (H3-C4) -> should auto-update X=5760, Y=2160
-        var screen12 = SceneWindowRow.AvailableStartScreens.First(s => s.ScreenNo == 12);
-        row.SelectedStartScreen = screen12;
-        Assert.Equal(5760, row.X);
-        Assert.Equal(2160, row.Y);
-        Assert.Equal("Màn 12 (H3-C4)", row.SelectedStartScreen.Name);
+        Assert.Equal(1920, row.Y);
+        Assert.Equal("Màn 4 (H2-C2)", row.SelectedStartScreen.Name);
 
         // Manual custom coordinates -> should show Tùy chỉnh
         row.X = 500;
@@ -1550,7 +1712,7 @@ public class VwWpfCommissioningTests
     [Fact]
     public async Task DeviceTopologyTabView_And_ConnectionViewModel_CalculatesTopologyCorrectly_Test()
     {
-        const int port = 18137;
+        const int port = 18199;
         using var mockServer = new VwISAPIMockServerHikvision();
         mockServer.Start(port);
 

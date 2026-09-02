@@ -10,18 +10,22 @@ public partial class VwISAPIMockServerHikvision
         var res = context.Response;
 
         // GET export ALL scenes [GET .../scene/export]  (KB-15, 09A ~32451)
-        if (method == "GET" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}/scene/export", path))
+        if (method == "GET" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}/scene/export", path, out var expParams))
         {
-            var scenesJson = string.Join(",", SceneStore.Select(kv => $"{{\"id\":{kv.Key},\"name\":\"{kv.Value}\"}}"));
+            var wallId = int.TryParse(expParams["videoWallID"], out var w) ? w : 1;
+            var store = GetSceneStore(wallId);
+            var scenesJson = string.Join(",", store.Select(kv => $"{{\"id\":{kv.Key},\"name\":\"{kv.Value}\"}}"));
             await WriteJsonResponseAsync(res, HttpStatusCode.OK, $"{{\"SceneExport\":{{\"scenes\":[{scenesJson}]}}}}");
             return true;
         }
 
         // POST import scenes [POST .../scene/import]  (KB-15, 09A ~32448)
-        if (method == "POST" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}/scene/import", path))
+        if (method == "POST" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}/scene/import", path, out var impParams))
         {
+            var wallId = int.TryParse(impParams["videoWallID"], out var w) ? w : 1;
+            var store = GetSceneStore(wallId);
             var id = NextSceneId++;
-            SceneStore[id] = "Imported Scene";
+            store[id] = "Imported Scene";
             await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
                 <?xml version="1.0" encoding="UTF-8"?>
                 <ResponseStatus version="1.0" xmlns="{{Ns}}">
@@ -38,10 +42,12 @@ public partial class VwISAPIMockServerHikvision
         // PUT copy scene [PUT .../scene/{SID}/copy]
         if (method == "PUT" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}/scene/{SID}/copy", path, out var copyParams))
         {
-            if (int.TryParse(copyParams["SID"], out var srcSid) && SceneStore.TryGetValue(srcSid, out var srcName))
+            var wallId = int.TryParse(copyParams["videoWallID"], out var w) ? w : 1;
+            var store = GetSceneStore(wallId);
+            if (int.TryParse(copyParams["SID"], out var srcSid) && store.TryGetValue(srcSid, out var srcName))
             {
                 var id = NextSceneId++;
-                SceneStore[id] = srcName + " (Copy)";
+                store[id] = srcName + " (Copy)";
             }
             await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
                 <?xml version="1.0" encoding="UTF-8"?>
@@ -56,8 +62,10 @@ public partial class VwISAPIMockServerHikvision
         }
 
         // POST: Create scene [POST ISAPI/DisplayDev/VideoWall/{videoWallID}/scene]
-        if (method == "POST" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}/scene", path))
+        if (method == "POST" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}/scene", path, out var postParams))
         {
+            var wallId = int.TryParse(postParams["videoWallID"], out var w) ? w : 1;
+            var store = GetSceneStore(wallId);
             var name = "New Scene";
             if (!string.IsNullOrWhiteSpace(LastReceivedBody))
             {
@@ -66,7 +74,7 @@ public partial class VwISAPIMockServerHikvision
                     name = match.Groups[1].Value;
             }
             var id = NextSceneId++;
-            SceneStore[id] = name;
+            store[id] = name;
             await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
                 <?xml version="1.0" encoding="UTF-8"?>
                 <ResponseStatus version="1.0" xmlns="{{Ns}}">
@@ -81,9 +89,11 @@ public partial class VwISAPIMockServerHikvision
         }
 
         // DELETE all scenes [DELETE ISAPI/DisplayDev/VideoWall/{videoWallID}/scene]
-        if (method == "DELETE" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}/scene", path))
+        if (method == "DELETE" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}/scene", path, out var delAllParams))
         {
-            SceneStore.Clear();
+            var wallId = int.TryParse(delAllParams["videoWallID"], out var w) ? w : 1;
+            var store = GetSceneStore(wallId);
+            store.Clear();
             await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
                 <?xml version="1.0" encoding="UTF-8"?>
                 <ResponseStatus version="1.0" xmlns="{{Ns}}">
@@ -99,8 +109,10 @@ public partial class VwISAPIMockServerHikvision
         // DELETE specific scene [DELETE ISAPI/DisplayDev/VideoWall/{videoWallID}/scene/{SID}]
         if (method == "DELETE" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}/scene/{SID}", path, out var delParams))
         {
+            var wallId = int.TryParse(delParams["videoWallID"], out var w) ? w : 1;
+            var store = GetSceneStore(wallId);
             if (int.TryParse(delParams["SID"], out var delId))
-                SceneStore.Remove(delId);
+                store.Remove(delId);
             await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
                 <?xml version="1.0" encoding="UTF-8"?>
                 <ResponseStatus version="1.0" xmlns="{{Ns}}">
@@ -116,18 +128,22 @@ public partial class VwISAPIMockServerHikvision
         // GET scene info JSON [GET .../scene/{SID}/sceneInfo]
         if (method == "GET" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}/scene/{SID}/sceneInfo", path, out var infoParams))
         {
+            var wallId = int.TryParse(infoParams["videoWallID"], out var w) ? w : 1;
+            var store = GetSceneStore(wallId);
             var sid = int.TryParse(infoParams["SID"], out var parsedSid) ? parsedSid : 1;
-            var sceneName = SceneStore.TryGetValue(sid, out var n) ? n : "Unknown";
+            var sceneName = store.TryGetValue(sid, out var n) ? n : "Unknown";
             await WriteJsonResponseAsync(res, HttpStatusCode.OK, $$"""{"id":{{sid}},"name":"{{sceneName}}"}""");
             return true;
         }
 
         // 9.7.7.1. Get all scenes' parameters [GET ISAPI/DisplayDev/VideoWall/{videoWallID}/scene]
-        if (method == "GET" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}/scene", path))
+        if (method == "GET" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}/scene", path, out var listParams))
         {
+            var wallId = int.TryParse(listParams["videoWallID"], out var w) ? w : 1;
+            var store = GetSceneStore(wallId);
             var sb = new System.Text.StringBuilder();
             sb.AppendLine("""<WallSceneList xmlns="http://www.isapi.org/ver20/XMLSchema" version="2.0">""");
-            foreach (var kvp in SceneStore)
+            foreach (var kvp in store)
             {
                 sb.AppendLine($"  <WallScene><id>{kvp.Key}</id><name>{kvp.Value}</name></WallScene>");
             }

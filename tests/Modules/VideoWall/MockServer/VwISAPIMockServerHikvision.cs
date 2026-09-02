@@ -65,11 +65,46 @@ namespace Tests.Modules.VideoWall.MockServer
         /// </summary>
         public int MaxSceneNums { get; set; } = DefaultMaxSceneNums;
 
-        public Dictionary<int, string> SceneStore { get; } = new() { [1] = "Default Scene" };
-        public int NextSceneId { get; set; } = 2;
+        public Dictionary<int, Dictionary<int, string>> WallSceneStores { get; } = new()
+        {
+            [1] = new()
+            {
+                [1] = "Kịch bản 1: Giám sát Tuyến Trên - Dưới (2 Ô dọc)",
+                [2] = "Kịch bản 2: Toàn cảnh Tuyến Dọc (Toàn tường Wall 1)",
+            },
+            [2] = new()
+            {
+                [1] = "Kịch bản 1: Giám sát 4 Ô Độc lập (Lưới 2×2)",
+                [2] = "Kịch bản 2: Sự cố Trọng điểm (Khối lớn 2×1 + 2 Ô phụ)",
+                [3] = "Kịch bản 3: Bản đồ GIS / Dashboard (Toàn tường 2×2)",
+            }
+        };
+
+        public Dictionary<int, string> SceneStore => GetSceneStore(1);
+        public int NextSceneId { get; set; } = 4;
+
+        public Dictionary<int, string> GetSceneStore(int wallNo)
+        {
+            if (!WallSceneStores.TryGetValue(wallNo, out var store))
+            {
+                store = new Dictionary<int, string> { [1] = "Default Scene" };
+                WallSceneStores[wallNo] = store;
+            }
+            return store;
+        }
         public Dictionary<int, string> PlanStore { get; } = new() { [1] = "Default Plan" };
         public int NextPlanId { get; set; } = 2;
         public int? ActivePlanId { get; set; } = 1;
+
+        public HashSet<int> ValidOutputChannelIds { get; } = [17235971, 17235972, 17235973, 17235974];
+
+        public bool IsValidOutputChannel(string? channelIdStr, out int channelId)
+        {
+            if (int.TryParse(channelIdStr, out channelId) && ValidOutputChannelIds.Contains(channelId))
+                return true;
+            channelId = 0;
+            return false;
+        }
 
         public int ActiveSceneId { get; set; } = 1;
         public bool SimulateSaveDataFailure { get; set; }
@@ -180,9 +215,19 @@ namespace Tests.Modules.VideoWall.MockServer
             IsSupportScene = true;
             MaxSceneNums = DefaultMaxSceneNums;
             ActiveSceneId = 1;
-            SceneStore.Clear();
-            SceneStore[1] = "Default Scene";
-            NextSceneId = 2;
+            WallSceneStores.Clear();
+            WallSceneStores[1] = new()
+            {
+                [1] = "Kịch bản 1: Giám sát Tuyến Trên - Dưới (2 Ô dọc)",
+                [2] = "Kịch bản 2: Toàn cảnh Tuyến Dọc (Toàn tường Wall 1)",
+            };
+            WallSceneStores[2] = new()
+            {
+                [1] = "Kịch bản 1: Giám sát 4 Ô Độc lập (Lưới 2×2)",
+                [2] = "Kịch bản 2: Sự cố Trọng điểm (Khối lớn 2×1 + 2 Ô phụ)",
+                [3] = "Kịch bản 3: Bản đồ GIS / Dashboard (Toàn tường 2×2)",
+            };
+            NextSceneId = 4;
             PlanStore.Clear();
             PlanStore[1] = "Default Plan";
             NextPlanId = 2;

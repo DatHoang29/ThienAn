@@ -586,7 +586,7 @@ public class VwScenarioStoreTests : IDisposable
         Assert.Equal(128, connection.ProbeResult.MaxSceneNums);
         Assert.True(connection.HasProbeWalls);
         Assert.NotEmpty(connection.ProbeResult.Walls!);
-        Assert.Contains("Probe trực tiếp xong", connection.StatusMessage);
+        Assert.Contains("Khảo sát", connection.StatusMessage);
     }
 
     [Fact]
@@ -882,7 +882,177 @@ public class VwScenarioStoreTests : IDisposable
         Assert.True(connection.HasProbeWalls);
         // Tự động chọn WallNo đầu tiên
         Assert.Equal(connection.ProbeResult.Walls[0].Id, connection.WallNo);
-        Assert.Contains("Probe trực tiếp xong: WallNo", connection.StatusMessage);
+        // Ngay lần Probe đầu tiên khi WallNo = null, Outputs và Dimensions đã được nạp đầy đủ
+        Assert.NotNull(connection.ProbeResult.Outputs);
+        Assert.NotEmpty(connection.ProbeResult.Outputs);
+        Assert.True(connection.ProbeTotalWidth > 0);
+        Assert.True(connection.ProbeTotalHeight > 0);
+        Assert.Equal("1920 × 3840 px", connection.ProbeTotalDimensionText);
+        Assert.Equal("2 Cổng (Màn hình)", connection.ProbeOutputCountText);
+        Assert.Contains("Tường #1", connection.StatusMessage);
+    }
+
+    [Fact]
+    public void ConnectionViewModel_DefaultWallNo_IsNull_And_HasProbeWallsIsFalse_Test()
+    {
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true));
+
+        Assert.Null(connection.WallNo);
+        Assert.False(connection.HasProbeWalls);
+    }
+
+    [Fact]
+    public void SceneSetupViewModel_InitializesWithNullWallNo_AndSyncsWhenConnectionWallNoChanges_Test()
+    {
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true));
+        var sceneSetup = new SceneSetupViewModel(activityPub, connection, new UserConfirmationTest(true), recordingPub);
+
+        Assert.Null(sceneSetup.WallNo);
+
+        connection.WallNo = 2;
+        Assert.Equal(2, sceneSetup.WallNo);
+    }
+
+    [Fact]
+    public void ConnectionViewModel_SwitchingWallNo_PreservesSelectedWallNoAndWallsCollection_Test()
+    {
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true))
+        {
+            ProbeResult = new Module.VideoWall.WPF.Api.Dto.VwProbeDeviceOutput
+            {
+                Reachable = true,
+                WallNo = 1,
+                Walls =
+                [
+                    new() { Id = 1, Name = "VideoWall 1" },
+                    new() { Id = 2, Name = "hoangnhu" }
+                ],
+                Outputs = [new() { Id = 1, OutputId = 1, Rect = new() { Width = 1920, Height = 1080 } }]
+            }
+        };
+
+        Assert.Equal(2, connection.Walls.Count);
+        Assert.Equal(1, connection.WallNo);
+
+        // Chuyển sang chọn Wall #2 ("hoangnhu")
+        connection.WallNo = 2;
+
+        Assert.Equal(2, connection.WallNo);
+        Assert.Equal(2, connection.Walls.Count);
+        Assert.Equal("hoangnhu", connection.Walls[1].Name);
+    }
+
+    [Fact]
+    public void SceneSetupViewModel_AvailableStartScreens_MatchesProbeOutputsCount_Test()
+    {
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true));
+        var sceneSetup = new SceneSetupViewModel(activityPub, connection, new UserConfirmationTest(true), recordingPub);
+
+        // Mặc định trước khi Probe: danh sách màn bắt đầu trống rỗng (bắt buộc phải Probe)
+        Assert.Empty(sceneSetup.AvailableStartScreens);
+
+        // Giả lập Probe Wall #2 có 4 màn hình (lưới 2x2)
+        connection.ProbeResult = new Module.VideoWall.WPF.Api.Dto.VwProbeDeviceOutput
+        {
+            Reachable = true,
+            WallNo = 2,
+            Outputs =
+            [
+                new() { Id = 1, OutputId = 17235971, Rect = new() { Coordinate = new() { X = 0, Y = 0 }, Width = 1920, Height = 1920 } },
+                new() { Id = 2, OutputId = 17235972, Rect = new() { Coordinate = new() { X = 1920, Y = 0 }, Width = 1920, Height = 1920 } },
+                new() { Id = 3, OutputId = 17235973, Rect = new() { Coordinate = new() { X = 0, Y = 1920 }, Width = 1920, Height = 1920 } },
+                new() { Id = 4, OutputId = 17235974, Rect = new() { Coordinate = new() { X = 1920, Y = 1920 }, Width = 1920, Height = 1920 } },
+            ]
+        };
+
+        // Sau khi nạp ProbeResult của Wall 2: Danh sách màn bắt đầu co lại đúng 4 màn hình!
+        Assert.Equal(4, sceneSetup.AvailableStartScreens.Count);
+        Assert.Equal("Màn 1 (H1-C1)", sceneSetup.AvailableStartScreens[0].Name);
+        Assert.Equal("Màn 4 (H2-C2)", sceneSetup.AvailableStartScreens[3].Name);
+    }
+
+    [Fact]
+    public void SceneSetupViewModel_WallSpecificScenes_DistinctPerWall_Test()
+    {
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true))
+        {
+            AdHocIp = $"10.55.{Random.Shared.Next(10, 99)}.{Random.Shared.Next(10, 99)}",
+            AdHocPort = 18080,
+            WallNo = 1
+        };
+        var sceneSetup = new SceneSetupViewModel(activityPub, connection, new UserConfirmationTest(true), recordingPub);
+
+        // Wall 1: có 2 kịch bản mẫu cho 2 màn hình dọc
+        Assert.Equal(2, sceneSetup.Scenes.Count);
+        Assert.Contains("2 Ô dọc", sceneSetup.Scenes[0].Name);
+
+        // Chuyển sang Wall 2: tự động tải 3 kịch bản mẫu cho lưới 2x2
+        connection.WallNo = 2;
+
+        Assert.Equal(3, sceneSetup.Scenes.Count);
+        Assert.Contains("Lưới 2×2", sceneSetup.Scenes[0].Name);
+        Assert.Contains("Khối lớn 2×1", sceneSetup.Scenes[1].Name);
+        Assert.Contains("Toàn tường 2×2", sceneSetup.Scenes[2].Name);
+    }
+
+    [Fact]
+    public void SceneSetupViewModel_CanPushToDevice_RequiresProbeResultAndWallNo_Test()
+    {
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true))
+        {
+            AdHocIp = "127.0.0.1",
+            AdHocPort = 18080,
+            AdHocAccount = "admin",
+            AdHocPassword = "Password123!"
+        };
+        var sceneSetup = new SceneSetupViewModel(activityPub, connection, new UserConfirmationTest(true), recordingPub);
+
+        Assert.False(sceneSetup.PushToDeviceCommand.CanExecute(null));
+
+        sceneSetup.CurrentScene = new Module.VideoWall.WPF.Api.Dto.VwSceneDto
+        {
+            ID = "scn-1",
+            Code = "SCN_01",
+            Name = "Test Scene"
+        };
+        Assert.NotNull(sceneSetup.CurrentScene);
+
+        Assert.False(sceneSetup.PushToDeviceCommand.CanExecute(null));
+
+        // Set ProbeResult nhưng không có tường (Walls rỗng) => WallNo vẫn null => CanExecute = false
+        connection.ProbeResult = new Module.VideoWall.WPF.Api.Dto.VwProbeDeviceOutput
+        {
+            Reachable = true,
+            Walls = []
+        };
+        Assert.False(sceneSetup.PushToDeviceCommand.CanExecute(null));
+
+        // Khi ProbeResult có danh sách tường => tự động gán WallNo = 1 => CanExecute = true
+        connection.ProbeResult = new Module.VideoWall.WPF.Api.Dto.VwProbeDeviceOutput
+        {
+            Reachable = true,
+            Walls = [new() { Id = 1, Name = "Wall 1" }]
+        };
+        Assert.Equal(1, connection.WallNo);
+        Assert.True(sceneSetup.PushToDeviceCommand.CanExecute(null));
+
+        sceneSetup.IsBusy = true;
+        Assert.False(sceneSetup.PushToDeviceCommand.CanExecute(null));
+
+        sceneSetup.IsBusy = false;
+        Assert.True(sceneSetup.PushToDeviceCommand.CanExecute(null));
     }
 
     [Fact]
@@ -973,6 +1143,7 @@ public class VwScenarioStoreTests : IDisposable
         var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true))
         {
             AdHocIp = "127.0.0.197",
+            WallNo = 1,
         };
 
         var deviceKey = connection.DeviceKey;

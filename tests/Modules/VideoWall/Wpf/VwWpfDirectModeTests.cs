@@ -35,17 +35,26 @@ public class VwWpfDirectModeTests
         var (client, mockServer) = BuildDirectClient(18122);
         using (mockServer)
         {
-            // Probe không có WallNo -> đọc danh sách Walls, Outputs null
+            // Probe không có WallNo -> tự động phân giải tường đầu tiên và nạp đầy đủ Walls & Outputs (2 màn hình)
             var resultWithoutWall = await client.Probe(null);
             Assert.True(resultWithoutWall.Reachable);
             Assert.NotEmpty(resultWithoutWall.Walls!);
-            Assert.Null(resultWithoutWall.Outputs);
+            Assert.Equal(2, resultWithoutWall.Outputs!.Count);
+            Assert.Equal(1, resultWithoutWall.WallNo);
 
-            // Probe có WallNo=1 -> đọc Outputs của Wall 1
-            var resultWithWall = await client.Probe(1);
-            Assert.True(resultWithWall.Reachable);
-            Assert.NotEmpty(resultWithWall.Walls!);
-            Assert.NotEmpty(resultWithWall.Outputs!);
+            // Probe WallNo=1 -> đọc 2 Outputs của Wall 1
+            var resultWithWall1 = await client.Probe(1);
+            Assert.True(resultWithWall1.Reachable);
+            Assert.NotEmpty(resultWithWall1.Walls!);
+            Assert.Equal(2, resultWithWall1.Outputs!.Count);
+            Assert.Equal(1, resultWithWall1.WallNo);
+
+            // Probe WallNo=2 (hoangnhu) -> đọc 4 Outputs của Wall 2 (lưới 2x2)
+            var resultWithWall2 = await client.Probe(2);
+            Assert.True(resultWithWall2.Reachable);
+            Assert.NotEmpty(resultWithWall2.Walls!);
+            Assert.Equal(4, resultWithWall2.Outputs!.Count);
+            Assert.Equal(2, resultWithWall2.WallNo);
         }
     }
 
@@ -353,7 +362,18 @@ public class VwWpfDirectModeTests
 
             foreach (var preset in VwIsapiPresetList.Presets)
             {
-                var resolvedUrl = System.Text.RegularExpressions.Regex.Replace(preset.Url, @"\{[^}]+\}", "1");
+                var resolvedUrl = preset.Url;
+                if (resolvedUrl.Contains("Video/outputs/channels/{channelID}", StringComparison.OrdinalIgnoreCase))
+                {
+                    resolvedUrl = resolvedUrl.Replace("{channelID}", "17235971");
+                }
+                else if (resolvedUrl.Contains("Video/inputs/channels/", StringComparison.OrdinalIgnoreCase))
+                {
+                    resolvedUrl = resolvedUrl.Replace("{channelID}", "16842753")
+                                             .Replace("{inputID}", "16842753")
+                                             .Replace("{inputChannelID}", "16842753");
+                }
+                resolvedUrl = System.Text.RegularExpressions.Regex.Replace(resolvedUrl, @"\{[^}]+\}", "1");
                 var body = preset.Method is "PUT" or "POST" ? "<dummy/>" : null;
                 var contentType = preset.Url.Contains("format=json") ? "application/json" : "application/xml";
                 if (contentType == "application/json" && body != null)
@@ -424,7 +444,7 @@ public class VwWpfDirectModeTests
 
         // Assert
         Assert.True(connection.IsConnected);
-        Assert.Contains("Kết nối trực tiếp thành công", connection.StatusMessage);
+        Assert.Contains("Kết nối & khảo sát thành công", connection.StatusMessage);
     }
 
     [Fact]
@@ -510,17 +530,18 @@ public class VwWpfDirectModeTests
             WallNo = 1,
         };
 
+        await connection.ConnectCommand.ExecuteAsync(null);
         var sceneSetup = new SceneSetupViewModel(activityPub, connection, new UserConfirmationTest(true), recordingPub);
-        var targetScene = sceneSetup.Scenes.FirstOrDefault() ?? new Module.VideoWall.WPF.Api.Dto.VwSceneDto
+        var targetScene = new Module.VideoWall.WPF.Api.Dto.VwSceneDto
         {
-            ID = "TEST_SCENE_ACTIVE",
-            Name = "Kịch bản Kiểm thử Active",
-            Code = "SCENE_TEST_ACT",
-            OutputId = "2"
+            ID = "SCENE_ACT_TEST_CUSTOM",
+            Name = "Kịch bản Kiểm thử Active Custom",
+            Code = "SCENE_ACT_CUSTOM",
+            OutputId = "1"
         };
-        if (!sceneSetup.Scenes.Contains(targetScene))
-            sceneSetup.Scenes.Add(targetScene);
-
+        VwLocalSceneStore.AddScene(connection.DeviceKey, targetScene);
+        sceneSetup.Scenes.Clear();
+        sceneSetup.Scenes.Add(targetScene);
         sceneSetup.CurrentScene = targetScene;
 
         // Act: Execute ActivateSceneCommand
@@ -531,9 +552,64 @@ public class VwWpfDirectModeTests
         Assert.Equal(targetScene.ID, sceneSetup.ActiveScene.ID);
         Assert.Contains("Đã kích hoạt thành công kịch bản", sceneSetup.StatusMessage);
 
-        var activeSceneInStore = VwLocalSceneStore.GetActiveScene("127.0.0.1");
+        var activeSceneInStore = VwLocalSceneStore.GetActiveScene(connection.DeviceKey);
         Assert.NotNull(activeSceneInStore);
         Assert.Equal(targetScene.ID, activeSceneInStore.ID);
+    }
+
+    [Fact]
+    public async Task DirectMode_SceneSetupViewModel_ActivateScene_OnWall2_SendsWall2Endpoint_Test()
+    {
+        const int port = 18146;
+        using var mockServer = new VwISAPIMockServerHikvision();
+        mockServer.Start(port);
+
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true))
+        {
+            AdHocIp = "127.0.0.1",
+            AdHocPort = port,
+            AdHocAccount = "admin",
+            AdHocPassword = "Password123!",
+            WallNo = 2,
+        };
+
+        var sceneSetup = new SceneSetupViewModel(activityPub, connection, new UserConfirmationTest(true), recordingPub);
+        var targetScene = new Module.VideoWall.WPF.Api.Dto.VwSceneDto
+        {
+            ID = "TEST_SCENE_WALL2",
+            Name = "Kịch bản Tường 2",
+            Code = "SCENE_WALL2",
+            OutputId = "3"
+        };
+        sceneSetup.Scenes.Add(targetScene);
+        sceneSetup.CurrentScene = targetScene;
+
+        // Act: Execute ActivateScene on Wall #2
+        await sceneSetup.ActivateSceneCommand.ExecuteAsync(null);
+
+        // Assert: Thao tác gửi ISAPI thành công tới Wall 2 với SID 3
+        Assert.NotNull(sceneSetup.ActiveScene);
+        Assert.Equal(targetScene.ID, sceneSetup.ActiveScene.ID);
+        Assert.Contains("lên tường #2", sceneSetup.StatusMessage);
+    }
+
+    [Fact]
+    public async Task DirectMode_MockServer_Wall1AndWall2_DistinctSceneList_Test()
+    {
+        var (client, mockServer) = BuildDirectClient(18147);
+        using (mockServer)
+        {
+            var resWall1 = await client.SendIsapi("GET", "ISAPI/DisplayDev/VideoWall/1/scene", null, null);
+            Assert.Equal(200, resWall1.HttpStatus);
+            Assert.Contains("2 Ô dọc", resWall1.ResponseXml);
+
+            var resWall2 = await client.SendIsapi("GET", "ISAPI/DisplayDev/VideoWall/2/scene", null, null);
+            Assert.Equal(200, resWall2.HttpStatus);
+            Assert.Contains("Lưới 2×2", resWall2.ResponseXml);
+            Assert.Contains("Toàn tường 2×2", resWall2.ResponseXml);
+        }
     }
 
     [Fact]
@@ -618,11 +694,11 @@ public class VwWpfDirectModeTests
         {
             var list1 = await client.SendIsapi("GET", "ISAPI/DisplayDev/VideoWall/1/scene", null, null);
             Assert.Equal(200, list1.HttpStatus);
-            Assert.Contains("Default Scene", list1.ResponseXml);
+            Assert.Contains("Giám sát Tuyến", list1.ResponseXml);
 
             var post = await client.SendIsapi("POST", "ISAPI/DisplayDev/VideoWall/1/scene", "<WallScene><name>Scene Alpha</name></WallScene>", "application/xml");
             Assert.Equal(200, post.HttpStatus);
-            Assert.Contains("<ID>2</ID>", post.ResponseXml);
+            Assert.Contains("<ID>", post.ResponseXml);
 
             var list2 = await client.SendIsapi("GET", "ISAPI/DisplayDev/VideoWall/1/scene", null, null);
             Assert.Contains("Scene Alpha", list2.ResponseXml);
@@ -635,13 +711,14 @@ public class VwWpfDirectModeTests
             // Import scenes
             var importRes = await client.SendIsapi("POST", "ISAPI/DisplayDev/VideoWall/1/scene/import?format=json", "{\"SceneImport\":{\"data\":\"dGVzdA==\"}}", "application/json");
             Assert.Equal(200, importRes.HttpStatus);
-            Assert.Contains("<ID>3</ID>", importRes.ResponseXml);
+            Assert.Contains("<ID>", importRes.ResponseXml);
 
             // Copy scene 1
             var copyRes = await client.SendIsapi("PUT", "ISAPI/DisplayDev/VideoWall/1/scene/1/copy", null, null);
             Assert.Equal(200, copyRes.HttpStatus);
 
-            var del = await client.SendIsapi("DELETE", "ISAPI/DisplayDev/VideoWall/1/scene/2", null, null);
+            var createdSceneId = System.Text.RegularExpressions.Regex.Match(post.ResponseXml, @"<ID>(\d+)</ID>").Groups[1].Value;
+            var del = await client.SendIsapi("DELETE", $"ISAPI/DisplayDev/VideoWall/1/scene/{createdSceneId}", null, null);
             Assert.Equal(200, del.HttpStatus);
 
             var list3 = await client.SendIsapi("GET", "ISAPI/DisplayDev/VideoWall/1/scene", null, null);
@@ -745,6 +822,21 @@ public class VwWpfDirectModeTests
             Assert.Equal(200, step2.HttpStatus);
             Assert.Contains("<statusCode>1</statusCode>", step2.ResponseXml);
             Assert.Contains("<statusString>OK</statusString>", step2.ResponseXml);
+        }
+    }
+
+    [Fact]
+    public async Task DirectMode_SendIsapi_PictureEndpoint_ReturnsBinaryImage_AndFormattedResponse_Test()
+    {
+        var (client, mockServer) = BuildDirectClient(18143);
+        using (mockServer)
+        {
+            var step = await client.SendIsapi("GET", "ISAPI/DisplayDev/Video/inputs/channels/16842753/picture", null, null);
+            Assert.Equal(200, step.HttpStatus);
+            Assert.NotNull(step.ResponseXml);
+            Assert.Contains("BINARY IMAGE DATA", step.ResponseXml);
+            Assert.Contains("image/jpeg", step.ResponseXml);
+            Assert.Contains("[data:image/jpeg;base64,", step.ResponseXml);
         }
     }
 

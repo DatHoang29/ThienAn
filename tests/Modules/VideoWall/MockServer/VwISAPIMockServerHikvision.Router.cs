@@ -244,8 +244,27 @@ public partial class VwISAPIMockServerHikvision
         }
 
         // 9.7.3.7. GET /ISAPI/DisplayDev/Video/outputs/channels/{channelID}/capabilities
-        if (method == "GET" && MatchRoute("ISAPI/DisplayDev/Video/outputs/channels/{channelID}/capabilities", path, out _))
+        if (method == "GET" && MatchRoute("ISAPI/DisplayDev/Video/outputs/channels/{channelID}/capabilities", path, out var capParams))
         {
+            var chanIdStr = capParams.GetValueOrDefault("channelID");
+            if (string.Equals(chanIdStr, "all", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            if (!IsValidOutputChannel(chanIdStr, out _))
+            {
+                await WriteXmlResponseAsync(res, HttpStatusCode.NotFound, $$"""
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <ResponseStatus version="1.0" xmlns="{{Ns}}">
+                      <requestURL>{{path}}</requestURL>
+                      <statusCode>4</statusCode>
+                      <statusString>Invalid Operation</statusString>
+                      <subStatusCode>badParameters</subStatusCode>
+                      <description>The video output channel ID does not exist</description>
+                    </ResponseStatus>
+                    """);
+                return true;
+            }
+
             await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
                 <?xml version="1.0" encoding="UTF-8"?>
                 <OutputResolutionListCap version="2.0" xmlns="{{Ns}}">
@@ -490,6 +509,24 @@ public partial class VwISAPIMockServerHikvision
         if (method == "GET" && MatchRoute("ISAPI/DisplayDev/Video/outputs/channels/{channelID}", path, out var chanParams))
         {
             var chanId = chanParams["channelID"];
+            if (string.Equals(chanId, "all", StringComparison.OrdinalIgnoreCase) || string.Equals(chanId, "capabilities", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            if (!IsValidOutputChannel(chanId, out _))
+            {
+                await WriteXmlResponseAsync(res, HttpStatusCode.NotFound, $$"""
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <ResponseStatus version="1.0" xmlns="{{Ns}}">
+                      <requestURL>{{path}}</requestURL>
+                      <statusCode>4</statusCode>
+                      <statusString>Invalid Operation</statusString>
+                      <subStatusCode>badParameters</subStatusCode>
+                      <description>The video output channel ID does not exist</description>
+                    </ResponseStatus>
+                    """);
+                return true;
+            }
+
             await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
                 <?xml version="1.0" encoding="UTF-8"?>
                 <VideoOutputChannel version="2.0" xmlns="{{Ns}}">
@@ -504,8 +541,27 @@ public partial class VwISAPIMockServerHikvision
         }
 
         // 9.7.3.6. PUT /ISAPI/DisplayDev/Video/outputs/channels/{channelID}
-        if (method == "PUT" && MatchRoute("ISAPI/DisplayDev/Video/outputs/channels/{channelID}", path))
+        if (method == "PUT" && MatchRoute("ISAPI/DisplayDev/Video/outputs/channels/{channelID}", path, out var putChanParams))
         {
+            var chanId = putChanParams.GetValueOrDefault("channelID");
+            if (string.Equals(chanId, "all", StringComparison.OrdinalIgnoreCase) || string.Equals(chanId, "capabilities", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            if (!IsValidOutputChannel(chanId, out _))
+            {
+                await WriteXmlResponseAsync(res, HttpStatusCode.NotFound, $$"""
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <ResponseStatus version="1.0" xmlns="{{Ns}}">
+                      <requestURL>{{path}}</requestURL>
+                      <statusCode>4</statusCode>
+                      <statusString>Invalid Operation</statusString>
+                      <subStatusCode>badParameters</subStatusCode>
+                      <description>The video output channel ID does not exist</description>
+                    </ResponseStatus>
+                    """);
+                return true;
+            }
+
             await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
                 <?xml version="1.0" encoding="UTF-8"?>
                 <ResponseStatus version="1.0" xmlns="{{Ns}}">
@@ -643,28 +699,68 @@ public partial class VwISAPIMockServerHikvision
         }
 
         // 9.7.5.5. GET /ISAPI/DisplayDev/VideoWall/{videoWallID}/outputs
-        if (method == "GET" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}/outputs", path))
+        if (method == "GET" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}/outputs", path, out var p))
         {
             GetOutputsCallCount++;
-            await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
-                <?xml version="1.0" encoding="UTF-8"?>
-                <WallOutputList version="2.0" xmlns="{{Ns}}">
-                  <WallOutput>
-                    <id>2</id>
-                    <outputID>17235971</outputID>
-                    <Rect><Coordinate><x>0</x><y>0</y></Coordinate><width>1920</width><height>1920</height></Rect>
-                    <outputWinNum>1</outputWinNum>
-                    <coordinateMode>uniformCoordinate</coordinateMode>
-                  </WallOutput>
-                  <WallOutput>
-                    <id>3</id>
-                    <outputID>17235972</outputID>
-                    <Rect><Coordinate><x>0</x><y>1920</y></Coordinate><width>1920</width><height>1920</height></Rect>
-                    <outputWinNum>1</outputWinNum>
-                    <coordinateMode>uniformCoordinate</coordinateMode>
-                  </WallOutput>
-                </WallOutputList>
-                """);
+            var wallId = p.GetValueOrDefault("videoWallID", "1");
+            if (wallId == "2")
+            {
+                await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <WallOutputList version="2.0" xmlns="{{Ns}}">
+                      <WallOutput>
+                        <id>1</id>
+                        <outputID>17235971</outputID>
+                        <Rect><Coordinate><x>0</x><y>0</y></Coordinate><width>1920</width><height>1920</height></Rect>
+                        <outputWinNum>1</outputWinNum>
+                        <coordinateMode>uniformCoordinate</coordinateMode>
+                      </WallOutput>
+                      <WallOutput>
+                        <id>2</id>
+                        <outputID>17235972</outputID>
+                        <Rect><Coordinate><x>1920</x><y>0</y></Coordinate><width>1920</width><height>1920</height></Rect>
+                        <outputWinNum>1</outputWinNum>
+                        <coordinateMode>uniformCoordinate</coordinateMode>
+                      </WallOutput>
+                      <WallOutput>
+                        <id>3</id>
+                        <outputID>17235973</outputID>
+                        <Rect><Coordinate><x>0</x><y>1920</y></Coordinate><width>1920</width><height>1920</height></Rect>
+                        <outputWinNum>1</outputWinNum>
+                        <coordinateMode>uniformCoordinate</coordinateMode>
+                      </WallOutput>
+                      <WallOutput>
+                        <id>4</id>
+                        <outputID>17235974</outputID>
+                        <Rect><Coordinate><x>1920</x><y>1920</y></Coordinate><width>1920</width><height>1920</height></Rect>
+                        <outputWinNum>1</outputWinNum>
+                        <coordinateMode>uniformCoordinate</coordinateMode>
+                      </WallOutput>
+                    </WallOutputList>
+                    """);
+            }
+            else
+            {
+                await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <WallOutputList version="2.0" xmlns="{{Ns}}">
+                      <WallOutput>
+                        <id>2</id>
+                        <outputID>17235971</outputID>
+                        <Rect><Coordinate><x>0</x><y>0</y></Coordinate><width>1920</width><height>1920</height></Rect>
+                        <outputWinNum>1</outputWinNum>
+                        <coordinateMode>uniformCoordinate</coordinateMode>
+                      </WallOutput>
+                      <WallOutput>
+                        <id>3</id>
+                        <outputID>17235972</outputID>
+                        <Rect><Coordinate><x>0</x><y>1920</y></Coordinate><width>1920</width><height>1920</height></Rect>
+                        <outputWinNum>1</outputWinNum>
+                        <coordinateMode>uniformCoordinate</coordinateMode>
+                      </WallOutput>
+                    </WallOutputList>
+                    """);
+            }
             return true;
         }
 
