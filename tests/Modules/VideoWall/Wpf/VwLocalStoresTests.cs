@@ -278,35 +278,56 @@ public sealed class VwLocalStoresTests : IDisposable
         // Act
         var seeded = VwLocalSceneStore.SeedSampleScenes(deviceKey, _tempDirectory, sources);
 
-        // Assert 1: Exactly 3 practical scenes generated
-        Assert.Equal(3, seeded.Count);
+        // Assert 1: Exactly 4 transcript presets generated
+        Assert.Equal(4, seeded.Count);
 
-        // Scene 1: Giám sát Trọng điểm & Sự cố (1 Khối 2x2 + 8 Ô nhỏ = 9 windows)
+        // Scene 1: Lưới 12 ô — Không chồng (12 windows W=H=1920, Z=1)
         var s1 = seeded.First(s => s.Code == "VWSCENE_SAMPLE_01");
         Assert.Equal("1", s1.OutputId);
         Assert.Equal(4, s1.GridCols);
         Assert.Equal(3, s1.GridRows);
         var s1Windows = VwLocalSceneStore.ListWindowScenes(deviceKey, s1.ID!, _tempDirectory);
-        Assert.Equal(9, s1Windows.Count);
-        Assert.Contains(s1Windows, w => w.W == 3840 && w.H == 2160);
+        Assert.Equal(12, s1Windows.Count);
+        Assert.All(s1Windows, w =>
+        {
+            Assert.Equal(1920, w.W);
+            Assert.Equal(1920, w.H);
+            Assert.Equal(1, w.ZIndex);
+        });
 
-        // Scene 2: Song song 2 Địa bàn Hữu Nghị - Chi Lăng (2 Khối 2x2 + 4 Ô = 6 windows)
+        // Scene 2: Cửa sổ CHỒNG nhau (12 ô nền Z=1 + 1 khối 2x2 đè lên Z=2 = 13 windows)
         var s2 = seeded.First(s => s.Code == "VWSCENE_SAMPLE_02");
         var s2Windows = VwLocalSceneStore.ListWindowScenes(deviceKey, s2.ID!, _tempDirectory);
-        Assert.Equal(6, s2Windows.Count);
-        Assert.Equal(2, s2Windows.Count(w => w.W == 3840 && w.H == 2160));
+        Assert.Equal(13, s2Windows.Count);
+        Assert.Equal(12, s2Windows.Count(w => w.ZIndex == 1));
+        var s2Overlapping = s2Windows.FirstOrDefault(w => w.ZIndex == 2);
+        Assert.NotNull(s2Overlapping);
+        Assert.Equal(3840, s2Overlapping.W);
+        Assert.Equal(3840, s2Overlapping.H);
+        Assert.Equal(1920, s2Overlapping.X);
+        Assert.Equal(0, s2Overlapping.Y);
 
-        // Scene 3: Toàn cảnh Bản đồ GIS / Dashboard (4x3 Toàn tường = 1 window)
+        // Scene 3: Sự cố / Trigger (1 window lớn 2x3 Z=2 + 6 ô nhỏ Z=1 = 7 windows)
         var s3 = seeded.First(s => s.Code == "VWSCENE_SAMPLE_03");
         var s3Windows = VwLocalSceneStore.ListWindowScenes(deviceKey, s3.ID!, _tempDirectory);
-        Assert.Single(s3Windows);
-        Assert.Equal(7680, s3Windows[0].W);
-        Assert.Equal(5760, s3Windows[0].H);
+        Assert.Equal(7, s3Windows.Count);
+        var s3Big = s3Windows.FirstOrDefault(w => w.ZIndex == 2);
+        Assert.NotNull(s3Big);
+        Assert.Equal(3840, s3Big.W);
+        Assert.Equal(5760, s3Big.H);
+        Assert.Equal(6, s3Windows.Count(w => w.ZIndex == 1 && w.W == 1920 && w.H == 1920));
+
+        // Scene 4: Camera Nhà xe / Bản đồ GIS — Toàn tường (1 window 7680x5760)
+        var s4 = seeded.First(s => s.Code == "VWSCENE_SAMPLE_04");
+        var s4Windows = VwLocalSceneStore.ListWindowScenes(deviceKey, s4.ID!, _tempDirectory);
+        Assert.Single(s4Windows);
+        Assert.Equal(7680, s4Windows[0].W);
+        Assert.Equal(5760, s4Windows[0].H);
 
         // Act 2: Re-seeding overwrites cleanly without duplication
         var reseeded = VwLocalSceneStore.SeedSampleScenes(deviceKey, _tempDirectory, sources);
         var allScenes = VwLocalSceneStore.ListScenes(deviceKey, _tempDirectory);
-        Assert.Equal(3, allScenes.Count);
+        Assert.Equal(4, allScenes.Count);
     }
 
     [Fact]
@@ -327,13 +348,14 @@ public sealed class VwLocalStoresTests : IDisposable
         };
         VwLocalSceneStore.SaveData(deviceKey, legacyData, _tempDirectory);
 
-        // Act: LoadData triggers automatic migration to 3 practical scenes
+        // Act: LoadData triggers automatic migration to 4 transcript presets
         var loaded = VwLocalSceneStore.LoadData(deviceKey, _tempDirectory);
 
-        // Assert: 3 practical scenes exist
-        Assert.Equal(3, loaded.Scenes.Count);
+        // Assert: 4 transcript presets exist
+        Assert.Equal(4, loaded.Scenes.Count);
         Assert.Equal("VWSCENE_SAMPLE_01", loaded.Scenes[0].Code);
         Assert.Equal("VWSCENE_SAMPLE_02", loaded.Scenes[1].Code);
         Assert.Equal("VWSCENE_SAMPLE_03", loaded.Scenes[2].Code);
+        Assert.Equal("VWSCENE_SAMPLE_04", loaded.Scenes[3].Code);
     }
 }

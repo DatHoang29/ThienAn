@@ -228,6 +228,43 @@ public class VwWpfDirectModeTests
         Assert.Equal(0, mockServer.AddWindowCallCount);
     }
 
+    [Fact]
+    public async Task DirectMode_PushScene_SaveDataFalse_SkipsSaveSceneData_ExecutesWindowWrites_Test()
+    {
+        const int port = 18144;
+        using var mockServer = new VwISAPIMockServerHikvision();
+        mockServer.Start(port);
+
+        var isApiClient = BuildIsapiClient(port);
+        var orchestrator = new VwDirectSetupSceneOrchestrator(isApiClient);
+
+        var input = new VwDirectPushSceneInput
+        {
+            SceneId = 1,
+            WallNo = 1,
+            DryRun = false,
+            ResetWindows = true,
+            SaveData = false, // KHÔNG chụp hình / lưu scene
+            Activate = false,
+            Windows =
+            [
+                new VwDirectWindowInput { X = 0, Y = 0, W = 1920, H = 1920, ZIndex = 1, SignalNo = 1 },
+                new VwDirectWindowInput { X = 1920, Y = 0, W = 1920, H = 1920, ZIndex = 1, SignalNo = 2 }
+            ]
+        };
+
+        var result = await orchestrator.Execute(input, default);
+
+        Assert.True(result.Success);
+        Assert.True(mockServer.AddWindowCallCount >= 2);
+        Assert.Equal(0, mockServer.SaveSceneDataCallCount);
+
+        var saveStep = result.Steps.FirstOrDefault(s => s.Name == "SaveSceneData");
+        Assert.NotNull(saveStep);
+        Assert.True(saveStep.Skipped);
+        Assert.Contains("SaveData = false", saveStep.Message);
+    }
+
     /// <summary>
     /// Author: Đạt
     /// Description: Thiết bị từ chối Digest Auth khi sai thông tin đăng nhập, trả về kết quả thất bại mà không ném ngoại lệ.
