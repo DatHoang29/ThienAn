@@ -1474,6 +1474,7 @@ namespace Tests.Modules.VideoWall
         {
             // Arrange
             _mock.ResetDefaults();
+            _mock.SimulateWall1Unbound = true;
             var controller = CreateResolverTestController();
             using var scope = host.Services.CreateScope();
             var resolver = CreateResolverWithWallNo(scope, configuredWallNo: null);
@@ -1497,6 +1498,7 @@ namespace Tests.Modules.VideoWall
         {
             // Arrange
             _mock.ResetDefaults();
+            _mock.SimulateWall1Unbound = true;
             var controller = CreateResolverTestController();
             using var scope = host.Services.CreateScope();
             var resolver = CreateResolverWithWallNo(scope, configuredWallNo: null);
@@ -1522,6 +1524,7 @@ namespace Tests.Modules.VideoWall
         {
             // Arrange
             _mock.ResetDefaults();
+            _mock.SimulateWall1Unbound = true;
             var controller = CreateResolverTestController();
             using var scope = host.Services.CreateScope();
             var resolver = CreateResolverWithWallNo(scope, configuredWallNo: null);

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
 using Module.VideoWall.WPF.Api;
@@ -419,6 +420,84 @@ public class VwScenarioStoreTests : IDisposable
         await vm.ApplyOverlappingWindowsCommand.ExecuteAsync(null);
 
         Assert.Contains("vượt quá giới hạn tối đa của thiết bị", vm.StatusMessage);
+    }
+
+    [Fact]
+    public void SceneSetupViewModel_AddSceneWindow_RestrictsToAvailableScreensCount_AndAssignsCorrectCoordinates_Test()
+    {
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true))
+        {
+            ProbeResult = new Module.VideoWall.WPF.Api.Dto.VwProbeDeviceOutput
+            {
+                Reachable = true,
+                MaxWindowNums = 6,
+                Outputs =
+                [
+                    new() { Id = 1, OutputId = 1, Rect = new() { Width = 1920, Height = 1080, Coordinate = new() { X = 0, Y = 0 } } },
+                    new() { Id = 2, OutputId = 2, Rect = new() { Width = 1920, Height = 1080, Coordinate = new() { X = 1920, Y = 0 } } },
+                    new() { Id = 3, OutputId = 3, Rect = new() { Width = 1920, Height = 1080, Coordinate = new() { X = 0, Y = 1920 } } },
+                    new() { Id = 4, OutputId = 4, Rect = new() { Width = 1920, Height = 1080, Coordinate = new() { X = 1920, Y = 1920 } } },
+                ]
+            }
+        };
+
+        var vm = new SceneSetupViewModel(activityPub, connection, new UserConfirmationTest(true), recordingPub)
+        {
+            CurrentScene = new Module.VideoWall.WPF.Api.Dto.VwSceneDto
+            {
+                ID = "test-scene-4screens",
+                Code = "SCN_4SCR",
+                Name = "Tường 4 Màn Hình"
+            }
+        };
+
+        // Nạp kết quả khảo sát
+        vm.SyncFromProbeResult();
+        Assert.Equal(4, vm.AvailableStartScreens.Count);
+        Assert.Equal(6, vm.GetMaxAllowedWindows());
+
+        // Xoá danh sách ô hiện tại để thêm từ đầu
+        vm.SceneWindows.Clear();
+        Assert.True(vm.AddSceneWindowCommand.CanExecute(null));
+
+        // Thêm 4 ô lớp 1 phủ kín 4 màn hình (ZIndex = 1)
+        vm.AddSceneWindowCommand.Execute(null); // Ô 1 -> Màn 1 (0, 0), ZIndex = 1
+        vm.AddSceneWindowCommand.Execute(null); // Ô 2 -> Màn 2 (1920, 0), ZIndex = 1
+        vm.AddSceneWindowCommand.Execute(null); // Ô 3 -> Màn 3 (0, 1920), ZIndex = 1
+        vm.AddSceneWindowCommand.Execute(null); // Ô 4 -> Màn 4 (1920, 1920), ZIndex = 1
+
+        Assert.Equal(4, vm.SceneWindows.Count);
+        Assert.Equal(1, vm.SceneWindows[0].ZIndex);
+        Assert.Equal(1, vm.SceneWindows[3].ZIndex);
+        Assert.True(vm.AddSceneWindowCommand.CanExecute(null)); // Vẫn còn slot vì MaxWindowNums = 6
+
+        // Thêm ô 5 -> Xoay vòng Màn 1 (0, 0) nhưng là Lớp 2 (ZIndex = 2 đè lên trên ô 1)
+        vm.AddSceneWindowCommand.Execute(null);
+        Assert.Equal(5, vm.SceneWindows.Count);
+        Assert.Equal(0, vm.SceneWindows[4].X);
+        Assert.Equal(0, vm.SceneWindows[4].Y);
+        Assert.Equal(2, vm.SceneWindows[4].ZIndex);
+
+        // Thêm ô 6 -> Xoay vòng Màn 2 (1920, 0), Lớp 2 (ZIndex = 2 đè lên trên ô 2)
+        vm.AddSceneWindowCommand.Execute(null);
+        Assert.Equal(6, vm.SceneWindows.Count);
+        Assert.Equal(1920, vm.SceneWindows[5].X);
+        Assert.Equal(0, vm.SceneWindows[5].Y);
+        Assert.Equal(2, vm.SceneWindows[5].ZIndex);
+
+        // Đã đạt MaxWindowNums = 6 -> CanExecute chuyển sang false
+        Assert.False(vm.AddSceneWindowCommand.CanExecute(null));
+
+        // Cố tình gọi thêm ô thứ 7 -> Bị chặn và hiển thị thông báo
+        vm.AddSceneWindowCommand.Execute(null);
+        Assert.Equal(6, vm.SceneWindows.Count);
+        Assert.Contains("tối đa giới hạn của thiết bị", vm.StatusMessage);
+
+        // Xoá bớt 1 ô -> CanExecute bật lại true
+        vm.SceneWindows.RemoveAt(5);
+        Assert.True(vm.AddSceneWindowCommand.CanExecute(null));
     }
 
     [Fact]
@@ -1006,6 +1085,44 @@ public class VwScenarioStoreTests : IDisposable
     }
 
     [Fact]
+    public void SceneWindowRow_SelectedSizePreset_MatchesUniformAndStandardSizes_Test()
+    {
+        // 1. Tường 1 (1920x1920) -> Phải map về 1x1 (1 Màn)
+        var row1 = new SceneWindowRow(new Module.VideoWall.WPF.Api.Dto.VwWindowSceneDto
+        {
+            W = 1920,
+            H = 1920,
+        });
+        Assert.NotNull(row1.SelectedSizePreset);
+        Assert.Equal("1x1 (1 Màn)", row1.SelectedSizePreset.Name);
+        Assert.Contains(row1.SelectedSizePreset, SceneWindowRow.AvailableSizePresets);
+
+        // 2. Chuẩn 1080p (1920x1080) -> Phải map về 1x1
+        var row2 = new SceneWindowRow(new Module.VideoWall.WPF.Api.Dto.VwWindowSceneDto
+        {
+            W = 1920,
+            H = 1080,
+        });
+        Assert.NotNull(row2.SelectedSizePreset);
+        Assert.Contains("1x1", row2.SelectedSizePreset.Name);
+        Assert.Contains(row2.SelectedSizePreset, SceneWindowRow.AvailableSizePresets);
+
+        // 3. Khối lớn 2x2 (3840x3840) -> Phải map về 2x2 (4 Màn lớn)
+        var row3 = new SceneWindowRow(new Module.VideoWall.WPF.Api.Dto.VwWindowSceneDto
+        {
+            W = 3840,
+            H = 3840,
+        });
+        Assert.NotNull(row3.SelectedSizePreset);
+        Assert.Equal("2x2 (4 Màn lớn)", row3.SelectedSizePreset.Name);
+
+        // 4. Đổi kích thước qua SelectedSizePreset -> W và H phải tự cập nhật
+        row1.SelectedSizePreset = SceneWindowRow.AvailableSizePresets.First(p => p.Name.StartsWith("2x1"));
+        Assert.Equal(3840, row1.W);
+        Assert.Equal(1080, row1.H);
+    }
+
+    [Fact]
     public void SceneSetupViewModel_CanPushToDevice_RequiresProbeResultAndWallNo_Test()
     {
         var recordingPub = new RecordingPublisherTest();
@@ -1053,6 +1170,56 @@ public class VwScenarioStoreTests : IDisposable
 
         sceneSetup.IsBusy = false;
         Assert.True(sceneSetup.PushToDeviceCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task SceneSetupViewModel_SaveAllSceneWindowsCommand_CanExecute_EnablesWhenWindowsExist_AndUpdatesOnRowChange_Test()
+    {
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true))
+        {
+            AdHocIp = "127.0.0.1",
+            AdHocPort = 18080,
+            AdHocAccount = "admin",
+            AdHocPassword = "Password123!",
+            WallNo = 1,
+        };
+        var sceneSetup = new SceneSetupViewModel(activityPub, connection, new UserConfirmationTest(true), recordingPub)
+        {
+            WallNo = 1,
+        };
+        sceneSetup.ReloadScenesForCurrentWall();
+
+        // Ban đầu khi có Scene và Windows -> CanExecute của Lưu cấu hình phải là true
+        Assert.NotNull(sceneSetup.CurrentScene);
+        Assert.True(sceneSetup.SceneWindows.Count > 0);
+        Assert.True(sceneSetup.SaveAllSceneWindowsCommand.CanExecute(null));
+
+        // Người dùng chọn màn hình bắt đầu khác (vd từ Màn 1 sang Màn 2)
+        var firstRow = sceneSetup.SceneWindows[0];
+        firstRow.SelectedStartScreen = new StartScreenPreset("Màn 2 (0, 1)", 1920, 0, 2, 0, 1);
+        Assert.Equal(1920, firstRow.X);
+        Assert.Equal(0, firstRow.Y);
+
+        // Nút Lưu cấu hình vẫn luôn sẵn sàng (CanExecute = true)
+        Assert.True(sceneSetup.SaveAllSceneWindowsCommand.CanExecute(null));
+
+        // Thực hiện lưu cấu hình
+        await sceneSetup.SaveAllSceneWindowsCommand.ExecuteAsync(null);
+        Assert.Contains("thành công", sceneSetup.StatusMessage);
+
+        // Khi IsBusy = true -> CanExecute = false
+        sceneSetup.IsBusy = true;
+        Assert.False(sceneSetup.SaveAllSceneWindowsCommand.CanExecute(null));
+
+        // Khi IsBusy = false -> CanExecute = true trở lại
+        sceneSetup.IsBusy = false;
+        Assert.True(sceneSetup.SaveAllSceneWindowsCommand.CanExecute(null));
+
+        // Khi CurrentScene = null -> CanExecute = false
+        sceneSetup.CurrentScene = null;
+        Assert.False(sceneSetup.SaveAllSceneWindowsCommand.CanExecute(null));
     }
 
     [Fact]
@@ -1625,6 +1792,129 @@ public class VwScenarioStoreTests : IDisposable
         // Tab 12: Cửa sổ (Index 11) -> Hiện Response
         mainVm.SelectedTabIndex = 11;
         Assert.True(mainVm.IsResponseVisible);
+    }
+
+    [Fact]
+    public void MainViewModel_FormatActivitiesAsJsonl_OutputsValidNewlineDelimitedJson_Test()
+    {
+        var now = DateTime.Now;
+        var activities = new List<EventTriggerLogEntry>
+        {
+            new(new Activity(now, "Khảo sát", "Bắt đầu khảo sát thiết bị", ActivityLevel.Info)),
+            new(
+                new Activity(now.AddSeconds(1), "ISAPI", "Gọi GET /ISAPI/System/deviceInfo", ActivityLevel.Success),
+                new VwSetupSceneStep
+                {
+                    Order = 1,
+                    Name = "GetDeviceInfo",
+                    Method = "GET",
+                    Endpoint = "ISAPI/System/deviceInfo",
+                    HttpStatus = 200,
+                    Success = true,
+                    Message = "200 OK",
+                    RequestXml = null,
+                    ResponseXml = """
+                        <DeviceInfo version="2.0">
+                          <deviceName>DS-C30S-S11</deviceName>
+                          <model>DS-C30S-S11</model>
+                        </DeviceInfo>
+                        """,
+                }
+            ),
+            new(
+                new Activity(now.AddSeconds(2), "Window", "Tạo cửa sổ mới", ActivityLevel.Success),
+                new VwSetupSceneStep
+                {
+                    Order = 2,
+                    Name = "AddWindow",
+                    Method = "POST",
+                    Endpoint = "ISAPI/DisplayDev/VideoWall/1/windows",
+                    HttpStatus = 200,
+                    Success = true,
+                    Message = "OK",
+                    RequestXml = """
+                        <WallWindow version="2.0">
+                          <id>1</id>
+                          <Rect><x>0</x><y>0</y><width>1920</width><height>1920</height></Rect>
+                        </WallWindow>
+                        """,
+                    ResponseXml = "<ResponseStatus><statusCode>1</statusCode><statusString>OK</statusString></ResponseStatus>",
+                }
+            ),
+        };
+
+        // Act
+        var jsonlOutput = MainViewModel.FormatActivitiesAsJsonl(activities);
+
+        // Assert 1: Output is NOT a JSON array (no leading [ or trailing ])
+        var trimmed = jsonlOutput.Trim();
+        Assert.False(trimmed.StartsWith("["));
+        Assert.False(trimmed.EndsWith("]"));
+
+        // Assert 2: Exactly 3 non-empty lines (one line per activity)
+        var lines = jsonlOutput.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(3, lines.Length);
+
+        // Assert 3: Each individual line is a valid, independently parseable JSON object
+        for (var i = 0; i < lines.Length; i++)
+        {
+            using var doc = JsonDocument.Parse(lines[i]);
+            var root = doc.RootElement;
+            Assert.Equal(JsonValueKind.Object, root.ValueKind);
+            Assert.True(root.TryGetProperty("Time", out _));
+            Assert.True(root.TryGetProperty("Stage", out var stageProp));
+            Assert.True(root.TryGetProperty("Level", out var levelProp));
+            Assert.True(root.TryGetProperty("Detail", out _));
+
+            if (i == 1)
+            {
+                Assert.Equal("ISAPI", stageProp.GetString());
+                Assert.Equal("GET", root.GetProperty("Method").GetString());
+                Assert.Equal("ISAPI/System/deviceInfo", root.GetProperty("Endpoint").GetString());
+                Assert.Equal(200, root.GetProperty("HttpStatus").GetInt32());
+                Assert.True(root.GetProperty("Success").GetBoolean());
+                // Newline in XML payload must be escaped, NOT breaking the single line
+                Assert.Contains("DS-C30S-S11", root.GetProperty("ResponsePayload").GetString());
+            }
+            else if (i == 2)
+            {
+                Assert.Equal("Window", stageProp.GetString());
+                Assert.Equal("POST", root.GetProperty("Method").GetString());
+                Assert.Contains("WallWindow", root.GetProperty("RequestPayload").GetString());
+            }
+        }
+    }
+
+    [Fact]
+    public void MainViewModel_FormatActivitiesAsJson_OutputsValidJsonArray_Test()
+    {
+        var now = DateTime.Now;
+        var activities = new List<EventTriggerLogEntry>
+        {
+            new(new Activity(now, "Init", "Ứng dụng khởi động", ActivityLevel.Info)),
+            new(
+                new Activity(now.AddSeconds(1), "ISAPI", "GET ISAPI/System/deviceInfo thành công", ActivityLevel.Success),
+                new VwSetupSceneStep
+                {
+                    Order = 1,
+                    Name = "DeviceInfo",
+                    Method = "GET",
+                    Endpoint = "ISAPI/System/deviceInfo",
+                    HttpStatus = 200,
+                    Success = true,
+                    Message = "OK",
+                    ResponseXml = "<DeviceInfo><model>DS-C30S-S11</model></DeviceInfo>",
+                }
+            ),
+        };
+
+        var jsonOutput = MainViewModel.FormatActivitiesAsJson(activities);
+        using var doc = JsonDocument.Parse(jsonOutput);
+        var root = doc.RootElement;
+        Assert.Equal(JsonValueKind.Array, root.ValueKind);
+        Assert.Equal(2, root.GetArrayLength());
+        Assert.Equal("Init", root[0].GetProperty("Stage").GetString());
+        Assert.Equal("ISAPI", root[1].GetProperty("Stage").GetString());
     }
 
     private sealed class FaultyHttpMessageHandlerTest(Exception exceptionToThrow) : HttpMessageHandler

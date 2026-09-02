@@ -674,8 +674,8 @@ public partial class VwISAPIMockServerHikvision
         if (method == "GET" && MatchRoute("ISAPI/DisplayDev/VideoWall", path))
         {
             GetVideoWallsCallCount++;
-            var wall1Status = SimulateMultipleBoundWalls ? "bound" : "unbound";
-            var wall2Status = SimulateNoBoundWall ? "unbound" : "bound";
+            var wall1Status = GetWallBindStatus("1");
+            var wall2Status = GetWallBindStatus("2");
             await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
                 <?xml version="1.0" encoding="UTF-8"?>
                 <VideoWallList version="2.0" xmlns="{{Ns}}">
@@ -953,14 +953,16 @@ public partial class VwISAPIMockServerHikvision
         if (method == "GET" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}", path, out var wallParams))
         {
             var wallId = wallParams["videoWallID"];
+            var wallStatus = GetWallBindStatus(wallId);
+            var wallName = wallId == "2" ? "HoangNhu" : $"VideoWall{wallId}";
             await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
                 <?xml version="1.0" encoding="UTF-8"?>
                 <VideoWall version="2.0" xmlns="{{Ns}}">
                   <id>{{wallId}}</id>
-                  <name>VideoWall{{wallId}}</name>
+                  <name>{{wallName}}</name>
                   <wndStaticMode>blackScreen</wndStaticMode>
                   <streamFailedMode>lastFrame</streamFailedMode>
-                  <wallBindOutputStatus>bound</wallBindOutputStatus>
+                  <wallBindOutputStatus>{{wallStatus}}</wallBindOutputStatus>
                 </VideoWall>
                 """);
             return true;

@@ -117,10 +117,23 @@ namespace Tests.Modules.VideoWall.MockServer
         public bool SimulateSerialOpenFailure { get; set; }
         public bool SimulateSerialSendFailure { get; set; }
         public bool SimulateNoBoundWall { get; set; }
-        public bool SimulateMultipleBoundWalls { get; set; }
+        public bool SimulateMultipleBoundWalls { get; set; } = true;
+        public bool SimulateWall1Unbound { get; set; }
+        public bool SimulateWall2Unbound { get; set; }
         public bool SimulateUnreachable { get; set; }
         public HashSet<int> SimulateUnreachablePorts { get; } = [];
         public bool SimulateMalformedXmlResponse { get; set; }
+
+        public string GetWallBindStatus(string wallId)
+        {
+            if (SimulateNoBoundWall)
+                return "unbound";
+            if (wallId == "1")
+                return (!SimulateWall1Unbound && SimulateMultipleBoundWalls) ? "bound" : "unbound";
+            if (wallId == "2")
+                return SimulateWall2Unbound ? "unbound" : "bound";
+            return "bound";
+        }
 
         // ─── Bộ đếm số lần gọi API ───
         public int UserCheckCallCount { get; private set; }
@@ -242,7 +255,9 @@ namespace Tests.Modules.VideoWall.MockServer
             SimulateSerialOpenFailure = false;
             SimulateSerialSendFailure = false;
             SimulateNoBoundWall = false;
-            SimulateMultipleBoundWalls = false;
+            SimulateMultipleBoundWalls = true;
+            SimulateWall1Unbound = false;
+            SimulateWall2Unbound = false;
             SimulateUnreachable = false;
             SimulateUnreachablePorts.Clear();
             SimulateMalformedXmlResponse = false;

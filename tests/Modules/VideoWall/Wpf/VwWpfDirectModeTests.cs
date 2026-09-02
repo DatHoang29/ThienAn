@@ -265,6 +265,45 @@ public class VwWpfDirectModeTests
         Assert.Contains("SaveData = false", saveStep.Message);
     }
 
+    [Fact]
+    public async Task DirectMode_VideoWall_ConsistencyBetweenListAndSingleWallEndpoints_Test()
+    {
+        var (client, mockServer) = BuildDirectClient(18145);
+        using (mockServer)
+        {
+            var isApiClient = BuildIsapiClient(18145);
+
+            // 1. GET ISAPI/DisplayDev/VideoWall (List)
+            var listResult = await isApiClient.GetVideoWalls(default);
+            Assert.True(listResult.Success);
+            Assert.NotNull(listResult.Data?.VideoWall);
+            Assert.Equal(2, listResult.Data.VideoWall.Count);
+
+            var wall1FromList = listResult.Data.VideoWall.First(w => w.Id == 1);
+            Assert.Equal("bound", wall1FromList.WallBindOutputStatus);
+            Assert.True(wall1FromList.IsBound);
+
+            // 2. GET ISAPI/DisplayDev/VideoWall/1 (Single Wall)
+            var singleResult = await client.SendIsapi("GET", "ISAPI/DisplayDev/VideoWall/1", null, null);
+            Assert.True(singleResult.Success);
+            Assert.Contains("<wallBindOutputStatus>bound</wallBindOutputStatus>", singleResult.ResponseXml);
+
+            // 3. Response Summary Badges for Single Wall
+            var summary = VwIsapiResponseSummary.Parse(singleResult.ResponseXml);
+            Assert.True(summary.HasResponse);
+            Assert.Equal("VideoWall", summary.RootElement);
+            Assert.Contains(summary.Badges, b => b.Contains("Tường #1: VideoWall1"));
+            Assert.Contains(summary.Badges, b => b.Contains("bound"));
+
+            // 4. Response Summary Badges for List
+            var listSummary = VwIsapiResponseSummary.Parse(listResult.RawResponse);
+            Assert.True(listSummary.HasResponse);
+            Assert.Equal("VideoWallList", listSummary.RootElement);
+            Assert.Contains(listSummary.Badges, b => b.Contains("2 Tường"));
+            Assert.Contains(listSummary.Badges, b => b.Contains("2 bound"));
+        }
+    }
+
     /// <summary>
     /// Author: Đạt
     /// Description: Thiết bị từ chối Digest Auth khi sai thông tin đăng nhập, trả về kết quả thất bại mà không ném ngoại lệ.
@@ -872,9 +911,84 @@ public class VwWpfDirectModeTests
             Assert.Equal(200, step.HttpStatus);
             Assert.NotNull(step.ResponseXml);
             Assert.Contains("BINARY IMAGE DATA", step.ResponseXml);
-            Assert.Contains("image/jpeg", step.ResponseXml);
             Assert.Contains("[data:image/jpeg;base64,", step.ResponseXml);
         }
+    }
+
+    [Fact]
+    public void VwIsapiFormViewModel_TwoWayBinding_ExtractsParametersFromEndpointString_Test()
+    {
+        // 1. Single param: VideoWall ({videoWallID})
+        var wallPreset = VwIsapiPresetList.Presets.First(p => p.Section == "9.7.5.4");
+        var wallForm = new VwIsapiFormViewModel(wallPreset);
+        var wallField = wallForm.PathFields.First(f => f.Definition.Key == "videoWallID");
+        Assert.Equal("1", wallField.Value);
+
+        // Edit endpoint path -> extracts param
+        var updated = wallForm.TryExtractPathParameters("ISAPI/DisplayDev/VideoWall/2");
+        Assert.True(updated);
+        Assert.Equal("2", wallField.Value);
+        Assert.Equal("ISAPI/DisplayDev/VideoWall/2", wallForm.BuildPath());
+
+        // 2. Multi param: Window ({videoWallID} and {VWMWID})
+        var winPreset = VwIsapiPresetList.Presets.First(p => p.Section == "9.7.11.5");
+        var winForm = new VwIsapiFormViewModel(winPreset);
+        var winWallField = winForm.PathFields.First(f => f.Definition.Key == "videoWallID");
+        var winIdField = winForm.PathFields.First(f => f.Definition.Key == "VWMWID");
+
+        // Edit endpoint path -> extracts both params
+        var winUpdated = winForm.TryExtractPathParameters("ISAPI/DisplayDev/VideoWall/3/windows/33554433");
+        Assert.True(winUpdated);
+        Assert.Equal("3", winWallField.Value);
+        Assert.Equal("33554433", winIdField.Value);
+        Assert.Equal("ISAPI/DisplayDev/VideoWall/3/windows/33554433", winForm.BuildPath());
+
+        // 3. Channel param: Input Picture ({channelID})
+        var picPreset = VwIsapiPresetList.Presets.First(p => p.Section == "9.7.4.18");
+        var picForm = new VwIsapiFormViewModel(picPreset);
+        var chanField = picForm.PathFields.First(f => f.Definition.Key == "channelID");
+
+        var picUpdated = picForm.TryExtractPathParameters("ISAPI/DisplayDev/Video/inputs/channels/16842754/picture");
+        Assert.True(picUpdated);
+        Assert.Equal("16842754", chanField.Value);
+        Assert.Equal("ISAPI/DisplayDev/Video/inputs/channels/16842754/picture", picForm.BuildPath());
+    }
+
+    [Fact]
+    public void ConnectionViewModel_TwoWayBinding_SyncsBetweenIsapiPathAndFormFields_Test()
+    {
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, Microsoft.Extensions.Logging.Abstractions.NullLogger<ActivityPublisher>.Instance);
+        var connVm = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true));
+
+        // Select Window preset (9.7.11.5: ISAPI/DisplayDev/VideoWall/{videoWallID}/windows/{VWMWID})
+        var preset = VwIsapiPresetList.Presets.First(p => p.Section == "9.7.11.5");
+        connVm.SelectedIsapiPreset = preset;
+
+        Assert.NotNull(connVm.ActiveIsapiForm);
+        Assert.Equal("ISAPI/DisplayDev/VideoWall/1/windows/1", connVm.IsapiPath);
+
+        var wallField = connVm.ActiveIsapiForm.PathFields.First(f => f.Definition.Key == "videoWallID");
+        var winField = connVm.ActiveIsapiForm.PathFields.First(f => f.Definition.Key == "VWMWID");
+        Assert.Equal("1", wallField.Value);
+        Assert.Equal("1", winField.Value);
+
+        // 1. Direction: Edit IsapiPath directly -> Form fields update automatically
+        connVm.IsapiPath = "ISAPI/DisplayDev/VideoWall/2/windows/33554433";
+        Assert.Equal("2", wallField.Value);
+        Assert.Equal("33554433", winField.Value);
+
+        // 2. Direction: Edit Form fields -> IsapiPath updates automatically
+        wallField.Value = "4";
+        Assert.Equal("ISAPI/DisplayDev/VideoWall/4/windows/33554433", connVm.IsapiPath);
+
+        winField.Value = "999";
+        Assert.Equal("ISAPI/DisplayDev/VideoWall/4/windows/999", connVm.IsapiPath);
+
+        // 3. Change Header WallNo -> Form field and IsapiPath update automatically
+        connVm.WallNo = 5;
+        Assert.Equal("5", wallField.Value);
+        Assert.Equal("ISAPI/DisplayDev/VideoWall/5/windows/999", connVm.IsapiPath);
     }
 
     private static VwDirectISAPIClient BuildIsapiClient(int port)

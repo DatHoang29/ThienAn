@@ -184,4 +184,56 @@ public class VwIsapiResponseSummaryTests
         Assert.Contains(summary.Badges, b => b.Contains("Ảnh JPEG"));
         Assert.Contains(summary.Badges, b => b.Contains("1,024 bytes"));
     }
+
+    [Fact]
+    public void Parse_VideoWall_SingleWall_ExtractsBoundStatusAndBadges_Test()
+    {
+        const string xml = """
+            <VideoWall xmlns="http://www.isapi.org/ver20/XMLSchema" version="2.0">
+              <id>1</id>
+              <name>VideoWall1</name>
+              <wndStaticMode>blackScreen</wndStaticMode>
+              <streamFailedMode>lastFrame</streamFailedMode>
+              <wallBindOutputStatus>bound</wallBindOutputStatus>
+            </VideoWall>
+            """;
+
+        var summary = VwIsapiResponseSummary.Parse(xml);
+
+        Assert.True(summary.HasResponse);
+        Assert.True(summary.IsSuccess);
+        Assert.Equal("200 OK", summary.StatusBadge);
+        Assert.Equal("VideoWall", summary.RootElement);
+        Assert.Contains(summary.Badges, b => b.Contains("Tường #1: VideoWall1"));
+        Assert.Contains(summary.Badges, b => b.Contains("bound"));
+    }
+
+    [Fact]
+    public void Parse_VideoWallList_ExtractsTotalAndBoundCount_Test()
+    {
+        const string xml = """
+            <VideoWallList xmlns="http://www.isapi.org/ver20/XMLSchema" version="2.0">
+              <VideoWall>
+                <id>1</id>
+                <name>VideoWall1</name>
+                <wallBindOutputStatus>bound</wallBindOutputStatus>
+              </VideoWall>
+              <VideoWall>
+                <id>2</id>
+                <name>HoangNhu</name>
+                <wallBindOutputStatus>bound</wallBindOutputStatus>
+              </VideoWall>
+            </VideoWallList>
+            """;
+
+        var summary = VwIsapiResponseSummary.Parse(xml);
+
+        Assert.True(summary.HasResponse);
+        Assert.True(summary.IsSuccess);
+        Assert.Equal("200 OK", summary.StatusBadge);
+        Assert.Equal(2, summary.TotalItems);
+        Assert.Equal(2, summary.NormalCount);
+        Assert.Contains(summary.Badges, b => b.Contains("2 Tường"));
+        Assert.Contains(summary.Badges, b => b.Contains("2 bound"));
+    }
 }

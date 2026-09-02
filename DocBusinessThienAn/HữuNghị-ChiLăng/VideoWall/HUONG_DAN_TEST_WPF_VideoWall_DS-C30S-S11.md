@@ -106,7 +106,11 @@ Header WPF: **IP** `127.0.0.1` · **Port** `18080` · **Account** `admin` · **P
 
 > Thứ tự chạy đề xuất (KB P7): `01 → 02 → 04 → 03 → 05…12 → 13/14/15 → 16 → 18/19/20 → 17`.
 
+> **20 KB = nghiệm thu từng khả năng của controller** — từ "kết nối được" → "dựng được bố cục bất kỳ" → "lưu thành kịch bản" → "phát lại bằng 1 lệnh" → "hẹn giờ tự đổi". Chạy hết = chứng minh app điều khiển đầy đủ tường 12 màn. Mỗi KB bắt đầu bằng dòng **🎯 Mục đích** (KB đó chứng minh khả năng thực tế nào), rồi mới tới các bước API.
+
 ### KB‑01 — Kết nối & năng lực
+
+**🎯 Mục đích:** máy tính **nói chuyện được** với controller + đọc được "nó làm được gì" (số cửa sổ / scene tối đa, có chia ô / roam / plan không). Không có bước này → mọi KB sau vô nghĩa.
 
 - `Header · Kết nối` — chạy `userCheck`: đăng nhập Digest, kiểm tài khoản đúng & đủ quyền
 - `Header · Probe` — chạy `capabilities` + `GET /ISAPI/DisplayDev/VideoWall` (danh sách tường) + `{wall}/outputs` + `inputs/channels`
@@ -117,6 +121,8 @@ Header WPF: **IP** `127.0.0.1` · **Port** `18080` · **Account** `admin` · **P
 - ⚠️ Mock: 2 tường (`id=1` unbound, `id=2` bound) → Probe **tự chọn** `WallNo=1`; Outputs/Inputs = 2.
 
 ### KB‑02 — Lấy ID output / input
+
+**🎯 Mục đích:** đọc được danh sách **12 màn + các camera** kèm **ID thật** (không đoán `1..12`). Mọi lệnh sau đều cần ID này.
 
 - `T4 · 9.7.3.4` — `GET .../Video/outputs/channels`: liệt kê 12 cổng HDMI ra màn — mỗi cổng có `id` thật (dùng ở KB‑03), độ phân giải, đã cắm màn hay chưa
 - `T4 · 9.7.3.7` — `GET .../outputs/channels/{channelID}/capabilities`: 1 cổng ra đó **cho đặt** những độ phân giải / tần số quét nào (đọc trước khi định cấu hình cổng)
@@ -129,6 +135,8 @@ Header WPF: **IP** `127.0.0.1` · **Port** `18080` · **Account** `admin` · **P
 
 ### KB‑03 — Gán 12 output vào lưới 4×3
 
+**🎯 Mục đích:** sắp 12 màn vật lý thành **1 tường 4×3 liền mạch**. Bước "lắp đặt tường", làm 1 lần khi mới đấu nối.
+
 1. `T6 · 9.7.5.5` — `GET .../VideoWall/{videoWallID}/outputs`: xem lưới hiện tại — cổng ra nào đang ở ô nào, toạ độ nào
 2. `T6 · 9.7.5.3` — `PUT .../VideoWall/{videoWallID}`: **dựng lưới tường** — khai báo cổng ra nào đặt ở ô nào (`Rect`); đây là bước tạo bố cục 4×3 (body `WallOutputList`, sample `VideoWallPut`, ô `1920×1920`; HW thật thay ID thật từ KB‑02)
 3. `T6 · 9.7.5.5` — đọc lại để verify
@@ -138,6 +146,8 @@ Header WPF: **IP** `127.0.0.1` · **Port** `18080` · **Account** `admin` · **P
 
 ### KB‑04 — Đọc bố cục hiện tại (chỉ GET, an toàn)
 
+**🎯 Mục đích:** xem tường **đang hiển thị gì** (cửa sổ nào, nguồn nào, ô nào) — biết trạng thái trước khi can thiệp + để rollback.
+
 - `T6 · 9.7.5.4` — `GET .../VideoWall/{videoWallID}`: thông tin chung của tường — đang gán màn (`bound`) hay trống (`unbound`), tên, kích thước
 - `T6 · 9.7.5.5` — `GET .../VideoWall/{videoWallID}/outputs`: bố cục lưới — ô nào ↔ cổng ra nào
 - `T12 · 9.7.11.2` — `GET .../VideoWall/{videoWallID}/windows`: liệt kê các cửa sổ đang mở — mỗi cái có `VWMWID` (id), vùng phủ, lớp `layerIdx`, nguồn đang chiếu
@@ -146,6 +156,8 @@ Header WPF: **IP** `127.0.0.1` · **Port** `18080` · **Account** `admin` · **P
 - ⚠️ Mock: `9.7.11.2` trả danh sách window **tĩnh**
 
 ### KB‑05 — Mở 1 cửa sổ phủ 1 màn + gán nguồn
+
+**🎯 Mục đích:** đưa **1 camera lên 1 màn cụ thể** — thao tác NỀN TẢNG; mọi bố cục phức tạp đều là nhiều lần KB‑05.
 
 **Nhanh (Tab 1):** ➕ Tạo mới scene → sub‑tab "🖼️ Bố cục Ô Camera" → ➕ Thêm ô camera (hoặc **Mẫu bố cục**) → 💾 Lưu → **🚀 Đẩy xuống thiết bị**. *(cần Probe trước — chưa Probe thì nút 🚀 xám)*
 
@@ -162,9 +174,13 @@ Header WPF: **IP** `127.0.0.1` · **Port** `18080` · **Account** `admin` · **P
 
 ### KB‑06 — Cửa sổ phủ nhiều màn
 
+**🎯 Mục đích:** **1 camera / bản đồ trải qua nhiều màn** (2×2 hoặc cả 12) — "composite window", đúng câu hỏi "1 controller phủ nhiều màn".
+
 Như KB‑05, **chỉ đổi `Rect`** (cần `isSupportRoam=true`): khối 2×2 = `3840×3840`; toàn tường = `7680×5760`.
 
 ### KB‑07 — Đổi nguồn 1 cửa sổ
+
+**🎯 Mục đích:** **đổi camera trong 1 ô** đang chiếu mà không xoá/dựng lại — trực ban "chuyển cam" nhanh.
 
 1. `T12 · 9.7.11.18` — `PUT .../windows/{VWMWID}/sub/{VWSWID}`: đổi nguồn đang chiếu trong 1 cửa sổ sang camera / PC khác — chỉ sửa `videoInputChannelID`, không đụng vị trí (sample `SubWindowSource`)
 2. `T3 · 9.7.2.6` — `GET .../sub/{VWSWID}/status`: verify nguồn mới
@@ -174,6 +190,8 @@ Như KB‑05, **chỉ đổi `Rect`** (cần `isSupportRoam=true`): khối 2×2 
 
 ### KB‑08 — Di chuyển / resize
 
+**🎯 Mục đích:** **kéo–thả / phóng to–thu nhỏ** cửa sổ. Cần cho kịch bản "sự cố → phóng to 1 cam".
+
 1. `T12 · 9.7.11.6` — `PUT .../windows/{VWMWID}`: **di chuyển / phóng to‑thu nhỏ** cửa sổ — gửi `Rect` (x, y, rộng, cao) mới
 2. `T12 · 9.7.11.5` — `GET .../windows/{VWMWID}`: đọc lại 1 cửa sổ xem `Rect` đã đổi đúng chưa
 
@@ -182,6 +200,8 @@ Như KB‑05, **chỉ đổi `Rect`** (cần `isSupportRoam=true`): khối 2×2 
 - ⚠️ Mock: GET vẫn dữ liệu tĩnh (không thấy `Rect` mới)
 
 ### KB‑09 — Z‑order
+
+**🎯 Mục đích:** khi 2 cửa sổ **chồng nhau**, chọn cái nào nằm trên — cần cho kịch bản "cửa sổ chồng nhau" / PiP.
 
 1. `T12 · 9.7.11.14` — `GET .../windows/capabilities`: kiểm tường có cho đổi lớp cửa sổ không (`isSupportWinTopBottom`)
 2. `T12 · 9.7.11.13` — `PUT .../windows/{VWMWID}/top`: **đưa cửa sổ này lên trên cùng** (che các cửa sổ khác)
@@ -193,6 +213,8 @@ Như KB‑05, **chỉ đổi `Rect`** (cần `isSupportRoam=true`): khối 2×2 
 
 ### KB‑10 — Chia 1 cửa sổ thành 4 / 9 / 16 ô
 
+**🎯 Mục đích:** **chia 1 khung thành 4/9/16 ô nhỏ**, mỗi ô 1 cam — xem nhiều cam trong 1 vùng ("sub window").
+
 1. `T12 · 9.7.11.6` — `PUT .../windows/{VWMWID}`: **chia 1 cửa sổ thành lưới con** — `windowMode=4/9/16` + khai báo từng ô con (`SubWindow`) + nguồn của mỗi ô
 2. `T3 · 9.7.2.5` — `PUT .../sub/{VWSWID}/start`: bật chiếu cho từng ô con (`VWSWID` = 1..4)
 
@@ -200,6 +222,8 @@ Như KB‑05, **chỉ đổi `Rect`** (cần `isSupportRoam=true`): khối 2×2 
 - ⚠️ Mock: không dựng sub‑window thật
 
 ### KB‑11 — Start / Stop decoding
+
+**🎯 Mục đích:** **bật/tắt "chiếu"** từng cửa sổ + đọc nó chiếu tốt hay lỗi (FPS, mất tín hiệu). Đây là bước làm cửa sổ **CÓ HÌNH** (mở cửa sổ ở KB‑05 mới chỉ tạo khung đen).
 
 - `T3 · 9.7.2.5` — `PUT .../sub/{VWSWID}/start`: **bật chiếu** 1 ô cửa sổ (bắt đầu giải mã nguồn)
 - `T3 · 9.7.2.7` — `PUT .../sub/{VWSWID}/stop`: **tắt chiếu** 1 ô (cửa sổ vẫn còn, chỉ thành đen)
@@ -211,11 +235,15 @@ Như KB‑05, **chỉ đổi `Rect`** (cần `isSupportRoam=true`): khối 2×2 
 
 ### KB‑12 — Xoá cửa sổ
 
+**🎯 Mục đích:** **gỡ 1 cửa sổ / dọn sạch tường** — cần để làm lại từ đầu.
+
 - `T12 · 9.7.11.7` — `DELETE .../windows/{VWMWID}`: **đóng 1 cửa sổ** (gỡ khỏi tường)
 - `T12 · 9.7.11.3` — `DELETE .../windows`: **đóng hết mọi cửa sổ** trên tường (không hoàn tác — cũng là cách "làm sạch tường" trước khi test lại)
 - ⚠️ Mock: `GET .../windows` không phản ánh xoá
 
 ### KB‑13 — Tạo scene & lưu bố cục
+
+**🎯 Mục đích:** **"chụp" nguyên trạng tường thành 1 kịch bản có tên**, lưu vào thiết bị → gọi lại sau bằng 1 lệnh (KB‑14).
 
 1. `T8 · 9.7.7.5` — `GET .../scene/capabilities`: hỏi lưu được tối đa mấy scene (`maxSceneNums`), có hỗ trợ export/import không
 2. `T8 · 9.7.7.1` — `GET .../scene`: liệt kê các scene đã lưu (`id` + tên)
@@ -229,6 +257,8 @@ Như KB‑05, **chỉ đổi `Rect`** (cần `isSupportRoam=true`): khối 2×2 
 
 ### KB‑14 — Phát scene lên tường (chạy đủ Mock + HW)
 
+**🎯 Mục đích:** **gọi 1 kịch bản đã lưu** → thiết bị tự dựng lại toàn bộ. Đây là cái trực ban dùng hằng ngày (chọn + kích hoạt).
+
 1. `T8 · 9.7.7.6` — `GET .../scene/isRunning`: hỏi tường **đang chiếu scene nào** (`sceneID`), hay không có
 2. `T8 · 9.7.7.1` — `GET .../scene`: xác nhận `SID` cần phát còn tồn tại
 3. `T8 · 9.7.7.3` — `PUT .../scene/{SID}/activate`: **phát scene `SID` lên tường** — thiết bị tự dựng lại toàn bộ cửa sổ theo scene đã lưu (**không body, không Content‑Type**; hoặc nút **⚡ Kích hoạt chiếu** T1)
@@ -239,6 +269,8 @@ Như KB‑05, **chỉ đổi `Rect`** (cần `isSupportRoam=true`): khối 2×2 
 - HW thật: gặp `inSceneSwitchingPleaseDoNotOperate (0x4000A1AB)` → **không gọi lệnh nào khác**, chờ, verify bằng `isRunning`, **không retry activate**
 
 ### KB‑15 — Quản lý scene
+
+**🎯 Mục đích:** **liệt kê / đổi tên / xoá / backup / nhân bản** kịch bản.
 
 | Việc | Preset (T8) — API |
 |---|---|
@@ -253,6 +285,8 @@ Như KB‑05, **chỉ đổi `Rect`** (cần `isSupportRoam=true`): khối 2×2 
 
 ### KB‑16 — Poll trạng thái (chạy tốt trên Mock)
 
+**🎯 Mục đích:** **theo dõi liên tục** — cửa sổ nào mất hình, màn nào rớt cáp, bo mạch nào nóng / vừa reboot. Cho màn giám sát sức khoẻ hệ thống.
+
 | Preset — API | Nhịp | Đọc gì |
 |---|---|---|
 | `T3 · 9.7.2.8` `GET .../windows/status` | 3–5s | mọi cửa sổ đang chiếu ra sao (giải mã, FPS, mất tín hiệu) |
@@ -265,6 +299,8 @@ Như KB‑05, **chỉ đổi `Rect`** (cần `isSupportRoam=true`): khối 2×2 
 
 ### KB‑17 — Tắt màn hình ⛔ CHẠY CUỐI CÙNG (không có API bật lại)
 
+**🎯 Mục đích:** **tắt nguồn màn qua lệnh** (tiết kiệm điện ngoài giờ). ⛔ Không có lệnh bật lại qua mạng → chạy cuối cùng.
+
 - `T9 · 9.7.8.1` — `PUT /ISAPI/DisplayDev/ScreenCtrl/closeAll`: **gửi lệnh tắt nguồn màn hình** qua cổng serial — body `<OutputID>` (1 màn) / `<VideoWallID>` (cả tường) / rỗng (tất cả)
 - `T2 · SYS-4` — `GET .../System/Serial/ports`: liệt kê các cổng RS‑232/485 trên thiết bị
 - `T2 · SYS-5` — `GET .../System/Serial/ports/capabilities`: 1 cổng serial hỗ trợ baud rate / chế độ (`workMode`) nào
@@ -274,6 +310,8 @@ Như KB‑05, **chỉ đổi `Rect`** (cần `isSupportRoam=true`): khối 2×2 
 
 ### KB‑18 — Crop nguồn
 
+**🎯 Mục đích:** **cắt viền 1 nguồn / ghép 4 cam thành 1 khung 2×2** — khi cần khung hình lớn hơn 1 cam.
+
 1. `T5 · 9.7.4.17` — `GET .../inputs/channels/{channelID}/cutOff/capabilities`: nguồn này có cho **cắt viền ảnh** không, cắt tối đa bao nhiêu pixel mỗi cạnh
 2. `T5 · 9.7.4.15` — `GET .../inputs/channels/{channelID}/cutOff`: đang cắt viền bao nhiêu (trái / phải / trên / dưới)
 3. `T5 · 9.7.4.16` — `PUT .../inputs/channels/{channelID}/cutOff`: **đặt số pixel cắt mỗi cạnh** (trái/phải/trên/dưới), miền `[0,30]`
@@ -281,6 +319,8 @@ Như KB‑05, **chỉ đổi `Rect`** (cần `isSupportRoam=true`): khối 2×2 
 - Ghép nhiều cổng vào thành 1 nguồn lớn (vd 4 camera → 1 khung 2×2): `T5 · 9.7.4.24` `GET .../inputs/joinSignal` (xem cấu hình ghép hiện tại) · `9.7.4.27` `GET …/joinSignal/capabilities` (ghép được kiểu nào) · `9.7.4.25` `PUT …/joinSignal/{channelID}` (đặt cách ghép cho 1 cổng)
 
 ### KB‑19 — Plan (lịch tự động)
+
+**🎯 Mục đích:** **hẹn giờ tự đổi kịch bản** (6h scene A, 18h scene B, khuya tắt màn) — không cần người bấm.
 
 1. `T2 · SYS-3` — `GET ISAPI/System/time`: đọc / đặt đồng hồ thiết bị 🔴 đồng bộ trước (lệch giờ → plan chạy sai giờ)
 2. `T7 · 9.7.6.3` — `GET .../plan/capabilities`: tạo được tối đa mấy plan (`maxPlanNums`), hỗ trợ loại hành động nào
@@ -293,6 +333,8 @@ Như KB‑05, **chỉ đổi `Rect`** (cần `isSupportRoam=true`): khối 2×2 
 - ✅ POST trả `<ID>`; `start` → `isRunning` báo `planID`; `stop` → hết chạy
 
 ### KB‑20 — Virtual LED / Wallpaper
+
+**🎯 Mục đích:** **chèn dòng chữ chạy + ảnh nền** lên tường.
 
 **Virtual LED (T10)** — dòng chữ chạy đè lên tường:
 - `9.7.9.8` `GET .../virtualLED/capabilities` (tạo được mấy dòng, font / màu / tốc độ nào) · `9.7.9.7` `GET .../virtualLED/{SubtitlesID}/capabilities` (giới hạn của 1 dòng)
