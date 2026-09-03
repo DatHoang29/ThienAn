@@ -2203,6 +2203,117 @@ public class VwScenarioStoreTests : IDisposable
     }
 
     [Fact]
+    public void MainViewModel_AppendSessionLogRecord_MaintainsValidJsonArrayForPrettier_Test()
+    {
+        // Arrange
+        var tempFile = Path.Combine(Path.GetTempPath(), $"test_session_{Guid.NewGuid():N}.json");
+
+        try
+        {
+            var record1 = JsonSerializer.Serialize(new
+            {
+                Time = "2026-09-03 08:00:00.000",
+                Stage = "Direct",
+                Method = "GET",
+                Endpoint = "ISAPI/System/deviceInfo",
+                HttpStatus = 200,
+                Success = true,
+            });
+
+            var record2 = JsonSerializer.Serialize(new
+            {
+                Time = "2026-09-03 08:00:01.000",
+                Stage = "Direct",
+                Method = "POST",
+                Endpoint = "ISAPI/DisplayDev/VideoWall/v20/walls/1/plans",
+                HttpStatus = 200,
+                Success = true,
+            });
+
+            var record3 = JsonSerializer.Serialize(new
+            {
+                Time = "2026-09-03 08:00:02.000",
+                Stage = "Direct",
+                Method = "PUT",
+                Endpoint = "ISAPI/DisplayDev/VideoWall/v20/walls/1/scenes/1",
+                HttpStatus = 200,
+                Success = true,
+            });
+
+            // Act 1: Ghi bản ghi đầu tiên vào file chưa tồn tại
+            MainViewModel.AppendSessionLogRecord(tempFile, record1);
+
+            // Assert 1: File sinh ra là JSON Array hợp lệ với 1 phần tử
+            var json1 = File.ReadAllText(tempFile, Encoding.UTF8);
+            using (var doc1 = JsonDocument.Parse(json1))
+            {
+                Assert.Equal(JsonValueKind.Array, doc1.RootElement.ValueKind);
+                Assert.Equal(1, doc1.RootElement.GetArrayLength());
+                Assert.Equal("GET", doc1.RootElement[0].GetProperty("Method").GetString());
+            }
+
+            // Act 2: Nối tiếp bản ghi thứ hai vào file đang có
+            MainViewModel.AppendSessionLogRecord(tempFile, record2);
+
+            // Assert 2: File tiếp tục là JSON Array hợp lệ với 2 phần tử
+            var json2 = File.ReadAllText(tempFile, Encoding.UTF8);
+            using (var doc2 = JsonDocument.Parse(json2))
+            {
+                Assert.Equal(JsonValueKind.Array, doc2.RootElement.ValueKind);
+                Assert.Equal(2, doc2.RootElement.GetArrayLength());
+                Assert.Equal("GET", doc2.RootElement[0].GetProperty("Method").GetString());
+                Assert.Equal("POST", doc2.RootElement[1].GetProperty("Method").GetString());
+            }
+
+            // Act 3: Giả lập người dùng chạy Prettier trong VS Code làm file có thụt dòng đẹp (pretty-printed)
+            var prettyJson = JsonSerializer.Serialize(
+                JsonSerializer.Deserialize<JsonElement>(json2),
+                new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(tempFile, prettyJson, Encoding.UTF8);
+
+            // Nối tiếp bản ghi thứ ba sau khi đã bị Prettier format
+            MainViewModel.AppendSessionLogRecord(tempFile, record3);
+
+            // Assert 3: File sau khi bị Prettier format vẫn duy trì cấu trúc JSON Array hợp lệ với 3 phần tử
+            var json3 = File.ReadAllText(tempFile, Encoding.UTF8);
+            using (var doc3 = JsonDocument.Parse(json3))
+            {
+                Assert.Equal(JsonValueKind.Array, doc3.RootElement.ValueKind);
+                Assert.Equal(3, doc3.RootElement.GetArrayLength());
+                Assert.Equal("PUT", doc3.RootElement[2].GetProperty("Method").GetString());
+            }
+
+            // Act 4: Kiểm tra khả năng tự động di chuyển (migration) từ định dạng cũ (JSONL từng dòng không có ngoặc [])
+            var legacyJsonlFile = Path.Combine(Path.GetTempPath(), $"test_legacy_{Guid.NewGuid():N}.json");
+            try
+            {
+                File.WriteAllText(legacyJsonlFile, record1 + Environment.NewLine + record2 + Environment.NewLine, Encoding.UTF8);
+
+                // Nối tiếp bản ghi mới vào file dạng legacy
+                MainViewModel.AppendSessionLogRecord(legacyJsonlFile, record3);
+
+                var migratedJson = File.ReadAllText(legacyJsonlFile, Encoding.UTF8);
+                using var docMigrated = JsonDocument.Parse(migratedJson);
+                Assert.Equal(JsonValueKind.Array, docMigrated.RootElement.ValueKind);
+                Assert.Equal(3, docMigrated.RootElement.GetArrayLength());
+                Assert.Equal("GET", docMigrated.RootElement[0].GetProperty("Method").GetString());
+                Assert.Equal("POST", docMigrated.RootElement[1].GetProperty("Method").GetString());
+                Assert.Equal("PUT", docMigrated.RootElement[2].GetProperty("Method").GetString());
+            }
+            finally
+            {
+                if (File.Exists(legacyJsonlFile))
+                    File.Delete(legacyJsonlFile);
+            }
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+                File.Delete(tempFile);
+        }
+    }
+
+    [Fact]
     public void SceneSetupViewModel_EditingAdHocIp_DoesNotResetOrOverwriteCurrentScene_Test()
     {
         // Arrange
