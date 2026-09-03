@@ -2187,6 +2187,61 @@ public class VwScenarioStoreTests : IDisposable
         Assert.Equal("ISAPI", root[1].GetProperty("Stage").GetString());
     }
 
+    [Fact]
+    public void SceneSetupViewModel_EditingAdHocIp_DoesNotResetOrOverwriteCurrentScene_Test()
+    {
+        // Arrange
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true))
+        {
+            AdHocIp = "127.0.0.1",
+            WallNo = 1,
+        };
+        var sceneSetup = new SceneSetupViewModel(activityPub, connection, new UserConfirmationTest(true), recordingPub);
+
+        var customScene = new Module.VideoWall.WPF.Api.Dto.VwSceneDto
+        {
+            ID = "custom_scene_01",
+            Name = "Kịch bản tùy chỉnh đặc biệt của người dùng",
+        };
+        sceneSetup.Scenes.Add(customScene);
+        sceneSetup.CurrentScene = customScene;
+
+        // Act: Người dùng gõ hoặc copy-paste IP mới vào ô AdHocIp
+        connection.AdHocIp = "10.10.8.113";
+
+        // Assert: Kịch bản đang chọn không bị tự ý đổi hay ghi đè
+        Assert.NotNull(sceneSetup.CurrentScene);
+        Assert.Equal("custom_scene_01", sceneSetup.CurrentScene.ID);
+        Assert.Equal("Kịch bản tùy chỉnh đặc biệt của người dùng", sceneSetup.CurrentScene.Name);
+    }
+
+    [Fact]
+    public async Task VwISAPIMockServerHikvision_Start_ConnectingViaLocalLanIp_10_10_8_113_Succeeds_Test()
+    {
+        // Arrange
+        const int port = 18098;
+        using var mockServer = new VwISAPIMockServerHikvision();
+
+        // Act: Start mock server
+        mockServer.Start(port);
+
+        // Assert: Kết nối trực tiếp bằng IP card mạng LAN của máy cục bộ ("10.10.8.113") phải thành công 100%
+        var creds = new VwDirectDeviceCredentials("10.10.8.113", port, "admin", "Password123!");
+        var client = VwDirectClientFactory.CreateISAPIClient(creds);
+
+        var userCheckRes = await client.UserCheck(CancellationToken.None);
+        Assert.True(userCheckRes.Success);
+        Assert.Equal(System.Net.HttpStatusCode.OK, userCheckRes.HttpStatusCode);
+
+        var capsRes = await client.GetCapabilities(CancellationToken.None);
+        Assert.True(capsRes.Success);
+        Assert.Equal(System.Net.HttpStatusCode.OK, capsRes.HttpStatusCode);
+        Assert.NotNull(capsRes.Data);
+        Assert.Equal(512, capsRes.Data.MaxWindowNums);
+    }
+
     private sealed class FaultyHttpMessageHandlerTest(Exception exceptionToThrow) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
