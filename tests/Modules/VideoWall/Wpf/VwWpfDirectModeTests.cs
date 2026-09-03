@@ -1144,6 +1144,60 @@ public class VwWpfDirectModeTests
         Assert.Contains("xmlns=\"http://www.isapi.org/ver20/XMLSchema\"", res.RawRequest);
     }
 
+    [Fact]
+    public void DirectMode_SyncScenesFromDevice_PrunesStaleLocalScenes_SuchAsTest7787_Test()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "vw_test_prune_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            const string deviceKey = "172.25.0.32_wall_1";
+
+            var initialData = new VwLocalSceneData
+            {
+                Scenes =
+                [
+                    new VwSceneDto { ID = "s1", OutputId = "1", Name = "Kịch bản 1" },
+                    new VwSceneDto { ID = "s2", OutputId = "2", Name = "Kịch bản 2" },
+                    new VwSceneDto { ID = "s3", OutputId = "3", Name = "Kịch bản 3" },
+                    new VwSceneDto { ID = "s4", OutputId = "4", Name = "test7787" }
+                ],
+                Windows =
+                [
+                    new VwWindowSceneDto { ID = "w1", SceneId = "s1", Name = "Win 1" },
+                    new VwWindowSceneDto { ID = "w4", SceneId = "s4", Name = "Win 4 for test7787" }
+                ],
+                ActiveSceneId = "s4"
+            };
+            VwLocalSceneStore.SaveData(deviceKey, initialData, tempDir);
+
+            var deviceScenes = new List<VwWallSceneSummary>
+            {
+                new() { Id = 1, Name = "Giám sát 1" },
+                new() { Id = 2, Name = "Giám sát 2" },
+                new() { Id = 3, Name = "Giám sát 3" }
+            };
+
+            var syncedScenes = VwLocalSceneStore.SyncScenesFromDevice(deviceKey, 1, deviceScenes, tempDir);
+
+            Assert.Equal(3, syncedScenes.Count);
+            Assert.DoesNotContain(syncedScenes, s => s.Name == "test7787" || s.OutputId == "4");
+            Assert.Contains(syncedScenes, s => s.OutputId == "1" && s.Name == "Giám sát 1");
+            Assert.Contains(syncedScenes, s => s.OutputId == "2" && s.Name == "Giám sát 2");
+            Assert.Contains(syncedScenes, s => s.OutputId == "3" && s.Name == "Giám sát 3");
+
+            var reloadedData = VwLocalSceneStore.LoadData(deviceKey, tempDir);
+            Assert.DoesNotContain(reloadedData.Windows, w => w.SceneId == "s4");
+            Assert.Contains(reloadedData.Windows, w => w.SceneId == "s1");
+            Assert.Null(reloadedData.ActiveSceneId);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
     private static VwDirectISAPIClient BuildIsapiClient(int port)
     {
         var credentials = new VwDirectDeviceCredentials("127.0.0.1", port, "admin", "Password123!");

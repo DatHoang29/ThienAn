@@ -1929,6 +1929,92 @@ public class VwWpfCommissioningTests
     }
 
     [Fact]
+    public void VwWpfMainWindow_PasswordShowHideEyeToggle_WorksCorrectly_Test()
+    {
+        RunOnStaThread(() =>
+        {
+            var (controller, screenA, screenB, source) = SeedWallAsync();
+            var stack = BuildClientStack();
+            var connection = BuildConnection(stack, controller, screenA, screenB, source);
+            connection.AdHocPassword = "SecretPassword123";
+            var mainVm = BuildMainViewModel(stack, connection);
+
+            var window = new MainWindow(mainVm);
+
+            var passwordBox = window.FindName("AdHocPasswordInput") as System.Windows.Controls.PasswordBox;
+            var visibleBox = window.FindName("AdHocPasswordVisibleInput") as System.Windows.Controls.TextBox;
+            var toggleBtn = window.FindName("TogglePasswordBtn") as System.Windows.Controls.Button;
+
+            Assert.NotNull(passwordBox);
+            Assert.NotNull(visibleBox);
+            Assert.NotNull(toggleBtn);
+
+            Assert.Equal("SecretPassword123", passwordBox.Password);
+            Assert.Equal(System.Windows.Visibility.Visible, passwordBox.Visibility);
+            Assert.Equal(System.Windows.Visibility.Collapsed, visibleBox.Visibility);
+            Assert.Equal("👁", toggleBtn.Content?.ToString());
+
+            toggleBtn.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            Assert.Equal(System.Windows.Visibility.Collapsed, passwordBox.Visibility);
+            Assert.Equal(System.Windows.Visibility.Visible, visibleBox.Visibility);
+            Assert.Equal("SecretPassword123", visibleBox.Text);
+            Assert.Equal("🙈", toggleBtn.Content?.ToString());
+
+            toggleBtn.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            Assert.Equal(System.Windows.Visibility.Visible, passwordBox.Visibility);
+            Assert.Equal(System.Windows.Visibility.Collapsed, visibleBox.Visibility);
+            Assert.Equal("👁", toggleBtn.Content?.ToString());
+        });
+    }
+
+    [Fact]
+    public void VwSceneDto_DisplayName_IncludesWebLikePrefix_WithoutDuplication_Test()
+    {
+        var s1 = new WpfDto.VwSceneDto { Name = "Kịch bản 1", OutputId = "1" };
+        Assert.Equal("1_ Kịch bản 1", s1.DisplayName);
+
+        var s2 = new WpfDto.VwSceneDto { Name = "Giám sát tuyến", OutputId = "2" };
+        Assert.Equal("2_ Giám sát tuyến", s2.DisplayName);
+
+        var s3 = new WpfDto.VwSceneDto { Name = "3_12345", OutputId = "3" };
+        Assert.Equal("3_12345", s3.DisplayName);
+
+        var s4 = new WpfDto.VwSceneDto { Name = "3_ 12345", OutputId = "3" };
+        Assert.Equal("3_ 12345", s4.DisplayName);
+
+        var s5 = new WpfDto.VwSceneDto { Name = "Tuyến chính", OrderNo = 4 };
+        Assert.Equal("4_ Tuyến chính", s5.DisplayName);
+
+        var s6 = new WpfDto.VwSceneDto { Name = "Tự do" };
+        Assert.Equal("Tự do", s6.DisplayName);
+    }
+
+    [Fact]
+    public void ConnectionViewModel_TargetDevicePresetRadio_FillsCredentialsAutomatically_Test()
+    {
+        var stack = BuildClientStack();
+        var connection = new ConnectionViewModel(stack.ActivityPublisher, stack.Publisher, new UserConfirmationTest(true));
+
+        connection.IsRealDeviceSelected = true;
+
+        Assert.True(connection.IsRealDeviceSelected);
+        Assert.False(connection.IsLocalMockSelected);
+        Assert.Equal("172.25.0.32", connection.AdHocIp);
+        Assert.Equal(80, connection.AdHocPort);
+        Assert.Equal("admin", connection.AdHocAccount);
+        Assert.Equal("Tcp@2025", connection.AdHocPassword);
+
+        connection.IsLocalMockSelected = true;
+
+        Assert.False(connection.IsRealDeviceSelected);
+        Assert.True(connection.IsLocalMockSelected);
+        Assert.Equal("127.0.0.1", connection.AdHocIp);
+        Assert.Equal(18080, connection.AdHocPort);
+        Assert.Equal("admin", connection.AdHocAccount);
+        Assert.Equal("Password123!", connection.AdHocPassword);
+    }
+
+    [Fact]
     public async Task DeviceTopologyTabView_And_ConnectionViewModel_CalculatesTopologyCorrectly_Test()
     {
         const int port = 18199;
