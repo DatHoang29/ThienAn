@@ -15,7 +15,7 @@ namespace Tests.Modules.VideoWall.MockServer
     public partial class VwISAPIMockServerHikvision : IDisposable
     {
         private const string Ns = "http://www.isapi.org/ver20/XMLSchema";
-        private readonly HttpListener _listener = new();
+        private HttpListener _listener = new();
         private CancellationTokenSource? _cts;
         private Task? _listenTask;
 
@@ -189,21 +189,47 @@ namespace Tests.Modules.VideoWall.MockServer
 
             var targetPorts = ports != null && ports.Length > 0 ? ports : DefaultPorts;
 
-            _listener.Prefixes.Clear();
-            foreach (var port in targetPorts)
-            {
-                _listener.Prefixes.Add($"http://{DefaultHost}:{port}/");
-            }
-
+            var started = false;
             try
             {
+                _listener.Prefixes.Clear();
+                foreach (var port in targetPorts)
+                {
+                    _listener.Prefixes.Add($"http://*:{port}/");
+                }
                 _listener.Start();
+                started = true;
             }
-            catch (HttpListenerException ex)
+            catch (HttpListenerException)
             {
-                throw new InvalidOperationException(
-                    $"MockServer không thể lắng nghe trên các port [{string.Join(", ", targetPorts)}]. " +
-                    $"Có thể tiến trình testhost cũ đang chạy ngầm chiếm cổng. Hãy chạy 'Stop-Process -Name testhost -Force' để giải phóng. Chi tiết: {ex.Message}", ex);
+                try
+                {
+                    _listener.Close();
+                }
+                catch
+                {
+                }
+                _listener = new HttpListener();
+            }
+
+            if (!started)
+            {
+                _listener.Prefixes.Clear();
+                foreach (var port in targetPorts)
+                {
+                    _listener.Prefixes.Add($"http://{DefaultHost}:{port}/");
+                }
+
+                try
+                {
+                    _listener.Start();
+                }
+                catch (HttpListenerException ex)
+                {
+                    throw new InvalidOperationException(
+                        $"MockServer không thể lắng nghe trên các port [{string.Join(", ", targetPorts)}]. " +
+                        $"Có thể tiến trình testhost cũ đang chạy ngầm chiếm cổng. Hãy chạy 'Stop-Process -Name testhost -Force' để giải phóng. Chi tiết: {ex.Message}", ex);
+                }
             }
 
             _cts = new CancellationTokenSource();
