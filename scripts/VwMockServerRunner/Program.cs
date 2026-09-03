@@ -1,7 +1,11 @@
 using System;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using Tests.Modules.VideoWall.MockServer;
+
+Console.OutputEncoding = Encoding.UTF8;
+Console.InputEncoding = Encoding.UTF8;
 
 using var mock = new VwISAPIMockServerHikvision();
 
