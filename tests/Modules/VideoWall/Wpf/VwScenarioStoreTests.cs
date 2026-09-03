@@ -1451,11 +1451,12 @@ public class VwScenarioStoreTests : IDisposable
         var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true))
         {
             AdHocIp = "127.0.0.1",
-            AdHocPort = 18080,
+            AdHocPort = 18188,
             AdHocAccount = "admin",
             AdHocPassword = "Password123!",
             WallNo = 1,
         };
+        VwLocalSceneStore.SeedSampleScenes(connection.DeviceKey, 1);
         var sceneSetup = new SceneSetupViewModel(activityPub, connection, new UserConfirmationTest(true), recordingPub)
         {
             WallNo = 1,
@@ -2354,8 +2355,13 @@ public class VwScenarioStoreTests : IDisposable
         // Act: Start mock server
         mockServer.Start(port);
 
-        // Assert: Kết nối trực tiếp bằng IP card mạng LAN của máy cục bộ ("10.10.8.113") phải thành công 100%
-        var creds = new VwDirectDeviceCredentials("10.10.8.113", port, "admin", "Password123!");
+        // Assert: Kết nối trực tiếp bằng IP card mạng LAN của máy cục bộ phải thành công 100%
+        var localLanIp = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
+            .Where(n => n.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up)
+            .SelectMany(n => n.GetIPProperties().UnicastAddresses)
+            .FirstOrDefault(a => a.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork && !System.Net.IPAddress.IsLoopback(a.Address))
+            ?.Address.ToString() ?? "127.0.0.1";
+        var creds = new VwDirectDeviceCredentials(localLanIp, port, "admin", "Password123!");
         var client = VwDirectClientFactory.CreateISAPIClient(creds);
 
         var userCheckRes = await client.UserCheck(CancellationToken.None);

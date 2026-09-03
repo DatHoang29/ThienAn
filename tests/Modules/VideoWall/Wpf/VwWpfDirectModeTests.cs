@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
 using Module.VideoWall.WPF.Api;
 using Module.VideoWall.WPF.Api.Direct;
+using Module.VideoWall.WPF.Api.Dto;
 using Module.VideoWall.WPF.Auth;
 using Module.VideoWall.WPF.Interaction;
 using Module.VideoWall.WPF.Storage;
@@ -989,6 +990,158 @@ public class VwWpfDirectModeTests
         connVm.WallNo = 5;
         Assert.Equal("5", wallField.Value);
         Assert.Equal("ISAPI/DisplayDev/VideoWall/5/windows/999", connVm.IsapiPath);
+    }
+
+    [Fact]
+    public async Task DirectMode_Probe_FetchesScenesFromDevice_Succeeds_Test()
+    {
+        const int port = 18131;
+        var (client, mockServer) = BuildDirectClient(port);
+        using (mockServer)
+        {
+            mockServer.GetSceneStore(1)[3] = "3_12345";
+
+            var output = await client.Probe(1, default);
+
+            Assert.True(output.Reachable);
+            Assert.NotNull(output.Scenes);
+            Assert.Equal(4, output.Scenes.Count);
+            Assert.Contains(output.Scenes, s => s.Id == 3 && s.Name == "3_12345");
+        }
+    }
+
+    [Fact]
+    public async Task DirectMode_Probe_FetchesActiveWindowsFromDevice_Succeeds_Test()
+    {
+        const int port = 18132;
+        var (client, mockServer) = BuildDirectClient(port);
+        using (mockServer)
+        {
+            var output = await client.Probe(1, default);
+
+            Assert.True(output.Reachable);
+            Assert.NotNull(output.ActiveWindows);
+            Assert.NotEmpty(output.ActiveWindows);
+            Assert.Contains(output.ActiveWindows, w => w.Rect != null && w.Rect.Width > 0);
+        }
+    }
+
+    [Fact]
+    public async Task DirectMode_Probe_WhenDeviceRunsScene3_SyncsAndSwitchesCurrentSceneToScene3_Test()
+    {
+        const int port = 18133;
+        var (client, mockServer) = BuildDirectClient(port);
+        using (mockServer)
+        {
+            mockServer.GetSceneStore(1)[3] = "3_12345";
+            mockServer.ActiveSceneId = 3;
+
+            var recordingPub = new RecordingPublisherTest();
+            var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+            var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true))
+            {
+                AdHocIp = "127.0.0.1",
+                AdHocPort = port,
+                AdHocAccount = "admin",
+                AdHocPassword = "Password123!",
+                WallNo = 1,
+            };
+
+            var sceneSetup = new SceneSetupViewModel(activityPub, connection, new UserConfirmationTest(true), recordingPub)
+            {
+                WallNo = 1,
+            };
+
+            if (sceneSetup.Scenes.Count > 1)
+            {
+                sceneSetup.CurrentScene = sceneSetup.Scenes[1];
+            }
+
+            await connection.ProbeCommand.ExecuteAsync(null);
+
+            Assert.NotNull(sceneSetup.CurrentScene);
+            Assert.Equal("3", sceneSetup.CurrentScene.OutputId);
+            Assert.Equal("3_12345", sceneSetup.CurrentScene.Name);
+            Assert.Equal(sceneSetup.CurrentScene.ID, sceneSetup.ActiveScene?.ID);
+            Assert.NotEmpty(sceneSetup.SceneWindows);
+        }
+    }
+
+    [Fact]
+    public async Task DirectMode_CreateScene_AutoIncrementsOutputId_WhenNotSpecified_Test()
+    {
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true));
+        var sceneSetup = new SceneSetupViewModel(activityPub, connection, new UserConfirmationTest(true), recordingPub)
+        {
+            WallNo = 1,
+        };
+
+        sceneSetup.Scenes.Clear();
+        sceneSetup.Scenes.Add(new VwSceneDto { ID = "s1", OutputId = "1", Name = "Kịch bản 1" });
+        sceneSetup.Scenes.Add(new VwSceneDto { ID = "s2", OutputId = "2", Name = "Kịch bản 2" });
+        sceneSetup.Scenes.Add(new VwSceneDto { ID = "s3", OutputId = "3", Name = "Kịch bản 3" });
+
+        sceneSetup.SceneName = "Kịch bản mới";
+        sceneSetup.SceneOutputId = string.Empty;
+
+        await sceneSetup.CreateSceneCommand.ExecuteAsync(null);
+
+        var created = sceneSetup.Scenes.FirstOrDefault(s => s.Name == "Kịch bản mới");
+        Assert.NotNull(created);
+        Assert.Equal("4", created.OutputId);
+        Assert.Equal(created.ID, sceneSetup.CurrentScene?.ID);
+    }
+
+    [Fact]
+    public async Task DirectMode_CreateScene_WhenDeviceReturnsInvalidOperation_CatchesAndSavesLocallyWithClearMessage_Test()
+    {
+        const int port = 18155;
+        using var mockServer = new VwISAPIMockServerHikvision();
+        mockServer.SimulateInvalidOperation = true;
+        mockServer.Start(port);
+
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true))
+        {
+            AdHocIp = "127.0.0.1",
+            AdHocPort = port,
+            AdHocAccount = "admin",
+            AdHocPassword = "Password123!",
+            WallNo = 1,
+        };
+
+        var sceneSetup = new SceneSetupViewModel(activityPub, connection, new UserConfirmationTest(true), recordingPub)
+        {
+            WallNo = 1,
+            SceneName = "Kịch bản test lỗi",
+            SceneOutputId = "5",
+        };
+
+        await sceneSetup.CreateSceneCommand.ExecuteAsync(null);
+
+        var created = sceneSetup.Scenes.FirstOrDefault(s => s.Name == "Kịch bản test lỗi");
+        Assert.NotNull(created);
+        Assert.Equal("5", created.OutputId);
+        Assert.Contains("Invalid Operation", sceneSetup.StatusMessage);
+        Assert.Contains("Đã lưu kịch bản vào bộ nhớ ứng dụng", sceneSetup.StatusMessage);
+    }
+
+    [Fact]
+    public async Task DirectMode_SaveSceneData_SendsProperXmlPlaceholder_Succeeds_Test()
+    {
+        const int port = 18156;
+        using var mockServer = new VwISAPIMockServerHikvision();
+        mockServer.Start(port);
+
+        var client = BuildIsapiClient(port);
+        var res = await client.SaveSceneData(1, 1, default);
+
+        Assert.True(res.Success, res.ErrorMessage);
+        Assert.Contains("<Request", res.RawRequest);
+        Assert.Contains("xmlns=\"http://www.isapi.org/ver20/XMLSchema\"", res.RawRequest);
     }
 
     private static VwDirectISAPIClient BuildIsapiClient(int port)

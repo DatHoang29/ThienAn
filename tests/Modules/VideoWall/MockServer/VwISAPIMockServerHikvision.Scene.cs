@@ -153,8 +153,21 @@ public partial class VwISAPIMockServerHikvision
         }
 
         // 9.7.7.2. Set parameters of a specific scene [PUT ISAPI/DisplayDev/VideoWall/{videoWallID}/scene/{SID}]
-        if (method == "PUT" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}/scene/{SID}", path))
+        if (method == "PUT" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}/scene/{SID}", path, out var putParams))
         {
+            var wallId = int.TryParse(putParams["videoWallID"], out var w) ? w : 1;
+            var store = GetSceneStore(wallId);
+            if (int.TryParse(putParams["SID"], out var sid))
+            {
+                var name = $"Scene {sid}";
+                if (!string.IsNullOrWhiteSpace(LastReceivedBody))
+                {
+                    var match = System.Text.RegularExpressions.Regex.Match(LastReceivedBody, @"<name>(.*?)</name>");
+                    if (match.Success)
+                        name = match.Groups[1].Value;
+                }
+                store[sid] = name;
+            }
             await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
                 <?xml version="1.0" encoding="UTF-8"?>
                 <ResponseStatus version="1.0" xmlns="{{Ns}}">
