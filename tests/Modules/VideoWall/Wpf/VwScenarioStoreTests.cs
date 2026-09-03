@@ -1737,11 +1737,26 @@ public class VwScenarioStoreTests : IDisposable
 
         var scenePutPreset = Module.VideoWall.WPF.ViewModels.VwIsapiPresetList.Presets.First(p => p.Section == "9.7.7.2");
         Assert.NotNull(scenePutPreset.SampleBody);
-        Assert.Contains("<Scene", scenePutPreset.SampleBody);
+        Assert.Contains("<WallScene", scenePutPreset.SampleBody);
+        Assert.Contains("<name>", scenePutPreset.SampleBody);
+        Assert.DoesNotContain("<Scene>", scenePutPreset.SampleBody);
 
         var planPostPreset = Module.VideoWall.WPF.ViewModels.VwIsapiPresetList.Presets.First(p => p.Section == "9.7.6.1");
         Assert.NotNull(planPostPreset.SampleBody);
-        Assert.Contains("<Plan", planPostPreset.SampleBody);
+        Assert.Contains("<WallPlan", planPostPreset.SampleBody);
+        Assert.Contains("<ActTimeDetail>", planPostPreset.SampleBody);
+        Assert.Contains("<PlanDetailList>", planPostPreset.SampleBody);
+        Assert.Contains("<operationType>activateScene</operationType>", planPostPreset.SampleBody);
+        Assert.Contains("<sceneID>1</sceneID>", planPostPreset.SampleBody);
+        Assert.Contains("<actCount>1</actCount>", planPostPreset.SampleBody);
+        Assert.DoesNotContain("<enabled>", planPostPreset.SampleBody);
+        Assert.DoesNotContain("<planTemplateList>", planPostPreset.SampleBody);
+
+        var screenClosePreset = Module.VideoWall.WPF.ViewModels.VwIsapiPresetList.Presets.First(p => p.Section == "9.7.8.1");
+        Assert.NotNull(screenClosePreset.SampleBody);
+        Assert.Contains("<ScreenCtrl", screenClosePreset.SampleBody);
+        Assert.Contains("<OutputID>", screenClosePreset.SampleBody);
+        Assert.DoesNotContain("<action>", screenClosePreset.SampleBody);
 
         var outputPutPreset = Module.VideoWall.WPF.ViewModels.VwIsapiPresetList.Presets.First(p => p.Section == "9.7.3.6");
         Assert.NotNull(outputPutPreset.SampleBody);
