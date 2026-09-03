@@ -8,7 +8,9 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
 using Module.VideoWall.WPF.Api;
 using Module.VideoWall.WPF.Api.Direct;
+using Module.VideoWall.WPF.Api.Direct.Isapi;
 using Module.VideoWall.WPF.Auth;
+using Module.VideoWall.WPF.Controls;
 using Module.VideoWall.WPF.Interaction;
 using Module.VideoWall.WPF.Storage;
 using Module.VideoWall.WPF.ViewModels;
@@ -1223,6 +1225,171 @@ public class VwScenarioStoreTests : IDisposable
         Assert.Equal(3840, row1.W);
         Assert.Equal(2160, row1.H);
         Assert.Equal("Khối lớn (2x2)", row1.SizeLabel);
+    }
+
+    [Fact]
+    public void VisualWallCanvas_FormatScreenCoordinateRange_StartAndEndCoordinates_FormatsCorrectly_Test()
+    {
+        // Arrange & Act
+        var screen1 = VisualWallCanvas.FormatScreenCoordinateRange(0, 0);
+        var screen2 = VisualWallCanvas.FormatScreenCoordinateRange(1920, 0);
+        var screen3 = VisualWallCanvas.FormatScreenCoordinateRange(3840, 0);
+        var screen4 = VisualWallCanvas.FormatScreenCoordinateRange(5760, 0);
+        var screen8 = VisualWallCanvas.FormatScreenCoordinateRange(5760, 1920);
+        var screen9 = VisualWallCanvas.FormatScreenCoordinateRange(0, 3840);
+        var screen12 = VisualWallCanvas.FormatScreenCoordinateRange(5760, 3840);
+
+        // Assert - Màn 1 (Góc trên-trái)
+        Assert.Equal("X: 0 ➔ 1920\nY: 0 ➔ 1920", screen1);
+
+        // Assert - Màn 2 & 3
+        Assert.Equal("X: 1920 ➔ 3840\nY: 0 ➔ 1920", screen2);
+        Assert.Equal("X: 3840 ➔ 5760\nY: 0 ➔ 1920", screen3);
+
+        // Assert - Màn 4 (Mép phải hàng 1) hiển thị rõ con số 7680
+        Assert.Equal("X: 5760 ➔ 7680\nY: 0 ➔ 1920", screen4);
+
+        // Assert - Màn 8 (Mép phải hàng 2)
+        Assert.Equal("X: 5760 ➔ 7680\nY: 1920 ➔ 3840", screen8);
+
+        // Assert - Màn 9 (Mép dưới hàng 3) hiển thị rõ con số 5760
+        Assert.Equal("X: 0 ➔ 1920\nY: 3840 ➔ 5760", screen9);
+
+        // Assert - Màn 12 (Góc dưới-phải) hiển thị rõ cả 7680 lẫn 5760
+        Assert.Equal("X: 5760 ➔ 7680\nY: 3840 ➔ 5760", screen12);
+    }
+
+    [Theory]
+    [InlineData(0.1, 4, 3, 7680, 5760, "X[0 ➔ 7680 px] × Y[0 ➔ 5760 px]")]
+    [InlineData(0.25, 2, 2, 3840, 3840, "X[0 ➔ 3840 px] × Y[0 ➔ 3840 px]")]
+    [InlineData(0.15, 1, 2, 1920, 3840, "X[0 ➔ 1920 px] × Y[0 ➔ 3840 px]")]
+    public void VisualWallCanvas_FormatScaleInfo_DisplaysFullCoverageRange_Test(
+        double scale, int cols, int rows, int wallW, int wallH, string expectedCoverage)
+    {
+        // Act
+        var result = VisualWallCanvas.FormatScaleInfo(scale, cols, rows, wallW, wallH);
+
+        // Assert
+        Assert.Contains(expectedCoverage, result);
+        Assert.Contains($"Lưới {cols} × {rows}", result);
+    }
+
+    [Fact]
+    public void VisualWallCanvas_Grid4x3_All12Screens_CoverContinuousSpaceUpTo7680x5760_Test()
+    {
+        // Arrange - Lưới 4x3 chuẩn gồm 12 màn hình
+        var screens = new List<StartScreenPreset>();
+        var id = 1;
+        for (var row = 1; row <= 3; row++)
+        {
+            for (var col = 1; col <= 4; col++)
+            {
+                var x = (col - 1) * VwDirectDeviceConstants.UniformTileSize;
+                var y = (row - 1) * VwDirectDeviceConstants.UniformTileSize;
+                screens.Add(new StartScreenPreset($"Màn {id}", x, y, id, row, col));
+                id++;
+            }
+        }
+
+        // Act & Assert - Kiểm tra từng ô tạo nên dải tọa độ liên tục không bị hở hay chồng chéo
+        var maxEndX = 0;
+        var maxEndY = 0;
+
+        foreach (var scr in screens)
+        {
+            var endX = scr.X + VwDirectDeviceConstants.UniformTileSize;
+            var endY = scr.Y + VwDirectDeviceConstants.UniformTileSize;
+            var rangeText = VisualWallCanvas.FormatScreenCoordinateRange(scr.X, scr.Y);
+
+            Assert.Equal($"X: {scr.X} ➔ {endX}\nY: {scr.Y} ➔ {endY}", rangeText);
+
+            if (endX > maxEndX)
+                maxEndX = endX;
+            if (endY > maxEndY)
+                maxEndY = endY;
+        }
+
+        // Assert - Tọa độ mép ngoài cùng của lưới 4x3 đạt đúng 7680 x 5760
+        Assert.Equal(7680, maxEndX);
+        Assert.Equal(5760, maxEndY);
+    }
+
+    [Fact]
+    public void SceneWindowRow_DragMoveAndResize_UpdatesCoordinatesAndNotifiesProperties_Test()
+    {
+        // Arrange
+        var screens = new List<StartScreenPreset>
+        {
+            new("Màn 1", 0, 0, 1, 1, 1),
+            new("Màn 2", 1920, 0, 2, 1, 2),
+            new("Màn 5", 0, 1920, 5, 2, 1),
+            new("Màn 6", 1920, 1920, 6, 2, 2),
+        };
+        SceneWindowRow.StartScreenProvider = () => screens;
+
+        var dto = new Module.VideoWall.WPF.Api.Dto.VwWindowSceneDto
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Name = "Ô 1",
+            X = 0,
+            Y = 0,
+            W = 1920,
+            H = 1920,
+            ZIndex = 1,
+        };
+        var row = new SceneWindowRow(dto);
+
+        var changedProperties = new List<string>();
+        row.PropertyChanged += (_, e) =>
+        {
+            if (!string.IsNullOrEmpty(e.PropertyName))
+                changedProperties.Add(e.PropertyName);
+        };
+
+        // Assert trạng thái ban đầu
+        Assert.Equal("Màn 1", row.SelectedStartScreen?.Name);
+        Assert.Equal("1x1", row.SelectedSizePreset?.Name);
+
+        // Act 1: Kéo thả di chuyển ô sang Màn 6 (X: 1920, Y: 1920)
+        row.X = 1920;
+        row.Y = 1920;
+
+        // Assert 1: Tọa độ cập nhật và bắn event cho UI
+        Assert.Equal(1920, row.X);
+        Assert.Equal(1920, row.Y);
+        Assert.Contains(nameof(SceneWindowRow.X), changedProperties);
+        Assert.Contains(nameof(SceneWindowRow.Y), changedProperties);
+        Assert.Contains(nameof(SceneWindowRow.SelectedStartScreen), changedProperties);
+        Assert.Equal("Màn 6", row.SelectedStartScreen?.Name);
+
+        // Act 2: Co giãn kích thước ô lên khối 2x2 (3840 x 3840)
+        changedProperties.Clear();
+        row.W = 3840;
+        row.H = 3840;
+
+        // Assert 2: Kích thước cập nhật và bắn event cho UI
+        Assert.Equal(3840, row.W);
+        Assert.Equal(3840, row.H);
+        Assert.Contains(nameof(SceneWindowRow.W), changedProperties);
+        Assert.Contains(nameof(SceneWindowRow.H), changedProperties);
+        Assert.Contains(nameof(SceneWindowRow.SelectedSizePreset), changedProperties);
+        Assert.Equal("2x2", row.SelectedSizePreset?.Name);
+        Assert.Equal("Khối lớn (2x2)", row.SizeLabel);
+
+        // Act 3: Kéo thả tự do không khớp lưới chuẩn (ví dụ: X=500, Y=300)
+        row.X = 500;
+        row.Y = 300;
+        Assert.Equal(500, row.X);
+        Assert.Equal(300, row.Y);
+        Assert.Equal("Tùy chỉnh (500, 300)", row.SelectedStartScreen?.Name);
+
+        // Act 4: Co giãn resize tự do theo pixel lẻ (ví dụ: W=5760, H=5181)
+        row.W = 5760;
+        row.H = 5181;
+        Assert.Equal(5760, row.W);
+        Assert.Equal(5181, row.H);
+        Assert.Null(row.SelectedSizePreset);
+        Assert.Equal("5760 × 5181", row.SizeLabel);
     }
 
     [Fact]
