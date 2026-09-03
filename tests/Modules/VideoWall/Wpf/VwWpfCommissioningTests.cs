@@ -1363,15 +1363,13 @@ public class VwWpfCommissioningTests
             Assert.NotNull(comboBox);
             Assert.True(comboBox.Width >= 380 || comboBox.MinWidth >= 340);
 
-            // 2. Row 3: Commissioning WrapPanel and compact buttons with ToolTips
-            var row3Border = rootGrid.Children.OfType<System.Windows.Controls.Border>().FirstOrDefault(b => System.Windows.Controls.Grid.GetRow(b) == 3);
-            Assert.NotNull(row3Border);
-            var row3Wrap = row3Border.Child as System.Windows.Controls.WrapPanel;
-            Assert.NotNull(row3Wrap);
-
-            var row3Buttons = row3Wrap.Children.OfType<System.Windows.Controls.Button>().ToList();
-            Assert.NotEmpty(row3Buttons);
-            Assert.All(row3Buttons, b => Assert.True(b.Height <= 26 && b.ToolTip != null));
+            // 2. Commissioning toolbar and compact buttons with ToolTips
+            var allButtons = FindLogicalChildren<System.Windows.Controls.Button>(view).ToList();
+            var commissioningButtons = allButtons
+                .Where(b => b.Content?.ToString()?.Contains("Đẩy") == true)
+                .ToList();
+            Assert.NotEmpty(commissioningButtons);
+            Assert.All(commissioningButtons, b => Assert.True(b.Height <= 26 && b.ToolTip != null));
         });
     }
 

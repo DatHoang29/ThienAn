@@ -562,6 +562,9 @@ namespace Tests.Modules.VideoWall
         [Fact]
         public async Task VwISAPIDeviceService_SetupScene_SelectsBoundWallNotWallOne_Test()
         {
+            _mock.ResetDefaults();
+            _mock.SimulateWall1Unbound = true;
+
             var controller = TestController;
             await _db.Insertable(controller).ExecuteCommandAsync();
 
@@ -1773,27 +1776,29 @@ namespace Tests.Modules.VideoWall
         public async Task VwISAPIDeviceService_GetOutputChannels_ParsesAccessStatus_Test()
         {
             host.MockServer.ResetDefaults();
+            host.MockServer.NotConnectedOutputChannels.Add(17235972);
 
             var result = await _client.GetOutputChannelsAsync(TestController);
 
             Assert.True(result.Success);
             Assert.NotNull(result.Data);
-            Assert.Equal(2, result.Data.VideoOutputChannel.Count);
+            Assert.Equal(12, result.Data.VideoOutputChannel.Count);
 
             var ch1 = result.Data.VideoOutputChannel[0];
             Assert.Equal(17235971, ch1.Id);
             Assert.Equal("HDMI", ch1.PortType);
-            Assert.Equal("Output 7-3", ch1.Name);
+            Assert.Equal("Output 1 (H1-C1)", ch1.Name);
             Assert.Equal("normal", ch1.OutputPortAccessStatus);
             Assert.True(ch1.IsConnected);
             Assert.NotNull(ch1.PortInBoard);
             Assert.Equal(7, ch1.PortInBoard.BoardId);
-            Assert.Equal(3, ch1.PortInBoard.PortId);
+            Assert.Equal(1, ch1.PortInBoard.PortId);
 
             var ch2 = result.Data.VideoOutputChannel[1];
             Assert.Equal(17235972, ch2.Id);
-            Assert.Equal("normal", ch2.OutputPortAccessStatus);
-            Assert.True(ch2.IsConnected);
+            Assert.Equal("Output 2 (H1-C2)", ch2.Name);
+            Assert.Equal("notConnected", ch2.OutputPortAccessStatus);
+            Assert.False(ch2.IsConnected);
         }
 
         /// <summary>
