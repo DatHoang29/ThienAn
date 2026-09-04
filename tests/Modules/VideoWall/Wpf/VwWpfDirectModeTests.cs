@@ -7,6 +7,7 @@ using Module.VideoWall.WPF.Api;
 using Module.VideoWall.WPF.Api.Direct;
 using Module.VideoWall.WPF.Api.Dto;
 using Module.VideoWall.WPF.Auth;
+using Module.VideoWall.WPF.Controls;
 using Module.VideoWall.WPF.Interaction;
 using Module.VideoWall.WPF.Storage;
 using Module.VideoWall.WPF.ViewModels;
@@ -1196,6 +1197,404 @@ public class VwWpfDirectModeTests
             if (Directory.Exists(tempDir))
                 Directory.Delete(tempDir, true);
         }
+    }
+
+    [Fact]
+    public async Task DirectMode_UpdateDeviceWindowRect_SendsCorrectXml_Test()
+    {
+        var port = 18135;
+        var mockServer = new VwISAPIMockServerHikvision();
+        mockServer.Start(port);
+        using (mockServer)
+        {
+            var isapiClient = BuildIsapiClient(port);
+            var result = await isapiClient.UpdateDeviceWindowRect(1, 16777217, 1920, 0, 1920, 1920);
+
+            Assert.True(result.Success);
+            Assert.Equal(1, mockServer.UpdateWindowCallCount);
+        }
+    }
+
+    [Fact]
+    public async Task DirectMode_SetDeviceWindowTopAndBottom_SendsStatus_Test()
+    {
+        var port = 18136;
+        var mockServer = new VwISAPIMockServerHikvision();
+        mockServer.Start(port);
+        using (mockServer)
+        {
+            var isapiClient = BuildIsapiClient(port);
+            var topRes = await isapiClient.SetDeviceWindowTop(1, 16777217);
+            Assert.True(topRes.Success);
+
+            var bottomRes = await isapiClient.SetDeviceWindowBottom(1, 16777217);
+            Assert.True(bottomRes.Success);
+        }
+    }
+
+    [Fact]
+    public async Task DirectMode_Probe_AutoPopulatesCameraRtspUrl_FromPortInBoard_Test()
+    {
+        var port = 18137;
+        var (client, mockServer) = BuildDirectClient(port);
+        using (mockServer)
+        {
+            var probeResult = await client.Probe(1);
+            Assert.True(probeResult.Reachable);
+            Assert.NotEmpty(probeResult.InputChannels!);
+
+            var ipChannel = probeResult.InputChannels!.FirstOrDefault(c => c.PortInBoard?.IpAddress != null);
+            Assert.NotNull(ipChannel);
+            Assert.Equal("127.0.0.1", ipChannel.PortInBoard?.IpAddress);
+            Assert.Equal(13191, ipChannel.PortInBoard?.Port);
+
+            var probeSources = probeResult.InputChannels!.Select(ch =>
+            {
+                var isIpPort = !string.IsNullOrWhiteSpace(ch.InputPortType)
+                               && (ch.InputPortType.Contains("IP", StringComparison.OrdinalIgnoreCase)
+                                   || ch.InputPortType.Contains("Stream", StringComparison.OrdinalIgnoreCase));
+                var ip = ch.PortInBoard?.IpAddress?.Trim();
+                var p = ch.PortInBoard?.Port > 0 ? ch.PortInBoard.Port : 554;
+                var url = isIpPort && !string.IsNullOrWhiteSpace(ip)
+                    ? $"rtsp://{ip}:{p}/Streaming/Channels/101"
+                    : null;
+                return new VwSourceDto
+                {
+                    ID = ch.Id.ToString(),
+                    Code = isIpPort ? $"IP_{ch.Id}" : $"HDMI_{ch.Id}",
+                    Name = ch.Name,
+                    SourceType = isIpPort ? "ip_stream" : "local_signal",
+                    SignalType = isIpPort ? (ch.InputPortType ?? "RTSP") : "HDMI",
+                    SignalNo = ch.Id,
+                    OrderNo = ch.Id,
+                    Url = url,
+                };
+            }).ToList();
+
+            var customSources = VwLocalSourceStore.GetSampleSources();
+            var merged = VwLocalSourceStore.Merge(probeSources, customSources);
+
+            Assert.DoesNotContain(merged, s => s.ID.StartsWith("sample_cam_"));
+            var firstIpSource = merged.FirstOrDefault(s => s.SourceType == "ip_stream");
+            Assert.NotNull(firstIpSource);
+            Assert.Equal("rtsp://127.0.0.1:13191/Streaming/Channels/101", firstIpSource.Url);
+        }
+    }
+
+    [Fact]
+    public void DirectMode_SyncWindowsFromDevice_PreservesStreamUrl_Test()
+    {
+        var tempDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "vw_test_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var devKey = "test_device_stream";
+            var sources = new List<VwSourceDto>
+            {
+                new() { ID = "src_1", SignalNo = 1, Name = "HDMI 1", SourceType = "local_signal" },
+                new() { ID = "src_ip", SignalNo = 16842753, Name = "Cam Km01", SourceType = "ip_stream", Url = "rtsp://172.25.0.32:554/Streaming/Channels/101" },
+            };
+
+            var devWindows = new List<Module.VideoWall.WPF.Api.Direct.Isapi.VwISAPIWallWindowItem>
+            {
+                new()
+                {
+                    Id = 16777217,
+                    Rect = new Module.VideoWall.WPF.Api.Direct.Isapi.VwISAPIRect
+                    {
+                        Coordinate = new Module.VideoWall.WPF.Api.Direct.Isapi.VwISAPICoordinate { X = 0, Y = 0 },
+                        Width = 1920,
+                        Height = 1920,
+                    },
+                    SubWindowList = new Module.VideoWall.WPF.Api.Direct.Isapi.VwISAPISubWindowList
+                    {
+                        SubWindow =
+                        [
+                            new Module.VideoWall.WPF.Api.Direct.Isapi.VwISAPISubWindow
+                            {
+                                Id = 1,
+                                SubWindowParam = new Module.VideoWall.WPF.Api.Direct.Isapi.VwISAPISubWindowParam
+                                {
+                                    SignalMode = "streamSetting",
+                                    StreamInput = new Module.VideoWall.WPF.Api.Direct.Isapi.VwISAPIStreamInput
+                                    {
+                                        StreamInputRealtime = new Module.VideoWall.WPF.Api.Direct.Isapi.VwISAPIStreamInputRealtime
+                                        {
+                                            StreamRealtimeUnitList =
+                                            [
+                                                new Module.VideoWall.WPF.Api.Direct.Isapi.VwISAPIStreamRealtimeUnit
+                                                {
+                                                    StreamInUrl = new Module.VideoWall.WPF.Api.Direct.Isapi.VwISAPIStreamInUrl
+                                                    {
+                                                        Url = "rtsp://172.25.0.32:554/Streaming/Channels/101",
+                                                    },
+                                                },
+                                            ],
+                                        },
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                },
+            };
+
+            var synced = VwLocalSceneStore.SyncWindowsFromDevice(devKey, "scene_test", devWindows, sources, tempDir);
+            Assert.Single(synced);
+            Assert.Equal("src_ip", synced[0].SourceId);
+            Assert.Equal("src_ip", synced[0].SubWindows[0].SourceId);
+        }
+        finally
+        {
+            if (System.IO.Directory.Exists(tempDir))
+                System.IO.Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public async Task DirectMode_DeleteWindow_StopsDynamicDecodeAndDeletesWindow_Test()
+    {
+        const int port = 18161;
+        using var mockServer = new VwISAPIMockServerHikvision();
+        mockServer.Start(port);
+
+        var isApiClient = BuildIsapiClient(port);
+
+        var result = await isApiClient.DeleteWindow(1, 33554433);
+
+        Assert.True(result.Success);
+        Assert.True(mockServer.StopDynamicDecodeCallCount >= 1);
+        Assert.True(mockServer.DeleteWindowCallCount >= 1);
+    }
+
+    [Fact]
+    public async Task DirectMode_DeleteAllWindows_CallsWallLevelBulkDelete_Test()
+    {
+        const int port = 18162;
+        using var mockServer = new VwISAPIMockServerHikvision();
+        mockServer.Start(port);
+
+        var isApiClient = BuildIsapiClient(port);
+
+        var result = await isApiClient.DeleteAllWindows(1, null, default);
+
+        Assert.True(result.Success);
+        Assert.True(mockServer.DeleteAllWindowsCallCount >= 1);
+    }
+
+    [Fact]
+    public async Task DirectMode_PushLiveWindowUpdate_NewWindowWithoutId_AddsWindowAndDecodesStream_Test()
+    {
+        const int port = 18163;
+        using var mockServer = new VwISAPIMockServerHikvision();
+        mockServer.Start(port);
+
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true))
+        {
+            AdHocIp = "127.0.0.1",
+            AdHocPort = port,
+            AdHocAccount = "admin",
+            AdHocPassword = "Password123!",
+            WallNo = 1,
+        };
+        await connection.ConnectCommand.ExecuteAsync(null);
+
+        var sceneSetup = new SceneSetupViewModel(activityPub, connection, new UserConfirmationTest(true), recordingPub)
+        {
+            DryRun = false,
+        };
+
+        var targetScene = new VwSceneDto
+        {
+            ID = "SCENE_LIVE_ADD",
+            Name = "Scene Live Add Test",
+            OutputId = "1",
+        };
+        sceneSetup.Scenes.Clear();
+        sceneSetup.Scenes.Add(targetScene);
+        sceneSetup.CurrentScene = targetScene;
+
+        var ipSource = new VwSourceDto
+        {
+            ID = "cam_ip_test",
+            Name = "Camera IP Live",
+            SourceType = "ip_stream",
+            Url = "rtsp://172.25.0.10:554/live/ch0",
+        };
+        sceneSetup.Sources.Add(ipSource);
+
+        var newRow = new SceneWindowRow(new VwWindowSceneDto
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Name = "Ô Test Mới",
+            X = 0,
+            Y = 0,
+            W = 1920,
+            H = 1920,
+            ZIndex = 1,
+            DeviceWindowId = null,
+        })
+        {
+            SelectedSource = ipSource,
+        };
+        sceneSetup.SceneWindows.Add(newRow);
+
+        // Act
+        await sceneSetup.PushLiveWindowUpdate(newRow, default);
+
+        // Assert
+        Assert.True(mockServer.AddWindowCallCount >= 1);
+        Assert.True(mockServer.StartDynamicDecodeCallCount >= 1);
+        Assert.NotNull(newRow.Window.DeviceWindowId);
+        Assert.Contains("Đã mở ô mới", sceneSetup.StatusMessage);
+    }
+
+    [Fact]
+    public async Task DirectMode_DeleteSelectedSceneWindows_LiveDeletesOnDevice_Test()
+    {
+        const int port = 18164;
+        using var mockServer = new VwISAPIMockServerHikvision();
+        mockServer.Start(port);
+
+        var recordingPub = new RecordingPublisherTest();
+        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
+        var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true))
+        {
+            AdHocIp = "127.0.0.1",
+            AdHocPort = port,
+            AdHocAccount = "admin",
+            AdHocPassword = "Password123!",
+            WallNo = 1,
+        };
+        await connection.ConnectCommand.ExecuteAsync(null);
+
+        var sceneSetup = new SceneSetupViewModel(activityPub, connection, new UserConfirmationTest(true), recordingPub)
+        {
+            DryRun = false,
+        };
+
+        var targetScene = new VwSceneDto
+        {
+            ID = "SCENE_LIVE_DEL",
+            Name = "Scene Live Del Test",
+            OutputId = "1",
+        };
+        sceneSetup.Scenes.Clear();
+        sceneSetup.Scenes.Add(targetScene);
+        sceneSetup.CurrentScene = targetScene;
+
+        var existingRow = new SceneWindowRow(new VwWindowSceneDto
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Name = "Ô Cần Xoá",
+            X = 0,
+            Y = 0,
+            W = 1920,
+            H = 1920,
+            ZIndex = 1,
+            DeviceWindowId = "33554433",
+        })
+        {
+            IsSelected = true,
+        };
+        sceneSetup.SceneWindows.Add(existingRow);
+
+        // Act
+        await sceneSetup.DeleteSelectedSceneWindowsCommand.ExecuteAsync(null);
+        await Task.Delay(200);
+
+        // Assert
+        Assert.Empty(sceneSetup.SceneWindows);
+        Assert.True(mockServer.DeleteWindowCallCount >= 1);
+        Assert.True(mockServer.StopDynamicDecodeCallCount >= 1);
+    }
+
+    [Fact]
+    public void SnapToGrid_And_SnapSize_UnconditionallyRoundToGridMultiples_Test()
+    {
+        Assert.Equal(0, VisualWallCanvas.SnapToGrid(0));
+        Assert.Equal(0, VisualWallCanvas.SnapToGrid(500));
+        Assert.Equal(1920, VisualWallCanvas.SnapToGrid(1200));
+        Assert.Equal(1920, VisualWallCanvas.SnapToGrid(1800));
+        Assert.Equal(1920, VisualWallCanvas.SnapToGrid(2100));
+        Assert.Equal(3840, VisualWallCanvas.SnapToGrid(3500));
+
+        Assert.Equal(1920, VisualWallCanvas.SnapSize(0));
+        Assert.Equal(1920, VisualWallCanvas.SnapSize(1080));
+        Assert.Equal(1920, VisualWallCanvas.SnapSize(1920));
+        Assert.Equal(3840, VisualWallCanvas.SnapSize(3000));
+        Assert.Equal(3840, VisualWallCanvas.SnapSize(3840));
+    }
+
+    [Fact]
+    public void SceneSetupViewModel_SceneCountAndCapabilitySummary_ReflectsActualScenes_Test()
+    {
+        var publisher = new RecordingPublisherTest();
+        var activityPublisher = new ActivityPublisher(publisher, NullLogger<ActivityPublisher>.Instance);
+        var connection = new ConnectionViewModel(activityPublisher, publisher, new UserConfirmationTest(true));
+        var sceneSetup = new SceneSetupViewModel(activityPublisher, connection, new UserConfirmationTest(true));
+
+        sceneSetup.Scenes.Clear();
+        Assert.Equal(0, sceneSetup.SceneCount);
+        Assert.Equal("0 Kịch bản", sceneSetup.SceneCountSummary);
+
+        sceneSetup.Scenes.Add(new VwSceneDto { ID = "1", Name = "Kịch bản Sáng" });
+        sceneSetup.Scenes.Add(new VwSceneDto { ID = "2", Name = "Kịch bản Tối" });
+
+        Assert.Equal(2, sceneSetup.SceneCount);
+        Assert.Equal("2 Kịch bản", sceneSetup.SceneCountSummary);
+
+        sceneSetup.Scenes.RemoveAt(0);
+        Assert.Equal(1, sceneSetup.SceneCount);
+        Assert.Equal("1 Kịch bản", sceneSetup.SceneCountSummary);
+    }
+
+    [Fact]
+    public void VwLocalSceneStore_PopulateSampleScenes_Wall1_Generates2x2LayoutMatchingDeviceLog_Test()
+    {
+        var data = new VwLocalSceneData();
+        var sampleScenes = VwLocalSceneStore.PopulateSampleScenes(data, wallNo: 1);
+
+        Assert.NotEmpty(sampleScenes);
+        var scene1 = sampleScenes[0];
+        Assert.Equal(2, scene1.GridCols);
+        Assert.Equal(2, scene1.GridRows);
+
+        var windows = data.Windows.Where(w => w.SceneId == scene1.ID).ToList();
+        Assert.Equal(4, windows.Count);
+
+        var win1 = windows.First(w => w.X == 0 && w.Y == 0);
+        Assert.Equal(1920, win1.W);
+        Assert.Equal(1920, win1.H);
+        Assert.Equal(1, win1.WindowMode);
+
+        var win4 = windows.First(w => w.X == 1920 && w.Y == 1920);
+        Assert.Equal(1920, win4.W);
+        Assert.Equal(1920, win4.H);
+        Assert.Equal(4, win4.WindowMode);
+        Assert.Equal(4, win4.SubWindows.Count);
+    }
+
+    [Fact]
+    public void SceneSetupViewModel_UpdateStartScreenPresets_Generates2x2GridFallback_WhenProbeEmpty_Test()
+    {
+        var publisher = new RecordingPublisherTest();
+        var activityPublisher = new ActivityPublisher(publisher, NullLogger<ActivityPublisher>.Instance);
+        var connection = new ConnectionViewModel(activityPublisher, publisher, new UserConfirmationTest(true));
+        var sceneSetup = new SceneSetupViewModel(activityPublisher, connection, new UserConfirmationTest(true))
+        {
+            GridCols = 2,
+            GridRows = 2,
+        };
+
+        sceneSetup.UpdateStartScreenPresets();
+
+        Assert.Equal(4, sceneSetup.AvailableStartScreens.Count);
+        Assert.Contains(sceneSetup.AvailableStartScreens, s => s.X == 0 && s.Y == 0);
+        Assert.Contains(sceneSetup.AvailableStartScreens, s => s.X == 1920 && s.Y == 0);
+        Assert.Contains(sceneSetup.AvailableStartScreens, s => s.X == 0 && s.Y == 1920);
+        Assert.Contains(sceneSetup.AvailableStartScreens, s => s.X == 1920 && s.Y == 1920);
     }
 
     private static VwDirectISAPIClient BuildIsapiClient(int port)

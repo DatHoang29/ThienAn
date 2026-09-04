@@ -571,8 +571,8 @@ public class VwWpfCommissioningTests
         // Act
         await sceneSetup.DeleteSceneWindowCommand.ExecuteAsync(doomed);
 
-        // Assert — có hỏi xác nhận, UI còn 1 cửa sổ
-        Assert.Equal(1, confirmation.CallCount);
+        // Assert — không hỏi xác nhận theo yêu cầu người dùng, UI còn 1 cửa sổ
+        Assert.Equal(0, confirmation.CallCount);
         Assert.Single(sceneSetup.SceneWindows);
         Assert.DoesNotContain(sceneSetup.SceneWindows, item => item.ID == doomedId);
 
@@ -638,8 +638,8 @@ public class VwWpfCommissioningTests
 
         await sceneSetup.DeleteSelectedSceneWindowsCommand.ExecuteAsync(null);
 
-        // Assert
-        Assert.Equal(1, confirmation.CallCount);
+        // Assert - không hiển thị confirm dialog, xoá ngay lập tức
+        Assert.Equal(0, confirmation.CallCount);
         Assert.Empty(sceneSetup.SceneWindows);
 
         // Lưu cấu hình xuống store
@@ -674,8 +674,8 @@ public class VwWpfCommissioningTests
 
         await sceneSetup.DeleteSelectedSceneWindowsCommand.ExecuteAsync(null);
 
-        // Assert
-        Assert.Equal(1, confirmation.CallCount);
+        // Assert - không hiển thị confirm dialog, xoá ngay lập tức
+        Assert.Equal(0, confirmation.CallCount);
         Assert.Single(sceneSetup.SceneWindows);
         Assert.Equal(keptId, sceneSetup.SceneWindows[0].ID);
 
@@ -689,12 +689,11 @@ public class VwWpfCommissioningTests
 
     /// <summary>
     /// Author: Đạt
-    /// Description: Multi-select & Xoá hàng loạt: khi người dùng bấm KHÔNG ở hộp thoại xác nhận,
-    ///              toàn bộ cửa sổ phải còn nguyên vẹn trong store và UI.
+    /// Description: Multi-select & Xoá hàng loạt: thực hiện xoá ngay lập tức không cần hiển thị hộp thoại xác nhận.
     /// Created date: 30/08/2026
     /// </summary>
     [Fact]
-    public async Task VwWpfSceneSetup_DeleteSelectedSceneWindows_WhenCancelled_LeavesWindowsUntouched_Test()
+    public async Task VwWpfSceneSetup_DeleteSelectedSceneWindows_WithoutConfirmation_DeletesImmediately_Test()
     {
         // Arrange
         var (controller, screenA, screenB, source) = SeedWallAsync();
@@ -704,17 +703,16 @@ public class VwWpfCommissioningTests
         var sceneSetup = await CreateSceneWithWindowsAsync(stack, connection, confirmation, source);
         var sceneId = sceneSetup.CurrentScene!.ID!;
 
-        // Act: Chọn tất cả rồi bấm xoá nhưng từ chối xác nhận
+        // Act: Chọn tất cả rồi bấm xoá (kể cả khi confirmation trả về false, delete vẫn xoá trực tiếp không gọi confirm)
         sceneSetup.IsAllSceneWindowsSelected = true;
         await sceneSetup.DeleteSelectedSceneWindowsCommand.ExecuteAsync(null);
 
         // Assert
-        Assert.Equal(1, confirmation.CallCount);
-        Assert.Contains("huỷ", sceneSetup.StatusMessage, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(2, sceneSetup.SceneWindows.Count);
+        Assert.Equal(0, confirmation.CallCount);
+        Assert.Empty(sceneSetup.SceneWindows);
 
         var remaining = VwLocalSceneStore.ListWindowScenes(connection.DeviceKey, sceneId);
-        Assert.Equal(2, remaining.Count);
+        Assert.Empty(remaining);
     }
 
     /// <summary>
@@ -1219,12 +1217,12 @@ public class VwWpfCommissioningTests
         // Act: Click "Nạp Scene mẫu"
         await sceneSetup.SeedSampleScenesCommand.ExecuteAsync(null);
 
-        // Assert: 2 practical scenes populated and selected for Wall 1
-        Assert.Equal(2, sceneSetup.Scenes.Count);
+        // Assert: 3 practical scenes populated and selected for Wall 1 (2x2 grid)
+        Assert.Equal(3, sceneSetup.Scenes.Count);
         Assert.Contains(sceneSetup.Scenes, s => s.Code == "VWSCENE_SAMPLE_W1_01");
         Assert.NotNull(sceneSetup.CurrentScene);
         Assert.Equal("VWSCENE_SAMPLE_W1_01", sceneSetup.CurrentScene.Code);
-        Assert.Equal(2, sceneSetup.SceneWindows.Count);
+        Assert.Equal(4, sceneSetup.SceneWindows.Count);
     }
 
     [Fact]
@@ -1439,10 +1437,11 @@ public class VwWpfCommissioningTests
             Assert.NotNull(selectedItemBinding);
             Assert.Equal("CurrentScene", selectedItemBinding.Path.Path);
 
-            // Assert: 2 practical scenes in ViewModel for Wall 1
-            Assert.Equal(2, sceneVm.Scenes.Count);
+            // Assert: 3 practical scenes in ViewModel for Wall 1 (2x2 grid)
+            Assert.Equal(3, sceneVm.Scenes.Count);
             Assert.Equal("VWSCENE_SAMPLE_W1_01", sceneVm.Scenes[0].Code);
             Assert.Equal("VWSCENE_SAMPLE_W1_02", sceneVm.Scenes[1].Code);
+            Assert.Equal("VWSCENE_SAMPLE_W1_03", sceneVm.Scenes[2].Code);
 
             Assert.NotNull(sceneVm.CurrentScene);
             Assert.Equal("VWSCENE_SAMPLE_W1_01", sceneVm.CurrentScene.Code);
@@ -2178,6 +2177,578 @@ public class VwWpfCommissioningTests
         {
             throw exception;
         }
+    }
+
+    private static void RunOnStaThread(Func<Task> action)
+    {
+        Exception? exception = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                lock (AppInitLock)
+                {
+                    if (System.Windows.Application.Current == null)
+                    {
+                        var app = new System.Windows.Application();
+                        app.Resources["BoolToVisibility"] = new System.Windows.Controls.BooleanToVisibilityConverter();
+                        app.Resources["InverseBoolToVisibility"] = new Module.VideoWall.WPF.Interaction.InverseBoolToVisibilityConverter();
+                        app.Resources["NullToVisibility"] = new Module.VideoWall.WPF.Interaction.NullToVisibilityConverter();
+                        app.Resources["InverseNullToVisibility"] = new Module.VideoWall.WPF.Interaction.InverseNullToVisibilityConverter();
+                        app.Resources["StatusColorConverter"] = new Module.VideoWall.WPF.Interaction.StatusColorConverter();
+
+                        app.Resources["FieldLabel"] = new System.Windows.Style(typeof(System.Windows.Controls.TextBlock));
+                        app.Resources["ToolbarButton"] = new System.Windows.Style(typeof(System.Windows.Controls.Button));
+                        app.Resources["PrimaryButton"] = new System.Windows.Style(typeof(System.Windows.Controls.Button));
+                        app.Resources["AccentButton"] = new System.Windows.Style(typeof(System.Windows.Controls.Button));
+                        app.Resources["SectionHeader"] = new System.Windows.Style(typeof(System.Windows.Controls.TextBlock));
+                        app.Resources["ReadOnlyGrid"] = new System.Windows.Style(typeof(System.Windows.Controls.DataGrid));
+                    }
+                }
+
+                action().GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                exception = ex;
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        if (exception != null)
+        {
+            throw exception;
+        }
+    }
+
+    [Fact]
+    public void SceneWindowRow_WindowModeChange_PreservesExistingSubCellsAndSyncsDto_Test()
+    {
+        var sources = new List<WpfDto.VwSourceDto>
+        {
+            new() { ID = "SRC_1", Name = "Camera 1", SignalNo = 1 },
+            new() { ID = "SRC_2", Name = "Camera 2", SignalNo = 2 },
+            new() { ID = "SRC_3", Name = "Camera 3", SignalNo = 3 },
+            new() { ID = "SRC_4", Name = "Camera 4", SignalNo = 4 },
+        };
+
+        var dto = new WpfDto.VwWindowSceneDto
+        {
+            ID = "WIN_01",
+            Name = "Cửa sổ 1",
+            SourceId = "SRC_1",
+            WindowMode = 1,
+        };
+
+        var row = new SceneWindowRow(dto);
+        row.InitSubCells(sources);
+
+        Assert.Equal(1, row.WindowMode);
+        Assert.False(row.IsSubwindowMode);
+        Assert.Single(row.SubCells);
+        Assert.Equal("SRC_1", row.SubCells[0].SelectedSource?.ID);
+
+        // Chuyển sang chia 4 ô
+        row.WindowMode = 4;
+        Assert.True(row.IsSubwindowMode);
+        Assert.Equal(4, row.SubCells.Count);
+        Assert.Equal("SRC_1", row.SubCells[0].SelectedSource?.ID);
+
+        // Gán camera cho các ô con 2, 3, 4
+        row.SubCells[1].SelectedSource = sources[1];
+        row.SubCells[2].SelectedSource = sources[2];
+        row.SubCells[3].SelectedSource = sources[3];
+
+        Assert.NotNull(row.Window.SubWindows);
+        Assert.Equal(4, row.Window.SubWindows.Count);
+        Assert.Equal("SRC_1", row.Window.SubWindows[0].SourceId);
+        Assert.Equal("SRC_2", row.Window.SubWindows[1].SourceId);
+        Assert.Equal("SRC_3", row.Window.SubWindows[2].SourceId);
+        Assert.Equal("SRC_4", row.Window.SubWindows[3].SourceId);
+
+        // Mở rộng lên 9 ô: các ô 1..4 vẫn giữ nguyên
+        row.WindowMode = 9;
+        Assert.Equal(9, row.SubCells.Count);
+        Assert.Equal("SRC_1", row.SubCells[0].SelectedSource?.ID);
+        Assert.Equal("SRC_2", row.SubCells[1].SelectedSource?.ID);
+        Assert.Equal("SRC_3", row.SubCells[2].SelectedSource?.ID);
+        Assert.Equal("SRC_4", row.SubCells[3].SelectedSource?.ID);
+        Assert.Null(row.SubCells[4].SelectedSource);
+
+        // Thu gọn về 4 ô: các ô 1..4 vẫn bảo toàn
+        row.WindowMode = 4;
+        Assert.Equal(4, row.SubCells.Count);
+        Assert.Equal("SRC_1", row.SubCells[0].SelectedSource?.ID);
+        Assert.Equal("SRC_4", row.SubCells[3].SelectedSource?.ID);
+    }
+
+    [Fact]
+    public async Task VwDirectSetupSceneOrchestrator_AddWindow_SubWindowListXmlSerialization_Test()
+    {
+        const int port = 18205;
+        using var mockServer = new VwISAPIMockServerHikvision();
+        mockServer.Start(port);
+
+        var creds = new Module.VideoWall.WPF.Api.Direct.VwDirectDeviceCredentials("127.0.0.1", port, "admin", "12345");
+        var orchestrator = Module.VideoWall.WPF.Api.Direct.VwDirectClientFactory.CreateSetupSceneOrchestrator(creds);
+
+        var input = new Module.VideoWall.WPF.Api.Direct.VwDirectPushSceneInput
+        {
+            SceneId = 1,
+            WallNo = 1,
+            DryRun = true,
+            Windows =
+            [
+                new Module.VideoWall.WPF.Api.Direct.VwDirectWindowInput
+                {
+                    X = 0,
+                    Y = 0,
+                    W = 3840,
+                    H = 2160,
+                    SignalNo = 1,
+                    WindowMode = 4,
+                    SubSignalNos = [1, 2, 3, 4],
+                }
+            ],
+        };
+
+        var result = await orchestrator.Execute(input, CancellationToken.None);
+
+        Assert.True(result.Success);
+        var addStep = result.Steps.FirstOrDefault(s => s.Name.Contains("AddWindow"));
+        Assert.NotNull(addStep);
+        Assert.NotNull(addStep.RequestXml);
+        Assert.Contains("<windowMode>4</windowMode>", addStep.RequestXml);
+        Assert.Contains("<SubWindowList>", addStep.RequestXml);
+        Assert.Contains("<videoInputChannelID>1</videoInputChannelID>", addStep.RequestXml);
+        Assert.Contains("<videoInputChannelID>2</videoInputChannelID>", addStep.RequestXml);
+        Assert.Contains("<videoInputChannelID>3</videoInputChannelID>", addStep.RequestXml);
+        Assert.Contains("<videoInputChannelID>4</videoInputChannelID>", addStep.RequestXml);
+    }
+
+    [Fact]
+    public void VwLocalSceneStore_SyncWindowsFromDevice_ReadsSubWindowsAndWindowMode_Test()
+    {
+        var tempKey = "TEST_DEVICE_" + Guid.NewGuid().ToString("N");
+        var tempDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "VwLocalStore_" + Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            var sources = new List<WpfDto.VwSourceDto>
+            {
+                new() { ID = "101", Name = "Camera Cổng 1", SignalNo = 101 },
+                new() { ID = "102", Name = "Camera Cổng 2", SignalNo = 102 },
+                new() { ID = "103", Name = "Camera Cổng 3", SignalNo = 103 },
+                new() { ID = "104", Name = "Camera Cổng 4", SignalNo = 104 },
+            };
+
+            var devWin = new Module.VideoWall.WPF.Api.Direct.Isapi.VwISAPIWallWindowItem
+            {
+                Id = 1,
+                WindowMode = 4,
+                Rect = new Module.VideoWall.WPF.Api.Direct.Isapi.VwISAPIRect
+                {
+                    Coordinate = new Module.VideoWall.WPF.Api.Direct.Isapi.VwISAPICoordinate { X = 0, Y = 0 },
+                    Width = 3840,
+                    Height = 2160,
+                },
+                SubWindowList = new Module.VideoWall.WPF.Api.Direct.Isapi.VwISAPISubWindowList
+                {
+                    SubWindow =
+                    [
+                        new() { Id = 1, SubWindowParam = new() { VideoInputChannelId = "101" } },
+                        new() { Id = 2, SubWindowParam = new() { VideoInputChannelId = "102" } },
+                        new() { Id = 3, SubWindowParam = new() { VideoInputChannelId = "103" } },
+                        new() { Id = 4, SubWindowParam = new() { VideoInputChannelId = "104" } },
+                    ]
+                }
+            };
+
+            var synched = VwLocalSceneStore.SyncWindowsFromDevice(tempKey, "SCENE_1", [devWin], sources, tempDir);
+
+            Assert.Single(synched);
+            var winDto = synched[0];
+            Assert.Equal(4, winDto.WindowMode);
+            Assert.Equal("101", winDto.SourceId);
+            Assert.NotNull(winDto.SubWindows);
+            Assert.Equal(4, winDto.SubWindows.Count);
+            Assert.Equal("101", winDto.SubWindows[0].SourceId);
+            Assert.Equal("102", winDto.SubWindows[1].SourceId);
+            Assert.Equal("103", winDto.SubWindows[2].SourceId);
+            Assert.Equal("104", winDto.SubWindows[3].SourceId);
+        }
+        finally
+        {
+            if (System.IO.Directory.Exists(tempDir))
+            {
+                System.IO.Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
+    [Fact]
+    public void SceneSetupViewModel_SubWindow_DirtyTracking_And_Tolerances_Test()
+    {
+        RunOnStaThread(() =>
+        {
+            var stack = BuildClientStack();
+            var connection = new ConnectionViewModel(stack.ActivityPublisher, stack.Publisher, new UserConfirmationTest(true));
+            var vm = new SceneSetupViewModel(stack.ActivityPublisher, connection, new UserConfirmationTest(true), stack.Publisher);
+
+            var sources = new List<WpfDto.VwSourceDto>
+            {
+                new() { ID = "SRC_1", Name = "Cam 1", SignalNo = 1 },
+                new() { ID = "SRC_2", Name = "Cam 2", SignalNo = 2 },
+            };
+            vm.Sources.Clear();
+            foreach (var s in sources) vm.Sources.Add(s);
+
+            var dto = new WpfDto.VwWindowSceneDto
+            {
+                ID = "WIN_01",
+                Name = "Cửa sổ Test",
+                SourceId = "SRC_1",
+                WindowMode = 1,
+            };
+
+            vm.PopulateSceneWindowsFromDtos([dto]);
+            Assert.Single(vm.SceneWindows);
+            var row = vm.SceneWindows[0];
+            vm.SelectedSceneWindow = row;
+
+            // Đổi WindowMode sang 4 -> cập nhật SubCells và DTO SubWindows
+            row.WindowMode = 4;
+            Assert.Equal(4, row.SubCells.Count);
+            Assert.Equal(4, row.Window.SubWindows?.Count);
+
+            // Đổi nguồn ô con số 2 -> cập nhật DTO SubWindows[1]
+            row.SubCells[1].SelectedSource = sources[1];
+            Assert.Equal("SRC_2", row.Window.SubWindows?[1].SourceId);
+
+            // Kiểm tra dung sai: gán WindowMode <= 0 -> tự động đưa về 1
+            row.WindowMode = 0;
+            Assert.Equal(1, row.WindowMode);
+            Assert.Single(row.SubCells);
+        });
+    }
+
+    [Fact]
+    public void VwLocalSceneStore_SyncWindowsFromDevice_PadsMissingSubWindows_Test()
+    {
+        var tempKey = "TEST_DEVICE_" + Guid.NewGuid().ToString("N");
+        var tempDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "VwLocalStore_" + Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            var sources = new List<WpfDto.VwSourceDto>
+            {
+                new() { ID = "101", Name = "Camera Cổng 1", SignalNo = 101 },
+            };
+
+            // Thiết bị báo WindowMode = 4 nhưng chỉ có 1 SubWindow được trả về
+            var devWin = new Module.VideoWall.WPF.Api.Direct.Isapi.VwISAPIWallWindowItem
+            {
+                Id = 1,
+                WindowMode = 4,
+                Rect = new Module.VideoWall.WPF.Api.Direct.Isapi.VwISAPIRect
+                {
+                    Coordinate = new Module.VideoWall.WPF.Api.Direct.Isapi.VwISAPICoordinate { X = 0, Y = 0 },
+                    Width = 3840,
+                    Height = 2160,
+                },
+                SubWindowList = new Module.VideoWall.WPF.Api.Direct.Isapi.VwISAPISubWindowList
+                {
+                    SubWindow =
+                    [
+                        new() { Id = 1, SubWindowParam = new() { VideoInputChannelId = "101" } },
+                    ]
+                }
+            };
+
+            var synched = VwLocalSceneStore.SyncWindowsFromDevice(tempKey, "SCENE_1", [devWin], sources, tempDir);
+
+            Assert.Single(synched);
+            var winDto = synched[0];
+            Assert.Equal(4, winDto.WindowMode);
+            Assert.NotNull(winDto.SubWindows);
+            Assert.Equal(4, winDto.SubWindows.Count);
+            Assert.Equal("101", winDto.SubWindows[0].SourceId);
+            Assert.Null(winDto.SubWindows[1].SourceId);
+            Assert.Null(winDto.SubWindows[2].SourceId);
+            Assert.Null(winDto.SubWindows[3].SourceId);
+        }
+        finally
+        {
+            if (System.IO.Directory.Exists(tempDir))
+            {
+                System.IO.Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
+    [Fact]
+    public void SceneSetupViewModel_CreateScene_SavesNewSceneAndWindows_Test()
+    {
+        RunOnStaThread(async () =>
+        {
+            var stack = BuildClientStack();
+            var connection = new ConnectionViewModel(stack.ActivityPublisher, stack.Publisher, new UserConfirmationTest(true));
+            var vm = new SceneSetupViewModel(stack.ActivityPublisher, connection, new UserConfirmationTest(true), stack.Publisher);
+
+            var winDto = new WpfDto.VwWindowSceneDto
+            {
+                ID = "WIN_INIT_1",
+                Name = "Ô 1",
+                SourceId = "SRC_1",
+                X = 0,
+                Y = 0,
+                W = 1920,
+                H = 1080,
+                WindowMode = 1,
+            };
+
+            // Bắt đầu tạo kịch bản mới và đặt tên (canvas được dọn sạch)
+            vm.StartCreateNewSceneCommand.Execute(null);
+            Assert.True(vm.IsCreatingNewScene);
+            Assert.Empty(vm.SceneWindows);
+            vm.SceneName = "Kịch bản Mới Có Ô";
+
+            // Thêm ô vào kịch bản mới đang tạo
+            vm.PopulateSceneWindowsFromDtos([winDto]);
+            Assert.Single(vm.SceneWindows);
+
+            // Bấm Lưu kịch bản (CreateSceneCommand)
+            await vm.CreateSceneCommand.ExecuteAsync(null);
+
+            // Xác minh: Kịch bản mới được tạo, không còn ở chế độ tạo mới
+            Assert.False(vm.IsCreatingNewScene);
+            Assert.NotNull(vm.CurrentScene);
+            Assert.Equal("Kịch bản Mới Có Ô", vm.CurrentScene.Name);
+
+            // Toàn bộ các ô trên Canvas được lưu vào kịch bản mới
+            Assert.Single(vm.SceneWindows);
+            Assert.Equal(vm.CurrentScene.ID, vm.SceneWindows[0].Window.SceneId);
+        });
+    }
+
+    [Fact]
+    public void SceneSetupViewModel_SaveAllSceneWindows_SavesToLocalStoreWithoutPush_Test()
+    {
+        RunOnStaThread(() =>
+        {
+            var stack = BuildClientStack();
+            var connection = new ConnectionViewModel(stack.ActivityPublisher, stack.Publisher, new UserConfirmationTest(true));
+            var vm = new SceneSetupViewModel(stack.ActivityPublisher, connection, new UserConfirmationTest(true), stack.Publisher);
+
+            var scene = new WpfDto.VwSceneDto
+            {
+                ID = "SCENE_TEST_SAVE",
+                Name = "Kịch bản Test Lưu",
+                OutputId = "1",
+            };
+            vm.Scenes.Add(scene);
+            vm.CurrentScene = scene;
+
+            var winDto = new WpfDto.VwWindowSceneDto
+            {
+                ID = "WIN_SAVE_1",
+                SceneId = scene.ID,
+                Name = "Ô Test",
+                SourceId = "SRC_1",
+                WindowMode = 4,
+            };
+            vm.PopulateSceneWindowsFromDtos([winDto]);
+
+            // CanSaveAllSceneWindows phải cho phép bấm Lưu
+            Assert.True(vm.SaveAllSceneWindowsCommand.CanExecute(null));
+
+            // Thực thi lưu
+            vm.SaveAllSceneWindowsCommand.Execute(null);
+
+            // Kiểm tra trạng thái báo lưu thành công không cần push
+            Assert.Contains("Đã lưu cấu hình 1 ô camera", vm.StatusMessage);
+
+            // Kiểm tra đọc lại từ store
+            var saved = VwLocalSceneStore.ListWindowScenes(connection.DeviceKey, scene.ID);
+            Assert.Single(saved);
+            Assert.Equal("WIN_SAVE_1", saved[0].ID);
+            Assert.Equal(4, saved[0].WindowMode);
+        });
+    }
+
+    [Fact]
+    public void SceneSetupViewModel_AddSceneWindow_PopulatesSourcesWithIpStream_Test()
+    {
+        RunOnStaThread(() =>
+        {
+            var stack = BuildClientStack();
+            var connection = new ConnectionViewModel(stack.ActivityPublisher, stack.Publisher)
+            {
+                AdHocIp = "172.25.0.32",
+                WallNo = 1,
+            };
+
+            var vm = new SceneSetupViewModel(stack.ActivityPublisher, connection, new UserConfirmationTest(true), stack.Publisher);
+
+            vm.AddSceneWindowCommand.Execute(null);
+
+            Assert.NotEmpty(vm.Sources);
+            Assert.Contains(vm.Sources, s => s.SourceType == "ip_stream");
+            Assert.NotEmpty(vm.SceneWindows);
+            var firstWin = vm.SceneWindows[0];
+            Assert.NotNull(firstWin.SelectedSource);
+            Assert.Equal("ip_stream", firstWin.SelectedSource.SourceType);
+
+            var addedWin = vm.SceneWindows.Last();
+            Assert.NotNull(addedWin.SelectedSource);
+            Assert.Equal("ip_stream", addedWin.SelectedSource.SourceType);
+        });
+    }
+
+    [Fact]
+    public void SceneSetupViewModel_SyncFromProbeResult_MapsIPCameraToIpStream_Test()
+    {
+        RunOnStaThread(() =>
+        {
+            var stack = BuildClientStack();
+            var connection = new ConnectionViewModel(stack.ActivityPublisher, stack.Publisher)
+            {
+                AdHocIp = "172.25.0.32",
+                WallNo = 1,
+            };
+
+            var vm = new SceneSetupViewModel(stack.ActivityPublisher, connection, new UserConfirmationTest(true), stack.Publisher);
+
+            connection.ProbeResult = new WpfDto.VwProbeDeviceOutput
+            {
+                ControllerId = "172.25.0.32",
+                InputChannels =
+                [
+                    new WpfDto.VwISAPIInputChannel
+                    {
+                        Id = 16842753,
+                        InputPortType = "IPCamera",
+                        Name = "Km01+200",
+                    },
+                    new WpfDto.VwISAPIInputChannel
+                    {
+                        Id = 1,
+                        InputPortType = "HDMI",
+                        Name = "Cổng HDMI 1",
+                    }
+                ],
+                Outputs =
+                [
+                    new WpfDto.VwISAPIOutputItem
+                    {
+                        Id = 1,
+                        OutputId = 1,
+                        Rect = new WpfDto.VwISAPIRect
+                        {
+                            Coordinate = new WpfDto.VwISAPICoordinate { X = 0, Y = 0 },
+                            Width = 1920,
+                            Height = 1080,
+                        },
+                    }
+                ]
+            };
+
+            vm.SyncFromProbeResult();
+
+            var ipSource = vm.Sources.FirstOrDefault(s => s.SignalNo == 16842753);
+            Assert.NotNull(ipSource);
+            Assert.Equal("ip_stream", ipSource.SourceType);
+            Assert.StartsWith("[IP]", ipSource.DisplayName);
+            Assert.Contains("Km01+200", ipSource.DisplayName);
+
+            var hdmiSource = vm.Sources.FirstOrDefault(s => s.SignalNo == 1);
+            Assert.NotNull(hdmiSource);
+            Assert.Equal("local_signal", hdmiSource.SourceType);
+            Assert.StartsWith("[HDMI]", hdmiSource.DisplayName);
+        });
+    }
+
+    [Fact]
+    public void SceneSetupViewModel_SyncFromProbeResult_PreservesSelectedScene6_Test()
+    {
+        RunOnStaThread(() =>
+        {
+            var stack = BuildClientStack();
+            var connection = new ConnectionViewModel(stack.ActivityPublisher, stack.Publisher)
+            {
+                AdHocIp = "172.25.0.32",
+                WallNo = 1,
+            };
+
+            var vm = new SceneSetupViewModel(stack.ActivityPublisher, connection, new UserConfirmationTest(true), stack.Publisher);
+
+            var scene1 = new WpfDto.VwSceneDto
+            {
+                ID = "SCENE_1_ID",
+                OutputId = "1",
+                Name = "Kịch bản 1 (Mặc định)",
+            };
+            var scene6 = new WpfDto.VwSceneDto
+            {
+                ID = "SCENE_6_ID",
+                OutputId = "6",
+                Name = "Kịch bản 6 (Đang soạn)",
+            };
+            vm.Scenes.Clear();
+            vm.Scenes.Add(scene1);
+            vm.Scenes.Add(scene6);
+            vm.CurrentScene = scene6;
+
+            Assert.Equal("6", vm.CurrentScene.OutputId);
+
+            // Thiết bị phần cứng khảo sát trả về kết quả đang chạy Scene 1
+            connection.ProbeResult = new WpfDto.VwProbeDeviceOutput
+            {
+                ControllerId = "172.25.0.32",
+                RunningSceneId = 1,
+                Scenes =
+                [
+                    new WpfDto.VwWallSceneSummary
+                    {
+                        Id = 1,
+                        Name = "Kịch bản 1 (Mặc định)",
+                    },
+                    new WpfDto.VwWallSceneSummary
+                    {
+                        Id = 6,
+                        Name = "Kịch bản 6 (Đang soạn)",
+                    }
+                ],
+                Outputs =
+                [
+                    new WpfDto.VwISAPIOutputItem
+                    {
+                        Id = 1,
+                        OutputId = 1,
+                        Rect = new WpfDto.VwISAPIRect
+                        {
+                            Coordinate = new WpfDto.VwISAPICoordinate { X = 0, Y = 0 },
+                            Width = 1920,
+                            Height = 1080,
+                        },
+                    }
+                ]
+            };
+
+            // Thực hiện khảo sát lại từ thiết bị
+            vm.SyncFromProbeResult();
+
+            // Khẳng định: Người dùng vẫn đứng nguyên ở kịch bản 6
+            Assert.NotNull(vm.CurrentScene);
+            Assert.Equal("6", vm.CurrentScene.OutputId);
+            Assert.Equal("Kịch bản 6 (Đang soạn)", vm.CurrentScene.Name);
+
+            // ActiveScene (trạng thái chạy thật trên thiết bị) vẫn nhận diện đúng Scene 1
+            Assert.NotNull(vm.ActiveScene);
+            Assert.Equal("1", vm.ActiveScene.OutputId);
+        });
     }
 
     private static MainViewModel BuildMainViewModel(VwWpfClientStackTest stack, ConnectionViewModel connection)

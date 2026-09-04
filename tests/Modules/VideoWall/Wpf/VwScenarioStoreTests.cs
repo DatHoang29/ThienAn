@@ -1074,9 +1074,9 @@ public class VwScenarioStoreTests : IDisposable
         };
         var sceneSetup = new SceneSetupViewModel(activityPub, connection, new UserConfirmationTest(true), recordingPub);
 
-        // Wall 1: có 2 kịch bản mẫu cho 2 màn hình dọc
-        Assert.Equal(2, sceneSetup.Scenes.Count);
-        Assert.Contains("2 Ô dọc", sceneSetup.Scenes[0].Name);
+        // Wall 1: có 3 kịch bản mẫu cho lưới 2x2 (khớp phần cứng và log thiết bị)
+        Assert.Equal(3, sceneSetup.Scenes.Count);
+        Assert.Contains("Màn 1 Đơn + Màn 4 Chia 4", sceneSetup.Scenes[0].Name);
 
         // Chuyển sang Wall 2: tự động tải 3 kịch bản mẫu cho lưới 2x2
         connection.WallNo = 2;
@@ -1160,8 +1160,8 @@ public class VwScenarioStoreTests : IDisposable
         Assert.Equal(3840, Module.VideoWall.WPF.Controls.VisualWallCanvas.SnapToGrid(3800));
         Assert.Equal(0, Module.VideoWall.WPF.Controls.VisualWallCanvas.SnapToGrid(50));
 
-        // Khi ở giữa (độ lệch >= 300px) -> giữ nguyên toạ độ tuỳ chỉnh
-        Assert.Equal(1000, Module.VideoWall.WPF.Controls.VisualWallCanvas.SnapToGrid(1000));
+        // Snap vô điều kiện về bội số 1920px (ngăn chặn lỗi 53 winNotFillScreenOrCrossScreen)
+        Assert.Equal(1920, Module.VideoWall.WPF.Controls.VisualWallCanvas.SnapToGrid(1000));
 
         // 2. SnapSize: làm tròn kích thước
         Assert.Equal(1920, Module.VideoWall.WPF.Controls.VisualWallCanvas.SnapSize(1900));
@@ -2373,6 +2373,88 @@ public class VwScenarioStoreTests : IDisposable
         Assert.Equal(System.Net.HttpStatusCode.OK, capsRes.HttpStatusCode);
         Assert.NotNull(capsRes.Data);
         Assert.Equal(512, capsRes.Data.MaxWindowNums);
+    }
+
+    [Fact]
+    public void VisualWallCanvas_CalculateCardZIndex_HigherLayerAlwaysAboveLowerLayer_Test()
+    {
+        var layer1SelectedZ = VisualWallCanvas.CalculateCardZIndex(1, isSelected: true, orderNo: 1);
+        var layer2UnselectedZ = VisualWallCanvas.CalculateCardZIndex(2, isSelected: false, orderNo: 1);
+        Assert.True(layer2UnselectedZ > layer1SelectedZ);
+
+        var layer2SelectedZ = VisualWallCanvas.CalculateCardZIndex(2, isSelected: true, orderNo: 1);
+        Assert.True(layer2SelectedZ > layer2UnselectedZ);
+
+        var layer1Order1 = VisualWallCanvas.CalculateCardZIndex(1, isSelected: false, orderNo: 1);
+        var layer1Order2 = VisualWallCanvas.CalculateCardZIndex(1, isSelected: false, orderNo: 2);
+        Assert.True(layer1Order2 > layer1Order1);
+
+        var nullZ = VisualWallCanvas.CalculateCardZIndex(null, isSelected: false, orderNo: 1);
+        var zeroZ = VisualWallCanvas.CalculateCardZIndex(0, isSelected: false, orderNo: 1);
+        Assert.Equal(layer1Order1, nullZ);
+        Assert.Equal(layer1Order1, zeroZ);
+    }
+
+    [Fact]
+    public async Task VwDirectSetupSceneOrchestrator_AddWindow_OrdersByZIndexAscending_Test()
+    {
+        const int port = 18210;
+        using var mockServer = new VwISAPIMockServerHikvision();
+        mockServer.Start(port);
+
+        var creds = new VwDirectDeviceCredentials("127.0.0.1", port, "admin", "12345");
+        var orchestrator = VwDirectClientFactory.CreateSetupSceneOrchestrator(creds);
+
+        var input = new VwDirectPushSceneInput
+        {
+            SceneId = 1,
+            WallNo = 1,
+            DryRun = true,
+            Windows =
+            [
+                new VwDirectWindowInput
+                {
+                    Label = "Window Layer 3",
+                    ZIndex = 3,
+                    X = 0,
+                    Y = 0,
+                    W = 1920,
+                    H = 1080,
+                    SignalNo = 3,
+                },
+                new VwDirectWindowInput
+                {
+                    Label = "Window Layer 1",
+                    ZIndex = 1,
+                    X = 1920,
+                    Y = 0,
+                    W = 1920,
+                    H = 1080,
+                    SignalNo = 1,
+                },
+                new VwDirectWindowInput
+                {
+                    Label = "Window Layer 2",
+                    ZIndex = 2,
+                    X = 3840,
+                    Y = 0,
+                    W = 1920,
+                    H = 1080,
+                    SignalNo = 2,
+                },
+            ],
+        };
+
+        var result = await orchestrator.Execute(input, CancellationToken.None);
+
+        Assert.True(result.Success);
+        Assert.Equal(3, result.Windows.Count);
+        Assert.Equal("Window Layer 1", result.Windows[0].Label);
+        Assert.Equal(1, result.Windows[0].ZIndex);
+        Assert.Equal("Window Layer 2", result.Windows[1].Label);
+        Assert.Equal(2, result.Windows[1].ZIndex);
+        Assert.Equal("Window Layer 3", result.Windows[2].Label);
+        Assert.Equal(3, result.Windows[2].ZIndex);
     }
 
     private sealed class FaultyHttpMessageHandlerTest(Exception exceptionToThrow) : HttpMessageHandler

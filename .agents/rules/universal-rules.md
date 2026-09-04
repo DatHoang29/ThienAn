@@ -131,5 +131,16 @@ When user's prompt is NOT in English:
   ```
 - **Người dùng sẽ tự chạy ứng dụng WPF**: AI KHÔNG tự ý chạy `dotnet run` ứng dụng WPF sau khi sửa code/test, để người dùng tự chủ động khởi chạy khi cần.
 
+---
+
+## 🛑 Quy Tắc Vị Trí File Prompt / Plan / Task (Prompt & Plan File Location Rule [Mandatory Rule])
+
+- **TUYỆT ĐỐI KHÔNG lưu file prompt / plan / task-breakdown ngoài repo**: cấm ghi vào `~/.claude/plans/`, `%USERPROFILE%\.claude\plans\`, thư mục scratchpad/temp, hoặc bất kỳ nơi nào ngoài cây thư mục dự án `c:\ThienAn\`.
+- **Nơi lưu chuẩn (BẮT BUỘC nằm trong repo)**:
+  - Prompt/plan theo domain nghiệp vụ → `DocBusinessThienAn/<Dự-án>/<Module>/` (ví dụ VideoWall: `DocBusinessThienAn/HữuNghị-ChiLăng/VideoWall/`).
+  - Prompt/plan hạ tầng / tooling / AG-Kit (không thuộc domain nghiệp vụ) → `.agents/prompts/`.
+- **Đặt tên**: `<task-slug>-prompt.md` hoặc `<task-slug>-plan.md` (kebab-case, tiếng Việt không dấu hoặc tiếng Anh).
+- **Khi ở chế độ Plan (ExitPlanMode)**: nếu harness ép ghi bản plan vào `~/.claude/plans/`, ngay sau khi plan được duyệt **BẮT BUỘC sao chép bản đó vào đúng thư mục repo ở trên** và coi bản trong repo là bản chính thức; báo cho người dùng đường dẫn bản trong repo, không phải đường dẫn `~/.claude/plans/`.
+- **Auto-cleanup**: xoá file prompt/plan trong repo sau khi task hoàn tất (khớp `*-prompt*.md`, `*-plan.md`, `{task-slug}.md`).
 
 

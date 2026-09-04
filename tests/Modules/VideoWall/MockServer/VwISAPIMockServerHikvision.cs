@@ -155,6 +155,8 @@ namespace Tests.Modules.VideoWall.MockServer
         public int UpdateWindowCallCount { get; private set; }
         public int DeleteWindowCallCount { get; private set; }
         public int DeleteAllWindowsCallCount { get; private set; }
+        public int StartDynamicDecodeCallCount { get; private set; }
+        public int StopDynamicDecodeCallCount { get; private set; }
         public int SwitchSourceCallCount { get; private set; }
         public int WindowTopCallCount { get; private set; }
         public int WindowBottomCallCount { get; private set; }
@@ -310,6 +312,8 @@ namespace Tests.Modules.VideoWall.MockServer
             UpdateWindowCallCount = 0;
             DeleteWindowCallCount = 0;
             DeleteAllWindowsCallCount = 0;
+            StartDynamicDecodeCallCount = 0;
+            StopDynamicDecodeCallCount = 0;
             SwitchSourceCallCount = 0;
             WindowTopCallCount = 0;
             WindowBottomCallCount = 0;

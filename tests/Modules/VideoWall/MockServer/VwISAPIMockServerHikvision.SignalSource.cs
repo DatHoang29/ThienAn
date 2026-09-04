@@ -876,13 +876,13 @@ opt="352*240,352*288,176*120,176*144,704*288,704*240,528*384,528*320,704*576,704
 <StreamInputChannelList xmlns="http://www.isapi.org/ver20/XMLSchema" version="2.0">
   <StreamInputChannel version="2.0">
     <id>
-      test
+      1
     </id>
     <name>
-      test
+      Camera IP Mock 1
     </name>
     <group>
-      test
+      default
     </group>
     <startDecoding>
       true
@@ -902,7 +902,7 @@ opt="352*240,352*288,176*120,176*144,704*288,704*240,528*384,528*320,704*576,704
             </streamType>
             <StreamInURL>
               <URL>
-                test
+                rtsp://172.25.1.12:554/Streaming/Channels/101
               </URL>
             </StreamInURL>
             <StreamByDdns>

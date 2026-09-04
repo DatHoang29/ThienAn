@@ -327,6 +327,7 @@ public partial class VwISAPIMockServerHikvision
         // 9.7.2.5. PUT /ISAPI/DisplayDev/VideoWall/{videoWallID}/windows/{VWMWID}/sub/{VWSWID}/start
         if (method == "PUT" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}/windows/{VWMWID}/sub/{VWSWID}/start", path))
         {
+            StartDynamicDecodeCallCount++;
             await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
                 <?xml version="1.0" encoding="UTF-8"?>
                 <ResponseStatus version="1.0" xmlns="{{Ns}}">
@@ -342,6 +343,7 @@ public partial class VwISAPIMockServerHikvision
         // 9.7.2.7. PUT /ISAPI/DisplayDev/VideoWall/{videoWallID}/windows/{VWMWID}/sub/{VWSWID}/stop
         if (method == "PUT" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}/windows/{VWMWID}/sub/{VWSWID}/stop", path))
         {
+            StopDynamicDecodeCallCount++;
             await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
                 <?xml version="1.0" encoding="UTF-8"?>
                 <ResponseStatus version="1.0" xmlns="{{Ns}}">
