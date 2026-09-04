@@ -626,8 +626,10 @@ namespace Tests.Modules.VideoWall
 
         /// <summary>
         /// Author: Đạt
-        /// Description: SID lớn hơn maxSceneNums thiết bị báo về phải bị chặn TRƯỚC KHI phát lệnh, với
-        ///              thông báo nêu rõ khoảng hợp lệ.
+        /// Description: Mọi SID nằm ngoài dải thiết bị nhận (1..maxSceneNums) đều phải bị chặn TRƯỚC KHI
+        ///              phát lệnh, với thông báo nêu rõ khoảng hợp lệ: vượt trần, bằng 0, âm, và không
+        ///              phải số (nhánh int.TryParse thất bại — không được để lọt xuống thiết bị rồi
+        ///              nhận badParameters khó hiểu).
         ///
         ///              Vì sao bài này từng KHÔNG THỂ viết: mock server trước đây không trả
         ///              &lt;maxSceneNums&gt; nên nó luôn deserialize ra 0, mà điều kiện chặn là
@@ -635,48 +637,18 @@ namespace Tests.Modules.VideoWall
         ///              Nay mock có MaxSceneNums cấu hình được nên kiểm được thật.
         /// Created date: 26/08/2026
         /// </summary>
-        [Fact]
-        public async Task VwISAPIDeviceService_SetupScene_SidExceedsMaxSceneNums_MarksStepFailed_Test()
-        {
-            // Arrange
-            var output = await RunSetupSceneWithSid(sid: "10", maxSceneNums: 5);
-
-            // Assert
-            AssertSidRejected(output, sid: "10", maxSceneNums: 5);
-        }
-
-        /// <summary>
-        /// Author: Đạt
-        /// Description: SID = 0 nằm dưới khoảng thiết bị nhận (1..maxSceneNums) nên phải bị chặn.
-        ///              Đây là giá trị dễ lọt nhất vì "0" vẫn parse được thành số.
-        /// Created date: 26/08/2026
-        /// </summary>
         [Theory]
-        [InlineData("0")]
-        [InlineData("-1")]
-        public async Task VwISAPIDeviceService_SetupScene_SidZeroOrNegative_MarksStepFailed_Test(string sid)
+        [InlineData("10")]  // vượt maxSceneNums
+        [InlineData("0")]   // dưới dải 1..max, dễ lọt nhất vì "0" vẫn parse được thành số
+        [InlineData("-1")]  // âm
+        [InlineData("abc")] // không phải số (int.TryParse thất bại)
+        public async Task VwISAPIDeviceService_SetupScene_SidOutsideDeviceRange_MarksStepFailed_Test(string sid)
         {
             // Arrange
             var output = await RunSetupSceneWithSid(sid, maxSceneNums: 5);
 
             // Assert
             AssertSidRejected(output, sid, maxSceneNums: 5);
-        }
-
-        /// <summary>
-        /// Author: Đạt
-        /// Description: SID không phải số (nhánh int.TryParse thất bại) phải bị chặn cùng kiểu thông
-        ///              báo, không được để lọt xuống thiết bị rồi nhận badParameters khó hiểu.
-        /// Created date: 26/08/2026
-        /// </summary>
-        [Fact]
-        public async Task VwISAPIDeviceService_SetupScene_SidNotNumeric_MarksStepFailed_Test()
-        {
-            // Arrange
-            var output = await RunSetupSceneWithSid(sid: "abc", maxSceneNums: 5);
-
-            // Assert
-            AssertSidRejected(output, sid: "abc", maxSceneNums: 5);
         }
 
         /// <summary>
@@ -1400,17 +1372,20 @@ namespace Tests.Modules.VideoWall
 
         /// <summary>
         /// Author: Đạt
-        /// Description: Kiểm thử ResolveWallNo ưu tiên số hiệu tường truyền vào (requestedWallNo) cao nhất, không gọi thiết bị.
+        /// Description: Kiểm thử ResolveWallNo ưu tiên số hiệu tường truyền vào (requestedWallNo) cao nhất và
+        ///              không gọi thiết bị — kể cả khi không cấu hình WallNo hay đã cấu hình một giá trị khác.
         /// Created date: 24/08/2026
         /// </summary>
-        [Fact]
-        public async Task VwISAPIDeviceService_ResolveWallNo_RequestedWallNo_TakesTopPriority_Test()
+        [Theory]
+        [InlineData(null)]  // không cấu hình
+        [InlineData(5)]     // có cấu hình khác -> requested vẫn thắng
+        public async Task VwISAPIDeviceService_ResolveWallNo_RequestedWallNo_AlwaysWins_Test(int? configuredWallNo)
         {
             // Arrange
             _mock.ResetDefaults();
             var controller = CreateResolverTestController();
             using var scope = host.Services.CreateScope();
-            var resolver = CreateResolverWithWallNo(scope, configuredWallNo: null);
+            var resolver = CreateResolverWithWallNo(scope, configuredWallNo);
             resolver.ForgetWall(controller.ID);
 
             // Act
@@ -1441,29 +1416,6 @@ namespace Tests.Modules.VideoWall
 
             // Assert
             Assert.Equal(5, wallNo);
-            Assert.Equal(0, _mock.GetVideoWallsCallCount);
-        }
-
-        /// <summary>
-        /// Author: Đạt
-        /// Description: Kiểm thử requestedWallNo ghi đè cấu hình WallNo khi cả hai cùng có giá trị.
-        /// Created date: 24/08/2026
-        /// </summary>
-        [Fact]
-        public async Task VwISAPIDeviceService_ResolveWallNo_RequestedOverridesConfigured_Test()
-        {
-            // Arrange
-            _mock.ResetDefaults();
-            var controller = CreateResolverTestController();
-            using var scope = host.Services.CreateScope();
-            var resolver = CreateResolverWithWallNo(scope, configuredWallNo: 5);
-            resolver.ForgetWall(controller.ID);
-
-            // Act
-            var wallNo = await resolver.ResolveWall(controller, requestedWallNo: 7);
-
-            // Assert
-            Assert.Equal(7, wallNo);
             Assert.Equal(0, _mock.GetVideoWallsCallCount);
         }
 

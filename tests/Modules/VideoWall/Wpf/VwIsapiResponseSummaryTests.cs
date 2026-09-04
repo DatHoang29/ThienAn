@@ -13,16 +13,15 @@ namespace Tests.Modules.VideoWall.Wpf;
 
 public class VwIsapiResponseSummaryTests
 {
-    [Fact]
-    public void Parse_NullOrEmpty_ReturnsHasResponseFalse_Test()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("   ")]
+    public void Parse_NullOrEmpty_ReturnsHasResponseFalse_Test(string? input)
     {
-        var resNull = VwIsapiResponseSummary.Parse(null);
-        Assert.False(resNull.HasResponse);
-        Assert.Empty(resNull.Badges);
+        var res = VwIsapiResponseSummary.Parse(input);
 
-        var resEmpty = VwIsapiResponseSummary.Parse("   ");
-        Assert.False(resEmpty.HasResponse);
-        Assert.Empty(resEmpty.Badges);
+        Assert.False(res.HasResponse);
+        Assert.Empty(res.Badges);
     }
 
     [Fact]

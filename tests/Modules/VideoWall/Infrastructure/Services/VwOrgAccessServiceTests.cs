@@ -220,11 +220,16 @@ namespace Tests.Modules.VideoWall
 
         /// <summary>
         /// Author: Đạt
-        /// Description: Khi cấu hình BypassPermission = true (môi trường non-Production), tài khoản thường vẫn được cấp FullAccess.
+        /// Description: Cờ BypassPermission = true chỉ có hiệu lực ngoài Production: môi trường Development
+        ///              cấp FullAccess cho tài khoản thường, còn Production phải vô hiệu hóa cờ này an toàn
+        ///              (ngăn ngừa lỗ hổng phân quyền).
         /// Created date: 24/08/2026
         /// </summary>
-        [Fact]
-        public async Task VwOrgAccessService_BypassPermissionEnabled_GrantsFullAccess_Test()
+        [Theory]
+        [InlineData("Development", true)]
+        [InlineData("Production", false)]
+        public async Task VwOrgAccessService_BypassPermission_HonoredOnlyOutsideProduction_Test(
+            string environmentName, bool expectedFullAccess)
         {
             var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
             SetRestrictedUser(orgId);
@@ -238,44 +243,13 @@ namespace Tests.Modules.VideoWall
 
             try
             {
-                hostEnv.EnvironmentName = Environments.Development;
+                hostEnv.EnvironmentName = environmentName;
 
                 var srv = GetOrgAccessService(new VwDeviceOptions { BypassPermission = true });
                 var scope = await srv.GetScopeAsync();
 
-                Assert.True(srv.IsFullAccess);
-                Assert.True(scope.IsFullAccess);
-            }
-            finally
-            {
-                hostEnv.EnvironmentName = originalEnv;
-            }
-        }
-
-        /// <summary>
-        /// Author: Đạt
-        /// Description: Cờ BypassPermission = true bị vô hiệu hóa an toàn nếu chạy trong môi trường Production (ngăn ngừa lỗ hổng phân quyền).
-        /// Created date: 24/08/2026
-        /// </summary>
-        [Fact]
-        public async Task VwOrgAccessService_BypassPermissionEnabled_InProduction_IsIgnored_Test()
-        {
-            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
-            SetRestrictedUser(orgId);
-
-            // Xem chú thích ở test Development phía trên: phải sửa đúng instance App.HostEnvironment.
-            var hostEnv = App.HostEnvironment;
-            var originalEnv = hostEnv.EnvironmentName;
-
-            try
-            {
-                hostEnv.EnvironmentName = Environments.Production;
-
-                var srv = GetOrgAccessService(new VwDeviceOptions { BypassPermission = true });
-                var scope = await srv.GetScopeAsync();
-
-                Assert.False(srv.IsFullAccess);
-                Assert.False(scope.IsFullAccess);
+                Assert.Equal(expectedFullAccess, srv.IsFullAccess);
+                Assert.Equal(expectedFullAccess, scope.IsFullAccess);
             }
             finally
             {

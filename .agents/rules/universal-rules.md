@@ -141,6 +141,22 @@ When user's prompt is NOT in English:
   - Prompt/plan hạ tầng / tooling / AG-Kit (không thuộc domain nghiệp vụ) → `.agents/prompts/`.
 - **Đặt tên**: `<task-slug>-prompt.md` hoặc `<task-slug>-plan.md` (kebab-case, tiếng Việt không dấu hoặc tiếng Anh).
 - **Khi ở chế độ Plan (ExitPlanMode)**: nếu harness ép ghi bản plan vào `~/.claude/plans/`, ngay sau khi plan được duyệt **BẮT BUỘC sao chép bản đó vào đúng thư mục repo ở trên** và coi bản trong repo là bản chính thức; báo cho người dùng đường dẫn bản trong repo, không phải đường dẫn `~/.claude/plans/`.
-- **Auto-cleanup**: xoá file prompt/plan trong repo sau khi task hoàn tất (khớp `*-prompt*.md`, `*-plan.md`, `{task-slug}.md`).
+- **Auto-cleanup**: xoá file prompt/plan trong repo sau khi task hoàn tất (khớp `*-prompt*.md`, `*-plan.md`, `{task-slug}.md`, và ghi chú tạm `.agents/memory/*-scratch.md` — xem *Transient Memory Note Rule* ở cuối file).
 
 
+
+---
+
+## 🛑 Quy Tắc Ghi Chú Tạm Trong `.agents/memory/` (Transient Memory Note Rule [Mandatory Rule])
+
+- **Phân biệt 2 loại nội dung trước khi ghi vào `.agents/memory/`**:
+  - **Thường trú (persistent)** — sống lâu, càng đọc lại càng đúng: quy ước dự án, quyết định kiến trúc, sở thích người dùng, ranh giới sở hữu module, nguồn sự thật của tài liệu.
+  - **Tạm (transient)** — chỉ đúng tại thời điểm chạy, sẽ sai sau vài commit: mốc số lượng test, danh sách test đang flaky, output của tool, thông báo lỗi môi trường, port/PID/đường dẫn temp cụ thể, số dòng file, phiên bản package đang cài.
+- **Nghi ngờ thì coi là TẠM**: nếu không chắc nội dung còn đúng sau 1 tháng thì nó là ghi chú tạm.
+- **Quy ước bắt buộc cho ghi chú tạm**:
+  - Đặt tên **`<task-slug>-scratch.md`** (hậu tố `-scratch` là dấu hiệu duy nhất để dọn tự động, KHÔNG dựa vào tên riêng của từng task).
+  - Frontmatter thêm `metadata.lifetime: transient`.
+  - **KHÔNG** thêm vào index `.agents/memory/MEMORY.md`; nếu buộc phải thêm để tra cứu trong phiên thì cuối task **phải xoá kèm dòng index đó**.
+- **BẮT BUỘC TỰ ĐỘNG XOÁ CUỐI TASK**: khi task hoàn tất (đã có kết quả cuối và đã báo cáo cho người dùng), AI **tự động xoá toàn bộ** `.agents/memory/*-scratch.md` cùng mọi dòng index trỏ tới chúng — **không hỏi lại**, không giữ "cho lần sau". Việc này nằm cùng nhóm với auto-cleanup file prompt/plan và thư mục artifact tạm (`tests/TestResults/`, `bin`/`obj` tạm do AI sinh ra).
+- **Cần lại thì đo lại**: lần sau gặp cùng vấn đề thì chạy lại và viết ghi chú mới, TUYỆT ĐỐI KHÔNG tin số liệu trong bản scratch cũ.
+- **Muốn giữ lâu dài thì đặt đúng chỗ, không nhét vào scratch**: nội dung thường trú → memory chuẩn trong `.agents/memory/` (có index trong `MEMORY.md`); hướng dẫn thao tác thuộc một khu vực code cụ thể → README của khu vực đó (ví dụ cách chạy test → `tests/README.MD`).

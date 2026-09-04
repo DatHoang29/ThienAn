@@ -10,46 +10,54 @@ namespace Tests.Modules.VideoWall.Wpf;
 
 public class VwWpfConverterTests
 {
-    [Fact]
-    public void InverseNullToVisibilityConverter_NullOrEmpty_ReturnsVisible_Test()
+    // Giá trị "rỗng" theo quy ước của cả hai converter: null, chuỗi trắng, và collection không phần tử.
+    // Phải đi qua MemberData vì List<int> không biểu diễn được trong [InlineData].
+    public static TheoryData<object?> NullishValues => new() { null, "", "   ", new List<int>() };
+
+    public static TheoryData<object?> NonNullValues => new() { 1, "127.0.0.1", new List<int> { 1, 2 } };
+
+    [Theory]
+    [MemberData(nameof(NullishValues))]
+    public void InverseNullToVisibilityConverter_Nullish_ReturnsVisible_Test(object? value)
     {
         var converter = new InverseNullToVisibilityConverter();
 
-        Assert.Equal(Visibility.Visible, converter.Convert(null, typeof(Visibility), null, CultureInfo.InvariantCulture));
-        Assert.Equal(Visibility.Visible, converter.Convert("", typeof(Visibility), null, CultureInfo.InvariantCulture));
-        Assert.Equal(Visibility.Visible, converter.Convert("   ", typeof(Visibility), null, CultureInfo.InvariantCulture));
-        Assert.Equal(Visibility.Visible, converter.Convert(new List<int>(), typeof(Visibility), null, CultureInfo.InvariantCulture));
+        var result = converter.Convert(value, typeof(Visibility), null, CultureInfo.InvariantCulture);
+
+        Assert.Equal(Visibility.Visible, result);
     }
 
-    [Fact]
-    public void InverseNullToVisibilityConverter_NonNull_ReturnsCollapsed_Test()
+    [Theory]
+    [MemberData(nameof(NonNullValues))]
+    public void InverseNullToVisibilityConverter_NonNull_ReturnsCollapsed_Test(object? value)
     {
         var converter = new InverseNullToVisibilityConverter();
 
-        Assert.Equal(Visibility.Collapsed, converter.Convert(1, typeof(Visibility), null, CultureInfo.InvariantCulture));
-        Assert.Equal(Visibility.Collapsed, converter.Convert("127.0.0.1", typeof(Visibility), null, CultureInfo.InvariantCulture));
-        Assert.Equal(Visibility.Collapsed, converter.Convert(new List<int> { 1, 2 }, typeof(Visibility), null, CultureInfo.InvariantCulture));
+        var result = converter.Convert(value, typeof(Visibility), null, CultureInfo.InvariantCulture);
+
+        Assert.Equal(Visibility.Collapsed, result);
     }
 
-    [Fact]
-    public void NullToVisibilityConverter_NullOrEmpty_ReturnsCollapsed_Test()
+    [Theory]
+    [MemberData(nameof(NullishValues))]
+    public void NullToVisibilityConverter_Nullish_ReturnsCollapsed_Test(object? value)
     {
         var converter = new NullToVisibilityConverter();
 
-        Assert.Equal(Visibility.Collapsed, converter.Convert(null, typeof(Visibility), null, CultureInfo.InvariantCulture));
-        Assert.Equal(Visibility.Collapsed, converter.Convert("", typeof(Visibility), null, CultureInfo.InvariantCulture));
-        Assert.Equal(Visibility.Collapsed, converter.Convert("   ", typeof(Visibility), null, CultureInfo.InvariantCulture));
-        Assert.Equal(Visibility.Collapsed, converter.Convert(new List<int>(), typeof(Visibility), null, CultureInfo.InvariantCulture));
+        var result = converter.Convert(value, typeof(Visibility), null, CultureInfo.InvariantCulture);
+
+        Assert.Equal(Visibility.Collapsed, result);
     }
 
-    [Fact]
-    public void NullToVisibilityConverter_NonNull_ReturnsVisible_Test()
+    [Theory]
+    [MemberData(nameof(NonNullValues))]
+    public void NullToVisibilityConverter_NonNull_ReturnsVisible_Test(object? value)
     {
         var converter = new NullToVisibilityConverter();
 
-        Assert.Equal(Visibility.Visible, converter.Convert("Data", typeof(Visibility), null, CultureInfo.InvariantCulture));
-        Assert.Equal(Visibility.Visible, converter.Convert(100, typeof(Visibility), null, CultureInfo.InvariantCulture));
-        Assert.Equal(Visibility.Visible, converter.Convert(new List<string> { "item" }, typeof(Visibility), null, CultureInfo.InvariantCulture));
+        var result = converter.Convert(value, typeof(Visibility), null, CultureInfo.InvariantCulture);
+
+        Assert.Equal(Visibility.Visible, result);
     }
 
     [Fact]

@@ -40,38 +40,21 @@ public class XmlSyntaxHighlighterTests
         Assert.Equal(FontStyles.Italic, commentRun.FontStyle);
     }
 
-    [Fact]
-    public void BuildDocument_NormalStatus_ProducesGreenColorRun_Test()
+    [Theory]
+    [InlineData("normal", 0x16, 0xA3, 0x4A)]        // xanh lá
+    [InlineData("notConnected", 0xDC, 0x26, 0x26)]  // đỏ
+    public void BuildDocument_AccessStatus_ProducesBoldColorRun_Test(string status, byte r, byte g, byte b)
     {
-        const string xml = "<VideoInputChannel><videoInputChannelAccessStatus>normal</videoInputChannelAccessStatus></VideoInputChannel>";
+        var xml = $"<VideoInputChannel><videoInputChannelAccessStatus>{status}</videoInputChannelAccessStatus></VideoInputChannel>";
         var doc = XmlSyntaxHighlighter.BuildDocument(xml);
 
         var paragraph = Assert.IsType<Paragraph>(doc.Blocks.FirstBlock);
-        var runs = paragraph.Inlines.OfType<Run>().ToList();
+        var run = paragraph.Inlines.OfType<Run>()
+            .FirstOrDefault(x => x.Text.Equals(status, StringComparison.OrdinalIgnoreCase));
 
-        var normalRun = runs.FirstOrDefault(r => r.Text.Equals("normal", StringComparison.OrdinalIgnoreCase));
-        Assert.NotNull(normalRun);
-        Assert.Equal(FontWeights.Bold, normalRun.FontWeight);
-
-        var brush = Assert.IsType<SolidColorBrush>(normalRun.Foreground);
-        Assert.Equal(Color.FromRgb(0x16, 0xA3, 0x4A), brush.Color);
-    }
-
-    [Fact]
-    public void BuildDocument_NotConnectedStatus_ProducesRedColorRun_Test()
-    {
-        const string xml = "<VideoInputChannel><videoInputChannelAccessStatus>notConnected</videoInputChannelAccessStatus></VideoInputChannel>";
-        var doc = XmlSyntaxHighlighter.BuildDocument(xml);
-
-        var paragraph = Assert.IsType<Paragraph>(doc.Blocks.FirstBlock);
-        var runs = paragraph.Inlines.OfType<Run>().ToList();
-
-        var notConnectedRun = runs.FirstOrDefault(r => r.Text.Equals("notConnected", StringComparison.OrdinalIgnoreCase));
-        Assert.NotNull(notConnectedRun);
-        Assert.Equal(FontWeights.Bold, notConnectedRun.FontWeight);
-
-        var brush = Assert.IsType<SolidColorBrush>(notConnectedRun.Foreground);
-        Assert.Equal(Color.FromRgb(0xDC, 0x26, 0x26), brush.Color);
+        Assert.NotNull(run);
+        Assert.Equal(FontWeights.Bold, run.FontWeight);
+        Assert.Equal(Color.FromRgb(r, g, b), Assert.IsType<SolidColorBrush>(run.Foreground).Color);
     }
 
     [Fact]

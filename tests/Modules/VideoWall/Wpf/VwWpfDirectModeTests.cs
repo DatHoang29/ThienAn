@@ -367,41 +367,42 @@ public class VwWpfDirectModeTests
         }
     }
 
-    [Fact]
-    public async Task DirectMode_SendIsapi_DecodeStatus_ReturnsDecodeStatusXml()
+    // Các endpoint GET chỉ cần khẳng định "200 + payload chứa/không chứa token". Mỗi case giữ port
+    // riêng như bản [Fact] gốc để không thay đổi hành vi lắng nghe của mock server.
+    // (port, path, tokens bắt buộc có, tokens bắt buộc KHÔNG có)
+    public static TheoryData<int, string, string[], string[]> SimpleGetEndpointCases => new()
     {
-        var (client, mockServer) = BuildDirectClient(18131);
+        { 18131, "ISAPI/DisplayDev/VideoWall/1/windows/status", ["WallWindowStatusList", "isDecoding"], ["WallWindowList"] },
+        { 18141, "ISAPI/DisplayDev/VideoWall/1/windows/33554433/sub/1/status", ["WallWindowStatusList", "<isDecoding>true</isDecoding>"], ["DynamicDecodeStatus"] },
+        { 18132, "ISAPI/DisplayDev/Audio/outputs/channels", ["AudioOutputChannelList"], ["VideoOutputChannelList"] },
+        { 18134, "ISAPI/DisplayDev/VideoWall/1", ["<VideoWall"], ["<VideoWallList"] },
+        { 18136, "SDK/activateStatus", ["<Activated>true</Activated>"], [] }
+    };
+
+    [Theory]
+    [MemberData(nameof(SimpleGetEndpointCases))]
+    public async Task DirectMode_SendIsapi_GetEndpoint_ReturnsExpectedPayload_Test(
+        int port, string path, string[] mustContain, string[] mustNotContain)
+    {
+        var (client, mockServer) = BuildDirectClient(port);
         using (mockServer)
         {
-            var step = await client.SendIsapi("GET", "ISAPI/DisplayDev/VideoWall/1/windows/status", null, null);
+            var step = await client.SendIsapi("GET", path, null, null);
 
             Assert.NotNull(step);
             Assert.Equal(200, step.HttpStatus);
             Assert.NotNull(step.ResponseXml);
-            Assert.Contains("WallWindowStatusList", step.ResponseXml);
-            Assert.Contains("isDecoding", step.ResponseXml);
-            Assert.DoesNotContain("WallWindowList", step.ResponseXml);
+
+            foreach (var token in mustContain)
+                Assert.Contains(token, step.ResponseXml);
+
+            foreach (var token in mustNotContain)
+                Assert.DoesNotContain(token, step.ResponseXml);
         }
     }
 
     [Fact]
-    public async Task DirectMode_SendIsapi_AudioOutputs_ReturnsAudioOutputChannelList()
-    {
-        var (client, mockServer) = BuildDirectClient(18132);
-        using (mockServer)
-        {
-            var step = await client.SendIsapi("GET", "ISAPI/DisplayDev/Audio/outputs/channels", null, null);
-
-            Assert.NotNull(step);
-            Assert.Equal(200, step.HttpStatus);
-            Assert.NotNull(step.ResponseXml);
-            Assert.Contains("AudioOutputChannelList", step.ResponseXml);
-            Assert.DoesNotContain("VideoOutputChannelList", step.ResponseXml);
-        }
-    }
-
-    [Fact]
-    public async Task DirectMode_SendIsapi_GetCapturedPicture_ReturnsJpegBinary()
+    public async Task DirectMode_SendIsapi_CapturedPicture_ReturnsBinaryImage_WithoutQueryingInputChannels_Test()
     {
         var (client, mockServer) = BuildDirectClient(18133);
         using (mockServer)
@@ -410,23 +411,10 @@ public class VwWpfDirectModeTests
 
             Assert.NotNull(step);
             Assert.Equal(200, step.HttpStatus);
-            Assert.Equal(0, mockServer.GetInputChannelsCallCount);
-        }
-    }
-
-    [Fact]
-    public async Task DirectMode_SendIsapi_GetSpecificVideoWall_ReturnsVideoWallXml()
-    {
-        var (client, mockServer) = BuildDirectClient(18134);
-        using (mockServer)
-        {
-            var step = await client.SendIsapi("GET", "ISAPI/DisplayDev/VideoWall/1", null, null);
-
-            Assert.NotNull(step);
-            Assert.Equal(200, step.HttpStatus);
             Assert.NotNull(step.ResponseXml);
-            Assert.Contains("<VideoWall", step.ResponseXml);
-            Assert.DoesNotContain("<VideoWallList", step.ResponseXml);
+            Assert.Contains("BINARY IMAGE DATA", step.ResponseXml);
+            Assert.Contains("[data:image/jpeg;base64,", step.ResponseXml);
+            Assert.Equal(0, mockServer.GetInputChannelsCallCount);
         }
     }
 
@@ -722,21 +710,6 @@ public class VwWpfDirectModeTests
     }
 
     [Fact]
-    public async Task DirectMode_SendIsapi_SDKActivateStatus_ReturnsActivatedXml_Test()
-    {
-        var (client, mockServer) = BuildDirectClient(18136);
-        using (mockServer)
-        {
-            var step = await client.SendIsapi("GET", "SDK/activateStatus", null, null);
-
-            Assert.NotNull(step);
-            Assert.Equal(200, step.HttpStatus);
-            Assert.NotNull(step.ResponseXml);
-            Assert.Contains("<Activated>true</Activated>", step.ResponseXml);
-        }
-    }
-
-    [Fact]
     public async Task DirectMode_SendIsapi_SystemEndpoints_ReturnExpectedXml_Test()
     {
         var (client, mockServer) = BuildDirectClient(18137);
@@ -870,20 +843,6 @@ public class VwWpfDirectModeTests
     }
 
     [Fact]
-    public async Task DirectMode_SendIsapi_SubWindowDecodeStatus_ReturnsWallWindowStatusListShape_Test()
-    {
-        var (client, mockServer) = BuildDirectClient(18141);
-        using (mockServer)
-        {
-            var step = await client.SendIsapi("GET", "ISAPI/DisplayDev/VideoWall/1/windows/33554433/sub/1/status", null, null);
-            Assert.Equal(200, step.HttpStatus);
-            Assert.Contains("WallWindowStatusList", step.ResponseXml);
-            Assert.Contains("<isDecoding>true</isDecoding>", step.ResponseXml);
-            Assert.DoesNotContain("DynamicDecodeStatus", step.ResponseXml);
-        }
-    }
-
-    [Fact]
     public async Task DirectMode_SendIsapi_ScreenCtrlCloseAll_Flags_Test()
     {
         var (client, mockServer) = BuildDirectClient(18142);
@@ -900,20 +859,6 @@ public class VwWpfDirectModeTests
             Assert.Equal(200, step2.HttpStatus);
             Assert.Contains("<statusCode>1</statusCode>", step2.ResponseXml);
             Assert.Contains("<statusString>OK</statusString>", step2.ResponseXml);
-        }
-    }
-
-    [Fact]
-    public async Task DirectMode_SendIsapi_PictureEndpoint_ReturnsBinaryImage_AndFormattedResponse_Test()
-    {
-        var (client, mockServer) = BuildDirectClient(18143);
-        using (mockServer)
-        {
-            var step = await client.SendIsapi("GET", "ISAPI/DisplayDev/Video/inputs/channels/16842753/picture", null, null);
-            Assert.Equal(200, step.HttpStatus);
-            Assert.NotNull(step.ResponseXml);
-            Assert.Contains("BINARY IMAGE DATA", step.ResponseXml);
-            Assert.Contains("[data:image/jpeg;base64,", step.ResponseXml);
         }
     }
 
