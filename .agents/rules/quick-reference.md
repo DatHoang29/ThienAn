@@ -1,4 +1,7 @@
 ---
+name: quick-reference
+version: 1.0.0
+priority: P2
 trigger: model_decision
 description: Apply when you need a fast lookup of which agents, skills, or validation scripts exist — for routing decisions or recalling the master/key components of the kit.
 ---

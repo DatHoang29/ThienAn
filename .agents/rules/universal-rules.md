@@ -1,4 +1,7 @@
 ---
+name: universal-rules
+version: 1.0.0
+priority: P0
 trigger: always_on
 ---
 
@@ -6,27 +9,7 @@ trigger: always_on
 
 > Always-active rules that apply to every request, regardless of domain.
 
----
-
-## ⚠️ XUNG ĐỘT RULE CHƯA CHỐT — HỎI TRƯỚC KHI ÁP DỤNG
-
-Khi công việc chạm vào một trong các mục dưới đây, **BẮT BUỘC hỏi người dùng chọn phía nào**, tuyệt đối không tự chọn im lặng.
-
-| # | Chủ đề | Phía A | Phía B | Code hiện tại |
-|---|---|---|---|---|
-| 1 | XML header comment | `thienan_rules.md` §5.7 + §6.3: **bắt buộc** có `Author: Đạt` + `Created date` trên mọi class và mọi method test | `universal-rules.md` bullet *Minimalist & High-Signal Comments*: **bỏ toàn bộ** khối `/// <summary>` kiểu Author / Created date | Theo phía A — source và test VideoWall đều có `Author` + `Created date` |
-| 2 | Primary Constructor (IDE0290) | `thienan_rules.md` §5.9: **luôn** áp dụng bất cứ khi nào có thể | `universal-rules.md`: **chỉ** cho class mới, class cũ không refactor | Hỗn hợp — có class dùng primary ctor, có class dùng ctor truyền thống |
-| 3 | Độ mịn file test | `thienan_rules.md` §6.1 + §6.3: **một** file `<TênModule>Tests.cs` cho cả module, thư mục phẳng | `universal-rules.md`: **một file mỗi class** source, thư mục mirror 1-1 | Theo phía B — ví dụ `tests/Modules/VideoWall/Infrastructure/Services/VwISAPIDeviceClientTests.cs` |
-| 4 | Vòng đời `IVwISAPIDeviceService` | `universal-rules.md`: **`[Mandatory]` Singleton** | Code đã đổi sang `IScoped` theo chỉ đạo trực tiếp của chủ dự án | Theo phía B — `VwISAPIDeviceService : IVwISAPIDeviceService, IScoped` |
-
-### Mục cần xác minh (chưa đủ căn cứ để gọi là xung đột)
-- `thienan_rules.md` §5.5 liệt kê `GlobalUsings.cs` tối thiểu gồm `Shared.Core.Domain` và `System.Linq.Dynamic.Core`. Nhưng `src/Modules/VideoWall/Module.VideoWall/GlobalUsings.cs` **không có** hai dòng này, mà lại có `Furion.ConfigurableOptions`, `Furion.DynamicApiController`, `Newtonsoft.Json`, `Microsoft.Extensions.Options`, `System.ComponentModel.DataAnnotations`. Cần rà các module khác (WP, TMS, ShareData) rồi chốt lại danh sách tối thiểu cho đúng.
-
-### Trùng lặp với file steering — chưa xử lý
-- Danh mục agent / skill / workflow / script (lặp với `quick-reference.md`, `code-rules.md`, `request-routing.md`).
-- Đường dẫn `.agents/...` (lặp với `core-protocol.md` mục *Path Awareness*).
-- Quy định chỉ ghi file `.sql`, không tự chạy mutate (lặp với `universal-rules.md`).
-- Tự dọn file prompt/plan (lặp với `universal-rules.md`).
+> 📎 Quy tắc mở rộng riêng dự án ThienAn: xem `.agents/rules/thienan_rules.md` (ưu tiên cao hơn file này khi trùng nội dung).
 
 ---
 
@@ -44,119 +27,9 @@ When user's prompt is NOT in English:
 
 **ALL code MUST follow `@[skills/clean-code]` rules. No exceptions.**
 
-- **Testing Strategy (Business Workflows & Mock Integration First - No Pure/Trivial Unit Tests [Mandatory])**: TUYỆT ĐỐI KHÔNG làm các bài unit test thuần túy, vụn vặt (như đếm phần tử static list, assert danh mục enum/preset, test đơn lẻ getter/setter hay in-memory ViewModel helper không có I/O). TẬP TRUNG TOÀN BỘ VÀO: (1) Kiểm thử luồng nghiệp vụ thực tế (business workflows xuyên suốt từ Controller/Command/Handler xuống CSDL/Service), và (2) Các bài test có tương tác với Mock / MockServer (gửi nhận request/response HTTP thật qua mock, digest auth, kiểm tra payload thực tế, kịch bản lỗi khi chạm thiết bị hoặc dịch vụ bên ngoài). Áp dụng mẫu AAA (Arrange - Act - Assert).
-- **No Hardcoded Magic Strings**: NEVER write hardcoded string literals (e.g. status codes, state names) directly in business logic queries or conditional logic. ALWAYS define and use strongly-typed Enums or Constants (e.g., `ShareDataEnum.IncidentState`).
-- **Formatting (Single-Statement `if` Without Braces)**: Đối với câu lệnh `if` chỉ chứa 1 dòng thực thi (dù điều kiện `if` nằm trên 1 dòng hay nhiều dòng `&&`/`||`, ví dụ: `if (!string.IsNullOrWhiteSpace(command.SourceId) && !await _vwSourceRep.IsAnyAsync(...))\n    throw Oops.Oh(BaseLocaleManager.BaseException.NotExist, BaseMsg.Vw.Entity.SourceId);` hoặc `if (condition)\n    return;`), BẮT BUỘC ngắt dòng và thụt lề cho câu lệnh thực thi. TUYỆT ĐỐI KHÔNG viết inline trên cùng 1 dòng (`if (condition) return;`) và TUYỆT ĐỐI KHÔNG TỰ Ý THÊM cặp dấu ngoặc nhọn `{}` (`if (condition) { ... }`) khi code hiện hữu đang viết theo chuẩn single-statement không có ngoặc nhọn.
-- **Object Initializer Formatting**: Object initializers with multiple properties (e.g., `new TmsEquipment { ID = eqId, Code = "...", ... }`) MUST ALWAYS break lines and format properties on separate indented lines (one property per line). NEVER write multi-property object initializations inline on a single horizontal line.
-- **Multi-Condition LINQ Formatting**: LINQ/SqlSugar queries with multiple conditions (e.g. `.Where(s => s.IsDelete == null && s.Direction == ... && s.Mode != ...)` MUST ALWAYS break lines per condition — either by splitting into separate chained `.Where(...)` calls (one condition per `.Where`) or breaking each `&&` / `||` clause onto separate indented lines. NEVER write long multi-condition logic on a single horizontal line.
-- **Minimalist & High-Signal Comments (No Redundant XML / Boilerplate Comments [Mandatory])**: TUYỆT ĐỐI KHÔNG viết comment tràn lan, lặp lại những gì code đã thể hiện rõ ràng (self-documenting). BỎ TOÀN BỘ các khối comment `/// <summary>` thủ tục rườm rà (như Author, Created date, Description hiển nhiên trên từng method/class/command thông thường, command summary thừa). CHỈ comment ngắn gọn khi thực sự cần giải thích logic nghiệp vụ phức tạp, giải thuật khó hiểu, hoặc lý do kiến trúc đặc thù (non-obvious rationale). Mỗi symbol chỉ có tối đa một ghi chú ngắn gọn nếu thực sự cần thiết.
-- **Async Method Naming**: Do NOT append the `Async` suffix to asynchronous method names (e.g. use `ProcessBatchSubscriptions` instead of `ProcessBatchSubscriptionsAsync`), as the method return type (`Task` / `Task<T>`) already explicitly indicates asynchrony. Rule applies EQUALLY to private test helper/seed methods (e.g. `SeedWall` NOT `SeedWallAsync`, `BuildClientStack` NOT `BuildClientStackAsync`) — no exception for test code.
-- **Dependency Injection Naming**: ALWAYS name injected dependencies in constructors using camelCase (e.g., `IFileExportService fileExportService`). NEVER use PascalCase (e.g., `IFileExportService FileExportService`) for constructor parameters or injected fields.
-- **C# / .NET CA2263**: ALWAYS prefer generic `Enum.IsDefined<TEnum>(value)` (or `Enum.IsDefined(enumValue)` in .NET 7+) over the non-generic `Enum.IsDefined(typeof(TEnum), value)` to prevent unnecessary object boxing and reflection overhead.
-- **Primary Constructor ([IDE0290](https://learn.microsoft.com/dotnet/fundamentals/code-analysis/style-rules/ide0290))**: Chỉ áp dụng Primary Constructor khi **VIẾT CLASS MỚI** (e.g., `public class MyService(ILogger<MyService> logger, IConfiguration configuration) : IMyService`). Đối với **CLASS CŨ ĐÃ TỒN TẠI** đang dùng explicit constructor truyền thống → KHÔNG sửa, KHÔNG refactor sang primary constructor — giữ nguyên style cũ để tránh diff không cần thiết.
-- **Structured Logging ([CA1873](https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1873))**: ALWAYS use structured logging message templates (e.g. `_logger.LogInformation("Processing {Id} for {Partner}", id, partner)`) instead of string interpolation (e.g. `_logger.LogInformation($"Processing {id} for {partner}")`) or eagerly evaluating expensive expressions (like `string.Join(...)`, `.Count()`, LINQ) in logging arguments. Check `_logger.IsEnabled(...)` before preparing expensive log data to avoid unnecessary allocations and CPU overhead when logging is disabled.
-- **Tự Động Xóa Using Thừa ([IDE0005](https://learn.microsoft.com/dotnet/fundamentals/code-analysis/style-rules/ide0005))**: Sau mỗi lần tạo mới hoặc chỉnh sửa file code C#, **BẮT BUỘC** phải rà soát và xóa bỏ tất cả các chỉ thị `using ...;` không còn sử dụng hoặc bị trùng lặp với `GlobalUsings.cs` (CS0105 / IDE0005) để giữ mã nguồn gọn gàng và không sinh cảnh báo build.
-- **Test File & Class Naming 1-1 Correspondence ([Mandatory])**: Tên file test và tên class test BẮT BUỘC phải đồng nhất 1-1 với tên class/controller/service bên mã nguồn gốc và luôn kết thúc bằng hậu tố `Tests` (hoặc `Test`) (ví dụ: `VwDeviceClient` → `VwDeviceClientTests.cs`, `VwDeviceService` → `VwDeviceServiceTests.cs`, `VwSchedule` → `VwScheduleTests.cs`, `VwEventRule` → `VwEventRuleTests.cs`, `VwScreen` → `VwScreenTests.cs`). TUYỆT ĐỐI KHÔNG đặt tên gộp lạ (như `VwAutomationTests`, `VwServicesTests`, `VwScreenAndTopologyTests`) mà phải phân tách và đặt tên khớp 1-1.
-- **Test Directory Structure Must Mirror Source Directory 1-1 ([Mandatory])**: Cấu trúc thư mục chứa test trong `tests/` BẮT BUỘC phải tương đương và đối chiếu 1-1 với cấu trúc thư mục của mã nguồn gốc (ví dụ: source ở `ShareDataWorker/Infrastructure/Services/DataExport/...` thì test BẮT BUỘC nằm ở `tests/Modules/ShareData/Infrastructure/Services/DataExport/...` hoặc `tests/Modules/ShareData/Infrastructure/Services/...` tương ứng 1-1). TUYỆT ĐỐI KHÔNG tự ý sinh ra các thư mục con tùy tiện, tự chế hoặc khác biệt như `tests/Modules/ShareData/Common`, `tests/Modules/ShareData/Core/Services`, `Utils`... khi cấu trúc thư mục gốc không có.
-- **Core Layer Responsibility (Interface / Abstraction Only [Mandatory])**: Thư mục/Project `Core` (hoặc `*.Core`) CHỈ ĐƯỢC PHÉP chứa các thành phần căn bản, trừu tượng: `Interfaces` (Abstractions), `Entities`, `Dto`, `Enums`, `Constants`, `Exceptions`. TUYỆT ĐỐI KHÔNG viết code logic nghiệp vụ, service implementations, thuật toán xử lý dữ liệu, query builders, transformers... bên trong `Core`. Toàn bộ code logic thực thi BẮT BUỘC phải nằm trong project chính (tại `Infrastructure/Services/...` hoặc `Services/...`).
-- **No Separate Utils Test Folders / Service-Level Testing Focus ([Mandatory])**: TUYỆT ĐỐI KHÔNG tạo thư mục test `Utils` / `Util` riêng biệt hay viết unit test cô lập cho các class tiện ích (Utils/Helpers). Chỉ cần tập trung viết test ở tầng **Service / Handler / Controller** chính. Nếu logic nghiệp vụ có liên quan đến Util/Helper thì các bài test tại tầng Service bao phủ và kiểm thử các tiện ích đó trong luồng thực thi thực tế là đủ.
-- **Test Class & Helper Naming Suffix**: ALWAYS use `Test` or `Tests` as a SUFFIX for all test classes, test helper/mock/stub classes, and test methods (e.g. `StringLocalizerTest`, `VwControllerTests`, `VwControllerCommand_AddVwController_InsertsRecord_Test`). NEVER prefix with `Test` (e.g. do NOT use `TestStringLocalizer` or `TestVwController`).
-- **Command & Validator Integration Testing (No Separate Validator Test Files [Mandatory])**: Khi viết integration test cho TẤT CẢ các Command (Add, Update, Delete, BatchDelete, Ping, Probe, Sync, Setup, Reset, Workflow commands...) có validator FluentValidation tương ứng: BẮT BUỘC phải thực hiện kiểm thử validator trực tiếp trong luồng test của class test Controller/Command tương ứng (ví dụ: `VwControllerTests.cs`, `VwDeviceSetupTests.cs`). TUYỆT ĐỐI KHÔNG TÁCH CLASS/FILE TEST VALIDATOR RIÊNG BIỆT (như `*ValidatorTests.cs`). Khởi tạo trực tiếp `var validator = new XxxValidator();`: với luồng hợp lệ (happy path), gọi `validator.ValidateAsync(input)` và assert `Assert.True(valResult.IsValid, string.Join("; ", valResult.Errors.Select(e => e.ErrorMessage)))` trước khi gửi qua `_bus.InvokeAsync(...)`; với các nhánh validation lỗi (negative tests), kiểm tra `Assert.False(invalidResult.IsValid)` trực tiếp trong test method tương ứng.
-- **Class Member & Helper Ordering (Private Helpers at Bottom [Mandatory])**: Trong tất cả các class/service/handler C#, toàn bộ các phương thức `private` (như private helpers, private async methods, `AcquireSceneLock`, `CheckReferenceAsync`...) và các nested helper classes/structs (như `ActionDisposable`) BẮT BUỘC phải được đặt ở **CUỐI CÙNG CỦA CLASS / FILE**, sau toàn bộ các phương thức `public` (`HandleAsync`, `Get...`, `Execute...`). TUYỆT ĐỐI KHÔNG đặt các hàm private xen kẽ ở đầu class hoặc giữa các public handler methods.
-- **Vue SFC Section Ordering ([Mandatory])**: Trong tất cả các file component Vue.js (`.vue`), thứ tự các khối BẮT BUỘC phải tuân thủ chuẩn:
-  1. `<script setup lang="ts">` (hoặc `<script>`) **đặt ở ĐẦU TIÊN**.
-  2. `<template>` (Giao diện UI / HTML) **đặt ở THỨ HAI**.
-  3. `<style scoped>` (CSS / SCSS) **đặt ở CUỐI CÙNG**.
-  TUYỆT ĐỐI KHÔNG đặt `<template>` trước `<script>`.
-- **Vue `<script setup>` Internal Structure ([Mandatory])**: Nội dung bên trong khối `<script setup>` BẮT BUỘC phải được sắp xếp theo thứ tự phân tầng mạch lạc:
-  1. **Imports** (Thư viện ngoài, component con, composables/hooks, types/interfaces) luôn ở đầu dòng.
-  2. **Props / Emits / Models** (`defineProps`, `defineEmits`, `defineModel`).
-  3. **Reactive State & Stores** (`ref`, `reactive`, Pinia store instances).
-  4. **Computed & Watchers** (`computed`, `watch`, `watchEffect`).
-  5. **Lifecycle Hooks** (`onMounted`, `onActivated`, `onUnmounted`...).
-  6. **Methods & Event Handlers** (Các hàm xử lý sự kiện, hàm gọi API, logic nghiệp vụ).
-  7. **Expose** (`defineExpose` nếu có).
-- **Tự Động Chạy Lại Test & Bổ Sung Test Case Mới Khi Sửa Code / Thêm UI / Sửa Logic ([Mandatory])**: Bất cứ khi nào tạo mới hoặc chỉnh sửa code (C#, XAML, ViewModel, Service, Handler, Controller, API...), thêm mới UI (component, view, layout, control, button, validator...), hoặc sửa đổi logic nghiệp vụ/giao diện: AI **BẮT BUỘC** phải:
-  1. **Chạy lại toàn bộ bài test liên quan (`dotnet test ...`)** để đảm bảo 100% test cases pass và không bị hồi quy (regression) hay gãy giao diện/build.
-  2. **Viết bổ sung test case mới** nếu tính năng/UI logic/nghiệp vụ mới tạo chưa có bài test bao phủ (tuân thủ nghiêm ngặt chuẩn AAA, kiểm thử luồng thực tế và mock I/O HTTP/thiết bị, đặt tên file và thư mục mirror 1-1).
-  *Tuyệt đối KHÔNG coi nhiệm vụ là hoàn thành khi chưa chạy test xác minh hoặc chưa bổ sung test case cần thiết.*
-
+- **Code**: Concise, direct, no over-engineering. Self-documenting.
+- **Testing**: Mandatory. Pyramid (Unit > Int > E2E) + AAA Pattern.
+- **Performance**: Measure first. Adhere to current Core Web Vitals standards.
+- **Infra/Safety**: 5-Phase Deployment. Verify secrets security.
 
 ---
-
-## 🔒 SQL & Module Isolation Scope (Mandatory Rule)
-
-- **Strict Module Scope**: All SQL scripts (DDL & DML) generated or updated for a module MUST ONLY target tables within that module's official entity scope (e.g., for `ShareData` module: `EshPartner`, `EshDataSource`, `EshMappingProfile`, `EshFieldMapping`, `EshSubscription`, `EshExportLog`, `EshSystemLog`, `EshEventSource`).
-- **FORBIDDEN Outside Operations**: NEVER perform `CREATE`, `ALTER`, `DROP`, `INSERT`, `UPDATE`, or `DELETE` operations on tables owned by other modules (such as `TmsTrafficData`, `TmsWeather`, `TmsIncident`, `TollTransactionOut`...). External tables belong strictly to their host modules and must never be created, altered, or mutated by another module's scripts.
-
----
-
-## 🛑 Strict Manual SQL Execution Rule (Mandatory Rule)
-
-- **ABSOLUTELY NO Auto-Executing Database Mutations**: When creating or updating SQL scripts (`.SQL`) or database configurations, ONLY write or modify files on disk. 
-- **FORBIDDEN Auto-Mutations**: NEVER automatically run or execute any DDL/DML operations (`INSERT`, `UPDATE`, `DELETE`, `ALTER`, `DROP`, `TRUNCATE`) against any database (remote or local, via scripts, C# code, or tools) without explicit prior request from the user.
-- **User Review First**: Always present the generated SQL script file to the user for inspection so they can manually review and execute it themselves.
-
----
-
-## 🔒 MCP Database Read-Only Rule (Mandatory Rule)
-
-- **Canonical MCP Config**: `.agents/mcp_config.json` là nguồn duy nhất để đọc; các file cấu hình MCP khác trong các công cụ IDE/CLI được đồng bộ qua script `.agents/hooks/sync-mcp.mjs`, **không sửa tay**.
-- **Priority 1 - Mandatory MCP for Database Operations**: Khi cần tra cứu, kiểm tra schema, đọc dữ liệu CSDL (Dev, Staging, Test), AI BẮT BUỘC đọc file cấu hình `@[.agents/mcp_config.json]` và khởi tạo Subagent với `enable_mcp_tools: true` để gọi trực tiếp các MCP server (`mssql_staging`, `mssql_dev`, `mssql_test`).
-- **MCP Failure Reporting & Fallback Protocol**: 
-  - Nếu MCP server gặp sự cố (không kết nối được, lỗi runtime, hoặc thiếu tool), AI **BẮT BUỘC BÁO CÁO RÕ LỖI MCP CHO NGƯỜI DÙNG BIẾT TRƯỚC**.
-  - **CHỈ KHI** không còn cách nào khác qua MCP và được người dùng đồng ý, AI mới được phép sử dụng script PowerShell/Shell để truy vấn CSDL ở chế độ strictly READ-ONLY.
-- **Strict MCP Read-Only Mode**: ALL database interactions executed via MCP servers (`mssql_dev`, `mssql_staging`, `mssql_test`, etc.) MUST be strictly READ-ONLY. Allowed tools & queries are limited to inspecting schemas and reading data (`SELECT` queries, `list_tables`, `describe_table`, `sample_data`, `get_relationships`, etc.).
-- **ABSOLUTELY FORBIDDEN Database Mutations**: NEVER execute any `INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `TRUNCATE`, `CREATE`, or stored procedure execution mutating state via MCP or scripts under any circumstances without explicit user request.
-
----
-
-## 🛑 Strict Local Database Rule for Testing (`dotnet test` [Mandatory Rule])
-
-- **Mandatory Local Connection for Tests**: Khi thực thi lệnh `dotnet test` (hoặc bất kỳ kịch bản unit/integration test nào), **TẤT CẢ** các chuỗi kết nối (Connection Strings) — bao gồm toàn bộ cơ sở dữ liệu quan hệ (RDBMS: SQL Server, PostgreSQL, MySQL...) và NoSQL / Caching (Redis, v.v.) — **BẮT BUỘC PHẢI LÀ MÔI TRƯỜNG LOCAL** (`localhost`, `127.0.0.1`, `(localdb)`, `.`, `local` container).
-- **CANCEL & REPORT ON REMOTE DETECTED**: Trước khi chạy `dotnet test`, nếu phát hiện bất kỳ chuỗi kết nối nào trong `appsettings.json`, `appsettings.Local.json`, `appsettings.Test.json`, `Host.cs`, hoặc cấu hình test trỏ tới máy chủ từ xa / IP remote (ví dụ: `10.10.8.30`, domain staging/prod/dev remote...), AI **BẮT BUỘC PHẢI HỦY (CANCEL) NGAY LẬP TỨC VIỆC CHẠY TEST VÀ BÁO CÁO LẠI CHO NGƯỜI DÙNG**.
-- **FORBIDDEN Remote Database Testing**: TUYỆT ĐỐI KHÔNG ĐƯỢC PHÉP chạy test khi chuỗi kết nối tới RDBMS hoặc Redis không phải là local, để ngăn ngừa hoàn toàn nguy cơ làm sai lệch, rò rỉ hoặc xoá/thao tác dữ liệu trên hệ thống server từ xa.
-
----
-
-## 🛑 Quy Tắc Kill Tiến Trình Khi Rebuild / Chạy WPF (WPF Process Termination Rule [Mandatory Rule])
-
-- **CHỈ ĐƯỢC PHÉP Kill Riêng Tiến Trình WPF**: Mỗi lần rebuild, re-run hoặc chạy test liên quan tới module WPF, nếu cần giải phóng file DLL / EXE bị lock, AI **CHỈ ĐƯỢC PHÉP tắt duy nhất tiến trình WPF** (`Module.VideoWall.WPF` / `Module.VideoWall.WPF.exe` hoặc PID đang lock file DLL này).
-- **TUYỆT ĐỐI KHÔNG Kill Hết Các Tiến Trình Khác (FORBIDDEN Wildcard Kill)**: 
-  - **CẤM** chạy các lệnh quét/kill diện rộng như `Stop-Process -Name "dotnet"`, `Get-Process testhost*,dotnet* | Stop-Process`, `taskkill /f /im dotnet.exe` hoặc kill hàng loạt tiến trình `dotnet*` / `testhost*`.
-  - Việc kill diện rộng sẽ làm tắt nhầm các dịch vụ WebAPI, Worker, background services, IDE test runner hoặc MockServer độc lập đang chạy của người dùng.
-- **Lệnh PowerShell Kill Chuẩn Xác (Targeted Kill Only)**:
-  ```powershell
-  Get-Process -Name "Module.VideoWall.WPF" -ErrorAction SilentlyContinue | Stop-Process -Force
-  ```
-- **Người dùng sẽ tự chạy ứng dụng WPF**: AI KHÔNG tự ý chạy `dotnet run` ứng dụng WPF sau khi sửa code/test, để người dùng tự chủ động khởi chạy khi cần.
-
----
-
-## 🛑 Quy Tắc Vị Trí File Prompt / Plan / Task (Prompt & Plan File Location Rule [Mandatory Rule])
-
-- **TUYỆT ĐỐI KHÔNG lưu file prompt / plan / task-breakdown ngoài repo**: cấm ghi vào `~/.claude/plans/`, `%USERPROFILE%\.claude\plans\`, thư mục scratchpad/temp, hoặc bất kỳ nơi nào ngoài cây thư mục dự án `c:\ThienAn\`.
-- **Nơi lưu chuẩn (BẮT BUỘC nằm trong repo)**:
-  - Prompt/plan theo domain nghiệp vụ → `DocBusinessThienAn/<Dự-án>/<Module>/` (ví dụ VideoWall: `DocBusinessThienAn/HữuNghị-ChiLăng/VideoWall/`).
-  - Prompt/plan hạ tầng / tooling / AG-Kit (không thuộc domain nghiệp vụ) → `.agents/prompts/`.
-- **Đặt tên**: `<task-slug>-prompt.md` hoặc `<task-slug>-plan.md` (kebab-case, tiếng Việt không dấu hoặc tiếng Anh).
-- **Khi ở chế độ Plan (ExitPlanMode)**: nếu harness ép ghi bản plan vào `~/.claude/plans/`, ngay sau khi plan được duyệt **BẮT BUỘC sao chép bản đó vào đúng thư mục repo ở trên** và coi bản trong repo là bản chính thức; báo cho người dùng đường dẫn bản trong repo, không phải đường dẫn `~/.claude/plans/`.
-- **Auto-cleanup**: xoá file prompt/plan trong repo sau khi task hoàn tất (khớp `*-prompt*.md`, `*-plan.md`, `{task-slug}.md`, và ghi chú tạm `.agents/memory/*-scratch.md` — xem *Transient Memory Note Rule* ở cuối file).
-
-
-
----
-
-## 🛑 Quy Tắc Ghi Chú Tạm Trong `.agents/memory/` (Transient Memory Note Rule [Mandatory Rule])
-
-- **Phân biệt 2 loại nội dung trước khi ghi vào `.agents/memory/`**:
-  - **Thường trú (persistent)** — sống lâu, càng đọc lại càng đúng: quy ước dự án, quyết định kiến trúc, sở thích người dùng, ranh giới sở hữu module, nguồn sự thật của tài liệu.
-  - **Tạm (transient)** — chỉ đúng tại thời điểm chạy, sẽ sai sau vài commit: mốc số lượng test, danh sách test đang flaky, output của tool, thông báo lỗi môi trường, port/PID/đường dẫn temp cụ thể, số dòng file, phiên bản package đang cài.
-- **Nghi ngờ thì coi là TẠM**: nếu không chắc nội dung còn đúng sau 1 tháng thì nó là ghi chú tạm.
-- **Quy ước bắt buộc cho ghi chú tạm**:
-  - Đặt tên **`<task-slug>-scratch.md`** (hậu tố `-scratch` là dấu hiệu duy nhất để dọn tự động, KHÔNG dựa vào tên riêng của từng task).
-  - Frontmatter thêm `metadata.lifetime: transient`.
-  - **KHÔNG** thêm vào index `.agents/memory/MEMORY.md`; nếu buộc phải thêm để tra cứu trong phiên thì cuối task **phải xoá kèm dòng index đó**.
-- **BẮT BUỘC TỰ ĐỘNG XOÁ CUỐI TASK**: khi task hoàn tất (đã có kết quả cuối và đã báo cáo cho người dùng), AI **tự động xoá toàn bộ** `.agents/memory/*-scratch.md` cùng mọi dòng index trỏ tới chúng — **không hỏi lại**, không giữ "cho lần sau". Việc này nằm cùng nhóm với auto-cleanup file prompt/plan và thư mục artifact tạm (`tests/TestResults/`, `bin`/`obj` tạm do AI sinh ra).
-- **Cần lại thì đo lại**: lần sau gặp cùng vấn đề thì chạy lại và viết ghi chú mới, TUYỆT ĐỐI KHÔNG tin số liệu trong bản scratch cũ.
-- **Muốn giữ lâu dài thì đặt đúng chỗ, không nhét vào scratch**: nội dung thường trú → memory chuẩn trong `.agents/memory/` (có index trong `MEMORY.md`); hướng dẫn thao tác thuộc một khu vực code cụ thể → README của khu vực đó (ví dụ cách chạy test → `tests/README.MD`).

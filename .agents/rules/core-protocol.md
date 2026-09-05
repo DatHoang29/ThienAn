@@ -1,4 +1,7 @@
 ---
+name: core-protocol
+version: 1.0.0
+priority: P0
 trigger: always_on
 ---
 
@@ -27,7 +30,7 @@ Agent activated → Check frontmatter "skills:" → Read SKILL.md (INDEX) → Re
 📚 **Using skill: `@[skill-name]`...**
 ```
 
-- List multiple skills together: `📚 Using skills: @frontend-design + @minimalist-ui...`
+- List multiple skills together: `📚 Using skills: @frontend-design + @design-spec...`
 - Announce on-demand skills too (e.g. a companion skill pulled from a hub, or `app-builder` for a new app), not just frontmatter ones.
 - ❌ Applying a skill without announcing it = **USER CANNOT VERIFY THE SKILL WAS USED**.
 
@@ -43,9 +46,9 @@ Agent activated → Check frontmatter "skills:" → Read SKILL.md (INDEX) → Re
 
 **Before modifying ANY file:**
 
-1. Check `CODEBASE.md` → File Dependencies
-2. Identify dependent files
-3. Update ALL affected files together
+1. If `CODEBASE.md` exists, check its File Dependencies section.
+2. Otherwise, discover dependencies with targeted search/import analysis; do not block waiting for a missing file.
+3. Identify dependent files and update all affected files together.
 
 ---
 

@@ -1,5 +1,10 @@
 ---
+name: create
 description: Create new application command. Triggers App Builder skill and starts interactive dialogue with user.
+version: 1.0.0
+requires_agents: orchestrator, project-planner
+requires_skills: app-builder, design-spec, verify-changes
+artifact_outputs: implementation-plan, changed-files, verification-report
 ---
 
 # /create - Create Application

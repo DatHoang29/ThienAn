@@ -3,6 +3,7 @@ name: frontend-architecture
 description: How to organize frontend code — separation of concerns (UI / logic / data / type), file responsibility, state tiers, API services, schema validation, and framework conventions for React/Next and Vue. Structural rules, not visual design.
 when_to_use: "When structuring a frontend codebase or reviewing how frontend code is organized — where logic, API calls, state, types, and validation should live; component vs hook/composable boundaries; Next.js server/client split; Vue Composition API. NOT for visual design (use frontend-design) and NOT for React/Next performance rules (use nextjs-react-expert)."
 allowed-tools: Read, Write, Edit, Glob, Grep
+version: 1.0.0
 ---
 
 # Frontend Architecture

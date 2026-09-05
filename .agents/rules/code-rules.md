@@ -1,4 +1,7 @@
 ---
+name: code-rules
+version: 1.0.0
+priority: P0
 trigger: model_decision
 description: Apply when writing, building, refactoring, or fixing code — project-type agent routing, the Socratic Gate, Plan Mode phases, and the final checklist/scripts. Skip for pure questions or text-only responses.
 ---
@@ -6,6 +9,8 @@ description: Apply when writing, building, refactoring, or fixing code — proje
 # Code Rules (TIER 1) - AG Kit
 
 > Loaded when the request involves writing or modifying code.
+
+> 📎 Quy tắc mở rộng riêng dự án ThienAn: xem `.agents/rules/thienan_rules.md` (ưu tiên cao hơn file này khi trùng nội dung).
 
 ---
 
@@ -47,7 +52,7 @@ description: Apply when writing, building, refactoring, or fixing code — proje
 1. ANALYSIS → Research, questions
 2. PLANNING → `{task-slug}.md`, task breakdown
 3. SOLUTIONING → Architecture, design (NO CODE!)
-4. IMPLEMENTATION → Code + tests (BẮT BUỘC: chạy lại toàn bộ test liên quan + bổ sung test case mới cho code/UI/logic mới tạo)
+4. IMPLEMENTATION → Code + tests
 
 ---
 
@@ -87,26 +92,3 @@ description: Apply when writing, building, refactoring, or fixing code — proje
 > 🔴 **Agents & Skills can invoke ANY script** via `python .agents/skills/<skill>/scripts/<script>.py`
 
 ---
-
-## 🛠️ .NET & Solution Troubleshooting Protocol
-
-**Khi gặp lỗi thiếu tham chiếu, không nhận diện được Test trong IDE, hoặc lỗi khi debug:**
-
-1. **Kiểm tra đăng ký trong Solution (`.sln`):**
-   - Mọi dự án mới tạo (đặc biệt là `*.Tests.csproj`) BẮT BUỘC phải được thêm vào file `.sln` chính của workspace.
-   - Nếu IDE/VS Code không quét được test hoặc báo thiếu reference, hãy kiểm tra và chạy:
-     `dotnet sln <path-to-sln> add <path-to-csproj>`
-   - Lệnh tự động thêm tất cả project: `dotnet sln <sln-file> add $(find . -name "*.csproj")`
-
-2. **Quy tắc thực thi lệnh .NET:**
-   - KHÔNG KHUYÊN DÙNG chạy trực tiếp file đơn lẻ dạng `dotnet File.cs` cho project xUnit/C#.
-   - LUÔN LUÔN dùng `dotnet test <csproj_or_sln>` hoặc `dotnet build` để nạp đủ các thư viện và dependency.
-
-3. **Vòng đời Test (xUnit Lifecycle):**
-   - Khi có khởi tạo DB / Host nặng, BẮT BUỘC dùng `ICollectionFixture<Host>` và gắn `[Collection("api")]` trên class test (trong đó `Host` triển khai `IAsyncLifetime`, không phải `IDisposable`) để chia sẻ fixture duy nhất cho cả collection, tránh gọi constructor N lần gây đụng độ khi chạy test song song.
-   - Việc xóa/dọn dẹp dữ liệu test chỉ thực hiện duy nhất 1 lần ở tầng `Host.cs` (`ClearAllData()`). Các bài test tự cô lập dữ liệu bằng GUID / Prefix ngẫu nhiên, TUYỆT ĐỐI KHÔNG viết `Dispose()` dọn dữ liệu ở từng `TestClass`.
-
-4. **Kiểm tra Connection String trước khi `dotnet test`:**
-   > Chuỗi kết nối khi test: xem mục "Strict Local Database Rule for Testing" trong universal-rules.md.
-
-
