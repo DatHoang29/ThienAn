@@ -24,7 +24,7 @@ public partial class Host : IAsyncLifetime
     private const string TestCultureName = "vi-VN";
 
     private const string DefaultLocalConnectionString =
-        "Server=localhost,14333;Database=test;User Id=sa;Password=Password123!;TrustServerCertificate=true;";
+        "Server=127.0.0.1,14333;Database=test;User Id=sa;Password=Password123!;TrustServerCertificate=true;Connect Timeout=30;";
 
     private static readonly string[] AllowedLocalHosts = ["127.0.0.1", "localhost", "(localdb)", "."];
 
@@ -40,7 +40,7 @@ public partial class Host : IAsyncLifetime
         ["DbConnection:ConnectionConfigs:0:ConfigId"] = "Default",
         ["DbConnection:ConnectionConfigs:0:DbType"] = "SqlServer",
         ["DbConnection:ConnectionConfigs:0:ConnectionString"] = DefaultLocalConnectionString,
-        ["DbConnection:ConnectionConfigs:0:DbSettings:EnableInitDb"] = "true",
+        ["DbConnection:ConnectionConfigs:0:DbSettings:EnableInitDb"] = "false",
         ["DbConnection:ConnectionConfigs:0:DbSettings:EnableDiffLog"] = "false",
         ["DbConnection:ConnectionConfigs:0:DbSettings:EnableUnderLine"] = "false",
         ["DbConnection:ConnectionConfigs:0:TableSettings:EnableInitTable"] = "false",
@@ -51,7 +51,7 @@ public partial class Host : IAsyncLifetime
         ["DbConnection:ConnectionConfigs:1:ConfigId"] = "LogDefault",
         ["DbConnection:ConnectionConfigs:1:DbType"] = "SqlServer",
         ["DbConnection:ConnectionConfigs:1:ConnectionString"] = DefaultLocalConnectionString,
-        ["DbConnection:ConnectionConfigs:1:DbSettings:EnableInitDb"] = "true",
+        ["DbConnection:ConnectionConfigs:1:DbSettings:EnableInitDb"] = "false",
         ["DbConnection:ConnectionConfigs:1:DbSettings:EnableDiffLog"] = "false",
         ["DbConnection:ConnectionConfigs:1:DbSettings:EnableUnderLine"] = "false",
         ["DbConnection:ConnectionConfigs:1:TableSettings:EnableInitTable"] = "false",
