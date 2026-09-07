@@ -119,9 +119,11 @@ metadata:
        `_baseRepository.Context.DbFirst.SettingClassDescriptionTemplate(it => it + "\r\n [Tenant(\"" + ConfigId + "\")]").IsCreateAttribute().StringNullable().CreateClassFile(directoryPath, nameSpace);`
      - **Chỉ mở mã sinh tự động 1 lần đầu** khi cần khởi tạo số lượng lớn hoặc có thay đổi cấu trúc DB nhiều. Khi cấu trúc DB ổn định hoặc chỉ thay đổi ít, tiến hành đóng/comment đoạn mã DbFirst lại và cập nhật thủ công trực tiếp trên class Entity.
   4. Chú ý kiểm tra lại đường dẫn tuyệt đối `directoryPath` tới thư mục `Core/Entities/DbFirst/` của module để tương thích môi trường máy cá nhân.
-  5. Khi gặp lỗi IDE không bắt được Unit Test hoặc báo thiếu tham chiếu (Missing reference/assembly):
-     - Kiểm tra xem project (nhất là `*.Tests.csproj`) đã được add vào file `.sln` chưa. Chạy lệnh `dotnet sln <sln-file> add <csproj-file>` để tự động fix.
-     - Kiểm tra xUnit lifecycle: Dùng `IClassFixture` khi có khởi tạo DB/Host nặng để tránh đụng độ `DROP TABLE` khi test song song.
+  5. **Quy tắc vị trí thư mục Test (Bắt buộc)**:
+     - Toàn bộ test của cả solution nằm tập trung DUY NHẤT tại `c:\ThienAn\tests\` (`test.csproj`).
+     - CẤM TẠO project test mới hoặc thư mục test mới bên trong `TA-ITS015-WEBAPI-V1.0\tests\` hay trong từng module.
+     - Mọi test của module phải đặt trong `c:\ThienAn\tests\Modules\<ModuleName>\`.
+     - Dùng `IClassFixture` khi có khởi tạo DB/Host nặng để tránh đụng độ `DROP TABLE` khi test song song.
 
 ## Frontend / Vue.js SFC Code Conventions
 - **VUE SFC SECTION ORDERING ([Mandatory])**: Trong tất cả các file component Vue.js (`.vue`), thứ tự các khối BẮT BUỘC phải tuân thủ chuẩn:

@@ -390,6 +390,29 @@ tests/
 
 ---
 
+## 🛑 15. Quy Tắc Viết Test, Vị Trí Thư Mục & Cấm Dùng Thư Viện Mock Ngoài (Testing Standards & No-Moq Rule [Mandatory Rule])
+
+- **Toàn bộ test tập trung tại `c:\ThienAn\tests\` (`test.csproj` cấp root)**:
+  - Dự án chỉ có DUY NHẤT một project test tập trung là `c:\ThienAn\tests\` (`test.csproj`).
+  - Cấu trúc test theo module: `tests\Modules\<ModuleName>\` (ví dụ: `tests\Modules\VideoWall\Controllers\`, `tests\Modules\VideoWall\Infrastructure\Services\`).
+- **CẤM TẠO PROJECT HOẶC THƯ MỤC TEST MỚI TRONG CÁC SUB-DIRECTORY**:
+  - TUYỆT ĐỐI KHÔNG tạo thư mục test, sub-folder hay file `.csproj` test mới bên trong `TA-ITS015-WEBAPI-V1.0\tests\`, trong `src\Modules\...`, hay bất kỳ vị trí nào khác ngoài `c:\ThienAn\tests\`.
+  - Mọi file test mới (unit test, integration test, validator test, fixture test) của bất kỳ phân hệ nào BẮT BUỘC phải viết trực tiếp vào thư mục tương ứng bên trong `c:\ThienAn\tests\Modules\<ModuleName>\`.
+- **CẤM DÙNG THƯ VIỆN MOCK BÊN NGOÀI (`Moq`, `NSubstitute`, `FakeItEasy`)**:
+  - `test.csproj` **hoàn toàn KHÔNG tham chiếu thư viện Moq**.
+  - **CẤM `using Moq;`**, **CẤM `new Mock<T>()`**.
+  - **TUYỆT ĐỐI KHÔNG tự tiện suy diễn** các thư viện phổ biến bên ngoài khi chưa mở file `test.csproj` để kiểm tra `PackageReference`.
+- **Quy Chuẩn Viết Test Trong Dự Án (xUnit + Host Pattern)**:
+  - **Dependency Injection qua Host**: Mọi test class dùng cấu trúc `[Collection("api")] public class ...Tests(Host host)`.
+  - **Lấy Localizer**: Dùng trực tiếp `private readonly IStringLocalizer _localizer = host.Localizer;` (KHÔNG mock `IStringLocalizer`).
+  - **Lấy Services**: Dùng `host.Services.GetRequiredService<T>()`.
+  - **Giả lập thiết bị**: Dùng mock server nội bộ đã được cấu hình trong repo (như `host.MockServer` / `VwISAPIMockServerHikvision`).
+  - **Test cô lập không qua Host (POCO/DTO/XML/JSON/Formula)**: Viết test xUnit thuần. Khi cần fake interface, tự viết **class Stub nội bộ** kế thừa interface đó hoặc dùng `NullLogger<T>.Instance`, TUYỆT ĐỐI KHÔNG dùng thư viện mock.
+- **Global Usings của Module Test**:
+  - Bổ sung namespace/using của module vào `tests\Modules\<ModuleName>\GlobalUsings.<ModuleName>.cs` để tránh xung đột với các module khác và đảm bảo compile condition theo `test.csproj`.
+
+---
+
 ## 📎 Ghi chú mở — cần xác minh / còn trùng lặp
 
 - **`GlobalUsings.cs` tối thiểu (mục 5.5)**: liệt kê gồm `Shared.Core.Domain` và `System.Linq.Dynamic.Core`, nhưng `src/Modules/VideoWall/Module.VideoWall/GlobalUsings.cs` **không có** 2 dòng này, lại có `Furion.ConfigurableOptions`, `Furion.DynamicApiController`, `Newtonsoft.Json`, `Microsoft.Extensions.Options`, `System.ComponentModel.DataAnnotations`. Cần rà thêm các module khác (WP, TMS, ShareData) rồi chốt lại danh sách tối thiểu cho đúng.

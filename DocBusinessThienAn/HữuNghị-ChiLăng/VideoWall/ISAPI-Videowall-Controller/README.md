@@ -14,9 +14,18 @@ Markdown conversion of the *ISAPI Controller — Videowall Controller* developer
 | 6 | Information Security | [06-information-security.md](06-information-security.md) | 6 KB |
 | 7 | Video (General) | [07-video-general.md](07-video-general.md) | 12 KB |
 | 8 | Decoding and Video Wall | [08-decoding-and-video-wall.md](08-decoding-and-video-wall.md) | 7 KB |
-| 9A | API Reference (Vendor Spec) | [09A-api-reference.md](09A-api-reference.md) | 1,632 KB |
-| 9B | Practical Guide & Tested Responses | [09B-practical-guide-and-tested-responses.md](09B-practical-guide-and-tested-responses.md) | 24 KB |
+| 9 | API Reference (Vendor Spec) | [09-api-reference.md](09-api-reference.md) | 1,632 KB |
 | 10 | How-To Video Guidance | [10-how-to-video-guidance.md](10-how-to-video-guidance.md) | 1 KB |
+
+### Dữ liệu đo thiết bị thật (nguồn sự thật hạng 1)
+
+| File | Mô tả | Bản ghi |
+| --- | --- | --- |
+| [`../LogsAPI/session-20260903-real.json`](../LogsAPI/session-20260903-real.json) | Log thiết bị thật ngày 03/09, đã loại mock | 955 |
+| [`../LogsAPI/session-20260904-real.json`](../LogsAPI/session-20260904-real.json) | Log thiết bị thật ngày 04/09, đã loại mock | 1158 |
+| [`../LogsAPI/README.md`](../LogsAPI/README.md) | Hướng dẫn đọc log và nhận diện mock | — |
+
+> **Thứ tự ưu tiên:** LogsAPI (hành vi thực tế) → `09-api-reference.md` (đặc tả hãng). Khi mâu thuẫn, log thắng.
 
 ## Notes
 
