@@ -19,6 +19,8 @@
     <Nullable>enable</Nullable>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <UseWPF Condition="'$(TargetFramework)' == 'net10.0-windows'">true</UseWPF>
+    <!-- Loại trừ runner độc lập VwMockServerRunner khỏi test.csproj -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);VwMockServerRunner\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
@@ -133,6 +135,12 @@
   <ItemGroup Condition="'$(CanCompileVideoWallWpfTests)' != 'true'">
     <Compile Remove="Modules\VideoWall\Wpf\**\*.cs" />
     <None Include="Modules\VideoWall\Wpf\**\*.cs" />
+  </ItemGroup>
+
+  <!-- VwMockServerRunner là console exe độc lập, không tham gia test assembly -->
+  <ItemGroup>
+    <Compile Remove="VwMockServerRunner\**\*.cs" />
+    <None Include="VwMockServerRunner\**" />
   </ItemGroup>
 
   <!-- Báo cáo trạng thái module trước khi build -->

@@ -139,9 +139,9 @@
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-mockserver-runner",
-      "program": "${workspaceFolder}/scripts/VwMockServerRunner/bin/Debug/net10.0/VwMockServerRunner.dll",
+      "program": "${workspaceFolder}/tests/VwMockServerRunner/bin/Debug/net10.0/VwMockServerRunner.dll",
       "args": [],
-      "cwd": "${workspaceFolder}/scripts/VwMockServerRunner",
+      "cwd": "${workspaceFolder}/tests/VwMockServerRunner",
       "stopAtEntry": false,
       "console": "integratedTerminal"
     },
