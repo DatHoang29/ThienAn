@@ -8,8 +8,3 @@
 ## Không đọc (Human-only / Binary)
 - **/_source/**: bản gốc PDF/XLSX/DOCX/ZIP cho người đối chiếu
 - **/images/**: ảnh trích từ bản gốc dùng để nhúng hiển thị
-
-## Grep-only (KHÔNG đọc nguyên file — Tier B)
-- HữuNghị-ChiLăng/VideoWall/doc/ISAPI-Videowall-Controller/09-api-reference.md (1.670 KB)
-- HữuNghị-ChiLăng/VideoWall/data/logs-api/session-20260903-real.json (1.635 KB)
-- HữuNghị-ChiLăng/VideoWall/data/logs-api/session-20260904-real.json (2.569 KB)
