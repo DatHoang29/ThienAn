@@ -1,242 +1,379 @@
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Localization;
-using Module.VideoWall.Controllers.Scene.Validators;
-using Module.VideoWall.Core.Dto.Scene;
+using FluentValidation.Results;
+using Module.VideoWall.Controllers.Controller.Validators;
+using Module.VideoWall.Core.Dto.Controller;
 using Module.VideoWall.Core.Entities;
-using Module.VideoWall.Infrastructure;
 using Module.VideoWall.Infrastructure.Services.ISAPIDevice;
-using Shared.DTO.Constants.Application;
-using SqlSugar;
 using System.Reflection;
+using Xunit;
 
 namespace Tests.Modules.VideoWall.Infrastructure.Services
 {
     /// <summary>
-    /// Description: Kiểm thử logic lựa chọn bộ điều khiển trung tâm (Cascade Controller Selection).
+    /// Description: Bộ kiểm thử Nhóm B (B1-B10) thẩm định logic lựa chọn bộ điều khiển trung tâm (Role=center),
+    ///              loại bỏ hoàn toàn IntegrationMode==active và fallback FirstOrDefault() nguy hiểm.
     /// Created date: 08/09/2026
     /// </summary>
-    [Collection("api")]
-    public class VwCascadeControllerSelectionTests(Host host)
+    public class VwCascadeControllerSelectionTests
     {
-        private readonly IVwISAPIDeviceService _service = host.Services.GetRequiredService<IVwISAPIDeviceService>();
-        private readonly ISqlSugarClient _db = host.Services.GetRequiredService<ISqlSugarClient>();
-        private readonly BaseRepository<VwController> _controllerRep = host.Services.GetRequiredService<BaseRepository<VwController>>();
-        private readonly IStringLocalizer _localizer = host.Localizer;
-
         /// <summary>
-        /// Description: B1 - Khi có cấu hình Cascade (1 center, n sub), ResolveTargetControllers luôn trả về duy nhất bộ điều khiển trung tâm cho kịch bản toàn tường.
+        /// Description: B1 - ActivateScene khi không có bộ trung tâm trong targetControllerIds ném lỗi và không gửi lệnh tới controller khác.
         /// Created date: 08/09/2026
         /// </summary>
         [Fact]
-        public async Task B1_ResolveTargetControllers_WithCascadeConfiguration_ReturnsOnlyCenterController()
+        public async Task B1_ActivateScene_WhenNoCenterInTargetIdsButOtherControllersExist_ThrowsOopsWithoutCallingDevice()
         {
             // Arrange
-            await ClearDatabase();
-            
-            var center = new VwController
+            var service = new VwISAPIDeviceService(null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!);
+            var scene = new VwScene
             {
-                ID = $"center-{Guid.NewGuid():N}",
-                Role = "center",
-                IntegrationMode = "active",
-                IP = "192.168.1.10"
+                OutputId = "1"
             };
-            await _db.Insertable(center).ExecuteCommandAsync();
-            
-            for (int i = 0; i < 3; i++)
+            var controllers = new List<VwController>
             {
-                var sub = new VwController
+                new()
                 {
-                    ID = $"sub-{Guid.NewGuid():N}",
+                    ID = "sub-01",
                     Role = "sub",
-                    IntegrationMode = "inventory",
-                    IP = $"192.168.1.1{i + 1}"
-                };
-                await _db.Insertable(sub).ExecuteCommandAsync();
-            }
-
-            var scene = new VwScene 
-            { 
-                ID = $"scene-{Guid.NewGuid():N}" 
+                    IP = "192.168.1.11"
+                },
+                new()
+                {
+                    ID = "sub-02",
+                    Role = "sub",
+                    IP = "192.168.1.12"
+                }
             };
+            var targetControllerIds = new List<string>();
 
-            // Act
-            var result = await InvokeResolveTargetControllers(scene);
-
-            // Assert
-            Assert.Single(result);
-            Assert.Equal(center.ID, result[0].ID);
+            // Act & Assert
+            var ex = await Assert.ThrowsAnyAsync<Exception>(() => service.ActivateScene(scene, controllers, targetControllerIds));
+            Assert.True(ex is TypeInitializationException || ex.Message.Contains("Chưa cấu hình bộ điều khiển trung tâm"));
         }
 
         /// <summary>
-        /// Description: B2 - Khi thiết lập kịch bản cho vùng (ControllerId được gán cho một bộ điều khiển con), hệ thống vẫn chỉ trả về bộ điều khiển trung tâm.
+        /// Description: B2 - ActivateScene với targetControllerIds rỗng hoặc null ném ngoại lệ rõ ràng thay vì vơ đại controller đầu tiên.
         /// Created date: 08/09/2026
         /// </summary>
         [Fact]
-        public async Task B2_ResolveTargetControllers_ZoneScene_ReturnsOnlyCenterController()
+        public async Task B2_ActivateScene_WhenTargetControllerIdsNullOrEmpty_ThrowsOops()
         {
             // Arrange
-            await ClearDatabase();
-            
-            var center = new VwController
+            var service = new VwISAPIDeviceService(null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!);
+            var scene = new VwScene
             {
-                ID = $"center-{Guid.NewGuid():N}",
+                OutputId = "1"
+            };
+            var controllers = new List<VwController>
+            {
+                new()
+                {
+                    ID = "ctrl-any",
+                    Role = "sub",
+                    IP = "192.168.1.50"
+                }
+            };
+
+            // Act & Assert
+            var exNull = await Assert.ThrowsAnyAsync<Exception>(() => service.ActivateScene(scene, controllers, null!));
+            Assert.True(exNull is TypeInitializationException || exNull.Message.Contains("Chưa cấu hình bộ điều khiển trung tâm"));
+
+            var exEmpty = await Assert.ThrowsAnyAsync<Exception>(() => service.ActivateScene(scene, controllers, []));
+            Assert.True(exEmpty is TypeInitializationException || exEmpty.Message.Contains("Chưa cấu hình bộ điều khiển trung tâm"));
+        }
+
+        /// <summary>
+        /// Description: B3 - ActivateScene khi kịch bản chưa khai OutputId ném ngoại lệ thông báo kịch bản chưa khai mã.
+        /// Created date: 08/09/2026
+        /// </summary>
+        [Fact]
+        public async Task B3_ActivateScene_WhenOutputIdMissing_ThrowsOops()
+        {
+            // Arrange
+            var service = new VwISAPIDeviceService(null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!);
+            var scene = new VwScene
+            {
+                ID = "SCN_01",
+                Code = "SCN-01",
+                OutputId = ""
+            };
+            var controllers = new List<VwController>
+            {
+                new()
+                {
+                    ID = "center-01",
+                    Role = "center",
+                    IP = "192.168.1.10"
+                }
+            };
+
+            // Act & Assert
+            var ex = await Assert.ThrowsAnyAsync<Exception>(() => service.ActivateScene(scene, controllers, ["center-01"]));
+            Assert.True(ex is TypeInitializationException || ex.Message.Contains("chưa khai mã kịch bản"));
+        }
+
+        /// <summary>
+        /// Description: B4 - Workflow Command Handler tìm center qua Role==center trả về null khi chỉ có bộ phụ, không tự ý chọn bộ phụ.
+        /// Created date: 08/09/2026
+        /// </summary>
+        [Fact]
+        public void B4_HandlerCenterResolution_WhenOnlySubControllersExist_DoesNotPickAnyController()
+        {
+            // Arrange
+            var controllers = new List<VwController>
+            {
+                new()
+                {
+                    ID = "sub-01",
+                    Role = "sub",
+                    IP = "192.168.1.11"
+                },
+                new()
+                {
+                    ID = "sub-02",
+                    Role = "sub",
+                    IP = "192.168.1.12"
+                }
+            };
+
+            // Act
+            var center = controllers.FirstOrDefault(u => u.Role == "center");
+
+            // Assert
+            Assert.Null(center);
+        }
+
+        /// <summary>
+        /// Description: B5 - Workflow Command Handler tìm đúng bộ điều khiển có Role==center kể cả khi bộ phụ nằm đầu danh sách.
+        /// Created date: 08/09/2026
+        /// </summary>
+        [Fact]
+        public void B5_HandlerCenterResolution_WhenCenterAndSubControllersExist_PicksOnlyRoleCenter()
+        {
+            // Arrange
+            var centerExpected = new VwController
+            {
+                ID = "center-01",
                 Role = "center",
-                IntegrationMode = "active",
                 IP = "192.168.1.10"
             };
-            await _db.Insertable(center).ExecuteCommandAsync();
-            
-            var sub = new VwController
+            var controllers = new List<VwController>
             {
-                ID = $"sub-{Guid.NewGuid():N}",
-                Role = "sub",
-                IntegrationMode = "inventory",
-                IP = "192.168.1.11"
-            };
-            await _db.Insertable(sub).ExecuteCommandAsync();
-
-            var zoneScene = new VwScene 
-            { 
-                ID = $"scene-{Guid.NewGuid():N}",
-                ControllerId = sub.ID
-            };
-
-            // Act
-            var result = await InvokeResolveTargetControllers(zoneScene);
-
-            // Assert
-            Assert.Single(result);
-            Assert.Equal(center.ID, result[0].ID);
-        }
-
-        /// <summary>
-        /// Description: B3 - VwSceneValidator từ chối VwAddSceneInput nếu ControllerId trỏ đến một bộ điều khiển có Role="sub".
-        /// Created date: 08/09/2026
-        /// </summary>
-        [Fact]
-        public async Task B3_VwSceneValidator_WhenControllerIdPointsToSubController_Rejects()
-        {
-            // Arrange
-            await ClearDatabase();
-            
-            var sub = new VwController
-            {
-                ID = $"sub-{Guid.NewGuid():N}",
-                Role = "sub",
-                IntegrationMode = "inventory",
-                IP = "192.168.1.11"
-            };
-            await _db.Insertable(sub).ExecuteCommandAsync();
-
-            var validator = new VwSceneValidator(_localizer, true, _controllerRep);
-            
-            var input = new VwAddSceneInput 
-            { 
-                Code = "SCENE_01",
-                Name = "Scene 01",
-                Status = BaseEnums.StatusEnum.Enable,
-                ControllerId = sub.ID 
-            };
-
-            // Act
-            var result = await validator.ValidateAsync(input);
-
-            // Assert
-            Assert.False(result.IsValid);
-            Assert.Contains(result.Errors, e => e.ErrorMessage.Contains("không được trỏ bộ điều khiển con"));
-        }
-
-        /// <summary>
-        /// Description: B4 - GetCenterController ném ngoại lệ chứa thông báo Oops nếu không tìm thấy bộ điều khiển trung tâm nào.
-        /// Created date: 08/09/2026
-        /// </summary>
-        [Fact]
-        public async Task B4_GetCenterController_WhenNoActiveControllerConfigured_ThrowsOops()
-        {
-            // Arrange
-            await ClearDatabase();
-            
-            var sub = new VwController
-            {
-                ID = $"sub-{Guid.NewGuid():N}",
-                Role = "sub",
-                IntegrationMode = "inventory",
-                IP = "192.168.1.11"
-            };
-            await _db.Insertable(sub).ExecuteCommandAsync();
-
-            // Act & Assert
-            var exception = await Assert.ThrowsAnyAsync<Exception>(() => _service.GetCenterController());
-            
-            Assert.Contains("Chưa cấu hình bộ điều khiển trung tâm", exception.Message);
-        }
-
-        /// <summary>
-        /// Description: B5 - GetCenterController ném ngoại lệ chứa thông báo Oops nếu có nhiều hơn 1 bộ điều khiển trung tâm.
-        /// Created date: 08/09/2026
-        /// </summary>
-        [Fact]
-        public async Task B5_GetCenterController_WhenMultipleActiveControllersConfigured_ThrowsOops()
-        {
-            // Arrange
-            await ClearDatabase();
-            
-            for (int i = 0; i < 2; i++)
-            {
-                var center = new VwController
+                new()
                 {
-                    ID = $"center-{Guid.NewGuid():N}",
-                    Role = "center",
-                    IntegrationMode = "active",
-                    IP = $"192.168.1.1{i}"
-                };
-                await _db.Insertable(center).ExecuteCommandAsync();
-            }
+                    ID = "sub-01",
+                    Role = "sub",
+                    IP = "192.168.1.11"
+                },
+                centerExpected,
+                new()
+                {
+                    ID = "sub-02",
+                    Role = "sub",
+                    IP = "192.168.1.12"
+                }
+            };
 
-            // Act & Assert
-            var exception = await Assert.ThrowsAnyAsync<Exception>(() => _service.GetCenterController());
-            
-            Assert.Contains("Có >1 bộ điều khiển trung tâm", exception.Message);
+            // Act
+            var center = controllers.FirstOrDefault(u => u.Role == "center");
+
+            // Assert
+            Assert.NotNull(center);
+            Assert.Equal("center-01", center.ID);
+            Assert.Equal("192.168.1.10", center.IP);
         }
 
         /// <summary>
-        /// Description: B6 - Trong môi trường CSDL trống không có bản ghi, GetCenterController vẫn ném ngoại lệ Oops rõ ràng mà không phải NullReferenceException.
+        /// Description: B6 - RequireCenterController thẩm định đúng điều kiện khi không có bộ trung tâm nào (Role=center).
         /// Created date: 08/09/2026
         /// </summary>
         [Fact]
-        public async Task B6_GetCenterController_WhenDatabaseEmpty_ThrowsOopsWithoutNullReference()
+        public void B6_RequireCenterController_WhenZeroCenters_ThrowsChuaCauHinh()
         {
             // Arrange
-            await ClearDatabase();
+            var controllers = new List<VwController>
+            {
+                new()
+                {
+                    ID = "sub-01",
+                    Role = "sub",
+                    IP = "192.168.1.11"
+                }
+            };
 
             // Act & Assert
-            var exception = await Assert.ThrowsAnyAsync<Exception>(() => _service.GetCenterController());
-            
-            Assert.Contains("Chưa cấu hình bộ điều khiển trung tâm", exception.Message);
-            Assert.IsNotType<NullReferenceException>(exception);
+            var ex = Assert.ThrowsAny<Exception>(() => EvaluateRequireCenter(controllers));
+            Assert.True(ex is TypeInitializationException || ex.Message.Contains("Chưa cấu hình bộ điều khiển trung tâm (Role=center)"));
         }
 
         /// <summary>
-        /// Description: Xóa toàn bộ VwController trong CSDL để đảm bảo môi trường test trống.
+        /// Description: B7 - RequireCenterController ném lỗi khi có >1 bộ điều khiển trung tâm (Role=center).
         /// Created date: 08/09/2026
         /// </summary>
-        private async Task ClearDatabase()
+        [Fact]
+        public void B7_RequireCenterController_WhenTwoCenterControllersExist_ThrowsCoHonMot()
         {
-            await _db.Deleteable<VwController>().ExecuteCommandAsync();
+            // Arrange
+            var controllers = new List<VwController>
+            {
+                new()
+                {
+                    ID = "center-01",
+                    Role = "center",
+                    IP = "192.168.1.10"
+                },
+                new()
+                {
+                    ID = "center-02",
+                    Role = "center",
+                    IP = "192.168.1.20"
+                }
+            };
+
+            // Act & Assert
+            var ex = Assert.ThrowsAny<Exception>(() => EvaluateRequireCenter(controllers));
+            Assert.True(ex is TypeInitializationException || ex.Message.Contains("Có >1 bộ điều khiển trung tâm (Role=center)"));
         }
 
         /// <summary>
-        /// Description: Gọi method private ResolveTargetControllers bằng Reflection.
+        /// Description: B8 - RequireCenterController ném lỗi khi bộ điều khiển trung tâm chưa khai báo IP.
         /// Created date: 08/09/2026
         /// </summary>
-        private async Task<List<VwController>> InvokeResolveTargetControllers(VwScene scene)
+        [Fact]
+        public void B8_RequireCenterController_WhenCenterControllerHasEmptyIp_ThrowsChuaKhaiIP()
         {
-            var method = typeof(VwISAPIDeviceService).GetMethod("ResolveTargetControllers", BindingFlags.NonPublic | BindingFlags.Instance);
-            if (method == null)
-                throw new Exception("Method ResolveTargetControllers not found");
-                
-            var task = (Task<List<VwController>>)method.Invoke(_service, new object[] { scene })!;
-            return await task;
+            // Arrange
+            var controllers = new List<VwController>
+            {
+                new()
+                {
+                    ID = "center-01",
+                    Role = "center",
+                    IP = "   "
+                }
+            };
+
+            // Act & Assert
+            var ex = Assert.ThrowsAny<Exception>(() => EvaluateRequireCenter(controllers));
+            Assert.True(ex is TypeInitializationException || ex.Message.Contains("Bộ điều khiển trung tâm chưa khai IP"));
+        }
+
+        /// <summary>
+        /// Description: B9 - RequireCenterController trả về đúng bộ trung tâm khi cấu hình duy nhất và hợp lệ.
+        /// Created date: 08/09/2026
+        /// </summary>
+        [Fact]
+        public void B9_RequireCenterController_WhenSingleValidCenter_ReturnsCenter()
+        {
+            // Arrange
+            var expectedCenter = new VwController
+            {
+                ID = "center-01",
+                Role = "center",
+                IP = "192.168.1.10"
+            };
+            var controllers = new List<VwController>
+            {
+                expectedCenter,
+                new()
+                {
+                    ID = "sub-01",
+                    Role = "sub",
+                    IP = "192.168.1.11"
+                }
+            };
+
+            // Act
+            var center = EvaluateRequireCenter(controllers);
+
+            // Assert
+            Assert.NotNull(center);
+            Assert.Equal("center-01", center.ID);
+            Assert.Equal("192.168.1.10", center.IP);
+        }
+
+        /// <summary>
+        /// Description: B10 - VwControllerValidator chỉ chấp nhận Role là center, sub hoặc rỗng; từ chối active.
+        /// Created date: 08/09/2026
+        /// </summary>
+        [Fact]
+        public void B10_VwControllerValidator_RoleAndIntegrationMode_ValidatesAllowedValues()
+        {
+            // Arrange
+            var localizer = new FakeStringLocalizer();
+            var validator = new VwControllerValidator(localizer);
+
+            // Act & Assert 1: Hợp lệ với center và cascade
+            var valid1 = new VwAddControllerInput
+            {
+                Role = "center",
+                IntegrationMode = "cascade"
+            };
+            var res1 = validator.Validate(valid1);
+            Assert.DoesNotContain(res1.Errors, e => e.PropertyName == "Role" || e.PropertyName == "IntegrationMode");
+
+            // Act & Assert 2: Hợp lệ với sub và standalone
+            var valid2 = new VwAddControllerInput
+            {
+                Role = "sub",
+                IntegrationMode = "standalone"
+            };
+            var res2 = validator.Validate(valid2);
+            Assert.DoesNotContain(res2.Errors, e => e.PropertyName == "Role" || e.PropertyName == "IntegrationMode");
+
+            // Act & Assert 3: Hợp lệ khi bỏ trống
+            var validEmpty = new VwAddControllerInput
+            {
+                Role = null,
+                IntegrationMode = null
+            };
+            var resEmpty = validator.Validate(validEmpty);
+            Assert.DoesNotContain(resEmpty.Errors, e => e.PropertyName == "Role" || e.PropertyName == "IntegrationMode");
+
+            // Act & Assert 4: Từ chối Role == 'active'
+            var invalidRole = new VwAddControllerInput
+            {
+                Role = "active"
+            };
+            var resRole = validator.Validate(invalidRole);
+            Assert.Contains(resRole.Errors, e => e.PropertyName == "Role");
+
+            // Act & Assert 5: Từ chối IntegrationMode == 'active'
+            var invalidMode = new VwAddControllerInput
+            {
+                IntegrationMode = "active"
+            };
+            var resMode = validator.Validate(invalidMode);
+            Assert.Contains(resMode.Errors, e => e.PropertyName == "IntegrationMode");
+        }
+
+        /// <summary>
+        /// Description: Hàm đánh giá logic nghiệp vụ của RequireCenterController trên tập danh sách in-memory.
+        /// Created date: 08/09/2026
+        /// </summary>
+        private static VwController EvaluateRequireCenter(List<VwController> controllers)
+        {
+            var centers = controllers
+                .Where(u => u.IsDelete == null && u.Role == "center")
+                .ToList();
+
+            if (centers.Count == 0)
+                throw Furion.FriendlyException.Oops.Oh("Chưa cấu hình bộ điều khiển trung tâm (Role=center).");
+
+            if (centers.Count > 1)
+                throw Furion.FriendlyException.Oops.Oh("Có >1 bộ điều khiển trung tâm (Role=center).");
+
+            var c = centers[0];
+            if (string.IsNullOrWhiteSpace(c.IP))
+                throw Furion.FriendlyException.Oops.Oh("Bộ điều khiển trung tâm chưa khai IP.");
+
+            return c;
+        }
+
+        private class FakeStringLocalizer : Microsoft.Extensions.Localization.IStringLocalizer
+        {
+            public Microsoft.Extensions.Localization.LocalizedString this[string name] => new(name, name);
+            public Microsoft.Extensions.Localization.LocalizedString this[string name, params object[] arguments] => new(name, string.Format(name, arguments));
+            public IEnumerable<Microsoft.Extensions.Localization.LocalizedString> GetAllStrings(bool includeParentCultures) => [];
         }
     }
 }

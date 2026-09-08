@@ -51,6 +51,7 @@ When executing slash commands, follow the corresponding workflow file:
 ### 5. 🧠 Persistent Memory (`.agents/memory/`)
 - At the start of tasks, check `.agents/memory/MEMORY.md` and `.agents/memory/thienan-user-preferences.md`.
 - Persist new user decisions, architectural choices, and project conventions to `.agents/memory/MEMORY.md`.
+- 🔴 **Ghi memory VÀO `.agents/memory/` (LOCAL, trong repo) — KHÔNG BAO GIỜ ghi `~/.claude/projects/*/memory/`.** Path global đó chỉ là junction trỏ về `.agents/memory/`. Nếu nó là thư mục thật (không phải junction) trên máy hiện tại ⇒ junction chưa/hỏng: cứ ghi local rồi báo user tạo lại junction (`mklink /J`, snippet cuối `.agents/memory/MEMORY.md`).
 
 ### 6. 🛡️ Lifecycle Hooks & Safeguards (`.agents/hooks/`)
 - Tool call validation & Doctor checks: `.agents/hooks/validate-tool-call.mjs`, `.agents/hooks/antigravity-doctor.mjs`.
