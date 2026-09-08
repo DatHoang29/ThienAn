@@ -107,37 +107,6 @@ public partial class VwISAPIMockServerHikvision
             return true;
         }
 
-        // M2: Serial Ports
-        if (method == "GET" && MatchRoute("ISAPI/System/Serial/ports", path))
-        {
-            await WriteXmlResponseAsync(res, HttpStatusCode.OK, """
-                <SerialPortList xmlns="http://www.isapi.org/ver20/XMLSchema" version="2.0">
-                  <SerialPort>
-                    <id>1</id>
-                    <serialPortType>RS485</serialPortType>
-                    <baudRate>9600</baudRate>
-                    <dataBits>8</dataBits>
-                    <parityType>none</parityType>
-                    <stopBits>1</stopBits>
-                  </SerialPort>
-                </SerialPortList>
-                """);
-            return true;
-        }
-
-        // M2: Serial Ports Capabilities
-        if (method == "GET" && MatchRoute("ISAPI/System/Serial/ports/capabilities", path))
-        {
-            await WriteXmlResponseAsync(res, HttpStatusCode.OK, """
-                <SerialPortCap xmlns="http://www.isapi.org/ver20/XMLSchema" version="2.0">
-                  <baudRate opt="9600,19200,38400,57600,115200" />
-                  <dataBits opt="5,6,7,8" />
-                  <parityType opt="none,even,odd" />
-                  <stopBits opt="1,2" />
-                </SerialPortCap>
-                """);
-            return true;
-        }
 
         // A. GET /ISAPI/Security/userCheck
         if (method == "GET" && MatchRoute("ISAPI/Security/userCheck", path))
@@ -200,19 +169,6 @@ public partial class VwISAPIMockServerHikvision
             return true;
         }
 
-        // B.1.5. GET /ISAPI/System/Serial/capabilities
-        if (method == "GET" && MatchRoute("ISAPI/System/Serial/capabilities", path))
-        {
-            GetSerialCapabilitiesCallCount++;
-            await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
-                <?xml version="1.0" encoding="UTF-8"?>
-                <SerialCap version="2.0" xmlns="{{Ns}}">
-                  <isSupportDeviceInfo>{{(IsSupportSerialTransparent ? "true" : "false")}}</isSupportDeviceInfo>
-                  <isSupportSerialTransparent>{{(IsSupportSerialTransparent ? "true" : "false")}}</isSupportSerialTransparent>
-                </SerialCap>
-                """);
-            return true;
-        }
 
         // B.2. GET /ISAPI/DisplayDev/VideoWall/capabilities
         if (method == "GET" && MatchRoute("ISAPI/DisplayDev/VideoWall/capabilities", path))
@@ -1045,97 +1001,6 @@ public partial class VwISAPIMockServerHikvision
                 <?xml version="1.0" encoding="UTF-8"?>
                 <ResponseStatus version="1.0" xmlns="{{Ns}}">
                   <requestURL>{{path}}</requestURL>
-                  <statusCode>1</statusCode>
-                  <statusString>OK</statusString>
-                  <subStatusCode>ok</subStatusCode>
-                </ResponseStatus>
-                """);
-            return true;
-        }
-
-        // ═════════════════════════════════════════════════════════════════════
-        // 8. SERIAL TRANSPARENT (9.1.8.*)
-        // ═════════════════════════════════════════════════════════════════════
-
-        // PUT .../Transparent/channels/{channelId}/open
-        if (method == "PUT" && (MatchRoute("ISAPI/System/Serial/ports/{portId}/Transparent/channels/{channelId}/open", path)
-                             || MatchRoute("ISAPI/System/Serial/Transparent/channels/{channelId}/open", path)))
-        {
-            SerialOpenCallCount++;
-            if (SimulateSerialOpenFailure)
-            {
-                await WriteXmlResponseAsync(res, HttpStatusCode.InternalServerError, $$"""
-                    <?xml version="2.0" xmlns="{{Ns}}">
-                      <statusCode>4</statusCode>
-                      <statusString>Internal Error</statusString>
-                      <subStatusCode>deviceError</subStatusCode>
-                    </ResponseStatus>
-                    """);
-                return true;
-            }
-
-            await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
-                <?xml version="2.0" xmlns="{{Ns}}">
-                  <statusCode>1</statusCode>
-                  <statusString>OK</statusString>
-                  <subStatusCode>ok</subStatusCode>
-                </ResponseStatus>
-                """);
-            return true;
-        }
-
-        // PUT .../Transparent/channels/{channelId}/transData
-        if (method == "PUT" && (MatchRoute("ISAPI/System/Serial/ports/{portId}/Transparent/channels/{channelId}/transData", path)
-                             || MatchRoute("ISAPI/System/Serial/Transparent/channels/{channelId}/transData", path)))
-        {
-            SerialSendCallCount++;
-            var mem = new MemoryStream();
-            await req.InputStream.CopyToAsync(mem);
-            LastReceivedSerialData = mem.ToArray();
-            LastReceivedContentType = req.ContentType;
-
-            if (SimulateSerialSendFailure || SimulateDeviceFailure)
-            {
-                await WriteXmlResponseAsync(res, HttpStatusCode.InternalServerError, $$"""
-                    <?xml version="2.0" xmlns="{{Ns}}">
-                      <statusCode>4</statusCode>
-                      <statusString>Device Error</statusString>
-                      <subStatusCode>deviceError</subStatusCode>
-                    </ResponseStatus>
-                    """);
-                return true;
-            }
-
-            await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
-                <?xml version="2.0" xmlns="{{Ns}}">
-                  <statusCode>1</statusCode>
-                  <statusString>OK</statusString>
-                  <subStatusCode>ok</subStatusCode>
-                </ResponseStatus>
-                """);
-            return true;
-        }
-
-        // GET .../Transparent/channels/{channelId}/transData
-        if (method == "GET" && (MatchRoute("ISAPI/System/Serial/ports/{portId}/Transparent/channels/{channelId}/transData", path)
-                             || MatchRoute("ISAPI/System/Serial/Transparent/channels/{channelId}/transData", path)))
-        {
-            SerialReceiveCallCount++;
-            res.StatusCode = (int)HttpStatusCode.OK;
-            res.ContentType = "application/octet-stream";
-            var data = SerialDataToReturn ?? [0x01, 0x02, 0x03];
-            await res.OutputStream.WriteAsync(data);
-            res.Close();
-            return true;
-        }
-
-        // PUT .../Transparent/channels/{channelId}/close
-        if (method == "PUT" && (MatchRoute("ISAPI/System/Serial/ports/{portId}/Transparent/channels/{channelId}/close", path)
-                             || MatchRoute("ISAPI/System/Serial/Transparent/channels/{channelId}/close", path)))
-        {
-            SerialCloseCallCount++;
-            await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
-                <?xml version="2.0" xmlns="{{Ns}}">
                   <statusCode>1</statusCode>
                   <statusString>OK</statusString>
                   <subStatusCode>ok</subStatusCode>

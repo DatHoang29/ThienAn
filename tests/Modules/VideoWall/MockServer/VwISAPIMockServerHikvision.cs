@@ -120,9 +120,6 @@ namespace Tests.Modules.VideoWall.MockServer
         public bool SimulateBadParameters { get; set; }
         public bool SimulateInvalidOperation { get; set; }
         public bool ScreenCtrlCloseAllThrowsInvalidOperation { get; set; } = true;
-        public bool IsSupportSerialTransparent { get; set; } = true;
-        public bool SimulateSerialOpenFailure { get; set; }
-        public bool SimulateSerialSendFailure { get; set; }
         public bool SimulateNoBoundWall { get; set; }
         public bool SimulateMultipleBoundWalls { get; set; } = true;
         public bool SimulateWall1Unbound { get; set; }
@@ -145,8 +142,8 @@ namespace Tests.Modules.VideoWall.MockServer
         // ─── Bộ đếm số lần gọi API ───
         public int UserCheckCallCount { get; private set; }
         public int GetCapabilitiesCallCount { get; private set; }
-        public int GetSerialCapabilitiesCallCount { get; private set; }
         public int GetOutputsCallCount { get; private set; }
+
         public int GetWindowsCallCount { get; private set; }
         public int GetActiveSceneCallCount { get; private set; }
         public int SaveSceneDataCallCount { get; private set; }
@@ -164,11 +161,6 @@ namespace Tests.Modules.VideoWall.MockServer
         public int GetOutputChannelsCallCount { get; private set; }
         public int GetVideoWallsCallCount { get; private set; }
         public HashSet<int> NotConnectedOutputChannels { get; } = [];
-        public int SerialOpenCallCount { get; private set; }
-        public int SerialSendCallCount { get; private set; }
-        public int SerialReceiveCallCount { get; private set; }
-        public int SerialCloseCallCount { get; private set; }
-        public byte[]? LastReceivedSerialData { get; private set; }
         public string? LastReceivedContentType { get; private set; }
 
         /// <summary>Body thô của request gần nhất (trừ transData vì route đó tự đọc InputStream).</summary>
@@ -176,7 +168,6 @@ namespace Tests.Modules.VideoWall.MockServer
 
         /// <summary>Body gần nhất đã giải mã UTF-8, tiện cho assert nội dung.</summary>
         public string? LastReceivedBody { get; private set; }
-        public byte[]? SerialDataToReturn { get; set; }
         public List<string> ReceivedRequests { get; } = [];
 
         /// <summary>
@@ -289,9 +280,6 @@ namespace Tests.Modules.VideoWall.MockServer
             SimulateBadParameters = false;
             SimulateInvalidOperation = false;
             ScreenCtrlCloseAllThrowsInvalidOperation = true;
-            IsSupportSerialTransparent = true;
-            SimulateSerialOpenFailure = false;
-            SimulateSerialSendFailure = false;
             SimulateNoBoundWall = false;
             SimulateMultipleBoundWalls = true;
             SimulateWall1Unbound = false;
@@ -302,7 +290,6 @@ namespace Tests.Modules.VideoWall.MockServer
 
             UserCheckCallCount = 0;
             GetCapabilitiesCallCount = 0;
-            GetSerialCapabilitiesCallCount = 0;
             GetOutputsCallCount = 0;
             GetWindowsCallCount = 0;
             GetActiveSceneCallCount = 0;
@@ -321,15 +308,9 @@ namespace Tests.Modules.VideoWall.MockServer
             GetOutputChannelsCallCount = 0;
             GetVideoWallsCallCount = 0;
             NotConnectedOutputChannels.Clear();
-            SerialOpenCallCount = 0;
-            SerialSendCallCount = 0;
-            SerialReceiveCallCount = 0;
-            SerialCloseCallCount = 0;
-            LastReceivedSerialData = null;
             LastReceivedContentType = null;
             LastReceivedBodyBytes = null;
             LastReceivedBody = null;
-            SerialDataToReturn = null;
             ReceivedRequests.Clear();
         }
 

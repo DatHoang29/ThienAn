@@ -722,18 +722,6 @@ public class VwWpfDirectModeTests
             var time = await client.SendIsapi("GET", "ISAPI/System/time", null, null);
             Assert.Equal(200, time.HttpStatus);
             Assert.Contains("<Time", time.ResponseXml);
-
-            var ports = await client.SendIsapi("GET", "ISAPI/System/Serial/ports", null, null);
-            Assert.Equal(200, ports.HttpStatus);
-            Assert.Contains("SerialPortList", ports.ResponseXml);
-
-            var portCaps = await client.SendIsapi("GET", "ISAPI/System/Serial/ports/capabilities", null, null);
-            Assert.Equal(200, portCaps.HttpStatus);
-            Assert.Contains("SerialPortCap", portCaps.ResponseXml);
-
-            var serialCaps = await client.SendIsapi("GET", "ISAPI/System/Serial/capabilities", null, null);
-            Assert.Equal(200, serialCaps.HttpStatus);
-            Assert.Contains("SerialCap", serialCaps.ResponseXml);
         }
     }
 

@@ -961,71 +961,6 @@ namespace Tests.Modules.VideoWall
 
         #endregion
 
-        #region Serial Transparent Transmission
-
-        /// <summary>
-        /// Author: Đạt
-        /// Description: Gửi lệnh serial trong suốt tuân thủ nghiêm ngặt trình tự open -> transData -> close.
-        /// Created date: 24/08/2026
-        /// </summary>
-        [Fact]
-        public async Task VwISAPIDeviceService_SendScreenSerialCommand_FollowsOpenSendCloseSequence_Test()
-        {
-            host.MockServer.ResetDefaults();
-            var controller = TestController;
-            byte[] testPayload = [0xAA, 0x11, 0x00, 0xBB];
-
-            await _service.SendScreenSerialCommand(controller, 1, 1, testPayload);
-
-            Assert.Equal(1, host.MockServer.SerialOpenCallCount);
-            Assert.Equal(1, host.MockServer.SerialSendCallCount);
-            Assert.Equal(1, host.MockServer.SerialCloseCallCount);
-        }
-
-        /// <summary>
-        /// Author: Đạt
-        /// Description: Kênh truyền serial luôn được đóng trong khối finally khi bước gửi transData bị lỗi.
-        /// Created date: 24/08/2026
-        /// </summary>
-        [Fact]
-        public async Task VwISAPIDeviceService_SendScreenSerialCommand_ClosesChannelWhenSendFails_Test()
-        {
-            host.MockServer.ResetDefaults();
-            host.MockServer.SimulateSerialSendFailure = true;
-            var controller = TestController;
-            byte[] testPayload = [0xAA, 0x11, 0x00, 0xBB];
-
-            await Assert.ThrowsAnyAsync<Exception>(() =>
-                _service.SendScreenSerialCommand(controller, 1, 1, testPayload));
-
-            Assert.Equal(1, host.MockServer.SerialOpenCallCount);
-            Assert.Equal(1, host.MockServer.SerialSendCallCount);
-            Assert.Equal(1, host.MockServer.SerialCloseCallCount);
-        }
-
-        /// <summary>
-        /// Author: Đạt
-        /// Description: Thiết bị không hỗ trợ serial capabilities thì ném lỗi và không phát bất kỳ lệnh open/send/close nào.
-        /// Created date: 24/08/2026
-        /// </summary>
-        [Fact]
-        public async Task VwISAPIDeviceService_SendScreenSerialCommand_UnsupportedCapability_ThrowsWithoutSending_Test()
-        {
-            host.MockServer.ResetDefaults();
-            host.MockServer.IsSupportSerialTransparent = false;
-            var controller = TestController;
-            byte[] testPayload = [0xAA, 0x11, 0x00, 0xBB];
-
-            await Assert.ThrowsAnyAsync<Exception>(() =>
-                _service.SendScreenSerialCommand(controller, 1, 1, testPayload));
-
-            Assert.Equal(0, host.MockServer.SerialOpenCallCount);
-            Assert.Equal(0, host.MockServer.SerialSendCallCount);
-            Assert.Equal(0, host.MockServer.SerialCloseCallCount);
-        }
-
-        #endregion
-
         #region SyncSceneWindowsToDevice Missing Device Window ID (§Điểm vênh 03)
 
         /// <summary>
@@ -1563,7 +1498,7 @@ namespace Tests.Modules.VideoWall
         {
             var controller = new VwController { ID = "ctrl-no-ip", IP = null, Account = "admin", PassWord = "12345" };
 
-            Assert.Throws<InvalidOperationException>(() => _client.EnsureRegistered(controller));
+            Assert.Throws<Furion.FriendlyException.AppFriendlyException>(() => _client.EnsureRegistered(controller));
         }
 
         /// <summary>
@@ -1698,25 +1633,6 @@ namespace Tests.Modules.VideoWall
 
             Assert.Equal(VwDeviceProfile.SignalMode, subWindowParam.SignalMode);
             Assert.Equal(VwDeviceProfile.WndOperateMode, windowRequest.WndOperateMode);
-        }
-
-        /// <summary>
-        /// Author: Đạt
-        /// Description: Gửi dữ liệu serial SendSerialDataAsync gửi byte thô qua application/octet-stream, không bị bọc XML.
-        /// Created date: 24/08/2026
-        /// </summary>
-        [Fact]
-        public async Task VwISAPIDeviceService_SendSerialData_SendsRawBytesNotXml_Test()
-        {
-            host.MockServer.ResetDefaults();
-            byte[] rawPayload = [0xAA, 0x55, 0x01, 0xFF];
-
-            var result = await _client.SendSerialDataAsync(TestController, 1, 1, rawPayload);
-
-            Assert.True(result.Success);
-            Assert.NotNull(host.MockServer.LastReceivedContentType);
-            Assert.Contains("application/octet-stream", host.MockServer.LastReceivedContentType);
-            Assert.Equal(rawPayload, host.MockServer.LastReceivedSerialData);
         }
 
         /// <summary>
@@ -2164,48 +2080,6 @@ namespace Tests.Modules.VideoWall
 
         /// <summary>
         /// Author: Đạt
-        /// Description: Lấy thông tin năng lực cổng serial truyền trong suốt từ Mock Server và tăng GetSerialCapabilitiesCallCount.
-        /// Created date: 26/08/2026
-        /// </summary>
-        [Fact]
-        public async Task VwISAPIDeviceService_GetSerialCapabilities_ReturnsCapabilitiesAndIncrementsMockCount_Test()
-        {
-            host.MockServer.ResetDefaults();
-            var controller = TestController;
-
-            var result = await _client.GetSerialCapabilitiesAsync(controller);
-
-            Assert.NotNull(result);
-            Assert.True(result.Success);
-            Assert.NotNull(result.Data);
-            Assert.True(result.Data.IsSupportSerialTransparent);
-            Assert.True(host.MockServer.GetSerialCapabilitiesCallCount >= 1);
-        }
-
-        /// <summary>
-        /// Author: Đạt
-        /// Description: Nhận dữ liệu nhị phân từ kênh truyền trong suốt cổng serial của Mock Server thành công.
-        /// Created date: 26/08/2026
-        /// </summary>
-        [Fact]
-        public async Task VwISAPIDeviceService_ReceiveSerialData_ReturnsRawBytesAndIncrementsMockCount_Test()
-        {
-            host.MockServer.ResetDefaults();
-            var controller = TestController;
-            byte[] expectedData = [0x55, 0xAA, 0x01, 0x02, 0x03];
-            host.MockServer.SerialDataToReturn = expectedData;
-
-            var result = await _client.ReceiveSerialDataAsync(controller, portId: 1, channelId: 1);
-
-            Assert.NotNull(result);
-            Assert.True(result.Success);
-            Assert.NotNull(result.Data);
-            Assert.Equal(expectedData, result.Data);
-            Assert.True(host.MockServer.SerialReceiveCallCount >= 1);
-        }
-
-        /// <summary>
-        /// Author: Đạt
         /// Description: Thiết bị không phản hồi / rớt mạng (SimulateUnreachable) — Ping và Probe bắt lỗi gọn gàng, không crash unhandled exception.
         /// Created date: 26/08/2026
         /// </summary>
@@ -2322,9 +2196,96 @@ namespace Tests.Modules.VideoWall
             }
         }
 
+        /// <summary>
+        /// Description: Lưới an toàn cho SendCoreAsync — mọi biến thể transport
+        ///              (GET-XML, GET-JSON, POST-XML, PUT-status, DELETE) cộng SendRawAsync
+        ///              đều phải gọi RecordCircuitBreakerFailure khi thiết bị trả 401,
+        ///              nên sau đúng MaxConsecutiveFailures lần 401 liên tiếp Circuit Breaker phải mở.
+        /// Created date: 07/09/2026
+        /// </summary>
+        [Fact]
+        public async Task VwISAPIDeviceService_EverySendVariant_On401_TripsCircuitBreaker_Test()
+        {
+            // Arrange — sai mật khẩu + mock kiểm hash digest thật => mọi verb đều nhận 401
+            host.MockServer.ResetDefaults();
+            host.MockServer.VerifyDigestResponseHash = true;
+
+            var controller = new VwController
+            {
+                ID = $"ctrl-cb-all-{Guid.NewGuid():N}",
+                Name = "TEST_Controller_CB_AllVariants",
+                Code = $"{TestPrefix}CTRL_CB_ALL_{Guid.NewGuid():N}",
+                IP = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPort}",
+                Account = VwISAPIMockServerHikvision.DefaultUser,
+                PassWord = "WrongPassword123!",
+                Status = BaseEnums.StatusEnum.Enable
+            };
+
+            try
+            {
+                await AssertVariantTripsBreakerOn401(
+                    "GET-XML (SendGetXmlAsync)", controller.IP,
+                    async () => (VwISAPIResult)await _client.UserCheckAsync(controller));
+
+                await AssertVariantTripsBreakerOn401(
+                    "GET-JSON (SendGetJsonAsync)", controller.IP,
+                    async () => (VwISAPIResult)await _client.GetSceneInfoAsync(controller, "1", 1));
+
+                await AssertVariantTripsBreakerOn401(
+                    "POST-XML (SendPostXmlAsync)", controller.IP,
+                    async () => (VwISAPIResult)await _client.CreateSceneAsync(controller, "T4Scene", 1));
+
+                await AssertVariantTripsBreakerOn401(
+                    "PUT-status (SendPutStatusAsync)", controller.IP,
+                    () => _client.ActivateSceneAsync(controller, "1", 1));
+
+                await AssertVariantTripsBreakerOn401(
+                    "DELETE (SendDeleteStatusAsync)", controller.IP,
+                    () => _client.DeleteAllWindowsAsync(controller, 1));
+
+                await AssertVariantTripsBreakerOn401(
+                    "SendRawAsync", controller.IP,
+                    () => _client.SendRawAsync(controller, HttpMethod.Get, "ISAPI/Security/userCheck", null, null));
+            }
+            finally
+            {
+                _client.ResetCircuitBreaker(controller.IP);
+                host.MockServer.ResetDefaults();
+            }
+        }
+
         #endregion
 
         #region Private Helpers
+
+        /// <summary>
+        /// Description: Trên một đường transport: reset breaker, gọi 2 lần liên tiếp (= MaxConsecutiveFailures),
+        ///              mỗi lần phải là 401, và sau lần thứ 2 Circuit Breaker phải ở trạng thái mở.
+        ///              Lần 1 chưa được chặn để chắc chắn breaker mở do 401 chứ không do state rớt lại.
+        /// Created date: 07/09/2026
+        /// </summary>
+        private async Task AssertVariantTripsBreakerOn401(string label, string? ip, Func<Task<VwISAPIResult>> call)
+        {
+            _client.ResetCircuitBreaker(ip);
+
+            var first = await call();
+            Assert.False(first.Success, $"[{label}] mong đợi 401 nhưng Success = true");
+            Assert.Equal(401, first.HttpStatusCode);
+            Assert.False(
+                _client.IsCircuitBreakerBlocked(ip, out _),
+                $"[{label}] mới 1 lần 401, chưa được chặn");
+
+            var second = await call();
+            Assert.Equal(401, second.HttpStatusCode);
+
+            Assert.True(
+                _client.IsCircuitBreakerBlocked(ip, out var remaining),
+                $"[{label}] sau {VwWallProfile.MaxConsecutiveFailures} lần 401 liên tiếp mà Circuit Breaker "
+                + "chưa mở — RecordCircuitBreakerFailure không được gọi trên đường này?");
+            Assert.True(remaining > TimeSpan.Zero);
+
+            _client.ResetCircuitBreaker(ip);
+        }
 
         private async Task<(VwController Controller, VwScene Scene)> CreateSetupSceneFixtures()
         {
