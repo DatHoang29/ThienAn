@@ -1965,6 +1965,14 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             };
 
             await db.Insertable(new List<ShareDataMapping> { mappingOld, mappingNew }).ExecuteCommandAsync();
+            // EntityTenant có thuộc tính [SugarColumn(InsertServerTime = true)] khiến Insertable
+            // tự gán GETDATE() cho cả 2 bản ghi. Cần UPDATE tường minh để CreateTime trong DB thực sự khác nhau.
+            await db.Ado.ExecuteCommandAsync(
+                "UPDATE ShareDataMapping SET CreateTime = @createTime WHERE ID = @id",
+                new { createTime = now.AddMinutes(-10), id = mappingOld.ID });
+            await db.Ado.ExecuteCommandAsync(
+                "UPDATE ShareDataMapping SET CreateTime = @createTime WHERE ID = @id",
+                new { createTime = now.AddMinutes(-1), id = mappingNew.ID });
 
             await CreateWorker(scope).ProcessBatchSubscriptions(CancellationToken.None);
 
