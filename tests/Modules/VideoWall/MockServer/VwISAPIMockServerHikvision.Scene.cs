@@ -132,7 +132,27 @@ public partial class VwISAPIMockServerHikvision
             var store = GetSceneStore(wallId);
             var sid = int.TryParse(infoParams["SID"], out var parsedSid) ? parsedSid : 1;
             var sceneName = store.TryGetValue(sid, out var n) ? n : "Unknown";
-            await WriteJsonResponseAsync(res, HttpStatusCode.OK, $$"""{"id":{{sid}},"name":"{{sceneName}}"}""");
+            await WriteJsonResponseAsync(res, HttpStatusCode.OK, $$"""
+                {
+                  "wallSceneInfo": {
+                    "wallRect": { "width": 3840, "height": 2160 },
+                    "SceneWindowList": [
+                      {
+                        "sceneWindow": {
+                          "id": {{sid}},
+                          "wndOperateMode": "normal",
+                          "Rect": {
+                            "Coordinate": { "x": 0, "y": 0 },
+                            "width": 1920,
+                            "height": 1080
+                          },
+                          "layerIdx": 0
+                        }
+                      }
+                    ]
+                  }
+                }
+                """);
             return true;
         }
 

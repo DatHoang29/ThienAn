@@ -16,73 +16,28 @@ public partial class VwISAPIMockServerHikvision
 <?xml version="1.0" encoding="UTF-8"?>
 <WallWindow xmlns="http://www.isapi.org/ver20/XMLSchema" version="2.0">
   <id>
-    test
+    1
   </id>
   <wndOperateMode>
     uniformCoordinate
   </wndOperateMode>
-<Rect>
   <Rect>
     <Coordinate>
-      <x>
-        1
-      </x>
-      <y>
-        1
-      </y>
+      <x>1</x>
+      <y>1</y>
     </Coordinate>
-    <width min="0" max="1920">
-      1
-    </width>
-    <height min="0" max="1920">
-      1
-    </height>
+    <width>1920</width>
+    <height>1920</height>
   </Rect>
-  <Coordinate>
-    <x>
-      1
-    </x>
-    <y>
-      1
-    </y>
-  </Coordinate>
-  <ResolutionRect>
-    <Coordinate>
-      <x>
-        1
-      </x>
-      <y>
-        1
-      </y>
-    </Coordinate>
-    <width min="0" max="1920">
-      1
-    </width>
-    <height min="0" max="1920">
-      1
-    </height>
-  </ResolutionRect>
   <layerIdx>
     1
   </layerIdx>
-  <displayWinNo>
-    true
-  </displayWinNo>
   <windowMode>
     1
   </windowMode>
   <wndShowMode>
     subWndMode
   </wndShowMode>
-  <amplifyingSubWndNo>
-    1
-  </amplifyingSubWndNo>
-  <wndTopKeep>
-    true
-  </wndTopKeep>
-  <wndOpenKeep>
-    true
-  </wndOpenKeep>
   <SubWindowList>
     <SubWindow>
       <id>
@@ -95,254 +50,9 @@ public partial class VwISAPIMockServerHikvision
         <videoInputChannelID>
           16842753
         </videoInputChannelID>
-        <streamingChannelID>
-          test
-        </streamingChannelID>
-        <StreamInput>
-          <streamInputMode>
-            realtime
-          </streamInputMode>
-          <StreamInputRealtime>
-            <durationInUnit>
-              1
-            </durationInUnit>
-            <StreamRealtimeUnitList>
-              <StreamRealtimeUnit>
-                <streamType>
-                  in URL
-                </streamType>
-                <StreamInURL>
-                  <URL>
-                    test
-                  </URL>
-                </StreamInURL>
-                <StreamByDdns>
-                  <DdnsServerInfo>
-                    <domain>
-                      ipv4
-                    </domain>
-                    <port>
-                      80
-                    </port>
-                    <ddnsType>
-                      test
-                    </ddnsType>
-                    <username>
-                      test
-                    </username>
-                    <password>
-                      test
-                    </password>
-                  </DdnsServerInfo>
-                  <EncodeDevInfo>
-                    <domain>
-                      ipv4
-                    </domain>
-                    <port>
-                      1
-                    </port>
-                    <transmitProtocol>
-                      tcp
-                    </transmitProtocol>
-                    <protocol>
-                      DAHUA
-                    </protocol>
-                    <username>
-                      test
-                    </username>
-                    <password>
-                      test
-                    </password>
-                    <channelMode>
-                      normal
-                    </channelMode>
-                    <channelType>
-                      main
-                    </channelType>
-                    <channelZero>
-                      1
-                    </channelZero>
-                    <channelNormal>
-                      1
-                    </channelNormal>
-                    <channelStreaming>
-                      1
-                    </channelStreaming>
-                    <channelDistributed>
-                      1
-                    </channelDistributed>
-                  </EncodeDevInfo>
-                  <MediaGatewayInfo>
-                    <enabled>
-                      true
-                    </enabled>
-                    <domain>
-                      ipv4
-                    </domain>
-                    <port>
-                      1
-                    </port>
-                    <transmitProtocol>
-                      tcp
-                    </transmitProtocol>
-                  </MediaGatewayInfo>
-                </StreamByDdns>
-                <StreamByDomain>
-                  <EncodeDevInfo>
-!
-t
-bj t
-                    <domain>
-                      ipv4
-                    </domain>
-                    <port>
-                      1
-                    </port>
-                    <transmitProtocol>
-                      tcp
-                    </transmitProtocol>
-                    <protocol>
-                      DAHUA
-                    </protocol>
-                    <username>
-                      test
-                    </username>
-                    <password>
-                      test
-                    </password>
-                    <channelMode>
-                      normal
-                    </channelMode>
-                    <channelType>
-                      main
-                    </channelType>
-                    <channelZero>
-                      1
-                    </channelZero>
-                    <channelNormal>
-                      1
-                    </channelNormal>
-                    <channelStreaming>
-                      1
-                    </channelStreaming>
-                    <channelDistributed>
-                      1
-                    </channelDistributed>
-                  </EncodeDevInfo>
-                  <MediaGatewayInfo>
-                    <enabled>
-                      true
-                    </enabled>
-                    <domain>
-                      ipv4
-                    </domain>
-                    <port>
-                      1
-                    </port>
-                    <transmitProtocol>
-                      tcp
-                    </transmitProtocol>
-                  </MediaGatewayInfo>
-                </StreamByDomain>
-              </StreamRealtimeUnit>
-            </StreamRealtimeUnitList>
-          </StreamInputRealtime>
-          <StreamInputPlayback>
-            <playbackMode>
-              file name
-            </playbackMode>
-            <EncodeDevInfo>
-              <domain>
-                ipv4
-              </domain>
-              <port>
-                1
-              </port>
-              <transmitProtocol>
-                tcp
-              </transmitProtocol>
-              <protocol>
-                DAHUA
-              </protocol>
-              <username>
-                test
-              </username>
-              <password>
-                test
-              </password>
-              <channelMode>
-                normal
-              </channelMode>
-              <channelType>
-                main
-              </channelType>
-              <channelZero>
-                1
-              </channelZero>
-              <channelNormal>
-                1
-              </channelNormal>
-</c a e o a >
-              <channelStreaming>
-                1
-              </channelStreaming>
-              <channelDistributed>
-                1
-              </channelDistributed>
-            </EncodeDevInfo>
-            <fileName>
-              test
-            </fileName>
-            <TimeRange>
-              <beginTime>
-                00:00:00+08:00
-              </beginTime>
-              <endTime>
-                00:00:00+08:00
-              </endTime>
-            </TimeRange>
-          </StreamInputPlayback>
-          <streamEncryptEnable>
-            true
-          </streamEncryptEnable>
-          <streamPassword>
-            test
-          </streamPassword>
-        </StreamInput>
-        <pictureFormat>
-          BMP
-        </pictureFormat>
-        <signalSourceName>
-          test
-        </signalSourceName>
       </SubWindowParam>
     </SubWindow>
   </SubWindowList>
-  <wndType>
-    signalSource
-  </wndType>
-  <zoomEnabled>
-    true
-  </zoomEnabled>
-  <audioEnabled>
-    true
-  </audioEnabled>
-  <wndLockKeep>
-    true
-  </wndLockKeep>
-  <Graphic>
-    <windowRegisterID>
-      0
-    </windowRegisterID>
-  </Graphic>
-  <Subtitle>
-    <moveDirection>
-      left
-    </moveDirection>
-    <moveSpeed>
-      fast
-    </moveSpeed>
-  </Subtitle>
 </WallWindow>
 """);
             return true;

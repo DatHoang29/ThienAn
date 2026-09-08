@@ -13,7 +13,7 @@
 - **`request-routing.md`**: Mandatory agent announcement: `🤖 Applying knowledge of @[agent-name]...`
 - **`universal-rules.md`**: Clean Code, single-statement `if` indentation, object initializers (1 prop/line), LINQ formatting, Primary Constructors on new classes only, structured logging (`CA1873`), strict module scope, no live DB mutations, strict local DB for `dotnet test`, auto-cleanup completed prompt files.
 - **`code-rules.md`**: 4-phase planning, Socratic Gate, test pyramid, AAA pattern.
-- **`thienan_rules.md`**: Git branch naming (`feat/`, `fix/`, `release/`), semantic commit conventions.
+- **`thienan_rules.md`**: Git branch naming (`feat/`, `fix/`, `release/`), semantic commit conventions, doc read priority (`.md` over PDF/images — section 16).
 
 ### 2. 🤖 Specialist Agents (`.agents/agent/`)
 Adopt the persona, guidelines, and frontmatter skills from:
@@ -70,3 +70,4 @@ When executing slash commands, follow the corresponding workflow file:
 1. **Strict Local Database for `dotnet test`**: All connection strings must point to `local` (`localhost`, `127.0.0.1`, `(localdb)`, `.`). If remote IP (e.g. `10.10.8.30`) is detected, **CANCEL test immediately and report to user**.
 2. **Auto-Cleanup Completed Prompt & Plan Files**: Automatically delete executed prompt/plan files (e.g. `*-prompt-*.md`, `{task-slug}.md`) after task completion.
 3. **Strict Manual SQL Execution**: Only write `.sql` files to disk. Never auto-execute database mutations.
+4. **Doc Read Priority — `.md` over PDF/Images** (`thienan_rules.md` §16): Read docs in this order — `README.md`/`INDEX.md`/`llms.txt` → Tier A (`.md` < 150 KB, `.json`, `.sql` in `doc/`) → Tier B (`.md` ≥ 150 KB, API dumps, log JSON: **`grep` only, never full read**) → Tier C last. **NEVER open Tier C** (`_source/**`, `**/images/**`, `*.pdf`, `*.xlsx`, `*.docx`, `*.png`, `*.jpg`, `*.zip`) unless the user names the file explicitly. If a `.md` twin is missing, **report the gap and ask** — do not silently load a PDF or image into context. Cite `.md` paths in answers, not PDF paths.

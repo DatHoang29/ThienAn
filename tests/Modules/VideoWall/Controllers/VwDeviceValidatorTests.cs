@@ -227,5 +227,268 @@ namespace Tests.Modules.VideoWall
             // Assert
             result.ShouldHaveValidationErrorFor(x => x.Window!.Rect!.Width);
         }
+
+        [Fact]
+        public void TargetValidator_WhenDeviceIpIsEmpty_ShouldFail()
+        {
+            // Arrange
+            var validator = new VwDeviceTargetValidator(_localizer);
+            var input = new VwDeviceUserCheckInput
+            {
+                Device = new VwISAPIPassthroughDevice
+                {
+                    Ip = "",
+                    Account = "admin"
+                }
+            };
+
+            // Act
+            var result = validator.TestValidate(input);
+
+            // Assert
+            result.ShouldHaveValidationErrorFor(x => x.Device!.Ip);
+        }
+
+        [Fact]
+        public void TargetValidator_WhenDeviceAccountIsEmpty_ShouldFail()
+        {
+            // Arrange
+            var validator = new VwDeviceTargetValidator(_localizer);
+            var input = new VwDeviceUserCheckInput
+            {
+                Device = new VwISAPIPassthroughDevice
+                {
+                    Ip = "192.168.1.100",
+                    Account = ""
+                }
+            };
+
+            // Act
+            var result = validator.TestValidate(input);
+
+            // Assert
+            result.ShouldHaveValidationErrorFor(x => x.Device!.Account);
+        }
+
+        [Fact]
+        public void TargetValidator_WhenDeviceAccountExceeds64Chars_ShouldFail()
+        {
+            // Arrange
+            var validator = new VwDeviceTargetValidator(_localizer);
+            var input = new VwDeviceUserCheckInput
+            {
+                Device = new VwISAPIPassthroughDevice
+                {
+                    Ip = "192.168.1.100",
+                    Account = new string('A', 65)
+                }
+            };
+
+            // Act
+            var result = validator.TestValidate(input);
+
+            // Assert
+            result.ShouldHaveValidationErrorFor(x => x.Device!.Account);
+        }
+
+        [Fact]
+        public void SceneRename_WhenSidIsEmpty_ShouldFail()
+        {
+            // Arrange
+            var validator = new VwDeviceSceneRenameValidator(_localizer);
+            var input = new VwDeviceSceneRenameInput
+            {
+                ControllerId = "ctrl-01",
+                Sid = "",
+                Name = "ValidSceneName"
+            };
+
+            // Act
+            var result = validator.TestValidate(input);
+
+            // Assert
+            result.ShouldHaveValidationErrorFor(x => x.Sid);
+        }
+
+        [Fact]
+        public void SceneRename_WhenNameHasDiacritics_ShouldFail()
+        {
+            // Arrange
+            var validator = new VwDeviceSceneRenameValidator(_localizer);
+            var input = new VwDeviceSceneRenameInput
+            {
+                ControllerId = "ctrl-01",
+                Sid = "1",
+                Name = "Đổi tên có dấu tiếng Việt"
+            };
+
+            // Act
+            var result = validator.TestValidate(input);
+
+            // Assert
+            result.ShouldHaveValidationErrorFor(x => x.Name);
+        }
+
+        [Fact]
+        public void SceneSave_WhenSidIsEmpty_ShouldFail()
+        {
+            // Arrange
+            var validator = new VwDeviceSceneSaveValidator(_localizer);
+            var input = new VwDeviceSceneSaveInput
+            {
+                ControllerId = "ctrl-01",
+                Sid = ""
+            };
+
+            // Act
+            var result = validator.TestValidate(input);
+
+            // Assert
+            result.ShouldHaveValidationErrorFor(x => x.Sid);
+        }
+
+        [Fact]
+        public void SceneActivate_WhenSidIsEmpty_ShouldFail()
+        {
+            // Arrange
+            var validator = new VwDeviceSceneActivateValidator(_localizer);
+            var input = new VwDeviceSceneActivateInput
+            {
+                ControllerId = "ctrl-01",
+                Sid = ""
+            };
+
+            // Act
+            var result = validator.TestValidate(input);
+
+            // Assert
+            result.ShouldHaveValidationErrorFor(x => x.Sid);
+        }
+
+        [Fact]
+        public void SceneInfo_WhenSidIsEmpty_ShouldFail()
+        {
+            // Arrange
+            var validator = new VwDeviceSceneInfoValidator(_localizer);
+            var input = new VwDeviceSceneInfoInput
+            {
+                ControllerId = "ctrl-01",
+                Sid = ""
+            };
+
+            // Act
+            var result = validator.TestValidate(input);
+
+            // Assert
+            result.ShouldHaveValidationErrorFor(x => x.Sid);
+        }
+
+        [Fact]
+        public void WindowDelete_WhenWindowIdIsEmpty_ShouldFail()
+        {
+            // Arrange
+            var validator = new VwDeviceWindowDeleteValidator(_localizer);
+            var input = new VwDeviceWindowDeleteInput
+            {
+                ControllerId = "ctrl-01",
+                WindowId = ""
+            };
+
+            // Act
+            var result = validator.TestValidate(input);
+
+            // Assert
+            result.ShouldHaveValidationErrorFor(x => x.WindowId);
+        }
+
+        [Fact]
+        public void WindowTop_WhenWindowIdIsEmpty_ShouldFail()
+        {
+            // Arrange
+            var validator = new VwDeviceWindowTopValidator(_localizer);
+            var input = new VwDeviceWindowTopInput
+            {
+                ControllerId = "ctrl-01",
+                WindowId = ""
+            };
+
+            // Act
+            var result = validator.TestValidate(input);
+
+            // Assert
+            result.ShouldHaveValidationErrorFor(x => x.WindowId);
+        }
+
+        [Fact]
+        public void WindowBottom_WhenWindowIdIsEmpty_ShouldFail()
+        {
+            // Arrange
+            var validator = new VwDeviceWindowBottomValidator(_localizer);
+            var input = new VwDeviceWindowBottomInput
+            {
+                ControllerId = "ctrl-01",
+                WindowId = ""
+            };
+
+            // Act
+            var result = validator.TestValidate(input);
+
+            // Assert
+            result.ShouldHaveValidationErrorFor(x => x.WindowId);
+        }
+
+        [Fact]
+        public void WindowGet_WhenWindowIdIsEmpty_ShouldFail()
+        {
+            // Arrange
+            var validator = new VwDeviceWindowGetValidator(_localizer);
+            var input = new VwDeviceWindowGetInput
+            {
+                ControllerId = "ctrl-01",
+                WindowId = ""
+            };
+
+            // Act
+            var result = validator.TestValidate(input);
+
+            // Assert
+            result.ShouldHaveValidationErrorFor(x => x.WindowId);
+        }
+
+        [Fact]
+        public void WindowUpdate_WhenWindowIdIsEmpty_ShouldFail()
+        {
+            // Arrange
+            var validator = new VwDeviceWindowUpdateValidator(_localizer);
+            var input = new VwDeviceWindowUpdateInput
+            {
+                ControllerId = "ctrl-01",
+                WindowId = ""
+            };
+
+            // Act
+            var result = validator.TestValidate(input);
+
+            // Assert
+            result.ShouldHaveValidationErrorFor(x => x.WindowId);
+        }
+
+        [Fact]
+        public void WindowAdd_WhenWindowIsNull_ShouldFail()
+        {
+            // Arrange
+            var validator = new VwDeviceWindowAddValidator(_localizer);
+            var input = new VwDeviceWindowAddInput
+            {
+                ControllerId = "ctrl-01",
+                Window = null
+            };
+
+            // Act
+            var result = validator.TestValidate(input);
+
+            // Assert
+            result.ShouldHaveValidationErrorFor(x => x.Window);
+        }
     }
 }

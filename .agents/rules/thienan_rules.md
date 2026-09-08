@@ -413,6 +413,43 @@ tests/
 
 ---
 
+## 🛑 16. Quy Tắc Ưu Tiên Đọc Tài Liệu — `.md` Trước PDF/Ảnh (Doc Read Priority Rule [Mandatory Rule])
+
+- **Phân loại 3 Tier theo chi phí context** (trục phân loại là **token cost**, KHÔNG phải đuôi file — một `.md` 1.6 MB tốn hơn hẳn một PDF 200 KB):
+  - **Tier A — AI-first (đọc trực tiếp)**: `.md` < 150 KB, `.json` cấu hình/schema, `.sql`. Đây là **nguồn sự thật** khi làm việc với agent.
+  - **Tier B — On-demand (CHỈ `grep` / đọc theo `offset`+`limit`)**: `.md` ≥ 150 KB, bộ API reference dump, JSON log đo thật. VD đã đo: `VideoWall/doc/ISAPI-Videowall-Controller/09-api-reference.md` (1.671 KB), `VideoWall/LogsAPI/session-20260903-real.json` (1.636 KB), `session-20260904-real.json` (2.570 KB) — **TUYỆT ĐỐI KHÔNG đọc nguyên file**, luôn vào qua `00-api-catalog.md` / `LogsAPI/README.md` rồi `grep` theo endpoint hoặc key cụ thể.
+  - **Tier C — Human-only (KHÔNG mở)**: `_source/**`, `**/images/**`, và mọi `*.pdf`, `*.xlsx`, `*.xls`, `*.docx`, `*.doc`, `*.pptx`, `*.zip`, `*.png`, `*.jpg`, `*.jpeg`, `*.gif`, `*.webp`.
+- **Thứ tự tra cứu bắt buộc khi cần thông tin tài liệu** (dừng ngay khi đủ, không đi tiếp):
+  1. `README.md` / `INDEX.md` / `llms.txt` của thư mục tài liệu (Tier Table nếu có) → xác định đúng file cần đọc.
+  2. File `.md` / `.json` / `.sql` Tier A trong `doc/`.
+  3. Tier B qua `grep` với keyword cụ thể (kèm `00-catalog.md` làm mục lục).
+  4. **Chỉ đến bước này mới cân nhắc Tier C — và phải hỏi người dùng trước.**
+- **CẤM tự ý mở file Tier C**: TUYỆT ĐỐI KHÔNG đọc/parse/convert PDF, XLSX, DOCX, ảnh, ZIP và KHÔNG `glob`/bulk-read `_source/**` hay `**/images/**`. Ngoại lệ duy nhất: **người dùng chỉ đích danh tên file đó** (VD "đọc `Controller phần cứng.pdf` trang 12", "xem ảnh `fig-05-main-control-board.png`").
+- **Thiếu bản `.md` thì BÁO, KHÔNG tự đọc bản gốc**: nếu thông tin cần thiết chỉ tồn tại trong file Tier C mà chưa có bản `.md` tương ứng, BẮT BUỘC báo cáo khoảng trống đó cho người dùng và đề xuất tạo bản `.md` — KHÔNG âm thầm nạp PDF/ảnh vào context để "cho nhanh".
+- **Trích dẫn đường dẫn `.md`, không trích PDF**: khi trả lời hoặc viết tài liệu, luôn dẫn tới bản `.md` (kèm số trang bản gốc nếu cần đối chiếu), KHÔNG dẫn thẳng file PDF/XLSX làm nguồn.
+- **Mọi file Tier C phải có bản `.md` tương ứng**: khi thêm tài liệu gốc mới vào `_source/`, BẮT BUỘC tạo bản `.md` đặt trong `doc/` cùng module, kèm frontmatter provenance (`tier`, `read`, `source`, `source_pages`, `extracted`) và cập nhật Tier Table trong `README.md` của module.
+- **Cấu trúc & validator**: cấu trúc thư mục tài liệu chuẩn, schema Tier Table và validator `check_doc_links.py` đặc tả tại `.agents/prompts/chuan-hoa-cau-truc-tai-lieu-prompt.md`. Nếu đổi ngưỡng 150 KB thì phải sửa đồng thời ở mục này, file prompt đó và `.kiro/steering/main.md` để 3 nơi không lệch nhau.
+
+---
+
+## 🛑 17. Quy Tắc Ưu Tiên MCP Database & Cấm Can Thiệp Docker / Hạ Tầng Tự Ý (Database MCP & Infrastructure Safety [Mandatory Rule])
+
+- **Ưu tiên tuyệt đối dùng MCP Server cho Database**:
+  - Mọi thao tác tra cứu, kiểm tra schema, dữ liệu, records của Database (`DEV_ITS10`, `test`, `staging`) BẮT BUỘC ưu tiên gọi qua các MCP server đã cấu hình trong dự án (`mssql_dev`, `mssql_test`, `mssql_staging` qua `dotnet tool run dab`).
+  - **NGHIÊM CẤM tự ý chạy `sqlcmd`** hoặc các script shell tự chế để truy vấn DB trong terminal khi chưa có yêu cầu tường minh từ người dùng.
+- **NGHIÊM CẤM tự ý can thiệp Docker / Services / Hạ tầng máy chủ**:
+  - TUYỆT ĐỐI KHÔNG tự tiện chạy các lệnh thay đổi trạng thái hạ tầng: `docker restart`, `docker stop`, `docker rm`, `docker-compose down/up`, `systemctl restart`, `net stop`, kill service,...
+  - Khi phát hiện container hoặc dịch vụ nền gặp sự cố (ví dụ: treo lock, tràn RAM, connection timeout):
+    1. BÁO CÁO rõ ràng hiện tượng và nguyên nhân lỗi cho người dùng.
+    2. ĐỀ XUẤT giải pháp xử lý (ví dụ: đề xuất restart container cụ thể).
+    3. CHỈ THỰC HIỆN sau khi người dùng xác nhận đồng ý ("OK", "Đồng ý", "Chạy đi").
+- **Cấu hình MCP cho môi trường AI**:
+  - File cấu hình MCP chuẩn của dự án nằm tại `.mcp.json` (dùng `dotnet tool run --allow-roll-forward dab start ...`).
+  - Cấu hình này được map tương ứng vào file cấu hình người dùng của Antigravity (`~/.gemini/config/mcp_config.json`).
+  - Không over-engineer hay tự ý viết thêm các script phức tạp nếu chỉ cần cấu hình trực tiếp từ dotnet tool có sẵn.
+
+---
+
 ## 📎 Ghi chú mở — cần xác minh / còn trùng lặp
 
 - **`GlobalUsings.cs` tối thiểu (mục 5.5)**: liệt kê gồm `Shared.Core.Domain` và `System.Linq.Dynamic.Core`, nhưng `src/Modules/VideoWall/Module.VideoWall/GlobalUsings.cs` **không có** 2 dòng này, lại có `Furion.ConfigurableOptions`, `Furion.DynamicApiController`, `Newtonsoft.Json`, `Microsoft.Extensions.Options`, `System.ComponentModel.DataAnnotations`. Cần rà thêm các module khác (WP, TMS, ShareData) rồi chốt lại danh sách tối thiểu cho đúng.
