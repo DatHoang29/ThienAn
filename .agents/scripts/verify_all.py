@@ -25,6 +25,7 @@ VERIFICATION_SUITE = (
     ),
     CheckSpec("Dependency Analysis", "skills/vulnerability-scanner/scripts/dependency_analyzer.py", "P0 Security"),
     CheckSpec("Lint Check", "skills/lint-and-validate/scripts/lint_runner.py", "P1 Code Quality", required=True),
+    CheckSpec("Doc Links & Tier Check", "scripts/check_doc_links.py", "P1 Code Quality", required=True),
     CheckSpec("Type Coverage", "skills/lint-and-validate/scripts/type_coverage.py", "P1 Code Quality"),
     CheckSpec("Schema Validation", "skills/database-design/scripts/schema_validator.py", "P2 Data Layer"),
     CheckSpec("Test Suite", "skills/testing-patterns/scripts/test_runner.py", "P3 Testing"),

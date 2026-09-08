@@ -1,3 +1,11 @@
+---
+tier: A
+read: full
+source: _source/pdf/chi-dan-ky-thuat.pdf
+source_pages: 120-145
+extracted: 2025-10-01
+---
+
 # NGHIÊN CỨU: PHẦN MỀM CHIA SẺ DỮ LIỆU (ITS)
 
 **Dự án:** Cao tốc Hữu Nghị – Chi Lăng - Này là yêu cầu hệ thống

@@ -1,3 +1,11 @@
+---
+tier: A
+read: full
+source: _source/pdf/Controller phần cứng.pdf
+source_pages: 1-40
+extracted: 2026-08-20
+---
+
 # Video Wall Controller — Quick Start Guide
 
 > Converted from `Controller phần cứng.pdf` (40 pages). Applicable models: **Hikvision DS-C66S series** video wall controller.

@@ -1,7 +1,7 @@
 # LogsAPI — Log đo thiết bị VideoWall (dữ liệu đối chiếu)
 
 > **Đây là nguồn sự thật hạng 1** cho mọi việc liên quan API VideoWall. Khi tài liệu hãng
-> (`../ISAPI-Videowall-Controller/09-api-reference.md`) mâu thuẫn với log, **log thắng**.
+> (`../../doc/ISAPI-Videowall-Controller/09-api-reference.md`) mâu thuẫn với log, **log thắng**.
 
 Log sinh ra từ công cụ `Module.VideoWall.WPF` chạy chế độ Direct (gọi thẳng thiết bị qua ISAPI + Digest Auth), không đi qua backend.
 
@@ -42,7 +42,7 @@ Bản ghi đã **sắp theo `Time` tăng dần**. Mỗi phần tử là một l�
 | Wall 1 có **12** cổng ra (lưới 4×3) | Wall 1 có **4** cổng ra (lưới 2×2) |
 | Kênh vào: 12 cổng board 1 (`16842753`…`16842764`) | Kênh vào: **2** cổng HDMI board 2 (`16908289`, `16908290`) |
 
-Mock được dựng theo tài liệu `../KichBan_VideoWall_DS-C30S-S11_12Man.md` và `09B` (đã bị loại), nên nó trả **con số trong tài liệu**, không phải số đo thiết bị. Hai lệnh kiểm nhanh:
+Mock được dựng theo tài liệu `../../doc/KichBan/KichBan_VideoWall_DS-C30S-S11_12Man.md` (09B đã bị loại), nên nó trả **con số trong tài liệu**, không phải số đo thiết bị. Hai lệnh kiểm nhanh:
 
 ```powershell
 # Phải trả về 0 nếu file sạch mock

@@ -2,7 +2,7 @@
 
 > Bản sinh đôi của [KichBan_VideoWall_DS-C30S-S11_12Man.md](KichBan_VideoWall_DS-C30S-S11_12Man.md)
 > cho cấu hình thật: **1 khung trung tâm + 3 khung con**, lưới **8 cột × 4 hàng = 32 màn**.
-> Xem giải thích topology: [_source/doc/GiaiThich_KetNoi_VideoWall_DS-C66S-H88-CL.md](_source/doc/GiaiThich_KetNoi_VideoWall_DS-C66S-H88-CL.md).
+> Xem giải thích topology: [GiaiThich_KetNoi_VideoWall_DS-C66S-H88-CL.md](../GiaiThich_KetNoi_VideoWall_DS-C66S-H88-CL.md).
 
 Tất cả URL tương đối, ghép với `{{base}} = http://<ip_controller>:<port>`.
 Auth: **Digest** (admin). Header: `Content-Type: application/xml` (bỏ XML declaration, không BOM).
@@ -64,7 +64,7 @@ lưới 8×4**. ISAPI Hikvision **không có lệnh nhóm thiết bị** → m�
 ## KB-00. Probe read-only 4 khung tại hiện trường
 
 **Chỉ `GET`. An toàn tuyệt đối. Chạy TRƯỚC mọi thứ khác.** Mục tiêu: chốt 6 ẩn số ở
-[mục 6 của doc giải thích](_source/doc/GiaiThich_KetNoi_VideoWall_DS-C66S-H88-CL.md#6-những-điểm-phải-xác-nhận-với-hikvision--nhà-cung-cấp).
+[mục 6 của doc giải thích](../GiaiThich_KetNoi_VideoWall_DS-C66S-H88-CL.md#6-những-điểm-phải-xác-nhận-với-hikvision--nhà-cung-cấp).
 
 Chạy **cho từng IP** (C1, C2, C3, C4):
 

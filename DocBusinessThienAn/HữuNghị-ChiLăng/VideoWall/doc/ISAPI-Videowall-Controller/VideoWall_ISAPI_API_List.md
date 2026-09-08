@@ -1,4 +1,12 @@
-﻿# VideoWall ISAPI API List
+---
+tier: A
+read: full
+source: _source/xlsx/VideoWall_ISAPI_API_List.xlsx
+source_pages: 1-3
+extracted: 2026-08-20
+---
+
+# VideoWall ISAPI API List
 
 > Chuyen doi tu VideoWall_ISAPI_API_List.xlsx
 

@@ -1,3 +1,11 @@
+---
+tier: A
+read: full
+source: _source/pdf/DS-C30S-S11_Datasheet_20250324.pdf
+source_pages: 1-4
+extracted: 2026-08-20
+---
+
 # DS-C30S-S11 — 11-Slot Video Wall Controller
 
 > Nguồn: `DS-C30S-S11_Datasheet_20250324.pdf` (chuyển đổi sang Markdown, giữ nguyên nội dung gốc tiếng Anh).

@@ -1,3 +1,11 @@
+---
+tier: A
+read: full
+source: _source/img/1WUpuklkneHhPEFDdv0FV4AhHXWfmyWG6g361CUyP2VARkDsVwnCxuzMc2MkxEpJHUO.jpg
+source_pages: 1
+extracted: 2026-08-20
+---
+
 # SƠ ĐỒ CẤU HÌNH VIDEO WALL DS-C66S-H88-CL
 
 **Video wall 8 × 4 = 32 màn hình 55" (1920 × 1080)**

@@ -67,6 +67,15 @@ python .agents/scripts/auto_preview.py status
 python .agents/scripts/auto_preview.py stop
 ```
 
+### `check_doc_links.py`
+
+Validates document links, anchor targets, Tier Table completeness, file size drift, Token Bomb threshold (150 KB), and source provenance for `DocBusinessThienAn`.
+
+```bash
+python .agents/scripts/check_doc_links.py DocBusinessThienAn
+python .agents/scripts/check_doc_links.py DocBusinessThienAn --json
+```
+
 ## Runtime prerequisites
 
 Most scripts use only the Python standard library. Optional checks require the corresponding project tools:

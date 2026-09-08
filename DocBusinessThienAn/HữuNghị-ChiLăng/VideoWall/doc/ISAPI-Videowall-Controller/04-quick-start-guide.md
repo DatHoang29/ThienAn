@@ -543,7 +543,7 @@ Digest authentication is required in RTSP playback. The method is the same as th
 
 RTSP also supports containing user names and passwords in URL. The format is
 
-| rtsp://username:password@[address]:[port]/Streaming/Channels/[id](?parm1=value1&parm2-=value2…) |  |  |
+| `rtsp://username:password@[address]:[port]/Streaming/Channels/[id](?parm1=value1&parm2-=value2…)` |  |  |
 | --- | --- | --- |
 | such as | /Streaming/Channels/101?transportmode=unicast | . |
 

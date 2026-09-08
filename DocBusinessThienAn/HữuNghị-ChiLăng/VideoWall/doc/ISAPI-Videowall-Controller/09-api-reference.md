@@ -1,7 +1,15 @@
-# 9A. API Reference (Hikvision Vendor Specification)
+---
+tier: B
+read: grep-only
+source: _source/pdf/ISAPI_Controller_Videowall Controller.pdf
+source_pages: 1-512
+catalog: 00-api-catalog.md
+extracted: 2026-08-25
+---
 
-> Part of the **ISAPI — Videowall Controller** developer guide. See [README.md](README.md) for the full index.  
-> 🌟 **LƯU Ý THỰC TẾ:** Đối với dữ liệu đo kiểm thực tế tại trạm Thiên An (`DS-C66S`), bảng bẫy lỗi và response đo thật, xem chi tiết tại [**`09B-practical-guide-and-tested-responses.md`**](09B-practical-guide-and-tested-responses.md).
+# 9. API Reference (Hikvision Vendor Specification)
+
+> Part of the **ISAPI — Videowall Controller** developer guide. See [README.md](README.md) for the full index. Cửa vào mục lục tra cứu: [00-api-catalog.md](00-api-catalog.md).
 
 ## Contents
 

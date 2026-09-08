@@ -1,3 +1,11 @@
+---
+tier: A
+read: full
+source: _source/xlsx/ESHARE_TOAN_BO_BANG.xlsx
+source_pages: 1-11
+extracted: 2026-08-20
+---
+
 # Mapping field dữ liệu gói chia sẻ 101–111
 
 ## Cách đọc tài liệu

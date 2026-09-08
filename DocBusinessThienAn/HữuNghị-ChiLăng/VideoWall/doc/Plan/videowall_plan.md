@@ -6,7 +6,7 @@
 ====
 
 > Nguồn: nội dung cuộc họp + file `KeHoachTiepTheo.txt` — tách riêng phần VideoWall từ `Plan_19_08.md` gốc.
-> Phần Share Data cùng giai đoạn xem tại [`../ShareData/sharedata_plan.md`](../ShareData/sharedata_plan.md).
+> Phần Share Data cùng giai đoạn xem tại [`../../../ShareData/doc/sharedata_plan.md`](../../../ShareData/doc/sharedata_plan.md).
 > Các mục đánh dấu **[Cần chốt]** là chỗ chưa có kết luận.
 > Các mục đánh dấu **🆕** là bổ sung từ file kế hoạch mới.
 

@@ -166,6 +166,5 @@ Một cờ MSBuild điều khiển đồng thời **3 thứ**, nên chúng luôn
 
 ## Tài liệu tham chiếu liên quan
 
-- 🌟 **Sổ tay Thực thi & Response Thực tế:** [`09B-practical-guide-and-tested-responses.md`](../DocBusinessThienAn/HữuNghị-ChiLăng/VideoWall/ISAPI-Videowall-Controller/09B-practical-guide-and-tested-responses.md)
-- 📖 **Đặc tả Vendor Specification:** [`09A-api-reference.md`](../DocBusinessThienAn/HữuNghị-ChiLăng/VideoWall/ISAPI-Videowall-Controller/09A-api-reference.md)
-- 🗺️ **Danh mục API Catalog:** [`00-api-catalog.md`](../DocBusinessThienAn/HữuNghị-ChiLăng/VideoWall/ISAPI-Videowall-Controller/00-api-catalog.md)
+- 📖 **Đặc tả Vendor Specification:** [`09-api-reference.md`](../DocBusinessThienAn/HữuNghị-ChiLăng/VideoWall/doc/ISAPI-Videowall-Controller/09-api-reference.md)
+- 🗺️ **Danh mục API Catalog:** [`00-api-catalog.md`](../DocBusinessThienAn/HữuNghị-ChiLăng/VideoWall/doc/ISAPI-Videowall-Controller/00-api-catalog.md)

@@ -377,11 +377,11 @@ Nguồn cấp: **4 × DS-C66S-PWR** (mỗi khung 1 bộ) + **1 switch Gigabit** 
 
 > Việc "1 wall logic hay 4 wall rời" **KHÔNG còn** trong danh sách này — code đã chốt (mục 2C).
 > Phần còn lại chỉ là ẩn số ở **mức thiết bị**, đo được bằng KB-00 của
-> [kịch bản test 4 khung](../../KichBan_VideoWall_DS-C66S_4Controller_32Man.md).
+> [kịch bản test 4 khung](KichBan/KichBan_VideoWall_DS-C66S_4Controller_32Man.md).
 
 1. **Mã khung thật.** "DS-C66S-H88-CL" **không phải SKU Hikvision** — catalog chỉ có khung
    **DS-C66S-S12** (12 khe) / **DS-C66S-S6** (6 khe) + card rời (danh sách card ở
-   [ISAPI Overview §2.2](../../ISAPI-Videowall-Controller/02-overview.md)). Lấy BOM nhà cung cấp
+   [ISAPI Overview §2.2](ISAPI-Videowall-Controller/02-overview.md)). Lấy BOM nhà cung cấp
    để điền `VwController.Model` / `Chasis` / bố trí khe từng khung (suy đoán: center = S12, 3 con
    = S6). → đọc `GET /ISAPI/System/deviceInfo` từng khung.
 2. **20 camera vào bằng HDMI hay IP — "có thể cả 2".**
@@ -411,9 +411,9 @@ Nguồn cấp: **4 × DS-C66S-PWR** (mỗi khung 1 bộ) + **1 switch Gigabit** 
 mới. Việc còn lại:
 
 - **Kịch bản test**: bản chuẩn hiện tại
-  ([KichBan_VideoWall_DS-C30S-S11_12Man.md](../../KichBan_VideoWall_DS-C30S-S11_12Man.md)) viết
+  ([KichBan_VideoWall_DS-C30S-S11_12Man.md](KichBan/KichBan_VideoWall_DS-C30S-S11_12Man.md)) viết
   cho **1 con / 12 màn**. Đã có bản 4 khung:
-  [KichBan_VideoWall_DS-C66S_4Controller_32Man.md](../../KichBan_VideoWall_DS-C66S_4Controller_32Man.md)
+  [KichBan_VideoWall_DS-C66S_4Controller_32Man.md](KichBan/KichBan_VideoWall_DS-C66S_4Controller_32Man.md)
   — chạy **KB-00 (probe read-only)** tại hiện trường trước để chốt 6 ẩn số ở mục 6.
 - **Seed dữ liệu thật**: `VwController` 4 dòng (IP/Account/PassWord/vùng); `VwScreen` 32 dòng
   (`ControllerId` + `GridCol/GridRow` đúng bản đồ); `VwScene.OutputId` = SID tạo trên từng khung.
@@ -422,11 +422,11 @@ mới. Việc còn lại:
   có 4 khung thật.
 - **Override profile**: `PanelWidthPx/HeightPx` + `baseOutputSize` + `WallNo` qua
   `DeviceIntegration.json` theo số đo hiện trường (từ KB-00).
-- **Cấu hình cứng giai đoạn 1** (theo [videowall_plan.md](../../videowall_plan.md)): bảng
+- **Cấu hình cứng giai đoạn 1** (theo [videowall_plan.md](Plan/videowall_plan.md)): bảng
   `VwController` đã đóng vai trò "danh sách controller" — không cần thêm mục `controllers[]` ở
   file config nữa.
 
-> 📌 Nguồn sự thật cho response ISAPI thật: **`LogsAPI/`** (đo trực tiếp trên thiết bị) + code
+> 📌 Nguồn sự thật cho response ISAPI thật: **`../data/logs-api/`** (đo trực tiếp trên thiết bị) + code
 > `Module.VideoWall` + tài liệu ISAPI đã convert (`ISAPI-Videowall-Controller/`). Thư mục
 > `VideoWall/API/` (Postman collection do người khác đưa, chưa kiểm chứng) **đã xoá** để tránh nhầm.
 
@@ -434,8 +434,8 @@ mới. Việc còn lại:
 
 ## Nguồn tham khảo
 
-- Tài liệu phần cứng đã convert: [Controller-phan-cung.md](../../Controller-phan-cung/Controller-phan-cung.md) — mục *1.2.2 Main Control Board* (cổng GENLOCK IN / GENLOCK LOOP: *"Connect to the GENLOCK port of other devices of the same type ... for signal looping"*), *1.2.3 / 1.2.4* (input/output board).
-- [ISAPI Overview](../../ISAPI-Videowall-Controller/02-overview.md) — mục *2.2 Product Scope* liệt kê card họ DS-C66S (02HI/4K, 04HI, 04HO, 02HO/4K, PWR, DEC, S6, S12…). Không có mã "H88-CL".
+- Tài liệu phần cứng đã convert: [Controller-phan-cung.md](Controller-phan-cung/Controller-phan-cung.md) — mục *1.2.2 Main Control Board* (cổng GENLOCK IN / GENLOCK LOOP: *"Connect to the GENLOCK port of other devices of the same type ... for signal looping"*), *1.2.3 / 1.2.4* (input/output board).
+- [ISAPI Overview](ISAPI-Videowall-Controller/02-overview.md) — mục *2.2 Product Scope* liệt kê card họ DS-C66S (02HI/4K, 04HI, 04HO, 02HO/4K, PWR, DEC, S6, S12…). Không có mã "H88-CL".
 - [DS-C66S Series Video Wall Controller — Datasheet 2025-09-16 (Hikvision)](https://assets.hikvision.com/prd/normal/all/doc/m000173958/DS-C66S-Series-Video-Wall-Controller_Datasheet_20250916.pdf)
 - [DS-C66S-S6 — Hikvision Commercial Display](https://display.hikvision.com/en/products/led-displays/video-wall-controllers/video-wall-controller/ds-c66s-s6/) — khung 6 khe, tối đa 20 màn khi đủ card; frame synchronization.
 - [DS-C66S-04HI — Hikvision Commercial Display](https://display.hikvision.com/en/products/led-displays/video-wall-controllers/video-wall-controller/ds-c66s-04hi/)
