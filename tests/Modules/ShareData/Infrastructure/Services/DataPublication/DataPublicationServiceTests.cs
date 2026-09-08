@@ -11,6 +11,7 @@ using Modules.VMS.Core.Entities;
 using ShareDataWorker.Core.Dto;
 using ShareDataWorker.Core.Enums;
 using ShareDataWorker.Core.Exceptions;
+using ShareDataWorker.Infrastructure.Logging;
 using ShareDataWorker.Infrastructure.Services.DataPublication;
 
 namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
@@ -107,7 +108,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
                 Status = BaseEnums.StatusEnum.Enable,
                 SessionState = BaseEnums.SessionState.Connected
             };
-            await db.Insertable(partner).ExecuteCommandAsync();
+            await db.Insertable(partner).IgnoreColumns(p => p.InboundApiUrl).ExecuteCommandAsync();
 
             var sub = new ShareDataSubscription
             {
@@ -1244,6 +1245,11 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             Assert.True(doc.RootElement.TryGetProperty("hash", out _));
             Assert.True(doc.RootElement.TryGetProperty("payload", out var payload));
             Assert.True(payload.GetArrayLength() > 0);
+
+            var updatedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
+            Assert.Equal(BaseEnums.SubSubscriptionState.Active, updatedSub.State);
+            Assert.Equal((sub.SerialNbr ?? 0) + 1, updatedSub.SerialNbr);
+            Assert.NotNull(updatedSub.NextTimeRun);
         }
 
         [Fact]
@@ -1320,6 +1326,113 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
                 .Where(a => a.SubscriptionId == sub.ID && a.AlertCode == "ESH-1203")
                 .ToListAsync();
             Assert.Empty(alerts);
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử luồng xuất bản thực tế ghi file xuống đĩa với phễu có header và data:[{...}], payload sinh ra chỉ có 1 header và 3 bản ghi data.
+        /// Created date: 08/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessBatchSubscriptions_WhenShapeHasHeaderAndRecordArray_WritesSingleHeaderInPayload_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var now = DateTime.Now;
+
+            var zoneIds = new List<string>();
+            var statusIds = new List<string>();
+
+            for (var i = 1; i <= 3; i++)
+            {
+                var zoneId = $"ZONE_HDR_{unique}_{i}";
+                zoneIds.Add(zoneId);
+                await db.Insertable(new TmsZone
+                {
+                    ID = zoneId,
+                    Name = $"Tuyen Test {unique}_{i}",
+                    FromKmNumber = 10 * i,
+                    FromMetNumber = 0,
+                    ToKmNumber = 20 * i,
+                    ToMetNumber = 0,
+                    LaneId = "LANE_1",
+                    MaxSpeed = 80
+                }).ExecuteCommandAsync();
+
+                var statusId = Guid.NewGuid().ToString("N");
+                statusIds.Add(statusId);
+                await db.Insertable(new TmsZoneStatus
+                {
+                    ID = statusId,
+                    ZoneId = zoneId,
+                    AverageSpeed = (60 + i).ToString(),
+                    Condition = "NORMAL",
+                    UpdateTime = now.AddSeconds(i)
+                }).ExecuteCommandAsync();
+            }
+
+            var (partner, sub) = await SeedOutboundSubscription(db, $"P_HDR_{unique}", $"SUB_HDR_{unique}", "101");
+
+            var targetShape = new Dictionary<string, object?>
+            {
+                ["header"] = new Dictionary<string, object?>
+                {
+                    ["source"] = "ITS",
+                    ["version"] = "1.0"
+                },
+                ["data"] = new List<object?>
+                {
+                    new Dictionary<string, object?>
+                    {
+                        ["zId"] = new Dictionary<string, object?> { ["$field"] = "zoneId" },
+                        ["spd"] = new Dictionary<string, object?> { ["$field"] = "averageSpeed" }
+                    }
+                }
+            };
+
+            var mappingId = Guid.NewGuid().ToString("N");
+            await db.Insertable(new ShareDataMapping
+            {
+                ID = mappingId,
+                PartnerId = partner.ID,
+                DatatypeId = "101",
+                Direction = BaseEnums.Direction.Outbound,
+                TargetShapeJson = JsonSerializer.Serialize(targetShape),
+                IsActive = true
+            }).ExecuteCommandAsync();
+
+            await CreateWorker(scope).ProcessBatchSubscriptions(CancellationToken.None);
+
+            var logs = await GetLogs(db, sub.ID);
+            Assert.NotEmpty(logs);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
+
+            var fullPath = Path.Combine(Directory.GetCurrentDirectory(), "sharedata/send", logs[0].FilePath!);
+            Assert.True(File.Exists(fullPath));
+
+            var content = await File.ReadAllTextAsync(fullPath);
+            using var doc = JsonDocument.Parse(content);
+            Assert.True(doc.RootElement.TryGetProperty("payload", out var payload));
+            Assert.Equal(1, payload.GetArrayLength());
+
+            var envelope = payload[0];
+            Assert.True(envelope.TryGetProperty("header", out var headerElem));
+            Assert.Equal("ITS", headerElem.GetProperty("source").GetString());
+
+            Assert.True(envelope.TryGetProperty("data", out var dataElem));
+            Assert.True(dataElem.GetArrayLength() >= 3);
+
+            for (var i = 0; i < dataElem.GetArrayLength(); i++)
+            {
+                Assert.False(dataElem[i].TryGetProperty("header", out _));
+            }
+
+            // Dọn dữ liệu test cụ thể tự chèn
+            await db.Deleteable<TmsZoneStatus>().In(statusIds).ExecuteCommandAsync();
+            await db.Deleteable<TmsZone>().In(zoneIds).ExecuteCommandAsync();
+            await db.Deleteable<ShareDataMapping>().Where(m => m.ID == mappingId).ExecuteCommandAsync();
         }
 
         [Fact]
@@ -1488,7 +1601,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
 
             var (partner, sub) = await SeedOutboundSubscription(db, $"P_XML_{unique}", $"SUB_XML_{unique}", "101");
             partner.ProtocolProfile = BaseEnums.ProtocolProfile.XmlA;
-            await db.Updateable(partner).ExecuteCommandAsync();
+            await db.Updateable(partner).IgnoreColumns(p => p.InboundApiUrl).ExecuteCommandAsync();
 
             await CreateWorker(scope).ProcessBatchSubscriptions(CancellationToken.None);
 
@@ -1528,7 +1641,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
 
             var (partner, sub) = await SeedOutboundSubscription(db, $"P_ASN_{unique}", $"SUB_ASN_{unique}", "101");
             partner.ProtocolProfile = BaseEnums.ProtocolProfile.Asn;
-            await db.Updateable(partner).ExecuteCommandAsync();
+            await db.Updateable(partner).IgnoreColumns(p => p.InboundApiUrl).ExecuteCommandAsync();
 
             await CreateWorker(scope).ProcessBatchSubscriptions(CancellationToken.None);
 
@@ -1644,6 +1757,239 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
                 Assert.NotNull(updatedSub.LastTimeRun);
                 Assert.True(updatedSub.LastTimeRun >= insertedRecords.Last().DetectTime!.Value.AddSeconds(-1));
         }
+
+        #region Lease HA Guard Tests
+
+        /// <summary>
+        /// Description: Kiểm thử TryPersistExportResult khi giữ đúng lease token thì cập nhật thành công 1 dòng và cập nhật SerialNbr, State, NextTimeRun.
+        /// Created date: 08/09/2026
+        /// </summary>
+        [Fact]
+        public async Task TryPersistExportResult_WhenLeaseStillHeld_PersistsState_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var (partner, sub) = await SeedOutboundSubscription(db, $"P_LEASE_OK_{unique}", $"SUB_LEASE_OK_{unique}", "101");
+
+            var now = DateTime.Now;
+            var leaseExpiry = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, now.Second, now.Kind).AddMinutes(5);
+            sub.NextTimeRun = leaseExpiry;
+            sub.SerialNbr = 5;
+            await db.Updateable(sub).ExecuteCommandAsync();
+
+            var worker = CreateWorker(scope);
+            var lastTimeRun = now;
+            var affected = await worker.TryPersistExportResult(db, sub, leaseExpiry, lastTimeRun, CancellationToken.None);
+
+            Assert.Equal(1, affected);
+
+            var updated = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
+            Assert.Equal(BaseEnums.SubSubscriptionState.Active, updated.State);
+            Assert.Equal(6, updated.SerialNbr);
+            Assert.NotNull(updated.NextTimeRun);
+            Assert.NotEqual(leaseExpiry, updated.NextTimeRun);
+            Assert.NotNull(updated.LastTimeRun);
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử TryPersistExportResult khi lease token bị node khác ghi đè thì trả về 0 dòng, không cập nhật đè trạng thái.
+        /// Created date: 08/09/2026
+        /// </summary>
+        [Fact]
+        public async Task TryPersistExportResult_WhenLeaseReclaimedByAnotherNode_SkipsPersist_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var (partner, sub) = await SeedOutboundSubscription(db, $"P_LEASE_LOST_{unique}", $"SUB_LEASE_LOST_{unique}", "101");
+
+            var now = DateTime.Now;
+            var myLeaseExpiry = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, now.Second, now.Kind).AddMinutes(5);
+            var otherNodeLease = myLeaseExpiry.AddMinutes(5);
+
+            // Node khác đã chiếm lease trước
+            sub.NextTimeRun = otherNodeLease;
+            sub.SerialNbr = 10;
+            await db.Updateable(sub).ExecuteCommandAsync();
+
+            var worker = CreateWorker(scope);
+            // Cố persist với lease cũ myLeaseExpiry
+            var affected = await worker.TryPersistExportResult(db, sub, myLeaseExpiry, now, CancellationToken.None);
+
+            Assert.Equal(0, affected);
+
+            var inDb = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
+            Assert.Equal(otherNodeLease, inDb.NextTimeRun);
+            Assert.Equal(10, inDb.SerialNbr);
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử LogAlert ghi nhận đúng mã ESH-1303 khi mất lease.
+        /// Created date: 08/09/2026
+        /// </summary>
+        [Fact]
+        public async Task LogAlert_WhenLeaseLost_WritesAlertWithEsh1303_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var (partner, sub) = await SeedOutboundSubscription(db, $"P_ALERT_{unique}", $"SUB_ALERT_{unique}", "101");
+
+            var alertId = await DataPublicationService.LogAlert(
+                db,
+                sub,
+                ShareDataAlertCode.Outbound.LeaseLost,
+                BaseEnums.AlertSeverity.Warning,
+                BaseEnums.AlertSource.Subscription,
+                "Mất lease khi ghi kết quả — đăng ký đã được worker khác nhận lại.");
+
+            Assert.False(string.IsNullOrWhiteSpace(alertId));
+
+            var alert = await db.Queryable<ShareDataAlertLog>().InSingleAsync(alertId);
+            Assert.NotNull(alert);
+            Assert.Equal("ESH-1303", alert.AlertCode);
+            Assert.Equal(BaseEnums.AlertSeverity.Warning, alert.Severity);
+            Assert.Equal(sub.ID, alert.SubscriptionId);
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử LogAlertThrottled chỉ ghi nhận 1 bản ghi cảnh báo trong khoảng thời gian tiết chế cho cùng một khoá và ghi nhận bản ghi mới khi khoá tiết chế khác.
+        /// Created date: 08/09/2026
+        /// </summary>
+        [Fact]
+        public async Task LogAlertThrottled_WhenSameAlertRepeatsWithinInterval_WritesOnce_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var (partner, sub) = await SeedOutboundSubscription(db, $"P_THROT_{unique}", $"SUB_THROT_{unique}", "101");
+
+            var worker = CreateWorker(scope);
+            var key1 = $"KEY_A_{unique}";
+            var key2 = $"KEY_B_{unique}";
+
+            var res1 = await worker.LogAlertThrottled(
+                db,
+                sub,
+                key1,
+                ShareDataAlertCode.Outbound.ExpressionFailed,
+                BaseEnums.AlertSeverity.Warning,
+                BaseEnums.AlertSource.Funnel,
+                "Lỗi biểu thức A");
+            var res2 = await worker.LogAlertThrottled(
+                db,
+                sub,
+                key1,
+                ShareDataAlertCode.Outbound.ExpressionFailed,
+                BaseEnums.AlertSeverity.Warning,
+                BaseEnums.AlertSource.Funnel,
+                "Lỗi biểu thức A lặp lại 1");
+            var res3 = await worker.LogAlertThrottled(
+                db,
+                sub,
+                key1,
+                ShareDataAlertCode.Outbound.ExpressionFailed,
+                BaseEnums.AlertSeverity.Warning,
+                BaseEnums.AlertSource.Funnel,
+                "Lỗi biểu thức A lặp lại 2");
+
+            var res4 = await worker.LogAlertThrottled(
+                db,
+                sub,
+                key2,
+                ShareDataAlertCode.Outbound.ExpressionFailed,
+                BaseEnums.AlertSeverity.Warning,
+                BaseEnums.AlertSource.Funnel,
+                "Lỗi biểu thức B");
+
+            Assert.True(res1);
+            Assert.False(res2);
+            Assert.False(res3);
+            Assert.True(res4);
+
+            var alerts = await db.Queryable<ShareDataAlertLog>()
+                .Where(a => a.SubscriptionId == sub.ID)
+                .ToListAsync();
+
+            Assert.Equal(2, alerts.Count);
+
+            // Dọn dữ liệu test tự chèn
+            await db.Deleteable<ShareDataAlertLog>().Where(a => a.SubscriptionId == sub.ID).ExecuteCommandAsync();
+            await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub.ID).ExecuteCommandAsync();
+            await db.Deleteable<ShareDataPartner>().Where(p => p.ID == partner.ID).ExecuteCommandAsync();
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử khi hai phễu lọc active cùng có UpdateTime = null thì truy vấn ưu tiên phễu có CreateTime mới hơn làm tiebreaker.
+        /// Created date: 08/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ExecuteExportForSubscription_WhenTwoActiveMappingsHaveNullUpdateTime_PicksNewestByCreateTime_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.TrafficFlow, unique);
+
+            var (partner, sub) = await SeedOutboundSubscription(db, $"P_TIE_{unique}", $"SUB_TIE_{unique}", "101");
+
+            var now = DateTime.Now;
+            var mappingOld = new ShareDataMapping
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                PartnerId = partner.ID,
+                DatatypeId = "101",
+                Direction = BaseEnums.Direction.Outbound,
+                TargetShapeJson = "{\"versionTag\": \"MAPPING_OLD\"}",
+                IsActive = true,
+                UpdateTime = null,
+                CreateTime = now.AddMinutes(-10)
+            };
+            var mappingNew = new ShareDataMapping
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                PartnerId = partner.ID,
+                DatatypeId = "101",
+                Direction = BaseEnums.Direction.Outbound,
+                TargetShapeJson = "{\"versionTag\": \"MAPPING_NEW\"}",
+                IsActive = true,
+                UpdateTime = null,
+                CreateTime = now.AddMinutes(-1)
+            };
+
+            await db.Insertable(new List<ShareDataMapping> { mappingOld, mappingNew }).ExecuteCommandAsync();
+
+            await CreateWorker(scope).ProcessBatchSubscriptions(CancellationToken.None);
+
+            var logs = await GetLogs(db, sub.ID);
+            Assert.NotEmpty(logs);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
+            Assert.Equal(mappingNew.ID, logs[0].MappingId);
+
+            var fullPath = Path.Combine(Directory.GetCurrentDirectory(), "sharedata/send", logs[0].FilePath!);
+            Assert.True(File.Exists(fullPath));
+
+            var content = await File.ReadAllTextAsync(fullPath);
+            Assert.Contains("MAPPING_NEW", content);
+            Assert.DoesNotContain("MAPPING_OLD", content);
+
+            // Dọn dữ liệu test tự chèn
+            await db.Deleteable<ShareDataMapping>().In(new[] { mappingOld.ID, mappingNew.ID }).ExecuteCommandAsync();
+            await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
+            await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub.ID).ExecuteCommandAsync();
+            await db.Deleteable<ShareDataPartner>().Where(p => p.ID == partner.ID).ExecuteCommandAsync();
+            if (File.Exists(fullPath))
+                File.Delete(fullPath);
+        }
+
+        #endregion
 
         #region XML Serialization Tests
 
@@ -2077,6 +2423,114 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             Assert.Equal(80.0m, thirdItem["spd"]);
         }
 
+        /// <summary>
+        /// Description: Kiểm thử Transform với mảng khuôn bản ghi (không dùng $each) phải chỉ sinh 1 header và nở N bản ghi data.
+        /// Created date: 08/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_WithRecordTemplateArray_EmitsHeaderOnceAndExpandsRows_Test()
+        {
+            // Arrange
+            var shapeJson = @"
+            {
+                ""header"": {
+                    ""source"": ""ITS"",
+                    ""version"": ""1.0""
+                },
+                ""data"": [
+                    {
+                        ""zId"": { ""$field"": ""zoneId"" },
+                        ""spd"": { ""$field"": ""averageSpeed"" }
+                    }
+                ]
+            }";
+
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?> { ["zoneId"] = "Z01", ["averageSpeed"] = 60.5m },
+                new Dictionary<string, object?> { ["zoneId"] = "Z02", ["averageSpeed"] = 75.0m },
+                new Dictionary<string, object?> { ["zoneId"] = "Z03", ["averageSpeed"] = 80.0m }
+            };
+
+            var fields = new List<PacketFieldDto>
+            {
+                new() { FieldKey = "zoneId", Column = "ZoneId" },
+                new() { FieldKey = "averageSpeed", Column = "AverageSpeed" }
+            };
+
+            // Act
+            var result = DataPublicationService.Transform(rawRows, fields, shapeJson);
+
+            // Assert
+            Assert.Single(result);
+            var envelope = result[0] as IDictionary<string, object?>;
+            Assert.NotNull(envelope);
+
+            var header = envelope["header"] as IDictionary<string, object?>;
+            Assert.NotNull(header);
+            Assert.Equal("ITS", header["source"]);
+
+            var dataList = envelope["data"] as List<object?>;
+            Assert.NotNull(dataList);
+            Assert.Equal(3, dataList.Count);
+
+            var firstItem = dataList[0] as IDictionary<string, object?>;
+            Assert.NotNull(firstItem);
+            Assert.Equal("Z01", firstItem["zId"]);
+            Assert.Equal(60.5m, firstItem["spd"]);
+
+            var thirdItem = dataList[2] as IDictionary<string, object?>;
+            Assert.NotNull(thirdItem);
+            Assert.Equal("Z03", thirdItem["zId"]);
+            Assert.Equal(80.0m, thirdItem["spd"]);
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử Transform với mảng hằng literal (["a", "b"]) thì giữ nguyên không bị nở lặp theo dòng.
+        /// Created date: 08/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_WithLiteralArray_KeepsArrayAsIs_Test()
+        {
+            // Arrange
+            var shapeJson = @"
+            {
+                ""tags"": [""a"", ""b""],
+                ""data"": [
+                    { ""zId"": { ""$field"": ""zoneId"" } }
+                ]
+            }";
+
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?> { ["zoneId"] = "Z01" },
+                new Dictionary<string, object?> { ["zoneId"] = "Z02" }
+            };
+
+            var fields = new List<PacketFieldDto>
+            {
+                new() { FieldKey = "zoneId", Column = "ZoneId" }
+            };
+
+            // Act
+            var result = DataPublicationService.Transform(rawRows, fields, shapeJson);
+
+            // Assert
+            Assert.Single(result);
+            var envelope = result[0] as IDictionary<string, object?>;
+            Assert.NotNull(envelope);
+
+            var tags = envelope["tags"] as List<object?>;
+            Assert.NotNull(tags);
+            Assert.Equal(2, tags.Count);
+            Assert.Equal("a", tags[0]);
+            Assert.Equal("b", tags[1]);
+
+            var dataList = envelope["data"] as List<object?>;
+            Assert.NotNull(dataList);
+            Assert.Equal(2, dataList.Count);
+        }
+
         [Fact]
         public void Transform_WithoutEach_MaintainsOriginalPerRowBehavior_Test()
         {
@@ -2107,6 +2561,52 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             var item1 = result[0] as IDictionary<string, object?>;
             Assert.NotNull(item1);
             Assert.Equal("Z01", item1["zId"]);
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử khi phễu lọc dạng khối tổng hợp (aggregate) thiếu trường bắt buộc thì ném ngoại lệ với số lượng bản ghi chính xác và không chứa '0/'.
+        /// Created date: 08/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_WhenAggregateShapeMissesRequiredField_ThrowsWithAccurateRowCount_Test()
+        {
+            // Arrange
+            var shapeJson = @"
+            {
+                ""header"": {
+                    ""source"": ""ITS""
+                },
+                ""data"": [
+                    {
+                        ""targetVal"": { ""$field"": ""requiredField"" }
+                    }
+                ]
+            }";
+
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?> { ["otherField"] = 1 },
+                new Dictionary<string, object?> { ["otherField"] = 2 },
+                new Dictionary<string, object?> { ["otherField"] = 3 }
+            };
+
+            var fields = new List<PacketFieldDto>
+            {
+                new()
+                {
+                    FieldKey = "requiredField",
+                    Column = "ColRequired",
+                    Required = true
+                }
+            };
+
+            // Act & Assert
+            var ex = Assert.Throws<InvalidOperationException>(() =>
+                DataPublicationService.Transform(rawRows, fields, shapeJson));
+
+            Assert.StartsWith("Thiếu trường bắt buộc", ex.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("0/", ex.Message);
+            Assert.Contains("3", ex.Message);
         }
 
         #endregion
