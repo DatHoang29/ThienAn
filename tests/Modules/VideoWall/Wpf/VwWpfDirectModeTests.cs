@@ -1208,7 +1208,7 @@ public class VwWpfDirectModeTests
             var merged = VwLocalSourceStore.Merge(probeSources, customSources);
 
             Assert.DoesNotContain(merged, s => s.ID.StartsWith("sample_cam_"));
-            var firstIpSource = merged.FirstOrDefault(s => s.SourceType == "ip_stream");
+            var firstIpSource = merged.FirstOrDefault(s => s.ID == ipChannel.Id.ToString());
             Assert.NotNull(firstIpSource);
             Assert.Equal("rtsp://127.0.0.1:13191/Streaming/Channels/101", firstIpSource.Url);
         }

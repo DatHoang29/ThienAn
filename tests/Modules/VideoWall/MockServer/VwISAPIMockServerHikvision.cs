@@ -51,6 +51,12 @@ namespace Tests.Modules.VideoWall.MockServer
         public bool SimulateNonceExpiry { get; set; }
         public int NonceExpiryTriggerCount { get; set; } = 0;
         public bool IsSupportScene { get; set; } = true;
+        public bool IsCascadeCenter { get; set; } = false;
+        public int CascadeGridCols { get; set; } = 8;
+        public int CascadeGridRows { get; set; } = 4;
+        public int CascadeOutputSize { get; set; } = 1920;
+        public bool SimulateSaveData403Once { get; set; } = false;
+        public bool SimulateWindowInputChannelInvalid { get; set; } = false;
 
         /// <summary>
         /// Trần SID kịch bản thiết bị nhận, trả về trong &lt;maxSceneNums&gt; của VideoWallCap.
@@ -252,6 +258,12 @@ namespace Tests.Modules.VideoWall.MockServer
             SimulateNonceExpiry = false;
             NonceExpiryTriggerCount = 0;
             IsSupportScene = true;
+            IsCascadeCenter = false;
+            CascadeGridCols = 8;
+            CascadeGridRows = 4;
+            CascadeOutputSize = 1920;
+            SimulateSaveData403Once = false;
+            SimulateWindowInputChannelInvalid = false;
             MaxSceneNums = DefaultMaxSceneNums;
             ActiveSceneId = 1;
             WallSceneStores.Clear();

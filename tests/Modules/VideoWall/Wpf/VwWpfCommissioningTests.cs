@@ -1998,7 +1998,7 @@ public class VwWpfCommissioningTests
 
         Assert.True(connection.IsRealDeviceSelected);
         Assert.False(connection.IsLocalMockSelected);
-        Assert.Equal("172.25.0.32", connection.AdHocIp);
+        Assert.Equal("", connection.AdHocIp);
         Assert.Equal(80, connection.AdHocPort);
         Assert.Equal("admin", connection.AdHocAccount);
         Assert.Equal("Tcp@2025", connection.AdHocPassword);

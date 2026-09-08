@@ -1,87 +1,110 @@
-# Kịch bản test API Video Wall — DS-C66S / 4 controller / 32 màn
+# Kịch bản test API Video Wall — DS-C66S cascade / 1 bộ trung tâm + 3 bộ con / 32 màn
 
-> Bản sinh đôi của [KichBan_VideoWall_DS-C30S-S11_12Man.md](KichBan_VideoWall_DS-C30S-S11_12Man.md)
-> cho cấu hình thật: **1 khung trung tâm + 3 khung con**, lưới **8 cột × 4 hàng = 32 màn**.
-> Xem giải thích topology: [GiaiThich_KetNoi_VideoWall_DS-C66S-H88-CL.md](../GiaiThich_KetNoi_VideoWall_DS-C66S-H88-CL.md).
+> Cấu hình thật: **1 khung trung tâm (compositor) + 3 khung con (fan-out)**, tường **8 cột × 4 hàng
+> = 32 màn**. Kiến trúc đầy đủ: [KienTruc_VideoWall_DS-C66S-Cascade.md](../KienTruc_VideoWall_DS-C66S-Cascade.md).
+>
+> 🔴 **Điểm mấu chốt:** backend chỉ nói ISAPI với **bộ trung tâm**. 3 bộ con **KHÔNG nhận lệnh API**
+> trong luồng scene/window — chúng chỉ nhận tín hiệu 4K qua cáp HDMI, và được cấu hình lưới 2×2 tĩnh
+> **một lần** lúc lắp (qua Web UI / ISAPI của **chính bộ con đó**). Ngoại lệ duy nhất: KB-17 (tắt màn
+> qua cổng serial của bộ con).
 
-Tất cả URL tương đối, ghép với `{{base}} = http://<ip_controller>:<port>`.
-Auth: **Digest** (admin). Header: `Content-Type: application/xml` (bỏ XML declaration, không BOM).
-Thành công = `statusCode` **0 hoặc 1**. Lỗi thì đọc `subStatusCode`.
+Tất cả URL tương đối, ghép với `{{base}} = http://<ip_bộ_trung_tâm>:<port>`.
+Auth: **Digest** (admin). Header `Content-Type: application/xml` (bỏ XML declaration, không BOM).
+Thành công = `statusCode` **0 hoặc 1**. Lỗi thì đọc `subStatusCode` ([P4](#p4-mã-lỗi)).
 
-> 📌 **Nguồn sự thật:** response mẫu trong tài liệu này lấy từ **`LogsAPI/`** (đo trực tiếp trên
-> thiết bị thật). *(Thư mục `VideoWall/API/` — Postman collection do người khác đưa, chưa kiểm
-> chứng — đã xoá để tránh nhầm.)*
+> 📌 **Nguồn sự thật:** response mẫu lấy từ `../data/logs-api/session-20260904-real.json` (đo trực
+> tiếp trên 1 khung DS-C66S bench).
 
-> ⛔ **Bẫy khoá IP:** sai mật khẩu **2 lần liên tiếp** trên 1 IP ⇒ khung đó khoá IP, không mở lại
-> được qua LAN. Test Digest sai chỉ làm trên **mock server nội bộ**, không bao giờ trên thiết bị
-> thật. Backend đã có circuit-breaker theo IP (`VwWallProfile.MaxConsecutiveFailures = 2`,
-> `BlockMinutes = 5`).
+> ⛔ **Bẫy khoá IP:** sai mật khẩu **2 lần liên tiếp** ⇒ khung khoá IP, không mở lại được qua LAN.
+> Test Digest sai chỉ trên **mock server nội bộ**, không bao giờ trên thiết bị thật. Backend có
+> circuit-breaker theo IP (`VwWallProfile.MaxConsecutiveFailures = 2`, `BlockMinutes = 30`).
+
+### Công cụ chạy KB
+
+- **`Module.VideoWall.WPF`** (chế độ **Direct** — gọi thẳng ISAPI, không qua backend): **dùng luôn,
+  không cần sửa**. Cascade chỉ cần 1 IP nên WPF không thiếu gì. Chạy KB qua **tab ISAPI thô**
+  (VideoWall / Scene / Window / SignalSource …), nhập **IP bộ trung tâm** + Digest, và **điền field
+  `WallNo`** = wall `bound` từ KB-00 (code mặc định `wallNo ?? 1` — đừng để trống).
+  ⚠️ *Tab 1 "Thiết lập Kịch bản & Bố cục"* còn ghim cứng lưới 4×3 / canvas `7680×5760`
+  (`SceneSetupViewModel.cs:942`, `SceneWindowRow.cs:220`, `VisualWallCanvas.xaml.cs:22`) → chỉ tiện
+  lợi, không đúng cho 8×4; muốn dùng thì sửa cho đọc lưới từ `GET .../outputs`. Tab ISAPI thô không bị.
+- **`Module.VideoWall.WPF`** chế độ **qua backend** (`VideoWallApiClient.cs`): phần cascade nằm ở
+  backend (đã fix), WPF chỉ gửi lệnh nghiệp vụ — không cần đổi.
+- **Backend integration test** (`tests/Modules/VideoWall/`): dùng mock server cascade — xem prompt fix.
 
 ---
 
-## 0. Bối cảnh & khác biệt so với bản 1 controller
+## 0. Bối cảnh & khác biệt so với bản 1 controller cũ
 
-Trước đây test **1 khung DS-C30S-S11 / 12 màn / lưới 4×3**. Giờ là **4 khung DS-C66S / 32 màn /
-lưới 8×4**. ISAPI Hikvision **không có lệnh nhóm thiết bị** → mỗi khung là 1 HTTP server độc lập.
+Bản cũ ([KichBan_VideoWall_DS-C30S-S11_12Man.md](KichBan_VideoWall_DS-C30S-S11_12Man.md)): 1 khung
+DS-C30S-S11, 12 màn, lưới 4×3. Bản này: cascade DS-C66S, 32 màn, lưới 8×4.
 
-| Bản 1 controller | Bản 4 controller |
+**Luồng API KHÔNG đổi** — vẫn `connect → GET outputs → tạo scene (SID) → POST windows → PUT
+scene/{SID}/activate` trên **1 IP**. Chỉ khác tham số:
+
+| Bản 1 controller (DS-C30S) | Bản cascade (DS-C66S) |
 |---|---|
-| 1 kết nối / 1 IP | **Mỗi KB dưới đây chạy 1 lần cho MỖI khung** (trừ KB nói rõ "toàn tường") — 4 IP, 4 bộ Digest |
-| Lưới cứng 4×3, canvas ảo `7680×5760` | Lưới **8×4**; canvas ảo **suy từ `GET .../{wallNo}/outputs`**, KHÔNG hardcode |
-| 1 `wallNo` | Mỗi khung tự `ResolveWall` (1 khung C66S có 8 wall logic `VideoWall1..8`) — số có thể khác nhau |
-| `Rect` cửa sổ = toạ độ ảo toàn tường | **Phải cắt** theo vùng panel từng khung (công thức [P2](#p2-công-thức-toisapilocalrect)) |
-| Activate 1 SID | Activate SID **trên từng khung**; chờ 2–3s; verify `scene/isRunning` **cả 4**; 3/4 OK ⇒ lệch pha |
+| 1 IP standalone | 1 IP = **bộ trung tâm** |
+| Lưới cứng 4×3, canvas ảo `7680×5760` | Lưới **8×4**, canvas ảo **`centerCanvas` suy từ `GET .../{wall}/outputs`** — KHÔNG hardcode |
+| 1 `wallNo` | `ResolveWall` trên bộ trung tâm (1 khung C66S có 8 wall-logic `VideoWall1..8`); có thể ra **nhiều wall-logic** cùng khung — xem KB-14 |
+| `Rect` cửa sổ = toạ độ ảo toàn tường | Quy đổi tỉ lệ toạ độ tường tuyệt đối → `centerCanvas` bằng **1 phép** ([P2](#p2-công-thức-tocenteruniformrect)) — **KHÔNG cắt lát cho từng khung** |
+| Activate 1 SID | Activate **1 SID trên bộ trung tâm** |
 
-**Bản đồ khung ↔ vùng tường** (giả định từ sơ đồ — **xác nhận bằng KB-00**):
+### Bản đồ khung (từ sơ đồ — xác nhận bằng KB-00)
 
-| Khung | `VwController.Code` | Vùng phụ trách | Số màn | Số cổng 4K IN (từ center) | Số cổng FHD OUT |
+| Khung | `Code` | Vai trò | Vùng tường | Số màn | Backend gọi API? |
 |---|---|---|---|---|---|
-| Trung tâm | C1 | nhận nguồn, chia 8×4K | — | — | 8 × 4K (xuống 3 con) |
-| Con 1 | C2 | cột 1–4, hàng 1–4 | 16 | 4 | 16 |
-| Con 2 | C3 | cột 5–6, hàng 1–4 | 8 | 2 | 8 |
-| Con 3 | C4 | cột 7–8, hàng 1–4 | 8 | 2 | 8 |
+| Trung tâm | C1 | **compositor** — nhận nguồn, ghép layout, chia 8×4K | toàn tường | 32 (qua 8 cổng 4K OUT) | ✅ **có** |
+| Con 1 | C2 | fan-out 4K→FHD (inventory) | cột 1–4, hàng 1–4 | 16 | ❌ không (trừ KB-17) |
+| Con 2 | C3 | fan-out (inventory) | cột 5–6, hàng 1–4 | 8 | ❌ không (trừ KB-17) |
+| Con 3 | C4 | fan-out (inventory) | cột 7–8, hàng 1–4 | 8 | ❌ không (trừ KB-17) |
 
-| Kịch bản | Mục đích |
+Trong DB: C1 = `Role=center IntegrationMode=active`; C2/C3/C4 = `Role=sub IntegrationMode=inventory`.
+
+### Chỉ mục
+
+| KB | Mục đích |
 |---|---|
-| [KB-00](#kb-00-probe-read-only-4-khung-tại-hiện-trường) | **Probe read-only 4 khung — chốt 6 ẩn số trước khi làm gì khác** |
-| [KB-01](#kb-01-kết-nối--đọc-năng-lực-từng-khung) | Kết nối, đọc năng lực, lấy `videoWallID` từng khung |
-| [KB-02](#kb-02-lấy-id-output--input-từng-khung) | Lấy outputID + inputID từng khung |
-| [KB-03](#kb-03-gán-output-vào-lưới-của-từng-khung) | Setup lưới cho từng khung (không phải toàn tường) |
-| [KB-04](#kb-04-đọc-bố-cục-hiện-tại-từng-khung) | Đọc bố cục hiện tại |
-| [KB-05](#kb-05-mở-window-1-màn--gán-nguồn-1-khung) | Mở window 1 màn + nguồn (trong 1 khung) |
-| [KB-06](#kb-06-cửa-sổ-vắt-nhiều-khung--slicing) | **Cửa sổ vắt nhiều khung → cắt lát** |
+| [KB-00](#kb-00-probe-read-only) | **Probe read-only — chốt ẩn số trước khi làm gì khác** (bắt buộc trên C1; C2/C3/C4 tuỳ chọn) |
+| [KB-01](#kb-01-kết-nối--đọc-năng-lực) | Kết nối, đọc năng lực, lấy `videoWallID` bộ trung tâm |
+| [KB-02](#kb-02-lấy-id-output--input) | Lấy outputID + inputID của bộ trung tâm |
+| [KB-03](#kb-03-khai-lưới-toàn-tường-8×4-trên-bộ-trung-tâm) | Khai lưới toàn tường 8×4 (một lần) |
+| [KB-04](#kb-04-đọc-bố-cục-hiện-tại) | Đọc bố cục hiện tại |
+| [KB-05](#kb-05-mở-window-1-màn--gán-nguồn) | Mở window 1 màn + gán nguồn |
+| [KB-06](#kb-06-cửa-sổ-vắt-nhiều-vùng) | **Cửa sổ vắt nhiều vùng = 1 window trên bộ trung tâm** (không slicing) |
 | [KB-07](#kb-07-đổi-nguồn--di-chuyển--resize--z-order) | Đổi nguồn / move / resize / z-order |
 | [KB-11](#kb-11-startstop-decoding) | Start / Stop decoding |
 | [KB-12](#kb-12-xóa-window) | Xóa window |
-| [KB-13](#kb-13-tạo-scene--saveData-trên-từng-khung) | Tạo scene + `saveData` **trên từng khung** |
-| [KB-14](#kb-14-active-scene--đa-khung--lệch-pha) | **Active scene đa khung + xử lý lệch pha** |
-| [KB-16](#kb-16-poll-trạng-thái-4-khung) | Poll trạng thái 4 khung |
-| [KB-17](#kb-17-tắt-màn-qua-serial) | Tắt màn (serial transparent transmission) |
-| [KB-18](#kb-18-genlock--kiểm-mép-ghép) | **GENLOCK & kiểm mép ghép giữa 2 khung** |
+| [KB-13](#kb-13-tạo-scene--saveData) | Tạo scene + `saveData` (1 SID trên bộ trung tâm) |
+| [KB-14](#kb-14-active-scene) | **Active scene** (1 SID; nhiều wall-logic ⇒ lặp cùng IP) |
+| [KB-16](#kb-16-poll-trạng-thái) | Poll trạng thái bộ trung tâm (+ đọc read-only bộ con) |
+| [KB-17](#kb-17-tắt-màn-qua-serial) | Tắt màn qua serial — **con đường backend→bộ con duy nhất** |
+| [KB-18](#kb-18-genlock--kiểm-mép-ghép) | **GENLOCK & kiểm mép ghép** (vật lý, không API) |
 
 ---
 
-## KB-00. Probe read-only 4 khung tại hiện trường
+## KB-00. Probe read-only
 
-**Chỉ `GET`. An toàn tuyệt đối. Chạy TRƯỚC mọi thứ khác.** Mục tiêu: chốt 6 ẩn số ở
-[mục 6 của doc giải thích](../GiaiThich_KetNoi_VideoWall_DS-C66S-H88-CL.md#6-những-điểm-phải-xác-nhận-với-hikvision--nhà-cung-cấp).
+**Chỉ `GET`. An toàn tuyệt đối. Chạy TRƯỚC mọi thứ khác.** Mục tiêu: chốt ẩn số ở
+[mục 11 doc kiến trúc](../KienTruc_VideoWall_DS-C66S-Cascade.md#11-phải-đo--xác-nhận-tại-hiện-trường).
 
-Chạy **cho từng IP** (C1, C2, C3, C4):
+**Bắt buộc trên C1 (bộ trung tâm).** Chạy thêm trên C2/C3/C4 chỉ để kiểm kê + kiểm feed 4K sống —
+không bắt buộc cho luồng backend.
 
 | # | Method | URL | Đọc gì / chốt điều gì |
 |---|---|---|---|
-| 1 | `GET` | `/SDK/activateStatus` | `activated` — khung sống, đã activate *(không cần auth)* |
+| 1 | `GET` | `/SDK/activateStatus` | `activated` — khung sống *(không cần auth)* |
 | 2 | `GET` | `/ISAPI/Security/userCheck` | `statusValue=200`, `isActivated` — Digest OK |
-| 3 | `GET` | `/ISAPI/System/deviceInfo` | `model`, `serialNumber`, `firmwareVersion` → **ẩn số 1: mã khung thật** (S12? S6?) |
-| 4 | `GET` | `/ISAPI/DisplayDev/VideoWall` | list `VideoWall1..N`, `wallBindOutputStatus` → khung có mấy wall, wall nào `bound` |
-| 5 | `GET` | `/ISAPI/DisplayDev/VideoWall/<boundWall>/outputs` | `WallOutput[].Rect` (sắp theo `Coordinate`) → **suy lưới thật** của khung + **ẩn số 3: panel px** |
-| 6 | `GET` | `/ISAPI/DisplayDev/VideoWall/capabilities` | `baseOutputSize`, `maxWallNums`, `isSupportScene`, `isSupportRoam` |
-| 7 | `GET` | `/ISAPI/DisplayDev/Video/inputs/channels` | `portType` (HDMI/…), `signalStatus` → **ẩn số 2: camera vào HDMI hay IP** |
+| 3 | `GET` | `/ISAPI/System/deviceInfo` | `model`, `serialNumber`, `firmwareVersion` → **ẩn số 1: mã khung** (S12? chưa từng đo) |
+| 4 | `GET` | `/ISAPI/DisplayDev/VideoWall` | list `VideoWall1..N`, `wallBindOutputStatus` → **wall nào `bound`, có 1 hay nhiều** |
+| 5 | `GET` | `/ISAPI/DisplayDev/VideoWall/<boundWall>/outputs` | `WallOutput[].Rect` (sắp theo `Coordinate`) → **`centerCanvas` = bounding box các Rect; số output; suy lưới bộ trung tâm** |
+| 6 | `GET` | `/ISAPI/DisplayDev/VideoWall/capabilities` | `baseOutputSize` (bench = **1920**), `maxWallNums`, `maxWindowNums`, `isSupportScene/Roam/Plan` |
+| 7 | `GET` | `/ISAPI/DisplayDev/Video/inputs/channels` | `id`, `portType`, `signalStatus` → **ẩn số 2: camera vào HDMI hay IP** + map `VwSource.SignalNo` |
 | 8 | `GET` | `/ISAPI/DisplayDev/Video/streaming/channels` | có/không stream IP → xác nhận có card `DS-C66S-DEC` không |
-| 9 | `GET` | `/ISAPI/DisplayDev/VideoWall/<boundWall>/scene` | list SID → **ẩn số 4: SID scheme** (độc lập theo wall?) |
-| 10 | `GET` | `/ISAPI/DisplayDev/Video/outputs/channels` | `id` + `PortInBoard` (boardID/portID) — chưa từng đo thật, lấy để đối chiếu |
+| 9 | `GET` | `/ISAPI/DisplayDev/VideoWall/<boundWall>/scene` | list SID → **ẩn số 4: SID scheme** (số nguyên nhỏ đếm theo wall?) |
+| 10 | `GET` | `/ISAPI/DisplayDev/Video/outputs/channels` | `id` + `PortInBoard` (boardID/portID) — đối chiếu công thức [P1](#p1-công-thức-id) |
 
-### Response mẫu (đo thật trên thiết bị test, `LogsAPI/session-20260904-real.json`)
+### Response mẫu (đo thật, `../data/logs-api/session-20260904-real.json`)
 
 Bước 6 — `capabilities`:
 ```xml
@@ -102,116 +125,128 @@ Bước 6 — `capabilities`:
 </VideoWallCap>
 ```
 
-Bước 4 — `VideoWall` (1 khung C66S trả **8 tường**, không phải 1):
+Bước 4 — `VideoWall` (1 khung C66S trả **8 tường**):
 ```xml
 <VideoWallList version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
   <VideoWall><id>1</id><name>VideoWall1</name>...</VideoWall>
-  <VideoWall><id>2</id><name>VideoWall2</name>...</VideoWall>
   ...
   <VideoWall><id>8</id><name>VideoWall8</name>...</VideoWall>
 </VideoWallList>
 ```
-> Trên thiết bị đã đo (`LogsAPI/`): có wall ở trạng thái `bound` (đang cắm màn) và wall `unbound`
-> (sandbox). **Đừng mặc định wallNo = 1** — phải đọc `wallBindOutputStatus` rồi chọn wall `bound`.
+> Trên bench: có wall `bound` (đang cắm màn) và wall `unbound` (sandbox). **Đừng mặc định `wallNo=1`**
+> — đọc `wallBindOutputStatus` rồi chọn wall `bound`.
+
+Bước 5 — `outputs` (bench, wall 1 chỉ 2×2 sandbox — tường thật sẽ khác):
+```xml
+<WallOutputList version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+  <WallOutput><id>1</id><outputID>17235969</outputID>
+    <Rect><Coordinate><x>1920</x><y>0</y></Coordinate><width>1920</width><height>1920</height></Rect></WallOutput>
+  ... (4 output, mỗi Rect 1920×1920 ⇒ centerCanvas bench = 3840×3840)
+</WallOutputList>
+```
 
 ### Bảng nghiệm thu (điền tay tại hiện trường)
 
-| Ẩn số | C1 (trung tâm) | C2 (con 1) | C3 (con 2) | C4 (con 3) |
+| Ẩn số | C1 (trung tâm) | C2 | C3 | C4 |
 |---|---|---|---|---|
 | `model` / serial | | | | |
-| Wall nào `bound` | | | | |
-| Lưới suy từ `outputs` (cols×rows) | — | | | |
+| Wall `bound` (1 hay nhiều) | | *(chỉ kiểm kê)* | | |
+| `centerCanvas` (W×H) từ `outputs` | | — | — | — |
+| Số output | | — | — | — |
 | `baseOutputSize` | | | | |
-| Panel px (từ `Rect`) | | | | |
 | Camera vào: HDMI / IP | | — | — | — |
-| Có card DEC? | | | | |
-| SID list | | | | |
+| Có card DEC? | | — | — | — |
+| SID list | | — | — | — |
+| Feed 4K từ C1 có tín hiệu? | — | | | |
 
 ---
 
-## KB-01. Kết nối & đọc năng lực (từng khung)
+## KB-01. Kết nối & đọc năng lực
 
-Giống KB-01 bản 1 controller, **chạy 4 lần**. Ghi lại cho **từng khung**:
+Chạy **trên bộ trung tâm**. Ghi lại:
 
 ```
-VideoWallCap.baseOutputSize          ← DÙNG RIÊNG cho phép toạ độ của khung đó
+VideoWallCap.baseOutputSize          ← dùng cho phép quy đổi toạ độ
 VideoWallCap.maxWindowNums
 VideoWallCap.isSupportScene / isSupportRoam / isSupportPlan
-VideoWallCap.SceneCap.maxSceneNums / isSupportSceneInfo
+VideoWallCap.SceneCap.maxSceneNums / isSupportSceneInfo / isSupportSceneCopy
 ```
 
-`GET /ISAPI/DisplayDev/VideoWall` → lấy **`videoWallID` bound** của khung đó (KB-00 bước 4/5). Nếu
-nhiều wall `bound`: backend lấy wall đầu tiên (`VwISAPIDeviceService.WallResolution.cs`), cache 30′.
+`GET /ISAPI/DisplayDev/VideoWall` → lấy **các `videoWallID` `bound`** của bộ trung tâm (KB-00 bước
+4/5). Backend: `VwISAPIDeviceService.ResolveWall` cache 30′. Nếu **nhiều wall-logic `bound`** ⇒ backend
+lặp tất cả trên **cùng IP** (KB-14).
 
 ---
 
-## KB-02. Lấy ID output & input (từng khung)
+## KB-02. Lấy ID output & input
+
+Tất cả trên bộ trung tâm.
 
 | # | Method | URL | Lấy gì |
 |---|---|---|---|
-| 1 | `GET` | `/ISAPI/DisplayDev/Video/outputs/channels` | các `id` output + `PortInBoard` (board/port) + `outputPortAccessStatus` |
-| 2 | `GET` | `/ISAPI/DisplayDev/VideoWall/<wallNo>/outputs` | `WallOutput[].outputID` + `Rect` → **ô nào của khung** |
-| 3 | `GET` | `/ISAPI/DisplayDev/Video/inputs/channels` | các `id` input + `portType` + `signalStatus` |
+| 1 | `GET` | `/ISAPI/DisplayDev/Video/outputs/channels` | `id` output + `PortInBoard` + `outputPortAccessStatus` |
+| 2 | `GET` | `/ISAPI/DisplayDev/VideoWall/<wallNo>/outputs` | `WallOutput[].outputID` + `Rect` → ô nào trong `centerCanvas` |
+| 3 | `GET` | `/ISAPI/DisplayDev/Video/inputs/channels` | `id` input + `portType` (HDMI) + `signalStatus` → map `VwSource.SignalNo` (ITS + 20 camera) |
 
-> 🔴 `id` **không phải 1..N**. Công thức: `id = T×16777216 + boardID×65536 + portID`, `T=0x01` cho
-> video channel. Luôn đọc từ list endpoint. Xem [P1](#p1-công-thức-id).
+> 🔴 `id` **không phải 1..N**. Công thức [P1](#p1-công-thức-id): `id = T×16777216 + boardID×65536 +
+> portID`, `T=0x01` cho video channel. Luôn đọc từ list endpoint.
 >
-> **Số output mỗi khung khác nhau:** C2 = 16, C3 = 8, C4 = 8. C1 (trung tâm) output là 8×4K
-> **xuống 3 con**, không ra màn — cấu hình `outputs` của C1 nằm ngoài phạm vi test hiển thị này.
+> Bộ trung tâm có **8 cổng 4K OUT** (xuống 3 bộ con). Số output thấy ở `.../outputs` tuỳ cách firmware
+> phơi (8 hay 32) — KB-00 bước 5 chốt. Cấu hình `outputs` của **bộ con** nằm ngoài phạm vi test này.
 
 ---
 
-## KB-03. Gán output vào lưới CỦA TỪNG KHUNG
+## KB-03. Khai lưới toàn tường 8×4 trên bộ trung tâm
 
-🔴 **Điểm khác lớn nhất:** không gán "lưới toàn tường 8×4" cho 1 khung. Mỗi khung chỉ khai
-**lưới cục bộ của vùng nó** trong toạ độ `uniformCoordinate` (ô vuông `baseOutputSize`).
-
-- **C2 (con 1)** — vùng 4 cột × 4 hàng → canvas cục bộ `4·bos × 4·bos` (vd `7680×7680` nếu bos=1920):
+🔴 **Khác bản cũ:** khai **1 lưới toàn tường 8×4** cho bộ trung tâm trong `uniformCoordinate`
+(`centerCanvas` từ KB-00). **KHÔNG** khai "lưới cục bộ từng khung" — bộ con không nhận lệnh này.
 
 ```http
-PUT {{base_C2}}/ISAPI/DisplayDev/VideoWall/<wallNo_C2>
+PUT {{base}}/ISAPI/DisplayDev/VideoWall/<wallNo>
 ```
 ```xml
 <VideoWall xmlns="http://www.isapi.org/ver20/XMLSchema" version="2.0">
-  <id>WALLNO_C2</id>
-  <name>Vung Con 1</name>
+  <id>WALLNO</id>
+  <name>Tuong Trung Tam</name>
   <WallOutputList>
-    <!-- 16 WallOutput, mỗi ô vuông bos×bos, x = col_cục_bộ·bos, y = row_cục_bộ·bos -->
+    <!-- mỗi WallOutput: chỉ outputID (req) + Rect. Rect theo centerCanvas.
+         Nếu firmware phơi 8 output (4 cột × 2 hàng quad): mỗi ô 2·bos × 2·bos.
+         Nếu phơi 32 output (8×4 per-panel): mỗi ô bos × bos. -->
     <WallOutput><outputID>ID_1</outputID>
-      <Rect><Coordinate><x>0</x><y>0</y></Coordinate><width>1920</width><height>1920</height></Rect></WallOutput>
-    <WallOutput><outputID>ID_2</outputID>
-      <Rect><Coordinate><x>1920</x><y>0</y></Coordinate><width>1920</width><height>1920</height></Rect></WallOutput>
-    <!-- ... tới (3,3) cục bộ -->
+      <Rect><Coordinate><x>0</x><y>0</y></Coordinate><width>...</width><height>...</height></Rect></WallOutput>
+    <!-- ... -->
   </WallOutputList>
 </VideoWall>
 ```
 
-- **C3 (con 2)** — vùng 2 cột × 4 hàng → canvas cục bộ `2·bos × 4·bos`.
-- **C4 (con 3)** — như C3.
-
-> `outputID` lấy từ KB-02 của **đúng khung đó**. Chỉ gửi `outputID` (req) + `Rect`, bỏ field
-> chỉ-đọc (gửi lại nguyên response GET ⇒ `badParameters`).
+> ⚠️ Chỉ gửi `outputID` + `Rect`. Gửi lại nguyên response GET (có field chỉ-đọc) ⇒ `badParameters`.
+> `outputID` lấy từ KB-02 bước 2.
+>
+> **Bộ con:** người lắp đặt vào Web UI của **từng bộ con**, khai "mỗi cổng 4K in → lưới 2×2 → 4 cổng
+> FHD out". Làm 1 lần, không đụng nữa. Không phải bước test API.
 
 ---
 
-## KB-04. Đọc bố cục hiện tại (từng khung)
+## KB-04. Đọc bố cục hiện tại
+
+Trên bộ trung tâm.
 
 | # | Method | URL | Lấy gì |
 |---|---|---|---|
-| 1 | `GET` | `/ISAPI/DisplayDev/VideoWall/<wallNo>` | cấu hình tường của khung |
-| 2 | `GET` | `/ISAPI/DisplayDev/VideoWall/<wallNo>/outputs` | output ở ô cục bộ nào (`gridCol = Rect.x / bos`) |
+| 1 | `GET` | `/ISAPI/DisplayDev/VideoWall/<wallNo>` | cấu hình tường |
+| 2 | `GET` | `/ISAPI/DisplayDev/VideoWall/<wallNo>/outputs` | output ở ô nào (`gridCol = Rect.x / bos`) |
 | 3 | `GET` | `/ISAPI/DisplayDev/VideoWall/<wallNo>/windows` | window đang mở + nguồn |
 | 4 | `GET` | `/ISAPI/DisplayDev/VideoWall/<wallNo>/windows/status` | trạng thái decode |
 
 ---
 
-## KB-05. Mở window 1 màn + gán nguồn (1 khung)
+## KB-05. Mở window 1 màn + gán nguồn
 
-Giống KB-05 bản cũ nhưng toạ độ là **cục bộ trong khung**. Ví dụ: đưa nguồn lên ô (col=1,row=1)
-**cục bộ của C2**:
+Toạ độ trong `centerCanvas`. Ví dụ đưa nguồn lên **1 màn** (0-indexed `col=1, row=1`), giả sử
+`centerCanvas` là 8×4 ô `bos=1920`:
 
 ```http
-POST {{base_C2}}/ISAPI/DisplayDev/VideoWall/<wallNo_C2>/windows
+POST {{base}}/ISAPI/DisplayDev/VideoWall/<wallNo>/windows
 ```
 ```xml
 <WallWindow xmlns="http://www.isapi.org/ver20/XMLSchema" version="2.0">
@@ -222,47 +257,56 @@ POST {{base_C2}}/ISAPI/DisplayDev/VideoWall/<wallNo_C2>/windows
   <SubWindowList>
     <SubWindow><id>1</id><SubWindowParam>
       <signalMode>video input</signalMode>
-      <videoInputChannelID>ID_INPUT_C2</videoInputChannelID>
+      <videoInputChannelID>ID_INPUT_C1</videoInputChannelID>
     </SubWindowParam></SubWindow>
   </SubWindowList>
 </WallWindow>
 ```
 
-> ⚠️ `signalMode` = `video input` (có dấu cách). `wndOperateMode` bắt buộc.
-> ⚠️ `videoInputChannelID` phải là input **của đúng khung C2**, không phải của center.
+> ⚠️ `signalMode` = `video input` (**có dấu cách**). `wndOperateMode` bắt buộc.
+> ⚠️ `videoInputChannelID` là kênh input **của bộ trung tâm** (KB-02 bước 3) — camera/ITS cắm vào
+> card 04HI của C1. Kênh IP stream (nếu không có card DEC) ⇒ `403 invalidOperation` (khớp log dòng 972).
 
 ---
 
-## KB-06. Cửa sổ vắt nhiều khung → slicing
+## KB-06. Cửa sổ vắt nhiều vùng
 
-Đây là ca mà backend `VwSceneRegionService` xử lý tự động; khi test tay bằng Postman phải **tự cắt**.
+🔴 **Khác bản cũ hoàn toàn.** Bản cũ (mô hình "4 khung fan-out") bảo cắt cửa sổ thành 3 mảnh gọi
+`POST .../windows` 3 lần cho C2/C3/C4. **Cascade KHÔNG làm vậy.**
 
-**Ví dụ:** cửa sổ ITS-MAP phủ **cột 2–7 × hàng 2–3** trên tường tổng (toạ độ tuyệt đối, panel px
-`P` — dùng đúng đơn vị FE/DB lưu):
+Cửa sổ ITS-MAP phủ **cột 2–7 × hàng 2–3** (12 màn giữa) = **1 window duy nhất trên bộ trung tâm**.
+Firmware bộ trung tâm tự chia phần cửa sổ đó ra 8 cổng 4K OUT; 3 bộ con nhận quad của mình rồi fan-out
+— **không bộ con nào "biết có cửa sổ ITS"**.
 
-- Toạ độ tuyệt đối: `x = 1·P`, `y = 1·P_h`, `w = 6·P`, `h = 2·P_h` *(cột/hàng đánh số từ 0)*.
+```
+Toạ độ tường tuyệt đối (panel P×P_h, đánh số cột/hàng từ 0):
+  x = 1·P, y = 1·P_h, w = 6·P, h = 2·P_h
+  → panel 1920×1080:  (1920, 1080, 11520, 2160),  wallCanvas = 15360×4320
+```
 
-Cắt cho từng khung bằng công thức [P2](#p2-công-thức-toisapilocalrect):
+Quy đổi bằng **1 phép** [P2](#p2-công-thức-tocenteruniformrect) sang `centerCanvas`:
 
-| Khung | Vùng cục bộ nhận (cột × hàng, gốc 0) | Rect cục bộ ISAPI (bos=1920) |
-|---|---|---|
-| C2 (cột 0–3) | cột 1–3, hàng 1–2 | `x=1920, y=1920, w=5760, h=3840` |
-| C3 (cột 4–5) | cột 0–1, hàng 1–2 | `x=0, y=1920, w=3840, h=3840` |
-| C4 (cột 6–7) | cột 0, hàng 1–2 | `x=0, y=1920, w=1920, h=3840` |
+```
+X' = x · centerCanvas.W / wallCanvas.W          (tương tự Y', W', H')
+```
 
-→ `POST .../windows` **3 lần**, mỗi khung 1 mảnh, cùng `videoInputChannelID` là nguồn ITS **đã có
-trên khung đó** (nếu ITS-MAP chỉ vào center thì con con phải nhận nó qua cổng 4K từ center —
-`signalMode`/`videoInputChannelID` trỏ vào input 4K tương ứng).
+Ví dụ với `centerCanvas = 15360×7680` (giả định 8×4 ô 1920² — **đo thật ở KB-00**):
+```
+X' = 1920 · 15360/15360 = 1920
+Y' = 1080 · 7680/4320   = 1920
+W' = 11520 · 15360/15360 = 11520
+H' = 2160 · 7680/4320   = 3840
+→ POST .../windows MỘT lần, Rect (1920, 1920, 11520, 3840), videoInputChannelID = kênh ITS trên C1
+```
 
-> 🔴 Ranh giới vùng phải trùng ranh giới "quad" — không cửa sổ nào được yêu cầu 1 khung vẽ phần
-> nằm ngoài vùng panel nó lái.
-> Cần `isSupportRoam = true` (đã xác nhận trên C66S).
+> 🔴 `POST .../windows` **đúng 1 lần**. Không có 3 lần, không có `SliceWindowForControllers` trong
+> luồng cascade. Cần `isSupportRoam = true` (đã xác nhận C66S).
 
 ---
 
 ## KB-07. Đổi nguồn / di chuyển / resize / z-order
 
-Giống KB-07/08/09 bản cũ, **trong phạm vi 1 khung**, toạ độ cục bộ:
+Trên bộ trung tâm, toạ độ `centerCanvas`.
 
 | Hành động | Method | URL |
 |---|---|---|
@@ -271,14 +315,14 @@ Giống KB-07/08/09 bản cũ, **trong phạm vi 1 khung**, toạ độ cục b�
 | Đưa lên trên | `PUT` | `.../VideoWall/<wallNo>/windows/<VWMWID>/top` |
 | Xuống dưới | `PUT` | `.../VideoWall/<wallNo>/windows/<VWMWID>/bottom` |
 
-> ⚠️ PUT trả OK nhưng tường không đổi ⇒ có window khác `layerIdx` cao hơn đè. `/top` hoặc DELETE.
-> Với cửa sổ vắt nhiều khung: phải `/top` **trên từng khung** cho khớp z-order.
+> ⚠️ PUT trả OK nhưng tường không đổi ⇒ có window khác `layerIdx` cao hơn đè. Dùng `/top` hoặc DELETE.
+> Cửa sổ vắt nhiều vùng vẫn là **1 window** ⇒ `/top` **một lần** là đủ (không phải "từng khung").
 
 ---
 
 ## KB-11. Start/Stop decoding
 
-Không đổi so với bản cũ, per-khung:
+Trên bộ trung tâm.
 
 | Hành động | Method | URL |
 |---|---|---|
@@ -287,95 +331,94 @@ Không đổi so với bản cũ, per-khung:
 | Status 1 window | `GET` | `.../VideoWall/<wallNo>/windows/<VWMWID>/sub/1/status` |
 | Status tất cả | `GET` | `.../VideoWall/<wallNo>/windows/status` |
 
-Mã lỗi decode: xem [P4](#p4-mã-lỗi) (nhóm nguồn vào / đầu ra / stream / phần cứng).
+Mã lỗi decode: [P4](#p4-mã-lỗi) (nhóm nguồn vào / đầu ra / stream / phần cứng).
 
 ---
 
 ## KB-12. Xóa window
 
+Trên bộ trung tâm.
+
 | Hành động | Method | URL |
 |---|---|---|
-| Xóa 1 window trên 1 khung | `DELETE` | `.../VideoWall/<wallNo>/windows/<VWMWID>` |
-| Xóa tất cả window 1 khung | `DELETE` | `.../VideoWall/<wallNo>/windows` |
-| **Làm sạch toàn tường** | `DELETE .../windows` trên **cả 4 khung** | — |
+| Xóa 1 window | `DELETE` | `.../VideoWall/<wallNo>/windows/<VWMWID>` |
+| Xóa tất cả window | `DELETE` | `.../VideoWall/<wallNo>/windows` |
 
-> `DELETE .../windows` không hoàn tác. Đây cũng là bước đầu của `SyncSceneWindowsToDevice` cho
-> mỗi khung.
+> `DELETE .../windows` không hoàn tác. Đây là bước đầu của `SyncSceneWindowsToDevice`. Nếu bộ trung
+> tâm có **nhiều wall-logic** ⇒ DELETE trên từng `wallNo` (vẫn cùng IP).
 
 ---
 
-## KB-13. Tạo scene & saveData TRÊN TỪNG KHUNG
+## KB-13. Tạo scene & saveData
 
-Kịch bản **toàn tường** = tạo scene + `saveData` + (sau này) `activate` trên **cả 4 khung**, mỗi
-khung một `SID` riêng. Kịch bản **vùng** = chỉ khung sở hữu.
-
-Cho **mỗi khung tham gia**:
+Trên **bộ trung tâm**, **1 SID** → lưu vào `VwScene.OutputId` (1 field là đủ, vì chỉ 1 khung tạo scene).
 
 | # | Method | URL | Ghi chú |
 |---|---|---|---|
 | 1 | `GET` | `.../VideoWall/<wallNo>/scene/capabilities` | `maxSceneNums`, độ dài tên |
 | 2 | `GET` | `.../VideoWall/<wallNo>/scene` | đếm SID đã có |
 | 3 | `POST` | `.../VideoWall/<wallNo>/scene` | body `<WallScene><name>...</name></WallScene>` → trả `SID` mới |
-| 4 | — | *(dựng bố cục THẬT lên khung: KB-05/06/11)* | 🔴 `saveData` chụp tường ĐANG CHẠY |
+| 4 | — | *dựng bố cục THẬT lên bộ trung tâm (KB-05/06/11)* | 🔴 `saveData` chụp tường ĐANG CHẠY |
 | 5 | `PUT` | `.../VideoWall/<wallNo>/scene/<SID>` | đặt tên |
 | 6 | `PUT` | `.../VideoWall/<wallNo>/scene/<SID>/saveData` | body placeholder `<Request .../>` — ⭐ chụp bố cục |
 
-> Map lại: `VwScene.OutputId` trong DB hiện là **1 field** — với 4 khung mỗi khung 1 SID, cần
-> quyết định lưu SID theo khung thế nào (**ẩn số 4** KB-00). Nếu firmware đánh SID **giống nhau
-> giữa các khung** khi tạo cùng thứ tự thì 1 field vẫn đủ; nếu lệch thì phải bảng phụ
-> `controllerId → SID`.
+> `PUT .../scene/<SID>/saveData` trả **`403 invalidOperation` nếu SID chưa tồn tại** → backend fallback:
+> `POST .../scene` tạo SID → retry `saveData` (khớp log dòng 328–356).
 >
-> `isSupportSceneCopy = false` (C66S) → không "soạn nháp" trên thiết bị, phải dựng bố cục thật.
+> `isSupportSceneCopy = false` → không "soạn nháp", phải dựng bố cục thật.
 > `isSupportSaveSceneVirLed/BaseMap = false` → chữ chạy / ảnh nền KHÔNG lưu vào scene, phải áp lại
-> sau mỗi lần activate, **trên từng khung**.
+> sau mỗi activate.
+>
+> Nhiều wall-logic ⇒ tạo scene trên từng `wallNo` (cùng IP); nếu SID lệch giữa các wall-logic thì
+> cần map `wallNo → SID` (ẩn số 4 KB-00).
 
 ---
 
-## KB-14. ACTIVE scene — đa khung + lệch pha
+## KB-14. Active scene
 
 ### Luồng backend (`VwISAPIDeviceService.ActivateScene`)
 
 ```
-targetControllerIds = (VwScene.ControllerId rỗng) ? [C1..C4 lái panel] : [khung sở hữu]
-foreach controllerId:
-    GET  .../VideoWall/capabilities         → isSupportScene? (không ⇒ bỏ qua)
-    ResolveWall(controller)
-    PUT  .../VideoWall/<wallNo>/scene/<SID>/activate     (không body)
-gom succeededControllerIds
+target = bộ trung tâm (VwController Role=center, IntegrationMode=active)  — DUY NHẤT
+foreach wallNo in ResolveWalls(center):        // thường 1; >1 nếu firmware không gộp 8 output
+    GET  .../VideoWall/capabilities   → isSupportScene? (không ⇒ bỏ qua)
+    PUT  .../VideoWall/<wallNo>/scene/<SID>/activate   (không body)
 ```
 
 ### Test tay
 
 | # | Method | URL | Mục đích |
 |---|---|---|---|
-| 1 | `GET` | `.../VideoWall/<wallNo>/scene/isRunning` (mỗi khung) | scene đang chạy; trùng SID ⇒ bỏ qua khung đó |
-| 2 | `PUT` | `.../VideoWall/<wallNo>/scene/<SID>/activate` (mỗi khung) | ⭐ KÍCH HOẠT — **gửi lần lượt 4 khung** |
+| 1 | `GET` | `.../VideoWall/<wallNo>/scene/isRunning` | scene đang chạy; trùng SID ⇒ bỏ qua |
+| 2 | `PUT` | `.../VideoWall/<wallNo>/scene/<SID>/activate` | ⭐ KÍCH HOẠT |
 | 3 | — | *chờ 2–3 giây* | 🔴 chuyển cảnh không tức thời |
-| 4 | `GET` | `.../VideoWall/<wallNo>/scene/isRunning` (mỗi khung) | verify `sceneID` = SID trên **cả 4** |
-| 5 | `GET` | `.../VideoWall/<wallNo>/windows` (mỗi khung) | đọc bố cục mới |
+| 4 | `GET` | `.../VideoWall/<wallNo>/scene/isRunning` | verify `sceneID` = SID |
+| 5 | `GET` | `.../VideoWall/<wallNo>/windows` | đọc bố cục mới |
 
-### 🔴 Lệch pha (partial failure)
+### Lệch pha
 
-4 lệnh `activate` **không nguyên tử**. Nếu 3/4 khung OK, 1 khung fail:
-
-- Backend phát cảnh báo `HardwareOutOfSync` (NATS) với `succeededControllerIds` /
-  `failedControllerIds`; FE hiển thị "3/4 vùng đã đổi".
-- **Không retry mù** cả 4 — chỉ retry khung fail sau khi kiểm `subStatusCode`.
-- `inSceneSwitchingPleaseDoNotOperate` (`0x4000A1AB`) trên 1 khung ⇒ **không gọi lệnh khác cho
-  khung đó**, chờ rồi verify bằng `isRunning`.
-- `multipleVideowallClientConflict` (`0x4000A4F8`) ⇒ có client khác (web UI / iVMS) đang giữ
-  khung đó → đóng rồi thử lại.
+- **1 wall-logic (thường gặp):** activate là 1 lệnh → OK hoặc fail, **không có "3/4"**.
+- **Nhiều wall-logic trên bộ trung tâm:** các lệnh activate **không nguyên tử**. Nếu 1 wall-logic
+  fail → backend phát `HardwareOutOfSync` (NATS) với `succeeded/failed` (đây là các **wall-logic của
+  cùng 1 khung**, không phải 4 khung). Không retry mù.
+- `inSceneSwitchingPleaseDoNotOperate` (`0x4000A1AB`) ⇒ **không gọi lệnh khác**, chờ rồi verify
+  `isRunning`.
+- `multipleVideowallClientConflict` (`0x4000A4F8`) ⇒ có client khác (web UI / iVMS) đang giữ bộ
+  trung tâm → đóng rồi thử lại.
 
 ### Cách 2 — "activate" bằng dựng lại window (không dùng scene thiết bị)
 
-Cho **mỗi khung**: `DELETE .../windows` → `POST .../windows` ×N (Rect cục bộ đã cắt) →
-`.../sub/1/start` ×N → `/top` ×N theo z-order. Chậm hơn nhưng không phụ thuộc SID.
+`DELETE .../windows` → `POST .../windows` ×N (Rect `centerCanvas`) → `.../sub/1/start` ×N → `/top` ×N
+theo z-order. Chậm hơn, không phụ thuộc SID. (Chính là `SyncSceneWindowsToDevice` khi `scene.OutputId`
+rỗng.)
 
 ---
 
-## KB-16. Poll trạng thái 4 khung
+## KB-16. Poll trạng thái
 
-| # | Method | URL (mỗi khung) | Tần suất |
+**Bắt buộc — trên bộ trung tâm:**
+
+| # | Method | URL | Tần suất |
 |---|---|---|---|
 | 1 | `GET` | `.../VideoWall/<wallNo>/windows/status` | 3–5s — trạng thái decode |
 | 2 | `GET` | `/ISAPI/DisplayDev/Video/outputs/channels` | 5–10s — cáp màn (nhẹ) |
@@ -383,27 +426,33 @@ Cho **mỗi khung**: `DELETE .../windows` → `POST .../windows` ×N (Rect cục
 | 4 | `GET` | `/ISAPI/DisplayDev/decoingDevice/status?format=json` | 30–60s — ⚠️ nặng, health phần cứng |
 
 > 🔴 URL bước 4 viết là **`decoingDevice`** (thiếu `d`) — lỗi chính tả của hãng nhưng là URL thật.
-> Với 4 khung: poll **song song 4 IP**, gộp kết quả. Backend đã có `VwController.Status` +
-> `GenlockInConnected/GenlockOutConnected` để hiển thị topology.
+
+**Tuỳ chọn — read-only trên C2/C3/C4** (cho sơ đồ topology): `GET .../capabilities` +
+`Video/inputs/channels` → kiểm feed 4K từ bộ trung tâm còn tín hiệu không. Không lệnh ghi.
+Backend có `VwController.Status` + `GenlockInConnected/GenlockOutConnected` để hiển thị.
 
 ---
 
-## KB-17. Tắt màn (qua serial)
+## KB-17. Tắt màn qua serial
 
-`closeAll` gửi lệnh tắt nguồn **qua RS-232/485** tới màn — mỗi khung có cổng serial riêng nối tới
-**cụm màn của nó**. Endpoint backend: `VwISAPIDeviceClient.EndpointSerialTransData`
+🔴 **Đây là con đường backend → bộ con DUY NHẤT.** Màn nối cổng RS-232/485 **của từng bộ con** (bộ
+con lái cụm màn của nó). `closeAll` gửi lệnh tắt nguồn qua serial. Endpoint backend:
+`VwISAPIDeviceClient.EndpointSerialTransData`
 (`ISAPI/System/Serial/ports/{portId}/Transparent/channels/{channelId}/transData`).
 
-| # | Method | URL (khung phụ trách cụm màn cần tắt) |
+Gọi tới **IP bộ con** phụ trách cụm màn cần tắt (C2 / C3 / C4):
+
+| # | Method | URL |
 |---|---|---|
 | 1 | `GET` | `/ISAPI/System/Serial/capabilities` — kiểm `workMode` hỗ trợ `screenCtrl` |
 | 2 | `PUT` | `.../Serial/ports/<portId>/Transparent/channels/<chId>/open` |
 | 3 | `PUT` | `.../Serial/ports/<portId>/Transparent/channels/<chId>/transData` — payload lệnh tắt của hãng màn |
 | 4 | `PUT` | `.../Serial/ports/<portId>/Transparent/channels/<chId>/close` |
 
-> ⛔ **Không có API bật lại** (`ScreenCtrl` một chiều) — chỉ `openScreen` trong Plan, mà C66S
-> `isSupportPlan = false`. Tắt xong bật bằng tay/remote.
-> Chưa có dây serial ⇒ thay thế: `DELETE .../windows` (màn sáng, hiện nền) hoặc `wallBackMode=color`.
+> ⛔ **Không có API bật lại** (`ScreenCtrl` một chiều; `openScreen` chỉ có trong Plan, mà C66S
+> `isSupportPlan = false`). Tắt xong bật bằng tay/remote.
+> Chưa có dây serial ⇒ thay thế: `DELETE .../windows` (màn sáng, hiện nền) hoặc `wallBackMode=color`
+> **trên bộ trung tâm**.
 
 ---
 
@@ -411,10 +460,10 @@ Cho **mỗi khung**: `DELETE .../windows` → `POST .../windows` ×N (Rect cục
 
 Không phải API — kiểm tra vật lý + cấu hình.
 
-1. Xác nhận chuỗi GENLOCK: **center LOOP → C2 IN → C2 LOOP → C3 IN → C3 LOOP → C4 IN**.
-2. Đối chiếu DB: `VwController.GenlockInConnected / GenlockOutConnected` phải khớp thực tế từng khung.
-3. Test mép: mở **1 cửa sổ video động** (camera có chuyển động) vắt **ranh giới C2 | C3** (quanh
-   cột 4–5). Quan sát đường ghép dọc:
+1. Xác nhận chuỗi GENLOCK: **trung tâm LOOP → C2 IN → C2 LOOP → C3 IN → C3 LOOP → C4 IN**.
+2. Đối chiếu DB: `VwController.GenlockInConnected / GenlockOutConnected` khớp thực tế từng khung.
+3. Mở **1 cửa sổ video động** (camera có chuyển động) trên bộ trung tâm, vắt **ranh giới C2 | C3**
+   (quanh cột 4–5). Quan sát đường ghép dọc:
    - **Không xé, không lệch dòng** ⇒ genlock OK.
    - **Xé hình / rách ngang khi vật di chuyển** ⇒ genlock chưa khoá hoặc sai thứ tự chuỗi.
 4. Cùng test cho ranh giới **C3 | C4** (cột 6–7).
@@ -435,63 +484,57 @@ id = T × 16777216 + boardID × 65536 + portID
 | Window (`VWMWID`) | `0x02` | `33554433` = `0x02000001` → window #1 |
 | Layer (`layerIdx`) | `0x04` | chỉ đọc, số lớn nằm trên |
 
-Luôn đọc ID thật từ list endpoint **của đúng khung**. Mỗi khung có không gian ID riêng.
+Luôn đọc ID thật từ list endpoint **của bộ trung tâm**.
 
-## P2. Công thức `ToIsapiLocalRect`
+## P2. Công thức `ToCenterUniformRect`
 
 Nguồn: `TA-ITS015-WEBAPI-V1.0/src/Modules/VideoWall/Module.VideoWall/Infrastructure/Services/Scene/VwSceneRegionService.cs`.
 
 ```
-# originCol/originRow = min GridCol/GridRow của các màn thuộc khung (từ VwScreen)
-# panelWidthPx/panelHeightPx = kích thước 1 panel, ĐÚNG đơn vị FE/DB lưu VwWindowScene.X/Y/W/H
-# baseOutputSize = từ GET .../capabilities của khung đó (đo thật = 1920)
+# wallCanvas   = (Cols·ScreenWidth, Rows·ScreenHeight)  từ VwWallTopology
+# centerCanvas = bounding box các Rect trong GET .../{wall}/outputs  (KB-00 bước 5, cache 30′)
+# KHÔNG hardcode. Tính bằng long để tránh cộng dồn làm tròn.
 
-localX  = X_tuyệt_đối − originCol × panelWidthPx
-localY  = Y_tuyệt_đối − originRow × panelHeightPx
-
-X_ISAPI = localX × baseOutputSize / panelWidthPx
-Y_ISAPI = localY × baseOutputSize / panelHeightPx
-W_ISAPI = W     × baseOutputSize / panelWidthPx
-H_ISAPI = H     × baseOutputSize / panelHeightPx
+X' = (long)X · centerCanvas.W / wallCanvas.W
+Y' = (long)Y · centerCanvas.H / wallCanvas.H
+W' = (long)W · centerCanvas.W / wallCanvas.W
+H' = (long)H · centerCanvas.H / wallCanvas.H
 ```
 
-**Cắt lát trước khi quy đổi** (cửa sổ toàn tường): giao hình chữ nhật cửa sổ với hình bao vùng
-panel của khung `[originCol·P , (maxCol+1)·P] × [originRow·P_h , (maxRow+1)·P_h]`, lấy phần giao,
-rồi mới `ToIsapiLocalRect`.
+Guard: `W<=0 || H<=0` ⇒ bỏ qua. Sau quy đổi `W'==0 || H'==0` ⇒ ép `=1`.
+`EnsureWindowInsideSceneRegionAsync`: chặn nếu cửa sổ ra ngoài `wallCanvas`.
 
-### Ví dụ đối chiếu (phải khớp `VwSceneRegionService.ToIsapiLocalRect`)
+### Ví dụ đối chiếu
 
-Cửa sổ **toàn tường 32 màn**, panel FHD `1920×1080`, `baseOutputSize = 1920`, khung **C2**
-(`originCol=0, originRow=0`, vùng 4×4):
-
+Cửa sổ **toàn tường 32 màn**, panel `1920×1080` ⇒ `wallCanvas = 15360×4320`.
+`centerCanvas = 15360×7680` (giả định 8×4 ô 1920² — đo thật KB-00):
 ```
-X_tuyệt_đối = 0, Y = 0, W = 8×1920 = 15360, H = 4×1080 = 4320
-giao với vùng C2: [0, 4×1920] × [0, 4×1080] = 7680 × 4320
-ToIsapiLocalRect(0,0, 0,0, 7680,4320, 1920,1080, 1920):
-  localX = 0, localY = 0
-  X_ISAPI = 0
-  Y_ISAPI = 0
-  W_ISAPI = 7680 × 1920 / 1920 = 7680
-  H_ISAPI = 4320 × 1920 / 1080 = 7680
-  → (0, 0, 7680, 7680)   # 4×4 ô vuông 1920 trong uniformCoordinate
+X=0 Y=0 W=15360 H=4320
+→ X'=0  Y'=0  W'=15360  H'=15360·7680... khoan: H' = 4320·7680/4320 = 7680
+→ (0, 0, 15360, 7680)   # phủ trọn centerCanvas
 ```
 
-> ⚠️ **Panel 4K hay FHD cho ra CÙNG `X_ISAPI/W_ISAPI`** *miễn là* `VwWindowScene.X/Y/W/H` được lưu
-> cùng đơn vị với `panelWidthPx`. Rủi ro thật: FE (`wallConstants.ts`) và BE (`VwWallProfile.cs`)
-> dùng **hai con số panel px khác nhau** → lệch 2×. Sơ đồ .jpg ghi FHD, code ghi 4K → **phải chốt**
-> (KB-00 bước 5).
+Cửa sổ ITS-MAP (cột 2–7 × hàng 2–3), panel `1920×1080`:
+```
+X=1920 Y=1080 W=11520 H=2160
+→ (1920, 1920, 11520, 3840)
+```
 
-## P3. Bảng toạ độ 8×4 (tường tổng, đơn vị = panel px `P`×`P_h`)
+> ⚠️ Con số tuyệt đối (1920 vs 3840) không quan trọng — miễn **`VwWallTopology` seed · `VwWallProfile.cs`
+> · FE `wallConstants.ts`** dùng **CÙNG** đơn vị panel px. Sơ đồ .jpg ghi FHD 1920×1080; code hiện
+> 3840×2160 → phải chốt 3 chỗ bằng nhau (khuyến nghị đổi cả 3 về 1920×1080).
 
-| Ô | col | row | x (×P) | y (×P_h) | Khung |
-|---|---|---|---|---|---|
-| (1,1)…(4,1) | 0–3 | 0 | 0,1,2,3 | 0 | C2 |
-| (5,1)…(6,1) | 4–5 | 0 | 4,5 | 0 | C3 |
-| (7,1)…(8,1) | 6–7 | 0 | 6,7 | 0 | C4 |
-| … hàng 2 (row=1), hàng 3 (row=2), hàng 4 (row=3) tương tự | | | | | |
+## P3. Bảng toạ độ 8×4 (tường tổng, đơn vị = panel px `P × P_h`)
 
-Canvas tổng = `8P × 4P_h`. Canvas cục bộ: C2 = `4·bos × 4·bos`, C3 = `2·bos × 4·bos`,
-C4 = `2·bos × 4·bos`.
+| Hàng (row) | Cột 0–3 (C2) | Cột 4–5 (C3) | Cột 6–7 (C4) |
+|---|---|---|---|
+| 0 | y = 0 | y = 0 | y = 0 |
+| 1 | y = P_h | y = P_h | y = P_h |
+| 2 | y = 2·P_h | y = 2·P_h | y = 2·P_h |
+| 3 | y = 3·P_h | y = 3·P_h | y = 3·P_h |
+
+`x = col · P`. `wallCanvas = 8P × 4P_h`. Cột C2/C3/C4 chỉ để **vẽ sơ đồ / seed `VwScreen.ControllerId`**
+— backend không cắt theo mốc này.
 
 ## P4. Mã lỗi
 
@@ -503,7 +546,7 @@ C4 = `2·bos × 4·bos`.
 | GET vào endpoint chỉ nhận PUT | `methodNotAllowed` | URL đúng, sai method |
 | PUT không body | `badXmlFormat` | body trống / có BOM / declaration utf-16 |
 | PUT element rỗng / field chỉ-đọc | `badParameters` | gửi tối thiểu, đừng PUT lại response GET |
-| ID không tồn tại / tường `unbound` | `invalidOperation` | lấy ID thật từ list |
+| ID không tồn tại / kênh sai / tường `unbound` | `invalidOperation` | lấy ID thật từ list |
 | Firmware không hỗ trợ | `notSupport` | gọi `capabilities` trước |
 | Client khác giữ tường | `multipleVideowallClientConflict` (`0x4000A4F8`) | đóng web UI / iVMS |
 | Đang chuyển cảnh | `inSceneSwitchingPleaseDoNotOperate` (`0x4000A1AB`) | chờ 2–3s, verify `isRunning`, không retry activate |
@@ -515,31 +558,30 @@ Mã lỗi decode (`.../sub/<n>/start`): nhóm **nguồn vào** (`unstableInputSi
 ## P5. Thứ tự test khuyến nghị
 
 ```
-KB-00  probe 4 khung (chỉ GET, an toàn)              ← LÀM ĐẦU TIÊN, chốt 6 ẩn số
+KB-00  probe (chỉ GET, an toàn)                     ← LÀM ĐẦU TIÊN, chốt ẩn số
   ↓
-KB-01 → KB-02   kết nối, lấy ID (mỗi khung)          (an toàn)
+KB-01 → KB-02   kết nối, lấy ID bộ trung tâm        (an toàn)
   ↓
-KB-04           đọc bố cục hiện tại                  (an toàn)
+KB-04           đọc bố cục hiện tại                 (an toàn)
   ↓
-KB-03           gán lưới cục bộ từng khung           ⚠️ ghi — làm trên wall unbound trước
+KB-03           khai lưới toàn tường 8×4            ⚠️ ghi — làm trên wall unbound trước
   ↓
-KB-05 → KB-11   window + nguồn + decode (1 khung)    ⚠️ ghi
+KB-05 → KB-11   window + nguồn + decode             ⚠️ ghi
   ↓
-KB-06           cửa sổ vắt nhiều khung (slicing)     ⚠️ ghi
+KB-06           cửa sổ vắt nhiều vùng (1 window)    ⚠️ ghi
   ↓
-KB-07           move/resize/đổi nguồn/z-order        ⚠️ ghi
+KB-07           move/resize/đổi nguồn/z-order       ⚠️ ghi
   ↓
-KB-13 → KB-14   scene + activate đa khung            ⚠️ ghi — test lệch pha
+KB-13 → KB-14   scene + activate                   ⚠️ ghi
   ↓
-KB-16           poll 4 khung                         (an toàn)
+KB-16           poll                               (an toàn)
   ↓
-KB-12           dọn window                           ⚠️ ghi
+KB-12           dọn window                         ⚠️ ghi
   ↓
-KB-18           genlock & mép ghép                   (quan sát vật lý)
+KB-18           genlock & mép ghép                 (quan sát vật lý)
   ↓
-KB-17           tắt màn                              ⛔ CUỐI CÙNG — không có API bật lại
+KB-17           tắt màn (serial → bộ con)          ⛔ CUỐI CÙNG — không có API bật lại
 ```
 
 > ⛔ Đừng dùng `closeAll` hay `DELETE .../windows` để test kết nối — tắt/xóa cả tường thật.
-> ✅ Test ghi an toàn: `GET` rồi `PUT` lại y nguyên tên 1 input (`/inputs/channels/<id>`) trên
-> wall `unbound` của 1 khung.
+> ✅ Test ghi an toàn: `GET` rồi `PUT` lại y nguyên tên 1 input trên wall `unbound` của bộ trung tâm.

@@ -569,21 +569,26 @@ public partial class VwISAPIMockServerHikvision
         if (method == "GET" && MatchRoute("ISAPI/DisplayDev/Video/inputs/channels", path))
         {
             GetInputChannelsCallCount++;
-            var itsChannels = new (int Id, string Type, string Name, string Status)[]
-            {
-                (16842753, "IPCamera", "Camera Km01 - Nút giao Hữu Nghị", "normal"),
-                (16842754, "IPCamera", "Camera Km15 - Cầu vượt Chi Lăng", "normal"),
-                (16842755, "IPCamera", "Camera Km28 - Trạm thu phí Bắc", "normal"),
-                (16842756, "IPCamera", "Camera Km42 - Trạm thu phí Nam", "normal"),
-                (16842757, "IPCamera", "Camera Km55 - Trạm dừng nghỉ", "normal"),
-                (16842758, "IPCamera", "Camera Km70 - Hầm chui Dân sinh", "normal"),
-                (16842759, "IPCamera", "Camera Km85 - Trạm cân Km05", "normal"),
-                (16842760, "IPCamera", "Camera Km99 - Đội CSGT Tuần tra", "normal"),
-                (16842761, "HDMI", "Bản đồ GIS Tuyến Hữu Nghị - Chi Lăng", "normal"),
-                (16842762, "HDMI", "HDMI 1 - Máy chủ Điều hành TOC", "normal"),
-                (16842763, "HDMI", "HDMI 2 - Dashboard Giám sát ITS", "normal"),
-                (16842764, "HDMI", "HDMI 3 - Cảnh báo Sự cố Tự động", "normal"),
-            };
+            (int Id, string Type, string Name, string Status)[] itsChannels = IsCascadeCenter
+                ? new (int Id, string Type, string Name, string Status)[]
+                {
+                    (1, "HDMI", "ITS Bản đồ Giao thông Trung tâm", "normal")
+                }.Concat(Enumerable.Range(1, 20).Select(i => (Id: i + 1, Type: "HDMI", Name: $"Camera CCTV Giám sát {i:D2}", Status: "normal"))).ToArray()
+                : new (int Id, string Type, string Name, string Status)[]
+                {
+                    (16842753, "IPCamera", "Camera Km01 - Nút giao Hữu Nghị", "normal"),
+                    (16842754, "IPCamera", "Camera Km15 - Cầu vượt Chi Lăng", "normal"),
+                    (16842755, "IPCamera", "Camera Km28 - Trạm thu phí Bắc", "normal"),
+                    (16842756, "IPCamera", "Camera Km42 - Trạm thu phí Nam", "normal"),
+                    (16842757, "IPCamera", "Camera Km55 - Trạm dừng nghỉ", "normal"),
+                    (16842758, "IPCamera", "Camera Km70 - Hầm chui Dân sinh", "normal"),
+                    (16842759, "IPCamera", "Camera Km85 - Trạm cân Km05", "normal"),
+                    (16842760, "IPCamera", "Camera Km99 - Đội CSGT Tuần tra", "normal"),
+                    (16842761, "HDMI", "Bản đồ GIS Tuyến Hữu Nghị - Chi Lăng", "normal"),
+                    (16842762, "HDMI", "HDMI 1 - Máy chủ Điều hành TOC", "normal"),
+                    (16842763, "HDMI", "HDMI 2 - Dashboard Giám sát ITS", "normal"),
+                    (16842764, "HDMI", "HDMI 3 - Cảnh báo Sự cố Tự động", "normal"),
+                };
 
             var sb = new System.Text.StringBuilder();
             sb.Append($"""
@@ -672,18 +677,21 @@ public partial class VwISAPIMockServerHikvision
                 <?xml version="1.0" encoding="UTF-8"?>
                 <WallOutputList version="2.0" xmlns="{Ns}">
                 """);
-            for (var i = 1; i <= 12; i++)
+            var totalOutputs = IsCascadeCenter ? (CascadeGridCols * CascadeGridRows) : 12;
+            var cols = IsCascadeCenter ? CascadeGridCols : 4;
+            var outputSize = IsCascadeCenter ? CascadeOutputSize : 1920;
+            for (var i = 1; i <= totalOutputs; i++)
             {
                 var chanId = 17235970 + i;
-                var col = (i - 1) % 4;
-                var row = (i - 1) / 4;
-                var x = col * 1920;
-                var y = row * 1920;
+                var col = (i - 1) % cols;
+                var row = (i - 1) / cols;
+                var x = col * outputSize;
+                var y = row * outputSize;
                 sb.Append($"""
                   <WallOutput>
                     <id>{i}</id>
                     <outputID>{chanId}</outputID>
-                    <Rect><Coordinate><x>{x}</x><y>{y}</y></Coordinate><width>1920</width><height>1920</height></Rect>
+                    <Rect><Coordinate><x>{x}</x><y>{y}</y></Coordinate><width>{outputSize}</width><height>{outputSize}</height></Rect>
                     <outputWinNum>1</outputWinNum>
                     <coordinateMode>uniformCoordinate</coordinateMode>
                   </WallOutput>
@@ -796,6 +804,20 @@ public partial class VwISAPIMockServerHikvision
         if (method == "POST" && MatchRoute("ISAPI/DisplayDev/VideoWall/{videoWallID}/windows", path))
         {
             AddWindowCallCount++;
+            if (SimulateWindowInputChannelInvalid)
+            {
+                await WriteXmlResponseAsync(res, HttpStatusCode.Forbidden, $$"""
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <ResponseStatus version="1.0" xmlns="{{Ns}}">
+                      <requestURL>{{path}}</requestURL>
+                      <statusCode>4</statusCode>
+                      <statusString>Invalid Operation</statusString>
+                      <subStatusCode>invalidOperation</subStatusCode>
+                    </ResponseStatus>
+                    """);
+                return true;
+            }
+
             if (SimulateAddWindowWithoutId)
             {
                 await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
@@ -950,6 +972,21 @@ public partial class VwISAPIMockServerHikvision
                              || MatchRoute("ISAPI/DisplayDev/scene/{sceneID}/saveData", path)))
         {
             SaveSceneDataCallCount++;
+            if (SimulateSaveData403Once)
+            {
+                SimulateSaveData403Once = false;
+                await WriteXmlResponseAsync(res, HttpStatusCode.Forbidden, $$"""
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <ResponseStatus version="1.0" xmlns="{{Ns}}">
+                      <requestURL>{{path}}</requestURL>
+                      <statusCode>4</statusCode>
+                      <statusString>Invalid Operation</statusString>
+                      <subStatusCode>invalidOperation</subStatusCode>
+                    </ResponseStatus>
+                    """);
+                return true;
+            }
+
             if (SimulateSaveDataFailure)
             {
                 await WriteXmlResponseAsync(res, HttpStatusCode.OK, $$"""
