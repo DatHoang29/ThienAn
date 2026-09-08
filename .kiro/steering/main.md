@@ -48,9 +48,11 @@ When executing slash commands, follow the corresponding workflow file:
 - `/deploy` $\rightarrow$ `.agents/workflows/deploy.md`
 - `/status` $\rightarrow$ `.agents/workflows/status.md`
 
-### 5. 🧠 Persistent Memory (`.agents/memory/`)
-- At the start of tasks, check `.agents/memory/MEMORY.md` and `.agents/memory/thienan-user-preferences.md`.
-- Persist new user decisions, architectural choices, and project conventions to `.agents/memory/MEMORY.md`.
+### 5. 🧠 Persistent Memory (`.agents/memory/`) — READ-ONLY BY DEFAULT
+- At the start of tasks, **read** `.agents/memory/MEMORY.md` and `.agents/memory/thienan-user-preferences.md`.
+- 🔴 **NEVER write to `.agents/memory/` on your own initiative.** Do NOT auto-persist decisions, conventions, or findings — not even when they look important.
+- Write ONLY when the user explicitly asks, e.g. `/remember`, "lưu lại", "ghi vào memory". Route such requests through `.agents/workflows/remember.md`.
+- If you believe something is worth remembering, **propose it and wait** for the user to approve.
 
 ### 6. 🛡️ Lifecycle Hooks & Safeguards (`.agents/hooks/`)
 - Tool call validation & Doctor checks: `.agents/hooks/validate-tool-call.mjs`, `.agents/hooks/antigravity-doctor.mjs`.
