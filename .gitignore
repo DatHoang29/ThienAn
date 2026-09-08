@@ -9,3 +9,5 @@ logs/
 *.user
 settings.json
 .env
+__pycache__/
+*.py[cod]
