@@ -22,23 +22,31 @@ Phân loại tài liệu theo **chi phí context** (token budget), quy định r
 DocBusinessThienAn/
 ├── INDEX.md                          🤖👤 Entry point cấp cao nhất (file bạn đang đọc)
 ├── llms.txt                          🤖    Bản đồ compact cho AI định tuyến nhanh
-└── HữuNghị-ChiLăng/                        🤖👤 Dự án Cao tốc Hữu Nghị – Chi Lăng (GIỮ có dấu)
+└── HữuNghị-ChiLăng/                  🤖👤 Dự án Cao tốc Hữu Nghị – Chi Lăng (GIỮ có dấu)
     ├── INDEX.md                      🤖👤 Chỉ mục cấp dự án
     ├── ShareData/                    🤖👤 Phân hệ Chia sẻ Dữ liệu (ESHARE)
     │   ├── README.md                 🤖👤 SSOT của module + Tier Table
     │   ├── doc/                      🤖    Tier A: Nghiệp vụ, mapping gói tin 101–111, kế hoạch
     │   └── _source/                  👤    Tier C: Bản gốc cho người đối chiếu (xlsx/)
-    └── VideoWall/                    🤖👤 Phân hệ Video Wall
-        ├── README.md                 🤖👤 SSOT của module + Tier Table
-        ├── doc/                      🤖    Tier A + B: Toàn bộ .md kỹ thuật, API, kịch bản
-        │   ├── ISAPI-Videowall-Controller/ 🤖 Tier A + B (09-api-reference.md: 1.670 KB grep-only)
-        │   ├── Controller-phan-cung/  🤖 Tier A (kèm images/ phục vụ hiển thị)
-        │   ├── KichBan/              🤖 Tier A (Kịch bản 1 controller / 4 controller)
-        │   ├── Plan/                 🤖 Tier A (Bản kế hoạch lịch sử)
-        │   ├── TableSQL/             🤖 Tier A (Phân tích & thiết kế CSDL)
-        │   └── Transcript/           🤖 Tier A (Transcript cuộc họp chuẩn bị)
-        ├── data/                     🤖    Tier B: Log đo thực tế trên thiết bị (logs-api/)
-        └── _source/                  👤    Tier C: Bản gốc cho người đối chiếu (pdf/, xlsx/, img/)
+    ├── VideoWall/                    🤖👤 Phân hệ Video Wall
+    │   ├── README.md                 🤖👤 SSOT của module + Tier Table
+    │   ├── doc/                      🤖    Tier A + B: Toàn bộ .md kỹ thuật, API, kịch bản
+    │   │   ├── ISAPI-Videowall-Controller/ 🤖 Tier A + B (09-api-reference.md: 1.670 KB grep-only)
+    │   │   ├── Controller-phan-cung/  🤖 Tier A (kèm images/ phục vụ hiển thị)
+    │   │   ├── KichBan/              🤖 Tier A (Kịch bản 1 controller / 4 controller)
+    │   │   ├── Plan/                 🤖 Tier A (Bản kế hoạch lịch sử)
+    │   │   ├── TableSQL/             🤖 Tier A (Phân tích & thiết kế CSDL)
+    │   │   └── Transcript/           🤖 Tier A (Transcript cuộc họp chuẩn bị)
+    │   ├── data/                     🤖    Tier B: Log đo thực tế trên thiết bị (logs-api/)
+    │   └── _source/                  👤    Tier C: Bản gốc cho người đối chiếu (pdf/, xlsx/, img/)
+    └── WOS/                          🤖👤 Phân hệ Trạm Thời tiết & Khí tượng (Campbell CR1000X)
+        ├── README.md                 🤖👤 SSOT của module + Tier Table & hướng dẫn tích hợp
+        ├── doc/                      🤖    Tier A + B: Toàn bộ .md kỹ thuật, cấu hình, cẩm nang
+        │   ├── cr1000x-specifications.md        🤖 Tier A: Thông số kỹ thuật chi tiết
+        │   ├── cr1000x-getting-started-guide.md 🤖 Tier A: Hướng dẫn khởi động nhanh
+        │   ├── cr1000x-product-manual/          🤖 Tier A + B: Cẩm nang 334 trang (00-catalog, 01–11, full)
+        │   └── images/                          🤖 Sơ đồ đấu nối, ảnh chụp thiết bị
+        └── _source/                  👤    Tier C: Bản gốc cho người đối chiếu (pdf/)
 ```
 
 ---
@@ -59,7 +67,7 @@ DocBusinessThienAn/
 
 | Dự án | Thư mục | Phân hệ trực thuộc | Chỉ mục chi tiết |
 |---|---|---|---|
-| **Cao tốc Hữu Nghị – Chi Lăng** | [`HữuNghị-ChiLăng/`](HữuNghị-ChiLăng/INDEX.md) | `ShareData`, `VideoWall` | [`HữuNghị-ChiLăng/INDEX.md`](HữuNghị-ChiLăng/INDEX.md) |
+| **Cao tốc Hữu Nghị – Chi Lăng** | [`HữuNghị-ChiLăng/`](HữuNghị-ChiLăng/INDEX.md) | `ShareData`, `VideoWall`, `WOS` | [`HữuNghị-ChiLăng/INDEX.md`](HữuNghị-ChiLăng/INDEX.md) |
 
 ---
 

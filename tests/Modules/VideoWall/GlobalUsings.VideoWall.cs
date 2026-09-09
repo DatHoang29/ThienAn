@@ -25,6 +25,7 @@ global using Module.VideoWall.Core.Dto.Schedule;
 global using Module.VideoWall.Core.Dto.Screen;
 global using Module.VideoWall.Core.Dto.SlotPort;
 global using Module.VideoWall.Core.Dto.Source;
+global using Module.VideoWall.Core.Dto.WallTopology;
 global using Module.VideoWall.Core.Dto.WindowScene;
 
 // ─── Validators (FluentValidation) dùng cho Negative Test First ───
@@ -38,6 +39,7 @@ global using Module.VideoWall.Controllers.Schedule.Validators;
 global using Module.VideoWall.Controllers.Screen.Validators;
 global using Module.VideoWall.Controllers.SlotPort.Validators;
 global using Module.VideoWall.Controllers.Source.Validators;
+global using Module.VideoWall.Controllers.WallTopology.Validators;
 global using Module.VideoWall.Controllers.WindowScene.Validators;
 
 // ─── Mock Server giả lập thiết bị Hikvision (nằm ở namespace con nên phải khai báo tường minh) ───

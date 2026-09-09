@@ -4,6 +4,7 @@
 ## Đọc trước
 - HữuNghị-ChiLăng/ShareData/README.md: Tier Table phân hệ ShareData
 - HữuNghị-ChiLăng/VideoWall/README.md: Tier Table phân hệ VideoWall
+- HữuNghị-ChiLăng/WOS/README.md: Tier Table phân hệ WOS (Trạm thời tiết Campbell CR1000X)
 
 ## Không đọc (Human-only / Binary)
 - **/_source/**: bản gốc PDF/XLSX/DOCX/ZIP cho người đối chiếu

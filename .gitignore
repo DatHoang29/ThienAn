@@ -11,3 +11,11 @@ settings.json
 .env
 __pycache__/
 *.py[cod]
+
+# ffmpeg source extracted locally for tooling (not vendored)
+ffmpeg-9.0.1/
+
+# Heavy source binaries — kept on disk under _source/ (Tier C, human-only),
+# transcribed/summarised into doc/*.md. Force-add with `git add -f` if ever needed.
+*.pdf
+*.m4a
