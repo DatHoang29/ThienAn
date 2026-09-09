@@ -37,6 +37,8 @@ public class VwEventTriggerLogTests(Host host)
             Code = $"{TestPrefix}CTRL_{suffix}",
             Name = "Event Trigger Log Controller",
             OrgId = orgId,
+            Role = "center",
+            IntegrationMode = "cascade",
             IP = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPort}",
             Account = VwISAPIMockServerHikvision.DefaultUser,
             PassWord = VwISAPIMockServerHikvision.DefaultPassword,

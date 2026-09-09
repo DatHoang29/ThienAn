@@ -1,0 +1,40 @@
+---
+tier: A
+read: full
+source: ../../_source/audio/2026-09-08-hop-ke-hoach-1.m4a
+date: 2026-09-08
+model: external (MacWhisper + GPT summary)
+status: summary-only
+---
+
+# Họp kế hoạch dự án — 2026-09-08 (phần 1)
+
+**Language:** Tiếng Việt  
+**Word Count:** 1091  
+**Date:** 9/9/2026, 8:26:25 AM
+
+## Summary
+Phần 1: Đoạn hội thoại xoay quanh việc rà soát và ghi chú lại các lỗi giao diện cũng như chức năng phần mềm. Các thành viên thảo luận về phần hiển thị thông tin người nhận, định dạng độ dài/kích thước chữ và phương án xử lý đối với API liên quan.
+Phần 2: 
+Phần 3: 
+Phần 4: Các thành viên trong nhóm kỹ thuật kiểm tra và phát hiện hệ thống bị mất hầu hết dữ liệu cấu hình controller, màn hình và video wall. Cả nhóm cùng rà soát lại cách cấu hình nguồn tín hiệu cục bộ, gán controller và kiểm tra các nguyên nhân có thể gây mất dữ liệu như thao tác restore cơ sở dữ liệu hoặc ảnh hưởng từ API service.
+Phần 5: Nhóm kỹ thuật đang kiểm tra các lỗi hiển thị màn hình do thiếu dữ liệu hoặc chưa map đúng với AI. Khi kiểm tra cơ sở dữ liệu, họ phát hiện dữ liệu không còn và xác định có thể DB chưa được restore chính xác. Cả nhóm rà soát lại các mục cần sửa và lên kế hoạch tiếp tục xử lý, kiểm tra lại dữ liệu vào ngày hôm sau.
+
+## Key Takeaways
+- Trao đổi và ghi chú lại các lỗi hiển thị thông tin người nhận/người gửi chưa hợp lý.
+- Kiểm tra chức năng xóa và hiển thị, cùng các vấn đề về độ dài chữ, font chữ/màu sắc.
+- Xem xét phương án tắt hoặc cấu hình lại API từ phía bên xử lý.
+- Nhóm phát hiện hệ thống bị mất toàn bộ dữ liệu cấu hình, chỉ còn lại một controller và mất hết cấu hình màn hình/video wall.
+- Thảo luận về cách map nguồn tín hiệu, phân quyền video wall qua controller master và controller con.
+- Bàn về nguyên nhân mất dữ liệu: do đợt restore database (DB) mới, bản DB cũ trước ngày đi demo, hoặc ảnh hưởng từ API service.
+- Các thành viên thảo luận về sự cố dữ liệu không hiển thị trên màn hình và việc restore cơ sở dữ liệu (DB).
+- Kiểm tra thấy trong DB dữ liệu không còn, nghi ngờ DB chưa được restore đúng cách dẫn đến lỗi map màn hình và không load được data.
+- May mắn là phần dịch thuật chưa được thực hiện nên tránh được việc phải làm lại từ đầu.
+- Thống nhất danh sách các mục và data cần kiểm tra, xử lý lại vào ngày mai.
+
+## Transcript
+Ghi rõ lại nha. Thông tin người nhận, đang xử lý. Đang hiển thị chưa, hợp lý. Các phần hiển thị đang hiển thị. Là sao kìa? Ghi lại rõ ràng người ta làm lại. Rồi chỗ này, làm chưa? Xóa và hiển thị. Nè thông tin người nhận. Rồi, còn mấy cái lỗi kia nè, khỏi nói. Thứ hai là vấn đề liên quan đến... 1 2 3 4 5 6... PDF. Rồi, ghi vô. Rồi VMS thì nó có cái gì ta? Còn cái gì nữa không kìa? VMS và chức năng... Độ dài chữ. Thì phần to, nhỏ hay là màu đó hả? Thì chỗ này xem xét là xem coi tắt cái API của bên xử lý. Hiện tại nếu mà có...
+No transcription text returned from AI.
+No transcription text returned from AI.
+Ủa sao nó lạ vậy? Ủa sao nó lạ vậy? Nó mất hết dữ liệu rồi, nó còn một cái kìa. Sao nhìn nó xấu vậy? Cắt bớt cái gì? Test mà. Có test dữ liệu không? Mất hết dữ liệu rồi, nó còn có một cái à. Nó còn có một cái controller à. Mất hết màn hình rồi này nọ không còn cái gì hết á. Nè bây giờ nè, ví dụ anh vô cái bộ điều khiển đi. Bộ điều khiển á, cái tab bộ điều khiển á. Là bây giờ một con chia ra ba con đúng không? Ừ. Thì là khai báo bốn con đúng không? Rồi. Xong rồi còn... cái gì ta? Còn cái gì? Tụi bay đi rê rương cúng nhang mẹ đi. Tại vì mày chưa coi hết chưa có đủ thông tin rồi. Không em có, coi rồi. Mấy cái nguồn tín hiệu cũng phải sửa lại nè. Tại vì nguồn tín hiệu đang không có nhận trực tiếp từ nguồn máy luôn mà nhận thông qua một con chủ. Xong rồi phân quyền là video wall á. Cũng vậy, nhận từ máy mà, thì bạn. Sao nhận từ máy anh? Cái nguồn tín hiệu là nhận từ máy tính mà. Thì là chỉ có một con master nhận từ máy tính thôi chứ nó provide lại hết mấy con mà. Thì ở đây đâu có khai báo controller đâu. Nguồn tín hiệu input đó mà. Từ cái input này em mới map với lại cái... bộ điều khiển thông qua cái gì đó thông qua cái màn hình sơ đồ gắn cắm gì đây nè. Không đúng rồi, ở trong nguồn tín hiệu nó có map với controller nếu mà anh vô giám sát điều khiển hay là vô cái API á. Không, cái nguồn tín hiệu anh, cái chỗ cái nguồn tín hiệu á. Rồi anh bấm thêm mới đi. Anh nhớ đâu có. Rồi ngay chỗ mà cái loại nguồn á, anh chọn loại nguồn là tín hiệu cục bộ thì nó sẽ phải chọn controller. Đó. Là map thẳng ở đây luôn hả? Thì bây giờ mình phải map thẳng lại cái thằng cha nó nè. Tại vì nếu bên em tính là nếu mà nguồn thì chỉ khai báo nguồn thôi. Với lại là anh vô cái sơ cái video wall á. Cái video wall ở dưới á, ở dưới. Xong giám sát điều khiển. Mất hết dữ liệu, tự động mất hết dữ liệu mà. Vậy anh vô quản lý kịch bản. Nó mất hết rồi, nó bay đâu mất hết luôn rồi, không biết luôn. Thôi xóa cài đặt lại đi. Ý là nếu mà bây giờ như vậy á thì là Gỡ máy ai còn dữ liệu cài lại, máy Hải cài lại. Máy em á? Mấy em còn thiệt. Bữa mở local lên giật mắt chết. Cái này DB mới vậy nè. Hôm bữa restore DB mới rồi đúng không? Đúng rồi, bữa restore lại rồi. Restore lại ủa mà restore lại sao mất ta? Thì đợt trước nó đâu có dữ liệu đâu. Nhưng mà trước cái ngày Trước ngày đi a Trước ngày đi là vẫn còn. đi còn mà. Còn nhưng mà cái bản cũ, cái file cũ. Còn ở đây của Hiếu là đợt sau khi dời là mới làm lại hết trơn á. Đâu có, vẫn nó vẫn chạy trên cái nền cũ á. Demo nè, còn demo nó còn hiện lên được mà. Nhưng mà không hiểu sao cái lúc bị chắc là nó bị thêm một đợt xóa lại hay sao á. À từ nha. Cái này dính tới cái API service nữa. Sau này là bạn hình như tôi nhớ bạn có
+Một là mình edit gì đó, mình bị ấy, bị ép gì nó không có map, chung cái AI á. Hỏi Lâm nữa. Không, tại em check trong DB rồi, DB nó không còn. Em vô check DB đi. Như vậy là, DB rồi. Như vậy chưa restore đúng rồi. Vô DB đi, chứ trong DB không có. Giờ nhớ một đợt bị ấy không? Bị. Chưa có này. Có rồi. Sẽ restore này, sẽ restore từ nữa. May quá chưa làm dịch thuật, chứ restore vậy làm lại chắc chết quá. Chết gì, copy lại thôi. Ủa mà cái bảng giám sát đâu? Ủa sao cái này nhìn lạ vậy ta? Nhìn thấy lạ đúng không? Giám sát cái gì lạ vậy? Anh ấn một, anh đừng có nhấp tiếp. À không, cái này không lạ, cái này chưa load data lên. Nó không có data lên. Nó đâu có màn hình luôn kìa, thành ra là mình không thấy. Ừ, nó không có màn hình để map. Tự nhiên nó bị thụt lên gì. Thì không có ấy rồi. Giờ đâu coi lại coi cái đóng màn hình. Cái chỗ hoạt động màn hình đó, trước là nó sổ nguyên một trang luôn á. Cái chỗ đó màn hình nó làm biếng hết á. Tiếp nè. Thì check lại, mai check lại nè. Nay thì kê ra được character data nè, data là. Cúp phòng demo không? Để từ xử lý. Nên chưa có đồ xử lý nè. Để xem xử lý được. Xử lý. Khô máu. Mắc cười quá nấc cục hả? Xử lý khủng bố. Lấy dữ liệu luôn. 34 cái cây không đặt tên thầy. Xử lý. Khổ ghê. Gửi đi. Gửi qua bên AI. Xử lý. Khô máu thiệt á. Này mai mới bắt đầu check lại, mai check lại nè. Từ Cúp này nữa nè. Hồi nãy nói là nó sập tiếp nữa nè. Một cái, một hồi

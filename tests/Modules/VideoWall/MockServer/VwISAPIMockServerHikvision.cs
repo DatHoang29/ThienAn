@@ -127,7 +127,7 @@ namespace Tests.Modules.VideoWall.MockServer
         public bool SimulateInvalidOperation { get; set; }
         public bool ScreenCtrlCloseAllThrowsInvalidOperation { get; set; } = true;
         public bool SimulateNoBoundWall { get; set; }
-        public bool SimulateMultipleBoundWalls { get; set; } = true;
+        public bool SimulateMultipleBoundWalls { get; set; }
         public bool SimulateWall1Unbound { get; set; }
         public bool SimulateWall2Unbound { get; set; }
         public bool SimulateUnreachable { get; set; }
@@ -139,9 +139,15 @@ namespace Tests.Modules.VideoWall.MockServer
             if (SimulateNoBoundWall)
                 return "unbound";
             if (wallId == "1")
-                return (!SimulateWall1Unbound && SimulateMultipleBoundWalls) ? "bound" : "unbound";
+                return SimulateWall1Unbound ? "unbound" : "bound";
             if (wallId == "2")
-                return SimulateWall2Unbound ? "unbound" : "bound";
+            {
+                if (SimulateWall2Unbound)
+                    return "unbound";
+                if (SimulateWall1Unbound || SimulateMultipleBoundWalls)
+                    return "bound";
+                return "unbound";
+            }
             return "bound";
         }
 
@@ -293,7 +299,7 @@ namespace Tests.Modules.VideoWall.MockServer
             SimulateInvalidOperation = false;
             ScreenCtrlCloseAllThrowsInvalidOperation = true;
             SimulateNoBoundWall = false;
-            SimulateMultipleBoundWalls = true;
+            SimulateMultipleBoundWalls = false;
             SimulateWall1Unbound = false;
             SimulateWall2Unbound = false;
             SimulateUnreachable = false;
@@ -447,7 +453,8 @@ namespace Tests.Modules.VideoWall.MockServer
                     var clientCnonce = ReadAuthDirective(authHeader, "cnonce");
                     var clientResponse = ReadAuthDirective(authHeader, "response");
 
-                    LastReceivedAuthNonce = clientNonce;
+                    if (!string.IsNullOrWhiteSpace(clientNonce))
+                        LastReceivedAuthNonce = clientNonce;
 
                     bool hasValidAuth;
                     if (VerifyDigestResponseHash)

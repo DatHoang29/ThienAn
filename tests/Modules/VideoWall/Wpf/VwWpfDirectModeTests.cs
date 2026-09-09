@@ -302,7 +302,7 @@ public class VwWpfDirectModeTests
             Assert.True(listSummary.HasResponse);
             Assert.Equal("VideoWallList", listSummary.RootElement);
             Assert.Contains(listSummary.Badges, b => b.Contains("2 Tường"));
-            Assert.Contains(listSummary.Badges, b => b.Contains("2 bound"));
+            Assert.Contains(listSummary.Badges, b => b.Contains("1 bound"));
         }
     }
 

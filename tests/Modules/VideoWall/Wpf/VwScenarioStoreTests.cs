@@ -434,6 +434,7 @@ public class VwScenarioStoreTests : IDisposable
         {
             ProbeResult = new Module.VideoWall.WPF.Api.Dto.VwProbeDeviceOutput
             {
+                BoundWallNo = 1,
                 Reachable = true,
                 MaxWindowNums = 6,
                 Outputs =
@@ -1174,6 +1175,7 @@ public class VwScenarioStoreTests : IDisposable
         {
             ProbeResult = new Module.VideoWall.WPF.Api.Dto.VwProbeDeviceOutput
             {
+                BoundWallNo = 1,
                 Reachable = true,
                 Outputs =
                 [

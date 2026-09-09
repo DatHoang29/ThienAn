@@ -21,7 +21,15 @@ namespace Tests.Modules.VideoWall
 
         /// <summary>
         /// Author: Đạt
-        /// Description: Kịch bản toàn tường (ControllerId rỗng) cho phép đặt cửa sổ ở bất kỳ toạ độ nào
+        /// Description: Kịch bản toàn tường (ControllerId rỗng) KHÔNG bị giới hạn trong vùng của một
+        ///              bộ điều khiển — đặt cửa sổ ở đâu trong tường cũng được.
+        ///
+        ///              LƯU Ý: "bất kỳ toạ độ" KHÔNG còn đúng nguyên văn. Kịch bản toàn tường vẫn bị
+        ///              chặn nếu tràn ra ngoài canvas tường — xem
+        ///              VwCascadeCoordDatabaseTests.A7_WindowExceedingWallCanvas_ThrowsException.
+        ///              Bản cũ dùng (10000, 10000) nên phụ thuộc việc test khác có chèn màn hình /
+        ///              topology hay không (canvas thay đổi theo). Nay dùng cửa sổ nằm trong một ô
+        ///              panel tại gốc để kết quả không lệ thuộc thứ tự chạy.
         /// Created date: 15/08/2026
         /// </summary>
         [Fact]
@@ -39,7 +47,13 @@ namespace Tests.Modules.VideoWall
             await _db.Insertable(scene).ExecuteCommandAsync();
 
             var exception = await Record.ExceptionAsync(() =>
-                GetRegionService().EnsureWindowInsideSceneRegionAsync(scene.ID, 10000, 10000, 1920, 1080, "Test Window"));
+                GetRegionService().EnsureWindowInsideSceneRegionAsync(
+                    scene.ID,
+                    0,
+                    0,
+                    VwSceneRegionService.PanelWidthPx,
+                    VwSceneRegionService.PanelHeightPx,
+                    "Test Window"));
 
             Assert.Null(exception);
         }
@@ -106,8 +120,17 @@ namespace Tests.Modules.VideoWall
             };
             await _db.Insertable(scene).ExecuteCommandAsync();
 
+            // Cửa sổ phải nằm GỌN trong panel của chính controller đó, nên kích thước lấy theo
+            // nửa panel. Gõ cứng 1920x1080 như bản cũ chỉ đúng khi panel là 3840x2160; với panel
+            // 1920x1080 thì nó tràn sang cột kế bên và bị chặn đúng theo thiết kế.
             var exception = await Record.ExceptionAsync(() =>
-                GetRegionService().EnsureWindowInsideSceneRegionAsync(scene.ID, baseCol * VwSceneRegionService.PanelWidthPx + 100, 100, 1920, 1080, "Window Inside"));
+                GetRegionService().EnsureWindowInsideSceneRegionAsync(
+                    scene.ID,
+                    baseCol * VwSceneRegionService.PanelWidthPx + 100,
+                    100,
+                    VwSceneRegionService.PanelWidthPx / 2,
+                    VwSceneRegionService.PanelHeightPx / 2,
+                    "Window Inside"));
 
             Assert.Null(exception);
         }
@@ -212,11 +235,17 @@ namespace Tests.Modules.VideoWall
         [Fact]
         public void VwSceneRegionService_ToIsapiLocalRect_WindowOffsetInsidePanel_ScalesProportionally_Test()
         {
+            // Toạ độ vào phải tính THEO kích thước panel, không gõ số cứng: hàm này quy đổi
+            // pixel trong panel sang ô ảo BaseOutputSize, nên chỉ TỈ LỆ mới là bất biến.
+            // (Bản cũ gõ 192/216 vì panel từng là 3840x2160 — đổi panel là test sai ngay.)
             var (x, y, _, _) = VwSceneRegionService.ToIsapiLocalRect(
-                originCol: 0, originRow: 0, x: 192, y: 216, w: 100, h: 100);
+                originCol: 0, originRow: 0,
+                x: VwSceneRegionService.PanelWidthPx / 20,
+                y: VwSceneRegionService.PanelHeightPx / 10,
+                w: 100, h: 100);
 
-            Assert.Equal(96, x);
-            Assert.Equal(192, y);
+            Assert.Equal(VwWallProfile.BaseOutputSize / 20, x);
+            Assert.Equal(VwWallProfile.BaseOutputSize / 10, y);
         }
 
         /// <summary>

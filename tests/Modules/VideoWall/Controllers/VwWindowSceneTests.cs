@@ -634,7 +634,9 @@ public class VwWindowSceneTests(Host host)
         await _db.Deleteable<VwController>().ExecuteCommandAsync();
         await _db.Deleteable<VwScreen>().ExecuteCommandAsync();
 
-        var baseColWW = Random.Shared.Next(100, 10000) * 10;
+        var baseColWW = 0;
+        try
+        {
         var ctrlA = new VwController
         {
             ID = Guid.NewGuid().ToString(),
@@ -721,6 +723,25 @@ public class VwWindowSceneTests(Host host)
         Assert.Equal(2, host.MockServer.AddWindowCallCount);
         // Cả 2 controller đều lưu snapshot scene (SaveSceneData = 2)
         Assert.Equal(2, host.MockServer.SaveSceneDataCallCount);
+        }
+        finally
+        {
+            if (!await _db.Queryable<VwController>().AnyAsync(u => u.Role == "center" && u.IsDelete == null))
+            {
+                await _db.Insertable(new VwController
+                {
+                    ID = "TEST_DEFAULT_CENTER_CTRL",
+                    Code = "TEST_DEFAULT_CENTER_CTRL",
+                    Name = "Default Center Controller",
+                    Role = "center",
+                    IntegrationMode = "cascade",
+                    IP = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPort}",
+                    Account = VwISAPIMockServerHikvision.DefaultUser,
+                    PassWord = VwISAPIMockServerHikvision.DefaultPassword,
+                    Status = BaseEnums.StatusEnum.Enable
+                }).ExecuteCommandAsync();
+            }
+        }
     }
 
     /// <summary>
@@ -738,7 +759,9 @@ public class VwWindowSceneTests(Host host)
         await _db.Deleteable<VwController>().ExecuteCommandAsync();
         await _db.Deleteable<VwScreen>().ExecuteCommandAsync();
 
-        var baseColDel = Random.Shared.Next(100, 10000) * 10;
+        var baseColDel = 0;
+        try
+        {
         var ctrlA = new VwController
         {
             ID = Guid.NewGuid().ToString(),
@@ -831,6 +854,25 @@ public class VwWindowSceneTests(Host host)
         Assert.Equal(2, host.MockServer.DeleteAllWindowsCallCount);
         Assert.Equal(0, host.MockServer.AddWindowCallCount); // Không còn window nào
         Assert.Equal(2, host.MockServer.SaveSceneDataCallCount);
+        }
+        finally
+        {
+            if (!await _db.Queryable<VwController>().AnyAsync(u => u.Role == "center" && u.IsDelete == null))
+            {
+                await _db.Insertable(new VwController
+                {
+                    ID = "TEST_DEFAULT_CENTER_CTRL",
+                    Code = "TEST_DEFAULT_CENTER_CTRL",
+                    Name = "Default Center Controller",
+                    Role = "center",
+                    IntegrationMode = "cascade",
+                    IP = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPort}",
+                    Account = VwISAPIMockServerHikvision.DefaultUser,
+                    PassWord = VwISAPIMockServerHikvision.DefaultPassword,
+                    Status = BaseEnums.StatusEnum.Enable
+                }).ExecuteCommandAsync();
+            }
+        }
     }
 
     /// <summary>

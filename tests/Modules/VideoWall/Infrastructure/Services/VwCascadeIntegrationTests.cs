@@ -71,9 +71,10 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
         [Fact]
         public async Task D2_SyncWindows_FullScreen_CreatesExactlyTwentyOneWindowsWithoutSlicing()
         {
-            // Arrange
             _mock.ResetDefaults();
             _mock.IsCascadeCenter = true;
+            await _db.Deleteable<VwScreen>().ExecuteCommandAsync();
+            await _db.Deleteable<VwController>().ExecuteCommandAsync();
 
             var center = new VwController
             {
@@ -370,7 +371,7 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
 
             // Assert
             Assert.Equal(initialAddCount + 2, _mock.AddWindowCallCount);
-            Assert.True(_mock.DeleteWindowCallCount >= 2);
+            Assert.True(_mock.DeleteAllWindowsCallCount >= 2);
         }
 
         /// <summary>

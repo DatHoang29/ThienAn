@@ -31,15 +31,21 @@ HữuNghị-ChiLăng/
 │   │   ├── TableSQL/                         🤖    Tier A (thiết kế CSDL Vw*)
 │   │   └── Transcript/                       🤖    Tier A (transcript cuộc họp chuẩn bị)
 │   ├── data/                                 🤖    Tier B: Log đo thực tế trên thiết bị (logs-api/)
-│   └── _source/                              👤    Tier C: Bản gốc đối chiếu (pdf/, xlsx/, img/)
-└── WOS/                                      🤖👤 Phân hệ Trạm Thời tiết & Khí tượng (Campbell CR1000X)
-    ├── README.md                             🤖👤 SSOT phân hệ WOS (kèm Tier Table & hướng dẫn tích hợp)
-    ├── doc/                                  🤖    Tier A + B: Toàn bộ .md kỹ thuật, cấu hình, cẩm nang
-    │   ├── cr1000x-specifications.md         🤖    Tier A: Thông số kỹ thuật chi tiết
-    │   ├── cr1000x-getting-started-guide.md  🤖    Tier A: Hướng dẫn khởi động nhanh
-    │   ├── cr1000x-product-manual/           🤖    Tier A + B: Cẩm nang 334 trang (00-catalog, 01–11, full)
-    │   └── images/                           🤖    Sơ đồ đấu nối, ảnh chụp thiết bị
-    └── _source/                              👤    Tier C: Bản gốc đối chiếu (pdf/)
+│   ├── doc/transcript/                       🤖    Tier A: Bản ghi họp .md (2026-08-28 chuẩn bị kiểm thử)
+│   └── _source/                              👤    Tier C: Bản gốc đối chiếu (pdf/, xlsx/, img/, audio/)
+├── WOS/                                      🤖👤 Phân hệ Trạm Thời tiết & Khí tượng (Campbell CR1000X)
+│   ├── README.md                             🤖👤 SSOT phân hệ WOS (kèm Tier Table & hướng dẫn tích hợp)
+│   ├── doc/                                  🤖    Tier A + B: Toàn bộ .md kỹ thuật, cấu hình, cẩm nang
+│   │   ├── cr1000x-specifications.md         🤖    Tier A: Thông số kỹ thuật chi tiết
+│   │   ├── cr1000x-getting-started-guide.md  🤖    Tier A: Hướng dẫn khởi động nhanh
+│   │   ├── cr1000x-product-manual/           🤖    Tier A + B: Cẩm nang 334 trang (00-catalog, 01–11, full)
+│   │   └── images/                           🤖    Sơ đồ đấu nối, ảnh chụp thiết bị
+│   └── _source/                              👤    Tier C: Bản gốc đối chiếu (pdf/)
+└── Plan/                                     🤖👤 Kế hoạch & biên bản họp xuyên phân hệ
+    ├── sharedata_plan.md / videowall_plan.md / TH-0908.md   🤖 Tier A: Bản kế hoạch
+    ├── doc/transcript/                       🤖    Tier A: Bản ghi họp .md + 00-catalog.md
+    │   └── 2026-09-08-hop-ke-hoach-{1,2}.md
+    └── _source/audio/                        👤    Tier C: Ghi âm gốc (KHÔNG vào git)
 ```
 
 ---

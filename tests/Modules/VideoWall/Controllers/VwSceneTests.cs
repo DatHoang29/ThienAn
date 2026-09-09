@@ -471,6 +471,8 @@ public class VwSceneTests(Host host)
         {
             Code = ctrlCode,
             Name = "Mapped Device Controller",
+            Role = "center",
+            IntegrationMode = "cascade",
             IP = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPort}",
             Account = VwISAPIMockServerHikvision.DefaultUser,
             PassWord = VwISAPIMockServerHikvision.DefaultPassword,
@@ -527,6 +529,8 @@ public class VwSceneTests(Host host)
         {
             Code = ctrlCode,
             Name = "Failing Device Controller",
+            Role = "center",
+            IntegrationMode = "cascade",
             IP = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPort}",
             Account = VwISAPIMockServerHikvision.DefaultUser,
             PassWord = VwISAPIMockServerHikvision.DefaultPassword,
@@ -584,6 +588,8 @@ public class VwSceneTests(Host host)
         {
             Code = $"{TestPrefix}CTRL_A_{Guid.NewGuid():N}",
             Name = "Whole Wall Controller A",
+            Role = "center",
+            IntegrationMode = "cascade",
             IP = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPorts[0]}",
             Account = VwISAPIMockServerHikvision.DefaultUser,
             PassWord = VwISAPIMockServerHikvision.DefaultPassword,
@@ -602,6 +608,7 @@ public class VwSceneTests(Host host)
         };
         await _db.Insertable(new[] { ctrlA, ctrlB }).ExecuteCommandAsync();
 
+        host.MockServer.SimulateFailurePorts.Add(VwISAPIMockServerHikvision.DefaultPorts[0]);
         host.MockServer.SimulateFailurePorts.Add(VwISAPIMockServerHikvision.DefaultPorts[1]);
 
         var scene = new VwScene
