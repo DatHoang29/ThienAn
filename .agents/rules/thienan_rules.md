@@ -450,6 +450,18 @@ tests/
 
 ---
 
+## 🛑 18. Quy Định Bóc Tách / Xử Lý File Ghi Âm (Audio Transcription Rule [Mandatory Rule])
+
+- **Bắt buộc cấu trúc 2 phần khi xử lý file ghi âm cuộc họp**:
+  1. **Tóm tắt tổng quan & Quyết định kỹ thuật / nghiệp vụ cốt lõi (Executive Summary)**: Nêu bật các kết luận, hành động cần làm, thay đổi kiến trúc hoặc quy ước dữ liệu đã chốt trong cuộc họp.
+  2. **Toàn văn nội dung đối thoại (Full Verbatim Transcript)**: BẮT BUỘC trình bày dạng bảng chi tiết gồm đủ 3 cột:
+     - **Mốc thời gian (Timestamp)**: Định dạng chuẩn `mm:ss` (hoặc `hh:mm:ss`) bám sát dòng thời gian của file ghi âm.
+     - **Người nói (Speaker)**: Phân định rõ ràng từng người tham gia (VD: `Người 1`, `Người 2` kèm vai trò/ngữ cảnh nếu xác định được).
+     - **Lời thoại chi tiết**: Ghi lại nguyên văn nội dung trao đổi, không cắt gọt cụt lủn hay tự ý giản lược thoại đối đáp.
+- **Quy chuẩn lưu trữ file transcript**: Khi tạo mới hoặc cập nhật tài liệu transcript trong thư mục dự án (như `doc/transcript/*.md`), phần bảng toàn văn đối thoại (kèm mốc thời gian và định danh người nói) BẮT BUỘC phải được đưa vào tài liệu (thường đặt ở mục cuối cùng).
+
+---
+
 ## 📎 Ghi chú mở — cần xác minh / còn trùng lặp
 
 - **`GlobalUsings.cs` tối thiểu (mục 5.5)**: liệt kê gồm `Shared.Core.Domain` và `System.Linq.Dynamic.Core`, nhưng `src/Modules/VideoWall/Module.VideoWall/GlobalUsings.cs` **không có** 2 dòng này, lại có `Furion.ConfigurableOptions`, `Furion.DynamicApiController`, `Newtonsoft.Json`, `Microsoft.Extensions.Options`, `System.ComponentModel.DataAnnotations`. Cần rà thêm các module khác (WP, TMS, ShareData) rồi chốt lại danh sách tối thiểu cho đúng.
