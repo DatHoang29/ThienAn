@@ -13,7 +13,7 @@ Plan này xây phần tích hợp phần mềm còn thiếu: một service độ
 
 | # | Quyết định | Chọn | Vì sao |
 |---|---|---|---|
-| 1 | Thư viện Modbus TCP client | **FluentModbus** | Có sẵn `ReadHoldingRegisters<float>()` + `ModbusEndianness.BigEndian` khớp thẳng với layout big-endian 32-bit float của CR1000X, khỏi tự ghép byte thủ công như NModbus. |
+| 1 | Thư viện Modbus TCP client | **FluentModbus** — **đã kiểm tra kỹ, có hỗ trợ C#/.NET đầy đủ** (xem mục xác minh bên dưới) | Có sẵn `ReadHoldingRegisters<float>()` + `ModbusEndianness.BigEndian` khớp thẳng với layout big-endian 32-bit float của CR1000X, khỏi tự ghép byte thủ công như NModbus. |
 | 2 | Register map | JSON lưu trong cột `WosStation.RegisterMapJson`, schema ở dưới | CRBasic gán register khác nhau theo từng trạm — cấu hình theo dữ liệu, sửa qua CRUD API, không cần đụng file trên máy chủ worker. |
 | 3 | `CanonicalDeviceMessage` (single-scalar hiện tại) | Thêm 1 property `Channel` (nullable, additive) — gọi `Decode` 6 lần/lần poll (1 lần/kênh) | Không phá vỡ contract `IDeviceCodec` hiện có (`DeviceACodec`/`DeviceBCodec` không đổi gì); tái dùng đúng pattern "acquire → decode từng item → aggregate" đã có ở `DeviceAggregationService`. |
 | 4 | Quy đổi đơn vị/scale (vd 0.254mm/tip) | Làm ở tầng aggregation service, **không** làm trong codec, lấy scale/offset từ register-map JSON | Giữ `IDeviceCodec` thuần protocol (byte↔canonical); xử lý được mâu thuẫn 0.254mm vs 0.2mm bằng cấu hình thay vì hard-code. |
@@ -22,6 +22,21 @@ Plan này xây phần tích hợp phần mềm còn thiếu: một service độ
 | 7 | Typo `Hudmidity` trong `TmsWeather` | **Giữ nguyên**, không rename | Spec mapping ShareData gói 104 đã tham chiếu đúng tên cột này; đổi tên sẽ phá hợp đồng đã tài liệu hoá. Có thể thêm property alias `Humidity` chỉ đọc, không đổi schema. |
 | 8 | Nối vào nhánh rỗng `equiApi` của `WeatherService` hay tách worker riêng | **Tách `Services.Wos.Worker` riêng**, tự ghi DB qua SqlSugar | `WeatherService` là hosted service chết (chưa từng được `AddHostedService`); mọi tích hợp thiết bị khác trong repo (`Services/Sample`, `Services/VDS`) đều là process Worker độc lập, không phải in-process hosted service. |
 
+### Xác minh: FluentModbus có hỗ trợ C# không?
+
+**Có — đã kiểm tra trực tiếp qua NuGet + GitHub (10/09/2026), không chỉ suy đoán:**
+
+| Tiêu chí | Kết quả kiểm tra |
+|---|---|
+| Ngôn ngữ / nền tảng | Thư viện **C#/.NET Standard 2.0 và 2.1** thuần — tương thích .NET Framework 4.6.1+, .NET Core 2.0+, và cả .NET 10 mà `Services.Wos.*` dự định dùng (project netstandard2.0 tham chiếu bình thường từ project net10.0). |
+| Phiên bản mới nhất | `5.3.2` trên NuGet ([nuget.org/packages/FluentModbus](https://www.nuget.org/packages/FluentModbus)). |
+| Duy trì tích cực | Repo GitHub `Apollo3zehn/FluentModbus`: lần push gần nhất **19/05/2026**, cập nhật gần nhất **01/09/2026** (tuần trước), chưa archive, 307 sao, 64 issue đang mở — vẫn đang được bảo trì. |
+| License | **MIT** — dùng tự do cho phần mềm nội bộ/thương mại, không ràng buộc gì thêm. |
+| API cần dùng | `new ModbusTcpClient().Connect(ip, port, ModbusEndianness.BigEndian)` rồi `client.ReadHoldingRegisters<float>(unitId, startAddress, count)` — đúng như thiết kế register-map JSON ở dưới, xác nhận qua tài liệu chính thức [apollo3zehn.github.io/FluentModbus](https://apollo3zehn.github.io/FluentModbus/) và mẫu code [Modbus TCP sample](https://apollo3zehn.github.io/FluentModbus/samples/modbus_tcp.html). |
+| ⚠️ Lưu ý khi implement | API của `ModbusTcpClient` là **đồng bộ (sync)**, không có `ReadHoldingRegistersAsync` sẵn — mẫu chính thức của thư viện cũng bọc lệnh gọi trong `Task.Run(...)` khi cần async. Vậy `WosModbusClient.ReadChannelsAsync(...)` (Phase 2) phải tự bọc `Task.Run(() => client.ReadHoldingRegisters<float>(...))`, không giả định có sẵn phương thức async — không đổi thiết kế interface `IWosModbusClient`, chỉ đổi cách implement bên trong. |
+
+**Phát hiện thêm cần đưa vào schema**: theo bài viết chính thức của Campbell Scientific ["How to Access Live Measurement Data Using Modbus"](https://www.campbellsci.com/blog/access-live-measurement-data-using-modbus), thứ tự byte của float (`ABCD`/`BADC`/`CDAB`/`DCBA`) là **tham số cấu hình trong `ModbusServer()` của chương trình CRBasic từng trạm**, không cố định phần cứng — cùng loại rủi ro "khác nhau theo từng trạm" như địa chỉ register. Vì vậy bổ sung field `byteOrder` vào register-map JSON thay vì hard-code `ModbusEndianness.BigEndian`.
+
 ### Schema register-map JSON (trên `WosStation.RegisterMapJson`)
 
 ```json
@@ -29,6 +44,7 @@ Plan này xây phần tích hợp phần mềm còn thiếu: một service độ
   "unitId": 1,
   "tableIntervalSeconds": 60,
   "accumulationMode": "delta",
+  "byteOrder": "ABCD",
   "channels": [
     { "code": "TEMP", "parameter": "temperature",  "campbellRegister": 30001, "unit": "C",   "scale": 1.0,   "offset": 0.0 },
     { "code": "RH",   "parameter": "humidity",      "campbellRegister": 30003, "unit": "%",   "scale": 1.0,   "offset": 0.0 },
@@ -39,7 +55,7 @@ Plan này xây phần tích hợp phần mềm còn thiếu: một service độ
   ]
 }
 ```
-`campbellRegister` lưu số Campbell công bố (1-based, offset 30000/40000); có helper strip offset → địa chỉ Modbus 0-based cho FluentModbus.
+`campbellRegister` lưu số Campbell công bố (1-based, offset 30000/40000); có helper strip offset → địa chỉ Modbus 0-based cho FluentModbus. `byteOrder` mặc định `"ABCD"` (= `ModbusEndianness.BigEndian` chuẩn), nhưng phải xác nhận lại theo `ModbusOption` thực tế trong chương trình CRBasic của từng trạm trước khi đưa vào vận hành — không giả định giống nhau cho mọi trạm.
 
 ## Các file sẽ tạo/sửa (theo pha)
 

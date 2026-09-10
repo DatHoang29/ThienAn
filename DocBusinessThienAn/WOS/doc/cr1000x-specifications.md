@@ -23,11 +23,11 @@ extracted: 2026-09-09
 
 ## 2. Thông số hệ thống (System Specifications)
 
-- **Bộ xử lý (CPU)**: 32-bit ARM Cortex-A8 chạy ở tốc độ 100 MHz.
+- **Bộ xử lý (CPU)**: Renesas RX63N (32-bit, có hardware FPU) chạy ở tốc độ 100 MHz.
 - **Bộ nhớ (Memory)**:
   - Bộ nhớ chương trình (SRAM): 4 MB chạy chương trình và bảng dữ liệu.
   - Bộ nhớ lưu trữ dữ liệu (Flash): 128 MB flash dành cho hệ điều hành, cấu hình, và dữ liệu backup.
-  - Hỗ trợ thẻ nhớ ngoài: Khe cắm MicroSD (CRD: drive) hỗ trợ lên đến 32 GB (FAT32).
+  - Hỗ trợ thẻ nhớ ngoài: Khe cắm MicroSD (CRD: drive) hỗ trợ lên đến 16 GB (FAT32).
 - **Hệ điều hành**: Pre-emptive multi-tasking OS, hỗ trợ ngôn ngữ lập trình CRBasic.
 - **Độ chính xác xung nhịp (Clock Accuracy)**:
   - Chuẩn: ±3 phút/năm (-40 °C đến +70 °C).

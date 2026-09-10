@@ -4,7 +4,7 @@ Thư mục này gồm **2 khu** khác mục đích. Xác định bạn đang là
 
 | Bạn đang… | Đọc |
 |---|---|
-| Tìm hiểu nghiệp vụ / yêu cầu dự án | Khu 2 → `doc/Plan/videowall_plan.md`, `doc/Transcript/transcript-videowall-28082026.md` |
+| Tìm hiểu nghiệp vụ / yêu cầu dự án | Khu 2 → `../Plan/videowall_plan.md`, `doc/transcript/2026-08-28-videowall-chuan-bi.md` |
 | Tra bộ lệnh ISAPI / kiểu response thiết bị | Khu 1 → `doc/ISAPI-Videowall-Controller/` (đọc `README.md` trước); response đo thật → `data/logs-api/` |
 | **Kịch bản test API — 1 controller / 12 màn** | Khu 2 → `doc/KichBan/KichBan_VideoWall_DS-C30S-S11_12Man.md` |
 | **Kiến trúc cascade DS-C66S (1 trung tâm + 3 con / 32 màn)** | `doc/KienTruc_VideoWall_DS-C66S-Cascade.md` — nguồn sự thật, dựng từ `_source/img/thietkevideowall.jpg` |
@@ -29,8 +29,9 @@ Thư mục này gồm **2 khu** khác mục đích. Xác định bạn đang là
 |---|---|---|
 | `doc/KichBan/KichBan_VideoWall_DS-C30S-S11_12Man.md` | 20 kịch bản test API (KB-01 → KB-20) cho **1 controller** DS-C30S-S11 / 12 màn lưới 4×3, toạ độ ảo 7680×5760, công thức ID, mã lỗi, runbook | Test/vận hành cấu hình 1 khung |
 | `doc/KichBan/KichBan_VideoWall_DS-C66S_4Controller_32Man.md` | Kịch bản test API cascade / 32 màn lưới 8×4 — **backend chỉ nói ISAPI với bộ trung tâm**, 3 bộ con là inventory (trừ KB-17 serial). Có **KB-00 probe read-only** chạy tại hiện trường. Kiến trúc: `doc/KienTruc_VideoWall_DS-C66S-Cascade.md` | Test/vận hành cấu hình cascade |
-| `doc/Plan/videowall_plan.md` | Đặc tả yêu cầu gốc — gộp họp 19/08 + 25/08 (bản lịch sử, không sửa) | đối chiếu yêu cầu ban đầu |
-| `doc/Transcript/transcript-videowall-28082026.md` | Transcript đầy đủ buổi họp chuẩn bị 28/08 (bản lịch sử, không sửa) | tra chi tiết ai nói gì |
+| `../Plan/videowall_plan.md` | Đặc tả yêu cầu gốc — gộp họp 19/08 + 25/08 (bản lịch sử, không sửa) | đối chiếu yêu cầu ban đầu |
+| `doc/transcript/2026-08-28-videowall-chuan-bi.md` | Transcript đầy đủ buổi họp chuẩn bị 28/08 | tra chi tiết ai nói gì |
+| `doc/transcript/2026-09-09-videowall-phan-quyen-va-layout.md` | Thảo luận phân quyền User/Tổ chức, SqlSugar ToTree & layout ma trận VideoWall | thiết kế & code backend/WPF |
 
 ## Tier Table
 
@@ -54,9 +55,11 @@ Thư mục này gồm **2 khu** khác mục đích. Xác định bạn đang là
 | A | `doc/ISAPI-Videowall-Controller/VideoWall_ISAPI_API_List.md` | full | 30 KB | Danh sách API ISAPI VideoWall tổng hợp | `_source/xlsx/VideoWall_ISAPI_API_List.xlsx` |
 | A | `doc/KichBan/KichBan_VideoWall_DS-C30S-S11_12Man.md` | full | 45 KB | 20 kịch bản test API cho 1 controller DS-C30S-S11 / 12 màn | Kịch bản kiểm thử nội bộ |
 | A | `doc/KichBan/KichBan_VideoWall_DS-C66S_4Controller_32Man.md` | full | ~22 KB | Kịch bản test API cascade DS-C66S / 32 màn (backend ↔ bộ trung tâm; 3 bộ con inventory) | Kịch bản kiểm thử nội bộ |
-| A | `doc/Plan/videowall_plan.md` | full | 4 KB | Đặc tả yêu cầu gốc gộp các cuộc họp 19/08 + 25/08 (bản lịch sử) | Kế hoạch nội bộ |
 | A | `doc/TableSQL/Vw_Tables_Analysis_And_Design.md` | full | 35 KB | Phân tích và thiết kế cấu trúc các bảng CSDL Vw* | Thiết kế kỹ thuật nội bộ |
-| A | `doc/Transcript/transcript-videowall-28082026.md` | full | 75 KB | Transcript đầy đủ cuộc họp chuẩn bị ngày 28/08 (bản lịch sử) | Biên bản họp nội bộ |
+| A | `doc/transcript/00-catalog.md` | full | 2 KB | Mục lục toàn bộ bản ghi cuộc họp VideoWall | Biên soạn nội bộ |
+| A | `doc/transcript/2026-08-28-videowall-chuan-bi.md` | full | 78 KB | Transcript đầy đủ cuộc họp chuẩn bị ngày 28/08 | Biên bản họp nội bộ |
+| A | `doc/transcript/2026-09-09-videowall-phan-quyen-va-layout.md` | full | 5 KB | Thảo luận VideoWall: Phân quyền User/Tổ chức, SqlSugar ToTree & layout ma trận | `_source/audio/2026-09-09-videowall-phan-quyen-va-layout.m4a` |
+| C | `_source/audio/2026-09-09-videowall-phan-quyen-va-layout.m4a` | never | 5 MB | Audio cuộc họp VideoWall về phân quyền và layout (10:37) | → bản `.md`: `doc/transcript/2026-09-09-videowall-phan-quyen-va-layout.md` |
 | A | `data/logs-api/README.md` | full | 5 KB | Hướng dẫn đọc log đo thực tế và nhận diện mock | Ghi chú vận hành nội bộ |
 | B | `data/logs-api/session-20260903-real.json` | grep-only | 1.635 KB | Log đo thực tế trên thiết bị DS-C66S ngày 03/09/2026 | Đo trực tiếp thiết bị trạm |
 | B | `data/logs-api/session-20260904-real.json` | grep-only | 2.569 KB | Log đo thực tế trên thiết bị DS-C66S ngày 04/09/2026 | Đo trực tiếp thiết bị trạm |

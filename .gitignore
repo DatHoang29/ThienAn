@@ -14,4 +14,11 @@ __pycache__/
 
 # Large documentation / PDF sources
 *C2.TAP III.Q2.1.3 NTĐV CCTV,VDS,VMS,DTS,WOS,TMS,PBX*
-*C2.TAP III.Q2.2.3 NTĐV CCTV,VDS,VMS,DTS,WOS,TMS,PBX*
+*C2.TAP III.Q2.2.3 NTĐV CCTV,VDS,VMS,DTS,WOS,TMS,PBX*
+
+# Tier C sources (audio, heavy raw docs)
+**/_source/**
+*.m4a
+*.mp3
+*.wav
+
