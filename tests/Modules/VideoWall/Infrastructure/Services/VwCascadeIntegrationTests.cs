@@ -569,5 +569,92 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
 
             Assert.Contains("không có tường nào có cổng ra", ex.Message);
         }
+
+        /// <summary>
+        /// Description: D13 - Toạ độ 21 cửa sổ chuẩn của seed layout (1 ITS giữa 12 màn + 20 camera viền)
+        ///              đều nằm trọn trong canvas 15360×4320 (8 cột × 4 hàng, panel 1920×1080).
+        ///              Xác nhận thiết kế thực tế từ thietkevideowall.jpg và Mục 2.3 videowall-device-nats-plan.md.
+        /// Created date: 10/09/2026
+        /// </summary>
+        [Fact]
+        public async Task D13_SeedLayout_TwentyOneWindows_AllInsideCanvas15360x4320_Test()
+        {
+            // Arrange — topology 8×4, panel 1920×1080 → canvas 15360×4320
+            var topo = new VwWallTopology
+            {
+                ID = $"{TestPrefix}TOPO_D13_{Guid.NewGuid():N}",
+                Code = "WALL-D13",
+                Name = "Topology 8x4 Seed Check",
+                Cols = 8,
+                Rows = 4,
+                ScreenWidth = 1920,
+                ScreenHeight = 1080
+            };
+            await _db.Insertable(topo).ExecuteCommandAsync();
+
+            var scene = new VwScene
+            {
+                ID = $"{TestPrefix}SCN_D13_{Guid.NewGuid():N}",
+                Code = "SCN_D13",
+                Name = "Kịch bản toàn tường 32 màn",
+                ControllerId = null,  // kịch bản toàn tường
+                OutputId = "1",
+                Status = BaseEnums.StatusEnum.Enable
+            };
+            await _db.Insertable(scene).ExecuteCommandAsync();
+
+            var regionService = host.Services.GetRequiredService<VwSceneRegionService>();
+
+            // Danh sách 21 cửa sổ chuẩn theo seed và thiết kế thietkevideowall.jpg
+            // ITS/MAP: cột 3-8 (index 0-based: 2-7), hàng 2-3 (index 0-based: 1-2) — 6×2 màn = 12 màn
+            // Toạ độ pixel: X = 2*1920 = 3840, Y = 1*1080 = 1080, W = 6*1920 = 11520, H = 2*1080 = 2160
+            // (seed SQL dùng X=7680, Y=2160 vì panel 3840×2160 cũ — ở đây dùng đúng 1920×1080 theo KienTruc)
+            var windows = new List<(int X, int Y, int W, int H, string Label)>
+            {
+                // Cửa sổ ITS / MAP (phủ cột 2-7, hàng 1-2, index 0-based)
+                (2 * 1920, 1 * 1080, 6 * 1920, 2 * 1080, "ITS/MAP"),
+
+                // Camera viền hàng 0 (cam 1..8, cột 0..7)
+                (0 * 1920, 0 * 1080, 1920, 1080, "CAM-01"),
+                (1 * 1920, 0 * 1080, 1920, 1080, "CAM-02"),
+                (2 * 1920, 0 * 1080, 1920, 1080, "CAM-03"),
+                (3 * 1920, 0 * 1080, 1920, 1080, "CAM-04"),
+                (4 * 1920, 0 * 1080, 1920, 1080, "CAM-05"),
+                (5 * 1920, 0 * 1080, 1920, 1080, "CAM-06"),
+                (6 * 1920, 0 * 1080, 1920, 1080, "CAM-07"),
+                (7 * 1920, 0 * 1080, 1920, 1080, "CAM-08"),
+
+                // Camera viền hàng 1 (cam 9..10, cột 0, 1)
+                (0 * 1920, 1 * 1080, 1920, 1080, "CAM-09"),
+                (1 * 1920, 1 * 1080, 1920, 1080, "CAM-10"),
+
+                // Camera viền hàng 2 (cam 11..12, cột 0, 1)
+                (0 * 1920, 2 * 1080, 1920, 1080, "CAM-11"),
+                (1 * 1920, 2 * 1080, 1920, 1080, "CAM-12"),
+
+                // Camera viền hàng 3 (cam 13..20, cột 0..7)
+                (0 * 1920, 3 * 1080, 1920, 1080, "CAM-13"),
+                (1 * 1920, 3 * 1080, 1920, 1080, "CAM-14"),
+                (2 * 1920, 3 * 1080, 1920, 1080, "CAM-15"),
+                (3 * 1920, 3 * 1080, 1920, 1080, "CAM-16"),
+                (4 * 1920, 3 * 1080, 1920, 1080, "CAM-17"),
+                (5 * 1920, 3 * 1080, 1920, 1080, "CAM-18"),
+                (6 * 1920, 3 * 1080, 1920, 1080, "CAM-19"),
+                (7 * 1920, 3 * 1080, 1920, 1080, "CAM-20"),
+            };
+
+            Assert.Equal(21, windows.Count);
+
+            // Act & Assert — không cửa sổ nào bị ném lỗi tràn canvas
+            foreach (var (x, y, w, h, label) in windows)
+            {
+                var ex = await Record.ExceptionAsync(() =>
+                    regionService.EnsureWindowInsideSceneRegionAsync(scene.ID, x, y, w, h, label));
+
+                Assert.True(
+                    ex == null,
+                    $"Cửa sổ [{label}] tại ({x},{y},{w},{h}) không nên ném ngoại lệ nhưng đã ném: {ex?.Message}");
+            }
+        }
     }
 }

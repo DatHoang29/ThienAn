@@ -6,7 +6,7 @@
   </PropertyGroup>
 
   <!-- Cấu hình TargetFramework: Chỉ bật net10.0-windows khi có project WPF, bình thường chỉ test net10.0 -->
-  <PropertyGroup Condition="Exists('$(RepoRoot)\src\Modules\VideoWall\Module.VideoWall.WPF\Module.VideoWall.WPF.csproj')">
+  <PropertyGroup Condition="Exists('$(RepoRoot)\src\Services\VideoWall\ITS.VideoWall.WPF\ITS.VideoWall.WPF.csproj')">
     <TargetFrameworks>net10.0;net10.0-windows</TargetFrameworks>
   </PropertyGroup>
   <PropertyGroup Condition="'$(TargetFrameworks)' == ''">
@@ -63,7 +63,7 @@
     <ShareDataModuleProject>$(RepoRoot)\src\Modules\ShareData\Module.ShareData\Module.ShareData.csproj</ShareDataModuleProject>
     <VideoWallModuleProject>$(RepoRoot)\src\Modules\VideoWall\Module.VideoWall\Module.VideoWall.csproj</VideoWallModuleProject>
     <VideoWallIsapiSource>$(RepoRoot)\src\Modules\VideoWall\Module.VideoWall.Core\Interfaces\IVwISAPIDeviceClient.cs</VideoWallIsapiSource>
-    <VideoWallWpfProject>$(RepoRoot)\src\Modules\VideoWall\Module.VideoWall.WPF\Module.VideoWall.WPF.csproj</VideoWallWpfProject>
+    <VideoWallWpfProject>$(RepoRoot)\src\Services\VideoWall\ITS.VideoWall.WPF\ITS.VideoWall.WPF.csproj</VideoWallWpfProject>
   </PropertyGroup>
 
   <!-- Cờ kích hoạt biên dịch theo module có sẵn trong nhánh -->

@@ -5,7 +5,7 @@
 
 | Transcript | Audio nguồn | Ngày | Thời lượng | Chủ đề | Tier |
 |---|---|---|---|---|---|
-| [`2026-09-09-review-sharedata.md`](2026-09-09-review-sharedata.md) | `_source/audio/2026-09-09-review-1.m4a`, `_source/audio/2026-09-09-review-2.m4a` | 2026-09-09 | ~61 phút | Review ShareData toàn diện: Luồng gửi/nhận file & API, cấu hình gói tin, SQL query alias mapping đối tác, chu kỳ gửi, sự kiện khẩn cấp (Incident), Socket Wrapper (`H2 data`) & tối giản Priority Queue | A |
+| [`2026-09-09-review-sharedata.md`](2026-09-09-review-sharedata.md) | `_source/audio/2026-09-09-review-1.m4a`, `_source/audio/2026-09-09-review-2.m4a` | 2026-09-09 | ~61 phút | Review ShareData toàn diện: Luồng gửi/nhận file & API, cấu hình gói tin, SQL alias mapping đối tác, bổ sung xử lý theo giờ/time (9h sáng hàng ngày), bỏ cấu hình sự kiện/gửi 1 lần, switch tự động gửi khi có data mới, Socket Wrapper & xóa log đầu ngày | A |
 
 > ⚙️ Bản ghi được gộp và chuẩn hóa theo quy chuẩn Tier A (Frontmatter Provenance, Executive Summary, Key Takeaways, Timeline Breakdown).
 > Các nội dung liên quan phân hệ VideoWall (phân quyền User/Org, dựng cây Zone, layout ma trận) đã được tách riêng sang [`../../../VideoWall/doc/transcript/`](../../../VideoWall/doc/transcript/).

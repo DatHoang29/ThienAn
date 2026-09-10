@@ -58,7 +58,7 @@ Thư mục này gồm **2 khu** khác mục đích. Xác định bạn đang là
 | A | `doc/TableSQL/Vw_Tables_Analysis_And_Design.md` | full | 35 KB | Phân tích và thiết kế cấu trúc các bảng CSDL Vw* | Thiết kế kỹ thuật nội bộ |
 | A | `doc/transcript/00-catalog.md` | full | 2 KB | Mục lục toàn bộ bản ghi cuộc họp VideoWall | Biên soạn nội bộ |
 | A | `doc/transcript/2026-08-28-videowall-chuan-bi.md` | full | 78 KB | Transcript đầy đủ cuộc họp chuẩn bị ngày 28/08 | Biên bản họp nội bộ |
-| A | `doc/transcript/2026-09-09-videowall-phan-quyen-va-layout.md` | full | 5 KB | Thảo luận VideoWall: Phân quyền User/Tổ chức, SqlSugar ToTree & layout ma trận | `_source/audio/2026-09-09-videowall-phan-quyen-va-layout.m4a` |
+| A | `doc/transcript/2026-09-09-videowall-phan-quyen-va-layout.md` | full | 17 KB | Thảo luận VideoWall: Phân quyền User/Tổ chức, SqlSugar ToTree & layout ma trận | `_source/audio/2026-09-09-videowall-phan-quyen-va-layout.m4a` |
 | C | `_source/audio/2026-09-09-videowall-phan-quyen-va-layout.m4a` | never | 5 MB | Audio cuộc họp VideoWall về phân quyền và layout (10:37) | → bản `.md`: `doc/transcript/2026-09-09-videowall-phan-quyen-va-layout.md` |
 | A | `data/logs-api/README.md` | full | 5 KB | Hướng dẫn đọc log đo thực tế và nhận diện mock | Ghi chú vận hành nội bộ |
 | B | `data/logs-api/session-20260903-real.json` | grep-only | 1.635 KB | Log đo thực tế trên thiết bị DS-C66S ngày 03/09/2026 | Đo trực tiếp thiết bị trạm |

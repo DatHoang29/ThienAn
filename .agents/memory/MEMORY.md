@@ -7,6 +7,7 @@
 
 ## User & Conventions
 - [User profile](user-profile.md) — backend dev trên TA-ITS015 (ITS/C2C ISO 14827); viết & trả lời tiếng Việt
+- [Văn phong plan/báo cáo: báo cáo + hành động, bỏ chi tiết forensic](feedback-report-style-no-forensic-detail.md) — bảng ngắn Trạng thái/Chốt ở họp, không kể ngày commit/diễn giải diff
 - [Thiên An preferences & project conventions](thienan-user-preferences.md) — git/docker/code-style/entity/SqlSugar-DbFirst/Vue/testing/SQL rules (đã gộp phần C# của project-conventions)
 
 ## Project — việc đang làm

@@ -254,5 +254,99 @@ namespace Tests.Modules.VideoWall
                 .CountAsync();
             Assert.Equal(0, countActive);
         }
+
+        /// <summary>
+        /// Description: Kiểm tra bất biến cascade — nguồn cục bộ hdmi_in bỏ trống ControllerId
+        ///              thì handler tự gán bộ điều khiển trung tâm (Role=center).
+        ///              Xác nhận Mục 2.3 trong videowall-device-nats-plan.md.
+        /// Created date: 10/09/2026
+        /// </summary>
+        [Fact]
+        public async Task EnsureLocalSourceOnCenterAsync_LocalSourceWithoutControllerId_AssignsCenterController_Test()
+        {
+            // Arrange — dựng bộ trung tâm trong DB
+            var centerId = $"{TestPrefix}CTRL_CTR_{Guid.NewGuid():N}";
+            var center = new VwController
+            {
+                ID = centerId,
+                Code = $"{TestPrefix}C1",
+                Name = "Bộ Trung Tâm",
+                Role = "center",
+                IntegrationMode = "active",
+                IP = "127.0.0.1:80",
+                Status = BaseEnums.StatusEnum.Enable,
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(center).ExecuteCommandAsync();
+
+            var uniqueCode = $"{TestPrefix}SRC_HDMI_{Guid.NewGuid():N}";
+            var input = new VwAddSourceInput
+            {
+                Code = uniqueCode,
+                Name = "Camera HDMI In",
+                SourceType = "hdmi_in",
+                Status = BaseEnums.StatusEnum.Enable,
+                ControllerId = null  // bỏ trống → handler tự gán
+            };
+
+            // Act
+            await _bus.InvokeAsync(input);
+
+            // Assert — bản ghi được lưu với ControllerId = bộ trung tâm
+            var inserted = await _db.Queryable<VwSource>()
+                .FirstAsync(u => u.Code == uniqueCode && u.IsDelete == null);
+            Assert.NotNull(inserted);
+            Assert.Equal(centerId, inserted.ControllerId);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra bất biến cascade — nguồn cục bộ hdmi_in trỏ vào bộ con (Role=sub)
+        ///              bị VwAddSourceValidator từ chối và handler ném ngoại lệ.
+        ///              Xác nhận Mục 2.3 trong videowall-device-nats-plan.md.
+        /// Created date: 10/09/2026
+        /// </summary>
+        [Fact]
+        public async Task EnsureLocalSourceOnCenterAsync_LocalSourceWithSubController_ThrowsException_Test()
+        {
+            // Arrange — dựng bộ con trong DB
+            var subId = $"{TestPrefix}CTRL_SUB_{Guid.NewGuid():N}";
+            var subController = new VwController
+            {
+                ID = subId,
+                Code = $"{TestPrefix}C2_SUB",
+                Name = "Bộ Con 1",
+                Role = "sub",
+                IntegrationMode = "inventory",
+                IP = "127.0.0.1:81",
+                Status = BaseEnums.StatusEnum.Enable,
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(subController).ExecuteCommandAsync();
+
+            var input = new VwAddSourceInput
+            {
+                Code = $"{TestPrefix}SRC_SUB_{Guid.NewGuid():N}",
+                Name = "Nguồn gắn nhầm bộ con",
+                SourceType = "hdmi_in",
+                Status = BaseEnums.StatusEnum.Enable,
+                ControllerId = subId
+            };
+
+            // Kiểm tra validator đã chặn từ đầu — dùng isSubControllerCheck mock trực tiếp
+            var validator = new VwAddSourceValidator(
+                _localizer,
+                isSubControllerCheck: async id =>
+                {
+                    var ctrl = await _db.Queryable<VwController>()
+                        .FirstAsync(c => c.IsDelete == null && c.ID == id);
+                    return ctrl?.Role == "sub";
+                });
+            var valResult = await validator.ValidateAsync(input);
+            Assert.False(valResult.IsValid);
+            Assert.Contains(valResult.Errors, e => e.ErrorMessage.Contains("trung tâm"));
+
+            // Act & Assert — bus cũng ném ngoại lệ do handler chặn lại (không cần bộ trung tâm trong DB)
+            await Assert.ThrowsAnyAsync<Exception>(() => _bus.InvokeAsync(input));
+        }
     }
 }
