@@ -12,14 +12,6 @@ settings.json
 __pycache__/
 *.py[cod]
 
-# --- DocBusinessThienAn: raw sources are human-only, kept on disk only ---
-# Everything under any _source/ is ignored EXCEPT .md (the AI-readable derived
-# docs live in doc/). Raw recordings / PDF / XLSX never enter git history.
-DocBusinessThienAn/**/_source/**
-!DocBusinessThienAn/**/_source/**/
-!DocBusinessThienAn/**/_source/**/*.md
-
-# transcription tooling — keep scripts, drop working logs
-/tools/transcribe/*.log
-# transient transcription partials
-*.md.partial.txt
+# Large documentation / PDF sources
+*C2.TAP III.Q2.1.3 NTĐV CCTV,VDS,VMS,DTS,WOS,TMS,PBX*
+*C2.TAP III.Q2.2.3 NTĐV CCTV,VDS,VMS,DTS,WOS,TMS,PBX*
