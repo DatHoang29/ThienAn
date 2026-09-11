@@ -2,7 +2,7 @@ using FluentValidation.Results;
 using Module.VideoWall.Controllers.Controller.Validators;
 using Module.VideoWall.Core.Dto.Controller;
 using Module.VideoWall.Core.Entities;
-using Module.VideoWall.Infrastructure.Services.ISAPIDevice;
+using ITS.VideoWall.Services.ISAPIDevice;
 using System.Reflection;
 using Xunit;
 

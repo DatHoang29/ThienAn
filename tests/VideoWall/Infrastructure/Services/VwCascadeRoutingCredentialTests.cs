@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Options;
 using Module.VideoWall.Core.Entities;
 using Module.VideoWall.Core.Options;
-using Module.VideoWall.Infrastructure.Services.ISAPIDevice;
+using ITS.VideoWall.Services.ISAPIDevice;
 using Xunit;
 
 namespace Tests.Modules.VideoWall.Infrastructure.Services

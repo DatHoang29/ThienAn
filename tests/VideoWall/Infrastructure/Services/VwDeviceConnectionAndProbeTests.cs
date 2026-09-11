@@ -5,7 +5,7 @@ using Module.VideoWall.Core.Dto.ISAPI;
 using Module.VideoWall.Core.Entities;
 using Module.VideoWall.Core.Options;
 using Module.VideoWall.Extensions;
-using Module.VideoWall.Infrastructure.Services.ISAPIDevice;
+using ITS.VideoWall.Services.ISAPIDevice;
 using Xunit;
 
 namespace Tests.Modules.VideoWall.Infrastructure.Services

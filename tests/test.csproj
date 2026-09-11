@@ -62,7 +62,8 @@
     <ShareDataWorkerCoreProject>$(RepoRoot)\src\Services\ShareData\ShareDataWorker.Core\ShareDataWorker.Core.csproj</ShareDataWorkerCoreProject>
     <ShareDataModuleProject>$(RepoRoot)\src\Modules\ShareData\Module.ShareData\Module.ShareData.csproj</ShareDataModuleProject>
     <VideoWallModuleProject>$(RepoRoot)\src\Modules\VideoWall\Module.VideoWall\Module.VideoWall.csproj</VideoWallModuleProject>
-    <VideoWallIsapiSource>$(RepoRoot)\src\Modules\VideoWall\Module.VideoWall.Core\Interfaces\IVwISAPIDeviceClient.cs</VideoWallIsapiSource>
+    <VideoWallIsapiSource>$(RepoRoot)\src\Services\VideoWall\ITS.VideoWall.Core\Interfaces\IVwISAPIDeviceClient.cs</VideoWallIsapiSource>
+    <VideoWallWorkerCoreProject>$(RepoRoot)\src\Services\VideoWall\ITS.VideoWall.Core\ITS.VideoWall.Core.csproj</VideoWallWorkerCoreProject>
     <VideoWallWorkerProject>$(RepoRoot)\src\Services\VideoWall\ITS.VideoWall\ITS.VideoWall.csproj</VideoWallWorkerProject>
     <VideoWallWpfProject>$(RepoRoot)\src\Services\VideoWall\ITS.VideoWall.WPF\ITS.VideoWall.WPF.csproj</VideoWallWpfProject>
   </PropertyGroup>
@@ -120,6 +121,7 @@
   <!-- Tham chiếu VideoWall Worker nếu có -->
   <ItemGroup Condition="Exists('$(VideoWallWorkerProject)')">
     <ProjectReference Include="$(VideoWallWorkerProject)" />
+    <ProjectReference Include="$(VideoWallWorkerCoreProject)" Condition="Exists('$(VideoWallWorkerCoreProject)')" />
   </ItemGroup>
 
   <!-- Tham chiếu Client WPF (chỉ ở TFM net10.0-windows) -->

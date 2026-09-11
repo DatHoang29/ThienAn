@@ -13,6 +13,12 @@ global using Module.VideoWall.Core.Interfaces;
 global using Module.VideoWall.Infrastructure.Services.Access;
 global using Module.VideoWall.Infrastructure.Services.Scene;
 
+// ─── ITS.VideoWall.Core (Worker-only contracts) ───
+global using ITS.VideoWall.Core.Constants;
+global using ITS.VideoWall.Core.Dto.ISAPI;
+global using ITS.VideoWall.Core.Interfaces;
+global using ITS.VideoWall.Services.ISAPIDevice;
+
 // ─── DTO theo từng nhóm nghiệp vụ ───
 global using Module.VideoWall.Core.Dto.Controller;
 global using Module.VideoWall.Core.Dto.Device;

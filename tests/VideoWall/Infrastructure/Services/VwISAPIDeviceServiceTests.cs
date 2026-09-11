@@ -5,7 +5,7 @@ using Module.VideoWall.Core.Dto.ISAPI;
 using Module.VideoWall.Core.Options;
 using Module.VideoWall.Infrastructure;
 using Module.VideoWall.Infrastructure.Services.Access;
-using Module.VideoWall.Infrastructure.Services.ISAPIDevice;
+using ITS.VideoWall.Services.ISAPIDevice;
 
 namespace Tests.Modules.VideoWall
 {
