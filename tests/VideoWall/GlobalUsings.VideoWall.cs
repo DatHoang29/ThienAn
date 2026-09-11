@@ -31,7 +31,6 @@ global using Module.VideoWall.Core.Dto.UserAreaPermission;
 
 // ─── Validators (FluentValidation) dùng cho Negative Test First ───
 global using Module.VideoWall.Controllers.Controller.Validators;
-global using Module.VideoWall.Controllers.Device.Validators;
 global using Module.VideoWall.Controllers.DeviceSetup.Validators;
 global using Module.VideoWall.Controllers.EventRule.Validators;
 global using Module.VideoWall.Controllers.EventTriggerLog.Validators;
