@@ -136,11 +136,14 @@ Cấu hình lưu chuẩn json db
 
 ## 🚫 4. Quy Định Tự Động Hóa Đối Với Trợ Lý AI (AI Execution Rules)
 
-Đối với Trợ lý AI, tuyệt đối tuân thủ **3 nguyên tắc** sau khi làm việc trong dự án:
+Đối với Trợ lý AI, tuyệt đối tuân thủ các nguyên tắc sau khi làm việc trong dự án:
 
 1.  **KHÔNG TỰ ĐỘNG CHẠY LỆNH BUILD (`dotnet build`)**: AI không được tự động chạy lệnh `dotnet build` hoặc bất kỳ lệnh biên dịch nào sau khi chỉnh sửa code, trừ khi người dùng yêu cầu trực tiếp.
 2.  **KHÔNG TỰ ĐỘNG COMMIT VÀ PUSH GIT (`git commit` / `git push`)**: AI không được tự động chạy `git add`, `git commit`, hay `git push` code lên repository dưới bất kỳ hình thức nào. Quyền commit và push code hoàn toàn thuộc về lập trình viên.
 3.  **TỐI THIỂU HÓA THAY ĐỔI (MINIMAL DIFF PRINCIPLE)**: AI CHỈ ĐƯỢC PHÉP chỉnh sửa/thêm code đối với các file và nội dung thực sự phục vụ trực tiếp cho tính năng mới hoặc bug được yêu cầu. TUYỆT ĐỐI KHÔNG tự động upgrade phiên bản thư viện (`PackageReference` trong `.csproj`), không format/touch vào các file không liên quan, không làm thay đổi các file dùng chung (`Shared.Reference`, `appsettings.json`,...) trừ khi có chỉ định rõ ràng từ người dùng.
+4.  **PHÂN BIỆT THAM KHẢO VÀ HÀNH ĐỘNG (DISTINGUISH REFERENCE FROM ACTION)**: Khi người dùng yêu cầu "tham khảo", "xem thử", "giải thích" hoặc hỏi ý kiến, AI BẮT BUỘC phải phân tích và trả lời thảo luận trước, KHÔNG ĐƯỢC tự ý nhảy vào áp dụng hoặc thêm/sửa code khi chưa có xác nhận từ người dùng.
+5.  **TÔN TRỌNG CODE SỬA TAY & Ý ĐỊNH NGƯỜI DÙNG (PRESERVE USER MANUAL EDITS & PREFERENCES)**: Khi người dùng đã chỉ định cách viết (VD: dùng `while (reader.Read())` đồng bộ) hoặc tự sửa tay/bỏ bớt điều kiện, AI KHÔNG ĐƯỢC TỰ Ý hoàn tác (revert) hoặc sửa ngược lại về cách viết cũ trong các lần refactor tiếp theo.
+6.  **GIỮ NGUYÊN THUẬT NGỮ TIẾNG ANH CHUYÊN NGÀNH (KEEP TECHNICAL ENGLISH KEYWORDS AS-IS)**: Các từ tiếng Anh mang tính chất thuật ngữ kỹ thuật, tên thuộc tính, tên tham số giao thức (protocol/API), tên tính năng, hoặc keyword nghiệp vụ (như `Probe`, `Ping`, `WallNo`, `Video Wall`, `Outputs`, `Inputs`, `SubWindow`, `Scene`, `Preset`, `Payload`, `Endpoint`, `Path Parameters`, `Body Parameters`, `Advanced Parameters`, `Digest Auth`, `Circuit Breaker`...) BẮT BUỘC giữ nguyên tiếng Anh gốc, TUYỆT ĐỐI KHÔNG dịch gượng ép sang tiếng Việt (như dịch `Probe` thành "khảo sát", `WallNo` thành "tường số", `Video Wall` thành "tường ghép", `SubWindow` thành "cửa sổ con"...) gây tối nghĩa, nhập nhằng và khó đối chiếu với tài liệu/spec chuẩn.
 
 > [!NOTE]
 > - Tự động dọn dẹp file kế hoạch tạm: xem mục 13 "Prompt & Plan File Location Rule" bên dưới (bullet Auto-cleanup).
@@ -196,12 +199,14 @@ Các hệ thống / Module phát triển mới về sau bắt buộc tuân thủ
 5. **Cấu Trúc Chi Tiết Thư Mục Module & Xử Lý API (Wolverine & FluentValidation)**:
    * Mỗi thực thể/chức năng chính trong Project `Modules.[TênHệ]` phải được cấu trúc thành một thư mục riêng biệt đặt trong `Controllers/<TênChứcNăng>/` với các thư mục con sau:
      * **`Controllers/<TênChứcNăng>/<TênChứcNăng>Controller.cs`**: Controller siêu mỏng (Thin Controller), **BẮT BUỘC** chỉ dùng `MessBus.InvokeAsync()` để gọi Commands/Queries. Không viết bất kỳ logic nghiệp vụ nào tại đây.
-     * **`Commands/`**: Chứa Handler xử lý Ghi (Add/Update/Delete). **BẮT BUỘC** implement `IWolverineHandler` và định nghĩa các hàm `HandleAsync(<InputType> command)`. Dùng `Mapster` để map DTO sang Entity.
-     * **`Queries/`**: Chứa Handler xử lý Đọc (Page/GetList/GetById). Các truy vấn phân trang phải trả về `SqlSugarPagedList<Output>`, sử dụng `.OrderBuilder()` và `.ToPagedListAsync()`.
+     * **`Commands/`**: Chứa Handler xử lý Ghi (Add/Update/Delete). **BẮT BUỘC** implement `IWolverineHandler` và định nghĩa các hàm `HandleAsync(<InputType> command)`. Dùng `Mapster` để map DTO sang Entity. TUYỆT ĐỐI KHÔNG tự viết các hàm trợ giúp thủ công như `ValidateInput` hoặc `MapToOutput` bên trong CommandHandler; dùng FluentValidation và Mapster.
+     * **`Queries/`**: Chứa Handler xử lý Đọc (Page/GetList/GetById). Các truy vấn phân trang phải trả về `SqlSugarPagedList<Output>`, sử dụng `.OrderBuilder()` và `.ToPagedListAsync()`. Khi dùng `.Select(x => new TOutput { ... }, true)` hoặc truy vấn trực tiếp ra `SqlSugarPagedList<TOutput>`, BẮT BUỘC trả thẳng đối tượng phân trang (VD: `return paged;` hoặc `return await query.ToPagedListAsync(...)`), KHÔNG bọc qua `.Adapt<SqlSugarPagedList<TOutput>>()`.
      * **`Dto/`**: Chứa DTO Input và Output:
        * Input: `PageXxxInput` (kế thừa `BasePageInput`), `AddXxxInput` (kế thừa Entity gốc), `UpdateXxxInput` (kế thừa `AddXxxInput`), `DeleteXxxInput` (kế thừa `BaseIdInput`).
-       * Output: `XxxOutput` / `PageXxxOutput` (kế thừa Entity gốc).
-     * **`Validators/`**: Chứa `AbstractValidator<T>` (FluentValidation) kiểm tra tính hợp lệ dữ liệu đầu vào của Add/Update/Delete.
+       * Output: `XxxOutput` / `PageXxxOutput` (kế thừa Entity gốc). Cấu hình ánh xạ Mapster (`IRegister`) BẮT BUỘC viết trực tiếp bên trong file DTO Output tương ứng (VD: `EshPartnerOutput.cs` chứa `public class EshPartnerMapper : IRegister`), KHÔNG tạo thư mục `Mappings` riêng rẽ.
+       * KHÔNG dùng các thuộc tính DataAnnotation validation (`[Required]`, `[Range]`, `[StringLength]`...) trong các class DTO. Tất cả logic kiểm tra dữ liệu và thông báo lỗi đa ngôn ngữ BẮT BUỘC thực hiện 100% qua FluentValidation (`AbstractValidator<T>`) kết hợp `IStringLocalizer lz` và `BaseMsg`.
+     * **`Validators/`**: Chứa `AbstractValidator<T>` (FluentValidation) kiểm tra tính hợp lệ dữ liệu đầu vào của Add/Update/Delete. Validator chỉ khai báo duy nhất 1 Constructor nhận `IStringLocalizer lz` (hoặc `localizer`), KHÔNG tự ý chèn các class phụ/mock như `DesignTimeLocalizer` hay constructor không tham số `: this(...)`.
+     * **Repository Naming**: Đặt tên biến Repository trong CommandHandler / QueryHandler theo chuẩn prefix `_rsp{EntityName}` (VD: `SqlSugarRepository<EshPartner> _rspEshPartner;`). KHÔNG dùng `_repository`, `_repo`, hay `_baseRepository`.
    * **GlobalUsings.cs**: Mỗi module bắt buộc phải có file `GlobalUsings.cs` khai báo tối thiểu:
      ```csharp
      global using Furion.DependencyInjection;
@@ -216,21 +221,34 @@ Các hệ thống / Module phát triển mới về sau bắt buộc tuân thủ
      [assembly: WolverineModule]
      ```
 
-6. **Quy định Entity Class**: Tất cả các Entity class trong hệ thống bắt buộc phải kế thừa `EntityTenant` (từ `Shared.Core.Domain`).
+6. **Quy định Entity Class**:
+   * Tất cả các Entity class trong hệ thống bắt buộc phải kế thừa `EntityTenant` (từ `Shared.Core.Domain`).
+   * **Thuộc tính Base Class `EntityTenant`**: Base class dùng `CreateTime` và `UpdateTime` (KHÔNG phải `CreatedTime` hay `UpdatedTime`). Thuộc tính ID viết HOA cả hai ký tự: `ID` (KHÔNG phải `Id`).
+   * **Hằng số độ dài `EntityConst`**: BẮT BUỘC dùng các hằng số `EntityConst` (từ namespace `Shared.DTO.Constants.Application`, VD: `EntityConst.Length32`, `EntityConst.Length64`, `EntityConst.Length128`, `EntityConst.Length256`, `EntityConst.Length512`, `EntityConst.KeyFieldLength`) cho tất cả attribute `[SugarColumn(Length = ...)]` và `[MaxLength(...)]` trong Entity và DTO. KHÔNG ĐƯỢC dùng số hardcode trực tiếp (như `Length = 32`).
+   * **Bản thiết kế Entity gốc là nguồn sự thật (Source of Truth)**: Khi có thư mục `EntityUpdate` hoặc bất kỳ bộ Entity gốc nào được đưa vào từ team thiết kế, đó là bản thiết kế chính thức. AI BẮT BUỘC phải đồng bộ entity trong code hiện tại theo ĐÚNG cấu trúc, kiểu dữ liệu, tên property, và attribute của bản thiết kế gốc.
 
-7. **Quy định Header Comment của Class**: Mỗi Class khi tạo mới hoặc cập nhật BẮT BUỘC phải có khối XML summary comment ở đầu Class theo mẫu (chỉ dùng `Created date:`, KHÔNG dùng `Author:` — quyết định 05/09/2026, không hồi tố class đã có sẵn `Author: Đạt` — và KHÔNG dùng `Updated date:`):
-   ```csharp
-   /// <summary>
-   /// [Mô tả chức năng / Tên bảng]
-   /// Created date: [dd/MM/yyyy]
-   /// </summary>
-   ```
+7. **Quy định Header Comment của Class & XML Doc**:
+   * Mỗi Class khi tạo mới hoặc cập nhật BẮT BUỘC phải có khối XML summary comment ở đầu Class theo mẫu (chỉ dùng `Created date:`, KHÔNG dùng `Author:` — quyết định 05/09/2026, không hồi tố class đã có sẵn `Author: Đạt` — và KHÔNG dùng `Updated date:`):
+     ```csharp
+     /// <summary>
+     /// [Mô tả chức năng / Tên bảng]
+     /// Created date: [dd/MM/yyyy]
+     /// </summary>
+     ```
+   * **Cấm lặp khối XML summary**: TUYỆT ĐỐI KHÔNG tự ý chèn chồng hoặc nhân bản các khối `/// <summary>` rườm rà trên cùng một class/hàm/property. Mỗi đối tượng code CHỈ ĐƯỢC CÓ DUY NHẤT 1 khối `/// <summary>`. Khi cập nhật nội dung comment, BẮT BUỘC sửa trực tiếp vào khối comment cũ thay vì thêm khối `/// <summary>` thứ 2.
+   * **API Controller Action Summary**: Trên mỗi phương thức Action trong Controller, comment XML Doc `/// <summary>` BẮT BUỘC mô tả rõ ràng, tự nhiên ý nghĩa và chức năng thực tế của hàm (VD: `/// <summary>\n/// Lấy danh sách cảnh báo & lỗi (phân trang)\n/// </summary>`). Tuyệt đối KHÔNG chèn mã prefix/số thứ tự rườm rà (như L1., E2., DS3...). Thẻ `[DisplayName("...")]` giữ nguyên tên hiển thị chuẩn.
 
 8. **Quy định Docker SQL Server trên Mac**: Máy tính chạy môi trường macOS (đặc biệt chip Apple Silicon M1/M2/M3/M4) **BẮT BUỘC** dùng Docker image `mcr.microsoft.com/azure-sql-edge:latest`. TUYỆT ĐỐI KHÔNG dùng `mcr.microsoft.com/mssql/server:2022-latest` vì bản x86_64 sẽ bị crash tràn bộ nhớ QEMU (`Invalid mapping of address`).
-9. **Quy định Primary Constructor ([IDE0290](https://learn.microsoft.com/dotnet/fundamentals/code-analysis/style-rules/ide0290)) (đã chốt 05/09/2026)**: Chỉ áp dụng C# Primary Constructor khi **VIẾT CLASS MỚI** (ví dụ: `public class MyService(ILogger<MyService> logger, IConfiguration configuration) : IMyService`). Đối với **CLASS CŨ ĐÃ TỒN TẠI** đang dùng constructor tường minh kèm field private thủ công → KHÔNG sửa, KHÔNG refactor sang primary constructor, giữ nguyên style cũ để tránh diff không cần thiết.
+9. **Quy định Primary Constructor ([IDE0290](https://learn.microsoft.com/dotnet/fundamentals/code-analysis/style-rules/ide0290)) (đã chốt 05/09/2026)**: Chỉ áp dụng C# Primary Constructor khi **VIẾT CLASS MỚI** (ví dụ: `public class MyService(ILogger<MyService> Logger, IConfiguration Configuration) : IMyService`). Đối với **CLASS CŨ ĐÃ TỒN TẠI** đang dùng constructor tường minh kèm field private thủ công → KHÔNG sửa, KHÔNG refactor sang primary constructor, giữ nguyên style cũ để tránh diff không cần thiết.
 10. **Quy định Structured Logging ([CA1873](https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1873))**: LUÔN dùng structured logging message template (VD: `_logger.LogInformation("Processing {Id} for {Partner}", id, partner)`) thay vì string interpolation (VD: `_logger.LogInformation($"Processing {id} for {partner}")`) hoặc tính toán trước các biểu thức tốn kém (`string.Join(...)`, `.Count()`, LINQ...) ngay trong tham số log. Kiểm tra `_logger.IsEnabled(...)` trước khi chuẩn bị dữ liệu log tốn kém để tránh cấp phát bộ nhớ và tốn CPU không cần thiết khi logging đang tắt.
 11. **Quy định Tự Động Xóa Using Thừa ([IDE0005](https://learn.microsoft.com/dotnet/fundamentals/code-analysis/style-rules/ide0005))**: Sau mỗi lần tạo mới hoặc chỉnh sửa file code C#, **BẮT BUỘC** phải rà soát và xóa bỏ tất cả các chỉ thị `using ...;` không còn sử dụng hoặc bị trùng lặp với `GlobalUsings.cs` (CS0105 / IDE0005) để giữ mã nguồn gọn gàng và không sinh cảnh báo build.
 12. **Quy định vòng đời DI cho `IVwISAPIDeviceService` (đã chốt 05/09/2026)**: Đăng ký theo vòng đời **`IScoped`** (`VwISAPIDeviceService : IVwISAPIDeviceService, IScoped`) — đây là chỉ đạo trực tiếp của chủ dự án, không phải Singleton.
+13. **Quy định Đa Ngôn Ngữ & Dịch Thuật Module (`BaseMsg`)**:
+    * Tất cả các Module có sử dụng dịch thuật BẮT BUỘC tạo file `Core/Exceptions/BaseMsg.cs` kế thừa `BaseLocaleManager` (từ `Shared.DTO.Constants.Localization`).
+    * Trong `BaseMsg`, tạo các class đại diện cho từng Chức năng/Entity (VD: `EshPartner`, `EshDataSource`...). Trong mỗi class chức năng, chia thành các class con chứa hằng số dịch thuật: `Validation`, `Message`, `Exception`, `Entity` (group action).
+    * **Vị trí thư mục Resources**: Thư mục `Resources` nằm ngang hàng với `Controllers`, `Core`, `Extensions`, `Infrastructure` trong root project của Module (VD: `Modules.ShareData/Resources/vi-VN.json`). KHÔNG đặt bên trong thư mục `Controllers`. Dịch thuật được cập nhật đồng bộ vào `src/TAC_WebAPI/Resources/` để hệ thống load đầy đủ.
+14. **Quy định Quét SqlSugar CodeFirst (`inherit: false`)**:
+    * Khi quét entity để tạo bảng qua CodeFirst (`InitTables`), BẮT BUỘC dùng `t.IsDefined(typeof(SugarTable), inherit: false)` để DTO kế thừa Entity (`AddXxxInput : EntityBase`, `PageXxxOutput : EntityBase`) không bị nhận nhầm và tự tạo bảng.
 
 ---
 
@@ -267,6 +285,7 @@ tests/
 * **Dọn Dẹp Dữ Liệu Tập Trung Duy Nhất Ở Tầng Host**: Toàn bộ việc dọn dẹp / xóa dữ liệu test chỉ được thực hiện tập trung duy nhất ở tầng **Host** (thông qua `ClearAllData()` khi khởi tạo `ICollectionFixture<Host>`). TUYỆT ĐỐI KHÔNG viết logic `Dispose()` để `DELETE` hay `TRUNCATE` dữ liệu trong từng `TestClass`.
 * **Cô Lập Dữ Liệu Test Bằng GUID / Unique ID**: Mọi bài test BẮT BUỘC tự cô lập dữ liệu bằng cách sinh mã định danh duy nhất (GUID / `Guid.NewGuid():N` / `TestPrefix` ngẫu nhiên) cho các bản ghi tạo mới trong bước Arrange, đảm bảo các bài test chạy song song hoặc tuần tự hoàn toàn độc lập và không bao giờ xung đột dữ liệu với nhau. Bảng dữ liệu nghiệp vụ ngoài (READ-ONLY) tuyệt đối không chạy lệnh xóa/sửa.
 * **No Separate Utils Test Folders / Service-Level Testing Focus**: TUYỆT ĐỐI KHÔNG tạo thư mục test `Utils` / `Util` riêng biệt hay viết unit test cô lập cho các class tiện ích (Utils/Helpers). Chỉ cần tập trung viết test ở tầng **Service / Handler / Controller** chính. Nếu logic nghiệp vụ có liên quan đến Util/Helper thì các bài test tại tầng Service bao phủ và kiểm thử các tiện ích đó trong luồng thực thi thực tế là đủ.
+* **Cấm Gọi InitTables<T>() Thủ Công Trong Host/Test — Bật Cờ CodeFirst Trong Cấu Hình Test**: TUYỆT ĐỐI KHÔNG tự tiện viết các lệnh gọi `db.CodeFirst.InitTables<T>()` thủ công rải rác trong `Host.cs`, `Host.<Module>.cs` hay các file test để sinh/đồng bộ bảng. Thay vào đó, BẮT BUỘC chỉ cấu hình bật các cờ SqlSugar CodeFirst trong `InMemoryTestConfigurations` (ví dụ: `TableSettings:EnableInitTable = "true"`, `TableSettings:EnableIncreTable = "true"`). Khi bật các cờ này, hệ thống sẽ tự động quét toàn bộ Entity từ code gốc và tự động tạo bảng / bổ sung cột tăng dần (incremental column sync) đúng chuẩn.
 * **Tự Động Chạy Lại Test & Bổ Sung Test Case Mới**: Bất cứ khi nào tạo mới hoặc chỉnh sửa code (C#, XAML, ViewModel, Service, Handler, Controller, API...), thêm mới UI, hoặc sửa đổi logic nghiệp vụ/giao diện: AI **BẮT BUỘC** (1) chạy lại toàn bộ bài test liên quan (`dotnet test ...`) để đảm bảo 100% pass, không hồi quy/gãy build; (2) viết bổ sung test case mới nếu tính năng/logic mới chưa có test bao phủ (chuẩn AAA, mock I/O HTTP/thiết bị, đặt tên file/thư mục mirror 1-1). Nhiệm vụ chưa được coi là hoàn thành nếu thiếu 1 trong 2 bước trên.
   - **Dồn test về cuối khi đang trao đổi dồn dập**: Nếu đang trong chuỗi hỏi-đáp/sửa nhanh liên tiếp và test suite chạy chậm (VD ~60s+), KHÔNG chạy lại test sau MỖI lần sửa nhỏ — dồn thay đổi liên quan lại, chỉ chạy 1 lần ở cuối trước khi báo hoàn tất. Vẫn chạy ngay nếu người dùng hỏi trực tiếp kết quả test, thay đổi đủ rủi ro cần xác nhận ngay, hoặc rõ ràng không còn quyết định nào khác đang chờ.
 
@@ -309,7 +328,14 @@ tests/
 - **Object Initializer Formatting**: Object initializer nhiều thuộc tính (VD: `new TmsEquipment { ID = eqId, Code = "...", ... }`) BẮT BUỘC ngắt dòng, mỗi thuộc tính 1 dòng thụt lề. TUYỆT ĐỐI KHÔNG viết inline nhiều thuộc tính trên 1 dòng ngang.
 - **Multi-Condition LINQ Formatting**: Query LINQ/SqlSugar nhiều điều kiện (VD: `.Where(s => s.IsDelete == null && s.Direction == ... && s.Mode != ...)`) BẮT BUỘC ngắt dòng — hoặc tách thành các `.Where(...)` nối tiếp (mỗi điều kiện 1 dòng), hoặc xuống dòng thụt lề cho từng vế `&&`/`||`. TUYỆT ĐỐI KHÔNG viết chuỗi điều kiện dài inline trên 1 dòng.
 - **Async Method Naming**: KHÔNG thêm hậu tố `Async` vào tên phương thức bất đồng bộ (VD: `ProcessBatchSubscriptions`, không phải `ProcessBatchSubscriptionsAsync`) vì kiểu trả về (`Task`/`Task<T>`) đã thể hiện rõ tính bất đồng bộ. Áp dụng NGANG NHAU cho cả private test helper/seed method (VD: `SeedWall` KHÔNG phải `SeedWallAsync`).
-- **Dependency Injection Naming (constructor tường minh)**: Với constructor viết tường minh (không phải primary constructor kiểu property), LUÔN đặt tên dependency injected bằng camelCase (VD: `IFileExportService fileExportService`). *(Lưu ý: không áp dụng cho Primary Constructor kiểu property — xem "USE PRIMARY CONSTRUCTORS" trong `thienan-user-preferences.md`, nơi dependency đóng vai trò public read-only property nên viết PascalCase; 2 rule áp dụng cho 2 kiểu khai báo constructor khác nhau, không mâu thuẫn nhưng dễ nhầm — cần để ý ngữ cảnh khi áp dụng.)*
+- **Dependency Injection Naming & Casing**:
+  - Với constructor viết tường minh (không phải primary constructor kiểu property): LUÔN đặt tên dependency injected bằng camelCase (VD: `IFileExportService fileExportService`), gán vào private field `_fileExportService = fileExportService;`.
+  - Với Primary Constructor khi viết class mới (khi dependency đóng vai trò public read-only property): BẮT BUỘC viết hoa chữ cái đầu (PascalCase) (VD: `public class MyService(ILogger<MyService> Logger, IOutboundService OutboundService) : IMyService`).
+- **Không Sử Dụng `#region`**: KHÔNG tự ý chèn thẻ `#region` hoặc `#endregion` vào code C# trừ khi người dùng yêu cầu. Giữ biến/field nguyên bản và sạch sẽ.
+- **Using Directives Thay Vì Inline Namespaces**: BẮT BUỘC dùng `using` directive ở đầu file (VD: `using Modules.ShareData.Core.Entities;`) để gọi tên class ngắn gọn (VD: `EshPartner`) thay vì gõ namespace dài inline trong code (VD: `Core.Entities.EshPartner`).
+- **DTO vs Anonymous Objects**: Dữ liệu CÓ xử lý logic nội bộ → tạo DTO. Dữ liệu CHỈ map để gửi đi (bên khác xử lý) → dùng Anonymous Object (hoặc Dictionary).
+- **Null Reference (CS8601)**: Luôn gán giá trị dự phòng (`?? string.Empty`) khi gán `string?` cho `string` để dập cảnh báo CS8601.
+- **Cấu hình ASP.NET Core**: Ưu tiên `config.GetConnectionString("Default")` thay vì truy vấn key phân cấp thô (`config["DbConnection:ConnectionConfigs:0:ConnectionString"]`).
 - **C# / .NET CA2263**: LUÔN ưu tiên `Enum.IsDefined<TEnum>(value)` dạng generic (hoặc `Enum.IsDefined(enumValue)` từ .NET 7+) thay vì bản non-generic `Enum.IsDefined(typeof(TEnum), value)` để tránh boxing và overhead reflection không cần thiết.
 - **Class Member & Helper Ordering (Private Helpers at Bottom)**: Trong mọi class/service/handler C#, toàn bộ phương thức `private` (helper, private async method...) và nested helper class/struct BẮT BUỘC đặt ở **CUỐI CÙNG của class/file**, sau toàn bộ phương thức `public`. TUYỆT ĐỐI KHÔNG đặt hàm private xen kẽ ở đầu hoặc giữa các public handler method.
 - **Vue SFC Section Ordering**: Trong mọi file `.vue`, thứ tự khối BẮT BUỘC: (1) `<script setup lang="ts">` đầu tiên, (2) `<template>` thứ hai, (3) `<style scoped>` cuối cùng. TUYỆT ĐỐI KHÔNG đặt `<template>` trước `<script>`.
@@ -465,5 +491,5 @@ tests/
 ## 📎 Ghi chú mở — cần xác minh / còn trùng lặp
 
 - **`GlobalUsings.cs` tối thiểu (mục 5.5)**: liệt kê gồm `Shared.Core.Domain` và `System.Linq.Dynamic.Core`, nhưng `src/Modules/VideoWall/Module.VideoWall/GlobalUsings.cs` **không có** 2 dòng này, lại có `Furion.ConfigurableOptions`, `Furion.DynamicApiController`, `Newtonsoft.Json`, `Microsoft.Extensions.Options`, `System.ComponentModel.DataAnnotations`. Cần rà thêm các module khác (WP, TMS, ShareData) rồi chốt lại danh sách tối thiểu cho đúng.
-- **Dependency Injection Naming — casing**: xem ghi chú ngay tại bullet tương ứng ở mục 7 — camelCase (constructor tường minh) vs PascalCase (Primary Constructor kiểu property trong `thienan-user-preferences.md`) áp dụng cho 2 ngữ cảnh khác nhau, dễ nhầm khi đọc lướt.
+- **Dependency Injection Naming — casing**: xem ghi chú ngay tại bullet tương ứng ở mục 7 — camelCase (constructor tường minh) vs PascalCase (Primary Constructor khi đóng vai trò public property) áp dụng cho 2 ngữ cảnh khác nhau, dễ nhầm khi đọc lướt.
 - **Trùng lặp với file steering AG-Kit — chưa xử lý**: danh mục agent/skill/workflow/script (lặp với `quick-reference.md`, `code-rules.md`, `request-routing.md`); đường dẫn `.agents/...` (lặp với `core-protocol.md` mục *Path Awareness*).
