@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════════════════════════════════════════════
 // Global usings RIÊNG của phân hệ VideoWall.
-// File đặt trong tests/Modules/VideoWall/ để cùng bị loại khỏi biên dịch với các file test
+// File đặt trong tests/VideoWall/ để cùng bị loại khỏi biên dịch với các file test
 // của phân hệ khi Module.VideoWall không còn tồn tại trong repo (xem test.csproj:
-// HasVideoWallModule -> Compile Remove="Modules\VideoWall\**\*.cs").
+// HasVideoWallModule -> Compile Remove="VideoWall\**\*.cs").
 // Đặt ở GlobalUsings.cs gốc sẽ phá build của cả project test khi module bị xoá.
 // ═══════════════════════════════════════════════════════════════════════════════════════════
 

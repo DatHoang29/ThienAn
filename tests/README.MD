@@ -159,7 +159,7 @@ File chỉ dùng được khi module có mặt phải nằm **trong** thư mục
 dịch xoá luôn lời gọi trong `Host.cs`).
 
 > Hiện tại `ShareDataWorker` và `ShareDataWorker.Core` **không còn source** trong repo, nên
-> `tests/Modules/ShareData/**` đang bị loại khỏi biên dịch. Build in rõ điều này dưới nhãn
+> `tests/ShareData/**` đang bị loại khỏi biên dịch. Build in rõ điều này dưới nhãn
 > `[TEST MODULES]`.
 
 Một cờ MSBuild điều khiển đồng thời **3 thứ**, nên chúng luôn khớp nhau. Ví dụ `HasVideoWallModule`:
@@ -167,15 +167,15 @@ Một cờ MSBuild điều khiển đồng thời **3 thứ**, nên chúng luôn
 | Điều khiển | Ở đâu | Khi `false` |
 | --- | --- | --- |
 | Symbol `HAS_VIDEOWALL` | `test.csproj` mục 2.3 | `#if HAS_VIDEOWALL` trong `Host.cs` rỗng → không gọi `AddVWModule` |
-| Biên dịch test | `test.csproj` mục 2.5 | `Compile Remove="Modules\VideoWall\**\*.cs"` |
-| `Host.MockServer` | `Modules/VideoWall/Host.VideoWall.cs` | File không biên dịch → `partial void StartModuleTestServers()` mất phần thân → lời gọi trong `Host.cs` bị xoá |
+| Biên dịch test | `test.csproj` mục 2.5 | `Compile Remove="VideoWall\**\*.cs"` |
+| `Host.MockServer` | `VideoWall/Host.VideoWall.cs` | File không biên dịch → `partial void StartModuleTestServers()` mất phần thân → lời gọi trong `Host.cs` bị xoá |
 
 ---
 
 ## Quy ước viết test
 
 - 1 file test / 1 class nguồn, tên khớp 1-1 + hậu tố `Tests` (`VwSchedule` → `VwScheduleTests.cs`).
-- Namespace `Tests.Modules.<TênModule>`, đặt trong `tests/Modules/<TênModule>/`.
+- Namespace `Tests.Modules.<TênModule>`, đặt trong `tests/<TênModule>/`.
 - Gọi nghiệp vụ trực tiếp qua Wolverine `IMessageBus` (bypass Controller/HTTP) → nhanh, bỏ qua JWT, bắt được breakpoint.
 - Query phân trang trả `SqlSugarPagedList<T>`, đọc dữ liệu qua `.Records`.
 - Command có Validator: kiểm thử **negative validation trước** khi `_db.Insertable` (Negative Test First).

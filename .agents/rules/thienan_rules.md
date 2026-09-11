@@ -263,11 +263,10 @@ tests/
 ├── test.csproj                            ← Project file test (Target net10.0)
 ├── Host.cs                                ← Host.CreateDefaultBuilder() + Lamar (IAsyncLifetime, override DB, tắt Hangfire)
 ├── GlobalUsings.cs                        ← Chứa global using chung (Xunit, System.Net...) để tránh IDE0005
-└── Modules/
-    └── <TênModule>/
-        ├── Host.<TênModule>.cs            ← Partial method cấu hình riêng cho module
-        ├── GlobalUsings.<TênModule>.cs    ← Global using riêng cho module
-        └── <TênModule>Tests.cs            ← File test của module (xem vòng đời fixture ở mục 2 và 4 bên dưới)
+└── <TênModule>/
+    ├── Host.<TênModule>.cs            ← Partial method cấu hình riêng cho module
+    ├── GlobalUsings.<TênModule>.cs    ← Global using riêng cho module
+    └── <TênModule>Tests.cs            ← File test của module (xem vòng đời fixture ở mục 2 và 4 bên dưới)
 ```
 
 ### 2. Triết Lý & Phương Pháp Viết Test
