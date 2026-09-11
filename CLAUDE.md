@@ -49,7 +49,7 @@ When executing slash commands, follow the corresponding workflow file:
 - `/status` $\rightarrow$ `.agents/workflows/status.md`
 
 ### 5. 🧠 Persistent Memory (`.agents/memory/`)
-- At the start of tasks, check `.agents/memory/MEMORY.md` and `.agents/memory/thienan-user-preferences.md`.
+- At the start of tasks, check `.agents/memory/MEMORY.md` and `.agents/rules/thienan_rules.md` (single source of truth for all project rules & conventions).
 - Persist new user decisions, architectural choices, and project conventions to `.agents/memory/MEMORY.md`.
 - 🔴 **Ghi memory VÀO `.agents/memory/` (LOCAL, trong repo) — KHÔNG BAO GIỜ ghi `~/.claude/projects/*/memory/`.** Path global đó chỉ là junction trỏ về `.agents/memory/`. Nếu nó là thư mục thật (không phải junction) trên máy hiện tại ⇒ junction chưa/hỏng: cứ ghi local rồi báo user tạo lại junction (`mklink /J`, snippet cuối `.agents/memory/MEMORY.md`).
 

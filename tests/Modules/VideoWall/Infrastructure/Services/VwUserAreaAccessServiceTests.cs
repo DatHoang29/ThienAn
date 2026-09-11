@@ -1,7 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
+using Module.VideoWall.Core.Dto.UserAreaPermission;
 using Module.VideoWall.Core.Entities;
 using Module.VideoWall.Infrastructure.Services.Access;
-using Shared.DTO.Constants.Application;
+using Newtonsoft.Json;
 using SqlSugar;
 using Xunit;
 
@@ -9,7 +10,7 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
 {
     /// <summary>
     /// Description: Kiểm thử Tầng 3 phân quyền VideoWall — VwUserAreaAccessService.
-    ///              Bao gồm unit test hàm hình học thuần và integration test với DB.
+    ///              Bao gồm unit test hàm hình học theo ô lưới và integration test với DB.
     ///              Lưới toạ độ chuẩn: 8 cột × 4 hàng, panel 1920×1080 → canvas 15360×4320.
     ///              Khớp với sơ đồ thietkevideowall.jpg (KienTruc_VideoWall_DS-C66S-Cascade.md).
     /// Created date: 10/09/2026
@@ -21,90 +22,121 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
         private readonly ISqlSugarClient _db = host.Services.GetRequiredService<ISqlSugarClient>();
 
         // -------------------------------------------------------------------------
-        // Unit test — hàm hình học IsInsideAllowedArea (không cần DB, không cần DI)
+        // Unit test — hàm hình học GetCoveredCells & IsWithinAllowedCells
         // -------------------------------------------------------------------------
 
         /// <summary>
-        /// Description: Cửa sổ hoàn toàn nằm trong vùng được cấp → trả về true.
-        /// Created date: 10/09/2026
+        /// Description: Cửa sổ vừa khít 1 ô panel (0,0) → trả về đúng 1 ô (0,0).
+        /// Created date: 11/09/2026
         /// </summary>
         [Fact]
-        public void IsInsideAllowedArea_WindowFullyInsideGrantedArea_ReturnsTrue_Test()
+        public void GetCoveredCells_SingleCellWindow_ReturnsMatchingCell_Test()
         {
-            // Vùng cấp: cột 0-3, hàng 0-1 → X=0, Y=0, W=7680, H=2160 (pixel)
-            // Cửa sổ: cột 1-2, hàng 0 → X=1920, Y=0, W=3840, H=1080
-            var result = VwUserAreaAccessService.IsInsideAllowedArea(
-                x: 1920, y: 0, w: 3840, h: 1080,
-                colStart: 0, colEnd: 3, rowStart: 0, rowEnd: 1,
-                panelWidthPx: 1920, panelHeightPx: 1080);
+            var cells = VwUserAreaAccessService.GetCoveredCells(
+                x: 0, y: 0, w: 1920, h: 1080,
+                panelWidthPx: 1920, panelHeightPx: 1080).ToList();
 
+            Assert.Single(cells);
+            Assert.Equal(0, cells[0].Col);
+            Assert.Equal(0, cells[0].Row);
+        }
+
+        /// <summary>
+        /// Description: Cửa sổ trải qua 2 cột 2 hàng → trả về đủ 4 ô lưới tương ứng.
+        /// Created date: 11/09/2026
+        /// </summary>
+        [Fact]
+        public void GetCoveredCells_MultiCellWindow_ReturnsAllCoveredCells_Test()
+        {
+            var cells = VwUserAreaAccessService.GetCoveredCells(
+                x: 1920, y: 0, w: 3840, h: 2160,
+                panelWidthPx: 1920, panelHeightPx: 1080).ToList();
+
+            Assert.Equal(4, cells.Count);
+            Assert.Contains(cells, c => c.Col == 1 && c.Row == 0);
+            Assert.Contains(cells, c => c.Col == 1 && c.Row == 1);
+            Assert.Contains(cells, c => c.Col == 2 && c.Row == 0);
+            Assert.Contains(cells, c => c.Col == 2 && c.Row == 1);
+        }
+
+        /// <summary>
+        /// Description: Cửa sổ có kích thước không hợp lệ (<= 0) → trả về rỗng.
+        /// Created date: 11/09/2026
+        /// </summary>
+        [Fact]
+        public void GetCoveredCells_ZeroOrNegativeDimensions_ReturnsEmpty_Test()
+        {
+            var zeroW = VwUserAreaAccessService.GetCoveredCells(0, 0, 0, 1080).ToList();
+            var zeroH = VwUserAreaAccessService.GetCoveredCells(0, 0, 1920, 0).ToList();
+
+            Assert.Empty(zeroW);
+            Assert.Empty(zeroH);
+        }
+
+        /// <summary>
+        /// Description: Tập ô cần phủ là tập con của tập ô được cấp → trả về true.
+        /// Created date: 11/09/2026
+        /// </summary>
+        [Fact]
+        public void IsWithinAllowedCells_CoveredSubsetOfAllowed_ReturnsTrue_Test()
+        {
+            var covered = new List<VwGridCell>
+            {
+                new() { Col = 0, Row = 0 },
+                new() { Col = 1, Row = 0 }
+            };
+
+            var allowed = new List<VwGridCell>
+            {
+                new() { Col = 0, Row = 0 },
+                new() { Col = 1, Row = 0 },
+                new() { Col = 2, Row = 0 }
+            };
+
+            var result = VwUserAreaAccessService.IsWithinAllowedCells(covered, allowed);
             Assert.True(result);
         }
 
         /// <summary>
-        /// Description: Cửa sổ vượt ra ngoài ranh giới phải của vùng → trả về false.
-        /// Created date: 10/09/2026
+        /// Description: Tập ô cần phủ thiếu ít nhất 1 ô trong tập được cấp → trả về false.
+        /// Created date: 11/09/2026
         /// </summary>
         [Fact]
-        public void IsInsideAllowedArea_WindowExceedsRightBoundary_ReturnsFalse_Test()
+        public void IsWithinAllowedCells_CoveredMissingOneCell_ReturnsFalse_Test()
         {
-            // Vùng cấp: cột 0-3, hàng 0-3 → areaX=0, areaW=7680
-            // Cửa sổ: X=7000, W=1000 → X+W=8000 > 7680 → vượt biên
-            var result = VwUserAreaAccessService.IsInsideAllowedArea(
-                x: 7000, y: 0, w: 1000, h: 1080,
-                colStart: 0, colEnd: 3, rowStart: 0, rowEnd: 3,
-                panelWidthPx: 1920, panelHeightPx: 1080);
+            var covered = new List<VwGridCell>
+            {
+                new() { Col = 0, Row = 0 },
+                new() { Col = 1, Row = 0 },
+                new() { Col = 1, Row = 1 }
+            };
 
+            var allowed = new List<VwGridCell>
+            {
+                new() { Col = 0, Row = 0 },
+                new() { Col = 1, Row = 0 }
+            };
+
+            var result = VwUserAreaAccessService.IsWithinAllowedCells(covered, allowed);
             Assert.False(result);
         }
 
         /// <summary>
-        /// Description: Cửa sổ vượt xuống dưới ranh giới hàng cuối → trả về false.
-        /// Created date: 10/09/2026
+        /// Description: Tập ô được cấp rỗng → trả về false.
+        /// Created date: 11/09/2026
         /// </summary>
         [Fact]
-        public void IsInsideAllowedArea_WindowExceedsBottomBoundary_ReturnsFalse_Test()
+        public void IsWithinAllowedCells_AllowedIsEmpty_ReturnsFalse_Test()
         {
-            // Vùng cấp: cột 0-7, hàng 0-1 → areaH=2160
-            // Cửa sổ: Y=2000, H=500 → Y+H=2500 > 2160
-            var result = VwUserAreaAccessService.IsInsideAllowedArea(
-                x: 0, y: 2000, w: 1920, h: 500,
-                colStart: 0, colEnd: 7, rowStart: 0, rowEnd: 1,
-                panelWidthPx: 1920, panelHeightPx: 1080);
+            var covered = new List<VwGridCell>
+            {
+                new() { Col = 0, Row = 0 }
+            };
 
+            var allowed = new List<VwGridCell>();
+
+            var result = VwUserAreaAccessService.IsWithinAllowedCells(covered, allowed);
             Assert.False(result);
-        }
-
-        /// <summary>
-        /// Description: Cửa sổ chính xác khớp biên của vùng được cấp → trả về true (boundary inclusive).
-        /// Created date: 10/09/2026
-        /// </summary>
-        [Fact]
-        public void IsInsideAllowedArea_WindowExactlyMatchesBoundary_ReturnsTrue_Test()
-        {
-            // Vùng cấp: cột 2-7, hàng 1-2 → areaX=3840, areaY=1080, areaW=11520, areaH=2160
-            // ITS/MAP window: X=3840, Y=1080, W=11520, H=2160 → khớp chính xác
-            var result = VwUserAreaAccessService.IsInsideAllowedArea(
-                x: 3840, y: 1080, w: 11520, h: 2160,
-                colStart: 2, colEnd: 7, rowStart: 1, rowEnd: 2,
-                panelWidthPx: 1920, panelHeightPx: 1080);
-
-            Assert.True(result);
-        }
-
-        /// <summary>
-        /// Description: Hàm grid — cửa sổ nằm trọn trong vùng theo cột/hàng → trả về true.
-        /// Created date: 10/09/2026
-        /// </summary>
-        [Fact]
-        public void IsInsideAllowedAreaGrid_WindowFullyInsideGrid_ReturnsTrue_Test()
-        {
-            // Cửa sổ: cột 3-5, hàng 1-2 nằm trong vùng cột 2-7, hàng 0-3
-            var result = VwUserAreaAccessService.IsInsideAllowedAreaGrid(
-                winColStart: 3, winColEnd: 5, winRowStart: 1, winRowEnd: 2,
-                colStart: 2, colEnd: 7, rowStart: 0, rowEnd: 3);
-
-            Assert.True(result);
         }
 
         // -------------------------------------------------------------------------
@@ -131,40 +163,36 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
         }
 
         /// <summary>
-        /// Description: Khi đã có bản ghi VwUserAreaPermission và kiểm tra hình học bằng hàm tĩnh,
-        ///              cửa sổ trong vùng → IsInsideAllowedArea trả true.
-        /// Created date: 10/09/2026
+        /// Description: Kiểm tra ánh xạ và kiểm tra hình học từ Config JSON trong CSDL.
+        /// Created date: 11/09/2026
         /// </summary>
         [Fact]
-        public async Task VwUserAreaPermission_WindowInsideGrantedArea_GeometryCheckPasses_Test()
+        public async Task VwUserAreaPermission_ConfigJsonCells_GeometryCheckPasses_Test()
         {
-            // Arrange — thêm 1 bản ghi phân quyền giả để kiểm tra hình học
+            // Arrange — thêm 1 bản ghi phân quyền giả có Config dạng JSON array
             var account = $"{TestPrefix}USER_{Guid.NewGuid():N}";
+            var allowedCells = new List<VwGridCell>
+            {
+                new() { Col = 0, Row = 0 },
+                new() { Col = 1, Row = 0 },
+                new() { Col = 0, Row = 1 },
+                new() { Col = 1, Row = 1 }
+            };
+
             var permission = new VwUserAreaPermission
             {
                 ID = $"{TestPrefix}PERM_{Guid.NewGuid():N}",
                 UserId = account,
-                ColStart = 0,
-                ColEnd = 3,
-                RowStart = 0,
-                RowEnd = 3,
-                Description = "Vùng test",
+                Config = JsonConvert.SerializeObject(allowedCells),
+                Description = "Vùng 2x2 test",
                 CreateTime = DateTime.Now
             };
             await _db.Insertable(permission).ExecuteCommandAsync();
 
-            // Act — kiểm tra hàm hình học với cửa sổ nằm trong vùng cột 0-3
-            var inside = VwUserAreaAccessService.IsInsideAllowedArea(
-                x: permission.ColStart * 1920,
-                y: permission.RowStart * 1080,
-                w: (permission.ColEnd - permission.ColStart + 1) * 1920,
-                h: (permission.RowEnd - permission.RowStart + 1) * 1080,
-                colStart: permission.ColStart,
-                colEnd: permission.ColEnd,
-                rowStart: permission.RowStart,
-                rowEnd: permission.RowEnd,
-                panelWidthPx: 1920,
-                panelHeightPx: 1080);
+            // Act — tính covered cells và kiểm tra
+            var covered = VwUserAreaAccessService.GetCoveredCells(0, 0, 3840, 2160);
+            var parsedAllowed = JsonConvert.DeserializeObject<List<VwGridCell>>(permission.Config)!;
+            var inside = VwUserAreaAccessService.IsWithinAllowedCells(covered, parsedAllowed);
 
             // Assert
             Assert.True(inside);
@@ -173,24 +201,6 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
             await _db.Deleteable<VwUserAreaPermission>()
                 .Where(p => p.ID == permission.ID)
                 .ExecuteCommandAsync();
-        }
-
-        /// <summary>
-        /// Description: Cửa sổ cột 0-1 không nằm trong vùng được cấp cột 4-7
-        ///              → IsInsideAllowedArea trả false.
-        /// Created date: 10/09/2026
-        /// </summary>
-        [Fact]
-        public void IsInsideAllowedArea_CameraWindowOutsideGrantedZone_ReturnsFalse_Test()
-        {
-            // Vùng cấp: cột 4-7 (vùng phải)
-            // Cửa sổ: cột 0 (cam viền trái) → X=0, W=1920 → nằm ngoài vùng cấp [4-7]
-            var result = VwUserAreaAccessService.IsInsideAllowedArea(
-                x: 0, y: 0, w: 1920, h: 1080,
-                colStart: 4, colEnd: 7, rowStart: 0, rowEnd: 3,
-                panelWidthPx: 1920, panelHeightPx: 1080);
-
-            Assert.False(result);
         }
     }
 }

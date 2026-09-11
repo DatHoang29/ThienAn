@@ -43,8 +43,8 @@ public partial class Host : IAsyncLifetime
         ["DbConnection:ConnectionConfigs:0:DbSettings:EnableInitDb"] = "false",
         ["DbConnection:ConnectionConfigs:0:DbSettings:EnableDiffLog"] = "false",
         ["DbConnection:ConnectionConfigs:0:DbSettings:EnableUnderLine"] = "false",
-        ["DbConnection:ConnectionConfigs:0:TableSettings:EnableInitTable"] = "false",
-        ["DbConnection:ConnectionConfigs:0:TableSettings:EnableIncreTable"] = "false",
+        ["DbConnection:ConnectionConfigs:0:TableSettings:EnableInitTable"] = "true",
+        ["DbConnection:ConnectionConfigs:0:TableSettings:EnableIncreTable"] = "true",
         ["DbConnection:ConnectionConfigs:0:SeedSettings:EnableInitSeed"] = "false",
         ["DbConnection:ConnectionConfigs:0:SeedSettings:EnableIncreSeed"] = "false",
 
@@ -108,7 +108,24 @@ public partial class Host : IAsyncLifetime
         // ─── Logging ───
         ["Logging:LogLevel:Default"] = "Warning",
         ["Logging:File:Enabled"] = "false",
-        ["Logging:Database:Enabled"] = "false"
+        ["Logging:Database:Enabled"] = "false",
+
+        // ─── Nats ───
+        ["Nats:Enabled"] = "true",
+        ["Nats:Url"] = "nats://127.0.0.1:4222",
+        ["Nats:ClientName"] = "TAC_TEST_HOST",
+        ["Nats:AuthMode"] = "None",
+        ["Nats:UseJetStream"] = "false",
+        ["Nats:Streams:0:Name"] = "PubSub",
+        ["Nats:Streams:0:Subjects"] = "ta.its.data.videowall.request,ta.its.data.videowall.response,ta.its.data.videowall.scene",
+        ["Nats:Streams:0:InitStream"] = "false",
+        ["Nats:Streams:0:Storage"] = "memory",
+        ["Nats:Streams:0:SubjectsList:0:Subject"] = "ta.its.data.videowall.request",
+        ["Nats:Streams:0:SubjectsList:0:Mode"] = "pubsub",
+        ["Nats:Streams:0:SubjectsList:1:Subject"] = "ta.its.data.videowall.response",
+        ["Nats:Streams:0:SubjectsList:1:Mode"] = "pubsub",
+        ["Nats:Streams:0:SubjectsList:2:Subject"] = "ta.its.data.videowall.scene",
+        ["Nats:Streams:0:SubjectsList:2:Mode"] = "pubsub"
     };
 
     private WebApplicationFactory<TAC_WebAPI.Program>? _host;
@@ -136,11 +153,12 @@ public partial class Host : IAsyncLifetime
                     configBuilder.AddInMemoryCollection(InMemoryTestConfigurations);
                 });
 
-                builder.ConfigureServices(services =>
+                builder.ConfigureServices((context, services) =>
                 {
 #if HAS_SHAREDATAWORKER
                     ShareDataWorker.Extensions.ShareDataWorkerExtensions.AddShareDataWorkerCoreServices(services);
 #endif
+                    ConfigureModuleTestServices(services, context.Configuration);
                 });
             });
 
@@ -195,6 +213,8 @@ public partial class Host : IAsyncLifetime
     partial void StartModuleTestServers();
 
     partial void StopModuleTestServers();
+
+    partial void ConfigureModuleTestServices(IServiceCollection services, IConfiguration configuration);
 
     private static void BindFurionRootServices(IServiceProvider services)
     {

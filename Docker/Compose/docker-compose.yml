@@ -13,5 +13,14 @@ services:
     volumes:
       - tac_webapi_tac_sql_data:/var/opt/mssql/data
 
+  tac-nats:
+    image: nats:latest
+    container_name: tac_webapi_nats
+    restart: always
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    command: "-js"
+
 volumes:
   tac_webapi_tac_sql_data:

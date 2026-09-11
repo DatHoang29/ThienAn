@@ -23,7 +23,10 @@ public partial class Host
     /// Description: Mở HttpListener trên toàn bộ port mặc định để phục vụ kịch bản đa controller
     /// Created date: 21/08/2026
     /// </summary>
-    partial void StartModuleTestServers() => MockServer.Start(VwISAPIMockServerHikvision.DefaultPorts);
+    partial void StartModuleTestServers()
+    {
+        MockServer.Start(VwISAPIMockServerHikvision.DefaultPorts);
+    }
 
     /// <summary>
     /// Author: Đạt
@@ -31,4 +34,14 @@ public partial class Host
     /// Created date: 21/08/2026
     /// </summary>
     partial void StopModuleTestServers() => MockServer.Dispose();
+
+    /// <summary>
+    /// Description: Đăng ký các dịch vụ của VideoWall Worker vào Test Host để phục vụ kiểm thử tích hợp qua NATS thật
+    /// Created date: 11/09/2026
+    /// </summary>
+    partial void ConfigureModuleTestServices(IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddSingleton<Services.Shared.Messaging.TransportManager>();
+        ITS.VideoWall.Extensions.ServiceCollectionExtensions.AddVideoWallWorker(services, configuration);
+    }
 }

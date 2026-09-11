@@ -63,6 +63,7 @@
     <ShareDataModuleProject>$(RepoRoot)\src\Modules\ShareData\Module.ShareData\Module.ShareData.csproj</ShareDataModuleProject>
     <VideoWallModuleProject>$(RepoRoot)\src\Modules\VideoWall\Module.VideoWall\Module.VideoWall.csproj</VideoWallModuleProject>
     <VideoWallIsapiSource>$(RepoRoot)\src\Modules\VideoWall\Module.VideoWall.Core\Interfaces\IVwISAPIDeviceClient.cs</VideoWallIsapiSource>
+    <VideoWallWorkerProject>$(RepoRoot)\src\Services\VideoWall\ITS.VideoWall\ITS.VideoWall.csproj</VideoWallWorkerProject>
     <VideoWallWpfProject>$(RepoRoot)\src\Services\VideoWall\ITS.VideoWall.WPF\ITS.VideoWall.WPF.csproj</VideoWallWpfProject>
   </PropertyGroup>
 
@@ -114,6 +115,11 @@
   <ItemGroup Condition="'$(HasShareDataWorker)' == 'true' And '$(TargetFramework)' != 'net10.0-windows'">
     <ProjectReference Include="$(ShareDataWorkerProject)" />
     <ProjectReference Include="$(ShareDataWorkerCoreProject)" />
+  </ItemGroup>
+
+  <!-- Tham chiếu VideoWall Worker nếu có -->
+  <ItemGroup Condition="Exists('$(VideoWallWorkerProject)')">
+    <ProjectReference Include="$(VideoWallWorkerProject)" />
   </ItemGroup>
 
   <!-- Tham chiếu Client WPF (chỉ ở TFM net10.0-windows) -->
