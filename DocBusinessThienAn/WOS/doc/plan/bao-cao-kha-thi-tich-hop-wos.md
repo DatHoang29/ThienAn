@@ -79,18 +79,19 @@ using FluentModbus;
 var client = new ModbusTcpClient();
 client.Connect(IPAddress.Parse(station.ModbusHost), station.ModbusPort, ModbusEndianness.BigEndian);
 
-// FC03 – Read Holding Registers, mỗi float chiếm 2 thanh ghi 16-bit
-Span<float> values = client.ReadHoldingRegisters<float>(
+// FC03 – Read Holding Registers (async), mỗi float chiếm 2 thanh ghi 16-bit
+Memory<float> values = await client.ReadHoldingRegistersAsync<float>(
     unitIdentifier: station.ModbusUnitId,   // theo cấu hình ModbusServer() trong CRBasic
     startingAddress: 0,                      // đã strip offset 30000/40000 của Campbell
-    count: 6);                               // 6 kênh: temp, RH, rain, wspd, wdir, vbat
+    count: 6,                                // 6 kênh: temp, RH, rain, wspd, wdir, vbat
+    cancellationToken);
 
-var temperature = values[0];
+var temperature = values.Span[0];
 client.Disconnect();
 ```
 
 **Lưu ý kỹ thuật khi implement**:
-- API của `ModbusTcpClient` là **đồng bộ** (không có `ReadHoldingRegistersAsync`) — worker polling phải tự bọc `Task.Run(...)`.
+- `ModbusClient` (lớp cha của `ModbusTcpClient`) có sẵn cả bản đồng bộ `ReadHoldingRegisters<T>(...)` và bất đồng bộ `ReadHoldingRegistersAsync<T>(..., CancellationToken)` — worker polling nên dùng thẳng bản Async, không cần tự bọc `Task.Run(...)`.
 - Function code CR1000X hỗ trợ: `01, 02, 03, 04, 05, 06, 15, 16` (theo `cr1000x-product-manual/08-communications-protocols.md`). Chỉ cần **FC03** cho việc đọc.
 - Thứ tự byte (`ABCD`/`BADC`/`CDAB`/`DCBA`) là tham số `ModbusOption` trong `ModbusServer()` của CRBasic — **khác nhau theo từng trạm**, không hard-code `ModbusEndianness.BigEndian`, phải đọc cấu hình thực tế mỗi trạm.
 - Cảm biến HygroVUE5 (nhiệt độ/độ ẩm) nối CR1000X qua **SDI-12**, không phải Modbus trực tiếp — CR1000X đọc nội bộ bằng `SDI12Recorder()` rồi nạp cùng vào mảng biến mà `ModbusServer()` publish. Từ phía backend C#, tất cả 4 thông số đều đến qua **cùng một kênh Modbus TCP**, không cần biết cảm biến gốc dùng giao thức gì.
