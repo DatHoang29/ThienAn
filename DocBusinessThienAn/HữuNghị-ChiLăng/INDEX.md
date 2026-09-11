@@ -2,6 +2,9 @@
 
 Kho tài liệu nghiệp vụ & kỹ thuật dự án **Cao tốc Hữu Nghị – Chi Lăng (HN-CL)**.
 
+> 🎯 **QUẢN LÝ BIÊN BẢN HỌP & GHI ÂM TẬP TRUNG**: Toàn bộ biên bản họp, script chuyển thể và audio gốc của các phân hệ (ShareData, VideoWall, Plan toàn tuyến) được quản lý tập trung tại:  
+> 👉 **[`MEETING_HUB.md`](MEETING_HUB.md)** (Bảng tổng hợp theo ngày, tóm tắt quyết định kỹ thuật, link 1-click đến script và audio).
+
 Phân loại tài liệu theo **3-Tier Context Budget**:
 
 | Tier | Ý nghĩa | Định dạng / Vị trí | Hành vi AI |
@@ -17,6 +20,7 @@ Phân loại tài liệu theo **3-Tier Context Budget**:
 ```
 HữuNghị-ChiLăng/
 ├── INDEX.md                                  🤖👤 File bạn đang đọc (chỉ mục cấp dự án)
+├── MEETING_HUB.md                            🤖👤 Bảng điều khiển biên bản họp & ghi âm tập trung
 ├── ShareData/                                🤖👤 Phân hệ Chia sẻ Dữ liệu (ESHARE)
 │   ├── README.md                             🤖👤 SSOT phân hệ ShareData (kèm Tier Table)
 │   ├── doc/                                  🤖    Tier A: 01-yeu-cau-nghiep-vu, 02-mapping, sharedata_plan
