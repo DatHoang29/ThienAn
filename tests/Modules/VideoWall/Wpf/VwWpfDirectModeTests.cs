@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
 using Module.VideoWall.WPF.Api;
@@ -1528,6 +1529,64 @@ public class VwWpfDirectModeTests
         Assert.Contains(sceneSetup.AvailableStartScreens, s => s.X == 1920 && s.Y == 0);
         Assert.Contains(sceneSetup.AvailableStartScreens, s => s.X == 0 && s.Y == 1920);
         Assert.Contains(sceneSetup.AvailableStartScreens, s => s.X == 1920 && s.Y == 1920);
+    }
+
+    /// <summary>
+    /// Description: Thiết lập luồng IP Stream tạo cấu hình StreamInURL và gọi StartDynamicDecode qua MockServer
+    /// Created date: 11/09/2026
+    /// </summary>
+    [Fact]
+    public async Task VwDirectSetupSceneOrchestrator_IPStream_BuildsStreamSettingAndCallsDynamicDecode_Test()
+    {
+        const int port = 18215;
+        using var mockServer = new VwISAPIMockServerHikvision();
+        mockServer.Start(port);
+
+        var creds = new VwDirectDeviceCredentials("127.0.0.1", port, "admin", "12345");
+        var orchestrator = VwDirectClientFactory.CreateSetupSceneOrchestrator(creds);
+
+        const string streamUrl = "rtsp://admin:pass@172.25.0.100:554/Streaming/Channels/101";
+
+        var input = new VwDirectPushSceneInput
+        {
+            SceneId = 1,
+            WallNo = 1,
+            DryRun = false,
+            Windows =
+            [
+                new VwDirectWindowInput
+                {
+                    X = 0,
+                    Y = 0,
+                    W = 1920,
+                    H = 1080,
+                    SignalNo = 1,
+                    WindowMode = 1,
+                    SourceType = "ip_stream",
+                    StreamUrl = streamUrl,
+                    StreamProtocol = "RTSP",
+                }
+            ],
+        };
+
+        var result = await orchestrator.Execute(input, CancellationToken.None);
+
+        Assert.True(result.Success);
+
+        var addStep = result.Steps.FirstOrDefault(s => s.Name.Contains("AddWindow"));
+        Assert.NotNull(addStep);
+        Assert.NotNull(addStep.RequestXml);
+        Assert.Contains("<signalMode>stream setting</signalMode>", addStep.RequestXml);
+        Assert.Contains("<StreamInURL>", addStep.RequestXml);
+        Assert.Contains($"<URL>{streamUrl}</URL>", addStep.RequestXml);
+
+        var decodeStep = result.Steps.FirstOrDefault(s => s.Name.Contains("StartDynamicDecode"));
+        Assert.NotNull(decodeStep);
+        Assert.True(decodeStep.Success);
+        Assert.Contains("/start", decodeStep.Endpoint);
+        Assert.True(
+            string.IsNullOrEmpty(decodeStep.RequestXml) || !decodeStep.RequestXml.Contains("<StartDynamicDecode"),
+            "Endpoint /start phải gửi body rỗng theo spec 9.7.2.5 (Request Message: None)");
     }
 
     private static VwDirectISAPIClient BuildIsapiClient(int port)

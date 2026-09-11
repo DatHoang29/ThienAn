@@ -28,20 +28,41 @@ bị guard Zero-Trust chặn nếu trỏ ra ngoài `localhost` / `127.0.0.1` / `
 
 **227 test — 223 Passed, 4 Skipped, 0 Failed** (~30 giây).
 
-| Nhóm | File | Số test | Ghi chú |
-| --- | --- | :---: | --- |
-| **VideoWall — Controllers** | `VwControllerTests.cs` | 21 | CRUD + `GetInputChannels` + CircuitBreaker + Negative Validation |
-| | `VwSceneTests.cs` | 29 | CRUD + workflow kích hoạt kịch bản + multi-controller + `VwEventTriggerLog` |
-| | `VwWindowSceneTests.cs` | 27 | CRUD + boundary + `SwitchSource` + `SetLayer` Z-Order |
-| | `VwEventRuleTests.cs` | 19 | CRUD `VwEventRule` |
-| | `VwScheduleTests.cs` | 19 | CRUD `VwSchedule` |
-| | `VwScreenTests.cs` | 19 | CRUD `VwScreen` |
-| | `VwSlotPortTests.cs` | 19 | CRUD `VwSlotPort` |
-| | `VwSourceTests.cs` | 18 | CRUD `VwSource` |
-| **VideoWall — Services** | `VwISAPIDeviceClientTests.cs` | 25 | 13 ISAPI method, Digest Auth, Circuit Breaker, Timeout, Multi-port |
-| | `VwSceneRegionServiceTests.cs` | 11 | Kiểm tra vùng, quy đổi toạ độ uniformCoordinate (1920×1920), cắt lát đa controller |
-| | `VwISAPIDeviceServiceTests.cs` | 9 | Digest Credentials, Base URI, refresh credential theo IP/Port |
-| | `VwOrgAccessServiceTests.cs` | 7 | Phân quyền đơn vị OrgId: FullAccess vs. Restricted Org |
+| Nhóm | File | Ghi chú |
+| --- | --- | --- |
+| **VideoWall — Controllers** | `VwControllerTests.cs` | CRUD + `GetInputChannels` + CircuitBreaker + Negative Validation |
+| | `VwSceneTests.cs` | CRUD + workflow kích hoạt kịch bản + multi-controller + `VwEventTriggerLog` |
+| | `VwWindowSceneTests.cs` | CRUD + boundary + `SwitchSource` + `SetLayer` Z-Order |
+| | `VwEventRuleTests.cs` | CRUD `VwEventRule` |
+| | `VwScheduleTests.cs` | CRUD `VwSchedule` |
+| | `VwScreenTests.cs` | CRUD `VwScreen` |
+| | `VwSlotPortTests.cs` | CRUD `VwSlotPort` |
+| | `VwSourceTests.cs` | CRUD `VwSource` |
+| | `VwDeviceControllerTests.cs` | Controller & Diagnostic API |
+| | `VwDeviceValidatorTests.cs` | Device commands FluentValidation testing |
+| | `VwEventTriggerLogTests.cs` | Audit logging trigger tests |
+| | `VwUserAreaPermissionTests.cs` | User/Org area permission CRUD & scope |
+| | `VwWallTopologyTests.cs` | Wall topology queries & layout |
+| **VideoWall — Services** | `VwSceneRegionServiceTests.cs` | Kiểm tra vùng, quy đổi toạ độ uniformCoordinate (1920×1920), cắt lát đa controller |
+| | `VwISAPIDeviceServiceTests.cs` | Digest Credentials, Base URI, refresh credential theo IP/Port |
+| | `VwOrgAccessServiceTests.cs` | Phân quyền VwPermissionService (Tầng 1 OrgId: FullAccess vs. Restricted Org) |
+| | `VwUserAreaAccessServiceTests.cs` | Phân quyền VwPermissionService (Tầng 3: Khu vực ô lưới người dùng) |
+| | `VwCascadeCoordTests.cs` | Thuật toán chia toạ độ subwindow & phân bổ đa controller |
+| | `VwCascadeIntegrationTests.cs` | Tích hợp cascade đa controller qua MockServer & DB |
+| | `VwCascadeControllerSelectionTests.cs` | Phân loại & chọn lựa trung tâm / bộ con |
+| | `VwCascadeRoutingCredentialTests.cs` | Định tuyến và phân giải credential cascade |
+| | `VwDeviceConnectionAndProbeTests.cs` | Kết nối, Ping & Probe qua MockServer |
+| **VideoWall — Messaging** | `VwNatsRealIntegrationTests.cs` | Tích hợp NATS pub/sub & JetStream |
+| | `VwTelemetryConsumerTests.cs` | Telemetry callback & timeout check |
+| **VideoWall — WPF Integration** | `VwWpfDirectModeTests.cs` | Trực tiếp WPF tới MockServer (Ping, Probe, DynamicDecode...) |
+| | `VwScenarioStoreTests.cs` | Lưu trữ & thực thi kịch bản WPF |
+| | `VwWpfCommissioningTests.cs` | Commissioning workflow WPF |
+| | `VwWpfCascadeWallTests.cs` | Cascade wall WPF integration |
+| | `VwWpfStandaloneModeTests.cs` | Standalone mode WPF |
+| | `VwLocalSourceStoreTests.cs` | Lưu trữ nguồn local |
+| | `VwLocalStoresTests.cs` | Lưu trữ cấu hình local |
+
+> *Ghi chú: Toàn bộ các unit test vụn vặt / thuần in-memory (WPF converter, XML highlighter, string summary parser, wrapper messaging test rỗng) đã được dọn dẹp theo quy định chuẩn kiểm thử [thienan_rules.md](../.agents/rules/thienan_rules.md).*
 
 Toàn bộ test VideoWall chạy qua `VwISAPIMockServerHikvision` (HttpListener thật trên `127.0.0.1`,
 port 18080-18083), không phụ thuộc thiết bị phần cứng hay mạng ngoài.

@@ -2051,39 +2051,6 @@ public class VwScenarioStoreTests : IDisposable
     }
 
     [Fact]
-    public void MainViewModel_IsResponseVisible_OnlyForIsapiTabs_Test()
-    {
-        var recordingPub = new RecordingPublisherTest();
-        var activityPub = new ActivityPublisher(recordingPub, NullLogger<ActivityPublisher>.Instance);
-        var connection = new ConnectionViewModel(activityPub, recordingPub, new UserConfirmationTest(true));
-        var paramsVm = new ParametersViewModel(connection);
-        var sceneSetup = new SceneSetupViewModel(activityPub, connection, new UserConfirmationTest(true));
-        var invoker = new ApiInvoker(new InMemoryApiClientFactoryTest(new HttpClient()), activityPub);
-        var apiClient = new VideoWallApiClient(invoker, recordingPub, activityPub);
-        var schedule = new ScheduleViewModel(apiClient, activityPub);
-        var scenario = new ScenarioViewModel(connection, activityPub, recordingPub, new UserConfirmationTest(true));
-        var sessionState = new Module.VideoWall.WPF.Auth.SessionState();
-
-        var mainVm = new MainViewModel(sessionState, activityPub, connection, paramsVm, sceneSetup, schedule, scenario);
-
-        // Tab 1: Thiết lập Scene & Bố cục (Index 0) -> Không hiện Response
-        mainVm.SelectedTabIndex = 0;
-        Assert.False(mainVm.IsResponseVisible);
-
-        // Tab 2: Bo mạch (Index 1) -> Hiện Response
-        mainVm.SelectedTabIndex = 1;
-        Assert.True(mainVm.IsResponseVisible);
-
-        // Tab 6: Video Wall (Index 5) -> Hiện Response
-        mainVm.SelectedTabIndex = 5;
-        Assert.True(mainVm.IsResponseVisible);
-
-        // Tab 12: Cửa sổ (Index 11) -> Hiện Response
-        mainVm.SelectedTabIndex = 11;
-        Assert.True(mainVm.IsResponseVisible);
-    }
-
-    [Fact]
     public void MainViewModel_FormatActivitiesAsJsonl_OutputsValidNewlineDelimitedJson_Test()
     {
         var now = DateTime.Now;
