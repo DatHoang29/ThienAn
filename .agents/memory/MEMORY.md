@@ -18,9 +18,6 @@
 - [VideoWall Live & Auto-Log plan](videowall-record-replay-plan.md) — plan chốt 2026-08-29; chỉ 2 tầng WPF↔thiết bị; thiết lập scene & auto log ra file; prompt thực thi ở DocBusinessThienAn/HữuNghị-ChiLăng/VideoWall/
 - [VideoWall cascade — kiến trúc](videowall-cascade-architecture.md) — DS-C66S 1 bộ trung tâm + 3 bộ con; backend chỉ nói ISAPI với bộ trung tâm; 2 doc cũ (`GiaiThich_KetNoi_*`, `SoDoCauHinh_*`) đã xoá vì sai mô hình phần mềm
 - [VideoWall cascade — tiến độ](videowall-cascade-status.md) — backend + cleanup đã áp, `dotnet test` pass, staged chưa commit; còn KB-00 probe + seed + chốt panel px + WPF + FE (từ 2026-09-09)
-- [VideoWall Tầng 3 — model Config JSON array](videowall-userarea-permission-model.md) — Config `{Col,Row}` rời rạc, KHÔNG bounding-box/ScreenIds; UserId optional (OrgId-only hợp lệ)
-- [VideoWall NATS — Worker đồng bộ VDS + xoá ProjectReference ngược](videowall-nats-device-access-redesign.md) — TransportManager thay ItsDataTransporter; 29 action request-reply cho wizard+diagnostic; đã implement+review
-- [VideoWall — việc tồn đọng 2026-09-11](videowall-outstanding-issues-20260911.md) — 3 bug phân quyền, checklist AllowAnonymous lỗi thời, DI dispatcher chưa verify, heartbeat chưa làm
 
 ## Database / MCP
 - [MCP DAB database access](mcp-dab-database-access.md) — 3 DAB MCP server; `mssql_staging` = 10.10.8.30 = source of truth
