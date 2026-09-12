@@ -11,6 +11,8 @@
 - [Quy định chung & Kiến trúc Thiên An](../rules/thienan_rules.md) — nguồn sự thật duy nhất cho toàn bộ quy định dự án (git/docker/code-style/entity/testing/SQL/AI execution)
 - [Plan xong rồi giao người khác, lưu plan local](feedback-plan-then-handoff-local-files.md) — Claude chỉ research+plan cho VideoWall, không tự sửa code; plan lưu trong repo, không lưu global
 - [Đào sâu root-cause trước khi đề xuất fix](feedback-verify-root-cause-before-fix.md) — khi thấy kiến trúc lạ, đọc hết code liên quan trước khi chốt hướng sửa, đừng vá bề mặt
+- [Đặt tên method không có suffix "Async"](feedback-no-async-suffix-naming.md) — quy tắc riêng của người dùng, khác chuẩn .NET; áp dụng cho code MỚI mình đề xuất
+- [Cấm manual DDL / ALTER TABLE — dùng EnableIncreTable](feedback-no-manual-ddl-use-incretable.md) — cấm chạy DDL thủ công kể cả local hay 10.10.8.30; tận dụng Code-First SqlSugar (EnableInitDb/EnableInitTable/EnableIncreTable)
 
 ## Project — việc đang làm
 - [ShareData Worker = DataPublicationService](sharedata-worker-datapublication.md) — outbound→file-only publication service; scope + rename

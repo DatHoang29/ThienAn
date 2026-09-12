@@ -117,15 +117,17 @@ public partial class Host : IAsyncLifetime
         ["Nats:AuthMode"] = "None",
         ["Nats:UseJetStream"] = "false",
         ["Nats:Streams:0:Name"] = "PubSub",
-        ["Nats:Streams:0:Subjects"] = "ta.its.data.videowall.request,ta.its.data.videowall.response,ta.its.data.videowall.scene",
+        ["Nats:Streams:0:Subjects"] = "ta.its.data.videowall.control,ta.its.data.videowall.data,ta.its.data.videowall.status,ta.its.data.videowall.device",
         ["Nats:Streams:0:InitStream"] = "false",
         ["Nats:Streams:0:Storage"] = "memory",
-        ["Nats:Streams:0:SubjectsList:0:Subject"] = "ta.its.data.videowall.request",
+        ["Nats:Streams:0:SubjectsList:0:Subject"] = "ta.its.data.videowall.control",
         ["Nats:Streams:0:SubjectsList:0:Mode"] = "pubsub",
-        ["Nats:Streams:0:SubjectsList:1:Subject"] = "ta.its.data.videowall.response",
+        ["Nats:Streams:0:SubjectsList:1:Subject"] = "ta.its.data.videowall.data",
         ["Nats:Streams:0:SubjectsList:1:Mode"] = "pubsub",
-        ["Nats:Streams:0:SubjectsList:2:Subject"] = "ta.its.data.videowall.scene",
-        ["Nats:Streams:0:SubjectsList:2:Mode"] = "pubsub"
+        ["Nats:Streams:0:SubjectsList:2:Subject"] = "ta.its.data.videowall.status",
+        ["Nats:Streams:0:SubjectsList:2:Mode"] = "pubsub",
+        ["Nats:Streams:0:SubjectsList:3:Subject"] = "ta.its.data.videowall.device",
+        ["Nats:Streams:0:SubjectsList:3:Mode"] = "pubsub"
     };
 
     private WebApplicationFactory<TAC_WebAPI.Program>? _host;

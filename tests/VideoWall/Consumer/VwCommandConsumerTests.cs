@@ -278,7 +278,7 @@ namespace Tests.Modules.VideoWall.Consumer
         }
 
         /// <summary>
-        /// Description: VwCommandConsumer gọi MockServer thành công và phát telemetry qua IVwNatsPublisher lên subject VwSubjects.Response
+        /// Description: VwCommandConsumer gọi MockServer thành công và phát telemetry qua IVwNatsPublisher lên subject VwSubjects.Data
         /// Created date: 11/09/2026
         /// </summary>
         [Fact]
@@ -318,7 +318,7 @@ namespace Tests.Modules.VideoWall.Consumer
             // Assert
             Assert.True(_mock.ActivateSceneCallCount >= 1);
             Assert.True(publisherStub.PublishedCount > 0);
-            Assert.Equal(VwSubjects.Response, publisherStub.LastSubject);
+            Assert.Equal(VwSubjects.Data, publisherStub.LastSubject);
             Assert.NotNull(publisherStub.LastPayload);
         }
 

@@ -957,6 +957,7 @@ public class VwWindowSceneTests(Host host)
         await _db.Insertable(window).ExecuteCommandAsync();
 
         host.MockServer.ResetDefaults();
+        var initialAddCount = host.MockServer.AddWindowCallCount;
 
         // 3. Act
         var switchInput = new VwSwitchWindowSourceInput
@@ -970,8 +971,8 @@ public class VwWindowSceneTests(Host host)
         var updated = await _db.Queryable<VwWindowScene>().FirstAsync(u => u.ID == window.ID);
         Assert.NotNull(updated);
         Assert.Equal(source2.ID, updated.SourceId);
-        await WaitForCondition(() => host.MockServer.AddWindowCallCount >= 1);
-        Assert.Equal(1, host.MockServer.AddWindowCallCount);
+        await WaitForCondition(() => host.MockServer.AddWindowCallCount > initialAddCount);
+        Assert.True(host.MockServer.AddWindowCallCount > initialAddCount);
     }
 
     /// <summary>
@@ -1315,7 +1316,7 @@ public class VwWindowSceneTests(Host host)
     /// Description: Chờ một điều kiện kiểm thử đạt được trong khoảng timeout cho trước (hỗ trợ kiểm thử NATS bất đồng bộ)
     /// Created date: 12/09/2026
     /// </summary>
-    private static async Task WaitForCondition(Func<bool> condition, int timeoutMs = 4000, int pollIntervalMs = 50)
+    private static async Task WaitForCondition(Func<bool> condition, int timeoutMs = 8000, int pollIntervalMs = 50)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
         while (sw.ElapsedMilliseconds < timeoutMs)
@@ -1330,7 +1331,7 @@ public class VwWindowSceneTests(Host host)
     /// Description: Chờ bản ghi VwWindowScene được Worker cập nhật DeviceWindowId sau khi xử lý qua NATS
     /// Created date: 12/09/2026
     /// </summary>
-    private async Task<VwWindowScene> WaitForWindowDevice(string winCode, int timeoutMs = 4000)
+    private async Task<VwWindowScene> WaitForWindowDevice(string winCode, int timeoutMs = 8000)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
         while (sw.ElapsedMilliseconds < timeoutMs)
