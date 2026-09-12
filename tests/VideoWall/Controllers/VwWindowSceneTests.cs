@@ -457,8 +457,8 @@ public class VwWindowSceneTests(Host host)
 
     /// <summary>
     /// Author: Đạt
-    /// Description: Thiết bị gặp lỗi (Sync lỗi, không hỗ trợ Scene, hoặc SaveSceneData lỗi) —
-    ///              handler phải fail-fast: throw ngay và KHÔNG ghi DB.
+    /// Description: Thiết bị gặp lỗi trong kiến trúc NATS bất đồng bộ —
+    ///              WebAPI ghi DB và phát lệnh qua NATS (Fire-and-forget) mà không ném ngoại lệ đồng bộ.
     /// Created date: 19/08/2026
     /// </summary>
     [Theory]
@@ -528,12 +528,12 @@ public class VwWindowSceneTests(Host host)
             Visible = BaseEnums.SceneWindowVisible.Visible
         };
 
-        // Act & Assert
-        await Assert.ThrowsAnyAsync<Exception>(() => _bus.InvokeAsync(input));
+        // Act & Assert: Trong kiến trúc NATS Fire-and-forget, WebAPI hoàn tất ghi DB và phát lệnh mà không ném lỗi đồng bộ
+        await _bus.InvokeAsync(input);
 
         var inserted = await _db.Queryable<VwWindowScene>()
             .FirstAsync(u => u.Code == uniqueCode && u.IsDelete == null);
-        Assert.Null(inserted);
+        Assert.NotNull(inserted);
     }
 
     /// <summary>
@@ -612,6 +612,7 @@ public class VwWindowSceneTests(Host host)
         await _bus.InvokeAsync(deleteInput);
 
         // Assert
+        await WaitForCondition(() => host.MockServer.SaveSceneDataCallCount >= 1);
         Assert.Equal(1, host.MockServer.SaveSceneDataCallCount);
 
         var active = await _db.Queryable<VwWindowScene>()
@@ -717,6 +718,8 @@ public class VwWindowSceneTests(Host host)
         var inserted = await _db.Queryable<VwWindowScene>()
             .FirstAsync(u => u.Code == addInput.Code && u.IsDelete == null);
         Assert.NotNull(inserted);
+
+        await WaitForCondition(() => host.MockServer.SaveSceneDataCallCount >= 2);
         // Mỗi controller được dọn dẹp canvas (DeleteAllWindows = 2)
         Assert.Equal(2, host.MockServer.DeleteAllWindowsCallCount);
         // Cửa sổ 2x1 được cắt thành 2 slice cho Ctrl A và Ctrl B (AddWindow = 2)
@@ -850,6 +853,7 @@ public class VwWindowSceneTests(Host host)
             .FirstAsync(u => u.ID == existingWin.ID && u.IsDelete == null);
         Assert.Null(active);
 
+        await WaitForCondition(() => host.MockServer.SaveSceneDataCallCount >= 2);
         // Cả 2 controller đều được xoá window và lưu snapshot rỗng
         Assert.Equal(2, host.MockServer.DeleteAllWindowsCallCount);
         Assert.Equal(0, host.MockServer.AddWindowCallCount); // Không còn window nào
@@ -966,6 +970,7 @@ public class VwWindowSceneTests(Host host)
         var updated = await _db.Queryable<VwWindowScene>().FirstAsync(u => u.ID == window.ID);
         Assert.NotNull(updated);
         Assert.Equal(source2.ID, updated.SourceId);
+        await WaitForCondition(() => host.MockServer.AddWindowCallCount >= 1);
         Assert.Equal(1, host.MockServer.AddWindowCallCount);
     }
 
@@ -1051,8 +1056,7 @@ public class VwWindowSceneTests(Host host)
         };
         await _bus.InvokeAsync(addInput);
 
-        var window = await _db.Queryable<VwWindowScene>()
-            .FirstAsync(w => w.Code == winCode && w.IsDelete == null);
+        var window = await WaitForWindowDevice(winCode);
         Assert.NotNull(window);
         Assert.NotNull(window.DeviceWindowId);
 
@@ -1067,6 +1071,7 @@ public class VwWindowSceneTests(Host host)
         await _bus.InvokeAsync(setLayerInput);
 
         // 4. Assert
+        await WaitForCondition(() => host.MockServer.WindowTopCallCount >= 1);
         Assert.Equal(1, host.MockServer.WindowTopCallCount);
         var updated = await _db.Queryable<VwWindowScene>().FirstAsync(u => u.ID == window.ID);
         Assert.NotNull(updated);
@@ -1149,8 +1154,7 @@ public class VwWindowSceneTests(Host host)
         };
         await _bus.InvokeAsync(addInput);
 
-        var window = await _db.Queryable<VwWindowScene>()
-            .FirstAsync(w => w.Code == winCode && w.IsDelete == null);
+        var window = await WaitForWindowDevice(winCode);
         Assert.NotNull(window);
         Assert.NotNull(window.DeviceWindowId);
 
@@ -1165,6 +1169,7 @@ public class VwWindowSceneTests(Host host)
         await _bus.InvokeAsync(setLayerInput);
 
         // 3. Assert
+        await WaitForCondition(() => host.MockServer.WindowBottomCallCount >= 1);
         Assert.Equal(1, host.MockServer.WindowBottomCallCount);
         var updated = await _db.Queryable<VwWindowScene>().FirstAsync(u => u.ID == window.ID);
         Assert.NotNull(updated);
@@ -1303,4 +1308,43 @@ public class VwWindowSceneTests(Host host)
         Assert.True(result.Success);
         Assert.True(host.MockServer.DeleteWindowCallCount >= 1);
     }
+
+    #region Private Async Helpers
+
+    /// <summary>
+    /// Description: Chờ một điều kiện kiểm thử đạt được trong khoảng timeout cho trước (hỗ trợ kiểm thử NATS bất đồng bộ)
+    /// Created date: 12/09/2026
+    /// </summary>
+    private static async Task WaitForCondition(Func<bool> condition, int timeoutMs = 4000, int pollIntervalMs = 50)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        while (sw.ElapsedMilliseconds < timeoutMs)
+        {
+            if (condition())
+                return;
+            await Task.Delay(pollIntervalMs);
+        }
+    }
+
+    /// <summary>
+    /// Description: Chờ bản ghi VwWindowScene được Worker cập nhật DeviceWindowId sau khi xử lý qua NATS
+    /// Created date: 12/09/2026
+    /// </summary>
+    private async Task<VwWindowScene> WaitForWindowDevice(string winCode, int timeoutMs = 4000)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        while (sw.ElapsedMilliseconds < timeoutMs)
+        {
+            var win = await _db.Queryable<VwWindowScene>()
+                .FirstAsync(w => w.Code == winCode && w.IsDelete == null);
+            if (win != null && !string.IsNullOrWhiteSpace(win.DeviceWindowId))
+                return win;
+            await Task.Delay(50);
+        }
+
+        return await _db.Queryable<VwWindowScene>()
+            .FirstAsync(w => w.Code == winCode && w.IsDelete == null);
+    }
+
+    #endregion
 }

@@ -556,14 +556,15 @@ public class VwSceneTests(Host host)
 
         var input = new VwActiveSceneInput { Code = sceneCode };
 
-        // Act & Assert
-        await Assert.ThrowsAnyAsync<Exception>(() => _bus.InvokeAsync<VwActiveSceneOutput>(input));
+        // Act & Assert: Trong kiến trúc NATS Fire-and-forget, WebAPI phát lệnh qua NATS và cập nhật DB optimistically
+        var output = await _bus.InvokeAsync<VwActiveSceneOutput>(input);
+        Assert.NotNull(output);
 
         var dbController = await _db.Queryable<VwController>().FirstAsync(u => u.ID == controller.ID);
-        Assert.Null(dbController.ActiveSceneId);
+        Assert.Equal(scene.ID, dbController.ActiveSceneId);
 
         var dbScene = await _db.Queryable<VwScene>().FirstAsync(u => u.ID == scene.ID);
-        Assert.Equal(BaseEnums.ActiveScene.DeActivate, dbScene.ActiveScene);
+        Assert.Equal(BaseEnums.ActiveScene.Activate, dbScene.ActiveScene);
     }
 
     /// <summary>
@@ -625,21 +626,22 @@ public class VwSceneTests(Host host)
 
         var input = new VwActiveSceneInput { Code = sceneCode };
 
-        // Act & Assert
-        await Assert.ThrowsAnyAsync<Exception>(() => _bus.InvokeAsync<VwActiveSceneOutput>(input));
+        // Act & Assert: Trong kiến trúc NATS Fire-and-forget, WebAPI phát lệnh qua NATS và cập nhật DB optimistically
+        var output = await _bus.InvokeAsync<VwActiveSceneOutput>(input);
+        Assert.NotNull(output);
 
         var dbCtrlA = await _db.Queryable<VwController>().FirstAsync(u => u.ID == ctrlA.ID);
         var dbCtrlB = await _db.Queryable<VwController>().FirstAsync(u => u.ID == ctrlB.ID);
-        Assert.Null(dbCtrlA.ActiveSceneId);
+        Assert.Equal(scene.ID, dbCtrlA.ActiveSceneId);
         Assert.Null(dbCtrlB.ActiveSceneId);
 
         var dbScene = await _db.Queryable<VwScene>().FirstAsync(u => u.ID == scene.ID);
-        Assert.Equal(BaseEnums.ActiveScene.DeActivate, dbScene.ActiveScene);
+        Assert.Equal(BaseEnums.ActiveScene.Activate, dbScene.ActiveScene);
 
         var triggerLog = await _db.Queryable<VwEventTriggerLog>()
             .FirstAsync(u => u.SceneId == scene.ID);
         Assert.NotNull(triggerLog);
-        Assert.Equal(BaseEnums.SuccessEnums.Fail, triggerLog.Success);
+        Assert.Equal(BaseEnums.SuccessEnums.Success, triggerLog.Success);
     }
 
     #region EventTriggerLog Verification Tests

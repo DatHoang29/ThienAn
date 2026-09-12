@@ -49,11 +49,11 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services.Messaging
         }
 
         /// <summary>
-        /// Description: WebAPI gửi truy vấn Capabilities qua NATS thật, Worker proxy sang MockServer thật và trả DTO về cho WebAPI
+        /// Description: WebAPI gửi truy vấn InputChannels qua NATS thật, Worker proxy sang MockServer thật và trả DTO về cho WebAPI
         /// Created date: 11/09/2026
         /// </summary>
         [Fact]
-        public async Task RequestAsync_DeviceProxyCapabilities_OverRealNats_ReturnsCapabilitiesData_Test()
+        public async Task RequestAsync_DeviceProxyInputChannels_OverRealNats_ReturnsInputChannelsData_Test()
         {
             // Arrange
             _mock.ResetDefaults();
@@ -62,14 +62,14 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services.Messaging
             var center = await EnsureCenterController();
 
             // Act: Gửi qua NATS thật
-            var result = await _client.RequestAsync<VwDeviceGenericOutput<VwISAPICapabilitiesResponse>>(
-                VwCommandActions.DeviceProxyCapabilities,
-                new VwDeviceCapabilitiesInput { ControllerId = center.ID });
+            var result = await _client.RequestAsync<VwDeviceGenericOutput<VwISAPIInputChannelsResponse>>(
+                VwCommandActions.DeviceProxyInputChannels,
+                new VwDeviceInputChannelsInput { ControllerId = center.ID });
 
             // Assert
             Assert.NotNull(result);
             Assert.NotNull(result.Data);
-            Assert.True(_mock.GetCapabilitiesCallCount >= 1);
+            Assert.True(_mock.GetInputChannelsCallCount >= 1);
         }
 
         private async Task<VwController> EnsureCenterController(CancellationToken ct = default)

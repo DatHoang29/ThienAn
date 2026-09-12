@@ -460,11 +460,11 @@ namespace Tests.Modules.VideoWall.Consumer
         }
 
         /// <summary>
-        /// Description: Lệnh DEVICE_PROXY_CAPABILITIES gọi qua VwCommandConsumer tới MockServer và phát telemetry thành công
+        /// Description: Lệnh DEVICE_PROXY_INPUT_CHANNELS gọi qua VwCommandConsumer tới MockServer và phát telemetry thành công
         /// Created date: 11/09/2026
         /// </summary>
         [Fact]
-        public async Task ProcessCommandAsync_WhenDeviceProxyCapabilities_CallsMockServerAndPublishesSuccess_Test()
+        public async Task ProcessCommandAsync_WhenDeviceProxyInputChannels_CallsMockServerAndPublishesSuccess_Test()
         {
             // Arrange
             _mock.ResetDefaults();
@@ -485,10 +485,10 @@ namespace Tests.Modules.VideoWall.Consumer
 
             var envelope = new VwCommandEnvelope
             {
-                MessageId = $"MSG_CAPS_{Guid.NewGuid():N}",
-                Action = VwCommandActions.DeviceProxyCapabilities,
+                MessageId = $"MSG_CHANNELS_{Guid.NewGuid():N}",
+                Action = VwCommandActions.DeviceProxyInputChannels,
                 ControllerId = center.ID,
-                Payload = new VwDeviceCapabilitiesInput
+                Payload = new VwDeviceInputChannelsInput
                 {
                     ControllerId = center.ID
                 }
@@ -498,7 +498,7 @@ namespace Tests.Modules.VideoWall.Consumer
             await consumer.ProcessCommandAsync(envelope);
 
             // Assert
-            Assert.Equal(VwCommandActions.DeviceProxyCapabilities, capturedAction);
+            Assert.Equal(VwCommandActions.DeviceProxyInputChannels, capturedAction);
             Assert.True(capturedSuccess);
             Assert.NotNull(capturedData);
         }

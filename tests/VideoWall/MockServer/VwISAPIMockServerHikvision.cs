@@ -8,7 +8,7 @@ namespace Tests.Modules.VideoWall.MockServer
     /// <summary>
     /// Author: Đạt
     /// Description: Mock Server HTTP độc lập giả lập thiết bị Hikvision Video Wall Controller DS-C66S-H88-CL.
-    ///              Mở Socket HTTP thật trên localhost (mặc định port 18080), hỗ trợ Digest Authentication (RFC 7616)
+    ///              Mở Web Server HTTP cục bộ trên localhost (mặc định port 18080), hỗ trợ Digest Authentication (RFC 7616)
     ///              và trả về toàn bộ các mẫu XML & JSON đo thật (100% Ground Truth từ API_Postman_Videowall.md).
     /// Created date: 17/08/2026
     /// </summary>
@@ -334,7 +334,7 @@ namespace Tests.Modules.VideoWall.MockServer
 
         /// <summary>
         /// Author: Đạt
-        /// Description: Vòng lặp nhận HTTP connection từ socket và điều phối xử lý request bất đồng bộ
+        /// Description: Vòng lặp nhận HTTP connection từ Web Server cục bộ và điều phối xử lý request bất đồng bộ
         /// Created date: 17/08/2026
         /// </summary>
         private async Task ListenLoopAsync(CancellationToken ct)
@@ -698,7 +698,7 @@ namespace Tests.Modules.VideoWall.MockServer
 
         /// <summary>
         /// Author: Đạt
-        /// Description: Giải phóng socket HttpListener và tài nguyên bất đồng bộ của MockServer
+        /// Description: Giải phóng Web Server cục bộ HttpListener và tài nguyên bất đồng bộ của MockServer
         /// Created date: 17/08/2026
         /// </summary>
         public void Dispose()
