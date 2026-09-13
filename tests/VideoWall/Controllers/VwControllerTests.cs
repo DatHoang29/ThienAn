@@ -86,15 +86,15 @@ public class VwControllerTests(Host host)
     }
 
     /// <summary>
-    /// Description: Kiểm tra GetInputChannels qua VwGetInputChannelsValidator và truy vấn danh sách kênh tín hiệu từ CSDL
+    /// Description: Kiểm tra GetInputChannels qua VwGetInputChannelsControllerValidator và truy vấn danh sách kênh tín hiệu từ CSDL
     /// Created date: 13/09/2026
     /// </summary>
     [Fact]
     public async Task VwControllerQuery_GetInputChannels_ReturnsSuccess_Test()
     {
         // Arrange - Negative validation test
-        var validator = new VwGetInputChannelsValidator(_localizer);
-        var invalidInput = new VwGetInputChannelsInput { ID = "" };
+        var validator = new VwGetInputChannelsControllerValidator(_localizer);
+        var invalidInput = new VwGetInputChannelsControllerInput { ID = "" };
         var invalidResult = await validator.ValidateAsync(invalidInput);
         Assert.False(invalidResult.IsValid);
 
@@ -122,17 +122,16 @@ public class VwControllerTests(Host host)
         };
         await _db.Insertable(source).ExecuteCommandAsync();
 
-        var input = new VwGetInputChannelsInput { ID = controller.ID };
+        var input = new VwGetInputChannelsControllerInput { ID = controller.ID };
         var validResult = await validator.ValidateAsync(input);
         Assert.True(validResult.IsValid);
 
         // Act
-        var result = await _bus.InvokeAsync<VwISAPIInputChannelsResponse>(input);
+        var result = await _bus.InvokeAsync<List<VwGetInputChannelsControllerOutput>>(input);
 
         // Assert
         Assert.NotNull(result);
-        Assert.NotNull(result.VideoInputChannel);
-        Assert.Contains(result.VideoInputChannel, c => c.Id == 16842753 && c.Name == "Test Source Channel");
+        Assert.Contains(result, c => c.Id == 16842753 && c.Name == "Test Source Channel");
     }
 
     /// <summary>
