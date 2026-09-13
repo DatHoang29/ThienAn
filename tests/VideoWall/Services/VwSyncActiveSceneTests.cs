@@ -248,5 +248,143 @@ namespace Tests.Modules.VideoWall.Services
                 await _db.Deleteable<VwController>().Where(c => c.ID == subController.ID).ExecuteCommandAsync();
             }
         }
+
+        /// <summary>
+        /// Description: Hệ thống có 3 controller (A, B, C) độc lập, mỗi controller có 1 scene đang Active.
+        ///              Khi gọi SyncActiveScene cho controller A với scene mới, chỉ scene cũ của controller A bị DeActivate,
+        ///              scene mới của controller A được Activate, còn scene của controller B và C vẫn giữ nguyên cờ Activate.
+        /// Created date: 13/09/2026
+        /// </summary>
+        [Fact]
+        public async Task SyncActiveScene_MultiController_DoesNotDeactivateOtherControllersScenes_Test()
+        {
+            // Arrange
+            _mock.ResetDefaults();
+            _mock.ActiveSceneId = 774;
+
+            var ctrlA = new VwController
+            {
+                ID = $"{TestPrefix}CTRL_A_{Guid.NewGuid():N}",
+                IP = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPort}",
+                Account = VwISAPIMockServerHikvision.DefaultUser,
+                PassWord = VwISAPIMockServerHikvision.DefaultPassword,
+                Status = BaseEnums.StatusEnum.Enable,
+                CreateTime = DateTime.Now
+            };
+            var ctrlB = new VwController
+            {
+                ID = $"{TestPrefix}CTRL_B_{Guid.NewGuid():N}",
+                IP = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPort}",
+                Account = VwISAPIMockServerHikvision.DefaultUser,
+                PassWord = VwISAPIMockServerHikvision.DefaultPassword,
+                Status = BaseEnums.StatusEnum.Enable,
+                CreateTime = DateTime.Now
+            };
+            var ctrlC = new VwController
+            {
+                ID = $"{TestPrefix}CTRL_C_{Guid.NewGuid():N}",
+                IP = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPort}",
+                Account = VwISAPIMockServerHikvision.DefaultUser,
+                PassWord = VwISAPIMockServerHikvision.DefaultPassword,
+                Status = BaseEnums.StatusEnum.Enable,
+                CreateTime = DateTime.Now
+            };
+
+            var sceneA1 = new VwScene
+            {
+                ID = $"{TestPrefix}SCN_A1_{Guid.NewGuid():N}",
+                Name = "Ctrl A Old Scene",
+                OutputId = "771",
+                ControllerId = ctrlA.ID,
+                ActiveScene = BaseEnums.ActiveScene.Activate,
+                Status = BaseEnums.StatusEnum.Enable,
+                CreateTime = DateTime.Now
+            };
+            var sceneA2 = new VwScene
+            {
+                ID = $"{TestPrefix}SCN_A2_{Guid.NewGuid():N}",
+                Name = "Ctrl A Target Running Scene",
+                OutputId = "774",
+                ControllerId = ctrlA.ID,
+                ActiveScene = BaseEnums.ActiveScene.DeActivate,
+                Status = BaseEnums.StatusEnum.Enable,
+                CreateTime = DateTime.Now
+            };
+            var sceneB = new VwScene
+            {
+                ID = $"{TestPrefix}SCN_B_{Guid.NewGuid():N}",
+                Name = "Ctrl B Running Scene",
+                OutputId = "772",
+                ControllerId = ctrlB.ID,
+                ActiveScene = BaseEnums.ActiveScene.Activate,
+                Status = BaseEnums.StatusEnum.Enable,
+                CreateTime = DateTime.Now
+            };
+            var sceneC = new VwScene
+            {
+                ID = $"{TestPrefix}SCN_C_{Guid.NewGuid():N}",
+                Name = "Ctrl C Running Scene",
+                OutputId = "773",
+                ControllerId = ctrlC.ID,
+                ActiveScene = BaseEnums.ActiveScene.Activate,
+                Status = BaseEnums.StatusEnum.Enable,
+                CreateTime = DateTime.Now
+            };
+
+            ctrlA.ActiveSceneId = sceneA1.ID;
+            ctrlB.ActiveSceneId = sceneB.ID;
+            ctrlC.ActiveSceneId = sceneC.ID;
+
+            await _db.Insertable(new[] { ctrlA, ctrlB, ctrlC }).ExecuteCommandAsync();
+            await _db.Insertable(new[] { sceneA1, sceneA2, sceneB, sceneC }).ExecuteCommandAsync();
+
+            try
+            {
+                // Act
+                var result = await _service.SyncActiveScene(new VwSyncActiveSceneInput
+                {
+                    ID = ctrlA.ID
+                });
+
+                // Assert
+                Assert.NotNull(result);
+                Assert.True(result.Synced);
+                Assert.True(result.HasMismatch);
+                Assert.Equal(774, result.DeviceActiveSceneId);
+                Assert.Equal(sceneA2.ID, result.MatchedSceneId);
+
+                // Controller A updated
+                var updatedCtrlA = await _db.Queryable<VwController>().FirstAsync(c => c.ID == ctrlA.ID);
+                Assert.Equal(sceneA2.ID, updatedCtrlA.ActiveSceneId);
+                Assert.NotNull(updatedCtrlA.ActiveSceneAt);
+
+                // Controller B & C unchanged
+                var updatedCtrlB = await _db.Queryable<VwController>().FirstAsync(c => c.ID == ctrlB.ID);
+                Assert.Equal(sceneB.ID, updatedCtrlB.ActiveSceneId);
+
+                var updatedCtrlC = await _db.Queryable<VwController>().FirstAsync(c => c.ID == ctrlC.ID);
+                Assert.Equal(sceneC.ID, updatedCtrlC.ActiveSceneId);
+
+                // Scene A1 deactivated, Scene A2 activated
+                var updatedA1 = await _db.Queryable<VwScene>().FirstAsync(s => s.ID == sceneA1.ID);
+                Assert.Equal(BaseEnums.ActiveScene.DeActivate, updatedA1.ActiveScene);
+
+                var updatedA2 = await _db.Queryable<VwScene>().FirstAsync(s => s.ID == sceneA2.ID);
+                Assert.Equal(BaseEnums.ActiveScene.Activate, updatedA2.ActiveScene);
+
+                // Scene B & Scene C MUST REMAIN ACTIVATED
+                var updatedB = await _db.Queryable<VwScene>().FirstAsync(s => s.ID == sceneB.ID);
+                Assert.Equal(BaseEnums.ActiveScene.Activate, updatedB.ActiveScene);
+
+                var updatedC = await _db.Queryable<VwScene>().FirstAsync(s => s.ID == sceneC.ID);
+                Assert.Equal(BaseEnums.ActiveScene.Activate, updatedC.ActiveScene);
+            }
+            finally
+            {
+                _service.ResetAllCircuitBreakers();
+                await _db.Deleteable<VwController>().Where(c => c.ID == ctrlA.ID || c.ID == ctrlB.ID || c.ID == ctrlC.ID).ExecuteCommandAsync();
+                await _db.Deleteable<VwScene>().Where(s => s.ID == sceneA1.ID || s.ID == sceneA2.ID || s.ID == sceneB.ID || s.ID == sceneC.ID).ExecuteCommandAsync();
+            }
+        }
     }
 }

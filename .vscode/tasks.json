@@ -56,7 +56,71 @@
       "type": "process",
       "args": [
         "build",
-        "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Modules/VideoWall/Module.VideoWall.WPF/Module.VideoWall.WPF.csproj",
+        "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VideoWall/ITS.VideoWall.WPF/ITS.VideoWall.WPF.csproj",
+        "/property:GenerateFullPaths=true"
+      ],
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": false
+      }
+    },
+    {
+      "label": "build-videowall-worker",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VideoWall/ITS.VideoWall/ITS.VideoWall.csproj",
+        "/property:GenerateFullPaths=true"
+      ],
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": false
+      }
+    },
+    {
+      "label": "build-sharedata-worker",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/ShareData/ShareDataWorker/ShareDataWorker.csproj",
+        "/property:GenerateFullPaths=true"
+      ],
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": false
+      }
+    },
+    {
+      "label": "build-toll-wpf",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/Toll/ITS.Toll.Wpf/ITS.Toll.Wpf.csproj",
+        "/property:GenerateFullPaths=true"
+      ],
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": false
+      }
+    },
+    {
+      "label": "build-vds-wpf",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VDS/ITS.VDS.Wpf/ITS.VDS.Wpf.csproj",
         "/property:GenerateFullPaths=true"
       ],
       "problemMatcher": "$msCompile",
