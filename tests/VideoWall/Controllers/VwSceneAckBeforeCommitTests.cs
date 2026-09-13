@@ -1,43 +1,41 @@
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using Module.VideoWall.Controllers.Scene.Commands;
+using Module.VideoWall.Controllers.Scene.Validators;
 using Module.VideoWall.Core.Constants;
+using Module.VideoWall.Core.Dto.Command;
 using Module.VideoWall.Core.Dto.Scene;
 using Module.VideoWall.Core.Entities;
 using Module.VideoWall.Core.Interfaces;
-using Module.VideoWall.Core.Options;
 using Module.VideoWall.Infrastructure;
 using Module.VideoWall.Infrastructure.Services.Access;
-using Module.VideoWall.Infrastructure.Services.Messaging;
 using Shared.DTO.Enums;
 using Shared.Infrastructure.Services;
 using SqlSugar;
-using System.Security.Claims;
 using Tests.Modules.VideoWall.MockServer;
 using Xunit;
 
 namespace Tests.Modules.VideoWall.Controllers
 {
     /// <summary>
-    /// Description: Kiểm thử cơ chế ACK-before-commit cho kích hoạt kịch bản (Task 4)
-    ///              Chỉ ghi DB sau khi thiết bị thật/Worker xác nhận thành công qua NATS;
-    ///              khi lỗi hoặc timeout thì giữ nguyên DB cũ và ghi log thất bại.
-    /// Created date: 12/09/2026
+    /// Description: Kiểm thử luồng kích hoạt kịch bản Fire-and-Forget phía WebAPI.
+    ///              BE publish lệnh xuống Worker qua NATS và trả về ngay mà không chờ ACK;
+    ///              BE không tự cập nhật ActiveScene trong DB (Worker phụ trách cập nhật).
+    /// Created date: 13/09/2026
     /// </summary>
     [Collection("api")]
     public class VwSceneAckBeforeCommitTests(Host host)
     {
-        private const string TestPrefix = "TEST_ACK_";
+        private const string TestPrefix = "TEST_FAF_";
         private readonly ISqlSugarClient _db = host.Services.GetRequiredService<ISqlSugarClient>();
-        private readonly BaseCacheService _cache = host.Services.GetRequiredService<BaseCacheService>();
         private readonly VwPermissionService _permission = host.Services.GetRequiredService<VwPermissionService>();
-        private readonly IVwPublisher _publisher = host.Services.GetRequiredService<IVwPublisher>();
         private readonly IVwEventTriggerLogWriter _logWriter = host.Services.GetRequiredService<IVwEventTriggerLogWriter>();
 
+        /// <summary>
+        /// Description: Kích hoạt kịch bản theo cơ chế Fire-and-Forget: validate input, publish lệnh NATS và trả output ngay
+        /// Created date: 13/09/2026
+        /// </summary>
         [Fact]
-        public async Task ActivateScene_WhenAckSuccess_CommitsDbAndReturnsOutput_Test()
+        public async Task ActivateScene_FireAndForget_PublishesCommandAndReturnsOutputImmediately_Test()
         {
             host.MockServer.ResetDefaults();
 
@@ -61,7 +59,7 @@ namespace Tests.Modules.VideoWall.Controllers
             var scene = new VwScene
             {
                 Code = sceneCode,
-                Name = "Scene Ack Success",
+                Name = "Scene Fire And Forget",
                 ControllerId = controller.ID,
                 OutputId = "1",
                 Status = BaseEnums.StatusEnum.Enable,
@@ -72,34 +70,52 @@ namespace Tests.Modules.VideoWall.Controllers
 
             try
             {
+                // 1. Kiểm tra Validator bắt buộc
+                var validator = new VwActiveSceneValidator(host.Localizer);
+                var invalidResult = await validator.ValidateAsync(new VwActiveSceneInput());
+                Assert.False(invalidResult.IsValid);
+
+                var validResult = await validator.ValidateAsync(new VwActiveSceneInput { Code = sceneCode });
+                Assert.True(validResult.IsValid);
+
+                // 2. Thực thi CommandHandler với FakeVwPublisher
                 using var scope = host.Services.CreateScope();
                 var sp = scope.ServiceProvider;
-                var fakeClient = new FakeNatsRequestClient();
+                var fakePublisher = new FakeVwPublisher();
 
                 var handler = new VwSceneWorkflowCommandHandler(
                     sp.GetRequiredService<BaseRepository<VwScene>>(),
                     sp.GetRequiredService<BaseRepository<VwWindowScene>>(),
                     sp.GetRequiredService<BaseRepository<VwController>>(),
                     sp.GetRequiredService<BaseRepository<VwEventRule>>(),
-                    _cache,
                     _permission,
-                    _publisher,
-                    _logWriter,
-                    fakeClient);
+                    fakePublisher,
+                    _logWriter);
 
                 var output = await handler.HandleAsync(new VwActiveSceneInput { Code = sceneCode });
 
+                // Assert: Output trả về ngay
                 Assert.NotNull(output);
-                Assert.Equal(BaseEnums.ActiveScene.Activate, output.ActiveScene);
+                Assert.Equal(scene.ID, output.ID);
+                Assert.NotNull(output.TriggerLogId);
 
+                // Assert: Lệnh đã được publish fire-and-forget qua IVwPublisher
+                Assert.Equal(1, fakePublisher.CallCount);
+                Assert.Equal(VwCommandActions.ActivateScene, fakePublisher.LastAction);
+                Assert.Equal(scene.ID, fakePublisher.LastSceneId);
+                Assert.Equal(controller.ID, fakePublisher.LastControllerId);
+
+                // Assert: BE không tự cập nhật ActiveScene trong DB (việc này do Worker thực thi)
                 var dbCtrl = await _db.Queryable<VwController>().FirstAsync(u => u.ID == controller.ID);
-                Assert.Equal(scene.ID, dbCtrl.ActiveSceneId);
+                Assert.Null(dbCtrl.ActiveSceneId);
 
                 var dbScene = await _db.Queryable<VwScene>().FirstAsync(u => u.ID == scene.ID);
-                Assert.Equal(BaseEnums.ActiveScene.Activate, dbScene.ActiveScene);
+                Assert.Equal(BaseEnums.ActiveScene.DeActivate, dbScene.ActiveScene);
 
-                Assert.Equal(1, fakeClient.CallCount);
-                Assert.Equal(VwCommandActions.ActivateScene, fakeClient.LastAction);
+                // Assert: Log trigger được ghi nhận trạng thái Success
+                var log = await _db.Queryable<VwEventTriggerLog>().FirstAsync(u => u.ID == output.TriggerLogId);
+                Assert.NotNull(log);
+                Assert.Equal(BaseEnums.SuccessEnums.Success, log.Success);
             }
             finally
             {
@@ -109,8 +125,12 @@ namespace Tests.Modules.VideoWall.Controllers
             }
         }
 
+        /// <summary>
+        /// Description: Kích hoạt kịch bản khi Status = Disable -> ném lỗi và ghi nhận log thất bại
+        /// Created date: 13/09/2026
+        /// </summary>
         [Fact]
-        public async Task ActivateScene_WhenAckFails_ThrowsAndDoesNotUpdateDb_Test()
+        public async Task ActivateScene_WhenSceneDisabled_LogsFailAndThrows_Test()
         {
             var ctrlCode = $"{TestPrefix}CTRL_{Guid.NewGuid():N}";
             var sceneCode = $"{TestPrefix}SCN_{Guid.NewGuid():N}";
@@ -132,10 +152,10 @@ namespace Tests.Modules.VideoWall.Controllers
             var scene = new VwScene
             {
                 Code = sceneCode,
-                Name = "Scene Ack Fails",
+                Name = "Scene Disabled",
                 ControllerId = controller.ID,
                 OutputId = "1",
-                Status = BaseEnums.StatusEnum.Enable,
+                Status = BaseEnums.StatusEnum.Disable,
                 ActiveScene = BaseEnums.ActiveScene.DeActivate,
                 CreateTime = DateTime.Now
             };
@@ -145,42 +165,27 @@ namespace Tests.Modules.VideoWall.Controllers
             {
                 using var scope = host.Services.CreateScope();
                 var sp = scope.ServiceProvider;
-                var fakeClient = new FakeNatsRequestClient
-                {
-                    ExceptionToThrow = new InvalidOperationException("Thiết bị từ chối lệnh kích hoạt.")
-                };
+                var fakePublisher = new FakeVwPublisher();
 
                 var handler = new VwSceneWorkflowCommandHandler(
                     sp.GetRequiredService<BaseRepository<VwScene>>(),
                     sp.GetRequiredService<BaseRepository<VwWindowScene>>(),
                     sp.GetRequiredService<BaseRepository<VwController>>(),
                     sp.GetRequiredService<BaseRepository<VwEventRule>>(),
-                    _cache,
                     _permission,
-                    _publisher,
-                    _logWriter,
-                    fakeClient);
+                    fakePublisher,
+                    _logWriter);
 
-                var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                await Assert.ThrowsAnyAsync<Exception>(() =>
                     handler.HandleAsync(new VwActiveSceneInput { Code = sceneCode }));
 
-                Assert.Contains("từ chối", ex.Message);
+                // Không publish lệnh nào
+                Assert.Equal(0, fakePublisher.CallCount);
 
-                // Verify DB NOT updated
-                var dbCtrl = await _db.Queryable<VwController>().FirstAsync(u => u.ID == controller.ID);
-                Assert.Null(dbCtrl.ActiveSceneId);
-
-                var dbScene = await _db.Queryable<VwScene>().FirstAsync(u => u.ID == scene.ID);
-                Assert.Equal(BaseEnums.ActiveScene.DeActivate, dbScene.ActiveScene);
-
-                // Verify trigger logs recorded Fail for both business and device step
-                var businessLog = await _db.Queryable<VwEventTriggerLog>().FirstAsync(u => u.SceneId == scene.ID && string.IsNullOrEmpty(u.StepName));
-                Assert.NotNull(businessLog);
-                Assert.Equal(BaseEnums.SuccessEnums.Fail, businessLog.Success);
-
-                var deviceLog = await _db.Queryable<VwEventTriggerLog>().FirstAsync(u => u.SceneId == scene.ID && u.StepName != null);
-                Assert.NotNull(deviceLog);
-                Assert.Equal(BaseEnums.SuccessEnums.Fail, deviceLog.Success);
+                // Log thất bại được ghi
+                var log = await _db.Queryable<VwEventTriggerLog>().FirstAsync(u => u.SceneId == scene.ID);
+                Assert.NotNull(log);
+                Assert.Equal(BaseEnums.SuccessEnums.Fail, log.Success);
             }
             finally
             {
@@ -190,131 +195,24 @@ namespace Tests.Modules.VideoWall.Controllers
             }
         }
 
-        [Fact]
-        public async Task ActivateScene_WhenTimeout_ThrowsAndDoesNotUpdateDb_Test()
+        private sealed class FakeVwPublisher : IVwPublisher
         {
-            var ctrlCode = $"{TestPrefix}CTRL_{Guid.NewGuid():N}";
-            var sceneCode = $"{TestPrefix}SCN_{Guid.NewGuid():N}";
-
-            var controller = new VwController
-            {
-                Code = ctrlCode,
-                Name = "Center Controller",
-                Role = "center",
-                IntegrationMode = "cascade",
-                IP = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPort}",
-                Account = VwISAPIMockServerHikvision.DefaultUser,
-                PassWord = VwISAPIMockServerHikvision.DefaultPassword,
-                Status = BaseEnums.StatusEnum.Enable,
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(controller).ExecuteCommandAsync();
-
-            var scene = new VwScene
-            {
-                Code = sceneCode,
-                Name = "Scene Timeout",
-                ControllerId = controller.ID,
-                OutputId = "1",
-                Status = BaseEnums.StatusEnum.Enable,
-                ActiveScene = BaseEnums.ActiveScene.DeActivate,
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(scene).ExecuteCommandAsync();
-
-            try
-            {
-                using var scope = host.Services.CreateScope();
-                var sp = scope.ServiceProvider;
-                var fakeClient = new FakeNatsRequestClient
-                {
-                    ExceptionToThrow = new TimeoutException("Hết thời gian chờ phản hồi từ thiết bị.")
-                };
-
-                var handler = new VwSceneWorkflowCommandHandler(
-                    sp.GetRequiredService<BaseRepository<VwScene>>(),
-                    sp.GetRequiredService<BaseRepository<VwWindowScene>>(),
-                    sp.GetRequiredService<BaseRepository<VwController>>(),
-                    sp.GetRequiredService<BaseRepository<VwEventRule>>(),
-                    _cache,
-                    _permission,
-                    _publisher,
-                    _logWriter,
-                    fakeClient);
-
-                var ex = await Assert.ThrowsAsync<TimeoutException>(() =>
-                    handler.HandleAsync(new VwActiveSceneInput { Code = sceneCode }));
-
-                Assert.Contains("Hết thời gian chờ", ex.Message);
-
-                // Verify DB NOT updated
-                var dbCtrl = await _db.Queryable<VwController>().FirstAsync(u => u.ID == controller.ID);
-                Assert.Null(dbCtrl.ActiveSceneId);
-
-                var dbScene = await _db.Queryable<VwScene>().FirstAsync(u => u.ID == scene.ID);
-                Assert.Equal(BaseEnums.ActiveScene.DeActivate, dbScene.ActiveScene);
-
-                // Verify trigger logs recorded Fail for both business and device step
-                var businessLog = await _db.Queryable<VwEventTriggerLog>().FirstAsync(u => u.SceneId == scene.ID && string.IsNullOrEmpty(u.StepName));
-                Assert.NotNull(businessLog);
-                Assert.Equal(BaseEnums.SuccessEnums.Fail, businessLog.Success);
-
-                var deviceLog = await _db.Queryable<VwEventTriggerLog>().FirstAsync(u => u.SceneId == scene.ID && u.StepName != null);
-                Assert.NotNull(deviceLog);
-                Assert.Equal(BaseEnums.SuccessEnums.Fail, deviceLog.Success);
-            }
-            finally
-            {
-                await _db.Deleteable<VwScene>(s => s.ID == scene.ID).ExecuteCommandAsync();
-                await _db.Deleteable<VwController>(c => c.ID == controller.ID).ExecuteCommandAsync();
-                await _db.Deleteable<VwEventTriggerLog>(l => l.SceneId == scene.ID).ExecuteCommandAsync();
-            }
-        }
-
-        [Fact]
-        public void Complete_WhenDuplicateAckReceived_IsIdempotent_Test()
-        {
-            var fakePublisher = new FakeNatsPublisher();
-            var options = Microsoft.Extensions.Options.Options.Create(new VwDeviceOptions());
-            var client = new VwNatsRequestClient(fakePublisher, options, NullLogger<VwNatsRequestClient>.Instance);
-
-            // Duplicate Complete calls with unknown or already completed messageId must be completely safe and not throw
-            var ex1 = Record.Exception(() => client.Complete("MSG_UNKNOWN_01", true, null, null));
-            var ex2 = Record.Exception(() => client.Complete("MSG_UNKNOWN_01", false, "Error", null));
-
-            Assert.Null(ex1);
-            Assert.Null(ex2);
-        }
-
-        private sealed class FakeNatsRequestClient : IVwNatsRequestClient
-        {
-            public Exception? ExceptionToThrow { get; set; }
             public int CallCount { get; private set; }
             public string? LastAction { get; private set; }
+            public string? LastSceneId { get; private set; }
+            public string? LastControllerId { get; private set; }
+            public object? LastPayload { get; private set; }
 
-            public Task<TResponse> RequestAsync<TResponse>(string action, object? payload, string? controllerId = null, string? sceneId = null, CancellationToken ct = default)
+            public bool PublishCommand(VwCommandEnvelope envelope) => true;
+            public bool PublishCommand<T>(string action, T payload, string? controllerId = null, string? sceneId = null) => true;
+
+            public Task<bool> PublishCommandAsync<T>(string action, T payload, string? controllerId = null, string? sceneId = null, CancellationToken ct = default)
             {
                 CallCount++;
                 LastAction = action;
-                if (ExceptionToThrow != null)
-                    throw ExceptionToThrow;
-                return Task.FromResult(default(TResponse)!);
-            }
-
-            public Task RequestAsync(string action, object? payload, string? controllerId = null, string? sceneId = null, CancellationToken ct = default)
-            {
-                CallCount++;
-                LastAction = action;
-                if (ExceptionToThrow != null)
-                    throw ExceptionToThrow;
-                return Task.CompletedTask;
-            }
-        }
-
-        private sealed class FakeNatsPublisher : IVwNatsPublisher
-        {
-            public Task<bool> PublishAsync(string subject, object payload, CancellationToken ct = default)
-            {
+                LastPayload = payload;
+                LastControllerId = controllerId;
+                LastSceneId = sceneId;
                 return Task.FromResult(true);
             }
         }

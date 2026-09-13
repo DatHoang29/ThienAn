@@ -327,11 +327,13 @@ namespace Tests.Modules.VideoWall
             using var scope = host.Services.CreateScope();
             var service = new VwISAPIDeviceService(
                 _client,
-                scope.ServiceProvider.GetRequiredService<BaseRepository<VwController>>(),
-                scope.ServiceProvider.GetRequiredService<BaseRepository<VwScene>>(),
-                scope.ServiceProvider.GetRequiredService<BaseRepository<VwWindowScene>>(),
-                scope.ServiceProvider.GetRequiredService<BaseRepository<VwSource>>(),
-                scope.ServiceProvider.GetRequiredService<BaseRepository<VwScreen>>(),
+                scope.ServiceProvider.GetRequiredService<ITS.VideoWall.Infrastructure.BaseRepository<VwController>>(),
+                scope.ServiceProvider.GetRequiredService<ITS.VideoWall.Infrastructure.BaseRepository<VwScene>>(),
+                scope.ServiceProvider.GetRequiredService<ITS.VideoWall.Infrastructure.BaseRepository<VwWindowScene>>(),
+                scope.ServiceProvider.GetRequiredService<ITS.VideoWall.Infrastructure.BaseRepository<VwSource>>(),
+                scope.ServiceProvider.GetRequiredService<ITS.VideoWall.Infrastructure.BaseRepository<VwScreen>>(),
+                scope.ServiceProvider.GetRequiredService<ITS.VideoWall.Infrastructure.BaseRepository<VwSlotPort>>(),
+                scope.ServiceProvider.GetRequiredService<ITS.VideoWall.Infrastructure.BaseRepository<VwControllerSlot>>(),
                 scope.ServiceProvider.GetRequiredService<VwSceneRegionService>(),
                 scope.ServiceProvider.GetRequiredService<VwISAPICredentialResolver>(),
                 scope.ServiceProvider.GetRequiredService<BaseCacheService>(),
@@ -503,6 +505,210 @@ namespace Tests.Modules.VideoWall
             Assert.NotEmpty(output.Walls);
             Assert.True(output.Steps.Count > 0);
             Assert.All(output.Steps, s => Assert.Equal("GET", s.Method));
+        }
+
+        /// <summary>
+        /// Description: Khảo sát thiết bị khi VwSource có SignalNo hoặc SignalStatus lệch với thiết bị thì tự động đồng bộ và ghi nhận step AutoSync.
+        /// Created date: 13/09/2026
+        /// </summary>
+        [Fact]
+        public async Task VwISAPIDeviceService_Probe_WhenSourceMismatch_AutoSyncsSignalNoAndAddsAutoSyncStep_Test()
+        {
+            // Arrange
+            var controller = TestController;
+            controller.Role = "center";
+            await _db.Insertable(controller).ExecuteCommandAsync();
+
+            var source = new VwSource
+            {
+                ID = $"{TestPrefix}SRC_{Guid.NewGuid():N}",
+                Name = "AutoSync Source Mismatch",
+                ControllerId = controller.ID,
+                SignalNo = 999999,
+                SignalStatus = BaseEnums.StatusEnum.Disable,
+                OrderNo = 1,
+                Status = BaseEnums.StatusEnum.Enable,
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(source).ExecuteCommandAsync();
+
+            // Act
+            var output = await _service.Probe(new VwProbeDeviceInput { ID = controller.ID });
+
+            // Assert
+            Assert.NotNull(output);
+            Assert.True(output.Reachable);
+
+            var updatedSource = await _db.Queryable<VwSource>().FirstAsync(s => s.ID == source.ID);
+            Assert.NotNull(updatedSource);
+            Assert.Equal(16842753, updatedSource.SignalNo);
+            Assert.Equal(BaseEnums.StatusEnum.Enable, updatedSource.SignalStatus);
+
+            Assert.Contains(output.Steps, s => s.Name == "AutoSync" && s.Method == "AUTO" && s.Success == true);
+        }
+
+        /// <summary>
+        /// Description: Khảo sát thiết bị khi Controller có Role khác center thì không ghi đè các trường năng lực (MaxWindowNums, MaxSceneNums, WallNo...).
+        /// Created date: 13/09/2026
+        /// </summary>
+        [Fact]
+        public async Task VwISAPIDeviceService_Probe_WhenRoleNotCenter_LeavesCapabilitiesNull_Test()
+        {
+            // Arrange
+            var controller = TestController;
+            controller.Role = null;
+            controller.MaxWindowNums = null;
+            controller.MaxSceneNums = null;
+            controller.BaseOutputSize = null;
+            controller.IsSupportScene = null;
+            controller.WallNo = null;
+            await _db.Insertable(controller).ExecuteCommandAsync();
+
+            // Act
+            var output = await _service.Probe(new VwProbeDeviceInput { ID = controller.ID });
+
+            // Assert
+            Assert.NotNull(output);
+            Assert.True(output.Reachable);
+
+            var updatedCtrl = await _db.Queryable<VwController>().FirstAsync(c => c.ID == controller.ID);
+            Assert.NotNull(updatedCtrl);
+            Assert.Null(updatedCtrl.MaxWindowNums);
+            Assert.Null(updatedCtrl.MaxSceneNums);
+            Assert.Null(updatedCtrl.BaseOutputSize);
+            Assert.Null(updatedCtrl.IsSupportScene);
+            Assert.Null(updatedCtrl.WallNo);
+            Assert.Equal(BaseEnums.StatusEnum.Enable, updatedCtrl.Status);
+        }
+
+        /// <summary>
+        /// Description: Khảo sát thiết bị lưu trữ thông tin cổng ra và slot vào CSDL (VwSlotPort và VwControllerSlot).
+        /// Created date: 13/09/2026
+        /// </summary>
+        [Fact]
+        public async Task VwISAPIDeviceService_Probe_PersistsSlotPortAndControllerSlot_Test()
+        {
+            // Arrange
+            var controller = TestController;
+            controller.Role = "center";
+            await _db.Insertable(controller).ExecuteCommandAsync();
+
+            // Act
+            var output = await _service.Probe(new VwProbeDeviceInput { ID = controller.ID });
+
+            // Assert
+            Assert.NotNull(output);
+            Assert.True(output.Reachable);
+
+            var ports = await _db.Queryable<VwSlotPort>()
+                .Where(p => p.PortType == "Output" && p.IsDelete == null)
+                .ToListAsync();
+            Assert.NotEmpty(ports);
+
+            var slots = await _db.Queryable<VwControllerSlot>()
+                .Where(s => s.ControllerId == controller.ID && s.IsDelete == null)
+                .ToListAsync();
+            Assert.NotEmpty(slots);
+            Assert.Contains(slots, s => s.SlotsType == "Output");
+        }
+
+        /// <summary>
+        /// Description: Khi Controller có Role == "sub", các thao tác DeviceSetup (SetupScene, Probe, SyncSources, Ping, SendPassthrough)
+        ///              đều bị chặn với ngoại lệ rõ ràng và tuyệt đối không phát bất kỳ request ISAPI nào tới thiết bị.
+        /// Created date: 13/09/2026
+        /// </summary>
+        [Fact]
+        public async Task VwISAPIDeviceService_DeviceSetup_WhenControllerRoleIsSub_ThrowsAndDoesNotCallISAPI_Test()
+        {
+            // Arrange
+            _mock.ResetDefaults();
+            var controller = TestController;
+            controller.Role = "sub";
+            await _db.Insertable(controller).ExecuteCommandAsync();
+
+            var scene = new VwScene
+            {
+                ID = $"{TestPrefix}SCN_SUB_{Guid.NewGuid():N}",
+                Code = $"{TestPrefix}SCN_SUB_{Guid.NewGuid():N}",
+                OutputId = "1",
+                Status = BaseEnums.StatusEnum.Enable
+            };
+            await _db.Insertable(scene).ExecuteCommandAsync();
+
+            try
+            {
+                var reqCountBefore = _mock.ReceivedRequests.Count;
+
+                // 1. SetupScene (ghi ISAPI)
+                var exSetup = await Assert.ThrowsAnyAsync<Exception>(() =>
+                    _service.SetupScene(new VwSetupSceneInput { ControllerId = controller.ID, SceneId = scene.ID, DryRun = false }));
+                Assert.Contains("bộ điều khiển CON", exSetup.Message);
+
+                // 2. Probe (đọc năng lực ISAPI)
+                var exProbe = await Assert.ThrowsAnyAsync<Exception>(() =>
+                    _service.Probe(new VwProbeDeviceInput { ID = controller.ID }));
+                Assert.Contains("bộ điều khiển CON", exProbe.Message);
+
+                // 3. SyncSources (đồng bộ nguồn ISAPI)
+                var exSync = await Assert.ThrowsAnyAsync<Exception>(() =>
+                    _service.SyncSources(new VwSyncSourcesInput { ID = controller.ID }));
+                Assert.Contains("bộ điều khiển CON", exSync.Message);
+
+                // 4. Ping (xác thực Digest ISAPI)
+                var exPing = await Assert.ThrowsAnyAsync<Exception>(() =>
+                    _service.Ping(controller.ID));
+                Assert.Contains("bộ điều khiển CON", exPing.Message);
+
+                // 5. SendPassthrough (gửi ISAPI tuỳ ý)
+                var exPass = await Assert.ThrowsAnyAsync<Exception>(() =>
+                    _service.SendPassthrough(new VwISAPIPassthroughInput
+                    {
+                        ControllerId = controller.ID,
+                        Method = "GET",
+                        Path = "ISAPI/System/deviceInfo"
+                    }));
+                Assert.Contains("bộ điều khiển CON", exPass.Message);
+
+                // Xác nhận không có bất kỳ request HTTP nào được gửi tới Mock Server
+                Assert.Equal(reqCountBefore, _mock.ReceivedRequests.Count);
+            }
+            finally
+            {
+                await _db.Deleteable<VwScene>().Where(s => s.ID == scene.ID).ExecuteCommandAsync();
+                await _db.Deleteable<VwController>().Where(c => c.ID == controller.ID).ExecuteCommandAsync();
+                _mock.ResetDefaults();
+                _service.ResetAllCircuitBreakers();
+            }
+        }
+
+        /// <summary>
+        /// Description: Khi Controller có Role == "center", các thao tác DeviceSetup tiếp tục hoạt động bình thường không bị chặn.
+        /// Created date: 13/09/2026
+        /// </summary>
+        [Fact]
+        public async Task VwISAPIDeviceService_DeviceSetup_WhenControllerRoleIsCenter_ProceedsNormally_Test()
+        {
+            // Arrange
+            _mock.ResetDefaults();
+            var controller = TestController;
+            controller.Role = "center";
+            await _db.Insertable(controller).ExecuteCommandAsync();
+
+            try
+            {
+                // Act: Gọi Ping với bộ trung tâm (Role == "center")
+                var step = await _service.Ping(controller.ID);
+
+                // Assert
+                Assert.NotNull(step);
+                Assert.True(step.Success);
+            }
+            finally
+            {
+                await _db.Deleteable<VwController>().Where(c => c.ID == controller.ID).ExecuteCommandAsync();
+                _mock.ResetDefaults();
+                _service.ResetAllCircuitBreakers();
+            }
         }
 
         /// <summary>
@@ -1123,12 +1329,11 @@ namespace Tests.Modules.VideoWall
         #region SyncSources (§Điểm vênh 04)
 
         /// <summary>
-        /// Author: Đạt
-        /// Description: Đồng bộ nguồn tín hiệu ở chế độ xem trước (Apply = false) trả về danh sách chênh lệch nhưng không ghi đè vào DB.
+        /// Description: Đồng bộ nguồn tín hiệu luôn tự động áp dụng (bỏ cờ Apply/dry-run), ghi nhận thay đổi và cập nhật DB.
         /// Created date: 24/08/2026
         /// </summary>
         [Fact]
-        public async Task VwISAPIDeviceService_SyncSources_ApplyFalse_ReturnsPreviewWithoutWritingDb_Test()
+        public async Task VwISAPIDeviceService_SyncSources_ApplyFalse_AlwaysAppliesChangesToDb_Test()
         {
             host.MockServer.ResetDefaults();
 
@@ -1174,8 +1379,8 @@ namespace Tests.Modules.VideoWall
 
             // Assert
             Assert.NotNull(output);
-            Assert.False(output.Applied);
-            Assert.Equal(0, output.UpdatedCount);
+            Assert.True(output.Applied);
+            Assert.Equal(2, output.UpdatedCount);
             Assert.Equal(2, output.Changes.Count);
 
             Assert.Contains(output.Changes, c => c.EntityId == source1.ID && c.DbValue == "1" && c.DeviceValue == "16842753");
@@ -1183,8 +1388,8 @@ namespace Tests.Modules.VideoWall
 
             var dbSource1 = await _db.Queryable<VwSource>().FirstAsync(u => u.ID == source1.ID);
             var dbSource2 = await _db.Queryable<VwSource>().FirstAsync(u => u.ID == source2.ID);
-            Assert.Equal(1, dbSource1.SignalNo);
-            Assert.Equal(2, dbSource2.SignalNo);
+            Assert.Equal(16842753, dbSource1.SignalNo);
+            Assert.Equal(16842754, dbSource2.SignalNo);
         }
 
         /// <summary>
@@ -1504,7 +1709,7 @@ namespace Tests.Modules.VideoWall
         {
             var controller = new VwController { ID = "ctrl-no-ip", IP = null, Account = "admin", PassWord = "12345" };
 
-            Assert.Throws<Furion.FriendlyException.AppFriendlyException>(() => _client.EnsureRegistered(controller));
+            Assert.Throws<InvalidOperationException>(() => _client.EnsureRegistered(controller));
         }
 
         /// <summary>
@@ -2413,11 +2618,13 @@ namespace Tests.Modules.VideoWall
 
             return new VwISAPIDeviceService(
                 _client,
-                scope.ServiceProvider.GetRequiredService<BaseRepository<VwController>>(),
-                scope.ServiceProvider.GetRequiredService<BaseRepository<VwScene>>(),
-                scope.ServiceProvider.GetRequiredService<BaseRepository<VwWindowScene>>(),
-                scope.ServiceProvider.GetRequiredService<BaseRepository<VwSource>>(),
-                scope.ServiceProvider.GetRequiredService<BaseRepository<VwScreen>>(),
+                scope.ServiceProvider.GetRequiredService<ITS.VideoWall.Infrastructure.BaseRepository<VwController>>(),
+                scope.ServiceProvider.GetRequiredService<ITS.VideoWall.Infrastructure.BaseRepository<VwScene>>(),
+                scope.ServiceProvider.GetRequiredService<ITS.VideoWall.Infrastructure.BaseRepository<VwWindowScene>>(),
+                scope.ServiceProvider.GetRequiredService<ITS.VideoWall.Infrastructure.BaseRepository<VwSource>>(),
+                scope.ServiceProvider.GetRequiredService<ITS.VideoWall.Infrastructure.BaseRepository<VwScreen>>(),
+                scope.ServiceProvider.GetRequiredService<ITS.VideoWall.Infrastructure.BaseRepository<VwSlotPort>>(),
+                scope.ServiceProvider.GetRequiredService<ITS.VideoWall.Infrastructure.BaseRepository<VwControllerSlot>>(),
                 scope.ServiceProvider.GetRequiredService<VwSceneRegionService>(),
                 scope.ServiceProvider.GetRequiredService<VwISAPICredentialResolver>(),
                 scope.ServiceProvider.GetRequiredService<BaseCacheService>(),

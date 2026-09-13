@@ -52,16 +52,22 @@ namespace Tests.Modules.VideoWall.Controllers
             _httpContextAccessor.HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(identity) };
         }
 
-        private void SetRestrictedUser()
+        private void SetRestrictedUser(string? account = null, string? orgId = null)
         {
-            var identity = new ClaimsIdentity(new[]
+            var acc = account ?? "normal_user";
+            var claims = new List<Claim>
             {
                 new Claim(ClaimConst.AccountType, "333"),
                 new Claim(ClaimConst.UserId, "test-user-id"),
-                new Claim(ClaimConst.Account, "normal_user"),
-                new Claim(ClaimTypes.Name, "normal_user")
-            }, "TestAuth");
+                new Claim(ClaimConst.Account, acc),
+                new Claim(ClaimTypes.Name, acc)
+            };
+            if (!string.IsNullOrWhiteSpace(orgId))
+            {
+                claims.Add(new Claim(ClaimConst.OrgId, orgId));
+            }
 
+            var identity = new ClaimsIdentity(claims, "TestAuth");
             _httpContextAccessor.HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(identity) };
         }
 
@@ -89,7 +95,6 @@ namespace Tests.Modules.VideoWall.Controllers
         [Fact]
         public async Task VwWallPermissionQuery_GetList_ReturnsSuccess_Test()
         {
-            _cache.RemoveByPrefixKey(CacheConst.Vw.VwWallPermission);
             var input = new VwWallPermissionInput();
             var result = await _bus.InvokeAsync<List<VwWallPermissionOutput>>(input);
             Assert.NotNull(result);
@@ -111,7 +116,6 @@ namespace Tests.Modules.VideoWall.Controllers
                 CreateTime = DateTime.Now
             };
             await _db.Insertable(permission).ExecuteCommandAsync();
-            _cache.RemoveByPrefixKey(CacheConst.Vw.VwWallPermission);
 
             var input = new VwIdWallPermissionInput
             {
@@ -440,5 +444,268 @@ namespace Tests.Modules.VideoWall.Controllers
                 _httpContextAccessor.HttpContext = null;
             }
         }
+
+        #region VwWallPermission Query: GetMy Tests
+
+        /// <summary>
+        /// Description: Khi user là SuperAdmin -> luôn trả về IsFullAccess = true, AllowedCells = null
+        /// Created date: 13/09/2026
+        /// </summary>
+        [Fact]
+        public async Task VwWallPermissionQuery_GetMy_SuperAdmin_ReturnsFullAccess_Test()
+        {
+            SetSuperAdminUser();
+            var result = await _bus.InvokeAsync<VwMyWallPermissionOutput>(new VwGetMyWallPermissionInput());
+
+            Assert.NotNull(result);
+            Assert.True(result.IsFullAccess);
+            Assert.Null(result.AllowedCells);
+        }
+
+        /// <summary>
+        /// Description: Khi user thường không có bản ghi phân quyền nào (cả UserId lẫn OrgId) -> trả về IsFullAccess = true, AllowedCells = null
+        /// Created date: 13/09/2026
+        /// </summary>
+        [Fact]
+        public async Task VwWallPermissionQuery_GetMy_NoRecord_ReturnsFullAccess_Test()
+        {
+            var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
+            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+            SetRestrictedUser(account, orgId);
+
+            try
+            {
+                var result = await _bus.InvokeAsync<VwMyWallPermissionOutput>(new VwGetMyWallPermissionInput());
+
+                Assert.NotNull(result);
+                Assert.True(result.IsFullAccess);
+                Assert.Null(result.AllowedCells);
+            }
+            finally
+            {
+                SetSuperAdminUser();
+            }
+        }
+
+        /// <summary>
+        /// Description: Khi có cả bản ghi UserId và OrgId -> ưu tiên dùng bản ghi UserId, bỏ qua OrgId
+        /// Created date: 13/09/2026
+        /// </summary>
+        [Fact]
+        public async Task VwWallPermissionQuery_GetMy_HasUserRecord_ReturnsUserCells_IgnoresOrgRecord_Test()
+        {
+            var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
+            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+            SetRestrictedUser(account, orgId);
+
+            var userPerm = new VwWallPermission
+            {
+                UserId = account,
+                OrgId = null,
+                Config = "[{\"Col\":0,\"Row\":0}]",
+                CreateTime = DateTime.Now
+            };
+            var orgPerm = new VwWallPermission
+            {
+                UserId = null,
+                OrgId = orgId,
+                Config = "[{\"Col\":1,\"Row\":1}]",
+                CreateTime = DateTime.Now
+            };
+
+            await _db.Insertable(new[] { userPerm, orgPerm }).ExecuteCommandAsync();
+
+            try
+            {
+                var result = await _bus.InvokeAsync<VwMyWallPermissionOutput>(new VwGetMyWallPermissionInput());
+
+                Assert.NotNull(result);
+                Assert.False(result.IsFullAccess);
+                Assert.NotNull(result.AllowedCells);
+                var cell = Assert.Single(result.AllowedCells);
+                Assert.Equal(0, cell.Col);
+                Assert.Equal(0, cell.Row);
+            }
+            finally
+            {
+                await _db.Deleteable<VwWallPermission>()
+                    .Where(p => p.ID == userPerm.ID || p.ID == orgPerm.ID)
+                    .ExecuteCommandAsync();
+                SetSuperAdminUser();
+            }
+        }
+
+        /// <summary>
+        /// Description: Khi không có bản ghi UserId nhưng có bản ghi OrgId -> dùng bản ghi OrgId
+        /// Created date: 13/09/2026
+        /// </summary>
+        [Fact]
+        public async Task VwWallPermissionQuery_GetMy_NoUserRecord_HasOrgRecord_ReturnsOrgCells_Test()
+        {
+            var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
+            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+            SetRestrictedUser(account, orgId);
+
+            var orgPerm = new VwWallPermission
+            {
+                UserId = null,
+                OrgId = orgId,
+                Config = "[{\"Col\":2,\"Row\":3}]",
+                CreateTime = DateTime.Now
+            };
+
+            await _db.Insertable(orgPerm).ExecuteCommandAsync();
+
+            try
+            {
+                var result = await _bus.InvokeAsync<VwMyWallPermissionOutput>(new VwGetMyWallPermissionInput());
+
+                Assert.NotNull(result);
+                Assert.False(result.IsFullAccess);
+                Assert.NotNull(result.AllowedCells);
+                var cell = Assert.Single(result.AllowedCells);
+                Assert.Equal(2, cell.Col);
+                Assert.Equal(3, cell.Row);
+            }
+            finally
+            {
+                await _db.Deleteable<VwWallPermission>()
+                    .Where(p => p.ID == orgPerm.ID)
+                    .ExecuteCommandAsync();
+                SetSuperAdminUser();
+            }
+        }
+
+        /// <summary>
+        /// Description: Khi có bản ghi nhưng Config rỗng hoặc null -> trả về IsFullAccess = false, AllowedCells = [] (không được phép ô nào)
+        /// Created date: 13/09/2026
+        /// </summary>
+        [Fact]
+        public async Task VwWallPermissionQuery_GetMy_ConfigNullOrEmpty_ReturnsEmptyCells_Test()
+        {
+            var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
+            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+            SetRestrictedUser(account, orgId);
+
+            var perm = new VwWallPermission
+            {
+                UserId = account,
+                OrgId = orgId,
+                Config = "",
+                CreateTime = DateTime.Now
+            };
+
+            await _db.Insertable(perm).ExecuteCommandAsync();
+
+            try
+            {
+                var result = await _bus.InvokeAsync<VwMyWallPermissionOutput>(new VwGetMyWallPermissionInput());
+
+                Assert.NotNull(result);
+                Assert.False(result.IsFullAccess);
+                Assert.NotNull(result.AllowedCells);
+                Assert.Empty(result.AllowedCells);
+            }
+            finally
+            {
+                await _db.Deleteable<VwWallPermission>()
+                    .Where(p => p.ID == perm.ID)
+                    .ExecuteCommandAsync();
+                SetSuperAdminUser();
+            }
+        }
+
+        /// <summary>
+        /// Description: Khi có bản ghi nhưng Config là JSON hỏng -> không ném exception, trả về IsFullAccess = false, AllowedCells = []
+        /// Created date: 13/09/2026
+        /// </summary>
+        [Fact]
+        public async Task VwWallPermissionQuery_GetMy_ConfigCorruptJson_ReturnsEmptyCells_DoesNotThrow_Test()
+        {
+            var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
+            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+            SetRestrictedUser(account, orgId);
+
+            var perm = new VwWallPermission
+            {
+                UserId = account,
+                OrgId = orgId,
+                Config = "{invalid json content",
+                CreateTime = DateTime.Now
+            };
+
+            await _db.Insertable(perm).ExecuteCommandAsync();
+
+            try
+            {
+                var result = await _bus.InvokeAsync<VwMyWallPermissionOutput>(new VwGetMyWallPermissionInput());
+
+                Assert.NotNull(result);
+                Assert.False(result.IsFullAccess);
+                Assert.NotNull(result.AllowedCells);
+                Assert.Empty(result.AllowedCells);
+            }
+            finally
+            {
+                await _db.Deleteable<VwWallPermission>()
+                    .Where(p => p.ID == perm.ID)
+                    .ExecuteCommandAsync();
+                SetSuperAdminUser();
+            }
+        }
+
+        /// <summary>
+        /// Description: Khi có bản ghi với Config hợp lệ có nhiều ô lưới -> trả đúng danh sách AllowedCells đã parse
+        /// Created date: 13/09/2026
+        /// </summary>
+        [Fact]
+        public async Task VwWallPermissionQuery_GetMy_ConfigValid_ReturnsParsedCells_Test()
+        {
+            var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
+            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+            SetRestrictedUser(account, orgId);
+
+            var cells = new List<VwGridCell>
+            {
+                new() { Col = 0, Row = 0 },
+                new() { Col = 1, Row = 0 },
+                new() { Col = 0, Row = 1 }
+            };
+
+            var perm = new VwWallPermission
+            {
+                UserId = account,
+                OrgId = orgId,
+                Config = JsonConvert.SerializeObject(cells),
+                CreateTime = DateTime.Now
+            };
+
+            await _db.Insertable(perm).ExecuteCommandAsync();
+
+            try
+            {
+                var result = await _bus.InvokeAsync<VwMyWallPermissionOutput>(new VwGetMyWallPermissionInput());
+
+                Assert.NotNull(result);
+                Assert.False(result.IsFullAccess);
+                Assert.NotNull(result.AllowedCells);
+                Assert.Equal(3, result.AllowedCells.Count);
+                Assert.Equal(0, result.AllowedCells[0].Col);
+                Assert.Equal(0, result.AllowedCells[0].Row);
+                Assert.Equal(1, result.AllowedCells[1].Col);
+                Assert.Equal(0, result.AllowedCells[1].Row);
+                Assert.Equal(0, result.AllowedCells[2].Col);
+                Assert.Equal(1, result.AllowedCells[2].Row);
+            }
+            finally
+            {
+                await _db.Deleteable<VwWallPermission>()
+                    .Where(p => p.ID == perm.ID)
+                    .ExecuteCommandAsync();
+                SetSuperAdminUser();
+            }
+        }
+
+        #endregion
     }
 }

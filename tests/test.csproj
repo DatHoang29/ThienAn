@@ -104,6 +104,10 @@
     <DefineConstants>$(DefineConstants);HAS_VIDEOWALL_WPF</DefineConstants>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+    <DefineConstants>$(DefineConstants);TFM_WINDOWS</DefineConstants>
+  </PropertyGroup>
+
   <PropertyGroup Condition="'$(HasShareDataModule)' == 'true'">
     <DefineConstants>$(DefineConstants);HAS_SHAREDATA</DefineConstants>
   </PropertyGroup>
@@ -129,7 +133,7 @@
     <ProjectReference Include="$(VideoWallWpfProject)" />
   </ItemGroup>
 
-  <!-- Loại bỏ file test của module vắng mặt khỏi biên dịch (ShareData là backend, không test ở net10.0-windows) -->
+  <!-- Loại bỏ file test của module vắng mặt khỏi biên dịch (ShareData và VideoWall backend chỉ test ở net10.0, net10.0-windows chỉ test WPF) -->
   <ItemGroup Condition="'$(CanCompileShareDataTests)' != 'true' Or '$(TargetFramework)' == 'net10.0-windows'">
     <Compile Remove="ShareData\**\*.cs" />
     <None Include="ShareData\**\*.cs" />
@@ -138,6 +142,18 @@
   <ItemGroup Condition="'$(CanCompileVideoWallTests)' != 'true'">
     <Compile Remove="VideoWall\**\*.cs" />
     <None Include="VideoWall\**\*.cs" />
+  </ItemGroup>
+
+  <!-- Ở net10.0-windows, chỉ biên dịch các test WPF và file Host partial của VideoWall, loại bỏ các test backend để tránh chạy trùng lặp và deadlock -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+    <Compile Remove="VideoWall\Controllers\**\*.cs" />
+    <Compile Remove="VideoWall\Infrastructure\**\*.cs" />
+    <Compile Remove="VideoWall\Services\**\*.cs" />
+    <Compile Remove="VideoWall\Topology\**\*.cs" />
+    <None Include="VideoWall\Controllers\**\*.cs" />
+    <None Include="VideoWall\Infrastructure\**\*.cs" />
+    <None Include="VideoWall\Services\**\*.cs" />
+    <None Include="VideoWall\Topology\**\*.cs" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(CanCompileVideoWallWpfTests)' != 'true'">

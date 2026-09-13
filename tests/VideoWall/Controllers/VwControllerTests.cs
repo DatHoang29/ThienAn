@@ -86,6 +86,56 @@ public class VwControllerTests(Host host)
     }
 
     /// <summary>
+    /// Description: Kiểm tra GetInputChannels qua VwGetInputChannelsValidator và truy vấn danh sách kênh tín hiệu từ CSDL
+    /// Created date: 13/09/2026
+    /// </summary>
+    [Fact]
+    public async Task VwControllerQuery_GetInputChannels_ReturnsSuccess_Test()
+    {
+        // Arrange - Negative validation test
+        var validator = new VwGetInputChannelsValidator(_localizer);
+        var invalidInput = new VwGetInputChannelsInput { ID = "" };
+        var invalidResult = await validator.ValidateAsync(invalidInput);
+        Assert.False(invalidResult.IsValid);
+
+        // Arrange - Positive setup
+        var controller = new VwController
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Code = $"{TestPrefix}{Guid.NewGuid():N}",
+            Name = "Controller Input Channels Test",
+            IP = "127.0.0.1",
+            Status = BaseEnums.StatusEnum.Enable,
+            CreateTime = DateTime.Now
+        };
+        await _db.Insertable(controller).ExecuteCommandAsync();
+
+        var source = new VwSource
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Name = "Test Source Channel",
+            ControllerId = controller.ID,
+            SignalNo = 16842753,
+            SignalStatus = BaseEnums.StatusEnum.Enable,
+            Status = BaseEnums.StatusEnum.Enable,
+            CreateTime = DateTime.Now
+        };
+        await _db.Insertable(source).ExecuteCommandAsync();
+
+        var input = new VwGetInputChannelsInput { ID = controller.ID };
+        var validResult = await validator.ValidateAsync(input);
+        Assert.True(validResult.IsValid);
+
+        // Act
+        var result = await _bus.InvokeAsync<VwISAPIInputChannelsResponse>(input);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.NotNull(result.VideoInputChannel);
+        Assert.Contains(result.VideoInputChannel, c => c.Id == 16842753 && c.Name == "Test Source Channel");
+    }
+
+    /// <summary>
     /// Description: Kiểm tra thêm mới VwController qua Validator rồi ghi nhận bản ghi vào CSDL
     /// Created date: 15/08/2026
     /// </summary>

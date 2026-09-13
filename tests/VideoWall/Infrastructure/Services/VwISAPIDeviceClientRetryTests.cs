@@ -42,14 +42,22 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
                 Role = "center"
             };
 
-            // Act
-            var result = await _client.GetCapabilitiesAsync(controller);
+            try
+            {
+                // Act
+                var result = await _client.GetCapabilitiesAsync(controller);
 
-            // Assert
-            Assert.True(result.Success);
-            Assert.NotNull(result.Data);
-            Assert.Equal(2, _mock.TransientErrorCalls);
-            Assert.True(_mock.GetCapabilitiesCallCount >= 1);
+                // Assert
+                Assert.True(result.Success);
+                Assert.NotNull(result.Data);
+                Assert.Equal(2, _mock.TransientErrorCalls);
+                Assert.True(_mock.GetCapabilitiesCallCount >= 1);
+            }
+            finally
+            {
+                _mock.ResetDefaults();
+                _client.ResetAllCircuitBreakers();
+            }
         }
 
         /// <summary>
@@ -62,10 +70,11 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
             // Arrange
             _mock.ResetDefaults();
             _client.ResetAllCircuitBreakers();
+            var port = VwISAPIMockServerHikvision.DefaultPorts[1];
             var controller = new VwController
             {
                 ID = $"{TestPrefix}CTRL_UNAUTH_{Guid.NewGuid():N}",
-                IP = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPort}",
+                IP = $"127.0.0.1:{port}",
                 Account = "wrong_user",
                 PassWord = "wrong_password",
                 Role = "center"
@@ -73,14 +82,22 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
 
             var startReqCount = _mock.TotalReceivedRequests;
 
-            // Act
-            var result = await _client.UserCheckAsync(controller);
+            try
+            {
+                // Act
+                var result = await _client.UserCheckAsync(controller);
 
-            // Assert
-            Assert.False(result.Success);
-            // Với Digest authentication, request 1 trả 401 challenge, request 2 gửi credentials sai và nhận 401 cuối cùng (không retry thêm vòng nào)
-            var attempts = _mock.TotalReceivedRequests - startReqCount;
-            Assert.InRange(attempts, 1, 2);
+                // Assert
+                Assert.False(result.Success);
+                // Với Digest authentication, request 1 trả 401 challenge, request 2 gửi credentials sai và nhận 401 cuối cùng (không retry thêm vòng nào)
+                var attempts = _mock.TotalReceivedRequests - startReqCount;
+                Assert.InRange(attempts, 1, 2);
+            }
+            finally
+            {
+                _mock.ResetDefaults();
+                _client.ResetAllCircuitBreakers();
+            }
         }
 
         /// <summary>
@@ -107,24 +124,32 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
 
             var startReqCount = _mock.TotalReceivedRequests;
 
-            // Act: Gọi POST AddWindow
-            var req = new ITS.VideoWall.Core.Dto.ISAPI.VwISAPIWindowRequest
+            try
             {
-                Id = 999,
-                Rect = new Module.VideoWall.Core.Dto.ISAPI.VwISAPIRect
+                // Act: Gọi POST AddWindow
+                var req = new ITS.VideoWall.Core.Dto.ISAPI.VwISAPIWindowRequest
                 {
-                    Coordinate = new Module.VideoWall.Core.Dto.ISAPI.VwISAPICoordinate { X = 0, Y = 0 },
-                    Width = 1920,
-                    Height = 1080
-                }
-            };
-            var result = await _client.AddWindowAsync(controller, req, wallNo: 1);
+                    Id = 999,
+                    Rect = new Module.VideoWall.Core.Dto.ISAPI.VwISAPIRect
+                    {
+                        Coordinate = new Module.VideoWall.Core.Dto.ISAPI.VwISAPICoordinate { X = 0, Y = 0 },
+                        Width = 1920,
+                        Height = 1080
+                    }
+                };
+                var result = await _client.AddWindowAsync(controller, req, wallNo: 1);
 
-            // Assert
-            Assert.False(result.Success);
-            // POST method: IsMethodRetriable trả về false -> maxAttempts = 1, chỉ gọi đúng 1 lần
-            var attempts = _mock.TotalReceivedRequests - startReqCount;
-            Assert.Equal(1, attempts);
+                // Assert
+                Assert.False(result.Success);
+                // POST method: IsMethodRetriable trả về false -> maxAttempts = 1, chỉ gọi đúng 1 lần
+                var attempts = _mock.TotalReceivedRequests - startReqCount;
+                Assert.Equal(1, attempts);
+            }
+            finally
+            {
+                _mock.ResetDefaults();
+                _client.ResetAllCircuitBreakers();
+            }
         }
 
         /// <summary>

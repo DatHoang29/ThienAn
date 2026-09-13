@@ -330,10 +330,10 @@ public class VwSceneTests(Host host)
         // Assert
         Assert.NotNull(result);
         Assert.Equal(uniqueCode, result.Code);
-        Assert.Equal(BaseEnums.ActiveScene.Activate, result.ActiveScene);
+        Assert.NotNull(result.TriggerLogId);
 
         var dbScene = await _db.Queryable<VwScene>().FirstAsync(u => u.ID == scene.ID);
-        Assert.Equal(BaseEnums.ActiveScene.Activate, dbScene.ActiveScene);
+        Assert.Equal(BaseEnums.ActiveScene.DeActivate, dbScene.ActiveScene);
     }
 
     /// <summary>
@@ -456,14 +456,11 @@ public class VwSceneTests(Host host)
     }
 
     /// <summary>
-    /// Author: Đạt
-    /// Description: Scene có VwScene.OutputId (map ISAPI Scene ID) — khi kích hoạt phải gọi
-    ///              IVwISAPIDeviceClient.ActivateSceneAsync trước khi ghi DB; thiết bị (giả) trả về
-    ///              thành công thì DB vẫn cập nhật đúng như luồng không map thiết bị.
+    /// Description: Kịch bản có liên kết thiết bị — theo cơ chế Fire-and-Forget, WebAPI publish lệnh xuống Worker qua NATS và trả về ngay mà không tự cập nhật ActiveSceneId trong DB
     /// Created date: 15/08/2026
     /// </summary>
     [Fact]
-    public async Task VwSceneWorkflow_ActivateScene_WithMappedDevice_PushesToDeviceAndUpdatesDb_Test()
+    public async Task VwSceneWorkflow_ActivateScene_WithMappedDevice_PublishesCommandFireAndForget_Test()
     {
         host.MockServer.ResetDefaults();
 
@@ -504,163 +501,10 @@ public class VwSceneTests(Host host)
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal(BaseEnums.ActiveScene.Activate, result.ActiveScene);
-
-        var dbController = await _db.Queryable<VwController>().FirstAsync(u => u.ID == controller.ID);
-        Assert.Equal(scene.ID, dbController.ActiveSceneId);
-    }
-
-    /// <summary>
-    /// Author: Đạt
-    /// Description: Thiết bị gặp lỗi hoặc không hỗ trợ chức năng scene — handler phải fail-fast:
-    ///              throw ngay và KHÔNG ghi DB (VwController.ActiveSceneId/VwScene.ActiveScene giữ nguyên).
-    /// Created date: 19/08/2026
-    /// </summary>
-    [Theory]
-    [InlineData(true, true)]   // Thiết bị lỗi (SimulateDeviceFailure = true)
-    [InlineData(false, false)] // Thiết bị không hỗ trợ tính năng (IsSupportScene = false)
-    public async Task VwSceneWorkflow_ActivateScene_DeviceOrCapabilityFails_ThrowsAndDoesNotUpdateDb_Theory(
-        bool simulateDeviceFailure,
-        bool isSupportScene)
-    {
-        host.MockServer.ResetDefaults();
-
-        // Arrange
-        var ctrlCode = $"{TestPrefix}{Guid.NewGuid():N}";
-        var sceneCode = $"{TestPrefix}{Guid.NewGuid():N}";
-
-        var controller = new VwController
-        {
-            Code = ctrlCode,
-            Name = "Failing Device Controller",
-            Role = "center",
-            IntegrationMode = "cascade",
-            IP = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPort}",
-            Account = VwISAPIMockServerHikvision.DefaultUser,
-            PassWord = VwISAPIMockServerHikvision.DefaultPassword,
-            Status = BaseEnums.StatusEnum.Enable,
-            CreateTime = DateTime.Now
-        };
-        await _db.Insertable(controller).ExecuteCommandAsync();
-
-        var scene = new VwScene
-        {
-            Code = sceneCode,
-            Name = "Scene Device Fails",
-            ControllerId = controller.ID,
-            OutputId = "1",
-            Status = BaseEnums.StatusEnum.Enable,
-            ActiveScene = BaseEnums.ActiveScene.DeActivate,
-            CreateTime = DateTime.Now
-        };
-        await _db.Insertable(scene).ExecuteCommandAsync();
-
-        host.MockServer.SimulateDeviceFailure = simulateDeviceFailure;
-        host.MockServer.IsSupportScene = isSupportScene;
-
-        var input = new VwActiveSceneInput { Code = sceneCode };
-
-        // Act & Assert: Với cơ chế ACK-before-commit, khi thiết bị lỗi thì ném ngoại lệ và KHÔNG cập nhật DB
-        var ex = await Record.ExceptionAsync(() => _bus.InvokeAsync<VwActiveSceneOutput>(input));
-        Assert.NotNull(ex);
+        Assert.NotNull(result.TriggerLogId);
 
         var dbController = await _db.Queryable<VwController>().FirstAsync(u => u.ID == controller.ID);
         Assert.Null(dbController.ActiveSceneId);
-
-        var dbScene = await _db.Queryable<VwScene>().FirstAsync(u => u.ID == scene.ID);
-        Assert.Equal(BaseEnums.ActiveScene.DeActivate, dbScene.ActiveScene);
-
-        var triggerLog = await _db.Queryable<VwEventTriggerLog>()
-            .FirstAsync(u => u.SceneId == scene.ID && string.IsNullOrEmpty(u.StepName));
-        Assert.NotNull(triggerLog);
-        Assert.Equal(BaseEnums.SuccessEnums.Fail, triggerLog.Success);
-
-        // Cleanup
-        await _db.Deleteable<VwScene>(s => s.ID == scene.ID).ExecuteCommandAsync();
-        await _db.Deleteable<VwController>(c => c.ID == controller.ID).ExecuteCommandAsync();
-        await _db.Deleteable<VwEventTriggerLog>(l => l.SceneId == scene.ID).ExecuteCommandAsync();
-    }
-
-    /// <summary>
-    /// Author: Đạt
-    /// Description: Kịch bản TOÀN TƯỜNG chiếm ≥2 controller — controller A activate thành công,
-    ///              controller B thất bại giữa vòng lặp. Handler phải fail-fast NGAY khi B lỗi:
-    ///              không rollback được lệnh đã gửi cho A ở tầng thiết bị (giới hạn đã biết), nhưng
-    ///              bắt buộc KHÔNG ghi DB cho CẢ HAI controller (transaction chỉ mở sau khi toàn bộ
-    ///              vòng lặp thiết bị thành công) — tránh trạng thái DB nói "đã activate" nhưng thực
-    ///              tế 1 vùng tường vẫn chiếu kịch bản cũ.
-    /// Created date: 16/08/2026
-    /// </summary>
-    [Fact]
-    public async Task VwSceneWorkflow_ActivateScene_WholeWall_PartialDeviceFailure_ThrowsAndDoesNotUpdateAnyController_Test()
-    {
-        host.MockServer.ResetDefaults();
-
-        // Arrange
-        var sceneCode = $"{TestPrefix}{Guid.NewGuid():N}";
-
-        var ctrlA = new VwController
-        {
-            Code = $"{TestPrefix}CTRL_A_{Guid.NewGuid():N}",
-            Name = "Whole Wall Controller A",
-            Role = "center",
-            IntegrationMode = "cascade",
-            IP = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPorts[0]}",
-            Account = VwISAPIMockServerHikvision.DefaultUser,
-            PassWord = VwISAPIMockServerHikvision.DefaultPassword,
-            Status = BaseEnums.StatusEnum.Enable,
-            CreateTime = DateTime.Now
-        };
-        var ctrlB = new VwController
-        {
-            Code = $"{TestPrefix}CTRL_B_{Guid.NewGuid():N}",
-            Name = "Whole Wall Controller B",
-            IP = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPorts[1]}",
-            Account = VwISAPIMockServerHikvision.DefaultUser,
-            PassWord = VwISAPIMockServerHikvision.DefaultPassword,
-            Status = BaseEnums.StatusEnum.Enable,
-            CreateTime = DateTime.Now
-        };
-        await _db.Insertable(new[] { ctrlA, ctrlB }).ExecuteCommandAsync();
-
-        host.MockServer.SimulateFailurePorts.Add(VwISAPIMockServerHikvision.DefaultPorts[0]);
-        host.MockServer.SimulateFailurePorts.Add(VwISAPIMockServerHikvision.DefaultPorts[1]);
-
-        var scene = new VwScene
-        {
-            Code = sceneCode,
-            Name = "Whole Wall Scene Partial Failure",
-            ControllerId = null, // Toàn tường — chiếm mọi controller
-            OutputId = "1",
-            Status = BaseEnums.StatusEnum.Enable,
-            ActiveScene = BaseEnums.ActiveScene.DeActivate,
-            CreateTime = DateTime.Now
-        };
-        await _db.Insertable(scene).ExecuteCommandAsync();
-
-        var input = new VwActiveSceneInput { Code = sceneCode };
-
-        // Act & Assert: Với cơ chế ACK-before-commit, khi thiết bị lỗi thì ném ngoại lệ và KHÔNG cập nhật DB
-        var ex = await Record.ExceptionAsync(() => _bus.InvokeAsync<VwActiveSceneOutput>(input));
-        Assert.NotNull(ex);
-
-        var dbCtrlA = await _db.Queryable<VwController>().FirstAsync(u => u.ID == ctrlA.ID);
-        var dbCtrlB = await _db.Queryable<VwController>().FirstAsync(u => u.ID == ctrlB.ID);
-        Assert.Null(dbCtrlA.ActiveSceneId);
-        Assert.Null(dbCtrlB.ActiveSceneId);
-
-        var dbScene = await _db.Queryable<VwScene>().FirstAsync(u => u.ID == scene.ID);
-        Assert.Equal(BaseEnums.ActiveScene.DeActivate, dbScene.ActiveScene);
-
-        var triggerLog = await _db.Queryable<VwEventTriggerLog>()
-            .FirstAsync(u => u.SceneId == scene.ID && string.IsNullOrEmpty(u.StepName));
-        Assert.NotNull(triggerLog);
-        Assert.Equal(BaseEnums.SuccessEnums.Fail, triggerLog.Success);
-
-        // Cleanup
-        await _db.Deleteable<VwScene>(s => s.ID == scene.ID).ExecuteCommandAsync();
-        await _db.Deleteable<VwController>(c => c.ID == ctrlA.ID || c.ID == ctrlB.ID).ExecuteCommandAsync();
-        await _db.Deleteable<VwEventTriggerLog>(l => l.SceneId == scene.ID).ExecuteCommandAsync();
     }
 
     #region EventTriggerLog Verification Tests

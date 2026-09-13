@@ -632,5 +632,119 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
         }
 
         #endregion
+
+        #region GetEffectivePermissionAsync Tests
+
+        /// <summary>
+        /// Description: Khi không có user đăng nhập (HttpContext = null hoặc App.User = null) -> GetEffectivePermissionAsync trả về null
+        /// Created date: 13/09/2026
+        /// </summary>
+        [Fact]
+        public async Task GetEffectivePermissionAsync_NoUserContext_ReturnsNull_Test()
+        {
+            _httpContextAccessor.HttpContext = null;
+            var service = GetPermissionService();
+            var perm = await service.GetEffectivePermissionAsync();
+            Assert.Null(perm);
+        }
+
+        /// <summary>
+        /// Description: Khi user không có bản ghi phân quyền nào -> GetEffectivePermissionAsync trả về null
+        /// Created date: 13/09/2026
+        /// </summary>
+        [Fact]
+        public async Task GetEffectivePermissionAsync_NoRecord_ReturnsNull_Test()
+        {
+            var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
+            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+            SetRestrictedUser(orgId, account);
+
+            var service = GetPermissionService();
+            var perm = await service.GetEffectivePermissionAsync();
+            Assert.Null(perm);
+        }
+
+        /// <summary>
+        /// Description: Khi có cả bản ghi UserId và OrgId -> GetEffectivePermissionAsync ưu tiên trả về bản ghi của UserId
+        /// Created date: 13/09/2026
+        /// </summary>
+        [Fact]
+        public async Task GetEffectivePermissionAsync_BothUserAndOrgExist_ReturnsUserRecord_Test()
+        {
+            var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
+            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+            SetRestrictedUser(orgId, account);
+
+            var userPerm = new VwWallPermission
+            {
+                UserId = account,
+                OrgId = null,
+                Config = "[{\"Col\":0,\"Row\":0}]",
+                CreateTime = DateTime.Now
+            };
+            var orgPerm = new VwWallPermission
+            {
+                UserId = null,
+                OrgId = orgId,
+                Config = "[{\"Col\":1,\"Row\":1}]",
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(new[] { userPerm, orgPerm }).ExecuteCommandAsync();
+
+            try
+            {
+                var service = GetPermissionService();
+                var perm = await service.GetEffectivePermissionAsync();
+
+                Assert.NotNull(perm);
+                Assert.Equal(userPerm.ID, perm.ID);
+                Assert.Equal(account, perm.UserId);
+            }
+            finally
+            {
+                await _db.Deleteable<VwWallPermission>()
+                    .Where(p => p.ID == userPerm.ID || p.ID == orgPerm.ID)
+                    .ExecuteCommandAsync();
+            }
+        }
+
+        /// <summary>
+        /// Description: Khi không có bản ghi UserId nhưng có bản ghi OrgId -> GetEffectivePermissionAsync trả về bản ghi của OrgId
+        /// Created date: 13/09/2026
+        /// </summary>
+        [Fact]
+        public async Task GetEffectivePermissionAsync_NoUserRecord_HasOrgRecord_ReturnsOrgRecord_Test()
+        {
+            var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
+            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+            SetRestrictedUser(orgId, account);
+
+            var orgPerm = new VwWallPermission
+            {
+                UserId = null,
+                OrgId = orgId,
+                Config = "[{\"Col\":2,\"Row\":3}]",
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(orgPerm).ExecuteCommandAsync();
+
+            try
+            {
+                var service = GetPermissionService();
+                var perm = await service.GetEffectivePermissionAsync();
+
+                Assert.NotNull(perm);
+                Assert.Equal(orgPerm.ID, perm.ID);
+                Assert.Equal(orgId, perm.OrgId);
+            }
+            finally
+            {
+                await _db.Deleteable<VwWallPermission>()
+                    .Where(p => p.ID == orgPerm.ID)
+                    .ExecuteCommandAsync();
+            }
+        }
+
+        #endregion
     }
 }

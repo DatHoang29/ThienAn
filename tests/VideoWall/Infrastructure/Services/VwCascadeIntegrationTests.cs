@@ -168,13 +168,21 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
             };
             await _db.Insertable(window).ExecuteCommandAsync();
 
-            // Act
-            await _service.SyncSceneWindowsToDevice(scene.ID, window);
+            try
+            {
+                // Act
+                await _service.SyncSceneWindowsToDevice(scene.ID, window);
 
-            // Assert
-            var updatedScene = await _db.Queryable<VwScene>().FirstAsync(s => s.ID == scene.ID);
-            Assert.NotNull(updatedScene);
-            Assert.NotEqual("999", updatedScene.OutputId);
+                // Assert
+                var updatedScene = await _db.Queryable<VwScene>().FirstAsync(s => s.ID == scene.ID);
+                Assert.NotNull(updatedScene);
+                Assert.NotEqual("999", updatedScene.OutputId);
+            }
+            finally
+            {
+                _mock.ResetDefaults();
+                _service.ResetAllCircuitBreakers();
+            }
         }
 
         /// <summary>
@@ -222,9 +230,17 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
             };
             await _db.Insertable(window).ExecuteCommandAsync();
 
-            // Act & Assert
-            await Assert.ThrowsAnyAsync<Exception>(() =>
-                _service.SyncSceneWindowsToDevice(scene.ID, window));
+            try
+            {
+                // Act & Assert
+                await Assert.ThrowsAnyAsync<Exception>(() =>
+                    _service.SyncSceneWindowsToDevice(scene.ID, window));
+            }
+            finally
+            {
+                _mock.ResetDefaults();
+                _service.ResetAllCircuitBreakers();
+            }
         }
 
         /// <summary>

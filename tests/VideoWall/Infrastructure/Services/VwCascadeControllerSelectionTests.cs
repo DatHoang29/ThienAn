@@ -33,7 +33,7 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
         public async Task B1_ActivateScene_WhenNoCenterInTargetIdsButOtherControllersExist_ThrowsOopsWithoutCallingDevice()
         {
             // Arrange
-            var service = new VwISAPIDeviceService(null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!);
+            var service = new VwISAPIDeviceService(null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!);
             var scene = new VwScene
             {
                 OutputId = "1"
@@ -68,7 +68,7 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
         public async Task B2_ActivateScene_WhenTargetControllerIdsNullOrEmpty_ThrowsOops()
         {
             // Arrange
-            var service = new VwISAPIDeviceService(null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!);
+            var service = new VwISAPIDeviceService(null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!);
             var scene = new VwScene
             {
                 OutputId = "1"
@@ -99,7 +99,7 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
         public async Task B3_ActivateScene_WhenOutputIdMissing_ThrowsOops()
         {
             // Arrange
-            var service = new VwISAPIDeviceService(null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!);
+            var service = new VwISAPIDeviceService(null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!, null!);
             var scene = new VwScene
             {
                 ID = "SCN_01",

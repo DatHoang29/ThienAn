@@ -552,12 +552,19 @@ public class VwWindowSceneTests(Host host)
             Visible = BaseEnums.SceneWindowVisible.Visible
         };
 
-        // Act & Assert: Trong kiến trúc NATS Fire-and-forget, WebAPI hoàn tất ghi DB và phát lệnh mà không ném lỗi đồng bộ
-        await _bus.InvokeAsync(input);
+        try
+        {
+            // Act & Assert: Trong kiến trúc NATS Fire-and-forget, WebAPI hoàn tất ghi DB và phát lệnh mà không ném lỗi đồng bộ
+            await _bus.InvokeAsync(input);
 
-        var inserted = await _db.Queryable<VwWindowScene>()
-            .FirstAsync(u => u.Code == uniqueCode && u.IsDelete == null);
-        Assert.NotNull(inserted);
+            var inserted = await _db.Queryable<VwWindowScene>()
+                .FirstAsync(u => u.Code == uniqueCode && u.IsDelete == null);
+            Assert.NotNull(inserted);
+        }
+        finally
+        {
+            host.MockServer.ResetDefaults();
+        }
     }
 
     /// <summary>

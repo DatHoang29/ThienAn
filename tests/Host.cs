@@ -20,11 +20,17 @@ public class ApiTestCollection : ICollectionFixture<Host> { }
 
 public partial class Host : IAsyncLifetime
 {
+#if TFM_WINDOWS
+    private const string TestDatabaseName = "test_windows";
+#else
     private const string TestDatabaseName = "test";
+#endif
+
+    private static readonly string[] AllowedDatabaseNames = ["test", "test_windows"];
     private const string TestCultureName = "vi-VN";
 
-    private const string DefaultLocalConnectionString =
-        "Server=127.0.0.1,14333;Database=test;User Id=sa;Password=Password123!;TrustServerCertificate=true;Connect Timeout=30;";
+    private static readonly string DefaultLocalConnectionString =
+        $"Server=127.0.0.1,14333;Database={TestDatabaseName};User Id=sa;Password=Password123!;TrustServerCertificate=true;Connect Timeout=30;";
 
     private static readonly string[] AllowedLocalHosts = ["127.0.0.1", "localhost", "(localdb)", "."];
 
@@ -43,7 +49,7 @@ public partial class Host : IAsyncLifetime
         ["DbConnection:ConnectionConfigs:0:DbSettings:EnableInitDb"] = "false",
         ["DbConnection:ConnectionConfigs:0:DbSettings:EnableDiffLog"] = "false",
         ["DbConnection:ConnectionConfigs:0:DbSettings:EnableUnderLine"] = "false",
-        ["DbConnection:ConnectionConfigs:0:TableSettings:EnableInitTable"] = "false",
+        ["DbConnection:ConnectionConfigs:0:TableSettings:EnableInitTable"] = "true",
         ["DbConnection:ConnectionConfigs:0:TableSettings:EnableIncreTable"] = "false",
         ["DbConnection:ConnectionConfigs:0:SeedSettings:EnableInitSeed"] = "false",
         ["DbConnection:ConnectionConfigs:0:SeedSettings:EnableIncreSeed"] = "false",
@@ -54,7 +60,7 @@ public partial class Host : IAsyncLifetime
         ["DbConnection:ConnectionConfigs:1:DbSettings:EnableInitDb"] = "false",
         ["DbConnection:ConnectionConfigs:1:DbSettings:EnableDiffLog"] = "false",
         ["DbConnection:ConnectionConfigs:1:DbSettings:EnableUnderLine"] = "false",
-        ["DbConnection:ConnectionConfigs:1:TableSettings:EnableInitTable"] = "false",
+        ["DbConnection:ConnectionConfigs:1:TableSettings:EnableInitTable"] = "true",
         ["DbConnection:ConnectionConfigs:1:TableSettings:EnableIncreTable"] = "false",
         ["DbConnection:ConnectionConfigs:1:SeedSettings:EnableInitSeed"] = "false",
         ["DbConnection:ConnectionConfigs:1:SeedSettings:EnableIncreSeed"] = "false",
@@ -117,17 +123,13 @@ public partial class Host : IAsyncLifetime
         ["Nats:AuthMode"] = "None",
         ["Nats:UseJetStream"] = "false",
         ["Nats:Streams:0:Name"] = "PubSub",
-        ["Nats:Streams:0:Subjects"] = "ta.its.data.videowall.control,ta.its.data.videowall.data,ta.its.data.videowall.status,ta.its.data.videowall.device",
+        ["Nats:Streams:0:Subjects"] = "ta.its.data.videowall.control,ta.its.data.videowall",
         ["Nats:Streams:0:InitStream"] = "false",
         ["Nats:Streams:0:Storage"] = "memory",
         ["Nats:Streams:0:SubjectsList:0:Subject"] = "ta.its.data.videowall.control",
         ["Nats:Streams:0:SubjectsList:0:Mode"] = "pubsub",
-        ["Nats:Streams:0:SubjectsList:1:Subject"] = "ta.its.data.videowall.data",
-        ["Nats:Streams:0:SubjectsList:1:Mode"] = "pubsub",
-        ["Nats:Streams:0:SubjectsList:2:Subject"] = "ta.its.data.videowall.status",
-        ["Nats:Streams:0:SubjectsList:2:Mode"] = "pubsub",
-        ["Nats:Streams:0:SubjectsList:3:Subject"] = "ta.its.data.videowall.device",
-        ["Nats:Streams:0:SubjectsList:3:Mode"] = "pubsub"
+        ["Nats:Streams:0:SubjectsList:1:Subject"] = "ta.its.data.videowall",
+        ["Nats:Streams:0:SubjectsList:1:Mode"] = "pubsub"
     };
 
     private WebApplicationFactory<TAC_WebAPI.Program>? _host;
@@ -375,8 +377,8 @@ public partial class Host : IAsyncLifetime
         var serverHost = rawServer.Split(',', ';', '\\', ':')[0].Trim();
         EnsureHostIsLocal(serverHost, connectionString!, targetName);
 
-        if (!TestDatabaseName.Equals(builder.InitialCatalog, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException($"CHẶN NGUY HIỂM: Database '{builder.InitialCatalog}' trong chuỗi kết nối không phải '{TestDatabaseName}'. Dừng ngay lập tức! Raw: {connectionString}");
+        if (!AllowedDatabaseNames.Any(db => db.Equals(builder.InitialCatalog, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException($"CHẶN NGUY HIỂM: Database '{builder.InitialCatalog}' trong chuỗi kết nối không nằm trong danh sách kiểm thử an toàn [{string.Join(", ", AllowedDatabaseNames)}]. Dừng ngay lập tức! Raw: {connectionString}");
     }
 
     private static void GuardNetworkHostIsLocal(string? value, string targetName)

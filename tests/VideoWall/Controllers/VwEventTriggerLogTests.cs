@@ -1,7 +1,6 @@
 namespace Tests.Modules.VideoWall;
 
 /// <summary>
-/// Author: Đạt
 /// Description: Kiểm thử tích hợp nhật ký kích hoạt kịch bản và thao tác thiết bị VwEventTriggerLog.
 ///
 ///              Phủ ba nhóm hành vi:
@@ -24,6 +23,7 @@ public class VwEventTriggerLogTests(Host host)
     private readonly IMessageBus _bus = host.Services.GetRequiredService<IMessageBus>();
     private readonly ISqlSugarClient _db = host.Services.GetRequiredService<ISqlSugarClient>();
     private readonly IStringLocalizer _localizer = host.Localizer;
+    private readonly IVwISAPIDeviceService _service = host.Services.GetRequiredService<IVwISAPIDeviceService>();
 
     /// <summary>
     /// Description: Seed một bộ điều khiển trỏ vào MockServer, kèm OrgId để kiểm việc đóng dấu.
@@ -62,7 +62,6 @@ public class VwEventTriggerLogTests(Host host)
     // ════════════════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// Author: Đạt
     /// Description: Add phải ghi được bản ghi, đóng dấu OrgId + ControllerName từ VwController và
     ///              BỎ QUA OrgId do client tự khai (endpoint Add là anonymous nên không tin client).
     ///              Validator được kiểm ngay trong luồng test này theo quy ước dự án.
@@ -120,7 +119,6 @@ public class VwEventTriggerLogTests(Host host)
     }
 
     /// <summary>
-    /// Author: Đạt
     /// Description: Không truyền ControllerId (nhánh Passthrough ad-hoc) thì OrgId để rỗng — theo quy
     ///              ước riêng của bảng này, dòng đó chỉ tài khoản toàn quyền đọc được.
     /// Created date: 26/08/2026
@@ -147,7 +145,6 @@ public class VwEventTriggerLogTests(Host host)
     }
 
     /// <summary>
-    /// Author: Đạt
     /// Description: Page phải lọc đúng theo ControllerId và khoảng OccurredAt.
     /// Created date: 26/08/2026
     /// </summary>
@@ -195,7 +192,6 @@ public class VwEventTriggerLogTests(Host host)
     }
 
     /// <summary>
-    /// Author: Đạt
     /// Description: Page phải lọc đúng theo RuleId và EventTypeId cho các dòng nhật ký nghiệp vụ.
     /// Created date: 26/08/2026
     /// </summary>
@@ -233,7 +229,6 @@ public class VwEventTriggerLogTests(Host host)
     }
 
     /// <summary>
-    /// Author: Đạt
     /// Description: GetList phải tôn trọng trần Take, kể cả khi client gửi giá trị vô lý.
     /// Created date: 26/08/2026
     /// </summary>
@@ -267,11 +262,10 @@ public class VwEventTriggerLogTests(Host host)
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // 2. Ghi log tự động sau lệnh device-setup
+    // 2. Ghi log tự động sau lệnh device-setup qua IVwISAPIDeviceService
     // ════════════════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// Author: Đạt
     /// Description: Ping sinh đúng một bước ISAPI nên phải để lại đúng một dòng log, mang Action Ping
     ///              và có đóng dấu thời điểm.
     /// Created date: 26/08/2026
@@ -285,7 +279,7 @@ public class VwEventTriggerLogTests(Host host)
         var controller = await SeedControllerAsync();
 
         // Act
-        var step = await _bus.InvokeAsync<VwSetupSceneStep>(new VwPingDeviceInput { ID = controller.ID });
+        var step = await _service.Ping(controller.ID);
 
         // Assert
         Assert.True(step.Success, step.Message);
@@ -300,7 +294,6 @@ public class VwEventTriggerLogTests(Host host)
     }
 
     /// <summary>
-    /// Author: Đạt
     /// Description: Probe trả về nhiều bước ⇒ phải ghi ĐÚNG số dòng bằng số bước. Đây là chốt của
     ///              quyết định "một dòng = một bước ISAPI": ghi gộp một dòng cho cả lượt gọi sẽ làm
     ///              bài test này đỏ.
@@ -315,7 +308,7 @@ public class VwEventTriggerLogTests(Host host)
         var controller = await SeedControllerAsync();
 
         // Act
-        var output = await _bus.InvokeAsync<VwProbeDeviceOutput>(new VwProbeDeviceInput { ID = controller.ID });
+        var output = await _service.Probe(new VwProbeDeviceInput { ID = controller.ID });
 
         // Assert
         Assert.NotEmpty(output.Steps);
@@ -331,7 +324,6 @@ public class VwEventTriggerLogTests(Host host)
     }
 
     /// <summary>
-    /// Author: Đạt
     /// Description: SetupScene ở chế độ chạy thử (DryRun mặc định) vẫn phải để lại dấu vết: các bước
     ///              Skipped được ghi với cờ Skipped = true và Success để RỖNG — bước bỏ qua không
     ///              phải một lượt gửi thành công, tính vào tỉ lệ thành công là sai số liệu.
@@ -358,7 +350,7 @@ public class VwEventTriggerLogTests(Host host)
         await _db.Insertable(scene).ExecuteCommandAsync();
 
         // Act
-        var output = await _bus.InvokeAsync<VwSetupSceneOutput>(new VwSetupSceneInput
+        var output = await _service.SetupScene(new VwSetupSceneInput
         {
             ControllerId = controller.ID,
             SceneCode = sceneCode,
@@ -379,7 +371,6 @@ public class VwEventTriggerLogTests(Host host)
     }
 
     /// <summary>
-    /// Author: Đạt
     /// Description: Lệnh ném ngoại lệ (bộ điều khiển không tồn tại) KHÔNG có bước ISAPI nào, nhưng
     ///              vẫn phải để lại một dòng log mang thông báo lỗi — mất dòng này là mất đúng thứ
     ///              cần điều tra khi đấu nối tại hiện trường.
@@ -393,7 +384,7 @@ public class VwEventTriggerLogTests(Host host)
 
         // Act
         await Assert.ThrowsAnyAsync<Exception>(
-            () => _bus.InvokeAsync<VwSetupSceneStep>(new VwPingDeviceInput { ID = missingId }));
+            () => _service.Ping(missingId));
 
         // Assert
         var rows = await ReadRowsAsync(missingId);
@@ -405,15 +396,32 @@ public class VwEventTriggerLogTests(Host host)
         Assert.False(string.IsNullOrWhiteSpace(row.Message));
     }
 
+    /// <summary>
+    /// Description: Lệnh Ping qua WebAPI được tiếp nhận theo cơ chế Fire-and-Forget và trả về VwDeviceSetupAcceptedOutput
+    /// Created date: 13/09/2026
+    /// </summary>
+    [Fact]
+    public async Task VwDeviceSetup_Ping_ViaWebAPI_ReturnsAcceptedOutput_Test()
+    {
+        // Arrange
+        var controller = await SeedControllerAsync();
+
+        // Act
+        var output = await _bus.InvokeAsync<VwDeviceSetupAcceptedOutput>(new VwPingDeviceInput { ID = controller.ID });
+
+        // Assert
+        Assert.NotNull(output);
+        Assert.True(output.Accepted);
+        Assert.False(string.IsNullOrWhiteSpace(output.MessageId));
+    }
+
     // ════════════════════════════════════════════════════════════════════════
-    // 3. ActivateScene — ghi cả dòng nghiệp vụ và dòng bước thiết bị vào cùng bảng
+    // 3. ActivateScene — ghi dòng nghiệp vụ vào VwEventTriggerLog
     // ════════════════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// Author: Đạt
-    /// Description: Kích hoạt kịch bản ghi 2 dòng vào bảng VwEventTriggerLog: 1 dòng quyết định nghiệp vụ
-    ///              (mang SceneId và Success) và 1 dòng bước ISAPI gửi xuống thiết bị (mang StepName,
-    ///              Method PUT, Endpoint, DurationMs).
+    /// Description: Kích hoạt kịch bản theo cơ chế Fire-and-Forget ghi 1 dòng quyết định nghiệp vụ vào bảng VwEventTriggerLog
+    ///              (mang SceneId, TriggerLogId và Success). Dòng bước thiết bị do Worker ghi khi xử lý lệnh.
     /// Created date: 26/08/2026
     /// </summary>
     [Fact]
@@ -442,27 +450,15 @@ public class VwEventTriggerLogTests(Host host)
         // Act
         var result = await _bus.InvokeAsync<VwActiveSceneOutput>(new VwActiveSceneInput { Code = sceneCode });
 
-        // Assert — cả 2 dòng cùng nằm trong VwEventTriggerLog
+        // Assert — dòng nghiệp vụ nằm trong VwEventTriggerLog
         var rows = await _db.Queryable<VwEventTriggerLog>()
             .Where(u => u.IsDelete == null && u.SceneId == scene.ID && u.Action == VwEventTriggerAction.ActiveScene)
             .ToListAsync();
 
-        Assert.Equal(2, rows.Count);
-
-        // 1. Dòng nghiệp vụ (TriggerLogId do lệnh trả về)
-        var businessRow = rows.FirstOrDefault(r => r.ID == result.TriggerLogId);
-        Assert.NotNull(businessRow);
+        var businessRow = Assert.Single(rows);
+        Assert.Equal(result.TriggerLogId, businessRow.ID);
         Assert.Equal(scene.ID, businessRow.SceneId);
         Assert.Equal(BaseEnums.SuccessEnums.Success, businessRow.Success);
-
-        // 2. Dòng bước thiết bị ISAPI
-        var deviceStepRow = rows.FirstOrDefault(r => r.ID != result.TriggerLogId);
-        Assert.NotNull(deviceStepRow);
-        Assert.Equal(sceneCode, deviceStepRow.SceneCode);
-        Assert.Equal("PUT", deviceStepRow.Method);
-        Assert.Equal("Kích hoạt kịch bản", deviceStepRow.StepName);
-        Assert.Equal(controller.ID, deviceStepRow.ControllerId);
-        Assert.Equal(BaseEnums.SuccessEnums.Success, deviceStepRow.Success);
-        Assert.NotNull(deviceStepRow.OccurredAt);
+        Assert.NotNull(businessRow.OccurredAt);
     }
 }

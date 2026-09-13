@@ -3,11 +3,14 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Module.VideoWall.Core.Constants;
+using Module.VideoWall.Core.Dto.ISAPI;
 using Module.VideoWall.Core.Entities;
 using Module.VideoWall.Core.Interfaces;
 using Module.VideoWall.Core.Options;
 using Shared.DTO.Enums;
 using SqlSugar;
+using System.IO;
+using System.Xml.Serialization;
 using Tests.Modules.VideoWall.MockServer;
 using Xunit;
 
@@ -104,7 +107,7 @@ namespace Tests.Modules.VideoWall.Services
 
             // Assert NATS — publisher đã được gọi ít nhất 1 lần
             Assert.True(publisher.PublishedCount >= 1);
-            Assert.Equal(VwSubjects.Device, publisher.LastSubject);
+            Assert.Equal(VwSubjects.Data, publisher.LastSubject);
 
             // Assert MockServer — đã nhận được request thăm dò
             Assert.True(_mock.GetInputChannelsCallCount >= 1);
@@ -179,7 +182,7 @@ namespace Tests.Modules.VideoWall.Services
 
             // Assert NATS — telemetry offline được phát
             Assert.True(publisher.PublishedCount >= 1);
-            Assert.Equal(VwSubjects.Device, publisher.LastSubject);
+            Assert.Equal(VwSubjects.Data, publisher.LastSubject);
         }
 
         // ─── Helper: đảm bảo controller tồn tại trong DB trỏ về MockServer ───
@@ -233,6 +236,135 @@ namespace Tests.Modules.VideoWall.Services
                 LastSubject = subject;
                 LastPayload = payload;
                 return Task.FromResult(true);
+            }
+        }
+
+        // ─── DTO parsing tests (Fix mục 1 prompt: portType/signalStatus) ───
+
+        /// <summary>
+        /// Description: Parse XML dùng tag thật thiết bị DS-C66S (portType, signalStatus) →
+        ///              InputPortType và VideoInputChannelAccessStatus phải có giá trị, không còn null.
+        /// Created date: 13/09/2026
+        /// </summary>
+        [Fact]
+        public void VwISAPIInputChannel_WhenXmlUsesRealDeviceTags_ParsesPortTypeAndSignalStatus_Test()
+        {
+            // XML mẫu đo thật từ thiết bị DS-C66S (67 bản ghi log thật §B.2/§H.1)
+            const string xml = """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <VideoInputChannelList xmlns="http://www.isapi.org/ver20/XMLSchema">
+                  <VideoInputChannel>
+                    <id>16908289</id>
+                    <name>Input 2-1</name>
+                    <portType>HDMI</portType>
+                    <signalStatus>signal</signalStatus>
+                  </VideoInputChannel>
+                </VideoInputChannelList>
+                """;
+
+            var serializer = new XmlSerializer(typeof(VwISAPIInputChannelsResponse));
+            using var reader = new StringReader(xml);
+
+            // Act
+            var result = (VwISAPIInputChannelsResponse?)serializer.Deserialize(reader);
+
+            // Assert — portType khớp InputPortType, signalStatus khớp VideoInputChannelAccessStatus
+            Assert.NotNull(result);
+            Assert.Single(result.VideoInputChannel);
+            var ch = result.VideoInputChannel[0];
+            Assert.Equal(16908289, ch.Id);
+            Assert.Equal("HDMI", ch.InputPortType);
+            Assert.Equal("HDMI", ch.PortType);
+            Assert.Equal("signal", ch.VideoInputChannelAccessStatus);
+            Assert.Equal("signal", ch.SignalStatus);
+        }
+
+        /// <summary>
+        /// Description: Parse XML dùng tag cũ (inputPortType, videoInputChannelAccessStatus)
+        ///              → vẫn parse đúng (tương thích ngược).
+        /// Created date: 13/09/2026
+        /// </summary>
+        [Fact]
+        public void VwISAPIInputChannel_WhenXmlUsesLegacyTags_ParsesCorrectlyBackcompat_Test()
+        {
+            const string xml = """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <VideoInputChannelList xmlns="http://www.isapi.org/ver20/XMLSchema">
+                  <VideoInputChannel>
+                    <id>1</id>
+                    <inputPortType>DP</inputPortType>
+                    <videoInputChannelAccessStatus>normal</videoInputChannelAccessStatus>
+                  </VideoInputChannel>
+                </VideoInputChannelList>
+                """;
+
+            var serializer = new XmlSerializer(typeof(VwISAPIInputChannelsResponse));
+            using var reader = new StringReader(xml);
+
+            var result = (VwISAPIInputChannelsResponse?)serializer.Deserialize(reader);
+
+            Assert.NotNull(result);
+            var ch = result.VideoInputChannel[0];
+            Assert.Equal("DP", ch.InputPortType);
+            Assert.Equal("DP", ch.PortType);
+            Assert.Equal("normal", ch.VideoInputChannelAccessStatus);
+            Assert.Equal("normal", ch.SignalStatus);
+        }
+
+        /// <summary>
+        /// Description: PollOneController khi MockServer trả signalStatus="signal" →
+        ///              VwSource.SignalStatus = Enable (xác nhận fix so sánh "signal" thay "normal").
+        /// Created date: 13/09/2026
+        /// </summary>
+        [Fact]
+        public async Task PollOneController_WhenSignalStatusIsSignal_SetsSourceSignalStatusEnable_Test()
+        {
+            _mock.ResetDefaults();
+            _mock.IsCascadeCenter = false;
+
+            var publisher = new FakeNatsPublisherTest();
+            var options = Options.Create(new VwDeviceOptions
+            {
+                Device = new VwDeviceConnectionOptions { HeartbeatIntervalSeconds = 20 }
+            });
+
+            var controller = await EnsureController();
+
+            var source = new VwSource
+            {
+                ID = $"{TestPrefix}SRC_SIG_{Guid.NewGuid():N}",
+                Name = "Test SignalStatus Signal",
+                ControllerId = controller.ID,
+                SignalNo = 16842753,
+                SignalStatus = BaseEnums.StatusEnum.Disable, // bắt đầu Disable
+                Status = BaseEnums.StatusEnum.Enable,
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(source).ExecuteCommandAsync();
+
+            var service = new VwDeviceHeartbeatService(
+                _scopeFactory, options,
+                NullLogger<VwDeviceHeartbeatService>.Instance,
+                publisher);
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var pollMethod = typeof(VwDeviceHeartbeatService)
+                .GetMethod("PollOneController", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            Assert.NotNull(pollMethod);
+
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                await (Task)pollMethod.Invoke(service, [controller, scope.ServiceProvider, cts.Token])!;
+
+                // signalStatus="signal" từ MockServer → so sánh "signal" → Enable
+                var updated = await _db.Queryable<VwSource>().FirstAsync(s => s.ID == source.ID);
+                Assert.NotNull(updated);
+                Assert.Equal(BaseEnums.StatusEnum.Enable, updated.SignalStatus);
+            }
+            finally
+            {
+                await _db.Deleteable<VwSource>().Where(s => s.ID == source.ID).ExecuteCommandAsync();
             }
         }
     }

@@ -624,6 +624,145 @@ namespace Tests.Modules.VideoWall.Consumer
             return window;
         }
 
+        /// <summary>
+        /// Description: Gói tin có Type khác Control (ví dụ ControlResponse) bị bỏ qua không thực thi lệnh
+        /// Created date: 13/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessCommandAsync_WhenTypeIsNotControl_IgnoresCommand_Test()
+        {
+            // Arrange
+            var consumer = new VwCommandConsumer(_scopeFactory, NullLogger<VwCommandConsumer>.Instance);
+            bool telemetryInvoked = false;
+            consumer.OnTelemetryPublished = (_, _, _, _, _) => telemetryInvoked = true;
+
+            var envelope = new VwCommandEnvelope
+            {
+                MessageId = $"MSG_IGNORE_{Guid.NewGuid():N}",
+                Action = VwCommandActions.ActivateScene,
+                Type = VwPackageType.ControlResponse // Sai chiều (ControlResponse thay vì Control)
+            };
+
+            // Act
+            await consumer.ProcessCommandAsync(envelope);
+
+            // Assert
+            Assert.False(telemetryInvoked);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra cơ chế Stale Command Guard: khi ActiveSceneAt trên controller mới hơn Timestamp của lệnh, Worker bỏ qua cập nhật DB
+        /// Created date: 13/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessCommand_WhenActiveSceneAtNewerThanEnvelopeTimestamp_IgnoresDbUpdate_Test()
+        {
+            // Arrange
+            _mock.ResetDefaults();
+            _mock.IsCascadeCenter = true;
+
+            var center = await EnsureCenterController();
+            var scene = await EnsureScene("1");
+
+            // Thiết lập ActiveSceneAt trong tương lai so với Timestamp của envelope
+            var futureTime = DateTime.UtcNow.AddHours(1);
+            center.ActiveSceneAt = futureTime;
+            center.ActiveSceneId = null;
+            await _db.Updateable(center).UpdateColumns(u => new { u.ActiveSceneAt, u.ActiveSceneId }).ExecuteCommandAsync();
+
+            scene.ActiveScene = BaseEnums.ActiveScene.DeActivate;
+            await _db.Updateable(scene).UpdateColumns(u => new { u.ActiveScene }).ExecuteCommandAsync();
+
+            var consumer = new VwCommandConsumer(_scopeFactory, NullLogger<VwCommandConsumer>.Instance);
+            bool? capturedSuccess = null;
+            consumer.OnTelemetryPublished = (_, _, success, _, _) => capturedSuccess = success;
+
+            var envelope = new VwCommandEnvelope
+            {
+                MessageId = $"MSG_STALE_{Guid.NewGuid():N}",
+                Action = VwCommandActions.ActivateScene,
+                SceneId = scene.ID,
+                ControllerId = center.ID,
+                Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(), // Cũ hơn futureTime
+                Payload = new VwActivateScenePayload
+                {
+                    SceneId = scene.ID,
+                    OutputId = "1",
+                    TargetControllerIds = [center.ID]
+                }
+            };
+
+            // Act
+            await consumer.ProcessCommandAsync(envelope);
+
+            // Assert
+            Assert.True(capturedSuccess);
+            var dbCtrl = await _db.Queryable<VwController>().FirstAsync(u => u.ID == center.ID);
+            Assert.Null(dbCtrl.ActiveSceneId); // DB không bị cập nhật bởi lệnh stale
+
+            var dbScene = await _db.Queryable<VwScene>().FirstAsync(u => u.ID == scene.ID);
+            Assert.Equal(BaseEnums.ActiveScene.DeActivate, dbScene.ActiveScene); // DB scene giữ nguyên
+        }
+
+        /// <summary>
+        /// Description: Khi thiết bị hoặc lệnh kích hoạt lỗi, toàn bộ thao tác ghi DB được rollback và phát telemetry thất bại
+        /// Created date: 13/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessCommand_WhenActivateSceneFailsInDevice_RollsBackTransaction_Test()
+        {
+            // Arrange
+            _mock.ResetDefaults();
+            _mock.IsCascadeCenter = true;
+
+            var center = await EnsureCenterController();
+            var scene = await EnsureScene("1");
+
+            // Thiết lập trạng thái ban đầu
+            center.ActiveSceneId = null;
+            await _db.Updateable(center).UpdateColumns(u => new { u.ActiveSceneId }).ExecuteCommandAsync();
+
+            scene.ActiveScene = BaseEnums.ActiveScene.DeActivate;
+            scene.OutputId = null; // OutputId null -> IVwISAPIDeviceService.ActivateScene sẽ ném lỗi trước khi commit
+            await _db.Updateable(scene).UpdateColumns(u => new { u.ActiveScene, u.OutputId }).ExecuteCommandAsync();
+
+            var consumer = new VwCommandConsumer(_scopeFactory, NullLogger<VwCommandConsumer>.Instance);
+            bool? capturedSuccess = null;
+            string? capturedError = null;
+            consumer.OnTelemetryPublished = (_, _, success, error, _) =>
+            {
+                capturedSuccess = success;
+                capturedError = error;
+            };
+
+            var envelope = new VwCommandEnvelope
+            {
+                MessageId = $"MSG_FAIL_{Guid.NewGuid():N}",
+                Action = VwCommandActions.ActivateScene,
+                SceneId = scene.ID,
+                ControllerId = center.ID,
+                Payload = new VwActivateScenePayload
+                {
+                    SceneId = scene.ID,
+                    OutputId = null,
+                    TargetControllerIds = [center.ID]
+                }
+            };
+
+            // Act
+            await consumer.ProcessCommandAsync(envelope);
+
+            // Assert
+            Assert.False(capturedSuccess);
+            Assert.NotNull(capturedError);
+
+            var dbCtrl = await _db.Queryable<VwController>().FirstAsync(u => u.ID == center.ID);
+            Assert.Null(dbCtrl.ActiveSceneId); // Không bị ghi đè
+
+            var dbScene = await _db.Queryable<VwScene>().FirstAsync(u => u.ID == scene.ID);
+            Assert.Equal(BaseEnums.ActiveScene.DeActivate, dbScene.ActiveScene);
+        }
+
         private sealed class FakeNatsPublisherTest : IVwNatsPublisher
         {
             public int PublishedCount { get; private set; }
