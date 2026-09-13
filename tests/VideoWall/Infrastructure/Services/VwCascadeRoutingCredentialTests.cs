@@ -24,17 +24,14 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
     public class VwCascadeRoutingCredentialTests
     {
         /// <summary>
-        /// Description: C1 - Khi UseMockDevice=false, URI thiết bị lấy từ IP bộ điều khiển với port mặc định 80.
+        /// Description: C1 - URI thiết bị lấy từ IP bộ điều khiển với port mặc định 80.
         /// Created date: 08/09/2026
         /// </summary>
         [Fact]
-        public void C1_ResolveDeviceUri_WhenUseMockDeviceIsFalse_UsesControllerIpAndDefaultPort()
+        public void C1_ResolveDeviceUri_UsesControllerIpAndDefaultPort()
         {
             // Arrange
-            var config = new VwDeviceConnectionOptions
-            {
-                UseMockDevice = false
-            };
+            var config = new VwDeviceConnectionOptions();
             var controller = new VwController
             {
                 IP = "10.0.0.11"
@@ -56,10 +53,7 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
         public void C2_ResolveDeviceUri_WhenControllerHasCustomPort_RespectsCustomPort()
         {
             // Arrange
-            var config = new VwDeviceConnectionOptions
-            {
-                UseMockDevice = false
-            };
+            var config = new VwDeviceConnectionOptions();
             var controller = new VwController
             {
                 IP = "10.0.0.11:8080"
@@ -73,32 +67,6 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
         }
 
         /// <summary>
-        /// Description: C3 - Khi UseMockDevice=true, URI thiết bị lấy theo cấu hình appsettings/options.
-        /// Created date: 08/09/2026
-        /// </summary>
-        [Fact]
-        public void C3_ResolveDeviceUri_WhenUseMockDeviceIsTrue_UsesConfigIp()
-        {
-            // Arrange
-            var config = new VwDeviceConnectionOptions
-            {
-                UseMockDevice = true,
-                Ip = "127.0.0.1",
-                Port = 8080
-            };
-            var controller = new VwController
-            {
-                IP = "10.0.0.11"
-            };
-
-            // Act
-            var result = VwISAPIDeviceClient.ResolveDeviceUri(controller, config);
-
-            // Assert
-            Assert.Equal("http://127.0.0.1:8080/", result.AbsoluteUri);
-        }
-
-        /// <summary>
         /// Description: C4 - Khi IP rỗng cả trong controller lẫn cấu hình, ném ngoại lệ rõ ràng.
         /// Created date: 08/09/2026
         /// </summary>
@@ -108,7 +76,6 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
             // Arrange
             var config = new VwDeviceConnectionOptions
             {
-                UseMockDevice = false,
                 Ip = string.Empty
             };
             var controller = new VwController
@@ -122,19 +89,16 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
         }
 
         /// <summary>
-        /// Description: C5 - Khi UseMockDevice=false, trả về thông tin đăng nhập Account và PassWord từ DB controller.
+        /// Description: C5 - Trả về thông tin đăng nhập Account và PassWord từ DB controller.
         /// Created date: 08/09/2026
         /// </summary>
         [Fact]
-        public void C5_ResolveCredential_WhenUseMockDeviceIsFalse_ReturnsControllerCredentials()
+        public void C5_ResolveCredential_ReturnsControllerCredentials()
         {
             // Arrange
             var options = Options.Create(new VwDeviceOptions
             {
-                Device = new VwDeviceConnectionOptions
-                {
-                    UseMockDevice = false
-                }
+                Device = new VwDeviceConnectionOptions()
             });
             var resolver = new VwISAPICredentialResolver(options);
             var controller = new VwController
@@ -161,10 +125,7 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
             // Arrange
             var options = Options.Create(new VwDeviceOptions
             {
-                Device = new VwDeviceConnectionOptions
-                {
-                    UseMockDevice = false
-                }
+                Device = new VwDeviceConnectionOptions()
             });
             var resolver = new VwISAPICredentialResolver(options);
             var controller = new VwController

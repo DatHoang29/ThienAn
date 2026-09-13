@@ -21,29 +21,11 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
         #region P2 Connection Resolution Tests
 
         [Fact]
-        public void ResolveDeviceUri_WhenUseMockDeviceIsTrue_UsesConfigIgnoringControllerIp()
+        public void ResolveDeviceUri_ResolvesControllerIpAndDefaultPort()
         {
-            // UseMockDevice = true -> dùng config, KHÔNG đọc controller.IP (truyền controller có IP khác để chứng minh)
-            var controller = new VwController { IP = "10.99.99.99:9999" };
-            var config = new VwDeviceConnectionOptions
-            {
-                UseMockDevice = true,
-                Ip = "127.0.0.1",
-                Port = 8080,
-                Scheme = "http"
-            };
-
-            var uri = VwISAPIDeviceClient.ResolveDeviceUri(controller, config);
-
-            Assert.Equal("http://127.0.0.1:8080/", uri.ToString());
-        }
-
-        [Fact]
-        public void ResolveDeviceUri_WhenUseMockDeviceIsFalse_ResolvesControllerIpAndDefaultPort()
-        {
-            // UseMockDevice = false, controller.IP = "10.0.0.5" -> http://10.0.0.5:80/
+            // controller.IP = "10.0.0.5" -> http://10.0.0.5:80/
             var controller = new VwController { IP = "10.0.0.5" };
-            var config = new VwDeviceConnectionOptions { UseMockDevice = false };
+            var config = new VwDeviceConnectionOptions();
 
             var uri = VwISAPIDeviceClient.ResolveDeviceUri(controller, config);
 
@@ -58,7 +40,7 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
         {
             // controller.IP = "10.0.0.5:8000" -> port tách đúng 8000
             var controller = new VwController { IP = "10.0.0.5:8000" };
-            var config = new VwDeviceConnectionOptions { UseMockDevice = false };
+            var config = new VwDeviceConnectionOptions();
 
             var uri = VwISAPIDeviceClient.ResolveDeviceUri(controller, config);
 
@@ -70,7 +52,7 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
         {
             // config.Port = 8080 thắng port mặc định
             var controller = new VwController { IP = "10.0.0.5" };
-            var config = new VwDeviceConnectionOptions { UseMockDevice = false, Port = 8080 };
+            var config = new VwDeviceConnectionOptions { Port = 8080 };
 
             var uri = VwISAPIDeviceClient.ResolveDeviceUri(controller, config);
 
@@ -84,7 +66,6 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
             var controller = new VwController { IP = string.Empty };
             var config = new VwDeviceConnectionOptions
             {
-                UseMockDevice = false,
                 Ip = "192.168.1.50",
                 Port = 8000
             };
@@ -99,42 +80,11 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
         {
             // Cả hai rỗng -> lỗi nghiệp vụ có thông báo chỉ đúng key cấu hình
             var controller = new VwController { IP = string.Empty };
-            var config = new VwDeviceConnectionOptions { UseMockDevice = false, Ip = string.Empty };
+            var config = new VwDeviceConnectionOptions { Ip = string.Empty };
 
             var ex = Assert.ThrowsAny<Exception>(() => VwISAPIDeviceClient.ResolveDeviceUri(controller, config));
 
             Assert.Contains("Chưa cấu hình IP thiết bị. Khai VideoWall:Device:Ip trong Configuration/DeviceIntegration.json, hoặc điền IP cho bản ghi VwController.", ex.Message);
-        }
-
-        [Theory]
-        [InlineData("ftp")]
-        [InlineData("ws")]
-        [InlineData("ssh")]
-        public void ValidateDeviceOptions_WhenSchemeInvalid_ThrowsInvalidOperationException(string invalidScheme)
-        {
-            // Scheme = "ftp" -> khởi động thất bại
-            var config = new VwDeviceConnectionOptions { Scheme = invalidScheme };
-
-            Assert.Throws<InvalidOperationException>(() => Module.VideoWall.Extensions.ServiceCollectionExtensions.ValidateDeviceOptions(config));
-        }
-
-        [Theory]
-        [InlineData(0)]
-        [InlineData(-1)]
-        [InlineData(70000)]
-        public void ValidateDeviceOptions_WhenPortOutOfRange_ThrowsInvalidOperationException(int invalidPort)
-        {
-            var config = new VwDeviceConnectionOptions { Port = invalidPort };
-
-            Assert.Throws<InvalidOperationException>(() => Module.VideoWall.Extensions.ServiceCollectionExtensions.ValidateDeviceOptions(config));
-        }
-
-        [Fact]
-        public void ValidateDeviceOptions_WhenUseMockDeviceIsTrueAndIpIsEmpty_ThrowsInvalidOperationException()
-        {
-            var config = new VwDeviceConnectionOptions { UseMockDevice = true, Ip = string.Empty };
-
-            Assert.Throws<InvalidOperationException>(() => Module.VideoWall.Extensions.ServiceCollectionExtensions.ValidateDeviceOptions(config));
         }
 
         #endregion

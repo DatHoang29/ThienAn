@@ -103,7 +103,7 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services.Messaging
             while (sw.Elapsed < timeout)
             {
                 updatedWin = await _db.Queryable<VwWindowScene>().FirstAsync(w => w.ID == window.ID);
-                if (!string.IsNullOrEmpty(updatedWin?.DeviceWindowId))
+                if (!string.IsNullOrEmpty(updatedWin?.DeviceWindowId) && _mock.SaveSceneDataCallCount >= 1)
                     break;
 
                 await Task.Delay(100);
