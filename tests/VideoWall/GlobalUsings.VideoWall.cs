@@ -33,7 +33,7 @@ global using Module.VideoWall.Core.Dto.SlotPort;
 global using Module.VideoWall.Core.Dto.Source;
 global using Module.VideoWall.Core.Dto.WallTopology;
 global using Module.VideoWall.Core.Dto.WindowScene;
-global using Module.VideoWall.Core.Dto.UserAreaPermission;
+global using Module.VideoWall.Core.Dto.WallPermission;
 
 // ─── Validators (FluentValidation) dùng cho Negative Test First ───
 global using Module.VideoWall.Controllers.Controller.Validators;
@@ -47,7 +47,7 @@ global using Module.VideoWall.Controllers.SlotPort.Validators;
 global using Module.VideoWall.Controllers.Source.Validators;
 global using Module.VideoWall.Controllers.WallTopology.Validators;
 global using Module.VideoWall.Controllers.WindowScene.Validators;
-global using Module.VideoWall.Controllers.UserAreaPermission.Validators;
+global using Module.VideoWall.Controllers.WallPermission.Validators;
 
 // ─── Messaging / Consumers ───
 global using ITS.VideoWall.Consumer;

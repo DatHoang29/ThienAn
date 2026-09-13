@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Module.VideoWall.Core.Constants;
+using Module.VideoWall.Core.Dto.Command;
+using Module.VideoWall.Core.Interfaces;
 using Module.VideoWall.Core.Options;
 using Module.VideoWall.Infrastructure.Services.Messaging;
 using Newtonsoft.Json;
@@ -150,6 +152,103 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services.Messaging
 
             // Assert
             Assert.True(capturedUnconfirmed);
+        }
+
+        /// <summary>
+        /// Description: Nhận VwCommandResponseEnvelope có kiểu với PackageType ControlResponse hoàn tất xác nhận thành công
+        /// Created date: 12/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessTelemetryAsync_WhenTypedVwCommandResponseEnvelope_BroadcastsAndCompletesReplySink_Test()
+        {
+            // Arrange
+            var messageId = "MSG_TYPED_TEST_001";
+            var sceneId = "SCENE_TYPED_TEST_001";
+            var activeValue = new { SceneId = sceneId, Name = "Typed Scene" };
+            var controllers = new List<string> { "CTRL_01" };
+
+            _consumer.RegisterPendingActivation(sceneId, activeValue, controllers, messageId);
+
+            bool? capturedUnconfirmed = null;
+            object? capturedActiveValue = null;
+
+            _consumer.OnBroadcastSceneActivated = (val, ctrls, unconf) =>
+            {
+                capturedActiveValue = val;
+                capturedUnconfirmed = unconf;
+            };
+
+            var typedEnvelope = new VwCommandResponseEnvelope
+            {
+                MessageId = messageId,
+                Action = VwCommandActions.ActivateScene,
+                Success = true,
+                PackageType = VwPackageType.ControlResponse,
+                Data = new { SceneId = sceneId }
+            };
+
+            // Act
+            await _consumer.ProcessTelemetryAsync(typedEnvelope);
+
+            // Assert
+            Assert.NotNull(capturedActiveValue);
+            Assert.False(capturedUnconfirmed);
+        }
+
+        /// <summary>
+        /// Description: Thông điệp lỗi thiếu Action hoặc rỗng được bỏ qua an toàn không gây exception
+        /// Created date: 12/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessTelemetryAsync_WhenInvalidMessage_MissingAction_SafelyIgnored_Test()
+        {
+            // Arrange
+            var invalidEnvelope = new VwCommandResponseEnvelope
+            {
+                MessageId = "MSG_INVALID_NO_ACTION",
+                Action = "",
+                Success = true
+            };
+
+            bool broadcastInvoked = false;
+            _consumer.OnBroadcastSceneActivated = (_, _, _) => broadcastInvoked = true;
+
+            // Act
+            var ex = await Record.ExceptionAsync(() => _consumer.ProcessTelemetryAsync(invalidEnvelope));
+
+            // Assert
+            Assert.Null(ex);
+            Assert.False(broadcastInvoked);
+        }
+
+        /// <summary>
+        /// Description: Payload cũ không có trường PackageType vẫn được phân tích tương thích ngược an toàn
+        /// Created date: 12/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessTelemetryAsync_WhenLegacyPayloadWithoutPackageType_BackwardCompatible_Test()
+        {
+            // Arrange
+            var messageId = "MSG_LEGACY_001";
+            var sceneId = "SCENE_LEGACY_001";
+            _consumer.RegisterPendingActivation(sceneId, new { SceneId = sceneId }, ["CTRL_01"], messageId);
+
+            bool? capturedUnconfirmed = null;
+            _consumer.OnBroadcastSceneActivated = (_, _, unconf) => capturedUnconfirmed = unconf;
+
+            var legacyJson = JsonConvert.SerializeObject(new
+            {
+                MessageId = messageId,
+                Action = VwCommandActions.ActivateScene,
+                Success = true,
+                Data = new { SceneId = sceneId }
+            });
+
+            // Act
+            await _consumer.ProcessTelemetryAsync(legacyJson);
+
+            // Assert
+            Assert.False(capturedUnconfirmed);
         }
     }
 }

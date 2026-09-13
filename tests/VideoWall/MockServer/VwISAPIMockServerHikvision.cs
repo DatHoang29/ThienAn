@@ -57,6 +57,10 @@ namespace Tests.Modules.VideoWall.MockServer
         public int CascadeOutputSize { get; set; } = 1920;
         public bool SimulateSaveData403Once { get; set; } = false;
         public bool SimulateWindowInputChannelInvalid { get; set; } = false;
+        public int TransientErrorCount { get; set; } = 0;
+        public int TransientErrorCalls { get; set; } = 0;
+        public HttpStatusCode TransientStatusCode { get; set; } = HttpStatusCode.ServiceUnavailable;
+        public int TotalReceivedRequests { get; set; } = 0;
 
         /// <summary>
         /// Trần SID kịch bản thiết bị nhận, trả về trong &lt;maxSceneNums&gt; của VideoWallCap.
@@ -270,6 +274,10 @@ namespace Tests.Modules.VideoWall.MockServer
             CascadeOutputSize = 1920;
             SimulateSaveData403Once = false;
             SimulateWindowInputChannelInvalid = false;
+            TransientErrorCount = 0;
+            TransientErrorCalls = 0;
+            TransientStatusCode = HttpStatusCode.ServiceUnavailable;
+            TotalReceivedRequests = 0;
             MaxSceneNums = DefaultMaxSceneNums;
             ActiveSceneId = 1;
             WallSceneStores.Clear();
@@ -389,6 +397,24 @@ namespace Tests.Modules.VideoWall.MockServer
                     LastReceivedBodyBytes = bodyBuffer.ToArray();
                     LastReceivedBody = Encoding.UTF8.GetString(LastReceivedBodyBytes);
                     LastReceivedContentType = req.ContentType;
+                }
+
+                TotalReceivedRequests++;
+
+                // ─── 0.00. Giả lập lỗi tạm thời (503 Service Unavailable / 408 / 500) phục vụ kiểm thử retry ───
+                if (TransientErrorCount > 0 && TransientErrorCalls < TransientErrorCount)
+                {
+                    TransientErrorCalls++;
+                    await WriteXmlResponseAsync(res, TransientStatusCode, $$"""
+                        <?xml version="1.0" encoding="UTF-8"?>
+                        <ResponseStatus version="1.0" xmlns="{{Ns}}">
+                          <requestURL>{{path}}</requestURL>
+                          <statusCode>4</statusCode>
+                          <statusString>Temporary Error</statusString>
+                          <subStatusCode>serviceUnavailable</subStatusCode>
+                        </ResponseStatus>
+                        """);
+                    return;
                 }
 
                 // ─── 0.0. Giả lập thiết bị không phản hồi / rớt mạng / timeout ───

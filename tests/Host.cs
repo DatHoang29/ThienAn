@@ -43,8 +43,8 @@ public partial class Host : IAsyncLifetime
         ["DbConnection:ConnectionConfigs:0:DbSettings:EnableInitDb"] = "false",
         ["DbConnection:ConnectionConfigs:0:DbSettings:EnableDiffLog"] = "false",
         ["DbConnection:ConnectionConfigs:0:DbSettings:EnableUnderLine"] = "false",
-        ["DbConnection:ConnectionConfigs:0:TableSettings:EnableInitTable"] = "true",
-        ["DbConnection:ConnectionConfigs:0:TableSettings:EnableIncreTable"] = "true",
+        ["DbConnection:ConnectionConfigs:0:TableSettings:EnableInitTable"] = "false",
+        ["DbConnection:ConnectionConfigs:0:TableSettings:EnableIncreTable"] = "false",
         ["DbConnection:ConnectionConfigs:0:SeedSettings:EnableInitSeed"] = "false",
         ["DbConnection:ConnectionConfigs:0:SeedSettings:EnableIncreSeed"] = "false",
 

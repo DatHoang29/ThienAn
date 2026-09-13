@@ -108,7 +108,7 @@
     <DefineConstants>$(DefineConstants);HAS_SHAREDATA</DefineConstants>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(HasShareDataWorker)' == 'true'">
+  <PropertyGroup Condition="'$(HasShareDataWorker)' == 'true' And '$(TargetFramework)' != 'net10.0-windows'">
     <DefineConstants>$(DefineConstants);HAS_SHAREDATAWORKER</DefineConstants>
   </PropertyGroup>
 

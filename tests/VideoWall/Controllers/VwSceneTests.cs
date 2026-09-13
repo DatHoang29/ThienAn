@@ -1,5 +1,9 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 using Module.VideoWall.Core.Dto.ISAPI;
 using Module.VideoWall.Core.Interfaces;
+using Newtonsoft.Json;
+using Shared.Core.Utilities.Constants;
 
 namespace Tests.Modules.VideoWall;
 
@@ -556,15 +560,25 @@ public class VwSceneTests(Host host)
 
         var input = new VwActiveSceneInput { Code = sceneCode };
 
-        // Act & Assert: Trong kiến trúc NATS Fire-and-forget, WebAPI phát lệnh qua NATS và cập nhật DB optimistically
-        var output = await _bus.InvokeAsync<VwActiveSceneOutput>(input);
-        Assert.NotNull(output);
+        // Act & Assert: Với cơ chế ACK-before-commit, khi thiết bị lỗi thì ném ngoại lệ và KHÔNG cập nhật DB
+        var ex = await Record.ExceptionAsync(() => _bus.InvokeAsync<VwActiveSceneOutput>(input));
+        Assert.NotNull(ex);
 
         var dbController = await _db.Queryable<VwController>().FirstAsync(u => u.ID == controller.ID);
-        Assert.Equal(scene.ID, dbController.ActiveSceneId);
+        Assert.Null(dbController.ActiveSceneId);
 
         var dbScene = await _db.Queryable<VwScene>().FirstAsync(u => u.ID == scene.ID);
-        Assert.Equal(BaseEnums.ActiveScene.Activate, dbScene.ActiveScene);
+        Assert.Equal(BaseEnums.ActiveScene.DeActivate, dbScene.ActiveScene);
+
+        var triggerLog = await _db.Queryable<VwEventTriggerLog>()
+            .FirstAsync(u => u.SceneId == scene.ID && string.IsNullOrEmpty(u.StepName));
+        Assert.NotNull(triggerLog);
+        Assert.Equal(BaseEnums.SuccessEnums.Fail, triggerLog.Success);
+
+        // Cleanup
+        await _db.Deleteable<VwScene>(s => s.ID == scene.ID).ExecuteCommandAsync();
+        await _db.Deleteable<VwController>(c => c.ID == controller.ID).ExecuteCommandAsync();
+        await _db.Deleteable<VwEventTriggerLog>(l => l.SceneId == scene.ID).ExecuteCommandAsync();
     }
 
     /// <summary>
@@ -626,22 +640,27 @@ public class VwSceneTests(Host host)
 
         var input = new VwActiveSceneInput { Code = sceneCode };
 
-        // Act & Assert: Trong kiến trúc NATS Fire-and-forget, WebAPI phát lệnh qua NATS và cập nhật DB optimistically
-        var output = await _bus.InvokeAsync<VwActiveSceneOutput>(input);
-        Assert.NotNull(output);
+        // Act & Assert: Với cơ chế ACK-before-commit, khi thiết bị lỗi thì ném ngoại lệ và KHÔNG cập nhật DB
+        var ex = await Record.ExceptionAsync(() => _bus.InvokeAsync<VwActiveSceneOutput>(input));
+        Assert.NotNull(ex);
 
         var dbCtrlA = await _db.Queryable<VwController>().FirstAsync(u => u.ID == ctrlA.ID);
         var dbCtrlB = await _db.Queryable<VwController>().FirstAsync(u => u.ID == ctrlB.ID);
-        Assert.Equal(scene.ID, dbCtrlA.ActiveSceneId);
+        Assert.Null(dbCtrlA.ActiveSceneId);
         Assert.Null(dbCtrlB.ActiveSceneId);
 
         var dbScene = await _db.Queryable<VwScene>().FirstAsync(u => u.ID == scene.ID);
-        Assert.Equal(BaseEnums.ActiveScene.Activate, dbScene.ActiveScene);
+        Assert.Equal(BaseEnums.ActiveScene.DeActivate, dbScene.ActiveScene);
 
         var triggerLog = await _db.Queryable<VwEventTriggerLog>()
-            .FirstAsync(u => u.SceneId == scene.ID);
+            .FirstAsync(u => u.SceneId == scene.ID && string.IsNullOrEmpty(u.StepName));
         Assert.NotNull(triggerLog);
-        Assert.Equal(BaseEnums.SuccessEnums.Success, triggerLog.Success);
+        Assert.Equal(BaseEnums.SuccessEnums.Fail, triggerLog.Success);
+
+        // Cleanup
+        await _db.Deleteable<VwScene>(s => s.ID == scene.ID).ExecuteCommandAsync();
+        await _db.Deleteable<VwController>(c => c.ID == ctrlA.ID || c.ID == ctrlB.ID).ExecuteCommandAsync();
+        await _db.Deleteable<VwEventTriggerLog>(l => l.SceneId == scene.ID).ExecuteCommandAsync();
     }
 
     #region EventTriggerLog Verification Tests
@@ -918,6 +937,104 @@ public class VwSceneTests(Host host)
         Assert.NotNull(result);
         Assert.Equal(sceneCritical.ID, result.ID);
         Assert.Equal(sceneCritical.Code, result.Code);
+    }
+
+    /// <summary>
+    /// Description: Kích hoạt kịch bản có chứa ít nhất 1 cửa sổ nằm ngoài vùng lưới được cấp của người dùng -> throw và không kích hoạt (Task 2)
+    /// </summary>
+    [Fact]
+    public async Task VwSceneWorkflow_ActivateScene_WindowOutsideAllowedArea_ThrowsException_Test()
+    {
+        var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+        var account = $"{TestPrefix}USER_{Guid.NewGuid():N}";
+        var httpContextAccessor = host.Services.GetRequiredService<IHttpContextAccessor>();
+
+        var identity = new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimConst.AccountType, "333"),
+            new Claim(ClaimConst.OrgId, orgId),
+            new Claim(ClaimConst.UserId, "test-user-id"),
+            new Claim(ClaimConst.Account, account),
+            new Claim(ClaimTypes.Name, account)
+        }, "TestAuth");
+        httpContextAccessor.HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(identity) };
+        VwController? controller = null;
+        VwScene? scene = null;
+        VwWindowScene? win = null;
+
+        try
+        {
+            // Controller & Scene
+            controller = new VwController
+            {
+                Code = $"{TestPrefix}CTRL_{Guid.NewGuid():N}",
+                Name = "Test Controller",
+                Role = "sub",
+                OrgId = orgId,
+                IP = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPort}",
+                Account = VwISAPIMockServerHikvision.DefaultUser,
+                PassWord = VwISAPIMockServerHikvision.DefaultPassword,
+                Status = BaseEnums.StatusEnum.Enable,
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(controller).ExecuteCommandAsync();
+
+            scene = new VwScene
+            {
+                Code = $"{TestPrefix}SCN_{Guid.NewGuid():N}",
+                Name = "Test Scene Outside Win",
+                ControllerId = controller.ID,
+                Status = BaseEnums.StatusEnum.Enable,
+                ActiveScene = BaseEnums.ActiveScene.DeActivate,
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(scene).ExecuteCommandAsync();
+
+            // Permission: user only has cell (0, 0)
+            var allowedCells = new List<VwGridCell> { new() { Col = 0, Row = 0 } };
+            var perm = new VwWallPermission
+            {
+                UserId = account,
+                OrgId = orgId,
+                Config = JsonConvert.SerializeObject(allowedCells),
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(perm).ExecuteCommandAsync();
+
+            // Window in scene placed at cell (2, 2) -> outside
+            win = new VwWindowScene
+            {
+                Code = $"{TestPrefix}WIN_{Guid.NewGuid():N}",
+                Name = "Outside Window in Scene",
+                SceneId = scene.ID,
+                X = 3840,
+                Y = 2160,
+                W = 1920,
+                H = 1080,
+                Visible = BaseEnums.SceneWindowVisible.Visible,
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(win).ExecuteCommandAsync();
+
+            var input = new VwActiveSceneInput { Code = scene.Code };
+
+            var ex = await Record.ExceptionAsync(() => _bus.InvokeAsync<VwActiveSceneOutput>(input));
+
+            Assert.NotNull(ex);
+            Assert.Contains("ngoài khu vực màn hình", ex.Message);
+
+            // Assert DB is not activated
+            var dbScene = await _db.Queryable<VwScene>().FirstAsync(s => s.ID == scene.ID);
+            Assert.Equal(BaseEnums.ActiveScene.DeActivate, dbScene.ActiveScene);
+        }
+        finally
+        {
+            httpContextAccessor.HttpContext = null;
+            await _db.Deleteable<VwWallPermission>(p => p.UserId == account).ExecuteCommandAsync();
+            if (win != null) await _db.Deleteable<VwWindowScene>(w => w.ID == win.ID).ExecuteCommandAsync();
+            if (scene != null) await _db.Deleteable<VwScene>(s => s.ID == scene.ID).ExecuteCommandAsync();
+            if (controller != null) await _db.Deleteable<VwController>(c => c.ID == controller.ID).ExecuteCommandAsync();
+        }
     }
 
     #endregion

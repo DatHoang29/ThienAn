@@ -1,5 +1,9 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 using Module.VideoWall.Core.Dto.ISAPI;
 using Module.VideoWall.Core.Interfaces;
+using Newtonsoft.Json;
+using Shared.Core.Utilities.Constants;
 
 namespace Tests.Modules.VideoWall;
 
@@ -16,6 +20,26 @@ public class VwWindowSceneTests(Host host)
     private readonly BaseCacheService _cache = host.Services.GetRequiredService<BaseCacheService>();
     private readonly NewLife.Caching.ICacheProvider _cacheProvider = host.Services.GetRequiredService<NewLife.Caching.ICacheProvider>();
     private readonly IStringLocalizer _localizer = host.Localizer;
+    private readonly IHttpContextAccessor _httpContextAccessor = host.Services.GetRequiredService<IHttpContextAccessor>();
+
+    private void SetRestrictedUser(string orgId, string account, string userId = "test-restricted-user-id")
+    {
+        var identity = new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimConst.AccountType, "333"),
+            new Claim(ClaimConst.OrgId, orgId),
+            new Claim(ClaimConst.UserId, userId),
+            new Claim(ClaimConst.Account, account),
+            new Claim(ClaimTypes.Name, account)
+        }, "TestAuth");
+
+        _httpContextAccessor.HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(identity) };
+    }
+
+    private void ClearUser()
+    {
+        _httpContextAccessor.HttpContext = null;
+    }
 
     /// <summary>
     /// Description: Kiểm tra phân trang VwWindowScene trả về danh sách hợp lệ
@@ -1345,6 +1369,371 @@ public class VwWindowSceneTests(Host host)
 
         return await _db.Queryable<VwWindowScene>()
             .FirstAsync(w => w.Code == winCode && w.IsDelete == null);
+    }
+
+    #endregion
+
+    #region Task 2: Enforce Tầng 3 (vùng lưới) cho Delete, BatchDelete, SwitchSource, SetWindowLayer
+
+    /// <summary>
+    /// Description: Xóa 1 cửa sổ nằm ngoài vùng lưới được cấp của người dùng -> throw và không xóa mềm (Task 2)
+    /// </summary>
+    [Fact]
+    public async Task VwWindowSceneCommand_Delete_OutsideAllowedArea_ThrowsException_Test()
+    {
+        var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+        var account = $"{TestPrefix}USER_{Guid.NewGuid():N}";
+        SetRestrictedUser(orgId, account);
+
+        try
+        {
+            var controller = new VwController
+            {
+                Code = $"{TestPrefix}CTRL_{Guid.NewGuid():N}",
+                Name = "Test Controller",
+                Role = "sub",
+                OrgId = orgId,
+                IP = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPort}",
+                Account = VwISAPIMockServerHikvision.DefaultUser,
+                PassWord = VwISAPIMockServerHikvision.DefaultPassword,
+                Status = BaseEnums.StatusEnum.Enable,
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(controller).ExecuteCommandAsync();
+
+            var scene = new VwScene
+            {
+                Code = $"{TestPrefix}SCN_{Guid.NewGuid():N}",
+                Name = "Scene for Delete Outside",
+                ControllerId = controller.ID,
+                Status = BaseEnums.StatusEnum.Enable,
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(scene).ExecuteCommandAsync();
+
+            var allowedCells = new List<VwGridCell> { new() { Col = 0, Row = 0 } };
+            var perm = new VwWallPermission
+            {
+                UserId = account,
+                OrgId = orgId,
+                Config = JsonConvert.SerializeObject(allowedCells),
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(perm).ExecuteCommandAsync();
+
+            var win = new VwWindowScene
+            {
+                Code = $"{TestPrefix}WIN_{Guid.NewGuid():N}",
+                Name = "Outside Win Delete",
+                SceneId = scene.ID,
+                X = 3840,
+                Y = 2160,
+                W = 1920,
+                H = 1080,
+                Visible = BaseEnums.SceneWindowVisible.Visible,
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(win).ExecuteCommandAsync();
+            _cache.RemoveByPrefixKey(CacheConst.Vw.VwWindowScene);
+
+            var ex = await Record.ExceptionAsync(() =>
+                _bus.InvokeAsync(new VwDeleteWindowSceneInput { ID = win.ID }));
+
+            Assert.NotNull(ex);
+            Assert.Contains("ngoài khu vực màn hình", ex.Message);
+
+            var dbWin = await _db.Queryable<VwWindowScene>().FirstAsync(w => w.ID == win.ID);
+            Assert.Null(dbWin.IsDelete);
+        }
+        finally
+        {
+            ClearUser();
+            await _db.Deleteable<VwWallPermission>(p => p.UserId == account).ExecuteCommandAsync();
+            await _db.Deleteable<VwWindowScene>(w => w.Code == $"{TestPrefix}WIN_{Guid.NewGuid():N}").ExecuteCommandAsync();
+            await _db.Deleteable<VwScene>(s => s.Code == $"{TestPrefix}SCN_{Guid.NewGuid():N}").ExecuteCommandAsync();
+            await _db.Deleteable<VwController>(c => c.OrgId == orgId).ExecuteCommandAsync();
+        }
+    }
+
+    /// <summary>
+    /// Description: Xóa hàng loạt cửa sổ trong đó có 1 cửa sổ ngoài vùng -> throw sớm và không xóa bất kỳ cửa sổ nào (Task 2)
+    /// </summary>
+    [Fact]
+    public async Task VwWindowSceneCommand_BatchDelete_OutsideAllowedArea_ThrowsException_Test()
+    {
+        var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+        var account = $"{TestPrefix}USER_{Guid.NewGuid():N}";
+        SetRestrictedUser(orgId, account);
+
+        try
+        {
+            var controller = new VwController
+            {
+                Code = $"{TestPrefix}CTRL_{Guid.NewGuid():N}",
+                Name = "Test Controller",
+                Role = "sub",
+                OrgId = orgId,
+                IP = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPort}",
+                Account = VwISAPIMockServerHikvision.DefaultUser,
+                PassWord = VwISAPIMockServerHikvision.DefaultPassword,
+                Status = BaseEnums.StatusEnum.Enable,
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(controller).ExecuteCommandAsync();
+
+            var scene = new VwScene
+            {
+                Code = $"{TestPrefix}SCN_{Guid.NewGuid():N}",
+                Name = "Scene BatchDelete Outside",
+                ControllerId = controller.ID,
+                Status = BaseEnums.StatusEnum.Enable,
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(scene).ExecuteCommandAsync();
+
+            var allowedCells = new List<VwGridCell> { new() { Col = 0, Row = 0 } };
+            var perm = new VwWallPermission
+            {
+                UserId = account,
+                OrgId = orgId,
+                Config = JsonConvert.SerializeObject(allowedCells),
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(perm).ExecuteCommandAsync();
+
+            var insideWin = new VwWindowScene
+            {
+                Code = $"{TestPrefix}WIN_IN_{Guid.NewGuid():N}",
+                Name = "Inside Win",
+                SceneId = scene.ID,
+                X = 0,
+                Y = 0,
+                W = 1920,
+                H = 1080,
+                Visible = BaseEnums.SceneWindowVisible.Visible,
+                CreateTime = DateTime.Now
+            };
+            var outsideWin = new VwWindowScene
+            {
+                Code = $"{TestPrefix}WIN_OUT_{Guid.NewGuid():N}",
+                Name = "Outside Win",
+                SceneId = scene.ID,
+                X = 3840,
+                Y = 2160,
+                W = 1920,
+                H = 1080,
+                Visible = BaseEnums.SceneWindowVisible.Visible,
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(new[] { insideWin, outsideWin }).ExecuteCommandAsync();
+            _cache.RemoveByPrefixKey(CacheConst.Vw.VwWindowScene);
+
+            var ex = await Record.ExceptionAsync(() =>
+                _bus.InvokeAsync(new List<VwDeleteWindowSceneInput>
+                {
+                    new() { ID = insideWin.ID },
+                    new() { ID = outsideWin.ID }
+                }));
+
+            Assert.NotNull(ex);
+            Assert.Contains("ngoài khu vực màn hình", ex.Message);
+
+            var dbInside = await _db.Queryable<VwWindowScene>().FirstAsync(w => w.ID == insideWin.ID);
+            var dbOutside = await _db.Queryable<VwWindowScene>().FirstAsync(w => w.ID == outsideWin.ID);
+            Assert.Null(dbInside.IsDelete);
+            Assert.Null(dbOutside.IsDelete);
+        }
+        finally
+        {
+            ClearUser();
+            await _db.Deleteable<VwWallPermission>(p => p.UserId == account).ExecuteCommandAsync();
+            await _db.Deleteable<VwScene>(s => s.Code == $"{TestPrefix}SCN_{Guid.NewGuid():N}").ExecuteCommandAsync();
+            await _db.Deleteable<VwController>(c => c.OrgId == orgId).ExecuteCommandAsync();
+        }
+    }
+
+    /// <summary>
+    /// Description: Đổi nguồn cho cửa sổ nằm ngoài vùng lưới được cấp -> throw và không đổi nguồn (Task 2)
+    /// </summary>
+    [Fact]
+    public async Task VwWindowSceneCommand_SwitchSource_OutsideAllowedArea_ThrowsException_Test()
+    {
+        var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+        var account = $"{TestPrefix}USER_{Guid.NewGuid():N}";
+        SetRestrictedUser(orgId, account);
+
+        try
+        {
+            var controller = new VwController
+            {
+                Code = $"{TestPrefix}CTRL_{Guid.NewGuid():N}",
+                Name = "Test Controller",
+                Role = "sub",
+                OrgId = orgId,
+                IP = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPort}",
+                Account = VwISAPIMockServerHikvision.DefaultUser,
+                PassWord = VwISAPIMockServerHikvision.DefaultPassword,
+                Status = BaseEnums.StatusEnum.Enable,
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(controller).ExecuteCommandAsync();
+
+            var scene = new VwScene
+            {
+                Code = $"{TestPrefix}SCN_{Guid.NewGuid():N}",
+                Name = "Scene SwitchSource",
+                ControllerId = controller.ID,
+                Status = BaseEnums.StatusEnum.Enable,
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(scene).ExecuteCommandAsync();
+
+            var source1 = new VwSource
+            {
+                Code = $"{TestPrefix}SRC1_{Guid.NewGuid():N}",
+                Name = "Source 1",
+                ControllerId = controller.ID,
+                Status = BaseEnums.StatusEnum.Enable,
+                CreateTime = DateTime.Now
+            };
+            var source2 = new VwSource
+            {
+                Code = $"{TestPrefix}SRC2_{Guid.NewGuid():N}",
+                Name = "Source 2",
+                ControllerId = controller.ID,
+                Status = BaseEnums.StatusEnum.Enable,
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(new[] { source1, source2 }).ExecuteCommandAsync();
+
+            var allowedCells = new List<VwGridCell> { new() { Col = 0, Row = 0 } };
+            var perm = new VwWallPermission
+            {
+                UserId = account,
+                OrgId = orgId,
+                Config = JsonConvert.SerializeObject(allowedCells),
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(perm).ExecuteCommandAsync();
+
+            var win = new VwWindowScene
+            {
+                Code = $"{TestPrefix}WIN_{Guid.NewGuid():N}",
+                Name = "Outside Win SwitchSource",
+                SceneId = scene.ID,
+                SourceId = source1.ID,
+                X = 3840,
+                Y = 2160,
+                W = 1920,
+                H = 1080,
+                Visible = BaseEnums.SceneWindowVisible.Visible,
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(win).ExecuteCommandAsync();
+            _cache.RemoveByPrefixKey(CacheConst.Vw.VwWindowScene);
+
+            var ex = await Record.ExceptionAsync(() =>
+                _bus.InvokeAsync(new VwSwitchWindowSourceInput { ID = win.ID, SourceId = source2.ID }));
+
+            Assert.NotNull(ex);
+            Assert.Contains("ngoài khu vực màn hình", ex.Message);
+
+            var dbWin = await _db.Queryable<VwWindowScene>().FirstAsync(w => w.ID == win.ID);
+            Assert.Equal(source1.ID, dbWin.SourceId);
+        }
+        finally
+        {
+            ClearUser();
+            await _db.Deleteable<VwWallPermission>(p => p.UserId == account).ExecuteCommandAsync();
+            await _db.Deleteable<VwSource>(s => s.Code.StartsWith(TestPrefix)).ExecuteCommandAsync();
+            await _db.Deleteable<VwScene>(s => s.Code == $"{TestPrefix}SCN_{Guid.NewGuid():N}").ExecuteCommandAsync();
+            await _db.Deleteable<VwController>(c => c.OrgId == orgId).ExecuteCommandAsync();
+        }
+    }
+
+    /// <summary>
+    /// Description: Thay đổi thứ tự layer cho cửa sổ nằm ngoài vùng lưới được cấp -> throw và không đổi ZIndex (Task 2)
+    /// </summary>
+    [Fact]
+    public async Task VwWindowSceneCommand_SetWindowLayer_OutsideAllowedArea_ThrowsException_Test()
+    {
+        var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+        var account = $"{TestPrefix}USER_{Guid.NewGuid():N}";
+        SetRestrictedUser(orgId, account);
+
+        VwController? controller = null;
+        VwScene? scene = null;
+        VwWindowScene? win = null;
+
+        try
+        {
+            controller = new VwController
+            {
+                Code = $"{TestPrefix}CTRL_{Guid.NewGuid():N}",
+                Name = "Test Controller",
+                Role = "sub",
+                OrgId = orgId,
+                IP = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPort}",
+                Account = VwISAPIMockServerHikvision.DefaultUser,
+                PassWord = VwISAPIMockServerHikvision.DefaultPassword,
+                Status = BaseEnums.StatusEnum.Enable,
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(controller).ExecuteCommandAsync();
+
+            scene = new VwScene
+            {
+                Code = $"{TestPrefix}SCN_{Guid.NewGuid():N}",
+                Name = "Scene SetLayer",
+                ControllerId = controller.ID,
+                Status = BaseEnums.StatusEnum.Enable,
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(scene).ExecuteCommandAsync();
+
+            var allowedCells = new List<VwGridCell> { new() { Col = 0, Row = 0 } };
+            var perm = new VwWallPermission
+            {
+                UserId = account,
+                OrgId = orgId,
+                Config = JsonConvert.SerializeObject(allowedCells),
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(perm).ExecuteCommandAsync();
+
+            win = new VwWindowScene
+            {
+                Code = $"{TestPrefix}WIN_{Guid.NewGuid():N}",
+                Name = "Outside Win SetLayer",
+                SceneId = scene.ID,
+                X = 3840,
+                Y = 2160,
+                W = 1920,
+                H = 1080,
+                ZIndex = 5,
+                Visible = BaseEnums.SceneWindowVisible.Visible,
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(win).ExecuteCommandAsync();
+            _cache.RemoveByPrefixKey(CacheConst.Vw.VwWindowScene);
+
+            var ex = await Record.ExceptionAsync(() =>
+                _bus.InvokeAsync(new VwSetWindowLayerInput { ID = win.ID, Action = VwWindowLayerAction.Top }));
+
+            Assert.NotNull(ex);
+            Assert.Contains("ngoài khu vực màn hình", ex.Message);
+
+            var dbWin = await _db.Queryable<VwWindowScene>().FirstAsync(w => w.ID == win.ID);
+            Assert.Equal(5, dbWin.ZIndex);
+        }
+        finally
+        {
+            ClearUser();
+            await _db.Deleteable<VwWallPermission>(p => p.UserId == account).ExecuteCommandAsync();
+            if (win != null) await _db.Deleteable<VwWindowScene>(w => w.ID == win.ID).ExecuteCommandAsync();
+            if (scene != null) await _db.Deleteable<VwScene>(s => s.ID == scene.ID).ExecuteCommandAsync();
+            if (controller != null) await _db.Deleteable<VwController>(c => c.ID == controller.ID).ExecuteCommandAsync();
+        }
     }
 
     #endregion

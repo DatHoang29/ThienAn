@@ -4,7 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Module.VideoWall.Core.Dto.UserAreaPermission;
+using Module.VideoWall.Core.Dto.WallPermission;
 using Module.VideoWall.Core.Entities;
 using Module.VideoWall.Core.Options;
 using Module.VideoWall.Infrastructure;
@@ -45,20 +45,34 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
                 scope.ServiceProvider.GetRequiredService<BaseRepository<VwScreen>>(),
                 scope.ServiceProvider.GetRequiredService<BaseRepository<VwSource>>(),
                 scope.ServiceProvider.GetRequiredService<BaseRepository<VwScene>>(),
-                scope.ServiceProvider.GetRequiredService<BaseRepository<VwUserAreaPermission>>(),
+                scope.ServiceProvider.GetRequiredService<BaseRepository<VwWallPermission>>(),
                 scope.ServiceProvider.GetRequiredService<UserManager>(),
                 Microsoft.Extensions.Options.Options.Create(customDeviceOptions),
                 scope.ServiceProvider.GetRequiredService<ILogger<VwPermissionService>>());
         }
 
-        private void SetRestrictedUser(string orgId)
+        private void SetRestrictedUser(string orgId, string account = "test_restricted_user", string userId = "test-restricted-user-id")
         {
             var identity = new ClaimsIdentity(new[]
             {
                 new Claim(ClaimConst.AccountType, "333"),
                 new Claim(ClaimConst.OrgId, orgId),
-                new Claim(ClaimConst.UserId, "test-restricted-user-id"),
-                new Claim(ClaimConst.Account, "test_restricted_user")
+                new Claim(ClaimConst.UserId, userId),
+                new Claim(ClaimConst.Account, account),
+                new Claim(ClaimTypes.Name, account)
+            }, "TestAuth");
+
+            _httpContextAccessor.HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(identity) };
+        }
+
+        private void SetSuperAdminUser(string account = "test_superadmin", string userId = "test-superadmin-id")
+        {
+            var identity = new ClaimsIdentity(new[]
+            {
+                new Claim(ClaimConst.AccountType, "111"),
+                new Claim(ClaimConst.UserId, userId),
+                new Claim(ClaimConst.Account, account),
+                new Claim(ClaimTypes.Name, account)
             }, "TestAuth");
 
             _httpContextAccessor.HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(identity) };
@@ -69,12 +83,35 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
         #region Tầng 1: FullAccess Tests
 
         /// <summary>
-        /// Description: Trong môi trường Background/Test không có User Context, IsFullAccess luôn là true
-        /// Created date: 15/08/2026
+        /// Description: Request ẩn danh qua HTTP (có HttpContext nhưng không có User) và không bật bypass thì IsFullAccess là false (an toàn tuyệt đối)
+        /// Created date: 12/09/2026
         /// </summary>
         [Fact]
-        public async Task VwPermissionService_NoUserContext_HasFullAccess_Test()
+        public async Task VwPermissionService_AnonymousHttpRequest_DoesNotHaveFullAccess_Test()
         {
+            _httpContextAccessor.HttpContext = new DefaultHttpContext();
+            try
+            {
+                var srv = GetPermissionService();
+                var scope = await srv.GetScopeAsync();
+
+                Assert.False(srv.IsFullAccess);
+                Assert.False(scope.IsFullAccess);
+            }
+            finally
+            {
+                _httpContextAccessor.HttpContext = null;
+            }
+        }
+
+        /// <summary>
+        /// Description: Khi chạy nền không có HttpContext (Hangfire / NATS / MessageBus), IsFullAccess luôn là true
+        /// Created date: 12/09/2026
+        /// </summary>
+        [Fact]
+        public async Task VwPermissionService_BackgroundContext_HasFullAccess_Test()
+        {
+            _httpContextAccessor.HttpContext = null;
             var srv = GetPermissionService();
             var scope = await srv.GetScopeAsync();
 
@@ -83,30 +120,68 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
         }
 
         /// <summary>
-        /// Description: Với quyền FullAccess, EnsureControllerAccessAsync cho phép truy cập mọi ControllerId
+        /// Description: Khi tài khoản là SuperAdmin (AccountType = 111), IsFullAccess luôn là true
+        /// Created date: 12/09/2026
+        /// </summary>
+        [Fact]
+        public async Task VwPermissionService_SuperAdmin_HasFullAccess_Test()
+        {
+            SetSuperAdminUser();
+            try
+            {
+                var srv = GetPermissionService();
+                var scope = await srv.GetScopeAsync();
+
+                Assert.True(srv.IsFullAccess);
+                Assert.True(scope.IsFullAccess);
+            }
+            finally
+            {
+                _httpContextAccessor.HttpContext = null;
+            }
+        }
+
+        /// <summary>
+        /// Description: Với quyền FullAccess (SuperAdmin), EnsureControllerAccessAsync cho phép truy cập mọi ControllerId
         /// Created date: 15/08/2026
         /// </summary>
         [Fact]
         public async Task VwPermissionService_FullAccess_EnsureControllerAccess_Succeeds_Test()
         {
-            var ex = await Record.ExceptionAsync(() =>
-                GetPermissionService().EnsureControllerAccessAsync("any_controller_id"));
+            SetSuperAdminUser();
+            try
+            {
+                var ex = await Record.ExceptionAsync(() =>
+                    GetPermissionService().EnsureControllerAccessAsync("any_controller_id"));
 
-            Assert.Null(ex);
+                Assert.Null(ex);
+            }
+            finally
+            {
+                _httpContextAccessor.HttpContext = null;
+            }
         }
 
         /// <summary>
-        /// Description: Với quyền FullAccess, ResolveOrgIdAsync giữ nguyên OrgId được truyền vào
+        /// Description: Với quyền FullAccess (SuperAdmin), ResolveOrgIdAsync giữ nguyên OrgId được truyền vào
         /// Created date: 15/08/2026
         /// </summary>
         [Fact]
         public async Task VwPermissionService_FullAccess_ResolveOrgId_ReturnsRequestedOrgId_Test()
         {
-            var requestedOrg = "ORG_SPECIAL_001";
+            SetSuperAdminUser();
+            try
+            {
+                var requestedOrg = "ORG_SPECIAL_001";
 
-            var result = await GetPermissionService().ResolveOrgIdAsync(requestedOrg);
+                var result = await GetPermissionService().ResolveOrgIdAsync(requestedOrg);
 
-            Assert.Equal(requestedOrg, result);
+                Assert.Equal(requestedOrg, result);
+            }
+            finally
+            {
+                _httpContextAccessor.HttpContext = null;
+            }
         }
 
         #endregion
@@ -373,7 +448,7 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
         }
 
         /// <summary>
-        /// Description: Khi user không có bản ghi VwUserAreaPermission nào, mặc định bypass
+        /// Description: Khi user không có bản ghi VwWallPermission nào, mặc định bypass
         ///              (không ném exception dù tọa độ có vẻ nhạy cảm).
         /// Created date: 10/09/2026
         /// </summary>
@@ -394,7 +469,7 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
         /// Created date: 11/09/2026
         /// </summary>
         [Fact]
-        public void VwUserAreaPermission_ConfigJsonCells_GeometryCheckPasses_Test()
+        public void VwWallPermission_ConfigJsonCells_GeometryCheckPasses_Test()
         {
             var allowedCells = new List<VwGridCell>
             {
@@ -411,6 +486,149 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
             var inside = VwPermissionService.IsWithinAllowedCells(covered, parsedAllowed);
 
             Assert.True(inside);
+        }
+
+        /// <summary>
+        /// Description: Khi user có bản ghi permission nhưng Config null/trắng -> ném lỗi không cho phép thao tác (Task 1)
+        /// </summary>
+        [Fact]
+        public async Task EnsureWindowInsideUserAllowedAreaAsync_ConfigNullOrWhitespace_ThrowsException_Test()
+        {
+            var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
+            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+            SetRestrictedUser(orgId, account);
+
+            var perm = new VwWallPermission
+            {
+                UserId = account,
+                OrgId = orgId,
+                Config = "",
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(perm).ExecuteCommandAsync();
+
+            var service = GetPermissionService();
+            var ex = await Record.ExceptionAsync(() =>
+                service.EnsureWindowInsideUserAllowedAreaAsync(0, 0, 1920, 1080, "TestWin"));
+
+            Assert.NotNull(ex);
+            Assert.Contains("trống", ex.Message);
+        }
+
+        /// <summary>
+        /// Description: Khi user có bản ghi permission nhưng Config bị lỗi JSON -> ném lỗi định dạng (Task 1)
+        /// </summary>
+        [Fact]
+        public async Task EnsureWindowInsideUserAllowedAreaAsync_ConfigInvalidJson_ThrowsException_Test()
+        {
+            var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
+            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+            SetRestrictedUser(orgId, account);
+
+            var perm = new VwWallPermission
+            {
+                UserId = account,
+                OrgId = orgId,
+                Config = "invalid-json-{broken",
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(perm).ExecuteCommandAsync();
+
+            var service = GetPermissionService();
+            var ex = await Record.ExceptionAsync(() =>
+                service.EnsureWindowInsideUserAllowedAreaAsync(0, 0, 1920, 1080, "TestWin"));
+
+            Assert.NotNull(ex);
+            Assert.Contains("lỗi định dạng", ex.Message);
+        }
+
+        /// <summary>
+        /// Description: Khi user có bản ghi permission nhưng Config là mảng rỗng [] -> ném lỗi không có ô nào (Task 1)
+        /// </summary>
+        [Fact]
+        public async Task EnsureWindowInsideUserAllowedAreaAsync_ConfigEmptyArray_ThrowsException_Test()
+        {
+            var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
+            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+            SetRestrictedUser(orgId, account);
+
+            var perm = new VwWallPermission
+            {
+                UserId = account,
+                OrgId = orgId,
+                Config = "[]",
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(perm).ExecuteCommandAsync();
+
+            var service = GetPermissionService();
+            var ex = await Record.ExceptionAsync(() =>
+                service.EnsureWindowInsideUserAllowedAreaAsync(0, 0, 1920, 1080, "TestWin"));
+
+            Assert.NotNull(ex);
+            Assert.Contains("rỗng", ex.Message);
+        }
+
+        /// <summary>
+        /// Description: Khi user có Config hợp lệ và cửa sổ nằm hoàn toàn trong vùng -> thành công, không ném lỗi
+        /// </summary>
+        [Fact]
+        public async Task EnsureWindowInsideUserAllowedAreaAsync_ConfigValid_WindowInside_Succeeds_Test()
+        {
+            var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
+            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+            SetRestrictedUser(orgId, account);
+
+            var cells = new List<VwGridCell>
+            {
+                new() { Col = 0, Row = 0 },
+                new() { Col = 1, Row = 0 }
+            };
+            var perm = new VwWallPermission
+            {
+                UserId = account,
+                OrgId = orgId,
+                Config = JsonConvert.SerializeObject(cells),
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(perm).ExecuteCommandAsync();
+
+            var service = GetPermissionService();
+            var ex = await Record.ExceptionAsync(() =>
+                service.EnsureWindowInsideUserAllowedAreaAsync(0, 0, 3840, 1080, "InsideWin"));
+
+            Assert.Null(ex);
+        }
+
+        /// <summary>
+        /// Description: Khi user có Config hợp lệ nhưng cửa sổ lấn ra ngoài vùng -> ném lỗi nằm ngoài khu vực
+        /// </summary>
+        [Fact]
+        public async Task EnsureWindowInsideUserAllowedAreaAsync_ConfigValid_WindowOutside_ThrowsException_Test()
+        {
+            var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
+            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+            SetRestrictedUser(orgId, account);
+
+            var cells = new List<VwGridCell>
+            {
+                new() { Col = 0, Row = 0 }
+            };
+            var perm = new VwWallPermission
+            {
+                UserId = account,
+                OrgId = orgId,
+                Config = JsonConvert.SerializeObject(cells),
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(perm).ExecuteCommandAsync();
+
+            var service = GetPermissionService();
+            var ex = await Record.ExceptionAsync(() =>
+                service.EnsureWindowInsideUserAllowedAreaAsync(0, 0, 3840, 1080, "OutsideWin"));
+
+            Assert.NotNull(ex);
+            Assert.Contains("ngoài khu vực màn hình", ex.Message);
         }
 
         #endregion

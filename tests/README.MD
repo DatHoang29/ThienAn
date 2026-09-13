@@ -41,7 +41,7 @@ bị guard Zero-Trust chặn nếu trỏ ra ngoài `localhost` / `127.0.0.1` / `
 | | `VwDeviceControllerTests.cs` | Controller & Diagnostic API |
 | | `VwDeviceValidatorTests.cs` | Device commands FluentValidation testing |
 | | `VwEventTriggerLogTests.cs` | Audit logging trigger tests |
-| | `VwUserAreaPermissionTests.cs` | User/Org area permission CRUD & scope |
+| | `VwWallPermissionTests.cs` | User/Org wall permission CRUD & scope |
 | | `VwWallTopologyTests.cs` | Wall topology queries & layout |
 | **VideoWall — Services** | `VwSceneRegionServiceTests.cs` | Kiểm tra vùng, quy đổi toạ độ uniformCoordinate (1920×1920), cắt lát đa controller |
 | | `VwISAPIDeviceServiceTests.cs` | Digest Credentials, Base URI, refresh credential theo IP/Port |

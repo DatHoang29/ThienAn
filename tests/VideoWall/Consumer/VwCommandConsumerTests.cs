@@ -503,6 +503,63 @@ namespace Tests.Modules.VideoWall.Consumer
             Assert.NotNull(capturedData);
         }
 
+        /// <summary>
+        /// Description: Thực thi lệnh qua VwCommandConsumer phát VwCommandResponseEnvelope có kiểu với PackageType ControlResponse lên kênh NATS Data
+        /// Created date: 12/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessCommandAsync_WhenCommandExecuted_PublishesTypedResponseEnvelopeWithPackageType_Test()
+        {
+            // Arrange
+            _mock.ResetDefaults();
+            _mock.IsCascadeCenter = true;
+
+            var center = await EnsureCenterController();
+            var scene = await EnsureScene("1");
+
+            var fakePublisher = new FakeNatsPublisherTest();
+            var consumer = new VwCommandConsumer(
+                _scopeFactory,
+                NullLogger<VwCommandConsumer>.Instance,
+                transport: null,
+                publisher: fakePublisher);
+
+            VwCommandResponseEnvelope? capturedEnvelope = null;
+            consumer.OnResponseEnvelopePublished = env => capturedEnvelope = env;
+
+            var envelope = new VwCommandEnvelope
+            {
+                MessageId = $"MSG_CONTRACT_{Guid.NewGuid():N}",
+                Action = VwCommandActions.ActivateScene,
+                Type = VwPackageType.Control,
+                SceneId = scene.ID,
+                ControllerId = center.ID,
+                Payload = new VwActivateScenePayload
+                {
+                    SceneId = scene.ID,
+                    OutputId = "1",
+                    TargetControllerIds = [center.ID]
+                }
+            };
+
+            // Act
+            await consumer.ProcessCommandAsync(envelope);
+
+            // Assert
+            Assert.NotNull(capturedEnvelope);
+            Assert.Equal(envelope.MessageId, capturedEnvelope.MessageId);
+            Assert.Equal(VwCommandActions.ActivateScene, capturedEnvelope.Action);
+            Assert.True(capturedEnvelope.Success);
+            Assert.Equal(VwPackageType.ControlResponse, capturedEnvelope.PackageType);
+
+            Assert.Equal(1, fakePublisher.PublishedCount);
+            Assert.Equal(VwSubjects.Data, fakePublisher.LastSubject);
+            Assert.IsType<VwCommandResponseEnvelope>(fakePublisher.LastPayload);
+            var publishedPayload = (VwCommandResponseEnvelope)fakePublisher.LastPayload!;
+            Assert.Equal(VwPackageType.ControlResponse, publishedPayload.PackageType);
+            Assert.Equal(envelope.MessageId, publishedPayload.MessageId);
+        }
+
         private async Task<VwController> EnsureCenterController(CancellationToken ct = default)
         {
             var center = await _db.Queryable<VwController>()
