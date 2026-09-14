@@ -131,11 +131,13 @@ namespace Tests.Modules.VideoWall.Consumer
         }
 
         /// <summary>
-        /// Description: Lệnh SET_WINDOW_LAYER với hành động Top gửi qua VwCommandConsumer kích hoạt HTTP top vào MockServer và phát telemetry thành công
+        /// Description: Lệnh SET_WINDOW_LAYER với hành động Top/Bottom gửi qua VwCommandConsumer kích hoạt HTTP tương ứng vào MockServer và phát telemetry thành công.
         /// Created date: 11/09/2026
         /// </summary>
-        [Fact]
-        public async Task ProcessCommandAsync_WhenSetWindowLayerTop_CallsMockServerAndPublishesSuccess_Test()
+        [Theory]
+        [InlineData("Top")]
+        [InlineData("Bottom")]
+        public async Task ProcessCommandAsync_WhenSetWindowLayer_CallsMockServerAndPublishesSuccess_Test(string layerAction)
         {
             // Arrange
             _mock.ResetDefaults();
@@ -157,14 +159,14 @@ namespace Tests.Modules.VideoWall.Consumer
 
             var envelope = new VwCommandEnvelope
             {
-                MessageId = $"MSG_TOP_{Guid.NewGuid():N}",
+                MessageId = $"MSG_{layerAction.ToUpperInvariant()}_{Guid.NewGuid():N}",
                 Action = VwCommandActions.SetWindowLayer,
                 ControllerId = center.ID,
                 Payload = new VwSetWindowLayerPayload
                 {
                     ControllerId = center.ID,
                     DeviceWindowId = "1",
-                    Action = "Top"
+                    Action = layerAction
                 }
             };
 
@@ -172,55 +174,10 @@ namespace Tests.Modules.VideoWall.Consumer
             await consumer.ProcessCommandAsync(envelope);
 
             // Assert
-            Assert.True(_mock.WindowTopCallCount >= 1);
-            Assert.True(capturedSuccess);
-            Assert.Equal(VwCommandActions.SetWindowLayer, capturedAction);
-            Assert.Null(capturedError);
-        }
-
-        /// <summary>
-        /// Description: Lệnh SET_WINDOW_LAYER với hành động Bottom gửi qua VwCommandConsumer kích hoạt HTTP bottom vào MockServer và phát telemetry thành công
-        /// Created date: 11/09/2026
-        /// </summary>
-        [Fact]
-        public async Task ProcessCommandAsync_WhenSetWindowLayerBottom_CallsMockServerAndPublishesSuccess_Test()
-        {
-            // Arrange
-            _mock.ResetDefaults();
-            _mock.IsCascadeCenter = true;
-
-            var center = await EnsureCenterController();
-            var consumer = new VwCommandConsumer(_scopeFactory, NullLogger<VwCommandConsumer>.Instance);
-
-            string? capturedAction = null;
-            bool? capturedSuccess = null;
-            string? capturedError = null;
-
-            consumer.OnTelemetryPublished = (msgId, action, success, error, data) =>
-            {
-                capturedAction = action;
-                capturedSuccess = success;
-                capturedError = error;
-            };
-
-            var envelope = new VwCommandEnvelope
-            {
-                MessageId = $"MSG_BTM_{Guid.NewGuid():N}",
-                Action = VwCommandActions.SetWindowLayer,
-                ControllerId = center.ID,
-                Payload = new VwSetWindowLayerPayload
-                {
-                    ControllerId = center.ID,
-                    DeviceWindowId = "1",
-                    Action = "Bottom"
-                }
-            };
-
-            // Act
-            await consumer.ProcessCommandAsync(envelope);
-
-            // Assert
-            Assert.True(_mock.WindowBottomCallCount >= 1);
+            var callCount = string.Equals(layerAction, "Top", StringComparison.OrdinalIgnoreCase)
+                ? _mock.WindowTopCallCount
+                : _mock.WindowBottomCallCount;
+            Assert.True(callCount >= 1);
             Assert.True(capturedSuccess);
             Assert.Equal(VwCommandActions.SetWindowLayer, capturedAction);
             Assert.Null(capturedError);

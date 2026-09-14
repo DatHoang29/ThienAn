@@ -219,23 +219,27 @@ namespace Tests.Modules.VideoWall.Controllers
         }
 
         /// <summary>
-        /// Description: Thêm lần 2 cho cùng UserId đã có bản ghi thì bị từ chối (duplicate actor)
+        /// Description: Thêm lần 2 cho cùng actor (UserId hoặc OrgId) đã có bản ghi thì bị từ chối (duplicate actor).
         /// Created date: 11/09/2026
         /// </summary>
-        [Fact]
-        public async Task VwWallPermissionCommand_Add_DuplicateActorUserId_ThrowsOops_Test()
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task VwWallPermissionCommand_Add_DuplicateActor_ThrowsOops_Test(bool isUserId)
         {
-            var testUserId = $"{TestPrefix}USER_{Guid.NewGuid():N}";
+            var actorId = isUserId ? $"{TestPrefix}USER_{Guid.NewGuid():N}" : $"{TestPrefix}ORG_{Guid.NewGuid():N}";
             var input1 = new VwAddWallPermissionInput
             {
-                UserId = testUserId,
+                UserId = isUserId ? actorId : null,
+                OrgId = !isUserId ? actorId : null,
                 Config = "[{\"Col\":0,\"Row\":0}]"
             };
             await _bus.InvokeAsync(input1);
 
             var input2 = new VwAddWallPermissionInput
             {
-                UserId = testUserId,
+                UserId = isUserId ? actorId : null,
+                OrgId = !isUserId ? actorId : null,
                 Config = "[{\"Col\":1,\"Row\":1}]"
             };
 
@@ -243,36 +247,7 @@ namespace Tests.Modules.VideoWall.Controllers
 
             // Cleanup
             await _db.Deleteable<VwWallPermission>()
-                .Where(p => p.UserId == testUserId)
-                .ExecuteCommandAsync();
-        }
-
-        /// <summary>
-        /// Description: Thêm lần 2 cho cùng OrgId (không UserId) đã có bản ghi thì bị từ chối
-        /// Created date: 11/09/2026
-        /// </summary>
-        [Fact]
-        public async Task VwWallPermissionCommand_Add_DuplicateActorOrgId_ThrowsOops_Test()
-        {
-            var testOrgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
-            var input1 = new VwAddWallPermissionInput
-            {
-                OrgId = testOrgId,
-                Config = "[{\"Col\":0,\"Row\":0}]"
-            };
-            await _bus.InvokeAsync(input1);
-
-            var input2 = new VwAddWallPermissionInput
-            {
-                OrgId = testOrgId,
-                Config = "[{\"Col\":1,\"Row\":1}]"
-            };
-
-            await Assert.ThrowsAnyAsync<Exception>(() => _bus.InvokeAsync(input2));
-
-            // Cleanup
-            await _db.Deleteable<VwWallPermission>()
-                .Where(p => p.OrgId == testOrgId)
+                .Where(p => isUserId ? p.UserId == actorId : p.OrgId == actorId)
                 .ExecuteCommandAsync();
         }
 
@@ -577,11 +552,13 @@ namespace Tests.Modules.VideoWall.Controllers
         }
 
         /// <summary>
-        /// Description: Khi có bản ghi nhưng Config rỗng hoặc null -> trả về IsFullAccess = false, AllowedCells = [] (không được phép ô nào)
+        /// Description: Khi có bản ghi nhưng Config không hợp lệ (rỗng hoặc JSON hỏng) -> không ném exception, trả về IsFullAccess = false, AllowedCells = [].
         /// Created date: 13/09/2026
         /// </summary>
-        [Fact]
-        public async Task VwWallPermissionQuery_GetMy_ConfigNullOrEmpty_ReturnsEmptyCells_Test()
+        [Theory]
+        [InlineData("")]
+        [InlineData("{invalid json content")]
+        public async Task VwWallPermissionQuery_GetMy_ConfigInvalid_ReturnsEmptyCells_DoesNotThrow_Test(string config)
         {
             var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
             var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
@@ -591,46 +568,7 @@ namespace Tests.Modules.VideoWall.Controllers
             {
                 UserId = account,
                 OrgId = orgId,
-                Config = "",
-                CreateTime = DateTime.Now
-            };
-
-            await _db.Insertable(perm).ExecuteCommandAsync();
-
-            try
-            {
-                var result = await _bus.InvokeAsync<VwMyWallPermissionOutput>(new VwGetMyWallPermissionInput());
-
-                Assert.NotNull(result);
-                Assert.False(result.IsFullAccess);
-                Assert.NotNull(result.AllowedCells);
-                Assert.Empty(result.AllowedCells);
-            }
-            finally
-            {
-                await _db.Deleteable<VwWallPermission>()
-                    .Where(p => p.ID == perm.ID)
-                    .ExecuteCommandAsync();
-                SetSuperAdminUser();
-            }
-        }
-
-        /// <summary>
-        /// Description: Khi có bản ghi nhưng Config là JSON hỏng -> không ném exception, trả về IsFullAccess = false, AllowedCells = []
-        /// Created date: 13/09/2026
-        /// </summary>
-        [Fact]
-        public async Task VwWallPermissionQuery_GetMy_ConfigCorruptJson_ReturnsEmptyCells_DoesNotThrow_Test()
-        {
-            var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
-            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
-            SetRestrictedUser(account, orgId);
-
-            var perm = new VwWallPermission
-            {
-                UserId = account,
-                OrgId = orgId,
-                Config = "{invalid json content",
+                Config = config,
                 CreateTime = DateTime.Now
             };
 

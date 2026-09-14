@@ -381,70 +381,35 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
             Assert.Empty(zeroH);
         }
 
-        /// <summary>
-        /// Description: Tập ô cần phủ là tập con của tập ô được cấp → trả về true.
-        /// Created date: 11/09/2026
-        /// </summary>
-        [Fact]
-        public void IsWithinAllowedCells_CoveredSubsetOfAllowed_ReturnsTrue_Test()
+        private static List<VwGridCell> ParseCells(string input)
         {
-            var covered = new List<VwGridCell>
-            {
-                new() { Col = 0, Row = 0 },
-                new() { Col = 1, Row = 0 }
-            };
+            if (string.IsNullOrWhiteSpace(input))
+                return [];
 
-            var allowed = new List<VwGridCell>
-            {
-                new() { Col = 0, Row = 0 },
-                new() { Col = 1, Row = 0 },
-                new() { Col = 2, Row = 0 }
-            };
-
-            var result = VwPermissionService.IsWithinAllowedCells(covered, allowed);
-            Assert.True(result);
+            return input.Split(';', StringSplitOptions.RemoveEmptyEntries)
+                .Select(pair =>
+                {
+                    var parts = pair.Split(',');
+                    return new VwGridCell { Col = int.Parse(parts[0]), Row = int.Parse(parts[1]) };
+                })
+                .ToList();
         }
 
         /// <summary>
-        /// Description: Tập ô cần phủ thiếu ít nhất 1 ô trong tập được cấp → trả về false.
+        /// Description: Kiểm tra logic IsWithinAllowedCells với các tập ô covered và allowed khác nhau.
         /// Created date: 11/09/2026
         /// </summary>
-        [Fact]
-        public void IsWithinAllowedCells_CoveredMissingOneCell_ReturnsFalse_Test()
+        [Theory]
+        [InlineData("0,0;1,0", "0,0;1,0;2,0", true)]
+        [InlineData("0,0;1,0;1,1", "0,0;1,0", false)]
+        [InlineData("0,0", "", false)]
+        public void IsWithinAllowedCells_EvaluatesSubsetCorrectly_Test(string coveredStr, string allowedStr, bool expected)
         {
-            var covered = new List<VwGridCell>
-            {
-                new() { Col = 0, Row = 0 },
-                new() { Col = 1, Row = 0 },
-                new() { Col = 1, Row = 1 }
-            };
-
-            var allowed = new List<VwGridCell>
-            {
-                new() { Col = 0, Row = 0 },
-                new() { Col = 1, Row = 0 }
-            };
+            var covered = ParseCells(coveredStr);
+            var allowed = ParseCells(allowedStr);
 
             var result = VwPermissionService.IsWithinAllowedCells(covered, allowed);
-            Assert.False(result);
-        }
-
-        /// <summary>
-        /// Description: Tập ô được cấp rỗng → trả về false.
-        /// Created date: 11/09/2026
-        /// </summary>
-        [Fact]
-        public void IsWithinAllowedCells_AllowedIsEmpty_ReturnsFalse_Test()
-        {
-            var covered = new List<VwGridCell>
-            {
-                new() { Col = 0, Row = 0 }
-            };
-
-            var allowed = new List<VwGridCell>();
-
-            var result = VwPermissionService.IsWithinAllowedCells(covered, allowed);
-            Assert.False(result);
+            Assert.Equal(expected, result);
         }
 
         /// <summary>
@@ -489,10 +454,14 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
         }
 
         /// <summary>
-        /// Description: Khi user có bản ghi permission nhưng Config null/trắng -> ném lỗi không cho phép thao tác (Task 1)
+        /// Description: Khi user có bản ghi permission nhưng Config không hợp lệ (trống, JSON lỗi, mảng rỗng) -> ném exception tương ứng.
+        /// Created date: 11/09/2026
         /// </summary>
-        [Fact]
-        public async Task EnsureWindowInsideUserAllowedAreaAsync_ConfigNullOrWhitespace_ThrowsException_Test()
+        [Theory]
+        [InlineData("", "trống")]
+        [InlineData("invalid-json-{broken", "lỗi định dạng")]
+        [InlineData("[]", "rỗng")]
+        public async Task EnsureWindowInsideUserAllowedAreaAsync_InvalidConfig_ThrowsException_Test(string config, string expectedErrorSubstr)
         {
             var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
             var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
@@ -502,7 +471,7 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
             {
                 UserId = account,
                 OrgId = orgId,
-                Config = "",
+                Config = config,
                 CreateTime = DateTime.Now
             };
             await _db.Insertable(perm).ExecuteCommandAsync();
@@ -512,61 +481,7 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
                 service.EnsureWindowInsideUserAllowedAreaAsync(0, 0, 1920, 1080, "TestWin"));
 
             Assert.NotNull(ex);
-            Assert.Contains("trống", ex.Message);
-        }
-
-        /// <summary>
-        /// Description: Khi user có bản ghi permission nhưng Config bị lỗi JSON -> ném lỗi định dạng (Task 1)
-        /// </summary>
-        [Fact]
-        public async Task EnsureWindowInsideUserAllowedAreaAsync_ConfigInvalidJson_ThrowsException_Test()
-        {
-            var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
-            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
-            SetRestrictedUser(orgId, account);
-
-            var perm = new VwWallPermission
-            {
-                UserId = account,
-                OrgId = orgId,
-                Config = "invalid-json-{broken",
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(perm).ExecuteCommandAsync();
-
-            var service = GetPermissionService();
-            var ex = await Record.ExceptionAsync(() =>
-                service.EnsureWindowInsideUserAllowedAreaAsync(0, 0, 1920, 1080, "TestWin"));
-
-            Assert.NotNull(ex);
-            Assert.Contains("lỗi định dạng", ex.Message);
-        }
-
-        /// <summary>
-        /// Description: Khi user có bản ghi permission nhưng Config là mảng rỗng [] -> ném lỗi không có ô nào (Task 1)
-        /// </summary>
-        [Fact]
-        public async Task EnsureWindowInsideUserAllowedAreaAsync_ConfigEmptyArray_ThrowsException_Test()
-        {
-            var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
-            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
-            SetRestrictedUser(orgId, account);
-
-            var perm = new VwWallPermission
-            {
-                UserId = account,
-                OrgId = orgId,
-                Config = "[]",
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(perm).ExecuteCommandAsync();
-
-            var service = GetPermissionService();
-            var ex = await Record.ExceptionAsync(() =>
-                service.EnsureWindowInsideUserAllowedAreaAsync(0, 0, 1920, 1080, "TestWin"));
-
-            Assert.NotNull(ex);
-            Assert.Contains("rỗng", ex.Message);
+            Assert.Contains(expectedErrorSubstr, ex.Message);
         }
 
         /// <summary>

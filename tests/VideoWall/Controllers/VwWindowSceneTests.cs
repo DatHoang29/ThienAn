@@ -1007,123 +1007,30 @@ public class VwWindowSceneTests(Host host)
     }
 
     /// <summary>
-    /// Author: Đạt
-    /// Description: Kiểm thử điều chỉnh Z-Order đưa cửa sổ lên trên cùng (Top Layer - #5).
-    /// Created date: 17/08/2026
-    /// </summary>
-    [Fact]
-    public async Task VwWindowSceneCommand_SetLayerTop_CallsDeviceSuccessfully_Test()
-    {
-        // 1. Validate negative first
-        var validator = new VwSetWindowLayerValidator(_localizer);
-        var invalidInput = new VwSetWindowLayerInput { ID = "" };
-        var validationResult = await validator.ValidateAsync(invalidInput);
-        Assert.False(validationResult.IsValid);
-
-        // 2. Arrange
-        var controller = new VwController
-        {
-            ID = Guid.NewGuid().ToString(),
-            Code = $"{TestPrefix}CTRL_TOP_{Guid.NewGuid():N}",
-            Name = "Controller Top Test",
-            IP = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPort}",
-            Account = VwISAPIMockServerHikvision.DefaultUser,
-            PassWord = VwISAPIMockServerHikvision.DefaultPassword,
-            Status = BaseEnums.StatusEnum.Enable,
-            CreateTime = DateTime.Now
-        };
-        await _db.Insertable(controller).ExecuteCommandAsync();
-
-        var scene = new VwScene
-        {
-            ID = Guid.NewGuid().ToString(),
-            Code = $"{TestPrefix}SCN_TOP_{Guid.NewGuid():N}",
-            Name = "Scene Top Test",
-            ControllerId = controller.ID,
-            OutputId = "1",
-            Status = BaseEnums.StatusEnum.Enable,
-            CreateTime = DateTime.Now
-        };
-        await _db.Insertable(scene).ExecuteCommandAsync();
-
-        var baseColTop = Random.Shared.Next(100, 10000) * 10;
-        var screen = new VwScreen
-        {
-            ID = Guid.NewGuid().ToString(),
-            Code = $"{TestPrefix}SCR_TOP_{Guid.NewGuid():N}",
-            Name = "Screen Top Test",
-            ControllerId = controller.ID,
-            GridCol = baseColTop,
-            GridRow = 0,
-            Status = BaseEnums.StatusEnum.Enable,
-            CreateTime = DateTime.Now
-        };
-        await _db.Insertable(screen).ExecuteCommandAsync();
-        _cache.RemoveByPrefixKey(CacheConst.Vw.VwScreen);
-
-        var source = new VwSource
-        {
-            ID = Guid.NewGuid().ToString(),
-            Code = $"{TestPrefix}SRC_TOP_{Guid.NewGuid():N}",
-            Name = "Source Top",
-            SignalNo = 16842753,
-            Status = BaseEnums.StatusEnum.Enable,
-            CreateTime = DateTime.Now
-        };
-        await _db.Insertable(source).ExecuteCommandAsync();
-
-        var winCode = $"{TestPrefix}WIN_TOP_{Guid.NewGuid():N}";
-        var addInput = new VwAddWindowSceneInput
-        {
-            Code = winCode,
-            Name = "Window Top Test",
-            SceneId = scene.ID,
-            SourceId = source.ID,
-            X = baseColTop * VwSceneRegionService.PanelWidthPx,
-            Y = 0,
-            W = 1920,
-            H = 1080,
-            ZIndex = 1,
-            Visible = BaseEnums.SceneWindowVisible.Visible
-        };
-        await _bus.InvokeAsync(addInput);
-
-        var window = await WaitForWindowDevice(winCode);
-        Assert.NotNull(window);
-        Assert.NotNull(window.DeviceWindowId);
-
-        host.MockServer.ResetDefaults();
-
-        // 3. Act
-        var setLayerInput = new VwSetWindowLayerInput
-        {
-            ID = window.ID,
-            Action = VwWindowLayerAction.Top
-        };
-        await _bus.InvokeAsync(setLayerInput);
-
-        // 4. Assert
-        await WaitForCondition(() => host.MockServer.WindowTopCallCount >= 1);
-        Assert.Equal(1, host.MockServer.WindowTopCallCount);
-        var updated = await _db.Queryable<VwWindowScene>().FirstAsync(u => u.ID == window.ID);
-        Assert.NotNull(updated);
-        Assert.True(updated.ZIndex > 1);
-    }
-
     /// <summary>
-    /// Author: Đạt
-    /// Description: Kiểm thử điều chỉnh Z-Order đưa cửa sổ xuống dưới cùng (Bottom Layer - #5).
+    /// Description: Kiểm thử điều chỉnh Z-Order đưa cửa sổ lên trên cùng (Top) hoặc xuống dưới cùng (Bottom).
     /// Created date: 17/08/2026
     /// </summary>
-    [Fact]
-    public async Task VwWindowSceneCommand_SetLayerBottom_CallsDeviceSuccessfully_Test()
+    [Theory]
+    [InlineData(VwWindowLayerAction.Top, 1, false)]
+    [InlineData(VwWindowLayerAction.Bottom, 5, true)]
+    public async Task VwWindowSceneCommand_SetLayer_CallsDeviceSuccessfully_Test(
+        VwWindowLayerAction action, int initialZIndex, bool expectZIndexZero)
     {
-        // 1. Arrange
+        if (action == VwWindowLayerAction.Top)
+        {
+            var validator = new VwSetWindowLayerValidator(_localizer);
+            var invalidInput = new VwSetWindowLayerInput { ID = "" };
+            var validationResult = await validator.ValidateAsync(invalidInput);
+            Assert.False(validationResult.IsValid);
+        }
+
+        var actionName = action.ToString();
         var controller = new VwController
         {
             ID = Guid.NewGuid().ToString(),
-            Code = $"{TestPrefix}CTRL_BOT_{Guid.NewGuid():N}",
-            Name = "Controller Bottom Test",
+            Code = $"{TestPrefix}CTRL_{actionName.ToUpperInvariant()}_{Guid.NewGuid():N}",
+            Name = $"Controller {actionName} Test",
             IP = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPort}",
             Account = VwISAPIMockServerHikvision.DefaultUser,
             PassWord = VwISAPIMockServerHikvision.DefaultPassword,
@@ -1135,8 +1042,8 @@ public class VwWindowSceneTests(Host host)
         var scene = new VwScene
         {
             ID = Guid.NewGuid().ToString(),
-            Code = $"{TestPrefix}SCN_BOT_{Guid.NewGuid():N}",
-            Name = "Scene Bottom Test",
+            Code = $"{TestPrefix}SCN_{actionName.ToUpperInvariant()}_{Guid.NewGuid():N}",
+            Name = $"Scene {actionName} Test",
             ControllerId = controller.ID,
             OutputId = "1",
             Status = BaseEnums.StatusEnum.Enable,
@@ -1144,14 +1051,14 @@ public class VwWindowSceneTests(Host host)
         };
         await _db.Insertable(scene).ExecuteCommandAsync();
 
-        var baseColBot = Random.Shared.Next(100, 10000) * 10;
+        var baseCol = Random.Shared.Next(100, 10000) * 10;
         var screen = new VwScreen
         {
             ID = Guid.NewGuid().ToString(),
-            Code = $"{TestPrefix}SCR_BOT_{Guid.NewGuid():N}",
-            Name = "Screen Bottom Test",
+            Code = $"{TestPrefix}SCR_{actionName.ToUpperInvariant()}_{Guid.NewGuid():N}",
+            Name = $"Screen {actionName} Test",
             ControllerId = controller.ID,
-            GridCol = baseColBot,
+            GridCol = baseCol,
             GridRow = 0,
             Status = BaseEnums.StatusEnum.Enable,
             CreateTime = DateTime.Now
@@ -1162,26 +1069,26 @@ public class VwWindowSceneTests(Host host)
         var source = new VwSource
         {
             ID = Guid.NewGuid().ToString(),
-            Code = $"{TestPrefix}SRC_BOT_{Guid.NewGuid():N}",
-            Name = "Source Bottom",
+            Code = $"{TestPrefix}SRC_{actionName.ToUpperInvariant()}_{Guid.NewGuid():N}",
+            Name = $"Source {actionName}",
             SignalNo = 16842753,
             Status = BaseEnums.StatusEnum.Enable,
             CreateTime = DateTime.Now
         };
         await _db.Insertable(source).ExecuteCommandAsync();
 
-        var winCode = $"{TestPrefix}WIN_BOT_{Guid.NewGuid():N}";
+        var winCode = $"{TestPrefix}WIN_{actionName.ToUpperInvariant()}_{Guid.NewGuid():N}";
         var addInput = new VwAddWindowSceneInput
         {
             Code = winCode,
-            Name = "Window Bottom Test",
+            Name = $"Window {actionName} Test",
             SceneId = scene.ID,
             SourceId = source.ID,
-            X = baseColBot * VwSceneRegionService.PanelWidthPx,
+            X = baseCol * VwSceneRegionService.PanelWidthPx,
             Y = 0,
             W = 1920,
             H = 1080,
-            ZIndex = 5,
+            ZIndex = initialZIndex,
             Visible = BaseEnums.SceneWindowVisible.Visible
         };
         await _bus.InvokeAsync(addInput);
@@ -1192,20 +1099,36 @@ public class VwWindowSceneTests(Host host)
 
         host.MockServer.ResetDefaults();
 
-        // 2. Act
+        // Act
         var setLayerInput = new VwSetWindowLayerInput
         {
             ID = window.ID,
-            Action = VwWindowLayerAction.Bottom
+            Action = action
         };
         await _bus.InvokeAsync(setLayerInput);
 
-        // 3. Assert
-        await WaitForCondition(() => host.MockServer.WindowBottomCallCount >= 1);
-        Assert.Equal(1, host.MockServer.WindowBottomCallCount);
+        // Assert
+        if (action == VwWindowLayerAction.Top)
+        {
+            await WaitForCondition(() => host.MockServer.WindowTopCallCount >= 1);
+            Assert.Equal(1, host.MockServer.WindowTopCallCount);
+        }
+        else
+        {
+            await WaitForCondition(() => host.MockServer.WindowBottomCallCount >= 1);
+            Assert.Equal(1, host.MockServer.WindowBottomCallCount);
+        }
+
         var updated = await _db.Queryable<VwWindowScene>().FirstAsync(u => u.ID == window.ID);
         Assert.NotNull(updated);
-        Assert.Equal(0, updated.ZIndex);
+        if (expectZIndexZero)
+        {
+            Assert.Equal(0, updated.ZIndex);
+        }
+        else
+        {
+            Assert.True(updated.ZIndex > initialZIndex);
+        }
     }
 
     /// <summary>

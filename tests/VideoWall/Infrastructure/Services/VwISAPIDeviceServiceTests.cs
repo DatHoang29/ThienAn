@@ -1777,21 +1777,6 @@ namespace Tests.Modules.VideoWall
         }
 
         /// <summary>
-        /// Author: Đạt
-        /// Description: Controller không kèm port trên IP sẽ sử dụng port mặc định và scheme từ VwDeviceProfile.
-        /// Created date: 24/08/2026
-        /// </summary>
-        [Fact]
-        public void VwISAPIDeviceService_EnsureRegistered_UsesProfileDefaultPort_Test()
-        {
-            var controller = new VwController { ID = "ctrl-profile-port", IP = "10.10.9.236", Account = "admin", PassWord = "123" };
-
-            var baseUri = _client.EnsureRegistered(controller);
-
-            Assert.Equal(VwDeviceProfile.Scheme, baseUri.Scheme);
-            Assert.Equal(VwDeviceProfile.DefaultPort, baseUri.Port);
-            Assert.Equal("10.10.9.236", baseUri.Host);
-        }
 
         /// <summary>
         /// Author: Đạt

@@ -193,78 +193,37 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
         }
 
         /// <summary>
-        /// Description: B6 - RequireCenterController thẩm định đúng điều kiện khi không có bộ trung tâm nào (Role=center).
+        /// Description: B6..B8 - RequireCenterController thẩm định đúng điều kiện và ném exception tương ứng khi danh sách controller không hợp lệ.
         /// Created date: 08/09/2026
         /// </summary>
-        [Fact]
-        public void B6_RequireCenterController_WhenZeroCenters_ThrowsChuaCauHinh()
+        [Theory]
+        [InlineData("ZeroCenters", "Chưa cấu hình bộ điều khiển trung tâm (Role=center)")]
+        [InlineData("TwoCenters", "Có >1 bộ điều khiển trung tâm (Role=center)")]
+        [InlineData("EmptyIp", "Bộ điều khiển trung tâm chưa khai IP")]
+        public void RequireCenterController_WhenInvalidCenterSetup_ThrowsExpectedError(string scenario, string expectedError)
         {
             // Arrange
-            var controllers = new List<VwController>
+            var controllers = scenario switch
             {
-                new()
+                "ZeroCenters" => new List<VwController>
                 {
-                    ID = "sub-01",
-                    Role = "sub",
-                    IP = "192.168.1.11"
-                }
-            };
-
-            // Act & Assert
-            var ex = Assert.ThrowsAny<Exception>(() => EvaluateRequireCenter(controllers));
-            Assert.True(ex is TypeInitializationException || ex.Message.Contains("Chưa cấu hình bộ điều khiển trung tâm (Role=center)"));
-        }
-
-        /// <summary>
-        /// Description: B7 - RequireCenterController ném lỗi khi có >1 bộ điều khiển trung tâm (Role=center).
-        /// Created date: 08/09/2026
-        /// </summary>
-        [Fact]
-        public void B7_RequireCenterController_WhenTwoCenterControllersExist_ThrowsCoHonMot()
-        {
-            // Arrange
-            var controllers = new List<VwController>
-            {
-                new()
-                {
-                    ID = "center-01",
-                    Role = "center",
-                    IP = "192.168.1.10"
+                    new() { ID = "sub-01", Role = "sub", IP = "192.168.1.11" }
                 },
-                new()
+                "TwoCenters" => new List<VwController>
                 {
-                    ID = "center-02",
-                    Role = "center",
-                    IP = "192.168.1.20"
-                }
+                    new() { ID = "center-01", Role = "center", IP = "192.168.1.10" },
+                    new() { ID = "center-02", Role = "center", IP = "192.168.1.20" }
+                },
+                "EmptyIp" => new List<VwController>
+                {
+                    new() { ID = "center-01", Role = "center", IP = "   " }
+                },
+                _ => throw new ArgumentException($"Unknown scenario: {scenario}")
             };
 
             // Act & Assert
             var ex = Assert.ThrowsAny<Exception>(() => EvaluateRequireCenter(controllers));
-            Assert.True(ex is TypeInitializationException || ex.Message.Contains("Có >1 bộ điều khiển trung tâm (Role=center)"));
-        }
-
-        /// <summary>
-        /// Description: B8 - RequireCenterController ném lỗi khi bộ điều khiển trung tâm chưa khai báo IP.
-        /// Created date: 08/09/2026
-        /// </summary>
-        [Fact]
-        public void B8_RequireCenterController_WhenCenterControllerHasEmptyIp_ThrowsChuaKhaiIP()
-        {
-            // Arrange
-            var controllers = new List<VwController>
-            {
-                new()
-                {
-                    ID = "center-01",
-                    Role = "center",
-                    IP = "   "
-                }
-            };
-
-            // Act & Assert
-            var ex = Assert.ThrowsAny<Exception>(() => EvaluateRequireCenter(controllers));
-            Assert.True(ex is TypeInitializationException || ex.Message.Contains("Bộ điều khiển trung tâm chưa khai IP"));
+            Assert.True(ex is TypeInitializationException || ex.Message.Contains(expectedError));
         }
 
         /// <summary>
