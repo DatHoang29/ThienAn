@@ -147,13 +147,11 @@
   <!-- Ở net10.0-windows, chỉ biên dịch các test WPF và file Host partial của VideoWall, loại bỏ các test backend để tránh chạy trùng lặp và deadlock -->
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
     <Compile Remove="VideoWall\Controllers\**\*.cs" />
-    <Compile Remove="VideoWall\Infrastructure\**\*.cs" />
     <Compile Remove="VideoWall\Services\**\*.cs" />
-    <Compile Remove="VideoWall\Topology\**\*.cs" />
+    <Compile Remove="VideoWall\Messaging\**\*.cs" />
     <None Include="VideoWall\Controllers\**\*.cs" />
-    <None Include="VideoWall\Infrastructure\**\*.cs" />
     <None Include="VideoWall\Services\**\*.cs" />
-    <None Include="VideoWall\Topology\**\*.cs" />
+    <None Include="VideoWall\Messaging\**\*.cs" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(CanCompileVideoWallWpfTests)' != 'true'">
