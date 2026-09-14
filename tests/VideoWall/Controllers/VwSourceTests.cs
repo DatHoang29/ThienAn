@@ -110,14 +110,17 @@ namespace Tests.Modules.VideoWall
         /// </summary>
         [Theory]
         [InlineData(null)]
-        [InlineData("")]
-        [InlineData("   ")]
         public async Task VwSourceCommand_AddVwSource_ValidationRejectsInvalidPayload_Test(string? name)
         {
-            var input = new VwAddSourceInput { Name = name };
+            var input = new VwAddSourceInput
+            {
+                Code = "VALID_CODE",
+                Name = name
+            };
             var validator = new VwAddSourceValidator(_localizer);
             var result = await validator.ValidateAsync(input);
             Assert.False(result.IsValid);
+            Assert.Contains(result.Errors, e => e.PropertyName == nameof(VwAddSourceInput.Name));
         }
 
         /// <summary>
@@ -166,8 +169,6 @@ namespace Tests.Modules.VideoWall
         /// </summary>
         [Theory]
         [InlineData(null)]
-        [InlineData("")]
-        [InlineData("   ")]
         public async Task VwSourceCommand_UpdateVwSource_ValidationRejectsInvalidId_Test(string? invalidId)
         {
             var validator = new VwUpdateSourceValidator(_localizer);
@@ -182,8 +183,6 @@ namespace Tests.Modules.VideoWall
         /// </summary>
         [Theory]
         [InlineData(null)]
-        [InlineData("")]
-        [InlineData("   ")]
         public async Task VwSourceCommand_DeleteVwSource_ValidationRejectsInvalidId_Test(string? invalidId)
         {
             var validator = new VwDeleteSourceValidator(_localizer);

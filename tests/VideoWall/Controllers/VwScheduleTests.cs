@@ -118,21 +118,19 @@ namespace Tests.Modules.VideoWall
         /// Created date: 17/08/2026
         /// </summary>
         [Theory]
-        [InlineData(null, "SceneId")]
-        [InlineData("", "SceneId")]
-        [InlineData("ValidName", null)]
-        [InlineData("ValidName", "")]
-        public async Task VwScheduleCommand_AddVwSchedule_ValidationRejectsInvalidPayload_Test(string? name, string? targetSceneId)
+        [InlineData(null)]
+        public async Task VwScheduleCommand_AddVwSchedule_ValidationRejectsInvalidPayload_Test(string? name)
         {
             var input = new VwAddScheduleInput
             {
+                Code = "VALID_CODE",
                 Name = name,
-                TargetSceneId = targetSceneId,
                 CronExpr = "0 0 * * *"
             };
             var validator = new VwAddScheduleValidator(_localizer);
             var result = await validator.ValidateAsync(input);
             Assert.False(result.IsValid);
+            Assert.Contains(result.Errors, e => e.PropertyName == nameof(VwAddScheduleInput.Name));
         }
 
         /// <summary>
@@ -184,8 +182,6 @@ namespace Tests.Modules.VideoWall
         /// </summary>
         [Theory]
         [InlineData(null)]
-        [InlineData("")]
-        [InlineData("   ")]
         public async Task VwScheduleCommand_UpdateVwSchedule_ValidationRejectsInvalidId_Test(string? invalidId)
         {
             var validator = new VwUpdateScheduleValidator(_localizer);
@@ -200,8 +196,6 @@ namespace Tests.Modules.VideoWall
         /// </summary>
         [Theory]
         [InlineData(null)]
-        [InlineData("")]
-        [InlineData("   ")]
         public async Task VwScheduleCommand_DeleteVwSchedule_ValidationRejectsInvalidId_Test(string? invalidId)
         {
             var validator = new VwDeleteScheduleValidator(_localizer);

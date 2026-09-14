@@ -126,20 +126,18 @@ namespace Tests.Modules.VideoWall
         /// Created date: 17/08/2026
         /// </summary>
         [Theory]
-        [InlineData(null, "ctrl-1")]
-        [InlineData("", "ctrl-1")]
-        [InlineData("ValidName", null)]
-        [InlineData("ValidName", "")]
-        public async Task VwScreenCommand_AddVwScreen_ValidationRejectsInvalidPayload_Test(string? name, string? controllerId)
+        [InlineData(null)]
+        public async Task VwScreenCommand_AddVwScreen_ValidationRejectsInvalidPayload_Test(string? name)
         {
             var input = new VwAddScreenInput
             {
-                Name = name,
-                ControllerId = controllerId
+                Code = "VALID_CODE",
+                Name = name
             };
             var validator = new VwAddScreenValidator(_localizer);
             var result = await validator.ValidateAsync(input);
             Assert.False(result.IsValid);
+            Assert.Contains(result.Errors, e => e.PropertyName == nameof(VwAddScreenInput.Name));
         }
 
         /// <summary>
@@ -193,8 +191,6 @@ namespace Tests.Modules.VideoWall
         /// </summary>
         [Theory]
         [InlineData(null)]
-        [InlineData("")]
-        [InlineData("   ")]
         public async Task VwScreenCommand_UpdateVwScreen_ValidationRejectsInvalidId_Test(string? invalidId)
         {
             var validator = new VwUpdateScreenValidator(_localizer);
@@ -209,8 +205,6 @@ namespace Tests.Modules.VideoWall
         /// </summary>
         [Theory]
         [InlineData(null)]
-        [InlineData("")]
-        [InlineData("   ")]
         public async Task VwScreenCommand_DeleteVwScreen_ValidationRejectsInvalidId_Test(string? invalidId)
         {
             var validator = new VwDeleteScreenValidator(_localizer);

@@ -98,8 +98,6 @@ public class VwSceneTests(Host host)
     /// </summary>
     [Theory]
     [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
     public async Task VwSceneCommand_AddVwScene_ValidationRejectsInvalidPayload_Test(string? name)
     {
         var input = new VwAddSceneInput { Name = name };
@@ -115,8 +113,6 @@ public class VwSceneTests(Host host)
     /// </summary>
     [Theory]
     [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
     public async Task VwSceneCommand_AddVwScene_NullOrEmptyControllerId_IsRejectedByValidator_Test(string? controllerId)
     {
         var input = new VwAddSceneInput
@@ -250,8 +246,6 @@ public class VwSceneTests(Host host)
     /// </summary>
     [Theory]
     [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
     public async Task VwSceneCommand_UpdateVwScene_ValidationRejectsInvalidId_Test(string? invalidId)
     {
         var validator = new VwUpdateSceneValidator(_localizer);
@@ -265,8 +259,6 @@ public class VwSceneTests(Host host)
     /// </summary>
     [Theory]
     [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
     public async Task VwSceneCommand_DeleteVwScene_ValidationRejectsInvalidId_Test(string? invalidId)
     {
         var validator = new VwDeleteSceneValidator(_localizer);

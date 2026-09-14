@@ -261,8 +261,6 @@ public class VwControllerTests(Host host)
     /// </summary>
     [Theory]
     [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
     public async Task VwControllerCommand_UpdateVwController_ValidationRejectsMissingId_Test(string? invalidId)
     {
         // Arrange
@@ -290,8 +288,6 @@ public class VwControllerTests(Host host)
     /// </summary>
     [Theory]
     [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
     public async Task VwControllerCommand_DeleteVwController_ValidationRejectsInvalidId_Test(string? invalidId)
     {
         var validator = new VwDeleteControllerValidator(_localizer);

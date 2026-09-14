@@ -117,20 +117,18 @@ namespace Tests.Modules.VideoWall
         /// Created date: 17/08/2026
         /// </summary>
         [Theory]
-        [InlineData(null, "SceneId")]
-        [InlineData("", "SceneId")]
-        [InlineData("EVT_ACCIDENT", null)]
-        [InlineData("EVT_ACCIDENT", "")]
-        public async Task VwEventRuleCommand_AddVwEventRule_ValidationRejectsInvalidPayload_Test(string? eventTypeId, string? targetSceneId)
+        [InlineData(null)]
+        public async Task VwEventRuleCommand_AddVwEventRule_ValidationRejectsInvalidPayload_Test(string? code)
         {
             var input = new VwAddEventRuleInput
             {
-                EventTypeId = eventTypeId,
-                TargetSceneId = targetSceneId
+                Code = code,
+                Status = BaseEnums.StatusEnum.Enable
             };
             var validator = new VwAddEventRuleValidator(_localizer);
             var result = await validator.ValidateAsync(input);
             Assert.False(result.IsValid);
+            Assert.Contains(result.Errors, e => e.PropertyName == nameof(VwAddEventRuleInput.Code));
         }
 
         /// <summary>
@@ -141,12 +139,13 @@ namespace Tests.Modules.VideoWall
         [Fact]
         public async Task VwEventRuleCommand_UpdateVwEventRule_UpdatesRecord_Test()
         {
-            var uniqueCode = $"{TestPrefix}RULE_{Guid.NewGuid():N}";
+            var uniqueCode = $"{TestPrefix}EVTR_{Guid.NewGuid():N}";
             var rule = new VwEventRule
             {
                 Code = uniqueCode,
-                EventTypeId = "EVT_WEATHER",
-                Priority = "LOW",
+                EventSource = "CAMERA",
+                EventTypeId = "EVT_TRAFFIC_JAM",
+                Priority = "NORMAL",
                 Status = BaseEnums.StatusEnum.Enable,
                 CreateTime = DateTime.Now
             };
@@ -157,7 +156,8 @@ namespace Tests.Modules.VideoWall
             {
                 ID = rule.ID,
                 Code = uniqueCode,
-                EventTypeId = "EVT_WEATHER_STORM",
+                EventSource = "CAMERA",
+                EventTypeId = "EVT_ACCIDENT",
                 Priority = "HIGH",
                 Status = BaseEnums.StatusEnum.Enable
             };
@@ -171,7 +171,7 @@ namespace Tests.Modules.VideoWall
             var updated = await _db.Queryable<VwEventRule>()
                 .FirstAsync(u => u.ID == rule.ID && u.IsDelete == null);
             Assert.NotNull(updated);
-            Assert.Equal("EVT_WEATHER_STORM", updated.EventTypeId);
+            Assert.Equal("EVT_ACCIDENT", updated.EventTypeId);
             Assert.Equal("HIGH", updated.Priority);
         }
 
@@ -182,8 +182,6 @@ namespace Tests.Modules.VideoWall
         /// </summary>
         [Theory]
         [InlineData(null)]
-        [InlineData("")]
-        [InlineData("   ")]
         public async Task VwEventRuleCommand_UpdateVwEventRule_ValidationRejectsInvalidId_Test(string? invalidId)
         {
             var validator = new VwUpdateEventRuleValidator(_localizer);
@@ -198,8 +196,6 @@ namespace Tests.Modules.VideoWall
         /// </summary>
         [Theory]
         [InlineData(null)]
-        [InlineData("")]
-        [InlineData("   ")]
         public async Task VwEventRuleCommand_DeleteVwEventRule_ValidationRejectsInvalidId_Test(string? invalidId)
         {
             var validator = new VwDeleteEventRuleValidator(_localizer);

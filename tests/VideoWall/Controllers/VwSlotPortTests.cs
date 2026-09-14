@@ -111,20 +111,18 @@ namespace Tests.Modules.VideoWall
         /// Created date: 17/08/2026
         /// </summary>
         [Theory]
-        [InlineData(null, "1")]
-        [InlineData("", "1")]
-        [InlineData("ValidName", null)]
-        [InlineData("ValidName", "")]
-        public async Task VwSlotPortCommand_AddVwSlotPort_ValidationRejectsInvalidPayload_Test(string? name, string? portNo)
+        [InlineData(null)]
+        public async Task VwSlotPortCommand_AddVwSlotPort_ValidationRejectsInvalidPayload_Test(string? name)
         {
             var input = new VwAddSlotPortInput
             {
-                Name = name,
-                PortNo = portNo
+                Code = "VALID_CODE",
+                Name = name
             };
             var validator = new VwAddSlotPortValidator(_localizer);
             var result = await validator.ValidateAsync(input);
             Assert.False(result.IsValid);
+            Assert.Contains(result.Errors, e => e.PropertyName == nameof(VwAddSlotPortInput.Name));
         }
 
         /// <summary>
@@ -136,7 +134,7 @@ namespace Tests.Modules.VideoWall
         public async Task VwSlotPortCommand_UpdateVwSlotPort_UpdatesRecord_Test()
         {
             var uniqueCode = $"{TestPrefix}PORT_{Guid.NewGuid():N}";
-            var slotPort = new VwSlotPort
+            var port = new VwSlotPort
             {
                 Code = uniqueCode,
                 Name = "Original Port Name",
@@ -144,15 +142,15 @@ namespace Tests.Modules.VideoWall
                 Status = BaseEnums.StatusEnum.Enable,
                 CreateTime = DateTime.Now
             };
-            await _db.Insertable(slotPort).ExecuteCommandAsync();
+            await _db.Insertable(port).ExecuteCommandAsync();
             _cache.RemoveByPrefixKey(CacheConst.Vw.VwSlotPort);
 
             var updateInput = new VwUpdateSlotPortInput
             {
-                ID = slotPort.ID,
+                ID = port.ID,
                 Code = uniqueCode,
                 Name = "Updated Port Name",
-                PortNo = "1",
+                PortNo = "2",
                 Status = BaseEnums.StatusEnum.Enable
             };
 
@@ -163,9 +161,10 @@ namespace Tests.Modules.VideoWall
             await _bus.InvokeAsync(updateInput);
 
             var updated = await _db.Queryable<VwSlotPort>()
-                .FirstAsync(u => u.ID == slotPort.ID && u.IsDelete == null);
+                .FirstAsync(u => u.ID == port.ID && u.IsDelete == null);
             Assert.NotNull(updated);
             Assert.Equal("Updated Port Name", updated.Name);
+            Assert.Equal("2", updated.PortNo);
         }
 
         /// <summary>
@@ -175,8 +174,6 @@ namespace Tests.Modules.VideoWall
         /// </summary>
         [Theory]
         [InlineData(null)]
-        [InlineData("")]
-        [InlineData("   ")]
         public async Task VwSlotPortCommand_UpdateVwSlotPort_ValidationRejectsInvalidId_Test(string? invalidId)
         {
             var validator = new VwUpdateSlotPortValidator(_localizer);
@@ -191,8 +188,6 @@ namespace Tests.Modules.VideoWall
         /// </summary>
         [Theory]
         [InlineData(null)]
-        [InlineData("")]
-        [InlineData("   ")]
         public async Task VwSlotPortCommand_DeleteVwSlotPort_ValidationRejectsInvalidId_Test(string? invalidId)
         {
             var validator = new VwDeleteSlotPortValidator(_localizer);

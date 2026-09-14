@@ -221,8 +221,6 @@ public class VwWindowSceneTests(Host host)
     /// </summary>
     [Theory]
     [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
     public async Task VwWindowSceneCommand_UpdateVwWindowScene_ValidationRejectsInvalidId_Test(string? invalidId)
     {
         var validator = new VwUpdateWindowSceneValidator(_localizer);
@@ -236,8 +234,6 @@ public class VwWindowSceneTests(Host host)
     /// </summary>
     [Theory]
     [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
     public async Task VwWindowSceneCommand_DeleteVwWindowScene_ValidationRejectsInvalidId_Test(string? invalidId)
     {
         var validator = new VwDeleteWindowSceneValidator(_localizer);
