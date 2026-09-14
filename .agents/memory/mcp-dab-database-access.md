@@ -1,11 +1,11 @@
 ---
 name: mcp-dab-database-access
-description: "How to query the project's SQL Server DBs read-only via the DAB MCP servers, and which one has the current schema"
+description: "How to query the project's SQL Server DBs read-only via the DAB MCP servers, which one has the current schema, and how to fix 'Connection closed' when config drifts from real DB schema"
 metadata: 
   node_type: memory
   type: reference
   originSessionId: 8862bd9e-5d13-42a7-8b51-9079f8a21d37
-  modified: 2026-08-27T10:03:14.973Z
+  modified: 2026-09-14T00:00:00.000Z
 ---
 
 `.mcp.json` (root, mirrors `.agents/.mcp.json`) defines 3 DAB MCP servers, launched with
