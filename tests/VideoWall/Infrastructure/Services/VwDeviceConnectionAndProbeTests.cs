@@ -83,7 +83,7 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
 
             var ex = Assert.ThrowsAny<Exception>(() => VwISAPIDeviceClient.ResolveDeviceUri(controller, config));
 
-            Assert.Contains("Chưa cấu hình IP thiết bị. Khai VideoWall:Device:Ip trong Configuration/DeviceIntegration.json, hoặc điền IP cho bản ghi VwController.", ex.Message);
+            Assert.Contains("Chưa cấu hình IP thiết bị. Khai VideoWall:Device:Ip trong appsettings.json (Worker ITS.VideoWall), hoặc điền IP cho bản ghi VwController.", ex.Message);
         }
 
         #endregion

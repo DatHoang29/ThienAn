@@ -5,7 +5,7 @@ namespace Tests.Modules.VideoWall;
 ///
 ///              Phủ ba nhóm hành vi:
 ///                1. REST Add + Page/GetList, gồm việc server đóng dấu OrgId và bỏ qua giá trị
-///                   client tự khai; lọc theo RuleId, EventTypeId, ControllerId, OccurredAt.
+///                   client tự khai; lọc theo RuleId, EventTypeId, ControllerId, TriggeredAt.
 ///                2. Ghi log tự động sau mỗi lệnh device-setup — MỘT DÒNG cho MỘT BƯỚC ISAPI, kể cả
 ///                   bước Skipped của chế độ chạy thử, và kể cả khi lệnh ném ngoại lệ.
 ///                3. Ghi log sau ActivateScene: cả dòng nghiệp vụ và dòng bước thiết bị được ghi
@@ -107,7 +107,7 @@ public class VwEventTriggerLogTests(Host host)
         Assert.Equal(VwEventTriggerAction.Isapi, row.Action);
         Assert.Equal("<request/>", row.RequestPayload);
         Assert.Equal("<response/>", row.ResponsePayload);
-        Assert.NotNull(row.OccurredAt);
+        Assert.NotNull(row.TriggeredAt);
         Assert.False(string.IsNullOrWhiteSpace(row.OperatorName));
 
         // Negative rule: Action rỗng và Method lạ đều phải bị validator chặn khi không có RuleId.
@@ -145,7 +145,7 @@ public class VwEventTriggerLogTests(Host host)
     }
 
     /// <summary>
-    /// Description: Page phải lọc đúng theo ControllerId và khoảng OccurredAt.
+    /// Description: Page phải lọc đúng theo ControllerId và khoảng TriggeredAt.
     /// Created date: 26/08/2026
     /// </summary>
     [Fact]
@@ -161,7 +161,7 @@ public class VwEventTriggerLogTests(Host host)
             ControllerId = controller.ID,
             StepOrder = 1,
             StepName = "Bước cũ",
-            OccurredAt = oldMoment,
+            TriggeredAt = oldMoment,
             CreateTime = oldMoment
         }).ExecuteCommandAsync();
 
@@ -171,7 +171,7 @@ public class VwEventTriggerLogTests(Host host)
             ControllerId = controller.ID,
             StepOrder = 2,
             StepName = "Bước mới",
-            OccurredAt = DateTime.Now,
+            TriggeredAt = DateTime.Now,
             CreateTime = DateTime.Now
         }).ExecuteCommandAsync();
 
@@ -182,7 +182,7 @@ public class VwEventTriggerLogTests(Host host)
                 Page = 1,
                 PageSize = 50,
                 ControllerId = controller.ID,
-                OccurredAtFrom = DateTime.Now.AddDays(-7)
+                TriggeredAtFrom = DateTime.Now.AddDays(-7)
             });
 
         // Assert
@@ -207,7 +207,7 @@ public class VwEventTriggerLogTests(Host host)
             RuleId = ruleId,
             EventTypeId = eventTypeId,
             Action = VwEventTriggerAction.ActiveScene,
-            OccurredAt = DateTime.Now,
+            TriggeredAt = DateTime.Now,
             CreateTime = DateTime.Now
         }).ExecuteCommandAsync();
 
@@ -243,7 +243,7 @@ public class VwEventTriggerLogTests(Host host)
             ControllerId = controller.ID,
             StepOrder = index,
             StepName = $"Bước {index}",
-            OccurredAt = DateTime.Now.AddSeconds(index),
+            TriggeredAt = DateTime.Now.AddSeconds(index),
             CreateTime = DateTime.Now
         }).ToList();
         await _db.Insertable(rows).ExecuteCommandAsync();
@@ -290,7 +290,7 @@ public class VwEventTriggerLogTests(Host host)
         Assert.Equal(VwEventTriggerAction.Ping, row.Action);
         Assert.Equal(BaseEnums.SuccessEnums.Success, row.Success);
         Assert.Equal(controller.Name, row.ControllerName);
-        Assert.NotNull(row.OccurredAt);
+        Assert.NotNull(row.TriggeredAt);
     }
 
     /// <summary>
@@ -459,6 +459,6 @@ public class VwEventTriggerLogTests(Host host)
         Assert.Equal(result.TriggerLogId, businessRow.ID);
         Assert.Equal(scene.ID, businessRow.TargetSceneId);
         Assert.Equal(BaseEnums.SuccessEnums.Success, businessRow.Success);
-        Assert.NotNull(businessRow.OccurredAt);
+        Assert.NotNull(businessRow.TriggeredAt);
     }
 }

@@ -306,7 +306,7 @@ namespace Tests.Modules.VideoWall
         }
 
         /// <summary>
-        /// Description: Cấu hình profile override từ options (DeviceIntegration.json) có độ ưu tiên cao hơn giá trị mặc định của code.
+        /// Description: Cấu hình profile override từ options (VwDeviceOptions) có độ ưu tiên cao hơn giá trị mặc định của code.
         /// </summary>
         [Fact]
         public void VwISAPIDeviceService_ProfileOverride_FromOptions_TakesPrecedence_Test()
