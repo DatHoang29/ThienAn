@@ -1,0 +1,3252 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Wireframe · Cấu hình ánh xạ ShareData</title>
+<style>
+  :root{
+    --line:#c9ced6; --line-strong:#98a1ad; --ink:#2c313a; --muted:#767e8a;
+    --bg:#f5f6f8; --panel:#ffffff; --accent:#2f6fa8; --accent-soft:#e8f0f8;
+    --warn:#8a5a00; --warn-soft:#fdf3e0; --err:#a02020; --err-soft:#fbeaea;
+    --ok:#1f6b3d; --chip:#eef1f5;
+    --mono:"Cascadia Mono",Consolas,"Courier New",monospace;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:14px/1.5 "Segoe UI",system-ui,-apple-system,Arial,sans-serif;
+  }
+  a{color:var(--accent)}
+  code,pre,.mono{font-family:var(--mono); font-size:12.5px}
+
+  .wrap{max-width:1460px; margin:0 auto; padding:20px 16px 64px}
+  .doc-head{border-bottom:1px solid var(--line); padding-bottom:14px; margin-bottom:18px}
+  .doc-head h1{margin:0 0 6px; font-size:20px}
+  .doc-head p{margin:0; color:var(--muted); max-width:900px}
+  .kbd{display:inline-block;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;
+       padding:0 5px;background:#fff;font-family:var(--mono);font-size:11.5px}
+
+  .sec{margin:26px 0}
+  .sec > h2{
+    font-size:13px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted);
+    margin:0 0 8px; font-weight:700;
+  }
+  .sec > .hint{margin:-4px 0 10px; color:var(--muted); font-size:13px}
+
+  /* khung "màn hình" kiểu wireframe */
+  .screen{background:var(--panel); border:1px solid var(--line-strong); border-radius:6px; overflow:hidden}
+  .screen-bar{
+    display:flex; align-items:center; gap:8px; padding:8px 12px;
+    background:#eff1f4; border-bottom:1px solid var(--line); font-weight:600
+  }
+  .screen-bar .sp{margin-left:auto}
+  .pad{padding:12px}
+
+  /* điều khiển giả lập */
+  .ctl{border:1px solid var(--line); background:#fff; border-radius:4px; padding:3px 8px; min-height:26px;
+       display:inline-flex; align-items:center; gap:6px; color:var(--ink)}
+  .ctl.ph{color:var(--muted)}
+  .ctl.sel::after{content:"▾"; color:var(--muted); margin-left:4px}
+  .btn{border:1px solid var(--line-strong); background:#fff; border-radius:4px; padding:4px 10px;
+       cursor:pointer; font:inherit}
+  .btn:hover{background:#f2f5f9}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+  .btn.primary:hover{filter:brightness(1.06)}
+  .btn:focus-visible,.tab:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible,
+  .leafbtn:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+  .row{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+  .grow{flex:1}
+  label.f{display:flex; gap:6px; align-items:center; color:var(--muted)}
+  label.f > span{white-space:nowrap}
+
+  select,input[type=text],textarea{
+    font:inherit; color:var(--ink); border:1px solid var(--line); border-radius:4px; padding:3px 6px; background:#fff
+  }
+  select{padding:3px 4px}
+  textarea{width:100%; font-family:var(--mono); font-size:12.5px; resize:vertical}
+
+  table.g{width:100%; border-collapse:collapse; font-size:13px}
+  table.g th,table.g td{border:1px solid var(--line); padding:5px 7px; text-align:left; vertical-align:middle}
+  table.g th{background:#f0f2f5; font-weight:600; white-space:nowrap}
+  table.g td.mono{font-family:var(--mono); font-size:12.5px}
+  table.g tr.sel{background:var(--accent-soft)}
+  table.g td.num{text-align:right}
+
+  .chip{display:inline-block; background:var(--chip); border:1px solid var(--line); border-radius:10px;
+        padding:0 7px; font-size:11.5px; color:#3d4450; white-space:nowrap}
+  .chip.k{background:var(--accent-soft); border-color:#bcd3e8; color:#1d4f7c}
+  .chip.w{background:var(--warn-soft); border-color:#e7d3a8; color:var(--warn)}
+  .chip.x{background:#efefef; color:#5d5d5d}
+  .badge{display:inline-block; min-width:18px; text-align:center; border-radius:9px; padding:0 6px;
+         font-size:11.5px; background:var(--chip); border:1px solid var(--line)}
+  .badge.err{background:var(--err-soft); border-color:#e6bcbc; color:var(--err)}
+  .badge.warn{background:var(--warn-soft); border-color:#e7d3a8; color:var(--warn)}
+
+  .alert{border:1px solid #e7d3a8; background:var(--warn-soft); color:var(--warn);
+         border-radius:4px; padding:8px 10px; font-size:13px}
+  .alert.err{border-color:#e6bcbc; background:var(--err-soft); color:var(--err)}
+  .note{color:var(--muted); font-size:12.5px}
+
+  /* tabs */
+  .tabs{display:flex; gap:2px; padding:8px 12px 0; background:#eff1f4; border-bottom:1px solid var(--line)}
+  .tab{border:1px solid var(--line); border-bottom:none; background:#e4e8ee; color:#4a5260;
+       padding:6px 14px; border-radius:5px 5px 0 0; cursor:pointer; font:inherit; display:flex; gap:7px; align-items:center}
+  .tab[aria-selected=true]{background:#fff; color:var(--ink); font-weight:600; position:relative; top:1px}
+  .tabstat{margin-left:auto; align-self:center; color:var(--muted); font-size:12.5px; padding-bottom:6px}
+  .panel{padding:12px}
+  [hidden]{display:none !important}
+
+  /* hai cột vùng làm việc */
+  .cols{display:grid; grid-template-columns:minmax(280px,7fr) minmax(420px,17fr); gap:12px}
+  @media (max-width:1100px){ .cols{grid-template-columns:1fr} }
+  .pane{border:1px solid var(--line); border-radius:5px; background:#fff}
+  .pane-head{display:flex; align-items:center; gap:8px; padding:6px 10px; border-bottom:1px solid var(--line);
+             background:#f7f8fa; font-weight:600; font-size:13px}
+  .pane-head .sp{margin-left:auto}
+  .pane-body{padding:10px}
+
+  /* cây */
+  .tree{font-family:var(--mono); font-size:12.5px}
+  .tnode{display:flex; align-items:center; gap:8px; padding:3px 6px; border-radius:4px}
+  .tnode:hover{background:#f4f7fa}
+  .tnode.active{background:var(--accent-soft)}
+  .tnode .name{white-space:nowrap}
+  .tnode .dots{flex:1; border-bottom:1px dotted var(--line-strong); height:1px; min-width:14px}
+  .tnode .ann{display:flex; gap:6px; align-items:center; flex-wrap:wrap; justify-content:flex-end}
+  .tnode.unset .ann{color:var(--muted)}
+  .leafbtn{border:1px solid transparent; background:none; color:var(--muted); cursor:pointer;
+           border-radius:4px; padding:0 6px; font:inherit}
+  .leafbtn:hover{border-color:var(--line); background:#fff; color:var(--ink)}
+  .arrow{color:var(--accent)}
+
+  .fieldlist{font-size:12.5px}
+  .fieldlist div{display:flex; gap:8px; align-items:center; padding:2px 0}
+  .fieldlist .dot{color:var(--ok)}
+  .fieldlist .dot.off{color:var(--muted)}
+  .fieldlist .fk{font-family:var(--mono)}
+
+  /* popover thiết lập lá */
+  .pop{position:fixed; right:24px; bottom:24px; width:430px; max-height:78vh; overflow:auto; z-index:40;
+       background:#fff; border:1px solid var(--line-strong); border-radius:6px; box-shadow:0 10px 28px rgba(20,25,35,.18)}
+  .pop-head{display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid var(--line); background:#f7f8fa}
+  .pop-head .p{font-family:var(--mono); font-size:12.5px}
+  .pop-head .sp{margin-left:auto}
+  .pop-body{padding:12px}
+  .grp{border:1px solid var(--line); border-radius:5px; padding:10px; margin-bottom:10px}
+  .grp > .t{font-weight:600; font-size:12.5px; margin:-2px 0 8px; color:#48505c}
+  .fld{display:grid; grid-template-columns:120px 1fr; gap:8px; align-items:center; margin-bottom:7px}
+  .fld:last-child{margin-bottom:0}
+  .fld > span{color:var(--muted); font-size:13px}
+  .radio{display:flex; gap:8px; align-items:center; margin-bottom:6px}
+  .try{display:flex; gap:8px; align-items:center; font-size:13px}
+  .try .out{font-family:var(--mono); background:var(--chip); border:1px solid var(--line);
+            border-radius:4px; padding:2px 8px}
+
+  .legend{display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:6px 18px}
+  .legend div{display:flex; gap:8px; align-items:baseline}
+  .legend .s{font-family:var(--mono); min-width:120px; color:#3d4450}
+
+  /* mapper hai cây có đường nối */
+  .mapwrap{position:relative}
+  .mapcols{display:grid; grid-template-columns:1fr 1fr; gap:120px}
+  @media (max-width:1000px){ .mapcols{grid-template-columns:1fr; gap:12px} }
+  .maplines{position:absolute; inset:0; pointer-events:none; overflow:visible}
+  .mrow{display:flex; align-items:center; gap:8px; padding:3px 8px; border:1px solid transparent; border-radius:4px;
+        font-family:var(--mono); font-size:12.5px; cursor:pointer; background:none; width:100%; text-align:left; color:var(--ink)}
+  .mrow:hover{background:#f4f7fa}
+  .mrow.sel{background:var(--accent-soft); border-color:#bcd3e8}
+  .mrow.linked{font-weight:600}
+  .mrow.unset{color:var(--muted)}
+  .mrow .tag{margin-left:auto; display:flex; gap:5px; align-items:center; font-family:"Segoe UI",sans-serif}
+  .mgroup{font-weight:700; font-size:11.5px; color:var(--muted); padding:8px 8px 2px; letter-spacing:.05em;
+          text-transform:uppercase; cursor:pointer; background:none; border:none; width:100%; text-align:left}
+  .mgroup:hover{color:var(--ink)}
+  .mgroup.sel{color:var(--accent)}
+  .dotL,.dotR{width:8px; height:8px; border-radius:50%; background:var(--line-strong); flex:none}
+  .linked .dotL,.linked .dotR{background:var(--accent)}
+  /* màn Gói tin (W0) */
+  .btn.mini{padding:1px 7px; font-size:12px}
+  input[readonly]{background:#f3f4f6; color:var(--muted)}
+  .chip.o{background:var(--ok-soft); border-color:#bfdcc8; color:var(--ok)}
+  .alert.ok{border-color:#bfdcc8; background:var(--ok-soft); color:var(--ok)}
+  .alert.err{border-color:#e6bcbc; background:var(--err-soft); color:var(--err)}
+  .dslist div.item{display:flex; gap:8px; align-items:center; padding:6px 8px; border:1px solid transparent;
+                   border-radius:4px; cursor:pointer}
+  .dslist div.item:hover{background:#f4f7fa}
+  .dslist div.item.active{background:var(--accent-soft); border-color:#bcd3e8}
+  .dslist .nm{font-family:var(--mono)}
+  .footnote{margin-top:26px; border-top:1px solid var(--line); padding-top:12px; color:var(--muted); font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="doc-head">
+    <h1>Wireframe · Màn hình cấu hình ánh xạ (phễu lọc) — phân hệ ShareData</h1>
+    <p>
+      Bản dựng để bàn bố cục, <strong>không phải thiết kế thị giác cuối cùng</strong>: màu tối giản, chỉ dùng
+      để phân biệt trạng thái. Các phần tương tác được (tab, sửa ô trong bảng, mở thiết lập lá, xem trước)
+      đều chạy thật trên dữ liệu mẫu gói 101 để kiểm tra luồng thao tác.
+      Cây và bảng đọc/ghi <strong>cùng một danh sách dòng ánh xạ</strong> — sửa ở bảng thì cây và xem trước
+      đổi theo ngay, đúng như thiết kế đề xuất.
+      Xem đặc tả chữ tại <code>10-wireframe-man-hinh-anh-xa.md</code>.
+    </p>
+    <div class="row" style="margin-top:12px" role="tablist" aria-label="Màn hình">
+      <button class="tab" role="tab" id="nav-packet" aria-controls="page-packet" aria-selected="false"
+              style="border-radius:5px; border-bottom:1px solid var(--line)">W0 · Gói tin &amp; cột dữ liệu</button>
+      <button class="tab" role="tab" id="nav-mapping" aria-controls="page-mapping" aria-selected="true"
+              style="border-radius:5px; border-bottom:1px solid var(--line)">W1–W7 · Phễu lọc</button>
+      <span class="note" style="margin-left:8px">Hai màn dùng <strong>chung một</strong> định nghĩa gói tin:
+        sửa câu SQL hay dò lại cột ở W0 là phần ánh xạ thấy ngay.</span>
+    </div>
+  </div>
+
+  <div id="page-packet" hidden>
+
+    <div class="sec">
+      <h2>W0.1 · Danh sách gói tin</h2>
+      <div class="screen">
+        <div class="screen-bar">Gói tin chia sẻ dữ liệu <span class="sp"></span>
+          <button class="btn primary">+ Thêm gói tin</button></div>
+        <div class="pad">
+          <table class="g">
+            <thead><tr><th style="width:70px">Mã</th><th>Tên</th><th style="width:70px">P.bản</th>
+              <th style="width:230px">Tập dữ liệu</th><th style="width:70px">Số cột</th>
+              <th style="width:140px">Dò cột lần cuối</th><th style="width:100px">Ghi ngược</th>
+              <th style="width:70px"></th></tr></thead>
+            <tbody>
+              <tr style="background:var(--accent-soft)">
+                <td class="mono">101</td><td>Tình trạng giao thông</td><td class="mono">1.0</td>
+                <td id="t-ds" class="note"></td><td class="mono" id="t-col"></td>
+                <td class="note" id="t-desc"></td><td><span class="chip o">có WriteSql</span></td>
+                <td><button class="btn mini">⋯</button></td></tr>
+              <tr><td class="mono">102</td><td>Sự cố giao thông</td><td class="mono">1.0</td>
+                <td class="note">1 gốc</td><td class="mono">12</td><td class="note">08/09/2026 10:12</td>
+                <td><span class="chip x">chỉ gửi</span></td><td><button class="btn mini">⋯</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h2>W0.2 · Gói tin 101 — tập dữ liệu và cột trả về</h2>
+      <div class="hint">
+        Một gói tin có <strong>đúng một tập Gốc</strong> (một câu SELECT). Bảng tổng hợp trong payload
+        thường chỉ là <strong>tập Dẫn xuất</strong> — engine gộp/nhóm ngay trên tập Gốc, không cần câu SQL
+        thứ hai. Tập <strong>Phụ</strong> chỉ dùng khi dữ liệu không suy ra được từ tập Gốc.
+      </div>
+      <div class="screen">
+        <div class="screen-bar">✎ Gói tin 101 · phiên bản 1.0 <span class="sp"></span>
+          <button class="btn">Huỷ</button><button class="btn primary">Lưu</button></div>
+        <div class="pad">
+          <div class="cols" style="grid-template-columns:minmax(240px,5fr) minmax(520px,19fr)">
+
+            <div class="pane">
+              <div class="pane-head">Tập dữ liệu <span class="sp"></span>
+                <select id="new-kind" aria-label="Loại tập mới" style="width:104px">
+                  <option value="derived">Dẫn xuất</option><option value="extra">Phụ (SQL)</option>
+                </select>
+                <button class="btn mini" id="add-ds">+</button></div>
+              <div class="pane-body dslist" id="dslist"></div>
+            </div>
+
+            <div class="pane">
+              <div class="pane-head">Tập <span class="mono" id="ds-name"></span>
+                <span class="chip" id="ds-kindchip"></span><span class="sp"></span>
+                <label class="f"><span>Nhãn</span><input type="text" id="ds-label" style="width:170px" aria-label="Nhãn tập" /></label>
+                <button class="btn mini" id="del-ds">Xoá tập</button></div>
+              <div class="pane-body">
+
+                <div id="blk-sql">
+                  <div class="row" style="margin-bottom:6px">
+                    <strong style="font-size:13px">Câu truy vấn</strong>
+                    <span class="note">tên sau <code>AS</code> chính là khoá cột</span>
+                    <span class="sp grow"></span>
+                    <button class="btn mini" id="btn-check">Kiểm an toàn</button>
+                    <button class="btn mini primary" id="btn-describe">Dò cột trả về</button>
+                    <button class="btn mini" id="btn-rows">Xem dữ liệu</button>
+                  </div>
+                  <textarea id="ds-sql" rows="9" spellcheck="false" aria-label="Câu truy vấn"></textarea>
+                  <div id="msg" class="alert" style="margin-top:8px" hidden></div>
+                </div>
+
+                <div id="blk-der" hidden>
+                  <div class="row" style="margin-bottom:8px">
+                    <label class="f"><span>Gộp từ tập</span><select id="der-from" aria-label="Gộp từ tập"></select></label>
+                    <label class="f"><span>Nhóm theo</span><select id="der-group" aria-label="Nhóm theo"></select></label>
+                    <button class="btn mini" id="btn-rows2">Xem kết quả gộp</button>
+                  </div>
+                  <table class="g">
+                    <thead><tr><th style="width:160px">Khoá cột</th><th style="width:104px">Phép</th>
+                      <th style="width:160px">Cột nguồn</th><th>Nhãn</th><th style="width:44px"></th></tr></thead>
+                    <tbody id="derbody"></tbody>
+                  </table>
+                  <div class="row" style="margin-top:8px"><button class="btn mini" id="add-der">+ Thêm cột gộp</button></div>
+                  <div id="msg2" class="alert" style="margin-top:8px" hidden></div>
+                </div>
+
+                <div id="rowsbox" hidden style="margin-top:10px">
+                  <div class="pane"><div class="pane-head">Dữ liệu <span class="sp"></span>
+                    <button class="btn mini" id="rows-close">Đóng</button></div>
+                    <div class="pane-body" style="overflow:auto"><table class="g" id="rowstbl"></table></div></div>
+                </div>
+
+                <div id="blk-cols">
+                  <div class="row" style="margin:14px 0 6px">
+                    <strong style="font-size:13px">Cột trả về</strong>
+                    <span class="chip" id="colcount"></span>
+                    <span class="sp grow"></span>
+                    <span class="note">khoá cột và kiểu do bộ dò điền</span>
+                  </div>
+                  <table class="g">
+                    <thead><tr><th style="width:170px">Khoá cột</th><th style="width:96px">Kiểu</th>
+                      <th>Nhãn tiếng Việt <span class="note">(tuỳ chọn)</span></th>
+                      <th style="width:72px">Bắt buộc</th><th style="width:66px">Bỏ qua</th></tr></thead>
+                    <tbody id="colbody"></tbody>
+                  </table>
+                  <p class="note" style="margin:6px 0 0">
+                    Chỉ hai cột cần người khai: <strong>Nhãn</strong> (để chọn cột cho dễ ở màn ánh xạ) và
+                    <strong>Bắt buộc</strong> (thiếu giá trị thì không gửi gói tin). Đơn vị viết luôn vào nhãn.
+                    Bộ mã là cấu hình của từng đối tác, khai ở phễu lọc.
+                  </p>
+                </div>
+
+                <div class="row" style="margin:14px 0 6px" id="blk-parhead">
+                  <strong style="font-size:13px">Tham số câu truy vấn</strong>
+                  <span class="sp grow"></span><button class="btn mini" id="add-par">+ Thêm</button>
+                </div>
+                <table class="g" id="partbl">
+                  <thead><tr><th style="width:150px">Tên</th><th style="width:100px">Kiểu</th>
+                    <th style="width:180px">Lấy từ</th><th>Ghi chú</th><th style="width:44px"></th></tr></thead>
+                  <tbody id="parbody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="pane" style="margin-top:12px">
+            <div class="pane-head">Ghi ngược (chiều nhận) <span class="sp"></span>
+              <button class="btn mini" id="btn-checkw">Kiểm an toàn câu ghi</button></div>
+            <div class="pane-body">
+              <div class="row" style="margin-bottom:8px">
+                <label class="f"><span>Bảng được phép ghi</span>
+                  <input type="text" id="w-tables" style="width:240px" aria-label="Bảng được phép ghi" /></label>
+                <label class="f"><span>Khoá bản ghi</span>
+                  <input type="text" id="w-keys" style="width:240px" readonly aria-label="Khoá bản ghi" /></label>
+                <span class="note">dò từ mệnh đề <code>USING (SELECT @… )</code></span>
+              </div>
+              <textarea id="w-sql" rows="11" spellcheck="false" aria-label="Câu ghi"></textarea>
+              <div id="msgw" class="alert" style="margin-top:8px" hidden></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="page-mapping">
+
+  <!-- ══════════════════════════ W1 ══════════════════════════ -->
+  <div class="sec">
+    <h2>W1 · Danh sách phễu lọc</h2>
+    <div class="screen">
+      <div class="screen-bar">Phễu lọc chia sẻ dữ liệu <span class="sp"></span>
+        <button class="btn primary">+ Thêm</button>
+      </div>
+      <div class="pad">
+        <div class="row" style="margin-bottom:10px">
+          <label class="f"><span>Từ khoá</span><span class="ctl ph" style="width:150px">tìm mã / tên</span></label>
+          <label class="f"><span>Đối tác</span><span class="ctl sel">Tất cả</span></label>
+          <label class="f"><span>Gói tin</span><span class="ctl sel">Tất cả</span></label>
+          <label class="f"><span>Chiều</span><span class="ctl sel">Tất cả</span></label>
+          <label class="f"><span>Định dạng</span><span class="ctl sel">Tất cả</span></label>
+          <label class="f"><span>Đang dùng</span><span class="ctl sel">Tất cả</span></label>
+          <button class="btn">Tìm</button><button class="btn">Đặt lại</button>
+        </div>
+        <table class="g">
+          <thead><tr>
+            <th>Mã</th><th>Tên</th><th>Đối tác</th><th>Gói tin</th><th>Chiều</th>
+            <th>Định dạng</th><th>Khoá</th><th>Đang dùng</th><th>Thao tác</th>
+          </tr></thead>
+          <tbody>
+            <tr class="sel">
+              <td class="mono">MP01</td><td>Trung tâm QG · gói 101</td><td>TT QLĐHGT QG</td><td class="mono">101</td>
+              <td>Gửi</td><td>DATA</td><td class="mono">5/7</td><td><span class="chip k">✓ bật</span></td>
+              <td><button class="btn">⋯</button></td>
+            </tr>
+            <tr>
+              <td class="mono">MP02</td><td>Trung tâm QG · gói 101</td><td>TT QLĐHGT QG</td><td class="mono">101</td>
+              <td>Nhận</td><td>DATA</td><td class="mono">4/7</td><td><span class="chip k">✓ bật</span></td>
+              <td><button class="btn">⋯</button></td>
+            </tr>
+            <tr>
+              <td class="mono">MP03</td><td>CSGT · gói 101 (v2)</td><td>CSGT</td><td class="mono">101</td>
+              <td>Gửi</td><td>FILE</td><td class="mono">6/9</td><td><span class="chip x">○ tắt</span></td>
+              <td><button class="btn">⋯</button></td>
+            </tr>
+            <tr>
+              <td class="mono">MP04</td><td>Khuôn chung · gói 101</td><td><em>(chung)</em></td><td class="mono">101</td>
+              <td>Gửi</td><td>DATA</td><td class="mono">5/7</td><td><span class="chip x">○ tắt</span></td>
+              <td><button class="btn">⋯</button></td>
+            </tr>
+            <tr>
+              <td class="mono" style="padding-left:22px">└─ MP05</td><td>Sở GTVT · kế thừa MP04</td><td>Sở GTVT</td>
+              <td class="mono">101</td><td>Gửi</td><td>DATA</td><td class="mono">5/7</td>
+              <td><span class="chip x">○ tắt</span></td><td><button class="btn">⋯</button></td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="note" style="margin:8px 0 0">
+          Cột <strong>Khoá</strong> = số khoá lấy dữ liệu / tổng số khoá trong mẫu đối tác (đếm bằng SQL trên bảng
+          dòng ánh xạ, không parse JSON). Menu <span class="mono">⋯</span>: Sửa · Xem trước · Nhân bản ·
+          Kế thừa thành hồ sơ mới · Bật/Tắt · Lịch sử · Xoá.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════ W2 ══════════════════════════ -->
+  <div class="sec">
+    <h2>W2 · Dialog sửa phễu lọc — hồ sơ + ba tab</h2>
+    <div class="hint">Bấm vào tab, đổi ô trong tab “Bảng”, hoặc bấm <span class="mono">⋯</span> trên một lá của cây.</div>
+
+    <div class="screen">
+      <div class="screen-bar">✎ Sửa phễu lọc <span class="sp"></span><span class="note">1400px</span>
+        <button class="btn" aria-label="Đóng">×</button>
+      </div>
+
+      <!-- vùng hồ sơ -->
+      <div class="pad" style="border-bottom:1px solid var(--line); background:#fcfcfd">
+        <div class="row" style="margin-bottom:8px">
+          <label class="f"><span>Mã *</span><span class="ctl mono" style="width:110px">MP01</span></label>
+          <label class="f grow"><span>Tên *</span><span class="ctl grow">Trung tâm QG · gói 101</span></label>
+        </div>
+        <div class="row" style="margin-bottom:8px">
+          <label class="f"><span>Đối tác</span><span class="ctl sel" style="width:210px">Trung tâm QLĐHGT QG</span></label>
+          <label class="f"><span>Gói tin *</span><span class="ctl sel" style="width:230px">101 · Tình trạng giao thông</span></label>
+          <span class="note">khoá khi sửa</span>
+          <label class="f"><span>Phiên bản</span><span class="ctl mono" style="width:70px">1.0</span></label>
+        </div>
+        <div class="row" style="margin-bottom:8px">
+          <label class="f"><span>Chiều *</span>
+            <select id="dir" aria-label="Chiều">
+              <option value="out">Gửi (Outbound)</option>
+              <option value="in">Nhận (Inbound)</option>
+              <option value="both">Hai chiều — một hồ sơ dùng cho cả gửi và nhận</option>
+            </select>
+          </label>
+          <label class="f"><span>Định dạng *</span><span class="ctl sel">DATA</span></label>
+          <label class="f"><span>Kế thừa từ</span><span class="ctl sel" style="width:170px">(không)</span></label>
+          <label class="f"><span>Đang dùng</span><span class="chip k">✓ bật</span></label>
+          <span class="note">Chỉ 1 hồ sơ được bật cho mỗi đối tác × gói tin × chiều</span>
+        </div>
+      </div>
+
+      <!-- tabs -->
+      <div class="tabs" id="dlg-tabs" role="tablist" aria-label="Vùng làm việc">
+        <button class="tab" role="tab" id="tab-map2" aria-controls="p-map2" aria-selected="true">Ánh xạ</button>
+        <button class="tab" role="tab" id="tab-grid" aria-controls="p-grid" aria-selected="false">Bảng <span class="badge" id="b-rows">7</span></button>
+        <button class="tab" role="tab" id="tab-prev" aria-controls="p-prev" aria-selected="false">Kiểm tra</button>
+        <div class="tabstat" id="tabstat"></div>
+      </div>
+
+      <!-- ─── tab Ánh xạ: hai cột nối bằng đường ─── -->
+      <div class="panel" id="p-map2" role="tabpanel" aria-labelledby="tab-map2">
+        <div class="row" style="margin-bottom:8px">
+          <button class="btn" id="btn-sample">Mẫu đối tác…</button>
+          <span class="note" id="samplestat"></span>
+          <span class="sp grow"></span>
+          <span class="chip k" id="mapsel">chưa chọn nguồn</span>
+          <button class="btn" id="map-auto">Tự khớp theo tên</button>
+          <button class="btn" id="map-clear">Bỏ hết nối</button>
+        </div>
+
+        <!-- hộp mẫu đối tác: mở khi cần, không chiếm chỗ thường xuyên -->
+        <div class="pane" id="samplebox" hidden style="margin-bottom:10px">
+          <div class="pane-head">Mẫu JSON đối tác cung cấp <span class="sp"></span>
+            <button class="btn" id="btn-apply-sample">Áp dụng mẫu</button>
+            <button class="btn" id="btn-sample-close">Đóng</button>
+          </div>
+          <div class="pane-body">
+            <textarea id="sampletext" rows="10" spellcheck="false" aria-label="Mẫu JSON đối tác"></textarea>
+            <div id="samplemsg" class="alert" style="margin-top:8px" hidden></div>
+            <p class="note" style="margin:8px 0 0">
+              Lưu nguyên văn vào <code>PartnerSchemaJson</code> — không chèn ký hiệu nào vào đây.
+              Áp dụng mẫu mới sẽ đối chiếu khoá thêm/mất và giữ nguyên các nối còn khớp.
+            </p>
+          </div>
+        </div>
+
+        <div class="mapwrap" id="mapwrap">
+          <div class="mapcols">
+            <div class="pane">
+              <div class="pane-head">Nguồn — cột của gói tin 101 <span class="sp"></span>
+                <span class="note" id="mapleftstat"></span></div>
+              <div class="pane-body" id="mapleft"></div>
+            </div>
+            <div class="pane">
+              <div class="pane-head">Đích — cấu trúc đối tác <span class="sp"></span>
+                <span class="note" id="maprightstat"></span></div>
+              <div class="pane-body" id="mapright"></div>
+            </div>
+          </div>
+          <svg class="maplines" id="maplines" aria-hidden="true"></svg>
+        </div>
+
+        <p class="note" style="margin:10px 0 0">
+          Bấm một dòng bên <strong>trái</strong> rồi bấm một dòng bên <strong>phải</strong> để nối ·
+          <span class="mono">×</span> bỏ nối · <span class="mono">⋯</span> khai luật.
+          Đường liền = lấy nguyên giá trị, đường gạch = có luật quy đổi.
+        </p>
+      </div>
+
+      <!-- ─── tab Bảng ─── -->
+      <div class="panel" id="p-grid" role="tabpanel" aria-labelledby="tab-grid" hidden>
+        <div class="row" style="margin-bottom:8px">
+          <label class="f"><input type="checkbox" id="onlymapped" /> <span>chỉ khoá đã nối</span></label>
+          <span class="ctl ph" style="width:170px">tìm khoá / cột</span>
+          <span class="sp grow"></span>
+          <span class="note" id="gridstat"></span>
+        </div>
+        <div class="row" style="margin-bottom:8px; padding:6px 8px; background:#f7f8fa; border:1px solid var(--line); border-radius:4px">
+          <span class="note">Sửa nhiều dòng đã chọn:</span>
+          <span class="ctl sel">Kiểu ra</span><span class="ctl sel">Bộ mã</span>
+          <button class="btn">Áp dụng</button>
+        </div>
+
+        <table class="g" id="grid">
+          <thead><tr>
+            <th style="width:26px"><input type="checkbox" aria-label="Chọn tất cả" /></th>
+            <th style="width:270px">Khoá đối tác</th>
+            <th style="width:230px">Lấy từ</th>
+            <th>Luật quy đổi</th>
+            <th style="width:34px">⚠</th>
+          </tr></thead>
+          <tbody id="gridbody"></tbody>
+        </table>
+
+        <div class="row" style="margin-top:8px">
+          <button class="btn">Bỏ ánh xạ dòng đã chọn</button>
+          <button class="btn">Dán từ Excel</button>
+        </div>
+        <p class="note" style="margin:8px 0 0">
+          Danh sách khoá <strong>do mẫu đối tác quyết định</strong> — không thêm/xoá dòng ở đây; muốn thêm khoá
+          thì sửa mẫu ở nút <strong>Mẫu đối tác…</strong> (tab Ánh xạ). “Bỏ ánh xạ” đưa dòng về
+          <em>hằng số từ mẫu</em>. Ba cột: <strong>khoá đối tác</strong> (đường dẫn đầy đủ, thụt theo cấp),
+          <strong>lấy từ</strong> (một ô chọn phân nhóm), <strong>luật quy đổi</strong> (chip · phép gộp ·
+          <span class="mono">⋯</span> để khai chi tiết). Dòng trỏ vào khoá không còn trong mẫu bị gạch ngang
+          kèm <span class="chip w">⚠</span>.
+        </p>
+      </div>
+
+      <!-- ─── tab Xem trước ─── -->
+      <div class="panel" id="p-prev" role="tabpanel" aria-labelledby="tab-prev" hidden>
+        <div class="row" style="margin-bottom:10px">
+          <span class="note">Dữ liệu thật</span>
+          <span class="chip">records · 3 dòng</span><span class="chip">totals · 1 dòng</span>
+          <span class="sp grow"></span>
+          <span class="note">Bản ghi</span>
+          <button class="btn" id="prev-">◀</button>
+          <span class="mono" id="recno">1/3</span>
+          <button class="btn" id="prev+">▶</button>
+          <span class="chip k" id="prevkey"></span>
+        </div>
+        <p class="note" style="margin:-4px 0 10px">
+          Bộ chuyển bản ghi chạy trên tập lớn nhất. Tập ít dòng hơn (VD <code>totals</code> chỉ 1 dòng) được
+          kẹp lại ở dòng cuối — cột <strong>Tập</strong> cho biết mỗi khoá lấy dòng của tập nào.
+        </p>
+
+        <table class="g" id="trace">
+          <thead><tr><th>Khoá đích</th><th style="width:86px">Tập</th><th style="width:170px">Giá trị gốc</th>
+            <th style="width:190px">Giá trị gửi đi</th><th style="width:260px">Luật đã áp</th></tr></thead>
+          <tbody id="tracebody"></tbody>
+        </table>
+
+        <div class="pane" style="margin-top:12px">
+          <div class="pane-head">Payload gửi đi <span class="sp"></span>
+            <button class="btn">So với mẫu đối tác</button><button class="btn">Sao chép</button>
+          </div>
+          <div class="pane-body"><textarea rows="12" readonly id="payload" aria-label="Payload gửi đi"></textarea></div>
+        </div>
+
+        <div id="reverse" hidden style="margin-top:12px">
+          <div class="alert">
+            Chiều <strong>Nhận</strong>: tab này đổi thành <strong>xem trước ngược</strong> — dán payload đối tác gửi về,
+            hệ thống hiện bản ghi suy ra, câu <code>WriteSql</code> sẽ chạy và bảng tham số đã bind.
+            <span class="chip">execute = false</span> là mặc định, không ghi CSDL.
+          </div>
+          <div class="cols" style="margin-top:10px">
+            <div class="pane">
+              <div class="pane-head">Payload đối tác gửi về</div>
+              <div class="pane-body"><textarea rows="9" spellcheck="false" aria-label="Payload đối tác gửi về">{
+  "Provider": "PARTNER1",
+  "Records": [
+    { "Name": "Liêm Tuyền – Cao Bồ", "Code": "1B", "Type": "22",
+      "Speed": 47.5, "Time": "09/09/2026 22:30:00", "Note": "cập nhật" }
+  ]
+}</textarea></div>
+            </div>
+            <div class="pane">
+              <div class="pane-head">Bản ghi suy ra <span class="sp"></span><span class="note">khoá: segmentCode · measuredAt</span></div>
+              <div class="pane-body">
+                <table class="g">
+                  <thead><tr><th>Trường</th><th>Giá trị</th><th>Bước đã áp</th></tr></thead>
+                  <tbody>
+                    <tr><td class="mono">segmentCode</td><td class="mono">1B</td><td class="note">—</td></tr>
+                    <tr><td class="mono">trafficCond</td><td class="mono">2</td><td class="note">bộ mã ngược TYPE_B_P1 (22 → 2)</td></tr>
+                    <tr><td class="mono">avgSpeed</td><td class="mono">47.5</td><td class="note">số</td></tr>
+                    <tr><td class="mono">measuredAt</td><td class="mono">2026-09-09 22:30:00</td><td class="note">ngày dd/MM/yyyy HH:mm:ss</td></tr>
+                    <tr><td class="mono" style="text-decoration:line-through">segmentName</td><td class="note">bỏ</td>
+                        <td class="note">chiều nhận bỏ qua (bảng tra)</td></tr>
+                  </tbody>
+                </table>
+                <div class="pane" style="margin-top:10px">
+                  <div class="pane-head">Câu SQL sẽ chạy (chỉ hiển thị)</div>
+                  <div class="pane-body"><pre style="margin:0; white-space:pre-wrap">MERGE dbo.TmsZoneStatus AS t
+USING (SELECT @segmentCode, @measuredAt) AS s ON …
+WHEN MATCHED THEN UPDATE SET t.TrafficCondition = @trafficCond, …
+WHEN NOT MATCHED THEN INSERT (…) VALUES (…);</pre></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- chân dialog -->
+      <div class="pad" style="border-top:1px solid var(--line); background:#f7f8fa; display:flex; gap:8px; align-items:center">
+        <span class="sp grow"></span>
+        <button class="btn">Huỷ</button>
+        <button class="btn primary">Lưu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════ W7 ══════════════════════════ -->
+  <div class="sec">
+    <h2>W7 · Cấu trúc lưu trữ và chuyển giao — một khối duy nhất</h2>
+    <div class="hint">
+      Bản trước lưu mỗi khoá thành một đối tượng với hơn mười thuộc tính tuỳ chọn, đọc rất nặng.
+      Nay mỗi khoá là <strong>một dòng chữ</strong>: <code>"khoá": "nguồn | luật | luật"</code>.
+      Người đọc được, máy phân tích được, và cũng chính là bản dùng để soát trong Git — không còn hai định dạng.
+    </div>
+    <div class="screen">
+      <div class="tabs" id="w7-tabs" role="tablist" aria-label="Gói cấu hình">
+        <button class="tab" role="tab" id="w7-t1" aria-controls="w7-p1" aria-selected="true">Gói cấu hình</button>
+        <button class="tab" role="tab" id="w7-t2" aria-controls="w7-p2" aria-selected="false">C# · Đọc &amp; phân tích</button>
+        <button class="tab" role="tab" id="w7-t3" aria-controls="w7-p3" aria-selected="false">C# · Dựng payload</button>
+        <button class="tab" role="tab" id="w7-t4" aria-controls="w7-p4" aria-selected="false">C# · Chiều nhận</button>
+      </div>
+
+      <div class="panel" id="w7-p1" role="tabpanel" aria-labelledby="w7-t1">
+        <div class="row" style="margin-bottom:8px">
+          <span class="note" id="iostat"></span>
+          <span class="sp grow"></span>
+          <button class="btn" id="io-reset">Dựng lại từ cấu hình hiện tại</button>
+          <button class="btn" id="io-check">Kiểm tra (dryRun)</button>
+          <button class="btn primary" id="io-apply">Áp dụng</button>
+        </div>
+        <textarea rows="18" id="textio" aria-label="Gói cấu hình"></textarea>
+        <div id="iomsg" class="alert" style="margin-top:8px" hidden></div>
+        <p class="note" style="margin:8px 0 0">
+          Cú pháp một dòng: <code>tập.cột</code> · <code>count(tập)</code> · <code>max(tập.cột)</code> ·
+          <code>$meta.now</code> · <code>each tập</code> · <code>drop</code> · <code>= "hằng"</code>, nối thêm luật
+          bằng <code>|</code>: <code>code TÊN_BỘ_MÃ</code> · <code>text|num|date [định dạng]</code> ·
+          <code>expr "div(3.6) | round(1)"</code> · <code>else 0</code> · <code>key</code> · <code>skip-in</code>.
+          Khoá không có dòng nghĩa là lấy nguyên giá trị trong mẫu.
+        </p>
+      </div>
+
+      <div class="panel" id="w7-p2" role="tabpanel" aria-labelledby="w7-t2" hidden>
+        <p class="note" style="margin:0 0 8px">
+          <code>Module.ShareData.Core/Dto/Transform/ShareDataBinding.cs</code> ·
+          <code>Module.ShareData/Infrastructure/Services/Transform/ShareDataExprParser.cs</code> ·
+          <code>…/ShareDataMappingPlanProvider.cs</code> — đọc 2 cột <code>TargetPath</code> + <code>Expr</code>
+          của <code>ShareDataMappingBinding</code> rồi phân tích một lần, cache theo <code>ID + UpdateTime</code>.
+        </p>
+        <textarea rows="34" readonly class="mp-json" aria-label="C# đọc và phân tích cấu hình">
+namespace Module.ShareData.Core.Dto.Transform;
+
+/// <summary>
+/// Author: {Người thực hiện}
+/// Description: Một dòng ánh xạ đã phân tích. Bản ghi bất biến để cache an toàn giữa các request.
+///              Nguồn lưu trữ chỉ là 2 cột: TargetPath + Expr (chuỗi một dòng ở tab "Gói cấu hình").
+/// Created date: dd/MM/yyyy
+/// </summary>
+public sealed record ShareDataBinding(string TargetPath)
+{
+    public string Kind { get; init; } = "field";      // field | agg | system | const | exclude | repeat
+    public string? Dataset { get; init; }
+    public string? Field { get; init; }
+    public string? Agg { get; init; }                 // count | sum | avg | min | max
+    public string? SystemKey { get; init; }           // now | serial | partnerCode | packetCode
+    public JToken? ConstValue { get; init; }
+    public string? CodeSet { get; init; }
+    public string? TargetType { get; init; }          // string | number | datetime | bool
+    public string? Format { get; init; }
+    public string? Expression { get; init; }
+    public string? InverseExpression { get; init; }
+    public string? DefaultValue { get; init; }
+    public bool IsRecordKey { get; init; }
+    public bool InboundIgnore { get; init; }
+    public string? GroupBy { get; init; }
+}
+
+/// <summary>Kế hoạch ánh xạ đã sẵn sàng chạy: mẫu đối tác + từ điển đường dẫn → dòng ánh xạ.</summary>
+public sealed class ShareDataMappingPlan
+{
+    public required JToken Sample { get; init; }
+    public required IReadOnlyDictionary&lt;string, ShareDataBinding&gt; Map { get; init; }
+    public required ShareDataPacketSchema Schema { get; init; }
+}
+
+namespace Module.ShareData.Infrastructure.Services.Transform;
+
+/// <summary>
+/// Author: {Người thực hiện}
+/// Description: Phân tích / sinh lại chuỗi một dòng. ĐÂY là điểm duy nhất hiểu cú pháp — cả validator,
+///              engine gửi, engine nhận và bộ xuất gói cấu hình đều đi qua lớp này.
+/// Created date: dd/MM/yyyy
+/// </summary>
+public static class ShareDataExprParser
+{
+    /// <summary>Tách theo '|' nhưng BỎ QUA dấu | nằm trong ngoặc kép — biểu thức có thể là "div(3.6) | round(1)".</summary>
+    private static List&lt;string&gt; SplitTop(string s)
+    {
+        var parts = new List&lt;string&gt;();
+        var buf = new StringBuilder();
+        var inQuote = false;
+
+        foreach (var ch in s)
+        {
+            if (ch == '"') { inQuote = !inQuote; buf.Append(ch); continue; }
+            if (ch == '|' &amp;&amp; !inQuote) { parts.Add(buf.ToString().Trim()); buf.Clear(); continue; }
+            buf.Append(ch);
+        }
+        parts.Add(buf.ToString().Trim());
+        return parts.Where(p =&gt; p.Length &gt; 0).ToList();
+    }
+
+    private static readonly Regex AggRe = new(@"^(count|sum|avg|min|max)\(([^)]*)\)$", RegexOptions.Compiled);
+
+    /// <summary>Bản cú pháp khối map mà bộ đọc này hiểu. Gói ghi mapVersion cao hơn thì từ chối nạp.</summary>
+    public const int MapVersion = 1;
+
+    private enum Arg { None, Need, Optional }
+
+    /// <summary>
+    /// Bảng luật: luật nào dùng được cho loại nguồn nào và có cần giá trị hay không.
+    /// Có bảng này thì bắt được ba loại sai mà switch trần để lọt: luật lạ, luật đặt sai loại nguồn
+    /// (VD "drop | key", "each records | code X"), và khai trùng luật (VD "| num | date").
+    /// </summary>
+    private static readonly Dictionary&lt;string, (Arg Arg, string[] Heads)&gt; RuleSpec = new()
+    {
+        ["by"]      = (Arg.Need,     new[] { "repeat" }),
+        ["code"]    = (Arg.Need,     Value),
+        ["text"]    = (Arg.None,     Value),
+        ["bool"]    = (Arg.None,     Value),
+        ["num"]     = (Arg.Optional, Value),
+        ["date"]    = (Arg.Optional, Value),
+        ["fmt"]     = (Arg.Need,     Value),
+        ["expr"]    = (Arg.Need,     Value),
+        ["inv"]     = (Arg.Need,     Value),
+        ["else"]    = (Arg.Need,     Value),
+        ["key"]     = (Arg.None,     new[] { "field" }),
+        ["skip-in"] = (Arg.None,     new[] { "field" }),
+    };
+    private static readonly string[] Value = { "field", "agg", "system" };
+    private static readonly string[] TypeRules = { "text", "bool", "num", "date" };
+
+    public static ShareDataBinding Parse(string targetPath, string expr)
+    {
+        // Bỏ phần ghi chú sau '#' (bộ xuất gói dùng để đánh dấu khoá không còn trong mẫu).
+        var clean = Regex.Replace(expr, @"\s+#.*$", string.Empty);
+        var parts = SplitTop(clean);
+        if (parts.Count == 0) throw Oops.Oh(BaseMsg.ShareData.Exception.MappingShapeInvalid, targetPath);
+
+        var b = ParseHead(targetPath, parts[0]);
+        var seen = new HashSet&lt;string&gt;(StringComparer.OrdinalIgnoreCase);
+        string? typeRule = null;
+
+        foreach (var raw in parts.Skip(1))
+        {
+            var (key, value) = SplitOnce(raw);
+            key = key.ToLowerInvariant();
+
+            if (!RuleSpec.TryGetValue(key, out var spec))
+                throw Oops.Oh(BaseMsg.ShareData.Exception.MappingRuleUnknown, targetPath, key);
+            if (!spec.Heads.Contains(b.Kind))
+                throw Oops.Oh(BaseMsg.ShareData.Exception.MappingRuleNotAllowed, targetPath, key, b.Kind);
+            if (!seen.Add(key))
+                throw Oops.Oh(BaseMsg.ShareData.Exception.MappingRuleDuplicated, targetPath, key);
+            if (spec.Arg == Arg.Need &amp;&amp; value.Length == 0)
+                throw Oops.Oh(BaseMsg.ShareData.Exception.MappingRuleNeedsValue, targetPath, key);
+            if (spec.Arg == Arg.None &amp;&amp; value.Length &gt; 0)
+                throw Oops.Oh(BaseMsg.ShareData.Exception.MappingRuleTakesNoValue, targetPath, key);
+            if (TypeRules.Contains(key))
+            {
+                if (typeRule is not null)
+                    throw Oops.Oh(BaseMsg.ShareData.Exception.MappingTwoTypes, targetPath, typeRule, key);
+                typeRule = key;
+            }
+
+            var v = Unquote(value);
+            b = key switch
+            {
+                "by"      =&gt; b with { GroupBy = v },
+                "code"    =&gt; b with { CodeSet = v },
+                "text"    =&gt; b with { TargetType = "string" },
+                "bool"    =&gt; b with { TargetType = "bool" },
+                "num"     =&gt; b with { TargetType = "number",   Format = NullIfEmpty(v) },
+                "date"    =&gt; b with { TargetType = "datetime", Format = NullIfEmpty(v) },
+                "fmt"     =&gt; b with { Format = v },
+                "expr"    =&gt; b with { Expression = v },
+                "inv"     =&gt; b with { InverseExpression = v },
+                "else"    =&gt; b with { DefaultValue = v },
+                "key"     =&gt; b with { IsRecordKey = true },
+                "skip-in" =&gt; b with { InboundIgnore = true },
+                _ =&gt; b,
+            };
+        }
+        return b;
+    }
+
+    private static ShareDataBinding ParseHead(string path, string head)
+    {
+        if (head == "drop")
+            return new ShareDataBinding(path) { Kind = "exclude" };
+
+        if (head.StartsWith("each ", StringComparison.OrdinalIgnoreCase))
+            return new ShareDataBinding(path) { Kind = "repeat", Dataset = head[5..].Trim() };
+
+        if (head.StartsWith("="))
+            return new ShareDataBinding(path) { Kind = "const", ConstValue = ParseJsonLiteral(head[1..].Trim()) };
+
+        if (head.StartsWith("$meta."))
+            return new ShareDataBinding(path) { Kind = "system", SystemKey = head[6..] };
+
+        var m = AggRe.Match(head);
+        if (m.Success)
+        {
+            var arg = m.Groups[2].Value.Split('.', 2);
+            return new ShareDataBinding(path)
+            {
+                Kind = "agg", Agg = m.Groups[1].Value,
+                Dataset = arg[0], Field = arg.Length &gt; 1 ? arg[1] : null,
+            };
+        }
+
+        var dot = head.IndexOf('.');
+        if (dot &lt;= 0) throw Oops.Oh(BaseMsg.ShareData.Exception.MappingShapeInvalid, path);
+        return new ShareDataBinding(path) { Kind = "field", Dataset = head[..dot], Field = head[(dot + 1)..] };
+    }
+
+    /// <summary>Sinh lại chuỗi một dòng — dùng khi xuất gói cấu hình và khi ghi vào cột Expr.</summary>
+    public static string ToExpr(ShareDataBinding b)
+    {
+        if (b.Kind == "exclude") return "drop";
+        if (b.Kind == "repeat")  return $"each {b.Dataset}" + (b.GroupBy is null ? "" : $" | by {b.GroupBy}");
+        if (b.Kind == "const")   return "= " + (b.ConstValue?.ToString(Formatting.None) ?? "\"\"");
+
+        var parts = new List&lt;string&gt;
+        {
+            b.Kind switch
+            {
+                "system" =&gt; $"$meta.{b.SystemKey}",
+                "agg"    =&gt; $"{b.Agg}({b.Dataset}{(b.Field is null ? "" : "." + b.Field)})",
+                _        =&gt; $"{b.Dataset}.{b.Field}",
+            }
+        };
+        if (b.CodeSet is not null) parts.Add($"code {b.CodeSet}");
+        if (b.TargetType == "number")   parts.Add("num" + (b.Format is null ? "" : " " + b.Format));
+        if (b.TargetType == "datetime") parts.Add("date" + (b.Format is null ? "" : " " + b.Format));
+        if (b.TargetType == "string")   parts.Add("text");
+        if (b.TargetType == "bool")     parts.Add("bool");
+        if (b.TargetType is null &amp;&amp; b.Format is not null) parts.Add($"fmt {b.Format}");
+        if (b.Expression is not null)   parts.Add($"expr {QuoteIf(b.Expression)}");
+        if (b.InverseExpression is not null) parts.Add($"inv {QuoteIf(b.InverseExpression)}");
+        if (b.DefaultValue is not null) parts.Add($"else {QuoteIf(b.DefaultValue)}");
+        if (b.IsRecordKey)    parts.Add("key");
+        if (b.InboundIgnore)  parts.Add("skip-in");
+        return string.Join(" | ", parts);
+    }
+
+    private static string QuoteIf(string v) =&gt; v.Contains('|') || v.Contains('"') ? JsonConvert.ToString(v) : v;
+    private static string Unquote(string v) =&gt;
+        v.Length &gt; 1 &amp;&amp; v[0] == '"' &amp;&amp; v[^1] == '"' ? JsonConvert.DeserializeObject&lt;string&gt;(v)! : v;
+    private static string? NullIfEmpty(string v) =&gt; string.IsNullOrWhiteSpace(v) ? null : v;
+    private static (string Key, string Value) SplitOnce(string s)
+    {
+        var i = s.IndexOf(' ');
+        return i &lt; 0 ? (s, string.Empty) : (s[..i], s[(i + 1)..].Trim());
+    }
+    private static JToken ParseJsonLiteral(string s)
+    {
+        try { return JToken.Parse(s); } catch { return new JValue(s); }
+    }
+}
+
+/// <summary>
+/// Author: {Người thực hiện}
+/// Description: Nạp kế hoạch ánh xạ từ CSDL. Phân tích Expr MỘT lần rồi cache theo ID + UpdateTime,
+///              nên bản cấu hình mới luôn có khoá cache mới — không phụ thuộc việc xoá cache.
+/// Created date: dd/MM/yyyy
+/// </summary>
+public class ShareDataMappingPlanProvider : IScoped
+{
+    private readonly BaseRepository&lt;ShareDataMapping&gt; _mappingRep;
+    private readonly BaseRepository&lt;ShareDataMappingBinding&gt; _bindingRep;
+    private readonly ShareDataPacketSchemaProvider _schemaProvider;
+    private readonly BaseCacheService _cache;
+
+    public async Task&lt;ShareDataMappingPlan&gt; GetAsync(
+        string partnerId, string packetCode, BaseEnums.Direction direction, BaseEnums.PublishFormat format)
+    {
+        // Hồ sơ hai chiều (Both) phủ cả gửi và nhận.
+        var mapping = await _mappingRep.AsQueryable()
+            .Where(u =&gt; u.IsDelete == null &amp;&amp; u.IsActive == true
+                     &amp;&amp; u.PartnerId == partnerId &amp;&amp; u.DatatypeId == packetCode
+                     &amp;&amp; (u.Direction == direction || u.Direction == BaseEnums.Direction.Both)
+                     &amp;&amp; u.Format == format)
+            .FirstAsync()
+            ?? throw Oops.Oh(BaseMsg.ShareData.Exception.MappingNotResolved);
+
+        return await _cache.GetOrAdd(
+            $"{CacheConst.ShareData.ShareDataMapping}:plan:{mapping.ID}:{mapping.UpdateTime?.Ticks ?? 0}",
+            async _ =&gt;
+            {
+                var rows = await _bindingRep.AsQueryable()
+                    .Where(u =&gt; u.IsDelete == null &amp;&amp; u.MappingId == mapping.ID)
+                    .OrderBy(u =&gt; u.OrderNo)
+                    .ToListAsync();
+
+                var map = new Dictionary&lt;string, ShareDataBinding&gt;(StringComparer.Ordinal);
+                foreach (var r in rows)
+                    map[r.TargetPath!] = ShareDataExprParser.Parse(r.TargetPath!, r.Expr!);
+
+                return new ShareDataMappingPlan
+                {
+                    Sample = JToken.Parse(mapping.PartnerSchemaJson ?? "{}", ShareDataJson.LoadSettings),
+                    Map = map,
+                    Schema = await _schemaProvider.GetAsync(packetCode),
+                };
+            });
+    }
+}
+</textarea>
+      </div>
+
+      <div class="panel" id="w7-p3" role="tabpanel" aria-labelledby="w7-t3" hidden>
+        <p class="note" style="margin:0 0 8px">
+          <code>…/Transform/ShareDataOutboundTransformer.cs</code> — đi cây <strong>mẫu đối tác</strong> và tra
+          từ điển theo đường dẫn. Đây là bản C# của đúng hàm <code>buildPayload()</code> đang chạy ở tab Kiểm tra:
+          thứ tự phép biến đổi <strong>rỗng→mặc định · biểu thức · bộ mã · kiểu+định dạng</strong> phải giữ nguyên,
+          vì chiều nhận đảo lại đúng thứ tự này.
+        </p>
+        <textarea rows="34" readonly class="mp-json" aria-label="C# dựng payload">
+namespace Module.ShareData.Infrastructure.Services.Transform;
+
+/// <summary>
+/// Author: {Người thực hiện}
+/// Description: Dựng payload chiều gửi. Hình dạng đầu ra lấy từ mẫu đối tác; mỗi khoá tra một dòng
+///              ánh xạ theo đường dẫn JSON Pointer ('*' = phần tử của mảng lặp).
+/// Created date: dd/MM/yyyy
+/// </summary>
+public class ShareDataOutboundTransformer : IShareDataOutboundTransformer, IScoped
+{
+    private readonly ShareDataCodeSetResolver _codeSets;
+    private readonly ShareDataValueConverter _converter;
+    private readonly ShareDataExpressionEngine _expressions;
+
+    public async Task&lt;ShareDataTransformResult&gt; BuildAsync(
+        ShareDataMappingPlan plan, ShareDataDataSet data, CancellationToken ct = default)
+    {
+        var ctx = new Ctx
+        {
+            Plan = plan,
+            Data = data,
+            CodeSets = await _codeSets.LoadAsync(
+                plan.Map.Values.Select(b =&gt; b.CodeSet).Where(c =&gt; c is not null)!, ct),
+            Result = new ShareDataTransformResult(),
+        };
+
+        ctx.Result.Payload = WalkObject((JObject)plan.Sample, string.Empty, row: null, ctx);
+        ValidateRequired(ctx);
+        return ctx.Result;
+    }
+
+    private JToken? Walk(JToken node, string path, ShareDataRecord? row, Ctx ctx) =&gt; node switch
+    {
+        JObject obj =&gt; WalkObject(obj, path, row, ctx),
+        JArray arr  =&gt; WalkArray(arr, path, row, ctx),
+        _           =&gt; LeafValue(node, path, row, ctx),
+    };
+
+    private JObject WalkObject(JObject obj, string path, ShareDataRecord? row, Ctx ctx)
+    {
+        var output = new JObject();
+        foreach (var prop in obj.Properties())
+        {
+            var childPath = $"{path}/{prop.Name}";
+
+            // 'drop' = BỎ HẲN khoá, khác với gửi null. Trộn hai thứ này là lỗi hay gặp nhất.
+            if (ctx.Plan.Map.TryGetValue(childPath, out var b) &amp;&amp; b.Kind == "exclude") continue;
+
+            var child = Walk(prop.Value, childPath, row, ctx);
+            if (child is not null) output[prop.Name] = child;
+        }
+        return output;
+    }
+
+    private JToken WalkArray(JArray arr, string path, ShareDataRecord? row, Ctx ctx)
+    {
+        // Nút mảng có dòng 'each &lt;tập&gt;' thì NHÂN theo từng dòng của tập đó; phần tử [0] của mẫu là khuôn.
+        if (ctx.Plan.Map.TryGetValue(path, out var b) &amp;&amp; b.Kind == "repeat")
+        {
+            var rows = ctx.Data.Rows(b.Dataset!, b.GroupBy);
+            var output = new JArray();
+            foreach (var r in rows)
+                output.Add(Walk(arr.First!, $"{path}/*", r, ctx));
+            return output;
+        }
+
+        // Mảng hằng: giữ nguyên từng phần tử theo chỉ số thật.
+        var constArr = new JArray();
+        for (var i = 0; i &lt; arr.Count; i++)
+        {
+            var child = Walk(arr[i], $"{path}/{i}", row, ctx);
+            if (child is not null) constArr.Add(child);
+        }
+        return constArr;
+    }
+
+    /// <summary>Khoá lá: không có dòng ánh xạ thì lấy nguyên giá trị trong mẫu (hằng số).</summary>
+    private JToken LeafValue(JToken sampleValue, string path, ShareDataRecord? row, Ctx ctx)
+    {
+        if (!ctx.Plan.Map.TryGetValue(path, out var b)) return sampleValue.DeepClone();
+
+        var trace = new ShareDataTransformTrace { TargetPath = path, FieldKey = b.Field };
+        object? value;
+
+        switch (b.Kind)
+        {
+            case "const":  return b.ConstValue?.DeepClone() ?? JValue.CreateNull();
+            case "system": value = ctx.Meta(b.SystemKey!); break;
+
+            case "agg":
+                // count không cần cột; sum/avg/min/max BẮT BUỘC có cột số — validator đã chặn khi lưu.
+                value = ctx.Data.Aggregate(b.Agg!, b.Dataset!, b.Field);
+                break;
+
+            default:
+                value = row?.Get(b.Field!);
+                break;
+        }
+
+        // Thứ tự cố định — chiều nhận đảo lại đúng bốn bước này.
+        if (IsEmpty(value) &amp;&amp; b.DefaultValue is not null) value = b.DefaultValue;
+        if (b.Expression is not null) value = _expressions.Apply(value, b.Expression, forward: true);
+        if (b.CodeSet is not null)    value = _codeSets.MapForward(ctx.CodeSets, b.CodeSet, value, ctx.Result, path);
+
+        var token = _converter.ToToken(value, b.TargetType, b.Format, ctx.Result, path);
+
+        trace.RawValue = Convert.ToString(row?.Get(b.Field ?? string.Empty), CultureInfo.InvariantCulture);
+        trace.FinalValue = token.Type == JTokenType.Null ? null : token.ToString();
+        trace.AppliedRules = ShareDataExprParser.ToExpr(b);
+        ctx.Result.Traces.Add(trace);
+        return token;
+    }
+
+    /// <summary>Field bắt buộc mà rỗng thì KHÔNG gửi gói tin — đúng cờ "Bắt buộc" khai ở màn Gói tin.</summary>
+    private static void ValidateRequired(Ctx ctx)
+    {
+        foreach (var b in ctx.Plan.Map.Values.Where(x =&gt; x.Kind == "field"))
+        {
+            var col = ctx.Plan.Schema.Column(b.Dataset!, b.Field!);
+            if (col?.IsRequired != true) continue;
+
+            foreach (var r in ctx.Data.Rows(b.Dataset!, null))
+                if (IsEmpty(r.Get(b.Field!)))
+                    ctx.Result.Errors.Add(ShareDataTransformIssue.Of(
+                        b.TargetPath, BaseMsg.ShareData.Exception.PacketRequiredFieldMissing, b.Field!));
+        }
+    }
+
+    private static bool IsEmpty(object? v) =&gt; v is null or DBNull || (v is string s &amp;&amp; s.Length == 0);
+
+    private sealed class Ctx
+    {
+        public required ShareDataMappingPlan Plan { get; init; }
+        public required ShareDataDataSet Data { get; init; }
+        public required IReadOnlyDictionary&lt;string, ShareDataCodeMap&gt; CodeSets { get; init; }
+        public required ShareDataTransformResult Result { get; init; }
+        public object? Meta(string key) =&gt; key switch
+        {
+            "now"         =&gt; BaseUtil.TimeServer.GetTimeServer(),
+            "serial"      =&gt; Data.Serial,
+            "partnerCode" =&gt; Data.PartnerCode,
+            "packetCode"  =&gt; Data.PacketCode,
+            _ =&gt; null,
+        };
+    }
+}
+</textarea>
+      </div>
+
+      <div class="panel" id="w7-p4" role="tabpanel" aria-labelledby="w7-t4" hidden>
+        <p class="note" style="margin:0 0 8px">
+          <code>…/Transform/ShareDataInboundTransformer.cs</code> — đi <strong>song song</strong> mẫu đối tác và
+          payload nhận được, đảo đúng bốn bước theo chiều ngược. Cùng một cấu hình, không có bản khai thứ hai.
+        </p>
+        <textarea rows="30" readonly class="mp-json" aria-label="C# chiều nhận">
+namespace Module.ShareData.Infrastructure.Services.Transform;
+
+/// <summary>
+/// Author: {Người thực hiện}
+/// Description: Quy đổi payload đối tác về bản ghi phẳng. Dùng CHÍNH kế hoạch ánh xạ của chiều gửi
+///              (hoặc hồ sơ Direction = Both), nên không thể lệch giữa hai chiều.
+/// Created date: dd/MM/yyyy
+/// </summary>
+public class ShareDataInboundTransformer : IShareDataInboundTransformer, IScoped
+{
+    private readonly ShareDataCodeSetResolver _codeSets;
+    private readonly ShareDataValueConverter _converter;
+    private readonly ShareDataExpressionEngine _expressions;
+
+    public async Task&lt;ShareDataInboundResult&gt; ParseAsync(
+        JToken payload, ShareDataMappingPlan plan, CancellationToken ct = default)
+    {
+        var result = new ShareDataInboundResult();
+        var codeSets = await _codeSets.LoadAsync(
+            plan.Map.Values.Select(b =&gt; b.CodeSet).Where(c =&gt; c is not null)!, ct);
+
+        // Nút mảng nào có 'each' thì đó là nơi chứa bản ghi; ngoài mảng là giá trị dùng chung.
+        var repeatPath = plan.Map.Values.FirstOrDefault(b =&gt; b.Kind == "repeat")?.TargetPath;
+
+        if (repeatPath is null)
+        {
+            var single = new ShareDataRecord();
+            WalkPair(plan.Sample, payload, string.Empty, single, plan, codeSets, result);
+            result.Records.Add(single);
+            return result;
+        }
+
+        var shared = new ShareDataRecord();
+        WalkPair(plan.Sample, payload, string.Empty, shared, plan, codeSets, result, skip: repeatPath);
+
+        var template = plan.Sample.SelectToken(ToJsonPath(repeatPath))!.First!;
+        var items = payload.SelectToken(ToJsonPath(repeatPath)) as JArray ?? new JArray();
+
+        foreach (var item in items)
+        {
+            var record = shared.Clone();
+            WalkPair(template, item, $"{repeatPath}/*", record, plan, codeSets, result);
+            result.Records.Add(record);
+        }
+        return result;
+    }
+
+    private void WalkPair(JToken shape, JToken? data, string path, ShareDataRecord record,
+                          ShareDataMappingPlan plan, IReadOnlyDictionary&lt;string, ShareDataCodeMap&gt; codeSets,
+                          ShareDataInboundResult result, string? skip = null)
+    {
+        if (skip is not null &amp;&amp; path == skip) return;
+
+        switch (shape)
+        {
+            case JObject obj:
+                foreach (var prop in obj.Properties())
+                    WalkPair(prop.Value, data?[prop.Name], $"{path}/{prop.Name}",
+                             record, plan, codeSets, result, skip);
+                return;
+
+            case JArray:                       // mảng hằng — không sinh giá trị nào
+                return;
+
+            default:
+                ReadLeaf(path, data, record, plan, codeSets, result);
+                return;
+        }
+    }
+
+    private void ReadLeaf(string path, JToken? data, ShareDataRecord record, ShareDataMappingPlan plan,
+                          IReadOnlyDictionary&lt;string, ShareDataCodeMap&gt; codeSets, ShareDataInboundResult result)
+    {
+        if (!plan.Map.TryGetValue(path, out var b)) return;          // hằng số trong mẫu: không ghi lại
+        if (b.Kind is "exclude" or "const" or "system" or "agg") return;  // không phải dữ liệu của bản ghi
+        if (b.InboundIgnore) return;                                 // 'skip-in'
+
+        object? value = data is null || data.Type == JTokenType.Null ? null : ((JValue)data).Value;
+
+        // Đảo ngược ĐÚNG bốn bước của chiều gửi, theo thứ tự ngược lại.
+        value = _converter.FromToken(value, b.TargetType, b.Format, result, path);
+        if (b.CodeSet is not null) value = _codeSets.MapReverse(codeSets, b.CodeSet, value, result, path);
+
+        if (b.InverseExpression is not null)
+            value = _expressions.Apply(value, b.InverseExpression, forward: true);
+        else if (b.Expression is not null)
+            value = _expressions.Apply(value, b.Expression, forward: false);   // ném ESH-2302 nếu không đảo được
+
+        var col = plan.Schema.Column(b.Dataset!, b.Field!);
+        value = _converter.CoerceToColumnType(value, col?.DataType, result, path);
+
+        if (IsEmpty(value) &amp;&amp; col?.IsRequired == true)
+            result.Errors.Add(ShareDataTransformIssue.Of(
+                path, BaseMsg.ShareData.Exception.InboundRequiredFieldMissing, b.Field!));
+
+        record.Set(b.Field!, value);
+        if (b.IsRecordKey) result.KeyFieldKeys.Add(b.Field!);
+    }
+
+    /// <summary>'/Records/*/Name' → '$.Records[0].Name' cho SelectToken.</summary>
+    private static string ToJsonPath(string pointer) =&gt;
+        "$" + pointer.Replace("/*", "[0]").Replace("/", ".");
+
+    private static bool IsEmpty(object? v) =&gt; v is null or DBNull || (v is string s &amp;&amp; s.Length == 0);
+}
+</textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════ W8 · bộ mã ══════════════════════════ -->
+  <div class="sec">
+    <h2>W8 · Bộ mã quy đổi</h2>
+    <div class="hint">
+      Thực thể <strong>dùng chung</strong> nhiều đối tác, nên có màn riêng và không nằm trong gói cấu hình
+      phễu lọc. Phễu lọc chỉ tham chiếu theo mã (<code>| code TYPE_B_P1</code>).
+    </div>
+    <div class="screen">
+      <div class="screen-bar">Bộ mã <span class="sp"></span>
+        <input type="text" id="cs-new" style="width:150px" placeholder="MÃ_BỘ_MÃ mới" aria-label="Mã bộ mã mới" />
+        <button class="btn" id="cs-add">+ Thêm bộ mã</button>
+      </div>
+      <div class="pad">
+        <div class="cols" style="grid-template-columns:minmax(240px,6fr) minmax(420px,18fr)">
+          <div class="pane">
+            <div class="pane-head">Danh sách <span class="sp"></span><span class="note" id="cs-stat"></span></div>
+            <div class="pane-body dslist" id="cs-list"></div>
+          </div>
+          <div class="pane">
+            <div class="pane-head">Bảng quy đổi <span class="mono" id="cs-name"></span>
+              <span class="sp"></span>
+              <button class="btn mini" id="cs-addrow">+ Thêm dòng</button>
+              <button class="btn mini" id="cs-del">Xoá bộ mã</button>
+            </div>
+            <div class="pane-body">
+              <table class="g">
+                <thead><tr><th style="width:200px">Giá trị trong CSDL</th>
+                  <th style="width:200px">Giá trị gửi đối tác</th><th>Nhãn</th>
+                  <th style="width:90px">Mặc định</th><th style="width:44px"></th></tr></thead>
+                <tbody id="cs-body"></tbody>
+              </table>
+              <div id="cs-msg" class="alert" style="margin-top:8px" hidden></div>
+              <p class="note" style="margin:8px 0 0">
+                Dòng <strong>Mặc định</strong> (giá trị nguồn để trống) dùng khi giá trị không khớp dòng nào —
+                mỗi bộ mã đúng một dòng. Chiều nhận tra ngược theo <em>giá trị gửi đối tác</em>, nên giá trị đó
+                <strong>không được trùng</strong>; trùng thì cảnh báo ngay tại đây.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════ W9 · chạy thử ══════════════════════════ -->
+  <div class="sec">
+    <h2>W9 · Chạy thử hai chiều bằng cấu hình phía trên</h2>
+    <div class="hint">
+      Dùng <strong>đúng</strong> gói tin ở W0, phễu lọc ở W2 và bộ mã ở W8 — không có dữ liệu giả nào khác.
+      Chiều <strong>gửi</strong>: sửa bảng CSDL giả lập → ra payload. Chiều <strong>nhận</strong>: dán payload
+      của đối tác → ra bảng dữ liệu sẽ ghi vào CSDL.
+    </div>
+    <div class="screen">
+      <div class="screen-bar">
+        <label class="f"><span>Chiều</span>
+          <select id="sim-dir" aria-label="Chiều chạy thử">
+            <option value="out">Gửi — CSDL ➜ payload đối tác</option>
+            <option value="in">Nhận — payload đối tác ➜ CSDL</option>
+          </select></label>
+        <span class="sp"></span>
+        <span class="note" id="sim-stat"></span>
+        <button class="btn" id="sim-seed">Nạp lại dữ liệu mẫu</button>
+        <button class="btn primary" id="sim-run">Chạy</button>
+      </div>
+      <div class="pad">
+        <div class="cols" style="grid-template-columns:1fr 1fr">
+          <div class="pane">
+            <div class="pane-head"><span id="sim-inlabel">Vào — bảng CSDL giả lập</span></div>
+            <div class="pane-body">
+              <textarea id="sim-in" rows="16" spellcheck="false" aria-label="Dữ liệu vào"></textarea>
+              <p class="note" id="sim-inhint" style="margin:8px 0 0"></p>
+            </div>
+          </div>
+          <div class="pane">
+            <div class="pane-head"><span id="sim-outlabel">Ra — payload gửi đối tác</span></div>
+            <div class="pane-body">
+              <div id="sim-outtbl" hidden style="overflow:auto"><table class="g" id="sim-table"></table></div>
+              <textarea id="sim-out" rows="16" readonly class="mp-json" aria-label="Kết quả"></textarea>
+              <div id="sim-msg" class="alert" style="margin-top:8px" hidden></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <h2>Ký hiệu trên cây</h2>
+    <div class="screen"><div class="pad legend">
+      <div><span class="s"><span class="arrow">→</span> tênTrường</span><span>lấy dữ liệu từ trường của gói tin</span></div>
+      <div><span class="s">⊙ tênHệThống</span><span>giá trị hệ thống: serial · now · partnerCode · recordCount</span></div>
+      <div><span class="s">···· "giá trị"</span><span>hằng số lấy từ mẫu — không có dòng ánh xạ</span></div>
+      <div><span class="s">≡ "giá trị"</span><span>hằng số ghi đè mẫu</span></div>
+      <div><span class="s">✕ không gửi</span><span>bỏ khoá khỏi payload</span></div>
+      <div><span class="s">⟲ lặp theo bản ghi</span><span>nút mảng nhân theo dữ liệu, có thể gom nhóm</span></div>
+      <div><span class="s"><span class="chip k">khoá</span></span><span>thuộc khoá bản ghi, dùng để so trùng khi ghi ngược</span></div>
+      <div><span class="s"><span class="chip">mã X→text</span></span><span>bộ mã quy đổi và kiểu đầu ra</span></div>
+      <div><span class="s"><span class="chip">số 0.#</span></span><span>kiểu và định dạng</span></div>
+      <div><span class="s"><span class="chip">ƒ div(3.6)</span></span><span>biểu thức</span></div>
+      <div><span class="s"><span class="chip">rỗng→0</span></span><span>giá trị thay thế khi nguồn rỗng</span></div>
+      <div><span class="s"><span class="chip w">⚠</span></span><span>cảnh báo: bộ mã thiếu, biểu thức không đảo được…</span></div>
+      <div><span class="s">chữ nhạt (chưa gán)</span><span>lá chưa xử lý — sẽ gửi nguyên giá trị trong mẫu</span></div>
+    </div></div>
+  </div>
+
+  </div><!-- /#page-mapping -->
+
+  <div class="footnote">
+    Phím tắt dự kiến: <span class="kbd">↑</span><span class="kbd">↓</span> di chuyển ·
+    <span class="kbd">Enter</span> mở thiết lập lá · <span class="kbd">Esc</span> đóng ·
+    <span class="kbd">Ctrl</span>+<span class="kbd">F</span> tìm ·
+    <span class="kbd">Ctrl</span>+<span class="kbd">S</span> lưu ·
+    <span class="kbd">Ctrl</span>+<span class="kbd">Enter</span> dựng lại xem trước ·
+    <span class="kbd">Delete</span> xoá thiết lập.
+    Mọi trạng thái đều kèm chữ hoặc ký hiệu, không truyền tải chỉ bằng màu.
+  </div>
+</div>
+
+<!-- popover thiết lập lá -->
+<div class="pop" id="pop" hidden role="dialog" aria-modal="false" aria-labelledby="pop-path">
+  <div class="pop-head">
+    <span class="p" id="pop-path">/Records/*/Type</span>
+    <span class="sp"></span>
+    <button class="btn" id="pop-close" aria-label="Đóng">×</button>
+  </div>
+  <div class="pop-body">
+    <div class="grp">
+      <div class="fld"><span>Lấy từ</span>
+        <select id="p-src" aria-label="Lấy từ" style="width:100%"></select></div>
+      <div class="fld" id="p-constrow" hidden><span>Giá trị</span>
+        <input type="text" id="p-const" placeholder="giữ nguyên kiểu JSON" aria-label="Hằng số" /></div>
+      <div class="note" id="p-fieldinfo" style="margin:2px 0 0 128px"></div>
+    </div>
+
+    <div class="grp" id="p-rulegrp">
+      <div class="fld" id="p-aggrow" hidden><span>Phép gộp</span>
+        <span class="row">
+          <select id="p-agg" aria-label="Phép gộp" style="width:100px"></select>
+          <select id="p-aggfield" aria-label="Cột được tính" style="flex:1"></select>
+        </span></div>
+      <div class="fld"><span>Bộ mã</span>
+        <span class="row"><select id="p-code" aria-label="Bộ mã" style="flex:1"><option value="">(không)</option>
+          <option>TYPE_B_P1</option><option>TYPE_B_P2</option><option>TRAFFIC_COND</option></select>
+        <button class="btn mini">+ Tạo</button></span></div>
+      <div class="fld"><span>Kiểu ra</span>
+        <span class="row"><select id="p-type" aria-label="Kiểu ra" style="width:120px">
+            <option value="">(theo cột)</option><option value="string">text</option>
+            <option value="number">số</option><option value="datetime">ngày</option><option value="bool">bool</option>
+          </select>
+          <input type="text" id="p-format" placeholder="định dạng: 0.#  ·  dd/MM/yyyy HH:mm:ss"
+                 style="flex:1" aria-label="Định dạng" /></span></div>
+      <div class="fld"><span>Thuộc khoá</span>
+        <label class="f"><input type="checkbox" id="p-key" />
+          <span>dùng để so trùng bản ghi khi ghi ngược</span></label></div>
+    </div>
+
+    <div class="grp">
+      <button class="btn mini" id="p-advtoggle" aria-expanded="false" aria-controls="p-adv">Nâng cao ▾</button>
+      <div id="p-adv" hidden style="margin-top:10px">
+        <div class="fld"><span>Biểu thức</span>
+          <span class="row"><input type="text" id="p-expr" placeholder="div(3.6) | round(1)" style="flex:1" aria-label="Biểu thức" />
+          <select id="p-fn" aria-label="Chèn hàm" style="width:118px">
+            <option value="">+ hàm…</option>
+            <optgroup label="đảo được"><option>mul(k)</option><option>div(k)</option><option>add(k)</option>
+              <option>sub(k)</option><option>epochSec()</option></optgroup>
+            <optgroup label="KHÔNG đảo được"><option>substr(a,b)</option><option>upper()</option><option>round(n)</option></optgroup>
+          </select></span></div>
+        <div class="fld"><span>Rỗng thì lấy</span><input type="text" id="p-def" placeholder="giá trị thay thế" aria-label="Rỗng thì lấy" /></div>
+        <div class="fld" id="p-invrow"><span>Nghịch đảo</span><input type="text" id="p-inv" placeholder="chỉ dùng ở chiều Nhận" aria-label="Biểu thức nghịch đảo" /></div>
+        <div class="fld"><span>Chiều nhận</span>
+          <label class="f"><input type="checkbox" id="p-ign" /><span>bỏ qua khoá này khi nhận</span></label></div>
+      </div>
+    </div>
+
+    <div class="grp">
+      <div class="try"><span>Thử:</span><input type="text" id="p-try" style="width:90px" value="2" aria-label="Giá trị thử" />
+        <span>→</span><span class="out" id="p-out">22</span></div>
+    </div>
+
+    <div class="row">
+      <button class="btn" id="p-clear">Xoá thiết lập</button>
+      <span class="sp grow"></span>
+      <button class="btn primary" id="p-done">Xong</button>
+    </div>
+  </div>
+</div>
+
+<!-- W4b · thiết lập nút mảng -->
+<div class="pop" id="pop2" hidden role="dialog" aria-labelledby="pop2-path" style="width:410px; bottom:auto; top:90px">
+  <div class="pop-head">
+    <span class="p" id="pop2-path">/Records</span><span class="note">· nút mảng</span>
+    <span class="sp"></span><button class="btn" id="pop2-close" aria-label="Đóng">×</button>
+  </div>
+  <div class="pop-body">
+    <div class="grp">
+      <div class="radio"><input type="radio" name="rk" id="r-const" />
+        <label for="r-const">Mảng hằng — giữ nguyên các phần tử trong mẫu</label></div>
+      <div class="radio"><input type="radio" name="rk" id="r-rep" checked />
+        <label for="r-rep">Lặp theo dữ liệu</label></div>
+      <div class="fld"><span>Tập dữ liệu</span>
+        <select id="r-src" aria-label="Tập dữ liệu">
+          <option value="records">records · Đoạn tuyến (3 dòng)</option>
+          <option value="totals">totals · Tổng hợp theo tuyến (1 dòng)</option>
+        </select></div>
+      <div class="fld"><span>Gom nhóm</span>
+        <span class="row"><select id="r-grp" aria-label="Gom nhóm">
+          <option value="">(không)</option><option value="segmentCode">segmentCode</option>
+          <option value="measuredAt">measuredAt</option></select>
+        <button class="btn">+ thêm trường</button></span></div>
+      <div class="fld"><span>Sắp xếp</span>
+        <span class="row"><span class="ctl sel">measuredAt</span>
+          <label class="f"><input type="radio" name="rord" checked /><span>tăng</span></label>
+          <label class="f"><input type="radio" name="rord" /><span>giảm</span></label></span></div>
+      <div class="fld"><span>Giới hạn</span>
+        <input type="text" id="r-top" style="width:80px" placeholder="—" aria-label="Giới hạn phần tử" /></div>
+      <p class="note" style="margin:6px 0 0">
+        Khuôn = phần tử <span class="mono">[0]</span> của mẫu; các phần tử khác trong mẫu bị bỏ qua.
+      </p>
+    </div>
+    <div class="row"><span class="sp grow"></span><button class="btn primary" id="pop2-done">Xong</button></div>
+  </div>
+</div>
+
+<script>
+/* ─────────────── nguồn dữ liệu: đọc từ CHÍNH packet của màn Gói tin ───────────────
+   Không còn bản sao riêng cho phần ánh xạ. `datasets` / `dsNames` là khung nhìn dựng lại
+   từ packet mỗi lần vẽ, nên sửa câu SQL hay dò lại cột ở màn Gói tin là phần ánh xạ thấy ngay. */
+let datasets = {}, dsNames = [];
+
+function dsView(name){
+  const d = packet.datasets[name] || { cols:[] };
+  const fields = d.kind === 'derived'
+    /* Kiểu của cột dẫn xuất KHÔNG phải luôn là số: cột 'group' mang kiểu của cột cha
+       (VD routeCode là chữ) — trước đây gán number nên hiện cả sum(totals.routeCode). */
+    ? d.cols.map(c => {
+        const t = c.agg === 'group' ? (colTypeOf(d.from, c.of) || 'string') : 'number';
+        return { key:c.key, type:t, info: c.agg + '(' + (c.of || '') + ')' + (c.label ? ' · ' + c.label : '') };
+      })
+    : d.cols.filter(c => !c.skip)
+            .map(c => ({ key:c.key, type:c.type, info: c.type + (c.label ? ' · ' + c.label : '') }));
+  return { label:d.label, kind:d.kind, fields, rows: rowsOf(name) };
+}
+/* Kiểu của một cột trong tập bất kỳ, đi ngược cả chuỗi dẫn xuất */
+function colTypeOf(dsName, key){
+  const d = packet.datasets[dsName]; if (!d || !key) return null;
+  if (d.kind !== 'derived') return (d.cols.find(c => c.key === key) || {}).type || null;
+  const c = d.cols.find(x => x.key === key); if (!c) return null;
+  return c.agg === 'group' ? colTypeOf(d.from, c.of) : 'number';
+}
+function syncDatasets(){
+  datasets = {};
+  for (const n of Object.keys(packet.datasets)) datasets[n] = dsView(n);
+  dsNames = Object.keys(datasets);
+}
+
+/* Giá trị engine tự cấp, không đến từ CSDL */
+const meta = { now:'2026-09-10T00:15:00', serial:1024, partnerCode:'P1', packetCode:'101' };
+
+let sample = {
+  Header:  { Provider:'ITS015', SentAt:'', Count:0 },
+  Records: [ { Name:'', Code:'', Type:'', Speed:0, Time:'', Note:'' } ],
+  Totals:  [ { Route:'', Segments:0, AvgSpeed:0 } ],
+};
+
+const codeSets = {
+  TYPE_B_P1: { map:{ '1':'11', '2':'22', '3':'33' }, def:'99' },
+  TYPE_B_P2: { map:{ '1':'FREE','2':'SLOW','3':'JAM' }, def:'UNKNOWN' },
+  TRAFFIC_COND: { map:{ '1':'1','2':'2','3':'3' }, def:'0' },
+};
+
+/* NGUỒN DUY NHẤT: cây, bảng, xem trước và bản xuất văn bản đều đọc/ghi danh sách này */
+let bindings = [
+  { path:'/Header/SentAt',    kind:'system', systemKey:'now', type:'datetime', format:'yyyy-MM-ddTHH:mm:ss' },
+  { path:'/Header/Count',     kind:'agg', agg:'count', dataset:'records', type:'number' },
+
+  { path:'/Records',          kind:'repeat', dataset:'records' },
+  { path:'/Records/*/Name',   kind:'field', dataset:'records', field:'segmentName' },
+  { path:'/Records/*/Code',   kind:'field', dataset:'records', field:'segmentCode', key:true },
+  { path:'/Records/*/Type',   kind:'field', dataset:'records', field:'trafficCond', codeSet:'TYPE_B_P1', type:'string' },
+  { path:'/Records/*/Speed',  kind:'field', dataset:'records', field:'avgSpeed', type:'number', format:'0.#', def:'0' },
+  { path:'/Records/*/Time',   kind:'field', dataset:'records', field:'measuredAt', type:'datetime', format:'dd/MM/yyyy HH:mm:ss', key:true },
+  { path:'/Records/*/Note',   kind:'exclude' },
+
+  { path:'/Totals',           kind:'repeat', dataset:'totals' },
+  { path:'/Totals/*/Route',   kind:'field', dataset:'totals', field:'routeCode' },
+  { path:'/Totals/*/Segments',kind:'field', dataset:'totals', field:'segmentCount', type:'number' },
+  { path:'/Totals/*/AvgSpeed',kind:'field', dataset:'totals', field:'avgSpeedAll', type:'number', format:'0.#' },
+];
+
+const bind = p => bindings.find(b => b.path === p);
+/* Nút lặp bao ngoài một khoá — quyết định khoá đó lấy dòng của tập nào */
+const ownerOf = p => bindings.filter(b => b.kind === 'repeat' && p.startsWith(b.path + '/*'))
+                             .sort((a,b) => b.path.length - a.path.length)[0] || null;
+let activePath = null, recIndex = 0;
+
+/* ─────────────── dựng cây từ mẫu ─────────────── */
+function buildTree(node, path, key, depth, out){
+  if (Array.isArray(node)){
+    out.push({ depth, key, path, kind:'array' });
+    if (node.length) {
+      out.push({ depth: depth+1, key:'[khuôn bản ghi]', path: path+'/*', kind:'template' });
+      buildChildren(node[0], path+'/*', depth+2, out);
+    }
+    return out;
+  }
+  if (node !== null && typeof node === 'object'){
+    if (path !== '') out.push({ depth, key, path, kind:'object' });
+    buildChildren(node, path, depth+1, out);
+    return out;
+  }
+  out.push({ depth, key, path, kind:'leaf', sample:node });
+  return out;
+}
+function buildChildren(obj, path, depth, out){
+  if (Array.isArray(obj) || typeof obj !== 'object' || obj === null) return;
+  for (const k of Object.keys(obj)) buildTree(obj[k], path+'/'+k, k, depth, out);
+}
+let treeNodes = buildTree(sample, '', '(gốc)', 0, [{ depth:0, key:'(gốc)', path:'', kind:'root' }]).filter(n => n.path !== '' || n.kind === 'root');
+
+/* Dán mẫu mới: dựng lại cây đích, giữ nguyên các dòng ánh xạ (khoá nào mất thì dòng đó bị đánh ⚠) */
+function rebuildTree(newSample){
+  sample = newSample;
+  treeNodes = buildTree(sample, '', '(gốc)', 0, [{ depth:0, key:'(gốc)', path:'', kind:'root' }])
+              .filter(n => n.path !== '' || n.kind === 'root');
+}
+
+/* ─────────────── engine nhỏ: dựng giá trị gửi đi ─────────────── */
+function applyCodeSet(code, v){
+  const cs = codeSets[code]; if (!cs) return v;
+  const k = v === null || v === undefined ? '' : String(v).trim();
+  return Object.prototype.hasOwnProperty.call(cs.map, k) ? cs.map[k] : cs.def;
+}
+function applyExpr(expr, v){
+  if (!expr) return v;
+  let out = Number(v);
+  for (const step of expr.split('|').map(s => s.trim()).filter(Boolean)){
+    const m = /^(\w+)\(([^)]*)\)$/.exec(step); if (!m) continue;
+    const [, fn, arg] = m, k = parseFloat(arg);
+    if (fn === 'div') out = out / k;
+    else if (fn === 'mul') out = out * k;
+    else if (fn === 'add') out = out + k;
+    else if (fn === 'sub') out = out - k;
+    else if (fn === 'round') out = Math.round(out * 10**k) / 10**k;
+    else if (fn === 'epochSec') out = Math.floor(new Date(v+'Z').getTime()/1000);
+  }
+  return out;
+}
+function fmtNumber(n, f){
+  if (!f) return n;
+  const dec = (f.split('.')[1] || '').length;
+  return String(Number(Number(n).toFixed(dec)));
+}
+function fmtDate(v, f){
+  const d = new Date(v); if (isNaN(d)) return v;
+  const p = n => String(n).padStart(2,'0');
+  if (!f) return v;
+  return f.replace('dd',p(d.getDate())).replace('MM',p(d.getMonth()+1)).replace('yyyy',d.getFullYear())
+          .replace('HH',p(d.getHours())).replace('mm',p(d.getMinutes())).replace('ss',p(d.getSeconds()));
+}
+/* Giá trị gộp tính trên cả một tập dữ liệu, không theo từng dòng */
+function aggregate(fn, ds, field){
+  const rs = (datasets[ds] || {}).rows || [];
+  if (fn === 'count') return rs.length;
+  const nums = rs.map(r => Number(r[field])).filter(n => !isNaN(n));
+  if (!nums.length) return null;
+  if (fn === 'sum') return nums.reduce((a,b) => a+b, 0);
+  if (fn === 'avg') return nums.reduce((a,b) => a+b, 0) / nums.length;
+  if (fn === 'min') return Math.min(...nums);
+  if (fn === 'max') return Math.max(...nums);
+  return null;
+}
+
+/* trả về { value, rules[] } theo đúng thứ tự: rỗng→default · biểu thức · bộ mã · kiểu+định dạng */
+function evalLeaf(b, row){
+  const rules = [];
+  if (!b) return { value: undefined, rules:['hằng số từ mẫu'] };
+  if (b.kind === 'exclude') return { value: undefined, rules:['không gửi khoá này'] };
+  if (b.kind === 'const')   return { value: b.constValue, rules:['hằng ghi đè'] };
+
+  let v;
+  if (b.kind === 'system'){
+    v = meta[b.systemKey]; rules.push('$meta.' + b.systemKey);
+  } else if (b.kind === 'agg'){
+    v = aggregate(b.agg, b.dataset, b.field);
+    rules.push('gộp ' + b.agg + '(' + (b.dataset||'?') + (b.field ? '.'+b.field : '') + ')');
+  } else {
+    v = row ? row[b.field] : undefined;
+    if (b.dataset) rules.push('tập ' + b.dataset);
+  }
+
+  if ((v === undefined || v === null || v === '') && b.def){ v = b.def; rules.push('rỗng→'+b.def); }
+  if (b.expr){ v = applyExpr(b.expr, v); rules.push('ƒ '+b.expr); }
+  if (b.codeSet){ v = applyCodeSet(b.codeSet, v); rules.push('bộ mã '+b.codeSet); }
+  if (b.type === 'number')      { v = fmtNumber(v, b.format); rules.push('số'+(b.format?' '+b.format:'')); }
+  else if (b.type === 'datetime'){ v = fmtDate(v, b.format);  rules.push('ngày'+(b.format?' '+b.format:'')); }
+  else if (b.type === 'string')  { v = v === undefined ? v : String(v); rules.push('text'); }
+  return { value: v, rules };
+}
+
+/* ─────────────── nhãn dùng chung ─────────────── */
+const shortType = t => ({string:'text', number:'số', datetime:'ngày', bool:'bool'}[t] || t);
+
+function renderStat(){
+  const leaves = treeNodes.filter(n => n.kind === 'leaf');
+  const unset  = leaves.filter(n => { const b = bind(n.path); return b && b.kind === 'field' && !b.field; }).length;
+  const dataN  = bindings.filter(b => b.kind === 'field' && b.field).length;
+  const constN = leaves.filter(n => !bind(n.path)).length;
+  const exclN  = bindings.filter(b => b.kind === 'exclude').length;
+  document.getElementById('tabstat').textContent =
+    (leaves.length - unset) + '/' + leaves.length + ' khoá đã xử lý · ' +
+    dataN + ' lấy dữ liệu · ' + constN + ' hằng số · ' + exclN + ' bỏ';
+  document.getElementById('b-rows').textContent = bindings.length;
+  document.getElementById('gridstat').textContent = bindings.length + ' dòng';
+}
+
+/* ─────────────── bảng ─────────────── */
+/* Bảng chỉ còn ba cột có nghĩa: khoá đối tác · lấy từ đâu · luật quy đổi.
+   Không hiện đường dẫn JSON Pointer — tên khoá thụt theo cấp là đủ.
+   "Lấy từ" gộp ba ô chọn cũ (Loại + Tập + Nguồn) thành MỘT combobox phân nhóm. */
+
+/* mã nguồn dạng chuỗi để nhét vào <option>:
+   f:tập.cột · a:tập (phép + cột chọn riêng) · s:khoá$meta · r:tập · c: · x: · '' */
+function srcCode(b){
+  if (!b) return '';
+  if (b.kind === 'field')   return 'f:' + b.dataset + '.' + b.field;
+  if (b.kind === 'agg')     return 'a:' + b.dataset;
+  if (b.kind === 'system')  return 's:' + b.systemKey;
+  if (b.kind === 'repeat')  return 'r:' + b.dataset;
+  if (b.kind === 'const')   return 'c:';
+  if (b.kind === 'exclude') return 'x:';
+  return '';
+}
+/* Chỉ cột số mới gộp được bằng sum/avg/min/max; count không cần cột. */
+const isNumCol = f => f.type === 'number';
+const AGG_FNS = ['count','sum','avg','min','max'];
+
+function srcOptions(isArray, cur){
+  const g = (label, opts) => opts.length ? '<optgroup label="'+label+'">'+opts.join('')+'</optgroup>' : '';
+  const o = (v, t) => '<option value="'+v+'"'+(v===cur?' selected':'')+'>'+t+'</option>';
+
+  if (isArray)
+    return o('', '— mảng hằng, giữ nguyên mẫu —') +
+           g('lặp theo tập', dsNames.map(d => o('r:'+d, d + ' · ' + datasets[d].rows.length + ' dòng')));
+
+  return o('', '— hằng số từ mẫu —') +
+    dsNames.map(d => g('tập ' + d, datasets[d].fields.map(f => o('f:'+d+'.'+f.key, f.key)))).join('') +
+    /* Một dòng cho mỗi tập, KHÔNG liệt kê 4 phép × N cột như trước — phép và cột chọn riêng ở cột Luật. */
+    g('phép gộp cả tập', dsNames.map(d => o('a:'+d, 'gộp trên tập ' + d + '…'))) +
+    g('$meta', Object.keys(meta).map(k => o('s:'+k, '$meta.'+k))) +
+    g('khác', [o('c:', 'hằng số ghi đè…'), o('x:', 'không gửi khoá này')]);
+}
+function setSource(path, code){
+  bindings = bindings.filter(b => b.path !== path);
+  if (code === '') { renderAll(); return; }                      // không có dòng ánh xạ
+
+  const old = arguments[2] || {};
+  const [kind, rest] = [code.slice(0,1), code.slice(2)];
+  const b = { path, ...old };
+  if (kind === 'f'){ b.kind = 'field';  b.dataset = rest.split('.')[0]; b.field = rest.split('.').slice(1).join('.'); b.agg = undefined; }
+  if (kind === 'a'){
+    b.kind = 'agg'; b.dataset = rest;
+    b.agg = old.agg || 'count';                                   // phép mặc định, đổi ở cột Luật
+    if (b.agg === 'count') b.field = undefined;
+    else if (!numColsOf(rest).includes(b.field)) b.field = numColsOf(rest)[0];
+  }
+  if (kind === 's'){ b.kind = 'system'; b.systemKey = rest; b.dataset = undefined; b.field = undefined; b.agg = undefined; }
+  if (kind === 'r'){ b.kind = 'repeat'; b.dataset = rest; }
+  if (kind === 'c'){ b.kind = 'const';  b.constValue = old.constValue ?? ''; }
+  if (kind === 'x'){ b.kind = 'exclude'; }
+  bindings.push(b); renderAll();
+}
+const numColsOf = ds => ((datasets[ds] || {}).fields || []).filter(isNumCol).map(f => f.key);
+
+/* Bảng liệt kê MỌI khoá đích trong mẫu nên số dòng khớp 1:1 với tab Xem trước. */
+function gridRows(){
+  const rows = treeNodes
+    .filter(n => n.kind === 'leaf' || n.kind === 'array' || n.kind === 'object')
+    .map(n => ({ path:n.path, node:n, b:bind(n.path) }));
+  for (const b of bindings)                       // dòng trỏ vào khoá không còn trong mẫu
+    if (!rows.some(r => r.path === b.path)) rows.push({ path:b.path, node:null, b });
+  return rows;
+}
+
+function renderGrid(){
+  const only = document.getElementById('onlymapped').checked;
+  const body = document.getElementById('gridbody'); body.innerHTML = '';
+  let shown = 0;
+
+  for (const r of gridRows()){
+    const n = r.node, b = r.b, kind = b ? b.kind : 'none';
+
+    /* nút nhóm (object) chỉ là hàng tiêu đề, không có cấu hình */
+    if (n && n.kind === 'object'){
+      if (only) continue;
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td></td><td colspan="4" style="background:#f7f8fa;font-weight:600">' +
+                     '<span class="mono" style="padding-left:'+(n.depth*12)+'px">'+r.path+'</span></td>';
+      body.appendChild(tr); continue;
+    }
+    if (only && kind !== 'field' && kind !== 'agg') continue;
+    shown++;
+
+    const tr = document.createElement('tr');
+    if (r.path === activePath) tr.className = 'sel';
+    if (!b) tr.style.color = 'var(--muted)';
+    const orphan = !n, isArray = !!n && n.kind === 'array';
+
+    /* Hiển thị ĐỦ đường dẫn — thống nhất với tiêu đề hộp thiết lập, khối map ở W7 và thông báo lỗi. */
+    tr.innerHTML =
+      '<td><input type="checkbox" aria-label="Chọn '+r.path+'" /></td>' +
+      '<td'+(orphan?' style="text-decoration:line-through"':'')+'>' +
+        '<span class="mono" style="padding-left:'+((n?n.depth:1)*12)+'px">'+r.path+'</span>' +
+        (isArray ? ' <span class="chip x">mảng</span>' : '') +
+      '</td>' +
+      '<td><select data-p="'+r.path+'" data-k="src" aria-label="Lấy từ" style="width:100%">' +
+        srcOptions(isArray, srcCode(b)) + '</select></td>' +
+      '<td>' + ruleCell(r.path, b, kind, n) + '</td>' +
+      '<td>'+(orphan ? '<span class="chip w">⚠</span>' : warnOf(r.path, b, kind))+'</td>';
+
+    body.appendChild(tr);
+  }
+
+  body.querySelectorAll('select[data-k=src]').forEach(s => s.addEventListener('change', e => {
+    const path = e.target.dataset.p, old = bind(path) || {};
+    setSource(path, e.target.value, {
+      codeSet:old.codeSet, type:old.type, format:old.format, expr:old.expr,
+      def:old.def, inv:old.inv, key:old.key, ign:old.ign, groupBy:old.groupBy,
+      agg:old.agg, field:old.field,
+    });
+  }));
+  /* Phép gộp và cột được tính là hai lựa chọn riêng — đổi phép sang count thì bỏ cột. */
+  body.querySelectorAll('select[data-k=agg], select[data-k=aggfield]').forEach(s => s.addEventListener('change', e => {
+    const b = bind(e.target.dataset.p); if (!b) return;
+    if (e.target.dataset.k === 'agg'){
+      b.agg = e.target.value;
+      if (b.agg === 'count') b.field = undefined;
+      else if (!numColsOf(b.dataset).includes(b.field)) b.field = numColsOf(b.dataset)[0];
+    } else b.field = e.target.value || undefined;
+    renderAll();
+  }));
+  body.querySelectorAll('button[data-rule]').forEach(btn => btn.addEventListener('click', e => {
+    const node = treeNodes.find(x => x.path === e.target.dataset.rule);
+    if (node) openPop(node);
+  }));
+
+  document.getElementById('gridstat').textContent = shown + ' khoá đích · ' + bindings.length + ' dòng đã khai';
+}
+
+/* Cảnh báo tại dòng — nói rõ sai ở đâu thay vì chỉ hiện dấu ⚠ */
+function warnOf(path, b, kind){
+  const w = t => '<span class="chip w" title="'+t+'">⚠</span>';
+  if (!b) return '';
+  if (kind === 'repeat' && !b.dataset) return w('chưa chọn tập dữ liệu để lặp');
+  if (kind === 'field'){
+    if (!b.field) return w('chưa chọn cột');
+    // Cột có N dòng; khoá nằm ngoài mảng chỉ nhận MỘT giá trị → phải dùng phép gộp.
+    if (!ownerOf(path)) return w('khoá nằm ngoài mảng — cột có nhiều dòng, phải dùng phép gộp (count/sum/avg…)');
+  }
+  if (kind === 'agg' && b.agg !== 'count' && !b.field)
+    return w('phép ' + b.agg + ' cần chỉ ra cột số để tính');
+  return '';
+}
+
+/* Ô "Luật quy đổi": chip cho gọn, bấm ⋯ mở đúng hộp thiết lập.
+   Với phép gộp thì hiện HAI ô chọn riêng — phép tính và cột được tính. */
+function ruleCell(path, b, kind, n){
+  const edit = '<button class="leafbtn" data-rule="'+path+'" aria-label="Khai luật cho '+path+'">⋯</button>';
+  if (kind === 'none')    return '<span class="note">'+(n ? JSON.stringify(n.sample) : '')+'</span>';
+  if (kind === 'exclude') return '<span class="chip x">không gửi</span>';
+  if (kind === 'repeat')  return '<span class="note">nhóm: '+(b.groupBy || 'không')+'</span> '+edit;
+  if (kind === 'const')   return '<span class="chip">≡ '+(b.constValue ?? '')+'</span> '+edit;
+
+  let head = '';
+  if (kind === 'agg'){
+    const cols = numColsOf(b.dataset);
+    head = '<span class="row" style="gap:4px; display:inline-flex">' +
+      '<select data-p="'+path+'" data-k="agg" aria-label="Phép gộp" style="width:78px">' +
+        AGG_FNS.map(a => '<option value="'+a+'"'+(a===(b.agg||'count')?' selected':'')+'>'+a+'</option>').join('') +
+      '</select>' +
+      (b.agg === 'count' ? '<span class="note">số dòng của tập</span>'
+        : '<select data-p="'+path+'" data-k="aggfield" aria-label="Cột được tính" style="width:132px">' +
+            ['', ...cols].map(c => '<option value="'+c+'"'+(c===(b.field||'')?' selected':'')+'>'+(c||'(chọn cột số)')+'</option>').join('') +
+          '</select>') +
+      '</span> ';
+  }
+
+  const t = [];
+  if (b.codeSet) t.push('<span class="chip">mã '+b.codeSet+'</span>');
+  if (b.type)    t.push('<span class="chip">'+shortType(b.type)+(b.format?' '+b.format:'')+'</span>');
+  else if (b.format) t.push('<span class="chip">'+b.format+'</span>');
+  if (b.expr)    t.push('<span class="chip">ƒ '+b.expr+'</span>');
+  if (b.def)     t.push('<span class="chip">rỗng→'+b.def+'</span>');
+  if (b.key)     t.push('<span class="chip k">khoá</span>');
+  if (b.ign)     t.push('<span class="chip x">nhận: bỏ qua</span>');
+  return head + (t.length ? t.join(' ') : (kind === 'agg' ? '' : '<span class="note">lấy nguyên giá trị</span>')) + ' ' + edit;
+}
+
+/* ─────────────── mapper hai cây ─────────────── */
+let mapSel = null;                                   // nguồn đang chọn ở cột trái
+
+/* Khoá định danh dòng bên trái, dùng luôn làm id phần tử để vẽ đường nối */
+function leftId(b){
+  if (!b) return null;
+  if (b.kind === 'field')  return 'L:' + b.dataset + '.' + b.field;
+  if (b.kind === 'agg')    return 'L:agg:' + b.dataset;
+  if (b.kind === 'system') return 'L:sys:' + b.systemKey;
+  if (b.kind === 'repeat') return 'L:ds:' + b.dataset;
+  return null;
+}
+
+function renderMapper(){
+  const L = document.getElementById('mapleft'), R = document.getElementById('mapright');
+  if (!L || !R) return;
+  L.innerHTML = ''; R.innerHTML = '';
+
+  const usedLeft = new Set(bindings.map(b => leftId(b)).filter(Boolean));
+
+  /* cột trái: từng tập → tên tập (nối cho nút mảng) + các cột + phép gộp; rồi $meta */
+  for (const dsn of dsNames){
+    const g = document.createElement('button');
+    g.type = 'button'; g.className = 'mgroup' + (isSel({kind:'repeat', dataset:dsn}) ? ' sel' : '');
+    g.id = 'L:ds:' + dsn;
+    g.innerHTML = 'tập ' + dsn + ' · ' + datasets[dsn].label + ' · ' + datasets[dsn].rows.length + ' dòng';
+    g.addEventListener('click', () => pickLeft({ kind:'repeat', dataset:dsn }));
+    L.appendChild(g);
+
+    for (const f of datasets[dsn].fields){
+      const item = { kind:'field', dataset:dsn, field:f.key };
+      L.appendChild(leftRow(item, dsn + '.' + f.key, f.info, usedLeft));
+    }
+    const agg = { kind:'agg', dataset:dsn, agg:'count' };
+    L.appendChild(leftRow(agg, 'Σ count(' + dsn + ')', 'số dòng của tập', usedLeft));
+  }
+
+  const gm = document.createElement('div');
+  gm.className = 'mgroup'; gm.textContent = '$meta · engine cấp';
+  L.appendChild(gm);
+  for (const k of Object.keys(meta)){
+    const item = { kind:'system', systemKey:k };
+    L.appendChild(leftRow(item, '$meta.' + k, String(meta[k]), usedLeft));
+  }
+
+  /* cột phải: cấu trúc đối tác */
+  for (const n of treeNodes){
+    if (n.kind === 'root') continue;
+    if (n.kind === 'object' || n.kind === 'template'){
+      const g = document.createElement('div');
+      g.className = 'mgroup'; g.style.paddingLeft = (8 + n.depth*12) + 'px';
+      g.textContent = n.key;
+      R.appendChild(g);
+      continue;
+    }
+    R.appendChild(rightRow(n));
+  }
+
+  document.getElementById('mapleftstat').textContent = usedLeft.size + ' nguồn đang dùng';
+  const leaves = treeNodes.filter(n => n.kind === 'leaf');
+  document.getElementById('maprightstat').textContent =
+    bindings.filter(b => b.kind === 'field' || b.kind === 'agg' || b.kind === 'system').length +
+    '/' + leaves.length + ' khoá đã nối';
+  document.getElementById('mapsel').textContent = mapNote ? mapNote : (mapSel
+    ? 'nguồn: ' + (mapSel.kind === 'field' ? mapSel.dataset + '.' + mapSel.field
+                 : mapSel.kind === 'agg' ? 'count(' + mapSel.dataset + ')'
+                 : mapSel.kind === 'system' ? '$meta.' + mapSel.systemKey : 'tập ' + mapSel.dataset)
+    : 'chưa chọn nguồn');
+  mapNote = '';
+}
+
+const isSel = it => !!mapSel && leftId(mapSel) === leftId(it);
+
+function leftRow(item, label, info, usedLeft){
+  const el = document.createElement('button');
+  el.type = 'button';
+  const linked = usedLeft.has(leftId(item));
+  el.className = 'mrow' + (linked ? ' linked' : '') + (isSel(item) ? ' sel' : '');
+  el.id = leftId(item);
+  el.innerHTML = '<span>' + label + '</span>' +
+                 '<span class="tag"><span class="note">' + (info || '') + '</span><span class="dotL"></span></span>';
+  el.addEventListener('click', () => pickLeft(item));
+  return el;
+}
+
+function rightRow(n){
+  const b = bind(n.path), el = document.createElement('div');
+  el.style.paddingLeft = (8 + n.depth*12) + 'px';
+  const linked = !!b && ['field','agg','system','repeat'].includes(b.kind);
+
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.id = 'R:' + n.path;
+  btn.className = 'mrow' + (linked ? ' linked' : '') + (b ? '' : ' unset');
+  btn.title = n.path;                                   // đường dẫn đầy đủ, khớp bảng · hộp thiết lập · W7
+  btn.innerHTML = '<span class="dotR"></span><span>' + n.key + '</span>' +
+    '<span class="tag">' + rightTag(n, b) + '</span>';
+  btn.addEventListener('click', () => dropRight(n));
+  el.appendChild(btn);
+
+  if (linked){
+    const x = document.createElement('button');
+    x.type = 'button'; x.className = 'leafbtn'; x.textContent = '×';
+    x.setAttribute('aria-label', 'Bỏ nối ' + n.path);
+    x.addEventListener('click', e => { e.stopPropagation(); bindings = bindings.filter(v => v.path !== n.path); renderAll(); });
+    el.appendChild(x);
+  }
+  const more = document.createElement('button');
+  more.type = 'button'; more.className = 'leafbtn'; more.textContent = '⋯';
+  more.setAttribute('aria-label', 'Thiết lập ' + n.path);
+  more.addEventListener('click', e => { e.stopPropagation(); openPop(n); });
+  el.appendChild(more);
+
+  el.style.display = 'flex'; el.style.alignItems = 'center';
+  return el;
+}
+
+function rightTag(n, b){
+  if (!b) return n.kind === 'array' ? '<span class="chip x">mảng hằng</span>'
+                                    : '<span class="note">hằng "' + String(n.sample) + '"</span>';
+  if (b.kind === 'exclude') return '<span class="chip x">✕ không gửi</span>';
+  if (b.kind === 'repeat')  return '<span class="chip k">⟲ ' + (b.dataset || '?') + '</span>';
+  const t = [];
+  if (b.codeSet) t.push('<span class="chip">mã ' + b.codeSet + '</span>');
+  if (b.type)    t.push('<span class="chip">' + shortType(b.type) + (b.format ? ' ' + b.format : '') + '</span>');
+  if (b.expr)    t.push('<span class="chip">ƒ</span>');
+  if (b.key)     t.push('<span class="chip k">khoá</span>');
+  return t.join(' ');
+}
+
+function pickLeft(item){ mapSel = isSel(item) ? null : item; renderAll(); }
+
+/* Bấm dòng phải: nối với nguồn đang chọn; chưa chọn nguồn thì mở hộp thiết lập */
+function dropRight(n){
+  if (!mapSel) return openPop(n);
+
+  if (n.kind === 'array'){
+    if (mapSel.kind !== 'repeat' && !mapSel.dataset)
+      return openPop(n);
+    let b = bind(n.path);
+    if (!b){ b = { path:n.path, kind:'repeat' }; bindings.push(b); }
+    b.kind = 'repeat'; b.dataset = mapSel.dataset;
+    renderAll(); return;
+  }
+
+  let b = bind(n.path);
+  if (!b){ b = { path:n.path }; bindings.push(b); }
+  b.kind = mapSel.kind === 'repeat' ? 'field' : mapSel.kind;      // chọn tên tập rồi bấm vào lá = lấy cột đầu
+  if (b.kind === 'field'){
+    b.dataset = mapSel.dataset;
+    b.field = mapSel.field || (datasets[mapSel.dataset].fields[0] || {}).key;
+
+    // Khoá ngoài mảng chỉ nhận một giá trị, mà cột có nhiều dòng → tự chuyển thành phép gộp.
+    if (!ownerOf(n.path)){
+      const f = datasets[b.dataset].fields.find(x => x.key === b.field);
+      b.kind = 'agg';
+      b.agg = f && isNumCol(f) ? 'avg' : 'count';
+      if (b.agg === 'count') b.field = undefined;
+      mapNote = 'khoá ngoài mảng → đã dùng ' + b.agg + '(' + b.dataset + (b.field ? '.' + b.field : '') + ')';
+    }
+  } else if (b.kind === 'agg'){
+    b.dataset = mapSel.dataset; b.agg = mapSel.agg || 'count'; b.field = mapSel.field;
+  } else if (b.kind === 'system'){
+    b.systemKey = mapSel.systemKey; b.dataset = undefined; b.field = undefined;
+  }
+  renderAll();
+}
+let mapNote = '';
+
+/* Vẽ đường nối. Chỉ vẽ được khi tab đang hiện (có kích thước thật). */
+function drawLines(){
+  const svg = document.getElementById('maplines'), wrap = document.getElementById('mapwrap');
+  if (!svg || !wrap || typeof wrap.getBoundingClientRect !== 'function') return;
+  const W = wrap.getBoundingClientRect();
+  if (!W.width || !W.height) return;
+
+  svg.setAttribute('viewBox', '0 0 ' + W.width + ' ' + W.height);
+  let out = '';
+  for (const b of bindings){
+    const lid = leftId(b); if (!lid) continue;
+    const l = document.getElementById(lid), r = document.getElementById('R:' + b.path);
+    if (!l || !r) continue;
+    const a = l.getBoundingClientRect(), c = r.getBoundingClientRect();
+    const x1 = a.right - W.left, y1 = a.top + a.height/2 - W.top;
+    const x2 = c.left  - W.left, y2 = c.top + c.height/2 - W.top;
+    const dx = Math.max(28, (x2 - x1) / 2);
+    const dash = (b.codeSet || b.expr || b.type || b.format) ? ' stroke-dasharray="5 3"' : '';
+    out += '<path d="M' + x1 + ',' + y1 + ' C' + (x1+dx) + ',' + y1 + ' ' + (x2-dx) + ',' + y2 +
+           ' ' + x2 + ',' + y2 + '" fill="none" stroke="#2f6fa8" stroke-width="1.6"' + dash + '/>' +
+           '<circle cx="' + x1 + '" cy="' + y1 + '" r="2.5" fill="#2f6fa8"/>' +
+           '<circle cx="' + x2 + '" cy="' + y2 + '" r="2.5" fill="#2f6fa8"/>';
+  }
+  svg.innerHTML = out;
+}
+const redraw = () => { if (typeof requestAnimationFrame === 'function') requestAnimationFrame(drawLines); else drawLines(); };
+
+/* ─────────────── xem trước ─────────────── */
+function buildPayload(){
+  const walk = (node, path) => {
+    if (Array.isArray(node)){
+      const b = bind(path);
+      if (b && b.kind === 'repeat'){
+        const rs = ((datasets[b.dataset] || {}).rows) || [];
+        return rs.map(r => walkObj(node[0], path+'/*', r));      // nhân theo TẬP đã chọn
+      }
+      return node.map((it, i) => walk(it, path+'/'+i));          // mảng hằng
+    }
+    if (node !== null && typeof node === 'object') return walkObj(node, path, null);
+    const b = bind(path);
+    return b ? evalLeaf(b, null).value : node;
+  };
+  const walkObj = (obj, path, row) => {
+    const out = {};
+    for (const k of Object.keys(obj)){
+      const p = path+'/'+k, v = obj[k], b = bind(p);
+      if (b && b.kind === 'exclude') continue;
+      if (Array.isArray(v) || (v !== null && typeof v === 'object')){ out[k] = walk(v, p); continue; }
+      out[k] = b ? evalLeaf(b, row).value : v;
+    }
+    return out;
+  };
+  return walkObj(sample, '', null);
+}
+
+/* Số dòng của tập lớn nhất đang được dùng — quyết định phạm vi của bộ chuyển bản ghi */
+const maxRows = () => Math.max(1, ...bindings.filter(b => b.kind === 'repeat')
+  .map(b => (((datasets[b.dataset] || {}).rows) || []).length));
+
+function renderPreview(){
+  const total = maxRows();
+  if (recIndex >= total) recIndex = 0;
+
+  const body = document.getElementById('tracebody'); body.innerHTML = '';
+  const add = (path, ds, raw, sent, rules) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td class="mono">'+path+'</td>' +
+                   '<td>'+(ds ? '<span class="chip">'+ds+'</span>' : '<span class="note">—</span>')+'</td>' +
+                   '<td class="mono">'+(raw === null || raw === undefined ? '<span class="note">—</span>' : raw)+'</td>' +
+                   '<td class="mono">'+(sent === undefined ? '<span class="note">(bỏ khoá)</span>' : sent)+'</td>' +
+                   '<td class="note">'+rules+'</td>';
+    body.appendChild(tr);
+  };
+
+  let keyText = [];
+  for (const n of treeNodes){
+    if (n.kind !== 'leaf') continue;
+
+    const b = bind(n.path);
+    const own = ownerOf(n.path);                                  // nút lặp bao ngoài, nếu có
+    const ds = own ? datasets[own.dataset] : null;
+    const idx = ds ? Math.min(recIndex, ds.rows.length - 1) : 0;   // tập ít dòng hơn thì kẹp lại
+    const row = ds ? ds.rows[idx] : null;
+    const concrete = n.path.replace('/*', '/' + idx);
+
+    const res = b ? evalLeaf(b, row) : { value:n.sample, rules:['hằng số từ mẫu'] };
+    const raw = b && b.kind === 'field' && row ? row[b.field] : null;
+    add(concrete, own ? own.dataset : null, raw, res.value, res.rules.join(' · '));
+
+    if (b && b.key && row) keyText.push(b.field + ' = ' + row[b.field]);
+  }
+
+  document.getElementById('recno').textContent = (recIndex+1)+'/'+total;
+  document.getElementById('prevkey').textContent = keyText.join(' · ');
+  document.getElementById('payload').value = JSON.stringify(buildPayload(), null, 2);
+}
+
+/* ─────────────── gói cấu hình: mỗi khoá MỘT dòng chữ ─────────────── */
+const MAP_VERSION = 1;                                   // bản cú pháp khối map mà bộ đọc này hiểu
+/* Tách theo '|' nhưng bỏ qua dấu | nằm trong ngoặc kép — biểu thức có thể chứa 'div(3.6) | round(1)' */
+function splitTop(s){
+  const out = []; let cur = '', q = false;
+  for (const ch of String(s)){
+    if (ch === '"') { q = !q; cur += ch; continue; }
+    if (ch === '|' && !q){ out.push(cur.trim()); cur = ''; continue; }
+    cur += ch;
+  }
+  out.push(cur.trim());
+  return out.filter(Boolean);
+}
+const quoteIf = v => /[|"]/.test(v) ? JSON.stringify(v) : v;
+const unquote = v => (v.startsWith('"') && v.endsWith('"')) ? JSON.parse(v) : v;
+
+/* Bảng luật: mỗi luật dùng được ở loại nguồn nào và có cần giá trị hay không.
+   Có bảng này thì parse bắt được ba loại sai mà trước đây lọt: luật lạ, luật đặt sai loại nguồn
+   (VD 'drop | key', 'each records | code X'), và khai trùng luật (VD '| num | date'). */
+const RULE_SPEC = {
+  by:        { value:'need', heads:['repeat'] },
+  code:      { value:'need', heads:['field','agg','system'] },
+  text:      { value:'none', heads:['field','agg','system'] },
+  bool:      { value:'none', heads:['field','agg','system'] },
+  num:       { value:'opt',  heads:['field','agg','system'] },
+  date:      { value:'opt',  heads:['field','agg','system'] },
+  fmt:       { value:'need', heads:['field','agg','system'] },
+  expr:      { value:'need', heads:['field','agg','system'] },
+  inv:       { value:'need', heads:['field','agg','system'] },
+  else:      { value:'need', heads:['field','agg','system'] },
+  key:       { value:'none', heads:['field'] },
+  'skip-in': { value:'none', heads:['field'] },
+};
+const TYPE_RULES = ['text','bool','num','date'];
+
+function exprOf(b){
+  if (!b) return null;
+  if (b.kind === 'exclude') return 'drop';
+  if (b.kind === 'repeat')  return 'each ' + (b.dataset || '?') + (b.groupBy ? ' | by ' + quoteIf(b.groupBy) : '');
+  if (b.kind === 'const')   return '= ' + JSON.stringify(b.constValue ?? '');
+
+  const parts = [ b.kind === 'system' ? '$meta.' + b.systemKey
+                : b.kind === 'agg'    ? b.agg + '(' + (b.dataset||'?') + (b.field ? '.'+b.field : '') + ')'
+                : (b.dataset||'?') + '.' + (b.field || '?') ];
+  if (b.codeSet) parts.push('code ' + quoteIf(b.codeSet));
+  if (b.type === 'number')   parts.push('num' + (b.format ? ' ' + quoteIf(b.format) : ''));
+  if (b.type === 'datetime') parts.push('date' + (b.format ? ' ' + quoteIf(b.format) : ''));
+  if (b.type === 'string')   parts.push('text');
+  if (b.type === 'bool')     parts.push('bool');
+  if (!b.type && b.format)   parts.push('fmt ' + quoteIf(b.format));
+  if (b.expr) parts.push('expr ' + quoteIf(b.expr));
+  if (b.inv)  parts.push('inv ' + quoteIf(b.inv));
+  if (b.def)  parts.push('else ' + quoteIf(b.def));
+  if (b.key)  parts.push('key');
+  if (b.ign)  parts.push('skip-in');
+  return parts.join(' | ');
+}
+
+/* Đọc ngược MỘT dòng thành dòng ánh xạ — đây là thứ backend cũng làm khi nạp cấu hình.
+   Sai cú pháp thì NÉM lỗi kèm đường dẫn, không đoán bừa. */
+function parseExpr(path, s){
+  const parts = splitTop(String(s).replace(/\s+#.*$/, ''));      // bỏ phần ghi chú sau '#'
+  const head = (parts.shift() || '').trim();
+  if (!head) throw new Error(path + ': dòng rỗng');
+  const b = { path };
+
+  if (head === 'drop') b.kind = 'exclude';
+  else if (/^each\s+/i.test(head)){ b.kind = 'repeat'; b.dataset = head.replace(/^each\s+/i, '').trim(); }
+  else if (head.startsWith('=')){ b.kind = 'const'; try { b.constValue = JSON.parse(head.slice(1).trim()); }
+                                  catch { b.constValue = head.slice(1).trim(); } }
+  else if (head.startsWith('$meta.')){ b.kind = 'system'; b.systemKey = head.slice(6); }
+  else {
+    const m = /^(count|sum|avg|min|max)\(([^)]*)\)$/.exec(head);
+    if (m){ b.kind = 'agg'; b.agg = m[1];
+            const [ds, col] = m[2].split('.'); b.dataset = ds; b.field = col || undefined; }
+    else { b.kind = 'field'; const i = head.indexOf('.');
+           if (i <= 0) throw new Error(path + ': nguồn "' + head + '" phải theo dạng tập.cột');
+           b.dataset = head.slice(0, i); b.field = head.slice(i + 1); }
+  }
+
+  const seen = new Set();
+  let typeRule = null;
+  for (const r of parts){
+    const sp = r.indexOf(' ');
+    const k = (sp < 0 ? r : r.slice(0, sp)).toLowerCase();
+    const raw = sp < 0 ? '' : r.slice(sp + 1).trim();
+    const spec = RULE_SPEC[k];
+
+    if (!spec) throw new Error(path + ': luật lạ "' + k + '"');
+    if (!spec.heads.includes(b.kind)) throw new Error(path + ': luật "' + k + '" không dùng được cho ' + b.kind);
+    if (seen.has(k)) throw new Error(path + ': luật "' + k + '" khai hai lần');
+    if (spec.value === 'need' && !raw) throw new Error(path + ': luật "' + k + '" thiếu giá trị');
+    if (spec.value === 'none' && raw)  throw new Error(path + ': luật "' + k + '" không nhận giá trị');
+    if (TYPE_RULES.includes(k)){
+      if (typeRule) throw new Error(path + ': khai hai kiểu ra "' + typeRule + '" và "' + k + '"');
+      typeRule = k;
+    }
+    seen.add(k);
+
+    const v = unquote(raw);
+    if (k === 'by')        b.groupBy = v;
+    else if (k === 'code') b.codeSet = v;
+    else if (k === 'text') b.type = 'string';
+    else if (k === 'bool') b.type = 'bool';
+    else if (k === 'num')  { b.type = 'number';   if (v) b.format = v; }
+    else if (k === 'date') { b.type = 'datetime'; if (v) b.format = v; }
+    else if (k === 'fmt')  b.format = v;
+    else if (k === 'expr') b.expr = v;
+    else if (k === 'inv')  b.inv = v;
+    else if (k === 'else') b.def = v;
+    else if (k === 'key')  b.key = true;
+    else if (k === 'skip-in') b.ign = true;
+  }
+  return b;
+}
+
+/* Khi mẫu đối tác đổi tên khoá, map trỏ theo đường dẫn cũ sẽ thành mồ côi.
+   Ghép lại theo (khoá cha, vị trí) — chỉ khác đoạn cuối thì coi là ĐỔI TÊN, không phải mất khoá. */
+function alignRenames(oldLeaves, newLeaves, map){
+  const parentOf = p => p.slice(0, p.lastIndexOf('/'));
+  const lost  = oldLeaves.filter(p => !newLeaves.includes(p));
+  const added = newLeaves.filter(p => !oldLeaves.includes(p));
+  const renames = [];
+
+  for (const from of lost){
+    const idx = oldLeaves.filter(p => parentOf(p) === parentOf(from)).indexOf(from);
+    const cand = added.filter(p => parentOf(p) === parentOf(from));
+    const to = cand[idx] ?? (cand.length === 1 && lost.filter(p => parentOf(p) === parentOf(from)).length === 1 ? cand[0] : null);
+    if (to && !renames.some(r => r.to === to)){
+      renames.push({ from, to });
+      if (from in map){ map[to] = map[from]; delete map[from]; }
+    }
+  }
+  return renames;
+}
+
+/* Nạp gói cấu hình: dryRun chỉ báo sẽ đổi gì, apply mới ghi vào và dựng lại W2 */
+function importPackage(apply){
+  const msg = document.getElementById('iomsg');
+  const show = (kind, html) => { msg.className = 'alert' + (kind === 'ok' ? ' ok' : kind === 'err' ? ' err' : '');
+                                 msg.innerHTML = html; msg.hidden = false; };
+  let pkg;
+  try { pkg = JSON.parse(document.getElementById('textio').value); }
+  catch (e){ return show('err', 'JSON không hợp lệ: ' + e.message); }
+  if (!pkg || typeof pkg.map !== 'object') return show('err', 'Thiếu khối <code>map</code>.');
+  /* Cú pháp có thể mở rộng về sau → gói phải nói mình theo bản nào. Thiếu thì coi là bản 1. */
+  const ver = pkg.mapVersion ?? 1;
+  if (ver > MAP_VERSION)
+    return show('err', 'Gói dùng cú pháp bản ' + ver + ', hệ thống chỉ đọc tới bản ' + MAP_VERSION + '.');
+
+  const map = { ...pkg.map };
+  const notes = [];
+
+  /* mẫu đối tác và map phải khớp nhau — kiểm ngay lúc nạp, không để sai âm thầm */
+  const oldLeaves = treeNodes.filter(n => n.kind === 'leaf' || n.kind === 'array').map(n => n.path);
+  let newLeaves = oldLeaves;
+  if (pkg.sample){
+    newLeaves = leavesOfSample(pkg.sample);
+    const renames = alignRenames(oldLeaves, newLeaves, map);
+    for (const r of renames)
+      notes.push('↻ đổi tên khoá: <span class="mono">' + r.from + '</span> → <span class="mono">' + r.to + '</span>');
+  }
+
+  const parsed = [], errs = [];
+  for (const [path, expr] of Object.entries(map)){
+    if (typeof expr !== 'string'){ errs.push(path + ': giá trị phải là một dòng chữ'); continue; }
+    let b;
+    try { b = parseExpr(path, expr); }
+    catch (e){ errs.push(e.message); continue; }          // sai cú pháp: báo đúng khoá, bỏ dòng đó
+    if (b.kind === 'field' && !b.field) errs.push(path + ': thiếu tên cột');
+    if ((b.kind === 'field' || b.kind === 'agg' || b.kind === 'repeat') && !packet.datasets[b.dataset])
+      errs.push(path + ': không có tập dữ liệu "' + b.dataset + '"');
+    if (b.kind === 'agg' && b.agg !== 'count' && !b.field) errs.push(path + ': phép ' + b.agg + ' cần cột số');
+    if (b.kind === 'field' && b.field && packet.datasets[b.dataset] &&
+        !colKeys(b.dataset).includes(b.field)) errs.push(path + ': tập ' + b.dataset + ' không có cột ' + b.field);
+    parsed.push(b);
+  }
+
+  const outside = parsed.filter(b => !newLeaves.includes(b.path)).map(b => b.path);
+  const added   = parsed.filter(b => !bind(b.path)).length;
+  const removed = bindings.filter(b => !(b.path in map)).map(b => b.path);
+
+  /* Bộ mã cần thiết suy từ map. Thiếu thì cảnh báo để tạo bên màn Bộ mã — gói cấu hình
+     KHÔNG mang dữ liệu bộ mã, tránh ghi đè bộ mã dùng chung của đối tác khác. */
+  const needCodes = [...new Set(parsed.map(b => b.codeSet).filter(Boolean))];
+  const missCodes = needCodes.filter(c => !codeSets[c]);
+  if (missCodes.length)
+    notes.push('⚠ thiếu bộ mã: ' + missCodes.join(', ') + ' — tạo ở màn Bộ mã trước khi bật hồ sơ');
+
+  if (errs.length) return show('err', '<strong>' + errs.length + ' lỗi</strong><div style="margin-top:6px">' +
+                                      errs.slice(0, 8).join('<br>') + '</div>');
+
+  const report = [
+    'Đọc được ' + parsed.length + ' dòng ánh xạ.',
+    added ? '+ thêm ' + added + ' khoá' : null,
+    removed.length ? '− bỏ ' + removed.length + ' khoá: ' + removed.map(x => x.split('/').pop()).join(', ') : null,
+    outside.length ? '⚠ ' + outside.length + ' khoá không có trong mẫu: ' + outside.join(', ') : null,
+    ...notes,
+  ].filter(Boolean).join('<br>');
+
+  if (!apply) return show(outside.length || missCodes.length ? 'warn' : 'ok',
+    report + '<div class="note" style="margin-top:6px">Chưa ghi gì — bấm <strong>Áp dụng</strong> để nạp.</div>');
+
+  if (pkg.sample) rebuildTree(pkg.sample);
+  bindings = parsed;
+  renderAll();
+  show('ok', report + '<div style="margin-top:6px">Đã nạp và dựng lại toàn bộ màn ánh xạ.</div>');
+}
+/* danh sách khoá lá + nút mảng của một mẫu bất kỳ, không đụng tới cây đang dùng */
+function leavesOfSample(s){
+  return buildTree(s, '', '(gốc)', 0, [{ depth:0, key:'(gốc)', path:'', kind:'root' }])
+    .filter(n => n.kind === 'leaf' || n.kind === 'array').map(n => n.path);
+}
+
+function renderTextIo(){
+  const map = {};
+  for (const n of treeNodes){                     // theo thứ tự cấu trúc đối tác cho dễ đọc
+    const b = bind(n.path);
+    if (b) map[n.path] = exprOf(b);
+  }
+  for (const b of bindings)                       // dòng trỏ vào khoá không còn trong mẫu
+    if (!(b.path in map)) map[b.path] = exprOf(b) + '   # khoá không còn trong mẫu';
+
+  const pkg = {
+    packet: '101', partner: 'P1',
+    direction: document.getElementById('dir').value,
+    format: 'DATA',
+    /* Bản cú pháp của khối map — bắt buộc để về sau mở rộng cú pháp mà vẫn đọc được gói cũ. */
+    mapVersion: MAP_VERSION,
+    /* Cấu hình chỉ gồm HAI khối: mẫu đối tác và map. Bộ mã là thực thể dùng chung, có màn hình
+       và đường xuất/nhập riêng — không nhét vào đây để không ghi đè bộ mã của đối tác khác.
+       Danh sách bộ mã cần thiết suy được từ chính map (các mệnh đề `code X`). */
+    sample,
+    map,
+  };
+  document.getElementById('textio').value = JSON.stringify(pkg, null, 2);
+  const used = [...new Set(bindings.map(b => b.codeSet).filter(Boolean))];
+  document.getElementById('iostat').textContent =
+    Object.keys(map).length + ' dòng ánh xạ' + (used.length ? ' · cần bộ mã: ' + used.join(', ') : '');
+}
+
+/* ─────────────── hộp thiết lập một khoá ─────────────── */
+function openPop(n){
+  if (n.kind === 'array') return openRepeatPop(n);      // nút mảng dùng hộp thiết lập riêng
+  activePath = n.path;
+  const own = ownerOf(n.path);
+  const b = bind(n.path) || { path:n.path, kind:'field', dataset:(own && own.dataset) || dsNames[0] };
+  if (!bind(n.path)) bindings.push(b);
+
+  document.getElementById('pop-path').textContent = n.path;
+  document.getElementById('p-src').innerHTML = srcOptions(false, srcCode(b));   // dùng CHUNG với tab Bảng
+  document.getElementById('p-constrow').hidden = b.kind !== 'const';
+  document.getElementById('p-const').value = b.constValue ?? '';
+  document.getElementById('p-rulegrp').hidden = b.kind === 'exclude';
+  fillAggRow(b);
+  setFieldInfo(b);
+
+  document.getElementById('p-code').value   = b.codeSet || '';
+  document.getElementById('p-type').value   = b.type || '';
+  document.getElementById('p-format').value = b.format || '';
+  document.getElementById('p-expr').value   = b.expr || '';
+  document.getElementById('p-def').value    = b.def || '';
+  document.getElementById('p-inv').value    = b.inv || '';
+  document.getElementById('p-key').checked  = !!b.key;
+  document.getElementById('p-ign').checked  = !!b.ign;
+
+  document.getElementById('pop2').hidden = true;
+  document.getElementById('pop').hidden = false;
+  document.getElementById('p-src').focus();
+  tryValue(); renderAll();
+}
+/* Phép gộp và cột được tính là HAI lựa chọn riêng, hiện ngay trong hộp thiết lập
+   (trước đây chỉ có ở tab Bảng nên mở hộp ra không thấy chỗ chọn avg/min/max). */
+function fillAggRow(b){
+  const row = document.getElementById('p-aggrow');
+  row.hidden = !b || b.kind !== 'agg';
+  if (row.hidden) return;
+
+  document.getElementById('p-agg').innerHTML = AGG_FNS
+    .map(a => '<option value="'+a+'"'+(a === (b.agg || 'count') ? ' selected' : '')+'>'+a+'</option>').join('');
+
+  const colSel = document.getElementById('p-aggfield');
+  if (b.agg === 'count'){
+    colSel.innerHTML = '<option value="">(count không cần cột — số dòng của tập ' + b.dataset + ')</option>';
+    colSel.disabled = true;
+  } else {
+    const cols = numColsOf(b.dataset);
+    colSel.disabled = false;
+    colSel.innerHTML = ['', ...cols]
+      .map(c => '<option value="'+c+'"'+(c === (b.field || '') ? ' selected' : '')+'>'+
+                (c || '(chọn cột số của tập ' + b.dataset + ')')+'</option>').join('');
+  }
+}
+
+function setFieldInfo(b){
+  const f = b && b.dataset ? (datasets[b.dataset].fields.find(x => x.key === b.field) || {}) : {};
+  document.getElementById('p-fieldinfo').textContent = f.info || '';
+}
+function readPop(){
+  const b = bind(activePath); if (!b) return;
+  b.codeSet = document.getElementById('p-code').value   || undefined;
+  b.type    = document.getElementById('p-type').value   || undefined;
+  b.format  = document.getElementById('p-format').value || undefined;
+  b.expr    = document.getElementById('p-expr').value   || undefined;
+  b.def     = document.getElementById('p-def').value    || undefined;
+  b.inv     = document.getElementById('p-inv').value    || undefined;
+  b.key     = document.getElementById('p-key').checked  || undefined;
+  b.ign     = document.getElementById('p-ign').checked  || undefined;
+  if (b.kind === 'const') b.constValue = document.getElementById('p-const').value;
+  setFieldInfo(b); tryValue(); renderAll();
+}
+function tryValue(){
+  const b = bind(activePath); if (!b) return;
+  const raw = document.getElementById('p-try').value;
+  const fake = {}; if (b.field) fake[b.field] = raw;
+  document.getElementById('p-out').textContent = String(evalLeaf(b, fake).value ?? '—');
+}
+
+/* ─────────────── hộp thoại nút mảng (W4b) ─────────────── */
+function openRepeatPop(n){
+  activePath = n.path;
+  let b = bind(n.path);
+  if (!b){ b = { path:n.path, kind:'repeat', dataset:dsNames[0] }; bindings.push(b); }
+
+  document.getElementById('pop2-path').textContent = n.path;
+  document.getElementById('r-rep').checked   = b.kind === 'repeat';
+  document.getElementById('r-const').checked = b.kind !== 'repeat';
+  document.getElementById('r-src').value = b.dataset || dsNames[0];
+  document.getElementById('r-grp').value = b.groupBy || '';
+  document.getElementById('r-top').value = b.top || '';
+  document.getElementById('pop').hidden = true;
+  document.getElementById('pop2').hidden = false;
+  document.getElementById('r-src').focus();
+  renderAll();
+}
+function readRepeatPop(){
+  const b = bind(activePath); if (!b) return;
+  if (document.getElementById('r-const').checked){
+    bindings = bindings.filter(x => x.path !== activePath);   // mảng hằng = không có dòng ánh xạ
+  } else {
+    b.kind = 'repeat';
+    b.dataset = document.getElementById('r-src').value;
+    b.groupBy = document.getElementById('r-grp').value || undefined;
+    b.top = document.getElementById('r-top').value || undefined;
+  }
+  renderAll();
+}
+
+/* ─────────────── nối sự kiện ─────────────── */
+function renderAll(){ syncDatasets(); renderStat(); renderGrid(); renderPreview(); renderTextIo(); renderMapper(); redraw(); }
+
+/* hộp Mẫu đối tác — gộp việc dán mẫu + đối chiếu khoá vào một chỗ, không chiếm chỗ thường xuyên */
+document.getElementById('sampletext').value = JSON.stringify(sample, null, 2);
+document.getElementById('samplestat').textContent =
+  treeNodes.filter(n => n.kind === 'leaf').length + ' khoá trong mẫu đối tác';
+document.getElementById('btn-sample').addEventListener('click', () => {
+  const box = document.getElementById('samplebox'); box.hidden = !box.hidden; redraw();
+});
+document.getElementById('btn-sample-close').addEventListener('click', () => {
+  document.getElementById('samplebox').hidden = true; redraw();
+});
+document.getElementById('btn-apply-sample').addEventListener('click', () => {
+  const msg = document.getElementById('samplemsg');
+  let parsed;
+  try { parsed = JSON.parse(document.getElementById('sampletext').value); }
+  catch (e){ msg.className = 'alert err'; msg.textContent = 'JSON không hợp lệ: ' + e.message; msg.hidden = false; return; }
+
+  const before = treeNodes.filter(n => n.kind === 'leaf').map(n => n.path);
+  rebuildTree(parsed);
+  const after = treeNodes.filter(n => n.kind === 'leaf').map(n => n.path);
+
+  const added = after.filter(p => !before.includes(p));
+  const lost  = before.filter(p => !after.includes(p));
+  const hit   = lost.filter(p => bind(p));                       // khoá mất mà đang có nối
+
+  renderAll();
+  const parts = [];
+  if (added.length) parts.push('+ thêm ' + added.length + ' khoá: ' + added.map(shortKey).join(', '));
+  if (lost.length)  parts.push('− mất ' + lost.length + ' khoá: ' + lost.map(shortKey).join(', ') +
+                               (hit.length ? ' (' + hit.length + ' khoá đang có nối — dòng ánh xạ giữ lại, đánh ⚠)' : ''));
+  msg.className = 'alert' + (parts.length ? '' : ' ok');
+  msg.innerHTML = parts.length ? parts.join('<br>') : 'Mẫu không thay đổi so với bản đang dùng.';
+  msg.hidden = false;
+});
+const shortKey = p => p.split('/').pop();
+
+/* Mỗi thanh tab tự quản panel của nó — dialog và W7 có thanh riêng, không dính vào nhau,
+   và nút điều hướng trang nằm ngoài mọi thanh .tabs. */
+function wireTabs(barId, after){
+  document.querySelectorAll('#' + barId + ' .tab').forEach(t => t.addEventListener('click', () => {
+    document.querySelectorAll('#' + barId + ' .tab').forEach(x => {
+      const on = x === t;
+      x.setAttribute('aria-selected', on ? 'true' : 'false');
+      document.getElementById(x.getAttribute('aria-controls')).hidden = !on;
+    });
+    if (after) after();
+  }));
+}
+wireTabs('dlg-tabs', redraw);        // redraw: đường nối chỉ vẽ được khi panel đã hiện
+wireTabs('w7-tabs');
+if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('resize', drawLines);
+
+/* Tự khớp theo tên: so tên khoá đối tác với tên cột đã chuẩn hoá, chỉ điền vào khoá CHƯA nối */
+document.getElementById('map-auto').addEventListener('click', () => {
+  const norm = s => (s || '').toLowerCase().replace(/[_\-\s]/g, '');
+  let n = 0;
+  for (const node of treeNodes){
+    if (node.kind !== 'leaf') continue;
+    const b = bind(node.path);
+    if (b && (b.field || b.kind === 'exclude' || b.kind === 'system' || b.kind === 'agg')) continue;
+
+    const own = ownerOf(node.path);
+    const dsn = own ? own.dataset : dsNames[0];
+    const hit = (datasets[dsn].fields.find(f => norm(f.key) === norm(node.key)) ||
+                 datasets[dsn].fields.find(f => norm(f.key).includes(norm(node.key))));
+    if (!hit) continue;
+
+    let t = b; if (!t){ t = { path:node.path }; bindings.push(t); }
+    t.kind = 'field'; t.dataset = dsn; t.field = hit.key; n++;
+  }
+  renderAll();
+  document.getElementById('mapsel').textContent = n ? 'tự khớp được ' + n + ' khoá' : 'không khớp thêm được khoá nào';
+});
+
+document.getElementById('map-clear').addEventListener('click', () => {
+  bindings = bindings.filter(b => b.kind === 'repeat' || b.kind === 'exclude');
+  mapSel = null; renderAll();
+});
+
+document.getElementById('onlymapped').addEventListener('change', renderGrid);
+document.getElementById('pop-close').addEventListener('click', () => document.getElementById('pop').hidden = true);
+document.getElementById('p-done').addEventListener('click', () => { readPop(); document.getElementById('pop').hidden = true; });
+document.getElementById('p-clear').addEventListener('click', () => {
+  bindings = bindings.filter(b => b.path !== activePath);
+  document.getElementById('pop').hidden = true; renderAll();
+});
+['p-code','p-type'].forEach(id => document.getElementById(id).addEventListener('change', readPop));
+['p-format','p-expr','p-def','p-inv','p-const'].forEach(id => document.getElementById(id).addEventListener('input', readPop));
+['p-key','p-ign'].forEach(id => document.getElementById(id).addEventListener('change', readPop));
+
+/* Đổi nguồn ngay trong hộp — cùng một combobox với tab Bảng, giữ nguyên luật đã khai */
+document.getElementById('p-src').addEventListener('change', e => {
+  const old = bind(activePath) || {};
+  setSource(activePath, e.target.value, {
+    codeSet:old.codeSet, type:old.type, format:old.format, expr:old.expr,
+    def:old.def, inv:old.inv, key:old.key, ign:old.ign, constValue:old.constValue,
+    agg:old.agg, field:old.field,
+  });
+  const b = bind(activePath);
+  document.getElementById('p-constrow').hidden = !b || b.kind !== 'const';
+  document.getElementById('p-rulegrp').hidden  = !!b && b.kind === 'exclude';
+  fillAggRow(b); setFieldInfo(b); tryValue();
+});
+
+/* Phép gộp / cột được tính */
+document.getElementById('p-agg').addEventListener('change', e => {
+  const b = bind(activePath); if (!b) return;
+  b.agg = e.target.value;
+  if (b.agg === 'count') b.field = undefined;
+  else if (!numColsOf(b.dataset).includes(b.field)) b.field = numColsOf(b.dataset)[0];
+  fillAggRow(b); tryValue(); renderAll();
+});
+document.getElementById('p-aggfield').addEventListener('change', e => {
+  const b = bind(activePath); if (!b) return;
+  b.field = e.target.value || undefined;
+  tryValue(); renderAll();
+});
+
+document.getElementById('p-advtoggle').addEventListener('click', e => {
+  const adv = document.getElementById('p-adv');
+  adv.hidden = !adv.hidden;
+  e.target.setAttribute('aria-expanded', adv.hidden ? 'false' : 'true');
+  e.target.textContent = adv.hidden ? 'Nâng cao ▾' : 'Nâng cao ▴';
+});
+document.getElementById('p-try').addEventListener('input', tryValue);
+
+document.getElementById('pop2-close').addEventListener('click', () => document.getElementById('pop2').hidden = true);
+document.getElementById('pop2-done').addEventListener('click', () => {
+  readRepeatPop(); document.getElementById('pop2').hidden = true;
+});
+['r-src','r-grp'].forEach(id => document.getElementById(id).addEventListener('change', readRepeatPop));
+document.getElementById('r-top').addEventListener('input', readRepeatPop);
+document.querySelectorAll('input[name=rk]').forEach(r => r.addEventListener('change', readRepeatPop));
+document.getElementById('p-fn').addEventListener('change', e => {
+  const box = document.getElementById('p-expr');
+  box.value = box.value ? box.value + ' | ' + e.target.value : e.target.value;
+  readPop();
+});
+
+document.getElementById('prev-').addEventListener('click', () => {
+  const t = maxRows(); recIndex = (recIndex + t - 1) % t; renderPreview();
+});
+document.getElementById('prev+').addEventListener('click', () => {
+  const t = maxRows(); recIndex = (recIndex + 1) % t; renderPreview();
+});
+
+document.getElementById('dir').addEventListener('change', e => {
+  const v = e.target.value, hasIn = v === 'in' || v === 'both';
+  document.getElementById('reverse').hidden = !hasIn;
+  document.getElementById('p-invrow').style.opacity = hasIn ? '1' : '.45';
+  renderTextIo();
+});
+document.getElementById('p-invrow').style.opacity = '.45';
+/* Khởi tạo chạy ở cuối tệp, sau khi màn Gói tin đã dựng `packet` — xem script bên dưới. */
+</script>
+<script>
+/* ══════════════════ MÀN GÓI TIN (W0) — NGUỒN DỮ LIỆU DUY NHẤT ══════════════════
+   `packet` là định nghĩa gói tin: các tập dữ liệu, câu SQL, cột trả về, câu ghi.
+   Phần phễu lọc ở script trên đọc đúng object này qua dsView()/syncDatasets(),
+   nên không còn hai bản danh mục cột như trước. */
+const packet = {
+  code:'101', version:'1.0',
+  writeTables:'dbo.TmsZoneStatus',
+  writeSql:
+`MERGE dbo.TmsZoneStatus AS t
+USING (SELECT @segmentCode AS SegmentCode, @measuredAt AS MeasuredAt) AS s
+   ON  t.SegmentCode = s.SegmentCode AND t.MeasuredAt = s.MeasuredAt AND t.IsDelete IS NULL
+WHEN MATCHED THEN
+    UPDATE SET t.TrafficCondition = @trafficCond, t.AvgSpeed = @avgSpeed,
+               t.UpdateTime = @now, t.SourceType = 'SHARE_DATA', t.PartnerId = @partnerId
+WHEN NOT MATCHED THEN
+    INSERT (ID, SegmentCode, MeasuredAt, TrafficCondition, AvgSpeed,
+            SourceType, PartnerId, CreateTime, TenantId)
+    VALUES (@id, @segmentCode, @measuredAt, @trafficCond, @avgSpeed,
+            'SHARE_DATA', @partnerId, @now, @tenantId);`,
+  datasets: {
+    records: {
+      kind:'root', label:'Đoạn tuyến', describedAt:'09/09/2026 23:40',
+      sql:
+`SELECT  b.Code              AS segmentCode,
+        b.Name              AS segmentName,
+        r.Code              AS routeCode,
+        a.TrafficCondition  AS trafficCond,
+        a.AvgSpeed          AS avgSpeed,
+        a.MeasuredAt        AS measuredAt
+FROM    dbo.TmsZoneStatus a
+LEFT JOIN dbo.TmsZone  b ON a.ZoneId  = b.ID
+LEFT JOIN dbo.TmsRoute r ON b.RouteId = r.ID
+WHERE   a.IsDelete IS NULL
+    AND (a.SourceType IS NULL OR a.SourceType <> 'SHARE_DATA')
+    AND (@fromTime IS NULL OR a.MeasuredAt >= @fromTime)
+    AND (@toTime   IS NULL OR a.MeasuredAt <  @toTime)
+    /*{WHERE}*/`,
+      cols:[
+        { key:'segmentCode', type:'string',   label:'Mã đoạn tuyến',            req:true,  skip:false },
+        { key:'segmentName', type:'string',   label:'Tên đoạn tuyến',           req:true,  skip:false },
+        { key:'routeCode',   type:'string',   label:'Mã tuyến',                 req:false, skip:false },
+        { key:'trafficCond', type:'number',   label:'Tình trạng giao thông',    req:true,  skip:false },
+        { key:'avgSpeed',    type:'number',   label:'Tốc độ trung bình (km/h)', req:false, skip:false },
+        { key:'measuredAt',  type:'datetime', label:'Thời điểm đo',             req:true,  skip:false },
+      ],
+      params:[
+        { name:'fromTime', type:'datetime', src:'lastRunTime', note:'mốc lần chạy trước' },
+        { name:'toTime',   type:'datetime', src:'now',         note:'thời điểm hiện tại' },
+      ],
+      rows:[
+        { segmentCode:'1A', segmentName:'Cầu Giẽ – Liêm Tuyền', routeCode:'HN-CL', trafficCond:1, avgSpeed:82.5, measuredAt:'2026-09-09T22:00:00' },
+        { segmentCode:'1B', segmentName:'Liêm Tuyền – Cao Bồ',  routeCode:'HN-CL', trafficCond:2, avgSpeed:45.0, measuredAt:'2026-09-09T22:00:00' },
+        { segmentCode:'2A', segmentName:'Cao Bồ – Mai Sơn',     routeCode:'CL-VT', trafficCond:3, avgSpeed:28.0, measuredAt:'2026-09-09T22:00:00' },
+      ],
+    },
+    totals: {
+      kind:'derived', label:'Tổng hợp theo tuyến', from:'records', groupBy:'routeCode',
+      cols:[
+        { key:'routeCode',    agg:'group', of:'routeCode', label:'Mã tuyến' },
+        { key:'segmentCount', agg:'count', of:'',          label:'Số đoạn tuyến' },
+        { key:'avgSpeedAll',  agg:'avg',   of:'avgSpeed',  label:'Tốc độ TB toàn tuyến (km/h)' },
+      ],
+    },
+  },
+};
+let cur = 'records';
+const ds = () => packet.datasets[cur];
+const SRCS = ['lastRunTime','now','tenant','partner','subscription'];
+const AGGS = ['group','count','sum','avg','min','max'];
+const KINDLBL = { root:'Gốc', derived:'Dẫn xuất', extra:'Phụ' };
+const rootName = () => Object.keys(packet.datasets).find(k => packet.datasets[k].kind === 'root');
+
+/* Tập dẫn xuất: gộp ngay trên tập cha, không cần câu SQL thứ hai */
+function derivedRows(name){
+  const d = packet.datasets[name], src = packet.datasets[d.from];
+  if (!src) return [];
+  const rows = src.kind === 'derived' ? derivedRows(d.from) : (src.rows || []);
+  const groups = new Map();
+  for (const r of rows){
+    const k = d.groupBy ? String(r[d.groupBy] ?? '') : '*';
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(r);
+  }
+  const out = [];
+  for (const [k, list] of groups){
+    const o = {};
+    for (const c of d.cols){
+      if (c.agg === 'group'){ o[c.key] = list[0] ? list[0][c.of || d.groupBy] : k; continue; }
+      if (c.agg === 'count'){ o[c.key] = list.length; continue; }
+      const nums = list.map(r => Number(r[c.of])).filter(n => !isNaN(n));
+      if (!nums.length){ o[c.key] = null; continue; }
+      o[c.key] = c.agg === 'sum' ? nums.reduce((a,b)=>a+b,0)
+               : c.agg === 'avg' ? Math.round(nums.reduce((a,b)=>a+b,0)/nums.length*100)/100
+               : c.agg === 'min' ? Math.min(...nums) : Math.max(...nums);
+    }
+    out.push(o);
+  }
+  return out;
+}
+function rowsOf(name){
+  const d = packet.datasets[name];
+  return !d ? [] : (d.kind === 'derived' ? derivedRows(name) : (d.rows || []));
+}
+function colKeys(name){
+  const d = packet.datasets[name];
+  return !d ? [] : (d.kind === 'derived' ? d.cols.map(c => c.key) : d.cols.filter(c => !c.skip).map(c => c.key));
+}
+
+/* Bộ dò cột: đọc bí danh AS trong câu SQL, bỏ bí danh bảng */
+function describe(sql){
+  const found = []; const re = /\bAS\s+\[?([A-Za-z_][A-Za-z0-9_]*)\]?/gi; let m;
+  while ((m = re.exec(sql)) !== null){
+    const before = sql.slice(Math.max(0, m.index - 40), m.index);
+    if (/(FROM|JOIN|USING)\b[^,]*$/i.test(before)) continue;
+    if (!found.includes(m[1])) found.push(m[1]);
+  }
+  return found;
+}
+function guessType(sql, key){
+  const line = (sql.split('\n').find(l => new RegExp('AS\\s+\\[?'+key+'\\b','i').test(l)) || '');
+  if (/date|time|At\b/i.test(line) && !/count/i.test(line)) return 'datetime';
+  if (/count|sum|avg|speed|qty|num|condition/i.test(line)) return 'number';
+  return 'string';
+}
+function runDescribe(){
+  const sql = document.getElementById('ds-sql').value;
+  const guard = checkRead(sql);
+  if (guard) return say('err', 'Không dò được: ' + guard);
+  const found = describe(sql);
+  if (!found.length) return say('err', 'Không tìm thấy bí danh AS nào trong câu truy vấn.');
+
+  const old = ds().cols, added = [], changed = [], lost = [];
+  for (const key of found){
+    const ex = old.find(c => c.key === key), t = guessType(sql, key);
+    if (!ex){ old.push({ key, type:t, label:'', req:false, skip:false }); added.push(key); }
+    else { if (ex.type !== t){ changed.push(key+': '+ex.type+' → '+t); ex.type = t; } ex.skip = false; }
+  }
+  for (const c of old) if (!found.includes(c.key) && !c.skip){ c.skip = true; lost.push(c.key); }
+
+  ds().describedAt = new Date().toLocaleString('vi-VN');
+  renderPacket(); renderAll();                       // phần phễu lọc cập nhật theo ngay
+  const parts = [];
+  if (added.length)   parts.push('+ thêm '+added.length+' cột: '+added.join(', '));
+  if (lost.length)    parts.push('− mất '+lost.length+' cột (đánh Bỏ qua, KHÔNG xoá): '+lost.join(', '));
+  if (changed.length) parts.push('~ đổi kiểu: '+changed.join(' · '));
+  say(parts.length ? 'warn' : 'ok', 'Dò được '+found.length+' cột: '+found.join(', ') +
+      (parts.length ? '<div style="margin-top:6px">'+parts.join('<br>')+'</div>' : ' — không có thay đổi.'));
+}
+
+/* Chốt an toàn câu SQL */
+const FORBIDDEN = [';','--','xp_','sp_executesql','exec ','execute ','waitfor','drop ','alter ',
+                   'truncate ','grant ','revoke ','shutdown','openrowset'];
+const normSql = s => s.replace(/\/\*\{WHERE\}\*\//g,' ').replace(/\s+/g,' ').toLowerCase();
+function checkRead(sql){
+  const s = normSql(sql);
+  if (!/^\s*(select|with)\b/.test(s)) return 'câu truy vấn phải bắt đầu bằng SELECT hoặc WITH.';
+  for (const t of FORBIDDEN) if (s.includes(t)) return 'chứa từ khoá bị cấm: "'+t.trim()+'".';
+  if (/\b(insert|update|delete|merge)\b/.test(s)) return 'câu truy vấn chiều gửi không được ghi dữ liệu.';
+  return null;
+}
+function checkWrite(sql, allowed){
+  const s = normSql(sql).replace(/;\s*$/,'');
+  if (!/^\s*(merge|insert|update|with)\b/.test(s)) return 'câu ghi phải là MERGE, INSERT hoặc UPDATE.';
+  if (s.includes(';')) return 'chỉ cho phép một câu lệnh (dấu ; chỉ được ở cuối).';
+  for (const t of FORBIDDEN.filter(x => x !== ';')) if (s.includes(t)) return 'chứa từ khoá bị cấm: "'+t.trim()+'".';
+  const tables = [
+    ...[...s.matchAll(/\bmerge\s+(?:into\s+)?([a-z0-9_\.\[\]]+)/g)],
+    ...[...s.matchAll(/\binsert\s+into\s+([a-z0-9_\.\[\]]+)/g)],
+    ...[...s.matchAll(/\bupdate\s+([a-z0-9_\.\[\]]+)\s+set\b/g)],
+  ].map(m => m[1].replace(/[\[\]]/g,''));
+  const ok = allowed.split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
+  const bad = tables.filter(t => !ok.includes(t));
+  if (bad.length) return 'bảng không nằm trong danh sách được phép ghi: '+bad.join(', ')+'.';
+  return null;
+}
+function say(kind, html, id){
+  const el = document.getElementById(id || 'msg');
+  el.className = 'alert' + (kind === 'ok' ? ' ok' : kind === 'err' ? ' err' : '');
+  el.innerHTML = html; el.hidden = false;
+}
+/* Khoá bản ghi đọc từ mệnh đề USING của câu ghi — không khai tay lần thứ hai */
+function keyFieldKeys(){
+  const m = /using\s*\(\s*select([\s\S]*?)\)\s*as\s+\w+/i.exec(packet.writeSql || '');
+  return m ? [...m[1].matchAll(/@([A-Za-z_]\w*)/g)].map(x => x[1]).join(',') : '';
+}
+
+const selP = (i,k,vals,cur2,lbl) => '<select data-i="'+i+'" data-k="'+k+'" aria-label="'+k+'">' +
+  vals.map(v => '<option value="'+v+'"'+(v===cur2?' selected':'')+'>'+lbl(v)+'</option>').join('') + '</select>';
+
+function renderPacket(){
+  const list = document.getElementById('dslist'); list.innerHTML = '';
+  for (const name of Object.keys(packet.datasets)){
+    const d = packet.datasets[name];
+    const el = document.createElement('div');
+    el.className = 'item' + (name === cur ? ' active' : ''); el.tabIndex = 0;
+    el.innerHTML = '<span class="nm">'+name+'</span>' +
+      '<span class="chip'+(d.kind==='root'?' k':d.kind==='extra'?' x':'')+'">'+KINDLBL[d.kind]+'</span>' +
+      '<span class="note">'+d.label+'</span><span style="flex:1"></span>' +
+      '<span class="chip">'+colKeys(name).length+' cột · '+rowsOf(name).length+' dòng</span>' +
+      (d.kind !== 'derived' && !d.describedAt ? '<span class="chip w">chưa dò</span>' : '');
+    el.addEventListener('click', () => { cur = name; hideMsgs(); renderPacket(); });
+    el.addEventListener('keydown', e => { if (e.key === 'Enter'){ cur = name; hideMsgs(); renderPacket(); } });
+    list.appendChild(el);
+  }
+
+  const d = ds(), isDer = d.kind === 'derived';
+  document.getElementById('ds-name').textContent = cur;
+  document.getElementById('ds-kindchip').textContent = KINDLBL[d.kind];
+  document.getElementById('ds-label').value = d.label;
+  document.getElementById('blk-sql').hidden = isDer;
+  document.getElementById('blk-cols').hidden = isDer;
+  document.getElementById('blk-der').hidden = !isDer;
+  document.getElementById('blk-parhead').hidden = isDer;
+  document.getElementById('partbl').hidden = isDer;
+  document.getElementById('del-ds').disabled = d.kind === 'root';
+
+  if (!isDer){
+    document.getElementById('ds-sql').value = d.sql;
+    document.getElementById('colcount').textContent =
+      d.cols.filter(c => !c.skip).length + ' cột đang dùng · dò lần cuối ' + (d.describedAt || '—');
+
+    const cb = document.getElementById('colbody'); cb.innerHTML = '';
+    d.cols.forEach((c, i) => {
+      const tr = document.createElement('tr');
+      if (c.skip) tr.style.color = 'var(--muted)';
+      tr.innerHTML =
+        '<td class="mono"'+(c.skip?' style="text-decoration:line-through"':'')+'>'+c.key+'</td>' +
+        '<td class="note">'+c.type+'</td>' +
+        '<td><input type="text" data-i="'+i+'" data-k="label" value="'+c.label+'" style="width:100%" placeholder="'+c.key+'" aria-label="Nhãn"></td>' +
+        '<td style="text-align:center"><input type="checkbox" data-i="'+i+'" data-k="req" '+(c.req?'checked':'')+' aria-label="Bắt buộc"></td>' +
+        '<td style="text-align:center"><input type="checkbox" data-i="'+i+'" data-k="skip" '+(c.skip?'checked':'')+' aria-label="Bỏ qua"></td>';
+      cb.appendChild(tr);
+    });
+    cb.querySelectorAll('input[type=text]').forEach(e => e.addEventListener('input', onCol));
+    cb.querySelectorAll('input[type=checkbox]').forEach(e => e.addEventListener('change', onCol));
+
+    const pb = document.getElementById('parbody'); pb.innerHTML = '';
+    (d.params || []).forEach((p, i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td class="mono">@'+p.name+'</td><td class="mono">'+p.type+'</td>' +
+        '<td>'+selP(i,'src',SRCS,p.src,v=>v)+'</td>' +
+        '<td><input type="text" data-i="'+i+'" data-k="note" value="'+p.note+'" style="width:100%" aria-label="Ghi chú"></td>' +
+        '<td><button class="btn mini" data-del="'+i+'" aria-label="Xoá tham số">×</button></td>';
+      pb.appendChild(tr);
+    });
+    pb.querySelectorAll('select').forEach(e => e.addEventListener('change', onPar));
+    pb.querySelectorAll('input').forEach(e => e.addEventListener('input', onPar));
+    pb.querySelectorAll('button[data-del]').forEach(b => b.addEventListener('click', e => {
+      d.params.splice(+e.target.dataset.del, 1); renderPacket();
+    }));
+  } else {
+    const others = Object.keys(packet.datasets).filter(k => k !== cur);
+    document.getElementById('der-from').innerHTML = others
+      .map(k => '<option value="'+k+'"'+(k===d.from?' selected':'')+'>'+k+'</option>').join('');
+    const parentKeys = colKeys(d.from || others[0] || '');
+    document.getElementById('der-group').innerHTML = ['', ...parentKeys]
+      .map(k => '<option value="'+k+'"'+(k===d.groupBy?' selected':'')+'>'+(k || '(không nhóm — gộp cả tập)')+'</option>').join('');
+
+    const db = document.getElementById('derbody'); db.innerHTML = '';
+    d.cols.forEach((c, i) => {
+      const missing = c.agg !== 'count' && c.of && !parentKeys.includes(c.of);
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td><input type="text" data-i="'+i+'" data-k="key" value="'+c.key+'" style="width:100%" aria-label="Khoá cột"></td>' +
+        '<td>'+selP(i,'agg',AGGS,c.agg,v=>v)+'</td>' +
+        '<td>'+(c.agg === 'count' ? '<span class="note">—</span>'
+                : selP(i,'of',['', ...parentKeys, ...(missing?[c.of]:[])], c.of, v=>v||'(chọn)'))+
+          (missing ? ' <span class="chip w">cột không còn</span>' : '')+'</td>' +
+        '<td><input type="text" data-i="'+i+'" data-k="label" value="'+c.label+'" style="width:100%" placeholder="'+c.key+'" aria-label="Nhãn"></td>' +
+        '<td><button class="btn mini" data-del="'+i+'" aria-label="Xoá cột gộp">×</button></td>';
+      db.appendChild(tr);
+    });
+    db.querySelectorAll('select').forEach(e => e.addEventListener('change', onDer));
+    db.querySelectorAll('input[type=text]').forEach(e => e.addEventListener('input', onDer));
+    db.querySelectorAll('button[data-del]').forEach(b => b.addEventListener('click', e => {
+      d.cols.splice(+e.target.dataset.del, 1); renderPacket(); renderAll();
+    }));
+
+    const bad = d.cols.filter(c => c.agg !== 'count' && c.of && !parentKeys.includes(c.of)).map(c => c.of);
+    if (bad.length) say('warn', 'Cột nguồn không còn trong tập <span class="mono">'+d.from+'</span>: '+
+                        bad.join(', ')+' — sửa lại hoặc xoá dòng.', 'msg2');
+    else document.getElementById('msg2').hidden = true;
+  }
+
+  const names = Object.keys(packet.datasets);
+  document.getElementById('t-ds').innerHTML = names
+    .map(k => '<span class="chip'+(packet.datasets[k].kind==='root'?' k':packet.datasets[k].kind==='extra'?' x':'')+'">'+
+              k+' · '+KINDLBL[packet.datasets[k].kind]+'</span>').join(' ');
+  document.getElementById('t-col').textContent = names.reduce((n,k) => n + colKeys(k).length, 0);
+  document.getElementById('t-desc').textContent = packet.datasets[rootName()].describedAt || '—';
+  document.getElementById('w-keys').value = keyFieldKeys();
+}
+function hideMsgs(){ ['msg','msg2','msgw'].forEach(id => document.getElementById(id).hidden = true);
+                     document.getElementById('rowsbox').hidden = true; }
+function onCol(e){
+  const el = e.target, c = ds().cols[+el.dataset.i];
+  c[el.dataset.k] = el.type === 'checkbox' ? el.checked : el.value;
+  renderPacket(); renderAll();                        // cột đổi → phễu lọc đổi theo
+}
+function onPar(e){ ds().params[+e.target.dataset.i][e.target.dataset.k] = e.target.value; }
+function onDer(e){
+  const el = e.target, c = ds().cols[+el.dataset.i];
+  c[el.dataset.k] = el.value;
+  if (el.dataset.k === 'agg' && el.value === 'count') c.of = '';
+  renderPacket(); renderAll();
+}
+function showPacketRows(name){
+  const t = document.getElementById('rowstbl'), keys = colKeys(name), rows = rowsOf(name);
+  t.innerHTML = '<thead><tr>' + keys.map(k => '<th>'+k+'</th>').join('') + '</tr></thead><tbody>' +
+    (rows.length ? rows.map(r => '<tr>' + keys.map(k => '<td class="mono">' + (r[k] ?? '') + '</td>').join('') + '</tr>').join('')
+                 : '<tr><td class="note" colspan="'+Math.max(1,keys.length)+'">(không có dòng)</td></tr>') + '</tbody>';
+  document.getElementById('rowsbox').hidden = false;
+}
+
+/* sự kiện màn Gói tin */
+document.getElementById('ds-sql').addEventListener('input', e => { ds().sql = e.target.value; });
+document.getElementById('ds-label').addEventListener('input', e => { ds().label = e.target.value; renderPacket(); renderAll(); });
+document.getElementById('btn-describe').addEventListener('click', runDescribe);
+document.getElementById('btn-check').addEventListener('click', () => {
+  const err = checkRead(document.getElementById('ds-sql').value);
+  say(err ? 'err' : 'ok', err ? 'Không hợp lệ: '+err
+    : 'Câu truy vấn hợp lệ: chỉ đọc, một câu lệnh, không có từ khoá bị cấm.');
+});
+document.getElementById('btn-rows').addEventListener('click', () => showPacketRows(cur));
+document.getElementById('btn-rows2').addEventListener('click', () => showPacketRows(cur));
+document.getElementById('rows-close').addEventListener('click', () => document.getElementById('rowsbox').hidden = true);
+document.getElementById('der-from').addEventListener('change', e => { ds().from = e.target.value; renderPacket(); renderAll(); });
+document.getElementById('der-group').addEventListener('change', e => { ds().groupBy = e.target.value; renderPacket(); renderAll(); });
+document.getElementById('add-der').addEventListener('click', () => {
+  ds().cols.push({ key:'col'+(ds().cols.length+1), agg:'count', of:'', label:'' }); renderPacket(); renderAll();
+});
+document.getElementById('add-ds').addEventListener('click', () => {
+  const kind = document.getElementById('new-kind').value;
+  let n = 1, name; do { name = (kind === 'derived' ? 'derived' : 'extra') + n++; } while (packet.datasets[name]);
+  packet.datasets[name] = kind === 'derived'
+    ? { kind:'derived', label:'(chưa đặt tên)', from:rootName(), groupBy:'', cols:[] }
+    : { kind:'extra', label:'(chưa đặt tên)', describedAt:'', sql:'SELECT  AS col1\nFROM dbo.\n    /*{WHERE}*/',
+        cols:[], params:[], rows:[] };
+  cur = name; hideMsgs(); renderPacket(); renderAll();
+  say(kind === 'derived' ? 'ok' : 'warn',
+      kind === 'derived'
+        ? 'Đã thêm tập dẫn xuất <span class="mono">'+name+'</span>. Chọn tập nguồn, cột nhóm rồi thêm cột gộp — không cần viết SQL.'
+        : 'Đã thêm tập phụ <span class="mono">'+name+'</span>. Cân nhắc dùng tập <strong>dẫn xuất</strong> trước: một câu SQL ít rủi ro lệch số liệu hơn hai câu.',
+      kind === 'derived' ? 'msg2' : 'msg');
+});
+document.getElementById('del-ds').addEventListener('click', () => {
+  if (ds().kind === 'root') return say('err', 'Không xoá được tập Gốc — gói tin phải có đúng một tập Gốc.');
+  const users = Object.keys(packet.datasets).filter(k => packet.datasets[k].from === cur);
+  const gone = cur; delete packet.datasets[cur]; cur = rootName(); hideMsgs(); renderPacket(); renderAll();
+  say('warn', 'Đã xoá tập <span class="mono">'+gone+'</span>.' +
+      (users.length ? ' Tập dẫn xuất đang gộp từ nó: '+users.join(', ')+' — phải chọn lại tập nguồn.' : '') +
+      ' Phễu lọc nào đang lặp theo tập này sẽ báo ⚠.');
+});
+document.getElementById('add-par').addEventListener('click', () => {
+  ds().params.push({ name:'param'+(ds().params.length+1), type:'string', src:'subscription', note:'' }); renderPacket();
+});
+document.getElementById('w-tables').value = packet.writeTables;
+document.getElementById('w-sql').value = packet.writeSql;
+document.getElementById('w-tables').addEventListener('input', e => packet.writeTables = e.target.value);
+document.getElementById('w-sql').addEventListener('input', e => {
+  packet.writeSql = e.target.value;
+  document.getElementById('w-keys').value = keyFieldKeys();
+});
+document.getElementById('btn-checkw').addEventListener('click', () => {
+  const err = checkWrite(packet.writeSql, packet.writeTables);
+  if (err) return say('err', 'Không hợp lệ: '+err, 'msgw');
+  const keys = keyFieldKeys().split(',').filter(Boolean);
+  if (!keys.length) return say('warn', 'Không đọc được khoá bản ghi: câu ghi cần mệnh đề ' +
+    '<code>USING (SELECT @cột1 AS …, @cột2 AS …)</code>.', 'msgw');
+  const missing = keys.filter(k => !packet.writeSql.includes('@'+k));
+  const unknown = keys.filter(k => !colKeys(rootName()).includes(k));
+  if (missing.length) return say('warn', 'Câu ghi thiếu tham số của khoá bản ghi: @'+missing.join(', @'), 'msgw');
+  if (unknown.length) return say('warn', 'Khoá bản ghi trỏ vào cột không có trong tập Gốc: '+unknown.join(', '), 'msgw');
+  say('ok', 'Câu ghi hợp lệ: một câu lệnh MERGE, chỉ ghi vào bảng được phép, đủ tham số khoá ('+keys.join(', ')+').', 'msgw');
+});
+
+/* ══════════════════ W8 · BỘ MÃ QUY ĐỔI ══════════════════
+   Bảng quy đổi lưu dạng danh sách dòng (giữ thứ tự, có nhãn). Engine vẫn dùng .map/.def/.rev
+   được dựng lại sau mỗi lần sửa, nên phần ánh xạ không phải biết cấu trúc nội bộ này. */
+let csCur = Object.keys(codeSets)[0];
+
+function csInit(){
+  for (const c of Object.keys(codeSets)){
+    const o = codeSets[c];
+    if (!o.values){
+      o.values = Object.entries(o.map || {}).map(([src, std]) => ({ src, std, label:'', isDef:false }));
+      if (o.def != null) o.values.push({ src:'', std:o.def, label:'không xác định', isDef:true });
+    }
+    csSync(c);
+  }
+}
+function csSync(c){
+  const o = codeSets[c], map = {}, rev = {};
+  o.def = null; o.defSrc = null; o.dup = []; o.multiDef = 0;
+
+  for (const v of o.values){
+    if (v.isDef){ o.multiDef++; o.def = v.std; o.defSrc = v.src || null; continue; }
+    if (v.src) map[String(v.src).trim()] = v.std;
+    const std = String(v.std ?? '').trim();
+    if (std){ if (std in rev) o.dup.push(std); else rev[std] = v.src; }
+  }
+  o.map = map; o.rev = rev;
+}
+const csUsage = c => bindings.filter(b => b.codeSet === c).length;
+
+function renderCodeSets(){
+  const list = document.getElementById('cs-list'); list.innerHTML = '';
+  for (const c of Object.keys(codeSets)){
+    const o = codeSets[c];
+    const el = document.createElement('div');
+    el.className = 'item' + (c === csCur ? ' active' : ''); el.tabIndex = 0;
+    el.innerHTML = '<span class="nm">'+c+'</span><span style="flex:1"></span>' +
+      '<span class="chip">'+o.values.length+' dòng</span>' +
+      '<span class="chip'+(csUsage(c) ? ' k' : ' x')+'">'+csUsage(c)+' khoá dùng</span>' +
+      ((o.dup.length || o.multiDef !== 1) ? '<span class="chip w">⚠</span>' : '');
+    el.addEventListener('click', () => { csCur = c; renderCodeSets(); });
+    el.addEventListener('keydown', e => { if (e.key === 'Enter'){ csCur = c; renderCodeSets(); } });
+    list.appendChild(el);
+  }
+  document.getElementById('cs-stat').textContent = Object.keys(codeSets).length + ' bộ mã';
+  document.getElementById('cs-name').textContent = csCur || '—';
+
+  const o = codeSets[csCur]; const body = document.getElementById('cs-body'); body.innerHTML = '';
+  if (!o) return;
+  o.values.forEach((v, i) => {
+    const tr = document.createElement('tr');
+    if (v.isDef) tr.style.background = '#f7f8fa';
+    tr.innerHTML =
+      '<td>'+(v.isDef ? '<span class="note">(mọi giá trị không khớp)</span>'
+        : '<input type="text" data-i="'+i+'" data-k="src" value="'+(v.src ?? '')+'" style="width:100%" aria-label="Giá trị CSDL">')+'</td>' +
+      '<td><input type="text" data-i="'+i+'" data-k="std" value="'+(v.std ?? '')+'" style="width:100%" aria-label="Giá trị gửi đối tác"></td>' +
+      '<td><input type="text" data-i="'+i+'" data-k="label" value="'+(v.label ?? '')+'" style="width:100%" aria-label="Nhãn"></td>' +
+      '<td style="text-align:center"><input type="checkbox" data-i="'+i+'" data-k="isDef" '+(v.isDef?'checked':'')+' aria-label="Mặc định"></td>' +
+      '<td><button class="btn mini" data-del="'+i+'" aria-label="Xoá dòng">×</button></td>';
+    body.appendChild(tr);
+  });
+  body.querySelectorAll('input[type=text]').forEach(e => e.addEventListener('input', onCsCell));
+  body.querySelectorAll('input[type=checkbox]').forEach(e => e.addEventListener('change', onCsCell));
+  body.querySelectorAll('button[data-del]').forEach(b => b.addEventListener('click', e => {
+    o.values.splice(+e.target.dataset.del, 1); csSync(csCur); renderCodeSets(); renderAll();
+  }));
+
+  const msg = document.getElementById('cs-msg'); const w = [];
+  if (o.multiDef === 0) w.push('Chưa có dòng <strong>Mặc định</strong> — giá trị không khớp sẽ giữ nguyên khi gửi và thành rỗng khi nhận.');
+  if (o.multiDef > 1)   w.push('Có ' + o.multiDef + ' dòng Mặc định — chỉ được một.');
+  if (o.dup.length)     w.push('Giá trị gửi đối tác bị trùng: <span class="mono">' + [...new Set(o.dup)].join(', ') +
+                               '</span> — chiều nhận không tra ngược được.');
+  msg.className = 'alert' + (w.length ? '' : ' ok');
+  msg.innerHTML = w.length ? w.join('<br>') : 'Bảng quy đổi hợp lệ — tra xuôi và tra ngược đều một-một.';
+  msg.hidden = false;
+}
+function onCsCell(e){
+  const o = codeSets[csCur], v = o.values[+e.target.dataset.i], k = e.target.dataset.k;
+  v[k] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+  if (k === 'isDef' && v.isDef) v.src = '';
+  csSync(csCur); renderCodeSets(); renderAll();
+}
+document.getElementById('cs-add').addEventListener('click', () => {
+  const code = (document.getElementById('cs-new').value || '').trim().toUpperCase();
+  if (!code) return;
+  if (codeSets[code]) return;
+  codeSets[code] = { values:[{ src:'', std:'', label:'không xác định', isDef:true }] };
+  csSync(code); csCur = code; document.getElementById('cs-new').value = ''; renderCodeSets();
+});
+document.getElementById('cs-addrow').addEventListener('click', () => {
+  codeSets[csCur].values.unshift({ src:'', std:'', label:'', isDef:false });
+  csSync(csCur); renderCodeSets();
+});
+document.getElementById('cs-del').addEventListener('click', () => {
+  if (csUsage(csCur)) return;                      // đang có khoá dùng thì không xoá
+  delete codeSets[csCur]; csCur = Object.keys(codeSets)[0]; renderCodeSets(); renderAll();
+});
+
+/* ══════════════════ W9 · CHẠY THỬ HAI CHIỀU ══════════════════ */
+const ptrGet = (obj, ptr) => ptr.split('/').filter(Boolean).reduce((o, k) => (o == null ? o : o[k]), obj);
+
+/* Đảo ngược biểu thức: đi các hàm theo thứ tự NGƯỢC, mỗi hàm dùng phép nghịch đảo của nó. */
+function invExpr(expr, v){
+  const steps = expr.split('|').map(s => s.trim()).filter(Boolean).reverse();
+  let out = v;
+  for (const st of steps){
+    const m = /^(\w+)\(([^)]*)\)$/.exec(st); if (!m) continue;
+    const fn = m[1], k = parseFloat(m[2]);
+    if (fn === 'div') out = Number(out) * k;
+    else if (fn === 'mul') out = Number(out) / k;
+    else if (fn === 'add') out = Number(out) - k;
+    else if (fn === 'sub') out = Number(out) + k;
+    else if (fn === 'epochSec') out = new Date(Number(out) * 1000).toISOString().slice(0, 19);
+    else if (fn === 'round' || fn === 'trim') { /* mất thông tin — giữ nguyên giá trị nhận được */ }
+    else throw new Error('hàm "' + fn + '" không đảo được — khai `inv` hoặc `skip-in`');
+  }
+  return out;
+}
+/* Đọc chuỗi ngày theo đúng khuôn đã khai (dd/MM/yyyy HH:mm:ss…) về dạng ISO */
+function parseDateBy(s, fmt){
+  if (!fmt) return s;
+  const order = []; let re = '';
+  for (const t of (fmt.match(/yyyy|dd|MM|HH|mm|ss|[\s\S]/g) || [])){
+    if (t === 'yyyy'){ order.push('y'); re += '(\\d{4})'; }
+    else if (t === 'dd'){ order.push('d'); re += '(\\d{1,2})'; }
+    else if (t === 'MM'){ order.push('M'); re += '(\\d{1,2})'; }
+    else if (t === 'HH'){ order.push('h'); re += '(\\d{1,2})'; }
+    else if (t === 'mm'){ order.push('m'); re += '(\\d{1,2})'; }
+    else if (t === 'ss'){ order.push('s'); re += '(\\d{1,2})'; }
+    else re += t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+  const m = new RegExp('^' + re + '$').exec(String(s).trim());
+  if (!m) return s;
+  const g = {}; order.forEach((k, i) => g[k] = m[i + 1]);
+  const p2 = x => String(x ?? '0').padStart(2, '0');
+  return (g.y || '1970') + '-' + p2(g.M) + '-' + p2(g.d) + 'T' + p2(g.h) + ':' + p2(g.m) + ':' + p2(g.s);
+}
+const revCode = (c, v) => {
+  const o = codeSets[c]; if (!o) return v;
+  const k = v === null || v === undefined ? '' : String(v).trim();
+  return (k in o.rev) ? o.rev[k] : (o.defSrc ?? null);
+};
+
+/* Đảo ĐÚNG bốn bước của chiều gửi, theo thứ tự ngược lại, rồi ép về kiểu cột CSDL */
+function revValue(b, raw){
+  let v = raw;
+  if (b.type === 'number')        v = (v === '' || v == null) ? null : Number(String(v).replace(',', '.'));
+  else if (b.type === 'datetime') v = parseDateBy(v, b.format);
+  if (b.codeSet) v = revCode(b.codeSet, v);
+  if (b.inv)      v = invExpr(b.inv, v);
+  else if (b.expr) v = invExpr(b.expr, v);
+
+  /* Bước cuối: kiểu của CỘT mới là kiểu thật khi ghi CSDL. Bộ mã trả về chuỗi "2",
+     cột trafficCond là number → phải thành số 2, nếu không thì khoá so trùng và kiểu cột đều lệch. */
+  const ct = colTypeOf(b.dataset, b.field);
+  if (v !== null && v !== undefined && v !== ''){
+    if (ct === 'number' && !isNaN(Number(v))) v = Number(v);
+    else if (ct === 'bool') v = /^(1|true|yes|có)$/i.test(String(v));
+  } else if (v === '') v = null;
+  return v;
+}
+
+/* payload đối tác → danh sách bản ghi CSDL, đi song song mẫu và dữ liệu nhận được */
+function parsePayload(payload){
+  const out = { records: [], keys: [], warns: [] };
+  const repeat = bindings.find(b => b.kind === 'repeat');
+
+  const readInto = (rec, path, data) => {
+    const b = bind(path); if (!b) return;
+    if (['exclude','const','system','agg','repeat'].includes(b.kind)) return;   // không phải dữ liệu bản ghi
+    if (b.ign) return;                                                          // skip-in
+    try { rec[b.field] = revValue(b, data === undefined ? null : data); }
+    catch (e){ out.warns.push(path + ': ' + e.message); }
+    if (b.key && !out.keys.includes(b.field)) out.keys.push(b.field);
+  };
+  const walk = (shapeNode, dataNode, path, rec, skip) => {
+    if (skip && path === skip) return;
+    if (Array.isArray(shapeNode)) return;                                       // mảng hằng
+    if (shapeNode !== null && typeof shapeNode === 'object'){
+      for (const k of Object.keys(shapeNode))
+        walk(shapeNode[k], dataNode == null ? undefined : dataNode[k], path + '/' + k, rec, skip);
+      return;
+    }
+    readInto(rec, path, dataNode);
+  };
+
+  if (!repeat){ const r = {}; walk(sample, payload, '', r); out.records.push(r); return out; }
+
+  const shared = {};
+  walk(sample, payload, '', shared, repeat.path);                               // giá trị ngoài mảng dùng chung
+  const tmpl = (ptrGet(sample, repeat.path) || [])[0];
+  const items = ptrGet(payload, repeat.path) || [];
+  for (const it of items){
+    const rec = { ...shared };
+    walk(tmpl, it, repeat.path + '/*', rec);
+    out.records.push(rec);
+  }
+  return out;
+}
+
+function simSeed(){
+  const dir = document.getElementById('sim-dir').value;
+  document.getElementById('sim-msg').hidden = true;
+  if (dir === 'out'){
+    const data = {};
+    for (const n of Object.keys(packet.datasets))
+      if (packet.datasets[n].kind !== 'derived') data[n] = rowsOf(n);
+    document.getElementById('sim-in').value = JSON.stringify(data, null, 2);
+    document.getElementById('sim-inlabel').textContent  = 'Vào — bảng CSDL giả lập (theo cột của gói tin)';
+    document.getElementById('sim-outlabel').textContent = 'Ra — payload gửi đối tác';
+    document.getElementById('sim-inhint').innerHTML =
+      'Sửa trực tiếp các dòng. Tập <strong>dẫn xuất</strong> (VD <span class="mono">totals</span>) không nhập ở đây — engine tự gộp.';
+  } else {
+    document.getElementById('sim-in').value = JSON.stringify(buildPayload(), null, 2);
+    document.getElementById('sim-inlabel').textContent  = 'Vào — payload đối tác gửi về';
+    document.getElementById('sim-outlabel').textContent = 'Ra — bảng dữ liệu sẽ ghi vào CSDL';
+    document.getElementById('sim-inhint').innerHTML =
+      'Đang nạp sẵn payload do chiều gửi tạo ra — chạy để xem có khôi phục đúng giá trị gốc không.';
+  }
+  document.getElementById('sim-outtbl').hidden = true;
+  document.getElementById('sim-out').value = '';
+}
+
+function runSim(){
+  const dir = document.getElementById('sim-dir').value;
+  const msg = document.getElementById('sim-msg');
+  const show = (kind, html) => { msg.className = 'alert' + (kind === 'ok' ? ' ok' : kind === 'err' ? ' err' : '');
+                                 msg.innerHTML = html; msg.hidden = false; };
+  let input;
+  try { input = JSON.parse(document.getElementById('sim-in').value); }
+  catch (e){ return show('err', 'JSON vào không hợp lệ: ' + e.message); }
+
+  if (dir === 'out'){
+    for (const n of Object.keys(input))
+      if (packet.datasets[n] && packet.datasets[n].kind !== 'derived')
+        packet.datasets[n].rows = Array.isArray(input[n]) ? input[n] : [];
+    renderAll();                                   // dùng đúng cấu hình hiện tại, không có đường riêng
+    document.getElementById('sim-outtbl').hidden = true;
+    document.getElementById('sim-out').value = JSON.stringify(buildPayload(), null, 2);
+    return show('ok', 'Đã dựng payload từ ' + Object.keys(input).join(', ') +
+                     ' bằng phễu lọc hiện tại (' + bindings.length + ' dòng ánh xạ).');
+  }
+
+  const res = parsePayload(input);
+  const cols = [...new Set(res.records.flatMap(r => Object.keys(r)))];
+  const t = document.getElementById('sim-table');
+  t.innerHTML = '<thead><tr>' + cols.map(c =>
+      '<th>' + c + (res.keys.includes(c) ? ' <span class="chip k">khoá</span>' : '') + '</th>').join('') +
+    '</tr></thead><tbody>' +
+    (res.records.length ? res.records.map(r => '<tr>' + cols.map(c =>
+        '<td class="mono">' + (r[c] ?? '<span class="note">null</span>') + '</td>').join('') + '</tr>').join('')
+      : '<tr><td class="note" colspan="' + Math.max(1, cols.length) + '">(không có bản ghi)</td></tr>') + '</tbody>';
+  document.getElementById('sim-outtbl').hidden = false;
+
+  const first = res.records[0] || {};
+  const pars = Object.keys(first).map(k => '@' + k + ' = ' +
+    (first[k] === null || first[k] === undefined ? 'NULL' : JSON.stringify(first[k]))).join('\n');
+  document.getElementById('sim-out').value =
+    '-- tham số bind vào câu ghi của gói tin (bản ghi 1/' + res.records.length + ')\n' + pars +
+    '\n\n' + (packet.writeSql || '');
+
+  const keyNote = res.keys.length ? 'khoá so trùng: ' + res.keys.join(', ') : '⚠ chưa khoá nào khai `key`';
+  show(res.warns.length ? 'warn' : 'ok',
+    'Suy ra ' + res.records.length + ' bản ghi · ' + keyNote +
+    (res.warns.length ? '<div style="margin-top:6px">' + res.warns.join('<br>') + '</div>' : ''));
+}
+
+document.getElementById('sim-dir').addEventListener('change', simSeed);
+document.getElementById('sim-seed').addEventListener('click', simSeed);
+document.getElementById('sim-run').addEventListener('click', runSim);
+
+/* ══════════════════ điều hướng hai màn + khởi tạo ══════════════════ */
+document.querySelectorAll('#nav-packet, #nav-mapping').forEach(t => t.addEventListener('click', () => {
+  for (const id of ['nav-packet','nav-mapping']){
+    const btn = document.getElementById(id), on = btn === t;
+    btn.setAttribute('aria-selected', on ? 'true' : 'false');
+    document.getElementById(btn.getAttribute('aria-controls')).hidden = !on;
+  }
+  redraw();                                            // đường nối chỉ vẽ được khi trang đang hiện
+}));
+
+/* W7 — sửa gói cấu hình rồi nạp lại: W2 dựng theo đúng nội dung đã lưu */
+document.getElementById('io-check').addEventListener('click', () => importPackage(false));
+document.getElementById('io-apply').addEventListener('click', () => importPackage(true));
+document.getElementById('io-reset').addEventListener('click', () => {
+  renderTextIo(); document.getElementById('iomsg').hidden = true;
+});
+
+renderPacket();
+csInit();
+renderAll();
+renderCodeSets();
+simSeed();
+</script>
+</body>
+</html>
