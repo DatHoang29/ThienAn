@@ -13,10 +13,8 @@ Người dùng có quy tắc riêng: đặt tên method async **không thêm h�
 khuyến nghị suffix `Async`) mà codebase hiện tại đang dùng phổ biến ở khắp mọi module
 (VideoWall, TMS, VMS...).
 
-**How to apply:** Khi tự đề xuất method MỚI trong plan/code (VD các `BackgroundService`/handler
-mới viết cho VideoWall), đặt tên KHÔNG có suffix `Async` theo đúng ý người dùng — dù các method
-CŨ xung quanh (viết trước, không phải do mình đề xuất) vẫn giữ nguyên `Async` như hiện trạng.
-**Chưa rõ phạm vi**: không chắc người dùng muốn áp dụng cho toàn bộ method cũ đã có sẵn (đổi tên
-hàng loạt, phạm vi rất lớn, ảnh hưởng mọi module) hay chỉ cho code MỚI mình viết thêm — cần hỏi
-lại nếu ngữ cảnh chưa rõ, đừng tự suy diễn thành 1 đợt refactor lớn nếu họ chỉ đang nói về code
-mới.
+**How to apply:** Khi tự viết code/method MỚI trong plan/code (service, handler, controller, helper, seed method...), BẮT BUỘC đặt tên KHÔNG có suffix `Async` theo đúng quy tắc người dùng (VD `GetScope()`, `GetOutputChannels()`, `SeedWall()`).
+
+**Phạm vi áp dụng (Đã chốt rõ ràng từ người dùng):**
+- **Code mới mình viết**: BẮT BUỘC KHÔNG thêm hậu tố `Async`.
+- **Code của thư viện hoặc của người khác viết trước đó**: CỨ KỆ, GIỮ NGUYÊN (kể cả họ có đặt `XxxAsync`), không tự ý refactor hay sửa đổi hàng loạt gây diff rác hoặc phá vỡ tương thích.
