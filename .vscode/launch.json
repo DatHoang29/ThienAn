@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Launch TAC_WebAPI (Local Docker)",
+      "name": "🌐 TAC_WebAPI (Local Docker)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-webapi-v1",
@@ -13,7 +13,7 @@
       "serverReadyAction": {
         "action": "openUrl",
         "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
-        "uriFormat": "%s/api"
+        "uriFormat": "http://localhost:5005/api"
       },
       "env": {
         "ASPNETCORE_ENVIRONMENT": "Development",
@@ -22,7 +22,7 @@
       }
     },
     {
-      "name": "Launch TAC_WebAPI (Server 10.10.8.30)",
+      "name": "🌐 TAC_WebAPI (Server 10.10.8.30)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-webapi-v1",
@@ -33,7 +33,7 @@
       "serverReadyAction": {
         "action": "openUrl",
         "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
-        "uriFormat": "%s/api"
+        "uriFormat": "http://localhost:5005/api"
       },
       "env": {
         "ASPNETCORE_ENVIRONMENT": "Development",
@@ -43,7 +43,7 @@
     },
 
     {
-      "name": "Launch ITS.Sync.Worker (WP_Sync Local Docker)",
+      "name": "🔄 ITS.Sync.Worker (WP_Sync Local Docker)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-sync-worker",
@@ -59,7 +59,7 @@
       }
     },
     {
-      "name": "Launch ITS.Sync.Worker (WP_Sync Server 10.10.8.30)",
+      "name": "🔄 ITS.Sync.Worker (WP_Sync Server 10.10.8.30)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-sync-worker",
@@ -75,7 +75,7 @@
       }
     },
     {
-      "name": "Launch ITS.Sync.Wpf (WP_Sync UI Local Docker)",
+      "name": "🖥️ ITS.Sync.Wpf (WP_Sync UI Local Docker)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-sync-wpf",
@@ -91,7 +91,7 @@
       }
     },
     {
-      "name": "Launch ITS.Sync.Wpf (WP_Sync UI Server 10.10.8.30)",
+      "name": "🖥️ ITS.Sync.Wpf (WP_Sync UI Server 10.10.8.30)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-sync-wpf",
@@ -107,7 +107,7 @@
       }
     },
     {
-      "name": "Launch ITS.VideoWall.WPF (Local WebAPI)",
+      "name": "🖥️ ITS.VideoWall.WPF (Local WebAPI)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-videowall-wpf",
@@ -121,7 +121,7 @@
       }
     },
     {
-      "name": "Launch ITS.VideoWall.WPF (Server 10.10.8.30)",
+      "name": "🖥️ ITS.VideoWall.WPF (Server 10.10.8.30)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-videowall-wpf",
@@ -135,7 +135,7 @@
       }
     },
     {
-      "name": "Launch ITS.VideoWall (Worker Local Docker)",
+      "name": "⚙️ ITS.VideoWall (Worker Local Docker)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-videowall-worker",
@@ -150,7 +150,7 @@
       }
     },
     {
-      "name": "Launch ITS.VideoWall (Worker Server 10.10.8.30)",
+      "name": "⚙️ ITS.VideoWall (Worker Server 10.10.8.30)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-videowall-worker",
@@ -165,7 +165,7 @@
       }
     },
     {
-      "name": "Launch ShareDataWorker (Local Docker)",
+      "name": "📦 ShareDataWorker (Local Docker)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-sharedata-worker",
@@ -181,7 +181,7 @@
       }
     },
     {
-      "name": "Launch ShareDataWorker (Server 10.10.8.30)",
+      "name": "📦 ShareDataWorker (Server 10.10.8.30)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-sharedata-worker",
@@ -197,7 +197,7 @@
       }
     },
     {
-      "name": "Launch ITS.Toll.Wpf (Local Docker)",
+      "name": "🚗 ITS.Toll.Wpf (Local Docker)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-toll-wpf",
@@ -212,7 +212,7 @@
       }
     },
     {
-      "name": "Launch ITS.Toll.Wpf (Server 10.10.8.30)",
+      "name": "🚗 ITS.Toll.Wpf (Server 10.10.8.30)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-toll-wpf",
@@ -227,7 +227,7 @@
       }
     },
     {
-      "name": "Launch ITS.VDS.Wpf (Local Docker)",
+      "name": "📹 ITS.VDS.Wpf (Local Docker)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-vds-wpf",
@@ -242,7 +242,7 @@
       }
     },
     {
-      "name": "Launch ITS.VDS.Wpf (Server 10.10.8.30)",
+      "name": "📹 ITS.VDS.Wpf (Server 10.10.8.30)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-vds-wpf",
@@ -257,7 +257,7 @@
       }
     },
     {
-      "name": "Launch VideoWall Mock Server (Fake Device)",
+      "name": "🧪 VideoWall Mock Server (Fake Device)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-mockserver-runner",
@@ -268,9 +268,64 @@
       "console": "integratedTerminal"
     },
     {
-      "name": "Attach to Process (.NET Core)",
+      "name": "🎨 WebVue (Edge)",
+      "type": "msedge",
+      "request": "launch",
+      "url": "http://localhost:8888",
+      "webRoot": "${workspaceFolder}/TA-ITS015-WEBVUE-V1.0/src",
+      "preLaunchTask": "start-webvue-dev"
+    },
+    {
+      "name": "🎨 WebVue (Chrome)",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:8888",
+      "webRoot": "${workspaceFolder}/TA-ITS015-WEBVUE-V1.0/src",
+      "preLaunchTask": "start-webvue-dev"
+    },
+    {
+      "name": "🧷 Attach to Process (.NET Core)",
       "type": "coreclr",
       "request": "attach"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "🚀 Fullstack (WebAPI Local + WebVue)",
+      "configurations": [
+        "🌐 TAC_WebAPI (Local Docker)",
+        "🎨 WebVue (Edge)"
+      ]
+    },
+    {
+      "name": "🚀 Fullstack (WebAPI 10.10.8.30 + WebVue)",
+      "configurations": [
+        "🌐 TAC_WebAPI (Server 10.10.8.30)",
+        "🎨 WebVue (Edge)"
+      ]
+    },
+    {
+      "name": "🖥️ VideoWall Suite (Local)",
+      "configurations": [
+        "🌐 TAC_WebAPI (Local Docker)",
+        "⚙️ ITS.VideoWall (Worker Local Docker)",
+        "🖥️ ITS.VideoWall.WPF (Local WebAPI)"
+      ]
+    },
+    {
+      "name": "🔄 WP Sync Suite (Local)",
+      "configurations": [
+        "🌐 TAC_WebAPI (Local Docker)",
+        "🔄 ITS.Sync.Worker (WP_Sync Local Docker)",
+        "🖥️ ITS.Sync.Wpf (WP_Sync UI Local Docker)"
+      ]
+    },
+    {
+      "name": "📦 ShareData Suite (Local)",
+      "configurations": [
+        "🌐 TAC_WebAPI (Local Docker)",
+        "📦 ShareDataWorker (Local Docker)"
+      ]
     }
   ]
 }

@@ -220,6 +220,30 @@
         "panel": "shared",
         "focus": false
       }
+    },
+    {
+      "label": "start-webvue-dev",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": {
+        "cwd": "${workspaceFolder}/TA-ITS015-WEBVUE-V1.0/src"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*(vite|VITE).*",
+          "endsPattern": ".*(ready in|Local:).*"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": false
+      }
     }
   ]
 }
