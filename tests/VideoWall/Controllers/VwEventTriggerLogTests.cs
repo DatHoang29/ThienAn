@@ -363,7 +363,7 @@ public class VwEventTriggerLogTests(Host host)
 
         var rows = await ReadRowsAsync(controller.ID);
         Assert.Equal(output.Steps.Count, rows.Count);
-        Assert.All(rows, row => Assert.Equal(scene.ID, row.SceneId));
+        Assert.All(rows, row => Assert.Equal(scene.ID, row.TargetSceneId));
 
         // Bước bị bỏ qua: cờ Skipped bật, Success rỗng.
         foreach (var skipped in rows.Where(row => row.Skipped == true))
@@ -452,12 +452,12 @@ public class VwEventTriggerLogTests(Host host)
 
         // Assert — dòng nghiệp vụ nằm trong VwEventTriggerLog
         var rows = await _db.Queryable<VwEventTriggerLog>()
-            .Where(u => u.IsDelete == null && u.SceneId == scene.ID && u.Action == VwEventTriggerAction.ActiveScene)
+            .Where(u => u.IsDelete == null && u.TargetSceneId == scene.ID && u.Action == VwEventTriggerAction.ActiveScene)
             .ToListAsync();
 
         var businessRow = Assert.Single(rows);
         Assert.Equal(result.TriggerLogId, businessRow.ID);
-        Assert.Equal(scene.ID, businessRow.SceneId);
+        Assert.Equal(scene.ID, businessRow.TargetSceneId);
         Assert.Equal(BaseEnums.SuccessEnums.Success, businessRow.Success);
         Assert.NotNull(businessRow.OccurredAt);
     }

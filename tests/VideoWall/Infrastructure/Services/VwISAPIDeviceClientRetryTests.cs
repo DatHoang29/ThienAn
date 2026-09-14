@@ -130,9 +130,9 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
                 var req = new ITS.VideoWall.Core.Dto.ISAPI.VwISAPIWindowRequest
                 {
                     Id = 999,
-                    Rect = new Module.VideoWall.Core.Dto.ISAPI.VwISAPIRect
+                    Rect = new ITS.VideoWall.Core.Dto.ISAPI.VwISAPIRect
                     {
-                        Coordinate = new Module.VideoWall.Core.Dto.ISAPI.VwISAPICoordinate { X = 0, Y = 0 },
+                        Coordinate = new ITS.VideoWall.Core.Dto.ISAPI.VwISAPICoordinate { X = 0, Y = 0 },
                         Width = 1920,
                         Height = 1080
                     }

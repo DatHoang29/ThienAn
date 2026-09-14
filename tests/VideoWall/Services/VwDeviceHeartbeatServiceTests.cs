@@ -3,7 +3,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Module.VideoWall.Core.Constants;
-using Module.VideoWall.Core.Dto.ISAPI;
 using Module.VideoWall.Core.Entities;
 using Module.VideoWall.Core.Interfaces;
 using Module.VideoWall.Core.Options;

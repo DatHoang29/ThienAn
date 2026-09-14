@@ -4,7 +4,6 @@ using Module.VideoWall.Core.Constants;
 using Module.VideoWall.Core.Dto.Command;
 using Module.VideoWall.Core.Dto.Device;
 using Module.VideoWall.Core.Dto.DeviceSetup;
-using Module.VideoWall.Core.Dto.ISAPI;
 using Module.VideoWall.Core.Entities;
 using Module.VideoWall.Core.Interfaces;
 using Shared.DTO.Enums;

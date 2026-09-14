@@ -93,7 +93,7 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
             try
             {
                 var srv = GetPermissionService();
-                var scope = await srv.GetScopeAsync();
+                var scope = await srv.GetScope();
 
                 Assert.False(srv.IsFullAccess);
                 Assert.False(scope.IsFullAccess);
@@ -113,7 +113,7 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
         {
             _httpContextAccessor.HttpContext = null;
             var srv = GetPermissionService();
-            var scope = await srv.GetScopeAsync();
+            var scope = await srv.GetScope();
 
             Assert.True(srv.IsFullAccess);
             Assert.True(scope.IsFullAccess);
@@ -130,7 +130,7 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
             try
             {
                 var srv = GetPermissionService();
-                var scope = await srv.GetScopeAsync();
+                var scope = await srv.GetScope();
 
                 Assert.True(srv.IsFullAccess);
                 Assert.True(scope.IsFullAccess);
@@ -216,7 +216,7 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
             await _db.Insertable(new[] { ownedCtrl, foreignCtrl }).ExecuteCommandAsync();
             SetRestrictedUser(orgId);
 
-            var scope = await GetPermissionService().GetScopeAsync();
+            var scope = await GetPermissionService().GetScope();
 
             Assert.False(scope.IsFullAccess);
             Assert.Contains(ownedCtrl.ID, scope.ControllerIds);
@@ -318,7 +318,7 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
                 hostEnv.EnvironmentName = environmentName;
 
                 var srv = GetPermissionService(new VwDeviceOptions { BypassPermission = true });
-                var scope = await srv.GetScopeAsync();
+                var scope = await srv.GetScope();
 
                 Assert.Equal(expectedFullAccess, srv.IsFullAccess);
                 Assert.Equal(expectedFullAccess, scope.IsFullAccess);

@@ -121,7 +121,7 @@ namespace Tests.Modules.VideoWall.Controllers
             {
                 await _db.Deleteable<VwScene>(s => s.ID == scene.ID).ExecuteCommandAsync();
                 await _db.Deleteable<VwController>(c => c.ID == controller.ID).ExecuteCommandAsync();
-                await _db.Deleteable<VwEventTriggerLog>(l => l.SceneId == scene.ID).ExecuteCommandAsync();
+                await _db.Deleteable<VwEventTriggerLog>(l => l.TargetSceneId == scene.ID).ExecuteCommandAsync();
             }
         }
 
@@ -183,7 +183,7 @@ namespace Tests.Modules.VideoWall.Controllers
                 Assert.Equal(0, fakePublisher.CallCount);
 
                 // Log thất bại được ghi
-                var log = await _db.Queryable<VwEventTriggerLog>().FirstAsync(u => u.SceneId == scene.ID);
+                var log = await _db.Queryable<VwEventTriggerLog>().FirstAsync(u => u.TargetSceneId == scene.ID);
                 Assert.NotNull(log);
                 Assert.Equal(BaseEnums.SuccessEnums.Fail, log.Success);
             }
@@ -191,7 +191,7 @@ namespace Tests.Modules.VideoWall.Controllers
             {
                 await _db.Deleteable<VwScene>(s => s.ID == scene.ID).ExecuteCommandAsync();
                 await _db.Deleteable<VwController>(c => c.ID == controller.ID).ExecuteCommandAsync();
-                await _db.Deleteable<VwEventTriggerLog>(l => l.SceneId == scene.ID).ExecuteCommandAsync();
+                await _db.Deleteable<VwEventTriggerLog>(l => l.TargetSceneId == scene.ID).ExecuteCommandAsync();
             }
         }
 

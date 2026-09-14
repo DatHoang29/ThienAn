@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Module.VideoWall.Core.Dto.DeviceSetup;
-using Module.VideoWall.Core.Dto.ISAPI;
 using Module.VideoWall.Core.Options;
 using Module.VideoWall.Infrastructure;
 using Module.VideoWall.Infrastructure.Services.Access;

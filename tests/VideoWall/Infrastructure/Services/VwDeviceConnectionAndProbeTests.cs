@@ -1,7 +1,6 @@
 using System.IO;
 using System.Text.Json;
 using System.Xml.Serialization;
-using Module.VideoWall.Core.Dto.ISAPI;
 using Module.VideoWall.Core.Entities;
 using Module.VideoWall.Core.Options;
 using Module.VideoWall.Extensions;

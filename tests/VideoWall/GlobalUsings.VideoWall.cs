@@ -25,7 +25,7 @@ global using Module.VideoWall.Core.Dto.Device;
 global using Module.VideoWall.Core.Dto.DeviceSetup;
 global using Module.VideoWall.Core.Dto.EventRule;
 global using Module.VideoWall.Core.Dto.EventTriggerLog;
-global using Module.VideoWall.Core.Dto.ISAPI;
+global using ITS.VideoWall.Core.Dto.DeviceSetup;
 global using Module.VideoWall.Core.Dto.Scene;
 global using Module.VideoWall.Core.Dto.Schedule;
 global using Module.VideoWall.Core.Dto.Screen;

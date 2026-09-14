@@ -1,6 +1,5 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
-using Module.VideoWall.Core.Dto.ISAPI;
 using Module.VideoWall.Core.Interfaces;
 using Newtonsoft.Json;
 using Shared.Core.Utilities.Constants;
@@ -540,7 +539,7 @@ public class VwSceneTests(Host host)
             .FirstAsync(u => u.ID == result.TriggerLogId);
 
         Assert.NotNull(log);
-        Assert.Equal(scene.ID, log.SceneId);
+        Assert.Equal(scene.ID, log.TargetSceneId);
         Assert.Equal(BaseEnums.SuccessEnums.Success, log.Success);
         Assert.Null(log.RuleId);
     }
@@ -589,7 +588,7 @@ public class VwSceneTests(Host host)
             .FirstAsync(u => u.ID == result.TriggerLogId);
 
         Assert.NotNull(log);
-        Assert.Equal(scene.ID, log.SceneId);
+        Assert.Equal(scene.ID, log.TargetSceneId);
         Assert.Equal(BaseEnums.SuccessEnums.Success, log.Success);
         Assert.Equal(rule.ID, log.RuleId);
         Assert.Equal(eventTypeId, log.EventTypeId);
@@ -623,7 +622,7 @@ public class VwSceneTests(Host host)
 
         // Assert
         var log = await _db.Queryable<VwEventTriggerLog>()
-            .Where(u => u.SceneId == scene.ID)
+            .Where(u => u.TargetSceneId == scene.ID)
             .OrderByDescending(u => u.CreateTime)
             .FirstAsync();
 

@@ -1,6 +1,5 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
-using Module.VideoWall.Core.Dto.ISAPI;
 using Module.VideoWall.Core.Interfaces;
 using Newtonsoft.Json;
 using Shared.Core.Utilities.Constants;
