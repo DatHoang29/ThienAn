@@ -280,11 +280,11 @@ namespace Tests.Modules.VideoWall.Consumer
         }
 
         /// <summary>
-        /// Description: Lệnh ResetCircuitBreaker thực thi thành công và phát telemetry phản hồi
+        /// Description: Lệnh ResetDeviceAuthFailure thực thi thành công và phát telemetry phản hồi
         /// Created date: 11/09/2026
         /// </summary>
         [Fact]
-        public async Task ProcessCommandAsync_WhenResetCircuitBreaker_PublishesSuccessTelemetry_Test()
+        public async Task ProcessCommandAsync_WhenResetDeviceAuthFailure_PublishesSuccessTelemetry_Test()
         {
             // Arrange
             var consumer = new VwCommandConsumer(_scopeFactory, NullLogger<VwCommandConsumer>.Instance);
@@ -301,9 +301,9 @@ namespace Tests.Modules.VideoWall.Consumer
             var envelope = new VwCommandEnvelope
             {
                 MessageId = $"MSG_RESET_{Guid.NewGuid():N}",
-                Action = VwCommandActions.ResetCircuitBreaker,
+                Action = VwCommandActions.ResetDeviceAuthFailure,
                 ControllerId = "CTRL_TEST_BREAKER",
-                Payload = new VwResetCircuitBreakerPayload
+                Payload = new VwResetDeviceAuthFailurePayload
                 {
                     TargetIpOrKey = "127.0.0.1:18080"
                 }
@@ -313,7 +313,7 @@ namespace Tests.Modules.VideoWall.Consumer
             await consumer.ProcessCommandAsync(envelope);
 
             // Assert
-            Assert.Equal(VwCommandActions.ResetCircuitBreaker, capturedAction);
+            Assert.Equal(VwCommandActions.ResetDeviceAuthFailure, capturedAction);
             Assert.True(capturedSuccess);
         }
 

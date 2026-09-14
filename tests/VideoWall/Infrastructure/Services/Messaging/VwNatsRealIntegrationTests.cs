@@ -36,7 +36,7 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services.Messaging
             // Arrange
             _mock.ResetDefaults();
             _mock.IsCascadeCenter = true;
-            _deviceService.ResetAllCircuitBreakers();
+            _deviceService.ResetAllDeviceAuthFailures();
 
             var center = await EnsureCenterController();
 
@@ -117,7 +117,7 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services.Messaging
             await _db.Deleteable<VwWindowScene>().Where(w => w.ID == window.ID).ExecuteCommandAsync();
             await _db.Deleteable<VwScene>().Where(s => s.ID == scene.ID).ExecuteCommandAsync();
             await _db.Deleteable<VwScreen>().Where(s => s.ID == screen.ID).ExecuteCommandAsync();
-            _deviceService.ResetAllCircuitBreakers();
+            _deviceService.ResetAllDeviceAuthFailures();
         }
 
         private async Task<VwController> EnsureCenterController(CancellationToken ct = default)

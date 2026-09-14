@@ -12,7 +12,7 @@ namespace Tests.Modules.VideoWall
     /// Author: Đạt
     /// Description: Kiểm thử tích hợp VwISAPIDeviceService qua VwISAPIMockServerHikvision và SqlSugar Test DB.
     ///              Xác thực toàn bộ quy trình nghiệp vụ cấp cao: GetInputChannels, ActivateScene, SyncSceneWindows,
-    ///              SwitchSource, SetWindowLayer và ResetCircuitBreaker.
+    ///              SwitchSource, SetWindowLayer và ResetDeviceAuthFailure.
     /// Created date: 18/08/2026
     /// </summary>
     [Collection("api")]
@@ -214,95 +214,95 @@ namespace Tests.Modules.VideoWall
         /// Description: Kiểm tra vòng đời Circuit Breaker trên VwISAPIDeviceService (Ghi nhận lỗi, Khóa, Khôi phục khi thành công).
         /// </summary>
         [Fact]
-        public void VwISAPIDeviceService_CircuitBreaker_FullLifecycle_Test()
+        public void VwISAPIDeviceService_DeviceAuthFailure_FullLifecycle_Test()
         {
             // Arrange
             var testIp = "127.0.0.1:18091";
-            _service.ResetCircuitBreaker(testIp);
+            _service.ResetDeviceAuthFailure(testIp);
 
             // 1st failure -> not yet blocked
-            _service.RecordCircuitBreakerFailure(testIp, 401);
-            Assert.False(_service.IsCircuitBreakerBlocked(testIp, out _));
+            _service.RecordDeviceAuthFailure(testIp, 401);
+            Assert.False(_service.IsDeviceAuthFailureBlocked(testIp, out _));
 
             // 2nd failure -> blocked
-            _service.RecordCircuitBreakerFailure(testIp, 401);
-            Assert.True(_service.IsCircuitBreakerBlocked(testIp, out var remaining));
+            _service.RecordDeviceAuthFailure(testIp, 401);
+            Assert.True(_service.IsDeviceAuthFailureBlocked(testIp, out var remaining));
             Assert.True(remaining > TimeSpan.Zero);
 
             // Record success -> clears block
             _service.RecordAuthSuccess(testIp);
-            Assert.False(_service.IsCircuitBreakerBlocked(testIp, out _));
+            Assert.False(_service.IsDeviceAuthFailureBlocked(testIp, out _));
         }
 
         /// <summary>
-        /// Description: Reset Circuit Breaker xóa bỏ trạng thái lỗi tạm khóa thành công cho từng Controller.
+        /// Description: Reset trạng thái lỗi xác thực xóa bỏ trạng thái lỗi tạm khóa thành công cho từng Controller.
         /// </summary>
         [Fact]
-        public void VwISAPIDeviceService_ResetCircuitBreaker_ClearsBlock_Test()
+        public void VwISAPIDeviceService_ResetDeviceAuthFailure_ClearsBlock_Test()
         {
             // Arrange
             var testIp = "127.0.0.1:18092";
-            _service.ResetCircuitBreaker(testIp);
-            _service.RecordCircuitBreakerFailure(testIp, 401);
-            _service.RecordCircuitBreakerFailure(testIp, 401);
+            _service.ResetDeviceAuthFailure(testIp);
+            _service.RecordDeviceAuthFailure(testIp, 401);
+            _service.RecordDeviceAuthFailure(testIp, 401);
 
-            Assert.True(_service.IsCircuitBreakerBlocked(testIp, out _));
+            Assert.True(_service.IsDeviceAuthFailureBlocked(testIp, out _));
 
             // Act
-            _service.ResetCircuitBreaker(testIp);
+            _service.ResetDeviceAuthFailure(testIp);
 
             // Assert
-            Assert.False(_service.IsCircuitBreakerBlocked(testIp, out _));
+            Assert.False(_service.IsDeviceAuthFailureBlocked(testIp, out _));
         }
 
         /// <summary>
-        /// Description: Reset toàn bộ Circuit Breakers trên hệ thống qua VwISAPIDeviceService.
+        /// Description: Reset toàn bộ trạng thái lỗi xác thực trên hệ thống qua VwISAPIDeviceService.
         /// </summary>
         [Fact]
-        public void VwISAPIDeviceService_ResetAllCircuitBreakers_ClearsAll_Test()
+        public void VwISAPIDeviceService_ResetAllDeviceAuthFailures_ClearsAll_Test()
         {
             // Arrange
             var testIp1 = "127.0.0.1:18093";
             var testIp2 = "127.0.0.1:18094";
-            _service.ResetCircuitBreaker(testIp1);
-            _service.ResetCircuitBreaker(testIp2);
-            _service.RecordCircuitBreakerFailure(testIp1, 401);
-            _service.RecordCircuitBreakerFailure(testIp1, 401);
-            _service.RecordCircuitBreakerFailure(testIp2, 401);
-            _service.RecordCircuitBreakerFailure(testIp2, 401);
+            _service.ResetDeviceAuthFailure(testIp1);
+            _service.ResetDeviceAuthFailure(testIp2);
+            _service.RecordDeviceAuthFailure(testIp1, 401);
+            _service.RecordDeviceAuthFailure(testIp1, 401);
+            _service.RecordDeviceAuthFailure(testIp2, 401);
+            _service.RecordDeviceAuthFailure(testIp2, 401);
 
-            Assert.True(_service.IsCircuitBreakerBlocked(testIp1, out _));
-            Assert.True(_service.IsCircuitBreakerBlocked(testIp2, out _));
+            Assert.True(_service.IsDeviceAuthFailureBlocked(testIp1, out _));
+            Assert.True(_service.IsDeviceAuthFailureBlocked(testIp2, out _));
 
             // Act
-            _service.ResetAllCircuitBreakers();
+            _service.ResetAllDeviceAuthFailures();
 
             // Assert
-            Assert.False(_service.IsCircuitBreakerBlocked(testIp1, out _));
-            Assert.False(_service.IsCircuitBreakerBlocked(testIp2, out _));
+            Assert.False(_service.IsDeviceAuthFailureBlocked(testIp1, out _));
+            Assert.False(_service.IsDeviceAuthFailureBlocked(testIp2, out _));
         }
 
         /// <summary>
-        /// Description: Circuit Breaker tuân thủ ngưỡng MaxConsecutiveFailures từ profile (chưa chạm ngưỡng thì chưa chặn, chạm ngưỡng mới chặn).
+        /// Description: Trạng thái lỗi xác thực tuân thủ ngưỡng MaxConsecutiveFailures từ profile (chưa chạm ngưỡng thì chưa chặn, chạm ngưỡng mới chặn).
         /// </summary>
         [Fact]
-        public void VwISAPIDeviceService_CircuitBreaker_RespectsProfileThreshold_Test()
+        public void VwISAPIDeviceService_DeviceAuthFailure_RespectsProfileThreshold_Test()
         {
             var testIp = "127.0.0.1:18090";
-            _service.ResetCircuitBreaker(testIp);
+            _service.ResetDeviceAuthFailure(testIp);
 
             var threshold = VwWallProfile.MaxConsecutiveFailures;
             for (var i = 0; i < threshold - 1; i++)
             {
-                _service.RecordCircuitBreakerFailure(testIp, 401);
-                Assert.False(_service.IsCircuitBreakerBlocked(testIp, out _));
+                _service.RecordDeviceAuthFailure(testIp, 401);
+                Assert.False(_service.IsDeviceAuthFailureBlocked(testIp, out _));
             }
 
-            _service.RecordCircuitBreakerFailure(testIp, 401);
-            Assert.True(_service.IsCircuitBreakerBlocked(testIp, out var remaining));
+            _service.RecordDeviceAuthFailure(testIp, 401);
+            Assert.True(_service.IsDeviceAuthFailureBlocked(testIp, out var remaining));
             Assert.True(remaining > TimeSpan.Zero);
 
-            _service.ResetCircuitBreaker(testIp);
+            _service.ResetDeviceAuthFailure(testIp);
         }
 
         /// <summary>
@@ -341,21 +341,21 @@ namespace Tests.Modules.VideoWall
                 scope.ServiceProvider.GetRequiredService<ILogger<VwISAPIDeviceService>>());
 
             var testIp = "127.0.0.1:18091";
-            service.ResetCircuitBreaker(testIp);
+            service.ResetDeviceAuthFailure(testIp);
 
             // 1st & 2nd failure -> not blocked (because threshold is 3)
-            service.RecordCircuitBreakerFailure(testIp, 401);
-            Assert.False(service.IsCircuitBreakerBlocked(testIp, out _));
+            service.RecordDeviceAuthFailure(testIp, 401);
+            Assert.False(service.IsDeviceAuthFailureBlocked(testIp, out _));
 
-            service.RecordCircuitBreakerFailure(testIp, 401);
-            Assert.False(service.IsCircuitBreakerBlocked(testIp, out _));
+            service.RecordDeviceAuthFailure(testIp, 401);
+            Assert.False(service.IsDeviceAuthFailureBlocked(testIp, out _));
 
             // 3rd failure -> blocked
-            service.RecordCircuitBreakerFailure(testIp, 401);
-            Assert.True(service.IsCircuitBreakerBlocked(testIp, out var remaining));
+            service.RecordDeviceAuthFailure(testIp, 401);
+            Assert.True(service.IsDeviceAuthFailureBlocked(testIp, out var remaining));
             Assert.True(remaining > TimeSpan.FromMinutes(5));
 
-            service.ResetCircuitBreaker(testIp);
+            service.ResetDeviceAuthFailure(testIp);
         }
 
         #endregion
@@ -457,7 +457,7 @@ namespace Tests.Modules.VideoWall
             host.MockServer.ResetDefaults();
             host.MockServer.VerifyDigestResponseHash = true;
             var testIp = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPorts[1]}";
-            _service.ResetCircuitBreaker(testIp);
+            _service.ResetDeviceAuthFailure(testIp);
 
             try
             {
@@ -481,7 +481,7 @@ namespace Tests.Modules.VideoWall
             }
             finally
             {
-                _service.ResetCircuitBreaker(testIp);
+                _service.ResetDeviceAuthFailure(testIp);
                 host.MockServer.ResetDefaults();
             }
         }
@@ -676,7 +676,7 @@ namespace Tests.Modules.VideoWall
                 await _db.Deleteable<VwScene>().Where(s => s.ID == scene.ID).ExecuteCommandAsync();
                 await _db.Deleteable<VwController>().Where(c => c.ID == controller.ID).ExecuteCommandAsync();
                 _mock.ResetDefaults();
-                _service.ResetAllCircuitBreakers();
+                _service.ResetAllDeviceAuthFailures();
             }
         }
 
@@ -706,7 +706,7 @@ namespace Tests.Modules.VideoWall
             {
                 await _db.Deleteable<VwController>().Where(c => c.ID == controller.ID).ExecuteCommandAsync();
                 _mock.ResetDefaults();
-                _service.ResetAllCircuitBreakers();
+                _service.ResetAllDeviceAuthFailures();
             }
         }
 
@@ -2015,17 +2015,17 @@ namespace Tests.Modules.VideoWall
 
         /// <summary>
         /// Author: Đạt
-        /// Description: SendRawAsync khi circuit breaker đang chặn IP phải trả Fail với HttpStatus 429.
+        /// Description: SendRawAsync khi device auth failure đang chặn IP phải trả Fail với HttpStatus 429.
         /// Created date: 25/08/2026
         /// </summary>
         [Fact]
-        public async Task VwISAPIDeviceService_SendRawAsync_CircuitBreakerBlocked_ReturnsFail_Test()
+        public async Task VwISAPIDeviceService_SendRawAsync_DeviceAuthFailureBlocked_ReturnsFail_Test()
         {
             host.MockServer.ResetDefaults();
             var controller = TestController;
 
             for (var i = 0; i < 10; i++)
-                _client.RecordCircuitBreakerFailure(controller.IP, 401);
+                _client.RecordDeviceAuthFailure(controller.IP, 401);
 
             var result = await _client.SendRawAsync(
                 controller,
@@ -2037,7 +2037,7 @@ namespace Tests.Modules.VideoWall
             Assert.False(result.Success);
             Assert.Equal(429, result.HttpStatusCode);
 
-            _client.ResetCircuitBreaker(controller.IP);
+            _client.ResetDeviceAuthFailure(controller.IP);
         }
 
         #endregion
@@ -2305,7 +2305,7 @@ namespace Tests.Modules.VideoWall
             finally
             {
                 host.MockServer.ResetDefaults();
-                _client.ResetCircuitBreaker(controller.IP);
+                _client.ResetDeviceAuthFailure(controller.IP);
             }
         }
 
@@ -2337,11 +2337,11 @@ namespace Tests.Modules.VideoWall
 
         /// <summary>
         /// Author: Đạt
-        /// Description: Xác thực thiết bị sai mật khẩu gây lỗi 401 thật liên tiếp — kích hoạt Circuit Breaker tự động và chặn cuộc gọi tiếp theo.
+        /// Description: Xác thực thiết bị sai mật khẩu gây lỗi 401 thật liên tiếp — kích hoạt khóa bảo vệ lỗi xác thực (DeviceAuthFailure) tự động và chặn cuộc gọi tiếp theo.
         /// Created date: 26/08/2026
         /// </summary>
         [Fact]
-        public async Task VwISAPIDeviceService_CircuitBreaker_TriggersOnConsecutiveReal401s_BlocksNextCall_Test()
+        public async Task VwISAPIDeviceService_DeviceAuthFailure_TriggersOnConsecutiveReal401s_BlocksNextCall_Test()
         {
             host.MockServer.ResetDefaults();
             host.MockServer.VerifyDigestResponseHash = true;
@@ -2359,7 +2359,7 @@ namespace Tests.Modules.VideoWall
 
             try
             {
-                _client.ResetCircuitBreaker(controller.IP);
+                _client.ResetDeviceAuthFailure(controller.IP);
 
                 // Cuộc gọi 1: nhận 401 Unauthorized thật
                 var res1 = await _client.UserCheckAsync(controller);
@@ -2371,14 +2371,14 @@ namespace Tests.Modules.VideoWall
                 Assert.False(res2.Success);
                 Assert.Equal(401, res2.HttpStatusCode);
 
-                // Sau 2 lần 401 liên tiếp, Circuit Breaker phải chuyển sang trạng thái Blocked
-                var isBlocked = _client.IsCircuitBreakerBlocked(controller.IP, out var remaining);
+                // Sau 2 lần 401 liên tiếp, DeviceAuthFailure phải chuyển sang trạng thái Blocked
+                var isBlocked = _client.IsDeviceAuthFailureBlocked(controller.IP, out var remaining);
                 Assert.True(isBlocked);
                 Assert.True(remaining > TimeSpan.Zero);
 
                 var callsBefore = host.MockServer.UserCheckCallCount;
 
-                // Cuộc gọi 3: bị Circuit Breaker chặn tại client (trả HTTP 429), không gửi request ra MockServer
+                // Cuộc gọi 3: bị DeviceAuthFailure chặn tại client (trả HTTP 429), không gửi request ra MockServer
                 var res3 = await _client.UserCheckAsync(controller);
                 Assert.False(res3.Success);
                 Assert.Equal(429, res3.HttpStatusCode);
@@ -2386,7 +2386,7 @@ namespace Tests.Modules.VideoWall
             }
             finally
             {
-                _client.ResetCircuitBreaker(controller.IP);
+                _client.ResetDeviceAuthFailure(controller.IP);
                 host.MockServer.ResetDefaults();
             }
         }
@@ -2394,12 +2394,12 @@ namespace Tests.Modules.VideoWall
         /// <summary>
         /// Description: Lưới an toàn cho SendCoreAsync — mọi biến thể transport
         ///              (GET-XML, GET-JSON, POST-XML, PUT-status, DELETE) cộng SendRawAsync
-        ///              đều phải gọi RecordCircuitBreakerFailure khi thiết bị trả 401,
-        ///              nên sau đúng MaxConsecutiveFailures lần 401 liên tiếp Circuit Breaker phải mở.
+        ///              đều phải gọi RecordDeviceAuthFailure khi thiết bị trả 401,
+        ///              nên sau đúng MaxConsecutiveFailures lần 401 liên tiếp DeviceAuthFailure phải mở.
         /// Created date: 07/09/2026
         /// </summary>
         [Fact]
-        public async Task VwISAPIDeviceService_EverySendVariant_On401_TripsCircuitBreaker_Test()
+        public async Task VwISAPIDeviceService_EverySendVariant_On401_TripsDeviceAuthFailure_Test()
         {
             // Arrange — sai mật khẩu + mock kiểm hash digest thật => mọi verb đều nhận 401
             host.MockServer.ResetDefaults();
@@ -2418,33 +2418,33 @@ namespace Tests.Modules.VideoWall
 
             try
             {
-                await AssertVariantTripsBreakerOn401(
+                await AssertVariantTripsDeviceAuthFailureOn401(
                     "GET-XML (SendGetXmlAsync)", controller.IP,
                     async () => (VwISAPIResult)await _client.UserCheckAsync(controller));
 
-                await AssertVariantTripsBreakerOn401(
+                await AssertVariantTripsDeviceAuthFailureOn401(
                     "GET-JSON (SendGetJsonAsync)", controller.IP,
                     async () => (VwISAPIResult)await _client.GetSceneInfoAsync(controller, "1", 1));
 
-                await AssertVariantTripsBreakerOn401(
+                await AssertVariantTripsDeviceAuthFailureOn401(
                     "POST-XML (SendPostXmlAsync)", controller.IP,
                     async () => (VwISAPIResult)await _client.CreateSceneAsync(controller, "T4Scene", 1));
 
-                await AssertVariantTripsBreakerOn401(
+                await AssertVariantTripsDeviceAuthFailureOn401(
                     "PUT-status (SendPutStatusAsync)", controller.IP,
                     () => _client.ActivateSceneAsync(controller, "1", 1));
 
-                await AssertVariantTripsBreakerOn401(
+                await AssertVariantTripsDeviceAuthFailureOn401(
                     "DELETE (SendDeleteStatusAsync)", controller.IP,
                     () => _client.DeleteAllWindowsAsync(controller, 1));
 
-                await AssertVariantTripsBreakerOn401(
+                await AssertVariantTripsDeviceAuthFailureOn401(
                     "SendRawAsync", controller.IP,
                     () => _client.SendRawAsync(controller, HttpMethod.Get, "ISAPI/Security/userCheck", null, null));
             }
             finally
             {
-                _client.ResetCircuitBreaker(controller.IP);
+                _client.ResetDeviceAuthFailure(controller.IP);
                 host.MockServer.ResetDefaults();
             }
         }
@@ -2454,32 +2454,32 @@ namespace Tests.Modules.VideoWall
         #region Private Helpers
 
         /// <summary>
-        /// Description: Trên một đường transport: reset breaker, gọi 2 lần liên tiếp (= MaxConsecutiveFailures),
-        ///              mỗi lần phải là 401, và sau lần thứ 2 Circuit Breaker phải ở trạng thái mở.
-        ///              Lần 1 chưa được chặn để chắc chắn breaker mở do 401 chứ không do state rớt lại.
+        /// Description: Trên một đường transport: reset failure state, gọi 2 lần liên tiếp (= MaxConsecutiveFailures),
+        ///              mỗi lần phải là 401, và sau lần thứ 2 DeviceAuthFailure phải ở trạng thái mở.
+        ///              Lần 1 chưa được chặn để chắc chắn state mở do 401 chứ không do state rớt lại.
         /// Created date: 07/09/2026
         /// </summary>
-        private async Task AssertVariantTripsBreakerOn401(string label, string? ip, Func<Task<VwISAPIResult>> call)
+        private async Task AssertVariantTripsDeviceAuthFailureOn401(string label, string? ip, Func<Task<VwISAPIResult>> call)
         {
-            _client.ResetCircuitBreaker(ip);
+            _client.ResetDeviceAuthFailure(ip);
 
             var first = await call();
             Assert.False(first.Success, $"[{label}] mong đợi 401 nhưng Success = true");
             Assert.Equal(401, first.HttpStatusCode);
             Assert.False(
-                _client.IsCircuitBreakerBlocked(ip, out _),
+                _client.IsDeviceAuthFailureBlocked(ip, out _),
                 $"[{label}] mới 1 lần 401, chưa được chặn");
 
             var second = await call();
             Assert.Equal(401, second.HttpStatusCode);
 
             Assert.True(
-                _client.IsCircuitBreakerBlocked(ip, out var remaining),
-                $"[{label}] sau {VwWallProfile.MaxConsecutiveFailures} lần 401 liên tiếp mà Circuit Breaker "
-                + "chưa mở — RecordCircuitBreakerFailure không được gọi trên đường này?");
+                _client.IsDeviceAuthFailureBlocked(ip, out var remaining),
+                $"[{label}] sau {VwWallProfile.MaxConsecutiveFailures} lần 401 liên tiếp mà DeviceAuthFailure "
+                + "chưa mở — RecordDeviceAuthFailure không được gọi trên đường này?");
             Assert.True(remaining > TimeSpan.Zero);
 
-            _client.ResetCircuitBreaker(ip);
+            _client.ResetDeviceAuthFailure(ip);
         }
 
         private async Task<(VwController Controller, VwScene Scene)> CreateSetupSceneFixtures()

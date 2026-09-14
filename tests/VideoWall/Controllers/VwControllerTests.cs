@@ -406,15 +406,15 @@ public class VwControllerTests(Host host)
     /// Created date: 17/08/2026
     /// </summary>
     [Fact]
-    public async Task VwControllerCommand_UpdateVwController_ResetsCircuitBreaker_Test()
+    public async Task VwControllerCommand_UpdateVwController_ResetsDeviceAuthFailure_Test()
     {
         var client = host.Services.GetRequiredService<IVwISAPIDeviceClient>();
         var testIp = "127.0.0.1:18099";
 
-        // Gây lỗi để Circuit Breaker khóa testIp
-        client.RecordCircuitBreakerFailure(testIp, 401);
-        client.RecordCircuitBreakerFailure(testIp, 401);
-        Assert.True(client.IsCircuitBreakerBlocked(testIp, out _));
+        // Gây lỗi để khoá testIp do lỗi xác thực
+        client.RecordDeviceAuthFailure(testIp, 401);
+        client.RecordDeviceAuthFailure(testIp, 401);
+        Assert.True(client.IsDeviceAuthFailureBlocked(testIp, out _));
 
         var uniqueCode = $"{TestPrefix}{Guid.NewGuid():N}";
         var ctrl = new VwController
@@ -445,12 +445,12 @@ public class VwControllerTests(Host host)
             // Act: cập nhật thông tin
             await _bus.InvokeAsync(updateInput);
 
-            // Assert: Circuit Breaker cho testIp đã được tự động Reset (không còn bị blocked)
-            Assert.False(client.IsCircuitBreakerBlocked(testIp, out _));
+            // Assert: Trạng thái chặn lỗi xác thực cho testIp đã được tự động Reset (không còn bị blocked)
+            Assert.False(client.IsDeviceAuthFailureBlocked(testIp, out _));
         }
         finally
         {
-            client.ResetCircuitBreaker(testIp);
+            client.ResetDeviceAuthFailure(testIp);
             await _db.Deleteable<VwController>().Where(u => u.ID == ctrl.ID).ExecuteCommandAsync();
         }
     }

@@ -96,7 +96,7 @@ namespace Tests.Modules.VideoWall.Services
             }
             finally
             {
-                _service.ResetAllCircuitBreakers();
+                _service.ResetAllDeviceAuthFailures();
                 await _db.Deleteable<VwController>().Where(c => c.ID == controller.ID).ExecuteCommandAsync();
                 await _db.Deleteable<VwScene>().Where(s => s.ID == sceneOld.ID || s.ID == sceneTarget.ID).ExecuteCommandAsync();
             }
@@ -156,7 +156,7 @@ namespace Tests.Modules.VideoWall.Services
             }
             finally
             {
-                _service.ResetAllCircuitBreakers();
+                _service.ResetAllDeviceAuthFailures();
                 await _db.Deleteable<VwController>().Where(c => c.ID == controller.ID).ExecuteCommandAsync();
                 await _db.Deleteable<VwScene>().Where(s => s.ID == scene.ID).ExecuteCommandAsync();
             }
@@ -210,7 +210,7 @@ namespace Tests.Modules.VideoWall.Services
             }
             finally
             {
-                _service.ResetAllCircuitBreakers();
+                _service.ResetAllDeviceAuthFailures();
                 await _db.Deleteable<VwController>().Where(c => c.ID == controller.ID).ExecuteCommandAsync();
             }
         }
@@ -381,7 +381,7 @@ namespace Tests.Modules.VideoWall.Services
             }
             finally
             {
-                _service.ResetAllCircuitBreakers();
+                _service.ResetAllDeviceAuthFailures();
                 await _db.Deleteable<VwController>().Where(c => c.ID == ctrlA.ID || c.ID == ctrlB.ID || c.ID == ctrlC.ID).ExecuteCommandAsync();
                 await _db.Deleteable<VwScene>().Where(s => s.ID == sceneA1.ID || s.ID == sceneA2.ID || s.ID == sceneB.ID || s.ID == sceneC.ID).ExecuteCommandAsync();
             }

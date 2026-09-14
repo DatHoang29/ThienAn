@@ -181,7 +181,7 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
             finally
             {
                 _mock.ResetDefaults();
-                _service.ResetAllCircuitBreakers();
+                _service.ResetAllDeviceAuthFailures();
             }
         }
 
@@ -239,7 +239,7 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
             finally
             {
                 _mock.ResetDefaults();
-                _service.ResetAllCircuitBreakers();
+                _service.ResetAllDeviceAuthFailures();
             }
         }
 
@@ -395,21 +395,21 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
         /// Created date: 08/09/2026
         /// </summary>
         [Fact]
-        public void D8_CircuitBreaker_ConsecutiveAuthFailures_LocksOutControllerIp()
+        public void D8_DeviceAuthFailure_ConsecutiveAuthFailures_LocksOutControllerIp()
         {
             // Arrange
             var testIp = $"192.168.200.{Random.Shared.Next(10, 250)}";
-            _service.ResetCircuitBreaker(testIp);
+            _service.ResetDeviceAuthFailure(testIp);
 
             try
             {
                 // Act
                 for (var i = 0; i < 5; i++)
                 {
-                    _service.RecordCircuitBreakerFailure(testIp, 401);
+                    _service.RecordDeviceAuthFailure(testIp, 401);
                 }
 
-                var isBlocked = _service.IsCircuitBreakerBlocked(testIp, out var remaining);
+                var isBlocked = _service.IsDeviceAuthFailureBlocked(testIp, out var remaining);
 
                 // Assert
                 Assert.True(isBlocked);
@@ -417,7 +417,7 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
             }
             finally
             {
-                _service.ResetCircuitBreaker(testIp);
+                _service.ResetDeviceAuthFailure(testIp);
             }
         }
 

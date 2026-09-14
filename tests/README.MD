@@ -30,7 +30,7 @@ bị guard Zero-Trust chặn nếu trỏ ra ngoài `localhost` / `127.0.0.1` / `
 
 | Nhóm | File | Ghi chú |
 | --- | --- | --- |
-| **VideoWall — Controllers** | `VwControllerTests.cs` | CRUD + `GetInputChannels` + CircuitBreaker + Negative Validation |
+| **VideoWall — Controllers** | `VwControllerTests.cs` | CRUD + `GetInputChannels` + DeviceAuthFailure + Negative Validation |
 | | `VwSceneTests.cs` | CRUD + workflow kích hoạt kịch bản + multi-controller + `VwEventTriggerLog` |
 | | `VwWindowSceneTests.cs` | CRUD + boundary + `SwitchSource` + `SetLayer` Z-Order |
 | | `VwEventRuleTests.cs` | CRUD `VwEventRule` |

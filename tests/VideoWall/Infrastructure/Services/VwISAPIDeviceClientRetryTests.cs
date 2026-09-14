@@ -29,7 +29,7 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
         {
             // Arrange
             _mock.ResetDefaults();
-            _client.ResetAllCircuitBreakers();
+            _client.ResetAllDeviceAuthFailures();
             _mock.TransientErrorCount = 2;
             _mock.TransientStatusCode = HttpStatusCode.ServiceUnavailable;
 
@@ -56,7 +56,7 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
             finally
             {
                 _mock.ResetDefaults();
-                _client.ResetAllCircuitBreakers();
+                _client.ResetAllDeviceAuthFailures();
             }
         }
 
@@ -69,7 +69,7 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
         {
             // Arrange
             _mock.ResetDefaults();
-            _client.ResetAllCircuitBreakers();
+            _client.ResetAllDeviceAuthFailures();
             var port = VwISAPIMockServerHikvision.DefaultPorts[1];
             var controller = new VwController
             {
@@ -96,7 +96,7 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
             finally
             {
                 _mock.ResetDefaults();
-                _client.ResetAllCircuitBreakers();
+                _client.ResetAllDeviceAuthFailures();
             }
         }
 
@@ -109,7 +109,7 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
         {
             // Arrange
             _mock.ResetDefaults();
-            _client.ResetAllCircuitBreakers();
+            _client.ResetAllDeviceAuthFailures();
             _mock.TransientErrorCount = 5; // Luôn lỗi
             _mock.TransientStatusCode = HttpStatusCode.ServiceUnavailable;
 
@@ -148,20 +148,20 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
             finally
             {
                 _mock.ResetDefaults();
-                _client.ResetAllCircuitBreakers();
+                _client.ResetAllDeviceAuthFailures();
             }
         }
 
         /// <summary>
-        /// Description: Controller A bị Circuit Breaker ngắt mạch không gây ảnh hưởng hay làm nghẽn Controller B
+        /// Description: Controller A bị chặn do lỗi xác thực không gây ảnh hưởng hay làm nghẽn Controller B
         /// Created date: 12/09/2026
         /// </summary>
         [Fact]
-        public async Task SendCoreAsync_CircuitBreakerOfControllerA_DoesNotAffectControllerB_Test()
+        public async Task SendCoreAsync_DeviceAuthFailureOfControllerA_DoesNotAffectControllerB_Test()
         {
             // Arrange
             _mock.ResetDefaults();
-            _client.ResetAllCircuitBreakers();
+            _client.ResetAllDeviceAuthFailures();
 
             var portA = VwISAPIMockServerHikvision.DefaultPorts[2];
             var portB = VwISAPIMockServerHikvision.DefaultPorts[3];
@@ -183,24 +183,24 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
                 Role = "center"
             };
 
-            // Gọi lặp trên ctrlA với sai thông tin xác thực để kích hoạt Circuit Breaker (lỗi 401 tích luỹ)
+            // Gọi lặp trên ctrlA với sai thông tin xác thực để kích hoạt khoá lỗi xác thực (lỗi 401 tích luỹ)
             for (var i = 0; i < 3; i++)
             {
                 await _client.GetCapabilitiesAsync(ctrlA);
             }
 
-            // Assert: ctrlA bị ngắt mạch
-            Assert.True(_client.IsCircuitBreakerBlocked(ctrlA.IP, out _));
+            // Assert: ctrlA bị chặn
+            Assert.True(_client.IsDeviceAuthFailureBlocked(ctrlA.IP, out _));
 
             // Act: ctrlB vẫn gọi bình thường
             var resultB = await _client.GetCapabilitiesAsync(ctrlB);
 
             // Assert: ctrlB không bị ảnh hưởng và gọi thành công
             Assert.True(resultB.Success);
-            Assert.False(_client.IsCircuitBreakerBlocked(ctrlB.IP, out _));
+            Assert.False(_client.IsDeviceAuthFailureBlocked(ctrlB.IP, out _));
 
             // Cleanup
-            _client.ResetAllCircuitBreakers();
+            _client.ResetAllDeviceAuthFailures();
         }
     }
 }
