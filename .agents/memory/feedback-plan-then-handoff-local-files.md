@@ -1,28 +1,35 @@
 ---
 name: feedback-plan-then-handoff-local-files
-description: User wants Claude to research/plan only (not implement) for VideoWall work, and wants plan files saved locally in the repo, not in the global ~/.claude/plans directory
+description: User wants Claude to research/plan only (not implement) across modules, plan saved as exactly ONE file in the repo (not global ~/.claude/plans), no extra memory/README/index edits per plan
 metadata:
   type: feedback
 ---
 
-Khi làm việc trên module VideoWall (và có thể các module lớn khác), người dùng muốn Claude
-**chỉ nghiên cứu + lên plan**, không tự thực thi code — họ giao việc code lại cho "bạn khác"
-(người khác hoặc 1 AI agent khác) thực hiện, rồi quay lại nhờ Claude review kết quả sau.
+Áp dụng cho MỌI module (không riêng VideoWall): khi làm việc kiểu "lên plan", người dùng muốn
+Claude **chỉ nghiên cứu + lên plan**, không tự thực thi code — họ giao việc code lại cho "bạn
+khác" (người khác hoặc 1 AI agent khác) thực hiện, rồi quay lại nhờ Claude review kết quả sau.
 
-**Why:** Người dùng nói rõ nhiều lần trong 1 phiên dài: "hãy lên plan đi rồi tôi sẽ nhờ bạn khác
-làm bạn đừng sửa code". Ngay cả sau khi `ExitPlanMode` được approve (hệ thống báo "You can now
-start coding"), người dùng vẫn không muốn Claude tự implement — approve chỉ có nghĩa "plan đã
-chốt, sẵn sàng giao việc", không phải "Claude cứ code luôn".
+**Why:** Người dùng nói rõ nhiều lần: "hãy lên plan đi rồi tôi sẽ nhờ bạn khác làm bạn đừng sửa
+code". Ngay cả sau khi `ExitPlanMode` được approve (hệ thống báo "You can now start coding"),
+người dùng vẫn không muốn Claude tự implement — approve chỉ có nghĩa "plan đã chốt, sẵn sàng giao
+việc", không phải "Claude cứ code luôn". Và ngày 2026-09-14 (phiên ShareData), người dùng phàn nàn
+rõ: mỗi lần lên plan mà phải đụng NHIỀU chỗ (file plan + bản sao trong doc + README index + memory
+riêng + MEMORY.md) là quá nhiều bước để nhớ — chốt lại: **chỉ 1 file duy nhất**.
 
 **How to apply:**
-- Sau khi 1 plan VideoWall được approve qua `ExitPlanMode`, KHÔNG tự động bắt đầu sửa code trừ
-  khi người dùng nói rõ ràng "làm đi"/"code đi"/tương tự — mặc định coi như plan xong là bàn giao.
+- Sau khi 1 plan được approve qua `ExitPlanMode`, KHÔNG tự động bắt đầu sửa code trừ khi người
+  dùng nói rõ ràng "làm đi"/"code đi"/tương tự — mặc định coi như plan xong là bàn giao.
 - Nếu lỡ bắt đầu sửa vài file trước khi nhận ra điều này, dừng lại ngay khi được nhắc, và hỏi rõ
   có nên giữ nguyên phần đã sửa dở làm điểm xuất phát hay revert — đừng tự quyết.
-- **Plan file phải lưu LOCAL trong repo**, không lưu ở `C:\Users\This PC\.claude\plans\` (global).
-  Vị trí đã dùng: `DocBusinessThienAn/HữuNghị-ChiLăng/Plan/<tên-mô-tả>.md` (đặt tên theo nội dung
-  plan, không dùng tên file ngẫu nhiên do hệ thống sinh ra). Sau khi ghi bản local, xoá bản global
-  đã tạo lúc `ExitPlanMode` (dùng `rm`) để không tồn tại 2 bản.
+- **Plan = đúng 1 file, lưu LOCAL trong repo**, không lưu ở `C:\Users\This PC\.claude\plans\`
+  (global). Vị trí: `DocBusinessThienAn/HữuNghị-ChiLăng/Plan/<tên-mô-tả>.md` (đặt tên theo nội
+  dung plan, không dùng tên file ngẫu nhiên do hệ thống sinh ra) — kể cả khi plan thuộc về 1 module
+  con có doc riêng (vd ShareData/doc/), vẫn để trong `Plan/` chung, không rải vào từng thư mục
+  module. Sau khi ghi bản local, xoá bản global đã tạo lúc `ExitPlanMode` (dùng `rm`) để không tồn
+  tại 2 bản.
+- **KHÔNG** tự thêm: memory riêng cho plan đó, dòng mới vào README/INDEX của module, hay bất kỳ
+  file phụ nào khác — chỉ 1 file plan là đủ. (Đã tự ý làm dư việc này ở plan ShareData outbound
+  2026-09-14 — sai, người dùng chỉnh lại ngay.)
 - Khi người dùng nói "tạo plan"/"tạo prompt" mà không nói thêm, khả năng cao họ chỉ đang nhắc lại
   yêu cầu lưu-local ở trên (đã từng nhầm hiểu là muốn 1 file "prompt" theo format riêng — không
   phải vậy, họ chỉ muốn nói "lưu local" gọn hơn).

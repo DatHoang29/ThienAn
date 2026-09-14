@@ -131,7 +131,7 @@ HữuNghị-ChiLăng/
 ├── INDEX.md                                  🤖👤 File bạn đang đọc (Chỉ mục cấp dự án & Meeting Hub)
 ├── ShareData/                                🤖👤 Phân hệ Chia sẻ Dữ liệu (ESHARE)
 │   ├── README.md                             🤖👤 SSOT phân hệ ShareData (kèm Tier Table)
-│   ├── doc/                                  🤖    Tier A: 01-yeu-cau-nghiep-vu, 02-mapping, sharedata_plan
+│   ├── doc/                                  🤖    Tier A: 01-yeu-cau-nghiep-vu, 02-mapping
 │   │   └── transcript/                       🤖    Tier A: 2026-09-09-review, 2026-09-11-sharedata-script
 │   └── _source/                              👤    Tier C: Bản gốc đối chiếu (xlsx/)
 ├── VideoWall/                                🤖👤 Phân hệ Video Wall
@@ -140,7 +140,6 @@ HữuNghị-ChiLăng/
 │   │   ├── ISAPI-Videowall-Controller/       🤖    Tier A + B (09-api-reference.md: 1.670 KB grep-only)
 │   │   ├── Controller-phan-cung/              🤖    Tier A (tài liệu phần cứng + images/)
 │   │   ├── KichBan/                          🤖    Tier A (kịch bản 1 controller / 4 controller)
-│   │   ├── Plan/                             🤖    Tier A (kế hoạch gốc videowall_plan.md)
 │   │   ├── TableSQL/                         🤖    Tier A (thiết kế CSDL Vw*)
 │   │   └── transcript/                       🤖    Tier A: 2026-08-28, 2026-09-09, 2026-09-11-videowall-script
 │   ├── data/                                 🤖    Tier B: Log đo thực tế trên thiết bị (logs-api/)
@@ -153,8 +152,10 @@ HữuNghị-ChiLăng/
 │   │   ├── cr1000x-product-manual/           🤖    Tier A + B: Cẩm nang 334 trang (00-catalog, 01–11, full)
 │   │   └── images/                           🤖    Sơ đồ đấu nối, ảnh chụp thiết bị
 │   └── _source/                              👤    Tier C: Bản gốc đối chiếu (pdf/)
-└── Plan/                                     🤖👤 Kế hoạch & biên bản họp xuyên phân hệ
-    ├── sharedata_plan.md / videowall_plan.md / TH-0908.md   🤖 Tier A: Bản kế hoạch
+└── Plan/                                     🤖👤 Kế hoạch & biên bản họp xuyên phân hệ (mỗi plan = đúng 1 file .md tại đây)
+    ├── TH-0908.md                            🤖    Tier A: Ghi chú thô họp kế hoạch toàn tuyến 08/09
+    ├── sharedata-outbound-plan.md            🤖    Tier A: Kế hoạch luồng gửi ShareData (2026-09-14)
+    ├── videowall-*-prompt.md                 🤖    Tier A: Prompt bàn giao việc FE VideoWall đang chờ thực thi
     ├── doc/transcript/                       🤖    Tier A: Bản ghi họp .md (2026-09-08-hop-ke-hoach-{1,2}.md)
     └── _source/audio/                        👤    Tier C: Ghi âm gốc (2026-09-08, 2026-09-11)
 ```
@@ -211,6 +212,7 @@ Toàn bộ nằm trong `_source/` và `images/`. **AI không tự ý nạp các 
 ## Quy tắc khi thêm tài liệu mới
 
 1. Có file gốc PDF/XLSX/DOCX → **luôn tạo bản `.md`** đặt trong `doc/` cùng phân hệ; file gốc bỏ vào `_source/{pdf,xlsx,docx,img,zip}/` cùng phân hệ.
+1b. **Plan (kế hoạch triển khai do AI soạn) là ngoại lệ của quy tắc trên**: chỉ tạo **đúng 1 file** `.md` trong `Plan/` ở gốc (`Plan/<tên-mô-tả>.md`), dù plan đó thuộc riêng 1 phân hệ (ShareData/VideoWall/...). KHÔNG rải bản sao vào `doc/` của phân hệ, KHÔNG cập nhật Tier Table/README/INDEX cho từng plan — rule #6 dưới đây không áp dụng cho Plan.
 2. File `.md` chuyển thể bắt buộc có **Frontmatter Provenance** (`tier`, `read`, `source`, `source_pages`, `extracted`).
 3. Ảnh trích ra để trong `images/` **cạnh file `.md`** dùng nó, link tương đối (`images/xxx.png`).
 4. Đặt tên file không dấu, dùng kebab-case; đánh số tiền tố (`01-`, `02-`) khi tài liệu có thứ tự đọc.
