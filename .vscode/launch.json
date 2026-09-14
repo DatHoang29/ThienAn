@@ -18,7 +18,9 @@
       "env": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "DbConnection__ConnectionConfigs__0__ConnectionString": "Server=localhost,14333;Database=DEV_ITS10;MultipleActiveResultSets=true;User ID=sa;Password=Password123!;TrustServerCertificate=True",
-        "DbConnection__ConnectionConfigs__1__ConnectionString": "Server=localhost,14333;Database=DEV_ITS10_Log;MultipleActiveResultSets=true;User ID=sa;Password=Password123!;TrustServerCertificate=True"
+        "DbConnection__ConnectionConfigs__1__ConnectionString": "Server=localhost,14333;Database=DEV_ITS10_Log;MultipleActiveResultSets=true;User ID=sa;Password=Password123!;TrustServerCertificate=True",
+        "Nats__Url": "nats://localhost:4222",
+        "Nats__AuthMode": "NONE"
       }
     },
     {
@@ -146,7 +148,9 @@
       "console": "internalConsole",
       "env": {
         "DOTNET_ENVIRONMENT": "Development",
-        "DbConnection__ConnectionConfigs__0__ConnectionString": "Server=localhost,14333;Database=DEV_ITS10;MultipleActiveResultSets=true;User ID=sa;Password=Password123!;TrustServerCertificate=True"
+        "DbConnection__ConnectionConfigs__0__ConnectionString": "Server=localhost,14333;Database=DEV_ITS10;MultipleActiveResultSets=true;User ID=sa;Password=Password123!;TrustServerCertificate=True",
+        "Nats__Url": "nats://localhost:4222",
+        "Nats__AuthMode": "NONE"
       }
     },
     {
@@ -177,7 +181,8 @@
       "env": {
         "DOTNET_ENVIRONMENT": "Development",
         "ConnectionStrings__DefaultConnection": "Server=localhost,14333;Database=DEV_ITS10;MultipleActiveResultSets=true;User ID=sa;Password=Password123!;TrustServerCertificate=True",
-        "ConnectionStrings__InboundConnection": "Server=localhost,14333;Database=DEV_ITS10_Inbound;MultipleActiveResultSets=true;User ID=sa;Password=Password123!;TrustServerCertificate=True"
+        "ConnectionStrings__InboundConnection": "Server=localhost,14333;Database=DEV_ITS10_Inbound;MultipleActiveResultSets=true;User ID=sa;Password=Password123!;TrustServerCertificate=True",
+        "Nats__Url": "nats://localhost:4222"
       }
     },
     {
@@ -238,7 +243,9 @@
       "console": "internalConsole",
       "env": {
         "DOTNET_ENVIRONMENT": "Development",
-        "DbConnection__ConnectionConfigs__0__ConnectionString": "Server=localhost,14333;Database=DEV_ITS10;MultipleActiveResultSets=true;User ID=sa;Password=Password123!;TrustServerCertificate=True"
+        "DbConnection__ConnectionConfigs__0__ConnectionString": "Server=localhost,14333;Database=DEV_ITS10;MultipleActiveResultSets=true;User ID=sa;Password=Password123!;TrustServerCertificate=True",
+        "Nats__Url": "nats://localhost:4222",
+        "Nats__AuthMode": "NONE"
       }
     },
     {
