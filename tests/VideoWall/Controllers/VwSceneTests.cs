@@ -109,6 +109,33 @@ public class VwSceneTests(Host host)
     }
 
     /// <summary>
+    /// Description: Tạo Scene với ControllerId rỗng phải bị chặn bởi validator — kể cả SuperAdmin,
+    ///              không còn khái niệm kịch bản "toàn tường" từ 2026-09-14.
+    /// Created date: 14/09/2026
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task VwSceneCommand_AddVwScene_NullOrEmptyControllerId_IsRejectedByValidator_Test(string? controllerId)
+    {
+        var input = new VwAddSceneInput
+        {
+            Name = "Test Scene",
+            Code = $"TST_{Guid.NewGuid():N}",
+            Status = BaseEnums.StatusEnum.Enable,
+            ControllerId = controllerId
+        };
+        var validator = new VwAddSceneValidator(_localizer);
+        var result = await validator.ValidateAsync(input);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e =>
+            e.PropertyName == "ControllerId" &&
+            e.ErrorMessage.Contains("Vui lòng chọn bộ điều khiển"));
+    }
+
+    /// <summary>
     /// Description: Kiểm tra thêm mới VwScene ghi nhận bản ghi vào CSDL
     /// Created date: 15/08/2026
     /// </summary>
@@ -117,12 +144,27 @@ public class VwSceneTests(Host host)
     {
         // Arrange
         var uniqueCode = $"{TestPrefix}{Guid.NewGuid():N}";
+
+        // ControllerId bắt buộc từ 2026-09-14 — tạo một controller tạm để test
+        var ctrl = new VwController
+        {
+            Code = $"{TestPrefix}CTRL_{Guid.NewGuid():N}",
+            Name = "Test Controller (Add Scene)",
+            IP = "192.168.99.1",
+            Account = "admin",
+            PassWord = "pass",
+            Status = BaseEnums.StatusEnum.Enable,
+            CreateTime = DateTime.Now
+        };
+        await _db.Insertable(ctrl).ExecuteCommandAsync();
+
         var input = new VwAddSceneInput
         {
             Code = uniqueCode,
             Name = "Test Add Scene",
             Status = BaseEnums.StatusEnum.Enable,
-            IsDefault = BaseEnums.DefaultEnum.None
+            IsDefault = BaseEnums.DefaultEnum.None,
+            ControllerId = ctrl.ID
         };
 
         // Validate (FluentValidation)
@@ -139,6 +181,7 @@ public class VwSceneTests(Host host)
 
         Assert.NotNull(inserted);
         Assert.Equal("Test Add Scene", inserted.Name);
+        Assert.Equal(ctrl.ID, inserted.ControllerId);
     }
 
     /// <summary>
@@ -150,10 +193,25 @@ public class VwSceneTests(Host host)
     {
         // Arrange
         var uniqueCode = $"{TestPrefix}{Guid.NewGuid():N}";
+
+        // ControllerId bắt buộc từ 2026-09-14 — tạo một controller tạm để test
+        var ctrl = new VwController
+        {
+            Code = $"{TestPrefix}CTRL_{Guid.NewGuid():N}",
+            Name = "Test Controller (Update Scene)",
+            IP = "192.168.99.2",
+            Account = "admin",
+            PassWord = "pass",
+            Status = BaseEnums.StatusEnum.Enable,
+            CreateTime = DateTime.Now
+        };
+        await _db.Insertable(ctrl).ExecuteCommandAsync();
+
         var scene = new VwScene
         {
             Code = uniqueCode,
             Name = "Original Scene Name",
+            ControllerId = ctrl.ID,
             Status = BaseEnums.StatusEnum.Enable,
             CreateTime = DateTime.Now
         };
@@ -165,7 +223,8 @@ public class VwSceneTests(Host host)
             ID = scene.ID,
             Code = uniqueCode,
             Name = "Updated Scene Name",
-            Status = BaseEnums.StatusEnum.Enable
+            Status = BaseEnums.StatusEnum.Enable,
+            ControllerId = ctrl.ID
         };
 
         // Validate (FluentValidation)
@@ -182,6 +241,7 @@ public class VwSceneTests(Host host)
 
         Assert.NotNull(updated);
         Assert.Equal("Updated Scene Name", updated.Name);
+        Assert.Equal(ctrl.ID, updated.ControllerId);
     }
 
     /// <summary>

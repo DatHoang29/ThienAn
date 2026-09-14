@@ -523,23 +523,6 @@
         }
       ]
     },
-    "ShareDataDataSource": {
-      "source": {
-        "object": "dbo.ShareDataDataSource",
-        "type": "table"
-      },
-      "description": "dbo.ShareDataDataSource @ 10.10.8.30/dev_its10 (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
     "ShareDataMapping": {
       "source": {
         "object": "dbo.ShareDataMapping",

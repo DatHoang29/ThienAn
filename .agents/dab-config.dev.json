@@ -438,40 +438,6 @@
         }
       ]
     },
-    "ShareDataEventSource": {
-      "source": {
-        "object": "dbo.ShareDataEventSource",
-        "type": "table"
-      },
-      "description": "dbo.ShareDataEventSource (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "ShareDataMappingProfile": {
-      "source": {
-        "object": "dbo.ShareDataMappingProfile",
-        "type": "table"
-      },
-      "description": "dbo.ShareDataMappingProfile (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
     "ShareDataPartner": {
       "source": {
         "object": "dbo.ShareDataPartner",
@@ -1855,23 +1821,6 @@
         "type": "table"
       },
       "description": "dbo.TollTicketOutSummary (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "TollTransaction": {
-      "source": {
-        "object": "dbo.TollTransaction",
-        "type": "table"
-      },
-      "description": "dbo.TollTransaction (read-only)",
       "permissions": [
         {
           "role": "anonymous",

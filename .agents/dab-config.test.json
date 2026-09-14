@@ -132,193 +132,6 @@
         }
       ]
     },
-    "HangFire_AggregatedCounter": {
-      "source": {
-        "object": "HangFire.AggregatedCounter",
-        "type": "table"
-      },
-      "description": "HangFire.AggregatedCounter (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "HangFire_Counter": {
-      "source": {
-        "object": "HangFire.Counter",
-        "type": "table"
-      },
-      "description": "HangFire.Counter (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "HangFire_Hash": {
-      "source": {
-        "object": "HangFire.Hash",
-        "type": "table"
-      },
-      "description": "HangFire.Hash (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "HangFire_Job": {
-      "source": {
-        "object": "HangFire.Job",
-        "type": "table"
-      },
-      "description": "HangFire.Job (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "HangFire_JobParameter": {
-      "source": {
-        "object": "HangFire.JobParameter",
-        "type": "table"
-      },
-      "description": "HangFire.JobParameter (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "HangFire_JobQueue": {
-      "source": {
-        "object": "HangFire.JobQueue",
-        "type": "table"
-      },
-      "description": "HangFire.JobQueue (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "HangFire_List": {
-      "source": {
-        "object": "HangFire.List",
-        "type": "table"
-      },
-      "description": "HangFire.List (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "HangFire_Schema": {
-      "source": {
-        "object": "HangFire.Schema",
-        "type": "table"
-      },
-      "description": "HangFire.Schema (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "HangFire_Server": {
-      "source": {
-        "object": "HangFire.Server",
-        "type": "table"
-      },
-      "description": "HangFire.Server (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "HangFire_Set": {
-      "source": {
-        "object": "HangFire.Set",
-        "type": "table"
-      },
-      "description": "HangFire.Set (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "HangFire_State": {
-      "source": {
-        "object": "HangFire.State",
-        "type": "table"
-      },
-      "description": "HangFire.State (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
     "PriceListDetail": {
       "source": {
         "object": "dbo.PriceListDetail",
@@ -404,57 +217,6 @@
         }
       ]
     },
-    "RptManagement": {
-      "source": {
-        "object": "dbo.RptManagement",
-        "type": "table"
-      },
-      "description": "dbo.RptManagement (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "SampCategory": {
-      "source": {
-        "object": "dbo.SampCategory",
-        "type": "table"
-      },
-      "description": "dbo.SampCategory (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "SampSecurity": {
-      "source": {
-        "object": "dbo.SampSecurity",
-        "type": "table"
-      },
-      "description": "dbo.SampSecurity (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
     "ShareDataActivityLog": {
       "source": {
         "object": "dbo.ShareDataActivityLog",
@@ -506,63 +268,12 @@
         }
       ]
     },
-    "ShareDataDataSource": {
-      "source": {
-        "object": "dbo.ShareDataDataSource",
-        "type": "table"
-      },
-      "description": "dbo.ShareDataDataSource (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "ShareDataEventSource": {
-      "source": {
-        "object": "dbo.ShareDataEventSource",
-        "type": "table"
-      },
-      "description": "dbo.ShareDataEventSource (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
     "ShareDataMapping": {
       "source": {
         "object": "dbo.ShareDataMapping",
         "type": "table"
       },
       "description": "dbo.ShareDataMapping (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "ShareDataMappingProfile": {
-      "source": {
-        "object": "dbo.ShareDataMappingProfile",
-        "type": "table"
-      },
-      "description": "dbo.ShareDataMappingProfile (read-only)",
       "permissions": [
         {
           "role": "anonymous",
@@ -659,57 +370,6 @@
         }
       ]
     },
-    "SysAccess": {
-      "source": {
-        "object": "dbo.SysAccess",
-        "type": "table"
-      },
-      "description": "dbo.SysAccess (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "SysApp": {
-      "source": {
-        "object": "dbo.SysApp",
-        "type": "table"
-      },
-      "description": "dbo.SysApp (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "SysConfig": {
-      "source": {
-        "object": "dbo.SysConfig",
-        "type": "table"
-      },
-      "description": "dbo.SysConfig (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
     "SysConfigData": {
       "source": {
         "object": "dbo.SysConfigData",
@@ -744,74 +404,6 @@
         }
       ]
     },
-    "SysDictData": {
-      "source": {
-        "object": "dbo.SysDictData",
-        "type": "table"
-      },
-      "description": "dbo.SysDictData (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "SysDictType": {
-      "source": {
-        "object": "dbo.SysDictType",
-        "type": "table"
-      },
-      "description": "dbo.SysDictType (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "SysFile": {
-      "source": {
-        "object": "dbo.SysFile",
-        "type": "table"
-      },
-      "description": "dbo.SysFile (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "SysMenu": {
-      "source": {
-        "object": "dbo.SysMenu",
-        "type": "table"
-      },
-      "description": "dbo.SysMenu (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
     "SysOpConfig": {
       "source": {
         "object": "dbo.SysOpConfig",
@@ -829,182 +421,12 @@
         }
       ]
     },
-    "SysOrg": {
-      "source": {
-        "object": "dbo.SysOrg",
-        "type": "table"
-      },
-      "description": "dbo.SysOrg (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "SysPlugin": {
-      "source": {
-        "object": "dbo.SysPlugin",
-        "type": "table"
-      },
-      "description": "dbo.SysPlugin (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "SysPos": {
-      "source": {
-        "object": "dbo.SysPos",
-        "type": "table"
-      },
-      "description": "dbo.SysPos (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "SysRole": {
-      "source": {
-        "object": "dbo.SysRole",
-        "type": "table"
-      },
-      "description": "dbo.SysRole (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "SysRoleMenu": {
-      "source": {
-        "object": "dbo.SysRoleMenu",
-        "type": "table"
-      },
-      "description": "dbo.SysRoleMenu (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "SysRoleOrg": {
-      "source": {
-        "object": "dbo.SysRoleOrg",
-        "type": "table"
-      },
-      "description": "dbo.SysRoleOrg (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "SysTenant": {
-      "source": {
-        "object": "dbo.SysTenant",
-        "type": "table"
-      },
-      "description": "dbo.SysTenant (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
     "SysTerminology": {
       "source": {
         "object": "dbo.SysTerminology",
         "type": "table"
       },
       "description": "dbo.SysTerminology (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "SysUser": {
-      "source": {
-        "object": "dbo.SysUser",
-        "type": "table"
-      },
-      "description": "dbo.SysUser (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "SysUserExtOrg": {
-      "source": {
-        "object": "dbo.SysUserExtOrg",
-        "type": "table"
-      },
-      "description": "dbo.SysUserExtOrg (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "SysUserRole": {
-      "source": {
-        "object": "dbo.SysUserRole",
-        "type": "table"
-      },
-      "description": "dbo.SysUserRole (read-only)",
       "permissions": [
         {
           "role": "anonymous",
@@ -1968,46 +1390,12 @@
         }
       ]
     },
-    "TollTariff": {
-      "source": {
-        "object": "dbo.TollTariff",
-        "type": "table"
-      },
-      "description": "dbo.TollTariff (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
     "TollTicketOutSummary": {
       "source": {
         "object": "dbo.TollTicketOutSummary",
         "type": "table"
       },
       "description": "dbo.TollTicketOutSummary (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "TollTransaction": {
-      "source": {
-        "object": "dbo.TollTransaction",
-        "type": "table"
-      },
-      "description": "dbo.TollTransaction (read-only)",
       "permissions": [
         {
           "role": "anonymous",
@@ -2178,23 +1566,6 @@
         "type": "table"
       },
       "description": "dbo.VmsTemplate (read-only)",
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
-    "VwActivityLog": {
-      "source": {
-        "object": "dbo.VwActivityLog",
-        "type": "table"
-      },
-      "description": "dbo.VwActivityLog (read-only)",
       "permissions": [
         {
           "role": "anonymous",

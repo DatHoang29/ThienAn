@@ -31,3 +31,39 @@ restart the session or `/mcp` reconnect, then approve the server. Tools appear a
 but every entity is read-only so writes are rejected server-side).
 
 See [read-only-db-queries-just-run](read-only-db-queries-just-run).
+
+## Khi MCP báo "Connection closed" cho mssql_dev/test/staging (gặp lại 2026-09-14)
+
+**Nguyên nhân**: `dab start --mcp-stdio` validate TOÀN BỘ entity khai trong `dab-config.<env>.json`
+so với schema DB THẬT trước khi chạy — hễ 1 bảng trong config không còn tồn tại/đổi tên trong DB
+thật (schema drift theo thời gian, DB đổi mà config không cập nhật lại) là `dab` in `fail: ... Config
+is invalid` rồi THOÁT TIẾN TRÌNH NGAY. Claude Code thấy tiến trình vừa mở đã đóng → báo
+"Connection closed" — không phải lỗi mạng, không phải lỗi Claude.
+
+**Cách tự chẩn đoán (chạy trực tiếp, an toàn, chỉ đọc — không cần MCP)**:
+```
+cd C:\ThienAn
+dotnet tool run --allow-roll-forward dab validate --config .agents/dab-config.dev.json
+dotnet tool run --allow-roll-forward dab validate --config .agents/dab-config.test.json
+dotnet tool run --allow-roll-forward dab validate --config .agents/dab-config.staging.json
+```
+Đọc các dòng `fail: Cannot obtain Schema for entity <X> ... Invalid object name '<schema>.<X>'` —
+đó chính xác là tên entity cần xoá khỏi object `entities` trong file config tương ứng.
+
+**Cách sửa nhanh (không cần `jq`, máy không có sẵn — dùng PowerShell)**:
+```powershell
+$path = ".agents/dab-config.dev.json"
+$json = Get-Content $path -Raw | ConvertFrom-Json
+foreach ($name in @("EntityName1", "EntityName2")) { $json.entities.PSObject.Properties.Remove($name) }
+$json | ConvertTo-Json -Depth 100 | Set-Content $path
+```
+Lặp lại cho từng file/entity bị lỗi, sau đó `dab validate` lại để xác nhận về 0 lỗi (thấy dòng
+"The config satisfies the schema requirements", không còn dòng `fail:` nào).
+
+**Sau khi sửa xong file config**: phải `/mcp` reconnect (hoặc restart session) — MCP tools chỉ nạp
+lại lúc khởi động, sửa file xong không tự áp dụng ngay.
+
+Lần gặp 2026-09-14: `dev` lệch 3 bảng (`ShareDataEventSource`/`ShareDataMappingProfile`/
+`TollTransaction`), `test` lệch 36 bảng (nhiều `Sys*`/`HangFire_*`/`Toll*`/`ShareData*` +
+`VwActivityLog`), `staging` lệch đúng 1 bảng (`ShareDataDataSource`) — không có entity `Vw*`
+(VideoWall) nào khác bị lỗi ngoài `VwActivityLog` ở test.
