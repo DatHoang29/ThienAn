@@ -25,7 +25,7 @@ Phân loại tài liệu theo **3-Tier Context Budget**:
 | **2026-09-09** | **ShareData** | **Review luồng truyền nhận & Tự động hóa:**<br>• Luồng gửi/nhận file & API, SQL alias mapping đối tác.<br>• Cơ chế gửi theo giờ (9h sáng hàng ngày), switch tự động gửi khi có data mới.<br>• Socket Wrapper, kiểm tra 291 dòng & fix lỗi Case-Sensitivity. | ~61 phút | 📄 [2026-09-09-review-sharedata.md](ShareData/doc/transcript/2026-09-09-review-sharedata.md) | 🎙️ [MakeUp 3](../MakeUp%20Chi%20Ngo%CC%82%20Go%CC%80%20Va%CC%82%CC%81p%203.m4a)<br>🎙️ [MakeUp 4](../MakeUp%20Chi%20Ngo%CC%82%20Go%CC%80%20Va%CC%82%CC%81p%204.m4a) |
 | **2026-09-09** | **VideoWall** | **Phân quyền Khu vực & Ma trận hiển thị:**<br>• Rào phạm vi thao tác người dùng theo tọa độ ma trận (lưới 8x5).<br>• Dựng cây phân cấp Zone bằng SqlSugar `ToTree()` tối ưu.<br>• Ghép nối Service thật qua NATS, bỏ Mock Data. | 10:37 | 📄 [2026-09-09-videowall-phan-quyen-va-layout.md](VideoWall/doc/transcript/2026-09-09-videowall-phan-quyen-va-layout.md) | 🎙️ [MakeUp 5](../MakeUp%20Chi%20Ngo%CC%82%20Go%CC%80%20Va%CC%82%CC%81p%205.m4a) |
 | **2026-09-08** | **Plan** (Toàn tuyến) | **Kế hoạch triển khai & Nghiệm thu toàn tuyến:**<br>• Rà soát thiết bị TMC/ITS: Camera CCTV, PTZ, VDS, biển báo VMS.<br>• Hệ thống giám sát EMS SolarWinds, Trạm cân, Trạm thời tiết (WOS).<br>• Kiến trúc hàng đợi MQTT / Kafka, mốc nghiệm thu ~Tháng 11. | ~48 phút | 📄 [2026-09-08-hop-ke-hoach-1.md](Plan/doc/transcript/2026-09-08-hop-ke-hoach-1.md)<br>📄 [2026-09-08-hop-ke-hoach-2.md](Plan/doc/transcript/2026-09-08-hop-ke-hoach-2.md) | 🎙️ [Phần 1](Plan/_source/audio/2026-09-08-hop-ke-hoach-1.m4a)<br>🎙️ [Phần 2](Plan/_source/audio/2026-09-08-hop-ke-hoach-2.m4a) |
-| **2026-08-28** | **VideoWall** | **Chuẩn bị mượn & kiểm thử Controller Hikvision:**<br>• Kịch bản mượn thiết bị DS-C66S từ nhà thầu, test API bằng Postman/curl.<br>• Backup cấu hình IP qua Web/API, chuẩn bị nhân sự test 2 ngày. | ~50 phút | 📄 [2026-08-28-videowall-chuan-bi.md](VideoWall/doc/transcript/2026-08-28-videowall-chuan-bi.md) | _(Lưu trữ nội bộ)_ |
+| **2026-08-28** | **VideoWall** | **Chuẩn bị mượn & kiểm thử Controller Hikvision:**<br>• Kịch bản mượn thiết bị DS-C66S từ nhà thầu, test API bằng Postman/curl.<br>• Backup cấu hình IP qua Web/API, chuẩn bị nhân sự test 2 ngày. | ~50 phút | _(chưa có bản transcript .md)_ | _(Lưu trữ nội bộ)_ |
 
 ---
 
@@ -217,4 +217,4 @@ Toàn bộ nằm trong `_source/` và `images/`. **AI không tự ý nạp các 
 5. File `.md` dung lượng $\ge 150	ext{ KB}$ bắt buộc là Tier B (`grep-only`) và có `00-catalog.md` làm cửa vào.
 6. Thêm file mới → cập nhật Tier Table trong `README.md` của phân hệ tương ứng và bảng tổng hợp trong `INDEX.md`.
 
-_Cập nhật lần cuối: 12/09/2026._\n
+_Cập nhật lần cuối: 14/09/2026._\n

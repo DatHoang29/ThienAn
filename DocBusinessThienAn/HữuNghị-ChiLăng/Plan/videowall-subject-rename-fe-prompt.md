@@ -1,18 +1,14 @@
-# Prompt: Đổi subject NATS VideoWall (Frontend) — scene → data (không phải status)
+# Prompt: Đổi subject NATS VideoWall (Frontend) — scene → ta.its.data.videowall (không phải status)
 
-> Ngày lập: 2026-09-12, **sửa lại 2026-09-13**. FE hiện đang nghe subject CŨ
+> Ngày lập: 2026-09-12, **sửa lại 2026-09-14**. FE hiện đang nghe subject CŨ
 > `ta.its.data.videowall.scene` — đây là **bug thật đang tồn tại**: BE/Worker đã đổi cách publish
 > từ lâu (không còn dùng `.scene` nữa), nên FE hiện tại **không nhận được bất kỳ cập nhật realtime
 > nào cho VideoWall cả**. Bản đầu của prompt này (2026-09-12) định đổi đích sang `.status` — SAI,
-> đã đính chính lại theo quyết định kiến trúc mới nhất (xem
-> `videowall-eliminate-worker-to-be-nats-reply-prompt.md`, mục "ĐÍNH CHÍNH quan trọng"): subject
-> `Status` bị bỏ hoàn toàn, `Data` thay thế nó làm kênh Worker→FE duy nhất.
+> đã đính chính lại: subject `Status` bị bỏ hoàn toàn, `Data` thay thế nó làm kênh Worker→FE duy nhất.
 >
-> **Đổi đích cuối cùng**: `ta.its.data.videowall.scene` → **`ta.its.data.videowall.data`**.
+> **Đổi đích cuối cùng**: `ta.its.data.videowall.scene` → **`ta.its.data.videowall`** (khớp chuẩn với `VwSubjects.Data` trên BE/Worker).
 >
-> **Phụ thuộc**: phải làm ĐỒNG THỜI với `videowall-eliminate-worker-to-be-nats-reply-prompt.md`
-> (phần BE/Worker) — 2 bên phải cùng nói chuyện qua đúng 1 subject `Data`, không thể deploy lệch
-> pha (FE đổi trước mà BE chưa đổi, hoặc ngược lại, đều mất realtime).
+> **Phụ thuộc BE**: **KHÔNG CÓ**. Code BE/Worker hiện tại đã và đang dùng `ta.its.data.videowall`. FE có thể đổi độc lập mà không cần chờ BE.
 
 ## Bối cảnh
 
@@ -22,9 +18,8 @@ không đụng tới.
 
 **Payload trên `Data` giờ đa dạng hơn trước** (không chỉ còn mỗi thông báo scene) — mọi sự kiện
 (scene activated, cảnh báo phần cứng `HardwareOutOfSync`, heartbeat định kỳ, kết quả DeviceSetup
-Probe/SyncSources...) đều đi chung 1 subject này, phân biệt bằng field **`EventType`** mới (xem
-prompt kiến trúc lớn để biết đầy đủ danh sách `EventType` — ví dụ `"SceneActivated"`,
-`"HardwareOutOfSync"`, `"DeviceHeartbeat"`, `"DeviceProbeCompleted"`). FE PHẢI đọc `EventType` để
+Probe/SyncSources...) đều đi chung 1 subject này, phân biệt bằng field **`EventType`** mới (ví dụ
+`"SceneActivated"`, `"HardwareOutOfSync"`, `"DeviceHeartbeat"`, `"DeviceProbeCompleted"`). FE PHẢI đọc `EventType` để
 rẽ nhánh xử lý đúng, không còn suy đoán qua sự có/vắng mặt của field khác như trước.
 
 ---
@@ -33,10 +28,10 @@ rẽ nhánh xử lý đúng, không còn suy đoán qua sự có/vắng mặt c�
 
 ### 1. `src/public/Configuration/Nats.subjects.json`
 Dòng 44 (object có `"subject": "ta.its.data.videowall.scene"`) — đổi giá trị thành
-`"ta.its.data.videowall.data"`. Giữ nguyên `mode: "pubsub"`, `allowSubscribeOnFe: true`.
+`"ta.its.data.videowall"`. Giữ nguyên `mode: "pubsub"`, `allowSubscribeOnFe: true`.
 
 ### 2. `src/src/transporter/constants/transporterEvent.ts`
-Dòng 38: `DataVideoWallScene: 'ta.its.data.videowall.scene'` → `'ta.its.data.videowall.data'`.
+Dòng 38: `DataVideoWallScene: 'ta.its.data.videowall.scene'` → `'ta.its.data.videowall'`.
 
 **Không cần đổi** tên biến `DataVideoWallScene`/`NatsSubject.DataVideoWallScene`/event key nội bộ
 `'nats:data:videowall:scene'` (dòng 12) — đây chỉ là tên gọi nội bộ trong code FE (Pub/Sub bus nội
@@ -67,10 +62,7 @@ FE chưa có UI tương ứng, miễn không bị crash khi nhận phải payloa
 
 1. Grep toàn bộ `src/src/` và `src/public/`: `ta\.its\.data\.videowall\.scene` — phải trả về
    **0 kết quả** sau khi sửa.
-2. Grep `ta\.its\.data\.videowall\.data` — phải xuất hiện đúng ở 2 vị trí liệt kê trên (mục 1-2).
+2. Grep `ta\.its\.data\.videowall` — phải xuất hiện đúng ở 2 vị trí liệt kê trên (mục 1-2).
 3. Xác nhận handler đọc `EventType` trước khi xử lý (mục 3) — không throw/crash nếu nhận payload
    với `EventType` lạ/chưa biết.
-4. **Phải deploy cùng lúc với phần BE + Worker**
-   (`videowall-eliminate-worker-to-be-nats-reply-prompt.md`). Test thật trên Monitor page: BE
-   kích hoạt 1 scene (`ActiveVwScene`), xác nhận FE tự động cập nhật UI đúng như mong đợi (không
-   còn nghe được nếu 2 bên lệch subject).
+4. Test thật trên Monitor page: BE kích hoạt 1 scene (`ActiveVwScene`), xác nhận FE tự động cập nhật UI đúng như mong đợi (nhận được bản tin qua `ta.its.data.videowall`).
