@@ -20,117 +20,9 @@ public class ApiTestCollection : ICollectionFixture<Host> { }
 
 public partial class Host : IAsyncLifetime
 {
-#if TFM_WINDOWS
-    private const string TestDatabaseName = "test_windows";
-#else
-    private const string TestDatabaseName = "test";
-#endif
-
     private static readonly string[] AllowedDatabaseNames = ["test", "test_windows"];
     private const string TestCultureName = "vi-VN";
-
-    private static readonly string DefaultLocalConnectionString =
-        $"Server=127.0.0.1,14333;Database={TestDatabaseName};User Id=sa;Password=Password123!;TrustServerCertificate=true;Connect Timeout=30;";
-
     private static readonly string[] AllowedLocalHosts = ["127.0.0.1", "localhost", "(localdb)", "."];
-
-    private static readonly Dictionary<string, string?> InMemoryTestConfigurations = new()
-    {
-        // ─── ConnectionStrings ───
-        ["ConnectionStrings:Default"] = DefaultLocalConnectionString,
-        ["ConnectionStrings:DefaultConnection"] = DefaultLocalConnectionString,
-        ["ConnectionStrings:LogDefault"] = DefaultLocalConnectionString,
-
-        // ─── DbConnection ───
-        ["DbConnection:EnableConsoleSql"] = "false",
-        ["DbConnection:ConnectionConfigs:0:ConfigId"] = "Default",
-        ["DbConnection:ConnectionConfigs:0:DbType"] = "SqlServer",
-        ["DbConnection:ConnectionConfigs:0:ConnectionString"] = DefaultLocalConnectionString,
-        ["DbConnection:ConnectionConfigs:0:DbSettings:EnableInitDb"] = "false",
-        ["DbConnection:ConnectionConfigs:0:DbSettings:EnableDiffLog"] = "false",
-        ["DbConnection:ConnectionConfigs:0:DbSettings:EnableUnderLine"] = "false",
-        ["DbConnection:ConnectionConfigs:0:TableSettings:EnableInitTable"] = "true",
-        ["DbConnection:ConnectionConfigs:0:TableSettings:EnableIncreTable"] = "false",
-        ["DbConnection:ConnectionConfigs:0:SeedSettings:EnableInitSeed"] = "false",
-        ["DbConnection:ConnectionConfigs:0:SeedSettings:EnableIncreSeed"] = "false",
-
-        ["DbConnection:ConnectionConfigs:1:ConfigId"] = "LogDefault",
-        ["DbConnection:ConnectionConfigs:1:DbType"] = "SqlServer",
-        ["DbConnection:ConnectionConfigs:1:ConnectionString"] = DefaultLocalConnectionString,
-        ["DbConnection:ConnectionConfigs:1:DbSettings:EnableInitDb"] = "false",
-        ["DbConnection:ConnectionConfigs:1:DbSettings:EnableDiffLog"] = "false",
-        ["DbConnection:ConnectionConfigs:1:DbSettings:EnableUnderLine"] = "false",
-        ["DbConnection:ConnectionConfigs:1:TableSettings:EnableInitTable"] = "true",
-        ["DbConnection:ConnectionConfigs:1:TableSettings:EnableIncreTable"] = "false",
-        ["DbConnection:ConnectionConfigs:1:SeedSettings:EnableInitSeed"] = "false",
-        ["DbConnection:ConnectionConfigs:1:SeedSettings:EnableIncreSeed"] = "false",
-
-        // ─── JwtSettings ───
-        ["JwtSettings:key"] = "sCDqZXgppm1WBNjhvksTrlRybEVtIEmF",
-        ["JwtSettings:tokenExpirationInMinutes"] = "100000",
-        ["JwtSettings:refreshTokenExpirationInDays"] = "7",
-
-        // ─── LocalizationSettings ───
-        ["LocalizationSettings:SupportedCultures:0"] = TestCultureName,
-        ["LocalizationSettings:SupportedCultures:1"] = "en",
-        ["LocalizationSettings:DefaultCulture"] = TestCultureName,
-        ["LocalizationSettings:DateTimeFormatCulture"] = TestCultureName,
-
-        // ─── DynamicApiControllerSettings ───
-        ["DynamicApiControllerSettings:CamelCaseSeparator"] = "",
-        ["DynamicApiControllerSettings:SplitCamelCase"] = "false",
-        ["DynamicApiControllerSettings:LowercaseRoute"] = "false",
-        ["DynamicApiControllerSettings:AsLowerCamelCase"] = "true",
-        ["DynamicApiControllerSettings:KeepVerb"] = "false",
-        ["DynamicApiControllerSettings:KeepName"] = "false",
-
-        // ─── FriendlyExceptionSettings ───
-        ["FriendlyExceptionSettings:DefaultErrorMessage"] = "System exception, please contact the administrator",
-        ["FriendlyExceptionSettings:ThrowBah"] = "true",
-        ["FriendlyExceptionSettings:LogError"] = "false",
-
-        // ─── AppSettings ───
-        ["AppSettings:InjectSpecificationDocument"] = "false",
-
-        // ─── Cache (FusionCache Memory) ───
-        ["Cache:Prefix"] = "tac_",
-        ["Cache:Provider"] = "FusionCache",
-        ["Cache:FusionCache:CacheType"] = "Memory",
-        ["Cache:FusionCache:DefaultDuration"] = "00:30:00",
-        ["Cache:FusionCache:FailSafeEnabled"] = "true",
-        ["Cache:FusionCache:FailSafeMaxDuration"] = "02:00:00",
-        ["Cache:FusionCache:FailSafeThrottleDuration"] = "00:00:30",
-        ["Cache:FusionCache:FactorySoftTimeout"] = "00:00:00.100",
-        ["Cache:FusionCache:FactoryHardTimeout"] = "00:00:01.500",
-        ["Cache:FusionCache:AllowBackgroundDistributedCacheOperations"] = "true",
-
-        // ─── CacheConfiguration ───
-        ["CacheConfiguration:AbsoluteExpirationInHours"] = "10",
-        ["CacheConfiguration:SlidingExpirationInMinutes"] = "30",
-
-        // ─── Hangfire ───
-        ["Hangfire:Enable"] = "false",
-
-        // ─── Logging ───
-        ["Logging:LogLevel:Default"] = "Warning",
-        ["Logging:File:Enabled"] = "false",
-        ["Logging:Database:Enabled"] = "false",
-
-        // ─── Nats ───
-        ["Nats:Enabled"] = "true",
-        ["Nats:Url"] = "nats://127.0.0.1:4222",
-        ["Nats:ClientName"] = "TAC_TEST_HOST",
-        ["Nats:AuthMode"] = "None",
-        ["Nats:UseJetStream"] = "false",
-        ["Nats:Streams:0:Name"] = "PubSub",
-        ["Nats:Streams:0:Subjects"] = "ta.its.data.videowall.control,ta.its.data.videowall",
-        ["Nats:Streams:0:InitStream"] = "false",
-        ["Nats:Streams:0:Storage"] = "memory",
-        ["Nats:Streams:0:SubjectsList:0:Subject"] = "ta.its.data.videowall.control",
-        ["Nats:Streams:0:SubjectsList:0:Mode"] = "pubsub",
-        ["Nats:Streams:0:SubjectsList:1:Subject"] = "ta.its.data.videowall",
-        ["Nats:Streams:0:SubjectsList:1:Mode"] = "pubsub"
-    };
 
     private WebApplicationFactory<TAC_WebAPI.Program>? _host;
     private HttpClient? _apiClient;
@@ -154,7 +46,7 @@ public partial class Host : IAsyncLifetime
                 builder.ConfigureAppConfiguration((_, configBuilder) =>
                 {
                     configBuilder.Sources.Clear();
-                    configBuilder.AddInMemoryCollection(InMemoryTestConfigurations);
+                    configBuilder.SetBasePath(AppContext.BaseDirectory).AddJsonFile("appsettings.Test.json", optional: false, reloadOnChange: true);
                 });
 
                 builder.ConfigureServices((context, services) =>

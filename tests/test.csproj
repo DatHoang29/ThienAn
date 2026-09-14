@@ -167,6 +167,12 @@
     <None Include="VwMockServerRunner\**" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="appsettings.Test.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
   <!-- Báo cáo trạng thái module trước khi build -->
   <Target Name="ReportOptionalTestModules" BeforeTargets="BeforeBuild">
     <Message Importance="high" Text="[TEST MODULES] Module.VideoWall=$(HasVideoWallModule) (ISAPI=$(CanCompileVideoWallTests)) | Module.ShareData=$(HasShareDataModule) | ShareDataWorker=$(HasShareDataWorker)" />

@@ -336,7 +336,7 @@ namespace Tests.Modules.VideoWall
                 scope.ServiceProvider.GetRequiredService<VwSceneRegionService>(),
                 scope.ServiceProvider.GetRequiredService<VwISAPICredentialResolver>(),
                 scope.ServiceProvider.GetRequiredService<BaseCacheService>(),
-                scope.ServiceProvider.GetRequiredService<IVwEventTriggerLogWriter>(),
+                scope.ServiceProvider.GetRequiredService<IVwEventTriggerLogService>(),
                 customOptions,
                 scope.ServiceProvider.GetRequiredService<ILogger<VwISAPIDeviceService>>());
 
@@ -2612,7 +2612,7 @@ namespace Tests.Modules.VideoWall
                 scope.ServiceProvider.GetRequiredService<VwSceneRegionService>(),
                 scope.ServiceProvider.GetRequiredService<VwISAPICredentialResolver>(),
                 scope.ServiceProvider.GetRequiredService<BaseCacheService>(),
-                scope.ServiceProvider.GetRequiredService<IVwEventTriggerLogWriter>(),
+                scope.ServiceProvider.GetRequiredService<IVwEventTriggerLogService>(),
                 customOptions,
                 customLogger ?? scope.ServiceProvider.GetRequiredService<ILogger<VwISAPIDeviceService>>());
         }

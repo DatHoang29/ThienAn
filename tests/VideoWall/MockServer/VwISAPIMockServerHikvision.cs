@@ -439,7 +439,7 @@ namespace Tests.Modules.VideoWall.MockServer
                     return;
                 }
 
-                // ─── 1. Giả lập Khóa IP do sai mật khẩu liên tiếp (§A.2 & HANDOV_1.MD) ───
+                // ─── 1. Giả lập Khóa IP do sai mật khẩu liên tiếp (§A.2) ───
                 if (IsLockedOut || (FailedAuthLockoutThreshold > 0 && ConsecutiveFailedAuthCount >= FailedAuthLockoutThreshold))
                 {
                     IsLockedOut = true;

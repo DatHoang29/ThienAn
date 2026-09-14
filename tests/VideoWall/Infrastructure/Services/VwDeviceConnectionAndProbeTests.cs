@@ -86,6 +86,54 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
             Assert.Contains("Chưa cấu hình IP thiết bị. Khai VideoWall:Device:Ip trong appsettings.json (Worker ITS.VideoWall), hoặc điền IP cho bản ghi VwController.", ex.Message);
         }
 
+        [Fact]
+        public void ResolveDeviceUri_WhenIsLocalTrue_OverridesControllerIpAndPort()
+        {
+            // controller.IP = "10.10.8.30:9999", nhưng isLocal = true -> cưỡng chế replace bằng 127.0.0.1:18080
+            var controller = new VwController { IP = "10.10.8.30:9999" };
+            var config = new VwDeviceConnectionOptions
+            {
+                Ip = "127.0.0.1",
+                Port = 18080
+            };
+
+            var uri = VwISAPIDeviceClient.ResolveDeviceUri(controller, config, isLocal: true);
+
+            Assert.Equal("http://127.0.0.1:18080/", uri.ToString());
+        }
+
+        [Fact]
+        public void CredentialResolver_WhenIsLocalTrue_OverridesControllerCredentials()
+        {
+            var controller = new VwController
+            {
+                Account = "real_admin",
+                PassWord = "real_password"
+            };
+
+            var options = Microsoft.Extensions.Options.Options.Create(new VwDeviceOptions
+            {
+                Device = new VwDeviceConnectionOptions
+                {
+                    Account = "mock_admin",
+                    Password = "mock_password"
+                }
+            });
+
+            var inMemoryConfig = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["VideoWall:Device:IsLocal"] = "true"
+                })
+                .Build();
+
+            var resolver = new VwISAPICredentialResolver(options, inMemoryConfig);
+            var (account, password) = resolver.Resolve(controller);
+
+            Assert.Equal("mock_admin", account);
+            Assert.Equal("mock_password", password);
+        }
+
         #endregion
 
         #region P4 Nullable Capabilities & DTO Tests

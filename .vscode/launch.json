@@ -43,131 +43,6 @@
         "DbConnection__ConnectionConfigs__1__ConnectionString": "Server=10.10.8.30;Database=DEV_ITS10_Log;MultipleActiveResultSets=true;User ID=sa;Password=Tac@@1234;TrustServerCertificate=True"
       }
     },
-
-    {
-      "name": "🔄 ITS.Sync.Worker (WP_Sync Local Docker)",
-      "type": "coreclr",
-      "request": "launch",
-      "preLaunchTask": "build-sync-worker",
-      "program": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/WP_Sync/src/ITS.Sync.Worker/bin/Debug/net10.0/ITS.Sync.Worker.dll",
-      "args": [],
-      "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/WP_Sync/src/ITS.Sync.Worker",
-      "stopAtEntry": false,
-      "console": "internalConsole",
-      "env": {
-        "DOTNET_ENVIRONMENT": "Development",
-        "DbConnection__ConnectionConfigs__0__ConnectionString": "Server=localhost,14333;Database=DEV_ITS10;MultipleActiveResultSets=true;User ID=sa;Password=Password123!;TrustServerCertificate=True",
-        "DbConnection__ConnectionConfigs__1__ConnectionString": "Server=localhost,14333;Database=DEV_ITS015_WP;MultipleActiveResultSets=true;User ID=sa;Password=Password123!;TrustServerCertificate=True"
-      }
-    },
-    {
-      "name": "🔄 ITS.Sync.Worker (WP_Sync Server 10.10.8.30)",
-      "type": "coreclr",
-      "request": "launch",
-      "preLaunchTask": "build-sync-worker",
-      "program": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/WP_Sync/src/ITS.Sync.Worker/bin/Debug/net10.0/ITS.Sync.Worker.dll",
-      "args": [],
-      "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/WP_Sync/src/ITS.Sync.Worker",
-      "stopAtEntry": false,
-      "console": "internalConsole",
-      "env": {
-        "DOTNET_ENVIRONMENT": "Production",
-        "DbConnection__ConnectionConfigs__0__ConnectionString": "Server=10.10.8.30;Database=DEV_ITS10;MultipleActiveResultSets=true;User ID=sa;Password=Tac@@1234;TrustServerCertificate=True",
-        "DbConnection__ConnectionConfigs__1__ConnectionString": "Server=10.10.8.30;Database=DEV_ITS015_WP;MultipleActiveResultSets=true;User ID=sa;Password=Tac@@1234;TrustServerCertificate=True"
-      }
-    },
-    {
-      "name": "🖥️ ITS.Sync.Wpf (WP_Sync UI Local Docker)",
-      "type": "coreclr",
-      "request": "launch",
-      "preLaunchTask": "build-sync-wpf",
-      "program": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/WP_Sync/src/ITS.Sync.Wpf/bin/Debug/net10.0-windows/ITS.Sync.Wpf.dll",
-      "args": [],
-      "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/WP_Sync/src/ITS.Sync.Wpf",
-      "stopAtEntry": false,
-      "console": "internalConsole",
-      "env": {
-        "DOTNET_ENVIRONMENT": "Development",
-        "DbConnection__ConnectionConfigs__0__ConnectionString": "Server=localhost,14333;Database=DEV_ITS10;MultipleActiveResultSets=true;User ID=sa;Password=Password123!;TrustServerCertificate=True",
-        "DbConnection__ConnectionConfigs__1__ConnectionString": "Server=localhost,14333;Database=DEV_ITS015_WP;MultipleActiveResultSets=true;User ID=sa;Password=Password123!;TrustServerCertificate=True"
-      }
-    },
-    {
-      "name": "🖥️ ITS.Sync.Wpf (WP_Sync UI Server 10.10.8.30)",
-      "type": "coreclr",
-      "request": "launch",
-      "preLaunchTask": "build-sync-wpf",
-      "program": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/WP_Sync/src/ITS.Sync.Wpf/bin/Debug/net10.0-windows/ITS.Sync.Wpf.dll",
-      "args": [],
-      "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/WP_Sync/src/ITS.Sync.Wpf",
-      "stopAtEntry": false,
-      "console": "internalConsole",
-      "env": {
-        "DOTNET_ENVIRONMENT": "Production",
-        "DbConnection__ConnectionConfigs__0__ConnectionString": "Server=10.10.8.30;Database=DEV_ITS10;MultipleActiveResultSets=true;User ID=sa;Password=Tac@@1234;TrustServerCertificate=True",
-        "DbConnection__ConnectionConfigs__1__ConnectionString": "Server=10.10.8.30;Database=DEV_ITS015_WP;MultipleActiveResultSets=true;User ID=sa;Password=Tac@@1234;TrustServerCertificate=True"
-      }
-    },
-    {
-      "name": "🖥️ ITS.VideoWall.WPF (Local WebAPI)",
-      "type": "coreclr",
-      "request": "launch",
-      "preLaunchTask": "build-videowall-wpf",
-      "program": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VideoWall/ITS.VideoWall.WPF/bin/Debug/net10.0-windows/Module.VideoWall.WPF.dll",
-      "args": [],
-      "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VideoWall/ITS.VideoWall.WPF",
-      "stopAtEntry": false,
-      "console": "internalConsole",
-      "env": {
-        "Api__BaseUrl": "http://localhost:5005"
-      }
-    },
-    {
-      "name": "🖥️ ITS.VideoWall.WPF (Server 10.10.8.30)",
-      "type": "coreclr",
-      "request": "launch",
-      "preLaunchTask": "build-videowall-wpf",
-      "program": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VideoWall/ITS.VideoWall.WPF/bin/Debug/net10.0-windows/Module.VideoWall.WPF.dll",
-      "args": [],
-      "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VideoWall/ITS.VideoWall.WPF",
-      "stopAtEntry": false,
-      "console": "internalConsole",
-      "env": {
-        "Api__BaseUrl": "http://10.10.8.30:5005"
-      }
-    },
-    {
-      "name": "⚙️ ITS.VideoWall (Worker Local Docker)",
-      "type": "coreclr",
-      "request": "launch",
-      "preLaunchTask": "build-videowall-worker",
-      "program": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VideoWall/ITS.VideoWall/bin/Debug/net10.0/ITS.VideoWall.dll",
-      "args": [],
-      "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VideoWall/ITS.VideoWall",
-      "stopAtEntry": false,
-      "console": "internalConsole",
-      "env": {
-        "DOTNET_ENVIRONMENT": "Development",
-        "DbConnection__ConnectionConfigs__0__ConnectionString": "Server=localhost,14333;Database=DEV_ITS10;MultipleActiveResultSets=true;User ID=sa;Password=Password123!;TrustServerCertificate=True",
-        "Nats__Url": "nats://localhost:4222",
-        "Nats__AuthMode": "NONE"
-      }
-    },
-    {
-      "name": "⚙️ ITS.VideoWall (Worker Server 10.10.8.30)",
-      "type": "coreclr",
-      "request": "launch",
-      "preLaunchTask": "build-videowall-worker",
-      "program": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VideoWall/ITS.VideoWall/bin/Debug/net10.0/ITS.VideoWall.dll",
-      "args": [],
-      "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VideoWall/ITS.VideoWall",
-      "stopAtEntry": false,
-      "console": "internalConsole",
-      "env": {
-        "DOTNET_ENVIRONMENT": "Production",
-        "DbConnection__ConnectionConfigs__0__ConnectionString": "Server=10.10.8.30;Database=DEV_ITS10;MultipleActiveResultSets=true;User ID=sa;Password=Tac@@1234;TrustServerCertificate=True"
-      }
-    },
     {
       "name": "📦 ShareDataWorker (Local Docker)",
       "type": "coreclr",
@@ -202,43 +77,13 @@
       }
     },
     {
-      "name": "🚗 ITS.Toll.Wpf (Local Docker)",
+      "name": "⚙️ ITS.VideoWall (Worker Local Docker)",
       "type": "coreclr",
       "request": "launch",
-      "preLaunchTask": "build-toll-wpf",
-      "program": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/Toll/ITS.Toll.Wpf/bin/Debug/net10.0-windows/ITS.Toll.Wpf.dll",
+      "preLaunchTask": "build-videowall-worker",
+      "program": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VideoWall/ITS.VideoWall/bin/Debug/net10.0/ITS.VideoWall.dll",
       "args": [],
-      "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/Toll/ITS.Toll.Wpf",
-      "stopAtEntry": false,
-      "console": "internalConsole",
-      "env": {
-        "DOTNET_ENVIRONMENT": "Development",
-        "DbConnection__ConnectionConfigs__0__ConnectionString": "Server=localhost,14333;Database=DEV_ITS10;MultipleActiveResultSets=true;User ID=sa;Password=Password123!;TrustServerCertificate=True"
-      }
-    },
-    {
-      "name": "🚗 ITS.Toll.Wpf (Server 10.10.8.30)",
-      "type": "coreclr",
-      "request": "launch",
-      "preLaunchTask": "build-toll-wpf",
-      "program": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/Toll/ITS.Toll.Wpf/bin/Debug/net10.0-windows/ITS.Toll.Wpf.dll",
-      "args": [],
-      "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/Toll/ITS.Toll.Wpf",
-      "stopAtEntry": false,
-      "console": "internalConsole",
-      "env": {
-        "DOTNET_ENVIRONMENT": "Production",
-        "DbConnection__ConnectionConfigs__0__ConnectionString": "Server=10.10.8.30;Database=DEV_ITS10;MultipleActiveResultSets=true;User ID=sa;Password=Tac@@1234;TrustServerCertificate=True"
-      }
-    },
-    {
-      "name": "📹 ITS.VDS.Wpf (Local Docker)",
-      "type": "coreclr",
-      "request": "launch",
-      "preLaunchTask": "build-vds-wpf",
-      "program": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VDS/ITS.VDS.Wpf/bin/Debug/net10.0-windows/ITS.VDS.Wpf.dll",
-      "args": [],
-      "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VDS/ITS.VDS.Wpf",
+      "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VideoWall/ITS.VideoWall",
       "stopAtEntry": false,
       "console": "internalConsole",
       "env": {
@@ -249,18 +94,64 @@
       }
     },
     {
-      "name": "📹 ITS.VDS.Wpf (Server 10.10.8.30)",
+      "name": "⚙️ ITS.VideoWall (Worker + MockServer 18080)",
       "type": "coreclr",
       "request": "launch",
-      "preLaunchTask": "build-vds-wpf",
-      "program": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VDS/ITS.VDS.Wpf/bin/Debug/net10.0-windows/ITS.VDS.Wpf.dll",
+      "preLaunchTask": "build-videowall-worker",
+      "program": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VideoWall/ITS.VideoWall/bin/Debug/net10.0/ITS.VideoWall.dll",
       "args": [],
-      "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VDS/ITS.VDS.Wpf",
+      "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VideoWall/ITS.VideoWall",
+      "stopAtEntry": false,
+      "console": "internalConsole",
+      "env": {
+        "DOTNET_ENVIRONMENT": "Development",
+        "DbConnection__ConnectionConfigs__0__ConnectionString": "Server=localhost,14333;Database=DEV_ITS10;MultipleActiveResultSets=true;User ID=sa;Password=Password123!;TrustServerCertificate=True",
+        "Nats__Url": "nats://localhost:4222",
+        "Nats__AuthMode": "NONE",
+        "VideoWall__Device__IsLocal": "true"
+      }
+    },
+    {
+      "name": "⚙️ ITS.VideoWall (Worker Server 10.10.8.30)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-videowall-worker",
+      "program": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VideoWall/ITS.VideoWall/bin/Debug/net10.0/ITS.VideoWall.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VideoWall/ITS.VideoWall",
       "stopAtEntry": false,
       "console": "internalConsole",
       "env": {
         "DOTNET_ENVIRONMENT": "Production",
         "DbConnection__ConnectionConfigs__0__ConnectionString": "Server=10.10.8.30;Database=DEV_ITS10;MultipleActiveResultSets=true;User ID=sa;Password=Tac@@1234;TrustServerCertificate=True"
+      }
+    },
+    {
+      "name": "🖥️ ITS.VideoWall.WPF (Local WebAPI)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-videowall-wpf",
+      "program": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VideoWall/ITS.VideoWall.WPF/bin/Debug/net10.0-windows/Module.VideoWall.WPF.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VideoWall/ITS.VideoWall.WPF",
+      "stopAtEntry": false,
+      "console": "internalConsole",
+      "env": {
+        "Api__BaseUrl": "http://localhost:5005"
+      }
+    },
+    {
+      "name": "🖥️ ITS.VideoWall.WPF (Server 10.10.8.30)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-videowall-wpf",
+      "program": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VideoWall/ITS.VideoWall.WPF/bin/Debug/net10.0-windows/Module.VideoWall.WPF.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/TA-ITS015-WEBAPI-V1.0/src/Services/VideoWall/ITS.VideoWall.WPF",
+      "stopAtEntry": false,
+      "console": "internalConsole",
+      "env": {
+        "Api__BaseUrl": "http://10.10.8.30:5005"
       }
     },
     {
@@ -273,14 +164,6 @@
       "cwd": "${workspaceFolder}/tests/VwMockServerRunner",
       "stopAtEntry": false,
       "console": "integratedTerminal"
-    },
-    {
-      "name": "🎨 WebVue (Edge)",
-      "type": "msedge",
-      "request": "launch",
-      "url": "http://localhost:8888",
-      "webRoot": "${workspaceFolder}/TA-ITS015-WEBVUE-V1.0/src",
-      "preLaunchTask": "start-webvue-dev"
     },
     {
       "name": "🎨 WebVue (Chrome)",
@@ -301,14 +184,7 @@
       "name": "🚀 Fullstack (WebAPI Local + WebVue)",
       "configurations": [
         "🌐 TAC_WebAPI (Local Docker)",
-        "🎨 WebVue (Edge)"
-      ]
-    },
-    {
-      "name": "🚀 Fullstack (WebAPI 10.10.8.30 + WebVue)",
-      "configurations": [
-        "🌐 TAC_WebAPI (Server 10.10.8.30)",
-        "🎨 WebVue (Edge)"
+        "🎨 WebVue (Chrome)"
       ]
     },
     {
@@ -320,11 +196,12 @@
       ]
     },
     {
-      "name": "🔄 WP Sync Suite (Local)",
+      "name": "🖥️ VideoWall Suite (Local + MockServer)",
       "configurations": [
         "🌐 TAC_WebAPI (Local Docker)",
-        "🔄 ITS.Sync.Worker (WP_Sync Local Docker)",
-        "🖥️ ITS.Sync.Wpf (WP_Sync UI Local Docker)"
+        "⚙️ ITS.VideoWall (Worker + MockServer 18080)",
+        "🧪 VideoWall Mock Server (Fake Device)",
+        "🖥️ ITS.VideoWall.WPF (Local WebAPI)"
       ]
     },
     {

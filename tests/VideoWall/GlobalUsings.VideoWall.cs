@@ -49,9 +49,9 @@ global using Module.VideoWall.Controllers.WallTopology.Validators;
 global using Module.VideoWall.Controllers.WindowScene.Validators;
 global using Module.VideoWall.Controllers.WallPermission.Validators;
 
-// ─── Messaging / Consumers ───
-global using ITS.VideoWall.Consumer;
-global using ITS.VideoWall.Messaging;
+// ─── Messaging / Consumers & Publishers ───
+global using ITS.VideoWall.Messaging.Consumers;
+global using ITS.VideoWall.Messaging.Publishers;
 global using Module.VideoWall.Infrastructure.Services.Messaging;
 
 // ─── Mock Server giả lập thiết bị Hikvision (nằm ở namespace con nên phải khai báo tường minh) ───

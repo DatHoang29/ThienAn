@@ -1,3 +1,5 @@
+using ITS.VideoWall.Extensions;
+
 namespace Tests;
 
 /// <summary>
@@ -41,14 +43,7 @@ public partial class Host
     /// </summary>
     partial void ConfigureModuleTestServices(IServiceCollection services, IConfiguration configuration)
     {
-        services.AddSingleton<Services.Shared.Messaging.TransportManager>();
-        ITS.VideoWall.Extensions.ServiceCollectionExtensions.AddVideoWallWorker(services, configuration);
-
-        // Loại bỏ VwDeviceHeartbeatService khỏi HostedService trong môi trường test để tránh timer nền gửi request ngẫu nhiên tới MockServer
-        var heartbeatDescriptor = services.FirstOrDefault(s => s.ImplementationType == typeof(ITS.VideoWall.Services.Heartbeat.VwDeviceHeartbeatService));
-        if (heartbeatDescriptor != null)
-        {
-            services.Remove(heartbeatDescriptor);
-        }
+        services.AddVideoWallWorkerCoreServices(configuration);
+        services.AddHostedService<VwCommandConsumer>();
     }
 }

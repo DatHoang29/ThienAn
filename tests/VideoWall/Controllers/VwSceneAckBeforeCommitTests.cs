@@ -28,7 +28,7 @@ namespace Tests.Modules.VideoWall.Controllers
         private const string TestPrefix = "TEST_FAF_";
         private readonly ISqlSugarClient _db = host.Services.GetRequiredService<ISqlSugarClient>();
         private readonly VwPermissionService _permission = host.Services.GetRequiredService<VwPermissionService>();
-        private readonly IVwEventTriggerLogWriter _logWriter = host.Services.GetRequiredService<IVwEventTriggerLogWriter>();
+        private readonly IVwEventTriggerLogService _logWriter = host.Services.GetRequiredService<IVwEventTriggerLogService>();
 
         /// <summary>
         /// Description: Kích hoạt kịch bản theo cơ chế Fire-and-Forget: validate input, publish lệnh NATS và trả output ngay
