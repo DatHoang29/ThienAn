@@ -12,6 +12,7 @@ Kho tài liệu nghiệp vụ, đặc tả kỹ thuật và mapping gói tin c�
 |---|---|---|---|---|---|
 | A | `doc/01-yeu-cau-nghiep-vu.md` | full | 27 KB | Yêu cầu hệ thống phần mềm chia sẻ dữ liệu (TMC-PM-ITS-ESHARE / TA-ShareData) | `_source/pdf/chi-dan-ky-thuat.pdf` (chưa có trong repo) |
 | A | `doc/02-mapping-goi-tin-101-111.md` | full | 18 KB | Bảng đặc tả chi tiết ánh xạ từng trường dữ liệu (payload camelCase) ↔ các bảng CSDL WebAPI | `_source/xlsx/ESHARE_TOAN_BO_BANG.xlsx` |
+| A | `doc/03-ke-hoach-luong-gui-outbound.md` | full | 12 KB | Kế hoạch hoàn thiện luồng GỬI (Outbound): quay tầng lấy dữ liệu thô về hard-code (PacketQueryRegistry), lịch giờ cố định hàng ngày, switch tự động gửi khi có data mới — HTTP send để đợt sau | Biên soạn nội bộ (tổng hợp từ 2 transcript + đối chiếu code) |
 | A | `doc/transcript/00-catalog.md` | full | 2 KB | Mục lục toàn bộ bản ghi cuộc họp ShareData | Biên soạn nội bộ |
 | A | `doc/transcript/2026-09-09-review-sharedata.md` | full | 9 KB | Review ShareData toàn diện: Luồng gửi nhận, cấu hình gói tin, SQL alias mapping, xử lý theo giờ/time (9h sáng), switch gửi khi có data mới, Socket wrapper & xóa log đầu ngày | `_source/audio/2026-09-09-review-1.m4a`, `_source/audio/2026-09-09-review-2.m4a` |
 | C | `_source/xlsx/ESHARE_TOAN_BO_BANG.xlsx` | never | 57 KB | Toàn bộ danh mục bảng CSDL và mapping trường dữ liệu ESHARE | → bản `.md`: `doc/02-mapping-goi-tin-101-111.md` |

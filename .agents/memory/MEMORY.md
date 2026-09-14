@@ -15,7 +15,7 @@
 - [Cấm manual DDL / ALTER TABLE — dùng EnableIncreTable](feedback-no-manual-ddl-use-incretable.md) — cấm chạy DDL thủ công kể cả local hay 10.10.8.30; tận dụng Code-First SqlSugar (EnableInitDb/EnableInitTable/EnableIncreTable)
 
 ## Project — việc đang làm
-- [ShareData Worker = DataPublicationService](sharedata-worker-datapublication.md) — outbound→file-only publication service; scope + rename
+- [ShareData Worker = DataPublicationService](sharedata-worker-datapublication.md) — outbound đã có metadata/mapping động nhưng raw-query đang sai hướng (BuildQuery cần đổi về hard-code PacketQueryRegistry); HTTP send đợt sau, plan đã duyệt 2026-09-14
 - [Do not modify shared ShareData entities](do-not-modify-shared-sharedata-entities.md) — API team sở hữu; worker thích ứng trong code
 - [VideoWall Live & Auto-Log plan](videowall-record-replay-plan.md) — plan chốt 2026-08-29; chỉ 2 tầng WPF↔thiết bị; thiết lập scene & auto log ra file; prompt thực thi ở DocBusinessThienAn/HữuNghị-ChiLăng/VideoWall/
 - [VideoWall cascade — kiến trúc](videowall-cascade-architecture.md) — DS-C66S 1 bộ trung tâm + 3 bộ con; backend chỉ nói ISAPI với bộ trung tâm; 2 doc cũ (`GiaiThich_KetNoi_*`, `SoDoCauHinh_*`) đã xoá vì sai mô hình phần mềm
