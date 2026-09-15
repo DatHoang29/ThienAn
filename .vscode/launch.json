@@ -13,12 +13,15 @@
       "serverReadyAction": {
         "action": "openUrl",
         "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
-        "uriFormat": "http://localhost:5005/api"
+        "uriFormat": "%s/api"
       },
       "env": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "DbConnection__ConnectionConfigs__0__ConnectionString": "Server=localhost,14333;Database=DEV_ITS10;MultipleActiveResultSets=true;User ID=sa;Password=Password123!;TrustServerCertificate=True",
         "DbConnection__ConnectionConfigs__1__ConnectionString": "Server=localhost,14333;Database=DEV_ITS10_Log;MultipleActiveResultSets=true;User ID=sa;Password=Password123!;TrustServerCertificate=True",
+        "DbConnection__ConnectionConfigs__0__TableSettings__EnableInitTable": "false",
+        "DbConnection__ConnectionConfigs__0__TableSettings__EnableIncreTable": "false",
+        "DbConnection__ConnectionConfigs__0__DbSettings__EnableInitDb": "false",
         "Nats__Url": "nats://localhost:4222",
         "Nats__AuthMode": "NONE"
       }
@@ -35,12 +38,15 @@
       "serverReadyAction": {
         "action": "openUrl",
         "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
-        "uriFormat": "http://localhost:5005/api"
+        "uriFormat": "%s/api"
       },
       "env": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "DbConnection__ConnectionConfigs__0__ConnectionString": "Server=10.10.8.30;Database=DEV_ITS10;MultipleActiveResultSets=true;User ID=sa;Password=Tac@@1234;TrustServerCertificate=True",
-        "DbConnection__ConnectionConfigs__1__ConnectionString": "Server=10.10.8.30;Database=DEV_ITS10_Log;MultipleActiveResultSets=true;User ID=sa;Password=Tac@@1234;TrustServerCertificate=True"
+        "DbConnection__ConnectionConfigs__1__ConnectionString": "Server=10.10.8.30;Database=DEV_ITS10_Log;MultipleActiveResultSets=true;User ID=sa;Password=Tac@@1234;TrustServerCertificate=True",
+        "DbConnection__ConnectionConfigs__0__TableSettings__EnableInitTable": "false",
+        "DbConnection__ConnectionConfigs__0__TableSettings__EnableIncreTable": "false",
+        "DbConnection__ConnectionConfigs__0__DbSettings__EnableInitDb": "false"
       }
     },
     {
