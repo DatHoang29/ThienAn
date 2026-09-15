@@ -276,6 +276,7 @@ Service co DL thô rồi, thì bat dau thuc hien
 	Ghi log xu ly
 
 ========================================================
+
 Note của tôi:
 1.Từ cơ sở dữ liệu ra file output từ những ouput trong file sẽ lưu tên field trong bảng mới, và kiểu dữ liệu như là string/datetime//number, dùng number cẩn thận liên quan dữ liệu float số thực, bool
 2. Trước đó sqlsugar join các kiểu  để ra mong muốn => json object mong muốn => mong muốn lấy từ object mong muốn luu lại tên field và kiểu giá trị
