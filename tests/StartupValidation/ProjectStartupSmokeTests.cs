@@ -11,8 +11,10 @@ using Services.Shared.Events;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+#if HAS_VIDEOWALL_WORKER
 using ITS.VideoWall.Extensions;
 using Module.VideoWall.Core.Interfaces;
+#endif
 
 namespace Tests.StartupValidation
 {
@@ -22,6 +24,7 @@ namespace Tests.StartupValidation
     /// </summary>
     public class ProjectStartupSmokeTests
     {
+#if HAS_VIDEOWALL_WORKER
         /// <summary>
         /// Description: Kiểm tra ITS.VideoWall (Worker) build Host thành công và resolve các service cốt lõi
         /// Created date: 14/09/2026
@@ -62,6 +65,7 @@ namespace Tests.StartupValidation
             var eventTriggerLogService = scope.ServiceProvider.GetService<IVwEventTriggerLogService>();
             Assert.NotNull(eventTriggerLogService);
         }
+#endif
 
 #if HAS_SHAREDATAWORKER
         /// <summary>

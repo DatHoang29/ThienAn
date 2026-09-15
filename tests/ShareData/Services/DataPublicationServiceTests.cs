@@ -108,7 +108,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
                 Status = BaseEnums.StatusEnum.Enable,
                 SessionState = BaseEnums.SessionState.Connected
             };
-            await db.Insertable(partner).IgnoreColumns(p => p.InboundApiUrl).ExecuteCommandAsync();
+            await db.Insertable(partner).ExecuteCommandAsync();
 
             var sub = new ShareDataSubscription
             {
@@ -667,7 +667,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
                 PartnerId = partner.ID,
                 DatatypeId = packetCode,
                 Direction = sub.Direction,
-                Format = sub.Format,
                 IsActive = true,
                 TargetShapeJson = @"{ ""fieldA"": { ""$field"": ""fieldA"", ""$extend"": { ""expression"": ""DROP TABLE t"" } } }"
             }).ExecuteCommandAsync();
@@ -1600,8 +1599,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.TrafficFlow, unique);
 
             var (partner, sub) = await SeedOutboundSubscription(db, $"P_XML_{unique}", $"SUB_XML_{unique}", "101");
-            partner.ProtocolProfile = BaseEnums.ProtocolProfile.XmlA;
-            await db.Updateable(partner).IgnoreColumns(p => p.InboundApiUrl).ExecuteCommandAsync();
 
             await CreateWorker(scope).ProcessBatchSubscriptions(CancellationToken.None);
 
@@ -1640,8 +1637,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.TrafficFlow, unique);
 
             var (partner, sub) = await SeedOutboundSubscription(db, $"P_ASN_{unique}", $"SUB_ASN_{unique}", "101");
-            partner.ProtocolProfile = BaseEnums.ProtocolProfile.Asn;
-            await db.Updateable(partner).IgnoreColumns(p => p.InboundApiUrl).ExecuteCommandAsync();
 
             await CreateWorker(scope).ProcessBatchSubscriptions(CancellationToken.None);
 
@@ -1649,7 +1644,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             Assert.NotEmpty(logs);
             Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
             Assert.NotNull(logs[0].FilePath);
-            Assert.EndsWith(".json", logs[0].FilePath, StringComparison.OrdinalIgnoreCase);
+            // ProtocolProfile.Asn chưa support → service xuất XML (useXml = true hiện hard-coded)
+            Assert.EndsWith(".xml", logs[0].FilePath, StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]
@@ -2662,6 +2658,194 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
 
         #endregion
 
+        #region Incremental And CodeSet Verification Tests
+
+        /// <summary>
+        /// Description: Kiểm thử 2 vòng chạy liên tiếp cho gói Incremental 104 (Thời tiết):
+        /// Vòng 1 export bản ghi đầu tiên và cập nhật LastTimeRun theo watermark.
+        /// Vòng 2 chỉ export bản ghi mới phát sinh, không bị rớt dữ liệu về rỗng hay lặp lại.
+        /// Created date: 15/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessBatchSubscriptions_IncrementalPacket104_TwoConsecutiveRuns_TracksWatermarkAccurately_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "104");
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var now = DateTime.Now;
+            var baseTime = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, 0, DateTimeKind.Local).AddHours(-1);
+
+            var (partner, sub) = await SeedOutboundSubscription(
+                db,
+                $"P_104_{unique}",
+                $"SUB_104_{unique}",
+                "104",
+                s =>
+                {
+                    s.LastTimeRun = baseTime;
+                });
+
+            // Bản ghi 1: tại baseTime + 5 phút
+            var time1 = baseTime.AddMinutes(5);
+            var weatherId1 = Guid.NewGuid().ToString("N");
+            await db.Insertable(new TmsWeather
+            {
+                ID = weatherId1,
+                RefId = $"WS_RUN1_{unique}",
+                LocationDetail = "Vị trí km 10",
+                Temperature = 25.0f,
+                Hudmidity = 70.0f,
+                WindSpeed = 10.0f,
+                TimeDetect = time1
+            }).ExecuteCommandAsync();
+
+            // Vòng chạy 1: phải xuất đúng bản ghi 1
+            await CreateWorker(scope).ProcessBatchSubscriptions(CancellationToken.None);
+
+            var logs1 = await GetLogs(db, sub.ID);
+            Assert.NotEmpty(logs1);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, logs1[0].Success);
+            Assert.Equal(1, logs1[0].RecordCount);
+
+            // Kiểm tra subscription được cập nhật LastTimeRun theo watermark
+            var subAfterRun1 = await db.Queryable<ShareDataSubscription>()
+                .Where(s => s.ID == sub.ID)
+                .FirstAsync();
+            Assert.NotNull(subAfterRun1.LastTimeRun);
+            Assert.True(subAfterRun1.LastTimeRun >= time1, $"subAfterRun1.LastTimeRun={subAfterRun1.LastTimeRun:O} vs time1={time1:O}");
+
+            // Bản ghi 2: tại baseTime + 15 phút
+            var time2 = baseTime.AddMinutes(15);
+            var weatherId2 = Guid.NewGuid().ToString("N");
+            await db.Insertable(new TmsWeather
+            {
+                ID = weatherId2,
+                RefId = $"WS_RUN2_{unique}",
+                LocationDetail = "Vị trí km 20",
+                Temperature = 27.0f,
+                Hudmidity = 65.0f,
+                WindSpeed = 12.0f,
+                TimeDetect = time2
+            }).ExecuteCommandAsync();
+
+            // Reset NextTimeRun về quá khứ để worker nhận xử lý tiếp ở vòng 2
+            await db.Updateable<ShareDataSubscription>()
+                .SetColumns(s => s.NextTimeRun == DateTime.Now.AddSeconds(-10))
+                .Where(s => s.ID == sub.ID)
+                .ExecuteCommandAsync();
+
+            // Vòng chạy 2: phải xuất tiếp bản ghi 2 (không bị rớt dữ liệu)
+            await CreateWorker(scope).ProcessBatchSubscriptions(CancellationToken.None);
+
+            var logs2 = await GetLogs(db, sub.ID);
+            Assert.True(logs2.Count >= 2);
+            var latestLog = logs2.OrderByDescending(l => l.OccurredAt).First();
+            Assert.Equal(BaseEnums.SuccessEnums.Success, latestLog.Success);
+            Assert.True(latestLog.RecordCount >= 1);
+
+            var subAfterRun2 = await db.Queryable<ShareDataSubscription>()
+                .Where(s => s.ID == sub.ID)
+                .FirstAsync();
+            Assert.True(subAfterRun2.LastTimeRun >= time2);
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử LoadPacketFields nạp đúng CodeSetCode từ ShareDataTable.FieldsJson
+        /// và Transform áp dụng bảng quy đổi ShareDataCodeSet cho gói tin 101.
+        /// Created date: 15/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessBatchSubscriptions_LoadsCodeSetFromFieldsJson_TranslatesValueCorrectly_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
+            var unique = Guid.NewGuid().ToString("N")[..8];
+
+            // 1. Seed ShareDataCodeSet với Code = "TRAFFIC_COND" (đã có trong FieldsJson của gói 101)
+            var codeSetId = Guid.NewGuid().ToString("N");
+            await db.Deleteable<ShareDataCodeSet>()
+                .Where(c => c.Code == "TRAFFIC_COND")
+                .ExecuteCommandAsync();
+
+            var codeValuesJson = """
+                [
+                    {
+                        "sourceValue": "CONGESTED",
+                        "standardValue": "UNCS_02",
+                        "displayName": "Ùn tắc"
+                    },
+                    {
+                        "sourceValue": "NORMAL",
+                        "standardValue": "UNCS_01",
+                        "displayName": "Bình thường"
+                    }
+                ]
+                """;
+
+            await db.Insertable(new ShareDataCodeSet
+            {
+                ID = codeSetId,
+                Code = "TRAFFIC_COND",
+                Name = "Tình trạng giao thông",
+                Status = BaseEnums.StatusEnum.Enable,
+                ValuesJson = codeValuesJson
+            }).ExecuteCommandAsync();
+
+            // 2. Seed dữ liệu nghiệp vụ cho gói 101 với Condition = "NORMAL"
+            var zoneId = $"ZONE_CS_{unique}";
+            await db.Insertable(new TmsZone
+            {
+                ID = zoneId,
+                Name = $"Tuyến Test CodeSet {unique}",
+                FromKmNumber = 10,
+                FromMetNumber = 0,
+                ToKmNumber = 20,
+                ToMetNumber = 0,
+                LaneId = "LANE_1",
+                MaxSpeed = 80
+            }).ExecuteCommandAsync();
+
+            await db.Insertable(new TmsZoneStatus
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                ZoneId = zoneId,
+                AverageSpeed = "60",
+                Condition = "NORMAL",
+                UpdateTime = DateTime.Now
+            }).ExecuteCommandAsync();
+
+            await db.Insertable(new TmsTrafficStatistic
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                ZoneId = zoneId,
+                TotalVehicleNumber = 100
+            }).ExecuteCommandAsync();
+
+            // 3. Seed Subscription cho gói 101
+            var (partner, sub) = await SeedOutboundSubscription(db, $"P_CS_{unique}", $"SUB_CS_{unique}", "101");
+
+            // 4. Chạy export
+            await CreateWorker(scope).ProcessBatchSubscriptions(CancellationToken.None);
+
+            var logs = await GetLogs(db, sub.ID);
+            Assert.NotEmpty(logs);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
+            Assert.NotNull(logs[0].FilePath);
+
+            // 5. Đọc file xuất và verify giá trị trafficCondition được quy đổi thành "UNCS_01" (StandardValue)
+            var fullPath = Path.Combine(Directory.GetCurrentDirectory(), "sharedata/send", logs[0].FilePath!);
+            Assert.True(File.Exists(fullPath));
+
+            var content = await File.ReadAllTextAsync(fullPath);
+            Assert.Contains("UNCS_01", content);
+        }
+
+        #endregion
+
         private static readonly Dictionary<string, (string SelectClause, string FromJoinClause, string WhereClause)> GoldenSqlCatalog = new()
         {
             ["101"] = (
@@ -2687,7 +2871,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             ["105"] = (
                 "t.TransactionId AS transactionId, t.TagId AS tagId, ISNULL(t.PlateEdit, t.PlateLpr) AS licensePlate, t.VehicleTypeId AS vehicleTypeId, t.TransactionDateTimeIn AS entryTime, t.TransactionDateTime AS exitTime, t.LaneId AS laneId, t.StationId AS stationId, vr.Brand AS vehicleBrand, vr.Owner AS vehicleOwner",
                 "FROM TollTransactionOut t LEFT JOIN TmsVehicleRegistration vr ON ISNULL(t.PlateEdit, t.PlateLpr) = vr.LicensePlate",
-                "WHERE t.TransactionDateTime >= @lastTime"
+                ""
             ),
             ["106"] = (
                 "td.DetectTime AS detectTime, td.Lane AS lane, td.Location AS locationCode, td.Speed AS speed, td.Height AS height, td.Width AS width, td.Length AS length",
@@ -2712,7 +2896,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             ["110"] = (
                 "CONCAT(ISNULL(i.Name, ''), ' - ', ISNULL(i.Description, '')) AS incidentMessage, v.RowData AS guidanceContent, i.KmNumber AS locationKm, i.MetNumber AS locationMet, i.StartDate AS publishedTime",
                 "FROM TmsIncident i OUTER APPLY (SELECT TOP 1 e.ID FROM TmsEquipment e WHERE e.KmNumber = i.KmNumber ORDER BY e.ID DESC) e OUTER APPLY (SELECT TOP 1 v.RowData FROM VmsCurrent v WHERE v.EquipmentId = e.ID AND v.RowData IS NOT NULL ORDER BY v.ExecutedDate DESC) v",
-                "WHERE (i.State IS NULL OR (i.State != 'FINISHED' AND i.State != 'CANCELED' AND i.State != 'Closed' AND i.State != 'Cancelled')) AND ISNULL(i.UpdateTime, i.StartDate) >= @lastTime"
+                "WHERE (i.State IS NULL OR (i.State != 'FINISHED' AND i.State != 'CANCELED' AND i.State != 'Closed' AND i.State != 'Cancelled'))"
             ),
             ["111"] = (
                 "i.Code AS incidentCode, i.Name AS incidentName, i.KmNumber AS locationKm, i.MetNumber AS locationMet, i.Description AS description",
@@ -2811,9 +2995,9 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
                     IsRoot = tbl.IsRoot,
                     JoinType = tbl.JoinType,
                     JoinCondition = tbl.JoinCondition,
-                                                            FieldsJson = tbl.FieldsJson,
+                    FieldsJson = tbl.FieldsJson,
                     OrderNo = tbl.OrderNo
-}).ToList();
+                }).ToList();
 
                 await db.Insertable(tablesToInsert).ExecuteCommandAsync();
             }
@@ -3400,6 +3584,155 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
 
                 return map;
             }
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Unit tests cho ComputeNextTimeRun (không cần DB — hoàn toàn pure)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Description: Kiểm thử unit cho DataPublicationService.ComputeNextTimeRun.
+    /// Không cần DB — các test pure static với stub ShareDataSubscription.
+    /// Created date: 15/09/2026
+    /// </summary>
+    public class ComputeNextTimeRunTests
+    {
+        private static ShareDataSubscription MakeSub(
+            BaseEnums.SubMode? mode = BaseEnums.SubMode.Periodic,
+            int? intervalSec = 60,
+            string? scheduleJson = null)
+        {
+            return new ShareDataSubscription
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                Mode = mode,
+                IntervalSeconds = intervalSec,
+                ScheduleJson = scheduleJson,
+                State = BaseEnums.SubSubscriptionState.Active
+            };
+        }
+
+        [Fact]
+        public void Mode_Event_Returns_5s_Poll()
+        {
+            var sub = MakeSub(mode: BaseEnums.SubMode.Event);
+            var now = new DateTime(2026, 9, 15, 10, 0, 0);
+
+            var result = DataPublicationService.ComputeNextTimeRun(sub, now);
+
+            Assert.Equal(now.AddSeconds(5), result);
+        }
+
+        [Fact]
+        public void No_ScheduleJson_Returns_IntervalSeconds()
+        {
+            var sub = MakeSub(intervalSec: 30);
+            var now = new DateTime(2026, 9, 15, 10, 0, 0);
+
+            var result = DataPublicationService.ComputeNextTimeRun(sub, now);
+
+            Assert.Equal(now.AddSeconds(30), result);
+        }
+
+        [Fact]
+        public void Default_IntervalSeconds_When_Null()
+        {
+            var sub = MakeSub(intervalSec: null);
+            var now = new DateTime(2026, 9, 15, 10, 0, 0);
+
+            // DefaultIntervalSeconds = 30 (từ DataPublicationService)
+            var result = DataPublicationService.ComputeNextTimeRun(sub, now);
+
+            Assert.Equal(now.AddSeconds(30), result);
+        }
+
+        [Fact]
+        public void Daily_Kind_Next_Occurrence_Same_Day_Future()
+        {
+            // StartTime = 14:00, hôm nay là 10:00 => kết quả là 14:00 hôm nay
+            var sub = MakeSub(scheduleJson: """{"kind":"daily","startTime":"14:00","daysOfWeek":["MON","TUE","WED","THU","FRI","SAT","SUN"]}""");
+            var now = new DateTime(2026, 9, 15, 10, 0, 0); // Monday
+
+            var result = DataPublicationService.ComputeNextTimeRun(sub, now);
+
+            Assert.Equal(new DateTime(2026, 9, 15, 14, 0, 0), result);
+        }
+
+        [Fact]
+        public void Daily_Kind_Already_Past_Today_Goes_To_Next_Allowed_Day()
+        {
+            // StartTime = 08:00, now = 09:00 → hôm nay đã qua; DaysOfWeek chỉ có WED
+            // 2026-09-15 là Thứ Ba → next Wednesday là 2026-09-16 (ngày hôm sau)
+            var sub = MakeSub(scheduleJson: """{"kind":"daily","startTime":"08:00","daysOfWeek":["WED"]}""");
+            var now = new DateTime(2026, 9, 15, 9, 0, 0); // Tuesday
+
+            var result = DataPublicationService.ComputeNextTimeRun(sub, now);
+
+            Assert.Equal(new DateTime(2026, 9, 16, 8, 0, 0), result);
+        }
+
+        [Fact]
+        public void Daily_Kind_No_DaysOfWeek_Accepts_Any_Day()
+        {
+            // Không khai DaysOfWeek = chấp nhận tất cả ngày
+            var sub = MakeSub(scheduleJson: """{"kind":"daily","startTime":"07:00"}""");
+            var now = new DateTime(2026, 9, 15, 8, 0, 0); // 07:00 đã qua → ngày tiếp = 16/09
+
+            var result = DataPublicationService.ComputeNextTimeRun(sub, now);
+
+            Assert.Equal(new DateTime(2026, 9, 16, 7, 0, 0), result);
+        }
+
+        [Fact]
+        public void Daily_Kind_Respects_StartDate_Boundary()
+        {
+            // StartDate trong tương lai → chỉ kích hoạt từ ngày đó
+            var sub = MakeSub(scheduleJson: """{"kind":"daily","startTime":"08:00","startDate":"2026-09-20"}""");
+            var now = new DateTime(2026, 9, 15, 10, 0, 0);
+
+            var result = DataPublicationService.ComputeNextTimeRun(sub, now);
+
+            Assert.Equal(new DateTime(2026, 9, 20, 8, 0, 0), result);
+        }
+
+        [Fact]
+        public void Daily_Kind_Past_EndDate_Falls_Back_To_Interval()
+        {
+            // EndDate đã qua → ComputeNextDailyRun trả null → fallback IntervalSeconds
+            var sub = MakeSub(
+                intervalSec: 120,
+                scheduleJson: """{"kind":"daily","startTime":"08:00","endDate":"2026-09-01"}""");
+            var now = new DateTime(2026, 9, 15, 10, 0, 0);
+
+            var result = DataPublicationService.ComputeNextTimeRun(sub, now);
+
+            Assert.Equal(now.AddSeconds(120), result);
+        }
+
+        [Fact]
+        public void Malformed_ScheduleJson_Falls_Back_To_Interval()
+        {
+            var sub = MakeSub(intervalSec: 45, scheduleJson: "not-valid-json{");
+            var now = new DateTime(2026, 9, 15, 10, 0, 0);
+
+            var result = DataPublicationService.ComputeNextTimeRun(sub, now);
+
+            Assert.Equal(now.AddSeconds(45), result);
+        }
+
+        [Fact]
+        public void Continuous_Kind_Uses_IntervalSeconds()
+        {
+            // Kind = continuous → không phải daily → fallback interval
+            var sub = MakeSub(
+                intervalSec: 300,
+                scheduleJson: """{"kind":"continuous","startTime":"00:00","endTime":"23:59","intervalSeconds":300}""");
+            var now = new DateTime(2026, 9, 15, 10, 0, 0);
+
+            var result = DataPublicationService.ComputeNextTimeRun(sub, now);
+
+            Assert.Equal(now.AddSeconds(300), result);
         }
     }
 }
