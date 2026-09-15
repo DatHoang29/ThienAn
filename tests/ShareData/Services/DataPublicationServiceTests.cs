@@ -3764,6 +3764,208 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
                 await db.Deleteable<ShareDataPacket>().Where(p => p.ID == packet.ID).ExecuteCommandAsync();
             }
         }
+
+        /// <summary>
+        /// Description: Kiểm thử gói tin 101_commonData - nạp dữ liệu đầu vào (TmsZone, TmsZoneStatus, TmsTrafficStatistic),
+        /// gọi xuất bản và xác nhận câu truy vấn QueryPacket101 trả về đầy đủ các trường, đặc biệt là zoneStatusId.
+        /// Created date: 15/09/2026
+        /// </summary>
+        [Fact]
+        public async Task QueryPacket101_WithSeededData_ReturnsZoneStatusIdAndExportsSuccessfully_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var service = CreateWorker(scope);
+
+            var uniqueId = Guid.NewGuid().ToString("N")[..8];
+            var zoneId = $"ZONE_{uniqueId}";
+            var zoneStatusId = Guid.NewGuid().ToString("N");
+            var now = DateTime.Now;
+
+            // 1. Arrange: Nạp dữ liệu giả lập vào bảng nguồn cho gói 101
+            await db.Insertable(new TmsZone
+            {
+                ID = zoneId,
+                Name = $"Tuyến Test {uniqueId}",
+                FromKmNumber = 10,
+                FromMetNumber = 500,
+                ToKmNumber = 20,
+                ToMetNumber = 0,
+                LaneId = "LANE_1",
+                MaxSpeed = 80
+            }).ExecuteCommandAsync();
+
+            await db.Insertable(new TmsZoneStatus
+            {
+                ID = zoneStatusId,
+                ZoneId = zoneId,
+                AverageSpeed = "65.50",
+                Condition = "NORMAL",
+                UpdateTime = now
+            }).ExecuteCommandAsync();
+
+            await db.Insertable(new TmsTrafficStatistic
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                ZoneId = zoneId,
+                TotalVehicleNumber = 150
+            }).ExecuteCommandAsync();
+
+            // Đảm bảo Packet 101_commonData tồn tại
+            var packet = await db.Queryable<ShareDataPacket>()
+                .Where(p => p.Code == "101_commonData" && p.IsDelete == null)
+                .FirstAsync();
+            if (packet == null)
+            {
+                packet = new ShareDataPacket
+                {
+                    ID = Guid.NewGuid().ToString("N"),
+                    Code = "101_commonData",
+                    Name = "Dữ liệu giao thông chung",
+                    PacketVersion = "1.0",
+                    OrderNo = 1
+                };
+                await db.Insertable(packet).ExecuteCommandAsync();
+            }
+
+            // Đảm bảo ShareDataTable cấu hình cho 101_commonData có trường bắt buộc zoneStatusId
+            var table101A = await db.Queryable<ShareDataTable>()
+                .Where(t => t.PacketCode == "101_commonData" && t.TableName == "TmsZoneStatus" && t.IsDelete == null)
+                .FirstAsync();
+            if (table101A == null)
+            {
+                await db.Insertable(new ShareDataTable
+                {
+                    ID = Guid.NewGuid().ToString("N"),
+                    PacketCode = "101_commonData",
+                    TableName = "TmsZoneStatus",
+                    Alias = "zs",
+                    IsRoot = true,
+                    OrderNo = 1,
+                    FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
+                    {
+                        new() { FieldKey = "zoneStatusId", Column = "ID", Required = true },
+                        new() { FieldKey = "zoneId", Column = "ZoneId", Required = true },
+                        new() { FieldKey = "averageSpeed", Column = "AverageSpeed" },
+                        new() { FieldKey = "trafficCondition", Column = "Condition" },
+                        new() { FieldKey = "dataTime", Column = "UpdateTime" }
+                    })
+                }).ExecuteCommandAsync();
+            }
+
+            var (partner, sub) = await SeedOutboundSubscription(db, $"P101_{uniqueId}", $"SUB101_{uniqueId}", "101_commonData");
+
+            // 2. Act: Thực thi xuất dữ liệu qua ExecuteExportForSubscription
+            var exportedAt = DateTime.Now;
+            var (lastTimeRun, lastId) = await service.ExecuteExportForSubscription(db, sub, partner, exportedAt, CancellationToken.None);
+
+            // 3. Assert: Kiểm tra log xuất bản thành công (không bị dính lỗi thiếu trường bắt buộc)
+            var logs = await db.Queryable<ShareDataActivityLog>()
+                .Where(l => l.SubscriptionId == sub.ID)
+                .OrderByDescending(l => l.OccurredAt)
+                .ToListAsync();
+
+            Assert.NotEmpty(logs);
+            Assert.True(logs[0].Success == BaseEnums.SuccessEnums.Success, $"Xuất bản thất bại: {logs[0].ErrorMessage}");
+            Assert.True(logs[0].RecordCount > 0);
+
+            // Đọc tệp kết xuất và kiểm tra bản ghi chứa zoneStatusId đúng với ID đã insert
+            Assert.False(string.IsNullOrEmpty(logs[0].FilePath));
+            var fullPath = Path.Combine(Directory.GetCurrentDirectory(), "sharedata/send", logs[0].FilePath!);
+            Assert.True(File.Exists(fullPath), $"Tệp kết xuất không tồn tại: {fullPath}");
+
+            var jsonContent = await File.ReadAllTextAsync(fullPath);
+            using var doc = JsonDocument.Parse(jsonContent);
+            var payload = doc.RootElement.GetProperty("payload");
+            Assert.True(payload.GetArrayLength() > 0);
+
+            var matchedRecord = payload.EnumerateArray()
+                .FirstOrDefault(r => r.TryGetProperty("zoneStatusId", out var zid) && zid.GetString() == zoneStatusId);
+
+            Assert.True(matchedRecord.ValueKind != JsonValueKind.Undefined, "Không tìm thấy trường zoneStatusId khớp với ID đã nạp trong payload!");
+            Assert.Equal(zoneId, matchedRecord.GetProperty("zoneId").GetString());
+            Assert.Equal("NORMAL", matchedRecord.GetProperty("trafficCondition").GetString());
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử GetCandidateSubscriptions trong ProcessBatchSubscriptions - chỉ lấy Subscription có
+        /// Partner hợp lệ (chưa bị xoá mềm IsDelete == null, Status == Enable và SessionState == Connected).
+        /// Created date: 15/09/2026
+        /// </summary>
+        [Fact]
+        public async Task GetCandidateSubscriptions_FiltersByPartnerStatusAndSessionStateAndIsDelete_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var service = CreateWorker(scope);
+
+            var uniqueId = Guid.NewGuid().ToString("N")[..8];
+            var now = DateTime.Now;
+
+            // Đảm bảo Packet 101_commonData tồn tại
+            var packet = await db.Queryable<ShareDataPacket>()
+                .Where(p => p.Code == "101_commonData" && p.IsDelete == null)
+                .FirstAsync();
+            if (packet == null)
+            {
+                packet = new ShareDataPacket
+                {
+                    ID = Guid.NewGuid().ToString("N"),
+                    Code = "101_commonData",
+                    Name = "Dữ liệu giao thông chung",
+                    PacketVersion = "1.0",
+                    OrderNo = 1
+                };
+                await db.Insertable(packet).ExecuteCommandAsync();
+            }
+
+            // Case 1: Partner bị Disable -> Không được chọn
+            var (pDisabled, subDisabled) = await SeedOutboundSubscription(db, $"P_DIS_{uniqueId}", $"S_DIS_{uniqueId}", "101_commonData",
+                configurePartner: p => p.Status = BaseEnums.StatusEnum.Disable);
+
+            // Case 2: Partner bị Disconnected -> Không được chọn
+            var (pDisconn, subDisconn) = await SeedOutboundSubscription(db, $"P_DCN_{uniqueId}", $"S_DCN_{uniqueId}", "101_commonData",
+                configurePartner: p => p.SessionState = BaseEnums.SessionState.Disconnected);
+
+            // Case 3: Partner bị xoá mềm (IsDelete != null) -> Không được chọn
+            var (pDeleted, subDeleted) = await SeedOutboundSubscription(db, $"P_DEL_{uniqueId}", $"S_DEL_{uniqueId}", "101_commonData",
+                configurePartner: p => p.IsDelete = now);
+
+            // Case 4: Partner hợp lệ (Enable, Connected, IsDelete == null) -> Được chọn
+            var (pValid, subValid) = await SeedOutboundSubscription(db, $"P_VAL_{uniqueId}", $"S_VAL_{uniqueId}", "101_commonData",
+                configurePartner: p =>
+                {
+                    p.Status = BaseEnums.StatusEnum.Enable;
+                    p.SessionState = BaseEnums.SessionState.Connected;
+                    p.IsDelete = null;
+                });
+
+            // Act: Chạy ProcessBatchSubscriptions
+            await service.ProcessBatchSubscriptions(CancellationToken.None);
+
+            // Assert:
+            // Sub hợp lệ sẽ được claim lease và ghi log
+            var validLogs = await db.Queryable<ShareDataActivityLog>()
+                .Where(l => l.SubscriptionId == subValid.ID)
+                .ToListAsync();
+            Assert.NotEmpty(validLogs);
+
+            // Các sub không hợp lệ sẽ KHÔNG được xử lý (không có log)
+            var disabledLogs = await db.Queryable<ShareDataActivityLog>()
+                .Where(l => l.SubscriptionId == subDisabled.ID)
+                .ToListAsync();
+            Assert.Empty(disabledLogs);
+
+            var disconnLogs = await db.Queryable<ShareDataActivityLog>()
+                .Where(l => l.SubscriptionId == subDisconn.ID)
+                .ToListAsync();
+            Assert.Empty(disconnLogs);
+
+            var deletedLogs = await db.Queryable<ShareDataActivityLog>()
+                .Where(l => l.SubscriptionId == subDeleted.ID)
+                .ToListAsync();
+            Assert.Empty(deletedLogs);
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────────────
