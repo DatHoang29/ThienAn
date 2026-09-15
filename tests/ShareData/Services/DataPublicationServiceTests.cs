@@ -3687,6 +3687,83 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
                 await db.Deleteable<ShareDataPartner>().Where(p => p.ID == partner.ID).ExecuteCommandAsync();
             }
         }
+
+        [Fact]
+        public async Task ProcessBatchSubscriptions_WhenPacketCodeHasSuffixLikeStagingDb_ResolvesHandlerAndExportsSuccessfully_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var packetCodeWithSuffix = "101_commonData";
+
+            // Bổ sung ShareDataPacket và ShareDataTable với mã có hậu tố như trên DB staging thật
+            var packet = new ShareDataPacket
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                Code = packetCodeWithSuffix,
+                Name = "Dữ liệu giao thông chung",
+                PacketVersion = "1.0",
+                OrderNo = 1
+            };
+            await db.Insertable(packet).ExecuteCommandAsync();
+
+            var table = new ShareDataTable
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                PacketCode = packetCodeWithSuffix,
+                Alias = "zs",
+                TableName = "TmsZoneStatus",
+                IsRoot = true,
+                OrderNo = 1,
+                FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
+                {
+                    new() { FieldKey = "zoneId", Column = "ZoneId", OrderNo = 1, Required = true },
+                    new() { FieldKey = "averageSpeed", Column = "AverageSpeed", OrderNo = 2 },
+                    new() { FieldKey = "trafficCondition", Column = "Condition", OrderNo = 3 }
+                })
+            };
+            await db.Insertable(table).ExecuteCommandAsync();
+
+            await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.TrafficFlow, unique);
+
+            var (partner, sub) = await SeedOutboundSubscription(
+                db,
+                $"P_SUFFIX_{unique}",
+                $"SUB_SUFFIX_{unique}",
+                packetCodeWithSuffix);
+
+            try
+            {
+                var worker = CreateWorker(scope);
+                await worker.ProcessBatchSubscriptions(CancellationToken.None);
+
+                var logs = await GetLogs(db, sub.ID);
+                Assert.NotEmpty(logs);
+                Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
+                Assert.True(logs[0].RecordCount > 0);
+                Assert.False(string.IsNullOrWhiteSpace(logs[0].FilePath));
+
+                var fullPath = Path.Combine(Directory.GetCurrentDirectory(), "sharedata/send", logs[0].FilePath!);
+                Assert.True(File.Exists(fullPath), $"File kết xuất cho mã [{packetCodeWithSuffix}] phải được ghi thành công xuống đĩa");
+
+                var content = await File.ReadAllTextAsync(fullPath);
+                using var doc = JsonDocument.Parse(content);
+                var root = doc.RootElement;
+                Assert.True(root.TryGetProperty("pduType", out _));
+                Assert.True(root.TryGetProperty("hash", out _));
+                Assert.True(root.TryGetProperty("payload", out var payload));
+                Assert.True(payload.GetArrayLength() > 0);
+            }
+            finally
+            {
+                await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataPartner>().Where(p => p.ID == partner.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataTable>().Where(t => t.ID == table.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataPacket>().Where(p => p.ID == packet.ID).ExecuteCommandAsync();
+            }
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────────────

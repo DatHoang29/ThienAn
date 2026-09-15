@@ -1,5 +1,24 @@
 {
   "mcpServers": {
+    "mssql_staging": {
+      "command": "dotnet",
+      "args": [
+        "tool",
+        "run",
+        "--allow-roll-forward",
+        "dab",
+        "start",
+        "--mcp-stdio",
+        "role:anonymous",
+        "--LogLevel",
+        "Error",
+        "--config",
+        "C:\\ThienAn\\.agents\\dab-config.staging.json"
+      ],
+      "env": {
+        "ASPNETCORE_URLS": "http://127.0.0.1:0"
+      }
+    },
     "mssql_dev": {
       "command": "dotnet",
       "args": [
@@ -13,7 +32,7 @@
         "--LogLevel",
         "Error",
         "--config",
-        ".agents/dab-config.dev.json"
+        "C:\\ThienAn\\.agents\\dab-config.dev.json"
       ],
       "env": {
         "ASPNETCORE_URLS": "http://127.0.0.1:0"
@@ -32,26 +51,7 @@
         "--LogLevel",
         "Error",
         "--config",
-        ".agents/dab-config.test.json"
-      ],
-      "env": {
-        "ASPNETCORE_URLS": "http://127.0.0.1:0"
-      }
-    },
-    "mssql_staging": {
-      "command": "dotnet",
-      "args": [
-        "tool",
-        "run",
-        "--allow-roll-forward",
-        "dab",
-        "start",
-        "--mcp-stdio",
-        "role:anonymous",
-        "--LogLevel",
-        "Error",
-        "--config",
-        ".agents/dab-config.staging.json"
+        "C:\\ThienAn\\.agents\\dab-config.test.json"
       ],
       "env": {
         "ASPNETCORE_URLS": "http://127.0.0.1:0"
