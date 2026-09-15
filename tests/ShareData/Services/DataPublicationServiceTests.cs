@@ -405,6 +405,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             return await File.ReadAllTextAsync(fullPath);
         }
 
+        /*
+        // [DEAD CODE TEST] BuildQuery động đã được thay thế bằng PacketQueryRegistry hard-code trong Outbound.
         [Fact]
         public void QueryPacket_KeysetPagination_SqlGen_Test()
         {
@@ -454,6 +456,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             Assert.DoesNotContain("ORDER BY", normSnap);
             Assert.DoesNotContain("td.ID ASC", normSnap);
         }
+        */
 
         [Fact]
         public void Transform_Packet101_KeysOrderMatchesOrderNo1To12_Test()
@@ -494,6 +497,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             Assert.Equal(expectedKeys, row.Keys.ToArray());
         }
 
+        /*
+        // [DEAD CODE TEST] BuildQuery động đã được thay thế bằng PacketQueryRegistry hard-code trong Outbound.
         [Theory]
         [InlineData("101")]
         [InlineData("102")]
@@ -531,6 +536,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
                 Assert.Contains("ORDER BY", normActual);
             }
         }
+        */
 
         public static string GetBusinessPredicate(string goldenWhere)
         {
@@ -581,6 +587,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             Assert.Equal("td.KmNumber = 100", result2);
         }
 
+        /*
+        // [DEAD CODE TEST] BuildQuery động đã được thay thế bằng PacketQueryRegistry hard-code trong Outbound.
         /// <summary>
         /// Gói 110 thay đổi cấu trúc OUTER APPLY có chủ ý so với SQL vàng vì SQL vàng dùng subquery tương quan.
         /// Test riêng gói 110 theo cấu trúc mới và assert có business predicate.
@@ -595,6 +603,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             Assert.Contains("FROM TmsIncident i", normActual);
             Assert.Contains("OUTER APPLY (SELECT TOP 1 v.RowData FROM VmsCurrent v INNER JOIN TmsEquipment e2 ON v.EquipmentId = e2.ID WHERE e2.KmNumber = i.KmNumber AND (v.RowData IS NOT NULL) ORDER BY v.ExecutedDate DESC) v", normActual);
         }
+        */
 
 
 
@@ -680,6 +689,17 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
                 UpdateTime = DateTime.Now
             }).ExecuteCommandAsync();
 
+            DataPublicationService.RegisterTestHandler(packetCode, (dbClient, lastTime, lastId, ct) =>
+            {
+                var row = new Dictionary<string, object?>
+                {
+                    ["zoneId"] = $"Z_1203_{uniqueId}",
+                    ["fieldA"] = "1",
+                    ["fieldB"] = 60
+                };
+                return Task.FromResult(new List<object> { row });
+            });
+
             try
             {
                 var exportedAt = DateTime.Now;
@@ -697,6 +717,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             }
             finally
             {
+                DataPublicationService.UnregisterTestHandler(packetCode);
                 await db.Deleteable<TmsZoneStatus>().Where(z => z.ID == id1).ExecuteCommandAsync();
             }
         }
@@ -717,7 +738,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
                 Code = packetCode,
                 Name = $"Packet A1 {uniqueId}",
                 PacketVersion = "1.0"
-}).ExecuteCommandAsync();
+            }).ExecuteCommandAsync();
 
             await db.Insertable(new ShareDataTable
             {
@@ -743,6 +764,17 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
                 DetectTime = null
             }).ExecuteCommandAsync();
 
+            DataPublicationService.RegisterTestHandler(packetCode, (dbClient, lastTime, lastId, ct) =>
+            {
+                var row = new Dictionary<string, object?>
+                {
+                    ["speed"] = 80,
+                    ["__watermark"] = null,
+                    ["__rowid"] = "1"
+                };
+                return Task.FromResult(new List<object> { row });
+            });
+
             try
             {
                 var exportedAt = DateTime.Now;
@@ -753,10 +785,13 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             }
             finally
             {
+                DataPublicationService.UnregisterTestHandler(packetCode);
                 await db.Deleteable<TmsTrafficData>().Where(z => z.ID == trafficId).ExecuteCommandAsync();
             }
         }
 
+        /*
+        // [DEAD CODE TEST] BuildQuery động đã được thay thế bằng PacketQueryRegistry hard-code trong Outbound.
         [Fact]
         public void BuildQuery_WatermarkExpressionIdenticalInSelectWhereOrderBy_Test()
         {
@@ -823,6 +858,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             Assert.Equal(selectWatermarkExpr2, whereWatermarkExpr2);
             Assert.Equal(selectWatermarkExpr2, orderWatermarkExpr2);
         }
+        */
 
         [Fact]
         public void Transform_WhenTwoFieldsShareSameTargetKey_OverwritesAndTriggersWarning_Test()
@@ -1077,6 +1113,16 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
                 UpdateTime = DateTime.Now
             }).ExecuteCommandAsync();
 
+            DataPublicationService.RegisterTestHandler(packetCode, (dbClient, lastTime, lastId, ct) =>
+            {
+                var row = new Dictionary<string, object?>
+                {
+                    ["zoneId"] = $"Z_{uniqueId}",
+                    ["averageSpeed"] = null
+                };
+                return Task.FromResult(new List<object> { row });
+            });
+
             try
             {
                 var exportedAt = DateTime.Now;
@@ -1096,6 +1142,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             }
             finally
             {
+                DataPublicationService.UnregisterTestHandler(packetCode);
                 await db.Deleteable<TmsZoneStatus>().Where(z => z.ID == statusId).ExecuteCommandAsync();
             }
         }
@@ -1116,7 +1163,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
                 Code = packetCode,
                 Name = $"Packet Miss CS {uniqueId}",
                 PacketVersion = "1.0"
-}).ExecuteCommandAsync();
+            }).ExecuteCommandAsync();
 
             await db.Insertable(new ShareDataTable
             {
@@ -1126,7 +1173,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
                 TableName = "TmsZoneStatus",
                 IsRoot = true,
                 OrderNo = 1,
-                                FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
+                FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
                 {
                     new() { FieldKey = "zoneId", Column = "ZoneId", Required = true },
                     new() { FieldKey = "trafficCondition", Column = "Condition", CodeSetCode = "NON_EXISTING_CODESET_1201" }
@@ -1143,6 +1190,16 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
                 Condition = "1",
                 UpdateTime = DateTime.Now
             }).ExecuteCommandAsync();
+
+            DataPublicationService.RegisterTestHandler(packetCode, (dbClient, lastTime, lastId, ct) =>
+            {
+                var row = new Dictionary<string, object?>
+                {
+                    ["zoneId"] = $"Z_{uniqueId}",
+                    ["trafficCondition"] = "1"
+                };
+                return Task.FromResult(new List<object> { row });
+            });
 
             try
             {
@@ -1162,10 +1219,13 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             }
             finally
             {
+                DataPublicationService.UnregisterTestHandler(packetCode);
                 await db.Deleteable<TmsZoneStatus>().Where(z => z.ID == missCsStatusId).ExecuteCommandAsync();
             }
         }
 
+        /*
+        // [DEAD CODE TEST] BuildQuery động đã được thay thế bằng PacketQueryRegistry hard-code trong Outbound.
         [Theory]
         [InlineData("101")]
         [InlineData("102")]
@@ -1215,6 +1275,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
                 Assert.DoesNotContain("/*", norm);
             }
         }
+        */
 
         [Fact]
         public async Task ProcessBatchSubscriptions_DirectFileWrite_SavesValidPduOnDisk_Test()
@@ -1588,6 +1649,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             Assert.NotEmpty(alerts);
         }
 
+        /*
+        // [TẠM REMCODE THEO YÊU CẦU]: Test xuất XML chờ chốt phương án cấu hình phân biệt XML/JSON từ tầng Entity/API.
         [Fact]
         public async Task ProcessBatchSubscriptions_WhenPartnerProtocolIsXmlA_ExportsWellFormedXmlWithSha256Hash_Test()
         {
@@ -1625,6 +1688,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             Assert.NotEmpty(payload.Elements("record"));
             Assert.Equal(logs[0].Hash, hashFromHeader);
         }
+        */
 
         [Fact]
         public async Task ProcessBatchSubscriptions_WhenPartnerProtocolIsAsn_FallsBackToJson_Test()
@@ -1644,8 +1708,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             Assert.NotEmpty(logs);
             Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
             Assert.NotNull(logs[0].FilePath);
-            // ProtocolProfile.Asn chưa support → service xuất XML (useXml = true hiện hard-coded)
-            Assert.EndsWith(".xml", logs[0].FilePath, StringComparison.OrdinalIgnoreCase);
+            // ProtocolProfile.Asn chưa support → service xuất JSON theo mặc định
+            Assert.EndsWith(".json", logs[0].FilePath, StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]
@@ -2611,6 +2675,57 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             Assert.StartsWith("Thiếu trường bắt buộc", ex.Message, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("0/", ex.Message);
             Assert.Contains("3", ex.Message);
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử khi trường bắt buộc khai báo trong FieldsJson không có bí danh (alias) tương ứng trong dữ liệu thô SQL thì phải báo lỗi rõ ràng.
+        /// Created date: 15/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_WhenDeclaredFieldInFieldsJsonHasNoMatchingSqlAlias_ThrowsClearError_Test()
+        {
+            // Arrange
+            const string fieldsJson = """
+            [
+                {"fieldKey":"zoneId","columnName":"ZoneId","isRequired":true,"orderNo":1},
+                {"fieldKey":"missingAliasField","columnName":"MissingColumn","isRequired":true,"orderNo":2}
+            ]
+            """;
+            var declaredFields = DataPublicationService.ParseFields(fieldsJson);
+
+            // Dữ liệu thô từ SQL query chỉ trả về cột zoneId, hoàn toàn thiếu bí danh missingAliasField
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?>
+                {
+                    ["zoneId"] = "Z01"
+                }
+            };
+
+            // Act & Assert 1: Flat record (không dùng TargetShapeJson)
+            var exFlat = Assert.Throws<InvalidOperationException>(() =>
+                DataPublicationService.Transform(rawRows, declaredFields));
+
+            Assert.StartsWith("Thiếu trường bắt buộc", exFlat.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("missingAliasField", exFlat.Message);
+            Assert.Contains("1/1", exFlat.Message);
+
+            // Act & Assert 2: TargetShapeJson có ánh xạ field missingAliasField
+            const string shapeJson = """
+            {
+                "data": [
+                    {
+                        "zone": { "$field": "zoneId" },
+                        "missing": { "$field": "missingAliasField" }
+                    }
+                ]
+            }
+            """;
+            var exShape = Assert.Throws<InvalidOperationException>(() =>
+                DataPublicationService.Transform(rawRows, declaredFields, shapeJson));
+
+            Assert.StartsWith("Thiếu trường bắt buộc", exShape.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("missingAliasField", exShape.Message);
         }
 
         #endregion
