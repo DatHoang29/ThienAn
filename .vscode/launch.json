@@ -17,6 +17,7 @@
       },
       "env": {
         "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "http://localhost:4401;http://localhost:5000",
         "DbConnection__ConnectionConfigs__0__ConnectionString": "Server=localhost,14333;Database=DEV_ITS10;MultipleActiveResultSets=true;User ID=sa;Password=Password123!;TrustServerCertificate=True",
         "DbConnection__ConnectionConfigs__1__ConnectionString": "Server=localhost,14333;Database=DEV_ITS10_Log;MultipleActiveResultSets=true;User ID=sa;Password=Password123!;TrustServerCertificate=True",
         "DbConnection__ConnectionConfigs__0__TableSettings__EnableInitTable": "false",
