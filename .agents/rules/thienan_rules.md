@@ -64,8 +64,8 @@ Thứ tự thực hiện quy trình tạo và quản trị nhánh trong dự án
 
 ### 🏷️ Các Từ Khóa Summary Commit
 Khi thực hiện commit code, phần tiêu đề (summary) của commit bắt buộc bổ sung các từ khóa phân loại sau:
-*   **`feat`**: Commit thêm hoặc hủy chức năng.
-*   **`fix`**: Sửa lỗi hoặc thay đổi chức năng.
+*   **`feat`**: Commit thêm, hủy chức năng hoặc cập nhật cấu hình / thực thể / luồng xử lý (update). Khi đang làm việc trên nhánh `feat`, mọi cập nhật đều dùng tiền tố `feat`.
+*   **`fix`**: Sửa lỗi phát sinh trong quá trình kiểm thử trên nhánh `dev/test/staging` hoặc `hotfix` trên `release`.
 *   **`refactor`**: Cấu trúc lại mã nguồn / Tối ưu hóa code (không thay đổi hành vi hệ thống).
 *   **`chore`**: Các công việc bổ trợ khác không ảnh hưởng trực tiếp đến logic code (cập nhật tài liệu HDSD, viết test case, dọn dẹp code thừa...).
 
@@ -486,6 +486,30 @@ tests/
      - **Người nói (Speaker)**: Phân định rõ ràng từng người tham gia (VD: `Người 1`, `Người 2` kèm vai trò/ngữ cảnh nếu xác định được).
      - **Lời thoại chi tiết**: Ghi lại nguyên văn nội dung trao đổi, không cắt gọt cụt lủn hay tự ý giản lược thoại đối đáp.
 - **Quy chuẩn lưu trữ file transcript**: Khi tạo mới hoặc cập nhật tài liệu transcript trong thư mục dự án (như `doc/transcript/*.md`), phần bảng toàn văn đối thoại (kèm mốc thời gian và định danh người nói) BẮT BUỘC phải được đưa vào tài liệu (thường đặt ở mục cuối cùng).
+
+---
+
+## 🛑 19. Quy Định Vận Hành AI & Quy Chuẩn Phát Triển Riêng (AI Operational & Dev Rules [Mandatory])
+
+- **19.1. Nguồn sự thật duy nhất — CẤM tạo file `feedback-*.md` rải rác**:
+  - Toàn bộ quy tắc, quy ước và phản hồi của người dùng BẮT BUỘC ghi duy nhất vào file [`thienan_rules.md`](file:///c:/ThienAn/.agents/rules/thienan_rules.md).
+  - TUYỆT ĐỐI KHÔNG tự tiện tạo các file `feedback-*.md` trong thư mục `.agents/memory/`. Chỉ cần sửa file này là toàn bộ hệ thống AI tự động tuân thủ.
+  - Khi làm việc trên nhánh `feat` hoặc làm task cập nhật (update) cấu hình/thực thể, commit message bắt buộc dùng tiền tố `feat`, không dùng `fix`.
+
+- **19.2. Quy trình Lên Plan & Bàn giao (Plan Handoff)**:
+  - Khi người dùng yêu cầu lên plan: AI **chỉ nghiên cứu + viết plan**, KHÔNG tự ý sửa code kể cả sau khi plan được approve, trừ khi người dùng ra lệnh rõ ràng ("làm đi", "code đi").
+  - Plan BẮT BUỘC lưu đúng **1 file duy nhất tại local**: `DocBusinessThienAn/HữuNghị-ChiLăng/Plan/<tên-mô-tả>.md` (không lưu ở thư mục global, không tạo bản sao rải rác).
+
+- **19.3. Quy tắc đặt tên Method Async (Không thêm suffix "Async")**:
+  - **Code mới tự viết**: BẮT BUỘC KHÔNG thêm hậu tố `Async` vào tên method (ví dụ: `GetOutputChannels`, `GetScope`, `SeedWall`; không dùng `GetOutputChannelsAsync`).
+  - **Code cũ/thư viện sẵn có**: GIỮ NGUYÊN hiện trạng, không tự ý refactor gây diff thừa.
+
+- **19.4. Cấm chạy thủ công DDL / ALTER TABLE — Tận dụng SqlSugar Code-First**:
+  - TUYỆT ĐỐI KHÔNG tự ý chạy lệnh DDL thủ công (`ALTER TABLE`, `CREATE TABLE`, `DROP COLUMN` qua terminal, script shell, sqlcmd) trên BẤT KỲ database nào (kể cả DEV `10.10.8.30` hay local).
+  - Khi cần thêm bảng hoặc thêm cột, luôn tận dụng cơ chế Code-First tự động an toàn của SqlSugar (`EnableInitTable`, `EnableIncreTable`).
+
+- **19.5. Đào sâu nguyên nhân gốc rễ (Root Cause) trước khi đề xuất fix**:
+  - Khi phát hiện kiến trúc lạ hoặc code có vẻ "sai", BẮT BUỘC đọc hết các file liên quan và docstring/comment gốc để hiểu toàn bộ bối cảnh và quy mô thực tế, tránh đề xuất các bản vá bề mặt.
 
 ---
 

@@ -405,64 +405,14 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             return await File.ReadAllTextAsync(fullPath);
         }
 
-        /*
-        // [DEAD CODE TEST] BuildQuery động đã được thay thế bằng PacketQueryRegistry hard-code trong Outbound.
-        [Fact]
-        public void QueryPacket_KeysetPagination_SqlGen_Test()
-        {
-            var packetIncr = new ShareDataPacket { Code = "103_INC" };
-            var packetSnap = new ShareDataPacket { Code = "101" };
-            var tables = new List<ShareDataTable>
-            {
-                new()
-                {
-                    TableName = "TmsTrafficData",
-                    Alias = "td",
-                    IsRoot = true,
-                    FieldsJson = "[{\"fieldKey\":\"id\",\"column\":\"ID\"}]"
-                }
-            };
-            var tablesNone = new List<ShareDataTable>
-            {
-                new()
-                {
-                    TableName = "TmsTrafficData",
-                    Alias = "td",
-                    IsRoot = true,
-                    FieldsJson = "[{\"fieldKey\":\"id\",\"column\":\"ID\"}]"
-                }
-            };
-
-            // 1. Incremental
-            var queryIncr = DataPublicationService.BuildQuery(packetIncr, tables, new DateTime(2025, 1, 1));
-            var normIncr = NormalizeSql(queryIncr.Sql);
-            Assert.Contains("td.ID AS __rowid", normIncr);
-            Assert.Contains("td.DetectTime AS __watermark", normIncr);
-            Assert.Contains("OR (td.DetectTime = @lastTime AND td.ID > @lastId)", normIncr);
-            Assert.Contains("ORDER BY td.DetectTime ASC, td.ID ASC", normIncr);
-            
-            // 2. Incremental with NONE fallback
-            var queryNone = DataPublicationService.BuildQuery(packetIncr, tablesNone, new DateTime(2025, 1, 1));
-            var normNone = NormalizeSql(queryNone.Sql);
-            Assert.Contains("td.DetectTime AS __watermark", normNone);
-            Assert.Contains("OR (td.DetectTime = @lastTime AND td.ID > @lastId)", normNone);
-            Assert.Contains("ORDER BY td.DetectTime ASC, td.ID ASC", normNone);
-
-            // 3. Snapshot
-            var querySnap = DataPublicationService.BuildQuery(packetSnap, tables, new DateTime(2025, 1, 1));
-            var normSnap = NormalizeSql(querySnap.Sql);
-            Assert.DoesNotContain("__rowid", normSnap);
-            Assert.DoesNotContain("@lastId", normSnap);
-            Assert.DoesNotContain("ORDER BY", normSnap);
-            Assert.DoesNotContain("td.ID ASC", normSnap);
-        }
-        */
-
         [Fact]
         public void Transform_Packet101_KeysOrderMatchesOrderNo1To12_Test()
         {
             var def = PacketMetadataCatalogTest.All["101"];
-            var queryResult = DataPublicationService.BuildQuery(def.Packet, def.Tables, new DateTime(2026, 8, 22));
+            var allFields = def.Tables
+                .SelectMany(t => DataPublicationService.ParseFields(t.FieldsJson).Where(f => f.InternalOnly != true))
+                .OrderBy(f => f.OrderNo)
+                .ToList();
 
             var rawRows = new List<object>
             {
@@ -483,7 +433,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
                 }
             };
 
-            var transformed = DataPublicationService.Transform(rawRows, queryResult.AllFields);
+            var transformed = DataPublicationService.Transform(rawRows, allFields);
             Assert.Single(transformed);
 
             var row = Assert.IsAssignableFrom<IDictionary<string, object?>>(transformed[0]);
@@ -496,114 +446,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
 
             Assert.Equal(expectedKeys, row.Keys.ToArray());
         }
-
-        /*
-        // [DEAD CODE TEST] BuildQuery động đã được thay thế bằng PacketQueryRegistry hard-code trong Outbound.
-        [Theory]
-        [InlineData("101")]
-        [InlineData("102")]
-        [InlineData("103")]
-        [InlineData("104")]
-        [InlineData("105")]
-        [InlineData("106")]
-        [InlineData("107")]
-        [InlineData("108")]
-        [InlineData("109")]
-        [InlineData("111")]
-        public void BuildQuery_All11Packets_SelectAndFromJoinMatchGoldenSql_Test(string packetCode)
-        {
-            var def = PacketMetadataCatalogTest.All[packetCode];
-            var result = DataPublicationService.BuildQuery(def.Packet, def.Tables, new DateTime(2026, 8, 22));
-            var normActual = NormalizeSql(result.Sql);
-
-            var golden = GoldenSqlCatalog[packetCode];
-            var normGoldenSelect = NormalizeSql(golden.SelectClause);
-            var normGoldenFromJoin = NormalizeSql(golden.FromJoinClause);
-
-            Assert.Contains(normGoldenSelect, normActual);
-            Assert.Contains(normGoldenFromJoin, normActual);
-
-            var businessPredicate = GetBusinessPredicate(golden.WhereClause);
-            if (!string.IsNullOrEmpty(businessPredicate))
-            {
-                Assert.Contains(NormalizeSql(businessPredicate), normActual);
-            }
-
-            var topN = DataPublicationService.ResolveTopN(def.Packet);
-            if (topN.HasValue && topN.Value > 0)
-            {
-                Assert.Contains($"TOP {topN.Value}", normActual);
-                Assert.Contains("ORDER BY", normActual);
-            }
-        }
-        */
-
-        public static string GetBusinessPredicate(string goldenWhere)
-        {
-            if (string.IsNullOrWhiteSpace(goldenWhere)) return "";
-            var clean = Regex.Replace(goldenWhere, @"^\s*WHERE\s+", "", RegexOptions.IgnoreCase).Trim();
-
-            var segments = new List<string>();
-            int depth = 0;
-            int lastStart = 0;
-
-            for (int i = 0; i < clean.Length; i++)
-            {
-                if (clean[i] == '(') depth++;
-                else if (clean[i] == ')') depth--;
-                else if (depth == 0 && i >= 4 && clean.Substring(i - 4, 4).Equals(" AND", StringComparison.OrdinalIgnoreCase))
-                {
-                    segments.Add(clean.Substring(lastStart, i - 4 - lastStart).Trim());
-                    lastStart = i;
-                }
-            }
-            if (lastStart < clean.Length)
-            {
-                segments.Add(clean.Substring(lastStart).Trim());
-            }
-
-            var keptSegments = new List<string>();
-            foreach (var segment in segments)
-            {
-                var s = segment.StartsWith("AND ", StringComparison.OrdinalIgnoreCase) ? segment.Substring(4).Trim() : segment;
-                if (!s.Contains("@lastTime", StringComparison.OrdinalIgnoreCase) && !s.Contains("@lastId", StringComparison.OrdinalIgnoreCase))
-                {
-                    keptSegments.Add(s);
-                }
-            }
-
-            return string.Join(" AND ", keptSegments);
-        }
-
-        [Fact]
-        public void GetBusinessPredicate_WithNestedParentheses_StripsTimeConditionCorrectly_Test()
-        {
-            var sql = "WHERE (i.State IS NULL OR (i.State != 'FINISHED' AND i.State != 'CANCELED')) AND ISNULL(CAST(i.UpdateTime AS INT), 0) > @lastTime";
-            var result = GetBusinessPredicate(sql);
-            Assert.Equal("(i.State IS NULL OR (i.State != 'FINISHED' AND i.State != 'CANCELED'))", result);
-
-            var sql2 = "WHERE (ISNULL(td.DetectTime, td.CreateTime) > @lastTime OR (ISNULL(td.DetectTime, td.CreateTime) = @lastTime AND td.ID > @lastId)) AND td.KmNumber = 100";
-            var result2 = GetBusinessPredicate(sql2);
-            Assert.Equal("td.KmNumber = 100", result2);
-        }
-
-        /*
-        // [DEAD CODE TEST] BuildQuery động đã được thay thế bằng PacketQueryRegistry hard-code trong Outbound.
-        /// <summary>
-        /// Gói 110 thay đổi cấu trúc OUTER APPLY có chủ ý so với SQL vàng vì SQL vàng dùng subquery tương quan.
-        /// Test riêng gói 110 theo cấu trúc mới và assert có business predicate.
-        /// </summary>
-        [Fact]
-        public void BuildQuery_Packet110_MatchesNewStructure_Test()
-        {
-            var def = PacketMetadataCatalogTest.All["110"];
-            var result = DataPublicationService.BuildQuery(def.Packet, def.Tables, new DateTime(2026, 8, 22));
-            var normActual = NormalizeSql(result.Sql);
-
-            Assert.Contains("FROM TmsIncident i", normActual);
-            Assert.Contains("OUTER APPLY (SELECT TOP 1 v.RowData FROM VmsCurrent v INNER JOIN TmsEquipment e2 ON v.EquipmentId = e2.ID WHERE e2.KmNumber = i.KmNumber AND (v.RowData IS NOT NULL) ORDER BY v.ExecutedDate DESC) v", normActual);
-        }
-        */
 
 
 
@@ -790,75 +632,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             }
         }
 
-        /*
-        // [DEAD CODE TEST] BuildQuery động đã được thay thế bằng PacketQueryRegistry hard-code trong Outbound.
-        [Fact]
-        public void BuildQuery_WatermarkExpressionIdenticalInSelectWhereOrderBy_Test()
-        {
-            var packet = new ShareDataPacket
-            {
-                ID = "packet_test_a4",
-                Code = "103_INC"
-            };
 
-            var tableWithFallback = new ShareDataTable
-            {
-                ID = "tbl_1",
-                PacketCode = "101",
-                Alias = "zs",
-                TableName = "TmsZoneStatus",
-                IsRoot = true,
-                FieldsJson = "[{\"fieldKey\":\"zoneId\",\"column\":\"ZoneId\"}]"
-            };
-
-            var lastTime = new DateTime(2026, 8, 23, 10, 0, 0);
-            var queryResult1 = DataPublicationService.BuildQuery(packet, [tableWithFallback], lastTime, "last_id_01");
-
-            var selectMatch1 = Regex.Match(queryResult1.Sql, @"(?i)(.*?)\s+AS\s+__watermark");
-            Assert.True(selectMatch1.Success, "Không tìm thấy SELECT ... AS __watermark");
-            var selectWatermarkExpr1 = selectMatch1.Groups[1].Value.Trim();
-
-            var whereMatch1 = Regex.Match(queryResult1.Sql, @"(?i)\((.*?)\s*>\s*@lastTime");
-            Assert.True(whereMatch1.Success, "Không tìm thấy WHERE (watermarkExpr > @lastTime ...)");
-            var whereWatermarkExpr1 = whereMatch1.Groups[1].Value.Trim();
-
-            var orderMatch1 = Regex.Match(queryResult1.Sql, @"(?i)ORDER\s+BY\s+(.*?)\s+ASC");
-            Assert.True(orderMatch1.Success, "Không tìm thấy ORDER BY watermarkExpr ASC");
-            var orderWatermarkExpr1 = orderMatch1.Groups[1].Value.Trim();
-
-            Assert.Equal("ISNULL(zs.UpdateTime, zs.CreateTime)", selectWatermarkExpr1);
-            Assert.Equal(selectWatermarkExpr1, whereWatermarkExpr1);
-            Assert.Equal(selectWatermarkExpr1, orderWatermarkExpr1);
-
-            var tableNoFallback = new ShareDataTable
-            {
-                ID = "tbl_2",
-                PacketCode = "101",
-                Alias = "t",
-                TableName = "TmsTrafficData",
-                IsRoot = true,
-                FieldsJson = "[{\"fieldKey\":\"speed\",\"column\":\"Speed\"}]"
-            };
-
-            var queryResult2 = DataPublicationService.BuildQuery(packet, [tableNoFallback], lastTime, "last_id_02");
-
-            var selectMatch2 = Regex.Match(queryResult2.Sql, @"(?i)(.*?)\s+AS\s+__watermark");
-            Assert.True(selectMatch2.Success);
-            var selectWatermarkExpr2 = selectMatch2.Groups[1].Value.Trim();
-
-            var whereMatch2 = Regex.Match(queryResult2.Sql, @"(?i)\((.*?)\s*>\s*@lastTime");
-            Assert.True(whereMatch2.Success);
-            var whereWatermarkExpr2 = whereMatch2.Groups[1].Value.Trim();
-
-            var orderMatch2 = Regex.Match(queryResult2.Sql, @"(?i)ORDER\s+BY\s+(.*?)\s+ASC");
-            Assert.True(orderMatch2.Success);
-            var orderWatermarkExpr2 = orderMatch2.Groups[1].Value.Trim();
-
-            Assert.Equal("t.DetectTime", selectWatermarkExpr2);
-            Assert.Equal(selectWatermarkExpr2, whereWatermarkExpr2);
-            Assert.Equal(selectWatermarkExpr2, orderWatermarkExpr2);
-        }
-        */
 
         [Fact]
         public void Transform_WhenTwoFieldsShareSameTargetKey_OverwritesAndTriggersWarning_Test()
@@ -1224,58 +998,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             }
         }
 
-        /*
-        // [DEAD CODE TEST] BuildQuery động đã được thay thế bằng PacketQueryRegistry hard-code trong Outbound.
-        [Theory]
-        [InlineData("101")]
-        [InlineData("102")]
-        [InlineData("103")]
-        [InlineData("104")]
-        [InlineData("105")]
-        [InlineData("106")]
-        [InlineData("107")]
-        [InlineData("108")]
-        [InlineData("109")]
-        [InlineData("110")]
-        [InlineData("111")]
-        public void BuildQuery_EveryPacketMetadata_ProducesSafeDeterministicSql_Test(string packetCode)
-        {
-            var def = PacketMetadataCatalogTest.All[packetCode];
 
-            // 1. Chạy với lastTimeRun = null
-            var resultNullTime = DataPublicationService.BuildQuery(def.Packet, def.Tables, null);
-            AssertDeterministicProperties(resultNullTime.Sql, def.Packet);
-
-            // 2. Chạy với lastTimeRun có giá trị
-            var resultWithTime = DataPublicationService.BuildQuery(def.Packet, def.Tables, new DateTime(2026, 8, 22));
-            AssertDeterministicProperties(resultWithTime.Sql, def.Packet);
-
-            static void AssertDeterministicProperties(string sql, ShareDataPacket packet)
-            {
-                var norm = NormalizeSql(sql);
-
-                // Nếu có TOP ở ngoài cùng thì phải có ORDER BY
-                if (Regex.IsMatch(norm, @"^SELECT TOP \d+"))
-                {
-                    Assert.Contains("ORDER BY", norm);
-                }
-
-                // Nếu có OUTER APPLY với TOP thì trong ngoặc phải có ORDER BY
-                if (norm.Contains("OUTER APPLY", StringComparison.OrdinalIgnoreCase) && 
-                    norm.Contains("SELECT TOP", StringComparison.OrdinalIgnoreCase))
-                {
-                    Assert.Contains("ORDER BY", norm, StringComparison.OrdinalIgnoreCase);
-                }
-
-                // An toàn SQL: không chứa .*, không chứa >=, không chứa ký tự cấm
-                Assert.DoesNotContain(".*", norm);
-                Assert.DoesNotContain(">=", norm);
-                Assert.DoesNotContain(";", norm);
-                Assert.DoesNotContain("--", norm);
-                Assert.DoesNotContain("/*", norm);
-            }
-        }
-        */
 
         [Fact]
         public async Task ProcessBatchSubscriptions_DirectFileWrite_SavesValidPduOnDisk_Test()
