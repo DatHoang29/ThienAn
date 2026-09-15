@@ -707,11 +707,11 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
         [Fact]
         public void ParseCodeValues_WithValidAndCorruptedJson_ParsesCorrectly_Test()
         {
-            var validJson = "[{\"sourceValue\":\"1\",\"standardValue\":\"slow\",\"displayName\":\"Chậm\",\"orderNo\":1},{\"sourceValue\":\"2\",\"standardValue\":\"normal\",\"displayName\":\"Bình thường\",\"isDefault\":true,\"orderNo\":2}]";
+            var validJson = "[{\"sourceValue\":\"1\",\"partnerValue\":\"slow\",\"displayName\":\"Chậm\",\"orderNo\":1},{\"sourceValue\":\"2\",\"partnerValue\":\"normal\",\"displayName\":\"Bình thường\",\"isDefault\":true,\"orderNo\":2}]";
             var parsed = DataPublicationService.ParseCodeValues(validJson);
             Assert.Equal(2, parsed.Count);
             Assert.Equal("1", parsed[0].SourceValue);
-            Assert.Equal("slow", parsed[0].StandardValue);
+            Assert.Equal("slow", parsed[0].PartnerValue);
             Assert.Equal("Chậm", parsed[0].DisplayName);
             Assert.Equal(1, parsed[0].OrderNo);
             Assert.True(parsed[1].IsDefault);
@@ -719,7 +719,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             var empty = DataPublicationService.ParseCodeValues("{invalid-json}");
             Assert.Empty(empty);
 
-            var partialJson = "[{\"sourceValue\":\"1\",\"standardValue\":\"slow\"}, \"bad_element\", {\"sourceValue\":\"2\",\"standardValue\":\"normal\"}]";
+            var partialJson = "[{\"sourceValue\":\"1\",\"partnerValue\":\"slow\"}, \"bad_element\", {\"sourceValue\":\"2\",\"partnerValue\":\"normal\"}]";
             var partialParsed = DataPublicationService.ParseCodeValues(partialJson);
             Assert.Equal(2, partialParsed.Count);
         }
@@ -729,9 +729,9 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
         {
             var codeValues = new List<CodeValueDto>
             {
-                new() { SourceValue = "1", StandardValue = "slow", DisplayName = "Chậm" },
-                new() { SourceValue = "2", StandardValue = "normal", DisplayName = "Bình thường" },
-                new() { SourceValue = null, StandardValue = "unknown", DisplayName = "Không rõ", IsDefault = true }
+                new() { SourceValue = "1", PartnerValue = "slow", DisplayName = "Chậm" },
+                new() { SourceValue = "2", PartnerValue = "normal", DisplayName = "Bình thường" },
+                new() { SourceValue = null, PartnerValue = "unknown", DisplayName = "Không rõ", IsDefault = true }
             };
 
             var r1 = DataPublicationService.MapCode(codeValues, "1");
@@ -745,7 +745,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
 
             var noDefaultSet = new List<CodeValueDto>
             {
-                new() { SourceValue = "A", StandardValue = "Alpha" }
+                new() { SourceValue = "A", PartnerValue = "Alpha" }
             };
             var r4 = DataPublicationService.MapCode(noDefaultSet, "Z");
         }
@@ -757,13 +757,13 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             {
                 ["TRAFFIC_COND_STD"] =
                 [
-                    new() { SourceValue = "1", StandardValue = "slow", DisplayName = "Chậm (std)" },
-                    new() { SourceValue = "2", StandardValue = "normal", DisplayName = "Bình thường (std)" }
+                    new() { SourceValue = "1", PartnerValue = "slow", DisplayName = "Chậm (std)" },
+                    new() { SourceValue = "2", PartnerValue = "normal", DisplayName = "Bình thường (std)" }
                 ],
                 ["TRAFFIC_COND_PARTNER"] =
                 [
-                    new() { SourceValue = "slow", StandardValue = "Chậm", DisplayName = "Chậm (vn)" },
-                    new() { SourceValue = "normal", StandardValue = "Bình thường", DisplayName = "Bình thường (vn)" }
+                    new() { SourceValue = "slow", PartnerValue = "Chậm", DisplayName = "Chậm (vn)" },
+                    new() { SourceValue = "normal", PartnerValue = "Bình thường", DisplayName = "Bình thường (vn)" }
                 ]
             };
 
@@ -799,7 +799,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             {
                 ["COND_SET"] =
                 [
-                    new() { SourceValue = "1", StandardValue = "slow" }
+                    new() { SourceValue = "1", PartnerValue = "slow" }
                 ]
             };
 
@@ -2629,12 +2629,12 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
                 [
                     {
                         "sourceValue": "CONGESTED",
-                        "standardValue": "UNCS_02",
+                        "partnerValue": "UNCS_02",
                         "displayName": "Ùn tắc"
                     },
                     {
                         "sourceValue": "NORMAL",
-                        "standardValue": "UNCS_01",
+                        "partnerValue": "UNCS_01",
                         "displayName": "Bình thường"
                     }
                 ]
@@ -2690,7 +2690,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
             Assert.NotNull(logs[0].FilePath);
 
-            // 5. Đọc file xuất và verify giá trị trafficCondition được quy đổi thành "UNCS_01" (StandardValue)
+            // 5. Đọc file xuất và verify giá trị trafficCondition được quy đổi thành "UNCS_01" (PartnerValue)
             var fullPath = Path.Combine(Directory.GetCurrentDirectory(), "sharedata/send", logs[0].FilePath!);
             Assert.True(File.Exists(fullPath));
 
