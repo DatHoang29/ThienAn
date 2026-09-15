@@ -98,7 +98,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             string partnerCode,
             string subCode,
             string datatypeId,
-            Action<ShareDataSubscription>? configureSub = null)
+            Action<ShareDataSubscription>? configureSub = null,
+            Action<ShareDataPartner>? configurePartner = null)
         {
             var partner = new ShareDataPartner
             {
@@ -108,6 +109,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
                 Status = BaseEnums.StatusEnum.Enable,
                 SessionState = BaseEnums.SessionState.Connected
             };
+            configurePartner?.Invoke(partner);
             await db.Insertable(partner).ExecuteCommandAsync();
 
             var sub = new ShareDataSubscription
@@ -383,12 +385,26 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             }
         }
 
-        private static DataPublicationService CreateWorker(IServiceScope scope)
+        private static DataPublicationService CreateWorker(IServiceScope scope, IHttpClientFactory? httpClientFactory = null)
         {
             var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataPublicationService>>();
             var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
-            return new DataPublicationService(scopeFactory, logger, config);
+            var clientFactory = httpClientFactory ?? scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
+            return new DataPublicationService(scopeFactory, logger, config, clientFactory);
+        }
+
+        private sealed class MockHttpClientFactoryTest(HttpMessageHandler handler) : IHttpClientFactory
+        {
+            public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);
+        }
+
+        private sealed class TestHttpMessageHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> handler) : HttpMessageHandler
+        {
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            {
+                return handler(request, cancellationToken);
+            }
         }
 
         private static async Task<List<ShareDataActivityLog>> GetLogs(ISqlSugarClient db, string subId)
@@ -3421,6 +3437,254 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
                 };
 
                 return map;
+            }
+        }
+
+        [Fact]
+        public async Task ProcessBatchSubscriptions_WhenPartnerHasEndPointApiUrl_SendsHttpPayloadSuccessfully_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            HttpRequestMessage? interceptedRequest = null;
+            string? interceptedBody = null;
+            var mockHandler = new TestHttpMessageHandler(async (req, ct) =>
+            {
+                interceptedRequest = req;
+                if (req.Content != null)
+                {
+                    interceptedBody = await req.Content.ReadAsStringAsync(ct);
+                }
+                return new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+                {
+                    Content = new StringContent("""{"code":0,"message":"OK"}""", System.Text.Encoding.UTF8, "application/json")
+                };
+            });
+            var clientFactory = new MockHttpClientFactoryTest(mockHandler);
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.TrafficFlow, unique);
+
+            var (partner, sub) = await SeedOutboundSubscription(
+                db,
+                $"P_HTTP_{unique}",
+                $"SUB_HTTP_{unique}",
+                "101",
+                configurePartner: p =>
+                {
+                    p.Address = "127.0.0.1";
+                    p.Port = 5000;
+                    p.EndPointApiUrl = "/api/sharedata/sharedatainbound";
+                });
+
+            try
+            {
+                var worker = CreateWorker(scope, clientFactory);
+                await worker.ProcessBatchSubscriptions(CancellationToken.None);
+
+                var logs = await GetLogs(db, sub.ID);
+                Assert.NotEmpty(logs);
+                Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
+
+                Assert.NotNull(interceptedRequest);
+                Assert.Equal(HttpMethod.Post, interceptedRequest.Method);
+                Assert.Equal("http://127.0.0.1:5000/api/sharedata/sharedatainbound", interceptedRequest.RequestUri?.ToString());
+
+                Assert.NotNull(interceptedBody);
+                using var doc = JsonDocument.Parse(interceptedBody);
+                var root = doc.RootElement;
+                Assert.Equal(partner.Code, root.GetProperty("partnerCode").GetString());
+                Assert.Equal("101", root.GetProperty("datatypeId").GetString());
+                Assert.True(root.TryGetProperty("packetVersion", out _));
+                Assert.True(root.TryGetProperty("serialNbr", out _));
+                Assert.True(root.TryGetProperty("pduType", out _));
+                Assert.True(root.TryGetProperty("format", out _));
+                Assert.True(root.TryGetProperty("rawContent", out var rawContentProp));
+                Assert.False(string.IsNullOrWhiteSpace(rawContentProp.GetString()));
+
+                var alerts = await db.Queryable<ShareDataAlertLog>()
+                    .Where(a => a.SubscriptionId == sub.ID && a.AlertCode == ShareDataAlertCode.Outbound.HttpSendFailed)
+                    .ToListAsync();
+                Assert.Empty(alerts);
+            }
+            finally
+            {
+                await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataPartner>().Where(p => p.ID == partner.ID).ExecuteCommandAsync();
+            }
+        }
+
+        [Fact]
+        public async Task ProcessBatchSubscriptions_WhenPartnerHttpEndpointReturns500_StillExportsFileAndLogsWarningAlert_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            var mockHandler = new TestHttpMessageHandler((req, ct) =>
+            {
+                return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.InternalServerError)
+                {
+                    Content = new StringContent("Internal Server Error", System.Text.Encoding.UTF8, "text/plain")
+                });
+            });
+            var clientFactory = new MockHttpClientFactoryTest(mockHandler);
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.TrafficFlow, unique);
+
+            var (partner, sub) = await SeedOutboundSubscription(
+                db,
+                $"P_HTTP_500_{unique}",
+                $"SUB_HTTP_500_{unique}",
+                "101",
+                configurePartner: p =>
+                {
+                    p.Address = "127.0.0.1";
+                    p.Port = 5001;
+                    p.EndPointApiUrl = "/api/sharedata/sharedatainbound";
+                });
+
+            try
+            {
+                var worker = CreateWorker(scope, clientFactory);
+                await worker.ProcessBatchSubscriptions(CancellationToken.None);
+
+                var logs = await GetLogs(db, sub.ID);
+                Assert.NotEmpty(logs);
+                Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
+                Assert.False(string.IsNullOrWhiteSpace(logs[0].FilePath));
+
+                var fullPath = Path.Combine(Directory.GetCurrentDirectory(), "sharedata/send", logs[0].FilePath!);
+                Assert.True(File.Exists(fullPath), "File phải được xuất thành công dù HTTP thất bại");
+
+                var alerts = await db.Queryable<ShareDataAlertLog>()
+                    .Where(a => a.SubscriptionId == sub.ID && a.AlertCode == ShareDataAlertCode.Outbound.HttpSendFailed)
+                    .ToListAsync();
+                Assert.Single(alerts);
+                Assert.Equal(BaseEnums.AlertSeverity.Warning, alerts[0].Severity);
+                Assert.Equal(BaseEnums.AlertSource.Protocol, alerts[0].AlertSource);
+                Assert.Contains("500", alerts[0].Message);
+                Assert.NotNull(alerts[0].DetailJson);
+                Assert.Contains("500", alerts[0].DetailJson);
+            }
+            finally
+            {
+                await db.Deleteable<ShareDataAlertLog>().Where(a => a.SubscriptionId == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataPartner>().Where(p => p.ID == partner.ID).ExecuteCommandAsync();
+            }
+        }
+
+        [Fact]
+        public async Task ProcessBatchSubscriptions_WhenPartnerHttpThrowsException_StillExportsFileAndLogsWarningAlert_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            var mockHandler = new TestHttpMessageHandler((req, ct) =>
+            {
+                throw new HttpRequestException("Simulated connection timeout/refusal");
+            });
+            var clientFactory = new MockHttpClientFactoryTest(mockHandler);
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.TrafficFlow, unique);
+
+            var (partner, sub) = await SeedOutboundSubscription(
+                db,
+                $"P_HTTP_EX_{unique}",
+                $"SUB_HTTP_EX_{unique}",
+                "101",
+                configurePartner: p =>
+                {
+                    p.Address = "127.0.0.1";
+                    p.Port = 5002;
+                    p.EndPointApiUrl = "/api/sharedata/sharedatainbound";
+                });
+
+            try
+            {
+                var worker = CreateWorker(scope, clientFactory);
+                await worker.ProcessBatchSubscriptions(CancellationToken.None);
+
+                var logs = await GetLogs(db, sub.ID);
+                Assert.NotEmpty(logs);
+                Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
+                Assert.False(string.IsNullOrWhiteSpace(logs[0].FilePath));
+
+                var alerts = await db.Queryable<ShareDataAlertLog>()
+                    .Where(a => a.SubscriptionId == sub.ID && a.AlertCode == ShareDataAlertCode.Outbound.HttpSendFailed)
+                    .ToListAsync();
+                Assert.Single(alerts);
+                Assert.Equal(BaseEnums.AlertSeverity.Warning, alerts[0].Severity);
+                Assert.Equal(BaseEnums.AlertSource.Protocol, alerts[0].AlertSource);
+                Assert.Contains("Simulated connection timeout/refusal", alerts[0].Message);
+            }
+            finally
+            {
+                await db.Deleteable<ShareDataAlertLog>().Where(a => a.SubscriptionId == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataPartner>().Where(p => p.ID == partner.ID).ExecuteCommandAsync();
+            }
+        }
+
+        [Fact]
+        public async Task ProcessBatchSubscriptions_WhenPartnerHasNoEndPointApiUrl_DoesNotSendHttp_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            var sendCount = 0;
+            var mockHandler = new TestHttpMessageHandler((req, ct) =>
+            {
+                sendCount++;
+                return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK));
+            });
+            var clientFactory = new MockHttpClientFactoryTest(mockHandler);
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.TrafficFlow, unique);
+
+            var (partner, sub) = await SeedOutboundSubscription(
+                db,
+                $"P_NO_HTTP_{unique}",
+                $"SUB_NO_HTTP_{unique}",
+                "101",
+                configurePartner: p =>
+                {
+                    p.Address = "127.0.0.1";
+                    p.Port = 5003;
+                    p.EndPointApiUrl = null;
+                });
+
+            try
+            {
+                var worker = CreateWorker(scope, clientFactory);
+                await worker.ProcessBatchSubscriptions(CancellationToken.None);
+
+                Assert.Equal(0, sendCount);
+
+                var logs = await GetLogs(db, sub.ID);
+                Assert.NotEmpty(logs);
+                Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
+
+                var alerts = await db.Queryable<ShareDataAlertLog>()
+                    .Where(a => a.SubscriptionId == sub.ID && a.AlertCode == ShareDataAlertCode.Outbound.HttpSendFailed)
+                    .ToListAsync();
+                Assert.Empty(alerts);
+            }
+            finally
+            {
+                await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataPartner>().Where(p => p.ID == partner.ID).ExecuteCommandAsync();
             }
         }
     }
