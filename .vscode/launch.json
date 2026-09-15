@@ -185,6 +185,20 @@
   ],
   "compounds": [
     {
+      "name": "🚀 ShareData (WebAPI + Worker Local)",
+      "configurations": [
+        "🌐 TAC_WebAPI (Local Docker)",
+        "📦 ShareDataWorker (Local Docker)"
+      ]
+    },
+    {
+      "name": "🚀 ShareData (WebAPI + Worker Server 10.10.8.30)",
+      "configurations": [
+        "🌐 TAC_WebAPI (Server 10.10.8.30)",
+        "📦 ShareDataWorker (Server 10.10.8.30)"
+      ]
+    },
+    {
       "name": "🚀 Fullstack (WebAPI Local + WebVue)",
       "configurations": [
         "🌐 TAC_WebAPI (Local Docker)",
@@ -206,13 +220,6 @@
         "⚙️ ITS.VideoWall (Worker + MockServer 18080)",
         "🧪 VideoWall Mock Server (Fake Device)",
         "🖥️ ITS.VideoWall.WPF (Local WebAPI)"
-      ]
-    },
-    {
-      "name": "📦 ShareData Suite (Local)",
-      "configurations": [
-        "🌐 TAC_WebAPI (Local Docker)",
-        "📦 ShareDataWorker (Local Docker)"
       ]
     }
   ]

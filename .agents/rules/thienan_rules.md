@@ -511,6 +511,11 @@ tests/
 - **19.5. Đào sâu nguyên nhân gốc rễ (Root Cause) trước khi đề xuất fix**:
   - Khi phát hiện kiến trúc lạ hoặc code có vẻ "sai", BẮT BUỘC đọc hết các file liên quan và docstring/comment gốc để hiểu toàn bộ bối cảnh và quy mô thực tế, tránh đề xuất các bản vá bề mặt.
 
+- **19.6. CẤM TUYỆT ĐỐI tự ý sửa/xóa code ngoài phạm vi yêu cầu (Strict Scope Control & No Unprompted Code Deletion)**:
+  - Khi người dùng yêu cầu một công việc cụ thể (ví dụ: sửa launch.json, phân tích lỗi, sửa một method cụ thể), AI CHỈ ĐƯỢC PHÉP thao tác đúng trong phạm vi đó.
+  - **TUYỆT ĐỐI KHÔNG tự ý xóa code, dọn dẹp code, xóa hàm/file** (kể cả khi nhận thấy là dead code hoặc không còn được gọi) nếu KHÔNG CÓ YÊU CẦU TRỰC TIẾP VÀ TƯỜNG MINH từ người dùng.
+  - Khi phát hiện code nghi ngờ thừa hoặc không còn dùng: CHỈ ĐƯỢC BÁO CÁO và HỎI Ý KIẾN người dùng, không được tự ý xóa bỏ.
+
 ---
 
 ## 📎 Ghi chú mở — cần xác minh / còn trùng lặp
