@@ -10,7 +10,7 @@
 
 ## User & Quy định
 - [User profile](user-profile.md) — backend dev trên TA-ITS015 (ITS/C2C ISO 14827); viết & trả lời tiếng Việt
-- [Quy định chung & Kiến trúc Thiên An](../rules/thienan_rules.md) — **Nguồn sự thật duy nhất** cho toàn bộ quy định dự án (git, commit feat/fix, no-Async suffix, plan-handoff, no manual DDL, code-first, entity, testing...)
+- [Quy định chung & Kiến trúc Thiên An](../rules/thienan_rules.md) — **Nguồn sự thật duy nhất** cho toàn bộ quy định dự án (git, commit feat/fix, no-Async suffix, plan-handoff, no manual DDL, code-first, entity, testing, chuẩn code Frontend Vue 3 / VxeTable / Element Plus...)
 
 ## Database / MCP
 - [MCP DAB database access](mcp-dab-database-access.md) — 3 DAB MCP server; `mssql_staging` = 10.10.8.30 = source of truth

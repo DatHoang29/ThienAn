@@ -4,12 +4,31 @@ Thư mục này gồm **2 khu** khác mục đích. Xác định bạn đang là
 
 | Bạn đang… | Đọc |
 |---|---|
-| Tìm hiểu nghiệp vụ / yêu cầu dự án | Khu 2 → `../Plan/videowall_plan.md` (họp 28/08 chưa có bản transcript `.md`, chỉ lưu audio nội bộ) |
+| Tìm hiểu nghiệp vụ / yêu cầu dự án | `Plan/Vw_MasterPlan_2026-09-16.md` (plan tổng thể + backlog — đọc trước tiên; họp 28/08 chưa có bản transcript `.md`, chỉ lưu audio nội bộ) |
+| **Xem việc đang chờ / tiến độ VideoWall** | Xem mục "Prompt & Tiến độ" ngay bên dưới |
 | Tra bộ lệnh ISAPI / kiểu response thiết bị | Khu 1 → `doc/ISAPI-Videowall-Controller/` (đọc `README.md` trước); response đo thật → `data/logs-api/` |
 | **Kịch bản test API — 1 controller / 12 màn** | Khu 2 → `doc/KichBan/KichBan_VideoWall_DS-C30S-S11_12Man.md` |
 | **Kiến trúc cascade DS-C66S (1 trung tâm + 3 con / 32 màn)** | `doc/KienTruc_VideoWall_DS-C66S-Cascade.md` — nguồn sự thật, dựng từ `_source/img/thietkevideowall.jpg` |
 | **Kịch bản test API — cascade / 32 màn** | Khu 2 → `doc/KichBan/KichBan_VideoWall_DS-C66S_4Controller_32Man.md` (backend ↔ chỉ bộ trung tâm) |
 | Xem thông số phần cứng DS-C30S-S11 | `doc/DS-C30S-S11_Datasheet_20250324.md` |
+
+---
+
+## Prompt & Tiến độ *(theo dõi việc đang chờ — xem trước khi hỏi "còn gì chưa xong")*
+
+> 2 thư mục riêng biệt theo bản chất nội dung — `Plan/` = tài liệu SỐNG (không Auto-Cleanup),
+> `Prompt/` = prompt bàn giao dùng 1 lần (tự xoá khi xong). Không còn nằm rải rác trong `doc/`.
+
+| Loại | File | Trạng thái |
+|---|---|---|
+| Plan tổng thể (`Plan/`, SỐNG, không xoá) | `Vw_MasterPlan_2026-09-16.md` | Bức tranh toàn diện + backlog ưu tiên hoá — **đọc trước tiên** |
+| Review chi tiết (`Plan/`, SỐNG, không xoá) | `Vw_BE_Review_PostImplementation_2026-09-14.md` | Đối chiếu từng hạng mục BE đã giao + build/test thật |
+| Prompt đang chờ thực thi (`Prompt/`) | `videowall-fe-grid-permission-visualization-prompt.md` | FE — sẵn sàng, BE prerequisite đã có |
+
+Prompt bàn giao dùng-1-lần khác (BE/FE) bị **xoá tự động** khỏi `Prompt/` sau khi thực thi xong
+(quy ước Auto-Cleanup) — nếu `Prompt/` trống nghĩa là không có việc tồn đọng dạng prompt tại thời
+điểm đọc; luôn coi `Plan/Vw_MasterPlan_*.md` là nguồn đúng nhất cho backlog còn lại (kể cả việc
+chưa kịp viết thành prompt).
 
 ---
 
@@ -59,11 +78,10 @@ Thư mục này gồm **2 khu** khác mục đích. Xác định bạn đang là
 | A | `doc/TableSQL/Vw_Tables_Analysis_And_Design.md` | full | 35 KB | Phân tích và thiết kế cấu trúc các bảng CSDL Vw* | Thiết kế kỹ thuật nội bộ |
 | A | `doc/TableSQL/Vw_Entities_WritePath_Audit_2026-09-14.md` | full | ~6 KB | Audit 12/12 entity VideoWall — vai trò & write path (BE/Worker) | Audit kỹ thuật nội bộ |
 | A | `doc/Vw_FE_vs_WPF_Feature_Comparison_2026-09-14.md` | full | ~8 KB | So sánh FE (Vue) với WPF — khoảng trống tính năng | Audit kỹ thuật nội bộ |
-| A | `doc/Vw_BE_Review_PostImplementation_2026-09-14.md` | full | ~7 KB | Review sau triển khai BE — đối chiếu 9 prompt đã giao + kiến trúc cascade + build/test thật | Review kỹ thuật nội bộ |
 | A | `doc/transcript/00-catalog.md` | full | 2 KB | Mục lục toàn bộ bản ghi cuộc họp VideoWall | Biên soạn nội bộ |
-| A | `doc/transcript/2026-09-09-videowall-phan-quyen-va-layout.md` | full | 17 KB | Thảo luận VideoWall: Phân quyền User/Tổ chức, SqlSugar ToTree & layout ma trận | `_source/audio/2026-09-09-videowall-phan-quyen-va-layout.m4a` |
+| A | `doc/transcript/2026-09-09-videowall-phan-quyen-va-layout.md` | full | 17 KB | Thảo luận VideoWall: Phân quyền User/Tổ chức, SqlSugar ToTree & layout ma trận | `../Plan/_source/audio/MakeUp Chi Ngo Go Vap 5.m4a` |
 | A | `doc/transcript/2026-09-11-videowall-script.md` | full | ~15 KB | Kiến trúc 3 tầng (Config/Control/Telemetry) & phân quyền theo Screen ID | Biên bản họp nội bộ |
-| C | `_source/audio/2026-09-09-videowall-phan-quyen-va-layout.m4a` | never | 5 MB | Audio cuộc họp VideoWall về phân quyền và layout (10:37) | → bản `.md`: `doc/transcript/2026-09-09-videowall-phan-quyen-va-layout.md` |
+| C | `../Plan/_source/audio/MakeUp Chi Ngo Go Vap 5.m4a` | never | 5 MB | Audio cuộc họp VideoWall về phân quyền và layout (10:37) — nằm ở `Plan/_source/audio/` vì file gốc dùng chung tên đặt trước khi tách theo phân hệ | → bản `.md`: `doc/transcript/2026-09-09-videowall-phan-quyen-va-layout.md` |
 | A | `data/logs-api/README.md` | full | 5 KB | Hướng dẫn đọc log đo thực tế và nhận diện mock | Ghi chú vận hành nội bộ |
 | B | `data/logs-api/session-20260903-real.json` | grep-only | 1.635 KB | Log đo thực tế trên thiết bị DS-C66S ngày 03/09/2026 | Đo trực tiếp thiết bị trạm |
 | B | `data/logs-api/session-20260904-real.json` | grep-only | 2.569 KB | Log đo thực tế trên thiết bị DS-C66S ngày 04/09/2026 | Đo trực tiếp thiết bị trạm |

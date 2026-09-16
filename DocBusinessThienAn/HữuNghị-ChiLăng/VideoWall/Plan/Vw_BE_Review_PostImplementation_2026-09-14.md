@@ -1,5 +1,10 @@
 # Review sau triển khai: VideoWall Backend — đối chiếu prompt đã giao & kiến trúc DS-C66S
 
+> ⚠️ **KHÔNG xoá theo quy ước Auto-Cleanup Prompt/Plan.** Đây là tài liệu SỐNG (theo dõi tiến độ
+> liên tục, cập nhật lại mỗi lần đối chiếu, không phải prompt dùng 1 lần rồi bỏ). Chỉ xoá khi có
+> quyết định rõ ràng của người dùng. Xem thêm [`Vw_MasterPlan_2026-09-16.md`](Vw_MasterPlan_2026-09-16.md)
+> cho bức tranh tổng thể + backlog.
+
 > Ngày lập: 2026-09-14. Review code BE VideoWall (FE chưa tính trong đợt này) sau khi đã sửa theo
 > các prompt trước đó và push. Đối chiếu trực tiếp với git log/code thật, không suy đoán, cộng thêm
 > build thật + chạy test thật.
@@ -99,12 +104,28 @@ Không có breaking change nào với các rename/field mới (`TargetSceneId`, 
 
 **Prompt 1 — sửa subject NATS sai/rác**:
 - ✅ Việc 1 XONG: `Plan/videowall-subject-rename-fe-prompt.md` đã sửa đúng — target subject giờ là
-  `ta.its.data.videowall` (khớp code thật), phần "phụ thuộc BE" đã sửa thành "KHÔNG CÓ". (Bản thân
-  prompt FE này vẫn chưa thực thi lên code FE thật — `Nats.subjects.json`/`transporterEvent.ts` vẫn
-  còn subject cũ `.scene`, đúng như dự kiến vì đó là việc của chính prompt đó, chưa nằm trong đợt
-  sửa lần này.)
+  `ta.its.data.videowall` (khớp code thật), phần "phụ thuộc BE" đã sửa thành "KHÔNG CÓ".
 - ❌ Việc 2 CHƯA XONG: `VwSceneController.cs:101` vẫn còn nguyên comment rác
   `ta.its.data.videowallScene` — **prompt vẫn còn hiệu lực, chưa xoá**.
+
+**Cập nhật 2026-09-16 — bản thân prompt FE `videowall-subject-rename-fe-prompt.md` ĐÃ THỰC THI
+đúng trên code FE thật** (`TA-ITS015-WEBVUE-V1.0`). Xác nhận qua `git diff` thật, 8 file thay đổi
+(+57/-18 dòng): `Nats.subjects.json`, `transporterEvent.ts`, `transporterNats.ts`,
+`useTransporterVideoWallScene.ts`, `sceneServiceApi.ts`, `monitor/index.vue`,
+`itsIntegration/index.vue`, `schedule/index.vue`.
+- Subject đổi đúng thành `ta.its.data.videowall` ở `Nats.subjects.json:44` +
+  `transporterEvent.ts:43`; grep xác nhận 0 chỗ còn sót `ta.its.data.videowall.scene` trong `src/`.
+- Xử lý `EventType` thêm đúng Việc 3 của prompt gốc — `transporterNats.ts.handleVideoWallScene`
+  rẽ nhánh switch: `SceneActivated` → emit tiếp mittBus (giữ hành vi cũ),
+  `HardwareOutOfSync`/`DeviceHeartbeat`/`DeviceProbeCompleted` → log, không có `EventType` → tương
+  thích ngược, `EventType` lạ → log "unhandled" (không crash). `useTransporterVideoWallScene.ts`
+  lọc thêm 1 lớp nữa ở hook. 3/7 `EventType` biết trước (`DeviceStatus`, `SlotPortUpdated`,
+  `SourceSynced`) rơi vào nhánh log mặc định — đúng như prompt cho phép, không phải thiếu sót.
+- **Đối chiếu transcript họp `2026-09-11-videowall-script.md`**: khớp kiến trúc phân tầng NATS
+  (FE→BE→NATS→Service→Controller, mục 1.1) và khớp 3 trụ cột chức năng Thiết lập/Điều
+  khiển/Giám sát (mục 1.2) với danh sách `EventType` đã xử lý. Ghi chú thô trong transcript
+  (dòng 183-194) từng liệt 3 subject riêng (`control`/`status`/`data`) — kiến trúc cuối cùng đã gộp
+  `status` vào `data`, là tiến hoá SAU cuộc họp này, không phải sai lệch.
 
 **Prompt 2 — rà soát test trùng lặp**:
 - ✅ Nhóm A + Nhóm B đã thực thi đúng — xác nhận qua `git diff --cached` trong repo `tests`: đúng
@@ -129,6 +150,8 @@ Không có breaking change nào với các rename/field mới (`TargetSceneId`, 
 
 8/9 hạng mục đã giao đều ĐÚNG (hạng mục #8 đã hoàn tất qua prompt bổ sung), khớp kiến trúc DS-C66S
 cascade, không có mismatch nào so với `KienTruc_VideoWall_DS-C66S-Cascade.md`. 1 hạng mục N/A. Còn
-1 hạng mục (#9 dọn reference thừa) chưa làm — không ảnh hưởng chức năng. 2 việc nhỏ phát sinh thêm
-đã xong 1/2 (subject NATS trong prompt FE đã sửa đúng; comment rác `VwSceneController.cs:101` còn
-treo). Build sạch, test VideoWall 382/382 PASS sau khi gộp. Chưa merge vào `dev`/`main`.
+1 hạng mục (#9 dọn reference thừa) chưa làm — không ảnh hưởng chức năng. FE đã bắt kịp: subject NATS
+`ta.its.data.videowall` đã lên code FE thật + xử lý `EventType` đúng, đối chiếu khớp kiến trúc và
+3 trụ cột trong transcript họp 09-11. Chỉ còn treo 1 việc nhỏ (comment rác
+`VwSceneController.cs:101`, prompt đã có sẵn). Build sạch, test VideoWall 382/382 PASS sau khi gộp.
+Chưa merge vào `dev`/`main` (cả BE lẫn FE).

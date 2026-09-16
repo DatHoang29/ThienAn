@@ -2,8 +2,8 @@
 tier: A
 read: full
 source:
-  - DocBusinessThienAn/MakeUp Chi Ngô Gò Vấp 3.m4a (35:36)
-  - DocBusinessThienAn/MakeUp Chi Ngô Gò Vấp 4.m4a (25:41)
+  - ../../../Plan/_source/audio/MakeUp Chi Ngô Gò Vấp 3.m4a (35:36)
+  - ../../../Plan/_source/audio/MakeUp Chi Ngô Gò Vấp 4.m4a (25:41)
 date: 2026-09-09
 model: Gemini Multimodal Native Audio Transcribe
 status: verified

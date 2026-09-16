@@ -392,12 +392,25 @@ tests/
 ## 🛑 13. Quy Tắc Vị Trí File Prompt / Plan / Task (Prompt & Plan File Location Rule [Mandatory Rule])
 
 - **Không lưu ngoài repo**: Cấm ghi file prompt/plan/task-breakdown vào `~/.claude/plans/`, `%USERPROFILE%\.claude\plans\`, thư mục scratchpad/temp, hay bất kỳ đâu ngoài `c:\ThienAn\`.
-- **Nơi lưu chuẩn (bắt buộc trong repo)**:
-  - Prompt/plan theo domain nghiệp vụ → `DocBusinessThienAn/<Dự-án>/<Module>/` (VD VideoWall: `DocBusinessThienAn/HữuNghị-ChiLăng/VideoWall/`).
+- **Nơi lưu chuẩn (bắt buộc trong repo) — mỗi phân hệ có 2 thư mục riêng `Plan/` và `Prompt/` (chốt 2026-09-16)**:
+  - `DocBusinessThienAn/<Dự-án>/<PhânHệ>/Plan/` — CHỈ chứa tài liệu SỐNG (plan tổng thể, review tiến
+    độ), KHÔNG chứa prompt dùng-1-lần. VD: `DocBusinessThienAn/HữuNghị-ChiLăng/VideoWall/Plan/`.
+  - `DocBusinessThienAn/<Dự-án>/<PhânHệ>/Prompt/` — CHỈ chứa prompt thực thi từng bước dùng-1-lần,
+    tự xoá sau khi thực thi xong. VD:
+    `DocBusinessThienAn/HữuNghị-ChiLăng/VideoWall/Prompt/`. Chưa có prompt nào thì KHÔNG tạo thư mục
+    rỗng trước — tạo khi có file prompt đầu tiên. Xem chi tiết ở mục 19.2 bên dưới.
+  - `DocBusinessThienAn/HữuNghị-ChiLăng/Plan/` (top-level, KHÔNG có phân hệ con) chỉ còn dùng cho kế
+    hoạch/biên bản họp **XUYÊN phân hệ** (toàn tuyến, liên quan ≥ 2 phân hệ cùng lúc) — không đặt
+    prompt/plan riêng của 1 phân hệ cụ thể ở đây nữa.
   - Prompt/plan hạ tầng/tooling/AG-Kit (không thuộc domain nghiệp vụ) → `.agents/prompts/`.
-- **Đặt tên**: `<task-slug>-prompt.md` hoặc `<task-slug>-plan.md` (kebab-case, tiếng Việt không dấu hoặc tiếng Anh).
-- **Chế độ Plan (ExitPlanMode)**: Nếu harness ép ghi plan vào `~/.claude/plans/`, ngay sau khi plan được duyệt BẮT BUỘC sao chép vào đúng thư mục repo ở trên và coi bản trong repo là bản chính thức; báo người dùng đường dẫn trong repo, không phải `~/.claude/plans/`.
-- **Auto-cleanup**: Xoá file prompt/plan trong repo sau khi task hoàn tất (khớp `*-prompt*.md`, `*-plan.md`, `{task-slug}.md`, và ghi chú tạm `.agents/memory/*-scratch.md` — xem mục 14 bên dưới).
+- **Đặt tên**: `<task-slug>-prompt.md` (trong `Prompt/`) hoặc `<Xx>_MasterPlan_<ngày>.md` /
+  `<Xx>_Review_<...>.md` (trong `Plan/`) — kebab-case cho prompt, tiếng Việt không dấu hoặc tiếng Anh.
+- **Chế độ Plan (ExitPlanMode)**: Nếu harness ép ghi plan vào `~/.claude/plans/`, ngay sau khi plan được duyệt BẮT BUỘC sao chép vào đúng thư mục (`Plan/` hoặc `Prompt/` tuỳ loại nội dung) của phân hệ tương ứng trong repo (xem trên) và coi bản trong repo là bản chính thức; báo người dùng đường dẫn trong repo, không phải `~/.claude/plans/`.
+- **Auto-cleanup**: Xoá file trong `Prompt/` sau khi task hoàn tất (khớp `*-prompt*.md`,
+  `{task-slug}.md`, và ghi chú tạm `.agents/memory/*-scratch.md` — xem mục 14 bên dưới). **Không bao
+  giờ áp dụng cho file trong `Plan/`** — các file này tồn tại lâu dài, chỉ xoá khi người dùng yêu cầu
+  rõ ràng. Vì đã tách thư mục, không cần dòng cảnh báo "KHÔNG xoá" trong từng file `Plan/` nữa — bản
+  thân thư mục `Plan/` đã là tín hiệu đủ rõ.
 
 ---
 
@@ -479,6 +492,9 @@ tests/
 
 ## 🛑 18. Quy Định Bóc Tách / Xử Lý File Ghi Âm (Audio Transcription Rule [Mandatory Rule])
 
+- **Phương thức bóc tách mặc định duy nhất (MANDATORY)**:
+  - BẮT BUỘC sử dụng **Gemini Multimodal Native Audio Understanding qua `view_file`** (gọi `view_file` với path tệp nhị phân `.m4a`/`.mp3` để nạp thẳng âm thanh vào context).
+  - **NGHIÊM CẤM**: Tuyệt đối KHÔNG tự ý chuyển sang dùng Whisper, `faster-whisper`, pipeline Python hay bất kỳ công cụ ASR cục bộ nào. Lý do: chạy CPU ngốn tài nguyên máy trạm, mất hàng giờ, dễ gây ảo giác (hallucination mẫu YouTube) và không bắt được đúng thuật ngữ chuyên ngành ITS/C# như Gemini Multimodal.
 - **Bắt buộc cấu trúc 2 phần khi xử lý file ghi âm cuộc họp**:
   1. **Tóm tắt tổng quan & Quyết định kỹ thuật / nghiệp vụ cốt lõi (Executive Summary)**: Nêu bật các kết luận, hành động cần làm, thay đổi kiến trúc hoặc quy ước dữ liệu đã chốt trong cuộc họp.
   2. **Toàn văn nội dung đối thoại (Full Verbatim Transcript)**: BẮT BUỘC trình bày dạng bảng chi tiết gồm đủ 3 cột:
@@ -486,6 +502,7 @@ tests/
      - **Người nói (Speaker)**: Phân định rõ ràng từng người tham gia (VD: `Người 1`, `Người 2` kèm vai trò/ngữ cảnh nếu xác định được).
      - **Lời thoại chi tiết**: Ghi lại nguyên văn nội dung trao đổi, không cắt gọt cụt lủn hay tự ý giản lược thoại đối đáp.
 - **Quy chuẩn lưu trữ file transcript**: Khi tạo mới hoặc cập nhật tài liệu transcript trong thư mục dự án (như `doc/transcript/*.md`), phần bảng toàn văn đối thoại (kèm mốc thời gian và định danh người nói) BẮT BUỘC phải được đưa vào tài liệu (thường đặt ở mục cuối cùng).
+- **Cập nhật mục lục**: Luôn đăng ký file transcript mới vào `doc/transcript/00-catalog.md` và Tier Table của `README.md` cùng phân hệ.
 
 ---
 
@@ -496,9 +513,24 @@ tests/
   - TUYỆT ĐỐI KHÔNG tự tiện tạo các file `feedback-*.md` trong thư mục `.agents/memory/`. Chỉ cần sửa file này là toàn bộ hệ thống AI tự động tuân thủ.
   - Khi làm việc trên nhánh `feat` hoặc làm task cập nhật (update) cấu hình/thực thể, commit message bắt buộc dùng tiền tố `feat`, không dùng `fix`.
 
-- **19.2. Quy trình Lên Plan & Bàn giao (Plan Handoff)**:
+- **19.2. Quy trình Lên Plan & Bàn giao (Plan Handoff) — mỗi phân hệ có 2 thư mục riêng `Plan/` và `Prompt/` (chốt 2026-09-16)**:
   - Khi người dùng yêu cầu lên plan: AI **chỉ nghiên cứu + viết plan**, KHÔNG tự ý sửa code kể cả sau khi plan được approve, trừ khi người dùng ra lệnh rõ ràng ("làm đi", "code đi").
-  - Plan BẮT BUỘC lưu đúng **1 file duy nhất tại local**: `DocBusinessThienAn/HữuNghị-ChiLăng/Plan/<tên-mô-tả>.md` (không lưu ở thư mục global, không tạo bản sao rải rác).
+  - Mỗi phân hệ (VideoWall, ShareData, WOS...) có **2 thư mục riêng biệt theo bản chất nội dung**
+    (không dùng chung 1 thư mục `Plan/` cấp dự án cho mọi phân hệ nữa — thư mục `Plan/` cấp dự án
+    chỉ còn cho việc xuyên phân hệ, xem mục 13):
+    1. **`<PhânHệ>/Plan/`** (VD `VideoWall/Plan/`) — CHỈ chứa tài liệu SỐNG, không xoá: đúng
+       **1 file `Vw_MasterPlan_<ngày>.md`** (hoặc tương đương theo phân hệ) làm bức tranh toàn diện
+       + backlog ưu tiên hoá, **cập nhật liên tục** (không tạo file mới mỗi lần cập nhật — sửa trực
+       tiếp file hiện có, chỉ đổi tên file kèm ngày mới khi có thay đổi lớn về phạm vi), cùng các
+       báo cáo review SỐNG liên quan (VD `Vw_BE_Review_PostImplementation_*.md`).
+    2. **`<PhânHệ>/Prompt/`** (VD `VideoWall/Prompt/`) — CHỈ chứa prompt thực thi từng bước dùng
+       1 lần: mỗi task/fix riêng = đúng 1 file `<task-slug>-prompt.md`, bị xoá tự động sau khi thực
+       thi xong (Auto-Cleanup, xem mục 13). Vì đã tách thư mục riêng, KHÔNG cần chèn dòng cảnh báo
+       "KHÔNG xoá" vào từng file `Plan/` nữa — bản thân việc file nằm trong `Plan/` hay `Prompt/` đã
+       đủ phân biệt.
+  - Khi hoàn tất 1 prompt hoặc đổi trạng thái backlog, BẮT BUỘC cập nhật lại `Vw_MasterPlan_*.md`
+    (trong `Plan/`) tương ứng của phân hệ đó (đừng để MasterPlan lạc hậu so với trạng thái file
+    prompt thật trong `Prompt/`).
 
 - **19.3. Quy tắc đặt tên Method Async (Không thêm suffix "Async")**:
   - **Code mới tự viết**: BẮT BUỘC KHÔNG thêm hậu tố `Async` vào tên method (ví dụ: `GetOutputChannels`, `GetScope`, `SeedWall`; không dùng `GetOutputChannelsAsync`).
@@ -514,7 +546,99 @@ tests/
 - **19.6. CẤM TUYỆT ĐỐI tự ý sửa/xóa code ngoài phạm vi yêu cầu (Strict Scope Control & No Unprompted Code Deletion)**:
   - Khi người dùng yêu cầu một công việc cụ thể (ví dụ: sửa launch.json, phân tích lỗi, sửa một method cụ thể), AI CHỈ ĐƯỢC PHÉP thao tác đúng trong phạm vi đó.
   - **TUYỆT ĐỐI KHÔNG tự ý xóa code, dọn dẹp code, xóa hàm/file** (kể cả khi nhận thấy là dead code hoặc không còn được gọi) nếu KHÔNG CÓ YÊU CẦU TRỰC TIẾP VÀ TƯỜNG MINH từ người dùng.
-  - Khi phát hiện code nghi ngờ thừa hoặc không còn dùng: CHỈ ĐƯỢC BÁO CÁO và HỎI Ý KIẾN người dùng, không được tự ý xóa bỏ.
+- **19.7. Bắt buộc viết XML Summary chuẩn cho mọi hàm xử lý duyệt cây dữ liệu, template và binding (`HasFieldBinding`, `IsRecordTemplateArray`...)**:
+  - Mọi hàm helper xử lý cấu trúc cây (JSON/AST), duyệt phễu Shape, kiểm tra ràng buộc template dữ liệu (đặc biệt là `HasFieldBinding`, `IsRecordTemplateArray`, `TryNavigate`...) BẮT BUỘC phải có comment XML `/// <summary>` đầy đủ, chuẩn mực.
+  - **Nội dung comment bắt buộc gồm**:
+    1. `Author`: Tác giả viết/duyệt logic (VD: `Author: Đạt`).
+    2. `Description`: Giải thích rõ ràng mục đích nghiệp vụ (làm gì, kiểm tra cái gì, nhận diện token nào như `$field`, tại sao cần).
+    3. `Guard / Safety limit`: Nêu rõ chốt chặn an toàn (ví dụ: giới hạn độ sâu đệ quy `depth > MaxShapeDepth` để chống tràn stack/StackOverflowException).
+    4. `Cross-pipeline Sync`: Nhấn mạnh việc giữ đồng bộ ngữ nghĩa giữa các chiều (ví dụ: `HasFieldBinding` bên Outbound `DataMappingProcess` và Inbound `DataInboundService.Parse` phải hoàn toàn nhất quán, lệch nhau sẽ khiến bên gửi và bên nhận hiểu sai cấu trúc gói tin).
+    5. Đầy đủ các thẻ `<param>` và `<returns>`.
+
+---
+
+## 💻 20. Quy Chuẩn Phát Triển Frontend (Vue 3 / TypeScript - TA-ITS015-WEBVUE-V1.0)
+
+Toàn bộ quy tắc dưới đây được đồng bộ từ `.kiro/steering/` của repo Frontend `TA-ITS015-WEBVUE-V1.0`, áp dụng bắt buộc cho toàn bộ mã nguồn Vue 3 / TypeScript:
+
+### 20.1. Cấu trúc Thư mục & Component
+- **Cấu trúc thư mục chức năng**:
+  ```
+  src/src/views/{module}/{featureName}/
+  ├── index.vue                    # Trang danh sách chính (list/grid view)
+  └── component/
+      ├── edit{Feature}.vue        # Modal/Dialog Thêm / Sửa
+      ├── detail{Feature}.vue      # Xem chi tiết (nếu có)
+      └── {otherComponent}.vue     # Component con khác
+  ```
+- **Tên thư mục tính năng**: Luôn viết dạng `camelCase` (ví dụ: `dutySchedule`, `equipmentType`, `trafficData`, `shareData`).
+- **Tên Component**: Khai báo qua thuộc tính `name` trong `<script lang="ts" setup name="{module}{Feature}">` (ví dụ: `name="tmsEquip"`, `name="shareDataConfig"`).
+- **Lazy loading component con**: BẮT BUỘC dùng `defineAsyncComponent(() => import('/@/...'))`.
+- **Path Alias**: `/@/` trỏ về thư mục `src/src/` (ví dụ: `import { getAPI } from '/@/utils/axios-utils'`).
+
+### 20.2. Quy tắc API Services (Swagger Auto-Generated — CẤM TỰ TẠO/SỬA)
+- **Vị trí**: Toàn bộ API client nằm tại `src/src/api-services/{module}/` được sinh tự động từ Swagger/OpenAPI qua lệnh `pnpm build-api` (hoặc chạy `api_build/build.bat`).
+- **NGHIÊM CẤM**:
+  - TUYỆT ĐỐI KHÔNG tự ý tạo mới hoặc chỉnh sửa thủ công bất kỳ file nào trong thư mục `api-services/`.
+  - Nếu API backend mới chưa có hoặc DTO type chưa được sinh: **BÁO CÁO NGAY CHO NGƯỜI DÙNG** và chờ backend chạy lệnh sinh lại API client, KHÔNG tự chế code gọi API tự do.
+- **Cách gọi API chuẩn**:
+  ```typescript
+  import { getAPI } from '/@/utils/axios-utils';
+  import { TmsEquipmentApi, PageEquipmentInput } from '/@/api-services/tms';
+
+  // Lấy dữ liệu phân trang
+  const params = { page: 1, pageSize: 50, field: 'createTime', order: 'desc' } as PageEquipmentInput;
+  const res = await getAPI(TmsEquipmentApi).apiTmsTmsequipmentPagePost(params);
+  ```
+
+### 20.3. Chuẩn Trình Bày Modal Thêm / Sửa (BẮT BUỘC — Mọi Modal Phải Đồng Nhất)
+> 📌 **Mẫu tham chiếu chuẩn**: `views/tms/workContact/component/editWorkContact.vue`.
+
+Khi tạo mới hoặc sửa modal, BẮT BUỘC tuân thủ đúng bảng đối chiếu sau:
+
+| Hạng mục | Quy chuẩn BẮT BUỘC | KHÔNG ĐƯỢC DÙNG |
+|---|---|---|
+| **Tiêu đề** | Slot `#header` với icon `<ele-Edit />` + `<span> {{ props.title }} </span>` | Thuộc tính `:title="props.title"` |
+| **Thuộc tính dialog** | `draggable` + `:close-on-click-modal="false"` + `width="700px"` | `align-center` |
+| **Nhãn form** | `label-width="auto"` + `label-position="left"` | `label-position="right"`, `label-width="120px"` |
+| **Khoảng cách hàng** | `<el-row :gutter="10">` | `:gutter="16"` |
+| **Cột responsive** | `<el-col :xs="24" :sm="24" :md="12" :lg="12" :xl="12" class="mb20">` (textarea dùng `:span="24"`) | `:span="12"` (thiếu responsive và thiếu class `mb20`) |
+| **Validation** | `:rules="[...]"` đặt trực tiếp ngay trên `el-form-item` | Khai báo object `rules` riêng rồi bind trên `el-form` |
+| **Giới hạn ký tự** | `EntityFieldLength.Length64/128/256` cho cả `:maxlength` và message | Hardcode số (`maxlength="256"`) |
+| **Nút xác nhận** | `:disabled="state.isProcessing"` | `:loading="state.loading"` |
+| **Tên State Form** | Luôn đặt tên là `state.editForm` | `state.ruleForm` hoặc tên tự chế |
+| **Controls độ rộng** | `el-select`, `el-input-number` phải có `class="w100"` | Để mặc định làm co cụm giao diện |
+
+**Quy tắc logic bắt buộc trong `<script setup>` của Modal**:
+1. `openDialog(row)`: BẮT BUỘC gọi `editFormRef.value?.resetFields()` trước rồi mới gán `state.editForm = JSON.parse(JSON.stringify(row))` để tránh lưu lại lỗi validate từ lần mở trước.
+2. `props.operateType == 'copy'` hoặc `'add'`: BẮT BUỘC gán `state.editForm.id = ''` để không bị update đè lên bản ghi cũ.
+3. `cancel`: Đóng dialog (`state.isShowDialog = false`), KHÔNG emit `handleQuery`.
+4. `closeDialog`: Lưu thành công mới emit `handleQuery` để reload lại lưới.
+5. `Radio group`: Một `el-radio-group` duy nhất, `v-for` đặt trên từng `el-radio` (CẤM đặt `v-for` trên `el-radio-group`).
+
+### 20.4. VxeTable Grid & Quản lý Danh mục (BaseConfig)
+- **VxeTable**:
+  - Dùng hook `useVxeTable<OutputType>({ id: 'featureName', name: 'ExportName', columns: [...] }, { proxyConfig, sortConfig, pagerConfig })`.
+  - Bắt buộc khai báo `id` độc nhất cho mỗi bảng để hỗ trợ lưu trạng thái ẩn/hiện cột của người dùng.
+- **BaseConfig Store**:
+  - Luôn sử dụng enum `BaseConfigTypeEnum` trong `/@/types/enums/baseEnum`, TUYỆT ĐỐI KHÔNG hardcode chuỗi (như `'status_type'`).
+  - Dùng `getConfigDataByCode(BaseConfigTypeEnum.Xxx)` để lấy danh sách cho `el-select`, `el-radio-group`.
+  - Dùng `getConfigItemByCode(BaseConfigTypeEnum.Xxx, code)` để hiển thị trong formatter hoặc thẻ `TagInfo`.
+  - BẮT BUỘC dùng `parseInt(item.code)` khi bind value vào model số.
+
+### 20.5. Đa Ngôn Ngữ (i18n Scope Rules)
+- Tuân thủ tiền tố `lz.*`:
+  - `lz.entity.base.*` / `lz.label.base.*` / `lz.button.base.*` / `lz.message.base.*` / `lz.validation.base.*`: Nội dung dùng chung toàn hệ thống. Nếu key đã có trong `base`, BẮT BUỘC tái sử dụng, KHÔNG tạo lại ở module.
+  - `lz.entity.{module}.*` / `lz.label.{module}.*`: Dùng chung cho nhiều tính năng trong cùng phân hệ (`tms`, `vms`, `shareData`...).
+  - `lz.entity.{module}{Feature}.*`: Dành riêng cho 1 màn hình đặc thù.
+
+### 20.6. Quy Chuẩn CSS / SCSS & Theme Dark/Light
+- **CẤM hardcode mã màu** (`#fff`, `#1578a3`, `#000`, `red`): BẮT BUỘC sử dụng CSS variables của Element Plus để đảm bảo tương thích hoàn hảo giữa Dark Theme và Light Theme:
+  - Màu chủ đạo: `var(--el-color-primary)`, `var(--el-color-success)`, `var(--el-color-warning)`, `var(--el-color-danger)`.
+  - Màu chữ: `var(--el-text-color-primary)`, `var(--el-text-color-regular)`, `var(--el-text-color-secondary)`.
+  - Màu nền & Viền: `var(--el-bg-color)`, `var(--el-fill-color-light)`, `var(--el-border-color)`.
+- **SCSS Comments**: BẮT BUỘC dùng dạng block comment `/* */`. TUYỆT ĐỐI KHÔNG dùng comment một dòng `//` trong SCSS (gây vỡ build Vite).
+- **Cú pháp SCSS**: Không để thừa hai dấu chấm phẩy (`;;`).
 
 ---
 

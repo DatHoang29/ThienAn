@@ -1,6 +1,15 @@
 # DocBusinessThienAn — Chỉ mục tài liệu nghiệp vụ & kỹ thuật
 
-> Kho lưu trữ tập trung tài liệu nghiệp vụ, đặc tả kỹ thuật, kịch bản kiểm thử và dữ liệu đo kiểm thực tế cho các dự án của Thiên Ân.
+> Tài liệu nghiệp vụ & kỹ thuật các dự án ThienAn.
+
+## Đọc trước
+- HữuNghị-ChiLăng/ShareData/README.md: Tier Table phân hệ ShareData
+- HữuNghị-ChiLăng/VideoWall/README.md: Tier Table phân hệ VideoWall
+- HữuNghị-ChiLăng/WOS/README.md: Tier Table phân hệ WOS (Trạm thời tiết Campbell CR1000X)
+
+## Không đọc (Human-only / Binary)
+- **/_source/**: bản gốc PDF/XLSX/DOCX/ZIP cho người đối chiếu
+- **/images/**: ảnh trích từ bản gốc dùng để nhúng hiển thị
 
 ---
 
@@ -73,7 +82,7 @@ DocBusinessThienAn/
 
 1. **Nguyên tắc SSOT**: `README.md` của mỗi phân hệ là manifest duy nhất chứa **Tier Table**. Khi thêm/sửa/xoá file trong `doc/` hoặc `data/`, bắt buộc cập nhật Tier Table tương ứng.
 2. **Quy tắc chuyển thể bản gốc**: Khi tiếp nhận file gốc (PDF/XLSX/DOCX/**audio**), luôn đưa bản gốc vào `_source/{pdf,xlsx,docx,img,zip,audio}/` và chuyển thể thành file `.md` đặt trong `doc/` kèm **Frontmatter Provenance**.
-3. **Quy tắc ghi âm → transcript**: File `.m4a/.mp3/.wav` vào `_source/audio/`, tên `YYYY-MM-DD-<chu-de-kebab>`. Sinh transcript: `python tools/transcribe/transcribe.py <Module>` → `doc/transcript/<cùng-tên>.md` (frontmatter `source`, `duration`, `model`, `status: raw-asr`). Đăng ký vào `doc/transcript/00-catalog.md`. Soát tay để xoá dòng ảo model bịa ở đoạn im lặng.
+3. **Quy tắc ghi âm → transcript**: File `.m4a/.mp3/.wav` vào `_source/audio/`, tên `DD-MM-YYYY-<chu-de-kebab>` (định dạng ngày-tháng-năm). Sinh transcript: AI gọi `view_file` nạp trực tiếp audio thô vào ngữ cảnh để **Gemini Native Multimodal** bóc tách (TUYỆT ĐỐI KHÔNG chạy Whisper hay script ASR ngoài) → `doc/transcript/<cùng-tên>.md` (frontmatter `source`, `duration`, `model: Gemini Multimodal Native Audio Transcribe`, `status: verified`). Đăng ký vào `doc/transcript/00-catalog.md` và Tier Table của `README.md`.
 4. **Quy tắc git**: `_source/**` **KHÔNG BAO GIỜ vào git** (`.gitignore` đã chặn) — bản gốc chỉ trên đĩa/OneDrive/NAS. Git chỉ mang `.md` dẫn xuất. Nhờ vậy "AI chỉ đọc `.md`" được bảo đảm bằng kiến trúc.
 5. **Quy tắc Token Bomb Gate**: File `.md` có dung lượng $\ge 150\text{ KB}$ bắt buộc khai báo `Tier: B` (`grep-only`) và phải có file `00-catalog.md` làm cửa vào.
 6. **Kiểm tra tự động**: Sau mỗi lần chỉnh sửa tài liệu, chạy script kiểm tra tính toàn vẹn:
