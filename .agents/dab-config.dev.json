@@ -421,12 +421,63 @@
         }
       ]
     },
-    "ShareDataDataSource": {
+    "ShareDataMapping": {
       "source": {
-        "object": "dbo.ShareDataDataSource",
+        "object": "dbo.ShareDataMapping",
         "type": "table"
       },
-      "description": "dbo.ShareDataDataSource (read-only)",
+      "description": "dbo.ShareDataMapping (read-only)",
+      "permissions": [
+        {
+          "role": "anonymous",
+          "actions": [
+            {
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    },
+    "ShareDataPacket": {
+      "source": {
+        "object": "dbo.ShareDataPacket",
+        "type": "table"
+      },
+      "description": "dbo.ShareDataPacket (read-only)",
+      "permissions": [
+        {
+          "role": "anonymous",
+          "actions": [
+            {
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    },
+    "ShareDataPacketField": {
+      "source": {
+        "object": "dbo.ShareDataPacketField",
+        "type": "table"
+      },
+      "description": "dbo.ShareDataPacketField (read-only)",
+      "permissions": [
+        {
+          "role": "anonymous",
+          "actions": [
+            {
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    },
+    "ShareDataTable": {
+      "source": {
+        "object": "dbo.ShareDataTable",
+        "type": "table"
+      },
+      "description": "dbo.ShareDataTable (read-only)",
       "permissions": [
         {
           "role": "anonymous",

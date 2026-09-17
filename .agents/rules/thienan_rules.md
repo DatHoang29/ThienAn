@@ -631,6 +631,14 @@ Khi tạo mới hoặc sửa modal, BẮT BUỘC tuân thủ đúng bảng đố
   - `lz.entity.base.*` / `lz.label.base.*` / `lz.button.base.*` / `lz.message.base.*` / `lz.validation.base.*`: Nội dung dùng chung toàn hệ thống. Nếu key đã có trong `base`, BẮT BUỘC tái sử dụng, KHÔNG tạo lại ở module.
   - `lz.entity.{module}.*` / `lz.label.{module}.*`: Dùng chung cho nhiều tính năng trong cùng phân hệ (`tms`, `vms`, `shareData`...).
   - `lz.entity.{module}{Feature}.*`: Dành riêng cho 1 màn hình đặc thù.
+- **Quy tắc chuyển ngữ Menu, Thẻ Tab (TagsView) & Breadcrumb**:
+  - Menu thanh bên / thanh ngang (`subItem.vue`, `vertical.vue`) và Thẻ Tab (`other.setTagsViewNameI18n`) được thiết kế mặc định tra cứu theo mẫu: `$t('lz.router.' + route.name, route.meta.title)` (với `route.name` là tên component được khai báo trong `<script lang="ts" setup name="...">`).
+  - Khi cần đổi nhãn hiển thị hoặc hỗ trợ song ngữ Việt - Anh cho Menu/Trang mà không muốn tác động CSDL (`SysMenu`/`WpMenu`) và không sửa file `.vue`:
+    1. Bổ sung key `lz.router.{routeName}` vào cả 2 file ngôn ngữ:
+       - `src/src/i18n/lang/vi-vn.json`: `"lz.router.{routeName}": "Tên tiếng Việt"` (VD: `"lz.router.eshMapping": "Ánh xạ dữ liệu"`)
+       - `src/src/i18n/lang/en-us.json`: `"lz.router.{routeName}": "English Name"` (VD: `"lz.router.eshMapping": "Data Mapping"`)
+    2. Đồng thời bổ sung key `{meta.title}` gốc vào cả 2 file i18n (VD: `"Mapping": "Ánh xạ dữ liệu"` trong `vi-vn.json` và `"Mapping": "Data Mapping"` trong `en-us.json`) để đồng bộ hoàn toàn với Breadcrumb (`breadcrumb.vue` gọi `$t(v.meta.title)`).
+  - TUYỆT ĐỐI KHÔNG hardcode nhãn tiếng Việt đè vào component `.vue` hoặc tự ý chạy DDL/DML sửa DB khi chưa có yêu cầu trực tiếp.
 
 ### 20.6. Quy Chuẩn CSS / SCSS & Theme Dark/Light
 - **CẤM hardcode mã màu** (`#fff`, `#1578a3`, `#000`, `red`): BẮT BUỘC sử dụng CSS variables của Element Plus để đảm bảo tương thích hoàn hảo giữa Dark Theme và Light Theme:

@@ -1,3 +1,4 @@
 {
-    "dotnet.defaultSolution": "TA-ITS015-WEBAPI-V1.0/src/TAC_WebAPI.sln"
+    "dotnet.defaultSolution": "TA-ITS015-WEBAPI-V1.0/src/TAC_WebAPI.sln",
+    "debug.onTaskErrors": "debugAnyway"
 }

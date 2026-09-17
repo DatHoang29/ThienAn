@@ -13,6 +13,8 @@ using ShareDataWorker.Core.Enums;
 using ShareDataWorker.Core.Exceptions;
 using ShareDataWorker.Infrastructure.Logging;
 using ShareDataWorker.Infrastructure.Services.DataPublication;
+using ShareDataWorker.Infrastructure.Services.DataPublication.Extraction;
+using ShareDataWorker.Infrastructure.Services.DataPublication.Transport;
 
 namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
 {
@@ -71,14 +73,10 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             using var doc = JsonDocument.Parse(jsonContent);
             var root = doc.RootElement;
 
-            Assert.Equal(JsonValueKind.Object, root.ValueKind);
-            Assert.True(root.TryGetProperty("pduType", out _), "ISO 14827 PDU Envelope phải chứa thuộc tính pduType");
-            Assert.True(root.TryGetProperty("hash", out _), "ISO 14827 PDU Envelope phải chứa thuộc tính hash");
-            Assert.True(root.TryGetProperty("payload", out var payloadElement), "ISO 14827 PDU Envelope phải chứa thuộc tính payload");
-            Assert.Equal(JsonValueKind.Array, payloadElement.ValueKind);
-            Assert.True(payloadElement.GetArrayLength() > 0, "JSON payload không được chứa mảng rỗng");
+            Assert.Equal(JsonValueKind.Array, root.ValueKind);
+            Assert.True(root.GetArrayLength() > 0, "JSON payload không được chứa mảng rỗng");
 
-            var firstRecord = payloadElement[0];
+            var firstRecord = root[0];
             Assert.True(firstRecord.EnumerateObject().Any(), $"Gói tin {datatypeEnum} không trả về thuộc tính JSON nào!");
 
             if (expectedFields != null)
@@ -385,13 +383,28 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             }
         }
 
-        private static DataPublicationService CreateWorker(IServiceScope scope, IHttpClientFactory? httpClientFactory = null)
+        private static DataPublicationService CreateWorker(
+            IServiceScope scope,
+            IHttpClientFactory? httpClientFactory = null,
+            IDataExtractionProcess? extractionProcess = null)
         {
             var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataPublicationService>>();
             var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
             var clientFactory = httpClientFactory ?? scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
-            return new DataPublicationService(scopeFactory, logger, config, clientFactory);
+            return new DataPublicationService(
+                scopeFactory,
+                logger,
+                config,
+                new FileExportSender(config),
+                new RestPacketSender(clientFactory),
+                extractionProcess);
+        }
+
+        private sealed class MockDataExtractionProcess(Func<ISqlSugarClient, ShareDataSubscription, ShareDataPacket, Task<ExtractionResult>> handler) : IDataExtractionProcess
+        {
+            public Task<ExtractionResult> Extract(ISqlSugarClient db, ShareDataSubscription sub, ShareDataPacket packet, Action<string, object?[]>? onLogWarning = null)
+                => handler(db, sub, packet);
         }
 
         private sealed class MockHttpClientFactoryTest(HttpMessageHandler handler) : IHttpClientFactory
@@ -496,7 +509,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var service = CreateWorker(scope);
 
             var uniqueId = Guid.NewGuid().ToString("N")[..8];
             var packetCode = $"PKT_1203_{uniqueId}";
@@ -547,16 +559,17 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
                 UpdateTime = DateTime.Now
             }).ExecuteCommandAsync();
 
-            DataPublicationService.RegisterTestHandler(packetCode, (dbClient, lastTime, lastId, ct) =>
+            var row = new Dictionary<string, object?>
             {
-                var row = new Dictionary<string, object?>
-                {
-                    ["zoneId"] = $"Z_1203_{uniqueId}",
-                    ["fieldA"] = "1",
-                    ["fieldB"] = 60
-                };
-                return Task.FromResult(new List<object> { row });
-            });
+                ["zoneId"] = $"Z_1203_{uniqueId}",
+                ["fieldA"] = "1",
+                ["fieldB"] = 60
+            };
+            var service = CreateWorker(scope, extractionProcess: new MockDataExtractionProcess(async (dbClient, s, p) =>
+            {
+                var fields = await DataExtractionProcess.LoadPacketFields(dbClient, p.Code);
+                return new ExtractionResult([row], fields, DateTime.Now, "1");
+            }));
 
             try
             {
@@ -575,7 +588,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             }
             finally
             {
-                DataPublicationService.UnregisterTestHandler(packetCode);
                 await db.Deleteable<TmsZoneStatus>().Where(z => z.ID == id1).ExecuteCommandAsync();
             }
         }
@@ -585,7 +597,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var service = CreateWorker(scope);
 
             var uniqueId = Guid.NewGuid().ToString("N")[..8];
             var packetCode = $"PKT_A1_{uniqueId}";
@@ -622,16 +633,17 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
                 DetectTime = null
             }).ExecuteCommandAsync();
 
-            DataPublicationService.RegisterTestHandler(packetCode, (dbClient, lastTime, lastId, ct) =>
+            var row = new Dictionary<string, object?>
             {
-                var row = new Dictionary<string, object?>
-                {
-                    ["speed"] = 80,
-                    ["__watermark"] = null,
-                    ["__rowid"] = "1"
-                };
-                return Task.FromResult(new List<object> { row });
-            });
+                ["speed"] = 80,
+                ["__watermark"] = null,
+                ["__rowid"] = "1"
+            };
+            var service = CreateWorker(scope, extractionProcess: new MockDataExtractionProcess(async (dbClient, s, p) =>
+            {
+                var fields = await DataExtractionProcess.LoadPacketFields(dbClient, p.Code);
+                return new ExtractionResult([row], fields, null, null);
+            }));
 
             try
             {
@@ -643,7 +655,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             }
             finally
             {
-                DataPublicationService.UnregisterTestHandler(packetCode);
                 await db.Deleteable<TmsTrafficData>().Where(z => z.ID == trafficId).ExecuteCommandAsync();
             }
         }
@@ -861,7 +872,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var service = CreateWorker(scope);
 
             var uniqueId = Guid.NewGuid().ToString("N")[..8];
             var packetCode = $"PKT_REQ_{uniqueId}";
@@ -903,15 +913,16 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
                 UpdateTime = DateTime.Now
             }).ExecuteCommandAsync();
 
-            DataPublicationService.RegisterTestHandler(packetCode, (dbClient, lastTime, lastId, ct) =>
+            var row = new Dictionary<string, object?>
             {
-                var row = new Dictionary<string, object?>
-                {
-                    ["zoneId"] = $"Z_{uniqueId}",
-                    ["averageSpeed"] = null
-                };
-                return Task.FromResult(new List<object> { row });
-            });
+                ["zoneId"] = $"Z_{uniqueId}",
+                ["averageSpeed"] = null
+            };
+            var service = CreateWorker(scope, extractionProcess: new MockDataExtractionProcess(async (dbClient, s, p) =>
+            {
+                var fields = await DataExtractionProcess.LoadPacketFields(dbClient, p.Code);
+                return new ExtractionResult([row], fields, DateTime.Now, "1");
+            }));
 
             try
             {
@@ -932,7 +943,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             }
             finally
             {
-                DataPublicationService.UnregisterTestHandler(packetCode);
                 await db.Deleteable<TmsZoneStatus>().Where(z => z.ID == statusId).ExecuteCommandAsync();
             }
         }
@@ -942,7 +952,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var service = CreateWorker(scope);
 
             var uniqueId = Guid.NewGuid().ToString("N")[..8];
             var packetCode = $"PKT_MISS_CS_{uniqueId}";
@@ -981,15 +990,16 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
                 UpdateTime = DateTime.Now
             }).ExecuteCommandAsync();
 
-            DataPublicationService.RegisterTestHandler(packetCode, (dbClient, lastTime, lastId, ct) =>
+            var row = new Dictionary<string, object?>
             {
-                var row = new Dictionary<string, object?>
-                {
-                    ["zoneId"] = $"Z_{uniqueId}",
-                    ["trafficCondition"] = "1"
-                };
-                return Task.FromResult(new List<object> { row });
-            });
+                ["zoneId"] = $"Z_{uniqueId}",
+                ["trafficCondition"] = "1"
+            };
+            var service = CreateWorker(scope, extractionProcess: new MockDataExtractionProcess(async (dbClient, s, p) =>
+            {
+                var fields = await DataExtractionProcess.LoadPacketFields(dbClient, p.Code);
+                return new ExtractionResult([row], fields, DateTime.Now, "1");
+            }));
 
             try
             {
@@ -1009,7 +1019,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             }
             finally
             {
-                DataPublicationService.UnregisterTestHandler(packetCode);
                 await db.Deleteable<TmsZoneStatus>().Where(z => z.ID == missCsStatusId).ExecuteCommandAsync();
             }
         }
@@ -1040,10 +1049,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
 
             var content = await File.ReadAllTextAsync(fullPath);
             using var doc = JsonDocument.Parse(content);
-            Assert.True(doc.RootElement.TryGetProperty("pduType", out _));
-            Assert.True(doc.RootElement.TryGetProperty("hash", out _));
-            Assert.True(doc.RootElement.TryGetProperty("payload", out var payload));
-            Assert.True(payload.GetArrayLength() > 0);
+            Assert.Equal(JsonValueKind.Array, doc.RootElement.ValueKind);
+            Assert.True(doc.RootElement.GetArrayLength() > 0);
 
             var updatedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
             Assert.Equal(BaseEnums.SubSubscriptionState.Active, updatedSub.State);
@@ -1117,8 +1124,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
 
             var content = await File.ReadAllTextAsync(fullPath);
             using var doc = JsonDocument.Parse(content);
-            var payload = doc.RootElement.GetProperty("payload");
-            var record = payload.EnumerateArray().First(r => r.GetProperty("zoneId").GetString() == zoneId);
+            var record = doc.RootElement.EnumerateArray().First(r => r.GetProperty("zoneId").GetString() == zoneId);
             Assert.Equal(120m, record.GetProperty("calcSpeed").GetDecimal());
 
             var alerts = await db.Queryable<ShareDataAlertLog>()
@@ -1213,10 +1219,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
 
             var content = await File.ReadAllTextAsync(fullPath);
             using var doc = JsonDocument.Parse(content);
-            Assert.True(doc.RootElement.TryGetProperty("payload", out var payload));
-            Assert.Equal(1, payload.GetArrayLength());
-
-            var envelope = payload[0];
+            var envelope = doc.RootElement;
             Assert.True(envelope.TryGetProperty("header", out var headerElem));
             Assert.Equal("ITS", headerElem.GetProperty("source").GetString());
 
@@ -1300,8 +1303,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
 
             var content = await File.ReadAllTextAsync(fullPath);
             using var doc = JsonDocument.Parse(content);
-            var payload = doc.RootElement.GetProperty("payload");
-            var record = payload.EnumerateArray().First(r => r.GetProperty("zoneId").GetString() == zoneId);
+            var record = doc.RootElement.EnumerateArray().First(r => r.GetProperty("zoneId").GetString() == zoneId);
             // Raw value preserved
             Assert.Equal(75m, record.GetProperty("speed").GetDecimal());
 
@@ -1378,8 +1380,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
 
             var content = await File.ReadAllTextAsync(fullPath);
             using var doc = JsonDocument.Parse(content);
-            var payload = doc.RootElement.GetProperty("payload");
-            var record = payload.EnumerateArray().First(r => r.GetProperty("zoneId").GetString() == zoneId);
+            var record = doc.RootElement.EnumerateArray().First(r => r.GetProperty("zoneId").GetString() == zoneId);
             Assert.Equal(88m, record.GetProperty("speed").GetDecimal());
 
             var alerts = await db.Queryable<ShareDataAlertLog>()
@@ -1526,8 +1527,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
 
                         var json = await File.ReadAllTextAsync(fullPath);
                         using var doc = JsonDocument.Parse(json);
-                        var payload = doc.RootElement.GetProperty("payload");
-                        foreach (var rec in payload.EnumerateArray())
+                        foreach (var rec in doc.RootElement.EnumerateArray())
                         {
                             if (rec.TryGetProperty("licensePlate", out var lp))
                             {
@@ -1638,7 +1638,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             var unique = Guid.NewGuid().ToString("N")[..8];
             var (partner, sub) = await SeedOutboundSubscription(db, $"P_ALERT_{unique}", $"SUB_ALERT_{unique}", "101");
 
-            var alertId = await DataPublicationService.LogAlert(
+            var alertId = await ShareDataTransferLog.WriteAlertAsync(
                 db,
                 sub,
                 ShareDataAlertCode.Outbound.LeaseLost,
@@ -1798,7 +1798,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
 
         #endregion
 
-        #region XML Serialization Tests
+        /*
+        #region XML Serialization Tests (Remcode: Xml.cs đã bị xoá theo kế hoạch refactor 16/09)
 
         [Theory]
         [InlineData("ValidName", "ValidName")]
@@ -1904,6 +1905,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
         }
 
         #endregion
+        */
 
         #region Shape Expression Evaluator Tests
 
@@ -2487,6 +2489,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             Assert.Contains("sâu", error, StringComparison.OrdinalIgnoreCase);
         }
 
+        /*
         [Fact]
         public void SerializeEnvelopeToXmlBytes_DeeplyNestedDictionary_TruncatesAtMaxDepth_Test()
         {
@@ -2509,6 +2512,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             Assert.NotNull(xmlBytes);
             Assert.True(xmlBytes.Length > 0);
         }
+        */
 
         #endregion
 
@@ -3750,10 +3754,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
                 var content = await File.ReadAllTextAsync(fullPath);
                 using var doc = JsonDocument.Parse(content);
                 var root = doc.RootElement;
-                Assert.True(root.TryGetProperty("pduType", out _));
-                Assert.True(root.TryGetProperty("hash", out _));
-                Assert.True(root.TryGetProperty("payload", out var payload));
-                Assert.True(payload.GetArrayLength() > 0);
+                Assert.Equal(JsonValueKind.Array, root.ValueKind);
+                Assert.True(root.GetArrayLength() > 0);
             }
             finally
             {
@@ -3832,9 +3834,17 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
             var table101A = await db.Queryable<ShareDataTable>()
                 .Where(t => t.PacketCode == "101_commonData" && t.TableName == "TmsZoneStatus" && t.IsDelete == null)
                 .FirstAsync();
+            var expectedFieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
+            {
+                new() { FieldKey = "zoneStatusId", Column = "ID", Required = true },
+                new() { FieldKey = "zoneId", Column = "ZoneId", Required = true },
+                new() { FieldKey = "averageSpeed", Column = "AverageSpeed" },
+                new() { FieldKey = "trafficCondition", Column = "Condition" },
+                new() { FieldKey = "dataTime", Column = "UpdateTime" }
+            });
             if (table101A == null)
             {
-                await db.Insertable(new ShareDataTable
+                table101A = new ShareDataTable
                 {
                     ID = Guid.NewGuid().ToString("N"),
                     PacketCode = "101_commonData",
@@ -3842,58 +3852,71 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
                     Alias = "zs",
                     IsRoot = true,
                     OrderNo = 1,
-                    FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
-                    {
-                        new() { FieldKey = "zoneStatusId", Column = "ID", Required = true },
-                        new() { FieldKey = "zoneId", Column = "ZoneId", Required = true },
-                        new() { FieldKey = "averageSpeed", Column = "AverageSpeed" },
-                        new() { FieldKey = "trafficCondition", Column = "Condition" },
-                        new() { FieldKey = "dataTime", Column = "UpdateTime" }
-                    })
-                }).ExecuteCommandAsync();
+                    FieldsJson = expectedFieldsJson
+                };
+                await db.Insertable(table101A).ExecuteCommandAsync();
+            }
+            else
+            {
+                table101A.FieldsJson = expectedFieldsJson;
+                await db.Updateable(table101A).UpdateColumns(t => t.FieldsJson).ExecuteCommandAsync();
             }
 
             var (partner, sub) = await SeedOutboundSubscription(db, $"P101_{uniqueId}", $"SUB101_{uniqueId}", "101_commonData");
 
-            // 2. Act: Thực thi xuất dữ liệu qua ExecuteExportForSubscription
-            var exportedAt = DateTime.Now;
-            var (lastTimeRun, lastId) = await service.ExecuteExportForSubscription(db, sub, partner, exportedAt, CancellationToken.None);
+            try
+            {
+                // 2. Act: Thực thi xuất dữ liệu qua ExecuteExportForSubscription
+                var exportedAt = DateTime.Now;
+                var (lastTimeRun, lastId) = await service.ExecuteExportForSubscription(db, sub, partner, exportedAt, CancellationToken.None);
 
-            // 3. Assert: Kiểm tra log xuất bản thành công (không bị dính lỗi thiếu trường bắt buộc)
-            var logs = await db.Queryable<ShareDataActivityLog>()
-                .Where(l => l.SubscriptionId == sub.ID)
-                .OrderByDescending(l => l.OccurredAt)
-                .ToListAsync();
+                // 3. Assert: Kiểm tra log xuất bản thành công (không bị dính lỗi thiếu trường bắt buộc)
+                var logs = await db.Queryable<ShareDataActivityLog>()
+                    .Where(l => l.SubscriptionId == sub.ID)
+                    .OrderByDescending(l => l.OccurredAt)
+                    .ToListAsync();
 
-            Assert.NotEmpty(logs);
-            Assert.True(logs[0].Success == BaseEnums.SuccessEnums.Success, $"Xuất bản thất bại: {logs[0].ErrorMessage}");
-            Assert.True(logs[0].RecordCount > 0);
+                Assert.NotEmpty(logs);
+                Assert.True(logs[0].Success == BaseEnums.SuccessEnums.Success, $"Xuất bản thất bại: {logs[0].ErrorMessage}");
+                Assert.True(logs[0].RecordCount > 0);
 
-            // Đọc tệp kết xuất và kiểm tra bản ghi chứa zoneStatusId đúng với ID đã insert
-            Assert.False(string.IsNullOrEmpty(logs[0].FilePath));
-            var fullPath = Path.Combine(Directory.GetCurrentDirectory(), "sharedata/send", logs[0].FilePath!);
-            Assert.True(File.Exists(fullPath), $"Tệp kết xuất không tồn tại: {fullPath}");
+                // Đọc tệp kết xuất và kiểm tra bản ghi chứa zoneStatusId đúng với ID đã insert
+                Assert.False(string.IsNullOrEmpty(logs[0].FilePath));
+                var fullPath = Path.Combine(Directory.GetCurrentDirectory(), "sharedata/send", logs[0].FilePath!);
+                Assert.True(File.Exists(fullPath), $"Tệp kết xuất không tồn tại: {fullPath}");
 
-            var jsonContent = await File.ReadAllTextAsync(fullPath);
-            using var doc = JsonDocument.Parse(jsonContent);
-            var payload = doc.RootElement.GetProperty("payload");
-            Assert.True(payload.GetArrayLength() > 0);
+                var jsonContent = await File.ReadAllTextAsync(fullPath);
+                using var doc = JsonDocument.Parse(jsonContent);
+                var payload = doc.RootElement;
+                Assert.Equal(JsonValueKind.Array, payload.ValueKind);
+                Assert.True(payload.GetArrayLength() > 0);
 
-            var matchedRecord = payload.EnumerateArray()
-                .FirstOrDefault(r => r.TryGetProperty("zoneStatusId", out var zid) && zid.GetString() == zoneStatusId);
+                var matchedRecord = payload.EnumerateArray()
+                    .FirstOrDefault(r => r.TryGetProperty("zoneId", out var zid) && zid.GetString() == zoneId);
 
-            Assert.True(matchedRecord.ValueKind != JsonValueKind.Undefined, "Không tìm thấy trường zoneStatusId khớp với ID đã nạp trong payload!");
-            Assert.Equal(zoneId, matchedRecord.GetProperty("zoneId").GetString());
-            Assert.Equal("NORMAL", matchedRecord.GetProperty("trafficCondition").GetString());
+                Assert.True(matchedRecord.ValueKind != JsonValueKind.Undefined, $"Không tìm thấy bản ghi có zoneId={zoneId} trong payload!");
+                Assert.True(matchedRecord.TryGetProperty("zoneStatusId", out var actualZid), "Không tìm thấy trường zoneStatusId trong payload!");
+                Assert.Equal(zoneStatusId, actualZid.GetString());
+                Assert.Equal(zoneId, matchedRecord.GetProperty("zoneId").GetString());
+                Assert.Equal("NORMAL", matchedRecord.GetProperty("trafficCondition").GetString());
+            }
+            finally
+            {
+                await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataPartner>().Where(p => p.ID == partner.ID).ExecuteCommandAsync();
+                await db.Deleteable<TmsZoneStatus>().Where(z => z.ID == zoneStatusId).ExecuteCommandAsync();
+                await db.Deleteable<TmsZone>().Where(z => z.ID == zoneId).ExecuteCommandAsync();
+            }
         }
 
         /// <summary>
-        /// Description: Kiểm thử GetCandidateSubscriptions trong ProcessBatchSubscriptions - chỉ lấy Subscription có
+        /// Description: Kiểm thử getSubscriptions trong ProcessBatchSubscriptions - chỉ lấy Subscription có
         /// Partner hợp lệ (chưa bị xoá mềm IsDelete == null, Status == Enable và SessionState == Connected).
         /// Created date: 15/09/2026
         /// </summary>
         [Fact]
-        public async Task GetCandidateSubscriptions_FiltersByPartnerStatusAndSessionStateAndIsDelete_Test()
+        public async Task GetSubscriptions_FiltersByPartnerStatusAndSessionStateAndIsDelete_Test()
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
@@ -4115,5 +4138,118 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataPublication
 
             Assert.Equal(now.AddSeconds(300), result);
         }
+    #region MapCode — unit tests
+
+    private static List<CodeValueDto> BuildCodeValues(params (string src, string partner, bool isDefault)[] rows)
+        => rows.Select(r => new CodeValueDto
+        {
+            SourceValue = r.src,
+            PartnerValue = r.partner,
+            IsDefault = r.isDefault
+        }).ToList();
+
+    [Fact]
+    public void MapCode_ExactMatch_ReturnsPartnerValue()
+    {
+        var codeValues = BuildCodeValues(("SLOW", "0", false), ("FAST", "1", false));
+        var result = DataPublicationService.MapCode(codeValues, "SLOW");
+        Assert.Equal("0", result);
+    }
+
+    [Fact]
+    public void MapCode_ExactMatch_CaseInsensitive()
+    {
+        var codeValues = BuildCodeValues(("slow", "0", false));
+        var result = DataPublicationService.MapCode(codeValues, "SLOW");
+        Assert.Equal("0", result);
+    }
+
+    [Fact]
+    public void MapCode_NoMatch_NoDefault_ReturnsRawValue()
+    {
+        var codeValues = BuildCodeValues(("SLOW", "0", false), ("FAST", "1", false));
+        var result = DataPublicationService.MapCode(codeValues, "TURBO");
+        Assert.Equal("TURBO", result);
+    }
+
+    [Fact]
+    public void MapCode_NoMatch_NoDefault_InvokesWarningCallback()
+    {
+        var codeValues = BuildCodeValues(("SLOW", "0", false));
+        string? capturedCode = null;
+        object? capturedValue = null;
+
+        DataPublicationService.MapCode(codeValues, "TURBO", "MY_CODESET",
+            (code, val) => { capturedCode = code; capturedValue = val; });
+
+        Assert.Equal("MY_CODESET", capturedCode);
+        Assert.Equal("TURBO", capturedValue);
+    }
+
+    [Fact]
+    public void MapCode_NoMatch_WithDefault_ReturnsDefaultPartnerValue()
+    {
+        var codeValues = BuildCodeValues(("SLOW", "0", true), ("FAST", "1", false));
+        var result = DataPublicationService.MapCode(codeValues, "TURBO");
+        Assert.Equal("0", result);
+    }
+
+    [Fact]
+    public void MapCode_NoMatch_WithDefault_DoesNotInvokeWarningCallback()
+    {
+        var codeValues = BuildCodeValues(("SLOW", "0", true), ("FAST", "1", false));
+        bool callbackInvoked = false;
+        DataPublicationService.MapCode(codeValues, "TURBO", "MY_CODESET", (_, _) => callbackInvoked = true);
+        Assert.False(callbackInvoked);
+    }
+
+    [Fact]
+    public void MapCode_EmptyString_NoDefault_ReturnsEmptyString()
+    {
+        var codeValues = BuildCodeValues(("SLOW", "0", false), ("FAST", "1", false));
+        var result = DataPublicationService.MapCode(codeValues, "");
+        Assert.Equal("", result);
+    }
+
+    /// <summary>Bug fix: empty string phải fallback về IsDefault thay vì early-return.</summary>
+    [Fact]
+    public void MapCode_EmptyString_WithDefault_ReturnsDefaultPartnerValue()
+    {
+        var codeValues = BuildCodeValues(("SLOW", "0", true), ("FAST", "1", false));
+        var result = DataPublicationService.MapCode(codeValues, "");
+        Assert.Equal("0", result);
+    }
+
+    [Fact]
+    public void MapCode_WhitespaceOnly_WithDefault_ReturnsDefaultPartnerValue()
+    {
+        var codeValues = BuildCodeValues(("SLOW", "0", true));
+        var result = DataPublicationService.MapCode(codeValues, "   ");
+        Assert.Equal("0", result);
+    }
+
+    [Fact]
+    public void MapCode_NullValue_ReturnsNull()
+    {
+        var codeValues = BuildCodeValues(("SLOW", "0", false));
+        var result = DataPublicationService.MapCode(codeValues, null);
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void MapCode_NullCodeValues_ReturnsRawValue()
+    {
+        var result = DataPublicationService.MapCode(null, "SLOW");
+        Assert.Equal("SLOW", result);
+    }
+
+    [Fact]
+    public void MapCode_EmptyCodeValuesList_ReturnsRawValue()
+    {
+        var result = DataPublicationService.MapCode([], "SLOW");
+        Assert.Equal("SLOW", result);
+    }
+
+    #endregion
     }
 }
