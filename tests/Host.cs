@@ -47,6 +47,22 @@ public partial class Host : IAsyncLifetime
                 {
                     configBuilder.Sources.Clear();
                     configBuilder.SetBasePath(AppContext.BaseDirectory).AddJsonFile("appsettings.Test.json", optional: false, reloadOnChange: true);
+
+                    var tempConfig = configBuilder.Build();
+#if TFM_WINDOWS
+                    var connStr = tempConfig["TestDatabaseStrings:Net10Windows"];
+#else
+                    var connStr = tempConfig["TestDatabaseStrings:Net10"];
+#endif
+
+                    configBuilder.AddInMemoryCollection(new Dictionary<string, string?> {
+                        { "ConnectionStrings:Default", connStr },
+                        { "ConnectionStrings:DefaultConnection", connStr },
+                        { "ConnectionStrings:InboundConnection", connStr },
+                        { "ConnectionStrings:LogDefault", connStr },
+                        { "DbConnection:ConnectionConfigs:0:ConnectionString", connStr },
+                        { "DbConnection:ConnectionConfigs:1:ConnectionString", connStr }
+                    });
                 });
 
                 builder.ConfigureServices((context, services) =>

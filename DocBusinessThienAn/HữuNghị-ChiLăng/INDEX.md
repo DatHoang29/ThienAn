@@ -133,8 +133,8 @@ HữuNghị-ChiLăng/
 │   ├── README.md                             🤖👤 SSOT phân hệ ShareData (kèm Tier Table)
 │   ├── doc/                                  🤖    Tier A: 01-yeu-cau-nghiep-vu, 02-mapping
 │   │   └── transcript/                       🤖    Tier A: 2026-09-09-review, 2026-09-11-sharedata-script
-│   ├── Plan/                                 🤖    Tier A: Tài liệu SỐNG riêng của ShareData (sharedata-outbound-plan.md, không Auto-Cleanup)
-│   ├── Prompt/                               🤖    Tier A: Prompt dùng-1-lần riêng của ShareData (tự xoá khi xong — hiện chỉ có README.md, chưa có prompt nào)
+│   ├── Plan/                                 🤖    Tier A: Tài liệu SỐNG riêng của ShareData, không Auto-Cleanup (Sd_MasterPlan, sharedata-outbound-kiem-tra-anh-xa-va-dinh-dang.md)
+│   ├── Prompt/                               🤖    Tier A: Prompt dùng-1-lần riêng của ShareData (tự xoá khi xong — hiện có 1: fix-activitylog-hash-recordcount)
 │   └── _source/                              👤    Tier C: Bản gốc đối chiếu (xlsx/)
 ├── VideoWall/                                🤖👤 Phân hệ Video Wall
 │   ├── README.md                             🤖👤 SSOT phân hệ Video Wall (kèm Tier Table + mục "Prompt & Tiến độ")

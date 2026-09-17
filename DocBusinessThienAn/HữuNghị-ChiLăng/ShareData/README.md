@@ -17,8 +17,10 @@ Kho tài liệu nghiệp vụ, đặc tả kỹ thuật và mapping gói tin c�
 | A | `doc/transcript/2026-09-11-sharedata-script.md` | full | 20 KB | Chuẩn hóa cấu hình gói tin (gói 101,...): Metadata trường động, mapping 2 chiều, CodeSet, hàm SUM/AVG, NATS/bảng đệm | `../Plan/_source/audio/2026-09-11-sharedata-videowall-{1,2}.m4a` |
 | A | `doc/transcript/16-09-2026-review-frontend-sharedata.md` | full | 34 KB | Review & Hoàn thiện Frontend ShareData: Đồng bộ tiếng Việt, ẩn Cảnh báo/Ưu tiên, Mã đối tác, Tooltip Ant Design, fix scroll STT, luồng Đối tác -> Gói tin (101-111) -> Lịch gửi, engine Ánh xạ dữ liệu, badge CodeSet/Format, auto map | `../Plan/_source/audio/16-09-2026-review-frontend-sharedata.m4a` |
 | A | `doc/transcript/16-09-2026-sua-ui-sharedata.md` | full | 17 KB | Tổng hợp & Thống nhất Danh mục Sửa UI ShareData: Thêm Mã đối tác, rào port, checkbox gửi khi có data mới, bỏ lịch ở chiều nhận, CRUD gói tin/cột, gom nhóm theo Tệp dữ liệu, Default Value cho CodeSet, DateTime picker, modal chi tiết thay sidebar, log 2 bước cha-con | `../Plan/_source/audio/16-09-2026-sua-ui-sharedata.m4a` |
-| A | `Plan/Sd_MasterPlan_16-09-2026.md` | full | 31 KB | Master Plan ShareData FE · BE · Service (chốt 16/09/2026) | Biên soạn nội bộ |
-| A | `Plan/sharedata-outbound-kiem-tra-anh-xa-va-dinh-dang.md` | full | 10 KB | Kế hoạch: Đối chiếu ánh xạ với dữ liệu thô + Định dạng đầu ra (luồng GỬI) | Biên soạn nội bộ |
+| A | `doc/transcript/16-09-2026-refactor-backend-sharedata-worker.md` | full | 12 KB | Định hướng Refactor Backend Worker: tách pipeline Outbound thành 3 Process (Extraction → Mapping → Transport), DTO ngữ cảnh xuyên suốt, cô lập lỗi tại tầng Mapping | `../Plan/_source/audio/16-09-2026-refactor-backend-sharedata-worker.m4a` |
+| A | `doc/transcript/16-09-2026-dinh-danh-doi-tac-va-test-tai.md` | full | 24 KB | Định danh đối tác qua PartnerCode trong body, **bỏ phong bì PDU**, **bỏ rẽ nhánh theo version**, clone service + cờ chỉ-gửi/chỉ-nhận để test tải đa đối tác, rủi ro nghẽn CSDL | `../Plan/_source/audio/13.48, 16 thg 9__1.m4a` |
+| A | `Plan/Sd_MasterPlan_16-09-2026.md` | full | 36 KB | Master Plan ShareData FE · BE · Service (chốt 16/09/2026) | Biên soạn nội bộ |
+| A | `Plan/sharedata-outbound-kiem-tra-anh-xa-va-dinh-dang.md` | full | 34 KB | 🔴 **TÀI LIỆU SỐNG — đọc tệp này là hiểu trọn luồng GỬI, không cần mở tệp khác.** Mục 0 luồng chuẩn (sơ đồ + 4 giai đoạn + ví dụ đi trọn một trường) · 1 nguồn cấu hình (`ShareDataMapping.TargetShapeJson`, bảng khoá `$extend`) · 2 biến đổi một trường · 3 đang kẹt (**P1–P4**, nặng nhất **P3 — `LoadPacketFields` lọc sai khoá nên `fieldMeta` LUÔN null**) · 4 việc còn lại · 5 chưa chốt · 6 ngoài phạm vi · 7 nhật ký | Biên soạn nội bộ |
 | C | `_source/xlsx/ESHARE_TOAN_BO_BANG.xlsx` | never | 57 KB | Toàn bộ danh mục bảng CSDL và mapping trường dữ liệu ESHARE | → bản `.md`: `doc/02-mapping-goi-tin-101-111.md` |
 | C | `../Plan/_source/audio/MakeUp Chi Ngô Gò Vấp 3.m4a` | never | 17 MB | Audio cuộc họp Review ShareData phần 1 (35:36) — nằm ở `Plan/_source/audio/` vì file gốc dùng chung tên đặt trước khi tách theo phân hệ | → bản `.md`: `doc/transcript/2026-09-09-review-sharedata.md` |
 | C | `../Plan/_source/audio/MakeUp Chi Ngô Gò Vấp 4.m4a` | never | 12 MB | Audio cuộc họp Review ShareData phần 2 (25:41) | → bản `.md`: `doc/transcript/2026-09-09-review-sharedata.md` |
@@ -29,5 +31,16 @@ Kho tài liệu nghiệp vụ, đặc tả kỹ thuật và mapping gói tin c�
 ---
 
 ## 📌 Lưu ý kiến trúc quan trọng (Memory Pointer)
-- **Định hướng dịch vụ**: Phân hệ `ShareDataWorker` hoạt động như một dịch vụ trích xuất và xuất bản dữ liệu độc lập (`DataPublicationService`) — đọc dữ liệu từ CSDL, ánh xạ và xuất file JSON/XML ra thư mục cục bộ theo đúng đặc tả.
+
+- **Pipeline 3 Process (chốt 16/09/2026)**: luồng GỬI chạy Extraction → Mapping → Transport, ngữ cảnh dùng chung xuyên suốt. Lỗi ở tầng Mapping **ngắt ngay**, không sang tầng gửi. ✅ Phân hệ đã được đổi tên `DataPublication` → **`DataOutbound`** cho đối xứng với `DataInbound`.
+- **Đã bỏ phong bì PDU và XML**: nội dung xuất ra = **y hệt kết quả ánh xạ**, không bọc thêm. `hash` bỏ theo. Chỉ còn JSON.
+- **Câu truy vấn nằm CỨNG trong mã C#** (11 hàm `QueryPacketNNN`), **không** trong CSDL. Bí danh sau `AS` chính là tên trường mà bộ khung ánh xạ trỏ vào.
+- **Nguồn cấu hình ánh xạ lúc chạy (chốt 17/09/2026)**: worker đọc **DUY NHẤT `ShareDataMapping.TargetShapeJson`**, mọi cấu hình cấp trường nằm trong `$extend`. `ShareDataPacketField` là **danh mục lúc thiết kế** cho giao diện CRUD, **không phải nguồn của worker** — nó chỉ là chỗ lấy dữ liệu để **điền** vào `$extend`.
+- ⚠️ **`$extend` đổi PHẠM VI cấu hình**: `FieldsJson` cũ khai một lần áp cho **mọi đối tác**; `$extend` nằm trong `ShareDataMapping` nên khai **riêng từng đối tác, từng chiều**. Thêm đối tác mới là phải khai lại từ đầu.
+- ✅ **`ShareDataTable` đã bị xoá khỏi mã 17/09/2026** (commit `fa60436d`, Văn Hiếu). Worker từng gãy 8 lỗi `CS0246`, **đã gỡ xong, bản dịch xanh**.
+- 🔴 **Bộ khung hiện gần như rỗng**: phễu lọc chiều Gửi đang sống khai `$extend` cho **1/16 trường** (gói 101). Cơ chế đã đủ — **thiếu dữ liệu**, việc điền thuộc bên giao diện/module. Chi tiết: mục 3.2 của tài liệu sống.
 - **Quy tắc cô lập Entity**: Không tự ý sửa đổi các entity dùng chung (`Esh*`) do WebAPI sở hữu; worker chủ động thích ứng bằng DTO/Model độc lập trong phân hệ.
+- **Luồng NHẬN không đọc `ShareDataTable`** — gói tin (`ShareDataPacket` + `ShareDataPacketWrite` + phễu lọc chiều nhận) là nguồn cấu hình duy nhất.
+
+
+

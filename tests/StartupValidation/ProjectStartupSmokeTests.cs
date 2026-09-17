@@ -95,7 +95,7 @@ namespace Tests.StartupValidation
 
             using var host = builder.Build();
             Assert.NotNull(host);
-            Assert.NotNull(host.Services.GetService<IDataPublicationService>());
+            Assert.NotNull(host.Services.GetService<IDataOutboundService>());
             Assert.NotNull(host.Services.GetService<IDataInboundService>());
         }
 #endif
@@ -127,3 +127,4 @@ namespace Tests.StartupValidation
 #endif
     }
 }
+
