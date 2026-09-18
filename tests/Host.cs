@@ -49,11 +49,11 @@ public partial class Host : IAsyncLifetime
                     configBuilder.SetBasePath(AppContext.BaseDirectory).AddJsonFile("appsettings.Test.json", optional: false, reloadOnChange: true);
 
                     var tempConfig = configBuilder.Build();
-#if TFM_WINDOWS
-                    var connStr = tempConfig["TestDatabaseStrings:Net10Windows"];
-#else
-                    var connStr = tempConfig["TestDatabaseStrings:Net10"];
-#endif
+                    var activeDb = tempConfig["TestDatabaseStrings:ActiveDatabase"];
+                    var connStr = (!string.IsNullOrWhiteSpace(activeDb) ? tempConfig[$"TestDatabaseStrings:{activeDb}"] : null)
+                        ?? tempConfig["TestDatabaseStrings:Net10"]
+                        ?? tempConfig["TestDatabaseStrings:Net10Windows"]
+                        ?? tempConfig["ConnectionStrings:Default"];
 
                     configBuilder.AddInMemoryCollection(new Dictionary<string, string?> {
                         { "ConnectionStrings:Default", connStr },

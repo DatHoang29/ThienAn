@@ -20,7 +20,7 @@ dotnet test tests/test.csproj --filter "FullyQualifiedName~VideoWall"
 
 ```
 
-Cần SQL Server local chạy sẵn tại `localhost,14333` (trên macOS Apple Silicon **bắt buộc** dùng image
+Cần SQL Server local chạy sẵn tại `localhost` (cổng mặc định 1433; trên macOS Apple Silicon **bắt buộc** dùng image
 `mcr.microsoft.com/azure-sql-edge:latest`). Toàn bộ connection string trong `Host.cs` là In-Memory và
 bị guard Zero-Trust chặn nếu trỏ ra ngoài `localhost` / `127.0.0.1` / `(localdb)` / `.`.
 

@@ -5,11 +5,11 @@ services:
     user: root
     restart: always
     ports:
-      - "14333:1433"
+      - "1433:1433"
     environment:
       - ACCEPT_EULA=Y
-      - SA_PASSWORD=Password123!
-      - MSSQL_SA_PASSWORD=Password123!
+      - SA_PASSWORD=Tac@@1234
+      - MSSQL_SA_PASSWORD=Tac@@1234
     volumes:
       - tac_webapi_tac_sql_data:/var/opt/mssql/data
 

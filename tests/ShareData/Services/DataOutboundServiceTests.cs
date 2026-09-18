@@ -1,9 +1,13 @@
+using ShareDataWorker.Core.Common.Parsing;
+using ShareDataWorker.Core.Common.Resolvers;
 using ShareDataWorker.Core.Interfaces.DataOutbound;
 using ShareDataWorker.Core.Models.DataOutbound;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Module.ShareData.Core.Entities;
 using Modules.CCTV.Core.Entities;
@@ -16,41 +20,20 @@ using ShareDataWorker.Core.Exceptions;
 using ShareDataWorker.Infrastructure.Logging;
 using ShareDataWorker.Infrastructure.Services.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Extraction;
+using ShareDataWorker.Infrastructure.Services.DataOutbound.Mapping;
+using ShareDataWorker.Infrastructure.Services.DataOutbound.Scheduling;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
 
 namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
 {
     /// <summary>
-    /// Lớp chứa tất cả các kịch bản kiểm thử Integration Test cho DataOutboundService thuộc module ShareDataWorker.
-    /// Hoạt động trực tiếp trên cơ sở dữ liệu Test Local, kiểm tra toàn diện luồng quét Subscription,
-    /// sinh SQL động từ ShareDataPacket + ShareDataTable, áp dụng phễu lọc ShareDataMapping và đóng gói PDU.
-    /// Author: Đạt
+    /// Description: Lớp kiểm thử Integration Test cho DataOutboundService thuộc module ShareDataWorker trên CSDL Test Local.
     /// Created date: 31/07/2026
     /// </summary>
     [Collection("api")]
     public partial class DataOutboundServiceTests(Host host)
     {
         private readonly Host _host = host;
-
-        /// <summary>
-        /// Mock của ShareDataTable — đã bị xoá khỏi worker; giữ lại ở đây chỉ để seeding dữ liệu test.
-        /// </summary>
-        [SqlSugar.SugarTable("ShareDataTable")]
-        private class ShareDataTable
-        {
-            [SqlSugar.SugarColumn(IsPrimaryKey = true)]
-            public string ID { get; set; } = null!;
-            public string? PacketCode { get; set; }
-            public string? TableName { get; set; }
-            public string? Alias { get; set; }
-            public bool? IsRoot { get; set; }
-            public string? FieldsJson { get; set; }
-            public int? OrderNo { get; set; }
-            public DateTime? IsDelete { get; set; }
-            public string? SchemaName { get; set; }
-            public Shared.DTO.Enums.BaseEnums.PacketJoinType? JoinType { get; set; }
-            public string? JoinCondition { get; set; }
-        }
 
         private static readonly Dictionary<ShareDataEnum.DatatypeIdEnum, string[]> ExpectedPacketFields = new()
         {
@@ -127,7 +110,10 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 Code = partnerCode,
                 Name = $"Partner {partnerCode}",
                 Status = BaseEnums.StatusEnum.Enable,
-                SessionState = BaseEnums.SessionState.Connected
+                SessionState = BaseEnums.SessionState.Connected,
+                Address = "127.0.0.1",
+                Port = 5099,
+                EndPointApiUrl = "/api/sharedata/sharedatainbound"
             };
             configurePartner?.Invoke(partner);
             await db.Insertable(partner).ExecuteCommandAsync();
@@ -147,6 +133,23 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
 
             configureSub?.Invoke(sub);
             await db.Insertable(sub).ExecuteCommandAsync();
+
+            var fields = await db.Queryable<ShareDataPacketField>().Where(f => f.DatatypeId == datatypeId).ToListAsync();
+            var shapeDict = new System.Collections.Generic.Dictionary<string, object>();
+            foreach (var f in fields)
+            {
+                if (!string.IsNullOrEmpty(f.AliasFieldKey))
+                    shapeDict[f.AliasFieldKey] = new System.Collections.Generic.Dictionary<string, string> { { "$field", f.AliasFieldKey } };
+            }
+            await db.Insertable(new ShareDataMapping
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                PartnerId = partner.ID,
+                DatatypeId = datatypeId,
+                Direction = BaseEnums.Direction.Outbound,
+                IsActive = true,
+                TargetShapeJson = System.Text.Json.JsonSerializer.Serialize(shapeDict)
+            }).ExecuteCommandAsync();
 
             return (partner, sub);
         }
@@ -408,19 +411,46 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         private static DataOutboundService CreateWorker(
             IServiceScope scope,
             IHttpClientFactory? httpClientFactory = null,
-            IDataOutboundExtractionProcess? extractionProcess = null)
+            IDataOutboundExtractionProcess? extractionProcess = null,
+            DataOutboundFileSender? fileSender = null,
+            DataOutboundRestSender? restSender = null)
         {
             var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataOutboundService>>();
             var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
-            var clientFactory = httpClientFactory ?? scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
+            var defaultHandler = new TestHttpMessageHandler((req, ct) => Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)));
+            var clientFactory = httpClientFactory ?? new MockHttpClientFactoryTest(defaultHandler);
+            var hostEnv = scope.ServiceProvider.GetService<IHostEnvironment>();
             return new DataOutboundService(
                 scopeFactory,
                 logger,
-                config,
-                new DataOutboundFileSender(config),
-                new DataOutboundRestSender(clientFactory),
+                fileSender ?? new DataOutboundFileSender(config, hostEnv),
+                restSender ?? new DataOutboundRestSender(clientFactory),
                 extractionProcess);
+        }
+
+        private sealed class TestHostEnvironment(string envName) : IHostEnvironment
+        {
+            public string EnvironmentName { get; set; } = envName;
+            public string ApplicationName { get; set; } = "ShareDataWorker";
+            public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+            public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } = null!;
+        }
+
+        private sealed class MockDataOutboundFileSender(Func<DataMappingResult, DataOutboundContext, Task<DataOutboundSendResult>> handler, bool? shouldWriteFile = null)
+            : DataOutboundFileSender(null, null)
+        {
+            public override bool ShouldWriteFile() => shouldWriteFile ?? true;
+
+            public override Task<DataOutboundSendResult> Send(DataMappingResult mapping, DataOutboundContext ctx, CancellationToken ct)
+                => handler(mapping, ctx);
+        }
+
+        private sealed class MockDataOutboundRestSender(Func<DataMappingResult, DataOutboundContext, Task<DataOutboundSendResult>> handler)
+            : DataOutboundRestSender(null)
+        {
+            public override Task<DataOutboundSendResult> Send(DataMappingResult mapping, DataOutboundContext ctx, CancellationToken ct)
+                => handler(mapping, ctx);
         }
 
         private sealed class MockDataExtractionProcess(Func<ISqlSugarClient, ShareDataSubscription, ShareDataPacket, Task<DataOutboundExtractionResult>> handler) : IDataOutboundExtractionProcess
@@ -456,12 +486,16 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             return await File.ReadAllTextAsync(fullPath);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra thứ tự các thuộc tính JSON của gói tin 101 được sắp xếp đúng theo OrderNo từ 1 đến 12.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void Transform_Packet101_KeysOrderMatchesOrderNo1To12_Test()
         {
             var def = PacketMetadataCatalogTest.All["101"];
-            var allFields = def.Tables
-                .SelectMany(t => DataOutboundService.ParseFields(t.FieldsJson).Where(f => f.InternalOnly != true))
+            var allFields = def.Fields
+                .Where(f => f.InternalOnly != true)
                 .OrderBy(f => f.OrderNo)
                 .ToList();
 
@@ -484,7 +518,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 }
             };
 
-            var transformed = DataOutboundService.Transform(rawRows, allFields);
+            var targetShapeJson = "{" + string.Join(", ", allFields.Select(f => $"\"{f.FieldKey}\": {{ \"$field\": \"{f.FieldKey}\" }}")) + "}";
+            var transformed = DataMappingProcess.Transform(rawRows, targetShapeJson);
             Assert.Single(transformed);
 
             var row = Assert.IsAssignableFrom<IDictionary<string, object?>>(transformed[0]);
@@ -500,6 +535,10 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
 
 
 
+        /// <summary>
+        /// Description: Kiểm tra trường kiểu int không có đơn vị quy đổi sẽ được ép kiểu thành số nguyên int.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void Transform_WhenIntFieldWithoutTargetUnit_CoercesToInt_Test()
         {
@@ -511,12 +550,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 }
             };
 
-            var fields = new List<PacketFieldDto>
-            {
-                new() { FieldKey = "speedLimit", Column = "MaxSpeed", DataType = "int", Unit = "km/h" }
-            };
-
-            var result = DataOutboundService.Transform(rawRows, fields);
+            var shapeJson = """{ "speedLimit": { "$field": "speedLimit", "$extend": { "targetType": "int" } } }""";
+            var result = DataMappingProcess.Transform(rawRows, shapeJson);
 
             Assert.Single(result);
             var row = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
@@ -526,6 +561,10 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
 
 
 
+        /// <summary>
+        /// Description: Kiểm tra khi mapping có nhiều biểu thức lỗi thì chỉ ghi cảnh báo ESH-1203 duy nhất một lần.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public async Task ExecuteExport_WhenMappingHasMultipleExpressions_LogsAlertEsh1203ExactlyOnce_Test()
         {
@@ -543,21 +582,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 PacketVersion = "1.0"
 }).ExecuteCommandAsync();
 
-            await db.Insertable(new ShareDataTable
-            {
-                ID = Guid.NewGuid().ToString("N"),
-                PacketCode = packetCode,
-                Alias = "zs",
-                TableName = "TmsZoneStatus",
-                IsRoot = true,
-                OrderNo = 1,
-                                FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
-                {
-                    new() { FieldKey = "zoneId", Column = "ZoneId", Required = true },
-                    new() { FieldKey = "fieldA", Column = "Condition" },
-                    new() { FieldKey = "fieldB", Column = "AverageSpeed" }
-                })
-            }).ExecuteCommandAsync();
+            await db.Insertable(new System.Collections.Generic.List<ShareDataPacketField> { new() { ID = Guid.NewGuid().ToString("N"), DatatypeId = packetCode, AliasFieldKey = "zoneId", Type = "string", IsRequired = Shared.DTO.Enums.BaseEnums.IsRequired.IsRequired }, new() { ID = Guid.NewGuid().ToString("N"), DatatypeId = packetCode, AliasFieldKey = "fieldA", Type = "string", IsRequired = Shared.DTO.Enums.BaseEnums.IsRequired.NoRequired }, new() { ID = Guid.NewGuid().ToString("N"), DatatypeId = packetCode, AliasFieldKey = "fieldB", Type = "string", IsRequired = Shared.DTO.Enums.BaseEnums.IsRequired.NoRequired } }).ExecuteCommandAsync();
 
             var (partner, sub) = await SeedOutboundSubscription(db, $"P_1203_{uniqueId}", $"SUB_1203_{uniqueId}", packetCode);
 
@@ -587,10 +612,9 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 ["fieldA"] = "1",
                 ["fieldB"] = 60
             };
-            var service = CreateWorker(scope, extractionProcess: new MockDataExtractionProcess(async (dbClient, s, p) =>
+            var service = CreateWorker(scope, extractionProcess: new MockDataExtractionProcess((dbClient, s, p) =>
             {
-                var fields = await DataOutboundExtractionProcess.LoadPacketFields(dbClient, p.Code);
-                return new DataOutboundExtractionResult([row], fields, DateTime.Now, "1");
+                return Task.FromResult(new DataOutboundExtractionResult([row], DateTime.Now, "1"));
             }));
 
             try
@@ -614,6 +638,10 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             }
         }
 
+        /// <summary>
+        /// Description: Kiểm tra gói tin tăng dần khi mốc watermark null thì không cập nhật LastTimeRun theo đồng hồ hệ thống.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public async Task ExecuteExport_WhenIncrementalPacketHasNullWatermark_DoesNotAdvanceLastTimeRunToClock_Test()
         {
@@ -621,7 +649,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
             var uniqueId = Guid.NewGuid().ToString("N")[..8];
-            var packetCode = $"PKT_A1_{uniqueId}";
+            var packetCode = $"103_vdsData_{uniqueId}";
 
             await db.Insertable(new ShareDataPacket
             {
@@ -631,16 +659,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 PacketVersion = "1.0"
             }).ExecuteCommandAsync();
 
-            await db.Insertable(new ShareDataTable
-            {
-                ID = Guid.NewGuid().ToString("N"),
-                PacketCode = packetCode,
-                Alias = "td",
-                TableName = "TmsTrafficData",
-                IsRoot = true,
-                OrderNo = 1,
-                FieldsJson = "[{\"fieldKey\":\"speed\",\"column\":\"Speed\"}]"
-            }).ExecuteCommandAsync();
+            await db.Insertable(new System.Collections.Generic.List<ShareDataPacketField> { new() { ID = Guid.NewGuid().ToString("N"), DatatypeId = packetCode, AliasFieldKey = "speed", Type = "string", IsRequired = Shared.DTO.Enums.BaseEnums.IsRequired.NoRequired } }).ExecuteCommandAsync();
 
             var (partner, sub) = await SeedOutboundSubscription(db, $"P_A1_{uniqueId}", $"SUB_A1_{uniqueId}", packetCode, s =>
             {
@@ -661,10 +680,9 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 ["__watermark"] = null,
                 ["__rowid"] = "1"
             };
-            var service = CreateWorker(scope, extractionProcess: new MockDataExtractionProcess(async (dbClient, s, p) =>
+            var service = CreateWorker(scope, extractionProcess: new MockDataExtractionProcess((dbClient, s, p) =>
             {
-                var fields = await DataOutboundExtractionProcess.LoadPacketFields(dbClient, p.Code);
-                return new DataOutboundExtractionResult([row], fields, null, null);
+                return Task.FromResult(new DataOutboundExtractionResult([row], null, null));
             }));
 
             try
@@ -683,6 +701,10 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
 
 
 
+        /// <summary>
+        /// Description: Kiểm tra khi hai trường có cùng khóa đích thì trường sau ghi đè trường trước và kích hoạt cảnh báo.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void Transform_WhenTwoFieldsShareSameTargetKey_OverwritesAndTriggersWarning_Test()
         {
@@ -695,17 +717,11 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 }
             };
 
-            var fields = new List<PacketFieldDto>
-            {
-                new() { FieldKey = "fieldA", Column = "fieldA" },
-                new() { FieldKey = "fieldB", Column = "fieldB" }
-            };
-
             var targetShapeJson = @"{
                 ""renamedField"": { ""$field"": ""fieldA"" }
             }";
 
-            var result = DataOutboundService.Transform(rawRows, fields, targetShapeJson);
+            var result = DataMappingProcess.Transform(rawRows, targetShapeJson);
 
             Assert.Single(result);
             var row = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
@@ -713,6 +729,10 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             Assert.Equal("ValueA", row["renamedField"]);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra đường dẫn file kết xuất có chứa SubscriptionId phân biệt khi hai subscription chạy cùng giây và cùng số serial.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void GenerateExportRelativePath_WhenTwoSubsShareSecondAndHaveSameSerialNbr_DiscriminatorIncludesSubId_Test()
         {
@@ -729,19 +749,23 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             };
 
             var time = new DateTime(2026, 8, 23, 15, 30, 45);
-            var path1 = DataOutboundService.GenerateExportRelativePath("PARTNER_A", "101", time, DataOutboundService.ResolveFileDiscriminator(sub1));
-            var path2 = DataOutboundService.GenerateExportRelativePath("PARTNER_A", "101", time, DataOutboundService.ResolveFileDiscriminator(sub2));
+            var path1 = DataOutboundFileSender.GenerateExportRelativePath("PARTNER_A", "101", time, DataOutboundFileSender.ResolveFileDiscriminator(sub1));
+            var path2 = DataOutboundFileSender.GenerateExportRelativePath("PARTNER_A", "101", time, DataOutboundFileSender.ResolveFileDiscriminator(sub2));
 
             Assert.NotEqual(path1, path2);
             Assert.Contains("5_SUB_ID_1", path1);
             Assert.Contains("5_SUB_ID_2", path2);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra giải mã JSON danh sách CodeValues hoạt động chính xác cả với JSON hợp lệ và JSON bị hỏng.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void ParseCodeValues_WithValidAndCorruptedJson_ParsesCorrectly_Test()
         {
             var validJson = "[{\"sourceValue\":\"1\",\"partnerValue\":\"slow\",\"displayName\":\"Chậm\",\"orderNo\":1},{\"sourceValue\":\"2\",\"partnerValue\":\"normal\",\"displayName\":\"Bình thường\",\"isDefault\":true,\"orderNo\":2}]";
-            var parsed = DataOutboundService.ParseCodeValues(validJson);
+            var parsed = PacketJsonParser.ParseCodeValues(validJson);
             Assert.Equal(2, parsed.Count);
             Assert.Equal("1", parsed[0].SourceValue);
             Assert.Equal("slow", parsed[0].PartnerValue);
@@ -749,14 +773,18 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             Assert.Equal(1, parsed[0].OrderNo);
             Assert.True(parsed[1].IsDefault);
 
-            var empty = DataOutboundService.ParseCodeValues("{invalid-json}");
+            var empty = PacketJsonParser.ParseCodeValues("{invalid-json}");
             Assert.Empty(empty);
 
             var partialJson = "[{\"sourceValue\":\"1\",\"partnerValue\":\"slow\"}, \"bad_element\", {\"sourceValue\":\"2\",\"partnerValue\":\"normal\"}]";
-            var partialParsed = DataOutboundService.ParseCodeValues(partialJson);
+            var partialParsed = PacketJsonParser.ParseCodeValues(partialJson);
             Assert.Equal(2, partialParsed.Count);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra quy đổi mã CodeSet chuẩn xác và fallback về giá trị mặc định khi không tìm thấy mã tương ứng.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void MapCode_StandardMappingAndDefaultFallback_BehavesCorrectly_Test()
         {
@@ -781,9 +809,188 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 new() { SourceValue = "A", PartnerValue = "Alpha" }
             };
             var r4 = DataOutboundService.MapCode(noDefaultSet, "Z");
+            Assert.Equal("Z", r4);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra ParseCodeSet và ParseCodeValues hoạt động chính xác với cả cấu trúc Object mới, Array cũ và JSON hỏng.
+        /// Created date: 18/09/2026
+        /// </summary>
         [Fact]
+        public void ParseCodeSet_And_ParseCodeValues_BothStructures_BehavesCorrectly_Test()
+        {
+            // 1. Cấu trúc mới (Object)
+            var newStructureJson = @"{
+                ""values"": [
+                    { ""sourceValue"": ""1"", ""partnerValue"": ""on"", ""displayName"": ""Bật"" },
+                    { ""sourceValue"": ""2"", ""partnerValue"": ""off"", ""displayName"": ""Tắt"" }
+                ],
+                ""defaultSourceValue"": ""4"",
+                ""defaultPartnerValue"": ""false""
+            }";
+
+            var codeSetNew = PacketJsonParser.ParseCodeSet(newStructureJson);
+            Assert.Equal(2, codeSetNew.Values.Count);
+            Assert.Equal("1", codeSetNew.Values[0].SourceValue);
+            Assert.Equal("on", codeSetNew.Values[0].PartnerValue);
+            Assert.Equal("4", codeSetNew.DefaultSourceValue);
+            Assert.Equal("false", codeSetNew.DefaultPartnerValue);
+
+            // ParseCodeValues với cấu trúc mới -> trả đúng Values
+            var valuesFromNew = PacketJsonParser.ParseCodeValues(newStructureJson);
+            Assert.Equal(2, valuesFromNew.Count);
+            Assert.Equal("1", valuesFromNew[0].SourceValue);
+            Assert.Equal("on", valuesFromNew[0].PartnerValue);
+
+            // 2. Cấu trúc cũ (Array)
+            var oldStructureJson = @"[
+                { ""sourceValue"": ""normal"", ""partnerValue"": ""0"", ""displayName"": """", ""isDefault"": false },
+                { ""sourceValue"": ""slow"", ""partnerValue"": ""1"", ""displayName"": """", ""isDefault"": true }
+            ]";
+
+            var codeSetOld = PacketJsonParser.ParseCodeSet(oldStructureJson);
+            Assert.Equal(2, codeSetOld.Values.Count);
+            Assert.Equal("normal", codeSetOld.Values[0].SourceValue);
+            Assert.Equal("0", codeSetOld.Values[0].PartnerValue);
+            Assert.Null(codeSetOld.DefaultSourceValue);
+            Assert.Null(codeSetOld.DefaultPartnerValue);
+
+            // ParseCodeValues với cấu trúc cũ -> trả đúng Values
+            var valuesFromOld = PacketJsonParser.ParseCodeValues(oldStructureJson);
+            Assert.Equal(2, valuesFromOld.Count);
+            Assert.Equal("normal", valuesFromOld[0].SourceValue);
+
+            // 3. JSON rỗng / hỏng -> trả rỗng, không ném
+            var emptySet = PacketJsonParser.ParseCodeSet(null);
+            Assert.Empty(emptySet.Values);
+            Assert.Null(emptySet.DefaultSourceValue);
+
+            var corruptedSet = PacketJsonParser.ParseCodeSet("{invalid json syntax}");
+            Assert.Empty(corruptedSet.Values);
+
+            var corruptedValues = PacketJsonParser.ParseCodeValues("{invalid json syntax}");
+            Assert.Empty(corruptedValues);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra MapCode với cấu trúc mới (directionDefault) và cấu trúc cũ (isDefault/fallback thô).
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void MapCode_NewAndOldStructure_PriorityAndDefaults_BehavesCorrectly_Test()
+        {
+            var newStructureJson = @"{
+                ""values"": [
+                    { ""sourceValue"": ""1"", ""partnerValue"": ""on"", ""displayName"": ""display"" },
+                    { ""sourceValue"": ""2"", ""partnerValue"": ""off"", ""displayName"": ""display"" }
+                ],
+                ""defaultSourceValue"": ""4"",
+                ""defaultPartnerValue"": ""false""
+            }";
+            var newCodeSet = PacketJsonParser.ParseCodeSet(newStructureJson);
+
+            // Ca 1: Cấu trúc mới · thô ""1"" -> ra ""on""
+            var rNew1 = DataOutboundService.MapCode(newCodeSet.Values, "1", "TEST_CODE", null, newCodeSet.DefaultSourceValue);
+            Assert.Equal("on", rNew1);
+
+            // Ca 2: Cấu trúc mới · thô ""9"" (không khớp) -> ra ""4"" (defaultSourceValue)
+            var rNewUnmatched = DataOutboundService.MapCode(newCodeSet.Values, "9", "TEST_CODE", null, newCodeSet.DefaultSourceValue);
+            Assert.Equal("4", rNewUnmatched);
+
+            // Ca 3: Cấu trúc mới · thô null -> ra ""4""
+            var rNewNull = DataOutboundService.MapCode(newCodeSet.Values, null, "TEST_CODE", null, newCodeSet.DefaultSourceValue);
+            Assert.Equal("4", rNewNull);
+
+            // Cấu trúc cũ
+            var oldCodeValues = new List<CodeValueDto>
+            {
+                new() { SourceValue = "normal", PartnerValue = "0", IsDefault = false },
+                new() { SourceValue = "slow", PartnerValue = "1", IsDefault = true }
+            };
+
+            // Ca 4: Cấu trúc cũ (mảng) · thô khớp -> ra partnerValue
+            var rOldMatched = DataOutboundService.MapCode(oldCodeValues, "normal");
+            Assert.Equal("0", rOldMatched);
+
+            // Ca 5: Cấu trúc cũ · không khớp · có isDefault -> ra giá trị isDefault (""1"")
+            var rOldDefault = DataOutboundService.MapCode(oldCodeValues, "unknown_val");
+            Assert.Equal("1", rOldDefault);
+
+            // Ca 6: Cấu trúc cũ · không khớp · không isDefault -> trả nguyên giá trị thô + gọi onUnmapped
+            var noDefaultCodeValues = new List<CodeValueDto>
+            {
+                new() { SourceValue = "normal", PartnerValue = "0", IsDefault = false }
+            };
+            var unmappedCalled = false;
+            string? unmappedCodeSet = null;
+            object? unmappedVal = null;
+            var rOldRaw = DataOutboundService.MapCode(
+                noDefaultCodeValues,
+                "conges",
+                "condition",
+                (cs, v) =>
+                {
+                    unmappedCalled = true;
+                    unmappedCodeSet = cs;
+                    unmappedVal = v;
+                });
+            Assert.Equal("conges", rOldRaw);
+            Assert.True(unmappedCalled);
+            Assert.Equal("condition", unmappedCodeSet);
+            Assert.Equal("conges", unmappedVal);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra Transform tích hợp với bộ mã cấu trúc mới (DefaultPartnerValue cho chiều gửi khi không khớp theo §3.4).
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_WithNewCodeSetStructure_UsesDefaultPartnerValueWhenUnmatched_Test()
+        {
+            var codeSetJson = @"{
+                ""values"": [
+                    { ""sourceValue"": ""1"", ""partnerValue"": ""on"" },
+                    { ""sourceValue"": ""2"", ""partnerValue"": ""off"" }
+                ],
+                ""defaultSourceValue"": ""4"",
+                ""defaultPartnerValue"": ""false""
+            }";
+            var codeSet = PacketJsonParser.ParseCodeSet(codeSetJson);
+
+            var codeSets = new Dictionary<string, CodeSetDto>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["MY_CODE_SET"] = codeSet
+            };
+
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?> { ["cond"] = "1" },
+                new Dictionary<string, object?> { ["cond"] = "99" },
+                new Dictionary<string, object?> { ["cond"] = null }
+            };
+
+            var targetShapeJson = @"{
+                ""trafficCond"": { ""$field"": ""cond"", ""$extend"": { ""codeSet"": ""MY_CODE_SET"" } }
+            }";
+
+            var result = DataMappingProcess.Transform(rawRows, targetShapeJson, codeSets: codeSets);
+            Assert.Equal(3, result.Count);
+
+            var row1 = (IDictionary<string, object?>)result[0];
+            Assert.Equal("on", row1["trafficCond"]);
+
+            var row2 = (IDictionary<string, object?>)result[1];
+            Assert.Equal("false", row2["trafficCond"]);
+
+            var row3 = (IDictionary<string, object?>)result[2];
+            Assert.Equal("false", row3["trafficCond"]);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra quy trình biến đổi chuyển từ mã nội bộ sang mã chuẩn sau đó sang mã đối tác theo đúng trình tự.
+        /// Created date: 17/09/2026
+        /// </summary>
+        [Fact(Skip = "Bộ mã tầng 1 (PacketField.CodeSetCode) đã bỏ hẳn khỏi luồng Outbound theo chốt thiết kế, chỉ còn $extend.codeSet.")]
         public void Transform_Step2AndStep3Sequence_ConvertsStandardThenPartnerCodeSet_Test()
         {
             var codeSets = new Dictionary<string, List<CodeValueDto>>(StringComparer.OrdinalIgnoreCase)
@@ -792,11 +999,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 [
                     new() { SourceValue = "1", PartnerValue = "slow", DisplayName = "Chậm (std)" },
                     new() { SourceValue = "2", PartnerValue = "normal", DisplayName = "Bình thường (std)" }
-                ],
-                ["TRAFFIC_COND_PARTNER"] =
-                [
-                    new() { SourceValue = "slow", PartnerValue = "Chậm", DisplayName = "Chậm (vn)" },
-                    new() { SourceValue = "normal", PartnerValue = "Bình thường", DisplayName = "Bình thường (vn)" }
                 ]
             };
 
@@ -808,16 +1010,11 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 }
             };
 
-            var fields = new List<PacketFieldDto>
-            {
-                new() { FieldKey = "condition", Column = "Condition", CodeSetCode = "TRAFFIC_COND_STD", DataType = "string" }
-            };
-
             var targetShapeJson = @"{
                 ""tinhTrang"": { ""$field"": ""condition"", ""$extend"": { ""codeSet"": ""TRAFFIC_COND_PARTNER"" } }
             }";
 
-            var result = DataOutboundService.Transform(rawRows, fields, targetShapeJson, codeSets: codeSets);
+            var result = DataMappingProcess.Transform(rawRows, targetShapeJson, codeSets: codeSets);
 
             Assert.Single(result);
             var row = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
@@ -825,6 +1022,10 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             Assert.Equal("Chậm", row["tinhTrang"]);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra trường dữ liệu có cấu hình CodeSet thì giữ nguyên chuỗi mã, không bị ép kiểu về số.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void Transform_WhenFieldHasCodeSet_DoesNotCoerceToNumber_Test()
         {
@@ -844,12 +1045,17 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 }
             };
 
-            var fields = new List<PacketFieldDto>
-            {
-                new() { FieldKey = "condition", Column = "Condition", CodeSetCode = "COND_SET", DataType = "decimal" }
-            };
+            var targetShapeJson = @"{
+                ""condition"": {
+                    ""$field"": ""condition"",
+                    ""$extend"": {
+                        ""codeSet"": ""COND_SET"",
+                        ""targetType"": ""decimal""
+                    }
+                }
+            }";
 
-            var result = DataOutboundService.Transform(rawRows, fields, codeSets: codeSets);
+            var result = DataMappingProcess.Transform(rawRows, targetShapeJson, codeSets: codeSets);
 
             Assert.Single(result);
             var row = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
@@ -857,6 +1063,10 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             Assert.IsType<string>(row["condition"]);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra ném ngoại lệ khi thiếu trường bắt buộc trong dữ liệu biến đổi.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void Transform_WhenRequiredFieldMissing_Throws_Test()
         {
@@ -874,21 +1084,24 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 }
             };
 
-            var fields = new List<PacketFieldDto>
-            {
-                new() { FieldKey = "zoneId", Column = "ZoneId", Required = true },
-                new() { FieldKey = "averageSpeed", Column = "AverageSpeed", Required = true, DataType = "decimal" }
-            };
+            var targetShapeJson = @"{
+                ""zoneId"": { ""$field"": ""zoneId"", ""$extend"": { ""required"": true } },
+                ""averageSpeed"": { ""$field"": ""averageSpeed"", ""$extend"": { ""required"": true, ""targetType"": ""decimal"" } }
+            }";
 
             var ex = Assert.Throws<InvalidOperationException>(() =>
             {
-                DataOutboundService.Transform(rawRows, fields);
+                DataMappingProcess.Transform(rawRows, targetShapeJson);
             });
 
             Assert.Contains("Thiếu trường bắt buộc", ex.Message);
             Assert.Contains("averageSpeed", ex.Message);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra khi thiếu trường bắt buộc thì hủy xuất bản dữ liệu và ghi log cảnh báo ESH-1202.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public async Task ExecuteExport_WhenRequiredFieldMissing_AbortsExportAndLogsAlertEsh1202_Test()
         {
@@ -906,25 +1119,17 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 PacketVersion = "1.0"
 }).ExecuteCommandAsync();
 
-            await db.Insertable(new ShareDataTable
-            {
-                ID = Guid.NewGuid().ToString("N"),
-                PacketCode = packetCode,
-                Alias = "zs",
-                TableName = "TmsZoneStatus",
-                IsRoot = true,
-                OrderNo = 1,
-                                FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
-                {
-                    new() { FieldKey = "zoneId", Column = "ZoneId", Required = true },
-                    new() { FieldKey = "averageSpeed", Column = "AverageSpeed", Required = true }
-                })
-            }).ExecuteCommandAsync();
+            await db.Insertable(new System.Collections.Generic.List<ShareDataPacketField> { new() { ID = Guid.NewGuid().ToString("N"), DatatypeId = packetCode, AliasFieldKey = "zoneId", Type = "string", IsRequired = Shared.DTO.Enums.BaseEnums.IsRequired.IsRequired }, new() { ID = Guid.NewGuid().ToString("N"), DatatypeId = packetCode, AliasFieldKey = "averageSpeed", Type = "string", IsRequired = Shared.DTO.Enums.BaseEnums.IsRequired.IsRequired } }).ExecuteCommandAsync();
 
             var (partner, sub) = await SeedOutboundSubscription(db, $"P_REQ_{uniqueId}", $"SUB_REQ_{uniqueId}", packetCode, s =>
             {
                 s.LastTimeRun = new DateTime(2026, 1, 1);
             });
+
+            await db.Updateable<ShareDataMapping>()
+                .SetColumns(m => m.TargetShapeJson == @"{ ""zoneId"": { ""$field"": ""zoneId"" }, ""averageSpeed"": { ""$field"": ""averageSpeed"", ""$extend"": { ""required"": true } } }")
+                .Where(m => m.PartnerId == partner.ID && m.DatatypeId == packetCode)
+                .ExecuteCommandAsync();
 
             var statusId = Guid.NewGuid().ToString("N");
             await db.Insertable(new TmsZoneStatus
@@ -940,10 +1145,9 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 ["zoneId"] = $"Z_{uniqueId}",
                 ["averageSpeed"] = null
             };
-            var service = CreateWorker(scope, extractionProcess: new MockDataExtractionProcess(async (dbClient, s, p) =>
+            var service = CreateWorker(scope, extractionProcess: new MockDataExtractionProcess((dbClient, s, p) =>
             {
-                var fields = await DataOutboundExtractionProcess.LoadPacketFields(dbClient, p.Code);
-                return new DataOutboundExtractionResult([row], fields, DateTime.Now, "1");
+                return Task.FromResult(new DataOutboundExtractionResult([row], DateTime.Now, "1"));
             }));
 
             try
@@ -969,6 +1173,10 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             }
         }
 
+        /// <summary>
+        /// Description: Kiểm tra khi thiếu CodeSet trong CSDL thì ghi log cảnh báo ESH-1201 và tiếp tục tiến trình xuất bản.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public async Task ExecuteExport_WhenCodeSetMissingInDb_LogsAlertEsh1201AndContinuesExport_Test()
         {
@@ -986,22 +1194,11 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 PacketVersion = "1.0"
             }).ExecuteCommandAsync();
 
-            await db.Insertable(new ShareDataTable
-            {
-                ID = Guid.NewGuid().ToString("N"),
-                PacketCode = packetCode,
-                Alias = "zs",
-                TableName = "TmsZoneStatus",
-                IsRoot = true,
-                OrderNo = 1,
-                FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
-                {
-                    new() { FieldKey = "zoneId", Column = "ZoneId", Required = true },
-                    new() { FieldKey = "trafficCondition", Column = "Condition", CodeSetCode = "NON_EXISTING_CODESET_1201" }
-                })
-            }).ExecuteCommandAsync();
+            await db.Insertable(new System.Collections.Generic.List<ShareDataPacketField> { new() { ID = Guid.NewGuid().ToString("N"), DatatypeId = packetCode, AliasFieldKey = "zoneId", Type = "string", IsRequired = Shared.DTO.Enums.BaseEnums.IsRequired.IsRequired }, new() { ID = Guid.NewGuid().ToString("N"), DatatypeId = packetCode, AliasFieldKey = "trafficCondition", Type = "string", IsRequired = Shared.DTO.Enums.BaseEnums.IsRequired.NoRequired } }).ExecuteCommandAsync();
 
             var (partner, sub) = await SeedOutboundSubscription(db, $"P_MISS_CS_{uniqueId}", $"SUB_MISS_CS_{uniqueId}", packetCode);
+            var targetShapeStr = "{ \"trafficCondition\": { \"$field\": \"trafficCondition\", \"$extend\": { \"codeSet\": \"MISS_CS\" } }, \"zoneId\": { \"$field\": \"zoneId\" } }";
+            await db.Updateable<ShareDataMapping>().SetColumns(m => m.TargetShapeJson == targetShapeStr).Where(m => m.PartnerId == partner.ID && m.DatatypeId == packetCode).ExecuteCommandAsync();
 
             var missCsStatusId = Guid.NewGuid().ToString("N");
             await db.Insertable(new TmsZoneStatus
@@ -1017,10 +1214,9 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 ["zoneId"] = $"Z_{uniqueId}",
                 ["trafficCondition"] = "1"
             };
-            var service = CreateWorker(scope, extractionProcess: new MockDataExtractionProcess(async (dbClient, s, p) =>
+            var service = CreateWorker(scope, extractionProcess: new MockDataExtractionProcess((dbClient, s, p) =>
             {
-                var fields = await DataOutboundExtractionProcess.LoadPacketFields(dbClient, p.Code);
-                return new DataOutboundExtractionResult([row], fields, DateTime.Now, "1");
+                return Task.FromResult(new DataOutboundExtractionResult([row], DateTime.Now, "1"));
             }));
 
             try
@@ -1037,7 +1233,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 Assert.NotEmpty(alerts);
                 Assert.Equal(BaseEnums.AlertSeverity.Warning, alerts[0].Severity);
                 Assert.Equal(BaseEnums.AlertSource.Funnel, alerts[0].AlertSource);
-                Assert.Contains("NON_EXISTING_CODESET_1201", alerts[0].Message);
+                Assert.Contains("MISS_CS", alerts[0].Message);
             }
             finally
             {
@@ -1047,6 +1243,10 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
 
 
 
+        /// <summary>
+        /// Description: Kiểm tra tiến trình xuất bản hàng loạt ghi file PDU hợp lệ trực tiếp xuống ổ đĩa.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public async Task ProcessBatchSubscriptions_DirectFileWrite_SavesValidPduOnDisk_Test()
         {
@@ -1080,8 +1280,13 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             Assert.NotNull(updatedSub.NextTimeRun);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra khi mapping có biểu thức thì bỏ qua không tính toán theo §3.4/D8, giữ nguyên giá trị nguồn vào payload và không sinh cảnh báo ESH-1203.
+        /// Created date: 17/09/2026
+        /// Updated date: 18/09/2026
+        /// </summary>
         [Fact]
-        public async Task ProcessBatchSubscriptions_WhenMappingHasValidExpressions_EvaluatesThemIntoPayload_NoAlert_Test()
+        public async Task ProcessBatchSubscriptions_WhenMappingHasValidExpressions_IgnoresExpressionAndKeepsRawValue_Test()
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
@@ -1147,7 +1352,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             var content = await File.ReadAllTextAsync(fullPath);
             using var doc = JsonDocument.Parse(content);
             var record = doc.RootElement.EnumerateArray().First(r => r.GetProperty("zoneId").GetString() == zoneId);
-            Assert.Equal(120m, record.GetProperty("calcSpeed").GetDecimal());
+            Assert.Equal(60m, record.GetProperty("calcSpeed").GetDecimal());
 
             var alerts = await db.Queryable<ShareDataAlertLog>()
                 .Where(a => a.SubscriptionId == sub.ID && a.AlertCode == "ESH-1203")
@@ -1259,6 +1464,10 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             await db.Deleteable<ShareDataMapping>().Where(m => m.ID == mappingId).ExecuteCommandAsync();
         }
 
+        /// <summary>
+        /// Description: Kiểm tra khi mapping có biểu thức cú pháp không hợp lệ thì ghi log ESH-1203 và giữ lại giá trị thô.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public async Task ProcessBatchSubscriptions_WhenMappingHasInvalidExpression_LogsEsh1203_KeepsRawValue_Test()
         {
@@ -1336,8 +1545,13 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             Assert.Equal(BaseEnums.AlertSeverity.Warning, alerts[0].Severity);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra khi biểu thức chia 0 thì bỏ qua không tính toán theo §3.4/D8, giữ lại giá trị thô và không phát sinh lỗi runtime hay cảnh báo ESH-1203.
+        /// Created date: 17/09/2026
+        /// Updated date: 18/09/2026
+        /// </summary>
         [Fact]
-        public async Task ProcessBatchSubscriptions_WhenExpressionRuntimeErrors_LogsEsh1203_KeepsRaw_Test()
+        public async Task ProcessBatchSubscriptions_WhenExpressionRuntimeErrors_IgnoresAndKeepsRaw_Test()
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
@@ -1408,11 +1622,15 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             var alerts = await db.Queryable<ShareDataAlertLog>()
                 .Where(a => a.SubscriptionId == sub.ID && a.AlertCode == "ESH-1203")
                 .ToListAsync();
-            Assert.NotEmpty(alerts);
+            Assert.Empty(alerts);
         }
 
         /*
         // [TẠM REMCODE THEO YÊU CẦU]: Test xuất XML chờ chốt phương án cấu hình phân biệt XML/JSON từ tầng Entity/API.
+        /// <summary>
+        /// Description: Kiểm tra khi giao thức đối tác là XML_A thì xuất file XML chuẩn kèm mã băm SHA-256.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public async Task ProcessBatchSubscriptions_WhenPartnerProtocolIsXmlA_ExportsWellFormedXmlWithSha256Hash_Test()
         {
@@ -1452,6 +1670,10 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         }
         */
 
+        /// <summary>
+        /// Description: Kiểm tra khi giao thức đối tác là ASN thì tự động fallback về định dạng JSON.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public async Task ProcessBatchSubscriptions_WhenPartnerProtocolIsAsn_FallsBackToJson_Test()
         {
@@ -1474,6 +1696,10 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             Assert.EndsWith(".json", logs[0].FilePath, StringComparison.OrdinalIgnoreCase);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra cơ chế bù dữ liệu tăng dần sau thời gian nhàn rỗi đảm bảo mỗi bản ghi mới xuất đúng một lần.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public async Task ProcessBatchSubscriptions_IncrementalCatchUp_AfterIdle_ExportsEveryNewRowExactlyOnce_Test()
         {
@@ -1579,7 +1805,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 Assert.True(updatedSub.LastTimeRun >= insertedRecords.Last().DetectTime!.Value.AddSeconds(-1));
         }
 
-        #region Lease HA Guard Tests
 
         /// <summary>
         /// Description: Kiểm thử TryPersistExportResult khi giữ đúng lease token thì cập nhật thành công 1 dòng và cập nhật SerialNbr, State, NextTimeRun.
@@ -1818,11 +2043,13 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 File.Delete(fullPath);
         }
 
-        #endregion
 
         /*
-        #region XML Serialization Tests (Remcode: Xml.cs đã bị xoá theo kế hoạch refactor 16/09)
 
+        /// <summary>
+        /// Description: Kiểm tra hàm ToNcName chuẩn hóa các định danh XML hợp lệ.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Theory]
         [InlineData("ValidName", "ValidName")]
         [InlineData("123NumberField", "_123NumberField")]
@@ -1837,6 +2064,10 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             Assert.Equal(expected, result);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra tuần tự hóa XML Envelope tạo ra mảng byte XML hợp lệ không chứa ký tự BOM.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void SerializeEnvelopeToXmlBytes_ProducesWellFormedXmlWithoutBom_Test()
         {
@@ -1902,6 +2133,10 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             Assert.True(nullElem.IsEmpty || string.IsNullOrEmpty(nullElem.Value));
         }
 
+        /// <summary>
+        /// Description: Kiểm tra tuần tự hóa dữ liệu XML khớp với phân đoạn XML phục vụ việc tính toán mã băm PayloadHash.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void SerializeDataToXmlBytes_MatchesFragmentForPayloadHash_Test()
         {
@@ -1926,11 +2161,13 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             Assert.Contains("<volume>1500</volume>", fragmentStr);
         }
 
-        #endregion
         */
 
-        #region Shape Expression Evaluator Tests
 
+        /// <summary>
+        /// Description: Kiểm tra tính toán các phép toán số học cơ bản cộng trừ nhân chia trả về kết quả chính xác.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void Evaluate_ArithmeticBasic_ReturnsExpectedValue_Test()
         {
@@ -1943,13 +2180,17 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var ok = DataOutboundService.TryEvaluate("val1 + val2 * val3", row, out var result, out var error);
+            var ok = DataMappingProcess.TryEvaluate("val1 + val2 * val3", row, out var result, out var error);
 
             // Assert
             Assert.True(ok, error);
             Assert.Equal(20m, result);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra tính toán biểu thức có chứa dấu ngoặc đơn và phép chia theo đúng độ ưu tiên toán học.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void Evaluate_ParenthesesAndDivision_ReturnsExpectedValue_Test()
         {
@@ -1962,13 +2203,17 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var ok = DataOutboundService.TryEvaluate("(a - b) / c", row, out var result, out var error);
+            var ok = DataMappingProcess.TryEvaluate("(a - b) / c", row, out var result, out var error);
 
             // Assert
             Assert.True(ok, error);
             Assert.Equal(4m, result);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra tính toán biểu thức chứa dấu trừ một ngôi và phép chia lấy dư modulo.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void Evaluate_UnaryMinusAndModulo_ReturnsExpectedValue_Test()
         {
@@ -1979,13 +2224,17 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var ok = DataOutboundService.TryEvaluate("-num % 4", row, out var result, out var error);
+            var ok = DataMappingProcess.TryEvaluate("-num % 4", row, out var result, out var error);
 
             // Assert
             Assert.True(ok, error);
             Assert.Equal(-3m, result);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra hàm Concat nối chuỗi ký tự và số thành chuỗi hoàn chỉnh.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void Evaluate_ConcatFunction_JoinsStringsAndNumbers_Test()
         {
@@ -1997,13 +2246,17 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var ok = DataOutboundService.TryEvaluate("CONCAT(code, '_', id)", row, out var result, out var error);
+            var ok = DataMappingProcess.TryEvaluate("CONCAT(code, '_', id)", row, out var result, out var error);
 
             // Assert
             Assert.True(ok, error);
             Assert.Equal("VDS_102", result);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra hàm IsNull và Coalesce trả về giá trị khác null đầu tiên.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void Evaluate_IsNullAndCoalesce_ReturnsFirstNonNull_Test()
         {
@@ -2015,8 +2268,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var okIsNull = DataOutboundService.TryEvaluate("ISNULL(nullField, fallbackVal)", row, out var resIsNull, out var err1);
-            var okCoalesce = DataOutboundService.TryEvaluate("COALESCE(nullField, nullField, 99)", row, out var resCoalesce, out var err2);
+            var okIsNull = DataMappingProcess.TryEvaluate("ISNULL(nullField, fallbackVal)", row, out var resIsNull, out var err1);
+            var okCoalesce = DataMappingProcess.TryEvaluate("COALESCE(nullField, nullField, 99)", row, out var resCoalesce, out var err2);
 
             // Assert
             Assert.True(okIsNull, err1);
@@ -2026,6 +2279,10 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             Assert.Equal(99m, resCoalesce);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra các hàm xử lý chuỗi ký tự gồm Upper, Lower, Len và Trim.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void Evaluate_StringFunctions_UpperLowerLenTrim_Test()
         {
@@ -2036,22 +2293,26 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act & Assert
-            Assert.True(DataOutboundService.TryEvaluate("UPPER(text)", row, out var upper, out _));
+            Assert.True(DataMappingProcess.TryEvaluate("UPPER(text)", row, out var upper, out _));
             Assert.Equal("  HELLO WORLD  ", upper);
 
-            Assert.True(DataOutboundService.TryEvaluate("LOWER(text)", row, out var lower, out _));
+            Assert.True(DataMappingProcess.TryEvaluate("LOWER(text)", row, out var lower, out _));
             Assert.Equal("  hello world  ", lower);
 
-            Assert.True(DataOutboundService.TryEvaluate("LEN(text)", row, out var len, out _));
+            Assert.True(DataMappingProcess.TryEvaluate("LEN(text)", row, out var len, out _));
             Assert.Equal(15m, len);
 
-            Assert.True(DataOutboundService.TryEvaluate("LTRIM(text)", row, out var ltrim, out _));
+            Assert.True(DataMappingProcess.TryEvaluate("LTRIM(text)", row, out var ltrim, out _));
             Assert.Equal("Hello World  ", ltrim);
 
-            Assert.True(DataOutboundService.TryEvaluate("RTRIM(text)", row, out var rtrim, out _));
+            Assert.True(DataMappingProcess.TryEvaluate("RTRIM(text)", row, out var rtrim, out _));
             Assert.Equal("  Hello World", rtrim);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra các hàm làm tròn Round và trị tuyệt đối Abs trả về giá trị số thập phân mong muốn.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void Evaluate_RoundAndAbs_ReturnsExpectedDecimal_Test()
         {
@@ -2063,13 +2324,17 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act & Assert
-            Assert.True(DataOutboundService.TryEvaluate("ROUND(speed, 2)", row, out var rounded, out _));
+            Assert.True(DataMappingProcess.TryEvaluate("ROUND(speed, 2)", row, out var rounded, out _));
             Assert.Equal(85.68m, rounded);
 
-            Assert.True(DataOutboundService.TryEvaluate("ABS(diff)", row, out var absVal, out _));
+            Assert.True(DataMappingProcess.TryEvaluate("ABS(diff)", row, out var absVal, out _));
             Assert.Equal(15.4m, absVal);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra toán hạng null trong phép toán số học sẽ lan truyền giá trị null.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void Evaluate_NullOperandInArithmetic_PropagatesNull_Test()
         {
@@ -2080,13 +2345,17 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var ok = DataOutboundService.TryEvaluate("nullVal + 10", row, out var result, out var error);
+            var ok = DataMappingProcess.TryEvaluate("nullVal + 10", row, out var result, out var error);
 
             // Assert
             Assert.True(ok, error);
             Assert.Null(result);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra phép chia cho 0 được xử lý an toàn và không gây crash ứng dụng.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void Evaluate_DivideByZero_FailsGracefully_Test()
         {
@@ -2097,13 +2366,17 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var ok = DataOutboundService.TryEvaluate("val / 0", row, out var result, out var error);
+            var ok = DataMappingProcess.TryEvaluate("val / 0", row, out var result, out var error);
 
             // Assert
             Assert.False(ok);
             Assert.Contains("chia cho 0", error, StringComparison.OrdinalIgnoreCase);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra khi thiếu trường dữ liệu trong hàng thì ném thông báo lỗi mô tả chi tiết.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void Evaluate_MissingFieldInRow_FailsWithDescriptiveError_Test()
         {
@@ -2114,13 +2387,17 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var ok = DataOutboundService.TryEvaluate("missingField * 2", row, out var result, out var error);
+            var ok = DataMappingProcess.TryEvaluate("missingField * 2", row, out var result, out var error);
 
             // Assert
             Assert.False(ok);
             Assert.Contains("missingField", error, StringComparison.OrdinalIgnoreCase);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra kiểm tra tĩnh từ chối các cấu trúc biểu thức nguy hiểm như câu lệnh SQL mutation.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Theory]
         [InlineData("SELECT * FROM users")]
         [InlineData("1; DROP TABLE EshPartner")]
@@ -2130,30 +2407,36 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         public void IsStaticallyValid_RejectsDangerousConstructs_Test(string dangerousExpr)
         {
             // Act
-            var valid = DataOutboundService.IsStaticallyValid(dangerousExpr, out var error);
+            var valid = DataMappingProcess.IsStaticallyValid(dangerousExpr, out var error);
 
             // Assert
             Assert.False(valid);
             Assert.NotNull(error);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra kiểm tra tĩnh từ chối các biểu thức rỗng hoặc vượt quá độ dài quy định.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void IsStaticallyValid_RejectsEmptyOrOversizedExpression_Test()
         {
             // Empty
-            Assert.False(DataOutboundService.IsStaticallyValid("", out var err1));
+            Assert.False(DataMappingProcess.IsStaticallyValid("", out var err1));
             Assert.NotNull(err1);
 
             // Oversized (> 512 chars)
             var longExpr = "1 + " + new string('1', 515);
-            Assert.False(DataOutboundService.IsStaticallyValid(longExpr, out var err2));
+            Assert.False(DataMappingProcess.IsStaticallyValid(longExpr, out var err2));
             Assert.NotNull(err2);
         }
 
-        #endregion
 
-        #region Fix (a) Prefix Number Matching Tests
 
+        /// <summary>
+        /// Description: Kiểm tra phân giải chế độ lọc theo tiền tố mã gói tin trả về FilterMode chính xác.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Theory]
         [InlineData("103_vdsData", (int)ShareDataEnum.PacketFilterMode.Incremental)]
         [InlineData("106_wimData", (int)ShareDataEnum.PacketFilterMode.Incremental)]
@@ -2166,10 +2449,14 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         public void ResolveFilterMode_WithPrefixCodes_ReturnsCorrectFilterMode_Test(string code, int expectedMode)
         {
             var packet = new ShareDataPacket { Code = code };
-            var mode = DataOutboundService.ResolveFilterMode(packet);
+            var mode = PacketMetadataResolver.ResolveFilterMode(packet);
             Assert.Equal(expectedMode, mode);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra phân giải giới hạn TopN theo tiền tố mã gói tin trả về số lượng bản ghi mong muốn.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Theory]
         [InlineData("103_vdsData", 50)]
         [InlineData("106_wimData", 50)]
@@ -2180,10 +2467,14 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         public void ResolveTopN_WithPrefixCodes_ReturnsExpectedTopN_Test(string code, int? expectedTopN)
         {
             var packet = new ShareDataPacket { Code = code };
-            var topN = DataOutboundService.ResolveTopN(packet);
+            var topN = PacketMetadataResolver.ResolveTopN(packet);
             Assert.Equal(expectedTopN, topN);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra trích xuất tiền tố số của gói tin từ chuỗi mã gói tin.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Theory]
         [InlineData("103_vdsData", 103)]
         [InlineData(" 106_wimData ", 106)]
@@ -2193,14 +2484,16 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         [InlineData(null, null)]
         public void ExtractPacketNumber_ExtractsNumericPrefixCorrectly_Test(string? code, int? expected)
         {
-            var result = DataOutboundService.ExtractPacketNumber(code);
+            var result = PacketMetadataResolver.ExtractPacketNumber(code);
             Assert.Equal(expected, result);
         }
 
-        #endregion
 
-        #region Fix (e) $each / $as Aggregate Mode Tests
 
+        /// <summary>
+        /// Description: Kiểm tra cú pháp  và  tạo ra gói tin envelope đơn lẻ chứa mảng dữ liệu.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void Transform_WithEachAndAs_ProducesSingleEnvelopeWithArrayData_Test()
         {
@@ -2224,14 +2517,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 new Dictionary<string, object?> { ["zoneId"] = "Z03", ["averageSpeed"] = 80.0m }
             };
 
-            var fields = new List<PacketFieldDto>
-            {
-                new() { FieldKey = "zoneId", Column = "ZoneId" },
-                new() { FieldKey = "averageSpeed", Column = "AverageSpeed" }
-            };
-
             // Act
-            var result = DataOutboundService.Transform(rawRows, fields, shapeJson);
+            var result = DataMappingProcess.Transform(rawRows, shapeJson);
 
             // Assert
             Assert.Single(result);
@@ -2283,14 +2570,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 new Dictionary<string, object?> { ["zoneId"] = "Z03", ["averageSpeed"] = 80.0m }
             };
 
-            var fields = new List<PacketFieldDto>
-            {
-                new() { FieldKey = "zoneId", Column = "ZoneId" },
-                new() { FieldKey = "averageSpeed", Column = "AverageSpeed" }
-            };
-
             // Act
-            var result = DataOutboundService.Transform(rawRows, fields, shapeJson);
+            var result = DataMappingProcess.Transform(rawRows, shapeJson);
 
             // Assert
             Assert.Single(result);
@@ -2338,13 +2619,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 new Dictionary<string, object?> { ["zoneId"] = "Z02" }
             };
 
-            var fields = new List<PacketFieldDto>
-            {
-                new() { FieldKey = "zoneId", Column = "ZoneId" }
-            };
-
             // Act
-            var result = DataOutboundService.Transform(rawRows, fields, shapeJson);
+            var result = DataMappingProcess.Transform(rawRows, shapeJson);
 
             // Assert
             Assert.Single(result);
@@ -2362,6 +2638,10 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             Assert.Equal(2, dataList.Count);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra khi không có cú pháp  thì duy trì hành vi xử lý theo từng bản ghi ban đầu.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void Transform_WithoutEach_MaintainsOriginalPerRowBehavior_Test()
         {
@@ -2378,14 +2658,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 new Dictionary<string, object?> { ["zoneId"] = "Z02", ["averageSpeed"] = 75.0m }
             };
 
-            var fields = new List<PacketFieldDto>
-            {
-                new() { FieldKey = "zoneId", Column = "ZoneId" },
-                new() { FieldKey = "averageSpeed", Column = "AverageSpeed" }
-            };
-
             // Act
-            var result = DataOutboundService.Transform(rawRows, fields, shapeJson);
+            var result = DataMappingProcess.Transform(rawRows, shapeJson);
 
             // Assert
             Assert.Equal(2, result.Count);
@@ -2409,7 +2683,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 },
                 ""data"": [
                     {
-                        ""targetVal"": { ""$field"": ""requiredField"" }
+                        ""targetVal"": { ""$field"": ""requiredField"", ""$extend"": { ""required"": true } }
                     }
                 ]
             }";
@@ -2421,19 +2695,9 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 new Dictionary<string, object?> { ["otherField"] = 3 }
             };
 
-            var fields = new List<PacketFieldDto>
-            {
-                new()
-                {
-                    FieldKey = "requiredField",
-                    Column = "ColRequired",
-                    Required = true
-                }
-            };
-
             // Act & Assert
             var ex = Assert.Throws<InvalidOperationException>(() =>
-                DataOutboundService.Transform(rawRows, fields, shapeJson));
+                DataMappingProcess.Transform(rawRows, shapeJson));
 
             Assert.StartsWith("Thiếu trường bắt buộc", ex.Message, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("0/", ex.Message);
@@ -2441,21 +2705,13 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         }
 
         /// <summary>
-        /// Description: Kiểm thử khi trường bắt buộc khai báo trong FieldsJson không có bí danh (alias) tương ứng trong dữ liệu thô SQL thì phải báo lỗi rõ ràng.
+        /// Description: Kiểm thử khi trường bắt buộc khai báo không có bí danh (alias) tương ứng trong dữ liệu thô SQL thì phải báo lỗi rõ ràng.
         /// Created date: 15/09/2026
         /// </summary>
         [Fact]
-        public void Transform_WhenDeclaredFieldInFieldsJsonHasNoMatchingSqlAlias_ThrowsClearError_Test()
+        public void Transform_WhenDeclaredFieldHasNoMatchingSqlAlias_ThrowsClearError_Test()
         {
             // Arrange
-            const string fieldsJson = """
-            [
-                {"fieldKey":"zoneId","columnName":"ZoneId","isRequired":true,"orderNo":1},
-                {"fieldKey":"missingAliasField","columnName":"MissingColumn","isRequired":true,"orderNo":2}
-            ]
-            """;
-            var declaredFields = DataOutboundService.ParseFields(fieldsJson);
-
             // Dữ liệu thô từ SQL query chỉ trả về cột zoneId, hoàn toàn thiếu bí danh missingAliasField
             var rawRows = new List<object>
             {
@@ -2465,9 +2721,15 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 }
             };
 
-            // Act & Assert 1: Flat record (không dùng TargetShapeJson)
+            // Act & Assert 1: Flat shape có trường required
+            const string flatShape = """
+            {
+                "zoneId": { "$field": "zoneId", "$extend": { "required": true } },
+                "missingAliasField": { "$field": "missingAliasField", "$extend": { "required": true } }
+            }
+            """;
             var exFlat = Assert.Throws<InvalidOperationException>(() =>
-                DataOutboundService.Transform(rawRows, declaredFields));
+                DataMappingProcess.Transform(rawRows, flatShape));
 
             Assert.StartsWith("Thiếu trường bắt buộc", exFlat.Message, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("missingAliasField", exFlat.Message);
@@ -2479,22 +2741,24 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 "data": [
                     {
                         "zone": { "$field": "zoneId" },
-                        "missing": { "$field": "missingAliasField" }
+                        "missing": { "$field": "missingAliasField", "$extend": { "required": true } }
                     }
                 ]
             }
             """;
             var exShape = Assert.Throws<InvalidOperationException>(() =>
-                DataOutboundService.Transform(rawRows, declaredFields, shapeJson));
+                DataMappingProcess.Transform(rawRows, shapeJson));
 
             Assert.StartsWith("Thiếu trường bắt buộc", exShape.Message, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("missingAliasField", exShape.Message);
         }
 
-        #endregion
 
-        #region Fix (guard) Recursion Depth Guard Tests
 
+        /// <summary>
+        /// Description: Kiểm tra biểu thức lồng dấu ngoặc đơn hoặc phép toán một ngôi quá sâu được từ chối an toàn.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void Evaluate_DeeplyNestedUnaryOrParentheses_RejectsGracefully_Test()
         {
@@ -2503,7 +2767,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             var deepExpr = string.Concat(Enumerable.Repeat("-(", 35)) + "x" + new string(')', 35);
 
             // Act
-            var ok = DataOutboundService.TryEvaluate(deepExpr, row, out var result, out var error);
+            var ok = DataMappingProcess.TryEvaluate(deepExpr, row, out var result, out var error);
 
             // Assert
             Assert.False(ok);
@@ -2512,6 +2776,10 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         }
 
         /*
+        /// <summary>
+        /// Description: Kiểm tra tuần tự hóa XML với Dictionary lồng sâu vượt ngưỡng tối đa sẽ được cắt tỉa an toàn.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void SerializeEnvelopeToXmlBytes_DeeplyNestedDictionary_TruncatesAtMaxDepth_Test()
         {
@@ -2536,9 +2804,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         }
         */
 
-        #endregion
 
-        #region Incremental And CodeSet Verification Tests
 
         /// <summary>
         /// Description: Kiểm thử 2 vòng chạy liên tiếp cho gói Incremental 104 (Thời tiết):
@@ -2632,12 +2898,11 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         }
 
         /// <summary>
-        /// Description: Kiểm thử LoadPacketFields nạp đúng CodeSetCode từ ShareDataTable.FieldsJson
-        /// và Transform áp dụng bảng quy đổi ShareDataCodeSet cho gói tin 101.
+        /// Description: Kiểm thử cấu hình TargetShapeJson nạp đúng CodeSet và Transform áp dụng bảng quy đổi ShareDataCodeSet cho gói tin 101.
         /// Created date: 15/09/2026
         /// </summary>
         [Fact]
-        public async Task ProcessBatchSubscriptions_LoadsCodeSetFromFieldsJson_TranslatesValueCorrectly_Test()
+        public async Task ProcessBatchSubscriptions_LoadsCodeSetFromPacketFields_TranslatesValueCorrectly_Test()
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
@@ -2645,7 +2910,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
             var unique = Guid.NewGuid().ToString("N")[..8];
 
-            // 1. Seed ShareDataCodeSet với Code = "TRAFFIC_COND" (đã có trong FieldsJson của gói 101)
+            // 1. Seed ShareDataCodeSet với Code = "TRAFFIC_COND" (đã có trong cấu hình trường của gói 101)
             var codeSetId = Guid.NewGuid().ToString("N");
             await db.Deleteable<ShareDataCodeSet>()
                 .Where(c => c.Code == "TRAFFIC_COND")
@@ -2707,6 +2972,15 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
 
             // 3. Seed Subscription cho gói 101
             var (partner, sub) = await SeedOutboundSubscription(db, $"P_CS_{unique}", $"SUB_CS_{unique}", "101");
+            
+            var targetShapeStr = """
+            {
+                "averageSpeed": { "$field": "averageSpeed" },
+                "trafficCondition": { "$field": "trafficCondition", "$extend": { "codeSet": "TRAFFIC_COND" } },
+                "zoneId": { "$field": "zoneId" }
+            }
+            """;
+            await db.Updateable<ShareDataMapping>().SetColumns(m => m.TargetShapeJson == targetShapeStr).Where(m => m.PartnerId == partner.ID && m.DatatypeId == "101").ExecuteCommandAsync();
 
             // 4. Chạy export
             await CreateWorker(scope).ProcessBatchSubscriptions(CancellationToken.None);
@@ -2724,7 +2998,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             Assert.Contains("UNCS_01", content);
         }
 
-        #endregion
 
         private static readonly Dictionary<string, (string SelectClause, string FromJoinClause, string WhereClause)> GoldenSqlCatalog = new()
         {
@@ -2795,37 +3068,15 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         }
 
         /// <summary>
-        /// Danh mục metadata chuẩn cho 11 gói tin chia sẻ dữ liệu (101 - 111) phục vụ kiểm thử tự động.
-        /// Định nghĩa chi tiết cấu trúc bảng (ShareDataTable) và các trường (FieldsJson).
-        /// Author: Đạt
+        /// Description: Danh mục metadata chuẩn cho 11 gói tin chia sẻ dữ liệu (101 - 111) phục vụ kiểm thử tự động.
         /// Created date: 22/08/2026
         /// </summary>
         public static class PacketMetadataCatalogTest
         {
-            /// <summary>
-            /// Mock của ShareDataTable — đã bị xoá khỏi worker; giữ lại ở đây chỉ để seeding dữ liệu test.
-            /// </summary>
-            [SqlSugar.SugarTable("ShareDataTable")]
-            public class ShareDataTable
-            {
-                [SqlSugar.SugarColumn(IsPrimaryKey = true)]
-                public string ID { get; set; } = null!;
-                public string? PacketCode { get; set; }
-                public string? TableName { get; set; }
-                public string? Alias { get; set; }
-                public bool? IsRoot { get; set; }
-                public string? FieldsJson { get; set; }
-                public int? OrderNo { get; set; }
-                public DateTime? IsDelete { get; set; }
-                public string? SchemaName { get; set; }
-                public Shared.DTO.Enums.BaseEnums.PacketJoinType? JoinType { get; set; }
-                public string? JoinCondition { get; set; }
-            }
-
             public class PacketDefinition
             {
                 public ShareDataPacket Packet { get; set; } = new();
-                public List<ShareDataTable> Tables { get; set; } = [];
+                public List<PacketFieldDto> Fields { get; set; } = [];
             }
 
             private static readonly Dictionary<string, PacketDefinition> Definitions = BuildDefinitions();
@@ -2853,7 +3104,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             }
 
             /// <summary>
-            /// Nạp cấu hình metadata của gói tin vào CSDL test (idempotent, không làm sai lệch static cache).
+            /// Description: Nạp cấu hình metadata của gói tin và các trường ShareDataPacketField vào CSDL test.
+            /// Created date: 16/09/2026
             /// </summary>
             public static async Task SeedPacketToDb(ISqlSugarClient db, string packetCode)
             {
@@ -2863,47 +3115,50 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                     .Where(p => p.Code == def.Packet.Code && p.IsDelete == null)
                     .FirstAsync();
 
-                string packetId;
                 if (existingPacket == null)
                 {
-                    packetId = Guid.NewGuid().ToString("N");
                     var newPacket = new ShareDataPacket
                     {
-                        ID = packetId,
+                        ID = Guid.NewGuid().ToString("N"),
                         Code = def.Packet.Code,
                         Name = def.Packet.Name,
                         PacketVersion = def.Packet.PacketVersion
-};
+                    };
                     await db.Insertable(newPacket).ExecuteCommandAsync();
                 }
                 else
                 {
-                    packetId = existingPacket.ID;
                     existingPacket.PacketVersion = def.Packet.PacketVersion;
                     await db.Updateable(existingPacket).ExecuteCommandAsync();
                 }
 
-                await db.Deleteable<ShareDataTable>().Where(t => t.PacketCode == def.Packet.Code).ExecuteCommandAsync();
-
-                var tablesToInsert = def.Tables.Select(tbl => new ShareDataTable
+                await db.Deleteable<ShareDataPacketField>().Where(f => f.DatatypeId == def.Packet.Code).ExecuteCommandAsync();
+                var baseTime = DateTime.Now;
+                var newFields = new List<ShareDataPacketField>();
+                int order = 0;
+                foreach (var field in def.Fields.Where(f => f.InternalOnly != true).OrderBy(f => f.OrderNo))
                 {
-                    ID = Guid.NewGuid().ToString("N"),
-                    PacketCode = tbl.PacketCode,
-                    SchemaName = tbl.SchemaName,
-                    TableName = tbl.TableName,
-                    Alias = tbl.Alias,
-                    IsRoot = tbl.IsRoot,
-                    JoinType = tbl.JoinType,
-                    JoinCondition = tbl.JoinCondition,
-                    FieldsJson = tbl.FieldsJson,
-                    OrderNo = tbl.OrderNo
-                }).ToList();
+                    newFields.Add(new ShareDataPacketField
+                    {
+                        ID = Guid.NewGuid().ToString("N"),
+                        DatatypeId = def.Packet.Code,
+                        AliasFieldKey = field.FieldKey,
+                        Type = field.DataType,
+                        Name = field.Name,
+                        IsRequired = field.Required ? Shared.DTO.Enums.BaseEnums.IsRequired.IsRequired : Shared.DTO.Enums.BaseEnums.IsRequired.NoRequired,
+                        CreateTime = baseTime.AddSeconds(order++)
+                    });
+                }
 
-                await db.Insertable(tablesToInsert).ExecuteCommandAsync();
+                if (newFields.Count > 0)
+                {
+                    await db.Insertable(newFields).ExecuteCommandAsync();
+                }
             }
 
             /// <summary>
-            /// Nạp toàn bộ 11 gói tin vào CSDL test.
+            /// Description: Nạp toàn bộ 11 gói tin vào CSDL test.
+            /// Created date: 16/09/2026
             /// </summary>
             public static async Task SeedAllPacketsToDb(ISqlSugarClient db)
             {
@@ -2917,7 +3172,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             {
                 var map = new Dictionary<string, PacketDefinition>();
 
-                // ─── 101. TrafficFlow ───
                 map["101"] = new PacketDefinition
                 {
                     Packet = new ShareDataPacket
@@ -2926,68 +3180,24 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                         Code = "101",
                         Name = "Thông tin chung / luồng giao thông",
                         PacketVersion = "1.0"
-},
-                    Tables =
+                    },
+                    Fields =
                     [
-                        new ShareDataTable
-                        {
-                            ID = "table_101_1",
-                            PacketCode = "101",
-                            Alias = "zs",
-                            SchemaName = "dbo",
-                            TableName = "TmsZoneStatus",
-                            IsRoot = true,
-                            OrderNo = 1,
-                                                        FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
-                            {
-                                new() { FieldKey = "zoneId", Column = "ZoneId", DataType = "string", Required = true, OrderNo = 1 },
-                                new() { FieldKey = "averageSpeed", Column = "AverageSpeed", Expression = "CAST(zs.AverageSpeed AS DECIMAL(18, 2))", DataType = "decimal", Unit = "km/h", Required = true, OrderNo = 8 },
-                                new() { FieldKey = "trafficCondition", Column = "Condition", CodeSetCode = "TRAFFIC_COND", DataType = "string", Required = true, OrderNo = 9 },
-                                new() { FieldKey = "dataTime", Column = "UpdateTime", DataType = "datetime", Required = true, OrderNo = 10 }
-                            })
-                        },
-                        new ShareDataTable
-                        {
-                            ID = "table_101_2",
-                            PacketCode = "101",
-                            Alias = "z",
-                            SchemaName = "dbo",
-                            TableName = "TmsZone",
-                            IsRoot = false,
-                            JoinType = BaseEnums.PacketJoinType.Left,
-                            JoinCondition = "zs.ZoneId = z.ID",
-                            OrderNo = 2,
-                            FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
-                            {
-                                new() { FieldKey = "zoneName", Column = "Name", DataType = "string", OrderNo = 2 },
-                                new() { FieldKey = "fromLocationKm", Column = "FromKmNumber", Unit = "km", DataType = "int", OrderNo = 3 },
-                                new() { FieldKey = "fromLocationMet", Column = "FromMetNumber", Unit = "m", DataType = "int", OrderNo = 4 },
-                                new() { FieldKey = "toLocationKm", Column = "ToKmNumber", Unit = "km", DataType = "int", OrderNo = 5 },
-                                new() { FieldKey = "toLocationMet", Column = "ToMetNumber", Unit = "m", DataType = "int", OrderNo = 6 },
-                                new() { FieldKey = "laneId", Column = "LaneId", CodeSetCode = "LANE_DIR", DataType = "string", OrderNo = 7 },
-                                new() { FieldKey = "speedLimit", Column = "MaxSpeed", Unit = "km/h", DataType = "int", OrderNo = 11 }
-                            })
-                        },
-                        new ShareDataTable
-                        {
-                            ID = "table_101_3",
-                            PacketCode = "101",
-                            Alias = "ts",
-                            SchemaName = "dbo",
-                            TableName = "TmsTrafficStatistic",
-                            IsRoot = false,
-                            JoinType = BaseEnums.PacketJoinType.Left,
-                            JoinCondition = "zs.ZoneId = ts.ZoneId",
-                            OrderNo = 3,
-                            FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
-                            {
-                                new() { FieldKey = "vehicleCount", Column = "TotalVehicleNumber", DataType = "int", OrderNo = 12 }
-                            })
-                        }
+                        new() { FieldKey = "zoneId", Column = "ZoneId", DataType = "string", Required = true, OrderNo = 1 },
+                        new() { FieldKey = "zoneName", Column = "Name", DataType = "string", OrderNo = 2 },
+                        new() { FieldKey = "fromLocationKm", Column = "FromKmNumber", Unit = "km", DataType = "int", OrderNo = 3 },
+                        new() { FieldKey = "fromLocationMet", Column = "FromMetNumber", Unit = "m", DataType = "int", OrderNo = 4 },
+                        new() { FieldKey = "toLocationKm", Column = "ToKmNumber", Unit = "km", DataType = "int", OrderNo = 5 },
+                        new() { FieldKey = "toLocationMet", Column = "ToMetNumber", Unit = "m", DataType = "int", OrderNo = 6 },
+                        new() { FieldKey = "laneId", Column = "LaneId", CodeSetCode = "LANE_DIR", DataType = "string", OrderNo = 7 },
+                        new() { FieldKey = "averageSpeed", Column = "AverageSpeed", Expression = "CAST(zs.AverageSpeed AS DECIMAL(18, 2))", DataType = "decimal", Unit = "km/h", Required = true, OrderNo = 8 },
+                        new() { FieldKey = "trafficCondition", Column = "Condition", CodeSetCode = "TRAFFIC_COND", DataType = "string", Required = true, OrderNo = 9 },
+                        new() { FieldKey = "dataTime", Column = "UpdateTime", DataType = "datetime", Required = true, OrderNo = 10 },
+                        new() { FieldKey = "speedLimit", Column = "MaxSpeed", Unit = "km/h", DataType = "int", OrderNo = 11 },
+                        new() { FieldKey = "vehicleCount", Column = "TotalVehicleNumber", DataType = "int", OrderNo = 12 }
                     ]
                 };
 
-                // ─── 102. CctvImage (SNAPSHOT) ───
                 map["102"] = new PacketDefinition
                 {
                     Packet = new ShareDataPacket
@@ -2996,50 +3206,20 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                         Code = "102",
                         Name = "Dữ liệu hình ảnh giao thông (CCTV)",
                         PacketVersion = "1.0"
-},
-                    Tables =
+                    },
+                    Fields =
                     [
-                        new ShareDataTable
-                        {
-                            ID = "table_102_1",
-                            PacketCode = "102",
-                            Alias = "c",
-                            SchemaName = "dbo",
-                            TableName = "CctvDevice",
-                            IsRoot = true,
-                            OrderNo = 1,
-                            FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
-                            {
-                                new() { FieldKey = "cameraName", Column = "Name", DataType = "string", OrderNo = 2 },
-                                // §1.9: snapshot lấy qua cameraSnapshotService (tải file JPEG thật/base64 từ Camera API theo chu kỳ), không lấy trực tiếp từ CSDL
-                                new() { FieldKey = "snapshot", Column = "SnapshotUrl", DataType = "string", OrderNo = 3, NoSource = true },
-                                new() { FieldKey = "snapshotTime", Column = "SnapshotTime", DataType = "datetime", OrderNo = 4 },
-                                new() { FieldKey = "deviceState", Column = "DeviceState", DataType = "int", OrderNo = 5 }
-                            })
-                        },
-                        new ShareDataTable
-                        {
-                            ID = "table_102_2",
-                            PacketCode = "102",
-                            Alias = "e",
-                            SchemaName = "dbo",
-                            TableName = "TmsEquipment",
-                            IsRoot = false,
-                            JoinType = BaseEnums.PacketJoinType.Left,
-                            JoinCondition = "c.Ip = e.Ip",
-                            OrderNo = 2,
-                            FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
-                            {
-                                new() { FieldKey = "cameraCode", Column = "Code", DataType = "string", OrderNo = 1 },
-                                new() { FieldKey = "locationKm", Column = "KmNumber", DataType = "int", OrderNo = 6 },
-                                new() { FieldKey = "locationMet", Column = "MetNumber", DataType = "int", OrderNo = 7 },
-                                new() { FieldKey = "direction", Column = "DirectionId", DataType = "int", OrderNo = 8 }
-                            })
-                        }
+                        new() { FieldKey = "cameraCode", Column = "Code", DataType = "string", OrderNo = 1 },
+                        new() { FieldKey = "cameraName", Column = "Name", DataType = "string", OrderNo = 2 },
+                        new() { FieldKey = "snapshot", Column = "SnapshotUrl", DataType = "string", OrderNo = 3, NoSource = true },
+                        new() { FieldKey = "snapshotTime", Column = "SnapshotTime", DataType = "datetime", OrderNo = 4 },
+                        new() { FieldKey = "deviceState", Column = "DeviceState", DataType = "int", OrderNo = 5 },
+                        new() { FieldKey = "locationKm", Column = "KmNumber", DataType = "int", OrderNo = 6 },
+                        new() { FieldKey = "locationMet", Column = "MetNumber", DataType = "int", OrderNo = 7 },
+                        new() { FieldKey = "direction", Column = "DirectionId", DataType = "int", OrderNo = 8 }
                     ]
                 };
 
-                // ─── 103. VehicleDetection ───
                 map["103"] = new PacketDefinition
                 {
                     Packet = new ShareDataPacket
@@ -3048,52 +3228,23 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                         Code = "103",
                         Name = "Dữ liệu dò xe (VDS)",
                         PacketVersion = "1.0"
-},
-                    Tables =
+                    },
+                    Fields =
                     [
-                        new ShareDataTable
-                        {
-                            ID = "table_103_1",
-                            PacketCode = "103",
-                            Alias = "td",
-                            SchemaName = "dbo",
-                            TableName = "TmsTrafficData",
-                            IsRoot = true,
-                            OrderNo = 1,
-                                                        FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
-                            {
-                                new() { FieldKey = "detectionId", Column = "ID", DataType = "string", OrderNo = 1 },
-                                new() { FieldKey = "detectTime", Column = "DetectTime", DataType = "datetime", Required = true, OrderNo = 2 },
-                                new() { FieldKey = "vehicleType", Column = "Type", DataType = "string", OrderNo = 3 },
-                                new() { FieldKey = "licensePlate", Column = "LicensePlate", DataType = "string", OrderNo = 4 },
-                                new() { FieldKey = "speed", Column = "Speed", DataType = "decimal", Unit = "km/h", OrderNo = 5 },
-                                new() { FieldKey = "lane", Column = "Lane", DataType = "string", OrderNo = 6 },
-                                new() { FieldKey = "direction", Column = "Direction", DataType = "string", OrderNo = 7 },
-                                new() { FieldKey = "locationRoute", Column = "Location", DataType = "string", OrderNo = 8 },
-                                new() { FieldKey = "equipmentId", Column = "EquipmentId", DataType = "string", OrderNo = 9 }
-                            })
-                        },
-                        new ShareDataTable
-                        {
-                            ID = "table_103_2",
-                            PacketCode = "103",
-                            Alias = "e",
-                            SchemaName = "dbo",
-                            TableName = "TmsEquipment",
-                            IsRoot = false,
-                            JoinType = BaseEnums.PacketJoinType.Left,
-                            JoinCondition = "td.EquipmentId = e.ID",
-                            OrderNo = 2,
-                            FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
-                            {
-                                new() { FieldKey = "locationKm", Column = "KmNumber", DataType = "int", OrderNo = 10 },
-                                new() { FieldKey = "locationMet", Column = "MetNumber", DataType = "int", OrderNo = 11 }
-                            })
-                        }
+                        new() { FieldKey = "detectionId", Column = "ID", DataType = "string", OrderNo = 1 },
+                        new() { FieldKey = "detectTime", Column = "DetectTime", DataType = "datetime", Required = true, OrderNo = 2 },
+                        new() { FieldKey = "vehicleType", Column = "Type", DataType = "string", OrderNo = 3 },
+                        new() { FieldKey = "licensePlate", Column = "LicensePlate", DataType = "string", OrderNo = 4 },
+                        new() { FieldKey = "speed", Column = "Speed", DataType = "decimal", Unit = "km/h", OrderNo = 5 },
+                        new() { FieldKey = "lane", Column = "Lane", DataType = "string", OrderNo = 6 },
+                        new() { FieldKey = "direction", Column = "Direction", DataType = "string", OrderNo = 7 },
+                        new() { FieldKey = "locationRoute", Column = "Location", DataType = "string", OrderNo = 8 },
+                        new() { FieldKey = "equipmentId", Column = "EquipmentId", DataType = "string", OrderNo = 9 },
+                        new() { FieldKey = "locationKm", Column = "KmNumber", DataType = "int", OrderNo = 10 },
+                        new() { FieldKey = "locationMet", Column = "MetNumber", DataType = "int", OrderNo = 11 }
                     ]
                 };
 
-                // ─── 104. Weather ───
                 map["104"] = new PacketDefinition
                 {
                     Packet = new ShareDataPacket
@@ -3102,38 +3253,24 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                         Code = "104",
                         Name = "Dữ liệu thời tiết",
                         PacketVersion = "1.0"
-},
-                    Tables =
+                    },
+                    Fields =
                     [
-                        new ShareDataTable
-                        {
-                            ID = "table_104_1",
-                            PacketCode = "104",
-                            Alias = "w",
-                            SchemaName = "dbo",
-                            TableName = "TmsWeather",
-                            IsRoot = true,
-                            OrderNo = 1,
-                                                        FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
-                            {
-                                new() { FieldKey = "weatherStationId", Column = "RefId", DataType = "string", OrderNo = 1 },
-                                new() { FieldKey = "locationDetail", Column = "LocationDetail", DataType = "string", OrderNo = 2 },
-                                new() { FieldKey = "temperature", Column = "Temperature", DataType = "decimal", Unit = "°C", OrderNo = 3 },
-                                new() { FieldKey = "humidity", Column = "Hudmidity", DataType = "decimal", Unit = "%", OrderNo = 4 },
-                                new() { FieldKey = "windSpeed", Column = "WindSpeed", DataType = "decimal", Unit = "m/s", OrderNo = 5 },
-                                new() { FieldKey = "windDirection", Column = "WindDirection", DataType = "string", OrderNo = 6 },
-                                new() { FieldKey = "rainfall", Column = "Rain", DataType = "decimal", Unit = "mm", OrderNo = 7 },
-                                new() { FieldKey = "rainfallHour", Column = "RainHour", DataType = "decimal", Unit = "mm", OrderNo = 8 },
-                                new() { FieldKey = "visibility", Column = "Foresight", DataType = "decimal", Unit = "m", OrderNo = 9 },
-                                new() { FieldKey = "weatherDescription", Column = "Description", DataType = "string", OrderNo = 10 },
-                                new() { FieldKey = "weatherCode", Column = "ShortDescription", DataType = "string", OrderNo = 11 },
-                                new() { FieldKey = "detectTime", Column = "TimeDetect", DataType = "datetime", Required = true, OrderNo = 12 }
-                            })
-                        }
+                        new() { FieldKey = "weatherStationId", Column = "RefId", DataType = "string", OrderNo = 1 },
+                        new() { FieldKey = "locationDetail", Column = "LocationDetail", DataType = "string", OrderNo = 2 },
+                        new() { FieldKey = "temperature", Column = "Temperature", DataType = "decimal", Unit = "°C", OrderNo = 3 },
+                        new() { FieldKey = "humidity", Column = "Hudmidity", DataType = "decimal", Unit = "%", OrderNo = 4 },
+                        new() { FieldKey = "windSpeed", Column = "WindSpeed", DataType = "decimal", Unit = "m/s", OrderNo = 5 },
+                        new() { FieldKey = "windDirection", Column = "WindDirection", DataType = "string", OrderNo = 6 },
+                        new() { FieldKey = "rainfall", Column = "Rain", DataType = "decimal", Unit = "mm", OrderNo = 7 },
+                        new() { FieldKey = "rainfallHour", Column = "RainHour", DataType = "decimal", Unit = "mm", OrderNo = 8 },
+                        new() { FieldKey = "visibility", Column = "Foresight", DataType = "decimal", Unit = "m", OrderNo = 9 },
+                        new() { FieldKey = "weatherDescription", Column = "Description", DataType = "string", OrderNo = 10 },
+                        new() { FieldKey = "weatherCode", Column = "ShortDescription", DataType = "string", OrderNo = 11 },
+                        new() { FieldKey = "detectTime", Column = "TimeDetect", DataType = "datetime", Required = true, OrderNo = 12 }
                     ]
                 };
 
-                // ─── 105. VehicleIdentification ───
                 map["105"] = new PacketDefinition
                 {
                     Packet = new ShareDataPacket
@@ -3142,51 +3279,22 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                         Code = "105",
                         Name = "Dữ liệu định danh phương tiện (AVI/RFID)",
                         PacketVersion = "1.0"
-},
-                    Tables =
+                    },
+                    Fields =
                     [
-                        new ShareDataTable
-                        {
-                            ID = "table_105_1",
-                            PacketCode = "105",
-                            Alias = "t",
-                            SchemaName = "dbo",
-                            TableName = "TollTransactionOut",
-                            IsRoot = true,
-                            OrderNo = 1,
-                                                        FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
-                            {
-                                new() { FieldKey = "transactionId", Column = "TransactionId", DataType = "string", OrderNo = 1 },
-                                new() { FieldKey = "tagId", Column = "TagId", DataType = "string", OrderNo = 2 },
-                                new() { FieldKey = "licensePlate", Expression = "ISNULL(t.PlateEdit, t.PlateLpr)", DataType = "string", OrderNo = 3 },
-                                new() { FieldKey = "vehicleTypeId", Column = "VehicleTypeId", DataType = "string", OrderNo = 4 },
-                                new() { FieldKey = "entryTime", Column = "TransactionDateTimeIn", DataType = "datetime", OrderNo = 5 },
-                                new() { FieldKey = "exitTime", Column = "TransactionDateTime", DataType = "datetime", OrderNo = 6 },
-                                new() { FieldKey = "laneId", Column = "LaneId", DataType = "string", OrderNo = 7 },
-                                new() { FieldKey = "stationId", Column = "StationId", DataType = "string", OrderNo = 8 }
-                            })
-                        },
-                        new ShareDataTable
-                        {
-                            ID = "table_105_2",
-                            PacketCode = "105",
-                            Alias = "vr",
-                            SchemaName = "dbo",
-                            TableName = "TmsVehicleRegistration",
-                            IsRoot = false,
-                            JoinType = BaseEnums.PacketJoinType.Left,
-                            JoinCondition = "ISNULL(t.PlateEdit, t.PlateLpr) = vr.LicensePlate",
-                            OrderNo = 2,
-                            FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
-                            {
-                                new() { FieldKey = "vehicleBrand", Column = "Brand", DataType = "string", OrderNo = 9 },
-                                new() { FieldKey = "vehicleOwner", Column = "Owner", DataType = "string", OrderNo = 10 }
-                            })
-                        }
+                        new() { FieldKey = "transactionId", Column = "TransactionId", DataType = "string", OrderNo = 1 },
+                        new() { FieldKey = "tagId", Column = "TagId", DataType = "string", OrderNo = 2 },
+                        new() { FieldKey = "licensePlate", Expression = "ISNULL(t.PlateEdit, t.PlateLpr)", DataType = "string", OrderNo = 3 },
+                        new() { FieldKey = "vehicleTypeId", Column = "VehicleTypeId", DataType = "string", OrderNo = 4 },
+                        new() { FieldKey = "entryTime", Column = "TransactionDateTimeIn", DataType = "datetime", OrderNo = 5 },
+                        new() { FieldKey = "exitTime", Column = "TransactionDateTime", DataType = "datetime", OrderNo = 6 },
+                        new() { FieldKey = "laneId", Column = "LaneId", DataType = "string", OrderNo = 7 },
+                        new() { FieldKey = "stationId", Column = "StationId", DataType = "string", OrderNo = 8 },
+                        new() { FieldKey = "vehicleBrand", Column = "Brand", DataType = "string", OrderNo = 9 },
+                        new() { FieldKey = "vehicleOwner", Column = "Owner", DataType = "string", OrderNo = 10 }
                     ]
                 };
 
-                // ─── 106. WeighInMotion ───
                 map["106"] = new PacketDefinition
                 {
                     Packet = new ShareDataPacket
@@ -3195,33 +3303,19 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                         Code = "106",
                         Name = "Dữ liệu kiểm tra tải trọng xe (WIM)",
                         PacketVersion = "1.0"
-},
-                    Tables =
+                    },
+                    Fields =
                     [
-                        new ShareDataTable
-                        {
-                            ID = "table_106_1",
-                            PacketCode = "106",
-                            Alias = "td",
-                            SchemaName = "dbo",
-                            TableName = "TmsTrafficData",
-                            IsRoot = true,
-                            OrderNo = 1,
-                                                        FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
-                            {
-                                new() { FieldKey = "detectTime", Column = "DetectTime", DataType = "datetime", Required = true, OrderNo = 1 },
-                                new() { FieldKey = "lane", Column = "Lane", DataType = "string", OrderNo = 2 },
-                                new() { FieldKey = "locationCode", Column = "Location", DataType = "string", OrderNo = 3 },
-                                new() { FieldKey = "speed", Column = "Speed", DataType = "decimal", Unit = "km/h", OrderNo = 4 },
-                                new() { FieldKey = "height", Column = "Height", DataType = "decimal", Unit = "cm", OrderNo = 5 },
-                                new() { FieldKey = "width", Column = "Width", DataType = "decimal", Unit = "cm", OrderNo = 6 },
-                                new() { FieldKey = "length", Column = "Length", DataType = "decimal", Unit = "cm", OrderNo = 7 }
-                            })
-                        }
+                        new() { FieldKey = "detectTime", Column = "DetectTime", DataType = "datetime", Required = true, OrderNo = 1 },
+                        new() { FieldKey = "lane", Column = "Lane", DataType = "string", OrderNo = 2 },
+                        new() { FieldKey = "locationCode", Column = "Location", DataType = "string", OrderNo = 3 },
+                        new() { FieldKey = "speed", Column = "Speed", DataType = "decimal", Unit = "km/h", OrderNo = 4 },
+                        new() { FieldKey = "height", Column = "Height", DataType = "decimal", Unit = "cm", OrderNo = 5 },
+                        new() { FieldKey = "width", Column = "Width", DataType = "decimal", Unit = "cm", OrderNo = 6 },
+                        new() { FieldKey = "length", Column = "Length", DataType = "decimal", Unit = "cm", OrderNo = 7 }
                     ]
                 };
 
-                // ─── 107. TrafficIncident ───
                 map["107"] = new PacketDefinition
                 {
                     Packet = new ShareDataPacket
@@ -3230,55 +3324,26 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                         Code = "107",
                         Name = "Thông tin sự kiện giao thông",
                         PacketVersion = "1.0"
-},
-                    Tables =
+                    },
+                    Fields =
                     [
-                        new ShareDataTable
-                        {
-                            ID = "table_107_1",
-                            PacketCode = "107",
-                            Alias = "i",
-                            SchemaName = "dbo",
-                            TableName = "TmsIncident",
-                            IsRoot = true,
-                            OrderNo = 1,
-                                                        FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
-                            {
-                                new() { FieldKey = "incidentCode", Column = "Code", DataType = "string", OrderNo = 1 },
-                                new() { FieldKey = "incidentName", Column = "Name", DataType = "string", OrderNo = 2 },
-                                new() { FieldKey = "eventTypeId", Column = "EventTypeId", DataType = "string", OrderNo = 3 },
-                                new() { FieldKey = "occurredTime", Column = "StartDate", DataType = "datetime", OrderNo = 5 },
-                                new() { FieldKey = "locationKm", Column = "KmNumber", DataType = "int", OrderNo = 6 },
-                                new() { FieldKey = "locationMet", Column = "MetNumber", DataType = "int", OrderNo = 7 },
-                                new() { FieldKey = "locationRoute", Column = "Location", DataType = "string", OrderNo = 8 },
-                                new() { FieldKey = "direction", Column = "InfluenceScope", DataType = "int", OrderNo = 9 },
-                                new() { FieldKey = "injuredCount", Column = "InjuredNumber", DataType = "int", OrderNo = 10 },
-                                new() { FieldKey = "vehicleCount", Column = "VehicleNumber", DataType = "int", OrderNo = 11 },
-                                new() { FieldKey = "incidentState", Column = "State", DataType = "string", OrderNo = 12 },
-                                new() { FieldKey = "description", Column = "Description", DataType = "string", OrderNo = 13 },
-                                new() { FieldKey = "source", Column = "Source", DataType = "string", OrderNo = 14 }
-                            })
-                        },
-                        new ShareDataTable
-                        {
-                            ID = "table_107_2",
-                            PacketCode = "107",
-                            Alias = "et",
-                            SchemaName = "dbo",
-                            TableName = "TmsEventType",
-                            IsRoot = false,
-                            JoinType = BaseEnums.PacketJoinType.Left,
-                            JoinCondition = "i.EventTypeId = et.ID",
-                            OrderNo = 2,
-                            FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
-                            {
-                                new() { FieldKey = "eventTypeName", Column = "Name", DataType = "string", OrderNo = 4 }
-                            })
-                        }
+                        new() { FieldKey = "incidentCode", Column = "Code", DataType = "string", OrderNo = 1 },
+                        new() { FieldKey = "incidentName", Column = "Name", DataType = "string", OrderNo = 2 },
+                        new() { FieldKey = "eventTypeId", Column = "EventTypeId", DataType = "string", OrderNo = 3 },
+                        new() { FieldKey = "eventTypeName", Column = "Name", DataType = "string", OrderNo = 4 },
+                        new() { FieldKey = "occurredTime", Column = "StartDate", DataType = "datetime", OrderNo = 5 },
+                        new() { FieldKey = "locationKm", Column = "KmNumber", DataType = "int", OrderNo = 6 },
+                        new() { FieldKey = "locationMet", Column = "MetNumber", DataType = "int", OrderNo = 7 },
+                        new() { FieldKey = "locationRoute", Column = "Location", DataType = "string", OrderNo = 8 },
+                        new() { FieldKey = "direction", Column = "InfluenceScope", DataType = "int", OrderNo = 9 },
+                        new() { FieldKey = "injuredCount", Column = "InjuredNumber", DataType = "int", OrderNo = 10 },
+                        new() { FieldKey = "vehicleCount", Column = "VehicleNumber", DataType = "int", OrderNo = 11 },
+                        new() { FieldKey = "incidentState", Column = "State", DataType = "string", OrderNo = 12 },
+                        new() { FieldKey = "description", Column = "Description", DataType = "string", OrderNo = 13 },
+                        new() { FieldKey = "source", Column = "Source", DataType = "string", OrderNo = 14 }
                     ]
                 };
 
-                // ─── 108. VmsDisplay (SNAPSHOT) ───
                 map["108"] = new PacketDefinition
                 {
                     Packet = new ShareDataPacket
@@ -3287,52 +3352,23 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                         Code = "108",
                         Name = "Thông tin biển báo điện tử (VMS)",
                         PacketVersion = "1.0"
-},
-                    Tables =
+                    },
+                    Fields =
                     [
-                        new ShareDataTable
-                        {
-                            ID = "table_108_1",
-                            PacketCode = "108",
-                            Alias = "v",
-                            SchemaName = "dbo",
-                            TableName = "VmsCurrent",
-                            IsRoot = true,
-                            OrderNo = 1,
-                            FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
-                            {
-                                new() { FieldKey = "vmsName", Column = "Name", DataType = "string", OrderNo = 2 },
-                                new() { FieldKey = "displayContent", Column = "RowData", DataType = "string", OrderNo = 7 },
-                                new() { FieldKey = "displayImageUrl", Column = "Url", DataType = "string", OrderNo = 8 },
-                                new() { FieldKey = "displaySize", Column = "Size", DataType = "string", OrderNo = 9 },
-                                new() { FieldKey = "priority", Column = "Priority", DataType = "int", OrderNo = 10 },
-                                new() { FieldKey = "executedTime", Column = "ExecutedDate", DataType = "datetime", OrderNo = 11 }
-                            })
-                        },
-                        new ShareDataTable
-                        {
-                            ID = "table_108_2",
-                            PacketCode = "108",
-                            Alias = "e",
-                            SchemaName = "dbo",
-                            TableName = "TmsEquipment",
-                            IsRoot = false,
-                            JoinType = BaseEnums.PacketJoinType.Left,
-                            JoinCondition = "v.EquipmentId = e.ID",
-                            OrderNo = 2,
-                            FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
-                            {
-                                new() { FieldKey = "equipmentCode", Column = "Code", DataType = "string", OrderNo = 1 },
-                                new() { FieldKey = "locationKm", Column = "KmNumber", DataType = "int", OrderNo = 3 },
-                                new() { FieldKey = "locationMet", Column = "MetNumber", DataType = "int", OrderNo = 4 },
-                                new() { FieldKey = "direction", Column = "DirectionId", DataType = "int", OrderNo = 5 },
-                                new() { FieldKey = "laneId", Column = "LaneId", DataType = "string", OrderNo = 6 }
-                            })
-                        }
+                        new() { FieldKey = "equipmentCode", Column = "Code", DataType = "string", OrderNo = 1 },
+                        new() { FieldKey = "vmsName", Column = "Name", DataType = "string", OrderNo = 2 },
+                        new() { FieldKey = "locationKm", Column = "KmNumber", DataType = "int", OrderNo = 3 },
+                        new() { FieldKey = "locationMet", Column = "MetNumber", DataType = "int", OrderNo = 4 },
+                        new() { FieldKey = "direction", Column = "DirectionId", DataType = "int", OrderNo = 5 },
+                        new() { FieldKey = "laneId", Column = "LaneId", DataType = "string", OrderNo = 6 },
+                        new() { FieldKey = "displayContent", Column = "RowData", DataType = "string", OrderNo = 7 },
+                        new() { FieldKey = "displayImageUrl", Column = "Url", DataType = "string", OrderNo = 8 },
+                        new() { FieldKey = "displaySize", Column = "Size", DataType = "string", OrderNo = 9 },
+                        new() { FieldKey = "priority", Column = "Priority", DataType = "int", OrderNo = 10 },
+                        new() { FieldKey = "executedTime", Column = "ExecutedDate", DataType = "datetime", OrderNo = 11 }
                     ]
                 };
 
-                // ─── 109. TollCollection ───
                 map["109"] = new PacketDefinition
                 {
                     Packet = new ShareDataPacket
@@ -3341,68 +3377,24 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                         Code = "109",
                         Name = "Dữ liệu thu phí (ETC/MTC)",
                         PacketVersion = "1.0"
-},
-                    Tables =
+                    },
+                    Fields =
                     [
-                        new ShareDataTable
-                        {
-                            ID = "table_109_1",
-                            PacketCode = "109",
-                            Alias = "t",
-                            SchemaName = "dbo",
-                            TableName = "TollTransactionOut",
-                            IsRoot = true,
-                            OrderNo = 1,
-                                                        FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
-                            {
-                                new() { FieldKey = "transactionId", Column = "TransactionId", DataType = "string", OrderNo = 1 },
-                                new() { FieldKey = "entryTime", Column = "TransactionDateTimeIn", DataType = "datetime", OrderNo = 2 },
-                                new() { FieldKey = "exitTime", Column = "TransactionDateTime", DataType = "datetime", OrderNo = 3 },
-                                new() { FieldKey = "vehicleTypeId", Column = "VehicleTypeId", DataType = "string", OrderNo = 4 },
-                                new() { FieldKey = "licensePlate", Expression = "ISNULL(t.PlateEdit, t.PlateLpr)", DataType = "string", OrderNo = 5 },
-                                new() { FieldKey = "tagId", Column = "TagId", DataType = "string", OrderNo = 6 },
-                                new() { FieldKey = "laneId", Column = "LaneId", DataType = "string", OrderNo = 7 },
-                                new() { FieldKey = "stationId", Column = "StationId", DataType = "string", OrderNo = 9 },
-                                new() { FieldKey = "tollPrice", Expression = "CAST(NULL AS DECIMAL(18, 2))", DataType = "decimal", OrderNo = 11 },
-                                new() { FieldKey = "syncTime", Column = "SyncTime", DataType = "datetime", OrderNo = 12 }
-                            })
-                        },
-                        new ShareDataTable
-                        {
-                            ID = "table_109_2",
-                            PacketCode = "109",
-                            Alias = "l",
-                            SchemaName = "dbo",
-                            TableName = "TollLane",
-                            IsRoot = false,
-                            JoinType = BaseEnums.PacketJoinType.Left,
-                            JoinCondition = "t.LaneId = l.LaneId",
-                            OrderNo = 2,
-                            FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
-                            {
-                                new() { FieldKey = "laneName", Column = "Name", DataType = "string", OrderNo = 8 }
-                            })
-                        },
-                        new ShareDataTable
-                        {
-                            ID = "table_109_3",
-                            PacketCode = "109",
-                            Alias = "s",
-                            SchemaName = "dbo",
-                            TableName = "TollStation",
-                            IsRoot = false,
-                            JoinType = BaseEnums.PacketJoinType.Left,
-                            JoinCondition = "t.StationId = s.StationId",
-                            OrderNo = 3,
-                            FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
-                            {
-                                new() { FieldKey = "stationName", Column = "Name", DataType = "string", OrderNo = 10 }
-                            })
-                        }
+                        new() { FieldKey = "transactionId", Column = "TransactionId", DataType = "string", OrderNo = 1 },
+                        new() { FieldKey = "entryTime", Column = "TransactionDateTimeIn", DataType = "datetime", OrderNo = 2 },
+                        new() { FieldKey = "exitTime", Column = "TransactionDateTime", DataType = "datetime", OrderNo = 3 },
+                        new() { FieldKey = "vehicleTypeId", Column = "VehicleTypeId", DataType = "string", OrderNo = 4 },
+                        new() { FieldKey = "licensePlate", Expression = "ISNULL(t.PlateEdit, t.PlateLpr)", DataType = "string", OrderNo = 5 },
+                        new() { FieldKey = "tagId", Column = "TagId", DataType = "string", OrderNo = 6 },
+                        new() { FieldKey = "laneId", Column = "LaneId", DataType = "string", OrderNo = 7 },
+                        new() { FieldKey = "laneName", Column = "Name", DataType = "string", OrderNo = 8 },
+                        new() { FieldKey = "stationId", Column = "StationId", DataType = "string", OrderNo = 9 },
+                        new() { FieldKey = "stationName", Column = "Name", DataType = "string", OrderNo = 10 },
+                        new() { FieldKey = "tollPrice", Expression = "CAST(NULL AS DECIMAL(18, 2))", DataType = "decimal", OrderNo = 11 },
+                        new() { FieldKey = "syncTime", Column = "SyncTime", DataType = "datetime", OrderNo = 12 }
                     ]
                 };
 
-                // ─── 110. PublicMessaging ───
                 map["110"] = new PacketDefinition
                 {
                     Packet = new ShareDataPacket
@@ -3411,45 +3403,17 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                         Code = "110",
                         Name = "Trao đổi với người tham gia giao thông",
                         PacketVersion = "1.0"
-},
-                    Tables =
+                    },
+                    Fields =
                     [
-                        new ShareDataTable
-                        {
-                            ID = "table_110_1",
-                            PacketCode = "110",
-                            Alias = "i",
-                            SchemaName = "dbo",
-                            TableName = "TmsIncident",
-                            IsRoot = true,
-                            OrderNo = 1,
-                                                        FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
-                            {
-                                new() { FieldKey = "incidentMessage", Expression = "CONCAT(ISNULL(i.Name, ''), ' - ', ISNULL(i.Description, ''))", DataType = "string", OrderNo = 1 },
-                                new() { FieldKey = "locationKm", Column = "KmNumber", DataType = "int", OrderNo = 3 },
-                                new() { FieldKey = "locationMet", Column = "MetNumber", DataType = "int", OrderNo = 4 },
-                                new() { FieldKey = "publishedTime", Column = "StartDate", DataType = "datetime", OrderNo = 5 }
-                            })
-                        },
-                        new ShareDataTable
-                        {
-                            ID = "table_110_2",
-                            PacketCode = "110",
-                            Alias = "v",
-                            SchemaName = "dbo",
-                            TableName = "VmsCurrent",
-                            IsRoot = false,
-                            JoinCondition = "OUTER APPLY (SELECT TOP 1 v.RowData FROM VmsCurrent v INNER JOIN TmsEquipment e2 ON v.EquipmentId = e2.ID WHERE e2.KmNumber = i.KmNumber AND (v.RowData IS NOT NULL) ORDER BY v.ExecutedDate DESC) v",
-                                                        OrderNo = 2,
-                            FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
-                            {
-                                new() { FieldKey = "guidanceContent", Column = "RowData", DataType = "string", OrderNo = 2 }
-                            })
-                        }
+                        new() { FieldKey = "incidentMessage", Expression = "CONCAT(ISNULL(i.Name, ''), ' - ', ISNULL(i.Description, ''))", DataType = "string", OrderNo = 1 },
+                        new() { FieldKey = "guidanceContent", Column = "RowData", DataType = "string", OrderNo = 2 },
+                        new() { FieldKey = "locationKm", Column = "KmNumber", DataType = "int", OrderNo = 3 },
+                        new() { FieldKey = "locationMet", Column = "MetNumber", DataType = "int", OrderNo = 4 },
+                        new() { FieldKey = "publishedTime", Column = "StartDate", DataType = "datetime", OrderNo = 5 }
                     ]
                 };
 
-                // ─── 111. InterCenterExchange ───
                 map["111"] = new PacketDefinition
                 {
                     Packet = new ShareDataPacket
@@ -3458,27 +3422,14 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                         Code = "111",
                         Name = "Trao đổi với TT QLĐHGT tuyến",
                         PacketVersion = "1.0"
-},
-                    Tables =
+                    },
+                    Fields =
                     [
-                        new ShareDataTable
-                        {
-                            ID = "table_111_1",
-                            PacketCode = "111",
-                            Alias = "i",
-                            SchemaName = "dbo",
-                            TableName = "TmsIncident",
-                            IsRoot = true,
-                            OrderNo = 1,
-                                                        FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
-                            {
-                                new() { FieldKey = "incidentCode", Column = "Code", DataType = "string", OrderNo = 1 },
-                                new() { FieldKey = "incidentName", Column = "Name", DataType = "string", OrderNo = 2 },
-                                new() { FieldKey = "locationKm", Column = "KmNumber", DataType = "int", OrderNo = 3 },
-                                new() { FieldKey = "locationMet", Column = "MetNumber", DataType = "int", OrderNo = 4 },
-                                new() { FieldKey = "description", Column = "Description", DataType = "string", OrderNo = 5 }
-                            })
-                        }
+                        new() { FieldKey = "incidentCode", Column = "Code", DataType = "string", OrderNo = 1 },
+                        new() { FieldKey = "incidentName", Column = "Name", DataType = "string", OrderNo = 2 },
+                        new() { FieldKey = "locationKm", Column = "KmNumber", DataType = "int", OrderNo = 3 },
+                        new() { FieldKey = "locationMet", Column = "MetNumber", DataType = "int", OrderNo = 4 },
+                        new() { FieldKey = "description", Column = "Description", DataType = "string", OrderNo = 5 }
                     ]
                 };
 
@@ -3486,6 +3437,10 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             }
         }
 
+        /// <summary>
+        /// Description: Kiểm tra khi đối tác cấu hình EndPointApiUrl thì gửi payload qua HTTP thành công.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public async Task ProcessBatchSubscriptions_WhenPartnerHasEndPointApiUrl_SendsHttpPayloadSuccessfully_Test()
         {
@@ -3540,14 +3495,9 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 Assert.NotNull(interceptedBody);
                 using var doc = JsonDocument.Parse(interceptedBody);
                 var root = doc.RootElement;
-                Assert.Equal(partner.Code, root.GetProperty("partnerCode").GetString());
-                Assert.Equal("101", root.GetProperty("datatypeId").GetString());
-                Assert.True(root.TryGetProperty("packetVersion", out _));
-                Assert.True(root.TryGetProperty("serialNbr", out _));
-                Assert.True(root.TryGetProperty("pduType", out _));
-                Assert.True(root.TryGetProperty("format", out _));
-                Assert.True(root.TryGetProperty("rawContent", out var rawContentProp));
-                Assert.False(string.IsNullOrWhiteSpace(rawContentProp.GetString()));
+                Assert.Equal(JsonValueKind.Array, root.ValueKind);
+                Assert.True(root.GetArrayLength() > 0);
+                Assert.Equal(JsonValueKind.Object, root[0].ValueKind);
 
                 var alerts = await db.Queryable<ShareDataAlertLog>()
                     .Where(a => a.SubscriptionId == sub.ID && a.AlertCode == ShareDataAlertCode.Outbound.HttpSendFailed)
@@ -3562,6 +3512,10 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             }
         }
 
+        /// <summary>
+        /// Description: Kiểm tra khi endpoint HTTP của đối tác trả về mã 500 thì vẫn xuất file và ghi cảnh báo lỗi.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public async Task ProcessBatchSubscriptions_WhenPartnerHttpEndpointReturns500_StillExportsFileAndLogsWarningAlert_Test()
         {
@@ -3600,7 +3554,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
 
                 var logs = await GetLogs(db, sub.ID);
                 Assert.NotEmpty(logs);
-                Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
+                Assert.Equal(BaseEnums.SuccessEnums.Fail, logs[0].Success);
                 Assert.False(string.IsNullOrWhiteSpace(logs[0].FilePath));
 
                 var fullPath = Path.Combine(Directory.GetCurrentDirectory(), "sharedata/send", logs[0].FilePath!);
@@ -3625,6 +3579,10 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             }
         }
 
+        /// <summary>
+        /// Description: Kiểm tra khi gọi HTTP đến đối tác ném ngoại lệ thì vẫn xuất file và ghi cảnh báo lỗi.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public async Task ProcessBatchSubscriptions_WhenPartnerHttpThrowsException_StillExportsFileAndLogsWarningAlert_Test()
         {
@@ -3660,7 +3618,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
 
                 var logs = await GetLogs(db, sub.ID);
                 Assert.NotEmpty(logs);
-                Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
+                Assert.Equal(BaseEnums.SuccessEnums.Fail, logs[0].Success);
                 Assert.False(string.IsNullOrWhiteSpace(logs[0].FilePath));
 
                 var alerts = await db.Queryable<ShareDataAlertLog>()
@@ -3680,8 +3638,12 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             }
         }
 
+        /// <summary>
+        /// Description: Kiểm tra khi đối tác không cấu hình EndPointApiUrl thì worker vẫn gửi HTTP và ghi nhận thất bại ESH-1402 khi nhận lỗi 404.
+        /// Created date: 18/09/2026
+        /// </summary>
         [Fact]
-        public async Task ProcessBatchSubscriptions_WhenPartnerHasNoEndPointApiUrl_DoesNotSendHttp_Test()
+        public async Task ProcessBatchSubscriptions_WhenPartnerHasNoEndPointApiUrl_SendsHttpAndFails_Test()
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
@@ -3689,7 +3651,17 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             var sendCount = 0;
             var mockHandler = new TestHttpMessageHandler((req, ct) =>
             {
-                sendCount++;
+                if (req.RequestUri?.Port == 5003)
+                {
+                    sendCount++;
+                    if (string.IsNullOrEmpty(req.RequestUri?.AbsolutePath) || req.RequestUri.AbsolutePath == "/")
+                    {
+                        return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.NotFound)
+                        {
+                            Content = new StringContent("Not Found")
+                        });
+                    }
+                }
                 return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK));
             });
             var clientFactory = new MockHttpClientFactoryTest(mockHandler);
@@ -3715,25 +3687,233 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 var worker = CreateWorker(scope, clientFactory);
                 await worker.ProcessBatchSubscriptions(CancellationToken.None);
 
-                Assert.Equal(0, sendCount);
+                Assert.Equal(1, sendCount);
 
                 var logs = await GetLogs(db, sub.ID);
                 Assert.NotEmpty(logs);
-                Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
+                Assert.Equal(BaseEnums.SuccessEnums.Fail, logs[0].Success);
 
                 var alerts = await db.Queryable<ShareDataAlertLog>()
                     .Where(a => a.SubscriptionId == sub.ID && a.AlertCode == ShareDataAlertCode.Outbound.HttpSendFailed)
                     .ToListAsync();
-                Assert.Empty(alerts);
+                Assert.NotEmpty(alerts);
+                Assert.Equal(BaseEnums.AlertSeverity.Warning, alerts[0].Severity);
             }
             finally
             {
+                await db.Deleteable<ShareDataAlertLog>().Where(a => a.SubscriptionId == sub.ID).ExecuteCommandAsync();
                 await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
                 await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub.ID).ExecuteCommandAsync();
                 await db.Deleteable<ShareDataPartner>().Where(p => p.ID == partner.ID).ExecuteCommandAsync();
             }
         }
 
+        /// <summary>
+        /// Description: Kiểm tra khi ghi tệp thất bại nhưng đối tác có cấu hình API endpoint và gửi HTTP thành công, quá trình xuất bản vẫn đạt Success, im lặng không ghi cảnh báo ESH-1401, gọi gửi API và cập nhật watermark.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessBatchSubscriptions_WhenFileWriteFails_PartnerHasEndpoint_ApiSucceeds_ExportsSuccessfullyAndAdvancesWatermark_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            var apiCalled = 0;
+            var fileSender = new MockDataOutboundFileSender((m, c) =>
+                Task.FromResult(new DataOutboundSendResult(false, 0, null, "Simulated disk error while writing file")));
+            var restSender = new MockDataOutboundRestSender((m, c) =>
+            {
+                apiCalled++;
+                return Task.FromResult(new DataOutboundSendResult(true, 100, "simulated/path.json"));
+            });
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.TrafficFlow, unique);
+
+            var (partner, sub) = await SeedOutboundSubscription(
+                db,
+                $"P_FILE_FAIL_API_OK_{unique}",
+                $"SUB_FILE_FAIL_API_OK_{unique}",
+                "101",
+                configurePartner: p =>
+                {
+                    p.Address = "127.0.0.1";
+                    p.Port = 5002;
+                    p.EndPointApiUrl = "/api/sharedata/sharedatainbound";
+                });
+
+            try
+            {
+                var worker = CreateWorker(scope, fileSender: fileSender, restSender: restSender);
+                await worker.ProcessBatchSubscriptions(CancellationToken.None);
+
+                // Khẳng định API BẮT BUỘC được gọi dù ghi tệp thất bại
+                Assert.Equal(1, apiCalled);
+
+                var logs = await GetLogs(db, sub.ID);
+                Assert.NotEmpty(logs);
+                Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
+
+                var alerts = await db.Queryable<ShareDataAlertLog>()
+                    .Where(a => a.SubscriptionId == sub.ID)
+                    .ToListAsync();
+                Assert.DoesNotContain(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.FileWriteFailed);
+                Assert.DoesNotContain(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.HttpSendFailed);
+                Assert.Empty(alerts);
+
+                var updatedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
+                Assert.NotNull(updatedSub.LastTimeRun);
+                Assert.Equal((sub.SerialNbr ?? 0) + 1, updatedSub.SerialNbr);
+            }
+            finally
+            {
+                await db.Deleteable<ShareDataAlertLog>().Where(a => a.SubscriptionId == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataPartner>().Where(p => p.ID == partner.ID).ExecuteCommandAsync();
+            }
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra khi cả ghi tệp và gửi API đều thất bại, quá trình xuất bản bị huỷ (Failed), chỉ ghi cảnh báo ESH-1402 (không ghi ESH-1401), và không cập nhật watermark.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessBatchSubscriptions_WhenFileWriteFails_PartnerHasEndpoint_ApiFails_AbortsAndDoesNotAdvanceWatermark_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            var apiCalled = 0;
+            var fileSender = new MockDataOutboundFileSender((m, c) =>
+                Task.FromResult(new DataOutboundSendResult(false, 0, null, "Simulated disk full")));
+            var restSender = new MockDataOutboundRestSender((m, c) =>
+            {
+                apiCalled++;
+                return Task.FromResult(new DataOutboundSendResult(false, 0, null, "Simulated HTTP 500 server error"));
+            });
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.TrafficFlow, unique);
+
+            var (partner, sub) = await SeedOutboundSubscription(
+                db,
+                $"P_BOTH_FAIL_{unique}",
+                $"SUB_BOTH_FAIL_{unique}",
+                "101",
+                configurePartner: p =>
+                {
+                    p.Address = "127.0.0.1";
+                    p.Port = 5002;
+                    p.EndPointApiUrl = "/api/sharedata/sharedatainbound";
+                });
+
+            try
+            {
+                var worker = CreateWorker(scope, fileSender: fileSender, restSender: restSender);
+                await worker.ProcessBatchSubscriptions(CancellationToken.None);
+
+                Assert.Equal(1, apiCalled);
+
+                var logs = await GetLogs(db, sub.ID);
+                Assert.NotEmpty(logs);
+                Assert.Equal(BaseEnums.SuccessEnums.Fail, logs[0].Success);
+
+                var alerts = await db.Queryable<ShareDataAlertLog>()
+                    .Where(a => a.SubscriptionId == sub.ID)
+                    .ToListAsync();
+                Assert.DoesNotContain(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.FileWriteFailed);
+                Assert.Contains(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.HttpSendFailed && a.Severity == BaseEnums.AlertSeverity.Warning);
+
+                var updatedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
+                Assert.Null(updatedSub.LastTimeRun);
+                Assert.Equal(sub.SerialNbr, updatedSub.SerialNbr);
+            }
+            finally
+            {
+                await db.Deleteable<ShareDataAlertLog>().Where(a => a.SubscriptionId == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataPartner>().Where(p => p.ID == partner.ID).ExecuteCommandAsync();
+            }
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra khi cả ghi tệp và gửi HTTP đều thất bại, quá trình xuất bản bị huỷ (Failed), chỉ ghi cảnh báo ESH-1402 (không ghi ESH-1401) và không cập nhật watermark.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessBatchSubscriptions_WhenFileWriteFails_AndHttpFails_AbortsAndDoesNotAdvanceWatermark_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            string? targetSubId = null;
+            var apiCalled = 0;
+            var fileSender = new MockDataOutboundFileSender((m, c) =>
+                Task.FromResult(new DataOutboundSendResult(false, 0, null, "Simulated permission denied")));
+            var restSender = new MockDataOutboundRestSender((m, c) =>
+            {
+                if (c.Subscription?.ID == targetSubId)
+                {
+                    apiCalled++;
+                    return Task.FromResult(new DataOutboundSendResult(false, 0, null, "Simulated HTTP error"));
+                }
+                return Task.FromResult(new DataOutboundSendResult(true, 100, "simulated/path.json"));
+            });
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.TrafficFlow, unique);
+
+            var (partner, sub) = await SeedOutboundSubscription(
+                db,
+                $"P_FILE_FAIL_NO_API_{unique}",
+                $"SUB_FILE_FAIL_NO_API_{unique}",
+                "101",
+                configurePartner: p =>
+                {
+                    p.Address = "127.0.0.1";
+                    p.Port = 5003;
+                    p.EndPointApiUrl = null;
+                });
+            targetSubId = sub.ID;
+
+            try
+            {
+                var worker = CreateWorker(scope, fileSender: fileSender, restSender: restSender);
+                await worker.ProcessBatchSubscriptions(CancellationToken.None);
+
+                Assert.Equal(1, apiCalled);
+
+                var logs = await GetLogs(db, sub.ID);
+                Assert.NotEmpty(logs);
+                Assert.Equal(BaseEnums.SuccessEnums.Fail, logs[0].Success);
+
+                var alerts = await db.Queryable<ShareDataAlertLog>()
+                    .Where(a => a.SubscriptionId == sub.ID)
+                    .ToListAsync();
+                Assert.DoesNotContain(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.FileWriteFailed);
+                Assert.Contains(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.HttpSendFailed && a.Severity == BaseEnums.AlertSeverity.Warning);
+
+                var updatedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
+                Assert.Null(updatedSub.LastTimeRun);
+                Assert.Equal(sub.SerialNbr, updatedSub.SerialNbr);
+            }
+            finally
+            {
+                await db.Deleteable<ShareDataAlertLog>().Where(a => a.SubscriptionId == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataPartner>().Where(p => p.ID == partner.ID).ExecuteCommandAsync();
+            }
+        }
+        /// <summary>
+        /// Description: Kiểm tra khi mã gói tin có hậu tố tương tự DB staging thì vẫn phân giải đúng handler và xuất bản thành công.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public async Task ProcessBatchSubscriptions_WhenPacketCodeHasSuffixLikeStagingDb_ResolvesHandlerAndExportsSuccessfully_Test()
         {
@@ -3743,7 +3923,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             var unique = Guid.NewGuid().ToString("N")[..8];
             var packetCodeWithSuffix = "101_commonData";
 
-            // Bổ sung ShareDataPacket và ShareDataTable với mã có hậu tố như trên DB staging thật
+            // Bổ sung ShareDataPacket và ShareDataPacketField với mã có hậu tố như trên DB staging thật
             var packet = new ShareDataPacket
             {
                 ID = Guid.NewGuid().ToString("N"),
@@ -3754,22 +3934,13 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             };
             await db.Insertable(packet).ExecuteCommandAsync();
 
-            var table = new ShareDataTable
+            var tableFields = new System.Collections.Generic.List<ShareDataPacketField>
             {
-                ID = Guid.NewGuid().ToString("N"),
-                PacketCode = packetCodeWithSuffix,
-                Alias = "zs",
-                TableName = "TmsZoneStatus",
-                IsRoot = true,
-                OrderNo = 1,
-                FieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
-                {
-                    new() { FieldKey = "zoneId", Column = "ZoneId", OrderNo = 1, Required = true },
-                    new() { FieldKey = "averageSpeed", Column = "AverageSpeed", OrderNo = 2 },
-                    new() { FieldKey = "trafficCondition", Column = "Condition", OrderNo = 3 }
-                })
+                new() { ID = Guid.NewGuid().ToString("N"), DatatypeId = packetCodeWithSuffix, AliasFieldKey = "zoneId", IsRequired = Shared.DTO.Enums.BaseEnums.IsRequired.IsRequired },
+                new() { ID = Guid.NewGuid().ToString("N"), DatatypeId = packetCodeWithSuffix, AliasFieldKey = "averageSpeed", IsRequired = Shared.DTO.Enums.BaseEnums.IsRequired.NoRequired },
+                new() { ID = Guid.NewGuid().ToString("N"), DatatypeId = packetCodeWithSuffix, AliasFieldKey = "trafficCondition", IsRequired = Shared.DTO.Enums.BaseEnums.IsRequired.NoRequired }
             };
-            await db.Insertable(table).ExecuteCommandAsync();
+            await db.Insertable(tableFields).ExecuteCommandAsync();
 
             await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.TrafficFlow, unique);
 
@@ -3804,7 +3975,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
                 await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub.ID).ExecuteCommandAsync();
                 await db.Deleteable<ShareDataPartner>().Where(p => p.ID == partner.ID).ExecuteCommandAsync();
-                await db.Deleteable<ShareDataTable>().Where(t => t.ID == table.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataPacketField>().Where(t => t.DatatypeId == packet.Code).ExecuteCommandAsync();
                 await db.Deleteable<ShareDataPacket>().Where(p => p.ID == packet.ID).ExecuteCommandAsync();
             }
         }
@@ -3872,36 +4043,20 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 await db.Insertable(packet).ExecuteCommandAsync();
             }
 
-            // Đảm bảo ShareDataTable cấu hình cho 101_commonData có trường bắt buộc zoneStatusId
-            var table101A = await db.Queryable<ShareDataTable>()
-                .Where(t => t.PacketCode == "101_commonData" && t.TableName == "TmsZoneStatus" && t.IsDelete == null)
-                .FirstAsync();
-            var expectedFieldsJson = JsonSerializer.Serialize(new List<PacketFieldDto>
+            
+            
+            var existingFields = await db.Queryable<ShareDataPacketField>().Where(f => f.DatatypeId == "101_commonData").ToListAsync();
+            if (existingFields.Count == 0)
             {
-                new() { FieldKey = "zoneStatusId", Column = "ID", Required = true },
-                new() { FieldKey = "zoneId", Column = "ZoneId", Required = true },
-                new() { FieldKey = "averageSpeed", Column = "AverageSpeed" },
-                new() { FieldKey = "trafficCondition", Column = "Condition" },
-                new() { FieldKey = "dataTime", Column = "UpdateTime" }
-            });
-            if (table101A == null)
-            {
-                table101A = new ShareDataTable
+                var newFields = new System.Collections.Generic.List<ShareDataPacketField>
                 {
-                    ID = Guid.NewGuid().ToString("N"),
-                    PacketCode = "101_commonData",
-                    TableName = "TmsZoneStatus",
-                    Alias = "zs",
-                    IsRoot = true,
-                    OrderNo = 1,
-                    FieldsJson = expectedFieldsJson
+                    new() { ID = Guid.NewGuid().ToString("N"), DatatypeId = "101_commonData", AliasFieldKey = "zoneStatusId", Type = "string", IsRequired = Shared.DTO.Enums.BaseEnums.IsRequired.IsRequired },
+                    new() { ID = Guid.NewGuid().ToString("N"), DatatypeId = "101_commonData", AliasFieldKey = "zoneId", Type = "string", IsRequired = Shared.DTO.Enums.BaseEnums.IsRequired.IsRequired },
+                    new() { ID = Guid.NewGuid().ToString("N"), DatatypeId = "101_commonData", AliasFieldKey = "averageSpeed", Type = "string", IsRequired = Shared.DTO.Enums.BaseEnums.IsRequired.NoRequired },
+                    new() { ID = Guid.NewGuid().ToString("N"), DatatypeId = "101_commonData", AliasFieldKey = "trafficCondition", Type = "string", IsRequired = Shared.DTO.Enums.BaseEnums.IsRequired.NoRequired },
+                    new() { ID = Guid.NewGuid().ToString("N"), DatatypeId = "101_commonData", AliasFieldKey = "dataTime", Type = "string", IsRequired = Shared.DTO.Enums.BaseEnums.IsRequired.NoRequired }
                 };
-                await db.Insertable(table101A).ExecuteCommandAsync();
-            }
-            else
-            {
-                table101A.FieldsJson = expectedFieldsJson;
-                await db.Updateable(table101A).UpdateColumns(t => t.FieldsJson).ExecuteCommandAsync();
+                await db.Insertable(newFields).ExecuteCommandAsync();
             }
 
             var (partner, sub) = await SeedOutboundSubscription(db, $"P101_{uniqueId}", $"SUB101_{uniqueId}", "101_commonData");
@@ -4031,6 +4186,1988 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 .ToListAsync();
             Assert.Empty(deletedLogs);
         }
+
+        /// <summary>
+        /// Description: Kiểm tra chuyển đổi kiểu dữ liệu thành số khi CodeSet trả về chuỗi số và targetType là number.
+        /// Created date: 17/09/2026
+        /// <summary>
+        /// Description: B2 - Kiểm tra khi trường đã qua bộ mã thì KHÔNG ép kiểu nữa (targetType bị bỏ qua, giá trị bộ mã là cuối cùng).
+        /// Created date: 17/09/2026
+        /// Updated date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_WhenCodeSetReturnsNumberString_DoesNotCoerceTargetType_Test()
+        {
+            var codeSets = new Dictionary<string, List<CodeValueDto>>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["COND_SET"] =
+                [
+                    new() { SourceValue = "slow", PartnerValue = "101" }
+                ]
+            };
+
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?> { ["condition"] = "slow" }
+            };
+
+            var shapeJson = @"{
+                ""trafficCondition"": {
+                    ""$field"": ""condition"",
+                    ""$extend"": {
+                        ""codeSet"": ""COND_SET"",
+                        ""targetType"": ""number""
+                    }
+                }
+            }";
+
+            var result = DataMappingProcess.Transform(rawRows, shapeJson, codeSets);
+            var dict = (Dictionary<string, object?>)result[0];
+            var val = dict["trafficCondition"];
+
+            Assert.IsType<string>(val);
+            Assert.Equal("101", val);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra ném ngoại lệ InvalidOperationException khi trường bắt buộc bị rỗng giá trị.
+        /// Created date: 17/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_WhenExtendRequiredIsTrueAndValueIsEmpty_ThrowsInvalidOperationException_Test()
+        {
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?> { ["condition"] = null }
+            };
+
+            var shapeJson = @"{
+                ""trafficCondition"": {
+                    ""$field"": ""condition"",
+                    ""$extend"": {
+                        ""required"": true
+                    }
+                }
+            }";
+
+            var ex = Assert.Throws<InvalidOperationException>(() =>
+                DataMappingProcess.Transform(rawRows, shapeJson));
+            Assert.StartsWith("Thiếu trường bắt buộc", ex.Message);
+            Assert.Contains("[condition]", ex.Message);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra ném ngoại lệ kèm tên trường nguồn khi trường bắt buộc không có trong danh sách packet fields.
+        /// Created date: 17/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_WhenExtendRequiredIsTrueAndFieldNotInPacketFields_ThrowsWithSourceFieldKey_Test()
+        {
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?> { ["zone_id"] = "" }
+            };
+
+            var shapeJson = @"{
+                ""zoneId"": {
+                    ""$field"": ""zone_id"",
+                    ""$extend"": {
+                        ""required"": true
+                    }
+                }
+            }";
+
+            var ex = Assert.Throws<InvalidOperationException>(() =>
+                DataMappingProcess.Transform(rawRows, shapeJson));
+            Assert.StartsWith("Thiếu trường bắt buộc", ex.Message);
+            Assert.Contains("[zone_id]", ex.Message);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra định dạng datetime chuẩn xác theo dateFormat được cấu hình trong extend.
+        /// Created date: 17/09/2026
+        /// Updated date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_WhenExtendDateFormatIsSetAndTypeIsDatetime_FormatsCorrectly_Test()
+        {
+            var dt = new DateTime(2026, 9, 17, 10, 20, 30);
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?> { ["time"] = dt }
+            };
+
+            var shapeJson = @"{
+                ""timeFormatted"": {
+                    ""$field"": ""time"",
+                    ""$extend"": {
+                        ""targetType"": ""datetime"",
+                        ""dateFormat"": ""dd/MM/yyyy""
+                    }
+                }
+            }";
+
+            var result = DataMappingProcess.Transform(rawRows, shapeJson);
+            var dict = (Dictionary<string, object?>)result[0];
+            Assert.Equal("17/09/2026", dict["timeFormatted"]);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra khi extend dateFormat không cấu hình thì datetime trả về chuẩn ISO8601 mặc định.
+        /// Created date: 17/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_WhenExtendFormatNotSetAndTypeIsDatetime_ReturnsIso8601_Test()
+        {
+            var dt = new DateTime(2026, 9, 17, 10, 20, 30);
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?> { ["time"] = dt }
+            };
+
+            var shapeJson = @"{
+                ""timeFormatted"": {
+                    ""$field"": ""time"",
+                    ""$extend"": {
+                        ""targetType"": ""datetime""
+                    }
+                }
+            }";
+
+            var result = DataMappingProcess.Transform(rawRows, shapeJson);
+            var dict = (Dictionary<string, object?>)result[0];
+            Assert.Equal(dt.ToString("o", CultureInfo.InvariantCulture), dict["timeFormatted"]);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra khi cấu hình dateFormat không hợp lệ thì fallback an toàn về định dạng ISO8601.
+        /// Created date: 17/09/2026
+        /// Updated date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_WhenExtendDateFormatIsGarbageAndTypeIsDatetime_ReturnsIso8601_Test()
+        {
+            var dt = new DateTime(2026, 9, 17, 10, 20, 30);
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?> { ["time"] = dt }
+            };
+
+            var shapeJson = @"{
+                ""timeFormatted"": {
+                    ""$field"": ""time"",
+                    ""$extend"": {
+                        ""targetType"": ""datetime"",
+                        ""dateFormat"": ""x""
+                    }
+                }
+            }";
+
+            var result = DataMappingProcess.Transform(rawRows, shapeJson);
+            var dict = (Dictionary<string, object?>)result[0];
+            Assert.Equal(dt.ToString("o", CultureInfo.InvariantCulture), dict["timeFormatted"]);
+        }
+
+        #region Tests D1 - D8 (Dong bo extend theo ban giao §3.4, §4.1 - Viec N1)
+
+        /// <summary>
+        /// Description: D1 - $extend.dateFormat + targetType: "dateTime" -> ra dung khuon khai
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_D1_DateFormat_WithDateTimeTargetType_FormatsCorrectly_Test()
+        {
+            var dt = new DateTime(2026, 9, 18, 14, 5, 31);
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?> { ["time"] = dt }
+            };
+
+            var shapeJson = @"{
+                ""dataTime"": {
+                    ""$field"": ""time"",
+                    ""$extend"": {
+                        ""targetType"": ""dateTime"",
+                        ""dateFormat"": ""dd/MM/yyyy HH:mm:ss""
+                    }
+                }
+            }";
+
+            var result = DataMappingProcess.Transform(rawRows, shapeJson);
+            var dict = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
+            Assert.Equal("18/09/2026 14:05:31", dict["dataTime"]);
+        }
+
+        /// <summary>
+        /// Description: D2 - $extend.numberFormat: "0.#" + targetType: "int" -> lam tron dung (§9.3: 45.5 -> 46)
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_D2_NumberFormat_WithIntTargetType_RoundsCorrectly_Test()
+        {
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?> { ["speed"] = 45.5m }
+            };
+
+            var shapeJson = @"{
+                ""averageSpeed"": {
+                    ""$field"": ""speed"",
+                    ""$extend"": {
+                        ""targetType"": ""int"",
+                        ""numberFormat"": ""0.#""
+                    }
+                }
+            }";
+
+            var result = DataMappingProcess.Transform(rawRows, shapeJson);
+            var dict = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
+            Assert.Equal(46, dict["averageSpeed"]);
+            Assert.IsType<int>(dict["averageSpeed"]);
+        }
+
+        /// <summary>
+        /// Description: D3 - Gia tri rong + co codeSet + co defaultPartnerValue o la -> lay mac dinh cua BO MA, khong phai cua la
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_D3_WhenValueIsEmpty_WithCodeSetAndLeafDefault_PrioritizesCodeSetDefault_Test()
+        {
+            var codeSets = new Dictionary<string, CodeSetDto>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["COND_SET"] = new CodeSetDto
+                {
+                    Values = [new CodeValueDto { SourceValue = "1", PartnerValue = "Normal" }],
+                    DefaultPartnerValue = "CodeSetDefaultPartner"
+                }
+            };
+
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?> { ["condition"] = null }
+            };
+
+            var shapeJson = @"{
+                ""trafficCondition"": {
+                    ""$field"": ""condition"",
+                    ""$extend"": {
+                        ""codeSet"": ""COND_SET"",
+                        ""defaultPartnerValue"": ""LeafDefaultPartner""
+                    }
+                }
+            }";
+
+            var result = DataMappingProcess.Transform(rawRows, shapeJson, codeSets: codeSets);
+            var dict = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
+            Assert.Equal("CodeSetDefaultPartner", dict["trafficCondition"]);
+        }
+
+        /// <summary>
+        /// Description: D4 - Gia tri co nhung khong khop bo ma -> lay defaultPartnerValue cua bo ma
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_D4_WhenValueExistsButUnmatched_TakesCodeSetDefaultPartnerValue_Test()
+        {
+            var codeSets = new Dictionary<string, CodeSetDto>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["COND_SET"] = new CodeSetDto
+                {
+                    Values = [new CodeValueDto { SourceValue = "1", PartnerValue = "Normal" }],
+                    DefaultPartnerValue = "CodeSetDefaultPartner"
+                }
+            };
+
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?> { ["condition"] = "999" }
+            };
+
+            var shapeJson = @"{
+                ""trafficCondition"": {
+                    ""$field"": ""condition"",
+                    ""$extend"": {
+                        ""codeSet"": ""COND_SET""
+                    }
+                }
+            }";
+
+            var result = DataMappingProcess.Transform(rawRows, shapeJson, codeSets: codeSets);
+            var dict = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
+            Assert.Equal("CodeSetDefaultPartner", dict["trafficCondition"]);
+        }
+
+        /// <summary>
+        /// Description: D5 - Qua bo ma ra "Congested" + co targetType: "string" -> khong ep kieu, giu nguyen "Congested"
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_D5_WhenMatchedCodeSet_DoesNotCoerceTargetType_Test()
+        {
+            var codeSets = new Dictionary<string, CodeSetDto>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["TRAFFIC_COND"] = new CodeSetDto
+                {
+                    Values = [new CodeValueDto { SourceValue = "2", PartnerValue = "Congested" }]
+                }
+            };
+
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?> { ["condition"] = "2" }
+            };
+
+            var shapeJson = @"{
+                ""trafficCondition"": {
+                    ""$field"": ""condition"",
+                    ""$extend"": {
+                        ""codeSet"": ""TRAFFIC_COND"",
+                        ""targetType"": ""string""
+                    }
+                }
+            }";
+
+            var result = DataMappingProcess.Transform(rawRows, shapeJson, codeSets: codeSets);
+            var dict = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
+            Assert.Equal("Congested", dict["trafficCondition"]);
+            Assert.IsType<string>(dict["trafficCondition"]);
+        }
+
+        /// <summary>
+        /// Description: D6 - Truong khong co codeSet, gia tri rong -> lay defaultPartnerValue cua la
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_D6_WhenNoCodeSetAndValueIsEmpty_TakesLeafDefaultPartnerValue_Test()
+        {
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?> { ["state"] = null }
+            };
+
+            var shapeJson = @"{
+                ""deviceState"": {
+                    ""$field"": ""state"",
+                    ""$extend"": {
+                        ""defaultPartnerValue"": ""on""
+                    }
+                }
+            }";
+
+            var result = DataMappingProcess.Transform(rawRows, shapeJson);
+            var dict = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
+            Assert.Equal("on", dict["deviceState"]);
+        }
+
+        /// <summary>
+        /// Description: D7 - Bo khung dung khoa cu format/defaultValue -> bi bo qua, khong no
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_D7_WhenOldKeysFormatAndDefaultValueUsed_AreIgnoredWithoutCrash_Test()
+        {
+            var dt = new DateTime(2026, 9, 18, 10, 0, 0);
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?> { ["time"] = dt, ["missingField"] = null }
+            };
+
+            var shapeJson = @"{
+                ""time"": {
+                    ""$field"": ""time"",
+                    ""$extend"": {
+                        ""targetType"": ""datetime"",
+                        ""format"": ""dd-MM-yyyy""
+                    }
+                },
+                ""fallback"": {
+                    ""$field"": ""missingField"",
+                    ""$extend"": {
+                        ""defaultValue"": ""old_default""
+                    }
+                }
+            }";
+
+            var result = DataMappingProcess.Transform(rawRows, shapeJson);
+            var dict = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
+            Assert.Equal(dt.ToString("o", CultureInfo.InvariantCulture), dict["time"]);
+            Assert.Null(dict["fallback"]);
+        }
+
+        /// <summary>
+        /// Description: D8 - Bo khung co expression -> bo qua + ghi log, khong tinh
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_D8_WhenShapeHasExpression_IgnoresAndLogsWithoutCalculating_Test()
+        {
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?> { ["speed"] = 50 }
+            };
+
+            var shapeJson = @"{
+                ""calcSpeed"": {
+                    ""$field"": ""speed"",
+                    ""$extend"": {
+                        ""expression"": ""speed * 2""
+                    }
+                }
+            }";
+
+            var logRecorded = false;
+            var result = DataMappingProcess.Transform(
+                rawRows,
+                shapeJson,
+                onExpressionEvalFailed: (field, expr, err) =>
+                {
+                    logRecorded = true;
+                });
+
+            var dict = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
+            Assert.Equal(50, dict["calcSpeed"]);
+            Assert.True(logRecorded);
+        }
+
+        /// <summary>
+        /// Description: Test theo dung vi du §9.2 va §9.3 cua tai lieu ban giao TargetShapeJson.md
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_Section9_3_HandoverExample_ProducesExactOutput_Test()
+        {
+            var codeSets = new Dictionary<string, CodeSetDto>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["TRAFFIC_COND"] = new CodeSetDto
+                {
+                    Values =
+                    [
+                        new CodeValueDto { SourceValue = "1", PartnerValue = "Normal" },
+                        new CodeValueDto { SourceValue = "2", PartnerValue = "Congested" }
+                    ]
+                }
+            };
+
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?> { ["zoneId"] = 1001, ["averageSpeed"] = 45.5, ["trafficCondition"] = "2" },
+                new Dictionary<string, object?> { ["zoneId"] = 1002, ["averageSpeed"] = 61.25, ["trafficCondition"] = "1" }
+            };
+
+            var shapeJson = @"{
+                ""data"": [
+                    {
+                        ""zoneId"": { ""$field"": ""zoneId"" },
+                        ""averageSpeed"": { ""$field"": ""averageSpeed"", ""$extend"": { ""targetType"": ""int"", ""numberFormat"": ""0.#"" } },
+                        ""trafficCondition"": { ""$field"": ""trafficCondition"", ""$extend"": { ""codeSet"": ""TRAFFIC_COND"", ""targetType"": ""string"" } }
+                    }
+                ]
+            }";
+
+            var result = DataMappingProcess.Transform(rawRows, shapeJson, codeSets: codeSets);
+            Assert.Single(result);
+            var root = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
+            var dataList = Assert.IsAssignableFrom<List<object?>>(root["data"]);
+            Assert.Equal(2, dataList.Count);
+
+            var row1 = Assert.IsAssignableFrom<IDictionary<string, object?>>(dataList[0]);
+            Assert.Equal(1001, row1["zoneId"]);
+            Assert.Equal(46, row1["averageSpeed"]);
+            Assert.Equal("Congested", row1["trafficCondition"]);
+
+            var row2 = Assert.IsAssignableFrom<IDictionary<string, object?>>(dataList[1]);
+            Assert.Equal(1002, row2["zoneId"]);
+            Assert.Equal(61, row2["averageSpeed"]);
+            Assert.Equal("Normal", row2["trafficCondition"]);
+        }
+
+        #endregion
+
+        /// <summary>
+        /// Description: Kiểm tra khi trường trong target shape không có trong bản ghi thô thì trường đó có mặt trong JSON đầu ra với giá trị null và không sinh cảnh báo ESH-1205.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public async Task Map_WhenShapeFieldNotInRawRow_ReturnsNullForThatField_WithoutAlert_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            var packet = new ShareDataPacket { Code = "TEST_P" };
+            var mapping = new ShareDataMapping
+            {
+                ID = "TEST_M",
+                TargetShapeJson = @"{ ""a"": { ""$field"": ""A"" }, ""b"": { ""$field"": ""B"" }, ""c"": { ""$field"": ""C"" } }"
+            };
+            var sub = new ShareDataSubscription { ID = "TEST_S" };
+            var ctx = new DataOutboundContext(sub, null, packet, mapping, DateTime.Now, CancellationToken.None);
+
+            var extraction = new DataOutboundExtractionResult(
+                new List<object> { new Dictionary<string, object?> { ["A"] = 1, ["B"] = 2 } },
+                null, null);
+
+            var logs = new List<string>();
+            var result = await DataMappingProcess.Map(db, extraction, ctx,
+                (code, sev, src, msg, dtl) => { logs.Add(code); return Task.CompletedTask; }, null);
+
+            Assert.True(result.Success);
+            Assert.DoesNotContain(ShareDataAlertCode.Outbound.ShapeFieldNotInRawRow, logs);
+            Assert.NotNull(result.FinalBytes);
+
+            using var doc = JsonDocument.Parse(result.FinalBytes);
+            var root = doc.RootElement;
+            var item = root.ValueKind == JsonValueKind.Array ? root[0] : root;
+
+            Assert.True(item.TryGetProperty("a", out var propA));
+            Assert.Equal(1, propA.GetInt32());
+
+            Assert.True(item.TryGetProperty("b", out var propB));
+            Assert.Equal(2, propB.GetInt32());
+
+            Assert.True(item.TryGetProperty("c", out var propC));
+            Assert.Equal(JsonValueKind.Null, propC.ValueKind);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra khi bản ghi thô có trường dư thừa không nằm trong target shape thì trường dư bị bỏ qua, đầu ra không chứa trường đó và các trường hợp lệ vẫn giữ đúng giá trị.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public async Task Map_WhenRawRowHasExtraField_IgnoresIt_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            var packet = new ShareDataPacket { Code = "TEST_P" };
+            var mapping = new ShareDataMapping
+            {
+                ID = "TEST_M",
+                TargetShapeJson = @"{ ""a"": { ""$field"": ""A"" }, ""b"": { ""$field"": ""B"" } }"
+            };
+            var sub = new ShareDataSubscription { ID = "TEST_S" };
+            var ctx = new DataOutboundContext(sub, null, packet, mapping, DateTime.Now, CancellationToken.None);
+
+            var extraction = new DataOutboundExtractionResult(
+                new List<object> { new Dictionary<string, object?> { ["A"] = 1, ["B"] = 2, ["D"] = 4 } },
+                null, null);
+
+            var logs = new List<string>();
+            var result = await DataMappingProcess.Map(db, extraction, ctx,
+                (code, sev, src, msg, dtl) => { logs.Add(code); return Task.CompletedTask; }, null);
+
+            Assert.True(result.Success);
+            Assert.NotNull(result.FinalBytes);
+
+            using var doc = JsonDocument.Parse(result.FinalBytes);
+            var root = doc.RootElement;
+            var item = root.ValueKind == JsonValueKind.Array ? root[0] : root;
+
+            Assert.False(item.TryGetProperty("d", out _));
+            Assert.False(item.TryGetProperty("D", out _));
+
+            Assert.True(item.TryGetProperty("a", out var propA));
+            Assert.Equal(1, propA.GetInt32());
+
+            Assert.True(item.TryGetProperty("b", out var propB));
+            Assert.Equal(2, propB.GetInt32());
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra khi chuỗi JSON cấu hình định dạng không hợp lệ thì ghi log lỗi ESH-1206 và trả về false.
+        /// Created date: 17/09/2026
+        /// </summary>
+        [Fact]
+        public async Task Map_WhenShapeJsonIsInvalid_LogsEsh1206_AndReturnsFalse_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            var packet = new ShareDataPacket { Code = "TEST_P" };
+            var mapping = new ShareDataMapping { ID = "TEST_M", TargetShapeJson = "INVALID_JSON_///" };
+            var sub = new ShareDataSubscription { ID = "TEST_S" };
+            var ctx = new DataOutboundContext(sub, null, packet, mapping, DateTime.Now, CancellationToken.None);
+
+            var extraction = new DataOutboundExtractionResult(
+                new List<object> { new Dictionary<string, object?>() },
+                null, null);
+
+            var logs = new List<string>();
+            var result = await DataMappingProcess.Map(db, extraction, ctx,
+                (code, sev, src, msg, dtl) => { logs.Add(code); return Task.CompletedTask; }, null);
+
+            Assert.False(result.Success);
+            Assert.Contains(ShareDataAlertCode.Outbound.ShapeInvalid, logs);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra khi chuỗi JSON cấu hình rỗng thì ghi log lỗi ESH-1206 và trả về false.
+        /// Created date: 17/09/2026
+        /// </summary>
+        [Fact]
+        public async Task Map_WhenShapeJsonIsEmpty_LogsEsh1206_AndReturnsFalse_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            var packet = new ShareDataPacket { Code = "TEST_P" };
+            var mapping = new ShareDataMapping { ID = "TEST_M", TargetShapeJson = "" };
+            var sub = new ShareDataSubscription { ID = "TEST_S" };
+            var ctx = new DataOutboundContext(sub, null, packet, mapping, DateTime.Now, CancellationToken.None);
+
+            var extraction = new DataOutboundExtractionResult(
+                new List<object> { new Dictionary<string, object?>() },
+                null, null);
+
+            var logs = new List<string>();
+            var result = await DataMappingProcess.Map(db, extraction, ctx,
+                (code, sev, src, msg, dtl) => { logs.Add(code); return Task.CompletedTask; }, null);
+
+            Assert.False(result.Success);
+            Assert.Contains(ShareDataAlertCode.Outbound.ShapeInvalid, logs);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra phương thức ShouldWriteFile trả về true đối với các môi trường Development, Debug, và Test.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Theory]
+        [InlineData("Development")]
+        [InlineData("Dev")]
+        [InlineData("Debug")]
+        [InlineData("Test")]
+        [InlineData("Testing")]
+        public void ShouldWriteFile_WhenEnvironmentIsDevelopmentOrTest_ReturnsTrue_Test(string envName)
+        {
+            var env = new TestHostEnvironment(envName);
+            var sender = new DataOutboundFileSender(null, env);
+
+            var shouldWrite = sender.ShouldWriteFile();
+
+            Assert.True(shouldWrite);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra phương thức ShouldWriteFile trả về false đối với các môi trường Staging và Production.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Theory]
+        [InlineData("Staging")]
+        [InlineData("staging")]
+        [InlineData("Production")]
+        [InlineData("production")]
+        [InlineData("Prod")]
+        [InlineData("prod")]
+        public void ShouldWriteFile_WhenEnvironmentIsStagingOrProduction_ReturnsFalse_Test(string envName)
+        {
+            var env = new TestHostEnvironment(envName);
+            var sender = new DataOutboundFileSender(null, env);
+
+            var shouldWrite = sender.ShouldWriteFile();
+
+            Assert.False(shouldWrite);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra cấu hình NasStorage:EnableFileExport ghi đè độ ưu tiên cao hơn tên môi trường.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void ShouldWriteFile_WhenConfigOverrideProvided_OverridesEnvironment_Test()
+        {
+            var configTrue = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?> { { "NasStorage:EnableFileExport", "true" } })
+                .Build();
+            var senderProdWithToggle = new DataOutboundFileSender(configTrue, new TestHostEnvironment("Production"));
+            Assert.True(senderProdWithToggle.ShouldWriteFile());
+
+            var configFalse = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?> { { "NasStorage:EnableFileExport", "false" } })
+                .Build();
+            var senderDevWithToggle = new DataOutboundFileSender(configFalse, new TestHostEnvironment("Development"));
+            Assert.False(senderDevWithToggle.ShouldWriteFile());
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra phương thức Send của DataOutboundFileSender trả về thành công ngay lập tức mà không ghi file khi ShouldWriteFile là false.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public async Task FileSender_Send_WhenShouldWriteFileIsFalse_ReturnsSuccessWithoutWritingFile_Test()
+        {
+            var env = new TestHostEnvironment("Production");
+            var sender = new DataOutboundFileSender(null, env);
+            var mapping = new DataMappingResult(true, [1, 2, 3], 1);
+            var sub = new ShareDataSubscription { ID = "sub_prod_01", DatatypeId = "101" };
+            var ctx = new DataOutboundContext(sub, null, new ShareDataPacket { Code = "101" }, null, DateTime.Now, CancellationToken.None);
+
+            var result = await sender.Send(mapping, ctx, CancellationToken.None);
+
+            Assert.True(result.Success);
+            Assert.Equal(0, result.ByteSize);
+            Assert.Null(result.RelativePath);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra trên môi trường Staging/Production, quá trình xuất bản hoàn toàn không ghi tệp xuống đĩa, gọi API thành công -> kết xuất thành công, tịnh tiến watermark và FilePath trong log là null.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessBatchSubscriptions_WhenEnvironmentIsStaging_SkipsFileWrite_ApiSucceeds_AdvancesWatermark_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            var fileSenderCalled = 0;
+            var apiCalled = 0;
+            var fileSender = new MockDataOutboundFileSender((m, c) =>
+            {
+                fileSenderCalled++;
+                return Task.FromResult(new DataOutboundSendResult(true, 100, "should/not/be/called.json"));
+            }, shouldWriteFile: false);
+
+            var restSender = new MockDataOutboundRestSender((m, c) =>
+            {
+                apiCalled++;
+                return Task.FromResult(new DataOutboundSendResult(true, 250, null));
+            });
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.TrafficFlow, unique);
+
+            var (partner, sub) = await SeedOutboundSubscription(
+                db,
+                $"P_STAGING_OK_{unique}",
+                $"SUB_STAGING_OK_{unique}",
+                "101",
+                configurePartner: p =>
+                {
+                    p.Address = "127.0.0.1";
+                    p.Port = 5002;
+                    p.EndPointApiUrl = "/api/sharedata/sharedatainbound";
+                });
+
+            try
+            {
+                var worker = CreateWorker(scope, fileSender: fileSender, restSender: restSender);
+                await worker.ProcessBatchSubscriptions(CancellationToken.None);
+
+                Assert.Equal(0, fileSenderCalled);
+                Assert.Equal(1, apiCalled);
+
+                var logs = await GetLogs(db, sub.ID);
+                Assert.NotEmpty(logs);
+                Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
+                Assert.Null(logs[0].FilePath);
+                Assert.True(logs[0].ByteSize > 0);
+
+                var alerts = await db.Queryable<ShareDataAlertLog>()
+                    .Where(a => a.SubscriptionId == sub.ID)
+                    .ToListAsync();
+                Assert.DoesNotContain(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.FileWriteFailed);
+                Assert.DoesNotContain(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.HttpSendFailed);
+
+                var updatedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
+                Assert.NotNull(updatedSub.LastTimeRun);
+                Assert.Equal((sub.SerialNbr ?? 0) + 1, updatedSub.SerialNbr);
+            }
+            finally
+            {
+                await db.Deleteable<ShareDataAlertLog>().Where(a => a.SubscriptionId == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataPartner>().Where(p => p.ID == partner.ID).ExecuteCommandAsync();
+            }
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra trên môi trường Staging/Production, không ghi file và API gọi thất bại -> kết xuất thất bại, ghi cảnh báo HTTP và không tịnh tiến watermark.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessBatchSubscriptions_WhenEnvironmentIsStaging_SkipsFileWrite_ApiFails_AbortsAndDoesNotAdvanceWatermark_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            var fileSenderCalled = 0;
+            var apiCalled = 0;
+            var fileSender = new MockDataOutboundFileSender((m, c) =>
+            {
+                fileSenderCalled++;
+                return Task.FromResult(new DataOutboundSendResult(true, 100, "should/not/be/called.json"));
+            }, shouldWriteFile: false);
+
+            var restSender = new MockDataOutboundRestSender((m, c) =>
+            {
+                apiCalled++;
+                return Task.FromResult(new DataOutboundSendResult(false, 0, null, "Simulated HTTP 503 Service Unavailable"));
+            });
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.TrafficFlow, unique);
+
+            var (partner, sub) = await SeedOutboundSubscription(
+                db,
+                $"P_STAGING_API_FAIL_{unique}",
+                $"SUB_STAGING_API_FAIL_{unique}",
+                "101",
+                configurePartner: p =>
+                {
+                    p.Address = "127.0.0.1";
+                    p.Port = 5002;
+                    p.EndPointApiUrl = "/api/sharedata/sharedatainbound";
+                });
+
+            try
+            {
+                var worker = CreateWorker(scope, fileSender: fileSender, restSender: restSender);
+                await worker.ProcessBatchSubscriptions(CancellationToken.None);
+
+                Assert.Equal(0, fileSenderCalled);
+                Assert.Equal(1, apiCalled);
+
+                var logs = await GetLogs(db, sub.ID);
+                Assert.NotEmpty(logs);
+                Assert.Equal(BaseEnums.SuccessEnums.Fail, logs[0].Success);
+
+                var alerts = await db.Queryable<ShareDataAlertLog>()
+                    .Where(a => a.SubscriptionId == sub.ID)
+                    .ToListAsync();
+                Assert.Contains(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.HttpSendFailed && a.Severity == BaseEnums.AlertSeverity.Warning);
+                Assert.DoesNotContain(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.FileWriteFailed);
+
+                var updatedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
+                Assert.Null(updatedSub.LastTimeRun);
+                Assert.Equal(sub.SerialNbr, updatedSub.SerialNbr);
+            }
+            finally
+            {
+                await db.Deleteable<ShareDataAlertLog>().Where(a => a.SubscriptionId == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataPartner>().Where(p => p.ID == partner.ID).ExecuteCommandAsync();
+            }
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra trên môi trường Staging/Production, không ghi file nhưng HTTP gửi thành công thì quá trình xuất bản vẫn đạt Success, không gọi fileSender và tịnh tiến watermark.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessBatchSubscriptions_WhenEnvironmentIsStaging_SkipsFileWrite_ApiSucceeds_ExportsSuccessfullyAndAdvancesWatermark_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            var fileSenderCalled = 0;
+            var fileSender = new MockDataOutboundFileSender((m, c) =>
+            {
+                fileSenderCalled++;
+                return Task.FromResult(new DataOutboundSendResult(true, 100, "should/not/be/called.json"));
+            }, shouldWriteFile: false);
+
+            var restSender = new MockDataOutboundRestSender((m, c) =>
+                Task.FromResult(new DataOutboundSendResult(true, 100, null)));
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.TrafficFlow, unique);
+
+            var (partner, sub) = await SeedOutboundSubscription(
+                db,
+                $"P_STAGING_NO_CHANNEL_{unique}",
+                $"SUB_STAGING_NO_CHANNEL_{unique}",
+                "101",
+                configurePartner: p =>
+                {
+                    p.Address = "127.0.0.1";
+                    p.Port = 5003;
+                    p.EndPointApiUrl = null;
+                });
+
+            try
+            {
+                var worker = CreateWorker(scope, fileSender: fileSender, restSender: restSender);
+                await worker.ProcessBatchSubscriptions(CancellationToken.None);
+
+                Assert.Equal(0, fileSenderCalled);
+
+                var logs = await GetLogs(db, sub.ID);
+                Assert.NotEmpty(logs);
+                Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
+
+                var updatedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
+                Assert.NotNull(updatedSub.LastTimeRun);
+                Assert.Equal((sub.SerialNbr ?? 0) + 1, updatedSub.SerialNbr);
+            }
+            finally
+            {
+                await db.Deleteable<ShareDataAlertLog>().Where(a => a.SubscriptionId == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataPartner>().Where(p => p.ID == partner.ID).ExecuteCommandAsync();
+            }
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra khi partner là null thì DataOutboundRestSender trả về thất bại và không ném ngoại lệ.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public async Task RestSender_WhenPartnerIsNull_ReturnsFailWithoutThrowing_Test()
+        {
+            var sender = new DataOutboundRestSender();
+            var ctx = new DataOutboundContext(new ShareDataSubscription(), null, new ShareDataPacket(), null, DateTime.Now, CancellationToken.None);
+            var mapping = new DataMappingResult(true, [1, 2, 3], 1, null);
+
+            var result = await sender.Send(mapping, ctx, CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Equal("Đăng ký không có đối tác.", result.ErrorMessage);
+        }
+
+        #region C1-C7: SV-1a Direct Http Body (No httpPayload Wrapper) Tests
+
+        /// <summary>
+        /// Description: C1, C3, C4, C5 - Kiểm tra RestSender gửi trực tiếp JSON FinalBytes, Content-Type là application/json, không còn vỏ tự chế 7 khoá, parse 1 lần ra thẳng object có header và data.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public async Task RestSender_SendsDirectFinalBytes_WithoutHttpPayloadWrapper_C1_C3_C4_C5_Test()
+        {
+            // Arrange
+            HttpRequestMessage? capturedRequest = null;
+            string? capturedBody = null;
+
+            var testHandler = new TestHttpMessageHandler(async (req, ct) =>
+            {
+                capturedRequest = req;
+                capturedBody = await req.Content!.ReadAsStringAsync(ct);
+                return new HttpResponseMessage(System.Net.HttpStatusCode.OK);
+            });
+            var clientFactory = new MockHttpClientFactoryTest(testHandler);
+            var sender = new DataOutboundRestSender(clientFactory);
+
+            var sampleJson = """
+            {
+              "header": {
+                "source": "ITS-TMS",
+                "dataTime": "2026-09-18T14:05:31+07:00",
+                "partnerCode": "PARTNER2",
+                "packetCode": "101_commonData",
+                "serial": "1287"
+              },
+              "data": [
+                { "zoneId": 1001, "averageSpeed": 46, "trafficCondition": "Congested" },
+                { "zoneId": 1002, "averageSpeed": 61, "trafficCondition": "Normal" }
+              ]
+            }
+            """;
+            var finalBytes = System.Text.Encoding.UTF8.GetBytes(sampleJson);
+            var mapping = new DataMappingResult(true, finalBytes, 2);
+
+            var partner = new ShareDataPartner { Address = "127.0.0.1", Port = 8080, EndPointApiUrl = "/api/v1/sharedata" };
+            var packet = new ShareDataPacket { Code = "101_commonData", PacketVersion = "1.0" };
+            var sub = new ShareDataSubscription { DatatypeId = "101", SerialNbr = 1287, Format = BaseEnums.PublishFormat.Data };
+            var ctx = new DataOutboundContext(sub, partner, packet, null, DateTime.Now, CancellationToken.None);
+
+            // Act
+            var sendResult = await sender.Send(mapping, ctx, CancellationToken.None);
+
+            // Assert
+            Assert.True(sendResult.Success);
+            Assert.NotNull(capturedRequest);
+            Assert.Equal("application/json", capturedRequest.Content?.Headers.ContentType?.MediaType);
+
+            // C3 & C4: Parse JSON 1 lần ra thẳng object
+            Assert.NotNull(capturedBody);
+            using var doc = JsonDocument.Parse(capturedBody);
+            var root = doc.RootElement;
+            Assert.Equal(JsonValueKind.Object, root.ValueKind);
+
+            // C3: Không còn bất kỳ khoá nào của vỏ tự chế 7 khoá ở cấp gốc
+            Assert.False(root.TryGetProperty("rawContent", out _));
+            Assert.False(root.TryGetProperty("datatypeId", out _));
+            Assert.False(root.TryGetProperty("packetVersion", out _));
+            Assert.False(root.TryGetProperty("serialNbr", out _));
+            Assert.False(root.TryGetProperty("pduType", out _));
+            Assert.False(root.TryGetProperty("format", out _));
+
+            // C1: Có header và data chuẩn theo bộ khung
+            Assert.True(root.TryGetProperty("header", out var headerElem));
+            Assert.True(root.TryGetProperty("data", out var dataElem));
+            Assert.Equal(JsonValueKind.Array, dataElem.ValueKind);
+            Assert.Equal(2, dataElem.GetArrayLength());
+        }
+
+        /// <summary>
+        /// Description: C2, C7 - Kiểm tra khi bộ khung phẳng (mảng), RestSender gửi thẳng mảng JSON không bọc vỏ, số lượng bản ghi bằng đúng số dòng thô.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public async Task RestSender_SendsDirectArray_ForFlatShape_C2_C7_Test()
+        {
+            // Arrange
+            HttpRequestMessage? capturedRequest = null;
+            string? capturedBody = null;
+
+            var testHandler = new TestHttpMessageHandler(async (req, ct) =>
+            {
+                capturedRequest = req;
+                capturedBody = await req.Content!.ReadAsStringAsync(ct);
+                return new HttpResponseMessage(System.Net.HttpStatusCode.OK);
+            });
+            var clientFactory = new MockHttpClientFactoryTest(testHandler);
+            var sender = new DataOutboundRestSender(clientFactory);
+
+            var sampleArrayJson = """
+            [
+              { "zoneId": 1001, "averageSpeed": 46 },
+              { "zoneId": 1002, "averageSpeed": 61 },
+              { "zoneId": 1003, "averageSpeed": 55 }
+            ]
+            """;
+            var finalBytes = System.Text.Encoding.UTF8.GetBytes(sampleArrayJson);
+            var mapping = new DataMappingResult(true, finalBytes, 3);
+
+            var partner = new ShareDataPartner { Address = "127.0.0.1", Port = 8080, EndPointApiUrl = "/api/v1/sharedata" };
+            var packet = new ShareDataPacket { Code = "101", PacketVersion = "1.0" };
+            var sub = new ShareDataSubscription { DatatypeId = "101", Format = BaseEnums.PublishFormat.Data };
+            var ctx = new DataOutboundContext(sub, partner, packet, null, DateTime.Now, CancellationToken.None);
+
+            // Act
+            var sendResult = await sender.Send(mapping, ctx, CancellationToken.None);
+
+            // Assert
+            Assert.True(sendResult.Success);
+            Assert.NotNull(capturedBody);
+
+            using var doc = JsonDocument.Parse(capturedBody);
+            var root = doc.RootElement;
+            Assert.Equal(JsonValueKind.Array, root.ValueKind);
+            Assert.Equal(3, root.GetArrayLength()); // C7: đúng 3 bản ghi
+        }
+
+        /// <summary>
+        /// Description: C6 - Kiểm tra tính nhất quán: tệp kết xuất local (FileSender) và thân HTTP (RestSender) đều sử dụng chung FinalBytes nguyên bản.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public async Task OutboundSenders_LocalFileAndHttpBody_ShareIdenticalPayloadBytes_C6_Test()
+        {
+            // Arrange
+            string? capturedHttpBody = null;
+            var testHandler = new TestHttpMessageHandler(async (req, ct) =>
+            {
+                capturedHttpBody = await req.Content!.ReadAsStringAsync(ct);
+                return new HttpResponseMessage(System.Net.HttpStatusCode.OK);
+            });
+            var clientFactory = new MockHttpClientFactoryTest(testHandler);
+            var restSender = new DataOutboundRestSender(clientFactory);
+
+            var sampleJson = """{"header":{"dataTime":"2026-09-18T14:05:31+07:00"},"data":[{"id":1}]}""";
+            var finalBytes = System.Text.Encoding.UTF8.GetBytes(sampleJson);
+            var mapping = new DataMappingResult(true, finalBytes, 1);
+
+            var partner = new ShareDataPartner { Code = "P_TEST", Address = "127.0.0.1", Port = 8080, EndPointApiUrl = "/api" };
+            var packet = new ShareDataPacket { Code = "101" };
+            var sub = new ShareDataSubscription { ID = "sub_test_id", DatatypeId = "101" };
+            var ctx = new DataOutboundContext(sub, partner, packet, null, DateTime.Now, CancellationToken.None);
+
+            // Act - HTTP
+            var httpResult = await restSender.Send(mapping, ctx, CancellationToken.None);
+
+            // Assert
+            Assert.True(httpResult.Success);
+            Assert.NotNull(capturedHttpBody);
+            Assert.Equal(sampleJson, capturedHttpBody);
+            Assert.Equal(finalBytes.Length, httpResult.ByteSize);
+        }
+
+        #endregion
+
+        #region D1-D9: Meta Values Resolution Tests (§3.5)
+
+        /// <summary>
+        /// Description: D1 - Kiểm tra token {$meta: "Now"} giải ra mốc thời gian DateTime thực tế, không nhả object thô.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_Meta_Now_ResolvesToDateTimeValue_D1_Test()
+        {
+            // Arrange
+            var now = new DateTime(2026, 9, 18, 14, 5, 31);
+            var metaValues = new Dictionary<string, object?> { ["Now"] = now };
+            var shapeJson = """{"header":{"dataTime":{"$meta":"Now"}},"data":[{"$field":"Id"}]}""";
+            var rawRows = new List<object> { new { Id = 1 } };
+
+            // Act
+            var result = DataMappingProcess.Transform(rawRows, shapeJson, metaValues: metaValues);
+
+            // Assert
+            Assert.Single(result);
+            var dict = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
+            var header = Assert.IsAssignableFrom<IDictionary<string, object?>>(dict["header"]);
+            Assert.Equal(now, header["dataTime"]);
+        }
+
+        /// <summary>
+        /// Description: D2 - Kiểm tra token {$meta: "PartnerCode"} giải đúng mã đối tác từ metaValues.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_Meta_PartnerCode_ResolvesToPartnerCode_D2_Test()
+        {
+            // Arrange
+            var metaValues = new Dictionary<string, object?> { ["PartnerCode"] = "PARTNER2" };
+            var shapeJson = """{"header":{"partnerCode":{"$meta":"PartnerCode"}},"data":[{"$field":"Id"}]}""";
+            var rawRows = new List<object> { new { Id = 1 } };
+
+            // Act
+            var result = DataMappingProcess.Transform(rawRows, shapeJson, metaValues: metaValues);
+
+            // Assert
+            var dict = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
+            var header = Assert.IsAssignableFrom<IDictionary<string, object?>>(dict["header"]);
+            Assert.Equal("PARTNER2", header["partnerCode"]);
+        }
+
+        /// <summary>
+        /// Description: D3 - Kiểm tra token {$meta: "PacketCode"} và {$meta: "Serial"} giải ra đúng mã gói và số serial.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_Meta_PacketCode_And_Serial_ResolvesCorrectly_D3_Test()
+        {
+            // Arrange
+            var metaValues = new Dictionary<string, object?>
+            {
+                ["PacketCode"] = "101_commonData",
+                ["Serial"] = 1287L
+            };
+            var shapeJson = """{"header":{"packetCode":{"$meta":"PacketCode"},"serial":{"$meta":"Serial"}},"data":[{"$field":"Id"}]}""";
+            var rawRows = new List<object> { new { Id = 1 } };
+
+            // Act
+            var result = DataMappingProcess.Transform(rawRows, shapeJson, metaValues: metaValues);
+
+            // Assert
+            var dict = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
+            var header = Assert.IsAssignableFrom<IDictionary<string, object?>>(dict["header"]);
+            Assert.Equal("101_commonData", header["packetCode"]);
+            Assert.Equal(1287L, header["serial"]);
+        }
+
+        /// <summary>
+        /// Description: D4 - Kiểm tra node có cả $meta và $value (ví dụ PartnerCode) thì ưu tiên lấy giá trị thật từ metaValues, KHÔNG lấy giá trị snapshot $value.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_Meta_PartnerCode_With_Value_Attribute_IgnoresValue_And_UsesRealMeta_D4_Test()
+        {
+            // Arrange
+            var metaValues = new Dictionary<string, object?> { ["PartnerCode"] = "REAL_PARTNER_CODE" };
+            var shapeJson = """{"header":{"partnerCode":{"$meta":"PartnerCode","$value":"Test"}},"data":[{"$field":"Id"}]}""";
+            var rawRows = new List<object> { new { Id = 1 } };
+
+            // Act
+            var result = DataMappingProcess.Transform(rawRows, shapeJson, metaValues: metaValues);
+
+            // Assert
+            var dict = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
+            var header = Assert.IsAssignableFrom<IDictionary<string, object?>>(dict["header"]);
+            Assert.Equal("REAL_PARTNER_CODE", header["partnerCode"]);
+            Assert.NotEqual("Test", header["partnerCode"]);
+        }
+
+        /// <summary>
+        /// Description: D5 - Kiểm tra token lạ không có thật ngoài 4 token hợp lệ thì trả null im lặng, không ghi cảnh báo.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_Meta_UnknownToken_ReturnsNull_Silently_D5_Test()
+        {
+            // Arrange
+            var metaValues = new Dictionary<string, object?> { ["Now"] = DateTime.Now };
+            var shapeJson = """{"header":{"unknown":{"$meta":"KhongCoThat"}},"data":[{"$field":"Id"}]}""";
+            var rawRows = new List<object> { new { Id = 1 } };
+            var warnings = new List<string>();
+
+            // Act
+            var result = DataMappingProcess.Transform(rawRows, shapeJson, onExpressionEvalFailed: (f, expr, err) => warnings.Add(err), metaValues: metaValues);
+
+            // Assert
+            var dict = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
+            var header = Assert.IsAssignableFrom<IDictionary<string, object?>>(dict["header"]);
+            Assert.Null(header["unknown"]);
+            Assert.Empty(warnings);
+        }
+
+        /// <summary>
+        /// Description: D6 - Kiểm tra tên token meta không phân biệt hoa thường (ví dụ partnercode chữ thường) vẫn giải đúng.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_Meta_CaseInsensitiveToken_ResolvesCorrectly_D6_Test()
+        {
+            // Arrange
+            var metaValues = new Dictionary<string, object?> { ["PartnerCode"] = "PARTNER_CI" };
+            var shapeJson = """{"header":{"partnerCode":{"$meta":"partnercode"}},"data":[{"$field":"Id"}]}""";
+            var rawRows = new List<object> { new { Id = 1 } };
+
+            // Act
+            var result = DataMappingProcess.Transform(rawRows, shapeJson, metaValues: metaValues);
+
+            // Assert
+            var dict = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
+            var header = Assert.IsAssignableFrom<IDictionary<string, object?>>(dict["header"]);
+            Assert.Equal("PARTNER_CI", header["partnerCode"]);
+        }
+
+        /// <summary>
+        /// Description: D7 - Kiểm tra node $meta đi kèm $extend được coi là dữ liệu hỏng: ghi cảnh báo, render giá trị meta và bỏ qua $extend.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_Meta_WithExtend_LogsWarning_And_RendersMetaValue_WithoutCoercion_D7_Test()
+        {
+            // Arrange
+            var now = new DateTime(2026, 9, 18, 14, 5, 31);
+            var metaValues = new Dictionary<string, object?> { ["Now"] = now };
+            var shapeJson = """{"header":{"time":{"$meta":"Now","$extend":{"targetType":"int"}}},"data":[{"$field":"Id"}]}""";
+            var rawRows = new List<object> { new { Id = 1 } };
+            var warnings = new List<string>();
+
+            // Act
+            var result = DataMappingProcess.Transform(rawRows, shapeJson, onExpressionEvalFailed: (f, expr, err) => warnings.Add(err), metaValues: metaValues);
+
+            // Assert
+            var dict = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
+            var header = Assert.IsAssignableFrom<IDictionary<string, object?>>(dict["header"]);
+            Assert.Equal(now, header["time"]);
+            Assert.Contains(warnings, w => w.Contains("dữ liệu hỏng", StringComparison.OrdinalIgnoreCase) && w.Contains("$extend"));
+        }
+
+        /// <summary>
+        /// Description: D8 - Kiểm tra trong 1 lô nhiều dòng dữ liệu, giá trị Now lấy một lần dùng chung cho toàn bộ các dòng.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public async Task Map_MultipleRows_HaveSameNowMetaValue_D8_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            var shapeJson = """{"header":{"time":{"$meta":"Now"}},"data":[{"id":{"$field":"Id"}}]}""";
+            var rawRows = new List<object> { new Dictionary<string, object?> { ["Id"] = 1 }, new Dictionary<string, object?> { ["Id"] = 2 } };
+            var extraction = new DataOutboundExtractionResult(rawRows, null, null);
+            var mapping = new ShareDataMapping { TargetShapeJson = shapeJson };
+            var packet = new ShareDataPacket { Code = "101" };
+            var partner = new ShareDataPartner { Code = "PARTNER_TEST" };
+            var sub = new ShareDataSubscription { SerialNbr = 100 };
+            var ctx = new DataOutboundContext(sub, partner, packet, mapping, DateTime.Now, CancellationToken.None);
+
+            // Act
+            var mapResult = await DataMappingProcess.Map(db, extraction, ctx);
+
+            // Assert
+            Assert.True(mapResult.Success);
+            Assert.NotNull(mapResult.FinalBytes);
+            var json = System.Text.Encoding.UTF8.GetString(mapResult.FinalBytes);
+            using var doc = JsonDocument.Parse(json);
+            Assert.True(doc.RootElement.TryGetProperty("header", out var headerElem));
+            Assert.True(headerElem.TryGetProperty("time", out var timeElem));
+            var timeStr = timeElem.GetString();
+            Assert.NotNull(timeStr);
+            Assert.True(DateTime.TryParse(timeStr, out _));
+        }
+
+        /// <summary>
+        /// Description: D9 - Kiểm tra bộ khung không có $meta thì đầu ra không thay đổi so với khi không truyền metaValues.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_ShapeWithoutMeta_OutputRemainsUnchanged_D9_Test()
+        {
+            // Arrange
+            var shapeJson = """{"data":[{"id":{"$field":"Id"}}]}""";
+            var rawRows = new List<object> { new { Id = 10 } };
+
+            // Act - without metaValues
+            var result1 = DataMappingProcess.Transform(rawRows, shapeJson);
+            // Act - with metaValues
+            var metaValues = new Dictionary<string, object?> { ["Now"] = DateTime.Now };
+            var result2 = DataMappingProcess.Transform(rawRows, shapeJson, metaValues: metaValues);
+
+            // Assert
+            var json1 = JsonSerializer.Serialize(result1);
+            var json2 = JsonSerializer.Serialize(result2);
+            Assert.Equal(json1, json2);
+        }
+
+        #endregion
+
+        /// <summary>
+        /// Description: Kiểm tra token $meta hoạt động chính xác trong mảng lặp ($each/$as), giải đúng cho từng dòng trong danh sách.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_MetaInEachLoop_ResolvesCorrectly_Test()
+        {
+            // Arrange
+            var now = new DateTime(2026, 9, 18, 12, 0, 0);
+            var metaValues = new Dictionary<string, object?>
+            {
+                ["PacketCode"] = "101_traffic",
+                ["Now"] = now
+            };
+            var shapeJson = """
+            {
+              "items": {
+                "$each": true,
+                "$as": {
+                  "id": { "$field": "Id" },
+                  "packet": { "$meta": "PacketCode" },
+                  "dataTime": { "$meta": "Now" }
+                }
+              }
+            }
+            """;
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?> { ["Id"] = 101 },
+                new Dictionary<string, object?> { ["Id"] = 102 }
+            };
+
+            // Act
+            var result = DataMappingProcess.Transform(rawRows, shapeJson, metaValues: metaValues);
+
+            // Assert
+            Assert.Single(result);
+            var root = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
+            var items = Assert.IsAssignableFrom<IList<object?>>(root["items"]);
+            Assert.Equal(2, items.Count);
+
+            var first = Assert.IsAssignableFrom<IDictionary<string, object?>>(items[0]);
+            Assert.Equal(101, first["id"]);
+            Assert.Equal("101_traffic", first["packet"]);
+            Assert.Equal(now, first["dataTime"]);
+
+            var second = Assert.IsAssignableFrom<IDictionary<string, object?>>(items[1]);
+            Assert.Equal(102, second["id"]);
+            Assert.Equal("101_traffic", second["packet"]);
+            Assert.Equal(now, second["dataTime"]);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra token $meta rỗng hoặc chỉ có khoảng trắng không gây lỗi và giải ra giá trị null an toàn.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_MetaWithEmptyOrWhitespaceString_ProducesNull_Test()
+        {
+            // Arrange
+            var metaValues = new Dictionary<string, object?> { ["Now"] = DateTime.Now };
+            var shapeJson = """
+            {
+              "empty": { "$meta": "" },
+              "whitespace": { "$meta": "   " }
+            }
+            """;
+            var rawRows = new List<object> { new Dictionary<string, object?> { ["Id"] = 1 } };
+
+            // Act
+            var result = DataMappingProcess.Transform(rawRows, shapeJson, metaValues: metaValues);
+
+            // Assert
+            Assert.Single(result);
+            var dict = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
+            Assert.Null(dict["empty"]);
+            Assert.Null(dict["whitespace"]);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra khi metaValues là null thì các token $meta giải ra null mà không ném ngoại lệ NullReferenceException.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_MetaNullContext_ResolvesNullSafely_Test()
+        {
+            // Arrange
+            var shapeJson = """
+            {
+              "time": { "$meta": "Now" },
+              "partner": { "$meta": "PartnerCode" }
+            }
+            """;
+            var rawRows = new List<object> { new Dictionary<string, object?> { ["Id"] = 1 } };
+
+            // Act
+            var result = DataMappingProcess.Transform(rawRows, shapeJson, metaValues: null);
+
+            // Assert
+            Assert.Single(result);
+            var dict = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
+            Assert.Null(dict["time"]);
+            Assert.Null(dict["partner"]);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra khi metaValues chỉ có một phần token, các token bị thiếu (như PartnerCode, Serial) trả về null an toàn.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Transform_MetaMissingSpecificKey_ProducesNull_Test()
+        {
+            // Arrange
+            var metaValues = new Dictionary<string, object?>
+            {
+                ["Now"] = new DateTime(2026, 9, 18, 10, 0, 0),
+                ["PacketCode"] = "101"
+            };
+            var shapeJson = """
+            {
+              "now": { "$meta": "Now" },
+              "packet": { "$meta": "PacketCode" },
+              "partner": { "$meta": "PartnerCode" },
+              "serial": { "$meta": "Serial" }
+            }
+            """;
+            var rawRows = new List<object> { new Dictionary<string, object?> { ["Id"] = 1 } };
+
+            // Act
+            var result = DataMappingProcess.Transform(rawRows, shapeJson, metaValues: metaValues);
+
+            // Assert
+            Assert.Single(result);
+            var dict = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
+            Assert.Equal(new DateTime(2026, 9, 18, 10, 0, 0), dict["now"]);
+            Assert.Equal("101", dict["packet"]);
+            Assert.Null(dict["partner"]);
+            Assert.Null(dict["serial"]);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra DataOutboundRestSender khi FinalBytes rỗng hoặc null thì trả về thành công an toàn, ByteSize = 0 và không gửi request HTTP.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public async Task RestSender_Send_EmptyOrNullFinalBytes_HandlesSafely_Test()
+        {
+            // Arrange
+            var requestSent = false;
+            var testHandler = new TestHttpMessageHandler((_, _) =>
+            {
+                requestSent = true;
+                return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK));
+            });
+            var clientFactory = new MockHttpClientFactoryTest(testHandler);
+            var sender = new DataOutboundRestSender(clientFactory);
+
+            var partner = new ShareDataPartner { Address = "127.0.0.1", Port = 8080, EndPointApiUrl = "/api" };
+            var ctx = new DataOutboundContext(new ShareDataSubscription(), partner, new ShareDataPacket(), null, DateTime.Now, CancellationToken.None);
+            var emptyMapping = new DataMappingResult(true, [], 0);
+
+            // Act
+            var sendResult = await sender.Send(emptyMapping, ctx, CancellationToken.None);
+
+            // Assert
+            Assert.True(sendResult.Success);
+            Assert.Equal(0, sendResult.ByteSize);
+            Assert.False(requestSent);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra DataOutboundRestSender khi đối tác trả về HTTP 500 kèm nội dung lỗi thì bắt trọn vẹn StatusCode và Response Body trong SendResult.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public async Task RestSender_Send_PartnerReturns500WithPayload_CapturesErrorBody_Test()
+        {
+            // Arrange
+            const string errorPayload = """{"error": "Internal server error", "detail": "DB down"}""";
+            var testHandler = new TestHttpMessageHandler((_, _) =>
+            {
+                var response = new HttpResponseMessage(System.Net.HttpStatusCode.InternalServerError)
+                {
+                    Content = new StringContent(errorPayload, System.Text.Encoding.UTF8, "application/json")
+                };
+                return Task.FromResult(response);
+            });
+            var clientFactory = new MockHttpClientFactoryTest(testHandler);
+            var sender = new DataOutboundRestSender(clientFactory);
+
+            var partner = new ShareDataPartner { Code = "PARTNER_FAIL", Address = "127.0.0.1", Port = 8080, EndPointApiUrl = "/api/data" };
+            var ctx = new DataOutboundContext(new ShareDataSubscription(), partner, new ShareDataPacket(), null, DateTime.Now, CancellationToken.None);
+            var mapping = new DataMappingResult(true, System.Text.Encoding.UTF8.GetBytes("""{"test":1}"""), 1);
+
+            // Act
+            var sendResult = await sender.Send(mapping, ctx, CancellationToken.None);
+
+            // Assert
+            Assert.False(sendResult.Success);
+            Assert.NotNull(sendResult.ErrorMessage);
+            Assert.Contains("500", sendResult.ErrorMessage);
+            Assert.Contains("Internal server error", sendResult.ErrorMessage);
+            Assert.NotNull(sendResult.DetailJson);
+            Assert.Contains("500", sendResult.DetailJson);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra DataOutboundRestSender khi gặp ngoại lệ mạng HttpRequestException (timeout, refused) thì bắt an toàn và trả về thất bại.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public async Task RestSender_Send_HttpRequestException_ReturnsFailureResult_Test()
+        {
+            // Arrange
+            var testHandler = new TestHttpMessageHandler((_, _) =>
+            {
+                throw new HttpRequestException("Connection refused by target host.");
+            });
+            var clientFactory = new MockHttpClientFactoryTest(testHandler);
+            var sender = new DataOutboundRestSender(clientFactory);
+
+            var partner = new ShareDataPartner { Code = "PARTNER_NET_ERR", Address = "10.10.99.99", Port = 8080, EndPointApiUrl = "/api" };
+            var ctx = new DataOutboundContext(new ShareDataSubscription(), partner, new ShareDataPacket(), null, DateTime.Now, CancellationToken.None);
+            var mapping = new DataMappingResult(true, System.Text.Encoding.UTF8.GetBytes("""{"test":1}"""), 1);
+
+            // Act
+            var sendResult = await sender.Send(mapping, ctx, CancellationToken.None);
+
+            // Assert
+            Assert.False(sendResult.Success);
+            Assert.NotNull(sendResult.ErrorMessage);
+            Assert.Contains("Connection refused", sendResult.ErrorMessage);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra DataOutboundRestSender cấu hình URL đúng cho cả trường hợp đối tác có Port và không có Port.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public async Task RestSender_Send_UrlWithAndWithoutPort_ConstructsCorrectUri_Test()
+        {
+            // Arrange
+            string? capturedUrl = null;
+            var testHandler = new TestHttpMessageHandler((req, _) =>
+            {
+                capturedUrl = req.RequestUri?.ToString();
+                return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK));
+            });
+            var clientFactory = new MockHttpClientFactoryTest(testHandler);
+            var sender = new DataOutboundRestSender(clientFactory);
+            var mapping = new DataMappingResult(true, System.Text.Encoding.UTF8.GetBytes("""{"id":1}"""), 1);
+
+            // Case 1: Partner có Port
+            var partnerWithPort = new ShareDataPartner { Address = "192.168.1.10", Port = 9000, EndPointApiUrl = "/api/v1/feed" };
+            var ctxWithPort = new DataOutboundContext(new ShareDataSubscription(), partnerWithPort, new ShareDataPacket(), null, DateTime.Now, CancellationToken.None);
+            await sender.Send(mapping, ctxWithPort, CancellationToken.None);
+            Assert.Equal("http://192.168.1.10:9000/api/v1/feed", capturedUrl);
+
+            // Case 2: Partner không có Port (null)
+            var partnerWithoutPort = new ShareDataPartner { Address = "partner.example.com", Port = null, EndPointApiUrl = "/data" };
+            var ctxWithoutPort = new DataOutboundContext(new ShareDataSubscription(), partnerWithoutPort, new ShareDataPacket(), null, DateTime.Now, CancellationToken.None);
+            await sender.Send(mapping, ctxWithoutPort, CancellationToken.None);
+            Assert.Equal("http://partner.example.com/data", capturedUrl);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra cờ required = true: nếu trường bị thiếu hoặc null thì Map trả về thất bại và thông báo rõ tên trường thiếu.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public async Task Map_ExtendRequired_MissingField_ReturnsFailureWithDetailedMessage_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            var shapeJson = """
+            {
+              "data": [
+                {
+                  "name": { "$field": "NonExistentField", "$extend": { "required": true } }
+                }
+              ]
+            }
+            """;
+            var rawRows = new List<object> { new Dictionary<string, object?> { ["Id"] = 1 } };
+            var extraction = new DataOutboundExtractionResult(rawRows, null, null);
+            var mapping = new ShareDataMapping { TargetShapeJson = shapeJson };
+            var packet = new ShareDataPacket { Code = "101" };
+            var partner = new ShareDataPartner { Code = "TEST_PARTNER" };
+            var ctx = new DataOutboundContext(new ShareDataSubscription(), partner, packet, mapping, DateTime.Now, CancellationToken.None);
+
+            // Act - Calling Map
+            var mapResult = await DataMappingProcess.Map(db, extraction, ctx);
+
+            // Assert
+            Assert.False(mapResult.Success);
+            Assert.NotNull(mapResult.ErrorMessage);
+            Assert.Contains("Thiếu trường bắt buộc", mapResult.ErrorMessage);
+            Assert.Contains("NonExistentField", mapResult.ErrorMessage);
+
+            // Act & Assert - Calling Transform directly throws InvalidOperationException
+            var ex = Assert.Throws<InvalidOperationException>(() =>
+                DataMappingProcess.Transform(rawRows, shapeJson));
+            Assert.Contains("Thiếu trường bắt buộc", ex.Message);
+            Assert.Contains("NonExistentField", ex.Message);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra chuỗi fallback 4 cấp của CodeSet (§3.4, §4.1): khớp mã -> default của CodeSet -> item IsDefault -> defaultPartnerValue của lá -> null.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Map_CodeSet_FallbackChain_FullHierarchy_Test()
+        {
+            // Arrange
+            var codeSets = new Dictionary<string, CodeSetDto>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["STATUS_CS"] = new CodeSetDto
+                {
+                    DefaultPartnerValue = "CS_DEFAULT",
+                    Values =
+                    [
+                        new CodeValueDto { SourceValue = "1", PartnerValue = "ACTIVE" },
+                        new CodeValueDto { SourceValue = "2", PartnerValue = "INACTIVE", IsDefault = true }
+                    ]
+                },
+                ["FALLBACK_ITEM_CS"] = new CodeSetDto
+                {
+                    DefaultPartnerValue = null,
+                    Values =
+                    [
+                        new CodeValueDto { SourceValue = "A", PartnerValue = "VAL_A" },
+                        new CodeValueDto { SourceValue = "B", PartnerValue = "VAL_B_DEFAULT", IsDefault = true }
+                    ]
+                },
+                ["NO_DEFAULT_CS"] = new CodeSetDto
+                {
+                    DefaultPartnerValue = null,
+                    Values =
+                    [
+                        new CodeValueDto { SourceValue = "X", PartnerValue = "VAL_X" }
+                    ]
+                }
+            };
+
+            var shapeJson = """
+            {
+              "matched": { "$field": "Code1", "$extend": { "codeSet": "STATUS_CS" } },
+              "unmatchedWithCsDefault": { "$field": "Code2", "$extend": { "codeSet": "STATUS_CS" } },
+              "emptyWithItemDefault": { "$field": "Code3", "$extend": { "codeSet": "FALLBACK_ITEM_CS" } },
+              "emptyWithLeafDefault": { "$field": "Code4", "$extend": { "codeSet": "NO_DEFAULT_CS", "defaultPartnerValue": "LEAF_VAL" } },
+              "emptyWithoutAnyDefault": { "$field": "Code5", "$extend": { "codeSet": "NO_DEFAULT_CS" } }
+            }
+            """;
+
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?>
+                {
+                    ["Code1"] = "1", // Matched -> ACTIVE
+                    ["Code2"] = "999", // Unmatched -> CS_DEFAULT
+                    ["Code3"] = null, // Empty -> item with IsDefault == true -> VAL_B_DEFAULT
+                    ["Code4"] = "", // Empty -> no CS default -> leaf default -> LEAF_VAL
+                    ["Code5"] = null // Empty -> no CS default, no leaf default -> null
+                }
+            };
+
+            // Act
+            var result = DataMappingProcess.Transform(rawRows, shapeJson, codeSets: codeSets);
+
+            // Assert
+            Assert.Single(result);
+            var dict = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
+            Assert.Equal("ACTIVE", dict["matched"]);
+            Assert.Equal("CS_DEFAULT", dict["unmatchedWithCsDefault"]);
+            Assert.Equal("VAL_B_DEFAULT", dict["emptyWithItemDefault"]);
+            Assert.Equal("LEAF_VAL", dict["emptyWithLeafDefault"]);
+            Assert.Null(dict["emptyWithoutAnyDefault"]);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra chuyển đổi targetType boolean/bool từ đa dạng kiểu nguồn (chuỗi, số nguyên, boolean).
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Map_ExtendTargetType_BooleanConversions_Test()
+        {
+            // Arrange
+            var shapeJson = """
+            {
+              "b1": { "$field": "V1", "$extend": { "targetType": "bool" } },
+              "b2": { "$field": "V2", "$extend": { "targetType": "boolean" } },
+              "b3": { "$field": "V3", "$extend": { "targetType": "bool" } },
+              "b4": { "$field": "V4", "$extend": { "targetType": "boolean" } }
+            }
+            """;
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?>
+                {
+                    ["V1"] = "true",
+                    ["V2"] = 1,
+                    ["V3"] = "false",
+                    ["V4"] = 0
+                }
+            };
+
+            // Act
+            var result = DataMappingProcess.Transform(rawRows, shapeJson);
+
+            // Assert
+            Assert.Single(result);
+            var dict = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
+            Assert.Equal(true, dict["b1"]);
+            Assert.Equal(true, dict["b2"]);
+            Assert.Equal(false, dict["b3"]);
+            Assert.Equal(false, dict["b4"]);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra numberFormat định dạng số thập phân và định dạng chuỗi số (padding 0) theo cấu hình (§3.4, §9.3).
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Map_ExtendNumberFormat_FormatsNumberAndStringCorrectly_Test()
+        {
+            // Arrange
+            var shapeJson = """
+            {
+              "formattedDec": { "$field": "Num1", "$extend": { "targetType": "decimal", "numberFormat": "F2" } },
+              "paddedStr": { "$field": "Num2", "$extend": { "targetType": "string", "numberFormat": "0000" } }
+            }
+            """;
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?>
+                {
+                    ["Num1"] = 12.3456,
+                    ["Num2"] = 42
+                }
+            };
+
+            // Act
+            var result = DataMappingProcess.Transform(rawRows, shapeJson);
+
+            // Assert
+            Assert.Single(result);
+            var dict = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
+            Assert.Equal(12.35m, dict["formattedDec"]);
+            Assert.Equal("0042", dict["paddedStr"]);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra quy tắc §3.4: Khi trường đã quy đổi qua bộ mã thì KHÔNG áp dụng ép kiểu targetType nữa, giữ nguyên giá trị bộ mã.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Map_ExtendCodeSet_SkipsTargetTypeCast_Test()
+        {
+            // Arrange
+            var codeSets = new Dictionary<string, CodeSetDto>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["LANE_CS"] = new CodeSetDto
+                {
+                    Values =
+                    [
+                        new CodeValueDto { SourceValue = "1", PartnerValue = "LANE_01_SPECIAL" }
+                    ]
+                }
+            };
+
+            var shapeJson = """
+            {
+              "lane": { "$field": "LaneId", "$extend": { "codeSet": "LANE_CS", "targetType": "int" } }
+            }
+            """;
+            var rawRows = new List<object>
+            {
+                new Dictionary<string, object?> { ["LaneId"] = "1" }
+            };
+
+            // Act
+            var result = DataMappingProcess.Transform(rawRows, shapeJson, codeSets: codeSets);
+
+            // Assert
+            Assert.Single(result);
+            var dict = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
+            Assert.Equal("LANE_01_SPECIAL", dict["lane"]);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra trực tiếp hàm ConvertDataType và alias CoerceDataType ép kiểu số, ngày giờ và boolean chính xác.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void ConvertDataType_DirectCall_And_ObsoleteAlias_FunctionCorrectly_Test()
+        {
+            // Act & Assert - ConvertDataType trên DataMappingProcess
+            Assert.Equal(123, DataMappingProcess.ConvertDataType("123", "int"));
+            Assert.Equal(true, DataMappingProcess.ConvertDataType("true", "bool"));
+            Assert.Equal("12.35", DataMappingProcess.ConvertDataType(12.3456, "string", numberFormat: "F2"));
+            var dt = new DateTime(2026, 9, 18, 14, 30, 0);
+            Assert.Equal("2026-09-18", DataMappingProcess.ConvertDataType(dt, "string", dateFormat: "yyyy-MM-dd"));
+
+            // Act & Assert - Obsolete alias CoerceDataType trên DataMappingProcess
+#pragma warning disable CS0618
+            Assert.Equal(123, DataMappingProcess.CoerceDataType("123", "int"));
+#pragma warning restore CS0618
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra tích hợp toàn trình luồng Outbound: từ trích xuất thô -> Map giải $meta, $extend, CodeSet -> tạo FinalBytes -> RestSender gửi trực tiếp tới đối tác qua HTTP.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public async Task OutboundPipeline_EndToEnd_MapTransformAndSend_Succeeds_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            var codeSetCode = $"E2E_CS_{Guid.NewGuid():N}";
+            var codeSet = new ShareDataCodeSet
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                Code = codeSetCode,
+                Name = "E2E Test CodeSet",
+                Status = BaseEnums.StatusEnum.Enable,
+                ValuesJson = """
+                {
+                  "defaultPartnerValue": "UNKNOWN",
+                  "values": [
+                    { "sourceValue": "ALERT", "partnerValue": "DANGER" },
+                    { "sourceValue": "OK", "partnerValue": "NORMAL" }
+                  ]
+                }
+                """
+            };
+            await db.Insertable(codeSet).ExecuteCommandAsync();
+
+            try
+            {
+                HttpRequestMessage? capturedRequest = null;
+                string? capturedHttpBody = null;
+                var testHandler = new TestHttpMessageHandler(async (req, ct) =>
+                {
+                    capturedRequest = req;
+                    capturedHttpBody = await req.Content!.ReadAsStringAsync(ct);
+                    return new HttpResponseMessage(System.Net.HttpStatusCode.OK);
+                });
+                var clientFactory = new MockHttpClientFactoryTest(testHandler);
+                var restSender = new DataOutboundRestSender(clientFactory);
+
+                var shapeJson = $$"""
+                {
+                  "header": {
+                    "source": "ITS-TMS",
+                    "dataTime": { "$meta": "Now" },
+                    "partnerCode": { "$meta": "PartnerCode" },
+                    "packetCode": { "$meta": "PacketCode" },
+                    "serial": { "$meta": "Serial" }
+                  },
+                  "data": {
+                    "$each": true,
+                    "$as": {
+                      "zoneId": { "$field": "ZoneId", "$extend": { "targetType": "int" } },
+                      "status": { "$field": "Status", "$extend": { "codeSet": "{{codeSetCode}}" } },
+                      "speed": { "$field": "Speed", "$extend": { "targetType": "decimal", "numberFormat": "F1" } }
+                    }
+                  }
+                }
+                """;
+
+                var rawRows = new List<object>
+                {
+                    new Dictionary<string, object?> { ["ZoneId"] = "1001", ["Status"] = "ALERT", ["Speed"] = 65.432 },
+                    new Dictionary<string, object?> { ["ZoneId"] = "1002", ["Status"] = "OK", ["Speed"] = 80.0 }
+                };
+                var extraction = new DataOutboundExtractionResult(rawRows, null, null);
+
+                var partner = new ShareDataPartner
+                {
+                    Code = "E2E_PARTNER",
+                    Address = "127.0.0.1",
+                    Port = 8080,
+                    EndPointApiUrl = "/api/v1/e2e/receive"
+                };
+                var packet = new ShareDataPacket
+                {
+                    Code = "101_e2ePacket",
+                    PacketVersion = "1.0"
+                };
+                var mapping = new ShareDataMapping
+                {
+                    TargetShapeJson = shapeJson
+                };
+                var sub = new ShareDataSubscription
+                {
+                    DatatypeId = "101",
+                    SerialNbr = 9999,
+                    Format = BaseEnums.PublishFormat.Data
+                };
+                var ctx = new DataOutboundContext(sub, partner, packet, mapping, DateTime.Now, CancellationToken.None);
+
+                // Act 1: Map
+                var mapResult = await DataMappingProcess.Map(db, extraction, ctx);
+
+                // Assert 1: Mapping thành công
+                Assert.True(mapResult.Success);
+                Assert.NotNull(mapResult.FinalBytes);
+                Assert.Equal(1, mapResult.RecordCount);
+
+                // Act 2: Send via HTTP REST
+                var sendResult = await restSender.Send(mapResult, ctx, CancellationToken.None);
+
+                // Assert 2: Gửi HTTP thành công
+                Assert.True(sendResult.Success);
+                Assert.NotNull(capturedRequest);
+                Assert.Equal("http://127.0.0.1:8080/api/v1/e2e/receive", capturedRequest.RequestUri?.ToString());
+                Assert.Equal("application/json", capturedRequest.Content?.Headers.ContentType?.MediaType);
+
+                // Assert 3: Kiểm tra cấu hình gói tin đối tác nhận được
+                Assert.NotNull(capturedHttpBody);
+                using var doc = JsonDocument.Parse(capturedHttpBody);
+                var root = doc.RootElement;
+
+                // Không có vỏ cũ 7 khoá
+                Assert.False(root.TryGetProperty("rawContent", out _));
+                Assert.False(root.TryGetProperty("datatypeId", out _));
+
+                // Header có giải $meta đầy đủ
+                Assert.True(root.TryGetProperty("header", out var header));
+                Assert.Equal("ITS-TMS", header.GetProperty("source").GetString());
+                Assert.Equal("E2E_PARTNER", header.GetProperty("partnerCode").GetString());
+                Assert.Equal("101_e2ePacket", header.GetProperty("packetCode").GetString());
+                Assert.Equal(9999, header.GetProperty("serial").GetInt64());
+                Assert.True(DateTime.TryParse(header.GetProperty("dataTime").GetString(), out _));
+
+                // Data mảng 2 phần tử được giải $extend và CodeSet đúng
+                Assert.True(root.TryGetProperty("data", out var data));
+                Assert.Equal(2, data.GetArrayLength());
+
+                var item1 = data[0];
+                Assert.Equal(1001, item1.GetProperty("zoneId").GetInt32());
+                Assert.Equal("DANGER", item1.GetProperty("status").GetString());
+                Assert.Equal(65.4m, item1.GetProperty("speed").GetDecimal());
+
+                var item2 = data[1];
+                Assert.Equal(1002, item2.GetProperty("zoneId").GetInt32());
+                Assert.Equal("NORMAL", item2.GetProperty("status").GetString());
+                Assert.Equal(80.0m, item2.GetProperty("speed").GetDecimal());
+            }
+            finally
+            {
+                await db.Deleteable<ShareDataCodeSet>().Where(c => c.Code == codeSetCode).ExecuteCommandAsync();
+            }
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -4038,7 +6175,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
     // ──────────────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Description: Kiểm thử unit cho DataOutboundService.ComputeNextTimeRun.
+    /// Description: Kiểm thử unit cho DataOutboundScheduler.ComputeNextTimeRun.
     /// Không cần DB — các test pure static với stub ShareDataSubscription.
     /// Created date: 15/09/2026
     /// </summary>
@@ -4059,28 +6196,40 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             };
         }
 
+        /// <summary>
+        /// Description: Kiểm tra chế độ Event trả về chu kỳ thăm dò mặc định 5 giây.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void Mode_Event_Returns_5s_Poll()
         {
             var sub = MakeSub(mode: BaseEnums.SubMode.Event);
             var now = new DateTime(2026, 9, 15, 10, 0, 0);
 
-            var result = DataOutboundService.ComputeNextTimeRun(sub, now);
+            var result = DataOutboundScheduler.ComputeNextTimeRun(sub, now);
 
             Assert.Equal(now.AddSeconds(5), result);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra khi không có cấu hình ScheduleJson thì sử dụng giá trị IntervalSeconds.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void No_ScheduleJson_Returns_IntervalSeconds()
         {
             var sub = MakeSub(intervalSec: 30);
             var now = new DateTime(2026, 9, 15, 10, 0, 0);
 
-            var result = DataOutboundService.ComputeNextTimeRun(sub, now);
+            var result = DataOutboundScheduler.ComputeNextTimeRun(sub, now);
 
             Assert.Equal(now.AddSeconds(30), result);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra gán giá trị mặc định cho IntervalSeconds khi cấu hình bằng null.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void Default_IntervalSeconds_When_Null()
         {
@@ -4088,11 +6237,15 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             var now = new DateTime(2026, 9, 15, 10, 0, 0);
 
             // DefaultIntervalSeconds = 30 (từ DataOutboundService)
-            var result = DataOutboundService.ComputeNextTimeRun(sub, now);
+            var result = DataOutboundScheduler.ComputeNextTimeRun(sub, now);
 
             Assert.Equal(now.AddSeconds(30), result);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra lịch chạy hàng ngày tính thời điểm thực thi tiếp theo trong cùng ngày.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void Daily_Kind_Next_Occurrence_Same_Day_Future()
         {
@@ -4100,11 +6253,15 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             var sub = MakeSub(scheduleJson: """{"kind":"daily","startTime":"14:00","daysOfWeek":["MON","TUE","WED","THU","FRI","SAT","SUN"]}""");
             var now = new DateTime(2026, 9, 15, 10, 0, 0); // Monday
 
-            var result = DataOutboundService.ComputeNextTimeRun(sub, now);
+            var result = DataOutboundScheduler.ComputeNextTimeRun(sub, now);
 
             Assert.Equal(new DateTime(2026, 9, 15, 14, 0, 0), result);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra lịch chạy hàng ngày khi đã qua giờ hôm nay thì chuyển sang ngày hợp lệ tiếp theo.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void Daily_Kind_Already_Past_Today_Goes_To_Next_Allowed_Day()
         {
@@ -4113,11 +6270,15 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             var sub = MakeSub(scheduleJson: """{"kind":"daily","startTime":"08:00","daysOfWeek":["WED"]}""");
             var now = new DateTime(2026, 9, 15, 9, 0, 0); // Tuesday
 
-            var result = DataOutboundService.ComputeNextTimeRun(sub, now);
+            var result = DataOutboundScheduler.ComputeNextTimeRun(sub, now);
 
             Assert.Equal(new DateTime(2026, 9, 16, 8, 0, 0), result);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra lịch chạy hàng ngày khi không chỉ định ngày trong tuần thì chấp nhận mọi ngày.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void Daily_Kind_No_DaysOfWeek_Accepts_Any_Day()
         {
@@ -4125,11 +6286,15 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             var sub = MakeSub(scheduleJson: """{"kind":"daily","startTime":"07:00"}""");
             var now = new DateTime(2026, 9, 15, 8, 0, 0); // 07:00 đã qua → ngày tiếp = 16/09
 
-            var result = DataOutboundService.ComputeNextTimeRun(sub, now);
+            var result = DataOutboundScheduler.ComputeNextTimeRun(sub, now);
 
             Assert.Equal(new DateTime(2026, 9, 16, 7, 0, 0), result);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra lịch chạy hàng ngày tuân thủ mốc thời gian bắt đầu StartDate.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void Daily_Kind_Respects_StartDate_Boundary()
         {
@@ -4137,11 +6302,15 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             var sub = MakeSub(scheduleJson: """{"kind":"daily","startTime":"08:00","startDate":"2026-09-20"}""");
             var now = new DateTime(2026, 9, 15, 10, 0, 0);
 
-            var result = DataOutboundService.ComputeNextTimeRun(sub, now);
+            var result = DataOutboundScheduler.ComputeNextTimeRun(sub, now);
 
             Assert.Equal(new DateTime(2026, 9, 20, 8, 0, 0), result);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra lịch chạy hàng ngày khi vượt quá EndDate thì fallback về IntervalSeconds.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void Daily_Kind_Past_EndDate_Falls_Back_To_Interval()
         {
@@ -4151,22 +6320,30 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 scheduleJson: """{"kind":"daily","startTime":"08:00","endDate":"2026-09-01"}""");
             var now = new DateTime(2026, 9, 15, 10, 0, 0);
 
-            var result = DataOutboundService.ComputeNextTimeRun(sub, now);
+            var result = DataOutboundScheduler.ComputeNextTimeRun(sub, now);
 
             Assert.Equal(now.AddSeconds(120), result);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra chuỗi ScheduleJson sai cấu trúc thì tự động fallback về khoảng thời gian Interval.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void Malformed_ScheduleJson_Falls_Back_To_Interval()
         {
             var sub = MakeSub(intervalSec: 45, scheduleJson: "not-valid-json{");
             var now = new DateTime(2026, 9, 15, 10, 0, 0);
 
-            var result = DataOutboundService.ComputeNextTimeRun(sub, now);
+            var result = DataOutboundScheduler.ComputeNextTimeRun(sub, now);
 
             Assert.Equal(now.AddSeconds(45), result);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra loại lịch chạy liên tục Continuous sử dụng giá trị IntervalSeconds.
+        /// Created date: 17/09/2026
+        /// </summary>
         [Fact]
         public void Continuous_Kind_Uses_IntervalSeconds()
         {
@@ -4176,125 +6353,132 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 scheduleJson: """{"kind":"continuous","startTime":"00:00","endTime":"23:59","intervalSeconds":300}""");
             var now = new DateTime(2026, 9, 15, 10, 0, 0);
 
-            var result = DataOutboundService.ComputeNextTimeRun(sub, now);
+            var result = DataOutboundScheduler.ComputeNextTimeRun(sub, now);
 
             Assert.Equal(now.AddSeconds(300), result);
         }
-    #region MapCode — unit tests
 
-    private static List<CodeValueDto> BuildCodeValues(params (string src, string partner, bool isDefault)[] rows)
-        => rows.Select(r => new CodeValueDto
+        /// <summary>
+        /// Description: Kiểm tra chế độ continuous khi thời điểm rơi trong khung giờ [StartTime, EndTime] thì giữ nguyên now + interval.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Continuous_Kind_Within_TimeWindow_Keeps_Candidate()
         {
-            SourceValue = r.src,
-            PartnerValue = r.partner,
-            IsDefault = r.isDefault
-        }).ToList();
+            var sub = MakeSub(
+                intervalSec: 30,
+                scheduleJson: """{"kind":"continuous","startTime":"06:00","endTime":"22:00"}""");
+            var now = new DateTime(2026, 9, 18, 10, 0, 0);
 
-    [Fact]
-    public void MapCode_ExactMatch_ReturnsPartnerValue()
-    {
-        var codeValues = BuildCodeValues(("SLOW", "0", false), ("FAST", "1", false));
-        var result = DataOutboundService.MapCode(codeValues, "SLOW");
-        Assert.Equal("0", result);
-    }
+            var result = DataOutboundScheduler.ComputeNextTimeRun(sub, now);
 
-    [Fact]
-    public void MapCode_ExactMatch_CaseInsensitive()
-    {
-        var codeValues = BuildCodeValues(("slow", "0", false));
-        var result = DataOutboundService.MapCode(codeValues, "SLOW");
-        Assert.Equal("0", result);
-    }
+            Assert.Equal(now.AddSeconds(30), result);
+        }
 
-    [Fact]
-    public void MapCode_NoMatch_NoDefault_ReturnsRawValue()
-    {
-        var codeValues = BuildCodeValues(("SLOW", "0", false), ("FAST", "1", false));
-        var result = DataOutboundService.MapCode(codeValues, "TURBO");
-        Assert.Equal("TURBO", result);
-    }
+        /// <summary>
+        /// Description: Kiểm tra chế độ continuous khi thời điểm sau EndTime thì chuyển sang StartTime của ngày hôm sau.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Continuous_Kind_After_EndTime_Advances_To_NextDay_StartTime()
+        {
+            var sub = MakeSub(
+                intervalSec: 30,
+                scheduleJson: """{"kind":"continuous","startTime":"06:00","endTime":"22:00"}""");
+            var now = new DateTime(2026, 9, 18, 23, 0, 0);
 
-    [Fact]
-    public void MapCode_NoMatch_NoDefault_InvokesWarningCallback()
-    {
-        var codeValues = BuildCodeValues(("SLOW", "0", false));
-        string? capturedCode = null;
-        object? capturedValue = null;
+            var result = DataOutboundScheduler.ComputeNextTimeRun(sub, now);
 
-        DataOutboundService.MapCode(codeValues, "TURBO", "MY_CODESET",
-            (code, val) => { capturedCode = code; capturedValue = val; });
+            Assert.Equal(new DateTime(2026, 9, 19, 6, 0, 0), result);
+        }
 
-        Assert.Equal("MY_CODESET", capturedCode);
-        Assert.Equal("TURBO", capturedValue);
-    }
+        /// <summary>
+        /// Description: Kiểm tra chế độ continuous khi thời điểm trước StartTime thì chuyển sang StartTime của ngày hôm nay.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Continuous_Kind_Before_StartTime_Advances_To_Today_StartTime()
+        {
+            var sub = MakeSub(
+                intervalSec: 30,
+                scheduleJson: """{"kind":"continuous","startTime":"06:00","endTime":"22:00"}""");
+            var now = new DateTime(2026, 9, 18, 4, 0, 0);
 
-    [Fact]
-    public void MapCode_NoMatch_WithDefault_ReturnsDefaultPartnerValue()
-    {
-        var codeValues = BuildCodeValues(("SLOW", "0", true), ("FAST", "1", false));
-        var result = DataOutboundService.MapCode(codeValues, "TURBO");
-        Assert.Equal("0", result);
-    }
+            var result = DataOutboundScheduler.ComputeNextTimeRun(sub, now);
 
-    [Fact]
-    public void MapCode_NoMatch_WithDefault_DoesNotInvokeWarningCallback()
-    {
-        var codeValues = BuildCodeValues(("SLOW", "0", true), ("FAST", "1", false));
-        bool callbackInvoked = false;
-        DataOutboundService.MapCode(codeValues, "TURBO", "MY_CODESET", (_, _) => callbackInvoked = true);
-        Assert.False(callbackInvoked);
-    }
+            Assert.Equal(new DateTime(2026, 9, 18, 6, 0, 0), result);
+        }
 
-    [Fact]
-    public void MapCode_EmptyString_NoDefault_ReturnsEmptyString()
-    {
-        var codeValues = BuildCodeValues(("SLOW", "0", false), ("FAST", "1", false));
-        var result = DataOutboundService.MapCode(codeValues, "");
-        Assert.Equal("", result);
-    }
+        /// <summary>
+        /// Description: Kiểm tra chế độ continuous ca giáp ranh 21:59:50 + 30s = 22:00:20 vượt quá EndTime 22:00 thì chuyển sang 06:00 ngày hôm sau.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Continuous_Kind_Boundary_RollOver_Advances_To_NextDay_StartTime()
+        {
+            var sub = MakeSub(
+                intervalSec: 30,
+                scheduleJson: """{"kind":"continuous","startTime":"06:00","endTime":"22:00"}""");
+            var now = new DateTime(2026, 9, 18, 21, 59, 50);
 
-    /// <summary>Bug fix: empty string phải fallback về IsDefault thay vì early-return.</summary>
-    [Fact]
-    public void MapCode_EmptyString_WithDefault_ReturnsDefaultPartnerValue()
-    {
-        var codeValues = BuildCodeValues(("SLOW", "0", true), ("FAST", "1", false));
-        var result = DataOutboundService.MapCode(codeValues, "");
-        Assert.Equal("0", result);
-    }
+            var result = DataOutboundScheduler.ComputeNextTimeRun(sub, now);
 
-    [Fact]
-    public void MapCode_WhitespaceOnly_WithDefault_ReturnsDefaultPartnerValue()
-    {
-        var codeValues = BuildCodeValues(("SLOW", "0", true));
-        var result = DataOutboundService.MapCode(codeValues, "   ");
-        Assert.Equal("0", result);
-    }
+            Assert.Equal(new DateTime(2026, 9, 19, 6, 0, 0), result);
+        }
 
-    [Fact]
-    public void MapCode_NullValue_ReturnsNull()
-    {
-        var codeValues = BuildCodeValues(("SLOW", "0", false));
-        var result = DataOutboundService.MapCode(codeValues, null);
-        Assert.Null(result);
-    }
+        /// <summary>
+        /// Description: Kiểm tra chế độ continuous khi không khai StartTime/EndTime thì giữ nguyên now + interval.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Continuous_Kind_No_StartTimeEndTime_Returns_IntervalSeconds()
+        {
+            var sub = MakeSub(
+                intervalSec: 30,
+                scheduleJson: """{"kind":"continuous"}""");
+            var now = new DateTime(2026, 9, 18, 10, 0, 0);
 
-    [Fact]
-    public void MapCode_NullCodeValues_ReturnsRawValue()
-    {
-        var result = DataOutboundService.MapCode(null, "SLOW");
-        Assert.Equal("SLOW", result);
-    }
+            var result = DataOutboundScheduler.ComputeNextTimeRun(sub, now);
 
-    [Fact]
-    public void MapCode_EmptyCodeValuesList_ReturnsRawValue()
-    {
-        var result = DataOutboundService.MapCode([], "SLOW");
-        Assert.Equal("SLOW", result);
-    }
+            Assert.Equal(now.AddSeconds(30), result);
+        }
 
-    #endregion
+        /// <summary>
+        /// Description: Kiểm tra chế độ continuous khi StartTime sai định dạng thì fallback về now + interval mà không ném ngoại lệ.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Continuous_Kind_Invalid_TimeFormat_Falls_Back_To_Interval()
+        {
+            var sub = MakeSub(
+                intervalSec: 30,
+                scheduleJson: """{"kind":"continuous","startTime":"25:99","endTime":"22:00"}""");
+            var now = new DateTime(2026, 9, 18, 10, 0, 0);
+
+            var result = DataOutboundScheduler.ComputeNextTimeRun(sub, now);
+
+            Assert.Equal(now.AddSeconds(30), result);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra chế độ continuous khi khung giờ qua đêm StartTime > EndTime (22:00-06:00) thì bỏ qua và fallback về now + interval.
+        /// Created date: 18/09/2026
+        /// </summary>
+        [Fact]
+        public void Continuous_Kind_Overnight_TimeWindow_Falls_Back_To_Interval()
+        {
+            var sub = MakeSub(
+                intervalSec: 30,
+                scheduleJson: """{"kind":"continuous","startTime":"22:00","endTime":"06:00"}""");
+            var now = new DateTime(2026, 9, 18, 10, 0, 0);
+
+            var result = DataOutboundScheduler.ComputeNextTimeRun(sub, now);
+
+            Assert.Equal(now.AddSeconds(30), result);
+        }
     }
 }
+
 
 
 
