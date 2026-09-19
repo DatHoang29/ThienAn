@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(echo \"EXIT:$?\")",
+      "Read(//tmp/**)",
+      "Read(//c/Users/This PC/.claude/projects/c--ThienAn/memory/**)",
+      "Read(//c/ThienAn/.agents/memory/**)",
+      "Bash(git -c core.autocrlf=false diff --cached -- src/Modules/VideoWall/Module.VideoWall/Extensions/MvcBuilderExtensions.cs)",
+      "Bash(git -C /c/ThienAn/TA-ITS015-WEBAPI-V1.0 cat-file -e HEAD:src/Modules/VideoWall/Module.VideoWall/Extensions/MvcBuilderExtensions.cs)",
+      "Bash(xxd src/Modules/VideoWall/Module.VideoWall/Extensions/MvcBuilderExtensions.cs)",
+      "Bash(git -C /c/ThienAn/TA-ITS015-WEBAPI-V1.0 show HEAD:src/Modules/VideoWall/Module.VideoWall/Extensions/MvcBuilderExtensions.cs)",
+      "Bash(xxd)",
+      "Bash(git restore *)",
+      "mcp__gortex__analyze",
+      "mcp__gortex__capabilities",
+      "mcp__gortex__change",
+      "mcp__gortex__explore",
+      "mcp__gortex__read",
+      "mcp__gortex__recall",
+      "mcp__gortex__relations",
+      "mcp__gortex__response",
+      "mcp__gortex__search",
+      "mcp__gortex__trace",
+      "mcp__gortex__workspace"
+    ]
+  }
+}

@@ -1,16 +1,44 @@
 {
+  "hooks": {
+    "AfterTool": [
+      {
+        "hooks": [
+          {
+            "command": "gortex hook --agent gemini",
+            "description": "Gortex graph context + stale-index hint",
+            "name": "gortex",
+            "timeout": 10000,
+            "type": "command"
+          }
+        ],
+        "matcher": "run_shell_command|search_file_content|glob"
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "gortex hook --agent gemini",
+            "description": "Gortex session orientation",
+            "name": "gortex",
+            "timeout": 10000,
+            "type": "command"
+          }
+        ]
+      }
+    ]
+  },
   "mcpServers": {
     "gortex": {
-      "command": "gortex",
       "args": [
         "mcp"
       ],
+      "command": "gortex",
       "env": {
         "GORTEX_INDEX_WORKERS": "8"
       }
     },
-    "mssql_staging": {
-      "command": "dotnet",
+    "mssql_dev": {
       "args": [
         "tool",
         "run",
@@ -22,14 +50,14 @@
         "--LogLevel",
         "Error",
         "--config",
-        "C:\\ThienAn\\.agents\\dab-config.staging.json"
+        ".agents/dab-config.dev.json"
       ],
+      "command": "dotnet",
       "env": {
         "ASPNETCORE_URLS": "http://127.0.0.1:0"
       }
     },
-    "mssql_dev": {
-      "command": "dotnet",
+    "mssql_staging": {
       "args": [
         "tool",
         "run",
@@ -41,14 +69,14 @@
         "--LogLevel",
         "Error",
         "--config",
-        "C:\\ThienAn\\.agents\\dab-config.dev.json"
+        ".agents/dab-config.staging.json"
       ],
+      "command": "dotnet",
       "env": {
         "ASPNETCORE_URLS": "http://127.0.0.1:0"
       }
     },
     "mssql_test": {
-      "command": "dotnet",
       "args": [
         "tool",
         "run",
@@ -60,8 +88,9 @@
         "--LogLevel",
         "Error",
         "--config",
-        "C:\\ThienAn\\.agents\\dab-config.test.json"
+        ".agents/dab-config.test.json"
       ],
+      "command": "dotnet",
       "env": {
         "ASPNETCORE_URLS": "http://127.0.0.1:0"
       }

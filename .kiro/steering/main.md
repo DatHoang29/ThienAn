@@ -1,73 +1,34 @@
 # Master AI Steering - ThienAn (Kiro AI IDE)
 
-> 🔴 **CRITICAL STEERING DIRECTIVE FOR KIRO AI:**
-> All architecture rules, specialist agents, modular skills, workflows, lifecycle hooks, memory, contracts, scripts, and MCP configurations are centralized in the **`.agents/`** directory.
-> You MUST inspect and strictly execute from `.agents/` before answering or modifying code.
+> 🔴 **SINGLE SOURCE OF TRUTH (SSOT): `.agents/`**
+> Tất cả quy tắc kiến trúc, specialist agents, modular skills, workflows, lifecycle hooks và memory tập trung DUY NHẤT tại thư mục **`.agents/`**.
+> Bạn PHẢI tra cứu và thực thi trực tiếp từ `.agents/`, KHÔNG hardcode danh sách thủ công.
 
 ---
 
-## 🗺️ 8-Pillar AG-Kit Architecture in `.agents/`
+## 🗺️ Dynamic AG-Kit Registry (`.agents/`)
+- **Quy tắc dự án (P0):** Bắt buộc đọc và tuân thủ tuyệt đối:
+  - [`.agents/rules/thienan_rules.md`](file:///.agents/rules/thienan_rules.md) (Git branch/commit, coding conventions, architecture).
+  - [`.agents/rules/universal-rules.md`](file:///.agents/rules/universal-rules.md) (Clean Code, logging, single-statement if).
+  - [`.agents/rules/core-protocol.md`](file:///.agents/rules/core-protocol.md) (Announcement protocol).
+  - [`.agents/rules/code-rules.md`](file:///.agents/rules/code-rules.md) (4-phase planning, Socratic Gate).
+- **Specialist Agents:** Tự động khám phá và nhận diện vai trò từ thư mục [`.agents/agent/`](file:///.agents/agent/).
+- **Modular Skills:** Tự động khám phá và nạp file `SKILL.md` từ [`.agents/skills/`](file:///.agents/skills/) (bao gồm cả các skill `gortex-*` do Gortex sinh ra). Luôn thông báo `📚 Using skill: @[skill-name]...` trước khi áp dụng.
+- **Workflows & Slash Commands:** Tra cứu quy trình tương ứng tại [`.agents/workflows/{command}.md`](file:///.agents/workflows/).
+- **Memory (SSOT):** Mặc định chỉ đọc (Read-only). Luôn đọc [`.agents/memory/MEMORY.md`](file:///.agents/memory/MEMORY.md). Không tự ý ghi nhớ nếu user chưa yêu cầu.
+- **System Architecture Map:** Xem bảng tổng hợp tại [`.agents/ARCHITECTURE.md`](file:///.agents/ARCHITECTURE.md).
 
-### 1. 📋 Workspace Rules (`.agents/rules/`) — P0 (Highest Priority)
-- **`core-protocol.md`**: Mandatory skill announcement format: `📚 Using skill: @[skill-name]...`
-- **`request-routing.md`**: Mandatory agent announcement: `🤖 Applying knowledge of @[agent-name]...`
-- **`universal-rules.md`**: Clean Code, single-statement `if` indentation, object initializers (1 prop/line), LINQ formatting, Primary Constructors on new classes only, structured logging (`CA1873`), strict module scope, no live DB mutations, strict local DB for `dotnet test`, auto-cleanup completed prompt files.
-- **`code-rules.md`**: 4-phase planning, Socratic Gate, test pyramid, AAA pattern.
-- **`thienan_rules.md`**: Git branch naming (`feat/`, `fix/`, `release/`), semantic commit conventions, doc read priority (`.md` over PDF/images — section 16).
+---
 
-### 2. 🤖 Specialist Agents (`.agents/agent/`)
-Adopt the persona, guidelines, and frontmatter skills from:
-- `backend-specialist.md`: C# .NET, ASP.NET Core, SqlSugar, ShareDataWorker, C2C protocol.
-- `frontend-specialist.md`: Vue.js 3, TypeScript, Vite, Pinia, Tailwind CSS.
-- `database-architect.md`: MS SQL Server, DAB, database schema design & indexing.
-- `orchestrator.md`: Master coordinator for complex multi-domain tasks.
-- `debugger.md`: 4-phase root cause analysis & systematic debugging.
-- `qa-automation-engineer.md` & `test-engineer.md`: Unit & integration tests (xUnit, Moq).
-- `security-auditor.md`: OWASP, module isolation, vulnerability analysis.
-- `project-planner.md`: 4-phase implementation plans.
-
-### 3. 📚 Modular Skills & Scripts (`.agents/skills/`)
-Read `SKILL.md` before applying knowledge. Execute companion scripts when needed:
-- `clean-code`: Pragmatic coding standards.
-- `systematic-debugging`: 4-phase debugging.
-- `testing-patterns`: Unit & integration tests (`tests/`).
-- `vulnerability-scanner`: Security scans via `python .agents/skills/vulnerability-scanner/scripts/security_scan.py`.
-- `performance-profiling`: Performance audits via `.agents/skills/performance-profiling/scripts/`.
-- `api-patterns`: REST / ISO 14827 API design & validation.
-- `frontend-design` & `design-spec`: Anti-slop UI design systems.
-
-### 4. ⚡ Workflows & Slash Commands (`.agents/workflows/`)
-When executing slash commands, follow the corresponding workflow file:
-- `/brainstorm` $\rightarrow$ `.agents/workflows/brainstorm.md`
-- `/create` $\rightarrow$ `.agents/workflows/create.md`
-- `/orchestrate` $\rightarrow$ `.agents/workflows/orchestrate.md`
-- `/plan` $\rightarrow$ `.agents/workflows/plan.md`
-- `/test` $\rightarrow$ `.agents/workflows/test.md`
-- `/verify` $\rightarrow$ `.agents/workflows/verify.md`
-- `/debug` $\rightarrow$ `.agents/workflows/debug.md`
-- `/deploy` $\rightarrow$ `.agents/workflows/deploy.md`
-- `/status` $\rightarrow$ `.agents/workflows/status.md`
-
-### 5. 🧠 Persistent Memory (`.agents/memory/`) — READ-ONLY BY DEFAULT
-- At the start of tasks, **read** `.agents/memory/MEMORY.md` and `.agents/memory/thienan-user-preferences.md`.
-- 🔴 **NEVER write to `.agents/memory/` on your own initiative.** Do NOT auto-persist decisions, conventions, or findings — not even when they look important.
-- Write ONLY when the user explicitly asks, e.g. `/remember`, "lưu lại", "ghi vào memory". Route such requests through `.agents/workflows/remember.md`.
-- If you believe something is worth remembering, **propose it and wait** for the user to approve.
-
-### 6. 🛡️ Lifecycle Hooks & Safeguards (`.agents/hooks/`)
-- Tool call validation & Doctor checks: `.agents/hooks/validate-tool-call.mjs`, `.agents/hooks/antigravity-doctor.mjs`.
-
-### 7. 📜 Contracts & Schemas (`.agents/schemas/`)
-- Component schemas & runtime contracts in `.agents/schemas/`.
-
-### 8. 🔌 Database & MCP (`.kiro/settings/mcp.json` / `dab-config.dev.json`)
-- **`mssql_dev`**: Connects to MS SQL Dev (`localhost:14333/dev_its10`) via Data API Builder (DAB) using `.agents/dab-config.dev.json`.
-- **Strictly READ-ONLY**: Use MCP only to inspect tables, describe schemas, and read test data. NEVER execute state mutations.
+## 🛠️ Build & Test Commands
+- Backend WebAPI: `dotnet build src/TAC_WebAPI/TAC_WebAPI.csproj`
+- Backend ShareData: `dotnet build src/Services/ShareDataWorker/ShareDataWorker.csproj`
+- Run Tests: `dotnet test tests/test.csproj`
+- Frontend: `cd TA-ITS015-WEBVUE-V1.0 && npm run build`
 
 ---
 
 ## 🛑 Critical Mandatory Safeguards
-1. **Strict Local Database for `dotnet test`**: All connection strings must point to `local` (`localhost`, `127.0.0.1`, `(localdb)`, `.`). If remote IP (e.g. `10.10.8.30`) is detected, **CANCEL test immediately and report to user**.
-2. **Auto-Cleanup Completed Prompt & Plan Files**: Automatically delete executed prompt/plan files (e.g. `*-prompt-*.md`, `{task-slug}.md`) after task completion.
-3. **Strict Manual SQL Execution**: Only write `.sql` files to disk. Never auto-execute database mutations.
-4. **Doc Read Priority — `.md` over PDF/Images** (`thienan_rules.md` §16): Read docs in this order — `README.md`/`INDEX.md`/`llms.txt` → Tier A (`.md` < 150 KB, `.json`, `.sql` in `doc/`) → Tier B (`.md` ≥ 150 KB, API dumps, log JSON: **`grep` only, never full read**) → Tier C last. **NEVER open Tier C** (`_source/**`, `**/images/**`, `*.pdf`, `*.xlsx`, `*.docx`, `*.png`, `*.jpg`, `*.zip`) unless the user names the file explicitly. If a `.md` twin is missing, **report the gap and ask** — do not silently load a PDF or image into context. Cite `.md` paths in answers, not PDF paths.
+1. **Strict Local Database for `dotnet test`**: Mọi connection string test PHẢI trỏ về `local` (`localhost`, `127.0.0.1`, `(localdb)`, `.`). Nếu phát hiện IP remote (ví dụ `10.10.8.30`), **HỦY test ngay lập tức và báo cáo cho user**.
+2. **Auto-Cleanup Completed Prompt & Plan Files**: Tự động xóa các file prompt/plan tạm sau khi hoàn thành nhiệm vụ (ví dụ `*-prompt-*.md`, `{task-slug}.md`).
+3. **Strict Manual SQL Execution**: Chỉ xuất file `.sql` ra đĩa để user review. KHÔNG tự ý thực thi DDL/DML trực tiếp làm thay đổi database.
