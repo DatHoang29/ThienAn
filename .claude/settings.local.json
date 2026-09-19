@@ -1,0 +1,201 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "mcp__gortex__explore|mcp__gortex__search|mcp__gortex__read|mcp__gortex__relations|mcp__gortex__trace|mcp__gortex__analyze|mcp__plugin_gortex_gortex__explore|mcp__plugin_gortex_gortex__search|mcp__plugin_gortex_gortex__read|mcp__plugin_gortex_gortex__relations|mcp__plugin_gortex_gortex__trace|mcp__plugin_gortex_gortex__analyze",
+        "hooks": [
+          {
+            "timeout": 3000,
+            "statusMessage": "Watching for Gortex localization completion...",
+            "type": "command",
+            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "timeout": 3000,
+            "statusMessage": "Injecting Gortex orientation snapshot...",
+            "type": "command",
+            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "timeout": 3000,
+            "statusMessage": "Enforcing Gortex graph access policy...",
+            "type": "command",
+            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "timeout": 3000,
+            "statusMessage": "Loading Gortex graph orientation...",
+            "type": "command",
+            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "timeout": 5000,
+            "statusMessage": "Running Gortex post-task diagnostics...",
+            "type": "command",
+            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "timeout": 3000,
+            "statusMessage": "Starting an isolated Gortex subagent turn...",
+            "type": "command",
+            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "timeout": 3000,
+            "statusMessage": "Clearing Gortex subagent turn state...",
+            "type": "command",
+            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "timeout": 3000,
+            "statusMessage": "Surfacing relevant Gortex symbols...",
+            "type": "command",
+            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "additionalDirectories": [
+      "c:\\ThienAn\\DocBusinessThienAn\\HữuNghị-ChiLăng\\VideoWall",
+      "C:\\Users\\This PC\\.claude\\plans"
+    ],
+    "allow": [
+      "Bash(dotnet test *)",
+      "Bash(mv \"VideoWall/videowall-19-08_25-08.md\" \"VideoWall/videowall_plan.md\")",
+      "Bash(mv \"ShareData/sharedata-19-08_25-08.md\" \"ShareData/sharedata_plan.md\")",
+      "Bash(dotnet build *)",
+      "Bash(node -e 'console.log\\(Object.keys\\(JSON.parse\\(require\\(\"fs\"\\).readFileSync\\(\".agents/dab-config.dev.json\",\"utf8\"\\)\\).entities\\).length,\"entities\"\\)')",
+      "Bash(node -e 'const e=Object.keys\\(JSON.parse\\(require\\(\"fs\"\\).readFileSync\\(\".agents/dab-config.dev.json\",\"utf8\"\\)\\).entities\\); console.log\\(e.filter\\(k=>/share|tms|cctv|toll|vms/i.test\\(k\\)\\).join\\(\"\\\\n\"\\)\\)')",
+      "Bash(python -c \"import pdfplumber; print\\('pdfplumber ok'\\)\")",
+      "Bash(python -c \"import fitz; print\\('pymupdf ok'\\)\")",
+      "Bash(python -c \"import PyPDF2; print\\('PyPDF2 ok'\\)\")",
+      "Bash(python -c \"import pypdf; print\\('pypdf ok'\\)\")",
+      "Bash(where py *)",
+      "Bash(py --version)",
+      "Bash(pdftotext -layout DocBusinessThienAn/HữuNghị-ChiLăng/VideoWall/_source/DS-C30S-S11_Datasheet_20250324.pdf __TRACKED_VAR__/ds_c30s_layout.txt)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(pdftotext -layout \"DocBusinessThienAn/HữuNghị-ChiLăng/VideoWall/_source/DS-C30S-S11_Datasheet_20250324.pdf\" \"C:/Users/THISPC~1/AppData/Local/Temp/claude/c--ThienAn/e334922d-96eb-4f8c-94ff-b7aad57b6fb5/scratchpad/ds_c30s_layout.txt\")",
+      "Bash(cd \"c:/ThienAn/DocBusinessThienAn/HữuNghị-ChiLăng/VideoWall\" && rm -v videowall-tonghop-record-replay.md && echo \"---\" && ls *.md)",
+      "Bash(git ls-tree *)",
+      "Read(//tmp/**)",
+      "Bash(cd /c/ThienAn *)",
+      "Bash(echo \"\\(exit $?\\)\")",
+      "Bash(git -C TA-ITS015-WEBAPI-V1.0 status --short)",
+      "Bash(git -C TA-ITS015-WEBAPI-V1.0 diff HEAD --shortstat)",
+      "Bash(git -C TA-ITS015-WEBAPI-V1.0 diff --cached --shortstat)",
+      "Bash(python -c \"import whisper; print\\('openai-whisper available'\\)\")",
+      "Bash(python -c \"import faster_whisper; print\\('faster-whisper available'\\)\")",
+      "Bash(echo \"exit=$?\")",
+      "Bash(python -m pip --version)",
+      "Bash(command -v winget)",
+      "Bash(winget --version)",
+      "Bash(command -v choco)",
+      "Bash(command -v scoop)",
+      "Bash(command -v nvidia-smi)",
+      "Bash(python -m pip install --user faster-whisper)",
+      "Bash(python -m pip install faster-whisper)",
+      "Bash(python -c \"import faster_whisper, ctranslate2; print\\('faster-whisper', faster_whisper.__version__, '| ctranslate2', ctranslate2.__version__\\); print\\('CPU cores:', __import__\\('os'\\).cpu_count\\(\\)\\)\")",
+      "Bash(sort -k2)",
+      "Bash(python -c ' *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(git rev-list *)",
+      "Bash(git cat-file *)",
+      "Bash(awk '{s[$1]+=$2} END {for \\(t in s\\) printf \"%s: %.1f MB\\\\n\", t, s[t]/1048576}')",
+      "Bash(awk '$4+0 > 5000000 {printf \"%8.1f MB  %s\\\\n\", $4/1048576, $5}')",
+      "Bash(awk '$4+0 > 104857600 {printf \"%8.1f MB  %s\\\\n\", $4/1048576, $5}')",
+      "Bash(grep -iE \"\\\\.\\(pdf|m4a|bacpac|zip|mp4|xlsx\\)$\")",
+      "Bash(git diff *)",
+      "Bash(git reset *)",
+      "Bash(git commit -q -m ' *)",
+      "Bash(git check-ignore *)",
+      "Bash(git add *)",
+      "Bash(python \"C:/Users/THISPC~1/AppData/Local/Temp/claude/c--ThienAn/febcf509-1d74-49a6-9c67-747fd1104138/scratchpad/dedupe.py\")",
+      "Bash(rm -f \"C:/ThienAn/DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/_source/\"*.partial.txt \"C:/ThienAn/DocBusinessThienAn/HữuNghị-ChiLăng/\"*.partial.txt)",
+      "Bash(python -c \"import faster_whisper,glob,os; b=os.path.expanduser\\('~/.cache/huggingface/hub/models--Systran--faster-whisper-large-v3'\\); print\\('model cached:', os.path.isdir\\(b\\), '| files:', len\\(glob.glob\\(b+'/**/*',recursive=True\\)\\)\\)\")",
+      "Bash(python -u transcribe.py)",
+      "Bash(echo \"started pid $!\")",
+      "Bash(powershell -NoProfile -Command 'Get-Process python -ErrorAction SilentlyContinue | Select-Object Id,StartTime,@{n='\\\\''RAM_MB'\\\\'';e={[int]\\($_.WorkingSet64/1MB\\)}} | Format-Table -AutoSize')",
+      "Bash(powershell -NoProfile -Command \"\\(\\(Get-Item 'C:/Users/THISPC~1/AppData/Local/Temp/claude/c--ThienAn/febcf509-1d74-49a6-9c67-747fd1104138/scratchpad/transcribe.log'\\).LastWriteTime\\).ToString\\('HH:mm:ss'\\)\")",
+      "Bash(powershell -NoProfile -Command \"\\(Get-Date\\).ToString\\('HH:mm:ss'\\)\")",
+      "Bash(echo \"mtime: $\\(powershell -NoProfile -Command \"\\(\\(Get-Item 'C:/Users/THISPC~1/AppData/Local/Temp/claude/c--ThienAn/febcf509-1d74-49a6-9c67-747fd1104138/scratchpad/transcribe.log'\\).LastWriteTime\\).ToString\\('HH:mm:ss'\\)\"\\)  now: $\\(powershell -NoProfile -Command \"\\(Get-Date\\).ToString\\('HH:mm:ss'\\)\"\\)\")",
+      "Bash(git rm *)",
+      "Bash(rm -rf tool)",
+      "Bash(git lfs *)",
+      "Bash(rm -f \"C:/ThienAn/DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/_source/sharedata_review_9_9_2.md.partial.txt\" \"C:/ThienAn/DocBusinessThienAn/HữuNghị-ChiLăng/\"*.partial.txt)",
+      "Bash(python scan.py)",
+      "Bash(python _seed_existing.py)",
+      "Bash(powershell -NoProfile -Command '\\(\\(Get-Item '\\\\''c:/ThienAn/tools/transcribe/run.log'\\\\''\\).LastWriteTime\\).ToString\\('\\\\''HH:mm:ss'\\\\''\\)')",
+      "Bash(python -)",
+      "Bash(PYTHONIOENCODING=utf-8 python -)",
+      "Bash(python tools/refactor_docs.py)",
+      "Bash(python tools/refactor_docs.py --apply)",
+      "Bash(git -c core.quotepath=off status --short)",
+      "Bash(rm -f run.log)",
+      "Bash(python -u transcribe.py ShareData)",
+      "Bash(xargs -0 -I{} sh -c 'test -f \"{}\" && wc -c < \"{}\" | tr -d \"\\\\n\" && echo \" {}\"')",
+      "Bash(awk '$1>20000000{printf \"%7.1f MB  %s\\\\n\",$1/1048576,substr\\($0,index\\($0,\"  \"\\)+2\\)}')",
+      "Bash(grep -iE \"_source/.*\\\\.\\(pdf|m4a|xlsx|xls|docx|jpg|jpeg|png|zip\\)$|DocBusinessThienAn/[^/]*\\\\.\\(m4a|pdf\\)$\")",
+      "Bash(grep -ziE \"_source/.*\\\\.\\(pdf|m4a|xlsx|xls|docx|jpg|jpeg|png|zip\\)$|DocBusinessThienAn/[^/]*\\\\.\\(m4a|pdf\\)$\")",
+      "Bash(xargs -0 git rm -q --cached --)",
+      "Bash(powershell -NoProfile -Command '\\(Get-Process python -EA SilentlyContinue | Where-Object {$_.WorkingSet64 -gt 500MB} | Measure-Object\\).Count')",
+      "Bash(xargs echo \"big python procs:\")",
+      "Bash(python -c \"print\\(open\\('/tmp/untrack.nul','rb'\\).read\\(\\).count\\(b'\\\\0'\\)+1 if open\\('/tmp/untrack.nul','rb'\\).read\\(\\) else 0\\)\")",
+      "Bash(echo \"count: $\\(python -c \"print\\(open\\('/tmp/untrack.nul','rb'\\).read\\(\\).count\\(b'\\\\0'\\)+1 if open\\('/tmp/untrack.nul','rb'\\).read\\(\\) else 0\\)\"\\)\")",
+      "Bash(python -c \"import sys; [print\\('STILL:',p\\) for p in sys.stdin.read\\(\\).split\\(chr\\(10\\)\\) if '/_source/' in p and not p.rstrip\\('\\\\\"'\\).endswith\\('.md'\\)] or print\\('clean - only .md/README remain'\\)\")",
+      "Bash(powershell -NoProfile -Command 'Get-Process python -EA SilentlyContinue | Where-Object {$_.WorkingSet64 -gt 400MB} | ForEach-Object { '\\\\''python PID {0} RAM {1}MB'\\\\'' -f $_.Id, [int]\\($_.WorkingSet64/1MB\\) }')",
+      "Bash(PYTHONIOENCODING=utf-8 python -c ' *)",
+      "Bash(rm -fv \"DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/doc/transcript/2026-09-09-review-1.md\" \"DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/doc/transcript/\"*.partial.txt)",
+      "Bash(git fetch *)",
+      "Bash(awk '$1==\"blob\" && $2>104857600 {printf \"  %.0f MB  %s\\\\n\",$2/1048576,$3}')",
+      "Bash(awk '$4>104857600{printf \"  %.0f MB %s\\\\n\",$4/1048576,$5}')",
+      "Bash(grep -iE \"\\\\.\\(m4a|pdf|xlsx|zip|bacpac\\)$\")",
+      "Bash(powershell -NoProfile -Command '\\(Get-Process python -EA SilentlyContinue | Where-Object {$_.WorkingSet64 -gt 400MB} | ForEach-Object {'\\\\''PID {0} {1}MB'\\\\'' -f $_.Id,[int]\\($_.WorkingSet64/1MB\\)}\\)')"
+    ]
+  }
+}

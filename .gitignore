@@ -20,3 +20,8 @@ __pycache__/
 *.mp3
 *.wav
 
+# AI Harness & Tooling configurations
+!.agents/
+!.gemini/
+!.claude/settings.json
+!.claude/settings.local.json
