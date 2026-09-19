@@ -4,6 +4,7 @@ using ShareDataWorker.Core.Interfaces.DataOutbound;
 using ShareDataWorker.Core.Models.DataOutbound;
 using System.Globalization;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
@@ -5773,6 +5774,231 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             var ctxWithoutPort = new DataOutboundContext(new ShareDataSubscription(), partnerWithoutPort, new ShareDataPacket(), null, DateTime.Now, CancellationToken.None);
             await sender.Send(mapping, ctxWithoutPort, CancellationToken.None);
             Assert.Equal("http://partner.example.com/data", capturedUrl);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra RestSender gửi kèm đủ 4 HTTP Header định danh (PartnerCode, DatatypeId, SerialNbr, ProcessedAt) lấy đúng từ ctx, DatatypeId là mã không phải GUID, ProcessedAt parse round-trip khớp ExportedAt, và thân bản tin (body) khớp FinalBytes từng byte không đổi.
+        /// Created date: 19/09/2026
+        /// </summary>
+        [Fact]
+        public async Task RestSender_Send_WithIdentityHeaders_PreservesBodyBytesAndSendsCorrectHeaders_Test()
+        {
+            // Arrange
+            HttpRequestMessage? capturedRequest = null;
+            byte[]? capturedRawBodyBytes = null;
+
+            var testHandler = new TestHttpMessageHandler(async (req, ct) =>
+            {
+                capturedRequest = req;
+                capturedRawBodyBytes = req.Content != null ? await req.Content.ReadAsByteArrayAsync(ct) : null;
+                return new HttpResponseMessage(System.Net.HttpStatusCode.OK);
+            });
+            var clientFactory = new MockHttpClientFactoryTest(testHandler);
+            var sender = new DataOutboundRestSender(clientFactory);
+
+            var sampleJson = """{"header":{"source":"ITS"},"data":[{"id":100,"speed":60}]}""";
+            var finalBytes = Encoding.UTF8.GetBytes(sampleJson);
+            var mapping = new DataMappingResult(true, finalBytes, 1);
+
+            var exportedAt = new DateTime(2026, 9, 19, 14, 5, 31, 234, DateTimeKind.Local);
+            var partner = new ShareDataPartner { Code = "PARTNER2", Address = "127.0.0.1", Port = 8080, EndPointApiUrl = "/api/receive" };
+            var packet = new ShareDataPacket { ID = "d7c71e22-38b4-4e46-9d62-11c58e08d6e9", Code = "101_commonData" };
+            var sub = new ShareDataSubscription { DatatypeId = "101_commonData", SerialNbr = 486 };
+            var ctx = new DataOutboundContext(sub, partner, packet, null, exportedAt, CancellationToken.None);
+
+            // Act
+            var result = await sender.Send(mapping, ctx, CancellationToken.None);
+
+            // Assert
+            Assert.True(result.Success);
+            Assert.NotNull(capturedRequest);
+
+            // 1. Kiểm tra đủ 4 header và đúng giá trị từ ctx
+            Assert.True(capturedRequest.Headers.Contains("PartnerCode"));
+            Assert.Equal("PARTNER2", capturedRequest.Headers.GetValues("PartnerCode").First());
+
+            Assert.True(capturedRequest.Headers.Contains("DatatypeId"));
+            Assert.Equal("101_commonData", capturedRequest.Headers.GetValues("DatatypeId").First());
+
+            Assert.True(capturedRequest.Headers.Contains("SerialNbr"));
+            Assert.Equal("486", capturedRequest.Headers.GetValues("SerialNbr").First());
+
+            Assert.True(capturedRequest.Headers.Contains("ProcessedAt"));
+            var processedAtHeader = capturedRequest.Headers.GetValues("ProcessedAt").First();
+            var parsedTime = DateTime.Parse(processedAtHeader, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
+            Assert.Equal(exportedAt, parsedTime);
+
+            // 2. DatatypeId mang mã, KHÔNG mang GUID (không chứa dấu '-')
+            Assert.DoesNotContain("-", capturedRequest.Headers.GetValues("DatatypeId").First());
+            Assert.NotEqual(packet.ID, capturedRequest.Headers.GetValues("DatatypeId").First());
+
+            // 3. Thân bản tin không đổi 1 byte (khớp FinalBytes từng byte)
+            Assert.NotNull(capturedRawBodyBytes);
+            Assert.Equal(finalBytes, capturedRawBodyBytes);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra khi Partner.Code là null thì RestSender bỏ hẳn header PartnerCode, các header còn lại vẫn gửi đủ.
+        /// Created date: 19/09/2026
+        /// </summary>
+        [Fact]
+        public async Task RestSender_Send_WhenPartnerCodeIsNull_OmitsPartnerCodeHeader_Test()
+        {
+            // Arrange
+            HttpRequestMessage? capturedRequest = null;
+            var testHandler = new TestHttpMessageHandler((req, _) =>
+            {
+                capturedRequest = req;
+                return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK));
+            });
+            var clientFactory = new MockHttpClientFactoryTest(testHandler);
+            var sender = new DataOutboundRestSender(clientFactory);
+
+            var mapping = new DataMappingResult(true, Encoding.UTF8.GetBytes("""{"test":1}"""), 1);
+            var exportedAt = new DateTime(2026, 9, 19, 10, 0, 0, DateTimeKind.Local);
+            var partner = new ShareDataPartner { Code = null, Address = "127.0.0.1", EndPointApiUrl = "/api" };
+            var packet = new ShareDataPacket { Code = "101_commonData" };
+            var sub = new ShareDataSubscription { SerialNbr = 123 };
+            var ctx = new DataOutboundContext(sub, partner, packet, null, exportedAt, CancellationToken.None);
+
+            // Act
+            var result = await sender.Send(mapping, ctx, CancellationToken.None);
+
+            // Assert
+            Assert.True(result.Success);
+            Assert.NotNull(capturedRequest);
+            Assert.False(capturedRequest.Headers.Contains("PartnerCode"));
+            Assert.True(capturedRequest.Headers.Contains("DatatypeId"));
+            Assert.True(capturedRequest.Headers.Contains("SerialNbr"));
+            Assert.True(capturedRequest.Headers.Contains("ProcessedAt"));
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra khi Subscription.SerialNbr là null thì RestSender bỏ hẳn header SerialNbr, không gửi chuỗi rỗng.
+        /// Created date: 19/09/2026
+        /// </summary>
+        [Fact]
+        public async Task RestSender_Send_WhenSerialNbrIsNull_OmitsSerialNbrHeader_Test()
+        {
+            // Arrange
+            HttpRequestMessage? capturedRequest = null;
+            var testHandler = new TestHttpMessageHandler((req, _) =>
+            {
+                capturedRequest = req;
+                return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK));
+            });
+            var clientFactory = new MockHttpClientFactoryTest(testHandler);
+            var sender = new DataOutboundRestSender(clientFactory);
+
+            var mapping = new DataMappingResult(true, Encoding.UTF8.GetBytes("""{"test":1}"""), 1);
+            var partner = new ShareDataPartner { Code = "PARTNER1", Address = "127.0.0.1", EndPointApiUrl = "/api" };
+            var packet = new ShareDataPacket { Code = "102_cctvData" };
+            var sub = new ShareDataSubscription { SerialNbr = null };
+            var ctx = new DataOutboundContext(sub, partner, packet, null, DateTime.Now, CancellationToken.None);
+
+            // Act
+            var result = await sender.Send(mapping, ctx, CancellationToken.None);
+
+            // Assert
+            Assert.True(result.Success);
+            Assert.NotNull(capturedRequest);
+            Assert.False(capturedRequest.Headers.Contains("SerialNbr"));
+            Assert.True(capturedRequest.Headers.Contains("PartnerCode"));
+            Assert.True(capturedRequest.Headers.Contains("DatatypeId"));
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra sau khi gộp mốc (Rủi ro 2), header ProcessedAt bằng đúng giá trị dataTime ($meta: Now) trong body từng mili giây.
+        /// Created date: 19/09/2026
+        /// </summary>
+        [Fact]
+        public async Task RestSender_ProcessedAtHeader_MatchesBodyDataTimeExactly_Test()
+        {
+            // Arrange
+            HttpRequestMessage? capturedRequest = null;
+            string? capturedBody = null;
+            var testHandler = new TestHttpMessageHandler(async (req, ct) =>
+            {
+                capturedRequest = req;
+                capturedBody = await req.Content!.ReadAsStringAsync(ct);
+                return new HttpResponseMessage(System.Net.HttpStatusCode.OK);
+            });
+            var clientFactory = new MockHttpClientFactoryTest(testHandler);
+            var sender = new DataOutboundRestSender(clientFactory);
+
+            var exportedAt = new DateTime(2026, 9, 19, 14, 5, 31, 234, DateTimeKind.Local);
+            var partner = new ShareDataPartner { Code = "PARTNER2", Address = "127.0.0.1", EndPointApiUrl = "/api" };
+            var packet = new ShareDataPacket { Code = "101_traffic" };
+            var sub = new ShareDataSubscription { SerialNbr = 10 };
+            var ctx = new DataOutboundContext(sub, partner, packet, null, exportedAt, CancellationToken.None);
+
+            var shapeJson = """
+            {
+              "header": {
+                "dataTime": { "$meta": "Now" }
+              },
+              "data": "$root"
+            }
+            """;
+            var rawRows = new List<object> { new Dictionary<string, object?> { ["id"] = 1 } };
+            var metaValues = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Now"] = ctx.ExportedAt,
+                ["PartnerCode"] = ctx.Partner?.Code,
+                ["PacketCode"] = packet.Code,
+                ["Serial"] = sub?.SerialNbr
+            };
+            var transformed = DataMappingProcess.Transform(rawRows, shapeJson, metaValues: metaValues);
+            var bodyJson = JsonSerializer.Serialize(transformed[0]);
+            var mapping = new DataMappingResult(true, Encoding.UTF8.GetBytes(bodyJson), 1);
+
+            // Act
+            var result = await sender.Send(mapping, ctx, CancellationToken.None);
+
+            // Assert
+            Assert.True(result.Success);
+            Assert.NotNull(capturedRequest);
+            Assert.NotNull(capturedBody);
+
+            var headerProcessedAt = capturedRequest.Headers.GetValues("ProcessedAt").First();
+            using var doc = JsonDocument.Parse(capturedBody);
+            var bodyDataTime = doc.RootElement.GetProperty("header").GetProperty("dataTime").GetString();
+
+            Assert.NotNull(bodyDataTime);
+            var parsedHeaderTime = DateTime.Parse(headerProcessedAt, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
+            var parsedBodyTime = DateTime.Parse(bodyDataTime, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
+
+            // Bằng nhau từng mili giây khớp với ExportedAt
+            Assert.Equal(parsedHeaderTime, parsedBodyTime);
+            Assert.Equal(exportedAt, parsedHeaderTime);
+            Assert.Equal(exportedAt, parsedBodyTime);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra khi Partner.Code chứa ký tự xuống dòng (\r\n) chống header injection, request.Headers.Add ném ngoại lệ được bắt an toàn và Send trả về thất bại có thông điệp rõ ràng.
+        /// Created date: 19/09/2026
+        /// </summary>
+        [Fact]
+        public async Task RestSender_Send_WhenPartnerCodeContainsCrLf_CatchesSafelyAndReturnsFailure_Test()
+        {
+            // Arrange
+            var testHandler = new TestHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)));
+            var clientFactory = new MockHttpClientFactoryTest(testHandler);
+            var sender = new DataOutboundRestSender(clientFactory);
+
+            var mapping = new DataMappingResult(true, Encoding.UTF8.GetBytes("""{"test":1}"""), 1);
+            var maliciousPartner = new ShareDataPartner { Code = "PARTNER\r\nX-Injected: Bad", Address = "127.0.0.1", EndPointApiUrl = "/api" };
+            var packet = new ShareDataPacket { Code = "101_commonData" };
+            var sub = new ShareDataSubscription { SerialNbr = 1 };
+            var ctx = new DataOutboundContext(sub, maliciousPartner, packet, null, DateTime.Now, CancellationToken.None);
+
+            // Act
+            var result = await sender.Send(mapping, ctx, CancellationToken.None);
+
+            // Assert
+            Assert.False(result.Success);
+            Assert.NotNull(result.ErrorMessage);
+            Assert.NotEmpty(result.ErrorMessage);
         }
 
         /// <summary>
