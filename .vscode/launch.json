@@ -7,7 +7,12 @@
       "request": "launch",
       "cwd": "${workspaceFolder}/TA-ITS015-WEBVUE-V1.0/src",
       "program": "${workspaceFolder}/TA-ITS015-WEBVUE-V1.0/src/node_modules/vite/bin/vite.js",
-      "args": [],
+      "args": ["--open"],
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "\\bLocal:\\s+(http://localhost:\\d+/?)",
+        "uriFormat": "%s"
+      },
       "console": "internalConsole"
     },
     {
