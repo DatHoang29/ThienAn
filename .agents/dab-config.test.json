@@ -58,35 +58,6 @@
         }
       ]
     },
-    "sys-readonly": {
-      "patterns": {
-        "include": [
-          "sys.%"
-        ],
-        "name": "{schema}_{object}"
-      },
-      "template": {
-        "rest": {
-          "enabled": false
-        },
-        "graphql": {
-          "enabled": false
-        },
-        "mcp": {
-          "dml-tools": true
-        }
-      },
-      "permissions": [
-        {
-          "role": "anonymous",
-          "actions": [
-            {
-              "action": "read"
-            }
-          ]
-        }
-      ]
-    },
     "hangfire-readonly": {
       "patterns": {
         "include": [

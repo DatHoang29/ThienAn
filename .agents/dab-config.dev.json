@@ -28,24 +28,24 @@
       "mode": "development"
     }
   },
-  "autoentities": {
-    "dbo-readonly": {
-      "patterns": {
-        "include": [
-          "dbo.%"
-        ],
-        "name": "{object}"
+  "entities": {
+    "sys_databases": {
+      "description": "SQL Server database catalog (read-only)",
+      "source": {
+        "type": "view",
+        "object": "sys.databases",
+        "key-fields": [
+          "database_id"
+        ]
       },
-      "template": {
-        "rest": {
-          "enabled": false
-        },
-        "graphql": {
-          "enabled": false
-        },
-        "mcp": {
-          "dml-tools": true
-        }
+      "rest": false,
+      "graphql": false,
+      "mcp": {
+        "dml-tools": true,
+        "custom-tool": false
+      },
+      "health": {
+        "enabled": false
       },
       "permissions": [
         {
@@ -58,12 +58,101 @@
         }
       ]
     },
-    "sys-readonly": {
+    "sys_change_tracking_databases": {
+      "description": "SQL Server Change Tracking database settings (read-only)",
+      "source": {
+        "type": "view",
+        "object": "sys.change_tracking_databases",
+        "key-fields": [
+          "database_id"
+        ]
+      },
+      "rest": false,
+      "graphql": false,
+      "mcp": {
+        "dml-tools": true,
+        "custom-tool": false
+      },
+      "health": {
+        "enabled": false
+      },
+      "permissions": [
+        {
+          "role": "anonymous",
+          "actions": [
+            {
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    },
+    "sys_tables": {
+      "description": "SQL Server table catalog (read-only)",
+      "source": {
+        "type": "view",
+        "object": "sys.tables",
+        "key-fields": [
+          "object_id"
+        ]
+      },
+      "rest": false,
+      "graphql": false,
+      "mcp": {
+        "dml-tools": true,
+        "custom-tool": false
+      },
+      "health": {
+        "enabled": false
+      },
+      "permissions": [
+        {
+          "role": "anonymous",
+          "actions": [
+            {
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    },
+    "sys_change_tracking_tables": {
+      "description": "SQL Server Change Tracking table settings (read-only)",
+      "source": {
+        "type": "view",
+        "object": "sys.change_tracking_tables",
+        "key-fields": [
+          "object_id"
+        ]
+      },
+      "rest": false,
+      "graphql": false,
+      "mcp": {
+        "dml-tools": true,
+        "custom-tool": false
+      },
+      "health": {
+        "enabled": false
+      },
+      "permissions": [
+        {
+          "role": "anonymous",
+          "actions": [
+            {
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "autoentities": {
+    "dbo-readonly": {
       "patterns": {
         "include": [
-          "sys.%"
+          "dbo.%"
         ],
-        "name": "{schema}_{object}"
+        "name": "{object}"
       },
       "template": {
         "rest": {
