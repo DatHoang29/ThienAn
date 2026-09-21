@@ -239,6 +239,9 @@ Các hệ thống / Module phát triển mới về sau bắt buộc tuân thủ
      ```
    * **Cấm lặp khối XML summary**: TUYỆT ĐỐI KHÔNG tự ý chèn chồng hoặc nhân bản các khối `/// <summary>` rườm rà trên cùng một class/hàm/property. Mỗi đối tượng code CHỈ ĐƯỢC CÓ DUY NHẤT 1 khối `/// <summary>`. Khi cập nhật nội dung comment, BẮT BUỘC sửa trực tiếp vào khối comment cũ thay vì thêm khối `/// <summary>` thứ 2.
    * **API Controller Action Summary**: Trên mỗi phương thức Action trong Controller, comment XML Doc `/// <summary>` BẮT BUỘC mô tả rõ ràng, tự nhiên ý nghĩa và chức năng thực tế của hàm (VD: `/// <summary>\n/// Lấy danh sách cảnh báo & lỗi (phân trang)\n/// </summary>`). Tuyệt đối KHÔNG chèn mã prefix/số thứ tự rườm rà (như L1., E2., DS3...). Thẻ `[DisplayName("...")]` giữ nguyên tên hiển thị chuẩn.
+   * **Độc Lập Phân Hệ Trong Comment & XML Doc (Module Isolation in Comments)**:
+     - **Ngữ cảnh khép kín theo từng phân hệ**: Khi viết XML doc, summary hay bất kỳ comment giải thích nào trong code thuộc một phân hệ cụ thể (VD: `VideoWall`, `ShareData`, `TMS`...), nội dung comment CHỈ ĐƯỢC PHÉP mô tả các khái niệm, quy trình nghiệp vụ, đối tượng thuộc nội bộ chính phân hệ đó hoặc các lớp trừu tượng chung dùng chung ở tầng `Shared` (`EntityTenant`, `BaseRepository`, `MessBus`...).
+     - **TUYỆT ĐỐI CẤM dẫn chiếu, so sánh chéo sang phân hệ khác**: Tuyệt đối không nhắc tên class, interface, service cụ thể hay so sánh cách xử lý/nguyên tắc với một phân hệ độc lập khác (Ví dụ: CẤM viết trong `VideoWall` câu kiểu *"— cùng nguyên tắc với ShareDataActivityLogger của phân hệ Chia sẻ dữ liệu"*, hoặc trong `ShareData` lại dẫn chiếu sang cách làm của `VideoWall`/`TMS`). Phân hệ nào độc lập phân hệ đó, việc dẫn chiếu chéo gây rò rỉ ngữ cảnh (leaky context), gây hiểu nhầm về sự phụ thuộc giữa các module và để lại vết copy-paste thiếu chuẩn mực.
 
 8. **Quy định Docker SQL Server trên Mac**: Máy tính chạy môi trường macOS (đặc biệt chip Apple Silicon M1/M2/M3/M4) **BẮT BUỘC** dùng Docker image `mcr.microsoft.com/azure-sql-edge:latest`. TUYỆT ĐỐI KHÔNG dùng `mcr.microsoft.com/mssql/server:2022-latest` vì bản x86_64 sẽ bị crash tràn bộ nhớ QEMU (`Invalid mapping of address`).
 9. **Quy định Primary Constructor ([IDE0290](https://learn.microsoft.com/dotnet/fundamentals/code-analysis/style-rules/ide0290)) (đã chốt 05/09/2026)**: Chỉ áp dụng C# Primary Constructor khi **VIẾT CLASS MỚI** (ví dụ: `public class MyService(ILogger<MyService> Logger, IConfiguration Configuration) : IMyService`). Đối với **CLASS CŨ ĐÃ TỒN TẠI** đang dùng constructor tường minh kèm field private thủ công → KHÔNG sửa, KHÔNG refactor sang primary constructor, giữ nguyên style cũ để tránh diff không cần thiết.
@@ -338,16 +341,19 @@ tests/
 - **Null Reference (CS8601)**: Luôn gán giá trị dự phòng (`?? string.Empty`) khi gán `string?` cho `string` để dập cảnh báo CS8601.
 - **Cấu hình ASP.NET Core**: Ưu tiên `config.GetConnectionString("Default")` thay vì truy vấn key phân cấp thô (`config["DbConnection:ConnectionConfigs:0:ConnectionString"]`).
 - **C# / .NET CA2263**: LUÔN ưu tiên `Enum.IsDefined<TEnum>(value)` dạng generic (hoặc `Enum.IsDefined(enumValue)` từ .NET 7+) thay vì bản non-generic `Enum.IsDefined(typeof(TEnum), value)` để tránh boxing và overhead reflection không cần thiết.
-- **Class Member & Helper Ordering (Private Helpers at Bottom)**: Trong mọi class/service/handler C#, toàn bộ phương thức `private` (helper, private async method...) và nested helper class/struct BẮT BUỘC đặt ở **CUỐI CÙNG của class/file**, sau toàn bộ phương thức `public`. TUYỆT ĐỐI KHÔNG đặt hàm private xen kẽ ở đầu hoặc giữa các public handler method.
+- **Quy định phạm vi truy cập & Thứ tự thành viên Class (Minimal Visibility & Private Helpers at Bottom)**:
+  - **Phạm vi truy cập tối thiểu**: Bất kỳ hàm/phương thức nào nếu chỉ phục vụ nội bộ class mà KHÔNG dùng ở bên ngoài thì BẮT BUỘC phải để `private` (hoặc `internal`), TUYỆT ĐỐI KHÔNG để `public`.
+  - **Thứ tự thành viên class**: Trong mọi class/service/handler/process C#, ưu tiên phương thức `public` đặt ở trên; toàn bộ phương thức `private` (helper, private async method, query con...) và nested helper class/struct BẮT BUỘC đặt ở **CUỐI CÙNG của class/file**, sau toàn bộ phương thức `public`. TUYỆT ĐỐI KHÔNG đặt hàm `private` xen kẽ ở đầu hoặc giữa các `public` method.
 - **Vue SFC Section Ordering**: Trong mọi file `.vue`, thứ tự khối BẮT BUỘC: (1) `<script setup lang="ts">` đầu tiên, (2) `<template>` thứ hai, (3) `<style scoped>` cuối cùng. TUYỆT ĐỐI KHÔNG đặt `<template>` trước `<script>`.
 - **Vue `<script setup>` Internal Structure**: Bên trong `<script setup>` sắp xếp theo thứ tự: Imports → Props/Emits/Models → Reactive State & Stores → Computed & Watchers → Lifecycle Hooks → Methods & Event Handlers → Expose.
 
 ---
 
-## 🔒 8. SQL & Module Isolation Scope (Mandatory Rule)
+## 🔒 8. SQL, Code & Module Isolation Scope (Mandatory Rule)
 
 - **Strict Module Scope**: Mọi script SQL (DDL & DML) sinh ra hoặc cập nhật cho 1 module CHỈ được tác động lên đúng danh sách bảng thuộc phạm vi sở hữu của module đó (VD module `ShareData`: `EshPartner`, `EshDataSource`, `EshMappingProfile`, `EshFieldMapping`, `EshSubscription`, `EshExportLog`, `EshSystemLog`, `EshEventSource`).
 - **Cấm tác động bảng ngoài phạm vi**: TUYỆT ĐỐI KHÔNG `CREATE`, `ALTER`, `DROP`, `INSERT`, `UPDATE`, `DELETE` lên bảng thuộc module khác (VD `TmsTrafficData`, `TmsWeather`, `TmsIncident`, `TollTransactionOut`...).
+- **Độc lập Ngữ cảnh, Code & Comment giữa các Phân hệ**: Các phân hệ nghiệp vụ (`VideoWall`, `ShareData`, `TMS`...) hoạt động độc lập (Loose Coupling). TUYỆT ĐỐI CẤM mang tên class, interface, service hoặc so sánh thiết kế của phân hệ này đem vào comment/XML doc của phân hệ khác. Phân hệ nào thì code và comment chỉ phục vụ đúng nghiệp vụ phân hệ đó.
 
 ---
 
