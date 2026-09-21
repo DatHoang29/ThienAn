@@ -2,8 +2,8 @@
 tier: A
 read: full
 source:
-  - ../../../Plan/_source/audio/MakeUp Chi Ngô Gò Vấp 5.m4a (10:37)
-date: 2026-09-09
+  - ../../../Plan/_source/audio/09-09-2026/09-09-2026-videowall-phan-quyen-va-layout.m4a (10:37)
+date: 09-09-2026
 model: Gemini Multimodal Native Audio Transcribe
 status: verified
 topic: Thảo luận VideoWall (Phân quyền Khu vực Màn hình Ma trận, Ghép nối Service qua NATS, và Tối ưu SqlSugar ToTree cho Zone)
@@ -14,7 +14,7 @@ participants:
 ---
 
 # Kịch bản & Biên bản Cuộc họp: VideoWall — Phân Quyền Khu Vực Màn Hình, Ghép Nối NATS & Cây Phân Cấp Zone
-### (Nguồn từ: MakeUp Chi Ngô Gò Vấp 5)
+### (Nguồn từ: 09-09-2026-videowall-phan-quyen-va-layout.m4a)
 
 - **Thời lượng:** 10 phút 37 giây
 - **Người tham gia:** Anh Sơn, Hiếu, Đạt
@@ -61,7 +61,7 @@ participants:
 |---|---|---|
 | **Hiếu** | VideoWall Service & NATS | - Bỏ mock service, ghép nối VideoWall Background Service thật vào NATS.<br>- Đóng gói message NATS theo cấu trúc chuẩn (bổ sung metadata controller/service).<br>- Tích hợp luồng lệnh điều khiển thiết bị ISAPI từ NATS. |
 | **Đạt** | Backend WebAPI & DB | - Thiết kế bảng CSDL phân quyền theo `UserId` và `OrgId` gắn với tọa độ ma trận màn hình.<br>- Viết API kiểm tra phân quyền khu vực khi người dùng thực hiện thao tác kéo thả/chuyển scene.<br>- Dùng SqlSugar `ToTree()` cho API lấy danh sách Zone phân cấp. |
-| **Kiên** | Frontend UI/UX | - Móc giao diện VideoWall với API Backend mới qua NATS.<br>- Hiển thị bố cục ma trận lưới, thể hiện trực quan vùng rào quyền của người dùng (vùng bị khóa / vùng được phép kéo thả). |
+| **Kiên** | Kỹ thuật VideoWall | - Ghép nối giao diện VideoWall với API Backend mới qua NATS.<br>- Hiển thị bố cục ma trận lưới, thể hiện trực quan vùng rào quyền của người dùng (vùng bị khóa / vùng được phép kéo thả). |
 
 ---
 

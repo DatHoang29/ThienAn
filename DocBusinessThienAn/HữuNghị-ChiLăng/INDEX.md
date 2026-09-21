@@ -20,12 +20,15 @@ Phân loại tài liệu theo **3-Tier Context Budget**:
 
 | Ngày | Phân hệ | Chủ đề & Quyết định cốt lõi | Thời lượng | Bản Script / Transcript (Tier A) | Audio gốc (Tier C) |
 |---|---|---|:---:|---|---|
-| **2026-09-11** | **ShareData** | **Chuẩn hóa Metadata Gói tin & Mapping 2 chiều:**<br>• Lưu danh sách trường động (gói 101,...) thay vì nối bảng SQL cứng.<br>• Cơ chế Mapping: Bộ mã quy đổi CodeSet, hàm SUM/AVG, format đầu ra.<br>• Luồng Inbound/Outbound qua WebAPI & Background Service.<br>• Bảo toàn nguyên trạng 9 gói tin cũ đã demo. | ~111 phút | 📄 [2026-09-11-sharedata-script.md](ShareData/doc/transcript/2026-09-11-sharedata-script.md) | 🎙️ [Audio 1](Plan/_source/audio/2026-09-11-sharedata-videowall-1.m4a)<br>🎙️ [Audio 2](Plan/_source/audio/2026-09-11-sharedata-videowall-2.m4a) |
-| **2026-09-11** | **VideoWall** | **Kiến trúc 3 tầng & Phân quyền Màn hình:**<br>• Tách riêng Background Service giao tiếp ISAPI phần cứng qua NATS để chống blocking WebAPI.<br>• 3 trụ cột: Thiết lập (Config), Điều khiển (Control), Trạng thái (Telemetry).<br>• Phân quyền theo Screen ID: ưu tiên User > Org, mặc định Full quyền. | ~111 phút | 📄 [2026-09-11-videowall-script.md](VideoWall/doc/transcript/2026-09-11-videowall-script.md) | 🎙️ [Audio 1](Plan/_source/audio/2026-09-11-sharedata-videowall-1.m4a)<br>🎙️ [Audio 2](Plan/_source/audio/2026-09-11-sharedata-videowall-2.m4a) |
-| **2026-09-09** | **ShareData** | **Review luồng truyền nhận & Tự động hóa:**<br>• Luồng gửi/nhận file & API, SQL alias mapping đối tác.<br>• Cơ chế gửi theo giờ (9h sáng hàng ngày), switch tự động gửi khi có data mới.<br>• Socket Wrapper, kiểm tra 291 dòng & fix lỗi Case-Sensitivity. | ~61 phút | 📄 [2026-09-09-review-sharedata.md](ShareData/doc/transcript/2026-09-09-review-sharedata.md) | 🎙️ [MakeUp 3](Plan/_source/audio/MakeUp%20Chi%20Ngo%CC%82%20Go%CC%80%20Va%CC%82%CC%81p%203.m4a)<br>🎙️ [MakeUp 4](Plan/_source/audio/MakeUp%20Chi%20Ngo%CC%82%20Go%CC%80%20Va%CC%82%CC%81p%204.m4a) |
-| **2026-09-09** | **VideoWall** | **Phân quyền Khu vực & Ma trận hiển thị:**<br>• Rào phạm vi thao tác người dùng theo tọa độ ma trận (lưới 8x5).<br>• Dựng cây phân cấp Zone bằng SqlSugar `ToTree()` tối ưu.<br>• Ghép nối Service thật qua NATS, bỏ Mock Data. | 10:37 | 📄 [2026-09-09-videowall-phan-quyen-va-layout.md](VideoWall/doc/transcript/2026-09-09-videowall-phan-quyen-va-layout.md) | 🎙️ [MakeUp 5](Plan/_source/audio/MakeUp%20Chi%20Ngo%CC%82%20Go%CC%80%20Va%CC%82%CC%81p%205.m4a) |
-| **2026-09-08** | **Plan** (Toàn tuyến) | **Kế hoạch triển khai & Nghiệm thu toàn tuyến:**<br>• Rà soát thiết bị TMC/ITS: Camera CCTV, PTZ, VDS, biển báo VMS.<br>• Hệ thống giám sát EMS SolarWinds, Trạm cân, Trạm thời tiết (WOS).<br>• Kiến trúc hàng đợi MQTT / Kafka, mốc nghiệm thu ~Tháng 11. | ~48 phút | 📄 [2026-09-08-hop-ke-hoach-1.md](Plan/doc/transcript/2026-09-08-hop-ke-hoach-1.md)<br>📄 [2026-09-08-hop-ke-hoach-2.md](Plan/doc/transcript/2026-09-08-hop-ke-hoach-2.md) | 🎙️ [Phần 1](Plan/_source/audio/2026-09-08-hop-ke-hoach-1.m4a)<br>🎙️ [Phần 2](Plan/_source/audio/2026-09-08-hop-ke-hoach-2.m4a) |
-| **2026-08-28** | **VideoWall** | **Chuẩn bị mượn & kiểm thử Controller Hikvision:**<br>• Kịch bản mượn thiết bị DS-C66S từ nhà thầu, test API bằng Postman/curl.<br>• Backup cấu hình IP qua Web/API, chuẩn bị nhân sự test 2 ngày. | ~50 phút | _(chưa có bản transcript .md)_ | _(Lưu trữ nội bộ)_ |
+| **21-09-2026** | **ShareData** | **Hoàn thiện Ánh xạ & Cơ chế Gửi nối đuôi:**<br>• Chuẩn hóa luồng tạo ánh xạ 1 chiều: Đối tác -> Gói tin -> Hồ sơ ánh xạ.<br>• Tự động sinh mã hồ sơ ánh xạ, hiển thị nhãn Đã có/Chưa có ánh xạ.<br>• Cơ chế gửi nối đuôi theo mốc đánh dấu (`LastTime` + `LastKey`) cho dữ liệu lịch sử/sự kiện.<br>• Đánh giá tính năng "Gửi khi có dữ liệu mới" tạm khóa trên UI, ưu tiên kiểm tra định kỳ gửi nối đuôi. | ~35 phút | 📄 [21-09-2026-hoan-thien-mapping-va-watermark-sharedata.md](ShareData/doc/transcript/21-09-2026-hoan-thien-mapping-va-watermark-sharedata.md) | 🎙️ [Audio 21-09](Plan/_source/audio/21-09-2026/) |
+| **19-09-2026** | **ShareData** | **Truyền thông tin qua HTTP Header:**<br>• Bổ sung PartnerCode, Mapping vào HTTP Header luồng gửi.<br>• Phía nhận bóc tách Header, cache mapping trên RAM.<br>• Body giữ nguyên mảng payload thuần túy. | ~03 phút | 📄 [19-09-2026-truyen-thong-tin-qua-http-header-luong-gui.md](ShareData/doc/transcript/19-09-2026-truyen-thong-tin-qua-http-header-luong-gui.md) | 🎙️ [Audio 19-09](Plan/_source/audio/19-09-2026/) |
+| **16-09-2026** | **ShareData** | **Review UI Frontend, Refactor Worker, Định danh đối tác:**<br>• Hoàn thiện FE: tiếng Việt, ẩn Cảnh báo/Ưu tiên, Tooltip, auto-map.<br>• Refactor Worker: 3 process (Extraction → Mapping → Transport).<br>• Định danh PartnerCode, bỏ PDU, clone test tải đa đối tác. | ~57 phút | 📄 [16-09-2026-review-frontend-sharedata.md](ShareData/doc/transcript/16-09-2026-review-frontend-sharedata.md)<br>📄 [16-09-2026-sua-ui-sharedata.md](ShareData/doc/transcript/16-09-2026-sua-ui-sharedata.md)<br>📄 [16-09-2026-refactor-backend-sharedata-worker.md](ShareData/doc/transcript/16-09-2026-refactor-backend-sharedata-worker.md)<br>📄 [16-09-2026-dinh-danh-doi-tac-va-test-tai.md](ShareData/doc/transcript/16-09-2026-dinh-danh-doi-tac-va-test-tai.md) | 🎙️ [Audio 16-09](Plan/_source/audio/16-09-2026/) |
+| **11-09-2026** | **ShareData** | **Chuẩn hóa Metadata Gói tin & Mapping 2 chiều:**<br>• Lưu danh sách trường động (gói 101,...) thay vì nối bảng SQL cứng.<br>• Cơ chế Mapping: Bộ mã quy đổi CodeSet, hàm SUM/AVG, format đầu ra.<br>• Luồng Inbound/Outbound qua WebAPI & Background Service.<br>• Bảo toàn nguyên trạng 9 gói tin cũ đã demo. | ~111 phút | 📄 [11-09-2026-sharedata-script.md](ShareData/doc/transcript/11-09-2026-sharedata-script.md) | 🎙️ [Audio 11-09](Plan/_source/audio/11-09-2026/) |
+| **11-09-2026** | **VideoWall** | **Kiến trúc 3 tầng & Phân quyền Màn hình:**<br>• Tách riêng Background Service giao tiếp ISAPI phần cứng qua NATS để chống blocking WebAPI.<br>• 3 trụ cột: Thiết lập (Config), Điều khiển (Control), Trạng thái (Telemetry).<br>• Phân quyền theo Screen ID: ưu tiên User > Org, mặc định Full quyền. | ~111 phút | 📄 [11-09-2026-videowall-script.md](VideoWall/doc/transcript/11-09-2026-videowall-script.md) | 🎙️ [Audio 11-09](Plan/_source/audio/11-09-2026/) |
+| **09-09-2026** | **ShareData** | **Review luồng truyền nhận & Tự động hóa:**<br>• Luồng gửi/nhận file & API, SQL alias mapping đối tác.<br>• Cơ chế gửi theo giờ (9h sáng hàng ngày), switch tự động gửi khi có data mới.<br>• Socket Wrapper, kiểm tra 291 dòng & fix lỗi Case-Sensitivity. | ~61 phút | 📄 [09-09-2026-review-sharedata.md](ShareData/doc/transcript/09-09-2026-review-sharedata.md) | 🎙️ [Audio 09-09](Plan/_source/audio/09-09-2026/) |
+| **09-09-2026** | **VideoWall** | **Phân quyền Khu vực & Ma trận hiển thị:**<br>• Rào phạm vi thao tác người dùng theo tọa độ ma trận (lưới 8x5).<br>• Dựng cây phân cấp Zone bằng SqlSugar `ToTree()` tối ưu.<br>• Ghép nối Service thật qua NATS, bỏ Mock Data. | 10:37 | 📄 [09-09-2026-videowall-phan-quyen-va-layout.md](VideoWall/doc/transcript/09-09-2026-videowall-phan-quyen-va-layout.md) | 🎙️ [Audio 09-09](Plan/_source/audio/09-09-2026/) |
+| **08-09-2026** | **Plan** (Toàn tuyến) | **Kế hoạch triển khai & Nghiệm thu toàn tuyến:**<br>• Rà soát thiết bị TMC/ITS: Camera CCTV, PTZ, VDS, biển báo VMS.<br>• Hệ thống giám sát EMS SolarWinds, Trạm cân, Trạm thời tiết (WOS).<br>• Kiến trúc hàng đợi MQTT / Kafka, mốc nghiệm thu ~Tháng 11. | ~48 phút | 📄 [08-09-2026-hop-ke-hoach-1.md](Plan/doc/transcript/08-09-2026-hop-ke-hoach-1.md)<br>📄 [08-09-2026-hop-ke-hoach-2.md](Plan/doc/transcript/08-09-2026-hop-ke-hoach-2.md) | 🎙️ [Audio 08-09](Plan/_source/audio/08-09-2026/) |
+| **28-08-2026** | **VideoWall** | **Chuẩn bị mượn & kiểm thử Controller Hikvision:**<br>• Kịch bản mượn thiết bị DS-C66S từ nhà thầu, test API bằng Postman/curl.<br>• Backup cấu hình IP qua Web/API, chuẩn bị nhân sự test 2 ngày. | ~50 phút | _(chưa có bản transcript .md)_ | _(Lưu trữ nội bộ)_ |
 
 ---
 
@@ -119,8 +122,8 @@ Phân loại tài liệu theo **3-Tier Context Budget**:
 | Thành viên | Phân hệ phụ trách | Hạng mục công việc chính | Hạn chót |
 |---|---|---|:---:|
 | **Đạt** | Backend WebAPI & DB | • Thiết kế CSDL: Bảng Metadata trường gói tin, Bảng Mapping, Bảng phân quyền màn hình.<br>• Xây dựng WebAPI nhận/gửi ShareData và API điều khiển VideoWall.<br>• Chuẩn hóa DTO và cấu trúc JSON trao đổi. | **18/09/2026** |
-| **Hiếu** | Core Service Worker | • Lập trình Background Service VideoWall giao tiếp ISAPI thiết bị Hikvision.<br>• Đấu nối giao tiếp message lệnh và trạng thái qua NATS.<br>• Xây dựng module Mapping Engine động (CodeSet, Hàm tính toán) cho ShareData. | **18/09/2026** |
-| **Kiên** | Frontend UI/UX | • Móc API VideoWall lên Web: hiển thị ma trận màn hình, rào phân quyền các ô.<br>• Tinh gọn giao diện ShareData: chuyển cấu hình trường vào Modal/Popup.<br>• Tối ưu tương tác kéo thả camera và chuyển scene. | **18/09/2026** |
+| **Hiếu** | Core Service Worker & ShareData | • Lập trình Background Service VideoWall giao tiếp ISAPI thiết bị Hikvision.<br>• Đấu nối giao tiếp message lệnh và trạng thái qua NATS.<br>• Xây dựng module Mapping Engine động (CodeSet, Hàm tính toán) và UI cấu hình cho ShareData. | **18/09/2026** |
+| **Kiên** | Kỹ thuật VideoWall | • Ghép nối API VideoWall lên Web: hiển thị ma trận màn hình, rào phân quyền các ô.<br>• Tối ưu tương tác kéo thả camera và chuyển scene. | **18/09/2026** |
 
 ---
 
@@ -132,7 +135,7 @@ HữuNghị-ChiLăng/
 ├── ShareData/                                🤖👤 Phân hệ Chia sẻ Dữ liệu (ESHARE)
 │   ├── README.md                             🤖👤 SSOT phân hệ ShareData (kèm Tier Table)
 │   ├── doc/                                  🤖    Tier A: 01-yeu-cau-nghiep-vu, 02-mapping
-│   │   └── transcript/                       🤖    Tier A: 2026-09-09-review, 2026-09-11-sharedata-script
+│   │   └── transcript/                       🤖    Tier A: 09-09-2026-review, 11-09-2026-sharedata-script, 16-09, 19-09, 21-09
 │   ├── Plan/                                 🤖    Tier A: Tài liệu SỐNG riêng của ShareData, không Auto-Cleanup (Sd_MasterPlan, sharedata-outbound-kiem-tra-anh-xa-va-dinh-dang.md)
 │   ├── Prompt/                               🤖    Tier A: Prompt dùng-1-lần riêng của ShareData (tự xoá khi xong — hiện có 1: fix-activitylog-hash-recordcount)
 │   └── _source/                              👤    Tier C: Bản gốc đối chiếu (xlsx/)
@@ -143,7 +146,7 @@ HữuNghị-ChiLăng/
 │   │   ├── Controller-phan-cung/              🤖    Tier A (tài liệu phần cứng + images/)
 │   │   ├── KichBan/                          🤖    Tier A (kịch bản 1 controller / 4 controller)
 │   │   ├── TableSQL/                         🤖    Tier A (thiết kế CSDL Vw* + audit write-path)
-│   │   └── transcript/                       🤖    Tier A: 2026-09-09, 2026-09-11-videowall-script (họp 28/08 chưa có bản .md)
+│   │   └── transcript/                       🤖    Tier A: 09-09-2026, 11-09-2026-videowall-script (họp 28/08 chưa có bản .md)
 │   ├── Plan/                                 🤖    Tier A: Tài liệu SỐNG riêng của VideoWall — Vw_MasterPlan_*.md, Vw_BE_Review_*.md (không Auto-Cleanup)
 │   ├── Prompt/                               🤖    Tier A: Prompt dùng-1-lần riêng của VideoWall — videowall-*-prompt.md (tự xoá khi thực thi xong)
 │   ├── data/                                 🤖    Tier B: Log đo thực tế trên thiết bị (logs-api/)
@@ -157,8 +160,8 @@ HữuNghị-ChiLăng/
 │   │   └── images/                           🤖    Sơ đồ đấu nối, ảnh chụp thiết bị
 │   └── _source/                              👤    Tier C: Bản gốc đối chiếu (pdf/)
 └── Plan/                                     🤖👤 CHỈ kế hoạch/biên bản họp XUYÊN phân hệ (≥ 2 phân hệ) — plan riêng từng phân hệ nằm trong <PhânHệ>/Plan/ ở trên
-    ├── doc/transcript/                       🤖    Tier A: Bản ghi họp toàn tuyến .md (2026-09-08-hop-ke-hoach-{1,2}.md)
-    └── _source/audio/                        👤    Tier C: Ghi âm gốc (2026-09-08, 2026-09-11)
+    ├── doc/transcript/                       🤖    Tier A: Bản ghi họp toàn tuyến .md (08-09-2026-hop-ke-hoach-{1,2}.md)
+    └── _source/audio/                        👤    Tier C: Ghi âm gốc (08-09-2026, 09-09-2026, 11-09-2026, 16-09-2026, 19-09-2026, 21-09-2026)
 ```
 
 ---

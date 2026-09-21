@@ -561,6 +561,22 @@ tests/
     4. `Cross-pipeline Sync`: Nhấn mạnh việc giữ đồng bộ ngữ nghĩa giữa các chiều (ví dụ: `HasFieldBinding` bên Outbound `DataMappingProcess` và Inbound `DataInboundService.Parse` phải hoàn toàn nhất quán, lệch nhau sẽ khiến bên gửi và bên nhận hiểu sai cấu trúc gói tin).
     5. Đầy đủ các thẻ `<param>` và `<returns>`.
 
+- **19.8. Quy Chuẩn Ngôn Ngữ Báo Cáo & Biên Bản (Ưu tiên tiếng Việt thuần túy, cấm lạm dụng chêm tiếng Anh)**:
+  - Khi viết báo cáo, biên bản họp, tóm tắt điều hành và tài liệu kỹ thuật hướng đến nhân sự và quản lý người Việt, **BẮT BUỘC dùng tiếng Việt trong sáng, dễ hiểu**, tránh chêm tiếng Anh chuyên ngành bừa bãi gây rào cản nhận thức.
+  - **Bảng đối chiếu thuật ngữ chuẩn**:
+    - Thay vì *Watermark*: Dùng **Mốc đánh dấu đã gửi** hoặc **Mốc gửi gần nhất**.
+    - Thay vì *Incremental*: Dùng **Gửi nối đuôi** hoặc **Gửi tiếp dữ liệu phát sinh**.
+    - Thay vì *Mapping Profile*: Dùng **Hồ sơ ánh xạ**.
+    - Thay vì *Snapshot*: Dùng **Bản chụp toàn bộ** hoặc **Dữ liệu hiện trạng**.
+    - Thay vì *CDC / Real-time Change Detection*: Dùng **Phát hiện dữ liệu mới tức thì** hoặc **Bắt thay đổi dữ liệu**.
+    - Thay vì *Polling*: Dùng **Quét kiểm tra định kỳ**.
+    - Thay vì *Payload*: Dùng **Gói dữ liệu truyền** hoặc **Nội dung bản tin**.
+  - **Ngoại lệ duy nhất**: Tên biến code, tên method, tên bảng/cột CSDL, giao thức chuẩn quốc tế (như `LastTime`, `LastKey`, `PartnerCode`, `HTTP`, `REST API`, `JSON`, `SqlSugar`) được giữ nguyên và đặt trong dấu backtick (code inline).
+
+- **19.9. Cơ Cấu Nhân Sự Dự Án & Phân Hệ ShareData (Nguồn sự thật về phân công nhân sự)**:
+  - **Phân hệ ShareData (TMC-PM-ITS-ESHARE / TA-ShareData)**: DUY NHẤT 2 thành viên kỹ thuật trực tiếp phụ trách là **Đạt** (Backend WebAPI, CSDL, Entity) và **Hiếu** (Ngô Văn Hiếu - Backend Worker, Data Engine, cấu hình & UI logic ShareData). Kiến trúc sư / Tech Lead phụ trách định hướng là **Anh Sơn**.
+  - **Kiên**: **KHÔNG PHẢI FRONTEND (FE)** và **KHÔNG THUỘC PHÂN HỆ SHAREDATA**. Tuyệt đối không gán vai trò Frontend (FE) cho Kiên và không đưa Kiên vào danh sách thành viên, bảng phân công hay kịch bản đối thoại của phân hệ ShareData trong bất kỳ tài liệu hay báo cáo nào.
+
 ---
 
 ## 💻 20. Quy Chuẩn Phát Triển Frontend (Vue 3 / TypeScript - TA-ITS015-WEBVUE-V1.0)

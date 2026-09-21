@@ -2,9 +2,9 @@
 tier: A
 read: full
 source: 
-  - Sharedata-videowall.m4a
-  - Sharedata-videowall-2.m4a
-date: 2026-09-11
+  - ../../../Plan/_source/audio/11-09-2026/11-09-2026-sharedata-videowall-1.m4a
+  - ../../../Plan/_source/audio/11-09-2026/11-09-2026-sharedata-videowall-2.m4a
+date: 11-09-2026
 model: Gemini Multimodal Native Audio Transcribe
 status: verified
 topic: ShareData (Chia sẻ Dữ liệu - ESHARE)
@@ -16,7 +16,7 @@ participants:
 
 # Kịch bản & Biên bản Cuộc họp: Phân hệ Chia sẻ Dữ liệu (ShareData)
 
-> **Ghi chú:** Tài liệu này được tổng hợp và hợp nhất toàn diện từ 2 tệp ghi âm cuộc họp ngày 11/09/2026 (`Sharedata-videowall.m4a` và `Sharedata-videowall-2.m4a`), lọc riêng toàn bộ nội dung thảo luận, quyết định kiến trúc, cơ sở dữ liệu và kịch bản đối thoại thuộc phân hệ **ShareData**.
+> **Ghi chú:** Tài liệu này được tổng hợp và hợp nhất toàn diện từ 2 tệp ghi âm cuộc họp ngày 11/09/2026 (`11-09-2026-sharedata-videowall-1.m4a` và `11-09-2026-sharedata-videowall-2.m4a`), lọc riêng toàn bộ nội dung thảo luận, quyết định kiến trúc, cơ sở dữ liệu và kịch bản đối thoại thuộc phân hệ **ShareData**.
 
 ---
 
@@ -87,8 +87,7 @@ Hệ thống quản lý danh mục trường dữ liệu theo gói tin thông qu
 | Thành viên | Trách nhiệm | Công việc chi tiết | Deadline |
 |---|---|---|---|
 | **Đạt** | Backend Web API & CSDL | - Thiết kế các bảng CSDL cho Metadata trường và Mapping.<br>- Viết các endpoint Web API phục vụ luồng nhận (Inbound) và gửi (Outbound).<br>- Chuẩn hóa DTO và cấu trúc payload JSON. | Hết tuần sau |
-| **Hiếu** | Service Worker & Mapping Engine | - Lập trình Core Service Worker đọc cấu hình và thực thi mapping động.<br>- Hiện thực hóa bộ mã quy đổi CodeSet và các hàm tính toán (`SUM`, `AVG`,...).<br>- Xử lý luồng ghi dữ liệu vào bảng đệm và CSDL chính. | Hết tuần sau |
-| **Kiên** | Frontend UI | - Cải tiến giao diện cấu hình gói tin: thu gọn bảng chính, đưa chi tiết trường vào modal/tab.<br>- Tích hợp các API cấu hình từ Đạt và Hiếu. | Hết tuần sau |
+| **Hiếu** | Service Worker, Mapping Engine & UI Cấu hình | - Lập trình Core Service Worker đọc cấu hình và thực thi mapping động.<br>- Hiện thực hóa bộ mã quy đổi CodeSet và các hàm tính toán (`SUM`, `AVG`,...).<br>- Xử lý luồng ghi dữ liệu vào bảng đệm và CSDL chính.<br>- Cải tiến giao diện cấu hình gói tin: thu gọn bảng chính, đưa chi tiết trường vào modal/tab; tích hợp API cấu hình với Backend. | Hết tuần sau |
 
 ---
 
@@ -168,7 +167,7 @@ ightarrow$ Ghi dữ liệu chuẩn hóa vào các bảng nghiệp vụ trong CSD
 ---
 
 ### [Phần 6: Chốt phương án & Cam kết hoàn thành]
-- **Hiếu:** Dạ rõ rồi anh. Phần ShareData này em nhúng vào nhiều rồi nên em sẽ tự chỉnh sửa lại phần Service mapping và phối hợp với Kiên ở phần giao diện modal.
+- **Hiếu:** Dạ rõ rồi anh. Phần ShareData này em nhúng vào nhiều rồi nên em sẽ tự chỉnh sửa lại phần Service mapping và hoàn thiện phần giao diện modal cấu hình.
 - **Đạt:** Em sẽ phụ trách thiết kế các bảng CSDL cho trường metadata, bảng mapping và viết các endpoint API nhận/gửi.
 - **Anh Sơn:** Thống nhất vậy. Hết tuần sau phải có bản chạy được trọn vẹn: cấu hình được các trường của gói tin và test thông suốt luồng mapping dữ liệu.\n
 

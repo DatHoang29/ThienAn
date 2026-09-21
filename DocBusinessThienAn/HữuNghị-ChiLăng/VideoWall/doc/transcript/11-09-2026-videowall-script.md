@@ -2,9 +2,9 @@
 tier: A
 read: full
 source: 
-  - Sharedata-videowall.m4a
-  - Sharedata-videowall-2.m4a
-date: 2026-09-11
+  - ../../../Plan/_source/audio/11-09-2026/11-09-2026-sharedata-videowall-1.m4a
+  - ../../../Plan/_source/audio/11-09-2026/11-09-2026-sharedata-videowall-2.m4a
+date: 11-09-2026
 model: Gemini Multimodal Native Audio Transcribe
 status: verified
 topic: VideoWall (Phân hệ Tường Màn Hình)
@@ -16,7 +16,7 @@ participants:
 
 # Kịch bản & Biên bản Cuộc họp: Phân hệ Tường Màn Hình (VideoWall)
 
-> **Ghi chú:** Tài liệu này được tổng hợp và hợp nhất toàn diện từ 2 tệp ghi âm cuộc họp ngày 11/09/2026 (`Sharedata-videowall.m4a` và `Sharedata-videowall-2.m4a`), lọc riêng toàn bộ nội dung thảo luận, quyết định kiến trúc, cơ sở dữ liệu và kịch bản đối thoại thuộc phân hệ **VideoWall**.
+> **Ghi chú:** Tài liệu này được tổng hợp và hợp nhất toàn diện từ 2 tệp ghi âm cuộc họp ngày 11/09/2026 (`11-09-2026-sharedata-videowall-1.m4a` và `11-09-2026-sharedata-videowall-2.m4a`), lọc riêng toàn bộ nội dung thảo luận, quyết định kiến trúc, cơ sở dữ liệu và kịch bản đối thoại thuộc phân hệ **VideoWall**.
 
 ---
 
@@ -71,7 +71,7 @@ participants:
 |---|---|---|---|
 | **Đạt** | Backend WebAPI & DB | - Thiết kế bảng CSDL phân quyền màn hình theo `UserId` và `OrgId`.<br>- Viết API nhận lệnh điều khiển từ Frontend và publish message lên NATS.<br>- Xây dựng API quản lý cấu hình kịch bản (Scene). | Hết tuần sau |
 | **Hiếu** | Core Service Worker | - Xây dựng Background Service kết nối với thiết bị Hikvision qua giao thức ISAPI HTTP.<br>- Lắng nghe lệnh từ NATS topic, biên dịch thành lệnh ISAPI tương ứng.<br>- Lấy dữ liệu trạng thái/heartbeat từ thiết bị và gửi ngược về hệ thống. | Hết tuần sau |
-| **Kiên** | Frontend UI | - Móc API điều khiển VideoWall lên giao diện Web.<br>- Vẽ bố cục lưới ma trận màn hình, hiển thị rào quyền thao tác theo từng ô.<br>- Xử lý các thao tác kéo thả nguồn camera, chuyển scene mượt mà. | Hết tuần sau |
+| **Kiên** | Kỹ thuật VideoWall | - Ghép nối API điều khiển VideoWall lên giao diện Web.<br>- Vẽ bố cục lưới ma trận màn hình, hiển thị rào quyền thao tác theo từng ô.<br>- Xử lý các thao tác kéo thả nguồn camera, chuyển scene mượt mà. | Hết tuần sau |
 
 ---
 

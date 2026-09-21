@@ -5,9 +5,9 @@
 > [`Vw_BE_Review_PostImplementation_2026-09-14.md`](Vw_BE_Review_PostImplementation_2026-09-14.md)
 > cho chi tiết đối chiếu từng hạng mục.
 
-> Ngày lập: 2026-09-16. Tổng hợp từ 2 transcript họp gốc
-> (`transcript/2026-09-09-videowall-phan-quyen-va-layout.md`,
-> `transcript/2026-09-11-videowall-script.md`) đối chiếu với trạng thái code thật hiện tại (build,
+> Ngày lập: 16-09-2026. Tổng hợp từ 2 transcript họp gốc
+> (`../doc/transcript/09-09-2026-videowall-phan-quyen-va-layout.md`,
+> `../doc/transcript/11-09-2026-videowall-script.md`) đối chiếu với trạng thái code thật hiện tại (build,
 > test, git diff — không suy đoán). Nguồn tham chiếu backlog duy nhất cho VideoWall kể từ đây.
 
 ## 1. Kiến trúc đã chốt (ổn định, khớp cả 2 transcript + đã verify trong code)
@@ -64,5 +64,5 @@
 - Audit entity: `../doc/TableSQL/Vw_Entities_WritePath_Audit_2026-09-14.md`
 - So sánh FE/WPF: `../doc/Vw_FE_vs_WPF_Feature_Comparison_2026-09-14.md`
 - Review sau triển khai BE: [`Vw_BE_Review_PostImplementation_2026-09-14.md`](Vw_BE_Review_PostImplementation_2026-09-14.md) (cùng thư mục `Plan/`)
-- Transcript gốc: `../doc/transcript/2026-09-09-videowall-phan-quyen-va-layout.md`,
-  `../doc/transcript/2026-09-11-videowall-script.md`
+- Transcript gốc: `../doc/transcript/09-09-2026-videowall-phan-quyen-va-layout.md`,
+  `../doc/transcript/11-09-2026-videowall-script.md`

@@ -50,8 +50,8 @@ chưa kịp viết thành prompt).
 | `doc/KichBan/KichBan_VideoWall_DS-C66S_4Controller_32Man.md` | Kịch bản test API cascade / 32 màn lưới 8×4 — **backend chỉ nói ISAPI với bộ trung tâm**, 3 bộ con là inventory (trừ KB-17 serial). Có **KB-00 probe read-only** chạy tại hiện trường. Kiến trúc: `doc/KienTruc_VideoWall_DS-C66S-Cascade.md` | Test/vận hành cấu hình cascade |
 | `../Plan/videowall_plan.md` | Đặc tả yêu cầu gốc — gộp họp 19/08 + 25/08 (bản lịch sử, không sửa) | đối chiếu yêu cầu ban đầu |
 | _(chưa có)_ | Họp chuẩn bị 28/08 — chưa từng được chuyển thể thành `.md`, chỉ có audio lưu nội bộ | — |
-| `doc/transcript/2026-09-09-videowall-phan-quyen-va-layout.md` | Thảo luận phân quyền User/Tổ chức, SqlSugar ToTree & layout ma trận VideoWall | thiết kế & code backend/WPF |
-| `doc/transcript/2026-09-11-videowall-script.md` | Kiến trúc 3 tầng (Config/Control/Telemetry) & phân quyền theo Screen ID | thiết kế & code backend/WPF |
+| `doc/transcript/09-09-2026-videowall-phan-quyen-va-layout.md` | Thảo luận phân quyền User/Tổ chức, SqlSugar ToTree & layout ma trận VideoWall | thiết kế & code backend/WPF |
+| `doc/transcript/11-09-2026-videowall-script.md` | Kiến trúc 3 tầng (Config/Control/Telemetry) & phân quyền theo Screen ID | thiết kế & code backend/WPF |
 
 ## Tier Table
 
@@ -79,9 +79,11 @@ chưa kịp viết thành prompt).
 | A | `doc/TableSQL/Vw_Entities_WritePath_Audit_2026-09-14.md` | full | ~6 KB | Audit 12/12 entity VideoWall — vai trò & write path (BE/Worker) | Audit kỹ thuật nội bộ |
 | A | `doc/Vw_FE_vs_WPF_Feature_Comparison_2026-09-14.md` | full | ~8 KB | So sánh FE (Vue) với WPF — khoảng trống tính năng | Audit kỹ thuật nội bộ |
 | A | `doc/transcript/00-catalog.md` | full | 2 KB | Mục lục toàn bộ bản ghi cuộc họp VideoWall | Biên soạn nội bộ |
-| A | `doc/transcript/2026-09-09-videowall-phan-quyen-va-layout.md` | full | 17 KB | Thảo luận VideoWall: Phân quyền User/Tổ chức, SqlSugar ToTree & layout ma trận | `../Plan/_source/audio/MakeUp Chi Ngo Go Vap 5.m4a` |
-| A | `doc/transcript/2026-09-11-videowall-script.md` | full | ~15 KB | Kiến trúc 3 tầng (Config/Control/Telemetry) & phân quyền theo Screen ID | Biên bản họp nội bộ |
-| C | `../Plan/_source/audio/MakeUp Chi Ngo Go Vap 5.m4a` | never | 5 MB | Audio cuộc họp VideoWall về phân quyền và layout (10:37) — nằm ở `Plan/_source/audio/` vì file gốc dùng chung tên đặt trước khi tách theo phân hệ | → bản `.md`: `doc/transcript/2026-09-09-videowall-phan-quyen-va-layout.md` |
+| A | `doc/transcript/09-09-2026-videowall-phan-quyen-va-layout.md` | full | 17 KB | Thảo luận VideoWall: Phân quyền User/Tổ chức, SqlSugar ToTree & layout ma trận | `../Plan/_source/audio/09-09-2026/09-09-2026-videowall-phan-quyen-va-layout.m4a` |
+| A | `doc/transcript/11-09-2026-videowall-script.md` | full | ~15 KB | Kiến trúc 3 tầng (Config/Control/Telemetry) & phân quyền theo Screen ID | `../Plan/_source/audio/11-09-2026/11-09-2026-sharedata-videowall-{1,2}.m4a` |
+| C | `../Plan/_source/audio/09-09-2026/09-09-2026-videowall-phan-quyen-va-layout.m4a` | never | 5 MB | Audio cuộc họp VideoWall về phân quyền và layout (10:37) | → bản `.md`: `doc/transcript/09-09-2026-videowall-phan-quyen-va-layout.md` |
+| C | `../Plan/_source/audio/11-09-2026/11-09-2026-sharedata-videowall-1.m4a` | never | 55 MB | Audio cuộc họp Kiến trúc VideoWall 3 tầng & ISAPI qua NATS phần 1 (01:01:37) | → bản `.md`: `doc/transcript/11-09-2026-videowall-script.md` |
+| C | `../Plan/_source/audio/11-09-2026/11-09-2026-sharedata-videowall-2.m4a` | never | 30 MB | Audio cuộc họp Kiến trúc VideoWall 3 tầng & ISAPI qua NATS phần 2 (50:11) | → bản `.md`: `doc/transcript/11-09-2026-videowall-script.md` |
 | A | `data/logs-api/README.md` | full | 5 KB | Hướng dẫn đọc log đo thực tế và nhận diện mock | Ghi chú vận hành nội bộ |
 | B | `data/logs-api/session-20260903-real.json` | grep-only | 1.635 KB | Log đo thực tế trên thiết bị DS-C66S ngày 03/09/2026 | Đo trực tiếp thiết bị trạm |
 | B | `data/logs-api/session-20260904-real.json` | grep-only | 2.569 KB | Log đo thực tế trên thiết bị DS-C66S ngày 04/09/2026 | Đo trực tiếp thiết bị trạm |

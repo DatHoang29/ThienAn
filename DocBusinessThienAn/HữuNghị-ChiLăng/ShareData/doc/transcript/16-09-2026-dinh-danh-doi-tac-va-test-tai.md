@@ -1,7 +1,7 @@
-﻿---
+---
 tier: A
 read: full
-source: ../../../Plan/_source/audio/13.48, 16 thg 9__1.m4a
+source: ../../../Plan/_source/audio/16-09-2026/16-09-2026-dinh-danh-doi-tac-va-test-tai.m4a
 date: 2026-09-16
 model: Gemini Native Audio Multimodal
 status: verified
@@ -11,7 +11,7 @@ status: verified
 
 **Ngôn ngữ:** Tiếng Việt  
 **Thời lượng:** 16:47  
-**File nguồn:** ../../../Plan/_source/audio/13.48, 16 thg 9__1.m4a  
+**File nguồn:** ../../../Plan/_source/audio/16-09-2026/16-09-2026-dinh-danh-doi-tac-va-test-tai.m4a  
 **Ngày họp:** 16/09/2026 (13:48)  
 **Chủ đề:** Chuẩn hóa gói tin dữ liệu ShareData (Metadata / Body), loại bỏ phân nhánh version, cơ chế clone service & cấu hình cờ (flag) gửi/nhận để test song song nhiều đối tác, đánh giá rủi ro nghẽn DB và nguyên tắc phân bổ thứ tự công việc.
 

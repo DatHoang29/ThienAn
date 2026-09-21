@@ -1,7 +1,7 @@
 ---
 tier: A
 read: full
-source: ../../../Plan/_source/audio/16-09-2026-refactor-backend-sharedata-worker.m4a
+source: ../../../Plan/_source/audio/16-09-2026/16-09-2026-refactor-backend-sharedata-worker.m4a
 date: 16-09-2026
 duration: ~04 phút 12 giây
 model: Gemini Multimodal Native Audio Transcribe
@@ -10,12 +10,12 @@ topic: ShareData (Chia sẻ Dữ liệu - ESHARE) - Thống nhất Kiến trúc 
 participants:
   - Anh Sơn (Tech Lead / Kiến trúc hệ thống)
   - Đạt (Dev Backend / Web API / Worker)
-  - Kiên (Dev Frontend)
+  - Hiếu (Dev Backend Worker / ShareData)
 ---
 
 # Kịch bản & Biên bản Cuộc họp: Định Hướng Tái Cấu Trúc (Refactor) Mã Nguồn Backend ShareData Worker
 
-> **Ghi chú:** Bản ghi được bóc tách trực tiếp bằng phương thức **Gemini Multimodal Native Audio Understanding** từ tệp âm thanh cuộc họp trưa ngày 16/09/2026 (`16-09-2026-refactor-backend-sharedata-worker.m4a`). Cuộc họp diễn ra giữa Anh Sơn (Tech Lead), Đạt (Backend) và Kiên (Frontend) ngay trước giờ nghỉ trưa, nhằm chốt phương án bẻ nhỏ kiến trúc xử lý (decoupling) trong phân hệ **ShareData Worker** (cả luồng Outbound xuất dữ liệu và Inbound nhận dữ liệu).
+> **Ghi chú:** Bản ghi được bóc tách trực tiếp bằng phương thức **Gemini Multimodal Native Audio Understanding** từ tệp âm thanh cuộc họp trưa ngày 16/09/2026 (`16-09-2026-refactor-backend-sharedata-worker.m4a`). Cuộc họp diễn ra giữa Anh Sơn (Tech Lead), Đạt (Backend) và Hiếu (ShareData) ngay trước giờ nghỉ trưa, nhằm chốt phương án bẻ nhỏ kiến trúc xử lý (decoupling) trong phân hệ **ShareData Worker** (cả luồng Outbound xuất dữ liệu và Inbound nhận dữ liệu).
 
 ---
 
@@ -66,7 +66,7 @@ Toàn bộ luồng xử lý xuất bản dữ liệu (Data Publication / Outboun
 | 2 | Xây dựng DTO `WrapperData` / Context | **Đạt (Backend)** | Đóng gói `PacketCode`, `PartnerCode` và `Data` vào một model context truyền xuyên suốt các step. |
 | 3 | Cô lập lỗi ở tầng Mapping | **Đạt (Backend)** | Nếu quá trình biến đổi dữ liệu thất bại, ghi log lỗi ngay tại Bước 2 và ngắt luồng, không đẩy sang Bước 3 (Sender). |
 | 4 | Tối ưu hóa cấu trúc thư mục Worker | **Đạt (Backend)** | Gom các class xử lý vào thư mục con (`Processes/` hoặc `Steps/`), đặt tên tường minh theo đúng vai trò. |
-| 5 | Họp thiết kế luồng Nhận (Inbound) | **Anh Sơn & Đạt & Kiên** | Tiếp tục phiên làm việc buổi chiều để bóc tách luồng Inbound (nhận gói tin đối tác $\to$ xử lý mapping $\to$ lưu CSDL). |
+| 5 | Họp thiết kế luồng Nhận (Inbound) | **Anh Sơn & Đạt & Hiếu** | Tiếp tục phiên làm việc buổi chiều để bóc tách luồng Inbound (nhận gói tin đối tác $\to$ xử lý mapping $\to$ lưu CSDL). |
 
 ---
 
@@ -87,27 +87,27 @@ Toàn bộ luồng xử lý xuất bản dữ liệu (Data Publication / Outboun
 | `01:29` | **Anh Sơn** | Còn hiện tại thì nó đang hơi... |
 | `01:31` | **Đạt** | Hơi dính, gom nhiều quá anh. |
 | `01:33` | **Anh Sơn** | Nó hơi dính nhiều quá, thì sau này mốt sửa lại cái phần lấy dữ liệu đi, là cũng phải vô trong này để sửa phần đó. Thì lúc đó là mình chia từng hàng nữa, nó xử lý là mình vô đúng chỗ xử lý dữ liệu mình sửa thôi. Còn phía dưới, nguyên cái mấy cái luồng phía dưới mình không có sửa. Nó sẽ đỡ hơn cho mình. Thì có thể chia từng từng từng file, ví dụ như trong cái thằng Publication đi, thì có thể tạo cái thư mục gì đó: Process hay cái gì đó, thì nó sẽ chia từng process. Ví dụ process liên quan đến lấy dữ liệu đi, process liên quan đến xử lý dữ liệu, mapping, process liên quan đến là gửi ra... Thì thằng chính là thằng class này gọi là class kia... |
-| `02:18` | **Kiên** | Loose coupling á hả? |
+| `02:18` | **Hiếu** | Loose coupling á hả? |
 | `02:19` | **Anh Sơn** | Hả? |
-| `02:20` | **Kiên** | Loose coupling á? |
+| `02:20` | **Hiếu** | Loose coupling á? |
 | `02:21` | **Đạt** | Đúng rồi, nói chung là cái class đó thể hiện đúng vai trò của nó. Khi mà mình sửa chữa là mình vô nhanh được, còn không là... |
 | `02:29` | **Anh Sơn** | Đúng! Ví dụ như là giờ... giờ mình cần thay đổi lại lấy dữ liệu đi, là mình sẽ biết vô đúng cái thằng class lấy dữ liệu thôi, mình sửa thôi. Chứ không có ngồi vô một cái class chà bá rồi mình phải đi tìm. |
 | `02:40` | **Đạt** | Giống như cái phần mà ghi log á, hiện tại em đang để ở đây nè, để biết ở đây là có log thôi á. |
 | `02:45` | **Anh Sơn** | Đi tìm nó sẽ hơi khó, tại cái luồng cái luồng lớn của mình nó hơi rối. |
-| `02:50` | **Kiên** | Cho em ấy đi. |
+| `02:50` | **Hiếu** | Cho em ấy đi. |
 | `02:51` | **Anh Sơn** | Nó hơi nhiều bước. Thôi đi ăn đi! |
-| `02:53` | **Kiên** | Thôi ngồi... thôi ngồi nốt đi! Chiều em còn làm một đống việc nữa! |
+| `02:53` | **Hiếu** | Thôi ngồi... thôi ngồi nốt đi! Chiều em còn làm một đống việc nữa! |
 | `02:56` | **Anh Sơn** | Người ta đói dưới! |
 | `02:57` | **Đạt** | Mới nạp kẹo mà em? |
 | `02:58` | **Anh Sơn** | Làm cái gì? |
-| `03:00` | **Kiên** | Chiều làm ShareData sửa lại, mai qua VideoWall nè! |
+| `03:00` | **Hiếu** | Chiều làm ShareData sửa lại, mai qua VideoWall nè! |
 | `03:03` | **Anh Sơn** | Ý là giờ nói cái gì? |
-| `03:04` | **Kiên** | Giờ nói cái luồng nhận của em. |
+| `03:04` | **Hiếu** | Giờ nói cái luồng nhận của em. |
 | `03:06` | **Anh Sơn** | Thôi nhiều lắm! |
-| `03:07` | **Kiên** | Em làm em cũng thấy nhiều lắm... Má, cái luồng nhận... |
+| `03:07` | **Hiếu** | Em làm em cũng thấy nhiều lắm... Má, cái luồng nhận... |
 | `03:09` | **Anh Sơn** | Tao thấy ngồi nói cũng phải 20 phút á! |
-| `03:11` | **Kiên** | Cái luồng nhận của em chắc nó nhiều gấp đôi cái luồng gửi của anh Đạt luôn á! |
+| `03:11` | **Hiếu** | Cái luồng nhận của em chắc nó nhiều gấp đôi cái luồng gửi của anh Đạt luôn á! |
 | `03:14` | **Đạt** | Thôi để chiều đi, xong rồi... |
-| `03:20` | **Kiên** | Phải tắt cái kia rồi lát mới làm... |
+| `03:20` | **Hiếu** | Phải tắt cái kia rồi lát mới làm... |
 | `03:22` | **Anh Sơn** | Anh có cái đồ bấm... |
 | `03:30` | *(Mọi người tắt máy và chuẩn bị đi ăn trưa)* | — |

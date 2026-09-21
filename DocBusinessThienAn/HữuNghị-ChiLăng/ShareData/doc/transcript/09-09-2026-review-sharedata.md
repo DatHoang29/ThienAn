@@ -2,9 +2,9 @@
 tier: A
 read: full
 source:
-  - ../../../Plan/_source/audio/MakeUp Chi Ngô Gò Vấp 3.m4a (35:36)
-  - ../../../Plan/_source/audio/MakeUp Chi Ngô Gò Vấp 4.m4a (25:41)
-date: 2026-09-09
+  - ../../../Plan/_source/audio/09-09-2026/09-09-2026-review-sharedata-phan-1.m4a (35:36)
+  - ../../../Plan/_source/audio/09-09-2026/09-09-2026-review-sharedata-phan-2.m4a (25:41)
+date: 09-09-2026
 model: Gemini Multimodal Native Audio Transcribe
 status: verified
 topic: Review ShareData toàn diện (Cấu hình gói tin, SQL Alias Mapping, Lịch trình gửi theo giờ/data mới, Fix lỗi Hoa-Thường, Ghi log & Tinh gọn UI)
@@ -15,7 +15,7 @@ participants:
 ---
 
 # Kịch bản & Biên bản Cuộc họp: Review Toàn diện Phân hệ ShareData
-### (Nguồn từ: MakeUp Chi Ngô Gò Vấp 3 & MakeUp Chi Ngô Gò Vấp 4)
+### (Nguồn từ: 09-09-2026-review-sharedata-phan-1 & 09-09-2026-review-sharedata-phan-2)
 
 - **Thời lượng tổng:** 61 phút 17 giây (Tệp 3: 35:36 | Tệp 4: 25:41)
 - **Người tham gia:** Anh Sơn, Hiếu, Đạt
@@ -63,9 +63,8 @@ participants:
 
 | Người phụ trách | Hạng mục công việc | Chi tiết kỹ thuật |
 |---|---|---|
-| **Hiếu** | Service Worker & Mapping | - Sửa logic Mapping Engine: so khớp không phân biệt hoa thường (`OrdinalIgnoreCase`).<br>- Bỏ chế độ gửi theo sự kiện/gửi 1 lần; thêm switch tự động gửi khi có data mới.<br>- Bổ sung tính năng lập lịch chạy theo giờ cố định (Daily at 9:00 AM).<br>- Tinh gọn các trường thừa trong cấu hình gói tin. |
+| **Hiếu** | Service Worker & Giao diện Cấu hình | - Sửa logic Mapping Engine: so khớp không phân biệt hoa thường (`OrdinalIgnoreCase`).<br>- Bỏ chế độ gửi theo sự kiện/gửi 1 lần; thêm switch tự động gửi khi có data mới.<br>- Bổ sung tính năng lập lịch chạy theo giờ cố định (Daily at 9:00 AM).<br>- Tinh gọn các trường thừa trong cấu hình gói tin.<br>- Cập nhật giao diện: thêm trường chọn giờ chạy hàng ngày, thêm switch tự động gửi; chuyển danh sách trường cấu hình sang dạng Dropdown (tránh gõ tay). |
 | **Đạt** | Backend WebAPI & DB | - Xây dựng endpoint WebAPI nhận/gửi dữ liệu trực tiếp.<br>- Chuẩn hóa câu truy vấn SQL có Alias phục vụ mapping.<br>- Bổ sung cột lưu trạng thái và log kết quả gửi trực tiếp vào DB. |
-| **Kiên** | Frontend UI | - Cập nhật giao diện: thêm trường chọn giờ chạy hàng ngày, thêm switch tự động gửi.<br>- Chuyển danh sách trường cấu hình sang dạng Dropdown (tránh gõ tay). |
 
 ---
 
@@ -73,7 +72,7 @@ participants:
 
 ---
 
-### PHẦN 1: Tệp MakeUp Chi Ngô Gò Vấp 3 (35 phút 36 giây)
+### PHẦN 1: Tệp 09-09-2026-review-sharedata-phan-1.m4a (35 phút 36 giây)
 > *Trọng tâm: Luồng gửi trực tiếp WebAPI, SQL Alias Mapping, Kiểm tra dữ liệu 291 dòng và Lỗi CodeSet.*
 
 #### [00:00 - 05:00] Tranh luận về luồng gửi: Bỏ trung gian ghi file
@@ -125,7 +124,7 @@ participants:
 
 ---
 
-### PHẦN 2: Tệp MakeUp Chi Ngô Gò Vấp 4 (25 phút 41 giây)
+### PHẦN 2: Tệp 09-09-2026-review-sharedata-phan-2.m4a (25 phút 41 giây)
 > *Trọng tâm: Lịch trình gửi dữ liệu, Bỏ gửi sự kiện/1 lần, Switch tự động gửi, Fix lỗi hoa/thường và Thu phí.*
 
 #### [00:00 - 05:00] Thiết lập Lịch trình gửi dữ liệu: Định kỳ vs Theo giờ cố định

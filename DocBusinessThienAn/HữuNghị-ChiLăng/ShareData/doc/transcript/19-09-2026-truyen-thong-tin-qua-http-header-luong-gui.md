@@ -1,7 +1,9 @@
 ---
 tier: A
 read: full
-source: _source/MakeUp Chi Ngô Gò Vấp.m4a, _source/MakeUp Chi Ngô Gò Vấp 2.m4a
+source:
+  - ../../../Plan/_source/audio/19-09-2026/19-09-2026-sharedata-http-header-phan-1.m4a
+  - ../../../Plan/_source/audio/19-09-2026/19-09-2026-sharedata-http-header-phan-2.m4a
 date: 2026-09-19
 model: Gemini Native Audio Multimodal
 status: verified
@@ -11,7 +13,7 @@ status: verified
 
 **Ngôn ngữ:** Tiếng Việt  
 **Thời lượng:** ~03:37 (Hợp nhất trọn vẹn từ 2 file ghi âm: File 1: 03:13, File 2: 00:23)  
-**File nguồn:** `_source/MakeUp Chi Ngô Gò Vấp.m4a`, `_source/MakeUp Chi Ngô Gò Vấp 2.m4a`  
+**File nguồn:** `../../../Plan/_source/audio/19-09-2026/19-09-2026-sharedata-http-header-phan-1.m4a`, `../../../Plan/_source/audio/19-09-2026/19-09-2026-sharedata-http-header-phan-2.m4a`  
 **Ngày họp:** 19/09/2026  
 **Chủ đề:** Thống nhất phương án bổ sung thông tin định danh đối tác (`PartnerCode`) và ánh xạ (`Mapping`) vào HTTP Header khi gọi REST API ở luồng gửi (Outbound); phía nhận (Inbound) bóc tách Header để đối soát và tải toàn bộ danh mục Mapping lên RAM/cache để tra cứu nhanh; giữ nguyên Body HTTP là mảng payload thuần túy.
 

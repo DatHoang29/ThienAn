@@ -72,13 +72,13 @@ chỉ nêu ra để cân nhắc thêm sau.
 4. **Dead-link tài liệu (không liên quan code, phát hiện phụ khi đối chiếu):** cả `INDEX.md` (Meeting
    Matrix, dòng 2026-08-28) và `VideoWall/README.md` (3 chỗ) đều trỏ tới
    `doc/transcript/2026-08-28-videowall-chuan-bi.md` — file này **không tồn tại** trên đĩa (thư mục
-   `transcript/` chỉ có `00-catalog.md`, `2026-09-09-...md`, `2026-09-11-videowall-script.md`). Bản
+   `transcript/` chỉ có `00-catalog.md`, `09-09-2026-videowall-phan-quyen-va-layout.md`, `11-09-2026-videowall-script.md`). Bản
    ghi họp 28/08 có vẻ chưa từng được chuyển thể thành `.md`, chỉ có ghi chú "(Lưu trữ nội bộ)" cho
    audio. Đã sửa các link chết này thành ghi chú "chưa có bản transcript .md" thay vì trỏ tới file
    không tồn tại (xem mục cập nhật doc bên dưới).
 5. **`VideoWall/README.md` Tier Table thiếu 3 dòng**: 2 báo cáo audit ngày 2026-09-14
    (`Vw_Entities_WritePath_Audit_2026-09-14.md`, `Vw_FE_vs_WPF_Feature_Comparison_2026-09-14.md`),
-   báo cáo review này, và file transcript `2026-09-11-videowall-script.md` (đã tồn tại trên đĩa
+   báo cáo review này, và file transcript `11-09-2026-videowall-script.md` (đã tồn tại trên đĩa
    nhưng chưa được liệt kê). Đã bổ sung.
 
 ## Xác nhận bằng build + test thật (không suy đoán)
@@ -121,7 +121,7 @@ Không có breaking change nào với các rename/field mới (`TargetSceneId`, 
   thích ngược, `EventType` lạ → log "unhandled" (không crash). `useTransporterVideoWallScene.ts`
   lọc thêm 1 lớp nữa ở hook. 3/7 `EventType` biết trước (`DeviceStatus`, `SlotPortUpdated`,
   `SourceSynced`) rơi vào nhánh log mặc định — đúng như prompt cho phép, không phải thiếu sót.
-- **Đối chiếu transcript họp `2026-09-11-videowall-script.md`**: khớp kiến trúc phân tầng NATS
+- **Đối chiếu transcript họp `11-09-2026-videowall-script.md`**: khớp kiến trúc phân tầng NATS
   (FE→BE→NATS→Service→Controller, mục 1.1) và khớp 3 trụ cột chức năng Thiết lập/Điều
   khiển/Giám sát (mục 1.2) với danh sách `EventType` đã xử lý. Ghi chú thô trong transcript
   (dòng 183-194) từng liệt 3 subject riêng (`control`/`status`/`data`) — kiến trúc cuối cùng đã gộp
