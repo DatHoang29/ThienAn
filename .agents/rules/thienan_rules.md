@@ -145,7 +145,7 @@ Cấu hình lưu chuẩn json db
 5.  **TÔN TRỌNG CODE SỬA TAY & Ý ĐỊNH NGƯỜI DÙNG (PRESERVE USER MANUAL EDITS & PREFERENCES)**: Khi người dùng đã chỉ định cách viết (VD: dùng `while (reader.Read())` đồng bộ) hoặc tự sửa tay/bỏ bớt điều kiện, AI KHÔNG ĐƯỢC TỰ Ý hoàn tác (revert) hoặc sửa ngược lại về cách viết cũ trong các lần refactor tiếp theo.
 6.  **GIỮ NGUYÊN THUẬT NGỮ TIẾNG ANH CHUYÊN NGÀNH (KEEP TECHNICAL ENGLISH KEYWORDS AS-IS)**: Các từ tiếng Anh mang tính chất thuật ngữ kỹ thuật, tên thuộc tính, tên tham số giao thức (protocol/API), tên tính năng, hoặc keyword nghiệp vụ (như `Probe`, `Ping`, `WallNo`, `Video Wall`, `Outputs`, `Inputs`, `SubWindow`, `Scene`, `Preset`, `Payload`, `Endpoint`, `Path Parameters`, `Body Parameters`, `Advanced Parameters`, `Digest Auth`, `Circuit Breaker`...) BẮT BUỘC giữ nguyên tiếng Anh gốc, TUYỆT ĐỐI KHÔNG dịch gượng ép sang tiếng Việt (như dịch `Probe` thành "khảo sát", `WallNo` thành "tường số", `Video Wall` thành "tường ghép", `SubWindow` thành "cửa sổ con"...) gây tối nghĩa, nhập nhằng và khó đối chiếu với tài liệu/spec chuẩn.
 7.  **TUYỆT ĐỐI KHÔNG CHẠY THỦ CÔNG CÂU LỆNH `ALTER TABLE` / DDL (KỂ CẢ TRÊN LOCAL LẪN DEV `10.10.8.30`)**: AI tuyệt đối không được tự ý soạn và thực thi các câu lệnh DDL thủ công (`ALTER TABLE`, `CREATE TABLE`, `DROP COLUMN`,... qua sqlcmd, PowerShell hay SqlConnection) trên bất kỳ database nào. Khi thêm bảng mới hoặc field/cột mới vào Entity, BẮT BUỘC phải tận dụng cơ chế Code-First tự động của SqlSugar (`EnableInitDb`, `EnableInitTable`, `EnableIncreTable`) để framework tự động đồng bộ schema một cách an toàn và chuẩn hóa.
-8.  **TỰ ĐỘNG DỌN DẸP FILE PROMPT VÀ GHI CHÚ TẠM KHI HOÀN TẤT TASK (MANDATORY AUTO-CLEANUP)**: Khi một task hoàn tất (code và bài test liên quan đã pass 100%, sẵn sàng báo cáo nghiệm thu), AI **BẮT BUỘC** tự động xóa file prompt thực thi (`DocBusinessThienAn/<Dự-án>/<PhânHệ>/Prompt/*-prompt*.md` hoặc `{task-slug}.md`) và các ghi chú tạm (`.agents/memory/*-scratch.md`) trước khi gửi phản hồi nghiệm thu cuối cùng. TUYỆT ĐỐI KHÔNG chờ người dùng nhắc. (Chi tiết xem mục 13 & 14 bên dưới).
+8.  **CẤM TỰ ĐỘNG XÓA FILE PROMPT KHI HOÀN TẤT TASK (NO AUTO-DELETE PROMPT FILES — KEEP FOR USER REVIEW)**: Khi một task/prompt hoàn tất (kể cả khi code và bài test đã pass 100%), AI **TUYỆT ĐỐI KHÔNG tự động xóa** file prompt thực thi (`DocBusinessThienAn/<Dự-án>/<PhânHệ>/Prompt/*-prompt*.md` hoặc `{task-slug}.md`). BẮT BUỘC GIỮ LẠI file prompt trong thư mục để lập trình viên review, kiểm tra và đối chiếu sau khi code change. Chỉ xóa file prompt khi người dùng đã review xong và có lệnh xóa trực tiếp. (Chi tiết xem mục 13 & 14 bên dưới).
 
 > [!NOTE]
 > - Các quy chuẩn code/hạ tầng chung của dự án (Docker, Entity, Swagger, header comment...) áp dụng cho **cả người lẫn AI** — xem tại mục 5 bên dưới, không lặp lại ở đây để tránh trùng lặp nội dung.
@@ -401,10 +401,10 @@ tests/
 - **Nơi lưu chuẩn (bắt buộc trong repo) — mỗi phân hệ có 2 thư mục riêng `Plan/` và `Prompt/` (chốt 2026-09-16)**:
   - `DocBusinessThienAn/<Dự-án>/<PhânHệ>/Plan/` — CHỈ chứa tài liệu SỐNG (plan tổng thể, review tiến
     độ), KHÔNG chứa prompt dùng-1-lần. VD: `DocBusinessThienAn/HữuNghị-ChiLăng/VideoWall/Plan/`.
-  - `DocBusinessThienAn/<Dự-án>/<PhânHệ>/Prompt/` — CHỈ chứa prompt thực thi từng bước dùng-1-lần,
-    tự xoá sau khi thực thi xong. VD:
-    `DocBusinessThienAn/HữuNghị-ChiLăng/VideoWall/Prompt/`. Chưa có prompt nào thì KHÔNG tạo thư mục
-    rỗng trước — tạo khi có file prompt đầu tiên. Xem chi tiết ở mục 19.2 bên dưới.
+  - `DocBusinessThienAn/<Dự-án>/<PhânHệ>/Prompt/` — CHỈ chứa prompt thực thi từng bước. AI **TUYỆT
+    ĐỐI KHÔNG tự động xóa** sau khi thực thi xong để người dùng review và đối chiếu sau khi code
+    change. VD: `DocBusinessThienAn/HữuNghị-ChiLăng/VideoWall/Prompt/`. Chưa có prompt nào thì KHÔNG tạo
+    thư mục rỗng trước — tạo khi có file prompt đầu tiên. Xem chi tiết ở mục 19.2 bên dưới.
   - `DocBusinessThienAn/HữuNghị-ChiLăng/Plan/` (top-level, KHÔNG có phân hệ con) chỉ còn dùng cho kế
     hoạch/biên bản họp **XUYÊN phân hệ** (toàn tuyến, liên quan ≥ 2 phân hệ cùng lúc) — không đặt
     prompt/plan riêng của 1 phân hệ cụ thể ở đây nữa.
@@ -412,11 +412,11 @@ tests/
 - **Đặt tên**: `<task-slug>-prompt.md` (trong `Prompt/`) hoặc `<Xx>_MasterPlan_<ngày>.md` /
   `<Xx>_Review_<...>.md` (trong `Plan/`) — kebab-case cho prompt, tiếng Việt không dấu hoặc tiếng Anh.
 - **Chế độ Plan (ExitPlanMode)**: Nếu harness ép ghi plan vào `~/.claude/plans/`, ngay sau khi plan được duyệt BẮT BUỘC sao chép vào đúng thư mục (`Plan/` hoặc `Prompt/` tuỳ loại nội dung) của phân hệ tương ứng trong repo (xem trên) và coi bản trong repo là bản chính thức; báo người dùng đường dẫn trong repo, không phải `~/.claude/plans/`.
-- **Auto-cleanup**: Xoá file trong `Prompt/` sau khi task hoàn tất (khớp `*-prompt*.md`,
-  `{task-slug}.md`, và ghi chú tạm `.agents/memory/*-scratch.md` — xem mục 14 bên dưới). **Không bao
-  giờ áp dụng cho file trong `Plan/`** — các file này tồn tại lâu dài, chỉ xoá khi người dùng yêu cầu
-  rõ ràng. Vì đã tách thư mục, không cần dòng cảnh báo "KHÔNG xoá" trong từng file `Plan/` nữa — bản
-  thân thư mục `Plan/` đã là tín hiệu đủ rõ.
+- **CẤM Auto-cleanup file Prompt (Keep for User Review)**: AI **TUYỆT ĐỐI KHÔNG tự động xóa** file trong `Prompt/`
+  (khớp `*-prompt*.md`, `{task-slug}.md`) sau khi task hoàn tất. Bắt buộc giữ lại để người dùng review sau code
+  change. Chỉ xóa khi người dùng đã nghiệm thu và có chỉ định xóa rõ ràng.
+  (Đối với file trong `Plan/`: luôn là tài liệu sống, không bao giờ tự xóa. Đối với ghi chú tạm `.agents/memory/*-scratch.md`:
+  xem mục 14 bên dưới).
 
 ---
 
@@ -430,7 +430,7 @@ tests/
   - Đặt tên **`<task-slug>-scratch.md`** (hậu tố `-scratch` là dấu hiệu duy nhất để dọn tự động, KHÔNG dựa vào tên riêng của từng task).
   - Frontmatter thêm `metadata.lifetime: transient`.
   - **KHÔNG** thêm vào index `.agents/memory/MEMORY.md`; nếu buộc phải thêm để tra cứu trong phiên thì cuối task **phải xoá kèm dòng index đó**.
-- **BẮT BUỘC TỰ ĐỘNG XOÁ CUỐI TASK**: khi task hoàn tất (đã có kết quả cuối và đã báo cáo cho người dùng), AI **tự động xoá toàn bộ** `.agents/memory/*-scratch.md` cùng mọi dòng index trỏ tới chúng — **không hỏi lại**, không giữ "cho lần sau". Việc này nằm cùng nhóm với auto-cleanup file prompt/plan và thư mục artifact tạm (`tests/TestResults/`, `bin`/`obj` tạm do AI sinh ra).
+- **BẮT BUỘC TỰ ĐỘNG XOÁ CUỐI TASK ĐỐI VỚI SCRATCH TẠM**: khi task hoàn tất (đã có kết quả cuối và đã báo cáo cho người dùng), AI **tự động xoá toàn bộ** `.agents/memory/*-scratch.md` cùng mọi dòng index trỏ tới chúng — **không hỏi lại**, không giữ "cho lần sau". (Lưu ý: File `*-prompt*.md` KHÔNG tự xóa mà giữ lại cho người dùng review theo mục 13; chỉ xóa scratchpad tạm và thư mục artifact tạm `tests/TestResults/`, `bin`/`obj` tạm do AI sinh ra).
 - **Cần lại thì đo lại**: lần sau gặp cùng vấn đề thì chạy lại và viết ghi chú mới, TUYỆT ĐỐI KHÔNG tin số liệu trong bản scratch cũ.
 - **Muốn giữ lâu dài thì đặt đúng chỗ, không nhét vào scratch**: nội dung thường trú → memory chuẩn trong `.agents/memory/` (có index trong `MEMORY.md`); hướng dẫn thao tác thuộc một khu vực code cụ thể → README của khu vực đó (ví dụ cách chạy test → `tests/README.MD`).
 
@@ -529,11 +529,10 @@ tests/
        + backlog ưu tiên hoá, **cập nhật liên tục** (không tạo file mới mỗi lần cập nhật — sửa trực
        tiếp file hiện có, chỉ đổi tên file kèm ngày mới khi có thay đổi lớn về phạm vi), cùng các
        báo cáo review SỐNG liên quan (VD `Vw_BE_Review_PostImplementation_*.md`).
-    2. **`<PhânHệ>/Prompt/`** (VD `VideoWall/Prompt/`) — CHỈ chứa prompt thực thi từng bước dùng
-       1 lần: mỗi task/fix riêng = đúng 1 file `<task-slug>-prompt.md`, bị xoá tự động sau khi thực
-       thi xong (Auto-Cleanup, xem mục 13). Vì đã tách thư mục riêng, KHÔNG cần chèn dòng cảnh báo
-       "KHÔNG xoá" vào từng file `Plan/` nữa — bản thân việc file nằm trong `Plan/` hay `Prompt/` đã
-       đủ phân biệt.
+    2. **`<PhânHệ>/Prompt/`** (VD `VideoWall/Prompt/`) — chứa prompt thực thi từng bước: mỗi task/fix
+       riêng = đúng 1 file `<task-slug>-prompt.md`. AI **TUYỆT ĐỐI KHÔNG tự động xóa** sau khi thực
+       thi xong (BẮT BUỘC giữ lại để người dùng review sau khi code change hoàn tất; chỉ xóa khi người
+       dùng đã nghiệm thu và yêu cầu trực tiếp).
   - Khi hoàn tất 1 prompt hoặc đổi trạng thái backlog, BẮT BUỘC cập nhật lại `Vw_MasterPlan_*.md`
     (trong `Plan/`) tương ứng của phân hệ đó (đừng để MasterPlan lạc hậu so với trạng thái file
     prompt thật trong `Prompt/`).

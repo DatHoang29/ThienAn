@@ -1,38 +1,25 @@
 # ShareData — Prompt
 
-Thư mục này chỉ chứa **prompt thực thi từng bước, dùng 1 lần** cho phân hệ ShareData
-(`<task-slug>-prompt.md`) — mỗi task/fix riêng = đúng 1 file. Sau khi thực thi xong, file prompt bị
-**xoá tự động** theo quy ước Auto-Cleanup (`thienan_rules.md` mục 13/19.2).
+Thư mục này chứa **prompt thực thi** cho phân hệ ShareData (`<task-slug>-prompt.md`). Sau khi một task đã triển khai, kiểm thử và nghiệm thu xong, prompt được giữ lại để lập trình viên review và đối chiếu sau khi code change hoàn tất (chỉ xóa khi người dùng trực tiếp yêu cầu theo `.agents/rules/thienan_rules.md`).
 
-Tài liệu SỐNG (plan tổng thể, review tiến độ — không bị xoá) nằm ở [`../Plan/`](../Plan/), không
-đặt ở đây.
+Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư mục này.
 
-## Đang chờ thực thi — Backend Worker (luồng GỬI)
+## Đang chờ thực thi — Backend Worker Outbound
 
-🟢 **Ba prompt M1 · N1 · SV-1a đã chạy xong 18/09** nhờ bản bàn giao
-[`TargetShapeJson.md`](../doc/TargetShapeJson.md). **Còn đúng một prompt**, và nó cũng vừa hết chờ.
+| Thứ tự | Prompt | Trạng thái | Phạm vi |
+|---:|---|---|---|
+| **1** | [Outbound gửi nối đuôi theo checkpoint](sharedata-outbound-gui-noi-duoi-prompt.md) | 🟢 **Sẵn sàng thực thi** | Bảng mốc riêng `(PartnerCode, PacketCode, LastTime, LastKey)`; cursor kép; paging có budget; commit theo page có lease guard; 106 lọc `Source` WIM từ cấu hình. Không làm NATS/CDC/Inbound/`SendOnNewData` |
+| **2** | [Cờ "chỉ gửi khi có dữ liệu mới"](sharedata-event-gui-khi-co-du-lieu-moi-prompt.md) | 🟠 **Tạm hoãn — không thực thi** | Chờ bàn và chốt kiến trúc phát hiện thay đổi bằng **NATS hay CDC**. Nội dung cũ còn trộn với nối đuôi, chỉ dùng làm hồ sơ tham khảo |
 
-| Thứ tự | Prompt | Việc | Ghi chú |
-|---|---|---|---|
-| **1** | [Cờ "chỉ gửi khi có dữ liệu mới"](sharedata-event-gui-khi-co-du-lieu-moi-prompt.md) | **SV-12** | 🟢 **HẾT CHỜ — sẵn sàng chạy.** Hiếu đã bàn giao cột **`ShareDataSubscription.SendOnNewData`** (`bool?`) ở commit `7f035e63`. 🔴 **Ngữ nghĩa chốt 20/09: lịch quyết định KHI NÀO chạy, cờ chỉ quyết định LẤY BAO NHIÊU** — `null`/`false` = lấy toàn bộ, `true` = chỉ dòng đổi sau cursor; cả `continuous` và `daily` đều dùng được cờ · **chỉ có nghĩa với chiều GỬI** |
+### Quyết định hiện hành
 
-⚠️ Điều kiện còn lại của prompt **vẫn phải kiểm trước khi chạy**: cột `LastDataId` chưa được duyệt (thêm
-qua **CodeFirst**, không tệp `.sql`) · đối tác chưa có contract biểu diễn soft-delete · chưa thỏa thuận
-`Idempotency-Key` nên chấp nhận **at-least-once** · gói 110 `NotReady`, gói **106** và 111 `Disabled`.
+- Gửi nối đuôi phải hoàn thiện trước; cơ chế phát hiện dữ liệu mới là task riêng.
+- Cursor lưu ở bảng `ShareDataOutboundCheckpoint`, không thêm `LastDataId` vào `ShareDataSubscription`.
+- Gói 106 **không bị gỡ**: policy `AlwaysIncremental`, 4 field tải trọng thiếu giữ `null`, dữ liệu chỉ được lấy khi `TmsTrafficData.Source` thuộc allow-list cấu hình. Mặc định allow-list rỗng.
+- Bảo đảm giao hàng là **at-least-once**; tin xóa và `Idempotency-Key` vẫn hoãn.
+- Snapshot 101 và 105 còn vấn đề khối lượng query độc lập; prompt nối đuôi không tuyên bố đã sửa hai vấn đề đó.
 
-🔴 **Gói 106 đã CHỐT BỎ (20/09)** — nguồn dữ liệu tải trọng **không tồn tại** trong CSDL: bản khai
-`ShareDataTable` trỏ vào `TmsTrafficData` (bảng dò xe VDS của gói 103), 4/11 trường cốt lõi không có
-cột, 3 trạm cân `WOS01`·`WOS02`·`WOS03` đã khai nhưng 0 dòng dữ liệu, và không bảng nào trong 150
-entity chứa tải trọng. Việc phải làm là **gỡ `QueryPacket106`**, không sửa cursor cho nó.
-
-🔴 **Hai việc phải làm TRƯỚC khi bật cờ** — xem mục *Hiện trạng* trong prompt: gói **101** hiện ra
-≈ **449.000 dòng** (JOIN `TmsTrafficStatistic` không chọn dòng mới nhất) và gói **105** lấy trọn
-`TollTransactionOut` (chưa đo). Phân trang không cứu được hai gói này.
-
-📌 **Phân kỳ (chốt 18/09):** việc liên quan **mã đối tác** hoặc **clone service** là **kỳ cuối** — xem
-khối *Phân kỳ* trong [`Sd_MasterPlan_16-09-2026.md`](../Plan/Sd_MasterPlan_16-09-2026.md).
-
-## Đã thực thi và xoá theo quy ước Auto-Cleanup
+## Đã thực thi và xoá theo Auto-Cleanup
 
 | Prompt | Kết quả |
 |---|---|
@@ -45,6 +32,4 @@ khối *Phân kỳ* trong [`Sd_MasterPlan_16-09-2026.md`](../Plan/Sd_MasterPlan_
 | `sharedata-worker-giai-meta-prompt.md` | 🟢 **18/09/2026** · việc **M1** |
 | `sharedata-bo-vo-httppayload-prompt.md` | 🟢 **18/09/2026** · việc **SV-1a** |
 
-*(Ghi chú: loạt prompt Frontend nhóm A–F từ review 16/09/2026,
-`16-09-2026-prompt-flatten-datapublication.md` và `sharedata-bo-qua-khi-khong-co-kenh-prompt.md`
-đều đã xoá theo quy tắc Auto-Cleanup.)*
+*(Loạt prompt Frontend nhóm A–F từ review 16/09/2026, `16-09-2026-prompt-flatten-datapublication.md` và `sharedata-bo-qua-khi-khong-co-kenh-prompt.md` cũng đã được xóa theo Auto-Cleanup.)*

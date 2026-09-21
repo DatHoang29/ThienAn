@@ -1,0 +1,116 @@
+# Project-level Codex Configuration for ThienAn
+
+[features]
+[features.code_mode]
+direct_only_tool_namespaces = ["mcp__gortex", "gortex"]
+
+[hooks]
+[[hooks.PostToolUse]]
+matcher = "^(Bash|apply_patch|(mcp__gortex__|gortex__)(explore|search|read|relations|trace|analyze))$"
+
+[[hooks.PostToolUse.hooks]]
+command = "gortex hook --agent=codex --mode=enrich"
+statusMessage = "Loading Gortex post-tool context..."
+timeout = 5
+type = "command"
+
+[[hooks.PreToolUse]]
+matcher = ".*"
+
+[[hooks.PreToolUse.hooks]]
+command = "gortex hook --agent=codex --mode=enrich"
+statusMessage = "Loading Gortex tool guidance..."
+timeout = 5
+type = "command"
+
+[[hooks.SessionStart]]
+matcher = "startup|resume|clear|compact"
+
+[[hooks.SessionStart.hooks]]
+command = "gortex hook --agent=codex --mode=enrich"
+statusMessage = "Loading Gortex graph orientation..."
+timeout = 5
+type = "command"
+
+[[hooks.Stop]]
+[[hooks.Stop.hooks]]
+command = "gortex hook --agent=codex --mode=enrich"
+statusMessage = "Checking Gortex evidence authority..."
+timeout = 5
+type = "command"
+
+[[hooks.UserPromptSubmit]]
+[[hooks.UserPromptSubmit.hooks]]
+command = "gortex hook --agent=codex --mode=enrich"
+statusMessage = "Surfacing Gortex graph context for your prompt..."
+timeout = 5
+type = "command"
+
+[mcp_servers]
+[mcp_servers.gortex]
+args = ["mcp"]
+command = "gortex"
+startup_timeout_sec = 90
+
+[mcp_servers.gortex.env]
+GORTEX_INDEX_WORKERS = "8"
+
+[mcp_servers.mssql_dev]
+args = [
+  "tool",
+  "run",
+  "--allow-roll-forward",
+  "dab",
+  "start",
+  "--mcp-stdio",
+  "role:anonymous",
+  "--LogLevel",
+  "Error",
+  "--config",
+  ".agents/dab-config.dev.json"
+]
+command = "dotnet"
+startup_timeout_sec = 60
+
+[mcp_servers.mssql_dev.env]
+ASPNETCORE_URLS = "http://127.0.0.1:0"
+
+[mcp_servers.mssql_staging]
+args = [
+  "tool",
+  "run",
+  "--allow-roll-forward",
+  "dab",
+  "start",
+  "--mcp-stdio",
+  "role:anonymous",
+  "--LogLevel",
+  "Error",
+  "--config",
+  ".agents/dab-config.staging.json"
+]
+command = "dotnet"
+startup_timeout_sec = 60
+
+[mcp_servers.mssql_staging.env]
+ASPNETCORE_URLS = "http://127.0.0.1:0"
+
+[mcp_servers.mssql_test]
+args = [
+  "tool",
+  "run",
+  "--allow-roll-forward",
+  "dab",
+  "start",
+  "--mcp-stdio",
+  "role:anonymous",
+  "--LogLevel",
+  "Error",
+  "--config",
+  ".agents/dab-config.test.json"
+]
+command = "dotnet"
+startup_timeout_sec = 60
+
+[mcp_servers.mssql_test.env]
+ASPNETCORE_URLS = "http://127.0.0.1:0"

@@ -16,8 +16,8 @@ Thư mục này gồm **2 khu** khác mục đích. Xác định bạn đang là
 
 ## Prompt & Tiến độ *(theo dõi việc đang chờ — xem trước khi hỏi "còn gì chưa xong")*
 
-> 2 thư mục riêng biệt theo bản chất nội dung — `Plan/` = tài liệu SỐNG (không Auto-Cleanup),
-> `Prompt/` = prompt bàn giao dùng 1 lần (tự xoá khi xong). Không còn nằm rải rác trong `doc/`.
+> 2 thư mục riêng biệt theo bản chất nội dung — `Plan/` = tài liệu SỐNG (không xoá),
+> `Prompt/` = prompt thực thi từng bước (giữ lại để người dùng review sau code change). Không còn nằm rải rác trong `doc/`.
 
 | Loại | File | Trạng thái |
 |---|---|---|
@@ -25,10 +25,7 @@ Thư mục này gồm **2 khu** khác mục đích. Xác định bạn đang là
 | Review chi tiết (`Plan/`, SỐNG, không xoá) | `Vw_BE_Review_PostImplementation_2026-09-14.md` | Đối chiếu từng hạng mục BE đã giao + build/test thật |
 | Prompt đang chờ thực thi (`Prompt/`) | `videowall-fe-grid-permission-visualization-prompt.md` | FE — sẵn sàng, BE prerequisite đã có |
 
-Prompt bàn giao dùng-1-lần khác (BE/FE) bị **xoá tự động** khỏi `Prompt/` sau khi thực thi xong
-(quy ước Auto-Cleanup) — nếu `Prompt/` trống nghĩa là không có việc tồn đọng dạng prompt tại thời
-điểm đọc; luôn coi `Plan/Vw_MasterPlan_*.md` là nguồn đúng nhất cho backlog còn lại (kể cả việc
-chưa kịp viết thành prompt).
+Prompt thực thi sau khi hoàn thành sẽ **được giữ lại** trong `Prompt/` để người dùng review và đối chiếu sau khi code change; chỉ xoá khi người dùng trực tiếp yêu cầu theo quy định dự án. Luôn coi `Plan/Vw_MasterPlan_*.md` là nguồn đúng nhất cho backlog còn lại.
 
 ---
 
