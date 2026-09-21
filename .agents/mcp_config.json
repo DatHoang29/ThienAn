@@ -1,5 +1,14 @@
 {
   "mcpServers": {
+    "gortex": {
+      "command": "gortex",
+      "args": [
+        "mcp"
+      ],
+      "env": {
+        "GORTEX_INDEX_WORKERS": "8"
+      }
+    },
     "mssql_dev": {
       "command": "dotnet",
       "args": [
