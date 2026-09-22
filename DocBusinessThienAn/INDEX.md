@@ -3,6 +3,7 @@
 > Tài liệu nghiệp vụ & kỹ thuật các dự án ThienAn.
 
 ## Đọc trước
+- QuyDinhChung/README.md: Tier Table quy định & quy trình chung Thiên Ân (Git Flow F10.TAC-CN01)
 - HữuNghị-ChiLăng/ShareData/README.md: Tier Table phân hệ ShareData
 - HữuNghị-ChiLăng/VideoWall/README.md: Tier Table phân hệ VideoWall
 - HữuNghị-ChiLăng/WOS/README.md: Tier Table phân hệ WOS (Trạm thời tiết Campbell CR1000X)
@@ -70,10 +71,11 @@ DocBusinessThienAn/
 
 ---
 
-## 4. Danh mục các dự án
+## 4. Danh mục các phân hệ & dự án
 
-| Dự án | Thư mục | Phân hệ trực thuộc | Chỉ mục chi tiết |
+| Dự án / Nhóm tài liệu | Thư mục | Phân hệ / Nội dung trực thuộc | Chỉ mục chi tiết |
 |---|---|---|---|
+| **Quy định chung Thiên Ân** | [`QuyDinhChung/`](QuyDinhChung/README.md) | `Git Flow (F10.TAC_CN01)`, `Quy chuẩn kỹ thuật` | [`QuyDinhChung/README.md`](QuyDinhChung/README.md) |
 | **Cao tốc Hữu Nghị – Chi Lăng** | [`HữuNghị-ChiLăng/`](HữuNghị-ChiLăng/INDEX.md) | `ShareData`, `VideoWall`, `WOS` | [`HữuNghị-ChiLăng/INDEX.md`](HữuNghị-ChiLăng/INDEX.md) |
 
 ---

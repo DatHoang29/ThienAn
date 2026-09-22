@@ -11,98 +11,161 @@ Tài liệu này định nghĩa quy trình đặt tên nhánh (branching workflo
 
 ---
 
-## 🌿 1. Quy Định Đặt Tên Nhánh (Branch Naming)
+## 👤 0. Quy Định Tài Khoản Git (Git Account Configuration)
 
-### 🏷️ Phân Loại Nhánh (Branch Types)
-*   **`release`**: Nhánh chứa sản phẩm đóng gói bàn giao tới khách hàng. Khi cập nhật nhánh này, bắt buộc tạo tag đánh dấu phiên bản (version tag).
-*   **`staging`**: Nhánh dùng để chạy thử nghiệm trên môi trường dàn dựng / UAT (User Acceptance Testing).
-*   **`hotfix`**: Nhánh sửa lỗi nhanh/khẩn cấp phát hiện trực tiếp trên môi trường release của khách hàng.
-*   **`dev`**: Nhánh phát triển chính (tích hợp các tính năng).
-*   **`feat`**: Nhánh phát triển một tính năng/chức năng mới (feature).
-*   **`fix`**: Nhánh sửa các lỗi phát sinh trong quá trình phát triển hoặc review code (fixbug).
-*   **`merge`**: Nhánh trung gian tạo ra để giải quyết xung đột hoặc merge code giữa các nhánh liên quan.
-*   **`preview`**: Nhánh dùng để xem trước code (preview) phục vụ việc tạo Pull Request và quản lý issue.
-*   **`exp`**: Nhánh thử nghiệm các công nghệ hoặc tính năng mới (experimental).
+> 📖 **Căn cứ biểu mẫu:** Quy định theo tài liệu chuẩn của công ty [`F10.TAC_CN01 - Hướng Dẫn Sử Dụng Git Flow và Các Lưu Ý Khi Commit Code`](../../DocBusinessThienAn/QuyDinhChung/doc/F10.TAC-CN01-git-rules.md).
 
-### ✍️ Cú Pháp Đặt Tên (Naming Syntax)
-Tên nhánh được đặt theo một trong hai cú pháp sau:
-*   **Cú pháp 1:** `[BranchKey]/[TaskCode]_[ten-cong-viec-viet-thuong-khong-dau-cach-nhau-gach-ngang]`
-*   **Cú pháp 2:** `[BranchKey]/[yyyyMMdd]-[ten-cong-viec-cach-nhau-gach-ngang]`
+Mọi nhân sự và lập trình viên khi tham gia dự án bắt buộc thiết lập thông tin tài khoản Git như sau:
+*   **Tên tài khoản (username):** Sử dụng phần tên đứng trước ký tự `@tacorp.vn` trong địa chỉ email công ty (Ví dụ: email `sonth@tacorp.vn` thì username là `sonth`).
+*   **Hình đại diện (avatar):** Chọn hình ảnh chỉn chu, rõ mặt, phù hợp với môi trường công sở (sử dụng ảnh thẻ hoặc tương đương).
+*   **Bổ sung họ tên thật:** Cập nhật đầy đủ họ và tên tiếng Việt có dấu vào thông tin profile cá nhân.
+*   **Email tài khoản:** Bắt buộc sử dụng địa chỉ email công ty cấp (`...@tacorp.vn`).
+
+---
+
+## 🌿 1. Quy Định Đặt Tên Nhánh & Lệnh Tạo Nhánh (Branch Naming & Creation)
+
+### 🏷️ Phân Loại Nhánh & Phân Quyền (Branch Types & Ownership)
+
+Dự án áp dụng 9 loại nhánh theo mô hình Git Flow chuẩn của Thiên Ân:
+
+| Nhánh (Branch) | Nhân sự phụ trách | Nhiệm vụ & Mục đích |
+|---|---|---|
+| **`release`** | Leader | Sản phẩm đóng gói bàn giao tới khách hàng. Quản lý và **bắt buộc tạo tag version**. |
+| **`staging`** | Leader | Quản lý môi trường dàn dựng / UAT (User Acceptance Testing) để khách hàng chạy thử nghiệm thực tế. |
+| **`dev`** | Leader | Nhánh phát triển chính (tích hợp các tính năng hoàn thiện). |
+| **`feat`** | Nhân sự thực hiện | Tạo mới, cập nhật, xóa tính năng/chức năng (feature). |
+| **`fix`** | Nhân sự thực hiện | Sửa các lỗi chức năng phát sinh trong quá trình dev/review code (fixbug). |
+| **`merge`** | Nhân sự thực hiện | Nhánh trung gian tạo ra để merge code và giải quyết xung đột giữa các thành viên. |
+| **`preview`** | Nhân sự thực hiện | Nhánh dùng để xem trước code phục vụ tạo Pull Request và quản lý issue. |
+| **`hotfix`** | Nhân sự thực hiện | Sửa lỗi nhanh/khẩn cấp phát hiện trực tiếp trên môi trường `release` của khách hàng. |
+| **`exp`** | Nhân sự thực hiện | Thử nghiệm các tính năng hoặc giải pháp công nghệ mới (experimental). |
+
+---
+
+### ✍️ Cú Pháp Đặt Tên Nhánh (Naming Syntax)
+
+Tên nhánh được đặt theo một trong các cú pháp chuẩn sau:
+*   **Cú pháp 1:** `[BranchKey]/[TaskCode]_[ten-cong-viec-viet-thuong-cach-nhau-boi-dau-gach-ngang]`
+*   **Cú pháp 2:** `[BranchKey]/[yyyyMMdd]-[TaskCode]_[ten-cong-viec-cach-nhau-gach-ngang]`
+*   **Cú pháp rút gọn (khi không có TaskCode):** `[BranchKey]/[yyyyMMdd]-[ten-cong-viec-cach-nhau-gach-ngang]`
 
 > [!TIP]
-> *   Thời gian định dạng theo: `yyyyMMdd` hoặc `yyyyMM`.
-> *   Nên đưa thêm **tên viết tắt của nhân sự** thực hiện vào tên nhánh để dễ dàng quản lý.
-> *   Tên nhánh viết bằng tiếng Việt không dấu hoặc tiếng Anh.
+> *   **Định dạng thời gian:** Sử dụng `yyyyMMdd` hoặc `yyyyMM`.
+> *   **Hậu tố nhân sự (Khuyến nghị):** Nên đưa thêm tên viết tắt của nhân sự thực hiện vào cuối tên nhánh (ví dụ: `-sonth`, `-dathp`, `-hieunv`) để dễ dàng quản lý và phân biệt.
+> *   **Ngôn ngữ:** Tên nhánh viết bằng **tiếng Việt không dấu** hoặc **tiếng Anh**, từ cách nhau bằng dấu gạch ngang `-`.
 
-#### 💡 Ví dụ:
+#### 💡 Ví dụ Đặt Tên Nhánh Chuẩn:
 *   `feat/20250101-XD1.2.2.5_map-location`
+*   `feat/20260922-XD1.2.2.5_map-location-dathp`
 *   `fix/20250102-XD1.2.2.5_fix-map-location`
 *   `merge/20250105-XD1.2.2.5_merge-code-dev-a-b`
 *   `release/20250110-v1.0.1`
 
 ---
 
-## 🔄 2. Luồng Vận Hành Nhánh (Branching Workflow)
+### 💻 Lệnh CLI Tạo Nhánh (`git checkout -b`)
 
-Thứ tự thực hiện quy trình tạo và quản trị nhánh trong dự án như sau:
+Khi bắt đầu làm tính năng hoặc sửa lỗi, lập trình viên thực hiện câu lệnh sau từ terminal:
 
-1.  **Khởi tạo**: Khi bắt đầu dự án, khởi tạo nhánh branch đầu tiên là `release` và commit code đầu tiên với cấu trúc thư mục quy định.
-2.  **Nhánh dev**: Tạo nhánh `dev` tương ứng từ nhánh `release`.
-3.  **Làm task**: Khi nhận chức năng mới, tạo branch `feat` tương ứng từ nhánh `dev`.
-4.  **Giải quyết xung đột**: Nếu có phát sinh cần merge lại code giữa các nhân sự, tạo nhánh `merge` để thực hiện merge code liên quan.
-5.  **Chuẩn bị PR**: Khi hoàn tất chức năng, để preview chức năng, tạo nhánh `preview` nếu cần thiết (đặc biệt đối với chức năng phức tạp, có merge code).
-6.  **Tạo Pull Request (PR)**: Nhân sự tạo pull request yêu cầu merge vào nhánh `dev` và tiến hành preview trên yêu cầu này.
-7.  **Duyệt code**: Sau khi preview hoàn tất, merge từ các nhánh `feat` / `preview` vào `dev` (chấp thuận pull request).
-8.  **Fixbug**: Sau khi test ở nhánh `dev/test/staging`, nếu phát sinh lỗi, tạo nhánh `fix` để sửa lỗi tương ứng.
-9.  **Staging**: Khi đã test hoàn tất, tạo nhánh `staging` để thiết lập môi trường dàn dựng/uat cho khách hàng test hoặc chạy thử nghiệm thực tế.
-10. **Hotfix**: Khi có lỗi phát sinh ở nhánh `release`, tạo nhánh `hotfix` để sửa lỗi gấp/nhỏ. Nếu thay đổi lớn hoặc không gấp, tiến hành xử lý theo quy trình thông thường qua `feat` -> `dev`.
-11. **Đóng gói**: Nhánh `release` đại diện cho sản phẩm hoàn thiện tới khách hàng, thực hiện tạo tag Git để đóng gói version.
+```bash
+# 1. Cập nhật nhánh dev mới nhất từ remote
+git checkout dev
+git pull origin dev
+
+# 2. Tạo nhánh feat mới để làm chức năng
+git checkout -b feat/20260922-XD1.2.2.5_map-location-dathp
+
+# Hoặc tạo nhánh fix để sửa lỗi
+git checkout -b fix/20260922-XD1.2.2.5_fix-map-location-dathp
+```
 
 ---
 
-## 📝 3. Quy Định Nội Dung Commit (Commit Message Rules)
+## 🔄 2. Luồng Vận Hành Nhánh & Xử Lý Xung Đột (Branching Workflow & Conflict Resolution)
+
+### 📌 Trình Tự Vận Hành Git Flow (11 Bước)
+
+1.  **Khởi tạo dự án:** Khởi tạo nhánh `release` đầu tiên và commit source code gốc của dự án với cấu trúc thư mục quy định.
+2.  **Tạo nhánh dev:** Tạo nhánh `dev` tương ứng từ nhánh `release`.
+3.  **Nhận chức năng mới:** Khi nhận chức năng mới, tạo branch `feat` tương ứng từ nhánh `dev`.
+4.  **Phát sinh merge chéo:** Nếu có phát sinh cần merge lại code giữa các nhân sự, tạo nhánh `merge` để thực hiện merge code liên quan mà không ảnh hưởng nhánh `dev`.
+5.  **Chuẩn bị Preview:** Khi hoàn tất chức năng, để preview chức năng, tạo nhánh `preview` nếu cần thiết (đặc biệt đối với chức năng phức tạp, có merge code từ nhiều nhánh).
+6.  **Tạo Pull Request (PR):** Nhân sự tạo Pull Request yêu cầu merge nhánh `feat` / `preview` vào nhánh `dev` và tiến hành preview trên yêu cầu này.
+7.  **Chấp thuận PR:** Sau khi preview và review hoàn tất, Leader phê duyệt merge từ các nhánh `feat` / `preview` vào `dev`.
+8.  **Sửa lỗi (Fixbug):** Sau khi test ở nhánh `dev` / `test` / `staging`, nếu phát sinh lỗi, tạo nhánh `fix` để sửa lỗi tương ứng rồi merge lại vào `dev`.
+9.  **Dàn dựng (Staging):** Khi đã test hoàn tất trên `dev`, Leader tạo nhánh `staging` để thiết lập môi trường dàn dựng / UAT cho khách hàng test hoặc chạy thử nghiệm thực tế.
+10. **Sửa lỗi khẩn cấp (Hotfix):** Khi có lỗi phát sinh trên `release`, tạo nhánh `hotfix` để sửa lỗi gấp / nhỏ. Nếu thay đổi lớn hoặc không gấp, xử lý theo quy trình thông thường qua `feat` -> `dev`.
+11. **Đóng gói phiên bản:** Nhánh `release` đại diện cho sản phẩm hoàn thiện tới khách hàng, Leader tiến hành tạo tag Git để đóng gói version (ví dụ: `v1.0.1`).
+
+---
+
+### 🔀 Quy Trình Xử Lý Xung Đột Khi Pull Request (PR Conflict Resolution)
+
+Trường hợp Pull Request bị báo lỗi xung đột (Conflict) — ví dụ nhánh `staging` PR lên `release`, hoặc nhánh `feat` PR lên `dev`:
+
+1.  **Kéo nhánh làm việc về local:** Kéo nhánh đang có PR về máy local (ví dụ: `git checkout staging && git pull origin staging`).
+2.  **Merge nhánh đích vào nhánh của mình:** Thực hiện merge nhánh đích vào nhánh local:
+    ```bash
+    git merge release    # (Nếu đang xử lý PR staging -> release)
+    # hoặc
+    git merge dev        # (Nếu đang xử lý PR feat -> dev)
+    ```
+3.  **Giải quyết xung đột:** Mở IDE (VS Code / Visual Studio) để đối chiếu, resolve conflict, chạy test kiểm tra để đảm bảo hệ thống build và pass kiểm thử.
+4.  **Commit code giải quyết xung đột:** Commit các file đã resolve conflict lên remote branch.
+5.  **Chấp thuận PR:** Refresh lại trang Pull Request trên GitLab/GitHub, kiểm tra trạng thái xanh và chấp thuận (approve & merge) Pull Request.
+
+---
+
+## 📝 3. Quy Định Nội Dung Commit & Lệnh `git commit -m` (Commit Rules & CLI Commands)
 
 ### 🏷️ Các Từ Khóa Summary Commit
-Khi thực hiện commit code, phần tiêu đề (summary) của commit bắt buộc bổ sung các từ khóa phân loại sau:
-*   **`feat`**: Commit thêm, hủy chức năng hoặc cập nhật cấu hình / thực thể / luồng xử lý (update). Khi đang làm việc trên nhánh `feat`, mọi cập nhật đều dùng tiền tố `feat`.
-*   **`fix`**: Sửa lỗi phát sinh trong quá trình kiểm thử trên nhánh `dev/test/staging` hoặc `hotfix` trên `release`.
-*   **`refactor`**: Cấu trúc lại mã nguồn / Tối ưu hóa code (không thay đổi hành vi hệ thống).
-*   **`chore`**: Các công việc bổ trợ khác không ảnh hưởng trực tiếp đến logic code (cập nhật tài liệu HDSD, viết test case, dọn dẹp code thừa...).
+Khi thực hiện commit code, phần tiêu đề (Summary) của commit bắt buộc bổ sung các từ khóa phân loại sau:
+*   **`feat`**: Commit thêm, hủy chức năng hoặc cập nhật cấu hình / thực thể / luồng xử lý (update).
+*   **`fix`**: Fix lỗi chức năng phát sinh khi review/dev trên `dev`/`staging` hoặc hotfix trên `release`.
+*   **`refactor`**: Cấu trúc lại mã nguồn / Tối ưu hóa code (giảm độ phức tạp, không làm thay đổi hành vi hệ thống).
+*   **`chore`**: Tất cả mọi thứ khác (cập nhật tài liệu HDSD, test case, bỏ code dư thừa, cấu hình build, ...).
 
 > [!IMPORTANT]
-> Thêm ký tự **`!`** ngay sau từ khóa (ví dụ: `fix!`, `feat!`) để nhấn mạnh đây là thay đổi lớn, có thể gây ảnh hưởng nghiêm trọng đến hệ thống hoặc làm đứt gãy luồng xử lý cũ (breaking changes).
+> Thêm ký tự **`!`** ngay sau từ khóa (ví dụ: `fix!`, `feat!`) để nhấn mạnh **Breaking Change** — thay đổi lớn có thể gây ảnh hưởng nghiêm trọng đến hệ thống hoặc làm đứt gãy luồng xử lý cũ.
 
-### ✍️ Cú Pháp Thông Điệp Commit (Commit Format)
+---
+
+### ✍️ Cú Pháp Thông Điệp Commit Chuẩn (Commit Format)
 
 #### Cú pháp Summary:
-`[Keyword]: [TaskCode (nếu có)] - [noi-dung-cong-viec-dung-cau-hanh-dong]`
-*(Ví dụ: `feat: XD1.2.2.5 - add map location` hoặc `fix: fix map location`)*
+`[Keyword]: [TaskCode (nếu có)] - [noi-dung-cong-viec-dung-cau-hanh-dong]`  
+*(Hoặc rút gọn khi không có TaskCode: `[Keyword]: [noi-dung-cong-viec-dung-cau-hanh-dong]`)*
 
 > [!TIP]
-> Nên thống nhất một ngôn ngữ chung (tiếng Việt hoặc tiếng Anh) xuyên suốt dự án. Tên công việc viết thường, có thể dùng dấu gạch ngang hoặc tiếng Việt có dấu tùy quy định nhóm.
+> *   Nên thống nhất một ngôn ngữ chung (tiếng Việt hoặc tiếng Anh) xuyên suốt dự án.
+> *   Sử dụng câu hành động cụ thể (ví dụ: `add map location`, `fix traffic info`, `cập nhật luồng đồng bộ`).
 
-#### Cấu trúc Description chi tiết:
-1.  **Dòng đầu tiên:** Ghi lại nội dung Summary.
-2.  **Hai dòng tiếp theo:** Bỏ trống.
-3.  **Nội dung chi tiết:** Gạch đầu dòng các công việc cụ thể đã thực hiện trong lần commit này.
-4.  **Thông tin tham chiếu (Metadata) nằm ở cuối:**
-    *   `Reviewer: [Tên người duyệt]` (nếu có review)
-    *   `CR: [Mã CR]` (nếu commit thuộc Change Request nào)
+#### Cấu trúc Description Chi Tiết:
+1.  **Dòng đầu tiên:** Ghi lại nguyên văn nội dung Summary.
+2.  **Hai dòng tiếp theo:** Bỏ trống (2 dòng newline).
+3.  **Nội dung chi tiết:** Gạch đầu dòng (`- `) các công việc cụ thể đã thực hiện trong lần commit này.
+4.  **Thông tin tham chiếu (Metadata) ở cuối commit:**
+    *   `Reviewer: [Tên người duyệt]` (nếu có người review, ví dụ: `Reviewer: SonTH`)
+    *   `CR: [Mã CR]` (nếu commit thuộc Change Request nào, ví dụ: `CR: CR0001-thay-doi-luong-gui-mail`)
     *   `Ref: [Mã tham chiếu]` (nếu sửa đổi từ commit/issue log nào trước đó)
 
 ---
 
-### 💡 Ví dụ Minh Họa
+### 💡 Ví Dụ Minh Họa Commit Chuẩn
 
-#### Ví dụ 1: Summary cơ bản
+#### Ví dụ 1: Summary ngắn gọn
 *   `feat: XD1.2.2.5 - add map location`
-*   `feat: XD1.2.2.6 - bo chuc nang khong su dung`
+*   `feat: XD1.2.2.6 - bỏ chức năng không sử dụng`
 *   `fix: fix map location & fix traffic info`
 *   `refactor: format code map location`
-*   `fix!: XD1.2.2.7 - thay doi luong gui mail` (Thay đổi lớn)
+*   `fix!: XD1.2.2.7 - thay đổi luồng gửi mail` (Thay đổi lớn)
 
-#### Ví dụ 2: Cấu trúc đầy đủ của một Commit Message
+#### Ví dụ 2: Toàn văn Commit Message đầy đủ Summary + Description
 ```text
+fix!: XD1.2.2.7 - thay đổi luồng gửi mail chức năng A module A
+
+Description:
 fix!: XD1.2.2.7 - thay đổi luồng gửi mail chức năng A module A
 
 
@@ -116,21 +179,57 @@ CR: CR0001-thay-doi-luong-gui-mail
 
 ---
 
-### 🏭 Ngoại Lệ Định Dạng Commit Cho Dự Án ThienAn (Nhánh WebAPI / WebVue)
+### 💻 Hướng Dẫn Dùng Lệnh `git commit -m` Chuẩn Xác
 
-Riêng khi commit trên nhánh thuộc 2 repo `TA-ITS015-WEBAPI-V1.0` và `TA-ITS015-WEBVUE-V1.0`, dòng Summary
-**KHÔNG** dùng cú pháp `[Keyword]: [TaskCode] - [noi-dung]` ở mục 3 trên, mà dùng LẠI NGUYÊN VĂN tên nhánh
-(đúng Cú Pháp 2 ở mục 1) làm dòng Summary — tức `[BranchKey]/[yyyyMMdd]-[TaskCode]-[ten-cong-viec-viet-thuong-khong-dau]`.
-Phần Description chi tiết vẫn liệt kê từng dòng công việc đã thực hiện trong lần commit, **KHÔNG** cần dấu
-gạch đầu dòng `-` như cấu trúc chung.
+Khi thao tác trên terminal/command line, sử dụng các cú pháp `git commit -m` như sau:
 
-*Ví dụ:*
-```text
-feat/20260826-XD001.5.5-Service-tich-hop-du-lieu
-
-Hoàn thiện api share data
-Cấu hình lưu chuẩn json db
+#### Cách 1: Commit nhanh 1 dòng Summary (Single-line Summary)
+Phù hợp cho các commit nhỏ, cục bộ trong quá trình dev:
+```bash
+git commit -m "feat: XD1.2.2.5 - add map location"
 ```
+
+#### Cách 2: Commit đầy đủ Summary + Description trên Git Bash / Linux (Dùng nhiều cờ `-m`)
+*Mẹo: Trong Git CLI, mỗi cờ `-m` sẽ được tự động ghép lại thành một đoạn văn bản riêng biệt cách nhau 1 dòng trống:*
+```bash
+git commit -m "fix!: XD1.2.2.7 - thay đổi luồng gửi mail chức năng A module A" \
+           -m "Description:
+fix!: XD1.2.2.7 - thay đổi luồng gửi mail chức năng A module A" \
+           -m "- Thay đổi luồng thứ tự nhân sự duyệt cho phép gửi mail
+- Bổ sung cấu hình thiết lập thời gian timeout
+- Bỏ bớt code dư thừa" \
+           -m "Reviewer: SonTH
+CR: CR0001-thay-doi-luong-gui-mail"
+```
+
+#### Cách 3: Commit đầy đủ trên Windows PowerShell (Dùng escape `` `n `` cho dòng mới)
+```powershell
+git commit -m "fix!: XD1.2.2.7 - thay đổi luồng gửi mail chức năng A module A" `
+           -m "Description:`nfix!: XD1.2.2.7 - thay đổi luồng gửi mail chức năng A module A`n`n- Thay đổi luồng thứ tự nhân sự duyệt cho phép gửi mail`n- Bổ sung cấu hình thiết lập thời gian timeout`n- Bỏ bớt code dư thừa`n`nReviewer: SonTH`nCR: CR0001-thay-doi-luong-gui-mail"
+```
+
+---
+
+### 🏭 Ghi Chú Tương Thích: Nhánh Sub-repo WebAPI / WebVue
+Riêng trường hợp làm việc trên các nhánh cũ thuộc 2 repo con `TA-ITS015-WEBAPI-V1.0` và `TA-ITS015-WEBVUE-V1.0`, nếu dự án đã có tiền lệ dùng lại nguyên văn tên nhánh làm dòng Summary:
+*Ví dụ:* `feat/20260826-XD001.5.5-Service-tich-hop-du-lieu` thì lập trình viên có thể áp dụng theo format đó. Tuy nhiên, **khuyến nghị chung của toàn công ty theo biểu mẫu F10** vẫn là áp dụng định dạng `[Keyword]: [TaskCode] - [nội dung công việc]`.
+
+---
+
+## ✅ 3.5. 10 Công Việc Bắt Buộc Kiểm Tra Trước Khi Commit Code (Pre-Commit Checklist)
+
+> ⚠️ **BẮT BUỘC:** Lập trình viên phải hoàn thành kiểm tra 10 đề mục sau trước khi thực hiện commit code lên repository:
+
+1.  **Kiểm tra cú pháp và lỗi biên dịch:** Đảm bảo toàn bộ project build thành công (`dotnet build` / `npm run build`), không có lỗi cú pháp hoặc cảnh báo nghiêm trọng.
+2.  **Kiểm tra logic code:** Đảm bảo logic xử lý đúng theo đặc tả nghiệp vụ. Chạy thử trên môi trường phát triển (Dev) để xác nhận kết quả trước khi commit.
+3.  **Kiểm tra chuẩn code (Coding Standards):** Đảm bảo tuân thủ tiêu chuẩn lập trình của nhóm (quy tắc đặt tên biến/hàm, PascalCase, camelCase, cấu trúc thư mục, Clean Code).
+4.  **Xóa code không cần thiết:** Loại bỏ hoàn toàn các dòng code debug, `console.log`, comment tạm thời không còn sử dụng. Tối ưu hóa code nếu cần.
+5.  **Chạy các bài kiểm thử (Test Cases):** Chạy toàn bộ các bài kiểm thử tự động (Unit Test, Integration Test). Đảm bảo **100% test cases pass**. Thêm hoặc cập nhật test case nếu có thay đổi logic nghiệp vụ.
+6.  **Kiểm tra xung đột merge (Merge Conflicts):** **Cập nhật branch của bạn với branch chính (`dev`)** bằng cách merge `dev` vào branch của bạn để phát hiện và giải quyết xung đột trước khi commit/tạo PR. Nếu cùng làm chung với thành viên khác, tạo nhánh merge để giải quyết xung đột chéo.
+7.  **Kiểm tra tài liệu:** Thêm hoặc cập nhật tài liệu kỹ thuật, hướng dẫn cài đặt, cấu hình liên quan nếu có thay đổi logic hoặc API. Đảm bảo comment mô tả rõ ràng.
+8.  **Kiểm tra file & commit message:** Đảm bảo chỉ commit các file liên quan trực tiếp đến thay đổi. Kiểm tra không bỏ sót file cấu hình cần thiết. Viết commit message đúng chuẩn cú pháp quy định. Cập nhật `CHANGELOG.md` nếu cần.
+9.  **Kiểm tra quyền truy cập & thông tin nhạy cảm:** Tuyệt đối không commit các thông tin nhạy cảm như API keys, credentials, mật khẩu CSDL hoặc dữ liệu cá nhân. Kiểm tra kỹ file `.gitignore`.
+10. **Chạy thử trên môi trường staging:** Nếu có thể, kiểm tra lại các thay đổi trên môi trường staging để đảm bảo hệ thống vận hành ổn định trước khi release.
 
 ---
 

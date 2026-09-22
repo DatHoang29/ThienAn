@@ -2,6 +2,7 @@
 > Tài liệu nghiệp vụ & kỹ thuật các dự án ThienAn.
 
 ## Đọc trước
+- QuyDinhChung/README.md: Tier Table quy định & quy trình chung Thiên Ân (Git Flow F10.TAC-CN01)
 - HữuNghị-ChiLăng/ShareData/README.md: Tier Table phân hệ ShareData
 - HữuNghị-ChiLăng/VideoWall/README.md: Tier Table phân hệ VideoWall
 - HữuNghị-ChiLăng/WOS/README.md: Tier Table phân hệ WOS (Trạm thời tiết Campbell CR1000X)
