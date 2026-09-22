@@ -116,6 +116,36 @@
         }
       ]
     },
+    "sys_indexes": {
+      "description": "SQL Server index catalog for primary-key checks (read-only)",
+      "source": {
+        "type": "view",
+        "object": "sys.indexes",
+        "key-fields": [
+          "object_id",
+          "index_id"
+        ]
+      },
+      "rest": false,
+      "graphql": false,
+      "mcp": {
+        "dml-tools": true,
+        "custom-tool": false
+      },
+      "health": {
+        "enabled": false
+      },
+      "permissions": [
+        {
+          "role": "anonymous",
+          "actions": [
+            {
+              "action": "read"
+            }
+          ]
+        }
+      ]
+    },
     "sys_change_tracking_tables": {
       "description": "SQL Server Change Tracking table settings (read-only)",
       "source": {

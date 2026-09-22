@@ -14,7 +14,7 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 ### Quyết định hiện hành
 
 - Gửi nối đuôi phải hoàn thiện trước; cơ chế phát hiện dữ liệu mới là task riêng.
-- Cursor lưu ở bảng `ShareDataOutboundCheckpoint`, không thêm `LastDataId` vào `ShareDataSubscription`.
+- Cursor lưu ở bảng `ShareDataCheckpoint`, không thêm `LastDataId` vào `ShareDataSubscription`.
 - Gói 106 **không bị gỡ**: policy `AlwaysIncremental`, 4 field tải trọng thiếu giữ `null`, dữ liệu chỉ được lấy khi `TmsTrafficData.Source` thuộc allow-list cấu hình. Mặc định allow-list rỗng.
 - Bảo đảm giao hàng là **at-least-once**; tin xóa và `Idempotency-Key` vẫn hoãn.
 - Snapshot 101 và 105 còn vấn đề khối lượng query độc lập; prompt nối đuôi không tuyên bố đã sửa hai vấn đề đó.
