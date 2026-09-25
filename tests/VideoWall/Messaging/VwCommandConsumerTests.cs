@@ -1,738 +1,738 @@
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
-using Module.VideoWall.Core.Constants;
-using Module.VideoWall.Core.Dto.Command;
-using Module.VideoWall.Core.Entities;
-using Module.VideoWall.Core.Interfaces;
-using Shared.DTO.Constants.Application;
-using SqlSugar;
-using Tests.Modules.VideoWall.MockServer;
-using Xunit;
-
-namespace Tests.Modules.VideoWall.Consumer
-{
-    /// <summary>
-    /// Description: Kiểm thử luồng xử lý gói tin lệnh NATS của VwCommandConsumer tương tác thực tế với CSDL và VwISAPIMockServerHikvision
-    /// Created date: 11/09/2026
-    /// </summary>
-    [Collection("api")]
-    public class VwCommandConsumerTests(Host host)
-    {
-        private const string TestPrefix = "TEST_VWCMD_";
-        private readonly IServiceScopeFactory _scopeFactory = host.Services.GetRequiredService<IServiceScopeFactory>();
-        private readonly ISqlSugarClient _db = host.Services.GetRequiredService<ISqlSugarClient>();
-        private readonly VwISAPIMockServerHikvision _mock = host.MockServer;
-
-        /// <summary>
-        /// Description: Lệnh ACTIVATE_SCENE gọi qua VwCommandConsumer kích hoạt HTTP thật vào MockServer và phát telemetry thành công
-        /// Created date: 11/09/2026
-        /// </summary>
-        [Fact]
-        public async Task ProcessCommandAsync_WhenActivateScene_CallsMockServerAndPublishesSuccess_Test()
-        {
-            // Arrange
-            _mock.ResetDefaults();
-            _mock.IsCascadeCenter = true;
-
-            var center = await EnsureCenterController();
-            var scene = await EnsureScene("1");
-
-            var consumer = new VwCommandConsumer(_scopeFactory, NullLogger<VwCommandConsumer>.Instance);
-
-            string? capturedMessageId = null;
-            string? capturedAction = null;
-            bool? capturedSuccess = null;
-            string? capturedError = null;
-
-            consumer.OnTelemetryPublished = (msgId, action, success, error, data) =>
-            {
-                capturedMessageId = msgId;
-                capturedAction = action;
-                capturedSuccess = success;
-                capturedError = error;
-            };
-
-            var envelope = new VwCommandEnvelope
-            {
-                MessageId = $"MSG_ACTIVATE_{Guid.NewGuid():N}",
-                Action = VwCommandActions.ActivateScene,
-                SceneId = scene.ID,
-                ControllerId = center.ID,
-                Payload = new VwActivateScenePayload
-                {
-                    SceneId = scene.ID,
-                    OutputId = "1",
-                    TargetControllerIds = [center.ID]
-                }
-            };
-
-            // Act
-            await consumer.ProcessCommandAsync(envelope);
-
-            // Assert
-            Assert.True(_mock.ActivateSceneCallCount >= 1);
-            Assert.True(_mock.GetCapabilitiesCallCount >= 1);
-            Assert.True(_mock.GetVideoWallsCallCount >= 1);
-            Assert.True(capturedSuccess);
-            Assert.Equal(envelope.MessageId, capturedMessageId);
-            Assert.Equal(VwCommandActions.ActivateScene, capturedAction);
-            Assert.Null(capturedError);
-        }
-
-        /// <summary>
-        /// Description: Lệnh SYNC_SCENE_WINDOWS gửi qua VwCommandConsumer đồng bộ cửa sổ lên thiết bị MockServer qua HTTP thật và phản hồi telemetry thành công
-        /// Created date: 11/09/2026
-        /// </summary>
-        [Fact]
-        public async Task ProcessCommandAsync_WhenSyncSceneWindows_CallsMockServerAndPublishesSuccess_Test()
-        {
-            // Arrange
-            _mock.ResetDefaults();
-            _mock.IsCascadeCenter = true;
-
-            var center = await EnsureCenterController();
-            var scene = await EnsureScene("1");
-            await EnsureWindowScene(scene.ID);
-
-            var consumer = new VwCommandConsumer(_scopeFactory, NullLogger<VwCommandConsumer>.Instance);
-
-            string? capturedAction = null;
-            bool? capturedSuccess = null;
-            string? capturedError = null;
-
-            consumer.OnTelemetryPublished = (msgId, action, success, error, data) =>
-            {
-                capturedAction = action;
-                capturedSuccess = success;
-                capturedError = error;
-            };
-
-            var envelope = new VwCommandEnvelope
-            {
-                MessageId = $"MSG_SYNC_{Guid.NewGuid():N}",
-                Action = VwCommandActions.SyncSceneWindows,
-                SceneId = scene.ID,
-                ControllerId = center.ID,
-                Payload = new VwSyncWindowsPayload
-                {
-                    SceneId = scene.ID
-                }
-            };
-
-            // Act
-            await consumer.ProcessCommandAsync(envelope);
-
-            // Assert
-            Assert.Null(capturedError);
-            Assert.True(capturedSuccess);
-            Assert.True(_mock.AddWindowCallCount >= 1);
-            Assert.True(_mock.SaveSceneDataCallCount >= 1);
-            Assert.Equal(VwCommandActions.SyncSceneWindows, capturedAction);
-        }
-
-        /// <summary>
-        /// Description: Lệnh SET_WINDOW_LAYER với hành động Top/Bottom gửi qua VwCommandConsumer kích hoạt HTTP tương ứng vào MockServer và phát telemetry thành công.
-        /// Created date: 11/09/2026
-        /// </summary>
-        [Theory]
-        [InlineData("Top")]
-        [InlineData("Bottom")]
-        public async Task ProcessCommandAsync_WhenSetWindowLayer_CallsMockServerAndPublishesSuccess_Test(string layerAction)
-        {
-            // Arrange
-            _mock.ResetDefaults();
-            _mock.IsCascadeCenter = true;
-
-            var center = await EnsureCenterController();
-            var consumer = new VwCommandConsumer(_scopeFactory, NullLogger<VwCommandConsumer>.Instance);
-
-            string? capturedAction = null;
-            bool? capturedSuccess = null;
-            string? capturedError = null;
-
-            consumer.OnTelemetryPublished = (msgId, action, success, error, data) =>
-            {
-                capturedAction = action;
-                capturedSuccess = success;
-                capturedError = error;
-            };
-
-            var envelope = new VwCommandEnvelope
-            {
-                MessageId = $"MSG_{layerAction.ToUpperInvariant()}_{Guid.NewGuid():N}",
-                Action = VwCommandActions.SetWindowLayer,
-                ControllerId = center.ID,
-                Payload = new VwSetWindowLayerPayload
-                {
-                    ControllerId = center.ID,
-                    DeviceWindowId = "1",
-                    Action = layerAction
-                }
-            };
-
-            // Act
-            await consumer.ProcessCommandAsync(envelope);
-
-            // Assert
-            var callCount = string.Equals(layerAction, "Top", StringComparison.OrdinalIgnoreCase)
-                ? _mock.WindowTopCallCount
-                : _mock.WindowBottomCallCount;
-            Assert.True(callCount >= 1);
-            Assert.True(capturedSuccess);
-            Assert.Equal(VwCommandActions.SetWindowLayer, capturedAction);
-            Assert.Null(capturedError);
-        }
-
-        /// <summary>
-        /// Description: Khi MockServer báo lỗi thiết bị thì VwCommandConsumer bắt ngoại lệ và phát telemetry thất bại
-        /// Created date: 11/09/2026
-        /// </summary>
-        [Fact]
-        public async Task ProcessCommandAsync_WhenDeviceFails_PublishesFailedTelemetry_Test()
-        {
-            // Arrange
-            _mock.ResetDefaults();
-            _mock.IsCascadeCenter = true;
-            _mock.SimulateDeviceFailure = true;
-
-            var center = await EnsureCenterController();
-            var scene = await EnsureScene("1");
-
-            var consumer = new VwCommandConsumer(_scopeFactory, NullLogger<VwCommandConsumer>.Instance);
-
-            string? capturedMessageId = null;
-            bool? capturedSuccess = null;
-            string? capturedError = null;
-
-            consumer.OnTelemetryPublished = (msgId, action, success, error, data) =>
-            {
-                capturedMessageId = msgId;
-                capturedSuccess = success;
-                capturedError = error;
-            };
-
-            var envelope = new VwCommandEnvelope
-            {
-                MessageId = $"MSG_FAIL_{Guid.NewGuid():N}",
-                Action = VwCommandActions.ActivateScene,
-                SceneId = scene.ID,
-                ControllerId = center.ID,
-                Payload = new VwActivateScenePayload
-                {
-                    SceneId = scene.ID,
-                    OutputId = "1",
-                    TargetControllerIds = [center.ID]
-                }
-            };
-
-            // Act
-            await consumer.ProcessCommandAsync(envelope);
-
-            // Assert
-            Assert.False(capturedSuccess);
-            Assert.NotNull(capturedError);
-            Assert.Equal(envelope.MessageId, capturedMessageId);
-        }
-
-        /// <summary>
-        /// Description: VwCommandConsumer gọi MockServer thành công và phát telemetry qua IVwNatsPublisher lên subject VwSubjects.Data
-        /// Created date: 11/09/2026
-        /// </summary>
-        [Fact]
-        public async Task ProcessCommandAsync_WithPublisher_CallsMockServerAndPublishesTelemetryViaNatsPublisher_Test()
-        {
-            // Arrange
-            _mock.ResetDefaults();
-            _mock.IsCascadeCenter = true;
-
-            var center = await EnsureCenterController();
-            var scene = await EnsureScene("1");
-
-            var publisherStub = new FakeNatsPublisherTest();
-            var consumer = new VwCommandConsumer(
-                _scopeFactory,
-                NullLogger<VwCommandConsumer>.Instance,
-                transport: null,
-                publisher: publisherStub);
-
-            var envelope = new VwCommandEnvelope
-            {
-                MessageId = $"MSG_PUB_{Guid.NewGuid():N}",
-                Action = VwCommandActions.ActivateScene,
-                SceneId = scene.ID,
-                ControllerId = center.ID,
-                Payload = new VwActivateScenePayload
-                {
-                    SceneId = scene.ID,
-                    OutputId = "1",
-                    TargetControllerIds = [center.ID]
-                }
-            };
-
-            // Act
-            await consumer.ProcessCommandAsync(envelope);
-
-            // Assert
-            Assert.True(_mock.ActivateSceneCallCount >= 1);
-            Assert.True(publisherStub.PublishedCount > 0);
-            Assert.Equal(VwSubjects.Data, publisherStub.LastSubject);
-            Assert.NotNull(publisherStub.LastPayload);
-        }
-
-        /// <summary>
-        /// Description: Lệnh ResetDeviceAuthFailure thực thi thành công và phát telemetry phản hồi
-        /// Created date: 11/09/2026
-        /// </summary>
-        [Fact]
-        public async Task ProcessCommandAsync_WhenResetDeviceAuthFailure_PublishesSuccessTelemetry_Test()
-        {
-            // Arrange
-            var consumer = new VwCommandConsumer(_scopeFactory, NullLogger<VwCommandConsumer>.Instance);
-
-            string? capturedAction = null;
-            bool? capturedSuccess = null;
-
-            consumer.OnTelemetryPublished = (msgId, action, success, error, data) =>
-            {
-                capturedAction = action;
-                capturedSuccess = success;
-            };
-
-            var envelope = new VwCommandEnvelope
-            {
-                MessageId = $"MSG_RESET_{Guid.NewGuid():N}",
-                Action = VwCommandActions.ResetDeviceAuthFailure,
-                ControllerId = "CTRL_TEST_BREAKER",
-                Payload = new VwResetDeviceAuthFailurePayload
-                {
-                    TargetIpOrKey = "127.0.0.1:18080"
-                }
-            };
-
-            // Act
-            await consumer.ProcessCommandAsync(envelope);
-
-            // Assert
-            Assert.Equal(VwCommandActions.ResetDeviceAuthFailure, capturedAction);
-            Assert.True(capturedSuccess);
-        }
-
-        /// <summary>
-        /// Description: Gửi lệnh có hành động không hỗ trợ thì phát telemetry báo lỗi unsupported action
-        /// Created date: 11/09/2026
-        /// </summary>
-        [Fact]
-        public async Task ProcessCommandAsync_WhenActionUnsupported_PublishesFailedTelemetry_Test()
-        {
-            // Arrange
-            var consumer = new VwCommandConsumer(_scopeFactory, NullLogger<VwCommandConsumer>.Instance);
-
-            string? capturedMessageId = null;
-            string? capturedAction = null;
-            bool? capturedSuccess = null;
-            string? capturedError = null;
-
-            consumer.OnTelemetryPublished = (msgId, action, success, error, data) =>
-            {
-                capturedMessageId = msgId;
-                capturedAction = action;
-                capturedSuccess = success;
-                capturedError = error;
-            };
-
-            var envelope = new VwCommandEnvelope
-            {
-                MessageId = $"MSG_UNSUPPORTED_{Guid.NewGuid():N}",
-                Action = "UnknownActionXYZ",
-                ControllerId = "CTRL_01"
-            };
-
-            // Act
-            await consumer.ProcessCommandAsync(envelope);
-
-            // Assert
-            Assert.Equal(envelope.MessageId, capturedMessageId);
-            Assert.Equal("UnknownActionXYZ", capturedAction);
-            Assert.False(capturedSuccess);
-            Assert.NotNull(capturedError);
-            Assert.Contains("Unsupported action", capturedError);
-        }
-
-        /// <summary>
-        /// Description: Gọi ProcessCommandAsync với dữ liệu null thì hoàn thành êm không gây lỗi
-        /// Created date: 11/09/2026
-        /// </summary>
-        [Fact]
-        public async Task ProcessCommandAsync_WhenRawIsNull_CompletesSafely_Test()
-        {
-            // Arrange
-            var consumer = new VwCommandConsumer(_scopeFactory, NullLogger<VwCommandConsumer>.Instance);
-
-            // Act
-            var exception = await Record.ExceptionAsync(() => consumer.ProcessCommandAsync(null!));
-
-            // Assert
-            Assert.Null(exception);
-        }
-
-        /// <summary>
-        /// Description: Lệnh DEVICE_SETUP_PING gọi qua VwCommandConsumer tới MockServer và phát telemetry thành công
-        /// Created date: 11/09/2026
-        /// </summary>
-        [Fact]
-        public async Task ProcessCommandAsync_WhenDeviceSetupPing_CallsMockServerAndPublishesSuccess_Test()
-        {
-            // Arrange
-            _mock.ResetDefaults();
-            var center = await EnsureCenterController();
-
-            var consumer = new VwCommandConsumer(_scopeFactory, NullLogger<VwCommandConsumer>.Instance);
-
-            string? capturedAction = null;
-            bool? capturedSuccess = null;
-            object? capturedData = null;
-
-            consumer.OnTelemetryPublished = (msgId, action, success, error, data) =>
-            {
-                capturedAction = action;
-                capturedSuccess = success;
-                capturedData = data;
-            };
-
-            var envelope = new VwCommandEnvelope
-            {
-                MessageId = $"MSG_PING_{Guid.NewGuid():N}",
-                Action = VwCommandActions.DeviceSetupPing,
-                ControllerId = center.ID,
-                Payload = center.ID
-            };
-
-            // Act
-            await consumer.ProcessCommandAsync(envelope);
-
-            // Assert
-            Assert.Equal(VwCommandActions.DeviceSetupPing, capturedAction);
-            Assert.True(capturedSuccess);
-            Assert.NotNull(capturedData);
-        }
-
-        /// <summary>
-        /// Description: Lệnh DEVICE_PROXY_INPUT_CHANNELS gọi qua VwCommandConsumer tới MockServer và phát telemetry thành công
-        /// Created date: 11/09/2026
-        /// </summary>
-        [Fact]
-        public async Task ProcessCommandAsync_WhenDeviceProxyInputChannels_CallsMockServerAndPublishesSuccess_Test()
-        {
-            // Arrange
-            _mock.ResetDefaults();
-            var center = await EnsureCenterController();
-
-            var consumer = new VwCommandConsumer(_scopeFactory, NullLogger<VwCommandConsumer>.Instance);
-
-            string? capturedAction = null;
-            bool? capturedSuccess = null;
-            object? capturedData = null;
-
-            consumer.OnTelemetryPublished = (msgId, action, success, error, data) =>
-            {
-                capturedAction = action;
-                capturedSuccess = success;
-                capturedData = data;
-            };
-
-            var envelope = new VwCommandEnvelope
-            {
-                MessageId = $"MSG_CHANNELS_{Guid.NewGuid():N}",
-                Action = VwCommandActions.DeviceProxyInputChannels,
-                ControllerId = center.ID,
-                Payload = new VwDeviceInputChannelsInput
-                {
-                    ControllerId = center.ID
-                }
-            };
-
-            // Act
-            await consumer.ProcessCommandAsync(envelope);
-
-            // Assert
-            Assert.Equal(VwCommandActions.DeviceProxyInputChannels, capturedAction);
-            Assert.True(capturedSuccess);
-            Assert.NotNull(capturedData);
-        }
-
-        /// <summary>
-        /// Description: Thực thi lệnh qua VwCommandConsumer phát VwCommandResponseEnvelope có kiểu với PackageType ControlResponse lên kênh NATS Data
-        /// Created date: 12/09/2026
-        /// </summary>
-        [Fact]
-        public async Task ProcessCommandAsync_WhenCommandExecuted_PublishesTypedResponseEnvelopeWithPackageType_Test()
-        {
-            // Arrange
-            _mock.ResetDefaults();
-            _mock.IsCascadeCenter = true;
-
-            var center = await EnsureCenterController();
-            var scene = await EnsureScene("1");
-
-            var fakePublisher = new FakeNatsPublisherTest();
-            var consumer = new VwCommandConsumer(
-                _scopeFactory,
-                NullLogger<VwCommandConsumer>.Instance,
-                transport: null,
-                publisher: fakePublisher);
-
-            VwCommandResponseEnvelope? capturedEnvelope = null;
-            consumer.OnResponseEnvelopePublished = env => capturedEnvelope = env;
-
-            var envelope = new VwCommandEnvelope
-            {
-                MessageId = $"MSG_CONTRACT_{Guid.NewGuid():N}",
-                Action = VwCommandActions.ActivateScene,
-                Type = VwPackageType.Control,
-                SceneId = scene.ID,
-                ControllerId = center.ID,
-                Payload = new VwActivateScenePayload
-                {
-                    SceneId = scene.ID,
-                    OutputId = "1",
-                    TargetControllerIds = [center.ID]
-                }
-            };
-
-            // Act
-            await consumer.ProcessCommandAsync(envelope);
-
-            // Assert
-            Assert.NotNull(capturedEnvelope);
-            Assert.Equal(envelope.MessageId, capturedEnvelope.MessageId);
-            Assert.Equal(VwCommandActions.ActivateScene, capturedEnvelope.Action);
-            Assert.True(capturedEnvelope.Success);
-            Assert.Equal(VwPackageType.ControlResponse, capturedEnvelope.PackageType);
-
-            Assert.Equal(1, fakePublisher.PublishedCount);
-            Assert.Equal(VwSubjects.Data, fakePublisher.LastSubject);
-            Assert.IsType<VwCommandResponseEnvelope>(fakePublisher.LastPayload);
-            var publishedPayload = (VwCommandResponseEnvelope)fakePublisher.LastPayload!;
-            Assert.Equal(VwPackageType.ControlResponse, publishedPayload.PackageType);
-            Assert.Equal(envelope.MessageId, publishedPayload.MessageId);
-        }
-
-        private async Task<VwController> EnsureCenterController(CancellationToken ct = default)
-        {
-            var center = await _db.Queryable<VwController>()
-                .FirstAsync(u => u.IsDelete == null && u.Role == "center", ct);
-
-            if (center == null)
-            {
-                center = new VwController
-                {
-                    ID = $"{TestPrefix}CTRL_CTR_{Guid.NewGuid():N}",
-                    Role = "center",
-                    IntegrationMode = "active",
-                    IP = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPort}",
-                    Account = VwISAPIMockServerHikvision.DefaultUser,
-                    PassWord = VwISAPIMockServerHikvision.DefaultPassword,
-                    Status = BaseEnums.StatusEnum.Enable
-                };
-                await _db.Insertable(center).ExecuteCommandAsync();
-            }
-            else
-            {
-                center.IP = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPort}";
-                center.Account = VwISAPIMockServerHikvision.DefaultUser;
-                center.PassWord = VwISAPIMockServerHikvision.DefaultPassword;
-                center.Status = BaseEnums.StatusEnum.Enable;
-                center.IntegrationMode = "active";
-                await _db.Updateable(center).ExecuteCommandAsync();
-            }
-
-            return center;
-        }
-
-        private async Task<VwScene> EnsureScene(string outputId = "1", CancellationToken ct = default)
-        {
-            var scene = new VwScene
-            {
-                ID = $"{TestPrefix}SCN_{Guid.NewGuid():N}",
-                Code = $"SCN_{Guid.NewGuid():N}",
-                Name = "Scene Test Real Mock",
-                OutputId = outputId,
-                Status = BaseEnums.StatusEnum.Enable
-            };
-            await _db.Insertable(scene).ExecuteCommandAsync();
-            return scene;
-        }
-
-        private async Task<VwWindowScene> EnsureWindowScene(string sceneId, CancellationToken ct = default)
-        {
-            var window = new VwWindowScene
-            {
-                ID = $"{TestPrefix}WND_{Guid.NewGuid():N}",
-                SceneId = sceneId,
-                Name = "Window 1",
-                DeviceWindowId = "1",
-                X = 0,
-                Y = 0,
-                W = 1920,
-                H = 1080,
-                ZIndex = 1
-            };
-            await _db.Insertable(window).ExecuteCommandAsync();
-            return window;
-        }
-
-        /// <summary>
-        /// Description: Gói tin có Type khác Control (ví dụ ControlResponse) bị bỏ qua không thực thi lệnh
-        /// Created date: 13/09/2026
-        /// </summary>
-        [Fact]
-        public async Task ProcessCommandAsync_WhenTypeIsNotControl_IgnoresCommand_Test()
-        {
-            // Arrange
-            var consumer = new VwCommandConsumer(_scopeFactory, NullLogger<VwCommandConsumer>.Instance);
-            bool telemetryInvoked = false;
-            consumer.OnTelemetryPublished = (_, _, _, _, _) => telemetryInvoked = true;
-
-            var envelope = new VwCommandEnvelope
-            {
-                MessageId = $"MSG_IGNORE_{Guid.NewGuid():N}",
-                Action = VwCommandActions.ActivateScene,
-                Type = VwPackageType.ControlResponse // Sai chiều (ControlResponse thay vì Control)
-            };
-
-            // Act
-            await consumer.ProcessCommandAsync(envelope);
-
-            // Assert
-            Assert.False(telemetryInvoked);
-        }
-
-        /// <summary>
-        /// Description: Kiểm tra cơ chế Stale Command Guard: khi ActiveSceneAt trên controller mới hơn Timestamp của lệnh, Worker bỏ qua cập nhật DB
-        /// Created date: 13/09/2026
-        /// </summary>
-        [Fact]
-        public async Task ProcessCommand_WhenActiveSceneAtNewerThanEnvelopeTimestamp_IgnoresDbUpdate_Test()
-        {
-            // Arrange
-            _mock.ResetDefaults();
-            _mock.IsCascadeCenter = true;
-
-            var center = await EnsureCenterController();
-            var scene = await EnsureScene("1");
-
-            // Thiết lập ActiveSceneAt trong tương lai so với Timestamp của envelope
-            var futureTime = DateTime.UtcNow.AddHours(1);
-            center.ActiveSceneAt = futureTime;
-            center.ActiveSceneId = null;
-            await _db.Updateable(center).UpdateColumns(u => new { u.ActiveSceneAt, u.ActiveSceneId }).ExecuteCommandAsync();
-
-            scene.ActiveScene = BaseEnums.ActiveScene.DeActivate;
-            await _db.Updateable(scene).UpdateColumns(u => new { u.ActiveScene }).ExecuteCommandAsync();
-
-            var consumer = new VwCommandConsumer(_scopeFactory, NullLogger<VwCommandConsumer>.Instance);
-            bool? capturedSuccess = null;
-            consumer.OnTelemetryPublished = (_, _, success, _, _) => capturedSuccess = success;
-
-            var envelope = new VwCommandEnvelope
-            {
-                MessageId = $"MSG_STALE_{Guid.NewGuid():N}",
-                Action = VwCommandActions.ActivateScene,
-                SceneId = scene.ID,
-                ControllerId = center.ID,
-                Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(), // Cũ hơn futureTime
-                Payload = new VwActivateScenePayload
-                {
-                    SceneId = scene.ID,
-                    OutputId = "1",
-                    TargetControllerIds = [center.ID]
-                }
-            };
-
-            // Act
-            await consumer.ProcessCommandAsync(envelope);
-
-            // Assert
-            Assert.True(capturedSuccess);
-            var dbCtrl = await _db.Queryable<VwController>().FirstAsync(u => u.ID == center.ID);
-            Assert.Null(dbCtrl.ActiveSceneId); // DB không bị cập nhật bởi lệnh stale
-
-            var dbScene = await _db.Queryable<VwScene>().FirstAsync(u => u.ID == scene.ID);
-            Assert.Equal(BaseEnums.ActiveScene.DeActivate, dbScene.ActiveScene); // DB scene giữ nguyên
-        }
-
-        /// <summary>
-        /// Description: Khi thiết bị hoặc lệnh kích hoạt lỗi, toàn bộ thao tác ghi DB được rollback và phát telemetry thất bại
-        /// Created date: 13/09/2026
-        /// </summary>
-        [Fact]
-        public async Task ProcessCommand_WhenActivateSceneFailsInDevice_RollsBackTransaction_Test()
-        {
-            // Arrange
-            _mock.ResetDefaults();
-            _mock.IsCascadeCenter = true;
-
-            var center = await EnsureCenterController();
-            var scene = await EnsureScene("1");
-
-            // Thiết lập trạng thái ban đầu
-            center.ActiveSceneId = null;
-            await _db.Updateable(center).UpdateColumns(u => new { u.ActiveSceneId }).ExecuteCommandAsync();
-
-            scene.ActiveScene = BaseEnums.ActiveScene.DeActivate;
-            scene.OutputId = null; // OutputId null -> IVwISAPIDeviceService.ActivateScene sẽ ném lỗi trước khi commit
-            await _db.Updateable(scene).UpdateColumns(u => new { u.ActiveScene, u.OutputId }).ExecuteCommandAsync();
-
-            var consumer = new VwCommandConsumer(_scopeFactory, NullLogger<VwCommandConsumer>.Instance);
-            bool? capturedSuccess = null;
-            string? capturedError = null;
-            consumer.OnTelemetryPublished = (_, _, success, error, _) =>
-            {
-                capturedSuccess = success;
-                capturedError = error;
-            };
-
-            var envelope = new VwCommandEnvelope
-            {
-                MessageId = $"MSG_FAIL_{Guid.NewGuid():N}",
-                Action = VwCommandActions.ActivateScene,
-                SceneId = scene.ID,
-                ControllerId = center.ID,
-                Payload = new VwActivateScenePayload
-                {
-                    SceneId = scene.ID,
-                    OutputId = null,
-                    TargetControllerIds = [center.ID]
-                }
-            };
-
-            // Act
-            await consumer.ProcessCommandAsync(envelope);
-
-            // Assert
-            Assert.False(capturedSuccess);
-            Assert.NotNull(capturedError);
-
-            var dbCtrl = await _db.Queryable<VwController>().FirstAsync(u => u.ID == center.ID);
-            Assert.Null(dbCtrl.ActiveSceneId); // Không bị ghi đè
-
-            var dbScene = await _db.Queryable<VwScene>().FirstAsync(u => u.ID == scene.ID);
-            Assert.Equal(BaseEnums.ActiveScene.DeActivate, dbScene.ActiveScene);
-        }
-
-        private sealed class FakeNatsPublisherTest : IVwNatsPublisher
-        {
-            public int PublishedCount { get; private set; }
-            public string? LastSubject { get; private set; }
-            public object? LastPayload { get; private set; }
-
-            public Task<bool> PublishAsync(string subject, object payload, CancellationToken ct = default)
-            {
-                PublishedCount++;
-                LastSubject = subject;
-                LastPayload = payload;
-                return Task.FromResult(true);
-            }
-        }
-    }
-}
+﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Module.VideoWall.Core.Constants;
+using Module.VideoWall.Core.Dto.Command;
+using Module.VideoWall.Core.Entities;
+using Module.VideoWall.Core.Interfaces;
+using Shared.DTO.Constants.Application;
+using SqlSugar;
+using Tests.Modules.VideoWall.MockServer;
+using Xunit;
+
+namespace Tests.Modules.VideoWall.Consumer
+{
+    /// <summary>
+    /// Description: Kiểm thử luồng xử lý gói tin lệnh NATS của VwCommandConsumer tương tác thực tế với CSDL và VwISAPIMockServerHikvision
+    /// Created date: 11/09/2026
+    /// </summary>
+    [Collection("api")]
+    public class VwCommandConsumerTests(Host host)
+    {
+        private const string TestPrefix = "TEST_VWCMD_";
+        private readonly IServiceScopeFactory _scopeFactory = host.Services.GetRequiredService<IServiceScopeFactory>();
+        private readonly ISqlSugarClient _db = host.Services.GetRequiredService<ISqlSugarClient>();
+        private readonly VwISAPIMockServerHikvision _mock = host.MockServer;
+
+        /// <summary>
+        /// Description: Lệnh ACTIVATE_SCENE gọi qua VwCommandConsumer kích hoạt HTTP thật vào MockServer và phát telemetry thành công
+        /// Created date: 11/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessCommandAsync_WhenActivateScene_CallsMockServerAndPublishesSuccess_Test()
+        {
+            // Arrange
+            _mock.ResetDefaults();
+            _mock.IsCascadeCenter = true;
+
+            var center = await EnsureCenterController();
+            var scene = await EnsureScene("1");
+
+            var consumer = new VwCommandConsumer(_scopeFactory, NullLogger<VwCommandConsumer>.Instance);
+
+            string? capturedMessageId = null;
+            string? capturedAction = null;
+            bool? capturedSuccess = null;
+            string? capturedError = null;
+
+            consumer.OnTelemetryPublished = (msgId, action, success, error, data) =>
+            {
+                capturedMessageId = msgId;
+                capturedAction = action;
+                capturedSuccess = success;
+                capturedError = error;
+            };
+
+            var envelope = new VwCommandEnvelope
+            {
+                MessageId = $"MSG_ACTIVATE_{Guid.NewGuid():N}",
+                Action = VwCommandActions.ActivateScene,
+                SceneId = scene.ID,
+                ControllerId = center.ID,
+                Payload = new VwActivateScenePayload
+                {
+                    SceneId = scene.ID,
+                    OutputId = "1",
+                    TargetControllerIds = [center.ID]
+                }
+            };
+
+            // Act
+            await consumer.ProcessCommandAsync(envelope);
+
+            // Assert
+            Assert.True(_mock.ActivateSceneCallCount >= 1);
+            Assert.True(_mock.GetCapabilitiesCallCount >= 1);
+            Assert.True(_mock.GetVideoWallsCallCount >= 1);
+            Assert.True(capturedSuccess);
+            Assert.Equal(envelope.MessageId, capturedMessageId);
+            Assert.Equal(VwCommandActions.ActivateScene, capturedAction);
+            Assert.Null(capturedError);
+        }
+
+        /// <summary>
+        /// Description: Lệnh SYNC_SCENE_WINDOWS gửi qua VwCommandConsumer đồng bộ cửa sổ lên thiết bị MockServer qua HTTP thật và phản hồi telemetry thành công
+        /// Created date: 11/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessCommandAsync_WhenSyncSceneWindows_CallsMockServerAndPublishesSuccess_Test()
+        {
+            // Arrange
+            _mock.ResetDefaults();
+            _mock.IsCascadeCenter = true;
+
+            var center = await EnsureCenterController();
+            var scene = await EnsureScene("1");
+            await EnsureWindowScene(scene.ID);
+
+            var consumer = new VwCommandConsumer(_scopeFactory, NullLogger<VwCommandConsumer>.Instance);
+
+            string? capturedAction = null;
+            bool? capturedSuccess = null;
+            string? capturedError = null;
+
+            consumer.OnTelemetryPublished = (msgId, action, success, error, data) =>
+            {
+                capturedAction = action;
+                capturedSuccess = success;
+                capturedError = error;
+            };
+
+            var envelope = new VwCommandEnvelope
+            {
+                MessageId = $"MSG_SYNC_{Guid.NewGuid():N}",
+                Action = VwCommandActions.SyncSceneWindows,
+                SceneId = scene.ID,
+                ControllerId = center.ID,
+                Payload = new VwSyncWindowsPayload
+                {
+                    SceneId = scene.ID
+                }
+            };
+
+            // Act
+            await consumer.ProcessCommandAsync(envelope);
+
+            // Assert
+            Assert.Null(capturedError);
+            Assert.True(capturedSuccess);
+            Assert.True(_mock.AddWindowCallCount >= 1);
+            Assert.True(_mock.SaveSceneDataCallCount >= 1);
+            Assert.Equal(VwCommandActions.SyncSceneWindows, capturedAction);
+        }
+
+        /// <summary>
+        /// Description: Lệnh SET_WINDOW_LAYER với hành động Top/Bottom gửi qua VwCommandConsumer kích hoạt HTTP tương ứng vào MockServer và phát telemetry thành công.
+        /// Created date: 11/09/2026
+        /// </summary>
+        [Theory]
+        [InlineData("Top")]
+        [InlineData("Bottom")]
+        public async Task ProcessCommandAsync_WhenSetWindowLayer_CallsMockServerAndPublishesSuccess_Test(string layerAction)
+        {
+            // Arrange
+            _mock.ResetDefaults();
+            _mock.IsCascadeCenter = true;
+
+            var center = await EnsureCenterController();
+            var consumer = new VwCommandConsumer(_scopeFactory, NullLogger<VwCommandConsumer>.Instance);
+
+            string? capturedAction = null;
+            bool? capturedSuccess = null;
+            string? capturedError = null;
+
+            consumer.OnTelemetryPublished = (msgId, action, success, error, data) =>
+            {
+                capturedAction = action;
+                capturedSuccess = success;
+                capturedError = error;
+            };
+
+            var envelope = new VwCommandEnvelope
+            {
+                MessageId = $"MSG_{layerAction.ToUpperInvariant()}_{Guid.NewGuid():N}",
+                Action = VwCommandActions.SetWindowLayer,
+                ControllerId = center.ID,
+                Payload = new VwSetWindowLayerPayload
+                {
+                    ControllerId = center.ID,
+                    DeviceWindowId = "1",
+                    Action = layerAction
+                }
+            };
+
+            // Act
+            await consumer.ProcessCommandAsync(envelope);
+
+            // Assert
+            var callCount = string.Equals(layerAction, "Top", StringComparison.OrdinalIgnoreCase)
+                ? _mock.WindowTopCallCount
+                : _mock.WindowBottomCallCount;
+            Assert.True(callCount >= 1);
+            Assert.True(capturedSuccess);
+            Assert.Equal(VwCommandActions.SetWindowLayer, capturedAction);
+            Assert.Null(capturedError);
+        }
+
+        /// <summary>
+        /// Description: Khi MockServer báo lỗi thiết bị thì VwCommandConsumer bắt ngoại lệ và phát telemetry thất bại
+        /// Created date: 11/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessCommandAsync_WhenDeviceFails_PublishesFailedTelemetry_Test()
+        {
+            // Arrange
+            _mock.ResetDefaults();
+            _mock.IsCascadeCenter = true;
+            _mock.SimulateDeviceFailure = true;
+
+            var center = await EnsureCenterController();
+            var scene = await EnsureScene("1");
+
+            var consumer = new VwCommandConsumer(_scopeFactory, NullLogger<VwCommandConsumer>.Instance);
+
+            string? capturedMessageId = null;
+            bool? capturedSuccess = null;
+            string? capturedError = null;
+
+            consumer.OnTelemetryPublished = (msgId, action, success, error, data) =>
+            {
+                capturedMessageId = msgId;
+                capturedSuccess = success;
+                capturedError = error;
+            };
+
+            var envelope = new VwCommandEnvelope
+            {
+                MessageId = $"MSG_FAIL_{Guid.NewGuid():N}",
+                Action = VwCommandActions.ActivateScene,
+                SceneId = scene.ID,
+                ControllerId = center.ID,
+                Payload = new VwActivateScenePayload
+                {
+                    SceneId = scene.ID,
+                    OutputId = "1",
+                    TargetControllerIds = [center.ID]
+                }
+            };
+
+            // Act
+            await consumer.ProcessCommandAsync(envelope);
+
+            // Assert
+            Assert.False(capturedSuccess);
+            Assert.NotNull(capturedError);
+            Assert.Equal(envelope.MessageId, capturedMessageId);
+        }
+
+        /// <summary>
+        /// Description: VwCommandConsumer gọi MockServer thành công và phát telemetry qua IVwNatsPublisher lên subject VwSubjects.Data
+        /// Created date: 11/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessCommandAsync_WithPublisher_CallsMockServerAndPublishesTelemetryViaNatsPublisher_Test()
+        {
+            // Arrange
+            _mock.ResetDefaults();
+            _mock.IsCascadeCenter = true;
+
+            var center = await EnsureCenterController();
+            var scene = await EnsureScene("1");
+
+            var publisherStub = new FakeNatsPublisherTest();
+            var consumer = new VwCommandConsumer(
+                _scopeFactory,
+                NullLogger<VwCommandConsumer>.Instance,
+                transport: null,
+                publisher: publisherStub);
+
+            var envelope = new VwCommandEnvelope
+            {
+                MessageId = $"MSG_PUB_{Guid.NewGuid():N}",
+                Action = VwCommandActions.ActivateScene,
+                SceneId = scene.ID,
+                ControllerId = center.ID,
+                Payload = new VwActivateScenePayload
+                {
+                    SceneId = scene.ID,
+                    OutputId = "1",
+                    TargetControllerIds = [center.ID]
+                }
+            };
+
+            // Act
+            await consumer.ProcessCommandAsync(envelope);
+
+            // Assert
+            Assert.True(_mock.ActivateSceneCallCount >= 1);
+            Assert.True(publisherStub.PublishedCount > 0);
+            Assert.Equal(VwSubjects.Data, publisherStub.LastSubject);
+            Assert.NotNull(publisherStub.LastPayload);
+        }
+
+        /// <summary>
+        /// Description: Lệnh ResetDeviceAuthFailure thực thi thành công và phát telemetry phản hồi
+        /// Created date: 11/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessCommandAsync_WhenResetDeviceAuthFailure_PublishesSuccessTelemetry_Test()
+        {
+            // Arrange
+            var consumer = new VwCommandConsumer(_scopeFactory, NullLogger<VwCommandConsumer>.Instance);
+
+            string? capturedAction = null;
+            bool? capturedSuccess = null;
+
+            consumer.OnTelemetryPublished = (msgId, action, success, error, data) =>
+            {
+                capturedAction = action;
+                capturedSuccess = success;
+            };
+
+            var envelope = new VwCommandEnvelope
+            {
+                MessageId = $"MSG_RESET_{Guid.NewGuid():N}",
+                Action = VwCommandActions.ResetDeviceAuthFailure,
+                ControllerId = "CTRL_TEST_BREAKER",
+                Payload = new VwResetDeviceAuthFailurePayload
+                {
+                    TargetIpOrKey = "127.0.0.1:18080"
+                }
+            };
+
+            // Act
+            await consumer.ProcessCommandAsync(envelope);
+
+            // Assert
+            Assert.Equal(VwCommandActions.ResetDeviceAuthFailure, capturedAction);
+            Assert.True(capturedSuccess);
+        }
+
+        /// <summary>
+        /// Description: Gửi lệnh có hành động không hỗ trợ thì phát telemetry báo lỗi unsupported action
+        /// Created date: 11/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessCommandAsync_WhenActionUnsupported_PublishesFailedTelemetry_Test()
+        {
+            // Arrange
+            var consumer = new VwCommandConsumer(_scopeFactory, NullLogger<VwCommandConsumer>.Instance);
+
+            string? capturedMessageId = null;
+            string? capturedAction = null;
+            bool? capturedSuccess = null;
+            string? capturedError = null;
+
+            consumer.OnTelemetryPublished = (msgId, action, success, error, data) =>
+            {
+                capturedMessageId = msgId;
+                capturedAction = action;
+                capturedSuccess = success;
+                capturedError = error;
+            };
+
+            var envelope = new VwCommandEnvelope
+            {
+                MessageId = $"MSG_UNSUPPORTED_{Guid.NewGuid():N}",
+                Action = "UnknownActionXYZ",
+                ControllerId = "CTRL_01"
+            };
+
+            // Act
+            await consumer.ProcessCommandAsync(envelope);
+
+            // Assert
+            Assert.Equal(envelope.MessageId, capturedMessageId);
+            Assert.Equal("UnknownActionXYZ", capturedAction);
+            Assert.False(capturedSuccess);
+            Assert.NotNull(capturedError);
+            Assert.Contains("Unsupported action", capturedError);
+        }
+
+        /// <summary>
+        /// Description: Gọi ProcessCommandAsync với dữ liệu null thì hoàn thành êm không gây lỗi
+        /// Created date: 11/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessCommandAsync_WhenRawIsNull_CompletesSafely_Test()
+        {
+            // Arrange
+            var consumer = new VwCommandConsumer(_scopeFactory, NullLogger<VwCommandConsumer>.Instance);
+
+            // Act
+            var exception = await Record.ExceptionAsync(() => consumer.ProcessCommandAsync(null!));
+
+            // Assert
+            Assert.Null(exception);
+        }
+
+        /// <summary>
+        /// Description: Lệnh DEVICE_SETUP_PING gọi qua VwCommandConsumer tới MockServer và phát telemetry thành công
+        /// Created date: 11/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessCommandAsync_WhenDeviceSetupPing_CallsMockServerAndPublishesSuccess_Test()
+        {
+            // Arrange
+            _mock.ResetDefaults();
+            var center = await EnsureCenterController();
+
+            var consumer = new VwCommandConsumer(_scopeFactory, NullLogger<VwCommandConsumer>.Instance);
+
+            string? capturedAction = null;
+            bool? capturedSuccess = null;
+            object? capturedData = null;
+
+            consumer.OnTelemetryPublished = (msgId, action, success, error, data) =>
+            {
+                capturedAction = action;
+                capturedSuccess = success;
+                capturedData = data;
+            };
+
+            var envelope = new VwCommandEnvelope
+            {
+                MessageId = $"MSG_PING_{Guid.NewGuid():N}",
+                Action = VwCommandActions.DeviceSetupPing,
+                ControllerId = center.ID,
+                Payload = center.ID
+            };
+
+            // Act
+            await consumer.ProcessCommandAsync(envelope);
+
+            // Assert
+            Assert.Equal(VwCommandActions.DeviceSetupPing, capturedAction);
+            Assert.True(capturedSuccess);
+            Assert.NotNull(capturedData);
+        }
+
+        /// <summary>
+        /// Description: Lệnh DEVICE_PROXY_INPUT_CHANNELS gọi qua VwCommandConsumer tới MockServer và phát telemetry thành công
+        /// Created date: 11/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessCommandAsync_WhenDeviceProxyInputChannels_CallsMockServerAndPublishesSuccess_Test()
+        {
+            // Arrange
+            _mock.ResetDefaults();
+            var center = await EnsureCenterController();
+
+            var consumer = new VwCommandConsumer(_scopeFactory, NullLogger<VwCommandConsumer>.Instance);
+
+            string? capturedAction = null;
+            bool? capturedSuccess = null;
+            object? capturedData = null;
+
+            consumer.OnTelemetryPublished = (msgId, action, success, error, data) =>
+            {
+                capturedAction = action;
+                capturedSuccess = success;
+                capturedData = data;
+            };
+
+            var envelope = new VwCommandEnvelope
+            {
+                MessageId = $"MSG_CHANNELS_{Guid.NewGuid():N}",
+                Action = VwCommandActions.DeviceProxyInputChannels,
+                ControllerId = center.ID,
+                Payload = new VwDeviceInputChannelsInput
+                {
+                    ControllerId = center.ID
+                }
+            };
+
+            // Act
+            await consumer.ProcessCommandAsync(envelope);
+
+            // Assert
+            Assert.Equal(VwCommandActions.DeviceProxyInputChannels, capturedAction);
+            Assert.True(capturedSuccess);
+            Assert.NotNull(capturedData);
+        }
+
+        /// <summary>
+        /// Description: Thực thi lệnh qua VwCommandConsumer phát VwCommandResponseEnvelope có kiểu với PackageType ControlResponse lên kênh NATS Data
+        /// Created date: 12/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessCommandAsync_WhenCommandExecuted_PublishesTypedResponseEnvelopeWithPackageType_Test()
+        {
+            // Arrange
+            _mock.ResetDefaults();
+            _mock.IsCascadeCenter = true;
+
+            var center = await EnsureCenterController();
+            var scene = await EnsureScene("1");
+
+            var fakePublisher = new FakeNatsPublisherTest();
+            var consumer = new VwCommandConsumer(
+                _scopeFactory,
+                NullLogger<VwCommandConsumer>.Instance,
+                transport: null,
+                publisher: fakePublisher);
+
+            VwCommandResponseEnvelope? capturedEnvelope = null;
+            consumer.OnResponseEnvelopePublished = env => capturedEnvelope = env;
+
+            var envelope = new VwCommandEnvelope
+            {
+                MessageId = $"MSG_CONTRACT_{Guid.NewGuid():N}",
+                Action = VwCommandActions.ActivateScene,
+                Type = VwPackageType.Control,
+                SceneId = scene.ID,
+                ControllerId = center.ID,
+                Payload = new VwActivateScenePayload
+                {
+                    SceneId = scene.ID,
+                    OutputId = "1",
+                    TargetControllerIds = [center.ID]
+                }
+            };
+
+            // Act
+            await consumer.ProcessCommandAsync(envelope);
+
+            // Assert
+            Assert.NotNull(capturedEnvelope);
+            Assert.Equal(envelope.MessageId, capturedEnvelope.MessageId);
+            Assert.Equal(VwCommandActions.ActivateScene, capturedEnvelope.Action);
+            Assert.True(capturedEnvelope.Success);
+            Assert.Equal(VwPackageType.ControlResponse, capturedEnvelope.PackageType);
+
+            Assert.Equal(1, fakePublisher.PublishedCount);
+            Assert.Equal(VwSubjects.Data, fakePublisher.LastSubject);
+            Assert.IsType<VwCommandResponseEnvelope>(fakePublisher.LastPayload);
+            var publishedPayload = (VwCommandResponseEnvelope)fakePublisher.LastPayload!;
+            Assert.Equal(VwPackageType.ControlResponse, publishedPayload.PackageType);
+            Assert.Equal(envelope.MessageId, publishedPayload.MessageId);
+        }
+
+        private async Task<VwController> EnsureCenterController(CancellationToken ct = default)
+        {
+            var center = await _db.Queryable<VwController>()
+                .FirstAsync(u => u.IsDelete == null && u.Role == "center", ct);
+
+            if (center == null)
+            {
+                center = new VwController
+                {
+                    ID = $"{TestPrefix}CTRL_CTR_{Guid.NewGuid():N}",
+                    Role = "center",
+                    IntegrationMode = "active",
+                    IP = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPort}",
+                    Account = VwISAPIMockServerHikvision.DefaultUser,
+                    PassWord = VwISAPIMockServerHikvision.DefaultPassword,
+                    Status = BaseEnums.StatusEnum.Enable
+                };
+                await _db.Insertable(center).ExecuteCommandAsync();
+            }
+            else
+            {
+                center.IP = $"127.0.0.1:{VwISAPIMockServerHikvision.DefaultPort}";
+                center.Account = VwISAPIMockServerHikvision.DefaultUser;
+                center.PassWord = VwISAPIMockServerHikvision.DefaultPassword;
+                center.Status = BaseEnums.StatusEnum.Enable;
+                center.IntegrationMode = "active";
+                await _db.Updateable(center).ExecuteCommandAsync();
+            }
+
+            return center;
+        }
+
+        private async Task<VwScene> EnsureScene(string outputId = "1", CancellationToken ct = default)
+        {
+            var scene = new VwScene
+            {
+                ID = $"{TestPrefix}SCN_{Guid.NewGuid():N}",
+                Code = $"SCN_{Guid.NewGuid():N}",
+                Name = "Scene Test Real Mock",
+                OutputId = outputId,
+                Status = BaseEnums.StatusEnum.Enable
+            };
+            await _db.Insertable(scene).ExecuteCommandAsync();
+            return scene;
+        }
+
+        private async Task<VwWindowScene> EnsureWindowScene(string sceneId, CancellationToken ct = default)
+        {
+            var window = new VwWindowScene
+            {
+                ID = $"{TestPrefix}WND_{Guid.NewGuid():N}",
+                SceneId = sceneId,
+                Name = "Window 1",
+                DeviceWindowId = "1",
+                X = 0,
+                Y = 0,
+                W = 1920,
+                H = 1080,
+                ZIndex = 1
+            };
+            await _db.Insertable(window).ExecuteCommandAsync();
+            return window;
+        }
+
+        /// <summary>
+        /// Description: Gói tin có Type khác Control (ví dụ ControlResponse) bị bỏ qua không thực thi lệnh
+        /// Created date: 13/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessCommandAsync_WhenTypeIsNotControl_IgnoresCommand_Test()
+        {
+            // Arrange
+            var consumer = new VwCommandConsumer(_scopeFactory, NullLogger<VwCommandConsumer>.Instance);
+            bool telemetryInvoked = false;
+            consumer.OnTelemetryPublished = (_, _, _, _, _) => telemetryInvoked = true;
+
+            var envelope = new VwCommandEnvelope
+            {
+                MessageId = $"MSG_IGNORE_{Guid.NewGuid():N}",
+                Action = VwCommandActions.ActivateScene,
+                Type = VwPackageType.ControlResponse // Sai chiều (ControlResponse thay vì Control)
+            };
+
+            // Act
+            await consumer.ProcessCommandAsync(envelope);
+
+            // Assert
+            Assert.False(telemetryInvoked);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra cơ chế Stale Command Guard: khi ActiveSceneAt trên controller mới hơn Timestamp của lệnh, Worker bỏ qua cập nhật DB
+        /// Created date: 13/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessCommand_WhenActiveSceneAtNewerThanEnvelopeTimestamp_IgnoresDbUpdate_Test()
+        {
+            // Arrange
+            _mock.ResetDefaults();
+            _mock.IsCascadeCenter = true;
+
+            var center = await EnsureCenterController();
+            var scene = await EnsureScene("1");
+
+            // Thiết lập ActiveSceneAt trong tương lai so với Timestamp của envelope
+            var futureTime = DateTime.UtcNow.AddHours(1);
+            center.ActiveSceneAt = futureTime;
+            center.ActiveSceneId = null;
+            await _db.Updateable(center).UpdateColumns(u => new { u.ActiveSceneAt, u.ActiveSceneId }).ExecuteCommandAsync();
+
+            scene.ActiveScene = BaseEnums.ActiveScene.DeActivate;
+            await _db.Updateable(scene).UpdateColumns(u => new { u.ActiveScene }).ExecuteCommandAsync();
+
+            var consumer = new VwCommandConsumer(_scopeFactory, NullLogger<VwCommandConsumer>.Instance);
+            bool? capturedSuccess = null;
+            consumer.OnTelemetryPublished = (_, _, success, _, _) => capturedSuccess = success;
+
+            var envelope = new VwCommandEnvelope
+            {
+                MessageId = $"MSG_STALE_{Guid.NewGuid():N}",
+                Action = VwCommandActions.ActivateScene,
+                SceneId = scene.ID,
+                ControllerId = center.ID,
+                Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(), // Cũ hơn futureTime
+                Payload = new VwActivateScenePayload
+                {
+                    SceneId = scene.ID,
+                    OutputId = "1",
+                    TargetControllerIds = [center.ID]
+                }
+            };
+
+            // Act
+            await consumer.ProcessCommandAsync(envelope);
+
+            // Assert
+            Assert.True(capturedSuccess);
+            var dbCtrl = await _db.Queryable<VwController>().FirstAsync(u => u.ID == center.ID);
+            Assert.Null(dbCtrl.ActiveSceneId); // DB không bị cập nhật bởi lệnh stale
+
+            var dbScene = await _db.Queryable<VwScene>().FirstAsync(u => u.ID == scene.ID);
+            Assert.Equal(BaseEnums.ActiveScene.DeActivate, dbScene.ActiveScene); // DB scene giữ nguyên
+        }
+
+        /// <summary>
+        /// Description: Khi thiết bị hoặc lệnh kích hoạt lỗi, toàn bộ thao tác ghi DB được rollback và phát telemetry thất bại
+        /// Created date: 13/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessCommand_WhenActivateSceneFailsInDevice_RollsBackTransaction_Test()
+        {
+            // Arrange
+            _mock.ResetDefaults();
+            _mock.IsCascadeCenter = true;
+
+            var center = await EnsureCenterController();
+            var scene = await EnsureScene("1");
+
+            // Thiết lập trạng thái ban đầu
+            center.ActiveSceneId = null;
+            await _db.Updateable(center).UpdateColumns(u => new { u.ActiveSceneId }).ExecuteCommandAsync();
+
+            scene.ActiveScene = BaseEnums.ActiveScene.DeActivate;
+            scene.OutputId = null; // OutputId null -> IVwISAPIDeviceService.ActivateScene sẽ ném lỗi trước khi commit
+            await _db.Updateable(scene).UpdateColumns(u => new { u.ActiveScene, u.OutputId }).ExecuteCommandAsync();
+
+            var consumer = new VwCommandConsumer(_scopeFactory, NullLogger<VwCommandConsumer>.Instance);
+            bool? capturedSuccess = null;
+            string? capturedError = null;
+            consumer.OnTelemetryPublished = (_, _, success, error, _) =>
+            {
+                capturedSuccess = success;
+                capturedError = error;
+            };
+
+            var envelope = new VwCommandEnvelope
+            {
+                MessageId = $"MSG_FAIL_{Guid.NewGuid():N}",
+                Action = VwCommandActions.ActivateScene,
+                SceneId = scene.ID,
+                ControllerId = center.ID,
+                Payload = new VwActivateScenePayload
+                {
+                    SceneId = scene.ID,
+                    OutputId = null,
+                    TargetControllerIds = [center.ID]
+                }
+            };
+
+            // Act
+            await consumer.ProcessCommandAsync(envelope);
+
+            // Assert
+            Assert.False(capturedSuccess);
+            Assert.NotNull(capturedError);
+
+            var dbCtrl = await _db.Queryable<VwController>().FirstAsync(u => u.ID == center.ID);
+            Assert.Null(dbCtrl.ActiveSceneId); // Không bị ghi đè
+
+            var dbScene = await _db.Queryable<VwScene>().FirstAsync(u => u.ID == scene.ID);
+            Assert.Equal(BaseEnums.ActiveScene.DeActivate, dbScene.ActiveScene);
+        }
+
+        private sealed class FakeNatsPublisherTest : IVwNatsPublisher
+        {
+            public int PublishedCount { get; private set; }
+            public string? LastSubject { get; private set; }
+            public object? LastPayload { get; private set; }
+
+            public Task<bool> PublishAsync(string subject, object payload, CancellationToken ct = default)
+            {
+                PublishedCount++;
+                LastSubject = subject;
+                LastPayload = payload;
+                return Task.FromResult(true);
+            }
+        }
+    }
+}

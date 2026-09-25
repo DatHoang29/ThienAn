@@ -1,4 +1,4 @@
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Module.VideoWall.Controllers.Scene.Commands;
 using Module.VideoWall.Controllers.Scene.Validators;
 using Module.VideoWall.Core.Constants;

@@ -1,4 +1,4 @@
-#if HAS_SHAREDATAWORKER
+﻿#if HAS_SHAREDATAWORKER
 using ShareDataWorker.Core.Interfaces;
 using ShareDataWorker.Extensions;
 #endif

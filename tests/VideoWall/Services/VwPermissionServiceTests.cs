@@ -1,665 +1,665 @@
-using Furion;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using Module.VideoWall.Core.Dto.WallPermission;
-using Module.VideoWall.Core.Entities;
-using Module.VideoWall.Core.Options;
-using Module.VideoWall.Infrastructure;
-using Module.VideoWall.Infrastructure.Services.Access;
-using Newtonsoft.Json;
-using Shared.Core.Utilities.Constants;
-using Shared.DTO.Enums;
-using Shared.Infrastructure.Services;
-using SqlSugar;
-using System.Security.Claims;
-using Xunit;
-
-namespace Tests.Modules.VideoWall.Infrastructure.Services
-{
-    /// <summary>
-    /// Description: Kiểm thử toàn diện dịch vụ phân quyền hợp nhất VwPermissionService:
-    ///              - Tầng 1: Org / Controller Access (FullAccess, Restricted User, BypassPermission).
-    ///              - Tầng 3: User Area Grid Access (Tính toán hình học ô lưới và quyền vùng người dùng).
-    /// Created date: 11/09/2026
-    /// </summary>
-    [Collection("api")]
-    public class VwPermissionServiceTests(Host host)
-    {
-        private const string TestPrefix = "TEST_VWPERM_";
-        private readonly ISqlSugarClient _db = host.Services.GetRequiredService<ISqlSugarClient>();
-        private readonly IHttpContextAccessor _httpContextAccessor = host.Services.GetRequiredService<IHttpContextAccessor>();
-
-        #region Helper khởi tạo VwPermissionService & Giả lập User Context
-
-        private VwPermissionService GetPermissionService(VwDeviceOptions? customDeviceOptions = null)
-        {
-            var scope = host.Services.CreateScope();
-            if (customDeviceOptions == null)
-                return scope.ServiceProvider.GetRequiredService<VwPermissionService>();
-
-            return new VwPermissionService(
-                scope.ServiceProvider.GetRequiredService<BaseRepository<VwController>>(),
-                scope.ServiceProvider.GetRequiredService<BaseRepository<VwScreen>>(),
-                scope.ServiceProvider.GetRequiredService<BaseRepository<VwSource>>(),
-                scope.ServiceProvider.GetRequiredService<BaseRepository<VwScene>>(),
-                scope.ServiceProvider.GetRequiredService<BaseRepository<VwWallPermission>>(),
-                scope.ServiceProvider.GetRequiredService<UserManager>(),
-                Microsoft.Extensions.Options.Options.Create(customDeviceOptions),
-                scope.ServiceProvider.GetRequiredService<ILogger<VwPermissionService>>());
-        }
-
-        private void SetRestrictedUser(string orgId, string account = "test_restricted_user", string userId = "test-restricted-user-id")
-        {
-            var identity = new ClaimsIdentity(new[]
-            {
-                new Claim(ClaimConst.AccountType, "333"),
-                new Claim(ClaimConst.OrgId, orgId),
-                new Claim(ClaimConst.UserId, userId),
-                new Claim(ClaimConst.Account, account),
-                new Claim(ClaimTypes.Name, account)
-            }, "TestAuth");
-
-            _httpContextAccessor.HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(identity) };
-        }
-
-        private void SetSuperAdminUser(string account = "test_superadmin", string userId = "test-superadmin-id")
-        {
-            var identity = new ClaimsIdentity(new[]
-            {
-                new Claim(ClaimConst.AccountType, "111"),
-                new Claim(ClaimConst.UserId, userId),
-                new Claim(ClaimConst.Account, account),
-                new Claim(ClaimTypes.Name, account)
-            }, "TestAuth");
-
-            _httpContextAccessor.HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(identity) };
-        }
-
-        #endregion
-
-        #region Tầng 1: FullAccess Tests
-
-        /// <summary>
-        /// Description: Request ẩn danh qua HTTP (có HttpContext nhưng không có User) và không bật bypass thì IsFullAccess là false (an toàn tuyệt đối)
-        /// Created date: 12/09/2026
-        /// </summary>
-        [Fact]
-        public async Task VwPermissionService_AnonymousHttpRequest_DoesNotHaveFullAccess_Test()
-        {
-            _httpContextAccessor.HttpContext = new DefaultHttpContext();
-            try
-            {
-                var srv = GetPermissionService();
-                var scope = await srv.GetScope();
-
-                Assert.False(srv.IsFullAccess);
-                Assert.False(scope.IsFullAccess);
-            }
-            finally
-            {
-                _httpContextAccessor.HttpContext = null;
-            }
-        }
-
-        /// <summary>
-        /// Description: Khi chạy nền không có HttpContext (Hangfire / NATS / MessageBus), IsFullAccess luôn là true
-        /// Created date: 12/09/2026
-        /// </summary>
-        [Fact]
-        public async Task VwPermissionService_BackgroundContext_HasFullAccess_Test()
-        {
-            _httpContextAccessor.HttpContext = null;
-            var srv = GetPermissionService();
-            var scope = await srv.GetScope();
-
-            Assert.True(srv.IsFullAccess);
-            Assert.True(scope.IsFullAccess);
-        }
-
-        /// <summary>
-        /// Description: Khi tài khoản là SuperAdmin (AccountType = 111), IsFullAccess luôn là true
-        /// Created date: 12/09/2026
-        /// </summary>
-        [Fact]
-        public async Task VwPermissionService_SuperAdmin_HasFullAccess_Test()
-        {
-            SetSuperAdminUser();
-            try
-            {
-                var srv = GetPermissionService();
-                var scope = await srv.GetScope();
-
-                Assert.True(srv.IsFullAccess);
-                Assert.True(scope.IsFullAccess);
-            }
-            finally
-            {
-                _httpContextAccessor.HttpContext = null;
-            }
-        }
-
-        /// <summary>
-        /// Description: Với quyền FullAccess (SuperAdmin), EnsureControllerAccessAsync cho phép truy cập mọi ControllerId
-        /// Created date: 15/08/2026
-        /// </summary>
-        [Fact]
-        public async Task VwPermissionService_FullAccess_EnsureControllerAccess_Succeeds_Test()
-        {
-            SetSuperAdminUser();
-            try
-            {
-                var ex = await Record.ExceptionAsync(() =>
-                    GetPermissionService().EnsureControllerAccessAsync("any_controller_id"));
-
-                Assert.Null(ex);
-            }
-            finally
-            {
-                _httpContextAccessor.HttpContext = null;
-            }
-        }
-
-        /// <summary>
-        /// Description: Với quyền FullAccess (SuperAdmin), ResolveOrgIdAsync giữ nguyên OrgId được truyền vào
-        /// Created date: 15/08/2026
-        /// </summary>
-        [Fact]
-        public async Task VwPermissionService_FullAccess_ResolveOrgId_ReturnsRequestedOrgId_Test()
-        {
-            SetSuperAdminUser();
-            try
-            {
-                var requestedOrg = "ORG_SPECIAL_001";
-
-                var result = await GetPermissionService().ResolveOrgIdAsync(requestedOrg);
-
-                Assert.Equal(requestedOrg, result);
-            }
-            finally
-            {
-                _httpContextAccessor.HttpContext = null;
-            }
-        }
-
-        #endregion
-
-        #region Tầng 1: Restricted User Tests
-
-        /// <summary>
-        /// Description: Tài khoản thường chỉ thấy controller cùng org mình, không thấy controller org khác.
-        /// Created date: 16/08/2026
-        /// </summary>
-        [Fact]
-        public async Task VwPermissionService_RestrictedUser_GetScope_ReturnsOwnedControllerOnly_Test()
-        {
-            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
-            var otherOrgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
-            var ownedCtrl = new VwController
-            {
-                Code = $"{TestPrefix}OWN_{Guid.NewGuid():N}",
-                Name = "Owned Controller",
-                OrgId = orgId,
-                Status = BaseEnums.StatusEnum.Enable,
-                CreateTime = DateTime.Now
-            };
-            var foreignCtrl = new VwController
-            {
-                Code = $"{TestPrefix}FOREIGN_{Guid.NewGuid():N}",
-                Name = "Foreign Controller",
-                OrgId = otherOrgId,
-                Status = BaseEnums.StatusEnum.Enable,
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(new[] { ownedCtrl, foreignCtrl }).ExecuteCommandAsync();
-            SetRestrictedUser(orgId);
-
-            var scope = await GetPermissionService().GetScope();
-
-            Assert.False(scope.IsFullAccess);
-            Assert.Contains(ownedCtrl.ID, scope.ControllerIds);
-            Assert.DoesNotContain(foreignCtrl.ID, scope.ControllerIds);
-        }
-
-        /// <summary>
-        /// Description: Tài khoản thường thao tác được trên controller thuộc org của mình.
-        /// Created date: 16/08/2026
-        /// </summary>
-        [Fact]
-        public async Task VwPermissionService_RestrictedUser_EnsureControllerAccess_AllowsOwnedController_Test()
-        {
-            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
-            var ownedCtrl = new VwController
-            {
-                Code = $"{TestPrefix}OWN2_{Guid.NewGuid():N}",
-                Name = "Owned Controller 2",
-                OrgId = orgId,
-                Status = BaseEnums.StatusEnum.Enable,
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(ownedCtrl).ExecuteCommandAsync();
-            SetRestrictedUser(orgId);
-
-            var ex = await Record.ExceptionAsync(() => GetPermissionService().EnsureControllerAccessAsync(ownedCtrl.ID));
-
-            Assert.Null(ex);
-        }
-
-        /// <summary>
-        /// Description: Tài khoản thường bị chặn khi thao tác trên controller thuộc org khác.
-        /// Created date: 16/08/2026
-        /// </summary>
-        [Fact]
-        public async Task VwPermissionService_RestrictedUser_EnsureControllerAccess_DeniesForeignController_Test()
-        {
-            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
-            var otherOrgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
-            var foreignCtrl = new VwController
-            {
-                Code = $"{TestPrefix}FOREIGN2_{Guid.NewGuid():N}",
-                Name = "Foreign Controller 2",
-                OrgId = otherOrgId,
-                Status = BaseEnums.StatusEnum.Enable,
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(foreignCtrl).ExecuteCommandAsync();
-            SetRestrictedUser(orgId);
-
-            var ex = await Record.ExceptionAsync(() => GetPermissionService().EnsureControllerAccessAsync(foreignCtrl.ID));
-
-            Assert.NotNull(ex);
-        }
-
-        /// <summary>
-        /// Description: Đơn vị chỉ quản lý đúng 1 controller thì ResolveSceneControllerIdAsync tự suy ra controller đó.
-        /// Created date: 16/08/2026
-        /// </summary>
-        [Fact]
-        public async Task VwPermissionService_RestrictedUser_ResolveSceneControllerId_InfersSingleOwnedController_Test()
-        {
-            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
-            var soleCtrl = new VwController
-            {
-                Code = $"{TestPrefix}SOLE_{Guid.NewGuid():N}",
-                Name = "Sole Controller",
-                OrgId = orgId,
-                Status = BaseEnums.StatusEnum.Enable,
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(soleCtrl).ExecuteCommandAsync();
-            SetRestrictedUser(orgId);
-
-            var resolved = await GetPermissionService().ResolveSceneControllerIdAsync(null);
-
-            Assert.Equal(soleCtrl.ID, resolved);
-        }
-
-        /// <summary>
-        /// Description: Cờ BypassPermission = true chỉ có hiệu lực ngoài Production: môi trường Development
-        ///              cấp FullAccess cho tài khoản thường, còn Production phải vô hiệu hóa cờ này an toàn.
-        /// Created date: 24/08/2026
-        /// </summary>
-        [Theory]
-        [InlineData("Development", true)]
-        [InlineData("Production", false)]
-        public async Task VwPermissionService_BypassPermission_HonoredOnlyOutsideProduction_Test(
-            string environmentName, bool expectedFullAccess)
-        {
-            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
-            SetRestrictedUser(orgId);
-
-            var hostEnv = App.HostEnvironment;
-            var originalEnv = hostEnv.EnvironmentName;
-
-            try
-            {
-                hostEnv.EnvironmentName = environmentName;
-
-                var srv = GetPermissionService(new VwDeviceOptions { BypassPermission = true });
-                var scope = await srv.GetScope();
-
-                Assert.Equal(expectedFullAccess, srv.IsFullAccess);
-                Assert.Equal(expectedFullAccess, scope.IsFullAccess);
-            }
-            finally
-            {
-                hostEnv.EnvironmentName = originalEnv;
-            }
-        }
-
-        #endregion
-
-        #region Tầng 3: User Area Grid Geometry Tests
-
-        /// <summary>
-        /// Description: Cửa sổ vừa khít 1 ô panel (0,0) → trả về đúng 1 ô (0,0).
-        /// Created date: 11/09/2026
-        /// </summary>
-        [Fact]
-        public void GetCoveredCells_SingleCellWindow_ReturnsMatchingCell_Test()
-        {
-            var cells = VwPermissionService.GetCoveredCells(
-                x: 0, y: 0, w: 1920, h: 1080,
-                panelWidthPx: 1920, panelHeightPx: 1080).ToList();
-
-            Assert.Single(cells);
-            Assert.Equal(0, cells[0].Col);
-            Assert.Equal(0, cells[0].Row);
-        }
-
-        /// <summary>
-        /// Description: Cửa sổ trải qua 2 cột 2 hàng → trả về đủ 4 ô lưới tương ứng.
-        /// Created date: 11/09/2026
-        /// </summary>
-        [Fact]
-        public void GetCoveredCells_MultiCellWindow_ReturnsAllCoveredCells_Test()
-        {
-            var cells = VwPermissionService.GetCoveredCells(
-                x: 1920, y: 0, w: 3840, h: 2160,
-                panelWidthPx: 1920, panelHeightPx: 1080).ToList();
-
-            Assert.Equal(4, cells.Count);
-            Assert.Contains(cells, c => c.Col == 1 && c.Row == 0);
-            Assert.Contains(cells, c => c.Col == 1 && c.Row == 1);
-            Assert.Contains(cells, c => c.Col == 2 && c.Row == 0);
-            Assert.Contains(cells, c => c.Col == 2 && c.Row == 1);
-        }
-
-        /// <summary>
-        /// Description: Cửa sổ có kích thước không hợp lệ (<= 0) → trả về rỗng.
-        /// Created date: 11/09/2026
-        /// </summary>
-        [Fact]
-        public void GetCoveredCells_ZeroOrNegativeDimensions_ReturnsEmpty_Test()
-        {
-            var zeroW = VwPermissionService.GetCoveredCells(0, 0, 0, 1080).ToList();
-            var zeroH = VwPermissionService.GetCoveredCells(0, 0, 1920, 0).ToList();
-
-            Assert.Empty(zeroW);
-            Assert.Empty(zeroH);
-        }
-
-        private static List<VwGridCell> ParseCells(string input)
-        {
-            if (string.IsNullOrWhiteSpace(input))
-                return [];
-
-            return input.Split(';', StringSplitOptions.RemoveEmptyEntries)
-                .Select(pair =>
-                {
-                    var parts = pair.Split(',');
-                    return new VwGridCell { Col = int.Parse(parts[0]), Row = int.Parse(parts[1]) };
-                })
-                .ToList();
-        }
-
-        /// <summary>
-        /// Description: Kiểm tra logic IsWithinAllowedCells với các tập ô covered và allowed khác nhau.
-        /// Created date: 11/09/2026
-        /// </summary>
-        [Theory]
-        [InlineData("0,0;1,0", "0,0;1,0;2,0", true)]
-        [InlineData("0,0;1,0;1,1", "0,0;1,0", false)]
-        [InlineData("0,0", "", false)]
-        public void IsWithinAllowedCells_EvaluatesSubsetCorrectly_Test(string coveredStr, string allowedStr, bool expected)
-        {
-            var covered = ParseCells(coveredStr);
-            var allowed = ParseCells(allowedStr);
-
-            var result = VwPermissionService.IsWithinAllowedCells(covered, allowed);
-            Assert.Equal(expected, result);
-        }
-
-        /// <summary>
-        /// Description: Khi user không có bản ghi VwWallPermission nào, mặc định bypass
-        ///              (không ném exception dù tọa độ có vẻ nhạy cảm).
-        /// Created date: 10/09/2026
-        /// </summary>
-        [Fact]
-        public async Task EnsureWindowInsideUserAllowedAreaAsync_NoPermissionRecord_BypassesCheck_Test()
-        {
-            using var scope = host.Services.CreateScope();
-            var service = scope.ServiceProvider.GetRequiredService<VwPermissionService>();
-
-            var ex = await Record.ExceptionAsync(() =>
-                service.EnsureWindowInsideUserAllowedAreaAsync(0, 0, 99999, 99999, "TestWindow"));
-
-            Assert.Null(ex);
-        }
-
-        /// <summary>
-        /// Description: Kiểm tra ánh xạ và kiểm tra hình học từ Config JSON dạng List&lt;VwGridCell&gt;.
-        /// Created date: 11/09/2026
-        /// </summary>
-        [Fact]
-        public void VwWallPermission_ConfigJsonCells_GeometryCheckPasses_Test()
-        {
-            var allowedCells = new List<VwGridCell>
-            {
-                new() { Col = 0, Row = 0 },
-                new() { Col = 1, Row = 0 },
-                new() { Col = 0, Row = 1 },
-                new() { Col = 1, Row = 1 }
-            };
-
-            var json = JsonConvert.SerializeObject(allowedCells);
-            var parsedAllowed = JsonConvert.DeserializeObject<List<VwGridCell>>(json)!;
-
-            var covered = VwPermissionService.GetCoveredCells(0, 0, 3840, 2160);
-            var inside = VwPermissionService.IsWithinAllowedCells(covered, parsedAllowed);
-
-            Assert.True(inside);
-        }
-
-        /// <summary>
-        /// Description: Khi user có bản ghi permission nhưng Config không hợp lệ (trống, JSON lỗi, mảng rỗng) -> ném exception tương ứng.
-        /// Created date: 11/09/2026
-        /// </summary>
-        [Theory]
-        [InlineData("", "trống")]
-        [InlineData("invalid-json-{broken", "lỗi định dạng")]
-        [InlineData("[]", "rỗng")]
-        public async Task EnsureWindowInsideUserAllowedAreaAsync_InvalidConfig_ThrowsException_Test(string config, string expectedErrorSubstr)
-        {
-            var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
-            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
-            SetRestrictedUser(orgId, account);
-
-            var perm = new VwWallPermission
-            {
-                UserId = account,
-                OrgId = orgId,
-                Config = config,
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(perm).ExecuteCommandAsync();
-
-            var service = GetPermissionService();
-            var ex = await Record.ExceptionAsync(() =>
-                service.EnsureWindowInsideUserAllowedAreaAsync(0, 0, 1920, 1080, "TestWin"));
-
-            Assert.NotNull(ex);
-            Assert.Contains(expectedErrorSubstr, ex.Message);
-        }
-
-        /// <summary>
-        /// Description: Khi user có Config hợp lệ và cửa sổ nằm hoàn toàn trong vùng -> thành công, không ném lỗi
-        /// </summary>
-        [Fact]
-        public async Task EnsureWindowInsideUserAllowedAreaAsync_ConfigValid_WindowInside_Succeeds_Test()
-        {
-            var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
-            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
-            SetRestrictedUser(orgId, account);
-
-            var cells = new List<VwGridCell>
-            {
-                new() { Col = 0, Row = 0 },
-                new() { Col = 1, Row = 0 }
-            };
-            var perm = new VwWallPermission
-            {
-                UserId = account,
-                OrgId = orgId,
-                Config = JsonConvert.SerializeObject(cells),
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(perm).ExecuteCommandAsync();
-
-            var service = GetPermissionService();
-            var ex = await Record.ExceptionAsync(() =>
-                service.EnsureWindowInsideUserAllowedAreaAsync(0, 0, 3840, 1080, "InsideWin"));
-
-            Assert.Null(ex);
-        }
-
-        /// <summary>
-        /// Description: Khi user có Config hợp lệ nhưng cửa sổ lấn ra ngoài vùng -> ném lỗi nằm ngoài khu vực
-        /// </summary>
-        [Fact]
-        public async Task EnsureWindowInsideUserAllowedAreaAsync_ConfigValid_WindowOutside_ThrowsException_Test()
-        {
-            var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
-            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
-            SetRestrictedUser(orgId, account);
-
-            var cells = new List<VwGridCell>
-            {
-                new() { Col = 0, Row = 0 }
-            };
-            var perm = new VwWallPermission
-            {
-                UserId = account,
-                OrgId = orgId,
-                Config = JsonConvert.SerializeObject(cells),
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(perm).ExecuteCommandAsync();
-
-            var service = GetPermissionService();
-            var ex = await Record.ExceptionAsync(() =>
-                service.EnsureWindowInsideUserAllowedAreaAsync(0, 0, 3840, 1080, "OutsideWin"));
-
-            Assert.NotNull(ex);
-            Assert.Contains("ngoài khu vực màn hình", ex.Message);
-        }
-
-        #endregion
-
-        #region GetEffectivePermissionAsync Tests
-
-        /// <summary>
-        /// Description: Khi không có user đăng nhập (HttpContext = null hoặc App.User = null) -> GetEffectivePermissionAsync trả về null
-        /// Created date: 13/09/2026
-        /// </summary>
-        [Fact]
-        public async Task GetEffectivePermissionAsync_NoUserContext_ReturnsNull_Test()
-        {
-            _httpContextAccessor.HttpContext = null;
-            var service = GetPermissionService();
-            var perm = await service.GetEffectivePermissionAsync();
-            Assert.Null(perm);
-        }
-
-        /// <summary>
-        /// Description: Khi user không có bản ghi phân quyền nào -> GetEffectivePermissionAsync trả về null
-        /// Created date: 13/09/2026
-        /// </summary>
-        [Fact]
-        public async Task GetEffectivePermissionAsync_NoRecord_ReturnsNull_Test()
-        {
-            var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
-            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
-            SetRestrictedUser(orgId, account);
-
-            var service = GetPermissionService();
-            var perm = await service.GetEffectivePermissionAsync();
-            Assert.Null(perm);
-        }
-
-        /// <summary>
-        /// Description: Khi có cả bản ghi UserId và OrgId -> GetEffectivePermissionAsync ưu tiên trả về bản ghi của UserId
-        /// Created date: 13/09/2026
-        /// </summary>
-        [Fact]
-        public async Task GetEffectivePermissionAsync_BothUserAndOrgExist_ReturnsUserRecord_Test()
-        {
-            var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
-            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
-            SetRestrictedUser(orgId, account);
-
-            var userPerm = new VwWallPermission
-            {
-                UserId = account,
-                OrgId = null,
-                Config = "[{\"Col\":0,\"Row\":0}]",
-                CreateTime = DateTime.Now
-            };
-            var orgPerm = new VwWallPermission
-            {
-                UserId = null,
-                OrgId = orgId,
-                Config = "[{\"Col\":1,\"Row\":1}]",
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(new[] { userPerm, orgPerm }).ExecuteCommandAsync();
-
-            try
-            {
-                var service = GetPermissionService();
-                var perm = await service.GetEffectivePermissionAsync();
-
-                Assert.NotNull(perm);
-                Assert.Equal(userPerm.ID, perm.ID);
-                Assert.Equal(account, perm.UserId);
-            }
-            finally
-            {
-                await _db.Deleteable<VwWallPermission>()
-                    .Where(p => p.ID == userPerm.ID || p.ID == orgPerm.ID)
-                    .ExecuteCommandAsync();
-            }
-        }
-
-        /// <summary>
-        /// Description: Khi không có bản ghi UserId nhưng có bản ghi OrgId -> GetEffectivePermissionAsync trả về bản ghi của OrgId
-        /// Created date: 13/09/2026
-        /// </summary>
-        [Fact]
-        public async Task GetEffectivePermissionAsync_NoUserRecord_HasOrgRecord_ReturnsOrgRecord_Test()
-        {
-            var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
-            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
-            SetRestrictedUser(orgId, account);
-
-            var orgPerm = new VwWallPermission
-            {
-                UserId = null,
-                OrgId = orgId,
-                Config = "[{\"Col\":2,\"Row\":3}]",
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(orgPerm).ExecuteCommandAsync();
-
-            try
-            {
-                var service = GetPermissionService();
-                var perm = await service.GetEffectivePermissionAsync();
-
-                Assert.NotNull(perm);
-                Assert.Equal(orgPerm.ID, perm.ID);
-                Assert.Equal(orgId, perm.OrgId);
-            }
-            finally
-            {
-                await _db.Deleteable<VwWallPermission>()
-                    .Where(p => p.ID == orgPerm.ID)
-                    .ExecuteCommandAsync();
-            }
-        }
-
-        #endregion
-    }
-}
+﻿using Furion;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Module.VideoWall.Core.Dto.WallPermission;
+using Module.VideoWall.Core.Entities;
+using Module.VideoWall.Core.Options;
+using Module.VideoWall.Infrastructure;
+using Module.VideoWall.Infrastructure.Services.Access;
+using Newtonsoft.Json;
+using Shared.Core.Utilities.Constants;
+using Shared.DTO.Enums;
+using Shared.Infrastructure.Services;
+using SqlSugar;
+using System.Security.Claims;
+using Xunit;
+
+namespace Tests.Modules.VideoWall.Infrastructure.Services
+{
+    /// <summary>
+    /// Description: Kiểm thử toàn diện dịch vụ phân quyền hợp nhất VwPermissionService:
+    ///              - Tầng 1: Org / Controller Access (FullAccess, Restricted User, BypassPermission).
+    ///              - Tầng 3: User Area Grid Access (Tính toán hình học ô lưới và quyền vùng người dùng).
+    /// Created date: 11/09/2026
+    /// </summary>
+    [Collection("api")]
+    public class VwPermissionServiceTests(Host host)
+    {
+        private const string TestPrefix = "TEST_VWPERM_";
+        private readonly ISqlSugarClient _db = host.Services.GetRequiredService<ISqlSugarClient>();
+        private readonly IHttpContextAccessor _httpContextAccessor = host.Services.GetRequiredService<IHttpContextAccessor>();
+
+        #region Helper khởi tạo VwPermissionService & Giả lập User Context
+
+        private VwPermissionService GetPermissionService(VwDeviceOptions? customDeviceOptions = null)
+        {
+            var scope = host.Services.CreateScope();
+            if (customDeviceOptions == null)
+                return scope.ServiceProvider.GetRequiredService<VwPermissionService>();
+
+            return new VwPermissionService(
+                scope.ServiceProvider.GetRequiredService<BaseRepository<VwController>>(),
+                scope.ServiceProvider.GetRequiredService<BaseRepository<VwScreen>>(),
+                scope.ServiceProvider.GetRequiredService<BaseRepository<VwSource>>(),
+                scope.ServiceProvider.GetRequiredService<BaseRepository<VwScene>>(),
+                scope.ServiceProvider.GetRequiredService<BaseRepository<VwWallPermission>>(),
+                scope.ServiceProvider.GetRequiredService<UserManager>(),
+                Microsoft.Extensions.Options.Options.Create(customDeviceOptions),
+                scope.ServiceProvider.GetRequiredService<ILogger<VwPermissionService>>());
+        }
+
+        private void SetRestrictedUser(string orgId, string account = "test_restricted_user", string userId = "test-restricted-user-id")
+        {
+            var identity = new ClaimsIdentity(new[]
+            {
+                new Claim(ClaimConst.AccountType, "333"),
+                new Claim(ClaimConst.OrgId, orgId),
+                new Claim(ClaimConst.UserId, userId),
+                new Claim(ClaimConst.Account, account),
+                new Claim(ClaimTypes.Name, account)
+            }, "TestAuth");
+
+            _httpContextAccessor.HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(identity) };
+        }
+
+        private void SetSuperAdminUser(string account = "test_superadmin", string userId = "test-superadmin-id")
+        {
+            var identity = new ClaimsIdentity(new[]
+            {
+                new Claim(ClaimConst.AccountType, "111"),
+                new Claim(ClaimConst.UserId, userId),
+                new Claim(ClaimConst.Account, account),
+                new Claim(ClaimTypes.Name, account)
+            }, "TestAuth");
+
+            _httpContextAccessor.HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(identity) };
+        }
+
+        #endregion
+
+        #region Tầng 1: FullAccess Tests
+
+        /// <summary>
+        /// Description: Request ẩn danh qua HTTP (có HttpContext nhưng không có User) và không bật bypass thì IsFullAccess là false (an toàn tuyệt đối)
+        /// Created date: 12/09/2026
+        /// </summary>
+        [Fact]
+        public async Task VwPermissionService_AnonymousHttpRequest_DoesNotHaveFullAccess_Test()
+        {
+            _httpContextAccessor.HttpContext = new DefaultHttpContext();
+            try
+            {
+                var srv = GetPermissionService();
+                var scope = await srv.GetScope();
+
+                Assert.False(srv.IsFullAccess);
+                Assert.False(scope.IsFullAccess);
+            }
+            finally
+            {
+                _httpContextAccessor.HttpContext = null;
+            }
+        }
+
+        /// <summary>
+        /// Description: Khi chạy nền không có HttpContext (Hangfire / NATS / MessageBus), IsFullAccess luôn là true
+        /// Created date: 12/09/2026
+        /// </summary>
+        [Fact]
+        public async Task VwPermissionService_BackgroundContext_HasFullAccess_Test()
+        {
+            _httpContextAccessor.HttpContext = null;
+            var srv = GetPermissionService();
+            var scope = await srv.GetScope();
+
+            Assert.True(srv.IsFullAccess);
+            Assert.True(scope.IsFullAccess);
+        }
+
+        /// <summary>
+        /// Description: Khi tài khoản là SuperAdmin (AccountType = 111), IsFullAccess luôn là true
+        /// Created date: 12/09/2026
+        /// </summary>
+        [Fact]
+        public async Task VwPermissionService_SuperAdmin_HasFullAccess_Test()
+        {
+            SetSuperAdminUser();
+            try
+            {
+                var srv = GetPermissionService();
+                var scope = await srv.GetScope();
+
+                Assert.True(srv.IsFullAccess);
+                Assert.True(scope.IsFullAccess);
+            }
+            finally
+            {
+                _httpContextAccessor.HttpContext = null;
+            }
+        }
+
+        /// <summary>
+        /// Description: Với quyền FullAccess (SuperAdmin), EnsureControllerAccessAsync cho phép truy cập mọi ControllerId
+        /// Created date: 15/08/2026
+        /// </summary>
+        [Fact]
+        public async Task VwPermissionService_FullAccess_EnsureControllerAccess_Succeeds_Test()
+        {
+            SetSuperAdminUser();
+            try
+            {
+                var ex = await Record.ExceptionAsync(() =>
+                    GetPermissionService().EnsureControllerAccessAsync("any_controller_id"));
+
+                Assert.Null(ex);
+            }
+            finally
+            {
+                _httpContextAccessor.HttpContext = null;
+            }
+        }
+
+        /// <summary>
+        /// Description: Với quyền FullAccess (SuperAdmin), ResolveOrgIdAsync giữ nguyên OrgId được truyền vào
+        /// Created date: 15/08/2026
+        /// </summary>
+        [Fact]
+        public async Task VwPermissionService_FullAccess_ResolveOrgId_ReturnsRequestedOrgId_Test()
+        {
+            SetSuperAdminUser();
+            try
+            {
+                var requestedOrg = "ORG_SPECIAL_001";
+
+                var result = await GetPermissionService().ResolveOrgIdAsync(requestedOrg);
+
+                Assert.Equal(requestedOrg, result);
+            }
+            finally
+            {
+                _httpContextAccessor.HttpContext = null;
+            }
+        }
+
+        #endregion
+
+        #region Tầng 1: Restricted User Tests
+
+        /// <summary>
+        /// Description: Tài khoản thường chỉ thấy controller cùng org mình, không thấy controller org khác.
+        /// Created date: 16/08/2026
+        /// </summary>
+        [Fact]
+        public async Task VwPermissionService_RestrictedUser_GetScope_ReturnsOwnedControllerOnly_Test()
+        {
+            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+            var otherOrgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+            var ownedCtrl = new VwController
+            {
+                Code = $"{TestPrefix}OWN_{Guid.NewGuid():N}",
+                Name = "Owned Controller",
+                OrgId = orgId,
+                Status = BaseEnums.StatusEnum.Enable,
+                CreateTime = DateTime.Now
+            };
+            var foreignCtrl = new VwController
+            {
+                Code = $"{TestPrefix}FOREIGN_{Guid.NewGuid():N}",
+                Name = "Foreign Controller",
+                OrgId = otherOrgId,
+                Status = BaseEnums.StatusEnum.Enable,
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(new[] { ownedCtrl, foreignCtrl }).ExecuteCommandAsync();
+            SetRestrictedUser(orgId);
+
+            var scope = await GetPermissionService().GetScope();
+
+            Assert.False(scope.IsFullAccess);
+            Assert.Contains(ownedCtrl.ID, scope.ControllerIds);
+            Assert.DoesNotContain(foreignCtrl.ID, scope.ControllerIds);
+        }
+
+        /// <summary>
+        /// Description: Tài khoản thường thao tác được trên controller thuộc org của mình.
+        /// Created date: 16/08/2026
+        /// </summary>
+        [Fact]
+        public async Task VwPermissionService_RestrictedUser_EnsureControllerAccess_AllowsOwnedController_Test()
+        {
+            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+            var ownedCtrl = new VwController
+            {
+                Code = $"{TestPrefix}OWN2_{Guid.NewGuid():N}",
+                Name = "Owned Controller 2",
+                OrgId = orgId,
+                Status = BaseEnums.StatusEnum.Enable,
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(ownedCtrl).ExecuteCommandAsync();
+            SetRestrictedUser(orgId);
+
+            var ex = await Record.ExceptionAsync(() => GetPermissionService().EnsureControllerAccessAsync(ownedCtrl.ID));
+
+            Assert.Null(ex);
+        }
+
+        /// <summary>
+        /// Description: Tài khoản thường bị chặn khi thao tác trên controller thuộc org khác.
+        /// Created date: 16/08/2026
+        /// </summary>
+        [Fact]
+        public async Task VwPermissionService_RestrictedUser_EnsureControllerAccess_DeniesForeignController_Test()
+        {
+            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+            var otherOrgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+            var foreignCtrl = new VwController
+            {
+                Code = $"{TestPrefix}FOREIGN2_{Guid.NewGuid():N}",
+                Name = "Foreign Controller 2",
+                OrgId = otherOrgId,
+                Status = BaseEnums.StatusEnum.Enable,
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(foreignCtrl).ExecuteCommandAsync();
+            SetRestrictedUser(orgId);
+
+            var ex = await Record.ExceptionAsync(() => GetPermissionService().EnsureControllerAccessAsync(foreignCtrl.ID));
+
+            Assert.NotNull(ex);
+        }
+
+        /// <summary>
+        /// Description: Đơn vị chỉ quản lý đúng 1 controller thì ResolveSceneControllerIdAsync tự suy ra controller đó.
+        /// Created date: 16/08/2026
+        /// </summary>
+        [Fact]
+        public async Task VwPermissionService_RestrictedUser_ResolveSceneControllerId_InfersSingleOwnedController_Test()
+        {
+            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+            var soleCtrl = new VwController
+            {
+                Code = $"{TestPrefix}SOLE_{Guid.NewGuid():N}",
+                Name = "Sole Controller",
+                OrgId = orgId,
+                Status = BaseEnums.StatusEnum.Enable,
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(soleCtrl).ExecuteCommandAsync();
+            SetRestrictedUser(orgId);
+
+            var resolved = await GetPermissionService().ResolveSceneControllerIdAsync(null);
+
+            Assert.Equal(soleCtrl.ID, resolved);
+        }
+
+        /// <summary>
+        /// Description: Cờ BypassPermission = true chỉ có hiệu lực ngoài Production: môi trường Development
+        ///              cấp FullAccess cho tài khoản thường, còn Production phải vô hiệu hóa cờ này an toàn.
+        /// Created date: 24/08/2026
+        /// </summary>
+        [Theory]
+        [InlineData("Development", true)]
+        [InlineData("Production", false)]
+        public async Task VwPermissionService_BypassPermission_HonoredOnlyOutsideProduction_Test(
+            string environmentName, bool expectedFullAccess)
+        {
+            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+            SetRestrictedUser(orgId);
+
+            var hostEnv = App.HostEnvironment;
+            var originalEnv = hostEnv.EnvironmentName;
+
+            try
+            {
+                hostEnv.EnvironmentName = environmentName;
+
+                var srv = GetPermissionService(new VwDeviceOptions { BypassPermission = true });
+                var scope = await srv.GetScope();
+
+                Assert.Equal(expectedFullAccess, srv.IsFullAccess);
+                Assert.Equal(expectedFullAccess, scope.IsFullAccess);
+            }
+            finally
+            {
+                hostEnv.EnvironmentName = originalEnv;
+            }
+        }
+
+        #endregion
+
+        #region Tầng 3: User Area Grid Geometry Tests
+
+        /// <summary>
+        /// Description: Cửa sổ vừa khít 1 ô panel (0,0) → trả về đúng 1 ô (0,0).
+        /// Created date: 11/09/2026
+        /// </summary>
+        [Fact]
+        public void GetCoveredCells_SingleCellWindow_ReturnsMatchingCell_Test()
+        {
+            var cells = VwPermissionService.GetCoveredCells(
+                x: 0, y: 0, w: 1920, h: 1080,
+                panelWidthPx: 1920, panelHeightPx: 1080).ToList();
+
+            Assert.Single(cells);
+            Assert.Equal(0, cells[0].Col);
+            Assert.Equal(0, cells[0].Row);
+        }
+
+        /// <summary>
+        /// Description: Cửa sổ trải qua 2 cột 2 hàng → trả về đủ 4 ô lưới tương ứng.
+        /// Created date: 11/09/2026
+        /// </summary>
+        [Fact]
+        public void GetCoveredCells_MultiCellWindow_ReturnsAllCoveredCells_Test()
+        {
+            var cells = VwPermissionService.GetCoveredCells(
+                x: 1920, y: 0, w: 3840, h: 2160,
+                panelWidthPx: 1920, panelHeightPx: 1080).ToList();
+
+            Assert.Equal(4, cells.Count);
+            Assert.Contains(cells, c => c.Col == 1 && c.Row == 0);
+            Assert.Contains(cells, c => c.Col == 1 && c.Row == 1);
+            Assert.Contains(cells, c => c.Col == 2 && c.Row == 0);
+            Assert.Contains(cells, c => c.Col == 2 && c.Row == 1);
+        }
+
+        /// <summary>
+        /// Description: Cửa sổ có kích thước không hợp lệ (<= 0) → trả về rỗng.
+        /// Created date: 11/09/2026
+        /// </summary>
+        [Fact]
+        public void GetCoveredCells_ZeroOrNegativeDimensions_ReturnsEmpty_Test()
+        {
+            var zeroW = VwPermissionService.GetCoveredCells(0, 0, 0, 1080).ToList();
+            var zeroH = VwPermissionService.GetCoveredCells(0, 0, 1920, 0).ToList();
+
+            Assert.Empty(zeroW);
+            Assert.Empty(zeroH);
+        }
+
+        private static List<VwGridCell> ParseCells(string input)
+        {
+            if (string.IsNullOrWhiteSpace(input))
+                return [];
+
+            return input.Split(';', StringSplitOptions.RemoveEmptyEntries)
+                .Select(pair =>
+                {
+                    var parts = pair.Split(',');
+                    return new VwGridCell { Col = int.Parse(parts[0]), Row = int.Parse(parts[1]) };
+                })
+                .ToList();
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra logic IsWithinAllowedCells với các tập ô covered và allowed khác nhau.
+        /// Created date: 11/09/2026
+        /// </summary>
+        [Theory]
+        [InlineData("0,0;1,0", "0,0;1,0;2,0", true)]
+        [InlineData("0,0;1,0;1,1", "0,0;1,0", false)]
+        [InlineData("0,0", "", false)]
+        public void IsWithinAllowedCells_EvaluatesSubsetCorrectly_Test(string coveredStr, string allowedStr, bool expected)
+        {
+            var covered = ParseCells(coveredStr);
+            var allowed = ParseCells(allowedStr);
+
+            var result = VwPermissionService.IsWithinAllowedCells(covered, allowed);
+            Assert.Equal(expected, result);
+        }
+
+        /// <summary>
+        /// Description: Khi user không có bản ghi VwWallPermission nào, mặc định bypass
+        ///              (không ném exception dù tọa độ có vẻ nhạy cảm).
+        /// Created date: 10/09/2026
+        /// </summary>
+        [Fact]
+        public async Task EnsureWindowInsideUserAllowedAreaAsync_NoPermissionRecord_BypassesCheck_Test()
+        {
+            using var scope = host.Services.CreateScope();
+            var service = scope.ServiceProvider.GetRequiredService<VwPermissionService>();
+
+            var ex = await Record.ExceptionAsync(() =>
+                service.EnsureWindowInsideUserAllowedAreaAsync(0, 0, 99999, 99999, "TestWindow"));
+
+            Assert.Null(ex);
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra ánh xạ và kiểm tra hình học từ Config JSON dạng List&lt;VwGridCell&gt;.
+        /// Created date: 11/09/2026
+        /// </summary>
+        [Fact]
+        public void VwWallPermission_ConfigJsonCells_GeometryCheckPasses_Test()
+        {
+            var allowedCells = new List<VwGridCell>
+            {
+                new() { Col = 0, Row = 0 },
+                new() { Col = 1, Row = 0 },
+                new() { Col = 0, Row = 1 },
+                new() { Col = 1, Row = 1 }
+            };
+
+            var json = JsonConvert.SerializeObject(allowedCells);
+            var parsedAllowed = JsonConvert.DeserializeObject<List<VwGridCell>>(json)!;
+
+            var covered = VwPermissionService.GetCoveredCells(0, 0, 3840, 2160);
+            var inside = VwPermissionService.IsWithinAllowedCells(covered, parsedAllowed);
+
+            Assert.True(inside);
+        }
+
+        /// <summary>
+        /// Description: Khi user có bản ghi permission nhưng Config không hợp lệ (trống, JSON lỗi, mảng rỗng) -> ném exception tương ứng.
+        /// Created date: 11/09/2026
+        /// </summary>
+        [Theory]
+        [InlineData("", "trống")]
+        [InlineData("invalid-json-{broken", "lỗi định dạng")]
+        [InlineData("[]", "rỗng")]
+        public async Task EnsureWindowInsideUserAllowedAreaAsync_InvalidConfig_ThrowsException_Test(string config, string expectedErrorSubstr)
+        {
+            var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
+            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+            SetRestrictedUser(orgId, account);
+
+            var perm = new VwWallPermission
+            {
+                UserId = account,
+                OrgId = orgId,
+                Config = config,
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(perm).ExecuteCommandAsync();
+
+            var service = GetPermissionService();
+            var ex = await Record.ExceptionAsync(() =>
+                service.EnsureWindowInsideUserAllowedAreaAsync(0, 0, 1920, 1080, "TestWin"));
+
+            Assert.NotNull(ex);
+            Assert.Contains(expectedErrorSubstr, ex.Message);
+        }
+
+        /// <summary>
+        /// Description: Khi user có Config hợp lệ và cửa sổ nằm hoàn toàn trong vùng -> thành công, không ném lỗi
+        /// </summary>
+        [Fact]
+        public async Task EnsureWindowInsideUserAllowedAreaAsync_ConfigValid_WindowInside_Succeeds_Test()
+        {
+            var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
+            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+            SetRestrictedUser(orgId, account);
+
+            var cells = new List<VwGridCell>
+            {
+                new() { Col = 0, Row = 0 },
+                new() { Col = 1, Row = 0 }
+            };
+            var perm = new VwWallPermission
+            {
+                UserId = account,
+                OrgId = orgId,
+                Config = JsonConvert.SerializeObject(cells),
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(perm).ExecuteCommandAsync();
+
+            var service = GetPermissionService();
+            var ex = await Record.ExceptionAsync(() =>
+                service.EnsureWindowInsideUserAllowedAreaAsync(0, 0, 3840, 1080, "InsideWin"));
+
+            Assert.Null(ex);
+        }
+
+        /// <summary>
+        /// Description: Khi user có Config hợp lệ nhưng cửa sổ lấn ra ngoài vùng -> ném lỗi nằm ngoài khu vực
+        /// </summary>
+        [Fact]
+        public async Task EnsureWindowInsideUserAllowedAreaAsync_ConfigValid_WindowOutside_ThrowsException_Test()
+        {
+            var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
+            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+            SetRestrictedUser(orgId, account);
+
+            var cells = new List<VwGridCell>
+            {
+                new() { Col = 0, Row = 0 }
+            };
+            var perm = new VwWallPermission
+            {
+                UserId = account,
+                OrgId = orgId,
+                Config = JsonConvert.SerializeObject(cells),
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(perm).ExecuteCommandAsync();
+
+            var service = GetPermissionService();
+            var ex = await Record.ExceptionAsync(() =>
+                service.EnsureWindowInsideUserAllowedAreaAsync(0, 0, 3840, 1080, "OutsideWin"));
+
+            Assert.NotNull(ex);
+            Assert.Contains("ngoài khu vực màn hình", ex.Message);
+        }
+
+        #endregion
+
+        #region GetEffectivePermissionAsync Tests
+
+        /// <summary>
+        /// Description: Khi không có user đăng nhập (HttpContext = null hoặc App.User = null) -> GetEffectivePermissionAsync trả về null
+        /// Created date: 13/09/2026
+        /// </summary>
+        [Fact]
+        public async Task GetEffectivePermissionAsync_NoUserContext_ReturnsNull_Test()
+        {
+            _httpContextAccessor.HttpContext = null;
+            var service = GetPermissionService();
+            var perm = await service.GetEffectivePermissionAsync();
+            Assert.Null(perm);
+        }
+
+        /// <summary>
+        /// Description: Khi user không có bản ghi phân quyền nào -> GetEffectivePermissionAsync trả về null
+        /// Created date: 13/09/2026
+        /// </summary>
+        [Fact]
+        public async Task GetEffectivePermissionAsync_NoRecord_ReturnsNull_Test()
+        {
+            var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
+            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+            SetRestrictedUser(orgId, account);
+
+            var service = GetPermissionService();
+            var perm = await service.GetEffectivePermissionAsync();
+            Assert.Null(perm);
+        }
+
+        /// <summary>
+        /// Description: Khi có cả bản ghi UserId và OrgId -> GetEffectivePermissionAsync ưu tiên trả về bản ghi của UserId
+        /// Created date: 13/09/2026
+        /// </summary>
+        [Fact]
+        public async Task GetEffectivePermissionAsync_BothUserAndOrgExist_ReturnsUserRecord_Test()
+        {
+            var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
+            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+            SetRestrictedUser(orgId, account);
+
+            var userPerm = new VwWallPermission
+            {
+                UserId = account,
+                OrgId = null,
+                Config = "[{\"Col\":0,\"Row\":0}]",
+                CreateTime = DateTime.Now
+            };
+            var orgPerm = new VwWallPermission
+            {
+                UserId = null,
+                OrgId = orgId,
+                Config = "[{\"Col\":1,\"Row\":1}]",
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(new[] { userPerm, orgPerm }).ExecuteCommandAsync();
+
+            try
+            {
+                var service = GetPermissionService();
+                var perm = await service.GetEffectivePermissionAsync();
+
+                Assert.NotNull(perm);
+                Assert.Equal(userPerm.ID, perm.ID);
+                Assert.Equal(account, perm.UserId);
+            }
+            finally
+            {
+                await _db.Deleteable<VwWallPermission>()
+                    .Where(p => p.ID == userPerm.ID || p.ID == orgPerm.ID)
+                    .ExecuteCommandAsync();
+            }
+        }
+
+        /// <summary>
+        /// Description: Khi không có bản ghi UserId nhưng có bản ghi OrgId -> GetEffectivePermissionAsync trả về bản ghi của OrgId
+        /// Created date: 13/09/2026
+        /// </summary>
+        [Fact]
+        public async Task GetEffectivePermissionAsync_NoUserRecord_HasOrgRecord_ReturnsOrgRecord_Test()
+        {
+            var account = $"{TestPrefix}ACC_{Guid.NewGuid():N}";
+            var orgId = $"{TestPrefix}ORG_{Guid.NewGuid():N}";
+            SetRestrictedUser(orgId, account);
+
+            var orgPerm = new VwWallPermission
+            {
+                UserId = null,
+                OrgId = orgId,
+                Config = "[{\"Col\":2,\"Row\":3}]",
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(orgPerm).ExecuteCommandAsync();
+
+            try
+            {
+                var service = GetPermissionService();
+                var perm = await service.GetEffectivePermissionAsync();
+
+                Assert.NotNull(perm);
+                Assert.Equal(orgPerm.ID, perm.ID);
+                Assert.Equal(orgId, perm.OrgId);
+            }
+            finally
+            {
+                await _db.Deleteable<VwWallPermission>()
+                    .Where(p => p.ID == orgPerm.ID)
+                    .ExecuteCommandAsync();
+            }
+        }
+
+        #endregion
+    }
+}

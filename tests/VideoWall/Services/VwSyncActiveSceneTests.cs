@@ -1,4 +1,4 @@
-using ITS.VideoWall.Core.Interfaces;
+﻿using ITS.VideoWall.Core.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using Module.VideoWall.Core.Dto.DeviceSetup;
 using Module.VideoWall.Core.Entities;
@@ -387,4 +387,4 @@ namespace Tests.Modules.VideoWall.Services
             }
         }
     }
-}
+}

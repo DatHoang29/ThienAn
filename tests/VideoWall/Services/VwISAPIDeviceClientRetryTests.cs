@@ -1,4 +1,4 @@
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Module.VideoWall.Core.Entities;
 using Module.VideoWall.Core.Interfaces;
@@ -203,4 +203,4 @@ namespace Tests.Modules.VideoWall.Infrastructure.Services
             _client.ResetAllDeviceAuthFailures();
         }
     }
-}
+}

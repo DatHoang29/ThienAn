@@ -273,6 +273,29 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             Assert.True(worker.LastProcessedVersion >= currentVer);
         }
 
+        /// <summary>
+        /// Description: Kiểm thử cơ chế dừng hợp tác (Cooperative Cancellation): Khi stoppingToken nhận tín hiệu hủy,
+        ///              PollChangeTracking lập tức ném OperationCanceledException để kết thúc chu kỳ nhanh chóng, không tiếp tục truy vấn.
+        /// Created date: 25/09/2026
+        /// </summary>
+        [Fact]
+        public async Task PollChangeTracking_WhenCancellationRequested_ThrowsOperationCanceledException_Test()
+        {
+            // Arrange
+            await using var scope = _host.Services.CreateAsyncScope();
+            var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataChangePollingWorker>>();
+            var config = new ConfigurationBuilder().Build();
+            var transport = new TransportManager(config);
+            var worker = new DataChangePollingWorker(scopeFactory, logger, transport);
+
+            using var cts = new CancellationTokenSource();
+            cts.Cancel();
+
+            // Act & Assert
+            await Assert.ThrowsAsync<OperationCanceledException>(() => worker.PollChangeTracking(cts.Token));
+        }
+
         #endregion
 
         #region 2. Change Tracking Full Business Flow Tests

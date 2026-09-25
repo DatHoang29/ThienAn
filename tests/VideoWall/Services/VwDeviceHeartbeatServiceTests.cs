@@ -1,4 +1,4 @@
-using ITS.VideoWall.Services.Heartbeat;
+﻿using ITS.VideoWall.Services.Heartbeat;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;

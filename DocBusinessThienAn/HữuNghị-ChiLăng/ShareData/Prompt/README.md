@@ -19,12 +19,12 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 ## Danh sách Prompt
 
-*(Hiện tại không có prompt nào đang chờ thực thi)*
+*(Hiện tại toàn bộ prompt đã được hoàn thành, kiểm chứng và xoá theo yêu cầu của người dùng).*
 
 ### Quyết định hiện hành
 
 - Cơ chế phát hiện dữ liệu mới (Event-Driven CT + NATS) đã hoàn thành trong tuần (22/09/2026) song song với luồng gửi nối đuôi.
-- Cursor lưu ở bảng `ShareDataCheckpoint`, không thêm `LastDataId` vào `ShareDataSubscription`.
+- Cursor lưu ở bảng `ShareDataLastSend`, không thêm `LastDataId` vào `ShareDataSubscription`.
 - **Gói 106 — đảo ngược quyết định lọc `Source` (25/09/2026):** policy vẫn `AlwaysIncremental`, gửi đủ 7 trường thật (`detectTime`, `lane`, `locationCode`, `speed`, `height`, `width`, `length`); 4 trường tải trọng `grossWeight`/`axleWeights`/`axleCount`/`isOverweight` để `null` vì `TmsTrafficData` không có cột nào cho chúng — tầng ánh xạ tự trả null, không cần lọc gì thêm. ⛔ **Không** lọc `Source`, ⛔ **không** có `SourceAllowList`, ⛔ **không** còn `AND 1=0`. Quyết định `AND 1=0` (chốt 24/09) đã bị chính chủ dự án bãi bỏ 25/09/2026 vì nó chặn nhầm cả 7 trường có dữ liệu thật — xem đầy đủ ở bảng lịch sử bên dưới. Khi có bảng/cột WIM thật thì bổ sung vào `SELECT`.
 - Bảo đảm giao hàng là **at-least-once**; tin xóa và `Idempotency-Key` vẫn hoãn.
 - Snapshot 101 và 105 còn vấn đề khối lượng query độc lập; prompt nối đuôi không tuyên bố đã sửa hai vấn đề đó.
@@ -33,6 +33,9 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 | Prompt | Kết quả |
 |---|---|
+| `sharedata-doi-ten-processbatchsubscriptions-processpackettrigger-prompt.md` | ✅ **25/09/2026** · Đổi tên `ProcessBatchSubscriptions` → `ProcessScheduledSubscriptions`, `ProcessPacketTrigger` → `ProcessTriggerSubscriptions` đối xứng và chuẩn hoá kiến trúc, 128 tests PASS 100% |
+| `sharedata-doi-ten-dataoutboundcursor-thanh-dataoutboundlastread-prompt.md` | ✅ **25/09/2026** · Đổi tên `DataOutboundCursor` → `DataOutboundLastRead` đồng nhất với `ShareDataLastSend`, 6 vị trí code & test, 128 tests PASS 100% |
+| `sharedata-bo-sung-kiem-tra-cancellation-pollchangetracking-prompt.md` | ✅ **25/09/2026** · Bổ sung kiểm tra Cancellation hợp tác (`stoppingToken.ThrowIfCancellationRequested()`) trong `PollChangeTracking` của `DataChangePollingWorker` |
 | `sharedata-tu-phuc-hoi-change-tracking-min-valid-version-prompt.md` | ✅ **25/09/2026** · Bổ sung cơ chế Self-Healing tự phục hồi khi mốc version nhỏ hơn `CHANGE_TRACKING_MIN_VALID_VERSION` (mã lỗi 22114/22115): fast-forward `_lastProcessedVersion = currentVersion.Value`, bổ sung `GetMinValidVersion`, `IsChangeTrackingVersionInvalid`, 3 unit tests mới, 133 tests PASS 100% |
 | `toi-uu-scope-processbatchsubscriptions-prompt.md` | ✅ **25/09/2026** · Tối ưu cấp phát `IServiceScope` trong `ProcessBatchSubscriptions`: gom 1 scope chung cho toàn bộ batch, trong vòng `foreach` chỉ clone `using var subDb = baseClient.CopyNew()`, 130 tests PASS 100% |
 | `doi-ten-legacylasttimerun-thanh-lasttimerun-prompt.md` | ✅ **25/09/2026** · Đổi tên tham số `legacyLastTimeRun` → `lastTimeRun` trong 2 overload của `GetOrInitializeCheckpoint` (bỏ tiền tố legacy thừa, gọn code) |
@@ -89,5 +92,6 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 | `test-mat-ket-noi-csdl-giua-chung-prompt.md` | ✅ **23/09/2026** · Test toàn trình kịch bản mất kết nối CSDL giữa chừng (transport error), 204 tests PASS 100% |
 
 *(Loạt prompt Frontend nhóm A–F từ review 16/09/2026, `16-09-2026-prompt-flatten-datapublication.md` và `sharedata-bo-qua-khi-khong-co-kenh-prompt.md` cũng đã được xóa theo Auto-Cleanup.)*
+
 
 
