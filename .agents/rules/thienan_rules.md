@@ -665,8 +665,9 @@ tests/
 
 ## 🛑 19. Quy Định Vận Hành AI & Quy Chuẩn Phát Triển Riêng (AI Operational & Dev Rules [Mandatory])
 
-- **19.1. Nguồn sự thật duy nhất — CẤM tạo file `feedback-*.md` rải rác**:
+- **19.1. Nguồn sự thật duy nhất (SSOT) — CẤM tạo file `feedback-*.md` rải rác & CẤM ghi trùng lặp quy tắc vào `MEMORY.md` (chốt 25/09/2026)**:
   - Toàn bộ quy tắc, quy ước và phản hồi của người dùng BẮT BUỘC ghi duy nhất vào file [`thienan_rules.md`](file:///c:/ThienAn/.agents/rules/thienan_rules.md).
+  - **Không ghi đúp quy tắc vào `MEMORY.md`**: Khi đã thêm/cập nhật quy tắc vào `thienan_rules.md`, **TUYỆT ĐỐI KHÔNG CẦN và KHÔNG ĐƯỢC thêm vào `MEMORY.md`**. File `MEMORY.md` chỉ đóng vai trò là bảng mục lục trỏ tới và yêu cầu AI đọc `thienan_rules.md`. Việc ghi trùng lặp vào `MEMORY.md` gây phân tán, tốn token và dễ lệch pha nội dung khi cập nhật.
   - TUYỆT ĐỐI KHÔNG tự tiện tạo các file `feedback-*.md` trong thư mục `.agents/memory/`. Chỉ cần sửa file này là toàn bộ hệ thống AI tự động tuân thủ.
   - Khi làm việc trên nhánh `feat` hoặc làm task cập nhật (update) cấu hình/thực thể, commit message bắt buộc dùng tiền tố `feat`, không dùng `fix`.
 
@@ -903,9 +904,27 @@ tests/
     ```
   - **Cách kiểm tra nhanh**: Nếu `catch` chỉ ghi log/alert rồi `throw` mà **không có cleanup tài nguyên** nào khác (không rollback transaction, không release lock, không dispose) → đó là try-catch thừa, gỡ đi.
   - **Try-catch HỢP LỆ vẫn giữ**: Transaction boundary (`BeginTran / RollbackTran`), race condition OCC (`catch { reload; throw }`), intentional swallow (`catch { /* optional feature */ }`), log-write defensive (`catch (Exception logEx) { LogWarning }` sau committed data).
-  - **Lỗi thật đã mắc**: `DataOutboundService.cs` từng có inner try-catch bọc `_extractionProcess.Extract(...)` ghi `QueryFailed` rồi throw — `LockedSubscription` bắt lại ghi thêm alert → 2 alert cho 1 lỗi. Đã refactor 24/09/2026 bằng `ShareDataException` mang `AlertCode` / `AlertSource` để boundary đọc trực tiếp.
+- **19.20. BẮT BUỘC ƯU TIÊN ORM (SqlSugar API) Khi Đã Có Entity — TUYỆT ĐỐI CẤM Dùng Raw SQL DML (UPDATE / INSERT / DELETE) Thủ Công (chốt 25/09/2026)**:
+  - **Nguyên tắc cốt lõi (P0 - Code Convention & Type Safety)**: Khi thao tác với bất kỳ bảng CSDL nào đã có Entity class tương ứng kế thừa trong codebase (ví dụ: `TmsTrafficData`, `ShareDataSubscription`, `ShareDataPacket`, `ShareDataPartner`, `TmsEquipment`...), BẮT BUỘC sử dụng cú pháp SqlSugar ORM (`db.Updateable<T>()`, `db.Insertable<T>()`, `db.Deleteable<T>()`, `db.Queryable<T>()`) thông qua Expression Tree (`SetColumns(x => ...)`, `Where(x => ...)`).
+  - ⛔ **TUYỆT ĐỐI CẤM**:
+    - Dùng raw SQL DML `db.Ado.ExecuteCommandAsync("UPDATE [TableName] SET ... WHERE ...")`.
+    - Dùng raw SQL DML `db.Ado.ExecuteCommandAsync("INSERT INTO [TableName] ...")`.
+    - Dùng raw SQL DML `db.Ado.ExecuteCommandAsync("DELETE FROM [TableName] WHERE ...")`.
+    - Tự gõ chuỗi tên bảng hoặc tên cột dạng string trong DML khi đã có class Entity được khai báo.
+  - **Mục tiêu & Lợi ích**:
+    1. **Compile-time Type Safety**: Phát hiện lỗi ngay khi biên dịch nếu tên cột hoặc kiểu dữ liệu bị thay đổi, tránh lỗi runtime tiềm ẩn.
+    2. **Refactoring an toàn**: Tự động đồng bộ khi đổi tên thuộc tính (Rename Symbol) trong toàn bộ solution.
+    3. **Chống SQL Injection tự động**: SqlSugar ORM tự động sinh parameterized query, loại trừ hoàn toàn rủi ro bảo mật.
+    4. **Đồng nhất kiến trúc**: Dự án vận hành theo chuẩn Code-First / Entity-first của SqlSugar.
+  - **Ngoại lệ hợp lệ duy nhất cho `db.Ado`**:
+    - Truy vấn các bảng/hàm hệ thống đặc thù của CSDL (như `CHANGETABLE(CHANGES ...)` trong Change Tracking).
+    - Các bảng động (Dynamic table) không có Entity tĩnh tại compile-time.
+    - Đọc metadata danh mục hệ thống cấp thấp khi không thể ánh xạ POCO.
+  - **Lỗi thật đã mắc**: Trong `DataChangeWorkerTests.cs`, từng viết `await db.Ado.ExecuteCommandAsync("UPDATE TmsTrafficData SET CreateTime = @timeA... WHERE ID = @id", new { timeA, id = carA.ID });` trong khi bảng `TmsTrafficData` đã kế thừa Entity chuẩn. Chủ dự án đã chỉ rõ lỗi này và yêu cầu bổ sung rule nghiêm cấm vĩnh viễn.
 
 ---
+
+
 
 
 ## 💻 20. Quy Chuẩn Phát Triển Frontend (Vue 3 / TypeScript - TA-ITS015-WEBVUE-V1.0)
