@@ -30,15 +30,15 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         #region 1. DataChangeWorker Static & Status Tests
 
         [Fact]
-        public async Task CheckStatusAsync_IsReadOnlyAndDoesNotThrow()
+        public async Task CheckTrackingDatabase_IsReadOnlyAndDoesNotThrow()
         {
             // Arrange
             await using var scope = _host.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataChangePollingWorker>>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataTrackerWorker>>();
 
             // Act
-            var status = await DataChangePollingWorker.CheckStatusAsync(db, logger);
+            var status = await DataTrackerWorker.CheckTrackingDatabase(db, logger);
 
             // Assert
             Assert.NotNull(status);
@@ -47,15 +47,15 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         }
 
         [Fact]
-        public async Task CheckStatusAsync_WhenAutoEnableTrue_AttemptsInitializationGracefully()
+        public async Task CheckTrackingDatabase_WhenAutoEnableTrue_AttemptsInitializationGracefully()
         {
             // Arrange
             await using var scope = _host.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataChangePollingWorker>>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataTrackerWorker>>();
 
             // Act: autoEnable = true gọi ALTER DATABASE / ALTER TABLE an toàn
-            var status = await DataChangePollingWorker.CheckStatusAsync(db, logger, autoEnable: true);
+            var status = await DataTrackerWorker.CheckTrackingDatabase(db, logger, autoEnable: true);
 
             // Assert
             Assert.NotNull(status);
@@ -68,15 +68,15 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             // Arrange
             await using var scope = _host.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataChangePollingWorker>>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataTrackerWorker>>();
 
-            var status = await DataChangePollingWorker.CheckStatusAsync(db, logger, autoEnable: true);
-            var tracked = DataChangePollingWorker.RawTableToPacketMap.Keys
+            var status = await DataTrackerWorker.CheckTrackingDatabase(db, logger, autoEnable: true);
+            var tracked = DataTrackerWorker.RawTableToPacketMap.Keys
                 .Except(status.MissingTables, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             // Act
-            var sql = DataChangePollingWorker.BuildChangedTablesSql(tracked);
+            var sql = DataTrackerWorker.BuildChangedTablesSql(tracked);
             if (tracked.Count == 0)
             {
                 Assert.Empty(sql);
@@ -101,9 +101,9 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             // Arrange
             await using var scope = _host.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataChangePollingWorker>>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataTrackerWorker>>();
 
-            await DataChangePollingWorker.CheckStatusAsync(db, logger, autoEnable: true);
+            await DataTrackerWorker.CheckTrackingDatabase(db, logger, autoEnable: true);
 
             var testId = Guid.NewGuid().ToString("N")[..8];
             var eqId = $"EQ_DEL_{testId}";
@@ -133,7 +133,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             }).ExecuteCommandAsync();
 
             // Lấy mốc version sau khi đã Insert
-            var verObj = await db.Ado.GetScalarAsync("SELECT CHANGE_TRACKING_CURRENT_VERSION()");
+            var verObj = await db.Ado.GetScalarAsync(DataTrackerWorker.SqlChangeTrackingCurrentVersion);
             var verAfterInsert = Convert.ToInt64(verObj);
 
             try
@@ -142,7 +142,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 await db.Deleteable<TmsTrafficData>().Where(t => t.ID == carId).ExecuteCommandAsync();
 
                 // Kiểm tra câu lệnh BuildChangedTablesSql từ mốc verAfterInsert
-                var sql = DataChangePollingWorker.BuildChangedTablesSql(["TmsTrafficData"]);
+                var sql = DataTrackerWorker.BuildChangedTablesSql(["TmsTrafficData"]);
                 var changedTablesAfterDelete = await db.Ado.SqlQueryAsync<string>(sql, new { lastVer = verAfterInsert });
 
                 // Assert 1: Thao tác DELETE không được ghi nhận trong danh sách bảng thay đổi
@@ -188,25 +188,25 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         public void IsChangeTrackingVersionInvalid_WhenGivenVariousExceptions_ClassifiesCorrectly_Test()
         {
             // 1. Ngoại lệ null hoặc thông thường
-            Assert.False(DataChangePollingWorker.IsChangeTrackingVersionInvalid(null));
-            Assert.False(DataChangePollingWorker.IsChangeTrackingVersionInvalid(new InvalidOperationException("Connection timeout")));
-            Assert.False(DataChangePollingWorker.IsChangeTrackingVersionInvalid(new FakeSqlException(1205, "Transaction deadlock")));
+            Assert.False(DataTrackerWorker.IsChangeTrackingVersionInvalid(null));
+            Assert.False(DataTrackerWorker.IsChangeTrackingVersionInvalid(new InvalidOperationException("Connection timeout")));
+            Assert.False(DataTrackerWorker.IsChangeTrackingVersionInvalid(new FakeSqlException(1205, "Transaction deadlock")));
 
             // 2. SqlException có mã lỗi 22114 hoặc 22115
-            Assert.True(DataChangePollingWorker.IsChangeTrackingVersionInvalid(new FakeSqlException(22114, "A previous version or change tracking version is invalid.")));
-            Assert.True(DataChangePollingWorker.IsChangeTrackingVersionInvalid(new FakeSqlException(22115, "Change tracking version cleanup occurred.")));
+            Assert.True(DataTrackerWorker.IsChangeTrackingVersionInvalid(new FakeSqlException(22114, "A previous version or change tracking version is invalid.")));
+            Assert.True(DataTrackerWorker.IsChangeTrackingVersionInvalid(new FakeSqlException(22115, "Change tracking version cleanup occurred.")));
 
             // 3. Ngoại lệ chứa từ khóa nhận diện trong thông điệp
-            Assert.True(DataChangePollingWorker.IsChangeTrackingVersionInvalid(new Exception("SqlException: 22114")));
-            Assert.True(DataChangePollingWorker.IsChangeTrackingVersionInvalid(new Exception("change tracking version is invalid.")));
-            Assert.True(DataChangePollingWorker.IsChangeTrackingVersionInvalid(new Exception("The minimum valid version is 450.")));
-            Assert.True(DataChangePollingWorker.IsChangeTrackingVersionInvalid(new Exception("CHANGE_TRACKING_MIN_VALID_VERSION check failed.")));
+            Assert.True(DataTrackerWorker.IsChangeTrackingVersionInvalid(new Exception("SqlException: 22114")));
+            Assert.True(DataTrackerWorker.IsChangeTrackingVersionInvalid(new Exception("change tracking version is invalid.")));
+            Assert.True(DataTrackerWorker.IsChangeTrackingVersionInvalid(new Exception("The minimum valid version is 450.")));
+            Assert.True(DataTrackerWorker.IsChangeTrackingVersionInvalid(new Exception("CHANGE_TRACKING_MIN_VALID_VERSION check failed.")));
 
             // 4. Ngoại lệ lồng nhau (InnerException)
             var wrappedEx = new TargetInvocationException(
                 "Wrapper error",
                 new AggregateException(new FakeSqlException(22114, "Nested invalid version")));
-            Assert.True(DataChangePollingWorker.IsChangeTrackingVersionInvalid(wrappedEx));
+            Assert.True(DataTrackerWorker.IsChangeTrackingVersionInvalid(wrappedEx));
         }
 
         /// <summary>
@@ -219,15 +219,15 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             // Arrange
             await using var scope = _host.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataChangePollingWorker>>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataTrackerWorker>>();
 
-            await DataChangePollingWorker.CheckStatusAsync(db, logger, autoEnable: true);
+            await DataTrackerWorker.CheckTrackingDatabase(db, logger, autoEnable: true);
 
             // Act
-            var validVer = await DataChangePollingWorker.GetMinValidVersion(db, "TmsTrafficData");
-            var invalidTableVer = await DataChangePollingWorker.GetMinValidVersion(db, "NonExistentTable_Random_9999");
-            var nullDbVer = await DataChangePollingWorker.GetMinValidVersion(null!, "TmsTrafficData");
-            var emptyTableVer = await DataChangePollingWorker.GetMinValidVersion(db, string.Empty);
+            var validVer = await DataTrackerWorker.GetMinValidVersion(db, "TmsTrafficData");
+            var invalidTableVer = await DataTrackerWorker.GetMinValidVersion(db, "NonExistentTable_Random_9999");
+            var nullDbVer = await DataTrackerWorker.GetMinValidVersion(null!, "TmsTrafficData");
+            var emptyTableVer = await DataTrackerWorker.GetMinValidVersion(db, string.Empty);
 
             // Assert
             Assert.True(validVer == null || validVer >= 0);
@@ -237,7 +237,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         }
 
         /// <summary>
-        /// Description: Kiểm thử cơ chế Self-Healing của DataChangePollingWorker: Khi gặp lỗi Change Tracking version không hợp lệ,
+        /// Description: Kiểm thử cơ chế Self-Healing của DataTrackerWorker: Khi gặp lỗi Change Tracking version không hợp lệ,
         ///              worker tự động phát hiện, ghi log warning và nhảy cóc mốc version lên current version của DB, không gây crash worker.
         /// Created date: 25/09/2026
         /// </summary>
@@ -248,23 +248,23 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             await using var scope = _host.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataChangePollingWorker>>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataTrackerWorker>>();
             var config = new ConfigurationBuilder().Build();
             var transport = new TransportManager(config);
 
-            await DataChangePollingWorker.CheckStatusAsync(db, logger, autoEnable: true);
+            await DataTrackerWorker.CheckTrackingDatabase(db, logger, autoEnable: true);
 
-            var currentVerObj = await db.Ado.GetScalarAsync("SELECT CHANGE_TRACKING_CURRENT_VERSION()");
+            var currentVerObj = await db.Ado.GetScalarAsync(DataTrackerWorker.SqlChangeTrackingCurrentVersion);
             var currentVer = Convert.ToInt64(currentVerObj);
 
-            var worker = new DataChangePollingWorker(scopeFactory, logger, transport);
+            var worker = new DataTrackerWorker(scopeFactory, logger, transport);
 
             // Act 1: Chu kỳ poll đầu tiên khởi tạo LastProcessedVersion = currentVer
             await worker.PollChangeTracking(CancellationToken.None);
             Assert.True(worker.LastProcessedVersion >= 0);
 
             // Act 2: Giả lập mốc LastProcessedVersion bị lệch hoặc âm (-10)
-            typeof(DataChangePollingWorker).GetProperty(nameof(DataChangePollingWorker.LastProcessedVersion))?
+            typeof(DataTrackerWorker).GetProperty(nameof(DataTrackerWorker.LastProcessedVersion))?
                 .GetSetMethod(nonPublic: true)?
                 .Invoke(worker, [-10L]);
             await worker.PollChangeTracking(CancellationToken.None);
@@ -284,10 +284,10 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             // Arrange
             await using var scope = _host.Services.CreateAsyncScope();
             var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataChangePollingWorker>>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataTrackerWorker>>();
             var config = new ConfigurationBuilder().Build();
             var transport = new TransportManager(config);
-            var worker = new DataChangePollingWorker(scopeFactory, logger, transport);
+            var worker = new DataTrackerWorker(scopeFactory, logger, transport);
 
             using var cts = new CancellationTokenSource();
             cts.Cancel();
@@ -301,7 +301,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         #region 2. Change Tracking Full Business Flow Tests
 
         /// <summary>
-        /// Description: Kiểm thử toàn trình: Khi có dữ liệu mới trong bảng nguồn (TmsTrafficData), trigger gói tin 103 kích hoạt xuất bản ngay, cập nhật LastVersion trên ShareDataCheckpoint và ghi log thành công.
+        /// Description: Kiểm thử toàn trình: Khi có dữ liệu mới trong bảng nguồn (TmsTrafficData), trigger gói tin 103 kích hoạt xuất bản ngay, cập nhật LastVersion trên ShareDataLastSend và ghi log thành công.
         /// Created date: 22/09/2026
         /// </summary>
         [Fact]
@@ -356,11 +356,11 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             var service = CreateTestWorker(scope);
 
             // Act: Kích hoạt xử lý tức thời cho gói tin 103 (tương đương tín hiệu NATS nhận được)
-            await service.ProcessPacketTrigger(packetCode, CancellationToken.None);
+            await service.ProcessSubscriptions(packetCode, CancellationToken.None);
 
             // Assert: Toàn trình nghiệp vụ được xác nhận
             // 1. Checkpoint phải được tạo hoặc cập nhật với LastVersion và LastTime hợp lệ
-            var checkpoint = await db.Queryable<ShareDataCheckpoint>()
+            var checkpoint = await db.Queryable<ShareDataLastSend>()
                 .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
                 .FirstAsync();
 
@@ -478,11 +478,11 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 var service = CreateTestWorker(scope);
 
                 // Act 1: Trigger đợt 1 (chỉ thấy Xe A và Xe B)
-                await service.ProcessPacketTrigger(packetCode, CancellationToken.None);
+                await service.ProcessSubscriptions(packetCode, CancellationToken.None);
 
                 // Assert 1:
                 // Checkpoint LastTime phải dừng lại ở timeB (Xe B), không được nhảy cóc
-                var checkpoint1 = await db.Queryable<ShareDataCheckpoint>()
+                var checkpoint1 = await db.Queryable<ShareDataLastSend>()
                     .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
                     .FirstAsync();
 
@@ -528,11 +528,11 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                     .ExecuteCommandAsync();
 
                 // Act 2: Trigger đợt 2 (nhặt tiếp Xe C từ mốc của Xe B)
-                await service.ProcessPacketTrigger(packetCode, CancellationToken.None);
+                await service.ProcessSubscriptions(packetCode, CancellationToken.None);
 
                 // Assert 2:
                 // Checkpoint LastTime phải được nâng lên timeC (Xe C)
-                var checkpoint2 = await db.Queryable<ShareDataCheckpoint>()
+                var checkpoint2 = await db.Queryable<ShareDataLastSend>()
                     .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
                     .FirstAsync();
 
@@ -556,7 +556,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 await db.Deleteable<ShareDataPartner>().Where(p => p.ID == partner.ID).ExecuteCommandAsync();
                 await db.Deleteable<TmsTrafficData>().Where(t => t.EquipmentId == eqId).ExecuteCommandAsync();
                 await db.Deleteable<TmsEquipment>().Where(e => e.ID == eqId).ExecuteCommandAsync();
-                await db.Deleteable<ShareDataCheckpoint>().Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataLastSend>().Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode).ExecuteCommandAsync();
                 await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
             }
         }
@@ -590,10 +590,10 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             var service = CreateTestWorker(scope);
 
             // Act: Kích hoạt trigger gói tin
-            await service.ProcessPacketTrigger(packetCode, CancellationToken.None);
+            await service.ProcessSubscriptions(packetCode, CancellationToken.None);
 
             // Assert: Không có checkpoint nào được cập nhật cho cặp partner và packet này
-            var checkpoint = await db.Queryable<ShareDataCheckpoint>()
+            var checkpoint = await db.Queryable<ShareDataLastSend>()
                 .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
                 .FirstAsync();
 
@@ -637,7 +637,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             var service = CreateTestWorker(scope);
 
             // Act: Nhận tín hiệu trigger
-            await service.ProcessPacketTrigger(packetCode, CancellationToken.None);
+            await service.ProcessSubscriptions(packetCode, CancellationToken.None);
 
             // Assert: Do đang trong cửa sổ Debounce 15s (mới trôi qua 3s), đợt trigger này bị hoãn
             var logs = await db.Queryable<ShareDataActivityLog>()
@@ -668,7 +668,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             var (partner, sub) = await SeedOutboundSubscription(db, partnerCode, subCode, packetCode, s => s.SendOnNewData = true);
 
             // Giả lập checkpoint đã ghi nhận Version cao trước đó (ví dụ: 1000)
-            var initialCheckpoint = new ShareDataCheckpoint
+            var initialCheckpoint = new ShareDataLastSend
             {
                 ID = Guid.NewGuid().ToString("N"),
                 PartnerCode = partnerCode,
@@ -682,8 +682,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             await db.Insertable(initialCheckpoint).ExecuteCommandAsync();
 
             // Act: Cố tình thực thi câu lệnh cập nhật checkpoint với version thấp hơn (999) hoặc LastTime cũ hơn
-            var rowsAffected = await db.Updateable<ShareDataCheckpoint>()
-                .SetColumns(c => new ShareDataCheckpoint
+            var rowsAffected = await db.Updateable<ShareDataLastSend>()
+                .SetColumns(c => new ShareDataLastSend
                 {
                     LastTime = DateTime.Now.AddMinutes(-20),
                     LastKey = "OLD_KEY",
@@ -697,7 +697,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             // Assert: Cơ chế chốt chặn đơn điệu từ chối ghi đè (0 dòng bị ảnh hưởng)
             Assert.Equal(0, rowsAffected);
 
-            var checkpoint = await db.Queryable<ShareDataCheckpoint>()
+            var checkpoint = await db.Queryable<ShareDataLastSend>()
                 .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
                 .FirstAsync();
 
@@ -763,7 +763,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             var service = CreateTestWorker(scope);
 
             // Act: Chạy luồng quét định kỳ (mô phỏng trường hợp NATS offline hoàn toàn, không có event trigger nào bắn tới)
-            await service.ProcessBatchSubscriptions(CancellationToken.None);
+            await service.ProcessSubscriptions(CancellationToken.None);
 
             // Assert: Luồng định kỳ quét bù thành công, dữ liệu được gửi trọn vẹn
             var logs = await db.Queryable<ShareDataActivityLog>()
@@ -777,7 +777,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
 
         /// <summary>
         /// Description: Kiểm thử chống cướp lock: Khi một worker khác đang nắm giữ lock còn hiệu lực (NextTimeRun > now),
-        ///              ProcessPacketTrigger không được cướp lock và không can thiệp NextTimeRun của worker cũ.
+        ///              ProcessSubscriptions không được cướp lock và không can thiệp NextTimeRun của worker cũ.
         /// </summary>
         [Fact]
         public async Task ChangeTracking_WhenLockHeldByActiveWorker_DoesNotStealLockAndLeavesNextTimeRunIntact_Test()
@@ -832,7 +832,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             var service = CreateTestWorker(scope);
 
             // Act: NATS trigger nổ ra trong lúc Worker 1 vẫn đang chạy nắm giữ lock
-            await service.ProcessPacketTrigger(packetCode, CancellationToken.None);
+            await service.ProcessSubscriptions(packetCode, CancellationToken.None);
 
             // Assert:
             // 1. NextTimeRun của Subscription trong DB PHẢI GIỮ NGUYÊN (không bị cướp / ghi đè bởi NATS trigger)
@@ -847,6 +847,107 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 .Where(l => l.SubscriptionId == sub.ID && l.OccurredAt >= now.AddSeconds(-2))
                 .ToListAsync();
             Assert.Empty(logs);
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử đua tranh đồng thời (concurrent race): Khi N lời gọi ProcessSubscriptions(packetCode) nổ ra gần như đồng thời
+        ///              cho cùng 1 Subscription (mô phỏng N instance Worker cùng nhận 1 bản tin NATS do cơ chế pub/sub không dùng queue group),
+        ///              khoá OCC LockedSubscription phải đảm bảo đúng 1 lần export thành công; các lần thua giành lock không tạo ActivityLog/AlertLog nào.
+        /// Created date: 25/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ChangeTracking_WhenConcurrentTriggersRaceForSameSubscription_ExactlyOneExportSucceeds_Test()
+        {
+            // Arrange
+            await using var scope = _host.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataOutboundService>>();
+
+            var testId = Guid.NewGuid().ToString("N")[..8];
+            var partnerCode = $"PARTNER_RACE_{testId}";
+            var packetCode = "103";
+            var subCode = $"SUB_RACE_{testId}";
+
+            await PrepareDatabase(db, logger, packetCode);
+
+            var now = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
+            var (partner, sub) = await SeedOutboundSubscription(db, partnerCode, subCode, packetCode, s =>
+            {
+                s.SendOnNewData = true;
+                s.IntervalSeconds = 300;
+                s.LastTimeRun = now.AddMinutes(-5);
+                s.NextTimeRun = null; // Đăng ký đang rảnh — cả N lời gọi đều có cơ hội giành lock, không ai có sẵn lợi thế
+            });
+
+            // Dọn sạch bảng nguồn TmsTrafficData trước khi seed để cô lập số lượng bản ghi cho bài test
+            await db.Deleteable<TmsTrafficData>().ExecuteCommandAsync();
+
+            // Seed đúng 1 dòng dữ liệu mới vào bảng nguồn — nếu có > 1 lần export thật sự chạy, RecordCount sẽ lệch khỏi 1
+            var eqId = $"EQ_VDS_RACE_{testId}";
+            await db.Insertable(new TmsEquipment
+            {
+                ID = eqId,
+                Code = $"VDS_RACE_{testId}",
+                KmNumber = 70,
+                MetNumber = 300
+            }).ExecuteCommandAsync();
+
+            await db.Insertable(new TmsTrafficData
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                EquipmentId = eqId,
+                DetectTime = now,
+                Type = "CAR",
+                LicensePlate = $"30A-RACE_{testId}",
+                Speed = 85.0f,
+                Lane = "L1",
+                Direction = "NORTH",
+                Location = "KM70",
+                CreateTime = now,
+                UpdateTime = now
+            }).ExecuteCommandAsync();
+
+            // Act: mô phỏng 5 instance Worker cùng nhận và xử lý 1 bản tin NATS đồng thời (pub/sub fan-out, không có queue group)
+            // Mỗi scope độc lập => mỗi DataOutboundService.ProcessSubscriptions tự mở 1 ISqlSugarClient riêng (xem DataOutboundService.cs:148-150),
+            // đúng bản chất N kết nối DB độc lập cạnh tranh cùng 1 dòng Subscription qua khoá OCC.
+            const int concurrentCallers = 5;
+            var scopes = Enumerable.Range(0, concurrentCallers)
+                .Select(_ => _host.Services.CreateAsyncScope())
+                .ToList();
+            try
+            {
+                var tasks = scopes
+                    .Select(s => CreateTestWorker(s).ProcessSubscriptions(packetCode, CancellationToken.None))
+                    .ToArray();
+                await Task.WhenAll(tasks);
+            }
+            finally
+            {
+                foreach (var s in scopes)
+                    await s.DisposeAsync();
+            }
+
+            // Assert
+            // 1. Đúng 1 dòng ActivityLog thành công — 4 lần thua giành lock không chạy export nào khác
+            var raceLogs = await db.Queryable<ShareDataActivityLog>()
+                .Where(l => l.SubscriptionId == sub.ID && l.OccurredAt >= now.AddSeconds(-5))
+                .ToListAsync();
+            Assert.Single(raceLogs);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, raceLogs[0].Success);
+            Assert.Equal(1, raceLogs[0].RecordCount ?? 0);
+
+            // 2. Không AlertLog nào phát sinh — thua giành lock là im lặng theo thiết kế, không phải lỗi luồng gửi dữ liệu
+            var raceAlerts = await db.Queryable<ShareDataAlertLog>()
+                .Where(a => a.SubscriptionId == sub.ID)
+                .ToListAsync();
+            Assert.Empty(raceAlerts);
+
+            // 3. Checkpoint chỉ tiến đúng 1 lần, LastTime hợp lệ
+            var checkpoint = await db.Queryable<ShareDataLastSend>()
+                .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
+                .FirstAsync();
+            Assert.NotNull(checkpoint);
+            Assert.NotNull(checkpoint.LastTime);
         }
 
         /// <summary>
@@ -906,7 +1007,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             var service = CreateTestWorker(scope);
 
             // Act
-            await service.ProcessPacketTrigger(packet.Code!, CancellationToken.None);
+            await service.ProcessSubscriptions(packet.Code!, CancellationToken.None);
 
             // Assert: Subscription được xử lý và ghi log thành công
             var logs = await db.Queryable<ShareDataActivityLog>()
@@ -976,7 +1077,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             var service = CreateTestWorker(scope);
 
             // Act
-            await service.ProcessPacketTrigger(packet.Code!, CancellationToken.None);
+            await service.ProcessSubscriptions(packet.Code!, CancellationToken.None);
 
             // Assert: Subscription được xử lý và ghi log thành công
             var logs = await db.Queryable<ShareDataActivityLog>()
@@ -1050,9 +1151,9 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             try
             {
                 // Chạy đợt 1 để tạo checkpoint thật
-                await service.ProcessBatchSubscriptions(CancellationToken.None);
+                await service.ProcessSubscriptions(CancellationToken.None);
 
-                var cp1 = await db.Queryable<ShareDataCheckpoint>()
+                var cp1 = await db.Queryable<ShareDataLastSend>()
                     .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
                     .FirstAsync();
                 Assert.NotNull(cp1);
@@ -1089,26 +1190,21 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 // Tạo instance mới của DataChangeWorker (biến _lastProcessedVersion khởi tạo = -1)
                 // và kích hoạt vòng poll đầu tiên (nhảy thẳng tới version hiện tại của DB, không sinh NATS trigger cho 3 bản ghi ở bước 2)
                 var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
-                var watcherLogger = scope.ServiceProvider.GetRequiredService<ILogger<DataChangePollingWorker>>();
+                var watcherLogger = scope.ServiceProvider.GetRequiredService<ILogger<DataTrackerWorker>>();
                 var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
                 var transport = scope.ServiceProvider.GetService<TransportManager>() ?? new TransportManager(config);
 
-                var newWatcher = new DataChangePollingWorker(scopeFactory, watcherLogger, transport);
-                var pollMethod = typeof(DataChangePollingWorker).GetMethod("PollChangeTracking", BindingFlags.NonPublic | BindingFlags.Instance);
-                if (pollMethod != null)
-                {
-                    var task = (Task)pollMethod.Invoke(newWatcher, [CancellationToken.None])!;
-                    await task;
-                }
+                var newWatcher = new DataTrackerWorker(scopeFactory, watcherLogger, transport);
+                await newWatcher.PollChangeTracking(CancellationToken.None);
 
-                // 4. Act: Luồng quét định kỳ (ProcessBatchSubscriptions) kích hoạt theo lịch
+                // 4. Act: Luồng quét định kỳ (ProcessSubscriptions) kích hoạt theo lịch
                 // Đảm bảo NextTimeRun đến hạn chạy định kỳ
                 await db.Updateable<ShareDataSubscription>()
                     .SetColumns(s => s.NextTimeRun == DateTime.Now.AddSeconds(-5))
                     .Where(s => s.ID == sub.ID)
                     .ExecuteCommandAsync();
 
-                await service.ProcessBatchSubscriptions(CancellationToken.None);
+                await service.ProcessSubscriptions(CancellationToken.None);
 
                 // 5. Assert: 3 bản ghi chèn lúc watcher chết VẪN được gửi đầy đủ
                 var allLogs = await db.Queryable<ShareDataActivityLog>()
@@ -1126,7 +1222,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 Assert.Equal(downtimeRecords.Count, exportedDowntimeCount);
 
                 // Checkpoint đã tiến đúng tới bản ghi cuối cùng của đợt downtime
-                var cp2 = await db.Queryable<ShareDataCheckpoint>()
+                var cp2 = await db.Queryable<ShareDataLastSend>()
                     .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
                     .FirstAsync();
                 Assert.NotNull(cp2);
@@ -1137,7 +1233,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             {
                 await db.Deleteable<TmsTrafficData>().Where(t => t.EquipmentId == eqId).ExecuteCommandAsync();
                 await db.Deleteable<TmsEquipment>().Where(e => e.ID == eqId).ExecuteCommandAsync();
-                await db.Deleteable<ShareDataCheckpoint>().Where(c => c.PartnerCode == partnerCode).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataLastSend>().Where(c => c.PartnerCode == partnerCode).ExecuteCommandAsync();
                 await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
                 await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub.ID).ExecuteCommandAsync();
                 await db.Deleteable<ShareDataPartner>().Where(p => p.ID == partner.ID).ExecuteCommandAsync();
@@ -1203,7 +1299,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             try
             {
                 // Act: Kích hoạt xử lý tức thời cho gói tin 108 theo mã 108_vmsInfo
-                await service.ProcessPacketTrigger("108_vmsInfo", CancellationToken.None);
+                await service.ProcessSubscriptions("108_vmsInfo", CancellationToken.None);
 
                 // Assert: Toàn trình nghiệp vụ bản chụp được xác nhận
                 // 1. Activity Log phải ghi nhận phiên kết xuất thành công với RecordCount > 0
@@ -1216,8 +1312,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
                 Assert.True(logs[0].RecordCount > 0);
 
-                // 2. Snapshot policy: Tuyệt đối không tạo hoặc cập nhật ShareDataCheckpoint
-                var checkpoint = await db.Queryable<ShareDataCheckpoint>()
+                // 2. Snapshot policy: Tuyệt đối không tạo hoặc cập nhật ShareDataLastSend
+                var checkpoint = await db.Queryable<ShareDataLastSend>()
                     .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
                     .FirstAsync();
                 Assert.Null(checkpoint);
@@ -1226,7 +1322,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             {
                 await db.Deleteable<VmsCurrent>().Where(v => v.EquipmentId == eqId).ExecuteCommandAsync();
                 await db.Deleteable<TmsEquipment>().Where(e => e.ID == eqId).ExecuteCommandAsync();
-                await db.Deleteable<ShareDataCheckpoint>().Where(c => c.PartnerCode == partnerCode).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataLastSend>().Where(c => c.PartnerCode == partnerCode).ExecuteCommandAsync();
                 await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
                 await db.Deleteable<ShareDataMapping>().Where(m => m.PartnerId == partner.ID).ExecuteCommandAsync();
                 await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub.ID).ExecuteCommandAsync();
@@ -1236,7 +1332,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
 
         /// <summary>
         /// Description: Kiểm thử bài đối chứng: Gói tin NotReady (110) và Disabled (111) bị chặn hoàn toàn,
-        ///              không sinh trigger ở tầng ResolveTriggerPackets và không kích hoạt xuất bản ở pipeline ProcessPacketTrigger.
+        ///              không sinh trigger ở tầng ResolveTriggerPackets và không kích hoạt xuất bản ở pipeline ProcessSubscriptions.
         /// Created date: 23/09/2026
         /// </summary>
         [Fact]
@@ -1244,12 +1340,12 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         {
             // 1. Kiểm thử tầng ResolveTriggerPackets: TmsIncident và TmsEventType ánh xạ 107, 110, 111
             // Chỉ có 107_incidentData được kích hoạt, 110_wpData và 111 bắt buộc bị loại bỏ theo policy
-            var detectedPackets = DataChangePollingWorker.ResolveTriggerPackets(["TmsIncident", "TmsEventType"]);
+            var detectedPackets = DataTrackerWorker.ResolveTriggerPackets(["TmsIncident", "TmsEventType"]);
             Assert.Contains("107_incidentData", detectedPackets);
             Assert.DoesNotContain("110_wpData", detectedPackets);
             Assert.DoesNotContain("111", detectedPackets);
 
-            // 2. Kiểm thử toàn trình pipeline CSDL: Dù Subscription bật cờ SendOnNewData, ProcessPacketTrigger vẫn chặn không xuất bản
+            // 2. Kiểm thử toàn trình pipeline CSDL: Dù Subscription bật cờ SendOnNewData, ProcessSubscriptions vẫn chặn không xuất bản
             await using var scope = _host.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataOutboundService>>();
@@ -1288,8 +1384,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             try
             {
                 // Act: Bắn trigger trực tiếp cho cả 2 gói 110_wpData và 111
-                await service.ProcessPacketTrigger("110_wpData", CancellationToken.None);
-                await service.ProcessPacketTrigger("111", CancellationToken.None);
+                await service.ProcessSubscriptions("110_wpData", CancellationToken.None);
+                await service.ProcessSubscriptions("111", CancellationToken.None);
 
                 // Assert: CSDL không ghi nhận bất kỳ Activity Log thành công nào cho gói 110 và 111
                 var logs110 = await db.Queryable<ShareDataActivityLog>()
@@ -1303,14 +1399,14 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 Assert.Empty(logs111);
 
                 // Checkpoint tuyệt đối không sinh ra
-                var checkpoints = await db.Queryable<ShareDataCheckpoint>()
+                var checkpoints = await db.Queryable<ShareDataLastSend>()
                     .Where(c => c.PartnerCode == partnerCode)
                     .ToListAsync();
                 Assert.Empty(checkpoints);
             }
             finally
             {
-                await db.Deleteable<ShareDataCheckpoint>().Where(c => c.PartnerCode == partnerCode).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataLastSend>().Where(c => c.PartnerCode == partnerCode).ExecuteCommandAsync();
                 await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub110.ID || l.SubscriptionId == sub111.ID).ExecuteCommandAsync();
                 await db.Deleteable<ShareDataMapping>().Where(m => m.PartnerId == partner.ID).ExecuteCommandAsync();
                 await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub110.ID || s.ID == sub111.ID).ExecuteCommandAsync();
@@ -1409,7 +1505,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             try
             {
                 // Act: Bắn trigger theo mã chuẩn "105_rfidData"
-                await service.ProcessPacketTrigger("105_rfidData", CancellationToken.None);
+                await service.ProcessSubscriptions("105_rfidData", CancellationToken.None);
 
                 // Assert:
                 // a. Đăng ký được khớp và xuất bản thành công
@@ -1423,7 +1519,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 Assert.True(logs[0].RecordCount > 0, "Gói 105_rfidData phải trích xuất và xuất bản dữ liệu gói 105 khi nhận trigger 105_rfidData.");
 
                 // b. Snapshot: không sinh checkpoint
-                var checkpoints = await db.Queryable<ShareDataCheckpoint>()
+                var checkpoints = await db.Queryable<ShareDataLastSend>()
                     .Where(c => c.PartnerCode == partner.Code && c.PacketCode == packetCode)
                     .ToListAsync();
                 Assert.Empty(checkpoints);
@@ -1442,7 +1538,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 await db.Deleteable<TollTransactionIn>().Where(t => t.TransactionId == $"TXN_{unique}").ExecuteCommandAsync();
                 await db.Deleteable<TollTransactionOut>().Where(t => t.TransactionId == $"TXN_{unique}").ExecuteCommandAsync();
                 await db.Deleteable<TmsVehicleRegistration>().Where(r => r.LicensePlate == $"30A-{unique}").ExecuteCommandAsync();
-                await db.Deleteable<ShareDataCheckpoint>().Where(c => c.PartnerCode == partner.Code).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataLastSend>().Where(c => c.PartnerCode == partner.Code).ExecuteCommandAsync();
                 await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
                 await db.Deleteable<ShareDataMapping>().Where(m => m.PartnerId == partner.ID).ExecuteCommandAsync();
                 await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub.ID).ExecuteCommandAsync();
@@ -1458,6 +1554,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
 
         private static async Task PrepareDatabase(ISqlSugarClient db, ILogger logger, string packetCode = "103")
         {
+            db.CodeFirst.InitTables<ShareDataLastSend>();
             await DataOutboundServiceTests.PacketMetadataCatalogTest.SeedPacketToDb(db, packetCode);
         }
 
@@ -1469,6 +1566,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             string datatypeId,
             Action<ShareDataSubscription>? configureSub = null)
         {
+            db.CodeFirst.InitTables<ShareDataLastSend>();
             var partner = new ShareDataPartner
             {
                 ID = Guid.NewGuid().ToString("N"),
@@ -1562,6 +1660,361 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         }
 
         #endregion
+
+        #region 7. Concurrent – Multi-Sub, Multi-Partner, NATS Burst
+
+        /// <summary>
+        /// Description: Kiểm thử đồng thời N Subscription KHÁC NHAU cùng chạy song song (mô phỏng 3-4 worker instance
+        ///              nhận tín hiệu NATS cho 3 gói tin 103, 104, 109 cùng lúc). Mỗi sub phải ghi đúng checkpoint
+        ///              của chính mình, không bị lẫn dữ liệu checkpoint của sub khác.
+        /// Created date: 25/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ChangeTracking_WhenMultipleDistinctSubscriptionsRunConcurrently_EachWritesOwnCheckpointCorrectly_Test()
+        {
+            // Arrange
+            await using var scope = _host.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataOutboundService>>();
+
+            var testId = Guid.NewGuid().ToString("N")[..8];
+
+            // 3 gói tin khác nhau (103 Incremental, 104 Incremental, 108 Snapshot)
+            var configs = new[]
+            {
+                (PacketCode: "103", SubCode: $"SUB_C103_{testId}", PartnerCode: $"PTN_C103_{testId}"),
+                (PacketCode: "104", SubCode: $"SUB_C104_{testId}", PartnerCode: $"PTN_C104_{testId}"),
+                (PacketCode: "108", SubCode: $"SUB_C108_{testId}", PartnerCode: $"PTN_C108_{testId}"),
+            };
+
+            var now = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
+
+            // Seed packet metadata + subscription cho từng gói
+            var seeded = new List<(string PacketCode, string PartnerCode, ShareDataPartner Partner, ShareDataSubscription Sub)>();
+            foreach (var cfg in configs)
+            {
+                await PrepareDatabase(db, logger, cfg.PacketCode);
+                var (partner, sub) = await SeedOutboundSubscription(db, cfg.PartnerCode, cfg.SubCode, cfg.PacketCode, s =>
+                {
+                    s.SendOnNewData = true;
+                    s.IntervalSeconds = 300;
+                    s.LastTimeRun = now.AddMinutes(-5);
+                    s.NextTimeRun = null;
+                });
+                seeded.Add((cfg.PacketCode, cfg.PartnerCode, partner, sub));
+            }
+
+            // Seed 1 dòng TmsTrafficData cho gói 103 và TmsWeatherData cho gói 104
+            var eqId = $"EQ_CONC_{testId}";
+            await db.Insertable(new TmsEquipment
+            {
+                ID = eqId,
+                Code = $"CONC_{testId}",
+                KmNumber = 60,
+                MetNumber = 0
+            }).ExecuteCommandAsync();
+
+            await db.Insertable(new TmsTrafficData
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                EquipmentId = eqId,
+                DetectTime = now,
+                Type = "TRUCK",
+                LicensePlate = $"51G-CONC{testId}",
+                Speed = 70f,
+                Lane = "L2",
+                Direction = "SOUTH",
+                Location = $"KM60_{testId}",
+                CreateTime = now,
+                UpdateTime = now
+            }).ExecuteCommandAsync();
+
+            try
+            {
+                // Act: 3 scope độc lập gọi ProcessSubscriptions cho 3 gói tin khác nhau cùng lúc
+                var tasks = configs.Select(cfg =>
+                {
+                    var s = _host.Services.CreateAsyncScope();
+                    return CreateTestWorker(s).ProcessSubscriptions(cfg.PacketCode, CancellationToken.None);
+                }).ToArray();
+
+                await Task.WhenAll(tasks);
+
+                // Assert: mỗi sub phải có đúng ActivityLog của chính nó, checkpoint không bị trộn lẫn
+                foreach (var (packetCode, partnerCode, partner, sub) in seeded)
+                {
+                    var logs = await db.Queryable<ShareDataActivityLog>()
+                        .Where(l => l.SubscriptionId == sub.ID && l.OccurredAt >= now.AddSeconds(-10))
+                        .ToListAsync();
+
+                    // Mỗi sub phải có đúng 1 lần chạy thành công
+                    Assert.Single(logs);
+                    Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
+
+                    // Gói Incremental (103, 104) phải có checkpoint; Snapshot (108) không có
+                    var checkpoint = await db.Queryable<ShareDataLastSend>()
+                        .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
+                        .FirstAsync();
+
+                    if (packetCode == "108")
+                        Assert.Null(checkpoint); // Snapshot: không ghi checkpoint
+                    else
+                        Assert.NotNull(checkpoint); // Incremental: phải có checkpoint
+                }
+            }
+            finally
+            {
+                foreach (var (packetCode, partnerCode, partner, sub) in seeded)
+                {
+                    await db.Deleteable<ShareDataLastSend>().Where(c => c.PartnerCode == partnerCode).ExecuteCommandAsync();
+                    await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
+                    await db.Deleteable<ShareDataMapping>().Where(m => m.PartnerId == partner.ID).ExecuteCommandAsync();
+                    await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub.ID).ExecuteCommandAsync();
+                    await db.Deleteable<ShareDataPartner>().Where(p => p.ID == partner.ID).ExecuteCommandAsync();
+                }
+                await db.Deleteable<TmsTrafficData>().Where(t => t.EquipmentId == eqId).ExecuteCommandAsync();
+                await db.Deleteable<TmsEquipment>().Where(e => e.ID == eqId).ExecuteCommandAsync();
+            }
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử đồng thời N Partner KHÁC NHAU (mỗi partner có 1 Subscription riêng cho cùng 1 gói tin 103)
+        ///              cùng chạy song song. Mỗi partner phải có checkpoint độc lập, không overwrite checkpoint của partner khác.
+        /// Created date: 25/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ChangeTracking_WhenMultiplePartnersSubscribeSamePacketConcurrently_EachGetsOwnCheckpoint_Test()
+        {
+            // Arrange
+            await using var scope = _host.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataOutboundService>>();
+
+            var testId = Guid.NewGuid().ToString("N")[..8];
+            const string packetCode = "103";
+            const int partnerCount = 4;
+
+            await PrepareDatabase(db, logger, packetCode);
+            var now = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
+
+            // Seed 4 partner, mỗi partner 1 sub cho gói 103
+            var seeded = new List<(ShareDataPartner Partner, ShareDataSubscription Sub)>();
+            for (var i = 0; i < partnerCount; i++)
+            {
+                var (partner, sub) = await SeedOutboundSubscription(
+                    db,
+                    $"PTN_MP_{i}_{testId}",
+                    $"SUB_MP_{i}_{testId}",
+                    packetCode,
+                    s =>
+                    {
+                        s.SendOnNewData = true;
+                        s.IntervalSeconds = 300;
+                        s.LastTimeRun = now.AddMinutes(-5);
+                        s.NextTimeRun = null;
+                    });
+                seeded.Add((partner, sub));
+            }
+
+            // Seed 1 dòng TmsTrafficData
+            var eqId = $"EQ_MP_{testId}";
+            await db.Insertable(new TmsEquipment
+            {
+                ID = eqId,
+                Code = $"EQ_MP_{testId}",
+                KmNumber = 45,
+                MetNumber = 500
+            }).ExecuteCommandAsync();
+
+            await db.Insertable(new TmsTrafficData
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                EquipmentId = eqId,
+                DetectTime = now,
+                Type = "CAR",
+                LicensePlate = $"30B-MP{testId}",
+                Speed = 95f,
+                Lane = "L1",
+                Direction = "NORTH",
+                Location = $"KM45_{testId}",
+                CreateTime = now,
+                UpdateTime = now
+            }).ExecuteCommandAsync();
+
+            try
+            {
+                // Act: 4 scope độc lập (mô phỏng 4 worker instance nhận cùng 1 bản tin NATS "103")
+                // xử lý song song — mỗi scope sẽ xử lý 1 subscription khác nhau (do partner khác nhau)
+                var asyncScopes = Enumerable.Range(0, partnerCount)
+                    .Select(_ => _host.Services.CreateAsyncScope())
+                    .ToList();
+
+                try
+                {
+                    var tasks = asyncScopes
+                        .Select(s => CreateTestWorker(s).ProcessSubscriptions(packetCode, CancellationToken.None))
+                        .ToArray();
+                    await Task.WhenAll(tasks);
+                }
+                finally
+                {
+                    foreach (var s in asyncScopes)
+                        await s.DisposeAsync();
+                }
+
+                // Assert: mỗi partner phải có ActivityLog thành công và checkpoint riêng của mình
+                foreach (var (partner, sub) in seeded)
+                {
+                    var logs = await db.Queryable<ShareDataActivityLog>()
+                        .Where(l => l.SubscriptionId == sub.ID && l.OccurredAt >= now.AddSeconds(-10))
+                        .ToListAsync();
+
+                    Assert.NotEmpty(logs);
+                    Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
+
+                    // Mỗi partner phải có checkpoint độc lập, không bị trộn lẫn
+                    var checkpoint = await db.Queryable<ShareDataLastSend>()
+                        .Where(c => c.PartnerCode == partner.Code && c.PacketCode == packetCode)
+                        .FirstAsync();
+
+                    Assert.NotNull(checkpoint);
+                    Assert.NotNull(checkpoint.LastTime);
+                }
+
+                // Tổng số checkpoint phải bằng đúng số partner (không bị dedupe hay overwrite lẫn nhau)
+                var allCheckpoints = await db.Queryable<ShareDataLastSend>()
+                    .Where(c => c.PacketCode == packetCode
+                        && seeded.Select(x => x.Partner.Code).Contains(c.PartnerCode))
+                    .ToListAsync();
+
+                Assert.Equal(partnerCount, allCheckpoints.Count);
+            }
+            finally
+            {
+                foreach (var (partner, sub) in seeded)
+                {
+                    await db.Deleteable<ShareDataLastSend>().Where(c => c.PartnerCode == partner.Code).ExecuteCommandAsync();
+                    await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
+                    await db.Deleteable<ShareDataMapping>().Where(m => m.PartnerId == partner.ID).ExecuteCommandAsync();
+                    await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub.ID).ExecuteCommandAsync();
+                    await db.Deleteable<ShareDataPartner>().Where(p => p.ID == partner.ID).ExecuteCommandAsync();
+                }
+                await db.Deleteable<TmsTrafficData>().Where(t => t.EquipmentId == eqId).ExecuteCommandAsync();
+                await db.Deleteable<TmsEquipment>().Where(e => e.ID == eqId).ExecuteCommandAsync();
+            }
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử NATS burst liên tiếp nhanh (N bản tin NATS bắn đến cho cùng 1 sub trong vòng vài giây):
+        ///              Cơ chế DebounceSec phải chặn tất cả trigger kế tiếp trong cửa sổ debounce,
+        ///              đảm bảo chỉ đúng 1 lần export thực sự chạy và checkpoint chỉ tiến 1 lần.
+        /// Created date: 25/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ChangeTracking_WhenNatsBurstsRepeatedly_DebouncePreventsMultipleExportsWithinWindow_Test()
+        {
+            // Arrange
+            await using var scope = _host.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataOutboundService>>();
+
+            var testId = Guid.NewGuid().ToString("N")[..8];
+            const string packetCode = "103";
+            var partnerCode = $"PTN_BURST_{testId}";
+            var subCode = $"SUB_BURST_{testId}";
+
+            await PrepareDatabase(db, logger, packetCode);
+            var now = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
+
+            // Sub với DebounceSec = 10 giây
+            var (partner, sub) = await SeedOutboundSubscription(db, partnerCode, subCode, packetCode, s =>
+            {
+                s.SendOnNewData = true;
+                s.DebounceSec = 10;              // Debounce window = 10 giây
+                s.IntervalSeconds = 300;
+                s.LastTimeRun = now.AddMinutes(-5); // Chưa chạy gần đây → burst đầu tiên được chạy
+                s.NextTimeRun = null;
+            });
+
+            var eqId = $"EQ_BURST_{testId}";
+            await db.Insertable(new TmsEquipment
+            {
+                ID = eqId,
+                Code = $"EQ_BURST_{testId}",
+                KmNumber = 20,
+                MetNumber = 0
+            }).ExecuteCommandAsync();
+
+            await db.Insertable(new TmsTrafficData
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                EquipmentId = eqId,
+                DetectTime = now,
+                Type = "BUS",
+                LicensePlate = $"29B-BURST{testId}",
+                Speed = 55f,
+                Lane = "L3",
+                Direction = "EAST",
+                Location = $"KM20_{testId}",
+                CreateTime = now,
+                UpdateTime = now
+            }).ExecuteCommandAsync();
+
+            try
+            {
+                // Act – Đợt 1: trigger đầu tiên — sub chưa chạy gần đây nên được phép chạy
+                await CreateTestWorker(scope).ProcessSubscriptions(packetCode, CancellationToken.None);
+
+                var logsAfterFirst = await db.Queryable<ShareDataActivityLog>()
+                    .Where(l => l.SubscriptionId == sub.ID && l.OccurredAt >= now.AddSeconds(-10))
+                    .ToListAsync();
+
+                // Phải có đúng 1 export thành công từ trigger đầu tiên
+                Assert.Single(logsAfterFirst);
+                Assert.Equal(BaseEnums.SuccessEnums.Success, logsAfterFirst[0].Success);
+
+                // Snapshot UpdateTime của checkpoint sau đợt 1 để đối chiếu sau burst
+                var checkpointAfterFirst = await db.Queryable<ShareDataLastSend>()
+                    .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
+                    .FirstAsync();
+                Assert.NotNull(checkpointAfterFirst);
+                var updateTimeAfterFirst = checkpointAfterFirst.UpdateTime;
+
+                // Act – Đợt 2 & 3: NATS burst tiếp trong vòng debounce window (sub vừa chạy xong)
+                await CreateTestWorker(scope).ProcessSubscriptions(packetCode, CancellationToken.None);
+                await CreateTestWorker(scope).ProcessSubscriptions(packetCode, CancellationToken.None);
+
+                // Assert: Tổng số ActivityLog vẫn là 1 — 2 trigger sau bị chặn bởi DebounceSec
+                var allLogs = await db.Queryable<ShareDataActivityLog>()
+                    .Where(l => l.SubscriptionId == sub.ID && l.OccurredAt >= now.AddSeconds(-15))
+                    .ToListAsync();
+
+                Assert.Single(allLogs);
+
+                // Checkpoint.UpdateTime không thay đổi so với sau đợt 1 (burst 2 & 3 không ghi đè)
+                var checkpointAfterBurst = await db.Queryable<ShareDataLastSend>()
+                    .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
+                    .FirstAsync();
+
+                Assert.NotNull(checkpointAfterBurst);
+                Assert.True(
+                    updateTimeAfterFirst?.ToString("yyyy-MM-dd HH:mm:ss") == checkpointAfterBurst.UpdateTime?.ToString("yyyy-MM-dd HH:mm:ss"),
+                    "Checkpoint.UpdateTime không được cập nhật bởi các trigger bị chặn trong cửa sổ DebounceSec.");
+            }
+            finally
+            {
+                await db.Deleteable<TmsTrafficData>().Where(t => t.EquipmentId == eqId).ExecuteCommandAsync();
+                await db.Deleteable<TmsEquipment>().Where(e => e.ID == eqId).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataLastSend>().Where(c => c.PartnerCode == partnerCode).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataMapping>().Where(m => m.PartnerId == partner.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataPartner>().Where(p => p.ID == partner.ID).ExecuteCommandAsync();
+            }
+        }
+
+        #endregion
+
         [Fact]
         public async Task NatsWorker_HandleTrigger_WhenValidPacketCode_ExecutesOutboundFlow_Test()
         {
@@ -1581,7 +2034,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             try
             {
                 // Act: Worker nhận trigger
-                await worker.HandleMessages(payload, CancellationToken.None);
+                await InvokeNatsHandleMessages(worker, payload, CancellationToken.None);
 
                 // Assert: Kiểm chứng trạng thái
                 var currentSub = await db.Queryable<ShareDataSubscription>().Where(s => s.ID == sub.ID).FirstAsync();
@@ -1606,11 +2059,19 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             var worker = new DataNatsConsumerWorker(realService, logger, transport);
 
             // Act & Assert
-            var ex1 = await Record.ExceptionAsync(() => worker.HandleMessages("invalid json payload", CancellationToken.None));
-            var ex2 = await Record.ExceptionAsync(() => worker.HandleMessages("{}", CancellationToken.None));
+            var ex1 = await Record.ExceptionAsync(() => InvokeNatsHandleMessages(worker, "invalid json payload", CancellationToken.None));
+            var ex2 = await Record.ExceptionAsync(() => InvokeNatsHandleMessages(worker, "{}", CancellationToken.None));
 
             Assert.Null(ex1);
             Assert.Null(ex2);
+        }
+
+        private static async Task InvokeNatsHandleMessages(DataNatsConsumerWorker worker, string payload, CancellationToken token)
+        {
+            var method = typeof(DataNatsConsumerWorker).GetMethod("HandleMessages", BindingFlags.NonPublic | BindingFlags.Instance)
+                ?? throw new InvalidOperationException("HandleMessages method not found");
+            var task = (Task)method.Invoke(worker, [payload, token])!;
+            await task;
         }
     }
 }

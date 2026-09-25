@@ -1,4 +1,4 @@
-﻿using ShareDataWorker.Core.Utils.Parsing;
+using ShareDataWorker.Core.Utils.Parsing;
 using ShareDataWorker.Core.Utils.Resolvers;
 using ShareDataWorker.Core.Interfaces.DataOutbound;
 using ShareDataWorker.Core.Models.DataOutbound;
@@ -38,14 +38,14 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
     {
         private readonly Host _host = host;
 
-        #region 1. Luồng Kiểm Thử Nghiệp Vụ Chính (Business Workflows - ProcessBatchSubscriptions & Pipeline)
+        #region 1. Luồng Kiểm Thử Nghiệp Vụ Chính (Business Workflows - ProcessSubscriptions & Pipeline)
 
         /// <summary>
         /// Description: Kiểm tra tiến trình xuất bản hàng loạt ghi file PDU hợp lệ trực tiếp xuống ổ đĩa.
         /// Created date: 17/09/2026
         /// </summary>
         [Fact]
-        public async Task ProcessBatchSubscriptions_DirectFileWrite_SavesValidPduOnDisk_Test()
+        public async Task ProcessSubscriptions_DirectFileWrite_SavesValidPduOnDisk_Test()
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
@@ -56,7 +56,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
 
             var (partner, sub) = await SeedOutboundSubscription(db, $"P_DIRECT_{unique}", $"SUB_DIRECT_{unique}", "101");
 
-            await CreateWorker(scope).ProcessBatchSubscriptions(CancellationToken.None);
+            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
 
             var logs = await GetLogs(db, sub.ID);
             Assert.NotEmpty(logs);
@@ -84,7 +84,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         /// Updated date: 18/09/2026
         /// </summary>
         [Fact]
-        public async Task ProcessBatchSubscriptions_WhenMappingHasValidExpressions_IgnoresExpressionAndKeepsRawValue_Test()
+        public async Task ProcessSubscriptions_WhenMappingHasValidExpressions_IgnoresExpressionAndKeepsRawValue_Test()
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
@@ -138,7 +138,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 IsActive = true
             }).ExecuteCommandAsync();
 
-            await CreateWorker(scope).ProcessBatchSubscriptions(CancellationToken.None);
+            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
 
             var logs = await GetLogs(db, sub.ID);
             Assert.NotEmpty(logs);
@@ -164,7 +164,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         /// Created date: 08/09/2026
         /// </summary>
         [Fact]
-        public async Task ProcessBatchSubscriptions_WhenShapeHasHeaderAndRecordArray_WritesSingleHeaderInPayload_Test()
+        public async Task ProcessSubscriptions_WhenShapeHasHeaderAndRecordArray_WritesSingleHeaderInPayload_Test()
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
@@ -234,7 +234,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 IsActive = true
             }).ExecuteCommandAsync();
 
-            await CreateWorker(scope).ProcessBatchSubscriptions(CancellationToken.None);
+            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
 
             var logs = await GetLogs(db, sub.ID);
             Assert.NotEmpty(logs);
@@ -269,7 +269,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         /// Created date: 17/09/2026
         /// </summary>
         [Fact]
-        public async Task ProcessBatchSubscriptions_WhenMappingHasInvalidExpression_LogsEsh1203_KeepsRawValue_Test()
+        public async Task ProcessSubscriptions_WhenMappingHasInvalidExpression_LogsEsh1203_KeepsRawValue_Test()
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
@@ -323,7 +323,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 IsActive = true
             }).ExecuteCommandAsync();
 
-            await CreateWorker(scope).ProcessBatchSubscriptions(CancellationToken.None);
+            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
 
             var logs = await GetLogs(db, sub.ID);
             Assert.NotEmpty(logs);
@@ -352,7 +352,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         /// Updated date: 18/09/2026
         /// </summary>
         [Fact]
-        public async Task ProcessBatchSubscriptions_WhenExpressionRuntimeErrors_IgnoresAndKeepsRaw_Test()
+        public async Task ProcessSubscriptions_WhenExpressionRuntimeErrors_IgnoresAndKeepsRaw_Test()
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
@@ -406,7 +406,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 IsActive = true
             }).ExecuteCommandAsync();
 
-            await CreateWorker(scope).ProcessBatchSubscriptions(CancellationToken.None);
+            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
 
             var logs = await GetLogs(db, sub.ID);
             Assert.NotEmpty(logs);
@@ -432,7 +432,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         /// Created date: 17/09/2026
         /// </summary>
         [Fact]
-        public async Task ProcessBatchSubscriptions_WhenPartnerProtocolIsAsn_FallsBackToJson_Test()
+        public async Task ProcessSubscriptions_WhenPartnerProtocolIsAsn_FallsBackToJson_Test()
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
@@ -443,7 +443,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
 
             var (partner, sub) = await SeedOutboundSubscription(db, $"P_ASN_{unique}", $"SUB_ASN_{unique}", "101");
 
-            await CreateWorker(scope).ProcessBatchSubscriptions(CancellationToken.None);
+            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
 
             var logs = await GetLogs(db, sub.ID);
             Assert.NotEmpty(logs);
@@ -459,7 +459,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         /// Created date: 17/09/2026
         /// </summary>
         [Fact]
-        public async Task ProcessBatchSubscriptions_IncrementalCatchUp_AfterIdle_ExportsEveryNewRowExactlyOnce_Test()
+        public async Task ProcessSubscriptions_IncrementalCatchUp_AfterIdle_ExportsEveryNewRowExactlyOnce_Test()
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
@@ -519,7 +519,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                         .Where(s => s.ID == sub.ID)
                         .ExecuteCommandAsync();
 
-                    await CreateWorker(scope).ProcessBatchSubscriptions(CancellationToken.None);
+                    await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
 
                     var logs = await db.Queryable<ShareDataActivityLog>()
                         .Where(l => l.SubscriptionId == sub.ID)
@@ -576,7 +576,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         /// Created date: 15/09/2026
         /// </summary>
         [Fact]
-        public async Task ProcessBatchSubscriptions_IncrementalPacket104_TwoConsecutiveRuns_TracksWatermarkAccurately_Test()
+        public async Task ProcessSubscriptions_IncrementalPacket104_TwoConsecutiveRuns_TracksWatermarkAccurately_Test()
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
@@ -618,7 +618,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 .ExecuteCommandAsync();
 
             // Vòng chạy 1: phải xuất đúng bản ghi 1
-            await CreateWorker(scope).ProcessBatchSubscriptions(CancellationToken.None);
+            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
 
             var logs1 = await GetLogs(db, sub.ID);
             Assert.NotEmpty(logs1);
@@ -660,7 +660,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 .ExecuteCommandAsync();
 
             // Vòng chạy 2: phải xuất tiếp bản ghi 2 (không bị rớt dữ liệu)
-            await CreateWorker(scope).ProcessBatchSubscriptions(CancellationToken.None);
+            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
 
             var logs2 = await GetLogs(db, sub.ID);
             Assert.True(logs2.Count >= 2);
@@ -680,7 +680,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         /// Created date: 15/09/2026
         /// </summary>
         [Fact]
-        public async Task ProcessBatchSubscriptions_LoadsCodeSetFromPacketFields_TranslatesValueCorrectly_Test()
+        public async Task ProcessSubscriptions_LoadsCodeSetFromPacketFields_TranslatesValueCorrectly_Test()
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
@@ -761,7 +761,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             await db.Updateable<ShareDataMapping>().SetColumns(m => m.TargetShapeJson == targetShapeStr).Where(m => m.PartnerId == partner.ID && m.DatatypeId == "101").ExecuteCommandAsync();
 
             // 4. Chạy export
-            await CreateWorker(scope).ProcessBatchSubscriptions(CancellationToken.None);
+            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
 
             var logs = await GetLogs(db, sub.ID);
             Assert.NotEmpty(logs);
@@ -781,7 +781,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         /// Created date: 17/09/2026
         /// </summary>
         [Fact]
-        public async Task ProcessBatchSubscriptions_WhenPartnerHasEndPointApiUrl_SendsHttpPayloadSuccessfully_Test()
+        public async Task ProcessSubscriptions_WhenPartnerHasEndPointApiUrl_SendsHttpPayloadSuccessfully_Test()
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
@@ -821,7 +821,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             try
             {
                 var worker = CreateWorker(scope, clientFactory);
-                await worker.ProcessBatchSubscriptions(CancellationToken.None);
+                await worker.ProcessSubscriptions(CancellationToken.None);
 
                 var logs = await GetLogs(db, sub.ID);
                 Assert.NotEmpty(logs);
@@ -857,7 +857,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         /// Created date: 17/09/2026
         /// </summary>
         [Fact]
-        public async Task ProcessBatchSubscriptions_WhenPartnerHttpEndpointReturns500_StillExportsFileAndLogsWarningAlert_Test()
+        public async Task ProcessSubscriptions_WhenPartnerHttpEndpointReturns500_StillExportsFileAndLogsWarningAlert_Test()
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
@@ -890,7 +890,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             try
             {
                 var worker = CreateWorker(scope, clientFactory);
-                await worker.ProcessBatchSubscriptions(CancellationToken.None);
+                await worker.ProcessSubscriptions(CancellationToken.None);
 
                 var logs = await GetLogs(db, sub.ID);
                 Assert.NotEmpty(logs);
@@ -925,7 +925,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         /// Created date: 17/09/2026
         /// </summary>
         [Fact]
-        public async Task ProcessBatchSubscriptions_WhenPartnerHttpThrowsException_StillExportsFileAndLogsWarningAlert_Test()
+        public async Task ProcessSubscriptions_WhenPartnerHttpThrowsException_StillExportsFileAndLogsWarningAlert_Test()
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
@@ -955,7 +955,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             try
             {
                 var worker = CreateWorker(scope, clientFactory);
-                await worker.ProcessBatchSubscriptions(CancellationToken.None);
+                await worker.ProcessSubscriptions(CancellationToken.None);
 
                 var logs = await GetLogs(db, sub.ID);
                 Assert.NotEmpty(logs);
@@ -985,7 +985,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         /// Created date: 18/09/2026
         /// </summary>
         [Fact]
-        public async Task ProcessBatchSubscriptions_WhenPartnerHasNoEndPointApiUrl_SendsHttpAndFails_Test()
+        public async Task ProcessSubscriptions_WhenPartnerHasNoEndPointApiUrl_SendsHttpAndFails_Test()
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
@@ -1027,7 +1027,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             try
             {
                 var worker = CreateWorker(scope, clientFactory);
-                await worker.ProcessBatchSubscriptions(CancellationToken.None);
+                await worker.ProcessSubscriptions(CancellationToken.None);
 
                 Assert.Equal(1, sendCount);
 
@@ -1056,7 +1056,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         /// Created date: 17/09/2026
         /// </summary>
         [Fact]
-        public async Task ProcessBatchSubscriptions_WhenPacketCodeHasSuffixLikeStagingDb_ResolvesHandlerAndExportsSuccessfully_Test()
+        public async Task ProcessSubscriptions_WhenPacketCodeHasSuffixLikeStagingDb_ResolvesHandlerAndExportsSuccessfully_Test()
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
@@ -1094,7 +1094,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             try
             {
                 var worker = CreateWorker(scope);
-                await worker.ProcessBatchSubscriptions(CancellationToken.None);
+                await worker.ProcessSubscriptions(CancellationToken.None);
 
                 var logs = await GetLogs(db, sub.ID);
                 Assert.NotEmpty(logs);
@@ -1127,7 +1127,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         /// Created date: 18/09/2026
         /// </summary>
         [Fact]
-        public async Task ProcessBatchSubscriptions_WhenFileWriteFails_PartnerHasEndpoint_ApiSucceeds_ExportsSuccessfullyAndAdvancesWatermark_Test()
+        public async Task ProcessSubscriptions_WhenFileWriteFails_PartnerHasEndpoint_ApiSucceeds_ExportsSuccessfullyAndAdvancesWatermark_Test()
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
@@ -1160,7 +1160,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             try
             {
                 var worker = CreateWorker(scope, fileSender: fileSender, restSender: restSender);
-                await worker.ProcessBatchSubscriptions(CancellationToken.None);
+                await worker.ProcessSubscriptions(CancellationToken.None);
 
                 // Khẳng định API BẮT BUỘC được gọi dù ghi tệp thất bại
                 Assert.Equal(1, apiCalled);
@@ -1194,7 +1194,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         /// Created date: 18/09/2026
         /// </summary>
         [Fact]
-        public async Task ProcessBatchSubscriptions_WhenFileWriteFails_PartnerHasEndpoint_ApiFails_AbortsAndDoesNotAdvanceWatermark_Test()
+        public async Task ProcessSubscriptions_WhenFileWriteFails_PartnerHasEndpoint_ApiFails_AbortsAndDoesNotAdvanceWatermark_Test()
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
@@ -1227,7 +1227,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             try
             {
                 var worker = CreateWorker(scope, fileSender: fileSender, restSender: restSender);
-                await worker.ProcessBatchSubscriptions(CancellationToken.None);
+                await worker.ProcessSubscriptions(CancellationToken.None);
 
                 Assert.Equal(1, apiCalled);
 
@@ -1259,7 +1259,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         /// Created date: 18/09/2026
         /// </summary>
         [Fact]
-        public async Task ProcessBatchSubscriptions_WhenFileWriteFails_AndHttpFails_AbortsAndDoesNotAdvanceWatermark_Test()
+        public async Task ProcessSubscriptions_WhenFileWriteFails_AndHttpFails_AbortsAndDoesNotAdvanceWatermark_Test()
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
@@ -1298,7 +1298,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             try
             {
                 var worker = CreateWorker(scope, fileSender: fileSender, restSender: restSender);
-                await worker.ProcessBatchSubscriptions(CancellationToken.None);
+                await worker.ProcessSubscriptions(CancellationToken.None);
 
                 Assert.Equal(1, apiCalled);
 
@@ -1409,8 +1409,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
 
             try
             {
-                // 2. Act: Thực thi xuất dữ liệu qua ProcessBatchSubscriptions
-                await service.ProcessBatchSubscriptions(CancellationToken.None);
+                // 2. Act: Thực thi xuất dữ liệu qua ProcessSubscriptions
+                await service.ProcessSubscriptions(CancellationToken.None);
 
                 // 3. Assert: Kiểm tra log xuất bản thành công (không bị dính lỗi thiếu trường bắt buộc)
                 var logs = await db.Queryable<ShareDataActivityLog>()
@@ -1454,7 +1454,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
 
 
         /// <summary>
-        /// Description: Kiểm thử getSubscriptions trong ProcessBatchSubscriptions - chỉ lấy Subscription có
+        /// Description: Kiểm thử getSubscriptions trong ProcessSubscriptions - chỉ lấy Subscription có
         /// Partner hợp lệ (chưa bị xoá mềm IsDelete == null, Status == Enable và SessionState == Connected).
         /// Created date: 15/09/2026
         /// </summary>
@@ -1506,8 +1506,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                     p.IsDelete = null;
                 });
 
-            // Act: Chạy ProcessBatchSubscriptions
-            await service.ProcessBatchSubscriptions(CancellationToken.None);
+            // Act: Chạy ProcessSubscriptions
+            await service.ProcessSubscriptions(CancellationToken.None);
 
             // Assert:
             // Sub hợp lệ sẽ được claim lease và ghi log
@@ -1819,14 +1819,14 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
 
 
         /// <summary>
-        /// Description: Kiểm tra giải mã JSON danh sách CodeValues hoạt động chính xác cả với JSON hợp lệ và JSON bị hỏng.
+        /// Description: Kiểm tra giải mã JSON danh sách CodeValues qua ParseCodeSet hoạt động chính xác cả với JSON hợp lệ và JSON bị hỏng.
         /// Created date: 17/09/2026
         /// </summary>
         [Fact]
-        public void ParseCodeValues_WithValidAndCorruptedJson_ParsesCorrectly_Test()
+        public void ParseCodeSet_WithValidAndCorruptedJson_ParsesValuesCorrectly_Test()
         {
             var validJson = "[{\"sourceValue\":\"1\",\"partnerValue\":\"slow\",\"displayName\":\"Chậm\",\"orderNo\":1},{\"sourceValue\":\"2\",\"partnerValue\":\"normal\",\"displayName\":\"Bình thường\",\"isDefault\":true,\"orderNo\":2}]";
-            var parsed = PacketJsonParser.ParseCodeValues(validJson);
+            var parsed = PacketJsonParser.ParseCodeSet(validJson).Values;
             Assert.Equal(2, parsed.Count);
             Assert.Equal("1", parsed[0].SourceValue);
             Assert.Equal("slow", parsed[0].PartnerValue);
@@ -1834,21 +1834,21 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             Assert.Equal(1, parsed[0].OrderNo);
             Assert.True(parsed[1].IsDefault);
 
-            var empty = PacketJsonParser.ParseCodeValues("{invalid-json}");
+            var empty = PacketJsonParser.ParseCodeSet("{invalid-json}").Values;
             Assert.Empty(empty);
 
             var partialJson = "[{\"sourceValue\":\"1\",\"partnerValue\":\"slow\"}, \"bad_element\", {\"sourceValue\":\"2\",\"partnerValue\":\"normal\"}]";
-            var partialParsed = PacketJsonParser.ParseCodeValues(partialJson);
+            var partialParsed = PacketJsonParser.ParseCodeSet(partialJson).Values;
             Assert.Equal(2, partialParsed.Count);
         }
 
 
         /// <summary>
-        /// Description: Kiểm tra ParseCodeSet và ParseCodeValues hoạt động chính xác với cả cấu trúc Object mới, Array cũ và JSON hỏng.
+        /// Description: Kiểm tra ParseCodeSet hoạt động chính xác với cả cấu trúc Object mới, Array cũ và JSON hỏng.
         /// Created date: 18/09/2026
         /// </summary>
         [Fact]
-        public void ParseCodeSet_And_ParseCodeValues_BothStructures_BehavesCorrectly_Test()
+        public void ParseCodeSet_BothStructures_BehavesCorrectly_Test()
         {
             // 1. Cấu trúc mới (Object)
             var newStructureJson = @"{
@@ -1867,12 +1867,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             Assert.Equal("4", codeSetNew.DefaultSourceValue);
             Assert.Equal("false", codeSetNew.DefaultPartnerValue);
 
-            // ParseCodeValues với cấu trúc mới -> trả đúng Values
-            var valuesFromNew = PacketJsonParser.ParseCodeValues(newStructureJson);
-            Assert.Equal(2, valuesFromNew.Count);
-            Assert.Equal("1", valuesFromNew[0].SourceValue);
-            Assert.Equal("on", valuesFromNew[0].PartnerValue);
-
             // 2. Cấu trúc cũ (Array)
             var oldStructureJson = @"[
                 { ""sourceValue"": ""normal"", ""partnerValue"": ""0"", ""displayName"": """", ""isDefault"": false },
@@ -1886,11 +1880,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             Assert.Null(codeSetOld.DefaultSourceValue);
             Assert.Null(codeSetOld.DefaultPartnerValue);
 
-            // ParseCodeValues với cấu trúc cũ -> trả đúng Values
-            var valuesFromOld = PacketJsonParser.ParseCodeValues(oldStructureJson);
-            Assert.Equal(2, valuesFromOld.Count);
-            Assert.Equal("normal", valuesFromOld[0].SourceValue);
-
             // 3. JSON rỗng / hỏng -> trả rỗng, không ném
             var emptySet = PacketJsonParser.ParseCodeSet(null);
             Assert.Empty(emptySet.Values);
@@ -1898,9 +1887,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
 
             var corruptedSet = PacketJsonParser.ParseCodeSet("{invalid json syntax}");
             Assert.Empty(corruptedSet.Values);
-
-            var corruptedValues = PacketJsonParser.ParseCodeValues("{invalid json syntax}");
-            Assert.Empty(corruptedValues);
         }
 
 
@@ -1949,44 +1935,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             var row3 = (IDictionary<string, object?>)result[2];
             Assert.Equal("false", row3["trafficCond"]);
         }
-
-
-        /// <summary>
-        /// Description: Kiểm tra quy trình biến đổi chuyển từ mã nội bộ sang mã chuẩn sau đó sang mã đối tác theo đúng trình tự.
-        /// Created date: 17/09/2026
-        /// </summary>
-        [Fact(Skip = "Bộ mã tầng 1 (PacketField.CodeSetCode) đã bỏ hẳn khỏi luồng Outbound theo chốt thiết kế, chỉ còn $extend.codeSet.")]
-        public void Transform_Step2AndStep3Sequence_ConvertsStandardThenPartnerCodeSet_Test()
-        {
-            var codeSets = new Dictionary<string, List<CodeValueDto>>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["TRAFFIC_COND_STD"] =
-                [
-                    new() { SourceValue = "1", PartnerValue = "slow", DisplayName = "Chậm (std)" },
-                    new() { SourceValue = "2", PartnerValue = "normal", DisplayName = "Bình thường (std)" }
-                ]
-            };
-
-            var rawRows = new List<object>
-            {
-                new Dictionary<string, object?>
-                {
-                    ["condition"] = "1"
-                }
-            };
-
-            var targetShapeJson = @"{
-                ""tinhTrang"": { ""$field"": ""condition"", ""$extend"": { ""codeSet"": ""TRAFFIC_COND_PARTNER"" } }
-            }";
-
-            var result = DataMappingProcess.Transform(rawRows, targetShapeJson, codeSets: codeSets);
-
-            Assert.Single(result);
-            var row = Assert.IsAssignableFrom<IDictionary<string, object?>>(result[0]);
-            Assert.True(row.ContainsKey("tinhTrang"));
-            Assert.Equal("Chậm", row["tinhTrang"]);
-        }
-
 
         /// <summary>
         /// Description: Kiểm tra trường dữ liệu có cấu hình CodeSet thì giữ nguyên chuỗi mã, không bị ép kiểu về số.
@@ -2344,26 +2292,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             Assert.NotNull(err2);
         }
 
-
-        /// <summary>
-        /// Description: Kiểm tra phân giải chế độ lọc theo tiền tố mã gói tin trả về FilterMode chính xác.
-        /// Created date: 17/09/2026
-        /// </summary>
-        [Theory]
-        [InlineData("103_vdsData", (int)ShareDataEnum.PacketFilterMode.Incremental)]
-        [InlineData("106_wimData", (int)ShareDataEnum.PacketFilterMode.Incremental)]
-        [InlineData("109_etcData", (int)ShareDataEnum.PacketFilterMode.Incremental)]
-        [InlineData("103", (int)ShareDataEnum.PacketFilterMode.Incremental)]
-        [InlineData("101_commonData", (int)ShareDataEnum.PacketFilterMode.Snapshot)]
-        [InlineData("102_cctvDevice", (int)ShareDataEnum.PacketFilterMode.Snapshot)]
-        [InlineData("105_tollTransaction", (int)ShareDataEnum.PacketFilterMode.Snapshot)]
-        [InlineData("104_weatherData", (int)ShareDataEnum.PacketFilterMode.Incremental)]
-        public void ResolveFilterMode_WithPrefixCodes_ReturnsCorrectFilterMode_Test(string code, int expectedMode)
-        {
-            var packet = new ShareDataPacket { Code = code };
-            var mode = PacketMetadataResolver.ResolveFilterMode(packet);
-            Assert.Equal(expectedMode, mode);
-        }
 
 
         /// <summary>
@@ -4897,10 +4825,10 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 ISqlSugarClient db,
                 ShareDataSubscription sub,
                 ShareDataPacket packet,
-                DataOutboundCursor? cursor,
+                (DateTime? LastTime, string? LastKey)? cursor,
                 int pageSize,
-                CancellationToken cancellationToken = default,
-                Action<string, object?[]>? onLogWarning = null)
+                Action<string, object?[]>? onLogWarning = null,
+                CancellationToken cancellationToken = default)
                 => handler(db, sub, packet);
         }
 

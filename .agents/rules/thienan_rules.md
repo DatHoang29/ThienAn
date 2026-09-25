@@ -243,8 +243,8 @@ Riêng trường hợp làm việc trên các nhánh cũ thuộc 2 repo con `TA-
 4.  **PHÂN BIỆT THAM KHẢO VÀ HÀNH ĐỘNG (DISTINGUISH REFERENCE FROM ACTION)**: Khi người dùng yêu cầu "tham khảo", "xem thử", "giải thích" hoặc hỏi ý kiến, AI BẮT BUỘC phải phân tích và trả lời thảo luận trước, KHÔNG ĐƯỢC tự ý nhảy vào áp dụng hoặc thêm/sửa code khi chưa có xác nhận từ người dùng.
 5.  **TÔN TRỌNG CODE SỬA TAY & Ý ĐỊNH NGƯỜI DÙNG (PRESERVE USER MANUAL EDITS & PREFERENCES)**: Khi người dùng đã chỉ định cách viết (VD: dùng `while (reader.Read())` đồng bộ) hoặc tự sửa tay/bỏ bớt điều kiện, AI KHÔNG ĐƯỢC TỰ Ý hoàn tác (revert) hoặc sửa ngược lại về cách viết cũ trong các lần refactor tiếp theo.
 6.  **GIỮ NGUYÊN THUẬT NGỮ TIẾNG ANH CHUYÊN NGÀNH (KEEP TECHNICAL ENGLISH KEYWORDS AS-IS)**: Các từ tiếng Anh mang tính chất thuật ngữ kỹ thuật, tên thuộc tính, tên tham số giao thức (protocol/API), tên tính năng, hoặc keyword nghiệp vụ (như `Probe`, `Ping`, `WallNo`, `Video Wall`, `Outputs`, `Inputs`, `SubWindow`, `Scene`, `Preset`, `Payload`, `Endpoint`, `Path Parameters`, `Body Parameters`, `Advanced Parameters`, `Digest Auth`, `Circuit Breaker`...) BẮT BUỘC giữ nguyên tiếng Anh gốc, TUYỆT ĐỐI KHÔNG dịch gượng ép sang tiếng Việt (như dịch `Probe` thành "khảo sát", `WallNo` thành "tường số", `Video Wall` thành "tường ghép", `SubWindow` thành "cửa sổ con"...) gây tối nghĩa, nhập nhằng và khó đối chiếu với tài liệu/spec chuẩn.
-7.  **TUYỆT ĐỐI KHÔNG CHẠY THỦ CÔNG CÂU LỆNH `ALTER TABLE` / DDL VÀ CẤM TỰ VIẾT HÀM TẠO BẢNG NHƯ `EnsureTablesCreated()` (LỖI NÀY BỊ HOÀI - BẮT BUỘC TUÂN THỦ)**: AI tuyệt đối không được tự ý soạn và thực thi các câu lệnh DDL thủ công (`ALTER TABLE`, `CREATE TABLE`, `DROP COLUMN`,... qua sqlcmd, PowerShell hay SqlConnection) trên bất kỳ database nào. ĐỒNG THỜI TUYỆT ĐỐI CẤM tự viết thêm các hàm tạo bảng thủ công như `EnsureTablesCreated()`, `db.CodeFirst.InitTables(...)` trong `Host.cs`, `Host.<Module>.cs` hay các file test. Khi thêm bảng mới hoặc field/cột mới vào Entity mà test báo lỗi thiếu bảng (`Invalid object name`) hoặc thiếu cột: BẮT BUỘC chỉ bật cờ setting Code-First của SqlSugar trong `tests/appsettings.Test.json` (`TableSettings: { "EnableInitTable": true, "EnableIncreTable": true }`). Hệ thống SqlSugar & SharedInfrastructure sẽ tự động scan và tạo/đồng bộ bảng chuẩn hóa.
-8.  **CẤM TỰ ĐỘNG XÓA FILE PROMPT KHI HOÀN TẤT TASK (NO AUTO-DELETE PROMPT FILES — KEEP FOR USER REVIEW)**: Khi một task/prompt hoàn tất (kể cả khi code và bài test đã pass 100%), AI **TUYỆT ĐỐI KHÔNG tự động xóa** file prompt thực thi (`DocBusinessThienAn/<Dự-án>/<PhânHệ>/Prompt/*-prompt*.md` hoặc `{task-slug}.md`). BẮT BUỘC GIỮ LẠI file prompt trong thư mục để lập trình viên review, kiểm tra và đối chiếu sau khi code change. Chỉ xóa file prompt khi người dùng đã review xong và có lệnh xóa trực tiếp. (Chi tiết xem mục 13 & 14 bên dưới).
+7.  **TUYỆT ĐỐI KHÔNG CHẠY THỦ CÔNG CÂU LỆNH `ALTER TABLE` / DDL VÀ CẤM TỰ VIẾT HÀM TẠO BẢNG NHƯ `EnsureTablesCreated()`**: Xem mục 6 "Cấm Gọi InitTables<T>() / Tạo Hàm EnsureTablesCreated() Trong Host/Test" để biết đầy đủ quy tắc và cách xử lý đúng (bật cờ `TableSettings` trong `tests/appsettings.Test.json`) — không lặp lại ở đây (đã gộp 25/09/2026 để tránh trùng ý).
+8.  **CẤM TỰ ĐỘNG XÓA FILE PROMPT KHI HOÀN TẤT TASK**: Xem mục 13 "Quy Tắc Vị Trí File Prompt / Plan / Task" (và mục 14 cho ghi chú tạm scratch) — không lặp lại ở đây (đã gộp 25/09/2026 để tránh trùng ý).
 9.  **TRIẾT LÝ VIẾT TEST: BẮT BUỘC VIẾT TEST CASE TOÀN TRÌNH NGHIỆP VỤ (FULL BUSINESS FLOW), TUYỆT ĐỐI CẤM VIẾT TEST VỤN VẶT / MICRO UNIT TEST RỜI RẠC**:
     - AI tuyệt đối **KHÔNG viết các unit test vụn vặt, vi mô (micro tests)** chỉ để kiểm tra từng hàm helper phụ trợ nhỏ, từng phép toán static, từng nhánh if/else nhỏ lẻ với object giả lập in-memory rời rạc (ví dụ điển hình bị cấm: các test scheduler tính lịch chạy với stub giả `Daily_Kind_No_DaysOfWeek_Accepts_Any_Day`, `Default_IntervalSeconds_When_Null`...).
     - **BẮT BUỘC** chỉ viết các test case luồng nghiệp vụ hoàn chỉnh (Full Business Flow / Integration Test) chạy trên CSDL Test Local thật (hoặc luồng nghiệp vụ tích hợp đầy đủ các chặng), kiểm chứng toàn diện từ đầu vào đến đầu ra nghiệp vụ (Ví dụ chuẩn: `ProcessScheduledSubscriptions_WhenEnvironmentIsStaging_SkipsFileWrite_ApiSucceeds_ExportsSuccessfullyAndAdvancesWatermark_Test` — kiểm chứng trọn vẹn luồng quét DB, kiểm tra điều kiện môi trường, trích xuất dữ liệu, ánh xạ, vận chuyển API/File, tịnh tiến watermark/checkpoint và ghi nhận nhật ký hệ thống).
@@ -472,15 +472,23 @@ tests/
 - **Dependency Injection Naming & Casing**:
   - Với constructor viết tường minh (không phải primary constructor kiểu property): LUÔN đặt tên dependency injected bằng camelCase (VD: `IFileExportService fileExportService`), gán vào private field `_fileExportService = fileExportService;`.
   - Với Primary Constructor khi viết class mới (khi dependency đóng vai trò public read-only property): BẮT BUỘC viết hoa chữ cái đầu (PascalCase) (VD: `public class MyService(ILogger<MyService> Logger, IOutboundService OutboundService) : IMyService`).
-- **Không Sử Dụng `#region`**: KHÔNG tự ý chèn thẻ `#region` hoặc `#endregion` vào code C# trừ khi người dùng yêu cầu. Giữ biến/field nguyên bản và sạch sẽ.
+
+
 - **Using Directives Thay Vì Inline Namespaces**: BẮT BUỘC dùng `using` directive ở đầu file (VD: `using Modules.ShareData.Core.Entities;`) để gọi tên class ngắn gọn (VD: `EshPartner`) thay vì gõ namespace dài inline trong code (VD: `Core.Entities.EshPartner`).
 - **DTO vs Anonymous Objects**: Dữ liệu CÓ xử lý logic nội bộ → tạo DTO. Dữ liệu CHỈ map để gửi đi (bên khác xử lý) → dùng Anonymous Object (hoặc Dictionary).
 - **Null Reference (CS8601)**: Luôn gán giá trị dự phòng (`?? string.Empty`) khi gán `string?` cho `string` để dập cảnh báo CS8601.
 - **Cấu hình ASP.NET Core**: Ưu tiên `config.GetConnectionString("Default")` thay vì truy vấn key phân cấp thô (`config["DbConnection:ConnectionConfigs:0:ConnectionString"]`).
 - **C# / .NET CA2263**: LUÔN ưu tiên `Enum.IsDefined<TEnum>(value)` dạng generic (hoặc `Enum.IsDefined(enumValue)` từ .NET 7+) thay vì bản non-generic `Enum.IsDefined(typeof(TEnum), value)` để tránh boxing và overhead reflection không cần thiết.
-- **Quy định phạm vi truy cập & Thứ tự thành viên Class (Minimal Visibility & Private Helpers at Bottom)**:
+- **Quy định phạm vi truy cập & Thứ tự thành viên Class (Minimal Visibility & Class Member Layout)**:
   - **Phạm vi truy cập tối thiểu**: Bất kỳ hàm/phương thức nào nếu chỉ phục vụ nội bộ class mà KHÔNG dùng ở bên ngoài thì BẮT BUỘC phải để `private` (hoặc `internal`), TUYỆT ĐỐI KHÔNG để `public`.
-  - **Thứ tự thành viên class**: Trong mọi class/service/handler/process C#, ưu tiên phương thức `public` đặt ở trên; toàn bộ phương thức `private` (helper, private async method, query con...) và nested helper class/struct BẮT BUỘC đặt ở **CUỐI CÙNG của class/file**, sau toàn bộ phương thức `public`. TUYỆT ĐỐI KHÔNG đặt hàm `private` xen kẽ ở đầu hoặc giữa các `public` method.
+  - **Thứ tự sắp xếp thành viên trong Class (Bắt Buộc Chuẩn Từ Trên Xuống Dưới)**:
+    1. **Fields**: Hằng số (`const`), biến tĩnh (`static readonly`), biến thành viên (`private readonly`, instance fields) đặt ở **ĐẦU TIÊN** của class.
+    2. **Properties**: Các thuộc tính (`{ get; set; }`).
+    3. **Records / Structs / Nested Types**: Các định nghĩa `record`, `record struct`, `struct`, hoặc class lồng nhau (nested types, DTO/Outcome nội bộ).
+    4. **Constructors**: Hàm khởi tạo (Constructor tường minh hoặc Primary Constructor).
+    5. **Public Methods**: Toàn bộ các phương thức `public` (API, Interface implementation, nghiệp vụ chính).
+    6. **Protected Methods**: Các phương thức `protected` / `protected override` (vòng đời worker như `ExecuteAsync`...).
+    7. **Private Methods**: Toàn bộ phương thức `private` (helper, private async method, query con...) BẮT BUỘC đặt ở **CUỐI CÙNG của class/file**, sau toàn bộ phương thức `public` và `protected`. TUYỆT ĐỐI KHÔNG đặt hàm `private` xen kẽ ở đầu hoặc giữa các `public`/`protected` method.
 - **Đặt tên biến kết quả ORM SqlSugar / ADO.NET (`ExecuteCommandAsync`)**:
   - `ExecuteCommandAsync` trả về số dòng bị ảnh hưởng (`int`).
   - **BẮT BUỘC** đặt tên thể hiện rõ bản chất số lượng bản ghi: `affected`, `lockedRows`, `updatedRows`, `deletedRows`, `insertedRows`.
@@ -671,32 +679,15 @@ tests/
   - TUYỆT ĐỐI KHÔNG tự tiện tạo các file `feedback-*.md` trong thư mục `.agents/memory/`. Chỉ cần sửa file này là toàn bộ hệ thống AI tự động tuân thủ.
   - Khi làm việc trên nhánh `feat` hoặc làm task cập nhật (update) cấu hình/thực thể, commit message bắt buộc dùng tiền tố `feat`, không dùng `fix`.
 
-- **19.2. Quy trình Lên Plan & Bàn giao (Plan Handoff) — mỗi phân hệ có 2 thư mục riêng `Plan/` và `Prompt/` (chốt 2026-09-16)**:
+- **19.2. Quy trình Lên Plan & Bàn giao (Plan Handoff) (chốt 2026-09-16)**: Cấu trúc thư mục `Plan/`/`Prompt/` từng phân hệ và quy tắc không tự xoá Prompt: xem mục 13 (không lặp lại ở đây — đã gộp 25/09/2026 để tránh trùng ý). Riêng 2 điểm chưa nằm ở mục 13:
   - Khi người dùng yêu cầu lên plan: AI **chỉ nghiên cứu + viết plan**, KHÔNG tự ý sửa code kể cả sau khi plan được approve, trừ khi người dùng ra lệnh rõ ràng ("làm đi", "code đi").
-  - Mỗi phân hệ (VideoWall, ShareData, WOS...) có **2 thư mục riêng biệt theo bản chất nội dung**
-    (không dùng chung 1 thư mục `Plan/` cấp dự án cho mọi phân hệ nữa — thư mục `Plan/` cấp dự án
-    chỉ còn cho việc xuyên phân hệ, xem mục 13):
-    1. **`<PhânHệ>/Plan/`** (VD `VideoWall/Plan/`) — CHỈ chứa tài liệu SỐNG, không xoá: đúng
-       **1 file `Vw_MasterPlan_<ngày>.md`** (hoặc tương đương theo phân hệ) làm bức tranh toàn diện
-       + backlog ưu tiên hoá, **cập nhật liên tục** (không tạo file mới mỗi lần cập nhật — sửa trực
-       tiếp file hiện có, chỉ đổi tên file kèm ngày mới khi có thay đổi lớn về phạm vi), cùng các
-       báo cáo review SỐNG liên quan (VD `Vw_BE_Review_PostImplementation_*.md`).
-    2. **`<PhânHệ>/Prompt/`** (VD `VideoWall/Prompt/`) — chứa prompt thực thi từng bước: mỗi task/fix
-       riêng = đúng 1 file `<task-slug>-prompt.md`. AI **TUYỆT ĐỐI KHÔNG tự động xóa** sau khi thực
-       thi xong (BẮT BUỘC giữ lại để người dùng review sau khi code change hoàn tất; chỉ xóa khi người
-       dùng đã nghiệm thu và yêu cầu trực tiếp).
   - Khi hoàn tất 1 prompt hoặc đổi trạng thái backlog, BẮT BUỘC cập nhật lại `Vw_MasterPlan_*.md`
     (trong `Plan/`) tương ứng của phân hệ đó (đừng để MasterPlan lạc hậu so với trạng thái file
     prompt thật trong `Prompt/`).
 
-- **19.3. Quy tắc đặt tên Method Async (Không thêm suffix "Async")**:
-  - **Code mới tự viết**: BẮT BUỘC KHÔNG thêm hậu tố `Async` vào tên method (ví dụ: `GetOutputChannels`, `GetScope`, `SeedWall`; không dùng `GetOutputChannelsAsync`).
-  - **Code cũ/thư viện sẵn có**: GIỮ NGUYÊN hiện trạng, không tự ý refactor gây diff thừa.
+- **19.3. Quy tắc đặt tên Method Async**: Xem mục 7 "Async Method Naming" (không lặp lại ở đây — đã gộp 25/09/2026 để tránh trùng ý).
 
-- **19.4. Cấm chạy thủ công DDL / ALTER TABLE & Cấm tự viết hàm tạo bảng (EnsureTablesCreated) — Tận dụng SqlSugar Code-First**:
-  - TUYỆT ĐỐI KHÔNG tự ý chạy lệnh DDL thủ công (`ALTER TABLE`, `CREATE TABLE`, `DROP COLUMN` qua terminal, script shell, sqlcmd) trên BẤT KỲ database nào (kể cả DEV `10.10.8.30` hay local).
-  - Khi cần thêm bảng hoặc thêm cột trong test hay ứng dụng, luôn tận dụng cơ chế Code-First tự động an toàn của SqlSugar (`EnableInitTable`, `EnableIncreTable`).
-  - **CẤM TỰ VIẾT HÀM `EnsureTablesCreated()` hay gọi `InitTables<T>()` trong `Host.cs`/tests**: Lỗi thiếu bảng trong test chỉ cần bật `TableSettings: { "EnableInitTable": true, "EnableIncreTable": true }` trong `tests/appsettings.Test.json`, KHÔNG can thiệp code C# trong Host/Test.
+- **19.4. Cấm chạy thủ công DDL / ALTER TABLE & Cấm tự viết hàm tạo bảng (EnsureTablesCreated)**: Xem mục 6 "Cấm Gọi InitTables<T>() / Tạo Hàm EnsureTablesCreated() Trong Host/Test" — không lặp lại ở đây (đã gộp 25/09/2026 để tránh trùng ý).
 
 - **19.5. Đào sâu nguyên nhân gốc rễ (Root Cause) trước khi đề xuất fix**:
   - Khi phát hiện kiến trúc lạ hoặc code có vẻ "sai", BẮT BUỘC đọc hết các file liên quan và docstring/comment gốc để hiểu toàn bộ bối cảnh và quy mô thực tế, tránh đề xuất các bản vá bề mặt.

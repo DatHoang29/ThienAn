@@ -2,7 +2,7 @@
 
 > 🔴 **SINGLE SOURCE OF TRUTH (SSOT):** Tài liệu quy hoạch tổng thể duy nhất cho toàn bộ phân hệ **ShareData (ESHARE)** gồm Frontend, Backend WebAPI và Service Worker.
 > Được hợp nhất từ các tài liệu phân tích, kế hoạch kiểm thử, cơ chế gửi nối đuôi Checkpoint và kích hoạt sự kiện Change Tracking + NATS.
-> 📌 **Cập nhật lần cuối: 25/09/2026** — đã gộp kết quả đối chiếu code thực tế từ 3 báo cáo con: [`Sharedata_Review_LuongNoiDuoi_20260923.md`](./Sharedata_Review_LuongNoiDuoi_20260923.md), [`Sharedata_Review_GuiKhiCoDuLieuMoi_20260923.md`](./Sharedata_Review_GuiKhiCoDuLieuMoi_20260923.md), [`Sharedata_Review_DoiChieuThucTe_20260925.md`](./Sharedata_Review_DoiChieuThucTe_20260925.md).
+> 📌 **Cập nhật lần cuối: 25/09/2026** — đã gộp toàn bộ nội dung còn giá trị từ 3 báo cáo review (`Sharedata_Review_LuongNoiDuoi_20260923.md`, `Sharedata_Review_GuiKhiCoDuLieuMoi_20260923.md`, `Sharedata_Review_DoiChieuThucTe_20260925.md`) trực tiếp vào tài liệu này (chủ yếu ở SV-12 §9); 3 file review đã được xoá sau khi gộp, tài liệu này là SSOT duy nhất.
 
 ### Chú giải ký hiệu
 
@@ -62,7 +62,7 @@
 - [ ] **SV-8a** Ghi log 2 bước cha–con *(chiều gửi)* 🔴 **chặn bởi BE-5** (`ParentId`/`StepNo` trên `ShareDataActivityLog`).
 - [x] **SV-10** Rà soát pipeline Outbound sau refactor ✅ **xong 18/09** — Tầng gửi không logic nghiệp vụ, lỗi mapping dừng bước 2, `DataOutboundContext` xuyên suốt.
 - [x] **SV-12** Cờ *"chỉ gửi khi có dữ liệu mới"* & Cơ chế Gửi nối đuôi Checkpoint ✅ **hoàn tất 22/09**:
-  - Kiến trúc Checkpoint độc lập `ShareDataCheckpoint` theo từng cặp `(PartnerCode, PacketCode)`.
+  - Kiến trúc Checkpoint độc lập `ShareDataLastSend` theo từng cặp `(PartnerCode, PacketCode)`.
   - Phân trang nối đuôi an toàn, không lặp dữ liệu, dừng ngay khi cursor null.
   - Tích hợp SQL Server Change Tracking (1s heartbeat) + NATS Trigger (`TransportManager`).
   - Gói 106 trích xuất chuẩn 7 trường, phễu lọc nguồn allow-list (mặc định rỗng chặn gửi sai), 4 trường tải trọng null theo đặc tả.
@@ -123,20 +123,20 @@
 
 ### SV-12. Cờ "Chỉ gửi khi có dữ liệu mới" & Cơ chế Gửi nối đuôi Checkpoint ✅ *hoàn tất 22/09*
 
-#### 1. Kiến trúc Bảng Checkpoint độc lập (`ShareDataCheckpoint`)
+#### 1. Kiến trúc Bảng Checkpoint độc lập (`ShareDataLastSend`)
 - Tách rời hoàn toàn mốc cursor khỏi bảng `ShareDataSubscription` để tránh cạnh tranh lease.
-- Cấu trúc bảng `ShareDataCheckpoint`:
+- Cấu trúc bảng `ShareDataLastSend`:
   - `PartnerCode` (`string?`, `IsNullable = true`): Mã đối tác nhận.
   - `PacketCode` (`string?`, `IsNullable = true`): Mã gói tin chia sẻ.
   - `LastTime` (`DateTime?`, `IsNullable = true`): Mốc thời gian dữ liệu trích xuất thành công gần nhất.
   - `LastKey` (`string?`, `IsNullable = true`): Khóa dòng cuối của trang gần nhất (chống kẹt khi trùng mốc thời gian).
   - `LastVersion` (`long?`): Phiên bản Change Tracking gần nhất đã xử lý.
   - `CreateTime`, `UpdateTime`: Dấu vết thời gian hệ thống.
-  - Index độc nhất: `UQ_ShareDataCheckpoint_Partner_Packet` trên `(PartnerCode, PacketCode)`.
+  - Index độc nhất: `UQ_ShareDataLastSend_Partner_Packet` trên `(PartnerCode, PacketCode)`.
 
 #### 2. Cập nhật Checkpoint đơn điệu qua SqlSugar ORM
 - Tuyệt đối không dùng raw SQL chuỗi cho update Checkpoint.
-- Sử dụng method `UpdateCheckpoint` thông qua `db.Updateable<ShareDataCheckpoint>()`:
+- Sử dụng method `UpdateCheckpoint` thông qua `db.Updateable<ShareDataLastSend>()`:
   - Điều kiện cập nhật: `LastTime < newTime OR (LastTime = newTime AND (LastKey IS NULL OR LastKey < newKey))`.
   - Đảm bảo cursor luôn tiến lên (đơn điệu), tuyệt đối không bị tụt lùi hay ghi đè mốc cũ.
 
@@ -178,14 +178,14 @@ else
 
 #### 6. Cơ chế Kích hoạt tức thời (Event-Driven) qua Change Tracking + NATS
 
-> 📌 **Cập nhật 25/09/2026 — chuẩn hoá lại tên class và mô tả subject NATS cho khớp code thật** (đối chiếu độc lập trong [`Sharedata_Review_DoiChieuThucTe_20260925.md`](./Sharedata_Review_DoiChieuThucTe_20260925.md)): tên worker trước đây ghi `DataChangeWatcherWorker`/`DataNatsWorker` đã đổi thành `DataChangePollingWorker`/`DataNatsConsumerWorker`; mô tả subject NATS có hậu tố `{PacketCode}` trước đây là **mô tả sai**, code thật luôn dùng 1 subject chung.
+> 📌 **Cập nhật 25/09/2026 — chuẩn hoá lại tên class và mô tả subject NATS cho khớp code thật** (đối chiếu độc lập qua đọc trực tiếp code, xem §9): tên worker trước đây ghi `DataChangeWatcherWorker`/`DataNatsWorker` đã đổi thành `DataTrackerWorker`/`DataNatsConsumerWorker`; mô tả subject NATS có hậu tố `{PacketCode}` trước đây là **mô tả sai**, code thật luôn dùng 1 subject chung.
 
 - > 📌 **Đồng bộ Transcript & Plan (Việc B - Event-Driven):** Trong transcript cuộc họp ngày 21/09/2026 (`16:56–17:03`), việc B (gửi ngay khi có dữ liệu mới qua Event-Driven Change Tracking + NATS) từng được ghi nhận là không làm ở đợt này và khóa checkbox trên FE. Tuy nhiên, theo quyết định chính thức của **MasterPlan là PHẢI LÀM LUÔN**, và toàn bộ cơ chế đã được triển khai hoàn tất đợt này theo chuẩn an toàn cao nhất.
-- `DataChangePollingWorker.CheckStatusAsync`: Kiểm tra trạng thái qua DMV hệ thống (`sys.change_tracking_databases`, `sys.change_tracking_tables`). Khi Worker khởi động, hệ thống **luôn tự động kiểm tra và kích hoạt Change Tracking (DDL - Data Definition Language) ở mọi môi trường** (không còn phân biệt Dev/Staging/Production, đã bỏ hẳn cờ cấu hình `AutoEnableChangeTracking`). *(Ghi chú: Đây là quyết định có chủ đích của người dùng ngày 23/09/2026 nhằm tối ưu vận hành zero-touch, thay thế khuyến nghị mặc định ban đầu là chỉ cho phép DBA chạy script tay ở Staging/Production).*
-- `DataOutboundService.ProcessPacketTrigger` (Lease Protection): Khôi phục điều kiện claim lease `Where(s => s.NextTimeRun == null || s.NextTimeRun <= now)`. Khi một worker theo lịch đang gửi dở các trang, trigger NATS không thể cướp lease, loại bỏ hoàn toàn nguy cơ xung đột OCC và cảnh báo giả `ESH-1303`.
-- `DataChangePollingWorker`: Chạy nền với heartbeat 1 giây, đọc `CHANGE_TRACKING_CURRENT_VERSION()`. Tích hợp trực tiếp bảng ánh xạ bảng nguồn `RawTableToPacketMap` (`TmsTrafficData` ra cả 103 và 106) và bộ lọc `ResolveTriggerPackets` chỉ chặn gói `NotReady` và `Disabled` — **mọi gói hợp lệ còn lại, cả nối đuôi lẫn bản chụp, đều kích hoạt được bằng sự kiện** nếu đăng ký bật cờ `SendOnNewData`. Khi phát hiện dữ liệu bảng nguồn thay đổi, phát sự kiện NATS qua `TransportManager` vào **1 subject chung duy nhất** `ta.its.event.sharedata.newdata` (hằng số `DEFAULT_NATS_SUBJECT`, không hậu tố) — gói tin nhận diện qua field `PacketCode` trong payload (`{PacketCode, Type, Version, TriggeredAt}`), đây là thiết kế chủ đích.
-- `DataNatsConsumerWorker`: Lắng nghe đúng subject chung đó, đọc `PacketCode` từ payload rồi gọi `DataOutboundService.ProcessPacketTrigger(packetCode)`. Không có cơ chế debounce nào ở tầng worker này — chống dội thực hiện bằng cấu hình `DebounceSec` riêng của từng Subscription, kiểm tra trong `ProcessPacketTrigger`.
-- Cơ chế **Self-Healing khi `_lastProcessedVersion` rơi ra ngoài cửa sổ hợp lệ của Change Tracking** (bổ sung 25/09/2026): SQL Server chỉ giữ dữ liệu Change Tracking 2 ngày (`CHANGE_RETENTION = 2 DAYS, AUTO_CLEANUP = ON`); nếu worker ngừng cập nhật mốc lâu hơn khoảng đó (ví dụ mất kết nối CSDL kéo dài mà tiến trình không restart), câu `CHANGETABLE` sẽ ném lỗi SQL lặp lại vô hạn mỗi giây. `DataChangePollingWorker.PollChangeTracking` nay bọc `try/catch (Exception ex) when (IsChangeTrackingVersionInvalid(ex))` quanh câu truy vấn đổi bảng — khi bắt được lỗi version không hợp lệ (mã SQL 22114/22115 hoặc message tương ứng, hàm `IsChangeTrackingVersionInvalid`), tự động nhảy cóc `_lastProcessedVersion = currentVersion.Value` để hồi phục ngay chu kỳ kế tiếp, không cần restart service. Chi tiết & lý do đổi hướng so với đề xuất ban đầu (proactive vs reactive): [`sharedata-tu-phuc-hoi-change-tracking-min-valid-version-prompt.md`](../Prompt/sharedata-tu-phuc-hoi-change-tracking-min-valid-version-prompt.md).
+- `DataTrackerWorker.CheckStatusAsync`: Kiểm tra trạng thái qua DMV hệ thống (`sys.change_tracking_databases`, `sys.change_tracking_tables`). Khi Worker khởi động, hệ thống **luôn tự động kiểm tra và kích hoạt Change Tracking (DDL - Data Definition Language) ở mọi môi trường** (không còn phân biệt Dev/Staging/Production, đã bỏ hẳn cờ cấu hình `AutoEnableChangeTracking`). *(Ghi chú: Đây là quyết định có chủ đích của người dùng ngày 23/09/2026 nhằm tối ưu vận hành zero-touch, thay thế khuyến nghị mặc định ban đầu là chỉ cho phép DBA chạy script tay ở Staging/Production).*
+- `DataOutboundService.ProcessSubscriptions` (Lease Protection): Khôi phục điều kiện claim lease `Where(s => s.NextTimeRun == null || s.NextTimeRun <= now)`. Khi một worker theo lịch đang gửi dở các trang, trigger NATS không thể cướp lease, loại bỏ hoàn toàn nguy cơ xung đột OCC và cảnh báo giả `ESH-1303`.
+- `DataTrackerWorker`: Chạy nền với heartbeat 1 giây, đọc `CHANGE_TRACKING_CURRENT_VERSION()`. Tích hợp trực tiếp bảng ánh xạ bảng nguồn `RawTableToPacketMap` (`TmsTrafficData` ra cả 103 và 106) và bộ lọc `ResolveTriggerPackets` chỉ chặn gói `NotReady` và `Disabled` — **mọi gói hợp lệ còn lại, cả nối đuôi lẫn bản chụp, đều kích hoạt được bằng sự kiện** nếu đăng ký bật cờ `SendOnNewData`. Khi phát hiện dữ liệu bảng nguồn thay đổi, phát sự kiện NATS qua `TransportManager` vào **1 subject chung duy nhất** `ta.its.event.sharedata.newdata` (hằng số `DEFAULT_NATS_SUBJECT`, không hậu tố) — gói tin nhận diện qua field `PacketCode` trong payload (`{PacketCode, Type, Version, TriggeredAt}`), đây là thiết kế chủ đích.
+- `DataNatsConsumerWorker`: Lắng nghe đúng subject chung đó, đọc `PacketCode` từ payload rồi gọi `DataOutboundService.ProcessSubscriptions(packetCode)`. Không có cơ chế debounce nào ở tầng worker này — chống dội thực hiện bằng cấu hình `DebounceSec` riêng của từng Subscription, kiểm tra trong `ProcessSubscriptions`.
+- Cơ chế **Self-Healing khi `_lastProcessedVersion` rơi ra ngoài cửa sổ hợp lệ của Change Tracking** (bổ sung 25/09/2026): SQL Server chỉ giữ dữ liệu Change Tracking 2 ngày (`CHANGE_RETENTION = 2 DAYS, AUTO_CLEANUP = ON`); nếu worker ngừng cập nhật mốc lâu hơn khoảng đó (ví dụ mất kết nối CSDL kéo dài mà tiến trình không restart), câu `CHANGETABLE` sẽ ném lỗi SQL lặp lại vô hạn mỗi giây. `DataTrackerWorker.PollChangeTracking` nay bọc `try/catch (Exception ex) when (IsChangeTrackingVersionInvalid(ex))` quanh câu truy vấn đổi bảng — khi bắt được lỗi version không hợp lệ (mã SQL 22114/22115 hoặc message tương ứng, hàm `IsChangeTrackingVersionInvalid`), tự động nhảy cóc `_lastProcessedVersion = currentVersion.Value` để hồi phục ngay chu kỳ kế tiếp, không cần restart service. Chi tiết & lý do đổi hướng so với đề xuất ban đầu (proactive vs reactive): [`sharedata-tu-phuc-hoi-change-tracking-min-valid-version-prompt.md`](../Prompt/sharedata-tu-phuc-hoi-change-tracking-min-valid-version-prompt.md).
 - Toàn bộ vùng CT + NATS được bao phủ bởi bộ test trong `tests/ShareData/Services/DataChangeWorkerTests.cs` (bao gồm 3 bài mới cho cơ chế Self-Healing: `IsChangeTrackingVersionInvalid_WhenGivenVariousExceptions_ClassifiesCorrectly_Test`, `GetMinValidVersion_WhenCalledWithTrackedTable_ReturnsValidLongOrNull_Test`, `ChangeTracking_WhenVersionInvalid_SelfHealsAndFastForwardsToCurrentVersion_Test`) và `DataChangeWorkerNatsTests.cs`. Số lượng bài test cụ thể là số liệu tạm, dễ lạc hậu — chạy `dotnet test tests/test.csproj --filter "FullyQualifiedName~ShareData"` để xem số hiện tại thay vì tin số đếm cứng trong tài liệu.
 
 
@@ -195,12 +195,12 @@ else
 
 #### 8. Trạng thái các mục sau rà soát nghiệp vụ 23/09/2026
 
-Nhật ký 8 việc đã xử lý kèm lý do quyết định: Phụ lục B của [`Sharedata_Review_LuongNoiDuoi_20260923.md`](./Sharedata_Review_LuongNoiDuoi_20260923.md).
+Nhật ký các việc đã xử lý kèm lý do quyết định: xem §9.5 bên dưới (gộp từ Phụ lục B báo cáo review 23/09, đã xoá).
 
 | Việc | Loại | Trạng thái |
 |---|---|---|
 | Mở kích hoạt sự kiện cho gói bản chụp (điều kiện là cờ `SendOnNewData`), bổ sung bảng `TollTransactionIn` | [prompt](../Prompt/mo-trigger-cho-goi-ban-chup-prompt.md) | ✅ Đã xử lý 23/09/2026 |
-| Hai bộ phân giải mã gói mâu thuẫn: catalog SQL coi `104_rfidData` là gói 105, `ResolveOutboundPolicy` coi là 104 | [prompt](../Prompt/thong-nhat-phan-giai-ma-goi-va-mac-dinh-an-toan-prompt.md) | ✅ Đã xử lý 23/09/2026 |
+| Hai bộ phân giải mã gói mâu thuẫn: catalog SQL coi `104_rfidData` là gói 105, `ResolvePacketPolicy` coi là 104 | [prompt](../Prompt/thong-nhat-phan-giai-ma-goi-va-mac-dinh-an-toan-prompt.md) | ✅ Đã xử lý 23/09/2026 |
 | Gói 104 và 106 là gói chính thức; nhóm "dự kiến làm sau" đã bị bãi bỏ | Chủ dự án xác nhận 23/09/2026 | ✅ Đã làm rõ |
 | Lượt chạy đầu của gói nối đuôi: cắm mốc lùi một chu kỳ rồi gửi ngay, bỏ thoát sớm | [prompt](../Prompt/gui-ngay-o-luot-chay-dau-goi-noi-duoi-prompt.md) | ✅ Đã xử lý 23/09/2026 |
 | Chính sách gói tin giữ trong code; đổi mặc định sang `NotReady` + đối soát lúc khởi động (`CheckActivePackets`) | [prompt](../Prompt/thong-nhat-phan-giai-ma-goi-va-mac-dinh-an-toan-prompt.md) | ✅ Đã xử lý 23/09/2026 |
@@ -213,8 +213,118 @@ Nhật ký 8 việc đã xử lý kèm lý do quyết định: Phụ lục B c�
 | Thiếu test cho 2 kịch bản sập hệ thống (nhận lại quyền xử lý sau khi worker chết; worker giám sát khởi động lại) | Việc kỹ thuật | ✅ Đã bổ sung 23/09/2026 |
 | Test kịch bản mất kết nối CSDL giữa chừng | [prompt](../Prompt/test-mat-ket-noi-csdl-giua-chung-prompt.md) | ✅ Đã xử lý 23/09/2026 |
 | Dọn dấu vết `104_rfidData` sau khi bản ghi bị xoá khỏi CSDL staging: giữ bí danh làm lưới chặn hồi quy, đổi tên 2 bài test | [prompt](../Prompt/don-dau-vet-104-rfiddata-prompt.md) | ✅ Đã xử lý 24/09/2026 |
-| `DataChangePollingWorker` lặp lỗi vô hạn khi `_lastProcessedVersion` rơi ra ngoài cửa sổ hợp lệ `CHANGE_TRACKING_MIN_VALID_VERSION` (worker ngừng cập nhật mốc lâu hơn 2 ngày retention) — phát hiện trong [`Sharedata_Review_DoiChieuThucTe_20260925.md`](./Sharedata_Review_DoiChieuThucTe_20260925.md) | [prompt](../Prompt/sharedata-tu-phuc-hoi-change-tracking-min-valid-version-prompt.md) | ✅ Đã xử lý 25/09/2026 — verify độc lập tại `DataChangePollingWorker.cs:391,424,272-283` |
-| `ProcessBatchSubscriptions` tạo mới `IServiceScopeFactory` scope + SqlSugar client riêng cho từng subscription trong vòng `foreach` thay vì dùng chung 1 scope cho cả batch | Không có file prompt tương ứng trên đĩa (đường dẫn được ghi trong báo cáo không tồn tại) | ✅ Đã xử lý 25/09/2026 — verify độc lập tại `DataOutboundService.cs:59-61,92` (1 scope duy nhất, `CopyNew()` trong loop) |
+| `DataTrackerWorker` lặp lỗi vô hạn khi `_lastProcessedVersion` rơi ra ngoài cửa sổ hợp lệ `CHANGE_TRACKING_MIN_VALID_VERSION` (worker ngừng cập nhật mốc lâu hơn 2 ngày retention) | [prompt](../Prompt/sharedata-tu-phuc-hoi-change-tracking-min-valid-version-prompt.md) | ✅ Đã xử lý 25/09/2026 — verify độc lập tại `DataTrackerWorker.cs` |
+| `ProcessScheduledSubscriptions` (trước đây là `ProcessBatchSubscriptions`) tạo mới `IServiceScopeFactory` scope + SqlSugar client riêng cho từng subscription trong vòng `foreach` thay vì dùng chung 1 scope cho cả batch | Không có file prompt tương ứng trên đĩa (đường dẫn được ghi trong báo cáo không tồn tại) | ✅ Đã xử lý 25/09/2026 — verify độc lập tại `DataOutboundService.cs:59-61,92` (1 scope duy nhất, `CopyNew()` trong loop) |
+
+#### 9. Đặc tả nghiệp vụ đầy đủ — gộp từ 2 báo cáo review 23/09 (đã xoá sau khi gộp 25/09/2026)
+
+##### 9.1. Hai trục quyết định độc lập: "Gửi cái gì" vs "Khi nào gửi"
+
+| Trục ý nghĩa | Quyết định bởi | Giá trị |
+|---|---|---|
+| **GỬI CÁI GÌ** | `OutboundPolicy` của gói tin | `Snapshot` (101, 102, 105, 108: gửi lại toàn bộ) hoặc `AlwaysIncremental` (103, 104, 106, 107, 109: chỉ phần phát sinh sau mốc) |
+| **KHI NÀO gửi** | Cờ `SendOnNewData` của **từng Subscription** + trigger NATS | Bật → gửi ngay khi Change Tracking phát hiện đổi; tắt → chỉ gửi theo lịch định kỳ |
+
+Hai trục **độc lập hoàn toàn** — đổi trục này không kéo theo trục kia. `SendOnNewData` và `DebounceSec` là cột của `ShareDataSubscription`, không phải của `ShareDataPacket` — cơ chế kích hoạt sự kiện là **năng lực dùng chung cho cả 9 gói hợp lệ** (trừ 110 `NotReady`, 111 `Disabled`), quyền bật/tắt nằm ở từng đăng ký, không phải danh sách trắng cứng theo gói trong code.
+
+##### 9.2. Vì sao chọn Change Tracking, không chọn CDC hay NATS thuần
+
+| Tiêu chí | **Change Tracking (đang dùng)** | CDC | NATS thuần (tầng ứng dụng tự bắn) |
+|---|---|---|---|
+| Bắt được thay đổi từ nguồn nào | Mọi đường ghi vào bảng, kể cả script tay/import/hệ thống ngoài ghi thẳng CSDL | Mọi đường ghi (đọc nhật ký giao dịch) | Chỉ đường ghi đi qua code có gọi hàm phát tín hiệu — dễ sót |
+| Nội dung trả về | Chỉ "có đổi + số hiệu version" | Đầy đủ ảnh trước/sau | Tuỳ code tự đóng gói |
+| Chi phí hạ tầng | Nhẹ, không cần tiến trình phụ | Nặng hơn — cần tác vụ đọc nhật ký riêng | Không tốn CSDL nhưng tốn công sửa mọi nơi ghi dữ liệu |
+| Phù hợp bài toán này | ✅ Đủ dùng — dữ liệu thật vẫn lấy qua truy vấn nối đuôi | Thừa — không cần ảnh trước/sau | Rủi ro cao — dễ sót nguồn ghi ngoài tầm kiểm soát |
+
+##### 9.3. Đối chiếu đầy đủ 11 gói: đặc tả ↔ CSDL staging ↔ code
+
+> 📌 Cột "Bản ghi staging" đo trên `mssql_staging` (`dev_its10` @ `10.10.8.30`) ngày 24/09/2026.
+
+| Gói | Đặc tả (nguyên văn) | Policy trong code | Khớp? |
+|---|---|---|---|
+| 101 | `lấy all/DL được cập nhật` | `Snapshot` | ✅ |
+| 102 | `lấy all /DL được cập nhật -> nats` | `Snapshot` | ✅ |
+| 103 | `>= key` | `AlwaysIncremental` | ✅ |
+| 104 | `>= key` | `AlwaysIncremental` | ✅ |
+| 105 | `All/ update` | `Snapshot` | ✅ đọc trực tiếp `TollTransactionIn TOP 100` |
+| 106 | `>= key` | `AlwaysIncremental` | ✅ gửi đủ 7 trường thật, 4 trường tải trọng `null` |
+| 107 | `>= key / giá trị cũ update trạng thái` | `AlwaysIncremental` | ✅ |
+| 108 | `lấy all /DL được cập nhật -> nats` | `Snapshot` | ✅ |
+| 109 | `>= key` | `AlwaysIncremental` | ✅ |
+| 110 | 3 trường `messageId`/`channel`/`deliveryState` — "chưa có, cần bảng notification/outbox" | `NotReady` → chặn | ⚠️ thiếu 3 trường, không phải thiếu tất cả — xem §9.6 |
+| 111 | "Trao đổi với TT QLĐHGT tuyến (skip)" | `Disabled` → chặn | ✅ đặc tả chốt bỏ qua |
+
+##### 9.4. Bảng nguồn → gói tin (15 bảng, đã lọc theo policy)
+
+| Bảng nguồn | Gói được ánh xạ | Gói thực sự bắn tín hiệu (sau lọc NotReady/Disabled) |
+|---|---|---|
+| `TmsZoneStatus`, `TmsZone`, `TmsTrafficStatistic` | 101 | 101 |
+| `CctvDevice` | 102 | 102 |
+| `TmsTrafficData` | 103, 106 | 103, 106 |
+| `TmsWeather` | 104 | 104 |
+| `TollTransactionIn`, `TollTransactionOut` | 105, 109 | 105, 109 |
+| `TmsVehicleRegistration` | 105 | 105 |
+| `TmsIncident`, `TmsEventType` | 107, 110, 111 | **chỉ 107** (110/111 bị lọc) |
+| `VmsCurrent` | 108 | 108 |
+| `TmsEquipment` | 102, 103, 108 | 102, 103, 108 |
+| `TollLane`, `TollStation` | 109 | 109 |
+
+15/15 bảng nguồn đều sinh được tín hiệu — kể cả `TmsIncident`/`TmsEventType` (nuôi 2 gói bị chặn) vẫn còn gói 107 gánh tín hiệu qua.
+
+##### 9.5. Vì sao gói bản chụp gửi lại toàn bộ mỗi chu kỳ — trích biên bản họp 21/09
+
+> `09:59` — **Anh Sơn**: *"Một số dữ liệu là mình sẽ gửi lại hết. Nhưng một số dữ liệu... như cái bảng Incident... chỉ gửi tiếp mới mới thôi... Nhưng một số bảng là nó cần cập nhật hết tất cả thông tin thì bắt buộc phải gửi lại hết."*
+> `10:50` — **Anh Sơn**: *"Đúng rồi! Trong cái **gói tin** đó, chứ không phải một bảng nữa."*
+
+Hai điều chốt: (1) đúng 2 chế độ, không có chế độ thứ ba kiểu "lần đầu gửi hết rồi sau chỉ gửi phần đổi"; (2) trục phân loại là **gói tin**, khớp đúng `ResolvePacketPolicy` khoá theo mã gói. Gửi trùng vô hại — bên nhận ghi đè theo khoá, không cộng dồn; cái giá phải trả chỉ là băng thông.
+
+📌 Nhật ký các việc đã xử lý 23-25/09/2026 (mở khoá gói bản chụp, thống nhất phân giải mã gói, lượt chạy đầu gói nối đuôi, mặc định an toàn NotReady...): xem bảng "Trạng thái các mục sau rà soát nghiệp vụ" ở mục 8 phía trên.
+
+##### 9.6. Chưa làm những gì
+
+> 📌 Đo lại trên `mssql_staging` ngày 24/09/2026.
+
+| Việc | Vì sao chưa làm | Có chặn luồng đang chạy không? |
+|---|---|---|
+| Gói **106** — 4 trường tải trọng `grossWeight`, `axleWeights`, `axleCount`, `isOverweight` | Thiếu ở cả 3 tầng: cả 3 thiết bị `WOS` (trạm cân) đã xoá mềm, `Source` không có giá trị từ trạm cân, `TmsTrafficData` không có cột nào cho 4 trường này | ❌ Không — gói vẫn gửi đủ 7 trường thật, 4 trường này để trống |
+| Gói **110** — dựng bảng outbox cho `messageId`, `channel`, `deliveryState` | Quét cả 154 entity trên staging, không có bảng `*Outbox`/`*Inbox`/`*Notification` nào | ❌ Không — gói đang `NotReady`, bị chặn đúng chủ đích |
+
+##### 9.7. Edge case đầy đủ (gộp, khử trùng lặp)
+
+| # | Tình huống | Cách hệ thống xử |
+|---|---|---|
+| 1 | Sập giữa lúc gửi nối đuôi, giữa 2 trang | Trang đã commit giữ nguyên, trang dở rollback; lần chạy sau lấy lại từ mốc cũ — không mất |
+| 2 | Sập sau khi HTTP gửi xong nhưng trước khi commit mốc | Đối tác đã nhận, mốc chưa tiến ⇒ lần sau gửi lại đúng phần đó — đúng thiết kế *at-least-once* |
+| 3 | Tiến trình bị kill / mất điện khi đang giữ quyền xử lý | Lease `NextTimeRun` tự hết hạn, worker lần sau tự nhận lại và tiếp tục từ checkpoint — không sai lệch dữ liệu |
+| 4 | Worker giám sát (`DataTrackerWorker`) khởi động lại | Mốc Change Tracking là biến trong RAM, khởi động lại nhảy thẳng tới mốc hiện tại; quét định kỳ vẫn gửi đủ phần phát sinh lúc chết — chỉ chậm, không mất |
+| 5 | NATS mất kết nối | Ghi cảnh báo rồi thôi; quét định kỳ quét bù, mốc checkpoint không đổi nên không mất dữ liệu |
+| 6 | Mất kết nối CSDL giữa chừng | Transaction tự rollback; quyền xử lý treo giống #3, tự hồi phục |
+| 7 | Sập khi đang gửi gói bản chụp | Không mất gì — chu kỳ sau gửi lại toàn bộ, đúng thiết kế nhóm gói này |
+| 8 | `_lastProcessedVersion` rơi ra ngoài cửa sổ hợp lệ Change Tracking (retention 2 ngày) | Self-Healing: bắt lỗi SQL 22114/22115, tự nhảy cóc `_lastProcessedVersion = currentVersion.Value` — xem §6 phía trên |
+| 9 | Tác vụ trước xử lý lâu, bản tin trigger sau dồn ứ | NATS Client xếp hàng tuần tự; `LockedSubscription` khoá OCC bỏ qua êm dịu nếu subscription đang bận; lượt sau thấy 0 dòng (checkpoint đã tiến) thì thoát ngay |
+| 10 | Lần đầu khởi động sau triển khai (Change Tracking chưa bật) | Worker tự kiểm tra qua DMV hệ thống, chỉ `ALTER` khi còn thiếu; nên chọn giờ thấp điểm cho lần đầu |
+
+##### 9.8. Cơ chế tương tranh khi nhiều worker chạy song song (OCC 3 lớp)
+
+- **`GetOrInitCheckpoint`** — 2 worker cùng tạo checkpoint 1 lúc: bên thua ràng buộc unique tự nạp lại dòng đã có (`catch { reload; if found return reloaded; throw; }`), không ghi đè.
+- **`UpdateCheckpoint`** — chốt chặn chỉ tiến không lùi: `WHERE LastTime < @newTime OR (LastTime = @newTime AND LastKey < @newKey)` — worker chạy trễ cố ghi mốc cũ hơn thì ảnh hưởng 0 dòng.
+- **`CommitSuccess`** — điều kiện OCC `WHERE ID = @subId AND NextTimeRun = @nextRunDeadline`; nếu quyền xử lý bị worker khác giành mất giữa chừng thì rollback, dừng vòng lặp, không ghi đè kết quả worker kia.
+
+Nhờ commit theo từng trang, khi trang thứ N gửi lỗi thì các trang trước đã gửi thành công vẫn giữ nguyên — không phải làm lại từ đầu.
+
+##### 9.9. Vì sao lần chạy đầu tiên lùi đúng 1 chu kỳ (không lấy hết lịch sử, không lấy đúng hiện tại)
+
+| Phương án | Hậu quả |
+|---|---|
+| ❌ Lấy toàn bộ lịch sử từ trước đến nay | Bảng dò xe/thu phí khổng lồ — kéo hàng triệu bản ghi, treo DB, ngập máy đối tác |
+| ❌ Lấy mốc đúng thời điểm hiện tại (`GETDATE()`) | `WHERE UpdateTime >= now` không có dòng nào thoả — lần chạy đầu chạy không công |
+| ✅ Lùi mốc về đúng 1 chu kỳ (`GETDATE() - IntervalSeconds`) | Quét được lượng nhỏ dữ liệu vừa sinh ra — đủ chứng minh kết nối hoạt động, không nặng hệ thống |
+
+⚠️ Hệ quả: đối tác mới **vẫn không nhận được dữ liệu cũ hơn 1 chu kỳ**. Nếu cần nạp lịch sử cho đối tác mới, đó phải là 1 thao tác riêng có chủ đích, không gắn vào việc tạo đăng ký. Code cụ thể (`GetOrInitCheckpoint`, dùng `SELECT GETDATE()` của DB thay vì `DateTime.Now`) đã có ở §2b phía trên.
+
+##### 9.10. Bảng checkpoint có phình to không
+
+**Không.** `ShareDataLastSend` là bảng trạng thái hiện tại, không phải nhật ký — mỗi cặp (Đối tác × Gói tin) chỉ sinh đúng 1 dòng, các lần chạy sau chỉ cập nhật tại chỗ. Gói `Snapshot` không sinh dòng nào. Tổng số dòng bị chặn trên bởi (số đối tác × 5 gói nối đuôi) — vài chục đến vài trăm dòng, không tăng theo lượng dữ liệu gửi đi. Không cần cơ chế tự xoá.
 
 ---
 
@@ -293,7 +403,7 @@ Nhật ký 8 việc đã xử lý kèm lý do quyết định: Phụ lục B c�
 - [x] Thay switch "Theo sự kiện" bằng checkbox "Gửi ngay khi có dữ liệu mới" (`editSubscription.vue`).
 - [x] Chiều nhận (Inbound): Ẩn toàn bộ khối cấu hình lịch chạy.
 - [x] Khóa ô Cổng (`Port`) khi ở chế độ Sửa đối tác (`editPartner.vue`).
-- [ ] Chặn gửi khi thiếu hồ sơ ánh xạ + badge trạng thái "Đã có/Chưa có Ánh xạ" (xanh/xám) trên bảng gói tin của đối tác — theo chốt họp 21/09 Phiên 3 mốc 02:35-02:51 ("bắt buộc phải có mapping, không có thì báo lỗi, không cho gửi"). Hiện `editSubscription.vue` chỉ hiện cảnh báo rồi vẫn cho gửi theo mặc định gói tin, `subscriptionTable.vue` chưa có badge. Chưa làm vì đang ưu tiên luồng Backend nối đuôi/event trước. Chi tiết: [`Sharedata_Review_DoiChieuThucTe_20260925.md`](./Sharedata_Review_DoiChieuThucTe_20260925.md) mục 3.
+- [ ] Chặn gửi khi thiếu hồ sơ ánh xạ + badge trạng thái "Đã có/Chưa có Ánh xạ" (xanh/xám) trên bảng gói tin của đối tác — theo chốt họp 21/09 Phiên 3 mốc 02:35-02:51 ("bắt buộc phải có mapping, không có thì báo lỗi, không cho gửi"). Hiện `editSubscription.vue` chỉ hiện cảnh báo rồi vẫn cho gửi theo mặc định gói tin, `subscriptionTable.vue` chưa có badge. Chưa làm vì đang ưu tiên luồng Backend nối đuôi/event trước.
 
 ## B. Cấu hình Gói tin — `dataSource/index.vue`
 - [x] Bỏ cột Bí danh, Vai trò, Kiểu nối, Điều kiện nối; đổi cột Bảng dữ liệu thành "Tệp dữ liệu".
@@ -413,3 +523,4 @@ Toàn bộ cấu hình ánh xạ trường thuộc quyền điều khiển của
   ```powershell
   cd TA-ITS015-WEBVUE-V1.0 && npm run build
   ```
+
