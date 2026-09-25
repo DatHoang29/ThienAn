@@ -19,7 +19,7 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 ## Danh sách Prompt
 
-*(Hiện tại không còn prompt tồn đọng)*
+*(Hiện tại không có prompt nào đang chờ thực thi)*
 
 ### Quyết định hiện hành
 
@@ -33,6 +33,8 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 | Prompt | Kết quả |
 |---|---|
+| `sharedata-tu-phuc-hoi-change-tracking-min-valid-version-prompt.md` | ✅ **25/09/2026** · Bổ sung cơ chế Self-Healing tự phục hồi khi mốc version nhỏ hơn `CHANGE_TRACKING_MIN_VALID_VERSION` (mã lỗi 22114/22115): fast-forward `_lastProcessedVersion = currentVersion.Value`, bổ sung `GetMinValidVersion`, `IsChangeTrackingVersionInvalid`, 3 unit tests mới, 133 tests PASS 100% |
+| `toi-uu-scope-processbatchsubscriptions-prompt.md` | ✅ **25/09/2026** · Tối ưu cấp phát `IServiceScope` trong `ProcessBatchSubscriptions`: gom 1 scope chung cho toàn bộ batch, trong vòng `foreach` chỉ clone `using var subDb = baseClient.CopyNew()`, 130 tests PASS 100% |
 | `doi-ten-legacylasttimerun-thanh-lasttimerun-prompt.md` | ✅ **25/09/2026** · Đổi tên tham số `legacyLastTimeRun` → `lastTimeRun` trong 2 overload của `GetOrInitializeCheckpoint` (bỏ tiền tố legacy thừa, gọn code) |
 | `bo-alert-locklost-prompt.md` | ✅ **25/09/2026** · Bỏ `WriteAlertAsync(LockLost)` khỏi `LockedSubscription` — chỉ giữ log ứng dụng `LogWarningMsg`, không ghi vào `ShareDataAlertLog` nữa vì đây là sự kiện nội bộ cơ chế khoá, không phải lỗi luồng gửi dữ liệu |
 | `doi-ten-claimed-thanh-lockedrows-prompt.md` | ✅ **25/09/2026** · Đổi tên biến `claimed` → `lockedRows` trong `LockedSubscription` (đúng vần "lock" đã chốt, rõ đây là số dòng chứ không phải cờ boolean) |

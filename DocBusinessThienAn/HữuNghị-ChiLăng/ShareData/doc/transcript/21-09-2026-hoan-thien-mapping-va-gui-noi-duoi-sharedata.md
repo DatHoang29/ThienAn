@@ -62,10 +62,11 @@ participants:
   - Khác với gửi định kỳ theo lịch cố định, tính năng này yêu cầu hệ thống phải gửi dữ liệu ngay tức thì khi trong CSDL có bản ghi mới hoặc trạng thái thay đổi.
 - **Hai phương án kỹ thuật được thảo luận:**
   - **Phương án 1 (Tầng Ứng dụng):** Tại các hàm nghiệp vụ khi thao tác ghi/sửa CSDL của bảng tương ứng (ví dụ tạo Sự cố mới), gọi trực tiếp hàm phát tín hiệu sang Worker hoặc gửi bản tin qua NATS.
-  - **Phương án 2 (Tầng Cơ sở Dữ liệu):** Sử dụng cơ chế bắt thay đổi dữ liệu (CDC) hoặc Trigger SQL để tự động ghi vết thay đổi vào một bảng đệm.
-- **Quyết định hiện tại:**
-  - Cơ chế này có phạm vi ảnh hưởng rất rộng đến nhiều phân hệ khác nhau.
-  - **Quyết định chốt:** Hiện tại chưa thể triển khai ngay được trong đợt này. Trên giao diện Frontend, **tạm thời giữ nguyên ô chọn (checkbox) nhưng ở trạng thái khóa (disabled / ghi chú chờ Backend)** để Tester không hiểu nhầm. Đội ngũ tập trung làm vững chắc luồng gửi định kỳ nối đuôi theo mốc đánh dấu trước.
+  - **Phương án 2 (Tầng Cơ sở Dữ liệu):** Sử dụng cơ chế bắt thay đổi dữ liệu (Change Tracking - CT / CDC) để tự động nhận diện version thay đổi của bảng nguồn.
+- **Quyết định tại cuộc họp & Cập nhật triển khai thực tế (22/09/2026 — MasterPlan P0):**
+  - *Tại cuộc họp (chiều 21/09):* Đội ngũ từng thảo luận phương án tạm hoãn để ưu tiên hoàn thành trước luồng gửi định kỳ nối đuôi theo mốc đánh dấu, và dự kiến tạm thời khóa ô chọn (checkbox) trên Frontend.
+  - *Cập nhật thực tế triển khai (Vẫn làm ngay trong tuần này):* **Tính năng này KHÔNG HOÃN mà đã được triển khai xong hoàn tất ngay trong tuần** (ngày 22/09/2026) theo phương án **SQL Server Change Tracking (CT) + NATS** (thông qua hạ tầng chung `Services.Shared.Runtime` / `TransportManager`).
+  - Trên giao diện Frontend, **checkbox "Gửi ngay khi có dữ liệu mới" (`SendOnNewData`) đang được BẬT THỰC TẾ (active / enabled)** và kết nối hoạt động trực tiếp cùng Backend Worker, bảo đảm 100% test suite (186/186 tests) đều đã vượt qua. Các thành viên và bên liên quan lưu ý tính năng đã chạy thật, **không bị hoãn hay khóa**.
 
 ---
 
@@ -83,8 +84,8 @@ participants:
 
 | Thành viên | Trách nhiệm | Công việc chi tiết | Thời hạn |
 |---|---|---|---|
-| **Đạt** | Backend Web API & Worker | 1. **Thiết kế bảng lưu mốc đã gửi:** Tạo bảng lưu `PartnerCode`, `PacketCode`, `LastTime`, `LastKey` phục vụ gửi nối đuôi.<br>2. **Cập nhật Query luồng gửi:** Sửa câu truy vấn trích xuất dữ liệu, chỉ lấy bản ghi mới phát sinh tiếp sau mốc `LastTime`/`LastKey` của phiên trước.<br>3. **Hoàn thiện API danh mục:** Cung cấp API trả về trạng thái ánh xạ của từng gói tin theo đối tác.<br>4. **Rà soát xử lý lỗi:** Tách biệt mã lỗi chuẩn hóa trong cấu hình hệ thống. | Trong tuần |
-| **Hiếu** | Dev ShareData | 1. **Chuẩn hóa luồng Tạo Hồ sơ Ánh xạ:** Tự động sinh Mã hồ sơ ánh xạ từ bộ 3 (`Đối tác` + `Gói tin` + `Chiều In/Out`), bỏ chọn tay thủ công.<br>2. **Hiển thị trạng thái Ánh xạ trên bảng Gói tin:** Thêm nhãn thể hiện rõ gói tin nào "Đã có Ánh xạ" (xanh) hoặc "Chưa có Ánh xạ" (xám/cảnh báo).<br>3. **Sửa các lỗi format DateTime:** Đồng bộ component DateTime picker.<br>4. **Chốt tính năng gửi dữ liệu mới:** Giữ checkbox hiển thị nhưng ghi chú tính năng đang phát triển ở Backend.<br>5. **Bàn giao test ShareData:** Đóng gói bản test cho Tester (chị Như) để nghiệm thu phân hệ. | Trong tuần |
+| **Đạt** | Backend Web API & Worker | 1. **Thiết kế bảng lưu mốc đã gửi:** Tạo bảng lưu `PartnerCode`, `PacketCode`, `LastTime`, `LastKey` phục vụ gửi nối đuôi.<br>2. **Cập nhật Query luồng gửi:** Sửa câu truy vấn trích xuất dữ liệu, chỉ lấy bản ghi mới phát sinh tiếp sau mốc `LastTime`/`LastKey` của phiên trước.<br>3. **Hoàn thiện API danh mục:** Cung cấp API trả về trạng thái ánh xạ của từng gói tin theo đối tác.<br>4. **Rà soát xử lý lỗi:** Tách biệt mã lỗi chuẩn hóa trong cấu hình hệ thống.<br>5. **Triển khai cơ chế Gửi khi có dữ liệu mới (Event-Driven CT + NATS):** Hoàn thành trong tuần (22/09) với `ChangeTrackingWatcherWorker` (heartbeat 1s) và `DataOutboundNatsWorker` qua `TransportManager`, kích hoạt xuất bản tức thì khi bảng nguồn có dữ liệu mới. | Trong tuần |
+| **Hiếu** | Dev ShareData | 1. **Chuẩn hóa luồng Tạo Hồ sơ Ánh xạ:** Tự động sinh Mã hồ sơ ánh xạ từ bộ 3 (`Đối tác` + `Gói tin` + `Chiều In/Out`), bỏ chọn tay thủ công.<br>2. **Hiển thị trạng thái Ánh xạ trên bảng Gói tin:** Thêm nhãn thể hiện rõ gói tin nào "Đã có Ánh xạ" (xanh) hoặc "Chưa có Ánh xạ" (xám/cảnh báo).<br>3. **Sửa các lỗi format DateTime:** Đồng bộ component DateTime picker.<br>4. **Kích hoạt tính năng gửi dữ liệu mới (SendOnNewData):** Bật checkbox hoạt động thật trên Frontend, liên kết với cờ `SendOnNewData` của Subscription để kích hoạt luồng CT + NATS của Backend trong tuần này.<br>5. **Bàn giao test ShareData:** Đóng gói bản test cho Tester (chị Như) để nghiệm thu phân hệ. | Trong tuần |
 | **Anh Sơn** | Tech Lead | Rà soát kiến trúc toàn tuyến, hỗ trợ xử lý câu query nối đuôi và chuẩn bị kịch bản tích hợp VideoWall. | Xuyên suốt |
 
 ---
@@ -218,6 +219,9 @@ participants:
 | `16:56` | **Đạt** | Vậy cái luồng mà gửi dữ liệu mới á, cái cờ tắt luôn đi, chưa có làm. |
 | `17:01` | **Hiếu** | Không thì thì mới để cái kiểu là anh có dữ liệu... |
 | `17:03` | **Anh Sơn** | Cứ để đó đi xong rồi báo là cái này chưa có implement thôi! Chưa có implement thôi. Chốt chốt! |
+
+> 📌 **Ghi chú cập nhật thực tế triển khai (22/09/2026 — MasterPlan P0):**
+> Tại thời điểm trao đổi chiều 21/09 ở mốc thoại này, nhóm từng thống nhất tạm hoãn tính năng gửi dữ liệu mới để ưu tiên luồng nối đuôi. Tuy nhiên, theo quyết định chính thức của **MasterPlan**, tính năng này **vẫn được thực hiện ngay trong tuần này** và thực tế **ĐÃ CODE XONG HOÀN TẤT 100%** bằng giải pháp **SQL Server Change Tracking (CT) + NATS** (qua hạ tầng chung `Services.Shared.Runtime` / `TransportManager`), đồng thời trên giao diện Frontend **checkbox "Gửi ngay khi có dữ liệu mới" (`SendOnNewData`) đang BẬT THỰC TẾ (enabled)** và hoạt động trực tiếp cùng hệ thống. Toàn bộ 186/186 tests đều đã PASS. Ghi chú này nhằm làm rõ đúng tiến độ thực tế, tránh trường hợp người đọc transcript hiểu lầm là tính năng đang bị hoãn.
 
 ---
 
