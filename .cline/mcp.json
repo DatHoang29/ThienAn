@@ -1,0 +1,71 @@
+{
+  "mcpServers": {
+    "gortex": {
+      "command": "gortex",
+      "args": ["mcp"],
+      "env": {
+        "GORTEX_INDEX_WORKERS": "8"
+      }
+    },
+    "mssql_staging": {
+      "command": "dotnet",
+      "args": [
+        "tool",
+        "run",
+        "--allow-roll-forward",
+        "dab",
+        "start",
+        "--mcp-stdio",
+        "role:anonymous",
+        "--LogLevel",
+        "Error",
+        "--config",
+        ".agents/dab-config.staging.json"
+      ],
+      "env": {
+        "ASPNETCORE_URLS": "http://127.0.0.1:0",
+        "DAB_STAGING_CONNECTION_STRING": "Server=10.10.8.30;Database=dev_its10;User Id=sa;Password=Tac@@1234;TrustServerCertificate=True;ApplicationIntent=ReadOnly"
+      }
+    },
+    "mssql_dev": {
+      "command": "dotnet",
+      "args": [
+        "tool",
+        "run",
+        "--allow-roll-forward",
+        "dab",
+        "start",
+        "--mcp-stdio",
+        "role:anonymous",
+        "--LogLevel",
+        "Error",
+        "--config",
+        ".agents/dab-config.dev.json"
+      ],
+      "env": {
+        "ASPNETCORE_URLS": "http://127.0.0.1:0",
+        "DAB_DEV_CONNECTION_STRING": "Server=localhost,14333;Database=DEV_ITS10;User Id=sa;Password=Tac@@1234;TrustServerCertificate=True;ApplicationIntent=ReadOnly"
+      }
+    },
+    "mssql_test": {
+      "command": "dotnet",
+      "args": [
+        "tool",
+        "run",
+        "--allow-roll-forward",
+        "dab",
+        "start",
+        "--mcp-stdio",
+        "role:anonymous",
+        "--LogLevel",
+        "Error",
+        "--config",
+        ".agents/dab-config.test.json"
+      ],
+      "env": {
+        "ASPNETCORE_URLS": "http://127.0.0.1:0",
+        "DAB_TEST_CONNECTION_STRING": "Server=localhost,14333;Database=test;User Id=sa;Password=Tac@@1234;TrustServerCertificate=True;ApplicationIntent=ReadOnly"
+      }
+    }
+  }
+}

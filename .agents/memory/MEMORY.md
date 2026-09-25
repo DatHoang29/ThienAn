@@ -11,6 +11,7 @@
 ## User & Quy định
 - [User profile](user-profile.md) — backend dev trên TA-ITS015 (ITS/C2C ISO 14827); viết & trả lời tiếng Việt
 - [Quy định chung & Kiến trúc Thiên An](../rules/thienan_rules.md) — **Nguồn sự thật duy nhất** cho toàn bộ quy định dự án (git, commit feat/fix, không tự xoá prompt - giữ để review, no-Async suffix, plan-handoff, no manual DDL, code-first, entity, testing, chuẩn code Frontend Vue 3 / VxeTable / Element Plus...)
+- **Gortex-First & Default-as-Fallback Protocol**: Luôn luôn ưu tiên dùng bộ công cụ Gortex MCP (`call_mcp_tool` với `ServerName: "gortex"`) cho mọi thao tác mã nguồn (tìm kiếm symbol, usages, dependencies, call chain, đọc và sửa code); nếu Gortex không thực hiện được (bị lỗi, timeout, chưa index file, hoặc thao tác trên tài liệu Markdown) thì mới chuyển sang (fallback) dùng các công cụ mặc định (`view_file`, `grep_search`, `replace_file_content`).
 
 ## Database / MCP
 - [MCP DAB database access](mcp-dab-database-access.md) — 3 DAB MCP server; `mssql_staging` = 10.10.8.30 = source of truth
@@ -21,6 +22,7 @@
 - [Tài liệu Nghiệp vụ HN-CL](../../DocBusinessThienAn/HữuNghị-ChiLăng/INDEX.md) — Nguồn sự thật duy nhất cho tài liệu nghiệp vụ Hữu Nghị - Chi Lăng (luôn mở file này trước).
 - [SqlSugar docs](sqlsugar-docs.md) — link no-entity / raw SQL / JSON→SQL
 - [Tech decisions](tech-decisions.md) — bảo trì `.agents/manifest.json` ↔ frontmatter (AG-Kit tooling, không phải app)
+- [ShareData Architecture](sharedata-architecture.md) — Tách 2 worker ChangeTracking & NATS, kịch bản trễ / race condition và kiểm thử toàn trình.
 
 ---
 

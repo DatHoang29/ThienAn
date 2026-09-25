@@ -32,6 +32,7 @@
 1. **Strict Local Database for `dotnet test`**: Mọi connection string test PHẢI trỏ về `local` (`localhost`, `127.0.0.1`, `(localdb)`, `.`). Nếu phát hiện IP remote (ví dụ `10.10.8.30`), **HỦY test ngay lập tức và báo cáo cho user**.
 2. **CẤM tự động xóa file Prompt sau khi hoàn thành (No Auto-Delete Prompt Files)**: Sau khi xong task, AI **TUYỆT ĐỐI KHÔNG tự động xóa** file prompt (`*-prompt*.md`, `{task-slug}.md`). Bắt buộc giữ lại file prompt để người dùng review và đối chiếu sau khi code change. Chỉ xóa khi người dùng kiểm tra xong và trực tiếp yêu cầu xóa.
 3. **Strict Manual SQL Execution**: Chỉ xuất file `.sql` ra đĩa để user review. KHÔNG tự ý thực thi DDL/DML trực tiếp làm thay đổi database.
+4. **Ưu tiên tuyệt đối Gortex MCP + DAB MCP staging — Dual Source of Truth (Gortex-First & DAB-MCP-First)**: Mọi thao tác tìm kiếm code / đọc file C#/Vue/TS **BẮT BUỘC ƯU TIÊN Gortex MCP** (`call_mcp_tool` với `ServerName: "gortex"`); mọi kiểm tra schema/cột/bảng/dữ liệu **BẮT BUỘC đọc trực tiếp DB staging `mssql_staging` (`10.10.8.30/DEV_ITS10`) qua DAB MCP** (`mssql_staging__*` với `autoentities: dbo-readonly`) hoặc `sqlcmd -C -S 10.10.8.30` read-only. Chỉ fallback về built-in tools khi Gortex/DAB MCP báo lỗi/timeout/`Connection closed` hoặc khi thao tác trên Markdown/config.
 
 ---
 

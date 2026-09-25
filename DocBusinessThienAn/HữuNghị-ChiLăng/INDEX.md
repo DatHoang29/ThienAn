@@ -137,7 +137,7 @@ HữuNghị-ChiLăng/
 │   ├── doc/                                  🤖    Tier A: 01-yeu-cau-nghiep-vu, 02-mapping
 │   │   └── transcript/                       🤖    Tier A: 09-09-2026-review, 11-09-2026-sharedata-script, 16-09, 19-09, 21-09
 │   ├── Plan/                                 🤖    Tier A: Tài liệu SỐNG riêng của ShareData, không Auto-Cleanup (Sd_MasterPlan, sharedata-outbound-kiem-tra-anh-xa-va-dinh-dang.md)
-│   ├── Prompt/                               🤖    Tier A: Prompt dùng-1-lần riêng của ShareData — ưu tiên `sharedata-outbound-gui-noi-duoi-prompt.md`; prompt cờ dữ liệu mới tạm hoãn chờ chốt NATS/CDC
+│   ├── Prompt/                               🤖    Tier A: Prompt dùng-1-lần riêng của ShareData — `sharedata-outbound-gui-noi-duoi-prompt.md` và `sharedata-event-gui-khi-co-du-lieu-moi-prompt.md` (đã hoàn tất bằng CT + NATS)
 │   └── _source/                              👤    Tier C: Bản gốc đối chiếu (xlsx/)
 ├── VideoWall/                                🤖👤 Phân hệ Video Wall
 │   ├── README.md                             🤖👤 SSOT phân hệ Video Wall (kèm Tier Table + mục "Prompt & Tiến độ")

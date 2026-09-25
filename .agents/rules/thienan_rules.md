@@ -248,6 +248,21 @@ Riêng trường hợp làm việc trên các nhánh cũ thuộc 2 repo con `TA-
 9.  **TRIẾT LÝ VIẾT TEST: BẮT BUỘC VIẾT TEST CASE TOÀN TRÌNH NGHIỆP VỤ (FULL BUSINESS FLOW), TUYỆT ĐỐI CẤM VIẾT TEST VỤN VẶT / MICRO UNIT TEST RỜI RẠC**:
     - AI tuyệt đối **KHÔNG viết các unit test vụn vặt, vi mô (micro tests)** chỉ để kiểm tra từng hàm helper phụ trợ nhỏ, từng phép toán static, từng nhánh if/else nhỏ lẻ với object giả lập in-memory rời rạc (ví dụ điển hình bị cấm: các test scheduler tính lịch chạy với stub giả `Daily_Kind_No_DaysOfWeek_Accepts_Any_Day`, `Default_IntervalSeconds_When_Null`...).
     - **BẮT BUỘC** chỉ viết các test case luồng nghiệp vụ hoàn chỉnh (Full Business Flow / Integration Test) chạy trên CSDL Test Local thật (hoặc luồng nghiệp vụ tích hợp đầy đủ các chặng), kiểm chứng toàn diện từ đầu vào đến đầu ra nghiệp vụ (Ví dụ chuẩn: `ProcessBatchSubscriptions_WhenEnvironmentIsStaging_SkipsFileWrite_ApiSucceeds_ExportsSuccessfullyAndAdvancesWatermark_Test` — kiểm chứng trọn vẹn luồng quét DB, kiểm tra điều kiện môi trường, trích xuất dữ liệu, ánh xạ, vận chuyển API/File, tịnh tiến watermark/checkpoint và ghi nhận nhật ký hệ thống).
+10.5. **BẮT BUỘC VIẾT PROMPT CHO MỌI THAY ĐỔI FILE CODE SẢN XUẤT — KHÔNG TỰ Ý SỬA TRỰC TIẾP (ALWAYS WRITE A PROMPT FOR PRODUCTION CODE CHANGES, NEVER INLINE-EDIT) (đã chốt 25/09/2026)**: Khi phát hiện hoặc được yêu cầu sửa/đổi tên/tái cấu trúc/xoá đoạn code trong file mã nguồn sản xuất (`.cs`, `.vue`, `.ts`, `.ps1`...), AI **TUYỆT ĐỐI KHÔNG dùng công cụ sửa file trực tiếp** (kiểu `Edit`/`Write`/`replace_file_content`) lên các file đó — **kể cả thay đổi nhỏ 1 dòng** (đổi tên 1 biến, xoá 1 câu lệnh, thêm 1 dòng comment). BẮT BUỘC viết ra file prompt thực thi (`{task-slug}-prompt.md`, đặt tại đúng thư mục `Prompt/` của phân hệ theo mục 13) mô tả đầy đủ đoạn TRƯỚC/SAU, lý do đổi, phạm vi rà tác động tới test, và bước kiểm chứng — để người dùng tự đọc, tự áp dụng, tự chạy `dotnet build`/`dotnet test`/`git commit`. ⛔ **Ngoại lệ duy nhất**: file tài liệu `.md` (báo cáo review, `MasterPlan`, `README.md` của `Plan/`/`Prompt/`, chính file quy tắc này) vẫn được AI sửa trực tiếp như bình thường, không cần qua prompt — quy định này chỉ áp dụng cho file mã nguồn thực thi được.
+11. **ƯU TIÊN TUYỆT ĐỐI GORTEX MCP + DAB MCP STAGING — DUAL SOURCE OF TRUTH (GORTEX-FIRST & DAB-MCP-FIRST, DEFAULT-AS-FALLBACK)**:
+    - **Nguyên tắc hành động — Code:** Mọi thao tác tìm kiếm, đọc, phân tích và sửa mã nguồn (C#, Vue, TypeScript, SQL, XAML...) BẮT BUỘC phải gọi công cụ Gortex MCP (`call_mcp_tool` với `ServerName: "gortex"`) trước tiên — để có dữ liệu chính xác nhất từ đồ thị.
+    - **Nguyên tắc hành động — DB:** Mọi kiểm tra schema / dữ liệu / cột / bảng BẮT BUỘC đọc trực tiếp từ DB staging `mssql_staging` (`10.10.8.30/DEV_ITS10` — source of truth) qua DAB MCP (`mssql_staging__describe_entities` / `read_records` / `aggregate_records` với `autoentities: dbo-readonly`) hoặc `sqlcmd -C -S 10.10.8.30` read-only. Tuyệt đối không suy đoán cột/bảng từ Entity code hay tài liệu cũ.
+    - **Cơ chế Fallback (Khi nào dùng tool mặc định):** CHỈ KHI Gortex/DAB MCP không thực hiện được (báo lỗi, timeout, file/symbol chưa có trong index đồ thị, MCP báo `Connection closed`, hoặc khi thao tác trên file tài liệu Markdown `DocBusinessThienAn/`, `.agents/`, `*.md`) thì AI mới chuyển sang (fallback) dùng các công cụ mặc định của hệ thống (`grep_search`, `view_file`, `find_by_name`, `replace_file_content`, `write_to_file`, `sqlcmd -C`).
+    - **Khi MCP báo `Connection closed`:** Tự chẩn đoán `dotnet tool run --allow-roll-forward dab validate --config .agents/dab-config.staging.json` theo `.agents/memory/mcp-dab-database-access.md` — do config drift, không phải lỗi mạng.
+    - **Công cụ Gortex tương ứng:**
+      - *Tìm kiếm symbol/hàm/class/interface:* `gortex.search_symbols` / `gortex.get_symbol` (thay cho `grep_search`).
+      - *Tìm nơi sử dụng / hàm gọi:* `gortex.find_usages` / `gortex.get_callers` / `gortex.get_call_chain`.
+      - *Phân tích quan hệ & ảnh hưởng (Blast Radius):* `gortex.explore` / `gortex.get_dependencies` / `gortex.analyze`.
+      - *Đọc code & ngữ cảnh thông minh:* `gortex.smart_context` / `gortex.read_file` / `gortex.get_symbol_source`.
+      - *Chỉnh sửa code:* `gortex.edit_file` / `gortex.edit_symbol` / `gortex.preview_edit`, `gortex.batch_edit`.
+    - **Công cụ DAB MCP tương ứng:**
+      - *Liệt kê bảng/cột:* `mssql_staging__describe_entities` / `INFORMATION_SCHEMA.COLUMNS` qua `sqlcmd -C`.
+      - *Đọc mẫu/thống kê:* `mssql_staging__read_records` / `aggregate_records` (read-only, `anonymous:read`).
 
 > [!NOTE]
 > - Các quy chuẩn code/hạ tầng chung của dự án (Docker, Entity, Swagger, header comment...) áp dụng cho **cả người lẫn AI** — xem tại mục 5 bên dưới, không lặp lại ở đây để tránh trùng lặp nội dung.
@@ -336,10 +351,13 @@ Các hệ thống / Module phát triển mới về sau bắt buộc tuân thủ
    * Mỗi Class khi tạo mới hoặc cập nhật BẮT BUỘC phải có khối XML summary comment ở đầu Class theo mẫu (chỉ dùng `Created date:`, KHÔNG dùng `Author:` — quyết định 05/09/2026, không hồi tố class đã có sẵn `Author: Đạt` — và KHÔNG dùng `Updated date:`):
      ```csharp
      /// <summary>
-     /// [Mô tả chức năng / Tên bảng]
+     /// Description: [Mô tả chức năng / Tên bảng / Interface]
      /// Created date: [dd/MM/yyyy]
      /// </summary>
      ```
+   * **Bắt Buộc XML Summary Trên Interface & Mọi Phương Thức Interface (Interface Methods)**:
+     - Mọi Interface (`public interface I...`) và TẤT CẢ các phương thức định nghĩa bên trong interface BẮT BUỘC phải có khối XML summary comment chuẩn 2 dòng (`/// <summary>\n/// Description: ...\n/// Created date: ...\n/// </summary>`).
+     - Tuyệt đối CẤM để phương thức trong interface trơ trọi không có XML summary, gây khó khăn cho IntelliSense, phân tích kiến trúc và gây thiếu nhất quán giữa interface với class thực thi.
    * **Cấm lặp khối XML summary**: TUYỆT ĐỐI KHÔNG tự ý chèn chồng hoặc nhân bản các khối `/// <summary>` rườm rà trên cùng một class/hàm/property. Mỗi đối tượng code CHỈ ĐƯỢC CÓ DUY NHẤT 1 khối `/// <summary>`. Khi cập nhật nội dung comment, BẮT BUỘC sửa trực tiếp vào khối comment cũ thay vì thêm khối `/// <summary>` thứ 2.
    * **API Controller Action Summary**: Trên mỗi phương thức Action trong Controller, comment XML Doc `/// <summary>` BẮT BUỘC mô tả rõ ràng, tự nhiên ý nghĩa và chức năng thực tế của hàm (VD: `/// <summary>\n/// Lấy danh sách cảnh báo & lỗi (phân trang)\n/// </summary>`). Tuyệt đối KHÔNG chèn mã prefix/số thứ tự rườm rà (như L1., E2., DS3...). Thẻ `[DisplayName("...")]` giữ nguyên tên hiển thị chuẩn.
    * **Độc Lập Phân Hệ Trong Comment & XML Doc (Module Isolation in Comments)**:
@@ -357,6 +375,12 @@ Các hệ thống / Module phát triển mới về sau bắt buộc tuân thủ
     * **Vị trí thư mục Resources**: Thư mục `Resources` nằm ngang hàng với `Controllers`, `Core`, `Extensions`, `Infrastructure` trong root project của Module (VD: `Modules.ShareData/Resources/vi-VN.json`). KHÔNG đặt bên trong thư mục `Controllers`. Dịch thuật được cập nhật đồng bộ vào `src/TAC_WebAPI/Resources/` để hệ thống load đầy đủ.
 14. **Quy định Quét SqlSugar CodeFirst (`inherit: false`)**:
     * Khi quét entity để tạo bảng qua CodeFirst (`InitTables`), BẮT BUỘC dùng `t.IsDefined(typeof(SugarTable), inherit: false)` để DTO kế thừa Entity (`AddXxxInput : EntityBase`, `PageXxxOutput : EntityBase`) không bị nhận nhầm và tự tạo bảng.
+15. **Quy định Tiền Tố Method Khởi Tạo: Dùng `Init` Thay Vì `Initialize` (đã chốt 23/09/2026)**: Khi đặt tên method private/internal thực hiện công việc khởi tạo một thành phần, đăng ký subscription, thiết lập kết nối ban đầu, v.v., BẮT BUỘC dùng tiền tố ngắn gọn `Init` thay vì `Initialize`. Ví dụ: `InitTriggerSubscription`, `InitNatsConnection`, `InitChangeTracking`. KHÔNG dùng `InitializeTriggerSubscription`, `InitializeNatsConnection`, `InitializeChangeTracking`... Lý do: ngắn gọn hơn, tránh verbose thừa, thống nhất convention toàn dự án.
+16. **Quy định Refactor & DRY Thực Dụng: Tránh "DRY Mù Quáng" (Pragmatic DRY vs. Blind/Premature DRY) (đã chốt 23/09/2026)**:
+    * **CẤM dùng Flag Argument / Tham số tùy chọn để gộp các Public Method / API có ý định nghiệp vụ khác nhau**: Khi hai phương thức công khai biểu đạt hai luồng nghiệp vụ độc lập (VD: `ProcessBatchSubscriptions` quét định kỳ theo lịch vs `ProcessPacketTrigger` phản ứng tức thời khi có dữ liệu mới), TUYỆT ĐỐI KHÔNG gộp thành một phương thức chung nhận flag argument (như `packetCode = null`). Việc gộp như vậy làm rò rỉ rẽ nhánh `if/else`, phá vỡ hợp đồng công khai (interface), làm bẩn call-site và che giấu ngữ cảnh nghiệp vụ khác biệt.
+    * **Overload cùng tên cũng KHÔNG phải lối thoát (chốt 23/09/2026)**: đừng nghĩ rằng tách thành hai overload cùng tên là né được lệnh cấm flag argument ở trên. Với cặp `ProcessBatchSubscriptions(CancellationToken)` và `ProcessBatchSubscriptions(string, CancellationToken)`: lời gọi `(default)` **không biên dịch được** (CS0121 — `default` khớp cả hai kiểu), còn `(null)` thì **biên dịch ngon lành nhưng chạy thành no-op im lặng** (rơi vào guard `IsNullOrWhiteSpace`), người viết tưởng "quét tất" mà thực tế không làm gì. Hai luồng nghiệp vụ độc lập BẮT BUỘC có **tên khác nhau**, không phải chỉ khác chữ ký.
+    * **Chỉ tách đơn vị kỹ thuật/nghiệp vụ mạch lạc (Cohesive Unit)**: Khi khử trùng lặp code, chỉ gom các đoạn logic kỹ thuật/hạ tầng lặp lại nguyên văn (VD: vòng đời claim lease OCC, execute, catch lỗi và release lease trong `ProcessSubscriptionUnderLease`) thành private helper method.
+    * **Giữ độc lập các logic trông tương tự nhưng thuộc ngữ cảnh khác nhau**: Các khối lọc truy vấn CSDL (subquery, query builder), điều kiện nghiệp vụ riêng biệt (VD: `DebounceSec` chỉ thuộc về luồng sự kiện), hoặc log thông điệp ngữ cảnh riêng... dù có cấu trúc tương tự cũng KHÔNG ĐƯỢC ép gom chung (Avoid Premature Abstraction), tránh làm sai lệch SQL do ORM dịch ra và giữ cho code dễ đọc, dễ bảo trì độc lập.
 
 ---
 
@@ -441,7 +465,7 @@ tests/
 ## 🧹 7. Clean Code — Bổ Sung (áp dụng ngay cả khi `universal-rules.md` được thay bằng bản AG-Kit mới)
 
 - **No Hardcoded Magic Strings**: Không viết literal chuỗi cứng (mã trạng thái, tên state...) trực tiếp trong query/logic điều kiện nghiệp vụ. LUÔN định nghĩa và dùng Enum hoặc Constant có kiểu rõ ràng (VD: `ShareDataEnum.IncidentState`).
-- **Formatting (Single-Statement `if` Without Braces)**: Đối với câu lệnh `if` chỉ chứa 1 dòng thực thi (dù điều kiện `if` nằm trên 1 dòng hay nhiều dòng `&&`/`||`), BẮT BUỘC ngắt dòng và thụt lề cho câu lệnh thực thi. TUYỆT ĐỐI KHÔNG viết inline trên cùng 1 dòng (`if (condition) return;`) và TUYỆT ĐỐI KHÔNG TỰ Ý THÊM cặp dấu ngoặc nhọn `{}` khi code hiện hữu đang viết theo chuẩn single-statement không có ngoặc nhọn.
+- **Formatting (Single-Statement `if` Without Braces)**: Đối với câu lệnh `if` chỉ chứa 1 dòng lệnh thực thi (ví dụ: các lệnh ghi log ngắn gọn `Logger.Log...`, lệnh `return`, v.v.), BẮT BUỘC ngắt dòng và thụt lề cho câu lệnh thực thi, ĐỒNG THỜI BỎ cặp dấu ngoặc nhọn `{}`. TUYỆT ĐỐI KHÔNG viết inline trên cùng 1 dòng (`if (condition) return;`) và TUYỆT ĐỐI KHÔNG tự ý thêm `{}` vào các câu lệnh đơn.
 - **Object Initializer Formatting**: Object initializer nhiều thuộc tính (VD: `new TmsEquipment { ID = eqId, Code = "...", ... }`) BẮT BUỘC ngắt dòng, mỗi thuộc tính 1 dòng thụt lề. TUYỆT ĐỐI KHÔNG viết inline nhiều thuộc tính trên 1 dòng ngang.
 - **Multi-Condition LINQ Formatting**: Query LINQ/SqlSugar nhiều điều kiện (VD: `.Where(s => s.IsDelete == null && s.Direction == ... && s.Mode != ...)`) BẮT BUỘC ngắt dòng — hoặc tách thành các `.Where(...)` nối tiếp (mỗi điều kiện 1 dòng), hoặc xuống dòng thụt lề cho từng vế `&&`/`||`. TUYỆT ĐỐI KHÔNG viết chuỗi điều kiện dài inline trên 1 dòng.
 - **Async Method Naming (Áp Dụng Cho Code MỚI)**: Khi viết phương thức bất đồng bộ MỚI (public service, handler, controller, hay private helper, test seed method...), TUYỆT ĐỐI KHÔNG thêm hậu tố `Async` vào tên phương thức (VD: `GetScope`, `ProcessBatchSubscriptions`, `SeedWall` — không phải `GetScopeAsync`, `ProcessBatchSubscriptionsAsync`, `SeedWallAsync`) vì kiểu trả về (`Task`/`Task<T>`) đã thể hiện rõ tính bất đồng bộ. Đối với code cũ đã viết trước đó của người khác hoặc API của thư viện bên ngoài: **CỨ KỆ, GIỮ NGUYÊN**, tuyệt đối không tự ý refactor hàng loạt gây diff rác hoặc lỗi tương thích.
@@ -457,6 +481,19 @@ tests/
 - **Quy định phạm vi truy cập & Thứ tự thành viên Class (Minimal Visibility & Private Helpers at Bottom)**:
   - **Phạm vi truy cập tối thiểu**: Bất kỳ hàm/phương thức nào nếu chỉ phục vụ nội bộ class mà KHÔNG dùng ở bên ngoài thì BẮT BUỘC phải để `private` (hoặc `internal`), TUYỆT ĐỐI KHÔNG để `public`.
   - **Thứ tự thành viên class**: Trong mọi class/service/handler/process C#, ưu tiên phương thức `public` đặt ở trên; toàn bộ phương thức `private` (helper, private async method, query con...) và nested helper class/struct BẮT BUỘC đặt ở **CUỐI CÙNG của class/file**, sau toàn bộ phương thức `public`. TUYỆT ĐỐI KHÔNG đặt hàm `private` xen kẽ ở đầu hoặc giữa các `public` method.
+- **Đặt tên biến kết quả ORM SqlSugar / ADO.NET (`ExecuteCommandAsync`)**:
+  - `ExecuteCommandAsync` trả về số dòng bị ảnh hưởng (`int`).
+  - **BẮT BUỘC** đặt tên thể hiện rõ bản chất số lượng bản ghi: `affected`, `lockedRows`, `updatedRows`, `deletedRows`, `insertedRows`.
+  - **TUYỆT ĐỐI CẤM** đặt tên kiểu cờ boolean (như `claimed`, `isSuccess`, `hasLock`), tránh gây nhầm lẫn kiểu dữ liệu khi kiểm tra điều kiện (phải dùng so sánh số lượng `<= 0` hoặc `> 0`).
+- **Thống nhất thuật ngữ Concurrency OCC Lock**:
+  - Thống nhất tuyệt đối sử dụng thuật ngữ **`lock`** (`LockedSubscription`, `ReleaseLock`, `lockedRows`, `lockDurationSeconds`, `DefaultLockBudgetPercent`) cho cơ chế tranh chấp độc quyền tài nguyên (OCC Guard qua `NextTimeRun`).
+  - **CẤM** dùng các từ ngữ cũ/pha tạp như `lease`, `claim` trong tên biến, tên hàm, tên hằng số, tài liệu và log message.
+- **Phân định ranh giới Cảnh Báo Hệ Thống (`AlertLog`) vs Nhật Ký Ứng Dụng (`ILogger` / `LogWarningMsg`)**:
+  - **`AlertLog`** (`ShareDataTransferLog.WriteAlertAsync`): CHỈ dành cho các lỗi/sự cố nghiệp vụ phát sinh **trong quá trình xử lý luồng dữ liệu** mà quản trị viên cần can thiệp (như `PacketNotFound`, `MappingNotFound`, `QueryFailed`, `RequiredFieldMissing`, `HttpSendFailed`...).
+  - **`ILogger` / `LogWarningMsg`**: Các tình huống tranh chấp tài nguyên bình thường của hạ tầng OCC (như một worker khác đã nhận lại đăng ký do hết hạn timeout khi nhả lock ở `finally` — `LockLost`): **TUYỆT ĐỐI KHÔNG** ghi vào bảng `AlertLog` làm rác cảnh báo; chỉ ghi log ứng dụng nội bộ qua `LogWarningMsg`.
+- **Kiến trúc Logging trong Worker (Single Source of Truth cho Activity / Alert Logging)**:
+  - Toàn bộ thao tác ghi nhận nhật ký nghiệp vụ (`ShareDataActivityLog`) và cảnh báo hệ thống (`ShareDataAlertLog`) trong Worker BẮT BUỘC tập trung tại class chuyên trách: `ShareDataTransferLog`.
+  - Các Service/Orchestrator không được tự tạo các hàm private helper nội bộ để format và gọi lại CSDL ghi log, mà phải đóng gói thành các public method chuyên trách ngay trong `ShareDataTransferLog` (như `ShareDataTransferLog.LogExportResult(...)`) để tái sử dụng thống nhất.
 - **Vue SFC Section Ordering**: Trong mọi file `.vue`, thứ tự khối BẮT BUỘC: (1) `<script setup lang="ts">` đầu tiên, (2) `<template>` thứ hai, (3) `<style scoped>` cuối cùng. TUYỆT ĐỐI KHÔNG đặt `<template>` trước `<script>`.
 - **Vue `<script setup>` Internal Structure**: Bên trong `<script setup>` sắp xếp theo thứ tự: Imports → Props/Emits/Models → Reactive State & Stores → Computed & Watchers → Lifecycle Hooks → Methods & Event Handlers → Expose.
 
@@ -566,7 +603,8 @@ tests/
   - **Lấy Localizer**: Dùng trực tiếp `private readonly IStringLocalizer _localizer = host.Localizer;` (KHÔNG mock `IStringLocalizer`).
   - **Lấy Services**: Dùng `host.Services.GetRequiredService<T>()`.
   - **Giả lập thiết bị**: Dùng mock server nội bộ đã được cấu hình trong repo (như `host.MockServer` / `VwISAPIMockServerHikvision`).
-  - **Test cô lập không qua Host (POCO/DTO/XML/JSON/Formula)**: Viết test xUnit thuần. Khi cần fake interface, tự viết **class Stub nội bộ** kế thừa interface đó hoặc dùng `NullLogger<T>.Instance`, TUYỆT ĐỐI KHÔNG dùng thư viện mock.
+  - **Test cô lập không qua Host (CHỈ áp dụng cho POCO/DTO/XML/JSON/Formula thuần túy)**: Viết test xUnit thuần không phụ thuộc DB/DI.
+  - ⛔ **CẤM TỰ TẠO CLASS STUB/MOCK NỘI BỘ CHO SERVICE NGHIỆP VỤ & NATS**: TUYỆT ĐỐI KHÔNG tự viết các class giả lập (`TestMock...Service`, `Fake...Service`) để thay thế các service lõi (`IDataOutboundService`, `IDataInboundService`...) hoặc NATS pub/sub nội bộ chỉ nhằm đếm số lần gọi hàm. **Ngoại lệ hợp lệ duy nhất được mock** là `MockTestHttpClientFactory` (qua `HttpMessageHandler` giả lập phản hồi HTTP của đối tác bên ngoài). Mọi service nghiệp vụ và NATS BẮT BUỘC phải lấy bản thật từ `host.Services` và test luồng thật qua CSDL local (xem chi tiết mục 19.18).
 - **Global Usings của Module Test**:
   - Bổ sung namespace/using của module vào `tests\Modules\<ModuleName>\GlobalUsings.<ModuleName>.cs` để tránh xung đột với các module khác và đảm bảo compile condition theo `test.csproj`.
 
@@ -693,9 +731,182 @@ tests/
 - **19.10. Quy chuẩn Kiểm thử Phần mềm — Ưu tiên Toàn trình Nghiệp vụ (Full Business Flow) thay vì Unit Test Vi mô (Micro Tests)**:
   - **Mục tiêu kiểm thử cốt lõi**: Bài test sinh ra phải bảo vệ giá trị nghiệp vụ thực tế của hệ thống, phát hiện xung đột tích hợp, lỗi truy vấn CSDL, logic phân quyền/phễu lọc và tính toàn vẹn khi lưu trạng thái vào CSDL.
   - **Cấm viết test vi mô / vụn vặt (Micro Tests)**: Không tự ý sinh các test case pure static nhỏ lẻ chỉ để test một hàm tiện ích toán học/chuỗi/ngày giờ (như các test scheduler tính lịch chạy với stub giả `Daily_Kind_No_DaysOfWeek_Accepts_Any_Day`). Các test này làm phình to mã nguồn test hàng nghìn dòng vô ích, tốn token của LLM, tăng thời gian chạy test mà không đem lại sự đảm bảo cho luồng nghiệp vụ thực tế.
-  - **Mô hình chuẩn**: Mọi bài test mới phải mô phỏng kịch bản nghiệp vụ thực tế (Business Scenario) chạy qua Host tích hợp hoặc pipeline chính của Service (như `ProcessBatchSubscriptions`), kiểm tra tương tác giữa các thành phần và xác nhận trạng thái cuối cùng (DB checkpoint, ActivityLog, AlertLog).
+  - **Phản mẫu bổ sung — test phản chiếu bảng ánh xạ hardcode (chốt 23/09/2026)**: TUYỆT ĐỐI KHÔNG viết bài test chỉ khẳng định lại nội dung của một `Dictionary` / bảng ánh xạ / danh sách hằng viết cứng trong code (ví dụ điển hình bị cấm: `ResolveTriggerPackets_WhenTmsTrafficDataChanged_ReturnsPackets103And106` — khẳng định `RawTableToPacketMap` trả về đúng các mã gói đã khai cứng ngay trong chính bảng đó). **Dấu hiệu nhận biết:** sửa bảng ánh xạ là **bắt buộc phải sửa test theo ngay** — loại test này không bao giờ phát hiện được lỗi, nó chỉ báo "bạn vừa sửa cái bạn vừa sửa", là thuế bảo trì chứ không phải lưới an toàn. Nguy hiểm hơn: nếu quy ước trong bảng đó **chưa được chốt nghiệp vụ**, bài test sẽ khoá cứng một quyết định chưa chốt và biến nó thành điều tưởng như đã chốt.
+  - **Mô hình chuẩn**: Mọi bài test mới phải mô phỏng kịch bản nghiệp vụ thực tế (Business Scenario) chạy qua Host tích hợp hoặc pipeline chính của Service (như `ProcessBatchSubscriptions`), kiểm tra tương tác giữa các thành phần và xác nhận trạng thái cuối cùng (DB checkpoint, ActivityLog, AlertLog). Mẫu tham chiếu đúng chuẩn: `ProcessPacketTrigger_WhenSendOnNewDataIsFalse_IgnoresSubscription` (seed CSDL thật → chạy pipeline → kiểm trạng thái cuối).
+  - **Được phép**: test chạy qua đúng đường xử lý thật của một thành phần với stub/mock tự viết trong repo (ví dụ nhóm `NatsWorker_HandleTrigger_*` kiểm cơ chế chống dội theo thời gian và khả năng chịu payload rác). Đây KHÔNG phải micro test — xem mục 6 "Business Workflows & Mock Integration First".
+
+- **19.11. Quy Ước Ký Hiệu Trong Tài Liệu Nghiệp Vụ (Document Icon Legend) (chốt 23/09/2026)**:
+  - **Phạm vi áp dụng**: mọi file `.md` trong `DocBusinessThienAn/` **có dùng ký hiệu**. File không dùng ký hiệu nào thì **KHÔNG thêm khối `Chú giải`** (thêm vào là rác).
+  - **Dùng DUY NHẤT 6 ký hiệu sau, không tự bịa thêm**:
+
+    | Ký hiệu | Ý nghĩa |
+    | --- | --- |
+    | ✅ | **Đạt** — khớp / đúng / đã hoàn tất, đã kiểm chứng |
+    | ⚠️ | **Cần lưu ý** — có vấn đề, nhưng chưa phải dừng lại để sửa; ghi nhận rồi xử lý sau |
+    | ❌ | **Không đạt** — không khớp / không đúng / không áp dụng được |
+    | 🔴 | **Rủi ro nghiêm trọng** — phải xử lý **trước khi đi tiếp**, không được bỏ qua |
+    | ⛔ | **Cấm tuyệt đối** — làm là sai, không ngoại lệ |
+    | 📌 | **Ghi chú bối cảnh** — nguồn dữ liệu, ngày đo, thuật ngữ |
+
+  - 🔴 **QUY TẮC QUAN TRỌNG NHẤT — ký hiệu chỉ nói MỨC ĐỘ, không nói TRỤC ĐÁNH GIÁ**: mỗi bảng BẮT BUỘC có tiêu đề cột tự nói rõ trục của nó (`Khớp?`, `Thay được?`, `Đã kiểm chứng?`). Người đọc thấy ✅ mà không biết "✅ cái gì" thì đó là lỗi của tiêu đề cột, không phải lỗi của ký hiệu. Cùng một ❌ có thể nghĩa là "code không khớp CSDL" ở bảng này và "không thay được bằng ORM" ở bảng khác — chỉ tiêu đề cột phân biệt được.
+  - **BỎ HẲN, không dùng nữa**: 🟢 (trùng ✅), 📎 (thay bằng chữ "Xem:"), 🔤 (thay bằng 📌), ⚪ và ⚫ (thuộc bộ cũ).
+  - **Khối `Chú giải` dán vào ĐẦU FILE** — nguyên văn, giống hệt nhau ở mọi file, đặt ngay sau tiêu đề `#` và khối blockquote metadata (ngày / nguồn), trước nội dung đầu tiên:
+
+    ```markdown
+    ### Chú giải ký hiệu
+
+    | Ký hiệu | Ý nghĩa |
+    | --- | --- |
+    | ✅ | Đạt — khớp / đúng / đã hoàn tất |
+    | ⚠️ | Cần lưu ý — có vấn đề, nhưng chưa phải dừng lại để sửa; ghi nhận rồi xử lý sau |
+    | ❌ | Không đạt — không khớp / không đúng / không áp dụng được |
+    | 🔴 | Rủi ro nghiêm trọng — phải xử lý trước khi đi tiếp |
+    | ⛔ | Cấm tuyệt đối |
+    | 📌 | Ghi chú bối cảnh — nguồn dữ liệu, ngày đo, thuật ngữ |
+
+    > Ký hiệu chỉ nói **mức độ**; trục đánh giá do tiêu đề cột của từng bảng nói rõ.
+    ```
+
+  - **Ngoài phạm vi quy ước này** (không đụng tới): icon giao thức AG-Kit (`📚 Using skill`, `🤖 Applying knowledge`) và icon tiêu đề mục trong chính các file `.agents/rules/*.md` (`## 🛑`, `## 🧪`, `## 🏗️`...) — chúng phục vụ mục đích khác, không phải ký hiệu đánh giá.
+  - **Ghi nhận nợ kỹ thuật**: phân hệ `VideoWall` đang dùng bộ cũ 🟢 ⚪ ⚫ (`VideoWall/doc/ISAPI-Videowall-Controller/00-api-catalog.md`). Quy ước này áp dụng **từ 23/09/2026 trở đi**; tài liệu VideoWall cũ **giữ nguyên, không đi sửa hàng loạt** (quy định 19.6 + độc lập phân hệ) — khi nào có việc sửa vào file đó thì chuyển sang bộ chuẩn luôn. Đây là chủ đích, không phải sơ suất.
+
+- **19.12. Thứ Tự Nguồn Dẫn Chứng Trong Tài Liệu Nghiệp Vụ — CẤM Lấy Tên Bài Test Làm Căn Cứ Nghiệp Vụ (chốt 23/09/2026)**:
+  - **Phạm vi áp dụng**: mọi báo cáo, biên bản, tài liệu review trong `DocBusinessThienAn/` có đưa ra khẳng định về nghiệp vụ hoặc về hành vi hệ thống.
+  - **Ba bậc nguồn dẫn chứng — mỗi loại khẳng định BẮT BUỘC dẫn đúng loại nguồn của nó**:
+
+    | Bậc | Loại khẳng định | Nguồn dẫn chứng hợp lệ |
+    | --- | --- | --- |
+    | 1 | **Nghiệp vụ** — quy tắc nào bắt buộc, phạm vi áp dụng tới đâu, cái gì bỏ qua | Tài liệu đặc tả gốc (`doc/*.md`), biên bản họp (`doc/transcript/*.md`), dữ liệu thật đọc qua MCP (`mssql_staging`) |
+    | 2 | **Hiện thực** — code đang thực sự làm gì | Chính mã nguồn (dẫn tên file + tên symbol, kèm trích đoạn nếu cần) |
+    | 3 | **Bài test** | Chỉ để chứng minh một hành vi ở bậc 2 **đã được khoá lại** |
+
+  - 🔴 **CẤM lấy tên bài test (`*_Test`) làm căn cứ cho khẳng định bậc 1.** Bài test được viết dựa theo code, mà code chính là thứ đang bị đem ra soi — lấy test chứng minh code là **lập luận vòng tròn**, nó chỉ nói *"code làm đúng cái code đang làm"*. Ví dụ bị cấm (lỗi thật đã mắc): *"Chỉ áp dụng cho gói `AlwaysIncremental` (103, 104, 106, 107, 109)... (test `ProcessBatchSubscriptions_Packet108_SnapshotPolicy_DoesNotCreateOrTouchCheckpoint_Test` khẳng định điều này)"* — trong khi căn cứ thật nằm ở tiêu đề mục gói của `02-mapping-goi-tin-101-111.md` (`>= key` vs `lấy all`) và ở biên bản họp 21/09.
+  - **Câu hỏi kiểm tra nhanh trước khi dẫn một tên test**: *"nếu code sai ngay từ đầu, bài test này có phát hiện ra không?"* — nếu **không**, nó không phải bằng chứng, chỉ là tấm gương soi lại chính code đó.
+  - **Được phép**: dẫn tên test để chứng minh hành vi code đã được khoá lại (VD *"commit theo từng trang, hỏng trang 4 vẫn giữ nguyên 3 trang đã gửi — test `...WhenHttpFailsOnPage4_CommitsFirst3PagesAndHalts_Test` kiểm chứng"*), và bảng liệt kê độ phủ test (vì khi đó chủ đề của bảng chính là bộ test).
+  - **Quan hệ với 19.10**: cùng một họ lỗi nhìn từ hai phía — 19.10 cấm **viết** bài test chỉ phản chiếu lại code/bảng hardcode; 19.12 cấm **viện dẫn** bài test như thể nó là nguồn sự thật nghiệp vụ.
+
+- **19.13. Viết Tự Chứa — Dẫn Chiếu Chỉ Được Bổ Sung Chiều Sâu, KHÔNG Được Thay Câu Trả Lời (chốt 23/09/2026)**:
+  - **Phạm vi áp dụng**: mọi tài liệu trong `DocBusinessThienAn/` **và mọi file prompt** trong thư mục `Prompt/`.
+  - **Nguyên tắc**: nêu kết luận **ngay tại chỗ câu hỏi phát sinh**. Dẫn chiếu (`xem mục X`, `chi tiết ở Y`, `nằm ở mục Z`) chỉ được dùng để mời người đọc tìm hiểu **thêm** chiều sâu, ⛔ TUYỆT ĐỐI KHÔNG được là nơi chứa chính câu trả lời.
+  - **Phép thử bắt buộc trước khi viết một dẫn chiếu**: *che dòng dẫn chiếu đi — đoạn văn còn tự trả lời được câu hỏi mà nó vừa đặt ra không?* Nếu **không** thì đang viết sai, phải đưa kết luận vào tại chỗ.
+  - 🔴 **Ví dụ bị cấm (lỗi thật đã mắc)**: *"→ **Vậy có nên chuyển sang đọc từ CSDL không?** Khuyến nghị và 3 việc đề xuất nằm ở mục 6.7."* — đặt ra câu hỏi rồi từ chối trả lời, đẩy người đọc cuộn đi hơn 270 dòng mới biết kết luận.
+  - ✅ **Ví dụ đúng**: *"Vậy có nên chuyển sang đọc từ CSDL không? **Không.** Chính sách dính chặt với câu truy vấn viết tay của từng gói: `QueryPacket102` bỏ qua hoàn toàn `lastTime`, `lastKey`, `pageSize`... Lập luận đầy đủ cùng 3 việc đề xuất: mục 6.7."* — trả lời trước, dẫn chiếu sau và chỉ để đọc sâu thêm.
+  - **Được phép**: ô bảng chật khi kết luận đã nằm ngay trong ô (`❌ Chưa — xem 6.8`, `⚠️ Code đúng, dữ liệu staging sai — xem 1.3`); dòng điều hướng giữa các tài liệu anh em đặt ở đầu file; mục lục; dòng ghi nguồn gốc ở đầu file prompt.
+  - **Riêng với file prompt**: phần hướng dẫn thi công BẮT BUỘC tự chứa — trích thẳng đoạn code liên quan và mô tả trọn kịch bản ngay trong chính file prompt. ⛔ KHÔNG viết kiểu *"làm theo mục X của báo cáo Y"*. Người thi công phải làm được việc mà không cần mở thêm tài liệu nào khác.
+  - **Lý do**: tài liệu nghiệp vụ thường được đọc một lượt để ra quyết định. Bắt cuộn lên cuộn xuống làm đứt mạch đọc và dễ khiến người đọc bỏ sót đúng cái kết luận quan trọng nhất.
+
+- **19.14. Khung Bắt Buộc Cho Báo Cáo Rà Soát — 4 Trục, Việc Đã Xong Xuống Phụ Lục (chốt 23/09/2026)**:
+  - **Phạm vi áp dụng**: mọi báo cáo rà soát / review trong `DocBusinessThienAn/<Dự-án>/<PhânHệ>/Plan/` (`*_Review_*.md`). Không áp cho file prompt (xem 19.13) và MasterPlan.
+  - **Người đọc báo cáo rà soát luôn cần đúng 4 điều.** Thân chính BẮT BUỘC có đủ 4 mục này, đúng thứ tự này, không chen mục khác vào giữa:
+
+    | Mục | Trả lời câu hỏi | Nội dung |
+    | --- | --- | --- |
+    | 1 | **Đặc tả yêu cầu gì?** | Trích **nguyên văn** đặc tả / biên bản họp. Nêu rõ vị thế và ngày trích của tài liệu nguồn |
+    | 2 | **Code làm được tới đâu so với đặc tả?** | Bảng đối chiếu, mỗi hạng mục 1 dòng, cột cuối là kết luận khớp / không khớp |
+    | 3 | **Chưa làm những gì?** | Bảng: việc · thuộc ai · vì sao chưa · **có chặn luồng đang chạy không**. Không có việc nào thì ghi thẳng "không còn việc nào" |
+    | 4 | **Edge case?** | Tình huống bất thường và cách hệ thống xử. Nêu rõ cái giá phải trả, không chỉ nêu "đã xử lý" |
+
+  - **Mở đầu bằng bảng `Tóm tắt` đúng 4 dòng** — mỗi dòng là một câu hỏi trên, cột 2 là **câu trả lời gọn đọc là hiểu**, cột 3 là liên kết tới mục chi tiết. Đặt ngay sau khối `Chú giải ký hiệu`.
+  - 🔴 **Việc đã đóng BẮT BUỘC chuyển xuống `Phụ lục B. Nhật ký việc đã xử lý`**, nén thành bảng *vấn đề → cách xử*, mỗi việc 1 dòng. ⛔ TUYỆT ĐỐI KHÔNG để mục `✅ [ĐÃ XỬ LÝ]` nằm trong thân chính. **Dấu hiệu nhận biết đã viết sai:** phần "phát hiện vấn đề" viết ở thì hiện tại, rồi kẹp thêm một khối `✅ Đã chốt` ở cuối — người đọc phải lội hết lịch sử tranh luận của việc đã xong mới thấy việc còn mở.
+  - ⛔ **Mục 3 KHÔNG chứa việc "tuỳ chọn, không ai đang chờ"** (chốt 25/09/2026): nếu một việc không ai yêu cầu, không chặn luồng, và tự mình đã viết ra rằng không ai đang chờ xử lý — thì bỏ hẳn khỏi báo cáo, ⛔ không viết ra rồi tự gắn nhãn "tuỳ chọn" cho nó ở lại. Mục 3 chỉ liệt kê việc khớp đúng 4 cột của bảng ở trên (việc · thuộc ai · vì sao chưa · có chặn luồng không); việc "có cũng được, không có cũng được" không khớp cột nào trong đó, thêm vào chỉ tổ nhiễu, đúng cái người đọc đang cố tránh. **Dấu hiệu nhận biết đã viết sai:** câu mở đầu bằng "Một việc tuỳ chọn, không ai đang chờ:" — tự thân câu đó đã là bằng chứng việc này không thuộc báo cáo. *(Lỗi thật đã mắc: `Sharedata_Review_LuongNoiDuoi_20260923.md` mục 3 từng có dòng "cập nhật tài liệu mapping bản 20/08 cho khỏi lạc hậu" gắn nhãn tuỳ chọn — chủ dự án phản hồi "không cần đưa vô càng nhiều thông tin càng rối và nhiễu".)*
+  - **Giải thích cơ chế hoạt động chuyển xuống `Phụ lục A`** (luồng chạy, thuật toán, cấu hình hạ tầng). Đây là tài liệu tham khảo, không phải thứ cần đọc để ra quyết định — để nó chen giữa các mục chính là làm loãng báo cáo.
+  - **Quyết định kèm lý do thì GIỮ LẠI, đặt ở `Phụ lục B`**: đặc biệt là bảng *"phương án bị bác và vì sao"*. Đây là thứ đắt nhất trong cả báo cáo, xoá đi là lần sau bàn lại từ đầu.
+  - ⛔ **Thân chính KHÔNG mang tên bài test, KHÔNG bảng liệt kê độ phủ test, KHÔNG số liệu `N/N PASS 100%`.**
+    - Tên bài test dài 60–90 ký tự chen giữa câu làm đứt mạch đọc, và theo 19.12 nó vốn không phải căn cứ cho kết luận nghiệp vụ.
+    - Cần nói một hành vi đã được khoá lại thì viết *"đã có test khoá lại"*, KHÔNG nêu tên.
+    - Số `N/N PASS` là số liệu **tạm** (rule 14) — sai sau vài commit, ⛔ không đưa vào tài liệu sống.
+    - Bảng liệt kê độ phủ test là **bảng chép tay**, lạc hậu ngay khi ai đó đổi tên file test. Độ phủ đọc thẳng từ `tests/`, báo cáo chỉ ghi một dòng trỏ tới thư mục đó. *(Điều này thu hẹp ngoại lệ "bảng độ phủ test" từng nêu ở 19.12: ngoại lệ đó nay chỉ còn hiệu lực cho `tests/README.MD`, không còn cho báo cáo trong `Plan/`.)*
+  - **Phép thử bắt buộc trước khi giao báo cáo**: *mở file ra, trong 1 phút có trả lời được đủ 4 câu hỏi ở bảng trên không?* Nếu **không** thì chưa đạt, phải dựng lại — đừng chỉ thêm mục mới vào cuối.
+  - **Lý do**: báo cáo rà soát bị phình lên theo từng lượt sửa, vì mỗi lần xong một việc lại kẹp thêm một khối `✅ Đã chốt` mà không dọn phần cũ. Sau vài lượt thì quá nửa tài liệu là lịch sử của việc đã xong, và người đọc không còn tìm ra điều mình cần. *(Lỗi thật đã mắc: `Sharedata_Review_LuongNoiDuoi_20260923.md` phình tới 499 dòng, trong đó riêng mục "rủi ro đang mở" chiếm 264 dòng với 7/8 mục con đã đóng — chủ dự án phản hồi "rất nhiều thông tin đọc rất rối".)*
+
+- **19.15. Trạng Thái Công Việc — CHỈ CÓ "Đã làm" hoặc "Chưa làm", ⛔ KHÔNG CÓ "Làm Sau" (chốt 24/09/2026)**:
+  - **Phạm vi áp dụng**: mọi báo cáo, MasterPlan, bảng trạng thái và danh sách việc trong `DocBusinessThienAn/` và `.agents/`.
+  - **Đúng hai trạng thái, không có trạng thái thứ ba**:
+
+    | Trạng thái | Nghĩa |
+    | --- | --- |
+    | ✅ **Đã làm** | Đã hoàn tất và kiểm chứng được |
+    | ⚠️ **Chưa làm** | Mọi thứ còn lại — không phân biệt lý do, không phân biệt độ ưu tiên |
+
+  - ⛔ **CẤM mọi nhãn trạng thái kiểu trì hoãn**: *"dự kiến làm sau"*, *"làm sau"*, *"để sau"*, *"tạm hoãn"*, *"sẽ làm"*, *"đang cân nhắc"*, *"phase 2"*, *"nice to have"*, *"đưa vào backlog"*...
+  - **Lý do**: "làm sau" là trạng thái **không kiểm chứng được** — không ai biết "sau" là bao giờ, và nó khiến một việc **chưa làm** trông như đã có kế hoạch, nên không ai đi hỏi lại nữa. Khi chỉ còn hai trạng thái thì mỗi dòng đều trả lời dứt khoát: xong hay chưa xong.
+  - **Lý do chưa làm thì để ở CỘT RIÊNG, không nhét vào ô trạng thái.** Bảng chuẩn của mục "Chưa làm những gì" (xem 19.14): `Việc · Thuộc ai · Vì sao chưa làm · Có chặn luồng đang chạy không`. Viết *"chưa làm vì đang chờ nguồn dữ liệu WIM"* là đủ và kiểm chứng được; thêm nhãn "làm sau" vào không bổ sung thông tin nào.
+  - **Việc đã quyết định KHÔNG làm thì không phải "chưa làm"** — ghi thẳng là **đã quyết định bỏ qua**, kèm căn cứ (VD gói 111: đặc tả ghi `(skip)`). Đó là kết luận đã đóng, ⛔ không được để lẫn vào danh sách việc còn mở.
+  - **Trích dẫn lịch sử giữ nguyên văn**: biên bản họp chốt chữ "hoãn" thì vẫn ghi đúng chữ đó, vì là dữ kiện đã xảy ra. ⛔ Nhưng không được lấy chữ đó làm **nhãn trạng thái** cho việc ở hiện tại.
+  - **Lỗi thật đã mắc**: tài liệu mapping bản 20/08 có nhóm *"Các gói dự kiến làm sau"* gộp chung 104, 105, 106, 110, 111. Hệ quả: code đã bật 104 và 106 chạy thật thì bị hiểu nhầm là "chạy trước kế hoạch", trong khi 110 chưa chạy được vì **thiếu dữ liệu nguồn** — hai chuyện hoàn toàn khác nhau bị gộp dưới một nhãn duy nhất, và không chuyện nào được xử lý. Chủ dự án bãi bỏ nhóm này ngày 23/09/2026.
+
+- **19.16. Quy Tắc Đặt Tên Biến Ngắn Gọn, Trực Diện (CẤM Đặt Tên Biến Dài Dòng, Thừa Thãi) (chốt 24/09/2026)**:
+  - **Nguyên tắc**: Tên biến cục bộ (local variable), tham số hàm (parameter) phải ngắn gọn, tự nhiên, đi thẳng vào bản chất dữ liệu (Concise & Direct Naming). Không đặt tên dài dòng, hoa mỹ hoặc ghép nhiều từ diễn giải thừa thãi làm loãng code và khó đọc.
+  - **Cấm đặt tên biến dài dòng, thừa thãi**:
+    - ❌ CẤM các tiền tố/hậu tố diễn giải thừa: `effectivePageSize`, `resolvedActualItem`, `calculatedTotalAmount`, `currentProcessingRecord`, `temporaryStorageData`...
+    - ✅ Dùng thẳng danh từ cốt lõi: `pageSize`, `item`, `total`, `record`, `data`...
+  - **Xử lý giá trị fallback / override**:
+    - Khi cần tính toán giá trị mặc định (fallback/coalesce), gán trực tiếp hoặc dùng toán tử gọn:
+      ```csharp
+      // ❌ SAI: Tạo biến mới dài dòng
+      var effectivePageSize = pageSize > 0 ? pageSize : DefaultPageSize;
+
+      // ✅ ĐÚNG: Tái sử dụng hoặc gán trực tiếp biến ngắn gọn
+      pageSize = pageSize > 0 ? pageSize : DefaultPageSize;
+      ```
+  - **Lỗi thật đã mắc**: Trong `DataOutboundExtractionProcess.cs`, việc đặt biến `effectivePageSize` gây dài dòng thừa thãi trong khi chỉ cần dùng thẳng `pageSize`.
+
+- **19.17. CẤM Nối Chuỗi Khi Viết SQL — Bắt Buộc Dùng Tham Số Hóa (SugarParameter / SqlSugar) (chốt 24/09/2026)**:
+  - **Nguyên tắc cốt lõi (P0 - Security)**: Tuyệt đối KHÔNG dùng toán tử cộng chuỗi (`+`), `string.Format`, hoặc nội suy chuỗi ($"...") để đưa các biến, tham số hay giá trị lọc vào câu lệnh SQL raw (khi gọi `db.Ado.GetDataTableAsync`, `db.Ado.SqlQueryAsync`, `db.Ado.ExecuteCommandAsync`...).
+  - **Bắt buộc dùng tham số hóa (Parameterized Query)**:
+    - Mọi giá trị động (ID, mã code, mốc thời gian `DateTime`, cursor `LastKey`, giới hạn bản ghi `top`...) BẮT BUỘC phải truyền qua `SugarParameter` của SqlSugar (hoặc `List<SugarParameter>`).
+    - Với mệnh đề `TOP` trong T-SQL: bắt buộc dùng cú pháp có ngoặc đơn `TOP (@top)` và truyền tham số, ❌ CẤM viết `$" TOP {top}"`.
+      ```csharp
+      // ❌ SAI: Nối chuỗi trực tiếp — nguy cơ SQL Injection nghiêm trọng
+      var sql = $"SELECT TOP {top} * FROM TrafficData WHERE CreateTime > '{lastTime:yyyy-MM-dd HH:mm:ss}'";
+      var list = await db.Ado.GetDataTableAsync(sql);
+
+      // ✅ ĐÚNG: Dùng câu lệnh chứa placeholder @param và truyền SugarParameter
+      var sql = "SELECT TOP (@top) * FROM TrafficData WHERE CreateTime > @lastTime ORDER BY CreateTime ASC";
+      var parameters = new List<SugarParameter>
+      {
+          new SugarParameter("@top", top),
+          new SugarParameter("@lastTime", lastTime)
+      };
+      var list = await db.Ado.GetDataTableAsync(sql, parameters.ToArray());
+      ```
+  - **Ưu tiên SqlSugar Linq / Expression API**: Khi làm việc với các Entity thông thường, ưu tiên sử dụng `db.Queryable<T>()` cùng các phương thức `.Where(...)`, `.WhereIF(...)`, `.Take(...)` để SqlSugar tự động tham số hóa 100%.
+  - **Ngoại lệ duy nhất cho ghép chuỗi**: Chỉ cho phép nội suy tên bảng/tên cột nếu và chỉ nếu chúng xuất phát từ catalog tĩnh hoặc whitelist nội bộ đã được kiểm duyệt nghiêm ngặt (như `TableName`, `Columns`), tuyệt đối không chấp nhận bất kỳ input nào từ bên ngoài đưa vào định danh SQL.
+  - **Lỗi thật đã mắc**: Trong `ShareDataPacketSqlCatalogUtil.cs`, câu lệnh từng ghép chuỗi: `.Replace(TopToken, top.HasValue ? $" TOP {top.Value}" : string.Empty)`. Đã được chuẩn hóa lại thành tham số hóa `TOP (@top)` kèm `new SugarParameter($"@{TopParameterName}", safeTop)` theo yêu cầu của chủ dự án.
+
+- **19.18. Quy Tắc Kiểm Thử Thực Chất — CẤM Mock NATS & Luồng Business Nội Bộ, Bắt Buộc Test Full Luồng Thật Qua Host & CSDL Local (chốt 24/09/2026)**:
+  - **Bản chất vấn đề (Chống Mock mù / False Confidence)**: Việc tự viết class giả lập hời hợt (`TestMockDataOutboundService`, `FakeService`) chỉ để đếm xem hàm có được gọi hay không (`Assert.Single(HandledPacketCodes)`) là **kiểm thử hình thức, tạo ảo giác an toàn**. Khi chạy thực tế, service thật có thể gặp lỗi kết nối DB, lỗi tranh chấp lock OCC, lỗi mapping schema hoặc ném Exception mà bài test mock hoàn toàn không phát hiện được.
+  - **Ranh giới rõ ràng giữa thứ ĐƯỢC PHÉP và BỊ CẤM mock**:
+    - ✅ **ĐƯỢC PHÉP Mock duy nhất: Giao tiếp HTTP ra đối tác bên ngoài**:
+      - `IHttpClientFactory` / `MockTestHttpClientFactory` (qua `HttpMessageHandler` nội bộ): Cho phép mock phản hồi HTTP của máy chủ đối tác thứ ba (200 OK, 500 Error, timeout) để kiểm tra cách hệ thống xử lý mà không cần gọi ra Internet hay máy chủ đối tác thật.
+    - ⛔ **TUYỆT ĐỐI CẤM Mock các thành phần nội bộ**:
+      - ❌ CẤM mock NATS / Message Bus nội bộ (`TransportManager`, pub/sub sự kiện trigger giữa các worker trong hệ thống).
+      - ❌ CẤM mock toàn bộ luồng Business nội bộ (`IDataOutboundService`, `IDataInboundService`, các Process trích xuất/mapping, Worker).
+      - ❌ CẤM mock Database SqlSugar (bắt buộc tương tác CSDL test local `127.0.0.1`).
+  - **BẮT BUỘC Test Full Luồng Thật (End-to-End Integration)**:
+    - ✅ Lấy Service thật từ DI container: `_host.Services.GetRequiredService<T>()` hoặc `scope.ServiceProvider.GetRequiredService<T>()`.
+    - ✅ Truyền Service thật vào Worker: Khởi tạo Worker với Service thật, bắn input (JSON payload, event) và để Worker gọi thẳng vào luồng xử lý lõi của hệ thống.
+    - ✅ Kiểm chứng bằng sự biến đổi dữ liệu trên CSDL test local `127.0.0.1`:
+      - Subscription: `NextTimeRun`, `LastTimeRun`, `State` có cập nhật đúng không?
+      - Activity/Alert Log: Có ghi nhận thành công hoặc ghi đúng mã cảnh báo không?
+      - Checkpoint: `LastTime`, `LastKey` có tăng theo chiều monotonic không?
+    - Dữ liệu rác sinh ra trong test BẮT BUỘC phải dọn dẹp sạch sẽ trong khối `finally`.
+  - **Lỗi thật đã mắc**: Trong `DataNatsWorkerTests.cs`, từng tạo `TestMockDataOutboundService` để kiểm tra `DataNatsWorker.HandleTrigger`. Chủ dự án đã chỉ rõ: test như vậy không kiểm chứng được luồng thật và yêu cầu bãi bỏ hoàn toàn thói quen mock NATS và luồng business nội bộ.
+
+- **19.19. CẤM Viết Try-Catch Dồn Dập / Chồng Chéo Lãng Phí — No Redundant / Nested Try-Catch Stacking (chốt 24/09/2026)**:
+  - **Nguyên tắc**: Chỉ dùng `try-catch` tại **ranh giới tác vụ (Unit of Work / Transaction boundary)**: nơi cô lập lỗi, ghi alert, dọn dẹp tài nguyên (rollback / release lock). Mọi lỗi bên trong tác vụ phải **bubble lên** boundary duy nhất đó.
+  - ⛔ **CẤM pattern**: `try { someProcess.Do(...); } catch (Exception) { WriteAlertAsync(...); throw; }` khi caller ngoài đã có catch tổng — gây **duplicate alert/log** (alert ghi 2 lần cho 1 lỗi).
+  - ✅ **Đúng**: Throw thẳng lên boundary — boundary catch và ghi alert duy nhất 1 lần:
+    ```csharp
+    catch (ShareDataException ex) { WriteAlertAsync(ex.AlertCode, ex.Severity, ex.AlertSource, ...); }
+    catch (Exception ex)          { WriteAlertAsync(QueryFailed, Error, Subscription, ...); }
+    ```
+  - **Cách kiểm tra nhanh**: Nếu `catch` chỉ ghi log/alert rồi `throw` mà **không có cleanup tài nguyên** nào khác (không rollback transaction, không release lock, không dispose) → đó là try-catch thừa, gỡ đi.
+  - **Try-catch HỢP LỆ vẫn giữ**: Transaction boundary (`BeginTran / RollbackTran`), race condition OCC (`catch { reload; throw }`), intentional swallow (`catch { /* optional feature */ }`), log-write defensive (`catch (Exception logEx) { LogWarning }` sau committed data).
+  - **Lỗi thật đã mắc**: `DataOutboundService.cs` từng có inner try-catch bọc `_extractionProcess.Extract(...)` ghi `QueryFailed` rồi throw — `LockedSubscription` bắt lại ghi thêm alert → 2 alert cho 1 lỗi. Đã refactor 24/09/2026 bằng `ShareDataException` mang `AlertCode` / `AlertSource` để boundary đọc trực tiếp.
 
 ---
+
 
 ## 💻 20. Quy Chuẩn Phát Triển Frontend (Vue 3 / TypeScript - TA-ITS015-WEBVUE-V1.0)
 
