@@ -134,12 +134,21 @@ Khi thực hiện commit code, phần tiêu đề (Summary) của commit bắt b
 ### ✍️ Cú Pháp Thông Điệp Commit Chuẩn (Commit Format)
 
 #### Cú pháp Summary:
-`[Keyword]: [TaskCode (nếu có)] - [noi-dung-cong-viec-dung-cau-hanh-dong]`  
-*(Hoặc rút gọn khi không có TaskCode: `[Keyword]: [noi-dung-cong-viec-dung-cau-hanh-dong]`)*
+- **Cú pháp chuẩn thực tế của team (Khuyến nghị):**
+  `[type]: [yyyyMMdd] [module] [noi-dung-cong-viec]`  
+  *(Ví dụ: `feat: 20260923 vms thêm mới dịch vụ`, `fix: 20260915 tms chỉnh map`, `feat: 20260925 sharedata worker hoàn thiện luồng outbound và event`)*
+- **Cú pháp kèm TaskCode:**
+  `[type]: [TaskCode (nếu có)] - [noi-dung-cong-viec]`  
+- **Cú pháp rút gọn:**
+  `[type]: [noi-dung-cong-viec]`
 
 > [!TIP]
-> *   Nên thống nhất một ngôn ngữ chung (tiếng Việt hoặc tiếng Anh) xuyên suốt dự án.
-> *   Sử dụng câu hành động cụ thể (ví dụ: `add map location`, `fix traffic info`, `cập nhật luồng đồng bộ`).
+> *   Dùng 1 `-m` khi chỉ cần ghi Summary ngắn gọn: `git commit -m "[type]: [yyyyMMdd] [module] [noi-dung]"`
+> *   Dùng 2 `-m` khi muốn bổ sung danh sách gạch đầu dòng chi tiết (Git sẽ tự chèn dòng trống ngăn cách):
+>     `git commit -m "[Subject]" -m "[Subject]"`
+>     `- gạch đầu dòng 1`
+>     `- gạch đầu dòng 2`
+> *   Sử dụng câu hành động cụ thể, tiếng Việt hoặc tiếng Anh thống nhất.
 
 #### Cấu trúc Description Chi Tiết:
 1.  **Dòng đầu tiên:** Ghi lại nguyên văn nội dung Summary.
@@ -154,12 +163,12 @@ Khi thực hiện commit code, phần tiêu đề (Summary) của commit bắt b
 
 ### 💡 Ví Dụ Minh Họa Commit Chuẩn
 
-#### Ví dụ 1: Summary ngắn gọn
-*   `feat: XD1.2.2.5 - add map location`
-*   `feat: XD1.2.2.6 - bỏ chức năng không sử dụng`
-*   `fix: fix map location & fix traffic info`
-*   `refactor: format code map location`
-*   `fix!: XD1.2.2.7 - thay đổi luồng gửi mail` (Thay đổi lớn)
+#### Ví dụ 1: Summary chuẩn thực tế của team
+*   `feat: 20260923 vms thêm mới dịch vụ`
+*   `feat: 20260915 toll fms thêm mới`
+*   `fix: 20260915 tms chỉnh map`
+*   `fix: 20260923 toll điều chỉnh lại tên xử lý các hàm`
+*   `feat: 20260925 sharedata worker hoàn thiện luồng outbound và event`
 
 #### Ví dụ 2: Toàn văn Commit Message đầy đủ Summary + Description
 ```text
@@ -538,6 +547,16 @@ tests/
 - **Bắt buộc local khi test**: Khi chạy `dotnet test` (hoặc bất kỳ kịch bản unit/integration test), TẤT CẢ connection string (RDBMS: SQL Server, PostgreSQL, MySQL...; NoSQL/Cache: Redis...) BẮT BUỘC là local (`localhost`, `127.0.0.1`, `(localdb)`, `.`, container local).
 - **Hủy ngay & báo cáo nếu phát hiện remote**: Trước khi chạy `dotnet test`, nếu thấy connection string trong `appsettings*.json`, `Host.cs`, hay cấu hình test trỏ ra remote/IP ngoài (VD `10.10.8.30`, domain staging/prod...), BẮT BUỘC HỦY NGAY việc chạy test và báo lại người dùng.
 - **Cấm test trên DB remote**: TUYỆT ĐỐI KHÔNG chạy test khi connection string RDBMS/Redis không phải local.
+- **Tự động đồng bộ Schema CSDL Local khi Test (`EnableInitTable`, `EnableInitDb` - Bắt buộc)**:
+  - Khi chạy `dotnet test` phát sinh lỗi thiếu cột hoặc thiếu bảng (ví dụ `Invalid column name '...'`, `Invalid object name '...'` do rebase/pull code nhánh khác có bổ sung entity):
+  - **Bước 1 (Bật cờ đồng bộ):** Tạm thời bật các cờ CodeFirst của SqlSugar trong `tests/appsettings.Test.json`:
+    ```json
+    "DbSettings": { "EnableInitDb": true },
+    "TableSettings": { "EnableInitTable": true, "EnableIncreTable": true }
+    ```
+    Chạy lại test để SqlSugar tự động phát hiện và bổ sung cột/bảng thiếu vào CSDL local.
+  - **Bước 2 (Tắt lại cờ về `false` sau khi test ổn):** Ngay sau khi test đã chạy qua thành công (CSDL local đã cập nhật schema xong), **BẮT BUỘC SỬA LẠI TOÀN BỘ CỜ THÀNH `false`** (`EnableInitDb: false`, `EnableInitTable: false`, `EnableIncreTable: false`) để tránh lặp lại kiểm tra schema làm chậm tốc độ chạy test ở các lần sau và giữ file cấu hình sạch sẽ.
+  - **Bước 3 (Chỉ báo cáo khi bật cờ không được):** Chỉ khi nào đã bật đủ các cờ trên mà test vẫn báo lỗi schema (do constraint phức tạp, kiểu dữ liệu xung đột...) thì mới báo lại cho người dùng kèm câu lệnh SQL để xử lý thủ công; tuyệt đối không tự chế/hack code trong file test.
 
 ---
 
