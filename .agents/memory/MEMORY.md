@@ -22,7 +22,6 @@
 - [Tài liệu Nghiệp vụ HN-CL](../../DocBusinessThienAn/HữuNghị-ChiLăng/INDEX.md) — Nguồn sự thật duy nhất cho tài liệu nghiệp vụ Hữu Nghị - Chi Lăng (luôn mở file này trước).
 - [SqlSugar docs](sqlsugar-docs.md) — link no-entity / raw SQL / JSON→SQL
 - [Tech decisions](tech-decisions.md) — bảo trì `.agents/manifest.json` ↔ frontmatter (AG-Kit tooling, không phải app)
-- [ShareData Architecture](sharedata-architecture.md) — Tách 2 worker ChangeTracking & NATS, kịch bản trễ / race condition và kiểm thử toàn trình.
 
 ---
 
