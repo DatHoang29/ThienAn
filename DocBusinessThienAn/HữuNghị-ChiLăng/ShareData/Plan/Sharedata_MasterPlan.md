@@ -1,8 +1,8 @@
 # ShareData (ESHARE) — Master Plan FE · BE · Service
 
 > 🔴 **SINGLE SOURCE OF TRUTH (SSOT):** Tài liệu quy hoạch tổng thể duy nhất cho toàn bộ phân hệ **ShareData (ESHARE)** gồm Frontend, Backend WebAPI và Service Worker.
-> Được hợp nhất từ các tài liệu phân tích, kế hoạch kiểm thử, cơ chế gửi nối đuôi Checkpoint và kích hoạt sự kiện Change Tracking + NATS.
-> 📌 **Cập nhật lần cuối: 25/09/2026** — đã gộp toàn bộ nội dung còn giá trị từ 3 báo cáo review (`Sharedata_Review_LuongNoiDuoi_20260923.md`, `Sharedata_Review_GuiKhiCoDuLieuMoi_20260923.md`, `Sharedata_Review_DoiChieuThucTe_20260925.md`) trực tiếp vào tài liệu này (chủ yếu ở SV-12 §9); 3 file review đã được xoá sau khi gộp, tài liệu này là SSOT duy nhất.
+> Được hợp nhất từ các tài liệu phân tích, kế hoạch kiểm thử, cơ chế gửi nối đuôi LastSend và kích hoạt sự kiện Change Tracking + NATS.
+> 📌 **Cập nhật lần cuối: 26/09/2026** — đồng bộ tên `Checkpoint` → `LastSend` xuyên suốt tài liệu (khớp code thật sau khi áp dụng `sharedata-doi-ten-checkpoint-thanh-lastsend-trong-dataoutboundservice-prompt.md`); trước đó: 25/09/2026 — đã gộp toàn bộ nội dung còn giá trị từ 3 báo cáo review (`Sharedata_Review_LuongNoiDuoi_20260923.md`, `Sharedata_Review_GuiKhiCoDuLieuMoi_20260923.md`, `Sharedata_Review_DoiChieuThucTe_20260925.md`) trực tiếp vào tài liệu này (chủ yếu ở SV-12 §9); 3 file review đã được xoá sau khi gộp, tài liệu này là SSOT duy nhất.
 
 ### Chú giải ký hiệu
 
@@ -61,8 +61,8 @@
 - [x] **SV-3a** Đặt `partnerCode` vào trong dữ liệu gửi đi ✅ **xong 18/09** — M1 giải `$meta: PartnerCode` bằng `ctx.Partner.Code`.
 - [ ] **SV-8a** Ghi log 2 bước cha–con *(chiều gửi)* 🔴 **chặn bởi BE-5** (`ParentId`/`StepNo` trên `ShareDataActivityLog`).
 - [x] **SV-10** Rà soát pipeline Outbound sau refactor ✅ **xong 18/09** — Tầng gửi không logic nghiệp vụ, lỗi mapping dừng bước 2, `DataOutboundContext` xuyên suốt.
-- [x] **SV-12** Cờ *"chỉ gửi khi có dữ liệu mới"* & Cơ chế Gửi nối đuôi Checkpoint ✅ **hoàn tất 22/09**:
-  - Kiến trúc Checkpoint độc lập `ShareDataLastSend` theo từng cặp `(PartnerCode, PacketCode)`.
+- [x] **SV-12** Cờ *"chỉ gửi khi có dữ liệu mới"* & Cơ chế Gửi nối đuôi LastSend ✅ **hoàn tất 22/09**:
+  - Kiến trúc LastSend độc lập `ShareDataLastSend` theo từng cặp `(PartnerCode, PacketCode)`.
   - Phân trang nối đuôi an toàn, không lặp dữ liệu, dừng ngay khi cursor null.
   - Tích hợp SQL Server Change Tracking (1s heartbeat) + NATS Trigger (`TransportManager`).
   - Gói 106 trích xuất chuẩn 7 trường, phễu lọc nguồn allow-list (mặc định rỗng chặn gửi sai), 4 trường tải trọng null theo đặc tả.
@@ -121,9 +121,9 @@
 - Tầng gửi (`DataOutboundRestSender` / `DataOutboundFileSender`) làm thuần nhiệm vụ vận chuyển.
 - Lỗi mapping ngắt ngay tại bước 2, ghi log lỗi và huỷ kết xuất.
 
-### SV-12. Cờ "Chỉ gửi khi có dữ liệu mới" & Cơ chế Gửi nối đuôi Checkpoint ✅ *hoàn tất 22/09*
+### SV-12. Cờ "Chỉ gửi khi có dữ liệu mới" & Cơ chế Gửi nối đuôi LastSend ✅ *hoàn tất 22/09*
 
-#### 1. Kiến trúc Bảng Checkpoint độc lập (`ShareDataLastSend`)
+#### 1. Kiến trúc Bảng LastSend độc lập (`ShareDataLastSend`)
 - Tách rời hoàn toàn mốc cursor khỏi bảng `ShareDataSubscription` để tránh cạnh tranh lease.
 - Cấu trúc bảng `ShareDataLastSend`:
   - `PartnerCode` (`string?`, `IsNullable = true`): Mã đối tác nhận.
@@ -134,13 +134,13 @@
   - `CreateTime`, `UpdateTime`: Dấu vết thời gian hệ thống.
   - Index độc nhất: `UQ_ShareDataLastSend_Partner_Packet` trên `(PartnerCode, PacketCode)`.
 
-#### 2. Cập nhật Checkpoint đơn điệu qua SqlSugar ORM
-- Tuyệt đối không dùng raw SQL chuỗi cho update Checkpoint.
-- Sử dụng method `UpdateCheckpoint` thông qua `db.Updateable<ShareDataLastSend>()`:
+#### 2. Cập nhật LastSend đơn điệu qua SqlSugar ORM
+- Tuyệt đối không dùng raw SQL chuỗi cho update LastSend.
+- Sử dụng method `UpdateLastSend` thông qua `db.Updateable<ShareDataLastSend>()`:
   - Điều kiện cập nhật: `LastTime < newTime OR (LastTime = newTime AND (LastKey IS NULL OR LastKey < newKey))`.
   - Đảm bảo cursor luôn tiến lên (đơn điệu), tuyệt đối không bị tụt lùi hay ghi đè mốc cũ.
 
-#### 2b. Khởi tạo Checkpoint lần đầu cho Đăng ký mới (`GetOrInitCheckpoint`)
+#### 2b. Khởi tạo LastSend lần đầu cho Đăng ký mới (`GetOrInitLastSend`)
 - Khi đăng ký chưa từng chạy (chưa có `lastTimeRun`), worker cắm mốc lùi đúng một chu kỳ an toàn để gửi ngay dữ liệu phát sinh gần nhất mà không nạp toàn bộ lịch sử CSDL gây nghẽn:
 ```csharp
 if (lastTimeRun.HasValue)
@@ -185,13 +185,14 @@ else
 - `DataOutboundService.ProcessSubscriptions` (Lease Protection): Khôi phục điều kiện claim lease `Where(s => s.NextTimeRun == null || s.NextTimeRun <= now)`. Khi một worker theo lịch đang gửi dở các trang, trigger NATS không thể cướp lease, loại bỏ hoàn toàn nguy cơ xung đột OCC và cảnh báo giả `ESH-1303`.
 - `DataTrackerWorker`: Chạy nền với heartbeat 1 giây, đọc `CHANGE_TRACKING_CURRENT_VERSION()`. Tích hợp trực tiếp bảng ánh xạ bảng nguồn `RawTableToPacketMap` (`TmsTrafficData` ra cả 103 và 106) và bộ lọc `ResolveTriggerPackets` chỉ chặn gói `NotReady` và `Disabled` — **mọi gói hợp lệ còn lại, cả nối đuôi lẫn bản chụp, đều kích hoạt được bằng sự kiện** nếu đăng ký bật cờ `SendOnNewData`. Khi phát hiện dữ liệu bảng nguồn thay đổi, phát sự kiện NATS qua `TransportManager` vào **1 subject chung duy nhất** `ta.its.event.sharedata.newdata` (hằng số `DEFAULT_NATS_SUBJECT`, không hậu tố) — gói tin nhận diện qua field `PacketCode` trong payload (`{PacketCode, Type, Version, TriggeredAt}`), đây là thiết kế chủ đích.
 - `DataNatsConsumerWorker`: Lắng nghe đúng subject chung đó, đọc `PacketCode` từ payload rồi gọi `DataOutboundService.ProcessSubscriptions(packetCode)`. Không có cơ chế debounce nào ở tầng worker này — chống dội thực hiện bằng cấu hình `DebounceSec` riêng của từng Subscription, kiểm tra trong `ProcessSubscriptions`.
-- Cơ chế **Self-Healing khi `_lastProcessedVersion` rơi ra ngoài cửa sổ hợp lệ của Change Tracking** (bổ sung 25/09/2026): SQL Server chỉ giữ dữ liệu Change Tracking 2 ngày (`CHANGE_RETENTION = 2 DAYS, AUTO_CLEANUP = ON`); nếu worker ngừng cập nhật mốc lâu hơn khoảng đó (ví dụ mất kết nối CSDL kéo dài mà tiến trình không restart), câu `CHANGETABLE` sẽ ném lỗi SQL lặp lại vô hạn mỗi giây. `DataTrackerWorker.PollChangeTracking` nay bọc `try/catch (Exception ex) when (IsChangeTrackingVersionInvalid(ex))` quanh câu truy vấn đổi bảng — khi bắt được lỗi version không hợp lệ (mã SQL 22114/22115 hoặc message tương ứng, hàm `IsChangeTrackingVersionInvalid`), tự động nhảy cóc `_lastProcessedVersion = currentVersion.Value` để hồi phục ngay chu kỳ kế tiếp, không cần restart service. Chi tiết & lý do đổi hướng so với đề xuất ban đầu (proactive vs reactive): [`sharedata-tu-phuc-hoi-change-tracking-min-valid-version-prompt.md`](../Prompt/sharedata-tu-phuc-hoi-change-tracking-min-valid-version-prompt.md).
-- Toàn bộ vùng CT + NATS được bao phủ bởi bộ test trong `tests/ShareData/Services/DataChangeWorkerTests.cs` (bao gồm 3 bài mới cho cơ chế Self-Healing: `IsChangeTrackingVersionInvalid_WhenGivenVariousExceptions_ClassifiesCorrectly_Test`, `GetMinValidVersion_WhenCalledWithTrackedTable_ReturnsValidLongOrNull_Test`, `ChangeTracking_WhenVersionInvalid_SelfHealsAndFastForwardsToCurrentVersion_Test`) và `DataChangeWorkerNatsTests.cs`. Số lượng bài test cụ thể là số liệu tạm, dễ lạc hậu — chạy `dotnet test tests/test.csproj --filter "FullyQualifiedName~ShareData"` để xem số hiện tại thay vì tin số đếm cứng trong tài liệu.
+- Cơ chế **Self-Healing khi `_lastProcessedVersion` rơi ra ngoài cửa sổ hợp lệ của Change Tracking** (bổ sung 25/09/2026): SQL Server chỉ giữ dữ liệu Change Tracking 2 ngày (`CHANGE_RETENTION = 2 DAYS, AUTO_CLEANUP = ON`); nếu worker ngừng cập nhật mốc lâu hơn khoảng đó (ví dụ mất kết nối CSDL kéo dài mà tiến trình không restart), câu `CHANGETABLE` sẽ ném lỗi SQL lặp lại vô hạn mỗi giây. `DataTrackerWorker.PollChangeTracking` nay bọc `try/catch (Exception ex) when (IsChangeTrackingVersionInvalid(ex))` quanh câu truy vấn đổi bảng — khi bắt được lỗi version không hợp lệ (mã SQL 22114/22115 hoặc message tương ứng, hàm `IsChangeTrackingVersionInvalid`), tự động nhảy cóc `_lastProcessedVersion = currentVersion.Value` để hồi phục ngay chu kỳ kế tiếp, không cần restart service. Chi tiết & lý do đổi hướng so với đề xuất ban đầu (proactive vs reactive): `sharedata-tu-phuc-hoi-change-tracking-min-valid-version-prompt.md` (đã thực thi và xoá theo Auto-Cleanup). Hàm `GetMinValidVersion` viết sẵn cho hướng proactive không được chọn đã trở thành dead code và bị xoá ngày 26/09/2026 (`sharedata-don-dead-code-getminvalidversion-prompt.md`, đã thực thi và xoá) — xem `Prompt/README.md`.
+- Toàn bộ vùng CT + NATS được bao phủ bởi bộ test trong `tests/ShareData/Services/DataChangeWorkerTests.cs` (bao gồm 2 bài cho cơ chế Self-Healing reactive: `IsChangeTrackingVersionInvalid_WhenGivenVariousExceptions_ClassifiesCorrectly_Test`, `ChangeTracking_WhenVersionInvalid_SelfHealsAndFastForwardsToCurrentVersion_Test`) và `DataChangeWorkerNatsTests.cs`. Số lượng bài test cụ thể là số liệu tạm, dễ lạc hậu — chạy `dotnet test tests/test.csproj --filter "FullyQualifiedName~ShareData"` để xem số hiện tại thay vì tin số đếm cứng trong tài liệu.
 
 
 #### 7. Ghi nhận cảnh báo tinh gọn (Log 1 lần tại nơi cần thiết)
 - Khi bản ghi nguồn thiếu cả `UpdateTime` và `CreateTime`, hệ thống ghi log warning 1 lần cho gói tin (`AlertSource.Packet`), thông báo số dòng phải dùng thời gian nghiệp vụ thay vì throttle phức tạp.
 - Khi mapping trường bị thiếu/lỗi, ghi trực tiếp `WriteAlertAsync` 1 lần cho trang/gói kết xuất (đã loại bỏ hoàn toàn hàm tiết chế `LogAlertThrottled`).
+- **Tập trung hoá vào `ShareDataTransferLog` (26/09/2026):** `WriteFailureLogs`/`BuildFailExport` (đổi tên từ `WriteFailureLogsAsync`/`BuildFailExportAsync`) và `ResolvePduType` đã chuyển từ `DataOutboundService.cs` sang `ShareDataTransferLog` — đúng nguyên tắc "1 nơi duy nhất ghi log" đã chốt. `WriteActivityAsync` giờ tự fallback `PduType = pduType ?? ResolvePduType(sub)` khi caller không truyền, chiều Inbound (`packet.PduType`) không bị ảnh hưởng vì vẫn truyền tường minh. Chi tiết: `sharedata-di-chuyen-writefailurelogs-buildfailexport-resolvepdutype-prompt.md` (đã thực thi và xoá theo Auto-Cleanup, xem `Prompt/README.md`).
 
 #### 8. Trạng thái các mục sau rà soát nghiệp vụ 23/09/2026
 
@@ -213,7 +214,7 @@ Nhật ký các việc đã xử lý kèm lý do quyết định: xem §9.5 bên
 | Thiếu test cho 2 kịch bản sập hệ thống (nhận lại quyền xử lý sau khi worker chết; worker giám sát khởi động lại) | Việc kỹ thuật | ✅ Đã bổ sung 23/09/2026 |
 | Test kịch bản mất kết nối CSDL giữa chừng | [prompt](../Prompt/test-mat-ket-noi-csdl-giua-chung-prompt.md) | ✅ Đã xử lý 23/09/2026 |
 | Dọn dấu vết `104_rfidData` sau khi bản ghi bị xoá khỏi CSDL staging: giữ bí danh làm lưới chặn hồi quy, đổi tên 2 bài test | [prompt](../Prompt/don-dau-vet-104-rfiddata-prompt.md) | ✅ Đã xử lý 24/09/2026 |
-| `DataTrackerWorker` lặp lỗi vô hạn khi `_lastProcessedVersion` rơi ra ngoài cửa sổ hợp lệ `CHANGE_TRACKING_MIN_VALID_VERSION` (worker ngừng cập nhật mốc lâu hơn 2 ngày retention) | [prompt](../Prompt/sharedata-tu-phuc-hoi-change-tracking-min-valid-version-prompt.md) | ✅ Đã xử lý 25/09/2026 — verify độc lập tại `DataTrackerWorker.cs` |
+| `DataTrackerWorker` lặp lỗi vô hạn khi `_lastProcessedVersion` rơi ra ngoài cửa sổ hợp lệ `CHANGE_TRACKING_MIN_VALID_VERSION` (worker ngừng cập nhật mốc lâu hơn 2 ngày retention) | `sharedata-tu-phuc-hoi-change-tracking-min-valid-version-prompt.md` (đã xoá) | ✅ Đã xử lý 25/09/2026 — verify độc lập tại `DataTrackerWorker.cs` |
 | `ProcessScheduledSubscriptions` (trước đây là `ProcessBatchSubscriptions`) tạo mới `IServiceScopeFactory` scope + SqlSugar client riêng cho từng subscription trong vòng `foreach` thay vì dùng chung 1 scope cho cả batch | Không có file prompt tương ứng trên đĩa (đường dẫn được ghi trong báo cáo không tồn tại) | ✅ Đã xử lý 25/09/2026 — verify độc lập tại `DataOutboundService.cs:59-61,92` (1 scope duy nhất, `CopyNew()` trong loop) |
 
 #### 9. Đặc tả nghiệp vụ đầy đủ — gộp từ 2 báo cáo review 23/09 (đã xoá sau khi gộp 25/09/2026)
@@ -306,8 +307,8 @@ Hai điều chốt: (1) đúng 2 chế độ, không có chế độ thứ ba ki
 
 ##### 9.8. Cơ chế tương tranh khi nhiều worker chạy song song (OCC 3 lớp)
 
-- **`GetOrInitCheckpoint`** — 2 worker cùng tạo checkpoint 1 lúc: bên thua ràng buộc unique tự nạp lại dòng đã có (`catch { reload; if found return reloaded; throw; }`), không ghi đè.
-- **`UpdateCheckpoint`** — chốt chặn chỉ tiến không lùi: `WHERE LastTime < @newTime OR (LastTime = @newTime AND LastKey < @newKey)` — worker chạy trễ cố ghi mốc cũ hơn thì ảnh hưởng 0 dòng.
+- **`GetOrInitLastSend`** — 2 worker cùng tạo bản ghi LastSend 1 lúc: bên thua ràng buộc unique tự nạp lại dòng đã có (`catch { reload; if found return reloaded; throw; }`), không ghi đè.
+- **`UpdateLastSend`** — chốt chặn chỉ tiến không lùi: `WHERE LastTime < @newTime OR (LastTime = @newTime AND LastKey < @newKey)` — worker chạy trễ cố ghi mốc cũ hơn thì ảnh hưởng 0 dòng.
 - **`CommitSuccess`** — điều kiện OCC `WHERE ID = @subId AND NextTimeRun = @nextRunDeadline`; nếu quyền xử lý bị worker khác giành mất giữa chừng thì rollback, dừng vòng lặp, không ghi đè kết quả worker kia.
 
 Nhờ commit theo từng trang, khi trang thứ N gửi lỗi thì các trang trước đã gửi thành công vẫn giữ nguyên — không phải làm lại từ đầu.
@@ -320,9 +321,9 @@ Nhờ commit theo từng trang, khi trang thứ N gửi lỗi thì các trang tr
 | ❌ Lấy mốc đúng thời điểm hiện tại (`GETDATE()`) | `WHERE UpdateTime >= now` không có dòng nào thoả — lần chạy đầu chạy không công |
 | ✅ Lùi mốc về đúng 1 chu kỳ (`GETDATE() - IntervalSeconds`) | Quét được lượng nhỏ dữ liệu vừa sinh ra — đủ chứng minh kết nối hoạt động, không nặng hệ thống |
 
-⚠️ Hệ quả: đối tác mới **vẫn không nhận được dữ liệu cũ hơn 1 chu kỳ**. Nếu cần nạp lịch sử cho đối tác mới, đó phải là 1 thao tác riêng có chủ đích, không gắn vào việc tạo đăng ký. Code cụ thể (`GetOrInitCheckpoint`, dùng `SELECT GETDATE()` của DB thay vì `DateTime.Now`) đã có ở §2b phía trên.
+⚠️ Hệ quả: đối tác mới **vẫn không nhận được dữ liệu cũ hơn 1 chu kỳ**. Nếu cần nạp lịch sử cho đối tác mới, đó phải là 1 thao tác riêng có chủ đích, không gắn vào việc tạo đăng ký. Code cụ thể (`GetOrInitLastSend`, dùng `SELECT GETDATE()` của DB thay vì `DateTime.Now`) đã có ở §2b phía trên.
 
-##### 9.10. Bảng checkpoint có phình to không
+##### 9.10. Bảng LastSend có phình to không
 
 **Không.** `ShareDataLastSend` là bảng trạng thái hiện tại, không phải nhật ký — mỗi cặp (Đối tác × Gói tin) chỉ sinh đúng 1 dòng, các lần chạy sau chỉ cập nhật tại chỗ. Gói `Snapshot` không sinh dòng nào. Tổng số dòng bị chặn trên bởi (số đối tác × 5 gói nối đuôi) — vài chục đến vài trăm dòng, không tăng theo lượng dữ liệu gửi đi. Không cần cơ chế tự xoá.
 
@@ -462,7 +463,7 @@ Nhờ commit theo từng trang, khi trang thứ N gửi lỗi thì các trang tr
 │  Ghi tệp lưu trữ local (chỉ bật ở môi trường Dev/Test/Debug)          │
 │  HTTP thành công:                                                     │
 │    1. Commit (OCC NextTimeRun == nextRunDeadline, tăng SerialNbr)     │
-│    2. Update Checkpoint đơn điệu (UpdateCheckpoint)                   │
+│    2. Update LastSend đơn điệu (UpdateLastSend)                       │
 │    3. Ghi ActivityLog thành công (try/catch riêng)                    │
 │  Cuối cùng: Nhả lease đúng một lần trong khối finally                  │
 └───────────────────────────────────────────────────────────────────────┘
