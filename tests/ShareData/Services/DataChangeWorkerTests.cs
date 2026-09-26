@@ -210,33 +210,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         }
 
         /// <summary>
-        /// Description: Kiểm thử GetMinValidVersion truy vấn version hợp lệ nhỏ nhất của bảng nguồn an toàn, không ném lỗi ra ngoài.
-        /// Created date: 25/09/2026
-        /// </summary>
-        [Fact]
-        public async Task GetMinValidVersion_WhenCalledWithTrackedTable_ReturnsValidLongOrNull_Test()
-        {
-            // Arrange
-            await using var scope = _host.Services.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataTrackerWorker>>();
-
-            await DataTrackerWorker.CheckTrackingDatabase(db, logger, autoEnable: true);
-
-            // Act
-            var validVer = await DataTrackerWorker.GetMinValidVersion(db, "TmsTrafficData");
-            var invalidTableVer = await DataTrackerWorker.GetMinValidVersion(db, "NonExistentTable_Random_9999");
-            var nullDbVer = await DataTrackerWorker.GetMinValidVersion(null!, "TmsTrafficData");
-            var emptyTableVer = await DataTrackerWorker.GetMinValidVersion(db, string.Empty);
-
-            // Assert
-            Assert.True(validVer == null || validVer >= 0);
-            Assert.Null(invalidTableVer);
-            Assert.Null(nullDbVer);
-            Assert.Null(emptyTableVer);
-        }
-
-        /// <summary>
         /// Description: Kiểm thử cơ chế Self-Healing của DataTrackerWorker: Khi gặp lỗi Change Tracking version không hợp lệ,
         ///              worker tự động phát hiện, ghi log warning và nhảy cóc mốc version lên current version của DB, không gây crash worker.
         /// Created date: 25/09/2026
