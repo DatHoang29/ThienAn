@@ -1533,6 +1533,127 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             Assert.Empty(deletedLogs);
         }
 
+        /// <summary>
+        /// Description: Kiểm tra cô lập lỗi khi ReleaseLock bị exception trong khối finally:
+        ///              Khi 1 Subscription hoàn tất lượt chạy nhưng câu lệnh nhả lock ReleaseLock
+        ///              ném SqlException (mô phỏng đứt kết nối/timeout DB), ngoại lệ phải được bắt lại
+        ///              và ghi log lỗi, KHÔNG ĐƯỢC lan ra ngoài làm gián đoạn hoặc hủy các Subscription
+        ///              còn lại trong cùng batch.
+        /// Created date: 26/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessSubscriptions_WhenReleaseLockThrows_DoesNotCrashBatchAndExportsRemainingSubscriptions_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.TrafficFlow, unique);
+
+            // Sub 1: Sub sẽ bị lỗi khi ReleaseLock (Code chứa 'FAIL_RELEASE')
+            var (badPartner, badSub) = await SeedOutboundSubscription(
+                db,
+                $"P_FAIL_RELEASE_{unique}",
+                $"SUB_FAIL_RELEASE_{unique}",
+                "101",
+                configureSub: s =>
+                {
+                    s.ID = $"00_FAIL_RELEASE_{unique}";
+                    s.NextTimeRun = DateTime.Now.AddSeconds(-10);
+                });
+
+            // Sub 2: Sub hợp lệ cùng batch
+            var (goodPartner, goodSub) = await SeedOutboundSubscription(
+                db,
+                $"P_GOOD_{unique}",
+                $"SUB_GOOD_{unique}",
+                "101",
+                configureSub: s =>
+                {
+                    s.ID = $"99_GOOD_{unique}";
+                    s.NextTimeRun = DateTime.Now.AddSeconds(-10);
+                });
+
+            const string triggerName = "trg_test_fail_release_lock";
+            await db.Ado.ExecuteCommandAsync($@"
+CREATE OR ALTER TRIGGER {triggerName} ON ShareDataSubscription
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF UPDATE(State) AND EXISTS (SELECT 1 FROM inserted WHERE Code LIKE '%FAIL_RELEASE%')
+        THROW 51000, 'Mô phỏng lỗi DB đứt kết nối/timeout khi ReleaseLock', 1;
+END");
+
+            try
+            {
+                // Act: Chạy batch ProcessSubscriptions
+                // Khi CHƯA FIX: ReleaseLock ném lỗi trong finally -> ProcessSubscriptions văng ngoại lệ
+                // hoặc sập batch khiến goodSub không được xử lý -> TEST FAIL!
+                // Khi ĐÃ FIX: ReleaseLock được bọc try/catch -> log error và nuốt lỗi an toàn
+                // -> goodSub tiếp tục được xuất bản bình thường -> TEST PASS!
+                await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
+
+                // Assert: Sub hợp lệ trong batch phải được xuất bản thành công
+                var goodLogs = await GetLogs(db, goodSub.ID);
+                Assert.NotEmpty(goodLogs);
+                Assert.Equal(BaseEnums.SuccessEnums.Success, goodLogs[0].Success);
+
+                var updatedGoodSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(goodSub.ID);
+                Assert.Equal(BaseEnums.SubSubscriptionState.Active, updatedGoodSub.State);
+                Assert.Equal((goodSub.SerialNbr ?? 0) + 1, updatedGoodSub.SerialNbr);
+            }
+            finally
+            {
+                // Dọn dẹp trigger để không ảnh hưởng bài test khác
+                await db.Ado.ExecuteCommandAsync($"DROP TRIGGER IF EXISTS {triggerName};");
+            }
+        }
+
+        /// <summary>
+        /// Description: Kiểm tra cô lập lỗi theo batch: khi 1 Subscription trong lượt ProcessSubscriptions
+        ///              thất bại do không phân giải được gói tin (PacketNotFound), Subscription hợp lệ khác
+        ///              trong CÙNG batch vẫn phải được xử lý và xuất bản thành công bình thường.
+        /// Created date: 26/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessSubscriptions_WhenOneSubscriptionFailsWithPacketNotFound_StillExportsRemainingSubscriptionsInBatch_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.TrafficFlow, unique);
+
+            // Sub LỖI: DatatypeId không khớp bất kỳ gói tin nào đã seed -> HasActivePacket trả null -> throw PacketNotFound
+            var (badPartner, badSub) = await SeedOutboundSubscription(db, $"P_BAD_{unique}", $"SUB_BAD_{unique}", "999_khongtontai");
+
+            // Sub HỢP LỆ: cùng batch, packet 101 đã seed đầy đủ
+            var (goodPartner, goodSub) = await SeedOutboundSubscription(db, $"P_GOOD_{unique}", $"SUB_GOOD_{unique}", "101");
+
+            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
+
+            // Sub hợp lệ phải được xuất bản thành công như bình thường, không bị ảnh hưởng bởi sub lỗi cùng batch
+            var goodLogs = await GetLogs(db, goodSub.ID);
+            Assert.NotEmpty(goodLogs);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, goodLogs[0].Success);
+
+            var updatedGoodSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(goodSub.ID);
+            Assert.Equal(BaseEnums.SubSubscriptionState.Active, updatedGoodSub.State);
+            Assert.Equal((goodSub.SerialNbr ?? 0) + 1, updatedGoodSub.SerialNbr);
+
+            // Sub lỗi không được để log thành công, và lock phải được nhả đúng (finally vẫn chạy dù try throw)
+            var badLogs = await GetLogs(db, badSub.ID);
+            Assert.DoesNotContain(badLogs, l => l.Success == BaseEnums.SuccessEnums.Success);
+
+            var updatedBadSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(badSub.ID);
+            Assert.Equal(BaseEnums.SubSubscriptionState.Active, updatedBadSub.State);
+            Assert.NotNull(updatedBadSub.NextTimeRun);
+            Assert.True(updatedBadSub.NextTimeRun > DateTime.Now.AddSeconds(-5), "NextTimeRun phải được ReleaseLock cập nhật lại (không còn kẹt ở mốc lockDurationSeconds cũ).");
+        }
+
 
         /// <summary>
         /// Description: Kiểm tra tích hợp toàn trình luồng Outbound: từ trích xuất thô -> Map giải $meta, $extend, CodeSet -> tạo FinalBytes -> RestSender gửi trực tiếp tới đối tác qua HTTP.

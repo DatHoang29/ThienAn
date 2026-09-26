@@ -19,47 +19,35 @@ using Xunit;
 namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
 {
     /// <summary>
-    /// Description: Bộ kiểm thử chuyên biệt cho SQL Server Change Tracking &amp; DataChangeWorker.
+    /// Description: Bộ kiểm thử chuyên biệt cho SQL Server Change Tracking & DataTrackerWorker.
     /// Created date: 22/09/2026
+    /// Modified date: 26/09/2026
     /// </summary>
     [Collection("api")]
-    public class DataChangeWorkerTests(Host host)
+    public class DataTrackerWorkerTests(Host host)
     {
         private readonly Host _host = host;
 
-        #region 1. DataChangeWorker Static & Status Tests
+        #region 1. DataTrackerWorker Static & Status Tests
 
+        /// <summary>
+        /// Description: Kiểm thử chu kỳ đầu tiên của PollChangeTracking: Tự động khởi tạo cấu hình Change Tracking,
+        ///              kiểm tra CSDL và thiết lập mốc LastProcessedVersion ban đầu (>= 0).
+        /// Created date: 26/09/2026
+        /// </summary>
         [Fact]
-        public async Task CheckTrackingDatabase_IsReadOnlyAndDoesNotThrow()
+        public async Task PollChangeTracking_InitialPoll_InitializesEnvironmentAndSetsBaselineVersion_Test()
         {
             // Arrange
             await using var scope = _host.Services.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataTrackerWorker>>();
+            var worker = CreateTrackerWorker(scope);
+            Assert.Equal(-1, worker.LastProcessedVersion);
 
-            // Act
-            var status = await DataTrackerWorker.CheckTrackingDatabase(db, logger);
+            // Act: Chu kỳ poll đầu tiên khởi tạo môi trường và mốc version
+            await worker.PollChangeTracking(CancellationToken.None);
 
-            // Assert
-            Assert.NotNull(status);
-            Assert.NotNull(status.MissingTables);
-            Assert.True(status.DatabaseEnabled || !status.DatabaseEnabled);
-        }
-
-        [Fact]
-        public async Task CheckTrackingDatabase_WhenAutoEnableTrue_AttemptsInitializationGracefully()
-        {
-            // Arrange
-            await using var scope = _host.Services.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataTrackerWorker>>();
-
-            // Act: autoEnable = true gọi ALTER DATABASE / ALTER TABLE an toàn
-            var status = await DataTrackerWorker.CheckTrackingDatabase(db, logger, autoEnable: true);
-
-            // Assert
-            Assert.NotNull(status);
-            Assert.NotNull(status.MissingTables);
+            // Assert: Sau chu kỳ đầu, mốc version đã được khởi tạo thành công (>= 0)
+            Assert.True(worker.LastProcessedVersion >= 0);
         }
 
         [Fact]
@@ -68,20 +56,11 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             // Arrange
             await using var scope = _host.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataTrackerWorker>>();
-
-            var status = await DataTrackerWorker.CheckTrackingDatabase(db, logger, autoEnable: true);
-            var tracked = DataTrackerWorker.RawTableToPacketMap.Keys
-                .Except(status.MissingTables, StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            var tracked = new[] { "TmsTrafficData", "TmsWeather", "TmsIncident" };
 
             // Act
-            var sql = DataTrackerWorker.BuildChangedTablesSql(tracked);
-            if (tracked.Count == 0)
-            {
-                Assert.Empty(sql);
-                return;
-            }
+            var sql = InvokeBuildChangedTablesSql(tracked);
+            Assert.NotEmpty(sql);
 
             var rows = await db.Ado.SqlQueryAsync<string>(sql, new { lastVer = 0L });
 
@@ -101,9 +80,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             // Arrange
             await using var scope = _host.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataTrackerWorker>>();
-
-            await DataTrackerWorker.CheckTrackingDatabase(db, logger, autoEnable: true);
+            var worker = CreateTrackerWorker(scope);
+            await worker.PollChangeTracking(CancellationToken.None);
 
             var testId = Guid.NewGuid().ToString("N")[..8];
             var eqId = $"EQ_DEL_{testId}";
@@ -142,7 +120,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 await db.Deleteable<TmsTrafficData>().Where(t => t.ID == carId).ExecuteCommandAsync();
 
                 // Kiểm tra câu lệnh BuildChangedTablesSql từ mốc verAfterInsert
-                var sql = DataTrackerWorker.BuildChangedTablesSql(["TmsTrafficData"]);
+                var sql = InvokeBuildChangedTablesSql(["TmsTrafficData"]);
                 var changedTablesAfterDelete = await db.Ado.SqlQueryAsync<string>(sql, new { lastVer = verAfterInsert });
 
                 // Assert 1: Thao tác DELETE không được ghi nhận trong danh sách bảng thay đổi
@@ -181,32 +159,32 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         }
 
         /// <summary>
-        /// Description: Kiểm thử IsChangeTrackingVersionInvalid nhận diện chính xác các mã lỗi 22114, 22115 và thông điệp lỗi liên quan đến Change Tracking version không hợp lệ.
+        /// Description: Kiểm thử IsTrackingVersionInvalid nhận diện chính xác các mã lỗi 22114, 22115 và thông điệp lỗi liên quan đến Change Tracking version không hợp lệ.
         /// Created date: 25/09/2026
         /// </summary>
         [Fact]
-        public void IsChangeTrackingVersionInvalid_WhenGivenVariousExceptions_ClassifiesCorrectly_Test()
+        public void IsTrackingVersionInvalid_WhenGivenVariousExceptions_ClassifiesCorrectly_Test()
         {
             // 1. Ngoại lệ null hoặc thông thường
-            Assert.False(DataTrackerWorker.IsChangeTrackingVersionInvalid(null));
-            Assert.False(DataTrackerWorker.IsChangeTrackingVersionInvalid(new InvalidOperationException("Connection timeout")));
-            Assert.False(DataTrackerWorker.IsChangeTrackingVersionInvalid(new FakeSqlException(1205, "Transaction deadlock")));
+            Assert.False(InvokeIsTrackingVersionInvalid(null));
+            Assert.False(InvokeIsTrackingVersionInvalid(new InvalidOperationException("Connection timeout")));
+            Assert.False(InvokeIsTrackingVersionInvalid(new FakeSqlException(1205, "Transaction deadlock")));
 
             // 2. SqlException có mã lỗi 22114 hoặc 22115
-            Assert.True(DataTrackerWorker.IsChangeTrackingVersionInvalid(new FakeSqlException(22114, "A previous version or change tracking version is invalid.")));
-            Assert.True(DataTrackerWorker.IsChangeTrackingVersionInvalid(new FakeSqlException(22115, "Change tracking version cleanup occurred.")));
+            Assert.True(InvokeIsTrackingVersionInvalid(new FakeSqlException(22114, "A previous version or change tracking version is invalid.")));
+            Assert.True(InvokeIsTrackingVersionInvalid(new FakeSqlException(22115, "Change tracking version cleanup occurred.")));
 
             // 3. Ngoại lệ chứa từ khóa nhận diện trong thông điệp
-            Assert.True(DataTrackerWorker.IsChangeTrackingVersionInvalid(new Exception("SqlException: 22114")));
-            Assert.True(DataTrackerWorker.IsChangeTrackingVersionInvalid(new Exception("change tracking version is invalid.")));
-            Assert.True(DataTrackerWorker.IsChangeTrackingVersionInvalid(new Exception("The minimum valid version is 450.")));
-            Assert.True(DataTrackerWorker.IsChangeTrackingVersionInvalid(new Exception("CHANGE_TRACKING_MIN_VALID_VERSION check failed.")));
+            Assert.True(InvokeIsTrackingVersionInvalid(new Exception("SqlException: 22114")));
+            Assert.True(InvokeIsTrackingVersionInvalid(new Exception("change tracking version is invalid.")));
+            Assert.True(InvokeIsTrackingVersionInvalid(new Exception("The minimum valid version is 450.")));
+            Assert.True(InvokeIsTrackingVersionInvalid(new Exception("CHANGE_TRACKING_MIN_VALID_VERSION check failed.")));
 
             // 4. Ngoại lệ lồng nhau (InnerException)
             var wrappedEx = new TargetInvocationException(
                 "Wrapper error",
                 new AggregateException(new FakeSqlException(22114, "Nested invalid version")));
-            Assert.True(DataTrackerWorker.IsChangeTrackingVersionInvalid(wrappedEx));
+            Assert.True(InvokeIsTrackingVersionInvalid(wrappedEx));
         }
 
         /// <summary>
@@ -220,17 +198,11 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             // Arrange
             await using var scope = _host.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataTrackerWorker>>();
-            var config = new ConfigurationBuilder().Build();
-            var transport = new TransportManager(config);
-
-            await DataTrackerWorker.CheckTrackingDatabase(db, logger, autoEnable: true);
 
             var currentVerObj = await db.Ado.GetScalarAsync(DataTrackerWorker.SqlChangeTrackingCurrentVersion);
             var currentVer = Convert.ToInt64(currentVerObj);
 
-            var worker = new DataTrackerWorker(scopeFactory, logger, transport);
+            var worker = CreateTrackerWorker(scope);
 
             // Act 1: Chu kỳ poll đầu tiên khởi tạo LastProcessedVersion = currentVer
             await worker.PollChangeTracking(CancellationToken.None);
@@ -256,11 +228,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         {
             // Arrange
             await using var scope = _host.Services.CreateAsyncScope();
-            var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataTrackerWorker>>();
-            var config = new ConfigurationBuilder().Build();
-            var transport = new TransportManager(config);
-            var worker = new DataTrackerWorker(scopeFactory, logger, transport);
+            var worker = CreateTrackerWorker(scope);
 
             using var cts = new CancellationTokenSource();
             cts.Cancel();
@@ -326,7 +294,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 UpdateTime = now
             }).ExecuteCommandAsync();
 
-            var service = CreateTestWorker(scope);
+            var service = CreateOutboundService(scope);
 
             // Act: Kích hoạt xử lý tức thời cho gói tin 103 (tương đương tín hiệu NATS nhận được)
             await service.ProcessSubscriptions(packetCode, CancellationToken.None);
@@ -448,7 +416,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                     .Where(t => t.ID == carB.ID)
                     .ExecuteCommandAsync();
 
-                var service = CreateTestWorker(scope);
+                var service = CreateOutboundService(scope);
 
                 // Act 1: Trigger đợt 1 (chỉ thấy Xe A và Xe B)
                 await service.ProcessSubscriptions(packetCode, CancellationToken.None);
@@ -560,7 +528,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 s.NextTimeRun = DateTime.Now.AddMinutes(5);
             });
 
-            var service = CreateTestWorker(scope);
+            var service = CreateOutboundService(scope);
 
             // Act: Kích hoạt trigger gói tin
             await service.ProcessSubscriptions(packetCode, CancellationToken.None);
@@ -607,7 +575,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 s.NextTimeRun = null; // Rảnh về mặt lock, nhưng bị chặn bởi DebounceSec
             });
 
-            var service = CreateTestWorker(scope);
+            var service = CreateOutboundService(scope);
 
             // Act: Nhận tín hiệu trigger
             await service.ProcessSubscriptions(packetCode, CancellationToken.None);
@@ -621,11 +589,12 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         }
 
         /// <summary>
-        /// Description: Kiểm thử tính chất đơn điệu (Monotonic) của LastVersion trong CommitSuccessfulPage: Phiên bản thấp hơn hoặc bằng không bao giờ ghi đè mốc cao hơn.
+        /// Description: Kiểm thử tính chất đơn điệu (Monotonic) của ShareDataLastSend: Mốc thời gian (LastTime) hoặc khóa (LastKey) thấp hơn hoặc bằng không bao giờ ghi đè mốc cao hơn.
         /// Created date: 22/09/2026
+        /// Modified date: 26/09/2026
         /// </summary>
         [Fact]
-        public async Task ChangeTracking_WhenLowerVersionReceived_MonotonicCheckpointPreservesHigherVersion_Test()
+        public async Task LastSend_WhenLowerTimestampOrKeyReceived_MonotonicLastSendPreservesHigherProgress_Test()
         {
             // Arrange
             await using var scope = _host.Services.CreateAsyncScope();
@@ -640,43 +609,60 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             await PrepareDatabase(db, logger, packetCode);
             var (partner, sub) = await SeedOutboundSubscription(db, partnerCode, subCode, packetCode, s => s.SendOnNewData = true);
 
-            // Giả lập checkpoint đã ghi nhận Version cao trước đó (ví dụ: 1000)
+            var baseTime = DateTime.Now;
+            var initialLastTime = baseTime.AddMinutes(-10);
+
+            // Giả lập LastSend đã ghi nhận mốc thời gian và key cao trước đó
             var initialCheckpoint = new ShareDataLastSend
             {
                 ID = Guid.NewGuid().ToString("N"),
                 PartnerCode = partnerCode,
                 PacketCode = packetCode,
-                LastTime = DateTime.Now.AddMinutes(-10),
-                LastKey = "PREV_KEY",
-                LastVersion = 1000,
-                CreateTime = DateTime.Now,
-                UpdateTime = DateTime.Now
+                LastTime = initialLastTime,
+                LastKey = "KEY_500",
+                CreateTime = baseTime,
+                UpdateTime = baseTime
             };
             await db.Insertable(initialCheckpoint).ExecuteCommandAsync();
 
-            // Act: Cố tình thực thi câu lệnh cập nhật checkpoint với version thấp hơn (999) hoặc LastTime cũ hơn
-            var rowsAffected = await db.Updateable<ShareDataLastSend>()
-                .SetColumns(c => new ShareDataLastSend
-                {
-                    LastTime = DateTime.Now.AddMinutes(-20),
-                    LastKey = "OLD_KEY",
-                    LastVersion = 999,
-                    UpdateTime = DateTime.Now
-                })
+            // Act 1: Cố tình thực thi câu lệnh cập nhật với LastTime cũ hơn (-20 phút)
+            var oldTime = baseTime.AddMinutes(-20);
+            var oldKey = "KEY_100";
+            var updateQuery1 = db.Updateable<ShareDataLastSend>()
+                .SetColumns(c => c.LastTime == oldTime)
+                .SetColumns(c => c.LastKey == oldKey)
+                .SetColumns(c => c.UpdateTime == baseTime)
                 .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
-                .Where(c => 999 > c.LastVersion || (999 == c.LastVersion && DateTime.Now.AddMinutes(-20) > c.LastTime))
-                .ExecuteCommandAsync();
+                .Where(c => c.LastTime < oldTime || (c.LastTime == oldTime && (c.LastKey == null || c.LastKey.CompareTo(oldKey) < 0)));
 
-            // Assert: Cơ chế chốt chặn đơn điệu từ chối ghi đè (0 dòng bị ảnh hưởng)
-            Assert.Equal(0, rowsAffected);
+            var rowsAffected1 = await updateQuery1.ExecuteCommandAsync();
 
-            var checkpoint = await db.Queryable<ShareDataLastSend>()
+            // Assert 1: Cơ chế chốt chặn đơn điệu từ chối ghi đè khi LastTime cũ hơn (0 dòng bị ảnh hưởng)
+            Assert.Equal(0, rowsAffected1);
+
+            // Act 2: Cố tình cập nhật cùng LastTime nhưng LastKey nhỏ hơn ("KEY_200" < "KEY_500")
+            var sameTime = initialLastTime;
+            var smallerKey = "KEY_200";
+            var updateQuery2 = db.Updateable<ShareDataLastSend>()
+                .SetColumns(c => c.LastTime == sameTime)
+                .SetColumns(c => c.LastKey == smallerKey)
+                .SetColumns(c => c.UpdateTime == baseTime)
+                .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
+                .Where(c => c.LastTime < sameTime || (c.LastTime == sameTime && (c.LastKey == null || c.LastKey.CompareTo(smallerKey) < 0)));
+
+            var rowsAffected2 = await updateQuery2.ExecuteCommandAsync();
+
+            // Assert 2: Cơ chế chốt chặn đơn điệu từ chối ghi đè khi LastKey nhỏ hơn (0 dòng bị ảnh hưởng)
+            Assert.Equal(0, rowsAffected2);
+
+            // Xác nhận mốc ban đầu được bảo toàn nguyên vẹn
+            var lastSend = await db.Queryable<ShareDataLastSend>()
                 .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
                 .FirstAsync();
 
-            Assert.NotNull(checkpoint);
-            Assert.Equal(1000, checkpoint.LastVersion);
-            Assert.Equal("PREV_KEY", checkpoint.LastKey);
+            Assert.NotNull(lastSend);
+            Assert.Equal("KEY_500", lastSend.LastKey);
+            Assert.Equal(initialLastTime.ToString("yyyy-MM-dd HH:mm:ss"), lastSend.LastTime?.ToString("yyyy-MM-dd HH:mm:ss"));
         }
 
         /// <summary>
@@ -733,7 +719,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 UpdateTime = now
             }).ExecuteCommandAsync();
 
-            var service = CreateTestWorker(scope);
+            var service = CreateOutboundService(scope);
 
             // Act: Chạy luồng quét định kỳ (mô phỏng trường hợp NATS offline hoàn toàn, không có event trigger nào bắn tới)
             await service.ProcessSubscriptions(CancellationToken.None);
@@ -802,7 +788,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 UpdateTime = now
             }).ExecuteCommandAsync();
 
-            var service = CreateTestWorker(scope);
+            var service = CreateOutboundService(scope);
 
             // Act: NATS trigger nổ ra trong lúc Worker 1 vẫn đang chạy nắm giữ lock
             await service.ProcessSubscriptions(packetCode, CancellationToken.None);
@@ -890,7 +876,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             try
             {
                 var tasks = scopes
-                    .Select(s => CreateTestWorker(s).ProcessSubscriptions(packetCode, CancellationToken.None))
+                    .Select(s => CreateOutboundService(s).ProcessSubscriptions(packetCode, CancellationToken.None))
                     .ToArray();
                 await Task.WhenAll(tasks);
             }
@@ -921,6 +907,138 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 .FirstAsync();
             Assert.NotNull(checkpoint);
             Assert.NotNull(checkpoint.LastTime);
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử 2 service (Worker instances) chạy song song cùng lúc:
+        ///              - 2 instance DataTrackerWorker độc lập (mỗi instance có LastProcessedVersion riêng) cùng poll Change Tracking.
+        ///              - Cả 2 cùng phát hiện dữ liệu mới và kích hoạt pipeline ProcessSubscriptions cùng lúc.
+        ///              - Khóa OCC và cơ chế Monotonic đảm bảo: Đúng 1 lần export thành công, RecordCount chính xác tuyệt đối, không trùng lặp và không sót dữ liệu.
+        /// Created date: 26/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ChangeTracking_WhenTwoServicesRunConcurrently_MaintainsDataIntegrityAndSingleExport_Test()
+        {
+            // Arrange
+            await using var scope1 = _host.Services.CreateAsyncScope();
+            await using var scope2 = _host.Services.CreateAsyncScope();
+            var db = scope1.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var logger = scope1.ServiceProvider.GetRequiredService<ILogger<DataOutboundService>>();
+
+            var testId = Guid.NewGuid().ToString("N")[..8];
+            var partnerCode = $"PARTNER_2SVC_{testId}";
+            var packetCode = "103";
+            var subCode = $"SUB_2SVC_{testId}";
+
+            await PrepareDatabase(db, logger, packetCode);
+
+            var now = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
+            var (partner, sub) = await SeedOutboundSubscription(db, partnerCode, subCode, packetCode, s =>
+            {
+                s.SendOnNewData = true;
+                s.IntervalSeconds = 300;
+                s.LastTimeRun = now.AddMinutes(-5);
+                s.NextTimeRun = null; // Rảnh, cả 2 service đều có thể giành lock
+            });
+
+            // Khởi tạo 2 Tracker Worker riêng biệt (mô phỏng Service A và Service B)
+            var trackerA = CreateTrackerWorker(scope1);
+            var trackerB = CreateTrackerWorker(scope2);
+
+            // Khởi tạo mốc baseline ban đầu cho từng service
+            await trackerA.PollChangeTracking(CancellationToken.None);
+            await trackerB.PollChangeTracking(CancellationToken.None);
+
+            Assert.True(trackerA.LastProcessedVersion >= 0);
+            Assert.True(trackerB.LastProcessedVersion >= 0);
+
+            // Dọn sạch bảng nguồn và seed đúng 1 dòng dữ liệu mới
+            await db.Deleteable<TmsTrafficData>().ExecuteCommandAsync();
+
+            var eqId = $"EQ_2SVC_{testId}";
+            try
+            {
+                await db.Insertable(new TmsEquipment
+                {
+                    ID = eqId,
+                    Code = $"VDS_2SVC_{testId}",
+                    KmNumber = 80,
+                    MetNumber = 400
+                }).ExecuteCommandAsync();
+
+                await db.Insertable(new TmsTrafficData
+                {
+                    ID = Guid.NewGuid().ToString("N"),
+                    EquipmentId = eqId,
+                    DetectTime = now,
+                    Type = "CAR",
+                    LicensePlate = $"30A-2SVC_{testId}",
+                    Speed = 90.0f,
+                    Lane = "L1",
+                    Direction = "NORTH",
+                    Location = "KM80",
+                    CreateTime = now,
+                    UpdateTime = now
+                }).ExecuteCommandAsync();
+
+                // Act: Cả 2 service cùng chạy PollChangeTracking và cạnh tranh xuất bản ProcessSubscriptions song song
+                var serviceA = CreateOutboundService(scope1);
+                var serviceB = CreateOutboundService(scope2);
+
+                // 1. Cả 2 tracker quét thay đổi từ DB
+                await trackerA.PollChangeTracking(CancellationToken.None);
+                await trackerB.PollChangeTracking(CancellationToken.None);
+
+                // Cả 2 tracker độc lập đều tự nâng mốc LastProcessedVersion lên version mới nhất của DB
+                Assert.True(trackerA.LastProcessedVersion > 0);
+                Assert.Equal(trackerA.LastProcessedVersion, trackerB.LastProcessedVersion);
+
+                // 2. Cả 2 service cùng nhận tín hiệu và đua nhau xuất bản dữ liệu
+                await Task.WhenAll(
+                    serviceA.ProcessSubscriptions(packetCode, CancellationToken.None),
+                    serviceB.ProcessSubscriptions(packetCode, CancellationToken.None));
+
+                // Assert: Dữ liệu vẫn đúng 100%
+                // 1. Chỉ có đúng 1 ActivityLog thành công, số lượng bản ghi gửi đi đúng bằng 1 (không bị nhân đôi)
+                var logs = await db.Queryable<ShareDataActivityLog>()
+                    .Where(l => l.SubscriptionId == sub.ID && l.OccurredAt >= now.AddSeconds(-5))
+                    .ToListAsync();
+
+                Assert.Single(logs);
+                Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
+                Assert.Equal(1, logs[0].RecordCount ?? 0);
+
+                // 2. Không có AlertLog lỗi nào do tranh chấp lock (OCC lock silent reject)
+                var alerts = await db.Queryable<ShareDataAlertLog>()
+                    .Where(a => a.SubscriptionId == sub.ID)
+                    .ToListAsync();
+                Assert.Empty(alerts);
+
+                // 3. Checkpoint được cập nhật mốc hợp lệ
+                var checkpoint = await db.Queryable<ShareDataLastSend>()
+                    .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
+                    .FirstAsync();
+                Assert.NotNull(checkpoint);
+                Assert.NotNull(checkpoint.LastTime);
+
+                // 4. Kiểm tra chu kỳ tiếp theo: Khi không có dữ liệu mới, cả 2 service cùng poll đều không phát sinh thêm lượt gửi nào
+                await trackerA.PollChangeTracking(CancellationToken.None);
+                await trackerB.PollChangeTracking(CancellationToken.None);
+
+                var logsAfterSecondPoll = await db.Queryable<ShareDataActivityLog>()
+                    .Where(l => l.SubscriptionId == sub.ID)
+                    .ToListAsync();
+                Assert.Single(logsAfterSecondPoll); // Vẫn chỉ là 1 log duy nhất
+            }
+            finally
+            {
+                await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataPartner>().Where(p => p.ID == partner.ID).ExecuteCommandAsync();
+                await db.Deleteable<TmsTrafficData>().Where(t => t.EquipmentId == eqId).ExecuteCommandAsync();
+                await db.Deleteable<TmsEquipment>().Where(e => e.ID == eqId).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataLastSend>().Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
+            }
         }
 
         /// <summary>
@@ -977,7 +1095,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 UpdateTime = now
             }).ExecuteCommandAsync();
 
-            var service = CreateTestWorker(scope);
+            var service = CreateOutboundService(scope);
 
             // Act
             await service.ProcessSubscriptions(packet.Code!, CancellationToken.None);
@@ -1047,7 +1165,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 UpdateTime = now
             }).ExecuteCommandAsync();
 
-            var service = CreateTestWorker(scope);
+            var service = CreateOutboundService(scope);
 
             // Act
             await service.ProcessSubscriptions(packet.Code!, CancellationToken.None);
@@ -1064,7 +1182,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         }
 
         /// <summary>
-        /// Description: Kiểm thử kịch bản sập hệ thống: Khi DataChangeWorker khởi động lại sau sự cố (mốc CT nhảy cóc tới hiện tại),
+        /// Description: Kiểm thử kịch bản sập hệ thống: Khi DataTrackerWorker khởi động lại sau sự cố (mốc CT nhảy cóc tới hiện tại),
         /// luồng quét định kỳ vẫn gửi đủ 100% dữ liệu tạo trong lúc worker chết, chứng minh không thất thoát dữ liệu.
         /// Created date: 23/09/2026
         /// </summary>
@@ -1119,7 +1237,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             };
             await db.Insertable(initialRecord).ExecuteCommandAsync();
 
-            var service = CreateTestWorker(scope);
+            var service = CreateOutboundService(scope);
 
             try
             {
@@ -1159,15 +1277,13 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 }).ToList();
                 await db.Insertable(downtimeRecords).ExecuteCommandAsync();
 
-                // 3. Mô phỏng DataChangeWorker khởi động lại:
-                // Tạo instance mới của DataChangeWorker (biến _lastProcessedVersion khởi tạo = -1)
+                // 3. Mô phỏng DataTrackerWorker khởi động lại:
+                // Tạo instance mới của DataTrackerWorker (biến LastProcessedVersion khởi tạo = -1)
                 // và kích hoạt vòng poll đầu tiên (nhảy thẳng tới version hiện tại của DB, không sinh NATS trigger cho 3 bản ghi ở bước 2)
-                var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
-                var watcherLogger = scope.ServiceProvider.GetRequiredService<ILogger<DataTrackerWorker>>();
                 var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
                 var transport = scope.ServiceProvider.GetService<TransportManager>() ?? new TransportManager(config);
 
-                var newWatcher = new DataTrackerWorker(scopeFactory, watcherLogger, transport);
+                var newWatcher = CreateTrackerWorker(scope, transport);
                 await newWatcher.PollChangeTracking(CancellationToken.None);
 
                 // 4. Act: Luồng quét định kỳ (ProcessSubscriptions) kích hoạt theo lịch
@@ -1267,7 +1383,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             };
             await db.Insertable(vmsRecord).ExecuteCommandAsync();
 
-            var service = CreateTestWorker(scope);
+            var service = CreateOutboundService(scope);
 
             try
             {
@@ -1313,7 +1429,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         {
             // 1. Kiểm thử tầng ResolveTriggerPackets: TmsIncident và TmsEventType ánh xạ 107, 110, 111
             // Chỉ có 107_incidentData được kích hoạt, 110_wpData và 111 bắt buộc bị loại bỏ theo policy
-            var detectedPackets = DataTrackerWorker.ResolveTriggerPackets(["TmsIncident", "TmsEventType"]);
+            var detectedPackets = InvokeResolveTriggerPackets(["TmsIncident", "TmsEventType"]);
             Assert.Contains("107_incidentData", detectedPackets);
             Assert.DoesNotContain("110_wpData", detectedPackets);
             Assert.DoesNotContain("111", detectedPackets);
@@ -1352,7 +1468,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             };
             await db.Insertable(sub111).ExecuteCommandAsync();
 
-            var service = CreateTestWorker(scope);
+            var service = CreateOutboundService(scope);
 
             try
             {
@@ -1473,7 +1589,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 s.NextTimeRun = null;
             });
 
-            var service = CreateTestWorker(scope);
+            var service = CreateOutboundService(scope);
 
             try
             {
@@ -1596,7 +1712,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             return (partner, sub);
         }
 
-        private static DataOutboundService CreateTestWorker(IServiceScope scope)
+        private static DataOutboundService CreateOutboundService(IServiceScope scope)
         {
             var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataOutboundService>>();
@@ -1708,7 +1824,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 var tasks = configs.Select(cfg =>
                 {
                     var s = _host.Services.CreateAsyncScope();
-                    return CreateTestWorker(s).ProcessSubscriptions(cfg.PacketCode, CancellationToken.None);
+                    return CreateOutboundService(s).ProcessSubscriptions(cfg.PacketCode, CancellationToken.None);
                 }).ToArray();
 
                 await Task.WhenAll(tasks);
@@ -1825,7 +1941,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 try
                 {
                     var tasks = asyncScopes
-                        .Select(s => CreateTestWorker(s).ProcessSubscriptions(packetCode, CancellationToken.None))
+                        .Select(s => CreateOutboundService(s).ProcessSubscriptions(packetCode, CancellationToken.None))
                         .ToArray();
                     await Task.WhenAll(tasks);
                 }
@@ -1936,7 +2052,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             try
             {
                 // Act – Đợt 1: trigger đầu tiên — sub chưa chạy gần đây nên được phép chạy
-                await CreateTestWorker(scope).ProcessSubscriptions(packetCode, CancellationToken.None);
+                await CreateOutboundService(scope).ProcessSubscriptions(packetCode, CancellationToken.None);
 
                 var logsAfterFirst = await db.Queryable<ShareDataActivityLog>()
                     .Where(l => l.SubscriptionId == sub.ID && l.OccurredAt >= now.AddSeconds(-10))
@@ -1954,8 +2070,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 var updateTimeAfterFirst = checkpointAfterFirst.UpdateTime;
 
                 // Act – Đợt 2 & 3: NATS burst tiếp trong vòng debounce window (sub vừa chạy xong)
-                await CreateTestWorker(scope).ProcessSubscriptions(packetCode, CancellationToken.None);
-                await CreateTestWorker(scope).ProcessSubscriptions(packetCode, CancellationToken.None);
+                await CreateOutboundService(scope).ProcessSubscriptions(packetCode, CancellationToken.None);
+                await CreateOutboundService(scope).ProcessSubscriptions(packetCode, CancellationToken.None);
 
                 // Assert: Tổng số ActivityLog vẫn là 1 — 2 trigger sau bị chặn bởi DebounceSec
                 var allLogs = await db.Queryable<ShareDataActivityLog>()
@@ -2037,6 +2153,92 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
 
             Assert.Null(ex1);
             Assert.Null(ex2);
+        }
+
+        [Fact]
+        public async Task GetCurrentDbVersion_WhenExceptionOccurs_LogsDebugAndReturnsNull_Test()
+        {
+            // Arrange: Client có kết nối không hợp lệ để chắc chắn ném exception khi Ado.GetScalarAsync
+            var badClient = new SqlSugarClient(new ConnectionConfig
+            {
+                ConnectionString = "Server=127.0.0.1,59999;Database=not_exist;Connect Timeout=1;",
+                DbType = DbType.SqlServer,
+                IsAutoCloseConnection = true
+            });
+            var testLogger = new TestLogger();
+
+            // Act
+            var version = await InvokeGetCurrentDbVersion(badClient, testLogger);
+
+            // Assert
+            Assert.Null(version);
+            Assert.NotEmpty(testLogger.Logs);
+            Assert.Contains(testLogger.Logs, log => log.Contains("CHANGE_TRACKING_CURRENT_VERSION"));
+        }
+
+        [Fact]
+        public async Task GetCurrentDbVersion_WhenDbActive_ReturnsVersion_Test()
+        {
+            // Arrange
+            await using var scope = _host.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var testLogger = new TestLogger();
+
+            // Act
+            var version = await InvokeGetCurrentDbVersion(db, testLogger);
+
+            // Assert: Trên DB test đã kích hoạt Change Tracking thì version >= 0
+            Assert.NotNull(version);
+            Assert.True(version >= 0);
+            Assert.Empty(testLogger.Logs);
+        }
+
+        private class TestLogger : ILogger
+        {
+            public List<string> Logs { get; } = new();
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+            public bool IsEnabled(LogLevel logLevel) => true;
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            {
+                Logs.Add(formatter(state, exception));
+            }
+        }
+
+        private DataTrackerWorker CreateTrackerWorker(IServiceScope? scope = null, TransportManager? transport = null)
+        {
+            var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
+            var logger = (scope?.ServiceProvider ?? _host.Services).GetRequiredService<ILogger<DataTrackerWorker>>();
+            transport ??= new TransportManager(new ConfigurationBuilder().Build());
+            return new DataTrackerWorker(scopeFactory, logger, transport);
+        }
+
+        private static string InvokeBuildChangedTablesSql(IReadOnlyList<string> trackedTables)
+        {
+            var method = typeof(DataTrackerWorker).GetMethod("BuildChangedTablesSql", BindingFlags.NonPublic | BindingFlags.Static)
+                ?? throw new InvalidOperationException("BuildChangedTablesSql method not found");
+            return (string)method.Invoke(null, [trackedTables])!;
+        }
+
+        private static IReadOnlyList<string> InvokeResolveTriggerPackets(IEnumerable<string> changedTables)
+        {
+            var method = typeof(DataTrackerWorker).GetMethod("ResolveTriggerPackets", BindingFlags.NonPublic | BindingFlags.Static)
+                ?? throw new InvalidOperationException("ResolveTriggerPackets method not found");
+            return (IReadOnlyList<string>)method.Invoke(null, [changedTables])!;
+        }
+
+        private static bool InvokeIsTrackingVersionInvalid(Exception? ex)
+        {
+            var method = typeof(DataTrackerWorker).GetMethod("IsTrackingVersionInvalid", BindingFlags.NonPublic | BindingFlags.Static)
+                ?? throw new InvalidOperationException("IsTrackingVersionInvalid method not found");
+            return (bool)method.Invoke(null, [ex])!;
+        }
+
+        private static async Task<long?> InvokeGetCurrentDbVersion(ISqlSugarClient db, ILogger? logger = null)
+        {
+            var method = typeof(DataTrackerWorker).GetMethod("GetCurrentDbVersion", BindingFlags.NonPublic | BindingFlags.Static)
+                ?? throw new InvalidOperationException("GetCurrentDbVersion method not found");
+            var task = (Task<long?>)method.Invoke(null, [db, logger])!;
+            return await task;
         }
 
         private static async Task InvokeNatsHandleMessages(DataNatsConsumerWorker worker, string payload, CancellationToken token)
