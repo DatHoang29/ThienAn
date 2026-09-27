@@ -24,6 +24,16 @@ Cần SQL Server local chạy sẵn tại `localhost` (cổng mặc định 1433
 `mcr.microsoft.com/azure-sql-edge:latest`). Toàn bộ connection string trong `Host.cs` là In-Memory và
 bị guard Zero-Trust chặn nếu trỏ ra ngoài `localhost` / `127.0.0.1` / `(localdb)` / `.`.
 
+### Điều kiện tiên quyết cho bài test vòng NATS thật
+
+Bài `NatsRoundTrip_WhenTrackerPublishesRealEvent_ConsumerReceivesAndRunsOutboundFlow_Test` là bài **duy nhất**
+kiểm chỗ nối giữa bên phát (`DataTrackerWorker`) và bên nhận (`DataNatsConsumerWorker`). Nó chỉ chạy nhánh
+kiểm thật khi **có broker NATS lắng nghe `127.0.0.1:4222`** (khớp `Nats:Url` trong `appsettings.Test.json`).
+
+- Có broker → chạy trọn vòng phát → dây NATS → nhận → luồng outbound → CSDL.
+- Không có broker → bài test tự chuyển sang kiểm hợp đồng offline và **vẫn PASS**, kèm thông điệp nói rõ đã
+  bỏ qua chặng NATS. ⚠️ Nghĩa là trên máy không có broker, chỗ nối **không** được canh.
+
 ## Kết quả hiện tại
 
 **227 test — 223 Passed, 4 Skipped, 0 Failed** (~30 giây).

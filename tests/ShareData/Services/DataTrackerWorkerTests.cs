@@ -2403,6 +2403,157 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             Assert.Null(ex2);
         }
 
+        /// <summary>
+        /// Description: Kiểm thử ĐẦU-CUỐI đi qua dây NATS thật: chèn dữ liệu nguồn → Change Tracking phát hiện
+        ///              → DataTrackerWorker publish thật lên broker → DataNatsConsumerWorker nhận qua subject
+        ///              thật → chạy luồng outbound thật → biến đổi CSDL. Đây là bài DUY NHẤT canh CHỖ NỐI giữa
+        ///              bên phát và bên nhận: tên subject hai bên, tên field trong payload, việc đăng ký
+        ///              subscribe. Các bài NATS khác chỉ kiểm riêng từng nửa.
+        ///              Không có broker NATS ở 127.0.0.1:4222 thì chuyển sang kiểm hợp đồng offline — xUnit
+        ///              2.9.3 không có API bỏ qua động nên buộc phải rẽ nhánh ngay trong bài test.
+        /// Created date: 27/09/2026
+        /// </summary>
+        [Fact]
+        public async Task NatsRoundTrip_WhenTrackerPublishesRealEvent_ConsumerReceivesAndRunsOutboundFlow_Test()
+        {
+            // Arrange
+            await using var scope = _host.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+            var outboundLogger = scope.ServiceProvider.GetRequiredService<ILogger<DataOutboundService>>();
+            var consumerLogger = scope.ServiceProvider.GetRequiredService<ILogger<DataNatsConsumerWorker>>();
+
+            var testId = Guid.NewGuid().ToString("N")[..8];
+            const string packetCode = "103";
+            var partnerCode = $"PTN_RT_{testId}";
+            var subCode = $"SUB_RT_{testId}";
+            var eqId = $"EQ_RT_{testId}";
+
+            await PrepareDatabase(db, outboundLogger, packetCode);
+            await ClearTrackState(db);
+            var now = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
+
+            var (partner, sub) = await SeedOutboundSubscription(db, partnerCode, subCode, packetCode, s =>
+            {
+                s.SendOnNewData = true;
+                s.DebounceSec = null;                 // Bài này chỉ canh chỗ nối NATS, không xét chống dội
+                s.IntervalSeconds = 300;
+                s.LastTimeRun = now.AddMinutes(-5);
+                s.NextTimeRun = null;
+            });
+
+            await db.Insertable(new TmsEquipment
+            {
+                ID = eqId,
+                Code = $"EQ_RT_{testId}",
+                KmNumber = 30,
+                MetNumber = 0
+            }).ExecuteCommandAsync();
+
+            // TransportManager THẬT, đọc cấu hình THẬT của Host (appsettings.Test.json -> Nats:Url).
+            // BẮT BUỘC await using: khi không có broker, ConnectAsync nuốt lỗi và bật vòng lặp retry nền vô
+            // hạn — không giải phóng thì vòng lặp đó rò sang các bài test sau.
+            await using var transport = new TransportManager(config);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            await transport.ConnectAsync(cts.Token);
+
+            try
+            {
+                if (!transport.IsConnected)
+                {
+                    // Máy chạy test không có broker NATS -> KHÔNG kiểm được chỗ nối phát/nhận.
+                    // Kiểm hợp đồng offline: tracker vẫn chạy êm và luồng quét định kỳ vẫn gửi bù được.
+                    var offlineTracker = CreateTrackerWorker(scope, transport);
+                    await offlineTracker.PollChanges(cts.Token);
+                    var pollEx = await Record.ExceptionAsync(() => offlineTracker.PollChanges(cts.Token));
+                    Assert.Null(pollEx);
+
+                    await CreateOutboundService(scope).ProcessSubscriptions(packetCode, cts.Token);
+                    var fallbackLogs = await db.Queryable<ShareDataActivityLog>()
+                        .Where(l => l.SubscriptionId == sub.ID)
+                        .ToListAsync();
+
+                    Assert.True(fallbackLogs.Count > 0,
+                        "ĐÃ BỎ QUA CHẶNG NATS: không có broker ở 127.0.0.1:4222 nên vòng phát/nhận thật KHÔNG "
+                        + "được kiểm trong lượt chạy này. Nhánh offline yêu cầu luồng quét định kỳ vẫn gửi bù "
+                        + "được, nhưng đã không gửi.");
+                    return;
+                }
+
+                // ── Nhánh THẬT: có broker lắng nghe ──
+                // 1) Bên nhận đăng ký subscribe TRƯỚC và chờ xong, để bản tin phát ra không bị mất.
+                var consumer = new DataNatsConsumerWorker(CreateOutboundService(scope), consumerLogger, transport, config);
+                await InvokeNatsInitSubscription(consumer, cts.Token);
+
+                // 2) Bên phát: chu kỳ đầu chỉ lập mốc gốc (LastVersion từ -1 lên mốc hiện tại của CSDL).
+                var publisher = CreateTrackerWorker(scope, transport);
+                await publisher.PollChanges(cts.Token);
+
+                Assert.True(await GetStateVersion(db) >= 0,
+                    "Change Tracking chưa sẵn sàng trên CSDL test nên mốc gốc không lập được. Bật Change "
+                    + "Tracking ở cấp CSDL rồi chạy lại — bài này cần mốc gốc mới phát hiện được thay đổi.");
+
+                // 3) Dữ liệu nguồn mới -> Change Tracking tăng version.
+                await db.Insertable(new TmsTrafficData
+                {
+                    ID = Guid.NewGuid().ToString("N"),
+                    EquipmentId = eqId,
+                    DetectTime = now,
+                    Type = "BUS",
+                    LicensePlate = $"29B-RT{testId}",
+                    Speed = 60f,
+                    Lane = "L1",
+                    Direction = "EAST",
+                    Location = $"KM30_{testId}",
+                    CreateTime = now,
+                    UpdateTime = now
+                }).ExecuteCommandAsync();
+
+                // 4) Chu kỳ sau phát hiện thay đổi và PUBLISH THẬT lên subject.
+                await publisher.PollChanges(cts.Token);
+
+                // 5) Giao nhận NATS là bất đồng bộ -> chờ CÓ BIÊN, thoát sớm ngay khi thấy kết quả.
+                List<ShareDataActivityLog> logs = [];
+                var deadline = DateTime.UtcNow.AddSeconds(15);
+                while (DateTime.UtcNow < deadline)
+                {
+                    logs = await db.Queryable<ShareDataActivityLog>()
+                        .Where(l => l.SubscriptionId == sub.ID)
+                        .ToListAsync();
+
+                    if (logs.Count > 0)
+                        break;
+
+                    await Task.Delay(200, cts.Token);
+                }
+
+                // Assert: bên nhận đã chạy luồng outbound THẬT, do chính bản tin của bên phát kích hoạt.
+                Assert.True(logs.Count > 0,
+                    $"Bản tin NATS phát từ DataTrackerWorker tới subject '{DataTrackerWorker.DEFAULT_NATS_SUBJECT}' "
+                    + "đã không tới được DataNatsConsumerWorker (chờ 15 giây không thấy ShareDataActivityLog). "
+                    + "Kiểm tra: tên subject hai bên có khớp, tên field PacketCode trong payload, và việc đăng "
+                    + "ký subscribe.");
+                Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
+
+                // Mốc gửi nối đuôi đã tiến -> chứng minh đi trọn tới tầng CSDL, không dừng ở chỗ nhận bản tin.
+                var checkpoint = await db.Queryable<ShareDataLastSend>()
+                    .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
+                    .FirstAsync();
+                Assert.NotNull(checkpoint);
+            }
+            finally
+            {
+                await db.Deleteable<TmsTrafficData>().Where(t => t.EquipmentId == eqId).ExecuteCommandAsync();
+                await db.Deleteable<TmsEquipment>().Where(e => e.ID == eqId).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataLastSend>().Where(c => c.PartnerCode == partnerCode).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataMapping>().Where(m => m.PartnerId == partner.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataPartner>().Where(p => p.ID == partner.ID).ExecuteCommandAsync();
+                await ClearTrackState(db);
+            }
+        }
+
         [Fact]
         public async Task GetCurrentDbVersion_WhenExceptionOccurs_ThrowsException_Test()
         {
@@ -2854,6 +3005,20 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             var method = typeof(DataNatsConsumerWorker).GetMethod("HandleMessages", BindingFlags.NonPublic | BindingFlags.Instance)
                 ?? throw new InvalidOperationException("HandleMessages method not found");
             var task = (Task)method.Invoke(worker, [payload, token])!;
+            await task;
+        }
+
+        /// <summary>
+        /// Description: Gọi InitNatsSubscription (private) của DataNatsConsumerWorker và CHỜ XONG, để bảo đảm
+        ///              subscription đã đăng ký trước khi bên phát bắn bản tin — tránh mất bản tin gây test
+        ///              chập chờn. Dùng Reflection vì hàm là private và ⛔ không được nâng lên public.
+        /// Created date: 27/09/2026
+        /// </summary>
+        private static async Task InvokeNatsInitSubscription(DataNatsConsumerWorker worker, CancellationToken token)
+        {
+            var method = typeof(DataNatsConsumerWorker).GetMethod("InitNatsSubscription", BindingFlags.NonPublic | BindingFlags.Instance)
+                ?? throw new InvalidOperationException("InitNatsSubscription method not found");
+            var task = (Task)method.Invoke(worker, [token])!;
             await task;
         }
 

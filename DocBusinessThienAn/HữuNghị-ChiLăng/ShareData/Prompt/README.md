@@ -19,7 +19,9 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 ## Danh sách Prompt
 
-*(Hiện tại không có prompt nào đang chờ thực thi)*
+| Prompt | Nội dung |
+|---|---|
+| *(Hiện tại không có prompt nào đang chờ thực thi)* | |
 
 ### Quyết định hiện hành
 
@@ -34,6 +36,7 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 | Prompt | Kết quả |
 |---|---|
+| `sharedata-test-dau-cuoi-nats-that-prompt.md` | ✅ **27/09/2026** · Thêm helper `InvokeNatsInitSubscription` (reflection) và bài test đầu-cuối `NatsRoundTrip_WhenTrackerPublishesRealEvent_ConsumerReceivesAndRunsOutboundFlow_Test` canh chỗ nối giữa bên phát (`DataTrackerWorker`) và bên nhận (`DataNatsConsumerWorker`) qua dây NATS thật (`ta.its.event.sharedata.newdata`). Thiết kế 2 nhánh an toàn (Online thật khi có broker, Offline fallback kiểm luồng bù khi không có broker — xUnit 2.9.3 không có API skip động); bổ sung mục Điều kiện tiên quyết trong `tests/README.MD`. ⛔ Không sửa mã sản xuất, không thêm PackageReference hay using dư. **169/169 test ShareData PASS 100%** |
 | `sharedata-gop-trang-thai-co-lap-bang-va-siet-debounce-prompt.md` | ✅ **27/09/2026** · Gộp `MissingTables` + `NextTableRetryTime` thành một từ điển `bảng → mốc hẹn riêng` trong RAM, chu kỳ 5 phút thành hằng số `TableRetryInterval` (trước đó lặp cứng 4 chỗ) — xử đúng lỗi bảng hỏng muộn đẩy lùi lượt thử lại của bảng hỏng trước. Hạ `_missingTables` và `_activeChangesSql` xuống `private`, bỏ hẳn `NextTableRetryTime`; test chuyển sang 3 helper phản chiếu thay vì đọc/ghi trực tiếp. Đưa `DebounceSec` vào chính lệnh chiếm quyền nguyên tử qua `WhereIF` + `SqlFunc.DateDiff` — 📌 điểm không chắc của prompt đã giải quyết: biểu thức **dịch được**, nên ⛔ không phải dùng phương án dự phòng, khe hở **đóng hẳn** chứ không chỉ thu hẹp. Làm luôn mục 6 tuỳ chọn: raw SQL `UPDATE` trên `ShareDataTrackVersion` chuyển sang `db.Updateable<T>()` + `SqlFunc.GetDate()`, đúng quy tắc ưu tiên ORM. Thêm bài test cho mốc hẹn riêng từng bảng, chống dội chặn trong cửa sổ, chống dội cho qua khi hết cửa sổ. **168/168 test ShareData PASS 100%** |
 | `sharedata-goi-107-bao-xoa-mem-cho-doi-tac-prompt.md` | ✅ Áp 27/09/2026, ⛔ **ĐÃ HOÀN NGUYÊN 27/09/2026** · Từng bỏ lọc `IsDelete IS NULL` trong `QueryPacket107` và cho `incidentState` trả mã `'100'` (Deleted). Chủ dự án chốt lại: **miễn `IsDelete` có giá trị thì không lấy**, tạm thời không gửi bản ghi xoá mềm sang đối tác cho bất kỳ gói tin nào. Đã hoàn nguyên **sạch** (rà code 27/09: `QueryPacket107` trả về `i.State` gốc và giữ `WHERE i.IsDelete IS NULL`; ⛔ không còn mã trạng thái `Deleted` lẫn bài test tương ứng). Tương lai nếu đối tác chính thức yêu cầu thì thống nhất bộ mã trạng thái rồi bật lại |
 | `sharedata-updatetime-theo-dong-ho-csdl-prompt.md` | ✅ **27/09/2026** · Đã chuyển `now` trong `CommitSuccess` sang dùng `await GetDbNow(db)` (`SELECT GETDATE()`), đồng nhất mốc dấu vết `CreateTime`/`UpdateTime` của `ShareDataSubscription` và `ShareDataLastSend` về đồng hồ CSDL. 146/146 test ShareData PASS 100% |
