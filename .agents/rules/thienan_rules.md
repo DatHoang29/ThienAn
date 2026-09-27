@@ -272,6 +272,12 @@ Riêng trường hợp làm việc trên các nhánh cũ thuộc 2 repo con `TA-
     - **Công cụ DAB MCP tương ứng:**
       - *Liệt kê bảng/cột:* `mssql_staging__describe_entities` / `INFORMATION_SCHEMA.COLUMNS` qua `sqlcmd -C`.
       - *Đọc mẫu/thống kê:* `mssql_staging__read_records` / `aggregate_records` (read-only, `anonymous:read`).
+12. **CẤM TỰ Ý THÊM `using` DƯ THỪA / TRÙNG LẶP VỚI `GlobalUsings.cs` (LỖI IDE0005 BỊ LIÊN TỤC — ZERO UNNECESSARY USINGS)**:
+    - **Thực trạng & Nguyên nhân**: AI thường có phản xạ tự động chèn một loạt chỉ thị `using` ở đầu file C# (`using SqlSugar;`, `using Microsoft.Extensions.Logging;`, `using Module.ShareData.Core.Entities;`, `using System.Threading.Tasks;`...). Trong khi đó, hầu hết các project trong solution đều đã bật `<ImplicitUsings>enable</ImplicitUsings>` hoặc có file `GlobalUsings.cs` (như `ShareDataWorker/GlobalUsings.cs`, `tests/GlobalUsings.cs`, `Modules.[TênHệ]/GlobalUsings.cs`...) đã khai báo `global using` sẵn các namespace dùng chung này. Việc chèn thêm cục bộ khiến Roslyn Analyzer liên tục cảnh báo `IDE0005: Using directive is unnecessary` (hoặc `CS0105`), gây bẩn code và làm phiền lập trình viên.
+    - **3 Nguyên Tắc Bắt Buộc Đối Với AI**:
+      1. **Kiểm tra `GlobalUsings.cs` trước khi thêm**: Trước khi chèn bất kỳ `using` nào vào đầu file C#, AI BẮT BUỘC kiểm tra file `GlobalUsings.cs` của chính project đó (và `tests/GlobalUsings.cs` nếu là file test). Nếu namespace đã có trong `GlobalUsings.cs` hoặc implicit usings, **TUYỆT ĐỐI CẤM** thêm vào file riêng lẻ.
+      2. **Cấm chèn `using` theo quán tính**: Tuyệt đối không copy-paste cả khối `using` mặc định vào đầu file mới hoặc file chỉnh sửa. Chỉ thêm đúng những namespace đặc thù thực sự cần mà `GlobalUsings.cs` chưa có.
+      3. **Tự động dọn dẹp sạch (Clean-up Gate)**: Sau khi tạo mới, chỉnh sửa hoặc refactor code (đặc biệt sau khi xoá/thay thế kiểu dữ liệu), AI BẮT BUỘC rà soát lại toàn bộ khối `using` ở đầu file, xóa bỏ ngay lập tức các dòng `using` không còn sử dụng trong file hoặc trùng lặp với `GlobalUsings.cs` trước khi bàn giao cho người dùng.
 
 > [!NOTE]
 > - Các quy chuẩn code/hạ tầng chung của dự án (Docker, Entity, Swagger, header comment...) áp dụng cho **cả người lẫn AI** — xem tại mục 5 bên dưới, không lặp lại ở đây để tránh trùng lặp nội dung.
@@ -376,7 +382,7 @@ Các hệ thống / Module phát triển mới về sau bắt buộc tuân thủ
 8. **Quy định Docker SQL Server trên Mac**: Máy tính chạy môi trường macOS (đặc biệt chip Apple Silicon M1/M2/M3/M4) **BẮT BUỘC** dùng Docker image `mcr.microsoft.com/azure-sql-edge:latest`. TUYỆT ĐỐI KHÔNG dùng `mcr.microsoft.com/mssql/server:2022-latest` vì bản x86_64 sẽ bị crash tràn bộ nhớ QEMU (`Invalid mapping of address`).
 9. **Quy định Primary Constructor ([IDE0290](https://learn.microsoft.com/dotnet/fundamentals/code-analysis/style-rules/ide0290)) (đã chốt 05/09/2026)**: Chỉ áp dụng C# Primary Constructor khi **VIẾT CLASS MỚI** (ví dụ: `public class MyService(ILogger<MyService> Logger, IConfiguration Configuration) : IMyService`). Đối với **CLASS CŨ ĐÃ TỒN TẠI** đang dùng constructor tường minh kèm field private thủ công → KHÔNG sửa, KHÔNG refactor sang primary constructor, giữ nguyên style cũ để tránh diff không cần thiết.
 10. **Quy định Structured Logging ([CA1873](https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1873))**: LUÔN dùng structured logging message template (VD: `_logger.LogInformation("Processing {Id} for {Partner}", id, partner)`) thay vì string interpolation (VD: `_logger.LogInformation($"Processing {id} for {partner}")`) hoặc tính toán trước các biểu thức tốn kém (`string.Join(...)`, `.Count()`, LINQ...) ngay trong tham số log. Kiểm tra `_logger.IsEnabled(...)` trước khi chuẩn bị dữ liệu log tốn kém để tránh cấp phát bộ nhớ và tốn CPU không cần thiết khi logging đang tắt.
-11. **Quy định Tự Động Xóa Using Thừa ([IDE0005](https://learn.microsoft.com/dotnet/fundamentals/code-analysis/style-rules/ide0005))**: Sau mỗi lần tạo mới hoặc chỉnh sửa file code C#, **BẮT BUỘC** phải rà soát và xóa bỏ tất cả các chỉ thị `using ...;` không còn sử dụng hoặc bị trùng lặp với `GlobalUsings.cs` (CS0105 / IDE0005) để giữ mã nguồn gọn gàng và không sinh cảnh báo build.
+11. **Quy định Tự Động Xóa Using Thừa ([IDE0005](https://learn.microsoft.com/dotnet/fundamentals/code-analysis/style-rules/ide0005))**: Sau mỗi lần tạo mới hoặc chỉnh sửa file code C#, **BẮT BUỘC** phải rà soát và xóa bỏ tất cả các chỉ thị `using ...;` không còn sử dụng hoặc bị trùng lặp với `GlobalUsings.cs` (CS0105 / IDE0005) để giữ mã nguồn gọn gàng và không sinh cảnh báo build. Tuyệt đối không tự ý thêm các using đã có trong `GlobalUsings.cs` của project (xem chi tiết quy định tại Mục 4, điều 12).
 12. **Quy định vòng đời DI cho `IVwISAPIDeviceService` (đã chốt 05/09/2026)**: Đăng ký theo vòng đời **`IScoped`** (`VwISAPIDeviceService : IVwISAPIDeviceService, IScoped`) — đây là chỉ đạo trực tiếp của chủ dự án, không phải Singleton.
 13. **Quy định Đa Ngôn Ngữ & Dịch Thuật Module (`BaseMsg`)**:
     * Tất cả các Module có sử dụng dịch thuật BẮT BUỘC tạo file `Core/Exceptions/BaseMsg.cs` kế thừa `BaseLocaleManager` (từ `Shared.DTO.Constants.Localization`).
@@ -437,12 +443,29 @@ tests/
   - **Nguyên nhân khi test báo thiếu bảng/cột (`Invalid object name '...'` hoặc `Invalid column name '...'`)**: Cờ CodeFirst trong cấu hình test đang bị tắt (`false`).
   - **Cách xử lý duy nhất**: Mở `tests/appsettings.Test.json` và bật cờ trong `DbConnection:ConnectionConfigs` (hoặc cấu hình test environment):
     ```json
+    "DbSettings": {
+      "EnableInitDb": true
+    },
     "TableSettings": {
       "EnableInitTable": true,
-      "EnableIncreTable": true
+      "EnableIncreTable": false
     }
     ```
-  - Khi bật các cờ này, hạ tầng `SharedInfrastructure` & SqlSugar khi khởi tạo Host sẽ tự động quét toàn bộ Entity từ code gốc và tự động tạo bảng / bổ sung cột tăng dần (incremental column sync) an toàn và chuẩn hóa. Tuyệt đối không can thiệp code C# trong Host/Test.
+  - Khi bật các cờ này (`EnableInitTable: true, EnableIncreTable: false`), hạ tầng `SharedInfrastructure` & SqlSugar khi khởi tạo Host sẽ tự động quét toàn bộ Entity từ code gốc và tự động tạo bảng / bổ sung cột an toàn và chuẩn hóa. Tuyệt đối không can thiệp code C# trong Host/Test.
+  - ⚠️ **LƯU Ý CỐT LÕI VỀ `EnableIncreTable` (BẪY TỬ HUYỆT)**: `EnableIncreTable` **BẮT BUỘC PHẢI LÀ `false`** khi muốn CodeFirst tạo bảng mới!
+    - **Bản chất hạ tầng (`SqlSugarSetup.cs` thuộc `Shared.Infrastructure.dll`)**:
+      Hạ tầng lọc Type quét bảng theo code sau:
+      ```csharp
+      List<Type> source = (from element in App.EffectiveTypes
+          where !element.IsInterface && !element.IsAbstract && element.IsClass && element.IsDefined(typeof(SugarTable), inherit: false)
+          where !element.GetCustomAttributes<IgnoreTableAttribute>().Any()
+          select element)
+          .WhereIF(P_1.TableSettings.EnableIncreTable, (Type type2) => type2.IsDefined(typeof(IncreTableAttribute), inherit: false))
+          .ToList();
+      ```
+      Nếu bật `"EnableIncreTable": true`, SqlSugar sẽ lọc và **CHỈ quét những Entity có gắn attribute `[IncreTableAttribute]`**. Trong toàn bộ repo hiện tại **không có entity nào gắn `[IncreTable]`**, dẫn đến danh sách bảng cần khởi tạo = 0 ⇒ **hoàn toàn không có bảng nào được tạo** dù `EnableInitTable: true`!
+    - Do đó, để tạo bảng CodeFirst, chỉ cần:
+      `"DbSettings": { "EnableInitDb": true }` và `"TableSettings": { "EnableInitTable": true, "EnableIncreTable": false }`.
 * **Tự Động Chạy Lại Test & Bổ Sung Test Case Mới**: Bất cứ khi nào tạo mới hoặc chỉnh sửa code (C#, XAML, ViewModel, Service, Handler, Controller, API...), thêm mới UI, hoặc sửa đổi logic nghiệp vụ/giao diện: AI **BẮT BUỘC** (1) chạy lại toàn bộ bài test liên quan (`dotnet test ...`) để đảm bảo 100% pass, không hồi quy/gãy build; (2) viết bổ sung test case mới nếu tính năng/logic mới chưa có test bao phủ (chuẩn AAA, mock I/O HTTP/thiết bị, đặt tên file/thư mục mirror 1-1). Nhiệm vụ chưa được coi là hoàn thành nếu thiếu 1 trong 2 bước trên.
   - **Dồn test về cuối khi đang trao đổi dồn dập**: Nếu đang trong chuỗi hỏi-đáp/sửa nhanh liên tiếp và test suite chạy chậm (VD ~60s+), KHÔNG chạy lại test sau MỖI lần sửa nhỏ — dồn thay đổi liên quan lại, chỉ chạy 1 lần ở cuối trước khi báo hoàn tất. Vẫn chạy ngay nếu người dùng hỏi trực tiếp kết quả test, thay đổi đủ rủi ro cần xác nhận ngay, hoặc rõ ràng không còn quyết định nào khác đang chờ.
 
@@ -568,9 +591,22 @@ tests/
   - **Bước 1 (Bật cờ đồng bộ):** Tạm thời bật các cờ CodeFirst của SqlSugar trong `tests/appsettings.Test.json`:
     ```json
     "DbSettings": { "EnableInitDb": true },
-    "TableSettings": { "EnableInitTable": true, "EnableIncreTable": true }
+    "TableSettings": { "EnableInitTable": true, "EnableIncreTable": false }
     ```
-    Chạy lại test để SqlSugar tự động phát hiện và bổ sung cột/bảng thiếu vào CSDL local.
+    ⚠️ **BẪY TỬ HUYỆT VỚI `EnableIncreTable`**:
+    - **`EnableIncreTable` BẮT BUỘC PHẢI LÀ `false`** khi muốn CodeFirst tạo bảng mới!
+    - **Nguyên nhân cốt lõi trong hạ tầng (`SqlSugarSetup.cs` thuộc `Shared.Infrastructure.dll`)**:
+      Logic hạ tầng lọc danh sách Type quét bảng như sau:
+      ```csharp
+      List<Type> source = (from element in App.EffectiveTypes
+          where !element.IsInterface && !element.IsAbstract && element.IsClass && element.IsDefined(typeof(SugarTable), inherit: false)
+          where !element.GetCustomAttributes<IgnoreTableAttribute>().Any()
+          select element)
+          .WhereIF(P_1.TableSettings.EnableIncreTable, (Type type2) => type2.IsDefined(typeof(IncreTableAttribute), inherit: false))
+          .ToList();
+      ```
+      Nếu bật `"EnableIncreTable": true`, logic SqlSugar sẽ lọc và **CHỈ quét những Entity có gắn attribute `[IncreTableAttribute]`**. Trong toàn bộ repo hiện tại KHÔNG CÓ Entity nào gắn `[IncreTable]`, dẫn tới danh sách bảng cần khởi tạo bị rỗng (0 bảng) ⇒ **KHÔNG CÓ BẢNG NÀO ĐƯỢC TẠO** dù `EnableInitTable: true`!
+    - Chỉ cần `"EnableInitTable": true, "EnableIncreTable": false`, SqlSugar sẽ gọi `InitTables(...)` quét toàn bộ entity có `[SugarTable]` và tự động tạo bảng hoặc đồng bộ bổ sung cột mới.
   - **Bước 2 (Tắt lại cờ về `false` sau khi test ổn):** Ngay sau khi test đã chạy qua thành công (CSDL local đã cập nhật schema xong), **BẮT BUỘC SỬA LẠI TOÀN BỘ CỜ THÀNH `false`** (`EnableInitDb: false`, `EnableInitTable: false`, `EnableIncreTable: false`) để tránh lặp lại kiểm tra schema làm chậm tốc độ chạy test ở các lần sau và giữ file cấu hình sạch sẽ.
   - **Bước 3 (Chỉ báo cáo khi bật cờ không được):** Chỉ khi nào đã bật đủ các cờ trên mà test vẫn báo lỗi schema (do constraint phức tạp, kiểu dữ liệu xung đột...) thì mới báo lại cho người dùng kèm câu lệnh SQL để xử lý thủ công; tuyệt đối không tự chế/hack code trong file test.
 
@@ -833,7 +869,8 @@ tests/
     | 3 | **Chưa làm những gì?** | Bảng: việc · thuộc ai · vì sao chưa · **có chặn luồng đang chạy không**. Không có việc nào thì ghi thẳng "không còn việc nào" |
     | 4 | **Edge case?** | Tình huống bất thường và cách hệ thống xử. Nêu rõ cái giá phải trả, không chỉ nêu "đã xử lý" |
 
-  - **Mở đầu bằng bảng `Tóm tắt` đúng 4 dòng** — mỗi dòng là một câu hỏi trên, cột 2 là **câu trả lời gọn đọc là hiểu**, cột 3 là liên kết tới mục chi tiết. Đặt ngay sau khối `Chú giải ký hiệu`.
+  - **Mở đầu bằng bảng `Tóm tắt` đúng 4 dòng** — mỗi dòng là một câu hỏi trên, cột 2 là **câu trả lời gọn đọc là hiểu**, cột 3 là liên kết tới mục chi tiết.
+  - 🔴 **Bảng `Tóm tắt` KHÔNG còn là thứ đứng đầu tệp** (bổ sung 27/09/2026): trước nó phải có khối `Kết luận — đọc 30 giây là đủ` theo **mục 19.21**. Thứ tự đúng: `Chú giải ký hiệu` → `Kết luận` (19.21) → `Tóm tắt` 4 trục (mục này) → 4 mục thân chính. Mục 19.21 cũng quy định ô "Trả lời" của bảng `Tóm tắt` **phải chứa nội dung câu trả lời**, ⛔ không được chỉ ghi số lượng — đủ 4 trục mà ô Tóm tắt rỗng nghĩa thì báo cáo vẫn không đạt.
   - 🔴 **Việc đã đóng BẮT BUỘC chuyển xuống `Phụ lục B. Nhật ký việc đã xử lý`**, nén thành bảng *vấn đề → cách xử*, mỗi việc 1 dòng. ⛔ TUYỆT ĐỐI KHÔNG để mục `✅ [ĐÃ XỬ LÝ]` nằm trong thân chính. **Dấu hiệu nhận biết đã viết sai:** phần "phát hiện vấn đề" viết ở thì hiện tại, rồi kẹp thêm một khối `✅ Đã chốt` ở cuối — người đọc phải lội hết lịch sử tranh luận của việc đã xong mới thấy việc còn mở.
   - ⛔ **Mục 3 KHÔNG chứa việc "tuỳ chọn, không ai đang chờ"** (chốt 25/09/2026): nếu một việc không ai yêu cầu, không chặn luồng, và tự mình đã viết ra rằng không ai đang chờ xử lý — thì bỏ hẳn khỏi báo cáo, ⛔ không viết ra rồi tự gắn nhãn "tuỳ chọn" cho nó ở lại. Mục 3 chỉ liệt kê việc khớp đúng 4 cột của bảng ở trên (việc · thuộc ai · vì sao chưa · có chặn luồng không); việc "có cũng được, không có cũng được" không khớp cột nào trong đó, thêm vào chỉ tổ nhiễu, đúng cái người đọc đang cố tránh. **Dấu hiệu nhận biết đã viết sai:** câu mở đầu bằng "Một việc tuỳ chọn, không ai đang chờ:" — tự thân câu đó đã là bằng chứng việc này không thuộc báo cáo. *(Lỗi thật đã mắc: `Sharedata_Review_LuongNoiDuoi_20260923.md` mục 3 từng có dòng "cập nhật tài liệu mapping bản 20/08 cho khỏi lạc hậu" gắn nhãn tuỳ chọn — chủ dự án phản hồi "không cần đưa vô càng nhiều thông tin càng rối và nhiễu".)*
   - **Giải thích cơ chế hoạt động chuyển xuống `Phụ lục A`** (luồng chạy, thuật toán, cấu hình hạ tầng). Đây là tài liệu tham khảo, không phải thứ cần đọc để ra quyết định — để nó chen giữa các mục chính là làm loãng báo cáo.
@@ -948,12 +985,41 @@ tests/
     - Đọc metadata danh mục hệ thống cấp thấp khi không thể ánh xạ POCO.
   - **Lỗi thật đã mắc**: Trong `DataChangeWorkerTests.cs`, từng viết `await db.Ado.ExecuteCommandAsync("UPDATE TmsTrafficData SET CreateTime = @timeA... WHERE ID = @id", new { timeA, id = carA.ID });` trong khi bảng `TmsTrafficData` đã kế thừa Entity chuẩn. Chủ dự án đã chỉ rõ lỗi này và yêu cầu bổ sung rule nghiêm cấm vĩnh viễn.
 
+- **19.21. Báo Cáo Viết HƯỚNG VỀ NGƯỜI ĐỌC, Không Hướng Về Người Viết — BẮT BUỘC Khối `Kết luận` Đọc 30 Giây Ở Đầu Tệp (chốt 27/09/2026)**:
+  - **Phạm vi áp dụng**: mọi báo cáo, biên bản rà soát, tổng kết trong `DocBusinessThienAn/`, và mọi phần báo cáo kết quả trả lời trực tiếp cho người dùng.
+  - 🔴 **PHÉP THỬ DUY NHẤT QUYẾT ĐỊNH BÁO CÁO ĐẠT HAY KHÔNG**: *người đọc mở tệp ra, đọc xong rồi có phải quay lại hỏi AI nữa không?* **Phải quay lại hỏi = báo cáo KHÔNG ĐẠT**, bất kể nó đầy đủ và chính xác tới đâu. Đây là phép thử nghiêm hơn phép thử "1 phút trả lời được 4 câu" của mục 19.14, và **thay thế** nó khi hai phép thử cho kết quả khác nhau.
+  - **BẮT BUỘC mở đầu bằng khối `## Kết luận — đọc 30 giây là đủ`**, đặt **TRƯỚC** cả bảng `Tóm tắt` 4 trục của mục 19.14, ngay sau khối `Chú giải ký hiệu`. Nội dung tối đa ~15 dòng, gồm đúng 3 phần:
+    1. ✅ **Tình trạng chung** trong 1–2 dòng (xong chưa, chạy được chưa).
+    2. ⚠️ **Việc còn treo** dạng bảng, BẮT BUỘC có cột **"Vỡ khi nào"** — nêu điều kiện cụ thể làm việc đó thành lỗi thật, ⛔ không viết chung chung kiểu "nên xử lý sau".
+    3. ❌ **Lỗ chưa có lưới chặn nào** (nếu có), kèm hệ quả trực tiếp.
+  - **Kết thúc khối bằng dòng ranh giới tường minh**, ví dụ: *"📌 Hết phần cần đọc để ra quyết định. Các mục dưới đây là chi tiết đối chiếu — mở khi cần tra một hạng mục cụ thể, ⛔ không cần đọc tuần tự."* Nhờ dòng này người đọc biết được phép dừng ở đâu.
+  - 🔴 **Ô "Trả lời" của bảng `Tóm tắt` phải CHỨA câu trả lời, không phải mô tả rằng có câu trả lời.**
+    - ❌ SAI: *"4 quyết định cốt lõi chốt tại họp 21/09"* — không nói **4 quyết định đó là gì**, đọc xong vẫn phải mở mục chi tiết.
+    - ✅ ĐÚNG: *"Bốn việc: chặn gửi khi thiếu hồ sơ ánh xạ · gửi nối đuôi theo mốc `LastTime`/`LastKey` · phát hiện dữ liệu mới tức thì · trường không map để `null`"*.
+    - **Dấu hiệu nhận biết viết sai**: ô đó chứa **số lượng** ("4 quyết định", "5 việc", "13 điểm") mà không chứa **nội dung**.
+  - ⛔ **CẤM giải thích hệ ký hiệu / cách phân loại của chính mình trong thân báo cáo.** Khối `Chú giải ký hiệu` ở đầu tệp và tiêu đề cột đã làm việc đó (mục 19.11). Viết thêm những đoạn kiểu *"Vì sao mục này là ❌ chứ không phải ⚠️..."*, hay *"Cột X là trục đánh giá của bảng này: ✅ nghĩa là..."* là **tự biện luận cho cách làm của mình** — người đọc không cần, và nó làm loãng đúng chỗ cần gọn.
+  - ⛔ **CẤM viết nội dung chỉ có nghĩa với người đi kiểm tra AI.** Cụ thể: biểu thức mã nguồn thô (`NextTimeRun == nextRunDeadline`), chuỗi tên biến nội bộ, đường dẫn tra cứu — những thứ chứng minh "tôi đã rà ở đâu". Người đọc cần biết **xong chưa và phải làm gì**, ⛔ không cần biết AI tra ở đâu. Căn cứ mã nguồn vẫn ghi, nhưng dồn xuống mục chi tiết hoặc phụ lục, ⛔ không để ở phần đầu.
+  - **Dấu hiệu nhận biết đã viết sai (tự soát trước khi giao)**:
+    - Tệp phình quá ~10 KB mà phần đầu vẫn chưa trả lời được "phải làm gì".
+    - Ô bảng dài 3 câu trở lên với nhiều mệnh đề kẹp bởi dấu gạch ngang.
+    - Có đoạn văn nói **về** cách trình bày thay vì nói **về** nội dung nghiệp vụ.
+  - **Lỗi thật đã mắc**: `Sharedata_Review_TongThe_20260927.md` bản đầu dài 26 KB, đủ 4 trục theo mục 19.14 và chính xác về nội dung, nhưng chủ dự án đọc xong **vẫn phải quay lại hỏi** vì: ô `Tóm tắt` chỉ ghi số lượng không ghi nội dung; mục 2 đặc biểu thức mã nguồn; có đoạn AI tự biện luận cách phân loại ký hiệu của mình. Chủ dự án phản hồi nguyên văn: *"báo cáo tôi đọc còn phải hỏi lại bạn nghĩa là báo cáo đó tôi không hiểu"*. ⚠️ Lần đầu AI chỉ vá triệu chứng (thêm một cột ký hiệu) — sai, vì nguyên nhân gốc là **viết hướng về mình thay vì hướng về người đọc**.
+
+- **19.22. Quy Chuẩn Khai Báo Property — Dùng Auto-Property { get; } / { get; set; }, CẤM Tách Backing Field Với Toán Tử Lazy ??= (chốt 27/09/2026)**:
+  - **Nguyên tắc**: Khi khai báo property trong class C# (Service, Worker, Controller, Entity, DTO...), BẮT BUỘC sử dụng Auto-Property thuần (`{ get; }`, `{ get; init; }`, hoặc `{ get; set; }`) được khởi tạo giá trị trực tiếp hoặc thông qua Constructor.
+  - ⛔ **CẤM tuyệt đối phản mẫu tách backing field lười biếng (Lazy Backing Field Anti-pattern)**:
+    - ❌ Không khai báo property dạng expression-bodied gán ngầm vào backing field: `public IReadOnlyList<string> TrackedTables => _trackedTables ??= ...; private IReadOnlyList<string>? _trackedTables;` hoặc `public string ChangesSql => _changesSql ??= ...; private string? _changesSql;`.
+    - Cách viết này vừa làm rác class (sinh thêm nhiều field `private` thừa thãi), vừa không an toàn về đa luồng (thread-safety), vừa gây khó khăn cho việc đọc hiểu và debug.
+  - ✅ **Cách viết chuẩn**:
+    - Khởi tạo trực tiếp trên auto-property hoặc trong Constructor của class:
+      ```csharp
+      // ✅ ĐÚNG: Auto-property { get; } khởi tạo 1 lần trong Constructor hoặc trực tiếp
+      public IReadOnlyDictionary<string, IReadOnlyList<string>> TablePacketMap { get; } = LoadTablePacketMap(Configuration);
+      public IReadOnlyList<string> TrackedTables { get; } = [.. LoadTablePacketMap(Configuration).Keys];
+      public string ChangesSql { get; } = BuildChangesSql([.. LoadTablePacketMap(Configuration).Keys]);
+      ```
+
 ---
-
-
-
-
-## 💻 20. Quy Chuẩn Phát Triển Frontend (Vue 3 / TypeScript - TA-ITS015-WEBVUE-V1.0)
 
 Toàn bộ quy tắc dưới đây được đồng bộ từ `.kiro/steering/` của repo Frontend `TA-ITS015-WEBVUE-V1.0`, áp dụng bắt buộc cho toàn bộ mã nguồn Vue 3 / TypeScript:
 

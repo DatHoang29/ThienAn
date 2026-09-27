@@ -515,7 +515,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                     runs++;
                     // Reset NextTimeRun to past so subscription is immediately eligible for next batch run
                     await db.Updateable<ShareDataSubscription>()
-                        .SetColumns(s => s.NextTimeRun == DateTime.Now.AddSeconds(-10))
+                        .SetColumns(s => s.NextTimeRun == db.Ado.GetDateTimeAsync("SELECT GETDATE()").GetAwaiter().GetResult().AddSeconds(-10))
                         .Where(s => s.ID == sub.ID)
                         .ExecuteCommandAsync();
 
@@ -655,7 +655,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
 
             // Reset NextTimeRun về quá khứ để worker nhận xử lý tiếp ở vòng 2
             await db.Updateable<ShareDataSubscription>()
-                .SetColumns(s => s.NextTimeRun == DateTime.Now.AddSeconds(-10))
+                .SetColumns(s => s.NextTimeRun == db.Ado.GetDateTimeAsync("SELECT GETDATE()").GetAwaiter().GetResult().AddSeconds(-10))
                 .Where(s => s.ID == sub.ID)
                 .ExecuteCommandAsync();
 
@@ -1466,7 +1466,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             var service = CreateWorker(scope);
 
             var uniqueId = Guid.NewGuid().ToString("N")[..8];
-            var now = DateTime.Now;
+            var now = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
 
             // Đảm bảo Packet 101_commonData tồn tại
             var packet = await db.Queryable<ShareDataPacket>()
@@ -1560,7 +1560,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 configureSub: s =>
                 {
                     s.ID = $"00_FAIL_RELEASE_{unique}";
-                    s.NextTimeRun = DateTime.Now.AddSeconds(-10);
+                    s.NextTimeRun = db.Ado.GetDateTimeAsync("SELECT GETDATE()").GetAwaiter().GetResult().AddSeconds(-10);
                 });
 
             // Sub 2: Sub hợp lệ cùng batch
@@ -1572,7 +1572,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 configureSub: s =>
                 {
                     s.ID = $"99_GOOD_{unique}";
-                    s.NextTimeRun = DateTime.Now.AddSeconds(-10);
+                    s.NextTimeRun = db.Ado.GetDateTimeAsync("SELECT GETDATE()").GetAwaiter().GetResult().AddSeconds(-10);
                 });
 
             var triggerName = $"trg_test_fail_release_{unique}";
@@ -1660,7 +1660,7 @@ END");
             var updatedBadSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(badSub.ID);
             Assert.Equal(BaseEnums.SubSubscriptionState.Active, updatedBadSub.State);
             Assert.NotNull(updatedBadSub.NextTimeRun);
-            Assert.True(updatedBadSub.NextTimeRun > DateTime.Now.AddSeconds(-5), "NextTimeRun phải được ReleaseLock cập nhật lại (không còn kẹt ở mốc lockDurationSeconds cũ).");
+            Assert.True(updatedBadSub.NextTimeRun > db.Ado.GetDateTimeAsync("SELECT GETDATE()").GetAwaiter().GetResult().AddSeconds(-5), "NextTimeRun phải được ReleaseLock cập nhật lại (không còn kẹt ở mốc lockDurationSeconds cũ).");
         }
 
 
@@ -1668,6 +1668,61 @@ END");
         /// Description: Kiểm tra tích hợp toàn trình luồng Outbound: từ trích xuất thô -> Map giải $meta, $extend, CodeSet -> tạo FinalBytes -> RestSender gửi trực tiếp tới đối tác qua HTTP.
         /// Created date: 18/09/2026
         /// </summary>
+        /// <summary>
+        /// Description: Kiểm chứng bất biến của deadline lock — sau khi quét, NextTimeRun ghi vào CSDL phải
+        ///              nằm trong khoảng [mốc CSDL lúc gọi, mốc CSDL + thời lượng lock tối đa]. Bắt được các
+        ///              lỗi thô về đơn vị/dấu/công thức khi đổi nguồn mốc thời gian sang đồng hồ CSDL.
+        ///              📌 Bài test này KHÔNG chứng minh được đã dùng đồng hồ CSDL, vì CSDL test là local
+        ///              (cùng máy, cùng đồng hồ) — xem mục 4.1 của prompt.
+        /// Created date: 27/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessScheduledSubscriptions_WritesNextTimeRunWithinLockWindowOfDbClock_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var service = CreateWorker(scope);
+
+            var suffix = Guid.NewGuid().ToString("N")[..8];
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
+            var (partner, sub) = await SeedOutboundSubscription(db, $"P_{suffix}", $"S_{suffix}", "101",
+                configureSub: s =>
+                {
+                    s.IntervalSeconds = 60;
+                    s.NextTimeRun = null;   // đến hạn ngay
+                });
+
+            // Mốc CSDL NGAY TRƯỚC khi gọi — dùng làm biên dưới của khoảng hợp lệ
+            var dbNowBefore = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
+
+            try
+            {
+                // Act
+                await service.ProcessSubscriptions(CancellationToken.None);
+
+                // Assert: NextTimeRun phải rơi trong [dbNowBefore, dbNowAfter + lockDuration]
+                //         lockDuration = Max(300, IntervalSeconds * 3) theo công thức trong ExportSubscription
+                var dbNowAfter = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
+                var saved = await db.Queryable<ShareDataSubscription>()
+                    .Where(x => x.ID == sub.ID)
+                    .FirstAsync();
+
+                Assert.NotNull(saved);
+                Assert.NotNull(saved!.NextTimeRun);
+
+                var lockDurationSeconds = Math.Max(300, (sub.IntervalSeconds ?? 60) * 3);
+                Assert.True(saved.NextTimeRun >= dbNowBefore,
+                    $"NextTimeRun ({saved.NextTimeRun}) phải >= mốc CSDL lúc gọi ({dbNowBefore}).");
+                Assert.True(saved.NextTimeRun <= dbNowAfter.AddSeconds(lockDurationSeconds),
+                    $"NextTimeRun ({saved.NextTimeRun}) không được vượt quá mốc CSDL + {lockDurationSeconds}s ({dbNowAfter.AddSeconds(lockDurationSeconds)}).");
+            }
+            finally
+            {
+                await db.Deleteable<ShareDataSubscription>().Where(x => x.ID == sub.ID).ExecuteCommandAsync();
+            }
+        }
+
         [Fact]
         public async Task OutboundPipeline_EndToEnd_MapTransformAndSend_Succeeds_Test()
         {
@@ -4602,6 +4657,7 @@ END");
             Action<ShareDataSubscription>? configureSub = null,
             Action<ShareDataPartner>? configurePartner = null)
         {
+            var dbNow = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
             var partner = new ShareDataPartner
             {
                 ID = Guid.NewGuid().ToString("N"),
@@ -4625,7 +4681,7 @@ END");
                 Direction = BaseEnums.Direction.Outbound,
                 Mode = BaseEnums.SubMode.Periodic,
                 State = BaseEnums.SubSubscriptionState.Active,
-                NextTimeRun = DateTime.Now.AddSeconds(-10),
+                NextTimeRun = dbNow.AddSeconds(-10),
                 IntervalSeconds = 30
             };
 

@@ -1,6 +1,4 @@
 using System.Reflection;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Module.ShareData.Core.Entities;
@@ -8,13 +6,12 @@ using Modules.TMS.Core.Entities;
 using Modules.TOLL.Core.Entities;
 using Modules.VMS.Core.Entities;
 using Services.Shared.Messaging;
-using ShareDataWorker.Core.Enums;
+using ShareDataWorker.Core.Utils.Resolvers;
+using ShareDataWorker.Infrastructure.Logging;
 using ShareDataWorker.Infrastructure.Services.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Extraction;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
 using ShareDataWorker.Infrastructure.Workers;
-using SqlSugar;
-using Xunit;
 
 namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
 {
@@ -32,7 +29,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
 
         /// <summary>
         /// Description: Kiểm thử chu kỳ đầu tiên của PollChangeTracking: Tự động khởi tạo cấu hình Change Tracking,
-        ///              kiểm tra CSDL và thiết lập mốc LastProcessedVersion ban đầu (>= 0).
+        ///              kiểm tra CSDL và thiết lập mốc LastVersion trong bảng ShareDataTrackVersion ban đầu (>= 0).
         /// Created date: 26/09/2026
         /// </summary>
         [Fact]
@@ -40,14 +37,24 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         {
             // Arrange
             await using var scope = _host.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             var worker = CreateTrackerWorker(scope);
-            Assert.Equal(-1, worker.LastProcessedVersion);
 
-            // Act: Chu kỳ poll đầu tiên khởi tạo môi trường và mốc version
-            await worker.PollChanges(CancellationToken.None);
+            try
+            {
+                await ClearTrackState(db);
+                Assert.Equal(-1, await GetStateVersion(db));
 
-            // Assert: Sau chu kỳ đầu, mốc version đã được khởi tạo thành công (>= 0)
-            Assert.True(worker.LastProcessedVersion >= 0);
+                // Act: Chu kỳ poll đầu tiên khởi tạo môi trường và mốc version
+                await worker.PollChanges(CancellationToken.None);
+
+                // Assert: Sau chu kỳ đầu, mốc version đã được khởi tạo thành công (>= 0)
+                Assert.True(await GetStateVersion(db) >= 0);
+            }
+            finally
+            {
+                await ClearTrackState(db);
+            }
         }
 
         [Fact]
@@ -155,6 +162,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             {
                 await db.Deleteable<TmsTrafficData>().Where(t => t.EquipmentId == eqId).ExecuteCommandAsync();
                 await db.Deleteable<TmsEquipment>().Where(e => e.ID == eqId).ExecuteCommandAsync();
+                await ClearTrackState(db);
             }
         }
 
@@ -204,18 +212,25 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
 
             var worker = CreateTrackerWorker(scope);
 
-            // Act 1: Chu kỳ poll đầu tiên khởi tạo LastProcessedVersion = currentVer
-            await worker.PollChanges(CancellationToken.None);
-            Assert.True(worker.LastProcessedVersion >= 0);
+            try
+            {
+                await ClearTrackState(db);
 
-            // Act 2: Giả lập mốc LastProcessedVersion bị lệch hoặc âm (-10)
-            typeof(DataTrackerWorker).GetProperty(nameof(DataTrackerWorker.LastProcessedVersion))?
-                .GetSetMethod(nonPublic: true)?
-                .Invoke(worker, [-10L]);
-            await worker.PollChanges(CancellationToken.None);
+                // Act 1: Chu kỳ poll đầu tiên khởi tạo mốc LastVersion trong bảng ShareDataTrackVersion = currentVer
+                await worker.PollChanges(CancellationToken.None);
+                Assert.True(await GetStateVersion(db) >= 0);
 
-            // Assert: Worker tự căn chỉnh lại theo mốc DB hiện tại
-            Assert.True(worker.LastProcessedVersion >= currentVer);
+                // Act 2: Giả lập mốc LastVersion trong bảng ShareDataTrackVersion bị lệch hoặc âm (-10)
+                await SetStateVersion(db, -10);
+                await worker.PollChanges(CancellationToken.None);
+
+                // Assert: Worker tự căn chỉnh lại theo mốc DB hiện tại
+                Assert.True(await GetStateVersion(db) >= currentVer);
+            }
+            finally
+            {
+                await ClearTrackState(db);
+            }
         }
 
         /// <summary>
@@ -234,7 +249,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             cts.Cancel();
 
             // Act & Assert
-            await Assert.ThrowsAsync<OperationCanceledException>(() => worker.PollChanges(cts.Token));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker.PollChanges(cts.Token));
         }
 
         #endregion
@@ -464,7 +479,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
 
                 // Đảm bảo subscription rảnh lock (NextTimeRun <= now) để đợt trigger kế tiếp nhận được
                 await db.Updateable<ShareDataSubscription>()
-                    .SetColumns(s => s.NextTimeRun == DateTime.Now.AddSeconds(-1))
+                    .SetColumns(s => s.NextTimeRun == db.Ado.GetDateTimeAsync("SELECT GETDATE()").GetAwaiter().GetResult().AddSeconds(-1))
                     .Where(s => s.ID == sub.ID)
                     .ExecuteCommandAsync();
 
@@ -525,7 +540,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             {
                 s.SendOnNewData = false; // TẮT chế độ gửi khi có dữ liệu mới
                 s.IntervalSeconds = 300;
-                s.NextTimeRun = DateTime.Now.AddMinutes(5);
+                s.NextTimeRun = db.Ado.GetDateTimeAsync("SELECT GETDATE()").GetAwaiter().GetResult().AddMinutes(5);
             });
 
             var service = CreateOutboundService(scope);
@@ -571,7 +586,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             {
                 s.SendOnNewData = true;
                 s.DebounceSec = 15; // Debounce 15 giây
-                s.LastTimeRun = DateTime.Now.AddSeconds(-3); // Vừa mới chạy cách đây 3 giây
+                s.LastTimeRun = db.Ado.GetDateTimeAsync("SELECT GETDATE()").GetAwaiter().GetResult().AddSeconds(-3); // Vừa mới chạy cách đây 3 giây
                 s.NextTimeRun = null; // Rảnh về mặt lock, nhưng bị chặn bởi DebounceSec
             });
 
@@ -911,7 +926,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
 
         /// <summary>
         /// Description: Kiểm thử 2 service (Worker instances) chạy song song cùng lúc:
-        ///              - 2 instance DataTrackerWorker độc lập (mỗi instance có LastProcessedVersion riêng) cùng poll Change Tracking.
+        ///              - 2 instance DataTrackerWorker độc lập (dùng chung dòng trạng thái trong bảng ShareDataTrackVersion theo MachineName + ProcessId) cùng poll Change Tracking.
         ///              - Cả 2 cùng phát hiện dữ liệu mới và kích hoạt pipeline ProcessSubscriptions cùng lúc.
         ///              - Khóa OCC và cơ chế Monotonic đảm bảo: Đúng 1 lần export thành công, RecordCount chính xác tuyệt đối, không trùng lặp và không sót dữ liệu.
         /// Created date: 26/09/2026
@@ -945,99 +960,107 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             var trackerA = CreateTrackerWorker(scope1);
             var trackerB = CreateTrackerWorker(scope2);
 
-            // Khởi tạo mốc baseline ban đầu cho từng service
-            await trackerA.PollChanges(CancellationToken.None);
-            await trackerB.PollChanges(CancellationToken.None);
-
-            Assert.True(trackerA.LastProcessedVersion >= 0);
-            Assert.True(trackerB.LastProcessedVersion >= 0);
-
-            // Dọn sạch bảng nguồn và seed đúng 1 dòng dữ liệu mới
-            await db.Deleteable<TmsTrafficData>().ExecuteCommandAsync();
-
-            var eqId = $"EQ_2SVC_{testId}";
             try
             {
-                await db.Insertable(new TmsEquipment
-                {
-                    ID = eqId,
-                    Code = $"VDS_2SVC_{testId}",
-                    KmNumber = 80,
-                    MetNumber = 400
-                }).ExecuteCommandAsync();
+                await ClearTrackState(db);
 
-                await db.Insertable(new TmsTrafficData
-                {
-                    ID = Guid.NewGuid().ToString("N"),
-                    EquipmentId = eqId,
-                    DetectTime = now,
-                    Type = "CAR",
-                    LicensePlate = $"30A-2SVC_{testId}",
-                    Speed = 90.0f,
-                    Lane = "L1",
-                    Direction = "NORTH",
-                    Location = "KM80",
-                    CreateTime = now,
-                    UpdateTime = now
-                }).ExecuteCommandAsync();
-
-                // Act: Cả 2 service cùng chạy PollChangeTracking và cạnh tranh xuất bản ProcessSubscriptions song song
-                var serviceA = CreateOutboundService(scope1);
-                var serviceB = CreateOutboundService(scope2);
-
-                // 1. Cả 2 tracker quét thay đổi từ DB
+                // Khởi tạo mốc baseline ban đầu cho từng service
                 await trackerA.PollChanges(CancellationToken.None);
                 await trackerB.PollChanges(CancellationToken.None);
 
-                // Cả 2 tracker độc lập đều tự nâng mốc LastProcessedVersion lên version mới nhất của DB
-                Assert.True(trackerA.LastProcessedVersion > 0);
-                Assert.Equal(trackerA.LastProcessedVersion, trackerB.LastProcessedVersion);
+                Assert.True(await GetStateVersion(db) >= 0);
 
-                // 2. Cả 2 service cùng nhận tín hiệu và đua nhau xuất bản dữ liệu
-                await Task.WhenAll(
-                    serviceA.ProcessSubscriptions(packetCode, CancellationToken.None),
-                    serviceB.ProcessSubscriptions(packetCode, CancellationToken.None));
+                // Dọn sạch bảng nguồn và seed đúng 1 dòng dữ liệu mới
+                await db.Deleteable<TmsTrafficData>().ExecuteCommandAsync();
 
-                // Assert: Dữ liệu vẫn đúng 100%
-                // 1. Chỉ có đúng 1 ActivityLog thành công, số lượng bản ghi gửi đi đúng bằng 1 (không bị nhân đôi)
-                var logs = await db.Queryable<ShareDataActivityLog>()
-                    .Where(l => l.SubscriptionId == sub.ID && l.OccurredAt >= now.AddSeconds(-5))
-                    .ToListAsync();
+                var eqId = $"EQ_2SVC_{testId}";
+                try
+                {
+                    await db.Insertable(new TmsEquipment
+                    {
+                        ID = eqId,
+                        Code = $"VDS_2SVC_{testId}",
+                        KmNumber = 80,
+                        MetNumber = 400
+                    }).ExecuteCommandAsync();
 
-                Assert.Single(logs);
-                Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
-                Assert.Equal(1, logs[0].RecordCount ?? 0);
+                    await db.Insertable(new TmsTrafficData
+                    {
+                        ID = Guid.NewGuid().ToString("N"),
+                        EquipmentId = eqId,
+                        DetectTime = now,
+                        Type = "CAR",
+                        LicensePlate = $"30A-2SVC_{testId}",
+                        Speed = 90.0f,
+                        Lane = "L1",
+                        Direction = "NORTH",
+                        Location = "KM80",
+                        CreateTime = now,
+                        UpdateTime = now
+                    }).ExecuteCommandAsync();
 
-                // 2. Không có AlertLog lỗi nào do tranh chấp lock (OCC lock silent reject)
-                var alerts = await db.Queryable<ShareDataAlertLog>()
-                    .Where(a => a.SubscriptionId == sub.ID)
-                    .ToListAsync();
-                Assert.Empty(alerts);
+                    // Act: Cả 2 service cùng chạy PollChangeTracking và cạnh tranh xuất bản ProcessSubscriptions song song
+                    var serviceA = CreateOutboundService(scope1);
+                    var serviceB = CreateOutboundService(scope2);
 
-                // 3. Checkpoint được cập nhật mốc hợp lệ
-                var checkpoint = await db.Queryable<ShareDataLastSend>()
-                    .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
-                    .FirstAsync();
-                Assert.NotNull(checkpoint);
-                Assert.NotNull(checkpoint.LastTime);
+                    // 1. Cả 2 tracker quét thay đổi từ DB
+                    await trackerA.PollChanges(CancellationToken.None);
+                    await trackerB.PollChanges(CancellationToken.None);
 
-                // 4. Kiểm tra chu kỳ tiếp theo: Khi không có dữ liệu mới, cả 2 service cùng poll đều không phát sinh thêm lượt gửi nào
-                await trackerA.PollChanges(CancellationToken.None);
-                await trackerB.PollChanges(CancellationToken.None);
+                    // 2 tracker dùng CHUNG một dòng trạng thái toàn hệ thống,
+                    // tức chung một mốc cursor — đúng chủ đích: tránh 2 tracker cùng bắn trigger cho một thay đổi.
+                    Assert.True(await GetStateVersion(db) > 0);
 
-                var logsAfterSecondPoll = await db.Queryable<ShareDataActivityLog>()
-                    .Where(l => l.SubscriptionId == sub.ID)
-                    .ToListAsync();
-                Assert.Single(logsAfterSecondPoll); // Vẫn chỉ là 1 log duy nhất
+                    // 2. Cả 2 service cùng nhận tín hiệu và đua nhau xuất bản dữ liệu
+                    await Task.WhenAll(
+                        serviceA.ProcessSubscriptions(packetCode, CancellationToken.None),
+                        serviceB.ProcessSubscriptions(packetCode, CancellationToken.None));
+
+                    // Assert: Dữ liệu vẫn đúng 100%
+                    // 1. Chỉ có đúng 1 ActivityLog thành công, số lượng bản ghi gửi đi đúng bằng 1 (không bị nhân đôi)
+                    var logs = await db.Queryable<ShareDataActivityLog>()
+                        .Where(l => l.SubscriptionId == sub.ID && l.OccurredAt >= now.AddSeconds(-5))
+                        .ToListAsync();
+
+                    Assert.Single(logs);
+                    Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
+                    Assert.Equal(1, logs[0].RecordCount ?? 0);
+
+                    // 2. Không có AlertLog lỗi nào do tranh chấp lock (OCC lock silent reject)
+                    var alerts = await db.Queryable<ShareDataAlertLog>()
+                        .Where(a => a.SubscriptionId == sub.ID)
+                        .ToListAsync();
+                    Assert.Empty(alerts);
+
+                    // 3. Checkpoint được cập nhật mốc hợp lệ
+                    var checkpoint = await db.Queryable<ShareDataLastSend>()
+                        .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
+                        .FirstAsync();
+                    Assert.NotNull(checkpoint);
+                    Assert.NotNull(checkpoint.LastTime);
+
+                    // 4. Kiểm tra chu kỳ tiếp theo: Khi không có dữ liệu mới, cả 2 service cùng poll đều không phát sinh thêm lượt gửi nào
+                    await trackerA.PollChanges(CancellationToken.None);
+                    await trackerB.PollChanges(CancellationToken.None);
+
+                    var logsAfterSecondPoll = await db.Queryable<ShareDataActivityLog>()
+                        .Where(l => l.SubscriptionId == sub.ID)
+                        .ToListAsync();
+                    Assert.Single(logsAfterSecondPoll); // Vẫn chỉ là 1 log duy nhất
+                }
+                finally
+                {
+                    await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub.ID).ExecuteCommandAsync();
+                    await db.Deleteable<ShareDataPartner>().Where(p => p.ID == partner.ID).ExecuteCommandAsync();
+                    await db.Deleteable<TmsTrafficData>().Where(t => t.EquipmentId == eqId).ExecuteCommandAsync();
+                    await db.Deleteable<TmsEquipment>().Where(e => e.ID == eqId).ExecuteCommandAsync();
+                    await db.Deleteable<ShareDataLastSend>().Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode).ExecuteCommandAsync();
+                    await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
+                }
             }
             finally
             {
-                await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub.ID).ExecuteCommandAsync();
-                await db.Deleteable<ShareDataPartner>().Where(p => p.ID == partner.ID).ExecuteCommandAsync();
-                await db.Deleteable<TmsTrafficData>().Where(t => t.EquipmentId == eqId).ExecuteCommandAsync();
-                await db.Deleteable<TmsEquipment>().Where(e => e.ID == eqId).ExecuteCommandAsync();
-                await db.Deleteable<ShareDataLastSend>().Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode).ExecuteCommandAsync();
-                await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
+                await ClearTrackState(db);
             }
         }
 
@@ -1241,6 +1264,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
 
             try
             {
+                await ClearTrackState(db);
+
                 // Chạy đợt 1 để tạo checkpoint thật
                 await service.ProcessSubscriptions(CancellationToken.None);
 
@@ -1278,7 +1303,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 await db.Insertable(downtimeRecords).ExecuteCommandAsync();
 
                 // 3. Mô phỏng DataTrackerWorker khởi động lại:
-                // Tạo instance mới của DataTrackerWorker (biến LastProcessedVersion khởi tạo = -1)
+                // Tạo instance mới của DataTrackerWorker (mốc LastVersion trong bảng ShareDataTrackVersion khởi tạo = -1)
                 // và kích hoạt vòng poll đầu tiên (nhảy thẳng tới version hiện tại của DB, không sinh NATS trigger cho 3 bản ghi ở bước 2)
                 var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
                 var transport = scope.ServiceProvider.GetService<TransportManager>() ?? new TransportManager(config);
@@ -1289,7 +1314,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 // 4. Act: Luồng quét định kỳ (ProcessSubscriptions) kích hoạt theo lịch
                 // Đảm bảo NextTimeRun đến hạn chạy định kỳ
                 await db.Updateable<ShareDataSubscription>()
-                    .SetColumns(s => s.NextTimeRun == DateTime.Now.AddSeconds(-5))
+                    .SetColumns(s => s.NextTimeRun == db.Ado.GetDateTimeAsync("SELECT GETDATE()").GetAwaiter().GetResult().AddSeconds(-5))
                     .Where(s => s.ID == sub.ID)
                     .ExecuteCommandAsync();
 
@@ -1320,6 +1345,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             }
             finally
             {
+                await ClearTrackState(db);
                 await db.Deleteable<TmsTrafficData>().Where(t => t.EquipmentId == eqId).ExecuteCommandAsync();
                 await db.Deleteable<TmsEquipment>().Where(e => e.ID == eqId).ExecuteCommandAsync();
                 await db.Deleteable<ShareDataLastSend>().Where(c => c.PartnerCode == partnerCode).ExecuteCommandAsync();
@@ -1636,8 +1662,9 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 await db.Deleteable<ShareDataPacket>().Where(p => p.ID == packet105.ID).ExecuteCommandAsync();
             }
         }
-
         #endregion
+
+
 
         #region Helpers
 
@@ -2185,35 +2212,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             Assert.True(version >= 0);
         }
 
-        /// <summary>
-        /// Description: Kiểm thử tối ưu hiệu năng: Đảm bảo sau chu kỳ khởi tạo ban đầu, câu lệnh SQL hợp nhất
-        ///              được lưu đệm (cache) trong bộ nhớ, không lặp lại truy vấn metadata danh sách bảng ở mỗi giây.
-        /// Created date: 26/09/2026
-        /// </summary>
-        [Fact]
-        public async Task PollChangeTracking_WhenTablesTracked_CachesChangedTablesSql_Test()
-        {
-            // Arrange
-            await using var scope = _host.Services.CreateAsyncScope();
-            var worker = CreateTrackerWorker(scope);
-
-            // Act 1: Lần poll đầu tiên khi LastProcessedVersion < 0 -> khởi tạo cache
-            await worker.PollChanges(CancellationToken.None);
-            Assert.True(worker.LastProcessedVersion >= 0);
-
-            var cacheField = typeof(DataTrackerWorker).GetField("_cachedChangesSql", BindingFlags.NonPublic | BindingFlags.Instance);
-            Assert.NotNull(cacheField);
-
-            var initialCachedSql = (string?)cacheField.GetValue(worker);
-            Assert.False(string.IsNullOrWhiteSpace(initialCachedSql));
-
-            // Act 2: Poll lần 2 -> chuỗi SQL trong cache được tái sử dụng nguyên vẹn
-            await worker.PollChanges(CancellationToken.None);
-            var secondCachedSql = (string?)cacheField.GetValue(worker);
-
-            // Assert: Cache không bị null và giữ nguyên giá trị
-            Assert.Equal(initialCachedSql, secondCachedSql);
-        }
 
         /// <summary>
         /// Description: Kiểm thử câu lệnh SqlGetAllTrackedTables lấy đầy đủ tất cả các bảng đã kích hoạt Change Tracking trong 1 query.
@@ -2236,115 +2234,383 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         }
 
         /// <summary>
-        /// Description: Kiểm chứng lỗi đã sửa — khi mốc hẹn quét lại còn ở tương lai, ShouldRefreshTrackedTables
-        ///              phải trả về false, không được gọi lại CheckTracking mỗi chu kỳ polling 1 giây/lần.
-        ///              Trước khi sửa, điều kiện cũ luôn refresh ngay mỗi khi cache SQL rỗng, bỏ qua throttle.
+        /// Description: Kiểm thử toàn trình — khi câu SQL Change Tracking bị lỗi vì lý do khác version,
+        ///              phải ghi 1 dòng ShareDataActivityLog mang mã ESH-1602 ở cột Remark, kèm câu SQL trong
+        ///              AfterJson để lần ra bảng nào gây lỗi, và vẫn ném lỗi lên cho ExecuteAsync.
         /// Created date: 27/09/2026
         /// </summary>
         [Fact]
-        public void ShouldRefreshTrackedTables_WhenNextRefreshTimeInFuture_ReturnsFalse_Test()
+        public async Task TrackingLog_WhenChangeTableSqlFails_WritesEsh1602WithSql_Test()
         {
-            // Arrange: mô phỏng vừa quét xong khi CSDL chưa bật Change Tracking — cache SQL rỗng, hẹn quét lại sau 5 phút
+            // Arrange: câu SQL trỏ tới bảng không tồn tại
             var worker = CreateTrackerWorker();
-            SetTrackedTablesState(worker, nextRefreshTime: DateTime.UtcNow.AddMinutes(5), cachedSql: null);
+            const string brokenSql = "SELECT 'X' AS TableName WHERE EXISTS (SELECT 1 FROM CHANGETABLE(CHANGES [ShareData_NoSuchTable_9x7], @lastVer) AS CT)";
 
-            // Act
-            var shouldRefresh = InvokeShouldRefreshTrackedTables(worker);
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var startedAt = DateTime.MinValue;
 
-            // Assert: chưa tới mốc hẹn thì không được quét lại
-            Assert.False(shouldRefresh);
+            try
+            {
+                await ClearTrackState(db);
+                var state = new ShareDataTrackVersion { ID = Guid.NewGuid().ToString("N"), LastVersion = 0 };
+                await db.Insertable(state).ExecuteCommandAsync();
+                startedAt = (await db.Ado.GetDateTimeAsync("SELECT GETDATE()")).AddSeconds(-5);
+
+                // Act & Assert: lỗi vẫn phải văng lên
+                await Assert.ThrowsAnyAsync<Exception>(() => InvokeQueryChangedTables(worker, db, state, brokenSql, currentVersion: 1));
+
+                // Assert: đã ghi đúng mã ESH-1602, AfterJson chứa câu SQL
+                var row = await db.Queryable<ShareDataActivityLog>()
+                    .Where(x => x.Remark == ShareDataAlertCode.Tracking.QueryFailed && x.CreateTime >= startedAt)
+                    .OrderBy(x => x.CreateTime, OrderByType.Desc)
+                    .FirstAsync();
+
+                Assert.NotNull(row);
+                Assert.Equal(BaseEnums.SuccessEnums.Fail, row!.Success);
+                Assert.Contains("ShareData_NoSuchTable_9x7", row.AfterJson ?? string.Empty);
+            }
+            finally
+            {
+                await ClearTrackState(db);
+                if (startedAt > DateTime.MinValue)
+                {
+                    await db.Deleteable<ShareDataActivityLog>()
+                        .Where(x => x.Remark == ShareDataAlertCode.Tracking.QueryFailed && x.CreateTime >= startedAt)
+                        .ExecuteCommandAsync();
+                }
+            }
         }
 
         /// <summary>
-        /// Description: Khi đã qua mốc hẹn quét lại, ShouldRefreshTrackedTables phải trả về true để worker
-        ///              kiểm tra lại xem DBA đã bật Change Tracking cho phần còn thiếu chưa.
+        /// Description: Kiểm thử lưới an toàn của tác vụ dọn nhật ký — chỉ được xoá dòng hạ tầng mã ESH-16xx
+        ///              quá hạn, TUYỆT ĐỐI không được xoá dòng nhật ký truyền nhận nghiệp vụ cùng khoảng thời gian.
         /// Created date: 27/09/2026
         /// </summary>
         [Fact]
-        public void ShouldRefreshTrackedTables_WhenNextRefreshTimeReached_ReturnsTrue_Test()
+        public async Task PurgeTrackingLogs_OnlyDeletesEsh16Rows_KeepsBusinessTransferRows_Test()
         {
-            // Arrange
-            var worker = CreateTrackerWorker();
-            SetTrackedTablesState(worker, nextRefreshTime: DateTime.UtcNow.AddMinutes(-1), cachedSql: null);
+            // Arrange: 1 dòng hạ tầng quá hạn + 1 dòng nghiệp vụ quá hạn (Remark null)
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
-            // Act
-            var shouldRefresh = InvokeShouldRefreshTrackedTables(worker);
+            var oldTime = DateTime.Now.AddDays(-30);
+            var trackingId = Guid.NewGuid().ToString("N");
+            var businessId = Guid.NewGuid().ToString("N");
 
-            // Assert
-            Assert.True(shouldRefresh);
+            try
+            {
+                await db.Insertable(new ShareDataActivityLog
+                {
+                    ID = trackingId,
+                    LogType = BaseEnums.LogTypeEnum.Transfer,
+                    Remark = ShareDataAlertCode.Tracking.SelfHeal,
+                    Description = "Dòng hạ tầng quá hạn dùng cho test dọn nhật ký.",
+                    CreateTime = oldTime,
+                    UpdateTime = oldTime
+                }).ExecuteCommandAsync();
+
+                await db.Insertable(new ShareDataActivityLog
+                {
+                    ID = businessId,
+                    LogType = BaseEnums.LogTypeEnum.Transfer,
+                    Remark = null,
+                    Description = "Dòng nghiệp vụ quá hạn — PHẢI còn nguyên sau khi dọn.",
+                    CreateTime = oldTime,
+                    UpdateTime = oldTime
+                }).ExecuteCommandAsync();
+
+                // SqlSugar EntityTenant tự ép CreateTime = GETDATE() khi insert, nên cần UPDATE lại ngày cũ để test dọn
+                await db.Ado.ExecuteCommandAsync("UPDATE ShareDataActivityLog SET CreateTime = DATEADD(day, -30, GETDATE()) WHERE ID IN (@tId, @bId)", new { tId = trackingId, bId = businessId });
+
+                // Act
+                await ShareDataTransferLog.PurgeTrackingLogsAsync(db, retentionDays: 7);
+
+                // Assert: dòng hạ tầng bị xoá, dòng nghiệp vụ còn nguyên
+                Assert.Null(await db.Queryable<ShareDataActivityLog>().Where(x => x.ID == trackingId).FirstAsync());
+                Assert.NotNull(await db.Queryable<ShareDataActivityLog>().Where(x => x.ID == businessId).FirstAsync());
+            }
+            finally
+            {
+                await db.Deleteable<ShareDataActivityLog>()
+                    .Where(x => x.ID == trackingId || x.ID == businessId)
+                    .ExecuteCommandAsync();
+            }
         }
 
         /// <summary>
-        /// Description: Ở chu kỳ polling đầu tiên (chưa từng quét, _nextTableRefreshTime còn giá trị mặc định
-        ///              DateTime.MinValue), ShouldRefreshTrackedTables phải trả về true ngay, không chờ 5 phút,
-        ///              để worker khởi tạo được ngay khi khởi động.
+        /// Description: Kiểm thử toàn trình — mỗi lần chạy tiến trình worker phải sinh đúng 1 dòng trạng thái
+        ///              trong ShareDataTrackVersion, có mốc version hợp lệ và nhịp sống được cập nhật.
+        /// <summary>
+        /// Description: Kiểm thử cấu trúc bảng ShareDataTrackVersion: Toàn hệ thống giữ đúng 1 dòng duy nhất.
+        ///              Hai lượt poll liên tiếp không sinh dòng mới, nhịp sống cập nhật qua UpdateTime.
         /// Created date: 27/09/2026
         /// </summary>
         [Fact]
-        public void ShouldRefreshTrackedTables_WhenNeverRefreshedBefore_ReturnsTrue_Test()
+        public async Task TrackState_WhenPolled_KeepsExactlyOneRow_Test()
         {
-            // Arrange: worker mới tạo, chưa gọi SetTrackedTablesState nên _nextTableRefreshTime giữ DateTime.MinValue
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             var worker = CreateTrackerWorker();
 
-            // Act
-            var shouldRefresh = InvokeShouldRefreshTrackedTables(worker);
+            try
+            {
+                await ClearTrackState(db);
 
-            // Assert
-            Assert.True(shouldRefresh);
+                // Act: 2 lượt poll liên tiếp
+                await worker.PollChanges(CancellationToken.None);
+                var afterFirst = await GetTrackState(db);
+                await worker.PollChanges(CancellationToken.None);
+
+                // Assert: vẫn đúng 1 dòng duy nhất toàn hệ thống, không sinh dòng mới mỗi lượt
+                var rowCount = await db.Queryable<ShareDataTrackVersion>().CountAsync();
+                Assert.Equal(1, rowCount);
+
+                var afterSecond = await GetTrackState(db);
+                Assert.NotNull(afterFirst);
+                Assert.NotNull(afterSecond);
+                Assert.True(afterSecond!.LastVersion >= 0);
+                Assert.Equal(afterFirst!.ID, afterSecond.ID);
+
+                // Nhịp sống = UpdateTime do base EntityTenant tự ghi GETDATE() mỗi lần UPDATE
+                Assert.NotNull(afterSecond.UpdateTime);
+                Assert.True(afterSecond.UpdateTime >= afterSecond.CreateTime);
+            }
+            finally
+            {
+                await ClearTrackState(db);
+            }
         }
 
         /// <summary>
-        /// Description: Khi toàn bộ bảng đã bật Change Tracking đầy đủ, _nextTableRefreshTime được gán DateTime.MaxValue,
-        ///              ShouldRefreshTrackedTables phải trả về false mãi mãi để không quét lại CSDL nữa.
+        /// Description: Kiểm thử cơ chế resume — khi khởi động mà CSDL đã có dòng trạng thái của lần chạy trước,
+        ///              mốc version phải được tiếp tục từ đó thay vì quay về -1.
         /// Created date: 27/09/2026
         /// </summary>
         [Fact]
-        public void ShouldRefreshTrackedTables_WhenAllTablesTracked_ReturnsFalse_Test()
+        public async Task TrackState_WhenPreviousRunExists_ResumesItsVersion_Test()
         {
-            // Arrange
-            var worker = CreateTrackerWorker();
-            SetTrackedTablesState(worker, nextRefreshTime: DateTime.MaxValue, cachedSql: "SELECT 1");
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var worker = CreateTrackerWorker(scope);
 
-            // Act
-            var shouldRefresh = InvokeShouldRefreshTrackedTables(worker);
+            // Mốc giả rất lớn để phân biệt chắc chắn với mốc Change Tracking thật của CSDL test
+            const long previousVersion = 999_999_999;
+            var previousId = Guid.NewGuid().ToString("N");
 
-            // Assert
-            Assert.False(shouldRefresh);
+            try
+            {
+                await ClearTrackState(db);
+
+                await db.Insertable(new ShareDataTrackVersion
+                {
+                    ID = previousId,
+                    LastVersion = previousVersion
+                }).ExecuteCommandAsync();
+
+                // Act: chu kỳ quét đầu tiên, đi qua đúng đường sản xuất
+                await worker.PollChanges(CancellationToken.None);
+
+                // Assert: tiếp tục đúng dòng trạng thái hiện có và TIẾP TỤC mốc LastVersion của lần chạy trước
+                var state = await GetTrackState(db);
+                Assert.NotNull(state);
+                Assert.Equal(previousId, state!.ID);
+                Assert.Equal(previousVersion, state.LastVersion);
+            }
+            finally
+            {
+                await ClearTrackState(db);
+                await db.Deleteable<ShareDataTrackVersion>().Where(x => x.ID == previousId).ExecuteCommandAsync();
+            }
         }
 
-        private DataTrackerWorker CreateTrackerWorker(IServiceScope? scope = null, TransportManager? transport = null)
+        /// <summary>
+        /// Description: Kiểm thử tính năng nạp động danh sách bảng cần giám sát từ appsettings.json ("ShareDataTracker:Tables").
+        ///              Khi có cấu hình thì nạp danh sách bảng tùy biến; khi không có cấu hình thì tự động fallback về 15 bảng mặc định.
+        /// Created date: 27/09/2026
+        /// </summary>
+        [Fact]
+        public void DataTrackerWorker_WhenConfiguredInAppSettings_LoadsCustomTables_Test()
+        {
+            // Case 1: Nạp cấu hình mặc định từ appsettings.Test.json -> nạp đủ 15 bảng
+            var defaultWorker = CreateTrackerWorker();
+            Assert.NotEmpty(defaultWorker.TrackedTables);
+            Assert.Equal(15, defaultWorker.TrackedTables.Count);
+
+            // Case 2: Nạp cấu hình danh sách bảng tùy biến từ IConfiguration (chỉ theo dõi các bảng được khai báo trong TablePacketMap)
+            var inMemorySettings = new Dictionary<string, string?>
+            {
+                ["ShareDataTracker:TablePacketMap:TmsIncident:0"] = "107_incidentData",
+                ["ShareDataTracker:TablePacketMap:TmsTrafficData:0"] = "103_vdsData"
+            };
+
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(inMemorySettings)
+                .Build();
+
+            var customWorker = CreateTrackerWorker(config: configuration);
+
+            // Assert: Nạp chính xác 2 bảng tùy biến và sinh câu SQL chỉ gồm 2 bảng đó
+            Assert.Equal(2, customWorker.TrackedTables.Count);
+            Assert.Contains("TmsIncident", customWorker.TrackedTables);
+            Assert.Contains("TmsTrafficData", customWorker.TrackedTables);
+            Assert.Contains("TmsIncident", customWorker.ChangesSql);
+            Assert.Contains("TmsTrafficData", customWorker.ChangesSql);
+            Assert.DoesNotContain("TollLane", customWorker.ChangesSql);
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử nạp bảng ánh xạ TablePacketMap từ IConfiguration ("ShareDataTracker:TablePacketMap").
+        ///              Xác thực hỗ trợ cả mã ngắn ("101"), mã chuẩn ("101_commonData") và mảng 2 phần tử ["101", "101_commonData"].
+        ///              Tất cả đều được chuẩn hoá về mã chuẩn và deduplicate khi phân giải gói tin (ResolvePackets).
+        /// Created date: 27/09/2026
+        /// </summary>
+        [Fact]
+        public void DataTrackerWorker_WhenConfiguredTablePacketMap_LoadsMapAndNormalizesPackets_Test()
+        {
+            // Arrange: Cấu hình TablePacketMap gồm cả mã ngắn, mã đầy đủ, và kết hợp cả hai
+            var inMemorySettings = new Dictionary<string, string?>
+            {
+                ["ShareDataTracker:TablePacketMap:TmsZoneStatus:0"] = "101",
+                ["ShareDataTracker:TablePacketMap:TmsZoneStatus:1"] = "101_commonData",
+                ["ShareDataTracker:TablePacketMap:CctvDevice:0"] = "102",
+                ["ShareDataTracker:TablePacketMap:TmsWeather:0"] = "104_weatherData",
+                ["ShareDataTracker:TablePacketMap:TmsIncident:0"] = "107",
+                ["ShareDataTracker:TablePacketMap:TmsIncident:1"] = "110",
+                ["ShareDataTracker:TablePacketMap:TmsIncident:2"] = "111"
+            };
+
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(inMemorySettings)
+                .Build();
+
+            // Act
+            var worker = CreateTrackerWorker(config: configuration);
+
+            // Assert 1: Danh sách bảng được suy ra từ TablePacketMap.Keys
+            Assert.Equal(4, worker.TrackedTables.Count);
+            Assert.Contains("TmsZoneStatus", worker.TrackedTables);
+            Assert.Contains("CctvDevice", worker.TrackedTables);
+            Assert.Contains("TmsWeather", worker.TrackedTables);
+            Assert.Contains("TmsIncident", worker.TrackedTables);
+
+            // Assert 2: TmsZoneStatus với mảng cả 2 mã ["101", "101_commonData"] -> Deduplicate về đúng 1 gói "101_commonData"
+            var packetsZone = DataTrackerWorker.ResolvePackets(["TmsZoneStatus"], worker.TablePacketMap);
+            Assert.Single(packetsZone);
+            Assert.Equal("101_commonData", packetsZone[0]);
+
+            // Assert 3: CctvDevice với mã ngắn "102" -> Chuẩn hoá thành "102_cctvData"
+            var packetsCctv = DataTrackerWorker.ResolvePackets(["CctvDevice"], worker.TablePacketMap);
+            Assert.Single(packetsCctv);
+            Assert.Equal("102_cctvData", packetsCctv[0]);
+
+            // Assert 4: TmsWeather với mã đầy đủ "104_weatherData" -> Giữ nguyên "104_weatherData"
+            var packetsWeather = DataTrackerWorker.ResolvePackets(["TmsWeather"], worker.TablePacketMap);
+            Assert.Single(packetsWeather);
+            Assert.Equal("104_weatherData", packetsWeather[0]);
+
+            // Assert 5: TmsIncident với [107, 110, 111] -> 110 (NotReady) và 111 (Disabled) bị lọc bỏ theo policy, chỉ còn 107_incidentData
+            var packetsIncident = DataTrackerWorker.ResolvePackets(["TmsIncident"], worker.TablePacketMap);
+            Assert.Single(packetsIncident);
+            Assert.Equal("107_incidentData", packetsIncident[0]);
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử đơn vị phương thức PacketMetadataResolver.NormalizePacketCode
+        ///              cho toàn bộ 11 gói tin chuẩn từ 101 đến 111 đối với cả mã ngắn và mã chuẩn.
+        /// Created date: 27/09/2026
+        /// </summary>
+        [Theory]
+        [InlineData("101", "101_commonData")]
+        [InlineData("101_commonData", "101_commonData")]
+        [InlineData("102", "102_cctvData")]
+        [InlineData("102_cctvData", "102_cctvData")]
+        [InlineData("103", "103_vdsData")]
+        [InlineData("103_vdsData", "103_vdsData")]
+        [InlineData("104", "104_weatherData")]
+        [InlineData("104_weatherData", "104_weatherData")]
+        [InlineData("105", "105_rfidData")]
+        [InlineData("105_rfidData", "105_rfidData")]
+        [InlineData("106", "106_wimData")]
+        [InlineData("106_wimData", "106_wimData")]
+        [InlineData("107", "107_incidentData")]
+        [InlineData("107_incidentData", "107_incidentData")]
+        [InlineData("108", "108_vmsInfo")]
+        [InlineData("108_vmsInfo", "108_vmsInfo")]
+        [InlineData("109", "109_etcData")]
+        [InlineData("109_etcData", "109_etcData")]
+        [InlineData("110", "110_wpData")]
+        [InlineData("110_wpData", "110_wpData")]
+        [InlineData("111", "111")]
+        public void NormalizePacketCode_ResolvesShortAndCanonicalCorrectly(string input, string expected)
+        {
+            var normalized = PacketMetadataResolver.NormalizePacketCode(input);
+            Assert.Equal(expected, normalized);
+        }
+
+        private DataTrackerWorker CreateTrackerWorker(IServiceScope? scope = null, TransportManager? transport = null, IConfiguration? config = null)
         {
             var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
             var logger = (scope?.ServiceProvider ?? _host.Services).GetRequiredService<ILogger<DataTrackerWorker>>();
             transport ??= new TransportManager(new ConfigurationBuilder().Build());
-            return new DataTrackerWorker(scopeFactory, logger, transport);
+            config ??= _host.Services.GetService<IConfiguration>();
+            return new DataTrackerWorker(scopeFactory, logger, transport, config);
         }
 
-        private static bool InvokeShouldRefreshTrackedTables(DataTrackerWorker worker)
+        /// <summary>
+        /// Description: Lấy dòng trạng thái duy nhất trong bảng ShareDataTrackVersion.
+        /// Created date: 27/09/2026
+        /// </summary>
+        private static async Task<ShareDataTrackVersion?> GetTrackState(ISqlSugarClient db) =>
+            await db.Queryable<ShareDataTrackVersion>().FirstAsync();
+
+        /// <summary>
+        /// Description: Lấy mốc version Change Tracking đang lưu; chưa có dòng trạng thái thì trả về -1.
+        /// Created date: 27/09/2026
+        /// </summary>
+        private static async Task<long> GetStateVersion(ISqlSugarClient db) =>
+            (await GetTrackState(db))?.LastVersion ?? -1;
+
+        /// <summary>
+        /// Description: Ghi đè mốc version trong dòng trạng thái (mô phỏng mốc bị lệch hoặc quá cũ).
+        /// Created date: 27/09/2026
+        /// </summary>
+        private static async Task SetStateVersion(ISqlSugarClient db, long version)
         {
-            var method = typeof(DataTrackerWorker).GetMethod("ShouldRefreshTrackedTables", BindingFlags.NonPublic | BindingFlags.Instance)
-                ?? throw new InvalidOperationException("ShouldRefreshTrackedTables method not found");
-            return (bool)method.Invoke(worker, null)!;
+            var trackVersion = await GetTrackState(db)
+                ?? throw new InvalidOperationException("Chưa có dòng ShareDataTrackVersion — hãy gọi PollChanges trước.");
+            trackVersion.LastVersion = version;
+            await db.Updateable(trackVersion).ExecuteCommandAsync();
         }
 
-        private static void SetTrackedTablesState(DataTrackerWorker worker, DateTime nextRefreshTime, string? cachedSql = null)
+
+        /// <summary>
+        /// Description: Xoá dòng trạng thái — gọi trong finally để các bài test
+        ///              không ảnh hưởng lẫn nhau qua dòng trạng thái dùng chung.
+        /// Created date: 27/09/2026
+        /// </summary>
+        private static async Task ClearTrackState(ISqlSugarClient db)
         {
-            typeof(DataTrackerWorker).GetField("_cachedChangesSql", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(worker, cachedSql);
-            typeof(DataTrackerWorker).GetField("_nextTableRefreshTime", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(worker, nextRefreshTime);
+            db.CodeFirst.InitTables<ShareDataTrackVersion>();
+            await db.Deleteable<ShareDataTrackVersion>().ExecuteCommandAsync();
         }
 
-        private static string InvokeBuildChangedTablesSql(IReadOnlyList<string> trackedTables)
+
+        private static async Task<List<string>?> InvokeQueryChangedTables(DataTrackerWorker worker, ISqlSugarClient db, ShareDataTrackVersion trackVersion, string sql, long currentVersion)
         {
-            var method = typeof(DataTrackerWorker).GetMethod("BuildChangesSql", BindingFlags.NonPublic | BindingFlags.Static)
-                ?? throw new InvalidOperationException("BuildChangesSql method not found");
-            return (string)method.Invoke(null, [trackedTables])!;
+            var method = typeof(DataTrackerWorker).GetMethod("QueryChangedTables", BindingFlags.NonPublic | BindingFlags.Instance)
+                ?? throw new InvalidOperationException("QueryChangedTables method not found");
+            var task = (Task<List<string>?>)method.Invoke(worker, [db, trackVersion, sql, currentVersion])!;
+            return await task;
         }
 
-        private static IReadOnlyList<string> InvokeResolveTriggerPackets(IEnumerable<string> changedTables)
+        private static string InvokeBuildChangedTablesSql(IReadOnlyList<string> trackedTables) =>
+            DataTrackerWorker.BuildChangesSql(trackedTables);
+
+        private IReadOnlyList<string> InvokeResolveTriggerPackets(IEnumerable<string> changedTables)
         {
-            var method = typeof(DataTrackerWorker).GetMethod("ResolvePackets", BindingFlags.NonPublic | BindingFlags.Static)
-                ?? throw new InvalidOperationException("ResolvePackets method not found");
-            return (IReadOnlyList<string>)method.Invoke(null, [changedTables])!;
+            var worker = CreateTrackerWorker();
+            return worker.ResolvePackets(changedTables);
         }
 
         private static bool InvokeIsTrackingVersionInvalid(Exception? ex)
