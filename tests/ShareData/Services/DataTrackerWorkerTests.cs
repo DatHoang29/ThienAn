@@ -44,7 +44,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             Assert.Equal(-1, worker.LastProcessedVersion);
 
             // Act: Chu kỳ poll đầu tiên khởi tạo môi trường và mốc version
-            await worker.PollChangeTracking(CancellationToken.None);
+            await worker.PollChanges(CancellationToken.None);
 
             // Assert: Sau chu kỳ đầu, mốc version đã được khởi tạo thành công (>= 0)
             Assert.True(worker.LastProcessedVersion >= 0);
@@ -81,7 +81,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             await using var scope = _host.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             var worker = CreateTrackerWorker(scope);
-            await worker.PollChangeTracking(CancellationToken.None);
+            await worker.PollChanges(CancellationToken.None);
 
             var testId = Guid.NewGuid().ToString("N")[..8];
             var eqId = $"EQ_DEL_{testId}";
@@ -111,7 +111,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             }).ExecuteCommandAsync();
 
             // Lấy mốc version sau khi đã Insert
-            var verObj = await db.Ado.GetScalarAsync(DataTrackerWorker.SqlChangeTrackingCurrentVersion);
+            var verObj = await db.Ado.GetScalarAsync(DataTrackerWorker.SqlCurrentVersion);
             var verAfterInsert = Convert.ToInt64(verObj);
 
             try
@@ -199,20 +199,20 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             await using var scope = _host.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
-            var currentVerObj = await db.Ado.GetScalarAsync(DataTrackerWorker.SqlChangeTrackingCurrentVersion);
+            var currentVerObj = await db.Ado.GetScalarAsync(DataTrackerWorker.SqlCurrentVersion);
             var currentVer = Convert.ToInt64(currentVerObj);
 
             var worker = CreateTrackerWorker(scope);
 
             // Act 1: Chu kỳ poll đầu tiên khởi tạo LastProcessedVersion = currentVer
-            await worker.PollChangeTracking(CancellationToken.None);
+            await worker.PollChanges(CancellationToken.None);
             Assert.True(worker.LastProcessedVersion >= 0);
 
             // Act 2: Giả lập mốc LastProcessedVersion bị lệch hoặc âm (-10)
             typeof(DataTrackerWorker).GetProperty(nameof(DataTrackerWorker.LastProcessedVersion))?
                 .GetSetMethod(nonPublic: true)?
                 .Invoke(worker, [-10L]);
-            await worker.PollChangeTracking(CancellationToken.None);
+            await worker.PollChanges(CancellationToken.None);
 
             // Assert: Worker tự căn chỉnh lại theo mốc DB hiện tại
             Assert.True(worker.LastProcessedVersion >= currentVer);
@@ -234,7 +234,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             cts.Cancel();
 
             // Act & Assert
-            await Assert.ThrowsAsync<OperationCanceledException>(() => worker.PollChangeTracking(cts.Token));
+            await Assert.ThrowsAsync<OperationCanceledException>(() => worker.PollChanges(cts.Token));
         }
 
         #endregion
@@ -946,8 +946,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             var trackerB = CreateTrackerWorker(scope2);
 
             // Khởi tạo mốc baseline ban đầu cho từng service
-            await trackerA.PollChangeTracking(CancellationToken.None);
-            await trackerB.PollChangeTracking(CancellationToken.None);
+            await trackerA.PollChanges(CancellationToken.None);
+            await trackerB.PollChanges(CancellationToken.None);
 
             Assert.True(trackerA.LastProcessedVersion >= 0);
             Assert.True(trackerB.LastProcessedVersion >= 0);
@@ -986,8 +986,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 var serviceB = CreateOutboundService(scope2);
 
                 // 1. Cả 2 tracker quét thay đổi từ DB
-                await trackerA.PollChangeTracking(CancellationToken.None);
-                await trackerB.PollChangeTracking(CancellationToken.None);
+                await trackerA.PollChanges(CancellationToken.None);
+                await trackerB.PollChanges(CancellationToken.None);
 
                 // Cả 2 tracker độc lập đều tự nâng mốc LastProcessedVersion lên version mới nhất của DB
                 Assert.True(trackerA.LastProcessedVersion > 0);
@@ -1022,8 +1022,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 Assert.NotNull(checkpoint.LastTime);
 
                 // 4. Kiểm tra chu kỳ tiếp theo: Khi không có dữ liệu mới, cả 2 service cùng poll đều không phát sinh thêm lượt gửi nào
-                await trackerA.PollChangeTracking(CancellationToken.None);
-                await trackerB.PollChangeTracking(CancellationToken.None);
+                await trackerA.PollChanges(CancellationToken.None);
+                await trackerB.PollChanges(CancellationToken.None);
 
                 var logsAfterSecondPoll = await db.Queryable<ShareDataActivityLog>()
                     .Where(l => l.SubscriptionId == sub.ID)
@@ -1284,7 +1284,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 var transport = scope.ServiceProvider.GetService<TransportManager>() ?? new TransportManager(config);
 
                 var newWatcher = CreateTrackerWorker(scope, transport);
-                await newWatcher.PollChangeTracking(CancellationToken.None);
+                await newWatcher.PollChanges(CancellationToken.None);
 
                 // 4. Act: Luồng quét định kỳ (ProcessSubscriptions) kích hoạt theo lịch
                 // Đảm bảo NextTimeRun đến hạn chạy định kỳ
@@ -2156,24 +2156,18 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
         }
 
         [Fact]
-        public async Task GetCurrentDbVersion_WhenExceptionOccurs_LogsDebugAndReturnsNull_Test()
+        public async Task GetCurrentDbVersion_WhenExceptionOccurs_ThrowsException_Test()
         {
             // Arrange: Client có kết nối không hợp lệ để chắc chắn ném exception khi Ado.GetScalarAsync
-            var badClient = new SqlSugarClient(new ConnectionConfig
+            using var badClient = new SqlSugarClient(new ConnectionConfig
             {
                 ConnectionString = "Server=127.0.0.1,59999;Database=not_exist;Connect Timeout=1;",
                 DbType = DbType.SqlServer,
                 IsAutoCloseConnection = true
             });
-            var testLogger = new TestLogger();
 
-            // Act
-            var version = await InvokeGetCurrentDbVersion(badClient, testLogger);
-
-            // Assert
-            Assert.Null(version);
-            Assert.NotEmpty(testLogger.Logs);
-            Assert.Contains(testLogger.Logs, log => log.Contains("CHANGE_TRACKING_CURRENT_VERSION"));
+            // Act & Assert: Ngoại lệ kết nối DB không bị nuốt mà văng lên để ExecuteAsync cấp cha xử lý
+            await Assert.ThrowsAnyAsync<Exception>(() => InvokeGetCurrentDbVersion(badClient));
         }
 
         [Fact]
@@ -2182,26 +2176,140 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             // Arrange
             await using var scope = _host.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var testLogger = new TestLogger();
 
             // Act
-            var version = await InvokeGetCurrentDbVersion(db, testLogger);
+            var version = await InvokeGetCurrentDbVersion(db);
 
             // Assert: Trên DB test đã kích hoạt Change Tracking thì version >= 0
             Assert.NotNull(version);
             Assert.True(version >= 0);
-            Assert.Empty(testLogger.Logs);
         }
 
-        private class TestLogger : ILogger
+        /// <summary>
+        /// Description: Kiểm thử tối ưu hiệu năng: Đảm bảo sau chu kỳ khởi tạo ban đầu, câu lệnh SQL hợp nhất
+        ///              được lưu đệm (cache) trong bộ nhớ, không lặp lại truy vấn metadata danh sách bảng ở mỗi giây.
+        /// Created date: 26/09/2026
+        /// </summary>
+        [Fact]
+        public async Task PollChangeTracking_WhenTablesTracked_CachesChangedTablesSql_Test()
         {
-            public List<string> Logs { get; } = new();
-            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-            public bool IsEnabled(LogLevel logLevel) => true;
-            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
-            {
-                Logs.Add(formatter(state, exception));
-            }
+            // Arrange
+            await using var scope = _host.Services.CreateAsyncScope();
+            var worker = CreateTrackerWorker(scope);
+
+            // Act 1: Lần poll đầu tiên khi LastProcessedVersion < 0 -> khởi tạo cache
+            await worker.PollChanges(CancellationToken.None);
+            Assert.True(worker.LastProcessedVersion >= 0);
+
+            var cacheField = typeof(DataTrackerWorker).GetField("_cachedChangesSql", BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert.NotNull(cacheField);
+
+            var initialCachedSql = (string?)cacheField.GetValue(worker);
+            Assert.False(string.IsNullOrWhiteSpace(initialCachedSql));
+
+            // Act 2: Poll lần 2 -> chuỗi SQL trong cache được tái sử dụng nguyên vẹn
+            await worker.PollChanges(CancellationToken.None);
+            var secondCachedSql = (string?)cacheField.GetValue(worker);
+
+            // Assert: Cache không bị null và giữ nguyên giá trị
+            Assert.Equal(initialCachedSql, secondCachedSql);
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử câu lệnh SqlGetAllTrackedTables lấy đầy đủ tất cả các bảng đã kích hoạt Change Tracking trong 1 query.
+        /// Created date: 26/09/2026
+        /// </summary>
+        [Fact]
+        public async Task SqlGetAllTrackedTables_ReturnsActiveTrackedTables_Test()
+        {
+            // Arrange
+            await using var scope = _host.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            // Act
+            var tables = await db.Ado.SqlQueryAsync<string>(DataTrackerWorker.SqlGetAllTrackedTables);
+
+            // Assert: Trả về danh sách bảng và có chứa các bảng chính (TmsZoneStatus, TmsTrafficData, v.v.)
+            Assert.NotNull(tables);
+            Assert.NotEmpty(tables);
+            Assert.Contains("TmsTrafficData", tables, StringComparer.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Description: Kiểm chứng lỗi đã sửa — khi mốc hẹn quét lại còn ở tương lai, ShouldRefreshTrackedTables
+        ///              phải trả về false, không được gọi lại CheckTracking mỗi chu kỳ polling 1 giây/lần.
+        ///              Trước khi sửa, điều kiện cũ luôn refresh ngay mỗi khi cache SQL rỗng, bỏ qua throttle.
+        /// Created date: 27/09/2026
+        /// </summary>
+        [Fact]
+        public void ShouldRefreshTrackedTables_WhenNextRefreshTimeInFuture_ReturnsFalse_Test()
+        {
+            // Arrange: mô phỏng vừa quét xong khi CSDL chưa bật Change Tracking — cache SQL rỗng, hẹn quét lại sau 5 phút
+            var worker = CreateTrackerWorker();
+            SetTrackedTablesState(worker, nextRefreshTime: DateTime.UtcNow.AddMinutes(5), cachedSql: null);
+
+            // Act
+            var shouldRefresh = InvokeShouldRefreshTrackedTables(worker);
+
+            // Assert: chưa tới mốc hẹn thì không được quét lại
+            Assert.False(shouldRefresh);
+        }
+
+        /// <summary>
+        /// Description: Khi đã qua mốc hẹn quét lại, ShouldRefreshTrackedTables phải trả về true để worker
+        ///              kiểm tra lại xem DBA đã bật Change Tracking cho phần còn thiếu chưa.
+        /// Created date: 27/09/2026
+        /// </summary>
+        [Fact]
+        public void ShouldRefreshTrackedTables_WhenNextRefreshTimeReached_ReturnsTrue_Test()
+        {
+            // Arrange
+            var worker = CreateTrackerWorker();
+            SetTrackedTablesState(worker, nextRefreshTime: DateTime.UtcNow.AddMinutes(-1), cachedSql: null);
+
+            // Act
+            var shouldRefresh = InvokeShouldRefreshTrackedTables(worker);
+
+            // Assert
+            Assert.True(shouldRefresh);
+        }
+
+        /// <summary>
+        /// Description: Ở chu kỳ polling đầu tiên (chưa từng quét, _nextTableRefreshTime còn giá trị mặc định
+        ///              DateTime.MinValue), ShouldRefreshTrackedTables phải trả về true ngay, không chờ 5 phút,
+        ///              để worker khởi tạo được ngay khi khởi động.
+        /// Created date: 27/09/2026
+        /// </summary>
+        [Fact]
+        public void ShouldRefreshTrackedTables_WhenNeverRefreshedBefore_ReturnsTrue_Test()
+        {
+            // Arrange: worker mới tạo, chưa gọi SetTrackedTablesState nên _nextTableRefreshTime giữ DateTime.MinValue
+            var worker = CreateTrackerWorker();
+
+            // Act
+            var shouldRefresh = InvokeShouldRefreshTrackedTables(worker);
+
+            // Assert
+            Assert.True(shouldRefresh);
+        }
+
+        /// <summary>
+        /// Description: Khi toàn bộ bảng đã bật Change Tracking đầy đủ, _nextTableRefreshTime được gán DateTime.MaxValue,
+        ///              ShouldRefreshTrackedTables phải trả về false mãi mãi để không quét lại CSDL nữa.
+        /// Created date: 27/09/2026
+        /// </summary>
+        [Fact]
+        public void ShouldRefreshTrackedTables_WhenAllTablesTracked_ReturnsFalse_Test()
+        {
+            // Arrange
+            var worker = CreateTrackerWorker();
+            SetTrackedTablesState(worker, nextRefreshTime: DateTime.MaxValue, cachedSql: "SELECT 1");
+
+            // Act
+            var shouldRefresh = InvokeShouldRefreshTrackedTables(worker);
+
+            // Assert
+            Assert.False(shouldRefresh);
         }
 
         private DataTrackerWorker CreateTrackerWorker(IServiceScope? scope = null, TransportManager? transport = null)
@@ -2212,32 +2320,45 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             return new DataTrackerWorker(scopeFactory, logger, transport);
         }
 
+        private static bool InvokeShouldRefreshTrackedTables(DataTrackerWorker worker)
+        {
+            var method = typeof(DataTrackerWorker).GetMethod("ShouldRefreshTrackedTables", BindingFlags.NonPublic | BindingFlags.Instance)
+                ?? throw new InvalidOperationException("ShouldRefreshTrackedTables method not found");
+            return (bool)method.Invoke(worker, null)!;
+        }
+
+        private static void SetTrackedTablesState(DataTrackerWorker worker, DateTime nextRefreshTime, string? cachedSql = null)
+        {
+            typeof(DataTrackerWorker).GetField("_cachedChangesSql", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(worker, cachedSql);
+            typeof(DataTrackerWorker).GetField("_nextTableRefreshTime", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(worker, nextRefreshTime);
+        }
+
         private static string InvokeBuildChangedTablesSql(IReadOnlyList<string> trackedTables)
         {
-            var method = typeof(DataTrackerWorker).GetMethod("BuildChangedTablesSql", BindingFlags.NonPublic | BindingFlags.Static)
-                ?? throw new InvalidOperationException("BuildChangedTablesSql method not found");
+            var method = typeof(DataTrackerWorker).GetMethod("BuildChangesSql", BindingFlags.NonPublic | BindingFlags.Static)
+                ?? throw new InvalidOperationException("BuildChangesSql method not found");
             return (string)method.Invoke(null, [trackedTables])!;
         }
 
         private static IReadOnlyList<string> InvokeResolveTriggerPackets(IEnumerable<string> changedTables)
         {
-            var method = typeof(DataTrackerWorker).GetMethod("ResolveTriggerPackets", BindingFlags.NonPublic | BindingFlags.Static)
-                ?? throw new InvalidOperationException("ResolveTriggerPackets method not found");
+            var method = typeof(DataTrackerWorker).GetMethod("ResolvePackets", BindingFlags.NonPublic | BindingFlags.Static)
+                ?? throw new InvalidOperationException("ResolvePackets method not found");
             return (IReadOnlyList<string>)method.Invoke(null, [changedTables])!;
         }
 
         private static bool InvokeIsTrackingVersionInvalid(Exception? ex)
         {
-            var method = typeof(DataTrackerWorker).GetMethod("IsTrackingVersionInvalid", BindingFlags.NonPublic | BindingFlags.Static)
-                ?? throw new InvalidOperationException("IsTrackingVersionInvalid method not found");
+            var method = typeof(DataTrackerWorker).GetMethod("IsVersionInvalid", BindingFlags.NonPublic | BindingFlags.Static)
+                ?? throw new InvalidOperationException("IsVersionInvalid method not found");
             return (bool)method.Invoke(null, [ex])!;
         }
 
-        private static async Task<long?> InvokeGetCurrentDbVersion(ISqlSugarClient db, ILogger? logger = null)
+        private static async Task<long?> InvokeGetCurrentDbVersion(ISqlSugarClient db)
         {
-            var method = typeof(DataTrackerWorker).GetMethod("GetCurrentDbVersion", BindingFlags.NonPublic | BindingFlags.Static)
-                ?? throw new InvalidOperationException("GetCurrentDbVersion method not found");
-            var task = (Task<long?>)method.Invoke(null, [db, logger])!;
+            var method = typeof(DataTrackerWorker).GetMethod("GetCurrentVersion", BindingFlags.NonPublic | BindingFlags.Static)
+                ?? throw new InvalidOperationException("GetCurrentVersion method not found");
+            var task = (Task<long?>)method.Invoke(null, [db])!;
             return await task;
         }
 

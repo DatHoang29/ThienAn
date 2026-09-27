@@ -1575,14 +1575,17 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                     s.NextTimeRun = DateTime.Now.AddSeconds(-10);
                 });
 
-            const string triggerName = "trg_test_fail_release_lock";
+            var triggerName = $"trg_test_fail_release_{unique}";
+            // Dọn dẹp trigger cũ (nếu có từ trước do crash)
+            await db.Ado.ExecuteCommandAsync("DROP TRIGGER IF EXISTS trg_test_fail_release_lock;");
+
             await db.Ado.ExecuteCommandAsync($@"
 CREATE OR ALTER TRIGGER {triggerName} ON ShareDataSubscription
 AFTER UPDATE
 AS
 BEGIN
     SET NOCOUNT ON;
-    IF UPDATE(State) AND EXISTS (SELECT 1 FROM inserted WHERE Code LIKE '%FAIL_RELEASE%')
+    IF UPDATE(State) AND EXISTS (SELECT 1 FROM inserted WHERE Code = 'SUB_FAIL_RELEASE_{unique}')
         THROW 51000, 'Mô phỏng lỗi DB đứt kết nối/timeout khi ReleaseLock', 1;
 END");
 
@@ -1608,6 +1611,12 @@ END");
             {
                 // Dọn dẹp trigger để không ảnh hưởng bài test khác
                 await db.Ado.ExecuteCommandAsync($"DROP TRIGGER IF EXISTS {triggerName};");
+                await db.Ado.ExecuteCommandAsync("DROP TRIGGER IF EXISTS trg_test_fail_release_lock;");
+
+                // Dọn dẹp dữ liệu test đã seed để tránh để lại dữ liệu mồ côi
+                await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == badSub.ID || l.SubscriptionId == goodSub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == badSub.ID || s.ID == goodSub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataPartner>().Where(p => p.ID == badPartner.ID || p.ID == goodPartner.ID).ExecuteCommandAsync();
             }
         }
 
