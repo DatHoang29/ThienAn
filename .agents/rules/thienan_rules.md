@@ -1005,18 +1005,22 @@ tests/
     - Có đoạn văn nói **về** cách trình bày thay vì nói **về** nội dung nghiệp vụ.
   - **Lỗi thật đã mắc**: `Sharedata_Review_TongThe_20260927.md` bản đầu dài 26 KB, đủ 4 trục theo mục 19.14 và chính xác về nội dung, nhưng chủ dự án đọc xong **vẫn phải quay lại hỏi** vì: ô `Tóm tắt` chỉ ghi số lượng không ghi nội dung; mục 2 đặc biểu thức mã nguồn; có đoạn AI tự biện luận cách phân loại ký hiệu của mình. Chủ dự án phản hồi nguyên văn: *"báo cáo tôi đọc còn phải hỏi lại bạn nghĩa là báo cáo đó tôi không hiểu"*. ⚠️ Lần đầu AI chỉ vá triệu chứng (thêm một cột ký hiệu) — sai, vì nguyên nhân gốc là **viết hướng về mình thay vì hướng về người đọc**.
 
-- **19.22. Quy Chuẩn Khai Báo Property — Dùng Auto-Property { get; } / { get; set; }, CẤM Tách Backing Field Với Toán Tử Lazy ??= (chốt 27/09/2026)**:
+- **19.22. Quy Chuẩn Khai Báo Property — Dùng Auto-Property { get; } / { get; set; }, CẤM Tách Backing Field Riêng (chốt 27/09/2026)**:
   - **Nguyên tắc**: Khi khai báo property trong class C# (Service, Worker, Controller, Entity, DTO...), BẮT BUỘC sử dụng Auto-Property thuần (`{ get; }`, `{ get; init; }`, hoặc `{ get; set; }`) được khởi tạo giá trị trực tiếp hoặc thông qua Constructor.
-  - ⛔ **CẤM tuyệt đối phản mẫu tách backing field lười biếng (Lazy Backing Field Anti-pattern)**:
-    - ❌ Không khai báo property dạng expression-bodied gán ngầm vào backing field: `public IReadOnlyList<string> TrackedTables => _trackedTables ??= ...; private IReadOnlyList<string>? _trackedTables;` hoặc `public string ChangesSql => _changesSql ??= ...; private string? _changesSql;`.
-    - Cách viết này vừa làm rác class (sinh thêm nhiều field `private` thừa thãi), vừa không an toàn về đa luồng (thread-safety), vừa gây khó khăn cho việc đọc hiểu và debug.
+  - ⛔ **CẤM tuyệt đối các phản mẫu tách backing field riêng (Backing Field Anti-patterns)**:
+    - ❌ **Cấm tách backing field lazy `??=`**: Không viết `public IReadOnlyList<string> TrackedTables => _trackedTables ??= ...; private IReadOnlyList<string>? _trackedTables;`.
+    - ❌ **Cấm tách backing field wrapper collection**: Không viết `public IReadOnlyCollection<string> MissingTables => _missingTables; private readonly HashSet<string> _missingTables = new(...);`.
+    - Cách viết này làm rác class (sinh thêm nhiều field `private` thừa thãi, rườm rà), khó đọc, khó debug và vi phạm tính đồng nhất của codebase.
   - ✅ **Cách viết chuẩn**:
-    - Khởi tạo trực tiếp trên auto-property hoặc trong Constructor của class:
+    - Khởi tạo trực tiếp trên auto-property thuần hoặc trong Constructor:
       ```csharp
       // ✅ ĐÚNG: Auto-property { get; } khởi tạo 1 lần trong Constructor hoặc trực tiếp
       public IReadOnlyDictionary<string, IReadOnlyList<string>> TablePacketMap { get; } = LoadTablePacketMap(Configuration);
       public IReadOnlyList<string> TrackedTables { get; } = [.. LoadTablePacketMap(Configuration).Keys];
       public string ChangesSql { get; } = BuildChangesSql([.. LoadTablePacketMap(Configuration).Keys]);
+      public HashSet<string> MissingTables { get; } = new(StringComparer.OrdinalIgnoreCase);
+      public DateTime? NextTableRetryTime { get; set; }
+      public string ActiveChangesSql { get; private set; } = BuildChangesSql([.. LoadTablePacketMap(Configuration).Keys]);
       ```
 
 ---

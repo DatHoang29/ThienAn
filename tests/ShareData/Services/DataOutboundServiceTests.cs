@@ -1867,6 +1867,166 @@ END");
             }
         }
 
+        /// <summary>
+        /// Description: Kiểm thử chống dội (DebounceSec) tầng CSDL: Khi Subscription gói 103 có DebounceSec=300s
+        ///              và LastTimeRun chỉ mới cách đây 10s (nằm trong cửa sổ chống dội),
+        ///              lệnh chiếm quyền nguyên tử không khớp điều kiện WhereIF, không sinh log gửi thành công,
+        ///              SerialNbr không tăng và NextTimeRun không bị đẩy thành mốc hết hạn khoá.
+        /// Created date: 27/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessSubscriptions_Packet103_WhenWithinDebounceWindow_DoesNotExport_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "103");
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var dbNow = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
+
+            var eqId = $"EQ_DB_{unique}";
+            await db.Insertable(new TmsEquipment
+            {
+                ID = eqId,
+                Code = $"VDS_DB_{unique}",
+                KmNumber = 45,
+                MetNumber = 100
+            }).ExecuteCommandAsync();
+
+            var initialSerial = 10;
+            var pastNextRun = dbNow.AddSeconds(-20);
+            var (partner, sub) = await SeedOutboundSubscription(db, $"P_DB_{unique}", $"SUB_DB_{unique}", "103", s =>
+            {
+                s.SendOnNewData = true;
+                s.DebounceSec = 300;
+                s.LastTimeRun = dbNow.AddSeconds(-10);
+                s.NextTimeRun = pastNextRun;
+                s.SerialNbr = initialSerial;
+            });
+
+            var trafficId = Guid.NewGuid().ToString("N");
+            await db.Insertable(new TmsTrafficData
+            {
+                ID = trafficId,
+                DetectTime = dbNow,
+                CreateTime = dbNow,
+                UpdateTime = dbNow,
+                Type = "CAR",
+                LicensePlate = $"30A-DB{unique[..4]}",
+                Speed = 65.0f,
+                Lane = "L1",
+                Direction = "1",
+                Location = "KM45",
+                EquipmentId = eqId
+            }).ExecuteCommandAsync();
+
+            try
+            {
+                var service = CreateWorker(scope);
+                await service.ProcessSubscriptions("103", CancellationToken.None);
+
+                // Assert: Không sinh nhật ký gửi thành công mới; SerialNbr không tăng; NextTimeRun không bị đẩy thành mốc hết hạn khoá
+                var logs = await GetLogs(db, sub.ID);
+                Assert.True(logs.Count == 0 || logs.All(l => l.Success != BaseEnums.SuccessEnums.Success));
+
+                var updatedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
+                Assert.NotNull(updatedSub);
+                Assert.Equal(initialSerial, updatedSub.SerialNbr);
+                // NextTimeRun không bị đẩy thành mốc hết hạn khoá tương lai (> now)
+                Assert.True(updatedSub.NextTimeRun == null || updatedSub.NextTimeRun <= dbNow,
+                    $"NextTimeRun không được bị đẩy thành mốc khóa tương lai. Giá trị hiện tại: {updatedSub.NextTimeRun}");
+            }
+            finally
+            {
+                await db.Deleteable<TmsTrafficData>().Where(t => t.ID == trafficId).ExecuteCommandAsync();
+                await db.Deleteable<TmsEquipment>().Where(e => e.ID == eqId).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataPartner>().Where(p => p.ID == partner.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataMapping>().Where(m => m.PartnerId == partner.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataLastSend>().Where(c => c.PartnerCode == partner.Code).ExecuteCommandAsync();
+            }
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử đối chứng chống dội: Khi Subscription gói 103 có DebounceSec=300s
+        ///              và LastTimeRun đã cách đây 400s (đã qua cửa sổ chống dội),
+        ///              lệnh chiếm quyền khớp điều kiện WhereIF, kết xuất bình thường,
+        ///              sinh log gửi thành công và SerialNbr tăng.
+        /// Created date: 27/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessSubscriptions_Packet103_WhenDebounceWindowElapsed_ExportsNormally_Test()
+        {
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "103");
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var dbNow = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
+
+            var eqId = $"EQ_DB_OK_{unique}";
+            await db.Insertable(new TmsEquipment
+            {
+                ID = eqId,
+                Code = $"VDS_DB_OK_{unique}",
+                KmNumber = 45,
+                MetNumber = 100
+            }).ExecuteCommandAsync();
+
+            var initialSerial = 10;
+            var pastNextRun = dbNow.AddSeconds(-20);
+            var (partner, sub) = await SeedOutboundSubscription(db, $"P_DB_OK_{unique}", $"SUB_DB_OK_{unique}", "103", s =>
+            {
+                s.SendOnNewData = true;
+                s.DebounceSec = 300;
+                s.LastTimeRun = dbNow.AddSeconds(-400);
+                s.NextTimeRun = pastNextRun;
+                s.SerialNbr = initialSerial;
+            });
+
+            var trafficId = Guid.NewGuid().ToString("N");
+            await db.Insertable(new TmsTrafficData
+            {
+                ID = trafficId,
+                DetectTime = dbNow,
+                CreateTime = dbNow,
+                UpdateTime = dbNow,
+                Type = "CAR",
+                LicensePlate = $"30A-OK{unique[..4]}",
+                Speed = 70.0f,
+                Lane = "L1",
+                Direction = "1",
+                Location = "KM45",
+                EquipmentId = eqId
+            }).ExecuteCommandAsync();
+
+            try
+            {
+                var service = CreateWorker(scope);
+                await service.ProcessSubscriptions("103", CancellationToken.None);
+
+                // Assert: Có nhật ký gửi thành công, SerialNbr tăng
+                var logs = await GetLogs(db, sub.ID);
+                Assert.NotEmpty(logs);
+                Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
+
+                var updatedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
+                Assert.NotNull(updatedSub);
+                Assert.True(updatedSub.SerialNbr > initialSerial,
+                    $"SerialNbr phải tăng sau khi xuất bản thành công. Ban đầu: {initialSerial}, Hiện tại: {updatedSub.SerialNbr}");
+            }
+            finally
+            {
+                await db.Deleteable<TmsTrafficData>().Where(t => t.ID == trafficId).ExecuteCommandAsync();
+                await db.Deleteable<TmsEquipment>().Where(e => e.ID == eqId).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataPartner>().Where(p => p.ID == partner.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataMapping>().Where(m => m.PartnerId == partner.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataLastSend>().Where(c => c.PartnerCode == partner.Code).ExecuteCommandAsync();
+            }
+        }
 
         #endregion
 

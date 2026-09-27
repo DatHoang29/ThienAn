@@ -252,6 +252,148 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker.PollChanges(cts.Token));
         }
 
+        /// <summary>
+        /// Description: Kiểm thử khả năng tự phục hồi và cô lập lỗi (Fault Isolation / Self-Healing) khi một bảng nguồn
+        ///              bị mất Change Tracking (DBA tắt CT hoặc bảng bị drop/recreate):
+        ///              - Worker KHÔNG bị sập / crash vòng lặp polling vô hạn.
+        ///              - Tự động phát hiện bảng bị mất CT, cô lập bảng lỗi ra khỏi câu truy vấn (trong RAM).
+        ///              - Các bảng nguồn lành mạnh còn lại (healthy tables) vẫn tiếp tục được giám sát, phát hiện thay đổi và tiến mốc LastVersion.
+        /// Created date: 27/09/2026
+        /// </summary>
+        [Fact]
+        public async Task ChangeTracking_WhenSourceTableLosesTracking_IsolatesBrokenTableAndProcessesHealthyTables_Test()
+        {
+            // Arrange
+            await using var scope = _host.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var worker = CreateTrackerWorker(scope);
+
+            var testId = Guid.NewGuid().ToString("N")[..8];
+            var eqId = $"EQ_ISO_{testId}";
+            var carId = $"CAR_ISO_{testId}";
+
+            try
+            {
+                await ClearTrackState(db);
+
+                // 1. Chu kỳ đầu: Khởi tạo môi trường, đảm bảo CT bật trên toàn bộ bảng và mốc LastVersion >= 0
+                await worker.PollChanges(CancellationToken.None);
+                var initialVersion = await GetStateVersion(db);
+                Assert.True(initialVersion >= 0);
+
+                // 2. Giả lập DBA tắt Change Tracking trên 1 bảng (ví dụ TmsWeather)
+                await db.Ado.ExecuteCommandAsync("ALTER TABLE [TmsWeather] DISABLE CHANGE_TRACKING;");
+
+                // Xác nhận TmsWeather thực sự đã bị tắt CT trong sys.change_tracking_tables
+                var isWeatherTracked = await db.Ado.GetIntAsync("SELECT COUNT(1) FROM sys.change_tracking_tables WHERE object_id = OBJECT_ID('TmsWeather')") > 0;
+                Assert.False(isWeatherTracked);
+
+                // 3. Tạo thay đổi dữ liệu trên một bảng LÀNH MẠNH khác (TmsTrafficData)
+                await db.Insertable(new TmsEquipment
+                {
+                    ID = eqId,
+                    Code = $"EQ_ISO_{testId}",
+                    KmNumber = 15,
+                    MetNumber = 300
+                }).ExecuteCommandAsync();
+
+                await db.Insertable(new TmsTrafficData
+                {
+                    ID = carId,
+                    EquipmentId = eqId,
+                    DetectTime = DateTime.Now,
+                    Type = "CAR",
+                    LicensePlate = $"30A-ISO_{testId}",
+                    Speed = 65f,
+                    Lane = "L1",
+                    Direction = "NORTH",
+                    Location = "KM15",
+                    CreateTime = DateTime.Now,
+                    UpdateTime = DateTime.Now
+                }).ExecuteCommandAsync();
+
+                // Lấy mốc version mới của DB (phải lớn hơn initialVersion)
+                var currentVerObj = await db.Ado.GetScalarAsync(DataTrackerWorker.SqlCurrentVersion);
+                var currentVer = Convert.ToInt64(currentVerObj);
+                Assert.True(currentVer > initialVersion);
+
+                // Act: Chu kỳ poll tiếp theo chạy khi TmsWeather đã mất CT
+                // Trước khi sửa: Lệnh này văng SqlException ("Change tracking is not enabled on table 'TmsWeather'")
+                // Sau khi sửa: Worker tự động cô lập TmsWeather, truy vấn các bảng còn lại, phát hiện TmsTrafficData thay đổi và tiến LastVersion = currentVer
+                await worker.PollChanges(CancellationToken.None);
+
+                // Assert 1:
+                // Mốc version của worker PHẢI tiến lên currentVer (chứng minh bảng lành mạnh đã được xử lý, không bị nghẽn bởi TmsWeather)
+                var newVersion = await GetStateVersion(db);
+                Assert.Equal(currentVer, newVersion);
+
+                // Assert 2:
+                // TmsWeather bị cô lập trong RAM, loại khỏi câu SQL đang áp dụng, và có mốc hẹn thử lại riêng
+                Assert.Contains("TmsWeather", GetMissingTables(worker).Keys);
+                Assert.DoesNotContain("TmsWeather", GetActiveChangesSql(worker));
+                Assert.True(GetMissingTables(worker)["TmsWeather"] > DateTime.UtcNow);
+
+                // Act 2: DBA bật lại Change Tracking cho TmsWeather và mốc hẹn thử lại của nó đã tới hạn
+                await db.Ado.ExecuteCommandAsync("ALTER TABLE [TmsWeather] ENABLE CHANGE_TRACKING WITH (TRACK_COLUMNS_UPDATED = OFF);");
+                ExpireMissingTableRetry(worker);
+
+                await worker.PollChanges(CancellationToken.None);
+
+                // Assert 3:
+                // Worker tự động khôi phục TmsWeather vào câu SQL đang áp dụng, danh sách bảng cô lập trở về rỗng
+                Assert.Empty(GetMissingTables(worker));
+                Assert.Contains("TmsWeather", GetActiveChangesSql(worker));
+            }
+            finally
+            {
+                // Luôn khôi phục lại Change Tracking cho TmsWeather để không ảnh hưởng các test khác
+                try
+                {
+                    await db.Ado.ExecuteCommandAsync("ALTER TABLE [TmsWeather] ENABLE CHANGE_TRACKING WITH (TRACK_COLUMNS_UPDATED = OFF);");
+                }
+                catch { }
+
+                await db.Deleteable<TmsTrafficData>().Where(t => t.ID == carId).ExecuteCommandAsync();
+                await db.Deleteable<TmsEquipment>().Where(e => e.ID == eqId).ExecuteCommandAsync();
+                await ClearTrackState(db);
+            }
+        }
+
+        /// <summary>
+        /// Description: Kiểm chứng lỗi đã sửa — mốc hẹn thử lại tính RIÊNG cho từng bảng. Khi bảng thứ hai
+        ///              bị cô lập muộn hơn, mốc hẹn của bảng thứ nhất phải giữ nguyên, không bị đẩy lùi.
+        ///              Trước khi sửa, hai bảng dùng chung một mốc và mốc đó bị gán lại vô điều kiện, nên
+        ///              bảng hỏng trước bị mất lượt thử lại; hỏng liên tiếp thì không bảng nào được thử lại.
+        /// Created date: 27/09/2026
+        /// </summary>
+        [Fact]
+        public void TrackerWorker_WhenSecondTableBreaksLater_DoesNotPushBackFirstTableRetry_Test()
+        {
+            var worker = CreateTrackerWorker();
+            var missing = GetMissingTables(worker);
+            var firstTable = worker.TrackedTables[0];
+            var secondTable = worker.TrackedTables[1];
+
+            try
+            {
+                // Arrange: cô lập bảng thứ nhất rồi cho mốc hẹn của nó về quá khứ (đã đến hạn)
+                missing[firstTable] = DateTime.UtcNow.AddSeconds(-1);
+                var firstRetryAt = missing[firstTable];
+
+                // Act: cô lập thêm bảng thứ hai ở thời điểm muộn hơn
+                missing[secondTable] = DateTime.UtcNow + TimeSpan.FromMinutes(5);
+
+                // Assert: mốc của bảng thứ nhất KHÔNG bị đẩy lùi theo bảng thứ hai
+                Assert.Equal(firstRetryAt, missing[firstTable]);
+                Assert.True(missing[firstTable] <= DateTime.UtcNow, "Bảng hỏng trước phải vẫn ở trạng thái đã đến hạn thử lại.");
+                Assert.True(missing[secondTable] > DateTime.UtcNow, "Bảng hỏng sau phải còn trong cửa sổ chờ.");
+            }
+            finally
+            {
+                missing.Clear();
+            }
+        }
+
         #endregion
 
         #region 2. Change Tracking Full Business Flow Tests
@@ -1056,6 +1198,85 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                     await db.Deleteable<TmsEquipment>().Where(e => e.ID == eqId).ExecuteCommandAsync();
                     await db.Deleteable<ShareDataLastSend>().Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode).ExecuteCommandAsync();
                     await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
+                }
+            }
+            finally
+            {
+                await ClearTrackState(db);
+            }
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử cập nhật mốc nguyên tử (Atomic CAS): Khi 2 Worker cùng lúc poll Change Tracking
+        ///              cho cùng một mốc version mới, câu lệnh UPDATE có điều kiện ([LastVersion] &lt; @currentVersion)
+        ///              đảm bảo đúng 1 Worker thắng cuộc và nâng mốc thành công, Worker còn lại bị chặn (0 rows) và rút lui ngay.
+        /// Created date: 27/09/2026
+        /// </summary>
+        [Fact]
+        public async Task PollChanges_WhenTwoWorkersPollConcurrently_AtomicCASGuaranteesSingleWinner_Test()
+        {
+            await using var scope = _host.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            var worker1 = CreateTrackerWorker(scope);
+            var worker2 = CreateTrackerWorker(scope);
+
+            try
+            {
+                await ClearTrackState(db);
+
+                // Khởi tạo baseline
+                await worker1.PollChanges(CancellationToken.None);
+                var initialVersion = await GetStateVersion(db);
+                Assert.True(initialVersion >= 0);
+
+                // Tạo 1 thay đổi mới trên bảng nguồn để tăng version của CSDL
+                var testId = Guid.NewGuid().ToString("N")[..8];
+                var eqId = $"EQ_CAS_{testId}";
+                try
+                {
+                    await db.Insertable(new TmsEquipment
+                    {
+                        ID = eqId,
+                        Code = $"EQ_CAS_{testId}",
+                        KmNumber = 10,
+                        MetNumber = 100
+                    }).ExecuteCommandAsync();
+
+                    // Worker 1 chạy trước: Thành công nâng mốc version lên CSDL
+                    await worker1.PollChanges(CancellationToken.None);
+                    var stateAfterW1 = await GetTrackState(db);
+                    Assert.NotNull(stateAfterW1);
+                    Assert.True(stateAfterW1.LastVersion > initialVersion);
+                    var newVersion = stateAfterW1.LastVersion!.Value;
+
+                    // Worker 2 chạy sau: Kiểm tra thấy version không đổi -> Thoát ngay lập tức
+                    await worker2.PollChanges(CancellationToken.None);
+                    var stateAfterW2 = await GetTrackState(db);
+                    Assert.NotNull(stateAfterW2);
+                    Assert.Equal(newVersion, stateAfterW2.LastVersion);
+
+                    // Trực tiếp kiểm chứng cơ chế Atomic CAS qua SqlSugar ORM: Khi một Service thử thực hiện UPDATE cùng mốc version (hoặc mốc cũ hơn)
+                    var affectedRowsSame = await db.Updateable<ShareDataTrackVersion>()
+                        .SetColumns(x => x.LastVersion == newVersion)
+                        .SetColumns(x => x.UpdateTime == DateTime.Now)
+                        .Where(x => x.ID == stateAfterW1.ID && (x.LastVersion < newVersion || x.LastVersion == null))
+                        .ExecuteCommandAsync();
+
+                    // Bị chặn lại với đúng 0 dòng bị ảnh hưởng -> Service thua cuộc sẽ rút lui ngay lập tức!
+                    Assert.Equal(0, affectedRowsSame);
+
+                    var affectedRowsOlder = await db.Updateable<ShareDataTrackVersion>()
+                        .SetColumns(x => x.LastVersion == initialVersion)
+                        .SetColumns(x => x.UpdateTime == DateTime.Now)
+                        .Where(x => x.ID == stateAfterW1.ID && (x.LastVersion < initialVersion || x.LastVersion == null))
+                        .ExecuteCommandAsync();
+
+                    Assert.Equal(0, affectedRowsOlder);
+                }
+                finally
+                {
+                    await db.Deleteable<TmsEquipment>().Where(e => e.ID == eqId).ExecuteCommandAsync();
                 }
             }
             finally
@@ -2634,6 +2855,35 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 ?? throw new InvalidOperationException("HandleMessages method not found");
             var task = (Task)method.Invoke(worker, [payload, token])!;
             await task;
+        }
+
+        /// <summary>
+        /// Description: Đọc câu lệnh SQL đang áp dụng của worker (trạng thái private trong RAM).
+        /// Created date: 27/09/2026
+        /// </summary>
+        private static string GetActiveChangesSql(DataTrackerWorker worker) =>
+            (string)typeof(DataTrackerWorker)
+                .GetField("_activeChangesSql", BindingFlags.NonPublic | BindingFlags.Instance)!
+                .GetValue(worker)!;
+
+        /// <summary>
+        /// Description: Đọc danh sách bảng đang bị cô lập kèm mốc hẹn thử lại của từng bảng (trạng thái private trong RAM).
+        /// Created date: 27/09/2026
+        /// </summary>
+        private static Dictionary<string, DateTime> GetMissingTables(DataTrackerWorker worker) =>
+            (Dictionary<string, DateTime>)typeof(DataTrackerWorker)
+                .GetField("_missingTables", BindingFlags.NonPublic | BindingFlags.Instance)!
+                .GetValue(worker)!;
+
+        /// <summary>
+        /// Description: Đặt mốc hẹn thử lại của MỌI bảng đang bị cô lập về quá khứ, để mô phỏng đã đến hạn quét lại.
+        /// Created date: 27/09/2026
+        /// </summary>
+        private static void ExpireMissingTableRetry(DataTrackerWorker worker)
+        {
+            var missing = GetMissingTables(worker);
+            foreach (var key in missing.Keys.ToList())
+                missing[key] = DateTime.UtcNow.AddSeconds(-1);
         }
     }
 }

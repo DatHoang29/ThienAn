@@ -19,7 +19,9 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 ## Danh sách Prompt
 
-*(Hiện tại không có prompt nào đang chờ thực thi)*
+| Prompt | Trạng thái |
+|---|---|
+| [`sharedata-gop-trang-thai-co-lap-bang-va-siet-debounce-prompt.md`](./sharedata-gop-trang-thai-co-lap-bang-va-siet-debounce-prompt.md) | ⚠️ **Chưa làm** · 3 việc: (1) 🔴 gộp `MissingTables` + `NextTableRetryTime` thành **một** field `Dictionary<string, DateTime>` với mốc hẹn **theo từng bảng** — mốc dùng chung đang bị gán lại vô điều kiện nên bảng hỏng muộn đẩy lùi lượt thử lại của bảng hỏng trước, hỏng liên tiếp thì không bảng nào được thử lại; kèm hằng số hoá chu kỳ 5 phút (đang lặp cứng 4 chỗ). (2) Hạ 3 thuộc tính trạng thái RAM xuống `private`, test chuyển sang phản chiếu — ⛔ không nâng `public` để test gọi. (3) Đưa `DebounceSec` vào chính lệnh chiếm quyền nguyên tử qua `WhereIF`, hết khe hở ảnh chụp bộ nhớ; ⛔ chỉ luồng sự kiện truyền tham số, luồng quét định kỳ giữ nguyên câu lệnh. 📌 Trạng thái cô lập bảng **vẫn ở RAM**, ⛔ không thêm cột CSDL. 🔴 Điểm không chắc: `SqlFunc.DateDiff` chưa có tiền lệ trong repo — thử trước, có phương án dự phòng. ⚠️ Mục 6 nêu thêm một vi phạm ngoài phạm vi (raw SQL `UPDATE` trên bảng đã có Entity) để chủ dự án quyết |
 
 ### Quyết định hiện hành
 
@@ -34,7 +36,7 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 | Prompt | Kết quả |
 |---|---|
-| `sharedata-goi-107-bao-xoa-mem-cho-doi-tac-prompt.md` | ✅ **27/09/2026** · Gói 107 báo xoá mềm cho đối tác: bỏ lọc `IsDelete IS NULL` trong `QueryPacket107`, gán `incidentState` trả mã `'100'` (Deleted) trực tiếp trong câu SQL; 1 test toàn trình `ProcessSubscriptions_Packet107_WhenIncidentSoftDeleted_SendsDeletedStateToPartner_Test`. 147/147 test ShareData PASS 100% |
+| `sharedata-goi-107-bao-xoa-mem-cho-doi-tac-prompt.md` | ✅ Áp 27/09/2026, ⛔ **ĐÃ HOÀN NGUYÊN 27/09/2026** · Từng bỏ lọc `IsDelete IS NULL` trong `QueryPacket107` và cho `incidentState` trả mã `'100'` (Deleted). Chủ dự án chốt lại: **miễn `IsDelete` có giá trị thì không lấy**, tạm thời không gửi bản ghi xoá mềm sang đối tác cho bất kỳ gói tin nào. Đã hoàn nguyên **sạch** (rà code 27/09: `QueryPacket107` trả về `i.State` gốc và giữ `WHERE i.IsDelete IS NULL`; ⛔ không còn mã trạng thái `Deleted` lẫn bài test tương ứng). Tương lai nếu đối tác chính thức yêu cầu thì thống nhất bộ mã trạng thái rồi bật lại |
 | `sharedata-updatetime-theo-dong-ho-csdl-prompt.md` | ✅ **27/09/2026** · Đã chuyển `now` trong `CommitSuccess` sang dùng `await GetDbNow(db)` (`SELECT GETDATE()`), đồng nhất mốc dấu vết `CreateTime`/`UpdateTime` của `ShareDataSubscription` và `ShareDataLastSend` về đồng hồ CSDL. 146/146 test ShareData PASS 100% |
 | `sharedata-chot-do-dai-lastkey-prompt.md` | ✅ **27/09/2026** · Đã chốt độ dài khoá cursor TRƯỚC khi gửi HTTP/ghi file trong `ExportPage` (`extraction.LastKey?.Length > EntityConst.KeyFieldLength`), huỷ kết xuất và ghi cảnh báo `ESH-1305` (`CursorKeyTooLong`). Giữ nguyên độ dài 64 theo đúng chuẩn `KeyFieldLength`. 146/146 test ShareData PASS 100% |
 | `sharedata-gop-tracktstate-vao-datatrackerworker-prompt.md` | ✅ **27/09/2026** · Đã xoá lớp tĩnh `ShareDataTrackState`, đưa 3 hằng (`DefaultRetryInterval`, `CurrentMachineName`, `CurrentProcessId`) và 3 hàm (`LoadOrCreateState`, `SaveState`, `ResolveRetryInterval`) vào trực tiếp `DataTrackerWorker`; bỏ tham số `logger` vì dùng trực tiếp `Logger` của primary constructor. Test `TrackState_WhenPreviousRunExistsOnSameMachine_ResumesItsVersion_Test` đã viết lại chạy qua `PollChanges` kiểm tra toàn trình; helper `SetTrackedTablesState` đã bỏ gán RetryIntervalSeconds kiểm tra nhánh fallback. 146/146 test ShareData PASS 100% |
