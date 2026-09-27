@@ -1,109 +1,5 @@
 {
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "mcp__gortex__explore|mcp__gortex__search|mcp__gortex__read|mcp__gortex__relations|mcp__gortex__trace|mcp__gortex__analyze|mcp__plugin_gortex_gortex__explore|mcp__plugin_gortex_gortex__search|mcp__plugin_gortex_gortex__read|mcp__plugin_gortex_gortex__relations|mcp__plugin_gortex_gortex__trace|mcp__plugin_gortex_gortex__analyze",
-        "hooks": [
-          {
-            "timeout": 3000,
-            "statusMessage": "Watching for Gortex localization completion...",
-            "type": "command",
-            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook"
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "hooks": [
-          {
-            "timeout": 3000,
-            "statusMessage": "Injecting Gortex orientation snapshot...",
-            "type": "command",
-            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook"
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "timeout": 3000,
-            "statusMessage": "Enforcing Gortex graph access policy...",
-            "type": "command",
-            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook"
-          }
-        ]
-      }
-    ],
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "timeout": 3000,
-            "statusMessage": "Loading Gortex graph orientation...",
-            "type": "command",
-            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "timeout": 5000,
-            "statusMessage": "Running Gortex post-task diagnostics...",
-            "type": "command",
-            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook"
-          }
-        ]
-      }
-    ],
-    "SubagentStart": [
-      {
-        "hooks": [
-          {
-            "timeout": 3000,
-            "statusMessage": "Starting an isolated Gortex subagent turn...",
-            "type": "command",
-            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook"
-          }
-        ]
-      }
-    ],
-    "SubagentStop": [
-      {
-        "hooks": [
-          {
-            "timeout": 3000,
-            "statusMessage": "Clearing Gortex subagent turn state...",
-            "type": "command",
-            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook"
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "timeout": 3000,
-            "statusMessage": "Surfacing relevant Gortex symbols...",
-            "type": "command",
-            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook"
-          }
-        ]
-      }
-    ]
-  },
   "permissions": {
-    "additionalDirectories": [
-      "c:\\ThienAn\\DocBusinessThienAn\\HữuNghị-ChiLăng\\VideoWall",
-      "C:\\Users\\This PC\\.claude\\plans"
-    ],
     "allow": [
       "Bash(dotnet test *)",
       "Bash(mv \"VideoWall/videowall-19-08_25-08.md\" \"VideoWall/videowall_plan.md\")",
@@ -195,7 +91,112 @@
       "Bash(awk '$1==\"blob\" && $2>104857600 {printf \"  %.0f MB  %s\\\\n\",$2/1048576,$3}')",
       "Bash(awk '$4>104857600{printf \"  %.0f MB %s\\\\n\",$4/1048576,$5}')",
       "Bash(grep -iE \"\\\\.\\(m4a|pdf|xlsx|zip|bacpac\\)$\")",
-      "Bash(powershell -NoProfile -Command '\\(Get-Process python -EA SilentlyContinue | Where-Object {$_.WorkingSet64 -gt 400MB} | ForEach-Object {'\\\\''PID {0} {1}MB'\\\\'' -f $_.Id,[int]\\($_.WorkingSet64/1MB\\)}\\)')"
+      "Bash(powershell -NoProfile -Command '\\(Get-Process python -EA SilentlyContinue | Where-Object {$_.WorkingSet64 -gt 400MB} | ForEach-Object {'\\\\''PID {0} {1}MB'\\\\'' -f $_.Id,[int]\\($_.WorkingSet64/1MB\\)}\\)')",
+      "Bash(grep -Ev \"NU19|warning|^$\")"
+    ],
+    "additionalDirectories": [
+      "c:\\ThienAn\\DocBusinessThienAn\\HữuNghị-ChiLăng\\VideoWall",
+      "C:\\Users\\This PC\\.claude\\plans"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "mcp__gortex__explore|mcp__gortex__search|mcp__gortex__read|mcp__gortex__relations|mcp__gortex__trace|mcp__gortex__analyze|mcp__plugin_gortex_gortex__explore|mcp__plugin_gortex_gortex__search|mcp__plugin_gortex_gortex__read|mcp__plugin_gortex_gortex__relations|mcp__plugin_gortex_gortex__trace|mcp__plugin_gortex_gortex__analyze",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook",
+            "timeout": 3000,
+            "statusMessage": "Watching for Gortex localization completion..."
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook",
+            "timeout": 3000,
+            "statusMessage": "Injecting Gortex orientation snapshot..."
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook",
+            "timeout": 3000,
+            "statusMessage": "Enforcing Gortex graph access policy..."
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook",
+            "timeout": 3000,
+            "statusMessage": "Loading Gortex graph orientation..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook",
+            "timeout": 5000,
+            "statusMessage": "Running Gortex post-task diagnostics..."
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook",
+            "timeout": 3000,
+            "statusMessage": "Starting an isolated Gortex subagent turn..."
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook",
+            "timeout": 3000,
+            "statusMessage": "Clearing Gortex subagent turn state..."
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook",
+            "timeout": 3000,
+            "statusMessage": "Surfacing relevant Gortex symbols..."
+          }
+        ]
+      }
     ]
   }
 }

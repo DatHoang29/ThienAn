@@ -19,9 +19,7 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 ## Danh sách Prompt
 
-| Prompt | Trạng thái |
-|---|---|
-| [`sharedata-gop-trang-thai-co-lap-bang-va-siet-debounce-prompt.md`](./sharedata-gop-trang-thai-co-lap-bang-va-siet-debounce-prompt.md) | ⚠️ **Chưa làm** · 3 việc: (1) 🔴 gộp `MissingTables` + `NextTableRetryTime` thành **một** field `Dictionary<string, DateTime>` với mốc hẹn **theo từng bảng** — mốc dùng chung đang bị gán lại vô điều kiện nên bảng hỏng muộn đẩy lùi lượt thử lại của bảng hỏng trước, hỏng liên tiếp thì không bảng nào được thử lại; kèm hằng số hoá chu kỳ 5 phút (đang lặp cứng 4 chỗ). (2) Hạ 3 thuộc tính trạng thái RAM xuống `private`, test chuyển sang phản chiếu — ⛔ không nâng `public` để test gọi. (3) Đưa `DebounceSec` vào chính lệnh chiếm quyền nguyên tử qua `WhereIF`, hết khe hở ảnh chụp bộ nhớ; ⛔ chỉ luồng sự kiện truyền tham số, luồng quét định kỳ giữ nguyên câu lệnh. 📌 Trạng thái cô lập bảng **vẫn ở RAM**, ⛔ không thêm cột CSDL. 🔴 Điểm không chắc: `SqlFunc.DateDiff` chưa có tiền lệ trong repo — thử trước, có phương án dự phòng. ⚠️ Mục 6 nêu thêm một vi phạm ngoài phạm vi (raw SQL `UPDATE` trên bảng đã có Entity) để chủ dự án quyết |
+*(Hiện tại không có prompt nào đang chờ thực thi)*
 
 ### Quyết định hiện hành
 
@@ -36,6 +34,7 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 | Prompt | Kết quả |
 |---|---|
+| `sharedata-gop-trang-thai-co-lap-bang-va-siet-debounce-prompt.md` | ✅ **27/09/2026** · Gộp `MissingTables` + `NextTableRetryTime` thành một từ điển `bảng → mốc hẹn riêng` trong RAM, chu kỳ 5 phút thành hằng số `TableRetryInterval` (trước đó lặp cứng 4 chỗ) — xử đúng lỗi bảng hỏng muộn đẩy lùi lượt thử lại của bảng hỏng trước. Hạ `_missingTables` và `_activeChangesSql` xuống `private`, bỏ hẳn `NextTableRetryTime`; test chuyển sang 3 helper phản chiếu thay vì đọc/ghi trực tiếp. Đưa `DebounceSec` vào chính lệnh chiếm quyền nguyên tử qua `WhereIF` + `SqlFunc.DateDiff` — 📌 điểm không chắc của prompt đã giải quyết: biểu thức **dịch được**, nên ⛔ không phải dùng phương án dự phòng, khe hở **đóng hẳn** chứ không chỉ thu hẹp. Làm luôn mục 6 tuỳ chọn: raw SQL `UPDATE` trên `ShareDataTrackVersion` chuyển sang `db.Updateable<T>()` + `SqlFunc.GetDate()`, đúng quy tắc ưu tiên ORM. Thêm bài test cho mốc hẹn riêng từng bảng, chống dội chặn trong cửa sổ, chống dội cho qua khi hết cửa sổ. **168/168 test ShareData PASS 100%** |
 | `sharedata-goi-107-bao-xoa-mem-cho-doi-tac-prompt.md` | ✅ Áp 27/09/2026, ⛔ **ĐÃ HOÀN NGUYÊN 27/09/2026** · Từng bỏ lọc `IsDelete IS NULL` trong `QueryPacket107` và cho `incidentState` trả mã `'100'` (Deleted). Chủ dự án chốt lại: **miễn `IsDelete` có giá trị thì không lấy**, tạm thời không gửi bản ghi xoá mềm sang đối tác cho bất kỳ gói tin nào. Đã hoàn nguyên **sạch** (rà code 27/09: `QueryPacket107` trả về `i.State` gốc và giữ `WHERE i.IsDelete IS NULL`; ⛔ không còn mã trạng thái `Deleted` lẫn bài test tương ứng). Tương lai nếu đối tác chính thức yêu cầu thì thống nhất bộ mã trạng thái rồi bật lại |
 | `sharedata-updatetime-theo-dong-ho-csdl-prompt.md` | ✅ **27/09/2026** · Đã chuyển `now` trong `CommitSuccess` sang dùng `await GetDbNow(db)` (`SELECT GETDATE()`), đồng nhất mốc dấu vết `CreateTime`/`UpdateTime` của `ShareDataSubscription` và `ShareDataLastSend` về đồng hồ CSDL. 146/146 test ShareData PASS 100% |
 | `sharedata-chot-do-dai-lastkey-prompt.md` | ✅ **27/09/2026** · Đã chốt độ dài khoá cursor TRƯỚC khi gửi HTTP/ghi file trong `ExportPage` (`extraction.LastKey?.Length > EntityConst.KeyFieldLength`), huỷ kết xuất và ghi cảnh báo `ESH-1305` (`CursorKeyTooLong`). Giữ nguyên độ dài 64 theo đúng chuẩn `KeyFieldLength`. 146/146 test ShareData PASS 100% |
