@@ -992,7 +992,7 @@ tests/
     1. ✅ **Tình trạng chung** trong 1–2 dòng (xong chưa, chạy được chưa).
     2. ⚠️ **Việc còn treo** dạng bảng, BẮT BUỘC có cột **"Vỡ khi nào"** — nêu điều kiện cụ thể làm việc đó thành lỗi thật, ⛔ không viết chung chung kiểu "nên xử lý sau".
     3. ❌ **Lỗ chưa có lưới chặn nào** (nếu có), kèm hệ quả trực tiếp.
-  - **Kết thúc khối bằng dòng ranh giới tường minh**, ví dụ: *"📌 Hết phần cần đọc để ra quyết định. Các mục dưới đây là chi tiết đối chiếu — mở khi cần tra một hạng mục cụ thể, ⛔ không cần đọc tuần tự."* Nhờ dòng này người đọc biết được phép dừng ở đâu.
+  - **Kết thúc khối bằng đường phân cách `---` tường minh**, chuyển thẳng sang phần tiếp theo, ⛔ không thêm các dòng ghi chú meta thừa gây nhiễu thông tin.
   - 🔴 **Ô "Trả lời" của bảng `Tóm tắt` phải CHỨA câu trả lời, không phải mô tả rằng có câu trả lời.**
     - ❌ SAI: *"4 quyết định cốt lõi chốt tại họp 21/09"* — không nói **4 quyết định đó là gì**, đọc xong vẫn phải mở mục chi tiết.
     - ✅ ĐÚNG: *"Bốn việc: chặn gửi khi thiếu hồ sơ ánh xạ · gửi nối đuôi theo mốc `LastTime`/`LastKey` · phát hiện dữ liệu mới tức thì · trường không map để `null`"*.
