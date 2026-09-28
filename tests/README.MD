@@ -51,7 +51,7 @@ thể lệch chỗ.
 
 ## Kết quả hiện tại
 
-**227 test — 223 Passed, 4 Skipped, 0 Failed** (~30 giây).
+**228 test — 224 Passed, 4 Skipped, 0 Failed** (~30 giây).
 
 | Nhóm | File | Ghi chú |
 | --- | --- | --- |
