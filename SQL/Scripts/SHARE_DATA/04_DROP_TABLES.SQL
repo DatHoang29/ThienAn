@@ -42,19 +42,27 @@ BEGIN TRANSACTION;
 
 BEGIN TRY
 
-    -- 1. XOÁ CÁC BẢNG LOG & PHIÊN & SỰ KIỆN
+    -- 1. XOÁ CÁC BẢNG LOG & PHIÊN & SỰ KIỆN & THEO DÕI
+    IF OBJECT_ID('dbo.ShareDataAlertLog', 'U') IS NOT NULL DROP TABLE dbo.ShareDataAlertLog;
     IF OBJECT_ID('dbo.ShareDataActivityLog', 'U') IS NOT NULL DROP TABLE dbo.ShareDataActivityLog;
+    IF OBJECT_ID('dbo.ShareDataLastSend', 'U') IS NOT NULL DROP TABLE dbo.ShareDataLastSend;
+    IF OBJECT_ID('dbo.ShareDataTrackVersion', 'U') IS NOT NULL DROP TABLE dbo.ShareDataTrackVersion;
     IF OBJECT_ID('dbo.ShareDataSession', 'U') IS NOT NULL DROP TABLE dbo.ShareDataSession;
     IF OBJECT_ID('dbo.ShareDataEventSource', 'U') IS NOT NULL DROP TABLE dbo.ShareDataEventSource;
 
-    -- 2. XOÁ CÁC BẢNG CẤU HÌNH & ÁNH XẠ
+    -- 2. XOÁ CÁC BẢNG CẤU HÌNH & ÁNH XẠ & GÓI TIN
     IF OBJECT_ID('dbo.ShareDataSubscription', 'U') IS NOT NULL DROP TABLE dbo.ShareDataSubscription;
+    IF OBJECT_ID('dbo.ShareDataMapping', 'U') IS NOT NULL DROP TABLE dbo.ShareDataMapping;
     IF OBJECT_ID('dbo.ShareDataMappingProfile', 'U') IS NOT NULL DROP TABLE dbo.ShareDataMappingProfile;
+    IF OBJECT_ID('dbo.ShareDataCodeSet', 'U') IS NOT NULL DROP TABLE dbo.ShareDataCodeSet;
+    IF OBJECT_ID('dbo.ShareDataPacketSql', 'U') IS NOT NULL DROP TABLE dbo.ShareDataPacketSql;
+    IF OBJECT_ID('dbo.ShareDataPacketField', 'U') IS NOT NULL DROP TABLE dbo.ShareDataPacketField;
+    IF OBJECT_ID('dbo.ShareDataPacket', 'U') IS NOT NULL DROP TABLE dbo.ShareDataPacket;
     IF OBJECT_ID('dbo.ShareDataDataSource', 'U') IS NOT NULL DROP TABLE dbo.ShareDataDataSource;
     IF OBJECT_ID('dbo.ShareDataPartner', 'U') IS NOT NULL DROP TABLE dbo.ShareDataPartner;
 
     COMMIT TRANSACTION;
-    PRINT N'🔥 Đã xoá toàn bộ 7 bảng CSDL thuộc Scope Module ShareData thành công!';
+    PRINT N'🔥 Đã xoá toàn bộ các bảng CSDL thuộc Scope Module ShareData thành công!';
 
 END TRY
 BEGIN CATCH

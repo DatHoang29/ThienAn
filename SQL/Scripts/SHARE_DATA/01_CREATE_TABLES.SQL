@@ -1,10 +1,12 @@
 -- ============================================================================
--- MODULE: SHARE DATA (SHARE DATA V1)
+-- MODULE: SHARE DATA
 -- FILE: 01_CREATE_TABLES.SQL
 -- DESCRIPTION: Tạo các bảng CSDL cho Module Trao đổi & Chia sẻ Dữ liệu (ShareData).
 --              Cấu trúc bám sát Entity gốc tại Module.ShareData.Core/Entities.
 -- AUTHOR: Đạt
 -- CREATED DATE: 2026-08-05
+-- UPDATED DATE: 2026-09-28 (Bổ sung ShareDataTrackVersion, ShareDataLastSend,
+--               ShareDataPacket, ShareDataMapping, ShareDataAlertLog, SendOnNewData)
 -- ============================================================================
 -- QUY ƯỚC CỘT KẾ THỪA (Shared.Core.Domain)
 --   EntityBaseId : ID
@@ -221,6 +223,7 @@ BEGIN
         [MappingProfileId] NVARCHAR(64)  NULL,
         [EventSourceId]    NVARCHAR(64)  NULL,
         [DebounceSec]      INT           NULL DEFAULT 0,
+        [SendOnNewData]    BIT           NULL DEFAULT 0,   -- Gửi ngay khi có dữ liệu mới (Change Tracking)
         [Remark]           NVARCHAR(256) NULL,
         [Code]             NVARCHAR(256) NULL,
         [TenantId]         NVARCHAR(64)  NULL DEFAULT '1',
@@ -288,5 +291,221 @@ BEGIN
 END;
 GO
 
-PRINT N'✅ Chạy xong 01_CREATE_TABLES. Xem 2 bảng kết quả ở trên để kiểm chứng.';
+-- 8. BẢNG GÓI TIN ESHARE (ShareDataPacket)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ShareDataPacket')
+BEGIN
+    PRINT N'  → đang tạo ShareDataPacket...';
+    CREATE TABLE [dbo].[ShareDataPacket] (
+        [ID]            NVARCHAR(64)  NOT NULL PRIMARY KEY,
+        [Code]          NVARCHAR(128) NULL,
+        [Name]          NVARCHAR(128) NULL,
+        [PacketVersion] NVARCHAR(16)  NULL,
+        [Description]   NVARCHAR(256) NULL,
+        [OrderNo]       INT           NULL,
+        [Status]        INT           NULL DEFAULT 1,
+        [Remark]        NVARCHAR(256) NULL,
+        [TenantId]      NVARCHAR(64)  NULL DEFAULT '1',
+        [CreateTime]    DATETIME      NULL DEFAULT GETDATE(),
+        [CreateUId]     NVARCHAR(64)  NULL DEFAULT '1',
+        [UpdateTime]    DATETIME      NULL,
+        [UpdateUId]     NVARCHAR(64)  NULL,
+        [RowStatus]     NVARCHAR(32)  NULL DEFAULT '1',
+        [IsDelete]      DATETIME      NULL
+    );
+
+    CREATE NONCLUSTERED INDEX [index_ShareDataPacket_CT] ON [dbo].[ShareDataPacket] ([CreateTime] ASC);
+END;
+GO
+
+-- 9. BẢNG KHAI BÁO TRƯỜNG GÓI TIN (ShareDataPacketField)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ShareDataPacketField')
+BEGIN
+    PRINT N'  → đang tạo ShareDataPacketField...';
+    CREATE TABLE [dbo].[ShareDataPacketField] (
+        [ID]            NVARCHAR(64)  NOT NULL PRIMARY KEY,
+        [Name]          NVARCHAR(128) NULL,
+        [DatatypeId]    NVARCHAR(128) NULL,
+        [AliasFieldKey] NVARCHAR(128) NULL,
+        [Type]          NVARCHAR(128) NULL,
+        [GroupName]     NVARCHAR(128) NULL,
+        [Status]        INT           NULL DEFAULT 1,
+        [IsRequired]    INT           NULL DEFAULT 0,
+        [Remark]        NVARCHAR(256) NULL,
+        [Code]          NVARCHAR(256) NULL,
+        [TenantId]      NVARCHAR(64)  NULL DEFAULT '1',
+        [CreateTime]    DATETIME      NULL DEFAULT GETDATE(),
+        [CreateUId]     NVARCHAR(64)  NULL DEFAULT '1',
+        [UpdateTime]    DATETIME      NULL,
+        [UpdateUId]     NVARCHAR(64)  NULL,
+        [RowStatus]     NVARCHAR(32)  NULL DEFAULT '1',
+        [IsDelete]      DATETIME      NULL
+    );
+END;
+GO
+
+-- 10. BẢNG CÂU GHI CHIỀU NHẬN (ShareDataPacketSql)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ShareDataPacketSql')
+BEGIN
+    PRINT N'  → đang tạo ShareDataPacketSql...';
+    CREATE TABLE [dbo].[ShareDataPacketSql] (
+        [ID]         NVARCHAR(64)  NOT NULL PRIMARY KEY,
+        [PacketCode] NVARCHAR(128) NULL,
+        [OrderNo]    INT           NULL,
+        [TableName]  NVARCHAR(128) NULL,
+        [WriteSql]   NVARCHAR(MAX) NULL,
+        [Status]     INT           NULL DEFAULT 1,
+        [Remark]     NVARCHAR(256) NULL,
+        [Code]       NVARCHAR(256) NULL,
+        [TenantId]   NVARCHAR(64)  NULL DEFAULT '1',
+        [CreateTime] DATETIME      NULL DEFAULT GETDATE(),
+        [CreateUId]  NVARCHAR(64)  NULL DEFAULT '1',
+        [UpdateTime] DATETIME      NULL,
+        [UpdateUId]  NVARCHAR(64)  NULL,
+        [RowStatus]  NVARCHAR(32)  NULL DEFAULT '1',
+        [IsDelete]   DATETIME      NULL
+    );
+END;
+GO
+
+-- 11. BẢNG PHỄU ÁNH XẠ DỮ LIỆU (ShareDataMapping)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ShareDataMapping')
+BEGIN
+    PRINT N'  → đang tạo ShareDataMapping...';
+    CREATE TABLE [dbo].[ShareDataMapping] (
+        [ID]                NVARCHAR(64)  NOT NULL PRIMARY KEY,
+        [Name]              NVARCHAR(128) NULL,
+        [PartnerId]         NVARCHAR(64)  NULL,
+        [DatatypeId]        NVARCHAR(128) NULL,
+        [PacketVersion]     NVARCHAR(64)  NULL,
+        [Direction]         INT           NULL,   -- 1 = Inbound | 0 = Outbound
+        [PartnerSchemaJson] NVARCHAR(MAX) NULL,
+        [TargetShapeJson]   NVARCHAR(MAX) NULL,
+        [IsActive]          BIT           NULL DEFAULT 1,
+        [Remark]            NVARCHAR(256) NULL,
+        [Code]              NVARCHAR(256) NULL,
+        [TenantId]          NVARCHAR(64)  NULL DEFAULT '1',
+        [CreateTime]        DATETIME      NULL DEFAULT GETDATE(),
+        [CreateUId]         NVARCHAR(64)  NULL DEFAULT '1',
+        [UpdateTime]        DATETIME      NULL,
+        [UpdateUId]         NVARCHAR(64)  NULL,
+        [RowStatus]         NVARCHAR(32)  NULL DEFAULT '1',
+        [IsDelete]          DATETIME      NULL
+    );
+
+    CREATE NONCLUSTERED INDEX [index_ShareDataMapping_CT] ON [dbo].[ShareDataMapping] ([CreateTime] DESC);
+END;
+GO
+
+-- 12. BẢNG BỘ MÃ QUY ĐỔI GIÁ TRỊ (ShareDataCodeSet)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ShareDataCodeSet')
+BEGIN
+    PRINT N'  → đang tạo ShareDataCodeSet...';
+    CREATE TABLE [dbo].[ShareDataCodeSet] (
+        [ID]         NVARCHAR(64)  NOT NULL PRIMARY KEY,
+        [Name]       NVARCHAR(128) NULL,
+        [Remark]     NVARCHAR(256) NULL,
+        [Status]     INT           NULL DEFAULT 1,
+        [ValuesJson] NVARCHAR(MAX) NULL,
+        [Code]       NVARCHAR(256) NULL,
+        [TenantId]   NVARCHAR(64)  NULL DEFAULT '1',
+        [CreateTime] DATETIME      NULL DEFAULT GETDATE(),
+        [CreateUId]  NVARCHAR(64)  NULL DEFAULT '1',
+        [UpdateTime] DATETIME      NULL,
+        [UpdateUId]  NVARCHAR(64)  NULL,
+        [RowStatus]  NVARCHAR(32)  NULL DEFAULT '1',
+        [IsDelete]   DATETIME      NULL
+    );
+
+    CREATE NONCLUSTERED INDEX [index_ShareDataCodeSet_CT] ON [dbo].[ShareDataCodeSet] ([CreateTime] DESC);
+END;
+GO
+
+-- 13. BẢNG CẢNH BÁO LỖI HỆ THỐNG (ShareDataAlertLog)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ShareDataAlertLog')
+BEGIN
+    PRINT N'  → đang tạo ShareDataAlertLog...';
+    CREATE TABLE [dbo].[ShareDataAlertLog] (
+        [ID]             NVARCHAR(64)   NOT NULL PRIMARY KEY,
+        [OccurredAt]     DATETIME       NULL DEFAULT GETDATE(),
+        [Severity]       INT            NULL,   -- 0 = warning | 1 = error
+        [AlertSource]    INT            NULL,   -- 0 Session | 1 Packet | 2 Subscription | 3 Protocol | 4 Funnel
+        [AlertCode]      NVARCHAR(32)   NULL,   -- ESH-xxxx
+        [PartnerId]      NVARCHAR(64)   NULL,
+        [SessionId]      NVARCHAR(64)   NULL,
+        [SubscriptionId] NVARCHAR(64)   NULL,
+        [DatatypeId]     NVARCHAR(32)   NULL,
+        [Message]        NVARCHAR(1024) NULL,
+        [DetailJson]     NVARCHAR(MAX)  NULL,
+        [Acknowledged]   BIT            NULL DEFAULT 0,
+        [AckBy]          NVARCHAR(64)   NULL,
+        [AckAt]          DATETIME       NULL,
+        [Remark]         NVARCHAR(256)  NULL,
+        [Code]           NVARCHAR(256)  NULL,
+        [TenantId]       NVARCHAR(64)   NULL DEFAULT '1',
+        [CreateTime]     DATETIME       NULL DEFAULT GETDATE(),
+        [CreateUId]      NVARCHAR(64)   NULL DEFAULT '1',
+        [UpdateTime]     DATETIME       NULL,
+        [UpdateUId]      NVARCHAR(64)   NULL,
+        [RowStatus]      NVARCHAR(32)   NULL DEFAULT '1',
+        [IsDelete]       DATETIME       NULL
+    );
+
+    CREATE NONCLUSTERED INDEX [index_ShareDataAlertLog_OA] ON [dbo].[ShareDataAlertLog] ([OccurredAt] DESC);
+END;
+GO
+
+-- 14. BẢNG THEO DÕI CHANGE TRACKING VERSION (ShareDataTrackVersion)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ShareDataTrackVersion')
+BEGIN
+    PRINT N'  → đang tạo ShareDataTrackVersion...';
+    CREATE TABLE [dbo].[ShareDataTrackVersion] (
+        [ID]          NVARCHAR(64)  NOT NULL PRIMARY KEY,
+        [LastVersion] BIGINT        NULL,
+        [Code]        NVARCHAR(256) NULL,
+        [TenantId]    NVARCHAR(64)  NULL DEFAULT '1',
+        [CreateTime]  DATETIME      NULL DEFAULT GETDATE(),
+        [CreateUId]   NVARCHAR(64)  NULL DEFAULT '1',
+        [UpdateTime]  DATETIME      NULL,
+        [UpdateUId]   NVARCHAR(64)  NULL,
+        [RowStatus]   NVARCHAR(32)  NULL DEFAULT '1',
+        [IsDelete]    DATETIME      NULL
+    );
+END;
+GO
+
+-- 15. BẢNG MỐC DỮ LIỆU ĐÃ GỬI CHO ĐỐI TÁC (ShareDataLastSend)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ShareDataLastSend')
+BEGIN
+    PRINT N'  → đang tạo ShareDataLastSend...';
+    CREATE TABLE [dbo].[ShareDataLastSend] (
+        [ID]          NVARCHAR(64)  NOT NULL PRIMARY KEY,
+        [PartnerCode] NVARCHAR(128) NULL,
+        [PacketCode]  NVARCHAR(128) NULL,
+        [LastTime]    DATETIME      NULL,
+        [LastKey]     NVARCHAR(64)  NULL,
+        [Code]        NVARCHAR(256) NULL,
+        [TenantId]    NVARCHAR(64)  NULL DEFAULT '1',
+        [CreateTime]  DATETIME      NULL DEFAULT GETDATE(),
+        [CreateUId]   NVARCHAR(64)  NULL DEFAULT '1',
+        [UpdateTime]  DATETIME      NULL,
+        [UpdateUId]   NVARCHAR(64)  NULL,
+        [RowStatus]   NVARCHAR(32)  NULL DEFAULT '1',
+        [IsDelete]    DATETIME      NULL
+    );
+
+    CREATE UNIQUE NONCLUSTERED INDEX [index_ShareDataLastSend_Partner_Packet]
+        ON [dbo].[ShareDataLastSend] ([PartnerCode] ASC, [PacketCode] ASC);
+END;
+GO
+
+-- 16. BỔ SUNG CỘT BẢO ĐẢM TƯƠNG THÍCH CHO BẢNG ĐÃ TỒN TẠI TỪ TRƯỚC (NẾU CÓ)
+IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'ShareDataSubscription')
+   AND NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.ShareDataSubscription') AND name = 'SendOnNewData')
+BEGIN
+    PRINT N'  → đang thêm cột SendOnNewData vào ShareDataSubscription...';
+    ALTER TABLE [dbo].[ShareDataSubscription] ADD [SendOnNewData] BIT NULL DEFAULT 0;
+END;
+GO
+
+PRINT N'✅ Chạy xong 01_CREATE_TABLES (Đã tạo / kiểm tra toàn bộ bảng ShareData).';
 GO

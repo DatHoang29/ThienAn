@@ -43,11 +43,18 @@ BEGIN TRANSACTION;
 BEGIN TRY
 
     -- 1. DỌN DỆP DỮ LIỆU DEMO (NẾU BẢNG TỒN TẠI)
+    IF OBJECT_ID('dbo.ShareDataAlertLog', 'U') IS NOT NULL
+        DELETE FROM [dbo].[ShareDataAlertLog] WHERE [PartnerId] IN
+            (SELECT [ID] FROM [dbo].[ShareDataPartner] WHERE [Code] LIKE 'PTN-DEMO-%' OR [Code] LIKE 'P-DEMO-%');
     IF OBJECT_ID('dbo.ShareDataActivityLog', 'U') IS NOT NULL 
         DELETE FROM [dbo].[ShareDataActivityLog] WHERE [SubscriptionId] IN
             (SELECT [ID] FROM [dbo].[ShareDataSubscription] WHERE [Code] LIKE 'SUB-DEMO-%');
+    IF OBJECT_ID('dbo.ShareDataLastSend', 'U') IS NOT NULL
+        DELETE FROM [dbo].[ShareDataLastSend] WHERE [PartnerCode] LIKE 'PTN-DEMO-%' OR [PartnerCode] LIKE 'P-DEMO-%';
     IF OBJECT_ID('dbo.ShareDataSubscription', 'U') IS NOT NULL 
         DELETE FROM [dbo].[ShareDataSubscription] WHERE [Code] LIKE 'SUB-DEMO-%';
+    IF OBJECT_ID('dbo.ShareDataMapping', 'U') IS NOT NULL 
+        DELETE FROM [dbo].[ShareDataMapping] WHERE [Code] LIKE 'MP-DEMO-%';
     IF OBJECT_ID('dbo.ShareDataMappingProfile', 'U') IS NOT NULL 
         DELETE FROM [dbo].[ShareDataMappingProfile] WHERE [Code] LIKE 'MP-DEMO-%';
     IF OBJECT_ID('dbo.ShareDataDataSource', 'U') IS NOT NULL 

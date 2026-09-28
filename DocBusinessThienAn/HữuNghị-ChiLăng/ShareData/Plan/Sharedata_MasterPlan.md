@@ -162,6 +162,8 @@
   - *(Đã loại bỏ `LastVersion` ngày 26/09/2026: Change Tracking được theo dõi tập trung ở cấp worker, không lưu trên từng gói tin/đối tác nữa — xem mục 6 và 6b về nơi lưu mốc đó).*
   - `CreateTime`, `UpdateTime`: Dấu vết thời gian hệ thống.
   - Index độc nhất: `index_{table}_Partner_Packet` trên `(PartnerCode, PacketCode)` (khai bằng `[SugarIndex(..., isUnique: true)]` trong entity, SqlSugar tự thay `{table}` bằng tên bảng).
+- **Cơ chế khởi tạo lấy-hoặc-tạo (GetLastSend, 28/09/2026):** Tuyệt đối không ghi đè, dựa trên khoá duy nhất `(PartnerCode, PacketCode)`. Khi gặp đua tranh (unique race), node chạy sau đọc lại bản ghi đã tạo của node chạy trước, ⛔ tuyệt đối không ghi đè mốc.
+  - 🔴 **Lý do ⛔ không dùng `Saveable` / `Storageable`:** `Saveable` so theo **khoá chính** mà `ID` là GUID mới toanh ⇒ **luôn** rơi nhánh INSERT (đâm vào unique constraint); và nhánh update của nó sẽ **ghi đè `LastTime`/`LastKey`** ⇒ xoá mốc đã gửi, bắt worker gửi lại toàn bộ dữ liệu cũ cho đối tác. `Storageable` thì vẫn hở khoảng trống đua tranh giữa SELECT và INSERT nên ⛔ không bỏ được try-catch, lại tốn thêm round-trip CSDL.
 
 #### 2. Cập nhật LastSend đơn điệu qua SqlSugar ORM
 - Tuyệt đối không dùng raw SQL chuỗi cho update LastSend.
@@ -184,6 +186,7 @@ else
 }
 ```
 - **Bắt buộc dùng `var dbNow = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");`**: Bảo đảm 100% đồng nhất hệ quy chiếu thời gian với SQL Server. Tránh lỗi clock skew giữa máy chủ ứng dụng và CSDL khiến mốc `initialTime` vượt trước thời gian bản ghi trong CSDL, gây rớt bản ghi ở lượt quét đầu tiên.
+- **Thống nhất `CreateTime`/`UpdateTime` trong `GetLastSend` (28/09/2026):** Chuyển từ `DateTime.Now` sang đồng hồ CSDL qua helper `GetDbNow(db)` — lấp chỗ sót cuối cùng của đợt chuẩn hoá 27/09, bảo đảm toàn bộ mốc thời gian và dấu vết của `ShareDataLastSend` đều lấy từ đồng hồ CSDL.
 - **Mở rộng ra cả luồng lock (27/09/2026):** nguyên tắc trên nay áp cho **toàn bộ** mốc thời gian quyết định lock, không riêng `GetLastSend`. `DataOutboundService.GetDbNow(db)` là nơi duy nhất đọc đồng hồ CSDL, được gọi ở 3 điểm: 2 overload `ProcessSubscriptions` (mốc `now` để xét `NextTimeRun <= now` và `DebounceSec`) và `ReleaseLock` (tính `NextTimeRun` kế tiếp). Lý do: 3 mốc này đều **so sánh hoặc ghi vào cột CSDL**, nên nếu lấy từ đồng hồ máy ứng dụng thì khi chạy nhiều instance worker trên nhiều máy, mỗi máy lệch đồng hồ một chút là cửa sổ debounce và cửa sổ lock lệch theo đúng mức lệch đó. ⛔ Không dùng `DateTime.Now` cho các mốc này nữa.
 - **Phòng vệ `safeInterval`**: `var safeInterval = intervalSeconds > 0 ? intervalSeconds : DataOutboundScheduler.DefaultIntervalSeconds;` bảo đảm luôn có chu kỳ hợp lệ kể cả khi `IntervalSeconds` cấu hình <= 0.
 
