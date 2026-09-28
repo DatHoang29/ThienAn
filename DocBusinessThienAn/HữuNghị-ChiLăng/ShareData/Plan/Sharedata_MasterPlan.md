@@ -2,7 +2,19 @@
 
 > 🔴 **SINGLE SOURCE OF TRUTH (SSOT):** Tài liệu quy hoạch tổng thể duy nhất cho toàn bộ phân hệ **ShareData (ESHARE)** gồm Frontend, Backend WebAPI và Service Worker.
 > Được hợp nhất từ các tài liệu phân tích, kế hoạch kiểm thử, cơ chế gửi nối đuôi LastSend và kích hoạt sự kiện Change Tracking + NATS.
-> 📌 **Cập nhật lần cuối: 27/09/2026** — đồng bộ tài liệu với code thật sau đợt rà soát đối chiếu 31 code change của nhánh `feat/20260922-sharedata-service`: sửa 13 điểm lệch (3 điểm tự mâu thuẫn trong chính tài liệu: phễu lọc `SourceAllowList` đã bãi bỏ nhưng §4 còn mô tả, trần trang 50 vs 100, retention 2 ngày vs 1 ngày; 10 điểm lệch tên hàm/field/file test sau các đợt đổi tên), thống nhất thuật ngữ `lease` → `lock` theo rule 7, bổ sung edge case #11 (mất cơ chế vô hiệu hoá cache khi câu CHANGETABLE hỏng). Trước đó: 26/09/2026 — đồng bộ tên `Checkpoint` → `LastSend` xuyên suốt tài liệu (khớp code thật sau khi áp dụng `sharedata-doi-ten-checkpoint-thanh-lastsend-trong-dataoutboundservice-prompt.md`); trước đó: 25/09/2026 — đã gộp toàn bộ nội dung còn giá trị từ 3 báo cáo review (`Sharedata_Review_LuongNoiDuoi_20260923.md`, `Sharedata_Review_GuiKhiCoDuLieuMoi_20260923.md`, `Sharedata_Review_DoiChieuThucTe_20260925.md`) trực tiếp vào tài liệu này (chủ yếu ở SV-12 §9); 3 file review đã được xoá sau khi gộp, tài liệu này là SSOT duy nhất.
+> 🔴 **ĐÂY LÀ SỔ THEO DÕI TASK DUY NHẤT.** Muốn biết *task nào xong, task nào chưa* thì mở đúng tệp này và đọc
+> các checklist `SV-*` / `BE-*` / FE. Các báo cáo `Plan/*_Review_<ngày>*.md` chỉ là **ảnh chụp một lượt rà soát**
+> tại thời điểm đó (tên có ngày ⇒ tự nó là bản chụp) — ⛔ **KHÔNG tra trạng thái ở đó**. Kết luận của mỗi lượt rà
+> soát **bắt buộc được hợp nhất về đây** — kể cả bảng *quyết định đã chốt & phương án bị bác* (nay ở `SV-12 §10`),
+> vì đó là phần đắt nhất. Gộp xong thì tệp báo cáo **được xoá**, để ⛔ không còn hai nguồn nói về cùng một trạng
+> thái. Xem quy tắc **19.24**.
+>
+> 📌 **Cập nhật lần cuối: 28/09/2026** — đợt siết lưới kiểm thử & tinh gọn worker giám sát (3 đợt sửa mã + 1 đợt
+> đồng bộ tài liệu), và lượt rà 33 code change của nhánh `feat/20260922-sharedata-service` đối chiếu trực tiếp
+> với 4 biên bản họp trong `doc/transcript/` (21/09 ánh xạ + gửi nối đuôi · 19/09 HTTP header · 16/09 refactor
+> worker · 16/09 định danh đối tác). Kết quả: **7 ràng buộc nghiệp vụ đã chốt đều khớp code**; phát hiện
+> **1 task bị thiếu hẳn khỏi checklist** (đưa vào `BE-14`) và **3 điểm cần dọn ở `DataOutboundRestSender`**.
+> Trước đó: 27/09/2026 — đồng bộ tài liệu với code thật sau đợt rà soát đối chiếu 31 code change của nhánh `feat/20260922-sharedata-service`: sửa 13 điểm lệch (3 điểm tự mâu thuẫn trong chính tài liệu: phễu lọc `SourceAllowList` đã bãi bỏ nhưng §4 còn mô tả, trần trang 50 vs 100, retention 2 ngày vs 1 ngày; 10 điểm lệch tên hàm/field/file test sau các đợt đổi tên), thống nhất thuật ngữ `lease` → `lock` theo rule 7, bổ sung edge case #11 (mất cơ chế vô hiệu hoá cache khi câu CHANGETABLE hỏng). Trước đó: 26/09/2026 — đồng bộ tên `Checkpoint` → `LastSend` xuyên suốt tài liệu (khớp code thật sau khi áp dụng `sharedata-doi-ten-checkpoint-thanh-lastsend-trong-dataoutboundservice-prompt.md`); trước đó: 25/09/2026 — đã gộp toàn bộ nội dung còn giá trị từ 3 báo cáo review (`Sharedata_Review_LuongNoiDuoi_20260923.md`, `Sharedata_Review_GuiKhiCoDuLieuMoi_20260923.md`, `Sharedata_Review_DoiChieuThucTe_20260925.md`) trực tiếp vào tài liệu này (chủ yếu ở SV-12 §9); 3 file review đã được xoá sau khi gộp, tài liệu này là SSOT duy nhất.
 
 ### Chú giải ký hiệu
 
@@ -17,7 +29,7 @@
 
 > Ký hiệu chỉ nói **mức độ**; trục đánh giá do tiêu đề cột của từng bảng nói rõ.
 
-> 📎 **Tài liệu anh em:** [`Sharedata_Review_TongThe_20260927.md`](./Sharedata_Review_TongThe_20260927.md) — báo cáo rà soát tại một thời điểm, đối chiếu biên bản họp 21/09 với mã nguồn thật, trả lời 4 câu: đặc tả yêu cầu gì · code làm tới đâu · **chưa làm gì** · edge case nào. Phụ lục B của nó giữ bảng **phương án bị bác và vì sao** — thứ không nằm trong tài liệu này.
+> 📌 **Không còn tài liệu anh em nào trong `Plan/`.** Báo cáo `Sharedata_Review_TongThe_20260927.md` đã được **gộp trọn vào đây và xoá ngày 28/09/2026**: phần đối chiếu biên bản họp 21/09 ↔ mã nguồn nằm ở `SV-12` và các mục `#### 6*`; bảng **quyết định đã chốt & phương án bị bác** nằm ở `SV-12 §10`; việc còn treo nằm ở các checklist `SV-*` / `BE-*` / FE. ⇒ Muốn tra bất cứ thứ gì về ShareData, chỉ mở **đúng tệp này**.
 > Phân vai: tài liệu này là **quy hoạch** (làm gì, thiết kế thế nào); tệp review là **đối chiếu** (đã làm tới đâu so với đặc tả). Theo tiền lệ 25/09, khi các phát hiện của một tệp review đã được hấp thụ hết vào đây thì tệp review được gộp rồi xoá.
 
 ---
@@ -69,6 +81,20 @@
   - Phân trang nối đuôi an toàn, không lặp dữ liệu, dừng ngay khi cursor null.
   - Tích hợp SQL Server Change Tracking (1s heartbeat) + NATS Trigger (`TransportManager`).
   - Gói 106 trích xuất chuẩn 7 trường, phễu lọc nguồn allow-list (mặc định rỗng chặn gửi sai), 4 trường tải trọng null theo đặc tả.
+  - ✅ **Cơ chế lọc mốc nối đuôi ưu tiên thời gian mới nhất (28/09)**:
+    - **5 gói nối đuôi (103, 104, 106, 107, 109)**: Lọc theo khóa phức hợp `(Thời gian, ID)`. Mốc thời gian ưu tiên thời điểm cập nhật mới nhất bằng hàm `COALESCE(UpdateTime, CreateTime, <thời gian nghiệp vụ>)`, đảm bảo bao phủ đầy đủ cả bản ghi mới tạo (`Insert`) lẫn bản ghi vừa sửa đổi (`Update`), đúng luồng nghiệp vụ.
+    - **Các gói hiện trạng / danh mục (101, 102, 105, 108, 110, 111)**: Gửi nguyên vẹn bản chụp (Snapshot) toàn bộ danh mục hiện tại theo đúng yêu cầu nghiệp vụ.
+  - ✅ **Siết lưới kiểm thử vòng phát/nhận tín hiệu (28/09)** — bài kiểm thử đầu-cuối nay canh cả **số bản ghi
+    thật sự gửi**, ⛔ không chỉ canh *"có dòng nhật ký thành công"*. 🔴 Lý do: đường **không có dữ liệu mới** cũng
+    ghi một dòng nhật ký mang trạng thái **thành công** với số bản ghi **0** ⇒ **đọc thấy dòng thành công KHÔNG có
+    nghĩa là đã gửi được dữ liệu**, phải xem số bản ghi. Đây là bẫy đọc nhật ký mà đội vận hành cần biết.
+  - ✅ **Tinh gọn worker giám sát (28/09)** — gộp 3 khối trùng lặp thành 2 hàm dùng chung, bỏ bản sao thứ hai của
+    câu truy vấn thay đổi, và nạp cấu hình bảng nguồn **đúng 1 lượt** thay vì 4 lượt.
+  - ✅ **Cả hai đường nhảy cóc mốc version đều ghi `ESH-1601` và ĐÃ CÓ TEST PHỦ 100% (28/09)** — đường *thử lại sau khi cô lập bảng hỏng*
+    trước đó nhảy cóc **im lặng không để lại dấu vết**; nay cũng ghi nhật ký, phân biệt bằng cờ
+    `afterTableIsolation: true`. Đã bổ sung bài test `TrackingLog_WhenRetryAfterTableIsolationHitsInvalidVersion_SelfHealsAndWritesEsh1601WithFlag_Test`
+    (dùng SqlSugar AOP can thiệp tất định vào Lời gọi 1 bảng lỗi → Lời gọi 2 dính lỗi version `22114`),
+    xác thực thành công việc tự phục hồi `LastVersion` và ghi nhật ký hạ tầng `ESH-1601` kèm cờ `afterTableIsolation: true`.
   - > 📌 **Lưu ý đồng bộ Transcript & Plan (Việc B - Event-Driven):** Trong transcript cuộc họp ngày 21/09/2026 ghi nhận việc B chưa làm trong đợt này; tuy nhiên **chỉ đạo kiến trúc và MasterPlan là PHẢI LÀM LUÔN**, và toàn bộ cơ chế Event-Driven (Change Tracking + NATS + Lock guard + Read-only Initializer) đã được hoàn tất và kiểm thử 100% PASS.
 
 ### I.C · Chiều NHẬN — Inbound — 🧑‍💻 Hiếu
@@ -187,11 +213,17 @@ else
 
 - > 📌 **Đồng bộ Transcript & Plan (Việc B - Event-Driven):** Trong transcript cuộc họp ngày 21/09/2026 (`16:56–17:03`), việc B (gửi ngay khi có dữ liệu mới qua Event-Driven Change Tracking + NATS) từng được ghi nhận là không làm ở đợt này và khóa checkbox trên FE. Tuy nhiên, theo quyết định chính thức của **MasterPlan là PHẢI LÀM LUÔN**, và toàn bộ cơ chế đã được triển khai hoàn tất đợt này theo chuẩn an toàn cao nhất.
 - `DataTrackerWorker.CheckTracking`: Kiểm tra trạng thái qua DMV hệ thống (`sys.change_tracking_databases`, `sys.change_tracking_tables`). Khi Worker khởi động, hệ thống **luôn tự động kiểm tra và kích hoạt Change Tracking (DDL - Data Definition Language) ở mọi môi trường** (không còn phân biệt Dev/Staging/Production, đã bỏ hẳn cờ cấu hình `AutoEnableChangeTracking`). *(Ghi chú: Đây là quyết định có chủ đích của người dùng ngày 23/09/2026 nhằm tối ưu vận hành zero-touch, thay thế khuyến nghị mặc định ban đầu là chỉ cho phép DBA chạy script tay ở Staging/Production).*
-- `DataOutboundService.ProcessSubscriptions` (Lock Protection): Khôi phục điều kiện claim lock `Where(s => s.NextTimeRun == null || s.NextTimeRun <= now)`. Khi một worker theo lịch đang gửi dở các trang, trigger NATS không thể cướp lock, loại bỏ hoàn toàn nguy cơ xung đột OCC và cảnh báo giả `ESH-1303`.
+- `DataOutboundService.ProcessSubscriptions` (Cập nhật 28/09/2026 — Mở cổng gửi tức thì cho `SendOnNewData`): Tách vế `NextTimeRun` ra khỏi luồng sự kiện. Luồng định kỳ tự áp `.Where(s => s.NextTimeRun == null || s.NextTimeRun <= now)`; luồng sự kiện KHÔNG lọc `NextTimeRun` và trong lệnh chiếm quyền dùng `.WhereIF(!isTriggered, s => s.NextTimeRun == null || s.NextTimeRun <= now)` — giúp cờ `SendOnNewData` kích hoạt gửi ngay lập tức khi có dữ liệu mới mà không bị `NextTimeRun` của luồng định kỳ chặn oan. Luồng sự kiện không còn loại trừ lẫn nhau qua `NextTimeRun` (chấp nhận đối tác có thể nhận trùng một trang theo hợp đồng at-least-once khi nhiều worker cùng nhận trigger), và cơ chế OCC trong `CommitSuccess` (`WHERE NextTimeRun == nextRunDeadline`) đảm bảo mốc gửi `ShareDataLastSend` không bị hỏng hay lùi. Thêm kiểm tra khung giờ `DataOutboundScheduler.IsWithinTimeWindow` tường minh cho luồng sự kiện.
 - `DataTrackerWorker`: Chạy nền với heartbeat 1 giây, đọc `CHANGE_TRACKING_CURRENT_VERSION()`. Bảng ánh xạ bảng nguồn → mã gói **nạp động từ cấu hình** `appsettings.json` khoá `ShareDataTracker:TablePacketMap` (`TmsTrafficData` ra cả 103 và 106), ⛔ không còn là bảng cứng trong mã và bộ lọc `ResolvePackets` chỉ chặn gói `NotReady` và `Disabled` — **mọi gói hợp lệ còn lại, cả nối đuôi lẫn bản chụp, đều kích hoạt được bằng sự kiện** nếu đăng ký bật cờ `SendOnNewData`. Khi phát hiện dữ liệu bảng nguồn thay đổi, phát sự kiện NATS qua `TransportManager` vào **1 subject chung duy nhất** `ta.its.event.sharedata.newdata` (hằng số `DEFAULT_NATS_SUBJECT`, không hậu tố) — gói tin nhận diện qua field `PacketCode` trong payload (`{PacketCode, Type, Version, TriggeredAt}`), đây là thiết kế chủ đích.
-- `DataNatsConsumerWorker`: Lắng nghe đúng subject chung đó, đọc `PacketCode` từ payload rồi gọi `DataOutboundService.ProcessSubscriptions(packetCode)`. Không có cơ chế chống dội nào ở tầng worker này — chống dội thực hiện bằng cấu hình `DebounceSec` riêng của từng Subscription, và **kiểm ngay trong lệnh chiếm quyền nguyên tử** của luồng xuất bản (từ 27/09/2026), ⛔ không kiểm trước bằng ảnh chụp bộ nhớ.
+- `DataNatsConsumerWorker`: Lắng nghe đúng subject chung đó, đọc `PacketCode` từ payload rồi gọi `DataOutboundService.ProcessSubscriptions(packetCode)`. Không có cơ chế chống dội nào ở tầng worker này — chống dội từng thực hiện bằng cấu hình `DebounceSec` riêng của từng Subscription trong lệnh chiếm quyền nguyên tử; **tuy nhiên từ 28/09/2026 vế chống dội này đã bị comment lại** trong lệnh chiếm quyền nguyên tử của `ExportSubscription`, ⛔ **không còn hiệu lực kể cả khi `DebounceSec` được điền số**. Lý do: trigger gửi xong là `ReleaseLock` đẩy `NextTimeRun` đi một chu kỳ nên luồng quét định kỳ đã tự giãn nhịp. Bật lại = bỏ một dấu comment ở `ExportSubscription`, và phải bỏ comment kèm 3 bài test tương ứng.
+- **Quan hệ "Trigger gửi xong ⇒ `ReleaseLock` đẩy `NextTimeRun` ⇒ luồng quét định kỳ bỏ qua" (Bổ sung 28/09/2026, đã có test khoá lại):** `ExportSubscription` luôn gọi `ReleaseLock` trong khối `finally` (dùng chung cho cả luồng sự kiện và luồng định kỳ), tính `NextTimeRun = dbNow + IntervalSeconds` (hoặc mốc daily theo `ScheduleJson`). Khi trigger NATS gửi thành công, `ReleaseLock` đẩy luôn đồng hồ của luồng quét định kỳ đi một chu kỳ, giúp luồng poll chạy ngay sau đó tự động bỏ qua đăng ký này, không gửi lặp lần hai (đã được khoá chặt chẽ bởi bài test `TriggerFlow_WhenExportSucceeds_AdvancesNextTimeRunSoScheduledSweepSkipsIt_Test`). Nêu rõ hai hệ quả:
+  1. `ReleaseLock` nằm trong khối `finally` nên mốc `NextTimeRun` vẫn bị đẩy kể cả ở các lượt không có dữ liệu mới để gửi (sẽ có lúc thấy `NextTimeRun` nhảy mà `LastTimeRun` đứng yên, hoàn toàn vô hại).
+  2. Khi dữ liệu nguồn chảy liên tục dẫn đến trigger phát mỗi giây, `NextTimeRun` bị đẩy liên tục khiến luồng quét định kỳ gần như không bao giờ phải chạy. Điều này an toàn và **tự phục hồi**: nếu NATS chết, trigger ngừng thì không còn ai đẩy mốc, luồng poll sẽ tự động quay lại chạy bình thường sau nhiều nhất một chu kỳ.
+- 🔴 **Hai quyết định có chủ đích ngày 28/09/2026 (Tuyệt đối không tự ý "dọn nhầm"):**
+  1. Khối điều kiện nền của hai luồng (`Active`, `Outbound`, `TargetShapeJson != null`, `ApiActive`, `SendOnNewData`,...) **cố ý để hai bản chép độc lập** ở hai hàm `ProcessSubscriptions`, ⛔ **KHÔNG được gộp về helper chung**.
+  2. Vùng mã lọc và chiếm quyền này **cố ý để trần**, ⛔ **KHÔNG được tự ý thêm khối comment giải thích** bên trong thân hàm.
 - Cơ chế **Self-Healing khi mốc `LastVersion` rơi ra ngoài cửa sổ hợp lệ của Change Tracking** (bổ sung 25/09/2026, retention rút ngắn 26/09/2026): SQL Server chỉ giữ dữ liệu Change Tracking 1 ngày (`CHANGE_RETENTION = 1 DAYS, AUTO_CLEANUP = ON` — rút ngắn từ 2 ngày ban đầu để giảm overhead lưu trữ phía CSDL; đổi lại, worker chỉ được phép ngừng chạy tối đa 1 ngày trước khi bị giảm cấp xuống luồng quét định kỳ thay vì trigger tức thời); nếu worker ngừng cập nhật mốc lâu hơn khoảng đó (ví dụ mất kết nối CSDL kéo dài mà tiến trình không restart), câu `CHANGETABLE` sẽ ném lỗi SQL lặp lại vô hạn mỗi giây. `DataTrackerWorker.QueryChangedTables` bọc `try/catch (Exception ex) when (IsVersionInvalid(ex))` quanh câu truy vấn đổi bảng — khi bắt được lỗi version không hợp lệ (mã SQL 22114/22115 hoặc message tương ứng, hàm `IsVersionInvalid`), tự động nhảy cóc mốc `LastVersion` lên version hiện tại để hồi phục ngay chu kỳ kế tiếp, không cần restart service. Chi tiết & lý do đổi hướng so với đề xuất ban đầu (proactive vs reactive): `sharedata-tu-phuc-hoi-change-tracking-min-valid-version-prompt.md` (đã thực thi và xoá theo Auto-Cleanup). Hàm `GetMinValidVersion` viết sẵn cho hướng proactive không được chọn đã trở thành dead code và bị xoá ngày 26/09/2026 (`sharedata-don-dead-code-getminvalidversion-prompt.md`, đã thực thi và xoá) — xem `Prompt/README.md`. **Từ 27/09/2026** mỗi lần nhảy cóc còn ghi 1 dòng nhật ký hạ tầng mã `ESH-1601` (xem mục 6c) kèm khoảng version bị bỏ qua, để sau này lần ra được vì sao một quãng dữ liệu chỉ đi qua luồng quét định kỳ mà không có trigger.
-- Toàn bộ vùng CT + NATS được bao phủ bởi bộ test trong `tests/ShareData/Services/DataTrackerWorkerTests.cs` (bao gồm 2 bài cho cơ chế Self-Healing reactive: `IsTrackingVersionInvalid_WhenGivenVariousExceptions_ClassifiesCorrectly_Test`, `ChangeTracking_WhenVersionInvalid_SelfHealsAndFastForwardsToCurrentVersion_Test`, và nhóm `NatsWorker_HandleTrigger_*` cho tầng NATS). 📌 Trước 27/09/2026 tài liệu ghi 2 file `DataChangeWorkerTests.cs` + `DataChangeWorkerNatsTests.cs` — cả 2 tên đều không còn đúng: bộ test đã gộp về **1 file duy nhất** `DataTrackerWorkerTests.cs`. Số lượng bài test cụ thể là số liệu tạm, dễ lạc hậu — chạy `dotnet test tests/test.csproj --filter "FullyQualifiedName~ShareData"` để xem số hiện tại thay vì tin số đếm cứng trong tài liệu.
+- Toàn bộ vùng CT + NATS được bao phủ bởi bộ test trong `tests/ShareData/Services/DataTrackerWorkerTests.cs` (bao gồm 3 bài cho cơ chế Self-Healing reactive: `IsTrackingVersionInvalid_WhenGivenVariousExceptions_ClassifiesCorrectly_Test`, `ChangeTracking_WhenVersionInvalid_SelfHealsAndFastForwardsToCurrentVersion_Test`, `TrackingLog_WhenRetryAfterTableIsolationHitsInvalidVersion_SelfHealsAndWritesEsh1601WithFlag_Test`, và nhóm `NatsWorker_HandleTrigger_*` cho tầng NATS). 📌 Trước 27/09/2026 tài liệu ghi 2 file `DataChangeWorkerTests.cs` + `DataChangeWorkerNatsTests.cs` — cả 2 tên đều không còn đúng: bộ test đã gộp về **1 file duy nhất** `DataTrackerWorkerTests.cs`. Số lượng bài test cụ thể là số liệu tạm, dễ lạc hậu — chạy `dotnet test tests/test.csproj --filter "FullyQualifiedName~ShareData"` để xem số hiện tại thay vì tin số đếm cứng trong tài liệu.
 
 
 #### 6b. Nơi lưu trạng thái của worker giám sát — bảng `ShareDataTrackVersion`
@@ -239,10 +271,31 @@ else
 - **Không đổi schema**: không thêm cột, không thêm enum, không cần DBA, không cần sửa giao diện. Tận dụng cột `Remark` vốn đang bỏ trống với thực thể này.
 - **Tự dọn quá hạn 7 ngày**: `ShareDataTransferLog.PurgeTrackingLogsAsync` chạy 1 lần mỗi lần worker khởi động, chỉ xoá dòng `Remark LIKE 'ESH-16%'` — 🔴 tuyệt đối không đụng nhật ký truyền nhận nghiệp vụ cùng khoảng thời gian (đã có test khoá lại lưới an toàn này).
 
+#### 6d. Dồn ghi cảnh báo về ranh giới tác vụ ExportSubscription — 3 thay đổi hành vi & Bảng rà soát Try-Catch (28/09/2026)
+
+- **Bối cảnh & Tái cấu trúc:** Theo yêu cầu rà soát try-catch chồng chéo trong `DataOutboundService.cs` (`sharedata-don-ghi-canh-bao-ve-ranh-gioi-tac-vu-prompt.md`), việc ghi cảnh báo và nhật ký thất bại chuyển hẳn về ranh giới tác vụ `ExportSubscription`. Các tầng bên dưới (`ExportPage`, `GetExportConfig`) nay chỉ `throw new ShareDataException(...)` thuần để phân loại lỗi, ⛔ tuyệt đối không thực hiện I/O ghi CSDL.
+- **Lý do:** Khối `catch` cũ quanh `Extract` trong `ExportPage` vừa bắt nhầm `OperationCanceledException` (dẫn tới việc tắt worker bình thường cũng sinh cảnh báo giả `QueryFailed` ESH-1304) vừa thực hiện ghi CSDL không an toàn (nếu mất kết nối, ngoại lệ mới ghi đè che mất lỗi gốc).
+- **Phòng vệ ranh giới:** `ExportSubscription` gọi helper `ShareDataTransferLog.WriteExportFailure(...)` tự bọc try-catch nuốt lỗi ghi, ngăn chặn lỗi I/O làm sập vòng lặp `foreach` của `ProcessSubscriptions`.
+- **3 thay đổi hành vi biết trước:**
+  1. `PacketNotFound`: Nay ghi nhận kèm đầy đủ tên đối tác (`PartnerName`) trong `ShareDataActivityLog` thay vì null.
+  2. Lỗi không xác định: Khối `catch (Exception)` tại boundary nay sinh cảnh báo `QueryFailed` (`ShareDataAlertLog`) kèm nhật ký hoạt động `Failed` thay vì chỉ `LogWarning`.
+  3. Lấp lỗ hổng im lặng `GetLastSend`: Các trường hợp ngoại lệ từ `GetLastSend` trước đây im lặng thì nay được boundary tự động ghi nhận đầy đủ.
+
+- **Bảng kết quả rà soát Try-Catch trong `DataOutboundService.cs` (28/09/2026):**
+
+| # | Khối try-catch | Vai trò | Đánh giá |
+|---|---|---|---|
+| 1 | `ExportSubscription` | Ranh giới tác vụ + `finally { ReleaseLock }` | ✅ Hợp lệ — Nơi duy nhất ghi nhận cảnh báo và xử lý ngoại lệ cấp Subscription. |
+| 2 | `ExportPage` quanh `Extract` | Bắt lỗi trích xuất dữ liệu | 🔴 ĐÃ GỠ — Khối thừa gây bắt nhầm `OperationCanceledException` và I/O không an toàn. |
+| 3 | `ExportPage` quanh ghi log thành công | Log-write phòng vệ sau khi commit | ✅ Hợp lệ — Phòng vệ để lỗi ghi log không làm rollback dữ liệu đã gửi thành công. |
+| 4 | `CommitSuccess` | Quản lý giao dịch cập nhật mốc gửi | ✅ Hợp lệ — Đảm bảo rollback khi có lỗi giao dịch CSDL. |
+| 5 | `ReleaseLock` | Nuốt lỗi nhả lock trong `finally` | ✅ Hợp lệ — Không để lỗi nhả lock che mất ngoại lệ gốc của tác vụ. |
+| 6 | `GetLastSend` quanh `Insertable` | Xử lý tranh chấp mốc gửi đầu tiên | ✅ Hợp lệ — Đua tranh khoá duy nhất giữa các tiến trình chạy song song. |
+
 #### 7. Ghi nhận cảnh báo tinh gọn (Log 1 lần tại nơi cần thiết)
 - Khi bản ghi nguồn thiếu cả `UpdateTime` và `CreateTime`, hệ thống ghi log warning 1 lần cho gói tin (`AlertSource.Packet`), thông báo số dòng phải dùng thời gian nghiệp vụ thay vì throttle phức tạp.
 - Khi mapping trường bị thiếu/lỗi, ghi trực tiếp `WriteAlertAsync` 1 lần cho trang/gói kết xuất (đã loại bỏ hoàn toàn hàm tiết chế `LogAlertThrottled`).
-- **Tập trung hoá vào `ShareDataTransferLog` (26/09/2026):** `WriteFailureLogs`/`BuildFailExport` (đổi tên từ `WriteFailureLogsAsync`/`BuildFailExportAsync`) và `ResolvePduType` đã chuyển từ `DataOutboundService.cs` sang `ShareDataTransferLog` — đúng nguyên tắc "1 nơi duy nhất ghi log" đã chốt. `WriteActivityAsync` giờ tự fallback `PduType = pduType ?? ResolvePduType(sub)` khi caller không truyền, chiều Inbound (`packet.PduType`) không bị ảnh hưởng vì vẫn truyền tường minh. Chi tiết: `sharedata-di-chuyen-writefailurelogs-buildfailexport-resolvepdutype-prompt.md` (đã thực thi và xoá theo Auto-Cleanup, xem `Prompt/README.md`).
+- **Tập trung hoá vào `ShareDataTransferLog` (26/09/2026, cập nhật 28/09/2026):** `WriteFailureLogs`/`BuildFailExport` (đổi tên từ `WriteFailureLogsAsync`/`BuildFailExportAsync`) và `ResolvePduType` đã chuyển từ `DataOutboundService.cs` sang `ShareDataTransferLog` — đúng nguyên tắc "1 nơi duy nhất ghi log" đã chốt. Từ 28/09/2026, **việc ghi cảnh báo chuyển hẳn về ranh giới tác vụ** `ExportSubscription`. `ExportPage` / `GetExportConfig` nay chỉ `throw new ShareDataException(...)` để **phân loại lỗi**, ⛔ không ghi CSDL. Boundary gọi qua helper `ShareDataTransferLog.WriteExportFailure` tự nuốt lỗi ghi phòng vệ, bảo vệ an toàn cho vòng lặp `ProcessSubscriptions`. `WriteActivityAsync` giờ tự fallback `PduType = pduType ?? ResolvePduType(sub)` khi caller không truyền, chiều Inbound (`packet.PduType`) không bị ảnh hưởng vì vẫn truyền tường minh. Chi tiết: `sharedata-di-chuyen-writefailurelogs-buildfailexport-resolvepdutype-prompt.md` và `sharedata-don-ghi-canh-bao-ve-ranh-gioi-tac-vu-prompt.md` (xem `Prompt/README.md`).
 
 #### 8. Trạng thái các mục sau rà soát nghiệp vụ 23/09/2026
 
@@ -277,6 +330,8 @@ Nhật ký các việc đã xử lý kèm lý do quyết định: xem §9.5 bên
 | **KHI NÀO gửi** | Cờ `SendOnNewData` của **từng Subscription** + trigger NATS | Bật → gửi ngay khi Change Tracking phát hiện đổi; tắt → chỉ gửi theo lịch định kỳ |
 
 Hai trục **độc lập hoàn toàn** — đổi trục này không kéo theo trục kia. `SendOnNewData` và `DebounceSec` là cột của `ShareDataSubscription`, không phải của `ShareDataPacket` — cơ chế kích hoạt sự kiện là **năng lực dùng chung cho cả 9 gói hợp lệ** (trừ 110 `NotReady`, 111 `Disabled`), quyền bật/tắt nằm ở từng đăng ký, không phải danh sách trắng cứng theo gói trong code.
+
+> 📌 **Cập nhật 28/09/2026 — Gỡ NextTimeRun khỏi luồng sự kiện:** Trước 28/09/2026, câu truy vấn dùng chung áp vế `NextTimeRun <= now` khiến cờ `SendOnNewData` gần như vô nghĩa do `NextTimeRun` của luồng định kỳ luôn nằm ở tương lai sau mỗi lần chạy. Nay luồng sự kiện không lọc `NextTimeRun`, cho phép gửi ngay lập tức khi có dữ liệu mới. Đánh đổi: luồng sự kiện không còn loại trừ lẫn nhau qua `NextTimeRun` (đối tác có thể nhận trùng 1 trang theo chuẩn at-least-once nếu nhiều worker cùng nhận trigger), và cơ chế OCC lúc `CommitSuccess` bảo toàn mốc gửi `ShareDataLastSend` không bị hỏng hay lùi. Khung giờ cấu hình trong `ScheduleJson` vẫn được kiểm tra tường minh qua `DataOutboundScheduler.IsWithinTimeWindow`.
 
 ##### 9.2. Vì sao chọn Change Tracking, không chọn CDC hay NATS thuần
 
@@ -380,6 +435,24 @@ Nhờ commit theo từng trang, khi trang thứ N gửi lỗi thì các trang tr
 
 ---
 
+#### 10. Quyết định đã chốt & phương án bị bác
+
+> 📌 Gộp từ `Phụ lục B` của báo cáo rà soát `Sharedata_Review_TongThe_20260927.md` — **báo cáo đã xoá sau khi
+> gộp ngày 28/09/2026**, giống tiền lệ 25/09 với 3 báo cáo trước đó. Đây là phần **đắt nhất** của mọi lượt rà
+> soát: xoá đi là lần sau bàn lại từ đầu, nên nó nằm ở sổ theo dõi chứ ⛔ không nằm ở tệp dùng-một-lần.
+
+| Phương án | Vì sao bác |
+| --- | --- |
+| **Gửi bản ghi xoá mềm sang đối tác** (bỏ bộ lọc ở gói 107, `incidentState` trả mã "đã xoá") | ⛔ **Chủ dự án chốt 27/09/2026: không làm.** Miễn `IsDelete` có giá trị thì không lấy. Đã áp rồi hoàn nguyên sạch. Tương lai nếu đối tác chính thức yêu cầu thì mới thống nhất bộ mã trạng thái rồi bật lại. 📌 Chỉ gói 107 mới khả thi vì đặc tả có mệnh đề *"giá trị cũ sẽ update trạng thái"* và có trường `incidentState`; 103/104/106/109 ⛔ không có trường trạng thái nào nên bỏ lọc là đối tác cộng dữ liệu rác vào số liệu đo |
+| **Đưa trạng thái cô lập bảng lỗi xuống CSDL để dùng chung** | Nguồn sự thật vốn đã ở bảng hệ thống của SQL Server ⇒ lưu thêm là **nhân bản dữ liệu**, rồi phải lo hai bản lệch nhau. Khởi động lại không mất gì vì chu kỳ đầu tự phát hiện lại. Dùng chung sẽ **mất** thông tin *máy nào* phát hiện (hữu ích khi chỉ vài máy gặp lỗi quyền hoặc kết nối riêng) |
+| **Dùng một mốc hẹn thử lại chung cho mọi bảng bị cô lập** | Mốc chung bị gán lại mỗi lần cô lập thêm bảng ⇒ bảng A hỏng lúc t=0 (hẹn t+5 phút), bảng B hỏng lúc t=2 phút thì mốc bị đẩy thành t+7 phút, bảng A **mất lượt**. Hỏng liên tiếp thì **không bảng nào** được thử lại. Cần mốc hẹn **riêng từng bảng** |
+| **Nới cột `LastKey` lên 128** | Khoá bản ghi hiện là khoá chính bảng nguồn, mà cột đó cũng 64 ⇒ nới là phá quy ước và che vấn đề thật. Chọn **thêm chốt chặn `ESH-1305`** tại `ExportPage` trước khi gửi |
+| **Tạo bảng riêng hoặc dùng AlertLog để lưu sự cố Change Tracking** | Dùng lại cột `Remark` của `ShareDataActivityLog` (phân loại mã `ESH-16xx`) tận dụng cấu trúc có sẵn, không phải đổi schema CSDL hay giao diện, đồng thời giữ `ShareDataAlertLog` đúng vai trò dành riêng cho lỗi nghiệp vụ cần người can thiệp |
+| **Giữ cách khởi tạo cũ của worker giám sát, chấp nhận đọc cấu hình lặp 4 lượt** | ⛔ **Chủ dự án chốt 28/09/2026: đổi sang cách khởi tạo tường minh.** Nguyên nhân gốc của việc lặp: C# **cấm** một khai báo khởi tạo tham chiếu tới thành viên khác của cùng đối tượng, nên 4 chỗ buộc phải tính lại từ đầu, ⛔ không chỗ nào dùng lại được kết quả của chỗ trước. Chỉ cách khởi tạo tường minh mới gán tuần tự được ⇒ còn **1 lượt**. 📌 Đánh giá ban đầu của AI là "không nên làm vì diff trải khắp tệp" — **ước lượng đó sai**, đếm thật chỉ 22 điểm đổi tên |
+| **Dựng muộn câu SQL đang áp dụng (chỉ tạo khi dùng lần đầu) để tránh lặp đọc cấu hình** | Vi phạm quy tắc 19.22 (cấm tách trường đệm dựng muộn). Ngoài ra còn **sai chức năng**: một worker khởi động khi mốc trong CSDL đã hợp lệ sẽ đi thẳng vào chu kỳ thường và dùng câu SQL đó **trước khi** nhánh khởi tạo kịp chạy ⇒ buộc phải có giá trị ngay từ lúc khởi tạo |
+
+---
+
 ## I.C · CHIỀU NHẬN — INBOUND — 🧑‍💻 Hiếu
 
 ### SV-1b. Bỏ yêu cầu khoá `payload` khi parse gói đến ✅ *xong 22/09 (PR #51)*
@@ -417,6 +490,11 @@ Nhờ commit theo từng trang, khi trang thứ N gửi lỗi thì các trang tr
 - [ ] **BE-5** **Log 2 bước cha–con**: Thêm 2 cột `ParentId` và `StepNo` vào thực thể `ShareDataActivityLog` và API truy vấn cây cha–con.
 - [x] **BE-6** **CodeSet: Default Value + Chiều**: Bổ sung `direction` cho cấu hình giá trị bộ mã.
 - [ ] **BE-7** **Bảng mã lỗi hệ thống**: Danh mục Error Code chuẩn phục vụ ghi nhận sự cố.
+  - 📌 **Đối chiếu 28/09**: đây là *việc 4* mà họp 21/09 giao cho Đạt (*"rà soát xử lý lỗi, tách biệt mã lỗi chuẩn
+    hoá"*). Phần **tầng Worker đã xong**: `ShareDataAlertCode` (nhóm Outbound `ESH-12xx`/`13xx`/`14xx`, Inbound
+    `ESH-15xx`, Tracking `ESH-16xx`) + `ShareDataException` — cả hai nằm trong 33 tệp của nhánh này. ⚠️ Phần **còn
+    thiếu** đúng như tiêu đề BE-7 nói: **danh mục Error Code trong cấu hình hệ thống** (bảng CSDL + API tra cứu)
+    để FE và người vận hành đọc được mã lỗi thành mô tả, ⛔ không phải tra trong mã nguồn.
 - [x] **BE-8** **Endpoint lấy dữ liệu mẫu thật**: ✅ **xong 22/09 (PR #51)**
   - Cung cấp API `GET api/v1/share-data/packet/{packetCode}/sample-data`.
   - DTO `ShareDataPacketSampleDataDto` (`SampleRows`, `TotalRows`, `ColumnNames`, `GeneratedAt`).
@@ -442,6 +520,20 @@ Nhờ commit theo từng trang, khi trang thứ N gửi lỗi thì các trang tr
     - `InboundCommandHandler`, `InboundValidator`
     - `ActivityLogQueryHandler`, `AlertLogCommandHandler`, `AlertLogQueryHandler`
   - Chuẩn hóa tên các Service nội bộ: `ActivityLoggerService`, `CodeSetValueReaderService`, `MappingResolverService`, `ShapeReaderService`.
+- [ ] **BE-14** **API danh mục trạng thái ánh xạ của từng gói tin theo đối tác** ⚠️ **Chưa làm**
+  - 🔴 **Task này trước 28/09 KHÔNG hề có trong checklist** — nó là *việc 3* mà biên bản họp
+    [`21-09-2026`](../doc/transcript/21-09-2026-hoan-thien-mapping-va-gui-noi-duoi-sharedata.md) (mục 2, dòng
+    của Đạt) giao rõ: *"Hoàn thiện API danh mục: Cung cấp API trả về trạng thái ánh xạ của từng gói tin theo đối
+    tác."* Nó chỉ tồn tại trong báo cáo rà soát 27/09 nên **vô hình với người tra checklist**. Bổ sung vào đây
+    ngày 28/09 để không rơi mất nữa.
+  - **Dùng để làm gì**: biên bản 21/09 (mục 1.1) chốt giao diện phải hiện chỉ báo *"Đã có Ánh xạ"* (xanh) /
+    *"Chưa có Ánh xạ"* (xám) trên bảng gói tin của từng đối tác, để người dùng biết phải thiết lập ánh xạ trước
+    khi kích hoạt. FE cần một API danh mục để vẽ chỉ báo đó.
+  - **Vì sao chưa làm**: nhánh `feat/20260922-sharedata-service` chỉ chạm tầng Worker và 2 Entity — ⛔ không có
+    Controller/Query nào của `Module.ShareData` trong 33 tệp thay đổi.
+  - **Có chặn luồng đang chạy không**: ⛔ **Không**. Tầng Worker đã tự chặn gửi khi thiếu ánh xạ (`GetExportConfig`
+    ném `MappingNotFound` mức Error), nên dữ liệu ⛔ không thể lọt ra sai. Thiếu API này chỉ làm người dùng
+    **không thấy trước** gói nào chưa ánh xạ, phải chờ tới lúc có cảnh báo mới biết.
 
 ---
 
@@ -537,6 +629,7 @@ Toàn bộ cấu hình ánh xạ trường thuộc quyền điều khiển của
 - **Trường nguồn thừa / phễu lọc không gọi**: Bỏ qua im lặng, không đưa vào payload gửi đi.
 - **Phễu lọc gọi / trường nguồn không có**: Giá trị ra `null` im lặng (không ghi spam log cảnh báo lặp lại).
 - **Trường đánh dấu `$extend.required: true` bị null**: Lập tức huỷ toàn bộ trang kết xuất, ghi alert `ESH-1202` và log kết quả `Failed`.
+- **Trạng thái `BuildFailExport` (28/09/2026)**: Sau khi dồn ghi cảnh báo về ranh giới `ExportSubscription`, hàm `ShareDataTransferLog.BuildFailExport` hiện là **dead code (không còn call site nào trong toàn codebase)**, chờ quyết định chính thức từ chủ dự án để dọn sạch. Hàm `WriteFailureLogs` vẫn được giữ nguyên để phục vụ helper `WriteExportFailure` và nhánh `HttpSendFailed`.
 - **Mã cảnh báo hệ thống chính (ESH Alert Codes)**:
   - `ESH-1201`: Không tìm thấy bộ mã CodeSet.
   - `ESH-1202`: Thiếu trường bắt buộc (`$extend.required`).
