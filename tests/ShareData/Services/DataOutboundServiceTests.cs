@@ -1725,6 +1725,7 @@ END");
 
                 Assert.NotNull(saved);
                 Assert.NotNull(saved!.NextTimeRun);
+                Assert.Null(saved.ProcessingUntil);
 
                 var lockDurationSeconds = Math.Max(300, (sub.IntervalSeconds ?? 60) * 3);
                 Assert.True(saved.NextTimeRun >= dbNowBefore,
@@ -1737,6 +1738,10 @@ END");
                 await db.Deleteable<ShareDataSubscription>().Where(x => x.ID == sub.ID).ExecuteCommandAsync();
             }
         }
+
+        [Fact]
+        public Task ProcessScheduledSubscriptions_WritesProcessingUntilWithinLockWindowOfDbClock_Test()
+            => ProcessScheduledSubscriptions_WritesNextTimeRunWithinLockWindowOfDbClock_Test();
 
         [Fact]
         public async Task OutboundPipeline_EndToEnd_MapTransformAndSend_Succeeds_Test()

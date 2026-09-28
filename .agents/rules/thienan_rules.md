@@ -370,6 +370,35 @@ Các hệ thống / Module phát triển mới về sau bắt buộc tuân thủ
      /// Created date: [dd/MM/yyyy]
      /// </summary>
      ```
+   * 🔴 **XML Summary PHẢI NGẮN — `Description:` tối đa 2–3 dòng (chốt 28/09/2026)**:
+     - Khối `/// <summary>` chỉ trả lời **"cái này là gì / làm gì"**. Quá 3 dòng `Description:` là đang viết nhầm chỗ.
+     - ⛔ **CẤM nhồi vào XML doc**: lý do chọn thiết kế, lịch sử quyết định, so sánh với phương án bị bác, biện luận *"vì sao không làm cách kia"*, lời dặn dò người bảo trì tương lai.
+     - **Chỗ đúng của phần lý do**: mục nghiệp vụ tương ứng trong `Plan/<Xx>_MasterPlan.md`, hoặc chính tệp prompt sinh ra thay đổi đó. Lý do: XML doc bật lên IntelliSense **mỗi lần gõ tên biến** — nhét cả bản thiết kế vào đó là bắt người đọc nuốt 10 dòng biện luận chỉ để biết một `Dictionary` chứa gì.
+     - **Dấu hiệu nhận biết đã viết sai**: khối comment **dài hơn đoạn code nó mô tả**, hoặc chứa các cụm *"có chủ đích"*, *"lý do là"*, *"nên không thuộc diện"*, *"khác với ..."*.
+     - **Lỗi thật đã mắc**: `DataChangeTrackingService._missingTables` có XML doc **10 dòng**, trong đó 7 dòng là bản thiết kế chép lại từ `Sharedata_MasterPlan.md` §6b:
+       ```csharp
+       // ❌ SAI — 10 dòng, 7 dòng cuối là biện luận thiết kế
+       /// <summary>
+       /// Description: Các bảng nguồn đang bị cô lập do mất Change Tracking, kèm mốc sớm nhất được thử lại.
+       ///              Lưu RAM có chủ đích: trạng thái này suy ra được từ sys.change_tracking_tables bất cứ
+       ///              lúc nào, nên khởi động lại thì chu kỳ đầu tự phát hiện lại, không có gì cần bảo toàn.
+       ///              Mỗi bảng giữ mốc hẹn RIÊNG để một bảng hỏng muộn không đẩy lùi lượt thử lại của
+       ///              bảng đã hỏng trước đó.
+       ///              Mốc dùng DateTime.UtcNow là đúng ở đây: nó chỉ so với chính nó trong cùng tiến
+       ///              trình, không ghi vào cột CSDL và không so với giá trị đọc từ CSDL, nên không thuộc
+       ///              diện phải chuyển sang đồng hồ CSDL như các mốc của luồng khoá độc quyền.
+       /// Created date: 27/09/2026
+       /// </summary>
+
+       // ✅ ĐÚNG — 2 dòng Description, phần lý do để ở MasterPlan §6b
+       /// <summary>
+       /// Description: Các bảng nguồn đang bị cô lập do mất Change Tracking, kèm mốc hẹn thử lại RIÊNG
+       ///              của từng bảng. Giữ ở RAM, không lưu CSDL — xem MasterPlan §6b.
+       /// Created date: 27/09/2026
+       /// </summary>
+       ```
+     - ✅ **Ngoại lệ DUY NHẤT**: nhóm hàm ở mục **19.7** (duyệt cây dữ liệu / template / binding như `HasFieldBinding`, `IsRecordTemplateArray`) vẫn BẮT BUỘC viết dài kèm `Guard` và `Cross-pipeline Sync` — vì lệch ngữ nghĩa giữa chiều gửi và chiều nhận là lỗi **không thể phát hiện bằng biên dịch**. ⛔ Ngoài đúng nhóm đó, ⛔ không viện dẫn 19.7 để viết dài.
+     - 📌 Quy tắc **19.13** (viết tự chứa, ⛔ không đẩy câu trả lời sang chỗ khác) chỉ áp cho tài liệu trong `DocBusinessThienAn/` và tệp prompt — ⛔ **không** áp cho comment trong mã nguồn. Ở đây dẫn chiếu sang MasterPlan là **đúng**, không phải vi phạm.
    * **Bắt Buộc XML Summary Trên Interface & Mọi Phương Thức Interface (Interface Methods)**:
      - Mọi Interface (`public interface I...`) và TẤT CẢ các phương thức định nghĩa bên trong interface BẮT BUỘC phải có khối XML summary comment chuẩn 2 dòng (`/// <summary>\n/// Description: ...\n/// Created date: ...\n/// </summary>`).
      - Tuyệt đối CẤM để phương thức trong interface trơ trọi không có XML summary, gây khó khăn cho IntelliSense, phân tích kiến trúc và gây thiếu nhất quán giữa interface với class thực thi.
@@ -500,6 +529,7 @@ tests/
 2. **Quy tắc thực thi lệnh .NET:**
    - KHÔNG KHUYÊN DÙNG chạy trực tiếp file đơn lẻ dạng `dotnet File.cs` cho project xUnit/C#.
    - LUÔN LUÔN dùng `dotnet test <csproj_or_sln>` hoặc `dotnet build` để nạp đủ các thư viện và dependency.
+   - ⛔ **CẤM TUYỆT ĐỐI dùng cờ `--no-build` khi chạy `dotnet test` (P0)**: Khi thực thi kiểm thử qua `dotnet test`, TUYỆT ĐỐI KHÔNG thêm cờ `--no-build` (ví dụ: `dotnet test tests/test.csproj --filter "..." --no-build` là SAI). Việc bỏ qua bước build dẫn đến nguy cơ rất cao là test sẽ chạy trên binary/assembly cũ (stale cache) trong `bin/Debug/`, hoàn toàn bỏ qua các sửa đổi mã nguồn mới vừa lưu trên đĩa, dẫn đến sai lệch nghiêm trọng kết quả kiểm thử (test giả mạo pass/fail, phantom test results). Mặc định `dotnet test` luôn tự động build incremental chỉ cho các project có thay đổi rất nhanh, đảm bảo 100% test chạy trên code thực tế.
 3. **Kiểm tra Connection String trước khi `dotnet test`:**
    > Xem mục 11 "Strict Local Database Rule for Testing" bên dưới.
 
@@ -512,7 +542,32 @@ tests/
 - **Object Initializer Formatting**: Object initializer nhiều thuộc tính (VD: `new TmsEquipment { ID = eqId, Code = "...", ... }`) BẮT BUỘC ngắt dòng, mỗi thuộc tính 1 dòng thụt lề. TUYỆT ĐỐI KHÔNG viết inline nhiều thuộc tính trên 1 dòng ngang.
 - **Inline Temporary Entity Khi Insert (No Redundant Temporary Variable)**: Khi khởi tạo một entity mới chỉ để insert vào CSDL qua `db.Insertable(...)` mà bản ghi đó KHÔNG được dùng lại ở các câu lệnh sau hoặc KHÔNG được `return` ra ngoài, BẮT BUỘC khởi tạo inline trực tiếp trong câu lệnh insert (VD: `await db.Insertable(new ShareDataLastSend { ... }).ExecuteCommandAsync(cancelToken);`), TUYỆT ĐỐI KHÔNG khai báo biến tạm thừa (`var newLastSend = new ...; await db.Insertable(newLastSend)...`). CHỈ khai báo biến khi cần tái sử dụng biến đó hoặc trả về sau khi insert.
 - **Ưu Tiên Biến Cục Bộ Thay Vì Field / Property (Prefer Local Variables Over Class Fields/Properties)**: Bất kỳ biến nào chỉ dùng làm dữ liệu tạm thời, phục vụ tính toán trung gian hoặc chỉ dùng trong phạm vi 1 phương thức/truyền qua tham số: BẮT BUỘC dùng biến cục bộ (`var local = ...`). TUYỆT ĐỐI KHÔNG lưu thành field (`private ...`) hoặc property của class nếu không thực sự cần lưu giữ trạng thái sống xuyên suốt vòng đời đối tượng (Stateful Lifecycle).
-- **Multi-Condition LINQ Formatting**: Query LINQ/SqlSugar nhiều điều kiện (VD: `.Where(s => s.IsDelete == null && s.Direction == ... && s.Mode != ...)`) BẮT BUỘC ngắt dòng — hoặc tách thành các `.Where(...)` nối tiếp (mỗi điều kiện 1 dòng), hoặc xuống dòng thụt lề cho từng vế `&&`/`||`. TUYỆT ĐỐI KHÔNG viết chuỗi điều kiện dài inline trên 1 dòng.
+- **Multi-Condition LINQ & SqlSugar Formatting (Chaining `.Where` — Triệt Tiêu `&&` Nhồi Nhét)**:
+  - Khi xây dựng truy vấn ORM (SqlSugar/EF Core), BẮT BUỘC ưu tiên tách các điều kiện logic độc lập thành từng dòng `.Where(...)` nối tiếp nhau (Chaining Where) thay vì dồn tất cả vào một biểu thức Lambda duy nhất với hàng loạt toán tử `&&`.
+  - ORM sẽ tự động dịch các lời gọi `.Where(...)` liên tiếp thành các mệnh đề `AND` tương đương 100% trong câu lệnh SQL sinh ra (áp dụng cho cả query chính lẫn `SqlFunc.Subqueryable<T>`).
+  - *Mỗi dòng `.Where()` chịu trách nhiệm duy nhất 1 tiêu chí*:
+    * Định danh bản ghi (`ID == ...`, `Code == ...`)
+    * Trạng thái xóa mềm / kích hoạt (`IsDelete == null`, `Status == ...`, `State == ...`)
+    * Khóa tranh chấp đồng thời / OCC (`ProcessingUntil == null || ProcessingUntil <= now`)
+    * Lịch trình hoặc thời gian quét (`NextTimeRun == null || NextTimeRun <= now`)
+  - *Lợi ích*:
+    * Triệt tiêu hoàn toàn các toán tử `&&` rườm rà, mã nguồn trở nên phẳng (flattened), trong sáng và dễ đọc.
+    * Các biểu thức có chứa toán tử `||` (như kiểm tra null hoặc mốc thời gian `<= now`) sẽ nằm trọn vẹn và cô lập trong chính dòng `.Where()` đó, không bị kẹp méo mó giữa các dấu `&&`, loại trừ triệt để nguy cơ nhầm lẫn thứ tự ưu tiên toán tử logic (`&&` có độ ưu tiên cao hơn `||`).
+    * Dễ dàng bật/tắt, thêm bớt điều kiện hoặc chuyển đổi sang `.WhereIF(...)` mà không phải cắt ghép chuỗi ngoặc nhọn phức tạp.
+- **Truy Vấn Phân Tầng: Ưu Tiên Khớp Chính Xác Trước $\rightarrow$ Dự Phòng Sau (Two-Tier Query: Exact Match First, Fallback Later)**:
+  - Khi cần tìm kiếm thực thể có thể khớp theo nhiều tiêu chí (vừa khớp chính xác theo ID/Code, vừa hỗ trợ tìm kiếm mờ / tiền tố / số thứ tự OrderNo dự phòng): TUYỆT ĐỐI TRÁNH nhồi nhét tất cả vào một câu truy vấn duy nhất bằng toán tử ba ngôi `? :` lồng ghép hoặc mẹo `OrderBy(p => ... ? 0 : 1)` để ép thứ tự kết quả.
+  - BẮT BUỘC tách thành 2 tầng xử lý rõ ràng:
+    * **Tầng 1 (Exact Match)**: Tìm kiếm khớp chính xác bằng điều kiện đơn giản trên các cột có Index (VD: `Code == value || ID == value`). Nếu tìm thấy, `return` kết quả ngay lập tức (thường chiếm 90-99% các tình huống chạy thực tế).
+    * **Tầng 2 (Fallback Match)**: Chỉ khi tầng 1 không tìm thấy kết quả và có dữ liệu phân giải dự phòng (ví dụ `targetNumber.HasValue`), mới chạy câu truy vấn phụ để quét theo `OrderNo` hoặc tiền tố chuỗi `StartsWith(...)`.
+  - *Lợi ích*:
+    * **Hiệu năng CSDL vượt trội**: Đa số trường hợp truy vấn sẽ tận dụng Index trực tiếp và kết thúc ngay, CSDL không phải tốn tài nguyên chạy các phép quét chuỗi (`StartsWith`) hoặc tạo bảng tạm sắp xếp trong RAM (`OrderBy`).
+    * **Code trong sáng, không lặp lại**: Loại bỏ việc copy-paste điều kiện lặp lại nhiều lần trong toán tử 3 ngôi.
+- **Biểu Thức Điều Kiện & Tên Biến Luôn Ở Thể Khẳng Định (Affirmative Logic & Positive Boolean Naming)**:
+  - **Tên biến boolean**: BẮT BUỘC đặt tên mô tả trạng thái khẳng định (positive), thể hiện rõ ngữ nghĩa tích cực hoặc luồng thực thi đang diễn ra (VD: `isScheduled`, `isEnabled`, `hasAccess`, `isValid`, `isRecurring`). TUYỆT ĐỐI KHÔNG đặt tên biến mang sẵn ý nghĩa phủ định (VD: `isNotScheduled`, `isDisable`, `isNotTriggered`, `noCache`).
+  - **Biểu thức rẽ nhánh & WhereIF / SetColumnsIF**: BẮT BUỘC viết điều kiện ở thể khẳng định, TUYỆT ĐỐI TRÁNH dùng toán tử đảo ngược/phủ định `!` trước biến boolean trong `WhereIF(!isX, ...)` hoặc `if (!isX)` khi điều kiện bên trong đang lọc cho một trạng thái nghiệp vụ cụ thể.
+    * *Ví dụ sai*: Khai báo `var isTriggered = packetCode != null;` rồi lọc `.WhereIF(!isTriggered, s => s.NextTimeRun == null || s.NextTimeRun <= now)`.
+    * *Ví dụ đúng*: Khai báo trực tiếp thể khẳng định của luồng cần lọc `var isScheduled = packetCode == null;` rồi lọc `.WhereIF(isScheduled, s => s.NextTimeRun == null || s.NextTimeRun <= now)`.
+  - *Lý do*: Viết phủ định `!isTriggered` để biểu thị cho luồng quét định kỳ bắt người đọc phải tư duy đảo ngược ("không phải trigger nghĩa là quét định kỳ"), gây quá tải nhận thức (cognitive strain), làm tối nghĩa mã nguồn và dễ dẫn đến sai sót logic khi thêm/sửa điều kiện.
 - **Async Method Naming (Áp Dụng Cho Code MỚI)**: Khi viết phương thức bất đồng bộ MỚI (public service, handler, controller, hay private helper, test seed method...), TUYỆT ĐỐI KHÔNG thêm hậu tố `Async` vào tên phương thức (VD: `GetScope`, `ProcessScheduledSubscriptions`, `SeedWall` — không phải `GetScopeAsync`, `ProcessScheduledSubscriptionsAsync`, `SeedWallAsync`) vì kiểu trả về (`Task`/`Task<T>`) đã thể hiện rõ tính bất đồng bộ. Đối với code cũ đã viết trước đó của người khác hoặc API của thư viện bên ngoài: **CỨ KỆ, GIỮ NGUYÊN**, tuyệt đối không tự ý refactor hàng loạt gây diff rác hoặc lỗi tương thích.
 - **Dependency Injection Naming & Casing**:
   - Với constructor viết tường minh (không phải primary constructor kiểu property): LUÔN đặt tên dependency injected bằng camelCase (VD: `IFileExportService fileExportService`), gán vào private field `_fileExportService = fileExportService;`.
@@ -546,8 +601,9 @@ tests/
   - **BẮT BUỘC** đặt tên thể hiện rõ bản chất số lượng bản ghi: `affected`, `lockedRows`, `updatedRows`, `deletedRows`, `insertedRows`.
   - **TUYỆT ĐỐI CẤM** đặt tên kiểu cờ boolean (như `claimed`, `isSuccess`, `hasLock`), tránh gây nhầm lẫn kiểu dữ liệu khi kiểm tra điều kiện (phải dùng so sánh số lượng `<= 0` hoặc `> 0`).
 - **Thống nhất thuật ngữ Concurrency OCC Lock**:
-  - Thống nhất tuyệt đối sử dụng thuật ngữ **`lock`** (`LockedSubscription`, `ReleaseLock`, `lockedRows`, `lockDurationSeconds`, `DefaultLockBudgetPercent`) cho cơ chế tranh chấp độc quyền tài nguyên (OCC Guard qua `NextTimeRun`).
+  - Thống nhất tuyệt đối sử dụng thuật ngữ **`lock`** (`LockedSubscription`, `ReleaseLock`, `lockedRows`, `lockDurationSeconds`, `DefaultLockBudgetPercent`) cho cơ chế tranh chấp độc quyền tài nguyên (OCC Guard qua `ProcessingUntil`).
   - **CẤM** dùng các từ ngữ cũ/pha tạp như `lease`, `claim` trong tên biến, tên hàm, tên hằng số, tài liệu và log message.
+  - 🔴 **Ngoại lệ có chủ đích (chốt 28/09/2026)**: từ vựng `lock` áp cho **tên biến / tên hàm** của cơ chế (`ReleaseLock`, `lockedRows`, `lockDurationSeconds`, `DefaultLockBudgetPercent`), còn **tên cột CSDL** đặt theo **nghiệp vụ của entity** — cụ thể `ShareDataSubscription.ProcessingUntil`, ⛔ không đặt `LockedUntil`/`LockExpireTime`. Lý do: cột nằm trong bảng nghiệp vụ, người đọc schema cần hiểu nó nói gì về đăng ký chứ ⛔ không cần biết cơ chế đồng thời bên dưới. ⛔ Lượt sau không ai được "đồng bộ lại" hai bên.
 - **Phân định ranh giới Cảnh Báo Hệ Thống (`AlertLog`) vs Nhật Ký Ứng Dụng (`ILogger` / `LogWarningMsg`)**:
   - **`AlertLog`** (`ShareDataTransferLog.WriteAlertAsync`): CHỈ dành cho các lỗi/sự cố nghiệp vụ phát sinh **trong quá trình xử lý luồng dữ liệu** mà quản trị viên cần can thiệp (như `PacketNotFound`, `MappingNotFound`, `QueryFailed`, `RequiredFieldMissing`, `HttpSendFailed`...).
   - **`ILogger` / `LogWarningMsg`**: Các tình huống tranh chấp tài nguyên bình thường của hạ tầng OCC (như một worker khác đã nhận lại đăng ký do hết hạn timeout khi nhả lock ở `finally` — `LockLost`): **TUYỆT ĐỐI KHÔNG** ghi vào bảng `AlertLog` làm rác cảnh báo; chỉ ghi log ứng dụng nội bộ qua `LogWarningMsg`.
@@ -590,6 +646,7 @@ tests/
 - **Bắt buộc local khi test**: Khi chạy `dotnet test` (hoặc bất kỳ kịch bản unit/integration test), TẤT CẢ connection string (RDBMS: SQL Server, PostgreSQL, MySQL...; NoSQL/Cache: Redis...) BẮT BUỘC là local (`localhost`, `127.0.0.1`, `(localdb)`, `.`, container local).
 - **Hủy ngay & báo cáo nếu phát hiện remote**: Trước khi chạy `dotnet test`, nếu thấy connection string trong `appsettings*.json`, `Host.cs`, hay cấu hình test trỏ ra remote/IP ngoài (VD `10.10.8.30`, domain staging/prod...), BẮT BUỘC HỦY NGAY việc chạy test và báo lại người dùng.
 - **Cấm test trên DB remote**: TUYỆT ĐỐI KHÔNG chạy test khi connection string RDBMS/Redis không phải local.
+- **Cấm tuyệt đối cờ `--no-build` khi chạy test**: TUYỆT ĐỐI KHÔNG thêm tham số `--no-build` vào lệnh `dotnet test` (ví dụ: `dotnet test tests/test.csproj --filter "..." --no-build` là SAI). Luôn để `dotnet test` tự động kiểm tra và build incremental để bảo đảm test luôn chạy trên code mới nhất, tránh tình trạng code đã sửa nhưng test lại chạy trên DLL cũ trong cache dẫn đến sai lệch kết quả.
 - **Tự động đồng bộ Schema CSDL Local khi Test (`EnableInitTable`, `EnableInitDb` - Bắt buộc)**:
   - Khi chạy `dotnet test` phát sinh lỗi thiếu cột hoặc thiếu bảng (ví dụ `Invalid column name '...'`, `Invalid object name '...'` do rebase/pull code nhánh khác có bổ sung entity):
   - **Bước 1 (Bật cờ đồng bộ):** Tạm thời bật các cờ CodeFirst của SqlSugar trong `tests/appsettings.Test.json`:
@@ -782,6 +839,7 @@ tests/
     3. `Guard / Safety limit`: Nêu rõ chốt chặn an toàn (ví dụ: giới hạn độ sâu đệ quy `depth > MaxShapeDepth` để chống tràn stack/StackOverflowException).
     4. `Cross-pipeline Sync`: Nhấn mạnh việc giữ đồng bộ ngữ nghĩa giữa các chiều (ví dụ: `HasFieldBinding` bên Outbound `DataMappingProcess` và Inbound `DataInboundService.Parse` phải hoàn toàn nhất quán, lệch nhau sẽ khiến bên gửi và bên nhận hiểu sai cấu trúc gói tin).
     5. Đầy đủ các thẻ `<param>` và `<returns>`.
+  - 🔴 **PHẠM VI HẸP — đây là NGOẠI LỆ của quy tắc "XML Summary phải ngắn" ở mục 5.7 (chốt 28/09/2026)**: mục 19.7 CHỈ áp cho đúng nhóm hàm duyệt cây dữ liệu / template / binding nêu trên, nơi lệch ngữ nghĩa giữa chiều gửi và chiều nhận là lỗi **không thể phát hiện bằng biên dịch** nên phải cảnh báo ngay tại chỗ. ⛔ TUYỆT ĐỐI KHÔNG viện dẫn mục này để viết XML doc dài cho field, property, hàm thường hay class thông thường — mặc định toàn dự án là **`Description:` tối đa 2–3 dòng**, phần lý do thiết kế để ở MasterPlan.
 
 - **19.8. Quy Chuẩn Ngôn Ngữ Báo Cáo & Biên Bản (Ưu tiên tiếng Việt thuần túy, cấm lạm dụng chêm tiếng Anh)**:
   - Khi viết báo cáo, biên bản họp, tóm tắt điều hành và tài liệu kỹ thuật hướng đến nhân sự và quản lý người Việt, **BẮT BUỘC dùng tiếng Việt trong sáng, dễ hiểu**, tránh chêm tiếng Anh chuyên ngành bừa bãi gây rào cản nhận thức.
@@ -879,10 +937,22 @@ tests/
 
   - **Mở đầu bằng bảng `Tóm tắt` đúng 4 dòng** — mỗi dòng là một câu hỏi trên, cột 2 là **câu trả lời gọn đọc là hiểu**, cột 3 là liên kết tới mục chi tiết.
   - 🔴 **Bảng `Tóm tắt` KHÔNG còn là thứ đứng đầu tệp** (bổ sung 27/09/2026): trước nó phải có khối `Kết luận — đọc 30 giây là đủ` theo **mục 19.21**. Thứ tự đúng: `Chú giải ký hiệu` → `Kết luận` (19.21) → `Tóm tắt` 4 trục (mục này) → 4 mục thân chính. Mục 19.21 cũng quy định ô "Trả lời" của bảng `Tóm tắt` **phải chứa nội dung câu trả lời**, ⛔ không được chỉ ghi số lượng — đủ 4 trục mà ô Tóm tắt rỗng nghĩa thì báo cáo vẫn không đạt.
-  - 🔴 **Việc đã đóng BẮT BUỘC chuyển xuống `Phụ lục B. Nhật ký việc đã xử lý`**, nén thành bảng *vấn đề → cách xử*, mỗi việc 1 dòng. ⛔ TUYỆT ĐỐI KHÔNG để mục `✅ [ĐÃ XỬ LÝ]` nằm trong thân chính. **Dấu hiệu nhận biết đã viết sai:** phần "phát hiện vấn đề" viết ở thì hiện tại, rồi kẹp thêm một khối `✅ Đã chốt` ở cuối — người đọc phải lội hết lịch sử tranh luận của việc đã xong mới thấy việc còn mở.
+  - 🔴 **CẤM VIẾT PHỤ LỤC TRONG BÁO CÁO RÀ SOÁT (chốt 28/09/2026 — bãi bỏ toàn bộ quy định `Phụ lục A/B/C` trước đó).** Báo cáo rà soát **chỉ gồm**: `Chú giải ký hiệu` → `Kết luận` (19.21) → `Tóm tắt` 4 trục → 4 mục thân chính. ⛔ Hết. Không `Phụ lục A`, không `Phụ lục B`, không `Phụ lục C`, không mục "nhật ký việc đã xử lý", không "lệnh dùng để đo", không bảng phân bố tệp.
+    - **Lý do (nguyên văn chủ dự án 28/09/2026):** *"mấy phụ lục này nhiễu thông tin, tôi cũng không đọc"*. Phụ lục là chỗ AI dồn thứ nó tiếc công viết ra nhưng người đọc không cần — đúng cái mục 19.21 cấm: viết hướng về người viết thay vì hướng về người đọc.
+    - 🔴 **Nội dung đắt tiền ⛔ KHÔNG bị mất, nó đổi CHỖ ĐẾN — ghi THẲNG vào MasterPlan ngay lúc chốt**, ⛔ không đi vòng qua phụ lục rồi chờ lượt gộp:
+
+      | Thứ trước đây nhét vào phụ lục | Nay ghi thẳng vào đâu |
+      | --- | --- |
+      | Quyết định đã chốt + **phương án bị bác và vì sao** *(đắt nhất)* | Mục `Quyết định đã chốt & phương án bị bác` của MasterPlan |
+      | Giải thích cơ chế hoạt động (luồng chạy, thuật toán, cấu hình) | Mục nghiệp vụ tương ứng trong MasterPlan |
+      | Việc đã đóng | ⛔ Không ghi ở đâu cả — đã xong thì người đọc báo cáo ⛔ không cần. Nếu nó kèm **lý do quyết định** thì phần lý do đó đi vào dòng MasterPlan ở trên |
+      | Lệnh dùng để đo, số liệu staging, phân bố tệp | ⛔ Không vào tài liệu sống — là số liệu **tạm** (quy tắc 14). Cần lưu thì để trong prompt hoặc `*-scratch.md` |
+
+    - ⛔ **TUYỆT ĐỐI KHÔNG để mục `✅ [ĐÃ XỬ LÝ]` trong thân chính.** **Dấu hiệu nhận biết đã viết sai:** phần "phát hiện vấn đề" viết ở thì hiện tại, rồi kẹp thêm một khối `✅ Đã chốt` ở cuối — người đọc phải lội hết lịch sử tranh luận của việc đã xong mới thấy việc còn mở.
+    - **Dấu hiệu nhận biết đã viết sai (soát trước khi giao):** trong tệp có chuỗi `## Phụ lục`.
   - ⛔ **Mục 3 KHÔNG chứa việc "tuỳ chọn, không ai đang chờ"** (chốt 25/09/2026): nếu một việc không ai yêu cầu, không chặn luồng, và tự mình đã viết ra rằng không ai đang chờ xử lý — thì bỏ hẳn khỏi báo cáo, ⛔ không viết ra rồi tự gắn nhãn "tuỳ chọn" cho nó ở lại. Mục 3 chỉ liệt kê việc khớp đúng 4 cột của bảng ở trên (việc · thuộc ai · vì sao chưa · có chặn luồng không); việc "có cũng được, không có cũng được" không khớp cột nào trong đó, thêm vào chỉ tổ nhiễu, đúng cái người đọc đang cố tránh. **Dấu hiệu nhận biết đã viết sai:** câu mở đầu bằng "Một việc tuỳ chọn, không ai đang chờ:" — tự thân câu đó đã là bằng chứng việc này không thuộc báo cáo. *(Lỗi thật đã mắc: `Sharedata_Review_LuongNoiDuoi_20260923.md` mục 3 từng có dòng "cập nhật tài liệu mapping bản 20/08 cho khỏi lạc hậu" gắn nhãn tuỳ chọn — chủ dự án phản hồi "không cần đưa vô càng nhiều thông tin càng rối và nhiễu".)*
-  - **Giải thích cơ chế hoạt động chuyển xuống `Phụ lục A`** (luồng chạy, thuật toán, cấu hình hạ tầng). Đây là tài liệu tham khảo, không phải thứ cần đọc để ra quyết định — để nó chen giữa các mục chính là làm loãng báo cáo.
-  - **Quyết định kèm lý do thì GIỮ LẠI, đặt ở `Phụ lục B`**: đặc biệt là bảng *"phương án bị bác và vì sao"*. Đây là thứ đắt nhất trong cả báo cáo, xoá đi là lần sau bàn lại từ đầu.
+  - **Giải thích cơ chế hoạt động ⛔ KHÔNG thuộc báo cáo** (luồng chạy, thuật toán, cấu hình hạ tầng) — nó thuộc MasterPlan. Đây là tài liệu tham khảo, không phải thứ cần đọc để ra quyết định; để nó chen giữa các mục chính là làm loãng báo cáo.
+  - 🔴 **Quyết định kèm lý do thì TUYỆT ĐỐI KHÔNG được mất** — nhưng ghi **thẳng vào MasterPlan ngay lúc chốt**, ⛔ không để trong báo cáo. Đặc biệt là bảng *"phương án bị bác và vì sao"*: đây là thứ đắt nhất, xoá đi là lần sau bàn lại từ đầu. 📌 Ghi thẳng còn **an toàn hơn** để ở phụ lục: báo cáo là tệp sẽ bị xoá (19.24), mà mọi bước gộp đều có thể bỏ sót.
   - ⛔ **Thân chính KHÔNG mang tên bài test, KHÔNG bảng liệt kê độ phủ test, KHÔNG số liệu `N/N PASS 100%`.**
     - Tên bài test dài 60–90 ký tự chen giữa câu làm đứt mạch đọc, và theo 19.12 nó vốn không phải căn cứ cho kết luận nghiệp vụ.
     - Cần nói một hành vi đã được khoá lại thì viết *"đã có test khoá lại"*, KHÔNG nêu tên.
@@ -1066,7 +1136,7 @@ tests/
     | `<Xx>_Review_*_<ngày>.md` | **Ảnh chụp một lượt rà soát** để ra quyết định tại thời điểm đó | Tên **có ngày** ⇒ tự nó tuyên bố là bản chụp, sẽ hết hạn |
 
   - 🔴 **BẮT BUỘC: khi một lượt rà soát đóng lại, gộp TRỌN về MasterPlan rồi XOÁ tệp báo cáo.**
-    1. **Gộp mọi thứ còn giá trị lâu dài** vào đúng mục sẵn có của MasterPlan, TUYỆT ĐỐI KHÔNG tạo mục mới ở cuối tệp. Gộp **cả bảng `Phụ lục B` (quyết định đã chốt + phương án bị bác)** — đặt thành một mục có số riêng; đây là phần **đắt nhất** của cả báo cáo, bỏ sót là lần sau bàn lại từ đầu.
+    1. **Gộp mọi thứ còn giá trị lâu dài** vào đúng mục sẵn có của MasterPlan, TUYỆT ĐỐI KHÔNG tạo mục mới ở cuối tệp. 📌 Từ 28/09/2026 báo cáo ⛔ **không còn phụ lục** (xem 19.14): quyết định đã chốt + phương án bị bác nay được ghi **thẳng** vào mục `Quyết định đã chốt & phương án bị bác` của MasterPlan ngay lúc chốt, nên bước gộp này nhẹ đi — chủ yếu còn **tình huống biên** và **bẫy vận hành** rút ra được từ lượt rà soát.
     2. **Rà mọi chỗ đang trỏ tới tệp sắp xoá** (trong chính MasterPlan và các tài liệu khác) và sửa lại, kẻo thành liên kết chết.
     3. **Xoá tệp báo cáo.** Để nó lại sau khi đã gộp là **cố tình duy trì hai nguồn nói về cùng một trạng thái** — đúng cái lỗi mục này sinh ra để chặn. 📌 Tệp nằm trong git nên vẫn lấy lại được, rủi ro thấp. Tiền lệ: 25/09/2026 gộp-rồi-xoá 3 báo cáo, 28/09/2026 gộp-rồi-xoá `Sharedata_Review_TongThe_20260927.md`.
     - ⛔ **AI KHÔNG tự xoá** tệp trong `Plan/` (mục 13). Bước 3 chỉ làm khi **chủ dự án chỉ định**; AI làm xong bước 1 và 2 rồi báo lại là đã sẵn sàng xoá.

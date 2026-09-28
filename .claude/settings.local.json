@@ -93,7 +93,11 @@
       "Bash(grep -iE \"\\\\.\\(m4a|pdf|xlsx|zip|bacpac\\)$\")",
       "Bash(powershell -NoProfile -Command '\\(Get-Process python -EA SilentlyContinue | Where-Object {$_.WorkingSet64 -gt 400MB} | ForEach-Object {'\\\\''PID {0} {1}MB'\\\\'' -f $_.Id,[int]\\($_.WorkingSet64/1MB\\)}\\)')",
       "Bash(grep -Ev \"NU19|warning|^$\")",
-      "Bash(rm -f \"DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/Prompt/sharedata-don-ghi-canh-bao-ve-ranh-gioi-tac-vu-prompt.md.bak\" && sed -n '20,28p' \"DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/Prompt/README.md\" | cut -c1-120)"
+      "Bash(rm -f \"DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/Prompt/sharedata-don-ghi-canh-bao-ve-ranh-gioi-tac-vu-prompt.md.bak\" && sed -n '20,28p' \"DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/Prompt/README.md\" | cut -c1-120)",
+      "Bash(grep -nE '^#{1,4} ' DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/Plan/Sharedata_MasterPlan.md)",
+      "Bash(awk 'NR>=24 && NR<=28 {printf \"%d: %.70s\\\\n\", NR, $0}' README.md)",
+      "Bash(sed -i '25,27d' README.md)",
+      "Bash(awk 'NR>=20 && NR<=27 {printf \"%d: %.80s\\\\n\", NR, $0}' README.md)"
     ],
     "additionalDirectories": [
       "c:\\ThienAn\\DocBusinessThienAn\\HữuNghị-ChiLăng\\VideoWall",
