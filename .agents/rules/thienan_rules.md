@@ -755,6 +755,9 @@ tests/
   - Khi hoàn tất 1 prompt hoặc đổi trạng thái backlog, BẮT BUỘC cập nhật lại `Vw_MasterPlan_*.md`
     (trong `Plan/`) tương ứng của phân hệ đó (đừng để MasterPlan lạc hậu so với trạng thái file
     prompt thật trong `Prompt/`).
+  - 🔴 **Nghĩa vụ cập nhật tài liệu ở gạch đầu dòng trên phải được VIẾT VÀO TRONG chính tệp prompt** — vì AI chỉ
+    viết prompt (mục 10.5) còn người áp là người khác, AI không có mặt lúc thực thi. Cách viết mục đó và 3 thông
+    tin bắt buộc phải nêu: xem **mục 19.23**.
 
 - **19.3. Quy tắc đặt tên Method Async**: Xem mục 7 "Async Method Naming" (không lặp lại ở đây — đã gộp 25/09/2026 để tránh trùng ý).
 
@@ -1022,6 +1025,21 @@ tests/
       public DateTime? NextTableRetryTime { get; set; }
       public string ActiveChangesSql { get; private set; } = BuildChangesSql([.. LoadTablePacketMap(Configuration).Keys]);
       ```
+
+- **19.23. Prompt Sinh Ra Từ Tài Liệu Thì BẮT BUỘC Có Mục Cuối "Cập Nhật Lại Tài Liệu Gốc" (chốt 28/09/2026)**:
+  - **Phạm vi áp dụng**: mọi tệp prompt trong `Prompt/` mà nội dung được rút ra từ một tài liệu — báo cáo rà soát (`Plan/*_Review_*.md`), MasterPlan, đặc tả (`doc/*.md`), biên bản họp (`doc/transcript/*.md`), hoặc `README.md` của khu vực code (`tests/README.MD`...).
+  - 🔴 **Vì sao cần, và vì sao mục 19.2 KHÔNG bịt được lỗ này**: 19.2 quy định *"khi hoàn tất 1 prompt... BẮT BUỘC cập nhật lại MasterPlan"* — nghĩa vụ đó đặt lên **AI sau khi xong prompt**. Nhưng mục 10.5 lại quy định AI **chỉ được viết prompt**, còn người áp prompt là **người khác**, và AI **KHÔNG có mặt** lúc prompt được thực thi. Nghĩa vụ đặt lên một người không ở đó thì không ai làm ⇒ tài liệu lạc hậu dần so với code, mất khả năng theo dõi. Vì vậy nghĩa vụ phải được viết **VÀO TRONG chính prompt** như một việc có số, TUYỆT ĐỐI KHÔNG để ngầm.
+  - **BẮT BUỘC**: mục **CUỐI CÙNG** của prompt đặt tên thống nhất `## Việc cuối — Cập nhật lại tài liệu gốc` (đặt sau cả mục `## Kiểm chứng`), và phải nêu đủ **3 thứ**:
+    1. **Đường dẫn chính xác** của tệp tài liệu cần cập nhật.
+    2. **Đúng mục / tiêu đề** nào trong tệp đó cần sửa.
+    3. **Nội dung mới cần ghi là gì** — để người thi công dán vào được, KHÔNG phải tự suy diễn lại nghiệp vụ.
+  - ⛔ **CẤM viết chung chung**: các câu kiểu *"nhớ cập nhật tài liệu liên quan"*, *"cập nhật tài liệu nếu cần"*, *"đồng bộ lại plan"* — không nêu tệp nào, mục nào, ghi gì thì KHÔNG thi hành được, và chắc chắn bị bỏ qua.
+  - ⛔ **CẤM coi dòng lịch sử trong `Prompt/README.md` là đủ**: `README.md` ghi *prompt đã chạy và kết quả ra sao*; tài liệu gốc ghi *hệ thống bây giờ là gì*. Hai việc khác nhau, KHÔNG thay nhau được. Vẫn phải ghi cả hai.
+  - 🔴 **CHỈ nêu tài liệu THẬT SỰ lạc hậu, CẤM liệt kê cho đủ bộ**: trước khi viết mục này, BẮT BUỘC rà xem tài liệu nào **thật sự** sai sau khi áp prompt. 📌 Ví dụ thật ngày 28/09/2026: prompt tinh gọn `DataTrackerWorker` xoá thuộc tính `ChangesSql` và chuyển sang constructor tường minh, nhưng `Sharedata_MasterPlan.md` §6b tả thiết kế bằng **văn xuôi** (`LastVersion`, nâng mốc nguyên tử, trạng thái cô lập bảng ở RAM) và KHÔNG nêu hai thứ đó ⇒ §6b **không** lạc hậu ⇒ **KHÔNG** đưa MasterPlan vào mục cập nhật. Nêu vào là bịa việc cho người thi công.
+  - **Khi prompt thật sự không sinh ra từ tài liệu nào** (ví dụ lỗi phát hiện trực tiếp khi đọc mã nguồn): ghi **một dòng tường minh** ở cuối prompt — *"📌 Prompt này không sinh ra từ tài liệu nào (phát hiện trực tiếp từ đọc mã nguồn) ⇒ ⛔ không có mục cập nhật tài liệu gốc."* Nhờ dòng đó, sự vắng mặt là một **quyết định**, KHÔNG phải sơ suất.
+  - **Dấu hiệu nhận biết đã viết sai**: prompt có trích dẫn hoặc dẫn chiếu một tệp `.md` ở phần bối cảnh, mà cuối tệp lại KHÔNG có mục cập nhật đúng tệp đó.
+  - **Phép thử bắt buộc trước khi giao prompt**: đọc mục cuối và tự hỏi *"người thi công đọc đến đây có làm được ngay mà không phải hỏi lại không?"* — nếu còn phải hỏi *"sửa mục nào"* hay *"ghi nội dung gì"* thì mục đó **chưa đạt**.
+  - 📌 **Quan hệ với 19.2**: mục này **mở rộng** 19.2 chứ không thay. 19.2 nói *cập nhật cái gì khi xong việc*; 19.23 nói *nghĩa vụ đó phải được viết vào đâu để người khác thi hành được*.
 
 ---
 
