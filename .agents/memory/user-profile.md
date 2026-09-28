@@ -24,3 +24,9 @@ partner mapping/codeset config, DATEX-style PDU envelopes.
 **Cơ cấu nhân sự phân hệ ShareData & Dự án**:
 - Phân hệ **ShareData**: Chỉ có **2 thành viên kỹ thuật duy nhất** là **Đạt** (Backend WebAPI, CSDL) và **Hiếu** (Ngô Văn Hiếu - Backend Worker, Data Engine, UI logic cấu hình). Tech Lead / Kiến trúc hệ thống là **Anh Sơn**.
 - **Kiên**: **KHÔNG PHẢI FE** và **KHÔNG THUỘC PHÂN HỆ SHAREDATA**. Tuyệt đối không gán vai trò Frontend (FE) cho Kiên và không đưa Kiên vào phân hệ ShareData.
+
+**Quy trình Git & Review của User (BẮT BUỘC TUÂN THỦ)**:
+- Người dùng luôn tự bấm `git add` (stage file) qua giao diện IDE sau khi tự tay review các thay đổi ở mục Changes (Working Tree / Unstaged).
+- AI **TUYỆT ĐỐI KHÔNG ĐƯỢC CHẠY LỆNH `git add`** trừ khi người dùng trực tiếp ra lệnh cụ thể ("khi nào tôi kêu mới được làm").
+- Mọi lần sửa code hoặc tài liệu: AI luôn để nguyên ở trạng thái unstaged trong Working Tree để người dùng tự kiểm tra diff qua IDE.
+
