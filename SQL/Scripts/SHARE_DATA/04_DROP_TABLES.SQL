@@ -47,6 +47,7 @@ BEGIN TRY
     IF OBJECT_ID('dbo.ShareDataActivityLog', 'U') IS NOT NULL DROP TABLE dbo.ShareDataActivityLog;
     IF OBJECT_ID('dbo.ShareDataLastSend', 'U') IS NOT NULL DROP TABLE dbo.ShareDataLastSend;
     IF OBJECT_ID('dbo.ShareDataTrackVersion', 'U') IS NOT NULL DROP TABLE dbo.ShareDataTrackVersion;
+    IF OBJECT_ID('dbo.ShareDataInboundPacket', 'U') IS NOT NULL DROP TABLE dbo.ShareDataInboundPacket;
     IF OBJECT_ID('dbo.ShareDataSession', 'U') IS NOT NULL DROP TABLE dbo.ShareDataSession;
     IF OBJECT_ID('dbo.ShareDataEventSource', 'U') IS NOT NULL DROP TABLE dbo.ShareDataEventSource;
 

@@ -5,7 +5,8 @@
 --              Cấu trúc bám sát Entity gốc tại Module.ShareData.Core/Entities.
 -- AUTHOR: Đạt
 -- CREATED DATE: 2026-08-05
--- UPDATED DATE: 2026-09-28 (Bổ sung ShareDataTrackVersion, ShareDataLastSend,
+-- UPDATED DATE: 2026-09-28 (Bổ sung ProcessingUntil cho ShareDataSubscription,
+--               ShareDataInboundPacket, ShareDataTrackVersion, ShareDataLastSend,
 --               ShareDataPacket, ShareDataMapping, ShareDataAlertLog, SendOnNewData)
 -- ============================================================================
 -- QUY ƯỚC CỘT KẾ THỪA (Shared.Core.Domain)
@@ -212,8 +213,10 @@ BEGIN
         [State]            INT           NULL DEFAULT 1,     -- 0=Pending, 1=Active, 2=Paused, 3=Rejected, 4=Cancelled, 5=Expired
         -- Mốc dữ liệu đã kết xuất tới, chỉ tiến khi xuất thành công có bản ghi
         [LastTimeRun]      DATETIME      NULL,
-        -- Thời điểm chạy kế tiếp, kiêm lock lease giữa nhiều worker
+        -- Thời điểm chạy kế tiếp theo lịch định kỳ
         [NextTimeRun]      DATETIME      NULL DEFAULT GETDATE(),
+        -- Mốc mà đăng ký đang được một worker xử lý tới (NULL = rảnh)
+        [ProcessingUntil]  DATETIME      NULL,
         [RejectReason]     NVARCHAR(256) NULL,
         [CancelReason]     NVARCHAR(256) NULL,
         [RequestedAt]      DATETIME      NULL,
@@ -498,7 +501,40 @@ BEGIN
 END;
 GO
 
--- 16. BỔ SUNG CỘT BẢO ĐẢM TƯƠNG THÍCH CHO BẢNG ĐÃ TỒN TẠI TỪ TRƯỚC (NẾU CÓ)
+-- 16. BẢNG GÓI TIN THÔ NHẬN VỀ (ShareDataInboundPacket)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ShareDataInboundPacket')
+BEGIN
+    PRINT N'  → đang tạo ShareDataInboundPacket...';
+    CREATE TABLE [dbo].[ShareDataInboundPacket] (
+        [ID]            NVARCHAR(64)   NOT NULL PRIMARY KEY,
+        [PartnerCode]   NVARCHAR(64)   NULL,
+        [PacketCode]    NVARCHAR(256)  NULL,
+        [PacketVersion] NVARCHAR(16)   NULL,
+        [SerialNbr]     INT            NULL,
+        [PduType]       NVARCHAR(32)   NULL,
+        [Format]        INT            NULL,   -- 0 = DATA | 1 = FILE
+        [ByteSize]      BIGINT         NULL,
+        [RawContent]    NVARCHAR(MAX)  NULL,
+        [ProcessState]  INT            NULL DEFAULT 0,   -- 0 PENDING | 1 PROCESSING | 2 DONE | 3 FAILED | 4 NO_SUBSCRIPTION
+        [ProcessedAt]   DATETIME       NULL,
+        [ErrorMessage]  NVARCHAR(512)  NULL,
+        [Remark]        NVARCHAR(256)  NULL,
+        [Code]          NVARCHAR(256)  NULL,
+        [TenantId]      NVARCHAR(64)   NULL DEFAULT '1',
+        [CreateTime]    DATETIME       NULL DEFAULT GETDATE(),
+        [CreateUId]     NVARCHAR(64)   NULL DEFAULT '1',
+        [UpdateTime]    DATETIME       NULL,
+        [UpdateUId]     NVARCHAR(64)   NULL,
+        [RowStatus]     NVARCHAR(32)   NULL DEFAULT '1',
+        [IsDelete]      DATETIME       NULL
+    );
+
+    CREATE NONCLUSTERED INDEX [index_ShareDataInboundPacket_PS]
+        ON [dbo].[ShareDataInboundPacket] ([ProcessState] ASC, [CreateTime] ASC);
+END;
+GO
+
+-- 17. BỔ SUNG CỘT BẢO ĐẢM TƯƠNG THÍCH CHO BẢNG ĐÃ TỒN TẠI TỪ TRƯỚC (NẾU CÓ)
 IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'ShareDataSubscription')
    AND NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.ShareDataSubscription') AND name = 'SendOnNewData')
 BEGIN
@@ -507,5 +543,13 @@ BEGIN
 END;
 GO
 
-PRINT N'✅ Chạy xong 01_CREATE_TABLES (Đã tạo / kiểm tra toàn bộ bảng ShareData).';
+IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'ShareDataSubscription')
+   AND NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.ShareDataSubscription') AND name = 'ProcessingUntil')
+BEGIN
+    PRINT N'  → đang thêm cột ProcessingUntil vào ShareDataSubscription...';
+    ALTER TABLE [dbo].[ShareDataSubscription] ADD [ProcessingUntil] DATETIME NULL;
+END;
 GO
+
+PRINT N'✅ Chạy xong 01_CREATE_TABLES (Đã tạo / kiểm tra toàn bộ bảng ShareData).';
+GO

@@ -51,6 +51,8 @@ BEGIN TRY
             (SELECT [ID] FROM [dbo].[ShareDataSubscription] WHERE [Code] LIKE 'SUB-DEMO-%');
     IF OBJECT_ID('dbo.ShareDataLastSend', 'U') IS NOT NULL
         DELETE FROM [dbo].[ShareDataLastSend] WHERE [PartnerCode] LIKE 'PTN-DEMO-%' OR [PartnerCode] LIKE 'P-DEMO-%';
+    IF OBJECT_ID('dbo.ShareDataInboundPacket', 'U') IS NOT NULL
+        DELETE FROM [dbo].[ShareDataInboundPacket] WHERE [PartnerCode] LIKE 'PTN-DEMO-%' OR [PartnerCode] LIKE 'P-DEMO-%';
     IF OBJECT_ID('dbo.ShareDataSubscription', 'U') IS NOT NULL 
         DELETE FROM [dbo].[ShareDataSubscription] WHERE [Code] LIKE 'SUB-DEMO-%';
     IF OBJECT_ID('dbo.ShareDataMapping', 'U') IS NOT NULL 

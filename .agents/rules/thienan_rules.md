@@ -247,7 +247,10 @@ Riêng trường hợp làm việc trên các nhánh cũ thuộc 2 repo con `TA-
 Đối với Trợ lý AI, tuyệt đối tuân thủ các nguyên tắc sau khi làm việc trong dự án:
 
 1.  **KHÔNG TỰ ĐỘNG CHẠY LỆNH BUILD & TEST KHI CHỈ ĐỔI TÊN BIẾN (ONLY BUILD/TEST ON LOGIC CHANGES)**: AI không được tự động chạy lệnh `dotnet build`, `dotnet test` hoặc bất kỳ lệnh biên dịch/kiểm thử nào sau khi chỉnh sửa code, trừ khi người dùng yêu cầu trực tiếp. Đặc biệt, đối với các trường hợp chỉ **đổi tên biến, đổi tên tham số**, format mã nguồn hoặc chỉnh sửa comment, TUYỆT ĐỐI KHÔNG chạy build hay chạy test tốn thời gian; CHỈ chạy build và chạy test khi có thay đổi **logic nghiệp vụ**, cấu trúc giải thuật, câu truy vấn CSDL, điều kiện rẽ nhánh, hoặc khi người dùng yêu cầu trực tiếp.
-2.  **KHÔNG TỰ ĐỘNG COMMIT VÀ PUSH GIT (`git commit` / `git push`)**: AI không được tự động chạy `git add`, `git commit`, hay `git push` code lên repository dưới bất kỳ hình thức nào. Quyền commit và push code hoàn toàn thuộc về lập trình viên.
+2.  **CẤM TUYỆT ĐỐI TỰ Ý `git add` / STAGE CODE, CẤM COMMIT VÀ PUSH (STRICT NO AUTO-STAGE / NO AUTO-COMMIT) (P0)**:
+    - AI **TUYỆT ĐỐI KHÔNG ĐƯỢC CHẠY LỆNH `git add`** hoặc đưa bất kỳ file nào vào Staged Changes khi người dùng KHÔNG yêu cầu trực tiếp và tường minh.
+    - **Mọi lần sửa code BẮT BUỘC để nguyên ở trạng thái Changes (Working Tree / Unstaged)** để người dùng tự review qua giao diện IDE (Source Control / Git Diff).
+    - Quyền stage (`git add`), commit (`git commit`) và push (`git push`) hoàn toàn thuộc về lập trình viên. AI chỉ cung cấp câu lệnh gợi ý (nếu cần), tuyệt đối không tự ý thực thi.
 3.  **TỐI THIỂU HÓA THAY ĐỔI (MINIMAL DIFF PRINCIPLE)**: AI CHỈ ĐƯỢC PHÉP chỉnh sửa/thêm code đối với các file và nội dung thực sự phục vụ trực tiếp cho tính năng mới hoặc bug được yêu cầu. TUYỆT ĐỐI KHÔNG tự động upgrade phiên bản thư viện (`PackageReference` trong `.csproj`), không format/touch vào các file không liên quan, không làm thay đổi các file dùng chung (`Shared.Reference`, `appsettings.json`,...) trừ khi có chỉ định rõ ràng từ người dùng.
 4.  **PHÂN BIỆT THAM KHẢO VÀ HÀNH ĐỘNG (DISTINGUISH REFERENCE FROM ACTION)**: Khi người dùng yêu cầu "tham khảo", "xem thử", "giải thích" hoặc hỏi ý kiến, AI BẮT BUỘC phải phân tích và trả lời thảo luận trước, KHÔNG ĐƯỢC tự ý nhảy vào áp dụng hoặc thêm/sửa code khi chưa có xác nhận từ người dùng.
 5.  **TÔN TRỌNG CODE SỬA TAY & Ý ĐỊNH NGƯỜI DÙNG (PRESERVE USER MANUAL EDITS & PREFERENCES)**: Khi người dùng đã chỉ định cách viết (VD: dùng `while (reader.Read())` đồng bộ) hoặc tự sửa tay/bỏ bớt điều kiện, AI KHÔNG ĐƯỢC TỰ Ý hoàn tác (revert) hoặc sửa ngược lại về cách viết cũ trong các lần refactor tiếp theo.
@@ -1145,6 +1148,15 @@ tests/
   - 🔴 **Hệ quả nghiêm trọng nhất — task có thể BIẾN MẤT khỏi tầm theo dõi**: một việc được biên bản họp giao, nếu chỉ được ghi vào báo cáo rà soát mà ⛔ không mở thành dòng checklist trong MasterPlan, thì nó **vô hình với mọi người tra checklist**. *(Lỗi thật đã mắc: việc *"API danh mục trả về trạng thái ánh xạ của từng gói tin theo đối tác"* do họp 21/09/2026 giao cho Đạt chỉ nằm ở mục 3 của `Sharedata_Review_TongThe_20260927.md`, KHÔNG có dòng nào trong checklist `BE-*` của MasterPlan. Phát hiện ngày 28/09 khi rà 33 code change, đã mở thành `BE-14`.)*
   - **Phép thử bắt buộc**: mở **một** tệp MasterPlan, có trả lời được *"task nào xong, task nào chưa"* mà KHÔNG phải mở tệp thứ hai không? Phải mở tệp thứ hai ⇒ chưa hợp nhất xong.
   - 📌 **Quan hệ với 19.14 và 19.23**: 19.14 quy định *khung* của báo cáo rà soát; 19.23 quy định nghĩa vụ cập nhật tài liệu phải nằm trong prompt; 19.24 quy định *tài liệu nào mới là nguồn sự thật về trạng thái*. Ba mục bổ sung nhau, KHÔNG xung đột.
+
+- **19.25. Phạm Vi Khai Báo Hằng Số & Biến — Chỉ Khai Báo Cấp Class Khi Dùng Nhiều Chỗ, CÒN LẠI BẮT BUỘC DÙNG BIẾN CỤC BỘ (chốt 28/09/2026)**:
+  - **Nguyên tắc cốt lõi (Scope Minimization & Clean Code)**: Biến hoặc hằng số phải được khai báo ở phạm vi hẹp nhất có thể (Narrowest Scope). Một hằng số (`const`) hoặc trường (`readonly field`) **CHỈ ĐƯỢC PHÉP** khai báo ở cấp lớp (class-level `private const` / `private readonly`) khi nó được **dùng chung ở từ 2 phương thức trở lên** trong cùng một class hoặc là cấu hình công khai/phơi ra cho bên ngoài.
+  - ⛔ **CẤM tuyệt đối khai báo hằng số cấp lớp nếu chỉ dùng ở đúng 1 hàm duy nhất**:
+    - Không khai báo các hằng số như `private const int DefaultPageSize = 100;`, `private const int DefaultMaxPagesPerRun = 20;`, `private const int DefaultLockBudgetPercent = 50;` ở đầu class kèm các khối XML doc summary rườm rà nếu chúng chỉ phục vụ cho đúng một vòng lặp hoặc một phương thức nội bộ duy nhất.
+    - Việc đưa hằng số dùng một chỗ lên cấp lớp làm rác đầu file, bắt người đọc phải cuộn lên cuộn xuống để tra cứu giá trị và sinh ra gánh nặng viết XML Doc summary thừa thãi (vi phạm quy tắc 5.7).
+  - ✅ **Cách viết chuẩn**:
+    - Khai báo hằng số hoặc biến cục bộ (`const int pageSize = 100;`, `const int maxPages = 20;`, `const int lockBudgetPercent = 50;`) **ngay bên trong phương thức sử dụng nó**.
+    - Code tự nhiên, tự chứa (self-contained), khép kín phạm vi, dễ đọc hiểu từ trên xuống dưới mà không cần XML doc rườm rà.
 
 ---
 
