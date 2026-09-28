@@ -755,9 +755,10 @@ tests/
   - Khi hoàn tất 1 prompt hoặc đổi trạng thái backlog, BẮT BUỘC cập nhật lại `Vw_MasterPlan_*.md`
     (trong `Plan/`) tương ứng của phân hệ đó (đừng để MasterPlan lạc hậu so với trạng thái file
     prompt thật trong `Prompt/`).
-  - 🔴 **Nghĩa vụ cập nhật tài liệu ở gạch đầu dòng trên phải được VIẾT VÀO TRONG chính tệp prompt** — vì AI chỉ
-    viết prompt (mục 10.5) còn người áp là người khác, AI không có mặt lúc thực thi. Cách viết mục đó và 3 thông
-    tin bắt buộc phải nêu: xem **mục 19.23**.
+  - 🔴 **Nghĩa vụ cập nhật tài liệu ở gạch đầu dòng trên phải được VIẾT VÀO TRONG chính tệp prompt** — vì theo mục
+    10.5 AI chỉ viết prompt và **không tự thực thi** (chỉ thực thi khi chủ dự án yêu cầu trực tiếp), nên bước áp
+    prompt có thể do người khác làm hoặc làm ở phiên khác. Cách viết mục đó và 3 thông tin bắt buộc phải nêu: xem
+    **mục 19.23**.
 
 - **19.3. Quy tắc đặt tên Method Async**: Xem mục 7 "Async Method Naming" (không lặp lại ở đây — đã gộp 25/09/2026 để tránh trùng ý).
 
@@ -1028,11 +1029,21 @@ tests/
 
 - **19.23. Prompt Sinh Ra Từ Tài Liệu Thì BẮT BUỘC Có Mục Cuối "Cập Nhật Lại Tài Liệu Gốc" (chốt 28/09/2026)**:
   - **Phạm vi áp dụng**: mọi tệp prompt trong `Prompt/` mà nội dung được rút ra từ một tài liệu — báo cáo rà soát (`Plan/*_Review_*.md`), MasterPlan, đặc tả (`doc/*.md`), biên bản họp (`doc/transcript/*.md`), hoặc `README.md` của khu vực code (`tests/README.MD`...).
-  - 🔴 **Vì sao cần, và vì sao mục 19.2 KHÔNG bịt được lỗ này**: 19.2 quy định *"khi hoàn tất 1 prompt... BẮT BUỘC cập nhật lại MasterPlan"* — nghĩa vụ đó đặt lên **AI sau khi xong prompt**. Nhưng mục 10.5 lại quy định AI **chỉ được viết prompt**, còn người áp prompt là **người khác**, và AI **KHÔNG có mặt** lúc prompt được thực thi. Nghĩa vụ đặt lên một người không ở đó thì không ai làm ⇒ tài liệu lạc hậu dần so với code, mất khả năng theo dõi. Vì vậy nghĩa vụ phải được viết **VÀO TRONG chính prompt** như một việc có số, TUYỆT ĐỐI KHÔNG để ngầm.
+  - 🔴 **Vì sao cần, và vì sao mục 19.2 KHÔNG bịt được lỗ này**: 19.2 quy định *"khi hoàn tất 1 prompt... BẮT BUỘC cập nhật lại MasterPlan"* — nghĩa vụ đó đặt lên **AI sau khi xong prompt**. Nhưng theo mục 10.5, AI **chỉ viết prompt** và **KHÔNG tự thực thi** — chỉ thực thi khi chủ dự án yêu cầu trực tiếp. Nghĩa là không được giả định AI sẽ là người áp prompt và sẽ nhớ cập nhật tài liệu: prompt có thể do **người khác** áp, hoặc áp ở **phiên khác** khi AI không còn ngữ cảnh của lúc viết. Nghĩa vụ đặt lên một người có thể không tham gia bước đó thì rốt cuộc không ai làm ⇒ tài liệu lạc hậu dần so với code, mất khả năng theo dõi. Vì vậy nghĩa vụ phải được viết **VÀO TRONG chính prompt** như một việc có số, TUYỆT ĐỐI KHÔNG để ngầm.
   - **BẮT BUỘC**: mục **CUỐI CÙNG** của prompt đặt tên thống nhất `## Việc cuối — Cập nhật lại tài liệu gốc` (đặt sau cả mục `## Kiểm chứng`), và phải nêu đủ **3 thứ**:
     1. **Đường dẫn chính xác** của tệp tài liệu cần cập nhật.
     2. **Đúng mục / tiêu đề** nào trong tệp đó cần sửa.
     3. **Nội dung mới cần ghi là gì** — để người thi công dán vào được, KHÔNG phải tự suy diễn lại nghiệp vụ.
+  - ✅ **Hai mẫu đều hợp lệ, chọn theo quy mô đợt**:
+    1. **Nhúng trong từng prompt** — dùng khi prompt đứng một mình. Mục cuối nằm ngay trong tệp prompt đó.
+    2. **Một prompt đồng bộ tài liệu riêng cho cả đợt** — dùng khi một đợt có nhiều prompt cùng sửa vào một vùng
+       và cùng ảnh hưởng một bộ tài liệu (ví dụ đợt 28/09/2026: 3 prompt mã nguồn + 1 prompt
+       `sharedata-dong-bo-tai-lieu-sau-dot-sua-2809-prompt.md`). Gom lại tránh phải ghi lặp cùng một nội dung
+       vào 3 tệp, và tránh việc tài liệu bị sửa dở khi mới áp 1 trong 3 prompt.
+    - 🔴 **Điều kiện bắt buộc của mẫu 2**: prompt đồng bộ phải là prompt **áp CUỐI CÙNG** của đợt, phải tự ghi rõ
+      *"điều kiện tiên quyết: các prompt kia đã áp xong và test đã xanh"*, và **thứ tự áp của cả đợt BẮT BUỘC được
+      ghi ở `Prompt/README.md`**. Thiếu ghi thứ tự ở `README.md` thì mẫu 2 **không hợp lệ** — vì lúc đó ⛔ không có
+      chỗ nào cho người thi công biết còn một bước đồng bộ đang chờ.
   - ⛔ **CẤM viết chung chung**: các câu kiểu *"nhớ cập nhật tài liệu liên quan"*, *"cập nhật tài liệu nếu cần"*, *"đồng bộ lại plan"* — không nêu tệp nào, mục nào, ghi gì thì KHÔNG thi hành được, và chắc chắn bị bỏ qua.
   - ⛔ **CẤM coi dòng lịch sử trong `Prompt/README.md` là đủ**: `README.md` ghi *prompt đã chạy và kết quả ra sao*; tài liệu gốc ghi *hệ thống bây giờ là gì*. Hai việc khác nhau, KHÔNG thay nhau được. Vẫn phải ghi cả hai.
   - 🔴 **CHỈ nêu tài liệu THẬT SỰ lạc hậu, CẤM liệt kê cho đủ bộ**: trước khi viết mục này, BẮT BUỘC rà xem tài liệu nào **thật sự** sai sau khi áp prompt. 📌 Ví dụ thật ngày 28/09/2026: prompt tinh gọn `DataTrackerWorker` xoá thuộc tính `ChangesSql` và chuyển sang constructor tường minh, nhưng `Sharedata_MasterPlan.md` §6b tả thiết kế bằng **văn xuôi** (`LastVersion`, nâng mốc nguyên tử, trạng thái cô lập bảng ở RAM) và KHÔNG nêu hai thứ đó ⇒ §6b **không** lạc hậu ⇒ **KHÔNG** đưa MasterPlan vào mục cập nhật. Nêu vào là bịa việc cho người thi công.
@@ -1040,6 +1051,26 @@ tests/
   - **Dấu hiệu nhận biết đã viết sai**: prompt có trích dẫn hoặc dẫn chiếu một tệp `.md` ở phần bối cảnh, mà cuối tệp lại KHÔNG có mục cập nhật đúng tệp đó.
   - **Phép thử bắt buộc trước khi giao prompt**: đọc mục cuối và tự hỏi *"người thi công đọc đến đây có làm được ngay mà không phải hỏi lại không?"* — nếu còn phải hỏi *"sửa mục nào"* hay *"ghi nội dung gì"* thì mục đó **chưa đạt**.
   - 📌 **Quan hệ với 19.2**: mục này **mở rộng** 19.2 chứ không thay. 19.2 nói *cập nhật cái gì khi xong việc*; 19.23 nói *nghĩa vụ đó phải được viết vào đâu để người khác thi hành được*.
+
+- **19.24. Phân Vai MasterPlan vs Báo Cáo Rà Soát — CHỈ MasterPlan Là Sổ Theo Dõi Task (chốt 28/09/2026)**:
+  - **Phạm vi áp dụng**: thư mục `Plan/` của mọi phân hệ trong `DocBusinessThienAn/`.
+  - **Đúng hai vai, KHÔNG có vai thứ ba**:
+
+    | Tệp | Vai | Dấu hiệu nhận biết |
+    | --- | --- | --- |
+    | `<Xx>_MasterPlan*.md` | 🔴 **Sổ theo dõi task — nơi DUY NHẤT tra trạng thái** | Tên **không có ngày** ⇒ sống mãi. Bên trong có checklist trạng thái từng mục (`SV-*`, `BE-*`, FE) gắn ✅ / ⚠️ |
+    | `<Xx>_Review_*_<ngày>.md` | **Ảnh chụp một lượt rà soát** để ra quyết định tại thời điểm đó | Tên **có ngày** ⇒ tự nó tuyên bố là bản chụp, sẽ hết hạn |
+
+  - 🔴 **BẮT BUỘC: khi một lượt rà soát đóng lại, gộp TRỌN về MasterPlan rồi XOÁ tệp báo cáo.**
+    1. **Gộp mọi thứ còn giá trị lâu dài** vào đúng mục sẵn có của MasterPlan, TUYỆT ĐỐI KHÔNG tạo mục mới ở cuối tệp. Gộp **cả bảng `Phụ lục B` (quyết định đã chốt + phương án bị bác)** — đặt thành một mục có số riêng; đây là phần **đắt nhất** của cả báo cáo, bỏ sót là lần sau bàn lại từ đầu.
+    2. **Rà mọi chỗ đang trỏ tới tệp sắp xoá** (trong chính MasterPlan và các tài liệu khác) và sửa lại, kẻo thành liên kết chết.
+    3. **Xoá tệp báo cáo.** Để nó lại sau khi đã gộp là **cố tình duy trì hai nguồn nói về cùng một trạng thái** — đúng cái lỗi mục này sinh ra để chặn. 📌 Tệp nằm trong git nên vẫn lấy lại được, rủi ro thấp. Tiền lệ: 25/09/2026 gộp-rồi-xoá 3 báo cáo, 28/09/2026 gộp-rồi-xoá `Sharedata_Review_TongThe_20260927.md`.
+    - ⛔ **AI KHÔNG tự xoá** tệp trong `Plan/` (mục 13). Bước 3 chỉ làm khi **chủ dự án chỉ định**; AI làm xong bước 1 và 2 rồi báo lại là đã sẵn sàng xoá.
+  - **BẮT BUỘC có dòng phân vai ở ĐẦU tệp**: MasterPlan ghi *"đây là sổ theo dõi duy nhất"*. Báo cáo rà soát **trong lúc còn tồn tại** (chưa gộp xong) ghi *"đây là ảnh chụp, ⛔ không tra trạng thái ở đây, xem MasterPlan"*. Thiếu dòng này thì người đọc không có cách nào biết tệp nào là nguồn.
+  - ⛔ **CẤM để trạng thái task chỉ tồn tại trong báo cáo rà soát.** Đây là lỗi nguy hiểm nhất của cặp tài liệu này: báo cáo có ngày **mới hơn** MasterPlan thì người đọc sẽ tin báo cáo, mà báo cáo lại là thứ sắp hết hạn ⇒ vài tuần sau không còn ai biết trạng thái thật ở đâu.
+  - 🔴 **Hệ quả nghiêm trọng nhất — task có thể BIẾN MẤT khỏi tầm theo dõi**: một việc được biên bản họp giao, nếu chỉ được ghi vào báo cáo rà soát mà ⛔ không mở thành dòng checklist trong MasterPlan, thì nó **vô hình với mọi người tra checklist**. *(Lỗi thật đã mắc: việc *"API danh mục trả về trạng thái ánh xạ của từng gói tin theo đối tác"* do họp 21/09/2026 giao cho Đạt chỉ nằm ở mục 3 của `Sharedata_Review_TongThe_20260927.md`, KHÔNG có dòng nào trong checklist `BE-*` của MasterPlan. Phát hiện ngày 28/09 khi rà 33 code change, đã mở thành `BE-14`.)*
+  - **Phép thử bắt buộc**: mở **một** tệp MasterPlan, có trả lời được *"task nào xong, task nào chưa"* mà KHÔNG phải mở tệp thứ hai không? Phải mở tệp thứ hai ⇒ chưa hợp nhất xong.
+  - 📌 **Quan hệ với 19.14 và 19.23**: 19.14 quy định *khung* của báo cáo rà soát; 19.23 quy định nghĩa vụ cập nhật tài liệu phải nằm trong prompt; 19.24 quy định *tài liệu nào mới là nguồn sự thật về trạng thái*. Ba mục bổ sung nhau, KHÔNG xung đột.
 
 ---
 

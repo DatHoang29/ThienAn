@@ -34,6 +34,21 @@ kiểm thật khi **có broker NATS lắng nghe `127.0.0.1:4222`** (khớp `Nats
 - Không có broker → bài test tự chuyển sang kiểm hợp đồng offline và **vẫn PASS**, kèm thông điệp nói rõ đã
   bỏ qua chặng NATS. ⚠️ Nghĩa là trên máy không có broker, chỗ nối **không** được canh.
 
+### Dọn tệp kết xuất giữa các lượt chạy
+
+`Host.ClearExportedFiles()` chạy **đúng một lần ở đầu phiên test** (cạnh `ClearAllData()` / `ClearAllCache()`),
+xoá thư mục `Out` bên dưới thư mục kết xuất. Đường dẫn được dựng **đúng như bên ghi tệp** — đọc
+`NasStorage:BasePath` trước, không có thì mặc định `sharedata/send` dưới thư mục làm việc — nên hai bên ⛔ không
+thể lệch chỗ.
+
+- 📌 **Dọn ở ĐẦU phiên, không phải cuối**: nhờ vậy tệp của lượt vừa chạy **vẫn còn** trên đĩa để soi. Đây là
+  cách đối chiếu nhanh *"có thật sự gửi dữ liệu hay không"* mà ⛔ không phải sửa code: đường **không có dữ liệu
+  mới** bỏ qua ghi tệp, nên **có tệp mới = đã gửi thật**.
+- ⚠️ Trước 28/09 không có cơ chế dọn nào (`finally` của từng bài chỉ xoá dòng CSDL): thư mục đã tích tới
+  **14.379 tệp / 43,6 MB**. Nếu thấy con số lớn bất thường trở lại ⇒ kiểm xem hàm dọn còn được gọi không.
+- Lỗi khi dọn (tệp đang bị giữ, thiếu quyền) bị **nuốt có chủ đích** — dọn rác ⛔ không bao giờ được làm sập
+  cả bộ test.
+
 ## Kết quả hiện tại
 
 **227 test — 223 Passed, 4 Skipped, 0 Failed** (~30 giây).

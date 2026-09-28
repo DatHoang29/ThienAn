@@ -92,6 +92,7 @@ public partial class Host : IAsyncLifetime
 
         ClearAllData();
         ClearAllCache();
+        ClearExportedFiles();
     }
 
     public async Task DisposeAsync()
@@ -125,6 +126,42 @@ public partial class Host : IAsyncLifetime
 
         foreach (var tableName in entityTableNames)
             db.DbMaintenance.TruncateTable(tableName);
+    }
+
+    /// <summary>
+    /// Description: Dọn toàn bộ tệp đã xuất của luồng gửi dữ liệu, chạy 1 lần khi khởi tạo collection test.
+    ///              Không bài test nào tự dọn tệp (finally chỉ xoá dòng CSDL) nên nếu không dọn ở đây thì thư
+    ///              mục xuất tích luỹ vô hạn qua từng lượt chạy (đã từng lên 14.379 tệp / 43,6 MB).
+    ///              Dọn ở ĐẦU collection có chủ đích: tệp của lượt vừa chạy vẫn còn trên đĩa để soi khi cần
+    ///              đối chiếu "có thật sự gửi dữ liệu hay không".
+    /// Created date: 28/09/2026
+    /// </summary>
+    public void ClearExportedFiles()
+    {
+        // Dựng đường dẫn ĐÚNG như bên ghi dựng (DataOutboundFileSender.SaveExportFile) để hai bên không lệch
+        // nhau khi ai đó cấu hình NasStorage:BasePath.
+        var configuration = _host?.Services.GetService<IConfiguration>();
+        var basePath = configuration?.GetValue<string>("NasStorage:BasePath") ?? "sharedata/send";
+        var root = Path.IsPathRooted(basePath) ? basePath : Path.Combine(Directory.GetCurrentDirectory(), basePath);
+
+        // GenerateExportRelativePath luôn trả về chuỗi bắt đầu bằng "Out/" nên Out là thứ duy nhất bên ghi tạo
+        // ra dưới root. Chỉ xoá đúng nó, không xoá bản thân root (có thể là thư mục dùng chung / điểm mount).
+        var exportRoot = Path.Combine(root, "Out");
+        if (!Directory.Exists(exportRoot))
+            return;
+
+        try
+        {
+            Directory.Delete(exportRoot, recursive: true);
+        }
+        catch (IOException)
+        {
+            // Nuốt lỗi có chủ đích: dọn rác không bao giờ được làm sập cả bộ test (tệp đang bị giữ, ổ đĩa lỗi...).
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Nuốt lỗi có chủ đích: thiếu quyền trên thư mục xuất cũng không phải lý do để bộ test không chạy.
+        }
     }
 
     public void ClearAllCache()

@@ -330,7 +330,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 // Assert 2:
                 // TmsWeather bị cô lập trong RAM, loại khỏi câu SQL đang áp dụng, và có mốc hẹn thử lại riêng
                 Assert.Contains("TmsWeather", GetMissingTables(worker).Keys);
-                Assert.DoesNotContain("TmsWeather", GetActiveChangesSql(worker));
+                Assert.DoesNotContain("TmsWeather", worker.ActiveChangesSql);
                 Assert.True(GetMissingTables(worker)["TmsWeather"] > DateTime.UtcNow);
 
                 // Act 2: DBA bật lại Change Tracking cho TmsWeather và mốc hẹn thử lại của nó đã tới hạn
@@ -342,7 +342,7 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 // Assert 3:
                 // Worker tự động khôi phục TmsWeather vào câu SQL đang áp dụng, danh sách bảng cô lập trở về rỗng
                 Assert.Empty(GetMissingTables(worker));
-                Assert.Contains("TmsWeather", GetActiveChangesSql(worker));
+                Assert.Contains("TmsWeather", worker.ActiveChangesSql);
             }
             finally
             {
@@ -2450,6 +2450,25 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 MetNumber = 0
             }).ExecuteCommandAsync();
 
+            // Hàm cục bộ: chèn 1 bản ghi nguồn gói 103. Dùng ở CẢ HAI nhánh nhưng gọi ở ĐÚNG THỜI ĐIỂM của từng
+            // nhánh — nhánh thật phải gọi SAU khi cắm mốc gốc, nếu gọi trước thì bản ghi nằm dưới mốc và Change
+            // Tracking sẽ không thấy thay đổi nào.
+            async Task SeedTrafficRow() =>
+                await db.Insertable(new TmsTrafficData
+                {
+                    ID = Guid.NewGuid().ToString("N"),
+                    EquipmentId = eqId,
+                    DetectTime = now,
+                    Type = "BUS",
+                    LicensePlate = $"29B-RT{testId}",
+                    Speed = 60f,
+                    Lane = "L1",
+                    Direction = "EAST",
+                    Location = $"KM30_{testId}",
+                    CreateTime = now,
+                    UpdateTime = now
+                }).ExecuteCommandAsync();
+
             // TransportManager THẬT, đọc cấu hình THẬT của Host (appsettings.Test.json -> Nats:Url).
             // BẮT BUỘC await using: khi không có broker, ConnectAsync nuốt lỗi và bật vòng lặp retry nền vô
             // hạn — không giải phóng thì vòng lặp đó rò sang các bài test sau.
@@ -2462,11 +2481,9 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                 if (!transport.IsConnected)
                 {
                     // Máy chạy test không có broker NATS -> KHÔNG kiểm được chỗ nối phát/nhận.
-                    // Kiểm hợp đồng offline: tracker vẫn chạy êm và luồng quét định kỳ vẫn gửi bù được.
-                    var offlineTracker = CreateTrackerWorker(scope, transport);
-                    await offlineTracker.PollChanges(cts.Token);
-                    var pollEx = await Record.ExceptionAsync(() => offlineTracker.PollChanges(cts.Token));
-                    Assert.Null(pollEx);
+                    // Có dữ liệu nguồn thật mới kiểm được luồng quét bù. Không chèn thì ExportPage đi đường
+                    // "không có dữ liệu mới" và vẫn ghi một dòng log Success — assert sẽ pass rỗng nghĩa.
+                    await SeedTrafficRow();
 
                     await CreateOutboundService(scope).ProcessSubscriptions(packetCode, cts.Token);
                     var fallbackLogs = await db.Queryable<ShareDataActivityLog>()
@@ -2477,6 +2494,10 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                         "ĐÃ BỎ QUA CHẶNG NATS: không có broker ở 127.0.0.1:4222 nên vòng phát/nhận thật KHÔNG "
                         + "được kiểm trong lượt chạy này. Nhánh offline yêu cầu luồng quét định kỳ vẫn gửi bù "
                         + "được, nhưng đã không gửi.");
+                    Assert.True(fallbackLogs[0].RecordCount > 0,
+                        "Luồng quét bù có ghi log nhưng RecordCount = 0 — tức chạy qua đường 'không có dữ liệu "
+                        + "mới' chứ KHÔNG gửi bản ghi nào. Rà lại câu truy vấn trích xuất gói 103 và mốc nối đuôi "
+                        + "(ShareDataLastSend) của đối tác này.");
                     return;
                 }
 
@@ -2493,21 +2514,8 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
                     "Change Tracking chưa sẵn sàng trên CSDL test nên mốc gốc không lập được. Bật Change "
                     + "Tracking ở cấp CSDL rồi chạy lại — bài này cần mốc gốc mới phát hiện được thay đổi.");
 
-                // 3) Dữ liệu nguồn mới -> Change Tracking tăng version.
-                await db.Insertable(new TmsTrafficData
-                {
-                    ID = Guid.NewGuid().ToString("N"),
-                    EquipmentId = eqId,
-                    DetectTime = now,
-                    Type = "BUS",
-                    LicensePlate = $"29B-RT{testId}",
-                    Speed = 60f,
-                    Lane = "L1",
-                    Direction = "EAST",
-                    Location = $"KM30_{testId}",
-                    CreateTime = now,
-                    UpdateTime = now
-                }).ExecuteCommandAsync();
+                // 3) Dữ liệu nguồn mới -> Change Tracking tăng version. Phải chèn SAU bước 2 (cắm mốc gốc).
+                await SeedTrafficRow();
 
                 // 4) Chu kỳ sau phát hiện thay đổi và PUBLISH THẬT lên subject.
                 await publisher.PollChanges(cts.Token);
@@ -2529,11 +2537,15 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
 
                 // Assert: bên nhận đã chạy luồng outbound THẬT, do chính bản tin của bên phát kích hoạt.
                 Assert.True(logs.Count > 0,
-                    $"Bản tin NATS phát từ DataTrackerWorker tới subject '{DataTrackerWorker.DEFAULT_NATS_SUBJECT}' "
-                    + "đã không tới được DataNatsConsumerWorker (chờ 15 giây không thấy ShareDataActivityLog). "
-                    + "Kiểm tra: tên subject hai bên có khớp, tên field PacketCode trong payload, và việc đăng "
-                    + "ký subscribe.");
+                    "Bản tin NATS phát từ DataTrackerWorker đã không tới được DataNatsConsumerWorker (chờ 15 giây "
+                    + "không thấy ShareDataActivityLog). Rà theo thứ tự: (1) InitNatsSubscription có đăng ký được "
+                    + "subscribe không, (2) nhánh publish của PollChanges có chạy không (Transport.IsConnected), "
+                    + "(3) tên field PacketCode trong payload có đúng không.");
                 Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
+                Assert.True(logs[0].RecordCount > 0,
+                    "Có log Success nhưng RecordCount = 0 — tức bản tin NATS tới được và pipeline chạy, nhưng "
+                    + "KHÔNG gửi bản ghi nào (đi đường 'không có dữ liệu mới'). Rà lại câu truy vấn trích xuất "
+                    + "gói 103 và mốc nối đuôi ShareDataLastSend.");
 
                 // Mốc gửi nối đuôi đã tiến -> chứng minh đi trọn tới tầng CSDL, không dừng ở chỗ nhận bản tin.
                 var checkpoint = await db.Queryable<ShareDataLastSend>()
@@ -2826,9 +2838,9 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             Assert.Equal(2, customWorker.TrackedTables.Count);
             Assert.Contains("TmsIncident", customWorker.TrackedTables);
             Assert.Contains("TmsTrafficData", customWorker.TrackedTables);
-            Assert.Contains("TmsIncident", customWorker.ChangesSql);
-            Assert.Contains("TmsTrafficData", customWorker.ChangesSql);
-            Assert.DoesNotContain("TollLane", customWorker.ChangesSql);
+            Assert.Contains("TmsIncident", customWorker.ActiveChangesSql);
+            Assert.Contains("TmsTrafficData", customWorker.ActiveChangesSql);
+            Assert.DoesNotContain("TollLane", customWorker.ActiveChangesSql);
         }
 
         /// <summary>
@@ -3021,15 +3033,6 @@ namespace Tests.Modules.ShareData.Infrastructure.Services.DataOutbound
             var task = (Task)method.Invoke(worker, [token])!;
             await task;
         }
-
-        /// <summary>
-        /// Description: Đọc câu lệnh SQL đang áp dụng của worker (trạng thái private trong RAM).
-        /// Created date: 27/09/2026
-        /// </summary>
-        private static string GetActiveChangesSql(DataTrackerWorker worker) =>
-            (string)typeof(DataTrackerWorker)
-                .GetField("_activeChangesSql", BindingFlags.NonPublic | BindingFlags.Instance)!
-                .GetValue(worker)!;
 
         /// <summary>
         /// Description: Đọc danh sách bảng đang bị cô lập kèm mốc hẹn thử lại của từng bảng (trạng thái private trong RAM).
