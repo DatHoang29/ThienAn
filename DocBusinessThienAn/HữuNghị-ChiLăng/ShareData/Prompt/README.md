@@ -19,11 +19,9 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 ## Danh sách Prompt
 
-| Prompt | Nội dung |
-|---|---|
-| [`sharedata-rut-gon-xml-doc-theo-rule-5-7-prompt.md`](sharedata-rut-gon-xml-doc-theo-rule-5-7-prompt.md) | ⚠️ **Chưa làm** · Thay đổi **CHỈ comment**, ⛔ không đụng một dòng mã thực thi nào. Áp quy tắc **5.7** mới chốt (`Description:` tối đa 2–3 dòng) lên vùng code đang chờ commit: rà thấy **8 khối vượt ngưỡng** — 7 ở `DataChangeTrackingService.cs` (nặng nhất là `_missingTables` **8 dòng**, trong đó 6 dòng là bản thiết kế chép lại từ MasterPlan §6b) và 1 ở `ShareDataSubscription.ProcessingUntil`. 🔴 **3 phần lý do bị cắt CHƯA có trong MasterPlan** (constructor tường minh vs primary constructor · `GetOrCreateTrackVersion` không nuốt lỗi · `SaveTrackVersion` nuốt lỗi kèm cái giá phát lại tín hiệu) ⇒ prompt có mục *Việc cuối* chép chúng sang §6b và §10, ⛔ không được xoá trắng. 📌 **⛔ KHÔNG chạy `dotnet test`** — quy tắc 4.1 cấm build/test cho thay đổi chỉ-comment; soát bằng mắt 3 điểm nêu trong prompt là đủ. ✅ Đã rà và loại khỏi phạm vi: `ShareDataTransferLog.cs` (3 khối đúng 3 dòng — trong ngưỡng), `DataNatsService.cs`, 2 worker, 2 interface (đã sạch sẵn) |
+*(Hiện tại không còn prompt nào tồn đọng. Toàn bộ các prompt đã được thực thi và nghiệm thu.)*
 
-> 📌 **Tiến độ:** Cả prompt `processinguntil` và prompt `tach-service` đã hoàn thành đạt chuẩn (28/09/2026, 174/174 test pass).
+> 📌 **Tiến độ:** Cả prompt `processinguntil`, prompt `tach-service` và prompt `rut-gon-xml-doc` đã hoàn thành đạt chuẩn (28/09/2026, 174/174 test pass).
 
 ### Quyết định hiện hành
 
@@ -41,6 +39,7 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 | Prompt | Kết quả |
 |---|---|
+| `sharedata-rut-gon-xml-doc-theo-rule-5-7-prompt.md` | ✅ **28/09/2026** · Đã thực thi (đã xóa tệp prompt theo yêu cầu của lập trình viên). Rút gọn toàn bộ các khối XML summary vượt ngưỡng theo quy tắc 5.7 (`Description:` $\le$ 2–3 dòng) trên toàn bộ vùng code ShareData: 7 khối trong `DataChangeTrackingService.cs`, 1 khối trong `ShareDataSubscription.cs`, và toàn bộ các khối trong `DataOutboundService.cs` (bỏ `Modified date:`, rút gọn 14 khối XML doc về chuẩn $\le$ 2 dòng); đồng bộ lý do thiết kế sang `Sharedata_MasterPlan.md` §6b và §10; bổ sung quy tắc cấm cờ `--no-build` khi chạy `dotnet test` vào `AGENTS.md` và `thienan_rules.md`. |
 | `sharedata-tach-service-khoi-worker-va-doi-ten-prompt.md` | ✅ **28/09/2026** · Đã thực thi (đã xóa tệp prompt theo yêu cầu của lập trình viên). Tách `DataChangeTrackingService` (từ worker 784 dòng) và `DataNatsService` (từ worker 117 dòng) đăng ký Singleton + `IServiceScopeFactory`, worker rút gọn còn ~30 dòng mỗi cái (`DataChangeTrackingWorker`, `DataNatsWorker`). Đổi tên tệp test thành `DataChangeTrackingServiceTests.cs`, xoá helper phản chiếu `InvokeNatsInitSubscription` (gọi trực tiếp `InitSubscribe` public). Cập nhật nhãn `TargetName` trong `ShareDataTransferLog`. **174/174 test ShareData PASS 100%** |
 | `sharedata-tach-cot-processinguntil-khoi-nexttimerun-prompt.md` | ✅ **28/09/2026** · Đã thực thi (đã xóa tệp prompt theo yêu cầu của lập trình viên). Thêm cột `ShareDataSubscription.ProcessingUntil` (`DateTime?`, `null` = rảnh) để tách hẳn mốc lịch định kỳ (`NextTimeRun`) và mốc giữ lock đang xử lý. Áp dụng OCC độc quyền qua `ProcessingUntil` trên cả 2 luồng (định kỳ & trigger NATS), gỡ bỏ hoàn toàn biến `serialGuard` ở `CommitSuccess` (OCC đồng nhất với `ReleaseLock`). Chuẩn hoá bài test đua tranh `ChangeTracking_WhenConcurrentTriggersRaceForSameSubscription_ExactlyOneExportSucceeds_Test` với cổng chờ đồng thời `CountdownEvent` + `ManualResetEventSlim` + `delayHandler`. **174/174 test ShareData PASS 100%** |
 | `sharedata-va-lo-occ-dua-tranh-trigger-prompt.md` | ✅ **28/09/2026** · Đã thực thi. Bổ sung vế `SqlFunc.IsNull(s.SerialNbr, 0) == serialGuard` vào điều kiện OCC của `CommitSuccess` (`DataOutboundService.cs`), giữ nguyên vế `NextTimeRun == nextRunDeadline`. Khắc phục lỗ hổng đua tranh luồng trigger khiến mọi worker cùng commit do `nextRunDeadline` bị cắt về giây tròn dẫn đến trùng nhau. Bài test `ChangeTracking_WhenConcurrentTriggersRaceForSameSubscription_ExactlyOneExportSucceeds_Test` (siết kiểm `ExactlyOne` và `SerialNbr` tăng đúng 1) đã chuyển từ ĐỎ sang XANH (chạy 5/5 lượt liên tiếp PASS 100%). **172/172 test ShareData PASS 100%** |
