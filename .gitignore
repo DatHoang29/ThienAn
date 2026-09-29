@@ -19,6 +19,10 @@ __pycache__/
 *.m4a
 *.mp3
 *.wav
+# Database backups and packages (.bacpac, .dacpac)
+*.bacpac
+*.dacpac
+SQL/Bacpac/
 
 # AI Harness & Tooling configurations
 !.agents/

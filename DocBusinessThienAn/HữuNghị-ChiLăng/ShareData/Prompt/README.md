@@ -19,9 +19,11 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 ## Danh sách Prompt
 
-*(Hiện tại không còn prompt nào tồn đọng. Toàn bộ các prompt đã được thực thi và nghiệm thu.)*
+| Prompt | Nội dung |
+|---|---|
+| [`sharedata-gop-hang-pagesize-ve-mot-nguon-prompt.md`](sharedata-gop-hang-pagesize-ve-mot-nguon-prompt.md) | ✅ **Đã hoàn thành 29/09/2026** · Mức độ **dọn dẹp**, ⛔ không đổi hành vi (`100` → `100`). Đã gộp hằng cục bộ `pageSize` trong `ExportPage` về hằng chính thức `DataOutboundExtractionProcess.DefaultPageSize`, thêm `using ...DataOutbound.Extraction`. Build sạch, giữ nguyên tệp prompt để review theo quy tắc. |
 
-> 📌 **Tiến độ:** Cả prompt `processinguntil`, prompt `tach-service` và prompt `rut-gon-xml-doc` đã hoàn thành đạt chuẩn (28/09/2026, 174/174 test pass).
+> 📌 **Tiến độ:** Cả prompt `processinguntil`, prompt `tach-service`, prompt `rut-gon-xml-doc` và prompt `gop-hang-pagesize` đã hoàn thành đạt chuẩn (29/09/2026).
 
 ### Quyết định hiện hành
 
@@ -39,6 +41,7 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 | Prompt | Kết quả |
 |---|---|
+| `sharedata-gop-hang-pagesize-ve-mot-nguon-prompt.md` | ✅ **29/09/2026** · Đã thực thi (giữ lại tệp prompt để review theo Safeguard 2). Gộp hằng `pageSize` cục bộ trong `ExportPage` về `DataOutboundExtractionProcess.DefaultPageSize`, chèn `using ShareDataWorker.Infrastructure.Services.DataOutbound.Extraction` theo thứ tự chữ cái. Biên dịch sạch không phát sinh warning mới. |
 | `sharedata-rut-gon-xml-doc-theo-rule-5-7-prompt.md` | ✅ **28/09/2026** · Đã thực thi (đã xóa tệp prompt theo yêu cầu của lập trình viên). Rút gọn toàn bộ các khối XML summary vượt ngưỡng theo quy tắc 5.7 (`Description:` $\le$ 2–3 dòng) trên toàn bộ vùng code ShareData: 7 khối trong `DataChangeTrackingService.cs`, 1 khối trong `ShareDataSubscription.cs`, và toàn bộ các khối trong `DataOutboundService.cs` (bỏ `Modified date:`, rút gọn 14 khối XML doc về chuẩn $\le$ 2 dòng); đồng bộ lý do thiết kế sang `Sharedata_MasterPlan.md` §6b và §10; bổ sung quy tắc cấm cờ `--no-build` khi chạy `dotnet test` vào `AGENTS.md` và `thienan_rules.md`. |
 | `sharedata-tach-service-khoi-worker-va-doi-ten-prompt.md` | ✅ **28/09/2026** · Đã thực thi (đã xóa tệp prompt theo yêu cầu của lập trình viên). Tách `DataChangeTrackingService` (từ worker 784 dòng) và `DataNatsService` (từ worker 117 dòng) đăng ký Singleton + `IServiceScopeFactory`, worker rút gọn còn ~30 dòng mỗi cái (`DataChangeTrackingWorker`, `DataNatsWorker`). Đổi tên tệp test thành `DataChangeTrackingServiceTests.cs`, xoá helper phản chiếu `InvokeNatsInitSubscription` (gọi trực tiếp `InitSubscribe` public). Cập nhật nhãn `TargetName` trong `ShareDataTransferLog`. **174/174 test ShareData PASS 100%** |
 | `sharedata-tach-cot-processinguntil-khoi-nexttimerun-prompt.md` | ✅ **28/09/2026** · Đã thực thi (đã xóa tệp prompt theo yêu cầu của lập trình viên). Thêm cột `ShareDataSubscription.ProcessingUntil` (`DateTime?`, `null` = rảnh) để tách hẳn mốc lịch định kỳ (`NextTimeRun`) và mốc giữ lock đang xử lý. Áp dụng OCC độc quyền qua `ProcessingUntil` trên cả 2 luồng (định kỳ & trigger NATS), gỡ bỏ hoàn toàn biến `serialGuard` ở `CommitSuccess` (OCC đồng nhất với `ReleaseLock`). Chuẩn hoá bài test đua tranh `ChangeTracking_WhenConcurrentTriggersRaceForSameSubscription_ExactlyOneExportSucceeds_Test` với cổng chờ đồng thời `CountdownEvent` + `ManualResetEventSlim` + `delayHandler`. **174/174 test ShareData PASS 100%** |
