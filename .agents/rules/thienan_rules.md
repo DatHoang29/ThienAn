@@ -939,8 +939,8 @@ tests/
     | 4 | **Edge case?** | Tình huống bất thường và cách hệ thống xử. Nêu rõ cái giá phải trả, không chỉ nêu "đã xử lý" |
 
   - **Mở đầu bằng bảng `Tóm tắt` đúng 4 dòng** — mỗi dòng là một câu hỏi trên, cột 2 là **câu trả lời gọn đọc là hiểu**, cột 3 là liên kết tới mục chi tiết.
-  - 🔴 **Bảng `Tóm tắt` KHÔNG còn là thứ đứng đầu tệp** (bổ sung 27/09/2026): trước nó phải có khối `Kết luận — đọc 30 giây là đủ` theo **mục 19.21**. Thứ tự đúng: `Chú giải ký hiệu` → `Kết luận` (19.21) → `Tóm tắt` 4 trục (mục này) → 4 mục thân chính. Mục 19.21 cũng quy định ô "Trả lời" của bảng `Tóm tắt` **phải chứa nội dung câu trả lời**, ⛔ không được chỉ ghi số lượng — đủ 4 trục mà ô Tóm tắt rỗng nghĩa thì báo cáo vẫn không đạt.
-  - 🔴 **CẤM VIẾT PHỤ LỤC TRONG BÁO CÁO RÀ SOÁT (chốt 28/09/2026 — bãi bỏ toàn bộ quy định `Phụ lục A/B/C` trước đó).** Báo cáo rà soát **chỉ gồm**: `Chú giải ký hiệu` → `Kết luận` (19.21) → `Tóm tắt` 4 trục → 4 mục thân chính. ⛔ Hết. Không `Phụ lục A`, không `Phụ lục B`, không `Phụ lục C`, không mục "nhật ký việc đã xử lý", không "lệnh dùng để đo", không bảng phân bố tệp.
+  - 🔴 **Ô "Trả lời" của bảng `Tóm tắt` phải CHỨA nội dung câu trả lời**, ⛔ không được chỉ ghi số lượng (mục **19.21**) — đủ 4 trục mà ô Tóm tắt rỗng nghĩa thì báo cáo vẫn không đạt. 📌 Thứ tự các khối ⛔ **không còn bị ép cứng** (bãi bỏ 28/09/2026): mở đầu nói ngay kết quả, còn hình thức tự chọn cho hợp nội dung.
+  - 🔴 **CẤM VIẾT PHỤ LỤC TRONG BÁO CÁO RÀ SOÁT (chốt 28/09/2026 — bãi bỏ toàn bộ quy định `Phụ lục A/B/C` trước đó).** Báo cáo rà soát **chỉ gồm**: `Chú giải ký hiệu`, phần mở đầu nói ngay kết quả (19.21), bảng `Tóm tắt` 4 trục, rồi 4 mục thân chính. ⛔ Hết. Không `Phụ lục A`, không `Phụ lục B`, không `Phụ lục C`, không mục "nhật ký việc đã xử lý", không "lệnh dùng để đo", không bảng phân bố tệp.
     - **Lý do (nguyên văn chủ dự án 28/09/2026):** *"mấy phụ lục này nhiễu thông tin, tôi cũng không đọc"*. Phụ lục là chỗ AI dồn thứ nó tiếc công viết ra nhưng người đọc không cần — đúng cái mục 19.21 cấm: viết hướng về người viết thay vì hướng về người đọc.
     - 🔴 **Nội dung đắt tiền ⛔ KHÔNG bị mất, nó đổi CHỖ ĐẾN — ghi THẲNG vào MasterPlan ngay lúc chốt**, ⛔ không đi vòng qua phụ lục rồi chờ lượt gộp:
 
@@ -1066,20 +1066,23 @@ tests/
     - Đọc metadata danh mục hệ thống cấp thấp khi không thể ánh xạ POCO.
   - **Lỗi thật đã mắc**: Trong `DataChangeWorkerTests.cs`, từng viết `await db.Ado.ExecuteCommandAsync("UPDATE TmsTrafficData SET CreateTime = @timeA... WHERE ID = @id", new { timeA, id = carA.ID });` trong khi bảng `TmsTrafficData` đã kế thừa Entity chuẩn. Chủ dự án đã chỉ rõ lỗi này và yêu cầu bổ sung rule nghiêm cấm vĩnh viễn.
 
-- **19.21. Báo Cáo Viết HƯỚNG VỀ NGƯỜI ĐỌC, Không Hướng Về Người Viết — BẮT BUỘC Khối `Kết luận` Đọc 30 Giây Ở Đầu Tệp (chốt 27/09/2026)**:
+- **19.21. Báo Cáo Viết HƯỚNG VỀ NGƯỜI ĐỌC, Không Hướng Về Người Viết (chốt 27/09/2026, bỏ khuôn cứng 28/09/2026)**:
   - **Phạm vi áp dụng**: mọi báo cáo, biên bản rà soát, tổng kết trong `DocBusinessThienAn/`, và mọi phần báo cáo kết quả trả lời trực tiếp cho người dùng.
   - 🔴 **PHÉP THỬ DUY NHẤT QUYẾT ĐỊNH BÁO CÁO ĐẠT HAY KHÔNG**: *người đọc mở tệp ra, đọc xong rồi có phải quay lại hỏi AI nữa không?* **Phải quay lại hỏi = báo cáo KHÔNG ĐẠT**, bất kể nó đầy đủ và chính xác tới đâu. Đây là phép thử nghiêm hơn phép thử "1 phút trả lời được 4 câu" của mục 19.14, và **thay thế** nó khi hai phép thử cho kết quả khác nhau.
-  - **BẮT BUỘC mở đầu bằng khối `## Kết luận — đọc 30 giây là đủ`**, đặt **TRƯỚC** cả bảng `Tóm tắt` 4 trục của mục 19.14, ngay sau khối `Chú giải ký hiệu`. Nội dung tối đa ~15 dòng, gồm đúng 3 phần:
-    1. ✅ **Tình trạng chung** trong 1–2 dòng (xong chưa, chạy được chưa).
-    2. ⚠️ **Việc còn treo** dạng bảng, BẮT BUỘC có cột **"Vỡ khi nào"** — nêu điều kiện cụ thể làm việc đó thành lỗi thật, ⛔ không viết chung chung kiểu "nên xử lý sau".
-    3. ❌ **Lỗ chưa có lưới chặn nào** (nếu có), kèm hệ quả trực tiếp.
-  - **Kết thúc khối bằng đường phân cách `---` tường minh**, chuyển thẳng sang phần tiếp theo, ⛔ không thêm các dòng ghi chú meta thừa gây nhiễu thông tin.
+  - 🔴 **NGUYÊN TẮC DUY NHẤT VỀ HÌNH THỨC — ⛔ KHÔNG CÓ KHUÔN BẮT BUỘC (chốt 28/09/2026, nguyên văn chủ dự án):**
+
+    > **Đưa thông tin sao người đọc hiểu liền là được: ngắn gọn, súc tích, dễ hiểu, đủ ý.**
+
+    - **Mở đầu nói ngay kết quả** — ⛔ không bắt người đọc lội xuống cuối mới biết xong hay chưa xong, phải làm gì.
+    - **Hình thức tự chọn cho hợp nội dung**: đoạn văn, bảng, hay gạch đầu dòng đều được.
+    - ⛔ **Không** có tiêu đề bắt buộc, ⛔ **không** có số phần bắt buộc, ⛔ **không** đếm dòng, ⛔ **không** bắt buộc cột cố định nào.
+    - 📌 **Đã bãi bỏ 28/09/2026** (khuôn cũ quá cứng, áp cho mọi loại báo cáo là gượng): tiêu đề bắt buộc `## Kết luận — đọc 30 giây là đủ` · cấu trúc đúng 3 phần · cột bắt buộc *"Vỡ khi nào"* · giới hạn ~15 dòng · thứ tự khối ép cứng. ⛔ Không khôi phục lại.
   - 🔴 **Ô "Trả lời" của bảng `Tóm tắt` phải CHỨA câu trả lời, không phải mô tả rằng có câu trả lời.**
     - ❌ SAI: *"4 quyết định cốt lõi chốt tại họp 21/09"* — không nói **4 quyết định đó là gì**, đọc xong vẫn phải mở mục chi tiết.
     - ✅ ĐÚNG: *"Bốn việc: chặn gửi khi thiếu hồ sơ ánh xạ · gửi nối đuôi theo mốc `LastTime`/`LastKey` · phát hiện dữ liệu mới tức thì · trường không map để `null`"*.
     - **Dấu hiệu nhận biết viết sai**: ô đó chứa **số lượng** ("4 quyết định", "5 việc", "13 điểm") mà không chứa **nội dung**.
   - ⛔ **CẤM giải thích hệ ký hiệu / cách phân loại của chính mình trong thân báo cáo.** Khối `Chú giải ký hiệu` ở đầu tệp và tiêu đề cột đã làm việc đó (mục 19.11). Viết thêm những đoạn kiểu *"Vì sao mục này là ❌ chứ không phải ⚠️..."*, hay *"Cột X là trục đánh giá của bảng này: ✅ nghĩa là..."* là **tự biện luận cho cách làm của mình** — người đọc không cần, và nó làm loãng đúng chỗ cần gọn.
-  - ⛔ **CẤM viết nội dung chỉ có nghĩa với người đi kiểm tra AI.** Cụ thể: biểu thức mã nguồn thô (`NextTimeRun == nextRunDeadline`), chuỗi tên biến nội bộ, đường dẫn tra cứu — những thứ chứng minh "tôi đã rà ở đâu". Người đọc cần biết **xong chưa và phải làm gì**, ⛔ không cần biết AI tra ở đâu. Căn cứ mã nguồn vẫn ghi, nhưng dồn xuống mục chi tiết hoặc phụ lục, ⛔ không để ở phần đầu.
+  - ⛔ **CẤM viết nội dung chỉ có nghĩa với người đi kiểm tra AI.** Cụ thể: biểu thức mã nguồn thô (`NextTimeRun == nextRunDeadline`), chuỗi tên biến nội bộ, đường dẫn tra cứu — những thứ chứng minh "tôi đã rà ở đâu". Người đọc cần biết **xong chưa và phải làm gì**, ⛔ không cần biết AI tra ở đâu. Căn cứ mã nguồn vẫn ghi, nhưng dồn xuống mục chi tiết, ⛔ không để ở phần đầu. *(Trước 28/09/2026 câu này ghi "hoặc phụ lục" — nay phụ lục đã bị cấm, xem 19.14.)*
   - **Dấu hiệu nhận biết đã viết sai (tự soát trước khi giao)**:
     - Tệp phình quá ~10 KB mà phần đầu vẫn chưa trả lời được "phải làm gì".
     - Ô bảng dài 3 câu trở lên với nhiều mệnh đề kẹp bởi dấu gạch ngang.
