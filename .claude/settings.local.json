@@ -97,7 +97,8 @@
       "Bash(grep -nE '^#{1,4} ' DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/Plan/Sharedata_MasterPlan.md)",
       "Bash(awk 'NR>=24 && NR<=28 {printf \"%d: %.70s\\\\n\", NR, $0}' README.md)",
       "Bash(sed -i '25,27d' README.md)",
-      "Bash(awk 'NR>=20 && NR<=27 {printf \"%d: %.80s\\\\n\", NR, $0}' README.md)"
+      "Bash(awk 'NR>=20 && NR<=27 {printf \"%d: %.80s\\\\n\", NR, $0}' README.md)",
+      "Bash(grep -n 'message\\\\|$t\\\\|i18n' axios-utils.ts)"
     ],
     "additionalDirectories": [
       "c:\\ThienAn\\DocBusinessThienAn\\HữuNghị-ChiLăng\\VideoWall",

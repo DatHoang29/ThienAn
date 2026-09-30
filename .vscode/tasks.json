@@ -175,7 +175,7 @@
       "type": "process",
       "args": [
         "build",
-        "${workspaceFolder}/tests/VwMockServerRunner/VwMockServerRunner.csproj",
+        "${workspaceFolder}/tests/ITS/VideoWall/VwMockServerRunner/VwMockServerRunner.csproj",
         "/property:GenerateFullPaths=true"
       ],
       "problemMatcher": "$msCompile",

@@ -11,6 +11,7 @@ Thư mục quản lý kế hoạch triển khai tổng thể và là **Kho lưu 
 | Tier | File | Read | Size | Nội dung | Nguồn gốc |
 |---|---|---|---|---|---|
 | A | `doc/transcript/00-catalog.md` | full | 2 KB | Mục lục toàn bộ bản ghi cuộc họp kế hoạch toàn tuyến | Biên soạn nội bộ |
+| A | `Test_Refactor_MasterPlan.md` | full | 9 KB | Sổ theo dõi đợt refactor bộ test (chuẩn hoá lớp giả lập, cấu trúc thư mục, whitespace) — xuyên VideoWall + ShareData + `.agents/rules` | Biên soạn nội bộ 30/09/2026 |
 | C | `_source/audio/08-09-2026/08-09-2026-hop-ke-hoach-1.m4a` | never | 7.8 MB | Audio cuộc họp kế hoạch toàn tuyến phần 1 (08:00) | → bản `.md`: `doc/transcript/08-09-2026-hop-ke-hoach-1.md` |
 | C | `_source/audio/08-09-2026/08-09-2026-hop-ke-hoach-2.m4a` | never | 40.0 MB | Audio cuộc họp kế hoạch toàn tuyến phần 2 (40:00) | → bản `.md`: `doc/transcript/08-09-2026-hop-ke-hoach-2.md` |
 | C | `_source/audio/09-09-2026/09-09-2026-review-sharedata-phan-1.m4a` | never | 17 MB | Audio cuộc họp Review ShareData phần 1 (35:36) | → bản `.md`: `../ShareData/doc/transcript/09-09-2026-review-sharedata.md` |

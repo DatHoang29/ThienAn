@@ -21,9 +21,32 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 | Prompt | Nội dung |
 |---|---|
-| *(Trống)* | Hiện tại không có prompt nào đang chờ thực thi |
+| [`sharedata-test-chuong-vs-hang`](sharedata-test-chuong-vs-hang-prompt.md) | 4 bài khoá ngữ nghĩa **số bản tin NATS ≠ số lần gửi HTTP**, tiêu chí nghiệm thu là **đối tác nhận đủ**: N thay đổi trên 2 bảng ⇒ đúng 1 bản tin/mã gói · 10 dòng ⇒ đúng 1 request mang đủ 10 bản ghi · trigger lặp 5 lần ⇒ vẫn chỉ gửi 1 lần · 🔴 sửa bản ghi đã gửi mà quên nâng `UpdateTime` ⇒ đối tác **không** nhận được (giới hạn đã biết). Căn cứ biên bản họp 21/09 mốc `07:08`/`13:36`/`14:31` + MasterPlan dòng 352/356 — ⚠️ chưa thực thi |
+| [`sharedata-chuyen-mock-http-sang-server-that`](sharedata-chuyen-mock-http-sang-server-that-prompt.md) | 🔴 **Prompt 05 của đợt refactor bộ test (30/09/2026)** — bỏ mock `HttpMessageHandler`, chuyển ≈30 call site sang mock server `HttpListener` THẬT (`ShareDataPartnerServerMock`, cổng 18090–18093); xoá `tests/Mock/`; refactor `SeedOutboundSubscription` sang `OutboundSubSeed` record. ⚠️ **Điều kiện tiên quyết: prompt 01–04 ở [`../../VideoWall/Prompt/README.md`](../../VideoWall/Prompt/README.md) đã áp xong và test xanh.** Sổ theo dõi: [`../../Plan/Test_Refactor_MasterPlan.md`](../../Plan/Test_Refactor_MasterPlan.md) — ✅ **30/09/2026 · 183/183 PASS** ⛔ Không xoá |
 
-> 📌 **Tiến độ:** Cả prompt `processinguntil`, prompt `tach-service`, prompt `rut-gon-xml-doc` và prompt `gop-hang-pagesize` đã hoàn thành đạt chuẩn (29/09/2026).
+> 🔴 **Thứ tự áp bắt buộc:**
+>
+> Nhánh A — `tests/ShareData/Services/DataOutboundServiceTests.cs`:
+> 1. `bo-cleanup-trong-test` — thiết lập quy ước không dọn trong bài test
+> 2. `test-phan-trang-va-dong-thoi` — 5 bài mới, viết sẵn theo quy ước ở bước 1
+>
+> Nhánh B — `tests/ShareData/Services/DataChangeTrackingServiceTests.cs`:
+> 1. `kiem-chung-nats-that` — vá assert rỗng nghĩa, siết kiểm thử NATS thật (✅ Đã xong)
+> 2. `test-chuong-vs-hang` — 4 bài mới (chạy trực tiếp trên broker NATS thật local)
+> 3. `bo-cleanup-trong-test` — rà lại assert theo phạm vi riêng
+>
+> **Sau cùng, sau khi cả hai nhánh xong:**
+> 3. `gom-mock-http-dung-chung` — refactor thuần, quét đổi tên toàn bộ
+>
+> ⚠️ `bo-cleanup-trong-test` nằm ở **cả hai nhánh** vì nó sửa cả hai tệp. Áp nó **sau**
+> `kiem-chung-nats-that` để khỏi phải rà assert hai lần.
+>
+> 🔴 `gom-mock-http-dung-chung` **bắt buộc áp CUỐI CÙNG**: đoạn mã mẫu trong
+> `test-phan-trang-va-dong-thoi` còn dùng tên cũ `new TestHttpMessageHandler(...)`. Áp prompt gom mock trước
+> sẽ khiến các đoạn mẫu đó trỏ vào tên không còn tồn tại. Áp cuối thì thao tác *Rename Symbol* quét luôn cả
+> mã mới thêm. Áp sai thứ tự sẽ phải gỡ xung đột thủ công.
+
+> 📌 **Tiến độ:** Các prompt `processinguntil`, `tach-service`, `rut-gon-xml-doc`, `gop-hang-pagesize`, `ha-mock-ve-dung-tang`, `kiem-chung-nats-that` đã hoàn thành đạt chuẩn (29/09/2026).
 
 ### Quyết định hiện hành
 
@@ -41,6 +64,11 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 | Prompt | Kết quả |
 |---|---|
+| `sharedata-gom-mock-http-dung-chung-prompt.md` | ✅ **29/09/2026** · Đã thực thi (đã xóa tệp prompt theo yêu cầu của lập trình viên). Tạo thư mục `tests/Mock/` độc lập module chứa 3 lớp mock HTTP dùng chung chuẩn quy ước hậu tố `Test` (`MockHttpClientFactoryTest`, `MockHttpMessageHandlerTest`, `HostEnvironmentTest`), nạp `global using Tests.Mock;` vào `tests/GlobalUsings.cs`. Gỡ sạch 5 lớp mock khai báo lồng trong `DataOutboundServiceTests.cs` và `DataChangeTrackingServiceTests.cs`. Đồng bộ quy tắc mock HTTP trong `thienan_rules.md`. Đã kiểm chứng phép thử biên dịch loại trừ module ShareData thành công 100%. Toàn bộ **179/179 test ShareData PASS 100%**. |
+| `sharedata-bo-cleanup-trong-test-prompt.md` | ✅ **29/09/2026** · Đã thực thi (đã xóa tệp prompt theo yêu cầu của lập trình viên). Gỡ dọn dữ liệu trong từng bài test (các dòng `Deleteable`) khỏi `DataOutboundServiceTests.cs` và `DataChangeTrackingServiceTests.cs`. Giữ nguyên 100% `ClearTrackState` (Nhóm B) và các khôi phục trạng thái môi trường test (Nhóm C). Chú thích lý do bảng rỗng cho 2 bài race condition. Siết assert bài catch-up (`CU{unique}-`) và bài concurrent triggers. Đã kiểm chứng 3 lần chạy liên tiếp toàn bộ 179 test ShareData: CẢ 3 LẦN ĐỀU PASS 100% (179/179). |
+| `sharedata-test-phan-trang-va-dong-thoi-prompt.md` | ✅ **29/09/2026** · Đã thực thi (đã xóa tệp prompt theo yêu cầu của lập trình viên). Bổ sung 5 bài test phân trang, hỏng giữa chừng và đồng thời vào `DataOutboundServiceTests.cs`: (1) T1: Ranh giới phân trang 250 dòng (3 trang: 100+100+50); (2) T2: Chạm trần 20 trang (2100 dòng) và lượt sau lấy nốt 100 dòng còn lại; (3) T3: Hỏng HTTP ở trang thứ 3 commit 2 trang đầu và gửi tiếp từ bản ghi 201; (4) T4: Hai worker quét đồng thời chỉ 1 chiếm lock; (5) T5: Lock bị cướp giữa vòng phân trang dừng an toàn sau trang đã commit và phục hồi sạch sẽ. Cô lập bằng tiền tố `PG{unique}-`, mốc `AddDays(-35..-31)` và vô hiệu hoá lịch chạy bằng `State = Expired` / `NextTimeRun = MaxValue` sau test. Đã kiểm chứng chạy 3/3 lần liên tiếp xanh 100%. **117/117 test DataOutboundServiceTests PASS 100%**. |
+| `sharedata-kiem-chung-nats-that-prompt.md` | ✅ **29/09/2026** · Đã thực thi (đã xóa tệp prompt theo yêu cầu của lập trình viên). Vá 3 bài test NATS trong `DataChangeTrackingServiceTests.cs`: (1) Chuyển `realService` sang `CreateOutboundService(scope)` với mock sender HTTP tránh fail mạng trong `NatsWorker_HandleTrigger_WhenValidPacketCode_ExecutesOutboundFlow_Test`, thay assert rỗng bằng kiểm chứng `ShareDataActivityLog` (Success + RecordCount > 0) và mốc `ShareDataLastSend` tiến thật; (2) Kiểm chứng mutation test thân rỗng khiến test ĐỎ và phục hồi XANH đạt 100%; (3) Vá bài `NatsWorker_HandleTrigger_WhenInvalidPayload_...` kiểm tra DoesNotCallService bằng `Assert.Empty(logs)`; (4) Thêm cờ `ShareDataTests:RequireNatsBroker` (mặc định false) và chặn Fail tường minh trong `NatsRoundTrip_...`; (5) Đảm bảo toàn bộ `TransportManager` được `await using`. **61/61 test DataChangeTrackingServiceTests PASS 100%**. |
+| `sharedata-ha-mock-ve-dung-tang-prompt.md` | ✅ **29/09/2026** · Đã thực thi (đã xóa tệp prompt theo yêu cầu của lập trình viên). Hạ mock về đúng tầng biên ngoài trong `DataOutboundServiceTests.cs`: xoá `MockDataExtractionProcess` chết, tạo helper `CreateFailingFileSender` ép lỗi ghi tệp thật, chuyển 3 test `WhenFileWriteFails_*` dùng `DataOutboundRestSender` thật với `MockHttpClientFactoryTest` và `TestHttpMessageHandler`. Xoá `MockDataOutboundFileSender` và `MockDataOutboundRestSender`. Khắc phục lỗi lật ngày midnight rollover trong bài test kẹp khung giờ. **112/112 test DataOutboundServiceTests PASS 100%**. |
 | `sharedata-gop-hang-pagesize-ve-mot-nguon-prompt.md` | ✅ **29/09/2026** · Đã thực thi (đã xóa tệp prompt theo yêu cầu của lập trình viên). Gộp hằng `pageSize` cục bộ trong `ExportPage` về `DataOutboundExtractionProcess.DefaultPageSize`, chèn `using ShareDataWorker.Infrastructure.Services.DataOutbound.Extraction` theo thứ tự chữ cái. Biên dịch sạch không phát sinh warning mới. |
 | `sharedata-rut-gon-xml-doc-theo-rule-5-7-prompt.md` | ✅ **28/09/2026** · Đã thực thi (đã xóa tệp prompt theo yêu cầu của lập trình viên). Rút gọn toàn bộ các khối XML summary vượt ngưỡng theo quy tắc 5.7 (`Description:` $\le$ 2–3 dòng) trên toàn bộ vùng code ShareData: 7 khối trong `DataChangeTrackingService.cs`, 1 khối trong `ShareDataSubscription.cs`, và toàn bộ các khối trong `DataOutboundService.cs` (bỏ `Modified date:`, rút gọn 14 khối XML doc về chuẩn $\le$ 2 dòng); đồng bộ lý do thiết kế sang `Sharedata_MasterPlan.md` §6b và §10; bổ sung quy tắc cấm cờ `--no-build` khi chạy `dotnet test` vào `AGENTS.md` và `thienan_rules.md`. |
 | `sharedata-tach-service-khoi-worker-va-doi-ten-prompt.md` | ✅ **28/09/2026** · Đã thực thi (đã xóa tệp prompt theo yêu cầu của lập trình viên). Tách `DataChangeTrackingService` (từ worker 784 dòng) và `DataNatsService` (từ worker 117 dòng) đăng ký Singleton + `IServiceScopeFactory`, worker rút gọn còn ~30 dòng mỗi cái (`DataChangeTrackingWorker`, `DataNatsWorker`). Đổi tên tệp test thành `DataChangeTrackingServiceTests.cs`, xoá helper phản chiếu `InvokeNatsInitSubscription` (gọi trực tiếp `InitSubscribe` public). Cập nhật nhãn `TargetName` trong `ShareDataTransferLog`. **174/174 test ShareData PASS 100%** |

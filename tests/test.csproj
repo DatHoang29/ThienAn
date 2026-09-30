@@ -20,7 +20,8 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <UseWPF Condition="'$(TargetFramework)' == 'net10.0-windows'">true</UseWPF>
     <!-- Loại trừ runner độc lập VwMockServerRunner khỏi test.csproj -->
-    <DefaultItemExcludes>$(DefaultItemExcludes);VwMockServerRunner\**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);ITS\VideoWall\VwMockServerRunner\**</DefaultItemExcludes>
+
   </PropertyGroup>
 
   <ItemGroup>
@@ -139,34 +140,32 @@
 
   <!-- Loại bỏ file test của module vắng mặt khỏi biên dịch (ShareData và VideoWall backend chỉ test ở net10.0, net10.0-windows chỉ test WPF) -->
   <ItemGroup Condition="'$(CanCompileShareDataTests)' != 'true' Or '$(TargetFramework)' == 'net10.0-windows'">
-    <Compile Remove="ShareData\**\*.cs" />
-    <None Include="ShareData\**\*.cs" />
+    <Compile Remove="ITS\ShareData\**\*.cs" />
+    <None Include="ITS\ShareData\**\*.cs" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(CanCompileVideoWallTests)' != 'true'">
-    <Compile Remove="VideoWall\**\*.cs" />
-    <None Include="VideoWall\**\*.cs" />
+    <Compile Remove="ITS\VideoWall\**\*.cs" />
+    <None Include="ITS\VideoWall\**\*.cs" />
   </ItemGroup>
 
   <!-- Ở net10.0-windows, chỉ biên dịch các test WPF và file Host partial của VideoWall, loại bỏ các test backend để tránh chạy trùng lặp và deadlock -->
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
-    <Compile Remove="VideoWall\Controllers\**\*.cs" />
-    <Compile Remove="VideoWall\Services\**\*.cs" />
-    <Compile Remove="VideoWall\Messaging\**\*.cs" />
-    <None Include="VideoWall\Controllers\**\*.cs" />
-    <None Include="VideoWall\Services\**\*.cs" />
-    <None Include="VideoWall\Messaging\**\*.cs" />
+    <Compile Remove="ITS\VideoWall\WebApi\**\*.cs" />
+    <Compile Remove="ITS\VideoWall\Worker\**\*.cs" />
+    <None Include="ITS\VideoWall\WebApi\**\*.cs" />
+    <None Include="ITS\VideoWall\Worker\**\*.cs" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(CanCompileVideoWallWpfTests)' != 'true'">
-    <Compile Remove="VideoWall\Wpf\**\*.cs" />
-    <None Include="VideoWall\Wpf\**\*.cs" />
+    <Compile Remove="ITS\VideoWall\Wpf\**\*.cs" />
+    <None Include="ITS\VideoWall\Wpf\**\*.cs" />
   </ItemGroup>
 
   <!-- VwMockServerRunner là console exe độc lập, không tham gia test assembly -->
   <ItemGroup>
-    <Compile Remove="VwMockServerRunner\**\*.cs" />
-    <None Include="VwMockServerRunner\**" />
+    <Compile Remove="ITS\VideoWall\VwMockServerRunner\**\*.cs" />
+    <None Include="ITS\VideoWall\VwMockServerRunner\**" />
   </ItemGroup>
 
   <ItemGroup>
@@ -179,11 +178,11 @@
   <Target Name="ReportOptionalTestModules" BeforeTargets="BeforeBuild">
     <Message Importance="high" Text="[TEST MODULES] Module.VideoWall=$(HasVideoWallModule) (ISAPI=$(CanCompileVideoWallTests)) | Module.ShareData=$(HasShareDataModule) | ShareDataWorker=$(HasShareDataWorker)" />
     <Message Importance="high" Condition="'$(HasShareDataWorker)' != 'true'" Text="[TEST MODULES] ShareDataWorker(.Core) không tồn tại -> bỏ ProjectReference." />
-    <Message Importance="high" Condition="'$(CanCompileShareDataTests)' != 'true'" Text="[TEST MODULES] Loại khỏi biên dịch: tests/ShareData/**" />
-    <Message Importance="high" Condition="'$(HasVideoWallModule)' == 'true' And '$(CanCompileVideoWallTests)' != 'true'" Text="[TEST MODULES] Module.VideoWall có nhưng thiếu feature ISAPI -> loại tests/VideoWall/**" />
-    <Message Importance="high" Condition="'$(HasVideoWallModule)' != 'true'" Text="[TEST MODULES] Loại khỏi biên dịch: tests/VideoWall/**" />
+    <Message Importance="high" Condition="'$(CanCompileShareDataTests)' != 'true'" Text="[TEST MODULES] Loại khỏi biên dịch: tests/ITS/ShareData/**" />
+    <Message Importance="high" Condition="'$(HasVideoWallModule)' == 'true' And '$(CanCompileVideoWallTests)' != 'true'" Text="[TEST MODULES] Module.VideoWall có nhưng thiếu feature ISAPI -> loại tests/ITS/VideoWall/**" />
+    <Message Importance="high" Condition="'$(HasVideoWallModule)' != 'true'" Text="[TEST MODULES] Loại khỏi biên dịch: tests/ITS/VideoWall/**" />
     <Message Importance="high" Text="[TEST MODULES] TFM=$(TargetFramework) | Module.VideoWall.WPF=$(HasVideoWallWpf) (test Wpf=$(CanCompileVideoWallWpfTests))" />
-    <Message Importance="high" Condition="'$(HasVideoWallWpf)' == 'true' And '$(TargetFramework)' != 'net10.0-windows'" Text="[TEST MODULES] TFM $(TargetFramework) không tham chiếu được net10.0-windows -> loại tests/VideoWall/Wpf/**." />
+    <Message Importance="high" Condition="'$(HasVideoWallWpf)' == 'true' And '$(TargetFramework)' != 'net10.0-windows'" Text="[TEST MODULES] TFM $(TargetFramework) không tham chiếu được net10.0-windows -> loại tests/ITS/VideoWall/Wpf/**." />
   </Target>
 
 </Project>

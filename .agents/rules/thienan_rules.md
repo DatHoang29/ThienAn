@@ -134,16 +134,20 @@ Khi thực hiện commit code, phần tiêu đề (Summary) của commit bắt b
 ### ✍️ Cú Pháp Thông Điệp Commit Chuẩn (Commit Format)
 
 #### Cú pháp Summary:
-- **Cú pháp chuẩn thực tế của team (Khuyến nghị):**
-  `[type]: [yyyyMMdd] [module] [noi-dung-cong-viec]`  
-  *(Ví dụ: `feat: 20260923 vms thêm mới dịch vụ`, `fix: 20260915 tms chỉnh map`, `feat: 20260925 sharedata worker hoàn thiện luồng outbound và event`)*
+- **Cú pháp chuẩn thực tế của team (Khuyến nghị — có scope):**
+  `[type]([scope]): [noi-dung-cong-viec]`  
+  *(Ví dụ: `feat(vms): thêm mới dịch vụ`, `fix(tms): chỉnh map`, `feat(sharedata): hoàn thiện worker luồng outbound và event`)*
 - **Cú pháp kèm TaskCode:**
-  `[type]: [TaskCode (nếu có)] - [noi-dung-cong-viec]`  
-- **Cú pháp rút gọn:**
+  `[type]([scope]): [TaskCode] - [noi-dung-cong-viec]`  
+- **Cú pháp rút gọn (không có scope):**
   `[type]: [noi-dung-cong-viec]`
 
+> [!NOTE]
+> **`[scope]`** là tên module/phân hệ viết thường, ví dụ: `vms`, `tms`, `sharedata`, `videowall`, `toll`, `test`...
+> Scope **không bắt buộc** nhưng **khuyến nghị** khi commit có phạm vi rõ ràng trong 1 module.
+
 > [!TIP]
-> *   Dùng 1 `-m` khi chỉ cần ghi Summary ngắn gọn: `git commit -m "[type]: [yyyyMMdd] [module] [noi-dung]"`
+> *   Dùng 1 `-m` khi chỉ cần ghi Summary ngắn gọn: `git commit -m "feat(sharedata): hoàn thiện chức năng worker"`
 > *   Dùng 2 `-m` khi muốn bổ sung danh sách gạch đầu dòng chi tiết (Git sẽ tự chèn dòng trống ngăn cách):
 >     `git commit -m "[Subject]" -m "[Subject]"`
 >     `- gạch đầu dòng 1`
@@ -163,12 +167,14 @@ Khi thực hiện commit code, phần tiêu đề (Summary) của commit bắt b
 
 ### 💡 Ví Dụ Minh Họa Commit Chuẩn
 
-#### Ví dụ 1: Summary chuẩn thực tế của team
-*   `feat: 20260923 vms thêm mới dịch vụ`
-*   `feat: 20260915 toll fms thêm mới`
-*   `fix: 20260915 tms chỉnh map`
-*   `fix: 20260923 toll điều chỉnh lại tên xử lý các hàm`
-*   `feat: 20260925 sharedata worker hoàn thiện luồng outbound và event`
+#### Ví dụ 1: Summary chuẩn thực tế của team (có scope — khuyến nghị)
+*   `feat(vms): thêm mới dịch vụ`
+*   `feat(toll): thêm mới fms`
+*   `fix(tms): chỉnh map`
+*   `fix(toll): điều chỉnh lại tên xử lý các hàm`
+*   `feat(sharedata): hoàn thiện chức năng worker outbound và event`
+*   `feat(videowall): tích hợp NATS thật cho VwCommandConsumer`
+*   `chore(test): bỏ unnecessary usings IDE0005 trong folder tests`
 
 #### Ví dụ 2: Toàn văn Commit Message đầy đủ Summary + Description
 ```text
@@ -195,7 +201,7 @@ Khi thao tác trên terminal/command line, sử dụng các cú pháp `git commi
 #### Cách 1: Commit nhanh 1 dòng Summary (Single-line Summary)
 Phù hợp cho các commit nhỏ, cục bộ trong quá trình dev:
 ```bash
-git commit -m "feat: XD1.2.2.5 - add map location"
+git commit -m "feat(videowall): XD1.2.2.5 - add map location"
 ```
 
 #### Cách 2: Commit đầy đủ Summary + Description trên Git Bash / Linux (Dùng nhiều cờ `-m`)
@@ -247,10 +253,11 @@ Riêng trường hợp làm việc trên các nhánh cũ thuộc 2 repo con `TA-
 Đối với Trợ lý AI, tuyệt đối tuân thủ các nguyên tắc sau khi làm việc trong dự án:
 
 1.  **KHÔNG TỰ ĐỘNG CHẠY LỆNH BUILD & TEST KHI CHỈ ĐỔI TÊN BIẾN (ONLY BUILD/TEST ON LOGIC CHANGES)**: AI không được tự động chạy lệnh `dotnet build`, `dotnet test` hoặc bất kỳ lệnh biên dịch/kiểm thử nào sau khi chỉnh sửa code, trừ khi người dùng yêu cầu trực tiếp. Đặc biệt, đối với các trường hợp chỉ **đổi tên biến, đổi tên tham số**, format mã nguồn hoặc chỉnh sửa comment, TUYỆT ĐỐI KHÔNG chạy build hay chạy test tốn thời gian; CHỈ chạy build và chạy test khi có thay đổi **logic nghiệp vụ**, cấu trúc giải thuật, câu truy vấn CSDL, điều kiện rẽ nhánh, hoặc khi người dùng yêu cầu trực tiếp.
-2.  **CẤM TUYỆT ĐỐI TỰ Ý `git add` / STAGE CODE, CẤM COMMIT VÀ PUSH (STRICT NO AUTO-STAGE / NO AUTO-COMMIT) (P0)**:
+2.  **CẤM TUYỆT ĐỐI TỰ Ý CAN THIỆP STAGING AREA: CẤM TỰ Ý `git add` LẪN `git reset` / UNSTAGE, CẤM COMMIT VÀ PUSH (STRICT NO AUTO-STAGE / NO AUTO-UNSTAGE / NO AUTO-COMMIT) (P0)**:
     - AI **TUYỆT ĐỐI KHÔNG ĐƯỢC CHẠY LỆNH `git add`** hoặc đưa bất kỳ file nào vào Staged Changes khi người dùng KHÔNG yêu cầu trực tiếp và tường minh.
+    - AI **TUYỆT ĐỐI KHÔNG ĐƯỢC CHẠY LỆNH `git reset`**, `git restore --staged` hoặc tự ý unstage bất kỳ file nào mà người dùng đã chủ động đưa vào Staged Changes. Mọi file người dùng đã stage phải được giữ nguyên trạng thái Staged.
     - **Mọi lần sửa code BẮT BUỘC để nguyên ở trạng thái Changes (Working Tree / Unstaged)** để người dùng tự review qua giao diện IDE (Source Control / Git Diff).
-    - Quyền stage (`git add`), commit (`git commit`) và push (`git push`) hoàn toàn thuộc về lập trình viên. AI chỉ cung cấp câu lệnh gợi ý (nếu cần), tuyệt đối không tự ý thực thi.
+    - Quyền stage (`git add`), unstage (`git reset`), commit (`git commit`) và push (`git push`) hoàn toàn thuộc về lập trình viên. AI chỉ cung cấp câu lệnh gợi ý (nếu cần), tuyệt đối không tự ý can thiệp.
 3.  **TỐI THIỂU HÓA THAY ĐỔI (MINIMAL DIFF PRINCIPLE)**: AI CHỈ ĐƯỢC PHÉP chỉnh sửa/thêm code đối với các file và nội dung thực sự phục vụ trực tiếp cho tính năng mới hoặc bug được yêu cầu. TUYỆT ĐỐI KHÔNG tự động upgrade phiên bản thư viện (`PackageReference` trong `.csproj`), không format/touch vào các file không liên quan, không làm thay đổi các file dùng chung (`Shared.Reference`, `appsettings.json`,...) trừ khi có chỉ định rõ ràng từ người dùng.
 4.  **PHÂN BIỆT THAM KHẢO VÀ HÀNH ĐỘNG (DISTINGUISH REFERENCE FROM ACTION)**: Khi người dùng yêu cầu "tham khảo", "xem thử", "giải thích" hoặc hỏi ý kiến, AI BẮT BUỘC phải phân tích và trả lời thảo luận trước, KHÔNG ĐƯỢC tự ý nhảy vào áp dụng hoặc thêm/sửa code khi chưa có xác nhận từ người dùng.
 5.  **TÔN TRỌNG CODE SỬA TAY & Ý ĐỊNH NGƯỜI DÙNG (PRESERVE USER MANUAL EDITS & PREFERENCES)**: Khi người dùng đã chỉ định cách viết (VD: dùng `while (reader.Read())` đồng bộ) hoặc tự sửa tay/bỏ bớt điều kiện, AI KHÔNG ĐƯỢC TỰ Ý hoàn tác (revert) hoặc sửa ngược lại về cách viết cũ trong các lần refactor tiếp theo.
@@ -507,7 +514,18 @@ tests/
 
 ### 3. Quy Tắc Đặt Tên & Định Dạng
 * **File test**: `<TênModule>Tests.cs` (không dùng hậu tố `IntegrationTests.cs`).
-* **Class test**: `<TênModule>Tests`. Test class, test helper/mock/stub class và test method BẮT BUỘC dùng `Test`/`Tests` làm **hậu tố** (VD: `StringLocalizerTest`, `VwControllerTests`); TUYỆT ĐỐI KHÔNG dùng `Test` làm tiền tố (như `TestStringLocalizer`).
+* **Class test**: `<TênModule>Tests`. Hậu tố `Test`/`Tests` CHỈ dành cho class chứa `[Fact]`/`[Theory]` và cho test method; TUYỆT ĐỐI KHÔNG dùng `Test` làm tiền tố (như `TestStringLocalizer`).
+* **Tên class lớp giả lập — thuật ngữ quốc tế là *test double* (chốt 30/09/2026)**: đặt tên theo **LOẠI của double làm hậu tố**, ⛔ TUYỆT ĐỐI KHÔNG dùng tiền tố `Mock`/`Fake`/`Stub`/`Test`, và ⛔ không nhét loại vào giữa tên (`VwISAPIMockServerHikvision` là SAI):
+
+    | Hậu tố | Nghĩa | Ví dụ thật trong repo |
+    | --- | --- | --- |
+    | `Mock` | Có kịch bản, có hành vi, bật/tắt được tình huống | `VwISAPIServerHikvisionMock`, `ShareDataPartnerServerMock` |
+    | `Stub` | Trả giá trị cố định, ⛔ không có logic | `HostEnvironmentStub` |
+    | `Fake` | Cài đặt thật nhưng đơn giản, chạy trong bộ nhớ | `SqlExceptionFake` |
+    | `Spy` | Chỉ ghi lại thứ nhận được để bài test soi | `PublisherSpy` |
+
+    📌 Thư mục chứa lớp giả lập đặt tên **`Mocks/`** (`tests/ITS/VideoWall/Mocks/`, `tests/ITS/ShareData/Mocks/`) — từ quen dùng của nhóm, đọc là hiểu. Thư mục chỉ nói "chỗ chứa đồ giả lập"; việc phân biệt `Mock`/`Stub`/`Fake`/`Spy` do **hậu tố tên class** đảm nhiệm. ⛔ Không đặt tên thư mục theo một loại cụ thể (`Stubs/`, `Fakes/`) vì trong đó có đủ cả 4 loại.
+    📌 **Lỗi thật đã mắc**: `MockHttpClientFactoryTest` mang cả tiền tố `Mock` lẫn hậu tố `Test`, còn `VwISAPIMockServerHikvision` nhét `Mock` vào giữa — đọc tên không biết nó là loại double nào.
 * **Comment XML Summary Bắt Buộc Trên Mọi Phương Thức & Class**: Mọi Class, Constructor, Helper Method và phương thức kiểm thử (`[Fact]` / `[Theory]`) BẮT BUỘC có comment XML `/// <summary>` theo định dạng chuẩn 2 dòng (KHÔNG dùng `Author:` — quyết định 05/09/2026, không hồi tố test đã có sẵn `Author: Đạt`):
   ```csharp
   /// <summary>
@@ -516,13 +534,44 @@ tests/
   /// </summary>
   ```
   *(BỎ HẲN và KHÔNG DÙNG field `Updated date:`)*.
-* **Namespace**: `Tests` (gốc) và `Tests.Modules.<Module>.<ĐườngDẫnCon>` (ví dụ: `Tests.Modules.VideoWall.MockServer`).
+* **Namespace**: `Tests` (gốc) và `Tests.<TênPhânHệ>.<ĐườngDẫnCon>` (ví dụ: `Tests.VideoWall.Mocks`). ⛔ Không chèn tên thư mục nhóm (`ITS`) vào namespace — xem mục 15.
 * **Tên phương thức test**: Sử dụng dấu gạch dưới **`_`** để phân tách các phần trong tên phương thức theo định dạng `Feature_Scenario_ExpectedResult` hoặc `Feature_Scenario_ExpectedResult_Test` (ví dụ: `CronJob_SavedQuery_SqlGeneration_Test`, `PartnerQuery_GetById_ReturnsSuccess_Test`).
 * **Thứ tự**: Sắp xếp các Happy Case của Queries lên trước, sau đó đến các Happy Case của Commands (ví dụ: `QueryPageReturnsSuccessTest`, `CommandAddReturnsSuccessTest`).
+* **Seed & Helper Types — Đặt Cuối Class, Không Truyền Positional Params Dài (Internal Seed Record Pattern)**:
+  - Mọi `record`/`class` hỗ trợ bên trong test class (Seed DTO, helper type, kết quả tạm) BẮT BUỘC đặt trong `#region Seed & Helper Types` ở **cuối cùng** của class, TUYỆT ĐỐI KHÔNG rải rác xen kẽ giữa các `[Fact]` hoặc helper method.
+  - Khi một hàm seed có **từ 3 tham số tùy chọn trở lên**, BẮT BUỘC đóng gói thành một `private sealed record` nội bộ thay vì truyền positional params. Caller dùng **object initializer** với `required` property để đảm bảo compile-time safety. Ví dụ:
+    ```csharp
+    // ✅ Đúng — Seed record đặt ở cuối class
+    #region Seed & Helper Types
+    private sealed record OutboundSubSeed
+    {
+        public required string PartnerCode                    { get; init; }
+        public required string SubCode                        { get; init; }
+        public required string DatatypeId                     { get; init; }
+        public object?                        MappingShape    { get; init; }
+        public Action<ShareDataSubscription>? ConfigureSub    { get; init; }
+        public Action<ShareDataPartner>?      ConfigurePartner { get; init; }
+    }
+    #endregion
+
+    // ✅ Đúng — Call site rõ nghĩa, không cần nhớ thứ tự tham số
+    var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+    {
+        PartnerCode = $"P_HTTP_{unique}",
+        SubCode     = $"SUB_HTTP_{unique}",
+        DatatypeId  = "101",
+        ConfigurePartner = p => { p.Port = 18090; p.EndPointApiUrl = "/api/..."; }
+    });
+
+    // ❌ Sai — Positional params dài, dễ nhầm thứ tự
+    var (partner, sub) = await SeedOutboundSubscription(db, $"P_HTTP_{u}", $"S_HTTP_{u}", "101", null, p => { ... }, null);
+    ```
+
 
 ### 4. .NET & Solution Troubleshooting Protocol
 
 **Khi gặp lỗi thiếu tham chiếu, không nhận diện được Test trong IDE, hoặc lỗi khi debug:**
+
 
 1. **Kiểm tra đăng ký trong Solution (`.sln`):**
    - Mọi dự án mới tạo (đặc biệt là `*.Tests.csproj`) BẮT BUỘC phải được thêm vào file `.sln` chính của workspace.
@@ -542,6 +591,10 @@ tests/
 
 - **No Hardcoded Magic Strings**: Không viết literal chuỗi cứng (mã trạng thái, tên state...) trực tiếp trong query/logic điều kiện nghiệp vụ. LUÔN định nghĩa và dùng Enum hoặc Constant có kiểu rõ ràng (VD: `ShareDataEnum.IncidentState`).
 - **Formatting (Single-Statement `if` Without Braces)**: Đối với câu lệnh `if` chỉ chứa 1 dòng lệnh thực thi (ví dụ: các lệnh ghi log ngắn gọn `Logger.Log...`, lệnh `return`, v.v.), BẮT BUỘC ngắt dòng và thụt lề cho câu lệnh thực thi, ĐỒNG THỜI BỎ cặp dấu ngoặc nhọn `{}`. TUYỆT ĐỐI KHÔNG viết inline trên cùng 1 dòng (`if (condition) return;`) và TUYỆT ĐỐI KHÔNG tự ý thêm `{}` vào các câu lệnh đơn.
+- **CẤM dòng trống xen giữa các câu lệnh liên tiếp (chốt 30/09/2026)**: TUYỆT ĐỐI KHÔNG chèn dòng trống sau **mỗi** dòng code. Dòng trống chỉ dùng để tách các khối logic có ý nghĩa (giữa `Arrange` / `Act` / `Assert`, giữa hai phương thức, giữa nhóm khai báo và phần thân).
+  - **Dấu hiệu nhận biết tệp đã hỏng**: mọi dòng không rỗng đều được theo sau bởi đúng một dòng rỗng, và tỷ lệ dòng rỗng trên tổng số dòng vượt 45%.
+  - **Lỗi thật đã mắc**: 16 tệp test VideoWall từng bị nhân đôi toàn bộ dòng trống — `VwISAPIDeviceServiceTests.cs` phình lên 5.249 dòng thay vì 2.724. Đã dọn ngày 30/09/2026 bằng `.agents/scripts/Fix-DoubledBlankLines.ps1`.
+  - 🔴 **Khi dọn, ⛔ TUYỆT ĐỐI KHÔNG thay thế `\r\n\r\n` → `\r\n` toàn cục**: tệp thường có xen vùng code lành, thay mù sẽ xoá luôn dòng trống có chủ đích ở đó. Phải nhận biết theo vùng và kiểm bất biến: **tập hợp các dòng không rỗng phải y nguyên trước/sau khi dọn**.
 - **Object Initializer Formatting**: Object initializer nhiều thuộc tính (VD: `new TmsEquipment { ID = eqId, Code = "...", ... }`) BẮT BUỘC ngắt dòng, mỗi thuộc tính 1 dòng thụt lề. TUYỆT ĐỐI KHÔNG viết inline nhiều thuộc tính trên 1 dòng ngang.
 - **Inline Temporary Entity Khi Insert (No Redundant Temporary Variable)**: Khi khởi tạo một entity mới chỉ để insert vào CSDL qua `db.Insertable(...)` mà bản ghi đó KHÔNG được dùng lại ở các câu lệnh sau hoặc KHÔNG được `return` ra ngoài, BẮT BUỘC khởi tạo inline trực tiếp trong câu lệnh insert (VD: `await db.Insertable(new ShareDataLastSend { ... }).ExecuteCommandAsync(cancelToken);`), TUYỆT ĐỐI KHÔNG khai báo biến tạm thừa (`var newLastSend = new ...; await db.Insertable(newLastSend)...`). CHỈ khai báo biến khi cần tái sử dụng biến đó hoặc trả về sau khi insert.
 - **Ưu Tiên Biến Cục Bộ Thay Vì Field / Property (Prefer Local Variables Over Class Fields/Properties)**: Bất kỳ biến nào chỉ dùng làm dữ liệu tạm thời, phục vụ tính toán trung gian hoặc chỉ dùng trong phạm vi 1 phương thức/truyền qua tham số: BẮT BUỘC dùng biến cục bộ (`var local = ...`). TUYỆT ĐỐI KHÔNG lưu thành field (`private ...`) hoặc property của class nếu không thực sự cần lưu giữ trạng thái sống xuyên suốt vòng đời đối tượng (Stateful Lifecycle).
@@ -733,10 +786,25 @@ tests/
 
 - **Toàn bộ test tập trung tại `c:\ThienAn\tests\` (`test.csproj` cấp root)**:
   - Dự án chỉ có DUY NHẤT một project test tập trung là `c:\ThienAn\tests\` (`test.csproj`).
-  - Cấu trúc test theo module: `tests\Modules\<ModuleName>\` (ví dụ: `tests\Modules\VideoWall\Controllers\`, `tests\Modules\VideoWall\Infrastructure\Services\`).
+  - Cấu trúc test: các phân hệ nghiệp vụ gom trong `tests\ITS\<TênPhânHệ>\`; phần kiểm thử ⛔ không thuộc phân hệ nào (như `tests\StartupValidation\`) giữ ở cấp 1.
+  - 🔴 Thư mục `ITS\` chỉ là nhóm trên đĩa, ⛔ TUYỆT ĐỐI KHÔNG đưa vào namespace. Namespace là `Tests.<TênPhânHệ>.<ĐườngDẫnCon>` (ví dụ `Tests.VideoWall.Worker.ISAPIDevice`).
+    ⛔ Đặt `Tests.ITS.<TênPhânHệ>.*` là SAI: `ITS` trùng root namespace sản xuất (`ITS.VideoWall`, `ITS.VideoWall.Core`), khiến mọi tên đủ điều kiện `ITS.VideoWall.X` viết trong khối namespace đó bị phân giải nhầm ⇒ `CS0234`. Cùng họ với lỗi đặt thư mục tên `Module/`.
+  - **Bên trong mỗi phân hệ, thư mục con PHẢN CHIẾU project nguồn (chốt 30/09/2026)** — nhìn cây thư mục là biết bài test đang kiểm project nào:
+
+    ```
+    tests/ITS/VideoWall/
+    ├─ WebApi/        <- src/Modules/VideoWall/Module.VideoWall   (Controllers/, Services/)
+    ├─ Worker/        <- src/Services/VideoWall/ITS.VideoWall     (ISAPIDevice/, Scene/, Heartbeat/, Messaging/)
+    ├─ Wpf/           <- src/Services/VideoWall/ITS.VideoWall.WPF
+    ├─ Mocks/         <- lớp giả lập của phân hệ
+    └─ VwMockServerRunner/ <- console exe riêng
+    ```
+
+    🔴 Dùng **`WebApi/`** cho phần `Module.<Tên>`, ⛔ TUYỆT ĐỐI KHÔNG đặt thư mục tên `Module/`: namespace sẽ thành `Tests.<Tên>.Module` khiến C# phân giải nhầm mọi tên đủ điều kiện `Module.<Tên>.*` ⇒ lỗi `CS0234`.
+    🔴 **Đổi tên thư mục test thì BẮT BUỘC sửa `tests/test.csproj` cùng lượt** — tệp đó hard-code tên thư mục trong các khối `Compile Remove` theo `TargetFramework`. Không sửa thì ở TFM `net10.0-windows` test backend ⛔ không bị loại ⇒ chạy trùng và deadlock.
 - **CẤM TẠO PROJECT HOẶC THƯ MỤC TEST MỚI TRONG CÁC SUB-DIRECTORY**:
   - TUYỆT ĐỐI KHÔNG tạo thư mục test, sub-folder hay file `.csproj` test mới bên trong `TA-ITS015-WEBAPI-V1.0\tests\`, trong `src\Modules\...`, hay bất kỳ vị trí nào khác ngoài `c:\ThienAn\tests\`.
-  - Mọi file test mới (unit test, integration test, validator test, fixture test) của bất kỳ phân hệ nào BẮT BUỘC phải viết trực tiếp vào thư mục tương ứng bên trong `c:\ThienAn\tests\Modules\<ModuleName>\`.
+  - Mọi file test mới (unit test, integration test, validator test, fixture test) của bất kỳ phân hệ nào BẮT BUỘC phải viết trực tiếp vào thư mục tương ứng bên trong `c:\ThienAn\tests\ITS\<TênPhânHệ>\`.
 - **CẤM DÙNG THƯ VIỆN MOCK BÊN NGOÀI (`Moq`, `NSubstitute`, `FakeItEasy`)**:
   - `test.csproj` **hoàn toàn KHÔNG tham chiếu thư viện Moq**.
   - **CẤM `using Moq;`**, **CẤM `new Mock<T>()`**.
@@ -747,9 +815,9 @@ tests/
   - **Lấy Services**: Dùng `host.Services.GetRequiredService<T>()`.
   - **Giả lập thiết bị**: Dùng mock server nội bộ đã được cấu hình trong repo (như `host.MockServer` / `VwISAPIMockServerHikvision`).
   - **Test cô lập không qua Host (CHỈ áp dụng cho POCO/DTO/XML/JSON/Formula thuần túy)**: Viết test xUnit thuần không phụ thuộc DB/DI.
-  - ⛔ **CẤM TỰ TẠO CLASS STUB/MOCK NỘI BỘ CHO SERVICE NGHIỆP VỤ & NATS**: TUYỆT ĐỐI KHÔNG tự viết các class giả lập (`TestMock...Service`, `Fake...Service`) để thay thế các service lõi (`IDataOutboundService`, `IDataInboundService`...) hoặc NATS pub/sub nội bộ chỉ nhằm đếm số lần gọi hàm. **Ngoại lệ hợp lệ duy nhất được mock** là `MockTestHttpClientFactory` (qua `HttpMessageHandler` giả lập phản hồi HTTP của đối tác bên ngoài). Mọi service nghiệp vụ và NATS BẮT BUỘC phải lấy bản thật từ `host.Services` và test luồng thật qua CSDL local (xem chi tiết mục 19.18).
+  - ⛔ **CẤM TỰ TẠO CLASS STUB/MOCK NỘI BỘ CHO SERVICE NGHIỆP VỤ & NATS**: TUYỆT ĐỐI KHÔNG tự viết các class giả lập (`TestMock...Service`, `Fake...Service`) để thay thế các service lõi (`IDataOutboundService`, `IDataInboundService`...) hoặc NATS pub/sub nội bộ chỉ nhằm đếm số lần gọi hàm. **Ngoại lệ hợp lệ duy nhất được giả lập** là máy chủ HTTP bên ngoài, và phải bằng mock server `HttpListener` thật trên `127.0.0.1` (xem chi tiết mục 19.18). Mọi service nghiệp vụ và NATS BẮT BUỘC phải lấy bản thật từ `host.Services` và test luồng thật qua CSDL local (xem chi tiết mục 19.18).
 - **Global Usings của Module Test**:
-  - Bổ sung namespace/using của module vào `tests\Modules\<ModuleName>\GlobalUsings.<ModuleName>.cs` để tránh xung đột với các module khác và đảm bảo compile condition theo `test.csproj`.
+  - Bổ sung namespace/using của module vào `tests\ITS\<TênPhânHệ>\GlobalUsings.<TênPhânHệ>.cs` để tránh xung đột với các module khác và đảm bảo compile condition theo `test.csproj`.
 
 ---
 
@@ -1022,8 +1090,13 @@ tests/
 - **19.18. Quy Tắc Kiểm Thử Thực Chất — CẤM Mock NATS & Luồng Business Nội Bộ, Bắt Buộc Test Full Luồng Thật Qua Host & CSDL Local (chốt 24/09/2026)**:
   - **Bản chất vấn đề (Chống Mock mù / False Confidence)**: Việc tự viết class giả lập hời hợt (`TestMockDataOutboundService`, `FakeService`) chỉ để đếm xem hàm có được gọi hay không (`Assert.Single(HandledPacketCodes)`) là **kiểm thử hình thức, tạo ảo giác an toàn**. Khi chạy thực tế, service thật có thể gặp lỗi kết nối DB, lỗi tranh chấp lock OCC, lỗi mapping schema hoặc ném Exception mà bài test mock hoàn toàn không phát hiện được.
   - **Ranh giới rõ ràng giữa thứ ĐƯỢC PHÉP và BỊ CẤM mock**:
-    - ✅ **ĐƯỢC PHÉP Mock duy nhất: Giao tiếp HTTP ra đối tác bên ngoài**:
-      - `IHttpClientFactory` / `MockTestHttpClientFactory` (qua `HttpMessageHandler` nội bộ): Cho phép mock phản hồi HTTP của máy chủ đối tác thứ ba (200 OK, 500 Error, timeout) để kiểm tra cách hệ thống xử lý mà không cần gọi ra Internet hay máy chủ đối tác thật.
+    - ✅ **ĐƯỢC PHÉP giả lập duy nhất: máy chủ HTTP bên ngoài — và BẮT BUỘC bằng mock server `HttpListener` THẬT (chốt 30/09/2026)**:
+      - Mở `HttpListener` trên `127.0.0.1` với dải cổng riêng của phân hệ (VideoWall: 18080–18083 · ShareData: 18090–18093), rồi trỏ cấu hình/dữ liệu của đối tác hoặc thiết bị vào đó. Tầng gửi của sản phẩm chạy nguyên vẹn qua dây mạng thật.
+      - ⛔ **CẤM chặn ở tầng `HttpMessageHandler` giả** (kiểu `MockHttpClientFactoryTest` cũ, đã xoá 30/09/2026). Handler giả bỏ qua bắt tay TCP, xác thực Digest nhiều chặng, BOM trong thân bản tin, timeout và đứt kết nối — tức bỏ qua đúng những chỗ hay hỏng thật.
+      - Mock server BẮT BUỘC có: nhật ký request (method, đường dẫn, header, thân dạng byte), đặt phản hồi **theo lượt gọi** để dựng kịch bản hỏng giữa chừng, cắt kết nối để ép lỗi mạng, và `ResetDefaults()` gom **toàn bộ** cờ kịch bản về mặc định.
+      - 🔴 Mock server dùng chung cả Collection nên **mọi bài đổi kịch bản BẮT BUỘC gọi `ResetDefaults()` ở đầu phần Arrange**. Thiếu là bài sau ăn kịch bản của bài trước, lỗi phụ thuộc thứ tự chạy, rất khó lần ra.
+      - ⚠️ **Ngoại lệ duy nhất được phép ⛔ không đi qua mock server**: bài test kiểm việc **dựng URL** khi đối tác ⛔ không khai cổng (⇒ cổng 80), vì bind cổng 80 cần quyền quản trị. Trường hợp này gọi hàm dựng URI qua Reflection (`BindingFlags.NonPublic`), ⛔ TUYỆT ĐỐI KHÔNG nâng hàm `private` lên `public` để test gọi được. Ví dụ thật: `RestSender_Send_UrlWithAndWithoutPort_ConstructsCorrectUri_Test`.
+      - ⚠️ Khi kiểm lỗi mạng, gửi tới cổng ⛔ không ai lắng nghe và chỉ assert *"thất bại kèm thông điệp"*. ⛔ CẤM khoá cứng chuỗi thông điệp lỗi (`"Connection refused"`) — văn bản đó do .NET và hệ điều hành sinh, khác nhau giữa Windows và Linux.
     - ⛔ **TUYỆT ĐỐI CẤM Mock các thành phần nội bộ**:
       - ❌ CẤM mock NATS / Message Bus nội bộ (`TransportManager`, pub/sub sự kiện trigger giữa các worker trong hệ thống).
       - ❌ CẤM mock toàn bộ luồng Business nội bộ (`IDataOutboundService`, `IDataInboundService`, các Process trích xuất/mapping, Worker).

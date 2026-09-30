@@ -1,13 +1,10 @@
 using Furion;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using NewLife.Caching;
 using Shared.Core.Security;
 using Shared.Core.Settings.Options;
-using Shared.Infrastructure.Localization;
 using System.Globalization;
 using System.Reflection;
 using System.Security.Cryptography;
@@ -89,6 +86,7 @@ public partial class Host : IAsyncLifetime
         GuardAllConnectionsLocal(_host.Services);
         BindFurionRootServices(_host.Services);
         StartModuleTestServers();
+        StartShareDataTestServers();
 
         ClearAllData();
         ClearAllCache();
@@ -104,6 +102,7 @@ public partial class Host : IAsyncLifetime
         _host = null;
 
         StopModuleTestServers();
+        StopShareDataTestServers();
     }
 
     public void ClearAllData()
@@ -173,6 +172,10 @@ public partial class Host : IAsyncLifetime
     partial void StartModuleTestServers();
 
     partial void StopModuleTestServers();
+
+    partial void StartShareDataTestServers();
+
+    partial void StopShareDataTestServers();
 
     partial void ConfigureModuleTestServices(IServiceCollection services, IConfiguration configuration);
 

@@ -1,4 +1,4 @@
-﻿#if HAS_SHAREDATAWORKER
+#if HAS_SHAREDATAWORKER
 using ShareDataWorker.Core.Interfaces;
 using ShareDataWorker.Extensions;
 #endif
@@ -8,10 +8,9 @@ using Module.VideoWall.WPF.Extensions;
 using Module.VideoWall.WPF.ViewModels;
 using Services.Shared.Events;
 #endif
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 #if HAS_VIDEOWALL_WORKER
+using ITS.VideoWall.Core.Interfaces;
 using ITS.VideoWall.Extensions;
 using Module.VideoWall.Core.Interfaces;
 #endif
