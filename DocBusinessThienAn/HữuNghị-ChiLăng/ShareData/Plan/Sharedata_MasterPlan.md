@@ -325,20 +325,20 @@ Nhật ký các việc đã xử lý kèm lý do quyết định: xem §9.5 bên
 
 | Việc | Loại | Trạng thái |
 |---|---|---|
-| Mở kích hoạt sự kiện cho gói bản chụp (điều kiện là cờ `SendOnNewData`), bổ sung bảng `TollTransactionIn` | [prompt](../Prompt/mo-trigger-cho-goi-ban-chup-prompt.md) | ✅ Đã xử lý 23/09/2026 |
-| Hai bộ phân giải mã gói mâu thuẫn: catalog SQL coi `104_rfidData` là gói 105, `ResolvePacketPolicy` coi là 104 | [prompt](../Prompt/thong-nhat-phan-giai-ma-goi-va-mac-dinh-an-toan-prompt.md) | ✅ Đã xử lý 23/09/2026 |
+| Mở kích hoạt sự kiện cho gói bản chụp (điều kiện là cờ `SendOnNewData`), bổ sung bảng `TollTransactionIn` | prompt (đã xoá) | ✅ Đã xử lý 23/09/2026 |
+| Hai bộ phân giải mã gói mâu thuẫn: catalog SQL coi `104_rfidData` là gói 105, `ResolvePacketPolicy` coi là 104 | prompt (đã xoá) | ✅ Đã xử lý 23/09/2026 |
 | Gói 104 và 106 là gói chính thức; nhóm "dự kiến làm sau" đã bị bãi bỏ | Chủ dự án xác nhận 23/09/2026 | ✅ Đã làm rõ |
-| Lượt chạy đầu của gói nối đuôi: cắm mốc lùi một chu kỳ rồi gửi ngay, bỏ thoát sớm | [prompt](../Prompt/gui-ngay-o-luot-chay-dau-goi-noi-duoi-prompt.md) | ✅ Đã xử lý 23/09/2026 |
-| Chính sách gói tin giữ trong code; đổi mặc định sang `NotReady` + đối soát lúc khởi động (`CheckActivePackets`) | [prompt](../Prompt/thong-nhat-phan-giai-ma-goi-va-mac-dinh-an-toan-prompt.md) | ✅ Đã xử lý 23/09/2026 |
-| Thống nhất phân giải mã gói ở `ResolveActivePacket` — gói RFID lưu `104_rfidData` nay khớp được tín hiệu `105_rfidData` | [prompt](../Prompt/thong-nhat-phan-giai-ma-goi-o-resolveactivepacket-prompt.md) | ✅ Đã xử lý 23/09/2026 |
+| Lượt chạy đầu của gói nối đuôi: cắm mốc lùi một chu kỳ rồi gửi ngay, bỏ thoát sớm | prompt (đã xoá) | ✅ Đã xử lý 23/09/2026 |
+| Chính sách gói tin giữ trong code; đổi mặc định sang `NotReady` + đối soát lúc khởi động (`CheckActivePackets`) | prompt (đã xoá) | ✅ Đã xử lý 23/09/2026 |
+| Thống nhất phân giải mã gói ở `ResolveActivePacket` — gói RFID lưu `104_rfidData` nay khớp được tín hiệu `105_rfidData` | prompt (đã xoá) | ✅ Đã xử lý 23/09/2026 |
 | Hiển thị chính sách gói tin trên giao diện ở chế độ **chỉ đọc** | Frontend, tách riêng | ⚠️ Chưa làm |
-| Gói **106** — quyết định lọc `Source` (allow-list rồi `AND 1=0`) bị bãi bỏ 25/09/2026: 4 trường tải trọng vốn không nằm trong `SELECT` nên đã tự `null`, không cần lọc gì. Gói quay về gửi đủ 7 trường thật | [prompt](../Prompt/goi-106-go-test-khoa-chan-prompt.md) (dọn 2 bài test còn khoá hành vi cũ) | ✅ Đã xử lý 25/09/2026, ⚠️ còn 2 bài test chờ gỡ |
-| ✅ Gói **105** — `QueryPacket105` chuyển sang đọc trực tiếp `TollTransactionIn` kèm xử lý `NULLIF` chuỗi rỗng biển số và `exitTime` null | [prompt](../Prompt/goi-105-doc-tolltransactionin-prompt.md) | ✅ Đã xử lý 24/09/2026 |
+| Gói **106** — quyết định lọc `Source` (allow-list rồi `AND 1=0`) bị bãi bỏ 25/09/2026: 4 trường tải trọng vốn không nằm trong `SELECT` nên đã tự `null`, không cần lọc gì. Gói quay về gửi đủ 7 trường thật | prompt (đã xoá) (dọn 2 bài test còn khoá hành vi cũ) | ✅ Đã xử lý 25/09/2026, ⚠️ còn 2 bài test chờ gỡ |
+| ✅ Gói **105** — `QueryPacket105` chuyển sang đọc trực tiếp `TollTransactionIn` kèm xử lý `NULLIF` chuỗi rỗng biển số và `exitTime` null | prompt (đã xoá) | ✅ Đã xử lý 24/09/2026 |
 | Gói **105** — tạo bản ghi `105_rfidData` trong `ShareDataPacket` (`104_rfidData` đã xoá 24/09) | Script: [`doc/sql/seed-goi-105-rfiddata.sql`](../doc/sql/seed-goi-105-rfiddata.sql) | ✅ Đã xử lý 24/09/2026 — bản ghi `OrderNo = 5` tạo lúc 10:38 |
-| Gói bản chụp từng chưa có giới hạn số dòng — gói 105 từng đọc nguyên bảng `TollTransactionOut`, không `TOP` không `WHERE`. Giới hạn 100 dòng áp từ **tầng Service** (bọc truy vấn con), không đụng `ShareDataPacketSqlCatalog`; sau đó gói 105 đổi hẳn sang đọc `TollTransactionIn` kèm `TOP (@snapshotTop)` riêng, không qua catalog nữa | [prompt](../Prompt/gioi-han-so-dong-goi-ban-chup-prompt.md) + [prompt](../Prompt/goi-105-doc-tolltransactionin-prompt.md); 102/108 không giới hạn, 101 chờ kiểm chứng thực tế | ✅ Đã xử lý 24/09/2026 |
+| Gói bản chụp từng chưa có giới hạn số dòng — gói 105 từng đọc nguyên bảng `TollTransactionOut`, không `TOP` không `WHERE`. Giới hạn 100 dòng áp từ **tầng Service** (bọc truy vấn con), không đụng `ShareDataPacketSqlCatalog`; sau đó gói 105 đổi hẳn sang đọc `TollTransactionIn` kèm `TOP (@snapshotTop)` riêng, không qua catalog nữa | prompt (đã xoá) × 2; 102/108 không giới hạn, 101 chờ kiểm chứng thực tế | ✅ Đã xử lý 24/09/2026 |
 | Thiếu test cho 2 kịch bản sập hệ thống (nhận lại quyền xử lý sau khi worker chết; worker giám sát khởi động lại) | Việc kỹ thuật | ✅ Đã bổ sung 23/09/2026 |
-| Test kịch bản mất kết nối CSDL giữa chừng | [prompt](../Prompt/test-mat-ket-noi-csdl-giua-chung-prompt.md) | ✅ Đã xử lý 23/09/2026 |
-| Dọn dấu vết `104_rfidData` sau khi bản ghi bị xoá khỏi CSDL staging: giữ bí danh làm lưới chặn hồi quy, đổi tên 2 bài test | [prompt](../Prompt/don-dau-vet-104-rfiddata-prompt.md) | ✅ Đã xử lý 24/09/2026 |
+| Test kịch bản mất kết nối CSDL giữa chừng | prompt (đã xoá) | ✅ Đã xử lý 23/09/2026 |
+| Dọn dấu vết `104_rfidData` sau khi bản ghi bị xoá khỏi CSDL staging: giữ bí danh làm lưới chặn hồi quy, đổi tên 2 bài test | prompt (đã xoá) | ✅ Đã xử lý 24/09/2026 |
 | `DataChangeTrackingService` lặp lỗi vô hạn khi mốc `LastVersion` rơi ra ngoài cửa sổ hợp lệ `CHANGE_TRACKING_MIN_VALID_VERSION` (worker/service ngừng cập nhật mốc lâu hơn 1 ngày retention) | `sharedata-tu-phuc-hoi-change-tracking-min-valid-version-prompt.md` (đã xoá) | ✅ Đã xử lý 25/09/2026, cập nhật tách service 28/09/2026 — verify độc lập tại `DataChangeTrackingService.cs` |
 | `ProcessSubscriptions` (overload quét theo lịch; tài liệu từng ghi `ProcessScheduledSubscriptions`/`ProcessBatchSubscriptions` — code thật giữ tên `ProcessSubscriptions` với 2 overload) tạo mới `IServiceScopeFactory` scope + SqlSugar client riêng cho từng subscription trong vòng `foreach` thay vì dùng chung 1 scope cho cả batch | Không có file prompt tương ứng trên đĩa (đường dẫn được ghi trong báo cáo không tồn tại) | ✅ Đã xử lý 25/09/2026 — verify độc lập tại `DataOutboundService.cs:59-61,92` (1 scope duy nhất, `CopyNew()` trong loop) |
 
@@ -583,6 +583,9 @@ Nhờ commit theo từng trang, khi trang thứ N gửi lỗi thì các trang tr
 - [x] Khóa ô Cổng (`Port`) khi ở chế độ Sửa đối tác (`editPartner.vue`).
 - [ ] Chặn gửi khi thiếu hồ sơ ánh xạ + badge trạng thái "Đã có/Chưa có Ánh xạ" (xanh/xám) trên bảng gói tin của đối tác — theo chốt họp 21/09 Phiên 3 mốc 02:35-02:51 ("bắt buộc phải có mapping, không có thì báo lỗi, không cho gửi"). Hiện `editSubscription.vue` chỉ hiện cảnh báo rồi vẫn cho gửi theo mặc định gói tin, `subscriptionTable.vue` chưa có badge. Chưa làm vì đang ưu tiên luồng Backend nối đuôi/event trước.
 - [x] **Thông báo khi xóa đăng ký đang chạy đã đọc được.** Mã `lz.exception.sharedata.subscriptionMustPauseBeforeDelete` trước đây hiện nguyên key vì backend chưa có bản dịch; nay ra "Đăng ký đang chạy, vui lòng tắt trước khi xóa." Xong 30/09/2026 (bug TuyenHTN mục 19).
+- [x] **Đặt trần 86400 giây cho ô Chu kỳ** (`editSubscription.vue`). Ô `el-input-number` trước đây chỉ có `:min="5"`, thiếu `:max` nên Element Plus kẹp giá trị quá lớn về `Number.MAX_SAFE_INTEGER` (9007199254740991) — vượt `Int32` ⇒ backend ném nguyên văn exception .NET `The JSON value could not be converted to System.Nullable'1[System.Int32]`. Trần 86400 = 1 ngày, vì lịch Liên tục luôn kèm khung giờ nên chu kỳ dài hơn một ngày là vô nghĩa. Xong 01/10/2026 (bug TuyenHTN mục 1 & 2).
+- [x] **Khoá ô Mã đối tác khi Sửa** (`editPartner.vue`) — bọc `el-tooltip` + `:disabled="props.operateType === 'edit'"`, bê đúng mẫu của ô Cổng ngay bên dưới; key mới `lz.tooltip.sharedataPartner.codeLocked`. Xong 01/10/2026 (bug TuyenHTN mục 4).
+- [x] **Sao chép đối tác: xoá `code` của bản nguồn trong `openDialog`** (`editPartner.vue`). Kèm 2 vá trong `submit`: bỏ `ElMessage.error(e?.message)` gây **toast hiện 2 lần** (interceptor `axios-utils.ts` đã hiện message backend rồi — cùng loại lỗi đã xử ở `dataSource/index.vue`), và chuyển `closeDialog()` ra khỏi `finally` để **lưu hỏng không đóng mất hộp thoại**. Xong 01/10/2026 (bug TuyenHTN mục 3).
 
 ## B. Cấu hình Gói tin — `dataSource/index.vue`
 - [x] Bỏ cột Bí danh, Vai trò, Kiểu nối, Điều kiện nối; đổi cột Bảng dữ liệu thành "Tệp dữ liệu".
@@ -591,6 +594,13 @@ Nhờ commit theo từng trang, khi trang thứ N gửi lỗi thì các trang tr
 - [x] **Bỏ toast generic "Thực hiện thất bại"** ở `handleDeletePacket` và `handleDeleteField` — interceptor `axios-utils.ts` đã hiển thị message thật của backend, toast cục bộ chỉ đè lấp nó. Xong 30/09/2026 (bug TuyenHTN mục 4 & 22).
 - [ ] **Làm mờ nút Xóa + tooltip giải thích khi gói tin đang được dùng.** Chưa làm: `ShareDataPagePacketOutput` là class rỗng, chưa trả cờ usage; điều kiện chặn nằm ở `private IsDatatypeInUseAsync()` (`PacketCommandHandler.cs:156` — có hồ sơ ánh xạ **hoặc** có đăng ký còn Alive). Làm được thì phải thêm `IsInUse` vào DTO rồi chạy lại `pnpm build-api`, nên tách Pha 2 chờ đồng bộ với người giữ nhịp regen `api-services/`. Mẫu để bê nguyên: `subscriptionTable.vue` dùng `canToggle()` + `toggleTitle()` → `:disabled` + `el-tooltip`.
   - 🔴 **Cảnh báo nghiệp vụ, cần phản hồi TuyenHTN**: backend ⛔ **không** chặn toàn bộ Sửa. `PacketCodeNameLocked` (`PacketCommandHandler.cs:85-91`) chỉ khoá đổi **Mã/Tên**; `PacketVersion`, `Description`, `OrderNo`, `Status`, `Remark` vẫn sửa được. Nên "ẩn/mờ nút Sửa" như bug mục 22 đề nghị là **sai nghiệp vụ** — đúng là để nút Sửa mở bình thường và disable riêng 2 ô Mã/Tên trong `editPacket.vue`.
+- [x] **Nhãn ô tìm kiếm của lưới Trường gói tin khớp tiêu đề cột**: `lz.entity.base.code` ("Mã") → `lz.entity.sharedataDataSource.aliasFieldKey` ("Khóa field"), `lz.entity.base.type` ("Loại") → `lz.entity.sharedataDataSource.fieldType` ("Kiểu"), đổi cả `:label` lẫn tham số của `:placeholder`. Dùng lại đúng key của cột, ⛔ không tạo key mới. Thanh tìm của lưới Gói tin bên trái giữ nguyên Mã/Tên. Xong 01/10/2026 (bug TuyenHTN mục 6).
+- [ ] **Danh mục `sharedata_value_type` bổ sung 5 kiểu**: `long`, `float`, `double`, `decimal`, `guid` (trước chỉ có `string`, `int`, `dateTime`, `bool`). 🔴 Đây là **dữ liệu danh mục trong CSDL**, ⛔ không phải lỗi mã nguồn — cả dropdown "Loại" của `editPacketField.vue:58` lẫn "Kiểu dữ liệu phía đối tác" của `editMapping.vue:375` đều đọc chung `getConfigDataByCode(BaseConfigTypeEnum.SharedataValueType)` (bug TuyenHTN mục 7 & 25).
+  - ✅ **Phần mã nguồn xong 01/10/2026**: nhánh `guid` đã thêm vào `previewCoerce` của `editMapping.vue` (`long`/`decimal`/`double`/`float` vốn đã có sẵn).
+  - ❌ **Phần dữ liệu CHƯA xong**: script [`../sql/20261001-bo-sung-sharedata-value-type.sql`](../sql/20261001-bo-sung-sharedata-value-type.sql) (idempotent, chạy riêng từng môi trường) **chưa được chạy trên staging `10.10.8.30`** — đo 02/10/2026: danh mục vẫn **đúng 4 dòng**. ⇒ Dropdown **vẫn chỉ 4 lựa chọn**, người dùng chưa thấy khác gì.
+    - ⚠️ **Số đo này chỉ đúng cho staging.** Các bản triển khai khác (vd `115.78.1.139`) dùng CSDL riêng và **chưa kiểm được** — `mssql_dev` / `mssql_test` đang `CONNECT_TIMEOUT`.
+    - 📌 **Tự kiểm không cần đụng CSDL**: mở **Cấu hình gói tin → Thêm Trường gói tin** → đếm dropdown **Loại**. **4** = chưa chạy · **9** = đã chạy.
+  - 🔴 **Vì sao để `[ ]`**: sửa mã nguồn xong nhưng triệu chứng tester báo **vẫn còn nguyên**. Chỉ đánh `[x]` sau khi script đã chạy và dropdown hiện đủ **9 lựa chọn**.
 
 ## C. Ánh xạ dữ liệu — `mapping/index.vue` & `editMapping.vue`
 - [x] Bỏ bộ lọc Định dạng và phiên bản gói tin; chuẩn hoá i18n "Ánh xạ dữ liệu".
@@ -599,15 +609,140 @@ Nhờ commit theo từng trang, khi trang thứ N gửi lỗi thì các trang tr
 - [x] Gom nhóm "Trường Meta hệ thống" trong dropdown chọn trường.
 - [x] **Hiện `[mã] tên` ở ô chọn Đối tác và Gói tin** trong modal (helper `codeNameLabel`) — phân biệt bản ghi trùng tên khác mã; `filterable` lọc được cả mã. Xong 30/09/2026 (bug TuyenHTN mục 2 & 18).
 - [x] **Ô Mã: nhãn riêng `lz.entity.sharedataMapping.code` ("Mã hồ sơ ánh xạ") + `disabled` cho xám hẳn.** Gỡ `:disabled="true"` đặt sai trên `el-form-item` (component này không có prop đó) và gỡ `rules required` vì ô này để trống cho backend tự sinh. Xong 30/09/2026 (bug TuyenHTN mục 15).
-- [x] **Sao chép hồ sơ ánh xạ: xoá `id`/`code`/`isActive` SAU khi `GetById` ghi đè** trong `openDialog`. Trước đó copy giữ nguyên `code` của bản gốc ⇒ backend chặn trùng mã (`MappingCommandHandler.cs:92`) rồi báo "Mã đã tồn tại trong hệ thống!" trên ô người dùng không sửa được. Bản mới để trạng thái tắt để không đụng hồ sơ đang bật cùng đối tác/gói tin/chiều. Xong 30/09/2026 (bug TuyenHTN mục 13).
+- [x] **Sao chép hồ sơ ánh xạ: xoá `id`, tắt `isActive`, và DỰNG LẠI `code` bằng `syncMappingCode()`** trong `openDialog`, sau khi `GetById` ghi đè. Xong 01/10/2026 (bug TuyenHTN mục 13, 14, 16).
+  - 🔴 **Bản sửa ngày 30/09 đặt `code = ''` là SAI và đã gây lỗi nặng hơn — ⛔ lượt sau đừng khôi phục lại.** `MappingCommandHandler.cs:92` bỏ qua kiểm tra trùng khi `Code` rỗng và backend ⛔ **không tự sinh mã**; ô Mã lại đang `disabled` nên người dùng ⛔ không gõ vào được ⇒ sao chép lưu thành công nhưng **ra bản ghi có Mã RỖNG**.
+  - **Cách đúng**: mã hồ sơ là **khoá tự nhiên** `{MÃ_ĐỐI_TÁC}_{MÃ_GÓI_TIN}_{CHIỀU}` (`buildMappingCode`). Gọi `syncMappingCode()` để dựng lại theo đối tác/gói tin/chiều hiện tại của form. Sao chép mà ⛔ không đổi một trong ba thứ đó là mâu thuẫn tự thân — backend trả "Mã đã tồn tại trong hệ thống!" là thông điệp **đúng**; đổi Gói tin hoặc Chiều thì `watch` tự dựng mã mới.
+  - Thêm dòng gợi ý dưới ô Mã khi `operateType === 'copy'` (key `lz.label.sharedataMapping.codeAutoHint`) để người dùng biết phải đổi cái gì. ⛔ Không mở `disabled` của ô Mã.
+- [x] **Câu cảnh báo trường bắt buộc nói rõ "giá trị nguồn rỗng"**: `lz.message.sharedataMapping.requiredFieldEmptyWillBlock` đổi từ *"Trường bắt buộc {field} đang rỗng"* thành *"…đã được ánh xạ nhưng giá trị nguồn trong cơ sở dữ liệu đang rỗng"*. Ảnh issue 20b chứng minh hai trường **đã map**, ảnh 20a cho thấy `weatherId`/`status` NULL trong dữ liệu thật ⇒ ⛔ không phải lỗi ánh xạ. Chỉ sửa chuỗi, ⛔ không đụng `previewLeafValue`. Xong 01/10/2026 (bug TuyenHTN mục 20).
 
 ## D. Lịch sử chia sẻ — `history/index.vue`
 - [x] Đổi nhãn: "Nhật ký cấu hình" và "Nhật ký truyền nhận".
 - [x] Bộ lọc thời gian chuẩn hóa `datetimerange`; bỏ ô lọc "Nội dung". ⚠️ Dòng này từng ghi `[x]` **sai** từ trước: tệp thực tế dùng 2 ô `type="datetime"` rời, và **bộ lọc bị vô hiệu hoàn toàn** — template bind `state.query.fromDate`/`toDate` còn `handleQueryApi()` lại đọc `toIsoRange(state.dateRange)`, nên người dùng chọn ngày nào kết quả cũng không đổi. Gộp về một nguồn `state.dateRange` với một ô `datetimerange` ngày 30/09/2026; đồng thời sửa 3 phím tắt 24h/7 ngày/30 ngày (trả `[Date, Date]` — sai kiểu cho picker đơn) và dọn lệch mặc định 7 ngày vs 3 ngày.
 - [x] Double-click dòng mở modal chi tiết `activityDetailDialog.vue` thay cho sidebar; sửa lỗi so sánh enum chuỗi sang số; dựng khung `el-steps` 2 bước cha-con.
+- [x] **Chặn chọn thời gian ở tương lai** — thêm `:disabled-date="disableFutureDate"` (cắt tại `dayjs().endOf('day')` để hôm nay vẫn chọn được). Ảnh issue 28a: tester đặt bắt đầu `2030-01-01`, kết thúc `2028-09-30` mà vẫn ra đủ 178 bản ghi. Hai triệu chứng còn lại của issue 28 đã đóng từ 30/09: thứ tự bắt đầu/kết thúc do `datetimerange` tự ràng buộc, và kết quả ngoài phạm vi là do bộ lọc cũ không tới được truy vấn. 📌 Backend ⛔ **không có lỗi** — `ActivityLogQueryHandler.cs` lọc `OccurredAt` đúng ở cả 3 truy vấn (dòng 52-53, 83-84, 116-117). Xong 01/10/2026 (bug TuyenHTN mục 28).
 
 ## E. Tooltip đồng bộ toàn module
 - [x] Toàn bộ tooltip chuyển sang component chuẩn `el-tooltip effect="dark"`.
+- [x] **Tooltip cho nút "Làm mới"** trong `components/advanced/table-header-operation.vue` (dùng chung toàn hệ thống): key `lz.tooltip.base.refreshKeepFilter` — *"Nạp lại dữ liệu, giữ nguyên điều kiện lọc hiện tại. Muốn bỏ lọc thì bấm Đặt lại."* Hai nút cùng icon `ele-Refresh` nhưng khác việc: **Làm mới** nối `@refresh` → `handleQuery` (giữ lọc), **Đặt lại** nối `@reset` (xoá lọc). Thay đổi thuần cộng thêm, ⛔ không đụng hành vi hay nhãn. Xong 01/10/2026 (bug TuyenHTN mục 11).
+
+## F. Câu hỏi chờ phản hồi TuyenHTN — đợt F16 ngày 29/09/2026
+
+🔴 Năm issue dưới đây **⛔ không sửa được bằng mã nguồn** cho tới khi có quyết định nghiệp vụ. Đã rà mã
+nguồn đầy đủ ngày 01/10/2026; mỗi mục ghi đúng ba thứ: *hiện trạng · vì sao chưa làm được · cần quyết gì*.
+Nguồn gốc: [`../KiemThu/F16-nhat-ky-loi-issue-20260929.md`](../KiemThu/F16-nhat-ky-loi-issue-20260929.md).
+
+- [ ] **Mục 9 — nhãn "Quản lý dự án TCP - V2.0" trên thanh đầu trang.**
+  - 🔴 **Bản ghi ngày 01/10 là SAI, ⛔ đừng đi lại đường đó.** Bản đó nói nhãn này là
+    `themeConfig.globalTitle` lấy từ `sysTitle`. Sai: `globalTitle` chính là **dòng chữ to ở giữa**
+    (`topBar/index.vue:9` → `<h1 class="top-bar-title">`), mà ảnh cho thấy dòng đó **đang đúng**
+    (`HỆ THỐNG GIÁM SÁT GIAO THÔNG`). Chuỗi cần xử nằm trong **ô có viền, bo góc, bên TRÁI** — thành
+    phần khác hẳn. Sửa `sys_web_title` là làm hỏng đúng dòng đang chạy tốt.
+  - **Đã loại trừ chắc chắn** (rà 02/10/2026):
+
+    | Ứng viên | Căn cứ loại trừ |
+    | --- | --- |
+    | Mã nguồn frontend | Gortex `search text` với `"V2.0"` và `"Quản lý dự án"` → **0 hit** trong `TA-ITS015-WEBVUE-V1.0` |
+    | `sys_web_title` (`SysConfig` / `WebConfig`) | Staging = *"Hệ thống giám sát giao thông"* — **chính là dòng chữ to đã đúng** |
+    | `VITE_APP_NAME` trong repo | `src/.env.production:5` = `TMS`; `.env` và `.env.development` ⛔ không khai |
+    | `SysMenu` cấp 1 trên staging | 48 dòng `Pid = '0'`, ⛔ không dòng nào chứa "TCP" |
+    | `incidentNotification.vue` | Chỉ render khi có sự cố; nội dung là loại sự cố + lý trình |
+    | `logo/index.vue` | Chỉ còn `<img>`; dòng `<span>{{ globalTitle }}</span>` đã bị comment ở `:4` |
+
+  - **Hai ứng viên còn lại**, cả hai đều là **dữ liệu/cấu hình của môi trường tester**:
+    - **(a) Tiêu đề tab trình duyệt** — `utils/other.ts:49-51` dựng
+      `document.title = ${appName} | ${webTitle} - ${globalTitle}`, với
+      `appName = window.__env__?.VITE_APP_NAME` (sinh vào `public/config.js` **theo từng lần triển khai**).
+      Tab trình duyệt đúng là một ô bo góc có viền, chữ nhỏ hơn `<h1>` — khớp hệt ảnh.
+    - **(b) Breadcrumb** — `breadcrumb.vue:9` render `$t(v.meta.title)`, `meta.title` đến từ **cây menu
+      backend** (`SysMenu.Title`). ⚠️ Điểm trừ: `<style scoped>` của tệp đó ⛔ không khai `border` nào.
+  - **Cần quyết**: chạy chẩn đoán theo mục **3.1** của
+    [`../Prompt/sharedata-chot-so-phien-ra-soat-0210-prompt.md`](../Prompt/sharedata-chot-so-phien-ra-soat-0210-prompt.md)
+    (2 lệnh F12 Console + 4 câu `SELECT`, chạy trên **đúng môi trường tester**): F12 → Console →
+    `document.title` và `window.__env__?.VITE_APP_NAME`; nếu không chứa chuỗi đó thì chạy 4 truy vấn,
+    hoặc Inspect ô có viền → đọc `class`. Rồi TuyenHTN quyết **đổi thành chữ gì** hay
+    **ẩn hẳn** (issue ghi *"Đổi **hoặc ẩn**"*).
+  - **Có chặn luồng đang chạy không**: ⛔ Không — chỉ là nhãn hiển thị.
+- [ ] **Mục 17 — sửa hồ sơ ánh xạ đang được đăng ký dùng.**
+  - **Hiện trạng**: tiêu đề issue mô tả **sai nguyên nhân**. Ảnh b chứng minh *lấy dữ liệu mẫu THÀNH CÔNG*
+    (dựng đủ `header` + `data` từ 2 bản ghi thật của `101_commonData`); lỗi
+    `lz.exception.sharedata.mappingInUse` chỉ bắn ra lúc **bấm Xác nhận để lưu**.
+  - **Cần quyết**: có cho sửa hồ sơ đang được đăng ký dùng không? Nếu **có**, chặn riêng những trường nào
+    (đối tác / gói tin / chiều là khoá tự nhiên, đổi là đổi luôn danh tính hồ sơ)? Nếu **không**, giao
+    diện nên làm mờ nút Sửa thay vì để người dùng điền xong rồi mới báo lỗi.
+  - **Có chặn luồng đang chạy không**: ⚠️ Có — người dùng hiện ⛔ không sửa được hồ sơ đang chạy.
+- [ ] **Mục 23 — ẩn nhóm "Trường gói tin" khi đang ở khoá header.**
+  - **Hiện trạng**: `editMapping.vue` **⛔ không có khái niệm "nhóm header"**. `header` và `data` là tên
+    khoá trong **JSON riêng của từng đối tác**, ⛔ không phải khái niệm hệ thống — lọc theo chữ `header`
+    là hardcode magic string (rule 7 cấm). Nặng hơn: `buildPreviewAggregate` (`:1598`) **cố ý** cho lá
+    nằm **ngoài** mảng khuôn lấy giá trị của **bản ghi đầu tiên**, kèm chú thích *"đúng như nhánh gộp của
+    service"* ⇒ ẩn nhóm đó ở header sẽ làm **frontend lệch khỏi hành vi của service**.
+  - **Cần quyết**: (a) chấp nhận để nguyên như hiện nay, hay (b) định nghĩa "header" thành một khái niệm
+    hệ thống áp dụng được cho **mọi** đối tác — và nếu chọn (b) thì **service phải đổi cùng lúc**.
+  - **Có chặn luồng đang chạy không**: ⛔ Không — chỉ là dropdown hiện nhiều lựa chọn hơn cần thiết.
+- [ ] **Mục 24 — kiểu dữ liệu và giá trị mặc định không có tác dụng khi lấy dữ liệu mẫu.**
+  - **Hiện trạng**: tìm ra đúng dòng. `buildPreviewNode` (`:1558-1560`) — lá **chưa gắn `fieldKey`** thì
+    trả thẳng `parseConst(cfg?.constValue ?? '')`, **⛔ bỏ qua hoàn toàn `targetType` và cả hai giá trị
+    mặc định**. Đúng tình huống của ảnh: tester chỉ đặt `Kiểu dữ liệu = string` và
+    `Giá trị nội bộ mặc định = 123456` cho `header.sessionId` mà ⛔ không gắn trường gói tin nào.
+    Thêm nữa, `previewLeafValue` (`:1502`) **cố ý** chỉ áp `defaultPartnerValue` cho payload **gửi đi**.
+  - **Cần quyết**: (1) với lá **chưa gắn trường gói tin**, service có áp `Kiểu dữ liệu phía đối tác` và
+    giá trị mặc định không? (2) payload **gửi đi** thì phải lấy *"Giá trị đối tác mặc định"* hay
+    *"Giá trị nội bộ mặc định"*? Màn chạy thử phải mô phỏng **đúng** service, nên ⛔ không tự quyết được.
+  - **Có chặn luồng đang chạy không**: ⚠️ Có — màn chạy thử đang cho kết quả khác với lúc gửi thật.
+- [ ] **Mục 26 — tự sinh GUID cho trường bắt buộc đang NULL.**
+  - **Hiện trạng**: cùng họ với mục 20 — dữ liệu nguồn `message`/`status`/`sessionid` của gói
+    `104_weatherData` đang NULL, ⛔ không phải lỗi ánh xạ. Mục 20 đã sửa câu cảnh báo cho rõ nghĩa.
+  - **Cần quyết**: có thêm **khoá dựng sẵn thứ 5** (`NewGuid`) bên cạnh `Now` / `Serial` / `PacketCode` /
+    `PartnerCode` (`editMapping.vue:654-659`) không? Đây là **tính năng mới**: frontend và service phải
+    sinh **y hệt** nhau, ⛔ không làm riêng một bên được.
+  - **Có chặn luồng đang chạy không**: ⚠️ Có — gói có trường bắt buộc mà nguồn NULL thì bị service chặn.
+
+### ✅ Thuật ngữ "hồ sơ ánh xạ" — đã chốt, chờ chạy script
+
+🔴 **Căn cứ: rule 19.26** (bản 01/10/2026) — Backend ⛔ **không dùng** `TAC_WebAPI/Resources/*.json`;
+mọi bản dịch của Backend nằm trên CSDL `SysTerminology`. ⇒ Bảng đó là **nguồn duy nhất**, ⛔ không có
+"tệp JSON để đối chiếu" nữa.
+
+✅ **Gỡ key khỏi `Resources/*.json` ⛔ KHÔNG làm mất bản dịch** — kiểm chứng staging 02/10/2026:
+
+| Nhóm key `sharedata.*` | `vi-VN` | `en-US` |
+| --- | --- | --- |
+| `lz.exception` | **27** ✅ | **27** ✅ |
+| `lz.validation` | **7** ✅ | ⚠️ chưa kiểm |
+| `lz.message` | **2** ✅ | ⚠️ chưa kiểm |
+| `lz.entity` | **23** ✅ | ⚠️ chưa kiểm |
+
+📌 Hai tệp `Resources/vi-VN.json` và `en-US.json` hiện **129 / 69 dòng, 0 key `sharedata`**, `git` sạch —
+59 key đưa vào ngày 30/09 đã được gỡ, đúng rule mới.
+
+**Khuyết tật còn lại: 9 dòng `vi-VN` sai chữ.** Bản `en-US` đã sạch (*"mapping profile"*), ⛔ không đụng.
+
+| Nhóm | Key | Vấn đề |
+| --- | --- | --- |
+| `lz.exception` | `codeSetInUse` · `mappingActiveDuplicated` · `packetCodeNameLocked` · `packetFieldInUse` · `packetFieldLocked` · `packetInUse` | còn chữ **"phễu lọc"** |
+| `lz.validation` | `mappingFieldKeyRequired` | 🔴 lượt rà 01/10 chỉ quét `lz.exception` nên **bỏ sót** — dòng này cũng ghi "phễu lọc" |
+| `lz.exception` | `mappingConflictInUse` · `mappingInUse` | đã "hồ sơ ánh xạ" nhưng câu cũ lặp chữ *"đang … đang"*, lệch với bản `en-US` trong cùng bảng |
+
+**Căn cứ chọn "hồ sơ ánh xạ"** — nhật ký lỗi F16, tester ⛔ **không một lần nào** viết "phễu lọc":
+
+| Issue | Nguyên văn của tester |
+| --- | --- |
+| 13 | "Sao chép **ánh xạ dữ liệu** báo lỗi khó hiểu" |
+| 14 | "Sao chép **ánh xạ** không cho nhập lại Mã" |
+| 17 | "Chỉnh sửa **ánh xạ**, lấy dữ liệu mẫu không thành công" |
+| 21 | "Đang có **ánh xạ dữ liệu** thì không cho sửa ⇒ chỉnh câu thông báo" |
+| 22 | "Gói tin đã có **hồ sơ ánh xạ** thì không sửa/xóa được" |
+
+Giao diện cũng gọi màn đó là *"Ánh xạ dữ liệu"* ⇒ **chốt "hồ sơ ánh xạ"**, ⛔ không còn là câu hỏi treo.
+
+**Việc còn lại**: chủ dự án chạy
+[`../sql/20261002-dong-bo-thuat-ngu-systerminology.sql`](../sql/20261002-dong-bo-thuat-ngu-systerminology.sql)
+— seed idempotent cho 9 key (`IF EXISTS → UPDATE ELSE → INSERT`, nên chạy được cả trên môi trường chưa
+có dòng). Khối kiểm chứng cuối phải trả **0 dòng** còn chữ "phễu lọc" trên **mọi** nhóm, và in bảng độ
+phủ `Name × Lang` để lộ nhóm nào còn thiếu bản `en-US`. ⛔ AI không chạy (rule 9).
+
+📌 Nợ kỹ thuật kèm theo (đã ghi 30/09): bản dịch của `cctvDevice` / `wp` / `vmsTemplate` hiện **chỉ tồn
+tại trong `SysTerminology`, ⛔ không có commit nào** — dựng môi trường mới là mất sạch.
 
 ---
 
@@ -685,6 +820,26 @@ Toàn bộ cấu hình ánh xạ trường thuộc quyền điều khiển của
 ---
 
 # PHẦN V — BẢO ĐẢM AN TOÀN & KIỂM THỬ (TESTING)
+
+## 0. Ngữ nghĩa đã khoá bằng test — *số bản tin NATS ≠ số lần gửi HTTP*
+
+Tiêu chí nghiệm thu của cơ chế gửi tức thì là **đối tác nhận đủ dữ liệu**, ⛔ không phải "đếm số bản tin
+NATS". Bốn bài test trong `tests/ITS/ShareData/Services/DataChangeTrackingServiceTests.cs` khoá lại
+ngữ nghĩa đó (căn cứ: biên bản họp 21/09/2026, mốc `07:08` · `13:36` · `14:31`):
+
+| Ngữ nghĩa được khoá | Bài test |
+| --- | --- |
+| N thay đổi trên 2 bảng ⇒ đúng **1 bản tin / mã gói** | `Tracker_WhenManyChangesAcrossTwoTables_PublishesOneMessagePerPacketCode_Test` |
+| 10 dòng đổi cùng lúc ⇒ đúng **1 request** mang đủ 10 bản ghi | `TriggerFlow_WhenTenRowsChangeAtOnce_SendsOneBatchWithAllRows_Test` |
+| Trigger lặp 5 lần ⇒ **gửi 1 lần**, các lần sau báo không có dữ liệu mới | `TriggerFlow_WhenSameTriggerArrivesFiveTimes_SendsDataOnceThenReportsNoNewData_Test` |
+| Sửa bản ghi đã gửi ⇒ đối tác chỉ nhận bản mới **nếu mốc gửi tiến lên** | `TriggerFlow_WhenSentRowIsUpdated_PartnerReceivesNewVersionOnlyIfWatermarkAdvances_Test` |
+
+🔴 **Giới hạn đã biết, do bài thứ 4 khoá lại**: sửa một bản ghi **đã gửi** mà **quên nâng `UpdateTime`**
+thì mốc gửi ⛔ không tiến, và đối tác **không bao giờ nhận được** bản sửa đó. Đây là hành vi **cố ý** của
+cơ chế gửi nối đuôi, ⛔ không phải lỗi — nhưng phải biết khi sửa dữ liệu bằng tay hoặc bằng script.
+
+📌 Ghi nhận 02/10/2026 sau khi rà lại: 4 bài này **đã có và đang bật** từ trước, chỉ là MasterPlan chưa
+bao giờ ghi lại.
 
 ## 1. Các chốt chặn an toàn bắt buộc (Mandatory Safeguards)
 1. **Strict Local Database for `dotnet test`**: Toàn bộ connection string dùng khi chạy test PHẢI trỏ về `local` (`localhost`, `127.0.0.1`, `(localdb)`, `.`). Nếu phát hiện IP remote (ví dụ `10.10.8.30`), HỦY test ngay lập tức.

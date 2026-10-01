@@ -21,47 +21,33 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 | Prompt | Nội dung |
 |---|---|
-| [`sharedata-test-chuong-vs-hang`](sharedata-test-chuong-vs-hang-prompt.md) | 4 bài khoá ngữ nghĩa **số bản tin NATS ≠ số lần gửi HTTP**, tiêu chí nghiệm thu là **đối tác nhận đủ**: N thay đổi trên 2 bảng ⇒ đúng 1 bản tin/mã gói · 10 dòng ⇒ đúng 1 request mang đủ 10 bản ghi · trigger lặp 5 lần ⇒ vẫn chỉ gửi 1 lần · 🔴 sửa bản ghi đã gửi mà quên nâng `UpdateTime` ⇒ đối tác **không** nhận được (giới hạn đã biết). Căn cứ biên bản họp 21/09 mốc `07:08`/`13:36`/`14:31` + MasterPlan dòng 352/356 — ⚠️ chưa thực thi |
-| [`sharedata-chuyen-mock-http-sang-server-that`](sharedata-chuyen-mock-http-sang-server-that-prompt.md) | 🔴 **Prompt 05 của đợt refactor bộ test (30/09/2026)** — bỏ mock `HttpMessageHandler`, chuyển ≈30 call site sang mock server `HttpListener` THẬT (`ShareDataPartnerServerMock`, cổng 18090–18093); xoá `tests/Mock/`; refactor `SeedOutboundSubscription` sang `OutboundSubSeed` record. ⚠️ **Điều kiện tiên quyết: prompt 01–04 ở [`../../VideoWall/Prompt/README.md`](../../VideoWall/Prompt/README.md) đã áp xong và test xanh.** Sổ theo dõi: [`../../Plan/Test_Refactor_MasterPlan.md`](../../Plan/Test_Refactor_MasterPlan.md) — ✅ **30/09/2026 · 183/183 PASS** ⛔ Không xoá |
+| [`sharedata-chot-so-phien-ra-soat-0210`](sharedata-chot-so-phien-ra-soat-0210-prompt.md) | **Chốt sổ phiên rà soát 02/10/2026** — gộp từ 2 prompt H + I của cùng phiên (2 tệp gốc đã xoá, nội dung nằm trọn trong tệp này). Gồm: 5 phát hiện đã kiểm chứng (✅ CSDL đã đủ **59 key** nên gỡ khỏi `Resources/*.json` ⛔ không mất bản dịch · 🔴 còn **9 dòng `vi-VN`** sai chữ · 🔴 chẩn đoán issue 9 ngày 01/10 là **SAI** · 🔴 ghi nhận "bộ test chưa thực thi" cũng **SAI**, cả 4 bài đang bật · ⚠️ số đo chỉ đúng cho staging `10.10.8.30`); bảng **8 chỗ đã sửa trong tài liệu**; và **3 script chờ chủ dự án chạy**. ⛔ Không đụng mã nguồn. ⛔ Không xoá |
 
-> 🔴 **Thứ tự áp bắt buộc:**
->
-> Nhánh A — `tests/ShareData/Services/DataOutboundServiceTests.cs`:
-> 1. `bo-cleanup-trong-test` — thiết lập quy ước không dọn trong bài test
-> 2. `test-phan-trang-va-dong-thoi` — 5 bài mới, viết sẵn theo quy ước ở bước 1
->
-> Nhánh B — `tests/ShareData/Services/DataChangeTrackingServiceTests.cs`:
-> 1. `kiem-chung-nats-that` — vá assert rỗng nghĩa, siết kiểm thử NATS thật (✅ Đã xong)
-> 2. `test-chuong-vs-hang` — 4 bài mới (chạy trực tiếp trên broker NATS thật local)
-> 3. `bo-cleanup-trong-test` — rà lại assert theo phạm vi riêng
->
-> **Sau cùng, sau khi cả hai nhánh xong:**
-> 3. `gom-mock-http-dung-chung` — refactor thuần, quét đổi tên toàn bộ
->
-> ⚠️ `bo-cleanup-trong-test` nằm ở **cả hai nhánh** vì nó sửa cả hai tệp. Áp nó **sau**
-> `kiem-chung-nats-that` để khỏi phải rà assert hai lần.
->
-> 🔴 `gom-mock-http-dung-chung` **bắt buộc áp CUỐI CÙNG**: đoạn mã mẫu trong
-> `test-phan-trang-va-dong-thoi` còn dùng tên cũ `new TestHttpMessageHandler(...)`. Áp prompt gom mock trước
-> sẽ khiến các đoạn mẫu đó trỏ vào tên không còn tồn tại. Áp cuối thì thao tác *Rename Symbol* quét luôn cả
-> mã mới thêm. Áp sai thứ tự sẽ phải gỡ xung đột thủ công.
 
-> 🔴 **Thứ tự áp bắt buộc — đợt sửa 7 bug FE ngày 29–30/09/2026:**
+> 🔴 **Phần tài liệu của phiên 02/10 đã áp xong.** Việc còn lại là **chạy 3 script**, thuộc về chủ dự án —
+> chi tiết trong [`sharedata-chot-so-phien-ra-soat-0210-prompt.md`](sharedata-chot-so-phien-ra-soat-0210-prompt.md).
 >
-> Bốn prompt mã nguồn **độc lập hoàn toàn**, không trùng tệp nào, áp thứ tự nào cũng được:
-> 1. `sharedata-dich-thuat-exception-sharedata` — repo **WEBAPI**, 2 tệp `Resources/*.json`
-> 2. `sharedata-fe-bo-toast-generic-datasource` — repo **WEBVUE**, `dataSource/index.vue`
-> 3. `sharedata-fe-bo-loc-thoi-gian-lich-su` — repo **WEBVUE**, `history/index.vue`
-> 4. `sharedata-fe-modal-anh-xa-ma-nhan-sao-chep` — repo **WEBVUE**, `editMapping.vue` + 2 tệp i18n
+> 📌 **Hai tệp `.sql` đang chờ chạy** trong [`../sql/`](../sql/) — ⛔ AI không chạy (rule 9).
+> 🔴 **Hai tệp làm hai việc KHÁC HẲN nhau**, tên gần giống nên rất dễ tưởng cùng một việc:
 >
-> **Sau cùng, chỉ khi cả 4 đã áp xong và build 2 repo đều xanh:**
-> 5. `sharedata-dong-bo-tai-lieu-sau-dot-fe-bug-2909` — chỉ tệp `.md`
+> | Tệp | Bảng tác động | Màn quản trị | Làm gì | ⛔ KHÔNG làm gì |
+> |---|---|---|---|---|
+> | `20261002-dong-bo-thuat-ngu-systerminology.sql` | `SysTerminology` | **Thuật ngữ** (`/cfgsystem/terminology`) | Sửa **câu chữ** 9 dòng còn ghi *"phễu lọc"* → *"hồ sơ ánh xạ"* | ⛔ **Không** thêm key thiếu — cả **59 key đã có đủ**. Mở màn Thuật ngữ thấy đủ key là **đúng kỳ vọng**, ⛔ không phải dấu hiệu script thừa |
+> | `20261001-bo-sung-sharedata-value-type.sql` | `SysConfigData` | **Danh mục** — màn khác hẳn | Thêm 5 kiểu `long`/`float`/`double`/`decimal`/`guid` (issue 7, 25) | ⛔ Không liên quan dịch thuật |
 >
-> 🔴 Prompt #5 **bắt buộc áp cuối**: nó ghi `[x]` cho các việc của #1–#4 và sửa 2 dòng `[x]` đang ghi sai
-> trong MasterPlan. Áp sớm là ghi tài liệu sai trạng thái thật.
+> 📌 Truy vấn chẩn đoán nguồn nhãn issue 9 **⛔ không còn là tệp `.sql` riêng** — đã gộp vào mục **3.1**
+> của [`sharedata-chot-so-phien-ra-soat-0210-prompt.md`](sharedata-chot-so-phien-ra-soat-0210-prompt.md)
+> và xoá tệp ngày 02/10/2026, vì nó chỉ `SELECT` và dùng đúng một lần.
 >
-> ⚠️ Mục 4/22 phần *"làm mờ nút Xóa + tooltip"* **không thuộc đợt này** — cần thêm cờ `IsInUse` vào
-> `ShareDataPagePacketOutput` rồi chạy lại `pnpm build-api`, tách Pha 2.
+> ⚠️ **Trạng thái đo được chỉ đúng cho staging `10.10.8.30`** (02/10/2026): cả ba đều **chưa chạy**.
+> AI ⛔ không với tới môi trường khác (`mssql_dev` / `mssql_test` đang `CONNECT_TIMEOUT`), nên ⛔ không
+> kết luận gì về `115.78.1.139` hay bản triển khai nào khác.
+>
+> 📌 **Cách tự kiểm trên môi trường bất kỳ, ⛔ không cần đụng CSDL:**
+> - *Danh mục kiểu dữ liệu*: mở **Cấu hình gói tin → Thêm Trường gói tin** → đếm dropdown **Loại**.
+>   **4 lựa chọn** = chưa chạy · **9 lựa chọn** = đã chạy.
+> - *Thuật ngữ*: thử xoá một gói tin đang có hồ sơ ánh xạ. Câu báo còn chữ **"phễu lọc"** = chưa chạy;
+>   ra **"hồ sơ ánh xạ"** = đã chạy.
 
 > 📌 **Tiến độ:** Các prompt `processinguntil`, `tach-service`, `rut-gon-xml-doc`, `gop-hang-pagesize`, `ha-mock-ve-dung-tang`, `kiem-chung-nats-that` đã hoàn thành đạt chuẩn (29/09/2026).
 
@@ -81,7 +67,17 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 | Prompt | Kết quả |
 |---|---|
-| `sharedata-dich-thuat-exception-sharedata-prompt.md` | ✅ **30/09/2026** · Đã thực thi (đã xóa tệp prompt theo yêu cầu của lập trình viên). 59 key bản dịch vào `TAC_WebAPI/Resources/vi-VN.json` + `en-US.json`: 27 `lz.exception.sharedata.*`, 7 `lz.validation.*`, 2 `lz.message.*`, 23 `lz.entity.*`. Chuỗi hiển thị dùng "hồ sơ ánh xạ". |
+| `sharedata-sua-chan-doan-issue09-va-thuat-ngu-prompt.md` | ✅ **02/10/2026** · Đợt F16 · **G**. Sửa chẩn đoán **sai** của mục 9 trong MasterPlan (bản 01/10 nhầm nhãn sang `globalTitle`/`sysTitle`, trong khi dòng chữ to đó **đang đúng**); sắp lại thứ tự số trong bản kế hoạch đợt (`N5` → 9·17·23·24·26, nhóm C → 3·12·14+16); thêm quy ước **19.28** (liệt kê theo số phải tăng dần) vào `thienan_rules.md`. |
+| `sharedata-issue09-truy-nguon-nhan-dau-trang-prompt.md` | ✅ **02/10/2026** · Đợt F16 · **F**. Sinh `sql/20261002-chan-doan-nhan-dau-trang.sql`. Loại trừ 6 ứng viên cho chuỗi *"Quản lý dự án TCP - V2.0"* (mã nguồn FE · `sys_web_title` · `VITE_APP_NAME` · `SysMenu` cấp 1 · `incidentNotification.vue` · `logo/index.vue`); còn 2 ứng viên: tiêu đề tab trình duyệt vs Breadcrumb. ⚠️ **Issue 9 vẫn mở** — cần chạy chẩn đoán trên đúng môi trường tester. 📌 Tệp `.sql` nó sinh ra **đã được gộp vào mục 3.1 của `sharedata-chot-so-phien-ra-soat-0210-prompt.md` và xoá ngày 02/10/2026**. |
+| `sharedata-dong-bo-tai-lieu-sau-dot-f16-prompt.md` | ✅ **01/10/2026** · Đợt F16 · **E**. Cập nhật MasterPlan PHẦN III mục A–E, mở mục **F** chứa 5 câu hỏi chờ TuyenHTN (issue 9, 17, 23, 24, 26), thêm bảng tình trạng 28 issue vào tài liệu kiểm thử. |
+| `sharedata-fe-nhan-va-thong-diep-prompt.md` | ✅ **01/10/2026** · Đợt F16 · **D** — issue 6, 11, 20. Nhãn ô tìm kiếm lưới Trường gói tin đổi sang **Khóa field** / **Kiểu** cho khớp tiêu đề cột; tooltip `lz.tooltip.base.refreshKeepFilter` cho nút *Làm mới*; câu cảnh báo `requiredFieldEmptyWillBlock` nói rõ **giá trị nguồn rỗng** thay vì để hiểu nhầm là chưa ánh xạ. ⛔ Không đổi dòng logic nào. |
+| `sharedata-fe-chuan-hoa-thao-tac-sao-chep-prompt.md` | ✅ **01/10/2026** · Đợt F16 · **C** — issue 3, 12, 14, 16. Chuẩn hoá Sao chép ở 3 modal (`editPartner`, `editCodeSet`, `editMapping`). 🔴 Gồm **vá lỗi do đợt 30/09 gây ra**: đặt `code = ''` khiến sao chép hồ sơ ánh xạ lưu ra bản ghi **Mã rỗng** (vì `MappingCommandHandler.cs:92` bỏ qua kiểm tra trùng khi mã rỗng và ⛔ không tự sinh mã) — nay dựng lại mã bằng `syncMappingCode()`. Kèm bỏ toast trùng và giữ hộp thoại khi lưu hỏng ở `editPartner.submit`. |
+| `sharedata-fe-chan-gia-tri-nhap-prompt.md` | ✅ **01/10/2026** · Đợt F16 · **B** — issue 1, 2, 4, 28. Thêm `:max="86400"` cho ô Chu kỳ (gốc của exception .NET `Int32`: Element Plus kẹp về `Number.MAX_SAFE_INTEGER` khi thiếu `:max`); khoá ô Mã đối tác khi Sửa kèm tooltip; chặn chọn ngày tương lai ở màn Lịch sử bằng `:disabled-date`. |
+| `sharedata-bo-sung-kieu-du-lieu-danh-muc-prompt.md` | ✅ **01/10/2026** · Đợt F16 · **A** — issue 7, 25. Sinh `sql/20261001-bo-sung-sharedata-value-type.sql` (thêm `long`, `float`, `double`, `decimal`, `guid`) + nhánh `guid` cho `previewCoerce`. 🔴 Thiếu **dữ liệu danh mục**, ⛔ không phải lỗi mã nguồn. ⚠️ Script **chưa chạy** — staging vẫn 4 dòng. |
+| `sharedata-ke-hoach-dot-f16-20261001.md` | ✅ **01/10/2026** · Bản kế hoạch đợt F16 (bản sao trong repo theo rule 13). Nội dung đã được gộp vào MasterPlan PHẦN III mục A–F. |
+| `sharedata-test-chuong-vs-hang-prompt.md` | ✅ **Đã thực thi** (rà lại 02/10/2026 — ghi nhận "chưa thực thi" trước đó là **SAI**). 4 bài khoá ngữ nghĩa *số bản tin NATS ≠ số lần gửi HTTP*, tiêu chí nghiệm thu là **đối tác nhận đủ**, đều đang bật `[Fact]` trong `tests/ITS/ShareData/Services/DataChangeTrackingServiceTests.cs`: `Tracker_WhenManyChangesAcrossTwoTables_PublishesOneMessagePerPacketCode_Test` · `TriggerFlow_WhenTenRowsChangeAtOnce_SendsOneBatchWithAllRows_Test` · `TriggerFlow_WhenSameTriggerArrivesFiveTimes_SendsDataOnceThenReportsNoNewData_Test` · `TriggerFlow_WhenSentRowIsUpdated_PartnerReceivesNewVersionOnlyIfWatermarkAdvances_Test`. 🔴 Giới hạn đã biết được bài thứ 4 khoá lại: sửa bản ghi đã gửi mà **quên nâng `UpdateTime`** thì đối tác **không** nhận được. Căn cứ: biên bản họp 21/09 mốc `07:08`/`13:36`/`14:31`. |
+| `sharedata-chuyen-mock-http-sang-server-that-prompt.md` | ✅ **30/09/2026 · 183/183 PASS** · Prompt 05 đợt refactor bộ test: bỏ mock `HttpMessageHandler`, chuyển ≈30 call site sang mock server `HttpListener` THẬT (`ShareDataPartnerServerMock`, cổng 18090–18093); xoá `tests/Mock/`; refactor `SeedOutboundSubscription` sang `OutboundSubSeed` record. Sổ theo dõi: [`../../Plan/Test_Refactor_MasterPlan.md`](../../Plan/Test_Refactor_MasterPlan.md). |
+| `sharedata-dich-thuat-exception-sharedata-prompt.md` | ✅ **30/09/2026** · Đã thực thi (đã xóa tệp prompt theo yêu cầu của lập trình viên). 59 key bản dịch: 27 `lz.exception.sharedata.*`, 7 `lz.validation.*`, 2 `lz.message.*`, 23 `lz.entity.*`. Chuỗi hiển thị dùng "hồ sơ ánh xạ". 🔴 **Đính chính 02/10/2026**: 59 key này ban đầu bị đưa nhầm vào `TAC_WebAPI/Resources/*.json`. Theo **rule 19.26** (bản 01/10) thì Backend ⛔ **không dùng** tệp resource — bản dịch BE nằm trên CSDL `SysTerminology`. Các key **đã được gỡ** khỏi `Resources/*.json`, và CSDL đã có **đủ 59 key** nên ⛔ không mất bản dịch nào. |
 | `sharedata-fe-bo-toast-generic-datasource-prompt.md` | ✅ **30/09/2026** · Đã thực thi (đã xóa tệp prompt theo yêu cầu của lập trình viên). Bỏ 2 toast `lz.message.base.processUnSuccess` ở `dataSource/index.vue` (`handleDeletePacket`, `handleDeleteField`) — tránh hiển thị trùng lặp toast với interceptor BE. |
 | `sharedata-fe-bo-loc-thoi-gian-lich-su-prompt.md` | ✅ **30/09/2026** · Đã thực thi (đã xóa tệp prompt theo yêu cầu của lập trình viên). Gộp 2 ô datetime rời thành một datetimerange ở `history/index.vue`, thống nhất state bộ lọc thời gian. |
 | `sharedata-fe-modal-anh-xa-ma-nhan-sao-chep-prompt.md` | ✅ **30/09/2026** · Đã thực thi (đã xóa tệp prompt theo yêu cầu của lập trình viên). Hiển thị `[mã] tên` ở ô Đối tác + Gói tin qua helper `codeNameLabel`, đổi nhãn ô Mã và disabled, xóa id/code/isActive khi bấm Sao chép sau khi GetById. |

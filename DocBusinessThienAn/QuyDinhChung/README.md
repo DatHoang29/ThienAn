@@ -9,6 +9,7 @@
 | Mã biểu mẫu | Tên tài liệu | Phân loại | Tác giả / Ban hành | File Markdown (SSOT) |
 |---|---|---|---|---|
 | **F10.TAC_CN01** | Hướng dẫn sử dụng Git Flow và các lưu ý khi commit code | Quy trình phát triển phần mềm / Chuẩn Git | Trần Hồng Sơn (01/07/2020) | [`doc/F10.TAC-CN01-git-rules.md`](doc/F10.TAC-CN01-git-rules.md) |
+| **REF-FE-01** | Bảng đối chiếu tư duy Frontend: Vue 3 vs React & Kinh nghiệm thực chiến | Kỹ thuật Frontend / Cheat Sheet | Thiên Ân Tech (01/10/2026) | [`doc/vue3-vs-react-cheatsheet.md`](doc/vue3-vs-react-cheatsheet.md) |
 
 ---
 
@@ -17,3 +18,4 @@
 | Tier | File | Read | Size | Nội dung | Nguồn gốc |
 |---|---|---|---|---|---|
 | A | `doc/F10.TAC-CN01-git-rules.md` | full | ~14 KB | Hướng dẫn sử dụng Git Flow, tạo nhánh, cấu trúc commit message, 10 bước pre-commit | Biểu mẫu chuẩn F10.TAC_CN01 |
+| B | `doc/vue3-vs-react-cheatsheet.md` | on-demand | ~9 KB | Đối chiếu Vue 3 vs React (Reactivity, Lifecycle, CSS Scoping, Bẫy Element Plus & Container Query) | Tổng kết thực chiến dự án |
