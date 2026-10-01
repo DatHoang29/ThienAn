@@ -1,26 +1,73 @@
+# Tên của Docker Compose Project - hiển thị làm tên nhóm trên Docker Desktop
+name: its015
+
 services:
+  # =========================================================================
+  # 1. SQL SERVER DATABASE
+  # =========================================================================
   tac-sqlserver:
+    # Bản Azure SQL Edge (tương thích SQL Server, nhẹ, chạy mượt trên cả chip ARM/Apple Silicon lẫn x64)
     image: mcr.microsoft.com/azure-sql-edge:1.0.7
+    # Cố định tên container để dễ quản lý, không bị sinh hậu tố ngẫu nhiên
     container_name: tac_webapi_sqlserver
+    # Quyền root bên trong container để có quyền đọc/ghi vào thư mục volume mount
     user: root
+    # Tự động khởi động lại khi container bị lỗi hoặc khi máy tính / Docker khởi động lại
     restart: always
+    # Mở port kết nối: [Port máy thật : Port trong container]
     ports:
-      - "1433:1433"
+      - "1433:1433" # Cổng kết nối SQL Server mặc định
+    # Biến môi trường cấu hình ban đầu cho SQL Server
     environment:
-      - ACCEPT_EULA=Y
-      - SA_PASSWORD=Tac@@1234
-      - MSSQL_SA_PASSWORD=Tac@@1234
+      - ACCEPT_EULA=Y                # Đồng ý với điều khoản sử dụng của Microsoft
+      - SA_PASSWORD=Tac@@1234        # Mật khẩu tài khoản quản trị 'sa'
+      - MSSQL_SA_PASSWORD=Tac@@1234  # Biến dự phòng cho một số phiên bản SQL Server
+    # Ánh xạ thư mục lưu trữ CSDL ra volume vật lý để dữ liệu không bị mất khi xóa container
     volumes:
       - tac_webapi_tac_sql_data:/var/opt/mssql/data
 
+  # =========================================================================
+  # 2. NATS MESSAGE BROKER (Hàng đợi tin nhắn / Pub-Sub)
+  # =========================================================================
   tac-nats:
+    # Image NATS chính thức bản mới nhất
     image: nats:latest
     container_name: tac_webapi_nats
     restart: always
     ports:
-      - "4222:4222"
-      - "8222:8222"
+      - "4222:4222" # Cổng kết nối chính của NATS client (Pub/Sub, Request/Reply)
+      - "8222:8222" # Cổng Dashboard HTTP Monitoring (xem metrics, trạng thái server)
+    # Lệnh bật tính năng JetStream (Message streaming & persistence nâng cao)
     command: "-js"
 
+  # =========================================================================
+  # 3. REDIS IN-MEMORY CACHE & DATA STORE
+  # =========================================================================
+  tac-redis:
+    # Bản Redis v7 chạy trên Alpine Linux siêu nhẹ (~30MB)
+    image: redis:7-alpine
+    container_name: tac_webapi_redis
+    restart: always
+    ports:
+      - "16379:6379" # Cổng phụ mở cho các cấu hình kết nối cổng 16379
+      - "6379:6379"  # Cổng chuẩn mặc định của Redis
+    # Bật chế độ AOF (Append Only File) để lưu dữ liệu xuống đĩa, tránh mất cache khi restart
+    command: "redis-server --appendonly yes"
+    # Lưu file dữ liệu của Redis ra volume ngoài container
+    volumes:
+      - tac_webapi_redis_data:/data
+
+# ===========================================================================
+# CẤU HÌNH VOLUME LƯU TRỮ VĨNH VIỄN (PERSISTENT DATA)
+# ===========================================================================
 volumes:
   tac_webapi_tac_sql_data:
+    # external: true báo cho Compose biết volume này ĐÃ TỒN TẠI trên máy từ trước
+    external: true
+    # Trỏ đúng tên volume vật lý cũ để giữ nguyên toàn bộ Database SQL Server mà không bị tạo mới rỗng
+    name: compose_tac_webapi_tac_sql_data
+
+  tac_webapi_redis_data:
+    external: true
+    # Trỏ đúng tên volume vật lý cũ của Redis để giữ nguyên dữ liệu cache
+    name: compose_tac_webapi_redis_data

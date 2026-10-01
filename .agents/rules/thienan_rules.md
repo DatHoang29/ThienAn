@@ -1234,6 +1234,26 @@ tests/
     - Khai báo hằng số hoặc biến cục bộ (`const int pageSize = 100;`, `const int maxPages = 20;`, `const int lockBudgetPercent = 50;`) **ngay bên trong phương thức sử dụng nó**.
     - Code tự nhiên, tự chứa (self-contained), khép kín phạm vi, dễ đọc hiểu từ trên xuống dưới mà không cần XML doc rườm rà.
 
+- **19.26. Nơi Đặt Key Đa Ngôn Ngữ — Chuỗi BE Ném Ra Dịch Ở BE, Nhãn FE Dịch Ở FE (chốt 30/09/2026)**:
+  - **Phạm vi áp dụng**: mọi key `lz.*` mới trong cả hai repo `TA-ITS015-WEBAPI-V1.0` và `TA-ITS015-WEBVUE-V1.0`.
+  - 🔴 **Quy tắc một câu: ai sinh ra chuỗi thì người đó dịch.**
+
+    | Loại chuỗi | Dịch ở đâu | Tiền tố |
+    | --- | --- | --- |
+    | **BE ném qua `Oops.Oh(...)`** — `lz.exception.*`, `lz.validation.*` của FluentValidation, `lz.message.*`, và `lz.entity.*` khi dùng làm **tham số** `{0}` | `src/TAC_WebAPI/Resources/vi-VN.json` **và** `en-US.json` | mã module: `sharedata`, `vw`, `tms`, `cctvDevice` |
+    | **FE tự hiển thị** — `lz.label.*`, `lz.placeholder.*`, `lz.button.*`, `lz.router.*`, `lz.tooltip.*`, `lz.validation.*` của form FE, `lz.entity.*` khi dùng làm **nhãn** | `src/src/i18n/lang/vi-vn.json` **và** `en-us.json` | tên màn: `sharedataMapping`, `sharedataHistory`, `videoWall` |
+
+  - 📌 Hai bên **không bao giờ đụng key nhau** vì tiền tố khác nhau: BE dùng mã module (`lz.entity.vw.controllerId`), FE dùng tên màn (`lz.entity.videoWall.controller`). Cùng nhóm `lz.entity` vẫn tách bạch.
+  - 🔴 **Vì sao ⛔ KHÔNG dịch chuỗi lỗi BE ở phía FE** — hai lý do kỹ thuật, không phải sở thích:
+    1. Response interceptor `src/src/utils/axios-utils.ts` in thẳng `ElMessage.error(serve.message)`, ⛔ **không** gọi `$t`. Muốn FE dịch thì phải sửa chính tệp đó — tệp đang được **111 tệp khác** import.
+    2. `Oops.Oh(key, arg)` nhồi tham số **ở BE**: tra key ra template rồi `string.Format(template, arg)`. BE tra không ra key ⇒ template chính là cái key, không có chỗ `{0}` ⇒ **đối số bị bỏ mất**. Dịch ở FE thì các mã có tham số hiện `{0}` trơ, mất đúng thông tin chẩn đoán (*field nào / gói tin nào / bộ mã nào* đang sai).
+  - **Bằng chứng đối chứng**: `lz.exception.tmsMap.itCannotTurnedOff` có ở BE Resources, ⛔ không có ở FE i18n — màn Bản đồ vẫn hiện tiếng Việt ⇒ FE ⛔ **không cần** key của BE.
+  - **Tiền lệ trong git** — 5 commit, 3 người, **tất cả** vào BE `Resources/*.json`: `ec953af1` (05/05, 6 key), `a768f02b` (19/06, 21 key `tmsDutySchedule`), `13c62407` (17/07, 1 key), `36d66a7a` (03/08, 2 key), `354056bc` (03/08, 6 key `vw` — mẫu đủ 4 nhóm). ⛔ **Không một commit nào** trong 5 tháng đưa `lz.exception.*` vào FE i18n.
+  - ⛔ **CẤM nhân rộng workaround `$t(e.message)`**: hai chỗ lẻ `views/sharedata/eventSource/component/editEventSource.vue:70` và `views/sharedata/eventSource/index.vue:81` đang dịch lại message BE ở FE. Đi ngược chuẩn, ⛔ không copy sang chỗ khác.
+  - **Thuật ngữ trong chuỗi hiển thị phải khớp giao diện, ⛔ không bám XML doc**: XML doc gọi `ShareDataMapping` là *"phễu lọc"* nhưng giao diện gọi *"Ánh xạ dữ liệu"* / *"hồ sơ ánh xạ"* ⇒ chuỗi trong `Resources/*.json` dùng **"hồ sơ ánh xạ"**. ⛔ Chỉ đổi chuỗi hiển thị, ⛔ không sửa XML doc, ⛔ không đổi tên biến (rule 19.6).
+  - ⚠️ **Nợ kỹ thuật đã ghi nhận 30/09/2026 — ⛔ không bắt chước**: bản dịch của `cctvDevice`, `wp`, `vmsTemplate` hiện **chỉ tồn tại trong bảng CSDL `SysTerminology`, không có commit nào** trong git (đã rà: chuỗi `multipleByIp` chỉ xuất hiện đúng 1 chỗ là `CCTV/BaseMsg.cs:89`, ⛔ không trong JSON, ⛔ không trong SQL) ⇒ dựng môi trường mới là **mất sạch**, không truy được ai nhập và khi nào. Quy ước cột bảng đó, ghi lại để lượt sau đọc được dữ liệu cũ: `Name` = **tiền tố nhóm** (`lz.exception`), `Code` = **phần hậu tố** (`cctvDevice.multipleByIp`), key đầy đủ = `Name` + `.` + `Code`, `Value` = chuỗi đã dịch, `Lang` ∈ {`vi-VN`, `en-US`}. ⚠️ Có dòng legacy nhét cả key đầy đủ vào `Code` (`Code='lz.entity.base.name'`, `Name='lz.entity'`) song song dạng chuẩn — ⛔ không bắt chước dạng legacy.
+  - 📌 **Tầng ghi đè ở FE** (không đổi quy tắc trên, chỉ để hiểu khi debug): `src/src/utils/locale.ts` đổ terminology từ CSDL (qua IndexedDB) **trước**, rồi mới lấp các key JSON còn thiếu — tức **CSDL thắng JSON tĩnh ở phía FE**. Đồng bộ bằng 2 endpoint `loadserverterm` / `loadclientterm` trong `src/src/utils/termHelper.ts`; cài đặt BE của 2 route này nằm trong assembly biên dịch sẵn, ⛔ không có trong source.
+
 ---
 
 Toàn bộ quy tắc dưới đây được đồng bộ từ `.kiro/steering/` của repo Frontend `TA-ITS015-WEBVUE-V1.0`, áp dụng bắt buộc cho toàn bộ mã nguồn Vue 3 / TypeScript:

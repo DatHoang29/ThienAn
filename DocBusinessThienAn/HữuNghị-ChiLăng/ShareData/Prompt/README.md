@@ -21,6 +21,11 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 | Prompt | Nội dung |
 |---|---|
+| [`sharedata-dich-thuat-exception-sharedata`](sharedata-dich-thuat-exception-sharedata-prompt.md) | **59 key bản dịch** vào `TAC_WebAPI/Resources/vi-VN.json` + `en-US.json`: 27 `lz.exception.sharedata.*`, 7 `lz.validation.*`, 2 `lz.message.*`, 23 `lz.entity.*`. Theo tiền lệ `a768f02b` (21 key `tmsDutySchedule`) và `354056bc` (mẫu đủ 4 nhóm `vw`). Chuỗi hiển thị dùng **"hồ sơ ánh xạ"** thay vì "phễu lọc" của XML doc. Gốc của bug TuyenHTN mục 3, 19, 21, 22, 4 — ✅ **30/09/2026** · Đã thực thi |
+| [`sharedata-fe-bo-toast-generic-datasource`](sharedata-fe-bo-toast-generic-datasource-prompt.md) | Bỏ 2 toast `lz.message.base.processUnSuccess` ở `dataSource/index.vue` (`handleDeletePacket`, `handleDeleteField`) — interceptor đã hiển thị message thật của BE, người dùng đang nhận **2 toast**. Bug mục 4 & 22 — ✅ **30/09/2026** · Đã thực thi |
+| [`sharedata-fe-bo-loc-thoi-gian-lich-su`](sharedata-fe-bo-loc-thoi-gian-lich-su-prompt.md) | 🔴 Gộp 2 ô `datetime` rời → **một** `datetimerange` ở `history/index.vue`. Phát hiện nặng hơn bug được báo: **bộ lọc thời gian đang chết hoàn toàn** vì 2 nguồn state song song (template bind `state.query.fromDate`, truy vấn đọc `state.dateRange`). Bug mục 1 — ✅ **30/09/2026** · Đã thực thi |
+| [`sharedata-fe-modal-anh-xa-ma-nhan-sao-chep`](sharedata-fe-modal-anh-xa-ma-nhan-sao-chep-prompt.md) | 3 việc trên `editMapping.vue`: (1) hiện `[mã] tên` ở ô Đối tác + Gói tin qua helper `codeNameLabel`; (2) ô Mã đổi nhãn sang `lz.entity.sharedataMapping.code` + `disabled` cho xám, gỡ `:disabled` đặt sai trên `el-form-item` và gỡ `rules required`; (3) Sao chép xoá `id`/`code`/`isActive` **sau** khi `GetById` ghi đè. Bug mục 2/18, 15, 13 — ✅ **30/09/2026** · Đã thực thi |
+| [`sharedata-dong-bo-tai-lieu-sau-dot-fe-bug-2909`](sharedata-dong-bo-tai-lieu-sau-dot-fe-bug-2909-prompt.md) | Prompt #5 áp **CUỐI** của đợt. Thêm rule **19.26** *"Nơi Đặt Key Đa Ngôn Ngữ"* vào `thienan_rules.md`; sửa 🔴 **2 dòng `[x]` ghi sai** trong `Sharedata_MasterPlan.md` (§B khoá Sửa/Xóa, §D `datetimerange`); mở dòng checklist cho 7 việc của đợt ở §A/§B/§C/§D. ⛔ Không đụng mã nguồn — ✅ **30/09/2026** · Đã thực thi |
 | [`sharedata-test-chuong-vs-hang`](sharedata-test-chuong-vs-hang-prompt.md) | 4 bài khoá ngữ nghĩa **số bản tin NATS ≠ số lần gửi HTTP**, tiêu chí nghiệm thu là **đối tác nhận đủ**: N thay đổi trên 2 bảng ⇒ đúng 1 bản tin/mã gói · 10 dòng ⇒ đúng 1 request mang đủ 10 bản ghi · trigger lặp 5 lần ⇒ vẫn chỉ gửi 1 lần · 🔴 sửa bản ghi đã gửi mà quên nâng `UpdateTime` ⇒ đối tác **không** nhận được (giới hạn đã biết). Căn cứ biên bản họp 21/09 mốc `07:08`/`13:36`/`14:31` + MasterPlan dòng 352/356 — ⚠️ chưa thực thi |
 | [`sharedata-chuyen-mock-http-sang-server-that`](sharedata-chuyen-mock-http-sang-server-that-prompt.md) | 🔴 **Prompt 05 của đợt refactor bộ test (30/09/2026)** — bỏ mock `HttpMessageHandler`, chuyển ≈30 call site sang mock server `HttpListener` THẬT (`ShareDataPartnerServerMock`, cổng 18090–18093); xoá `tests/Mock/`; refactor `SeedOutboundSubscription` sang `OutboundSubSeed` record. ⚠️ **Điều kiện tiên quyết: prompt 01–04 ở [`../../VideoWall/Prompt/README.md`](../../VideoWall/Prompt/README.md) đã áp xong và test xanh.** Sổ theo dõi: [`../../Plan/Test_Refactor_MasterPlan.md`](../../Plan/Test_Refactor_MasterPlan.md) — ✅ **30/09/2026 · 183/183 PASS** ⛔ Không xoá |
 
@@ -45,6 +50,23 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 > `test-phan-trang-va-dong-thoi` còn dùng tên cũ `new TestHttpMessageHandler(...)`. Áp prompt gom mock trước
 > sẽ khiến các đoạn mẫu đó trỏ vào tên không còn tồn tại. Áp cuối thì thao tác *Rename Symbol* quét luôn cả
 > mã mới thêm. Áp sai thứ tự sẽ phải gỡ xung đột thủ công.
+
+> 🔴 **Thứ tự áp bắt buộc — đợt sửa 7 bug FE ngày 29–30/09/2026:**
+>
+> Bốn prompt mã nguồn **độc lập hoàn toàn**, không trùng tệp nào, áp thứ tự nào cũng được:
+> 1. `sharedata-dich-thuat-exception-sharedata` — repo **WEBAPI**, 2 tệp `Resources/*.json`
+> 2. `sharedata-fe-bo-toast-generic-datasource` — repo **WEBVUE**, `dataSource/index.vue`
+> 3. `sharedata-fe-bo-loc-thoi-gian-lich-su` — repo **WEBVUE**, `history/index.vue`
+> 4. `sharedata-fe-modal-anh-xa-ma-nhan-sao-chep` — repo **WEBVUE**, `editMapping.vue` + 2 tệp i18n
+>
+> **Sau cùng, chỉ khi cả 4 đã áp xong và build 2 repo đều xanh:**
+> 5. `sharedata-dong-bo-tai-lieu-sau-dot-fe-bug-2909` — chỉ tệp `.md`
+>
+> 🔴 Prompt #5 **bắt buộc áp cuối**: nó ghi `[x]` cho các việc của #1–#4 và sửa 2 dòng `[x]` đang ghi sai
+> trong MasterPlan. Áp sớm là ghi tài liệu sai trạng thái thật.
+>
+> ⚠️ Mục 4/22 phần *"làm mờ nút Xóa + tooltip"* **không thuộc đợt này** — cần thêm cờ `IsInUse` vào
+> `ShareDataPagePacketOutput` rồi chạy lại `pnpm build-api`, tách Pha 2.
 
 > 📌 **Tiến độ:** Các prompt `processinguntil`, `tach-service`, `rut-gon-xml-doc`, `gop-hang-pagesize`, `ha-mock-ve-dung-tang`, `kiem-chung-nats-that` đã hoàn thành đạt chuẩn (29/09/2026).
 

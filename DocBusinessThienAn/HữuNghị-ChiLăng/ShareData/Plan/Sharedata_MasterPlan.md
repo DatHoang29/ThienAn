@@ -582,21 +582,28 @@ Nhờ commit theo từng trang, khi trang thứ N gửi lỗi thì các trang tr
 - [x] Chiều nhận (Inbound): Ẩn toàn bộ khối cấu hình lịch chạy.
 - [x] Khóa ô Cổng (`Port`) khi ở chế độ Sửa đối tác (`editPartner.vue`).
 - [ ] Chặn gửi khi thiếu hồ sơ ánh xạ + badge trạng thái "Đã có/Chưa có Ánh xạ" (xanh/xám) trên bảng gói tin của đối tác — theo chốt họp 21/09 Phiên 3 mốc 02:35-02:51 ("bắt buộc phải có mapping, không có thì báo lỗi, không cho gửi"). Hiện `editSubscription.vue` chỉ hiện cảnh báo rồi vẫn cho gửi theo mặc định gói tin, `subscriptionTable.vue` chưa có badge. Chưa làm vì đang ưu tiên luồng Backend nối đuôi/event trước.
+- [x] **Thông báo khi xóa đăng ký đang chạy đã đọc được.** Mã `lz.exception.sharedata.subscriptionMustPauseBeforeDelete` trước đây hiện nguyên key vì backend chưa có bản dịch; nay ra "Đăng ký đang chạy, vui lòng tắt trước khi xóa." Xong 30/09/2026 (bug TuyenHTN mục 19).
 
 ## B. Cấu hình Gói tin — `dataSource/index.vue`
 - [x] Bỏ cột Bí danh, Vai trò, Kiểu nối, Điều kiện nối; đổi cột Bảng dữ liệu thành "Tệp dữ liệu".
 - [x] Tối ưu cuộn ngang và độ rộng cột bảng trường con; cố định cột STT bên trái.
-- [x] Dựng UI thêm/sửa gói tin; khóa thao tác Sửa/Xóa khi gói tin đang có Subscription `Active`.
+- [x] Dựng UI thêm/sửa gói tin.
+- [x] **Bỏ toast generic "Thực hiện thất bại"** ở `handleDeletePacket` và `handleDeleteField` — interceptor `axios-utils.ts` đã hiển thị message thật của backend, toast cục bộ chỉ đè lấp nó. Xong 30/09/2026 (bug TuyenHTN mục 4 & 22).
+- [ ] **Làm mờ nút Xóa + tooltip giải thích khi gói tin đang được dùng.** Chưa làm: `ShareDataPagePacketOutput` là class rỗng, chưa trả cờ usage; điều kiện chặn nằm ở `private IsDatatypeInUseAsync()` (`PacketCommandHandler.cs:156` — có hồ sơ ánh xạ **hoặc** có đăng ký còn Alive). Làm được thì phải thêm `IsInUse` vào DTO rồi chạy lại `pnpm build-api`, nên tách Pha 2 chờ đồng bộ với người giữ nhịp regen `api-services/`. Mẫu để bê nguyên: `subscriptionTable.vue` dùng `canToggle()` + `toggleTitle()` → `:disabled` + `el-tooltip`.
+  - 🔴 **Cảnh báo nghiệp vụ, cần phản hồi TuyenHTN**: backend ⛔ **không** chặn toàn bộ Sửa. `PacketCodeNameLocked` (`PacketCommandHandler.cs:85-91`) chỉ khoá đổi **Mã/Tên**; `PacketVersion`, `Description`, `OrderNo`, `Status`, `Remark` vẫn sửa được. Nên "ẩn/mờ nút Sửa" như bug mục 22 đề nghị là **sai nghiệp vụ** — đúng là để nút Sửa mở bình thường và disable riêng 2 ô Mã/Tên trong `editPacket.vue`.
 
 ## C. Ánh xạ dữ liệu — `mapping/index.vue` & `editMapping.vue`
 - [x] Bỏ bộ lọc Định dạng và phiên bản gói tin; chuẩn hoá i18n "Ánh xạ dữ liệu".
 - [x] Nút "..." chuyển thành icon `ele-Setting` kèm tooltip; cấu hình lá mở dạng modal chồng độc lập.
 - [x] Thêm badge trạng thái CodeSet / Format; nút "Tự động ánh xạ" tách biệt.
 - [x] Gom nhóm "Trường Meta hệ thống" trong dropdown chọn trường.
+- [x] **Hiện `[mã] tên` ở ô chọn Đối tác và Gói tin** trong modal (helper `codeNameLabel`) — phân biệt bản ghi trùng tên khác mã; `filterable` lọc được cả mã. Xong 30/09/2026 (bug TuyenHTN mục 2 & 18).
+- [x] **Ô Mã: nhãn riêng `lz.entity.sharedataMapping.code` ("Mã hồ sơ ánh xạ") + `disabled` cho xám hẳn.** Gỡ `:disabled="true"` đặt sai trên `el-form-item` (component này không có prop đó) và gỡ `rules required` vì ô này để trống cho backend tự sinh. Xong 30/09/2026 (bug TuyenHTN mục 15).
+- [x] **Sao chép hồ sơ ánh xạ: xoá `id`/`code`/`isActive` SAU khi `GetById` ghi đè** trong `openDialog`. Trước đó copy giữ nguyên `code` của bản gốc ⇒ backend chặn trùng mã (`MappingCommandHandler.cs:92`) rồi báo "Mã đã tồn tại trong hệ thống!" trên ô người dùng không sửa được. Bản mới để trạng thái tắt để không đụng hồ sơ đang bật cùng đối tác/gói tin/chiều. Xong 30/09/2026 (bug TuyenHTN mục 13).
 
 ## D. Lịch sử chia sẻ — `history/index.vue`
 - [x] Đổi nhãn: "Nhật ký cấu hình" và "Nhật ký truyền nhận".
-- [x] Bộ lọc thời gian chuẩn hóa `datetimerange`; bỏ ô lọc "Nội dung".
+- [x] Bộ lọc thời gian chuẩn hóa `datetimerange`; bỏ ô lọc "Nội dung". ⚠️ Dòng này từng ghi `[x]` **sai** từ trước: tệp thực tế dùng 2 ô `type="datetime"` rời, và **bộ lọc bị vô hiệu hoàn toàn** — template bind `state.query.fromDate`/`toDate` còn `handleQueryApi()` lại đọc `toIsoRange(state.dateRange)`, nên người dùng chọn ngày nào kết quả cũng không đổi. Gộp về một nguồn `state.dateRange` với một ô `datetimerange` ngày 30/09/2026; đồng thời sửa 3 phím tắt 24h/7 ngày/30 ngày (trả `[Date, Date]` — sai kiểu cho picker đơn) và dọn lệch mặc định 7 ngày vs 3 ngày.
 - [x] Double-click dòng mở modal chi tiết `activityDetailDialog.vue` thay cho sidebar; sửa lỗi so sánh enum chuỗi sang số; dựng khung `el-steps` 2 bước cha-con.
 
 ## E. Tooltip đồng bộ toàn module
