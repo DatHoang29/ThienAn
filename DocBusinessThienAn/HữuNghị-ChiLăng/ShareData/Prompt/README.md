@@ -19,13 +19,10 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 ## Danh sách Prompt
 
-| Prompt | Nội dung |
-|---|---|
-| [`sharedata-chot-so-phien-ra-soat-0210`](sharedata-chot-so-phien-ra-soat-0210-prompt.md) | **Chốt sổ phiên rà soát 02/10/2026** — gộp từ 2 prompt H + I của cùng phiên (2 tệp gốc đã xoá, nội dung nằm trọn trong tệp này). Gồm: 5 phát hiện đã kiểm chứng (✅ CSDL đã đủ **59 key** nên gỡ khỏi `Resources/*.json` ⛔ không mất bản dịch · 🔴 còn **9 dòng `vi-VN`** sai chữ · 🔴 chẩn đoán issue 9 ngày 01/10 là **SAI** · 🔴 ghi nhận "bộ test chưa thực thi" cũng **SAI**, cả 4 bài đang bật · ⚠️ số đo chỉ đúng cho staging `10.10.8.30`); bảng **8 chỗ đã sửa trong tài liệu**; và **3 script chờ chủ dự án chạy**. ⛔ Không đụng mã nguồn. ⛔ Không xoá |
+*(Hiện không có prompt nào đang mở. Mọi prompt đã được thực thi và xoá theo quy trình Auto-Cleanup).*
 
-
-> 🔴 **Phần tài liệu của phiên 02/10 đã áp xong.** Việc còn lại là **chạy 3 script**, thuộc về chủ dự án —
-> chi tiết trong [`sharedata-chot-so-phien-ra-soat-0210-prompt.md`](sharedata-chot-so-phien-ra-soat-0210-prompt.md).
+> 🔴 **Phần tài liệu của phiên 02/10 đã áp xong.** Việc còn lại là **chạy 2 script**, thuộc về chủ dự án —
+> chi tiết đã được cập nhật vào `Sharedata_MasterPlan.md` và bảng tổng kết bên dưới.
 >
 > 📌 **Hai tệp `.sql` đang chờ chạy** trong [`../sql/`](../sql/) — ⛔ AI không chạy (rule 9).
 > 🔴 **Hai tệp làm hai việc KHÁC HẲN nhau**, tên gần giống nên rất dễ tưởng cùng một việc:
@@ -35,8 +32,7 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 > | `20261002-dong-bo-thuat-ngu-systerminology.sql` | `SysTerminology` | **Thuật ngữ** (`/cfgsystem/terminology`) | Sửa **câu chữ** 9 dòng còn ghi *"phễu lọc"* → *"hồ sơ ánh xạ"* | ⛔ **Không** thêm key thiếu — cả **59 key đã có đủ**. Mở màn Thuật ngữ thấy đủ key là **đúng kỳ vọng**, ⛔ không phải dấu hiệu script thừa |
 > | `20261001-bo-sung-sharedata-value-type.sql` | `SysConfigData` | **Danh mục** — màn khác hẳn | Thêm 5 kiểu `long`/`float`/`double`/`decimal`/`guid` (issue 7, 25) | ⛔ Không liên quan dịch thuật |
 >
-> 📌 Truy vấn chẩn đoán nguồn nhãn issue 9 **⛔ không còn là tệp `.sql` riêng** — đã gộp vào mục **3.1**
-> của [`sharedata-chot-so-phien-ra-soat-0210-prompt.md`](sharedata-chot-so-phien-ra-soat-0210-prompt.md)
+> 📌 Truy vấn chẩn đoán nguồn nhãn issue 9 **⛔ không còn là tệp `.sql` riêng** — đã lưu lại trong tài liệu
 > và xoá tệp ngày 02/10/2026, vì nó chỉ `SELECT` và dùng đúng một lần.
 >
 > ⚠️ **Trạng thái đo được chỉ đúng cho staging `10.10.8.30`** (02/10/2026): cả ba đều **chưa chạy**.
@@ -67,6 +63,10 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 | Prompt | Kết quả |
 |---|---|
+| `sharedata-codefirst-long-interval-va-full-flow-test-prompt.md` | ✅ **01/10/2026** · Đợt F16. Đã thực thi và xoá theo yêu cầu người dùng. Sửa `ShareDataSubscription.IntervalSeconds` sang `long?` (CodeFirst `bigint`), bỏ `new long?` ở DTO, gán trực tiếp không ép kiểu ở Handler (triệt tiêu IDE0004). Xóa test vi mô cũ `SubscriptionValidatorTests.cs`, bổ sung bài test tích hợp toàn trình (Full Business Flow) `ShareDataSubscriptionTests.cs` (5/5 tests pass 100%). |
+| `sharedata-toi-uu-chu-ky-quet-change-tracking-prompt.md` | ✅ **02/10/2026** · Đợt F16 · **K**. Đã thực thi và xoá theo yêu cầu người dùng. Tối ưu chu kỳ quét Change Tracking: TĐ1: `SaveTrackVersion` chỉ ghi đúng 2 cột đích `LastVersion` và `UpdateTime` (`SqlFunc.GetDate()`), bảo toàn các trường của `EntityTenant` và sửa dứt điểm lỗi `UpdateTime` bị lùi; TĐ2: Gộp 2 lượt truy vấn mỗi chu kỳ thành 1 qua `ReadTrackState` (`SqlReadTrackState`); TĐ3: Gom khối bật tracking bảng trùng 2 chỗ thành `TryEnsureTableTracked`. Bổ sung 2 unit tests (`PollChanges_WhenTrackStateTableIsEmpty_...` và `SaveTrackVersion_WhenSelfHealRuns_...`), toàn bộ 70/70 test xanh 100%. |
+| `sharedata-chong-moc-tracking-lech-va-gom-selfheal-prompt.md` | ✅ **02/10/2026** · Đợt F16 · **J**. Đã thực thi và xoá theo yêu cầu người dùng. Chống mốc Change Tracking lệch khỏi CSDL (`CURRENT_VERSION() < LastVersion`) bằng cách hạ mốc về `-1` qua CAS chiều ngược và ghi cảnh báo `ESH-1604`; gom 2 khối self-heal chép đôi trong `QueryChangedTables` thành `SelfHealVersion`. Bổ sung 3 unit tests (`PollChanges_WhenLastVersionExceedsDatabaseVersion_...`, `PollChanges_WhenVersionResetRacedByTenInstances_...`, `PollChanges_AfterVersionReset_...`) bảo vệ toàn diện, 68/68 test xanh 100%. |
+| `sharedata-chot-so-phien-ra-soat-0210-prompt.md` | ✅ **02/10/2026** · Đợt F16 · **I**. Đã rà soát và xoá theo yêu cầu người dùng. Chốt sổ phiên rà soát 02/10/2026: gỡ 59 key khỏi `Resources/*.json` (CSDL đã đủ), chẩn đoán issue 9, cập nhật tài liệu kiểm chứng test chuông vs hàng, chốt 2 script SQL chờ chủ dự án chạy (`20261002-dong-bo-thuat-ngu-systerminology.sql` và `20261001-bo-sung-sharedata-value-type.sql`). |
 | `sharedata-sua-chan-doan-issue09-va-thuat-ngu-prompt.md` | ✅ **02/10/2026** · Đợt F16 · **G**. Sửa chẩn đoán **sai** của mục 9 trong MasterPlan (bản 01/10 nhầm nhãn sang `globalTitle`/`sysTitle`, trong khi dòng chữ to đó **đang đúng**); sắp lại thứ tự số trong bản kế hoạch đợt (`N5` → 9·17·23·24·26, nhóm C → 3·12·14+16); thêm quy ước **19.28** (liệt kê theo số phải tăng dần) vào `thienan_rules.md`. |
 | `sharedata-issue09-truy-nguon-nhan-dau-trang-prompt.md` | ✅ **02/10/2026** · Đợt F16 · **F**. Sinh `sql/20261002-chan-doan-nhan-dau-trang.sql`. Loại trừ 6 ứng viên cho chuỗi *"Quản lý dự án TCP - V2.0"* (mã nguồn FE · `sys_web_title` · `VITE_APP_NAME` · `SysMenu` cấp 1 · `incidentNotification.vue` · `logo/index.vue`); còn 2 ứng viên: tiêu đề tab trình duyệt vs Breadcrumb. ⚠️ **Issue 9 vẫn mở** — cần chạy chẩn đoán trên đúng môi trường tester. 📌 Tệp `.sql` nó sinh ra **đã được gộp vào mục 3.1 của `sharedata-chot-so-phien-ra-soat-0210-prompt.md` và xoá ngày 02/10/2026**. |
 | `sharedata-dong-bo-tai-lieu-sau-dot-f16-prompt.md` | ✅ **01/10/2026** · Đợt F16 · **E**. Cập nhật MasterPlan PHẦN III mục A–E, mở mục **F** chứa 5 câu hỏi chờ TuyenHTN (issue 9, 17, 23, 24, 26), thêm bảng tình trạng 28 issue vào tài liệu kiểm thử. |

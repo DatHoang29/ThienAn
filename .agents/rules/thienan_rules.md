@@ -148,20 +148,15 @@ Khi thực hiện commit code, phần tiêu đề (Summary) của commit bắt b
 
 > [!TIP]
 > *   Dùng 1 `-m` khi chỉ cần ghi Summary ngắn gọn: `git commit -m "feat(sharedata): hoàn thiện chức năng worker"`
-> *   Dùng 2 `-m` khi muốn bổ sung danh sách gạch đầu dòng chi tiết (Git sẽ tự chèn dòng trống ngăn cách):
->     `git commit -m "[Subject]" -m "[Subject]"`
->     `- gạch đầu dòng 1`
->     `- gạch đầu dòng 2`
+> *   Dùng nhiều `-m` khi muốn bổ sung danh sách gạch đầu dòng chi tiết (Git sẽ tự chèn dòng trống ngăn cách giữa các đoạn):
+>     `git commit -m "[Subject]" -m "[Subject]" -m "- gạch đầu dòng 1`\n`- gạch đầu dòng 2"`
 > *   Sử dụng câu hành động cụ thể, tiếng Việt hoặc tiếng Anh thống nhất.
 
-#### Cấu trúc Description Chi Tiết:
-1.  **Dòng đầu tiên:** Ghi lại nguyên văn nội dung Summary.
-2.  **Hai dòng tiếp theo:** Bỏ trống (2 dòng newline).
+#### Cấu trúc Commit Message Chi Tiết (Chuẩn thực tế của team):
+1.  **Dòng 1 (Summary):** `[type]([scope]): [noi-dung-cong-viec]`
+2.  **Dòng 2:** Lặp lại nguyên văn nội dung Summary (⛔ **TUYỆT ĐỐI KHÔNG thêm chữ `Description:`**).
 3.  **Nội dung chi tiết:** Gạch đầu dòng (`- `) các công việc cụ thể đã thực hiện trong lần commit này.
-4.  **Thông tin tham chiếu (Metadata) ở cuối commit:**
-    *   `Reviewer: [Tên người duyệt]` (nếu có người review, ví dụ: `Reviewer: SonTH`)
-    *   `CR: [Mã CR]` (nếu commit thuộc Change Request nào, ví dụ: `CR: CR0001-thay-doi-luong-gui-mail`)
-    *   `Ref: [Mã tham chiếu]` (nếu sửa đổi từ commit/issue log nào trước đó)
+4.  ⛔ **TUYỆT ĐỐI KHÔNG tự ý chèn thẻ metadata** như `Ref: ...`, `Reviewer: ...`, `CR: ...` ở cuối commit nếu không có yêu cầu trực tiếp từ Leader.
 
 ---
 
@@ -176,20 +171,16 @@ Khi thực hiện commit code, phần tiêu đề (Summary) của commit bắt b
 *   `feat(videowall): tích hợp NATS thật cho VwCommandConsumer`
 *   `chore(test): bỏ unnecessary usings IDE0005 trong folder tests`
 
-#### Ví dụ 2: Toàn văn Commit Message đầy đủ Summary + Description
+#### Ví dụ 2: Toàn văn Commit Message đầy đủ Summary + Bullet points (Chuẩn form thực tế)
 ```text
-fix!: XD1.2.2.7 - thay đổi luồng gửi mail chức năng A module A
+fix(sharedata): xử lý danh sách lỗi kiểm thử F16 phân hệ sharedata
 
-Description:
-fix!: XD1.2.2.7 - thay đổi luồng gửi mail chức năng A module A
+fix(sharedata): xử lý danh sách lỗi kiểm thử F16 phân hệ sharedata
 
-
-- Thay đổi luồng thứ tự nhân sự duyệt cho phép gửi mail
-- Bổ sung cấu hình thiết lập thời gian timeout
-- Bỏ bớt code dư thừa
-
-Reviewer: SonTH
-CR: CR0001-thay-doi-luong-gui-mail
+- Cấu hình đăng ký: giới hạn chu kỳ max 86400s, clamp real-time (Issue 1, 2)
+- Đối tác chia sẻ: xóa mã khi copy, khóa ô mã khi sửa kèm tooltip (Issue 3, 4)
+- Ánh xạ dữ liệu: cập nhật thông báo dữ liệu nguồn rỗng, ẩn nhóm trường ở header (Issue 20, 23, 24)
+- Đa ngôn ngữ: bổ sung bản dịch tiếng Việt và tiếng Anh cho các nhãn, tooltip và thông báo
 ```
 
 ---
@@ -204,23 +195,21 @@ Phù hợp cho các commit nhỏ, cục bộ trong quá trình dev:
 git commit -m "feat(videowall): XD1.2.2.5 - add map location"
 ```
 
-#### Cách 2: Commit đầy đủ Summary + Description trên Git Bash / Linux (Dùng nhiều cờ `-m`)
-*Mẹo: Trong Git CLI, mỗi cờ `-m` sẽ được tự động ghép lại thành một đoạn văn bản riêng biệt cách nhau 1 dòng trống:*
+#### Cách 2: Commit đầy đủ trên Git Bash / Linux (Dùng nhiều cờ `-m`)
+*Mẹo: Trong Git CLI, mỗi cờ `-m` sẽ được tự động ghép lại thành một đoạn văn bản riêng biệt cách nhau 1 dòng trống. ⛔ Không dùng nhãn `Description:` và ⛔ không gắn metadata `Ref:`:*
 ```bash
-git commit -m "fix!: XD1.2.2.7 - thay đổi luồng gửi mail chức năng A module A" \
-           -m "Description:
-fix!: XD1.2.2.7 - thay đổi luồng gửi mail chức năng A module A" \
-           -m "- Thay đổi luồng thứ tự nhân sự duyệt cho phép gửi mail
-- Bổ sung cấu hình thiết lập thời gian timeout
-- Bỏ bớt code dư thừa" \
-           -m "Reviewer: SonTH
-CR: CR0001-thay-doi-luong-gui-mail"
+git commit -m "fix(sharedata): xử lý danh sách lỗi kiểm thử F16 phân hệ sharedata" \
+           -m "fix(sharedata): xử lý danh sách lỗi kiểm thử F16 phân hệ sharedata" \
+           -m "- Cấu hình đăng ký: giới hạn chu kỳ max 86400s, clamp real-time (Issue 1, 2)
+- Đối tác chia sẻ: xóa mã khi copy, khóa ô mã khi sửa kèm tooltip (Issue 3, 4)
+- Ánh xạ dữ liệu: cập nhật thông báo dữ liệu nguồn rỗng, ẩn nhóm trường ở header (Issue 20, 23, 24)"
 ```
 
 #### Cách 3: Commit đầy đủ trên Windows PowerShell (Dùng escape `` `n `` cho dòng mới)
 ```powershell
-git commit -m "fix!: XD1.2.2.7 - thay đổi luồng gửi mail chức năng A module A" `
-           -m "Description:`nfix!: XD1.2.2.7 - thay đổi luồng gửi mail chức năng A module A`n`n- Thay đổi luồng thứ tự nhân sự duyệt cho phép gửi mail`n- Bổ sung cấu hình thiết lập thời gian timeout`n- Bỏ bớt code dư thừa`n`nReviewer: SonTH`nCR: CR0001-thay-doi-luong-gui-mail"
+git commit -m "fix(sharedata): xử lý danh sách lỗi kiểm thử F16 phân hệ sharedata" `
+           -m "fix(sharedata): xử lý danh sách lỗi kiểm thử F16 phân hệ sharedata" `
+           -m "- Cấu hình đăng ký: giới hạn chu kỳ max 86400s, clamp real-time (Issue 1, 2)`n- Đối tác chia sẻ: xóa mã khi copy, khóa ô mã khi sửa kèm tooltip (Issue 3, 4)`n- Ánh xạ dữ liệu: cập nhật thông báo dữ liệu nguồn rỗng, ẩn nhóm trường ở header (Issue 20, 23, 24)"
 ```
 
 ---
@@ -1367,6 +1356,26 @@ Khi tạo mới hoặc sửa modal, BẮT BUỘC tuân thủ đúng bảng đố
 - **CSS-First**: Mọi lỗi hiển thị (placeholder bị che, icon che khuất, vỡ dòng, co rúm nút, responsive màn hình nhỏ...) BẮT BUỘC xử lý bằng CSS/SCSS (Flexbox, Grid, Container Queries `@container`, Media Queries `@media`, CSS variables, pseudo-classes...).
 - **CẤM xóa props / thuộc tính template**: TUYỆT ĐỐI KHÔNG tự ý gỡ bỏ các thuộc tính chuẩn của Element Plus (`show-word-limit`, `:maxlength`, `clearable`, `filterable`, `:body-style`...) để "né" việc căn chỉnh CSS.
 - **Quy trình hỏi ý kiến**: Nếu không gian quá hẹp không thể hiển thị vừa cả nội dung và bộ đếm/nút, BẮT BUỘC hỏi ý kiến người dùng trước khi được phép lược bỏ bất kỳ thành phần nào của UI (tuân thủ mục 19.27).
+
+---
+
+## 🐞 21. Quy Chuẩn Phản Hồi Sheet Bug Kiểm Thử (Sheet Bug Comment Protocol)
+
+> 📌 **Mục đích:** Thống nhất định dạng phản hồi giữa Đội ngũ Phát triển (Dev) và Đội ngũ Kiểm thử (Tester) trên các biểu mẫu / file Excel / Sheet theo dõi lỗi (F16, Issue Tracking Sheet), đảm bảo dễ dàng truy vết lịch sử xử lý, người thực hiện và tiến độ công việc.
+
+### ✍️ Cấu Trúc Bắt Buộc Trong Cột "Ghi chú" (Comment Syntax):
+Mọi nội dung phản hồi của Dev tại cột **Ghi chú** bắt buộc tuân theo cú pháp chuẩn:
+`[ddMMyyyy]-[TênDev]: [Nội dung phản hồi]`
+
+- **Định dạng thời gian:** `ddMMyyyy` (8 chữ số, ví dụ `01102026` cho ngày 01/10/2026).
+- **Tên Dev:** Tên viết tắt chuẩn nội bộ (ví dụ: `DatHQ`, `HieuNV`, `SonTH`...).
+- **Dấu phân cách:** Dấu gạch nối `-` giữa ngày và tên; dấu hai chấm kèm khoảng trắng `: ` trước nội dung.
+- **Nội dung phản hồi:** Ngắn gọn, nêu rõ hành động kỹ thuật đã làm, phạm vi đã test hoặc trạng thái chờ confirm.
+
+#### 💡 Ví dụ Chuẩn:
+- `01102026-DatHQ: Đã điều chỉnh ABC, còn DEF đang đợi confirm.`
+- `01102026-HieuNV: Đã giới hạn chu kỳ tối đa 86400s ở cả FE và BE API, tự động kẹp số an toàn.`
+- `30092026-DatHQ: Đã dịch hoàn chỉnh thông báo lỗi sang tiếng Việt dễ hiểu trong SysTerminology.`
 
 ---
 
