@@ -288,6 +288,10 @@ Riêng trường hợp làm việc trên các nhánh cũ thuộc 2 repo con `TA-
       1. **Kiểm tra `GlobalUsings.cs` trước khi thêm**: Trước khi chèn bất kỳ `using` nào vào đầu file C#, AI BẮT BUỘC kiểm tra file `GlobalUsings.cs` của chính project đó (và `tests/GlobalUsings.cs` nếu là file test). Nếu namespace đã có trong `GlobalUsings.cs` hoặc implicit usings, **TUYỆT ĐỐI CẤM** thêm vào file riêng lẻ.
       2. **Cấm chèn `using` theo quán tính**: Tuyệt đối không copy-paste cả khối `using` mặc định vào đầu file mới hoặc file chỉnh sửa. Chỉ thêm đúng những namespace đặc thù thực sự cần mà `GlobalUsings.cs` chưa có.
       3. **Tự động dọn dẹp sạch (Clean-up Gate)**: Sau khi tạo mới, chỉnh sửa hoặc refactor code (đặc biệt sau khi xoá/thay thế kiểu dữ liệu), AI BẮT BUỘC rà soát lại toàn bộ khối `using` ở đầu file, xóa bỏ ngay lập tức các dòng `using` không còn sử dụng trong file hoặc trùng lặp với `GlobalUsings.cs` trước khi bàn giao cho người dùng.
+13. **CẤM TỰ Ý CHẠY `npm run build` KHI SỬA CODE FRONTEND (CLIENT ĐANG CHẠY CÓ HOT-RELOAD - STRICT NO AUTO-BUILD ON FRONTEND) (P0)**:
+    - **Thực trạng**: Phía frontend (`TA-ITS015-WEBVUE-V1.0`), môi trường phát triển (Client Dev Server qua Vite / Webpack / pnpm) thường xuyên được lập trình viên khởi chạy nền (`client start`) và đã tích hợp sẵn cơ chế Hot-Module Replacement (Hot-Reload / HMR).
+    - **Quy định bắt buộc**: Sau khi tạo hoặc chỉnh sửa code Frontend (`.vue`, `.ts`, `.js`, `.scss`, `.css`...), AI **TUYỆT ĐỐI KHÔNG tự động chạy lệnh `npm run build`** (hoặc `pnpm run build`), vì lệnh này tốn thời gian, ngốn tài nguyên và không cần thiết khi client dev server đã tự động nạp thay đổi qua hot-reload ngay lập tức trên trình duyệt.
+    - AI **CHỈ** được chạy lệnh `npm run build` khi người dùng yêu cầu trực tiếp và tường minh (ví dụ: *"chạy build kiểm tra lỗi"* hoặc khi chuẩn bị đóng gói release).
 
 > [!NOTE]
 > - Các quy chuẩn code/hạ tầng chung của dự án (Docker, Entity, Swagger, header comment...) áp dụng cho **cả người lẫn AI** — xem tại mục 5 bên dưới, không lặp lại ở đây để tránh trùng lặp nội dung.
@@ -1234,25 +1238,30 @@ tests/
     - Khai báo hằng số hoặc biến cục bộ (`const int pageSize = 100;`, `const int maxPages = 20;`, `const int lockBudgetPercent = 50;`) **ngay bên trong phương thức sử dụng nó**.
     - Code tự nhiên, tự chứa (self-contained), khép kín phạm vi, dễ đọc hiểu từ trên xuống dưới mà không cần XML doc rườm rà.
 
-- **19.26. Nơi Đặt Key Đa Ngôn Ngữ — Chuỗi BE Ném Ra Dịch Ở BE, Nhãn FE Dịch Ở FE (chốt 30/09/2026)**:
-  - **Phạm vi áp dụng**: mọi key `lz.*` mới trong cả hai repo `TA-ITS015-WEBAPI-V1.0` và `TA-ITS015-WEBVUE-V1.0`.
-  - 🔴 **Quy tắc một câu: ai sinh ra chuỗi thì người đó dịch.**
+- **19.26. Quy Tắc Ưu Tiên Đa Ngôn Ngữ (Localization Priority) — Ưu Tiên WebAPI Resource Trước, FE Làm Fallback (cập nhật 01/10/2026)**:
+  - **Phạm vi áp dụng**: Mọi key `lz.*` trong cả hai repo `TA-ITS015-WEBAPI-V1.0` và `TA-ITS015-WEBVUE-V1.0`.
+  - 🔴 **Thứ tự ưu tiên dịch thuật bắt buộc**:
+    1. 🥇 **Ưu tiên 1 (WebAPI Resource - Primary Source)**: Luôn ưu tiên định nghĩa và lấy bản dịch từ Resource trên WebAPI (`src/TAC_WebAPI/Resources/vi-VN.json` và `en-US.json`).
+       - Mọi chuỗi do Backend xử lý/ném ra: `lz.exception.*`, `lz.validation.*` (FluentValidation), `lz.message.*`, và `lz.entity.*` (khi dùng làm tham số `{0}`).
+       - Lý do: WebAPI nạp template và nhồi tham số `{0}`, `{1}` chuẩn xác phía máy chủ trước khi trả response về client, đảm bảo thông điệp đầy đủ ngữ cảnh và đa ngôn ngữ xuyên suốt các client (Web, App, Service bên ngoài).
+    2. 🥈 **Ưu tiên 2 (Frontend i18n - Fallback & Client UI)**: Nếu WebAPI **chưa có / không có** (hoặc đối với các thành phần giao diện tĩnh thuần túy của client: `lz.label.*`, `lz.placeholder.*`, `lz.button.*`, `lz.router.*`, `lz.tooltip.*`), mới tận dụng dịch thuật tại Frontend (`src/src/i18n/lang/vi-vn.json` và `en-us.json`).
+       - Frontend đóng vai trò là tầng fallback an toàn: trong trường hợp Backend trả về mã raw key hoặc message chưa kịp bổ sung trên WebAPI, Frontend tận dụng từ điển client để hiển thị thông điệp thân thiện cho người dùng thay vì để lộ mã lỗi thô.
 
-    | Loại chuỗi | Dịch ở đâu | Tiền tố |
-    | --- | --- | --- |
-    | **BE ném qua `Oops.Oh(...)`** — `lz.exception.*`, `lz.validation.*` của FluentValidation, `lz.message.*`, và `lz.entity.*` khi dùng làm **tham số** `{0}` | `src/TAC_WebAPI/Resources/vi-VN.json` **và** `en-US.json` | mã module: `sharedata`, `vw`, `tms`, `cctvDevice` |
-    | **FE tự hiển thị** — `lz.label.*`, `lz.placeholder.*`, `lz.button.*`, `lz.router.*`, `lz.tooltip.*`, `lz.validation.*` của form FE, `lz.entity.*` khi dùng làm **nhãn** | `src/src/i18n/lang/vi-vn.json` **và** `en-us.json` | tên màn: `sharedataMapping`, `sharedataHistory`, `videoWall` |
+    | Thứ tự | Nguồn bản dịch | Đường dẫn file | Phạm vi & Tiền tố |
+    | :---: | --- | --- | --- |
+    | **1 (Ưu tiên)** | **WebAPI Resource** | `src/TAC_WebAPI/Resources/vi-VN.json` & `en-US.json` | Mọi Exception, Validation, Message nghiệp vụ: `lz.exception.*`, `lz.validation.*`, `lz.message.*`, `lz.entity.*` |
+    | **2 (Fallback & UI)** | **Frontend i18n** | `src/src/i18n/lang/vi-vn.json` & `en-us.json` | Nhãn giao diện, Placeholder, Button: `lz.label.*`, `lz.placeholder.*`, `lz.button.*`, `lz.router.*` + Fallback khi BE thiếu |
 
-  - 📌 Hai bên **không bao giờ đụng key nhau** vì tiền tố khác nhau: BE dùng mã module (`lz.entity.vw.controllerId`), FE dùng tên màn (`lz.entity.videoWall.controller`). Cùng nhóm `lz.entity` vẫn tách bạch.
-  - 🔴 **Vì sao ⛔ KHÔNG dịch chuỗi lỗi BE ở phía FE** — hai lý do kỹ thuật, không phải sở thích:
-    1. Response interceptor `src/src/utils/axios-utils.ts` in thẳng `ElMessage.error(serve.message)`, ⛔ **không** gọi `$t`. Muốn FE dịch thì phải sửa chính tệp đó — tệp đang được **111 tệp khác** import.
-    2. `Oops.Oh(key, arg)` nhồi tham số **ở BE**: tra key ra template rồi `string.Format(template, arg)`. BE tra không ra key ⇒ template chính là cái key, không có chỗ `{0}` ⇒ **đối số bị bỏ mất**. Dịch ở FE thì các mã có tham số hiện `{0}` trơ, mất đúng thông tin chẩn đoán (*field nào / gói tin nào / bộ mã nào* đang sai).
-  - **Bằng chứng đối chứng**: `lz.exception.tmsMap.itCannotTurnedOff` có ở BE Resources, ⛔ không có ở FE i18n — màn Bản đồ vẫn hiện tiếng Việt ⇒ FE ⛔ **không cần** key của BE.
-  - **Tiền lệ trong git** — 5 commit, 3 người, **tất cả** vào BE `Resources/*.json`: `ec953af1` (05/05, 6 key), `a768f02b` (19/06, 21 key `tmsDutySchedule`), `13c62407` (17/07, 1 key), `36d66a7a` (03/08, 2 key), `354056bc` (03/08, 6 key `vw` — mẫu đủ 4 nhóm). ⛔ **Không một commit nào** trong 5 tháng đưa `lz.exception.*` vào FE i18n.
-  - ⛔ **CẤM nhân rộng workaround `$t(e.message)`**: hai chỗ lẻ `views/sharedata/eventSource/component/editEventSource.vue:70` và `views/sharedata/eventSource/index.vue:81` đang dịch lại message BE ở FE. Đi ngược chuẩn, ⛔ không copy sang chỗ khác.
-  - **Thuật ngữ trong chuỗi hiển thị phải khớp giao diện, ⛔ không bám XML doc**: XML doc gọi `ShareDataMapping` là *"phễu lọc"* nhưng giao diện gọi *"Ánh xạ dữ liệu"* / *"hồ sơ ánh xạ"* ⇒ chuỗi trong `Resources/*.json` dùng **"hồ sơ ánh xạ"**. ⛔ Chỉ đổi chuỗi hiển thị, ⛔ không sửa XML doc, ⛔ không đổi tên biến (rule 19.6).
-  - ⚠️ **Nợ kỹ thuật đã ghi nhận 30/09/2026 — ⛔ không bắt chước**: bản dịch của `cctvDevice`, `wp`, `vmsTemplate` hiện **chỉ tồn tại trong bảng CSDL `SysTerminology`, không có commit nào** trong git (đã rà: chuỗi `multipleByIp` chỉ xuất hiện đúng 1 chỗ là `CCTV/BaseMsg.cs:89`, ⛔ không trong JSON, ⛔ không trong SQL) ⇒ dựng môi trường mới là **mất sạch**, không truy được ai nhập và khi nào. Quy ước cột bảng đó, ghi lại để lượt sau đọc được dữ liệu cũ: `Name` = **tiền tố nhóm** (`lz.exception`), `Code` = **phần hậu tố** (`cctvDevice.multipleByIp`), key đầy đủ = `Name` + `.` + `Code`, `Value` = chuỗi đã dịch, `Lang` ∈ {`vi-VN`, `en-US`}. ⚠️ Có dòng legacy nhét cả key đầy đủ vào `Code` (`Code='lz.entity.base.name'`, `Name='lz.entity'`) song song dạng chuẩn — ⛔ không bắt chước dạng legacy.
-  - 📌 **Tầng ghi đè ở FE** (không đổi quy tắc trên, chỉ để hiểu khi debug): `src/src/utils/locale.ts` đổ terminology từ CSDL (qua IndexedDB) **trước**, rồi mới lấp các key JSON còn thiếu — tức **CSDL thắng JSON tĩnh ở phía FE**. Đồng bộ bằng 2 endpoint `loadserverterm` / `loadclientterm` trong `src/src/utils/termHelper.ts`; cài đặt BE của 2 route này nằm trong assembly biên dịch sẵn, ⛔ không có trong source.
+  - **Thuật ngữ trong chuỗi hiển thị phải khớp giao diện, ⛔ không bám XML doc**: Ví dụ XML doc gọi `ShareDataMapping` là *"phễu lọc"* nhưng giao diện gọi *"Ánh xạ dữ liệu"* / *"hồ sơ ánh xạ"* ⇒ chuỗi trong `Resources/*.json` dùng **"hồ sơ ánh xạ"**. ⛔ Chỉ đổi chuỗi hiển thị, ⛔ không sửa XML doc, ⛔ không đổi tên biến (rule 19.6).
+  - ⚠️ **Nợ kỹ thuật đã ghi nhận 30/09/2026 — ⛔ không bắt chước**: bản dịch của `cctvDevice`, `wp`, `vmsTemplate` hiện **chỉ tồn tại trong bảng CSDL `SysTerminology`, không có commit nào** trong git ⇒ dựng môi trường mới là mất sạch. Mọi key mới bắt buộc commit vào file JSON của WebAPI/FE, ⛔ không chỉ nhập thủ công vào DB.
+  - 📌 **Tầng ghi đè ở FE**: `src/src/utils/locale.ts` đổ terminology từ CSDL (qua IndexedDB) trước, sau đó lấp các key JSON tĩnh client — CSDL thắng JSON tĩnh ở phía FE khi có cấu hình động.
+
+- **19.27. CẤM Tự Ý Sửa/Bỏ Nội Dung & Thuộc Tính UI Khi Fix Giao Diện/Responsive — BẮT BUỘC Chỉ Sửa Bằng CSS, Khó Phải Hỏi (chốt 01/10/2026)**:
+  - **Nguyên tắc bất biến**: Khi người dùng yêu cầu sửa lỗi giao diện, căn chỉnh layout, chống tràn viền hoặc tối ưu responsive, AI **TUYỆT ĐỐI KHÔNG tự ý xóa bỏ, rút gọn hoặc thay đổi nội dung, thuộc tính nghiệp vụ, component props của template HTML/Vue** (ví dụ: `show-word-limit`, `:maxlength`, nhãn form `:label`, placeholder, icon, thẻ button, slot...).
+  - 🔴 **BẮT BUỘC giải quyết 100% bằng CSS**: Mọi tinh chỉnh về co giãn, ẩn/hiện, padding, margin, wrapping, flexbox, grid, font-size... **BẮT BUỘC PHẢI THỰC HIỆN TRONG KHỐI CSS / SCSS** (`<style lang="scss" scoped>`).
+  - 🛑 **Socratic Gate khi gặp ca khó / hạn chế không gian**: Nếu không gian quá chật hẹp hoặc gặp rào cản kỹ thuật không thể xử lý thuần CSS mà bắt buộc phải lược bỏ/rút gọn nội dung UI:
+    - **CẤM tự ý xóa code trước rồi mới báo cáo sau.**
+    - **BẮT BUỘC DỪNG LẠI VÀ HỎI TRỰC TIẾP NGƯỜI DÙNG**: Nêu rõ lý do kỹ thuật và xin phép rõ ràng: *"Đoạn này không gian quá hẹp, em có được phép lược bỏ thuộc tính/nội dung [X] không?"*. Chỉ được can thiệp template khi người dùng đồng ý bằng văn bản.
 
 ---
 
@@ -1324,6 +1333,7 @@ Khi tạo mới hoặc sửa modal, BẮT BUỘC tuân thủ đúng bảng đố
   - BẮT BUỘC dùng `parseInt(item.code)` khi bind value vào model số.
 
 ### 20.5. Đa Ngôn Ngữ (i18n Scope Rules)
+- **Quy tắc ưu tiên (xem chi tiết mục 19.26)**: Luôn ưu tiên lấy và khai báo bản dịch trên WebAPI Resource (`TAC_WebAPI/Resources/*.json`). Nếu WebAPI không có mới tận dụng dịch thuật tại Frontend i18n (`src/i18n/lang/*.json`) làm fallback.
 - Tuân thủ tiền tố `lz.*`:
   - `lz.entity.base.*` / `lz.label.base.*` / `lz.button.base.*` / `lz.message.base.*` / `lz.validation.base.*`: Nội dung dùng chung toàn hệ thống. Nếu key đã có trong `base`, BẮT BUỘC tái sử dụng, KHÔNG tạo lại ở module.
   - `lz.entity.{module}.*` / `lz.label.{module}.*`: Dùng chung cho nhiều tính năng trong cùng phân hệ (`tms`, `vms`, `shareData`...).
@@ -1344,6 +1354,11 @@ Khi tạo mới hoặc sửa modal, BẮT BUỘC tuân thủ đúng bảng đố
   - Màu nền & Viền: `var(--el-bg-color)`, `var(--el-fill-color-light)`, `var(--el-border-color)`.
 - **SCSS Comments**: BẮT BUỘC dùng dạng block comment `/* */`. TUYỆT ĐỐI KHÔNG dùng comment một dòng `//` trong SCSS (gây vỡ build Vite).
 - **Cú pháp SCSS**: Không để thừa hai dấu chấm phẩy (`;;`).
+
+### 20.7. Nguyên Tắc Sửa Giao Diện & Responsive (CSS-First, Không Thay Đổi Template)
+- **CSS-First**: Mọi lỗi hiển thị (placeholder bị che, icon che khuất, vỡ dòng, co rúm nút, responsive màn hình nhỏ...) BẮT BUỘC xử lý bằng CSS/SCSS (Flexbox, Grid, Container Queries `@container`, Media Queries `@media`, CSS variables, pseudo-classes...).
+- **CẤM xóa props / thuộc tính template**: TUYỆT ĐỐI KHÔNG tự ý gỡ bỏ các thuộc tính chuẩn của Element Plus (`show-word-limit`, `:maxlength`, `clearable`, `filterable`, `:body-style`...) để "né" việc căn chỉnh CSS.
+- **Quy trình hỏi ý kiến**: Nếu không gian quá hẹp không thể hiển thị vừa cả nội dung và bộ đếm/nút, BẮT BUỘC hỏi ý kiến người dùng trước khi được phép lược bỏ bất kỳ thành phần nào của UI (tuân thủ mục 19.27).
 
 ---
 

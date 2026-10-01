@@ -98,12 +98,24 @@
       "Bash(awk 'NR>=24 && NR<=28 {printf \"%d: %.70s\\\\n\", NR, $0}' README.md)",
       "Bash(sed -i '25,27d' README.md)",
       "Bash(awk 'NR>=20 && NR<=27 {printf \"%d: %.80s\\\\n\", NR, $0}' README.md)",
-      "Bash(grep -n 'message\\\\|$t\\\\|i18n' axios-utils.ts)"
+      "Bash(grep -n 'message\\\\|$t\\\\|i18n' axios-utils.ts)",
+      "Bash(pdftotext -table -enc UTF-8 \"F16.TAC-CN01-HNCL_ITS-KICH BAN KIEM THU - Issue - ShareData.pdf\" -)",
+      "Bash(grep -v '^[[:space:]]*$')",
+      "Bash(awk '{printf \"kich thuoc: %d bytes \\(~%d KB\\)\\\\n\", $5, \\($5+512\\)/1024}')",
+      "Bash(awk '{printf \"md: %d bytes \\(~%.0f KB\\)\\\\n\", $1, $1/1024}')",
+      "Bash(awk '{printf \"pdf: %d bytes \\(~%.1f MB\\)\\\\n\", $1, $1/1048576}')",
+      "Bash(rm -f /tmp/sharedata_pdf.txt /tmp/sharedata_pdf.err /tmp/sharedata_tbl.txt *)",
+      "Bash(python /tmp/extract_img.py)",
+      "Bash(python /tmp/map_rows.py)",
+      "Bash(python /tmp/map_all.py)",
+      "Bash(git -C TA-ITS015-WEBVUE-V1.0 status --short -- src/src/views/sharedata/ src/src/i18n/lang/)",
+      "Bash(git -C TA-ITS015-WEBAPI-V1.0 status --short -- src/TAC_WebAPI/Resources/)"
     ],
     "additionalDirectories": [
       "c:\\ThienAn\\DocBusinessThienAn\\HữuNghị-ChiLăng\\VideoWall",
       "C:\\Users\\This PC\\.claude\\plans",
-      "C:\\ThienAn\\DocBusinessThienAn\\HữuNghị-ChiLăng\\ShareData\\Prompt"
+      "C:\\ThienAn\\DocBusinessThienAn\\HữuNghị-ChiLăng\\ShareData\\Prompt",
+      "\\tmp"
     ]
   },
   "hooks": {

@@ -58,6 +58,20 @@ Kho tài liệu nghiệp vụ, đặc tả kỹ thuật và mapping gói tin c�
 
 ---
 
+## 📁 Thư mục con của phân hệ
+
+| Thư mục | Chứa gì | Ghi chú |
+|---|---|---|
+| `doc/` | Tài liệu **nghiệp vụ & đặc tả** — xem Tier Table ở trên | |
+| `Plan/` | 🔴 `Sharedata_MasterPlan.md` — **sổ theo dõi task duy nhất** | rule 19.24 |
+| `Prompt/` | Prompt thực thi từng bước | rule 13 |
+| `KiemThu/` | 🧪 **Kiểm thử & nghiệm thu** — nhật ký lỗi của QA, biểu mẫu F16, ảnh chụp màn hình từng issue | ⛔ Tách bạch khỏi `doc/`, ⛔ không trộn vào Tier Table nghiệp vụ |
+| `_source/` | Bản gốc Tier C (xlsx, pdf) — 👤 human-only | rule 16 |
+
+📌 Điểm vào của `KiemThu/`: [`KiemThu/README.md`](KiemThu/README.md).
+
+---
+
 ## 📌 Lưu ý kiến trúc quan trọng (Memory Pointer)
 
 - **Pipeline 3 Process (chốt 16/09/2026)**: luồng GỬI chạy Extraction → Mapping → Transport, ngữ cảnh dùng chung xuyên suốt. Lỗi ở tầng Mapping **ngắt ngay**, không sang tầng gửi. ✅ Phân hệ đã được đổi tên `DataPublication` → **`DataOutbound`** cho đối xứng với `DataInbound`.
