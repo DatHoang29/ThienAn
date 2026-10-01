@@ -1238,23 +1238,17 @@ tests/
     - Khai báo hằng số hoặc biến cục bộ (`const int pageSize = 100;`, `const int maxPages = 20;`, `const int lockBudgetPercent = 50;`) **ngay bên trong phương thức sử dụng nó**.
     - Code tự nhiên, tự chứa (self-contained), khép kín phạm vi, dễ đọc hiểu từ trên xuống dưới mà không cần XML doc rườm rà.
 
-- **19.26. Quy Tắc Ưu Tiên Đa Ngôn Ngữ (Localization Priority) — Ưu Tiên WebAPI Resource Trước, FE Làm Fallback (cập nhật 01/10/2026)**:
-  - **Phạm vi áp dụng**: Mọi key `lz.*` trong cả hai repo `TA-ITS015-WEBAPI-V1.0` và `TA-ITS015-WEBVUE-V1.0`.
-  - 🔴 **Thứ tự ưu tiên dịch thuật bắt buộc**:
-    1. 🥇 **Ưu tiên 1 (WebAPI Resource - Primary Source)**: Luôn ưu tiên định nghĩa và lấy bản dịch từ Resource trên WebAPI (`src/TAC_WebAPI/Resources/vi-VN.json` và `en-US.json`).
-       - Mọi chuỗi do Backend xử lý/ném ra: `lz.exception.*`, `lz.validation.*` (FluentValidation), `lz.message.*`, và `lz.entity.*` (khi dùng làm tham số `{0}`).
-       - Lý do: WebAPI nạp template và nhồi tham số `{0}`, `{1}` chuẩn xác phía máy chủ trước khi trả response về client, đảm bảo thông điệp đầy đủ ngữ cảnh và đa ngôn ngữ xuyên suốt các client (Web, App, Service bên ngoài).
-    2. 🥈 **Ưu tiên 2 (Frontend i18n - Fallback & Client UI)**: Nếu WebAPI **chưa có / không có** (hoặc đối với các thành phần giao diện tĩnh thuần túy của client: `lz.label.*`, `lz.placeholder.*`, `lz.button.*`, `lz.router.*`, `lz.tooltip.*`), mới tận dụng dịch thuật tại Frontend (`src/src/i18n/lang/vi-vn.json` và `en-us.json`).
-       - Frontend đóng vai trò là tầng fallback an toàn: trong trường hợp Backend trả về mã raw key hoặc message chưa kịp bổ sung trên WebAPI, Frontend tận dụng từ điển client để hiển thị thông điệp thân thiện cho người dùng thay vì để lộ mã lỗi thô.
-
-    | Thứ tự | Nguồn bản dịch | Đường dẫn file | Phạm vi & Tiền tố |
-    | :---: | --- | --- | --- |
-    | **1 (Ưu tiên)** | **WebAPI Resource** | `src/TAC_WebAPI/Resources/vi-VN.json` & `en-US.json` | Mọi Exception, Validation, Message nghiệp vụ: `lz.exception.*`, `lz.validation.*`, `lz.message.*`, `lz.entity.*` |
-    | **2 (Fallback & UI)** | **Frontend i18n** | `src/src/i18n/lang/vi-vn.json` & `en-us.json` | Nhãn giao diện, Placeholder, Button: `lz.label.*`, `lz.placeholder.*`, `lz.button.*`, `lz.router.*` + Fallback khi BE thiếu |
-
-  - **Thuật ngữ trong chuỗi hiển thị phải khớp giao diện, ⛔ không bám XML doc**: Ví dụ XML doc gọi `ShareDataMapping` là *"phễu lọc"* nhưng giao diện gọi *"Ánh xạ dữ liệu"* / *"hồ sơ ánh xạ"* ⇒ chuỗi trong `Resources/*.json` dùng **"hồ sơ ánh xạ"**. ⛔ Chỉ đổi chuỗi hiển thị, ⛔ không sửa XML doc, ⛔ không đổi tên biến (rule 19.6).
-  - ⚠️ **Nợ kỹ thuật đã ghi nhận 30/09/2026 — ⛔ không bắt chước**: bản dịch của `cctvDevice`, `wp`, `vmsTemplate` hiện **chỉ tồn tại trong bảng CSDL `SysTerminology`, không có commit nào** trong git ⇒ dựng môi trường mới là mất sạch. Mọi key mới bắt buộc commit vào file JSON của WebAPI/FE, ⛔ không chỉ nhập thủ công vào DB.
-  - 📌 **Tầng ghi đè ở FE**: `src/src/utils/locale.ts` đổ terminology từ CSDL (qua IndexedDB) trước, sau đó lấp các key JSON tĩnh client — CSDL thắng JSON tĩnh ở phía FE khi có cấu hình động.
+- **19.26. Quy Tắc Dịch Thuật (Localization Policy) — BE Tuyệt Đối CẤM Đụng File Resources, Bắt Buộc Lưu DB (Seed SQL/API); FE Dùng i18n JSON Bình Thường (cập nhật 01/10/2026)**:
+  - 🛑 **Backend WebAPI (CẤM ĐỤNG FILE RESOURCE - P0)**:
+    - **TUYỆT ĐỐI KHÔNG sửa hoặc thêm mới key** vào các file resource của Backend tại `TA-ITS015-WEBAPI-V1.0\src\TAC_WebAPI\Resources` (`vi-VN.json`, `en-US.json`).
+    - Khi Backend cần áp dụng dịch thuật (các key nghiệp vụ `lz.exception.*`, `lz.validation.*`, `lz.message.*`, `lz.entity.*`...): **BẮT BUỘC lưu trên Cơ sở dữ liệu (`SysTerminology`)**.
+    - **Hai phương thức thực hiện cho Backend**:
+      1. 💾 **Cách 1 (Seed / SQL Script - Ưu tiên)**: Xuất file script SQL idempotent (`IF NOT EXISTS ... INSERT ELSE UPDATE`) vào thư mục `sql/` của dự án (ví dụ: `DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/sql/`) thao tác trực tiếp trên bảng `SysTerminology` để DBA / Admin chạy cập nhật CSDL.
+      2. 🔌 **Cách 2 (Gọi API quản trị thuật ngữ)**: Gọi API thêm / cập nhật thuật ngữ thông qua `SysTerminologyController` (ví dụ `AddSysTerminology`, `UpdateSysTerminology`) để lưu trực tiếp vào CSDL.
+  - 🌐 **Frontend (i18n JSON Bình Thường)**:
+    - Phía Frontend (`TA-ITS015-WEBVUE-V1.0`) **vẫn sử dụng bình thường hệ thống từ điển JSON của `vue-i18n`**: `src/src/i18n/lang/vi-vn.json` và `en-us.json` cho toàn bộ nhãn giao diện, nút bấm, placeholder, tooltip (`lz.label.*`, `lz.placeholder.*`, `lz.button.*`, `lz.tooltip.*`...) và các thông báo phía client.
+  - 📌 **Cơ chế ghi đè**: Hệ thống nạp terminology từ DB (`SysTerminology`) trước, đảm bảo dữ liệu dịch thuật trên DB luôn có hiệu lực cao nhất và đồng bộ động mà không cần rebuild / deploy lại file resource tĩnh của Backend.
+  - **Thuật ngữ trong chuỗi hiển thị phải khớp giao diện**: Ví dụ XML doc gọi `ShareDataMapping` là *"phễu lọc"* nhưng giao diện gọi *"Ánh xạ dữ liệu"* / *"hồ sơ ánh xạ"* ⇒ chuỗi dịch dùng **"hồ sơ ánh xạ"**. ⛔ Chỉ đổi chuỗi hiển thị, ⛔ không sửa XML doc, ⛔ không đổi tên biến.
 
 - **19.27. CẤM Tự Ý Sửa/Bỏ Nội Dung & Thuộc Tính UI Khi Fix Giao Diện/Responsive — BẮT BUỘC Chỉ Sửa Bằng CSS, Khó Phải Hỏi (chốt 01/10/2026)**:
   - **Nguyên tắc bất biến**: Khi người dùng yêu cầu sửa lỗi giao diện, căn chỉnh layout, chống tràn viền hoặc tối ưu responsive, AI **TUYỆT ĐỐI KHÔNG tự ý xóa bỏ, rút gọn hoặc thay đổi nội dung, thuộc tính nghiệp vụ, component props của template HTML/Vue** (ví dụ: `show-word-limit`, `:maxlength`, nhãn form `:label`, placeholder, icon, thẻ button, slot...).
@@ -1262,6 +1256,20 @@ tests/
   - 🛑 **Socratic Gate khi gặp ca khó / hạn chế không gian**: Nếu không gian quá chật hẹp hoặc gặp rào cản kỹ thuật không thể xử lý thuần CSS mà bắt buộc phải lược bỏ/rút gọn nội dung UI:
     - **CẤM tự ý xóa code trước rồi mới báo cáo sau.**
     - **BẮT BUỘC DỪNG LẠI VÀ HỎI TRỰC TIẾP NGƯỜI DÙNG**: Nêu rõ lý do kỹ thuật và xin phép rõ ràng: *"Đoạn này không gian quá hẹp, em có được phép lược bỏ thuộc tính/nội dung [X] không?"*. Chỉ được can thiệp template khi người dùng đồng ý bằng văn bản.
+
+- **19.28. Liệt Kê Theo Số Thì BẮT BUỘC Sắp Tăng Dần (chốt 02/10/2026)**:
+  - **Phạm vi**: mọi danh sách, bảng, nhóm gạch đầu dòng trong `DocBusinessThienAn/` và `.agents/` mà phần tử được định danh bằng **số** — mã issue, số mục, mã lỗi, số thứ tự bước.
+  - 🔴 **BẮT BUỘC sắp từ nhỏ tới lớn.** ⛔ Không xếp theo thứ tự tiện tay của người viết: thứ tự tìm ra, thứ tự quan trọng, hay thứ tự gom theo cùng nguyên nhân.
+  - **Lý do**: người đọc tra tài liệu bằng cách **dò số của mình**. Danh sách không tăng dần buộc họ phải quét toàn bộ mới chắc là không bỏ sót — và họ ⛔ không có cách nào đoán được thứ tự kia dựa trên tiêu chí gì.
+  - **Lỗi thật đã mắc**: `sharedata-ke-hoach-dot-f16-20261001.md` mục `N5` liệt kê issue `9 · 23 · 24 · 26 · 17` (mục 17 bị đẩy xuống cuối chỉ vì tìm ra sau), và mục nhóm C liệt kê `12 · 3 · 14+16`. Chủ dự án phản hồi: *"nếu báo cáo số thì nên đi từ nhỏ tới lớn"*.
+  - **Ngoại lệ duy nhất**: khi thứ tự **chính là nội dung** — các bước phải làm theo trình tự (quy trình thi công, thứ tự áp prompt). Lúc đó đánh số lại từ 1 theo đúng trình tự thực hiện, ⛔ không giữ số gốc rồi xếp lộn xộn.
+
+- **19.29. Tách Biệt Nghiêm Ngặt Giữa Sửa Logic và Sửa UI (chốt 01/10/2026 - P0)**:
+  - **Phạm vi**: áp dụng cho mọi tác vụ sửa lỗi logic, validation, chặn giá trị (clamp, max, min), xử lý dữ liệu, API trên toàn bộ dự án.
+  - 🔴 **BẮT BUỘC chỉ sửa tầng Logic / Script**: Khi người dùng yêu cầu sửa logic hoặc hành vi nghiệp vụ, AI **CHỈ ĐƯỢC PHÉP can thiệp vào tầng logic / script / event handlers / guards**.
+  - ⛔ **CẤM tự ý đổi Component hoặc Layout UI**: TUYỆT ĐỐI KHÔNG tự ý thay đổi component UI, thay đổi layout, đổi sang component khác (ví dụ: đang dùng component có styling/controls chuẩn như `el-input-number` lại tự ý hạ cấp sang `el-input` thường chỉ để né xử lý phức tạp).
+  - 🛑 **Chỉ sửa UI khi có yêu cầu trực tiếp**: Mọi can thiệp vào giao diện, component, nút bấm, layout chỉ được thực hiện khi người dùng yêu cầu rõ ràng *"sửa UI"*, *"đổi giao diện"*, *"chỉnh hiển thị"*. Luôn bảo toàn 100% UI/UX gốc hiện hữu khi giải quyết bài toán logic.
+  - **Lỗi thật đã mắc**: Sửa chặn max chu kỳ 86400, thay vì xử lý guard/event trên component gốc `el-input-number`, AI đã tự ý đổi sang `el-input` thuần làm mất cụm mũi tên controls và lệch căn chỉnh của người dùng.
 
 ---
 
