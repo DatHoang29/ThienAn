@@ -38,15 +38,10 @@ services:
       - "4222:4222"     # Cho Backend C# (.NET) - TCP (Pub/Sub, Request/Reply)
       - "12219:12219"   # Cho Web Frontend (Vue) - WebSocket (ws://...)
       - "8222:8222"     # Cổng Dashboard HTTP Monitoring (xem metrics, trạng thái server)
-    # Lệnh bật tính năng JetStream và mở cổng WebSocket không mã hóa (no TLS) cho Web Frontend
-    command:
-      [
-        "-js",
-        "-p", "4222",
-        "-m", "8222",
-        "--websocket_port", "12219",
-        "--websocket_no_tls"
-      ]
+    # File cấu hình chuẩn hóa NATS (hỗ trợ WebSocket ws://:12219, TCP 4222, HTTP 8222 và JetStream)
+    volumes:
+      - ./nats.conf:/etc/nats/nats.conf
+    command: ["-c", "/etc/nats/nats.conf"]
 
   # =========================================================================
   # 3. REDIS IN-MEMORY CACHE & DATA STORE

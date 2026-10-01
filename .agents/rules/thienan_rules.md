@@ -1155,23 +1155,33 @@ tests/
     - Có đoạn văn nói **về** cách trình bày thay vì nói **về** nội dung nghiệp vụ.
   - **Lỗi thật đã mắc**: `Sharedata_Review_TongThe_20260927.md` bản đầu dài 26 KB, đủ 4 trục theo mục 19.14 và chính xác về nội dung, nhưng chủ dự án đọc xong **vẫn phải quay lại hỏi** vì: ô `Tóm tắt` chỉ ghi số lượng không ghi nội dung; mục 2 đặc biểu thức mã nguồn; có đoạn AI tự biện luận cách phân loại ký hiệu của mình. Chủ dự án phản hồi nguyên văn: *"báo cáo tôi đọc còn phải hỏi lại bạn nghĩa là báo cáo đó tôi không hiểu"*. ⚠️ Lần đầu AI chỉ vá triệu chứng (thêm một cột ký hiệu) — sai, vì nguyên nhân gốc là **viết hướng về mình thay vì hướng về người đọc**.
 
-- **19.22. Quy Chuẩn Khai Báo Property — Dùng Auto-Property { get; } / { get; set; }, CẤM Tách Backing Field Riêng (chốt 27/09/2026)**:
+- **19.22. Quy Chuẩn Khai Báo Property — Dùng Auto-Property { get; } / { get; set; }, CẤM Tách Backing Field Riêng và CẤM Dùng `private readonly` Field Cho State Nội Bộ (chốt 27/09/2026 · mở rộng 02/10/2026)**:
   - **Nguyên tắc**: Khi khai báo property trong class C# (Service, Worker, Controller, Entity, DTO...), BẮT BUỘC sử dụng Auto-Property thuần (`{ get; }`, `{ get; init; }`, hoặc `{ get; set; }`) được khởi tạo giá trị trực tiếp hoặc thông qua Constructor.
   - ⛔ **CẤM tuyệt đối các phản mẫu tách backing field riêng (Backing Field Anti-patterns)**:
     - ❌ **Cấm tách backing field lazy `??=`**: Không viết `public IReadOnlyList<string> TrackedTables => _trackedTables ??= ...; private IReadOnlyList<string>? _trackedTables;`.
     - ❌ **Cấm tách backing field wrapper collection**: Không viết `public IReadOnlyCollection<string> MissingTables => _missingTables; private readonly HashSet<string> _missingTables = new(...);`.
     - Cách viết này làm rác class (sinh thêm nhiều field `private` thừa thãi, rườm rà), khó đọc, khó debug và vi phạm tính đồng nhất của codebase.
+  - ⛔ **CẤM dùng `private readonly` field đứng một mình cho state nội bộ — BẮT BUỘC dùng private auto-property (mở rộng 02/10/2026)**:
+    - ❌ **Phản mẫu**: `private readonly Dictionary<string, DateTime> _missingTables = new(StringComparer.OrdinalIgnoreCase);`
+    - ✅ **Chuẩn**: `private Dictionary<string, DateTime> MissingTables { get; set; } = new(StringComparer.OrdinalIgnoreCase);`
+    - **Lý do**: property thống nhất cú pháp với toàn bộ codebase, dễ thêm getter/setter logic sau này mà không phá hợp đồng, và loại bỏ hoàn toàn field `private` đứng lẻ khỏi class.
+    - **Ngoại lệ duy nhất** cho `private readonly field`: các **phụ thuộc DI** được inject qua constructor tường minh (`private readonly ILogger _logger;`, `private readonly IServiceScopeFactory _factory;`) — đây là quy ước framework, giữ nguyên. Xem phân biệt casing ở mục 7.
   - ✅ **Cách viết chuẩn**:
-    - Khởi tạo trực tiếp trên auto-property thuần hoặc trong Constructor:
-      ```csharp
-      // ✅ ĐÚNG: Auto-property { get; } khởi tạo 1 lần trong Constructor hoặc trực tiếp
-      public IReadOnlyDictionary<string, IReadOnlyList<string>> TablePacketMap { get; } = LoadTablePacketMap(Configuration);
-      public IReadOnlyList<string> TrackedTables { get; } = [.. LoadTablePacketMap(Configuration).Keys];
-      public string ChangesSql { get; } = BuildChangesSql([.. LoadTablePacketMap(Configuration).Keys]);
-      public HashSet<string> MissingTables { get; } = new(StringComparer.OrdinalIgnoreCase);
-      public DateTime? NextTableRetryTime { get; set; }
-      public string ActiveChangesSql { get; private set; } = BuildChangesSql([.. LoadTablePacketMap(Configuration).Keys]);
-      ```
+    ```csharp
+    // ✅ ĐÚNG: Auto-property { get; } — readonly, khởi tạo 1 lần
+    public IReadOnlyDictionary<string, IReadOnlyList<string>> TablePacketMap { get; } = LoadTablePacketMap(Configuration);
+    public IReadOnlyList<string> TrackedTables { get; } = [.. LoadTablePacketMap(Configuration).Keys];
+
+    // ✅ ĐÚNG: state nội bộ mutable — private auto-property { get; set; }, KHÔNG phải private readonly field
+    private Dictionary<string, DateTime> MissingTables { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    private DateTime? NextTableRetryTime { get; set; }
+    private string ActiveChangesSql { get; set; } = BuildChangesSql([..]);
+
+    // ✅ ĐÚNG ngoại lệ DI: phụ thuộc inject qua constructor tường minh → giữ private readonly field
+    private readonly ILogger<DataChangeTrackingService> _logger;
+    private readonly IServiceScopeFactory _scopeFactory;
+    ```
+
 
 - **19.23. Prompt Sinh Ra Từ Tài Liệu Thì BẮT BUỘC Có Mục Cuối "Cập Nhật Lại Tài Liệu Gốc" (chốt 28/09/2026)**:
   - **Phạm vi áp dụng**: mọi tệp prompt trong `Prompt/` mà nội dung được rút ra từ một tài liệu — báo cáo rà soát (`Plan/*_Review_*.md`), MasterPlan, đặc tả (`doc/*.md`), biên bản họp (`doc/transcript/*.md`), hoặc `README.md` của khu vực code (`tests/README.MD`...).
