@@ -23,7 +23,7 @@ if (absent.length)
     console.log(`[E2E MODULES] Loại khỏi chạy (không có thư mục views/): ${absent.map((m) => m.name).join(', ')}`);
 
 export default defineConfig({
-    testDir: './specs',
+    testDir: './views',
     testIgnore: absent.map((m) => `**/${m.dir}/**`),
     timeout: 60_000,
     fullyParallel: false,
