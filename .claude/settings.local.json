@@ -109,7 +109,9 @@
       "Bash(python /tmp/map_rows.py)",
       "Bash(python /tmp/map_all.py)",
       "Bash(git -C TA-ITS015-WEBVUE-V1.0 status --short -- src/src/views/sharedata/ src/src/i18n/lang/)",
-      "Bash(git -C TA-ITS015-WEBAPI-V1.0 status --short -- src/TAC_WebAPI/Resources/)"
+      "Bash(git -C TA-ITS015-WEBAPI-V1.0 status --short -- src/TAC_WebAPI/Resources/)",
+      "Bash(grep -n 'Rà soát toàn bộ trạng thái\\\\|Rủi ro ghi nhận\\\\|Lý do thêm cho\\\\|Hai lý do chặn\\\\|^#### 6c' DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/Plan/Sharedata_MasterPlan.md)",
+      "Bash(iconv -f UTF-8 -t UTF-8 DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/Plan/Sharedata_MasterPlan.md)"
     ],
     "additionalDirectories": [
       "c:\\ThienAn\\DocBusinessThienAn\\HữuNghị-ChiLăng\\VideoWall",
