@@ -758,6 +758,7 @@ tests/
   - Prompt/plan hạ tầng/tooling/AG-Kit (không thuộc domain nghiệp vụ) → `.agents/prompts/`.
 - **Đặt tên**: `<task-slug>-prompt.md` (trong `Prompt/`) hoặc `<Xx>_MasterPlan_<ngày>.md` /
   `<Xx>_Review_<...>.md` (trong `Plan/`) — kebab-case cho prompt, tiếng Việt không dấu hoặc tiếng Anh.
+- **BẮT BUỘC ghi tên & đường dẫn file ngay đầu nội dung file prompt (tiện 1-click copy)**: Trong mọi file prompt markdown (`*-prompt*.md`), BẮT BUỘC ghi rõ đường dẫn tệp (tương đối từ root repo, ví dụ: `**Tệp prompt:** `DocBusinessThienAn/<Dự-án>/<PhânHệ>/Prompt/<task-slug>-prompt.md``) ngay phần header đầu file dưới dạng inline code để người dùng tiện lợi double-click hoặc copy một chạm khi giao việc hoặc chạy lệnh.
 - **Chế độ Plan (ExitPlanMode)**: Nếu harness ép ghi plan vào `~/.claude/plans/`, ngay sau khi plan được duyệt BẮT BUỘC sao chép vào đúng thư mục (`Plan/` hoặc `Prompt/` tuỳ loại nội dung) của phân hệ tương ứng trong repo (xem trên) và coi bản trong repo là bản chính thức; báo người dùng đường dẫn trong repo, không phải `~/.claude/plans/`.
 - **CẤM Auto-cleanup file Prompt (Keep for User Review)**: AI **TUYỆT ĐỐI KHÔNG tự động xóa** file trong `Prompt/`
   (khớp `*-prompt*.md`, `{task-slug}.md`) sau khi task hoàn tất. Bắt buộc giữ lại để người dùng review sau code
@@ -1345,7 +1346,16 @@ tests/
     - **Bài học bắt buộc rút ra**: ⛔ TUYỆT ĐỐI KHÔNG lấy một **suy diễn chưa đọc mã nguồn** làm căn cứ để đi ngược quy ước sẵn có. Muốn bác một tính năng có sẵn thì BẮT BUỘC **mở đúng tệp đọc đúng dòng** trước, và dẫn số dòng cụ thể.
     - 📌 Cùng họ với quy tắc **19.12** (thứ tự nguồn dẫn chứng): căn cứ cho khẳng định *"code đang làm gì"* là **chính mã nguồn**, ⛔ không phải trí nhớ hay phỏng đoán từ tên tệp.
 
+- **19.34. Mọi File Prompt BẮT BUỘC Ghi Tên & Đường Dẫn File Ngay Đầu File Markdown (chốt 02/10/2026 - P0)**:
+  - **Phạm vi áp dụng**: Mọi file prompt (`*-prompt.md`, `{task-slug}.md`) được tạo trong thư mục `Prompt/` hoặc bất kỳ đâu trong repo.
+  - 🔴 **Yêu cầu bắt buộc**: Ngay dưới tiêu đề chính `# ...`, BẮT BUỘC có dòng khai báo đường dẫn file prompt:
+    `**Tệp prompt:** `DocBusinessThienAn/<Dự-án>/<PhânHệ>/Prompt/<task-slug>-prompt.md``
+    hoặc dạng inline code để người dùng có thể double-click hoặc copy nhanh một chạm.
+  - **Mục đích**: Khi người dùng xem file trên IDE hoặc cần giao việc, bàn giao context sang phiên hội thoại khác hay nhắc lệnh `@path`, người dùng có thể sao chép ngay đường dẫn file prompt mà không phải mất công duyệt cây thư mục hoặc gõ lại tên file.
+  - ⛔ **CẤM bỏ sót**: Cấm tạo file prompt chỉ ghi tiêu đề nghiệp vụ mà không có dòng ghi đường dẫn/tên file prompt của chính nó trong nội dung `.md`.
+
 ---
+
 
 
 Toàn bộ quy tắc dưới đây được đồng bộ từ `.kiro/steering/` của repo Frontend `TA-ITS015-WEBVUE-V1.0`, áp dụng bắt buộc cho toàn bộ mã nguồn Vue 3 / TypeScript:
