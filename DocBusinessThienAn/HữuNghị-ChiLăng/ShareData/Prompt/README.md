@@ -19,6 +19,84 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 ## Danh sách Prompt
 
+### 🔴 Đợt log cha–con chiều GỬI (02/10/2026) — THỨ TỰ ÁP BẮT BUỘC
+
+> ✅ **Đã áp dụng hoàn tất 02/10/2026.** Cả 4 prompt đã thực thi và kiểm chứng thành công, toàn bộ 211/211 test ShareData PASS 100% (2 suites lớn `DataOutboundServiceTests` 126/126 pass, `DataChangeTrackingServiceTests` 78/78 pass, `ShareDataActivityLogControllerTests` 6/6 pass). Tệp prompt được giữ lại trên đĩa để lập trình viên review và đối chiếu sau khi code change.
+
+| # | Prompt | Điều kiện áp | Kết quả thật sau khi áp |
+|---|---|---|---|
+| 1 | `sharedata-log-cha-con-be5-cot-va-api-prompt.md` | — (áp đầu tiên; 2 prompt sau đều cần 2 cột do nó tạo) | ✅ **02/10/2026 (BE-5)**. Bổ sung `ParentId` (varchar 32) và `StepNo` (int, ⛔ không gán Length) vào `ShareDataActivityLog`, index `IX_ShareDataActivityLog_ParentId_StepNo`, quan hệ `Children`. Thêm `.Where(u => u.ParentId == null)` cho `Page`, `GetList`, `Summary` (giữ `GetById` không lọc). API `GetSteps` trả cha kèm 2 con qua `ToTreeAsync` (kèm fallback danh sách phẳng). Script DDL: `../sql/20261002-them-cot-parentid-stepno-sharedataactivitylog.sql`. Test: `ShareDataActivityLogControllerTests` **6/6 pass 100%**. Không vướng mắc. |
+| 2 | `sharedata-log-cha-con-sv8a-chieu-gui-prompt.md` | #1 đã áp, test xanh | ✅ **02/10/2026 (SV-8a)**. Ghi log 2 bước cha-con chiều gửi: B1 Trích xuất (`StepNo = 1`), B2 Ánh xạ & Gửi (`StepNo = 2`). `Stopwatch` đo thời lượng từng bước. Ghi cả 3 dòng ở cuối mỗi nhánh thoát (thành công: 1 cha + 2 con; NoNewData: 1 cha + 1 con; lỗi B2: 1 cha lỗi + B1 thành công + B2 lỗi; lỗi trước B1: 1 cha lỗi). `ShareDataException` mang `ParentId` + `StepNo`. Test: `DataOutboundServiceTests` **126/126 pass 100%**. Không vướng mắc. |
+| 3 | `sharedata-doi-ten-va-nang-moc-don-log-tracking-prompt.md` | ✅ **Độc lập — áp lúc nào cũng được** | ✅ **02/10/2026 (SV-13)**. Đổi tên `PurgeTrackingLogsAsync` → `CleanupTrackingLogs`, nâng mốc mặc định `retentionDays` từ `7` lên `14` ngày. ⛔ Không thêm worker mới, ⛔ không dọn log nghiệp vụ. Cơ chế giữ nguyên chạy 1 lần khi worker khởi động trong `TryInitChangeTracking`. Cập nhật call-site và test suite `DataChangeTrackingServiceTests` **78/78 pass 100%**. Không vướng mắc. |
+| 4 | `sharedata-log-cha-con-dong-bo-tai-lieu-prompt.md` | 🔴 **#1 + #2 + #3 đã áp xong và test xanh 100%** | ✅ **02/10/2026**. Đồng bộ `Sharedata_MasterPlan.md`: tích `[x]` BE-5, SV-8a, SV-13; cập nhật SV-8b; gỡ nhãn Chưa làm nhóm I.A; cập nhật 14 ngày dòng 357 và CleanupTrackingLogs dòng 280; thêm số đo khối lượng log staging vào §6c; bổ sung 7 phương án bị bác vào bảng §10; cập nhật ngày đầu tệp. Ghi nhật ký đợt tại `Prompt/README.md`. |
+
+📌 **Phạm vi đợt 1: chỉ chiều GỬI + `ShareDataActivityLog`.** ⛔ Chiều NHẬN (**SV-8b**) và FE bind `el-steps`
+⛔ **không** thuộc đợt 1 — chủ dự án chốt 02/10/2026. Khảo sát sẵn cho SV-8b (xuyên 2 tiến trình, 2 CSDL,
+cần cột mang ID log cha theo dòng gói tin) đã ghi vào `Sharedata_MasterPlan.md` để lượt sau ⛔ không phải dò lại.
+
+> 🔴 **Đọc tiếp đừng dừng ở đây:** hai việc vừa bị loại khỏi đợt 1 ở trên **đã được làm ở đợt 2 cùng ngày
+> 02/10/2026** — xem mục `FE-1` và bảng thứ tự áp bên dưới. Dòng trên là **phạm vi đợt 1**, ⛔ không phải
+> trạng thái hiện tại. Trạng thái hiện tại chỉ tra ở `Sharedata_MasterPlan.md` (rule 19.24).
+
+---
+
+### 🟢 FE — Bind dữ liệu thật vào el-steps (Đã áp dụng 02/10/2026)
+
+> ✅ **Đã áp dụng 02/10/2026.** Khung cố định 2 bước với `:status="stepStatus(no)"` và `:description="stepDescription(no)"`, gọi API `GetSteps` và bóc `rows[0].children` (kèm fallback `parentId != null`), đã xóa `div.step-hint`, xóa class `.step-hint`, và xóa key `stepDetailPending` ở cả 2 file `vi-vn.json` và `en-us.json`.
+
+| # | Prompt | Điều kiện áp | Trạng thái |
+|---|---|---|---|
+| FE-1 | [`sharedata-log-cha-con-fe-el-steps-prompt.md`](sharedata-log-cha-con-fe-el-steps-prompt.md) | BE-5 + SV-8a đã áp | ✅ **Đã áp 02/10/2026** |
+
+📌 **Phạm vi FE-1:** Sửa `activityDetailDialog.vue` — gọi API `GetSteps`, bind `el-steps` từ dữ liệu thật, xóa `div.step-hint` + key `stepDetailPending`. ⛔ Không sửa layout/component/CSS ngoài xóa class `.step-hint`. ⛔ Không sửa tay file `api-services/`.
+
+🔴 **Prompt FE-1 đã được rà soát và SỬA LẠI ngày 02/10/2026 — bản trước sai tiền đề, áp y nguyên là tính năng không chạy.** Ba lỗi chặn đã sửa:
+
+| # | Lỗi ở bản trước | Đã sửa thành |
+|---|---|---|
+| 1 | Khai API trả **"danh sách phẳng"** ⇒ `steps` nhận đúng 1 dòng **CHA**, `v-for` render 1 bước vô nghĩa, **2 bước thật ⛔ không bao giờ hiện** | Bóc `rows[0].children`, kèm nhánh dự phòng lọc `parentId != null` cho trường hợp handler trả phẳng |
+| 2 | Khai `steps` kiểu `ShareDataActivityLogOutput[]` | Entity khai `List<ShareDataActivityLog>?` ⇒ phải dùng `ShareDataActivityLog[]` |
+| 3 | So `step.success === 1` strict | `Number(step.success) === SUCCESS_OK` — đi đúng bản sửa *"lỗi so sánh enum chuỗi sang số"* đã có |
+
+⚠️ Đồng thời đổi thiết kế template sang **khung cố định 2 bước + `:status` theo `StepNo`** (bỏ `activeStep`/`processStatus`/khối fallback trùng lặp): bước chưa chạy hiện `wait` thay vì biến mất, và ⛔ không còn nhấp nháy đỏ trong lúc chờ API.
+
+---
+
+### 🟡 Đợt 2 — Chiều NHẬN + chia thư mục test
+
+> ✅ **Đã áp dụng hoàn tất đợt 2 (02/10/2026).** Chiều nhận (SV-8b) đã hoàn tất mã nguồn và kiểm thử PASS 100%. Khung `el-steps` phía FE (FE-1) đã bind dữ liệu thật. Hạ tầng kiểm thử (#7) đã chia tách hoàn tất thành `tests/BE/` (.NET xUnit) và `tests/FE/` (Playwright E2E).
+
+| # | Prompt | Điều kiện áp | Trạng thái |
+|---|---|---|---|
+| 5 | [`sharedata-log-cha-con-sv8b-chieu-nhan-prompt.md`](sharedata-log-cha-con-sv8b-chieu-nhan-prompt.md) | ✅ **Độc lập** — BE-5 đã áp nên ⛔ không còn bị chặn | ✅ **Đã áp 02/10/2026** |
+| 6 | [`sharedata-log-cha-con-fe-el-steps-prompt.md`](sharedata-log-cha-con-fe-el-steps-prompt.md) | Nên áp **sau #5** để kiểm được cả chiều nhận; cần `pnpm build-api` | ✅ **Đã áp 02/10/2026** (xem mục FE-1 bên trên) |
+| 7 | [`chia-folder-test-be-fe-prompt.md`](chia-folder-test-be-fe-prompt.md) | 🔴 **SAU CÙNG TUYỆT ĐỐI** — đổi đường dẫn `tests/` của toàn repo | ✅ **02/10/2026 — Đã áp dụng.** Dời toàn bộ project test .NET vào `tests/BE/`, dựng chỗ Playwright E2E ở `tests/FE/` (0 tests). Số lượng test trước/sau khi dời giữ nguyên y hệt: 589 tests ở TFM `net10.0` (ShareData 211/211 pass, VideoWall 366/378 pass), 230 tests ở TFM `net10.0-windows` (StartupValidation + VideoWall WPF, ⛔ không chạy trùng backend). Đã cập nhật mọi tham chiếu tài liệu và config. |
+
+📌 **Phạm vi #5 (SV-8b):** cột liên kết `ShareDataInboundPacket.ReceiveLogId` (CSDL **Inbound**, kết nối riêng), `ShareDataActivityLogger.LogTransferAsync` trả về ID, WebAPI ghi **cha + con bước 1**, Worker ghi **con bước 2** rồi **cập nhật trạng thái cuối lên dòng cha**.
+🔴 **Hai hệ quả biết trước:** (a) `ShareDataActivityLog` có thêm **một đường cập nhật** — từ chỗ chỉ-ghi-thêm; (b) **số dòng lưới chiều nhận giảm 2 → 1** mỗi gói tin.
+🔴 **Gói CŨ có `ReceiveLogId = NULL` phải vẫn chạy** — ghi 1 dòng cấp ngoài như cũ, ⛔ không ném lỗi.
+
+📌 **Phạm vi #7 (chia thư mục test):** dời **cả project** `.NET` vào `tests/BE/` (⛔ không chỉ dời `ITS/`), dựng chỗ Playwright ở `tests/FE/` (chưa viết bài test nào).
+🔴 **Vì sao dời cả project:** `test.csproj` hard-code **13 đường dẫn** `ITS\...` trong các khối `Compile Remove`. Dời cả project thì 13 đường dẫn đó **giữ nguyên**, chỉ `<RepoRoot>` sâu thêm 1 cấp. ⛔ Dời riêng `ITS/` là phải sửa 13 chỗ, **sót 1 chỗ là deadlock** ở TFM `net10.0-windows` (rule 15 đã cảnh báo nguyên văn).
+📌 Đo 02/10/2026: FE ⛔ **không có thư viện test nào** (`package.json` chỉ có `dev`/`build`/`lint-fix`/`build-api`) ⇒ E2E là **project mới hoàn toàn**, ⛔ không chạy chung `dotnet test`.
+
+🔴 **Prompt #3 (SV-13) đã bị thu hẹp mạnh — chốt 02/10/2026.** Nó **chỉ** đổi tên
+`PurgeTrackingLogsAsync` → `CleanupTrackingLogs` và nâng mốc giữ lại `7` → `14` ngày, **giữ nguyên cơ chế cũ**.
+⛔ **KHÔNG** thêm worker mới, ⛔ **KHÔNG** dọn nhật ký truyền nhận nghiệp vụ, ⛔ **KHÔNG** dọn `ShareDataAlertLog`.
+⚠️ Hệ quả: dòng nghiệp vụ của `ShareDataActivityLog` **vẫn chưa có cơ chế dọn nào** — xem ⚠️ ở dòng `SV-13`
+của `Sharedata_MasterPlan.md` kèm 2 số đo staging.
+
+📌 **Hai tệp `.sql` của đợt log cha–con, chờ chủ dự án chạy** — ⛔ AI không chạy (rule 9).
+🔴 **Hai tệp chạy trên HAI CSDL KHÁC NHAU** — tên gần giống nên rất dễ chạy nhầm một tệp rồi tưởng xong:
+
+| Tệp | CSDL đích | Làm gì |
+|---|---|---|
+| [`20261002-them-cot-parentid-stepno-sharedataactivitylog.sql`](../sql/20261002-them-cot-parentid-stepno-sharedataactivitylog.sql) | **CSDL chính** | Thêm 2 cột `ParentId` + `StepNo` và 1 index vào `ShareDataActivityLog` (BE-5) |
+| [`20261002-them-cot-receivelogid-sharedatainboundpacket.sql`](../sql/20261002-them-cot-receivelogid-sharedatainboundpacket.sql) | 🔴 **CSDL Inbound** — kết nối riêng (`ConnectionStrings:InboundConnection`) | Thêm cột `ReceiveLogId` vào `ShareDataInboundPacket` (SV-8b) |
+
+📌 Chạy nhầm CSDL thì script tự `RAISERROR` và dừng, ⛔ không làm hỏng gì.
+📌 Môi trường test local ⛔ không cần hai script này — bật cờ CodeFirst trong `appsettings.Test.json` rồi **tắt lại** (xem prompt #1 và #5).
+
 > 📌 Đã áp dụng hoàn tất prompt `sharedata-tach-gon-pollchanges-prompt.md` (tách `ReportEmptyConfigOnce` và `HandleStaleTables` khỏi `PollChanges`, rút gọn 105 → 81 dòng, thuần di chuyển mã, 0 đổi hành vi, 0 sửa tệp test, toàn bộ 78/78 bài test pass 100%). Tệp prompt được giữ lại trên đĩa để lập trình viên review và đối chiếu sau khi code change.
 
 > 🔴 **Phần tài liệu của phiên 02/10 đã áp xong.** Việc còn lại là **chạy 2 script**, thuộc về chủ dự án —
@@ -63,6 +141,10 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 | Prompt | Kết quả |
 |---|---|
+| `sharedata-log-cha-con-dong-bo-tai-lieu-prompt.md` | ✅ **02/10/2026** · Đợt log cha–con. Đồng bộ `Sharedata_MasterPlan.md`: tích `[x]` BE-5, SV-8a, SV-13; cập nhật SV-8b (hết chặn, khảo sát 2 tiến trình / 2 CSDL); gỡ nhãn Chưa làm nhóm I.A; cập nhật 14 ngày dòng 357 và CleanupTrackingLogs dòng 280; thêm số đo khối lượng log staging (ActivityLog 61.596 dòng, AlertLog 13.706 dòng) vào §6c; bổ sung 7 phương án bị bác vào bảng §10; cập nhật Cập nhật lần cuối ở đầu tệp. Ghi nhật ký đợt tại `Prompt/README.md`. |
+| `sharedata-doi-ten-va-nang-moc-don-log-tracking-prompt.md` | ✅ **02/10/2026** · Đợt log cha–con · **SV-13**. Đổi tên `PurgeTrackingLogsAsync` → `CleanupTrackingLogs` (bỏ `Async`, bỏ `Purge`), nâng `retentionDays` mặc định `7` → `14` ngày. ⛔ Không thêm worker mới, ⛔ không dọn log nghiệp vụ. Cơ chế giữ nguyên chạy 1 lần khi worker khởi động trong `TryInitChangeTracking`. Cập nhật call-site trong `DataChangeTrackingService.cs` và rename test trong `DataChangeTrackingServiceTests.cs`. Toàn bộ 78/78 test DataChangeTrackingServiceTests PASS 100%. |
+| `sharedata-log-cha-con-sv8a-chieu-gui-prompt.md` | ✅ **02/10/2026** · Đợt log cha–con · **SV-8a**. Ghi log 2 bước cha-con chiều gửi: B1 Trích xuất (`StepNo = 1`), B2 Ánh xạ & Gửi (`StepNo = 2`). `Stopwatch` đo thời lượng từng bước. Ghi cả cây log ở cuối mỗi nhánh thoát (thành công: 1 cha + 2 con; NoNewData: 1 cha + 1 con; lỗi B2: 1 cha lỗi + B1 thành công + B2 lỗi; lỗi trước B1: 1 cha lỗi). `ShareDataException` mang `ParentId` + `StepNo`. Cập nhật cách đếm lượt pipeline cha trong `DataOutboundServiceTests` và `DataChangeTrackingServiceTests`. Test: `DataOutboundServiceTests` **126/126 pass 100%**. Toàn bộ 211/211 test ShareData PASS 100%. |
+| `sharedata-log-cha-con-be5-cot-va-api-prompt.md` | ✅ **02/10/2026** · Đợt log cha–con · **BE-5**. Bổ sung `ParentId` (varchar 32) và `StepNo` (int, nullable) vào `ShareDataActivityLog`, index `IX_ShareDataActivityLog_ParentId_StepNo`, quan hệ `Children`. Thêm `.Where(u => u.ParentId == null)` cho `Page`, `GetList`, `Summary` (giữ `GetById` không lọc). API `GetSteps` trả cha kèm 2 con qua `ToTreeAsync` (kèm fallback danh sách phẳng). Sinh script DDL `20261002-them-cot-parentid-stepno-sharedataactivitylog.sql`. Test: `ShareDataActivityLogControllerTests` **6/6 pass 100%**. |
 | `sharedata-tach-gon-pollchanges-prompt.md` | ✅ **02/10/2026** · Đợt F16 · **T**. Tách `ReportEmptyConfigOnce` và `HandleStaleTables` khỏi `PollChanges` (105 dòng rút gọn còn 81 dòng / 14 bước làm), thuần di chuyển mã, 0 đổi hành vi, 0 sửa tệp test. 2 thay đổi TĐ1–TĐ2: TĐ1 tách khối báo cấu hình rỗng thành hàm private `ReportEmptyConfigOnce(db, cancelToken)` (đảo cờ thể khẳng định, giữ nguyên cổng chặn `TrackedTables.Count == 0` ở `PollChanges`, đặt ngay trước `WriteQueryFailed`); TĐ2 tách khối phát hiện + phân hai nhánh bảng quá hạn thành hàm private `HandleStaleTables(db, trackVersion, lastVersion, currentVersion, cancelToken)` (trả bool, biến `isFastForwarded` khẳng định ở call-site, đặt ngay trước `FastForwardStaleVersion`). Đã rà soát biến cục bộ `trackedTableVersions`, `activeTables`, `staleTables` ra hết khỏi `PollChanges`. Toàn bộ 78/78 bài test trong suite DataChangeTrackingServiceTests PASS 100%. |
 | `sharedata-giam-nhip-duong-khoi-tao-prompt.md` | ✅ **02/10/2026** · Đợt F16 · **S**. Giãn nhịp đường khởi tạo Change Tracking khi CSDL chưa bật tracking và worker không tự bật được: xử lý dứt điểm lỗ hổng dội ~86.400 dòng `ESH-1603`/ngày/instance và bão DDL mỗi giây. 🔴 **Thứ tự áp:** áp sau `sharedata-hybrid-co-lap-bang-qua-han-prompt.md` (cùng sửa `PollChanges`). 4 thay đổi TĐ1–TĐ4: TĐ1 thêm 2 property trạng thái `NextInitRetryTime` (DateTime?) và `IsTrackingUnavailableReported` (bool) sau `IsEmptyConfigReported`; TĐ2 thêm cổng chặn giãn nhịp bên trong nhánh `lastVersion < 0` của `PollChanges` (bỏ qua khi chưa tới `NextInitRetryTime`); TĐ3 hẹn giờ thử lại 5 phút (`TableRetryInterval`) và chặn ghi lặp `ESH-1603` (chỉ ghi 1 lần cho mỗi tiến trình) trong `TryInitChangeTracking`, đặt lại cả hai cờ khi khởi tạo thành công; TĐ4 bổ sung unit test `PollChanges_WhenDbTrackingCannotBeEnabled_WritesEsh1603OnceAndBacksOff_Test` giả lập AOP đếm đúng 1 DDL, đúng 1 dòng `ESH-1603`, `NextInitRetryTime` ở tương lai, CSDL test bảo toàn trạng thái bật tracking. Toàn bộ 78/78 bài test trong suite DataChangeTrackingServiceTests PASS 100%. |
 | `sharedata-hybrid-co-lap-bang-qua-han-prompt.md` | ✅ **02/10/2026** · Đợt F16 · **R**. Hybrid hoá chắn proactive: khi bảng nguồn quá hạn, phân biệt rõ theo phạm vi: (1) **Tất cả** bảng hoạt động đều quá hạn (`staleTables.Count == activeTables.Count`) ⇒ `FastForwardStaleVersion` nhảy cóc mốc toàn cục và ghi `ESH-1601` tránh đóng băng vĩnh viễn; (2) Chỉ **một phần** quá hạn ⇒ `IsolateStaleTables` cô lập riêng các bảng quá hạn vào `MissingTables` (hẹn thử lại sau 5 phút), ghi `ESH-1602` kèm `staleTables`, **GIỮ nguyên mốc** và không return để tiếp tục xuống CAS đọc thay đổi cho các bảng lành mạnh. 4 thay đổi TĐ1–TĐ4: TĐ1 bỏ cụm dẫn chiếu khái niệm đã xoá trong `WriteQueryFailed`; TĐ2 hybrid hoá khối chắn proactive trong `PollChanges` và thêm hàm `IsolateStaleTables`; TĐ3 chuyển bài test hiện có sang kịch bản một phần quá hạn `PollChanges_WhenOnlySomeTablesAreStale_IsolatesThemAndKeepsTriggerForHealthy_Test` (khẳng định cô lập riêng TmsWeather, ActiveChangesSql giữ bảng lành, không có ESH-1601, có 1 ESH-1602); TĐ4 thêm bài test kịch bản tất cả quá hạn `PollChanges_WhenAllTablesAreStale_FastForwardsAndWritesEsh1601_Test` (khẳng định nhảy cóc mốc, sinh ESH-1601, MissingTables rỗng). Toàn bộ 77/77 bài test trong suite DataChangeTrackingServiceTests PASS 100%. |

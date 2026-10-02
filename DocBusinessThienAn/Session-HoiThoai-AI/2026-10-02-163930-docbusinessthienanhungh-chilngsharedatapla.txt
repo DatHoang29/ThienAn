@@ -1,0 +1,2632 @@
+
+> @DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/Plan/Sharedata_MasterPlan.md
+  phân tích task làm log cha con giúp tôi.
+
+● Tôi sẽ phân loại request và bắt đầu nghiên cứu.
+
+  Phân loại: SURVEY/INTEL → chuyển dần sang COMPLEX CODE (task log cha-con).
+  Theo .agents/rules/request-routing.md, tôi khảo sát trước rồi mới lên plan.
+
+  🤖 Applying knowledge of @backend-specialist + @project-planner...
+
+  Bắt đầu đọc MasterPlan để tìm đúng task log cha-con.
+
+● MasterPlan 120 KB — tôi tìm đúng mục liên quan (fallback built-in cho Markdown
+  theo rule 11).
+
+  Searched for 2 patterns (ctrl+o to expand)
+
+● Đã xác định: task SV-8a / SV-8b / BE-5 + phần FE activityDetailDialog.vue. Đọc
+  chi tiết các mục.
+
+  Read 1 file (ctrl+o to expand)
+
+● Giờ khảo sát mã nguồn thật. Tôi tìm các symbol cốt lõi.
+  Read 1 file (ctrl+o to expand)
+
+  Called mssql_staging 2 times (ctrl+o to expand)
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+  Listed 1 directory, ran 1 shell command (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+  Read 1 file (ctrl+o to expand)
+
+● Đã khảo sát đủ. Tôi có 3 điểm cần bạn quyết trước khi chốt plan — mỗi điểm
+  thay đổi hẳn khối lượng và thiết kế.
+
+● User answered Claude's questions:
+  ⎿  · Lần này bạn cần tôi giao gì? (Task này gồm 4 phần: BE-5 entity+API ·
+     SV-8a Outbound · SV-8b Inbound · FE bind el-steps) → Toàn bộ 4 phần (kể cả
+     SV-8b + FE)
+     · "1 phiên gửi = 1 log cha + 2 log con" — đơn vị "1 phiên" là gì? Hiện
+     `ExportSubscription` chạy tối đa 20 trang, mỗi trang ghi đúng 1 dòng nhật
+     ký và tăng `SerialNbr`. → 1 trang = 1 phiên (Khuyến nghị)
+     · Dòng CON hiển thị ở đâu trên giao diện Lịch sử chia sẻ? → Chỉ trong modal
+     el-steps (Khuyến nghị)
+
+● Chốt rồi. Tôi khảo sát thêm phần chiều NHẬN (xuyên 2 tiến trình, 2 CSDL) để
+  thiết kế khoá liên kết.
+  Read 1 file (ctrl+o to expand)
+
+● Khảo sát xong. Tôi viết plan.
+
+● Updated plan
+  ⎿  /plan to preview
+
+> cho thêm một worker quét lognaof quá 7 ngày xóa nha  để tránh dữ liệu đầy
+
+● Bổ sung hợp lý — và nó dính trực tiếp vào log cha–con (xoá cha mà sót con là
+  tạo rác mồ côi). Tôi kiểm tra cơ chế dọn đang có trước khi thêm.
+
+● Đã có đủ. Tôi đo thực tế trên staging để con số trong plan là số đo, không
+  phải phỏng đoán.
+
+  Called mssql_staging 5 times (ctrl+o to expand)
+
+● Đo xong — có một phát hiện làm thay đổi thứ tự ưu tiên. Tôi cập nhật plan.
+
+● Updated plan
+  ⎿  /plan to preview
+
+● Updated plan
+  ⎿  /plan to preview
+
+● Giờ thêm hẳn mục SV-13 vào phần việc phải làm.
+
+● Updated plan
+  ⎿  /plan to preview
+
+● Còn bảng prompt và phần kiểm chứng.
+
+● Updated plan
+  ⎿  /plan to preview
+
+● Updated plan
+  ⎿  /plan to preview
+
+● Một điểm trong phạm vi dọn là quyết định nghiệp vụ, không phải kỹ thuật — tôi
+  hỏi cho đúng.
+● User answered Claude's questions:
+  ⎿  · Worker dọn có được xóa luôn cảnh báo (`ShareDataAlertLog`) **chưa ai xác
+     nhận** (`Acknowledged == false`) không? Staging đang có 13.706 dòng cảnh
+     báo. → Xóa hết theo 7 ngày
+
+● Updated plan
+  ⎿  /plan to preview
+
+● Updated plan
+  ⎿  /plan to preview
+  ⎿  Error: The user doesn't want to proceed with this tool use. The tool use
+     was rejected (eg. if it was a file edit, the new_string was NOT written to
+     the file). The user provided the following reason for the rejection:  đổi
+     sang 14 ngày đi
+
+● Đổi sang 14 ngày. Tôi cập nhật và nêu một điểm kéo theo.
+
+● Updated plan
+  ⎿  /plan to preview
+
+● Updated plan
+  ⎿  /plan to preview
+
+● Updated plan
+  ⎿  /plan to preview
+
+● Updated plan
+  ⎿  /plan to preview
+  ⎿  Error: The user doesn't want to proceed with this tool use. The tool use
+     was rejected (eg. if it was a file edit, the new_string was NOT written to
+     the file). The user provided the following reason for the rejection:  đổi
+     tên khác dễ  hiểu hơn DataLogPurgeWorker
+
+● Tên đó đúng quy ước Data*Worker của 4 worker hiện có, nhưng "Purge" là từ
+  nghề. Tôi đưa 3 lựa chọn rõ nghĩa hơn — tên nào bạn chọn tôi đổi luôn cả tên
+  hàm cho khớp.
+  ⎿  Interrupted · What should Claude do instead?
+
+> ý là từ purge
+
+● Rõ — bỏ từ "purge", dùng Cleanup. Tôi đổi cả tên worker và tên hàm.
+
+● Updated plan
+  ⎿  /plan to preview
+
+● Updated plan
+  ⎿  /plan to preview
+
+● Updated plan
+  ⎿  /plan to preview
+  ⎿  Error: The user doesn't want to proceed with this tool use. The tool use
+     was rejected (eg. if it was a file edit, the new_string was NOT written to
+     the file). The user provided the following reason for the rejection:  thêm
+     cột vậy lúc mình truy vấn dùng sqlsugar tree à
+
+● Câu hỏi đúng chỗ. Tôi kiểm xem repo đã dùng tree của SqlSugar ở đâu chưa rồi
+  trả lời bằng số liệu.
+
+● Có tiền lệ thật trong repo. Tôi xem cách khai Children để nói đúng cái giá
+  phải trả.
+● Trả lời trực tiếp: không dùng ToTree. Repo có tiền lệ (ZonesQueryHandler,
+  MenuQueryHandler) nhưng tiền lệ đó giải bài toán khác. Tôi ghi hẳn vào plan
+  kèm lý do.
+
+● Updated plan
+  ⎿  /plan to preview
+
+● Updated plan
+  ⎿  /plan to preview
+
+● User approved Claude's plan
+  ⎿  Plan saved to: ~\.claude\plans\docbusinessthienan-h-ungh-chil-ng-share-glea
+     ming-seahorse.md · /plan to edit
+     Log cha–con cho ShareDataActivityLog — BE-5 · SV-8a · SV-8b · FE · SV-13
+     dọn log
+
+     Context
+
+     Trong Sharedata_MasterPlan.md, "log cha–con" không phải 1 task mà là 4 mục
+     móc vào nhau, cả 4 đều đang [ ]. Mục thứ 5 là yêu cầu mới của chủ dự án
+     trong phiên này:
+
+     ┌───────┬──────────────┬─────────────────────────────────────────┬───────┐
+     │  Mục  │    Dòng      │                Nội dung                 │ Thuộc │
+     │       │  MasterPlan  │                                         │   ai  │
+     ├───────┼──────────────┼─────────────────────────────────────────┼───────┤
+     │       │              │ Thêm 2 cột ParentId + StepNo vào        │       │
+     │ BE-5  │ 573          │ ShareDataActivityLog và API truy vấn    │ Đạt   │
+     │       │              │ cây cha–con                             │       │
+     ├───────┼──────────────┼─────────────────────────────────────────┼───────┤
+     │ SV-8a │ 77, 148-150  │ Ghi log 2 bước chiều GỬI — 🔴 chặn bởi  │ Đạt   │
+     │       │              │ BE-5                                    │       │
+     ├───────┼──────────────┼─────────────────────────────────────────┼───────┤
+     │ SV-8b │ 109, 558-559 │ Ghi log 2 bước chiều NHẬN — 🔴 chặn bởi │ Hiếu  │
+     │       │              │  BE-5                                   │       │
+     ├───────┼──────────────┼─────────────────────────────────────────┼───────┤
+     │ FE    │ 671          │ activityDetailDialog.vue — hiện mới chỉ │ Hiếu  │
+     │       │              │  dựng khung el-steps, binding là giả    │       │
+     ├───────┼──────────────┼─────────────────────────────────────────┼───────┤
+     │ SV-13 │ ⛔ chưa có   │ Worker dọn nhật ký quá 14 ngày — yêu    │ Đạt   │
+     │       │ dòng nào     │ cầu chủ dự án 02/10/2026                │       │
+     └───────┴──────────────┴─────────────────────────────────────────┴───────┘
+
+     🔴 SV-13 phải được mở thành dòng checklist trong MasterPlan (rule 19.24):
+     việc chỉ nằm trong báo cáo hoặc plan thì vô hình với người tra checklist —
+     đúng cái lỗi đã làm mất dấu BE-14 tới ngày 28/09.
+
+     📌 SV-13 không phải việc phụ, nó là điều kiện để 4 mục kia an toàn. Log
+     cha–con đưa số dòng từ 1 lên 3 cho mỗi trang gửi. Đo trên staging
+     10.10.8.30 ngày 02/10/2026: ShareDataActivityLog đang có 61.596 dòng,
+     ShareDataAlertLog 13.706 dòng — chưa có cơ chế dọn nào chạm tới. Bật log
+     cha–con mà không có SV-13 là nhân ba tốc độ phình của bảng đang không ai
+     dọn.
+
+     Căn cứ nghiệp vụ (bậc 1, rule 19.12): biên bản họp
+     16-09-2026-sua-ui-sharedata.md (../../../../ThienAn/DocBusinessThienAn/HữuN
+     ghị-ChiLăng/ShareData/doc/transcript/16-09-2026-sua-ui-sharedata.md) §1.5:
+
+     ▎ Trong một phiên truyền nhận, hệ thống phải thể hiện rõ 2 bước con độc lập
+     ▎ trong cùng 1 log cha:
+     ▎ - Chiều gửi: Step 1 (Trích xuất dữ liệu từ DB lên) → Step 2 (Xử lý, biến
+     ▎ đổi mapping và gửi đi đối tác).
+     ▎ - Chiều nhận: Step 1 (Tiếp nhận payload gói tin từ đối tác) → Step 2 (Xử
+     ▎ lý, chuyển đổi mapping và ghi vào DB).
+
+     Kết quả mong đợi: mở modal chi tiết một dòng nhật ký truyền nhận, người vận
+     hành thấy đúng bước nào hỏng và hỏng vì sao — thay vì chỉ thấy một dòng
+     "Thất bại" không biết vỡ ở chặng trích xuất hay chặng gửi.
+
+     ---
+
+     Hiện trạng đo được (02/10/2026)
+
+     1. Hai cột chưa tồn tại — đã xác nhận ở cả mã nguồn lẫn CSDL staging.
+     Module.ShareData.Core/Entities/ShareDataActivityLog.cs không có
+     ParentId/StepNo; đọc 1 bản ghi thật từ mssql_staging (10.10.8.30/DEV_ITS10)
+     qua DAB MCP cũng không có.
+
+     2. Chiều GỬI đã có sẵn móc nối — đây là tin tốt nhất của task này.
+     ShareDataTransferLog.WriteActivityAsync đã trả về logId (Task<string>, tự
+     sinh Guid.NewGuid().ToString("N")). Không phải sửa hợp đồng hàm để lấy ID
+     cha.
+     ExportPage ghi đúng 1 dòng nhật ký cho mỗi trang, sau CommitSuccess, trong
+     khối try/catch phòng vệ (DataOutboundService.cs:519).
+
+     3. Nhánh lỗi chiều gửi đã dồn về ranh giới tác vụ và mang đủ thông tin phân
+     loại bước.
+     ExportSubscription bắt ShareDataException — lớp này mang AlertCode,
+     AlertSource, RecordCount. AlertSource phân biệt được bước:
+
+     ┌──────────────┬───────────────────────────────┬─────────────────────┐
+     │ AlertSource  │         Mã tiêu biểu          │     Thuộc bước      │
+     ├──────────────┼───────────────────────────────┼─────────────────────┤
+     │ Subscription │ QueryFailed, CursorKeyTooLong │ Bước 1 — Trích xuất │
+     ├──────────────┼───────────────────────────────┼─────────────────────┤
+     │ Funnel       │ RequiredFieldMissing          │ Bước 2 — Ánh xạ     │
+     ├──────────────┼───────────────────────────────┼─────────────────────┤
+     │ Protocol     │ HttpSendFailed                │ Bước 2 — Gửi đi     │
+     └──────────────┴───────────────────────────────┴─────────────────────┘
+
+     ⚠️ PacketNotFound / MappingNotFound ném từ GetExportConfig xảy ra trước cả
+     bước 1 ⇒ chỉ có log cha, ⛔ không gắn StepNo.
+
+     4. 🔴 Chiều NHẬN khó hơn hẳn chiều gửi — xuyên 2 tiến trình và 2 CSDL.
+     Hôm nay chiều nhận đã ghi 2 dòng nhật ký, nhưng do 2 thành phần khác nhau
+     viết và ⛔ không có gì nối chúng lại:
+
+     ┌───────┬────────────────────────────┬──────────────────────────────┬─────┐
+     │       │                            │                              │ Trả │
+     │ Bước  │           Ai ghi           │         Qua hàm nào          │     │
+     │       │                            │                              │ ID? │
+     ├───────┼────────────────────────────┼──────────────────────────────┼─────┤
+     │ Tiếp  │                            │                              │ ❌  │
+     │ nhận  │ WebAPI InboundCommandHandl │ ShareDataActivityLogger.LogT │ Tas │
+     │ paylo │ er.LogReceiveAsync         │ ransferAsync                 │ k r │
+     │ ad    │                            │                              │ ỗng │
+     ├───────┼────────────────────────────┼──────────────────────────────┼─────┤
+     │ Ánh   │                            │                              │     │
+     │ xạ &  │ Worker DataInboundService. │ ShareDataTransferLog.WriteAc │ ✅  │
+     │ ghi   │ LogInboundResult           │ tivityAsync                  │     │
+     │ CSDL  │                            │                              │     │
+     └───────┴────────────────────────────┴──────────────────────────────┴─────┘
+
+     🔴 ShareDataInboundPacket khai
+     [Tenant(Its015Const.ConnectionConst.ShareData)], còn ShareDataActivityLog
+     ⛔ không khai [Tenant] ⇒ hai bảng nằm ở hai kết nối CSDL khác nhau, ⛔
+     không join được. Muốn nối cha–con buộc phải mang ID log cha theo dòng gói
+     tin.
+
+     5. FE đã dựng sẵn toàn bộ khung và từ điển — chỉ thiếu dữ liệu thật.
+     activityDetailDialog.vue có el-steps, 4 nhãn bước + 4 mô tả, cả vi-vn.json
+     và en-us.json đã đủ. Ngay trên khối đó có dấu TODO(BE-5 / SV-8).
+     ⚠️ Binding hiện tại là giả: :active="isSuccess ? 2 : 1" — suy ra từ trạng
+     thái dòng cha chứ ⛔ không đọc bước thật. Dòng stepDetailPending đang nói
+     thẳng với người dùng là "đang được cập nhật từ Worker Service".
+
+     6. DTO tự ăn theo Entity. ShareDataActivityLogOutput : ShareDataActivityLog
+     ⇒ thêm 2 cột vào Entity là DTO có ngay, ⛔ không phải sửa DTO.
+
+     7. 🔴 Đã có một tác vụ dọn, nhưng nó hẹp và gắn sai chỗ — đây là lý do
+     SV-13 cần làm riêng.
+     ShareDataTransferLog.PurgeTrackingLogsAsync (dòng 239) đã dọn theo lô 1000
+     với retentionDays = 7, nhưng:
+     - Chỉ xoá dòng Remark LIKE 'ESH-16%' — tức nhật ký hạ tầng Change Tracking.
+       ⛔ Tuyệt đối không chạm nhật ký nghiệp vụ, và đó là có chủ đích, đã có
+       test khoá lại:
+       PurgeTrackingLogs_OnlyDeletesEsh16Rows_KeepsBusinessTransferRows_Test.
+     - 🔴 Nó được gọi bên trong TryInitChangeTracking
+       (DataChangeTrackingService.cs:325). Chính MasterPlan dòng 267 đã ghi
+       nhận: khi Change Tracking chưa bật được thì tác vụ dọn "⛔ không bao giờ
+       chạy" vì nó nằm sau các return sớm. Dọn dữ liệu đi ký sinh vào đường khởi
+       tạo của một tính năng khác là sai chỗ — tách ra worker riêng là cách sửa
+       đúng.
+     - Chạy 1 lần mỗi lần worker khởi động. Worker chạy liên tục nhiều tuần thì
+       cả nhiều tuần ⛔ không dọn lần nào.
+
+     ⚠️ ShareDataInboundPacket ⛔ không đo được: bảng này nằm ở kết nối riêng
+     ([Tenant]), ⛔ không có trong cấu hình DAB staging. ⛔ Không kết luận gì về
+     số dòng của nó. Nhưng nó giữ RawContent kiểu BigString (toàn văn gói tin
+     đối tác) ⇒ rất có thể đây mới là thứ ăn đĩa nhiều nhất, cần đo riêng trước
+     khi quyết có dọn hay không.
+
+     ---
+
+     Thiết kế đã chốt với chủ dự án
+
+     1 trang = 1 phiên · dòng hiện có làm log CHA
+
+     Trang 1 ──► CHA   (SerialNbr 3858, 299 bản ghi)   <- đúng dòng lưới đang
+     thấy hôm nay
+                   ├─ CON StepNo=1   Trích xuất CSDL
+                   └─ CON StepNo=2   Ánh xạ & Gửi đi
+     Trang 2 ──► CHA   (SerialNbr 3859, …)
+
+     Lý do chọn: hình dạng lưới không đổi, 1 dòng vẫn = 1 gói tin đã gửi, khớp
+     ngữ nghĩa SerialNbr đang tăng theo từng trang.
+
+     Dòng CON chỉ hiện trong modal, ⛔ không vào lưới
+
+     🔴 Đây là lưới chặn hồi quy quan trọng nhất của cả task. Bỏ sót là lưới
+     "Nhật ký truyền nhận" phình gấp 3 và mọi thẻ số liệu (Total, SuccessCount,
+     FailedCount, SentCount, ReceivedCount, ByAction) đếm sai.
+     Cả 3 truy vấn trong ActivityLogQueryHandler.cs BẮT BUỘC thêm .Where(u =>
+     u.ParentId == null):
+
+     ┌───────────────────────────────────────────────┬──────┬─────────────────┐
+     │                      Hàm                      │ Dòng │    Dùng cho     │
+     ├───────────────────────────────────────────────┼──────┼─────────────────┤
+     │ HandleAsync(ShareDataPageActivityLogInput)    │ 32   │ Lưới phân trang │
+     ├───────────────────────────────────────────────┼──────┼─────────────────┤
+     │ HandleAsync(ShareDataActivityLogInput)        │ 68   │ GetList TopN    │
+     ├───────────────────────────────────────────────┼──────┼─────────────────┤
+     │ HandleAsync(ShareDataSummaryActivityLogInput) │ 109  │ Thẻ số liệu     │
+     └───────────────────────────────────────────────┴──────┴─────────────────┘
+
+     ⛔ Truy vấn chi tiết ShareDataIdActivityLogInput (dòng 97) không thêm lọc —
+     nó tra theo ID, phải lấy được cả dòng con.
+
+     ---
+
+     Việc phải làm
+
+     1. BE-5 — 2 cột + API cây (chặn cả 3 mục còn lại, làm trước)
+
+     Entity Module.ShareData.Core/Entities/ShareDataActivityLog.cs:
+
+     [SugarColumn(IsNullable = true, Length = EntityConst.KeyFieldLength,
+     ColumnDescription = "ID log cha. null = chính nó là log cha")]
+     public string? ParentId { get; set; }
+
+     [SugarColumn(IsNullable = true, ColumnDescription = "1 | 2. null = log
+     cha")]
+     public int? StepNo { get; set; }
+
+     🔴 StepNo là int? nên TUYỆT ĐỐI KHÔNG gán Length — rule 5.6: SqlSugar
+     CodeFirst sẽ sinh [StepNo] INT(64) và SQL Server ném lỗi 2716.
+     Thêm [SugarIndex] trên ParentId cho truy vấn cây.
+
+     API cây — thêm vào ShareDataActivityLogController.cs +
+     ActivityLogQueryHandler.cs, dùng lại đúng khuôn MessBus.InvokeAsync sẵn có:
+     - Input mới ShareDataStepActivityLogInput : BaseIdInput (ID của log cha).
+     - Trả List<ShareDataActivityLogOutput> các dòng con, OrderBy(StepNo).
+     - ⛔ Không tạo DTO Output mới — ShareDataActivityLogOutput đã đủ.
+
+     return await _activityLogRep.AsQueryable()
+         .Where(u => u.ParentId == command.ID)
+         .OrderBy(u => u.StepNo)
+         .Select(u => new ShareDataActivityLogOutput { }, true)
+         .ToListAsync();
+
+     ⛔ ⛔ KHÔNG dùng ToTreeAsync của SqlSugar — truy vấn phẳng 1 dòng .Where là
+     đủ
+
+     📌 Repo có tiền lệ dùng tree, và đó là chỉ đạo của Anh Sơn trong họp
+     09/09/2026 (mục 1.4): ZonesQueryHandler.cs:55 và MenuQueryHandler.cs:51 đều
+     .ToTreeAsync(u => u.Children, u => u.Pid, rootValue). Nhưng tiền lệ đó
+     giải bài toán khác:
+
+     ┌─────────────┬─────────────────────────┬─────────────────────────────────┐
+     │             │    TmsZone / WpMenu     │           Log cha–con           │
+     ├─────────────┼─────────────────────────┼─────────────────────────────────┤
+     │ Độ sâu      │ Không biết trước, phân  │ Cố định 1 cấp — StepNo chỉ có 1 │
+     │             │ cấp tuỳ dữ liệu         │  và 2, ⛔ không có cháu         │
+     ├─────────────┼─────────────────────────┼─────────────────────────────────┤
+     │ Số nút mỗi  │ Cả danh mục             │ Đúng 2                          │
+     │ lần đọc     │                         │                                 │
+     ├─────────────┼─────────────────────────┼─────────────────────────────────┤
+     │ Cần đệ quy? │ ✅ Có — đó chính là     │ ❌ Không — ⛔ không có gì để đệ │
+     │             │ việc ToTree làm         │  quy                            │
+     └─────────────┴─────────────────────────┴─────────────────────────────────┘
+
+     🔴 Cái giá cụ thể nếu vẫn dùng ToTreeAsync: nó đòi một thuộc tính điều
+     hướng trên Entity, đúng như TmsZone đang khai (tmsZone.cs:57):
+
+     [SugarColumn(IsIgnore = true)]
+     public List<TmsZone> Children { get; set; }
+
+     Mà ShareDataActivityLogOutput và ShareDataPageActivityLogOutput đều kế thừa
+     thẳng Entity (xem Hiện trạng 6) ⇒ thêm Children vào Entity là nó rò sang
+     cả hai DTO, tức mỗi dòng của lưới phân trang mọc thêm một khoá children
+     rỗng trong JSON, và pnpm build-api sinh lại model TS cũng mang theo. ⚠️
+     TmsZone ⛔ không gặp chuyện này vì TMS có ZoneOutput DTO riêng, ⛔ không kế
+     thừa Entity — khác hẳn ShareData.
+
+     Ba lý do còn lại:
+     1. ToTreeAsync lắp cây trong bộ nhớ từ tập đã lọc ⇒ vẫn phải .Where trước,
+        ⛔ không tiết kiệm được truy vấn nào.
+     2. FE ⛔ không cần cây: el-steps ăn một danh sách phẳng, có thứ tự, 2 phần
+        tử. Trả về lồng nhau thì FE lại phải bóc ra.
+     3. Trên bảng 61.596 dòng, gọi tree mà quên lọc là nạp cả bảng vào RAM.
+
+     ✅ Quyết định này ⛔ không phải đường cùng: cột ParentId vẫn đúng khuôn
+     tree của SqlSugar. Ngày nào thật sự cần hơn 2 cấp thì ToTreeAsync dùng được
+     ngay, ⛔ không phải đổi schema.
+
+     Schema: môi trường test bật cờ CodeFirst trong tests/appsettings.Test.json
+     (EnableInitTable: true, EnableIncreTable: false) rồi tắt lại về false sau
+     khi test xanh — rule 11. Cho staging: xuất script ALTER TABLE idempotent ra
+     ShareData/sql/, ⛔ AI không chạy (rule 9).
+
+     2. SV-8a — chiều GỬI
+
+     Sửa ExportPage trong DataOutboundService.cs:
+     - Sinh parentId ngay đầu hàm; bổ sung tham số logId tuỳ chọn cho
+       WriteActivityAsync để truyền ID đã sinh (⚠️ tham số nullable đặt cuối,
+       trước CancellationToken — rule 5.17).
+     - Đo từng chặng bằng Stopwatch (using System.Diagnostics; đã có sẵn trong
+       tệp).
+     - Sau CommitSuccess, ghi 1 cha + 2 con trong cùng khối try/catch phòng vệ
+       đang có.
+     - Nhánh lỗi: WriteExportFailure tại ranh giới ExportSubscription nhận thêm
+       StepNo suy từ bảng AlertSource ở mục Hiện trạng 3.
+     - Nhánh "không có dữ liệu mới" (DataOutboundService.cs:434): chỉ ghi cha +
+       con bước 1, ⛔ không ghi con bước 2 vì chặng gửi không chạy.
+
+     ⛔ Không sinh hàm alias/wrapper mới (rule 7) — dồn vào
+     ShareDataTransferLog, giữ nguyên tắc "1 nơi duy nhất ghi log".
+
+     3. SV-8b — chiều NHẬN (phần khó, 2 quyết định có hệ quả)
+
+     - ShareDataInboundPacket thêm ReceiveLogId (string?, KeyFieldLength,
+       IsNullable) — mang ID log cha qua ranh giới 2 CSDL.
+     - ShareDataActivityLogger.LogTransferAsync đổi Task → Task<string>, sinh ID
+       lên trước khi insert (⚠️ WriteAsync hiện nuốt lỗi ghi, nên ID phải sinh
+       ở ngoài mới chắc chắn có giá trị trả về).
+     - WebAPI ghi cha + con bước 1, lưu ID cha vào ReceiveLogId.
+     - Worker đọc packet.ReceiveLogId, ghi con bước 2 với ParentId, rồi cập nhật
+       trạng thái cuối lên dòng cha.
+
+     🔴 Hai hệ quả phải báo trước, ⛔ không được âm thầm:
+     1. ShareDataActivityLog từ chỗ chỉ ghi thêm nay có thêm một đường cập nhật
+        (dòng cha chiều nhận). Không làm vậy thì lưới mãi hiện "Tiếp nhận — chờ
+        xử lý" dù chặng xử lý đã hỏng — tức lưới nói sai.
+     2. Số dòng lưới chiều nhận giảm từ 2 xuống 1 mỗi gói tin, vì dòng "Tiếp
+        nhận … chờ xử lý" nay thành cha và dòng kết quả thành con. Người đang
+        quen đếm 2 dòng cần biết trước.
+
+     4. FE — thay binding giả bằng dữ liệu thật
+
+     - Chạy pnpm build-api sinh lại api-services/shareData/ — ⛔ TUYỆT ĐỐI KHÔNG
+       sửa tay (rule 20.2).
+     - activityDetailDialog.vue: gọi API cây khi mở modal, suy :active và
+       :process-status từ StepNo/Success thật của dòng con; mỗi el-step hiện
+       thời lượng, số bản ghi và errorMessage của chính bước đó.
+     - Xoá dấu TODO(BE-5 / SV-8) và khối step-hint + key stepDetailPending ở cả
+       vi-vn.json lẫn en-us.json.
+     - ⛔ Giữ nguyên 100% layout và component hiện có; mọi tinh chỉnh hiển thị
+       làm bằng CSS (rule 19.27, 19.29).
+
+     5. SV-13 — worker dọn nhật ký quá hạn (14 ngày)
+
+     Worker mới Infrastructure/Workers/DataLogCleanupWorker.cs, dựng theo đúng
+     khuôn DataInboundWorker.cs đang có (BackgroundService + primary constructor
+     + Task.Yield() đầu hàm + vòng while bọc try/catch + Task.Delay). Đăng ký
+     cạnh 4 worker kia tại ShareDataWorkerExtensions.cs:84-87.
+
+     📌 Dùng Cleanup, ⛔ không dùng Purge — chốt 02/10/2026: Purge là từ nghề,
+     đọc tên không ra ngay việc nó làm. Giữ tiền tố Data…Worker cho khớp 4
+     worker hiện có (DataOutboundWorker, DataInboundWorker,
+     DataChangeTrackingWorker, DataNatsWorker).
+
+     Service dọn — thêm CleanupExpiredLogs vào ShareDataTransferLog (giữ nguyên
+     tắc "1 nơi duy nhất chạm 2 bảng nhật ký"). ⛔ Không đặt hàm dọn trong lớp
+     worker. ⛔ Không hậu tố Async cho hàm mới (rule 7).
+
+     ⚠️ Hàm cũ PurgeTrackingLogsAsync vẫn mang chữ Purge ⇒ dự án sẽ có hai từ
+     cho cùng một việc. Đổi tên nó thành CleanupTrackingLogs là mechanical, đúng
+     3 chỗ (định nghĩa · DataChangeTrackingService.cs:325 · bài test cũ). 🔴
+     Nhưng đó là sửa code ngoài phạm vi yêu cầu (rule 19.6) nên tôi ⛔ không tự
+     làm — nói một câu là tôi gộp vào prompt #4.
+
+     Số ngày giữ lại: 14 (chốt 02/10/2026), khai trong appsettings.json, ⛔
+     không hardcode.
+
+     🔴 Một con số duy nhất cho cả hai tác vụ dọn. PurgeTrackingLogsAsync đang
+     có mặc định retentionDays = 7 — để nguyên là dự án có hai mốc giữ lại khác
+     nhau, và lượt sau sẽ có người sửa một bên rồi tưởng đã sửa cả hai. Cùng đọc
+     một khoá cấu hình, mặc định 14. ✅ Test cũ
+     PurgeTrackingLogs_OnlyDeletesEsh16Rows_KeepsBusinessTransferRows_Test ⛔
+     không vỡ vì nó truyền retentionDays: 7 tường minh, ⛔ không ăn theo giá trị
+     mặc định.
+
+     Phạm vi dọn (mỗi bảng 1 cờ bật/tắt riêng):
+
+     Bảng: ShareDataActivityLog
+     Mốc lọc: CreateTime < cutoff
+     Ghi chú: Gồm cả dòng cha, dòng con và dòng hạ tầng ESH-16xx
+     ────────────────────────────────────────
+     Bảng: ShareDataAlertLog
+     Mốc lọc: OccurredAt < cutoff
+     Ghi chú: Xoá hết theo 14 ngày, ⛔ không chừa dòng Acknowledged == false —
+     chủ
+     dự án chốt 02/10/2026. ⚠️ Hệ quả biết trước: cảnh báo cũ chưa ai xử lý sẽ
+     mất, ⛔ không để lại dấu
+     ────────────────────────────────────────
+     Bảng: ShareDataInboundPacket
+     Mốc lọc: —
+     Ghi chú: ⛔ Chưa đưa vào đợt này: nằm ở CSDL khác, chưa đo được, và xoá gói
+     thô
+     là mất bằng chứng đối soát với đối tác. Đo trước, quyết sau.
+
+     🔴 Ba cái bẫy phải chặn, cả ba đều là bẫy thật của bài này:
+
+     1. Lọc theo CreateTime, ⛔ TUYỆT ĐỐI KHÔNG theo UpdateTime. Dòng cha chiều
+        nhận bị cập nhật về sau (mục SV-8b ở trên) nên UpdateTime của nó mới hơn
+        CreateTime của các con. Lọc theo UpdateTime ⇒ con bị xoá, cha còn lại ⇒
+        mở modal ra el-steps rỗng, và ⛔ không ai hiểu vì sao.
+     2. Xoá con trước, cha sau. Cùng một mốc CreateTime thì cha–con sinh cách
+        nhau vài milisecond nên thường cùng rơi vào một lô — nhưng ranh giới lô
+        1000 dòng có thể cắt ngang giữa cha và con. Xoá con trước thì tình huống
+        xấu nhất chỉ còn cha mồ côi vô hại, ⛔ không bao giờ ra con mồ côi.
+     3. ⛔ Không gộp vào PurgeTrackingLogsAsync đang có. Nới điều kiện lọc của
+        hàm đó là xoá luôn nhật ký nghiệp vụ — đúng cái mà XML doc của nó cảnh
+        báo ("Điều kiện lọc BẮT BUỘC gồm cả tiền tố mã") và test
+        PurgeTrackingLogs_OnlyDeletesEsh16Rows_KeepsBusinessTransferRows_Test
+        đang khoá. Giữ hàm cũ y nguyên; viết hàm mới bên cạnh.
+
+     Cách dọn: vòng lặp xoá theo lô — Take(1000) lấy ID rồi Deleteable theo danh
+     sách ID, đúng khuôn PurgeTrackingLogsAsync đang dùng. ⛔ KHÔNG một câu
+     DELETE lớn (khoá bảng, nghẽn worker gửi/nhận đang chạy). ⛔ KHÔNG raw SQL
+     DML — bảng đã có Entity nên BẮT BUỘC đi qua SqlSugar ORM (rule 19.20).
+     Nhường luồng giữa các lô và tôn trọng stoppingToken.
+
+     Nhịp chạy: chu kỳ cấu hình được, mặc định 24 giờ; lượt đầu chạy sau khi
+     Host khởi động xong một khoảng ngắn để ⛔ không giành I/O với lúc khởi
+     động. Ghi 1 dòng LogInformation tổng kết số dòng đã xoá mỗi bảng khi có xoá
+     thật, ⛔ không ghi gì khi không có gì để xoá (tránh rác log — chính cái
+     đang muốn chống).
+
+     Gỡ chỗ gắn sai: bỏ lời gọi PurgeTrackingLogsAsync khỏi
+     TryInitChangeTracking và chuyển vào worker mới. 📌 Phải cập nhật MasterPlan
+     dòng 267 và 344 — hai dòng đó đang tả cơ chế cũ ("chạy 1 lần mỗi lần
+     worker khởi động"), áp xong là chúng sai.
+
+     ---
+
+     Cách bàn giao
+
+     🔴 Theo rule 10.5, mã nguồn sản xuất (.cs, .vue, .ts) ⛔ không được sửa
+     trực tiếp — phải ra tệp prompt thi công để chủ dự án tự đọc, tự áp, tự chạy
+     build/test/commit. Tài liệu .md thì sửa thẳng.
+
+     Đặt tại DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/Prompt/ (rule 13), thứ
+     tự áp bắt buộc — ghi vào Prompt/README.md theo rule 19.23 mẫu 2:
+
+     ┌─────┬──────────────────────────────────────────────────┬─────────────────
+     ┐
+     │  #  │                    Tệp prompt                    │    Phụ thuộc
+     │
+     ├─────┼──────────────────────────────────────────────────┼─────────────────
+     ┤
+     │ 1   │ sharedata-log-cha-con-be5-cot-va-api-prompt.md   │ —
+     │
+     ├─────┼──────────────────────────────────────────────────┼─────────────────
+     ┤
+     │ 2   │ sharedata-log-cha-con-sv8a-chieu-gui-prompt.md   │ #1 xong, test
+     │
+     │     │                                                  │ xanh
+     │
+     ├─────┼──────────────────────────────────────────────────┼─────────────────
+     ┤
+     │ 3   │ sharedata-log-cha-con-sv8b-chieu-nhan-prompt.md  │ #1 xong, test
+     │
+     │     │                                                  │ xanh
+     │
+     ├─────┼──────────────────────────────────────────────────┼─────────────────
+     ┤
+     │     │                                                  │ #1 xong (phải
+     │
+     │ 4   │ sharedata-worker-don-log-qua-han-sv13-prompt.md  │ có cột ParentId
+     │
+     │     │                                                  │  mới xoá đúng
+     │
+     │     │                                                  │ thứ tự con→cha)
+     │
+     ├─────┼──────────────────────────────────────────────────┼─────────────────
+     ┤
+     │ 5   │ sharedata-log-cha-con-fe-el-steps-prompt.md      │ #1 + #2 + #3
+     │
+     │     │                                                  │ xong
+     │
+     ├─────┼──────────────────────────────────────────────────┼─────────────────
+     ┤
+     │ 6   │ sharedata-log-cha-con-dong-bo-tai-lieu-prompt.md │ áp cuối cùng
+     │
+     └─────┴──────────────────────────────────────────────────┴─────────────────
+     ┘
+
+     Mỗi prompt tự chứa: đoạn TRƯỚC/SAU, lý do, phạm vi rà tác động, bước kiểm
+     chứng — người thi công ⛔ không phải mở thêm tài liệu nào (rule 19.13).
+
+     Prompt #6 cập nhật Sharedata_MasterPlan.md:
+     - Tích [x] cho BE-5 / SV-8a / SV-8b / dòng FE 671.
+     - 🔴 Mở dòng checklist mới SV-13 vào nhóm I.A (dùng chung hai chiều) — ⛔
+       không để task này chỉ tồn tại trong plan.
+     - Sửa dòng 267 và dòng 344: tác vụ dọn ESH-16xx nay do DataLogCleanupWorker
+       chạy theo chu kỳ, ⛔ không còn ký sinh vào TryInitChangeTracking và ⛔
+       không còn chỉ chạy lúc khởi động. 🔴 Dòng 344 đang ghi nguyên văn "Tự dọn
+       quá hạn 7 ngày" — áp xong là sai, phải sửa thành 14.
+     - Ghi vào mục Quyết định đã chốt & phương án bị bác (rule 19.24): quyết
+       định "1 trang = 1 phiên" (và vì sao bác "1 lượt ExportSubscription = 1
+       phiên"), 🔴 vì sao bác ToTreeAsync dù repo có tiền lệ Zone/Menu — đây là
+       thứ đắt nhất phải giữ, kẻo lượt sau có người "đồng bộ lại cho giống
+       Zone", 2 hệ quả chiều nhận, mốc giữ lại 14 ngày dùng chung cho cả hai tác
+       vụ dọn, quyết định xoá cả cảnh báo chưa xác nhận, và vì sao SV-13 ⛔
+       không gộp vào PurgeTrackingLogsAsync.
+
+     ---
+
+     Kiểm chứng
+
+     Chặn chặn an toàn trước khi chạy test: đối chiếu connection string trong
+     tests/appsettings.Test.json phải là local
+     (localhost/127.0.0.1/(localdb)/.); thấy IP remote kiểu 10.10.8.30 thì hủy
+     test ngay và báo (rule 11).
+
+     dotnet build TA-ITS015-WEBAPI-V1.0/src/TAC_WebAPI/TAC_WebAPI.csproj
+     dotnet build
+     TA-ITS015-WEBAPI-V1.0/src/Services/ShareDataWorker/ShareDataWorker.csproj
+     dotnet test tests/test.csproj --filter "FullyQualifiedName~ShareData"
+
+     ⛔ TUYỆT ĐỐI KHÔNG thêm cờ --no-build (rule 11) — test sẽ chạy trên DLL cũ
+     và cho kết quả ảo.
+
+     Test phải bổ sung — luồng nghiệp vụ toàn trình trên CSDL local, ⛔ không
+     viết micro test, ⛔ không mock NATS hay service nghiệp vụ nội bộ (rule
+     19.10, 19.18). Dùng lại helper sẵn có trong
+     tests/ITS/ShareData/Services/DataOutboundServiceTests.cs:
+     SeedOutboundSubscription (5172), CreateWorker (5492), GetLogs (5527), và
+     mock server HTTP thật ShareDataPartnerServerMock.
+
+     ┌─────────────────┬───────────────────────────────────────────────────────┐
+     │    Kịch bản     │                      Khẳng định                       │
+     ├─────────────────┼───────────────────────────────────────────────────────┤
+     │ Gửi 1 trang     │ Đúng 3 dòng: 1 cha ParentId == null, 2 con StepNo 1   │
+     │ thành công      │ và 2, cả 2 con trỏ về ID cha                          │
+     ├─────────────────┼───────────────────────────────────────────────────────┤
+     │ Lỗi RequiredFie │ Cha Fail, con bước 1 Success, con bước 2 Fail kèm     │
+     │ ldMissing       │ errorMessage                                          │
+     ├─────────────────┼───────────────────────────────────────────────────────┤
+     │ Lỗi HTTP (mock  │ Con bước 2 Fail, ⛔ cha ⛔ không mất RecordCount      │
+     │ server trả 500) │                                                       │
+     ├─────────────────┼───────────────────────────────────────────────────────┤
+     │ Không có dữ     │ Cha Success + RecordCount == 0, chỉ 1 con bước 1      │
+     │ liệu mới        │                                                       │
+     ├─────────────────┼───────────────────────────────────────────────────────┤
+     │ 🔴 Lưới + thẻ   │ Gọi Page và Summary sau khi đã ghi cha-con: số dòng   │
+     │ số liệu         │ và Total y hệt trước khi có dòng con                  │
+     ├─────────────────┼───────────────────────────────────────────────────────┤
+     │ Nhận 1 gói trọn │ Cha do WebAPI ghi, 2 con, ReceiveLogId khớp ID cha,   │
+     │  vòng           │ trạng thái cuối lên đúng dòng cha                     │
+     ├─────────────────┼───────────────────────────────────────────────────────┤
+     │ SV-13 dọn cây   │ Seed 1 cha + 2 con CreateTime 15 ngày trước ⇒ xoá     │
+     │ quá hạn         │ sạch cả 3, ⛔ không sót con mồ côi                    │
+     ├─────────────────┼───────────────────────────────────────────────────────┤
+     │                 │ Seed cây 15 ngày trước và cây 13 ngày trước ⇒ cây 13  │
+     │ 🔴 SV-13 không  │ ngày còn nguyên 3 dòng. 📌 Chọn 13 chứ ⛔ không chọn  │
+     │ xoá oan         │ 1 ngày: nó ép bài test kiểm đúng mốc 14, chứ không    │
+     │                 │ phải chỉ kiểm "cũ thì xoá, mới thì giữ"               │
+     ├─────────────────┼───────────────────────────────────────────────────────┤
+     │                 │ Cha chiều nhận có CreateTime 15 ngày trước nhưng      │
+     │ 🔴 SV-13 bẫy    │ UpdateTime hôm nay (đúng kịch bản Worker cập nhật     │
+     │ UpdateTime      │ trạng thái cuối) ⇒ vẫn bị xoá cùng các con. Đây là    │
+     │                 │ bài khoá lại việc lọc theo CreateTime                 │
+     ├─────────────────┼───────────────────────────────────────────────────────┤
+     │ 🔴 SV-13 không  │ PurgeTrackingLogs_OnlyDeletesEsh16Rows_KeepsBusinessT │
+     │ phá lưới cũ     │ ransferRows_Test vẫn phải xanh sau khi đổi mặc định   │
+     │                 │ sang 14                                               │
+     ├─────────────────┼───────────────────────────────────────────────────────┤
+     │ SV-13 xoá quá 1 │ Seed > 1000 dòng quá hạn ⇒ vòng lặp xoá hết, ⛔ không │
+     │  lô             │  dừng ở 1000                                          │
+     ├─────────────────┼───────────────────────────────────────────────────────┤
+     │ SV-13 cảnh báo  │ Seed ShareDataAlertLog 15 ngày trước, cả Acknowledged │
+     │ quá hạn         │  true và false ⇒ xoá cả hai (chốt 02/10)              │
+     └─────────────────┴───────────────────────────────────────────────────────┘
+
+     Kiểm bằng mắt sau khi áp xong: mở Lịch sử chia sẻ → double-click một dòng
+     truyền nhận → el-steps chạy đúng bước thật, bước hỏng tô đỏ kèm thông báo
+     lỗi của chính bước đó; đếm lại số dòng trên lưới xem có đúng như trước.
+
+     ⚠️ Mock server dùng chung cả Collection ⇒ mọi bài đổi kịch bản phải gọi
+     ResetDefaults() ở đầu phần Arrange (rule 19.18).
+
+● Plan được duyệt. Tôi bắt đầu — theo rule 10.5, mã nguồn sản xuất đi qua file
+  prompt, không sửa trực tiếp. Trước hết xem style prompt sẵn có để viết cho
+  khớp.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Cần biết giá trị thật của EntityConst.KeyFieldLength để viết đúng độ dài cột
+  trong script.
+
+● KeyFieldLength = 64 ⇒ NVARCHAR(64). Viết 2 script SQL (2 CSDL khác nhau nên
+  phải tách, tránh đúng cái nhầm mà Prompt/README.md đã cảnh báo).
+
+● Bash(cd "C:/ThienAn/DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/sql" && cat >
+      '20261002-them-cot-parentid-stepno-sharedataactivitylog.sql' <<'SQLEOF'
+      /* ===========…)
+  ⎿  Created DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\sql\20261002-them
+     -cot-parentid-stepno-sharedataactivitylog.sql (+63 -0)
+       1 +/* ============================================================
+         +================                                               
+       2 +   Them 2 cot ParentId + StepNo cho bang ShareDataActivityLog (
+         +log cha - con)                                                 
+       3 +   Task: BE-5 (Sharedata_MasterPlan.md dong 573)               
+       4 +   Ngay soan: 02/10/2026                                       
+       5 +   CSDL dich: CSDL CHINH (mac dinh) - vi du staging DEV_ITS10 t
+         +ai 10.10.8.30                                                  
+       6 +   Pham vi: CHI bang ShareDataActivityLog. CHI THEM cot va inde
+         +x, KHONG sua du lieu.                                          
+       7 +   An toan chay lai nhieu lan (idempotent).                    
+       8 +                                                               
+       9 +   !! KHONG PHAI script nay: file 20261002-them-cot-receivelogi
+         +d-sharedatainboundpacket.sql                                   
+      10 +      tac dong bang ShareDataInboundPacket o CSDL INBOUND (ket 
+         +noi khac han).                                                 
+      11 +      Hai file lam hai viec khac nhau tren hai CSDL khac nhau -
+         + chay du ca hai.                                               
+      12 +   ============================================================
+         +================ */                                            
+      13 +                                                               
+      14 +SET NOCOUNT ON;                                                
+      15 +                                                               
+      16 +IF OBJECT_ID(N'dbo.ShareDataActivityLog', N'U') IS NULL        
+      17 +BEGIN                                                          
+      18 +    RAISERROR(N'Khong tim thay bang ShareDataActivityLog. Dung 
+         +lai, khong lam gi.', 16, 1);                                   
+      19 +    RETURN;                                                    
+      20 +END                                                            
+      21 +                                                               
+      22 +/* ---- Cot ParentId: ID cua dong log cha. NULL = chinh no la l
+         +og cha ---- */                                                 
+      23 +IF NOT EXISTS (SELECT 1 FROM sys.columns                       
+      24 +               WHERE object_id = OBJECT_ID(N'dbo.ShareDataActiv
+         +ityLog')                                                       
+      25 +                 AND name = N'ParentId')                       
+      26 +BEGIN                                                          
+      27 +    ALTER TABLE dbo.ShareDataActivityLog ADD ParentId NVARCHAR(
+         +64) NULL;                                                      
+      28 +    PRINT N'Da them cot ParentId NVARCHAR(64) NULL.';          
+      29 +END                                                            
+      30 +ELSE                                                           
+      31 +    PRINT N'Cot ParentId da ton tai - bo qua.';                
+      32 +                                                               
+      33 +/* ---- Cot StepNo: 1 = buoc 1, 2 = buoc 2. NULL = log cha ----
+      34 +   LUU Y: INT, KHONG co do dai. Gan do dai cho kieu so se gay l
+         +oi SQL 2716. */                                                
+      35 +IF NOT EXISTS (SELECT 1 FROM sys.columns                       
+      36 +               WHERE object_id = OBJECT_ID(N'dbo.ShareDataActiv
+         +ityLog')                                                       
+      37 +                 AND name = N'StepNo')                         
+      38 +BEGIN                                                          
+      39 +    ALTER TABLE dbo.ShareDataActivityLog ADD StepNo INT NULL;  
+      40 +    PRINT N'Da them cot StepNo INT NULL.';                     
+     … 23 more lines (ctrl+o to expand)
+
+● Bash(cd "C:/ThienAn/DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/sql" && cat >
+      '20261002-them-cot-receivelogid-sharedatainboundpacket.sql' <<'SQLEOF'
+      /* ============…)
+  ⎿  Created DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\sql\20261002-them
+     -cot-receivelogid-sharedatainboundpacket.sql (+44 -0)
+       1 +/* ============================================================
+         +================                                               
+       2 +   Them cot ReceiveLogId cho bang ShareDataInboundPacket (noi l
+         +og cha - con chieu NHAN)                                       
+       3 +   Task: SV-8b (Sharedata_MasterPlan.md dong 109, 558-559)     
+       4 +   Ngay soan: 02/10/2026                                       
+       5 +   CSDL dich: CSDL INBOUND - KET NOI RIENG, KHONG phai CSDL chi
+         +nh.                                                            
+       6 +             Entity khai [Tenant(Its015Const.ConnectionConst.Sh
+         +areData)].                                                     
+       7 +             Xem ConnectionStrings:InboundConnection trong apps
+         +ettings cua ShareDataWorker.                                   
+       8 +   Pham vi: CHI bang ShareDataInboundPacket. CHI THEM 1 cot, KH
+         +ONG sua du lieu.                                               
+       9 +   An toan chay lai nhieu lan (idempotent).                    
+      10 +                                                               
+      11 +   !! KHONG PHAI script nay: file 20261002-them-cot-parentid-st
+         +epno-sharedataactivitylog.sql                                  
+      12 +      tac dong bang ShareDataActivityLog o CSDL CHINH.         
+      13 +      Hai file lam hai viec khac nhau tren hai CSDL khac nhau -
+         + chay du ca hai.                                               
+      14 +                                                               
+      15 +   Vi sao can cot nay: chieu nhan ghi 2 buoc o 2 tien trinh kha
+         +c nhau                                                         
+      16 +   (WebAPI ghi buoc Tiep nhan, Worker ghi buoc Anh xa & ghi CSD
+         +L). Hai bang                                                   
+      17 +   ShareDataActivityLog va ShareDataInboundPacket nam o 2 CSDL 
+         +khac nhau nen                                                  
+      18 +   KHONG join duoc. Cot nay mang ID cua dong log CHA theo dong 
+         +goi tin, de                                                    
+      19 +   Worker biet gan dong CON vao dau.                           
+      20 +   ============================================================
+         +================ */                                            
+      21 +                                                               
+      22 +SET NOCOUNT ON;                                                
+      23 +                                                               
+      24 +IF OBJECT_ID(N'dbo.ShareDataInboundPacket', N'U') IS NULL      
+      25 +BEGIN                                                          
+      26 +    RAISERROR(N'Khong tim thay bang ShareDataInboundPacket. Co 
+         +the ban dang chay tren CSDL chinh thay vi CSDL Inbound. Dung la
+         +i, khong lam gi.', 16, 1);                                     
+      27 +    RETURN;                                                    
+      28 +END                                                            
+      29 +                                                               
+      30 +IF NOT EXISTS (SELECT 1 FROM sys.columns                       
+      31 +               WHERE object_id = OBJECT_ID(N'dbo.ShareDataInbou
+         +ndPacket')                                                     
+      32 +                 AND name = N'ReceiveLogId')                   
+      33 +BEGIN                                                          
+      34 +    ALTER TABLE dbo.ShareDataInboundPacket ADD ReceiveLogId NVA
+         +RCHAR(64) NULL;                                                
+      35 +    PRINT N'Da them cot ReceiveLogId NVARCHAR(64) NULL.';      
+      36 +END                                                            
+      37 +ELSE                                                           
+      38 +    PRINT N'Cot ReceiveLogId da ton tai - bo qua.';            
+      39 +                                                               
+      40 +/* ---- Doi chieu ket qua ---- */                              
+     … 4 more lines (ctrl+o to expand)
+
+● Giờ viết prompt #1 (BE-5) — nền của cả 5 prompt còn lại.
+  ⎿  Interrupted · What should Claude do instead?
+
+> <ide_opened_file>The user opened the file
+  c:\ThienAn\DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\sql\20261002-them-cot
+  -parentid-stepno-sharedataactivitylog.sql in the IDE. This may or may not be
+  related to the current task.</ide_opened_file>
+
+> continue
+  ⎿  Interrupted · What should Claude do instead?
+
+> <ide_selection>The user selected the lines 24 to 24 from
+  c:\ThienAn\DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\sql\20261002-them-cot
+  -receivelogid-sharedatainboundpacket.sql:
+  ShareDataInboundPacket
+
+  This may or may not be related to the current task.</ide_selection>
+
+> ShareDataInboundPacket chưa cần đâu làm luồng gửi + sharedatactivitylog trước
+
+● Rõ — bỏ ShareDataInboundPacket / SV-8b khỏi đợt này. Tôi xoá script inbound
+  vừa tạo (tôi vừa viết nó, chưa ai dùng) và chốt lại phạm vi.
+
+● Bash(cd "C:/ThienAn/DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/sql" && rm -f
+      '20261002-them-cot-receivelogid-sharedatainboundpacket.sql' && echo "da
+      xoa script inb…)
+  ⎿  Deleted DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\sql\20261002-them
+     -cot-receivelogid-sharedatainboundpacket.sql (+0 -44)
+       1 -/* ============================================================
+         -================                                               
+       2 -   Them cot ReceiveLogId cho bang ShareDataInboundPacket (noi l
+         -og cha - con chieu NHAN)                                       
+       3 -   Task: SV-8b (Sharedata_MasterPlan.md dong 109, 558-559)     
+       4 -   Ngay soan: 02/10/2026                                       
+       5 -   CSDL dich: CSDL INBOUND - KET NOI RIENG, KHONG phai CSDL chi
+         -nh.                                                            
+       6 -             Entity khai [Tenant(Its015Const.ConnectionConst.Sh
+         -areData)].                                                     
+       7 -             Xem ConnectionStrings:InboundConnection trong apps
+         -ettings cua ShareDataWorker.                                   
+       8 -   Pham vi: CHI bang ShareDataInboundPacket. CHI THEM 1 cot, KH
+         -ONG sua du lieu.                                               
+       9 -   An toan chay lai nhieu lan (idempotent).                    
+      10 -                                                               
+      11 -   !! KHONG PHAI script nay: file 20261002-them-cot-parentid-st
+         -epno-sharedataactivitylog.sql                                  
+      12 -      tac dong bang ShareDataActivityLog o CSDL CHINH.         
+      13 -      Hai file lam hai viec khac nhau tren hai CSDL khac nhau -
+         - chay du ca hai.                                               
+      14 -                                                               
+      15 -   Vi sao can cot nay: chieu nhan ghi 2 buoc o 2 tien trinh kha
+         -c nhau                                                         
+      16 -   (WebAPI ghi buoc Tiep nhan, Worker ghi buoc Anh xa & ghi CSD
+         -L). Hai bang                                                   
+      17 -   ShareDataActivityLog va ShareDataInboundPacket nam o 2 CSDL 
+         -khac nhau nen                                                  
+      18 -   KHONG join duoc. Cot nay mang ID cua dong log CHA theo dong 
+         -goi tin, de                                                    
+      19 -   Worker biet gan dong CON vao dau.                           
+      20 -   ============================================================
+         -================ */                                            
+      21 -                                                               
+      22 -SET NOCOUNT ON;                                                
+      23 -                                                               
+      24 -IF OBJECT_ID(N'dbo.ShareDataInboundPacket', N'U') IS NULL      
+      25 -BEGIN                                                          
+      26 -    RAISERROR(N'Khong tim thay bang ShareDataInboundPacket. Co 
+         -the ban dang chay tren CSDL chinh thay vi CSDL Inbound. Dung la
+         -i, khong lam gi.', 16, 1);                                     
+      27 -    RETURN;                                                    
+      28 -END                                                            
+      29 -                                                               
+      30 -IF NOT EXISTS (SELECT 1 FROM sys.columns                       
+      31 -               WHERE object_id = OBJECT_ID(N'dbo.ShareDataInbou
+         -ndPacket')                                                     
+      32 -                 AND name = N'ReceiveLogId')                   
+      33 -BEGIN                                                          
+      34 -    ALTER TABLE dbo.ShareDataInboundPacket ADD ReceiveLogId NVA
+         -RCHAR(64) NULL;                                                
+      35 -    PRINT N'Da them cot ReceiveLogId NVARCHAR(64) NULL.';      
+      36 -END                                                            
+      37 -ELSE                                                           
+      38 -    PRINT N'Cot ReceiveLogId da ton tai - bo qua.';            
+      39 -                                                               
+      40 -/* ---- Doi chieu ket qua ---- */                              
+     … 4 more lines (ctrl+o to expand)
+
+● Giờ prompt #1 — BE-5. Tự chứa, có đoạn TRƯỚC/SAU để người thi công áp được
+  không cần mở tài liệu khác.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Heredoc dài bị bash hiểu sai dấu nháy. Chuyển sang Write cho nội dung dài —
+  tin cậy hơn.
+
+● Write(DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt\sharedata-log-cha-co
+       n-be5-cot-va-api-prompt.md)
+  ⎿  Wrote 275 lines to DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt
+     \sharedata-log-cha-con-be5-cot-va-api-prompt.md
+      1 # Prompt — BE-5: 2 cột `ParentId` / `StepNo` + API đọc bước cho `
+      2
+      3 > 📌 Nguồn: `Sharedata_MasterPlan.md` dòng 573 (**BE-5**). Căn cứ
+         nghiệp vụ bậc 1: biên bản họp
+        -sua-ui-sharedata.md) §1.5.
+      5 > 🔴 **Prompt #1 của đợt — áp ĐẦU TIÊN.** Prompt `sv8a` và `sv13`
+      6 > 📌 Phạm vi đợt này: **chỉ chiều GỬI + `ShareDataActivityLog`**
+        (chốt 02/10/2026).
+      7 > ⛔ Chiều NHẬN (SV-8b) và FE ⛔ **không** thuộc đợt này.
+      9 ### Chú giải ký hiệu
+     … +370 lines (ctrl+o to expand)
+
+● Prompt #2 — SV-8a chiều gửi. Đây là prompt nặng nhất; tôi viết đủ TRƯỚC/SAU
+  cho từng nhánh thoát.
+
+● Write(DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt\sharedata-log-cha-co
+       n-sv8a-chieu-gui-prompt.md)
+  ⎿  Wrote 649 lines to DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt
+     \sharedata-log-cha-con-sv8a-chieu-gui-prompt.md
+      1 # Prompt — SV-8a: Ghi log 2 bước cha–con cho chiều GỬI
+      3 > 📌 Nguồn: `Sharedata_MasterPlan.md` dòng 77 và 148-150 (**SV-8a
+        **). Căn cứ nghiệp vụ bậc 1: biên bản họp
+        -sua-ui-sharedata.md) §1.5 —
+      5 > *"Chiều gửi: Step 1 (Trích xuất dữ liệu từ DB lên) → Step 2 (Xử
+      6 >
+      7 > 🔴 **Điều kiện tiên quyết: prompt `sharedata-log-cha-con-be5-co
+      8 > Prompt này ghi vào 2 cột `ParentId` / `StepNo` do prompt đó tạo
+         ra.
+        26).
+     … +800 lines (ctrl+o to expand)
+● Prompt #3 — SV-13. Cần đoạn TRƯỚC chính xác ở chỗ đăng ký DI và chỗ gọi dọn
+  hiện tại.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Đúng dòng thật là 302 (index lệch nhẹ so với đĩa). Đọc ngữ cảnh quanh đó.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Prompt #3 — SV-13. Tôi viết với khung lý do đã chỉnh cho đúng phạm vi mới
+  (SV-8b không còn trong đợt).
+
+● Write(DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt\sharedata-worker-don
+       -log-qua-han-sv13-prompt.md)
+  ⎿  Wrote 392 lines to DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt
+     \sharedata-worker-don-log-qua-han-sv13-prompt.md
+      1 # Prompt — SV-13: Worker dọn nhật ký quá hạn 14 ngày
+      2
+        ho thêm một worker quét log nào quá hạn xóa
+      4 > để tránh dữ liệu đầy"*, số ngày giữ lại chốt **14**.
+      5 > 🔴 **Task này TRƯỚC 02/10/2026 ⛔ không có dòng nào trong `Shar
+      6 > liệu sẽ mở dòng `SV-13` vào checklist. ⛔ Đừng để nó chỉ tồn tạ
+        i trong tệp prompt này.
+      7 >
+        t-va-api-prompt.md` đã áp xong.**
+      9 > Việc dọn phải biết cột `ParentId` để xoá đúng thứ tự con → cha.
+     … +539 lines (ctrl+o to expand)
+
+● Prompt #4 — đồng bộ tài liệu. Cần xem mục "Quyết định đã chốt" để chỉ đúng chỗ
+  ghi.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Write(DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt\sharedata-log-cha-co
+       n-dong-bo-tai-lieu-prompt.md)
+  ⎿  Wrote 196 lines to DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt
+     \sharedata-log-cha-con-dong-bo-tai-lieu-prompt.md
+      1 # Prompt — Đồng bộ tài liệu sau đợt log cha–con (áp CUỐI CÙNG)
+      2
+      3 > 🔴 **Điều kiện tiên quyết: 3 prompt mã nguồn của đợt đã áp xong
+      4 > Thứ tự áp của cả đợt ghi tại [`README.md`](README.md). ⛔ Áp pr
+        ompt này khi 3 prompt kia còn dở sẽ làm
+      5 > tài liệu nói sai về trạng thái hệ thống.
+      6 >
+        g mã nguồn nào.
+      8
+      9 ### Chú giải ký hiệu
+     … +330 lines (ctrl+o to expand)
+
+● Cuối cùng: ghi thứ tự áp vào Prompt/README.md — thiếu bước này thì mẫu
+  prompt-đồng-bộ-riêng không hợp lệ (rule 19.23).
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Thêm khối thứ tự áp vào đầu mục Danh sách Prompt.
+
+  Made 1 scratchpad edit +23 (ctrl+o to expand)
+
+● Bash(cd "C:/ThienAn/DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/Prompt" && cp
+      README.md "$TMPDIR/README.bak.md" 2>/dev/null || cp README.md
+      /tmp/README.bak.md; sed…)
+  ⎿  Updated DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt\README.md
+     (+22 -0)
+      19  
+      20  ## Danh sách Prompt
+      21  
+      22 +### 🔴 Đợt log cha–con chiều GỬI (02/10/2026) — THỨ TỰ ÁP BẮT B
+         +UỘC                                                            
+      23 +                                                               
+      24 +> ⚠️ **Chưa áp.** Bốn prompt dưới đây phải áp **đúng thứ tự**; 
+         +prompt #4 là bước đồng bộ tài liệu của cả đợt                  
+      25 +> nên **áp cuối cùng** (rule 19.23 mẫu 2 — gom nghĩa vụ cập nhậ
+         +t tài liệu vào một prompt riêng thay vì ghi lặp                
+      26 +> cùng một nội dung vào 3 tệp).                                
+      27 +                                                               
+      28 +| # | Prompt | Điều kiện áp |                                  
+      29 +|---|---|---|                                                  
+      30 +| 1 | [`sharedata-log-cha-con-be5-cot-va-api-prompt.md`](shared
+         +ata-log-cha-con-be5-cot-va-api-prompt.md) | — (áp đầu tiên; 2 p
+         +rompt sau đều cần 2 cột do nó tạo) |                           
+      31 +| 2 | [`sharedata-log-cha-con-sv8a-chieu-gui-prompt.md`](shared
+         +ata-log-cha-con-sv8a-chieu-gui-prompt.md) | #1 đã áp, test xanh
+         + |                                                             
+      32 +| 3 | [`sharedata-worker-don-log-qua-han-sv13-prompt.md`](share
+         +data-worker-don-log-qua-han-sv13-prompt.md) | #1 đã áp (cần cột
+         + `ParentId` để xoá đúng thứ tự con → cha) |                    
+      33 +| 4 | [`sharedata-log-cha-con-dong-bo-tai-lieu-prompt.md`](shar
+         +edata-log-cha-con-dong-bo-tai-lieu-prompt.md) | 🔴 **#1 + #2 + 
+         +#3 đã áp xong và test xanh 100%** |                            
+      34 +                                                               
+      35 +📌 **Phạm vi đợt này: chỉ chiều GỬI + `ShareDataActivityLog`.**
+         + ⛔ Chiều NHẬN (**SV-8b**) và FE bind `el-steps`               
+      36 +⛔ **không** thuộc đợt này — chủ dự án chốt 02/10/2026. Khảo sá
+         +t sẵn cho SV-8b (xuyên 2 tiến trình, 2 CSDL,                   
+      37 +cần cột mang ID log cha theo dòng gói tin) đã ghi vào `Sharedat
+         +a_MasterPlan.md` để lượt sau ⛔ không phải dò lại.             
+      38 +                                                               
+      39 +📌 **Một tệp `.sql` kèm theo, chờ chủ dự án chạy** — ⛔ AI khôn
+         +g chạy (rule 9):                                               
+      40 +[`../sql/20261002-them-cot-parentid-stepno-sharedataactivitylog
+         +.sql`](../sql/20261002-them-cot-parentid-stepno-sharedataactivi
+         +tylog.sql)                                                     
+      41 +thêm 2 cột + 1 index vào `ShareDataActivityLog` ở **CSDL chính*
+         +*. Môi trường test local ⛔ không cần script này —             
+      42 +bật cờ CodeFirst trong `tests/appsettings.Test.json` rồi tắt lạ
+         +i (xem prompt #1).                                             
+      43 +                                                               
+      44  > 📌 Đã áp dụng hoàn tất prompt `sharedata-tach-gon-pollchanges
+          -prompt.md` (tách `ReportEmptyConfigOnce` và `HandleStaleTables
+          ` khỏi `PollChanges`, rút gọn 105 → 81 dòng, thuần di chuyển mã
+          , 0 đổi hành vi, 0 sửa tệp test, toàn bộ 78/78 bài test pass 10
+          0%). Tệp prompt được giữ lại trên đĩa để lập trình viên review 
+          và đối chiếu sau khi code change.
+      45  
+      46  > 🔴 **Phần tài liệu của phiên 02/10 đã áp xong.** Việc còn lại
+           là **chạy 2 script**, thuộc về chủ dự án —
+
+● Chèn xong. Giờ mở dòng SV-13 vào MasterPlan ngay ở trạng thái [ ] — task đã
+  tồn tại và chưa làm, để nó chỉ nằm trong prompt là vô hình với người tra
+  checklist (rule 19.24).
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Update(DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Plan\Sharedata_MasterPlan.
+        md)
+  ⎿  Added 5 lines
+      68  - [ ] **SV-5** Kịch bản test đa đối tác bằng clone service — ph
+          ụ thuộc SV-1a + SV-1b
+      69  - [ ] **SV-6** Đo tải & rủi ro nghẽn CSDL — phụ thuộc luồng 1-1
+           chạy ổn
+      70  - [ ] **SV-9** Xác thực đối tác bằng key / token
+      71 +- [ ] **SV-13** Worker dọn nhật ký quá hạn `DataLogCleanupWorke
+         +r` — giữ lại **14 ngày**, dọn `ShareDataActivityLog` + `ShareDa
+         +taAlertLog` theo chu kỳ. 🧑‍💻 Đạt                                
+      72 +  - 📌 Yêu cầu trực tiếp của chủ dự án **02/10/2026**. Trước ng
+         +ày đó task này ⛔ **không có dòng nào** trong checklist — mở ra
+         + ngay để ⛔ không lặp lại lỗi `BE-14` (việc chỉ nằm trong báo c
+         +áo nên vô hình với người tra checklist, rule 19.24).           
+      73 +  - **Vì sao cần:** đo trên staging `10.10.8.30/DEV_ITS10` ngày
+         + 02/10/2026 — `ShareDataActivityLog` **61.596 dòng**, `ShareDat
+         +aAlertLog` **13.706 dòng**, phần nghiệp vụ ⛔ chưa từng được dọ
+         +n. Log cha–con (BE-5 + SV-8a) còn nhân số dòng lên **3 lần** mỗ
+         +i trang gửi. ⚠️ Hai số là **số liệu tạm**, cần thì đo lại.     
+      74 +  - 🔴 **Tác vụ dọn hiện có vừa hẹp vừa gắn sai chỗ:** `PurgeTr
+         +ackingLogsAsync` chỉ xoá nhóm hạ tầng `ESH-16xx`, và bị gọi **b
+         +ên trong `TryInitChangeTracking`** (`DataChangeTrackingService.
+         +cs:302`) nên theo đúng ghi nhận ở §6b dòng 267 thì nó **⛔ khôn
+         +g bao giờ chạy** khi Change Tracking chưa bật được. Tách ra wor
+         +ker riêng là cách sửa đúng.                                    
+      75 +  - Chờ thi công: [`../Prompt/sharedata-worker-don-log-qua-han-
+         +sv13-prompt.md`](../Prompt/sharedata-worker-don-log-qua-han-sv1
+         +3-prompt.md).                                                  
+      76  
+      77  ### I.B · Chiều GỬI — Outbound — 🧑‍💻 Đạt
+      78  
+
+● Dòng SV-13 đã có trong checklist ⇒ phải sửa prompt #4 cho khớp (nó đang nói
+  "mở dòng mới").
+
+● Update(DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt\sharedata-log-cha-c
+        on-dong-bo-tai-lieu-prompt.md)
+  ⎿  Added 14 lines, removed 5 lines
+       92  
+       93  📌 Ghi sẵn phần khảo sát này vào MasterPlan để lượt sau làm SV
+           -8b ⛔ không phải đi dò lại từ đầu — đây chính là thứ đắt nhất
+            của lượt rà soát 02/10.
+       94  
+       95 -### 1d. 🔴 Mở dòng checklist mới `SV-13`                      
+       95 +### 1d. 🔴 Tích `[x]` cho dòng `SV-13` đã có sẵn              
+       96  
+       97 -Nhóm **I.A · Dùng chung cả hai chiều** (quanh dòng 63-71). Thê
+          -m vào **cuối** danh sách, sau `SV-9`:                         
+       97 +✅ **Dòng checklist `SV-13` đã được mở ngày 02/10/2026** trong
+          + nhóm **I.A · Dùng chung cả hai chiều** (sau `SV-9`), đang ở t
+          +rạng thái `[ ]` kèm khối giải thích vì sao cần. ⛔ **Đừng thêm
+          + dòng thứ hai** — chỉ đổi ô tích và bổ sung kết quả.          
+       98  
+       99 +TRƯỚC:                                                        
+      100 +                                                              
+      101  ```markdown
+      100 -- [x] **SV-13** Worker dọn nhật ký quá hạn `DataLogCleanupWork
+          -er` ✅ **xong 02/10/2026** — giữ lại **14 ngày**, chu kỳ 24 gi
+          -ờ, cấu hình ở `ShareDataLogCleanup`.                          
+      102 +- [ ] **SV-13** Worker dọn nhật ký quá hạn `DataLogCleanupWork
+          +er` — giữ lại **14 ngày**, dọn `ShareDataActivityLog` + `Share
+          +DataAlertLog` theo chu kỳ. 🧑‍💻 Đạt                             
+      103  ```
+      104  
+      103 -🔴 **Vì sao bắt buộc mở dòng này:** task chỉ nằm trong tệp pro
+          -mpt là **vô hình với người tra checklist** — đúng cái lỗi đã l
+          -àm mất dấu `BE-14` tới ngày 28/09 mới phát hiện (rule 19.24). 
+      105 +SAU:                                                          
+      106  
+      105 -⚠️ Tiêu đề nhóm I.A hiện ghi `· ⚠️ **Chưa làm**`. Nay nhóm có 
+          -1 mục đã xong ⇒ sửa tiêu đề thành `· ⚠️ **Phần lớn chưa làm**`
+          - hoặc bỏ hẳn nhãn trạng thái ở tiêu đề nhóm (trạng thái đã nằm
+          - ở từng dòng). ⛔ Đừng để tiêu đề nói "Chưa làm" trong khi bên
+          - dưới có dòng `[x]`.                                          
+      107 +```markdown                                                   
+      108 +- [x] **SV-13** Worker dọn nhật ký quá hạn `DataLogCleanupWork
+          +er` ✅ **xong 02/10/2026** — giữ lại **14 ngày** (hằng `ShareD
+          +ataTransferLog.DefaultRetentionDays`, cấu hình `ShareDataLogCl
+          +eanup`), chu kỳ 24 giờ, xoá theo lô 1000 và **dòng con trước d
+          +òng cha**. 🧑‍💻 Đạt                                             
+      109 +```                                                           
+      110  
+      111 +⛔ **Giữ nguyên 4 gạch đầu dòng con bên dưới** (lý do cần, số 
+          +đo staging, ghi chú tác vụ dọn cũ gắn sai chỗ) — đó là phần đắ
+          +t nhất, ⛔ không xoá sau khi tích.                            
+      112 +📌 Sửa gạch đầu dòng cuối từ *"Chờ thi công: …"* thành *"Thi c
+          +ông theo: …"* cho khớp trạng thái đã xong.                    
+      113 +                                                              
+      114 +⚠️ Tiêu đề nhóm I.A hiện ghi `· ⚠️ **Chưa làm**`. Nay nhóm có 
+          +1 mục đã xong ⇒ bỏ hẳn nhãn trạng thái ở tiêu đề nhóm (trạng t
+          +hái đã nằm ở từng dòng). ⛔ Đừng để tiêu đề nói "Chưa làm" tro
+          +ng khi bên dưới có dòng `[x]`.                                
+      115 +                                                              
+      116  ### 1e. 🔴 Sửa dòng 344 — đang sai cả hai vế
+      117  
+      118  TRƯỚC:
+
+● Update(DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt\sharedata-worker-do
+        n-log-qua-han-sv13-prompt.md)
+  ⎿  Added 1 line, removed 1 line
+      387  📌 Đợt này dùng **một prompt đồng bộ tài liệu riêng áp cuối cù
+           ng**, nên ⛔ **không** cập nhật tài liệu ở đây. Thứ tự áp của 
+           cả đợt ghi tại [`README.md`](README.md).
+      388  
+      389  🔴 Nghĩa vụ cập nhật thuộc `sharedata-log-cha-con-dong-bo-tai-
+           lieu-prompt.md`. Riêng prompt này sinh ra **3** việc tài liệu 
+           mà prompt đó phải làm — ⛔ đừng bỏ sót:
+      390 -1. **Mở dòng checklist `SV-13`** vào nhóm I.A của `Sharedata_M
+          -asterPlan.md`.                                                
+      390 +1. **Tích `[x]` cho dòng `SV-13`** trong nhóm I.A của `Shareda
+          +ta_MasterPlan.md`. ✅ Dòng đó **đã được mở sẵn ngày 02/10/2026
+          +** ở trạng thái `[ ]` — ⛔ đừng thêm dòng thứ hai, và ⛔ đừng 
+          +xoá 4 gạch đầu dòng giải thích bên dưới nó.                   
+      391  2. Sửa **dòng 344** — đang ghi nguyên văn *"Tự dọn quá hạn **7
+            ngày**… chạy 1 lần mỗi lần worker khởi động"*, áp xong là **s
+           ai cả hai vế**.
+      392  3. Sửa **dòng 267** — đoạn nói `PurgeTrackingLogsAsync` *"⛔ k
+           hông bao giờ chạy vì nằm sau các `return` sớm"* nay ⛔ không c
+           òn đúng, vì việc dọn đã rời khỏi `TryInitChangeTracking`.
+
+> ikiemr tra toàn bộ dự án đang dùng ToTreeAsync  như nào và sql sugar souc
+  nguồn có gợi ý cách dùng không dầy là mẫu tôi lấy trên mạng csharp
+  [SugarTable("Region")]
+  public class Region
+  {
+      [SugarColumn(IsPrimaryKey = true)]
+      public int Id { get; set; }
+      public string Name { get; set; }
+      public int ParentId { get; set; }
+
+  [SugarColumn(IsIgnore = true)]
+  public List<Region> Children { get; set; }
+  }
+  Usage Example
+  Call .ToTree() by passing the child property, the parent ID property, and the
+  root parent ID value (e.g., 0 or null):
+  csharp
+  var treeList = db.Queryable<Region>()
+                   .ToTree(it => it.Children, it => it.ParentId, 0);
+  => nếu theo tui hiểu là
+
+  [SugarTable("ShareDataActivityLog")]
+  public class ShareDataActivityLog
+  {
+      [SugarColumn(IsPrimaryKey = true)]
+      public int Id { get; set; }
+      public string Name { get; set; }
+      public int ParentId { get; set; }
+
+  [SugarColumn(IsIgnore = true)]
+  public List<ShareDataActivityLog> Children { get; set; }
+  }
+
+● Bạn hiểu đúng API — đó chính là cách ToTree hoạt động. Tôi phản đối ở chỗ chi
+  phí/độ phù hợp, không phải ở cú pháp. Nhưng tôi có một luận điểm đã nêu mà
+  chưa kiểm chứng (chuyện ZoneOutput), nên tôi soát lại toàn bộ thật.
+
+● 🔴 Tôi sai một điểm và phải sửa ngay: ZoneOutput : TmsZone — nó kế thừa
+  Entity, y như ShareData. Vậy chuyện "children rò vào DTO" dự án đã chấp nhận
+  sẵn, không phải lý do để cấm. Tôi kiểm thêm 2 nguồn nữa.
+  Read 1 file (ctrl+o to expand)
+
+● Soát xong toàn bộ. Có 2 chỗ dùng ToTreeAsync trong dự án, và kết quả bác bỏ
+  luận điểm chính của tôi.
+
+  Tôi sai ở đâu
+
+  Tôi nói "TMS không gặp chuyện children rò vào DTO vì có ZoneOutput riêng không
+  kế thừa Entity". Đọc thật thì:
+
+  ┌───────────┬────────────────────────────────────────────┬────────────────┐
+  │    Nơi    │                    DTO                     │  Có kế thừa    │
+  │           │                                            │    Entity?     │
+  ├───────────┼────────────────────────────────────────────┼────────────────┤
+  │ TMS Zone  │ ZoneOutput : TmsZone · PageZoneOutput :    │ ✅ Có          │
+  │           │ TmsZone                                    │                │
+  ├───────────┼────────────────────────────────────────────┼────────────────┤
+  │ WP Menu   │ WpMenuOutput : WpMenu                      │ ✅ Có          │
+  ├───────────┼────────────────────────────────────────────┼────────────────┤
+  │ ShareData │ ShareDataActivityLogOutput :               │ ✅ Có          │
+  │           │ ShareDataActivityLog                       │                │
+  └───────────┴────────────────────────────────────────────┴────────────────┘
+
+  ⇒ Cả 2 tiền lệ đều đặt Children lên Entity và đều để nó rò sang DTO. Dự án đã
+  chấp nhận cái giá đó từ trước, nên nó không còn là lý do để cấm. Mẫu bạn lấy
+  trên mạng cũng đúng y cách dự án đang làm.
+
+  Hai chỗ dùng thật
+
+  // ZonesQueryHandler.cs:55 — TMS
+  if (!await filteredList.AnyAsync(l => l.Pid == "0"))
+      return await filteredList.Select(l => new ZoneOutput(){},
+  true).ToListAsync();
+  return (await filteredList.ToTreeAsync(u => u.Children, u => u.Pid,
+  "0")).Adapt<List<ZoneOutput>>();
+
+  // MenuQueryHandler.cs:51 — WP
+  if (!await filtered.AnyAsync(u => u.Pid == rootValue || u.Pid == null))
+      return (await filtered.ToListAsync()).Adapt<List<WpMenuOutput>>();
+  return (await filtered.ToTreeAsync(u => u.Children, u => u.Pid,
+  rootValue)).Adapt<List<WpMenuOutput>>();
+
+  Ba điểm đáng lưu ở cả hai: dùng sentinel "0" làm gốc chứ không dùng null; luôn
+  có cổng chặn "không thấy node gốc → trả danh sách phẳng"; và .Adapt<>() map
+  sau. [SugarColumn(IsIgnore = true)] còn dùng ở VwController,
+  VdsQuestEntityTenant — là quy ước chung của dự án, không riêng gì tree.
+
+  Về nguồn SqlSugar: .agents/memory/sqlsugar-docs.md chỉ có link No-Entity / raw
+  SQL / bẫy CodeFirst, không có mục nào về ToTree. Tôi không có tài liệu nội bộ
+  nào nói ngược lại mẫu bạn đưa.
+
+  Luận điểm còn sống của tôi — và nó yếu hơn tôi tưởng
+
+  Chỉ còn 1 điểm: StepNo cố định 2 cấp nên đệ quy không mua thêm gì, mà el-steps
+  lại cần danh sách phẳng nên FE sẽ phải bẻ nested ra lại. Đó là sở thích,
+  không phải lỗi kỹ thuật.
+
+  Ngược lại có một điểm có lợi cho bạn mà tôi đã bỏ sót: dùng ToTreeAsync thì
+  một endpoint trả về cha kèm con lồng trong, thay vì FE phải có sẵn dòng cha
+  rồi gọi thêm API lấy con:
+
+  .Where(x => x.ID == command.ID || x.ParentId == command.ID)
+  .ToTreeAsync(u => u.Children, u => u.ParentId, null)
+
+  Vì đây là quyết định quy ước của codebase các anh (và có chỉ đạo của Anh Sơn
+  cho danh mục phân cấp), tôi để bạn chốt.
+
+● User answered Claude's questions:
+  ⎿  · Chốt cách làm API đọc log cha–con? (Trường `Children` trên Entity là điều
+     kiện của phiên bản `ToTreeAsync`) → Dùng ToTreeAsync theo quy ước dự án
+
+● Chốt ToTreeAsync. Tôi sửa prompt #1 — thêm Children vào Entity và đổi handler.
+
+● Update(DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt\sharedata-log-cha-c
+        on-be5-cot-va-api-prompt.md)
+  ⎿  Added 6 lines
+      59          public string? ParentId { get; set; }
+      60          [SugarColumn(IsNullable = true, ColumnDescription = "1 
+          Trích xuất | 2 Ánh xạ & Gửi. null = dòng cha")]
+      61          public int? StepNo { get; set; }
+      62 +        [SugarColumn(IsIgnore = true)]                         
+      63 +        public List<ShareDataActivityLog>? Children { get; set;
+         + }                                                             
+      64      }
+      65  }
+      66  ```
+      67  
+      68 +📌 `Children` là thuộc tính điều hướng cho `ToTreeAsync`, ⛔ **
+         +không** phải cột CSDL — `IsIgnore = true` nên CodeFirst bỏ qua 
+         +và script `ALTER TABLE` cũng ⛔ không tạo cột nào cho nó. Đúng 
+         +khuôn `TmsZone.Children` và `WpMenu.Children` đang dùng.       
+      69 +                                                               
+      70 +⚠️ Khai `List<...>?` (có `?`) thay vì non-nullable như `TmsZone
+         +` để ⛔ không sinh cảnh báo `CS8618`. ⛔ Không gán `= []`: `ToT
+         +reeAsync` tự gán danh sách con, khởi tạo sẵn chỉ thêm nhiễu.   
+      71 +                                                               
+      72  Và bổ sung index, đặt cạnh `[SugarIndex]` đang có ở đầu class:
+      73  
+      74  ### TRƯỚC
+
+● Update(DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt\sharedata-log-cha-c
+        on-be5-cot-va-api-prompt.md)
+  ⎿  Error editing file
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Cần thay cả khối 152–224. Tôi soạn khối mới rồi ghép lại.
+
+  Made 1 scratchpad edit +85 (ctrl+o to expand)
+
+● Bash(cd "C:/ThienAn/DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/Prompt" &&
+      F=sharedata-log-cha-con-be5-cot-va-api-prompt.md &&
+      B="C:/Users/THISPC~1/AppData/Local/Te…)
+  ⎿  Updated DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt\sharedata-
+     log-cha-con-be5-cot-va-api-prompt.md (+42 -30)
+      155  
+      156  ```csharp
+      157          /// <summary>
+      158 -        /// Description: Lấy các bước (dòng con) của một dòng 
+          -nhật ký cha, xếp theo thứ tự bước.                            
+      158 +        /// Description: Lấy cây một phiên truyền nhận: dòng c
+          +ha kèm các dòng bước lồng trong Children.                     
+      159          /// Created date: 02/10/2026
+      160          /// </summary>
+      161          public async Task<List<ShareDataActivityLogOutput>> Ha
+           ndleAsync(ShareDataStepActivityLogInput command)
+      162          {
+      163 -            return await _activityLogRep.AsQueryable()        
+      164 -                .Where(u => u.ParentId == command.ID)         
+      165 -                .OrderBy(u => u.StepNo)                       
+      166 -                .Select(u => new ShareDataActivityLogOutput { 
+          -}, true)                                                      
+      167 -                .ToListAsync();                               
+      163 +            var nodes = _activityLogRep.AsQueryable()         
+      164 +                .Where(u => u.ID == command.ID || u.ParentId =
+          += command.ID)                                                 
+      165 +                .OrderBy(u => u.StepNo);                      
+      166 +                                                              
+      167 +            var tree = (await nodes.ToTreeAsync(u => u.Childre
+          +n, u => u.ParentId, null))                                    
+      168 +                .Adapt<List<ShareDataActivityLogOutput>>();   
+      169 +                                                              
+      170 +            // Cổng chặn giống ZonesQueryHandler / MenuQueryHa
+          +ndler: ToTree dựng cây trong bộ nhớ,                          
+      171 +            // không thấy nút gốc thì trả rỗng. Rơi vào đó thì
+          + trả danh sách phẳng còn hơn trả rỗng.                        
+      172 +            if (tree.Count == 0)                              
+      173 +                return (await nodes.ToListAsync()).Adapt<List<
+          +ShareDataActivityLogOutput>>();                               
+      174 +                                                              
+      175 +            return tree;                                      
+      176          }
+      177  ```
+      178  
+      179 +📌 Dùng `.Adapt<>()` sau `ToTreeAsync` — đúng khuôn 2 chỗ đang
+          + có trong dự án (`ZonesQueryHandler.cs:55`, `MenuQueryHandler.
+          +cs:51`), ⛔ không dùng `.Select(u => new ...{}, true)` ở đây v
+          +ì `Select` sẽ cắt mất nhánh `Children` vừa dựng.              
+      180 +                                                              
+      181 +🔴 **Cổng chặn `tree.Count == 0` ⛔ KHÔNG phải nghi thức cho đ
+          +ủ bộ — nó là lưới an toàn thật.**                             
+      182 +Cả 2 chỗ dùng `ToTreeAsync` trong dự án đều dùng **sentinel `"
+          +0"`** làm gốc (`u.Pid == "0"`), ⛔ **không** chỗ nào truyền `n
+          +ull`. Thiết kế log cha–con lại dùng `ParentId == null` để đánh
+          + dấu dòng cha — vì 3 truy vấn lưới ở Việc 2 lọc theo `ParentId
+          + == null`, đổi sang sentinel là phải sửa cả 3.                
+      183 +⚠️ Nghĩa là **`rootValue: null` là đường chưa có tiền lệ trong
+          + repo này**. Nếu bản SqlSugar đang dùng so khớp gốc bằng `.Equ
+          +als()` thì null có thể ⛔ không khớp và `ToTreeAsync` trả rỗng
+          +. Cổng chặn biến tình huống đó từ *"API trả rỗng, màn hình trố
+          +ng, ⛔ không ai biết vì sao"* thành *"API vẫn trả đủ 3 dòng, c
+          +hỉ là phẳng"*.                                                
+      184 +🔴 **Bài test ở mục Kiểm chứng BẮT BUỘC khẳng định đúng hình d
+          +ạng LỒNG.** Có cổng chặn mà ⛔ không có test thì lỗi null-root
+          + sẽ trôi qua im lặng mãi mãi — cổng chặn che mất chính nó.    
+      185 +                                                              
+      186  ### 3c. Controller
+      187  
+      188  **Tệp:** `TA-ITS015-WEBAPI-V1.0/src/Modules/ShareData/Module.S
+           hareData/Controllers/ActivityLog/ShareDataActivityLogControlle
+           r.cs`
+     … 65 more lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Update(DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt\sharedata-log-cha-c
+        on-be5-cot-va-api-prompt.md)
+  ⎿  Added 3 lines, removed 1 line
+      279  | 🔴 Lưới ⛔ không đếm dòng con | Seed 1 cha + 2 con cùng `Sub
+           scriptionId`, gọi `ShareDataPageActivityLogInput` ⇒ trả **đúng
+            1** dòng (dòng cha) |
+      280  | 🔴 Thẻ số liệu ⛔ không đếm dòng con | Cùng dữ liệu trên, gọ
+           i `ShareDataSummaryActivityLogInput` ⇒ `Total == 1`, ⛔ không 
+           phải 3 |
+      281  | `GetList` ⛔ không đếm dòng con | Gọi `ShareDataActivityLogI
+           nput` ⇒ ⛔ không dòng nào có `ParentId != null` |
+      282 -| API đọc bước | Gọi `ShareDataStepActivityLogInput { ID = <ID
+          - cha> }` ⇒ trả **đúng 2** dòng, `StepNo` theo thứ tự 1 rồi 2 |
+      282 +| 🔴 **API trả đúng hình dạng LỒNG** | Gọi `ShareDataStepActiv
+          +ityLogInput { ID = <ID cha> }` ⇒ trả **đúng 1** phần tử ở cấp 
+          +ngoài (chính dòng cha, `ParentId == null`), và `result[0].Chil
+          +dren` có **đúng 2** phần tử với `StepNo` theo thứ tự **1 rồi 2
+          +** |                                                          
+      283 +| 🔴 **Bẫy `rootValue: null`** | Chính bài trên là lưới chặn: 
+          +nếu `ToTreeAsync` ⛔ không khớp gốc `null` thì cổng chặn sẽ tr
+          +ả **3** phần tử phẳng ⇒ `Assert` số phần tử cấp ngoài `== 1` s
+          +ẽ **đỏ ngay**, ⛔ không trôi qua im lặng. ⚠️ Đỏ ở bài này thì 
+          +⛔ **đừng sửa test**: chuyển `ParentId` của dòng cha sang sent
+          +inel `"0"` giống `TmsZone`/`WpMenu` **và** sửa cả 3 truy vấn ở
+          + Việc 2 sang `== "0"`, rồi báo lại để cập nhật tài liệu |     
+      284  | `GetById` vẫn đọc được dòng con | Gọi `ShareDataIdActivityLo
+           gInput { ID = <ID con> }` ⇒ trả về được, ⛔ không ném `DataNot
+           Exist` |
+      285 +| `Children` ⛔ không thành cột CSDL | Sau khi bật CodeFirst t
+          +ạo cột, truy vấn `sys.columns` của `ShareDataActivityLog` ⇒ ⛔
+          + **không** có cột nào tên `Children` |                        
+      286  
+      287  📌 Cô lập dữ liệu test bằng `Guid.NewGuid():N` cho mọi bản ghi
+            seed. ⛔ Không viết `Dispose()` xoá dữ liệu trong class test 
+           — việc dọn tập trung duy nhất ở `Host.cs`.
+      288  
+
+● Bash(cd "C:/ThienAn/DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/Prompt" &&
+      F=sharedata-log-cha-con-be5-cot-va-api-prompt.md && sed -i 's|^## Việc 1 —
+      Thêm 2 cột vào…)
+  ⎿  Updated DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt\sharedata-
+     log-cha-con-be5-cot-va-api-prompt.md (+3 -3)
+      37  
+      38  ---
+      39  
+      40 -## Việc 1 — Thêm 2 cột vào Entity                              
+      40 +## Việc 1 — Thêm 2 cột + thuộc tính `Children` vào Entity      
+      41  
+      42  **Tệp:** `TA-ITS015-WEBAPI-V1.0/src/Modules/ShareData/Module.Sh
+          areData.Core/Entities/ShareDataActivityLog.cs`
+      43  
+     ...
+      131  
+      132  ---
+      133  
+      134 -## Việc 3 — API đọc 2 dòng con của một dòng cha               
+      134 +## Việc 3 — API đọc cây một phiên (cha + 2 bước lồng trong)   
+      135  
+      136  ### 3a. DTO Input
+      137  
+     ...
+      234  2. `el-steps` cần danh sách **phẳng 2 phần tử** ⇒ FE phải bẻ `
+           Children` ra. Việc đó thuộc prompt FE, ⛔ không thuộc đợt này.
+      235  3. `rootValue: null` chưa có tiền lệ trong repo — xem cổng chặ
+           n và bài test ở trên.
+      236  
+      237 -## Việc 4 — Tạo 2 cột trên CSDL                               
+      237 +## Việc 4 — Tạo 2 cột trên CSDL (`Children` ⛔ không phải cột)
+      238  
+      239  ### Môi trường test (local)
+      240  
+
+● Giờ sửa prompt #4 — nó vẫn đang ghi quyết định cũ (bác ToTreeAsync).
+
+● Update(DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt\sharedata-log-cha-c
+        on-dong-bo-tai-lieu-prompt.md)
+  ⎿  Added 1 line, removed 1 line
+      52  ```markdown
+      53  - [x] **BE-5** **Log 2 bước cha–con**: ✅ **xong 02/10/2026** —
+           2 cột `ParentId` + `StepNo` trên `ShareDataActivityLog` (`Step
+          No` là `int?` nên ⛔ không gán `Length`, tránh lỗi SQL 2716), i
+          ndex `index_{table}_ParentId`, API `GetSteps` đọc 2 dòng con th
+          eo ID dòng cha.
+      54    - 🔴 **Ba truy vấn hiện có đã thêm `.Where(u => u.ParentId ==
+           null)`** (`Page`, `GetList`, `Summary`) để dòng con ⛔ không l
+          ọt vào lưới và ⛔ không làm sai mọi thẻ số liệu. `GetById` **có
+           chủ đích ⛔ không lọc** — nó phải đọc được cả dòng con.
+      55 -  - ⛔ **KHÔNG dùng `ToTreeAsync`** dù repo có tiền lệ Zone/Men
+         -u — lý do đầy đủ ở `SV-12 §10`.                                
+      55 +  - ✅ **Dùng `ToTreeAsync` theo quy ước dự án** (giống `ZonesQ
+         +ueryHandler.cs:55` và `MenuQueryHandler.cs:51`): Entity có `[Su
+         +garColumn(IsIgnore = true)] List<ShareDataActivityLog>? Childre
+         +n`, API `GetSteps` trả **cha kèm 2 bước lồng trong `Children`**
+         +, `.Adapt<>()` map sau `ToTreeAsync`. ⚠️ Kèm cổng chặn `tree.Co
+         +unt == 0` → trả danh sách phẳng, vì `rootValue: null` chưa có t
+         +iền lệ trong repo (2 chỗ kia dùng sentinel `"0"`).             
+      56  ```
+      57  
+      58  ### 1b. SV-8a (dòng ~77)
+
+● Update(DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt\sharedata-log-cha-c
+        on-dong-bo-tai-lieu-prompt.md)
+  ⎿  Added 2 lines, removed 1 line
+      151  
+      152  ```markdown
+      153  | **1 lượt `ExportSubscription` = 1 phiên** (1 dòng cha gộp cả
+            20 trang) | Mất ngữ nghĩa *1 dòng = 1 gói tin đã gửi* mà `Ser
+           ialNbr` đang mang (mỗi trang tăng 1), và phải viết thêm lớp tổ
+           ng hợp số bản ghi / dung lượng cho cả lượt. Chốt **1 trang = 1
+            phiên** ngày 02/10/2026: dòng nhật ký hiện có giữ vai trò dòn
+           g cha nên lưới ⛔ không đổi hình dạng |
+      154 -| **Dùng `ToTreeAsync` của SqlSugar cho API đọc bước** | 🔴 ⛔
+          - **Lượt sau đừng "đồng bộ lại cho giống Zone".** Tiền lệ `Zone
+          -sQueryHandler.cs:55` và `MenuQueryHandler.cs:51` giải bài toán
+          - **độ sâu không biết trước**; còn log cha–con **cố định 1 cấp*
+          -* (`StepNo` chỉ có 1 và 2, ⛔ không có cháu), mỗi lần đọc đúng
+          - 2 dòng ⇒ ⛔ không có gì để đệ quy. Cái giá cụ thể: `ToTreeAsy
+          -nc` đòi thuộc tính `[SugarColumn(IsIgnore = true)] List<T> Chi
+          -ldren` **trên Entity**, mà `ShareDataActivityLogOutput` và `Sh
+          -areDataPageActivityLogOutput` đều **kế thừa thẳng Entity** ⇒ k
+          -hoá `children` rỗng rò vào JSON của **mọi dòng lưới phân trang
+          -** và vào model TS sinh bởi `pnpm build-api`. ⚠️ `TmsZone` ⛔ 
+          -không gặp chuyện này vì TMS có `ZoneOutput` DTO riêng. ✅ ⛔ K
+          -hông phải đường cùng: cột `ParentId` vẫn đúng khuôn tree, ngày
+          - nào cần hơn 2 cấp thì dùng được ngay |                       
+      154 +| **Truy vấn phẳng thay cho `ToTreeAsync`** (`.Where(ParentId 
+          +== id).OrderBy(StepNo)`) | ⛔ **Chủ dự án bác 02/10/2026: dùng
+          + `ToTreeAsync` theo quy ước dự án.** 🔴 **Lập luận phản đối ba
+          +n đầu là SAI và phải ghi lại để ⛔ không ai dựng lại nó:** nó 
+          +cho rằng *"thêm `Children` vào Entity sẽ rò khoá `children` sa
+          +ng DTO vì `ShareDataActivityLogOutput` kế thừa Entity, còn TMS
+          + ⛔ không bị vì có `ZoneOutput` riêng"*. Đọc mã nguồn thật thì
+          + **cả 2 tiền lệ đều kế thừa Entity**: `ZoneOutput : TmsZone`, 
+          +`PageZoneOutput : TmsZone`, `WpMenuOutput : WpMenu` ⇒ dự án **
+          +đã chấp nhận cái giá đó từ trước**, nên nó ⛔ không phải lý do
+          + để làm khác. ⚠️ Luận điểm còn lại (2 cấp cố định nên đệ quy  
+          +⛔ không mua thêm gì, và `el-steps` cần danh sách phẳng nên FE
+          + phải bẻ `Children` ra) là **sở thích**, ⛔ không phải lỗi kỹ 
+          +thuật — chưa đủ để đi ngược quy ước. ✅ Bù lại `ToTreeAsync` c
+          +ho **một** lần gọi trả cả cha lẫn con |                       
+      155 +| **Dùng sentinel `"0"` cho `ParentId` của dòng cha** (giống `
+          +TmsZone.Pid`/`WpMenu.Pid`) | Giữ `null` vì 3 truy vấn lưới (`P
+          +age`, `GetList`, `Summary`) lọc `ParentId == null`; đổi sang s
+          +entinel là phải sửa cả 3 và mất ngữ nghĩa *"null = chính nó là
+          + dòng cha"*. ⚠️ **Đánh đổi biết trước:** `rootValue: null` **c
+          +hưa có tiền lệ trong repo** (2 chỗ kia đều truyền `"0"`) nên `
+          +ToTreeAsync` có thể ⛔ không khớp gốc. Đã chặn bằng cổng `tree
+          +.Count == 0` → trả phẳng, **và** một bài test khẳng định đúng 
+          +hình dạng lồng để lỗi ⛔ không trôi qua im lặng. 🔴 Nếu bài te
+          +st đó đỏ thì **đổi sang sentinel `"0"`** và sửa cả 3 truy vấn 
+          +— ⛔ đừng sửa test |                                          
+      156  | **Ghi dòng con ngay khi mỗi bước vừa xong** | Sinh **dòng co
+           n mồ côi**: nhánh mất lock khi commit chỉ `LogWarning` rồi `re
+           turn`, ⛔ không ghi dòng cha nào ⇒ dòng con đã ghi trước đó nằ
+           m lại vĩnh viễn. Chốt: thu kết quả vào biến cục bộ rồi ghi cả 
+           cây ở **cuối** từng nhánh thoát |
+      157  | **Gộp việc dọn nhật ký nghiệp vụ vào `PurgeTrackingLogsAsync
+           `** | Nới điều kiện lọc của hàm đó là xoá luôn nhật ký nghiệp 
+           vụ — đúng cái XML doc của nó cảnh báo (*"Điều kiện lọc BẮT BUỘ
+           C gồm cả tiền tố mã"*) và test `PurgeTrackingLogs_OnlyDeletesE
+           sh16Rows_KeepsBusinessTransferRows_Test` đang khoá. Chốt: giữ 
+           hàm cũ y nguyên hành vi, viết `CleanupExpiredLogs` bên cạnh |
+      158  | **Lọc dọn theo `UpdateTime`** | ⚠️ Hôm nay chưa gây lỗi (các
+            dòng nhật ký đều có `UpdateTime` null) nhưng là **bom hẹn giờ
+           **: ngày SV-8b lên, dòng cha chiều nhận bị cập nhật trạng thái
+            cuối ⇒ `UpdateTime` mới hơn `CreateTime` của các con ⇒ **con 
+           bị xoá, cha còn lại**, mở chi tiết ra thấy tiến trình rỗng. Ch
+           ốt lọc theo `CreateTime` ngay từ đầu |
+
+> nhớ thêm rule case này sqlsugar có hỗ trợ dạng tree cứ ưu tiên dùng có sẵn
+
+● Đúng — rule này phải vào thienan_rules.md (SSOT, rule 19.1), không ghi vào
+  MEMORY.md. Tôi tìm chỗ chèn.
+
+  Made 1 scratchpad edit +24, ran 2 shell commands (ctrl+o to expand)
+
+● Bash(cd "C:/ThienAn/.agents/rules" && cp thienan_rules.md thienan_rules.md.bak
+      && sed -i '1323r
+      C:/Users/THISPC~1/AppData/Local/Temp/claude/c--ThienAn/4b69bfca-d334-…)
+  ⎿  Updated .agents\rules\thienan_rules.md (+23 -0)
+      1322      - **Issue 16**: Modal sao chép giữ `isActive=true` + `id`
+             cũ → fix FE xóa `id`, tắt `isActive`, gọi `syncMappingCode()
+            `.
+      1323    - **Lỗi thật đã mắc**: Ghi chú tổng quan "14 và 16 là cùng 
+            một lỗi", dòng Issue 16 trong bảng viết "Xử lý gộp cùng Issue
+             14" — người dùng phản hồi trực tiếp: *"đừng báo cáo gộp chun
+            g vậy, nào ra đó bị gì, sửa gì độc lập"*.
+      1324  
+      1325 +- **19.33. SqlSugar Có Tính Năng Sẵn Thì BẮT BUỘC Dùng Tính N
+           +ăng Sẵn — CẤM Tự Dựng Bản Thay Thế (chốt 02/10/2026 - P0)**: 
+      1326 +  - **Phạm vi**: mọi thao tác CSDL qua SqlSugar trong toàn bộ
+           + dự án.                                                      
+      1327 +  - 🔴 **Nguyên tắc**: trước khi tự viết tay một cách làm, BẮ
+           +T BUỘC tra xem SqlSugar **đã có sẵn** API cho việc đó chưa. C
+           +ó thì dùng bản có sẵn. Các tính năng sẵn thường bị bỏ qua: `T
+           +oTree` / `ToTreeAsync` (dựng cây phân cấp), `ToChildList` / `
+           +ToParentList`, `ToPagedListAsync` (phân trang), `OrderBuilder
+           +`, `WhereIF`, `SplitTable`, `Insertable` / `Updateable` / `De
+           +leteable` với OCC.                                           
+      1328 +  - **Lý do**: dự án đã chuẩn hoá quanh SqlSugar; mỗi bản tự 
+           +dựng là một lối riêng phải tự bảo trì, tự kiểm thử, và làm ng
+           +ười đọc sau phải học thêm một cách làm nữa cho cùng một việc.
+      1329 +  - ✅ **Cây phân cấp — khuôn chuẩn của dự án** (xem `ZonesQu
+           +eryHandler.cs:55`, `MenuQueryHandler.cs:51`):                
+      1330 +    ```csharp                                                
+      1331 +    // Entity: thuộc tính điều hướng, KHÔNG phải cột CSDL    
+      1332 +    [SugarColumn(IsIgnore = true)]                           
+      1333 +    public List<TEntity>? Children { get; set; }             
+      1334 +                                                             
+      1335 +    // Query: dựng cây rồi .Adapt<>() map sang DTO           
+      1336 +    return (await filtered.ToTreeAsync(u => u.Children, u => 
+           +u.ParentId, rootValue))                                      
+      1337 +        .Adapt<List<TOutput>>();                             
+      1338 +    ```                                                      
+      1339 +    - ⚠️ `ToTreeAsync` dựng cây **trong bộ nhớ** từ tập đã lọ
+           +c ⇒ BẮT BUỘC `.Where(...)` thu hẹp trước, ⛔ TUYỆT ĐỐI KHÔNG 
+           +gọi trên cả bảng.                                            
+      1340 +    - ⚠️ ⛔ KHÔNG dùng `.Select(u => new TOutput{}, true)` sa
+           +u `ToTreeAsync` — `Select` cắt mất nhánh `Children` vừa dựng.
+           + Dùng `.Adapt<>()`.                                          
+      1341 +    - 🔴 **Cổng chặn bắt buộc**: ⛔ không thấy nút gốc trong 
+           +tập kết quả thì `ToTree` trả **rỗng im lặng**. Cả 2 chỗ trong
+           + repo đều có cổng chặn trả danh sách phẳng khi đó — khi viết 
+           +mới BẮT BUỘC có cổng chặn tương đương, kèm **một bài test khẳ
+           +ng định đúng hình dạng lồng** (⛔ không có test thì cổng chặn
+           + che mất chính lỗi nó đang chống).                           
+      1342 +    - 📌 Hai chỗ trong repo dùng **sentinel `"0"`** làm gốc (
+           +`u.Pid == "0"`), ⛔ không chỗ nào truyền `null`. Dùng `rootVa
+           +lue: null` là **đường chưa có tiền lệ** ⇒ phải có test chứng 
+           +minh nó khớp gốc.                                            
+      1343 +  - ⛔ **Ngoại lệ duy nhất được tự viết tay**: SqlSugar thật 
+           +sự ⛔ không có API cho việc đó (ví dụ `CHANGETABLE(CHANGES ..
+           +.)` của Change Tracking, bảng động ⛔ không có Entity tĩnh) —
+           + xem mục 19.20.                                              
+      1344 +  - 🔴 **LỖI SUY DIỄN THẬT ĐÃ MẮC (02/10/2026) — ⛔ đừng lặp 
+           +lại**: khi bàn API đọc log cha–con `ShareDataActivityLog`, AI
+           + phản đối `ToTreeAsync` với lập luận *"thêm `Children` vào En
+           +tity sẽ rò khoá `children` sang DTO vì `ShareDataActivityLogO
+           +utput` kế thừa Entity, còn TMS ⛔ không bị vì có `ZoneOutput`
+           + DTO riêng"*. Lập luận đó **SAI**: đọc mã nguồn thật thì `Zon
+           +eOutput : TmsZone`, `PageZoneOutput : TmsZone`, `WpMenuOutput
+           + : WpMenu` — **cả hai tiền lệ đều kế thừa Entity**, tức dự án
+           + đã chấp nhận cái giá đó từ trước.                           
+      1345 +    - **Bài học bắt buộc rút ra**: ⛔ TUYỆT ĐỐI KHÔNG lấy một
+           + **suy diễn chưa đọc mã nguồn** làm căn cứ để đi ngược quy ướ
+           +c sẵn có. Muốn bác một tính năng có sẵn thì BẮT BUỘC **mở đún
+           +g tệp đọc đúng dòng** trước, và dẫn số dòng cụ thể.          
+      1346 +    - 📌 Cùng họ với quy tắc **19.12** (thứ tự nguồn dẫn chứn
+           +g): căn cứ cho khẳng định *"code đang làm gì"* là **chính mã 
+           +nguồn**, ⛔ không phải trí nhớ hay phỏng đoán từ tên tệp.    
+      1347 +                                                             
+      1348  ---
+      1349  
+      1350  
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Rule 19.33 đã vào đúng vị trí. Còn một chỗ tự mâu thuẫn: file plan vẫn ghi
+  quyết định cũ.
+
+● Updated plan
+  ⎿  /plan to preview
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Xong. Không có gì vào Staged Changes — toàn bộ ở Working Tree để bạn tự
+  review.
+
+  Đã giao
+
+  4 tệp prompt trong ShareData/Prompt/ (theo rule 10.5 — mã nguồn sản xuất đi
+  qua prompt, tôi không sửa trực tiếp), thứ tự áp đã ghi vào Prompt/README.md:
+
+  ┌─────┬───────────────────────────────┬────────────────────────────────────┐
+  │  #  │            Prompt             │              Nội dung              │
+  ├─────┼───────────────────────────────┼────────────────────────────────────┤
+  │     │                               │ 2 cột ParentId/StepNo + Children · │
+  │ 1   │ ...be5-cot-va-api-prompt.md   │  🔴 lọc ParentId == null ở 3 truy  │
+  │     │                               │ vấn lưới · API GetSteps dùng       │
+  │     │                               │ ToTreeAsync                        │
+  ├─────┼───────────────────────────────┼────────────────────────────────────┤
+  │     │                               │ Ghi 1 cha + 2 con trong            │
+  │ 2   │ ...sv8a-chieu-gui-prompt.md   │ ExportPage, đo từng bước bằng      │
+  │     │                               │ Stopwatch, ShareDataException mang │
+  │     │                               │  ParentId/StepNo                   │
+  ├─────┼───────────────────────────────┼────────────────────────────────────┤
+  │     │                               │ DataLogCleanupWorker dọn 14 ngày,  │
+  │ 3   │ ...sv13-prompt.md             │ gỡ lời gọi dọn khỏi                │
+  │     │                               │ TryInitChangeTracking              │
+  ├─────┼───────────────────────────────┼────────────────────────────────────┤
+  │ 4   │ ...dong-bo-tai-lieu-prompt.md │ Áp cuối: tích checklist, sửa dòng  │
+  │     │                               │ 267 + 344, ghi 8 phương án bị bác  │
+  └─────┴───────────────────────────────┴────────────────────────────────────┘
+
+  Kèm:
+  - sql/20261002-them-cot-parentid-stepno-sharedataactivitylog.sql
+    (DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/sql/20261002-them-cot-parentid
+    -stepno-sharedataactivitylog.sql) — idempotent, chờ bạn chạy. AI không chạy
+    DDL.
+  - Sharedata_MasterPlan.md: mở dòng SV-13 ở trạng thái [ ] ngay (task đã tồn
+    tại và chưa làm — để nó chỉ nằm trong prompt là vô hình với người tra
+    checklist, đúng cái lỗi đã làm mất dấu BE-14).
+  - thienan_rules.md: thêm rule 19.33 — SqlSugar có sẵn thì dùng sẵn, kèm khuôn
+    ToTree chuẩn của dự án và 3 cạm bẫy.
+
+  Chỗ tôi sai và đã sửa
+
+  Tôi bác ToTreeAsync bằng lập luận "TMS không bị rò children vì có ZoneOutput
+  riêng" — suy diễn, chưa đọc mã. Thật ra ZoneOutput : TmsZone, PageZoneOutput :
+  TmsZone, WpMenuOutput : WpMenu: cả hai tiền lệ đều kế thừa Entity, dự án đã
+  chấp nhận cái giá đó. Đã đảo quyết định sang ToTreeAsync, và ghi chính lỗi suy
+  diễn này vào rule 19.33 để không ai dựng lại nó.
+
+  Một điểm còn chưa chắc, tôi không che: rootValue: null chưa có tiền lệ trong
+  repo (Zone và Menu đều dùng sentinel "0"). Prompt #1 đã có cổng chặn
+  tree.Count == 0 → trả phẳng, và một bài test bắt buộc khẳng định hình dạng
+  lồng — test đó đỏ thì đường xử lý là chuyển sang sentinel "0" rồi sửa cả 3
+  truy vấn, không phải sửa test.
+
+  Ngoài phạm vi đợt này
+
+  SV-8b (chiều nhận) và FE bind el-steps — theo bạn chốt. Phần khảo sát SV-8b
+  (xuyên 2 tiến trình, 2 CSDL, LogTransferAsync không trả ID) tôi đã ghi vào
+  MasterPlan để lượt sau không phải dò lại; script cột ReceiveLogId tôi đã xoá
+  vì chưa cần.
+
+  📌 Tôi chưa chạy build hay test — đúng quy trình: bạn đọc prompt, tự áp, tự
+  chạy. Chạy sql trước hoặc bật cờ CodeFirst trong tests/appsettings.Test.json
+  rồi tắt lại.
+> <ide_selection>The user selected the lines 61 to 61 from
+  c:\ThienAn\DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt\sharedata-work
+  er-don-log-qua-han-sv13-prompt.md:
+  PurgeTrackingLogsAsync
+
+  This may or may not be related to the current task.</ide_selection>
+
+> mấy log liên quan truyền nhận tạm bỏ qua cơ chế xóa nha cứ xóa mấy log ở
+  changetracking là được kiểu giữ như cũ mà sửa lại 14 ngày  không có thêm
+  class worker mới và PurgeTrackingLogsAsync đổi tên bỏ Async,với đổi Purge
+
+● Rõ — SV-13 thu hẹp mạnh: giữ nguyên cơ chế cũ, chỉ đổi tên và nâng mốc lên 14
+  ngày. Tôi viết lại plan cho sạch thay vì chắp thêm một lớp đảo ngược nữa.
+
+● Updated plan
+  ⎿  /plan to preview
+
+● User approved Claude's plan
+  ⎿  Plan saved to: ~\.claude\plans\docbusinessthienan-h-ungh-chil-ng-share-glea
+     ming-seahorse.md · /plan to edit
+     Log cha–con chiều GỬI (BE-5 + SV-8a) · SV-13 thu hẹp còn đổi tên + 14 ngày
+
+     Context
+
+     Đợt này làm log 2 bước cha–con cho chiều GỬI của ShareData, kèm một chỉnh
+     sửa nhỏ cho tác vụ dọn nhật ký hạ tầng.
+
+     Phiên trước đã sinh ra 4 tệp prompt + 1 script SQL + mở dòng checklist
+     SV-13. Chủ dự án chốt thêm 2 lần thu hẹp phạm vi, nên một phần những gì đã
+     ghi ra đĩa nay nói sai — việc chính của plan này là sửa cho khớp.
+
+     Hai lần thu hẹp đã chốt 02/10/2026
+
+     ┌─────┬──────────────────────────────────────────────────┬────────────────┐
+     │ Lần │                     Chốt gì                      │ Hệ quả lên tài │
+     │     │                                                  │   liệu đã ghi  │
+     ├─────┼──────────────────────────────────────────────────┼────────────────┤
+     │     │                                                  │ ✅ Đã xử lý    │
+     │ 1   │ ⛔ Bỏ SV-8b (chiều nhận) và FE khỏi đợt này      │ xong ở phiên   │
+     │     │                                                  │ trước          │
+     ├─────┼──────────────────────────────────────────────────┼────────────────┤
+     │     │ SV-13: ⛔ không thêm worker mới · ⛔ tạm bỏ dọn  │ 🔴 Chưa xử lý  │
+     │ 2   │ log truyền nhận · giữ nguyên cơ chế cũ · chỉ     │ — là việc của  │
+     │     │ nâng 7 → 14 ngày · đổi tên bỏ Async và bỏ Purge  │ plan này       │
+     └─────┴──────────────────────────────────────────────────┴────────────────┘
+
+     SV-13 sau khi thu hẹp — còn đúng 3 thay đổi
+
+     #: 1
+     Thay đổi: PurgeTrackingLogsAsync → CleanupTrackingLogs (bỏ Async theo rule
+     7,
+     bỏ Purge theo chốt 02/10)
+     Tệp: ShareDataTransferLog.cs:239 · DataChangeTrackingService.cs:302 ·
+     DataChangeTrackingServiceTests.cs:3085
+     ────────────────────────────────────────
+     #: 2
+     Thay đổi: int retentionDays = 7 → = 14
+     Tệp: ShareDataTransferLog.cs
+     ────────────────────────────────────────
+     #: 3
+     Thay đổi: Đổi tên bài test cho khớp tên hàm
+     Tệp: DataChangeTrackingServiceTests.cs
+
+     ⛔ KHÔNG làm (đã chốt bỏ): class DataLogCleanupWorker, hàm
+     CleanupExpiredLogs, dọn ShareDataAlertLog, dọn dòng nghiệp vụ của
+     ShareDataActivityLog, khối cấu hình ShareDataLogCleanup, hằng
+     DefaultRetentionDays, gỡ lời gọi khỏi TryInitChangeTracking.
+
+     ✅ Giữ nguyên y như cũ: vẫn chỉ xoá dòng Remark LIKE 'ESH-16%'; vẫn gọi 1
+     lần mỗi lần worker khởi động từ trong TryInitChangeTracking; vẫn xoá theo
+     lô 1000 qua ORM.
+
+     Ba cái bẫy ở plan cũ nay KHÔNG còn liên quan
+
+     Phiên trước nêu 3 bẫy (lọc CreateTime thay vì UpdateTime · xoá con trước
+     cha · ⛔ không gộp vào hàm hẹp). Cả ba sinh ra từ việc dọn dòng nghiệp vụ —
+     nay ⛔ không dọn nữa nên chúng tự tiêu:
+
+     - Dòng ESH-16xx do WriteTrackingAsync ghi ⇒ ParentId và StepNo đều null, ⛔
+       không dính cây cha–con nào.
+     - ⇒ ⛔ Không có con mồ côi, ⛔ không có bẫy UpdateTime, ⛔ không cần tách
+       thứ tự xoá.
+     - ⇒ 🔴 SV-13 nay ⛔ KHÔNG còn phụ thuộc BE-5 — áp lúc nào cũng được, ⛔
+       không phải chờ cột ParentId.
+
+     ⚠️ Hệ quả phải ghi lại, ⛔ không được bỏ lặng
+
+     Dòng nghiệp vụ của ShareDataActivityLog vẫn ⛔ không có cơ chế dọn nào. Đo
+     trên staging 10.10.8.30/DEV_ITS10 ngày 02/10/2026: 61.596 dòng
+     (ShareDataAlertLog: 13.706 dòng), cả hai chưa từng được dọn phần nghiệp vụ.
+     Log cha–con còn đưa số dòng từ 1 lên 3 cho mỗi trang gửi.
+
+     📌 Đây là quyết định có chủ đích của chủ dự án (tạm bỏ qua), ⛔ không phải
+     sơ suất — nhưng phải nằm trong checklist để lượt sau ⛔ không ai tưởng là
+     đã xong. ⚠️ Hai số trên là số liệu tạm, cần thì đo lại.
+
+     ---
+
+     Việc phải làm
+
+     1. Viết lại Prompt/sharedata-worker-don-log-qua-han-sv13-prompt.md
+
+     Tệp hiện tại tả class worker mới, dọn 2 bảng, khối cấu hình, 3 bẫy — gần
+     như toàn bộ nay sai. Viết lại thành prompt ngắn, chỉ 3 thay đổi ở bảng
+     trên.
+
+     - Đổi tên tệp thành
+       sharedata-doi-ten-va-nang-moc-don-log-tracking-prompt.md — tên cũ có chữ
+       "worker" và "quá hạn", đọc tên là hiểu sai việc.
+     - Nội dung bắt buộc có: đoạn TRƯỚC/SAU của cả 3 chỗ gọi, lý do bỏ Async
+       (rule 7 — code mới ⛔ không hậu tố Async) và bỏ Purge (từ nghề, đọc tên
+       không ra việc), phép thử rằng bài test cũ vẫn xanh.
+     - 📌 Ghi rõ: bài test truyền retentionDays: 7 tường minh nên đổi mặc định
+       sang 14 ⛔ không làm nó đỏ. Giữ nguyên giá trị tường minh đó — nó kiểm bộ
+       lọc ESH-16%, ⛔ không kiểm chính sách giữ lại.
+     - ⛔ Không thêm khối cấu hình appsettings. Muốn cấu hình được thì sau này
+       là một dòng, ⛔ không làm bây giờ.
+     - ⛔ Không thêm hằng cấp class cho số 14 — nó chỉ dùng ở đúng 1 chỗ, để
+       thẳng ở giá trị mặc định tham số (rule 19.25).
+
+     2. Sửa dòng SV-13 trong Plan/Sharedata_MasterPlan.md
+
+     Dòng hiện tại (nhóm I.A, sau SV-9) đang tả worker mới + dọn 2 bảng. Thay
+     bằng bản rút gọn:
+
+     - [ ] **SV-13** Nâng mốc giữ lại nhật ký hạ tầng Change Tracking lên **14
+     ngày** và đổi tên `PurgeTrackingLogsAsync` → `CleanupTrackingLogs`. 🧑‍💻 Đạt
+       - 📌 Chốt 02/10/2026: **giữ nguyên cơ chế cũ** — chỉ xoá dòng `Remark
+     LIKE 'ESH-16%'`, vẫn gọi 1 lần mỗi lần worker khởi động trong
+     `TryInitChangeTracking`. ⛔ Không thêm worker mới.
+       - Đổi tên: bỏ hậu tố `Async` (rule 7) và bỏ chữ `Purge` (từ nghề, đọc tên
+     không ra việc). Đúng 3 chỗ: định nghĩa · `DataChangeTrackingService.cs` ·
+     bài test.
+       - ⚠️ **Dọn dòng NGHIỆP VỤ của `ShareDataActivityLog` và
+     `ShareDataAlertLog`: CHƯA LÀM** — chủ dự án chốt tạm bỏ qua 02/10/2026. 🔴
+     Nghĩa là hai bảng này **vẫn phình không giới hạn**: đo staging `10.10.8.30`
+     ngày 02/10/2026 được **61.596** và **13.706** dòng, mà log cha–con (SV-8a)
+     còn nhân số dòng lên **3 lần** mỗi trang gửi. ⚠️ Số liệu tạm, cần thì đo
+     lại.
+       - Thi công theo:
+     [`../Prompt/sharedata-doi-ten-va-nang-moc-don-log-tracking-prompt.md`](../P
+     rompt/sharedata-doi-ten-va-nang-moc-don-log-tracking-prompt.md).
+
+     3. Sửa Prompt/README.md — thứ tự áp và phạm vi
+
+     Khối "Đợt log cha–con chiều GỬI" đang ghi prompt #3 là worker dọn log và
+     cần #1 xong trước. Sửa:
+
+     - Đổi tên tệp prompt #3 và mô tả.
+     - 🔴 Đổi điều kiện áp thành "— (độc lập, áp lúc nào cũng được)": nó ⛔
+       không còn cần cột ParentId.
+     - ⛔ Giữ nguyên dòng lịch sử ở line 122 (mục "Đã thực thi và xoá theo
+       Auto-Cleanup") đang ghi tên PurgeTrackingLogsAsync. Đó là ghi chép lịch
+       sử về prompt ngày 27/09 đã tạo ra hàm tên đó — sửa thành tên mới là viết
+       lại quá khứ. 📌 Chỉ tài liệu tả hệ thống hiện tại mới phải đổi tên.
+
+     4. Sửa Prompt/sharedata-log-cha-con-dong-bo-tai-lieu-prompt.md
+
+     Prompt đồng bộ tài liệu đang mang nhiều nội dung nay sai. Cụ thể:
+
+     - Bỏ việc sửa dòng 267 của MasterPlan. Dòng đó nói PurgeTrackingLogsAsync
+       "⛔ không bao giờ chạy vì nằm sau các return sớm" — nay vẫn đúng y nguyên
+       vì ⛔ không gỡ lời gọi khỏi TryInitChangeTracking. ⛔ Sửa nó là làm tài
+       liệu nói sai.
+     - Giữ việc sửa dòng 344, nhưng chỉ đổi hai thứ: 7 ngày → 14 ngày, và tên
+       hàm → CleanupTrackingLogs. ⛔ Bỏ hết phần nói "nay do
+       DataLogCleanupWorker chạy theo chu kỳ" — câu đó sai.
+     - Trong bảng §10, bỏ 3 dòng nay vô nghĩa: gộp vào PurgeTrackingLogsAsync ·
+       lọc theo UpdateTime · giữ dòng cảnh báo chưa xác nhận. Cả ba chỉ tồn tại
+       khi còn dọn dòng nghiệp vụ.
+     - Giữ và sửa lại dòng đặt tên DataLogPurgeWorker → đổi thành dòng ghi quyết
+       định đặt tên CleanupTrackingLogs (bỏ Async + bỏ Purge), vì quyết định
+       đặt tên vẫn còn hiệu lực.
+     - Thêm 1 dòng mới vào §10: "Thêm worker riêng dọn nhật ký nghiệp vụ" → bị
+       bác 02/10/2026, kèm lý do (giữ cơ chế cũ cho gọn) và ⚠️ cái giá phải trả
+       (hai bảng vẫn phình, kèm 2 số đo).
+
+     5. Xoá sql/20261002-them-cot-parentid-stepno-sharedataactivitylog.sql? ⛔
+     KHÔNG
+
+     📌 Script này thuộc BE-5 (2 cột ParentId/StepNo), ⛔ không liên quan SV-13.
+     Giữ nguyên.
+
+     ---
+
+     Tệp bị tác động
+
+     Tệp: Prompt/sharedata-worker-don-log-qua-han-sv13-prompt.md
+     Việc: Đổi tên + viết lại nội dung
+     ────────────────────────────────────────
+     Tệp: Prompt/sharedata-log-cha-con-dong-bo-tai-lieu-prompt.md
+     Việc: Sửa mục 1e/1f và bảng §10
+     ────────────────────────────────────────
+     Tệp: Prompt/README.md
+     Việc: Sửa khối thứ tự áp; ⛔ không đụng dòng lịch sử line 122
+     ────────────────────────────────────────
+     Tệp: Plan/Sharedata_MasterPlan.md
+     Việc: Sửa dòng checklist SV-13
+
+     ⛔ Không tệp mã nguồn nào bị sửa trong plan này — toàn bộ là .md (rule 10.5
+     cho phép sửa trực tiếp). Ba thay đổi mã nguồn của SV-13 do chủ dự án tự áp
+     theo prompt.
+
+     ✅ Hai prompt be5 và sv8a cùng script SQL ⛔ không bị ảnh hưởng bởi lần thu
+     hẹp này.
+
+     ---
+
+     Kiểm chứng
+
+     ⛔ Plan này ⛔ không sửa mã nguồn nên ⛔ không build, ⛔ không test. Soát
+     bằng mắt:
+
+     ┌────────────────────────────────────┬────────────────────────────────────┐
+     │                Kiểm                │              Đạt khi               │
+     ├────────────────────────────────────┼────────────────────────────────────┤
+     │ Tìm chuỗi DataLogCleanupWorker     │ ⛔ Không còn kết quả nào ngoài     │
+     │ trong DocBusinessThienAn/          │ bảng "phương án bị bác" của        │
+     │                                    │ MasterPlan                         │
+     ├────────────────────────────────────┼────────────────────────────────────┤
+     │ Tìm chuỗi CleanupExpiredLogs /     │                                    │
+     │ ShareDataLogCleanup /              │ ⛔ Không còn kết quả nào           │
+     │ DefaultRetentionDays               │                                    │
+     ├────────────────────────────────────┼────────────────────────────────────┤
+     │ Dòng 267 MasterPlan                │ ⛔ Không bị sửa — vẫn nói tác vụ   │
+     │                                    │ dọn nằm sau các return sớm         │
+     ├────────────────────────────────────┼────────────────────────────────────┤
+     │                                    │ Ghi 14 ngày + tên                  │
+     │ Dòng 344 MasterPlan                │ CleanupTrackingLogs; ⛔ không nhắc │
+     │                                    │  worker nào                        │
+     ├────────────────────────────────────┼────────────────────────────────────┤
+     │ Dòng SV-13                         │ Có ⚠️ nêu rõ dọn log nghiệp vụ     │
+     │                                    │ chưa làm kèm 2 số đo               │
+     ├────────────────────────────────────┼────────────────────────────────────┤
+     │                                    │ ⛔ Vẫn giữ tên cũ                  │
+     │ Prompt/README.md line 122          │ PurgeTrackingLogsAsync (ghi chép   │
+     │                                    │ lịch sử)                           │
+     ├────────────────────────────────────┼────────────────────────────────────┤
+     │ Thứ tự áp trong README             │ Prompt SV-13 ghi độc lập, ⛔ không │
+     │                                    │  còn phụ thuộc #1                  │
+     ├────────────────────────────────────┼────────────────────────────────────┤
+     │ Liên kết                           │ ⛔ Không liên kết chết tới tên tệp │
+     │                                    │  prompt cũ                         │
+     └────────────────────────────────────┴────────────────────────────────────┘
+
+     Sau khi chủ dự án áp prompt SV-13, phép thử thật là:
+
+     dotnet test tests/test.csproj --filter "FullyQualifiedName~ShareData"
+
+     ⛔ TUYỆT ĐỐI KHÔNG thêm cờ --no-build. Bài
+     CleanupTrackingLogs_OnlyDeletesEsh16Rows_KeepsBusinessTransferRows_Test
+     phải xanh — nó khoá đúng lưới an toàn "⛔ không đụng nhật ký truyền nhận
+     nghiệp vụ", tức chính cái mà lần thu hẹp này giữ lại.
+
+● Bắt đầu thi hành. Viết prompt SV-13 bản mới (tên mới, nội dung rút gọn).
+
+● Write(DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt\sharedata-doi-ten-va
+       -nang-moc-don-log-tracking-prompt.md)
+  ⎿  Wrote 192 lines to DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt
+     \sharedata-doi-ten-va-nang-moc-don-log-tracking-prompt.md
+       1 # Prompt — SV-13: Đổi tên `PurgeTrackingLogsAsync` → `CleanupTra
+       2
+       3 > 📌 Chốt 02/10/2026 theo yêu cầu chủ dự án. Prompt này **nhỏ, đ
+         úng 3 thay đổi**.
+         pt `be5` hay `sv8a` của cùng đợt.
+       5 > ⛔ **KHÔNG thêm worker mới.** ⛔ **KHÔNG dọn nhật ký truyền nh
+       6
+       7 ### Chú giải ký hiệu
+       8
+      10 | --- | --- |
+     … +263 lines (ctrl+o to expand)
+
+● Xoá tệp prompt cũ (tôi tạo nó phiên trước, nội dung nay nói sai — plan đã
+  duyệt việc đổi tên).
+
+● Bash(cd "C:/ThienAn/DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/Prompt" && rm
+      -f 'sharedata-worker-don-log-qua-han-sv13-prompt.md' && echo "--- da xoa
+      tep cu ---" &…)
+  ⎿  Deleted DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt\sharedata-
+     worker-don-log-qua-han-sv13-prompt.md (+0 -392)
+        1 -# Prompt — SV-13: Worker dọn nhật ký quá hạn 14 ngày          
+        2 -                                                              
+        3 -> 📌 Nguồn: yêu cầu trực tiếp của chủ dự án ngày 02/10/2026 — 
+          -*"cho thêm một worker quét log nào quá hạn xóa                
+        4 -> để tránh dữ liệu đầy"*, số ngày giữ lại chốt **14**.        
+        5 -> 🔴 **Task này TRƯỚC 02/10/2026 ⛔ không có dòng nào trong `S
+          -haredata_MasterPlan.md`** — prompt đồng bộ tài                
+        6 -> liệu sẽ mở dòng `SV-13` vào checklist. ⛔ Đừng để nó chỉ tồn
+          - tại trong tệp prompt này.                                    
+        7 ->                                                             
+        8 -> 🔴 **Điều kiện tiên quyết: prompt `sharedata-log-cha-con-be5
+          --cot-va-api-prompt.md` đã áp xong.**                          
+        9 -> Việc dọn phải biết cột `ParentId` để xoá đúng thứ tự con → c
+          -ha.                                                           
+       10 -                                                              
+       11 -### Chú giải ký hiệu                                          
+       12 -                                                              
+       13 -| Ký hiệu | Ý nghĩa |                                         
+       14 -| --- | --- |                                                 
+       15 -| ✅ | Đạt — khớp / đúng / đã hoàn tất |                      
+       16 -| ⚠️ | Cần lưu ý — có vấn đề, nhưng chưa phải dừng lại để sửa;
+          - ghi nhận rồi xử lý sau |                                     
+       17 -| ❌ | Không đạt — không khớp / không đúng / không áp dụng đượ
+          -c |                                                           
+       18 -| 🔴 | Rủi ro nghiêm trọng — phải xử lý trước khi đi tiếp |   
+       19 -| ⛔ | Cấm tuyệt đối |                                        
+       20 -| 📌 | Ghi chú bối cảnh — nguồn dữ liệu, ngày đo, thuật ngữ | 
+       21 -                                                              
+       22 -> Ký hiệu chỉ nói **mức độ**; trục đánh giá do tiêu đề cột của
+          - từng bảng nói rõ.                                            
+       23 -                                                              
+       24 ----                                                           
+       25 -                                                              
+       26 -## Vì sao cần — số đo, không phải phỏng đoán                  
+       27 -                                                              
+       28 -Đo trên staging `10.10.8.30/DEV_ITS10` ngày 02/10/2026 qua DAB
+          - MCP:                                                         
+       29 -                                                              
+       30 -| Bảng | Số dòng | Có cơ chế dọn chưa? |                      
+       31 -|---|---|---|                                                 
+       32 -| `ShareDataActivityLog` | **61.596** | ⚠️ Chỉ dọn được nhóm h
+          -ạ tầng `ESH-16xx`, ⛔ không chạm nhật ký nghiệp vụ |          
+       33 -| `ShareDataAlertLog` | **13.706** | ❌ Chưa có gì dọn |      
+       34 -                                                              
+       35 -⚠️ Hai số trên là **số liệu tạm** — đúng tại thời điểm đo, ⛔ 
+          -đừng tin lại về sau, cần thì đo lại.                          
+       36 -                                                              
+       37 -🔴 **Log cha–con (prompt `be5` + `sv8a`) đưa số dòng từ 1 lên 
+          -3 cho mỗi trang gửi.** Bật log cha–con mà ⛔ không có worker n
+          -ày là nhân ba tốc độ phình của một bảng vốn đã ⛔ không ai dọn
+          -.                                                             
+       38 -                                                              
+       39 -### 🔴 Tác vụ dọn hiện có vừa hẹp vừa gắn sai chỗ             
+       40 -                                                              
+     … 352 more lines (ctrl+o to expand)
+
+● Giờ sửa dòng SV-13 trong MasterPlan.
+
+● Update(DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Plan\Sharedata_MasterPlan.
+        md)
+  ⎿  Added 5 lines, removed 5 lines
+      68  - [ ] **SV-5** Kịch bản test đa đối tác bằng clone service — ph
+          ụ thuộc SV-1a + SV-1b
+      69  - [ ] **SV-6** Đo tải & rủi ro nghẽn CSDL — phụ thuộc luồng 1-1
+           chạy ổn
+      70  - [ ] **SV-9** Xác thực đối tác bằng key / token
+      71 -- [ ] **SV-13** Worker dọn nhật ký quá hạn `DataLogCleanupWorke
+         -r` — giữ lại **14 ngày**, dọn `ShareDataActivityLog` + `ShareDa
+         -taAlertLog` theo chu kỳ. 🧑‍💻 Đạt                                
+      72 -  - 📌 Yêu cầu trực tiếp của chủ dự án **02/10/2026**. Trước ng
+         -ày đó task này ⛔ **không có dòng nào** trong checklist — mở ra
+         - ngay để ⛔ không lặp lại lỗi `BE-14` (việc chỉ nằm trong báo c
+         -áo nên vô hình với người tra checklist, rule 19.24).           
+      73 -  - **Vì sao cần:** đo trên staging `10.10.8.30/DEV_ITS10` ngày
+         - 02/10/2026 — `ShareDataActivityLog` **61.596 dòng**, `ShareDat
+         -aAlertLog` **13.706 dòng**, phần nghiệp vụ ⛔ chưa từng được dọ
+         -n. Log cha–con (BE-5 + SV-8a) còn nhân số dòng lên **3 lần** mỗ
+         -i trang gửi. ⚠️ Hai số là **số liệu tạm**, cần thì đo lại.     
+      74 -  - 🔴 **Tác vụ dọn hiện có vừa hẹp vừa gắn sai chỗ:** `PurgeTr
+         -ackingLogsAsync` chỉ xoá nhóm hạ tầng `ESH-16xx`, và bị gọi **b
+         -ên trong `TryInitChangeTracking`** (`DataChangeTrackingService.
+         -cs:302`) nên theo đúng ghi nhận ở §6b dòng 267 thì nó **⛔ khôn
+         -g bao giờ chạy** khi Change Tracking chưa bật được. Tách ra wor
+         -ker riêng là cách sửa đúng.                                    
+      75 -  - Chờ thi công: [`../Prompt/sharedata-worker-don-log-qua-han-
+         -sv13-prompt.md`](../Prompt/sharedata-worker-don-log-qua-han-sv1
+         -3-prompt.md).                                                  
+      71 +- [ ] **SV-13** Nâng mốc giữ lại nhật ký hạ tầng Change Trackin
+         +g lên **14 ngày** và đổi tên `PurgeTrackingLogsAsync` → `Cleanu
+         +pTrackingLogs`. 🧑‍💻 Đạt                                         
+      72 +  - 📌 Chốt 02/10/2026: **giữ nguyên cơ chế cũ** — chỉ xoá dòng
+         + `Remark LIKE 'ESH-16%'`, vẫn gọi 1 lần mỗi lần worker khởi độn
+         +g trong `TryInitChangeTracking`. ⛔ **Không** thêm worker mới. 
+      73 +  - Đổi tên bỏ hậu tố `Async` (rule 7 — kiểu trả về `Task` đã n
+         +ói rõ) và bỏ chữ `Purge` (từ nghề, đọc tên ⛔ không ra việc). Đ
+         +úng **3 chỗ**: định nghĩa · `DataChangeTrackingService.cs:302` 
+         +· bài test. Giá trị mặc định `retentionDays` đổi `7` → `14`; bà
+         +i test giữ `retentionDays: 7` **tường minh** vì nó kiểm bộ lọc 
+         +`ESH-16%`, ⛔ không kiểm chính sách số ngày.                   
+      74 +  - ⚠️ **Dọn dòng NGHIỆP VỤ của `ShareDataActivityLog` và `Shar
+         +eDataAlertLog`: CHƯA LÀM** — chủ dự án chốt tạm bỏ qua 02/10/20
+         +26. 🔴 Nghĩa là hai bảng này **vẫn phình không giới hạn**: đo s
+         +taging `10.10.8.30/DEV_ITS10` ngày 02/10/2026 được **61.596** v
+         +à **13.706** dòng, mà log cha–con (SV-8a) còn nhân số dòng lên 
+         +**3 lần** mỗi trang gửi. ⚠️ Số liệu tạm, cần thì đo lại.       
+      75 +  - Thi công theo: [`../Prompt/sharedata-doi-ten-va-nang-moc-do
+         +n-log-tracking-prompt.md`](../Prompt/sharedata-doi-ten-va-nang-
+         +moc-don-log-tracking-prompt.md).                               
+      76  
+      77  ### I.B · Chiều GỬI — Outbound — 🧑‍💻 Đạt
+      78  
+
+● Giờ Prompt/README.md — sửa khối thứ tự áp.
+
+● Update(DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt\README.md)
+  ⎿  Added 1 line, removed 1 line
+      29  |---|---|---|
+      30  | 1 | [`sharedata-log-cha-con-be5-cot-va-api-prompt.md`](shared
+          ata-log-cha-con-be5-cot-va-api-prompt.md) | — (áp đầu tiên; 2 p
+          rompt sau đều cần 2 cột do nó tạo) |
+      31  | 2 | [`sharedata-log-cha-con-sv8a-chieu-gui-prompt.md`](shared
+          ata-log-cha-con-sv8a-chieu-gui-prompt.md) | #1 đã áp, test xanh
+           |
+      32 -| 3 | [`sharedata-worker-don-log-qua-han-sv13-prompt.md`](share
+         -data-worker-don-log-qua-han-sv13-prompt.md) | #1 đã áp (cần cột
+         - `ParentId` để xoá đúng thứ tự con → cha) |                    
+      32 +| 3 | [`sharedata-doi-ten-va-nang-moc-don-log-tracking-prompt.m
+         +d`](sharedata-doi-ten-va-nang-moc-don-log-tracking-prompt.md) |
+         + ✅ **Độc lập — áp lúc nào cũng được** |                       
+      33  | 4 | [`sharedata-log-cha-con-dong-bo-tai-lieu-prompt.md`](shar
+          edata-log-cha-con-dong-bo-tai-lieu-prompt.md) | 🔴 **#1 + #2 + 
+          #3 đã áp xong và test xanh 100%** |
+      34  
+      35  📌 **Phạm vi đợt này: chỉ chiều GỬI + `ShareDataActivityLog`.**
+           ⛔ Chiều NHẬN (**SV-8b**) và FE bind `el-steps`
+
+● Tệp đã bị sửa trên đĩa — đọc lại khối đó trước khi sửa tiếp.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Update(DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt\README.md)
+  ⎿  Added 3 lines, removed 3 lines
+      21  
+      22  ### 🔴 Đợt log cha–con chiều GỬI (02/10/2026) — THỨ TỰ ÁP BẮT B
+          UỘC
+      23  
+      24 -> ⚠️ **Chưa áp.** Bốn prompt dưới đây phải áp **đúng thứ tự**; 
+         -prompt #4 là bước đồng bộ tài liệu của cả đợt                  
+      25 -> nên **áp cuối cùng** (rule 19.23 mẫu 2 — gom nghĩa vụ cập nhậ
+         -t tài liệu vào một prompt riêng thay vì ghi lặp                
+      26 -> cùng một nội dung vào 3 tệp).                                
+      24 +> ⚠️ **Chưa áp.** Prompt **#1 phải áp trước #2** (#2 ghi vào 2 
+         +cột do #1 tạo). **#3 độc lập**, áp lúc nào cũng                
+      25 +> được. **#4 là bước đồng bộ tài liệu của cả đợt nên áp CUỐI CÙ
+         +NG** (rule 19.23 mẫu 2 — gom nghĩa vụ cập nhật                 
+      26 +> tài liệu vào một prompt riêng thay vì ghi lặp cùng một nội du
+         +ng vào 3 tệp).                                                 
+      27  
+      28  | # | Prompt | Điều kiện áp |
+      29  |---|---|---|
+
+● Update(DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt\README.md)
+  ⎿  Added 6 lines
+      36  ⛔ **không** thuộc đợt này — chủ dự án chốt 02/10/2026. Khảo sá
+          t sẵn cho SV-8b (xuyên 2 tiến trình, 2 CSDL,
+      37  cần cột mang ID log cha theo dòng gói tin) đã ghi vào `Sharedat
+          a_MasterPlan.md` để lượt sau ⛔ không phải dò lại.
+      38  
+      39 +🔴 **Prompt #3 (SV-13) đã bị thu hẹp mạnh — chốt 02/10/2026.** 
+         +Nó **chỉ** đổi tên                                             
+      40 +`PurgeTrackingLogsAsync` → `CleanupTrackingLogs` và nâng mốc gi
+         +ữ lại `7` → `14` ngày, **giữ nguyên cơ chế cũ**.               
+      41 +⛔ **KHÔNG** thêm worker mới, ⛔ **KHÔNG** dọn nhật ký truyền n
+         +hận nghiệp vụ, ⛔ **KHÔNG** dọn `ShareDataAlertLog`.           
+      42 +⚠️ Hệ quả: dòng nghiệp vụ của `ShareDataActivityLog` **vẫn chưa
+         + có cơ chế dọn nào** — xem ⚠️ ở dòng `SV-13`                   
+      43 +của `Sharedata_MasterPlan.md` kèm 2 số đo staging.             
+      44 +                                                               
+      45  📌 **Một tệp `.sql` kèm theo, chờ chủ dự án chạy** — ⛔ AI khôn
+          g chạy (rule 9):
+      46  [`../sql/20261002-them-cot-parentid-stepno-sharedataactivitylog
+          .sql`](../sql/20261002-them-cot-parentid-stepno-sharedataactivi
+          tylog.sql)
+      47  thêm 2 cột + 1 index vào `ShareDataActivityLog` ở **CSDL chính*
+          *. Môi trường test local ⛔ không cần script này —
+
+● Giờ prompt #4 — nó đang mang nhiều nội dung nay sai. Đọc lại các mục cần sửa.
+
+  Read 1 file, ran 1 shell command (ctrl+o to expand)
+
+● Update(DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt\sharedata-log-cha-c
+        on-dong-bo-tai-lieu-prompt.md)
+  ⎿  Added 12 lines, removed 13 lines
+       99  TRƯỚC:
+      100  
+      101  ```markdown
+      102 -- [ ] **SV-13** Worker dọn nhật ký quá hạn `DataLogCleanupWork
+          -er` — giữ lại **14 ngày**, dọn `ShareDataActivityLog` + `Share
+          -DataAlertLog` theo chu kỳ. 🧑‍💻 Đạt                             
+      102 +- [ ] **SV-13** Nâng mốc giữ lại nhật ký hạ tầng Change Tracki
+          +ng lên **14 ngày** và đổi tên `PurgeTrackingLogsAsync` → `Clea
+          +nupTrackingLogs`. 🧑‍💻 Đạt                                      
+      103  ```
+      104  
+      105  SAU:
+      106  
+      107  ```markdown
+      108 -- [x] **SV-13** Worker dọn nhật ký quá hạn `DataLogCleanupWork
+          -er` ✅ **xong 02/10/2026** — giữ lại **14 ngày** (hằng `ShareD
+          -ataTransferLog.DefaultRetentionDays`, cấu hình `ShareDataLogCl
+          -eanup`), chu kỳ 24 giờ, xoá theo lô 1000 và **dòng con trước d
+          -òng cha**. 🧑‍💻 Đạt                                             
+      108 +- [x] **SV-13** Nâng mốc giữ lại nhật ký hạ tầng Change Tracki
+          +ng lên **14 ngày** và đổi tên `PurgeTrackingLogsAsync` → `Clea
+          +nupTrackingLogs` ✅ **xong 02/10/2026**. 🧑‍💻 Đạt               
+      109  ```
+      110  
+      111 -⛔ **Giữ nguyên 4 gạch đầu dòng con bên dưới** (lý do cần, số 
+          -đo staging, ghi chú tác vụ dọn cũ gắn sai chỗ) — đó là phần đắ
+          -t nhất, ⛔ không xoá sau khi tích.                            
+      112 -📌 Sửa gạch đầu dòng cuối từ *"Chờ thi công: …"* thành *"Thi c
+          -ông theo: …"* cho khớp trạng thái đã xong.                    
+      111 +⛔ **Giữ nguyên 4 gạch đầu dòng con bên dưới** — đặc biệt là g
+          +ạch đầu dòng ⚠️ *"Dọn dòng NGHIỆP VỤ … CHƯA LÀM"* kèm 2 số đo 
+          +staging. Đó là phần đắt nhất, ⛔ không xoá sau khi tích.      
+      112  
+      113  ⚠️ Tiêu đề nhóm I.A hiện ghi `· ⚠️ **Chưa làm**`. Nay nhóm có 
+           1 mục đã xong ⇒ bỏ hẳn nhãn trạng thái ở tiêu đề nhóm (trạng t
+           hái đã nằm ở từng dòng). ⛔ Đừng để tiêu đề nói "Chưa làm" tro
+           ng khi bên dưới có dòng `[x]`.
+      114  
+      116 -### 1e. 🔴 Sửa dòng 344 — đang sai cả hai vế                  
+      115 +### 1e. Sửa dòng 344 — đổi ĐÚNG 2 thứ, ⛔ không hơn           
+      116  
+      117  TRƯỚC:
+      118  
+     ...
+      123  SAU:
+      124  
+      125  ```markdown
+      127 -- **Tự dọn quá hạn 14 ngày**: `ShareDataTransferLog.PurgeTrack
+          -ingLogsAsync` chỉ xoá dòng `Remark LIKE 'ESH-16%'` — 🔴 tuyệt 
+          -đối không đụng nhật ký truyền nhận nghiệp vụ cùng khoảng thời 
+          -gian (đã có test khoá lại lưới an toàn này). 📌 **Từ 02/10/202
+          -6** việc gọi nó đã chuyển sang `DataLogCleanupWorker` chạy **t
+          -heo chu kỳ 24 giờ**, ⛔ không còn chạy 1 lần lúc khởi động và 
+          -⛔ không còn nằm trong `TryInitChangeTracking`. Mốc giữ lại dù
+          -ng chung hằng `ShareDataTransferLog.DefaultRetentionDays`.    
+      126 +- **Tự dọn quá hạn 14 ngày**: `ShareDataTransferLog.CleanupTra
+          +ckingLogs` chạy 1 lần mỗi lần worker khởi động, chỉ xoá dòng `
+          +Remark LIKE 'ESH-16%'` — 🔴 tuyệt đối không đụng nhật ký truyề
+          +n nhận nghiệp vụ cùng khoảng thời gian (đã có test khoá lại lư
+          +ới an toàn này).                                              
+      127  ```
+      128  
+      130 -### 1f. 🔴 Sửa dòng 267 — đoạn nói tác vụ dọn "không bao giờ c
+          -hạy"                                                          
+      129 +🔴 **Đổi đúng 2 thứ: số `7` → `14`, và tên hàm → `CleanupTrack
+          +ingLogs`.** ⛔ TUYỆT ĐỐI KHÔNG thêm câu nào nói việc dọn *"đã 
+          +chuyển sang worker riêng"* hay *"chạy theo chu kỳ"* — SV-13 bả
+          +n chốt 02/10/2026 **giữ nguyên cơ chế cũ**, vẫn chạy 1 lần lúc
+          + khởi động và vẫn nằm trong `TryInitChangeTracking`. Mệnh đề *
+          +"chạy 1 lần mỗi lần worker khởi động"* trong câu gốc **phải gi
+          +ữ lại**.                                                      
+      130  
+      132 -Trong khối dài ở dòng 267 có đoạn nguyên văn:                 
+      131 +### 1f. 🔴 Dòng 267 — ⛔ TUYỆT ĐỐI KHÔNG SỬA                  
+      132  
+      133 +Dòng 267 có đoạn nguyên văn:                                  
+      134 +                                                              
+      135  > *…mà `PurgeTrackingLogsAsync` **⛔ không bao giờ chạy** vì n
+           ó nằm sau các `return` sớm của `TryInitChangeTracking`.*
+      136  
+      136 -Sửa thành:                                                    
+      137 +⛔ **Để nguyên mệnh đề logic đó.** SV-13 bản chốt ⛔ không gỡ 
+          +lời gọi ra khỏi `TryInitChangeTracking`, nên nhận định này **v
+          +ẫn đúng y nguyên**. Thêm câu *"đã bịt hẳn"* vào là làm tài liệ
+          +u **nói sai** về hệ thống.                                    
+      138  
+      138 -> *…mà `PurgeTrackingLogsAsync` khi đó **⛔ không bao giờ chạy
+          -** vì nó nằm sau các `return` sớm của `TryInitChangeTracking`.
+          - ✅ **Đã bịt hẳn ngày 02/10/2026**: việc dọn chuyển sang `Data
+          -LogCleanupWorker` riêng, chạy theo chu kỳ và ⛔ không còn phụ 
+          -thuộc việc Change Tracking có khởi tạo được hay không.*       
+      139 +📌 **Chỉ đổi tên hàm trong dòng đó** cho khớp tên mới (`PurgeT
+          +rackingLogsAsync` → `CleanupTrackingLogs`), ⛔ không đổi một c
+          +hữ nào khác của câu.                                          
+      140  
+      140 -⛔ Giữ nguyên phần còn lại của dòng 267 — nó đang tả đúng các 
+          -lưới chặn khác.                                               
+      141 -                                                              
+      141  ### 1g. Cập nhật dòng "Cập nhật lần cuối" ở đầu tệp (dòng ~12)
+      142  
+      144 -Đổi `📌 **Cập nhật lần cuối: 28/09/2026**…` thành `📌 **Cập nh
+          -ật lần cuối: 02/10/2026** — đợt log cha–con chiều gửi (BE-5 + 
+          -SV-8a) và worker dọn nhật ký 14 ngày (SV-13).`                
+      143 +Đổi `📌 **Cập nhật lần cuối: 28/09/2026**…` thành `📌 **Cập nh
+          +ật lần cuối: 02/10/2026** — đợt log cha–con chiều gửi (BE-5 + 
+          +SV-8a) và nâng mốc dọn nhật ký hạ tầng lên 14 ngày (SV-13).`  
+      144  
+      145  ---
+      146  
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt\sharedata-log-cha-c
+        on-dong-bo-tai-lieu-prompt.md)
+  ⎿  Added 3 lines, removed 5 lines
+      153  | **Truy vấn phẳng thay cho `ToTreeAsync`** (`.Where(ParentId 
+           == id).OrderBy(StepNo)`) | ⛔ **Chủ dự án bác 02/10/2026: dùng
+            `ToTreeAsync` theo quy ước dự án.** 🔴 **Lập luận phản đối ba
+           n đầu là SAI và phải ghi lại để ⛔ không ai dựng lại nó:** nó 
+           cho rằng *"thêm `Children` vào Entity sẽ rò khoá `children` sa
+           ng DTO vì `ShareDataActivityLogOutput` kế thừa Entity, còn TMS
+            ⛔ không bị vì có `ZoneOutput` riêng"*. Đọc mã nguồn thật thì
+            **cả 2 tiền lệ đều kế thừa Entity**: `ZoneOutput : TmsZone`, 
+           `PageZoneOutput : TmsZone`, `WpMenuOutput : WpMenu` ⇒ dự án **
+           đã chấp nhận cái giá đó từ trước**, nên nó ⛔ không phải lý do
+            để làm khác. ⚠️ Luận điểm còn lại (2 cấp cố định nên đệ quy 
+           ⛔ không mua thêm gì, và `el-steps` cần danh sách phẳng nên FE
+            phải bẻ `Children` ra) là **sở thích**, ⛔ không phải lỗi kỹ 
+           thuật — chưa đủ để đi ngược quy ước. ✅ Bù lại `ToTreeAsync` c
+           ho **một** lần gọi trả cả cha lẫn con |
+      154  | **Dùng sentinel `"0"` cho `ParentId` của dòng cha** (giống `
+           TmsZone.Pid`/`WpMenu.Pid`) | Giữ `null` vì 3 truy vấn lưới (`P
+           age`, `GetList`, `Summary`) lọc `ParentId == null`; đổi sang s
+           entinel là phải sửa cả 3 và mất ngữ nghĩa *"null = chính nó là
+            dòng cha"*. ⚠️ **Đánh đổi biết trước:** `rootValue: null` **c
+           hưa có tiền lệ trong repo** (2 chỗ kia đều truyền `"0"`) nên `
+           ToTreeAsync` có thể ⛔ không khớp gốc. Đã chặn bằng cổng `tree
+           .Count == 0` → trả phẳng, **và** một bài test khẳng định đúng 
+           hình dạng lồng để lỗi ⛔ không trôi qua im lặng. 🔴 Nếu bài te
+           st đó đỏ thì **đổi sang sentinel `"0"`** và sửa cả 3 truy vấn 
+           — ⛔ đừng sửa test |
+      155  | **Ghi dòng con ngay khi mỗi bước vừa xong** | Sinh **dòng co
+           n mồ côi**: nhánh mất lock khi commit chỉ `LogWarning` rồi `re
+           turn`, ⛔ không ghi dòng cha nào ⇒ dòng con đã ghi trước đó nằ
+           m lại vĩnh viễn. Chốt: thu kết quả vào biến cục bộ rồi ghi cả 
+           cây ở **cuối** từng nhánh thoát |
+      156 -| **Gộp việc dọn nhật ký nghiệp vụ vào `PurgeTrackingLogsAsync
+          -`** | Nới điều kiện lọc của hàm đó là xoá luôn nhật ký nghiệp 
+          -vụ — đúng cái XML doc của nó cảnh báo (*"Điều kiện lọc BẮT BUỘ
+          -C gồm cả tiền tố mã"*) và test `PurgeTrackingLogs_OnlyDeletesE
+          -sh16Rows_KeepsBusinessTransferRows_Test` đang khoá. Chốt: giữ 
+          -hàm cũ y nguyên hành vi, viết `CleanupExpiredLogs` bên cạnh | 
+      157 -| **Lọc dọn theo `UpdateTime`** | ⚠️ Hôm nay chưa gây lỗi (các
+          - dòng nhật ký đều có `UpdateTime` null) nhưng là **bom hẹn giờ
+          -**: ngày SV-8b lên, dòng cha chiều nhận bị cập nhật trạng thái
+          - cuối ⇒ `UpdateTime` mới hơn `CreateTime` của các con ⇒ **con 
+          -bị xoá, cha còn lại**, mở chi tiết ra thấy tiến trình rỗng. Ch
+          -ốt lọc theo `CreateTime` ngay từ đầu |                        
+      158 -| **Giữ lại dòng cảnh báo chưa xác nhận (`Acknowledged == fals
+          -e`) khi dọn** | ⛔ **Chủ dự án chốt 02/10/2026: xoá hết theo 1
+          -4 ngày**, ⛔ không chừa. ⚠️ Hệ quả biết trước: cảnh báo cũ chư
+          -a ai xử lý sẽ mất, ⛔ không để lại dấu. Muốn giữ thì tắt cờ `S
+          -hareDataLogCleanup:CleanAlertLog` rồi bàn lại chính sách |    
+      159 -| **Đưa `ShareDataInboundPacket` vào phạm vi dọn đợt 02/10** |
+          - Bảng nằm ở **kết nối CSDL riêng** (`[Tenant]`), ⛔ không có t
+          -rong cấu hình DAB staging nên **chưa đo được số dòng**; và xoá
+          - gói thô là **mất bằng chứng đối soát** với đối tác. ⚠️ Nhưng 
+          -nó giữ `RawContent` kiểu `BigString` nên **rất có thể đây mới 
+          -là thứ ăn đĩa nhiều nhất** — đo riêng rồi quyết sau |         
+      160 -| **Đặt tên worker là `DataLogPurgeWorker`** | ⛔ Chủ dự án ch
+          -ốt 02/10/2026: `Purge` là **từ nghề**, đọc tên không ra ngay v
+          -iệc nó làm. Dùng `DataLogCleanupWorker`, hàm `CleanupExpiredLo
+          -gs`. 📌 Hàm cũ `PurgeTrackingLogsAsync` **vẫn giữ tên** vì đổi
+          - là sửa ngoài phạm vi yêu cầu — ⚠️ chấp nhận tạm có hai từ, lư
+          -ợt nào có việc chạm vào đó thì đổi luôn |                     
+      156 +| **Thêm worker riêng dọn nhật ký nghiệp vụ** (`DataLogCleanup
+          +Worker` chạy theo chu kỳ, dọn cả `ShareDataActivityLog` nghiệp
+          + vụ lẫn `ShareDataAlertLog`) | ⛔ **Chủ dự án bác 02/10/2026: 
+          +giữ nguyên cơ chế cũ cho gọn.** SV-13 còn đúng 2 việc: đổi tên
+          + hàm và nâng mốc `7` → `14` ngày; vẫn chỉ xoá dòng `Remark LIK
+          +E 'ESH-16%'`, vẫn gọi 1 lần lúc worker khởi động trong `TryIni
+          +tChangeTracking`. 🔴 **Cái giá phải trả, ⛔ không được bỏ lặng
+          +:** dòng **nghiệp vụ** của `ShareDataActivityLog` và toàn bộ `
+          +ShareDataAlertLog` **vẫn phình không giới hạn** — đo staging `
+          +10.10.8.30/DEV_ITS10` ngày 02/10/2026 được **61.596** và **13.
+          +706** dòng, mà log cha–con (SV-8a) còn nhân số dòng lên **3 lầ
+          +n** mỗi trang gửi. Đã ghi thành ⚠️ *chưa làm* ở dòng `SV-13` đ
+          +ể lượt sau ⛔ không ai tưởng là đã xong. ⚠️ Số liệu tạm, cần t
+          +hì đo lại |                                                   
+      157 +| **Giữ tên `PurgeTrackingLogsAsync`** | ⛔ Chủ dự án chốt 02/
+          +10/2026 đổi thành **`CleanupTrackingLogs`**: bỏ hậu tố `Async`
+          + (kiểu trả về `Task` đã nói rõ — rule 7) và bỏ chữ `Purge` (từ
+          + nghề, đọc tên ⛔ không ra việc). Đúng 3 chỗ: định nghĩa · `Da
+          +taChangeTrackingService.cs` · bài test. 📌 Dòng lịch sử ở `Pro
+          +mpt/README.md` **vẫn giữ tên cũ** có chủ đích — nó ghi chép pr
+          +ompt ngày 27/09 đã tạo ra hàm mang tên đó, sửa là viết lại quá
+          + khứ |                                                        
+      158 +| **Đưa `ShareDataInboundPacket` vào phạm vi dọn** | Bảng nằm 
+          +ở **kết nối CSDL riêng** (`[Tenant]`), ⛔ không có trong cấu h
+          +ình DAB staging nên **chưa đo được số dòng**; và xoá gói thô l
+          +à **mất bằng chứng đối soát** với đối tác. ⚠️ Nhưng nó giữ `Ra
+          +wContent` kiểu `BigString` nên **rất có thể đây mới là thứ ăn 
+          +đĩa nhiều nhất** — đo riêng rồi quyết sau |                   
+      159  ```
+      160  
+      161  🔴 **Đây là phần đắt nhất của cả đợt.** Xoá đi là lần sau bàn 
+           lại từ đầu, và sẽ có người "sửa cho giống Zone" rồi làm vỡ pay
+           load của lưới.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Update(DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt\sharedata-log-cha-c
+        on-dong-bo-tai-lieu-prompt.md)
+  ⎿  Added 1 line, removed 1 line
+      27  |---|---|
+      28  | **BE-5** — 2 cột + API đọc bước | ✅ Đã làm |
+      29  | **SV-8a** — log 2 bước chiều GỬI | ✅ Đã làm |
+      30 -| **SV-13** — worker dọn log 14 ngày | ✅ Đã làm *(task mới, ph
+         -ải mở dòng checklist)* |                                       
+      30 +| **SV-13** — đổi tên `CleanupTrackingLogs` + nâng mốc `7` → `1
+         +4` ngày | ✅ Đã làm *(⛔ KHÔNG có worker mới, ⛔ KHÔNG dọn log 
+         +nghiệp vụ)* |                                                  
+      31  | **SV-8b** — log 2 bước chiều NHẬN | ⚠️ **Chưa làm** — ⛔ khôn
+          g thuộc đợt này (chủ dự án chốt 02/10/2026) |
+      32  | **FE** — bind `el-steps` dữ liệu thật | ⚠️ **Chưa làm** — ⛔ 
+          không thuộc đợt này |
+      33  
+
+● Update(DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt\sharedata-log-cha-c
+        on-dong-bo-tai-lieu-prompt.md)
+  ⎿  Added 1 line, removed 1 line
+      167  Thêm vào mục `SV-12 §6c` (nhật ký sự cố hạ tầng) hoặc ngay cạn
+           h dòng 344 vừa sửa:
+      168  
+      169  ```markdown
+      170 -> 📌 **Số đo tại thời điểm thêm worker dọn** (staging `10.10.8
+          -.30/DEV_ITS10`, 02/10/2026): `ShareDataActivityLog` **61.596 d
+          -òng**, `ShareDataAlertLog` **13.706 dòng**, cả hai chưa từng đ
+          -ược dọn phần nghiệp vụ. ⚠️ Là **số liệu tạm** — ⛔ đừng tin lạ
+          -i về sau, cần thì đo lại. Lý do ghi vào đây: nó giải thích vì 
+          -sao SV-13 ⛔ không phải việc phụ, nhất là khi log cha–con nhân
+          - số dòng lên **3 lần** mỗi trang gửi.                         
+      170 +> 🔴 **Số đo cảnh báo khối lượng nhật ký** (staging `10.10.8.3
+          +0/DEV_ITS10`, 02/10/2026): `ShareDataActivityLog` **61.596 dòn
+          +g**, `ShareDataAlertLog` **13.706 dòng** — **phần nghiệp vụ củ
+          +a cả hai chưa từng được dọn và tới nay vẫn chưa có cơ chế dọn 
+          +nào** (SV-13 chỉ dọn nhóm hạ tầng `ESH-16xx`). ⚠️ Log cha–con 
+          +(SV-8a) còn nhân số dòng lên **3 lần** mỗi trang gửi. 📌 Ghi v
+          +ào đây để khối lượng này ⛔ không bị quên: chủ dự án chốt **tạ
+          +m bỏ qua** việc dọn log nghiệp vụ ngày 02/10/2026. ⚠️ Là **số 
+          +liệu tạm** — ⛔ đừng tin lại về sau, cần thì đo lại.          
+      171  ```
+      172  
+      173  ---
+
+  Read 1 file (ctrl+o to expand)
+● Update(DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt\sharedata-log-cha-c
+        on-dong-bo-tai-lieu-prompt.md)
+  ⎿  Added 6 lines, removed 4 lines
+      189  | Kiểm | Đạt khi |
+      190  |---|---|
+      191  | Mở **một** tệp `Sharedata_MasterPlan.md` | Trả lời được *tas
+           k nào xong, task nào chưa* mà ⛔ không phải mở tệp thứ hai |
+      192 -| Dòng `SV-13` | Có mặt trong checklist nhóm I.A, ⛔ không chỉ
+          - nằm trong tệp prompt |                                       
+      192 +| Dòng `SV-13` | Đã `[x]`, và **giữ nguyên** gạch đầu dòng ⚠️ 
+          +*"Dọn dòng NGHIỆP VỤ … CHƯA LÀM"* kèm 2 số đo |               
+      193  | SV-8b và dòng FE 671 | Vẫn `[ ]`, ⛔ không bị tích oan |
+      194  | Tiêu đề nhóm I.A | ⛔ Không còn nói "Chưa làm" trong khi bên
+            dưới đã có dòng `[x]` |
+      195 -| Dòng 267 và 344 | ⛔ Không còn câu nào tả cơ chế dọn cũ (7 n
+          -gày · chạy lúc khởi động · nằm trong `TryInitChangeTracking`) 
+          -|                                                             
+      196 -| §10 | Có đủ **8** dòng phương án bị bác mới |               
+      197 -| Liên kết | ⛔ Không liên kết chết tới tệp nào đã xoá |      
+      195 +| Dòng 344 | Ghi `14 ngày` + tên `CleanupTrackingLogs`; 🔴 **v
+          +ẫn giữ** mệnh đề *"chạy 1 lần mỗi lần worker khởi động"*; ⛔ k
+          +hông nhắc worker mới nào |                                    
+      196 +| 🔴 Dòng 267 | **⛔ Chỉ đổi tên hàm, ⛔ KHÔNG đổi mệnh đề log
+          +ic** — vẫn nói tác vụ dọn nằm sau các `return` sớm của `TryIni
+          +tChangeTracking` (vẫn đúng, vì ⛔ không gỡ lời gọi) |         
+      197 +| Tìm chuỗi `DataLogCleanupWorker` · `CleanupExpiredLogs` · `S
+          +hareDataLogCleanup` · `DefaultRetentionDays` trong `DocBusines
+          +sThienAn/` | Chỉ còn đúng **1** kết quả: dòng *"Thêm worker ri
+          +êng dọn nhật ký nghiệp vụ"* ở bảng §10 (ghi lại phương án bị b
+          +ác) |                                                         
+      198 +| §10 | Có đủ **7** dòng phương án bị bác mới |               
+      199 +| Liên kết | ⛔ Không liên kết chết tới tệp nào đã xoá (đặc bi
+          +ệt tên prompt SV-13 cũ) |                                     
+      200  
+      201  ---
+      202  
+
+● Kiểm tra lần cuối toàn bộ — tìm mọi dấu vết còn sót.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Dòng kiểm chứng 197 tự nói sai (còn 4 kết quả hợp lệ, không phải 1). Sửa cho
+  đúng để phép kiểm thi hành được.
+
+● Update(DocBusinessThienAn\HữuNghị-ChiLăng\ShareData\Prompt\sharedata-log-cha-c
+        on-dong-bo-tai-lieu-prompt.md)
+  ⎿  Added 1 line, removed 1 line
+      194  | Tiêu đề nhóm I.A | ⛔ Không còn nói "Chưa làm" trong khi bên
+            dưới đã có dòng `[x]` |
+      195  | Dòng 344 | Ghi `14 ngày` + tên `CleanupTrackingLogs`; 🔴 **v
+           ẫn giữ** mệnh đề *"chạy 1 lần mỗi lần worker khởi động"*; ⛔ k
+           hông nhắc worker mới nào |
+      196  | 🔴 Dòng 267 | **⛔ Chỉ đổi tên hàm, ⛔ KHÔNG đổi mệnh đề log
+           ic** — vẫn nói tác vụ dọn nằm sau các `return` sớm của `TryIni
+           tChangeTracking` (vẫn đúng, vì ⛔ không gỡ lời gọi) |
+      197 -| Tìm chuỗi `DataLogCleanupWorker` · `CleanupExpiredLogs` · `S
+          -hareDataLogCleanup` · `DefaultRetentionDays` trong `DocBusines
+          -sThienAn/` | Chỉ còn đúng **1** kết quả: dòng *"Thêm worker ri
+          -êng dọn nhật ký nghiệp vụ"* ở bảng §10 (ghi lại phương án bị b
+          -ác) |                                                         
+      197 +| Tìm chuỗi `DataLogCleanupWorker` · `CleanupExpiredLogs` · `S
+          +hareDataLogCleanup` · `DefaultRetentionDays` trong `Plan/` |  
+          +⛔ **Không** kết quả nào. 📌 Trong `Prompt/` thì **vẫn còn có 
+          +chủ đích**: danh sách ⛔ *KHÔNG làm* của prompt SV-13, và dòng
+          + ghi phương án bị bác ở §10 — hai chỗ đó nói *"⛔ đừng tạo thứ
+          + này"*, ⛔ không phải tả hệ thống |                           
+      198  | §10 | Có đủ **7** dòng phương án bị bác mới |
+      199  | Liên kết | ⛔ Không liên kết chết tới tệp nào đã xoá (đặc bi
+           ệt tên prompt SV-13 cũ) |
+      200  
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Xong. SV-13 đã thu hẹp đúng như bạn chốt.
+
+  SV-13 giờ còn đúng 3 thay đổi
+
+  ┌─────┬───────────────────────────┬───────────────────────────────────────┐
+  │  #  │         Thay đổi          │                  Tệp                  │
+  ├─────┼───────────────────────────┼───────────────────────────────────────┤
+  │     │ PurgeTrackingLogsAsync →  │ ShareDataTransferLog.cs ·             │
+  │ 1   │ CleanupTrackingLogs       │ DataChangeTrackingService.cs:302 ·    │
+  │     │                           │ tệp test                              │
+  ├─────┼───────────────────────────┼───────────────────────────────────────┤
+  │ 2   │ int retentionDays = 7 → = │ ShareDataTransferLog.cs               │
+  │     │  14                       │                                       │
+  ├─────┼───────────────────────────┼───────────────────────────────────────┤
+  │ 3   │ Đổi tên bài test cho khớp │ DataChangeTrackingServiceTests.cs     │
+  └─────┴───────────────────────────┴───────────────────────────────────────┘
+
+  Cơ chế giữ nguyên y như cũ: vẫn chỉ xoá Remark LIKE 'ESH-16%', vẫn gọi 1 lần
+  lúc worker khởi động trong TryInitChangeTracking.
+
+  Đã bỏ hết: class worker mới, CleanupExpiredLogs, dọn ShareDataAlertLog, dọn
+  dòng nghiệp vụ, khối cấu hình, hằng DefaultRetentionDays.
+
+  Tệp đã sửa
+
+  - Mới: Prompt/sharedata-doi-ten-va-nang-moc-don-log-tracking-prompt.md — tên
+    cũ có chữ "worker" nên đọc là hiểu sai việc; đã xoá tệp cũ.
+  - Plan/Sharedata_MasterPlan.md — dòng SV-13 rút gọn.
+  - Prompt/README.md — prompt #3 nay ghi độc lập (không còn cần cột ParentId).
+  - Prompt/sharedata-log-cha-con-dong-bo-tai-lieu-prompt.md — bỏ 3 dòng §10 đã
+    vô nghĩa, sửa lại 2 dòng, thêm 1 dòng ghi phương án bị bác.
+
+  Hai prompt be5, sv8a và script SQL không bị ảnh hưởng.
+
+  Hai điểm cần bạn biết
+
+  🔴 Dòng 267 của MasterPlan: prompt đồng bộ nay ghi rõ "chỉ đổi tên hàm, ⛔
+  KHÔNG đổi mệnh đề logic". Câu "tác vụ dọn không bao giờ chạy vì nằm sau các
+  return sớm" vẫn đúng do không gỡ lời gọi khỏi TryInitChangeTracking. Bản trước
+  định sửa thành "đã bịt hẳn" — sai, đã gỡ.
+
+  ⚠️ Dòng nghiệp vụ của ShareDataActivityLog và ShareDataAlertLog vẫn chưa có cơ
+  chế dọn nào. Đo staging 02/10: 61.596 và 13.706 dòng; log cha–con còn nhân
+  lên 3 lần mỗi trang gửi. Đã ghi thành ⚠️ chưa làm ngay trong dòng SV-13 của
+  MasterPlan kèm số đo, để lượt sau không ai tưởng đã xong.
+
+  📌 3 tệp đang ở Staged Changes (thienan_rules.md, Sharedata_MasterPlan.md,
+  Prompt/README.md) — bạn tự stage qua IDE giữa lúc tôi sửa. Tôi không chạy git
+  add và cũng không git reset để unstage. Nội dung staged đã khớp với bản trên
+  đĩa nên không bị lệch pha.
+
+  Tôi chưa build/test — 3 thay đổi mã nguồn do bạn áp theo prompt.

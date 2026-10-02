@@ -9,7 +9,7 @@ Project test nằm **ngoài** repo product `TA-ITS015-WEBAPI-V1.0` (không commi
 ## Cấu trúc thư mục
 
 ```
-tests/
+tests/BE/
 ├─ GlobalUsings.cs                    (Global using directives dùng chung cho toàn bộ test suite)
 ├─ Host.cs                            (Test Generic Host độc lập, DI Lamar, SqlSugar, auto-discovery)
 ├─ README.MD                          (Tài liệu kiến trúc và hướng dẫn kiểm thử)
@@ -85,25 +85,25 @@ tests/
 
 ## Cách chạy kiểm thử
 
-Chạy trực tiếp qua lệnh CLI `dotnet test tests/test.csproj`. Trình kiểm thử hỗ trợ bộ lọc xUnit linh hoạt theo từng phân hệ hoặc từng test fixture cụ thể.
+Chạy trực tiếp qua lệnh CLI `dotnet test tests/BE/test.csproj`. Trình kiểm thử hỗ trợ bộ lọc xUnit linh hoạt theo từng phân hệ hoặc từng test fixture cụ thể.
 
 ```bash
 # 1. Chạy toàn bộ test suite (tất cả phân hệ):
-dotnet test tests/test.csproj
+dotnet test tests/BE/test.csproj
 
 # 2. Chạy riêng từng phân hệ:
 # Phân hệ VideoWall:
-dotnet test tests/test.csproj --filter "FullyQualifiedName~VideoWall"
+dotnet test tests/BE/test.csproj --filter "FullyQualifiedName~VideoWall"
 
 # Phân hệ ShareData:
-dotnet test tests/test.csproj --filter "FullyQualifiedName~ShareData"
+dotnet test tests/BE/test.csproj --filter "FullyQualifiedName~ShareData"
 
 # Hạ tầng khởi động hệ thống (Smoke Tests):
-dotnet test tests/test.csproj --filter "FullyQualifiedName~StartupValidation"
+dotnet test tests/BE/test.csproj --filter "FullyQualifiedName~StartupValidation"
 
 # 3. Chạy một lớp test hoặc fixture cụ thể:
-dotnet test tests/test.csproj --filter "FullyQualifiedName~VwControllerTests"
-dotnet test tests/test.csproj --filter "FullyQualifiedName~DataOutboundServiceTests"
+dotnet test tests/BE/test.csproj --filter "FullyQualifiedName~VwControllerTests"
+dotnet test tests/BE/test.csproj --filter "FullyQualifiedName~DataOutboundServiceTests"
 ```
 
 ### Điều kiện tiên quyết & Cơ chế Zero-Trust
@@ -120,7 +120,7 @@ dotnet test tests/test.csproj --filter "FullyQualifiedName~DataOutboundServiceTe
 3. **ISAPI Mock Server Hikvision (VideoWall)**:
    - Toàn bộ test của VideoWall sử dụng `VwISAPIServerHikvisionMock` (`HttpListener` thật chạy trên `127.0.0.1`, port 18080-18083).
    - Được `Host.VideoWall.cs` tự động khởi động và giải phóng trong vòng đời test, hoàn toàn không phụ thuộc phần cứng thật hay mạng ngoại vi.
-   - Khi cần debug hoặc test bằng tay ngoài suite, có thể chạy console runner độc lập tại `tests/ITS/VideoWall/VwMockServerRunner`.
+   - Khi cần debug hoặc test bằng tay ngoài suite, có thể chạy console runner độc lập tại `tests/BE/ITS/VideoWall/VwMockServerRunner`.
 
 4. **ShareData Partner Server Mock (ShareData)**:
    - `ShareDataPartnerServerMock` (`HttpListener` chạy port 18090-18093) mô phỏng các endpoint nhận dữ liệu của đối tác (Bộ GTVT, Cục CSGT...).
@@ -253,7 +253,7 @@ Mỗi phân hệ tự quản lý các file cấu hình và mock riêng trong th�
 ## Quy ước viết bài kiểm thử
 
 - **1 file test / 1 class nguồn**: Tên file khớp 1-1 với class nghiệp vụ kèm hậu tố `Tests.cs` (ví dụ `VwSchedule` → `VwScheduleTests.cs`).
-- **Namespace chuẩn**: Đặt theo định dạng `Tests.<TênPhânHệ>...` trong thư mục `tests/ITS/<TênPhânHệ>/`. *(Lưu ý: Không đặt namespace là `Tests.ITS.*` để tránh xung đột tên phân giải với namespace `ITS` của các thư viện bên ngoài)*.
+- **Namespace chuẩn**: Đặt theo định dạng `Tests.<TênPhânHệ>...` trong thư mục `tests/BE/ITS/<TênPhânHệ>/`. *(Lưu ý: Không đặt namespace là `Tests.ITS.*` để tránh xung đột tên phân giải với namespace `ITS` của các thư viện bên ngoài)*.
 - **Wolverine Message Bus**: Gọi nghiệp vụ trực tiếp qua `IMessageBus` (bypass Controller/HTTP) để tối đa hoá tốc độ thực thi, không vướng xác thực JWT và hỗ trợ debug breakpoint dễ dàng.
 - **Query phân trang**: Các truy vấn phân trang trả về `SqlSugarPagedList<T>`, đọc dữ liệu danh sách qua `.Records`.
 - **Negative Test First**: Với các Command có Validator, luôn kiểm tra trường hợp dữ liệu không hợp lệ trước khi kiểm tra luồng ghi CSDL.
@@ -265,5 +265,5 @@ Mỗi phân hệ tự quản lý các file cấu hình và mock riêng trong th�
 
 ## Tài liệu tham chiếu liên quan
 
-- 📖 **Đặc tả Vendor Specification:** [`09-api-reference.md`](../DocBusinessThienAn/HữuNghị-ChiLăng/VideoWall/doc/ISAPI-Videowall-Controller/09-api-reference.md)
-- 🗺️ **Danh mục API Catalog:** [`00-api-catalog.md`](../DocBusinessThienAn/HữuNghị-ChiLăng/VideoWall/doc/ISAPI-Videowall-Controller/00-api-catalog.md)
+- 📖 **Đặc tả Vendor Specification:** [`09-api-reference.md`](../../DocBusinessThienAn/HữuNghị-ChiLăng/VideoWall/doc/ISAPI-Videowall-Controller/09-api-reference.md)
+- 🗺️ **Danh mục API Catalog:** [`00-api-catalog.md`](../../DocBusinessThienAn/HữuNghị-ChiLăng/VideoWall/doc/ISAPI-Videowall-Controller/00-api-catalog.md)

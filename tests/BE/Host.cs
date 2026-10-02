@@ -67,9 +67,11 @@ public partial class Host : IAsyncLifetime
                         { "ConnectionStrings:Default", connStr },
                         { "ConnectionStrings:DefaultConnection", connStr },
                         { "ConnectionStrings:InboundConnection", connStr },
+                        { "ConnectionStrings:ShareDataDB", connStr },
                         { "ConnectionStrings:LogDefault", logConnStr },
                         { "DbConnection:ConnectionConfigs:0:ConnectionString", connStr },
-                        { "DbConnection:ConnectionConfigs:1:ConnectionString", logConnStr }
+                        { "DbConnection:ConnectionConfigs:1:ConnectionString", logConnStr },
+                        { "DbConnection:ConnectionConfigs:2:ConnectionString", connStr }
                     });
                 });
 

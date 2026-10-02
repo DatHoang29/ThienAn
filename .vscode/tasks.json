@@ -136,7 +136,7 @@
       "type": "process",
       "args": [
         "build",
-        "${workspaceFolder}/tests/test.csproj",
+        "${workspaceFolder}/tests/BE/test.csproj",
         "/property:GenerateFullPaths=true"
       ],
       "group": {
@@ -156,7 +156,7 @@
       "type": "process",
       "args": [
         "test",
-        "${workspaceFolder}/tests/test.csproj"
+        "${workspaceFolder}/tests/BE/test.csproj"
       ],
       "group": {
         "kind": "test",
@@ -175,7 +175,7 @@
       "type": "process",
       "args": [
         "build",
-        "${workspaceFolder}/tests/ITS/VideoWall/VwMockServerRunner/VwMockServerRunner.csproj",
+        "${workspaceFolder}/tests/BE/ITS/VideoWall/VwMockServerRunner/VwMockServerRunner.csproj",
         "/property:GenerateFullPaths=true"
       ],
       "problemMatcher": "$msCompile",

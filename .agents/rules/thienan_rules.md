@@ -525,7 +525,7 @@ tests/
 
     ⛔ Ô ghi *"chưa có lớp nào"* **KHÔNG** làm hậu tố đó mất hiệu lực — quy ước đặt tên vẫn áp dụng đầy đủ cho lớp mới viết sau này. Nó chỉ nói rằng hiện chưa có ví dụ sẵn để đối chiếu.
 
-    📌 Thư mục chứa lớp giả lập đặt tên **`Mocks/`** (`tests/ITS/VideoWall/Mocks/`, `tests/ITS/ShareData/Mocks/`) — từ quen dùng của nhóm, đọc là hiểu. Thư mục chỉ nói "chỗ chứa đồ giả lập"; việc phân biệt `Mock`/`Stub`/`Fake`/`Spy` do **hậu tố tên class** đảm nhiệm. ⛔ Không đặt tên thư mục theo một loại cụ thể (`Stubs/`, `Fakes/`) vì trong đó có đủ cả 4 loại.
+    📌 Thư mục chứa lớp giả lập đặt tên **`Mocks/`** (`tests/BE/ITS/VideoWall/Mocks/`, `tests/BE/ITS/ShareData/Mocks/`) — từ quen dùng của nhóm, đọc là hiểu. Thư mục chỉ nói "chỗ chứa đồ giả lập"; việc phân biệt `Mock`/`Stub`/`Fake`/`Spy` do **hậu tố tên class** đảm nhiệm. ⛔ Không đặt tên thư mục theo một loại cụ thể (`Stubs/`, `Fakes/`) vì trong đó có đủ cả 4 loại.
     📌 **Lỗi thật đã mắc**: `MockHttpClientFactoryTest` mang cả tiền tố `Mock` lẫn hậu tố `Test`, còn `VwISAPIMockServerHikvision` nhét `Mock` vào giữa — đọc tên không biết nó là loại double nào.
 * **Comment XML Summary Bắt Buộc Trên Mọi Phương Thức & Class**: Mọi Class, Constructor, Helper Method và phương thức kiểm thử (`[Fact]` / `[Theory]`) BẮT BUỘC có comment XML `/// <summary>` theo định dạng chuẩn 2 dòng (KHÔNG dùng `Author:` — quyết định 05/09/2026, không hồi tố test đã có sẵn `Author: Đạt`):
   ```csharp
@@ -582,7 +582,7 @@ tests/
 2. **Quy tắc thực thi lệnh .NET:**
    - KHÔNG KHUYÊN DÙNG chạy trực tiếp file đơn lẻ dạng `dotnet File.cs` cho project xUnit/C#.
    - LUÔN LUÔN dùng `dotnet test <csproj_or_sln>` hoặc `dotnet build` để nạp đủ các thư viện và dependency.
-   - ⛔ **CẤM TUYỆT ĐỐI dùng cờ `--no-build` khi chạy `dotnet test` (P0)**: Khi thực thi kiểm thử qua `dotnet test`, TUYỆT ĐỐI KHÔNG thêm cờ `--no-build` (ví dụ: `dotnet test tests/test.csproj --filter "..." --no-build` là SAI). Việc bỏ qua bước build dẫn đến nguy cơ rất cao là test sẽ chạy trên binary/assembly cũ (stale cache) trong `bin/Debug/`, hoàn toàn bỏ qua các sửa đổi mã nguồn mới vừa lưu trên đĩa, dẫn đến sai lệch nghiêm trọng kết quả kiểm thử (test giả mạo pass/fail, phantom test results). Mặc định `dotnet test` luôn tự động build incremental chỉ cho các project có thay đổi rất nhanh, đảm bảo 100% test chạy trên code thực tế.
+   - ⛔ **CẤM TUYỆT ĐỐI dùng cờ `--no-build` khi chạy `dotnet test` (P0)**: Khi thực thi kiểm thử qua `dotnet test`, TUYỆT ĐỐI KHÔNG thêm cờ `--no-build` (ví dụ: `dotnet test tests/BE/test.csproj --filter "..." --no-build` là SAI). Việc bỏ qua bước build dẫn đến nguy cơ rất cao là test sẽ chạy trên binary/assembly cũ (stale cache) trong `bin/Debug/`, hoàn toàn bỏ qua các sửa đổi mã nguồn mới vừa lưu trên đĩa, dẫn đến sai lệch nghiêm trọng kết quả kiểm thử (test giả mạo pass/fail, phantom test results). Mặc định `dotnet test` luôn tự động build incremental chỉ cho các project có thay đổi rất nhanh, đảm bảo 100% test chạy trên code thực tế.
 3. **Kiểm tra Connection String trước khi `dotnet test`:**
    > Xem mục 11 "Strict Local Database Rule for Testing" bên dưới.
 
@@ -703,10 +703,10 @@ tests/
 - **Bắt buộc local khi test**: Khi chạy `dotnet test` (hoặc bất kỳ kịch bản unit/integration test), TẤT CẢ connection string (RDBMS: SQL Server, PostgreSQL, MySQL...; NoSQL/Cache: Redis...) BẮT BUỘC là local (`localhost`, `127.0.0.1`, `(localdb)`, `.`, container local).
 - **Hủy ngay & báo cáo nếu phát hiện remote**: Trước khi chạy `dotnet test`, nếu thấy connection string trong `appsettings*.json`, `Host.cs`, hay cấu hình test trỏ ra remote/IP ngoài (VD `10.10.8.30`, domain staging/prod...), BẮT BUỘC HỦY NGAY việc chạy test và báo lại người dùng.
 - **Cấm test trên DB remote**: TUYỆT ĐỐI KHÔNG chạy test khi connection string RDBMS/Redis không phải local.
-- **Cấm tuyệt đối cờ `--no-build` khi chạy test**: TUYỆT ĐỐI KHÔNG thêm tham số `--no-build` vào lệnh `dotnet test` (ví dụ: `dotnet test tests/test.csproj --filter "..." --no-build` là SAI). Luôn để `dotnet test` tự động kiểm tra và build incremental để bảo đảm test luôn chạy trên code mới nhất, tránh tình trạng code đã sửa nhưng test lại chạy trên DLL cũ trong cache dẫn đến sai lệch kết quả.
+- **Cấm tuyệt đối cờ `--no-build` khi chạy test**: TUYỆT ĐỐI KHÔNG thêm tham số `--no-build` vào lệnh `dotnet test` (ví dụ: `dotnet test tests/BE/test.csproj --filter "..." --no-build` là SAI). Luôn để `dotnet test` tự động kiểm tra và build incremental để bảo đảm test luôn chạy trên code mới nhất, tránh tình trạng code đã sửa nhưng test lại chạy trên DLL cũ trong cache dẫn đến sai lệch kết quả.
 - **Tự động đồng bộ Schema CSDL Local khi Test (`EnableInitTable`, `EnableInitDb` - Bắt buộc)**:
   - Khi chạy `dotnet test` phát sinh lỗi thiếu cột hoặc thiếu bảng (ví dụ `Invalid column name '...'`, `Invalid object name '...'` do rebase/pull code nhánh khác có bổ sung entity):
-  - **Bước 1 (Bật cờ đồng bộ):** Tạm thời bật các cờ CodeFirst của SqlSugar trong `tests/appsettings.Test.json`:
+  - **Bước 1 (Bật cờ đồng bộ):** Tạm thời bật các cờ CodeFirst của SqlSugar trong `tests/BE/appsettings.Test.json`:
     ```json
     "DbSettings": { "EnableInitDb": true },
     "TableSettings": { "EnableInitTable": true, "EnableIncreTable": false }
@@ -786,15 +786,20 @@ tests/
 
 ## 🛑 15. Quy Tắc Viết Test, Vị Trí Thư Mục & Cấm Dùng Thư Viện Mock Ngoài (Testing Standards & No-Moq Rule [Mandatory Rule])
 
-- **Toàn bộ test tập trung tại `c:\ThienAn\tests\` (`test.csproj` cấp root)**:
-  - Dự án chỉ có DUY NHẤT một project test tập trung là `c:\ThienAn\tests\` (`test.csproj`).
-  - Cấu trúc test: các phân hệ nghiệp vụ gom trong `tests\ITS\<TênPhânHệ>\`; phần kiểm thử ⛔ không thuộc phân hệ nào (như `tests\StartupValidation\`) giữ ở cấp 1.
-  - 🔴 Thư mục `ITS\` chỉ là nhóm trên đĩa, ⛔ TUYỆT ĐỐI KHÔNG đưa vào namespace. Namespace là `Tests.<TênPhânHệ>.<ĐườngDẫnCon>` (ví dụ `Tests.VideoWall.Worker.ISAPIDevice`).
-    ⛔ Đặt `Tests.ITS.<TênPhânHệ>.*` là SAI: `ITS` trùng root namespace sản xuất (`ITS.VideoWall`, `ITS.VideoWall.Core`), khiến mọi tên đủ điều kiện `ITS.VideoWall.X` viết trong khối namespace đó bị phân giải nhầm ⇒ `CS0234`. Cùng họ với lỗi đặt thư mục tên `Module/`.
+- **Toàn bộ test tập trung tại `c:\ThienAn\tests\`, chia 2 nhánh theo tầng (chốt 02/10/2026)**:
+  - `tests\BE\` — **test .NET** (`test.csproj`). Mọi quy định còn lại của mục 15 áp cho nhánh này.
+    Phân hệ nghiệp vụ gom trong `tests\BE\ITS\<TênPhânHệ>\`; phần ⛔ không thuộc phân hệ nào giữ ở `tests\BE\` cấp 1.
+  - `tests\FE\` — **test E2E của `TA-ITS015-WEBVUE-V1.0`** (Playwright, toolchain node riêng).
+    🔴 E2E ⛔ KHÔNG chạy chung `dotnet test`: nó cần WebAPI + dev server + CSDL đang chạy.
+  - 🔴 `BE` và `ITS` đều là **tầng chỉ-trên-đĩa**, ⛔ TUYỆT ĐỐI KHÔNG đưa vào namespace.
+    Namespace vẫn là `Tests.<TênPhânHệ>.<ĐườngDẫnCon>` — xem lý do `CS0234` bên dưới.
+  - ✅ **Vì sao dời cả project chứ không chỉ dời `ITS/`**: `test.csproj` hard-code 13 đường dẫn `ITS\...`
+    trong các khối `Compile Remove`. Dời cả project thì 13 đường dẫn đó giữ nguyên, chỉ `<RepoRoot>` sâu thêm
+    1 cấp. ⛔ Dời riêng `ITS/` là phải sửa 13 chỗ, sót 1 chỗ là deadlock ở TFM `net10.0-windows`.
   - **Bên trong mỗi phân hệ, thư mục con PHẢN CHIẾU project nguồn (chốt 30/09/2026)** — nhìn cây thư mục là biết bài test đang kiểm project nào:
 
     ```
-    tests/ITS/VideoWall/
+    tests/BE/ITS/VideoWall/
     ├─ WebApi/        <- src/Modules/VideoWall/Module.VideoWall   (Controllers/, Services/)
     ├─ Worker/        <- src/Services/VideoWall/ITS.VideoWall     (ISAPIDevice/, Scene/, Heartbeat/, Messaging/)
     ├─ Wpf/           <- src/Services/VideoWall/ITS.VideoWall.WPF
@@ -803,14 +808,14 @@ tests/
     ```
 
     🔴 Dùng **`WebApi/`** cho phần `Module.<Tên>`, ⛔ TUYỆT ĐỐI KHÔNG đặt thư mục tên `Module/`: namespace sẽ thành `Tests.<Tên>.Module` khiến C# phân giải nhầm mọi tên đủ điều kiện `Module.<Tên>.*` ⇒ lỗi `CS0234`.
-    🔴 **Đổi tên thư mục test thì BẮT BUỘC sửa `tests/test.csproj` cùng lượt** — tệp đó hard-code tên thư mục trong các khối `Compile Remove` theo `TargetFramework`. Không sửa thì ở TFM `net10.0-windows` test backend ⛔ không bị loại ⇒ chạy trùng và deadlock.
-- **CẤM TẠO PROJECT HOẶC THƯ MỤC TEST MỚI TRONG CÁC SUB-DIRECTORY**:
-  - TUYỆT ĐỐI KHÔNG tạo thư mục test, sub-folder hay file `.csproj` test mới bên trong `TA-ITS015-WEBAPI-V1.0\tests\`, trong `src\Modules\...`, hay bất kỳ vị trí nào khác ngoài `c:\ThienAn\tests\`.
-  - Mọi file test mới (unit test, integration test, validator test, fixture test) của bất kỳ phân hệ nào BẮT BUỘC phải viết trực tiếp vào thư mục tương ứng bên trong `c:\ThienAn\tests\ITS\<TênPhânHệ>\`.
+    🔴 **Đổi tên thư mục test thì BẮT BUỘC sửa `tests/BE/test.csproj` cùng lượt** — tệp đó hard-code tên thư mục trong các khối `Compile Remove` theo `TargetFramework`. Không sửa thì ở TFM `net10.0-windows` test backend ⛔ không bị loại ⇒ chạy trùng và deadlock.
+- **CẤM TẠO PROJECT HOẶC THƯ MỤC TEST .NET MỚI TRONG CÁC SUB-DIRECTORY**:
+  - TUYỆT ĐỐI KHÔNG tạo thư mục test, sub-folder hay file `.csproj` test mới bên trong `TA-ITS015-WEBAPI-V1.0\tests\`, trong `src\Modules\...`, hay bất kỳ vị trí nào khác ngoài `c:\ThienAn\tests\BE\`. (⛔ Không áp lệnh này cho project E2E của FE ở `tests\FE\`).
+  - Mọi file test mới (unit test, integration test, validator test, fixture test) của bất kỳ phân hệ nào BẮT BUỘC phải viết trực tiếp vào thư mục tương ứng bên trong `c:\ThienAn\tests\BE\ITS\<TênPhânHệ>\`.
 - **CẤM DÙNG THƯ VIỆN MOCK BÊN NGOÀI (`Moq`, `NSubstitute`, `FakeItEasy`)**:
-  - `test.csproj` **hoàn toàn KHÔNG tham chiếu thư viện Moq**.
+  - `tests/BE/test.csproj` **hoàn toàn KHÔNG tham chiếu thư viện Moq**.
   - **CẤM `using Moq;`**, **CẤM `new Mock<T>()`**.
-  - **TUYỆT ĐỐI KHÔNG tự tiện suy diễn** các thư viện phổ biến bên ngoài khi chưa mở file `test.csproj` để kiểm tra `PackageReference`.
+  - **TUYỆT ĐỐI KHÔNG tự tiện suy diễn** các thư viện phổ biến bên ngoài khi chưa mở file `tests/BE/test.csproj` để kiểm tra `PackageReference`.
 - **Quy Chuẩn Viết Test Trong Dự Án (xUnit + Host Pattern)**:
   - **Dependency Injection qua Host**: Mọi test class dùng cấu trúc `[Collection("api")] public class ...Tests(Host host)`.
   - **Lấy Localizer**: Dùng trực tiếp `private readonly IStringLocalizer _localizer = host.Localizer;` (KHÔNG mock `IStringLocalizer`).
@@ -819,7 +824,7 @@ tests/
   - **Test cô lập không qua Host (CHỈ áp dụng cho POCO/DTO/XML/JSON/Formula thuần túy)**: Viết test xUnit thuần không phụ thuộc DB/DI.
   - ⛔ **CẤM TỰ TẠO CLASS STUB/MOCK NỘI BỘ CHO SERVICE NGHIỆP VỤ & NATS**: TUYỆT ĐỐI KHÔNG tự viết các class giả lập (`TestMock...Service`, `Fake...Service`) để thay thế các service lõi (`IDataOutboundService`, `IDataInboundService`...) hoặc NATS pub/sub nội bộ chỉ nhằm đếm số lần gọi hàm. **Ngoại lệ hợp lệ duy nhất được giả lập** là máy chủ HTTP bên ngoài, và phải bằng mock server `HttpListener` thật trên `127.0.0.1` (xem chi tiết mục 19.18). Mọi service nghiệp vụ và NATS BẮT BUỘC phải lấy bản thật từ `host.Services` và test luồng thật qua CSDL local (xem chi tiết mục 19.18).
 - **Global Usings của Module Test**:
-  - Bổ sung namespace/using của module vào `tests\ITS\<TênPhânHệ>\GlobalUsings.<TênPhânHệ>.cs` để tránh xung đột với các module khác và đảm bảo compile condition theo `test.csproj`.
+  - Bổ sung namespace/using của module vào `tests\BE\ITS\<TênPhânHệ>\GlobalUsings.<TênPhânHệ>.cs` để tránh xung đột với các module khác và đảm bảo compile condition theo `tests/BE/test.csproj`.
 
 ---
 
