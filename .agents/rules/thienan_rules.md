@@ -1322,6 +1322,29 @@ tests/
     - **Issue 16**: Modal sao chép giữ `isActive=true` + `id` cũ → fix FE xóa `id`, tắt `isActive`, gọi `syncMappingCode()`.
   - **Lỗi thật đã mắc**: Ghi chú tổng quan "14 và 16 là cùng một lỗi", dòng Issue 16 trong bảng viết "Xử lý gộp cùng Issue 14" — người dùng phản hồi trực tiếp: *"đừng báo cáo gộp chung vậy, nào ra đó bị gì, sửa gì độc lập"*.
 
+- **19.33. SqlSugar Có Tính Năng Sẵn Thì BẮT BUỘC Dùng Tính Năng Sẵn — CẤM Tự Dựng Bản Thay Thế (chốt 02/10/2026 - P0)**:
+  - **Phạm vi**: mọi thao tác CSDL qua SqlSugar trong toàn bộ dự án.
+  - 🔴 **Nguyên tắc**: trước khi tự viết tay một cách làm, BẮT BUỘC tra xem SqlSugar **đã có sẵn** API cho việc đó chưa. Có thì dùng bản có sẵn. Các tính năng sẵn thường bị bỏ qua: `ToTree` / `ToTreeAsync` (dựng cây phân cấp), `ToChildList` / `ToParentList`, `ToPagedListAsync` (phân trang), `OrderBuilder`, `WhereIF`, `SplitTable`, `Insertable` / `Updateable` / `Deleteable` với OCC.
+  - **Lý do**: dự án đã chuẩn hoá quanh SqlSugar; mỗi bản tự dựng là một lối riêng phải tự bảo trì, tự kiểm thử, và làm người đọc sau phải học thêm một cách làm nữa cho cùng một việc.
+  - ✅ **Cây phân cấp — khuôn chuẩn của dự án** (xem `ZonesQueryHandler.cs:55`, `MenuQueryHandler.cs:51`):
+    ```csharp
+    // Entity: thuộc tính điều hướng, KHÔNG phải cột CSDL
+    [SugarColumn(IsIgnore = true)]
+    public List<TEntity>? Children { get; set; }
+
+    // Query: dựng cây rồi .Adapt<>() map sang DTO
+    return (await filtered.ToTreeAsync(u => u.Children, u => u.ParentId, rootValue))
+        .Adapt<List<TOutput>>();
+    ```
+    - ⚠️ `ToTreeAsync` dựng cây **trong bộ nhớ** từ tập đã lọc ⇒ BẮT BUỘC `.Where(...)` thu hẹp trước, ⛔ TUYỆT ĐỐI KHÔNG gọi trên cả bảng.
+    - ⚠️ ⛔ KHÔNG dùng `.Select(u => new TOutput{}, true)` sau `ToTreeAsync` — `Select` cắt mất nhánh `Children` vừa dựng. Dùng `.Adapt<>()`.
+    - 🔴 **Cổng chặn bắt buộc**: ⛔ không thấy nút gốc trong tập kết quả thì `ToTree` trả **rỗng im lặng**. Cả 2 chỗ trong repo đều có cổng chặn trả danh sách phẳng khi đó — khi viết mới BẮT BUỘC có cổng chặn tương đương, kèm **một bài test khẳng định đúng hình dạng lồng** (⛔ không có test thì cổng chặn che mất chính lỗi nó đang chống).
+    - 📌 Hai chỗ trong repo dùng **sentinel `"0"`** làm gốc (`u.Pid == "0"`), ⛔ không chỗ nào truyền `null`. Dùng `rootValue: null` là **đường chưa có tiền lệ** ⇒ phải có test chứng minh nó khớp gốc.
+  - ⛔ **Ngoại lệ duy nhất được tự viết tay**: SqlSugar thật sự ⛔ không có API cho việc đó (ví dụ `CHANGETABLE(CHANGES ...)` của Change Tracking, bảng động ⛔ không có Entity tĩnh) — xem mục 19.20.
+  - 🔴 **LỖI SUY DIỄN THẬT ĐÃ MẮC (02/10/2026) — ⛔ đừng lặp lại**: khi bàn API đọc log cha–con `ShareDataActivityLog`, AI phản đối `ToTreeAsync` với lập luận *"thêm `Children` vào Entity sẽ rò khoá `children` sang DTO vì `ShareDataActivityLogOutput` kế thừa Entity, còn TMS ⛔ không bị vì có `ZoneOutput` DTO riêng"*. Lập luận đó **SAI**: đọc mã nguồn thật thì `ZoneOutput : TmsZone`, `PageZoneOutput : TmsZone`, `WpMenuOutput : WpMenu` — **cả hai tiền lệ đều kế thừa Entity**, tức dự án đã chấp nhận cái giá đó từ trước.
+    - **Bài học bắt buộc rút ra**: ⛔ TUYỆT ĐỐI KHÔNG lấy một **suy diễn chưa đọc mã nguồn** làm căn cứ để đi ngược quy ước sẵn có. Muốn bác một tính năng có sẵn thì BẮT BUỘC **mở đúng tệp đọc đúng dòng** trước, và dẫn số dòng cụ thể.
+    - 📌 Cùng họ với quy tắc **19.12** (thứ tự nguồn dẫn chứng): căn cứ cho khẳng định *"code đang làm gì"* là **chính mã nguồn**, ⛔ không phải trí nhớ hay phỏng đoán từ tên tệp.
+
 ---
 
 
