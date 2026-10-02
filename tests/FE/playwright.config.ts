@@ -1,6 +1,7 @@
 import { defineConfig } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
+import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = typeof import.meta.dirname !== 'undefined'
@@ -25,7 +26,7 @@ if (absent.length)
 export default defineConfig({
     testDir: './views',
     testIgnore: absent.map((m) => `**/${m.dir}/**`),
-    timeout: 60_000,
+    timeout: 120_000,
     fullyParallel: false,
     retries: 0,
     reporter: [['list']],
@@ -33,5 +34,12 @@ export default defineConfig({
         baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:8888',
         trace: 'retain-on-failure',
         screenshot: 'only-on-failure',
+    },
+    webServer: {
+        command: 'npm run dev',
+        cwd: path.resolve(__dirname, '../../TA-ITS015-WEBVUE-V1.0/src'),
+        url: 'http://localhost:8888',
+        reuseExistingServer: !process.env.CI,
+        timeout: 120_000,
     },
 });
