@@ -510,12 +510,20 @@ tests/
 * **Class test**: `<TênModule>Tests`. Hậu tố `Test`/`Tests` CHỈ dành cho class chứa `[Fact]`/`[Theory]` và cho test method; TUYỆT ĐỐI KHÔNG dùng `Test` làm tiền tố (như `TestStringLocalizer`).
 * **Tên class lớp giả lập — thuật ngữ quốc tế là *test double* (chốt 30/09/2026)**: đặt tên theo **LOẠI của double làm hậu tố**, ⛔ TUYỆT ĐỐI KHÔNG dùng tiền tố `Mock`/`Fake`/`Stub`/`Test`, và ⛔ không nhét loại vào giữa tên (`VwISAPIMockServerHikvision` là SAI):
 
-    | Hậu tố | Nghĩa | Ví dụ thật trong repo |
+    | Hậu tố | Nghĩa | Lớp đang có trong repo (soát 02/10/2026) |
     | --- | --- | --- |
-    | `Mock` | Có kịch bản, có hành vi, bật/tắt được tình huống | `VwISAPIServerHikvisionMock`, `ShareDataPartnerServerMock` |
-    | `Stub` | Trả giá trị cố định, ⛔ không có logic | `HostEnvironmentStub` |
-    | `Fake` | Cài đặt thật nhưng đơn giản, chạy trong bộ nhớ | `SqlExceptionFake` |
-    | `Spy` | Chỉ ghi lại thứ nhận được để bài test soi | `PublisherSpy` |
+    | `Mock` | Có kịch bản, có hành vi, bật/tắt được tình huống | ✅ `VwISAPIServerHikvisionMock`, `ShareDataPartnerServerMock` |
+    | `Stub` | Trả giá trị cố định, ⛔ không có logic | ⚠️ **Chưa có lớp nào.** 📌 Trước 02/10/2026 ô này ghi `HostEnvironmentStub` — tên đó **⛔ không tồn tại** ở bất kỳ đâu trong repo, chỉ có trong chính file quy tắc này |
+    | `Fake` | Cài đặt thật nhưng đơn giản, chạy trong bộ nhớ | ⚠️ **Chưa có lớp nào.** |
+    | `Spy` | Chỉ ghi lại thứ nhận được để bài test soi | ✅ `PublisherSpy` |
+
+    🔴 **Cột thứ ba là số liệu TẠM (quy tắc 14) — soát lại bằng lệnh, ⛔ đừng tin chữ trong bảng:**
+
+    ```bash
+    grep -rEn "class \w+(Fake|Stub|Spy|Mock)\b" tests/
+    ```
+
+    ⛔ Ô ghi *"chưa có lớp nào"* **KHÔNG** làm hậu tố đó mất hiệu lực — quy ước đặt tên vẫn áp dụng đầy đủ cho lớp mới viết sau này. Nó chỉ nói rằng hiện chưa có ví dụ sẵn để đối chiếu.
 
     📌 Thư mục chứa lớp giả lập đặt tên **`Mocks/`** (`tests/ITS/VideoWall/Mocks/`, `tests/ITS/ShareData/Mocks/`) — từ quen dùng của nhóm, đọc là hiểu. Thư mục chỉ nói "chỗ chứa đồ giả lập"; việc phân biệt `Mock`/`Stub`/`Fake`/`Spy` do **hậu tố tên class** đảm nhiệm. ⛔ Không đặt tên thư mục theo một loại cụ thể (`Stubs/`, `Fakes/`) vì trong đó có đủ cả 4 loại.
     📌 **Lỗi thật đã mắc**: `MockHttpClientFactoryTest` mang cả tiền tố `Mock` lẫn hậu tố `Test`, còn `VwISAPIMockServerHikvision` nhét `Mock` vào giữa — đọc tên không biết nó là loại double nào.
@@ -1270,7 +1278,52 @@ tests/
   - 🛑 **Chỉ sửa UI khi có yêu cầu trực tiếp**: Mọi can thiệp vào giao diện, component, nút bấm, layout chỉ được thực hiện khi người dùng yêu cầu rõ ràng *"sửa UI"*, *"đổi giao diện"*, *"chỉnh hiển thị"*. Luôn bảo toàn 100% UI/UX gốc hiện hữu khi giải quyết bài toán logic.
   - **Lỗi thật đã mắc**: Sửa chặn max chu kỳ 86400, thay vì xử lý guard/event trên component gốc `el-input-number`, AI đã tự ý đổi sang `el-input` thuần làm mất cụm mũi tên controls và lệch căn chỉnh của người dùng.
 
+- **19.30. Quy Chuẩn Tài Liệu Kiểm Thử F16 & Bảng Phản Hồi Sheet Bug (chốt 02/10/2026 - P0)**:
+  - **Phạm vi áp dụng**: Mọi tài liệu chuyển thể kịch bản kiểm thử, nhật ký lỗi F16 (`F16-nhat-ky-loi-issue-*.md`) trong `DocBusinessThienAn/`.
+  - 🔴 **Cấu trúc tài liệu chuẩn (BẮT BUỘC tuân thủ)**:
+    1. **Khối đầu trang (Tổng quan đưa lên đầu)**:
+       - Bảng `Tình trạng xử lý` & `Chú giải ký hiệu`.
+       - Khối `Tổng quan issue` (phân bố theo màn hình, nhóm, phân loại, ưu tiên, phụ trách).
+       - Khối `Thứ ảnh chụp màn hình nói ra mà phần chữ không nói` (bảng mã lỗi thật đọc từ ảnh chụp, bẫy lỗi 2 toast, lỗi bộ lọc thời gian...).
+       - 📌 Toàn bộ khối tổng quan và giải mã ảnh BẮT BUỘC đưa lên ĐẦU, đứng ngay trước bảng chính để người đọc nắm trọn bối cảnh trong 30 giây.
+    2. **Bảng phân loại & Phản hồi Sheet Bug (Gom chung toàn bộ chi tiết)**:
+       - ⛔ **CẤM tách riêng mục "Chi tiết từng issue" thành các khối văn xuôi dài phía sau** gây trùng lặp và làm loãng tài liệu.
+       - Toàn bộ chi tiết kỹ thuật: tóm tắt lỗi kèm link ảnh `[ảnh](...)`, nguyên nhân gốc, giải pháp cụ thể cho cả **FE & BE (code change thật)**, nhân sự phụ trách, **cột Hoàn thành** (`✅ Đã fix (ngày)`, `⚠️ Chờ chạy SQL`, `⚠️ Chờ PO/BA`), và **cột Ghi chú mẫu comment Sheet Bug** (`01102026-TênDev: ...`) BẮT BUỘC gom chung vào từng hàng của bảng.
+    3. **Bắt buộc dùng Scoped CSS `table-layout: fixed !important`**:
+       - Bảng Markdown nhiều cột (6–7 cột) BẮT BUỘC có khối `<style>` nhắm vào bảng (`table:has(...)`), đặt `table-layout: fixed !important; width: 100% !important;` và định nghĩa tỷ lệ % chuẩn cho từng cột (`th:nth-child(...)`).
+       - Ngăn chặn triệt để thuật toán auto-layout của trình duyệt tự động bóp nghẹt cột Ghi chú và phình to cột Nội dung lỗi.
+  - **Lỗi thật đã mắc**: Ban đầu tách riêng một mục "Chi tiết từng issue" dài 170 dòng ở cuối gây lặp nội dung, thiếu cột "Hoàn thành" trên bảng chính, và không khóa `table-layout: fixed` khiến cột Ghi chú bị co rúm thành từng từ 1 dòng không thể đọc được.
+
+- **19.31. CẤM Dùng Từ Ngữ Mơ Hồ, Văn Hoa, Tiếp Thị Khi Viết Báo Cáo Nghiệm Thu & Sheet Bug — BẮT BUỘC Ghi Rõ Bị Gì, Fix Như Nào Chuẩn Kỹ Thuật (chốt 02/10/2026 - P0)**:
+  - **Phạm vi**: Mọi báo cáo nghiệm thu, nhật ký kiểm thử lỗi F16, tài liệu review, tóm tắt commit và nội dung comment phản hồi Sheet Bug.
+  - ⛔ **CẤM TUYỆT ĐỐI các từ ngữ mơ hồ, sáo rỗng, văn hoa, tiếp thị (Fluff / Marketing Words)**:
+    - ❌ *thân thiện*, *tự động kẹp số*, *kẹp số an toàn*, *tối ưu hóa*, *trải nghiệm mượt mà*, *xử lý linh hoạt*, *thông minh*, *hoàn hảo*, *ổn định hơn*, *đảm bảo an toàn*...
+    - Những từ này không có giá trị kỹ thuật, nói chung chung không rõ hành vi, làm loãng báo cáo và gây khó hiểu cho người nghiệm thu.
+  - ✅ **BẮT BUỘC viết ngắn gọn, súc tích, chỉ rõ đúng 2 vế kỹ thuật**:
+    1. **Bị gì (Hiện tượng lỗi kỹ thuật thật)**: Ghi chính xác tên lỗi hoặc hiện tượng kỹ thuật (ví dụ: *nhập số vượt int.MaxValue làm văng lỗi deserialization JSON của ASP.NET Core*; *ô el-input-number thiếu :max cho phép nhập số tùy ý*; *catch gọi thêm ElMessage.error làm hiện 2 toast đè nhau*).
+    2. **Fix như nào (Hành động sửa kỹ thuật cụ thể)**: Ghi chính xác thay đổi code hoặc cấu hình (ví dụ: *thêm :max="86400" trên el-input-number chặn nhập quá 24h*; *đổi DTO sang long?, thêm rule FluentValidation InclusiveBetween(5, 86400)*; *bỏ lệnh gọi ElMessage.error trong catch*).
+  - **Lỗi thật đã mắc**: Viết comment *"Đã xử lý DTO long?, validate dải 5-86400s thân thiện và loại bỏ toast lỗi kép"*, *"tự động kẹp số an toàn"* — dùng từ "thân thiện", "kẹp số" làm báo cáo thiếu chuẩn mực kỹ thuật, bị người dùng nhắc nhở trực tiếp.
+
+- **19.32. CẤM Gộp Ghi Chú Issue — Mỗi Issue Phải Ghi Độc Lập, Rõ Ràng "Bị Gì / Fix Gì" Riêng (chốt 02/10/2026 - P0)**:
+  - **Phạm vi**: Mọi hàng trong bảng nhật ký lỗi F16, mọi comment phản hồi Sheet Bug, mọi ghi chú tổng quan issue.
+  - ⛔ **CẤM TUYỆT ĐỐI các dạng ghi chú gộp**:
+    - ❌ *"Trùng nội dung với Issue X"* — hai issue có thể liên quan đến cùng màn hình nhưng lỗi khác nhau.
+    - ❌ *"Xử lý gộp cùng Issue X"* — mỗi issue có file/layer/nguyên nhân sửa riêng.
+    - ❌ *"Issue X và Issue Y là cùng một lỗi"* — dù nguyên nhân gần giống, hành vi lỗi và phương án sửa phải được mô tả độc lập.
+    - ❌ Tham chiếu chéo issue dạng *"xem Issue X"* làm hàng bảng rỗng nội dung.
+  - ✅ **BẮT BUỘC: mỗi hàng issue tự đứng độc lập hoàn toàn**:
+    1. **Nội dung lỗi**: Ghi chính xác hiện tượng lỗi thật quan sát được (hiện tượng UI/API/log) — không cần biết issue kia nói gì, người đọc hiểu ngay từ hàng này.
+    2. **Nguyên nhân**: Ghi nguyên nhân kỹ thuật gốc rễ của **chính issue này** — không phải nguyên nhân dùng chung với issue khác.
+    3. **Phương án**: Ghi hành động sửa cụ thể (file, hàm, field, layer) của **chính issue này**.
+    4. **Ghi chú Sheet Bug**: Ghi comment kỹ thuật rõ ràng cho **chính issue này** — không dùng cụm *"xem issue X"* hay *"gộp cùng issue X"*.
+  - **Ví dụ đúng (3 issue đều liên quan màn hình Sao chép ánh xạ nhưng ghi độc lập)**:
+    - **Issue 13**: DB chưa có bản dịch key `mappingConflictInUse` → fix seed `SysTerminology`.
+    - **Issue 14**: Ô Mã `enable` + trống khi sao chép → fix FE thêm `disabled` + tooltip.
+    - **Issue 16**: Modal sao chép giữ `isActive=true` + `id` cũ → fix FE xóa `id`, tắt `isActive`, gọi `syncMappingCode()`.
+  - **Lỗi thật đã mắc**: Ghi chú tổng quan "14 và 16 là cùng một lỗi", dòng Issue 16 trong bảng viết "Xử lý gộp cùng Issue 14" — người dùng phản hồi trực tiếp: *"đừng báo cáo gộp chung vậy, nào ra đó bị gì, sửa gì độc lập"*.
+
 ---
+
 
 Toàn bộ quy tắc dưới đây được đồng bộ từ `.kiro/steering/` của repo Frontend `TA-ITS015-WEBVUE-V1.0`, áp dụng bắt buộc cho toàn bộ mã nguồn Vue 3 / TypeScript:
 
