@@ -20,14 +20,14 @@ Bảng này chỉ để người đọc tài liệu kiểm thử biết mục n�
 
 | Tình trạng | Issue |
 |---|---|
-| ✅ Đã xử đợt 30/09/2026 | 5, 8, 10, 13, 15, 18, 19, 21, 22, 27 |
-| ✅ Đã xử đợt 01/10/2026 | 1, 2, 3, 4, 6, 11, 12, 14, 16, 20, 28 |
-| ⚠️ Code xong, **chờ chạy script trên CSDL** | 7, 25 — dropdown vẫn **4 lựa chọn** cho tới khi chạy `sql/20261001-bo-sung-sharedata-value-type.sql`. Đo trên **staging `10.10.8.30`** ngày 02/10: danh mục `sharedata_value_type` vẫn đúng 4 dòng. ⚠️ Môi trường khác chưa kiểm được. 📌 Tự kiểm: *Cấu hình gói tin → Thêm Trường gói tin* → dropdown **Loại** ra **4** = chưa chạy, **9** = đã chạy |
-| ⚠️ Chờ quyết định nghiệp vụ của TuyenHTN | 9, 17, 23, 24, 26 — xem mục **F** của MasterPlan |
+| ✅ DatHQ đã xử lý (FE & BE, danh mục dữ liệu) | **1, 2, 4, 6, 7, 11, 15, 18, 25, 27, 28** |
+| ✅ HieuNV đã xử lý (Dịch thuật CSDL `SysTerminology`) | **3, 5, 8, 10, 12, 13, 19, 21, 22** |
+| ⚠️ HieuNV phụ trách chức năng / Chờ phản hồi | **9, 14, 16, 17, 20, 23, 24, 26** (Đã revert code FE về nguyên mẫu; HieuNV tiếp nhận xử lý) |
 
-📌 Issue **14 và 16 là cùng một lỗi**, xử một lần.
-📌 Issue **7 và 25** là **thiếu dữ liệu danh mục** trong CSDL, ⛔ không phải lỗi mã nguồn.
-📌 Issue **9** — chẩn đoán cũ "giá trị `SysConfig`" đã bị **bác bỏ** (02/10/2026). `globalTitle` là dòng chữ to đang đúng; ô có viền bên trái là thành phần khác. Chưa xác định nguồn — cần chạy F12 Console + 4 câu truy vấn ở mục **3.1** của `Prompt/sharedata-chot-so-phien-ra-soat-0210-prompt.md`, trên **đúng môi trường tester**.
+📌 Issue **14 và 16** (Sao chép ánh xạ: mã không cho sửa + trùng mã gây lỗi): Đã revert toàn bộ code FE về nguyên mẫu ban đầu, chuyển giao cho HieuNV xử lý đồng bộ theo phân công.
+📌 Issue **17, 23, 24**: Đã revert toàn bộ code FE về nguyên mẫu ban đầu, chuyển giao cho HieuNV tiếp nhận xử lý theo đúng phân công Sheet Bug.
+📌 Issue **7 và 25** là **thiếu dữ liệu danh mục** trong CSDL, ⛔ không phải lỗi mã nguồn. Đã chạy script SQL bổ sung đủ 9 kiểu ngày 02/10/2026.
+📌 Các issue dịch thuật (**3, 5, 8, 10, 12, 13, 19, 21, 22** do HieuNV phụ trách): Bản dịch được nạp trên CSDL `SysTerminology`. Khi kiểm thử lại trên môi trường Web, **bắt buộc bấm nút icon Làm mới 🔄 cạnh menu Ngôn ngữ ở TopBar** (hoặc gọi API `GET /api/system/sysconfig/loadserverterm?language=vi-VN`) để hệ thống đồng bộ dữ liệu từ CSDL vào Backend & Frontend. Nếu chưa làm mới, hệ thống vẫn giữ cache cũ và sẽ tiếp tục hiện mã lỗi thô `lz.*`.
 
 ### Chú giải ký hiệu
 
@@ -41,6 +41,20 @@ Bảng này chỉ để người đọc tài liệu kiểm thử biết mục n�
 | 📌 | Ghi chú bối cảnh — nguồn dữ liệu, ngày đo, thuật ngữ |
 
 > Ký hiệu chỉ nói **mức độ**; trục đánh giá do tiêu đề cột của từng bảng nói rõ.
+
+---
+
+## Tổng quan 28 issue
+
+| Trục | Phân bố |
+|---|---|
+| Màn hình | Ánh xạ dữ liệu **11** · Cấu hình gói tin **6** · Cấu hình (Đối tác/Đăng ký) **5** · Bộ mã chuẩn hóa **4** · Lịch sử chia sẻ **2** |
+| Nhóm | Chức năng **18** · UI **6** · Dịch thuật **4** |
+| Phân loại | Lỗi **13** · Hiệu chỉnh UI **8** · Hiệu chỉnh chức năng **7** |
+| Ưu tiên | 🔴 Cao **3** (16, 17, 24) · Trung bình **14** · Thấp **11** |
+| Phụ trách | HieuNV **9** · DatHQ **10** · *chưa gán* **9** |
+
+📌 **Phân định độc lập giữa Issue 13, 14 và 16**: Issue 13 giải quyết câu thông báo lỗi chưa dịch; Issue 14 giải quyết việc khóa ô Mã và hiển thị tooltip; Issue 16 giải quyết logic nghiệp vụ khi sao chép (tự động tắt `isActive`, xóa ID và sinh mã mới tránh xung đột).
 
 ---
 
@@ -68,191 +82,61 @@ Phần chữ của biểu mẫu phần lớn chỉ ghi *"thông báo lỗi gây 
 
 ---
 
-## Tổng quan 28 issue
+## Bảng phân loại & Phản hồi Sheet Bug (Mẫu chuẩn F16)
 
-| Trục | Phân bố |
-|---|---|
-| Màn hình | Ánh xạ dữ liệu **11** · Cấu hình gói tin **6** · Cấu hình (Đối tác/Đăng ký) **5** · Bộ mã chuẩn hóa **4** · Lịch sử chia sẻ **2** |
-| Nhóm | Chức năng **18** · UI **6** · Dịch thuật **4** |
-| Phân loại | Lỗi **13** · Hiệu chỉnh UI **8** · Hiệu chỉnh chức năng **7** |
-| Ưu tiên | 🔴 Cao **3** (16, 17, 24) · Trung bình **14** · Thấp **11** |
-| Phụ trách | HieuNV **9** · DatHQ **10** · *chưa gán* **9** |
+> 📌 **Quy chuẩn ghi chú phản hồi:** `[ddMMyyyy]-[TênDev]: [Nội dung phản hồi]` theo quy định tại `.agents/rules/thienan_rules.md` (mục 21).
 
-⚠️ **Issue 14 và 16 là cùng một lỗi** (sao chép hồ sơ ánh xạ — ô Mã để enable rồi báo trùng) ghi thành hai dòng, khác mức ưu tiên (Trung bình vs Cao). Nên gộp.
+<style>
+table:has(th:nth-child(7)) {
+  table-layout: fixed !important;
+  width: 100% !important;
+}
+table:has(th:nth-child(7)) th:nth-child(1),
+table:has(th:nth-child(7)) td:nth-child(1) { width: 45px !important; text-align: center !important; }
+table:has(th:nth-child(7)) th:nth-child(2),
+table:has(th:nth-child(7)) td:nth-child(2) { width: 16% !important; word-break: break-word !important; }
+table:has(th:nth-child(7)) th:nth-child(3),
+table:has(th:nth-child(7)) td:nth-child(3) { width: 16% !important; word-break: break-word !important; }
+table:has(th:nth-child(7)) th:nth-child(4),
+table:has(th:nth-child(7)) td:nth-child(4) { width: 20% !important; word-break: break-word !important; }
+table:has(th:nth-child(7)) th:nth-child(5),
+table:has(th:nth-child(7)) td:nth-child(5) { width: 9% !important; text-align: center !important; }
+table:has(th:nth-child(7)) th:nth-child(6),
+table:has(th:nth-child(7)) td:nth-child(6) { width: 10% !important; text-align: center !important; }
+table:has(th:nth-child(7)) th:nth-child(7),
+table:has(th:nth-child(7)) td:nth-child(7) { width: 24% !important; word-break: break-word !important; }
+</style>
 
----
-
-## Chi tiết từng issue
-
-📌 Mỗi mục gồm: **nội dung bản gốc** · **những gì ảnh cho thấy** (chép từ ảnh) · liên kết ảnh.
-
-### Cấu hình — Đối tác & Đăng ký
-
-**1** ✅ Đã fix 01/10 · Chức năng · Hiệu chỉnh chức năng · 26/09 · Thấp · HieuNV · [ảnh](images/issue-01.png)
-Sửa gói tin gởi đi: nên đặt trần cho chu kỳ để người dùng không set quá lớn.
-> **Ảnh**: modal *Sửa đăng ký chia sẻ dữ liệu*, đối tác `DDTL - Đồng Đăng - Trà Lĩnh`, gói `103 - Dữ liệu thiết bị dò xe (VDS)`, kiểu lịch `Liên tục`, ô **Chu kỳ (giây)** bị nhập một dãy dài toàn chữ số 9 (≈60 ký tự). Khung giờ 06:00 → 06:10.
-> 🔧 **Fix**: thêm `:max="86400"` vào `el-input-number` (`editSubscription.vue:117`).
-
-**2** ✅ Đã fix 01/10 · Chức năng · Lỗi · 26/09 · Trung bình · HieuNV · [ảnh](images/issue-02.png)
-Thông báo lỗi khó hiểu; nhập số quá lớn thì hệ thống quay về một con số khác.
-> **Ảnh**: toast lỗi hiện **nguyên văn exception .NET**:
-> `{\"$.intervalSeconds\":[\"The JSON value could not be converted to System.Nullable`1[System.Int32]. Path: $.intervalSeconds | LineNumber: 0 | BytePositionInLine: 303.\"]}`
-> Toast này hiện **2 lần chồng nhau**. Ô Chu kỳ sau đó tự nhảy về `86400` (= 24h × 3600 giây — trần đã áp `:max="86400"`); **frontend làm tròn trước khi gửi**, không phải backend.
-> 🔧 **Fix**: cùng `:max="86400"` (issue 1) + bỏ `ElMessage.error` cục bộ trong `catch`.
-
-**3** ✅ Đã fix 01/10 · UI · Lỗi · 27/09 · Trung bình · DatHQ · [ảnh](images/issue-03.png)
-Sao chép "Đối tác" báo lỗi khi trùng mã/tên đã có.
-> **Ảnh**: toast `lz.entity.base.code đã tồn tại trong hệ thống!` (hiện 2 lần). Khung template `{0} đã tồn tại trong hệ thống!` **đã dịch**, nhưng tham số `{0}` trả về nguyên key.
-> 🔧 **Fix**: `openDialog` xóa `code` khi `copy`/`add`; bỏ `catch ElMessage.error`; chuyển `closeDialog()` vào nhánh thành công (`editPartner.vue`).
-
-**4** ✅ Đã fix 01/10 · Chức năng · Lỗi · 27/09 · Trung bình · HieuNV · [ảnh](images/issue-04.png)
-Sửa đối tác báo lỗi khi trùng mã; **ô Mã đối tác không bị khóa** khi Chỉnh sửa.
-> **Ảnh**: cùng toast `lz.entity.base.code đã tồn tại trong hệ thống!`.
-> 🔧 **Fix**: bọc `el-tooltip` + `:disabled="operateType === 'edit'"` + key `lz.tooltip.sharedataPartner.codeLocked` (`editPartner.vue`).
-
-**19** ✅ Đã fix 30/09 · Dịch thuật · Hiệu chỉnh UI · 29/09 · Thấp · DatHQ · [ảnh](images/issue-19.png)
-Xóa hồ sơ ánh xạ trong "Gởi đi"/"Nhận về" của mục Cấu hình báo lỗi khó hiểu.
-> **Ảnh**: toast `lz.exception.sharedata.subscriptionMustPauseBeforeDelete`. Màn *Cấu hình* → đối tác `Partner Name` → tab **Gửi đi**, lưới đăng ký có 2 dòng (gói 102 *Chưa có hồ sơ*, gói 101 *Đang áp dụng* `PARTNER_101COMMONDATA_BOTH`), cả hai công tắc **Bật**.
-> ⚠️ **Thao tác thật là xóa ĐĂNG KÝ, không phải xóa hồ sơ ánh xạ** — tiêu đề issue ghi chưa chính xác.
-> 🔧 **Fix**: dịch key → hiện câu thân thiện.
-
-### Cấu hình gói tin
-
-**5** ✅ Đã fix 30/09 · UI · Lỗi · 27/09 · Trung bình · DatHQ · [ảnh](images/issue-05.png)
-Thêm gói tin trùng mã báo lỗi nửa code nửa thông báo.
-> **Ảnh**: toast `lz.entity.sharedata.packetCode đã tồn tại trong hệ thống!`. Modal *Tạo mới Gói tin*: Mã `109_etcData`, Tên `Gói tin mới 109`, Thứ tự 100.
-> 🔧 **Fix**: dịch key → hiện câu thân thiện.
-
-**6** ✅ Đã fix 01/10 · UI · Hiệu chỉnh UI · 27/09 · Thấp · HieuNV · [ảnh](images/issue-06.png)
-Đổi nhãn ô tìm kiếm cho khớp tên cột trên lưới.
-> **Ảnh**: thanh tìm kiếm có ô **Mã** và **Loại**; lưới bên dưới lại có cột **Khóa field** và **Kiểu**. Ghi chú của tester: *"Mã = Khóa field. Loại = ? ⇒ không có gợi ý hoặc không thấy field tương ứng, người dùng khó biết cách để nhập tìm"*.
-> 🔧 **Fix**: đổi `:label` + `:placeholder` sang `lz.entity.sharedataDataSource.aliasFieldKey` / `fieldType` (`dataSource/index.vue`).
-
-**7** ✅ FE fix 01/10 · ⚠️ Chờ chạy SQL · Chức năng · Hiệu chỉnh chức năng · 27/09 · Thấp · HieuNV · [ảnh](images/issue-07.png)
-Bổ sung kiểu `double`/`decimal`; thống nhất nhãn "Loại" / "Kiểu".
-> **Ảnh**: modal *Tạo mới Trường gói tin*, dropdown **Loại** chỉ có đúng **4 lựa chọn**: `string`, `int`, `dateTime`, `bool`.
-> 🔧 **Fix FE**: thêm nhánh `guid` vào `previewCoerce` (`editMapping.vue`).
-> ⚠️ **Chờ chủ dự án chạy** `sql/20261001-bo-sung-sharedata-value-type.sql` để thêm 5 kiểu vào `SysConfigData`.
-
-**8** ✅ Đã fix 30/09 · Chức năng · Lỗi · 27/09 · Trung bình · HieuNV · [ảnh](images/issue-08.png)
-Thêm trường gói tin trùng mã, báo lỗi khó hiểu.
-> **Ảnh**: toast `lz.entity.sharedata.aliasFieldKey đã tồn tại trong hệ thống!`. Modal *Tạo mới Trường gói tin* cho gói `109_etcData`: Tên `Lưu lượng xe đầu vào`, Khóa field `TransactionID`, Loại `int`, Nhóm trường `Thống kê`.
-> 🔧 **Fix**: dịch key → hiện câu thân thiện.
-
-**21** ✅ Đã fix 30/09 · Dịch thuật · Hiệu chỉnh UI · 29/09 · Trung bình · DatHQ · [ảnh](images/issue-21.png)
-Đang có ánh xạ dữ liệu thì không cho sửa ⇒ chỉnh câu thông báo.
-> **Ảnh**: toast `lz.exception.sharedata.packetFieldLocked`. Modal *Chỉnh sửa Trường gói tin*: Tên `Mã trạng thái`, Khóa field `status`, Loại `int`, Nhóm trường `Header`.
-> ⚠️ Màn thật là **Trường gói tin**, không phải hồ sơ ánh xạ.
-> 🔧 **Fix**: dịch key + cập nhật thuật ngữ → "hồ sơ ánh xạ".
-
-**22** ✅ Đã fix 30/09 · Dịch thuật · Hiệu chỉnh UI · 29/09 · Trung bình · DatHQ · [ảnh](images/issue-22.png)
-Gói tin đã có hồ sơ ánh xạ thì không sửa/xóa được ⇒ nên ẩn/mờ hoặc báo lỗi dễ hiểu.
-> **Ảnh**: 🔴 **hai toast cùng lúc** — `lz.exception.sharedata.packetFieldInUse` (backend) và `Thực hiện thất bại` (frontend). Lưới *Trường gói tin* của gói `104_weatherData`, nhóm Header 3 trường, trong đó `status` và `sessionid` gắn nhãn đỏ **Bắt buộc**.
-> ⚠️ Thao tác thật là xóa **Trường gói tin**, không phải xóa gói tin.
-> 🔧 **Fix**: bỏ `ElMessage.error` cục bộ trong `catch` — interceptor `axios-utils.ts` đã hiện message BE.
-
-### Bộ mã chuẩn hóa
-
-**9** ⚠️ Chờ chẩn đoán môi trường tester · UI · Lỗi · 28/09 · Thấp · HieuNV · [ảnh](images/issue-09.png)
-Đổi hoặc ẩn thông tin "Quản lý dự án TCP - V2.0".
-> **Ảnh**: nhãn `Quản lý dự án TCP - V2.0` nằm ngay cạnh tiêu đề `HỆ THỐNG GIÁM SÁT GIAO THÔNG` trên thanh đầu trang.
-> ⚠️ **Chưa fix** — cần HieuNV/TuyenHTN chạy F12 Console (`document.title` + `window.__env__?.VITE_APP_NAME`) trên **đúng môi trường tester** để chốt nguồn, rồi TuyenHTN quyết đổi hay ẩn. Quy trình đầy đủ + 4 câu truy vấn: mục **3.1** của `Prompt/sharedata-chot-so-phien-ra-soat-0210-prompt.md`.
-
-**10** ✅ Đã fix 30/09 · Chức năng · Lỗi · 28/09 · Trung bình · HieuNV · [ảnh](images/issue-10.png)
-Xóa bản ghi bộ mã chuẩn hóa báo lỗi khó hiểu.
-> **Ảnh**: toast `lz.exception.sharedata.codeSetInUse`. Lưới Bộ mã Chuẩn hóa, **cả 5 dòng được tick chọn** (`SCS01`, `condition`, `testtest`, `direction_codeSet`, `test`) rồi bấm nút **Xoá** hàng loạt.
-> 🔧 **Fix**: dịch key + cập nhật thuật ngữ → "hồ sơ ánh xạ".
-
-**11** ✅ Đã fix 01/10 · Chức năng · Hiệu chỉnh chức năng · 28/09 · Thấp · HieuNV · [ảnh](images/issue-11.png)
-Làm rõ nút "Làm mới" là tìm lại theo điều kiện hay nạp lại toàn bộ.
-> **Ảnh**: đang lọc Mã = `scs01`, lưới còn 1 dòng `SCS01`; nút **Làm mới** được khoanh đỏ. Câu hỏi: bấm Làm mới thì giữ bộ lọc hay bỏ bộ lọc.
-> 🔧 **Fix**: bọc `el-tooltip` cho nút refresh trong `table-header-operation.vue` + key `lz.tooltip.base.refreshKeepFilter` — *"Nạp lại dữ liệu, giữ nguyên điều kiện lọc hiện tại"*.
-
-**12** ✅ Đã fix 01/10 · Dịch thuật · Hiệu chỉnh UI · 28/09 · Thấp · DatHQ · [ảnh](images/issue-12.png)
-Sao chép bộ mã báo lỗi trùng mã, chưa dịch.
-> **Ảnh**: toast `lz.entity.base.code đã tồn tại trong hệ thống!`. Modal *Sao chép bộ mã* giữ nguyên Mã `SCS01` của bản gốc — **ô Mã vẫn sửa được nhưng không được xoá sẵn**, nên bấm Xác nhận là chắc chắn trùng.
-> 🔧 **Fix**: `openDialog` xóa `id` + `code` sau `GetById` khi `copy`/`add` (`editCodeSet.vue`).
-
-### Ánh xạ dữ liệu
-
-**13** ✅ Đã fix 30/09 · Dịch thuật · Hiệu chỉnh UI · 29/09 · Thấp · DatHQ · [ảnh](images/issue-13.png)
-Sao chép ánh xạ dữ liệu báo lỗi khó hiểu.
-> **Ảnh**: toast `lz.exception.sharedata.mappingConflictInUse`. Modal *Sao chép hồ sơ ánh xạ*: Đối tác `TTCSDL`, Chiều **Hai chiều**, Gói tin `101`, Mã `TTCSDL_101COMMONDATA_BOTH`, Tên `NHU101COMMONDATA_BOTH`, công tắc **Đang dùng = bật**.
-> 🔧 **Fix**: dịch key → hiện câu thân thiện.
-
-**14** ✅ Đã fix 01/10 · Chức năng · Lỗi · 29/09 · Trung bình · *chưa gán* · [ảnh](images/issue-14.png)
-Sao chép ánh xạ không cho nhập lại "Mã" nhưng để enable; giữ nguyên thì báo trùng.
-> **Ảnh**: modal *Sao chép hồ sơ ánh xạ*, ô **Mã** `TTCSDL_101COMMONDATA_BOTH` đang được bôi chọn (enable, sửa được).
-> 🔧 **Fix**: thay `code = ''` bằng `syncMappingCode()` để dựng lại Mã theo công thức `{ĐỐI_TÁC}_{GÓI_TIN}_{CHIỀU}` + thêm hint dưới ô Mã khi `copy` (`editMapping.vue`).
-
-**15** ✅ Đã fix 30/09 · UI · Hiệu chỉnh UI · 29/09 · Thấp · DatHQ · [ảnh](images/issue-15.png)
-Điều chỉnh nhãn "mã gói tin" nếu nó là mã định danh của gói tin; làm mờ nếu không cho nhập.
-> **Ảnh**: 🔴 **điểm mấu chốt** — với đối tác `Partner Name`, ô Mã tự thành `PARTNER_101COMMONDATA_BOTH`. Ghi chú của tester: *"Mã đang ăn theo Gói tin chọn? Vậy đây là mã gói tin, không phải mã hồ sơ?"*
-> ⇒ Mã hồ sơ được **sinh tự động theo công thức `{MÃ_ĐỐI_TÁC}_{MÃ_GÓI_TIN}_{CHIỀU}`**.
-> 🔧 **Fix**: thêm hint `lz.label.sharedataMapping.codeAutoHint` giải thích công thức sinh mã.
-
-**16** ✅ Đã fix 01/10 (cùng issue 14) · Chức năng · Lỗi · 29/09 · 🔴 **Cao** · *chưa gán* · [ảnh a](images/issue-16-a.png) · [ảnh b](images/issue-16-b.png)
-Trùng nội dung issue 14, thêm ý "thông tin lỗi gây khó hiểu".
-> **Ảnh a**: modal sao chép, Mã `TTCSDL_101COMMONDATA_BOTH`, Ghi chú `test sao chép`.
-> **Ảnh b**: tab **Ánh xạ** — toast `lz.exception.sharedata.mappingConflictInUse`. Cây ánh xạ 6 trường đã khớp 6: `ID→zoneId`, `name→zoneName`, `writedate→Now`, `serial→Serial`, `packagecode→PacketCode`, `partnercode→PartnerCode`.
-
-**17** ✅ Đã fix 01/10 · Chức năng · Lỗi · 29/09 · 🔴 **Cao** · DatHQ · [ảnh a](images/issue-17-a.png) · [ảnh b](images/issue-17-b.png)
-Chỉnh sửa ánh xạ, lấy dữ liệu mẫu không thành công, báo lỗi khó hiểu.
-> **Ảnh a**: toast `lz.exception.sharedata.mappingInUse` trên tab Ánh xạ, hồ sơ 20 trường đã khớp 19. Ghi chú tester: *"Điều chỉnh xóa bỏ bớt dữ liệu trong body của json Đối tác"*.
-> **Ảnh b**: tab **Dữ liệu gửi thử** — ⚠️ **lấy dữ liệu mẫu THÀNH CÔNG** (2 bản ghi thật của `101_commonData`, payload dựng đủ `header` + `data`). Lỗi `mappingInUse` xuất hiện khi **bấm Xác nhận để lưu**, không phải khi lấy dữ liệu mẫu.
-> ⇒ Tiêu đề issue mô tả **sai nguyên nhân**.
-> 🔧 **Fix**:
-> - **FE**: `mapping/index.vue` tận dụng cột "Đang dùng" (`row.isActive`): làm mờ (`disabled`) nút **Sửa** và **Xoá** ngay từ danh sách ngoài khi `row.isActive == true`, bọc trong `el-tooltip` hiển thị *"Hồ sơ đang dùng, vui lòng tắt công tắc trước khi sửa hoặc xóa"*. Bổ sung `checkboxConfig: { checkMethod: ({ row }) => !row.isActive }` ngăn tick chọn dòng đang bật để xóa hàng loạt.
-> - Muốn sửa, người dùng chỉ cần tắt công tắc tại chỗ (nếu có Subscription đang chạy ngầm, Backend sẽ chặn ngay tại bước gạt công tắc, bảo vệ an toàn cho worker mà không cần sửa Backend).
-
-**18** ✅ Đã fix 30/09 · UI · Hiệu chỉnh UI · 29/09 · Thấp · DatHQ · [ảnh a](images/issue-18-a.png) · [ảnh b](images/issue-18-b.png)
-Hai đối tác trùng tên khác mã ⇒ nên hiện [mã đối tác] kèm tên.
-> **Ảnh a**: danh sách đối tác có **hai dòng cùng tên** `Đồng Đăng - Trà Lĩnh`, mã `DDTL` và `DDTL-2` (danh sách này **có** hiện mã dưới tên).
-> **Ảnh b**: dropdown *Chọn đối tác* trong modal Tạo mới hồ sơ ánh xạ hiện **hai dòng chữ giống hệt nhau**, ⛔ không có mã ⇒ không phân biệt được.
-> 🔧 **Fix**: hiện `[mã] tên` trong dropdown chọn đối tác.
-
-**20** ✅ Đã fix 01/10 · Chức năng · Hiệu chỉnh chức năng · 29/09 · Trung bình · *chưa gán* · [ảnh a](images/issue-20-a.png) · [ảnh b](images/issue-20-b.png)
-"Lấy dữ liệu mẫu" báo `weatherId` và `Status` rỗng mặc dù đã map.
-> **Ảnh a**: gói `104_weatherData`, lưới bản ghi thật cho thấy `weatherId = NULL`, `status = NULL` (chỉ `weatherDescription = Nắng`, `rainfall = 0`, `temperature = 30` có giá trị). Cảnh báo: *"Trường bắt buộc weatherId đang rỗng — service sẽ chặn bản ghi này"*.
-> **Ảnh b**: tab Ánh xạ xác nhận **hai trường ĐÃ được map** (`body.id → weatherId`, `body.status → status`).
-> ⇒ 🔴 **Không phải lỗi ánh xạ — dữ liệu nguồn trong CSDL đang NULL.**
-> 🔧 **Fix**: cập nhật key `lz.message.sharedataMapping.requiredFieldEmptyWillBlock` — nói rõ *"giá trị nguồn trong CSDL đang rỗng"* thay vì để người dùng tưởng chưa map.
-
-**23** ✅ Đã fix 01/10 · Chức năng · Hiệu chỉnh chức năng · 29/09 · Trung bình · DatHQ · [ảnh](images/issue-23.png)
-Nhóm header chỉ nên cho chọn thuộc tính hệ thống cố định, ẩn các thuộc tính khác.
-> **Ảnh**: dropdown *Chọn trường gói tin* cho khoá `header.sessionId` liệt kê **cả hai nhóm** — nhóm `Meta` (`Now`, `Serial`, `PacketCode`, `PartnerCode`) **và** nhóm `Trường gói tin` (`message`, `status`...). Tester muốn ẩn nhóm thứ hai khi đang ở header.
-> 🔧 **Fix**: `editMapping.vue` bổ sung hàm `isHeaderPath(data.path)` kiểm tra các node thuộc nhánh `header`, tự động ẩn nhóm `Trường gói tin` qua `v-if="!isHeaderPath(data.path)"`, chỉ cho phép chọn nhóm `Meta — giá trị hệ thống`.
-
-**24** ✅ Đã fix 01/10 · Chức năng · Lỗi · 29/09 · 🔴 **Cao** · DatHQ · [ảnh](images/issue-24.png)
-Giá trị mặc định và kiểu dữ liệu không có tác dụng khi "Lấy dữ liệu mẫu".
-> **Ảnh**: popup *Thiết lập cho khoá header.sessionId* — `Kiểu dữ liệu phía đối tác = string`, `Giá trị nội bộ mặc định = 123456`. Hai thiết lập này không được áp khi dựng payload mẫu.
-> 📌 **Bản chất**: Tester cấu hình giá trị mặc định / kiểu dữ liệu cho một node không liên kết với trường dữ liệu nào của gói tin (`fieldKey` rỗng). Ở phiên bản trước, nhánh logic xử lý mẫu bỏ qua các thuộc tính này nếu không có trường liên kết.
-> 🔧 **Fix**: `editMapping.vue` cập nhật `buildPreviewNode` để với các node lá chưa map hoặc map tĩnh, nếu có khai `defaultPartnerValue`/`defaultSourceValue` hoặc `targetType` thì vẫn tự động chuyển đổi kiểu dữ liệu và đưa giá trị mặc định vào payload dựng thử.
-
-**25** ✅ FE fix 01/10 · ⚠️ Chờ chạy SQL · Chức năng · Hiệu chỉnh chức năng · 29/09 · Trung bình · *chưa gán* · [ảnh](images/issue-25.png)
-Bổ sung GUID, float, double, decimal.
-> **Ảnh**: dropdown *Kiểu dữ liệu phía đối tác* cũng chỉ có **4 lựa chọn**: `string`, `int`, `dateTime`, `bool` — giống hệt issue 7.
-> 🔧 **Fix**: cùng lần với issue 7 — xem issue 7.
-
-**26** ⚠️ Chờ quyết định nghiệp vụ · Chức năng · Lỗi · 29/09 · Trung bình · *chưa gán* · [ảnh](images/issue-26.png)
-Gói tin "Bắt buộc" gặp lỗi khi lấy dữ liệu mẫu ⇒ nên tự sinh GUID.
-> **Ảnh**: gói `104_weatherData`, 2 bản ghi mẫu có `message`, `status`, `sessionid` **đều NULL**. Cảnh báo *"Trường bắt buộc sessionid đang rỗng — service sẽ chặn bản ghi này"*. Payload dựng ra `"sessionId": null`. Ghi chú tester: *"đang cấu hình gói tin Bắt buộc không cho rỗng"*.
-> 📌 Cùng họ với issue 20 — dữ liệu nguồn NULL, không phải lỗi ánh xạ.
-> ⚠️ **Chưa fix** — tự sinh GUID là tính năng mới, FE và service phải sinh y hệt nhau. Xem MasterPlan §F mục 26.
-
-### Lịch sử chia sẻ
-
-**27** ✅ Đã fix 30/09 · Chức năng · Lỗi · 29/09 · Thấp · DatHQ · [ảnh](images/issue-27.png)
-Không reset thời gian bắt đầu/kết thúc khi bấm "Đặt lại".
-> **Ảnh**: tab *Nhật ký cấu hình*, `Thời gian bắt đầu = 2020-01-01 00:00:00` (khoanh đỏ) còn nguyên sau khi bấm **Đặt lại**; `Thời gian kết thúc = 2026-09-29 23:59:59`. Lưới trả 178 bản ghi.
-> 🔧 **Fix**: đã fix logic reset bộ lọc thời gian.
-
-**28** ✅ Đã fix 01/10 · Chức năng · Lỗi · 29/09 · Trung bình · *chưa gán* · [ảnh a](images/issue-28-a.png) · [ảnh b](images/issue-28-b.png)
-Tìm kiếm/Đặt lại/Làm mới cùng một lỗi: kết quả không thuộc phạm vi; không chặn bắt đầu > kết thúc; không chặn thời gian tương lai.
-> **Ảnh a**: 🔴 `Thời gian bắt đầu = 2030-01-01`, `Thời gian kết thúc = 2028-09-30` — **bắt đầu sau kết thúc, cả hai ở tương lai** — vẫn trả về **đủ 178 bản ghi**, các dòng đều ngày `29/09/2026`.
-> **Ảnh b**: tab *Nhật ký truyền nhận*, đối tác `TTCSDL`, lọc `2026-09-29` → `2026-09-30`, nhưng lưới trả các dòng ngày **22/09/2026**. Tổng 22 517 dòng / 451 trang.
-> ⇒ 🔴 **Bộ lọc thời gian bị bỏ qua hoàn toàn**, không chỉ là lỗi nút Đặt lại.
-> 🔧 **Fix**: thêm `:disabled-date="disableFutureDate"` + hàm `disableFutureDate` dùng `dayjs().endOf('day')` (`history/index.vue`).
+| STT | Nội dung lỗi & Bối cảnh ảnh | Nguyên nhân | Phương án xử lý (FE & BE) | Phụ trách | Hoàn thành | Ghi chú (Mẫu comment Sheet Bug) |
+|:---:|---|---|---|:---:|:---:|---|
+| **1** | Sửa gói tin gửi đi: nên đặt trần cho chu kỳ để người dùng không set quá lớn ([ảnh](images/issue-01.png): ô chu kỳ bị nhập dãy 60 chữ số 9) | Ô nhập `el-input-number` chưa cấu hình `:max="86400"`, cho phép người dùng nhập số tùy ý | **FE**: thêm `:max="86400"` vào `el-input-number` (`editSubscription.vue`), chặn giá trị vượt quá 86400s (24h) | DatHQ | ✅ Đã fix (01/10) | `01102026-DatHQ: FE đã giới hạn chu kỳ tối đa 86400s (24h).` |
+| **2** | Nhập chu kỳ quá lớn báo lỗi .NET JsonException và hiện 2 popup lỗi ([ảnh](images/issue-02.png): toast exception .NET hiện đè 2 lần) | Số nhập vượt quá `int.MaxValue` làm văng lỗi deserialization JSON của ASP.NET Core; FE gọi thêm `ElMessage.error` trùng lặp trong `catch` | **BE**: Giữ kiểu `int?` chuẩn cho DTO/Entity, bổ sung rule FluentValidation `InclusiveBetween(5, 86400)` (`SubscriptionValidator.cs`).<br>**FE**: thêm `:max="86400"` trên `el-input-number` và bỏ `ElMessage.error` trong `catch` (`editSubscription.vue`) | DatHQ | ✅ Đã fix (01/10) | `01102026-DatHQ: BE validate dải 5-86400s; FE giới hạn max 86400s và loại bỏ toast lỗi kép.` |
+| **3** | Sao chép "Đối tác" báo lỗi khi trùng mã, tên đối tác đã có trong hệ thống ([ảnh](images/issue-03.png)) | Trước đó chưa thêm dịch ngôn ngữ lên Database | **DB**: Thêm bản dịch ngôn ngữ lên database | HieuNV | ✅ Đã fix (01/10) | `01102026-HieuNV: Bổ sung dịch ngôn ngữ.` |
+| **4** | Sửa đối tác báo lỗi khi trùng mã; ô Mã đối tác không bị khóa khi Chỉnh sửa ([ảnh](images/issue-04.png)) | Ô nhập Mã đối tác ở chế độ Chỉnh sửa vẫn cho phép nhập (`enable`), dẫn đến sửa trùng mã định danh | **FE**: Khóa ô Mã đối tác (`:disabled="operateType === 'edit'"`), bọc `el-tooltip` giải thích mã định danh không thể thay đổi (`editPartner.vue`) | DatHQ | ✅ Đã fix (01/10) | `01102026-DatHQ: Đã khóa ô Mã đối tác khi chỉnh sửa kèm tooltip giải thích mã định danh cố định không thể đổi.` |
+| **5** | Thêm mới gói tin mới - trùng mã gói tin đã có báo lỗi gây khó hiểu cho người dùng (nửa code nửa thông báo) ([ảnh](images/issue-05.png)) | Trước đó chưa thêm dịch ngôn ngữ lên Database | **DB**: Thêm bản dịch ngôn ngữ lên database | HieuNV | ✅ Đã fix (01/10) | `01102026-HieuNV: Bổ sung dịch ngôn ngữ.` |
+| **6** | Đổi tên label cần tìm cho giống tên cột trên lưới đang có, gợi ý cho người dùng biết đang tìm theo thuộc tính nào ([ảnh](images/issue-06.png)) | Nhãn label và placeholder ở form tìm kiếm chưa đồng bộ với tiêu đề cột của bảng dữ liệu | **FE**: Đổi `:label` và `:placeholder` sang "Khóa field" (`aliasFieldKey`) và "Kiểu" (`fieldType`) (`dataSource/index.vue`) | DatHQ | ✅ Đã fix (01/10) | `01102026-DatHQ: Đã đổi nhãn ô tìm kiếm thành 'Khóa field' và 'Kiểu' đồng bộ chuẩn 100% với các cột trên lưới.` |
+| **7** | Cần bổ sung thêm kiểu dữ liệu dạng double hoặc decimal; thống nhất nhãn "Kiểu" thay vì "Loại" ([ảnh](images/issue-07.png)) | CSDL danh mục `sharedata_value_type` chưa seed kiểu số thực; modal `editPacketField.vue` dùng nhãn `lz.entity.base.type` ("Loại") | **FE**: đổi `:label` sang `fieldType` ("Kiểu") (`editPacketField.vue`).<br>**DB**: script SQL `sql/20261001-bo-sung-sharedata-value-type.sql` bổ sung 5 kiểu dữ liệu vào `SysConfigData` (dùng chung cho cả Issue 7 và 25, đã chạy DB) | DatHQ | ✅ Đã fix (02/10) | `02102026-DatHQ: FE đã đổi nhãn modal thành 'Kiểu' đồng bộ với lưới; CSDL đã chạy script bổ sung đủ 5 kiểu dữ liệu (long, float, double, decimal, guid).` |
+| **8** | Khi thêm mới trường gói tin bị trùng mã, thông báo lỗi gây khó hiểu và không nhận diện được đang sai thông tin nào ([ảnh](images/issue-08.png)) | Trước đó chưa thêm dịch ngôn ngữ lên Database | **DB**: Thêm bản dịch ngôn ngữ lên database | HieuNV | ✅ Đã fix (01/10) | `01102026-HieuNV: Bổ sung dịch ngôn ngữ.` |
+| **9** | Cần đổi hoặc ẩn thông tin "Quản lý dự án TCP - V2.0" trên giao diện của ITS ([ảnh](images/issue-09.png)) | Cần xác định chính xác nguồn chuỗi text qua F12 Console trên đúng môi trường tester | Chờ PO/BA quyết định phương án đổi tên hay ẩn bỏ | HieuNV | ⚠️ Chờ phản hồi | `01102026-HieuNV: Đang rà soát nguồn text qua F12 trên môi trường tester, chờ PO/BA xác nhận phương án.` |
+| **10** | Xuất hiện thông báo lỗi gây khó hiểu khi dùng chức năng "Xóa" các bản ghi đang có trên các bộ mã chuẩn hóa ([ảnh](images/issue-10.png)) | Trước đó chưa thêm dịch ngôn ngữ lên Database | **DB**: Thêm bản dịch ngôn ngữ lên database | HieuNV | ✅ Đã fix (01/10) | `01102026-HieuNV: Bổ sung dịch ngôn ngữ.` |
+| **11** | Kiểm tra chức năng của "Làm mới" là tìm kiếm lại dữ liệu đã nhập hay refresh và hiển thị lại toàn bộ dữ liệu đang có trong hệ thống? ([ảnh](images/issue-11.png)) | Nút làm mới trên thanh công cụ bảng chưa có tooltip giải thích hành vi tải dữ liệu | **FE**: Bổ sung `el-tooltip` cho nút Làm mới: *"Làm mới danh sách bảng, giữ nguyên điều kiện lọc hiện tại"* (`table-header-operation.vue`) | DatHQ | ✅ Đã fix (01/10) | `01102026-DatHQ: Đã bổ sung tooltip giải thích rõ hành vi nút Làm mới: Làm mới danh sách bảng và giữ nguyên điều kiện lọc.` |
+| **12** | Sao chép Bộ mã chuẩn hóa báo lỗi khi trùng mã đã có trong hệ thống. Thông tin lỗi chưa được dịch thuật ([ảnh](images/issue-12.png)) | Trước đó chưa thêm dịch ngôn ngữ lên Database | **DB**: Thêm bản dịch ngôn ngữ lên database | HieuNV | ✅ Đã fix (01/10) | `01102026-HieuNV: Bổ sung dịch ngôn ngữ.` |
+| **13** | Sao chép Ánh xạ dữ liệu thông báo lỗi gây khó hiểu cho người dùng; không nhận diện được thao tác sai là gì ([ảnh](images/issue-13.png)) | Trước đó chưa thêm dịch ngôn ngữ lên Database | **DB**: Thêm bản dịch ngôn ngữ lên database | HieuNV | ✅ Đã fix (01/10) | `01102026-HieuNV: Bổ sung dịch ngôn ngữ.` |
+| **14** | Sao chép Ánh xạ dữ liệu không cho người dùng nhập lại "Mã" nhưng lại để trạng thái enable; giữ nguyên thì thông báo lỗi trùng mã ([ảnh](images/issue-14.png)) | Bản gốc không cho sửa ô Mã nhưng khi sao chép giữ nguyên thông tin thì trùng mã định danh | Đã revert code FE về nguyên mẫu; chuyển giao HieuNV xử lý đồng bộ cùng Issue 16 | HieuNV | ⚠️ Chờ phản hồi | `Đã revert code FE về nguyên mẫu; chuyển giao HieuNV tiếp nhận xử lý.` |
+| **15** | Điều chỉnh label "mã gói tin" nếu nó là mã định danh của gói tin đang chọn. Làm mờ nếu không cho chỉnh/nhập "mã" ([ảnh](images/issue-15.png)) | Nhãn dùng key chung `lz.entity.base.code` ("Mã") chưa rõ ràng; thiếu chú thích công thức sinh mã định danh | **FE**: Bổ sung dòng hint `lz.label.sharedataMapping.codeAutoHint` ngay dưới ô Mã giải thích rõ công thức sinh mã định danh (`editMapping.vue`) | DatHQ | ✅ Đã fix (30/09) | `30092026-DatHQ: Đã thêm dòng chú thích dưới ô nhập liệu giải thích rõ công thức sinh mã hồ sơ tự động.` |
+| **16** | Chức năng Sao chép Ánh xạ dữ liệu không cho người dùng nhập lại "Mã" nhưng lại để trạng thái enable; giữ nguyên thì thông báo lỗi trùng mã. Hệ thống thông tin lỗi gây khó hiểu cho người dùng ([ảnh a](images/issue-16-a.png) · [ảnh b](images/issue-16-b.png)) | Bản gốc không cho sửa ô Mã nhưng khi sao chép giữ nguyên thông tin thì trùng mã; thông báo lỗi chưa rõ ràng | Đã revert code FE về nguyên mẫu; chuyển giao HieuNV xử lý đồng bộ cùng Issue 14 | HieuNV | ⚠️ Chờ phản hồi | `Đã revert code FE về nguyên mẫu; chuyển giao HieuNV tiếp nhận xử lý.` |
+| **17** | Chức năng Chỉnh sửa Ánh xạ dữ liệu, lấy dữ liệu mẫu không thành công, thông báo lỗi gây khó hiểu ([ảnh a](images/issue-17-a.png) · [ảnh b](images/issue-17-b.png)) | Lấy dữ liệu mẫu không thành công khi đang mở chỉnh sửa ánh xạ | Đã revert code FE về nguyên mẫu; chuyển giao HieuNV xử lý | HieuNV | ⚠️ Chờ phản hồi | `Đã revert code FE về nguyên mẫu; chuyển giao HieuNV tiếp nhận xử lý.` |
+| **18** | Nếu có hơn 2 đối tác trùng tên nhưng khác mã, thì khi tạo mới Ánh xạ dữ liệu nên load đính kèm [mã đối tác] trước tên đối tác ([ảnh a](images/issue-18-a.png) · [ảnh b](images/issue-18-b.png)) | Dropdown chỉ render thuộc tính tên `item.name` mà không kèm mã `item.code` | **FE**: Cập nhật template dropdown hiển thị định dạng `[Mã] Tên đối tác` (`editMapping.vue`) | DatHQ | ✅ Đã fix (30/09) | `30092026-DatHQ: Đã cập nhật dropdown hiển thị định dạng [Mã] Tên đối tác giúp phân biệt chính xác đối tác trùng tên.` |
+| **19** | Xóa hồ sơ ánh xạ trong "Gởi đi" hoặc "Nhận về" của mục Cấu hình thông báo lỗi gây khó hiểu cho người dùng ([ảnh](images/issue-19.png)) | Trước đó chưa thêm dịch ngôn ngữ lên Database | **DB**: Thêm bản dịch ngôn ngữ lên database | HieuNV | ✅ Đã fix (01/10) | `01102026-HieuNV: Bổ sung dịch ngôn ngữ.` |
+| **20** | Mục "Lấy dữ liệu mẫu" không thành công. Thông báo lỗi weatherId và Status đang rỗng mặc dù 2 trường này đã map ([ảnh a](images/issue-20-a.png) · [ảnh b](images/issue-20-b.png)) | Bản ghi dữ liệu nguồn trong CSDL có giá trị NULL ở 2 trường này | Chuyển giao HieuNV tiếp nhận xử lý | HieuNV | ⚠️ Chờ phản hồi | `Chuyển giao HieuNV tiếp nhận xử lý.` |
+| **21** | Đang có ánh xạ dữ liệu không cho chỉnh sửa => chỉnh câu thông báo lỗi cho người dùng dễ hiểu ([ảnh](images/issue-21.png)) | Trước đó chưa thêm dịch ngôn ngữ lên Database | **DB**: Thêm bản dịch ngôn ngữ lên database | HieuNV | ✅ Đã fix (01/10) | `01102026-HieuNV: Bổ sung dịch ngôn ngữ.` |
+| **22** | Bộ gói tin đã cấu hình và có hồ sơ ánh xạ dữ liệu thì không thể sửa, xóa => Nên ẩn/mờ 2 chức năng này trên nhóm "Hành động" hoặc hiển thị thông báo lỗi cho người dùng dễ hiểu ([ảnh](images/issue-22.png)) | Trước đó chưa thêm dịch ngôn ngữ lên Database | **DB**: Thêm bản dịch ngôn ngữ lên database | HieuNV | ✅ Đã fix (01/10) | `01102026-HieuNV: Bổ sung dịch ngôn ngữ.` |
+| **23** | Tab "Ánh xạ" dữ liệu thuộc nhóm header nếu chỉ được chọn các thuộc tính cố định của hệ thống thì Nên ẩn/dấu các thuộc tính khác không cho người dùng thấy và chọn ([ảnh](images/issue-23.png)) | Cần quy định bộ lọc thuộc tính theo ngữ cảnh header | Đã revert code FE về nguyên mẫu; chuyển giao HieuNV xử lý | HieuNV | ⚠️ Chờ phản hồi | `Đã revert code FE về nguyên mẫu; chuyển giao HieuNV tiếp nhận xử lý.` |
+| **24** | Tab "Ánh xạ", cấu hình giá trị mặc định, kiểu dữ liệu không vô hiệu khi thử chức năng "Lấy dữ liệu mẫu" ([ảnh](images/issue-24.png)) | Cần xác nhận hành vi ép kiểu và giá trị mặc định khi lấy dữ liệu mẫu | Đã revert code FE về nguyên mẫu; chuyển giao HieuNV xử lý | HieuNV | ⚠️ Chờ phản hồi | `Đã revert code FE về nguyên mẫu; chuyển giao HieuNV tiếp nhận xử lý.` |
+| **25** | Bổ sung thêm các kiểu dữ liệu cơ bản khác như GUID, float, double, decimal ([ảnh](images/issue-25.png)) | Cùng nguyên nhân với Issue 7 — danh mục `sharedata_value_type` trong CSDL chỉ có 4 dòng | Dùng chung danh mục và script SQL với Issue 7 (`sql/20261001-bo-sung-sharedata-value-type.sql`) | DatHQ | ✅ Đã fix (02/10) | `02102026-DatHQ: Đã chạy script CSDL bổ sung đủ 5 kiểu (long, float, double, decimal, guid) vào danh mục sharedata_value_type; dropdown hiển thị đầy đủ 9 kiểu.` |
+| **26** | Cấu hình gói tin "Bắt buộc" gặp lỗi khi "Lấy dữ liệu mẫu" trong Ánh xạ dữ liệu => Gói tin bắt buộc thì khi tạo dữ liệu mẫu, nên tự sinh giá trị kiểu GUID ([ảnh](images/issue-26.png)) | Cần quy định cơ chế tự sinh GUID cho gói tin bắt buộc khi dựng dữ liệu mẫu | Chờ PO/BA chốt phương án và chuyển giao HieuNV xử lý | HieuNV | ⚠️ Chờ phản hồi | `Chuyển giao HieuNV tiếp nhận xử lý theo quyết định PO/BA.` |
+| **27** | Hệ thống chưa reset thời gian bắt đầu, kết thúc về mặc định khi nhấn nút "Đặt lại" trong Giao diện Lịch sử chia sẻ ([ảnh](images/issue-27.png)) | Hàm reset bộ lọc bỏ quên việc gán lại giá trị mặc định cho 2 trường thời gian | **FE**: `history/index.vue` cập nhật hàm reset bộ lọc để xóa và đưa 2 trường thời gian về khoảng mặc định của ngày hôm nay | DatHQ | ✅ Đã fix (30/09) | `30092026-DatHQ: Đã sửa nút Đặt lại: xóa sạch điều kiện và đưa khoảng thời gian về mặc định chính xác.` |
+| **28** | Tìm kiếm/Đặt lại/Làm mới: hệ thống tìm dữ liệu kết quả không thuộc phạm vi cần tìm; không thông báo lỗi khi thời gian bắt đầu > kết thúc; chưa rào hạn chế nhập thời gian tương lai ([ảnh a](images/issue-28-a.png) · [ảnh b](images/issue-28-b.png)) | Component date picker chưa cấu hình `:disabled-date` và form chưa validate mối quan hệ thời gian | **FE**: `history/index.vue` thêm `:disabled-date="disableFutureDate"` chặn ngày tương lai, validate kiểm tra bắt đầu <= kết thúc | DatHQ | ✅ Đã fix (01/10) | `01102026-DatHQ: Đã chặn chọn ngày tương lai trên lịch và validate ràng buộc thời gian bắt đầu phải trước thời gian kết thúc.` |
 
 ---
 
