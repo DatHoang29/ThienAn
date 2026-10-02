@@ -6,31 +6,145 @@ import { test, expect } from '@playwright/test';
  */
 test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata', () => {
 
-    test.beforeEach(async ({ page, baseURL }) => {
-        // Tầng 1: Kiểm tra xem Dev server Frontend có đang phản hồi không
-        const targetUrl = baseURL ?? 'http://localhost:8888';
-        try {
-            const checkServer = await page.request.get(targetUrl, { timeout: 3000 });
-            if (!checkServer.ok() && checkServer.status() !== 404 && checkServer.status() !== 304) {
-                test.skip(true, `Dev server Frontend chưa sẵn sàng (HTTP ${checkServer.status()})`);
-            }
-        } catch {
-            test.skip(true, `Dev server Frontend chưa khởi chạy trên ${targetUrl}. Chạy 'npm run dev' tại TA-ITS015-WEBVUE-V1.0/src để kiểm thử.`);
-        }
+    test.beforeEach(async ({ context, page }) => {
+        // 1. Cung cấp Cookie token chuẩn định dạng JWT (Header.Payload.Signature)
+        // Payload chứa exp = 4102444800 (năm 2100) để decryptJWT() trong axios-utils không ném lỗi
+        const mockToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjQxMDI0NDQ4MDAsIm5hbWUiOiJhZG1pbiJ9.mock_signature';
+        await context.addCookies([
+            {
+                name: 'token',
+                value: mockToken,
+                url: 'http://localhost:8888',
+            },
+        ]);
 
-        // Tầng 2: Giả lập token đăng nhập để Vue Router không chuyển hướng về /login
-        await page.addInitScript(() => {
-            sessionStorage.setItem('token', 'e2e-test-token-valid');
-            sessionStorage.setItem('userInfo', JSON.stringify({
+        // 2. Cung cấp LocalStorage & SessionStorage với prefix 'tacwebcore'
+        await page.addInitScript((token) => {
+            document.cookie = `token=${token}; path=/;`;
+            const pkg = 'tacwebcore';
+            window.localStorage.setItem(`${pkg}:access-token`, JSON.stringify(token));
+            window.sessionStorage.setItem(`${pkg}:token`, JSON.stringify(token));
+            window.sessionStorage.setItem(`${pkg}:userInfo`, JSON.stringify({
                 account: 'admin',
-                userName: 'Administrator',
-                roles: ['superadmin'],
+                realName: 'Administrator',
+                roles: ['admin'],
+                authBtnList: ['*'],
+                defaultMenu: '/sharedata/history',
             }));
+        }, mockToken);
+
+        // 3. Mock API Auth UserInfo: /api/system/sysuser/info (POST)
+        await page.route('**/api/system/sysuser/info*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        account: 'admin',
+                        realName: 'Administrator',
+                        roles: ['admin'],
+                        authBtnList: ['*'],
+                    },
+                }),
+            });
+        });
+
+        // 4. Mock API Menu Tree: /api/system/sysmenu/loginmenutree (GET)
+        await page.route('**/api/system/sysmenu/loginmenutree*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: [
+                        {
+                            id: 'menu_sharedata',
+                            pid: '0',
+                            path: '/sharedata',
+                            name: 'sharedata',
+                            component: 'layout/routerView/parent',
+                            meta: {
+                                title: 'lz.menu.sharedata',
+                                isLink: '',
+                                isHide: false,
+                                isKeepAlive: true,
+                                isAffix: false,
+                                isIframe: false,
+                                roles: ['admin'],
+                                icon: 'ele-Share',
+                            },
+                            children: [
+                                {
+                                    id: 'menu_sharedata_history',
+                                    pid: 'menu_sharedata',
+                                    path: '/sharedata/history',
+                                    name: 'sharedataHistory',
+                                    component: 'sharedata/history/index',
+                                    meta: {
+                                        title: 'lz.menu.sharedataHistory',
+                                        isLink: '',
+                                        isHide: false,
+                                        isKeepAlive: true,
+                                        isAffix: false,
+                                        isIframe: false,
+                                        roles: ['admin'],
+                                        icon: 'ele-Document',
+                                    },
+                                },
+                            ],
+                        },
+                    ],
+                }),
+            });
+        });
+
+        // 5. Mock Summary thống kê nhật ký (tránh lỗi handleQueryApi trong index.vue)
+        await page.route('**/api/sharedata/sharedataactivitylog/summary*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        total: 1,
+                        successCount: 1,
+                        failedCount: 0,
+                        sentCount: 1,
+                        receivedCount: 0,
+                    },
+                }),
+            });
+        });
+
+        // 6. Mock các API danh mục phụ trợ
+        await page.route('**/api/sharedata/sharedatapacket/list*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ code: 200, result: [{ id: 'PKT_01', name: 'Gói tin Phương tiện' }] }),
+            });
+        });
+
+        await page.route('**/api/sharedata/sharedatapartner/list*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ code: 200, result: [{ id: 'PARTNER_01', name: 'Đối tác Cục CSGT' }] }),
+            });
+        });
+
+        await page.route('**/api/sysConst/list*', async (route) => {
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: [] }) });
+        });
+        await page.route('**/api/sysDictData/dataList*', async (route) => {
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: [] }) });
         });
     });
 
     test('1. Hiển thị đủ 2 bước ElSteps và không còn div.step-hint', async ({ page }) => {
-        const mockParentId = 'PARENT_LOG_001';
+        test.slow(); // Vite khởi động & compile on-demand lần đầu cần nhiều thời gian trên Windows
+        const mockParentId = 'PARENT_LOG_SUCCESS';
 
         // Mock danh sách nhật ký có 1 dòng Transfer (chiều gửi)
         await page.route('**/api/sharedata/sharedataactivitylog/page*', async (route) => {
@@ -40,15 +154,15 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
                 body: JSON.stringify({
                     code: 200,
                     result: {
-                        items: [
+                        records: [
                             {
                                 id: mockParentId,
                                 logType: 1, // LOG_TYPE_TRANSFER
-                                transferType: 0, // Gửi (Send)
+                                transferType: 0, // Chiều gửi (Send)
                                 success: 1,
                                 packetId: 'PKT_01',
                                 partnerId: 'PARTNER_01',
-                                createTime: '2026-10-02 20:00:00',
+                                occurredAt: '2026-10-02T20:00:00Z',
                             },
                         ],
                         total: 1,
@@ -93,33 +207,28 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
 
         // Tìm nút mở modal chi tiết của dòng đầu tiên
         const detailButton = page.locator('button:has-text("Chi tiết")').first();
-        if (await detailButton.isVisible({ timeout: 5000 }).catch(() => false)) {
-            await detailButton.click();
+        await expect(detailButton).toBeVisible({ timeout: 30000 });
+        await detailButton.click();
 
-            const dialog = page.locator('.el-dialog');
-            await expect(dialog).toBeVisible();
+        const dialog = page.locator('.el-dialog');
+        await expect(dialog).toBeVisible();
 
-            // Khẳng định 1: Có đúng 2 bước trong ElSteps
-            const steps = dialog.locator('.steps-card .el-step');
-            await expect(steps).toHaveCount(2);
+        // Khẳng định 1: Có đúng 2 bước trong ElSteps
+        const steps = dialog.locator('.steps-card .el-step');
+        await expect(steps).toHaveCount(2);
 
-            // Khẳng định 2: Bước 1 và Bước 2 đều thành công (class is-success)
-            await expect(steps.nth(0)).toHaveClass(/is-success/);
-            await expect(steps.nth(1)).toHaveClass(/is-success/);
+        // Khẳng định 2: Bước 1 và Bước 2 đều thành công (class is-success trên .el-step__head)
+        await expect(steps.nth(0).locator('.el-step__head')).toHaveClass(/is-success/);
+        await expect(steps.nth(1).locator('.el-step__head')).toHaveClass(/is-success/);
 
-            // Khẳng định 3: Khối div.step-hint đã bị xóa hoàn toàn khỏi DOM
-            const stepHint = dialog.locator('.step-hint');
-            await expect(stepHint).toHaveCount(0);
-        } else {
-            // Khi chưa mount vào route phân hệ, ghi nhận trạng thái kiểm tra component
-            test.skip(true, 'Menu hoặc trang /sharedata/history chưa được phân quyền truy cập');
-        }
+        // Khẳng định 3: Khối div.step-hint đã bị xóa hoàn toàn khỏi DOM
+        const stepHint = dialog.locator('.step-hint');
+        await expect(stepHint).toHaveCount(0);
     });
 
     test('2. Bước 2 báo lỗi (is-error) khi gửi thất bại và hiển thị thông báo lỗi', async ({ page }) => {
         const mockParentId = 'PARENT_LOG_FAIL';
 
-        // Mock danh sách nhật ký
         await page.route('**/api/sharedata/sharedataactivitylog/page*', async (route) => {
             await route.fulfill({
                 status: 200,
@@ -127,14 +236,15 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
                 body: JSON.stringify({
                     code: 200,
                     result: {
-                        items: [
+                        records: [
                             {
                                 id: mockParentId,
                                 logType: 1,
                                 transferType: 0,
                                 success: 0,
                                 packetId: 'PKT_01',
-                                createTime: '2026-10-02 20:00:00',
+                                partnerId: 'PARTNER_01',
+                                occurredAt: '2026-10-02T20:00:00Z',
                             },
                         ],
                         total: 1,
@@ -143,7 +253,7 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
             });
         });
 
-        // Mock API trả về: Bước 1 OK, Bước 2 lỗi
+        // Mock API: Bước 1 OK, Bước 2 lỗi
         await page.route('**/api/sharedata/sharedataactivitylog/steps*', async (route) => {
             await route.fulfill({
                 status: 200,
@@ -179,24 +289,21 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
         await page.goto('/sharedata/history');
 
         const detailButton = page.locator('button:has-text("Chi tiết")').first();
-        if (await detailButton.isVisible({ timeout: 5000 }).catch(() => false)) {
-            await detailButton.click();
+        await expect(detailButton).toBeVisible({ timeout: 30000 });
+        await detailButton.click();
 
-            const dialog = page.locator('.el-dialog');
-            await expect(dialog).toBeVisible();
+        const dialog = page.locator('.el-dialog');
+        await expect(dialog).toBeVisible();
 
-            const steps = dialog.locator('.steps-card .el-step');
-            await expect(steps).toHaveCount(2);
+        const steps = dialog.locator('.steps-card .el-step');
+        await expect(steps).toHaveCount(2);
 
-            // Bước 1 thành công
-            await expect(steps.nth(0)).toHaveClass(/is-success/);
+        // Bước 1 thành công
+        await expect(steps.nth(0).locator('.el-step__head')).toHaveClass(/is-success/);
 
-            // Bước 2 thất bại và mô tả mang nội dung lỗi
-            await expect(steps.nth(1)).toHaveClass(/is-error/);
-            await expect(steps.nth(1).locator('.el-step__description')).toContainText('504 Gateway Timeout');
-        } else {
-            test.skip(true, 'Menu hoặc trang /sharedata/history chưa được phân quyền truy cập');
-        }
+        // Bước 2 thất bại và mô tả mang nội dung lỗi
+        await expect(steps.nth(1).locator('.el-step__head')).toHaveClass(/is-error/);
+        await expect(steps.nth(1).locator('.el-step__description')).toContainText('504 Gateway Timeout');
     });
 
     test('3. Hiển thị trạng thái chờ (is-wait) khi chưa có dữ liệu bước con', async ({ page }) => {
@@ -209,13 +316,15 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
                 body: JSON.stringify({
                     code: 200,
                     result: {
-                        items: [
+                        records: [
                             {
                                 id: mockParentId,
                                 logType: 1,
                                 transferType: 0,
                                 success: 1,
-                                createTime: '2026-10-02 20:00:00',
+                                packetId: 'PKT_01',
+                                partnerId: 'PARTNER_01',
+                                occurredAt: '2026-10-02T20:00:00Z',
                             },
                         ],
                         total: 1,
@@ -239,20 +348,17 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
         await page.goto('/sharedata/history');
 
         const detailButton = page.locator('button:has-text("Chi tiết")').first();
-        if (await detailButton.isVisible({ timeout: 5000 }).catch(() => false)) {
-            await detailButton.click();
+        await expect(detailButton).toBeVisible({ timeout: 30000 });
+        await detailButton.click();
 
-            const dialog = page.locator('.el-dialog');
-            await expect(dialog).toBeVisible();
+        const dialog = page.locator('.el-dialog');
+        await expect(dialog).toBeVisible();
 
-            const steps = dialog.locator('.steps-card .el-step');
-            await expect(steps).toHaveCount(2);
+        const steps = dialog.locator('.steps-card .el-step');
+        await expect(steps).toHaveCount(2);
 
-            // Cả 2 bước đều ở trạng thái chờ
-            await expect(steps.nth(0)).toHaveClass(/is-wait/);
-            await expect(steps.nth(1)).toHaveClass(/is-wait/);
-        } else {
-            test.skip(true, 'Menu hoặc trang /sharedata/history chưa được phân quyền truy cập');
-        }
+        // Cả 2 bước đều ở trạng thái chờ
+        await expect(steps.nth(0).locator('.el-step__head')).toHaveClass(/is-wait/);
+        await expect(steps.nth(1).locator('.el-step__head')).toHaveClass(/is-wait/);
     });
 });

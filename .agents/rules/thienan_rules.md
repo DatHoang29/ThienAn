@@ -653,6 +653,7 @@ tests/
     6. **Public Methods**: Toàn bộ các phương thức `public` của class (API, Interface implementation, nghiệp vụ công khai).
     7. **Protected Methods**: Các phương thức `protected` nội bộ khác (nếu có, không thuộc nhóm lifecycle override kế thừa từ lớp cha).
     8. **Private Methods**: Toàn bộ phương thức `private` (helper, private async method, query con...) BẮT BUỘC đặt ở **CUỐI CÙNG của class/file**, sau toàn bộ các phương thức trên. TUYỆT ĐỐI KHÔNG đặt hàm `private` xen kẽ ở đầu hoặc giữa các method khác.
+    9. **Vị trí hàm mới bổ sung (Append-Only / Đặt ở cuối khối hoặc cuối class)**: Khi viết thêm các hàm/phương thức mới vào class/file hiện hữu (ví dụ: `UpdateParentOutcome` trong `ShareDataTransferLog`, hoặc các hàm xử lý mới), BẮT BUỘC đặt ở **CUỐI CÙNG** của khối phương thức tương ứng (hoặc cuối cùng của class), TUYỆT ĐỐI KHÔNG chèn chen ngang vào đầu khối method hoặc nằm giữa các hàm nghiệp vụ chủ đạo cốt lõi đã có từ trước (tránh làm xáo trộn cấu trúc code hiện hữu, giúp người đọc dễ theo dõi và giữ git diff sạch sẽ).
 - **Đặt tên biến kết quả ORM SqlSugar / ADO.NET (`ExecuteCommandAsync`)**:
   - `ExecuteCommandAsync` trả về số dòng bị ảnh hưởng (`int`).
   - **BẮT BUỘC** đặt tên thể hiện rõ bản chất số lượng bản ghi: `affected`, `lockedRows`, `updatedRows`, `deletedRows`, `insertedRows`.
