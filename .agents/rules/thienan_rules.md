@@ -1373,6 +1373,20 @@ tests/
   - ⛔ **CẤM Using directive is unnecessary (IDE0005)**: Tuyệt đối không thêm `using` cho các namespace đã được khai báo toàn cục trong `GlobalUsings.cs` (như `using SqlSugar;` trong khi đã có `global using SqlSugar;`). Trước khi kết thúc bất kỳ chỉnh sửa nào, BẮT BUỘC rà soát sạch sẽ các cảnh báo IDE0005, đảm bảo không có using dư thừa.
   - **Bài học thực tế**: Trong `ShareDataTrackVersion.cs`, khi hoàn nguyên các property đã vô tình để lại dòng trống thừa sau dấu `{` và thêm `using SqlSugar;` gây ra cảnh báo compiler `Using directive is unnecessary. [IDE0005] namespace SqlSugar`, làm sai lệch Git Diff so với trạng thái gốc của repo.
 
+- **19.37. Viết Comment/XML Doc Cho Giá Trị Trả Về BẮT BUỘC Nêu Rõ "Trả Về Để Làm Gì" (Purpose & Consumer) (chốt 03/10/2026 - P0)**:
+  - **Phạm vi áp dụng**: Mọi hàm/phương thức trong Backend C# và Frontend TS/Vue khi viết XML doc `<summary>` hoặc `<returns>`.
+  - 🔴 **Yêu cầu bắt buộc**: Khi một phương thức có giá trị trả về (đặc biệt là các phương thức vốn thường là `void`/`Task` nhưng được thiết kế trả về giá trị như: hàm ghi nhật ký/log, trigger, dispatch, background handler trả về ID, status, token, result payload...), comment **BẮT BUỘC PHẢI GIẢI THÍCH RÕ "TRẢ VỀ ĐỂ LÀM GÌ" VÀ CONSUMER NÀO SẼ SỬ DỤNG GIÁ TRỊ ĐÓ**.
+  - ⛔ **CẤM comment cộc lốc/vô nghĩa**: Tuyệt đối không chỉ ghi cộc lốc kiểu *"Trả về ID"* hay *"Trả về kết quả"* mà không giải thích mục đích downstream.
+  - **Mục đích & Lý do**: Tránh việc lập trình viên bảo trì sau nhìn vào tưởng nhầm là giá trị thừa/code dư rồi tự ý refactor ngược về `void`/`Task`, dẫn đến làm gãy chuỗi liên kết dữ liệu downstream (ví dụ: mất ID cha làm đứt liên kết log cha-con xuyên 2 process/CSDL, vỡ quan hệ gói tin).
+  - **Ví dụ chuẩn**:
+    ```csharp
+    /// <summary>
+    /// Description: Ghi log một lượt truyền gói tin (gửi đi hoặc nhận về).
+    ///              Trả về ID của bản ghi nhật ký đã ghi (hoặc ID do caller cấp) để caller
+    ///              gán ReceiveLogId cho gói Inbound hoặc làm ParentId liên kết các dòng log con.
+    /// </summary>
+    ```
+
 ---
 
 
