@@ -645,15 +645,15 @@ tests/
 - **Cấm Tạo Hàm Alias Thừa Thãi (No Redundant Alias Methods / Overlapping Wrappers)**: Khi đổi tên hoặc chuẩn hóa một hàm/phương thức, BẮT BUỘC đổi tên trực tiếp và cập nhật call-sites liên quan. TUYỆT ĐỐI CẤM tạo hàng loạt các hàm wrapper/alias 1 dòng (VD: `FooShort() => Foo()`, `FooOld() => Foo()`, `FooVariant() => Foo()`) với lý do "tiện gọi" hoặc "tương thích ngược" trong cùng codebase nội bộ. Điều này gây phình to bề mặt API (bloated API surface), gây rối loạn cho người đọc code và vi phạm triệt để nguyên tắc Clean Code (KISS, YAGNI, Single Source of Truth).
   - **Thứ tự sắp xếp thành viên trong Class (Bắt Buộc Chuẩn Từ Trên Xuống Dưới)**:
     1. **Fields**: Hằng số (`const`), biến tĩnh (`static readonly`), biến thành viên (`private readonly`, instance fields) đặt ở **ĐẦU TIÊN** của class.
-    2. **Properties**: Các thuộc tính (`{ get; set; }`).
+    2. **Properties**: Các thuộc tính (`{ get; set; }`). *(Đặc thù Exception class: Constructor BẮT BUỘC đặt ở ĐẦU TIÊN ngay sau mở class, trước Properties — xem mục 19.39)*.
     3. **Records / Structs / Nested Types**: Các định nghĩa `record`, `record struct`, `struct`, hoặc class lồng nhau (nested types, DTO/Outcome nội bộ).
-    4. **Constructors**: Hàm khởi tạo (Constructor tường minh hoặc Primary Constructor).
+    4. **Constructors**: Hàm khởi tạo (Constructor tường minh hoặc Primary Constructor). (Đối với Exception class, constructor đảo lên trước properties).
     5. **Base Class Lifecycle & Overrides (Ưu tiên cao nhất trong khối phương thức)**: Các phương thức `override` kế thừa trực tiếp từ lớp cha (`protected override async Task ExecuteAsync(CancellationToken stoppingToken)`, `protected override void Dispose(bool disposing)`...).
        * *Lý do*: Đây là entry point và xương sống vòng đời chính của class (đặc biệt trong `BackgroundService`, `IHostedService`, `ServiceBase`). Đặt ở đầu khối method giúp người đọc mở file ra là thấy ngay luồng thực thi chủ đạo của class, không bị trôi xuống dưới hàng loạt hàm public hay hàm nội bộ. Độ ưu tiên vị trí cao hơn `public` methods và các hàm nội bộ.
     6. **Public Methods**: Toàn bộ các phương thức `public` của class (API, Interface implementation, nghiệp vụ công khai).
     7. **Protected Methods**: Các phương thức `protected` nội bộ khác (nếu có, không thuộc nhóm lifecycle override kế thừa từ lớp cha).
     8. **Private Methods**: Toàn bộ phương thức `private` (helper, private async method, query con...) BẮT BUỘC đặt ở **CUỐI CÙNG của class/file**, sau toàn bộ các phương thức trên. TUYỆT ĐỐI KHÔNG đặt hàm `private` xen kẽ ở đầu hoặc giữa các method khác.
-    9. **Vị trí hàm mới bổ sung (Append-Only / Đặt ở cuối khối hoặc cuối class)**: Khi viết thêm các hàm/phương thức mới vào class/file hiện hữu (ví dụ: `UpdateParentOutcome` trong `ShareDataTransferLog`, hoặc các hàm xử lý mới), BẮT BUỘC đặt ở **CUỐI CÙNG** của khối phương thức tương ứng (hoặc cuối cùng của class), TUYỆT ĐỐI KHÔNG chèn chen ngang vào đầu khối method hoặc nằm giữa các hàm nghiệp vụ chủ đạo cốt lõi đã có từ trước (tránh làm xáo trộn cấu trúc code hiện hữu, giúp người đọc dễ theo dõi và giữ git diff sạch sẽ).
+    9. **Vị trí hàm mới bổ sung (Append-Only / Đặt ở cuối khối hoặc cuối class)**: Khi viết thêm các hàm/phương thức mới vào class/file hiện hữu (ví dụ: `SaveParentLogResult` trong `ShareDataTransferLog`, hoặc các hàm xử lý mới), BẮT BUỘC đặt ở **CUỐI CÙNG** của khối phương thức tương ứng (hoặc cuối cùng của class), TUYỆT ĐỐI KHÔNG chèn chen ngang vào đầu khối method hoặc nằm giữa các hàm nghiệp vụ chủ đạo cốt lõi đã có từ trước (tránh làm xáo trộn cấu trúc code hiện hữu, giúp người đọc dễ theo dõi và giữ git diff sạch sẽ).
 - **Đặt tên biến kết quả ORM SqlSugar / ADO.NET (`ExecuteCommandAsync`)**:
   - `ExecuteCommandAsync` trả về số dòng bị ảnh hưởng (`int`).
   - **BẮT BUỘC** đặt tên thể hiện rõ bản chất số lượng bản ghi: `affected`, `lockedRows`, `updatedRows`, `deletedRows`, `insertedRows`.
@@ -1386,6 +1386,84 @@ tests/
     ///              gán ReceiveLogId cho gói Inbound hoặc làm ParentId liên kết các dòng log con.
     /// </summary>
     ```
+
+- **19.38. CẤM Khai Báo Hằng Số Alias/Ủy Quyền Trung Gian Khi Đã Có Hằng Số Tập Trung Tại Constants (No Redundant Constant Aliasing / Forwarding Const - P0)**:
+  - **Phạm vi áp dụng**: Toàn bộ codebase Backend và Frontend.
+  - 🔴 **Yêu cầu bắt buộc**: Khi các giá trị hằng số, mốc số hiệu (như mã trạng thái, cờ cấu hình, mã cảnh báo...) đã được khai báo tập trung tại các class/enum chuyên trách (như `ShareDataConst`, `ShareDataAlertCode`, `ShareDataEnum`), tại tất cả các call-site (Service, Handler, Logging class, Unit Test...) **BẮT BUỘC sử dụng trực tiếp hằng số từ nơi định nghĩa đó**.
+  - ⛔ **CẤM khai báo hằng số trung gian / alias forwarding**: TUYỆT ĐỐI CẤM định nghĩa lại các hằng số cấp class trỏ sang hằng số khác chỉ để "gọi ngắn hơn" hoặc "ủy quyền trung gian".
+  - **Lý do**:
+    * Vi phạm nguyên tắc **Single Source of Truth (SSOT)**: Tạo ra nhiều điểm tham chiếu cho cùng một khái niệm dữ liệu.
+    * Gây nhầm lẫn cho người bảo trì: Không rõ giá trị thật sự thuộc quyền sở hữu của ai, dễ dẫn đến sửa dở dang một nơi mà sót nơi khác.
+    * Làm rác bộ nhớ biên dịch và làm phình to public surface của class.
+
+- **19.39. Vị Trí Constructor Trong Exception Class — BẮT BUỘC Đặt Ở Đầu Class Trước Properties (Exception Constructor At Top - P0)**:
+  - **Phạm vi áp dụng**: Mọi lớp ngoại lệ tự định nghĩa kế thừa từ `Exception` (như `ShareDataException`).
+  - 🔴 **Yêu cầu bắt buộc**: Hàm khởi tạo (Constructor) của các lớp Exception **BẮT BUỘC đặt ở ĐẦU TIÊN của class** (ngay sau dấu mở ngoặc `{` của class), TRƯỚC toàn bộ danh sách properties (`{ get; }`, `{ get; init; }`).
+  - ⛔ **CẤM đặt constructor ở cuối Exception class**: Tuyệt đối không để constructor chìm dưới đáy tệp sau hàng chục dòng khai báo property bổ trợ.
+  - **Lý do**: Khác với entity hoặc DTO (vốn chủ yếu dùng để bind dữ liệu qua properties), một Exception class sinh ra với mục đích tiên quyết là được khởi tạo và ném ra (`throw new MyException(...)`). Việc đặt Constructor ở đầu giúp lập trình viên mở file ra là thấy ngay lập tức "hợp đồng bắt buộc" (required parameters) khi khởi tạo ngoại lệ mà không cần cuộn chuột qua danh sách dài các metadata properties.
+
+- **19.40. CẤM Khai Báo Kiểu Tường Minh Cho Biến Cục Bộ (`int?`, `long?`, `string`, `List<T>`...) Khi Dùng `var` Được — BẮT BUỘC Tự Dùng `var` (Prefer `var` - IDE0007 - P0)**:
+  - **Phạm vi áp dụng**: Mọi biến cục bộ trong code C# (kể cả code test) mà kiểu đã **rõ ràng từ vế phải** (`new`, ép kiểu, literal, giá trị trả về của phương thức/`await`).
+  - 🔴 **Yêu cầu bắt buộc**: Dùng `var`. AI tự áp dụng ngay khi viết code mới và khi sửa code, **không chờ người dùng nhắc**.
+  - ⛔ **CẤM** viết kiểu tường minh dư thừa. ❌ `int? max = await db.Queryable<X>().MaxAsync(x => x.StepNbr);` ✅ `var max = await db.Queryable<X>().MaxAsync(x => x.StepNbr);`. ❌ `List<string> names = new List<string>();` ✅ `var names = new List<string>();`.
+  - **Ngoại lệ (được giữ kiểu tường minh khi và chỉ khi)**: (1) khai báo không có giá trị khởi tạo (`int? x;`); (2) khởi tạo bằng `null`/`default` cần chốt kiểu (`DateTime? t = null;`); (3) cần kiểu khai báo khác kiểu vế phải (ví dụ khai báo bằng interface `ISqlSugarClient db = new SqlSugarScope(...)`); (4) literal số cần chốt kiểu `long`/`double`/`decimal` mà không muốn dùng hậu tố (`long total = 0;`). Rule này **chỉ áp dụng cho biến cục bộ** — tham số, field, property, kiểu trả về của phương thức vẫn khai báo kiểu như thường.
+  - **Phạm vi sửa (đi kèm 19.35)**: Chỉ áp dụng cho dòng đang viết/đang sửa. ⛔ **CẤM** quét và đổi hàng loạt `var` trên code cũ không liên quan làm bẩn Git Diff.
+
+- **19.41. Entity Kế Thừa `EntityTenant` — CẤM Override Cột Audit (`new DateTime? UpdateTime`...) Và CẤM Gán Tay `TenantId`/`CreateUId`/`UpdateUId`; Lỗi `Cannot insert NULL` Phải Sửa Ở Schema/Test, Không Sửa Ở Entity (chốt 03/10/2026 - P0)**:
+  - 🔴 **Case đã gặp nhiều lần — phản xạ sai cần tránh**: Gặp lỗi `Cannot insert the value NULL into column 'UpdateTime'/'UpdateUId'/'TenantId'...` khi insert entity kế thừa `EntityTenant` (ví dụ `ShareDataLastSend`, `ShareDataTrackVersion`) thì **CẤM** đi vá bằng: (1) ghi đè thuộc tính trong entity, ví dụ `[SugarColumn(IsNullable = true, IsOnlyIgnoreInsert = false)] public new DateTime? UpdateTime { get; set; }`; (2) gán tay `TenantId = "0"`, `CreateUId = "System"`, `UpdateUId = "System"` ở code production hoặc test.
+  - **Nguyên nhân gốc (đã chứng minh)**: Lớp cha `EntityBase`/`EntityTenant` (`Shared.Core.dll`) khai báo `UpdateTime`/`UpdateUId` với `IsOnlyIgnoreInsert = true` và không `IsNullable`. Khi test gọi `db.CodeFirst.InitTables<...>()`, SqlSugar **tạo/sửa các cột đó thành `NOT NULL`** nhưng lại **bỏ chúng khỏi câu INSERT** ⇒ SQL Server báo lỗi. Bảng thật (`SQL\Scripts\SHARE_DATA\01_CREATE_TABLES.SQL`) khai báo các cột audit là `NULL` nên production không bao giờ dính lỗi này.
+  - **Cách xử lý ĐÚNG (thứ tự kiểm tra)**: (1) Dùng **mặc định của lớp cha**, không override. (2) Nếu vẫn lỗi, kiểm tra theo thứ tự **`CreateTime` rồi `UpdateTime`** (đối chiếu thuộc tính SugarColumn của lớp cha và độ nullable thực tế của cột trong DB test). (3) Căn chỉnh schema DB test cho khớp `01_CREATE_TABLES.SQL` (các cột audit `NULL`). (4) **CẤM `CodeFirst.InitTables` cho entity kế thừa `EntityTenant` trong test** — tạo bảng bằng script chuẩn.
+  - **Vì sao không cần gán tay**: Hook tự điền `TenantId`/`CreateUId`/`UpdateUId` nằm ở `DataExecuting` (`SqlSugarSetup.SetDbAop`) và **chỉ chạy khi `App.User != null`** (người dùng HTTP đăng nhập); Worker chạy nền nên các cột này để `NULL`, và cột nullable nên hợp lệ. `CreateTime` đã có `InsertServerTime = true`, `UpdateTime` là `IsOnlyIgnoreInsert` nên SqlSugar tự lo — gán `CreateTime`/`UpdateTime` tay cũng dư. Chỉ `ID` (khoá chính kiểu string) là **phải gán tay** trong Worker, vì hook sinh ID cũng nằm ở `DataExecuting` mà client `CopyNew()` không có.
+
+- **19.42. SqlSugar Client Trong Background Worker / Polling Loop / Concurrent Tasks BẮT BUỘC Dùng `using var db = baseClient.CopyNew();` (chốt 03/10/2026 - P0)**:
+  - 🔴 **Case đã gặp nhiều lần — hiện tượng tranh chấp kết nối ADO.NET**:
+    Khi chạy tác vụ nền (Worker, polling loop, subscriber, timer, hoặc nhiều luồng song song `Task.WhenAll`), nếu lấy `var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>()` rồi dùng trực tiếp `db` mà **KHÔNG gọi `.CopyNew()`**, đối tượng kết nối `SqlConnection` bên dưới sẽ bị dùng chung. Khi nhiều luồng cùng gọi truy vấn CSDL tại cùng một thời điểm, SQL Server / ADO.NET sẽ văng ngoại lệ:
+    `System.InvalidOperationException: The connection was not closed. The connection's current state is connecting.`
+  - **Quy tắc BẮT BUỘC (Mẫu chuẩn áp dụng toàn bộ Worker)**:
+    Ở mọi Worker / tác vụ lặp định kỳ / hàm xử lý subscription, BẮT BUỘC lấy `baseClient` từ scope và tạo một instance kết nối độc lập bằng `.CopyNew()` bọc trong `using`:
+    ```csharp
+    await using var scope = scopeFactory.CreateAsyncScope();
+    var baseClient = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+    using var db = baseClient.CopyNew();
+    ```
+    *(Mẫu chuẩn tham chiếu: `DataOutboundService.cs:123`, `DataInboundService.cs:72`, `DataChangeTrackingService.cs:118`)*.
+  - **Lợi ích cốt lõi**:
+    1. Mỗi vòng lặp / mỗi tác vụ song song sở hữu một kết nối ADO.NET vật lý riêng rẽ, cô lập 100%, không bao giờ tranh chấp hay làm vỡ transaction của luồng khác.
+    2. Tự động kế thừa toàn bộ cấu hình DbType, ConnectionString, mapping và filter đã được thiết lập từ `baseClient`.
+    3. `using var db` đảm bảo kết nối được đóng và giải phóng ngay khi hoàn thành phạm vi tác vụ, không gây rò rỉ (connection leak).
+  - ⛔ **CẤM TỰ CHẾ TRONG TEST**: Khi viết test chạy đa luồng hoặc song song, CẤM đẻ ra các class factory giả lập cồng kềnh (như `IsolatedConnectionScopeFactory`) để can thiệp việc cấp `db`. Bản thân code Service trong production BẮT BUỘC phải tự gọi `baseClient.CopyNew()`. Khi Service đã viết chuẩn, test chỉ việc gọi `_host.Services.GetRequiredService<IServiceScopeFactory>()` là tự động chạy song song mượt mà.
+
+- **19.43. Tự Động Ngắt Dòng Khi Dòng Lệnh Quá Dài / Nhiều Tham Số (Automatic Line-Wrapping for Long Calls & Parameters - chốt 03/10/2026 - P0)**:
+  - 🔴 **Case đã gặp — dòng lệnh tràn ngang khó đọc**: Khi gọi hàm (call-site) hoặc khai báo method có nhiều tham số, enum dài, hằng số dài (như `ShareDataAlertCode.Outbound.CursorKeyTooLong, BaseEnums.AlertSeverity.Error, BaseEnums.AlertSource.Subscription`), nếu dồn tất cả trên cùng một dòng sẽ khiến dòng code dài > 120-140 ký tự, tràn màn hình, gây khó khăn khi review code và soi git diff.
+  - **Quy tắc BẮT BUỘC khi viết hoặc sửa code**:
+    - Khi một lệnh gọi hàm hoặc khai báo vượt quá độ dài chuẩn (hoặc có từ 3-4 tham số dài / named arguments trở lên), **BẮT BUỘC chủ động tự ngắt dòng (wrap lines)**.
+    - Mỗi tham số hoặc nhóm tham số logic quan trọng phải nằm trên một dòng riêng biệt, thụt lề 1 cấp tab (`+4 spaces`) so với dòng gọi hàm.
+    - CÁC ENUM/HẰNG SỐ DÀI BẮT BUỘC ĐỨNG RIÊNG 1 DÒNG: Tuyệt đối không dồn 2-3 enum dài trên cùng một dòng.
+    - Các named argument (`recordCount: ...`, `mappingId: ...`, `detailJson: ...`), mỗi named argument đặt trên 1 dòng riêng.
+    - Dấu đóng ngoặc `);` đặt gọn gàng, rõ ràng.
+    - Ví dụ chuẩn:
+      ```csharp
+      // ✅ ĐÚNG: Mỗi tham số/enum dài nằm trên 1 dòng rõ ràng, dễ nhìn
+      await ShareDataTransferLog.WriteFailureLogs(
+          db,
+          ctx.Subscription,
+          ctx.Partner,
+          ShareDataAlertCode.Outbound.CursorKeyTooLong,
+          BaseEnums.AlertSeverity.Error,
+          BaseEnums.AlertSource.Subscription,
+          keyTooLongMsg,
+          recordCount: extraction.RawRows.Count,
+          mappingId: ctx.Mapping?.ID,
+          packetVersion: ctx.Packet.PacketVersion,
+          logId: parentId,
+          extractSucceeded: false);
+
+      // ❌ SAI: Nhồi nhét hàng loạt tham số và enum dài trên 1-2 dòng tràn màn hình
+      await ShareDataTransferLog.WriteFailureLogs(db, ctx.Subscription, ctx.Partner,
+          ShareDataAlertCode.Outbound.CursorKeyTooLong, BaseEnums.AlertSeverity.Error, BaseEnums.AlertSource.Subscription,
+          keyTooLongMsg, recordCount: extraction.RawRows.Count, mappingId: ctx.Mapping?.ID, packetVersion: ctx.Packet.PacketVersion);
+      ```
+  - **Phạm vi áp dụng (tuân thủ 19.35)**: Tự động ngắt dòng ngay khi viết mới hoặc sửa các dòng lệnh liên quan. Tuyệt đối không quét auto-format tràn lan các file cũ không thuộc phạm vi task.
 
 ---
 
