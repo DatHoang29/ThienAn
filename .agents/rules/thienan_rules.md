@@ -1360,6 +1360,19 @@ tests/
   - **Mục đích**: Khi người dùng xem file trên IDE hoặc cần giao việc, bàn giao context sang phiên hội thoại khác hay nhắc lệnh `@path`, người dùng có thể sao chép ngay đường dẫn file prompt mà không phải mất công duyệt cây thư mục hoặc gõ lại tên file.
   - ⛔ **CẤM bỏ sót**: Cấm tạo file prompt chỉ ghi tiêu đề nghiệp vụ mà không có dòng ghi đường dẫn/tên file prompt của chính nó trong nội dung `.md`.
 
+- **19.35. Nguyên Tắc Can Thiệp Tối Thiểu — CẤM Tự Ý Bulk Regenerate / Format Làm Rác Git Diff; Chỉ Sửa Đúng Chỗ Cần Sửa (chốt 03/10/2026 - P0)**:
+  - **Phạm vi áp dụng**: Mọi sửa đổi mã nguồn (Frontend Vue/TS lẫn Backend C#).
+  - 🔴 **Yêu cầu bắt buộc**: Khi sửa lỗi, thêm endpoint hoặc cập nhật API/DTO/Client: AI **CHỈ ĐƯỢC PHÉP can thiệp đúng các file và vị trí cần thiết**.
+  - ⛔ **CẤM tuyệt đối tự ý chạy các công cụ sinh mã hàng loạt (như Swagger codegen toàn module), auto-format, hoặc search-replace hàng loạt** làm thay đổi thụt dòng, dấu `*`, comment, whitespace trên hàng chục hay hàng trăm tệp không liên quan. Mọi sự thay đổi râu ria không thuộc phạm vi yêu cầu trực tiếp đều làm loãng Git Diff và cản trở việc review code của lập trình viên.
+  - 🔴 **Ngoại lệ duy nhất**: Chỉ được phép regenerate toàn bộ hoặc refactor diện rộng **KHI VÀ CHỈ KHI NGƯỜI DÙNG TRỰC TIẾP YÊU CẦU** (ví dụ: *"hãy regenerate lại toàn bộ api"*, *"format lại cả thư mục"*, *"đổi hàng loạt"*).
+
+- **19.36. Sửa Code Sai Phải Hoàn Nguyên Sạch Về Mặc Định Cũ — CẤM Để Lại Thay Đổi Dư Thừa (Space, Blank Lines, IDE0005) (chốt 03/10/2026 - P0)**:
+  - **Phạm vi áp dụng**: Mọi tác vụ sửa mã nguồn, refactor hoặc hoàn tác (revert/discard) trên toàn bộ dự án (C#, TypeScript, Vue).
+  - 🔴 **Nguyên tắc hoàn nguyên sạch (Clean Revert)**: Khi một đoạn code sửa bị sai, không đúng yêu cầu hoặc được người dùng yêu cầu hoàn nguyên/discard (ví dụ: *"giữ như cũ, discard lại"*), AI **BẮT BUỘC khôi phục file về đúng 100% nguyên trạng ban đầu (mặc định như cũ)**. TUYỆT ĐỐI KHÔNG để lại code dở dang, comment rác, hay vết tích sửa đổi không mong muốn.
+  - ⛔ **CẤM khoảng trắng và dòng trống dư thừa (No Unnecessary Spaces & Blank Lines)**: Khi chỉnh sửa hoặc hoàn nguyên code, TUYỆT ĐỐI KHÔNG để sót các khoảng trắng vô nghĩa, dòng trống thừa (nhất là dòng trống đầu/cuối block `{ }`, ví dụ: ngay dưới khai báo `class {` thừa 1 dòng trống trước property) làm bẩn Git Diff.
+  - ⛔ **CẤM Using directive is unnecessary (IDE0005)**: Tuyệt đối không thêm `using` cho các namespace đã được khai báo toàn cục trong `GlobalUsings.cs` (như `using SqlSugar;` trong khi đã có `global using SqlSugar;`). Trước khi kết thúc bất kỳ chỉnh sửa nào, BẮT BUỘC rà soát sạch sẽ các cảnh báo IDE0005, đảm bảo không có using dư thừa.
+  - **Bài học thực tế**: Trong `ShareDataTrackVersion.cs`, khi hoàn nguyên các property đã vô tình để lại dòng trống thừa sau dấu `{` và thêm `using SqlSugar;` gây ra cảnh báo compiler `Using directive is unnecessary. [IDE0005] namespace SqlSugar`, làm sai lệch Git Diff so với trạng thái gốc của repo.
+
 ---
 
 
@@ -1395,6 +1408,19 @@ Toàn bộ quy tắc dưới đây được đồng bộ từ `.kiro/steering/` 
   const params = { page: 1, pageSize: 50, field: 'createTime', order: 'desc' } as PageEquipmentInput;
   const res = await getAPI(TmsEquipmentApi).apiTmsTmsequipmentPagePost(params);
   ```
+- 🔴 **Cách gọi BẮT BUỘC — một lời gọi, có kiểu, ⛔ KHÔNG dò tên hàm lúc chạy (chốt 02/10/2026)**:
+  ```typescript
+  const res = await getAPI(ShareDataActivityLogApi).apiSharedataSharedataactivitylogPagePost({ ... });
+  const rows = res.data.result ?? [];
+  ```
+  ⛔ **Ba phản mẫu TUYỆT ĐỐI CẤM**:
+  1. **`getAPI(XxxApi) as any`** — vô hiệu hoá toàn bộ kiểu do Swagger sinh, tức mất đúng lợi ích duy nhất của `api-services/`.
+  2. **Dò tên hàm lúc chạy**: `if (typeof api.apiXxxStepsGet === 'function') { … } else if (typeof api.apiXxxGetstepsGet === 'function') { … }`. Hàm chưa có nghĩa là **chưa chạy `pnpm build-api`** ⇒ BÁO CÁO và chờ regen, ⛔ TUYỆT ĐỐI KHÔNG đoán tên. Đoán tên là cách sinh ra code chết: nhánh ⛔ không bao giờ đúng vẫn nằm đó, và lỗi bị che bởi nhánh dự phòng.
+  3. **Gọi thẳng `axiosInstance` với URL viết cứng**: `axiosInstance.get('/api/sharedata/...')`. ⚠️ Nếu buộc phải dùng axios thô thì **BẮT BUỘC có `${serveConfig.basePath}`** đứng trước (mẫu duy nhất hợp lệ trong repo: `views/modal/incident/recordedEventHistory.vue:34`) — thiếu `basePath` thì chỉ chạy được khi dev server cùng origin, **deploy khác host/port là vỡ ngay**.
+  - **Lỗi thật đã mắc (02/10/2026)**: `views/sharedata/history/component/activityDetailDialog.vue` hàm `loadSteps` mắc đủ **cả 3** phản mẫu cùng lúc. Đối chiếu mã nguồn: `api-services/shareData/apis/share-data-activity-log-api.ts` chỉ có **4** hàm (`ByidGet`, `ListGet`, `PagePost`, `SummaryPost`) — ⛔ **không có hàm nào cho `GetSteps`**; hai tên được dò (`...StepsGet`, `...GetstepsGet`) **chỉ tồn tại trong chính tệp `.vue` đó** ⇒ 2 nhánh dò đều là **code chết**, thực tế luôn rơi xuống nhánh axios thô thiếu `basePath`. **Nguyên nhân gốc: áp prompt FE mà bỏ bước `pnpm build-api`.**
+  - 📌 Tệp cha của chính nó (`views/sharedata/history/index.vue` dòng 336, 350, 386) và `views/sharedata/sharing/index.vue:209` đều gọi **đúng** quy ước ⇒ đây là **ngoại lệ duy nhất trong cả FE**, ⛔ không phải quy ước mới ai đó được bắt chước.
+  - **Dấu hiệu nhận biết đã viết sai** (soát trước khi giao): trong tệp `.vue` có `as any` ngay sau `getAPI(`, hoặc có `typeof api.`, hoặc `import { axiosInstance }` mà ⛔ không kèm `serveConfig`.
+  - 🔴 **Cổng chặn khi thêm endpoint mới**: sau `pnpm build-api`, **mở tệp trong `api-services/` đếm số hàm** để chắc hàm mới đã sinh ra, rồi mới viết lời gọi. ⛔ Kiểm chứng bằng `dotnet build` / `dotnet test` **KHÔNG bắt được** lỗi này — route HTTP ⛔ không nằm trong đường đi của test gọi qua `MessBus`. Phải **mở giao diện thật** và soi tab Network.
 
 ### 20.3. Chuẩn Trình Bày Modal Thêm / Sửa (BẮT BUỘC — Mọi Modal Phải Đồng Nhất)
 > 📌 **Mẫu tham chiếu chuẩn**: `views/tms/workContact/component/editWorkContact.vue`.
