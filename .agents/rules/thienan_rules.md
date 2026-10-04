@@ -1571,6 +1571,38 @@ tests/
     - **Clean Code**: Hàm con gọn gàng, súc tích, không bị cồng kềnh bởi các khối `try-catch` rườm rà.
     - **Bắt Bug Tập Trung Một Chỗ**: Tránh tình trạng lỗi bị "nuốt chửng" trong bóng tối khiến hệ thống chạy sai trạng thái mà không ai hay biết. Khi có lỗi, toàn bộ stack trace và ngữ cảnh được bắt và log đầy đủ tại một điểm duy nhất ở cấp cha.
 
+- **19.49. Tôn Trọng Phong Cách Mã Nguồn Hiện Hữu & Cấm Tự Tiện Refactor Code Của Người Khác (Strict Non-Intrusive Editing & Code Style Preservation - chốt 04/10/2026 - P0)**:
+  - **Phạm vi áp dụng**: Mọi tác vụ sửa đổi, bổ sung code vào các file, class, method, cú pháp đã được viết sẵn bởi người khác trong toàn bộ dự án (`WebAPI`, `ShareDataWorker`, `Frontend`, `tests`, v.v.).
+  - 🔴 **Yêu cầu bắt buộc**:
+    1. **Bảo toàn cấu trúc cú pháp và phong cách viết gốc**:
+       - Khi bổ sung tham số vào hàm hoặc thuộc tính vào Object Initializer (`new Entity { ... }`) của người khác, BẮT BUỘC giữ nguyên 100% cấu trúc câu lệnh ban đầu của tác giả.
+       - Nếu code ban đầu đang viết inline/gọi trực tiếp (ví dụ: `await WriteAsync(new ShareDataActivityLog { ... });`), PHẢI giữ nguyên lời gọi inline đó và CHỈ THÊM thuộc tính mới cần thiết vào dòng cuối cùng của khối `{ ... }` (theo Rule 19.47).
+    2. **Tuyệt đối không tự ý tách biến trung gian thừa thãi**:
+       - CẤM tự ý bẻ nhỏ một câu lệnh inline đang chạy gọn gàng thành biến cục bộ tạm thời (ví dụ: cấm đổi từ `await WriteAsync(new X { ... })` thành `var x = new X { ... }; await WriteAsync(x); return x.ID;`) nếu tác vụ nghiệp vụ không đòi hỏi.
+    3. **Tuyệt đối không tự ý thay đổi kiểu trả về (Signature) của method có sẵn**:
+       - CẤM tự ý đổi kiểu trả về (ví dụ từ `Task` sang `Task<string>`, từ `void` sang kiểu khác) của service/helper của người khác khi không có yêu cầu thay đổi hợp đồng API rõ ràng.
+    4. **Cấm "tiện tay" sửa dạo, refactor theo sở thích cá nhân**:
+       - Tuyệt đối cấm can thiệp, sắp xếp lại hoặc đổi phong cách viết code của đồng nghiệp (như đổi tên biến, gom/tách biểu thức, đổi cú pháp expression body `=>` sang `{ return ... }` hoặc ngược lại) khi code đó đang hoạt động ổn định và không thuộc phạm vi task được giao.
+  - ⛔ **CẤM tuyệt đối**:
+    - Tự tiện sửa code người khác gây diff rác, phá vỡ phong cách nhất quán của file hoặc gây hiệu ứng phụ (side effects) cho các nơi đang gọi khác.
+    - Viện cớ "lấy ID để làm việc khác" để tự ý phá vỡ luồng code gốc của người khác.
+  - **Lý do & Lợi ích**:
+    - **Tôn trọng đồng nghiệp**: Tránh xung đột tư duy và văn hóa code giữa các thành viên trong đội ngũ.
+    - **Git Diff Tối Giản**: Diff chỉ thể hiện đúng phần nghiệp vụ mới bổ sung, reviewer đọc hiểu ngay lập tức trong 5 giây mà không bị rối mắt bởi các thay đổi cấu trúc không cần thiết.
+    - **Tránh Regression Bug**: Giữ nguyên vẹn mọi giả định ban đầu về lifecycle, scope và flow của phương thức gốc.
+
+- **19.50. CẤM Tự Ý Thay Đổi Kiểu Trả Về (Signature) Của Method/Service Người Khác (Strict Signature Immutability - chốt 04/10/2026 - P0)**:
+  - **Quy tắc cốt lõi**: TUYỆT ĐỐI KHÔNG tự ý thay đổi kiểu trả về (chữ ký - Signature) của bất kỳ method/service/helper nào do người khác viết (ví dụ: đổi từ `Task` sang `Task<string>`, từ `void` sang kiểu khác).
+  - **Điều kiện sửa đổi duy nhất**: CHỈ ĐƯỢC PHÉP sửa đổi kiểu trả về khi:
+    1. Nghiệp vụ thực sự bắt buộc cần thiết theo yêu cầu rõ ràng; **HOẶC**
+    2. Các caller bên ngoài thực sự có sử dụng giá trị trả về đó.
+  - ⛔ **CẤM tuyệt đối**:
+    - Tự ý đổi kiểu trả về "phòng hờ" (ví dụ: tiện tay trả về ID của entity vừa lưu trong khi bên ngoài không ai hứng dùng hoặc phải gọi discard `_ = ...`).
+    - Phá vỡ kiểu trả về gốc của đồng nghiệp khiến code phải sửa dây chuyền ở nhiều nơi khác hoặc làm ô nhiễm chữ ký hàm ban đầu.
+  - **Lý do & Lợi ích**:
+    - **Bảo toàn hợp đồng API / Interface**: Tránh phá vỡ tính tương thích ngược và signature đã được thống nhất của tác giả ban đầu.
+    - **Không phát sinh code thừa**: Chỉ trả về những gì bên ngoài thực sự cần dùng, tuân thủ nghiêm ngặt nguyên tắc YAGNI (You Aren't Gonna Need It).
+
 ---
 
 

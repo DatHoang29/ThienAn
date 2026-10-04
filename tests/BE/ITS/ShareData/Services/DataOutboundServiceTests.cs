@@ -5181,24 +5181,13 @@ END");
                     .OrderBy(l => l.OccurredAt)
                     .ToListAsync();
 
-                Assert.Equal(3, logs.Count);
+                Assert.Single(logs);
 
-                var parent = logs.Single(l => l.ParentId == null);
-                Assert.Null(parent.StepNbr);
-                Assert.Equal(BaseEnums.SuccessEnums.Success, parent.Success);
-                Assert.True(parent.RecordCount > 0);
-
-                var children = logs.Where(l => l.ParentId != null).ToList();
-                Assert.Equal(2, children.Count);
-                Assert.All(children, c => Assert.Equal(parent.ID, c.ParentId));
-
-                var step1 = children.Single(c => c.StepNbr == 1);
-                var step2 = children.Single(c => c.StepNbr == 2);
-
-                Assert.Equal(BaseEnums.SuccessEnums.Success, step1.Success);
-                Assert.Equal(BaseEnums.SuccessEnums.Success, step2.Success);
-                Assert.Equal(parent.RecordCount, step1.RecordCount);
-                Assert.Equal(parent.RecordCount, step2.RecordCount);
+                var log = logs[0];
+                Assert.Null(log.ParentId);
+                Assert.Null(log.StepNbr);
+                Assert.Equal(BaseEnums.SuccessEnums.Success, log.Success);
+                Assert.True(log.RecordCount > 0);
             }
             finally
             {
@@ -5401,11 +5390,11 @@ END");
         }
 
         /// <summary>
-        /// Description: SV-8a: Khi không có dữ liệu mới: Cha Success có RecordCount == 0, đúng 1 con Step 1, không có con Step 2.
+        /// Description: SV-8: Khi không có dữ liệu mới, chỉ ghi duy nhất 1 log thông báo NoNewData độc lập (không sinh dòng con).
         /// Created date: 02/10/2026
         /// </summary>
         [Fact]
-        public async Task ProcessSubscriptions_WhenNoNewData_LogsParentSuccess_Step1Only_Test()
+        public async Task ProcessSubscriptions_WhenNoNewData_LogsSuccess_SingleLogOnly_Test()
         {
             // Arrange
             using var scope = _host.Services.CreateScope();
@@ -5436,18 +5425,14 @@ END");
                     .OrderBy(l => l.OccurredAt)
                     .ToListAsync();
 
-                Assert.Equal(2, logs.Count);
+                Assert.Single(logs);
 
-                var parent = logs.Single(l => l.ParentId == null);
-                Assert.Equal(BaseEnums.SuccessEnums.Success, parent.Success);
-                Assert.Equal(0, parent.RecordCount);
-                Assert.Equal(ShareDataEnum.ExportMessage.NoNewData, parent.ErrorMessage);
-
-                var step1 = logs.Single(l => l.ParentId == parent.ID && l.StepNbr == 1);
-                Assert.Equal(BaseEnums.SuccessEnums.Success, step1.Success);
-                Assert.Equal(0, step1.RecordCount);
-
-                Assert.DoesNotContain(logs, l => l.StepNbr == 2);
+                var log = logs[0];
+                Assert.Null(log.ParentId);
+                Assert.Null(log.StepNbr);
+                Assert.Equal(BaseEnums.SuccessEnums.Success, log.Success);
+                Assert.Equal(0, log.RecordCount);
+                Assert.Equal(ShareDataEnum.ExportMessage.NoNewData, log.ErrorMessage);
             }
             finally
             {
@@ -5664,26 +5649,14 @@ END");
                     .OrderBy(l => l.OccurredAt)
                     .ToListAsync();
 
-                Assert.Equal(9, logs.Count);
-
-                var parents = logs.Where(l => l.ParentId == null).ToList();
-                Assert.Equal(3, parents.Count);
-                Assert.Equal(3, parents.Select(p => p.ID).Distinct().Count());
-                Assert.Equal([100, 100, 50], parents.Select(p => p.RecordCount).ToArray());
-
-                foreach (var parent in parents)
+                Assert.Equal(3, logs.Count);
+                Assert.All(logs, l =>
                 {
-                    var children = logs.Where(l => l.ParentId == parent.ID).ToList();
-                    Assert.Equal(2, children.Count);
-
-                    var step1 = children.Single(c => c.StepNbr == 1);
-                    var step2 = children.Single(c => c.StepNbr == 2);
-
-                    Assert.Equal(BaseEnums.SuccessEnums.Success, step1.Success);
-                    Assert.Equal(BaseEnums.SuccessEnums.Success, step2.Success);
-                    Assert.Equal(parent.RecordCount, step1.RecordCount);
-                    Assert.Equal(parent.RecordCount, step2.RecordCount);
-                }
+                    Assert.Null(l.ParentId);
+                    Assert.Null(l.StepNbr);
+                    Assert.Equal(BaseEnums.SuccessEnums.Success, l.Success);
+                });
+                Assert.Equal([100, 100, 50], logs.Select(p => p.RecordCount).ToArray());
             }
             finally
             {

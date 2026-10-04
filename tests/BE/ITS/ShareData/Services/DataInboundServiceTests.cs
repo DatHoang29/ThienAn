@@ -123,7 +123,7 @@ public class DataInboundServiceTests(Host host)
         var partnerId = Guid.NewGuid().ToString("N");
 
         // Act
-        var returnedId = await logger.LogTransferAsync(
+        await logger.LogTransferAsync(
             BaseEnums.TransferDirection.RCV,
             partnerId: partnerId,
             partnerName: "Partner Test",
@@ -133,11 +133,11 @@ public class DataInboundServiceTests(Host host)
             pduType: "DATA");
 
         // Assert
-        Assert.False(string.IsNullOrWhiteSpace(returnedId));
-
-        var saved = await _db.Queryable<ShareDataActivityLog>().InSingleAsync(returnedId);
+        var saved = await _db.Queryable<ShareDataActivityLog>()
+            .Where(x => x.PartnerId == partnerId && x.DatatypeId == "101")
+            .FirstAsync();
         Assert.NotNull(saved);
-        Assert.Equal(returnedId, saved.ID);
+        Assert.False(string.IsNullOrWhiteSpace(saved.ID));
         Assert.Equal(partnerId, saved.PartnerId);
         Assert.Equal(BaseEnums.TransferDirection.RCV, saved.TransferDirection);
         Assert.Null(saved.ParentId);
@@ -146,16 +146,15 @@ public class DataInboundServiceTests(Host host)
 
     #endregion
 
-    #region 2. WebAPI tiếp nhận gói: sinh 2 dòng (cha + con B1)
+    #region 2. WebAPI tiếp nhận gói: ghi nhật ký tiếp nhận
 
     /// <summary>
-    /// STT 2: WebAPI tiếp nhận gói: sinh 2 dòng (cha + con B1)
-    /// Gửi lệnh tiếp nhận gói hợp lệ => bảng ShareDataActivityLog xuất hiện đúng 1 dòng cha (ParentId = null, StepNbr = null)
-    /// và đúng 1 dòng con (ParentId = <cha>, StepNbr = 1, Description có "Bước 1/2").
-    /// Gói trong ShareDataInboundPacket có ReceiveLogId == <cha>.
+    /// STT 2: WebAPI tiếp nhận gói: ghi nhật ký tiếp nhận
+    /// Gửi lệnh tiếp nhận gói hợp lệ => bảng ShareDataActivityLog xuất hiện đúng 1 dòng nhật ký tiếp nhận
+    /// Gói trong ShareDataInboundPacket được lưu ở trạng thái Pending.
     /// </summary>
     [Fact]
-    public async Task InboundCommandHandler_WhenValidPacketReceived_LogsParentAndStep1Child_Test()
+    public async Task InboundCommandHandler_WhenValidPacketReceived_LogsReceiveActivity_Test()
     {
         // Arrange
         var unique = Guid.NewGuid().ToString("N")[..8];
@@ -183,25 +182,17 @@ public class DataInboundServiceTests(Host host)
             .Where(p => p.PartnerCode == partner.Code && p.PacketCode == packet.Code)
             .FirstAsync();
         Assert.NotNull(savedPacket);
-        Assert.False(string.IsNullOrWhiteSpace(savedPacket.ReceiveLogId));
-        var parentLogId = savedPacket.ReceiveLogId!;
+        Assert.Equal(BaseEnums.InboundProcessState.Pending, savedPacket.ProcessState);
 
-        // Kiểm tra dòng cha
-        var parentLog = await _db.Queryable<ShareDataActivityLog>().InSingleAsync(parentLogId);
-        Assert.NotNull(parentLog);
-        Assert.Null(parentLog.ParentId);
-        Assert.Null(parentLog.StepNbr);
-        Assert.Equal(BaseEnums.TransferDirection.RCV, parentLog.TransferDirection);
-        Assert.Contains(packet.Code, parentLog.Description ?? "");
-
-        // Kiểm tra dòng con bước 1
-        var step1Log = await _db.Queryable<ShareDataActivityLog>()
-            .Where(l => l.ParentId == parentLogId && l.StepNbr == 1)
+        // Kiểm tra dòng nhật ký tiếp nhận do WebAPI ghi
+        var log = await _db.Queryable<ShareDataActivityLog>()
+            .Where(l => l.SubscriptionId == sub.ID && l.TransferDirection == BaseEnums.TransferDirection.RCV)
             .FirstAsync();
-        Assert.NotNull(step1Log);
-        Assert.Equal(parentLogId, step1Log.ParentId);
-        Assert.Equal(1, step1Log.StepNbr);
-        Assert.Contains("Bước 1/2", step1Log.Description ?? "");
+        Assert.NotNull(log);
+        Assert.Null(log.ParentId);
+        Assert.Null(log.StepNbr);
+        Assert.Equal(BaseEnums.TransferDirection.RCV, log.TransferDirection);
+        Assert.Contains(packet.Code, log.Description ?? "");
     }
 
     #endregion
@@ -517,14 +508,15 @@ public class DataInboundServiceTests(Host host)
 
     #endregion
 
-    #region 7. Lưới không bị phình dòng & 8. API GetSteps trả đủ 2 bước
+    #region 7. Luồng Inbound đầy đủ: WebAPI tiếp nhận & Worker xử lý
 
     /// <summary>
-    /// STT 7: Lưới không bị phình dòng (ParentId == null lọc đúng dòng cha)
-    /// STT 8: API GetSteps trả về đủ 2 bước lồng trong dòng cha
+    /// STT 7: Luồng Inbound đầy đủ: WebAPI tiếp nhận & Worker xử lý
+    /// Chạy trọn vẹn luồng tiếp nhận qua WebAPI và xử lý qua Worker => bảng ActivityLog lưu đầy đủ các lượt
+    /// tiếp nhận và xử lý chiều nhận, gói tin chuyển sang trạng thái Done.
     /// </summary>
     [Fact]
-    public async Task Inbound_FullPipeline_GridReturnsOnlyParent_AndGetStepsReturnsBothSteps_Test()
+    public async Task Inbound_FullPipeline_ProcessesSuccessfully_Test()
     {
         // Arrange: Chạy trọn vẹn luồng tiếp nhận qua WebAPI và xử lý qua Worker
         var unique = Guid.NewGuid().ToString("N")[..8];
@@ -549,7 +541,7 @@ public class DataInboundServiceTests(Host host)
         var inboundService = scope.ServiceProvider.GetRequiredService<IDataInboundService>();
         await inboundService.ProcessPendingPackets(CancellationToken.None);
 
-        // Act 7: Truy vấn phân trang cho lưới
+        // Act: Truy vấn phân trang cho lưới
         var pageInput = new ShareDataPageActivityLogInput
         {
             SubscriptionId = sub.ID,
@@ -558,44 +550,17 @@ public class DataInboundServiceTests(Host host)
         };
         var pageResult = await _bus.InvokeAsync<SqlSugarPagedList<ShareDataPageActivityLogOutput>>(pageInput);
 
-        // Assert 7: Lưới chỉ có đúng 1 dòng cha, không bị phình dòng con
+        // Assert: Lưới hiển thị các bản ghi chiều nhận, gói tin chuyển trạng thái Done
         Assert.NotNull(pageResult);
         var gridRecords = pageResult.Records.ToList();
-        Assert.Single(gridRecords);
-        var parentGridLog = gridRecords[0];
-        Assert.Null(parentGridLog.ParentId);
-        Assert.Null(parentGridLog.StepNbr);
-        Assert.Equal(BaseEnums.SuccessEnums.Success, parentGridLog.Success);
-        Assert.Equal(2, parentGridLog.RecordCount);
+        Assert.NotEmpty(gridRecords);
+        Assert.All(gridRecords, r => Assert.Equal(BaseEnums.TransferDirection.RCV, r.TransferDirection));
 
-        // Act 8: Gọi API GetSteps tra cứu các bước của dòng cha
-        var stepInput = new ShareDataStepActivityLogInput
-        {
-            ID = parentGridLog.ID
-        };
-        var stepResult = await _bus.InvokeAsync<List<ShareDataActivityLogOutput>>(stepInput);
-
-        // Assert 8: API GetSteps trả về cây 1 nút gốc chứa đủ 2 bước con
-        Assert.NotNull(stepResult);
-        Assert.Single(stepResult);
-        var rootNode = stepResult[0];
-        Assert.Equal(parentGridLog.ID, rootNode.ID);
-        Assert.NotNull(rootNode.Children);
-        Assert.Equal(2, rootNode.Children.Count);
-
-        var step1 = rootNode.Children.FirstOrDefault(c => c.StepNbr == 1);
-        var step2 = rootNode.Children.FirstOrDefault(c => c.StepNbr == 2);
-
-        Assert.NotNull(step1);
-        Assert.Equal(parentGridLog.ID, step1.ParentId);
-        Assert.Contains("Bước 1/2", step1.Description ?? "");
-        Assert.Equal(BaseEnums.SuccessEnums.Success, step1.Success);
-
-        Assert.NotNull(step2);
-        Assert.Equal(parentGridLog.ID, step2.ParentId);
-        Assert.Contains("Bước 2/2", step2.Description ?? "");
-        Assert.Equal(BaseEnums.SuccessEnums.Success, step2.Success);
-        Assert.Equal(2, step2.RecordCount);
+        var updatedPacket = await _inboundDb.Queryable<ShareDataInboundPacket>()
+            .Where(p => p.PartnerCode == partner.Code && p.PacketCode == packet.Code)
+            .FirstAsync();
+        Assert.NotNull(updatedPacket);
+        Assert.Equal(BaseEnums.InboundProcessState.Done, updatedPacket.ProcessState);
     }
 
     #endregion
