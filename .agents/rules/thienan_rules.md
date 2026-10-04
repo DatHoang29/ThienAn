@@ -439,6 +439,9 @@ Các hệ thống / Module phát triển mới về sau bắt buộc tuân thủ
     * **Lý do & Lợi ích**:
       - Phù hợp với ngôn ngữ C# và các quy ước chuẩn (call-site tự nhiên, dễ đọc, hỗ trợ optional arguments với giá trị mặc định `= null`).
       - Phân tách rõ ràng giữa "dữ liệu bắt buộc phải có để phương thức hoạt động" và "dữ liệu bổ trợ/tùy chọn", tránh trường hợp truyền nhầm `null` vào giữa các tham số quan trọng.
+18. **Quy định Cấm Để Lại Code Mồ Côi Khi Refactor / Nâng Cấp Logic (No Orphaned / Dead Code on Refactor) (đã chốt 04/10/2026)**:
+    * Khi nâng cấp, mở rộng hoặc thay đổi luồng xử lý của một phương thức/service đã có, BẮT BUỘC phải rà soát tất cả call-site và ưu tiên nâng cấp trực tiếp trên phương thức hiện tại (Upgrade In-Place).
+    * TUYỆT ĐỐI CẤM viết một phương thức mới song song (`XxxWithStep`, `DoSomethingNew`) để thay thế luồng gọi rồi bỏ mặc phương thức cũ (`XxxAsync`, `DoSomethingOld`) trở thành "mã mồ côi" (dead code) không còn caller trong toàn bộ solution. Nếu phương thức mới thay thế hoàn toàn vai trò của phương thức cũ, BẮT BUỘC phải xóa bỏ hoặc hợp nhất triệt để phương thức cũ.
 
 ---
 
@@ -1602,6 +1605,19 @@ tests/
   - **Lý do & Lợi ích**:
     - **Bảo toàn hợp đồng API / Interface**: Tránh phá vỡ tính tương thích ngược và signature đã được thống nhất của tác giả ban đầu.
     - **Không phát sinh code thừa**: Chỉ trả về những gì bên ngoài thực sự cần dùng, tuân thủ nghiêm ngặt nguyên tắc YAGNI (You Aren't Gonna Need It).
+
+- **19.51. CẤM Sinh Phương Thức Mới Làm Hàm Cũ Thành Mã Mồ Côi Khi Nâng Cấp Nghiệp Vụ — Bắt Buộc Nâng Cấp Trực Tiếp Hoặc Dọn Dẹp Triệt Để (Strict No Orphaned / Dead Code on Refactor - chốt 04/10/2026 - P0)**:
+  - **Phạm vi áp dụng**: Toàn bộ codebase Backend và Frontend.
+  - 🔴 **Yêu cầu bắt buộc**:
+    1. **Ưu tiên nâng cấp trực tiếp (Upgrade/Refactor In-Place)**: Khi một luồng nghiệp vụ hiện có cần thay đổi hoặc mở rộng logic (ví dụ: chuyển từ ghi 1 dòng log transfer phẳng sang ghi log cha - con 2 bước SV-8b), BẮT BUỘC phải rà soát tất cả call-site và phương thức đang đảm nhiệm nghiệp vụ đó để nâng cấp trực tiếp trên chính phương thức hiện có.
+    2. **Rà soát Call-Site trước khi tạo method mới**: Trước khi quyết định khai báo bất kỳ method mới nào, BẮT BUỘC tự kiểm tra: *"Method cũ đang làm việc này là gì? Sau khi viết hàm mới thì method cũ có còn ai gọi trong toàn bộ solution không?"*. Nếu method cũ không còn caller nào, BẮT BUỘC phải tái cấu trúc method cũ thay vì viết hàm mới.
+    3. **Dọn dẹp triệt để (No Dead Code Left Behind)**: Nếu bắt buộc phải thay thế hoàn toàn một phương thức bằng cơ chế mới (khác biệt hoàn toàn về ngữ nghĩa/hợp đồng), BẮT BUỘC phải xóa bỏ hoặc chuyển hướng phương thức cũ. Tuyệt đối không để lại bất kỳ phương thức mồ côi nào không có ai sử dụng trong toàn bộ giải pháp.
+  - ⛔ **CẤM tuyệt đối**:
+    - Đẻ thêm phương thức mới song song (`XxxWithStep`, `DoSomethingNew`) để phục vụ luồng mới rồi bỏ mặc phương thức cũ (`XxxAsync`, `DoSomethingOld`) nằm trơ trọi thành "mã mồ côi" (Dead Code).
+    - Để lại 2 phương thức cùng phục vụ một mục đích nghiệp vụ trong cùng một service/helper gây nhập nhằng cho người bảo trì.
+  - **Lý do & Lợi ích**:
+    - **Clean Code & YAGNI**: Giữ codebase gọn gàng, loại bỏ 100% dead code, không làm phình to interface hoặc API surface vô ích.
+    - **Rõ Ràng Đơn Nghĩa (Single Source of Logic)**: Mỗi nghiệp vụ chỉ có duy nhất một hàm đảm nhiệm, người bảo trì và IntelliSense không bị bối rối giữa nhiều hàm trùng lặp.
 
 ---
 
