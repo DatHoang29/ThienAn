@@ -1399,7 +1399,7 @@ public class VwScenarioStoreTests : IDisposable
         var activityPub = new ActivityPublisher(publisherSpy, NullLogger<ActivityPublisher>.Instance);
         var connection = new ConnectionViewModel(activityPub, publisherSpy, new UserConfirmationTest(true))
         {
-            AdHocIp = $"127.{Random.Shared.Next(2, 250)}.{Random.Shared.Next(1, 250)}.{Random.Shared.Next(1, 250)}",
+            AdHocIp = "127.0.0.1",
             AdHocPort = 18080,
             AdHocAccount = "admin",
             AdHocPassword = "Password123!"
@@ -1449,7 +1449,7 @@ public class VwScenarioStoreTests : IDisposable
         var activityPub = new ActivityPublisher(publisherSpy, NullLogger<ActivityPublisher>.Instance);
         var connection = new ConnectionViewModel(activityPub, publisherSpy, new UserConfirmationTest(true))
         {
-            AdHocIp = $"127.{Random.Shared.Next(2, 250)}.{Random.Shared.Next(1, 250)}.{Random.Shared.Next(1, 250)}",
+            AdHocIp = "127.0.0.1",
             AdHocPort = 18188,
             AdHocAccount = "admin",
             AdHocPassword = "Password123!",

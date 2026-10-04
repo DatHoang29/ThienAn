@@ -1512,6 +1512,30 @@ tests/
     3. **Cuối hàm (Assert & Sequential Cleanup)**: Kiểm tra kết quả (Assert giá trị DB, assert telemetry/NATS, assert response). Nếu có các tác vụ dọn dẹp tài nguyên (như `transport.Unsubscribe(...)`, `_mock.ResetDefaults()`), gọi tuần tự ngay sau các câu lệnh Assert. TUYỆT ĐỐI KHÔNG bọc quanh Act/Assert bằng khối `try-finally`.
   - **Lý do**: Đảm bảo cấu trúc kiểm thử chuẩn AAA (Arrange - Act - Assert) mạch lạc, dễ đọc, dễ bảo trì, tách bạch hoàn toàn khâu chuẩn bị phụ thuộc với khâu thực thi và khâu kiểm tra kết quả, tránh việc tạo scope / resolve service lộn xộn gây rò rỉ hoặc che giấu luồng thực thi.
 
+- **19.47. Thứ Tự Thêm Mới Thành Viên Class, Entity, DTO & Object Initializer — Bắt Buộc Đặt Ở Cuối (Append-Only Ordering - chốt 04/10/2026 - P0)**:
+  - **Phạm vi áp dụng**: Mọi class, entity, service, helper, DTO, model và cú pháp khởi tạo đối tượng (Object Initializer) trong toàn bộ dự án (`WebAPI`, `ShareDataWorker`, `tests`, v.v.).
+  - 🔴 **Yêu cầu bắt buộc**:
+    1. **Hàm/phương thức mới**: Khi bổ sung phương thức mới vào một class hoặc service hiện có, BẮT BUỘC đặt ở **CUỐI CÙNG** của class hoặc cuối cùng của khối phương thức tương ứng. TUYỆT ĐỐI KHÔNG chèn chen ngang vào giữa các hàm nghiệp vụ chủ đạo đã có từ trước.
+    2. **Property / Thuộc tính / Field mới**: Khi thêm thuộc tính mới vào Entity, DTO, Model hoặc Class, BẮT BUỘC đặt ở **DÒNG CUỐI CÙNG** của danh sách property hiện hữu trong class đó.
+    3. **Object Initializer (`new T { ... }`)**: Khi bổ sung property vào khối gán thuộc tính khởi tạo đối tượng, BẮT BUỘC đưa thuộc tính mới xuống **DÒNG CUỐI CÙNG** của danh sách khởi tạo, giữ nguyên trật tự các thuộc tính đã khai báo phía trước.
+  - ⛔ **CẤM tuyệt đối**: Tự ý chèn hàm mới hoặc property mới lên đầu hoặc chen ngang vào giữa các dòng code cũ mà không có lý do kiến trúc đặc biệt.
+  - **Lý do & Lợi ích**:
+    - **Git Diff sạch sẽ**: Tránh làm phình to hoặc làm rối git diff, giúp reviewer dễ dàng nhận biết chính xác phần code mới được thêm vào mà không bị lẫn lộn với code cũ.
+    - **Không xáo trộn luồng tư duy**: Giữ nguyên trật tự đọc code logic tự nhiên của các lập trình viên khác đã quen thuộc với cấu trúc file hiện tại.
+    - **Giảm thiểu Merge Conflict**: Khi nhiều người cùng phát triển trên cùng một file/entity, việc tuân thủ append-only giảm thiểu tối đa xung đột khi rebase hoặc merge nhánh.
+
+- **19.48. Cấm `try-catch` Vội Vã Nuốt Lỗi Ở Hàm Con / Helper — Bắt Lỗi Tập Trung Ở Cấp Cha Điều Phối (Centralized Exception Handling at Orchestrator Level - chốt 04/10/2026 - P0)**:
+  - **Phạm vi áp dụng**: Mọi hàm tiện ích (helper), hàm con (sub-routine, private method), static helper (ví dụ: `ShareDataTransferLog.SaveParentLogResult`), data access method trong toàn bộ backend (`WebAPI`, `ShareDataWorker`, `Core`, v.v.).
+  - 🔴 **Yêu cầu bắt buộc**:
+    1. **Để ngoại lệ tự nhiên (Fail-Fast & Bubble Up)**: Các hàm con, helper chỉ tập trung làm đúng nhiệm vụ chuyên biệt của mình (ghi log, update DB, parse dữ liệu, tính toán). Nếu xảy ra ngoại lệ (mất kết nối DB, timeout, vi phạm ràng buộc...), hãy để ngoại lệ tự do bắn lên (bubble up) cho caller/orchestrator ở cấp trên.
+    2. **Xử lý lỗi tập trung tại cấp cha (Centralized Handling at Orchestrator)**: Khối `try-catch` chỉ nên đặt ở tầng điều phối cao nhất (orchestrator / background service main loop / controller action / message handler) — nơi nắm rõ toàn bộ ngữ cảnh nghiệp vụ để quyết định: rollback transaction, retry, đánh dấu packet lỗi (`FailPacketAsync`), gửi cảnh báo (alert), hay ghi log lỗi hệ thống.
+  - ⛔ **CẤM tuyệt đối**:
+    - Tự tiện bọc `try-catch` vội vã trong các hàm con/helper rồi nuốt lỗi (silent swallowing) hoặc chỉ ghi một dòng log cảnh báo hời hợt (`logger?.LogWarning(...)`), khiến cấp cha tưởng nhầm tác vụ đã thành công tốt đẹp.
+    - Đưa tham số `ILogger? logger = null` vào các hàm helper tĩnh thuần túy chỉ để phục vụ việc nuốt lỗi cục bộ.
+  - **Lý do & Lợi ích**:
+    - **Clean Code**: Hàm con gọn gàng, súc tích, không bị cồng kềnh bởi các khối `try-catch` rườm rà.
+    - **Bắt Bug Tập Trung Một Chỗ**: Tránh tình trạng lỗi bị "nuốt chửng" trong bóng tối khiến hệ thống chạy sai trạng thái mà không ai hay biết. Khi có lỗi, toàn bộ stack trace và ngữ cảnh được bắt và log đầy đủ tại một điểm duy nhất ở cấp cha.
+
 ---
 
 
