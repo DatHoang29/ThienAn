@@ -1852,6 +1852,7 @@ public class VwWpfCommissioningTests
         connection.AdHocIp = "127.0.0.1";
         connection.AdHocPort = port;
         connection.WallNo = 1;
+        VwLocalSceneStore.SaveData(connection.DeviceKey, new VwLocalSceneData());
         VwLocalSceneStore.SeedSampleScenes(connection.DeviceKey, 1);
 
         var sceneVm = new SceneSetupViewModel(stack.ActivityPublisher, connection, new UserConfirmationTest(true), stack.Publisher);
