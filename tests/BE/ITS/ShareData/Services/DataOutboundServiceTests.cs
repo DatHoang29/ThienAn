@@ -5141,11 +5141,11 @@ END");
         }
 
         /// <summary>
-        /// Description: SV-8a: Gửi 1 trang thành công ghi đúng 3 dòng nhật ký cho Subscription: 1 dòng cha và 2 dòng con (Step 1 và Step 2).
+        /// Description: SV-8: Gửi 1 trang thành công ghi đúng 1 dòng nhật ký độc lập cho Subscription.
         /// Created date: 02/10/2026
         /// </summary>
         [Fact]
-        public async Task ProcessSubscriptions_ExportOnePage_Success_LogsParentAndTwoChildren_Test()
+        public async Task ProcessSubscriptions_ExportOnePage_Success_LogsSingleActivity_Test()
         {
             // Arrange
             using var scope = _host.Services.CreateScope();
@@ -5525,7 +5525,6 @@ END");
                 var parentIds = allLogs.Where(l => l.ParentId == null).Select(l => l.ID).ToHashSet();
                 var childLogs = allLogs.Where(l => l.ParentId != null).ToList();
 
-                Assert.NotEmpty(childLogs);
                 Assert.All(childLogs, c => Assert.Contains(c.ParentId!, parentIds));
             }
             finally
@@ -5586,11 +5585,11 @@ END");
         }
 
         /// <summary>
-        /// Description: SV-8a: Khi xuất dữ liệu nhiều trang, sinh các cây riêng biệt cho mỗi trang (mỗi trang 1 cha + 2 con).
+        /// Description: SV-8: Khi xuất dữ liệu nhiều trang, mỗi trang ghi đúng 1 dòng nhật ký độc lập.
         /// Created date: 02/10/2026
         /// </summary>
         [Fact]
-        public async Task ProcessSubscriptions_WhenMultiplePages_LogsDistinctTreesForEachPage_Test()
+        public async Task ProcessSubscriptions_WhenMultiplePages_LogsDistinctSingleLogsForEachPage_Test()
         {
             // Arrange
             using var scope = _host.Services.CreateScope();
