@@ -1489,12 +1489,21 @@ tests/
     }
     ```
 
-- **19.44. CẤM Tự Gán Thủ Công Khóa Chính `ID` Cho Entity Khi Insert Trong WebAPI / Repository (No Manual Entity ID Generation in WebAPI - chốt 04/10/2026 - P0)**:
-  - **Phạm vi áp dụng**: Mọi thao tác thêm mới (`Insert`, `InsertAsync`) Entity kế thừa `EntityBase`/`EntityTenant` trong WebAPI (`TA-ITS015-WEBAPI-V1.0`).
-  - 🔴 **Nguyên tắc hạ tầng**: Hạ tầng SqlSugar của dự án (`Shared.Infrastructure.dll` qua `SqlSugarSetup.SetDbAop`) đã tích hợp sẵn hook AOP `DataExecuting` tự động sinh khóa chính `ID` (chuẩn SnowFlake ID) cho mọi entity khi `ID` null hoặc rỗng. Sau khi gọi `await repository.InsertAsync(entity)`, thuộc tính `entity.ID` đã tự động được điền giá trị sinh ra và sẵn sàng để lấy ra sử dụng.
-  - ⛔ **CẤM tuyệt đối**: Tự chế code sinh ID thủ công (như `Guid.NewGuid().ToString("N")`, `var resolvedId = ... ? Guid.NewGuid() : logId;`) rồi gán `ID = resolvedId` khi khởi tạo entity để ghi vào CSDL qua Repository/WebAPI.
-  - **Ngoại lệ duy nhất**: Chỉ được phép gán `entity.ID` khi: (1) Caller chủ động chỉ định ID nghiệp vụ cụ thể cần ghi đè (ví dụ: gán `entity.ID = logId` khi `!string.IsNullOrWhiteSpace(logId)` để đồng bộ `packet.ReceiveLogId`), hoặc (2) Trong Worker chạy nền dùng `baseClient.CopyNew()` tách biệt DI không nạp hook AOP.
-  - **Lý do**: Việc sinh ID thủ công (như GUID) phá vỡ chuẩn sinh ID tập trung của hệ thống (SnowFlake ID số), sinh code rác/thừa thãi, và tiềm ẩn nguy cơ lệch chuẩn dữ liệu giữa các phân hệ.
+- **19.44. Quy Tắc Khóa Chính `ID` Khi Insert Entity: Phân Định Rõ Ràng WebAPI (AOP Tự Động) vs Worker (Bắt Buộc Gán Thủ Công) (Entity ID Generation Rules: WebAPI AOP vs Worker Manual ID - chốt 04/10/2026 - P0)**:
+  - **Phạm vi áp dụng**: Mọi thao tác thêm mới (`Insert`, `InsertAsync`, `Insertable`) Entity vào CSDL trong toàn bộ dự án (`WebAPI`, `ShareDataWorker`, `tests`).
+  - 🔴 **1. Đối với WebAPI (`TA-ITS015-WEBAPI-V1.0` - Controllers, Handlers, Repositories)**:
+    - **Nguyên tắc hạ tầng**: WebAPI sử dụng `Shared.Infrastructure.dll` qua `SqlSugarSetup.SetDbAop`, đã tích hợp sẵn hook AOP `DataExecuting` tự động sinh khóa chính `ID` (chuẩn SnowFlake ID) cho mọi entity khi `ID` null hoặc rỗng. Sau khi gọi `InsertAsync(entity)`, thuộc tính `entity.ID` đã tự động được điền giá trị.
+    - ⛔ **CẤM tuyệt đối**: Tự chế code sinh ID thủ công (như `Guid.NewGuid().ToString("N")`, `var resolvedId = ... ? Guid.NewGuid() : logId;`) rồi gán `ID = resolvedId` khi khởi tạo entity để ghi vào CSDL qua Repository/WebAPI.
+    - **Ngoại lệ**: Chỉ được phép gán `entity.ID` khi caller chủ động chỉ định ID nghiệp vụ cụ thể cần đồng bộ từ trước (ví dụ: gán `entity.ID = logId` khi `!string.IsNullOrWhiteSpace(logId)` để đồng bộ `packet.ReceiveLogId`).
+  - 🔴 **2. Đối với Worker chạy nền (`ShareDataWorker` - Windows Service Runtime)**:
+    - **Thực trạng hạ tầng**: DI của Worker (`ShareDataWorkerExtensions.AddWorkerInfrastructure`) đăng ký `SqlSugarScope` thuần túy, hoàn toàn **KHÔNG có hook AOP `DataExecuting`** (do Worker không tham chiếu `Shared.Infrastructure.dll`). Ngoài ra, các tác vụ nền thường dùng `baseClient.CopyNew()`.
+    - **YÊU CẦU BẮT BUỘC TRONG WORKER**: Khi Insert bất kỳ entity nào trong Worker, **BẮT BUỘC PHẢI CHỦ ĐỘNG KHỞI TẠO VÀ GÁN `ID`** (chuẩn: `logId ??= Guid.NewGuid().ToString("N");` hoặc `ID = Guid.NewGuid().ToString("N")`).
+    - ⛔ **CẤM tuyệt đối trong Worker**: Bỏ trống `ID` hoặc để `ID = null` khi Insert trong Worker. Nếu bỏ trống, SqlSugar thuần sẽ sinh SQL `INSERT INTO ... (ID) VALUES (NULL)` và SQL Server sẽ throw Exception ngay: `Cannot insert the value NULL into column 'ID'`.
+  - ⚠️ **3. Cảnh Báo Bẫy False-Positive Trong Integration Test (`tests/BE`)**:
+    - **Nguyên nhân**: Bộ kiểm thử `tests/BE/Host.cs` kế thừa từ `WebApplicationFactory<TAC_WebAPI.Program>`, nên container DI trong Test là của **WebAPI** (CÓ hook AOP SnowFlake ID).
+    - **Tử huyệt**: Nếu code trong Worker lỡ quên gán `ID`, chạy `dotnet test` **VẪN PASS** (do AOP của WebAPI âm thầm sinh ID hộ), nhưng khi đem ra chạy thật ngoài môi trường Worker Windows Service sẽ **CRASH NGAY LẬP TỨC**.
+    - **Yêu cầu bắt buộc**: Khi viết và review code trong Worker, BẮT BUỘC kiểm tra bằng mắt xem Entity Insert đã có `ID` chưa, tuyệt đối không được chủ quan dựa dẫm hoàn toàn vào việc test pass để khẳng định code Worker đã an toàn.
+
 
 - **19.45. CẤM Tự Ý Xóa Dữ Liệu Bảng DB Trong Từng Test Method — Bắt Buộc Dọn Dẹp Tập Trung Tại `Host.ClearAllData()` Và Tự Cô Lập Bằng Unique ID (Strict No Ad-Hoc DB Deletion in Tests - chốt 04/10/2026 - P0)**:
   - **Phạm vi áp dụng**: Toàn bộ các bài kiểm thử (Unit / Integration Test) trong `tests/BE/`.
@@ -1512,17 +1521,43 @@ tests/
     3. **Cuối hàm (Assert & Sequential Cleanup)**: Kiểm tra kết quả (Assert giá trị DB, assert telemetry/NATS, assert response). Nếu có các tác vụ dọn dẹp tài nguyên (như `transport.Unsubscribe(...)`, `_mock.ResetDefaults()`), gọi tuần tự ngay sau các câu lệnh Assert. TUYỆT ĐỐI KHÔNG bọc quanh Act/Assert bằng khối `try-finally`.
   - **Lý do**: Đảm bảo cấu trúc kiểm thử chuẩn AAA (Arrange - Act - Assert) mạch lạc, dễ đọc, dễ bảo trì, tách bạch hoàn toàn khâu chuẩn bị phụ thuộc với khâu thực thi và khâu kiểm tra kết quả, tránh việc tạo scope / resolve service lộn xộn gây rò rỉ hoặc che giấu luồng thực thi.
 
-- **19.47. Thứ Tự Thêm Mới Thành Viên Class, Entity, DTO & Object Initializer — Bắt Buộc Đặt Ở Cuối (Append-Only Ordering - chốt 04/10/2026 - P0)**:
-  - **Phạm vi áp dụng**: Mọi class, entity, service, helper, DTO, model và cú pháp khởi tạo đối tượng (Object Initializer) trong toàn bộ dự án (`WebAPI`, `ShareDataWorker`, `tests`, v.v.).
-  - 🔴 **Yêu cầu bắt buộc**:
-    1. **Hàm/phương thức mới**: Khi bổ sung phương thức mới vào một class hoặc service hiện có, BẮT BUỘC đặt ở **CUỐI CÙNG** của class hoặc cuối cùng của khối phương thức tương ứng. TUYỆT ĐỐI KHÔNG chèn chen ngang vào giữa các hàm nghiệp vụ chủ đạo đã có từ trước.
-    2. **Property / Thuộc tính / Field mới**: Khi thêm thuộc tính mới vào Entity, DTO, Model hoặc Class, BẮT BUỘC đặt ở **DÒNG CUỐI CÙNG** của danh sách property hiện hữu trong class đó.
-    3. **Object Initializer (`new T { ... }`)**: Khi bổ sung property vào khối gán thuộc tính khởi tạo đối tượng, BẮT BUỘC đưa thuộc tính mới xuống **DÒNG CUỐI CÙNG** của danh sách khởi tạo, giữ nguyên trật tự các thuộc tính đã khai báo phía trước.
-  - ⛔ **CẤM tuyệt đối**: Tự ý chèn hàm mới hoặc property mới lên đầu hoặc chen ngang vào giữa các dòng code cũ mà không có lý do kiến trúc đặc biệt.
+- **19.47. Quy Tắc Cấu Trúc Thành Viên Class & Thứ Tự Thêm Code Mới — Phân Nhóm Chuẩn & Bắt Buộc Đặt Ở Cuối Nhóm Tương Ứng (Standard Member Grouping & Append-Only per Category Ordering - chốt 04/10/2026 - P0)**:
+  - **Phạm vi áp dụng**: Mọi class, entity, service, helper, DTO, model, enum, test class và cú pháp khởi tạo đối tượng (Object Initializer) trong toàn bộ dự án (`WebAPI`, `ShareDataWorker`, `tests`, v.v.).
+  - 🔴 **Yêu cầu 1: Cấu trúc phân nhóm chuẩn của Class (Standard Member Grouping Order)**:
+    Mọi class C# BẮT BUỘC tuân thủ nghiêm ngặt trật tự sắp xếp phân nhóm logic từ trên xuống dưới:
+    1. **Constants & Static Readonly Fields**: `const`, `static readonly` (chuỗi SQL query tĩnh, config keys, mã định danh cố định).
+    2. **Instance Fields**: `private readonly`, backing fields, injected dependencies, loggers, cờ trạng thái.
+    3. **Properties**: `public/protected/internal ... { get; set; }`.
+    4. **Models / Records / Structs / Enums nội bộ phụ trợ**: Các kiểu dữ liệu phụ trợ riêng cho class (ví dụ `private sealed record TrackStateRead`, `TrackedTableVersion`) **BẮT BUỘC ĐẶT Ở PHẦN ĐẦU — SAU PROPERTIES / FIELDS VÀ NẰM TRƯỚC CONSTRUCTOR**. Tuyệt đối **BỎ HẲN** khái niệm `#region Nested Types` hay việc vứt các kiểu dữ liệu nội bộ này xuống đáy class/file.
+    5. **Constructors & Destructors**: `public ClassName(...)`, constructor nạp DI (nằm ngay sau các Models/Records nội bộ, trước khi vào các Methods).
+    6. **Public Methods**: Các hàm interface / API nghiệp vụ chính.
+    7. **Internal / Protected Methods**: Các hàm dùng nội bộ module hoặc kế thừa.
+    8. **Private Methods / Helper Sub-routines**: Các hàm phụ trợ, tách nhỏ logic cho hàm chính nằm ở cuối khối Methods.
+    *(Lưu ý về Partial Class: Khi tách class thành nhiều file theo chức năng như `.Sql.cs`, `.Tables.cs`, `.Init.cs`, mỗi file partial chỉ chứa đúng loại thành viên thuộc trách nhiệm đó — ví dụ `.Sql.cs` chỉ chứa hằng số SQL query và hàm build query SQL; `.Tables.cs` chỉ chứa metadata bảng)*.
+  - 🔴 **Yêu cầu 2: Quy tắc thêm code mới — "Vẫn để cuối nhưng phải theo rule sắp xếp" (Append-Only per Category)**:
+    Khi bổ sung bất kỳ thành viên hoặc thành phần code mới nào, BẮT BUỘC đặt ở **DÒNG CUỐI CÙNG CỦA ĐÚNG PHÂN NHÓM TƯƠNG ỨNG**:
+    1. **Constant / SQL Query mới**: Đặt ở **DÒNG CUỐI CÙNG CỦA KHỐI CONSTANTS** (Ví dụ: `internal const string SqlReadTrackState = "...";` phải nằm ở cuối danh sách các constant hiện có; TUYỆT ĐỐI KHÔNG vứt xuống dưới đáy file sau properties hay methods làm đảo lộn cấu trúc class). Nếu có file partial chuyên trách như `.Sql.cs`, đặt ở dòng cuối cùng của khối constants trong file đó.
+    2. **Field / Dependency mới**: Đặt ở **DÒNG CUỐI CÙNG CỦA KHỐI FIELDS**.
+    3. **Property mới**: Đặt ở **DÒNG CUỐI CÙNG CỦA KHỐI PROPERTIES** trong Class/DTO/Entity.
+    4. **Model / Record / Struct / Enum nội bộ mới**: Đặt ở **DÒNG CUỐI CÙNG CỦA KHỐI MODELS/RECORDS NỘI BỘ** (vẫn nằm sau Properties/Fields và TRƯỚC Constructor).
+    5. **Constructor mới**: Đặt ở cuối khối Constructors (sau các Models/Records nội bộ, trước Methods).
+    6. **Public Method mới**: Đặt ở **CUỐI CÙNG CỦA KHỐI PUBLIC METHODS**.
+    7. **Private Helper Method mới**: Đặt ở **CUỐI CÙNG CỦA KHỐI PRIVATE METHODS**.
+    8. **Tham số mới trong hàm (Parameter)**: Đặt ở **CUỐI DANH SÁCH THAM SỐ** của hàm (ưu tiên gán giá trị mặc định nếu cần tương thích ngược).
+    9. **Object Initializer (`new T { ... }`)**: Thuộc tính mới gán thêm phải nằm ở **DÒNG CUỐI CÙNG** của khối khởi tạo `{ ... }`.
+    10. **Enum Value mới**: Đặt ở **DÒNG CUỐI CÙNG CỦA ENUM**.
+    11. **Case mới trong `switch-case` / `switch expression`**: Đặt ở **CUỐI CÙNG TRƯỚC DEFAULT / DISCARD `_`**.
+    12. **Test Method mới**: Đặt ở **CUỐI CÙNG CỦA TEST CLASS** (hoặc cuối Region/nhóm test tương ứng).
+  - ⛔ **CẤM tuyệt đối**:
+    - **CẤM vứt Models / Records nội bộ xuống cuối file / CẤM dùng `#region Nested Types` ở đáy file**: Các data structure nội bộ phải đưa lên đầu sau properties/fields và trước constructor để người đọc định hình dữ liệu trước khi xem implementation.
+    - **CẤM "vứt bừa" code mới xuống tận cùng đáy file**: Không được vứt `const`, `field`, `property`, hay `record` xuống sau các `method` dưới đáy file chỉ vì hiểu máy móc cụm từ "đặt ở cuối", làm phá vỡ kiến trúc class.
+    - **CẤM chèn chen ngang (insert into the middle)**: Tuyệt đối không chèn hàm mới, property mới, hay constant mới vào giữa các thành viên cũ đang chạy ổn định.
+    - **CẤM chèn lên đầu nhóm/đầu file**: Trừ khi có yêu cầu tái cấu trúc đặc biệt hoặc quy định compiler bắt buộc (như primary constructor).
   - **Lý do & Lợi ích**:
-    - **Git Diff sạch sẽ**: Tránh làm phình to hoặc làm rối git diff, giúp reviewer dễ dàng nhận biết chính xác phần code mới được thêm vào mà không bị lẫn lộn với code cũ.
-    - **Không xáo trộn luồng tư duy**: Giữ nguyên trật tự đọc code logic tự nhiên của các lập trình viên khác đã quen thuộc với cấu trúc file hiện tại.
-    - **Giảm thiểu Merge Conflict**: Khi nhiều người cùng phát triển trên cùng một file/entity, việc tuân thủ append-only giảm thiểu tối đa xung đột khi rebase hoặc merge nhánh.
+    - **Chuẩn hóa Kiến Trúc (Architecture Consistency)**: Khai báo dữ liệu đi trước hành vi (Data Structures before Behaviors): người đọc nắm rõ Models/Records nội bộ và Injected Dependencies trước khi đọc logic trong Constructor và Methods.
+    - **Git Diff Tối Ưu & Sạch Sẽ**: Code mới bổ sung luôn nằm tập trung ở cuối từng khối tương ứng, reviewer nhận biết chính xác phần code mới thêm mà không làm xáo trộn các dòng code xung quanh.
+    - **Giảm Thiểu Tối Đa Merge Conflict**: Giữ nguyên trật tự toàn bộ code cũ phía trước, loại bỏ nguy cơ xung đột khi nhiều lập trình viên cùng làm việc hoặc rebase nhánh.
+
 
 - **19.48. Cấm `try-catch` Vội Vã Nuốt Lỗi Ở Hàm Con / Helper — Bắt Lỗi Tập Trung Ở Cấp Cha Điều Phối (Centralized Exception Handling at Orchestrator Level - chốt 04/10/2026 - P0)**:
   - **Phạm vi áp dụng**: Mọi hàm tiện ích (helper), hàm con (sub-routine, private method), static helper (ví dụ: `ShareDataTransferLog.SaveParentLogResult`), data access method trong toàn bộ backend (`WebAPI`, `ShareDataWorker`, `Core`, v.v.).
