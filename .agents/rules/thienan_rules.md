@@ -460,7 +460,8 @@ tests/
 ```
 
 ### 2. Triết Lý & Phương Pháp Viết Test
-* **Vòng đời Fixture & Collection**: Khi có khởi tạo DB / Host nặng, BẮT BUỘC dùng `ICollectionFixture<Host>` và gắn `[Collection("api")]` trên class test (trong đó `Host` triển khai `IAsyncLifetime`, không phải `IDisposable`) để chia sẻ fixture duy nhất cho cả collection, tránh gọi constructor N lần gây đụng độ khi chạy test song song. Việc xóa/dọn dẹp dữ liệu test chỉ thực hiện duy nhất 1 lần ở tầng `Host.cs` (`ClearAllData()`) — xem thêm mục 4 bên dưới.
+* **🔴 BẮT BUỘC gắn `[Collection("api")]` trên mọi Test Class dùng Test Host / DB (Strict Isolation - P0)**: Mọi class kiểm thử trong `tests/BE/` có khởi tạo DI, chạm database test (`test`), mock server hoặc phụ thuộc `Host` BẮT BUỘC phải gắn attribute `[Collection("api")]` trên đầu class. Mặc định xUnit chạy song song giữa các test class độc lập; việc thiếu `[Collection("api")]` sẽ khiến class đó chạy song song ngoài luồng, gây tranh chấp kết nối ADO.NET (`The connection was not closed. The connection's current state is connecting`), deadlock và xung đột xóa/ghi đè dữ liệu với các bài test khác. Khi có khởi tạo DB / Host nặng, BẮT BUỘC dùng `ICollectionFixture<Host>` và gắn `[Collection("api")]` (trong đó `Host` triển khai `IAsyncLifetime`, không phải `IDisposable`) để chia sẻ fixture duy nhất cho cả collection, tránh gọi constructor N lần gây đụng độ. Việc xóa/dọn dẹp dữ liệu test chỉ thực hiện duy nhất 1 lần ở tầng `Host.cs` (`ClearAllData()`) — xem thêm mục 4 bên dưới.
+* **🔴 CẤM bọc `try-catch` / `try-finally` quanh Act và Assert trong Test (Strict AAA - No Try-Catch / Try-Finally Wrapping - P0)**: Trong các phương thức kiểm thử (Unit / Integration Tests), BẮT BUỘC tuân thủ cấu trúc AAA (Arrange - Act - Assert) phẳng và tuần tự. TUYỆT ĐỐI KHÔNG bọc khối `try-catch` hoặc `try-finally` quanh Act và Assert chỉ để cố tình dọn dẹp dữ liệu/tài nguyên (như `DisposeAsync`, `transport.Unsubscribe`, `Deleteable`, `ClearTrackState`). Nếu test phát sinh lỗi hay ngoại lệ, đó là do logic nghiệp vụ đang sai và test PHẢI FAIL ngay lập tức tại vị trí phát sinh lỗi để lập trình viên thấy rõ nguyên nhân. Mọi thao tác dọn dẹp tài nguyên phải viết tuần tự ở cuối hàm hoặc quản lý qua cơ chế chuẩn (`IAsyncLifetime`, `DisposeAsync`, Fixture).
 * **Tập trung vào Happy Path**: Chỉ tập trung viết test cho các luồng chính (**Happy Path** của Queries & Commands).
 * **Business Workflows & Mock Integration First (No Pure/Trivial Unit Tests)**: TUYỆT ĐỐI KHÔNG làm các bài unit test thuần túy, vụn vặt (như đếm phần tử static list, assert danh mục enum/preset, test đơn lẻ getter/setter hay in-memory ViewModel helper không có I/O). TẬP TRUNG TOÀN BỘ VÀO: (1) Kiểm thử luồng nghiệp vụ thực tế (business workflows xuyên suốt từ Controller/Command/Handler xuống CSDL/Service), và (2) Các bài test có tương tác với Mock / MockServer (gửi nhận request/response HTTP thật qua mock, digest auth, kiểm tra payload thực tế, kịch bản lỗi khi chạm thiết bị hoặc dịch vụ bên ngoài). Áp dụng mẫu AAA (Arrange - Act - Assert).
 * **Gọi trực tiếp qua Wolverine `IMessageBus` (Bypass Controller/HTTP)**:
@@ -645,9 +646,9 @@ tests/
 - **Cấm Tạo Hàm Alias Thừa Thãi (No Redundant Alias Methods / Overlapping Wrappers)**: Khi đổi tên hoặc chuẩn hóa một hàm/phương thức, BẮT BUỘC đổi tên trực tiếp và cập nhật call-sites liên quan. TUYỆT ĐỐI CẤM tạo hàng loạt các hàm wrapper/alias 1 dòng (VD: `FooShort() => Foo()`, `FooOld() => Foo()`, `FooVariant() => Foo()`) với lý do "tiện gọi" hoặc "tương thích ngược" trong cùng codebase nội bộ. Điều này gây phình to bề mặt API (bloated API surface), gây rối loạn cho người đọc code và vi phạm triệt để nguyên tắc Clean Code (KISS, YAGNI, Single Source of Truth).
   - **Thứ tự sắp xếp thành viên trong Class (Bắt Buộc Chuẩn Từ Trên Xuống Dưới)**:
     1. **Fields**: Hằng số (`const`), biến tĩnh (`static readonly`), biến thành viên (`private readonly`, instance fields) đặt ở **ĐẦU TIÊN** của class.
-    2. **Properties**: Các thuộc tính (`{ get; set; }`). *(Đặc thù Exception class: Constructor BẮT BUỘC đặt ở ĐẦU TIÊN ngay sau mở class, trước Properties — xem mục 19.39)*.
+    2. **Properties**: Các thuộc tính (`{ get; set; }`).
     3. **Records / Structs / Nested Types**: Các định nghĩa `record`, `record struct`, `struct`, hoặc class lồng nhau (nested types, DTO/Outcome nội bộ).
-    4. **Constructors**: Hàm khởi tạo (Constructor tường minh hoặc Primary Constructor). (Đối với Exception class, constructor đảo lên trước properties).
+    4. **Constructors**: Hàm khởi tạo (Constructor tường minh hoặc Primary Constructor).
     5. **Base Class Lifecycle & Overrides (Ưu tiên cao nhất trong khối phương thức)**: Các phương thức `override` kế thừa trực tiếp từ lớp cha (`protected override async Task ExecuteAsync(CancellationToken stoppingToken)`, `protected override void Dispose(bool disposing)`...).
        * *Lý do*: Đây là entry point và xương sống vòng đời chính của class (đặc biệt trong `BackgroundService`, `IHostedService`, `ServiceBase`). Đặt ở đầu khối method giúp người đọc mở file ra là thấy ngay luồng thực thi chủ đạo của class, không bị trôi xuống dưới hàng loạt hàm public hay hàm nội bộ. Độ ưu tiên vị trí cao hơn `public` methods và các hàm nội bộ.
     6. **Public Methods**: Toàn bộ các phương thức `public` của class (API, Interface implementation, nghiệp vụ công khai).
@@ -1396,26 +1397,20 @@ tests/
     * Gây nhầm lẫn cho người bảo trì: Không rõ giá trị thật sự thuộc quyền sở hữu của ai, dễ dẫn đến sửa dở dang một nơi mà sót nơi khác.
     * Làm rác bộ nhớ biên dịch và làm phình to public surface của class.
 
-- **19.39. Vị Trí Constructor Trong Exception Class — BẮT BUỘC Đặt Ở Đầu Class Trước Properties (Exception Constructor At Top - P0)**:
-  - **Phạm vi áp dụng**: Mọi lớp ngoại lệ tự định nghĩa kế thừa từ `Exception` (như `ShareDataException`).
-  - 🔴 **Yêu cầu bắt buộc**: Hàm khởi tạo (Constructor) của các lớp Exception **BẮT BUỘC đặt ở ĐẦU TIÊN của class** (ngay sau dấu mở ngoặc `{` của class), TRƯỚC toàn bộ danh sách properties (`{ get; }`, `{ get; init; }`).
-  - ⛔ **CẤM đặt constructor ở cuối Exception class**: Tuyệt đối không để constructor chìm dưới đáy tệp sau hàng chục dòng khai báo property bổ trợ.
-  - **Lý do**: Khác với entity hoặc DTO (vốn chủ yếu dùng để bind dữ liệu qua properties), một Exception class sinh ra với mục đích tiên quyết là được khởi tạo và ném ra (`throw new MyException(...)`). Việc đặt Constructor ở đầu giúp lập trình viên mở file ra là thấy ngay lập tức "hợp đồng bắt buộc" (required parameters) khi khởi tạo ngoại lệ mà không cần cuộn chuột qua danh sách dài các metadata properties.
-
-- **19.40. CẤM Khai Báo Kiểu Tường Minh Cho Biến Cục Bộ (`int?`, `long?`, `string`, `List<T>`...) Khi Dùng `var` Được — BẮT BUỘC Tự Dùng `var` (Prefer `var` - IDE0007 - P0)**:
+- **19.39. CẤM Khai Báo Kiểu Tường Minh Cho Biến Cục Bộ (`int?`, `long?`, `string`, `List<T>`...) Khi Dùng `var` Được — BẮT BUỘC Tự Dùng `var` (Prefer `var` - IDE0007 - P0)**:
   - **Phạm vi áp dụng**: Mọi biến cục bộ trong code C# (kể cả code test) mà kiểu đã **rõ ràng từ vế phải** (`new`, ép kiểu, literal, giá trị trả về của phương thức/`await`).
   - 🔴 **Yêu cầu bắt buộc**: Dùng `var`. AI tự áp dụng ngay khi viết code mới và khi sửa code, **không chờ người dùng nhắc**.
   - ⛔ **CẤM** viết kiểu tường minh dư thừa. ❌ `int? max = await db.Queryable<X>().MaxAsync(x => x.StepNbr);` ✅ `var max = await db.Queryable<X>().MaxAsync(x => x.StepNbr);`. ❌ `List<string> names = new List<string>();` ✅ `var names = new List<string>();`.
   - **Ngoại lệ (được giữ kiểu tường minh khi và chỉ khi)**: (1) khai báo không có giá trị khởi tạo (`int? x;`); (2) khởi tạo bằng `null`/`default` cần chốt kiểu (`DateTime? t = null;`); (3) cần kiểu khai báo khác kiểu vế phải (ví dụ khai báo bằng interface `ISqlSugarClient db = new SqlSugarScope(...)`); (4) literal số cần chốt kiểu `long`/`double`/`decimal` mà không muốn dùng hậu tố (`long total = 0;`). Rule này **chỉ áp dụng cho biến cục bộ** — tham số, field, property, kiểu trả về của phương thức vẫn khai báo kiểu như thường.
   - **Phạm vi sửa (đi kèm 19.35)**: Chỉ áp dụng cho dòng đang viết/đang sửa. ⛔ **CẤM** quét và đổi hàng loạt `var` trên code cũ không liên quan làm bẩn Git Diff.
 
-- **19.41. Entity Kế Thừa `EntityTenant` — CẤM Override Cột Audit (`new DateTime? UpdateTime`...) Và CẤM Gán Tay `TenantId`/`CreateUId`/`UpdateUId`; Lỗi `Cannot insert NULL` Phải Sửa Ở Schema/Test, Không Sửa Ở Entity (chốt 03/10/2026 - P0)**:
+- **19.40. Entity Kế Thừa `EntityTenant` — CẤM Override Cột Audit (`new DateTime? UpdateTime`...) Và CẤM Gán Tay `TenantId`/`CreateUId`/`UpdateUId`; Lỗi `Cannot insert NULL` Phải Sửa Ở Schema/Test, Không Sửa Ở Entity (chốt 03/10/2026 - P0)**:
   - 🔴 **Case đã gặp nhiều lần — phản xạ sai cần tránh**: Gặp lỗi `Cannot insert the value NULL into column 'UpdateTime'/'UpdateUId'/'TenantId'...` khi insert entity kế thừa `EntityTenant` (ví dụ `ShareDataLastSend`, `ShareDataTrackVersion`) thì **CẤM** đi vá bằng: (1) ghi đè thuộc tính trong entity, ví dụ `[SugarColumn(IsNullable = true, IsOnlyIgnoreInsert = false)] public new DateTime? UpdateTime { get; set; }`; (2) gán tay `TenantId = "0"`, `CreateUId = "System"`, `UpdateUId = "System"` ở code production hoặc test.
   - **Nguyên nhân gốc (đã chứng minh)**: Lớp cha `EntityBase`/`EntityTenant` (`Shared.Core.dll`) khai báo `UpdateTime`/`UpdateUId` với `IsOnlyIgnoreInsert = true` và không `IsNullable`. Khi test gọi `db.CodeFirst.InitTables<...>()`, SqlSugar **tạo/sửa các cột đó thành `NOT NULL`** nhưng lại **bỏ chúng khỏi câu INSERT** ⇒ SQL Server báo lỗi. Bảng thật (`SQL\Scripts\SHARE_DATA\01_CREATE_TABLES.SQL`) khai báo các cột audit là `NULL` nên production không bao giờ dính lỗi này.
   - **Cách xử lý ĐÚNG (thứ tự kiểm tra)**: (1) Dùng **mặc định của lớp cha**, không override. (2) Nếu vẫn lỗi, kiểm tra theo thứ tự **`CreateTime` rồi `UpdateTime`** (đối chiếu thuộc tính SugarColumn của lớp cha và độ nullable thực tế của cột trong DB test). (3) Căn chỉnh schema DB test cho khớp `01_CREATE_TABLES.SQL` (các cột audit `NULL`). (4) **CẤM `CodeFirst.InitTables` cho entity kế thừa `EntityTenant` trong test** — tạo bảng bằng script chuẩn.
   - **Vì sao không cần gán tay**: Hook tự điền `TenantId`/`CreateUId`/`UpdateUId` nằm ở `DataExecuting` (`SqlSugarSetup.SetDbAop`) và **chỉ chạy khi `App.User != null`** (người dùng HTTP đăng nhập); Worker chạy nền nên các cột này để `NULL`, và cột nullable nên hợp lệ. `CreateTime` đã có `InsertServerTime = true`, `UpdateTime` là `IsOnlyIgnoreInsert` nên SqlSugar tự lo — gán `CreateTime`/`UpdateTime` tay cũng dư. Chỉ `ID` (khoá chính kiểu string) là **phải gán tay** trong Worker, vì hook sinh ID cũng nằm ở `DataExecuting` mà client `CopyNew()` không có.
 
-- **19.42. SqlSugar Client Trong Background Worker / Polling Loop / Concurrent Tasks BẮT BUỘC Dùng `using var db = baseClient.CopyNew();` (chốt 03/10/2026 - P0)**:
+- **19.41. SqlSugar Client Trong Background Worker / Polling Loop / Concurrent Tasks BẮT BUỘC Dùng `using var db = baseClient.CopyNew();` (chốt 03/10/2026 - P0)**:
   - 🔴 **Case đã gặp nhiều lần — hiện tượng tranh chấp kết nối ADO.NET**:
     Khi chạy tác vụ nền (Worker, polling loop, subscriber, timer, hoặc nhiều luồng song song `Task.WhenAll`), nếu lấy `var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>()` rồi dùng trực tiếp `db` mà **KHÔNG gọi `.CopyNew()`**, đối tượng kết nối `SqlConnection` bên dưới sẽ bị dùng chung. Khi nhiều luồng cùng gọi truy vấn CSDL tại cùng một thời điểm, SQL Server / ADO.NET sẽ văng ngoại lệ:
     `System.InvalidOperationException: The connection was not closed. The connection's current state is connecting.`
@@ -1433,7 +1428,7 @@ tests/
     3. `using var db` đảm bảo kết nối được đóng và giải phóng ngay khi hoàn thành phạm vi tác vụ, không gây rò rỉ (connection leak).
   - ⛔ **CẤM TỰ CHẾ TRONG TEST**: Khi viết test chạy đa luồng hoặc song song, CẤM đẻ ra các class factory giả lập cồng kềnh (như `IsolatedConnectionScopeFactory`) để can thiệp việc cấp `db`. Bản thân code Service trong production BẮT BUỘC phải tự gọi `baseClient.CopyNew()`. Khi Service đã viết chuẩn, test chỉ việc gọi `_host.Services.GetRequiredService<IServiceScopeFactory>()` là tự động chạy song song mượt mà.
 
-- **19.43. Tự Động Ngắt Dòng Khi Dòng Lệnh Quá Dài / Nhiều Tham Số (Automatic Line-Wrapping for Long Calls & Parameters - chốt 03/10/2026 - P0)**:
+- **19.42. Tự Động Ngắt Dòng Khi Dòng Lệnh Quá Dài / Nhiều Tham Số (Automatic Line-Wrapping for Long Calls & Parameters - chốt 03/10/2026 - P0)**:
   - 🔴 **Case đã gặp — dòng lệnh tràn ngang khó đọc**: Khi gọi hàm (call-site) hoặc khai báo method có nhiều tham số, enum dài, hằng số dài (như `ShareDataAlertCode.Outbound.CursorKeyTooLong, BaseEnums.AlertSeverity.Error, BaseEnums.AlertSource.Subscription`), nếu dồn tất cả trên cùng một dòng sẽ khiến dòng code dài > 120-140 ký tự, tràn màn hình, gây khó khăn khi review code và soi git diff.
   - **Quy tắc BẮT BUỘC khi viết hoặc sửa code**:
     - Khi một lệnh gọi hàm hoặc khai báo vượt quá độ dài chuẩn (hoặc có từ 3-4 tham số dài / named arguments trở lên), **BẮT BUỘC chủ động tự ngắt dòng (wrap lines)**.
@@ -1464,6 +1459,58 @@ tests/
           keyTooLongMsg, recordCount: extraction.RawRows.Count, mappingId: ctx.Mapping?.ID, packetVersion: ctx.Packet.PacketVersion);
       ```
   - **Phạm vi áp dụng (tuân thủ 19.35)**: Tự động ngắt dòng ngay khi viết mới hoặc sửa các dòng lệnh liên quan. Tuyệt đối không quét auto-format tràn lan các file cũ không thuộc phạm vi task.
+
+- **19.43. CẤM Bọc Try-Catch / Try-Finally Quanh Act và Assert Trong Test — Tuân Thủ AAA Phẳng & Tuần Tự (Strict AAA - No Try-Catch / Try-Finally Wrapping in Tests - chốt 04/10/2026 - P0)**:
+  - **Phạm vi áp dụng**: Toàn bộ các phương thức kiểm thử (Unit Test / Integration Test) trong `tests/BE/`.
+  - 🔴 **Yêu cầu bắt buộc**: Tuân thủ nghiêm ngặt cấu trúc AAA (Arrange - Act - Assert) phẳng và tuần tự. Các hành động Act và Assert phải thực thi trực tiếp, không bọc lót.
+  - ⛔ **CẤM tuyệt đối**: Bọc khối `try-catch` hoặc `try-finally` quanh đoạn Act và Assert chỉ để cố tình dọn dẹp dữ liệu/tài nguyên (như `DisposeAsync`, `transport.Unsubscribe`, `Deleteable`, `ClearTrackState`).
+  - **Lý do & Nguyên tắc**: Nếu bài test phát sinh lỗi hoặc ném ngoại lệ, đó là vì **logic nghiệp vụ bên dưới đang sai** hoặc Assert không đạt kỳ vọng. Bài test **BẮT BUỘC PHẢI FAIL NGAY LẬP TỨC** tại đúng dòng phát sinh lỗi để lập trình viên nhận diện chính xác nguyên nhân gốc rễ. Việc lạm dụng `try-finally` làm che khuất luồng kiểm thử, gây hiểu nhầm về mục đích test ngoại lệ và làm rối cấu trúc code. Mọi hành động dọn dẹp tài nguyên phải viết tuần tự ở cuối hàm hoặc quản lý qua cơ chế chuẩn (`IAsyncLifetime`, `DisposeAsync`, Fixture).
+  - **Mẫu chuẩn**:
+    ```csharp
+    // ✅ ĐÚNG: Luồng phẳng, tuần tự, lỗi ở đâu dừng ngay ở đó
+    await service.ProcessAsync();
+    Assert.True(result);
+
+    transport.Unsubscribe("ta.its.event.sharedata.newdata");
+    foreach (var s in scopes)
+        await s.DisposeAsync();
+    await ClearTrackState(db);
+
+    // ❌ SAI: Bọc try-finally quanh Act/Assert để dọn dẹp
+    try
+    {
+        await service.ProcessAsync();
+        Assert.True(result);
+    }
+    finally
+    {
+        transport.Unsubscribe(...);
+        await ClearTrackState(db);
+    }
+    ```
+
+- **19.44. CẤM Tự Gán Thủ Công Khóa Chính `ID` Cho Entity Khi Insert Trong WebAPI / Repository (No Manual Entity ID Generation in WebAPI - chốt 04/10/2026 - P0)**:
+  - **Phạm vi áp dụng**: Mọi thao tác thêm mới (`Insert`, `InsertAsync`) Entity kế thừa `EntityBase`/`EntityTenant` trong WebAPI (`TA-ITS015-WEBAPI-V1.0`).
+  - 🔴 **Nguyên tắc hạ tầng**: Hạ tầng SqlSugar của dự án (`Shared.Infrastructure.dll` qua `SqlSugarSetup.SetDbAop`) đã tích hợp sẵn hook AOP `DataExecuting` tự động sinh khóa chính `ID` (chuẩn SnowFlake ID) cho mọi entity khi `ID` null hoặc rỗng. Sau khi gọi `await repository.InsertAsync(entity)`, thuộc tính `entity.ID` đã tự động được điền giá trị sinh ra và sẵn sàng để lấy ra sử dụng.
+  - ⛔ **CẤM tuyệt đối**: Tự chế code sinh ID thủ công (như `Guid.NewGuid().ToString("N")`, `var resolvedId = ... ? Guid.NewGuid() : logId;`) rồi gán `ID = resolvedId` khi khởi tạo entity để ghi vào CSDL qua Repository/WebAPI.
+  - **Ngoại lệ duy nhất**: Chỉ được phép gán `entity.ID` khi: (1) Caller chủ động chỉ định ID nghiệp vụ cụ thể cần ghi đè (ví dụ: gán `entity.ID = logId` khi `!string.IsNullOrWhiteSpace(logId)` để đồng bộ `packet.ReceiveLogId`), hoặc (2) Trong Worker chạy nền dùng `baseClient.CopyNew()` tách biệt DI không nạp hook AOP.
+  - **Lý do**: Việc sinh ID thủ công (như GUID) phá vỡ chuẩn sinh ID tập trung của hệ thống (SnowFlake ID số), sinh code rác/thừa thãi, và tiềm ẩn nguy cơ lệch chuẩn dữ liệu giữa các phân hệ.
+
+- **19.45. CẤM Tự Ý Xóa Dữ Liệu Bảng DB Trong Từng Test Method — Bắt Buộc Dọn Dẹp Tập Trung Tại `Host.ClearAllData()` Và Tự Cô Lập Bằng Unique ID (Strict No Ad-Hoc DB Deletion in Tests - chốt 04/10/2026 - P0)**:
+  - **Phạm vi áp dụng**: Toàn bộ các bài kiểm thử (Unit / Integration Test) trong `tests/BE/`.
+  - 🔴 **Yêu cầu bắt buộc**:
+    1. **Dọn dẹp tập trung duy nhất**: Việc làm sạch database (truncate/delete) chỉ được phép thực hiện tập trung tại phương thức chuẩn của hạ tầng kiểm thử (`Host.cs:ClearAllData()`) trước hoặc sau toàn bộ test run / fixture.
+    2. **Tự cô lập dữ liệu (Data Isolation by Unique Key)**: Mọi test case BẮT BUỘC phải tự cô lập dữ liệu thử nghiệm của mình bằng cách sinh khóa duy nhất (như `$"tbl_{Guid.NewGuid():N}"`, `$"P_{Guid.NewGuid():N}"`, `Guid.NewGuid().ToString("N")`).
+  - ⛔ **CẤM tuyệt đối**: Từng test method tự ý gọi `db.Deleteable<T>().ExecuteCommandAsync()` hay tạo các hàm phụ trợ riêng lẻ kiểu `ClearTrackState(db)` để xóa sạch dữ liệu trong bảng ở đầu, giữa hoặc cuối bài test.
+  - **Lý do & Nguyên tắc**: Khi các test suite chạy liên tục hoặc song song, việc một bài test tùy tiện xóa sạch toàn bộ một bảng CSDL sẽ ngay lập tức phá hoại dữ liệu đang được sử dụng của bài test khác, gây ra các lỗi chập chờn (flaky test) rất khó dò. Nếu một test case bị xung đột dữ liệu từ test trước, nguyên nhân gốc rễ là do test case đó **chưa tự cô lập dữ liệu bằng Unique ID** hoặc **logic thiết kế dữ liệu sai**, KHÔNG ĐƯỢC giải quyết bằng cách "tiện tay xóa cả bảng" trong hàm test.
+
+- **19.46. Cấu Trúc Bắt Buộc Trong Test Method — Khai Báo Service / Dependencies Ở Đầu Hàm (Arrange), Xử Lý Ở Thân Hàm (Act), Kiểm Tra Kết Quả Ở Cuối Hàm (Assert) (Strict AAA Method Structure & Services Declaration At Top - chốt 04/10/2026 - P0)**:
+  - **Phạm vi áp dụng**: Toàn bộ các bài kiểm thử (Unit / Integration Tests) trong `tests/BE/`.
+  - 🔴 **Yêu cầu bắt buộc**:
+    1. **Đầu hàm (Arrange)**: Mọi thao tác lấy service từ DI (như `var transport = _host.Services.GetRequiredService<TransportManager>();`, `using var scope = _host.Services.CreateScope();`, `var service = scope.ServiceProvider.GetRequiredService<...>();`), khởi tạo mock, chuẩn bị data/input, đăng ký event/subscription BẮT BUỘC phải khai báo tập trung ở ĐẦU PHƯƠNG THỨC. TUYỆT ĐỐI KHÔNG lấy service hoặc resolve DI rải rác lắt léo giữa chừng trong thân hàm hoặc sau khi đã bắt đầu thực thi nghiệp vụ.
+    2. **Thân hàm (Act)**: Chỉ chứa các bước kích hoạt hành vi, gọi service method, invoke bus command, hoặc thực hiện luồng nghiệp vụ cần kiểm thử.
+    3. **Cuối hàm (Assert & Sequential Cleanup)**: Kiểm tra kết quả (Assert giá trị DB, assert telemetry/NATS, assert response). Nếu có các tác vụ dọn dẹp tài nguyên (như `transport.Unsubscribe(...)`, `_mock.ResetDefaults()`), gọi tuần tự ngay sau các câu lệnh Assert. TUYỆT ĐỐI KHÔNG bọc quanh Act/Assert bằng khối `try-finally`.
+  - **Lý do**: Đảm bảo cấu trúc kiểm thử chuẩn AAA (Arrange - Act - Assert) mạch lạc, dễ đọc, dễ bảo trì, tách bạch hoàn toàn khâu chuẩn bị phụ thuộc với khâu thực thi và khâu kiểm tra kết quả, tránh việc tạo scope / resolve service lộn xộn gây rò rỉ hoặc che giấu luồng thực thi.
 
 ---
 

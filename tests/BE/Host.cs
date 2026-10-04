@@ -18,8 +18,7 @@ public class ApiTestCollection : ICollectionFixture<Host> { }
 public partial class Host : IAsyncLifetime
 {
     private static readonly string[] AllowedDatabaseNames = [
-        "test", "test_windows", "net_window", "net_windows",
-        "test_log", "test_windows_log", "net_window_log", "net_windows_log"
+        "test", "test_log", "test_inbound"
     ];
     private const string TestCultureName = "vi-VN";
     private static readonly string[] AllowedLocalHosts = ["127.0.0.1", "localhost", "(localdb)", "."];
@@ -47,32 +46,6 @@ public partial class Host : IAsyncLifetime
                 {
                     configBuilder.Sources.Clear();
                     configBuilder.SetBasePath(AppContext.BaseDirectory).AddJsonFile("appsettings.Test.json", optional: false, reloadOnChange: true);
-
-                    var tempConfig = configBuilder.Build();
-                    var activeConn = tempConfig["ActiveConnection"];
-                    var connStr = (!string.IsNullOrWhiteSpace(activeConn) ? tempConfig[$"ConnectionStrings:{activeConn}"] : null)
-                        ?? tempConfig["ConnectionStrings:Default"]
-                        ?? throw new InvalidOperationException("Không tìm thấy chuỗi kết nối kiểm thử trong ConnectionStrings:Default!");
-
-                    var logConnStr = tempConfig["ConnectionStrings:LogDefault"];
-                    if (string.IsNullOrWhiteSpace(logConnStr))
-                    {
-                        var logConnBuilder = new SqlConnectionStringBuilder(connStr);
-                        var mainDb = logConnBuilder.InitialCatalog;
-                        logConnBuilder.InitialCatalog = string.IsNullOrWhiteSpace(mainDb) ? "test_log" : $"{mainDb}_log";
-                        logConnStr = logConnBuilder.ConnectionString;
-                    }
-
-                    configBuilder.AddInMemoryCollection(new Dictionary<string, string?> {
-                        { "ConnectionStrings:Default", connStr },
-                        { "ConnectionStrings:DefaultConnection", connStr },
-                        { "ConnectionStrings:InboundConnection", connStr },
-                        { "ConnectionStrings:ShareDataDB", connStr },
-                        { "ConnectionStrings:LogDefault", logConnStr },
-                        { "DbConnection:ConnectionConfigs:0:ConnectionString", connStr },
-                        { "DbConnection:ConnectionConfigs:1:ConnectionString", logConnStr },
-                        { "DbConnection:ConnectionConfigs:2:ConnectionString", connStr }
-                    });
                 });
 
                 builder.ConfigureServices((context, services) =>
@@ -109,9 +82,12 @@ public partial class Host : IAsyncLifetime
 
     public void ClearAllData()
     {
-        var db = _host?.Services.GetService<ISqlSugarClient>();
-        if (db == null)
+        using var scope = _host?.Services.CreateScope();
+        var rootDb = scope?.ServiceProvider.GetService<ISqlSugarClient>();
+        if (rootDb == null)
             return;
+
+        using var db = rootDb.CopyNew();
 
         GuardSqlConnectionIsLocal(db.CurrentConnectionConfig?.ConnectionString, "Database");
 
@@ -127,6 +103,24 @@ public partial class Host : IAsyncLifetime
 
         foreach (var tableName in entityTableNames)
             db.DbMaintenance.TruncateTable(tableName);
+
+        // Dọn dẹp CSDL Inbound nếu có cấu hình tenant
+        var tenant = db.AsTenant();
+        foreach (var tenantKey in new[] { "Inbound", "ShareDataDB" })
+        {
+            if (tenant.IsAnyConnection(tenantKey))
+            {
+                var tenantDb = tenant.GetConnectionScope(tenantKey);
+                GuardSqlConnectionIsLocal(tenantDb.CurrentConnectionConfig?.ConnectionString, $"Tenant {tenantKey}");
+                var tenantTables = tenantDb.DbMaintenance
+                    .GetTableInfoList(false)
+                    .Select(t => t.Name)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                if (tenantTables.Contains("ShareDataInboundPacket"))
+                    tenantDb.DbMaintenance.TruncateTable("ShareDataInboundPacket");
+            }
+        }
     }
 
     /// <summary>

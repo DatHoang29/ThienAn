@@ -21,6 +21,7 @@ namespace Tests.StartupValidation
     /// Description: Bộ kiểm thử xác thực tính toàn vẹn DI Container và khả năng build Host của từng project độc lập
     /// Created date: 14/09/2026
     /// </summary>
+    [Collection("api")]
     public class ProjectStartupSmokeTests
     {
 #if HAS_VIDEOWALL_WORKER

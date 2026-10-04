@@ -61,21 +61,15 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             var worker = CreateTrackerWorker(scope);
 
-            try
-            {
-                await ClearTrackState(db);
-                Assert.Equal(-1, await GetStateVersion(db));
+            var trackState = await GetTrackState(db);
+            if (trackState != null)
+                await SetStateVersion(db, -1);
 
-                // Act: Chu kỳ poll đầu tiên khởi tạo môi trường và mốc version
-                await worker.PollChanges(CancellationToken.None);
+            // Act: Chu kỳ poll đầu tiên khởi tạo môi trường và mốc version
+            await worker.PollChanges(CancellationToken.None);
 
-                // Assert: Sau chu kỳ đầu, mốc version đã được khởi tạo thành công (>= 0)
-                Assert.True(await GetStateVersion(db) >= 0);
-            }
-            finally
-            {
-                await ClearTrackState(db);
-            }
+            // Assert: Sau chu kỳ đầu, mốc version đã được khởi tạo thành công (>= 0)
+            Assert.True(await GetStateVersion(db) >= 0);
         }
 
         [Fact]
@@ -142,44 +136,37 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var verObj = await db.Ado.GetScalarAsync(DataChangeTrackingService.SqlCurrentVersion);
             var verAfterInsert = Convert.ToInt64(verObj);
 
-            try
+            // Act 1: Xóa bản ghi (chỉ sinh SYS_CHANGE_OPERATION = 'D')
+            await db.Deleteable<TmsTrafficData>().Where(t => t.ID == carId).ExecuteCommandAsync();
+
+            // Kiểm tra câu lệnh BuildChangedTablesSql từ mốc verAfterInsert
+            var sql = InvokeBuildChangedTablesSql(["TmsTrafficData"]);
+            var changedTablesAfterDelete = await db.Ado.SqlQueryAsync<string>(sql, new { lastVer = verAfterInsert });
+
+            // Assert 1: Thao tác DELETE không được ghi nhận trong danh sách bảng thay đổi
+            Assert.DoesNotContain("TmsTrafficData", changedTablesAfterDelete);
+
+            // Act 2: Thêm một bản ghi mới (sinh SYS_CHANGE_OPERATION = 'I')
+            var newCarId = $"CAR_ADD_{testId}";
+            await db.Insertable(new TmsTrafficData
             {
-                // Act 1: Xóa bản ghi (chỉ sinh SYS_CHANGE_OPERATION = 'D')
-                await db.Deleteable<TmsTrafficData>().Where(t => t.ID == carId).ExecuteCommandAsync();
+                ID = newCarId,
+                EquipmentId = eqId,
+                DetectTime = DateTime.Now,
+                Type = "CAR",
+                LicensePlate = $"30A-ADD_{testId}",
+                Speed = 70f,
+                Lane = "L1",
+                Direction = "NORTH",
+                Location = "KM10",
+                CreateTime = DateTime.Now,
+                UpdateTime = DateTime.Now
+            }).ExecuteCommandAsync();
 
-                // Kiểm tra câu lệnh BuildChangedTablesSql từ mốc verAfterInsert
-                var sql = InvokeBuildChangedTablesSql(["TmsTrafficData"]);
-                var changedTablesAfterDelete = await db.Ado.SqlQueryAsync<string>(sql, new { lastVer = verAfterInsert });
+            var changedTablesAfterInsert = await db.Ado.SqlQueryAsync<string>(sql, new { lastVer = verAfterInsert });
 
-                // Assert 1: Thao tác DELETE không được ghi nhận trong danh sách bảng thay đổi
-                Assert.DoesNotContain("TmsTrafficData", changedTablesAfterDelete);
-
-                // Act 2: Thêm một bản ghi mới (sinh SYS_CHANGE_OPERATION = 'I')
-                var newCarId = $"CAR_ADD_{testId}";
-                await db.Insertable(new TmsTrafficData
-                {
-                    ID = newCarId,
-                    EquipmentId = eqId,
-                    DetectTime = DateTime.Now,
-                    Type = "CAR",
-                    LicensePlate = $"30A-ADD_{testId}",
-                    Speed = 70f,
-                    Lane = "L1",
-                    Direction = "NORTH",
-                    Location = "KM10",
-                    CreateTime = DateTime.Now,
-                    UpdateTime = DateTime.Now
-                }).ExecuteCommandAsync();
-
-                var changedTablesAfterInsert = await db.Ado.SqlQueryAsync<string>(sql, new { lastVer = verAfterInsert });
-
-                // Assert 2: Thao tác INSERT lập tức được ghi nhận
-                Assert.Contains("TmsTrafficData", changedTablesAfterInsert);
-            }
-            finally
-            {
-                await ClearTrackState(db);
-            }
+            // Assert 2: Thao tác INSERT lập tức được ghi nhận
+            Assert.Contains("TmsTrafficData", changedTablesAfterInsert);
         }
 
         /// <summary>
@@ -197,100 +184,90 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             var testId = Guid.NewGuid().ToString("N")[..8];
 
-            try
+            // Arrange 1: Chèn dòng A để đẩy version CSDL lên ≥ 1 TRƯỚC khi bật lại tracking
+            await db.Insertable(new TmsWeather
             {
-                // Arrange 1: Chèn dòng A để đẩy version CSDL lên ≥ 1 TRƯỚC khi bật lại tracking
-                await db.Insertable(new TmsWeather
+                ID = $"W_M1_{testId}",
+                CreateTime = DateTime.Now
+            }).ExecuteCommandAsync();
+
+            // Arrange 2: Disable / Enable để purge metadata => minValid nhảy lên = version CSDL hiện tại (≥ 1)
+            var isInitiallyTracked = await db.Ado.GetIntAsync(
+                "SELECT COUNT(1) FROM sys.change_tracking_tables WHERE object_id = OBJECT_ID('TmsWeather')") > 0;
+            if (isInitiallyTracked)
+                await db.Ado.ExecuteCommandAsync("ALTER TABLE [TmsWeather] DISABLE CHANGE_TRACKING;");
+            await db.Ado.ExecuteCommandAsync("ALTER TABLE [TmsWeather] ENABLE CHANGE_TRACKING WITH (TRACK_COLUMNS_UPDATED = OFF);");
+
+            // Arrange 3: Chốt chặn — minValid phải > 0 để kịch bản ép được lỗi thật
+            var minValidObj = await db.Ado.GetScalarAsync(
+                "SELECT min_valid_version FROM sys.change_tracking_tables WHERE object_id = OBJECT_ID('TmsWeather')");
+            var minValid = Convert.ToInt64(minValidObj);
+            Assert.True(minValid > 0,
+                $"minValid == 0 sau khi disable/enable — kịch bản ép lỗi không thể thực hiện (DB quá mới hoặc version chưa tăng). Dừng đo, không sửa assert 2/3.");
+
+            // Arrange 4: Chèn dòng B sau khi bật lại tracking để bảng có đúng 1 thay đổi thật
+            await db.Insertable(new TmsWeather
+            {
+                ID = $"W_M2_{testId}",
+                CreateTime = DateTime.Now
+            }).ExecuteCommandAsync();
+
+            // Đo 3 lượt
+            async Task<(Exception? Caught, int RowCount)> Probe(long v)
+            {
+                try
                 {
-                    ID = $"W_M1_{testId}",
-                    CreateTime = DateTime.Now
-                }).ExecuteCommandAsync();
-
-                // Arrange 2: Disable / Enable để purge metadata => minValid nhảy lên = version CSDL hiện tại (≥ 1)
-                var isInitiallyTracked = await db.Ado.GetIntAsync(
-                    "SELECT COUNT(1) FROM sys.change_tracking_tables WHERE object_id = OBJECT_ID('TmsWeather')") > 0;
-                if (isInitiallyTracked)
-                    await db.Ado.ExecuteCommandAsync("ALTER TABLE [TmsWeather] DISABLE CHANGE_TRACKING;");
-                await db.Ado.ExecuteCommandAsync("ALTER TABLE [TmsWeather] ENABLE CHANGE_TRACKING WITH (TRACK_COLUMNS_UPDATED = OFF);");
-
-                // Arrange 3: Chốt chặn — minValid phải > 0 để kịch bản ép được lỗi thật
-                var minValidObj = await db.Ado.GetScalarAsync(
-                    "SELECT min_valid_version FROM sys.change_tracking_tables WHERE object_id = OBJECT_ID('TmsWeather')");
-                var minValid = Convert.ToInt64(minValidObj);
-                Assert.True(minValid > 0,
-                    $"minValid == 0 sau khi disable/enable — kịch bản ép lỗi không thể thực hiện (DB quá mới hoặc version chưa tăng). Dừng đo, không sửa assert 2/3.");
-
-                // Arrange 4: Chèn dòng B sau khi bật lại tracking để bảng có đúng 1 thay đổi thật
-                await db.Insertable(new TmsWeather
+                    var rows = await db.Ado.SqlQueryAsync<string>(
+                        "SELECT CAST(CT.SYS_CHANGE_OPERATION AS NVARCHAR(10)) FROM CHANGETABLE(CHANGES TmsWeather, @v) AS CT",
+                        new { v });
+                    return (null, rows?.Count ?? 0);
+                }
+                catch (Exception ex)
                 {
-                    ID = $"W_M2_{testId}",
-                    CreateTime = DateTime.Now
-                }).ExecuteCommandAsync();
+                    return (ex, -1);
+                }
+            }
 
-                // Đo 3 lượt
-                async Task<(Exception? Caught, int RowCount)> Probe(long v)
+            var valid    = await Probe(minValid);       // Đối chứng: mốc HỢP LỆ
+            var atZero   = await Probe(0);              // Ngoài cửa sổ
+            var belowMin = await Probe(minValid - 1);   // Ngoài cửa sổ, sát biên
+
+            static string Shape(Exception? ex)
+            {
+                if (ex == null)
+                    return "(không ném)";
+
+                var levels = new List<string>();
+                for (var cur = ex; cur != null; cur = cur.InnerException)
                 {
-                    try
-                    {
-                        var rows = await db.Ado.SqlQueryAsync<string>(
-                            "SELECT CAST(CT.SYS_CHANGE_OPERATION AS NVARCHAR(10)) FROM CHANGETABLE(CHANGES TmsWeather, @v) AS CT",
-                            new { v });
-                        return (null, rows?.Count ?? 0);
-                    }
-                    catch (Exception ex)
-                    {
-                        return (ex, -1);
-                    }
+                    var number = cur.GetType().GetProperty("Number")?.GetValue(cur) as int?;
+                    levels.Add($"{cur.GetType().Name} | Number={number?.ToString() ?? "null"} | {cur.Message}");
                 }
 
-                var valid    = await Probe(minValid);       // Đối chứng: mốc HỢP LỆ
-                var atZero   = await Probe(0);              // Ngoài cửa sổ
-                var belowMin = await Probe(minValid - 1);   // Ngoài cửa sổ, sát biên
-
-                static string Shape(Exception? ex)
-                {
-                    if (ex == null)
-                        return "(không ném)";
-
-                    var levels = new List<string>();
-                    for (var cur = ex; cur != null; cur = cur.InnerException)
-                    {
-                        var number = cur.GetType().GetProperty("Number")?.GetValue(cur) as int?;
-                        levels.Add($"{cur.GetType().Name} | Number={number?.ToString() ?? "null"} | {cur.Message}");
-                    }
-
-                    return string.Join(Environment.NewLine, levels);
-                }
-
-                // Assert 1: Đối chứng — mốc hợp lệ phải đọc được dòng B
-                Assert.True(valid.Caught == null && valid.RowCount >= 1,
-                    $"Đối chứng thất bại: mốc hợp lệ (v={minValid}) không đọc được dòng B (RowCount={valid.RowCount}). Kịch bản sai, không sửa assert 2/3.{Environment.NewLine}Exception: {Shape(valid.Caught)}");
-
-                // Assert 2: Phép đo quyết định — v=0 ngoài cửa sổ: phải HOẶC ném HOẶC trả ≥1 dòng
-                Assert.True(atZero.Caught != null || atZero.RowCount >= 1,
-                    $"MẤT DỮ LIỆU ÂM THẦM: mốc @v=0 nằm ngoài cửa sổ (minValid={minValid}) mà CHANGETABLE vừa KHÔNG ném vừa trả 0 dòng, trong khi mốc hợp lệ đọc được {valid.RowCount} dòng.{Environment.NewLine}Hình dạng ngoại lệ @v=0:{Environment.NewLine}{Shape(atZero.Caught)}");
-
-                // Assert 3: Ca sát biên — v=minValid-1
-                Assert.True(belowMin.Caught != null || belowMin.RowCount >= 1,
-                    $"MẤT DỮ LIỆU ÂM THẦM: mốc @v={minValid - 1} (=minValid-1) nằm ngoài cửa sổ mà CHANGETABLE vừa KHÔNG ném vừa trả 0 dòng, trong khi mốc hợp lệ đọc được {valid.RowCount} dòng.{Environment.NewLine}Hình dạng ngoại lệ @v={minValid - 1}:{Environment.NewLine}{Shape(belowMin.Caught)}");
-
-                // Assert 4: Nếu ném — thu hình dạng ngoại lệ để biết mã lỗi thật
-                if (atZero.Caught != null)
-                    Assert.Fail(
-                        $"CHANGETABLE có ném tại @v=0 — dừng ở TĐ2, KHÔNG làm TĐ3. Mã lỗi thật:{Environment.NewLine}{Shape(atZero.Caught)}");
+                return string.Join(Environment.NewLine, levels);
             }
-            finally
-            {
-                // Bật lại tracking cho TmsWeather dù bước nào hỏng giữa đường.
-                await db.Ado.ExecuteCommandAsync(
-                    "IF NOT EXISTS (SELECT 1 FROM sys.change_tracking_tables WHERE object_id = OBJECT_ID('TmsWeather')) " +
-                    "ALTER TABLE TmsWeather ENABLE CHANGE_TRACKING WITH (TRACK_COLUMNS_UPDATED = OFF);");
 
-                await db.Deleteable<TmsWeather>()
-                    .Where(x => x.ID.StartsWith("W_M") && x.ID.Contains(testId))
-                    .ExecuteCommandAsync();
-                await ClearTrackState(db);
-            }
+            // Assert 1: Đối chứng — mốc hợp lệ phải đọc được dòng B
+            Assert.True(valid.Caught == null && valid.RowCount >= 1,
+                $"Đối chứng thất bại: mốc hợp lệ (v={minValid}) không đọc được dòng B (RowCount={valid.RowCount}). Kịch bản sai, không sửa assert 2/3.{Environment.NewLine}Exception: {Shape(valid.Caught)}");
+
+            // Assert 2: Phép đo quyết định — v=0 ngoài cửa sổ: phải HOẶC ném HOẶC trả ≥1 dòng
+            Assert.True(atZero.Caught != null || atZero.RowCount >= 1,
+                $"MẤT DỮ LIỆU ÂM THẦM: mốc @v=0 nằm ngoài cửa sổ (minValid={minValid}) mà CHANGETABLE vừa KHÔNG ném vừa trả 0 dòng, trong khi mốc hợp lệ đọc được {valid.RowCount} dòng.{Environment.NewLine}Hình dạng ngoại lệ @v=0:{Environment.NewLine}{Shape(atZero.Caught)}");
+
+            // Assert 3: Ca sát biên — v=minValid-1
+            Assert.True(belowMin.Caught != null || belowMin.RowCount >= 1,
+                $"MẤT DỮ LIỆU ÂM THẦM: mốc @v={minValid - 1} (=minValid-1) nằm ngoài cửa sổ mà CHANGETABLE vừa KHÔNG ném vừa trả 0 dòng, trong khi mốc hợp lệ đọc được {valid.RowCount} dòng.{Environment.NewLine}Hình dạng ngoại lệ @v={minValid - 1}:{Environment.NewLine}{Shape(belowMin.Caught)}");
+
+            // Assert 4: Nếu ném — thu hình dạng ngoại lệ để biết mã lỗi thật
+            if (atZero.Caught != null)
+                Assert.Fail(
+                    $"CHANGETABLE có ném tại @v=0 — dừng ở TĐ2, KHÔNG làm TĐ3. Mã lỗi thật:{Environment.NewLine}{Shape(atZero.Caught)}");
+
+            // Khôi phục lại tracking cho TmsWeather
+            await db.Ado.ExecuteCommandAsync(
+                "IF NOT EXISTS (SELECT 1 FROM sys.change_tracking_tables WHERE object_id = OBJECT_ID('TmsWeather')) " +
+                "ALTER TABLE TmsWeather ENABLE CHANGE_TRACKING WITH (TRACK_COLUMNS_UPDATED = OFF);");
         }
 
         /// <summary>
@@ -307,86 +284,75 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             var testId = Guid.NewGuid().ToString("N")[..8];
 
-            try
+            // Arrange 1: Khởi tạo mốc gốc qua PollChanges
+            await worker.PollChanges(CancellationToken.None);
+            var baseline = await GetStateVersion(db);
+            Assert.True(baseline >= 0, "Baseline version phải >= 0 sau khi khởi tạo.");
+
+            // Arrange 2: Disable / Enable TmsWeather => minValid nhảy lên bằng version CSDL hiện tại
+            var isTracked = await db.Ado.GetIntAsync(
+                "SELECT COUNT(1) FROM sys.change_tracking_tables WHERE object_id = OBJECT_ID('TmsWeather')") > 0;
+            if (isTracked)
+                await db.Ado.ExecuteCommandAsync("ALTER TABLE [TmsWeather] DISABLE CHANGE_TRACKING;");
+            await db.Ado.ExecuteCommandAsync("ALTER TABLE [TmsWeather] ENABLE CHANGE_TRACKING WITH (TRACK_COLUMNS_UPDATED = OFF);");
+
+            var minValidObj = await db.Ado.GetScalarAsync(
+                "SELECT min_valid_version FROM sys.change_tracking_tables WHERE object_id = OBJECT_ID('TmsWeather')");
+            var minValid = Convert.ToInt64(minValidObj);
+
+            // Arrange 3: Chèn 1 dòng vào TmsWeather để version CSDL vượt mốc đang giữ
+            await db.Insertable(new TmsWeather
             {
-                // Arrange 1: Khởi tạo mốc gốc qua PollChanges
-                await ClearTrackState(db);
-                await worker.PollChanges(CancellationToken.None);
-                var baseline = await GetStateVersion(db);
-                Assert.True(baseline >= 0, "Baseline version phải >= 0 sau khi khởi tạo.");
+                ID = $"W_FFW_{testId}",
+                CreateTime = DateTime.Now
+            }).ExecuteCommandAsync();
 
-                // Arrange 2: Disable / Enable TmsWeather => minValid nhảy lên bằng version CSDL hiện tại
-                var isTracked = await db.Ado.GetIntAsync(
-                    "SELECT COUNT(1) FROM sys.change_tracking_tables WHERE object_id = OBJECT_ID('TmsWeather')") > 0;
-                if (isTracked)
-                    await db.Ado.ExecuteCommandAsync("ALTER TABLE [TmsWeather] DISABLE CHANGE_TRACKING;");
-                await db.Ado.ExecuteCommandAsync("ALTER TABLE [TmsWeather] ENABLE CHANGE_TRACKING WITH (TRACK_COLUMNS_UPDATED = OFF);");
+            // Arrange 4: Đặt mốc xuống dưới minValid (nhưng >= 0, không âm, để không đi nhánh khởi tạo)
+            var staleVersion = Math.Max(0L, minValid - 1);
+            await SetStateVersion(db, staleVersion);
 
-                var minValidObj = await db.Ado.GetScalarAsync(
-                    "SELECT min_valid_version FROM sys.change_tracking_tables WHERE object_id = OBJECT_ID('TmsWeather')");
-                var minValid = Convert.ToInt64(minValidObj);
+            var startedAt = (await db.Ado.GetDateTimeAsync("SELECT GETDATE()")).AddSeconds(-5);
 
-                // Arrange 3: Chèn 1 dòng vào TmsWeather để version CSDL vượt mốc đang giữ
-                await db.Insertable(new TmsWeather
-                {
-                    ID = $"W_FFW_{testId}",
-                    CreateTime = DateTime.Now
-                }).ExecuteCommandAsync();
+            // Act: PollChanges lần 1
+            await worker.PollChanges(CancellationToken.None);
 
-                // Arrange 4: Đặt mốc xuống dưới minValid (nhưng >= 0, không âm, để không đi nhánh khởi tạo)
-                var staleVersion = Math.Max(0L, minValid - 1);
-                await SetStateVersion(db, staleVersion);
+            // Assert 1: TmsWeather bị cô lập riêng trong RAM
+            var missing = GetMissingTables(worker);
+            Assert.True(missing.ContainsKey("TmsWeather"),
+                $"TmsWeather phải bị cô lập. Danh sách đang cô lập: [{string.Join(", ", missing.Keys)}].");
 
-                var startedAt = (await db.Ado.GetDateTimeAsync("SELECT GETDATE()")).AddSeconds(-5);
+            // Assert 2: 🔴 Câu truy vấn đang áp dụng đã loại TmsWeather nhưng GIỮ các bảng lành
+            Assert.DoesNotContain("TmsWeather", worker.ActiveChangesSql);
+            Assert.Contains("TmsTrafficData", worker.ActiveChangesSql);
 
-                // Act: PollChanges lần 1
-                await worker.PollChanges(CancellationToken.None);
+            // Assert 3: 🔴 KHÔNG có dòng ESH-1601 nào — mốc KHÔNG bị nhảy cóc vì chỉ một phần quá hạn
+            var esh1601Count = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.SelfHeal && x.CreateTime >= startedAt)
+                .CountAsync();
+            Assert.Equal(0, esh1601Count);
 
-                // Assert 1: TmsWeather bị cô lập riêng trong RAM
-                var missing = GetMissingTables(worker);
-                Assert.True(missing.ContainsKey("TmsWeather"),
-                    $"TmsWeather phải bị cô lập. Danh sách đang cô lập: [{string.Join(", ", missing.Keys)}].");
+            // Assert 4: Đúng 1 dòng ESH-1602 mang staleTables chứa TmsWeather
+            var esh1602Rows = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.QueryFailed && x.CreateTime >= startedAt)
+                .Where(x => x.AfterJson != null && x.AfterJson.Contains("staleTables"))
+                .ToListAsync();
 
-                // Assert 2: 🔴 Câu truy vấn đang áp dụng đã loại TmsWeather nhưng GIỮ các bảng lành
-                Assert.DoesNotContain("TmsWeather", worker.ActiveChangesSql);
-                Assert.Contains("TmsTrafficData", worker.ActiveChangesSql);
+            Assert.Single(esh1602Rows);
+            Assert.Contains("TmsWeather", esh1602Rows[0].AfterJson!);
 
-                // Assert 3: 🔴 KHÔNG có dòng ESH-1601 nào — mốc KHÔNG bị nhảy cóc vì chỉ một phần quá hạn
-                var esh1601Count = await db.Queryable<ShareDataActivityLog>()
-                    .Where(x => x.Remark == ShareDataAlertCode.Tracking.SelfHeal && x.CreateTime >= startedAt)
-                    .CountAsync();
-                Assert.Equal(0, esh1601Count);
+            // Assert 5: PollChanges lần 2 — KHÔNG sinh thêm dòng cô lập nào (bảng đã nằm trong MissingTables)
+            await worker.PollChanges(CancellationToken.None);
 
-                // Assert 4: Đúng 1 dòng ESH-1602 mang staleTables chứa TmsWeather
-                var esh1602Rows = await db.Queryable<ShareDataActivityLog>()
-                    .Where(x => x.Remark == ShareDataAlertCode.Tracking.QueryFailed && x.CreateTime >= startedAt)
-                    .Where(x => x.AfterJson != null && x.AfterJson.Contains("staleTables"))
-                    .ToListAsync();
+            var esh1602CountAfterSecondPoll = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.QueryFailed && x.CreateTime >= startedAt)
+                .Where(x => x.AfterJson != null && x.AfterJson.Contains("staleTables"))
+                .CountAsync();
+            Assert.Equal(1, esh1602CountAfterSecondPoll);
 
-                Assert.Single(esh1602Rows);
-                Assert.Contains("TmsWeather", esh1602Rows[0].AfterJson!);
-
-                // Assert 5: PollChanges lần 2 — KHÔNG sinh thêm dòng cô lập nào (bảng đã nằm trong MissingTables)
-                await worker.PollChanges(CancellationToken.None);
-
-                var esh1602CountAfterSecondPoll = await db.Queryable<ShareDataActivityLog>()
-                    .Where(x => x.Remark == ShareDataAlertCode.Tracking.QueryFailed && x.CreateTime >= startedAt)
-                    .Where(x => x.AfterJson != null && x.AfterJson.Contains("staleTables"))
-                    .CountAsync();
-                Assert.Equal(1, esh1602CountAfterSecondPoll);
-            }
-            finally
-            {
-                // Bật lại tracking TmsWeather
-                await db.Ado.ExecuteCommandAsync(
-                    "IF NOT EXISTS (SELECT 1 FROM sys.change_tracking_tables WHERE object_id = OBJECT_ID('TmsWeather')) " +
-                    "ALTER TABLE TmsWeather ENABLE CHANGE_TRACKING WITH (TRACK_COLUMNS_UPDATED = OFF);");
-
-                await db.Deleteable<TmsWeather>()
-                    .Where(x => x.ID.StartsWith("W_FFW") && x.ID.Contains(testId))
-                    .ExecuteCommandAsync();
-                await ClearTrackState(db);
-            }
+            // Bật lại tracking TmsWeather
+            await db.Ado.ExecuteCommandAsync(
+                "IF NOT EXISTS (SELECT 1 FROM sys.change_tracking_tables WHERE object_id = OBJECT_ID('TmsWeather')) " +
+                "ALTER TABLE TmsWeather ENABLE CHANGE_TRACKING WITH (TRACK_COLUMNS_UPDATED = OFF);");
         }
 
         /// <summary>
@@ -403,67 +369,56 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             var testId = Guid.NewGuid().ToString("N")[..8];
 
-            try
+            // Arrange 1: Khởi tạo mốc gốc qua PollChanges
+            await worker.PollChanges(CancellationToken.None);
+            var baseline = await GetStateVersion(db);
+            Assert.True(baseline >= 0, "Baseline version phải >= 0 sau khi khởi tạo.");
+
+            // Arrange 2: Chèn 1 dòng vào TmsWeather để version CSDL chắc chắn > 0
+            await db.Insertable(new TmsWeather
             {
-                // Arrange 1: Khởi tạo mốc gốc qua PollChanges
-                await ClearTrackState(db);
-                await worker.PollChanges(CancellationToken.None);
-                var baseline = await GetStateVersion(db);
-                Assert.True(baseline >= 0, "Baseline version phải >= 0 sau khi khởi tạo.");
+                ID = $"W_ALLSTALE_{testId}",
+                CreateTime = DateTime.Now
+            }).ExecuteCommandAsync();
 
-                // Arrange 2: Chèn 1 dòng vào TmsWeather để version CSDL chắc chắn > 0
-                await db.Insertable(new TmsWeather
-                {
-                    ID = $"W_ALLSTALE_{testId}",
-                    CreateTime = DateTime.Now
-                }).ExecuteCommandAsync();
+            // Arrange 3: Đọc min_valid_version của mọi bảng đang bật tracking
+            var minOfAllObj = await db.Ado.GetScalarAsync("SELECT MIN(min_valid_version) FROM sys.change_tracking_tables");
+            var minOfAll = Convert.ToInt64(minOfAllObj);
+            Assert.True(minOfAll > 0, $"min_valid_version nhỏ nhất của các bảng là {minOfAll}, không thể ép ca mọi bảng đều stale.");
 
-                // Arrange 3: Đọc min_valid_version của mọi bảng đang bật tracking
-                var minOfAllObj = await db.Ado.GetScalarAsync("SELECT MIN(min_valid_version) FROM sys.change_tracking_tables");
-                var minOfAll = Convert.ToInt64(minOfAllObj);
-                Assert.True(minOfAll > 0, $"min_valid_version nhỏ nhất của các bảng là {minOfAll}, không thể ép ca mọi bảng đều stale.");
+            // Arrange 4: Đặt mốc xuống 0 (mốc 0 < minOfAll của mọi bảng => mọi bảng đều stale; mốc >= 0 nên không đi nhánh init)
+            await SetStateVersion(db, 0);
 
-                // Arrange 4: Đặt mốc xuống 0 (mốc 0 < minOfAll của mọi bảng => mọi bảng đều stale; mốc >= 0 nên không đi nhánh init)
-                await SetStateVersion(db, 0);
+            var startedAt = (await db.Ado.GetDateTimeAsync("SELECT GETDATE()")).AddSeconds(-5);
 
-                var startedAt = (await db.Ado.GetDateTimeAsync("SELECT GETDATE()")).AddSeconds(-5);
+            // Act: PollChanges lần 1
+            await worker.PollChanges(CancellationToken.None);
 
-                // Act: PollChanges lần 1
-                await worker.PollChanges(CancellationToken.None);
+            // Assert 1: Mốc đã nhảy cóc
+            var afterVersion = await GetStateVersion(db);
+            Assert.True(afterVersion > 0, $"Mốc chưa nhảy cóc: afterVersion={afterVersion}.");
 
-                // Assert 1: Mốc đã nhảy cóc
-                var afterVersion = await GetStateVersion(db);
-                Assert.True(afterVersion > 0, $"Mốc chưa nhảy cóc: afterVersion={afterVersion}.");
+            // Assert 2: Đúng 1 dòng ESH-1601 sinh ra, AfterJson chứa staleTables
+            var esh1601Rows = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.SelfHeal && x.CreateTime >= startedAt)
+                .OrderBy(x => x.CreateTime, OrderByType.Desc)
+                .ToListAsync();
 
-                // Assert 2: Đúng 1 dòng ESH-1601 sinh ra, AfterJson chứa staleTables
-                var esh1601Rows = await db.Queryable<ShareDataActivityLog>()
-                    .Where(x => x.Remark == ShareDataAlertCode.Tracking.SelfHeal && x.CreateTime >= startedAt)
-                    .OrderBy(x => x.CreateTime, OrderByType.Desc)
-                    .ToListAsync();
+            Assert.Single(esh1601Rows);
+            Assert.NotNull(esh1601Rows[0].AfterJson);
+            Assert.Contains("staleTables", esh1601Rows[0].AfterJson);
 
-                Assert.Single(esh1601Rows);
-                Assert.NotNull(esh1601Rows[0].AfterJson);
-                Assert.Contains("staleTables", esh1601Rows[0].AfterJson);
+            // Assert 3: 🔴 GetMissingTables rỗng — nhánh tất-cả KHÔNG cô lập bảng nào
+            var missing = GetMissingTables(worker);
+            Assert.Empty(missing);
 
-                // Assert 3: 🔴 GetMissingTables rỗng — nhánh tất-cả KHÔNG cô lập bảng nào
-                var missing = GetMissingTables(worker);
-                Assert.Empty(missing);
+            // Assert 4: PollChanges lần 2 — KHÔNG sinh thêm ESH-1601 (mốc đã hợp lệ lại)
+            await worker.PollChanges(CancellationToken.None);
 
-                // Assert 4: PollChanges lần 2 — KHÔNG sinh thêm ESH-1601 (mốc đã hợp lệ lại)
-                await worker.PollChanges(CancellationToken.None);
-
-                var totalEsh1601AfterSecondPoll = await db.Queryable<ShareDataActivityLog>()
-                    .Where(x => x.Remark == ShareDataAlertCode.Tracking.SelfHeal && x.CreateTime >= startedAt)
-                    .CountAsync();
-                Assert.Equal(1, totalEsh1601AfterSecondPoll);
-            }
-            finally
-            {
-                await db.Deleteable<TmsWeather>()
-                    .Where(x => x.ID.StartsWith("W_ALLSTALE") && x.ID.Contains(testId))
-                    .ExecuteCommandAsync();
-                await ClearTrackState(db);
-            }
+            var totalEsh1601AfterSecondPoll = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.SelfHeal && x.CreateTime >= startedAt)
+                .CountAsync();
+            Assert.Equal(1, totalEsh1601AfterSecondPoll);
         }
 
         /// <summary>
@@ -484,25 +439,16 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             var worker = CreateTrackerWorker(scope);
 
-            try
-            {
-                await ClearTrackState(db);
+            // Act 1: Chu kỳ poll đầu tiên khởi tạo mốc LastVersion trong bảng ShareDataTrackVersion = currentVer
+            await worker.PollChanges(CancellationToken.None);
+            Assert.True(await GetStateVersion(db) >= 0);
 
-                // Act 1: Chu kỳ poll đầu tiên khởi tạo mốc LastVersion trong bảng ShareDataTrackVersion = currentVer
-                await worker.PollChanges(CancellationToken.None);
-                Assert.True(await GetStateVersion(db) >= 0);
+            // Act 2: Giả lập mốc LastVersion trong bảng ShareDataTrackVersion bị lệch hoặc âm (-10)
+            await SetStateVersion(db, -10);
+            await worker.PollChanges(CancellationToken.None);
 
-                // Act 2: Giả lập mốc LastVersion trong bảng ShareDataTrackVersion bị lệch hoặc âm (-10)
-                await SetStateVersion(db, -10);
-                await worker.PollChanges(CancellationToken.None);
-
-                // Assert: Worker tự căn chỉnh lại theo mốc DB hiện tại
-                Assert.True(await GetStateVersion(db) >= currentVer);
-            }
-            finally
-            {
-                await ClearTrackState(db);
-            }
+            // Assert: Worker tự căn chỉnh lại theo mốc DB hiện tại
+            Assert.True(await GetStateVersion(db) >= currentVer);
         }
 
         /// <summary>
@@ -544,113 +490,104 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var eqId = $"EQ_ISO_{testId}";
             var carId = $"CAR_ISO_{testId}";
 
-            try
+            // 1. Chu kỳ đầu: Khởi tạo môi trường, đảm bảo CT bật trên toàn bộ bảng và mốc LastVersion >= 0
+            await worker.PollChanges(CancellationToken.None);
+            var initialVersion = await GetStateVersion(db);
+            Assert.True(initialVersion >= 0);
+
+            // 2. Giả lập DBA tắt Change Tracking trên 1 bảng (ví dụ TmsWeather)
+            await db.Ado.ExecuteCommandAsync("ALTER TABLE [TmsWeather] DISABLE CHANGE_TRACKING;");
+
+            // Xác nhận TmsWeather thực sự đã bị tắt CT trong sys.change_tracking_tables
+            var isWeatherTracked = await db.Ado.GetIntAsync("SELECT COUNT(1) FROM sys.change_tracking_tables WHERE object_id = OBJECT_ID('TmsWeather')") > 0;
+            Assert.False(isWeatherTracked);
+
+            // 3. Tạo thay đổi dữ liệu trên một bảng LÀNH MẠNH khác (TmsTrafficData)
+            await db.Insertable(new TmsEquipment
             {
-                await ClearTrackState(db);
+                ID = eqId,
+                Code = $"EQ_ISO_{testId}",
+                KmNumber = 15,
+                MetNumber = 300
+            }).ExecuteCommandAsync();
 
-                // 1. Chu kỳ đầu: Khởi tạo môi trường, đảm bảo CT bật trên toàn bộ bảng và mốc LastVersion >= 0
-                await worker.PollChanges(CancellationToken.None);
-                var initialVersion = await GetStateVersion(db);
-                Assert.True(initialVersion >= 0);
-
-                // 2. Giả lập DBA tắt Change Tracking trên 1 bảng (ví dụ TmsWeather)
-                await db.Ado.ExecuteCommandAsync("ALTER TABLE [TmsWeather] DISABLE CHANGE_TRACKING;");
-
-                // Xác nhận TmsWeather thực sự đã bị tắt CT trong sys.change_tracking_tables
-                var isWeatherTracked = await db.Ado.GetIntAsync("SELECT COUNT(1) FROM sys.change_tracking_tables WHERE object_id = OBJECT_ID('TmsWeather')") > 0;
-                Assert.False(isWeatherTracked);
-
-                // 3. Tạo thay đổi dữ liệu trên một bảng LÀNH MẠNH khác (TmsTrafficData)
-                await db.Insertable(new TmsEquipment
-                {
-                    ID = eqId,
-                    Code = $"EQ_ISO_{testId}",
-                    KmNumber = 15,
-                    MetNumber = 300
-                }).ExecuteCommandAsync();
-
-                await db.Insertable(new TmsTrafficData
-                {
-                    ID = carId,
-                    EquipmentId = eqId,
-                    DetectTime = DateTime.Now,
-                    Type = "CAR",
-                    LicensePlate = $"30A-ISO_{testId}",
-                    Speed = 65f,
-                    Lane = "L1",
-                    Direction = "NORTH",
-                    Location = "KM15",
-                    CreateTime = DateTime.Now,
-                    UpdateTime = DateTime.Now
-                }).ExecuteCommandAsync();
-
-                // Lấy mốc version mới của DB (phải lớn hơn initialVersion)
-                var currentVerObj = await db.Ado.GetScalarAsync(DataChangeTrackingService.SqlCurrentVersion);
-                var currentVer = Convert.ToInt64(currentVerObj);
-                Assert.True(currentVer > initialVersion);
-
-                // Act: Chu kỳ poll tiếp theo chạy khi TmsWeather đã mất CT
-                // Trước khi sửa: Lệnh này văng SqlException ("Change tracking is not enabled on table 'TmsWeather'")
-                // Sau khi sửa: Worker tự động cô lập TmsWeather, truy vấn các bảng còn lại, phát hiện TmsTrafficData thay đổi và tiến LastVersion = currentVer
-                await worker.PollChanges(CancellationToken.None);
-
-                // Assert 1:
-                // Mốc version của worker PHẢI tiến lên currentVer (chứng minh bảng lành mạnh đã được xử lý, không bị nghẽn bởi TmsWeather)
-                var newVersion = await GetStateVersion(db);
-                Assert.Equal(currentVer, newVersion);
-
-                // Assert 2:
-                // TmsWeather bị cô lập trong RAM, loại khỏi câu SQL đang áp dụng, và có mốc hẹn thử lại riêng
-                Assert.Contains("TmsWeather", GetMissingTables(worker).Keys);
-                Assert.DoesNotContain("TmsWeather", worker.ActiveChangesSql);
-                Assert.True(GetMissingTables(worker)["TmsWeather"] > DateTime.UtcNow);
-
-                // Act 2: Có thay đổi dữ liệu mới trong hệ thống làm version CSDL tiến lên TRƯỚC khi DBA bật lại Change Tracking cho TmsWeather,
-                // khiến min_valid_version của TmsWeather mới hơn LastVersion hiện tại của worker.
-                await db.Insertable(new TmsTrafficData
-                {
-                    ID = $"CAR_ISO2_{testId}",
-                    EquipmentId = eqId,
-                    DetectTime = DateTime.Now,
-                    Type = "CAR",
-                    LicensePlate = $"30B-ISO_{testId}",
-                    Speed = 70f,
-                    Lane = "L1",
-                    Direction = "NORTH",
-                    Location = "KM15",
-                    CreateTime = DateTime.Now,
-                    UpdateTime = DateTime.Now
-                }).ExecuteCommandAsync();
-
-                // DBA bật lại Change Tracking cho TmsWeather và mốc hẹn thử lại của nó đã tới hạn
-                await db.Ado.ExecuteCommandAsync("ALTER TABLE [TmsWeather] ENABLE CHANGE_TRACKING WITH (TRACK_COLUMNS_UPDATED = OFF);");
-                ExpireMissingTableRetry(worker);
-
-                await worker.PollChanges(CancellationToken.None);
-
-                // Assert 3a: Bật lại tracking CHƯA đủ — mốc tối thiểu của TmsWeather mới hơn mốc worker đang giữ lúc bắt đầu chu kỳ,
-                // nên bảng vẫn phải nằm ngoài câu SQL (xem MasterPlan §6b).
-                Assert.Contains("TmsWeather", GetMissingTables(worker).Keys);
-                Assert.DoesNotContain("TmsWeather", worker.ActiveChangesSql);
-
-                // Act 3: Sau khi chu kỳ poll trên đã nâng LastVersion của worker lên mốc mới, đến chu kỳ tiếp theo
-                // khi mốc hẹn thử lại tới hạn, TmsWeather sẽ được khôi phục vì LastVersion >= min_valid_version.
-                ExpireMissingTableRetry(worker);
-                await worker.PollChanges(CancellationToken.None);
-
-                // Assert 3b: Giờ mốc đã vượt/bằng min_valid_version, TmsWeather được khôi phục
-                Assert.Empty(GetMissingTables(worker));
-                Assert.Contains("TmsWeather", worker.ActiveChangesSql);
-            }
-            finally
+            await db.Insertable(new TmsTrafficData
             {
-                // Luôn khôi phục lại Change Tracking cho TmsWeather để không ảnh hưởng các test khác
-                await db.Ado.ExecuteCommandAsync(
-                    "IF NOT EXISTS (SELECT 1 FROM sys.change_tracking_tables WHERE object_id = OBJECT_ID('TmsWeather')) " +
-                    "ALTER TABLE [TmsWeather] ENABLE CHANGE_TRACKING WITH (TRACK_COLUMNS_UPDATED = OFF);");
+                ID = carId,
+                EquipmentId = eqId,
+                DetectTime = DateTime.Now,
+                Type = "CAR",
+                LicensePlate = $"30A-ISO_{testId}",
+                Speed = 65f,
+                Lane = "L1",
+                Direction = "NORTH",
+                Location = "KM15",
+                CreateTime = DateTime.Now,
+                UpdateTime = DateTime.Now
+            }).ExecuteCommandAsync();
 
-                await ClearTrackState(db);
-            }
+            // Lấy mốc version mới của DB (phải lớn hơn initialVersion)
+            var currentVerObj = await db.Ado.GetScalarAsync(DataChangeTrackingService.SqlCurrentVersion);
+            var currentVer = Convert.ToInt64(currentVerObj);
+            Assert.True(currentVer > initialVersion);
+
+            // Act: Chu kỳ poll tiếp theo chạy khi TmsWeather đã mất CT
+            // Trước khi sửa: Lệnh này văng SqlException ("Change tracking is not enabled on table 'TmsWeather'")
+            // Sau khi sửa: Worker tự động cô lập TmsWeather, truy vấn các bảng còn lại, phát hiện TmsTrafficData thay đổi và tiến LastVersion = currentVer
+            await worker.PollChanges(CancellationToken.None);
+
+            // Assert 1:
+            // Mốc version của worker PHẢI tiến lên currentVer (chứng minh bảng lành mạnh đã được xử lý, không bị nghẽn bởi TmsWeather)
+            var newVersion = await GetStateVersion(db);
+            Assert.Equal(currentVer, newVersion);
+
+            // Assert 2:
+            // TmsWeather bị cô lập trong RAM, loại khỏi câu SQL đang áp dụng, và có mốc hẹn thử lại riêng
+            Assert.Contains("TmsWeather", GetMissingTables(worker).Keys);
+            Assert.DoesNotContain("TmsWeather", worker.ActiveChangesSql);
+            Assert.True(GetMissingTables(worker)["TmsWeather"] > DateTime.UtcNow);
+
+            // Act 2: Có thay đổi dữ liệu mới trong hệ thống làm version CSDL tiến lên TRƯỚC khi DBA bật lại Change Tracking cho TmsWeather,
+            // khiến min_valid_version của TmsWeather mới hơn LastVersion hiện tại của worker.
+            await db.Insertable(new TmsTrafficData
+            {
+                ID = $"CAR_ISO2_{testId}",
+                EquipmentId = eqId,
+                DetectTime = DateTime.Now,
+                Type = "CAR",
+                LicensePlate = $"30B-ISO_{testId}",
+                Speed = 70f,
+                Lane = "L1",
+                Direction = "NORTH",
+                Location = "KM15",
+                CreateTime = DateTime.Now,
+                UpdateTime = DateTime.Now
+            }).ExecuteCommandAsync();
+
+            // DBA bật lại Change Tracking cho TmsWeather và mốc hẹn thử lại của nó đã tới hạn
+            await db.Ado.ExecuteCommandAsync("ALTER TABLE [TmsWeather] ENABLE CHANGE_TRACKING WITH (TRACK_COLUMNS_UPDATED = OFF);");
+            ExpireMissingTableRetry(worker);
+
+            await worker.PollChanges(CancellationToken.None);
+
+            // Assert 3a: Bật lại tracking CHƯA đủ — mốc tối thiểu của TmsWeather mới hơn mốc worker đang giữ lúc bắt đầu chu kỳ,
+            // nên bảng vẫn phải nằm ngoài câu SQL (xem MasterPlan §6b).
+            Assert.Contains("TmsWeather", GetMissingTables(worker).Keys);
+            Assert.DoesNotContain("TmsWeather", worker.ActiveChangesSql);
+
+            // Act 3: Sau khi chu kỳ poll trên đã nâng LastVersion của worker lên mốc mới, đến chu kỳ tiếp theo
+            // khi mốc hẹn thử lại tới hạn, TmsWeather sẽ được khôi phục vì LastVersion >= min_valid_version.
+            ExpireMissingTableRetry(worker);
+            await worker.PollChanges(CancellationToken.None);
+
+            // Assert 3b: Giờ mốc đã vượt/bằng min_valid_version, TmsWeather được khôi phục
+            Assert.Empty(GetMissingTables(worker));
+            Assert.Contains("TmsWeather", worker.ActiveChangesSql);
+
+            // Luôn khôi phục lại Change Tracking cho TmsWeather để không ảnh hưởng các test khác
+            await db.Ado.ExecuteCommandAsync(
+                "IF NOT EXISTS (SELECT 1 FROM sys.change_tracking_tables WHERE object_id = OBJECT_ID('TmsWeather')) " +
+                "ALTER TABLE [TmsWeather] ENABLE CHANGE_TRACKING WITH (TRACK_COLUMNS_UPDATED = OFF);");
         }
 
         /// <summary>
@@ -668,24 +605,19 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var firstTable = worker.TrackedTables[0];
             var secondTable = worker.TrackedTables[1];
 
-            try
-            {
-                // Arrange: cô lập bảng thứ nhất rồi cho mốc hẹn của nó về quá khứ (đã đến hạn)
-                missing[firstTable] = DateTime.UtcNow.AddSeconds(-1);
-                var firstRetryAt = missing[firstTable];
+            // Arrange: cô lập bảng thứ nhất rồi cho mốc hẹn của nó về quá khứ (đã đến hạn)
+            missing[firstTable] = DateTime.UtcNow.AddSeconds(-1);
+            var firstRetryAt = missing[firstTable];
 
-                // Act: cô lập thêm bảng thứ hai ở thời điểm muộn hơn
-                missing[secondTable] = DateTime.UtcNow + TimeSpan.FromMinutes(5);
+            // Act: cô lập thêm bảng thứ hai ở thời điểm muộn hơn
+            missing[secondTable] = DateTime.UtcNow + TimeSpan.FromMinutes(5);
 
-                // Assert: mốc của bảng thứ nhất KHÔNG bị đẩy lùi theo bảng thứ hai
-                Assert.Equal(firstRetryAt, missing[firstTable]);
-                Assert.True(missing[firstTable] <= DateTime.UtcNow, "Bảng hỏng trước phải vẫn ở trạng thái đã đến hạn thử lại.");
-                Assert.True(missing[secondTable] > DateTime.UtcNow, "Bảng hỏng sau phải còn trong cửa sổ chờ.");
-            }
-            finally
-            {
-                missing.Clear();
-            }
+            // Assert: mốc của bảng thứ nhất KHÔNG bị đẩy lùi theo bảng thứ hai
+            Assert.Equal(firstRetryAt, missing[firstTable]);
+            Assert.True(missing[firstTable] <= DateTime.UtcNow, "Bảng hỏng trước phải vẫn ở trạng thái đã đến hạn thử lại.");
+            Assert.True(missing[secondTable] > DateTime.UtcNow, "Bảng hỏng sau phải còn trong cửa sổ chờ.");
+
+            missing.Clear();
         }
 
         #endregion
@@ -1169,7 +1101,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 .ToListAsync();
 
             Assert.NotEmpty(logs);
-            Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
+            Assert.True(logs[0].Success == BaseEnums.SuccessEnums.Success, $"Msg: '{logs[0].ErrorMessage}', Desc: '{logs[0].Description}'");
             Assert.True(logs[0].RecordCount > 0);
         }
 
@@ -1405,28 +1337,20 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             };
             var services = scopes.Select(s => CreateOutboundService(s)).ToList();
 
-            try
-            {
-                using var readyGate = new CountdownEvent(concurrentCallers);
-                using var startGate = new ManualResetEventSlim(false);
-                var tasks = services
-                    .Select(svc => Task.Run(async () =>
-                    {
-                        readyGate.Signal();
-                        startGate.Wait();
-                        await svc.ProcessSubscriptions(packetCode, CancellationToken.None);
-                    }))
-                    .ToArray();
+            using var readyGate = new CountdownEvent(concurrentCallers);
+            using var startGate = new ManualResetEventSlim(false);
+            var tasks = services
+                .Select(svc => Task.Run(async () =>
+                {
+                    readyGate.Signal();
+                    startGate.Wait();
+                    await svc.ProcessSubscriptions(packetCode, CancellationToken.None);
+                }))
+                .ToArray();
 
-                readyGate.Wait();
-                startGate.Set();
-                await Task.WhenAll(tasks);
-            }
-            finally
-            {
-                foreach (var s in scopes)
-                    await s.DisposeAsync();
-            }
+            readyGate.Wait();
+            startGate.Set();
+            await Task.WhenAll(tasks);
 
             var raceLogs = await db.Queryable<ShareDataActivityLog>()
                 .Where(l => l.SubscriptionId == sub.ID && l.OccurredAt >= now.AddSeconds(-5) && l.ParentId == null)
@@ -1463,6 +1387,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.True(sentCount == 1 && serialDelta == 1,
                 $"{concurrentCallers} lời gọi đua nhau phải cho ĐÚNG 1 lượt gửi dữ liệu và SerialNbr tăng ĐÚNG 1. "
                 + $"Thực tế: gửi có dữ liệu = {sentCount}, tổng log Success = {successCount}, SerialNbr {serialBefore} -> {updatedSub.SerialNbr} (delta {serialDelta}).");
+
+            foreach (var s in scopes)
+                await s.DisposeAsync();
         }
 
         /// <summary>
@@ -1500,90 +1427,78 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             var trackerA = CreateTrackerWorker(scope1);
             var trackerB = CreateTrackerWorker(scope2);
+            var serviceA = CreateOutboundService(scope1);
+            var serviceB = CreateOutboundService(scope2);
 
-            try
+            await trackerA.PollChanges(CancellationToken.None);
+            await trackerB.PollChanges(CancellationToken.None);
+
+            Assert.True(await GetStateVersion(db) >= 0);
+
+            var eqId = $"EQ_2SVC_{testId}";
+            await db.Insertable(new TmsEquipment
             {
-                await ClearTrackState(db);
+                ID = eqId,
+                Code = $"VDS_2SVC_{testId}",
+                KmNumber = 80,
+                MetNumber = 400
+            }).ExecuteCommandAsync();
 
-                await trackerA.PollChanges(CancellationToken.None);
-                await trackerB.PollChanges(CancellationToken.None);
-
-                Assert.True(await GetStateVersion(db) >= 0);
-
-                var eqId = $"EQ_2SVC_{testId}";
-                {
-                    await db.Insertable(new TmsEquipment
-                    {
-                        ID = eqId,
-                        Code = $"VDS_2SVC_{testId}",
-                        KmNumber = 80,
-                        MetNumber = 400
-                    }).ExecuteCommandAsync();
-
-                    await db.Insertable(new TmsTrafficData
-                    {
-                        ID = Guid.NewGuid().ToString("N"),
-                        EquipmentId = eqId,
-                        DetectTime = now,
-                        Type = "CAR",
-                        LicensePlate = $"30A-2SVC_{testId}",
-                        Speed = 90.0f,
-                        Lane = "L1",
-                        Direction = "NORTH",
-                        Location = "KM80",
-                        CreateTime = now,
-                        UpdateTime = now
-                    }).ExecuteCommandAsync();
-
-                    var serviceA = CreateOutboundService(scope1);
-                    var serviceB = CreateOutboundService(scope2);
-
-                    await trackerA.PollChanges(CancellationToken.None);
-                    await trackerB.PollChanges(CancellationToken.None);
-
-                    Assert.True(await GetStateVersion(db) > 0);
-
-                    await Task.WhenAll(
-                        serviceA.ProcessSubscriptions(packetCode, CancellationToken.None),
-                        serviceB.ProcessSubscriptions(packetCode, CancellationToken.None));
-
-                    var logs = await db.Queryable<ShareDataActivityLog>()
-                        .Where(l => l.SubscriptionId == sub.ID && l.OccurredAt >= now.AddSeconds(-5))
-                        .ToListAsync();
-
-                    Assert.NotEmpty(logs);
-                    Assert.Contains(logs, l => l.Success == BaseEnums.SuccessEnums.Success);
-
-                    var alerts = await db.Queryable<ShareDataAlertLog>()
-                        .Where(a => a.SubscriptionId == sub.ID)
-                        .ToListAsync();
-                    Assert.Empty(alerts);
-
-                    var checkpoint = await db.Queryable<ShareDataLastSend>()
-                        .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
-                        .FirstAsync();
-                    Assert.NotNull(checkpoint);
-                    Assert.NotNull(checkpoint.LastTime);
-
-                    var updatedSub = await db.Queryable<ShareDataSubscription>()
-                        .Where(s => s.ID == sub.ID)
-                        .FirstAsync();
-                    Assert.True(updatedSub.LastTimeRun > sub.LastTimeRun,
-                        "Sau đua tranh, LastTimeRun phải tiến — ít nhất 1 commit thắng.");
-
-                    await trackerA.PollChanges(CancellationToken.None);
-                    await trackerB.PollChanges(CancellationToken.None);
-
-                    var logsAfterSecondPoll = await db.Queryable<ShareDataActivityLog>()
-                        .Where(l => l.SubscriptionId == sub.ID)
-                        .ToListAsync();
-                    Assert.Equal(logs.Count, logsAfterSecondPoll.Count);
-                }
-            }
-            finally
+            await db.Insertable(new TmsTrafficData
             {
-                await ClearTrackState(db);
-            }
+                ID = Guid.NewGuid().ToString("N"),
+                EquipmentId = eqId,
+                DetectTime = now,
+                Type = "CAR",
+                LicensePlate = $"30A-2SVC_{testId}",
+                Speed = 90.0f,
+                Lane = "L1",
+                Direction = "NORTH",
+                Location = "KM80",
+                CreateTime = now,
+                UpdateTime = now
+            }).ExecuteCommandAsync();
+
+            await trackerA.PollChanges(CancellationToken.None);
+            await trackerB.PollChanges(CancellationToken.None);
+
+            Assert.True(await GetStateVersion(db) > 0);
+
+            await Task.WhenAll(
+                serviceA.ProcessSubscriptions(packetCode, CancellationToken.None),
+                serviceB.ProcessSubscriptions(packetCode, CancellationToken.None));
+
+            var logs = await db.Queryable<ShareDataActivityLog>()
+                .Where(l => l.SubscriptionId == sub.ID && l.OccurredAt >= now.AddSeconds(-5))
+                .ToListAsync();
+
+            Assert.NotEmpty(logs);
+            Assert.Contains(logs, l => l.Success == BaseEnums.SuccessEnums.Success);
+
+            var alerts = await db.Queryable<ShareDataAlertLog>()
+                .Where(a => a.SubscriptionId == sub.ID)
+                .ToListAsync();
+            Assert.Empty(alerts);
+
+            var checkpoint = await db.Queryable<ShareDataLastSend>()
+                .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
+                .FirstAsync();
+            Assert.NotNull(checkpoint);
+            Assert.NotNull(checkpoint.LastTime);
+
+            var updatedSub = await db.Queryable<ShareDataSubscription>()
+                .Where(s => s.ID == sub.ID)
+                .FirstAsync();
+            Assert.True(updatedSub.LastTimeRun > sub.LastTimeRun,
+                "Sau đua tranh, LastTimeRun phải tiến — ít nhất 1 commit thắng.");
+
+            await trackerA.PollChanges(CancellationToken.None);
+            await trackerB.PollChanges(CancellationToken.None);
+
+            var logsAfterSecondPoll = await db.Queryable<ShareDataActivityLog>()
+                .Where(l => l.SubscriptionId == sub.ID)
+                .ToListAsync();
+            Assert.Equal(logs.Count, logsAfterSecondPoll.Count);
         }
 
         /// <summary>
@@ -1603,41 +1518,32 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var worker1 = CreateTrackerWorker(scope);
             var worker2 = CreateTrackerWorker(scope);
 
-            try
+            await worker1.PollChanges(CancellationToken.None);
+            var initialVersion = await GetStateVersion(db);
+            Assert.True(initialVersion >= 0);
+
+            var testId = Guid.NewGuid().ToString("N")[..8];
+            var eqId = $"EQ_CAS_{testId}";
             {
-                await ClearTrackState(db);
+                await db.Insertable(new TmsEquipment
+                {
+                    ID = eqId,
+                    Code = $"EQ_CAS_{testId}",
+                    KmNumber = 10,
+                    MetNumber = 100
+                }).ExecuteCommandAsync();
 
                 await worker1.PollChanges(CancellationToken.None);
-                var initialVersion = await GetStateVersion(db);
-                Assert.True(initialVersion >= 0);
+                var stateAfterW1 = await GetTrackState(db);
+                Assert.NotNull(stateAfterW1);
+                Assert.True(stateAfterW1.LastVersion > initialVersion);
+                var newVersion = stateAfterW1.LastVersion!.Value;
 
-                var testId = Guid.NewGuid().ToString("N")[..8];
-                var eqId = $"EQ_CAS_{testId}";
-                {
-                    await db.Insertable(new TmsEquipment
-                    {
-                        ID = eqId,
-                        Code = $"EQ_CAS_{testId}",
-                        KmNumber = 10,
-                        MetNumber = 100
-                    }).ExecuteCommandAsync();
+                await worker2.PollChanges(CancellationToken.None);
+                var stateAfterW2 = await GetTrackState(db);
+                Assert.NotNull(stateAfterW2);
 
-                    await worker1.PollChanges(CancellationToken.None);
-                    var stateAfterW1 = await GetTrackState(db);
-                    Assert.NotNull(stateAfterW1);
-                    Assert.True(stateAfterW1.LastVersion > initialVersion);
-                    var newVersion = stateAfterW1.LastVersion!.Value;
-
-                    await worker2.PollChanges(CancellationToken.None);
-                    var stateAfterW2 = await GetTrackState(db);
-                    Assert.NotNull(stateAfterW2);
-
-                    Assert.Equal(newVersion, stateAfterW2.LastVersion);
-                }
-            }
-            finally
-            {
-                await ClearTrackState(db);
+                Assert.Equal(newVersion, stateAfterW2.LastVersion);
             }
         }
 
@@ -1654,7 +1560,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
 
-            await using var transport = new TransportManager(config);
+            var transport = _host.Services.GetRequiredService<TransportManager>();
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             await transport.ConnectAsync(cts.Token);
 
@@ -1676,73 +1582,64 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 .Select(s => CreateTrackerWorker(s, transport))
                 .ToList();
 
-            try
+            await workers[0].PollChanges(cts.Token);
+            var initialVersion = await GetStateVersion(db);
+            Assert.True(initialVersion >= 0);
+
+            var testId = Guid.NewGuid().ToString("N")[..8];
+            var zoneId = $"ZONE_10W_{testId}";
+            var statusId = Guid.NewGuid().ToString("N");
+
+            await db.Insertable(new TmsZone
             {
-                await ClearTrackState(db);
+                ID = zoneId,
+                Name = $"Zone 10W {testId}",
+                FromKmNumber = 10,
+                FromMetNumber = 0,
+                ToKmNumber = 20,
+                ToMetNumber = 0,
+                LaneId = "L1",
+                MaxSpeed = 80
+            }).ExecuteCommandAsync();
 
-                await workers[0].PollChanges(cts.Token);
-                var initialVersion = await GetStateVersion(db);
-                Assert.True(initialVersion >= 0);
-
-                var testId = Guid.NewGuid().ToString("N")[..8];
-                var zoneId = $"ZONE_10W_{testId}";
-                var statusId = Guid.NewGuid().ToString("N");
-                {
-                    await db.Insertable(new TmsZone
-                    {
-                        ID = zoneId,
-                        Name = $"Zone 10W {testId}",
-                        FromKmNumber = 10,
-                        FromMetNumber = 0,
-                        ToKmNumber = 20,
-                        ToMetNumber = 0,
-                        LaneId = "L1",
-                        MaxSpeed = 80
-                    }).ExecuteCommandAsync();
-
-                    await db.Insertable(new TmsZoneStatus
-                    {
-                        ID = statusId,
-                        ZoneId = zoneId,
-                        AverageSpeed = "70.0",
-                        Condition = "NORMAL",
-                        UpdateTime = DateTime.Now
-                    }).ExecuteCommandAsync();
-
-                    var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-                    var tasks = workers.Select(async w =>
-                    {
-                        await tcs.Task;
-                        await w.PollChanges(cts.Token);
-                    }).ToArray();
-
-                    tcs.SetResult();
-                    await Task.WhenAll(tasks);
-
-                    var versionCount = await db.Queryable<ShareDataTrackVersion>().CountAsync();
-                    Assert.Equal(1, versionCount);
-
-                    var finalState = await GetTrackState(db);
-                    Assert.NotNull(finalState);
-                    Assert.True(finalState.LastVersion > initialVersion);
-
-                    if (transport.IsConnected)
-                    {
-                        var sw = System.Diagnostics.Stopwatch.StartNew();
-                        while (eventCount == 0 && sw.ElapsedMilliseconds < 3000)
-                            await Task.Delay(50, cts.Token);
-
-                        Assert.Equal(1, eventCount);
-                    }
-                }
-            }
-            finally
+            await db.Insertable(new TmsZoneStatus
             {
-                foreach (var s in scopes)
-                    await s.DisposeAsync();
+                ID = statusId,
+                ZoneId = zoneId,
+                AverageSpeed = "70.0",
+                Condition = "NORMAL",
+                UpdateTime = DateTime.Now
+            }).ExecuteCommandAsync();
 
-                await ClearTrackState(db);
+            var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var tasks = workers.Select(async w =>
+            {
+                await tcs.Task;
+                await w.PollChanges(cts.Token);
+            }).ToArray();
+
+            tcs.SetResult();
+            await Task.WhenAll(tasks);
+
+            var versionCount = await db.Queryable<ShareDataTrackVersion>().CountAsync();
+            Assert.Equal(1, versionCount);
+
+            var finalState = await GetTrackState(db);
+            Assert.NotNull(finalState);
+            Assert.True(finalState.LastVersion > initialVersion);
+
+            if (transport.IsConnected)
+            {
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                while (eventCount == 0 && sw.ElapsedMilliseconds < 3000)
+                    await Task.Delay(50, cts.Token);
+
+                Assert.Equal(1, eventCount);
             }
+
+            transport.Unsubscribe("ta.its.event.sharedata.newdata");
+            foreach (var s in scopes)
+                await s.DisposeAsync();
         }
 
         /// <summary>
@@ -1896,6 +1793,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             await using var scope = _host.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataOutboundService>>();
+            var transport = _host.Services.GetRequiredService<TransportManager>();
 
             var testId = Guid.NewGuid().ToString("N")[..8];
             var partnerCode = $"PARTNER_DWN_{testId}";
@@ -1943,91 +1841,80 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             var service = CreateOutboundService(scope);
 
-            try
+            // Chạy đợt 1 để tạo checkpoint thật
+            await service.ProcessSubscriptions(CancellationToken.None);
+
+            var cp1 = await db.Queryable<ShareDataLastSend>()
+                .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
+                .FirstAsync();
+            Assert.NotNull(cp1);
+            Assert.NotNull(cp1.LastTime);
+            var cp1Time = cp1.LastTime.Value;
+            var cp1Key = cp1.LastKey;
+
+            var initialLogs = await db.Queryable<ShareDataActivityLog>()
+                .Where(l => l.SubscriptionId == sub.ID && l.ParentId == null)
+                .ToListAsync();
+            Assert.NotEmpty(initialLogs);
+            Assert.All(initialLogs, l => Assert.Equal(BaseEnums.SuccessEnums.Success, l.Success));
+
+            // 2. Mô phỏng worker giám sát đang chết (Downtime):
+            // Chèn thêm 3 bản ghi mới vào TmsTrafficData sau mốc checkpoint cp1Time mà KHÔNG chạy vòng quét Change Tracking nào
+            var downtimeBaseTime = cp1Time.AddSeconds(10);
+            var downtimeList = Enumerable.Range(1, 3).Select(i => new TmsTrafficData
             {
-                await ClearTrackState(db);
+                ID = $"TF_DWN_{testId}_{i}",
+                EquipmentId = eqId,
+                DetectTime = downtimeBaseTime.AddSeconds(i * 10),
+                Type = "CAR",
+                LicensePlate = $"30A-DWN-{testId}-{i}",
+                Speed = 70.0f + i,
+                Lane = "L1",
+                Direction = "NORTH",
+                Location = "KM50",
+                CreateTime = downtimeBaseTime.AddSeconds(i * 10),
+                UpdateTime = downtimeBaseTime.AddSeconds(i * 10)
+            }).ToList();
+            await db.Insertable(downtimeList).ExecuteCommandAsync();
 
-                // Chạy đợt 1 để tạo checkpoint thật
-                await service.ProcessSubscriptions(CancellationToken.None);
+            // 3. Mô phỏng DataChangeTrackingService khởi động lại:
+            // Tạo instance mới của DataChangeTrackingService (mốc LastVersion trong bảng ShareDataTrackVersion khởi tạo = -1)
+            // và kích hoạt vòng poll đầu tiên (nhảy thẳng tới version hiện tại của DB, không sinh NATS trigger cho 3 bản ghi ở bước 2)
+            await SetStateVersion(db, -1);
+            var newWatcher = CreateTrackerWorker(scope, transport);
+            await newWatcher.PollChanges(CancellationToken.None);
 
-                var cp1 = await db.Queryable<ShareDataLastSend>()
-                    .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
-                    .FirstAsync();
-                Assert.NotNull(cp1);
-                Assert.NotNull(cp1.LastTime);
-                var cp1Time = cp1.LastTime.Value;
-                var cp1Key = cp1.LastKey;
+            // 4. Act: Luồng quét định kỳ (ProcessSubscriptions) kích hoạt theo lịch
+            // Đảm bảo NextTimeRun đến hạn chạy định kỳ
+            await db.Updateable<ShareDataSubscription>()
+                .SetColumns(s => s.NextTimeRun == db.Ado.GetDateTimeAsync("SELECT GETDATE()").GetAwaiter().GetResult().AddSeconds(-5))
+                .Where(s => s.ID == sub.ID)
+                .ExecuteCommandAsync();
 
-                var initialLogs = await db.Queryable<ShareDataActivityLog>()
-                    .Where(l => l.SubscriptionId == sub.ID && l.ParentId == null)
-                    .ToListAsync();
-                Assert.NotEmpty(initialLogs);
-                Assert.All(initialLogs, l => Assert.Equal(BaseEnums.SuccessEnums.Success, l.Success));
+            await service.ProcessSubscriptions(CancellationToken.None);
 
-                // 2. Mô phỏng worker giám sát đang chết (Downtime):
-                // Chèn thêm 3 bản ghi mới vào TmsTrafficData sau mốc checkpoint cp1Time mà KHÔNG chạy vòng quét Change Tracking nào
-                var downtimeBaseTime = cp1Time.AddSeconds(10);
-                var downtimeRecords = Enumerable.Range(1, 3).Select(i => new TmsTrafficData
-                {
-                    ID = $"TF_DWN_{testId}_{i}",
-                    EquipmentId = eqId,
-                    DetectTime = downtimeBaseTime.AddSeconds(i * 10),
-                    Type = "CAR",
-                    LicensePlate = $"30A-DWN-{testId}-{i}",
-                    Speed = 70.0f + i,
-                    Lane = "L1",
-                    Direction = "NORTH",
-                    Location = "KM50",
-                    CreateTime = downtimeBaseTime.AddSeconds(i * 10),
-                    UpdateTime = downtimeBaseTime.AddSeconds(i * 10)
-                }).ToList();
-                await db.Insertable(downtimeRecords).ExecuteCommandAsync();
+            // 5. Assert: 3 bản ghi chèn lúc watcher chết VẪN được gửi đầy đủ
+            var allLogs = await db.Queryable<ShareDataActivityLog>()
+                .Where(l => l.SubscriptionId == sub.ID && l.ParentId == null)
+                .OrderByDescending(l => l.OccurredAt)
+                .ToListAsync();
 
-                // 3. Mô phỏng DataChangeTrackingService khởi động lại:
-                // Tạo instance mới của DataChangeTrackingService (mốc LastVersion trong bảng ShareDataTrackVersion khởi tạo = -1)
-                // và kích hoạt vòng poll đầu tiên (nhảy thẳng tới version hiện tại của DB, không sinh NATS trigger cho 3 bản ghi ở bước 2)
-                var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
-                await using var transport = scope.ServiceProvider.GetService<TransportManager>() ?? new TransportManager(config);
+            Assert.True(allLogs.Count > initialLogs.Count);
+            var latestLog = allLogs.First();
+            Assert.Equal(BaseEnums.SuccessEnums.Success, latestLog.Success);
 
-                var newWatcher = CreateTrackerWorker(scope, transport);
-                await newWatcher.PollChanges(CancellationToken.None);
+            // Tổng số bản ghi gửi ở đợt 2 đúng bằng 3 bản ghi phát sinh trong lúc watcher chết
+            var newLogs = allLogs.Where(l => !initialLogs.Any(il => il.ID == l.ID)).ToList();
+            var exportedDowntimeCount = newLogs.Sum(l => l.RecordCount);
+            Assert.Equal(downtimeList.Count, exportedDowntimeCount);
 
-                // 4. Act: Luồng quét định kỳ (ProcessSubscriptions) kích hoạt theo lịch
-                // Đảm bảo NextTimeRun đến hạn chạy định kỳ
-                await db.Updateable<ShareDataSubscription>()
-                    .SetColumns(s => s.NextTimeRun == db.Ado.GetDateTimeAsync("SELECT GETDATE()").GetAwaiter().GetResult().AddSeconds(-5))
-                    .Where(s => s.ID == sub.ID)
-                    .ExecuteCommandAsync();
-
-                await service.ProcessSubscriptions(CancellationToken.None);
-
-                // 5. Assert: 3 bản ghi chèn lúc watcher chết VẪN được gửi đầy đủ
-                var allLogs = await db.Queryable<ShareDataActivityLog>()
-                    .Where(l => l.SubscriptionId == sub.ID && l.ParentId == null)
-                    .OrderByDescending(l => l.OccurredAt)
-                    .ToListAsync();
-
-                Assert.True(allLogs.Count > initialLogs.Count);
-                var latestLog = allLogs.First();
-                Assert.Equal(BaseEnums.SuccessEnums.Success, latestLog.Success);
-
-                // Tổng số bản ghi gửi ở đợt 2 đúng bằng 3 bản ghi phát sinh trong lúc watcher chết
-                var newLogs = allLogs.Where(l => !initialLogs.Any(il => il.ID == l.ID)).ToList();
-                var exportedDowntimeCount = newLogs.Sum(l => l.RecordCount);
-                Assert.Equal(downtimeRecords.Count, exportedDowntimeCount);
-
-                // Checkpoint đã tiến đúng tới bản ghi cuối cùng của đợt downtime
-                var cp2 = await db.Queryable<ShareDataLastSend>()
-                    .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
-                    .FirstAsync();
-                Assert.NotNull(cp2);
-                Assert.True(cp2.LastTime > cp1Time || (cp2.LastTime == cp1Time && string.Compare(cp2.LastKey, cp1Key) > 0));
-                Assert.Equal(downtimeRecords.Last().ID, cp2.LastKey);
-            }
-            finally
-            {
-                await ClearTrackState(db);
-            }
+            // Checkpoint đã tiến đúng tới bản ghi cuối cùng của đợt downtime
+            var cp2 = await db.Queryable<ShareDataLastSend>()
+                .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
+                .FirstAsync();
+            Assert.NotNull(cp2);
+            Assert.True(cp2.LastTime > cp1Time || (cp2.LastTime == cp1Time && string.Compare(cp2.LastKey, cp1Key) > 0));
+            Assert.Equal(downtimeList.Last().ID, cp2.LastKey);
         }
 
         /// <summary>
@@ -2268,38 +2155,33 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             var service = CreateOutboundService(scope);
 
-            try
+            // Act: Bắn trigger theo mã chuẩn "105_rfidData"
+            await service.ProcessSubscriptions("105_rfidData", CancellationToken.None);
+
+            // Assert:
+            // a. Đăng ký được khớp và xuất bản thành công
+            var logs = await db.Queryable<ShareDataActivityLog>()
+                .Where(l => l.SubscriptionId == sub.ID)
+                .OrderByDescending(l => l.OccurredAt)
+                .ToListAsync();
+
+            Assert.NotEmpty(logs);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
+            Assert.True(logs[0].RecordCount > 0, "Gói 105_rfidData phải trích xuất và xuất bản dữ liệu gói 105 khi nhận trigger 105_rfidData.");
+
+            // b. Snapshot: không sinh checkpoint
+            var checkpoints = await db.Queryable<ShareDataLastSend>()
+                .Where(c => c.PartnerCode == partner.Code && c.PacketCode == packetCode)
+                .ToListAsync();
+            Assert.Empty(checkpoints);
+
+            if (existing105Packets.Count > 0)
             {
-                // Act: Bắn trigger theo mã chuẩn "105_rfidData"
-                await service.ProcessSubscriptions("105_rfidData", CancellationToken.None);
-
-                // Assert:
-                // a. Đăng ký được khớp và xuất bản thành công
-                var logs = await db.Queryable<ShareDataActivityLog>()
-                    .Where(l => l.SubscriptionId == sub.ID)
-                    .OrderByDescending(l => l.OccurredAt)
-                    .ToListAsync();
-
-                Assert.NotEmpty(logs);
-                Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
-                Assert.True(logs[0].RecordCount > 0, "Gói 105_rfidData phải trích xuất và xuất bản dữ liệu gói 105 khi nhận trigger 105_rfidData.");
-
-                // b. Snapshot: không sinh checkpoint
-                var checkpoints = await db.Queryable<ShareDataLastSend>()
-                    .Where(c => c.PartnerCode == partner.Code && c.PacketCode == packetCode)
-                    .ToListAsync();
-                Assert.Empty(checkpoints);
-            }
-            finally
-            {
-                if (existing105Packets.Count > 0)
-                {
-                    var packetIds = existing105Packets.Select(x => x.ID).ToList();
-                    await db.Updateable<ShareDataPacket>()
-                        .SetColumns(p => p.IsDelete == null)
-                        .Where(p => packetIds.Contains(p.ID))
-                        .ExecuteCommandAsync();
-                }
+                var packetIds = existing105Packets.Select(x => x.ID).ToList();
+                await db.Updateable<ShareDataPacket>()
+                    .SetColumns(p => p.IsDelete == null)
+                    .Where(p => packetIds.Contains(p.ID))
+                    .ExecuteCommandAsync();
             }
         }
         #endregion
@@ -2310,7 +2192,6 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
         private static async Task PrepareDatabase(ISqlSugarClient db, ILogger logger, string packetCode = "103")
         {
-            db.CodeFirst.InitTables<ShareDataLastSend>();
             await DataOutboundServiceTests.PacketMetadataCatalogTest.SeedPacketToDb(db, packetCode);
         }
 
@@ -2322,7 +2203,6 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             string datatypeId,
             Action<ShareDataSubscription>? configureSub = null)
         {
-            db.CodeFirst.InitTables<ShareDataLastSend>();
             var partner = new ShareDataPartner
             {
                 ID = Guid.NewGuid().ToString("N"),
@@ -2568,18 +2448,10 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 .Select(_ => _host.Services.CreateAsyncScope())
                 .ToList();
 
-            try
-            {
-                var tasks = asyncScopes
-                    .Select(s => CreateOutboundService(s).ProcessSubscriptions(packetCode, CancellationToken.None))
-                    .ToArray();
-                await Task.WhenAll(tasks);
-            }
-            finally
-            {
-                foreach (var s in asyncScopes)
-                    await s.DisposeAsync();
-            }
+            var tasks = asyncScopes
+                .Select(s => CreateOutboundService(s).ProcessSubscriptions(packetCode, CancellationToken.None))
+                .ToArray();
+            await Task.WhenAll(tasks);
 
             // Assert: mỗi partner phải có ActivityLog thành công và checkpoint riêng của mình
             foreach (var (partner, sub) in seeded)
@@ -2607,117 +2479,21 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 .ToListAsync();
 
             Assert.Equal(partnerCount, allCheckpoints.Count);
-        }
 
-        // Tạm comment 28/09/2026 cùng lượt tắt vế chống dội trong ExportSubscription — bật lại vế đó thì bỏ comment bài này.
-        // /// <summary>
-        // /// Description: Kiểm thử NATS burst liên tiếp nhanh (N bản tin NATS bắn đến cho cùng 1 sub trong vòng vài giây):
-        // ///              Cơ chế DebounceSec phải chặn tất cả trigger kế tiếp trong cửa sổ debounce,
-        // ///              đảm bảo chỉ đúng 1 lần export thực sự chạy và checkpoint chỉ tiến 1 lần.
-        // /// Created date: 25/09/2026
-        // /// </summary>
-        // [Fact]
-        // public async Task ChangeTracking_WhenNatsBurstsRepeatedly_DebouncePreventsMultipleExportsWithinWindow_Test()
-        // {
-        //     // Arrange
-        //     await using var scope = _host.Services.CreateAsyncScope();
-        //     var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-        //     var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataOutboundService>>();
-        // 
-        //     var testId = Guid.NewGuid().ToString("N")[..8];
-        //     const string packetCode = "103";
-        //     var partnerCode = $"PTN_BURST_{testId}";
-        //     var subCode = $"SUB_BURST_{testId}";
-        // 
-        //     await PrepareDatabase(db, logger, packetCode);
-        //     var now = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
-        // 
-        //     // Sub với DebounceSec = 10 giây
-        //     var (partner, sub) = await SeedOutboundSubscription(db, partnerCode, subCode, packetCode, s =>
-        //     {
-        //         s.SendOnNewData = true;
-        //         s.DebounceSec = 10;              // Debounce window = 10 giây
-        //         s.IntervalSeconds = 300;
-        //         s.LastTimeRun = now.AddMinutes(-5); // Chưa chạy gần đây → burst đầu tiên được chạy
-        //         s.NextTimeRun = null;
-        //     });
-        // 
-        //     var eqId = $"EQ_BURST_{testId}";
-        //     await db.Insertable(new TmsEquipment
-        //     {
-        //         ID = eqId,
-        //         Code = $"EQ_BURST_{testId}",
-        //         KmNumber = 20,
-        //         MetNumber = 0
-        //     }).ExecuteCommandAsync();
-        // 
-        //     await db.Insertable(new TmsTrafficData
-        //     {
-        //         ID = Guid.NewGuid().ToString("N"),
-        //         EquipmentId = eqId,
-        //         DetectTime = now,
-        //         Type = "BUS",
-        //         LicensePlate = $"29B-BURST{testId}",
-        //         Speed = 55f,
-        //         Lane = "L3",
-        //         Direction = "EAST",
-        //         Location = $"KM20_{testId}",
-        //         CreateTime = now,
-        //         UpdateTime = now
-        //     }).ExecuteCommandAsync();
-        // 
-        //     try
-        //     {
-        //         // Act – Đợt 1: trigger đầu tiên — sub chưa chạy gần đây nên được phép chạy
-        //         await CreateOutboundService(scope).ProcessSubscriptions(packetCode, CancellationToken.None);
-        // 
-        //         var logsAfterFirst = await db.Queryable<ShareDataActivityLog>()
-        //             .Where(l => l.SubscriptionId == sub.ID && l.OccurredAt >= now.AddSeconds(-10))
-        //             .ToListAsync();
-        // 
-        //         // Phải có đúng 1 export thành công từ trigger đầu tiên
-        //         Assert.Single(logsAfterFirst);
-        //         Assert.Equal(BaseEnums.SuccessEnums.Success, logsAfterFirst[0].Success);
-        // 
-        //         // Snapshot UpdateTime của checkpoint sau đợt 1 để đối chiếu sau burst
-        //         var checkpointAfterFirst = await db.Queryable<ShareDataLastSend>()
-        //             .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
-        //             .FirstAsync();
-        //         Assert.NotNull(checkpointAfterFirst);
-        //         var updateTimeAfterFirst = checkpointAfterFirst.UpdateTime;
-        // 
-        //         // Act – Đợt 2 & 3: NATS burst tiếp trong vòng debounce window (sub vừa chạy xong)
-        //         await CreateOutboundService(scope).ProcessSubscriptions(packetCode, CancellationToken.None);
-        //         await CreateOutboundService(scope).ProcessSubscriptions(packetCode, CancellationToken.None);
-        // 
-        //         // Assert: Tổng số ActivityLog vẫn là 1 — 2 trigger sau bị chặn bởi DebounceSec
-        //         var allLogs = await db.Queryable<ShareDataActivityLog>()
-        //             .Where(l => l.SubscriptionId == sub.ID && l.OccurredAt >= now.AddSeconds(-15))
-        //             .ToListAsync();
-        // 
-        //         Assert.Single(allLogs);
-        // 
-        //         // Checkpoint.UpdateTime không thay đổi so với sau đợt 1 (burst 2 & 3 không ghi đè)
-        //         var checkpointAfterBurst = await db.Queryable<ShareDataLastSend>()
-        //             .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
-        //             .FirstAsync();
-        // 
-        //         Assert.NotNull(checkpointAfterBurst);
-        //         Assert.True(
-        //             updateTimeAfterFirst?.ToString("yyyy-MM-dd HH:mm:ss") == checkpointAfterBurst.UpdateTime?.ToString("yyyy-MM-dd HH:mm:ss"),
-        //             "Checkpoint.UpdateTime không được cập nhật bởi các trigger bị chặn trong cửa sổ DebounceSec.");
-        //     }
-        //     finally
-        //     {
-        //         await db.Deleteable<TmsTrafficData>().Where(t => t.EquipmentId == eqId).ExecuteCommandAsync();
-        //         await db.Deleteable<TmsEquipment>().Where(e => e.ID == eqId).ExecuteCommandAsync();
-        //         await db.Deleteable<ShareDataLastSend>().Where(c => c.PartnerCode == partnerCode).ExecuteCommandAsync();
-        //         await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
-        //         await db.Deleteable<ShareDataMapping>().Where(m => m.PartnerId == partner.ID).ExecuteCommandAsync();
-        //         await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub.ID).ExecuteCommandAsync();
-        //         await db.Deleteable<ShareDataPartner>().Where(p => p.ID == partner.ID).ExecuteCommandAsync();
-        //     }
-        // }
+            // Dọn dẹp tài nguyên và dữ liệu tuần tự ở cuối hàm
+            foreach (var s in asyncScopes)
+                await s.DisposeAsync();
+
+            foreach (var (partner, sub) in seeded)
+            {
+                await db.Deleteable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataLastSend>().Where(c => c.PartnerCode == partner.Code && c.PacketCode == packetCode).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataSubscription>().Where(s => s.ID == sub.ID).ExecuteCommandAsync();
+                await db.Deleteable<ShareDataPartner>().Where(p => p.ID == partner.ID).ExecuteCommandAsync();
+            }
+            await db.Deleteable<TmsTrafficData>().Where(t => t.EquipmentId == eqId).ExecuteCommandAsync();
+            await db.Deleteable<TmsEquipment>().Where(e => e.ID == eqId).ExecuteCommandAsync();
+        }
 
         #endregion
 
@@ -2766,8 +2542,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 s.NextTimeRun = null;
             });
 
-            var config = new ConfigurationBuilder().Build();
-            await using var transport = new TransportManager(config);
+            var transport = _host.Services.GetRequiredService<TransportManager>();
             var service = new DataNatsService(realService, logger, transport);
 
             var payload = System.Text.Json.JsonSerializer.Serialize(new { PacketCode = "103", Version = 12345 });
@@ -2816,8 +2591,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 s.SendOnNewData = true;
             });
 
-            var config = new ConfigurationBuilder().Build();
-            await using var transport = new TransportManager(config);
+            var transport = _host.Services.GetRequiredService<TransportManager>();
             var service = new DataNatsService(realService, logger, transport);
 
             // Act & Assert (Vế 1: DoesNotThrow)
@@ -2861,7 +2635,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var eqId = $"EQ_RT_{testId}";
 
             await PrepareDatabase(db, outboundLogger, packetCode);
-            await ClearTrackState(db);
+            await SetStateVersion(db, -1);
             var now = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
 
             var (partner, sub) = await SeedOutboundSubscription(db, partnerCode, subCode, packetCode, s =>
@@ -2900,9 +2674,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                     UpdateTime = now
                 }).ExecuteCommandAsync();
 
-            // TransportManager THẬT, đọc cấu hình THẬT của Host (appsettings.Test.json -> Nats:Url).
-            // BẮT BUỘC await using: khi không có broker, ConnectAsync nuốt lỗi và bật vòng lặp retry nền vô
-            await using var transport = new TransportManager(config);
+            // TransportManager THẬT từ Host (appsettings.Test.json -> Nats:Url).
+            var transport = _host.Services.GetRequiredService<TransportManager>();
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             await transport.ConnectAsync(cts.Token);
 
@@ -2910,63 +2683,58 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 "Không thể kết nối tới NATS broker tại 127.0.0.1:4222 (Nats:Url trong appsettings.Test.json). "
                 + "Bắt buộc phải bật NATS broker (Docker local) trước khi chạy bài test toàn trình NatsRoundTrip.");
 
-            try
+            // 1) Bên nhận đăng ký subscribe TRƯỚC và chờ xong, để bản tin phát ra không bị mất.
+            var consumer = new DataNatsService(CreateOutboundService(scope), consumerLogger, transport, config);
+            await consumer.InitSubscribe(cts.Token);
+
+            // 2) Bên phát: chu kỳ đầu chỉ lập mốc gốc (LastVersion từ -1 lên mốc hiện tại của CSDL).
+            var publisher = CreateTrackerWorker(scope, transport);
+            await publisher.PollChanges(cts.Token);
+
+            Assert.True(await GetStateVersion(db) >= 0,
+                "Change Tracking chưa sẵn sàng trên CSDL test nên mốc gốc không lập được. Bật Change "
+                + "Tracking ở cấp CSDL rồi chạy lại — bài này cần mốc gốc mới phát hiện được thay đổi.");
+
+            // 3) Dữ liệu nguồn mới -> Change Tracking tăng version. Phải chèn SAU bước 2 (cắm mốc gốc).
+            await SeedTrafficRow();
+
+            // 4) Chu kỳ sau phát hiện thay đổi và PUBLISH THẬT lên subject.
+            await publisher.PollChanges(cts.Token);
+
+            // 5) Giao nhận NATS là bất đồng bộ -> chờ CÓ BIÊN, thoát sớm ngay khi thấy kết quả.
+            List<ShareDataActivityLog> logs = [];
+            var deadline = DateTime.UtcNow.AddSeconds(15);
+            while (DateTime.UtcNow < deadline)
             {
-                // 1) Bên nhận đăng ký subscribe TRƯỚC và chờ xong, để bản tin phát ra không bị mất.
-                var consumer = new DataNatsService(CreateOutboundService(scope), consumerLogger, transport, config);
-                await consumer.InitSubscribe(cts.Token);
+                logs = await db.Queryable<ShareDataActivityLog>()
+                    .Where(l => l.SubscriptionId == sub.ID)
+                    .ToListAsync();
 
-                // 2) Bên phát: chu kỳ đầu chỉ lập mốc gốc (LastVersion từ -1 lên mốc hiện tại của CSDL).
-                var publisher = CreateTrackingService(scope, transport);
-                await publisher.PollChanges(cts.Token);
+                if (logs.Count > 0)
+                    break;
 
-                Assert.True(await GetStateVersion(db) >= 0,
-                    "Change Tracking chưa sẵn sàng trên CSDL test nên mốc gốc không lập được. Bật Change "
-                    + "Tracking ở cấp CSDL rồi chạy lại — bài này cần mốc gốc mới phát hiện được thay đổi.");
-
-                // 3) Dữ liệu nguồn mới -> Change Tracking tăng version. Phải chèn SAU bước 2 (cắm mốc gốc).
-                await SeedTrafficRow();
-
-                // 4) Chu kỳ sau phát hiện thay đổi và PUBLISH THẬT lên subject.
-                await publisher.PollChanges(cts.Token);
-
-                // 5) Giao nhận NATS là bất đồng bộ -> chờ CÓ BIÊN, thoát sớm ngay khi thấy kết quả.
-                List<ShareDataActivityLog> logs = [];
-                var deadline = DateTime.UtcNow.AddSeconds(15);
-                while (DateTime.UtcNow < deadline)
-                {
-                    logs = await db.Queryable<ShareDataActivityLog>()
-                        .Where(l => l.SubscriptionId == sub.ID)
-                        .ToListAsync();
-
-                    if (logs.Count > 0)
-                        break;
-
-                    await Task.Delay(200, cts.Token);
-                }
-
-                // Assert: bên nhận đã chạy luồng outbound THẬT, do chính bản tin của bên phát kích hoạt.
-                Assert.True(logs.Count > 0,
-                    "Bản tin NATS phát từ DataChangeTrackingService đã không tới được DataNatsService (chờ 15 giây "
-                    + "không thấy ShareDataActivityLog). Rà theo thứ tự: (1) InitSubscribe có đăng ký được "
-                    + "subscribe không, (2) nhánh publish của PollChanges có chạy không (Transport.IsConnected), "
-                    + "(3) tên field PacketCode trong payload có đúng không.");
-                Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
-                Assert.True(logs[0].RecordCount > 0,
-                    "Có log Success nhưng RecordCount = 0 — tức bản tin NATS tới được và pipeline chạy, nhưng "
-                    + "KHÔNG gửi bản ghi nào (đi đường 'không có dữ liệu mới'). Rà lại câu truy vấn trích xuất "
-                    + "gói 103 và mốc nối đuôi ShareDataLastSend.");
-
-                // Mốc gửi nối đuôi đã tiến -> chứng minh đi trọn tới tầng CSDL, không dừng ở chỗ nhận bản tin.
-                var checkpoint = await db.Queryable<ShareDataLastSend>()
-                    .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
-                    .FirstAsync();
-                Assert.NotNull(checkpoint);
+                await Task.Delay(200, cts.Token);
             }
-            finally
-            {
-                await ClearTrackState(db);
-            }
+
+            // Assert: bên nhận đã chạy luồng outbound THẬT, do chính bản tin của bên phát kích hoạt.
+            Assert.True(logs.Count > 0,
+                "Bản tin NATS phát từ DataChangeTrackingService đã không tới được DataNatsService (chờ 15 giây "
+                + "không thấy ShareDataActivityLog). Rà theo thứ tự: (1) InitSubscribe có đăng ký được "
+                + "subscribe không, (2) nhánh publish của PollChanges có chạy không (Transport.IsConnected), "
+                + "(3) tên field PacketCode trong payload có đúng không.");
+            Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
+            Assert.True(logs[0].RecordCount > 0,
+                "Có log Success nhưng RecordCount = 0 — tức bản tin NATS tới được và pipeline chạy, nhưng "
+                + "KHÔNG gửi bản ghi nào (đi đường 'không có dữ liệu mới'). Rà lại câu truy vấn trích xuất "
+                + "gói 103 và mốc nối đuôi ShareDataLastSend.");
+
+            // Mốc gửi nối đuôi đã tiến -> chứng minh đi trọn tới tầng CSDL, không dừng ở chỗ nhận bản tin.
+            var checkpoint = await db.Queryable<ShareDataLastSend>()
+                .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
+                .FirstAsync();
+            Assert.NotNull(checkpoint);
+
+            transport.Unsubscribe(DataChangeTrackingService.DEFAULT_NATS_SUBJECT);
         }
 
         [Fact]
@@ -3035,32 +2803,21 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var startedAt = DateTime.MinValue;
+            var state = new ShareDataTrackVersion { ID = Guid.NewGuid().ToString("N"), LastVersion = 0 };
+            var startedAt = (await db.Ado.GetDateTimeAsync("SELECT GETDATE()")).AddSeconds(-5);
 
-            try
-            {
-                await ClearTrackState(db);
-                var state = new ShareDataTrackVersion { ID = Guid.NewGuid().ToString("N"), LastVersion = 0 };
-                await db.Insertable(state).ExecuteCommandAsync();
-                startedAt = (await db.Ado.GetDateTimeAsync("SELECT GETDATE()")).AddSeconds(-5);
+            // Act & Assert: lỗi vẫn phải văng lên
+            await Assert.ThrowsAnyAsync<Exception>(() => InvokeQueryChangedTables(worker, db, state, brokenSql));
 
-                // Act & Assert: lỗi vẫn phải văng lên
-                await Assert.ThrowsAnyAsync<Exception>(() => InvokeQueryChangedTables(worker, db, state, brokenSql));
+            // Assert: đã ghi đúng mã ESH-1602, AfterJson chứa câu SQL
+            var row = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.QueryFailed && x.CreateTime >= startedAt)
+                .OrderBy(x => x.CreateTime, OrderByType.Desc)
+                .FirstAsync();
 
-                // Assert: đã ghi đúng mã ESH-1602, AfterJson chứa câu SQL
-                var row = await db.Queryable<ShareDataActivityLog>()
-                    .Where(x => x.Remark == ShareDataAlertCode.Tracking.QueryFailed && x.CreateTime >= startedAt)
-                    .OrderBy(x => x.CreateTime, OrderByType.Desc)
-                    .FirstAsync();
-
-                Assert.NotNull(row);
-                Assert.Equal(BaseEnums.SuccessEnums.Fail, row!.Success);
-                Assert.Contains("ShareData_NoSuchTable_9x7", row.AfterJson ?? string.Empty);
-            }
-            finally
-            {
-                await ClearTrackState(db);
-            }
+            Assert.NotNull(row);
+            Assert.Equal(BaseEnums.SuccessEnums.Fail, row!.Success);
+            Assert.Contains("ShareData_NoSuchTable_9x7", row.AfterJson ?? string.Empty);
         }
 
         /// <summary>
@@ -3103,7 +2860,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             await db.Ado.ExecuteCommandAsync("UPDATE ShareDataActivityLog SET CreateTime = DATEADD(day, -30, GETDATE()) WHERE ID IN (@tId, @bId)", new { tId = trackingId, bId = businessId });
 
             // Act
-            await ShareDataTransferLog.CleanupTrackingLogs(db, retentionDays: 7);
+            await ShareDataTransferLog.CleanTrackingLogs(db, retentionDays: 7);
 
             // Assert: dòng hạ tầng bị xoá, dòng nghiệp vụ còn nguyên
             Assert.Null(await db.Queryable<ShareDataActivityLog>().Where(x => x.ID == trackingId).FirstAsync());
@@ -3125,33 +2882,24 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             var worker = CreateTrackerWorker();
 
-            try
-            {
-                await ClearTrackState(db);
+            // Act: 2 lượt poll liên tiếp
+            await worker.PollChanges(CancellationToken.None);
+            var afterFirst = await GetTrackState(db);
+            await worker.PollChanges(CancellationToken.None);
 
-                // Act: 2 lượt poll liên tiếp
-                await worker.PollChanges(CancellationToken.None);
-                var afterFirst = await GetTrackState(db);
-                await worker.PollChanges(CancellationToken.None);
+            // Assert: vẫn đúng 1 dòng duy nhất toàn hệ thống, không sinh dòng mới mỗi lượt
+            var rowCount = await db.Queryable<ShareDataTrackVersion>().CountAsync();
+            Assert.Equal(1, rowCount);
 
-                // Assert: vẫn đúng 1 dòng duy nhất toàn hệ thống, không sinh dòng mới mỗi lượt
-                var rowCount = await db.Queryable<ShareDataTrackVersion>().CountAsync();
-                Assert.Equal(1, rowCount);
+            var afterSecond = await GetTrackState(db);
+            Assert.NotNull(afterFirst);
+            Assert.NotNull(afterSecond);
+            Assert.True(afterSecond!.LastVersion >= 0);
+            Assert.Equal(afterFirst!.ID, afterSecond.ID);
 
-                var afterSecond = await GetTrackState(db);
-                Assert.NotNull(afterFirst);
-                Assert.NotNull(afterSecond);
-                Assert.True(afterSecond!.LastVersion >= 0);
-                Assert.Equal(afterFirst!.ID, afterSecond.ID);
-
-                // Nhịp sống = UpdateTime do base EntityTenant tự ghi GETDATE() mỗi lần UPDATE
-                Assert.NotNull(afterSecond.UpdateTime);
-                Assert.True(afterSecond.UpdateTime >= afterSecond.CreateTime);
-            }
-            finally
-            {
-                await ClearTrackState(db);
-            }
+            // Nhịp sống = UpdateTime do base EntityTenant tự ghi GETDATE() mỗi lần UPDATE
+            Assert.NotNull(afterSecond.UpdateTime);
+            Assert.True(afterSecond.UpdateTime >= afterSecond.CreateTime);
         }
 
         /// <summary>
@@ -3168,31 +2916,33 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             var currentVerObj = await db.Ado.GetScalarAsync(DataChangeTrackingService.SqlCurrentVersion);
             var previousVersion = currentVerObj == null || currentVerObj == DBNull.Value ? 0L : Convert.ToInt64(currentVerObj);
-            var previousId = Guid.NewGuid().ToString("N");
-
-            try
+            
+            var trackState = await GetTrackState(db);
+            string previousId;
+            if (trackState == null)
             {
-                await ClearTrackState(db);
-
+                previousId = Guid.NewGuid().ToString("N");
                 await db.Insertable(new ShareDataTrackVersion
                 {
                     ID = previousId,
                     LastVersion = previousVersion
                 }).ExecuteCommandAsync();
-
-                // Act: chu kỳ quét đầu tiên, đi qua đúng đường sản xuất
-                await worker.PollChanges(CancellationToken.None);
-
-                // Assert: tiếp tục đúng dòng trạng thái hiện có và TIẾP TỤC mốc LastVersion của lần chạy trước
-                var state = await GetTrackState(db);
-                Assert.NotNull(state);
-                Assert.Equal(previousId, state!.ID);
-                Assert.Equal(previousVersion, state.LastVersion);
             }
-            finally
+            else
             {
-                await ClearTrackState(db);
+                previousId = trackState.ID;
+                trackState.LastVersion = previousVersion;
+                await db.Updateable(trackState).ExecuteCommandAsync();
             }
+
+            // Act: chu kỳ quét đầu tiên, đi qua đúng đường sản xuất
+            await worker.PollChanges(CancellationToken.None);
+
+            // Assert: tiếp tục đúng dòng trạng thái hiện có và TIẾP TỤC mốc LastVersion của lần chạy trước
+            var state = await GetTrackState(db);
+            Assert.NotNull(state);
+            Assert.Equal(previousId, state!.ID);
+            Assert.Equal(previousVersion, state.LastVersion);
         }
 
         /// <summary>
@@ -3353,7 +3103,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 PacketCodeConst.IncidentData    // "107_incidentData"
             };
 
-            await using var transport = new TransportManager(config);
+            var transport = _host.Services.GetRequiredService<TransportManager>();
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             await transport.ConnectAsync(cts.Token);
 
@@ -3363,104 +3113,98 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             var received = new List<string>();
 
-            try
+            // Mở kênh nghe trên DEFAULT_NATS_SUBJECT
+            transport.Unsubscribe(DataChangeTrackingService.DEFAULT_NATS_SUBJECT);
+            await transport.SubscribeAsync(DataChangeTrackingService.DEFAULT_NATS_SUBJECT, msg =>
             {
-                // Mở kênh nghe trên DEFAULT_NATS_SUBJECT
-                transport.Unsubscribe(DataChangeTrackingService.DEFAULT_NATS_SUBJECT);
-                await transport.SubscribeAsync(DataChangeTrackingService.DEFAULT_NATS_SUBJECT, msg =>
+                lock (received)
+                    received.Add(msg);
+                return Task.CompletedTask;
+            });
+
+            // Bản tin mồi để đảm bảo listener đã sẵn sàng
+            await transport.PublishAsync(DataChangeTrackingService.DEFAULT_NATS_SUBJECT, new { Probe = true });
+            var probeReceived = await WaitUntil(() =>
+            {
+                lock (received)
+                    return received.Count > 0;
+            }, TimeSpan.FromSeconds(5));
+            Assert.True(probeReceived, "Listener NATS không nhận được bản tin mồi.");
+            lock (received)
+                received.Clear();
+
+            // Cắm mốc gốc: PollChanges lượt đầu
+            await SetStateVersion(db, -1);
+            var publisher = CreateTrackerWorker(scope, transport);
+            await publisher.PollChanges(cts.Token);
+            Assert.True(await GetStateVersion(db) >= 0,
+                "Change Tracking chưa sẵn sàng trên CSDL test nên mốc gốc không lập được.");
+
+            // Seed 5 dòng vào TmsTrafficData và 3 dòng vào TmsIncident SAU mốc gốc
+            var trafficRows = new List<TmsTrafficData>();
+            for (var i = 1; i <= 5; i++)
+            {
+                var t = now.AddSeconds(i);
+                trafficRows.Add(new TmsTrafficData
                 {
-                    lock (received)
-                        received.Add(msg);
-                    return Task.CompletedTask;
+                    ID = Guid.NewGuid().ToString("N"),
+                    EquipmentId = eqId,
+                    DetectTime = t,
+                    CreateTime = t,
+                    UpdateTime = t,
+                    Type = "CAR",
+                    LicensePlate = $"29A-T1{testId}{i}",
+                    Speed = 60.0f + i,
+                    Lane = "L1",
+                    Direction = "EAST",
+                    Location = $"KM30_{testId}"
                 });
-
-                // Bản tin mồi để đảm bảo listener đã sẵn sàng
-                await transport.PublishAsync(DataChangeTrackingService.DEFAULT_NATS_SUBJECT, new { Probe = true });
-                var probeReceived = await WaitUntil(() =>
-                {
-                    lock (received)
-                        return received.Count > 0;
-                }, TimeSpan.FromSeconds(5));
-                Assert.True(probeReceived, "Listener NATS không nhận được bản tin mồi.");
-                lock (received)
-                    received.Clear();
-
-                // Cắm mốc gốc: PollChanges lượt đầu
-                await ClearTrackState(db);
-                var publisher = CreateTrackingService(scope, transport);
-                await publisher.PollChanges(cts.Token);
-                Assert.True(await GetStateVersion(db) >= 0,
-                    "Change Tracking chưa sẵn sàng trên CSDL test nên mốc gốc không lập được.");
-
-                // Seed 5 dòng vào TmsTrafficData và 3 dòng vào TmsIncident SAU mốc gốc
-                var trafficRows = new List<TmsTrafficData>();
-                for (var i = 1; i <= 5; i++)
-                {
-                    var t = now.AddSeconds(i);
-                    trafficRows.Add(new TmsTrafficData
-                    {
-                        ID = Guid.NewGuid().ToString("N"),
-                        EquipmentId = eqId,
-                        DetectTime = t,
-                        CreateTime = t,
-                        UpdateTime = t,
-                        Type = "CAR",
-                        LicensePlate = $"29A-T1{testId}{i}",
-                        Speed = 60.0f + i,
-                        Lane = "L1",
-                        Direction = "EAST",
-                        Location = $"KM30_{testId}"
-                    });
-                }
-                await db.Insertable(trafficRows).ExecuteCommandAsync();
-
-                var incidentRows = new List<TmsIncident>();
-                for (var i = 1; i <= 3; i++)
-                {
-                    var t = now.AddSeconds(i);
-                    incidentRows.Add(new TmsIncident
-                    {
-                        ID = Guid.NewGuid().ToString("N"),
-                        Code = $"INC_{testId}_{i}",
-                        Name = $"Incident {testId} {i}",
-                        StartDate = t,
-                        CreateTime = t,
-                        UpdateTime = t
-                    });
-                }
-                await db.Insertable(incidentRows)
-                    .InsertColumns(x => new { x.ID, x.Code, x.Name, x.StartDate, x.CreateTime, x.UpdateTime })
-                    .ExecuteCommandAsync();
-
-                // Act: Chạy PollChanges đúng 1 lượt
-                await publisher.PollChanges(cts.Token);
-
-                // Assert
-                var gotExpected = await WaitUntil(() =>
-                {
-                    lock (received)
-                        return received.Count >= expectedPacketCodes.Length;
-                }, TimeSpan.FromSeconds(10));
-                Assert.True(gotExpected, $"Chờ nhận đủ {expectedPacketCodes.Length} bản tin NATS bị timeout. Hiện nhận: {received.Count}");
-
-                lock (received)
-                {
-                    Assert.Equal(expectedPacketCodes.Length, received.Count);
-
-                    var actualPacketCodes = received
-                        .Select(m => JsonDocument.Parse(m).RootElement.GetProperty("PacketCode").GetString())
-                        .OrderBy(c => c)
-                        .ToArray();
-                    Assert.Equal(expectedPacketCodes.OrderBy(c => c).ToArray(), actualPacketCodes);
-                }
             }
-            finally
+            await db.Insertable(trafficRows).ExecuteCommandAsync();
+
+            var incidentRows = new List<TmsIncident>();
+            for (var i = 1; i <= 3; i++)
             {
-                transport.Unsubscribe(DataChangeTrackingService.DEFAULT_NATS_SUBJECT);
-                await ClearTrackState(db);
-                await db.Deleteable<TmsTrafficData>().Where(t => t.EquipmentId == eqId).ExecuteCommandAsync();
-                await db.Deleteable<TmsIncident>().Where(i => i.Code != null && i.Code.StartsWith($"INC_{testId}_")).ExecuteCommandAsync();
+                var t = now.AddSeconds(i);
+                incidentRows.Add(new TmsIncident
+                {
+                    ID = Guid.NewGuid().ToString("N"),
+                    Code = $"INC_{testId}_{i}",
+                    Name = $"Incident {testId} {i}",
+                    StartDate = t,
+                    CreateTime = t,
+                    UpdateTime = t
+                });
             }
+            await db.Insertable(incidentRows)
+                .InsertColumns(x => new { x.ID, x.Code, x.Name, x.StartDate, x.CreateTime, x.UpdateTime })
+                .ExecuteCommandAsync();
+
+            // Act: Chạy PollChanges đúng 1 lượt
+            await publisher.PollChanges(cts.Token);
+
+            // Assert
+            var gotExpected = await WaitUntil(() =>
+            {
+                lock (received)
+                    return received.Count >= expectedPacketCodes.Length;
+            }, TimeSpan.FromSeconds(10));
+            Assert.True(gotExpected, $"Chờ nhận đủ {expectedPacketCodes.Length} bản tin NATS bị timeout. Hiện nhận: {received.Count}");
+
+            lock (received)
+            {
+                Assert.Equal(expectedPacketCodes.Length, received.Count);
+
+                var actualPacketCodes = received
+                    .Select(m => JsonDocument.Parse(m).RootElement.GetProperty("PacketCode").GetString())
+                    .OrderBy(c => c)
+                    .ToArray();
+                Assert.Equal(expectedPacketCodes.OrderBy(c => c).ToArray(), actualPacketCodes);
+            }
+
+            transport.Unsubscribe(DataChangeTrackingService.DEFAULT_NATS_SUBJECT);
+            await db.Deleteable<TmsTrafficData>().Where(t => t.EquipmentId == eqId).ExecuteCommandAsync();
+            await db.Deleteable<TmsIncident>().Where(i => i.Code != null && i.Code.StartsWith($"INC_{testId}_")).ExecuteCommandAsync();
         }
 
         /// <summary>
@@ -3512,66 +3256,61 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 UpdateTime = baseTime
             }).ExecuteCommandAsync();
 
-            try
+            await db.Insertable(new TmsEquipment
             {
-                await db.Insertable(new TmsEquipment
-                {
-                    ID = eqId,
-                    Code = eqId,
-                    Name = $"Equipment {eqId}",
-                    Status = BaseEnums.StatusEnum.Enable
-                }).ExecuteCommandAsync();
+                ID = eqId,
+                Code = eqId,
+                Name = $"Equipment {eqId}",
+                Status = BaseEnums.StatusEnum.Enable
+            }).ExecuteCommandAsync();
 
-                var rows = new List<TmsTrafficData>();
-                for (var i = 1; i <= 10; i++)
-                {
-                    var t = baseTime.AddSeconds(i);
-                    rows.Add(new TmsTrafficData
-                    {
-                        ID = Guid.NewGuid().ToString("N"),
-                        EquipmentId = eqId,
-                        DetectTime = t,
-                        CreateTime = t,
-                        UpdateTime = t,
-                        Type = "CAR",
-                        LicensePlate = $"{platePrefix}_{i:D2}",
-                        Speed = 60.0f + i,
-                        Lane = "L1",
-                        Direction = "EAST",
-                        Location = $"KM30_{testId}"
-                    });
-                }
-                await db.Insertable(rows).ExecuteCommandAsync();
-                await db.Ado.ExecuteCommandAsync($"UPDATE TmsTrafficData SET UpdateTime = DetectTime WHERE EquipmentId = '{eqId}'");
-
-                var partnerServer = _host.PartnerServer;
-                partnerServer.ResetDefaults();
-
-                // Act
-                await CreateOutboundService(scope).ProcessSubscriptions(packetCode, CancellationToken.None);
-
-                // Assert
-                Assert.Equal(1, partnerServer.TotalReceivedRequests);
-
-                var logs = (await GetLogs(db, sub.ID)).Where(l => l.RecordCount > 0).ToList();
-                Assert.Single(logs);
-                Assert.Equal(10, logs[0].RecordCount);
-                Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
-
-                Assert.NotNull(partnerServer.LastRequest);
-                var items = JsonDocument.Parse(partnerServer.LastRequest!.Body).RootElement.EnumerateArray().ToList();
-                Assert.Equal(10, items.Count);
-            }
-            finally
+            var rows = new List<TmsTrafficData>();
+            for (var i = 1; i <= 10; i++)
             {
-                await db.Updateable<ShareDataSubscription>()
-                    .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Paused)
-                    .Where(s => s.ID == sub.ID)
-                    .ExecuteCommandAsync();
-                await db.Deleteable<ShareDataLastSend>().Where(c => c.PartnerCode == partnerCode).ExecuteCommandAsync();
-                await db.Deleteable<TmsTrafficData>().Where(t => t.EquipmentId == eqId).ExecuteCommandAsync();
-                await db.Deleteable<TmsEquipment>().Where(e => e.ID == eqId).ExecuteCommandAsync();
+                var t = baseTime.AddSeconds(i);
+                rows.Add(new TmsTrafficData
+                {
+                    ID = Guid.NewGuid().ToString("N"),
+                    EquipmentId = eqId,
+                    DetectTime = t,
+                    CreateTime = t,
+                    UpdateTime = t,
+                    Type = "CAR",
+                    LicensePlate = $"{platePrefix}_{i:D2}",
+                    Speed = 60.0f + i,
+                    Lane = "L1",
+                    Direction = "EAST",
+                    Location = $"KM30_{testId}"
+                });
             }
+            await db.Insertable(rows).ExecuteCommandAsync();
+            await db.Ado.ExecuteCommandAsync($"UPDATE TmsTrafficData SET UpdateTime = DetectTime WHERE EquipmentId = '{eqId}'");
+
+            var partnerServer = _host.PartnerServer;
+            partnerServer.ResetDefaults();
+
+            // Act
+            await CreateOutboundService(scope).ProcessSubscriptions(packetCode, CancellationToken.None);
+
+            // Assert
+            Assert.Equal(1, partnerServer.TotalReceivedRequests);
+
+            var logs = (await GetLogs(db, sub.ID)).Where(l => l.RecordCount > 0).ToList();
+            Assert.Single(logs);
+            Assert.Equal(10, logs[0].RecordCount);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
+
+            Assert.NotNull(partnerServer.LastRequest);
+            var items = JsonDocument.Parse(partnerServer.LastRequest!.Body).RootElement.EnumerateArray().ToList();
+            Assert.Equal(10, items.Count);
+
+            await db.Updateable<ShareDataSubscription>()
+                .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Paused)
+                .Where(s => s.ID == sub.ID)
+                .ExecuteCommandAsync();
+            await db.Deleteable<ShareDataLastSend>().Where(c => c.PartnerCode == partnerCode).ExecuteCommandAsync();
+            await db.Deleteable<TmsTrafficData>().Where(t => t.EquipmentId == eqId).ExecuteCommandAsync();
+            await db.Deleteable<TmsEquipment>().Where(e => e.ID == eqId).ExecuteCommandAsync();
         }
 
         /// <summary>
@@ -3623,75 +3362,70 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 UpdateTime = baseTime
             }).ExecuteCommandAsync();
 
-            try
+            await db.Insertable(new TmsEquipment
             {
-                await db.Insertable(new TmsEquipment
-                {
-                    ID = eqId,
-                    Code = eqId,
-                    Name = $"Equipment {eqId}",
-                    Status = BaseEnums.StatusEnum.Enable
-                }).ExecuteCommandAsync();
+                ID = eqId,
+                Code = eqId,
+                Name = $"Equipment {eqId}",
+                Status = BaseEnums.StatusEnum.Enable
+            }).ExecuteCommandAsync();
 
-                var rows = new List<TmsTrafficData>();
-                for (var i = 1; i <= 10; i++)
-                {
-                    var t = baseTime.AddSeconds(i);
-                    rows.Add(new TmsTrafficData
-                    {
-                        ID = Guid.NewGuid().ToString("N"),
-                        EquipmentId = eqId,
-                        DetectTime = t,
-                        CreateTime = t,
-                        UpdateTime = t,
-                        Type = "CAR",
-                        LicensePlate = $"{platePrefix}_{i:D2}",
-                        Speed = 60.0f + i,
-                        Lane = "L1",
-                        Direction = "EAST",
-                        Location = $"KM30_{testId}"
-                    });
-                }
-                await db.Insertable(rows).ExecuteCommandAsync();
-                await db.Ado.ExecuteCommandAsync($"UPDATE TmsTrafficData SET UpdateTime = DetectTime WHERE EquipmentId = '{eqId}'");
-
-                var partnerServer = _host.PartnerServer;
-                partnerServer.ResetDefaults();
-
-                // Act: Chạy 5 lần liên tiếp
-                for (var i = 0; i < 5; i++)
-                    await CreateOutboundService(scope).ProcessSubscriptions(packetCode, CancellationToken.None);
-
-                // Assert
-                // 1. Chỉ MỘT lượt thật sự mang dữ liệu đi
-                var logsWithData = (await GetLogs(db, sub.ID)).Where(l => l.RecordCount > 0).ToList();
-                Assert.Single(logsWithData);
-                Assert.Equal(10, logsWithData[0].RecordCount);
-
-                // 2. Bốn lượt sau đi đường "không có dữ liệu mới"
-                var emptyLogs = (await GetLogs(db, sub.ID)).Where(l => l.RecordCount == 0).ToList();
-                Assert.Equal(4, emptyLogs.Count);
-
-                // 3. Mốc gửi chỉ tiến MỘT lần, không lùi
-                var lastSend = await db.Queryable<ShareDataLastSend>()
-                    .Where(c => c.PartnerCode == partner.Code)
-                    .FirstAsync();
-                Assert.NotNull(lastSend);
-
-                // 4. SerialNbr tăng đúng 1 — commit đúng một lần
-                var updatedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
-                Assert.Equal((sub.SerialNbr ?? 0) + 1, updatedSub.SerialNbr);
-            }
-            finally
+            var rows = new List<TmsTrafficData>();
+            for (var i = 1; i <= 10; i++)
             {
-                await db.Updateable<ShareDataSubscription>()
-                    .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Paused)
-                    .Where(s => s.ID == sub.ID)
-                    .ExecuteCommandAsync();
-                await db.Deleteable<ShareDataLastSend>().Where(c => c.PartnerCode == partnerCode).ExecuteCommandAsync();
-                await db.Deleteable<TmsTrafficData>().Where(t => t.EquipmentId == eqId).ExecuteCommandAsync();
-                await db.Deleteable<TmsEquipment>().Where(e => e.ID == eqId).ExecuteCommandAsync();
+                var t = baseTime.AddSeconds(i);
+                rows.Add(new TmsTrafficData
+                {
+                    ID = Guid.NewGuid().ToString("N"),
+                    EquipmentId = eqId,
+                    DetectTime = t,
+                    CreateTime = t,
+                    UpdateTime = t,
+                    Type = "CAR",
+                    LicensePlate = $"{platePrefix}_{i:D2}",
+                    Speed = 60.0f + i,
+                    Lane = "L1",
+                    Direction = "EAST",
+                    Location = $"KM30_{testId}"
+                });
             }
+            await db.Insertable(rows).ExecuteCommandAsync();
+            await db.Ado.ExecuteCommandAsync($"UPDATE TmsTrafficData SET UpdateTime = DetectTime WHERE EquipmentId = '{eqId}'");
+
+            var partnerServer = _host.PartnerServer;
+            partnerServer.ResetDefaults();
+
+            // Act: Chạy 5 lần liên tiếp
+            for (var i = 0; i < 5; i++)
+                await CreateOutboundService(scope).ProcessSubscriptions(packetCode, CancellationToken.None);
+
+            // Assert
+            // 1. Chỉ MỘT lượt thật sự mang dữ liệu đi
+            var logsWithData = (await GetLogs(db, sub.ID)).Where(l => l.RecordCount > 0).ToList();
+            Assert.Single(logsWithData);
+            Assert.Equal(10, logsWithData[0].RecordCount);
+
+            // 2. Bốn lượt sau đi đường "không có dữ liệu mới"
+            var emptyLogs = (await GetLogs(db, sub.ID)).Where(l => l.RecordCount == 0).ToList();
+            Assert.Equal(4, emptyLogs.Count);
+
+            // 3. Mốc gửi chỉ tiến MỘT lần, không lùi
+            var lastSend = await db.Queryable<ShareDataLastSend>()
+                .Where(c => c.PartnerCode == partner.Code)
+                .FirstAsync();
+            Assert.NotNull(lastSend);
+
+            // 4. SerialNbr tăng đúng 1 — commit đúng một lần
+            var updatedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
+            Assert.Equal((sub.SerialNbr ?? 0) + 1, updatedSub.SerialNbr);
+
+            await db.Updateable<ShareDataSubscription>()
+                .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Paused)
+                .Where(s => s.ID == sub.ID)
+                .ExecuteCommandAsync();
+            await db.Deleteable<ShareDataLastSend>().Where(c => c.PartnerCode == partnerCode).ExecuteCommandAsync();
+            await db.Deleteable<TmsTrafficData>().Where(t => t.EquipmentId == eqId).ExecuteCommandAsync();
+            await db.Deleteable<TmsEquipment>().Where(e => e.ID == eqId).ExecuteCommandAsync();
         }
 
         /// <summary>
@@ -3744,103 +3478,98 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 UpdateTime = baseTime
             }).ExecuteCommandAsync();
 
-            try
+            await db.Insertable(new TmsEquipment
             {
-                await db.Insertable(new TmsEquipment
-                {
-                    ID = eqId,
-                    Code = eqId,
-                    Name = $"Equipment {eqId}",
-                    Status = BaseEnums.StatusEnum.Enable
-                }).ExecuteCommandAsync();
+                ID = eqId,
+                Code = eqId,
+                Name = $"Equipment {eqId}",
+                Status = BaseEnums.StatusEnum.Enable
+            }).ExecuteCommandAsync();
 
-                var rowA = new TmsTrafficData
-                {
-                    ID = Guid.NewGuid().ToString("N"),
-                    EquipmentId = eqId,
-                    DetectTime = baseTime.AddSeconds(1),
-                    CreateTime = baseTime.AddSeconds(1),
-                    UpdateTime = baseTime.AddSeconds(1),
-                    Type = "CAR",
-                    LicensePlate = plateA,
-                    Speed = 60.0f,
-                    Lane = "L1",
-                    Direction = "EAST",
-                    Location = $"KM30_{testId}"
-                };
-                var rowB = new TmsTrafficData
-                {
-                    ID = Guid.NewGuid().ToString("N"),
-                    EquipmentId = eqId,
-                    DetectTime = baseTime.AddSeconds(2),
-                    CreateTime = baseTime.AddSeconds(2),
-                    UpdateTime = baseTime.AddSeconds(2),
-                    Type = "CAR",
-                    LicensePlate = plateB,
-                    Speed = 70.0f,
-                    Lane = "L2",
-                    Direction = "EAST",
-                    Location = $"KM30_{testId}"
-                };
-                await db.Insertable(new[] { rowA, rowB }).ExecuteCommandAsync();
-                await db.Ado.ExecuteCommandAsync($"UPDATE TmsTrafficData SET UpdateTime = DetectTime WHERE EquipmentId = '{eqId}'");
-
-                var partnerServer = _host.PartnerServer;
-                partnerServer.ResetDefaults();
-
-                // Pha 1 — gửi lần đầu: cả 2 bản ghi A và B đều được gửi
-                await CreateOutboundService(scope).ProcessSubscriptions(packetCode, CancellationToken.None);
-
-                Assert.Single(partnerServer.ReceivedRequests);
-                Assert.Contains(plateA, partnerServer.LastRequest!.Body, StringComparison.Ordinal);
-                Assert.Contains(plateB, partnerServer.LastRequest!.Body, StringComparison.Ordinal);
-
-                // Pha 2 — sửa A, CÓ nâng UpdateTime vượt watermark hiện tại
-                var newSpeed = 99.5f;
-                var bumpedTime = baseTime.AddMinutes(5);
-                await db.Updateable<TmsTrafficData>()
-                    .SetColumns(t => t.Speed == newSpeed)
-                    .SetColumns(t => t.UpdateTime == bumpedTime)
-                    .Where(t => t.ID == rowA.ID)
-                    .ExecuteCommandAsync();
-
-                partnerServer.ResetDefaults();
-                await CreateOutboundService(scope).ProcessSubscriptions(packetCode, CancellationToken.None);
-
-                // Đối tác nhận LẠI bản ghi A với giá trị ĐÃ SỬA; B không đổi nên không gửi lại
-                Assert.Single(partnerServer.ReceivedRequests);
-                Assert.Contains(plateA, partnerServer.LastRequest!.Body, StringComparison.Ordinal);
-                Assert.DoesNotContain(plateB, partnerServer.LastRequest!.Body, StringComparison.Ordinal);
-
-                var logsAfterUpdate = (await GetLogs(db, sub.ID)).Where(l => l.RecordCount > 0).ToList();
-                Assert.Equal(1, logsAfterUpdate.OrderByDescending(l => l.OccurredAt).First().RecordCount);
-
-                // Pha 3 — sửa B, KHÔNG nâng UpdateTime (cố ý không đụng UpdateTime)
-                await db.Updateable<TmsTrafficData>()
-                    .SetColumns(t => t.Speed == 11.1f)
-                    .Where(t => t.ID == rowB.ID)
-                    .ExecuteCommandAsync();
-
-                partnerServer.ResetDefaults();
-                await CreateOutboundService(scope).ProcessSubscriptions(packetCode, CancellationToken.None);
-
-                // GIỚI HẠN ĐÃ BIẾT: watermark của B vẫn đứng ở mốc cũ (nhỏ hơn LastTime sau pha 2)
-                // => bản sửa KHÔNG tới được đối tác
-                Assert.Empty(partnerServer.ReceivedRequests);
-
-                var lastLog = (await GetLogs(db, sub.ID)).OrderByDescending(l => l.OccurredAt).First();
-                Assert.Equal(0, lastLog.RecordCount);
-            }
-            finally
+            var rowA = new TmsTrafficData
             {
-                await db.Updateable<ShareDataSubscription>()
-                    .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Paused)
-                    .Where(s => s.ID == sub.ID)
-                    .ExecuteCommandAsync();
-                await db.Deleteable<ShareDataLastSend>().Where(c => c.PartnerCode == partnerCode).ExecuteCommandAsync();
-                await db.Deleteable<TmsTrafficData>().Where(t => t.EquipmentId == eqId).ExecuteCommandAsync();
-                await db.Deleteable<TmsEquipment>().Where(e => e.ID == eqId).ExecuteCommandAsync();
-            }
+                ID = Guid.NewGuid().ToString("N"),
+                EquipmentId = eqId,
+                DetectTime = baseTime.AddSeconds(1),
+                CreateTime = baseTime.AddSeconds(1),
+                UpdateTime = baseTime.AddSeconds(1),
+                Type = "CAR",
+                LicensePlate = plateA,
+                Speed = 60.0f,
+                Lane = "L1",
+                Direction = "EAST",
+                Location = $"KM30_{testId}"
+            };
+            var rowB = new TmsTrafficData
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                EquipmentId = eqId,
+                DetectTime = baseTime.AddSeconds(2),
+                CreateTime = baseTime.AddSeconds(2),
+                UpdateTime = baseTime.AddSeconds(2),
+                Type = "CAR",
+                LicensePlate = plateB,
+                Speed = 70.0f,
+                Lane = "L2",
+                Direction = "EAST",
+                Location = $"KM30_{testId}"
+            };
+            await db.Insertable(new[] { rowA, rowB }).ExecuteCommandAsync();
+            await db.Ado.ExecuteCommandAsync($"UPDATE TmsTrafficData SET UpdateTime = DetectTime WHERE EquipmentId = '{eqId}'");
+
+            var partnerServer = _host.PartnerServer;
+            partnerServer.ResetDefaults();
+
+            // Pha 1 — gửi lần đầu: cả 2 bản ghi A và B đều được gửi
+            await CreateOutboundService(scope).ProcessSubscriptions(packetCode, CancellationToken.None);
+
+            Assert.Single(partnerServer.ReceivedRequests);
+            Assert.Contains(plateA, partnerServer.LastRequest!.Body, StringComparison.Ordinal);
+            Assert.Contains(plateB, partnerServer.LastRequest!.Body, StringComparison.Ordinal);
+
+            // Pha 2 — sửa A, CÓ nâng UpdateTime vượt watermark hiện tại
+            var newSpeed = 99.5f;
+            var bumpedTime = baseTime.AddMinutes(5);
+            await db.Updateable<TmsTrafficData>()
+                .SetColumns(t => t.Speed == newSpeed)
+                .SetColumns(t => t.UpdateTime == bumpedTime)
+                .Where(t => t.ID == rowA.ID)
+                .ExecuteCommandAsync();
+
+            partnerServer.ResetDefaults();
+            await CreateOutboundService(scope).ProcessSubscriptions(packetCode, CancellationToken.None);
+
+            // Đối tác nhận LẠI bản ghi A với giá trị ĐÃ SỬA; B không đổi nên không gửi lại
+            Assert.Single(partnerServer.ReceivedRequests);
+            Assert.Contains(plateA, partnerServer.LastRequest!.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain(plateB, partnerServer.LastRequest!.Body, StringComparison.Ordinal);
+
+            var logsAfterUpdate = (await GetLogs(db, sub.ID)).Where(l => l.RecordCount > 0).ToList();
+            Assert.Equal(1, logsAfterUpdate.OrderByDescending(l => l.OccurredAt).First().RecordCount);
+
+            // Pha 3 — sửa B, KHÔNG nâng UpdateTime (cố ý không đụng UpdateTime)
+            await db.Updateable<TmsTrafficData>()
+                .SetColumns(t => t.Speed == 11.1f)
+                .Where(t => t.ID == rowB.ID)
+                .ExecuteCommandAsync();
+
+            partnerServer.ResetDefaults();
+            await CreateOutboundService(scope).ProcessSubscriptions(packetCode, CancellationToken.None);
+
+            // GIỚI HẠN ĐÃ BIẾT: watermark của B vẫn đứng ở mốc cũ (nhỏ hơn LastTime sau pha 2)
+            // => bản sửa KHÔNG tới được đối tác
+            Assert.Empty(partnerServer.ReceivedRequests);
+
+            var lastLog = (await GetLogs(db, sub.ID)).OrderByDescending(l => l.OccurredAt).First();
+            Assert.Equal(0, lastLog.RecordCount);
+
+            await db.Updateable<ShareDataSubscription>()
+                .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Paused)
+                .Where(s => s.ID == sub.ID)
+                .ExecuteCommandAsync();
+            await db.Deleteable<ShareDataLastSend>().Where(c => c.PartnerCode == partnerCode).ExecuteCommandAsync();
+            await db.Deleteable<TmsTrafficData>().Where(t => t.EquipmentId == eqId).ExecuteCommandAsync();
+            await db.Deleteable<TmsEquipment>().Where(e => e.ID == eqId).ExecuteCommandAsync();
         }
 
         /// <summary>
@@ -3855,45 +3584,29 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             var worker = CreateTrackerWorker(scope);
 
-            var startedAt = DateTime.MinValue;
-            var testVersionId = Guid.NewGuid().ToString("N");
+            var startedAt = (await db.Ado.GetDateTimeAsync("SELECT GETDATE()")).AddSeconds(-5);
 
-            try
-            {
-                await ClearTrackState(db);
-                startedAt = (await db.Ado.GetDateTimeAsync("SELECT GETDATE()")).AddSeconds(-5);
+            var currentVerObj = await db.Ado.GetScalarAsync(DataChangeTrackingService.SqlCurrentVersion);
+            var currentVer = currentVerObj == null || currentVerObj == DBNull.Value ? 0L : Convert.ToInt64(currentVerObj);
+            var futureVer = currentVer + 1_000_000L;
 
-                var currentVerObj = await db.Ado.GetScalarAsync(DataChangeTrackingService.SqlCurrentVersion);
-                var currentVer = currentVerObj == null || currentVerObj == DBNull.Value ? 0L : Convert.ToInt64(currentVerObj);
-                var futureVer = currentVer + 1_000_000L;
+            await SetStateVersion(db, futureVer);
 
-                var trackState = new ShareDataTrackVersion
-                {
-                    ID = testVersionId,
-                    LastVersion = futureVer
-                };
-                await db.Insertable(trackState).ExecuteCommandAsync();
+            // Act
+            await worker.PollChanges(CancellationToken.None);
 
-                // Act
-                await worker.PollChanges(CancellationToken.None);
+            // Assert
+            var dbState = await GetTrackState(db);
+            Assert.NotNull(dbState);
+            Assert.Equal(-1, dbState!.LastVersion);
 
-                // Assert
-                var dbState = await db.Queryable<ShareDataTrackVersion>().InSingleAsync(testVersionId);
-                Assert.NotNull(dbState);
-                Assert.Equal(-1, dbState!.LastVersion);
+            var logs = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.VersionReset && x.CreateTime >= startedAt)
+                .ToListAsync();
 
-                var logs = await db.Queryable<ShareDataActivityLog>()
-                    .Where(x => x.Remark == ShareDataAlertCode.Tracking.VersionReset && x.CreateTime >= startedAt)
-                    .ToListAsync();
-
-                Assert.Single(logs);
-                var logRow = logs[0];
-                Assert.Contains("\"trackingEnabled\":true", logRow.AfterJson ?? string.Empty);
-            }
-            finally
-            {
-                await ClearTrackState(db);
-            }
+            Assert.Single(logs);
+            var logRow = logs[0];
+            Assert.Contains("\"trackingEnabled\":true", logRow.AfterJson ?? string.Empty);
         }
 
         /// <summary>
@@ -3907,9 +3620,6 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             await using var scope = _host.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
-            var startedAt = DateTime.MinValue;
-            var testVersionId = Guid.NewGuid().ToString("N");
-
             const int workerCount = 10;
             var scopes = Enumerable.Range(0, workerCount)
                 .Select(_ => _host.Services.CreateAsyncScope())
@@ -3918,51 +3628,38 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 .Select(s => CreateTrackerWorker(s))
                 .ToList();
 
-            try
+            var startedAt = (await db.Ado.GetDateTimeAsync("SELECT GETDATE()")).AddSeconds(-5);
+
+            var currentVerObj = await db.Ado.GetScalarAsync(DataChangeTrackingService.SqlCurrentVersion);
+            var currentVer = currentVerObj == null || currentVerObj == DBNull.Value ? 0L : Convert.ToInt64(currentVerObj);
+            var futureVer = currentVer + 1_000_000L;
+
+            await SetStateVersion(db, futureVer);
+
+            // Act
+            var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var tasks = workers.Select(async w =>
             {
-                await ClearTrackState(db);
-                startedAt = (await db.Ado.GetDateTimeAsync("SELECT GETDATE()")).AddSeconds(-5);
+                await tcs.Task;
+                await w.PollChanges(CancellationToken.None);
+            }).ToArray();
 
-                var currentVerObj = await db.Ado.GetScalarAsync(DataChangeTrackingService.SqlCurrentVersion);
-                var currentVer = currentVerObj == null || currentVerObj == DBNull.Value ? 0L : Convert.ToInt64(currentVerObj);
-                var futureVer = currentVer + 1_000_000L;
+            tcs.SetResult();
+            await Task.WhenAll(tasks);
 
-                var trackState = new ShareDataTrackVersion
-                {
-                    ID = testVersionId,
-                    LastVersion = futureVer
-                };
-                await db.Insertable(trackState).ExecuteCommandAsync();
+            // Assert
+            var dbState = await GetTrackState(db);
+            Assert.NotNull(dbState);
+            Assert.True(dbState!.LastVersion == -1 || dbState!.LastVersion == currentVer);
 
-                // Act
-                var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-                var tasks = workers.Select(async w =>
-                {
-                    await tcs.Task;
-                    await w.PollChanges(CancellationToken.None);
-                }).ToArray();
+            var logCount = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.VersionReset && x.CreateTime >= startedAt)
+                .CountAsync();
 
-                tcs.SetResult();
-                await Task.WhenAll(tasks);
+            Assert.Equal(1, logCount);
 
-                // Assert
-                var dbState = await db.Queryable<ShareDataTrackVersion>().InSingleAsync(testVersionId);
-                Assert.NotNull(dbState);
-                Assert.Equal(-1, dbState!.LastVersion);
-
-                var logCount = await db.Queryable<ShareDataActivityLog>()
-                    .Where(x => x.Remark == ShareDataAlertCode.Tracking.VersionReset && x.CreateTime >= startedAt)
-                    .CountAsync();
-
-                Assert.Equal(1, logCount);
-            }
-            finally
-            {
-                foreach (var s in scopes)
-                    await s.DisposeAsync();
-
-                await ClearTrackState(db);
-            }
+            foreach (var s in scopes)
+                await s.DisposeAsync();
         }
 
         /// <summary>
@@ -3977,50 +3674,34 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             var worker = CreateTrackerWorker(scope);
 
-            var startedAt = DateTime.MinValue;
-            var testVersionId = Guid.NewGuid().ToString("N");
+            var startedAt = (await db.Ado.GetDateTimeAsync("SELECT GETDATE()")).AddSeconds(-5);
 
-            try
-            {
-                await ClearTrackState(db);
-                startedAt = (await db.Ado.GetDateTimeAsync("SELECT GETDATE()")).AddSeconds(-5);
+            var currentVerObj = await db.Ado.GetScalarAsync(DataChangeTrackingService.SqlCurrentVersion);
+            var currentVer = currentVerObj == null || currentVerObj == DBNull.Value ? 0L : Convert.ToInt64(currentVerObj);
+            var futureVer = currentVer + 1_000_000L;
 
-                var currentVerObj = await db.Ado.GetScalarAsync(DataChangeTrackingService.SqlCurrentVersion);
-                var currentVer = currentVerObj == null || currentVerObj == DBNull.Value ? 0L : Convert.ToInt64(currentVerObj);
-                var futureVer = currentVer + 1_000_000L;
+            await SetStateVersion(db, futureVer);
 
-                var trackState = new ShareDataTrackVersion
-                {
-                    ID = testVersionId,
-                    LastVersion = futureVer
-                };
-                await db.Insertable(trackState).ExecuteCommandAsync();
+            // Act 1: Lượt 1 phát hiện version lệch -> hạ về -1
+            await worker.PollChanges(CancellationToken.None);
 
-                // Act 1: Lượt 1 phát hiện version lệch -> hạ về -1
-                await worker.PollChanges(CancellationToken.None);
+            var dbStateAfterReset = await GetTrackState(db);
+            Assert.NotNull(dbStateAfterReset);
+            Assert.Equal(-1, dbStateAfterReset!.LastVersion);
 
-                var dbStateAfterReset = await db.Queryable<ShareDataTrackVersion>().InSingleAsync(testVersionId);
-                Assert.NotNull(dbStateAfterReset);
-                Assert.Equal(-1, dbStateAfterReset!.LastVersion);
+            // Act 2: Lượt 2 thấy LastVersion = -1 -> đi đường TryInitChangeTracking cắm lại mốc
+            await worker.PollChanges(CancellationToken.None);
 
-                // Act 2: Lượt 2 thấy LastVersion = -1 -> đi đường TryInitChangeTracking cắm lại mốc
-                await worker.PollChanges(CancellationToken.None);
+            // Assert
+            var finalState = await GetTrackState(db);
+            Assert.NotNull(finalState);
+            Assert.True(finalState!.LastVersion >= 0);
 
-                // Assert
-                var finalState = await db.Queryable<ShareDataTrackVersion>().InSingleAsync(testVersionId);
-                Assert.NotNull(finalState);
-                Assert.True(finalState!.LastVersion >= 0);
+            var logCount = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.VersionReset && x.CreateTime >= startedAt)
+                .CountAsync();
 
-                var logCount = await db.Queryable<ShareDataActivityLog>()
-                    .Where(x => x.Remark == ShareDataAlertCode.Tracking.VersionReset && x.CreateTime >= startedAt)
-                    .CountAsync();
-
-                Assert.Equal(1, logCount);
-            }
-            finally
-            {
-                await ClearTrackState(db);
-            }
+            Assert.Equal(1, logCount);
         }
 
         /// <summary>
@@ -4036,26 +3717,17 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             var worker = CreateTrackerWorker(scope);
 
-            try
-            {
-                await ClearTrackState(db);
+            // Act 1: Lượt 1 phát hiện hoặc đọc dòng hiện có -> TryInitChangeTracking cắm mốc
+            await worker.PollChanges(CancellationToken.None);
 
-                // Act 1: Lượt 1 phát hiện bảng rỗng -> ReadTrackState tạo dòng mới LastVersion = -1 -> TryInitChangeTracking cắm mốc
-                await worker.PollChanges(CancellationToken.None);
+            // Act 2: Lượt 2 đọc lại dòng đã có -> không tạo thêm dòng mới
+            await worker.PollChanges(CancellationToken.None);
 
-                // Act 2: Lượt 2 đọc lại dòng đã có -> không tạo thêm dòng mới
-                await worker.PollChanges(CancellationToken.None);
-
-                // Assert
-                var allRows = await db.Queryable<ShareDataTrackVersion>().ToListAsync();
-                Assert.Single(allRows);
-                Assert.NotNull(allRows[0].LastVersion);
-                Assert.True(allRows[0].LastVersion >= 0);
-            }
-            finally
-            {
-                await ClearTrackState(db);
-            }
+            // Assert
+            var allRows = await db.Queryable<ShareDataTrackVersion>().ToListAsync();
+            Assert.Single(allRows);
+            Assert.NotNull(allRows[0].LastVersion);
+            Assert.True(allRows[0].LastVersion >= 0);
         }
 
         /// <summary>
@@ -4073,37 +3745,26 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             var pastCreateTime = new DateTime(2025, 1, 1, 10, 0, 0);
             var pastUpdateTime = new DateTime(2025, 1, 1, 11, 0, 0);
-            var testVersionId = Guid.NewGuid().ToString("N");
+            
+            await SetStateVersion(db, -10);
+            var trackState = await GetTrackState(db);
+            Assert.NotNull(trackState);
+            var testVersionId = trackState!.ID;
 
-            try
-            {
-                await ClearTrackState(db);
+            await db.Ado.ExecuteCommandAsync(
+                "UPDATE ShareDataTrackVersion SET CreateTime = @createTime, UpdateTime = @updateTime WHERE ID = @id",
+                new { createTime = pastCreateTime, updateTime = pastUpdateTime, id = testVersionId });
 
-                var trackState = new ShareDataTrackVersion
-                {
-                    ID = testVersionId,
-                    LastVersion = -10
-                };
-                await db.Insertable(trackState).ExecuteCommandAsync();
-                await db.Ado.ExecuteCommandAsync(
-                    "UPDATE ShareDataTrackVersion SET CreateTime = @createTime, UpdateTime = @updateTime WHERE ID = @id",
-                    new { createTime = pastCreateTime, updateTime = pastUpdateTime, id = testVersionId });
+            // Act: Chạy PollChanges kích hoạt phục hồi mốc version qua SaveTrackVersion
+            await worker.PollChanges(CancellationToken.None);
 
-                // Act: Chạy PollChanges kích hoạt phục hồi mốc version qua SaveTrackVersion
-                await worker.PollChanges(CancellationToken.None);
-
-                // Assert
-                var updatedState = await db.Queryable<ShareDataTrackVersion>().InSingleAsync(testVersionId);
-                Assert.NotNull(updatedState);
-                Assert.True(updatedState!.LastVersion >= 0);
-                Assert.Equal(pastCreateTime, updatedState.CreateTime);
-                Assert.NotNull(updatedState.UpdateTime);
-                Assert.True(updatedState.UpdateTime > pastUpdateTime);
-            }
-            finally
-            {
-                await ClearTrackState(db);
-            }
+            // Assert
+            var updatedState = await db.Queryable<ShareDataTrackVersion>().InSingleAsync(testVersionId);
+            Assert.NotNull(updatedState);
+            Assert.True(updatedState!.LastVersion >= 0);
+            Assert.Equal(pastCreateTime, updatedState.CreateTime);
+            Assert.NotNull(updatedState.UpdateTime);
+            Assert.True(updatedState.UpdateTime > pastUpdateTime);
         }
 
         /// <summary>
@@ -4123,27 +3784,18 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.Contains("TmsZone", worker.TrackedTables);
             Assert.Contains("TmsZoneStatus", worker.TrackedTables);
 
-            try
-            {
-                await ClearTrackState(db);
+            // Khởi tạo tracking để mọi bảng đều còn trong DMV sys.change_tracking_tables
+            await worker.PollChanges(CancellationToken.None);
 
-                // Khởi tạo tracking để mọi bảng đều còn trong DMV sys.change_tracking_tables
-                await worker.PollChanges(CancellationToken.None);
+            // Act: Gọi TrySkipBrokenTables qua Reflection với Exception chứa thông điệp lỗi có tên TmsZoneStatus
+            var fakeEx = new Exception("Invalid column name in table 'TmsZoneStatus'. Operation failed.");
+            var skippedCount = await InvokeTrySkipBrokenTables(worker, db, fakeEx);
 
-                // Act: Gọi TrySkipBrokenTables qua Reflection với Exception chứa thông điệp lỗi có tên TmsZoneStatus
-                var fakeEx = new Exception("Invalid column name in table 'TmsZoneStatus'. Operation failed.");
-                var skippedCount = await InvokeTrySkipBrokenTables(worker, db, fakeEx);
-
-                // Assert: Phải cô lập đúng TmsZoneStatus (tên dài nhất), KHÔNG cô lập TmsZone
-                Assert.Equal(1, skippedCount);
-                var missing = GetMissingTables(worker);
-                Assert.True(missing.ContainsKey("TmsZoneStatus"));
-                Assert.False(missing.ContainsKey("TmsZone"));
-            }
-            finally
-            {
-                await ClearTrackState(db);
-            }
+            // Assert: Phải cô lập đúng TmsZoneStatus (tên dài nhất), KHÔNG cô lập TmsZone
+            Assert.Equal(1, skippedCount);
+            var missing = GetMissingTables(worker);
+            Assert.True(missing.ContainsKey("TmsZoneStatus"));
+            Assert.False(missing.ContainsKey("TmsZone"));
         }
 
         /// <summary>
@@ -4162,58 +3814,50 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             var startedAt = DateTime.UtcNow.AddSeconds(-2);
 
-            try
+            // Cắm mốc gốc ban đầu
+            await worker.PollChanges(CancellationToken.None);
+            var initialVersion = await GetStateVersion(db);
+            Assert.True(initialVersion >= 0);
+
+            // SqlSugar AOP: Viết lại SqlReadTrackState để trả về CurrentVersion = NULL (mô phỏng tắt Change Tracking cấp CSDL)
+            Func<string, SugarParameter[], KeyValuePair<string, SugarParameter[]>> interceptor = (sql, pars) =>
             {
-                await ClearTrackState(db);
-
-                // Cắm mốc gốc ban đầu
-                await worker.PollChanges(CancellationToken.None);
-                var initialVersion = await GetStateVersion(db);
-                Assert.True(initialVersion >= 0);
-
-                // SqlSugar AOP: Viết lại SqlReadTrackState để trả về CurrentVersion = NULL (mô phỏng tắt Change Tracking cấp CSDL)
-                Func<string, SugarParameter[], KeyValuePair<string, SugarParameter[]>> interceptor = (sql, pars) =>
+                if (sql.Contains("CHANGE_TRACKING_CURRENT_VERSION()", StringComparison.OrdinalIgnoreCase) &&
+                    sql.Contains("ShareDataTrackVersion", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (sql.Contains("CHANGE_TRACKING_CURRENT_VERSION()", StringComparison.OrdinalIgnoreCase) &&
-                        sql.Contains("ShareDataTrackVersion", StringComparison.OrdinalIgnoreCase))
-                    {
-                        return new KeyValuePair<string, SugarParameter[]>(
-                            "SELECT TOP 1 CAST(NULL AS BIGINT) AS CurrentVersion, ID, LastVersion FROM ShareDataTrackVersion ORDER BY ID",
-                            pars);
-                    }
-                    return new KeyValuePair<string, SugarParameter[]>(sql, pars);
-                };
+                    return new KeyValuePair<string, SugarParameter[]>(
+                        "SELECT TOP 1 CAST(NULL AS BIGINT) AS CurrentVersion, ID, LastVersion FROM ShareDataTrackVersion ORDER BY ID",
+                        pars);
+                }
+                return new KeyValuePair<string, SugarParameter[]>(sql, pars);
+            };
 
-                rootDb.Aop.OnExecutingChangeSql = interceptor;
-                db.Aop.OnExecutingChangeSql = interceptor;
+            rootDb.Aop.OnExecutingChangeSql = interceptor;
+            db.Aop.OnExecutingChangeSql = interceptor;
 
-                // Act
-                await worker.PollChanges(CancellationToken.None);
+            // Act
+            await worker.PollChanges(CancellationToken.None);
 
-                // Assert 1: Trong CSDL LastVersion bị hạ về -1
-                var resetVersion = await GetStateVersion(db);
-                Assert.Equal(-1, resetVersion);
+            // Assert 1: Trong CSDL LastVersion bị hạ về -1
+            var resetVersion = await GetStateVersion(db);
+            Assert.Equal(-1, resetVersion);
 
-                // Assert 2: Đúng 1 dòng cảnh báo ESH-1604 được ghi
-                var logRows = await db.Queryable<ShareDataActivityLog>()
-                    .Where(x => x.Remark == ShareDataAlertCode.Tracking.VersionReset && x.CreateTime >= startedAt)
-                    .OrderBy(x => x.CreateTime, OrderByType.Desc)
-                    .ToListAsync();
+            // Assert 2: Đúng 1 dòng cảnh báo ESH-1604 được ghi
+            var logRows = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.VersionReset && x.CreateTime >= startedAt)
+                .OrderBy(x => x.CreateTime, OrderByType.Desc)
+                .ToListAsync();
 
-                Assert.Single(logRows);
-                var log = logRows[0];
-                Assert.Equal(BaseEnums.SuccessEnums.Fail, log.Success);
+            Assert.Single(logRows);
+            var log = logRows[0];
+            Assert.Equal(BaseEnums.SuccessEnums.Fail, log.Success);
 
-                // Assert 3: DetailJson (AfterJson) chứa trackingEnabled:false và currentVersion:null
-                Assert.Contains("\"trackingEnabled\":false", log.AfterJson ?? string.Empty);
-                Assert.Contains("\"currentVersion\":null", log.AfterJson ?? string.Empty);
-            }
-            finally
-            {
-                rootDb.Aop.OnExecutingChangeSql = null;
-                db.Aop.OnExecutingChangeSql = null;
-                await ClearTrackState(db);
-            }
+            // Assert 3: DetailJson (AfterJson) chứa trackingEnabled:false và currentVersion:null
+            Assert.Contains("\"trackingEnabled\":false", log.AfterJson ?? string.Empty);
+            Assert.Contains("\"currentVersion\":null", log.AfterJson ?? string.Empty);
+
+            rootDb.Aop.OnExecutingChangeSql = null;
+            db.Aop.OnExecutingChangeSql = null;
         }
 
         /// <summary>
@@ -4235,79 +3879,71 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var eqId = $"EQ_ERR_{testId}";
             var carId = $"CAR_ERR_{testId}";
 
-            try
+            // Arrange 1: Cắm mốc gốc ban đầu
+            await worker.PollChanges(CancellationToken.None);
+            var initialVersion = await GetStateVersion(db);
+            Assert.True(initialVersion >= 0);
+
+            // Arrange 2: Chèn 1 dòng vào một bảng nguồn đang được giám sát để đẩy version CSDL tăng
+            await db.Insertable(new TmsEquipment
             {
-                await ClearTrackState(db);
+                ID = eqId,
+                Code = $"EQ_{testId}",
+                KmNumber = 10,
+                MetNumber = 500
+            }).ExecuteCommandAsync();
 
-                // Arrange 1: Cắm mốc gốc ban đầu
-                await worker.PollChanges(CancellationToken.None);
-                var initialVersion = await GetStateVersion(db);
-                Assert.True(initialVersion >= 0);
-
-                // Arrange 2: Chèn 1 dòng vào một bảng nguồn đang được giám sát để đẩy version CSDL tăng
-                await db.Insertable(new TmsEquipment
-                {
-                    ID = eqId,
-                    Code = $"EQ_{testId}",
-                    KmNumber = 10,
-                    MetNumber = 500
-                }).ExecuteCommandAsync();
-
-                await db.Insertable(new TmsTrafficData
-                {
-                    ID = carId,
-                    EquipmentId = eqId,
-                    DetectTime = DateTime.Now,
-                    Type = "CAR",
-                    LicensePlate = $"30A-ERR_{testId}",
-                    Speed = 60f,
-                    Lane = "L1",
-                    Direction = "NORTH",
-                    Location = "KM10",
-                    CreateTime = DateTime.Now,
-                    UpdateTime = DateTime.Now
-                }).ExecuteCommandAsync();
-
-                // Arrange 3: SqlSugar AOP: ép câu truy vấn thay đổi hỏng bằng một lỗi truy vấn.
-                // Chia cho 0 ⇒ "Divide by zero error encountered." đi vào nhánh TrySkipBrokenTables cần đo.
-                Func<string, SugarParameter[], KeyValuePair<string, SugarParameter[]>> interceptor = (sql, pars) =>
-                {
-                    if (sql.Contains("CHANGETABLE(CHANGES", StringComparison.OrdinalIgnoreCase))
-                        return new KeyValuePair<string, SugarParameter[]>("RAISERROR('Divide by zero error encountered.', 16, 1);", pars);
-
-                    return new KeyValuePair<string, SugarParameter[]>(sql, pars);
-                };
-
-                rootDb.Aop.OnExecutingChangeSql = interceptor;
-                db.Aop.OnExecutingChangeSql = interceptor;
-
-                // Act: QueryChangedTables rethrow lỗi không phải lỗi version, nên PollChanges ném ra
-                await Assert.ThrowsAnyAsync<Exception>(() => worker.PollChanges(CancellationToken.None));
-
-                // Assert 1: Phép đo chính — không cô lập oan bảng lành
-                var missing = GetMissingTables(worker);
-                Assert.Empty(missing);
-
-                // Assert 2: Không có dòng ShareDataActivityLog nào mang thông điệp "mất Change Tracking giữa chừng"
-                var logs = await db.Queryable<ShareDataActivityLog>()
-                    .Where(x => x.Remark == ShareDataAlertCode.Tracking.QueryFailed && x.CreateTime >= startedAt)
-                    .OrderBy(x => x.CreateTime, OrderByType.Desc)
-                    .ToListAsync();
-
-                Assert.DoesNotContain(logs, x => (x.Description ?? string.Empty).Contains("mất Change Tracking giữa chừng", StringComparison.OrdinalIgnoreCase));
-            }
-            finally
+            await db.Insertable(new TmsTrafficData
             {
-                rootDb.Aop.OnExecutingChangeSql = null;
-                db.Aop.OnExecutingChangeSql = null;
+                ID = carId,
+                EquipmentId = eqId,
+                DetectTime = DateTime.Now,
+                Type = "CAR",
+                LicensePlate = $"30A-ERR_{testId}",
+                Speed = 60f,
+                Lane = "L1",
+                Direction = "NORTH",
+                Location = "KM10",
+                CreateTime = DateTime.Now,
+                UpdateTime = DateTime.Now
+            }).ExecuteCommandAsync();
 
-                await db.Deleteable<TmsTrafficData>().Where(t => t.ID == carId).ExecuteCommandAsync();
-                await db.Deleteable<TmsEquipment>().Where(t => t.ID == eqId).ExecuteCommandAsync();
-                await db.Deleteable<ShareDataActivityLog>()
-                    .Where(x => x.Remark == ShareDataAlertCode.Tracking.QueryFailed && x.CreateTime >= startedAt)
-                    .ExecuteCommandAsync();
-                await ClearTrackState(db);
-            }
+            // Arrange 3: SqlSugar AOP: ép câu truy vấn thay đổi hỏng bằng một lỗi truy vấn.
+            // Chia cho 0 ⇒ "Divide by zero error encountered." đi vào nhánh TrySkipBrokenTables cần đo.
+            Func<string, SugarParameter[], KeyValuePair<string, SugarParameter[]>> interceptor = (sql, pars) =>
+            {
+                if (sql.Contains("CHANGETABLE(CHANGES", StringComparison.OrdinalIgnoreCase))
+                    return new KeyValuePair<string, SugarParameter[]>("RAISERROR('Divide by zero error encountered.', 16, 1);", pars);
+
+                return new KeyValuePair<string, SugarParameter[]>(sql, pars);
+            };
+
+            rootDb.Aop.OnExecutingChangeSql = interceptor;
+            db.Aop.OnExecutingChangeSql = interceptor;
+
+            // Act: QueryChangedTables rethrow lỗi không phải lỗi version, nên PollChanges ném ra
+            await Assert.ThrowsAnyAsync<Exception>(() => worker.PollChanges(CancellationToken.None));
+
+            // Assert 1: Phép đo chính — không cô lập oan bảng lành
+            var missing = GetMissingTables(worker);
+            Assert.Empty(missing);
+
+            // Assert 2: Không có dòng ShareDataActivityLog nào mang thông điệp "mất Change Tracking giữa chừng"
+            var logs = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.QueryFailed && x.CreateTime >= startedAt)
+                .OrderBy(x => x.CreateTime, OrderByType.Desc)
+                .ToListAsync();
+
+            Assert.DoesNotContain(logs, x => (x.Description ?? string.Empty).Contains("mất Change Tracking giữa chừng", StringComparison.OrdinalIgnoreCase));
+
+            rootDb.Aop.OnExecutingChangeSql = null;
+            db.Aop.OnExecutingChangeSql = null;
+
+            await db.Deleteable<TmsTrafficData>().Where(t => t.ID == carId).ExecuteCommandAsync();
+            await db.Deleteable<TmsEquipment>().Where(t => t.ID == eqId).ExecuteCommandAsync();
+            await db.Deleteable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.QueryFailed && x.CreateTime >= startedAt)
+                .ExecuteCommandAsync();
         }
 
         /// <summary>
@@ -4327,73 +3963,64 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var eqId = $"EQ_SOFT_{testId}";
             var carId = $"CAR_SOFT_{testId}";
 
-            try
+            // Khởi tạo dòng trạng thái ban đầu và cắm mốc gốc
+            await worker.PollChanges(CancellationToken.None);
+            var trackState = await GetTrackState(db);
+            Assert.NotNull(trackState);
+            var stateId = trackState!.ID;
+
+            // Giả lập xoá mềm đúng dòng trạng thái đó (IsDelete là datetime, không phải bit)
+            await db.Ado.ExecuteCommandAsync(
+                "UPDATE ShareDataTrackVersion SET IsDelete = GETDATE() WHERE ID = @id",
+                new { id = stateId });
+
+            // Act: Tạo thay đổi dữ liệu mới trên bảng nguồn lành mạnh và chạy PollChanges
+            await db.Insertable(new TmsEquipment
             {
-                // Dọn cứng để số dòng vật lý ở Assert 3 tất định (ClearTrackState đi đường ORM nên ⛔ không
-                // với tới dòng đã xoá mềm mà bài test khác có thể để lại).
-                await db.Ado.ExecuteCommandAsync("DELETE FROM ShareDataTrackVersion;");
-                await ClearTrackState(db);
+                ID = eqId,
+                Code = $"EQ_SOFT_{testId}",
+                KmNumber = 20,
+                MetNumber = 100
+            }).ExecuteCommandAsync();
 
-                // Khởi tạo dòng trạng thái ban đầu và cắm mốc gốc
-                await worker.PollChanges(CancellationToken.None);
-                var trackState = await GetTrackState(db);
-                Assert.NotNull(trackState);
-                var stateId = trackState!.ID;
-
-                // Giả lập xoá mềm đúng dòng trạng thái đó (IsDelete là datetime, không phải bit)
-                await db.Ado.ExecuteCommandAsync(
-                    "UPDATE ShareDataTrackVersion SET IsDelete = GETDATE() WHERE ID = @id",
-                    new { id = stateId });
-
-                // Act: Tạo thay đổi dữ liệu mới trên bảng nguồn lành mạnh và chạy PollChanges
-                await db.Insertable(new TmsEquipment
-                {
-                    ID = eqId,
-                    Code = $"EQ_SOFT_{testId}",
-                    KmNumber = 20,
-                    MetNumber = 100
-                }).ExecuteCommandAsync();
-
-                await db.Insertable(new TmsTrafficData
-                {
-                    ID = carId,
-                    EquipmentId = eqId,
-                    DetectTime = DateTime.Now,
-                    Type = "CAR",
-                    LicensePlate = $"29A-SOFT_{testId}",
-                    Speed = 60f,
-                    Lane = "L1",
-                    Direction = "NORTH",
-                    Location = "KM20",
-                    CreateTime = DateTime.Now,
-                    UpdateTime = DateTime.Now
-                }).ExecuteCommandAsync();
-
-                await worker.PollChanges(CancellationToken.None);
-
-                // Assert 1: Đúng 1 dòng trạng thái còn SỐNG (đường ORM đã lọc dòng xoá mềm)
-                var aliveCount = await db.Queryable<ShareDataTrackVersion>().CountAsync();
-                Assert.Equal(1, aliveCount);
-
-                // Assert 2: Dòng sống là dòng MỚI, khác dòng đã bị xoá mềm
-                var finalState = await GetTrackState(db);
-                Assert.NotNull(finalState);
-                Assert.NotEqual(stateId, finalState!.ID);
-
-                // Assert 3: Dòng cũ vẫn còn VẬT LÝ trong CSDL — chỉ bị xoá mềm, ⛔ không bị xoá cứng
-                var physicalCount = await db.Ado.GetIntAsync("SELECT COUNT(1) FROM ShareDataTrackVersion");
-                Assert.Equal(2, physicalCount);
-
-                // Assert 4: Mốc gốc mới đã được cắm trên dòng mới
-                var finalVersion = await GetStateVersion(db);
-                Assert.True(finalVersion >= 0);
-            }
-            finally
+            await db.Insertable(new TmsTrafficData
             {
-                // Dọn dẹp triệt để bằng DELETE thô để không bị sót dòng soft-deleted
-                await db.Ado.ExecuteCommandAsync("DELETE FROM ShareDataTrackVersion;");
-                await ClearTrackState(db);
-            }
+                ID = carId,
+                EquipmentId = eqId,
+                DetectTime = DateTime.Now,
+                Type = "CAR",
+                LicensePlate = $"29A-SOFT_{testId}",
+                Speed = 60f,
+                Lane = "L1",
+                Direction = "NORTH",
+                Location = "KM20",
+                CreateTime = DateTime.Now,
+                UpdateTime = DateTime.Now
+            }).ExecuteCommandAsync();
+
+            await worker.PollChanges(CancellationToken.None);
+
+            // Assert 1: Đúng 1 dòng trạng thái còn SỐNG (đường ORM đã lọc dòng xoá mềm)
+            var aliveCount = await db.Queryable<ShareDataTrackVersion>().CountAsync();
+            Assert.Equal(1, aliveCount);
+
+            // Assert 2: Dòng sống là dòng MỚI, khác dòng đã bị xoá mềm
+            var finalState = await GetTrackState(db);
+            Assert.NotNull(finalState);
+            Assert.NotEqual(stateId, finalState!.ID);
+
+            // Assert 3: Dòng cũ vẫn còn VẬT LÝ trong CSDL — chỉ bị xoá mềm, ⛔ không bị xoá cứng
+            var physicalCount = await db.Ado.GetIntAsync("SELECT COUNT(1) FROM ShareDataTrackVersion WHERE ID = @id", new { id = stateId });
+            Assert.Equal(1, physicalCount);
+
+            // Assert 4: Mốc gốc mới đã được cắm trên dòng mới
+            var finalVersion = await GetStateVersion(db);
+            Assert.True(finalVersion >= 0);
+
+            // Dọn dẹp dòng soft-deleted của bài test
+            await db.Ado.ExecuteCommandAsync("DELETE FROM ShareDataTrackVersion WHERE ID = @id", new { id = stateId });
+            await db.Deleteable<TmsTrafficData>().Where(t => t.ID == carId).ExecuteCommandAsync();
+            await db.Deleteable<TmsEquipment>().Where(t => t.ID == eqId).ExecuteCommandAsync();
         }
 
         /// <summary>
@@ -4415,57 +4042,50 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var emptyConfig = new ConfigurationBuilder().AddInMemoryCollection().Build();
             var worker = new DataChangeTrackingService(scopeFactory, logger, transport, emptyConfig);
 
-            var startedAt = DateTime.MinValue;
+            var startedAt = (await db.Ado.GetDateTimeAsync("SELECT GETDATE()")).AddSeconds(-5);
+            var initialVersionCount = await db.Queryable<ShareDataTrackVersion>().CountAsync();
 
-            try
-            {
-                await ClearTrackState(db);
-                startedAt = (await db.Ado.GetDateTimeAsync("SELECT GETDATE()")).AddSeconds(-5);
+            // Assert 1: worker.TrackedTables rỗng và worker.ActiveChangesSql là chuỗi rỗng
+            Assert.Empty(worker.TrackedTables);
+            Assert.Equal(string.Empty, worker.ActiveChangesSql);
 
-                // Assert 1: worker.TrackedTables rỗng và worker.ActiveChangesSql là chuỗi rỗng
-                Assert.Empty(worker.TrackedTables);
-                Assert.Equal(string.Empty, worker.ActiveChangesSql);
+            // Act 1: Gọi PollChanges lần 1
+            await worker.PollChanges(CancellationToken.None);
 
-                // Act 1: Gọi PollChanges lần 1
-                await worker.PollChanges(CancellationToken.None);
+            // Assert 2: Đếm được đúng 1 dòng ShareDataActivityLog có Remark chứa ESH-1603
+            var logsFirst = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.NotReady && x.CreateTime >= startedAt)
+                .ToListAsync();
+            Assert.Single(logsFirst);
 
-                // Assert 2: Đếm được đúng 1 dòng ShareDataActivityLog có Remark chứa ESH-1603
-                var logsFirst = await db.Queryable<ShareDataActivityLog>()
-                    .Where(x => x.Remark == ShareDataAlertCode.Tracking.NotReady && x.CreateTime >= startedAt)
-                    .ToListAsync();
-                Assert.Single(logsFirst);
+            // Act 2: Gọi PollChanges lần 2
+            await worker.PollChanges(CancellationToken.None);
 
-                // Act 2: Gọi PollChanges lần 2
-                await worker.PollChanges(CancellationToken.None);
+            // Assert 3: Số dòng ESH-1603 vẫn đúng 1 (cờ IsEmptyConfigReported chặn ghi lặp)
+            var logsSecond = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.NotReady && x.CreateTime >= startedAt)
+                .ToListAsync();
+            Assert.Single(logsSecond);
 
-                // Assert 3: Số dòng ESH-1603 vẫn đúng 1 (cờ IsEmptyConfigReported chặn ghi lặp)
-                var logsSecond = await db.Queryable<ShareDataActivityLog>()
-                    .Where(x => x.Remark == ShareDataAlertCode.Tracking.NotReady && x.CreateTime >= startedAt)
-                    .ToListAsync();
-                Assert.Single(logsSecond);
+            // Assert 4: ShareDataTrackVersion không bị cắm mốc gốc — số lượng dòng trạng thái không tăng
+            var versionCountAfter = await db.Queryable<ShareDataTrackVersion>().CountAsync();
+            Assert.Equal(initialVersionCount, versionCountAfter);
 
-                // Assert 4: ShareDataTrackVersion không bị cắm mốc gốc — bảng vốn rỗng vẫn rỗng
-                var versionRows = await db.Queryable<ShareDataTrackVersion>().ToListAsync();
-                Assert.Empty(versionRows);
+            // Kiểm tra nhánh bảng đã có dòng sẵn: LastVersion không đổi sau khi gọi PollChanges
+            var existingId = $"EXIST_{testId}";
+            await db.Insertable(new ShareDataTrackVersion { ID = existingId, LastVersion = 50L }).ExecuteCommandAsync();
+            var workerWithExisting = new DataChangeTrackingService(scopeFactory, logger, transport, emptyConfig);
+            await workerWithExisting.PollChanges(CancellationToken.None);
 
-                // Kiểm tra nhánh bảng đã có dòng sẵn: LastVersion không đổi sau khi gọi PollChanges
-                var existingId = $"EXIST_{testId}";
-                await db.Insertable(new ShareDataTrackVersion { ID = existingId, LastVersion = 50L }).ExecuteCommandAsync();
-                var workerWithExisting = new DataChangeTrackingService(scopeFactory, logger, transport, emptyConfig);
-                await workerWithExisting.PollChanges(CancellationToken.None);
+            var existingRow = await db.Queryable<ShareDataTrackVersion>().InSingleAsync(existingId);
+            Assert.NotNull(existingRow);
+            Assert.Equal(50L, existingRow!.LastVersion);
 
-                var existingRow = await db.Queryable<ShareDataTrackVersion>().InSingleAsync(existingId);
-                Assert.NotNull(existingRow);
-                Assert.Equal(50L, existingRow!.LastVersion);
-            }
-            finally
-            {
-                await db.Deleteable<ShareDataActivityLog>()
-                    .Where(x => x.Remark == ShareDataAlertCode.Tracking.NotReady && x.CreateTime >= startedAt)
-                    .ExecuteCommandAsync();
-
-                await ClearTrackState(db);
-            }
+            // Dọn dẹp dữ liệu bài test tuần tự ở cuối hàm
+            await db.Deleteable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.NotReady && x.CreateTime >= startedAt)
+                .ExecuteCommandAsync();
+            await db.Deleteable<ShareDataTrackVersion>().Where(x => x.ID == existingId).ExecuteCommandAsync();
         }
 
         /// <summary>
@@ -4481,66 +4101,60 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var rootDb = _host.Services.GetRequiredService<ISqlSugarClient>();
             var worker = CreateTrackerWorker(scope);
 
-            var startedAt = DateTime.MinValue;
+            // Đặt mốc version < 0 để kiểm chứng khi DB tracking lỗi thì không cắm mốc gốc mới
+            await SetStateVersion(db, -1);
+            var startedAt = (await db.Ado.GetDateTimeAsync("SELECT GETDATE()")).AddSeconds(-5);
             var alterDatabaseCount = 0;
 
-            try
+            Func<string, SugarParameter[], KeyValuePair<string, SugarParameter[]>> interceptor = (sql, pars) =>
             {
-                await ClearTrackState(db);
-                startedAt = (await db.Ado.GetDateTimeAsync("SELECT GETDATE()")).AddSeconds(-5);
+                // Giả lập CSDL chưa bật Change Tracking.
+                if (sql.Contains("sys.change_tracking_databases", StringComparison.OrdinalIgnoreCase))
+                    return new KeyValuePair<string, SugarParameter[]>("SELECT 0", pars);
 
-                Func<string, SugarParameter[], KeyValuePair<string, SugarParameter[]>> interceptor = (sql, pars) =>
+                // 🔴 Vô hiệu hoá lệnh DDL thật: đếm rồi đổi thành câu SELECT vô hại.
+                if (sql.TrimStart().StartsWith("ALTER DATABASE", StringComparison.OrdinalIgnoreCase))
                 {
-                    // Giả lập CSDL chưa bật Change Tracking.
-                    if (sql.Contains("sys.change_tracking_databases", StringComparison.OrdinalIgnoreCase))
-                        return new KeyValuePair<string, SugarParameter[]>("SELECT 0", pars);
+                    alterDatabaseCount++;
+                    return new KeyValuePair<string, SugarParameter[]>("SELECT 1", pars);
+                }
 
-                    // 🔴 Vô hiệu hoá lệnh DDL thật: đếm rồi đổi thành câu SELECT vô hại.
-                    if (sql.TrimStart().StartsWith("ALTER DATABASE", StringComparison.OrdinalIgnoreCase))
-                    {
-                        alterDatabaseCount++;
-                        return new KeyValuePair<string, SugarParameter[]>("SELECT 1", pars);
-                    }
+                return new KeyValuePair<string, SugarParameter[]>(sql, pars);
+            };
 
-                    return new KeyValuePair<string, SugarParameter[]>(sql, pars);
-                };
+            rootDb.Aop.OnExecutingChangeSql = interceptor;
+            db.Aop.OnExecutingChangeSql = interceptor;
 
-                rootDb.Aop.OnExecutingChangeSql = interceptor;
-                db.Aop.OnExecutingChangeSql = interceptor;
+            // Act: Gọi PollChanges 3 lần liên tiếp
+            await worker.PollChanges(CancellationToken.None);
+            await worker.PollChanges(CancellationToken.None);
+            await worker.PollChanges(CancellationToken.None);
 
-                // Act: Gọi PollChanges 3 lần liên tiếp
-                await worker.PollChanges(CancellationToken.None);
-                await worker.PollChanges(CancellationToken.None);
-                await worker.PollChanges(CancellationToken.None);
+            // Assert 1: Đếm dòng ShareDataActivityLog có Remark == ShareDataAlertCode.Tracking.NotReady => đúng 1
+            var notReadyLogs = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.NotReady && x.CreateTime >= startedAt)
+                .ToListAsync();
+            Assert.Single(notReadyLogs);
 
-                // Assert 1: Đếm dòng ShareDataActivityLog có Remark == ShareDataAlertCode.Tracking.NotReady => đúng 1
-                var notReadyLogs = await db.Queryable<ShareDataActivityLog>()
-                    .Where(x => x.Remark == ShareDataAlertCode.Tracking.NotReady && x.CreateTime >= startedAt)
-                    .ToListAsync();
-                Assert.Single(notReadyLogs);
+            // Assert 2: alterDatabaseCount == 1 chứng minh cổng giãn nhịp chặn được dội DDL
+            Assert.Equal(1, alterDatabaseCount);
 
-                // Assert 2: alterDatabaseCount == 1 chứng minh cổng giãn nhịp chặn được dội DDL
-                Assert.Equal(1, alterDatabaseCount);
+            // Assert 3: NextInitRetryTime có giá trị và ở tương lai
+            var nextRetryProp = typeof(DataChangeTrackingService).GetProperty("NextInitRetryTime", BindingFlags.NonPublic | BindingFlags.Instance);
+            var nextRetryVal = (DateTime?)nextRetryProp?.GetValue(worker);
+            Assert.NotNull(nextRetryVal);
+            Assert.True(nextRetryVal.Value > DateTime.UtcNow);
 
-                // Assert 3: NextInitRetryTime có giá trị và ở tương lai
-                var nextRetryProp = typeof(DataChangeTrackingService).GetProperty("NextInitRetryTime", BindingFlags.NonPublic | BindingFlags.Instance);
-                var nextRetryVal = (DateTime?)nextRetryProp?.GetValue(worker);
-                Assert.NotNull(nextRetryVal);
-                Assert.True(nextRetryVal.Value > DateTime.UtcNow);
+            // Assert 4: ShareDataTrackVersion không bị cắm mốc gốc: version < 0
+            var version = await GetStateVersion(db);
+            Assert.True(version < 0);
 
-                // Assert 4: ShareDataTrackVersion không bị cắm mốc gốc: version < 0
-                var version = await GetStateVersion(db);
-                Assert.True(version < 0);
-            }
-            finally
-            {
-                rootDb.Aop.OnExecutingChangeSql = null;
-                db.Aop.OnExecutingChangeSql = null;
-                await db.Deleteable<ShareDataActivityLog>()
-                    .Where(x => x.Remark == ShareDataAlertCode.Tracking.NotReady && x.CreateTime >= startedAt)
-                    .ExecuteCommandAsync();
-                await ClearTrackState(db);
-            }
+            // Dọn dẹp tài nguyên và dữ liệu tuần tự ở cuối hàm
+            rootDb.Aop.OnExecutingChangeSql = null;
+            db.Aop.OnExecutingChangeSql = null;
+            await db.Deleteable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.NotReady && x.CreateTime >= startedAt)
+                .ExecuteCommandAsync();
         }
 
         /// <summary>
@@ -4552,8 +4166,6 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         [Fact]
         public async Task TrySkipBrokenTables_WhenTwoInstancesPoll_EachLearnsIsolationIndependently_Test()
         {
-            var startedAt = DateTime.UtcNow.AddSeconds(-2);
-
             await using var scopeA = _host.Services.CreateAsyncScope();
             await using var scopeB = _host.Services.CreateAsyncScope();
 
@@ -4569,96 +4181,96 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var eqIdB = $"EQ_INST_B_{testId}";
             var carIdB = $"CAR_INST_B_{testId}";
 
-            try
+            var startedAt = DateTime.UtcNow.AddSeconds(-2);
+
+            // 1. Chu kỳ đầu: Khởi tạo mốc gốc qua workerA
+            await workerA.PollChanges(CancellationToken.None);
+            var initialVersion = await GetStateVersion(dbA);
+            Assert.True(initialVersion >= 0);
+
+            // 2. Giả lập DBA tắt Change Tracking trên TmsWeather
+            await dbA.Ado.ExecuteCommandAsync("ALTER TABLE [TmsWeather] DISABLE CHANGE_TRACKING;");
+            var isWeatherTracked = await dbA.Ado.GetIntAsync("SELECT COUNT(1) FROM sys.change_tracking_tables WHERE object_id = OBJECT_ID('TmsWeather')") > 0;
+            Assert.False(isWeatherTracked);
+
+            // Act 1: Tạo thay đổi mới trên bảng lành mạnh -> workerA chạy
+            await dbA.Insertable(new TmsEquipment
             {
-                await ClearTrackState(dbA);
+                ID = eqIdA,
+                Code = $"EQ_A_{testId}",
+                KmNumber = 10,
+                MetNumber = 500
+            }).ExecuteCommandAsync();
 
-                // 1. Chu kỳ đầu: Khởi tạo mốc gốc qua workerA
-                await workerA.PollChanges(CancellationToken.None);
-                var initialVersion = await GetStateVersion(dbA);
-                Assert.True(initialVersion >= 0);
-
-                // 2. Giả lập DBA tắt Change Tracking trên TmsWeather
-                await dbA.Ado.ExecuteCommandAsync("ALTER TABLE [TmsWeather] DISABLE CHANGE_TRACKING;");
-                var isWeatherTracked = await dbA.Ado.GetIntAsync("SELECT COUNT(1) FROM sys.change_tracking_tables WHERE object_id = OBJECT_ID('TmsWeather')") > 0;
-                Assert.False(isWeatherTracked);
-
-                // Act 1: Tạo thay đổi mới trên bảng lành mạnh -> workerA chạy
-                await dbA.Insertable(new TmsEquipment
-                {
-                    ID = eqIdA,
-                    Code = $"EQ_A_{testId}",
-                    KmNumber = 10,
-                    MetNumber = 500
-                }).ExecuteCommandAsync();
-
-                await dbA.Insertable(new TmsTrafficData
-                {
-                    ID = carIdA,
-                    EquipmentId = eqIdA,
-                    DetectTime = DateTime.Now,
-                    Type = "CAR",
-                    LicensePlate = $"30A-INSTA_{testId}",
-                    Speed = 50f,
-                    Lane = "L1",
-                    Direction = "NORTH",
-                    Location = "KM10",
-                    CreateTime = DateTime.Now,
-                    UpdateTime = DateTime.Now
-                }).ExecuteCommandAsync();
-
-                await workerA.PollChanges(CancellationToken.None);
-
-                // Assert 1: workerA đã tự học cô lập TmsWeather; workerB chưa chạy nên _missingTables vẫn rỗng
-                Assert.Contains("TmsWeather", GetMissingTables(workerA).Keys);
-                Assert.Empty(GetMissingTables(workerB));
-
-                // Act 2: Tạo thêm một thay đổi dữ liệu mới để DB currentVersion tăng tiếp -> workerB chạy
-                await dbB.Insertable(new TmsEquipment
-                {
-                    ID = eqIdB,
-                    Code = $"EQ_B_{testId}",
-                    KmNumber = 10,
-                    MetNumber = 600
-                }).ExecuteCommandAsync();
-
-                await dbB.Insertable(new TmsTrafficData
-                {
-                    ID = carIdB,
-                    EquipmentId = eqIdB,
-                    DetectTime = DateTime.Now,
-                    Type = "CAR",
-                    LicensePlate = $"30B-INSTB_{testId}",
-                    Speed = 55f,
-                    Lane = "L1",
-                    Direction = "NORTH",
-                    Location = "KM10",
-                    CreateTime = DateTime.Now,
-                    UpdateTime = DateTime.Now
-                }).ExecuteCommandAsync();
-
-                await workerB.PollChanges(CancellationToken.None);
-
-                // Assert 2: workerB giờ cũng đã tự học cô lập TmsWeather
-                Assert.Contains("TmsWeather", GetMissingTables(workerB).Keys);
-
-                // Assert 3: Đếm số dòng ESH-1602 (QueryFailed) phát sinh trong suốt quá trình
-                var esh1602Logs = await dbA.Queryable<ShareDataActivityLog>()
-                    .Where(x => x.Remark == ShareDataAlertCode.Tracking.QueryFailed && x.CreateTime >= startedAt)
-                    .ToListAsync();
-
-                // Số lượng ESH-1602 kỳ vọng là 2 (mỗi instance ghi 1 dòng khi truy vấn hỏng)
-                Assert.Equal(2, esh1602Logs.Count);
-            }
-            finally
+            await dbA.Insertable(new TmsTrafficData
             {
-                // Khôi phục lại Change Tracking cho TmsWeather
-                await dbA.Ado.ExecuteCommandAsync(
-                    "IF NOT EXISTS (SELECT 1 FROM sys.change_tracking_tables WHERE object_id = OBJECT_ID('TmsWeather')) " +
-                    "ALTER TABLE [TmsWeather] ENABLE CHANGE_TRACKING WITH (TRACK_COLUMNS_UPDATED = OFF);");
+                ID = carIdA,
+                EquipmentId = eqIdA,
+                DetectTime = DateTime.Now,
+                Type = "CAR",
+                LicensePlate = $"30A-INSTA_{testId}",
+                Speed = 50f,
+                Lane = "L1",
+                Direction = "NORTH",
+                Location = "KM10",
+                CreateTime = DateTime.Now,
+                UpdateTime = DateTime.Now
+            }).ExecuteCommandAsync();
 
-                await ClearTrackState(dbA);
-            }
+            await workerA.PollChanges(CancellationToken.None);
+
+            // Assert 1: workerA đã tự học cô lập TmsWeather; workerB chưa chạy nên _missingTables vẫn rỗng
+            Assert.Contains("TmsWeather", GetMissingTables(workerA).Keys);
+            Assert.Empty(GetMissingTables(workerB));
+
+            // Act 2: Tạo thêm một thay đổi dữ liệu mới để DB currentVersion tăng tiếp -> workerB chạy
+            await dbB.Insertable(new TmsEquipment
+            {
+                ID = eqIdB,
+                Code = $"EQ_B_{testId}",
+                KmNumber = 10,
+                MetNumber = 600
+            }).ExecuteCommandAsync();
+
+            await dbB.Insertable(new TmsTrafficData
+            {
+                ID = carIdB,
+                EquipmentId = eqIdB,
+                DetectTime = DateTime.Now,
+                Type = "CAR",
+                LicensePlate = $"30B-INSTB_{testId}",
+                Speed = 55f,
+                Lane = "L1",
+                Direction = "NORTH",
+                Location = "KM10",
+                CreateTime = DateTime.Now,
+                UpdateTime = DateTime.Now
+            }).ExecuteCommandAsync();
+
+            await workerB.PollChanges(CancellationToken.None);
+
+            // Assert 2: workerB giờ cũng đã tự học cô lập TmsWeather
+            Assert.Contains("TmsWeather", GetMissingTables(workerB).Keys);
+
+            // Assert 3: Đếm số dòng ESH-1602 (QueryFailed) phát sinh trong suốt quá trình
+            var esh1602Logs = await dbA.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.QueryFailed && x.CreateTime >= startedAt)
+                .ToListAsync();
+
+            // Số lượng ESH-1602 kỳ vọng là 2 (mỗi instance ghi 1 dòng khi truy vấn hỏng)
+            Assert.Equal(2, esh1602Logs.Count);
+
+            // Dọn dẹp tài nguyên và dữ liệu tuần tự ở cuối hàm
+            // Khôi phục lại Change Tracking cho TmsWeather
+            await dbA.Ado.ExecuteCommandAsync(
+                "IF NOT EXISTS (SELECT 1 FROM sys.change_tracking_tables WHERE object_id = OBJECT_ID('TmsWeather')) " +
+                "ALTER TABLE [TmsWeather] ENABLE CHANGE_TRACKING WITH (TRACK_COLUMNS_UPDATED = OFF);");
+
+            await dbA.Deleteable<TmsTrafficData>().Where(t => t.ID == carIdA || t.ID == carIdB).ExecuteCommandAsync();
+            await dbA.Deleteable<TmsEquipment>().Where(t => t.ID == eqIdA || t.ID == eqIdB).ExecuteCommandAsync();
+            await dbA.Deleteable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.QueryFailed && x.CreateTime >= startedAt)
+                .ExecuteCommandAsync();
         }
 
         #endregion
@@ -4684,7 +4296,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 .ToListAsync();
         }
 
-        private DataChangeTrackingService CreateTrackingService(IServiceScope? scope = null, TransportManager? transport = null, IConfiguration? config = null)
+        private DataChangeTrackingService CreateTrackerWorker(IServiceScope? scope = null, TransportManager? transport = null, IConfiguration? config = null)
         {
             var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
             var logger = (scope?.ServiceProvider ?? _host.Services).GetRequiredService<ILogger<DataChangeTrackingService>>();
@@ -4692,9 +4304,6 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             config ??= _host.Services.GetService<IConfiguration>();
             return new DataChangeTrackingService(scopeFactory, logger, transport, config);
         }
-
-        private DataChangeTrackingService CreateTrackerWorker(IServiceScope? scope = null, TransportManager? transport = null, IConfiguration? config = null) =>
-            CreateTrackingService(scope, transport, config);
 
         /// <summary>
         /// Description: Lấy dòng trạng thái duy nhất trong bảng ShareDataTrackVersion.
@@ -4712,25 +4321,28 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
         /// <summary>
         /// Description: Ghi đè mốc version trong dòng trạng thái (mô phỏng mốc bị lệch hoặc quá cũ).
+        ///              Tự động khởi tạo dòng trạng thái nếu chưa tồn tại.
         /// Created date: 27/09/2026
         /// </summary>
         private static async Task SetStateVersion(ISqlSugarClient db, long version)
         {
-            var trackVersion = await GetTrackState(db)
-                ?? throw new InvalidOperationException("Chưa có dòng ShareDataTrackVersion — hãy gọi PollChanges trước.");
-            trackVersion.LastVersion = version;
-            await db.Updateable(trackVersion).ExecuteCommandAsync();
-        }
-
-        /// <summary>
-        /// Description: Xoá dòng trạng thái — gọi trong finally để các bài test
-        ///              không ảnh hưởng lẫn nhau qua dòng trạng thái dùng chung.
-        /// Created date: 27/09/2026
-        /// </summary>
-        private static async Task ClearTrackState(ISqlSugarClient db)
-        {
-            db.CodeFirst.InitTables<ShareDataTrackVersion>();
-            await db.Deleteable<ShareDataTrackVersion>().ExecuteCommandAsync();
+            var trackVersion = await GetTrackState(db);
+            if (trackVersion == null)
+            {
+                trackVersion = new ShareDataTrackVersion
+                {
+                    ID = Guid.NewGuid().ToString("N"),
+                    LastVersion = version,
+                    CreateTime = DateTime.Now,
+                    UpdateTime = DateTime.Now
+                };
+                await db.Insertable(trackVersion).ExecuteCommandAsync();
+            }
+            else
+            {
+                trackVersion.LastVersion = version;
+                await db.Updateable(trackVersion).ExecuteCommandAsync();
+            }
         }
 
         private static async Task<int> InvokeTrySkipBrokenTables(DataChangeTrackingService worker, ISqlSugarClient db, Exception ex)
@@ -4754,7 +4366,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
         private IReadOnlyList<string> InvokeResolveTriggerPackets(IEnumerable<string> changedTables)
         {
-            var worker = CreateTrackingService();
+            var worker = CreateTrackerWorker();
             return DataChangeTrackingService.ResolvePackets(changedTables, worker.TablePacketMap);
         }
 

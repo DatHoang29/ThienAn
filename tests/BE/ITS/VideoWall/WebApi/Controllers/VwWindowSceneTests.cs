@@ -124,23 +124,11 @@ public class VwWindowSceneTests(Host host)
     [Fact]
     public async Task VwWindowSceneCommand_AddVwWindowScene_InsertsRecord_Test()
     {
-        // Arrange
-        var sceneCode = $"{TestPrefix}{Guid.NewGuid():N}";
-        var scene = new VwScene
-        {
-            Code = sceneCode,
-            Name = "Test Scene",
-            Status = BaseEnums.StatusEnum.Enable,
-            CreateTime = DateTime.Now
-        };
-        await _db.Insertable(scene).ExecuteCommandAsync();
-
         var uniqueCode = $"{TestPrefix}{Guid.NewGuid():N}";
         var input = new VwAddWindowSceneInput
         {
             Code = uniqueCode,
             Name = "Test Add Window",
-            SceneId = scene.ID,
             X = 0,
             Y = 0,
             W = 1920,
@@ -335,46 +323,40 @@ public class VwWindowSceneTests(Host host)
         var account = $"{TestPrefix}USER_{Guid.NewGuid():N}";
         SetRestrictedUser(orgId, account);
 
-        try
+        var allowedCells = new List<VwGridCell> { new() { Col = 0, Row = 0 } };
+        var perm = new VwWallPermission
         {
-            var allowedCells = new List<VwGridCell> { new() { Col = 0, Row = 0 } };
-            var perm = new VwWallPermission
-            {
-                UserId = account,
-                Config = JsonConvert.SerializeObject(allowedCells),
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(perm).ExecuteCommandAsync();
+            UserId = account,
+            Config = JsonConvert.SerializeObject(allowedCells),
+            CreateTime = DateTime.Now
+        };
+        await _db.Insertable(perm).ExecuteCommandAsync();
 
-            var sceneA = new VwScene
-            {
-                Code = $"{TestPrefix}SCN_A_{Guid.NewGuid():N}",
-                Name = "Scene of Controller A",
-                Status = BaseEnums.StatusEnum.Enable,
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(sceneA).ExecuteCommandAsync();
-
-            // Cố gắng đặt cửa sổ tràn sang toạ độ ngoài vùng được cấp (Panel 0-0 là 0..3840)
-            var input = new VwAddWindowSceneInput
-            {
-                Code = $"{TestPrefix}WIN_OVERLAP_{Guid.NewGuid():N}",
-                Name = "Illegal Overlapping Window",
-                SceneId = sceneA.ID,
-                X = 3840,
-                Y = 100,
-                W = 800,
-                H = 600,
-                Visible = BaseEnums.SceneWindowVisible.Visible
-            };
-
-            // Act & Assert
-            await Assert.ThrowsAnyAsync<Exception>(() => _bus.InvokeAsync(input));
-        }
-        finally
+        var sceneA = new VwScene
         {
-            ClearUser();
-        }
+            Code = $"{TestPrefix}SCN_A_{Guid.NewGuid():N}",
+            Name = "Scene of Controller A",
+            Status = BaseEnums.StatusEnum.Enable,
+            CreateTime = DateTime.Now
+        };
+        await _db.Insertable(sceneA).ExecuteCommandAsync();
+
+        // Cố gắng đặt cửa sổ tràn sang toạ độ ngoài vùng được cấp (Panel 0-0 là 0..3840)
+        var input = new VwAddWindowSceneInput
+        {
+            Code = $"{TestPrefix}WIN_OVERLAP_{Guid.NewGuid():N}",
+            Name = "Illegal Overlapping Window",
+            SceneId = sceneA.ID,
+            X = 3840,
+            Y = 100,
+            W = 800,
+            H = 600,
+            Visible = BaseEnums.SceneWindowVisible.Visible
+        };
+
+        // Act & Assert
+        await Assert.ThrowsAnyAsync<Exception>(() => _bus.InvokeAsync(input));
+        ClearUser();
     }
 
     /// <summary>
@@ -446,6 +428,8 @@ public class VwWindowSceneTests(Host host)
             .FirstAsync(u => u.Code == uniqueCode && u.IsDelete == null);
 
         Assert.NotNull(inserted);
+        await WaitForCondition(() => host.MockServer.AddWindowCallCount >= 1);
+        host.MockServer.ResetDefaults();
     }
 
     /// <summary>
@@ -519,19 +503,19 @@ public class VwWindowSceneTests(Host host)
             Visible = BaseEnums.SceneWindowVisible.Visible
         };
 
-        try
-        {
-            // Act & Assert: Trong kiến trúc NATS Fire-and-forget, WebAPI hoàn tất ghi DB và phát lệnh mà không ném lỗi đồng bộ
-            await _bus.InvokeAsync(input);
+        // Act & Assert: Trong kiến trúc NATS Fire-and-forget, WebAPI hoàn tất ghi DB và phát lệnh mà không ném lỗi đồng bộ
+        await _bus.InvokeAsync(input);
 
-            var inserted = await _db.Queryable<VwWindowScene>()
-                .FirstAsync(u => u.Code == uniqueCode && u.IsDelete == null);
-            Assert.NotNull(inserted);
-        }
-        finally
-        {
-            host.MockServer.ResetDefaults();
-        }
+        var inserted = await _db.Queryable<VwWindowScene>()
+            .FirstAsync(u => u.Code == uniqueCode && u.IsDelete == null);
+        Assert.NotNull(inserted);
+
+        if (simulateSaveDataFailure)
+            await WaitForCondition(() => host.MockServer.SaveSceneDataCallCount >= 1);
+        else
+            await WaitForCondition(() => host.MockServer.GetCapabilitiesCallCount >= 1);
+
+        host.MockServer.ResetDefaults();
     }
 
     /// <summary>
@@ -630,11 +614,11 @@ public class VwWindowSceneTests(Host host)
         // 1. Arrange: Xoá controller/screen cũ để kịch bản toàn tường chỉ thấy đúng 2 controller của bài test
         await _db.Deleteable<VwController>().ExecuteCommandAsync();
         await _db.Deleteable<VwScreen>().ExecuteCommandAsync();
+        _cache.RemoveByPrefixKey(CacheConst.Vw.VwController);
+        _cache.RemoveByPrefixKey(CacheConst.Vw.VwScreen);
 
         var baseColWW = 0;
-        try
-        {
-            var ctrlA = new VwController
+        var ctrlA = new VwController
             {
                 ID = Guid.NewGuid().ToString(),
                 Code = $"{TestPrefix}CTRL_WW_A_{Guid.NewGuid():N}",
@@ -663,6 +647,7 @@ public class VwWindowSceneTests(Host host)
                 ID = Guid.NewGuid().ToString(),
                 Code = $"{TestPrefix}SCR_WW_A_{Guid.NewGuid():N}",
                 Name = "Screen WW A",
+                ControllerId = ctrlA.ID,
                 GridCol = baseColWW,
                 GridRow = 0,
                 Status = BaseEnums.StatusEnum.Enable,
@@ -673,6 +658,7 @@ public class VwWindowSceneTests(Host host)
                 ID = Guid.NewGuid().ToString(),
                 Code = $"{TestPrefix}SCR_WW_B_{Guid.NewGuid():N}",
                 Name = "Screen WW B",
+                ControllerId = ctrlB.ID,
                 GridCol = baseColWW + 1,
                 GridRow = 0,
                 Status = BaseEnums.StatusEnum.Enable,
@@ -704,6 +690,10 @@ public class VwWindowSceneTests(Host host)
                 Visible = BaseEnums.SceneWindowVisible.Visible
             };
 
+            var initialDeleteCount = host.MockServer.DeleteAllWindowsCallCount;
+            var initialAddCount = host.MockServer.AddWindowCallCount;
+            var initialSaveCount = host.MockServer.SaveSceneDataCallCount;
+
             // 2. Act
             await _bus.InvokeAsync(addInput);
 
@@ -712,16 +702,16 @@ public class VwWindowSceneTests(Host host)
                 .FirstAsync(u => u.Code == addInput.Code && u.IsDelete == null);
             Assert.NotNull(inserted);
 
-            await WaitForCondition(() => host.MockServer.SaveSceneDataCallCount >= 2);
+            await WaitForCondition(() => host.MockServer.SaveSceneDataCallCount >= initialSaveCount + 2);
             // Mỗi controller được dọn dẹp canvas (DeleteAllWindows = 2)
-            Assert.Equal(2, host.MockServer.DeleteAllWindowsCallCount);
+            Assert.True(
+                host.MockServer.DeleteAllWindowsCallCount - initialDeleteCount == 2,
+                $"initialDeleteCount={initialDeleteCount}, currentDeleteCount={host.MockServer.DeleteAllWindowsCallCount}, initialAdd={initialAddCount}, currentAdd={host.MockServer.AddWindowCallCount}, initialSave={initialSaveCount}, currentSave={host.MockServer.SaveSceneDataCallCount}, requests:\n{string.Join("\n", host.MockServer.ReceivedRequests)}");
             // Cửa sổ 2x1 được cắt thành 2 slice cho Ctrl A và Ctrl B (AddWindow = 2)
-            Assert.Equal(2, host.MockServer.AddWindowCallCount);
+            Assert.Equal(2, host.MockServer.AddWindowCallCount - initialAddCount);
             // Cả 2 controller đều lưu snapshot scene (SaveSceneData = 2)
-            Assert.Equal(2, host.MockServer.SaveSceneDataCallCount);
-        }
-        finally
-        {
+            Assert.Equal(2, host.MockServer.SaveSceneDataCallCount - initialSaveCount);
+
             if (!await _db.Queryable<VwController>().AnyAsync(u => u.ParentControllerId == null && u.IsDelete == null))
             {
                 await _db.Insertable(new VwController
@@ -729,8 +719,6 @@ public class VwWindowSceneTests(Host host)
                     ID = "TEST_DEFAULT_CENTER_CTRL",
                     Code = "TEST_DEFAULT_CENTER_CTRL",
                     Name = "Default Center Controller",
-
-
                     IntegrationMode = "cascade",
                     IP = $"127.0.0.1:{VwISAPIServerHikvisionMock.DefaultPort}",
                     Account = VwISAPIServerHikvisionMock.DefaultUser,
@@ -739,7 +727,6 @@ public class VwWindowSceneTests(Host host)
                 }).ExecuteCommandAsync();
             }
         }
-    }
 
     /// <summary>
     /// Author: Đạt
@@ -757,9 +744,7 @@ public class VwWindowSceneTests(Host host)
         await _db.Deleteable<VwScreen>().ExecuteCommandAsync();
 
         var baseColDel = 0;
-        try
-        {
-            var ctrlA = new VwController
+        var ctrlA = new VwController
             {
                 ID = Guid.NewGuid().ToString(),
                 Code = $"{TestPrefix}CTRL_WW_DEL_A_{Guid.NewGuid():N}",
@@ -834,8 +819,6 @@ public class VwWindowSceneTests(Host host)
                 CreateTime = DateTime.Now
             };
             await _db.Insertable(existingWin).ExecuteCommandAsync();
-
-            await Task.Delay(300);
             host.MockServer.ResetDefaults();
 
             var deleteInput = new VwDeleteWindowSceneInput { ID = existingWin.ID };
@@ -854,9 +837,7 @@ public class VwWindowSceneTests(Host host)
             Assert.Equal(2, host.MockServer.DeleteAllWindowsCallCount);
             Assert.Equal(0, host.MockServer.AddWindowCallCount); // Không còn window nào
             Assert.Equal(2, host.MockServer.SaveSceneDataCallCount);
-        }
-        finally
-        {
+
             if (!await _db.Queryable<VwController>().AnyAsync(u => u.ParentControllerId == null && u.IsDelete == null))
             {
                 await _db.Insertable(new VwController
@@ -864,8 +845,6 @@ public class VwWindowSceneTests(Host host)
                     ID = "TEST_DEFAULT_CENTER_CTRL",
                     Code = "TEST_DEFAULT_CENTER_CTRL",
                     Name = "Default Center Controller",
-
-
                     IntegrationMode = "cascade",
                     IP = $"127.0.0.1:{VwISAPIServerHikvisionMock.DefaultPort}",
                     Account = VwISAPIServerHikvisionMock.DefaultUser,
@@ -874,7 +853,6 @@ public class VwWindowSceneTests(Host host)
                 }).ExecuteCommandAsync();
             }
         }
-    }
 
     /// <summary>
     /// Author: Đạt
@@ -1276,71 +1254,65 @@ public class VwWindowSceneTests(Host host)
         var account = $"{TestPrefix}USER_{Guid.NewGuid():N}";
         SetRestrictedUser(orgId, account);
 
-        try
+        var controller = new VwController
         {
-            var controller = new VwController
-            {
-                Code = $"{TestPrefix}CTRL_{Guid.NewGuid():N}",
-                Name = "Test Controller",
+            Code = $"{TestPrefix}CTRL_{Guid.NewGuid():N}",
+            Name = "Test Controller",
 
-                IP = $"127.0.0.1:{VwISAPIServerHikvisionMock.DefaultPort}",
-                Account = VwISAPIServerHikvisionMock.DefaultUser,
-                PassWord = VwISAPIServerHikvisionMock.DefaultPassword,
-                Status = BaseEnums.StatusEnum.Enable,
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(controller).ExecuteCommandAsync();
+            IP = $"127.0.0.1:{VwISAPIServerHikvisionMock.DefaultPort}",
+            Account = VwISAPIServerHikvisionMock.DefaultUser,
+            PassWord = VwISAPIServerHikvisionMock.DefaultPassword,
+            Status = BaseEnums.StatusEnum.Enable,
+            CreateTime = DateTime.Now
+        };
+        await _db.Insertable(controller).ExecuteCommandAsync();
 
-            var scene = new VwScene
-            {
-                Code = $"{TestPrefix}SCN_{Guid.NewGuid():N}",
-                Name = "Scene for Delete Outside",
-
-
-                Status = BaseEnums.StatusEnum.Enable,
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(scene).ExecuteCommandAsync();
-
-            var allowedCells = new List<VwGridCell> { new() { Col = 0, Row = 0 } };
-            var perm = new VwWallPermission
-            {
-                UserId = account,
-
-
-                Config = JsonConvert.SerializeObject(allowedCells),
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(perm).ExecuteCommandAsync();
-
-            var win = new VwWindowScene
-            {
-                Code = $"{TestPrefix}WIN_{Guid.NewGuid():N}",
-                Name = "Outside Win Delete",
-                SceneId = scene.ID,
-                X = 3840,
-                Y = 2160,
-                W = 1920,
-                H = 1080,
-                Visible = BaseEnums.SceneWindowVisible.Visible,
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(win).ExecuteCommandAsync();
-            _cache.RemoveByPrefixKey(CacheConst.Vw.VwWindowScene);
-
-            var ex = await Record.ExceptionAsync(() =>
-                _bus.InvokeAsync(new VwDeleteWindowSceneInput { ID = win.ID }));
-
-            Assert.NotNull(ex);
-            Assert.True(ex.Message.Contains("ngoài khu vực màn hình", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("windowOutsideAllowedRegion", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("wallPermissionNotAssigned", StringComparison.OrdinalIgnoreCase));
-
-            var dbWin = await _db.Queryable<VwWindowScene>().FirstAsync(w => w.ID == win.ID);
-            Assert.Null(dbWin.IsDelete);
-        }
-        finally
+        var scene = new VwScene
         {
-            ClearUser();
-        }
+            Code = $"{TestPrefix}SCN_{Guid.NewGuid():N}",
+            Name = "Scene for Delete Outside",
+
+
+            Status = BaseEnums.StatusEnum.Enable,
+            CreateTime = DateTime.Now
+        };
+        await _db.Insertable(scene).ExecuteCommandAsync();
+
+        var allowedCells = new List<VwGridCell> { new() { Col = 0, Row = 0 } };
+        var perm = new VwWallPermission
+        {
+            UserId = account,
+
+
+            Config = JsonConvert.SerializeObject(allowedCells),
+            CreateTime = DateTime.Now
+        };
+        await _db.Insertable(perm).ExecuteCommandAsync();
+
+        var win = new VwWindowScene
+        {
+            Code = $"{TestPrefix}WIN_{Guid.NewGuid():N}",
+            Name = "Outside Win Delete",
+            SceneId = scene.ID,
+            X = 3840,
+            Y = 2160,
+            W = 1920,
+            H = 1080,
+            Visible = BaseEnums.SceneWindowVisible.Visible,
+            CreateTime = DateTime.Now
+        };
+        await _db.Insertable(win).ExecuteCommandAsync();
+        _cache.RemoveByPrefixKey(CacheConst.Vw.VwWindowScene);
+
+        var ex = await Record.ExceptionAsync(() =>
+            _bus.InvokeAsync(new VwDeleteWindowSceneInput { ID = win.ID }));
+
+        Assert.NotNull(ex);
+        Assert.True(ex.Message.Contains("ngoài khu vực màn hình", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("windowOutsideAllowedRegion", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("wallPermissionNotAssigned", StringComparison.OrdinalIgnoreCase));
+
+        var dbWin = await _db.Queryable<VwWindowScene>().FirstAsync(w => w.ID == win.ID);
+        Assert.Null(dbWin.IsDelete);
+        ClearUser();
     }
 
     /// <summary>
@@ -1353,89 +1325,83 @@ public class VwWindowSceneTests(Host host)
         var account = $"{TestPrefix}USER_{Guid.NewGuid():N}";
         SetRestrictedUser(orgId, account);
 
-        try
+        var controller = new VwController
         {
-            var controller = new VwController
-            {
-                Code = $"{TestPrefix}CTRL_{Guid.NewGuid():N}",
-                Name = "Test Controller",
+            Code = $"{TestPrefix}CTRL_{Guid.NewGuid():N}",
+            Name = "Test Controller",
 
-                IP = $"127.0.0.1:{VwISAPIServerHikvisionMock.DefaultPort}",
-                Account = VwISAPIServerHikvisionMock.DefaultUser,
-                PassWord = VwISAPIServerHikvisionMock.DefaultPassword,
-                Status = BaseEnums.StatusEnum.Enable,
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(controller).ExecuteCommandAsync();
+            IP = $"127.0.0.1:{VwISAPIServerHikvisionMock.DefaultPort}",
+            Account = VwISAPIServerHikvisionMock.DefaultUser,
+            PassWord = VwISAPIServerHikvisionMock.DefaultPassword,
+            Status = BaseEnums.StatusEnum.Enable,
+            CreateTime = DateTime.Now
+        };
+        await _db.Insertable(controller).ExecuteCommandAsync();
 
-            var scene = new VwScene
-            {
-                Code = $"{TestPrefix}SCN_{Guid.NewGuid():N}",
-                Name = "Scene BatchDelete Outside",
-
-
-                Status = BaseEnums.StatusEnum.Enable,
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(scene).ExecuteCommandAsync();
-
-            var allowedCells = new List<VwGridCell> { new() { Col = 0, Row = 0 } };
-            var perm = new VwWallPermission
-            {
-                UserId = account,
-
-
-                Config = JsonConvert.SerializeObject(allowedCells),
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(perm).ExecuteCommandAsync();
-
-            var insideWin = new VwWindowScene
-            {
-                Code = $"{TestPrefix}WIN_IN_{Guid.NewGuid():N}",
-                Name = "Inside Win",
-                SceneId = scene.ID,
-                X = 0,
-                Y = 0,
-                W = 1920,
-                H = 1080,
-                Visible = BaseEnums.SceneWindowVisible.Visible,
-                CreateTime = DateTime.Now
-            };
-            var outsideWin = new VwWindowScene
-            {
-                Code = $"{TestPrefix}WIN_OUT_{Guid.NewGuid():N}",
-                Name = "Outside Win",
-                SceneId = scene.ID,
-                X = 3840,
-                Y = 2160,
-                W = 1920,
-                H = 1080,
-                Visible = BaseEnums.SceneWindowVisible.Visible,
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(new[] { insideWin, outsideWin }).ExecuteCommandAsync();
-            _cache.RemoveByPrefixKey(CacheConst.Vw.VwWindowScene);
-
-            var ex = await Record.ExceptionAsync(() =>
-                _bus.InvokeAsync(new List<VwDeleteWindowSceneInput>
-                {
-                    new() { ID = insideWin.ID },
-                    new() { ID = outsideWin.ID }
-                }));
-
-            Assert.NotNull(ex);
-            Assert.True(ex.Message.Contains("ngoài khu vực màn hình", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("windowOutsideAllowedRegion", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("wallPermissionNotAssigned", StringComparison.OrdinalIgnoreCase));
-
-            var dbInside = await _db.Queryable<VwWindowScene>().FirstAsync(w => w.ID == insideWin.ID);
-            var dbOutside = await _db.Queryable<VwWindowScene>().FirstAsync(w => w.ID == outsideWin.ID);
-            Assert.Null(dbInside.IsDelete);
-            Assert.Null(dbOutside.IsDelete);
-        }
-        finally
+        var scene = new VwScene
         {
-            ClearUser();
-        }
+            Code = $"{TestPrefix}SCN_{Guid.NewGuid():N}",
+            Name = "Scene BatchDelete Outside",
+
+
+            Status = BaseEnums.StatusEnum.Enable,
+            CreateTime = DateTime.Now
+        };
+        await _db.Insertable(scene).ExecuteCommandAsync();
+
+        var allowedCells = new List<VwGridCell> { new() { Col = 0, Row = 0 } };
+        var perm = new VwWallPermission
+        {
+            UserId = account,
+
+
+            Config = JsonConvert.SerializeObject(allowedCells),
+            CreateTime = DateTime.Now
+        };
+        await _db.Insertable(perm).ExecuteCommandAsync();
+
+        var insideWin = new VwWindowScene
+        {
+            Code = $"{TestPrefix}WIN_IN_{Guid.NewGuid():N}",
+            Name = "Inside Win",
+            SceneId = scene.ID,
+            X = 0,
+            Y = 0,
+            W = 1920,
+            H = 1080,
+            Visible = BaseEnums.SceneWindowVisible.Visible,
+            CreateTime = DateTime.Now
+        };
+        var outsideWin = new VwWindowScene
+        {
+            Code = $"{TestPrefix}WIN_OUT_{Guid.NewGuid():N}",
+            Name = "Outside Win",
+            SceneId = scene.ID,
+            X = 3840,
+            Y = 2160,
+            W = 1920,
+            H = 1080,
+            Visible = BaseEnums.SceneWindowVisible.Visible,
+            CreateTime = DateTime.Now
+        };
+        await _db.Insertable(new[] { insideWin, outsideWin }).ExecuteCommandAsync();
+        _cache.RemoveByPrefixKey(CacheConst.Vw.VwWindowScene);
+
+        var ex = await Record.ExceptionAsync(() =>
+            _bus.InvokeAsync(new List<VwDeleteWindowSceneInput>
+            {
+                new() { ID = insideWin.ID },
+                new() { ID = outsideWin.ID }
+            }));
+
+        Assert.NotNull(ex);
+        Assert.True(ex.Message.Contains("ngoài khu vực màn hình", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("windowOutsideAllowedRegion", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("wallPermissionNotAssigned", StringComparison.OrdinalIgnoreCase));
+
+        var dbInside = await _db.Queryable<VwWindowScene>().FirstAsync(w => w.ID == insideWin.ID);
+        var dbOutside = await _db.Queryable<VwWindowScene>().FirstAsync(w => w.ID == outsideWin.ID);
+        Assert.Null(dbInside.IsDelete);
+        Assert.Null(dbOutside.IsDelete);
+        ClearUser();
     }
 
     /// <summary>
@@ -1448,92 +1414,86 @@ public class VwWindowSceneTests(Host host)
         var account = $"{TestPrefix}USER_{Guid.NewGuid():N}";
         SetRestrictedUser(orgId, account);
 
-        try
+        var controller = new VwController
         {
-            var controller = new VwController
-            {
-                Code = $"{TestPrefix}CTRL_{Guid.NewGuid():N}",
-                Name = "Test Controller",
+            Code = $"{TestPrefix}CTRL_{Guid.NewGuid():N}",
+            Name = "Test Controller",
 
-                IP = $"127.0.0.1:{VwISAPIServerHikvisionMock.DefaultPort}",
-                Account = VwISAPIServerHikvisionMock.DefaultUser,
-                PassWord = VwISAPIServerHikvisionMock.DefaultPassword,
-                Status = BaseEnums.StatusEnum.Enable,
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(controller).ExecuteCommandAsync();
+            IP = $"127.0.0.1:{VwISAPIServerHikvisionMock.DefaultPort}",
+            Account = VwISAPIServerHikvisionMock.DefaultUser,
+            PassWord = VwISAPIServerHikvisionMock.DefaultPassword,
+            Status = BaseEnums.StatusEnum.Enable,
+            CreateTime = DateTime.Now
+        };
+        await _db.Insertable(controller).ExecuteCommandAsync();
 
-            var scene = new VwScene
-            {
-                Code = $"{TestPrefix}SCN_{Guid.NewGuid():N}",
-                Name = "Scene SwitchSource",
-
-
-                Status = BaseEnums.StatusEnum.Enable,
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(scene).ExecuteCommandAsync();
-
-            var source1 = new VwSource
-            {
-                Code = $"{TestPrefix}SRC1_{Guid.NewGuid():N}",
-                Name = "Source 1",
-
-
-                Status = BaseEnums.StatusEnum.Enable,
-                CreateTime = DateTime.Now
-            };
-            var source2 = new VwSource
-            {
-                Code = $"{TestPrefix}SRC2_{Guid.NewGuid():N}",
-                Name = "Source 2",
-
-
-                Status = BaseEnums.StatusEnum.Enable,
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(new[] { source1, source2 }).ExecuteCommandAsync();
-
-            var allowedCells = new List<VwGridCell> { new() { Col = 0, Row = 0 } };
-            var perm = new VwWallPermission
-            {
-                UserId = account,
-
-
-                Config = JsonConvert.SerializeObject(allowedCells),
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(perm).ExecuteCommandAsync();
-
-            var win = new VwWindowScene
-            {
-                Code = $"{TestPrefix}WIN_{Guid.NewGuid():N}",
-                Name = "Outside Win SwitchSource",
-                SceneId = scene.ID,
-                SourceId = source1.ID,
-                X = 3840,
-                Y = 2160,
-                W = 1920,
-                H = 1080,
-                Visible = BaseEnums.SceneWindowVisible.Visible,
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(win).ExecuteCommandAsync();
-            _cache.RemoveByPrefixKey(CacheConst.Vw.VwWindowScene);
-
-            var ex = await Record.ExceptionAsync(() =>
-                _bus.InvokeAsync(new VwSwitchWindowSourceInput { ID = win.ID, SourceId = source2.ID }));
-
-            Assert.NotNull(ex);
-            Assert.True(ex.Message.Contains("ngoài khu vực màn hình", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("windowOutsideAllowedRegion", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("wallPermissionNotAssigned", StringComparison.OrdinalIgnoreCase));
-
-            var dbWin = await _db.Queryable<VwWindowScene>().FirstAsync(w => w.ID == win.ID);
-            Assert.Equal(source1.ID, dbWin.SourceId);
-        }
-        finally
+        var scene = new VwScene
         {
-            ClearUser();
-        }
+            Code = $"{TestPrefix}SCN_{Guid.NewGuid():N}",
+            Name = "Scene SwitchSource",
+
+
+            Status = BaseEnums.StatusEnum.Enable,
+            CreateTime = DateTime.Now
+        };
+        await _db.Insertable(scene).ExecuteCommandAsync();
+
+        var source1 = new VwSource
+        {
+            Code = $"{TestPrefix}SRC1_{Guid.NewGuid():N}",
+            Name = "Source 1",
+
+
+            Status = BaseEnums.StatusEnum.Enable,
+            CreateTime = DateTime.Now
+        };
+        var source2 = new VwSource
+        {
+            Code = $"{TestPrefix}SRC2_{Guid.NewGuid():N}",
+            Name = "Source 2",
+
+
+            Status = BaseEnums.StatusEnum.Enable,
+            CreateTime = DateTime.Now
+        };
+        await _db.Insertable(new[] { source1, source2 }).ExecuteCommandAsync();
+
+        var allowedCells = new List<VwGridCell> { new() { Col = 0, Row = 0 } };
+        var perm = new VwWallPermission
+        {
+            UserId = account,
+
+
+            Config = JsonConvert.SerializeObject(allowedCells),
+            CreateTime = DateTime.Now
+        };
+        await _db.Insertable(perm).ExecuteCommandAsync();
+
+        var win = new VwWindowScene
+        {
+            Code = $"{TestPrefix}WIN_{Guid.NewGuid():N}",
+            Name = "Outside Win SwitchSource",
+            SceneId = scene.ID,
+            SourceId = source1.ID,
+            X = 3840,
+            Y = 2160,
+            W = 1920,
+            H = 1080,
+            Visible = BaseEnums.SceneWindowVisible.Visible,
+            CreateTime = DateTime.Now
+        };
+        await _db.Insertable(win).ExecuteCommandAsync();
+        _cache.RemoveByPrefixKey(CacheConst.Vw.VwWindowScene);
+
+        var ex = await Record.ExceptionAsync(() =>
+            _bus.InvokeAsync(new VwSwitchWindowSourceInput { ID = win.ID, SourceId = source2.ID }));
+
+        Assert.NotNull(ex);
+        Assert.True(ex.Message.Contains("ngoài khu vực màn hình", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("windowOutsideAllowedRegion", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("wallPermissionNotAssigned", StringComparison.OrdinalIgnoreCase));
+
+        var dbWin = await _db.Queryable<VwWindowScene>().FirstAsync(w => w.ID == win.ID);
+        Assert.Equal(source1.ID, dbWin.SourceId);
+        ClearUser();
     }
 
     /// <summary>
@@ -1546,77 +1506,66 @@ public class VwWindowSceneTests(Host host)
         var account = $"{TestPrefix}USER_{Guid.NewGuid():N}";
         SetRestrictedUser(orgId, account);
 
-        VwController? controller = null;
-        VwScene? scene = null;
-        VwWindowScene? win = null;
-
-        try
+        var controller = new VwController
         {
-            controller = new VwController
-            {
-                Code = $"{TestPrefix}CTRL_{Guid.NewGuid():N}",
-                Name = "Test Controller",
+            Code = $"{TestPrefix}CTRL_{Guid.NewGuid():N}",
+            Name = "Test Controller",
 
-                IP = $"127.0.0.1:{VwISAPIServerHikvisionMock.DefaultPort}",
-                Account = VwISAPIServerHikvisionMock.DefaultUser,
-                PassWord = VwISAPIServerHikvisionMock.DefaultPassword,
-                Status = BaseEnums.StatusEnum.Enable,
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(controller).ExecuteCommandAsync();
+            IP = $"127.0.0.1:{VwISAPIServerHikvisionMock.DefaultPort}",
+            Account = VwISAPIServerHikvisionMock.DefaultUser,
+            PassWord = VwISAPIServerHikvisionMock.DefaultPassword,
+            Status = BaseEnums.StatusEnum.Enable,
+            CreateTime = DateTime.Now
+        };
+        await _db.Insertable(controller).ExecuteCommandAsync();
 
-            scene = new VwScene
-            {
-                Code = $"{TestPrefix}SCN_{Guid.NewGuid():N}",
-                Name = "Scene SetLayer",
-
-
-                Status = BaseEnums.StatusEnum.Enable,
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(scene).ExecuteCommandAsync();
-
-            var allowedCells = new List<VwGridCell> { new() { Col = 0, Row = 0 } };
-            var perm = new VwWallPermission
-            {
-                UserId = account,
-
-
-                Config = JsonConvert.SerializeObject(allowedCells),
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(perm).ExecuteCommandAsync();
-
-            win = new VwWindowScene
-            {
-                Code = $"{TestPrefix}WIN_{Guid.NewGuid():N}",
-                Name = "Outside Win SetLayer",
-                SceneId = scene.ID,
-                X = 3840,
-                Y = 2160,
-                W = 1920,
-                H = 1080,
-                ZIndex = 5,
-                Visible = BaseEnums.SceneWindowVisible.Visible,
-                CreateTime = DateTime.Now
-            };
-            await _db.Insertable(win).ExecuteCommandAsync();
-            _cache.RemoveByPrefixKey(CacheConst.Vw.VwWindowScene);
-
-            var ex = await Record.ExceptionAsync(() =>
-                _bus.InvokeAsync(new VwSetWindowLayerInput { ID = win.ID, Action = VwWindowLayerAction.Top }));
-
-            Assert.NotNull(ex);
-            Assert.True(ex.Message.Contains("ngoài khu vực màn hình", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("windowOutsideAllowedRegion", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("wallPermissionNotAssigned", StringComparison.OrdinalIgnoreCase));
-
-            var dbWin = await _db.Queryable<VwWindowScene>().FirstAsync(w => w.ID == win.ID);
-            Assert.Equal(5, dbWin.ZIndex);
-        }
-        finally
+        var scene = new VwScene
         {
-            ClearUser();
-        }
+            Code = $"{TestPrefix}SCN_{Guid.NewGuid():N}",
+            Name = "Scene SetLayer",
 
+
+            Status = BaseEnums.StatusEnum.Enable,
+            CreateTime = DateTime.Now
+        };
+        await _db.Insertable(scene).ExecuteCommandAsync();
+
+        var allowedCells = new List<VwGridCell> { new() { Col = 0, Row = 0 } };
+        var perm = new VwWallPermission
+        {
+            UserId = account,
+
+
+            Config = JsonConvert.SerializeObject(allowedCells),
+            CreateTime = DateTime.Now
+        };
+        await _db.Insertable(perm).ExecuteCommandAsync();
+
+        var win = new VwWindowScene
+        {
+            Code = $"{TestPrefix}WIN_{Guid.NewGuid():N}",
+            Name = "Outside Win SetLayer",
+            SceneId = scene.ID,
+            X = 3840,
+            Y = 2160,
+            W = 1920,
+            H = 1080,
+            ZIndex = 5,
+            Visible = BaseEnums.SceneWindowVisible.Visible,
+            CreateTime = DateTime.Now
+        };
+        await _db.Insertable(win).ExecuteCommandAsync();
+        _cache.RemoveByPrefixKey(CacheConst.Vw.VwWindowScene);
+
+        var ex = await Record.ExceptionAsync(() =>
+            _bus.InvokeAsync(new VwSetWindowLayerInput { ID = win.ID, Action = VwWindowLayerAction.Top }));
+
+        Assert.NotNull(ex);
+        Assert.True(ex.Message.Contains("ngoài khu vực màn hình", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("windowOutsideAllowedRegion", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("wallPermissionNotAssigned", StringComparison.OrdinalIgnoreCase));
+
+        var dbWin = await _db.Queryable<VwWindowScene>().FirstAsync(w => w.ID == win.ID);
+        Assert.Equal(5, dbWin.ZIndex);
+        ClearUser();
     }
 
 

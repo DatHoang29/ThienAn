@@ -24,7 +24,7 @@ public class ShareDataActivityLogControllerTests(Host host)
             ID = parentId,
             SubscriptionId = subId,
             ParentId = null,
-            StepNo = null,
+            StepNbr = null,
             LogType = BaseEnums.LogTypeEnum.Transfer,
             Action = BaseEnums.ActivityAction.Send,
             TransferDirection = BaseEnums.TransferDirection.SND,
@@ -41,7 +41,7 @@ public class ShareDataActivityLogControllerTests(Host host)
             ID = Guid.NewGuid().ToString("N"),
             SubscriptionId = subId,
             ParentId = parentId,
-            StepNo = 1,
+            StepNbr = 1,
             LogType = BaseEnums.LogTypeEnum.Transfer,
             Action = BaseEnums.ActivityAction.Send,
             TransferDirection = BaseEnums.TransferDirection.SND,
@@ -58,7 +58,7 @@ public class ShareDataActivityLogControllerTests(Host host)
             ID = Guid.NewGuid().ToString("N"),
             SubscriptionId = subId,
             ParentId = parentId,
-            StepNo = 2,
+            StepNbr = 2,
             LogType = BaseEnums.LogTypeEnum.Transfer,
             Action = BaseEnums.ActivityAction.Send,
             TransferDirection = BaseEnums.TransferDirection.SND,
@@ -157,7 +157,7 @@ public class ShareDataActivityLogControllerTests(Host host)
     }
 
     /// <summary>
-    /// Description: Kiểm tra API GetSteps trả đúng cấu trúc lồng 1 dòng cha kèm 2 dòng con có StepNo 1 và 2
+    /// Description: Kiểm tra API GetSteps trả đúng cấu trúc lồng 1 dòng cha kèm 2 dòng con có StepNbr 1 và 2
     /// Created date: 02/10/2026
     /// </summary>
     [Fact]
@@ -182,8 +182,8 @@ public class ShareDataActivityLogControllerTests(Host host)
 
         Assert.NotNull(rootNode.Children);
         Assert.Equal(2, rootNode.Children.Count);
-        Assert.Equal(1, rootNode.Children[0].StepNo);
-        Assert.Equal(2, rootNode.Children[1].StepNo);
+        Assert.Equal(1, rootNode.Children[0].StepNbr);
+        Assert.Equal(2, rootNode.Children[1].StepNbr);
         Assert.Equal(child1.ID, rootNode.Children[0].ID);
         Assert.Equal(child2.ID, rootNode.Children[1].ID);
         Assert.Equal(parent.ID, rootNode.Children[0].ParentId);
@@ -211,7 +211,7 @@ public class ShareDataActivityLogControllerTests(Host host)
         Assert.NotNull(result);
         Assert.Equal(child1.ID, result.ID);
         Assert.Equal(parent.ID, result.ParentId);
-        Assert.Equal(1, result.StepNo);
+        Assert.Equal(1, result.StepNbr);
     }
 
     /// <summary>

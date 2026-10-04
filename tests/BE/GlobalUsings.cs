@@ -14,6 +14,7 @@ global using Xunit;
 
 
 // ─── Shared của dự án ───
+global using Module.ShareData.Core.Constants;
 global using Shared.DTO.Constants.Application;
 global using Shared.DTO.Constants.Localization;
 global using Shared.DTO.Enums;

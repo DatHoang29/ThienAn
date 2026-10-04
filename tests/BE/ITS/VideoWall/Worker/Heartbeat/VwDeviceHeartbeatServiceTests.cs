@@ -174,9 +174,10 @@ namespace Tests.VideoWall.Worker.Heartbeat
 
             // Act
             var pollMethod = typeof(VwDeviceHeartbeatService)
-                .GetMethod("PollAllControllers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                .GetMethod("PollOneController", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             Assert.NotNull(pollMethod);
-            await (Task)pollMethod.Invoke(service, [cts.Token])!;
+            using var actScope = _scopeFactory.CreateScope();
+            await (Task)pollMethod.Invoke(service, [controller, actScope.ServiceProvider, cts.Token])!;
 
             // Assert DB — cả 2 màn hình chuyển Offline
             var updatedA = await _db.Queryable<VwScreen>().FirstAsync(s => s.ID == screenA.ID);
@@ -188,6 +189,7 @@ namespace Tests.VideoWall.Worker.Heartbeat
             await WaitUntil(() => received.Any(m => m.Contains(controller.ID, StringComparison.Ordinal)), TimeSpan.FromSeconds(10));
             Assert.Contains(received, m => m.Contains(controller.ID, StringComparison.Ordinal));
 
+            _mock.ResetDefaults();
             transport.Unsubscribe(VwSubjects.Data);
         }
 

@@ -5184,7 +5184,7 @@ END");
                 Assert.Equal(3, logs.Count);
 
                 var parent = logs.Single(l => l.ParentId == null);
-                Assert.Null(parent.StepNo);
+                Assert.Null(parent.StepNbr);
                 Assert.Equal(BaseEnums.SuccessEnums.Success, parent.Success);
                 Assert.True(parent.RecordCount > 0);
 
@@ -5192,8 +5192,8 @@ END");
                 Assert.Equal(2, children.Count);
                 Assert.All(children, c => Assert.Equal(parent.ID, c.ParentId));
 
-                var step1 = children.Single(c => c.StepNo == ShareDataTransferLog.StepExtract);
-                var step2 = children.Single(c => c.StepNo == ShareDataTransferLog.StepMapAndSend);
+                var step1 = children.Single(c => c.StepNbr == 1);
+                var step2 = children.Single(c => c.StepNbr == 2);
 
                 Assert.Equal(BaseEnums.SuccessEnums.Success, step1.Success);
                 Assert.Equal(BaseEnums.SuccessEnums.Success, step2.Success);
@@ -5313,11 +5313,11 @@ END");
                 Assert.Equal(BaseEnums.SuccessEnums.Fail, parent.Success);
                 Assert.True(parent.RecordCount > 0);
 
-                var step1 = logs.Single(l => l.ParentId == parent.ID && l.StepNo == ShareDataTransferLog.StepExtract);
+                var step1 = logs.Single(l => l.ParentId == parent.ID && l.StepNbr == 1);
                 Assert.Equal(BaseEnums.SuccessEnums.Success, step1.Success);
                 Assert.Equal(parent.RecordCount, step1.RecordCount);
 
-                var step2 = logs.Single(l => l.ParentId == parent.ID && l.StepNo == ShareDataTransferLog.StepMapAndSend);
+                var step2 = logs.Single(l => l.ParentId == parent.ID && l.StepNbr == 2);
                 Assert.Equal(BaseEnums.SuccessEnums.Fail, step2.Success);
                 Assert.False(string.IsNullOrWhiteSpace(step2.ErrorMessage));
 
@@ -5380,11 +5380,11 @@ END");
                 Assert.Equal(BaseEnums.SuccessEnums.Fail, parent.Success);
                 Assert.True(parent.RecordCount > 0);
 
-                var step1 = logs.Single(l => l.ParentId == parent.ID && l.StepNo == ShareDataTransferLog.StepExtract);
+                var step1 = logs.Single(l => l.ParentId == parent.ID && l.StepNbr == 1);
                 Assert.Equal(BaseEnums.SuccessEnums.Success, step1.Success);
                 Assert.Equal(parent.RecordCount, step1.RecordCount);
 
-                var step2 = logs.Single(l => l.ParentId == parent.ID && l.StepNo == ShareDataTransferLog.StepMapAndSend);
+                var step2 = logs.Single(l => l.ParentId == parent.ID && l.StepNbr == 2);
                 Assert.Equal(BaseEnums.SuccessEnums.Fail, step2.Success);
                 Assert.False(string.IsNullOrWhiteSpace(step2.ErrorMessage));
                 Assert.Contains("500", step2.ErrorMessage);
@@ -5443,11 +5443,11 @@ END");
                 Assert.Equal(0, parent.RecordCount);
                 Assert.Equal(ShareDataEnum.ExportMessage.NoNewData, parent.ErrorMessage);
 
-                var step1 = logs.Single(l => l.ParentId == parent.ID && l.StepNo == ShareDataTransferLog.StepExtract);
+                var step1 = logs.Single(l => l.ParentId == parent.ID && l.StepNbr == 1);
                 Assert.Equal(BaseEnums.SuccessEnums.Success, step1.Success);
                 Assert.Equal(0, step1.RecordCount);
 
-                Assert.DoesNotContain(logs, l => l.StepNo == ShareDataTransferLog.StepMapAndSend);
+                Assert.DoesNotContain(logs, l => l.StepNbr == 2);
             }
             finally
             {
@@ -5555,7 +5555,7 @@ END");
         }
 
         /// <summary>
-        /// Description: SV-8a: Khi lỗi xảy ra trước bước 1 (PacketNotFound), chỉ ghi đúng 1 dòng cha duy nhất (ParentId null, StepNo null).
+        /// Description: SV-8a: Khi lỗi xảy ra trước bước 1 (PacketNotFound), chỉ ghi đúng 1 dòng cha duy nhất (ParentId null, StepNbr null).
         /// Created date: 02/10/2026
         /// </summary>
         [Fact]
@@ -5588,7 +5588,7 @@ END");
                 Assert.Single(logs);
                 Assert.Equal(BaseEnums.SuccessEnums.Fail, logs[0].Success);
                 Assert.Null(logs[0].ParentId);
-                Assert.Null(logs[0].StepNo);
+                Assert.Null(logs[0].StepNbr);
             }
             finally
             {
@@ -5676,8 +5676,8 @@ END");
                     var children = logs.Where(l => l.ParentId == parent.ID).ToList();
                     Assert.Equal(2, children.Count);
 
-                    var step1 = children.Single(c => c.StepNo == ShareDataTransferLog.StepExtract);
-                    var step2 = children.Single(c => c.StepNo == ShareDataTransferLog.StepMapAndSend);
+                    var step1 = children.Single(c => c.StepNbr == 1);
+                    var step2 = children.Single(c => c.StepNbr == 2);
 
                     Assert.Equal(BaseEnums.SuccessEnums.Success, step1.Success);
                     Assert.Equal(BaseEnums.SuccessEnums.Success, step2.Success);
