@@ -20,6 +20,7 @@ using VwSetupSceneStep = Module.VideoWall.WPF.Api.Dto.VwSetupSceneStep;
 
 namespace Tests.VideoWall.Wpf;
 
+[Collection("api")]
 public class VwScenarioStoreTests : IDisposable
 {
     private readonly string _tempDirectory;

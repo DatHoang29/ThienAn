@@ -19,6 +19,7 @@ namespace Tests.VideoWall.Wpf;
 /// Description: Bộ kiểm thử chuyên biệt cho tường ghép cascade DS-C66S (lưới 8x4, 32 màn hình) trên giao diện Module.VideoWall.WPF.
 /// Created date: 08/09/2026
 /// </summary>
+[Collection("api")]
 public class VwWpfCascadeWallTests
 {
     /// <summary>

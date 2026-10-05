@@ -9,7 +9,7 @@
 > vì đó là phần đắt nhất. Gộp xong thì tệp báo cáo **được xoá**, để ⛔ không còn hai nguồn nói về cùng một trạng
 > thái. Xem quy tắc **19.24**.
 >
-> 📌 **Cập nhật lần cuối: 02/10/2026** — đợt log cha–con chiều gửi (BE-5 + SV-8a) và nâng mốc dọn nhật ký hạ tầng lên 14 ngày (SV-13).
+> 📌 **Cập nhật lần cuối: 04/10/2026** — chuẩn hoá thiết kế log cha–con theo Option C (SV-8a, SV-8b, BE-5), loại bỏ CancellationToken không dùng ở logger, cố định `stepMapAndStore = 2` cho chiều nhận, nhánh `NoNewData` giữ 1 dòng phẳng tối ưu dung lượng nhật ký; dọn sạch các cảnh báo IDE0060 (bỏ unused parameters `partner`, `debounceSec`) và IDE0047 (bỏ dấu ngoặc đơn thừa) tại `DataOutboundService.cs`. Trước đó: 02/10/2026 — đợt log cha–con chiều gửi (BE-5 + SV-8a) và nâng mốc dọn nhật ký hạ tầng lên 14 ngày (SV-13).
 > Trước đó: 28/09/2026 — đợt siết lưới kiểm thử & tinh gọn worker giám sát (3 đợt sửa mã + 1 đợt
 > đồng bộ tài liệu), và lượt rà 33 code change của nhánh `feat/20260922-sharedata-service` đối chiếu trực tiếp
 > với 4 biên bản họp trong `doc/transcript/` (21/09 ánh xạ + gửi nối đuôi · 19/09 HTTP header · 16/09 refactor
@@ -87,11 +87,15 @@
 - [x] **SV-1a** Bỏ vỏ `httpPayload` 7 khoá khi gửi đi ✅ **xong 18/09**
 - [x] **SV-2a** Bỏ phân nhánh xử lý theo Version *(chiều gửi)* ✅ **đã đúng** — `PacketVersion` chỉ xuất hiện trong log, **0 chỗ rẽ nhánh**.
 - [x] **SV-3a** Đặt `partnerCode` vào trong dữ liệu gửi đi ✅ **xong 18/09** — M1 giải `$meta: PartnerCode` bằng `ctx.Partner.Code`.
-- [x] **SV-8a** Ghi log 2 bước cha–con *(chiều gửi)* ✅ **xong 02/10/2026** — 1 phiên = **1 trang**, dòng nhật ký hiện có giữ vai trò **dòng cha** nên hình dạng lưới ⛔ không đổi; thêm 2 dòng con `StepNbr` 1 (Trích xuất) và 2 (Ánh xạ & Gửi), mỗi dòng con mang thời lượng đo bằng `Stopwatch`.
-  - 🔴 **Ghi cả 3 dòng ở CUỐI mỗi nhánh thoát**, ⛔ không ghi dòng con ngay khi mỗi bước vừa xong — nhánh mất lock khi commit chỉ `LogWarning` rồi `return`, ghi sớm là sinh **dòng con mồ côi** trỏ tới dòng cha ⛔ không tồn tại.
-  - Nhánh lỗi: `ShareDataException` mang thêm `ParentId` + `StepNbr`, ranh giới `ExportSubscription` đọc ra để ghi đúng cây. Lỗi bước 2 vẫn ghi được dòng con bước 1 **Thành công** vì `ex.RecordCount` chính là số bản ghi đã trích xuất.
-  - Nhánh "không có dữ liệu mới" chỉ ghi cha + con bước 1 — chặng gửi ⛔ không hề chạy, để trống bước 2 là **đúng sự thật**.
-  - Lỗi trước cả bước 1 (`PacketNotFound` / `MappingNotFound` từ `GetExportConfig`) và lỗi không xác định: chỉ ghi **dòng cha**, ⛔ không đoán `StepNbr`.
+- [x] **SV-8a** Ghi log 2 bước cha–con *(chiều gửi)* ✅ **xong 02/10/2026, chuẩn hóa Hướng 1 ngày 04/10/2026** — 1 phiên = **1 trang có dữ liệu**: chuẩn mô hình Cha - Con:
+  - Dòng cha sinh ra trước trong CSDL (`WriteActivityAsync`, `Status = Queued`) ngay đầu trang $\rightarrow$ đảm bảo cha luôn tồn tại trước các con, không có dòng con mồ côi trỏ vào cha ảo.
+  - Các bước con 1 (Trích xuất) và 2 (Ánh xạ & Gửi) lần lượt ghi nhận qua `WriteActivityAsync` (`parentId: parentId, stepNbr: 1/2`).
+  - Kết thúc trang: Chốt kết quả dòng cha qua chính `WriteActivityAsync(logId: parentId, isUpdate: true, ...)`.
+  - Nhánh thất bại: `WriteFailureLogs` tự động ghi Alert + dòng con thất bại + cập nhật dòng cha thất bại (`isUpdate: true`).
+  - Xóa bỏ hoàn toàn hàm `SaveParentLogResult` khỏi toàn bộ codebase — mọi thao tác ActivityLog tập trung 1 nơi duy nhất qua `WriteActivityAsync`.
+  - Nhánh "không có dữ liệu mới" (`NoNewData`, `RawRows.Count == 0`): áp dụng **Option C**, giữ nguyên **1 dòng phẳng** trạng thái Success, 0 bản ghi (không sinh 2 dòng con rỗng vô ích, chống phình dữ liệu DB khi worker polling định kỳ).
+  - Lỗi trước cả bước 1 (`PacketNotFound` / `MappingNotFound` từ `GetExportConfig`) và lỗi không xác định cấp Subscription: gọi `WriteFailureLogs` ghi 1 dòng Alert + 1 dòng cha phẳng thất bại.
+  - Bỏ toàn bộ `CancellationToken` khỏi các hàm log (`WriteActivityAsync`, `WriteAlertAsync`, `WriteFailureLogs`) để tránh gián đoạn ghi vết kiểm toán. Loại bỏ các log console/warning trùng lặp khi đã ghi nhận vào CSDL.
 - [x] **SV-10** Rà soát pipeline Outbound sau refactor ✅ **xong 18/09** — Tầng gửi không logic nghiệp vụ, lỗi mapping dừng bước 2, `DataOutboundContext` xuyên suốt.
 - [x] **SV-12** Cờ *"chỉ gửi khi có dữ liệu mới"* & Cơ chế Gửi nối đuôi LastSend ✅ **hoàn tất 22/09**:
   - Kiến trúc LastSend độc lập `ShareDataLastSend` theo từng cặp `(PartnerCode, PacketCode)`.
@@ -123,11 +127,12 @@
 - [x] **SV-2b** Bỏ phân nhánh xử lý theo Version *(chiều nhận)* ✅ **đã đúng** — 0 chỗ rẽ nhánh.
 - [x] **SV-3b** Đọc `partnerCode` từ trong dữ liệu nhận về ✅ **xong 22/09 (PR #51)** — Đọc từ header hoặc dòng đầu tiên của dữ liệu.
 - [ ] **SV-7** Rà soát cắt cụt chuỗi dài (giới hạn 4000 ký tự).
-- [x] **SV-8b** Ghi log 2 bước cha–con *(chiều nhận)* ✅ **xong 02/10/2026** — 1 dòng cha + 2 dòng con `StepNbr` 1 (Tiếp nhận) và 2 (Ánh xạ & Lưu), xuyên 2 tiến trình và 2 CSDL.
+- [x] **SV-8b** Ghi log 2 bước cha–con *(chiều nhận)* ✅ **xong 02/10/2026, chuẩn hóa Option C ngày 04/10/2026** — 1 dòng cha + 2 dòng con `StepNbr` 1 (Tiếp nhận tại WebAPI) và 2 (Ánh xạ & Lưu DB đích tại Worker), xuyên 2 tiến trình và 2 CSDL.
   - 🔴 **Khó hơn chiều gửi: xuyên 2 tiến trình và 2 CSDL.** `ShareDataInboundPacket` khai `[Tenant(Its015Const.ConnectionConst.ShareData)]` còn `ShareDataActivityLog` ⛔ không khai `[Tenant]` ⇒ **hai bảng ở hai kết nối CSDL khác nhau, ⛔ không join được**. Cách giải: **mang ID dòng cha theo dòng gói tin** qua cột mới `ShareDataInboundPacket.ReceiveLogId`.
   - 🔴 **`[Tenant("ShareDataDB")]` trên `ShareDataInboundPacket` ⛔ KHÔNG có tác dụng bên Worker.** Worker tự `new SqlSugarScope` với đúng **1** `ConnectionConfig`, nên CSDL do **client được chọn ở call-site** quyết định (`GetKeyedService<ISqlSugarClient>("Inbound")`), ⛔ không do attribute. Attribute đó chỉ định tuyến bên WebAPI (Furion `SqlSugarSetup` đọc `DbConnection:ConnectionConfigs`). ⛔ Ai tưởng xoá keyed DI đi thì `[Tenant]` vẫn lo được là **SAI** — luồng nhận sẽ ghi thẳng vào CSDL chính.
   - ✅ **Chốt 02/10/2026: bỏ chuỗi dự phòng 4 bậc** của khoá `"Inbound"` (`InboundConnection → DefaultConnection → Default → localhost`). Nay `AddShareDataWorkerCoreServices` nhận `IConfiguration` và **chỉ đăng ký khi có `InboundConnection`**; khối trùng lặp ở `AddWorkerInfrastructure` đã xoá. Nhờ vậy 2 chốt chặn trước đây là code chết (`DataInboundService` null-check, guard ở `AddWorkerInfrastructure`) nay **sống đúng như thiết kế**: thiếu cấu hình thì luồng nhận dừng hẳn kèm thông điệp rõ, ⛔ không ghi lẫn sang CSDL chính.
-  - **Mã nguồn đã có đủ 4 mảnh** (rà 02/10/2026): cột `ReceiveLogId` (`ShareDataInboundPacket.cs:26`) · `ShareDataActivityLogger.LogTransferAsync` nay **trả về ID dòng vừa ghi** (`ActivityLoggerService.cs:244`, trước đó trả `Task` rỗng nên ⛔ không lấy được ID) · số chặng chiều nhận — WebAPI dùng `const` cục bộ trong `LogReceiveAsync` (chặng 1), Worker dùng `DataInboundService.StepMapAndStore` (dòng 45, chặng 2) · `ShareDataTransferLog.SaveParentLogResult` (dòng 25) cập nhật kết quả lên dòng cha.
+  - **Mã nguồn đã chuẩn hoá (04/10/2026)**: cột `ReceiveLogId` (`ShareDataInboundPacket.cs:26`) · `ShareDataActivityLogger.LogTransferAsync` trả về ID dòng vừa ghi, **không nhận `cancelToken` thừa** · số chặng chiều nhận: WebAPI ghi chặng 1 (`StepNbr = 1`), Worker ghi chặng 2 với hằng số cố định `stepMapAndStore = 2` (bỏ `NextStepNbr` query động) · `ShareDataTransferLog.WriteActivityAsync(isUpdate: true)` cập nhật kết quả lên dòng cha.
+  - ✅ **Xử lý `NoSubscription` chuẩn xác (04/10/2026)**: Khi gói tin hợp lệ nhưng hệ thống chưa cấu hình đăng ký nhận, bước 1 (Tiếp nhận & lưu tạm) ghi nhận `Success = true`, dòng cha ghi `Success = false` kèm thông điệp cảnh báo.
   - ⚠️ **Hai hệ quả đã chấp nhận:** (1) `ShareDataActivityLog` từ chỗ *chỉ ghi thêm* nay có thêm đường **cập nhật** dòng cha — không làm vậy thì lưới mãi hiện "chờ xử lý" dù chặng xử lý đã hỏng; (2) số dòng lưới chiều nhận **giảm từ 2 xuống 1** mỗi gói tin.
   - 🔴 **Gói cũ có `ReceiveLogId == null` vẫn chạy được** — ghi một dòng phẳng như trước, ⛔ không ném lỗi.
   - Test khoá hành vi: `tests/BE/ITS/ShareData/Services/DataInboundServiceTests.cs` khẳng định cha (`ParentId = null`, `StepNbr = null`) + con bước 1 + con bước 2.
@@ -171,9 +176,20 @@
 - M1 giải `$meta: PartnerCode` bằng `ctx.Partner?.Code`.
 - Khi gửi 2 chiều nội bộ cần lưu ý: bên gửi ghi mã đối tác nhận, bên nhận đối chiếu mã đối tác gửi.
 
-### SV-8a. Ghi log 2 bước cha–con *(chiều gửi)*
-- 1 phiên gửi = 1 log cha + 2 log con: Step 1 Trích xuất CSDL $\rightarrow$ Step 2 Xử lý ánh xạ & Gửi đi.
-- Chờ **BE-5** bổ sung 2 cột `ParentId` và `StepNbr` vào `ShareDataActivityLog`.
+### SV-8a. Ghi log 2 bước cha–con *(chiều gửi)* ✅ *chuẩn hoá Option C ngày 04/10/2026*
+- **Nguyên tắc định danh phiên**: 1 phiên = **1 trang kết xuất**. Dòng nhật ký chính giữ vai trò **dòng cha** (`ParentId = null`, `StepNbr = null`), nên cấu trúc lưới danh sách nhật ký giữ nguyên, không đổi hình dạng.
+- **Mô hình lai Option C (Chốt 04/10/2026)**:
+  - **Trang CÓ dữ liệu gửi đi (`RawRows.Count > 0`)**: Ghi đủ cây 3 dòng — **1 dòng cha** (mang toàn bộ siêu dữ liệu gói tin, `RecordCount`, dung lượng, trạng thái) + **2 dòng con**:
+    - Bước 1 (`StepNbr = 1`): *Trích xuất CSDL* (đo thời lượng đọc DB bằng `Stopwatch`, ghi nhận số bản ghi đọc được).
+    - Bước 2 (`StepNbr = 2`): *Ánh xạ & Gửi đối tác* (đo thời lượng transform dữ liệu qua `TargetShapeJson` và gửi HTTP REST/file).
+    - Ghi **tuyến tính từng bước** thuần túy qua hàm `WriteActivityAsync` duy nhất (không cần `SaveParentLogResult` hay helper phụ ở chiều gửi): client sinh trước `parentId` (`Guid.NewGuid().ToString("N")`); xong trích xuất → ghi ngay dòng con Bước 1 (`WriteActivityAsync`); xong ánh xạ & gửi → ghi ngay dòng con Bước 2 (`WriteActivityAsync`); sau commit → chốt dòng cha bằng chính `WriteActivityAsync` (`logId = parentId, parentId = null`). Lỗi ở bước nào ghi dòng con thất bại bước đó rồi chốt dòng cha thất bại ngay tại chỗ. 100% là thao tác `INSERT`, không cần `UPDATE` CSDL, tránh dòng cha bị treo trạng thái khi lỗi.
+    - Loại bỏ các lệnh `logger.LogWarning` console/file trùng lặp tại các khối catch và commit khi đã có `ShareDataTransferLog` ghi nhận vào CSDL.
+  - **Trang KHÔNG CÓ dữ liệu mới (`NoNewData`, `RawRows.Count == 0`)**: Giữ nguyên **1 dòng log phẳng** duy nhất trạng thái `Success = true`, `RecordCount = 0`, không sinh dòng con. Giúp ngăn chặn triệt để tình trạng nhân 3 số lượng dòng rác trong CSDL khi worker polling định kỳ 1s/5s không có dữ liệu mới.
+- **Xử lý nhánh lỗi & phân loại bước**:
+  - Khi lỗi tại bước trích xuất (ví dụ `CursorKeyTooLong`): ghi cảnh báo (`WriteAlertAsync`), ghi dòng con 1 thất bại, và chốt dòng cha thất bại.
+  - Khi lỗi tại bước ánh xạ (`RequiredFieldMissing`) hoặc bước gửi HTTP (`HttpSendFailed`): ghi cảnh báo, ghi dòng con 2 thất bại, và chốt dòng cha thất bại.
+  - Lỗi trước bước 1 (`PacketNotFound`, `MappingNotFound` từ `GetExportConfig`) hoặc lỗi không xác định (`catch (Exception)` cấp Subscription): gọi `ShareDataTransferLog.WriteFailureLogs` ghi **1 dòng cha phẳng thất bại**, không sinh dòng con.
+- **Chuẩn hóa chữ ký logger**: Bỏ toàn bộ `CancellationToken` khỏi các hàm ghi log phụ trợ (`WriteActivityAsync`, `WriteAlertAsync`, `WriteFailureLogs`, `LogTransferAsync`) để tránh việc log kiểm toán bị gián đoạn dở dang khi token hủy, giữ chữ ký gọn gàng.
 
 ### SV-10. Rà soát pipeline Outbound sau refactor ✅
 - Tầng gửi (`DataOutboundRestSender` / `DataOutboundFileSender`) làm thuần nhiệm vụ vận chuyển.
@@ -568,6 +584,10 @@ Nhờ commit theo từng trang, khi trang thứ N gửi lỗi thì các trang tr
 | **Thêm worker riêng dọn nhật ký nghiệp vụ** (`DataLogCleanupWorker` chạy theo chu kỳ, dọn cả `ShareDataActivityLog` nghiệp vụ lẫn `ShareDataAlertLog`) | ⛔ **Chủ dự án bác 02/10/2026: giữ nguyên cơ chế cũ cho gọn.** SV-13 còn đúng 2 việc: đổi tên hàm và nâng mốc `7` → `14` ngày; vẫn chỉ xoá dòng `Remark LIKE 'ESH-16%'`, vẫn gọi 1 lần lúc worker khởi động trong `TryInitChangeTracking`. 🔴 **Cái giá phải trả, ⛔ không được bỏ lặng:** dòng **nghiệp vụ** của `ShareDataActivityLog` và toàn bộ `ShareDataAlertLog` **vẫn phình không giới hạn** — đo staging `10.10.8.30/DEV_ITS10` ngày 02/10/2026 được **61.596** và **13.706** dòng, mà log cha–con (SV-8a) còn nhân số dòng lên **3 lần** mỗi trang gửi. Đã ghi thành ⚠️ *chưa làm* ở dòng `SV-13` để lượt sau ⛔ không ai tưởng là đã xong. ⚠️ Số liệu tạm, cần thì đo lại. |
 | **Giữ tên `PurgeTrackingLogsAsync`** | ⛔ Chủ dự án chốt 02/10/2026 đổi thành **`CleanupTrackingLogs`**: bỏ hậu tố `Async` (kiểu trả về `Task` đã nói rõ — rule 7) và bỏ chữ `Purge` (từ nghề, đọc tên ⛔ không ra việc). Đúng 3 chỗ: định nghĩa · `DataChangeTrackingService.cs` · bài test. 📌 Dòng lịch sử ở `Prompt/README.md` **vẫn giữ tên cũ** có chủ đích — nó ghi chép prompt ngày 27/09 đã tạo ra hàm mang tên đó, sửa là viết lại quá khứ |
 | **Đưa `ShareDataInboundPacket` vào phạm vi dọn** | Bảng nằm ở **kết nối CSDL riêng** (`[Tenant]`), ⛔ không có trong cấu hình DAB staging nên **chưa đo được số dòng**; và xoá gói thô là **mất bằng chứng đối soát** với đối tác. ⚠️ Nhưng nó giữ `RawContent` kiểu `BigString` nên **rất có thể đây mới là thứ ăn đĩa nhiều nhất** — đo riêng rồi quyết sau |
+| **Ghi log cha–con 3 dòng cho cả trường hợp không có dữ liệu mới (`NoNewData`)** | ⛔ **Chủ dự án bác 04/10/2026: Chốt áp dụng Option C (mô hình lai).** Lượt quét định kỳ hoặc trigger rỗng không có dữ liệu mới (`RawRows.Count == 0`) chỉ ghi **1 dòng phẳng** trạng thái `Success = true`, `RecordCount = 0` thay vì nhân 3 dòng (1 cha + 2 con). Nếu nhân 3 dòng cho mỗi lượt rỗng, bảng `ShareDataActivityLog` sẽ tăng hàng trăm ngàn dòng rác mỗi ngày vì đa số các lượt polling đều không có dữ liệu mới. Chỉ khi có dữ liệu thật cần gửi (`RawRows.Count > 0`) mới ghi đủ 1 cha + 2 con (`StepNbr` 1 & 2) để hiển thị chi tiết tiến trình trên modal `el-steps`. |
+| **Truy vấn động `NextStepNbr` cho bước con chiều nhận (Inbound)** | ⛔ **Bác 04/10/2026.** Luồng nhận có kiến trúc cố định gồm đúng 2 bước: Bước 1 (WebAPI tiếp nhận & lưu tạm payload) và Bước 2 (Worker ánh xạ & ghi DB đích). Việc tính `MAX(StepNbr) + 1` không mang lại giá trị mở rộng mà còn tốn roundtrip DB và gây rủi ro sinh "Bước 3/2" khi gói tin retry hoặc xử lý lại. Cố định `stepMapAndStore = 2`. |
+| **Thêm `CancellationToken` vào các hàm logger phụ trợ (`WriteActivityAsync`, `WriteAlertAsync`, `WriteStepAsync`, `LogTransferAsync`)** | ⛔ **Bác 04/10/2026 theo chỉ đạo.** Việc ghi nhật ký hoạt động / sự cố là tác vụ phụ trợ phòng vệ, không nên bị hủy bỏ dở dang khi request/token bị cancel làm mất vết nhật ký hoặc sinh log mồ côi, và tránh làm ô nhiễm chữ ký hàm không cần thiết. |
+| **Giữ các tham số không dùng (`debounceSec`, `partner`) và cú pháp thừa** | ⛔ **Dọn sạch 04/10/2026 theo cảnh báo IDE0060, IDE0047.** Đã loại bỏ hoàn toàn tham số thừa `partner` trong `GetExportConfig`, `debounceSec` trong `ExportSubscription`, và bỏ dấu ngoặc đơn thừa trong phép gán `failedByteSize` tại `DataOutboundService.cs` nhằm đảm bảo chuẩn Clean Code. |
 
 ---
 
@@ -590,8 +610,23 @@ Nhờ commit theo từng trang, khi trang thứ N gửi lỗi thì các trang tr
 ### SV-7. Rà soát cắt cụt chuỗi dài (giới hạn 4000 ký tự)
 - Kiểm tra các tham số chuỗi trong câu lệnh SQL động và kiểu dữ liệu ở bảng đích để tránh mất dữ liệu JSON âm thầm.
 
-### SV-8b. Ghi log 2 bước cha–con *(chiều nhận)*
-- Ghi nhận 2 bước: Tiếp nhận payload $\rightarrow$ Ánh xạ & Ghi CSDL. Chờ BE-5 hỗ trợ cấu trúc cha-con.
+### SV-8b. Ghi log 2 bước cha–con *(chiều nhận)* ✅ *chuẩn hoá Option C ngày 04/10/2026*
+- **Kiến trúc xuyên 2 tiến trình và 2 CSDL**:
+  - Gói tin đến WebAPI được tiếp nhận và lưu tạm vào bảng `ShareDataInboundPacket` ở CSDL Inbound (`[Tenant(Its015Const.ConnectionConst.ShareData)]`).
+  - Trong khi đó, `ShareDataActivityLog` lưu ở CSDL chính. Hai bảng không thể join trực tiếp qua SQL.
+  - **Giải pháp chuyển tiếp ngữ cảnh**: Bổ sung cột `ReceiveLogId` vào `ShareDataInboundPacket` để mang ID của dòng log cha từ WebAPI sang Worker.
+- **Quy trình 2 bước chuẩn hóa**:
+  - **Tiến trình 1: WebAPI (`InboundCommandHandler.LogReceiveAsync`)**:
+    - Tiếp nhận payload HTTP, ghi nhận **dòng cha** (`ParentId = null`, `StepNbr = null`) qua `ShareDataActivityLogger.LogTransferAsync` (trả về `logId` vừa ghi).
+    - Ghi **dòng con Bước 1** (`StepNbr = 1`): *Tiếp nhận payload* (`ParentId = logId`, đo thời lượng tiếp nhận).
+    - Lưu `ReceiveLogId = logId` vào bản ghi `ShareDataInboundPacket`.
+    - **Trường hợp không tìm thấy đăng ký (`NoSubscription`)**: Bước 1 tiếp nhận vẫn ghi nhận `Success = true`, dòng cha ghi `Success = false` kèm lý do cảnh báo "Chưa cấu hình đăng ký nhận".
+  - **Tiến trình 2: Worker (`DataInboundService.Logging.cs`)**:
+    - Worker quét các gói chưa xử lý từ bảng `ShareDataInboundPacket`, ánh xạ và ghi dữ liệu vào CSDL đích.
+    - Ghi **dòng con Bước 2** (`StepNbr = 2` cố định qua hằng số `stepMapAndStore = 2`, loại bỏ logic `NextStepNbr` truy vấn động): *Ánh xạ & Ghi CSDL*.
+    - Cập nhật kết quả cuối cùng lên dòng cha qua `ShareDataTransferLog.SaveParentLogResult(parentId, ...)` (thành công/thất bại, thời lượng tổng, thông báo lỗi).
+- **Tính tương thích ngược**: Gói tin cũ có `ReceiveLogId == null` vẫn được Worker xử lý bình thường và ghi 1 dòng log phẳng như trước đây, tuyệt đối không ném lỗi.
+- **Chuẩn hóa chữ ký logger**: Bỏ tham số `cancelToken` thừa khỏi `ShareDataActivityLogger.LogTransferAsync` và các hàm log liên quan.
 
 ### SV-11. Tái cấu trúc luồng nhận (Inbound) ✅ *xong 22/09 (PR #51)*
 - Chuẩn hoá cấu trúc thư mục xử lý: Tiếp nhận $\rightarrow$ Parse & Mapping $\rightarrow$ Ghi CSDL (`DataInboundService.Parse.cs`, `DataInboundService.WriteSql.cs`).
@@ -605,7 +640,7 @@ Nhờ commit theo từng trang, khi trang thứ N gửi lỗi thì các trang tr
 - [x] **BE-2** **API đối tác trả đủ Mã + Tên**: `PartnerOutput` cung cấp đầy đủ `code` và `name`.
 - [x] **BE-3** **Danh mục "Trường Meta hệ thống"**: Cung cấp danh mục key meta (`meta.now`, `request_id`, `partner_code`...).
 - [x] **BE-4** **Seed danh mục gói tin 101–111**: Rà soát và cung cấp script `.sql` danh mục gói tin và `shareData_type`.
-- [x] **BE-5** **Log 2 bước cha–con**: ✅ **xong 02/10/2026** — 2 cột `ParentId` + `StepNbr` trên `ShareDataActivityLog` (`StepNbr` là `int?` nên ⛔ không gán `Length`, tránh lỗi SQL 2716), index `index_{table}_ParentId`, API `GetSteps` đọc 2 dòng con theo ID dòng cha.
+- [x] **BE-5** **Log 2 bước cha–con**: ✅ **xong 02/10/2026, chuẩn hóa Option C ngày 04/10/2026** — 2 cột `ParentId` + `StepNbr` trên `ShareDataActivityLog` (`StepNbr` là `int?` nên ⛔ không gán `Length`, tránh lỗi SQL 2716), index `index_{table}_ParentId`, API `GetSteps` đọc 2 dòng con theo ID dòng cha. `ShareDataActivityLogger.LogTransferAsync` trả về ID dòng cha (`long?`) và không nhận `CancellationToken` thừa.
   - 🔴 **Ba truy vấn hiện có đã thêm `.Where(u => u.ParentId == null)`** (`Page`, `GetList`, `Summary`) để dòng con ⛔ không lọt vào lưới và ⛔ không làm sai mọi thẻ số liệu. `GetById` **có chủ đích ⛔ không lọc** — nó phải đọc được cả dòng con.
   - ✅ **Dùng `ToTreeAsync` theo quy ước dự án** (giống `ZonesQueryHandler.cs:55` và `MenuQueryHandler.cs:51`): Entity có `[SugarColumn(IsIgnore = true)] List<ShareDataActivityLog>? Children`, API `GetSteps` trả **cha kèm 2 bước lồng trong `Children`**, `.Adapt<>()` map sau `ToTreeAsync`. ⚠️ Kèm cổng chặn `tree.Count == 0` → trả danh sách phẳng, vì `rootValue: null` chưa có tiền lệ trong repo (2 chỗ kia dùng sentinel `"0"`).
 - [x] **BE-6** **CodeSet: Default Value + Chiều**: Bổ sung `direction` cho cấu hình giá trị bộ mã.

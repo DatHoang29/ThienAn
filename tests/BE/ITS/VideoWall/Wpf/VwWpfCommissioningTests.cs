@@ -22,6 +22,7 @@ using WpfDto = Module.VideoWall.WPF.Api.Dto;
 
 namespace Tests.VideoWall.Wpf;
 
+[Collection("api")]
 public class VwWpfCommissioningTests
 {
     private const string TestPrefix = "TEST_WPF_";

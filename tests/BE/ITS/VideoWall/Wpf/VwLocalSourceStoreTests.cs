@@ -6,6 +6,7 @@ using Module.VideoWall.WPF.Storage;
 
 namespace Tests.VideoWall.Wpf.Storage;
 
+[Collection("api")]
 public sealed class VwLocalSourceStoreTests : IDisposable
 {
     private readonly string _tempDirectory;

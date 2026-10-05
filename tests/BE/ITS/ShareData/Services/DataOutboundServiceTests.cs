@@ -5141,11 +5141,11 @@ END");
         }
 
         /// <summary>
-        /// Description: SV-8: Gửi 1 trang thành công ghi đúng 1 dòng nhật ký độc lập cho Subscription.
+        /// Description: SV-8a: Gửi 1 trang thành công ghi 1 dòng cha kèm 2 dòng con Bước 1 (Trích xuất) và Bước 2 (Ánh xạ & Gửi).
         /// Created date: 02/10/2026
         /// </summary>
         [Fact]
-        public async Task ProcessSubscriptions_ExportOnePage_Success_LogsSingleActivity_Test()
+        public async Task ProcessSubscriptions_ExportOnePage_Success_LogsParentWithTwoStepChildren_Test()
         {
             // Arrange
             using var scope = _host.Services.CreateScope();
@@ -5181,13 +5181,20 @@ END");
                     .OrderBy(l => l.OccurredAt)
                     .ToListAsync();
 
-                Assert.Single(logs);
+                Assert.Equal(3, logs.Count);
 
-                var log = logs[0];
-                Assert.Null(log.ParentId);
-                Assert.Null(log.StepNbr);
-                Assert.Equal(BaseEnums.SuccessEnums.Success, log.Success);
-                Assert.True(log.RecordCount > 0);
+                var parent = logs.Single(l => l.ParentId == null);
+                Assert.Null(parent.StepNbr);
+                Assert.Equal(BaseEnums.SuccessEnums.Success, parent.Success);
+                Assert.True(parent.RecordCount > 0);
+
+                var step1 = logs.Single(l => l.ParentId == parent.ID && l.StepNbr == 1);
+                Assert.Equal(BaseEnums.SuccessEnums.Success, step1.Success);
+                Assert.Equal(parent.RecordCount, step1.RecordCount);
+
+                var step2 = logs.Single(l => l.ParentId == parent.ID && l.StepNbr == 2);
+                Assert.Equal(BaseEnums.SuccessEnums.Success, step2.Success);
+                Assert.Equal(parent.RecordCount, step2.RecordCount);
             }
             finally
             {
@@ -5643,19 +5650,33 @@ END");
                 await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
 
                 // Assert: 250 dòng / trang 100 -> 3 trang -> 3 cây * 3 = 9 logs
-                var logs = await db.Queryable<ShareDataActivityLog>()
+                var allLogs = await db.Queryable<ShareDataActivityLog>()
                     .Where(l => l.SubscriptionId == sub.ID)
                     .OrderBy(l => l.OccurredAt)
                     .ToListAsync();
 
-                Assert.Equal(3, logs.Count);
-                Assert.All(logs, l =>
+                Assert.Equal(9, allLogs.Count);
+
+                var parentLogs = allLogs.Where(l => l.ParentId == null).ToList();
+                Assert.Equal(3, parentLogs.Count);
+                Assert.All(parentLogs, l =>
                 {
-                    Assert.Null(l.ParentId);
                     Assert.Null(l.StepNbr);
                     Assert.Equal(BaseEnums.SuccessEnums.Success, l.Success);
                 });
-                Assert.Equal([100, 100, 50], logs.Select(p => p.RecordCount).ToArray());
+                Assert.Equal([100, 100, 50], parentLogs.Select(p => p.RecordCount).ToArray());
+
+                foreach (var parent in parentLogs)
+                {
+                    var steps = allLogs.Where(l => l.ParentId == parent.ID).OrderBy(l => l.StepNbr).ToList();
+                    Assert.Equal(2, steps.Count);
+                    Assert.Equal(1, steps[0].StepNbr);
+                    Assert.Equal(2, steps[1].StepNbr);
+                    Assert.Equal(BaseEnums.SuccessEnums.Success, steps[0].Success);
+                    Assert.Equal(BaseEnums.SuccessEnums.Success, steps[1].Success);
+                    Assert.Equal(parent.RecordCount, steps[0].RecordCount);
+                    Assert.Equal(parent.RecordCount, steps[1].RecordCount);
+                }
             }
             finally
             {

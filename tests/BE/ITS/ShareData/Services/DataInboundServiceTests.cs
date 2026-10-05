@@ -184,15 +184,22 @@ public class DataInboundServiceTests(Host host)
         Assert.NotNull(savedPacket);
         Assert.Equal(BaseEnums.InboundProcessState.Pending, savedPacket.ProcessState);
 
-        // Kiểm tra dòng nhật ký tiếp nhận do WebAPI ghi
-        var log = await _db.Queryable<ShareDataActivityLog>()
-            .Where(l => l.SubscriptionId == sub.ID && l.TransferDirection == BaseEnums.TransferDirection.RCV)
+        // Kiểm tra dòng nhật ký tiếp nhận do WebAPI ghi (Dòng cha và Dòng con Bước 1)
+        var parentLog = await _db.Queryable<ShareDataActivityLog>()
+            .Where(l => l.SubscriptionId == sub.ID && l.TransferDirection == BaseEnums.TransferDirection.RCV && l.ParentId == null)
             .FirstAsync();
-        Assert.NotNull(log);
-        Assert.Null(log.ParentId);
-        Assert.Null(log.StepNbr);
-        Assert.Equal(BaseEnums.TransferDirection.RCV, log.TransferDirection);
-        Assert.Contains(packet.Code, log.Description ?? "");
+        Assert.NotNull(parentLog);
+        Assert.Null(parentLog.ParentId);
+        Assert.Null(parentLog.StepNbr);
+        Assert.Equal(BaseEnums.TransferDirection.RCV, parentLog.TransferDirection);
+        Assert.Contains(packet.Code, parentLog.Description ?? "");
+
+        var step1Log = await _db.Queryable<ShareDataActivityLog>()
+            .Where(l => l.SubscriptionId == sub.ID && l.TransferDirection == BaseEnums.TransferDirection.RCV && l.ParentId == parentLog.ID)
+            .FirstAsync();
+        Assert.NotNull(step1Log);
+        Assert.Equal(1, step1Log.StepNbr);
+        Assert.Equal(parentLog.ID, step1Log.ParentId);
     }
 
     #endregion

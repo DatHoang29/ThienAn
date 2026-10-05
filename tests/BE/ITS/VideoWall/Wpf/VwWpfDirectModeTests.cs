@@ -23,6 +23,7 @@ using Tests.VideoWall.Mocks;
 
 namespace Tests.VideoWall.Wpf;
 
+[Collection("api")]
 public class VwWpfDirectModeTests
 {
     [Fact]
