@@ -624,7 +624,7 @@ Nhờ commit theo từng trang, khi trang thứ N gửi lỗi thì các trang tr
   - **Tiến trình 2: Worker (`DataInboundService.Logging.cs`)**:
     - Worker quét các gói chưa xử lý từ bảng `ShareDataInboundPacket`, ánh xạ và ghi dữ liệu vào CSDL đích.
     - Ghi **dòng con Bước 2** (`StepNbr = 2` cố định qua hằng số `stepMapAndStore = 2`, loại bỏ logic `NextStepNbr` truy vấn động): *Ánh xạ & Ghi CSDL*.
-    - Cập nhật kết quả cuối cùng lên dòng cha qua `ShareDataTransferLog.SaveParentLogResult(parentId, ...)` (thành công/thất bại, thời lượng tổng, thông báo lỗi).
+    - Cập nhật kết quả cuối cùng lên dòng cha qua `ShareDataTransferLog.WriteActivityAsync(..., logId: packet.ReceiveLogId, isUpdate: true)` (thành công/thất bại, thông báo lỗi).
 - **Tính tương thích ngược**: Gói tin cũ có `ReceiveLogId == null` vẫn được Worker xử lý bình thường và ghi 1 dòng log phẳng như trước đây, tuyệt đối không ném lỗi.
 - **Chuẩn hóa chữ ký logger**: Bỏ tham số `cancelToken` thừa khỏi `ShareDataActivityLogger.LogTransferAsync` và các hàm log liên quan.
 
