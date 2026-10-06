@@ -3,9 +3,9 @@
 > Bản ghi `.md` chuyển thể từ file ghi âm trong [`../../_source/audio/`](../../_source/audio/).
 > Bản gốc audio là Tier C (human-only, không vào git). Transcript ở đây là Tier A.
 
-| Transcript | Audio nguồn | Ngày | Thời lượng | Chủ đề | Tier |
-|---|---|---|---|---|---|
-| [`08-09-2026-hop-ke-hoach-1.md`](08-09-2026-hop-ke-hoach-1.md) | `../../_source/audio/08-09-2026/08-09-2026-hop-ke-hoach-1.m4a` | 08-09-2026 | ~08 phút | Họp kế hoạch dự án (phần 1) — mở đầu | A |
-| [`08-09-2026-hop-ke-hoach-2.md`](08-09-2026-hop-ke-hoach-2.md) | `../../_source/audio/08-09-2026/08-09-2026-hop-ke-hoach-2.m4a` | 08-09-2026 | ~40 phút | Họp kế hoạch dự án (phần 2) — TMC/ITS toàn tuyến: camera CCTV/PTZ/VDS/VMS, EMS SolarWinds, trạm cân, trạm thời tiết, MQTT/Kafka, nghiệm thu ~T11 | A |
+| Transcript | Audio nguồn | Ngày | Thời lượng | Chủ đề | Trạng thái |
+|---|---|---|---|---|:---:|
+| `08-09-2026-hop-ke-hoach-1.md` | `../../_source/audio/08-09-2026/08-09-2026-hop-ke-hoach-1.m4a` | 08-09-2026 | ~08 phút | Họp kế hoạch dự án (phần 1) — mở đầu | ⏳ Chờ transcript |
+| `08-09-2026-hop-ke-hoach-2.md` | `../../_source/audio/08-09-2026/08-09-2026-hop-ke-hoach-2.m4a` | 08-09-2026 | ~40 phút | Họp kế hoạch dự án (phần 2) — TMC/ITS toàn tuyến: camera CCTV/PTZ/VDS/VMS, EMS SolarWinds, trạm cân, trạm thời tiết, MQTT/Kafka, nghiệm thu ~T11 | ⏳ Chờ transcript |
 
-> ⚙️ 2 bản trên do tool ngoài tạo (MacWhisper + tóm tắt GPT), chưa chuẩn hoá theo format `tools/transcribe/`. Chạy lại bằng `python tools/transcribe/transcribe.py Plan` nếu cần bản có mốc thời gian.
+> ⚙️ Audio gốc nằm tại `_source/audio/08-09-2026/`. Chạy chuyển thể bằng Gemini Native Multimodal khi cần bóc tách chi tiết.

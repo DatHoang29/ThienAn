@@ -22,12 +22,11 @@ Thư mục này gồm **2 khu** khác mục đích. Xác định bạn đang là
 
 | Loại | File | Trạng thái |
 |---|---|---|
-| Plan tổng thể (`Plan/`, SỐNG, duy nhất) | [`Vw_MasterPlan.md`](Plan/Vw_MasterPlan.md) | Bức tranh toàn diện + backlog ưu tiên hoá — **đọc trước tiên** |
+| Plan tổng thể (`Plan/`, SỐNG, duy nhất) | [`Vw_MasterPlan.md`](Plan/Vw_MasterPlan.md) | Bức tranh toàn diện, audit chi tiết + backlog ưu tiên hoá — **đọc trước tiên** |
 | Đặc tả UI & Gap analysis (`DacTa/`) | [`VideoWall-DacTa-UI_1.md`](DacTa/VideoWall-DacTa-UI_1.md) | Đặc tả 10 màn hình, chuẩn FE/BE, AC kiểm thử |
-| Review chi tiết (`Plan/`, SỐNG, không xoá) | [`Vw_BE_Review_PostImplementation_2026-09-14.md`](Plan/Vw_BE_Review_PostImplementation_2026-09-14.md) | Đối chiếu từng hạng mục BE đã giao + build/test thật |
 | Prompt đợt trước (`Prompt/`) | `videowall-fe-grid-permission-visualization-prompt.md` | ✅ **Đã thực thi** trên nhánh `dev` (commit `4ee94cc1`) |
 
-Prompt thực thi sau khi hoàn thành sẽ **được giữ lại** trong `Prompt/` để người dùng review và đối chiếu sau khi code change; chỉ xoá khi người dùng trực tiếp yêu cầu theo quy định dự án. Luôn coi `Plan/Vw_MasterPlan_*.md` là nguồn đúng nhất cho backlog còn lại.
+Prompt thực thi sau khi hoàn thành sẽ **được giữ lại** trong `Prompt/` để người dùng review và đối chiếu sau khi code change; chỉ xoá khi người dùng trực tiếp yêu cầu theo quy định dự án. Luôn coi `Plan/Vw_MasterPlan.md` là nguồn đúng nhất cho backlog còn lại.
 
 ---
 
@@ -75,7 +74,7 @@ Prompt thực thi sau khi hoàn thành sẽ **được giữ lại** trong `Prom
 | A | `doc/KichBan/KichBan_VideoWall_DS-C30S-S11_12Man.md` | full | 45 KB | 20 kịch bản test API cho 1 controller DS-C30S-S11 / 12 màn | Kịch bản kiểm thử nội bộ |
 | A | `doc/KichBan/KichBan_VideoWall_DS-C66S_4Controller_32Man.md` | full | ~22 KB | Kịch bản test API cascade DS-C66S / 32 màn (backend ↔ bộ trung tâm; 3 bộ con inventory) | Kịch bản kiểm thử nội bộ |
 | A | `doc/TableSQL/Vw_Tables_Analysis_And_Design.md` | full | 35 KB | Phân tích và thiết kế cấu trúc các bảng CSDL Vw* | Thiết kế kỹ thuật nội bộ |
-| A | `Plan/Vw_MasterPlan.md` | full | ~21 KB | Plan tổng thể và backlog ưu tiên VideoWall (SSOT duy nhất, cập nhật liên tục) | Tổng hợp transcript & code thật nhánh dev |
+| A | `Plan/Vw_MasterPlan.md` | full | ~26 KB | Plan tổng thể và backlog ưu tiên VideoWall (SSOT duy nhất, tích hợp review đợt 1, cập nhật liên tục) | Tổng hợp transcript & code thật nhánh dev |
 | A | `DacTa/VideoWall-DacTa-UI_1.md` | full | 47 KB | Đặc tả UI phân hệ Video Wall (10 màn hình, AC test, Gap analysis) | FE & BE thật |
 | A | `doc/transcript/00-catalog.md` | full | 2 KB | Mục lục toàn bộ bản ghi cuộc họp VideoWall | Biên soạn nội bộ |
 | A | `doc/transcript/09-09-2026-videowall-phan-quyen-va-layout.md` | full | 17 KB | Thảo luận VideoWall: Phân quyền User/Tổ chức, SqlSugar ToTree & layout ma trận | `../Plan/_source/audio/09-09-2026/09-09-2026-videowall-phan-quyen-va-layout.m4a` |

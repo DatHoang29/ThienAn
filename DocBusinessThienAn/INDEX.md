@@ -34,27 +34,27 @@ Phân loại tài liệu theo **chi phí context** (token budget), quy định r
 DocBusinessThienAn/
 ├── INDEX.md                          🤖👤 Entry point cấp cao nhất (file bạn đang đọc)
 ├── llms.txt                          🤖    Bản đồ compact cho AI định tuyến nhanh
+├── QuyDinhChung/                     🤖👤 Quy định chung & biểu mẫu toàn công ty (F10 Git Flow)
+│   ├── README.md                     🤖👤 SSOT quy định chung & Tier Table
+│   └── doc/                          🤖    Tài liệu hướng dẫn, cheatsheet
 └── HữuNghị-ChiLăng/                  🤖👤 Dự án Cao tốc Hữu Nghị – Chi Lăng (GIỮ có dấu)
-    ├── INDEX.md                      🤖👤 Chỉ mục cấp dự án
+    ├── INDEX.md                      🤖👤 Chỉ mục cấp dự án & Meeting Matrix toàn tuyến
+    ├── BaoCaoTuanITS15/              👤    Báo cáo tuần tiến độ dự án ITS15
     │
-    │   ┌─ CẤU TRÚC CHUẨN MỖI PHÂN HỆ (ShareData / VideoWall / WOS / Plan) ─┐
-    │   │  README.md          🤖👤 SSOT module + Tier Table                  │
-    │   │  doc/               🤖   Tier A/B: .md AI đọc                       │
-    │   │    ├─ …             🤖   nghiệp vụ / API / kịch bản / TableSQL…     │
-    │   │    └─ transcript/   🤖   bản ghi họp .md + 00-catalog.md (cửa vào)  │
-    │   │  data/              🤖   Tier B: log đo thực tế (hiện chỉ VideoWall)│
-    │   │  _source/           👤   Tier C: bản gốc, KHÔNG vào git             │
-    │   │    └─ {pdf,xlsx,docx,img,zip,audio}/                               │
+    │   ┌─ CẤU TRÚC CHUẨN MỖI PHÂN HỆ (ShareData / VideoWall / WOS) ────────┐
+    │   │  README.md          🤖👤 SSOT phân hệ + Tier Table                  │
+    │   │  DacTa/             🤖   Tier A: Đặc tả nghiệp vụ, luồng, UI/UX    │
+    │   │  doc/               🤖   Tier A/B: Kỹ thuật, API, kịch bản, SQL     │
+    │   │    └─ transcript/   🤖   Bản ghi họp .md + 00-catalog.md           │
+    │   │  Plan/              🤖   Tier A: DUY NHẤT 1 file MasterPlan sống   │
+    │   │  Prompt/            🤖   Tier A: Prompt thực thi từng bước         │
+    │   │  _source/           👤   Tier C: Bản gốc (pdf, xlsx, audio) [.gitignore] │
     │   └───────────────────────────────────────────────────────────────────┘
     │
-    ├── ShareData/    doc/ (01-yeu-cau, 02-mapping-goi-tin, transcript/)  ·  _source/{xlsx,audio}/
-    ├── VideoWall/    doc/ (ISAPI-Videowall-Controller/ [09-api-reference.md 1.670 KB grep-only],
-    │                       Controller-phan-cung/, KichBan/, TableSQL/, transcript/)  ·  data/logs-api/
-    │                 _source/{pdf,xlsx,img}/
-    ├── WOS/          doc/ (cr1000x-specifications, -getting-started, cr1000x-product-manual/ [334 trang],
-    │                       images/, transcript/)  ·  _source/pdf/
-    └── Plan/         sharedata_plan.md · videowall_plan.md · TH-0908.md
-                      doc/transcript/ (2026-09-08-hop-ke-hoach-{1,2}.md)  ·  _source/audio/
+    ├── ShareData/    README.md · DacTa/ · doc/ (01-yeu-cau, 02-mapping, sql/) · KiemThu/ · Plan/Sharedata_MasterPlan.md · Prompt/ · sql/ · _source/
+    ├── VideoWall/    README.md · DacTa/ · doc/ (ISAPI, Controller, KichBan, TableSQL, transcript/) · Plan/Vw_MasterPlan.md · Prompt/ · _source/
+    ├── WOS/          README.md · Plan/Wos_MasterPlan.md · Prompt/ · doc/ (spec, getting-started, manual [334 trang], bvtktc, nghiem-thu) · _source/
+    └── Plan/         README.md · doc/transcript/ (biên bản họp toàn tuyến) · _source/audio/ (kho ghi âm toàn tuyến [.gitignore])
 ```
 
 ---

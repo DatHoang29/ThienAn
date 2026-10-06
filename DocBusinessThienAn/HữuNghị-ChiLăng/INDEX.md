@@ -27,7 +27,7 @@ Phân loại tài liệu theo **3-Tier Context Budget**:
 | **11-09-2026** | **VideoWall** | **Kiến trúc 3 tầng & Phân quyền Màn hình:**<br>• Tách riêng Background Service giao tiếp ISAPI phần cứng qua NATS để chống blocking WebAPI.<br>• 3 trụ cột: Thiết lập (Config), Điều khiển (Control), Trạng thái (Telemetry).<br>• Phân quyền theo Screen ID: ưu tiên User > Org, mặc định Full quyền. | ~111 phút | 📄 [11-09-2026-videowall-script.md](VideoWall/doc/transcript/11-09-2026-videowall-script.md) | 🎙️ [Audio 11-09](Plan/_source/audio/11-09-2026/) |
 | **09-09-2026** | **ShareData** | **Review luồng truyền nhận & Tự động hóa:**<br>• Luồng gửi/nhận file & API, SQL alias mapping đối tác.<br>• Cơ chế gửi theo giờ (9h sáng hàng ngày), switch tự động gửi khi có data mới.<br>• Socket Wrapper, kiểm tra 291 dòng & fix lỗi Case-Sensitivity. | ~61 phút | 📄 [09-09-2026-review-sharedata.md](ShareData/doc/transcript/09-09-2026-review-sharedata.md) | 🎙️ [Audio 09-09](Plan/_source/audio/09-09-2026/) |
 | **09-09-2026** | **VideoWall** | **Phân quyền Khu vực & Ma trận hiển thị:**<br>• Rào phạm vi thao tác người dùng theo tọa độ ma trận (lưới 8x5).<br>• Dựng cây phân cấp Zone bằng SqlSugar `ToTree()` tối ưu.<br>• Ghép nối Service thật qua NATS, bỏ Mock Data. | 10:37 | 📄 [09-09-2026-videowall-phan-quyen-va-layout.md](VideoWall/doc/transcript/09-09-2026-videowall-phan-quyen-va-layout.md) | 🎙️ [Audio 09-09](Plan/_source/audio/09-09-2026/) |
-| **08-09-2026** | **Plan** (Toàn tuyến) | **Kế hoạch triển khai & Nghiệm thu toàn tuyến:**<br>• Rà soát thiết bị TMC/ITS: Camera CCTV, PTZ, VDS, biển báo VMS.<br>• Hệ thống giám sát EMS SolarWinds, Trạm cân, Trạm thời tiết (WOS).<br>• Kiến trúc hàng đợi MQTT / Kafka, mốc nghiệm thu ~Tháng 11. | ~48 phút | 📄 [08-09-2026-hop-ke-hoach-1.md](Plan/doc/transcript/08-09-2026-hop-ke-hoach-1.md)<br>📄 [08-09-2026-hop-ke-hoach-2.md](Plan/doc/transcript/08-09-2026-hop-ke-hoach-2.md) | 🎙️ [Audio 08-09](Plan/_source/audio/08-09-2026/) |
+| **08-09-2026** | **Plan** (Toàn tuyến) | **Kế hoạch triển khai & Nghiệm thu toàn tuyến:**<br>• Rà soát thiết bị TMC/ITS: Camera CCTV, PTZ, VDS, biển báo VMS.<br>• Hệ thống giám sát EMS SolarWinds, Trạm cân, Trạm thời tiết (WOS).<br>• Kiến trúc hàng đợi MQTT / Kafka, mốc nghiệm thu ~Tháng 11. | ~48 phút | _(chưa có bản transcript .md)_ | 🎙️ [Audio 08-09](Plan/_source/audio/08-09-2026/) |
 | **28-08-2026** | **VideoWall** | **Chuẩn bị mượn & kiểm thử Controller Hikvision:**<br>• Kịch bản mượn thiết bị DS-C66S từ nhà thầu, test API bằng Postman/curl.<br>• Backup cấu hình IP qua Web/API, chuẩn bị nhân sự test 2 ngày. | ~50 phút | _(chưa có bản transcript .md)_ | _(Lưu trữ nội bộ)_ |
 
 ---
@@ -132,36 +132,45 @@ Phân loại tài liệu theo **3-Tier Context Budget**:
 ```
 HữuNghị-ChiLăng/
 ├── INDEX.md                                  🤖👤 File bạn đang đọc (Chỉ mục cấp dự án & Meeting Hub)
+├── BaoCaoTuanITS15/                          👤    Báo cáo tuần tiến độ dự án ITS15
 ├── ShareData/                                🤖👤 Phân hệ Chia sẻ Dữ liệu (ESHARE)
 │   ├── README.md                             🤖👤 SSOT phân hệ ShareData (kèm Tier Table)
-│   ├── doc/                                  🤖    Tier A: 01-yeu-cau-nghiep-vu, 02-mapping
-│   │   └── transcript/                       🤖    Tier A: 09-09-2026-review, 11-09-2026-sharedata-script, 16-09, 19-09, 21-09
-│   ├── Plan/                                 🤖    Tier A: Tài liệu SỐNG riêng của ShareData, không Auto-Cleanup (Sd_MasterPlan, sharedata-outbound-kiem-tra-anh-xa-va-dinh-dang.md)
-│   ├── Prompt/                               🤖    Tier A: Prompt dùng-1-lần riêng của ShareData — `sharedata-outbound-gui-noi-duoi-prompt.md` và `sharedata-event-gui-khi-co-du-lieu-moi-prompt.md` (đã hoàn tất bằng CT + NATS)
-│   └── _source/                              👤    Tier C: Bản gốc đối chiếu (xlsx/)
+│   ├── DacTa/                                🤖    Tier A: Đặc tả nghiệp vụ, luồng gửi, câu hỏi PM
+│   ├── doc/                                  🤖    Tier A: 01-yeu-cau-nghiep-vu, 02-mapping, sql/
+│   │   └── transcript/                       🤖    Tier A: 09-09, 11-09-sharedata-script, 16-09, 19-09, 21-09
+│   ├── KiemThu/                              🤖    Tier A: Nhật ký lỗi F16 & ảnh minh họa
+│   ├── Plan/                                 🤖    Tier A: DUY NHẤT 1 file Sharedata_MasterPlan.md (SSOT sống)
+│   ├── Prompt/                               🤖    Tier A: Prompt dùng-1-lần riêng của ShareData (sharedata-*-prompt.md)
+│   ├── sql/                                  👤    Script migration/seed cho DBA (idempotent)
+│   └── _source/                              👤    Tier C: Bản gốc đối chiếu (xlsx, html) — [.gitignore]
 ├── VideoWall/                                🤖👤 Phân hệ Video Wall
 │   ├── README.md                             🤖👤 SSOT phân hệ Video Wall (kèm Tier Table + mục "Prompt & Tiến độ")
-│   ├── doc/                                  🤖    Tier A + B: Tài liệu kỹ thuật, API, kịch bản
+│   ├── DacTa/                                🤖    Tier A: Đặc tả UI/UX màn hình VideoWall
+│   ├── doc/                                  🤖    Tier A + B: Tài liệu kỹ thuật, API, kịch bản, TableSQL
 │   │   ├── ISAPI-Videowall-Controller/       🤖    Tier A + B (09-api-reference.md: 1.670 KB grep-only)
 │   │   ├── Controller-phan-cung/              🤖    Tier A (tài liệu phần cứng + images/)
 │   │   ├── KichBan/                          🤖    Tier A (kịch bản 1 controller / 4 controller)
 │   │   ├── TableSQL/                         🤖    Tier A (thiết kế CSDL Vw* + audit write-path)
-│   │   └── transcript/                       🤖    Tier A: 09-09-2026, 11-09-2026-videowall-script (họp 28/08 chưa có bản .md)
-│   ├── Plan/                                 🤖    Tier A: Tài liệu SỐNG riêng của VideoWall — Vw_MasterPlan.md (SSOT duy nhất), Vw_BE_Review_*.md (không Auto-Cleanup)
-│   ├── Prompt/                               🤖    Tier A: Prompt dùng-1-lần riêng của VideoWall — videowall-*-prompt.md (tự xoá khi thực thi xong)
-│   ├── data/                                 🤖    Tier B: Log đo thực tế trên thiết bị (logs-api/)
-│   └── _source/                              👤    Tier C: Bản gốc đối chiếu (pdf/, xlsx/, img/, audio/)
+│   │   └── transcript/                       🤖    Tier A: 09-09-2026, 11-09-2026-videowall-script
+│   ├── Plan/                                 🤖    Tier A: DUY NHẤT 1 file Vw_MasterPlan.md (SSOT duy nhất, không Auto-Cleanup)
+│   ├── Prompt/                               🤖    Tier A: Prompt dùng-1-lần riêng của VideoWall (videowall-*-prompt.md)
+│   └── _source/                              👤    Tier C: Bản gốc đối chiếu (pdf/, xlsx/, img/) — [.gitignore]
 ├── WOS/                                      🤖👤 Phân hệ Trạm Thời tiết & Khí tượng (Campbell CR1000X)
 │   ├── README.md                             🤖👤 SSOT phân hệ WOS (kèm Tier Table & hướng dẫn tích hợp)
-│   ├── doc/                                  🤖    Tier A + B: Toàn bộ .md kỹ thuật, cấu hình, cẩm nang
+│   ├── Plan/                                 🤖    Tier A: DUY NHẤT 1 file Wos_MasterPlan.md (SSOT sống)
+│   ├── Prompt/                               🤖    Tier A: Prompt thực thi từng bước (wos-*-prompt.md)
+│   ├── doc/                                  🤖    Tier A + B: Toàn bộ .md kỹ thuật, cấu hình, cẩm nang, bản vẽ
 │   │   ├── cr1000x-specifications.md         🤖    Tier A: Thông số kỹ thuật chi tiết
 │   │   ├── cr1000x-getting-started-guide.md  🤖    Tier A: Hướng dẫn khởi động nhanh
 │   │   ├── cr1000x-product-manual/           🤖    Tier A + B: Cẩm nang 334 trang (00-catalog, 01–11, full)
+│   │   ├── bvtktc-wos.md                     🤖    Tier A: Bản vẽ thiết kế thi công
+│   │   ├── ho-so-nghiem-thu-wos.md           🤖    Tier A: Hồ sơ nghiệm thu vật tư
 │   │   └── images/                           🤖    Sơ đồ đấu nối, ảnh chụp thiết bị
-│   └── _source/                              👤    Tier C: Bản gốc đối chiếu (pdf/)
-└── Plan/                                     🤖👤 CHỈ kế hoạch/biên bản họp XUYÊN phân hệ (≥ 2 phân hệ) — plan riêng từng phân hệ nằm trong <PhânHệ>/Plan/ ở trên
+│   └── _source/                              👤    Tier C: Bản gốc đối chiếu (pdf/, xlsx/, audio/) — [.gitignore]
+└── Plan/                                     🤖👤 Kế hoạch/biên bản họp XUYÊN phân hệ (toàn tuyến, liên quan ≥ 2 phân hệ)
+    ├── README.md                             🤖👤 SSOT danh mục họp toàn tuyến & kho ghi âm
     ├── doc/transcript/                       🤖    Tier A: Bản ghi họp toàn tuyến .md (08-09-2026-hop-ke-hoach-{1,2}.md)
-    └── _source/audio/                        👤    Tier C: Ghi âm gốc (08-09-2026, 09-09-2026, 11-09-2026, 16-09-2026, 19-09-2026, 21-09-2026)
+    └── _source/audio/                        👤    Tier C: Ghi âm gốc (08-09, 09-09, 11-09, 16-09, 19-09, 21-09) — [.gitignore]
 ```
 
 ---
@@ -216,7 +225,7 @@ Toàn bộ nằm trong `_source/` và `images/`. **AI không tự ý nạp các 
 ## Quy tắc khi thêm tài liệu mới
 
 1. Có file gốc PDF/XLSX/DOCX → **luôn tạo bản `.md`** đặt trong `doc/` cùng phân hệ; file gốc bỏ vào `_source/{pdf,xlsx,docx,img,zip}/` cùng phân hệ.
-1b. **Plan (kế hoạch triển khai do AI soạn) là ngoại lệ của quy tắc trên**: chỉ tạo **đúng 1 file** `.md` trong `Plan/` ở gốc (`Plan/<tên-mô-tả>.md`), dù plan đó thuộc riêng 1 phân hệ (ShareData/VideoWall/...). KHÔNG rải bản sao vào `doc/` của phân hệ, KHÔNG cập nhật Tier Table/README/INDEX cho từng plan — rule #6 dưới đây không áp dụng cho Plan.
+1b. **Plan (Kế hoạch MasterPlan) & Prompt (Rule 13 & 19.52)**: Mỗi phân hệ có thư mục `Plan/` riêng chứa **DUY NHẤT 1 file MasterPlan** (`<PhânHệ>_MasterPlan.md`), là tài liệu sống tích hợp toàn bộ kế hoạch và review, cấm tạo file đính kèm ngày tháng. Thư mục `Prompt/` lưu các file prompt thực thi từng bước (giữ lại để review, không tự động xóa). Cấp dự án `Plan/` chỉ quản lý kế hoạch và biên bản họp xuyên phân hệ (toàn tuyến).
 2. File `.md` chuyển thể bắt buộc có **Frontmatter Provenance** (`tier`, `read`, `source`, `source_pages`, `extracted`).
 3. Ảnh trích ra để trong `images/` **cạnh file `.md`** dùng nó, link tương đối (`images/xxx.png`).
 4. Đặt tên file không dấu, dùng kebab-case; đánh số tiền tố (`01-`, `02-`) khi tài liệu có thứ tự đọc.

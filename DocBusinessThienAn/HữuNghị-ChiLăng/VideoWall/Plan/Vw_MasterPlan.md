@@ -1,14 +1,14 @@
 # MasterPlan Phân Hệ VideoWall (Tường Màn Hình)
 
 > 🔴 **SINGLE SOURCE OF TRUTH (SSOT) — TÀI LIỆU SỐNG DUY NHẤT CHO VIDEOWALL.**
-> ⚠️ **KHÔNG XOÁ theo quy ước Auto-Cleanup.** Theo quy định dự án (Mục 13 & Mục 19.51 của `thienan_rules.md`), mỗi phân hệ **CHỈ CÓ DUY NHẤT 1 FILE MASTERPLAN NÀY**.
-> Mọi cập nhật kiến trúc, tiến độ triển khai trên nhánh `dev`, và backlog phát sinh BẮT BUỘC phải được cập nhật trực tiếp vào file này (kèm ghi nhận tại bảng *Lịch sử cập nhật* bên dưới). Tuyệt đối **KHÔNG tạo thêm file MasterPlan mới đính kèm ngày tháng** làm phân mảnh tài liệu.
+> ⚠️ **KHÔNG XOÁ theo quy ước Auto-Cleanup.** Theo quy định dự án (Mục 13 & Mục 19.52 của `thienan_rules.md`), mỗi phân hệ **CHỈ CÓ DUY NHẤT 1 FILE MASTERPLAN NÀY**.
+> Mọi cập nhật kiến trúc, kết quả review/audit sau triển khai, tiến độ trên nhánh `dev`, và backlog phát sinh BẮT BUỘC phải được cập nhật trực tiếp vào file này (kèm ghi nhận tại bảng *Lịch sử cập nhật* bên dưới). Tuyệt đối **KHÔNG tạo thêm file MasterPlan hay file Review riêng lẻ đính kèm ngày tháng** làm phân mảnh tài liệu.
 >
 > 📖 **Tài liệu tham chiếu:**
 > - Đặc tả UI & Test checklist: [`../DacTa/VideoWall-DacTa-UI_1.md`](../DacTa/VideoWall-DacTa-UI_1.md)
-> - Review sau triển khai đợt 1 (BE): [`Vw_BE_Review_PostImplementation_2026-09-14.md`](Vw_BE_Review_PostImplementation_2026-09-14.md)
 > - Kiến trúc phần cứng Cascade: [`../doc/KienTruc_VideoWall_DS-C66S-Cascade.md`](../doc/KienTruc_VideoWall_DS-C66S-Cascade.md)
 > - Bảng CSDL & Audit Write Path: [`../doc/TableSQL/Vw_Tables_Analysis_And_Design.md`](../doc/TableSQL/Vw_Tables_Analysis_And_Design.md)
+> - Kịch bản test API Cascade 32 màn: [`../doc/KichBan/KichBan_VideoWall_DS-C66S_4Controller_32Man.md`](../doc/KichBan/KichBan_VideoWall_DS-C66S_4Controller_32Man.md)
 
 ---
 
@@ -19,6 +19,7 @@
 | **v1.0** | 16-09-2026 | Antigravity AI / Team | Khởi tạo MasterPlan tổng thể sau khi đối chiếu 2 transcript họp gốc (09-09 & 11-09) và review code BE đợt 1 (commit `01f724d3`). Chốt kiến trúc 3 tầng qua NATS, cascade DS-C66S, phân quyền ma trận toạ độ. |
 | **v1.1** | 30-09-2026 | Antigravity AI / Team | Ghi nhận hoàn tất đợt refactor bộ test VideoWall: mirror thư mục `WebApi/`, `Worker/`, `Wpf/`, chuẩn hóa mock server 14 partials, dọn cleanup trong test theo `thienan_rules.md`. |
 | **v2.0** | 06-10-2026 | Antigravity AI / Team | **Nâng cấp toàn diện & Gom về 1 file SSOT duy nhất**: Đối chiếu toàn bộ commit đã merge vào `dev` (PR #63 BE & PR #86 FE - phân quyền VideoWall, worker service, Canvas rào quyền). Tích hợp đối chiếu với Đặc tả UI mới (`VideoWall-DacTa-UI_1.md`), phân tích 10 màn hình, rà soát lỗi runtime NATS trên Monitor, thiếu worker scheduler, và tổng hợp danh sách Gaps L-01 $\rightarrow$ L-16 thành Action Plan 3 giai đoạn. |
+| **v2.1** | 06-10-2026 | Antigravity AI / Team | **Hợp nhất hoàn chỉnh báo cáo Review Backend 14-09-2026 vào MasterPlan**: Tích hợp toàn bộ nội dung audit 9 hạng mục prompt, đối chiếu kiến trúc DS-C66S, log đo kiểm thực tế và giải quyết dứt điểm các file review rời rạc. Thư mục `Plan/` đạt trạng thái 100% duy nhất 1 tệp SSOT. |
 
 ---
 
@@ -142,7 +143,43 @@ Căn cứ theo đối chiếu giữa mã nguồn `TA-ITS015-WEBVUE-V1.0/src/src/
 
 ---
 
-## 6. Danh Sách Tồn Đọng, Lỗi Runtime & Khoảng Trống (Gaps L-01 $\rightarrow$ L-16)
+## 6. Review & Audit Chi Tiết Đợt Triển Khai Backend (Hợp Nhất Từ Review 14-09-2026)
+
+> 📌 Phần này lưu trữ nguyên vẹn các kết quả đối chiếu kỹ thuật chuyên sâu từ đợt triển khai lớn ban đầu (commit `01f724d3` và 2 prompt bổ sung) để phục vụ tra cứu lịch sử và kiểm chứng mã nguồn mà không cần duy trì file review riêng lẻ.
+
+### 6.1. Kết Quả Đối Chiếu 9 Hạng Mục Prompt Đã Giao
+
+| # | Hạng mục | Trạng thái | Bằng chứng mã nguồn thực tế |
+|---|---|---|---|
+| 1 | `LoadController` chặn gọi ISAPI vào `Role=="sub"` | ✅ **Đúng** | `VwISAPIDeviceService.DeviceSetup.cs:1125-1126` — throw ngoại lệ rõ ràng, là chokepoint dùng chung cho Ping/Probe/SyncSources/SyncActiveScene/SetupScene/Passthrough. |
+| 2 | `SyncActiveSceneCore` sửa bug deactivate chéo controller | ✅ **Đúng** | Dùng đúng pattern HashSet `activeSceneIds` theo từng controller trước khi deactivate, khớp 100% với pattern gốc ở `VwCommandConsumer.HandleActivateSceneAsync:262-294`. |
+| 3 | `VwEventTriggerLog` giữ tên cột `TargetSceneId` | ✅ **Đúng** | Entity (dòng 38) + 4 call site (2 Writer, QueryHandler, comment PermissionService) đều nhất quán. |
+| 4 | Đổi tên CircuitBreaker → DeviceAuthFailure | ✅ **Đúng** | Đủ 14/14 file (cache key + class + method), 0 chỗ còn sót chuỗi "circuitbreaker" trong code nguồn. |
+| 5 | Thêm `VwController.ParentControllerId` (multi-wall) | ✅ **Đúng** | Entity (dòng 208-215) + Validator (dòng 127-150) đủ 2 chiều: center bắt buộc rỗng, sub bắt buộc trỏ tới 1 center tồn tại. |
+| 6 | Chuyển DTO ISAPI ra khỏi `Module.VideoWall.Core` | ✅ **Đúng** | Project mới `ITS.VideoWall.Core` (tầng Worker) chứa toàn bộ DTO ISAPI, tham chiếu MỘT CHIỀU vào `Module.VideoWall.Core` — đúng hướng phụ thuộc. |
+| 7 | Sửa comment cũ nhắc `DeviceIntegration.json` | ⏭️ **N/A** | Chuỗi này không tồn tại trong code hiện tại (chỉ có ở nhánh phụ bị bỏ `feat/20260819/videowall_device`). |
+| 8 | Gom/bỏ test trùng lặp (theory/InlineData) | ✅ **Đúng** | Đã thực thi qua prompt riêng, giảm từ 432 → 382 test case, PASS 100%. |
+| 9 | Bỏ reference `Shared.*` dư thừa khỏi `Module.VideoWall.Core.csproj` | ❌ **Chưa làm** | File `.csproj` còn giữ `Shared.DTO`/`Shared.Reference`/`Shared.Utility` + 3 HintPath DLL cũ (chuyển vào GAP-08). |
+
+### 6.2. Đối Chiếu Kiến Trúc Phần Cứng Cascade DS-C66S
+- **Bất biến trung tâm/con:** 1 bộ điều khiển TRUNG TÂM nói ISAPI, 3 bộ CON không có traffic ISAPI (chỉ nối vật lý qua HDMI + GENLOCK). Không tồn tại khái niệm master/slave trong giao thức ISAPI Hikvision DS-C66S.
+- **Không còn lệch luồng:** `SyncActiveSceneCore` và `HandleActivateSceneAsync` cùng dùng cấu trúc HashSet `activeSceneIds` theo từng controller trước khi deactivate scene cũ.
+- **Phân cấp tối đa 2 tầng:** `VwController.ParentControllerId` ép cứng: center luôn rỗng, sub bắt buộc trỏ tới center, không có tầng 3.
+- **Trạng thái màn hình:** `VwScreen.ScreenState` là kiểu `string?` (`Online`/`Offline`/`Warning` hằng số theo `BaseEnums.ScreenState`).
+- **Khoảng trống:** `VwControllerValidator.cs` chưa có rule chặn tạo 2 controller cùng `Role=="center"` (chuyển vào GAP-07).
+
+### 6.3. Tiến Trình Thực Thi 2 Prompt Bổ Sung (14/09 & 16/09/2026)
+1. **Prompt 1 — Chuẩn hóa NATS Subject:**
+   - FE đã hoàn tất đổi subject sang `ta.its.data.videowall` tại `Nats.subjects.json:44` và `transporterEvent.ts:43`.
+   - `transporterNats.ts` đã phân nhánh switch `EventType`: `SceneActivated`, `HardwareOutOfSync`, `DeviceHeartbeat`, `DeviceProbeCompleted`.
+   - Comment rác `VwSceneController.cs:112` còn sót lại đã được ghi nhận vào GAP-02.
+2. **Prompt 2 — Rà soát & Tối ưu hóa Bộ Kiểm Thử:**
+   - Đã gộp và xóa các InlineData trùng lặp tại 8 test class (`VwControllerTests`, `VwEventRuleTests`, `VwSceneTests`, `VwScheduleTests`, `VwScreenTests`, `VwSlotPortTests`, `VwSourceTests`, `VwWindowSceneTests`).
+   - Đưa bộ test về 382 test case chạy xanh 100% trước khi thực hiện tiếp đợt refactor cấu trúc thư mục ngày 30/09/2026.
+
+---
+
+## 7. Danh Sách Tồn Đọng, Lỗi Runtime & Khoảng Trống (Gaps L-01 $\rightarrow$ L-16)
 
 | Mã Gap | Mô tả chi tiết | Tầng bị ảnh hưởng | Mức độ ưu tiên |
 |---|---|---|---|
@@ -157,7 +194,7 @@ Căn cứ theo đối chiếu giữa mã nguồn `TA-ITS015-WEBVUE-V1.0/src/src/
 
 ---
 
-## 7. Backlog & Kế Hoạch Triển Khai (Action Plan)
+## 8. Backlog & Kế Hoạch Triển Khai (Action Plan)
 
 ### Giai đoạn 1: Sửa Lỗi Vận Hành & Khắc Phục Điểm Nghẽn (P0 / P1)
 1. **[P0] Điều tra và khắc phục lỗi đồng bộ Real-time trên Monitor (`GAP-01`):**
@@ -187,11 +224,12 @@ Căn cứ theo đối chiếu giữa mã nguồn `TA-ITS015-WEBVUE-V1.0/src/src/
 
 ---
 
-## 8. Danh Mục Tài Liệu Liên Quan
+## 9. Danh Mục Tài Liệu Liên Quan
 
 - **Kiến trúc thiết bị:** [`../doc/KienTruc_VideoWall_DS-C66S-Cascade.md`](../doc/KienTruc_VideoWall_DS-C66S-Cascade.md)
 - **Đặc tả UI & Kiểm thử:** [`../DacTa/VideoWall-DacTa-UI_1.md`](../DacTa/VideoWall-DacTa-UI_1.md)
-- **Review sau triển khai:** [`Vw_BE_Review_PostImplementation_2026-09-14.md`](Vw_BE_Review_PostImplementation_2026-09-14.md)
+- **Kịch bản test API 1 controller / 12 màn:** [`../doc/KichBan/KichBan_VideoWall_DS-C30S-S11_12Man.md`](../doc/KichBan/KichBan_VideoWall_DS-C30S-S11_12Man.md)
+- **Kịch bản test API cascade / 32 màn:** [`../doc/KichBan/KichBan_VideoWall_DS-C66S_4Controller_32Man.md`](../doc/KichBan/KichBan_VideoWall_DS-C66S_4Controller_32Man.md)
 - **Transcript cuộc họp:**
   - [`../doc/transcript/09-09-2026-videowall-phan-quyen-va-layout.md`](../doc/transcript/09-09-2026-videowall-phan-quyen-va-layout.md)
   - [`../doc/transcript/11-09-2026-videowall-script.md`](../doc/transcript/11-09-2026-videowall-script.md)
