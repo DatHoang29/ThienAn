@@ -1753,6 +1753,45 @@ Mọi nội dung phản hồi của Dev tại cột **Ghi chú** bắt buộc tu
 
 ---
 
+## 📄 22. Quy Chuẩn Soạn Thảo Tài Liệu Đặc Tả Nghiệp Vụ & Kỹ Thuật (Specification Documentation Standards [Mandatory])
+
+> 📌 **Mục đích:** Đảm bảo toàn bộ tài liệu đặc tả (luồng gửi/nhận, chức năng hệ thống, tích hợp phân hệ) được trình bày chuẩn hóa, tập trung đúng vào nghiệp vụ mà **BA, QC/Tester, PM và đối tác** có thể đọc hiểu, kiểm chứng và trực tiếp nghiệm thu trên hệ thống thực tế.
+
+### 22.1. Đối Tượng Độc Giả & Phạm Vi Thông Tin (Audience & Verifiable Scope)
+- **Viết cho BA, QC và PM**: Tập trung vào luồng dữ liệu, điều kiện tiên quyết, nghiệp vụ xử lý và kết quả kiểm thử.
+- **CẤM đưa link file cục bộ máy cá nhân**: Tuyệt đối KHÔNG chèn link file máy cá nhân (`file:///C:/...`), không trỏ tới các file kế hoạch/ghi chú phát triển riêng của dev (như `MasterPlan.md`, `Plan.md`, `TargetShapeJson.md`...) vì máy của BA/QC/PM không có những file này.
+- **Chỉ cung cấp thông tin có thể tra cứu được**: Mọi thông tin trong tài liệu phải là thông tin người đọc có thể kiểm chứng được trên hệ thống thực tế (Địa chỉ máy chủ DB, tên bảng CSDL, endpoint HTTP, giao thức mạng, màn hình giao diện UI...).
+
+### 22.2. Khảo Sát & Báo Cáo Hiện Trạng Dữ Liệu Thực Tế (Data Reality Check)
+- **Bắt buộc kiểm tra CSDL thực tế**: Trước khi viết đặc tả về các gói tin/luồng dữ liệu, AI/Dev BẮT BUỘC dùng công cụ MCP Database (trên Staging/Dev) để truy vấn khảo sát thực tế dữ liệu của các bảng nguồn.
+- **Quy cách ghi chú hiện trạng dữ liệu**:
+  - Gói/chức năng nào **đã có data thực tế**: Chỉ liệt kê bảng dữ liệu, giữ nguyên sạch sẽ, không ghi chú rườm rà.
+  - Gói/chức năng nào **chưa có data hoặc lỗi cấu hình**: Ghi chú ngắn gọn ngay sau tên gói/bảng (dùng từ khóa `data`, KHÔNG dùng `data test` rườm rà).
+  - *Ví dụ chuẩn:*
+    - `Gói 101 (Giao thông chung): TmsZoneStatus, TmsZone, TmsTrafficStatistic`
+    - `Gói 102 (Camera CCTV): CctvDevice, TmsEquipment *(Hiện tại gói này không có data: Bảng CctvDevice chỉ có 1 camera mẫu, không có hình ảnh snapshot thực tế)*`
+    - `Gói 105 (Nhận dạng xe RFID): TollTransactionOut, TmsVehicleRegistration *(Hiện tại gói này không có data: Bảng nguồn có dữ liệu nhưng cấu hình danh mục trường đang bị lệch ID)*`
+
+### 22.3. Bám Sát Codebase & Loại Bỏ Thành Phần Ảo (Codebase & DB Fidelity)
+- **Đúng bản chất kỹ thuật hiện có**: Nếu codebase đang xử lý bằng giao thức HTTP thông thường thì ghi chuẩn "giao thức HTTP POST", KHÔNG dùng các thuật ngữ buzzwords gây hiểu nhầm (như Webhook, Gateway) hoặc lộ endpoint/route nội bộ không cần thiết (`/api/.../Receive`).
+- **Loại bỏ CSDL / Thành phần không tham gia luồng**: Nếu luồng không sử dụng CSDL phụ (ví dụ CSDL Log riêng) thì tuyệt đối không đưa vào sơ đồ kiến trúc. Chỉ liệt kê các CSDL thực tế đang hoạt động.
+- **Loại bỏ dữ liệu rác / dữ liệu đã xóa mềm**: Không đưa các gói tin hoặc bản ghi đã bị soft-deleted hoặc không dùng (ví dụ: `111_testData`) vào tài liệu chính thức.
+
+### 22.4. Cấu Trúc Khung Chuẩn Của Luồng Nghiệp Vụ (4-Stage Flow Template)
+Mỗi luồng nghiệp vụ (Gửi, Nhận, Đồng bộ...) BẮT BUỘC trình bày mạch lạc theo cấu trúc 4 mục:
+1. **Điều kiện tiên quyết (Prerequisites)**: Các điều kiện về trạng thái đối tác, trạng thái đăng ký, hồ sơ ánh xạ (phải bật "Đang dùng") và điều kiện kích hoạt (theo lịch / theo sự kiện).
+2. **Đầu vào (Inputs)**: Bảng tóm tắt các thành phần đầu vào (dữ liệu nguồn CSDL, mốc nối đuôi `LastSend`, Headers định danh, Body JSON...).
+3. **Quá trình xử lý (Processing & Business Logic)**: Chia thành các bước rõ ràng (Chặng 1: Trích xuất $\rightarrow$ Chặng 2: Ánh xạ & Quy đổi mã $\rightarrow$ Chặng 3: Giao vận). Bắt buộc nêu rõ các chốt chặn an toàn (Stop conditions / Mã cảnh báo lỗi ESH).
+4. **Đầu ra (Results / Outputs)**: Bảng tóm tắt kết quả kỳ vọng (CSDL đích, trạng thái bản ghi, mốc LastSend, nhật ký truyền nhận, cảnh báo lỗi khi thất bại).
+5. **Tiêu chí Nghiệm thu (Acceptance Criteria - AC)**: Bắt buộc có bảng ma trận kiểm thử chi tiết gồm: Mã tiêu chí (`AC-OUT-xx`, `AC-IN-xx`), Điều kiện kiểm thử và Kết quả kỳ vọng.
+
+### 22.5. Trực Quan Hóa Bằng Mermaid Flowchart Dọc & Chuẩn Markdown
+- **Sơ đồ Mermaid dạng đứng (`flowchart TD`)**: Luôn sử dụng hướng Top-Down (`TD`) cho các sơ đồ luồng quy trình để hiển thị trực quan, không bị tràn ngang hay khuất số/chữ trên màn hình.
+- **Lược bỏ lý thuyết hàn lâm thừa thãi**: Không thêm bảng định nghĩa thuật ngữ hiển nhiên, không nhồi nhét lý thuyết log cha-con phức tạp hoặc payload mẫu quá dài nếu không phục vụ trực tiếp luồng kiểm thử của QC/BA.
+- **Tính nhất quán Mục lục (TOC)**: Mục lục và các heading thân bài phải khớp 100% về số thứ tự (1, 2, 3...), câu chữ và anchor link (`#anchor-name`), tuyệt đối không để nhảy số hay sót mục.
+
+---
+
 ## 📎 Ghi chú mở — cần xác minh / còn trùng lặp
 
 - **`GlobalUsings.cs` tối thiểu (mục 5.5)**: liệt kê gồm `Shared.Core.Domain` và `System.Linq.Dynamic.Core`, nhưng `src/Modules/VideoWall/Module.VideoWall/GlobalUsings.cs` **không có** 2 dòng này, lại có `Furion.ConfigurableOptions`, `Furion.DynamicApiController`, `Newtonsoft.Json`, `Microsoft.Extensions.Options`, `System.ComponentModel.DataAnnotations`. Cần rà thêm các module khác (WP, TMS, ShareData) rồi chốt lại danh sách tối thiểu cho đúng.
