@@ -2098,6 +2098,108 @@ END");
             Assert.Equal(lastTimeRunAfterTrigger, subAfterSweep.LastTimeRun);
         }
 
+        /// <summary>
+        /// Description: Kiểm thử làm rõ nghi vấn logic NATS vs Periodic Worker:
+        ///              1) Khi có trigger NATS cho gói tin khác hoặc trigger gói 102 nhưng gói 102 có SendOnNewData = false:
+        ///                 Worker TUYỆT ĐỐI KHÔNG xuất bản gói 102.
+        ///              2) Chỉ khi đến hạn chu kỳ định kỳ (NextTimeRun <= now), Worker định kỳ mới xuất bản gói 102
+        ///                 bất kể cờ SendOnNewData là true hay false.
+        /// Created date: 06/10/2026
+        /// </summary>
+        [Fact]
+        public async Task TriggerFlow_WhenSendOnNewDataIsFalse_NeverExportsOnTrigger_AndScheduledFlowExportsWhenDue_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "102");
+
+            var unique101 = Guid.NewGuid().ToString("N")[..8];
+            var unique102 = Guid.NewGuid().ToString("N")[..8];
+            await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.TrafficFlow, unique101);
+            await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.CctvImage, unique102);
+
+            var now = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
+
+            // Gói 101: Bật SendOnNewData = true, lịch định kỳ chưa tới hạn (+5 phút)
+            var (partner101, sub101) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_101_{unique101}",
+                SubCode = $"SUB_101_{unique101}",
+                DatatypeId = "101",
+                ConfigureSub = s =>
+                {
+                    s.SendOnNewData = true;
+                    s.IntervalSeconds = 30;
+                    s.NextTimeRun = now.AddMinutes(5);
+                }
+            });
+
+            // Gói 102 (Sub A): SendOnNewData = false, lịch định kỳ chưa tới hạn (+5 phút)
+            var (partner102F, sub102Future) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_102F_{unique102}",
+                SubCode = $"SUB_102F_{unique102}",
+                DatatypeId = "102",
+                ConfigureSub = s =>
+                {
+                    s.SendOnNewData = false;
+                    s.IntervalSeconds = 30;
+                    s.NextTimeRun = now.AddMinutes(5);
+                }
+            });
+
+            // Gói 102 (Sub B): SendOnNewData = false, nhưng lịch định kỳ ĐÃ TỚI HẠN (<= now)
+            var (partner102D, sub102Due) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_102D_{unique102}",
+                SubCode = $"SUB_102D_{unique102}",
+                DatatypeId = "102",
+                ConfigureSub = s =>
+                {
+                    s.SendOnNewData = false;
+                    s.IntervalSeconds = 30;
+                    s.NextTimeRun = now.AddSeconds(-10);
+                }
+            });
+
+            var worker = CreateWorker(scope);
+
+            // Act 1: Nhận trigger NATS cho gói 102 (bị chặn bởi SendOnNewData == false)
+            await worker.ProcessSubscriptions("102", CancellationToken.None);
+
+            // Assert 1: Không có bất kỳ log nào cho gói 102 được tạo ra từ trigger
+            var logs102FutureAfterTrigger102 = await GetLogs(db, sub102Future.ID);
+            var logs102DueAfterTrigger102 = await GetLogs(db, sub102Due.ID);
+            Assert.Empty(logs102FutureAfterTrigger102);
+            Assert.Empty(logs102DueAfterTrigger102);
+
+            // Act 2: Nhận trigger NATS cho gói 101 (được xử lý ngay do SendOnNewData == true)
+            await worker.ProcessSubscriptions("101", CancellationToken.None);
+
+            // Assert 2: Gói 101 gửi thành công, gói 102 vẫn hoàn toàn không bị động tới
+            var logs101AfterTrigger101 = await GetLogs(db, sub101.ID);
+            Assert.NotEmpty(logs101AfterTrigger101);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, logs101AfterTrigger101[0].Success);
+
+            var logs102FutureAfterTrigger101 = await GetLogs(db, sub102Future.ID);
+            Assert.Empty(logs102FutureAfterTrigger101);
+
+            // Act 3: Luồng định kỳ (Periodic Worker) quét tự động
+            await worker.ProcessSubscriptions(CancellationToken.None);
+
+            // Assert 3: Gói 102 đã đến hạn định kỳ ĐƯỢC XUẤT BẢN THÀNH CÔNG bởi luồng định kỳ
+            var logs102DueAfterScheduled = await GetLogs(db, sub102Due.ID);
+            Assert.NotEmpty(logs102DueAfterScheduled);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, logs102DueAfterScheduled[0].Success);
+
+            // Gói 102 chưa đến hạn định kỳ vẫn không xuất bản
+            var logs102FutureAfterScheduled = await GetLogs(db, sub102Future.ID);
+            Assert.Empty(logs102FutureAfterScheduled);
+        }
+
         #endregion
 
         #region 2. Các Kiểm Thử Thành Phần (Component, RestSender, Mapping, Transform & Serialization)

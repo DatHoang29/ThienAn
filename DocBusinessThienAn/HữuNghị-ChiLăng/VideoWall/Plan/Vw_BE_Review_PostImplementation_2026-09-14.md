@@ -2,7 +2,7 @@
 
 > ⚠️ **KHÔNG xoá theo quy ước Auto-Cleanup Prompt/Plan.** Đây là tài liệu SỐNG (theo dõi tiến độ
 > liên tục, cập nhật lại mỗi lần đối chiếu, không phải prompt dùng 1 lần rồi bỏ). Chỉ xoá khi có
-> quyết định rõ ràng của người dùng. Xem thêm [`Vw_MasterPlan_2026-09-16.md`](Vw_MasterPlan_2026-09-16.md)
+> quyết định rõ ràng của người dùng. Xem thêm [`Vw_MasterPlan.md`](Vw_MasterPlan.md)
 > cho bức tranh tổng thể + backlog.
 
 > Ngày lập: 2026-09-14. Review code BE VideoWall (FE chưa tính trong đợt này) sau khi đã sửa theo

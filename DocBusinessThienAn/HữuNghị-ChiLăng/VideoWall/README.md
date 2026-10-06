@@ -4,7 +4,8 @@ Thư mục này gồm **2 khu** khác mục đích. Xác định bạn đang là
 
 | Bạn đang… | Đọc |
 |---|---|
-| Tìm hiểu nghiệp vụ / yêu cầu dự án | `Plan/Vw_MasterPlan_2026-09-16.md` (plan tổng thể + backlog — đọc trước tiên; họp 28/08 chưa có bản transcript `.md`, chỉ lưu audio nội bộ) |
+| Tìm hiểu nghiệp vụ / yêu cầu dự án | [`Plan/Vw_MasterPlan.md`](Plan/Vw_MasterPlan.md) (tài liệu sống duy nhất — đọc trước tiên; SSOT backlog & kiến trúc VideoWall) |
+| **Xem đặc tả UI & kiểm thử chi tiết** | [`DacTa/VideoWall-DacTa-UI_1.md`](DacTa/VideoWall-DacTa-UI_1.md) (đặc tả 10 màn hình, quy tắc nghiệp vụ, AC test) |
 | **Xem việc đang chờ / tiến độ VideoWall** | Xem mục "Prompt & Tiến độ" ngay bên dưới |
 | Tra bộ lệnh ISAPI / kiểu response thiết bị | Khu 1 → `doc/ISAPI-Videowall-Controller/` (đọc `README.md` trước); response đo thật → `data/logs-api/` |
 | **Kịch bản test API — 1 controller / 12 màn** | Khu 2 → `doc/KichBan/KichBan_VideoWall_DS-C30S-S11_12Man.md` |
@@ -21,9 +22,10 @@ Thư mục này gồm **2 khu** khác mục đích. Xác định bạn đang là
 
 | Loại | File | Trạng thái |
 |---|---|---|
-| Plan tổng thể (`Plan/`, SỐNG, không xoá) | `Vw_MasterPlan_2026-09-16.md` | Bức tranh toàn diện + backlog ưu tiên hoá — **đọc trước tiên** |
-| Review chi tiết (`Plan/`, SỐNG, không xoá) | `Vw_BE_Review_PostImplementation_2026-09-14.md` | Đối chiếu từng hạng mục BE đã giao + build/test thật |
-| Prompt đang chờ thực thi (`Prompt/`) | `videowall-fe-grid-permission-visualization-prompt.md` | FE — sẵn sàng, BE prerequisite đã có |
+| Plan tổng thể (`Plan/`, SỐNG, duy nhất) | [`Vw_MasterPlan.md`](Plan/Vw_MasterPlan.md) | Bức tranh toàn diện + backlog ưu tiên hoá — **đọc trước tiên** |
+| Đặc tả UI & Gap analysis (`DacTa/`) | [`VideoWall-DacTa-UI_1.md`](DacTa/VideoWall-DacTa-UI_1.md) | Đặc tả 10 màn hình, chuẩn FE/BE, AC kiểm thử |
+| Review chi tiết (`Plan/`, SỐNG, không xoá) | [`Vw_BE_Review_PostImplementation_2026-09-14.md`](Plan/Vw_BE_Review_PostImplementation_2026-09-14.md) | Đối chiếu từng hạng mục BE đã giao + build/test thật |
+| Prompt đợt trước (`Prompt/`) | `videowall-fe-grid-permission-visualization-prompt.md` | ✅ **Đã thực thi** trên nhánh `dev` (commit `4ee94cc1`) |
 
 Prompt thực thi sau khi hoàn thành sẽ **được giữ lại** trong `Prompt/` để người dùng review và đối chiếu sau khi code change; chỉ xoá khi người dùng trực tiếp yêu cầu theo quy định dự án. Luôn coi `Plan/Vw_MasterPlan_*.md` là nguồn đúng nhất cho backlog còn lại.
 
@@ -73,8 +75,8 @@ Prompt thực thi sau khi hoàn thành sẽ **được giữ lại** trong `Prom
 | A | `doc/KichBan/KichBan_VideoWall_DS-C30S-S11_12Man.md` | full | 45 KB | 20 kịch bản test API cho 1 controller DS-C30S-S11 / 12 màn | Kịch bản kiểm thử nội bộ |
 | A | `doc/KichBan/KichBan_VideoWall_DS-C66S_4Controller_32Man.md` | full | ~22 KB | Kịch bản test API cascade DS-C66S / 32 màn (backend ↔ bộ trung tâm; 3 bộ con inventory) | Kịch bản kiểm thử nội bộ |
 | A | `doc/TableSQL/Vw_Tables_Analysis_And_Design.md` | full | 35 KB | Phân tích và thiết kế cấu trúc các bảng CSDL Vw* | Thiết kế kỹ thuật nội bộ |
-| A | `doc/TableSQL/Vw_Entities_WritePath_Audit_2026-09-14.md` | full | ~6 KB | Audit 12/12 entity VideoWall — vai trò & write path (BE/Worker) | Audit kỹ thuật nội bộ |
-| A | `doc/Vw_FE_vs_WPF_Feature_Comparison_2026-09-14.md` | full | ~8 KB | So sánh FE (Vue) với WPF — khoảng trống tính năng | Audit kỹ thuật nội bộ |
+| A | `Plan/Vw_MasterPlan.md` | full | ~21 KB | Plan tổng thể và backlog ưu tiên VideoWall (SSOT duy nhất, cập nhật liên tục) | Tổng hợp transcript & code thật nhánh dev |
+| A | `DacTa/VideoWall-DacTa-UI_1.md` | full | 47 KB | Đặc tả UI phân hệ Video Wall (10 màn hình, AC test, Gap analysis) | FE & BE thật |
 | A | `doc/transcript/00-catalog.md` | full | 2 KB | Mục lục toàn bộ bản ghi cuộc họp VideoWall | Biên soạn nội bộ |
 | A | `doc/transcript/09-09-2026-videowall-phan-quyen-va-layout.md` | full | 17 KB | Thảo luận VideoWall: Phân quyền User/Tổ chức, SqlSugar ToTree & layout ma trận | `../Plan/_source/audio/09-09-2026/09-09-2026-videowall-phan-quyen-va-layout.m4a` |
 | A | `doc/transcript/11-09-2026-videowall-script.md` | full | ~15 KB | Kiến trúc 3 tầng (Config/Control/Telemetry) & phân quyền theo Screen ID | `../Plan/_source/audio/11-09-2026/11-09-2026-sharedata-videowall-{1,2}.m4a` |

@@ -760,9 +760,8 @@ tests/
   - `DocBusinessThienAn/HữuNghị-ChiLăng/Plan/` (top-level, KHÔNG có phân hệ con) chỉ còn dùng cho kế
     hoạch/biên bản họp **XUYÊN phân hệ** (toàn tuyến, liên quan ≥ 2 phân hệ cùng lúc) — không đặt
     prompt/plan riêng của 1 phân hệ cụ thể ở đây nữa.
-  - Prompt/plan hạ tầng/tooling/AG-Kit (không thuộc domain nghiệp vụ) → `.agents/prompts/`.
-- **Đặt tên**: `<task-slug>-prompt.md` (trong `Prompt/`) hoặc `<Xx>_MasterPlan_<ngày>.md` /
-  `<Xx>_Review_<...>.md` (trong `Plan/`) — kebab-case cho prompt, tiếng Việt không dấu hoặc tiếng Anh.
+- **Quy tắc DUY NHẤT 1 file MasterPlan cho mỗi phân hệ (Single MasterPlan per Subsystem - chốt 06/10/2026 - P0)**: Trong thư mục `Plan/` của mỗi phân hệ, **CHỈ CÓ DUY NHẤT 1 FILE MASTERPLAN** mang tên chuẩn cố định không có hậu tố ngày tháng (ví dụ: `ShareData/Plan/Sharedata_MasterPlan.md`, `VideoWall/Plan/Vw_MasterPlan.md`). Đây là **Tài Liệu Sống (Living Document / SSOT)** duy nhất phản ánh toàn diện kiến trúc, hiện trạng và backlog của phân hệ. Mỗi khi có cập nhật, AI/Dev BẮT BUỘC cập nhật trực tiếp vào file duy nhất này và ghi nhận lịch sử tại bảng Changelog đầu file. **TUYỆT ĐỐI CẤM** tạo nhiều file MasterPlan đính kèm ngày tháng rải rác (`<Xx>_MasterPlan_<ngày>.md`) gây phân mảnh và mất dấu nguồn sự thật (xem chi tiết mục 19.52).
+- **Đặt tên file khác trong `Plan/` và `Prompt/`**: `<task-slug>-prompt.md` (trong `Prompt/`) hoặc `<Xx>_Review_<...>.md` (trong `Plan/`) — kebab-case cho prompt, tiếng Việt không dấu hoặc tiếng Anh.
 - **BẮT BUỘC ghi tên & đường dẫn file ngay đầu nội dung file prompt (tiện 1-click copy)**: Trong mọi file prompt markdown (`*-prompt*.md`), BẮT BUỘC ghi rõ đường dẫn tệp (tương đối từ root repo, ví dụ: `**Tệp prompt:** `DocBusinessThienAn/<Dự-án>/<PhânHệ>/Prompt/<task-slug>-prompt.md``) ngay phần header đầu file dưới dạng inline code để người dùng tiện lợi double-click hoặc copy một chạm khi giao việc hoặc chạy lệnh.
 - **Chế độ Plan (ExitPlanMode)**: Nếu harness ép ghi plan vào `~/.claude/plans/`, ngay sau khi plan được duyệt BẮT BUỘC sao chép vào đúng thư mục (`Plan/` hoặc `Prompt/` tuỳ loại nội dung) của phân hệ tương ứng trong repo (xem trên) và coi bản trong repo là bản chính thức; báo người dùng đường dẫn trong repo, không phải `~/.claude/plans/`.
 - **CẤM Auto-cleanup file Prompt (Keep for User Review)**: AI **TUYỆT ĐỐI KHÔNG tự động xóa** file trong `Prompt/`
@@ -1618,6 +1617,19 @@ tests/
   - **Lý do & Lợi ích**:
     - **Clean Code & YAGNI**: Giữ codebase gọn gàng, loại bỏ 100% dead code, không làm phình to interface hoặc API surface vô ích.
     - **Rõ Ràng Đơn Nghĩa (Single Source of Logic)**: Mỗi nghiệp vụ chỉ có duy nhất một hàm đảm nhiệm, người bảo trì và IntelliSense không bị bối rối giữa nhiều hàm trùng lặp.
+
+- **19.52. Quy Tắc Duy Nhất Một File MasterPlan Cho Mỗi Phân Hệ — Tài Liệu Sống Cập Nhật Trực Tiếp, Cấm Phân Mảnh Bằng Hậu Tố Ngày Tháng (Single MasterPlan per Subsystem - chốt 06/10/2026 - P0)**:
+  - **Phạm vi áp dụng**: Mọi thư mục kế hoạch phát triển `DocBusinessThienAn/<Dự-án>/<PhânHệ>/Plan/` của tất cả các phân hệ (`ShareData`, `VideoWall`, `TMS`, `VMS`, `CCTV`, `WOS`...).
+  - 🔴 **Yêu cầu bắt buộc**:
+    1. **Duy nhất một file MasterPlan (Single Source of Truth)**: Mỗi phân hệ chỉ được phép tồn tại DUY NHẤT 1 file MasterPlan đặt tên chuẩn cố định không chứa ngày tháng (ví dụ: `ShareData/Plan/Sharedata_MasterPlan.md`, `VideoWall/Plan/Vw_MasterPlan.md`).
+    2. **Tài liệu sống cập nhật trực tiếp (In-Place Living Document)**: Khi có sự thay đổi về kiến trúc, hoàn thành task mới trên nhánh `dev`, review sau triển khai hoặc cập nhật backlog/gaps, AI và lập trình viên BẮT BUỘC phải cập nhật trực tiếp vào file MasterPlan hiện có của phân hệ đó.
+    3. **Bảng lịch sử phiên bản (Changelog)**: Mọi lần cập nhật nội dung lớn BẮT BUỘC phải ghi nhận một dòng tại bảng *Lịch sử cập nhật / Changelog* ngay đầu file MasterPlan (nêu rõ Mốc ngày, Người/AI cập nhật, và Tóm tắt nội dung thay đổi chính).
+  - ⛔ **CẤM tuyệt đối**:
+    - Tạo nhiều file MasterPlan riêng lẻ kèm hậu tố ngày tháng (như `Vw_MasterPlan_2026-09-16.md`, `Vw_MasterPlan_2026-10-06.md`, `Sharedata_MasterPlan_v2.md`...) làm phân mảnh thông tin và khiến người đọc không xác định được file nào là nguồn sự thật duy nhất.
+    - Xóa file MasterPlan (MasterPlan là tài liệu sống, tuyệt đối không thuộc diện Auto-Cleanup).
+  - **Lý do & Lợi ích**:
+    - **Single Source of Truth**: Giữ vững nguyên tắc "1 nơi duy nhất", toàn bộ đội ngũ dự án (Leader, Dev, BA, Tester) luôn truy cập đúng 1 đường dẫn để nắm bức tranh toàn cảnh mới nhất của phân hệ.
+    - **Theo dõi tiến độ liền mạch**: Giữ trọn vẹn mạch tiến hóa của dự án từ thiết kế ban đầu đến các đợt phát triển tiếp theo mà không làm rối mắt cây thư mục tài liệu.
 
 ---
 

@@ -147,7 +147,7 @@ HữuNghị-ChiLăng/
 │   │   ├── KichBan/                          🤖    Tier A (kịch bản 1 controller / 4 controller)
 │   │   ├── TableSQL/                         🤖    Tier A (thiết kế CSDL Vw* + audit write-path)
 │   │   └── transcript/                       🤖    Tier A: 09-09-2026, 11-09-2026-videowall-script (họp 28/08 chưa có bản .md)
-│   ├── Plan/                                 🤖    Tier A: Tài liệu SỐNG riêng của VideoWall — Vw_MasterPlan_*.md, Vw_BE_Review_*.md (không Auto-Cleanup)
+│   ├── Plan/                                 🤖    Tier A: Tài liệu SỐNG riêng của VideoWall — Vw_MasterPlan.md (SSOT duy nhất), Vw_BE_Review_*.md (không Auto-Cleanup)
 │   ├── Prompt/                               🤖    Tier A: Prompt dùng-1-lần riêng của VideoWall — videowall-*-prompt.md (tự xoá khi thực thi xong)
 │   ├── data/                                 🤖    Tier B: Log đo thực tế trên thiết bị (logs-api/)
 │   └── _source/                              👤    Tier C: Bản gốc đối chiếu (pdf/, xlsx/, img/, audio/)
