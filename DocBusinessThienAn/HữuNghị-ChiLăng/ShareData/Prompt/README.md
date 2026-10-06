@@ -19,6 +19,20 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 ## Danh sách Prompt
 
+### 🔵 Đợt hoàn thiện tính năng Backlog (05/10/2026) — THỨ TỰ KHUYẾN NGHỊ THỰC THI
+
+> 💡 **Tính độc lập:** Cả 5 task đều độc lập về mặt mã nguồn (không sửa đè hay chặn cứng file của nhau). Tuy nhiên, **thứ tự thực thi khuyến nghị từ 1 đến 5 dưới đây** giúp tối ưu hóa việc kiểm thử cục bộ, đi từ module nhỏ, an toàn đến mở rộng worker và cron job:
+
+| # | Prompt | Task | Phạm vi & Trạng thái |
+|---|---|---|---|
+| 1 | [`sharedata-be16-co-isinuse-goi-tin-prompt.md`](sharedata-be16-co-isinuse-goi-tin-prompt.md) | **BE-16** | ✅ **Đã hoàn tất 05/10/2026**. API phân trang Gói tin trả thêm cờ `IsInUse` để FE làm mờ nút Xoá; gom luật "đang dùng" về `PacketUsageService`. 5/5 tests pass 100%. |
+| 2 | [`sharedata-sv4-vai-tro-instance-prompt.md`](sharedata-sv4-vai-tro-instance-prompt.md) | **SV-4** | ✅ **Đã hoàn tất 05/10/2026**. Hạ tầng Worker. Cấu hình vai trò instance `ShareData:Role` (`SendOnly` / `ReceiveOnly` / `Both`) và `ShareData:SelfPartnerCode`. 9/9 tests pass 100%. |
+| 3 | [`sharedata-sv7-ra-soat-chuoi-dai-inbound-prompt.md`](sharedata-sv7-ra-soat-chuoi-dai-inbound-prompt.md) | **SV-7** | ✅ **Đã hoàn tất 05/10/2026**. Rà soát an toàn tham số chuỗi Inbound (`@records` `{ Size = -1 }` và `RawContent` `BigString`), bổ sung integration test toàn trình payload lớn > 8.000 ký tự (100 bản ghi, ~16.000 chars) chạy PASS 100%. |
+| 4 | [`sharedata-sv14-ham-tong-hop-mapping-prompt.md`](sharedata-sv14-ham-tong-hop-mapping-prompt.md) | **SV-14** | ✅ **Đã hoàn tất 06/10/2026**. Tính năng nghiệp vụ Ánh xạ (cả FE + Worker). Bổ sung phép tính tổng hợp `SUM`, `AVG`, `COUNT`, `MIN`, `MAX` trên `editMapping.vue` và tính toán in-memory tại `DataMappingProcess.cs`. 6/6 tests pass 100%. |
+| 5 | [`sharedata-sv13-don-log-nghiep-vu-7-ngay-prompt.md`](sharedata-sv13-don-log-nghiep-vu-7-ngay-prompt.md) | **SV-13 mở rộng** | ✅ **Đã hoàn tất 05/10/2026**. Tác vụ nền định kỳ Hangfire (`sharedata-log-retention-scan`, 03:30 sáng) dọn `ShareDataActivityLog` (Transfer cha–con theo lô) và `ShareDataAlertLog` cũ quá 7 ngày. 8/8 tests pass 100%. |
+
+---
+
 ### 🔴 Đợt log cha–con chiều GỬI (02/10/2026) — THỨ TỰ ÁP BẮT BUỘC
 
 > ✅ **Đã áp dụng hoàn tất 02/10/2026.** Cả 4 prompt đã thực thi và kiểm chứng thành công, toàn bộ 211/211 test ShareData PASS 100% (2 suites lớn `DataOutboundServiceTests` 126/126 pass, `DataChangeTrackingServiceTests` 78/78 pass, `ShareDataActivityLogControllerTests` 6/6 pass). Tệp prompt được giữ lại trên đĩa để lập trình viên review và đối chiếu sau khi code change.

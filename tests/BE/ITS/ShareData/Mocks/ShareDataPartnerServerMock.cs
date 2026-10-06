@@ -95,6 +95,33 @@ public sealed class ShareDataPartnerServerMock : IDisposable
         }
     }
 
+    /// <summary>
+    /// Description: Thiết lập mã phản hồi và thân phản hồi mặc định cho mock server (SV-4).
+    /// Created date: 06/10/2026
+    /// </summary>
+    public void SetResponse(int port, int statusCode, string body)
+    {
+        lock (_gate)
+        {
+            DefaultStatusCode = (HttpStatusCode)statusCode;
+            DefaultResponseBody = body;
+        }
+    }
+
+    /// <summary>
+    /// Description: Lấy danh sách request đã nhận được, có thể lọc theo cổng (SV-4).
+    /// Created date: 06/10/2026
+    /// </summary>
+    public List<PartnerRequestRecord> GetReceivedRequests(int? port = null)
+    {
+        lock (_gate)
+        {
+            return port.HasValue
+                ? ReceivedRequests.Where(r => r.Port == port.Value).ToList()
+                : [.. ReceivedRequests];
+        }
+    }
+
     private async Task ListenLoop(CancellationToken ct)
     {
         while (!ct.IsCancellationRequested && _listener.IsListening)
