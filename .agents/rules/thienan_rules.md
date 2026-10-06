@@ -1632,6 +1632,21 @@ tests/
     - **Single Source of Truth**: Giữ vững nguyên tắc "1 nơi duy nhất", toàn bộ đội ngũ dự án (Leader, Dev, BA, Tester) luôn truy cập đúng 1 đường dẫn để nắm bức tranh toàn cảnh mới nhất của phân hệ.
     - **Theo dõi tiến độ liền mạch**: Giữ trọn vẹn mạch tiến hóa của dự án từ thiết kế ban đầu đến các đợt phát triển tiếp theo mà không làm rối mắt cây thư mục tài liệu.
 
+- **19.53. CẤM Sử Dụng Thư Viện Tự Động Rewrite Khi Cập Nhật Báo Cáo / File Excel Mẫu — Bắt Buộc Dùng Kỹ Thuật Direct OpenXML ZIP Patching Bảo Toàn Định Dạng & Logo (Strict Lossless Excel OpenXML Patching - chốt 06/10/2026 - P0)**:
+  - **Phạm vi áp dụng**: Toàn bộ các tác vụ tạo mới, cập nhật, hoặc sửa đổi các file Excel mẫu biểu, báo cáo tuần (`PCN_WeeklyReport_*.xlsx`), biên bản nghiệm thu hoặc tài liệu văn phòng dạng `.xlsx` trong toàn dự án.
+  - 🔴 **Yêu cầu bắt buộc**:
+    1. **Bảo toàn 100% tệp cấu trúc gốc (Bit-Perfect OpenXML Preservation)**: Khi cập nhật file `.xlsx` từ file mẫu gốc, BẮT BUỘC giữ nguyên 100% các file nhị phân và đồ họa bên trong tệp ZIP: `xl/drawings/drawing1.xml`, `xl/media/image1.png` (Logo công ty), `xl/styles.xml` (bảng mã font, border, màu nền), `xl/theme/theme1.xml`, và các thẻ quan hệ `_rels/`.
+    2. **Kỹ thuật Direct OpenXML ZIP Patching**: Sử dụng thư viện chuẩn của Python (`zipfile` và `xml.etree.ElementTree` theo module chuẩn tái sử dụng tại [`DocBusinessThienAn/HữuNghị-ChiLăng/BaoCaoTuanITS15/scripts/openxml_weekly_report_patcher.py`](file:///c:/ThienAn/DocBusinessThienAn/HữuNghị-ChiLăng/BaoCaoTuanITS15/scripts/openxml_weekly_report_patcher.py)):
+       - Chỉ cập nhật có chọn lọc đúng chuỗi văn bản cần thay thế trong `xl/sharedStrings.xml`.
+       - Bảo toàn nguyên vẹn cấu trúc **Rich Text XML** (`<r><rPr><color rgb="..."/></rPr><t>...</t></r>`) của các ô có nhiều màu chữ (như tiêu đề đỏ/xanh "THIÊN ÂN", chú thích "Đỏ" / "Xanh dương").
+       - Cập nhật số liệu ngày (serial date) và độ cao hàng (height) trong `xl/worksheets/sheet1.xml`.
+    3. **Tôn trọng khóa tệp (File Lock Awareness)**: Khi ghi file, nếu file đang bị ứng dụng Microsoft Excel của người dùng mở và khóa độc quyền (Lock), TUYỆT ĐỐI KHÔNG kill process của người dùng (Rule 12). Hãy thông báo hoặc ghi tạm ra file tạm thời, chờ người dùng đóng file rồi mới ghi đè.
+  - ⛔ **CẤM tuyệt đối**:
+    - **CẤM dùng thư viện tự động parse & rewrite toàn bộ workbook (`openpyxl`, `xlsxwriter`, `pandas`, `EPPlus` rewrite...)** để chỉnh sửa các file template có chứa logo, hình ảnh hoặc Rich Text phức tạp: các thư viện này sẽ tự động flatten Rich Text thành text thường (làm mất màu chữ đỏ/xanh), lược bỏ drawing vector làm mất Logo Thiên Ân, và làm xáo trộn Style Index (`styles.xml`).
+  - **Lý do & Lợi ích**:
+    - **Tính toàn vẹn thương hiệu & thẩm mỹ**: Logo công ty Thiên Ân và màu nhận diện thương hiệu (đỏ, xanh) trên biểu mẫu báo cáo tuần được bảo toàn nguyên vẹn 100%, không bị lỗi hiển thị hay sai lệch định dạng.
+    - **Độ tin cậy & Độc lập**: Dùng Python Standard Library (`zipfile` + `xml.etree.ElementTree`), chạy tức thì trên mọi môi trường mà không phụ thuộc vào bất kỳ thư viện bên ngoài nào.
+
 ---
 
 

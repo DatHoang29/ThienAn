@@ -11,6 +11,9 @@ logs/
 __pycache__/
 *.py[cod]
 
+# Microsoft Office temporary / lock files
+~$*
+
 # Tier C Raw documentation sources (PDF, Excel, Audio, Images in _source)
 **/_source/*
 !**/_source/README.md
