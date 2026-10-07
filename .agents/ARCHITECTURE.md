@@ -122,7 +122,7 @@ Specialist AI personas for different domains.
 
 ---
 
-## 🧩 Skills (47)
+## 🧩 Skills (81)
 
 Modular knowledge domains that agents can load on-demand based on task context. Each skill has a `when_to_use` frontmatter field for conditional/intelligent loading.
 
@@ -237,6 +237,62 @@ Modular knowledge domains that agents can load on-demand based on task context. 
 | `performance-profiling`   | Web Vitals, optimization  |
 | `systematic-debugging`    | Troubleshooting           |
 | `intelligent-routing`     | Request → agent routing   |
+
+### Engineering Workflow (skills-main import, 2026.10.7)
+
+| Skill                              | Description                                                                     |
+| ----------------------------------- | -------------------------------------------------------------------------------- |
+| `code-review`                      | Two-axis diff review (coding standards + spec fidelity) via parallel sub-agents |
+| `codebase-design`                  | Shared vocabulary (module, interface, depth, seam, adapter) for deep modules    |
+| `diagnosing-bugs`                  | Six-phase discipline for hard bugs — repro, hypotheses, instrument, fix, cleanup |
+| `domain-modeling`                  | Builds and sharpens GLOSSARY.md and ADRs as the domain model crystallizes       |
+| `grill-with-docs`                  | Interviews to sharpen a plan/design while writing ADRs and glossary entries     |
+| `implement`                        | Implements a spec/tickets via TDD, typecheck/test, code-review, then commits   |
+| `implement-spec`                   | Drives a spec's whole ticket graph to completion on one integration branch     |
+| `improve-codebase-architecture`    | Scans for deepening opportunities, renders an HTML report, then grills one     |
+| `pr`                                | Template and visual menu (diagrams, diffs, trees) for a fast-to-review PR body |
+| `prototype`                        | Build throwaway prototype (logic demo or UI variants) to answer a design question |
+| `research`                         | Delegate research against primary sources to a background agent               |
+| `retro`                            | Run a retrospective on a coding session, proposing tooling improvements        |
+| `tdd`                               | Drive red-green-refactor TDD with seam-based, behavior-focused tests           |
+| `to-spec`                          | Synthesize current conversation into a spec, publish to the issue tracker      |
+| `to-tickets`                       | Break a plan/spec into tracer-bullet tickets with blocking edges               |
+| `triage`                           | Move issues/PRs through triage state machine; verify, grill, write briefs      |
+| `wayfinder`                        | Chart huge work as a shared map of decision tickets; resolve one at a time     |
+| `wizard`                           | Generate an interactive bash wizard for manual setup/migration steps           |
+
+### Productivity & Collaboration (skills-main import, 2026.10.7)
+
+| Skill                  | Description                                                           |
+| ----------------------- | ---------------------------------------------------------------------- |
+| `grill-me`             | One-line router that forwards to `grilling` for a Socratic interview |
+| `grilling`             | Round-based Socratic interview over a design tree to stress-test plans |
+| `handoff`              | Compacts a conversation into a handoff doc for a fresh agent          |
+| `teach`                | Stateful multi-session teaching workspace: mission, lessons, records  |
+| `to-questionnaire`     | Converts an unanswerable decision into a Markdown questionnaire       |
+| `wait-what`            | Re-pitches a confusing message in Simplified Technical English        |
+| `writing-for-agents`   | Reference for writing skills, AGENTS.md, CLAUDE.md                    |
+
+### Dev Tooling (skills-main import, 2026.10.7)
+
+| Skill                         | Description                                                      |
+| ------------------------------ | ------------------------------------------------------------------ |
+| `git-guardrails-claude-code`  | Installs a PreToolUse hook blocking dangerous git commands        |
+| `setup-pre-commit`            | Sets up Husky + lint-staged plus typecheck/test pre-commit hooks  |
+
+### Experimental / Beta (skills-main import, 2026.10.7)
+
+> ⚠️ Upstream marks everything below as Beta — "can change or disappear without warning".
+
+| Skill                     | Description                                                                |
+| --------------------------- | ----------------------------------------------------------------------------- |
+| `chief-of-staff`          | Coordinates subagents and schedules to pursue a long-running goal            |
+| `claude-handoff`          | Hands off the conversation to a fresh background agent via a seeded prompt   |
+| `loop-me`                 | Grilling session that produces and maintains workflow spec files             |
+| `setup-ts-deep-modules`   | Installs dependency-cruiser to enforce entry-point-only package boundaries   |
+| `writing-beats`           | Exploit phase: assembles raw material into an article via sequential beats   |
+| `writing-fragments`       | Explore phase: mines unstructured raw fragments into a single markdown file  |
+| `writing-shape`           | Exploit phase: shapes a raw-material pile into an article, paragraph by paragraph |
 
 ---
 

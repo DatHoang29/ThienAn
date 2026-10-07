@@ -105,17 +105,20 @@
 
 ### Q8. Dữ liệu được trích xuất từ bảng nào trong CSDL?
 * **Trả lời trọng tâm:**  
-  Toàn bộ dữ liệu chiều Gửi được đọc trực tiếp từ CSDL vận hành chính **`DEV_ITS10`**:
-  - Gói 101: `TmsZoneStatus`, `TmsZone`, `TmsTrafficStatistic`
-  - Gói 102: `CctvDevice`, `TmsEquipment`
-  - Gói 103: `TmsTrafficData`, `TmsEquipment`
-  - Gói 104: `TmsWeather`
-  - Gói 105: `TollTransactionOut`, `TmsVehicleRegistration`
-  - Gói 106: `TmsTrafficData`
-  - Gói 107: `TmsIncident`, `TmsEventType`
-  - Gói 108: `VmsCurrent`, `TmsEquipment`
-  - Gói 109: `TollTransactionOut`, `TollLane`, `TollStation`
-  - Gói 110: `TmsIncident`, `VmsCurrent`, `TmsEquipment`
+  Toàn bộ dữ liệu chiều Gửi được trích xuất trực tiếp từ CSDL vận hành chính **`DEV_ITS10`**. Dưới đây là chi tiết bảng chính (`FROM`), các bảng phụ liên kết (`LEFT JOIN ... ON ...`) và mục đích nghiệp vụ của từng gói tin:
+
+  | Gói tin | Bảng chính (FROM) | Bảng liên kết (LEFT JOIN ... ON ...) | Mục đích nghiệp vụ của phép JOIN |
+  | :--- | :--- | :--- | :--- |
+  | **101** (Lưu lượng - Snapshot) | `TmsZoneStatus zs` | 1. `TmsZone z` ON `zs.ZoneId = z.ID`<br/>2. `TmsTrafficStatistic ts` ON `zs.ZoneId = ts.ZoneId` | • Lấy tên đoạn đường (`zoneName`), lý trình từ–đến Km/Met, giới hạn tốc độ (`speedLimit`).<br/>• Lấy tổng lưu lượng xe đếm được qua khu vực (`vehicleCount`). |
+  | **102** (Camera CCTV - Snapshot) | `CctvDevice c` | `TmsEquipment e` ON `c.Ip = e.Ip` | • Nối qua IP camera để lấy mã quản lý thiết bị định danh (`cameraCode`), lý trình lắp đặt trên tuyến (`locationKm`, `locationMet`) và hướng tuyến (`direction`). |
+  | **103** (Dò xe VDS - Nối đuôi) | `TmsTrafficData td` | `TmsEquipment e` ON `td.EquipmentId = e.ID` | • Lấy vị trí lý trình Km/Met nơi đặt cảm biến dò xe ghi nhận phương tiện đi qua. |
+  | **104** (Thời tiết - Nối đuôi) | `TmsWeather w` | *(Không JOIN - Bảng đơn)* | • Toàn bộ thông số thời tiết (nhiệt độ, độ ẩm, tốc độ/hướng gió, lượng mưa, tầm nhìn) đã có sẵn đầy đủ trên `TmsWeather`. |
+  | **105** (Định danh RFID - Snapshot) | `TollTransactionIn i`<br/>*(Xe vào trạm)* | `TmsVehicleRegistration vr`<br/>ON `COALESCE(i.PlateEdit, i.PlateLpr) = vr.LicensePlate` | • Nối qua biển số xe nhận diện (ưu tiên biển soát vé đã chỉnh sửa `PlateEdit`, sau đó đến biển tự động `PlateLpr`) để lấy thông tin đăng ký: Hãng xe (`vehicleBrand`), Chủ xe (`vehicleOwner`). |
+  | **106** (Cân tải trọng WIM - Nối đuôi) | `TmsTrafficData td` | *(Không JOIN - Bảng đơn)* | • Trích xuất 7 trường đo đếm kích thước & tốc độ xe có sẵn (`detectTime`, `lane`, `locationCode`, `speed`, `height`, `width`, `length`).<br/>*(4 trường tải trọng trả null do chưa có bảng trạm cân riêng)*. |
+  | **107** (Sự cố giao thông - Nối đuôi) | `TmsIncident i` | `TmsEventType et` ON `i.EventTypeId = et.ID` | • Lấy tên phân loại sự cố chuẩn hóa (`eventTypeName` - ví dụ: Tai nạn, Ùn tắc, Cháy xe, Đất đá sạt lở...). |
+  | **108** (Biển báo VMS - Snapshot) | `VmsCurrent v` | `TmsEquipment e` ON `v.EquipmentId = e.ID` | • Lấy mã thiết bị biển báo (`equipmentCode`), vị trí lý trình lắp đặt (`locationKm`, `locationMet`), hướng tuyến và làn đường gắn biển. |
+  | **109** (Thu phí ETC - Nối đuôi) | `TollTransactionOut t`<br/>*(Xe ra trạm)* | 1. `TollLane l` ON `t.LaneId = l.LaneId`<br/>2. `TollStation s` ON `t.StationId = s.StationId` | • Lấy tên làn thu phí (`laneName`).<br/>• Lấy tên trạm thu phí (`stationName`). |
+  | **110** (Cảnh báo WP - NotReady) | *Chưa query* | *(Handler trả về rỗng theo policy NotReady)* | • Nghiệp vụ cảnh báo phát hành đang chờ chuẩn hóa mô hình từ đối tác (khi hoàn thiện sẽ kết hợp `TmsIncident` với `VmsCurrent` / `TmsEquipment`). |
 
 ---
 

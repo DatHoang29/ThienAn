@@ -19,6 +19,36 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 ## Danh sách Prompt
 
+### ⚪ Issue 33 (F16) — Mã gói tin trùng tên trong bảng Cấu hình đối tác (07/10/2026)
+
+| # | Prompt | Task | Phạm vi & Trạng thái |
+|---|---|---|---|
+| 1 | [`sharedata-issue33-ma-goi-tin-trung-ten-prompt.md`](sharedata-issue33-ma-goi-tin-trung-ten-prompt.md) | **Issue 33 (F16)** | ⚠️ **Chưa làm — chờ người dùng áp dụng.** FE thuần: `subscriptionTable.vue` — hàm `packetNameOf()` đổi sang hiển thị `[Mã] Tên` (áp đúng quy ước `codeNameLabel` đã dùng cho Issue 18 ở `editMapping.vue`), kèm khớp theo cả `id` lẫn `code`. Nới `minWidth` cột 160 → 220. |
+
+📌 Dữ liệu trùng tên khác mã (`101_commonData` / `101_commonData1`) đã xác nhận có thật trên staging qua bảng `ShareDataPacket` — không phải tình huống giả định.
+
+---
+
+### 🟤 Lịch sử chia sẻ — datatypeLabel + modal nhảy chiều cao (07/10/2026)
+
+| # | Prompt | Task | Phạm vi & Trạng thái |
+|---|---|---|---|
+| 1 | [`sharedata-history-datatypelabel-modal-height-prompt.md`](sharedata-history-datatypelabel-modal-height-prompt.md) | — (phát hiện trực tiếp từ test note) | ⚠️ **Chưa làm — chờ người dùng áp dụng.** FE thuần, 2 việc độc lập: (1) `datatypeLabel()` khớp theo cả `id` lẫn `code` ở 4 file (`history/index.vue`, `activityDetailDialog.vue`, `recordDetailDrawer.vue`, `activityDetailDrawer.vue`) — vá hiển thị "Loại dữ liệu" chiều Nhận đang hiện mã thay vì tên gói; (2) sửa CSS `.steps-card.is-empty` trong `activityDetailDialog.vue` để modal "Tiến trình xử lý" không nhảy chiều cao giữa trạng thái có/không có bước. Không đụng Backend, không sửa dữ liệu lịch sử. |
+
+📌 **Nguyên nhân gốc (1)**: xác minh qua staging DB — log Nhận cũ lưu đúng `DatatypeId` của subscription Nhận **tại thời điểm ghi log** (lúc đó là mã); subscription đã được sửa đúng (ID) sau đó nhưng log là bản ghi bất biến. Vá ở tầng hiển thị để chịu được cả 2 định dạng, không migrate dữ liệu cũ.
+
+---
+
+### 🟣 Issue 29 (F16) — Khung giờ qua đêm + tooltip SendOnNewData (07/10/2026)
+
+| # | Prompt | Task | Phạm vi & Trạng thái |
+|---|---|---|---|
+| 1 | [`sharedata-issue29-khung-gio-qua-dem-prompt.md`](sharedata-issue29-khung-gio-qua-dem-prompt.md) | **Issue 29 (F16)** | ⚠️ **Chưa làm — chờ người dùng áp dụng.** BE: `DataOutboundScheduler.cs` sửa đúng công thức khung giờ qua đêm (`IsWithinTimeWindow`, đổi tên `ClampToTimeWindow` → `EnsureNextRunWithinTimeWindow`) + 4 test case mới trong `DataOutboundSchedulerTests.cs`. FE: hint "khung giờ qua đêm" ở `editSubscription.vue` + làm rõ tooltip `sendImmediatelyHint` (không thuộc issue nào của F16, phát sinh từ trao đổi riêng về cờ `SendOnNewData`). |
+
+📌 **Phạm vi loại trừ**: đề xuất "Ngày bắt đầu/kết thúc hiệu lực" trong issue 29 là tính năng mới hoàn toàn, chưa làm — chờ PO/BA chốt riêng. Field "Chu kỳ (giây)" không đụng — đã khảo sát toàn client (TMS Service Monitor, TMS Incident Automation, ShareData Partner) và xác nhận field này đã đúng y hệt quy ước chung toàn hệ thống.
+
+---
+
 ### 🔵 Đợt hoàn thiện tính năng Backlog (05/10/2026) — THỨ TỰ KHUYẾN NGHỊ THỰC THI
 
 > 💡 **Tính độc lập:** Cả 5 task đều độc lập về mặt mã nguồn (không sửa đè hay chặn cứng file của nhau). Tuy nhiên, **thứ tự thực thi khuyến nghị từ 1 đến 5 dưới đây** giúp tối ưu hóa việc kiểm thử cục bộ, đi từ module nhỏ, an toàn đến mở rộng worker và cron job:

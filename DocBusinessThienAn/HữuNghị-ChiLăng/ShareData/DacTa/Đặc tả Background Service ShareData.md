@@ -82,7 +82,7 @@ flowchart TD
   - **Gói 102** (Camera CCTV): `CctvDevice`, `TmsEquipment` *(Hiện tại gói này không có data: Bảng CctvDevice chỉ có 1 camera mẫu, không có hình ảnh snapshot thực tế)*
   - **Gói 103** (Thiết bị dò xe VDS): `TmsTrafficData`, `TmsEquipment`
   - **Gói 104** (Trạm thời tiết Campbell): `TmsWeather`
-  - **Gói 105** (Nhận dạng xe RFID): `TollTransactionOut`, `TmsVehicleRegistration` *(Hiện tại gói này không có data: Bảng nguồn có dữ liệu nhưng cấu hình danh mục trường đang bị lệch ID)*
+  - **Gói 105** (Nhận dạng xe RFID): `TollTransactionIn`, `TmsVehicleRegistration` *(Hiện tại gói này không có data: Bảng nguồn có dữ liệu nhưng cấu hình danh mục trường đang bị lệch ID)*
   - **Gói 106** (Cân tải trọng động WIM): `TmsTrafficData` *(Hiện tại gói này không có data về tải trọng cân xe do chưa có bảng cân chuyên biệt)*
   - **Gói 107** (Sự cố giao thông): `TmsIncident`, `TmsEventType`
   - **Gói 108** (Biển báo điện tử VMS): `VmsCurrent`, `TmsEquipment`

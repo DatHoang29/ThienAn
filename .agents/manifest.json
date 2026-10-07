@@ -608,6 +608,23 @@
       "scripts": [],
       "version": "1.0.0"
     },
+    "chief-of-staff": {
+      "allowedTools": [
+        "Agent"
+      ],
+      "path": "skills/chief-of-staff/SKILL.md",
+      "scripts": [],
+      "version": "1.0.0"
+    },
+    "claude-handoff": {
+      "allowedTools": [
+        "Write",
+        "Bash"
+      ],
+      "path": "skills/claude-handoff/SKILL.md",
+      "scripts": [],
+      "version": "1.0.0"
+    },
     "clean-code": {
       "allowedTools": [
         "Read",
@@ -617,6 +634,18 @@
       "path": "skills/clean-code/SKILL.md",
       "scripts": [],
       "version": "2.0.0"
+    },
+    "code-review": {
+      "allowedTools": [
+        "Bash",
+        "Read",
+        "Grep",
+        "Glob",
+        "Agent"
+      ],
+      "path": "skills/code-review/SKILL.md",
+      "scripts": [],
+      "version": "1.0.0"
     },
     "code-review-checklist": {
       "allowedTools": [
@@ -636,6 +665,14 @@
         "Bash"
       ],
       "path": "skills/code-review-graph/SKILL.md",
+      "scripts": [],
+      "version": "1.0.0"
+    },
+    "codebase-design": {
+      "allowedTools": [
+        "Read"
+      ],
+      "path": "skills/codebase-design/SKILL.md",
       "scripts": [],
       "version": "1.0.0"
     },
@@ -700,6 +737,21 @@
       "scripts": [],
       "version": "1.0.0"
     },
+    "diagnosing-bugs": {
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Grep",
+        "Glob"
+      ],
+      "path": "skills/diagnosing-bugs/SKILL.md",
+      "scripts": [
+        "skills/diagnosing-bugs/scripts/hitl-loop.template.sh"
+      ],
+      "version": "1.0.0"
+    },
     "documentation-templates": {
       "allowedTools": [
         "Read",
@@ -707,6 +759,17 @@
         "Grep"
       ],
       "path": "skills/documentation-templates/SKILL.md",
+      "scripts": [],
+      "version": "1.0.0"
+    },
+    "domain-modeling": {
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Grep"
+      ],
+      "path": "skills/domain-modeling/SKILL.md",
       "scripts": [],
       "version": "1.0.0"
     },
@@ -763,6 +826,51 @@
       ],
       "version": "1.0.0"
     },
+    "git-guardrails-claude-code": {
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash"
+      ],
+      "path": "skills/git-guardrails-claude-code/SKILL.md",
+      "scripts": [
+        "skills/git-guardrails-claude-code/scripts/block-dangerous-git.sh"
+      ],
+      "version": "1.0.0"
+    },
+    "grill-me": {
+      "allowedTools": [
+        "Skill"
+      ],
+      "path": "skills/grill-me/SKILL.md",
+      "scripts": [],
+      "version": "1.0.0"
+    },
+    "grill-with-docs": {
+      "allowedTools": [
+        "Skill"
+      ],
+      "path": "skills/grill-with-docs/SKILL.md",
+      "scripts": [],
+      "version": "1.0.0"
+    },
+    "grilling": {
+      "allowedTools": [
+        "Agent"
+      ],
+      "path": "skills/grilling/SKILL.md",
+      "scripts": [],
+      "version": "1.0.0"
+    },
+    "handoff": {
+      "allowedTools": [
+        "Write"
+      ],
+      "path": "skills/handoff/SKILL.md",
+      "scripts": [],
+      "version": "1.0.0"
+    },
     "i18n-localization": {
       "allowedTools": [
         "Read",
@@ -773,6 +881,38 @@
       "scripts": [
         "skills/i18n-localization/scripts/i18n_checker.py"
       ],
+      "version": "1.0.0"
+    },
+    "implement": {
+      "allowedTools": [
+        "Skill",
+        "Bash"
+      ],
+      "path": "skills/implement/SKILL.md",
+      "scripts": [],
+      "version": "1.0.0"
+    },
+    "implement-spec": {
+      "allowedTools": [
+        "Read",
+        "Agent",
+        "Bash",
+        "Skill"
+      ],
+      "path": "skills/implement-spec/SKILL.md",
+      "scripts": [],
+      "version": "1.0.0"
+    },
+    "improve-codebase-architecture": {
+      "allowedTools": [
+        "Bash",
+        "Agent",
+        "Read",
+        "Write",
+        "Skill"
+      ],
+      "path": "skills/improve-codebase-architecture/SKILL.md",
+      "scripts": [],
       "version": "1.0.0"
     },
     "intelligent-routing": {
@@ -797,6 +937,16 @@
         "skills/lint-and-validate/scripts/lint_runner.py",
         "skills/lint-and-validate/scripts/type_coverage.py"
       ],
+      "version": "1.0.0"
+    },
+    "loop-me": {
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Edit"
+      ],
+      "path": "skills/loop-me/SKILL.md",
+      "scripts": [],
       "version": "1.0.0"
     },
     "mcp-builder": {
@@ -910,6 +1060,25 @@
       "scripts": [],
       "version": "1.0.0"
     },
+    "pr": {
+      "allowedTools": [
+        "Read"
+      ],
+      "path": "skills/pr/SKILL.md",
+      "scripts": [],
+      "version": "1.0.0"
+    },
+    "prototype": {
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash"
+      ],
+      "path": "skills/prototype/SKILL.md",
+      "scripts": [],
+      "version": "1.0.0"
+    },
     "python-patterns": {
       "allowedTools": [
         "Read",
@@ -929,6 +1098,31 @@
         "Grep"
       ],
       "path": "skills/red-team-tactics/SKILL.md",
+      "scripts": [],
+      "version": "1.0.0"
+    },
+    "research": {
+      "allowedTools": [
+        "Agent",
+        "Read",
+        "Write",
+        "WebFetch",
+        "WebSearch",
+        "Grep",
+        "Glob"
+      ],
+      "path": "skills/research/SKILL.md",
+      "scripts": [],
+      "version": "1.0.0"
+    },
+    "retro": {
+      "allowedTools": [
+        "Skill",
+        "Read",
+        "Grep",
+        "Glob"
+      ],
+      "path": "skills/retro/SKILL.md",
       "scripts": [],
       "version": "1.0.0"
     },
@@ -967,6 +1161,29 @@
         "Bash"
       ],
       "path": "skills/server-management/SKILL.md",
+      "scripts": [],
+      "version": "1.0.0"
+    },
+    "setup-pre-commit": {
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Bash",
+        "Glob"
+      ],
+      "path": "skills/setup-pre-commit/SKILL.md",
+      "scripts": [],
+      "version": "1.0.0"
+    },
+    "setup-ts-deep-modules": {
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Glob"
+      ],
+      "path": "skills/setup-ts-deep-modules/SKILL.md",
       "scripts": [],
       "version": "1.0.0"
     },
@@ -1015,6 +1232,20 @@
       "scripts": [],
       "version": "1.0.0"
     },
+    "tdd": {
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Grep",
+        "Glob",
+        "Skill"
+      ],
+      "path": "skills/tdd/SKILL.md",
+      "scripts": [],
+      "version": "1.0.0"
+    },
     "tdd-workflow": {
       "allowedTools": [
         "Read",
@@ -1025,6 +1256,17 @@
         "Bash"
       ],
       "path": "skills/tdd-workflow/SKILL.md",
+      "scripts": [],
+      "version": "1.0.0"
+    },
+    "teach": {
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash"
+      ],
+      "path": "skills/teach/SKILL.md",
       "scripts": [],
       "version": "1.0.0"
     },
@@ -1041,6 +1283,53 @@
       "scripts": [
         "skills/testing-patterns/scripts/test_runner.py"
       ],
+      "version": "1.0.0"
+    },
+    "to-questionnaire": {
+      "allowedTools": [
+        "Write"
+      ],
+      "path": "skills/to-questionnaire/SKILL.md",
+      "scripts": [],
+      "version": "1.0.0"
+    },
+    "to-spec": {
+      "allowedTools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Write",
+        "Bash"
+      ],
+      "path": "skills/to-spec/SKILL.md",
+      "scripts": [],
+      "version": "1.0.0"
+    },
+    "to-tickets": {
+      "allowedTools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Write",
+        "Bash",
+        "WebFetch"
+      ],
+      "path": "skills/to-tickets/SKILL.md",
+      "scripts": [],
+      "version": "1.0.0"
+    },
+    "triage": {
+      "allowedTools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash",
+        "Skill",
+        "Edit",
+        "Write"
+      ],
+      "path": "skills/triage/SKILL.md",
+      "scripts": [],
       "version": "1.0.0"
     },
     "verify-changes": {
@@ -1068,6 +1357,27 @@
       ],
       "version": "1.0.0"
     },
+    "wait-what": {
+      "allowedTools": [
+        "Read"
+      ],
+      "path": "skills/wait-what/SKILL.md",
+      "scripts": [],
+      "version": "1.0.0"
+    },
+    "wayfinder": {
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Skill",
+        "Agent"
+      ],
+      "path": "skills/wayfinder/SKILL.md",
+      "scripts": [],
+      "version": "1.0.0"
+    },
     "web-design-guidelines": {
       "allowedTools": [
         "Read",
@@ -1092,6 +1402,61 @@
       "scripts": [
         "skills/webapp-testing/scripts/playwright_runner.py"
       ],
+      "version": "1.0.0"
+    },
+    "wizard": {
+      "allowedTools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Write",
+        "Bash",
+        "Edit"
+      ],
+      "path": "skills/wizard/SKILL.md",
+      "scripts": [
+        "skills/wizard/template.sh"
+      ],
+      "version": "1.0.0"
+    },
+    "writing-beats": {
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Edit"
+      ],
+      "path": "skills/writing-beats/SKILL.md",
+      "scripts": [],
+      "version": "1.0.0"
+    },
+    "writing-for-agents": {
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Edit"
+      ],
+      "path": "skills/writing-for-agents/SKILL.md",
+      "scripts": [],
+      "version": "1.0.0"
+    },
+    "writing-fragments": {
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Edit"
+      ],
+      "path": "skills/writing-fragments/SKILL.md",
+      "scripts": [],
+      "version": "1.0.0"
+    },
+    "writing-shape": {
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Edit"
+      ],
+      "path": "skills/writing-shape/SKILL.md",
+      "scripts": [],
       "version": "1.0.0"
     }
   },
