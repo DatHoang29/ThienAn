@@ -13,6 +13,7 @@ __pycache__/
 
 # Microsoft Office temporary / lock files
 ~$*
+**/~$*
 
 # Tier C Raw documentation sources (PDF, Excel, Audio, Images in _source)
 **/_source/*
