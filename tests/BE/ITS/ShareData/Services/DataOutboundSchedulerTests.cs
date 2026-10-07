@@ -93,12 +93,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
         #endregion
 
-        #region 2. Kiểm thử IsWithinTimeWindow hỗ trợ sự kiện realtime
+        #region 2. Kiểm thử IsValidTime hỗ trợ sự kiện realtime
 
         /// <summary>
-        /// Description: Kiểm thử IsWithinTimeWindow cho luồng gửi theo sự kiện realtime,
+        /// Description: Kiểm thử IsValidTime cho luồng gửi theo sự kiện realtime,
         ///              quy đổi chính xác giờ UTC của máy chủ sang giờ VN trước khi so khớp [08:00 - 17:00].
         /// Created date: 05/10/2026
+        /// Modified date: 07/10/2026
         /// </summary>
         [Theory]
         [InlineData(1, 26, 28, true)]   // 01:26:28 UTC = 08:26:28 VN -> Trong khung giờ
@@ -107,8 +108,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         [InlineData(10, 0, 1, false)]   // 10:00:01 UTC = 17:00:01 chiều VN -> Quá giờ làm việc
         [InlineData(0, 30, 0, false)]   // 00:30:00 UTC = 07:30:00 sáng VN -> Chưa đến giờ làm việc
         [InlineData(16, 0, 0, false)]   // 16:00:00 UTC = 23:00:00 đêm VN -> Ngoài khung giờ
-        public void IsWithinTimeWindow_UtcServerClock_EvaluatesAgainstLocalVietnamTimeWindow_Test(
-            int utcHour, int utcMinute, int utcSecond, bool expectedWithinWindow)
+        public void IsValidTime_UtcServerClock_EvaluatesAgainstLocalVietnamTime_Test(
+            int utcHour, int utcMinute, int utcSecond, bool expectedWithin)
         {
             // Arrange
             var nowUtc = new DateTime(2026, 10, 5, utcHour, utcMinute, utcSecond, DateTimeKind.Utc);
@@ -118,10 +119,10 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var isWithin = DataOutboundScheduler.IsWithinTimeWindow(sub, nowUtc);
+            var isWithin = DataOutboundScheduler.IsValidTime(sub, nowUtc);
 
             // Assert
-            Assert.Equal(expectedWithinWindow, isWithin);
+            Assert.Equal(expectedWithin, isWithin);
         }
 
         #endregion
@@ -176,6 +177,113 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             // Assert: Lần chạy tiếp theo phải là 08:00 VN = 01:00:00 UTC cùng ngày
             var expectedNextRun = new DateTime(2026, 10, 5, 1, 0, 0, DateTimeKind.Utc);
+            Assert.Equal(expectedNextRun, nextRun);
+        }
+
+        #endregion
+
+        #region 5. Kiểm thử khung giờ qua đêm (Start > End)
+
+        private const string OvernightScheduleJson = "{\"startTime\": \"22:00\", \"endTime\": \"05:00\"}";
+
+        /// <summary>
+        /// Description: Kiểm thử IsValidTime với khung giờ qua đêm 22:00 → 05:00 (máy chủ chạy giờ Local,
+        ///              offset = 0, để tách biệt phép thử wraparound khỏi phép quy đổi múi giờ đã test ở region 1-3).
+        /// Created date: 07/10/2026
+        /// </summary>
+        [Theory]
+        [InlineData(23, 0, 0, true)]    // Trong khung, đoạn tối
+        [InlineData(4, 0, 0, true)]     // Trong khung, đoạn sáng hôm sau
+        [InlineData(22, 0, 0, true)]    // Đúng biên StartTime
+        [InlineData(5, 0, 0, true)]     // Đúng biên EndTime
+        [InlineData(12, 0, 0, false)]   // Giữa trưa — vùng gap ban ngày
+        [InlineData(21, 59, 59, false)] // Ngay trước biên StartTime — vẫn thuộc vùng gap
+        public void IsValidTime_Overnight_EvaluatesWraparoundCorrectly_Test(
+            int localHour, int localMinute, int localSecond, bool expectedWithin)
+        {
+            // Arrange
+            var nowLocal = new DateTime(2026, 10, 7, localHour, localMinute, localSecond, DateTimeKind.Local);
+            var sub = new ShareDataSubscription
+            {
+                ScheduleJson = OvernightScheduleJson
+            };
+
+            // Act
+            var isWithin = DataOutboundScheduler.IsValidTime(sub, nowLocal);
+
+            // Assert
+            Assert.Equal(expectedWithin, isWithin);
+        }
+
+        /// <summary>
+        /// Description: Candidate (now + interval) rơi vào vùng gap ban ngày của khung giờ qua đêm 22:00-05:00
+        ///              (12:00 trưa) thì phải kẹp tới StartTime (22:00) tối cùng ngày, KHÔNG phải now + interval.
+        /// Created date: 07/10/2026
+        /// </summary>
+        [Fact]
+        public void ComputeNextTimeRun_Overnight_CandidateInDaytimeGap_ClampsToStartTimeTonight_Test()
+        {
+            // Arrange: 12:00 trưa, giữa vùng gap (05:00 - 22:00)
+            var nowLocal = new DateTime(2026, 10, 7, 12, 0, 0, DateTimeKind.Local);
+            var sub = new ShareDataSubscription
+            {
+                IntervalSeconds = 30,
+                ScheduleJson = OvernightScheduleJson
+            };
+
+            // Act
+            var nextRun = DataOutboundScheduler.ComputeNextTimeRun(sub, nowLocal);
+
+            // Assert: kẹp tới 22:00 tối cùng ngày
+            var expectedNextRun = new DateTime(2026, 10, 7, 22, 0, 0, DateTimeKind.Local);
+            Assert.Equal(expectedNextRun, nextRun);
+        }
+
+        /// <summary>
+        /// Description: Candidate đã nằm trong đoạn tối của khung giờ qua đêm (23:00, trong 22:00-05:00)
+        ///              thì KHÔNG bị kẹp, next run vẫn là now + interval như continuous bình thường.
+        /// Created date: 07/10/2026
+        /// </summary>
+        [Fact]
+        public void ComputeNextTimeRun_Overnight_CandidateInEveningSegment_SchedulesNextIntervalWithoutClamping_Test()
+        {
+            // Arrange: 23:00 đêm, trong đoạn tối của khung 22:00-05:00
+            var nowLocal = new DateTime(2026, 10, 7, 23, 0, 0, DateTimeKind.Local);
+            var sub = new ShareDataSubscription
+            {
+                IntervalSeconds = 30,
+                ScheduleJson = OvernightScheduleJson
+            };
+
+            // Act
+            var nextRun = DataOutboundScheduler.ComputeNextTimeRun(sub, nowLocal);
+
+            // Assert: không bị kẹp
+            var expectedNextRun = new DateTime(2026, 10, 7, 23, 0, 30, DateTimeKind.Local);
+            Assert.Equal(expectedNextRun, nextRun);
+        }
+
+        /// <summary>
+        /// Description: Candidate đã nằm trong đoạn sáng hôm sau của khung giờ qua đêm (04:00, trong 22:00-05:00)
+        ///              thì KHÔNG bị kẹp, next run vẫn là now + interval như continuous bình thường.
+        /// Created date: 07/10/2026
+        /// </summary>
+        [Fact]
+        public void ComputeNextTimeRun_Overnight_CandidateInMorningSegment_SchedulesNextIntervalWithoutClamping_Test()
+        {
+            // Arrange: 04:00 sáng, trong đoạn sáng hôm sau của khung 22:00-05:00
+            var nowLocal = new DateTime(2026, 10, 7, 4, 0, 0, DateTimeKind.Local);
+            var sub = new ShareDataSubscription
+            {
+                IntervalSeconds = 30,
+                ScheduleJson = OvernightScheduleJson
+            };
+
+            // Act
+            var nextRun = DataOutboundScheduler.ComputeNextTimeRun(sub, nowLocal);
+
+            // Assert: không bị kẹp
+            var expectedNextRun = new DateTime(2026, 10, 7, 4, 0, 30, DateTimeKind.Local);
             Assert.Equal(expectedNextRun, nextRun);
         }
 

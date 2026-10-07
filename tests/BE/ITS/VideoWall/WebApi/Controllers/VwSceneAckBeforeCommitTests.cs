@@ -1,4 +1,5 @@
 using FluentValidation;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Module.VideoWall.Controllers.Scene.Commands;
 using Module.VideoWall.Controllers.Scene.Validators;
@@ -23,7 +24,7 @@ namespace Tests.VideoWall.WebApi.Controllers
     {
         private const string TestPrefix = "TEST_VWACK_";
         private readonly ISqlSugarClient _db = host.Services.GetRequiredService<ISqlSugarClient>();
-        private readonly IVwEventTriggerLogService _logService = host.Services.GetRequiredService<IVwEventTriggerLogService>();
+        private readonly IMessageBus _bus = host.Services.GetRequiredService<IMessageBus>();
 
         /// <summary>
         /// Description: Kích hoạt kịch bản theo cơ chế Fire-and-Forget: validate thành công -> publish lệnh qua IVwPublisher
@@ -69,20 +70,9 @@ namespace Tests.VideoWall.WebApi.Controllers
             Assert.True(validResult.IsValid);
 
             // 2. Thực thi CommandHandler với IVwPublisher THẬT — lệnh đi qua NATS thật xuống VwCommandConsumer
-            using var scope = host.Services.CreateScope();
-            var sp = scope.ServiceProvider;
             var initialActivateCount = host.MockServer.ActivateSceneCallCount;
 
-            var handler = new VwSceneWorkflowCommandHandler(
-                sp.GetRequiredService<BaseRepository<VwScene>>(),
-                sp.GetRequiredService<BaseRepository<VwWindowScene>>(),
-                sp.GetRequiredService<BaseRepository<VwController>>(),
-                sp.GetRequiredService<BaseRepository<VwEventRule>>(),
-                sp.GetRequiredService<VwPermissionService>(),
-                sp.GetRequiredService<IVwPublisher>(),
-                _logService);
-
-            var output = await handler.HandleAsync(new VwActiveSceneInput { Code = sceneCode });
+            var output = await _bus.InvokeAsync<VwActiveSceneOutput>(new VwActiveSceneInput { Code = sceneCode });
 
             // Assert: Output trả về ngay
             Assert.NotNull(output);
@@ -145,21 +135,10 @@ namespace Tests.VideoWall.WebApi.Controllers
             };
             await _db.Insertable(scene).ExecuteCommandAsync();
 
-            using var scope = host.Services.CreateScope();
-            var sp = scope.ServiceProvider;
             var initialActivateCount = host.MockServer.ActivateSceneCallCount;
 
-            var handler = new VwSceneWorkflowCommandHandler(
-                sp.GetRequiredService<BaseRepository<VwScene>>(),
-                sp.GetRequiredService<BaseRepository<VwWindowScene>>(),
-                sp.GetRequiredService<BaseRepository<VwController>>(),
-                sp.GetRequiredService<BaseRepository<VwEventRule>>(),
-                sp.GetRequiredService<VwPermissionService>(),
-                sp.GetRequiredService<IVwPublisher>(),
-                _logService);
-
             await Assert.ThrowsAnyAsync<Exception>(() =>
-                handler.HandleAsync(new VwActiveSceneInput { Code = sceneCode }));
+                _bus.InvokeAsync<VwActiveSceneOutput>(new VwActiveSceneInput { Code = sceneCode }));
 
             // Không có lệnh nào chạm tới thiết bị — kiểm từ phía MockServer thay vì đếm lời gọi hàm giả
             await Task.Delay(500);

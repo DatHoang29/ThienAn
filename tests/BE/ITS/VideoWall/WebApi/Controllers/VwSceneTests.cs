@@ -387,7 +387,7 @@ public class VwSceneTests(Host host)
         Assert.NotNull(result.TriggerLogId);
 
         var dbScene = await _db.Queryable<VwScene>().FirstAsync(u => u.ID == scene.ID);
-        Assert.Equal(BaseEnums.ActiveScene.DeActivate, dbScene.ActiveScene);
+        Assert.Equal(BaseEnums.ActiveScene.Activate, dbScene.ActiveScene);
     }
 
     /// <summary>
@@ -560,7 +560,7 @@ public class VwSceneTests(Host host)
         Assert.NotNull(result.TriggerLogId);
 
         var dbController = await _db.Queryable<VwController>().FirstAsync(u => u.ID == controller.ID);
-        Assert.Null(dbController.ActiveSceneId);
+        Assert.Equal(scene.ID, dbController.ActiveSceneId);
     }
 
     #region EventTriggerLog Verification Tests

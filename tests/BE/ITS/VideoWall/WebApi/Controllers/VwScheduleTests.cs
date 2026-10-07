@@ -1,3 +1,5 @@
+using Module.VideoWall.Core.Constants;
+
 namespace Tests.VideoWall.WebApi.Controllers
 {
     /// <summary>
@@ -58,7 +60,10 @@ namespace Tests.VideoWall.WebApi.Controllers
             {
                 Code = uniqueCode,
                 Name = "Morning Schedule ById",
-                CronExpr = "0 8 * * *",
+                ScheduleType = VwScheduleConst.ScheduleType.Daily,
+                Time = "08:00",
+                Action = VwScheduleConst.Action.ActivateScene,
+                TargetSceneId = Guid.NewGuid().ToString("N"),
                 Status = BaseEnums.StatusEnum.Enable,
                 CreateTime = DateTime.Now
             };
@@ -94,7 +99,9 @@ namespace Tests.VideoWall.WebApi.Controllers
             {
                 Code = uniqueCode,
                 Name = "Nightly Switch Scene",
-                CronExpr = "0 22 * * *",
+                ScheduleType = VwScheduleConst.ScheduleType.Daily,
+                Time = "22:00",
+                Action = VwScheduleConst.Action.ActivateScene,
                 TargetSceneId = scene.ID,
                 Status = BaseEnums.StatusEnum.Enable
             };
@@ -109,7 +116,7 @@ namespace Tests.VideoWall.WebApi.Controllers
                 .FirstAsync(u => u.Code == uniqueCode && u.IsDelete == null);
             Assert.NotNull(inserted);
             Assert.Equal("Nightly Switch Scene", inserted.Name);
-            Assert.Equal("0 22 * * *", inserted.CronExpr);
+            Assert.Equal("22:00", inserted.Time);
         }
 
         /// <summary>
@@ -125,7 +132,10 @@ namespace Tests.VideoWall.WebApi.Controllers
             {
                 Code = "VALID_CODE",
                 Name = name,
-                CronExpr = "0 0 * * *"
+                ScheduleType = VwScheduleConst.ScheduleType.Daily,
+                Time = "00:00",
+                Action = VwScheduleConst.Action.ActivateScene,
+                TargetSceneId = "scene-1"
             };
             var validator = new VwAddScheduleValidator(_localizer);
             var result = await validator.ValidateAsync(input);
@@ -141,12 +151,24 @@ namespace Tests.VideoWall.WebApi.Controllers
         [Fact]
         public async Task VwScheduleCommand_UpdateVwSchedule_UpdatesRecord_Test()
         {
+            var scene = new VwScene
+            {
+                Code = $"{TestPrefix}SCN_{Guid.NewGuid():N}",
+                Name = "Scheduled Scene",
+                Status = BaseEnums.StatusEnum.Enable,
+                CreateTime = DateTime.Now
+            };
+            await _db.Insertable(scene).ExecuteCommandAsync();
+
             var uniqueCode = $"{TestPrefix}SCH_{Guid.NewGuid():N}";
             var schedule = new VwSchedule
             {
                 Code = uniqueCode,
                 Name = "Old Schedule Name",
-                CronExpr = "0 6 * * *",
+                ScheduleType = VwScheduleConst.ScheduleType.Daily,
+                Time = "06:00",
+                Action = VwScheduleConst.Action.ActivateScene,
+                TargetSceneId = scene.ID,
                 Status = BaseEnums.StatusEnum.Enable,
                 CreateTime = DateTime.Now
             };
@@ -158,7 +180,10 @@ namespace Tests.VideoWall.WebApi.Controllers
                 ID = schedule.ID,
                 Code = uniqueCode,
                 Name = "Updated Schedule Name",
-                CronExpr = "0 7 * * *",
+                ScheduleType = VwScheduleConst.ScheduleType.Daily,
+                Time = "07:00",
+                Action = VwScheduleConst.Action.ActivateScene,
+                TargetSceneId = scene.ID,
                 Status = BaseEnums.StatusEnum.Enable
             };
 
@@ -172,7 +197,7 @@ namespace Tests.VideoWall.WebApi.Controllers
                 .FirstAsync(u => u.ID == schedule.ID && u.IsDelete == null);
             Assert.NotNull(updated);
             Assert.Equal("Updated Schedule Name", updated.Name);
-            Assert.Equal("0 7 * * *", updated.CronExpr);
+            Assert.Equal("07:00", updated.Time);
         }
 
         /// <summary>
@@ -216,7 +241,10 @@ namespace Tests.VideoWall.WebApi.Controllers
             {
                 Code = uniqueCode,
                 Name = "To Delete",
-                CronExpr = "0 0 * * *",
+                ScheduleType = VwScheduleConst.ScheduleType.Daily,
+                Time = "00:00",
+                Action = VwScheduleConst.Action.ActivateScene,
+                TargetSceneId = "scene-1",
                 Status = BaseEnums.StatusEnum.Enable,
                 CreateTime = DateTime.Now
             };

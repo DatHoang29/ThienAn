@@ -1,24 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Gốc mã nguồn chính (sâu thêm 1 cấp sau khi dời project vào tests/BE/) -->
   <PropertyGroup>
+    <!-- Gốc mã nguồn chính (sâu thêm 1 cấp sau khi dời project vào tests/BE/) -->
     <RepoRoot>..\..\TA-ITS015-WEBAPI-V1.0</RepoRoot>
-  </PropertyGroup>
 
-  <!-- Cấu hình TargetFramework: Chỉ bật net10.0-windows khi có project WPF, bình thường chỉ test net10.0 -->
-  <PropertyGroup Condition="Exists('$(RepoRoot)\src\Services\VideoWall\ITS.VideoWall.WPF\ITS.VideoWall.WPF.csproj')">
-    <TargetFrameworks>net10.0;net10.0-windows</TargetFrameworks>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(TargetFrameworks)' == ''">
-    <TargetFramework>net10.0</TargetFramework>
-  </PropertyGroup>
+    <!-- Cấu hình TargetFramework: Chỉ bật net10.0-windows khi có project WPF, bình thường chỉ test net10.0 -->
+    <TargetFrameworks Condition="Exists('$(RepoRoot)\src\Services\VideoWall\ITS.VideoWall.WPF\ITS.VideoWall.WPF.csproj')">net10.0;net10.0-windows</TargetFrameworks>
+    <TargetFramework Condition="'$(TargetFrameworks)' == ''">net10.0</TargetFramework>
 
-  <!-- Các target (net10.0 / net10.0-windows) dùng chung CSDL test, cổng mock 18080.. và thư mục Scenes nên PHẢI chạy tuần tự, không song song -->
-  <PropertyGroup>
+    <!-- Các target (net10.0 / net10.0-windows) dùng chung CSDL test, cổng mock 18080.. và thư mục Scenes nên PHẢI chạy tuần tự, không song song -->
     <TestTfmsInParallel>false</TestTfmsInParallel>
-  </PropertyGroup>
 
-  <PropertyGroup>
     <IsTestProject>true</IsTestProject>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
@@ -26,7 +18,6 @@
     <UseWPF Condition="'$(TargetFramework)' == 'net10.0-windows'">true</UseWPF>
     <!-- Loại trừ runner độc lập VwMockServerRunner khỏi test.csproj -->
     <DefaultItemExcludes>$(DefaultItemExcludes);ITS\VideoWall\VwMockServerRunner\**</DefaultItemExcludes>
-
   </PropertyGroup>
 
   <ItemGroup>

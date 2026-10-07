@@ -1687,6 +1687,147 @@ tests/
     - Tên nhánh không dấu đảm bảo tương thích 100% với Git CLI, CI/CD pipeline, Git server (GitLab, GitHub, Azure DevOps) và URL encoding.
     - Commit message có dấu đảm bảo tính chuyên nghiệp, dễ đọc hiểu cho đội ngũ kiểm thử, đồng nghiệp và lãnh đạo khi review lịch sử code.
 
+- **19.56. Quy Chuẩn Viết Test Backend Integration: Phân Định Tầng Module/Controller (Wolverine Bus & Validator) vs Tầng Service (Direct Service Scope) (Backend Test Architecture Standards: Module/Controller vs Service Layer - chốt 07/10/2026 - P0)**:
+  - **Phạm vi áp dụng**: Toàn bộ các bài kiểm thử trong `tests/BE/` (mọi phân hệ: VideoWall, ShareData, TMS, Notification, v.v.).
+  - 🔴 **NGUYÊN TẮC CHUNG CHO TOÀN BỘ CÁC TẦNG TEST**:
+    1. **BẮT BUỘC Truy Vết Từ Nguồn Gốc (Trace From Root Source Before Testing)**:
+       - Trước khi viết hoặc sửa bất kỳ test case nào, AI/Dev **BẮT BUỘC** khảo sát trực tiếp từ mã nguồn gốc:
+         - Với Controller/Module: Khảo sát luồng $\text{Controller} \to \text{Input DTO} \to \text{Validator} \to \text{Handler} \to \text{Bus/DB}$.
+         - Với Service: Khảo sát Constructor của Service (nhận dependency gì), DI lifecycle (`Scoped`/`Transient`/`Singleton`), và logic kiểm tra nghiệp vụ nội bộ (`Oops.Oh`, guard clauses).
+       - ⛔ **CẤM TUYỆT ĐỐI**: Tự đoán mò tên trường, tự đoán tham số hàm, hoặc bịa data test không khớp với code thật.
+    2. **CẤM Khai Báo Service / Bus / Db / Validator / TestPrefix Ở Cấp Class — 100% Khai Báo Cục Bộ Ở Đầu Hàm Test (Local Arrange Scope, No Class Fields)**:
+       - ⛔ **CẤM TUYỆT ĐỐI**: Khai báo hàng loạt field `private readonly ...` hay `private const string TestPrefix = ...` ở đầu test class.
+       - *Lý do*: Một test class chứa nhiều bài test với các kịch bản khác nhau. Khai báo ở cấp class sẽ gây phình to class header, tạo coupling rác giữa các bài test, và vi phạm tính cô lập độc lập (self-contained) của test.
+       - Thân class test chỉ nhận duy nhất `Host host`: `public class SomeTests(Host host)`. Mọi thao tác lấy service, resolve DI, khởi tạo prefix **BẮT BUỘC nằm ở khối Arrange (đầu hàm)** theo đúng Rule 19.46.
+
+  ---
+
+  ### 🏛️ PHẦN A: TẦNG MODULE / CONTROLLER (Wolverine Bus & FluentValidation)
+  - **Đối tượng kiểm thử**: Các WebAPI Controller, luồng gửi nhận Message qua Wolverine Bus (`Page`, `GetList`, `GetById`, `Add`, `Update`, `Delete`, `Workflow`).
+  - **1. Kiểm thử Validator (Tầng 1)**:
+    - Nếu DTO Input có khai báo `AbstractValidator<TInput>` trong thư mục `Validators/`, test **BẮT BUỘC** kiểm tra 2 nhánh:
+      - Nhánh Invalid: Truyền dữ liệu thiếu/sai $\to$ `await validator.ValidateAsync(invalidInput)` trả về `IsValid == false`.
+      - Nhánh Valid: Truyền dữ liệu chuẩn $\to$ `await validator.ValidateAsync(validInput)` trả về `IsValid == true`.
+    - Lấy Validator: `var validator = host.Services.GetRequiredService<IValidator<TInput>>();` (hoặc `new SomeInputValidator(host.Localizer);`).
+  - **2. Thực thi nghiệp vụ qua Wolverine Bus (Tầng 2)**:
+    - BẮT BUỘC gọi: `var result = await bus.InvokeAsync<TOutput>(validInput);` giống 100% như Controller thật (`await MessBus.InvokeAsync(...)`).
+    - ⛔ **CẤM**: Tự `new SomeCommandHandler(...)`, cấm `ActivatorUtilities.CreateInstance<SomeCommandHandler>`, cấm gọi `handler.HandleAsync(...)`.
+    - ⛔ **CẤM**: Đăng ký open generic `services.AddTransient(typeof(BaseRepository<>))` vào `Host.*.cs`.
+  - **Mẫu Code Chuẩn Cho Tầng Module / Controller**:
+    ```csharp
+    [Collection("api")]
+    public class VwSomeModuleTests(Host host)
+    {
+        [Fact]
+        public async Task Action_WhenInputInvalid_ValidatorFails_Test()
+        {
+            // Arrange: Khai báo nội bộ trong hàm
+            var validator = host.Services.GetRequiredService<IValidator<VwSomeInput>>();
+            var invalidInput = new VwSomeInput { /* Thiếu trường bắt buộc */ };
+
+            // Act
+            var validationResult = await validator.ValidateAsync(invalidInput);
+
+            // Assert
+            Assert.False(validationResult.IsValid);
+        }
+
+        [Fact]
+        public async Task Action_WhenValid_ExecutesViaBusSuccessfully_Test()
+        {
+            // Arrange: Khai báo những gì hàm này cần
+            var bus = host.Services.GetRequiredService<IMessageBus>();
+            var db = host.Services.GetRequiredService<ISqlSugarClient>();
+            var validator = host.Services.GetRequiredService<IValidator<VwSomeInput>>();
+            var testPrefix = "TEST_MOD_";
+
+            var validInput = new VwSomeInput
+            {
+                Code = $"{testPrefix}{Guid.NewGuid():N}",
+                Name = "Valid Module Test"
+            };
+
+            // Act: Tầng 1 - Validator
+            var validationResult = await validator.ValidateAsync(validInput);
+            Assert.True(validationResult.IsValid);
+
+            // Act: Tầng 2 - Wolverine Bus
+            var result = await bus.InvokeAsync<VwSomeOutput>(validInput);
+
+            // Assert
+            Assert.NotNull(result);
+            var dbItem = await db.Queryable<VwSomeEntity>().FirstAsync(u => u.Code == validInput.Code);
+            Assert.NotNull(dbItem);
+        }
+    }
+    ```
+
+  ---
+
+  ### ⚙️ PHẦN B: TẦNG SERVICE (Domain / Application / Infrastructure / Worker Services)
+  - **Đối tượng kiểm thử**: Các class Service nghiệp vụ nội bộ, tính toán thuật toán, tích hợp thiết bị, hoặc background worker không đi qua Controller/Wolverine Bus (ví dụ: `VwPermissionService`, `DataOutboundService`, `DataInboundService`, `IVwISAPIDeviceService`, `ShareDataActivityLogger`...).
+  - **1. Cơ chế thực thi**:
+    - Gọi **trực tiếp các phương thức của Service**: `await service.SomeBusinessMethodAsync(...)`.
+    - KHÔNG đi qua Wolverine Bus vì các Service này được gọi trực tiếp bằng C# interface/class.
+  - **2. Cách lấy Service trong Test (Scoped Lifetime)**:
+    - **BẮT BUỘC dùng Scope nội bộ hàm**:
+      ```csharp
+      using var scope = host.Services.CreateScope();
+      var service = scope.ServiceProvider.GetRequiredService<IVwSomeService>();
+      var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+      ```
+    - *Lý do*: Đa số Service được đăng ký dạng `Scoped` (phụ thuộc vào `ISqlSugarClient`, `IRepository`, `DbContext`). Việc tạo `using var scope` ngay trong hàm test giúp giải phóng hoàn toàn DbContext/Scope sau khi test xong, ngăn chặn rò rỉ bộ nhớ hoặc xung đột transaction giữa các test case.
+  - **3. Kiểm thử Ràng Buộc Nghiệp Vụ / Guard Clauses Của Service**:
+    - Service thường chứa các logic kiểm tra quyền, trạng thái, hoặc tham số và ném lỗi nghiệp vụ (`Oops.Oh(...)`, `AppFriendlyException`, `InvalidOperationException`):
+      - **Nhánh Thất Bại (Invalid Condition / Business Rejection)**: Truyền dữ liệu vi phạm điều kiện $\to$ dùng `await Assert.ThrowsAnyAsync<Exception>(() => service.MethodAsync(...))` hoặc `await Record.ExceptionAsync(...)` và assert message lỗi phù hợp.
+      - **Nhánh Thành Công (Valid Execution)**: Truyền dữ liệu chuẩn $\to$ Service thực thi thành công, kiểm tra giá trị trả về và đối soát dữ liệu CSDL / Mock Server.
+  - **4. Tích Hợp Mock Server (Nếu Service Kết Nối Thiết Bị / Đối Tác Ngoài)**:
+    - Service kết nối ISAPI thiết bị: Dùng `host.MockServer` (Hikvision HttpListener nội bộ).
+    - Service kết nối đối tác ShareData: Dùng `host.PartnerServer`.
+    - ⛔ **TUYỆT ĐỐI CẤM** gọi ra IP thiết bị thật hoặc server thật ngoài mạng.
+  - **Mẫu Code Chuẩn Cho Tầng Service**:
+    ```csharp
+    [Collection("api")]
+    public class VwSomeServiceTests(Host host)
+    {
+        [Fact]
+        public async Task ExecuteProcess_WhenConditionInvalid_ThrowsBusinessException_Test()
+        {
+            // Arrange: Khai báo Scope và Service ngay trong hàm
+            using var scope = host.Services.CreateScope();
+            var service = scope.ServiceProvider.GetRequiredService<IVwSomeService>();
+            var invalidId = "INVALID_ID";
+
+            // Act & Assert: Kiểm tra guard clause nghiệp vụ của Service
+            await Assert.ThrowsAnyAsync<Exception>(() => service.ProcessItemAsync(invalidId));
+        }
+
+        [Fact]
+        public async Task ExecuteProcess_WhenValid_ExecutesAndSavesToDb_Test()
+        {
+            // Arrange: Khai báo đầy đủ trong khối Arrange
+            using var scope = host.Services.CreateScope();
+            var service = scope.ServiceProvider.GetRequiredService<IVwSomeService>();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var testPrefix = "TEST_SVC_";
+
+            var entity = new VwSomeEntity
+            {
+                ID = $"{testPrefix}{Guid.NewGuid():N}",
+                Status = BaseEnums.StatusEnum.Enable
+            };
+            await db.Insertable(entity).ExecuteCommandAsync();
+
+            // Act: Gọi trực tiếp phương thức của Service
+            var result = await service.ProcessItemAsync(entity.ID);
+
+            // Assert: Kiểm tra kết quả trả về và CSDL
+            Assert.True(result);
+            var updated = await db.Queryable<VwSomeEntity>().InSingleAsync(entity.ID);
+            Assert.NotNull(updated);
+        }
+    }
+    ```
 
 ---
 

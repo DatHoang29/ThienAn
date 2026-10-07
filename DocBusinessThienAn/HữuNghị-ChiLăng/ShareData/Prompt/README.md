@@ -23,7 +23,7 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 | # | Prompt | Task | Phạm vi & Trạng thái |
 |---|---|---|---|
-| 1 | [`sharedata-issue33-ma-goi-tin-trung-ten-prompt.md`](sharedata-issue33-ma-goi-tin-trung-ten-prompt.md) | **Issue 33 (F16)** | ⚠️ **Chưa làm — chờ người dùng áp dụng.** FE thuần: `subscriptionTable.vue` — hàm `packetNameOf()` đổi sang hiển thị `[Mã] Tên` (áp đúng quy ước `codeNameLabel` đã dùng cho Issue 18 ở `editMapping.vue`), kèm khớp theo cả `id` lẫn `code`. Nới `minWidth` cột 160 → 220. |
+| 1 | [`sharedata-issue33-ma-goi-tin-trung-ten-prompt.md`](sharedata-issue33-ma-goi-tin-trung-ten-prompt.md) | **Issue 33 (F16)** | ⚠️ **Chưa làm — chờ người dùng áp dụng** (đã xác minh trực tiếp `subscriptionTable.vue` ngày 07/10/2026: vẫn còn bản cũ). FE thuần: `subscriptionTable.vue` — hàm `packetNameOf()` đổi sang hiển thị `[Mã] Tên` (áp đúng quy ước `codeNameLabel` đã dùng cho Issue 18 ở `editMapping.vue`), kèm khớp theo cả `id` lẫn `code`. Nới `minWidth` cột 160 → 220. |
 
 📌 Dữ liệu trùng tên khác mã (`101_commonData` / `101_commonData1`) đã xác nhận có thật trên staging qua bảng `ShareDataPacket` — không phải tình huống giả định.
 
@@ -33,7 +33,7 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 | # | Prompt | Task | Phạm vi & Trạng thái |
 |---|---|---|---|
-| 1 | [`sharedata-history-datatypelabel-modal-height-prompt.md`](sharedata-history-datatypelabel-modal-height-prompt.md) | — (phát hiện trực tiếp từ test note) | ⚠️ **Chưa làm — chờ người dùng áp dụng.** FE thuần, 2 việc độc lập: (1) `datatypeLabel()` khớp theo cả `id` lẫn `code` ở 4 file (`history/index.vue`, `activityDetailDialog.vue`, `recordDetailDrawer.vue`, `activityDetailDrawer.vue`) — vá hiển thị "Loại dữ liệu" chiều Nhận đang hiện mã thay vì tên gói; (2) sửa CSS `.steps-card.is-empty` trong `activityDetailDialog.vue` để modal "Tiến trình xử lý" không nhảy chiều cao giữa trạng thái có/không có bước. Không đụng Backend, không sửa dữ liệu lịch sử. |
+| 1 | [`sharedata-history-datatypelabel-modal-height-prompt.md`](sharedata-history-datatypelabel-modal-height-prompt.md) | — (phát hiện trực tiếp từ test note) | ✅ **Đã áp dụng (xác nhận 07/10/2026).** FE thuần, 2 việc độc lập: (1) `datatypeLabel()` khớp theo cả `id` lẫn `code` ở 4 file (`history/index.vue`, `activityDetailDialog.vue`, `recordDetailDrawer.vue`, `activityDetailDrawer.vue`) — vá hiển thị "Loại dữ liệu" chiều Nhận đang hiện mã thay vì tên gói; (2) sửa CSS `.steps-card.is-empty` trong `activityDetailDialog.vue` để modal "Tiến trình xử lý" không nhảy chiều cao giữa trạng thái có/không có bước. Không đụng Backend, không sửa dữ liệu lịch sử. |
 
 📌 **Nguyên nhân gốc (1)**: xác minh qua staging DB — log Nhận cũ lưu đúng `DatatypeId` của subscription Nhận **tại thời điểm ghi log** (lúc đó là mã); subscription đã được sửa đúng (ID) sau đó nhưng log là bản ghi bất biến. Vá ở tầng hiển thị để chịu được cả 2 định dạng, không migrate dữ liệu cũ.
 
@@ -43,7 +43,7 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 | # | Prompt | Task | Phạm vi & Trạng thái |
 |---|---|---|---|
-| 1 | [`sharedata-issue29-khung-gio-qua-dem-prompt.md`](sharedata-issue29-khung-gio-qua-dem-prompt.md) | **Issue 29 (F16)** | ⚠️ **Chưa làm — chờ người dùng áp dụng.** BE: `DataOutboundScheduler.cs` sửa đúng công thức khung giờ qua đêm (`IsWithinTimeWindow`, đổi tên `ClampToTimeWindow` → `EnsureNextRunWithinTimeWindow`) + 4 test case mới trong `DataOutboundSchedulerTests.cs`. FE: hint "khung giờ qua đêm" ở `editSubscription.vue` + làm rõ tooltip `sendImmediatelyHint` (không thuộc issue nào của F16, phát sinh từ trao đổi riêng về cờ `SendOnNewData`). |
+| 1 | [`sharedata-issue29-khung-gio-qua-dem-prompt.md`](sharedata-issue29-khung-gio-qua-dem-prompt.md) | **Issue 29 (F16)** | ✅ **Đã áp dụng (xác nhận 07/10/2026).** BE: `DataOutboundScheduler.cs` sửa đúng công thức khung giờ qua đêm — người áp dụng đặt tên hàm khác bản gốc (`IsValidTime`/`EnsureValidTime`/`IsTimeInRange` thay vì `IsWithinTimeWindow`/`EnsureNextRunWithinTimeWindow`/`IsTimeOfDayInWindow`), giữ nguyên theo rule 19.49. 4 test case mới trong `DataOutboundSchedulerTests.cs` (region 5) đã có. FE: hint "khung giờ qua đêm" ở `editSubscription.vue` đã có + đã làm rõ tooltip `sendImmediatelyHint` (không thuộc issue nào của F16, phát sinh từ trao đổi riêng về cờ `SendOnNewData`). PDF F16 07/10 mới gán Nhân sự = DatHQ, chưa có ghi chú Sheet Bug xác nhận kết quả test lại. |
 
 📌 **Phạm vi loại trừ**: đề xuất "Ngày bắt đầu/kết thúc hiệu lực" trong issue 29 là tính năng mới hoàn toàn, chưa làm — chờ PO/BA chốt riêng. Field "Chu kỳ (giây)" không đụng — đã khảo sát toàn client (TMS Service Monitor, TMS Incident Automation, ShareData Partner) và xác nhận field này đã đúng y hệt quy ước chung toàn hệ thống.
 
