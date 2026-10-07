@@ -150,7 +150,7 @@ Khi thực hiện commit code, phần tiêu đề (Summary) của commit bắt b
 > *   Dùng 1 `-m` khi chỉ cần ghi Summary ngắn gọn: `git commit -m "feat(sharedata): hoàn thiện chức năng worker"`
 > *   Dùng nhiều `-m` khi muốn bổ sung danh sách gạch đầu dòng chi tiết (Git sẽ tự chèn dòng trống ngăn cách giữa các đoạn):
 >     `git commit -m "[Subject]" -m "[Subject]" -m "- gạch đầu dòng 1`\n`- gạch đầu dòng 2"`
-> *   Sử dụng câu hành động cụ thể, tiếng Việt hoặc tiếng Anh thống nhất.
+> *   **Ngôn ngữ bắt buộc (P0):** BẮT BUỘC sử dụng **Tiếng Việt CÓ DẤU** chuẩn mực, đầy đủ ngữ nghĩa cho cả dòng tiêu đề (Summary) và các gạch đầu dòng chi tiết. TUYỆT ĐỐI CẤM viết tiếng Việt không dấu.
 
 #### Cấu trúc Commit Message Chi Tiết (Chuẩn thực tế của team):
 1.  **Dòng 1 (Summary):** `[type]([scope]): [noi-dung-cong-viec]`
@@ -1646,6 +1646,47 @@ tests/
   - **Lý do & Lợi ích**:
     - **Tính toàn vẹn thương hiệu & thẩm mỹ**: Logo công ty Thiên Ân và màu nhận diện thương hiệu (đỏ, xanh) trên biểu mẫu báo cáo tuần được bảo toàn nguyên vẹn 100%, không bị lỗi hiển thị hay sai lệch định dạng.
     - **Độ tin cậy & Độc lập**: Dùng Python Standard Library (`zipfile` + `xml.etree.ElementTree`), chạy tức thì trên mọi môi trường mà không phụ thuộc vào bất kỳ thư viện bên ngoài nào.
+
+- **19.54. BẮT BUỘC Khảo Sát Toàn Bộ Solution Trước Khi Cấu Hình File Build / Triển Khai — CẤM Tự Ý Config Theo Cảm Tính (Solution-Wide Survey Before Project Configuration - chốt 07/10/2026 - P0)**:
+  - **Phạm vi áp dụng**: Mọi tác vụ thêm mới hoặc chỉnh sửa cấu hình build, đóng gói, runtime (`.csproj`, package references, build items, cert/creds, `CopyToOutputDirectory`, `CopyToPublishDirectory`, Dockerfile, appsettings, service configs...).
+  - 🔴 **Nguyên tắc bắt buộc (Survey First - Tuân thủ tiền lệ toàn hệ thống)**:
+    1. **Khảo sát trước khi viết (Survey First)**: Trước khi thêm hoặc sửa bất kỳ cấu hình nào trong file project (`.csproj`, `.props`, `.targets`, script build...), BẮT BUỘC phải tìm kiếm và khảo sát toàn bộ các project/service tương tự trong solution xem đã có quy chuẩn, khuôn mẫu hoặc tiền lệ chung nào đang hoạt động ổn định chưa.
+    2. **Đồng nhất với tiền lệ đã có (Follow Existing Precedents)**: Nếu solution ĐÃ CÓ tiền lệ / mẫu chuẩn (ví dụ: các Worker khác dùng `<None Update="Configuration\nats.creds"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory></None>`): BẮT BUỘC phải làm đúng 100% theo quy chuẩn đó:
+       - Dùng `Update` thay vì `Include` trên các file trong thư mục dự án (chuẩn .NET SDK-style, tránh cảnh báo duplicate item).
+       - Dùng `PreserveNewest` thay vì `Always` để tối ưu thời gian build (chỉ copy khi file có thay đổi mới).
+       - Bổ sung đầy đủ thẻ `<CopyToPublishDirectory>` song song với `<CopyToOutputDirectory>` để tránh lỗi thiếu file cấu hình/bí mật khi publish triển khai thực tế.
+    3. **Chỉ tự config mới khi chưa có tiền lệ**: TUYỆT ĐỐI CHỈ tự ý cấu hình mới khi và chỉ khi toàn bộ solution CHƯA TỪNG CÓ tiền lệ nào tương tự.
+  - ⛔ **CẤM tuyệt đối**: Tự ý cấu hình theo cảm tính hoặc copy chắp vá từ nguồn bên ngoài mà không đối chiếu với các project anh em cùng loại trong solution.
+  - **Lý do & Lợi ích**:
+    - Ngăn chặn lỗi runtime / crash khi deploy (thiếu file trong thư mục publish).
+    - Tối ưu hiệu năng biên dịch và loại bỏ cảnh báo MSBuild.
+    - Duy trì tính nhất quán kiến trúc trên 100% các service và module trong toàn bộ solution.
+
+- **19.55. BẮT BUỘC Viết Thông Điệp Commit (`git commit -m`) Bằng Tiếng Việt Có Dấu Đầy Đủ — Phân Biệt Tuyệt Đối Với Tên Nhánh KHÔNG DẤU (Vietnamese Diacritics for Commits vs No-Diacritics for Branches - chốt 07/10/2026 - P0)**:
+  - **Phạm vi áp dụng**: Mọi thao tác git branch và git commit trên toàn bộ repository (`TA-ITS015-WEBAPI-V1.0`, `TA-ITS015-WEBVUE-V1.0` và repo tài liệu/AI).
+  - 🔴 **Quy tắc phân biệt cốt lõi (CỰC KỲ QUAN TRỌNG)**:
+    1. **TÊN NHÁNH (Branch Name) — BẮT BUỘC KHÔNG DẤU (Kebab-case)**:
+       - Cú pháp: `[BranchKey]/[yyyyMMdd]-[ten-cong-viec-khong-dau-gach-ngang]`
+       - Ví dụ chuẩn: `fix/20261007-fix-cau-hinh-nats`, `feat/20261006-tich-hop-nats-worker`
+       - ⛔ **TUYỆT ĐỐI CẤM** gõ tiếng Việt có dấu, khoảng trắng, hoặc ký tự đặc biệt trong tên nhánh.
+    2. **NỘI DUNG COMMIT (`git commit -m`) — BẮT BUỘC CÓ DẤU 100%**:
+       - Tất cả các dòng của commit message (Subject, mô tả nhắc lại, và các gạch đầu dòng `- `) **BẮT BUỘC phải viết bằng Tiếng Việt CÓ DẤU** rõ ràng, chuẩn chính tả.
+       - Cú pháp: `[type]([scope]): [nội dung công việc tiếng Việt có dấu]`
+       - Ví dụ chuẩn:
+         ```bash
+         git commit -m "fix(sharedata): cấu hình xác thực nats.creds cho sharedata worker" \
+                    -m "fix(sharedata): cấu hình xác thực nats.creds cho sharedata worker" \
+                    -m "- Bổ sung file Configuration/nats.creds phục vụ xác thực JWT và NKey
+         - Chuẩn hóa thẻ None Update, PreserveNewest và CopyToPublishDirectory cho nats.creds trong ShareDataWorker.csproj
+         - Cập nhật thông số kết nối NATS Url và AuthMode trong appsettings.json"
+         ```
+  - ⛔ **CẤM tuyệt đối**:
+    - Đặt tên nhánh có dấu tiếng Việt hoặc khoảng trắng.
+    - Viết thông điệp commit (`-m`) không dấu (như `cau hinh xac thuc`, `bo sung file`).
+  - **Lý do & Lợi ích**:
+    - Tên nhánh không dấu đảm bảo tương thích 100% với Git CLI, CI/CD pipeline, Git server (GitLab, GitHub, Azure DevOps) và URL encoding.
+    - Commit message có dấu đảm bảo tính chuyên nghiệp, dễ đọc hiểu cho đội ngũ kiểm thử, đồng nghiệp và lãnh đạo khi review lịch sử code.
+
 
 ---
 

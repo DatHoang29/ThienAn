@@ -20,7 +20,7 @@
   - [Q8. Dữ liệu được trích xuất từ bảng nào trong CSDL?](#q8-dữ-liệu-được-trích-xuất-từ-bảng-nào-trong-csdl)
   - [Q9. Khác biệt giữa Gói gửi toàn bộ (Snapshot) và Gói gửi nối đuôi (Biến động)?](#q9-khác-biệt-giữa-gói-gửi-toàn-bộ-snapshot-và-gói-gửi-nối-đuôi-biến-động)
   - [Q10. Cơ chế nối đuôi (LastSend) hoạt động ra sao? Làm sao chống trùng dữ liệu?](#q10-cơ-chế-nối-đuôi-lastsend-hoạt-động-ra-sao-làm-sao-chống-trùng-dữ-liệu)
-  - [Q11. Nếu CSDL không có dữ liệu mới phát sinh thì hệ thống xử lý thế nào?](#q11-nếu-csdl-không-có-dữ-liệu-mới-phát-sinh-thì-hệ-thống-xử-lý-thế-nào)
+  - [Q11. Ví dụ cụ thể: Lần 1 gửi A, lần 2 trong CSDL vẫn là A thì có gửi không?](#q11-ví-dụ-cụ-thể-lần-1-gửi-dữ-liệu-a-lần-2-trong-csdl-vẫn-là-a-không-có-dữ-liệu-mới-thì-hệ-thống-có-gửi-không)
   - [Q12. Gói tin gửi đi có cấu trúc như thế nào qua HTTP?](#q12-gói-tin-gửi-đi-có-cấu-trúc-như-thế-nào-qua-http)
 - [Phần 4: Nhóm câu hỏi Xử lý Sự cố & Độ tin cậy](#phần-4-nhóm-câu-hỏi-xử-lý-sự-cố--độ-tin-cậy)
   - [Q13. Nếu mạng rớt hoặc máy chủ đối tác trả về HTTP 500 thì sao? Có bị mất dữ liệu không?](#q13-nếu-mạng-rớt-hoặc-máy-chủ-đối-tác-trả-về-http-500-thì-sao-có-bị-mất-dữ-liệu-không)
@@ -121,25 +121,37 @@
 
 ### Q9. Khác biệt giữa Gói gửi toàn bộ (Snapshot) và Gói gửi nối đuôi (Biến động)?
 * **Trả lời trọng tâm:**  
-  - **Gói Snapshot (101, 102, 105, 108, 110):** Mỗi lần đến lịch gửi, hệ thống lấy toàn bộ ảnh chụp trạng thái hiện tại của thiết bị, biển báo, hiện trạng khu vực. Không phân trang, không phụ thuộc mốc cũ.
-  - **Gói Biến động (103, 104, 106, 107, 109):** Dữ liệu phát sinh liên tục theo dòng sự kiện (xe chạy qua cảm biến, thời tiết từng phút, sự cố). Hệ thống chỉ lấy bản ghi có thời gian `UpdateTime > LastTime` của lần gửi trước. Phân trang tối đa **50 bản ghi/lô**.
+  - **Gói Snapshot (101, 102, 105, 108, 110):** Mỗi lần đến lịch gửi, hệ thống lấy toàn bộ ảnh chụp trạng thái hiện tại của thiết bị, biển báo, hiện trạng khu vực (tối đa 100 bản ghi mới nhất). Không lọc theo mốc cũ, **tuyệt đối không tạo/cập nhật bảng `ShareDataLastSend`**.
+  - **Gói Biến động / Nối đuôi (103, 104, 106, 107, 109):** Dữ liệu phát sinh liên tục theo dòng sự kiện (xe chạy qua cảm biến, thời tiết từng phút, sự cố). Hệ thống quét dữ liệu tăng dần qua con trỏ kép `(LastTime, LastKey)` lưu trong bảng `ShareDataLastSend`. Phân trang tối đa **100 bản ghi/trang**.
 
 ---
 
 ### Q10. Cơ chế nối đuôi (LastSend) hoạt động ra sao? Làm sao chống trùng dữ liệu?
 * **Trả lời trọng tâm:**  
-  - Bảng `ShareDataLastSend` lưu giữ mốc `(LastTime, LastKeyId)` cho từng cặp `(PartnerCode, PacketCode)`.
-  - Khi bắt đầu truy vấn: Câu lệnh SQL lấy điều kiện `WHERE UpdateTime > @LastTime ORDER BY UpdateTime ASC`.
-  - **Chỉ khi đối tác phản hồi HTTP 200..299 thành công**, hệ thống mới cập nhật mốc `LastTime` mới bằng thời gian của bản ghi cuối cùng trong lô.
-  - Nhờ cơ chế con trỏ (cursor) này, hệ thống đảm bảo **không bao giờ gửi trùng bản ghi cũ** trong các phiên kế tiếp.
+  - Bảng `ShareDataLastSend` lưu giữ mốc con trỏ kép `(LastTime, LastKey)` độc lập cho từng cặp `(PartnerCode, PacketCode)`.
+  - **Mốc thời gian (`LastTime`):** `Watermark = COALESCE(UpdateTime, CreateTime, [EventTime])`.
+  - **Mốc khóa (`LastKey`):** Khóa định danh `ID` (`__rowid`) của bản ghi cuối cùng trong trang (dùng để phân định rạch ròi khi nhiều bản ghi có cùng một tích tắc thời gian).
+  - **Câu lệnh SQL lọc:**
+    ```sql
+    WHERE @lastTime IS NULL
+       OR Watermark > @lastTime
+       OR (Watermark = @lastTime AND ID > @lastKey)
+    ORDER BY Watermark ASC, ID ASC
+    ```
+  - **Chỉ khi đối tác phản hồi HTTP 200..299 thành công**, hệ thống mới commit cập nhật mốc `LastTime` và `LastKey` mới vào bảng `ShareDataLastSend`. Nhờ cơ chế con trỏ đơn điệu này, hệ thống đảm bảo **không bao giờ gửi trùng bản ghi cũ**.
 
 ---
 
-### Q11. Nếu CSDL không có dữ liệu mới phát sinh thì hệ thống xử lý thế nào?
+### Q11. Ví dụ cụ thể: Lần 1 gửi dữ liệu A, lần 2 trong CSDL vẫn là A (không có dữ liệu mới) thì hệ thống có gửi không?
 * **Trả lời trọng tâm:**  
-  - Nếu câu truy vấn trả về `0 bản ghi`, quy trình **dừng ngay lập tức tại Chặng 1**.
-  - Hệ thống **hoàn toàn không gọi request HTTP** sang đối tác để tránh spam đường truyền mạng.
-  - Trên màn hình Nhật ký, hệ thống chỉ ghi nhận **1 dòng log cha duy nhất** trạng thái `Success`, `RecordCount = 0` (NoNewData), không sinh các dòng con rỗng để tránh làm phình CSDL nhật ký.
+  Tùy thuộc vào chính sách của gói tin:
+  1. **Nếu là GÓI NỐI ĐUÔI (Biến động - 103, 104, 106, 107, 109):**
+     - **$\rightarrow$ TUYỆT ĐỐI KHÔNG GỬI!**
+     - **Giải thích:** Lần 1 đã gửi A xong thì mốc `LastTime = T_A`, `LastKey = ID_A`. Sang lần 2, câu query áp điều kiện lọc `Watermark > T_A OR (Watermark = T_A AND ID > ID_A)` $\rightarrow$ Bản ghi A bị loại bỏ, kết quả trả về `0 bản ghi` (`RawRows.Count == 0`). Hệ thống **dừng ngay tại Chặng 1, không gọi HTTP sang đối tác**, chỉ ghi 1 dòng log phẳng `Success (0 bản ghi, NoNewData)`.
+     - *Ngoại lệ:* Nếu bản ghi A được **UPDATE** trong CSDL (cột `UpdateTime` của A tăng lên thành $T_{A\_mới} > T_A$), kỳ quét sau hệ thống sẽ bắt được A như một bản ghi cập nhật mới và gửi đi.
+  2. **Nếu là GÓI SNAPSHOT (Hiện trạng - 101, 102, 105, 108, 110):**
+     - **$\rightarrow$ VẪN GỬI BÌNH THƯỜNG!**
+     - **Giải thích:** Gói Snapshot không dùng mốc `LastSend`, mỗi chu kỳ là một bản chụp tức thời gửi sang để đối tác duy trì giám sát "nhịp tim" và hiện trạng tuyến đường mới nhất, ngay cả khi nội dung trạng thái không thay đổi.
 
 ---
 

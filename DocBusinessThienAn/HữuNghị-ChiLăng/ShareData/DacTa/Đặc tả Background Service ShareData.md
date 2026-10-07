@@ -173,10 +173,10 @@ flowchart LR
 ```
 
 #### Bước 1: Lọc & Trích xuất dữ liệu (Extraction)
-- Hệ thống truy vấn CSDL nội bộ để lấy dữ liệu:
-  - **Với 5 gói biến động (103, 104, 106, 107, 109):** Chỉ lấy bản ghi phát sinh mới hơn mốc gửi lần trước (`UpdateTime > LastTime`). Phân trang tối đa 50 bản ghi/lô.
-  - **Với 5 gói hiện trạng/danh mục (101, 102, 105, 108, 110):** Luôn lấy toàn bộ trạng thái hiện tại (Snapshot).
-- 🛑 **Quy tắc kiểm tra rỗng:** Nếu CSDL **không có dữ liệu mới (0 bản ghi)** $\rightarrow$ Dừng xử lý ngay, **không** gọi gửi API đối tác. Hệ thống ghi 1 dòng nhật ký Thành công phẳng (0 bản ghi) để báo hiệu phiên quét bình thường.
+- Hệ thống truy vấn CSDL nội bộ `DEV_ITS10` để lấy dữ liệu theo từng loại gói tin:
+  - **Với 5 gói biến động (103, 104, 106, 107, 109):** Trích xuất theo cơ chế nối đuôi tăng dần dựa trên mốc `ShareDataLastSend` (`UpdateTime > LastTime` và `ID > LastKey`), **tuyệt đối không gửi lại bản ghi đã gửi thành công trước đó**. Phân trang tối đa 100 bản ghi/lô.
+  - **Với 5 gói hiện trạng/danh mục (101, 102, 105, 108, 110):** Luôn lấy toàn bộ trạng thái hiện tại của hệ thống (Snapshot) để đối tác cập nhật hiện trạng tức thời.
+- 🛑 **Quy tắc kiểm tra rỗng:** Nếu CSDL **không có dữ liệu mới (0 bản ghi)** $\rightarrow$ Dừng xử lý ngay tại Bước 1, **không** gọi gửi API đối tác để chống spam mạng. Hệ thống ghi 1 dòng nhật ký Thành công phẳng (0 bản ghi, thông điệp `NoNewData`) để báo hiệu phiên quét bình thường.
 
 #### Bước 2: Quy đổi giá trị & Đóng gói khuôn JSON (Mapping)
 - **Điền 4 giá trị hệ thống tự động vào JSON:** Thời điểm gửi (`Now`), Số thứ tự gói (`Serial`), Mã gói tin (`PacketCode`), Mã đối tác (`PartnerCode`).

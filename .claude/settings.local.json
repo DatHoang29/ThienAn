@@ -113,7 +113,9 @@
       "Bash(grep -n 'Rà soát toàn bộ trạng thái\\\\|Rủi ro ghi nhận\\\\|Lý do thêm cho\\\\|Hai lý do chặn\\\\|^#### 6c' DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/Plan/Sharedata_MasterPlan.md)",
       "Bash(iconv -f UTF-8 -t UTF-8 DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/Plan/Sharedata_MasterPlan.md)",
       "Bash(cp README.md /tmp/readme.bak)",
-      "Bash(sed -i -E 's/\\\\[`\\(sharedata-log-cha-con-be5-cot-va-api-prompt\\\\.md|sharedata-log-cha-con-sv8a-chieu-gui-prompt\\\\.md|sharedata-doi-ten-va-nang-moc-don-log-tracking-prompt\\\\.md|sharedata-log-cha-con-dong-bo-tai-lieu-prompt\\\\.md\\)`\\\\]\\\\\\(\\\\1\\\\\\)/`\\\\1`/g' README.md)"
+      "Bash(sed -i -E 's/\\\\[`\\(sharedata-log-cha-con-be5-cot-va-api-prompt\\\\.md|sharedata-log-cha-con-sv8a-chieu-gui-prompt\\\\.md|sharedata-doi-ten-va-nang-moc-don-log-tracking-prompt\\\\.md|sharedata-log-cha-con-dong-bo-tai-lieu-prompt\\\\.md\\)`\\\\]\\\\\\(\\\\1\\\\\\)/`\\\\1`/g' README.md)",
+      "Bash(python3 -c \"import pypdfium2\")",
+      "Bash(python -c \"import pypdfium2\")"
     ],
     "additionalDirectories": [
       "c:\\ThienAn\\DocBusinessThienAn\\HữuNghị-ChiLăng\\VideoWall",

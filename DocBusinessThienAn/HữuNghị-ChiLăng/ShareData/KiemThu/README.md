@@ -25,8 +25,8 @@ Thư mục này chứa **tài liệu kiểm thử và nghiệm thu** của phân
 
 | Tệp | Nội dung | Nguồn gốc |
 |---|---|---|
-| [`F16-nhat-ky-loi-issue-20260929.md`](F16-nhat-ky-loi-issue-20260929.md) | **28 issue** do TuyenHTN ghi nhận 26/09–29/09/2026, toàn bộ `Chờ phản hồi`. Mỗi issue kèm **nội dung ảnh chụp đã chép thành chữ** — trong đó có **10 mã lỗi thật** mà phần chữ của biểu mẫu không ghi | `F16.TAC-CN01-HNCL_ITS-KICH BAN KIEM THU - Issue - ShareData.pdf` (4 trang) |
-| [`images/`](images/) | 33 ảnh chụp màn hình bóc từ PDF, đặt tên theo số issue (`issue-NN.png`, issue có 2 ảnh thì `-a`/`-b`) | bóc từ PDF trên |
+| [`F16-nhat-ky-loi-issue-20260929.md`](F16-nhat-ky-loi-issue-20260929.md) | **33 issue** do TuyenHTN ghi nhận 26/09–06/10/2026 — **20 Passed**, **8 Pending** (đã sửa nhưng kiểm thử lại chưa đạt/lộ lỗi mới), **5 issue mới** (29–33) còn `Chờ phản hồi`. Mỗi issue kèm **nội dung ảnh chụp đã chép thành chữ** — trong đó có **12 mã lỗi thật** mà phần chữ của biểu mẫu không ghi | `F16.TAC-CN01-HNCL_ITS-KICH BAN KIEM THU - Issue - ShareData.pdf` (4 trang, cập nhật lần 2 ngày 07/10/2026) |
+| [`images/`](images/) | 40 ảnh chụp màn hình bóc từ PDF, đặt tên theo số issue (`issue-NN.png`, issue có 2 ảnh thì `-a`/`-b`) | bóc từ PDF trên |
 
 📌 Ảnh là **Tier C** (human-only, rule 16) — ⛔ AI không nạp mặc định. Toàn bộ thông tin cần thiết **đã được chép thành chữ** trong tệp `.md`; chỉ mở ảnh khi cần đối chiếu trực quan.
 
