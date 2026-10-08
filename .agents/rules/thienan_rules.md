@@ -58,17 +58,21 @@ Tên nhánh được đặt theo một trong các cú pháp chuẩn sau:
 #### 💡 Ví dụ Đặt Tên Nhánh Chuẩn:
 *   `feat/20250101-XD1.2.2.5_map-location`
 *   `feat/20260922-XD1.2.2.5_map-location-dathp`
-*   `fix/20250102-XD1.2.2.5_fix-map-location`
-*   `fix/20261007-XD001.5.6_fix-sharedata`
+*   `fix/20250102-XD1.2.2.5_map-location`
+*   `fix/20261007-XD001.5.6_sharedata-sync-issue`
+*   `fix/20261008-sharedata-khung-gio-qua-dem`
 *   `merge/20250105-XD1.2.2.5_merge-code-dev-a-b`
 *   `release/20250110-v1.0.1`
 
 > [!CAUTION]
 > ⛔ **CẤM BỎ SÓT TASKCODE VÀ CẤM TẠO NHÁNH SAI QUY CHUẨN (P0 Safeguard):**
-> 1. **Bắt buộc kế thừa TaskCode**: Khi một đợt công việc đang thuộc về một TaskCode cụ thể (ví dụ task `XD001.5.6`), mọi nhánh tạo tiếp theo BẮT BUỘC phải kế thừa đúng mã TaskCode đó theo Cú pháp 2: `[BranchKey]/[yyyyMMdd]-[TaskCode]_[ten-cong-viec]` (ví dụ: `fix/20261007-XD001.5.6_fix-sharedata`).
-> 2. **CẤM tự ý cắt bỏ TaskCode**: TUYỆT ĐỐI KHÔNG được tự tiện cắt bỏ TaskCode thành `fix/20261007-fix-sharedata` (làm mất dấu vết theo dõi issue trên Git/Jira).
+> 1. **Bắt buộc kế thừa TaskCode**: Khi một đợt công việc đang thuộc về một TaskCode cụ thể (ví dụ task `XD001.5.6`), mọi nhánh tạo tiếp theo BẮT BUỘC phải kế thừa đúng mã TaskCode đó theo Cú pháp 2: `[BranchKey]/[yyyyMMdd]-[TaskCode]_[ten-cong-viec]` (ví dụ: `fix/20261007-XD001.5.6_sharedata-sync-issue`).
+> 2. **CẤM tự ý cắt bỏ TaskCode**: TUYỆT ĐỐI KHÔNG được tự tiện cắt bỏ TaskCode thành `fix/20261007-sharedata-sync-issue` hay `fix/20261007-fix-sharedata` (làm mất dấu vết theo dõi issue trên Git/Jira).
 > 3. **Cú pháp dấu phân cách chuẩn**: Ngăn cách giữa ngày `yyyyMMdd` và `TaskCode` bằng dấu gạch ngang **`-`**; ngăn cách giữa `TaskCode` và tên công việc BẮT BUỘC bằng dấu gạch dưới **`_`**.
-> 4. **CẤM lặp từ hoặc đặt tên cộc lốc vô nghĩa**: Tuyệt đối không đặt tên nhánh lặp lại từ khóa branch key (như `fix/...-fix-...`) khi không có TaskCode; nếu dùng cú pháp rút gọn, phải nêu rõ tên phân hệ và lỗi cần sửa (ví dụ: `fix/20260929-sharedata-issue`).
+> 4. **CẤM lặp từ khóa BranchKey trong tên công việc**: Khi tiền tố đã là `fix/`, `feat/`, `refactor/`..., trong phần `[ten-cong-viec]` (dù có hay không có TaskCode) **TUYỆT ĐỐI CẤM** lặp lại `fix-`, `feat-`, `refactor-`...
+>    - ❌ *CẤM*: `fix/...-fix-...`, `fix/..._fix-...`, `feat/..._feat-...` (Ví dụ sai: `fix/20261001-tms-fix-chuc-nang`, `fix/20261007-XD001.5.6_fix-sharedata`).
+>    - ✅ *ĐÚNG*: `fix/20261001-tms-dieu-chinh-theo-issue`, `fix/20261007-XD001.5.6_sharedata-sync-issue`.
+> 5. **CẤM đặt tên công việc cộc lốc, chung chung vô nghĩa hoặc chỉ ghi lại tên module**: Tuyệt đối không đặt tên là `chuc-nang`, `fix-chuc-nang`, `code`, `issue`, `loi` đơn độc hoặc chỉ ghi trơ trọi tên module (`sharedata`, `tms`, `vms`). Bắt buộc mô tả cụ thể nghiệp vụ xử lý (Ví dụ: `dieu-chinh-theo-issue`, `su-co-va-giai-doan`, `sharedata-sync-issue`).
 
 ---
 
@@ -84,8 +88,8 @@ git pull origin dev
 # 2. Tạo nhánh feat mới để làm chức năng
 git checkout -b feat/20260922-XD1.2.2.5_map-location-dathp
 
-# Hoặc tạo nhánh fix để sửa lỗi
-git checkout -b fix/20260922-XD1.2.2.5_fix-map-location-dathp
+# Hoặc tạo nhánh fix để sửa lỗi (không lặp từ fix sau dấu _)
+git checkout -b fix/20260922-XD1.2.2.5_map-location-dathp
 ```
 
 ---
@@ -1837,9 +1841,31 @@ tests/
     }
     ```
 
+- **19.57. Quy Chuẩn Đặt Tên Nhánh Git — CẤM Lặp Từ Khóa BranchKey (`fix-`, `feat-`) Và CẤM Đặt Tên Công Việc Chung Chung Vô Nghĩa (`chuc-nang`, Chỉ Ghi Tên Module) (Git Branch Naming: No BranchKey Redundancy & No Generic Slugs - chốt 08/10/2026 - P0)**:
+  - **Mục đích & Bản chất**: Tên nhánh Git là định danh duy nhất thể hiện loại công việc (`BranchKey`), ngày khởi tạo, mã tác vụ (`TaskCode`) và mô tả nội dung nghiệp vụ. Đặt tên nhánh lặp từ hoặc cộc lốc/vô nghĩa làm rối loạn lịch sử commit/PR, cản trở việc truy vết issue và gây khó khăn khi phối hợp giữa các thành viên.
+  - ⛔ **CẤM Lặp Từ Khóa Phân Loại (No Redundant BranchKey in Slugs)**:
+    - Khi tiền tố nhánh đã xác định loại công việc (`fix/`, `feat/`, `refactor/`, `hotfix/`...), trong phần `[ten-cong-viec]` (dù theo Cú pháp rút gọn hay Cú pháp 2 có TaskCode) **TUYỆT ĐỐI CẤM** lặp lại các từ `fix-`, `feat-`, `refactor-`...
+    - ❌ *CẤM các dạng*:
+      - `fix/20261001-tms-fix-chuc-nang` (thừa `-fix-`)
+      - `fix/20261007-XD001.5.6_fix-sharedata` (thừa `_fix-`)
+      - `feat/20261001-XD1.2.2.5_feat-map-location` (thừa `_feat-`)
+    - ✅ *ĐÚNG chuẩn*:
+      - `fix/20261001-tms-dieu-chinh-theo-issue` hoặc `fix/20261001-tms-su-co-va-dieu-chinh-giai-doan`
+      - `fix/20261007-XD001.5.6_sharedata-sync-issue` hoặc `fix/20261007-XD001.5.6_sharedata-packet-subscription`
+      - `feat/20261001-XD1.2.2.5_map-location`
+  - ⛔ **CẤM Đặt Tên Công Việc Chung Chung, Cộc Lốc Hoặc Chỉ Ghi Lại Tên Module (No Generic / Vague Slugs)**:
+    - Phần `[ten-cong-viec]` BẮT BUỘC mô tả rõ ràng nghiệp vụ, chức năng hoặc lỗi cụ thể được xử lý.
+    - ❌ *CẤM các từ tối nghĩa / cộc lốc*: `chuc-nang`, `fix-chuc-nang`, `sua-loi`, `code`, `issue` đơn độc, hoặc chỉ ghi trơ trọi tên phân hệ như `_sharedata`, `_tms`, `_vms` mà không có mô tả chi tiết lỗi/tính năng.
+    - ✅ *ĐÚNG chuẩn*:
+      - Có TaskCode: `[BranchKey]/[yyyyMMdd]-[TaskCode]_[phan-he]-[nghiep-vu-cu-the]` (VD: `fix/20261007-XD001.5.6_sharedata-sync-issue`, `feat/20261008-XD002.1_vms-chainzone-adapter`).
+      - Rút gọn (không TaskCode): `[BranchKey]/[yyyyMMdd]-[phan-he]-[nghiep-vu-cu-the]` (VD: `fix/20261001-tms-dieu-chinh-theo-issue`, `fix/20261008-sharedata-khung-gio-qua-dem`).
+  - **Bài học từ hai case lỗi thực tế**:
+    1. **Case `fix/20261001-tms-fix-chuc-nang`**: Mắc cả 2 lỗi cùng lúc (vừa lặp `fix-`, vừa cộc lốc `chuc-nang`). Commit thực tế điều chỉnh issue sự cố TMS và nghiệp vụ trạm thu phí Toll $\to$ Sửa đúng: `fix/20261001-tms-dieu-chinh-theo-issue` hoặc `fix/20261001-tms-su-co-va-dieu-chinh-giai-doan`.
+    2. **Case `fix/20261007-XD001.5.6_fix-sharedata`**: Mắc lỗi lặp `_fix-` ngay sau TaskCode và chỉ ghi tên module `sharedata` chung chung $\to$ Sửa đúng: `fix/20261007-XD001.5.6_sharedata-sync-issue` hoặc `fix/20261007-XD001.5.6_sharedata-packet-subscription`.
+
 ---
 
-
+## 💻 20. Quy Chuẩn Frontend (Vue 3 / TypeScript)
 
 Toàn bộ quy tắc dưới đây được đồng bộ từ `.kiro/steering/` của repo Frontend `TA-ITS015-WEBVUE-V1.0`, áp dụng bắt buộc cho toàn bộ mã nguồn Vue 3 / TypeScript:
 
