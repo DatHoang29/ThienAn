@@ -59,8 +59,16 @@ Tên nhánh được đặt theo một trong các cú pháp chuẩn sau:
 *   `feat/20250101-XD1.2.2.5_map-location`
 *   `feat/20260922-XD1.2.2.5_map-location-dathp`
 *   `fix/20250102-XD1.2.2.5_fix-map-location`
+*   `fix/20261007-XD001.5.6_fix-sharedata`
 *   `merge/20250105-XD1.2.2.5_merge-code-dev-a-b`
 *   `release/20250110-v1.0.1`
+
+> [!CAUTION]
+> ⛔ **CẤM BỎ SÓT TASKCODE VÀ CẤM TẠO NHÁNH SAI QUY CHUẨN (P0 Safeguard):**
+> 1. **Bắt buộc kế thừa TaskCode**: Khi một đợt công việc đang thuộc về một TaskCode cụ thể (ví dụ task `XD001.5.6`), mọi nhánh tạo tiếp theo BẮT BUỘC phải kế thừa đúng mã TaskCode đó theo Cú pháp 2: `[BranchKey]/[yyyyMMdd]-[TaskCode]_[ten-cong-viec]` (ví dụ: `fix/20261007-XD001.5.6_fix-sharedata`).
+> 2. **CẤM tự ý cắt bỏ TaskCode**: TUYỆT ĐỐI KHÔNG được tự tiện cắt bỏ TaskCode thành `fix/20261007-fix-sharedata` (làm mất dấu vết theo dõi issue trên Git/Jira).
+> 3. **Cú pháp dấu phân cách chuẩn**: Ngăn cách giữa ngày `yyyyMMdd` và `TaskCode` bằng dấu gạch ngang **`-`**; ngăn cách giữa `TaskCode` và tên công việc BẮT BUỘC bằng dấu gạch dưới **`_`**.
+> 4. **CẤM lặp từ hoặc đặt tên cộc lốc vô nghĩa**: Tuyệt đối không đặt tên nhánh lặp lại từ khóa branch key (như `fix/...-fix-...`) khi không có TaskCode; nếu dùng cú pháp rút gọn, phải nêu rõ tên phân hệ và lỗi cần sửa (ví dụ: `fix/20260929-sharedata-issue`).
 
 ---
 
@@ -1935,6 +1943,10 @@ Khi tạo mới hoặc sửa modal, BẮT BUỘC tuân thủ đúng bảng đố
   - Màu nền & Viền: `var(--el-bg-color)`, `var(--el-fill-color-light)`, `var(--el-border-color)`.
 - **SCSS Comments**: BẮT BUỘC dùng dạng block comment `/* */`. TUYỆT ĐỐI KHÔNG dùng comment một dòng `//` trong SCSS (gây vỡ build Vite).
 - **Cú pháp SCSS**: Không để thừa hai dấu chấm phẩy (`;;`).
+- **CẤM lạm dụng `!important` trong CSS / SCSS (Hiệu năng & Khả năng bảo trì)**:
+  - ⛔ TUYỆT ĐỐI KHÔNG lạm dụng hoặc sử dụng `!important` bừa bãi trong CSS/SCSS (đặc biệt trong scoped styles và component).
+  - *Lý do*: `!important` phá vỡ luồng cascade tự nhiên của CSS (CSS Specificity Chain), làm trình duyệt phải tính toán lại cây kiểu (style recalculation) với chi phí hiệu năng đắt đỏ, gây chậm render/giật lag giao diện và phá vỡ khả năng bảo trì, mở rộng mã nguồn.
+  - *Giải pháp thay thế chuẩn*: Nâng cao độ ưu tiên tự nhiên (specificity) bằng lồng selector (selector nesting, ví dụ `.parent .child`), sử dụng class định danh cụ thể, hoặc dùng pseudo-class/combinator thay vì cưỡng ép bằng `!important`.
 
 ### 20.7. Nguyên Tắc Sửa Giao Diện & Responsive (CSS-First, Không Thay Đổi Template)
 - **CSS-First**: Mọi lỗi hiển thị (placeholder bị che, icon che khuất, vỡ dòng, co rúm nút, responsive màn hình nhỏ...) BẮT BUỘC xử lý bằng CSS/SCSS (Flexbox, Grid, Container Queries `@container`, Media Queries `@media`, CSS variables, pseudo-classes...).
