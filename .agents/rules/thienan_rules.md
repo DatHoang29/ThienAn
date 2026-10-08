@@ -59,20 +59,21 @@ Tên nhánh được đặt theo một trong các cú pháp chuẩn sau:
 *   `feat/20250101-XD1.2.2.5_map-location`
 *   `feat/20260922-XD1.2.2.5_map-location-dathp`
 *   `fix/20250102-XD1.2.2.5_map-location`
-*   `fix/20261007-XD001.5.6_sharedata-sync-issue`
+*   `fix/20261007-sharedata-issue`
 *   `fix/20261008-sharedata-khung-gio-qua-dem`
 *   `merge/20250105-XD1.2.2.5_merge-code-dev-a-b`
 *   `release/20250110-v1.0.1`
 
 > [!CAUTION]
-> ⛔ **CẤM BỎ SÓT TASKCODE VÀ CẤM TẠO NHÁNH SAI QUY CHUẨN (P0 Safeguard):**
-> 1. **Bắt buộc kế thừa TaskCode**: Khi một đợt công việc đang thuộc về một TaskCode cụ thể (ví dụ task `XD001.5.6`), mọi nhánh tạo tiếp theo BẮT BUỘC phải kế thừa đúng mã TaskCode đó theo Cú pháp 2: `[BranchKey]/[yyyyMMdd]-[TaskCode]_[ten-cong-viec]` (ví dụ: `fix/20261007-XD001.5.6_sharedata-sync-issue`).
-> 2. **CẤM tự ý cắt bỏ TaskCode**: TUYỆT ĐỐI KHÔNG được tự tiện cắt bỏ TaskCode thành `fix/20261007-sharedata-sync-issue` hay `fix/20261007-fix-sharedata` (làm mất dấu vết theo dõi issue trên Git/Jira).
-> 3. **Cú pháp dấu phân cách chuẩn**: Ngăn cách giữa ngày `yyyyMMdd` và `TaskCode` bằng dấu gạch ngang **`-`**; ngăn cách giữa `TaskCode` và tên công việc BẮT BUỘC bằng dấu gạch dưới **`_`**.
+> ⛔ **CẤM TẠO NHÁNH SAI QUY CHUẨN & NGUYÊN TẮC TÊN NHÁNH NGẮN GỌN (P0 Safeguard):**
+> 1. **Kế thừa TaskCode khi có quy định**: Khi một đợt công việc bắt buộc theo dõi theo TaskCode cụ thể (ví dụ task `XD001.5.6`), đặt theo Cú pháp 2: `[BranchKey]/[yyyyMMdd]-[TaskCode]_[ten-cong-viec]` (ví dụ: `feat/20250101-XD1.2.2.5_map-location`).
+> 2. **Ưu tiên ngắn gọn, rõ nghĩa — Cú pháp rút gọn**: Đối với các tác vụ sửa lỗi hoặc không bắt buộc TaskCode, ưu tiên sử dụng cú pháp ngắn gọn, trực diện, không kéo dài dòng rườm rà: `[BranchKey]/[yyyyMMdd]-[module]-[ten-cong-viec-ngan-gon]` (ví dụ chuẩn: `fix/20261007-sharedata-issue`, `fix/20260929-sharedata-issue`).
+> 3. **Cú pháp dấu phân cách chuẩn**: Ngăn cách giữa ngày `yyyyMMdd` và `TaskCode`/tên module bằng dấu gạch ngang **`-`**; nếu có `TaskCode` thì ngăn cách giữa `TaskCode` và tên công việc BẮT BUỘC bằng dấu gạch dưới **`_`**.
 > 4. **CẤM lặp từ khóa BranchKey trong tên công việc**: Khi tiền tố đã là `fix/`, `feat/`, `refactor/`..., trong phần `[ten-cong-viec]` (dù có hay không có TaskCode) **TUYỆT ĐỐI CẤM** lặp lại `fix-`, `feat-`, `refactor-`...
 >    - ❌ *CẤM*: `fix/...-fix-...`, `fix/..._fix-...`, `feat/..._feat-...` (Ví dụ sai: `fix/20261001-tms-fix-chuc-nang`, `fix/20261007-XD001.5.6_fix-sharedata`).
->    - ✅ *ĐÚNG*: `fix/20261001-tms-dieu-chinh-theo-issue`, `fix/20261007-XD001.5.6_sharedata-sync-issue`.
-> 5. **CẤM đặt tên công việc cộc lốc, chung chung vô nghĩa hoặc chỉ ghi lại tên module**: Tuyệt đối không đặt tên là `chuc-nang`, `fix-chuc-nang`, `code`, `issue`, `loi` đơn độc hoặc chỉ ghi trơ trọi tên module (`sharedata`, `tms`, `vms`). Bắt buộc mô tả cụ thể nghiệp vụ xử lý (Ví dụ: `dieu-chinh-theo-issue`, `su-co-va-giai-doan`, `sharedata-sync-issue`).
+>    - ✅ *ĐÚNG*: `fix/20261001-tms-dieu-chinh-theo-issue`, `fix/20261007-sharedata-issue`.
+> 5. **CẤM đặt tên công việc cộc lốc, vô nghĩa hoặc chỉ ghi lại tên module**: Tuyệt đối không đặt tên là `chuc-nang`, `fix-chuc-nang`, `code`, `issue`, `loi` đơn độc hoặc chỉ ghi trơ trọi tên module (`sharedata`, `tms`, `vms`). Bắt buộc mô tả ngắn gọn cụ thể nghiệp vụ xử lý (Ví dụ: `dieu-chinh-theo-issue`, `sharedata-issue`, `sharedata-khung-gio-qua-dem`).
+> 6. **CẤM đặt tên nhánh quá dài dòng, nhồi nhét nhiều từ ngữ rườm rà**: Giữ tên nhánh ngắn gọn, súc tích, đi thẳng vào vấn đề (Ví dụ: dùng `fix/20261007-sharedata-issue`, CẤM kéo dài lê thê thành các chuỗi slug phức tạp gây khó nhớ, khó gõ lệnh).
 
 ---
 
@@ -1851,17 +1852,19 @@ tests/
       - `feat/20261001-XD1.2.2.5_feat-map-location` (thừa `_feat-`)
     - ✅ *ĐÚNG chuẩn*:
       - `fix/20261001-tms-dieu-chinh-theo-issue` hoặc `fix/20261001-tms-su-co-va-dieu-chinh-giai-doan`
-      - `fix/20261007-XD001.5.6_sharedata-sync-issue` hoặc `fix/20261007-XD001.5.6_sharedata-packet-subscription`
+      - `fix/20261007-sharedata-issue` (ngắn gọn, trực diện)
       - `feat/20261001-XD1.2.2.5_map-location`
   - ⛔ **CẤM Đặt Tên Công Việc Chung Chung, Cộc Lốc Hoặc Chỉ Ghi Lại Tên Module (No Generic / Vague Slugs)**:
     - Phần `[ten-cong-viec]` BẮT BUỘC mô tả rõ ràng nghiệp vụ, chức năng hoặc lỗi cụ thể được xử lý.
     - ❌ *CẤM các từ tối nghĩa / cộc lốc*: `chuc-nang`, `fix-chuc-nang`, `sua-loi`, `code`, `issue` đơn độc, hoặc chỉ ghi trơ trọi tên phân hệ như `_sharedata`, `_tms`, `_vms` mà không có mô tả chi tiết lỗi/tính năng.
     - ✅ *ĐÚNG chuẩn*:
-      - Có TaskCode: `[BranchKey]/[yyyyMMdd]-[TaskCode]_[phan-he]-[nghiep-vu-cu-the]` (VD: `fix/20261007-XD001.5.6_sharedata-sync-issue`, `feat/20261008-XD002.1_vms-chainzone-adapter`).
-      - Rút gọn (không TaskCode): `[BranchKey]/[yyyyMMdd]-[phan-he]-[nghiep-vu-cu-the]` (VD: `fix/20261001-tms-dieu-chinh-theo-issue`, `fix/20261008-sharedata-khung-gio-qua-dem`).
+      - Rút gọn (Ưu tiên ngắn gọn, trực diện): `[BranchKey]/[yyyyMMdd]-[phan-he]-[nghiep-vu-ngan-gon]` (VD: `fix/20261007-sharedata-issue`, `fix/20261001-tms-dieu-chinh-theo-issue`, `fix/20261008-sharedata-khung-gio-qua-dem`).
+      - Có TaskCode: `[BranchKey]/[yyyyMMdd]-[TaskCode]_[phan-he]-[nghiep-vu-cu-the]` (VD: `feat/20261008-XD002.1_vms-chainzone-adapter`).
+  - ⛔ **CẤM Đặt Tên Nhánh Quá Dài Dòng, Phức Tạp (Keep Branch Names Concise)**:
+    - Không kéo dài chuỗi ký tự hay ghép quá nhiều từ ngữ mô tả chi tiết vào tên nhánh làm dài dòng, khó nhớ và khó gõ lệnh. Giữ tên nhánh ngắn gọn, súc tích (Ví dụ: `fix/20261007-sharedata-issue`).
   - **Bài học từ hai case lỗi thực tế**:
-    1. **Case `fix/20261001-tms-fix-chuc-nang`**: Mắc cả 2 lỗi cùng lúc (vừa lặp `fix-`, vừa cộc lốc `chuc-nang`). Commit thực tế điều chỉnh issue sự cố TMS và nghiệp vụ trạm thu phí Toll $\to$ Sửa đúng: `fix/20261001-tms-dieu-chinh-theo-issue` hoặc `fix/20261001-tms-su-co-va-dieu-chinh-giai-doan`.
-    2. **Case `fix/20261007-XD001.5.6_fix-sharedata`**: Mắc lỗi lặp `_fix-` ngay sau TaskCode và chỉ ghi tên module `sharedata` chung chung $\to$ Sửa đúng: `fix/20261007-XD001.5.6_sharedata-sync-issue` hoặc `fix/20261007-XD001.5.6_sharedata-packet-subscription`.
+    1. **Case `fix/20261001-tms-fix-chuc-nang`**: Mắc cả 2 lỗi cùng lúc (vừa lặp `fix-`, vừa cộc lốc `chuc-nang`). Commit thực tế điều chỉnh issue sự cố TMS và nghiệp vụ trạm thu phí Toll $\to$ Sửa đúng ngắn gọn: `fix/20261001-tms-dieu-chinh-theo-issue`.
+    2. **Case `fix/20261007-XD001.5.6_fix-sharedata`**: Mắc lỗi lặp `_fix-` ngay sau TaskCode, tên quá dài và chỉ ghi tên module `sharedata` chung chung $\to$ Sửa đúng ngắn gọn: `fix/20261007-sharedata-issue`.
 
 ---
 
