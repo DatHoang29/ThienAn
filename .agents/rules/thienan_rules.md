@@ -1866,6 +1866,18 @@ tests/
     1. **Case `fix/20261001-tms-fix-chuc-nang`**: Mắc cả 2 lỗi cùng lúc (vừa lặp `fix-`, vừa cộc lốc `chuc-nang`). Commit thực tế điều chỉnh issue sự cố TMS và nghiệp vụ trạm thu phí Toll $\to$ Sửa đúng ngắn gọn: `fix/20261001-tms-dieu-chinh-theo-issue`.
     2. **Case `fix/20261007-XD001.5.6_fix-sharedata`**: Mắc lỗi lặp `_fix-` ngay sau TaskCode, tên quá dài và chỉ ghi tên module `sharedata` chung chung $\to$ Sửa đúng ngắn gọn: `fix/20261007-sharedata-issue`.
 
+- **19.58. CẤM Tự Ý Commit Và Push Code Khi Chưa Có Lệnh Trực Tiếp Hoặc Người Dùng Chưa Review Xong (No Auto Commit & Push Without User Review / Approval - chốt 08/10/2026 - P0)**:
+  - **Phạm vi áp dụng**: Toàn bộ codebase Backend, Frontend và repository dự án.
+  - 🔴 **Yêu cầu bắt buộc**:
+    1. **Quy trình Review Trước Khi Commit (Review-First Workflow)**: Sau khi hoàn thành việc viết code, sửa lỗi, refactor hoặc cập nhật tài liệu, AI **BẮT BUỘC PHẢI DỪNG LẠI**, tổng kết danh sách file đã thay đổi, giải thích rõ các điểm sửa và báo cáo để **NGƯỜI DÙNG KIỂM TRA, REVIEW TRƯỚC**.
+    2. **Chỉ Commit & Push Khi Có Lệnh Rõ Ràng**: AI **TUYỆT ĐỐI CHỈ ĐƯỢC PHÉP** chạy `git commit` và `git push` khi và chỉ khi người dùng ra chỉ thị trực tiếp bằng lời (ví dụ: *"commit đi"*, *"push code lên"*, *"xong commit rồi push giùm tôi"*, *"review ok rồi, commit đi"*...).
+  - ⛔ **CẤM tuyệt đối**:
+    - Tự động chạy `git commit` hoặc `git push` ngay sau khi sửa code xong mà người dùng chưa kịp review.
+    - Tự ý suy đoán rằng người dùng muốn commit/push khi người dùng chỉ đưa prompt, yêu cầu tiếp tục (*"continue"*), hoặc giao task mới.
+  - **Lý do & Lợi ích**:
+    - Trao quyền kiểm soát tuyệt đối cho lập trình viên/người dùng trước khi mã nguồn được ghi nhận vào lịch sử Git hoặc đẩy lên remote branch.
+    - Giúp người dùng kịp thời phát hiện sai sót, yêu cầu chỉnh sửa bổ sung mà không phải tạo thêm commit rác hoặc phải `git reset` / revert trên remote.
+
 ---
 
 ## 💻 20. Quy Chuẩn Frontend (Vue 3 / TypeScript)
