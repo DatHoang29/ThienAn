@@ -1953,6 +1953,24 @@ Khi tạo mới hoặc sửa modal, BẮT BUỘC tuân thủ đúng bảng đố
 - **CẤM xóa props / thuộc tính template**: TUYỆT ĐỐI KHÔNG tự ý gỡ bỏ các thuộc tính chuẩn của Element Plus (`show-word-limit`, `:maxlength`, `clearable`, `filterable`, `:body-style`...) để "né" việc căn chỉnh CSS.
 - **Quy trình hỏi ý kiến**: Nếu không gian quá hẹp không thể hiển thị vừa cả nội dung và bộ đếm/nút, BẮT BUỘC hỏi ý kiến người dùng trước khi được phép lược bỏ bất kỳ thành phần nào của UI (tuân thủ mục 19.27).
 
+### 20.8. Quy Chuẩn Code TypeScript / JavaScript — CẤM Sử Dụng Toán Tử `!!` (No Double Negation / Double Exclamation)
+- ⛔ **CẤM viết toán tử `!!` (double exclamation mark / double negation)** (ví dụ: `!!startTime.value`, `!!row?.id`, `!!variable`):
+  - *Lý do*: Cú pháp `!!` gây khó hiểu, tối nghĩa, che giấu các trường hợp giá trị falsy ngoài ý muốn (chuỗi rỗng `""`, số `0`, `NaN`, `null`, `undefined`) và gây khó khăn khi debug, đọc hiểu logic hoặc review mã nguồn.
+  - *Giải pháp thay thế chuẩn*: BẮT BUỘC viết biểu thức điều kiện tường minh (explicit check):
+    - **Kiểm tra ép kiểu boolean**: Sử dụng hàm chuẩn tường minh `Boolean(value)` (ví dụ: `Boolean(row?.id)` thay vì `!!row?.id`).
+    - **Kiểm tra điều kiện chuỗi / biến**: Tách thành khối logic rõ ràng hoặc guard clauses:
+      ```ts
+      // ❌ CẤM VIẾT:
+      const isEndBeforeStart = computed(() => !!startTime.value && !!endTime.value && endTime.value < startTime.value);
+
+      // ✅ VIẾT CHUẨN:
+      const isEndBeforeStart = computed(() => {
+          if (!startTime.value || !endTime.value) return false;
+          return endTime.value < startTime.value;
+      });
+      ```
+    - **Kiểm tra chuỗi có dữ liệu**: So sánh tường minh `val != null && val !== ''` hoặc `Boolean(val?.trim())`.
+
 ---
 
 ## 🐞 21. Quy Chuẩn Phản Hồi Sheet Bug Kiểm Thử (Sheet Bug Comment Protocol)

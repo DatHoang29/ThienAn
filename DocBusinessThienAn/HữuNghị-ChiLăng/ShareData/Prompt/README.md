@@ -39,13 +39,17 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 ---
 
-### 🟣 Issue 29 (F16) — Khung giờ qua đêm + tooltip SendOnNewData (07/10/2026)
+### 🟣 Issue 29 (F16) — Khung giờ qua đêm → chặn EndTime < StartTime (chốt 08/10/2026)
+
+🔴 **Đính chính 08/10/2026**: có 1 hiểu lầm ngắn giữa AI và người dùng khiến prompt #3 ra đời — đã xác nhận lại trực tiếp với người dùng: **giữ nguyên hướng của prompt #2** (chặn `EndTime < StartTime`), prompt #3 **KHÔNG được áp dụng**. BE `DataOutboundScheduler.cs` (hàm `IsValidTime`/`EnsureValidTime`/`IsTimeInRange`, test region 5) chưa bao giờ bị động tới — đã kiểm chứng bằng dữ liệu thật trên `mssql_staging`: 2 bản ghi `ShareDataSubscription` đang tồn tại với `EndTime < StartTime` (`ID 4020df08-96b5-4bb0-87bb-98cc14d4f3a0` tạo 02/10, `ID 5e18df08-aecf-495b-8455-3e9fa3e3bf62` tạo 22/09) — logic wraparound phải giữ nguyên để worker vẫn tính đúng giờ chạy cho 2 đăng ký thật này.
 
 | # | Prompt | Task | Phạm vi & Trạng thái |
 |---|---|---|---|
-| 1 | [`sharedata-issue29-khung-gio-qua-dem-prompt.md`](sharedata-issue29-khung-gio-qua-dem-prompt.md) | **Issue 29 (F16)** | ✅ **Đã áp dụng (xác nhận 07/10/2026).** BE: `DataOutboundScheduler.cs` sửa đúng công thức khung giờ qua đêm — người áp dụng đặt tên hàm khác bản gốc (`IsValidTime`/`EnsureValidTime`/`IsTimeInRange` thay vì `IsWithinTimeWindow`/`EnsureNextRunWithinTimeWindow`/`IsTimeOfDayInWindow`), giữ nguyên theo rule 19.49. 4 test case mới trong `DataOutboundSchedulerTests.cs` (region 5) đã có. FE: hint "khung giờ qua đêm" ở `editSubscription.vue` đã có + đã làm rõ tooltip `sendImmediatelyHint` (không thuộc issue nào của F16, phát sinh từ trao đổi riêng về cờ `SendOnNewData`). PDF F16 07/10 mới gán Nhân sự = DatHQ, chưa có ghi chú Sheet Bug xác nhận kết quả test lại. |
+| 1 | [`sharedata-issue29-khung-gio-qua-dem-prompt.md`](sharedata-issue29-khung-gio-qua-dem-prompt.md) | **Issue 29 (F16)** | ✅ **Đã áp (07/10/2026).** BE `DataOutboundScheduler.cs` giữ nguyên xuyên suốt các prompt sau. FE hint "qua đêm hợp lệ" ở prompt này **đã bị prompt #2 thay thế** bằng validation chặn — không còn đúng hiện trạng FE/i18n (nhưng phần BE scheduler của prompt #1 vẫn đúng và đang áp dụng). |
+| 2 | [`sharedata-issue29-chan-khung-gio-nguoc-prompt.md`](sharedata-issue29-chan-khung-gio-nguoc-prompt.md) | **Issue 29 (F16)** | ✅ **Đã áp — ĐÂY LÀ TRẠNG THÁI ĐÚNG, giữ nguyên, KHÔNG revert.** Rule validator chặn `EndTime < StartTime` (`SubscriptionValidator.cs`) + khoá dịch `SysTerminology` mới + test `ShareDataSubscriptionControllerTests.cs` + guard `ElMessage.error` ở FE (`editSubscription.vue`) — tất cả đều ĐÚNG hướng, giữ nguyên. |
+| 3 | ~~`sharedata-issue29-revert-chan-khung-gio-nguoc-prompt.md`~~ | **Issue 29 (F16)** | ⛔ **Viết do hiểu lầm yêu cầu — KHÔNG áp dụng, đã xóa tệp prompt theo yêu cầu trực tiếp của người dùng (08/10/2026).** File này từng mô tả cách lùi lại toàn bộ prompt #2, nhưng người dùng xác nhận ngay sau đó là vẫn muốn giữ hướng chặn validation. |
 
-📌 **Phạm vi loại trừ**: đề xuất "Ngày bắt đầu/kết thúc hiệu lực" trong issue 29 là tính năng mới hoàn toàn, chưa làm — chờ PO/BA chốt riêng. Field "Chu kỳ (giây)" không đụng — đã khảo sát toàn client (TMS Service Monitor, TMS Incident Automation, ShareData Partner) và xác nhận field này đã đúng y hệt quy ước chung toàn hệ thống.
+📌 **Phạm vi loại trừ (vẫn còn nguyên)**: đề xuất "Ngày bắt đầu/kết thúc hiệu lực" trong issue 29 là tính năng mới hoàn toàn, chưa làm — chờ PO/BA chốt riêng 4 câu hỏi nghiệp vụ (optional/bắt buộc, hết hạn đổi State hay chỉ dừng gửi, có chặn cả luồng trigger tức thời không, tạm dừng hay huỷ hẳn). Field "Chu kỳ (giây)" không đụng — đã khảo sát toàn client (TMS Service Monitor, TMS Incident Automation, ShareData Partner) và xác nhận field này đã đúng y hệt quy ước chung toàn hệ thống.
 
 ---
 
