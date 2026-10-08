@@ -19,6 +19,14 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 ---
 
+## Fix UI sau test nhánh fix/20261005-videowall-validation (08/10/2026)
+
+| Prompt | Nội dung | Trạng thái |
+|---|---|---|
+| [`videowall-schedule-radio-hanh-dong-don-le`](videowall-schedule-radio-hanh-dong-don-le-prompt.md) | Form Lập lịch: field "Hành động" chỉ còn 1 lựa chọn (`activate_scene`) nên radio-group vô nghĩa — đổi sang điền sẵn + hiển thị chữ tĩnh, tự phục hồi radio khi BE mở thêm hành động | ⚠️ **Chờ áp dụng** |
+
+---
+
 ## Đợt refactor bộ test (30/09/2026)
 
 > 🔴 **Thứ tự áp BẮT BUỘC, ⛔ không được đảo.** Sổ theo dõi trạng thái là [`../Plan/Test_Refactor_MasterPlan.md`](../Plan/Test_Refactor_MasterPlan.md) — tra trạng thái ở đó, ⛔ không tra ở bảng này.
