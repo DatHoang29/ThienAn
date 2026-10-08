@@ -23,7 +23,7 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 | # | Prompt | Task | Phạm vi & Trạng thái |
 |---|---|---|---|
-| 1 | [`sharedata-issue33-ma-goi-tin-trung-ten-prompt.md`](sharedata-issue33-ma-goi-tin-trung-ten-prompt.md) | **Issue 33 (F16)** | ⚠️ **Chưa làm — chờ người dùng áp dụng** (đã xác minh trực tiếp `subscriptionTable.vue` ngày 07/10/2026: vẫn còn bản cũ). FE thuần: `subscriptionTable.vue` — hàm `packetNameOf()` đổi sang hiển thị `[Mã] Tên` (áp đúng quy ước `codeNameLabel` đã dùng cho Issue 18 ở `editMapping.vue`), kèm khớp theo cả `id` lẫn `code`. Nới `minWidth` cột 160 → 220. |
+| 1 | [`sharedata-issue33-ma-goi-tin-trung-ten-prompt.md`](sharedata-issue33-ma-goi-tin-trung-ten-prompt.md) | **Issue 33 (F16)** | ✅ **Đã áp dụng 08/10/2026.** FE thuần, áp dụng trên toàn bộ 10 file của `views/sharedata` (`subscriptionTable.vue`, `editSubscription.vue`, `mapping/index.vue`, `history/index.vue`, `errorLog/index.vue`, `sharing/index.vue`, `exportPreviewDialog.vue`, `recordDetailDrawer.vue`, `activityDetailDrawer.vue`, `activityDetailDialog.vue`) — mỗi file thêm hàm `codeNameLabel` cục bộ, đổi hiển thị Gói tin/Đối tác sang dạng `[Mã] Tên` (áp đúng quy ước Issue 18 ở `editMapping.vue`), nới `minWidth`/`width` các cột liên quan để không bị cắt chữ. |
 
 📌 Dữ liệu trùng tên khác mã (`101_commonData` / `101_commonData1`) đã xác nhận có thật trên staging qua bảng `ShareDataPacket` — không phải tình huống giả định.
 
