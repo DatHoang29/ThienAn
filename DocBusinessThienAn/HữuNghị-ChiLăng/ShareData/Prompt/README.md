@@ -53,6 +53,16 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 ---
 
+### ⚪ Issue 30/32 (F16) — Test Playwright xác nhận nghi vấn "mất tiêu đề 3 tab" trong `editMapping.vue` (08/10/2026)
+
+| # | Prompt | Task | Phạm vi & Trạng thái |
+|---|---|---|---|
+| 1 | [`sharedata-issue30-32-test-tab-header-scroll-prompt.md`](sharedata-issue30-32-test-tab-header-scroll-prompt.md) | **Issue 30, 32 (F16)** | ⚠️ **Chưa làm — chờ người dùng chạy Playwright và xác nhận kết quả.** Không sửa code sản xuất — chỉ tạo mới 1 file test E2E `tests/FE/views/sharedata/mapping-tab-header-scroll.spec.ts` (6 case EC1-EC6) để xác nhận/bác bỏ giả thuyết: `.el-tabs__header` trong `.mp-tabs` (`editMapping.vue`) không có `position: sticky`, có thể bị cuộn khỏi khung nhìn của `.el-form` khi nội dung tab "Ánh xạ" phình to (sau "Phân tích" hoặc khi mở Sao chép). |
+
+📌 Issue 30 và 32 vẫn ghi "chưa phân tích" trong F16 — nguyên nhân gốc rễ CHƯA được xác nhận bằng code đọc tĩnh (lớp lỗi layout/scroll phụ thuộc DOM thật), prompt này chỉ dựng công cụ đo, không phải bản fix.
+
+---
+
 ### 🔵 Đợt hoàn thiện tính năng Backlog (05/10/2026) — THỨ TỰ KHUYẾN NGHỊ THỰC THI
 
 > 💡 **Tính độc lập:** Cả 5 task đều độc lập về mặt mã nguồn (không sửa đè hay chặn cứng file của nhau). Tuy nhiên, **thứ tự thực thi khuyến nghị từ 1 đến 5 dưới đây** giúp tối ưu hóa việc kiểm thử cục bộ, đi từ module nhỏ, an toàn đến mở rộng worker và cron job:
