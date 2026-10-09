@@ -72,28 +72,16 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 		expect(missingStart.timeRangeError).toBe('Vui lòng nhập đầy đủ giờ bắt đầu và kết thúc (hoặc để trống cả hai).');
 	});
 
-	test('TC4 — Hợp lệ khi EndTime > StartTime (23:00 -> 23:01): Xác nhận cơ chế phát dữ liệu sau 30 giây', async () => {
-		const result = evaluateTimeRange('23:00', '23:01', mockI18n);
+	test('TC4 — Hợp lệ khi EndTime > StartTime (06:00 -> 06:01 hoặc 23:00 -> 23:01): Form hợp lệ không báo lỗi', async () => {
+		const eveningResult = evaluateTimeRange('23:00', '23:01', mockI18n);
+		expect(eveningResult.isEndBeforeStart).toBe(false);
+		expect(eveningResult.isTimeRangeIncomplete).toBe(false);
+		expect(eveningResult.timeRangeError).toBe('');
 
-		expect(result.isEndBeforeStart).toBe(false);
-		expect(result.isTimeRangeIncomplete).toBe(false);
-		expect(result.timeRangeError).toBe('');
-
-		// Kiểm tra câu hỏi nghiệp vụ của user:
-		// "start 23:00 end 23:01 thì nó có bắn không sau 30 giây?"
-		const windowDurationSeconds = 60; // 23:00 đến 23:01 = 1 phút = 60s
-		const intervalSeconds = 30; // chu kỳ gửi 30s
-		const fireTimes: number[] = [];
-
-		for (let t = 0; t < windowDurationSeconds; t += intervalSeconds) {
-			fireTimes.push(t);
-		}
-
-		// Tại t = 0s (23:00:00): Bắn lần 1
-		// Tại t = 30s (23:00:30): Bắn lần 2 (vẫn trong khoảng trước 23:01:00)
-		expect(fireTimes).toEqual([0, 30]);
-		expect(fireTimes.length).toBe(2);
-		expect(fireTimes.includes(30)).toBe(true); // Khẳng định CÓ BẮN sau 30 giây!
+		const morningResult = evaluateTimeRange('06:00', '06:01', mockI18n);
+		expect(morningResult.isEndBeforeStart).toBe(false);
+		expect(morningResult.isTimeRangeIncomplete).toBe(false);
+		expect(morningResult.timeRangeError).toBe('');
 	});
 
 	test('TC5 — Hợp lệ khi để trống cả 2 ô (gửi liên tục 24/24): Không báo lỗi', async () => {

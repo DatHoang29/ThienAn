@@ -288,5 +288,152 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         }
 
         #endregion
+
+        #region 6. Kiểm thử khung giờ hẹp (cách nhau 1 phút và cách nhau 10 giây)
+
+        private const string OneMinuteNarrowScheduleJson = "{\"startTime\": \"06:00\", \"endTime\": \"06:01\"}";
+        private const string TenSecondsNarrowScheduleJson = "{\"startTime\": \"23:00:00\", \"endTime\": \"23:00:10\"}";
+
+        /// <summary>
+        /// Description: Kiểm thử IsValidTime với khung giờ hẹp 1 phút (06:00 -> 06:01):
+        ///              - Trong khoảng [06:00:00, 06:01:00]: gửi được (true).
+        ///              - Trước 06:00:00 hoặc sau 06:01:00: không gửi (false).
+        /// Created date: 09/10/2026
+        /// </summary>
+        [Theory]
+        [InlineData(6, 0, 0, true)]    // Đúng biên StartTime 06:00:00 -> Được gửi
+        [InlineData(6, 0, 30, true)]   // Giữa khung 06:00:30 (sau 30s) -> Được gửi
+        [InlineData(6, 1, 0, true)]    // Đúng biên EndTime 06:01:00 -> Được gửi
+        [InlineData(5, 59, 59, false)] // Trước 06:00:00 -> Ngoài khung giờ
+        [InlineData(6, 1, 1, false)]   // Sau 06:01:00 -> Ngoài khung giờ
+        public void IsValidTime_OneMinuteWindow_EvaluatesCorrectly_Test(
+            int hour, int minute, int second, bool expectedWithin)
+        {
+            // Arrange
+            var nowLocal = new DateTime(2026, 10, 9, hour, minute, second, DateTimeKind.Local);
+            var sub = new ShareDataSubscription
+            {
+                ScheduleJson = OneMinuteNarrowScheduleJson
+            };
+
+            // Act
+            var isWithin = DataOutboundScheduler.IsValidTime(sub, nowLocal);
+
+            // Assert
+            Assert.Equal(expectedWithin, isWithin);
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử ComputeNextTimeRun với khung giờ 1 phút (06:00 -> 06:01) và chu kỳ 30 giây:
+        ///              - Lần 1 (06:00:00): candidate = 06:00:30, vẫn trong khung -> NextRun = 06:00:30 (không bị kẹp).
+        ///              - Lần 2 (06:00:30): candidate = 06:01:00, vẫn trong khung -> NextRun = 06:01:00 (không bị kẹp).
+        ///              - Khi candidate vượt quá 06:01:00: tự động kẹp sang 06:00:00 sáng ngày hôm sau.
+        /// Created date: 09/10/2026
+        /// </summary>
+        [Fact]
+        public void ComputeNextTimeRun_OneMinuteWindow_SchedulesTwiceThenClampsToNextDay_Test()
+        {
+            // Arrange
+            var sub = new ShareDataSubscription
+            {
+                IntervalSeconds = 30,
+                ScheduleJson = OneMinuteNarrowScheduleJson
+            };
+
+            // Act & Assert 1: Lúc 06:00:00 -> NextRun là 06:00:30 (Gửi lần 1)
+            var t0 = new DateTime(2026, 10, 9, 6, 0, 0, DateTimeKind.Local);
+            var next0 = DataOutboundScheduler.ComputeNextTimeRun(sub, t0);
+            Assert.Equal(new DateTime(2026, 10, 9, 6, 0, 30, DateTimeKind.Local), next0);
+
+            // Act & Assert 2: Lúc 06:00:30 -> NextRun là 06:01:00 (Gửi lần 2)
+            var t1 = new DateTime(2026, 10, 9, 6, 0, 30, DateTimeKind.Local);
+            var next1 = DataOutboundScheduler.ComputeNextTimeRun(sub, t1);
+            Assert.Equal(new DateTime(2026, 10, 9, 6, 1, 0, DateTimeKind.Local), next1);
+
+            // Act & Assert 3: Lúc 06:01:00 -> candidate là 06:01:30 (> 06:01:00) -> Kẹp sang 06:00:00 ngày hôm sau
+            var t2 = new DateTime(2026, 10, 9, 6, 1, 0, DateTimeKind.Local);
+            var next2 = DataOutboundScheduler.ComputeNextTimeRun(sub, t2);
+            Assert.Equal(new DateTime(2026, 10, 10, 6, 0, 0, DateTimeKind.Local), next2);
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử IsValidTime với khung giờ siêu hẹp 10 giây (23:00:00 -> 23:00:10):
+        ///              - Trong 10 giây: gửi được (true).
+        ///              - Sau giây thứ 10: không gửi được (false).
+        /// Created date: 09/10/2026
+        /// </summary>
+        [Theory]
+        [InlineData(23, 0, 0, true)]   // Bắt đầu 23:00:00 -> Được gửi
+        [InlineData(23, 0, 5, true)]   // Giữa khoảng 23:00:05 -> Được gửi
+        [InlineData(23, 0, 10, true)]  // Đúng biên 23:00:10 -> Được gửi
+        [InlineData(23, 0, 11, false)] // 23:00:11 (quá 10s) -> Ngoài khung giờ
+        [InlineData(22, 59, 59, false)]// Trước 23:00:00 -> Ngoài khung giờ
+        public void IsValidTime_TenSecondsWindow_EvaluatesCorrectly_Test(
+            int hour, int minute, int second, bool expectedWithin)
+        {
+            // Arrange
+            var nowLocal = new DateTime(2026, 10, 9, hour, minute, second, DateTimeKind.Local);
+            var sub = new ShareDataSubscription
+            {
+                ScheduleJson = TenSecondsNarrowScheduleJson
+            };
+
+            // Act
+            var isWithin = DataOutboundScheduler.IsValidTime(sub, nowLocal);
+
+            // Assert
+            Assert.Equal(expectedWithin, isWithin);
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử ComputeNextTimeRun khi khung giờ chỉ 10 giây (23:00:00 -> 23:00:10):
+        ///              - Với IntervalSeconds = 30 (chu kỳ 30s > 10s):
+        ///                Tại 23:00:00: candidate = 23:00:30 vượt quá 23:00:10 -> kẹp sang 23:00:00 hôm sau.
+        ///                -> Chỉ gửi được đúng 1 lần duy nhất trong ngày!
+        ///              - Với IntervalSeconds = 5 (chu kỳ 5s < 10s):
+        ///                Tại 23:00:00: candidate = 23:00:05 <= 23:00:10 -> NextRun = 23:00:05 (gửi lần 2).
+        ///                Tại 23:00:05: candidate = 23:00:10 <= 23:00:10 -> NextRun = 23:00:10 (gửi lần 3).
+        ///                Tại 23:00:10: candidate = 23:00:15 > 23:00:10 -> kẹp sang 23:00:00 hôm sau.
+        ///                -> Gửi được 3 lần trong 10 giây!
+        /// Created date: 09/10/2026
+        /// </summary>
+        [Fact]
+        public void ComputeNextTimeRun_TenSecondsWindow_WithDifferentIntervals_Test()
+        {
+            // Case A: Chu kỳ 30s (> 10s)
+            var sub30 = new ShareDataSubscription
+            {
+                IntervalSeconds = 30,
+                ScheduleJson = TenSecondsNarrowScheduleJson
+            };
+
+            var t0 = new DateTime(2026, 10, 9, 23, 0, 0, DateTimeKind.Local);
+            var next30 = DataOutboundScheduler.ComputeNextTimeRun(sub30, t0);
+            // Lần tiếp theo vượt quá 23:00:10 nên kẹp sang 23:00:00 ngày hôm sau
+            Assert.Equal(new DateTime(2026, 10, 10, 23, 0, 0, DateTimeKind.Local), next30);
+
+            // Case B: Chu kỳ 5s (< 10s)
+            var sub5 = new ShareDataSubscription
+            {
+                IntervalSeconds = 5,
+                ScheduleJson = TenSecondsNarrowScheduleJson
+            };
+
+            // Bắn lần 1 lúc 23:00:00 -> lần tiếp 23:00:05
+            var next5_0 = DataOutboundScheduler.ComputeNextTimeRun(sub5, t0);
+            Assert.Equal(new DateTime(2026, 10, 9, 23, 0, 5, DateTimeKind.Local), next5_0);
+
+            // Bắn lần 2 lúc 23:00:05 -> lần tiếp 23:00:10
+            var t0_5 = new DateTime(2026, 10, 9, 23, 0, 5, DateTimeKind.Local);
+            var next5_1 = DataOutboundScheduler.ComputeNextTimeRun(sub5, t0_5);
+            Assert.Equal(new DateTime(2026, 10, 9, 23, 0, 10, DateTimeKind.Local), next5_1);
+
+            // Bắn lần 3 lúc 23:00:10 -> candidate là 23:00:15 > 23:00:10 -> kẹp sang ngày hôm sau
+            var t0_10 = new DateTime(2026, 10, 9, 23, 0, 10, DateTimeKind.Local);
+            var next5_2 = DataOutboundScheduler.ComputeNextTimeRun(sub5, t0_10);
+            Assert.Equal(new DateTime(2026, 10, 10, 23, 0, 0, DateTimeKind.Local), next5_2);
+        }
+
+        #endregion
     }
 }
