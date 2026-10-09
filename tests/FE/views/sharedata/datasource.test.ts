@@ -126,46 +126,87 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         });
     });
 
-    test('1. Kiểm tra bố cục đáp ứng card Trường gói tin qua các kích thước màn hình', async ({ page }) => {
-        await page.setViewportSize({ width: 1920, height: 1080 });
-        await page.goto('/#/sharedata/dataSource');
+    test('1. Kiểm tra bố cục đáp ứng card Trường gói tin qua 3 cấp độ màn hình (>1400px, 1100px-1400px, <1100px)', async ({ page }) => {
+        // Cấp độ 1: Màn hình rộng > 1400px (1600x900) -> 1 hàng ngang duy nhất
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/sharedata/dataSource');
 
         const cardField = page.locator('.search-card-field');
         await expect(cardField).toBeVisible({ timeout: 30_000 });
 
         const searchForm = cardField.locator('.search-form');
         const formCols = searchForm.locator('.el-row > .el-col');
-        await expect(formCols).toHaveCount(3);
+        await expect(formCols).toHaveCount(4);
 
-        const cardBox = await cardField.boundingBox();
-        const formBox = await searchForm.boundingBox();
-        expect(cardBox).not.toBeNull();
-        expect(formBox).not.toBeNull();
+        const colAlias = cardField.locator('.field-col-alias');
+        const colType = cardField.locator('.field-col-type');
+        const colStatus = cardField.locator('.field-col-status');
+        const colBtn = cardField.locator('.field-col-btn');
 
-        const box0 = await formCols.nth(0).boundingBox();
-        const box1 = await formCols.nth(1).boundingBox();
-        const box2 = await formCols.nth(2).boundingBox();
+        const boxAlias1 = await colAlias.boundingBox();
+        const boxType1 = await colType.boundingBox();
+        const boxStatus1 = await colStatus.boundingBox();
+        const boxBtn1 = await colBtn.boundingBox();
 
-        expect(box0).not.toBeNull();
-        expect(box1).not.toBeNull();
-        expect(box2).not.toBeNull();
+        expect(boxAlias1).not.toBeNull();
+        expect(boxType1).not.toBeNull();
+        expect(boxStatus1).not.toBeNull();
+        expect(boxBtn1).not.toBeNull();
 
-        // Khóa field chiếm cân đối (~1/3 form), không chiếm 50% như trước
-        const fieldWidthRatio = box0!.width / formBox!.width;
-        expect(fieldWidthRatio).toBeGreaterThan(0.25);
-        expect(fieldWidthRatio).toBeLessThan(0.40);
+        // Cả 4 cột nằm trên cùng 1 hàng ngang (chênh lệch Y <= 5px)
+        expect(Math.abs(boxAlias1!.y - boxType1!.y)).toBeLessThanOrEqual(5);
+        expect(Math.abs(boxType1!.y - boxStatus1!.y)).toBeLessThanOrEqual(5);
+        expect(Math.abs(boxStatus1!.y - boxBtn1!.y)).toBeLessThanOrEqual(5);
 
-        // Cả 3 ô form-item nằm trên cùng 1 hàng ngang (chênh lệch Y < 5px)
-        expect(Math.abs(box0!.y - box1!.y)).toBeLessThanOrEqual(5);
-        expect(Math.abs(box1!.y - box2!.y)).toBeLessThanOrEqual(5);
+        // Divider hiển thị ngăn cách ô Trạng thái và cụm nút
+        const divider = colBtn.locator('.search-divider');
+        await expect(divider).toBeVisible();
 
-        const btnWrapper = cardField.locator('.search-btn-wrapper');
-        await expect(btnWrapper).toBeVisible();
-        const btnBox = await btnWrapper.boundingBox();
-        expect(btnBox).not.toBeNull();
+        // Cấp độ 2: 1100px - 1400px (ví dụ 1200px) -> Nằm trên 2 hàng (2x2)
+        await page.setViewportSize({ width: 1200, height: 900 });
+        await page.waitForTimeout(300);
 
-        // Nút hiển thị đầy đủ và không bị tràn khỏi mép phải của card
-        expect(btnBox!.x + btnBox!.width).toBeLessThanOrEqual(cardBox!.x + cardBox!.width + 5);
+        const boxAlias2 = await colAlias.boundingBox();
+        const boxType2 = await colType.boundingBox();
+        const boxStatus2 = await colStatus.boundingBox();
+        const boxBtn2 = await colBtn.boundingBox();
+
+        // Hàng 1: Khóa field + Kiểu
+        expect(Math.abs(boxAlias2!.y - boxType2!.y)).toBeLessThanOrEqual(5);
+
+        // Hàng 2: Trạng thái + Nút
+        expect(Math.abs(boxStatus2!.y - boxBtn2!.y)).toBeLessThanOrEqual(5);
+
+        // Hàng 2 nằm dưới Hàng 1
+        expect(boxStatus2!.y).toBeGreaterThan(boxAlias2!.y + 20);
+
+        // Mỗi cột chiếm ~50% hàng
+        const rowBox2 = await searchForm.locator('.el-row').boundingBox();
+        expect(rowBox2).not.toBeNull();
+        expect(boxAlias2!.width / rowBox2!.width).toBeGreaterThan(0.45);
+        expect(boxAlias2!.width / rowBox2!.width).toBeLessThan(0.55);
+
+        // Divider ẩn đi trên 2 hàng
+        await expect(divider).toBeHidden();
+
+        // Cấp độ 3: Dưới 1100px (ví dụ 1000px) -> Xuống hàng hết (xếp dọc 4 dòng)
+        await page.setViewportSize({ width: 1000, height: 900 });
+        await page.waitForTimeout(300);
+
+        const boxAlias3 = await colAlias.boundingBox();
+        const boxType3 = await colType.boundingBox();
+        const boxStatus3 = await colStatus.boundingBox();
+        const boxBtn3 = await colBtn.boundingBox();
+
+        // Mỗi ô xếp trên 1 hàng dọc riêng biệt
+        expect(boxType3!.y).toBeGreaterThan(boxAlias3!.y + 20);
+        expect(boxStatus3!.y).toBeGreaterThan(boxType3!.y + 20);
+        expect(boxBtn3!.y).toBeGreaterThan(boxStatus3!.y + 20);
+
+        // Mỗi cột chiếm gần như 100% hàng
+        const rowBox3 = await searchForm.locator('.el-row').boundingBox();
+        expect(rowBox3).not.toBeNull();
+        expect(boxAlias3!.width / rowBox3!.width).toBeGreaterThan(0.90);
     });
 
     test('2. Không có bất kỳ luật !important nào trong toàn bộ CSS/SCSS của phân hệ ShareData', async () => {

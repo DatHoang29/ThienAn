@@ -349,7 +349,7 @@ Các hệ thống / Module phát triển mới về sau bắt buộc tuân thủ
    * Mỗi thực thể/chức năng chính trong Project `Modules.[TênHệ]` phải được cấu trúc thành một thư mục riêng biệt đặt trong `Controllers/<TênChứcNăng>/` với các thư mục con sau:
      * **`Controllers/<TênChứcNăng>/<TênChứcNăng>Controller.cs`**: Controller siêu mỏng (Thin Controller), **BẮT BUỘC** chỉ dùng `MessBus.InvokeAsync()` để gọi Commands/Queries. Không viết bất kỳ logic nghiệp vụ nào tại đây.
      * **`Commands/`**: Chứa Handler xử lý Ghi (Add/Update/Delete). **BẮT BUỘC** implement `IWolverineHandler` và định nghĩa các hàm `HandleAsync(<InputType> command)`. Dùng `Mapster` để map DTO sang Entity. TUYỆT ĐỐI KHÔNG tự viết các hàm trợ giúp thủ công như `ValidateInput` hoặc `MapToOutput` bên trong CommandHandler; dùng FluentValidation và Mapster.
-     * **`Queries/`**: Chứa Handler xử lý Đọc (Page/GetList/GetById). Các truy vấn phân trang phải trả về `SqlSugarPagedList<Output>`, sử dụng `.OrderBuilder()` và `.ToPagedListAsync()`. Khi dùng `.Select(x => new TOutput { ... }, true)` hoặc truy vấn trực tiếp ra `SqlSugarPagedList<TOutput>`, BẮT BUỘC trả thẳng đối tượng phân trang (VD: `return paged;` hoặc `return await query.ToPagedListAsync(...)`), KHÔNG bọc qua `.Adapt<SqlSugarPagedList<TOutput>>()`.
+     * **`Queries/`**: Chứa Handler xử lý Đọc (Page/GetList/GetById). Các truy vấn phân trang phải trả về `SqlSugarPagedList<Output>`, sử dụng `.OrderBuilder()` và `.ToPagedListAsync()`. Chỗ nào cần sort theo điều chỉnh mới nhất thì sửa lại sử dụng `.OrderBuilder(command, "", BaseConst.SortFieldConst.UpdateOrCreateTime)`. Khi dùng `.Select(x => new TOutput { ... }, true)` hoặc truy vấn trực tiếp ra `SqlSugarPagedList<TOutput>`, BẮT BUỘC trả thẳng đối tượng phân trang (VD: `return paged;` hoặc `return await query.ToPagedListAsync(...)`), KHÔNG bọc qua `.Adapt<SqlSugarPagedList<TOutput>>()`.
      * **`Dto/`**: Chứa DTO Input và Output:
        * Input: `PageXxxInput` (kế thừa `BasePageInput`), `AddXxxInput` (kế thừa Entity gốc), `UpdateXxxInput` (kế thừa `AddXxxInput`), `DeleteXxxInput` (kế thừa `BaseIdInput`).
        * Output: `XxxOutput` / `PageXxxOutput` (kế thừa Entity gốc). Cấu hình ánh xạ Mapster (`IRegister`) BẮT BUỘC viết trực tiếp bên trong file DTO Output tương ứng (VD: `EshPartnerOutput.cs` chứa `public class EshPartnerMapper : IRegister`), KHÔNG tạo thư mục `Mappings` riêng rẽ.
@@ -1902,6 +1902,18 @@ tests/
   - ⛔ **CẤM tuyệt đối**:
     - Cấm viết test mà khi chưa sửa code gì bài test đã "xanh" (Pass sẵn / False Positive) rồi vội vã kết luận không có lỗi hoặc không tìm ra nguyên nhân.
     - Nếu viết test ra mà PASS ngay trong khi thực tế có bug $\to$ BẮT BUỘC dừng lại, đối chiếu lại ảnh chụp màn hình/log của tester, điều chỉnh lại thao tác trong test case cho đến khi test TÁI HIỆN ĐƯỢC LỖI (FAIL) rồi mới được sửa code.
+
+- **19.60. Quy Chuẩn Sắp Xếp Dữ Liệu Backend Khi Kéo Code Mới — Bắt Buộc Dùng `BaseConst.SortFieldConst.UpdateOrCreateTime` Cho Các Truy Vấn Cần Ưu Tiên Bản Ghi Mới Nhất (Backend Default Sorting: Always Use `BaseConst.SortFieldConst.UpdateOrCreateTime` For Recent Records - chốt 09/10/2026 - P0)**:
+  - **Phạm vi áp dụng**: Mọi truy vấn phân trang / danh sách Backend (SqlSugar QueryHandler, `Queries/`) trong các phân hệ nghiệp vụ khi pull/lấy code Backend mới về.
+  - 🔴 **Yêu cầu bắt buộc**:
+    - Khi lấy mới code Backend (BE) về hoặc rà soát các QueryHandler phân trang, ở tất cả những nơi cần sắp xếp theo dữ liệu điều chỉnh/thay đổi mới nhất (ưu tiên bản ghi mới tạo hoặc mới cập nhật hiển thị lên đầu), **BẮT BUỘC** sửa lại dùng:
+      ```csharp
+      .OrderBuilder(command, "", BaseConst.SortFieldConst.UpdateOrCreateTime)
+      ```
+      (hoặc truyền tham số defaultSortField tương ứng với `BaseConst.SortFieldConst.UpdateOrCreateTime`).
+    - ⛔ **CẤM tuyệt đối**:
+      - Hardcode chuỗi tên trường sắp xếp thủ công (ví dụ `"UpdateTime"`, `"CreateTime"` dạng chuỗi trần tự do) dễ gõ sai chính tả hoặc không nhất quán giữa các bảng.
+      - Để mặc định sort theo `ID` hoặc không sort khiến dữ liệu mới thêm/mới sửa bị chìm xuống dưới cùng hoặc đảo lộn thứ tự khi người dùng thao tác.
 
 ---
 
