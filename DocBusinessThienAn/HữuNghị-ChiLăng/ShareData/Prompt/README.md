@@ -57,7 +57,7 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 | # | Prompt | Task | Phạm vi & Trạng thái |
 |---|---|---|---|
-| 1 | [`sharedata-issue30-32-test-tab-header-scroll-prompt.md`](sharedata-issue30-32-test-tab-header-scroll-prompt.md) | **Issue 30, 32 (F16)** | ⚠️ **Chưa làm — chờ người dùng chạy Playwright và xác nhận kết quả.** Không sửa code sản xuất — chỉ tạo mới 1 file test E2E `tests/FE/views/sharedata/mapping-tab-header-scroll.spec.ts` (6 case EC1-EC6) để xác nhận/bác bỏ giả thuyết: `.el-tabs__header` trong `.mp-tabs` (`editMapping.vue`) không có `position: sticky`, có thể bị cuộn khỏi khung nhìn của `.el-form` khi nội dung tab "Ánh xạ" phình to (sau "Phân tích" hoặc khi mở Sao chép). |
+| 1 | [`sharedata-issue30-32-test-tab-header-scroll-prompt.md`](sharedata-issue30-32-test-tab-header-scroll-prompt.md) | **Issue 30, 32 (F16)** | ✅ **Đã hoàn tất kiểm chứng Playwright (08/10/2026).** Kết quả: 6/6 kịch bản EC1–EC6 đều **PASS**. Đã xác nhận: ở trạng thái bình thường (đỉnh form) tiêu đề 3 tab vẫn hiển thị nguyên vẹn 100%, nhưng do `.mp-tabs :deep(.el-tabs__header)` thiếu `position: sticky` nên khi cuộn form xuống xem các trường bên dưới sẽ bị trôi khuất tầm nhìn (khiến tester lầm tưởng mất tiêu đề). Dialog vẫn draggable bình thường qua `.el-dialog__header`. Đã sẵn sàng phương án bổ sung CSS `position: sticky` vào `editMapping.vue`. |
 
 📌 Issue 30 và 32 vẫn ghi "chưa phân tích" trong F16 — nguyên nhân gốc rễ CHƯA được xác nhận bằng code đọc tĩnh (lớp lỗi layout/scroll phụ thuộc DOM thật), prompt này chỉ dựng công cụ đo, không phải bản fix.
 
