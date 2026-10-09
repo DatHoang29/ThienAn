@@ -4,8 +4,11 @@
     <!-- Gốc mã nguồn chính (sâu thêm 1 cấp sau khi dời project vào tests/BE/) -->
     <RepoRoot>..\..\TA-ITS015-WEBAPI-V1.0</RepoRoot>
 
-    <!-- Cấu hình TargetFramework: Chỉ bật net10.0-windows khi có project WPF, bình thường chỉ test net10.0 -->
-    <TargetFrameworks Condition="Exists('$(RepoRoot)\src\Services\VideoWall\ITS.VideoWall.WPF\ITS.VideoWall.WPF.csproj')">net10.0;net10.0-windows</TargetFrameworks>
+    <!-- Cấu hình TargetFramework:
+         - Trên Windows (Máy thật / Máy ảo VM / CI Windows): Bật net10.0-windows nếu có project WPF để test toàn diện cả Backend & WPF.
+         - Trên macOS / Linux (Máy dev chính): Chỉ chạy đơn target net10.0, tự động bỏ qua WPF client để tối ưu tốc độ và tránh lỗi platform runtime. -->
+    <HasWpfProject Condition="Exists('$(RepoRoot)\src\Services\VideoWall\ITS.VideoWall.WPF\ITS.VideoWall.WPF.csproj')">true</HasWpfProject>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('Windows')) And '$(HasWpfProject)' == 'true'">net10.0;net10.0-windows</TargetFrameworks>
     <TargetFramework Condition="'$(TargetFrameworks)' == ''">net10.0</TargetFramework>
 
     <!-- Các target (net10.0 / net10.0-windows) dùng chung CSDL test, cổng mock 18080.. và thư mục Scenes nên PHẢI chạy tuần tự, không song song -->
@@ -14,7 +17,7 @@
     <IsTestProject>true</IsTestProject>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <EnableWindowsTargeting Condition="$([MSBuild]::IsOSPlatform('Windows'))">true</EnableWindowsTargeting>
     <UseWPF Condition="'$(TargetFramework)' == 'net10.0-windows'">true</UseWPF>
     <!-- Loại trừ runner độc lập VwMockServerRunner khỏi test.csproj -->
     <DefaultItemExcludes>$(DefaultItemExcludes);ITS\VideoWall\VwMockServerRunner\**</DefaultItemExcludes>
