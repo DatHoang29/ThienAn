@@ -124,6 +124,12 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await page.route('**/api/sharedata/sharedatasubscription/list*', async (route) => {
             await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: [] }) });
         });
+        await page.route('**/api/sysDictData/dataList*', async (route) => {
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: [] }) });
+        });
+        await page.route('**/api/sysConst/list*', async (route) => {
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: [] }) });
+        });
     });
 
     test('1. Kiểm tra bố cục đáp ứng card Trường gói tin qua 3 cấp độ màn hình (>1400px, 1100px-1400px, <1100px)', async ({ page }) => {
