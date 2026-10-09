@@ -1897,13 +1897,17 @@ tests/
     1. **Case `fix/20261001-tms-fix-chuc-nang`**: Mắc cả 2 lỗi cùng lúc (vừa lặp `fix-`, vừa cộc lốc `chuc-nang`). Commit thực tế điều chỉnh issue sự cố TMS và nghiệp vụ trạm thu phí Toll $\to$ Sửa đúng ngắn gọn: `fix/20261001-tms-dieu-chinh-theo-issue`.
     2. **Case `fix/20261007-XD001.5.6_fix-sharedata`**: Mắc lỗi lặp `_fix-` ngay sau TaskCode, tên quá dài và chỉ ghi tên module `sharedata` chung chung $\to$ Sửa đúng ngắn gọn: `fix/20261007-sharedata-issue`.
 
-- **19.58. CẤM Tự Ý Commit Và Push Code Khi Chưa Có Lệnh Trực Tiếp Hoặc Người Dùng Chưa Review Xong (No Auto Commit & Push Without User Review / Approval - chốt 08/10/2026 - P0)**:
+- **19.58. CẤM Tự Ý Commit Và Push Code Khi Chưa Có Lệnh Trực Tiếp — Bắt Buộc Viết Test Trước, Người Dùng Kiểm Tra Mới Được Commit (Strict No Auto Commit & Push: Test-First, User Review, Explicit Request Required - chốt 08/10/2026, cập nhật 09/10/2026 - P0)**:
   - **Phạm vi áp dụng**: Toàn bộ codebase Backend, Frontend và repository dự án.
   - 🔴 **Yêu cầu bắt buộc**:
-    1. **Quy trình Review Trước Khi Commit (Review-First Workflow)**: Sau khi hoàn thành việc viết code, sửa lỗi, refactor hoặc cập nhật tài liệu, AI **BẮT BUỘC PHẢI DỪNG LẠI**, tổng kết danh sách file đã thay đổi, giải thích rõ các điểm sửa và báo cáo để **NGƯỜI DÙNG KIỂM TRA, REVIEW TRƯỚC**.
-    2. **Chỉ Commit & Push Khi Có Lệnh Rõ Ràng**: AI **TUYỆT ĐỐI CHỈ ĐƯỢC PHÉP** chạy `git commit` và `git push` khi và chỉ khi người dùng ra chỉ thị trực tiếp bằng lời (ví dụ: *"commit đi"*, *"push code lên"*, *"xong commit rồi push giùm tôi"*, *"review ok rồi, commit đi"*...).
+    1. **Viết test trước (Test-First)**: Mọi thao tác sửa lỗi hoặc bổ sung tính năng BẮT BUỘC phải viết test kiểm thử / tái hiện trước (Playwright E2E cho Frontend, xUnit cho Backend) và kiểm tra kết quả pass/fail rõ ràng.
+    2. **Quy trình Review Trước Khi Commit (Review-First Workflow)**: Sau khi sửa code và viết test xong, AI **BẮT BUỘC PHẢI DỪNG LẠI**, tổng kết danh sách file thay đổi, kết quả test và giải thích rõ giải pháp để **NGƯỜI DÙNG TRỰC TIẾP KIỂM TRA, REVIEW TRƯỚC**.
+    3. **Chỉ Commit & Push Khi Có Lệnh Trực Tiếp**: AI **TUYỆT ĐỐI CHỈ ĐƯỢC PHÉP** chạy `git commit` và `git push` khi người dùng ra chỉ thị trực tiếp bằng lời (ví dụ: *"commit đi"*, *"push code lên"*, *"xong commit rồi push giùm tôi"*, *"review ok rồi, commit đi"*...).
+    4. **Phân Định Phạm Vi Quyền Commit (Authorized Commit vs New Changes)**:
+       - *Commit đã được cho phép tại thời điểm đó*: Khi người dùng đã kiểm tra và chỉ thị trực tiếp cho phép commit một nội dung/file cụ thể, AI mới được phép thực hiện commit đó.
+       - *Commit mới / Thay đổi mới sau đó*: AI **TUYỆT ĐỐI KHÔNG ĐƯỢC TỰ COMMIT TIẾP**. Toàn bộ thay đổi mới đều phải lặp lại chu trình nghiêm ngặt: Sửa code $\to$ Viết test $\to$ Báo cáo người dùng kiểm tra $\to$ Chờ người dùng yêu cầu mới được commit!
   - ⛔ **CẤM tuyệt đối**:
-    - Tự động chạy `git commit` hoặc `git push` ngay sau khi sửa code xong mà người dùng chưa kịp review.
+    - Tự động chạy `git commit` hoặc `git push` ngay sau khi sửa code xong mà chưa viết test hoặc người dùng chưa kịp review.
     - Tự ý suy đoán rằng người dùng muốn commit/push khi người dùng chỉ đưa prompt, yêu cầu tiếp tục (*"continue"*), hoặc giao task mới.
   - **Lý do & Lợi ích**:
     - Trao quyền kiểm soát tuyệt đối cho lập trình viên/người dùng trước khi mã nguồn được ghi nhận vào lịch sử Git hoặc đẩy lên remote branch.
@@ -1931,6 +1935,18 @@ tests/
     - ⛔ **CẤM tuyệt đối**:
       - Hardcode chuỗi tên trường sắp xếp thủ công (ví dụ `"UpdateTime"`, `"CreateTime"` dạng chuỗi trần tự do) dễ gõ sai chính tả hoặc không nhất quán giữa các bảng.
       - Để mặc định sort theo `ID` hoặc không sort khiến dữ liệu mới thêm/mới sửa bị chìm xuống dưới cùng hoặc đảo lộn thứ tự khi người dùng thao tác.
+
+- **19.61. Quy Chuẩn Timeout Trong Kịch Bản Test Frontend — Tối Đa 5s, Trường Hợp Quá Lâu Chỉ Tăng Thêm 1 Đến 2 Giây (Frontend Test Timeout Guardrail: Max 5s by Default, Incremental +1-2s Only - chốt 09/10/2026 - P0)**:
+  - **Phạm vi áp dụng**: Toàn bộ kịch bản kiểm thử E2E / Component Test Frontend (Playwright) tại thư mục `tests/FE/` và các bài test giao diện.
+  - 🔴 **Yêu cầu bắt buộc**:
+    1. **Mặc định nhanh gọn (Fast by Default, Max 5s)**: Timeout cho mọi thao tác định vị phần tử (`locator.toBeVisible`, `waitFor`, `click`, assertions) mặc định chỉ được đặt từ **3 đến tối đa 5 giây** (`timeout: 3000` đến `timeout: 5000`).
+    2. **Quy tắc bù thời gian tối thiểu (Chỉ tăng thêm 1–2 giây)**: Trong các trường hợp thực tế thao tác tải trang hoặc render component bị chậm hơn bình thường (ví dụ: route động tải module nặng, animation Element Plus hoàn tất, gọi API mock qua proxy), **CHỈ ĐƯỢC PHÉP tăng thêm 1 đến 2 giây** (tức là từ 5s lên 6s hoặc tối đa 7s).
+  - ⛔ **CẤM tuyệt đối**:
+    - Cấm đặt timeout dài bất hợp lý như 10s, 30s, 60s khiến kịch bản bị "ngâm" hàng phút vô ích khi gặp lỗi locator không tồn tại.
+    - Cấm lạm dụng hàm `test.slow()` (nhân 3 lần toàn bộ timeout lên hàng phút) trong các test case kiểm tra UI thông thường.
+    - Cấm rải các lệnh chờ cứng `page.waitForTimeout(...)` dài hàng trăm ms; ưu tiên dùng web-first assertions của Playwright với timeout ngắn gọn.
+  - **Lý do & Lợi ích**:
+    - Giúp kịch bản phản hồi lỗi (fail fast) ngay lập tức trong vài giây để dev nhận biết và xử lý, thay vì chờ đợi lãng phí 5–6 phút cho mỗi lần chạy test.
 
 ---
 

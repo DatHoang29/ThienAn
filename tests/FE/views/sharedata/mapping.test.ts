@@ -431,4 +431,49 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
         const maxWidth = await dialog.evaluate((el) => window.getComputedStyle(el).maxWidth);
         expect(maxWidth).toBe('1400px');
     });
+
+    test('EC10 (Tái hiện bug 30, 32) — Mở modal, kéo modal lên top rồi chuyển sang tab Ánh xạ: Header dialog (.el-dialog__header) BẮT BUỘC không bị mất khỏi màn hình và vẫn kéo thả được', async ({ page }) => {
+        // Vào trang và mở modal trực tiếp bằng nút Thêm mới (cùng component editMapping.vue với nút Sao chép)
+        await page.goto('/#/sharedata/mapping');
+        const addBtn = page.locator('button:has(.ele-Plus), button:has-text("Thêm mới"), button:has-text("Thêm")').first();
+        await expect(addBtn).toBeVisible({ timeout: 5000 });
+        await addBtn.click();
+
+        const dialog = page.locator('.mp-dialog');
+        await expect(dialog).toBeVisible({ timeout: 3000 });
+
+        // 1. Tại tab Thông tin chung: Tìm drag handle của dialog (.el-dialog__header)
+        const dragHandle = dialog.locator('.el-dialog__header');
+        await expect(dragHandle).toBeVisible();
+        const handleBox = await dragHandle.boundingBox();
+        expect(handleBox).not.toBeNull();
+
+        // 2. Kéo modal lên sát đỉnh viewport (giả lập thao tác kéo modal lên cao)
+        await page.mouse.move(handleBox!.x + handleBox!.width / 2, handleBox!.y + handleBox!.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(handleBox!.x + handleBox!.width / 2, handleBox!.y - 100, { steps: 5 });
+        await page.mouse.up();
+
+        // 3. Chuyển sang tab "Ánh xạ"
+        await dialog.getByRole('tab', { name: 'Ánh xạ' }).click();
+
+        // 4. BẮT BUỘC: Thanh tiêu đề dialog (.el-dialog__header) phải nằm trong viewport màn hình (y >= 0)
+        const headerAfterSwitch = await dragHandle.boundingBox();
+        expect(headerAfterSwitch).not.toBeNull();
+        expect(headerAfterSwitch!.y).toBeGreaterThanOrEqual(0);
+        await expect(dragHandle).toBeVisible();
+
+        // 5. Kiểm tra vẫn kéo thả được modal sau khi chuyển tab
+        const beforeDragY = headerAfterSwitch!.y;
+        await page.mouse.move(headerAfterSwitch!.x + headerAfterSwitch!.width / 2, headerAfterSwitch!.y + headerAfterSwitch!.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(headerAfterSwitch!.x + headerAfterSwitch!.width / 2, headerAfterSwitch!.y + 60, { steps: 5 });
+        await page.mouse.up();
+
+        const movedHeaderBox = await dragHandle.boundingBox();
+        expect(movedHeaderBox).not.toBeNull();
+        expect(movedHeaderBox!.y).toBeGreaterThan(beforeDragY);
+    });
 });
+
+
