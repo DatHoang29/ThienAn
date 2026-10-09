@@ -171,6 +171,12 @@ Khi thực hiện commit code, phần tiêu đề (Summary) của commit bắt b
 3.  **Nội dung chi tiết:** Gạch đầu dòng (`- `) các công việc cụ thể đã thực hiện trong lần commit này.
 4.  ⛔ **TUYỆT ĐỐI KHÔNG tự ý chèn thẻ metadata** như `Ref: ...`, `Reviewer: ...`, `CR: ...` ở cuối commit nếu không có yêu cầu trực tiếp từ Leader.
 
+> [!CAUTION]
+> ⛔ **NGUYÊN TẮC COMMIT NGẮN GỌN & ĐÚNG TRỌNG TÂM "FIX GÌ / LÀM GÌ" (P0 Safeguard):**
+> 1. **Tuyệt đối không commit dài dòng, lan man:** Cả dòng Summary và từng gạch đầu dòng chi tiết phải súc tích, ngắn gọn, đi thẳng vào trọng tâm là **fix cái gì**, **làm cái gì** và ở **file/màn hình nào**. Không viết giải thích nguyên nhân dài dòng như tài liệu văn xuôi.
+> 2. **Cấu trúc 1 gạch đầu dòng chuẩn:** `[Hành động cụ thể] [đối tượng / lỗi] tại [màn hình hoặc tên file (path/to/file.vue)]`.
+> 3. **Bắt buộc đúng format 3 phần:** Dòng 1 Summary -> Dòng 2 lặp lại nguyên văn Summary -> Dòng trống -> Các gạch đầu dòng ngắn gọn.
+
 ---
 
 ### 💡 Ví Dụ Minh Họa Commit Chuẩn
@@ -184,7 +190,18 @@ Khi thực hiện commit code, phần tiêu đề (Summary) của commit bắt b
 *   `feat(videowall): tích hợp NATS thật cho VwCommandConsumer`
 *   `chore(test): bỏ unnecessary usings IDE0005 trong folder tests`
 
-#### Ví dụ 2: Toàn văn Commit Message đầy đủ Summary + Bullet points (Chuẩn form thực tế)
+#### Ví dụ 2: Toàn văn Commit Message đầy đủ Summary + Bullet points (Chuẩn form thực tế của team)
+```text
+fix(sharedata): bổ sung [Mã] Tên cho modal xem trước và chi tiết lịch sử (Issue 33)
+
+fix(sharedata): bổ sung [Mã] Tên cho modal xem trước và chi tiết lịch sử (Issue 33)
+
+- Bổ sung mã trước tên dạng [Mã] Tên cho đối tác khi truyền vào modal xem trước xuất dữ liệu (sharing/index.vue)
+- Bổ sung [Mã] Tên cho gói tin tại modal xem trước xuất dữ liệu (exportPreviewDialog.vue)
+- Bổ sung [Mã] Tên cho gói tin tại drawer chi tiết bản ghi (recordDetailDrawer.vue)
+- Bổ sung [Mã] Tên cho gói tin tại drawer và dialog chi tiết hoạt động (activityDetailDrawer.vue, activityDetailDialog.vue)
+```
+
 ```text
 fix(sharedata): xử lý danh sách lỗi kiểm thử F16 phân hệ sharedata
 
