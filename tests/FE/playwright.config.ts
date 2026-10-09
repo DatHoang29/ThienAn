@@ -36,7 +36,7 @@ export default defineConfig({
         screenshot: 'only-on-failure',
     },
     webServer: {
-        command: 'npm run dev',
+        command: 'npm run dev -- --open false',
         cwd: path.resolve(__dirname, '../../TA-ITS015-WEBVUE-V1.0/src'),
         url: 'http://localhost:8888',
         reuseExistingServer: !process.env.CI,

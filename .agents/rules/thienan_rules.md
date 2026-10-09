@@ -1892,6 +1892,17 @@ tests/
     - Trao quyền kiểm soát tuyệt đối cho lập trình viên/người dùng trước khi mã nguồn được ghi nhận vào lịch sử Git hoặc đẩy lên remote branch.
     - Giúp người dùng kịp thời phát hiện sai sót, yêu cầu chỉnh sửa bổ sung mà không phải tạo thêm commit rác hoặc phải `git reset` / revert trên remote.
 
+- **19.59. Quy Chuẩn Test Tái Hiện Bug (TDD Red-Green): Bắt Buộc Viết Test Thất Bại (Fail/Red) Tái Hiện Đúng Lỗi Trước Khi Sửa Code (Reproduce Bug First: Write Failing Test Before Fixing Code - chốt 08/10/2026 - P0)**:
+  - **Phạm vi áp dụng**: Mọi tác vụ kiểm thử (Unit Test, Integration Test Backend, E2E Test Playwright Frontend) khi giải quyết các issue/bug báo cáo từ tester hoặc người dùng.
+  - 🔴 **Yêu cầu bắt buộc**:
+    1. **Tái hiện đúng hành vi người dùng (Faithful Reproduction)**: Kịch bản test BẮT BUỘC phản ánh chính xác 100% thao tác thực tế mà người dùng/tester đã làm khiến lỗi xảy ra (ví dụ: nếu lỗi xảy ra khi cuộn form xem dữ liệu bên dưới thì test phải mô phỏng hành vi cuộn chuột/scroll, không được chỉ đứng yên ở trạng thái tĩnh `scrollTop = 0`).
+    2. **Quy trình Test Red-Green chuẩn**:
+       - **Giai đoạn 1 (RED - Phải Thất Bại)**: Khi chạy test trên codebase **chưa sửa**, bài test **BẮT BUỘC PHẢI FAIL** (đỏ). Đây là bằng chứng không thể chối cãi chứng minh bug thực sự tồn tại trong hệ thống và kịch bản test đã bắt trúng tim điểm lỗi.
+       - **Giai đoạn 2 (GREEN - Sửa và Vượt Qua)**: Sau khi test đã FAIL chứng minh được bug, mới tiến hành sửa code (fix CSS/logic). Chạy lại bài test đó phải **PASS** (xanh), chứng minh giải pháp sửa lỗi đã giải quyết triệt để và đo lường được thành công.
+  - ⛔ **CẤM tuyệt đối**:
+    - Cấm viết test mà khi chưa sửa code gì bài test đã "xanh" (Pass sẵn / False Positive) rồi vội vã kết luận không có lỗi hoặc không tìm ra nguyên nhân.
+    - Nếu viết test ra mà PASS ngay trong khi thực tế có bug $\to$ BẮT BUỘC dừng lại, đối chiếu lại ảnh chụp màn hình/log của tester, điều chỉnh lại thao tác trong test case cho đến khi test TÁI HIỆN ĐƯỢC LỖI (FAIL) rồi mới được sửa code.
+
 ---
 
 ## 💻 20. Quy Chuẩn Frontend (Vue 3 / TypeScript)
@@ -2025,6 +2036,27 @@ Khi tạo mới hoặc sửa modal, BẮT BUỘC tuân thủ đúng bảng đố
       });
       ```
     - **Kiểm tra chuỗi có dữ liệu**: So sánh tường minh `val != null && val !== ''` hoặc `Boolean(val?.trim())`.
+
+### 20.9. Quy Chuẩn Format Template Vue — Ngắt Dòng Thuộc Tính (Multi-line Component Props / Events Formatting)
+- **Quy tắc ngắt dòng thuộc tính**:
+  - Đối với các component có từ 2 thuộc tính/sự kiện trở lên (ví dụ: `<SearchButton ... />`, `<el-input ... />`, `<el-button ... />`, `<el-table-column ... />`), **BẮT BUỘC** ngắt mỗi thuộc tính (`props`, `@event`, `:binding`, directives) thành một dòng riêng biệt, có thụt lề rõ ràng.
+  - Thẻ đóng `/>` hoặc `>` nằm trên dòng riêng biệt hoặc căn hàng chuẩn.
+  - Giúp diff git rõ ràng, dễ đọc, dễ review và bảo trì.
+  - *Ví dụ mẫu*:
+    ```html
+    <!-- ❌ CẤM VIẾT (dồn nhiều props trên 1 dòng dài): -->
+    <SearchButton @search="handleQueryField" @reset="resetQueryField" :loading="optionsFieldGrid.loading" />
+
+    <!-- ✅ VIẾT CHUẨN (mỗi prop một dòng riêng): -->
+    <SearchButton
+        @search="handleQueryField"
+        @reset="resetQueryField"
+        :loading="optionsFieldGrid.loading"
+    />
+    ```
+- **Phạm vi áp dụng**:
+  - Áp dụng chặt chẽ cho code mới viết hoặc các khối template **đang được chỉnh sửa trong phiên hiện tại** (Working Tree Changes).
+  - Không tự ý format/sửa hàng loạt các file cũ chưa đụng tới nhằm tránh gây nhiễu git diff.
 
 ---
 
