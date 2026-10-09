@@ -7,7 +7,7 @@ services:
   # =========================================================================
   tac-sqlserver:
     # Bản Azure SQL Edge (tương thích SQL Server, nhẹ, chạy mượt trên cả chip ARM/Apple Silicon lẫn x64)
-    image: mcr.microsoft.com/azure-sql-edge:1.0.7
+    image: mcr.microsoft.com/azure-sql-edge:latest
     # Cố định tên container để dễ quản lý, không bị sinh hậu tố ngẫu nhiên
     container_name: tac_webapi_sqlserver
     # Quyền root bên trong container để có quyền đọc/ghi vào thư mục volume mount
@@ -16,7 +16,8 @@ services:
     restart: always
     # Mở port kết nối: [Port máy thật : Port trong container]
     ports:
-      - "1433:1433" # Cổng kết nối SQL Server mặc định
+      - "1433:1433"   # Cổng kết nối SQL Server mặc định
+      - "14333:1433"  # Cổng phụ 14333 (dành cho DAP MCP, Unit Test runner, local dev)
     # Biến môi trường cấu hình ban đầu cho SQL Server
     environment:
       - ACCEPT_EULA=Y                # Đồng ý với điều khoản sử dụng của Microsoft
@@ -67,10 +68,9 @@ volumes:
   tac_webapi_tac_sql_data:
     # external: true báo cho Compose biết volume này ĐÃ TỒN TẠI trên máy từ trước
     external: true
-    # Trỏ đúng tên volume vật lý cũ để giữ nguyên toàn bộ Database SQL Server mà không bị tạo mới rỗng
-    name: compose_tac_webapi_tac_sql_data
+    # Trỏ đúng tên volume vật lý để giữ nguyên toàn bộ Database SQL Server mà không bị tạo mới rỗng
+    name: tac_webapi_tac_sql_data
 
   tac_webapi_redis_data:
-    external: true
-    # Trỏ đúng tên volume vật lý cũ của Redis để giữ nguyên dữ liệu cache
-    name: compose_tac_webapi_redis_data
+    # Volume lưu trữ dữ liệu cache Redis
+    name: tac_webapi_redis_data

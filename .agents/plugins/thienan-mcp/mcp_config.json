@@ -1,5 +1,25 @@
 {
   "mcpServers": {
+    "mssql_staging": {
+      "command": "dotnet",
+      "args": [
+        "tool",
+        "run",
+        "--allow-roll-forward",
+        "dab",
+        "start",
+        "--mcp-stdio",
+        "role:anonymous",
+        "--LogLevel",
+        "Error",
+        "--config",
+        ".agents/dab-config.staging.json"
+      ],
+      "env": {
+        "ASPNETCORE_URLS": "http://127.0.0.1:0",
+        "DAB_STAGING_CONNECTION_STRING": "Server=10.10.8.30;Database=dev_its10;User Id=sa;Password=Tac@@1234;TrustServerCertificate=True;ApplicationIntent=ReadOnly"
+      }
+    },
     "mssql_dev": {
       "command": "dotnet",
       "args": [
@@ -13,10 +33,11 @@
         "--LogLevel",
         "Error",
         "--config",
-        "C:\\ThienAn\\.agents\\dab-config.dev.json"
+        ".agents/dab-config.dev.json"
       ],
       "env": {
-        "ASPNETCORE_URLS": "http://127.0.0.1:0"
+        "ASPNETCORE_URLS": "http://127.0.0.1:0",
+        "DAB_DEV_CONNECTION_STRING": "Server=localhost,1433;Database=DEV_ITS10;User Id=sa;Password=Password123!;TrustServerCertificate=True;ApplicationIntent=ReadOnly"
       }
     },
     "mssql_test": {
@@ -32,29 +53,11 @@
         "--LogLevel",
         "Error",
         "--config",
-        "C:\\ThienAn\\.agents\\dab-config.test.json"
+        ".agents/dab-config.test.json"
       ],
       "env": {
-        "ASPNETCORE_URLS": "http://127.0.0.1:0"
-      }
-    },
-    "mssql_staging": {
-      "command": "dotnet",
-      "args": [
-        "tool",
-        "run",
-        "--allow-roll-forward",
-        "dab",
-        "start",
-        "--mcp-stdio",
-        "role:anonymous",
-        "--LogLevel",
-        "Error",
-        "--config",
-        "C:\\ThienAn\\.agents\\dab-config.staging.json"
-      ],
-      "env": {
-        "ASPNETCORE_URLS": "http://127.0.0.1:0"
+        "ASPNETCORE_URLS": "http://127.0.0.1:0",
+        "DAB_TEST_CONNECTION_STRING": "Server=localhost,1433;Database=test;User Id=sa;Password=Password123!;TrustServerCertificate=True;ApplicationIntent=ReadOnly"
       }
     }
   }
