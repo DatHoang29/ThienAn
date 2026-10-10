@@ -882,7 +882,6 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            partnerServer.AbortOnCall.Add(1);
 
             await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
             var unique = Guid.NewGuid().ToString("N")[..8];
@@ -896,7 +895,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 ConfigurePartner = p =>
                 {
                     p.Address = ShareDataPartnerServerMock.DefaultHost;
-                    p.Port = ShareDataPartnerServerMock.DefaultPort;
+                    p.Port = ShareDataPartnerServerMock.ClosedPort;
                     p.EndPointApiUrl = "/api/sharedata/sharedatainbound";
                 }
             });

@@ -3173,11 +3173,12 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                     Name = $"Incident {testId} {i}",
                     StartDate = t,
                     CreateTime = t,
-                    UpdateTime = t
+                    UpdateTime = t,
+                    ProcessMode = "manual"
                 });
             }
             await db.Insertable(incidentRows)
-                .InsertColumns(x => new { x.ID, x.Code, x.Name, x.StartDate, x.CreateTime, x.UpdateTime })
+                .InsertColumns(x => new { x.ID, x.Code, x.Name, x.StartDate, x.CreateTime, x.UpdateTime, x.ProcessMode })
                 .ExecuteCommandAsync();
 
             // Act: Chạy PollChanges đúng 1 lượt
@@ -3584,7 +3585,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             var worker = CreateTrackerWorker(scope);
 
-            var startedAt = (await db.Ado.GetDateTimeAsync("SELECT GETDATE()")).AddSeconds(-5);
+            var initialCount = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.VersionReset)
+                .CountAsync();
 
             var currentVerObj = await db.Ado.GetScalarAsync(DataChangeTrackingService.SqlCurrentVersion);
             var currentVer = currentVerObj == null || currentVerObj == DBNull.Value ? 0L : Convert.ToInt64(currentVerObj);
@@ -3600,13 +3603,16 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.NotNull(dbState);
             Assert.Equal(-1, dbState!.LastVersion);
 
-            var logs = await db.Queryable<ShareDataActivityLog>()
-                .Where(x => x.Remark == ShareDataAlertCode.Tracking.VersionReset && x.CreateTime >= startedAt)
-                .ToListAsync();
+            var finalCount = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.VersionReset)
+                .CountAsync();
+            Assert.Equal(initialCount + 1, finalCount);
 
-            Assert.Single(logs);
-            var logRow = logs[0];
-            Assert.Contains("\"trackingEnabled\":true", logRow.AfterJson ?? string.Empty);
+            var latestLog = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.VersionReset)
+                .OrderBy(x => x.CreateTime, OrderByType.Desc)
+                .FirstAsync();
+            Assert.Contains("\"trackingEnabled\":true", latestLog.AfterJson ?? string.Empty);
         }
 
         /// <summary>
@@ -3628,7 +3634,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 .Select(s => CreateTrackerWorker(s))
                 .ToList();
 
-            var startedAt = (await db.Ado.GetDateTimeAsync("SELECT GETDATE()")).AddSeconds(-5);
+            var initialCount = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.VersionReset)
+                .CountAsync();
 
             var currentVerObj = await db.Ado.GetScalarAsync(DataChangeTrackingService.SqlCurrentVersion);
             var currentVer = currentVerObj == null || currentVerObj == DBNull.Value ? 0L : Convert.ToInt64(currentVerObj);
@@ -3652,11 +3660,11 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.NotNull(dbState);
             Assert.True(dbState!.LastVersion == -1 || dbState!.LastVersion == currentVer);
 
-            var logCount = await db.Queryable<ShareDataActivityLog>()
-                .Where(x => x.Remark == ShareDataAlertCode.Tracking.VersionReset && x.CreateTime >= startedAt)
+            var finalCount = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.VersionReset)
                 .CountAsync();
 
-            Assert.Equal(1, logCount);
+            Assert.Equal(initialCount + 1, finalCount);
 
             foreach (var s in scopes)
                 await s.DisposeAsync();
@@ -3674,7 +3682,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             var worker = CreateTrackerWorker(scope);
 
-            var startedAt = (await db.Ado.GetDateTimeAsync("SELECT GETDATE()")).AddSeconds(-5);
+            var initialCount = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.VersionReset)
+                .CountAsync();
 
             var currentVerObj = await db.Ado.GetScalarAsync(DataChangeTrackingService.SqlCurrentVersion);
             var currentVer = currentVerObj == null || currentVerObj == DBNull.Value ? 0L : Convert.ToInt64(currentVerObj);
@@ -3697,11 +3707,11 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.NotNull(finalState);
             Assert.True(finalState!.LastVersion >= 0);
 
-            var logCount = await db.Queryable<ShareDataActivityLog>()
-                .Where(x => x.Remark == ShareDataAlertCode.Tracking.VersionReset && x.CreateTime >= startedAt)
+            var finalCount = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.VersionReset)
                 .CountAsync();
 
-            Assert.Equal(1, logCount);
+            Assert.Equal(initialCount + 1, finalCount);
         }
 
         /// <summary>
@@ -3812,12 +3822,14 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var rootDb = _host.Services.GetRequiredService<ISqlSugarClient>();
             var worker = CreateTrackerWorker(scope);
 
-            var startedAt = DateTime.UtcNow.AddSeconds(-2);
-
             // Cắm mốc gốc ban đầu
             await worker.PollChanges(CancellationToken.None);
             var initialVersion = await GetStateVersion(db);
             Assert.True(initialVersion >= 0);
+
+            var initialCount = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.VersionReset)
+                .CountAsync();
 
             // SqlSugar AOP: Viết lại SqlReadTrackState để trả về CurrentVersion = NULL (mô phỏng tắt Change Tracking cấp CSDL)
             Func<string, SugarParameter[], KeyValuePair<string, SugarParameter[]>> interceptor = (sql, pars) =>
@@ -3843,18 +3855,20 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.Equal(-1, resetVersion);
 
             // Assert 2: Đúng 1 dòng cảnh báo ESH-1604 được ghi
-            var logRows = await db.Queryable<ShareDataActivityLog>()
-                .Where(x => x.Remark == ShareDataAlertCode.Tracking.VersionReset && x.CreateTime >= startedAt)
-                .OrderBy(x => x.CreateTime, OrderByType.Desc)
-                .ToListAsync();
+            var finalCount = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.VersionReset)
+                .CountAsync();
+            Assert.Equal(initialCount + 1, finalCount);
 
-            Assert.Single(logRows);
-            var log = logRows[0];
-            Assert.Equal(BaseEnums.SuccessEnums.Fail, log.Success);
+            var latestLog = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.VersionReset)
+                .OrderBy(x => x.CreateTime, OrderByType.Desc)
+                .FirstAsync();
+            Assert.Equal(BaseEnums.SuccessEnums.Fail, latestLog.Success);
 
             // Assert 3: DetailJson (AfterJson) chứa trackingEnabled:false và currentVersion:null
-            Assert.Contains("\"trackingEnabled\":false", log.AfterJson ?? string.Empty);
-            Assert.Contains("\"currentVersion\":null", log.AfterJson ?? string.Empty);
+            Assert.Contains("\"trackingEnabled\":false", latestLog.AfterJson ?? string.Empty);
+            Assert.Contains("\"currentVersion\":null", latestLog.AfterJson ?? string.Empty);
 
             rootDb.Aop.OnExecutingChangeSql = null;
             db.Aop.OnExecutingChangeSql = null;
@@ -4181,7 +4195,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var eqIdB = $"EQ_INST_B_{testId}";
             var carIdB = $"CAR_INST_B_{testId}";
 
-            var startedAt = DateTime.UtcNow.AddSeconds(-2);
+            var initialEsh1602Count = await dbA.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.QueryFailed)
+                .CountAsync();
 
             // 1. Chu kỳ đầu: Khởi tạo mốc gốc qua workerA
             await workerA.PollChanges(CancellationToken.None);
@@ -4253,12 +4269,12 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.Contains("TmsWeather", GetMissingTables(workerB).Keys);
 
             // Assert 3: Đếm số dòng ESH-1602 (QueryFailed) phát sinh trong suốt quá trình
-            var esh1602Logs = await dbA.Queryable<ShareDataActivityLog>()
-                .Where(x => x.Remark == ShareDataAlertCode.Tracking.QueryFailed && x.CreateTime >= startedAt)
-                .ToListAsync();
+            var finalEsh1602Count = await dbA.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.QueryFailed)
+                .CountAsync();
 
-            // Số lượng ESH-1602 kỳ vọng là 2 (mỗi instance ghi 1 dòng khi truy vấn hỏng)
-            Assert.Equal(2, esh1602Logs.Count);
+            // Số lượng ESH-1602 kỳ vọng tăng thêm 2 (mỗi instance ghi 1 dòng khi truy vấn hỏng)
+            Assert.Equal(initialEsh1602Count + 2, finalEsh1602Count);
 
             // Dọn dẹp tài nguyên và dữ liệu tuần tự ở cuối hàm
             // Khôi phục lại Change Tracking cho TmsWeather
@@ -4268,9 +4284,6 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             await dbA.Deleteable<TmsTrafficData>().Where(t => t.ID == carIdA || t.ID == carIdB).ExecuteCommandAsync();
             await dbA.Deleteable<TmsEquipment>().Where(t => t.ID == eqIdA || t.ID == eqIdB).ExecuteCommandAsync();
-            await dbA.Deleteable<ShareDataActivityLog>()
-                .Where(x => x.Remark == ShareDataAlertCode.Tracking.QueryFailed && x.CreateTime >= startedAt)
-                .ExecuteCommandAsync();
         }
 
         #endregion
