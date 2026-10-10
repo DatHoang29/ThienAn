@@ -78,3 +78,11 @@ description: Unified Testing Suite protocol, Playwright FE E2E, xUnit BE on loca
   # Chạy test theo kịch bản cụ thể
   pnpm test:e2e -g "EC10|EC11"
   ```
+
+---
+
+## 🧹 4. Tự Động Dọn Dẹp Test Artifacts Sau Khi Test Pass (Rule 19.64 - P0)
+
+* **Tự động xóa artifacts khi Pass 100%**: Sau khi toàn bộ các bài test chạy thành công (Pass/Green), AI **BẮT BUỘC tự động dọn dẹp và xóa sạch các thư mục/tệp tạm sinh ra do test runner** (như `test-results/`, `playwright-report/`, traces, screenshots, video, log tạm...) ở cả thư mục gốc và thư mục con `tests/FE/`.
+* **Giữ sạch Working Tree**: Đảm bảo trạng thái Working Tree của Git luôn sạch sẽ, không để tồn đọng các tệp rác phát sinh trong quá trình chạy test làm ô nhiễm `git status`.
+* **Giữ lại artifacts khi Test Thất Bại (Fail)**: Trong trường hợp test bị fail, ĐƯỢC PHÉP giữ lại các artifacts trong `test-results/` để lập trình viên và AI phân tích nguyên nhân lỗi (traces, screenshots). Tuy nhiên, ngay sau khi sửa xong mã nguồn và chạy lại test thành công, AI **BẮT BUỘC thực thi lệnh dọn dẹp xóa bỏ thư mục `test-results/`**.

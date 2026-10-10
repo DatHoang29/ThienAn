@@ -6,6 +6,8 @@
 [Bb]in/
 [Oo]bj/
 logs/
+test-results/
+playwright-report/
 *.user
 .env
 __pycache__/

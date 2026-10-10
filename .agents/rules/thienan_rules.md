@@ -16,7 +16,7 @@ description: Single Source of Truth for ThienAn project — P0 safeguards and re
 
 ## 🛑 BẢNG QUY TẮC CỐT LÕI BẮT BUỘC (P0 SAFEGUARDS)
 
-Mọi AI Agent (Antigravity, Claude Code, Cursor, Codex...) **BẮT BUỘC** tuân thủ tuyệt đối 14 quy tắc sống còn sau:
+Mọi AI Agent (Antigravity, Claude Code, Cursor, Codex...) **BẮT BUỘC** tuân thủ tuyệt đối 15 quy tắc sống còn sau:
 
 | STT | Quy Tắc Cốt Lõi (P0) | Yêu Cầu Chi Tiết |
 | :---: | :--- | :--- |
@@ -34,6 +34,7 @@ Mọi AI Agent (Antigravity, Claude Code, Cursor, Codex...) **BẮT BUỘC** tu�
 | **12** | **Quy Tắc Sinh ID SnowFlake** (Rule 19.44) | WebAPI được AOP tự động sinh Snowflake ID khi Insert (⛔ CẤM gán tay `entity.ID`). Background Worker BẮT BUỘC gán thủ công `entity.ID = YitIdHelper.NextId()`. |
 | **13** | **Can Thiệp Tối Thiểu (Minimal Diff)** (Rule 19.6, 19.35) | Chỉ sửa đúng file và dòng code trực tiếp phục vụ yêu cầu. ⛔ **CẤM** tự ý format lại toàn bộ file, đổi namespace, upgrade package hoặc sửa file ngoài phạm vi. |
 | **14** | **Duy Nhất 1 MasterPlan & Giữ Lại Prompt** (Rule 19.52, Mục 13) | Mỗi phân hệ CHỈ CÓ DUY NHẤT 1 file MasterPlan sống (`<PhânHệ>_MasterPlan.md`). ⛔ **CẤM** tự động xóa file prompt sau khi hoàn thành task. |
+| **15** | **Tự Động Dọn Dẹp Test Artifacts** (Rule 19.64) | Sau khi test pass 100%, AI **BẮT BUỘC tự động dọn dẹp các tệp/thư mục tạm** sinh ra do test runner (như `test-results/`, `playwright-report/`, traces, screenshots, log tạm) để giữ sạch Working Tree. Chỉ giữ lại khi test fail để chẩn đoán. |
 
 ---
 
@@ -71,6 +72,7 @@ flowchart TD
 - **Triết lý:** Test toàn trình nghiệp vụ (Full Business Flow), cấm micro unit test rời rạc, tái hiện bug bằng test fail trước (TDD).
 - **Backend Test:** Chạy xUnit trên CSDL local, cấm Moq, cấm mock service nội bộ & NATS, cấm bọc `try-catch` quanh Act/Assert.
 - **Frontend Test:** Playwright E2E tại `tests/FE/`, timeout mặc định $\le$ 5s.
+- **Dọn dẹp Artifacts (Rule 19.64):** Sau khi test pass 100%, BẮT BUỘC tự động dọn dẹp xóa bỏ `test-results/` và các file artifacts tạm.
 
 ### 5. [🗄️ Quy Chuẩn Database & MCP Tooling](file:///Users/hoangquydat/ThienAn/.agents/rules/database-mcp_thienan.md)
 - **Dual Source of Truth:** Gortex MCP cho code, DAB MCP Staging (`10.10.8.30/DEV_ITS10`) read-only cho DB schema/dữ liệu thực tế.
