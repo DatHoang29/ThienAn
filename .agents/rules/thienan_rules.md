@@ -44,39 +44,39 @@ Mọi AI Agent (Antigravity, Claude Code, Cursor, Codex...) **BẮT BUỘC** tu�
 ```mermaid
 flowchart TD
     SSOT["📌 thienan_rules.md<br/>(P0 Safeguards & Hub)"]
-    SSOT --> Git["🌿 git-workflow.md<br/>(Nhánh, Commit tiếng Việt, F10)"]
-    SSOT --> BE["🏗️ backend-dotnet.md<br/>(Wolverine, SqlSugar, Entity, C#)"]
-    SSOT --> FE["💻 frontend-vue.md<br/>(Vue 3, SCSS, Draggable, i18n)"]
-    SSOT --> Test["🧪 testing-rules.md<br/>(Full Flow, Playwright, xUnit)"]
-    SSOT --> DB["🗄️ database-mcp.md<br/>(DAB MCP Read-Only, Gortex)"]
-    SSOT --> Doc["📄 documentation-standards.md<br/>(MasterPlan, Prompts, Sheet Bug)"]
+    SSOT --> Git["🌿 git-workflow_thienan.md<br/>(Nhánh, Commit tiếng Việt, F10)"]
+    SSOT --> BE["🏗️ backend-dotnet_thienan.md<br/>(Wolverine, SqlSugar, Entity, C#)"]
+    SSOT --> FE["💻 frontend-vue_thienan.md<br/>(Vue 3, SCSS, Draggable, i18n)"]
+    SSOT --> Test["🧪 testing-rules_thienan.md<br/>(Full Flow, Playwright, xUnit)"]
+    SSOT --> DB["🗄️ database-mcp_thienan.md<br/>(DAB MCP Read-Only, Gortex)"]
+    SSOT --> Doc["📄 documentation-standards_thienan.md<br/>(MasterPlan, Prompts, Sheet Bug)"]
 ```
 
-### 1. [🌿 Quy Chuẩn Git Workflow & Commit](file:///Users/hoangquydat/ThienAn/.agents/rules/git-workflow.md)
+### 1. [🌿 Quy Chuẩn Git Workflow & Commit](file:///Users/hoangquydat/ThienAn/.agents/rules/git-workflow_thienan.md)
 - **Tên nhánh:** `feat/20260922-XD1.2.2.5_map-location`, `fix/20261007-sharedata-issue`. CẤM lặp `fix-`, `feat-` trong slug.
 - **Commit Message:** Dòng 1 `[type]([scope]): [nội dung tiếng Việt có dấu]`. Dòng 2 lặp lại Dòng 1. Dòng 3 gạch đầu dòng chi tiết.
 - **Pre-commit Checklist:** 10 bước tự kiểm tra bắt buộc trước khi commit.
 
-### 2. [🏗️ Quy Chuẩn Backend .NET & Clean Architecture](file:///Users/hoangquydat/ThienAn/.agents/rules/backend-dotnet.md)
+### 2. [🏗️ Quy Chuẩn Backend .NET & Clean Architecture](file:///Users/hoangquydat/ThienAn/.agents/rules/backend-dotnet_thienan.md)
 - **Wolverine CQRS:** Thin Controller (`MessBus.InvokeAsync()`), CommandHandler `IWolverineHandler`, FluentValidation, Mapster.
 - **SqlSugar & Entity:** Kế thừa `EntityTenant`, `EntityConst.Length*` (cấm gán Length vào kiểu số), cấm raw SQL DML, worker dùng `baseClient.CopyNew()`.
 - **C# Conventions:** Zero unnecessary usings (IDE0005), cấm hậu tố `-Async`, ưu tiên `var`, auto-properties `{ get; set; }`.
 
-### 3. [💻 Quy Chuẩn Frontend Vue 3 / TypeScript](file:///Users/hoangquydat/ThienAn/.agents/rules/frontend-vue.md)
+### 3. [💻 Quy Chuẩn Frontend Vue 3 / TypeScript](file:///Users/hoangquydat/ThienAn/.agents/rules/frontend-vue_thienan.md)
 - **CSS / SCSS:** CẤM hardcode mã màu (dùng CSS vars Element Plus), block comment `/* */`, CẤM `!important`.
 - **Draggable Dialog:** Dùng `dialogRef.value?.resetPosition?.()`, CẤM sửa tay `style.transform` (tránh giật toạ độ).
 - **TypeScript:** CẤM toán tử `!!`, ngắt dòng thuộc tính template, cấm sửa tay `src/api-services/`.
 
-### 4. [🧪 Quy Chuẩn Kiểm Thử (Testing Suite)](file:///Users/hoangquydat/ThienAn/.agents/rules/testing-rules.md)
+### 4. [🧪 Quy Chuẩn Kiểm Thử (Testing Suite)](file:///Users/hoangquydat/ThienAn/.agents/rules/testing-rules_thienan.md)
 - **Triết lý:** Test toàn trình nghiệp vụ (Full Business Flow), cấm micro unit test rời rạc, tái hiện bug bằng test fail trước (TDD).
 - **Backend Test:** Chạy xUnit trên CSDL local, cấm Moq, cấm mock service nội bộ & NATS, cấm bọc `try-catch` quanh Act/Assert.
 - **Frontend Test:** Playwright E2E tại `tests/FE/`, timeout mặc định $\le$ 5s.
 
-### 5. [🗄️ Quy Chuẩn Database & MCP Tooling](file:///Users/hoangquydat/ThienAn/.agents/rules/database-mcp.md)
+### 5. [🗄️ Quy Chuẩn Database & MCP Tooling](file:///Users/hoangquydat/ThienAn/.agents/rules/database-mcp_thienan.md)
 - **Dual Source of Truth:** Gortex MCP cho code, DAB MCP Staging (`10.10.8.30/DEV_ITS10`) read-only cho DB schema/dữ liệu thực tế.
 - **An toàn CSDL:** CẤM tự ý chạy DDL (`ALTER TABLE`), cấm hàm tạo bảng `EnsureTablesCreated()`. Script DDL/DML viết ra file `.sql`.
 
-### 6. [📄 Quy Chuẩn Tài Liệu, Plan & Báo Cáo Nghiệp Vụ](file:///Users/hoangquydat/ThienAn/.agents/rules/documentation-standards.md)
+### 6. [📄 Quy Chuẩn Tài Liệu, Plan & Báo Cáo Nghiệp Vụ](file:///Users/hoangquydat/ThienAn/.agents/rules/documentation-standards_thienan.md)
 - **MasterPlan & Prompt:** Duy nhất 1 MasterPlan sống per phân hệ. File prompt đặt tại `Prompt/`, có mục cuối cập nhật tài liệu gốc.
 - **Báo cáo rà soát:** Viết hướng về người đọc, cấm phụ lục, trạng thái chỉ có "Đã làm" hoặc "Chưa làm".
 - **Phản hồi Sheet Bug:** Cú pháp `[ddMMyyyy]-[TênDev]: [Bị gì / Fix như nào cụ thể]`, cấm từ ngữ mơ hồ, cấm gộp issue.
