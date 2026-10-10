@@ -196,8 +196,13 @@ function checkPlugin(root, report) {
 }
 
 function checkValidation(root, report) {
+  const testFile = fs.existsSync(path.join(root, '.agents/hooks/tests/harness.test.mjs'))
+    ? '.agents/hooks/tests/harness.test.mjs'
+    : fs.existsSync(path.join(root, '.agents/hooks/tests/guardrails.test.mjs'))
+      ? '.agents/hooks/tests/guardrails.test.mjs'
+      : '.agents/hooks/tests/antigravity.test.mjs';
   const requiredFiles = [
-    '.agents/hooks/tests/antigravity.test.mjs',
+    testFile,
     'MIGRATION.md',
     'SECURITY.md'
   ];
@@ -266,7 +271,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   try {
     const options = parseArgs(process.argv.slice(2));
     if (options.help) {
-      console.log('Usage: node .agents/hooks/antigravity-doctor.mjs [--root PATH] [--json] [--strict]');
+      console.log('Usage: node .agents/hooks/doctor.mjs [--root PATH] [--json] [--strict]');
       process.exit(0);
     }
     const report = diagnose(options.root);

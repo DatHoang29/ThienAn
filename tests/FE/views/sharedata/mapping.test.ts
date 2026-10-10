@@ -449,10 +449,13 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
         expect(handleBox).not.toBeNull();
 
         // 2. Kéo modal lên sát đỉnh viewport (giả lập thao tác kéo modal lên cao)
+        console.log(`[TEST EC10] handleBox ban đầu: y = ${handleBox!.y}, x = ${handleBox!.x}`);
         await page.mouse.move(handleBox!.x + handleBox!.width / 2, handleBox!.y + handleBox!.height / 2);
         await page.mouse.down();
         await page.mouse.move(handleBox!.x + handleBox!.width / 2, handleBox!.y - 100, { steps: 5 });
         await page.mouse.up();
+        const boxAfterDrag1 = await dragHandle.boundingBox();
+        console.log(`[TEST EC10] boxAfterDrag1: y = ${boxAfterDrag1!.y}`);
 
         // 3. Chuyển sang tab "Ánh xạ"
         await dialog.getByRole('tab', { name: 'Ánh xạ' }).click();
@@ -472,6 +475,47 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
 
         const movedHeaderBox = await dragHandle.boundingBox();
         expect(movedHeaderBox).not.toBeNull();
+        console.log(`[TEST EC10] beforeDragY = ${beforeDragY}, movedHeaderBox.y = ${movedHeaderBox!.y}`);
+        expect(movedHeaderBox!.y).toBeGreaterThan(beforeDragY);
+    });
+
+    test('EC11 (Kiểm tra bug giật toạ độ khi kéo) — Sau khi chuyển sang tab Ánh xạ, thao tác kéo chuột BẮT BUỘC di chuyển mượt mà không bị giật toạ độ', async ({ page }) => {
+        await page.goto('/#/sharedata/mapping');
+        const addBtn = page.locator('button:has(.ele-Plus), button:has-text("Thêm mới"), button:has-text("Thêm")').first();
+        await expect(addBtn).toBeVisible({ timeout: 60000 });
+        await addBtn.click();
+
+        const dialog = page.locator('.mp-dialog');
+        await expect(dialog).toBeVisible({ timeout: 5000 });
+        const dragHandle = dialog.locator('.el-dialog__header');
+        await expect(dragHandle).toBeVisible();
+
+        // 1. Kéo modal lên sát mép trên viewport ở tab Thông tin chung
+        const handleBox = await dragHandle.boundingBox();
+        expect(handleBox).not.toBeNull();
+        await page.mouse.move(handleBox!.x + handleBox!.width / 2, handleBox!.y + handleBox!.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(handleBox!.x + handleBox!.width / 2, handleBox!.y - 100, { steps: 5 });
+        await page.mouse.up();
+
+        // 2. Chuyển sang tab "Ánh xạ"
+        await dialog.getByRole('tab', { name: 'Ánh xạ' }).click();
+        await page.waitForTimeout(300);
+
+        const headerAfterSwitch = await dragHandle.boundingBox();
+        expect(headerAfterSwitch).not.toBeNull();
+        expect(headerAfterSwitch!.y).toBeGreaterThanOrEqual(0);
+
+        // 3. Thao tác kéo chuột ở tab Ánh xạ: kéo chuột xuống 60px
+        const beforeDragY = headerAfterSwitch!.y;
+        await page.mouse.move(headerAfterSwitch!.x + headerAfterSwitch!.width / 2, headerAfterSwitch!.y + headerAfterSwitch!.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(headerAfterSwitch!.x + headerAfterSwitch!.width / 2, headerAfterSwitch!.y + 60, { steps: 5 });
+        await page.mouse.up();
+
+        const movedHeaderBox = await dragHandle.boundingBox();
+        expect(movedHeaderBox).not.toBeNull();
+        // Xác nhận vị trí header di chuyển tịnh tiến xuống dưới, KHÔNG bị giật ngược
         expect(movedHeaderBox!.y).toBeGreaterThan(beforeDragY);
     });
 });

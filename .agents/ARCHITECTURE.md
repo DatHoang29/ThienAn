@@ -377,7 +377,7 @@ AG Kit includes **7 user-facing top-level utilities**, **2 internal registry/run
 
 | Script | Purpose |
 |---|---|
-| `hooks/antigravity-doctor.mjs` | Read-only six-phase compatibility and release diagnostics |
+| `hooks/doctor.mjs` | Read-only six-phase compatibility and release diagnostics |
 | `hooks/validate-tool-call.mjs` | Native destructive-command safety gate |
 | `hooks/sync-mcp.mjs` | Review and explicitly synchronize MCP configuration |
 | `hooks/build-plugin.mjs` | Build a reviewable Antigravity plugin bundle |

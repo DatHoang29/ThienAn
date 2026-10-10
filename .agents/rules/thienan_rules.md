@@ -1948,6 +1948,23 @@ tests/
   - **Lý do & Lợi ích**:
     - Giúp kịch bản phản hồi lỗi (fail fast) ngay lập tức trong vài giây để dev nhận biết và xử lý, thay vì chờ đợi lãng phí 5–6 phút cho mỗi lần chạy test.
 
+- **19.62. Gortex-First & Default-as-Fallback Protocol — BẮT BUỘC Dùng Gortex MCP Cho Mọi Thao Tác Mã Nguồn, CẤM Dùng Tool Mặc Định Khi Gortex Hoạt Động (chốt 09/10/2026 - P0)**:
+  - **Phạm vi áp dụng**: Mọi thao tác tìm kiếm, khảo sát, đọc hiểu và chỉnh sửa mã nguồn Backend (`.cs`, `.sql`), Frontend (`.vue`, `.ts`, `.js`, `.scss`) và các tệp cấu hình của dự án.
+  - 🔴 **Yêu cầu bắt buộc**:
+    1. **Gortex-First 100%**: AI BẮT BUỘC ưu tiên gọi bộ công cụ Gortex MCP (`call_mcp_tool` với `ServerName: "gortex"`) cho mọi tác vụ tra cứu (`search_text`, `find_files`, `get_symbol`, `find_usages`, `get_callers`), đọc file (`read_file`) và sửa code (`edit_file`, `batch_edit`, `edit_symbol`).
+    2. **Default-as-Fallback duy nhất**: CHỈ ĐƯỢC PHÉP chuyển sang (fallback) dùng các công cụ mặc định (`view_file`, `replace_file_content`, `run_command grep/find`) khi và chỉ khi: Gortex server báo lỗi không khả dụng, bị timeout, hoặc tệp đang thao tác là tài liệu Markdown thuần túy ngoài vùng index.
+  - ⛔ **CẤM tuyệt đối**: Cấm theo thói quen phản xạ máy móc gọi ngay các lệnh `run_command` (grep/find) hoặc `view_file` / `replace_file_content` trên mã nguồn dự án mà không tra cứu qua Gortex trước.
+
+- **19.63. Quy Chuẩn Bộ Test Suite Duy Nhất Cho Frontend & Backend — CẤM Tạo Script Test Ad-hoc Rải Rác (Strict Unified Test Suite: Playwright for FE, xUnit for BE - No Ad-Hoc Test Scripts - chốt 09/10/2026 - P0)**:
+  - **Phạm vi áp dụng**: Mọi tác vụ viết test, kiểm thử chức năng, tái hiện lỗi trên toàn bộ hệ thống Thiên Ân.
+  - 🔴 **Quy chuẩn duy nhất (Single Test Suite)**:
+    1. **Frontend**: Toàn bộ kịch bản kiểm thử E2E / Component Test Frontend **BẮT BUỘC viết bằng Playwright tại thư mục `tests/FE/`** (chạy bằng `pnpm test:e2e` hoặc `npx playwright test`).
+    2. **Backend**: Toàn bộ kịch bản kiểm thử Backend **BẮT BUỘC viết bằng xUnit / SqlSugar tại thư mục `tests/BE/`** (chạy bằng `dotnet test tests/BE/test.csproj`).
+  - ⛔ **CẤM tuyệt đối**:
+    - Cấm tự ý tạo các tệp script kiểm thử ad-hoc rải rác (`.mjs`, `.cjs`, `.py`, `.js`) trong các thư mục con của Frontend (`TA-ITS015-WEBVUE-V1.0/tests/`) hoặc thư mục gốc để chạy bằng `node --test` hay runner tự chế.
+    - Mọi kịch bản kiểm thử mới BẮT BUỘC phải kế thừa trực tiếp test suite chính thức có sẵn (`tests/FE/views/<phân-hệ>/` hoặc `tests/BE/`).
+    - Hệ thống hook vật lý tại `.agents/hooks/thienan-guardrails.mjs` sẽ tự động chặn đứng (block) mọi lệnh tạo file test ngoài hai thư mục chuẩn trên.
+
 ---
 
 ## 💻 20. Quy Chuẩn Frontend (Vue 3 / TypeScript)

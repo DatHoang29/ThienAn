@@ -16,8 +16,9 @@ AG Kit now treats Google Antigravity as its primary runtime. The integration is 
 ## Quick verification
 
 ```bash
-node .agents/hooks/antigravity-doctor.mjs
-node --test .agents/hooks/tests/antigravity.test.mjs
+node .agents/hooks/doctor.mjs
+node --test .agents/hooks/tests/guardrails.test.mjs
+node --test .agents/hooks/tests/harness.test.mjs
 ```
 
 The doctor checks the installed workspace without changing files. Use `--json` for machine-readable output and `--strict` to treat unresolved configuration placeholders as failures.

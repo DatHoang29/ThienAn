@@ -53,7 +53,7 @@ function firstString(...values) {
 }
 
 export function extractCommand(payload) {
-  const args = payload?.tool_args ?? payload?.toolArgs ?? payload?.arguments ?? {};
+  const args = payload?.tool_args ?? payload?.toolArgs ?? payload?.tool_input ?? payload?.toolInput ?? payload?.arguments ?? {};
   return firstString(
     args.CommandLine,
     args.commandLine,

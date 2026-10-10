@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ag-kit.dev/schemas/antigravity-hooks.schema.json",
-  "title": "AG Kit Antigravity Native Hooks",
+  "$id": "https://ag-kit.dev/schemas/hooks.schema.json",
+  "title": "AG Kit Native Hooks",
   "type": "object",
   "required": ["enabled"],
   "properties": {
@@ -42,3 +42,4 @@
   },
   "additionalProperties": false
 }
+

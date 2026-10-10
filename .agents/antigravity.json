@@ -1,5 +1,5 @@
 {
-  "$schema": "hooks/antigravity-contract.schema.json",
+  "$schema": "hooks/contract.schema.json",
   "schemaVersion": "1.0.0",
   "runtime": "antigravity",
   "requiredCliCommands": [
@@ -32,7 +32,7 @@
       "defaultOutput": "dist/antigravity-plugin"
     },
     "validation": {
-      "doctor": ".agents/hooks/antigravity-doctor.mjs",
+      "doctor": ".agents/hooks/doctor.mjs",
       "tests": ".agents/hooks/tests"
     }
   }

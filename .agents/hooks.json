@@ -1,10 +1,15 @@
 {
-  "$schema": "hooks/antigravity-hooks.schema.json",
+  "$schema": "hooks/hooks.schema.json",
   "enabled": true,
   "PreToolUse": [
     {
       "matcher": "run_command",
       "command": "node .agents/hooks/validate-tool-call.mjs",
+      "timeout": 10
+    },
+    {
+      "matcher": "run_command|write_to_file",
+      "command": "node .agents/hooks/thienan-guardrails.mjs",
       "timeout": 10
     }
   ]

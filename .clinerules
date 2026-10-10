@@ -29,6 +29,7 @@
 ---
 
 ## 🛑 Critical Mandatory Safeguards
-1. **Strict Local Database for `dotnet test`**: Mọi connection string test PHẢI trỏ về `local` (`localhost`, `127.0.0.1`, `(localdb)`, `.`). Nếu phát hiện IP remote (ví dụ `10.10.8.30`), **HỦY test ngay lập tức và báo cáo cho user**.
-2. **Auto-Cleanup Completed Prompt & Plan Files**: Tự động xóa các file prompt/plan tạm sau khi hoàn thành nhiệm vụ (ví dụ `*-prompt-*.md`, `{task-slug}.md`).
-3. **Strict Manual SQL Execution**: Chỉ xuất file `.sql` ra đĩa để user review. KHÔNG tự ý thực thi DDL/DML trực tiếp làm thay đổi database.
+> 🔴 **SINGLE SOURCE OF TRUTH (SSOT): [`.agents/rules/thienan_rules.md`](file:///.agents/rules/thienan_rules.md)**
+> Toàn bộ các quy tắc bắt buộc cốt lõi (P0 Safeguards) của dự án được định nghĩa tập trung và duy nhất tại:
+> 👉 [`.agents/rules/thienan_rules.md`](file:///.agents/rules/thienan_rules.md) (Mục 19: Các Quy Tắc Cốt Lõi Bắt Buộc - P0 Safeguards).
+

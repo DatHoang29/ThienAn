@@ -5,7 +5,19 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh /c/ThienAn/.claude/hooks/agent-skill-reminder.sh",
+            "command": "node .agents/hooks/prompt-submit.mjs",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .agents/hooks/thienan-guardrails.mjs",
             "timeout": 5
           }
         ]
