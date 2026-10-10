@@ -1,5 +1,17 @@
 {
   "dotnet.defaultSolution": "TA-ITS015-WEBAPI-V1.0/src/TAC_WebAPI.sln",
   "debug.onTaskErrors": "debugAnyway",
-  "cSpell.ignoreRegExpList": ["\\S*[^\\x00-\\x7F]\\S*"]
+  "cSpell.ignoreRegExpList": [
+    "\\S*[^\\x00-\\x7F]\\S*"
+  ],
+  "editor.codeActionsOnSave": {
+
+  },
+  "editor.fontFamily": "'Fira Code', monospace",
+  "editor.fontWeight": "600",
+  "editor.fontLigatures": true,
+  "terminal.integrated.fontFamily": "'Fira Code', monospace",
+  "terminal.integrated.fontWeight": "600",
+  "terminal.integrated.fontWeightBold": "bold"
+
 }
