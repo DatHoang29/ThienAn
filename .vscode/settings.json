@@ -12,6 +12,12 @@
   "editor.fontLigatures": true,
   "terminal.integrated.fontFamily": "'Fira Code', monospace",
   "terminal.integrated.fontWeight": "600",
-  "terminal.integrated.fontWeightBold": "bold"
+  "terminal.integrated.fontWeightBold": "bold",
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.expand": false,
+  "explorer.fileNesting.patterns": {
+    "AGENTS.md": "CLAUDE.md, CODEX.md, GEMINI.md, .cursorrules, .clinerules, .roomodes, .mcp.json",
+    "*.sln": "$(capture).sln.DotSettings.user"
+  }
 
 }

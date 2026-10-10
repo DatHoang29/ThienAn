@@ -1,8 +1,0 @@
-# Cursor / Codex / Copilot Rules - ThienAn
-
-> 🔴 **SINGLE SOURCE OF TRUTH (SSOT): `.agents/`**
-> Mọi quy định kiến trúc và coding standards tập trung tại:
-> - `AGENTS.md`
-> - `.agents/rules/thienan_rules.md`
-
-
