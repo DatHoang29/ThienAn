@@ -74,6 +74,8 @@ src/views/<module>/<feature>/
 
 ## 🌐 5. Đa Ngôn Ngữ (i18n Scope Rules)
 
+* **Phạm vi sửa file i18n**: Phía Frontend, lập trình viên **ĐƯỢC PHÉP** thêm/sửa key bản dịch trong `src/i18n/lang/vi-vn.json` và `en-us.json` khi phát triển giao diện.
+  *(Lưu ý: Quy tắc cấm sửa tay file tĩnh chỉ áp dụng cho Backend WebAPI `src/TAC_WebAPI/Resources/*.json` do các file đó được sinh tự động từ CSDL `SysTerminology`).*
 * **Ưu tiên lấy bản dịch**: Luôn ưu tiên dùng key bản dịch chuẩn từ backend resource hoặc file i18n (`src/i18n/lang/vi-vn.json` và `en-us.json`).
 * **CẤM hardcode chuỗi text**: Mọi nhãn, thông báo, tiêu đề cột bảng BẮT BUỘC bọc qua `$t('lz.label....')`.
 
