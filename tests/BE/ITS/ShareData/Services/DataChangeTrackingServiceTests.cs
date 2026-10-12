@@ -3888,7 +3888,6 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var rootDb = _host.Services.GetRequiredService<ISqlSugarClient>();
             var worker = CreateTrackerWorker(scope);
 
-            var startedAt = (await db.Ado.GetDateTimeAsync("SELECT GETDATE()")).AddSeconds(-5);
             var testId = Guid.NewGuid().ToString("N")[..8];
             var eqId = $"EQ_ERR_{testId}";
             var carId = $"CAR_ERR_{testId}";
@@ -3936,7 +3935,10 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             db.Aop.OnExecutingChangeSql = interceptor;
 
             // Act: QueryChangedTables rethrow lỗi không phải lỗi version, nên PollChanges ném ra
+            var actStartedAt = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
             await Assert.ThrowsAnyAsync<Exception>(() => worker.PollChanges(CancellationToken.None));
+            rootDb.Aop.OnExecutingChangeSql = null;
+            db.Aop.OnExecutingChangeSql = null;
 
             // Assert 1: Phép đo chính — không cô lập oan bảng lành
             var missing = GetMissingTables(worker);
@@ -3944,19 +3946,16 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             // Assert 2: Không có dòng ShareDataActivityLog nào mang thông điệp "mất Change Tracking giữa chừng"
             var logs = await db.Queryable<ShareDataActivityLog>()
-                .Where(x => x.Remark == ShareDataAlertCode.Tracking.QueryFailed && x.CreateTime >= startedAt)
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.QueryFailed && x.CreateTime >= actStartedAt)
                 .OrderBy(x => x.CreateTime, OrderByType.Desc)
                 .ToListAsync();
 
             Assert.DoesNotContain(logs, x => (x.Description ?? string.Empty).Contains("mất Change Tracking giữa chừng", StringComparison.OrdinalIgnoreCase));
 
-            rootDb.Aop.OnExecutingChangeSql = null;
-            db.Aop.OnExecutingChangeSql = null;
-
             await db.Deleteable<TmsTrafficData>().Where(t => t.ID == carId).ExecuteCommandAsync();
             await db.Deleteable<TmsEquipment>().Where(t => t.ID == eqId).ExecuteCommandAsync();
             await db.Deleteable<ShareDataActivityLog>()
-                .Where(x => x.Remark == ShareDataAlertCode.Tracking.QueryFailed && x.CreateTime >= startedAt)
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.QueryFailed && x.CreateTime >= actStartedAt)
                 .ExecuteCommandAsync();
         }
 
