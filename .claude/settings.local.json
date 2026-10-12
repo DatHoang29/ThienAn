@@ -2,6 +2,19 @@
   "permissions": {
     "allow": [
       "mcp__gortex",
+      "mcp__gortex__*",
+      "mcp__gortex__read_file",
+      "mcp__gortex__search_text",
+      "mcp__gortex__search_symbols",
+      "mcp__gortex__get_symbol_source",
+      "mcp__gortex__find_files",
+      "mcp__gortex__get_file_summary",
+      "mcp__gortex__batch_symbols",
+      "mcp__gortex__find_usages",
+      "mcp__gortex__get_callers",
+      "mcp__gortex__edit_file",
+      "mcp__gortex__verify_change",
+      "mcp__gortex__detect_changes",
       "Bash(dotnet test *)",
       "Bash(mv \"VideoWall/videowall-19-08_25-08.md\" \"VideoWall/videowall_plan.md\")",
       "Bash(mv \"ShareData/sharedata-19-08_25-08.md\" \"ShareData/sharedata_plan.md\")",
@@ -121,7 +134,10 @@
       "Skill(update-config:*)",
       "Bash(node --test .agents/hooks/tests/gortex-enforce.test.mjs)",
       "Bash(rm \"BAO-CAO-REVIEW-SHAREDATA.md\")",
-      "Bash(sed -i '' 's/Căn cứ: `BAO-CAO-REVIEW-SHAREDATA.md` cùng thư mục\\\\./Căn cứ: Phụ lục §6 trong `Đặc tả Background Service ShareData.md` cùng thư mục./; s/\\(xem BAO-CAO-REVIEW-SHAREDATA.md\\)/\\(xem Phụ lục §6 trong \"Đặc tả Background Service ShareData.md\"\\)/' PROMPT-VIET-TEST-CASE-SHAREDATA.md)"
+      "Bash(sed -i '' 's/Căn cứ: `BAO-CAO-REVIEW-SHAREDATA.md` cùng thư mục\\\\./Căn cứ: Phụ lục §6 trong `Đặc tả Background Service ShareData.md` cùng thư mục./; s/\\(xem BAO-CAO-REVIEW-SHAREDATA.md\\)/\\(xem Phụ lục §6 trong \"Đặc tả Background Service ShareData.md\"\\)/' PROMPT-VIET-TEST-CASE-SHAREDATA.md)",
+      "Bash(git branch *)",
+      "Bash(timeout 10 /opt/homebrew/bin/gortex hook --mode=enrich)",
+      "Bash(/opt/homebrew/bin/gortex hook *)"
     ],
     "additionalDirectories": [
       "c:\\ThienAn\\DocBusinessThienAn\\HữuNghị-ChiLăng\\VideoWall",
