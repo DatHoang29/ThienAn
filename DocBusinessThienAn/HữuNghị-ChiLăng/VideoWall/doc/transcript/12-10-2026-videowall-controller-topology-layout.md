@@ -52,17 +52,7 @@ participants:
 
 ---
 
-## 2. Ma trận phân công công việc (Action Items)
-
-| Người phụ trách | Hạng mục công việc | Chi tiết kỹ thuật |
-|---|---|---|
-| **Hiếu** | Frontend VideoWall | - Bỏ cách cấu hình gán input/output cứng cũ; làm lại giao diện cấu hình Controller cha - con.<br>- Bổ sung hiển thị ma trận 32 màn hình (8x4), scale ngang/dọc chuẩn, hỗ trợ chia 2 cụm controller độc lập.<br>- Thêm nút **Reset về Default Layout** trên thanh công cụ điều khiển VideoWall.<br>- Chặn quyền kéo thả cửa sổ đối với tài khoản View-only. |
-| **Đạt** | Backend VideoWall API & DB | - Cập nhật schema bảng Controller: lưu số cổng In/Out, ID từng cổng, quan hệ Cha - Con.<br>- Viết API lấy danh sách mapping Cổng Output -> Screen ID.<br>- Bổ sung ghi log thao tác điều khiển màn hình qua Socket/Signal. |
-| **Anh Sơn** | Kiến trúc hệ thống | - Review sơ đồ Topology và phê duyệt cơ chế mapping cổng vật lý trước khi đấu nối thực tế. |
-
----
-
-## 3. Kịch bản đối thoại chi tiết theo dòng thời gian (Detailed Transcript)
+## 2. Kịch bản đối thoại chi tiết theo dòng thời gian (Detailed Transcript)
 
 ---
 

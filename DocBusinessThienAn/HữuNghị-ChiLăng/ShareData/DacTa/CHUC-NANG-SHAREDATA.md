@@ -711,6 +711,29 @@ Ngoài ra còn các cảnh báo: gói tin không tìm thấy cấu hình, bộ k
 7. Quay lại màn **Chia sẻ dữ liệu**: kiểm tra cột *Mapping áp dụng* của đăng ký đã hiện tên hồ sơ. Nếu trống thì bước 6 chưa đúng.
 8. Bật đăng ký, **chờ tới kỳ gửi**.
 9. Màn **Nhật ký** tab Truyền nhận: xem kết quả. Nếu không có dòng nào, sang màn **Cảnh báo lỗi** đọc mã `ESH-xxxx`.
+### 8.1 Tiêu chuẩn nghiệm thu kiểm thử toàn trình (Bàn giao cho QA)
+
+Để phục vụ công tác nghiệm thu chính thức của QA/QC (chị Như), tiêu chuẩn kiểm thử toàn trình được định nghĩa chi tiết tại **Mục §5 ("Tiêu chí Nghiệm thu & Ma trận Kiểm thử")** trong tài liệu [`Đặc tả Background Service ShareData.md`](Đặc%20tả%20Background%20Service%20ShareData.md#5-tiêu-chí-nghiệm-thu--ma-trận-kiểm-thử-acceptance-criteria), bao gồm:
+
+1. **Chiều Gửi (Outbound Acceptance Criteria):**
+   - **AC-OUT-01 (Happy Path - Gửi định kỳ):** Đến kỳ gửi, trích xuất đúng số bản ghi, ánh xạ JSON chuẩn `TargetShapeJson`, quy đổi `CodeSet`, gửi HTTP 200 OK thành công, lưu bản sao file backup, tăng `SerialNbr`, tiến mốc cursor `LastTime/LastKey`, log cha `Send` Thành công.
+   - **AC-OUT-02 (Theo sự kiện - Event Trigger):** Kích hoạt gửi ngay lập tức khi phát sinh bản ghi mới (`SendOnNewData = true`), không chờ hết chu kỳ lịch.
+   - **AC-OUT-03 (Chặn khi thiếu hồ sơ ánh xạ):** Hủy kết xuất an toàn, không gửi HTTP, ghi log Cảnh báo mã `ESH-1304`, không tiến mốc cursor.
+   - **AC-OUT-04 (Chặn khi thiếu trường bắt buộc):** Dừng kết xuất khi trường `required = true` bị NULL và không có giá trị mặc định, ghi cảnh báo `ESH-1202`.
+   - **AC-OUT-05 (Quy đổi bảng mã CodeSet):** Giá trị nguồn đổi đúng sang giá trị đối tác theo bảng; nếu không khớp thì lấy giá trị mặc định của bộ mã hoặc `defaultPartnerValue`.
+   - **AC-OUT-06 (Đối tác HTTP lỗi 4xx/5xx/Timeout):** Vẫn lưu file backup, ghi cảnh báo `ESH-1402`, phiên đánh dấu Thất bại, **giữ nguyên mốc cursor và `SerialNbr`** để kỳ sau retry.
+   - **AC-OUT-07 (Khóa phân tán Multi-Worker):** Chỉ 1 Worker chạy kỳ gửi, không xảy ra gửi trùng lặp gói tin cho đối tác.
+
+2. **Chiều Nhận (Inbound Acceptance Criteria):**
+   - **AC-IN-01 (Tiếp nhận HTTP POST):** Phản hồi tức thì `HTTP 200 OK` ($\le$ 500ms), lưu đệm `Pending` vào `ShareDataInboundPacket` trên CSDL `DEV_ITS10_Inbound`.
+   - **AC-IN-02 (Worker bóc tách & nạp CSDL):** Worker bóc tách JSON, quy đổi ngược bộ mã, nạp thành công vào bảng nghiệp vụ trên `DEV_ITS10_Inbound`, gói chuyển `Done`, log cập nhật Thành công.
+   - **AC-IN-03 (Từ chối gói tin chưa có Đăng ký nhận):** Đánh dấu `NoSubscription`, ghi cảnh báo `ESH-1508`, không nạp bảng nghiệp vụ.
+   - **AC-IN-04 (Xử lý gói tin hỏng định dạng):** JSON sai cú pháp đánh dấu `Failed`, ghi cảnh báo `ESH-1503`, worker không bị crash.
+   - **AC-IN-05 (Giao dịch toàn vẹn khi lỗi SQL):** Lỗi ghi DB sẽ Transaction Rollback 100%, không để lại rác dở dang, đánh dấu `Failed`, ghi cảnh báo `ESH-1505`.
+   - **AC-IN-06 (Cô lập CSDL tuyệt đối):** 100% dữ liệu chiều Nhận chỉ ghi vào CSDL `DEV_ITS10_Inbound`, tuyệt đối không ghi đè vào `DEV_ITS10`.
+
+---
+
 ## 9. Ghi chú
 Đây là phần lưu ý về phạm vị ảnh hưởng của hệ Chia sẻ dữ liệu (ShareData)
 1. DB sử dụng: DEV_ITS10 và DEV_ITS10_Inbound - Server=10.10.8.30

@@ -88,12 +88,12 @@ flowchart TD
   - **Gói 107** (Sự cố giao thông): `TmsIncident`, `TmsEventType`
   - **Gói 108** (Biển báo điện tử VMS): `VmsCurrent`, `TmsEquipment`
   - **Gói 109** (Thu phí không dừng ETC): `TollTransactionOut`, `TollLane`, `TollStation` *(Có xe và trạm, nhưng không có data về giá cước tollPrice)*
-  - **Gói 110** (Cảnh báo phát hành WP): `TmsIncident`, `VmsCurrent`, `TmsEquipment` *(Hiện tại gói này không có data do hầu hết sự cố trên CSDL đã kết thúc State='4', cần tạo sự cố mới đang mở để test)*
+  - **Gói 110** (Cảnh báo phát hành WP): `TmsIncident`, `VmsCurrent`, `TmsEquipment` *(Chưa triển khai: handler QueryPacket110 trả về rỗng theo policy NotReady, nên gói này không gửi dữ liệu. Tạo sự cố mới đang mở không làm gói có dữ liệu)*
 
 #### 2. CSDL `DEV_ITS10_Inbound` (Tiếp nhận dữ liệu đối tác - CSDL độc lập)
 - **Nhóm bảng điều phối tiếp nhận:**
   - `ShareDataInboundPacket`: Hàng đợi lưu trữ nguyên văn chuỗi JSON thô do đối tác gửi lên, trạng thái xử lý (`Pending`, `Done`, `Failed`), kèm `ReceiveLogId` liên kết dòng log cha.
-  - `ShareDataPacketWrite`: Cấu hình danh sách các bảng đích và câu lệnh SQL `MERGE` / `OPENJSON` để ghi dữ liệu.
+  - `ShareDataPacketSql` (cột `WriteSql`): Cấu hình danh sách các câu lệnh SQL `MERGE` / `OPENJSON` ghi vào bảng đích, chạy theo `OrderNo`.
 - **Nhóm bảng lưu trữ dữ liệu nhận nghiệp vụ:**
   - `TmsZone`, `TmsTrafficStatistic`, `TmsZoneStatus` (Dữ liệu giao thông nhận về)
   - `TmsEquipment`, `CctvDevice` (Dữ liệu camera nhận về)
@@ -128,7 +128,7 @@ flowchart TD
     T5 -- "Có dữ liệu mới" --> T6["4. Chặng 2: Ánh xạ dữ liệu<br/>(TargetShapeJson + $extend + CodeSet)"]
     
     T6 --> T7{"Kiểm tra kết quả ánh xạ"}
-    T7 -- "Lỗi cấu trúc / Dữ liệu" --> E_MAP_ERR["Ghi Alert ESH-1305<br/>Dừng ngay, KHÔNG gửi HTTP"]
+    T7 -- "Lỗi cấu trúc / Dữ liệu" --> E_MAP_ERR["Ghi Alert ESH-1202 / ESH-1206<br/>Dừng ngay, KHÔNG gửi HTTP"]
     T7 -- "Ánh xạ thành công" --> T8["5. Chặng 3: Vận chuyển HTTP REST<br/>(POST Endpoint + Headers định danh)" Lưu file dữ liệu gửi đi vào đia chỉ E:\IIS_WebPool\ITS\ITS015\Services\TA-ShareData-Service\sharedata máy 10.10.8.30]
     
     T8 --> T9{"Phản hồi từ Đối tác"}
@@ -175,15 +175,18 @@ flowchart LR
 
 #### Bước 1: Lọc & Trích xuất dữ liệu (Extraction)
 - Hệ thống truy vấn CSDL nội bộ `DEV_ITS10` để lấy dữ liệu theo từng loại gói tin:
-  - **Với 5 gói biến động (103, 104, 106, 107, 109):** Trích xuất theo cơ chế nối đuôi tăng dần dựa trên mốc `ShareDataLastSend` (`UpdateTime > LastTime` và `ID > LastKey`), **tuyệt đối không gửi lại bản ghi đã gửi thành công trước đó**. Phân trang tối đa 100 bản ghi/lô.
-  - **Với 5 gói hiện trạng/danh mục (101, 102, 105, 108, 110):** Luôn lấy toàn bộ trạng thái hiện tại của hệ thống (Snapshot) để đối tác cập nhật hiện trạng tức thời.
+  - **Với 5 gói biến động (103, 104, 106, 107, 109):** Trích xuất theo cơ chế nối đuôi tăng dần dựa trên mốc `ShareDataLastSend`: lấy bản ghi có `Watermark > LastTime` **hoặc** (`Watermark = LastTime` **và** `ID > LastKey`), sắp xếp `Watermark ASC, ID ASC`, trong đó `Watermark = COALESCE(UpdateTime, CreateTime, thời điểm nghiệp vụ)`. Nhờ đó **không gửi lại bản ghi đã gửi thành công trước đó** nhưng cũng không bỏ sót bản ghi cùng thời điểm khác ID. Phân trang tối đa 100 bản ghi/lô.
+  - **Với 5 gói hiện trạng/danh mục (101, 102, 105, 108, 110):** Không dùng mốc `LastSend`, mỗi lượt lấy trạng thái hiện tại (Snapshot) để đối tác cập nhật hiện trạng. Giới hạn số dòng theo từng gói: **101 lấy toàn bộ** (không có TOP); **105 tối đa 100 dòng**; **110 chưa triển khai** (trả rỗng); 102 và 108 *[Chưa xác minh]*.
 - 🛑 **Quy tắc kiểm tra rỗng:** Nếu CSDL **không có dữ liệu mới (0 bản ghi)** $\rightarrow$ Dừng xử lý ngay tại Bước 1, **không** gọi gửi API đối tác để chống spam mạng. Hệ thống ghi 1 dòng nhật ký Thành công phẳng (0 bản ghi, thông điệp `NoNewData`) để báo hiệu phiên quét bình thường.
 
 #### Bước 2: Quy đổi giá trị & Đóng gói khuôn JSON (Mapping)
 - **Điền 4 giá trị hệ thống tự động vào JSON:** Thời điểm gửi (`Now`), Số thứ tự gói (`Serial`), Mã gói tin (`PacketCode`), Mã đối tác (`PartnerCode`).
 - **Quy đổi mã (CodeSet):** Đổi giá trị nội bộ sang mã của đối tác (ví dụ: trạng thái `1` $\rightarrow$ `"ON"`). Nếu giá trị nguồn rỗng thì áp dụng giá trị mặc định (`defaultPartnerValue`).
 - **Định dạng dữ liệu:** Ép kiểu chuỗi, số thập phân, định dạng ngày giờ theo đúng mẫu đối tác yêu cầu.
-- 🛑 **Chốt chặn an toàn:** Nếu phát hiện dữ liệu thiếu trường bắt buộc (`IsRequired`) hoặc cấu hình JSON bị lỗi $\rightarrow$ Dừng ngay lập tức, **không** gửi sang đối tác và ghi cảnh báo lỗi `ESH-1305` hoặc `ESH-1306`.
+- 🛑 **Chốt chặn an toàn:**
+  - Thiếu trường bắt buộc (`IsRequired`) $\rightarrow$ Dừng ngay, **không** gửi, ghi cảnh báo lỗi `ESH-1202`.
+  - `TargetShapeJson` rỗng hoặc sai cú pháp $\rightarrow$ Dừng ngay, **không** gửi, ghi cảnh báo lỗi `ESH-1206`.
+  - Biểu thức (`expression`) sai hoặc lỗi khi tính $\rightarrow$ **không dừng**: giữ giá trị gốc, ghi cảnh báo `ESH-1203` (mức warning) và vẫn gửi.
 
 #### Bước 3: Truyền gửi dữ liệu (Transport)
 - Đóng gói thành HTTP POST Request với Body là JSON đối tác.
@@ -199,7 +202,7 @@ flowchart LR
 | **Gói tin gửi đối tác** | HTTP Request gửi thành công, máy chủ đối tác phản hồi mã HTTP `200..299`. | Log mạng / Phần mềm Mock Receiver |
 | **Mốc gửi nối đuôi (`LastSend`)** | Cập nhật thời gian và ID mới nhất vào bảng `ShareDataLastSend`. Các lượt gửi sau sẽ nối tiếp từ mốc này. | Bảng CSDL `ShareDataLastSend` |
 | **Nhật ký truyền nhận** | Xuất hiện 1 phiên gửi thành công gồm: Dòng Cha tổng quan + 2 dòng Con chi tiết (Bước 1: Trích xuất & Ánh xạ, Bước 2: Vận chuyển HTTP). | Màn hình **Nhật ký** (Tab *Truyền nhận*) |
-| **Cảnh báo lỗi (khi thất bại)** | Nếu đối tác trả về HTTP 4xx/5xx hoặc mạng Timeout: Hệ thống đánh dấu phiên Thất bại, **giữ nguyên mốc LastSend cũ** (để gửi lại ở kỳ sau), và bắn mã cảnh báo `ESH-1302`/`ESH-1303`. | Màn hình **Cảnh báo lỗi** |
+| **Cảnh báo lỗi (khi thất bại)** | Nếu đối tác trả về HTTP 4xx/5xx hoặc mạng Timeout: Hệ thống đánh dấu phiên Thất bại, **giữ nguyên mốc LastSend cũ** (để gửi lại ở kỳ sau), và bắn mã cảnh báo `ESH-1402` (mọi lỗi gửi HTTP: 4xx/5xx/timeout/ngoại lệ). File JSON kết xuất vẫn được ghi. | Màn hình **Cảnh báo lỗi** |
 
 ---
 
@@ -209,8 +212,8 @@ Dành cho BA và QC kiểm tra toàn bộ vòng đời khi đối tác bên ngo�
 
 ### 4.1 Điều kiện tiên quyết (Prerequisites)
 1. **Đối tác (Partner):** Đã khai báo mã định danh `PartnerCode` trong hệ thống.
-2. **Hồ sơ ánh xạ (Mapping):** Bắt buộc phải có **đúng 1 hồ sơ chiều Nhận về (`Inbound`) hoặc Hai chiều (`Both`) đang BẬT (`Đang dùng`)**.
-3. **Cấu hình câu ghi (PacketWrite):** Đã khai báo cấu hình bảng đích trong CSDL Inbound cho gói tin tương ứng.
+2. **Hồ sơ ánh xạ (Mapping):** Nên có **1 hồ sơ chiều Nhận về (`Inbound`) hoặc Hai chiều (`Both`) đang BẬT (`Đang dùng`)** để bóc tách theo khuôn. *Không bắt buộc:* nếu thiếu, Worker vẫn xử lý bằng cách đọc mảng đối tượng phẳng trong JSON.
+3. **Cấu hình câu ghi (`ShareDataPacketSql.WriteSql`):** Bắt buộc đã khai báo ít nhất 1 câu ghi (đang bật) cho gói tin tương ứng; thiếu thì gói `Failed` với `ESH-1509`.
 
 ---
 
@@ -254,16 +257,16 @@ flowchart TD
 
 
 #### Bước 2: Bóc tách cấu trúc & Quy đổi ngược (Reverse Mapping)
-- Tra cứu hồ sơ ánh xạ chiều nhận đang bật. *(Nếu không có hồ sơ $\rightarrow$ Đánh dấu gói tin Thất bại và bắn cảnh báo `ESH-1304`)*.
+- Tra cứu hồ sơ ánh xạ chiều nhận đang bật. *(Nếu không có hồ sơ $\rightarrow$ vẫn xử lý bằng mảng đối tượng phẳng trong JSON; chiều Nhận **không** báo `ESH-1304`. JSON hỏng hoặc là XML $\rightarrow$ gói `Failed`, `ESH-1503`)*.
 - Phân tích cú pháp JSON đối tác, trích xuất từng trường dữ liệu và map ngược về đúng tên cột nội bộ (`FieldKey`).
 - **Quy đổi mã ngược (CodeSet):** Chuyển đổi mã đối tác sang giá trị nội bộ (ví dụ: `"CONGESTION"` $\rightarrow$ `1`). Nếu đối tác không gửi giá trị thì điền giá trị nội bộ mặc định (`defaultSourceValue`).
 
 #### Bước 3: Thực thi ghi dữ liệu vào CSDL Inbound
-- Chạy các câu lệnh ghi tương ứng theo thứ tự khai báo trong `ShareDataPacketWrite`.
+- Chạy các câu lệnh ghi tương ứng theo thứ tự `OrderNo` khai báo trong `ShareDataPacketSql` (cột `WriteSql`).
 - 🔒 **Nguyên tắc an toàn dữ liệu:** Toàn bộ dữ liệu nhận về **chỉ được ghi vào CSDL riêng biệt `DEV_ITS10_Inbound`**, tuyệt đối **không** ghi trực tiếp vào CSDL vận hành chính `DEV_ITS10`.
 - **Giao dịch toàn vẹn (Transaction):** Mọi thao tác ghi của một gói tin được bọc trong 1 Transaction duy nhất:
   - Nếu thành công: Xác nhận lưu dữ liệu vào các bảng đích, chuyển trạng thái gói tin sang `Done`.
-  - Nếu lỗi SQL hoặc sai kiểu dữ liệu: Rollback toàn bộ, chuyển trạng thái gói tin sang `Failed`, ghi nhận cảnh báo lỗi `ESH-1307`.
+  - Nếu lỗi SQL hoặc sai kiểu dữ liệu: Rollback toàn bộ, chuyển trạng thái gói tin sang `Failed`, ghi nhận cảnh báo lỗi `ESH-1505`.
 
 ---
 
@@ -280,7 +283,47 @@ flowchart TD
 
 ## 5. Tiêu chí Nghiệm thu & Ma trận Kiểm thử (Acceptance Criteria)
 
-> ⚠️ **Chưa viết.** Mục 5.1 và 5.2 sẽ lập từ danh sách test ở Phụ lục §6.5 sau khi chốt các điểm còn mở ở §6.4.
+Tài liệu này cung cấp bộ tiêu chí nghiệm thu toàn trình (End-to-End Acceptance Criteria) và ma trận kiểm thử chuẩn hóa cho đội ngũ QA/QC (chị Như) thực hiện kiểm thử và nghiệm thu phân hệ Chia sẻ dữ liệu (ShareData) trên môi trường kiểm thử/Staging.
+
+---
+
+### 5.1 Tiêu chí nghiệm thu Luồng Gửi (Outbound Acceptance Criteria)
+
+#### Ma trận kiểm thử Luồng Gửi (Outbound Test Matrix)
+
+| Mã AC | Tên kịch bản | Điều kiện kích hoạt | Kết quả mong đợi (Pass Criteria) | Nơi kiểm tra & Bằng chứng |
+| :--- | :--- | :--- | :--- | :--- |
+| **AC-OUT-01** | **Gửi định kỳ thành công (Happy Path)** | - Đối tác trạng thái Kích hoạt & đã bấm Kết nối.<br/>- Đăng ký gửi (`Direction = Outbound`) trạng thái Hoạt động, lịch định kỳ chu kỳ $N$ giây.<br/>- Hồ sơ ánh xạ tương ứng đang Bật (`isActive = true`).<br/>- CSDL nguồn có dữ liệu mới. | 1. Đến kỳ lịch, Worker tự động trích xuất đúng số bản ghi.<br/>2. Dữ liệu được map theo đúng `TargetShapeJson` và quy đổi `CodeSet`.<br/>3. Gửi HTTP POST thành công (`HTTP 200 OK`) tới đối tác.<br/>4. Lưu bản sao tệp JSON backup vào thư mục cấu hình trên server.<br/>5. Cột `LastTimeRun` cập nhật, `SerialNbr` tăng 1.<br/>6. Cursor `LastTime`, `LastKey` tiến mốc mới.<br/>7. Log cha `Send` thành công (`Result = 1`) kèm 2 log con Step 1 & Step 2.<br/>8. **Không** phát sinh cảnh báo lỗi `ESH-*`. | - Màn hình **Nhật ký** (tab Truyền nhận).<br/>- Màn hình **Chia sẻ dữ liệu** (cột Lần gửi gần nhất, Số serial).<br/>- Bảng `ShareDataSubscription` (kiểm tra `LastTime`, `LastKey`, `SerialNbr`).<br/>- Thư mục backup trên máy chủ. |
+| **AC-OUT-02** | **Gửi tức thì khi có dữ liệu mới (Event Trigger)** | - Đăng ký có bật công tắc *Theo sự kiện* (`SendOnNewData = true`).<br/>- Phát sinh bản ghi mới trong bảng nghiệp vụ tương ứng (ví dụ sự cố giao thông mới). | 1. Hệ thống phát hiện sự kiện và kích hoạt gửi ngay lập tức (trong khung debounce, không chờ hết chu kỳ lịch).<br/>2. Dữ liệu mới được gửi thành công tới đối tác.<br/>3. Tiến mốc thời gian và tăng `SerialNbr` đúng quy tắc. | - Màn hình **Nhật ký** (kiểm tra thời điểm gửi trùng khớp thời điểm phát sinh sự kiện). |
+| **AC-OUT-03** | **Chặn an toàn khi chưa có Hồ sơ ánh xạ** | - Đăng ký gửi bật Hoạt động nhưng **chưa có hồ sơ ánh xạ nào đang Bật** cho cặp (Đối tác × Gói tin × Chiều gửi). | 1. Worker phát hiện thiếu hồ sơ, **hủy kết xuất** an toàn (không gửi rác sang đối tác).<br/>2. Ghi nhận cảnh báo lỗi mã **`ESH-1304`** (`MappingNotFound`).<br/>3. Không tăng `SerialNbr`, **không** tiến mốc cursor (để khi bật hồ sơ sẽ gửi bù đủ). | - Màn hình **Cảnh báo lỗi** (tìm mã `ESH-1304`).<br/>- Màn hình **Nhật ký** (không có lượt gửi thành công). |
+| **AC-OUT-04** | **Chặn an toàn khi thiếu trường bắt buộc** | - CSDL nguồn có dữ liệu nhưng trường được đánh dấu bắt buộc (`required = true`) bị NULL và không có giá trị mặc định. | 1. Worker dừng kết xuất ngay tại bước Transform.<br/>2. Ghi nhận cảnh báo lỗi mã **`ESH-1202`** (`RequiredFieldMissing`).<br/>3. Giữ nguyên mốc cursor và `SerialNbr`. | - Màn hình **Cảnh báo lỗi** (mã `ESH-1202` kèm tên trường thiếu). |
+| **AC-OUT-05** | **Quy đổi bảng mã CodeSet chính xác** | - Hồ sơ ánh xạ có khai `codeSet`.<br/>- CSDL nguồn có giá trị mã nội bộ (ví dụ: `1`). | 1. Payload gửi sang đối tác mang đúng giá trị đối tác tương ứng (ví dụ: `"CONGESTION"`).<br/>2. Nếu giá trị nội bộ không khớp dòng nào trong bảng quy đổi: lấy đúng giá trị mặc định của bộ mã hoặc `defaultPartnerValue`. | - Kiểm tra chi tiết JSON payload gửi đi tại màn hình **Nhật ký** (hộp thoại Chi tiết). |
+| **AC-OUT-06** | **Xử lý khi máy chủ đối tác sập (HTTP 4xx / 5xx / Timeout)** | - Cấu hình URL đối tác không tồn tại, trả về lỗi 500 hoặc ngắt kết nối. | 1. Worker cố gắng gửi HTTP thất bại.<br/>2. Bản sao tệp JSON backup **vẫn được lưu** an toàn trên đĩa server.<br/>3. Ghi cảnh báo lỗi mã **`ESH-1402`** (`HttpSendFailed`).<br/>4. Trạng thái phiên gửi đánh dấu Thất bại (`Result = 0`).<br/>5. 🔒 **Cursor `LastTime`, `LastKey` và `SerialNbr` giữ nguyên không đổi** để kỳ kế tiếp tự động gửi lại dữ liệu này. | - Màn hình **Cảnh báo lỗi** (mã `ESH-1402`).<br/>- Cột `SerialNbr` và `LastTime` trên bảng `ShareDataSubscription` không bị nhảy mốc. |
+| **AC-OUT-07** | **Khóa phân tán chống gửi trùng (Multi-Worker Concurrency)** | - Môi trường chạy song song từ 2 Background Worker trở lên. | 1. Khóa phân tán (Distributed Lock / Lease) đảm bảo chỉ **duy nhất 1 Worker** được quyền xử lý đăng ký trong 1 kỳ.<br/>2. Đối tác **không bị nhận trùng lặp** gói tin (không bị trùng `SerialNbr`).<br/>3. Worker mất khóa nhả đăng ký an toàn (`ESH-1303 LeaseLost` ở mức warning). | - Kiểm tra log hệ thống không có 2 tiến trình cùng gửi 1 gói tin tại cùng 1 giây. |
+
+---
+
+### 5.2 Tiêu chí nghiệm thu Luồng Nhận (Inbound Acceptance Criteria)
+
+#### Ma trận kiểm thử Luồng Nhận (Inbound Test Matrix)
+
+| Mã AC | Tên kịch bản | Điều kiện kích hoạt | Kết quả mong đợi (Pass Criteria) | Nơi kiểm tra & Bằng chứng |
+| :--- | :--- | :--- | :--- | :--- |
+| **AC-IN-01** | **Tiếp nhận gói tin qua HTTP POST (Phản hồi tức thì)** | - Đối tác gửi HTTP POST tới endpoint WebAPI (`/api/sharedata/inbound`).<br/>- Header mang đủ: `PartnerCode`, `PacketCode`, `SerialNbr`.<br/>- Body là chuỗi JSON hợp lệ. | 1. WebAPI phản hồi tức thì **`HTTP 200 OK`** (thời gian đáp ứng $\le$ 500ms).<br/>2. Gói tin được lưu nguyên văn vào bảng `ShareDataInboundPacket` (CSDL `DEV_ITS10_Inbound`) với `ProcessState = Pending`.<br/>3. Bảng `ShareDataActivityLog` ghi nhận dòng log cha ở trạng thái `Queued`. | - Công cụ test API (Postman / cURL).<br/>- Bảng `ShareDataInboundPacket` trên CSDL `DEV_ITS10_Inbound`. |
+| **AC-IN-02** | **Worker bóc tách & nạp CSDL an toàn (Happy Path)** | - Có bản ghi `Pending` trong bảng đệm `ShareDataInboundPacket`.<br/>- Đăng ký nhận đang Hoạt động.<br/>- Đã có câu lệnh ghi `WriteSql` trong bảng `ShareDataPacketSql`. | 1. Background Worker tự động quét gói tin theo thứ tự `SerialNbr ASC`.<br/>2. Bóc tách JSON theo hồ sơ ánh xạ (hoặc mảng phẳng nếu không có hồ sơ).<br/>3. Quy đổi ngược bộ mã (ví dụ `"CONGESTION"` $\rightarrow$ `1`).<br/>4. Thực thi nạp dữ liệu thành công vào đúng bảng nghiệp vụ trên CSDL `DEV_ITS10_Inbound`.<br/>5. Trạng thái bản ghi đệm chuyển sang `ProcessState = Done`.<br/>6. Log cha cập nhật `Result = 1` (Thành công) kèm log con Step 2 hoàn thành. | - Bảng dữ liệu nghiệp vụ trên `DEV_ITS10_Inbound` (ví dụ `TmsWeather`, `TmsTrafficData`...).<br/>- Bảng `ShareDataInboundPacket` (`ProcessState = Done`).<br/>- Màn hình **Nhật ký** (tab Truyền nhận). |
+| **AC-IN-03** | **Từ chối gói tin chưa có Đăng ký nhận** | - Đối tác gửi gói tin hợp lệ nhưng hệ thống **chưa khai báo Đăng ký nhận** cho gói tin đó. | 1. WebAPI tiếp nhận đệm an toàn và trả 200 OK.<br/>2. Worker kiểm tra không thấy đăng ký nhận $\rightarrow$ cập nhật `ProcessState = NoSubscription`.<br/>3. Ghi cảnh báo mã **`ESH-1508`** (`SubscriptionNotFound`).<br/>4. **Không** ghi dữ liệu vào các bảng nghiệp vụ. | - Bảng `ShareDataInboundPacket` (`ProcessState = NoSubscription`).<br/>- Màn hình **Cảnh báo lỗi** (mã `ESH-1508`). |
+| **AC-IN-04** | **Xử lý gói tin hỏng định dạng (Invalid JSON)** | - Body HTTP POST không phải JSON (chuỗi rỗng, HTML hoặc ký tự lỗi). | 1. Worker phát hiện lỗi cú pháp, đánh dấu `ProcessState = Failed`.<br/>2. Ghi cảnh báo mã **`ESH-1503`** (`PayloadInvalid`).<br/>3. Tiến trình Worker không bị crash, tiếp tục xử lý các gói tin kế tiếp bình thường. | - Màn hình **Cảnh báo lỗi** (mã `ESH-1503`).<br/>- Bảng `ShareDataInboundPacket` (`ProcessState = Failed`). |
+| **AC-IN-05** | **Giao dịch toàn vẹn khi lỗi SQL (Transaction Rollback)** | - Dữ liệu trong gói tin vi phạm ràng buộc dữ liệu (sai kiểu, chuỗi vượt quá độ dài cột SQL). | 1. Câu lệnh `WriteSql` phát sinh lỗi $\rightarrow$ Transaction tự động Rollback 100%.<br/>2. **Không** có dữ liệu rác dở dang trong bảng nghiệp vụ.<br/>3. Gói tin đánh dấu `ProcessState = Failed`.<br/>4. Ghi cảnh báo lỗi mã **`ESH-1505`** (`DatabaseWriteFailed`). | - Bảng nghiệp vụ trên `DEV_ITS10_Inbound` không có dòng dở dang.<br/>- Màn hình **Cảnh báo lỗi** (mã `ESH-1505`). |
+| **AC-IN-06** | **Cô lập CSDL tuyệt đối (Database Isolation Guard)** | - Thực hiện nạp bất kỳ gói tin chiều Nhận nào. | 1. 100% dữ liệu chiều Nhận **chỉ ghi vào CSDL `DEV_ITS10_Inbound`**.<br/>2. ⛔ **Tuyệt đối không ghi, không sửa, không làm xáo trộn CSDL vận hành chính `DEV_ITS10`**. | - Kiểm tra dữ liệu trên 2 CSDL độc lập tại SQL Server `10.10.8.30`. |
+
+---
+
+### 5.3 Danh mục tiêu chí nghiệm thu chung (System-wide Safeguards)
+
+1. **Chuẩn mã cảnh báo thống nhất (`ESH-xxxx`):** Toàn bộ lỗi nghiệp vụ và hạ tầng phân hệ ShareData phải xuất hiện chính xác theo danh mục mã chuẩn tại màn hình Cảnh báo lỗi (không dùng mã tuỳ tiện).
+2. **Bảo toàn dữ liệu khi khởi động lại (Zero Data Loss):** Khi restart Background Worker hoặc WebAPI, các gói tin đang chờ gửi hoặc đang ở hàng đợi đệm `Pending` phải tiếp tục được xử lý bình thường, không bị mất mát hay nhảy cóc `SerialNbr`.
+3. **Đa ngôn ngữ (i18n):** Mọi thông báo lỗi, tooltip, tiêu đề màn hình phải hiển thị đúng chuẩn cả tiếng Việt (`vi-VN`) và tiếng Anh (`en-US`).
+4. **Phòng vệ giao diện (Client-side Protection):** Không cho phép thao tác sửa, xóa, tắt các cấu hình đang được sử dụng bởi các luồng đang hoạt động (ví dụ: hồ sơ ánh xạ đang liên kết đăng ký hoạt động).
 
 ---
 
@@ -372,10 +415,10 @@ Trong 86/124 test outbound đã liệt kê và 17 test inbound, **chưa thấy**
 
 | Ưu tiên | Việc | Vị trí |
 |---|---|---|
-| P1 | Sửa điều kiện nối đuôi thành OR (A1) | §3.3 |
-| P1 | Sửa mô tả snapshot: 101 không giới hạn, 105 giới hạn 100; xác minh 102/108 (A2) | §3.3, Q9 |
-| P1 | Gói 110: ghi rõ chưa triển khai, bỏ hướng dẫn tạo sự cố để test (A3) | §1.1, Q2, Q3, Q17 |
-| P1 | Thay bảng mã ESH bằng §6.2 (A4–A6) | §3.3, §3.4, §4.3, Q15 |
+| P1 | ✅ Đã sửa (12/10/2026): Sửa điều kiện nối đuôi thành OR (A1) | §3.3 |
+| P1 | ✅ Đã sửa (12/10/2026): Sửa mô tả snapshot: 101 không giới hạn, 105 giới hạn 100; xác minh 102/108 (A2) | §3.3, Q9 |
+| P1 | ✅ Đã sửa (12/10/2026): Gói 110: ghi rõ chưa triển khai, bỏ hướng dẫn tạo sự cố để test (A3) | §1.1, Q2, Q3, Q17 |
+| P1 | ✅ Đã sửa (12/10/2026): Thay bảng mã ESH bằng §6.2 (A4–A6) | §3.3, §3.4, §4.3, Q15 |
 | P2 | Thêm quy tắc file + HTTP, debounce, khung giờ, lease (A7–A9) | §3.1, §3.3 |
 | P2 | Sửa lỗi biên tập §6.3; chốt B1–B4 với dev | Spec, Q&A |
 | P3 | Viết §5 Tiêu chí nghiệm thu từ §6.5 | §5 |

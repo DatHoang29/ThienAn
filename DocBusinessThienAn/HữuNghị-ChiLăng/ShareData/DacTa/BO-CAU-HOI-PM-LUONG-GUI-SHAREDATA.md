@@ -59,7 +59,7 @@
 * **Trả lời trọng tâm:**  
   Hệ thống hỗ trợ song song **2 cơ chế kích hoạt**:
   1. **Theo lịch định kỳ (Scheduled):** Cấu hình theo chu kỳ giây (Interval, ví dụ: 60s/lần) hoặc theo biểu thức Cron (ví dụ: 09:00 hàng ngày). Dành cho dữ liệu thống kê, quan trắc thời tiết, lưu lượng xe.
-  2. **Theo sự kiện dữ liệu mới (Event-driven):** Bật cờ `SendOnNewData` trong Đăng ký chia sẻ. Cơ chế **SQL Change Tracking** bắt ngay biến động bảng nghiệp vụ $\rightarrow$ bắn tín hiệu qua **NATS Message Broker** $\rightarrow$ Worker kích hoạt lượt gửi ngay lập tức (Near real-time), đặc biệt quan trọng với **Gói 107 (Sự cố giao thông)** và **Gói 110 (Cảnh báo WP)**.
+  2. **Theo sự kiện dữ liệu mới (Event-driven):** Bật cờ `SendOnNewData` trong Đăng ký chia sẻ. Cơ chế **SQL Change Tracking** bắt ngay biến động bảng nghiệp vụ $\rightarrow$ bắn tín hiệu qua **NATS Message Broker** $\rightarrow$ Worker kích hoạt lượt gửi ngay lập tức (Near real-time), đặc biệt quan trọng với **Gói 107 (Sự cố giao thông)**.
 
 ---
 
@@ -67,7 +67,7 @@
 * **Trả lời trọng tâm:**  
   - **Đối tác:** Bất kỳ đơn vị bên ngoài nào được khai báo trong bảng `ShareDataPartner` (ví dụ: Cục Đường bộ Việt Nam - DRVN, Cảnh sát Giao thông, Trung tâm điều hành tuyến lân cận...).
   - **Gói tin:** Chuẩn hóa gồm **10 loại gói tin (từ 101 đến 110)**:
-    - *Nhóm hiện trạng (Snapshot):* 101 (Giao thông chung), 102 (Camera CCTV), 105 (Nhận dạng RFID), 108 (Biển báo VMS), 110 (Cảnh báo WP).
+    - *Nhóm hiện trạng (Snapshot):* 101 (Giao thông chung), 102 (Camera CCTV), 105 (Nhận dạng RFID), 108 (Biển báo VMS), 110 (chưa triển khai).
     - *Nhóm biến động (Nối đuôi):* 103 (Dò xe VDS), 104 (Thời tiết), 106 (Cân tải trọng WIM), 107 (Sự cố giao thông), 109 (Thu phí ETC).
 
 ---
@@ -135,7 +135,7 @@
 
 ### Q9. Khác biệt giữa Gói gửi toàn bộ (Snapshot) và Gói gửi nối đuôi (Biến động)?
 * **Trả lời trọng tâm:**  
-  - **Gói Snapshot (101, 102, 105, 108, 110):** Mỗi lần đến lịch gửi, hệ thống lấy toàn bộ ảnh chụp trạng thái hiện tại của thiết bị, biển báo, hiện trạng khu vực (tối đa 100 bản ghi mới nhất). Không lọc theo mốc cũ, **tuyệt đối không tạo/cập nhật bảng `ShareDataLastSend`**.
+  - **Gói Snapshot (101, 102, 105, 108, 110):** Mỗi lần đến lịch gửi, hệ thống lấy toàn bộ ảnh chụp trạng thái hiện tại của thiết bị, biển báo, hiện trạng khu vực (101 lấy toàn bộ; 105 tối đa 100 dòng; 110 chưa triển khai; 102 và 108 chưa xác minh). Không lọc theo mốc cũ, **tuyệt đối không tạo/cập nhật bảng `ShareDataLastSend`**.
   - **Gói Biến động / Nối đuôi (103, 104, 106, 107, 109):** Dữ liệu phát sinh liên tục theo dòng sự kiện (xe chạy qua cảm biến, thời tiết từng phút, sự cố). Hệ thống quét dữ liệu tăng dần qua con trỏ kép `(LastTime, LastKey)` lưu trong bảng `ShareDataLastSend`. Phân trang tối đa **100 bản ghi/trang**.
 
 ---
@@ -188,7 +188,7 @@
   - **Hoàn toàn KHÔNG mất dữ liệu.**
   - **Cơ chế xử lý:** Khi gặp lỗi Timeout hoặc HTTP 4xx/5xx:
     1. Hệ thống đánh dấu phiên gửi là `Thất bại` (Failed) và ghi chi tiết mã lỗi HTTP vào dòng con Bước 2 (Transport).
-    2. Bắn mã cảnh báo `ESH-1302` (Lỗi kết nối) hoặc `ESH-1303` (Đối tác từ chối).
+    2. Bắn mã cảnh báo `ESH-1402` (mọi lỗi gửi HTTP); file JSON vẫn được xuất, phiên ghi Fail, mốc giữ nguyên để gửi lại.
     3. **Quan trọng nhất:** Hệ thống **giữ nguyên mốc `LastSend` cũ**. Đến chu kỳ lịch tiếp theo, Worker sẽ tự động quét lại đúng các bản ghi chưa gửi thành công để gửi lại (Cơ chế tự động Retry).
 
 ---
@@ -197,7 +197,7 @@
 * **Trả lời trọng tâm:**  
   Quy trình kiểm tra 3 bước nhanh chóng:
   1. **Bước 1 - Màn hình Nhật ký (Tab Truyền nhận):** Lọc theo mã đối tác và gói tin xem có phiên gửi nào không. Nếu có: xem Bước 2 (Vận chuyển) thành công hay thất bại, mã HTTP phản hồi là bao nhiêu.
-  2. **Bước 2 - Màn hình Cảnh báo lỗi:** Kiểm tra xem có cảnh báo mã `ESH-1302` (mạng chết), `ESH-1304` (chưa bật mapping), hay `ESH-1305` (JSON lỗi) không.
+  2. **Bước 2 - Màn hình Cảnh báo lỗi:** Kiểm tra xem có cảnh báo mã `ESH-1402` (gửi HTTP lỗi), `ESH-1304` (chưa bật mapping), hay `ESH-1202` / `ESH-1206` (thiếu trường bắt buộc / shape sai) không.
   3. **Bước 3 - Kiểm tra tệp JSON trên Server:** Mở thư mục backup `E:\IIS_WebPool\ITS\ITS015\Services\TA-ShareData-Service\sharedata` trên máy `10.10.8.30`. Tìm file JSON theo ngày giờ để làm bằng chứng xác thực gói tin đã được sinh ra và gửi đi.
 
 ---
@@ -206,12 +206,19 @@
 * **Trả lời trọng tâm:**  
   | Mã lỗi | Ý nghĩa | Cách xử lý nhanh |
   |---|---|---|
-  | **ESH-1301** | Chưa đăng ký hoặc đối tác bị khóa | Kiểm tra trạng thái Đối tác (`Enable`) và Đăng ký (`Active`) |
-  | **ESH-1302** | Kết nối mạng thất bại (Timeout/Từ chối) | Kiểm tra IP/Port và đường truyền tới máy chủ đối tác |
-  | **ESH-1303** | Đối tác trả về HTTP lỗi (4xx / 5xx) | Báo đối tác kiểm tra API tiếp nhận của họ |
-  | **ESH-1304** | Chưa bật Hồ sơ ánh xạ (`Mapping`) | Vào màn Ánh xạ dữ liệu, chọn hồ sơ và bấm **BẬT "Đang dùng"** |
-  | **ESH-1305** | Cấu hình `TargetShapeJson` sai cú pháp JSON | Kiểm tra lại dấu ngoặc và cấu trúc JSON trong hồ sơ |
-  | **ESH-1306** | Dữ liệu nguồn thiếu trường bắt buộc | Kiểm tra dữ liệu CSDL nguồn thiếu cột nghiệp vụ |
+  | **ESH-1201** | Bộ mã quy đổi khai trong metadata không có trong CSDL | Khai báo bộ mã tương ứng trong bảng `ShareDataCodeSet` |
+  | **ESH-1202** | Thiếu hoặc null trường bắt buộc → hủy kết xuất lượt gửi | Bổ sung dữ liệu nguồn trong CSDL hoặc kiểm tra danh mục trường bắt buộc |
+  | **ESH-1203** | Biểu thức tính toán lỗi → giữ giá trị gốc, vẫn gửi | Kiểm tra lại cú pháp biểu thức trong cấu hình trường/mapping |
+  | **ESH-1204** | Số nguyên bị nâng thành decimal sau quy đổi đơn vị | Kiểm tra lại công thức quy đổi đơn vị và kiểu trường đích |
+  | **ESH-1205** | *(Không còn dùng)* Trường trong shape không có trong dòng thô | Mã cũ không còn sử dụng trong hệ thống |
+  | **ESH-1206** | `TargetShapeJson` rỗng hoặc sai cú pháp JSON → hủy kết xuất | Chuẩn hóa và kiểm tra lại cú pháp JSON trong hồ sơ ánh xạ |
+  | **ESH-1301** | Không có cấu hình gói tin cho `DatatypeId` | Khai báo cấu hình gói tin trong danh mục `ShareDataPacket` |
+  | **ESH-1302** | Lỗi truy vấn dữ liệu nguồn từ CSDL | Kiểm tra câu truy vấn SQL và tình trạng kết nối CSDL `DEV_ITS10` |
+  | **ESH-1303** | Mất lease phân tán, node Worker khác đang nhận đăng ký | Bình thường trong cụm multi-worker; kiểm tra tải nếu mất lease liên tục |
+  | **ESH-1304** | Không có hồ sơ ánh xạ chiều gửi đang bật ("Đang dùng") → hủy | Vào màn Ánh xạ dữ liệu, chọn hồ sơ của gói tin và bấm **BẬT "Đang dùng"** |
+  | **ESH-1305** | Khóa `__rowid` dài hơn độ rộng cột `LastKey` → hủy trước khi gửi | Kiểm tra kiểu dữ liệu khóa chính và độ rộng cột `LastKey` bảng `ShareDataLastSend` |
+  | **ESH-1401** | Lỗi ghi file kết xuất JSON ra ổ đĩa server | Kiểm tra quyền ghi thư mục và dung lượng trống trên ổ đĩa server |
+  | **ESH-1402** | Mọi lỗi gửi HTTP tới đối tác (4xx/5xx/timeout/exception) | Kiểm tra mạng và máy chủ đối tác; file JSON vẫn được xuất, hệ thống giữ mốc tự retry kỳ sau |
 
 ---
 
@@ -233,10 +240,10 @@
 * **Trả lời trọng tâm:**  
   Có **5 gói tin** cần lưu ý:
   1. **Gói 102 (CCTV):** Bảng `CctvDevice` chỉ có 1 camera mẫu, chưa có dữ liệu ảnh snapshot thực tế $\rightarrow$ *Hướng xử lý:* Thêm URL ảnh mẫu vào DB nếu cần test.
-  2. **Gói 105 (RFID):** Bảng `TollTransactionOut` có data xe nhưng danh mục trường đang bị lệch ID $\rightarrow$ *Hướng xử lý:* Cần rà soát và cấu hình lại trường trong màn Ánh xạ.
+  2. **Gói 105 (RFID):** Bảng `TollTransactionIn` có data xe nhưng danh mục trường đang bị lệch ID $\rightarrow$ *Hướng xử lý:* Cần rà soát và cấu hình lại trường trong màn Ánh xạ.
   3. **Gói 106 (WIM Cân xe):** Đang trỏ vào bảng VDS chung, chưa có bảng cân xe chuyên biệt $\rightarrow$ *Hướng xử lý:* Chờ cập nhật bảng cân xe hoặc test luồng đo đếm chung.
   4. **Gói 109 (ETC):** Có dữ liệu xe qua trạm nhưng cột giá cước `tollPrice` bị null $\rightarrow$ *Hướng xử lý:* Cần bổ sung giá trị cước mẫu vào bảng giao dịch trạm.
-  5. **Gói 110 (Cảnh báo WP):** Dữ liệu sự cố cũ trên DB đều đã đóng (`State = '4'`), gói 110 chỉ lọc sự cố đang mở $\rightarrow$ *Hướng xử lý:* Chỉ cần tạo 1 sự cố mới ở trạng thái đang mở (`State = '1'`) là test được ngay.
+  5. **Gói 110 (Cảnh báo WP):** Chưa triển khai (handler trả rỗng). Tạo sự cố mới không giúp test được; cần triển khai handler trước.
 
 ---
 
@@ -385,7 +392,7 @@
 | **Luồng đi như thế nào?** | DB `DEV_ITS10` $\rightarrow$ Trích xuất (LastSend) $\rightarrow$ Map (TargetShapeJson + CodeSet) $\rightarrow$ HTTP POST + Backup Disk $\rightarrow$ Đối tác. |
 | **Kích hoạt khi nào?** | 2 chế độ: Theo lịch hẹn (Cron/Interval) HOẶC Theo sự kiện tức thì (SQL Change Tracking + NATS). |
 | **Tại sao không gửi?** | Thiếu 1 trong 4 điều kiện: Chưa mở kết nối đối tác, Đăng ký chưa Active, **chưa BẬT hồ sơ ánh xạ (ESH-1304)**, hoặc CSDL không có dữ liệu mới. |
-| **Mất mạng có mất data không?** | Không mất. Giữ nguyên mốc `LastSend`, ghi log lỗi ESH-1302, kỳ sau tự động retry. |
+| **Mất mạng có mất data không?** | Không mất. Giữ nguyên mốc `LastSend`, ghi log lỗi ESH-1402, kỳ sau tự động retry. |
 | **Chống trùng dữ liệu thế nào?** | Dùng mốc nối đuôi `LastSend` theo cặp `(Đối tác, Gói tin)`. Chỉ gửi bản ghi mới hơn lần trước. |
 | **Đối tác kêu không nhận được thì làm sao?** | Kiểm tra màn hình **Nhật ký** (tab Truyền nhận), màn hình **Cảnh báo lỗi** (mã ESH), và mở file JSON lưu ở thư mục `E:\IIS_WebPool\...\sharedata`. |
 | **Gói nào test được ngay?** | 5 gói đã có data thật: **101 (Giao thông), 103 (VDS), 104 (Thời tiết), 107 (Sự cố), 108 (VMS)**. |
