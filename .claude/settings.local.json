@@ -1,6 +1,7 @@
 {
   "permissions": {
     "allow": [
+      "mcp__gortex",
       "Bash(dotnet test *)",
       "Bash(mv \"VideoWall/videowall-19-08_25-08.md\" \"VideoWall/videowall_plan.md\")",
       "Bash(mv \"ShareData/sharedata-19-08_25-08.md\" \"ShareData/sharedata_plan.md\")",
