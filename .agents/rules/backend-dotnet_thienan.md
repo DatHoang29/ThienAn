@@ -96,3 +96,7 @@ namespace Modules.ShareData.Controllers
 7. **Tôn Trọng Phong Cách Mã Nguồn & Signature (Rule 19.49, 19.50, 19.51)**:
    - Cấm tự ý đổi signature phương thức / service dùng chung.
    - Cấm sinh hàm mới làm hàm cũ mồ côi (dead code).
+8. **Vị Trí `using` & Quy Chuẩn `namespace` (Rule 19.65)**:
+   - **Vị trí `using` luôn đứng đầu file**: Mọi chỉ thị `using` **BẮT BUỘC đặt ở đầu tệp tin**, phía trước khai báo `namespace`. ⛔ **TUYỆT ĐỐI CẤM** đặt `using` sau khai báo `namespace` (kể cả khi dùng file-scoped namespace).
+   - **Đồng nhất kiểu `namespace`**: Tuân thủ phong cách namespace của module / file gốc hiện hữu. Khi tạo file mới hoặc tách `partial class`, **BẮT BUỘC đồng nhất** với các file cùng class/module: nếu các file hiện tại dùng block-scoped namespace (`namespace X { ... }`) thì file mới bắt buộc dùng block-scoped namespace, ⛔ **CẤM** viết lẫn lộn file-scoped namespace (`namespace X;`) trong cùng một partial class.
+

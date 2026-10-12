@@ -63,7 +63,7 @@ flowchart TD
 ### 2. [🏗️ Quy Chuẩn Backend .NET & Clean Architecture](file:///Users/hoangquydat/ThienAn/.agents/rules/backend-dotnet_thienan.md)
 - **Wolverine CQRS:** Thin Controller (`MessBus.InvokeAsync()`), CommandHandler `IWolverineHandler`, FluentValidation, Mapster.
 - **SqlSugar & Entity:** Kế thừa `EntityTenant`, `EntityConst.Length*` (cấm gán Length vào kiểu số), cấm raw SQL DML, worker dùng `baseClient.CopyNew()`.
-- **C# Conventions:** Zero unnecessary usings (IDE0005), cấm hậu tố `-Async`, ưu tiên `var`, auto-properties `{ get; set; }`.
+- **C# Conventions:** Zero unnecessary usings (IDE0005), using luôn đứng trước namespace, đồng nhất block-scoped namespace trong partial class (Rule 19.65), cấm hậu tố `-Async`, ưu tiên `var`, auto-properties `{ get; set; }`.
 
 ### 3. [💻 Quy Chuẩn Frontend Vue 3 / TypeScript](file:///Users/hoangquydat/ThienAn/.agents/rules/frontend-vue_thienan.md)
 - **CSS / SCSS:** CẤM hardcode mã màu (dùng CSS vars Element Plus), block comment `/* */`, CẤM `!important`.
@@ -84,3 +84,5 @@ flowchart TD
 - **MasterPlan & Prompt:** Duy nhất 1 MasterPlan sống per phân hệ. File prompt đặt tại `Prompt/`, có mục cuối cập nhật tài liệu gốc.
 - **Báo cáo rà soát:** Viết hướng về người đọc, cấm phụ lục, trạng thái chỉ có "Đã làm" hoặc "Chưa làm".
 - **Phản hồi Sheet Bug:** Cú pháp `[ddMMyyyy]-[TênDev]: [Bị gì / Fix như nào cụ thể]`, cấm từ ngữ mơ hồ, cấm gộp issue.
+- **Transcript Cuộc Họp:** Tách riêng từng phân hệ vào `doc/transcript/`. Chỉ gồm Mục 1 (Tóm tắt cốt lõi) và Mục 2 (Kịch bản đối thoại chi tiết); ⛔ CẤM/KHÔNG CẦN tạo bảng "Ma trận phân công công việc (Action Items)".
+

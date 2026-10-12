@@ -10,12 +10,8 @@
       }
     },
     "mssql_staging": {
-      "command": "dotnet",
+      "command": "dab",
       "args": [
-        "tool",
-        "run",
-        "--allow-roll-forward",
-        "dab",
         "start",
         "--mcp-stdio",
         "role:anonymous",
@@ -30,12 +26,8 @@
       }
     },
     "mssql_dev": {
-      "command": "dotnet",
+      "command": "dab",
       "args": [
-        "tool",
-        "run",
-        "--allow-roll-forward",
-        "dab",
         "start",
         "--mcp-stdio",
         "role:anonymous",
@@ -46,16 +38,12 @@
       ],
       "env": {
         "ASPNETCORE_URLS": "http://127.0.0.1:0",
-        "DAB_DEV_CONNECTION_STRING": "Server=localhost,1433;Database=DEV_ITS10;User Id=sa;Password=Password123!;TrustServerCertificate=True;ApplicationIntent=ReadOnly"
+        "DAB_DEV_CONNECTION_STRING": "Server=127.0.0.1,1433;Database=DEV_ITS10;User Id=sa;Password=Tac@@1234;TrustServerCertificate=True;ApplicationIntent=ReadOnly"
       }
     },
     "mssql_test": {
-      "command": "dotnet",
+      "command": "dab",
       "args": [
-        "tool",
-        "run",
-        "--allow-roll-forward",
-        "dab",
         "start",
         "--mcp-stdio",
         "role:anonymous",
@@ -66,7 +54,7 @@
       ],
       "env": {
         "ASPNETCORE_URLS": "http://127.0.0.1:0",
-        "DAB_TEST_CONNECTION_STRING": "Server=localhost,1433;Database=test;User Id=sa;Password=Password123!;TrustServerCertificate=True;ApplicationIntent=ReadOnly"
+        "DAB_TEST_CONNECTION_STRING": "Server=127.0.0.1,1433;Database=test;User Id=sa;Password=Tac@@1234;TrustServerCertificate=True;ApplicationIntent=ReadOnly"
       }
     }
   }

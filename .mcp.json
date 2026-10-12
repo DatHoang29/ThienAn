@@ -10,12 +10,8 @@
       }
     },
     "mssql_staging": {
-      "command": "dotnet",
+      "command": "dab",
       "args": [
-        "tool",
-        "run",
-        "--allow-roll-forward",
-        "dab",
         "start",
         "--mcp-stdio",
         "role:anonymous",
@@ -30,12 +26,8 @@
       }
     },
     "mssql_dev": {
-      "command": "dotnet",
+      "command": "dab",
       "args": [
-        "tool",
-        "run",
-        "--allow-roll-forward",
-        "dab",
         "start",
         "--mcp-stdio",
         "role:anonymous",
@@ -50,12 +42,8 @@
       }
     },
     "mssql_test": {
-      "command": "dotnet",
+      "command": "dab",
       "args": [
-        "tool",
-        "run",
-        "--allow-roll-forward",
-        "dab",
         "start",
         "--mcp-stdio",
         "role:anonymous",
