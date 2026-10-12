@@ -1,6 +1,6 @@
-# Bộ Câu hỏi & Trả lời phỏng vấn / Báo cáo PM (Chị T): Luồng Gửi Dữ liệu (Outbound)
+# Bộ Câu hỏi & Trả lời phỏng vấn / Báo cáo PM (Chị T): Luồng Gửi (Outbound) & Luồng Nhận (Inbound) Dữ liệu
 
-> **Mục đích:** Tài liệu "phao cứu sinh" (Cheat Sheet) tổng hợp toàn bộ các câu hỏi từ tổng quan đến chi tiết kỹ thuật mà PM (Chị T) hoặc các bên liên quan có thể hỏi về **Luồng Gửi dữ liệu (ShareData Outbound)** của dự án Cao tốc Hữu Nghị – Chi Lăng.  
+> **Mục đích:** Tài liệu "phao cứu sinh" (Cheat Sheet) tổng hợp toàn bộ các câu hỏi từ tổng quan đến chi tiết kỹ thuật mà PM (Chị T) hoặc các bên liên quan có thể hỏi về **Luồng Gửi dữ liệu (ShareData Outbound)** và **Luồng Nhận dữ liệu (ShareData Inbound, Phần 6)** của dự án Cao tốc Hữu Nghị – Chi Lăng.  
 > **Căn cứ kỹ thuật:** Dựa trên hiện trạng mã nguồn thực tế và Cơ sở dữ liệu Staging (`10.10.8.30:1433`).
 
 ---
@@ -30,6 +30,17 @@
   - [Q16. Hiện tại trên Staging đã có data test những gói nào rồi?](#q16-hiện-tại-trên-staging-đã-có-data-test-những-gói-nào-rồi)
   - [Q17. Những gói nào chưa có data hoặc đang gặp vướng mắc? Hướng xử lý?](#q17-những-gói-nào-chưa-có-data-hoặc-đang-gặp-vướng-mắc-hướng-xử-lý)
   - [Q18. Bây giờ muốn demo luồng gửi cho sếp hoặc đối tác xem ngay thì làm thế nào?](#q18-bây-giờ-muốn-demo-luồng-gửi-cho-sếp-hoặc-đối-tác-xem-ngay-thì-làm-thế-nào)
+- [Phần 6: Luồng Nhận dữ liệu (Inbound)](#phần-6-luồng-nhận-dữ-liệu-inbound)
+  - [Q19. Luồng Nhận hoạt động như thế nào? Bức tranh tổng thể 1 phút?](#q19-luồng-nhận-hoạt-động-như-thế-nào-bức-tranh-tổng-thể-1-phút)
+  - [Q20. Endpoint nhận kiểm tra những gì và khi nào báo lỗi cho đối tác?](#q20-endpoint-nhận-kiểm-tra-những-gì-và-khi-nào-báo-lỗi-cho-đối-tác)
+  - [Q21. Gói tin nhận về có những trạng thái nào?](#q21-gói-tin-nhận-về-có-những-trạng-thái-nào)
+  - [Q22. Điều kiện để Worker xử lý gói? Vì sao gói nằm im ở Pending?](#q22-điều-kiện-để-worker-xử-lý-gói-vì-sao-gói-nằm-im-ở-pending)
+  - [Q23. Thứ tự, lô và cơ chế chống xử lý trùng của Worker?](#q23-thứ-tự-lô-và-cơ-chế-chống-xử-lý-trùng-của-worker)
+  - [Q24. Ghi dữ liệu vào CSDL đích có an toàn không? Lỗi giữa chừng thì sao?](#q24-ghi-dữ-liệu-vào-csdl-đích-có-an-toàn-không-lỗi-giữa-chừng-thì-sao)
+  - [Q25. Ánh xạ ngược và bộ mã (CodeSet) chiều Nhận hoạt động ra sao?](#q25-ánh-xạ-ngược-và-bộ-mã-codeset-chiều-nhận-hoạt-động-ra-sao)
+  - [Q26. Đối tác nói "đã gửi nhưng trong DB không có", kiểm tra ở đâu?](#q26-đối-tác-nói-đã-gửi-nhưng-trong-db-không-có-kiểm-tra-ở-đâu)
+  - [Q27. Các mã cảnh báo ESH chiều Nhận là gì?](#q27-các-mã-cảnh-báo-esh-chiều-nhận-là-gì)
+  - [Q28. Gói bị Failed hoặc NoSubscription có tự xử lý lại không?](#q28-gói-bị-failed-hoặc-nosubscription-có-tự-xử-lý-lại-không)
 
 ---
 
@@ -244,6 +255,129 @@
 
 ---
 
+## Phần 6: Luồng Nhận dữ liệu (Inbound)
+
+> **Căn cứ:** đã đối chiếu mã `ShareDataInboundController`, `InboundCommandHandler` (WebAPI) và `DataInboundService` (Worker). Mục nào ghi **[Cần dev xác nhận]** là chưa đọc tận mã hoặc cần chốt ý đồ thiết kế.
+
+### Q19. Luồng Nhận hoạt động như thế nào? Bức tranh tổng thể 1 phút?
+* **Trả lời trọng tâm:**  
+  Luồng Nhận tách làm **2 tầng bất đồng bộ**:
+  1. **Tầng WebAPI (nhận và lưu thô):** đối tác gọi `HTTP POST .../Receive` kèm 3 header `PartnerCode`, `PacketCode`, `SerialNbr` và body JSON. WebAPI kiểm tra đối tác, tra đăng ký, **lưu nguyên văn body** vào bảng `ShareDataInboundPacket` (CSDL `DEV_ITS10_Inbound`) rồi trả về ngay. Không bóc tách gì ở bước này.
+  2. **Tầng Worker (`DataInboundService`):** định kỳ quét các gói `Pending`, tra cấu hình, bóc tách JSON, ánh xạ ngược (CodeSet), chạy các câu ghi SQL vào bảng đích trong **1 transaction**, rồi đánh dấu `Done` hoặc `Failed`.
+  - Dữ liệu nhận về **chỉ ghi vào `DEV_ITS10_Inbound`**, không ghi vào CSDL vận hành chính `DEV_ITS10`.
+
+---
+
+### Q20. Endpoint nhận kiểm tra những gì và khi nào báo lỗi cho đối tác?
+* **Trả lời trọng tâm:**  
+  - **Xác thực:** endpoint để `[AllowAnonymous]` (không đăng nhập, không token). Đối tác chỉ được nhận diện bằng header `PartnerCode`. Chưa thấy giới hạn IP hay kích thước body **[Cần dev xác nhận]**.
+  - **Header:** `SerialNbr` là số nguyên, **tùy chọn**; giá trị không phải số bị bỏ qua lặng lẽ thành rỗng. `PartnerCode` và `PacketCode` được cắt khoảng trắng đầu/cuối.
+  - **Đối tác sai (báo lỗi cho đối tác):** không tìm thấy mã đối tác (kể cả thiếu header) → lỗi `DataNotExist`; đối tác đang bị khóa → lỗi `PartnerDisabled`. Gói **không** được lưu.
+  - **Chưa có đăng ký (KHÔNG báo lỗi):** không tìm thấy gói tin, hoặc chưa có đăng ký chiều Nhận, hoặc đăng ký đã hết hiệu lực → gói vẫn được **lưu** với trạng thái `NoSubscription` kèm lý do trong `ErrorMessage`, ghi một dòng nhật ký lỗi, và handler **không ném lỗi** nên đối tác coi như gửi thành công. Mã HTTP cụ thể: **[Cần dev xác nhận]** (mặc định 200 khi không có ngoại lệ).
+  - **Có đăng ký hợp lệ:** gói lưu với `Pending`. Đăng ký "hợp lệ" ở bước nhận gồm trạng thái `Active`, `Paused`, `Pending`.
+  - **Dữ liệu lưu kèm:** `ByteSize` (số byte UTF-8 của body) và `ReceiveLogId` (id dòng nhật ký cha, để Worker cập nhật tiếp).
+  - **Lỗi khi lưu CSDL:** ghi nhật ký thất bại rồi ném lỗi lại cho đối tác.
+
+---
+
+### Q21. Gói tin nhận về có những trạng thái nào?
+* **Trả lời trọng tâm:**  
+
+  | Giá trị | Trạng thái | Ai đặt, khi nào |
+  |---|---|---|
+  | 0 | `Pending` | WebAPI khi nhận gói có đăng ký hợp lệ; Worker khi trả gói kẹt về hàng đợi |
+  | 1 | `Processing` | Worker khi "chiếm chỗ" gói để xử lý |
+  | 2 | `Done` | Worker sau khi ghi CSDL đích thành công |
+  | 3 | `Failed` | Worker khi lỗi (JSON không đọc được, đối tác/gói không hợp lệ, thiếu câu ghi, lỗi SQL) |
+  | 4 | `NoSubscription` | WebAPI khi nhận gói nhưng chưa có đăng ký hợp lệ; Worker cũng đặt khi đăng ký đã hết hiệu lực lúc xử lý |
+
+---
+
+### Q22. Điều kiện để Worker xử lý gói? Vì sao gói nằm im ở Pending?
+* **Trả lời trọng tâm:**  
+  Với mỗi nhóm (đối tác × loại gói), Worker kiểm tra lần lượt:
+  1. **Đối tác** tồn tại và đang `Enable` → nếu không: gói `Failed`, `ESH-1507`.
+  2. **Gói tin** có trong danh mục (`ShareDataPacket`) → nếu không: `Failed`, `ESH-1506`.
+  3. **Đăng ký chiều Nhận** (bản mới nhất) có và còn hiệu lực → nếu không: `NoSubscription`, `ESH-1508`.
+  4. **Đăng ký phải `Active`.** Nếu là `Paused` hoặc `Pending`: Worker **bỏ qua nhóm, giữ gói ở `Pending`, không báo lỗi**. Đây là lý do thường gặp nhất khiến "gói nằm im".
+  5. **Có câu ghi** (`WriteSql`) cho gói tin trong bảng `ShareDataPacketSql` (đang bật, chạy theo `OrderNo`) → nếu không: `Failed`, `ESH-1509`.
+  6. **Hồ sơ ánh xạ** chiều Nhận hoặc Hai chiều đang bật: **không bắt buộc**. Nếu thiếu, Worker vẫn xử lý bằng cách tìm mảng đối tượng phẳng trong JSON (có test "không có mapping vẫn thành công"). Chiều Nhận **không** báo `ESH-1304` như chiều Gửi.
+  7. **Chuỗi kết nối** `InboundConnection` phải được cấu hình, nếu thiếu thì Worker **bỏ qua toàn bộ luồng Nhận** và chỉ ghi log lỗi.
+  - Lưu ý tên bảng: câu ghi nằm ở bảng `ShareDataPacketSql` (cột `WriteSql`), không phải `ShareDataPacketWrite` như Spec đang ghi.
+
+---
+
+### Q23. Thứ tự, lô và cơ chế chống xử lý trùng của Worker?
+* **Trả lời trọng tâm:**  
+  - **Gom nhóm:** các gói `Pending` được gom theo (`PartnerCode`, `PacketCode`); mỗi nhóm dùng chung một bộ cấu hình.
+  - **Thứ tự:** trong nhóm xử lý theo `SerialNbr` tăng dần, rồi `CreateTime`.
+  - **Lô:** tối đa **50 gói / nhóm / lượt** (`MaxPacketsPerRun`).
+  - **Chống xử lý trùng:** trước khi xử lý, Worker "chiếm chỗ" bằng một lệnh cập nhật có điều kiện `Pending → Processing`; chỉ tiến trình nào chiếm được mới xử lý.
+  - **Gói kẹt:** gói nằm ở `Processing` quá **10 phút** (`StuckProcessingTimeout`) được tự trả về `Pending` ở đầu mỗi lượt.
+  - **Một gói lỗi không chặn gói sau:** gói `Failed` được bỏ qua và Worker xử lý tiếp gói kế tiếp.
+  - **`SerialNbr` của đăng ký:** sau mỗi lượt, đăng ký Nhận được cập nhật `SerialNbr` = số lớn nhất của các gói **xử lý thành công**; giá trị này **chỉ tăng, không lùi**.
+  - Chưa thấy cơ chế phát hiện gói **trùng `SerialNbr`** hay **bỏ sót số thứ tự** **[Cần dev xác nhận]**.
+
+---
+
+### Q24. Ghi dữ liệu vào CSDL đích có an toàn không? Lỗi giữa chừng thì sao?
+* **Trả lời trọng tâm:**  
+  - Toàn bộ các câu ghi của **một gói** chạy trong **một transaction**, mỗi câu nhận cả mảng bản ghi dưới dạng tham số JSON (kiểu `MERGE` / `OPENJSON`).
+  - Câu lệnh bất kỳ lỗi → **rollback toàn bộ gói**, gói chuyển `Failed`, cảnh báo `ESH-1505`, thông điệp nêu rõ câu ghi nào lỗi.
+  - Gói không có bản ghi nào sau khi bóc tách → không ghi gì nhưng vẫn đánh dấu `Done`.
+  - Thành công → gói `Done`, cập nhật dòng nhật ký cha sang thành công và thêm dòng con Bước 2 (Bóc tách & Lưu trữ).
+
+---
+
+### Q25. Ánh xạ ngược và bộ mã (CodeSet) chiều Nhận hoạt động ra sao?
+* **Trả lời trọng tâm:**  
+  - **Có hồ sơ ánh xạ:** Worker đọc khuôn JSON chiều Nhận để biết từng trường (`fieldKey`) nằm ở đâu trong JSON đối tác gửi.
+  - **CodeSet:** chỉ lấy các bộ mã khai trong `$extend.codeSet` của hồ sơ ánh xạ, tra ngược `partnerValue → sourceValue` (ví dụ `"CONGESTION"` → `2`).
+  - **Không có hồ sơ:** lấy trực tiếp các thuộc tính của từng đối tượng trong mảng JSON phẳng, không quy đổi mã.
+  - **Định dạng:** chỉ chấp nhận JSON. Nội dung bắt đầu bằng `<` (XML) hoặc JSON hỏng → gói `Failed`, `ESH-1503`.
+
+---
+
+### Q26. Đối tác nói "đã gửi nhưng trong DB không có", kiểm tra ở đâu?
+* **Trả lời trọng tâm:**  
+  1. **Bảng `ShareDataInboundPacket`** (CSDL `DEV_ITS10_Inbound`): tìm theo `PartnerCode`, `PacketCode`, `SerialNbr`. Xem `ProcessState`, `ProcessedAt`, `ErrorMessage`.
+     - Không có dòng nào → gói chưa tới WebAPI, hoặc WebAPI đã báo lỗi đối tác (`DataNotExist`/`PartnerDisabled`).
+     - `NoSubscription` → chưa có đăng ký Nhận hợp lệ.
+     - `Pending` lâu → đăng ký đang `Paused`/`Pending`, hoặc Worker chưa chạy/chưa cấu hình `InboundConnection`.
+     - `Failed` → đọc `ErrorMessage`.
+  2. **Màn hình Nhật ký (Tab Truyền nhận, chiều RCV):** xem dòng cha và các dòng con.
+  3. **Màn hình Cảnh báo lỗi:** tìm mã `ESH-15xx` (Q27).
+  4. **Bảng đích** trong CSDL `DEV_ITS10_Inbound` (ví dụ `TmsIncident`, `TmsWeather`...).
+
+---
+
+### Q27. Các mã cảnh báo ESH chiều Nhận là gì?
+* **Trả lời trọng tâm:**  
+
+  | Mã lỗi | Ý nghĩa | Cách xử lý nhanh |
+  |---|---|---|
+  | **ESH-1503** | Không đọc được nội dung gói (JSON hỏng, XML) | Yêu cầu đối tác gửi lại JSON hợp lệ |
+  | **ESH-1504** | Không xác định được khóa đối chiếu, hoặc khóa khớp nhiều bản ghi | Kiểm tra câu ghi và dữ liệu gói **[Cần dev xác nhận nơi phát sinh]** |
+  | **ESH-1505** | Lỗi ghi CSDL nhận (đã rollback) | Đọc `ErrorMessage` để biết câu ghi nào lỗi |
+  | **ESH-1506** | Không có cấu hình gói tin cho `PacketCode` | Khai báo gói tin hoặc sửa `PacketCode` đối tác gửi |
+  | **ESH-1507** | Đối tác không tồn tại hoặc đang tắt | Kiểm tra màn hình Đối tác |
+  | **ESH-1508** | Chưa có đăng ký Nhận hợp lệ | Tạo/duyệt đăng ký chiều Nhận |
+  | **ESH-1509** | Gói tin chưa khai câu ghi chiều Nhận | Khai `WriteSql` trong `ShareDataPacketSql` |
+  | ESH-1501 / 1502 | Chưa cấu hình URL API nhận / gọi API hộp gửi của đối tác lỗi | Mô tả kiểu "kéo", trong khi luồng đang mô tả là "đẩy" **[Cần dev xác nhận còn dùng không]** |
+
+  > Lưu ý: lỗi ghi CSDL chiều Nhận là **`ESH-1505`**, không phải `ESH-1307` như trong Spec.
+
+---
+
+### Q28. Gói bị Failed hoặc NoSubscription có tự xử lý lại không?
+* **Trả lời trọng tâm:**  
+  - **Không.** Worker chỉ lấy các gói ở `Pending`. `Failed` và `NoSubscription` là trạng thái cuối.
+  - **Hệ quả quan trọng:** nếu đối tác gửi dữ liệu **trước khi** có đăng ký (gói thành `NoSubscription`), việc tạo đăng ký sau đó **không** làm Worker xử lý lại các gói đó. Tương tự, gói `Failed` do dữ liệu hoặc cấu hình sai sẽ không tự chạy lại sau khi sửa cấu hình.
+  - **Cách xử lý lại:** hiện chưa thấy chức năng "xử lý lại" trong giao diện; thao tác khả dĩ là đưa gói về `Pending` bằng tay trong CSDL rồi để Worker chạy lại. **[Cần dev xác nhận có nên làm vậy và có tính năng chính thức không]**.
+  - Đối tác nhận phản hồi thành công kể cả khi gói bị `NoSubscription` (xem Q20), nên họ sẽ không tự gửi lại. Đây là điểm cần quyết định khi hoàn thiện luồng Nhận.
+
+---
+
 ## Bảng Cheat Sheet: Tóm tắt trả lời siêu tốc trong 15 giây
 
 | Từ khóa câu hỏi | Điểm mấu chốt cần trả lời ngay |
@@ -255,4 +389,8 @@
 | **Chống trùng dữ liệu thế nào?** | Dùng mốc nối đuôi `LastSend` theo cặp `(Đối tác, Gói tin)`. Chỉ gửi bản ghi mới hơn lần trước. |
 | **Đối tác kêu không nhận được thì làm sao?** | Kiểm tra màn hình **Nhật ký** (tab Truyền nhận), màn hình **Cảnh báo lỗi** (mã ESH), và mở file JSON lưu ở thư mục `E:\IIS_WebPool\...\sharedata`. |
 | **Gói nào test được ngay?** | 5 gói đã có data thật: **101 (Giao thông), 103 (VDS), 104 (Thời tiết), 107 (Sự cố), 108 (VMS)**. |
+| **Luồng Nhận đi như thế nào?** | Đối tác `POST Receive` (header PartnerCode/PacketCode/SerialNbr) $\rightarrow$ WebAPI lưu thô vào `ShareDataInboundPacket` (Pending) $\rightarrow$ Worker bóc tách + CodeSet ngược $\rightarrow$ ghi `DEV_ITS10_Inbound` trong 1 transaction $\rightarrow$ Done/Failed. |
+| **Gói nhận về nằm im ở Pending?** | Đăng ký Nhận đang `Paused`/`Pending` (Worker giữ lại, không báo lỗi), hoặc Worker chưa chạy / thiếu `InboundConnection`. |
+| **Gửi trước khi có đăng ký thì sao?** | Gói lưu `NoSubscription`, đối tác vẫn nhận phản hồi thành công, **không tự xử lý lại** khi đăng ký được tạo sau. |
+| **Lỗi ghi DB chiều Nhận?** | Rollback cả gói, `Failed`, mã **ESH-1505** (không phải 1307). |
 

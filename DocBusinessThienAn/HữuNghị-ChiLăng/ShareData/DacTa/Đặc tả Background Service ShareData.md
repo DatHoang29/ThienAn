@@ -30,6 +30,7 @@
 5. [Tiêu chí Nghiệm thu & Ma trận Kiểm thử (Acceptance Criteria)](#5-tiêu-chí-nghiệm-thu--ma-trận-kiểm-thử-acceptance-criteria)
    - 5.1 [Tiêu chí nghiệm thu Luồng Gửi (Outbound)](#51-tiêu-chí-nghiệm-thu-luồng-gửi-outbound)
    - 5.2 [Tiêu chí nghiệm thu Luồng Nhận (Inbound)](#52-tiêu-chí-nghiệm-thu-luồng-nhận-inbound)
+6. [Phụ lục: Kết quả đối chiếu với mã nguồn & test BE (12/10/2026)](#6-phụ-lục-kết-quả-đối-chiếu-với-mã-nguồn--test-be-12102026)
 
 ---
 
@@ -274,5 +275,109 @@ flowchart TD
 | **Trạng thái gói tin** | Bản ghi trong hàng đợi chuyển từ `Pending` $\rightarrow$ `Done` (hoặc `Failed` nếu lỗi). | Bảng CSDL `ShareDataInboundPacket` |
 | **Nhật ký truyền nhận** | Cập nhật dòng Cha sang Thành công + ghi nhận dòng Con Bước 2 (Bóc tách & Lưu trữ CSDL). | Màn hình **Nhật ký** (Tab *Truyền nhận*) |
 | **Cảnh báo lỗi (khi thất bại)** | Nếu JSON sai cấu trúc, thiếu hồ sơ ánh xạ hoặc lỗi câu lệnh SQL: Gói tin đánh dấu `Failed` và xuất hiện dòng cảnh báo tương ứng. | Màn hình **Cảnh báo lỗi** |
+
+---
+
+## 5. Tiêu chí Nghiệm thu & Ma trận Kiểm thử (Acceptance Criteria)
+
+> ⚠️ **Chưa viết.** Mục 5.1 và 5.2 sẽ lập từ danh sách test ở Phụ lục §6.5 sau khi chốt các điểm còn mở ở §6.4.
+
+---
+
+## 6. Phụ lục: Kết quả đối chiếu với mã nguồn & test BE (12/10/2026)
+
+> Đối chiếu tài liệu này và `BO-CAU-HOI-PM-LUONG-GUI-SHAREDATA.md` (gọi tắt **Q&A**) với mã `TA-ITS015-WEBAPI-V1.0/src/Services/ShareData/…` và test `tests/BE/ITS/ShareData/…`.
+> **Giới hạn:** chưa chạy test, chưa đối chiếu DB staging; chiều Nhận và gói 102/108/109 mới xác minh ở mức hằng số và tên test. Mục chưa xác minh được ghi **[Chưa xác minh]**.
+> **Kết luận chung:** sai chủ yếu ở **tài liệu**; mã và test BE nhất quán với nhau. Test không mâu thuẫn logic, chỉ thiếu assert ở vài kịch bản (§6.5).
+
+### 6.1 Đối chiếu đã xác minh
+
+| # | Nội dung | Tài liệu nói | Mã / test thực tế | Kết luận |
+|---|---|---|---|---|
+| A1 | Điều kiện nối đuôi | §3.3: `UpdateTime > LastTime` **và** `ID > LastKey`. Q10: `> OR (= AND ID >)` | `QueryPacket103` (`DataOutboundExtractionProcess.cs:288-320`): `Watermark > @lastTime OR (Watermark = @lastTime AND ID > @lastKey)` | **§3.3 sai, Q10 đúng** |
+| A2 | Snapshot gói 101 | §3.3: "toàn bộ". Q9: "tối đa 100" | `QueryPacket101` (`:231-254`) **không có TOP**. `DefaultSnapshotTop = 100` (`:26`) chỉ dùng ở gói **105** (`:391`) | **Q9 sai với 101.** 102/108: [Chưa xác minh] |
+| A3 | Gói 110 | §1.1 và Q17: tạo sự cố `State='1'` là test được. Q8: NotReady, trả rỗng | `QueryPacket110` (`:560-561`) trả `[]`; `Extract` (`:76-192`) thoát sớm với policy `NotReady`/`Disabled` | **Q8 đúng; §1.1 và Q17 sai.** Q2 gọi 110 là "near real-time" cũng sai |
+| A4 | Mã ESH | §3.3, §4.3, Q15 | `ShareDataAlertCode.cs:8-102` | **Sai nhiều chỗ**, xem §6.2 |
+| A5 | Map lỗi biểu thức | §3.3: dừng, không gửi, `ESH-1305/1306` | Biểu thức lỗi → `ESH-1203` (warning), **giữ giá trị gốc, vẫn gửi** (test `:100`, `:275`, `:348`, `:3526`). Thiếu trường bắt buộc → `ESH-1202` (hủy). Shape rỗng/sai → `ESH-1206` (hủy) (test `:3706`, `:3734`) | **§3.3 sai** |
+| A6 | HTTP 4xx/5xx/timeout | Q13: `ESH-1302/1303`, giữ mốc | Một mã `ESH-1402` (warning). Phiên = `Fail`, file **vẫn được xuất** (test `:823`, `:878`, `:926`) | **Mã sai.** "Giữ mốc" đúng nhưng test `:823` không assert |
+| A7 | File + HTTP | Q1/§1: file chỉ là bản sao đối soát | Ghi file lỗi + HTTP OK → **Success, tiến mốc** (`:1048`). File lỗi + HTTP lỗi → hủy, **không tiến mốc** (`:1118`, `:1183`) | **Thiếu quy tắc này** |
+| A8 | Kích hoạt | Q2: lịch hoặc sự kiện | Thêm: trigger bỏ qua lịch chưa đến hạn (`:1931`); ngoài khung giờ không xuất (`:2002`); `SendOnNewData=false` thì trigger không xuất (`:2109`); debounce gói 103 (`:1860`; test "trong cửa sổ" bị comment `:1780`) | **Thiếu debounce, khung giờ** |
+| A9 | Nhiều Worker | Chưa nêu | Có lease (`ESH-1303 LeaseLost`) và test `ReleaseLock` (`:1456`) | Đã có cơ chế, cần ghi vào tài liệu |
+| A10 | Retry và `SerialNbr` | Chưa nêu | Test `:1118`: lỗi thì `SerialNbr`, `LastTimeRun` không đổi | Bổ sung: retry giữ nguyên `SerialNbr` |
+
+### 6.2 Bảng mã ESH đúng theo mã nguồn
+
+| Mã | Hằng | Ý nghĩa | Mức | Tài liệu đang ghi |
+|---|---|---|---|---|
+| ESH-1201 | CodeSetNotFound | Bộ mã khai trong metadata không có trong CSDL | warning | không có |
+| ESH-1202 | RequiredFieldMissing | Thiếu/null trường bắt buộc → hủy kết xuất | error | §3.3 ghi 1305/1306 |
+| ESH-1203 | ExpressionFailed | Biểu thức lỗi → giữ giá trị gốc, vẫn gửi | warning | §3.3 ghi dừng |
+| ESH-1204 | IntegerPromoted | Số nguyên bị nâng thành decimal sau quy đổi đơn vị | warning | không có |
+| ESH-1205 | ShapeFieldNotInRawRow | **Không còn dùng từ 18/09** | — | không có |
+| ESH-1206 | ShapeInvalid | `TargetShapeJson` rỗng/sai cú pháp → hủy | error | Q15 ghi 1305 |
+| ESH-1301 | PacketNotFound | Không có cấu hình gói tin cho DatatypeId | error | Q15 ghi "chưa đăng ký/khóa đối tác" |
+| ESH-1302 | QueryFailed | Lỗi truy vấn dữ liệu nguồn | error | Q15 ghi "lỗi mạng" |
+| ESH-1303 | LeaseLost | Mất lease, node khác nhận đăng ký | warning | Q15 ghi "đối tác trả HTTP lỗi" |
+| ESH-1304 | MappingNotFound | Không có mapping chiều gửi đang bật → hủy | error | **khớp** |
+| ESH-1305 | CursorKeyTooLong | `__rowid` dài hơn cột `LastKey` → hủy trước khi gửi | error | Q15 ghi "JSON sai cú pháp" |
+| ESH-1401 | FileWriteFailed | Lỗi ghi file kết xuất | error | không có |
+| ESH-1402 | HttpSendFailed | **Mọi lỗi gửi HTTP** (4xx/5xx/timeout/exception) | warning | Q15 ghi 1302/1303 |
+| ESH-1501…1509 | Inbound.* | 1501 chưa cấu hình URL API nhận; 1502 gọi API hộp gửi đối tác lỗi; 1503 không đọc được nội dung; 1504 không xác định khóa đối chiếu; **1505 lỗi ghi CSDL nhận**; 1506 không có cấu hình gói; 1507 đối tác không tồn tại/tắt; 1508 chưa có đăng ký nhận; 1509 chưa khai câu ghi | — | §4.3 ghi lỗi ghi là **ESH-1307** (không tồn tại) |
+| ESH-1601…1604 | Tracking.* | Hạ tầng Change Tracking (tự hồi phục, truy vấn lỗi, chưa bật, đặt lại mốc) | — | không có |
+
+### 6.3 Lỗi biên tập cần sửa ngay trong tài liệu
+
+- Sơ đồ §2.1 node T8: nháy kép không cân và đường dẫn `E:\…` lẫn trong label → mermaid không render. Tách đường dẫn ra ghi chú.
+- §4.3: sơ đồ có 4 bước, văn bản có 3 bước; §4.4 gọi "Bước 2". Đánh số lại.
+- Q17 mục 2: nguồn gói 105 phải là `TollTransactionIn` (đang ghi `TollTransactionOut`).
+- Ví dụ `PartnerCode`: Spec dùng `DRVN`, Q12 dùng `DOITAC_HNCL`.
+
+### 6.4 Điểm cần dev xác nhận ý đồ (chưa kết luận sai)
+
+| # | Vấn đề | Vì sao nghi ngờ |
+|---|---|---|
+| B1 | Comment `ESH-1402` ghi "file đã ghi vẫn coi là thành công", test `:855` assert phiên = `Fail` khi HTTP 500 | Hai mô tả trái nhau; test là hành vi đang được bảo vệ, comment có thể đã cũ |
+| B2 | Hằng chiều Nhận `ESH-1501/1502` mô tả "gọi API hộp gửi của đối tác" (kiểu **kéo**), §4 chỉ mô tả **đẩy** | Mã chết còn sót, hoặc chiều Nhận có thêm chế độ kéo chưa được mô tả |
+| B3 | `NoSubscription`: §4.3 nói WebAPI lưu rồi trả 200; test `:403` kiểm tra worker đánh cha `Fail`, không có Step 2 | Cần chốt đối tác có nên nhận 200 trong trường hợp này |
+| B4 | Sub bị tạm dừng: test `:711` giữ gói ở `Pending` | Chưa nêu gói chờ vô hạn hay hết hạn |
+
+### 6.5 Khoảng trống bộ test
+
+Trong 86/124 test outbound đã liệt kê và 17 test inbound, **chưa thấy** (38 test outbound còn lại chưa rà):
+
+| # | Kịch bản thiếu | Mức |
+|---|---|---|
+| C1 | HTTP 500/exception: assert **mốc không tiến** và lượt sau gửi lại đúng các bản ghi đó | Cao |
+| C2 | 0 bản ghi mới: không gọi HTTP, đúng 1 log phẳng thành công | Cao |
+| C3 | Nối đuôi: cùng thời điểm khác ID; thời điểm mới hơn nhưng ID nhỏ hơn mốc (ca bắt lỗi AND/OR) | Cao |
+| C4 | Snapshot gói 101 > 100 dòng: gửi đủ; mỗi lượt đều gửi dù dữ liệu không đổi | Cao |
+| C5 | Gói 110: không gọi HTTP, không lỗi, kể cả khi có sự cố đang mở | Trung bình |
+| C6 | Snapshot gói 105 bị giới hạn 100 dòng | Trung bình |
+| C7 | Thiếu trường bắt buộc → `ESH-1202`, không gửi, không tiến mốc | Trung bình |
+| C8 | `ESH-1305` khóa quá dài | Thấp |
+| C9 | Header HTTP đầy đủ `PartnerCode`, `PacketCode`, `SerialNbr`, `Content-Type` (test `:1085` mới kiểm `PartnerCode`) | Trung bình |
+| C10 | Chiều Nhận: 200 ngay + `Pending`; lỗi ghi → rollback toàn bộ + `Failed` + `ESH-1505`; thứ tự `SerialNbr`; `SerialNbr` null/trùng; không ghi vào `DEV_ITS10` | Cao |
+
+### 6.6 Khoảng trống đặc tả còn mở
+
+1. Cam kết "không bao giờ gửi trùng" (Q10) là nói quá: thực tế là at-least-once nếu ghi mốc lỗi sau khi HTTP thành công.
+2. Bản ghi "độc" (đối tác trả 4xx vĩnh viễn) chặn con trỏ của gói đó mãi; chưa có giới hạn retry/bỏ qua.
+3. Bản ghi commit muộn có `Watermark` nhỏ hơn con trỏ sẽ bị bỏ sót.
+4. Chiều Nhận chưa nêu: xác thực ngoài `PartnerCode`, giới hạn kích thước body, trùng/lệch `SerialNbr`, retry gói `Failed`, thời gian lưu bảng đệm.
+5. Đối tác chưa `Connected`: chưa rõ có ghi log/cảnh báo hay không.
+6. Gói 105 (biển số, chủ xe) ghi file JSON plaintext; Q18 hướng dẫn demo qua Webhook.site công cộng.
+7. Thiếu yêu cầu phi chức năng (timeout, SLA, retention log).
+
+### 6.7 Việc cần làm trên tài liệu
+
+| Ưu tiên | Việc | Vị trí |
+|---|---|---|
+| P1 | Sửa điều kiện nối đuôi thành OR (A1) | §3.3 |
+| P1 | Sửa mô tả snapshot: 101 không giới hạn, 105 giới hạn 100; xác minh 102/108 (A2) | §3.3, Q9 |
+| P1 | Gói 110: ghi rõ chưa triển khai, bỏ hướng dẫn tạo sự cố để test (A3) | §1.1, Q2, Q3, Q17 |
+| P1 | Thay bảng mã ESH bằng §6.2 (A4–A6) | §3.3, §3.4, §4.3, Q15 |
+| P2 | Thêm quy tắc file + HTTP, debounce, khung giờ, lease (A7–A9) | §3.1, §3.3 |
+| P2 | Sửa lỗi biên tập §6.3; chốt B1–B4 với dev | Spec, Q&A |
+| P3 | Viết §5 Tiêu chí nghiệm thu từ §6.5 | §5 |
 
 ---

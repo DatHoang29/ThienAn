@@ -16,7 +16,7 @@ description: Single Source of Truth for ThienAn project — P0 safeguards and re
 
 ## 🛑 BẢNG QUY TẮC CỐT LÕI BẮT BUỘC (P0 SAFEGUARDS)
 
-Mọi AI Agent (Antigravity, Claude Code, Cursor, Codex...) **BẮT BUỘC** tuân thủ tuyệt đối 15 quy tắc sống còn sau:
+Mọi AI Agent (Antigravity, Claude Code, Cursor, Codex...) **BẮT BUỘC** tuân thủ tuyệt đối 16 quy tắc sống còn sau:
 
 | STT | Quy Tắc Cốt Lõi (P0) | Yêu Cầu Chi Tiết |
 | :---: | :--- | :--- |
@@ -35,6 +35,7 @@ Mọi AI Agent (Antigravity, Claude Code, Cursor, Codex...) **BẮT BUỘC** tu�
 | **13** | **Can Thiệp Tối Thiểu (Minimal Diff)** (Rule 19.6, 19.35) | Chỉ sửa đúng file và dòng code trực tiếp phục vụ yêu cầu. ⛔ **CẤM** tự ý format lại toàn bộ file, đổi namespace, upgrade package hoặc sửa file ngoài phạm vi. |
 | **14** | **Duy Nhất 1 MasterPlan & Giữ Lại Prompt** (Rule 19.52, Mục 13) | Mỗi phân hệ CHỈ CÓ DUY NHẤT 1 file MasterPlan sống (`<PhânHệ>_MasterPlan.md`). ⛔ **CẤM** tự động xóa file prompt sau khi hoàn thành task. |
 | **15** | **Tự Động Dọn Dẹp Test Artifacts** (Rule 19.64) | Sau khi test pass 100%, AI **BẮT BUỘC tự động dọn dẹp các tệp/thư mục tạm** sinh ra do test runner (như `test-results/`, `playwright-report/`, traces, screenshots, log tạm) để giữ sạch Working Tree. Chỉ giữ lại khi test fail để chẩn đoán. |
+| **16** | **Prompt-First Khi Cần Sửa** (bổ sung 12/10/2026) | Khi user yêu cầu "sửa thì viết prompt", hoặc khi một đợt review/đối chiếu phát hiện chỗ cần sửa: AI ⛔ **KHÔNG tự sửa** — áp dụng cho **cả mã nguồn lẫn tài liệu Markdown** (Spec, Q&A, rule). AI chỉ viết **prompt sửa** trong khung chat (nêu file, vị trí, nội dung cũ → mới, danh sách việc đã sửa sẵn, cách kiểm tra), không tạo thêm file prompt trừ khi user yêu cầu. Chỉ sửa trực tiếp khi user nói rõ "sửa luôn". Nếu đã lỡ sửa dở: **dừng ngay**, báo chính xác chỗ đã sửa/chưa sửa, không tự hoàn tác, viết prompt cho phần còn lại. Ngoại lệ Rule 1 ("sửa file Markdown dùng công cụ mặc định") chỉ nói về *công cụ*, không cho phép bỏ qua quy tắc này. |
 
 ---
 
