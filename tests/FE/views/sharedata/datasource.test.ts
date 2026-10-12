@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { mockAuth } from '../../setup';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -14,40 +15,10 @@ import path from 'node:path';
 test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) @sharedata', () => {
 
     test.beforeEach(async ({ context, page }) => {
-        const mockToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjQxMDI0NDQ4MDAsIm5hbWUiOiJhZG1pbiJ9.mock_signature';
-        await context.addCookies([
-            { name: 'token', value: mockToken, url: 'http://localhost:8888' },
-        ]);
-
-        await page.addInitScript((token) => {
-            document.cookie = `token=${token}; path=/;`;
-            const pkg = 'tacwebcore';
-            window.localStorage.setItem(`${pkg}:access-token`, JSON.stringify(token));
-            window.sessionStorage.setItem(`${pkg}:token`, JSON.stringify(token));
-            window.sessionStorage.setItem(`${pkg}:userInfo`, JSON.stringify({
-                account: 'admin',
-                realName: 'Administrator',
-                roles: ['admin'],
-                authBtnList: ['*'],
+        await mockAuth(context, page, {
+            userInfo: {
                 defaultMenu: '/sharedata/dataSource',
-            }));
-        }, mockToken);
-
-        // 1. Mock API Auth UserInfo: /api/system/sysuser/info
-        await page.route('**/api/system/sysuser/info*', async (route) => {
-            await route.fulfill({
-                status: 200,
-                contentType: 'application/json',
-                body: JSON.stringify({
-                    code: 200,
-                    result: {
-                        account: 'admin',
-                        realName: 'Administrator',
-                        roles: ['admin'],
-                        authBtnList: ['*'],
-                    },
-                }),
-            });
+            },
         });
 
         // 2. Mock API Menu Tree cho Dynamic Router
@@ -187,7 +158,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(boxStatus2!.y).toBeGreaterThan(boxAlias2!.y + 20);
 
         // Mỗi cột chiếm ~50% hàng
-        const rowBox2 = await searchForm.locator('.el-row').boundingBox();
+        const rowBox2 = await searchForm.locator('.el-row').first().boundingBox();
         expect(rowBox2).not.toBeNull();
         expect(boxAlias2!.width / rowBox2!.width).toBeGreaterThan(0.45);
         expect(boxAlias2!.width / rowBox2!.width).toBeLessThan(0.55);
@@ -210,7 +181,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(boxBtn3!.y).toBeGreaterThan(boxStatus3!.y + 20);
 
         // Mỗi cột chiếm gần như 100% hàng
-        const rowBox3 = await searchForm.locator('.el-row').boundingBox();
+        const rowBox3 = await searchForm.locator('.el-row').first().boundingBox();
         expect(rowBox3).not.toBeNull();
         expect(boxAlias3!.width / rowBox3!.width).toBeGreaterThan(0.90);
     });

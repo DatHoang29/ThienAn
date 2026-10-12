@@ -21,6 +21,27 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "Read|Grep|Glob|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .agents/hooks/gortex-enforce.mjs pre-tool-use",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .agents/hooks/gortex-enforce.mjs session-start",
+            "timeout": 5
+          }
+        ]
       }
     ]
   },

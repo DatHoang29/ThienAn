@@ -115,7 +115,12 @@
       "Bash(cp README.md /tmp/readme.bak)",
       "Bash(sed -i -E 's/\\\\[`\\(sharedata-log-cha-con-be5-cot-va-api-prompt\\\\.md|sharedata-log-cha-con-sv8a-chieu-gui-prompt\\\\.md|sharedata-doi-ten-va-nang-moc-don-log-tracking-prompt\\\\.md|sharedata-log-cha-con-dong-bo-tai-lieu-prompt\\\\.md\\)`\\\\]\\\\\\(\\\\1\\\\\\)/`\\\\1`/g' README.md)",
       "Bash(python3 -c \"import pypdfium2\")",
-      "Bash(python -c \"import pypdfium2\")"
+      "Bash(python -c \"import pypdfium2\")",
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "Bash(node --test .agents/hooks/tests/gortex-enforce.test.mjs)",
+      "Bash(rm \"BAO-CAO-REVIEW-SHAREDATA.md\")",
+      "Bash(sed -i '' 's/Căn cứ: `BAO-CAO-REVIEW-SHAREDATA.md` cùng thư mục\\\\./Căn cứ: Phụ lục §6 trong `Đặc tả Background Service ShareData.md` cùng thư mục./; s/\\(xem BAO-CAO-REVIEW-SHAREDATA.md\\)/\\(xem Phụ lục §6 trong \"Đặc tả Background Service ShareData.md\"\\)/' PROMPT-VIET-TEST-CASE-SHAREDATA.md)"
     ],
     "additionalDirectories": [
       "c:\\ThienAn\\DocBusinessThienAn\\HữuNghị-ChiLăng\\VideoWall",

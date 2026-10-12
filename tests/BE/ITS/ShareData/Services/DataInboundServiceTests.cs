@@ -17,7 +17,7 @@ namespace Tests.ShareData.Services;
 /// Created date: 02/10/2026
 /// </summary>
 [Collection("api")]
-public class DataInboundServiceTests(Host host)
+public partial class DataInboundServiceTests(Host host)
 {
     private readonly Host _host = host;
     private readonly ISqlSugarClient _db = host.Services.GetRequiredService<ISqlSugarClient>();
