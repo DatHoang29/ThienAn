@@ -69,6 +69,7 @@ flowchart TD
 - **CSS / SCSS:** CẤM hardcode mã màu (dùng CSS vars Element Plus), block comment `/* */`, CẤM `!important`.
 - **Draggable Dialog:** Dùng `dialogRef.value?.resetPosition?.()`, CẤM sửa tay `style.transform` (tránh giật toạ độ).
 - **TypeScript:** CẤM toán tử `!!`, ngắt dòng thuộc tính template, cấm sửa tay `src/api-services/`.
+- **i18n & Tooltip (Rule 20.12):** Thông báo/tooltip có $\ge 2$ câu (ngăn cách bởi dấu '.') BẮT BUỘC chèn `\n` sau dấu '.'; trong `el-tooltip` dùng slot `<template #content><div style="white-space: pre-line">...</div></template>` để hiển thị đa dòng sạch đẹp.
 
 ### 4. [🧪 Quy Chuẩn Kiểm Thử (Testing Suite)](file:///Users/hoangquydat/ThienAn/.agents/rules/testing-rules_thienan.md)
 - **Triết lý:** Test toàn trình nghiệp vụ (Full Business Flow), cấm micro unit test rời rạc, tái hiện bug bằng test fail trước (TDD).

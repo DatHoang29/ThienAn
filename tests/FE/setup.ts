@@ -96,7 +96,7 @@ export async function mockAuth(
         await route.fulfill({
             status: 200,
             contentType: 'application/json',
-            body: JSON.stringify({ code: 200, result: [] }),
+            body: JSON.stringify({ code: 200, result: {} }),
         });
     });
 
@@ -104,7 +104,7 @@ export async function mockAuth(
         await route.fulfill({
             status: 200,
             contentType: 'application/json',
-            body: JSON.stringify({ code: 200, result: [] }),
+            body: JSON.stringify({ code: 200, result: {} }),
         });
     });
 
