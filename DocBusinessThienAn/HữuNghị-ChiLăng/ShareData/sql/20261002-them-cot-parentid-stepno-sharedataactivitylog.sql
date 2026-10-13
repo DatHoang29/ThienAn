@@ -11,6 +11,9 @@
       Hai file lam hai viec khac nhau tren hai CSDL khac nhau - chay du ca hai.
    ============================================================================ */
 
+USE [DEV_ITS10];
+GO
+
 SET NOCOUNT ON;
 
 IF OBJECT_ID(N'dbo.ShareDataActivityLog', N'U') IS NULL

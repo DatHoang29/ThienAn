@@ -6,12 +6,15 @@
    An toan chay lai nhieu lan (idempotent).
    ============================================================================ */
 
+USE [DEV_ITS10];
+GO
+
 SET NOCOUNT ON;
 
 DECLARE @ConfigTypeId NVARCHAR(64);
 
 SELECT @ConfigTypeId = ID
-FROM   SysConfigType
+FROM   dbo.SysConfigType
 WHERE  Code = 'sharedata_value_type'
   AND  IsDelete IS NULL;
 

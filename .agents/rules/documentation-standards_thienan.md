@@ -89,10 +89,79 @@ description: Documentation standards, single MasterPlan per subsystem, executabl
 
 ---
 
-## 📋 6. Quy Chuẩn Liệt Kê Mô Tả Công Việc & Kết Quả Công Việc (Task Management Portal)
+## 📋 6. Phân Biệt Rõ 3 Loại: Báo Cáo Rà Soát vs. Mô Tả Công Việc vs. Kết Quả Công Việc
 
-1. **Chỉ Liệt Kê Tính Năng Sẽ Làm / Đã Làm (Feature-Only)**:
-   - Khi lập danh sách đầu mục cho phần **Mô tả công việc** và **Kết quả công việc** (báo cáo tiến độ tuần/sprint trên hệ thống quản lý công việc): **CHỈ liệt kê các tính năng nghiệp vụ và kỹ thuật thực tế sẽ làm hoặc đã hoàn thành** (ví dụ: xây dựng component dùng chung, tách tầng kết nối, cơ chế gửi bù, phân quyền & validate truy vấn động, chuẩn hóa giao diện Tab, đa ngôn ngữ i18n...).
-2. ⛔ **CẤM Đưa Các Việc Dọn Dẹp Mã Nguồn (Code Cleanup) Vào Báo Cáo**:
-   - **KHÔNG** liệt kê các thao tác dọn dẹp nội bộ như: xóa enum/hằng số chết, xóa file API/model mồ côi, dọn warning compiler, đổi tên biến nội bộ hoặc các việc bảo trì vụn vặt không mang tính chất tính năng.
+> 🔴 **TRÁNH NHẦM LẪN KHI VIẾT:** Khi người dùng yêu cầu viết "báo cáo", "mô tả công việc" hoặc "kết quả công việc", AI **BẮT BUỘC** đối chiếu bảng dưới đây để dùng đúng cấu trúc và định dạng của từng loại:
+
+| Tiêu chí | Loại 1: Báo cáo rà soát (Review Report) | Loại 2: Mô tả công việc (Task Description) | Loại 3: Kết quả công việc (Work Results) |
+| :--- | :--- | :--- | :--- |
+| **Nơi sử dụng** | Tài liệu Markdown kỹ thuật hoặc trả lời phân tích trên khung chat. | Ô **MÔ TẢ CÔNG VIỆC** trên hệ thống quản lý Task (Task Portal). | Ô **KẾT QUẢ CÔNG VIỆC** trên hệ thống quản lý Task (Task Portal). |
+| **Mục đích** | Đối chiếu hiện trạng code/DB với Spec & Transcript, chỉ ra việc đã làm / chưa làm / rủi ro. | Nêu đề bài, phạm vi và danh sách các đầu mục tính năng cần thực hiện của Task/Sprint. | Nhật ký cập nhật kết quả thực hiện cụ thể theo **từng mốc ngày hoàn thành**. |
+| **Chia mốc ngày (`dd/MM/yyyy` + `===`)** | ❌ Không chia theo kiểu nhật ký Task Portal. | ❌ **KHÔNG** ghi ngày tháng `dd/MM/yyyy`, **KHÔNG** dùng dòng `==============================`. | ✅ **BẮT BUỘC** có dòng ngày `dd/MM/yyyy` ở đầu mỗi đợt và ngăn cách giữa các ngày bằng `==============================`. |
+| **Cách trình bày** | Khung 4 trục: Hiện trạng → Đã làm → Chưa làm → Rủi ro & Đề xuất (Bảng Markdown). | Đánh số đầu mục (`1.`, `2.`, `3.`...) kèm phạm vi (`FE`, `BE`, `Service`) và gạch đầu dòng `- ` tóm tắt yêu cầu. | Dưới mỗi ngày `dd/MM/yyyy`: đánh số đầu mục liên tiếp (`1.`, `2.`, `3.`...) kèm phạm vi (`FE`, `BE`, `Service`) và gạch đầu dòng `- ` chi tiết kết quả; hoặc `- ` trực tiếp cho việc Support/Verify. |
+| **Thứ tự sắp xếp ưu tiên** | Theo luồng kiến trúc hoặc mức độ rủi ro. | ✅ **Việc quan trọng để ở ĐẦU** (`Service / Worker`, Kiến trúc kết nối, Nghiệp vụ/Bảo mật `BE`); **FE giao diện & Đa ngôn ngữ để ở CUỐI**. | ✅ **Việc quan trọng để ở ĐẦU** (`Service / Worker`, Kiến trúc kết nối, Nghiệp vụ/Bảo mật `BE`); **FE giao diện, Đa ngôn ngữ & Support/Verify để ở CUỐI**. |
+| **Mã nội bộ (`R1`, `R2`, `BE-7`...) & Việc dọn code** | Được phép dẫn chiếu mã task của MasterPlan khi phân tích kỹ thuật. | ⛔ **CẤM** ghi mã nội bộ (`R1`, `R2`, `R5`, `R7`, `BE-7`...) và **CẤM** liệt kê việc dọn dẹp code. | ⛔ **CẤM** ghi mã nội bộ (`R1`, `R2`, `R5`, `R7`, `BE-7`...) và **CẤM** liệt kê việc dọn dẹp code. |
+
+---
+
+### 6.1. Quy Chuẩn Chi Tiết Cho Loại 2: Mô Tả Công Việc (Ô "MÔ TẢ CÔNG VIỆC")
+1. **Bản chất**: Tóm tắt phạm vi và danh sách các đầu mục tính năng sẽ triển khai trong Task/Tuần.
+2. **Thứ tự sắp xếp bắt buộc (Quan trọng lên đầu — Giao diện/Ngôn ngữ xuống cuối)**:
+   - **Đặt ở ĐẦU**: Các tính năng cốt lõi về **Service / Worker**, **Tầng tích hợp kết nối (API / Kafka / NATS / File)**, **Phân quyền / Bảo mật / Nghiệp vụ Backend trọng tâm**.
+   - **Đặt ở CUỐI**: Các hạng mục **Giao diện Frontend (UI / Component / Tab)** và **Đa ngôn ngữ (i18n / thuật ngữ)**.
+3. **Định dạng & Văn phong ngắn gọn**:
+   - Tiêu đề đầu mục ngắn gọn (`1.`, `2.`, `3.`...) kèm phạm vi (`(Service / BE)`, `(BE)`, `(FE)`).
+   - Mỗi gạch đầu dòng `- ` chỉ **1 câu ngắn gọn** (15–25 từ), **KHÔNG** liệt kê tên file, tên biến code hoặc danh sách tham số dài dòng trong ngoặc.
+   - **Viết sát dòng (KHÔNG để dòng trống ở giữa)**: Các dòng viết liền kề nhau (chỉ xuống dòng đơn `\n`) để khi copy-paste vào trình soạn thảo của Task Portal không bị sinh ra 2 lần ngắt dòng thừa.
+   - **KHÔNG** chia mốc ngày `dd/MM/yyyy`, **KHÔNG** có vạch `==============================`.
+   - ⛔ **CẤM** ghi mã ký hiệu nội bộ (`R1`, `R2`, `R5`...) và **CẤM** đưa việc dọn dẹp code.
+4. **Mẫu chuẩn Mô tả công việc**:
+   ```text
+   1. Tách tầng tích hợp xử lý kết nối (Service / BE)
+   - Xây dựng tầng điều phối kết nối độc lập hỗ trợ gửi dữ liệu qua API, Kafka hoặc xuất File theo cấu hình hệ thống.
+   2. Cấu hình truy vấn nguồn dữ liệu động cho SuperAdmin (BE / FE)
+   - Xây dựng giao diện và API cấu hình truy vấn nguồn dữ liệu riêng cho SuperAdmin, tích hợp kiểm tra an toàn SQL và ghi nhận Audit Log.
+   3. Xây dựng Component Lập lịch dùng chung và chuẩn hóa giao diện, đa ngôn ngữ (FE)
+   - Tách component lập lịch dùng chung, đồng bộ cấu trúc Tab phân cấp và chuẩn hóa đa ngôn ngữ Anh - Việt trên toàn phân hệ.
+   ```
+
+---
+
+### 6.2. Quy Chuẩn Chi Tiết Cho Loại 3: Kết Quả Công Việc (Ô "KẾT QUẢ CÔNG VIỆC")
+1. **Bản chất**: Báo cáo kết quả đã thực hiện được tách bạch theo từng mốc ngày hoàn thành.
+2. **Thứ tự sắp xếp & Chia đều theo từng ngày trong tuần**:
+   - **Đặt ở ĐẦU**: Các đầu mục trọng tâm về **Service / Worker**, **Tầng kết nối**, **Phân quyền / Bảo mật / Nghiệp vụ Backend**.
+   - **Đặt ở CUỐI**: Các hạng mục **Giao diện Frontend (Component UI, Tab)**, **Đa ngôn ngữ (i18n)** và các công việc **Support / Verify**.
+   - **Chia đều theo mỗi ngày trong tuần (Daily Breakdown)**: Khi task kéo dài 1 tuần, **BẮT BUỘC chia đều các đầu mục theo từng ngày làm việc trong tuần** (được phép tách nhỏ tính năng lớn thành các bước theo ngày để ngày nào cũng có đầu mục kết quả rõ ràng).
+3. **Định dạng & Văn phong ngắn gọn**:
+   - Tách bạch rõ **ngày/tháng/năm hoàn thành (`dd/MM/yyyy`)** đặt trên 1 dòng riêng ở đầu mỗi ngày.
+   - Giữa các mốc ngày khác nhau ngăn cách bằng dòng `==============================`.
+   - Dưới mỗi mốc ngày:
+     - Đánh số thứ tự đầu mục tính năng **liên tiếp xuyên suốt các ngày** (`1.`, `2.`, `3.`, `4.`...) kèm phạm vi (`Service / BE`, `BE`, `FE`...).
+     - **Ngắn gọn, súc tích**: Tiêu đề ngắn (4–8 từ); mỗi gạch đầu dòng `- ` chỉ viết **1 câu ngắn** mô tả kết quả chính, **KHÔNG** liệt kê tên file (`.vue`, `.cs`), tên bảng/cột hay biến code dài dòng.
+     - **Viết sát dòng (KHÔNG chèn dòng trống giữa các dòng)**: Toàn bộ các dòng (ngày tháng, tiêu đề, gạch đầu dòng `- `, vạch `==============================`) **BẮT BUỘC viết sát liền nhau (không có dòng trống ở giữa)** để khi copy-paste vào trình soạn thảo Task Portal không bị sinh ra 2 lần ngắt dòng.
+   - ⛔ **CẤM** ghi mã ký hiệu nội bộ (`R1`, `R2`, `R5`, `R7`, `BE-7`, `G.1`...) và **CẤM** liệt kê các việc dọn dẹp code.
+4. **Mẫu chuẩn Kết quả công việc**:
+   ```text
+   29/09/2026
+   1. Service giao tiếp thiết bị (Worker VideoWall)
+   - Xây dựng Worker Service độc lập kết nối điều khiển phần cứng qua chuẩn ISAPI của Hikvision với cơ chế xác thực Digest Auth.
+   - Tích hợp hàng đợi bản tin NATS trung gian giữa WebAPI và Worker để tiếp nhận và thực thi các lệnh điều khiển bất đồng bộ, chống gây nghẽn WebAPI.
+   2. Phân quyền VideoWall (BE / FE)
+   - Xây dựng API và cơ chế phân quyền truy cập tường màn hình chi tiết theo Người dùng và Tổ chức (User/Org).
+   - Bổ sung kiểm soát quyền theo từng ô màn hình (Grid Cell) và giới hạn quyền thao tác chuyển đổi kịch bản.
+   ==============================
+   01/10/2026
+   3. Công cụ WPF kiểm thử thiết bị (ITS.VideoWall.WPF)
+   - Xây dựng ứng dụng WPF chuyên dụng kiểm thử trực tiếp kết nối và cấu hình với thiết bị điều khiển phần cứng.
+   - Thiết kế giao diện Canvas trực quan hiển thị ma trận tường màn hình, hỗ trợ kiểm tra chia cửa sổ và gán nguồn tín hiệu.
+   - Bổ sung bộ giả lập gửi và phân tích các gói tin điều khiển XML/JSON theo chuẩn ISAPI.
+   ==============================
+   06/10/2026
+   - Support làm phần nhận sự kiện sự cố, bắn tín hiệu qua VideoWall.
+   ==============================
+   08/10/2026
+   - Verify lại tính năng lập lịch và nhận tín hiệu khi cấu hình nhận sự kiện.
+   ```
+
 

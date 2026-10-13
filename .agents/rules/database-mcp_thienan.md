@@ -30,10 +30,13 @@ description: Database MCP tooling (Gortex and DAB MCP), staging DB read-only saf
 1. **MCP Database Read-Only Rule (Section 10)**:
    - Kết nối DAB MCP vào DB staging CHỈ hoạt động ở chế độ **Read-Only** (`anonymous:read`).
    - ⛔ **TUYỆT ĐỐI CẤM** dùng MCP để thực thi các câu lệnh thay đổi dữ liệu (`INSERT`, `UPDATE`, `DELETE`) trên CSDL staging.
-2. **Strict Manual SQL Execution Rule (Section 9 & Rule 19.4)**:
-   - ⛔ **CẤM TUYỆT ĐỐI** tự ý chạy các câu lệnh DDL (`ALTER TABLE`, `CREATE TABLE`, `DROP TABLE`, `CREATE INDEX`) hoặc script di trú dữ liệu trên bất kỳ môi trường DB nào.
+2. **Strict Manual SQL Execution & Direct `.sql` File Edit Rule (Section 9 & Rule 19.4)**:
+   - ⛔ **CẤM TUYỆT ĐỐI** tự ý chạy các câu lệnh DDL (`ALTER TABLE`, `CREATE TABLE`, `DROP TABLE`, `CREATE INDEX`) hoặc script thay đổi dữ liệu trực tiếp trên bất kỳ môi trường DB nào.
    - ⛔ **CẤM** tự viết hàm tạo bảng dạng `EnsureTablesCreated()` hoặc gọi `InitTables<T>()` trong code.
-   - Mọi thay đổi schema hoặc dữ liệu mẫu BẮT BUỘC viết ra file kịch bản SQL (`.sql`), đặt đúng thư mục tài liệu để lập trình viên tự review và chạy thủ công.
+   - ✅ **Quyền sửa trực tiếp file `.sql` (`DocBusinessThienAn/**/sql/*.sql`)**: AI **ĐƯỢC QUYỀN tạo mới và sửa/cập nhật trực tiếp vào các tệp kịch bản `.sql`** mà không cần chờ viết prompt xin phép trước. Lập trình viên sẽ là người kiểm tra (check) và chạy thực thi cuối cùng trên CSDL.
+   - **Quy chuẩn bắt buộc khi viết/sửa file `.sql`:**
+     - Với các kịch bản chạy trên CSDL chính Staging, đầu file BẮT BUỘC có `USE [DEV_ITS10]; GO` và ghi rõ schema `dbo.<TênBảng>` để tránh lỗi `Msg 208: Invalid object name` khi tab query đứng nhầm database.
+     - Đối chiếu cấu trúc cột và dữ liệu thực tế qua `mssql_staging` trước khi viết (ví dụ: bảng `dbo.SysTerminology` lưu tiền tố nhóm ở cột `Name = N'lz.label' | N'lz.exception' | N'lz.validation'...`, phần mã sau tiền tố ở cột `Code`, và nội dung dịch thuật ở cột `Value`).
 
 ---
 
