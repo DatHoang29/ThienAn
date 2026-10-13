@@ -8,9 +8,9 @@ model: Gemini Multimodal Native Audio Transcribe
 status: verified
 topic: VideoWall (Kiến trúc Controller Cha - Con, Mô hình hóa Topology & Cổng In/Out, Ma trận 32 màn hình 8x4, Phân quyền xem/điều khiển và Cơ chế Reset Default Layout)
 participants:
-  - Anh Sơn (Tech Lead / Kiến trúc hệ thống)
-  - Hiếu (Dev Fullstack / VideoWall)
-  - Đạt (Dev Backend / WebAPI & Database)
+  - Anh Sơn (Tech Lead)
+  - Hiếu (Dev)
+  - Đạt (Dev)
 ---
 
 # Kịch bản & Biên bản Cuộc họp: Phân hệ Tường Màn Hình (VideoWall)
