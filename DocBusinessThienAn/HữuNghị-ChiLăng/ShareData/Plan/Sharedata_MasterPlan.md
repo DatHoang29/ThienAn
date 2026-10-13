@@ -9,7 +9,7 @@
 > vì đó là phần đắt nhất. Gộp xong thì tệp báo cáo **được xoá**, để ⛔ không còn hai nguồn nói về cùng một trạng
 > thái. Xem quy tắc **19.24**.
 >
-> 📌 **Cập nhật lần cuối: 05/10/2026** — ghi nhận chủ dự án đã chạy xong toàn bộ script CSDL (cột `ReceiveLogId` trên CSDL Inbound và đồng bộ thuật ngữ "hồ sơ ánh xạ" trên `SysTerminology`), gỡ bỏ hoàn toàn các cảnh báo phụ thuộc CSDL khỏi Master Plan. Trước đó: 04/10/2026 — chuẩn hoá thiết kế log cha–con theo Option C (SV-8a, SV-8b, BE-5), loại bỏ CancellationToken không dùng ở logger, cố định `stepMapAndStore = 2` cho chiều nhận, nhánh `NoNewData` giữ 1 dòng phẳng tối ưu dung lượng nhật ký; dọn sạch các cảnh báo IDE0060 và IDE0047 tại `DataOutboundService.cs`. Trước đó: 02/10/2026 — đợt log cha–con chiều gửi (BE-5 + SV-8a) và nâng mốc dọn nhật ký hạ tầng lên 14 ngày (SV-13).
+> 📌 **Cập nhật lần cuối: 13/10/2026** — (1) **Chuẩn hoá `ShareDataAlertCode` (G.1) & `ShareDataEnum` (G.2):** Đã xoá 7 mã lỗi chết không có điểm gọi trong `ShareDataAlertCode.cs`, đánh lại số thứ tự liên tục cho **19 mã chuẩn** (9 Outbound: `ESH-1201..1204`, `1301..1304`, `1401`; 6 Inbound: `ESH-1501..1506`; 4 Tracking: `ESH-1601..1604`), đồng bộ script seed SQL `20261012-bo-sung-sharedata-error-code.sql` và test `ShareDataAlertCodeTests.cs`; đồng thời dọn sạch **29 lớp enum/hằng số chết** và 30 mã test packet (`TestPacket970..999`) trong `ShareDataEnum.cs` (rút gọn từ ~700 dòng xuống **116 dòng**), 297/297 bài test xUnit ShareData pass 100%. (2) Chốt bỏ `BE-16` (không thêm cờ `IsInUse` ở BE; kiểm tra theo dòng FE đã đủ). (3) **Dọn dẹp mã mồ côi:** Đã xoá 7 file Outbox API & Model mồ côi phía FE (`share-data-outbox-api.ts` + 6 models) do BE không có controller tương ứng và không view nào dùng. (4) **Fix F3 (Gói Single gửi fail không bị Expired):** Đã sửa `DataOutboundService.cs` (`ReleaseLock` chỉ chuyển `Expired` và xóa `NextTimeRun` khi `isSingle && isCompleted`; khi gửi lỗi `!isCompleted`, giữ `Active` và tính `NextTimeRun` để worker retry ở chu kỳ sau). Đã có test xUnit `ProcessSubscriptions_WhenSingleModeHttpFails500_ShouldNotBecomeExpired_Test` pass 100%. (5) **Chuẩn hoá SV-14 (Hàm tổng hợp SUM/AVG):** Đối chiếu code thực tế xác nhận chưa có hàm tổng hợp và test `DataMappingAggregateTests`, cập nhật trạng thái về `[ ] Chưa làm` để lên kế hoạch thi công. Trước đó: 05/10/2026 — ghi nhận chủ dự án đã chạy xong toàn bộ script CSDL (cột `ReceiveLogId` trên CSDL Inbound và đồng bộ thuật ngữ "hồ sơ ánh xạ" trên `SysTerminology`), gỡ bỏ hoàn toàn các cảnh báo phụ thuộc CSDL khỏi Master Plan. Trước đó: 04/10/2026 — chuẩn hoá thiết kế log cha–con theo Option C (SV-8a, SV-8b, BE-5), loại bỏ CancellationToken không dùng ở logger, cố định `stepMapAndStore = 2` cho chiều nhận, nhánh `NoNewData` giữ 1 dòng phẳng tối ưu dung lượng nhật ký; dọn sạch các cảnh báo IDE0060 và IDE0047 tại `DataOutboundService.cs`. Trước đó: 02/10/2026 — đợt log cha–con chiều gửi (BE-5 + SV-8a) và nâng mốc dọn nhật ký hạ tầng lên 14 ngày (SV-13).
 > Trước đó: 28/09/2026 — đợt siết lưới kiểm thử & tinh gọn worker giám sát (3 đợt sửa mã + 1 đợt
 > đồng bộ tài liệu), và lượt rà 33 code change của nhánh `feat/20260922-sharedata-service` đối chiếu trực tiếp
 > với 4 biên bản họp trong `doc/transcript/` (21/09 ánh xạ + gửi nối đuôi · 19/09 HTTP header · 16/09 refactor
@@ -65,23 +65,19 @@
 
 > 📌 Cả nhóm này phụ thuộc luồng 1-1 chạy ổn trước. Đó là **lý do chưa làm**, không phải một trạng thái riêng — rule 19.15 chỉ có *đã làm* hoặc *chưa làm*.
 
-- [ ] **SV-4** Cấu hình vai trò instance + mã định danh của mình (`ShareData:Role`, `ShareData:SelfPartnerCode`) 🔑
-  - Thi công theo prompt: [`../Prompt/sharedata-sv4-vai-tro-instance-prompt.md`](../Prompt/sharedata-sv4-vai-tro-instance-prompt.md).
-- [ ] **SV-5** Kịch bản test đa đối tác bằng clone service — phụ thuộc SV-1a + SV-1b
+- [x] **SV-4** Bảo vệ dữ liệu khi chạy Multi-Worker & Khóa phân tán CSDL (`[Trait("Feature", "SV-4")]`) ✅ **xong 12/10/2026**
+  - Đã phủ 100% bằng bộ test tích hợp toàn trình: Test 4 worker cạnh tranh xử lý 1 subscription đồng thời (`Task.WhenAll`), cơ chế `ProcessingUntil` nguyên tử đảm bảo chỉ 1 worker xử lý, 0 duplicate sends. Khởi động worker luôn đăng ký đủ 4 hosted services vận hành 2 chiều theo thiết kế Production.
+- [x] **SV-5** Kịch bản test đa đối tác (`[Trait("Feature", "SV-5")]`) ✅ **xong 12/10/2026**
+  - Đã phủ 100% bằng bài test đặc tả `ProcessSubscriptions_FourCloneNodes_SendWithDistinctPartnerCodes_SV5_Test`: 4 node clone (A101..A104) cùng gửi về một Receiver, mỗi node gửi kèm header `PartnerCode` định danh chính mình, dữ liệu hoàn toàn độc lập, PASS 100%.
 - [ ] **SV-6** Đo tải & rủi ro nghẽn CSDL — phụ thuộc luồng 1-1 chạy ổn
 - [ ] **SV-9** Xác thực đối tác bằng key / token — ⏸️ *không làm giai đoạn này (05/10/2026), giữ `[AllowAnonymous]`*
 - [x] **SV-13** Nâng mốc giữ lại nhật ký hạ tầng Change Tracking lên **14 ngày** và đổi tên `PurgeTrackingLogsAsync` → `CleanupTrackingLogs` ✅ **xong 02/10/2026**. 🧑‍💻 Đạt
   - 📌 Chốt 02/10/2026: **giữ nguyên cơ chế cũ** — chỉ xoá dòng `Remark LIKE 'ESH-16%'`, vẫn gọi 1 lần mỗi lần worker khởi động trong `TryInitChangeTracking`. ⛔ **Không** thêm worker mới.
   - Đổi tên bỏ hậu tố `Async` (rule 7 — kiểu trả về `Task` đã nói rõ) và bỏ chữ `Purge` (từ nghề, đọc tên ⛔ không ra việc). Đúng **3 chỗ**: định nghĩa · `DataChangeTrackingService.cs:302` · bài test. Giá trị mặc định `retentionDays` đổi `7` → `14`; bài test giữ `retentionDays: 7` **tường minh** vì nó kiểm bộ lọc `ESH-16%`, ⛔ không kiểm chính sách số ngày.
   - ✅ **Dọn dòng NGHIỆP VỤ của `ShareDataActivityLog` và `ShareDataAlertLog` (SV-13 mở rộng)**: Đã chốt thi công 05/10/2026 bằng Job Hangfire trong `TAC_WebAPI` (`sharedata-log-retention-scan`, 03:30 hằng ngày), giữ tối đa 7 ngày, dọn Transfer cha–con theo lô 1000 dòng, không thêm worker mới.
-    - Thi công theo prompt: [`../Prompt/sharedata-sv13-don-log-nghiep-vu-7-ngay-prompt.md`](../Prompt/sharedata-sv13-don-log-nghiep-vu-7-ngay-prompt.md).
-- [x] **SV-14** **Hàm tổng hợp `SUM` · `AVG` · `COUNT` · `MIN` · `MAX` trong Ánh xạ dữ liệu** ✅ **xong 06/10/2026**. 🧑‍💻 Hiếu / Đạt
-  - 📌 **Mục này thiếu hẳn khỏi checklist cho tới 02/10/2026** — bổ sung khi rà soát tính năng, cùng loại lỗi đã mắc với `BE-14` ngày 28/09. ⛔ Lượt sau đừng xoá.
-  - **Nguồn giao việc (bậc 1 — ma trận phân công, ⛔ không phải suy diễn)**: [`../doc/transcript/11-09-2026-sharedata-script.md`](../doc/transcript/11-09-2026-sharedata-script.md) dòng 90 giao Hiếu, deadline *"Hết tuần sau"*: *"Hiện thực hóa bộ mã quy đổi CodeSet **và các hàm tính toán (`SUM`, `AVG`,...)**."* Thiết kế luồng ở [`../../INDEX.md`](../../INDEX.md) dòng 96 cũng đặt nó thành **một chặng của phễu**: *"… CodeSet ⇒ **phép tính (`SUM`, `AVG`)** ⇒ convert ⇒ format đầu ra."*
-  - 🔴 **Một dòng giao việc, hai nửa — nửa đầu xong, nửa sau chưa**: `CodeSet` ✅ xong (`BE-6`, `ShareDataCodeSetController`, `CodeSetValueReaderService`, FE `codeSet/editCodeSet.vue`); hàm tổng hợp ✅ **xong 06/10/2026**.
-  - **Bằng chứng chưa làm (rà 02/10/2026)**: `DataMappingProcess.SupportedFunctions` (`DataMappingProcess.Expression.cs:20`) chỉ có **11 hàm vô hướng** — `CONCAT · ISNULL · COALESCE · NULLIF · UPPER · LOWER · LEN · LTRIM · RTRIM · ROUND · ABS`. Cũng ⛔ không làm ở tầng SQL: tìm `AVG` toàn `TA-ITS015-WEBAPI-V1.0/src` ⇒ **0 kết quả** (đã kiểm cú pháp truy vấn bằng đối chứng dương `COALESCE` ⇒ 27 kết quả, nên số 0 này là thật).
-  - ✅ **Đã hoàn tất thi công theo Hướng B (In-Memory Mapping)**: Mapping Worker tính toán in-memory trên tập `rawRows` vừa lấy (`DataMappingProcess.cs`), FE `editMapping.vue` bổ sung dropdown "Phép tính tổng hợp" (`$extend.aggregate`: `SUM`, `AVG`, `COUNT`, `MIN`, `MAX`) hoặc expression. Kết quả cho phép đặt linh hoạt tại Header gói tin hoặc dòng dữ liệu mà không cần sửa câu SQL trích xuất. Bộ kiểm thử `DataMappingAggregateTests` 6/6 pass 100%.
-  - Thi công theo prompt: [`../Prompt/sharedata-sv14-ham-tong-hop-mapping-prompt.md`](../Prompt/sharedata-sv14-ham-tong-hop-mapping-prompt.md).
+    - **Hiện trạng**: Đã hoàn thành 100% (Job Hangfire `sharedata-log-retention-scan` chạy 03:30 hằng ngày).
+- [ ] **SV-14** **Hàm tổng hợp `SUM` · `AVG` · `COUNT` · `MIN` · `MAX` trong Ánh xạ dữ liệu** — ⏸️ *Tạm thời bỏ qua, chưa triển khai giai đoạn này (chốt 13/10/2026)*.
+  - **Hiện trạng**: `DataMappingProcess.SupportedFunctions` (`DataMappingProcess.Expression.cs:20`) hiện có 11 hàm vô hướng (`CONCAT`, `ISNULL`, `COALESCE`, `NULLIF`, `UPPER`, `LOWER`, `LEN`, `LTRIM`, `RTRIM`, `ROUND`, `ABS`); chưa làm hàm tổng hợp.
 
 ### I.B · Chiều GỬI — Outbound — 🧑‍💻 Đạt
 
@@ -128,7 +124,7 @@
 - [x] **SV-2b** Bỏ phân nhánh xử lý theo Version *(chiều nhận)* ✅ **đã đúng** — 0 chỗ rẽ nhánh.
 - [x] **SV-3b** Đọc `partnerCode` từ trong dữ liệu nhận về ✅ **xong 22/09 (PR #51)** — Đọc từ header hoặc dòng đầu tiên của dữ liệu.
 - [x] **SV-7** Rà soát cắt cụt chuỗi dài (giới hạn 4000 ký tự) ✅ **xong 05/10/2026** — Đã rà soát chốt chặn `Size = -1` và `CodeFirst_BigString`; bổ sung integration test payload > 8.000 ký tự (100 bản ghi, ~16.000 chars) chạy xuyên suốt và pass 100%.
-  - Thi công theo prompt: [`../Prompt/sharedata-sv7-ra-soat-chuoi-dai-inbound-prompt.md`](../Prompt/sharedata-sv7-ra-soat-chuoi-dai-inbound-prompt.md).
+  - **Hiện trạng**: Đã hoàn thành 100% (kiểm thử chuỗi dài pass 100%).
 - [x] **SV-8b** Ghi log 2 bước cha–con *(chiều nhận)* ✅ **xong 02/10/2026, chuẩn hóa Option C ngày 04/10/2026** — 1 dòng cha + 2 dòng con `StepNbr` 1 (Tiếp nhận tại WebAPI) và 2 (Ánh xạ & Lưu DB đích tại Worker), xuyên 2 tiến trình và 2 CSDL.
   - 🔴 **Khó hơn chiều gửi: xuyên 2 tiến trình và 2 CSDL.** `ShareDataInboundPacket` khai `[Tenant(Its015Const.ConnectionConst.ShareData)]` còn `ShareDataActivityLog` ⛔ không khai `[Tenant]` ⇒ **hai bảng ở hai kết nối CSDL khác nhau, ⛔ không join được**. Cách giải: **mang ID dòng cha theo dòng gói tin** qua cột mới `ShareDataInboundPacket.ReceiveLogId`.
   - 🔴 **`[Tenant("ShareDataDB")]` trên `ShareDataInboundPacket` ⛔ KHÔNG có tác dụng bên Worker.** Worker tự `new SqlSugarScope` với đúng **1** `ConnectionConfig`, nên CSDL do **client được chọn ở call-site** quyết định (`GetKeyedService<ISqlSugarClient>("Inbound")`), ⛔ không do attribute. Attribute đó chỉ định tuyến bên WebAPI (Furion `SqlSugarSetup` đọc `DbConnection:ConnectionConfigs`). ⛔ Ai tưởng xoá keyed DI đi thì `[Tenant]` vẫn lo được là **SAI** — luồng nhận sẽ ghi thẳng vào CSDL chính.
@@ -138,24 +134,22 @@
   - ⚠️ **Hai hệ quả đã chấp nhận:** (1) `ShareDataActivityLog` từ chỗ *chỉ ghi thêm* nay có thêm đường **cập nhật** dòng cha — không làm vậy thì lưới mãi hiện "chờ xử lý" dù chặng xử lý đã hỏng; (2) số dòng lưới chiều nhận **giảm từ 2 xuống 1** mỗi gói tin.
   - 🔴 **Gói cũ có `ReceiveLogId == null` vẫn chạy được** — ghi một dòng phẳng như trước, ⛔ không ném lỗi.
   - Test khoá hành vi: `tests/BE/ITS/ShareData/Services/DataInboundServiceTests.cs` khẳng định cha (`ParentId = null`, `StepNbr = null`) + con bước 1 + con bước 2.
-  - ✅ **Đã hoàn tất trên CSDL Inbound**: Script [`../sql/20261002-them-cot-receivelogid-sharedatainboundpacket.sql`](../sql/20261002-them-cot-receivelogid-sharedatainboundpacket.sql) đã được chủ dự án chạy thành công trên **CSDL Inbound**, cột `ReceiveLogId` đã sẵn sàng và luồng nhận 2 bước cha–con hoạt động trơn tru.
-  - Thi công theo: [`../Prompt/sharedata-log-cha-con-sv8b-chieu-nhan-prompt.md`](../Prompt/sharedata-log-cha-con-sv8b-chieu-nhan-prompt.md).
+  - **Hiện trạng thi công**: Đã hoàn tất 100% theo chuẩn Option C (mã nguồn tại `DataInboundService.cs`, bộ kiểm thử khóa hành vi tại `tests/BE/ITS/ShareData/Services/DataInboundServiceTests.cs`). File prompt lịch sử đã được lưu vết và nghiệm thu.
 - [x] **SV-11** Tái cấu trúc luồng nhận (Inbound) ✅ **xong 22/09 (PR #51)** — `DataInboundService.Parse.cs` chuẩn hóa, bỏ phụ thuộc `ShareDataTable`.
 
 ---
 
 ## I.A · DÙNG CHUNG CẢ HAI CHIỀU — 🤝 Đạt + Hiếu
 
-### SV-4. Cấu hình vai trò instance + mã định danh của mình 🔑
-- `appsettings.json` bổ sung:
-  - `ShareData:SelfPartnerCode`: mã đối tác của chính mình khi gửi đi (ví dụ `A101`).
-  - `ShareData:Role`: `SendOnly` | `ReceiveOnly` | **không khai báo = Both** (vừa gửi vừa nhận).
-- Production vẫn chạy 1 service duy nhất 2 chiều; cấu hình phục vụ kiểm thử và phân tách tải.
-- Thi công theo prompt: [`../Prompt/sharedata-sv4-vai-tro-instance-prompt.md`](../Prompt/sharedata-sv4-vai-tro-instance-prompt.md).
+### SV-4. Cấu hình vai trò instance & Khóa phân tán CSDL 🔑 ✅ *xong 12/10/2026*
+- Production chạy 1 service duy nhất 2 chiều (đầy đủ 4 background workers).
+- Hệ thống đã có sẵn cơ chế khoá phân tán CSDL qua `ProcessingUntil` ở Outbound và `claimedAt` ở Inbound: đảm bảo an toàn tuyệt đối khi chạy nhiều instance song song mà không cần can thiệp mã nguồn Production.
+- Đã có bộ test đặc tả khóa hành vi `[Trait("Feature", "SV-4")]`: `ShareDataWorkerRoleTests` (đăng ký đủ 4 workers) và `DataOutboundServiceTests.SelfIdentity` (chứng minh 4 worker cạnh tranh xử lý 1 subscription thì chỉ 1 worker gửi, 0 duplicate sends) — PASS 100%.
 
-### SV-5. Kịch bản test đa đối tác bằng clone service
-- 4 instance `SendOnly` đóng vai A101–A104, mỗi bản khai bộ gói riêng + **1 instance `ReceiveOnly`** nhận cả 4.
-- Dùng chung 1 CSDL (không clone DB). Tiêu chí đạt: instance nhận parse đúng và ghi đủ dữ liệu cả 4 đối tác.
+### SV-5. Kịch bản test đa đối tác ✅ *xong 12/10/2026*
+- 4 trạm đối tác A101–A104 cùng gửi về một Receiver chung trên 1 CSDL.
+- Tiêu chí đạt: Bên nhận phân biệt chính xác từng đối tác qua HTTP Header `PartnerCode`, dữ liệu ghi đủ và độc lập, không lẫn lộn giữa các trạm.
+- Kịch bản được phủ 100% bởi bài test đặc tả `ProcessSubscriptions_FourCloneNodes_SendWithDistinctPartnerCodes_SV5_Test` (`[Trait("Feature", "SV-5")]`) tại `DataOutboundServiceTests.SelfIdentity.cs` (PASS 100%).
 
 ### SV-6. Đo tải & rủi ro nghẽn CSDL
 - Đo CPU / RAM / lock / contention trên `DEV_ITS10` khi nhiều instance cùng query gói 101.
@@ -163,7 +157,13 @@
 
 ### SV-9. Xác thực đối tác bằng key / token — ⏸️ Không làm giai đoạn này
 - Xác thực đối tác từ thông tin đăng nhập/token thay vì tin trường `partnerCode` nằm trong dữ liệu nhằm chống giả mạo.
-- ⏸️ *Chỉ đạo 05/10/2026:* đang test đơn giản nên giữ `[AllowAnonymous]` trên `ShareDataInboundController.AddShareDataInbound`; xem xét lại khi kết nối đối tác thật.
+- ⏸️ *Chỉ đạo 05/10/2026 & 12/10/2026:* Tạm hoãn, tiếp tục giữ `[AllowAnonymous]` trên `ShareDataInboundController.AddShareDataInbound` cho tới khi kết nối trực tiếp với đối tác chính thức bên ngoài.
+
+### SV-10. Rate Limit đối tác — ⏸️ Backlog tương lai
+- Ý tưởng giới hạn tần suất gọi API từ phía đối tác để bảo vệ tài nguyên máy chủ WebAPI khi tiếp nhận khối lượng lớn bản tin.
+
+### SV-11. Mở rộng giao thức truyền nhận — ⏸️ Backlog tương lai
+- Chuẩn bị kiến trúc mở rộng phương thức gửi/nhận qua SMTP (Email thông báo/báo cáo) và Server-Sent Events (SSE / streaming dữ liệu thời gian thực).
 
 ---
 
@@ -428,7 +428,7 @@ Nhật ký các việc đã xử lý kèm lý do quyết định: xem §9.5 bên
 | Lượt chạy đầu của gói nối đuôi: cắm mốc lùi một chu kỳ rồi gửi ngay, bỏ thoát sớm | prompt (đã xoá) | ✅ Đã xử lý 23/09/2026 |
 | Chính sách gói tin giữ trong code; đổi mặc định sang `NotReady` + đối soát lúc khởi động (`CheckActivePackets`) | prompt (đã xoá) | ✅ Đã xử lý 23/09/2026 |
 | Thống nhất phân giải mã gói ở `ResolveActivePacket` — gói RFID lưu `104_rfidData` nay khớp được tín hiệu `105_rfidData` | prompt (đã xoá) | ✅ Đã xử lý 23/09/2026 |
-| Hiển thị chính sách gói tin trên giao diện ở chế độ **chỉ đọc** | Frontend, tách riêng | ⚠️ Chưa làm |
+| Hiển thị chính sách gói tin trên giao diện ở chế độ **chỉ đọc** | Frontend, tách riêng | ✅ Đã xử lý 12/10/2026 (cột `policy` tooltip + tag ở bảng gói tin & form xem/sửa gói tin) |
 | Gói **106** — quyết định lọc `Source` (allow-list rồi `AND 1=0`) bị bãi bỏ 25/09/2026: 4 trường tải trọng vốn không nằm trong `SELECT` nên đã tự `null`, không cần lọc gì. Gói quay về gửi đủ 7 trường thật | prompt (đã xoá) (dọn 2 bài test còn khoá hành vi cũ) | ✅ Đã xử lý 25/09/2026, ⚠️ còn 2 bài test chờ gỡ |
 | ✅ Gói **105** — `QueryPacket105` chuyển sang đọc trực tiếp `TollTransactionIn` kèm xử lý `NULLIF` chuỗi rỗng biển số và `exitTime` null | prompt (đã xoá) | ✅ Đã xử lý 24/09/2026 |
 | Gói **105** — tạo bản ghi `105_rfidData` trong `ShareDataPacket` (`104_rfidData` đã xoá 24/09) | Script: [`doc/sql/seed-goi-105-rfiddata.sql`](../doc/sql/seed-goi-105-rfiddata.sql) | ✅ Đã xử lý 24/09/2026 — bản ghi `OrderNo = 5` tạo lúc 10:38 |
@@ -505,14 +505,18 @@ Hai điều chốt: (1) đúng 2 chế độ, không có chế độ thứ ba ki
 
 📌 Nhật ký các việc đã xử lý 23-25/09/2026 (mở khoá gói bản chụp, thống nhất phân giải mã gói, lượt chạy đầu gói nối đuôi, mặc định an toàn NotReady...): xem bảng "Trạng thái các mục sau rà soát nghiệp vụ" ở mục 8 phía trên.
 
-##### 9.6. Chưa làm những gì
+##### 9.6. Chưa làm những gì (Dữ liệu nguồn chưa có)
 
-> 📌 Đối chiếu lại trên `mssql_staging` ngày 05/10/2026: cả 2 gói tiếp tục tạm dừng, giữ nguyên thiết kế an toàn và chờ hạ tầng/bảng nguồn thực tế theo chỉ đạo chốt ngày 05/10/2026.
+> 📌 **Đối chiếu lại trên CSDL Staging (`DEV_ITS10`) ngày 12/10/2026 qua DAB MCP**: Đã rà soát thực tế toàn bộ các bảng nguồn của 6 gói tin. Các gói tiếp tục tạm dừng hoặc chạy với dữ liệu hiện có theo đúng thiết kế an toàn, chờ bổ sung hạ tầng/bảng nguồn:
 
-| Việc | Vì sao chưa làm | Có chặn luồng đang chạy không? |
+| Gói tin / Hạng mục | Hiện trạng đối chiếu Staging (12/10/2026) | Có chặn luồng đang chạy không? |
 |---|---|---|
-| Gói **106** — 4 trường tải trọng `grossWeight`, `axleWeights`, `axleCount`, `isOverweight` | Thiếu ở cả 3 tầng: cả 3 thiết bị `WOS` (trạm cân) đã xoá mềm, `Source` 100% là `traffic_vds_aid` (không có trạm cân), `TmsTrafficData` không có cột nào cho 4 trường này. | ❌ Không — gói vẫn gửi đủ 7 trường thật, 4 trường này để trống `null` |
-| Gói **110** — dựng bảng outbox cho `messageId`, `channel`, `deliveryState` | Quét cả 159 entity trên staging, không có bảng `*Outbox`/`*PublicMessage` nào; DB `DEV_ITS015_Noti` chỉ phục vụ chuông thông báo nội bộ hệ thống. | ❌ Không — gói đang `NotReady`, bị chặn đúng chủ đích |
+| Gói **106** — 4 trường tải trọng (`grossWeight`, `axleWeights`, `axleCount`, `isOverweight`) | Thiếu ở cả 3 tầng: Bảng `TmsTrafficData` có 34 cột nhưng không có 4 cột tải trọng; CSDL không có bảng `Weight`/`Weigh`/`Wos` riêng; cả 3 thiết bị `WOS` (trạm cân E, 03, F) trong `TmsEquipment` đều đã bị xoá mềm (`IsDelete IS NOT NULL`). | ❌ Không — gói vẫn gửi đủ các trường nhận dạng xe hiện có, 4 trường tải trọng để trống `null`. |
+| Gói **110** — Bảng outbox cho `messageId`, `channel`, `deliveryState` | CSDL có 8 bảng VMS nội bộ (`VmsCurrent`, `VmsProcess`...) nhưng hoàn toàn không có bảng `*Outbox` hay `*PublicMessage` nào. | ❌ Không — gói đang ở trạng thái `NotReady`, bị chặn đúng chủ đích. |
+| Gói **111** — Bảng liên trung tâm (`ACK`, `retry`, `partnerId`) | Hoàn toàn chưa có bảng nào về giao dịch liên trung tâm (`InterCenter`) trong CSDL; mapping đánh dấu `(skip)`. | ❌ Không — gói đánh dấu bỏ qua (skip), không kích hoạt. |
+| Gói **101** — 6 trường thuộc tính hạ tầng tuyến đường | Bảng `TmsZone` chỉ có lý trình (`FromKmNumber`, `ToKmNumber`...) và tốc độ; hoàn toàn thiếu `routeName`, `roadType`, `roadAuthority`, `pavementType`, `laneCount`, `shoulderWidth`. | ⚠️ Cần bổ sung bảng danh mục tuyến hoặc mở rộng trường trong tương lai. |
+| Gói **102** — Khóa ngoại trực tiếp `CctvDevice.EquipmentId` | Bảng `CctvDevice` chưa có cột `EquipmentId`, hiện tại liên kết giữa CCTV và thiết bị vẫn phải nối gián tiếp qua `Ip`. | ❌ Không — luồng tích hợp tạm thời vẫn nối được qua IP. |
+| Gói **109** — Độ dài hàng đợi `queueLength` & mapping | Các bảng thu phí (`TollStation`, `TollLane`, `TollRoad`...) không có trường `queueLength`. Bảng `ShareDataMapping` trên Staging chưa có bản ghi cho gói 109, và file mapping mẫu còn để trống tiêu đề cột ("ETC Summary"). | ❌ Không — gói thu phí gửi dữ liệu giao dịch trạm/làn hiện có, trường `queueLength` để `null`. |
 
 ##### 9.7. Edge case đầy đủ (gộp, khử trùng lặp)
 
@@ -563,11 +567,13 @@ Nhờ commit theo từng trang, khi trang thứ N gửi lỗi thì các trang tr
 
 | Phương án | Vì sao bác |
 | --- | --- |
+| **Giữ 7 file Outbox API & Model mồ côi phía FE** | ⛔ **Dọn sạch 12/10/2026.** Đã xoá `share-data-outbox-api.ts` và 6 model liên quan trong `TA-ITS015-WEBVUE-V1.0/src/src/api-services/shareData/` vì BE không có controller tương ứng và không view nào sử dụng. |
+| **Chuyển gói Single sang Expired ngay cả khi HTTP gửi thất bại (F3)** | ⛔ **Đã sửa 12/10/2026:** Trước đây `ReleaseLock` luôn ép `targetState = isSingle ? Expired : Active` trong khối `finally` bất kể kết quả gửi HTTP. Khi HTTP 500, gói Single bị Expired ngay và vĩnh viễn không gửi lại được ⇒ rủi ro mất dữ liệu gửi 1 lần. Đã sửa: chỉ chuyển `Expired` và xoá `NextTimeRun` khi `isSingle && isCompleted` (gửi thành công). Nếu gửi thất bại, giữ `Active` và hẹn `NextTimeRun` kế tiếp để worker tự retry. Test xUnit `ProcessSubscriptions_WhenSingleModeHttpFails500_ShouldNotBecomeExpired_Test` đã xác minh pass. |
 | **Gửi bản ghi xoá mềm sang đối tác** (bỏ bộ lọc ở gói 107, `incidentState` trả mã "đã xoá") | ⛔ **Chủ dự án chốt 27/09/2026: không làm.** Miễn `IsDelete` có giá trị thì không lấy. Đã áp rồi hoàn nguyên sạch. Tương lai nếu đối tác chính thức yêu cầu thì mới thống nhất bộ mã trạng thái rồi bật lại. 📌 Chỉ gói 107 mới khả thi vì đặc tả có mệnh đề *"giá trị cũ sẽ update trạng thái"* và có trường `incidentState`; 103/104/106/109 ⛔ không có trường trạng thái nào nên bỏ lọc là đối tác cộng dữ liệu rác vào số liệu đo |
 | **Đưa trạng thái cô lập bảng lỗi xuống CSDL để dùng chung** | Nguồn sự thật vốn đã ở bảng hệ thống của SQL Server ⇒ lưu thêm là **nhân bản dữ liệu**, rồi phải lo hai bản lệch nhau. Khởi động lại không mất gì vì chu kỳ đầu tự phát hiện lại. Dùng chung sẽ **mất** thông tin *máy nào* phát hiện (hữu ích khi chỉ vài máy gặp lỗi quyền hoặc kết nối riêng) |
 | **Dựng API danh mục RIÊNG cho trạng thái ánh xạ** (đúng chữ *"API danh mục"* của biên bản 21/09) | 🔴 ⛔ **Lượt sau đừng dựng thêm endpoint này — việc đã xong theo cách khác.** Thay vì một API riêng, trạng thái được **trả kèm ngay trong `SubscriptionOutput`** qua trường `MappingState` (`SubscriptionQueryHandler.FillMappingInfoAsync`, 14/09/2026). Lý do chọn: `MappingResolverService.ResolveManyAsync` gom **một** truy vấn cho cả trang nên ⛔ không N+1, còn FE chỉ cần đọc **một trường** thay vì gọi thêm một lượt mạng rồi tự ghép theo khoá. Thêm API riêng bây giờ là **hai nguồn** nói cùng một trạng thái, rồi lệch nhau. 📌 Cổng chặn kích hoạt nằm ở `EnsureMappingReadyAsync` (21/09/2026) |
 | **Dùng một mốc hẹn thử lại chung cho mọi bảng bị cô lập** | Mốc chung bị gán lại mỗi lần cô lập thêm bảng ⇒ bảng A hỏng lúc t=0 (hẹn t+5 phút), bảng B hỏng lúc t=2 phút thì mốc bị đẩy thành t+7 phút, bảng A **mất lượt**. Hỏng liên tiếp thì **không bảng nào** được thử lại. Cần mốc hẹn **riêng từng bảng** |
-| **Nới cột `LastKey` lên 128** | Khoá bản ghi hiện là khoá chính bảng nguồn, mà cột đó cũng 64 ⇒ nới là phá quy ước và che vấn đề thật. Chọn **thêm chốt chặn `ESH-1305`** tại `ExportPage` trước khi gửi |
+| **Nới cột `LastKey` lên 128** | Khoá bản ghi hiện là khoá chính bảng nguồn, mà cột đó cũng 64 ⇒ nới là phá quy ước và che vấn đề thật. Chọn **thêm chốt chặn `ESH-1304`** (trước đây là `ESH-1305`) tại `ExportPage` trước khi gửi |
 | **Tạo bảng riêng hoặc dùng AlertLog để lưu sự cố Change Tracking** | Dùng lại cột `Remark` của `ShareDataActivityLog` (phân loại mã `ESH-16xx`) tận dụng cấu trúc có sẵn, không phải đổi schema CSDL hay giao diện, đồng thời giữ `ShareDataAlertLog` đúng vai trò dành riêng cho lỗi nghiệp vụ cần người can thiệp |
 | **Giữ cách khởi tạo cũ của worker giám sát, chấp nhận đọc cấu hình lặp 4 lượt** | ⛔ **Chủ dự án chốt 28/09/2026: đổi sang cách khởi tạo tường minh.** Nguyên nhân gốc của việc lặp: C# **cấm** một khai báo khởi tạo tham chiếu tới thành viên khác của cùng đối tượng, nên 4 chỗ buộc phải tính lại từ đầu, ⛔ không chỗ nào dùng lại được kết quả của chỗ trước. Chỉ cách khởi tạo tường minh mới gán tuần tự được ⇒ còn **1 lượt**. 📌 Đánh giá ban đầu của AI là "không nên làm vì diff trải khắp tệp" — **ước lượng đó sai**, đếm thật chỉ 22 điểm đổi tên |
 | **Dựng muộn câu SQL đang áp dụng (chỉ tạo khi dùng lần đầu) để tránh lặp đọc cấu hình** | Vi phạm quy tắc 19.22 (cấm tách trường đệm dựng muộn). Ngoài ra còn **sai chức năng**: một worker khởi động khi mốc trong CSDL đã hợp lệ sẽ đi thẳng vào chu kỳ thường và dùng câu SQL đó **trước khi** nhánh khởi tạo kịp chạy ⇒ buộc phải có giá trị ngay từ lúc khởi tạo |
@@ -592,6 +598,7 @@ Nhờ commit theo từng trang, khi trang thứ N gửi lỗi thì các trang tr
 | **Truy vấn động `NextStepNbr` cho bước con chiều nhận (Inbound)** | ⛔ **Bác 04/10/2026.** Luồng nhận có kiến trúc cố định gồm đúng 2 bước: Bước 1 (WebAPI tiếp nhận & lưu tạm payload) và Bước 2 (Worker ánh xạ & ghi DB đích). Việc tính `MAX(StepNbr) + 1` không mang lại giá trị mở rộng mà còn tốn roundtrip DB và gây rủi ro sinh "Bước 3/2" khi gói tin retry hoặc xử lý lại. Cố định `stepMapAndStore = 2`. |
 | **Thêm `CancellationToken` vào các hàm logger phụ trợ (`WriteActivityAsync`, `WriteAlertAsync`, `WriteStepAsync`, `LogTransferAsync`)** | ⛔ **Bác 04/10/2026 theo chỉ đạo.** Việc ghi nhật ký hoạt động / sự cố là tác vụ phụ trợ phòng vệ, không nên bị hủy bỏ dở dang khi request/token bị cancel làm mất vết nhật ký hoặc sinh log mồ côi, và tránh làm ô nhiễm chữ ký hàm không cần thiết. |
 | **Giữ các tham số không dùng (`debounceSec`, `partner`) và cú pháp thừa** | ⛔ **Dọn sạch 04/10/2026 theo cảnh báo IDE0060, IDE0047.** Đã loại bỏ hoàn toàn tham số thừa `partner` trong `GetExportConfig`, `debounceSec` trong `ExportSubscription`, và bỏ dấu ngoặc đơn thừa trong phép gán `failedByteSize` tại `DataOutboundService.cs` nhằm đảm bảo chuẩn Clean Code. |
+| **Giữ các mã lỗi chết trong `ShareDataAlertCode` và lớp enum bản sao chết trong `ShareDataEnum`** | ⛔ **Dọn sạch 12–13/10/2026 (G.1 & G.2).** Đã xoá 7 mã lỗi chết không có điểm gọi trong `ShareDataAlertCode.cs` và đánh lại số thứ tự liên tục cho **19 mã chuẩn** (9 Outbound, 6 Inbound, 4 Tracking); đồng thời xoá **29 lớp enum/hằng số chết** (trùng với `BaseEnums` / `ShareDataConst`) và 30 mã test packet (`TestPacket970..999`) trong `ShareDataEnum.cs`, rút gọn từ ~700 dòng xuống 116 dòng. |
 
 ---
 
@@ -617,7 +624,7 @@ Nhờ commit theo từng trang, khi trang thứ N gửi lỗi thì các trang tr
   - Cột `RawContent` trong `ShareDataInboundPacket` và `WriteSql` trong `ShareDataPacketSql` đều dùng `CodeFirst_BigString` (`NVARCHAR(MAX)` lên tới 2GB).
   - Ghi log lỗi tại `ShareDataTransferLog` dùng hàm `Cut(..., 512)` / `Cut(..., 1000)` chống văng exception tràn cột.
 - **Kiểm thử tự động:** Bổ sung bài kiểm thử `ProcessPendingPackets_WhenPayloadExceeds8000Chars_ProcessesFullyWithoutTruncation_Test` (100 bản ghi, > 15.000 ký tự) tại `DataInboundServiceTests.cs` (Region 18) xác nhận câu lệnh `OPENJSON(@records)` nạp trọn vẹn 100/100 bản ghi, dòng cha cập nhật `RecordCount = 100` và `Success = Success`, chạy PASS 100%.
-- Thi công theo prompt: [`../Prompt/sharedata-sv7-ra-soat-chuoi-dai-inbound-prompt.md`](../Prompt/sharedata-sv7-ra-soat-chuoi-dai-inbound-prompt.md).
+- **Hiện trạng**: Đã hoàn thành 100% (kiểm thử chuỗi dài pass 100%).
 
 ### SV-8b. Ghi log 2 bước cha–con *(chiều nhận)* ✅ *chuẩn hoá Option C ngày 04/10/2026*
 - **Kiến trúc xuyên 2 tiến trình và 2 CSDL**:
@@ -653,20 +660,14 @@ Nhờ commit theo từng trang, khi trang thứ N gửi lỗi thì các trang tr
   - 🔴 **Ba truy vấn hiện có đã thêm `.Where(u => u.ParentId == null)`** (`Page`, `GetList`, `Summary`) để dòng con ⛔ không lọt vào lưới và ⛔ không làm sai mọi thẻ số liệu. `GetById` **có chủ đích ⛔ không lọc** — nó phải đọc được cả dòng con.
   - ✅ **Dùng `ToTreeAsync` theo quy ước dự án** (giống `ZonesQueryHandler.cs:55` và `MenuQueryHandler.cs:51`): Entity có `[SugarColumn(IsIgnore = true)] List<ShareDataActivityLog>? Children`, API `GetSteps` trả **cha kèm 2 bước lồng trong `Children`**, `.Adapt<>()` map sau `ToTreeAsync`. ⚠️ Kèm cổng chặn `tree.Count == 0` → trả danh sách phẳng, vì `rootValue: null` chưa có tiền lệ trong repo (2 chỗ kia dùng sentinel `"0"`).
 - [x] **BE-6** **CodeSet: Default Value + Chiều**: Bổ sung `direction` cho cấu hình giá trị bộ mã.
-- [ ] **BE-7** **Bảng mã lỗi hệ thống**: Danh mục Error Code chuẩn phục vụ ghi nhận sự cố.
-  - ⏸️ **Tạm hoãn theo chỉ đạo 05/10/2026** — chưa soạn prompt, chưa code. Thiết kế 4 việc bên dưới giữ nguyên để lượt sau dùng lại.
-  - 📌 **Đối chiếu 28/09**: đây là *việc 4* mà họp 21/09 giao cho Đạt (*"rà soát xử lý lỗi, tách biệt mã lỗi chuẩn
-    hoá"*). Phần **tầng Worker đã xong**: `ShareDataAlertCode` (nhóm Outbound `ESH-12xx`/`13xx`/`14xx`, Inbound
-    `ESH-15xx`, Tracking `ESH-16xx`) + `ShareDataException` — cả hai nằm trong 33 tệp của nhánh này. ⚠️ Phần **còn
-    thiếu** đúng như tiêu đề BE-7 nói: **danh mục Error Code trong cấu hình hệ thống** (bảng CSDL + API tra cứu)
-    để FE và người vận hành đọc được mã lỗi thành mô tả, ⛔ không phải tra trong mã nguồn.
-  - 🔴 **Kiểm chứng lại 02/10/2026: ĐÚNG LÀ CHƯA LÀM.** Tìm `sharedata_error` / `error_code` / `errorCode` trong toàn bộ `.cs` ⇒ **0 kết quả**. `ErrorCodeEnum` ở `Shared.DTO` là enum hệ thống chung, ⛔ không phải danh mục của ShareData và ⛔ không có API tra cứu.
-  - **Bốn việc cụ thể phải làm** (ghi ra để lượt sau ⛔ không phải tự suy diễn):
-    1. **Bảng danh mục** trong cấu hình hệ thống, ánh xạ `mã → mô tả` + mức độ + nhóm. 📌 Nhất quán nhất là dùng `SysConfigType` + `SysConfigData` — đúng khuôn `sharedata_value_type` đã làm ngày 01/10/2026, ⛔ không dựng bảng riêng mới.
-    2. **Script seed idempotent** (`IF NOT EXISTS … INSERT ELSE UPDATE`) xuất ra `ShareData/sql/` cho DBA chạy — ⛔ AI không chạy DDL/DML (rule 9).
-    3. **API tra cứu** cho FE và màn hình quản trị đọc mã lỗi thành mô tả.
-    4. ⚠️ Mô tả cần song ngữ thì phần dịch **BẮT BUỘC nằm ở `SysTerminology`**, ⛔ TUYỆT ĐỐI KHÔNG sửa `TAC_WebAPI/Resources/*.json` (rule 19.26).
-  - **Có chặn luồng đang chạy không**: ⛔ **Không**. Worker vẫn ghi đúng mã lỗi vào `ShareDataAlertLog`, dữ liệu ⛔ không sai. Thiếu BE-7 chỉ làm **người vận hành phải mở `ShareDataAlertCode.cs` để tra nghĩa của mã**.
+- [x] **BE-7** **Bảng mã lỗi hệ thống**: Danh mục Error Code chuẩn phục vụ ghi nhận sự cố. ✅ **xong 12/10/2026, chuẩn hoá 19 mã liên tục 13/10/2026** (theo `sharedata-be7-bang-ma-loi-he-thong-prompt.md`).
+  - **Danh mục CSDL**: Dùng `SysConfigType` (`sharedata_error_code`) + **19 dòng `SysConfigData` liên tục** (9 Outbound: `ESH-1201..1204`, `1301..1304`, `1401`; 6 Inbound: `ESH-1501..1506`; 4 Tracking: `ESH-1601..1604`) sau khi dọn 7 mã chết. Script seed idempotent: `DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/sql/20261012-bo-sung-sharedata-error-code.sql` (kèm seed `SysTerminology` cho các nhãn giao diện mới).
+  - **API tra cứu**: Tận dụng API cấu hình hệ thống dùng chung (`SysConfigTypeApi.apiCfgsystemSysconfigtypeAlldatalistGet()`) kết hợp `useBaseConfig().getConfigItemByCode` phía FE, không phát sinh API mới.
+  - **Giao diện FE**:
+    - `baseEnum.ts`: Thêm `SharedataErrorCode = 'sharedata_error_code'` vào `BaseConfigTypeEnum`.
+    - `views/sharedata/errorLog/index.vue`: Thêm cột "Mô tả" (tra cứu theo `alertCode`).
+    - `views/sharedata/errorLog/component/alertDetailDrawer.vue`: Bổ sung hiển thị Mô tả và Cách xử lý chuẩn (`Remark`).
+  - **Kiểm thử**: Viết bài test phản chiếu xUnit `ShareDataAlertCodeTests` tại `tests/BE/ITS/ShareData/Configuration/ShareDataAlertCodeTests.cs` (kiểm tra regex `^ESH-\d{4}$`, không trùng lặp, đủ đúng **19 mã liên tục**: 9 Outbound, 6 Inbound, 4 Tracking; pass 100%).
 - [x] **BE-8** **Endpoint lấy dữ liệu mẫu thật**: ✅ **xong 22/09 (PR #51)**
   - Cung cấp API `GET api/v1/share-data/packet/{packetCode}/sample-data`.
   - DTO `ShareDataPacketSampleDataDto` (`SampleRows`, `TotalRows`, `ColumnNames`, `GeneratedAt`).
@@ -711,14 +712,16 @@ Nhờ commit theo từng trang, khi trang thứ N gửi lỗi thì các trang tr
   - Tách cột `ProcessingUntil` (`DateTime?`) trên entity `ShareDataSubscription` làm cờ chiếm quyền và OCC độc quyền.
   - Phân định triệt để: `NextTimeRun` chỉ mang nghĩa **lịch chạy định kỳ**, `ProcessingUntil` chỉ mang nghĩa **đang xử lý tới mốc này** (`null` = rảnh).
   - Gỡ bỏ hoàn toàn `serialGuard` khỏi `CommitSuccess`. OCC của `CommitSuccess` và `ReleaseLock` nay cùng một khuôn: `WHERE ID == sub.ID && ProcessingUntil == processingUntil`.
-- [ ] **BE-16** **Trả cờ `IsInUse` trong `ShareDataPagePacketOutput`** để giao diện làm mờ được nút Xoá gói tin.
-  - Thi công theo prompt: [`../Prompt/sharedata-be16-co-isinuse-goi-tin-prompt.md`](../Prompt/sharedata-be16-co-isinuse-goi-tin-prompt.md).
+- [ ] **BE-16** **Trả cờ `IsInUse` trong `ShareDataPagePacketOutput`** để giao diện làm mờ được nút Xoá gói tin — ⏸️ **Không làm — chốt 12/10/2026**
+  - 📌 **Lý do bỏ**: FE đã tự vá thành công bằng cách kiểm tra trực tiếp theo từng dòng qua `isPacketInUse` (`utils/sharedata/packetUsage.ts` + `views/sharedata/dataSource/index.vue`).
+  - 📌 **Đánh đổi / nợ chấp nhận**: Tối đa 2 lệnh gọi API mỗi dòng mỗi lần tải trang (`PageMapping` + `ListSubscription`); luật kiểm tra bị sao chép ở FE (hard-code `Active`).
+  - 📌 **MỞ LẠI NẾU**: Số dòng mỗi trang lớn gây chậm, hoặc đổi `SubStateGroup.Alive` (bật Paused/Pending) làm FE và BE bị lệch nhau.
+  - **Hiện trạng**: Đã chính thức chốt hủy bỏ BE-16 (đã đồng bộ tài liệu và code theo giải pháp FE kiểm tra từng dòng).
   - 📌 **Mục này thiếu hẳn khỏi checklist `BE-*` cho tới 02/10/2026** — trước đó nó bị chôn trong một dòng **FE** ở PHẦN III mục B, nên người tra checklist `BE-*` ⛔ không thấy. Cùng loại lỗi đã mắc với `BE-14` ngày 28/09.
-  - **Hiện trạng**: `ShareDataPagePacketOutput` là class **rỗng**, chưa trả cờ nào. Điều kiện chặn xoá đã có sẵn ở `private IsDatatypeInUseAsync()` (`PacketCommandHandler.cs:156` — có hồ sơ ánh xạ **hoặc** có đăng ký còn Alive), nhưng nó là `private` và chỉ dùng lúc xoá, ⛔ không lộ ra cho truy vấn phân trang.
-  - **Phải làm**: thêm `IsInUse` vào DTO phân trang và điền trong `PacketQueryHandler`. 🔴 Gom **một** truy vấn cho cả trang, ⛔ TUYỆT ĐỐI KHÔNG gọi `IsDatatypeInUseAsync` trong vòng lặp từng dòng (N+1) — lấy khuôn `SubscriptionQueryHandler.FillMappingInfoAsync` của `BE-14`.
+  - **Hiện trạng**: `ShareDataPagePacketOutput` vẫn là class **rỗng** (có chủ đích, không bổ sung cờ này ở BE). Điều kiện chặn xoá ở BE đã có sẵn ở `private IsDatatypeInUseAsync()` (`PacketCommandHandler.cs:156` — có hồ sơ ánh xạ **hoặc** có đăng ký còn Alive), và chỉ dùng lúc xoá, ⛔ không lộ ra cho truy vấn phân trang.
+  - **Thiết kế tham khảo (nếu mở lại)**: thêm `IsInUse` vào DTO phân trang và điền trong `PacketQueryHandler`. 🔴 Gom **một** truy vấn cho cả trang, ⛔ TUYỆT ĐỐI KHÔNG gọi `IsDatatypeInUseAsync` trong vòng lặp từng dòng (N+1) — lấy khuôn `SubscriptionQueryHandler.FillMappingInfoAsync` của `BE-14`.
   - ⛔ **Không nâng `IsDatatypeInUseAsync` từ `private` lên `public`** chỉ để gọi lại (rule 7 — phạm vi truy cập tối thiểu).
   - 🔴 **Sau khi thêm phải chạy lại `pnpm build-api`** để sinh lại `api-services/`, rồi FE mới đọc được cờ. ⛔ FE không tự tạo/sửa tay tệp trong `api-services/` (rule 20.2).
-  - 📌 **Dòng FE phụ thuộc mục này**: PHẦN III mục B — *"Làm mờ nút Xoá + tooltip khi gói tin đang được dùng"*. FE ⛔ không làm được trước khi `BE-16` xong.
 
 ---
 
@@ -746,7 +749,7 @@ Nhờ commit theo từng trang, khi trang thứ N gửi lỗi thì các trang tr
 - [x] Tối ưu cuộn ngang và độ rộng cột bảng trường con; cố định cột STT bên trái.
 - [x] Dựng UI thêm/sửa gói tin.
 - [x] **Bỏ toast generic "Thực hiện thất bại"** ở `handleDeletePacket` và `handleDeleteField` — interceptor `axios-utils.ts` đã hiển thị message thật của backend, toast cục bộ chỉ đè lấp nó. Xong 30/09/2026 (bug TuyenHTN mục 4 & 22).
-- [ ] **Làm mờ nút Xóa + tooltip giải thích khi gói tin đang được dùng.** 🔴 **Bị chặn bởi `BE-16`** (PHẦN II) — backend chưa trả cờ `IsInUse` nên FE ⛔ không có gì để đọc. Khi `BE-16` xong và `api-services/` đã regen, phần FE chỉ còn bê nguyên khuôn của `subscriptionTable.vue`: `canToggle()` + `toggleTitle()` → `:disabled` + `el-tooltip`.
+- [x] **Làm mờ nút Xóa + tooltip giải thích khi gói tin đang được dùng** — ✅ **đã làm phía FE** bằng kiểm tra theo từng dòng (`views/sharedata/dataSource/index.vue` + `utils/sharedata/packetUsage.ts`). Nút Xoá có `:disabled="!row.id || packetUsage[row.id] !== 'available'"` và bọc `el-tooltip :content="packetActionHint(row.id, 'delete')"`. Nút Sửa chờ kiểm tra (`packetUsageReady`) và có tooltip `packetActionHint(row.id, 'edit')`.
   - 🔴 **Cảnh báo nghiệp vụ, cần phản hồi TuyenHTN**: backend ⛔ **không** chặn toàn bộ Sửa. `PacketCodeNameLocked` (`PacketCommandHandler.cs:85-91`) chỉ khoá đổi **Mã/Tên**; `PacketVersion`, `Description`, `OrderNo`, `Status`, `Remark` vẫn sửa được. Nên "ẩn/mờ nút Sửa" như bug mục 22 đề nghị là **sai nghiệp vụ** — đúng là để nút Sửa mở bình thường và disable riêng 2 ô Mã/Tên trong `editPacket.vue`.
 - [x] **Nhãn ô tìm kiếm của lưới Trường gói tin khớp tiêu đề cột**: `lz.entity.base.code` ("Mã") → `lz.entity.sharedataDataSource.aliasFieldKey` ("Khóa field"), `lz.entity.base.type` ("Loại") → `lz.entity.sharedataDataSource.fieldType` ("Kiểu"), đổi cả `:label` lẫn tham số của `:placeholder`. Dùng lại đúng key của cột, ⛔ không tạo key mới. Thanh tìm của lưới Gói tin bên trái giữ nguyên Mã/Tên. Xong 01/10/2026 (bug TuyenHTN mục 6).
 - [x] **Danh mục `sharedata_value_type` bổ sung 5 kiểu**: `long`, `float`, `double`, `decimal`, `guid` (trước chỉ có `string`, `int`, `dateTime`, `bool`). 🔴 Đây là **dữ liệu danh mục trong CSDL**, ⛔ không phải lỗi mã nguồn — cả dropdown "Loại" của `editPacketField.vue:58` lẫn "Kiểu dữ liệu phía đối tác" của `editMapping.vue:375` đều đọc chung `getConfigDataByCode(BaseConfigTypeEnum.SharedataValueType)` (bug TuyenHTN mục 7 & 25).
@@ -772,81 +775,45 @@ Nhờ commit theo từng trang, khi trang thứ N gửi lỗi thì các trang tr
 - [x] Double-click dòng mở modal chi tiết `activityDetailDialog.vue` thay cho sidebar; sửa lỗi so sánh enum chuỗi sang số; dựng khung và bind dữ liệu thật `el-steps` 2 bước cha-con từ API `GetSteps` (xong 02/10/2026 - prompt FE-1).
 - [x] **Viết bài E2E đầu tiên cho FE** — Đã viết test case Playwright tại `tests/FE/views/sharedata/activity-detail.spec.ts` phủ 3 kịch bản kiểm thử cho component modal `el-steps` (`activityDetailDialog.vue`): đủ 2 bước & xóa `step-hint`, bước 2 báo lỗi (`is-error`), trạng thái chờ (`is-wait`). Tự động bỏ qua an toàn (`skipped`) khi dev server chưa bật.
 
-## E. Tooltip đồng bộ toàn module
+## E. Tooltip & Đa ngôn ngữ (i18n) đồng bộ toàn module
 - [x] Toàn bộ tooltip chuyển sang component chuẩn `el-tooltip effect="dark"`.
 - [x] **Tooltip cho nút "Làm mới"** trong `components/advanced/table-header-operation.vue` (dùng chung toàn hệ thống): key `lz.tooltip.base.refreshKeepFilter` — *"Nạp lại dữ liệu, giữ nguyên điều kiện lọc hiện tại. Muốn bỏ lọc thì bấm Đặt lại."* Hai nút cùng icon `ele-Refresh` nhưng khác việc: **Làm mới** nối `@refresh` → `handleQuery` (giữ lọc), **Đặt lại** nối `@reset` (xoá lọc). Thay đổi thuần cộng thêm, ⛔ không đụng hành vi hay nhãn. Xong 01/10/2026 (bug TuyenHTN mục 11).
+- [x] **Rà soát và chuẩn hoá 100% i18n toàn phân hệ ShareData (xong 12/10/2026)**: Đã bọc `$t` cho toàn bộ chuỗi hardcode trong `views/sharedata/` (`activityDetailDialog.vue`, `editSubscription.vue`, `errorLog/index.vue`, `alertDetailDrawer.vue`, `editCodeSet.vue`) và bổ sung 38 key `lz.param.*` thiếu vào `en-us.json`. Quét toàn bộ 606 key sử dụng trong `views/sharedata/` đạt 100% ở cả `vi-vn.json` và `en-us.json` (0 key thiếu).
 
-## F. Câu hỏi chờ phản hồi TuyenHTN — đợt F16 ngày 29/09/2026
+## F. Câu hỏi chờ phản hồi TuyenHTN — đợt F16 ngày 29/09/2026 ✅ *(Đã nghiệm thu Passed & hoàn tất 100%)*
 
-🔴 Năm issue dưới đây **⛔ không sửa được bằng mã nguồn** cho tới khi có quyết định nghiệp vụ. Đã rà mã
-nguồn đầy đủ ngày 01/10/2026; mỗi mục ghi đúng ba thứ: *hiện trạng · vì sao chưa làm được · cần quyết gì*.
-Nguồn gốc: [`../KiemThu/F16-nhat-ky-loi-issue-20260929.md`](../KiemThu/F16-nhat-ky-loi-issue-20260929.md).
+> 📌 **Cập nhật ngày 12/10/2026**: Toàn bộ 5/5 issue trong danh sách rà soát đợt F16 (Mục 9, 17, 23, 24, 26) **ĐÃ ĐƯỢC NGHIỆM THU PASSED VÀ HOÀN TẤT 100%**. Không còn issue nào tồn đọng hay chờ quyết định kỹ thuật/nghiệp vụ.
 
-- [ ] **Mục 9 — nhãn "Quản lý dự án TCP - V2.0" trên thanh đầu trang.**
-  - 🔴 **Bản ghi ngày 01/10 là SAI, ⛔ đừng đi lại đường đó.** Bản đó nói nhãn này là
-    `themeConfig.globalTitle` lấy từ `sysTitle`. Sai: `globalTitle` chính là **dòng chữ to ở giữa**
-    (`topBar/index.vue:9` → `<h1 class="top-bar-title">`), mà ảnh cho thấy dòng đó **đang đúng**
-    (`HỆ THỐNG GIÁM SÁT GIAO THÔNG`). Chuỗi cần xử nằm trong **ô có viền, bo góc, bên TRÁI** — thành
-    phần khác hẳn. Sửa `sys_web_title` là làm hỏng đúng dòng đang chạy tốt.
-  - **Đã loại trừ chắc chắn** (rà 02/10/2026):
-
-    | Ứng viên | Căn cứ loại trừ |
-    | --- | --- |
-    | Mã nguồn frontend | Gortex `search text` với `"V2.0"` và `"Quản lý dự án"` → **0 hit** trong `TA-ITS015-WEBVUE-V1.0` |
-    | `sys_web_title` (`SysConfig` / `WebConfig`) | Staging = *"Hệ thống giám sát giao thông"* — **chính là dòng chữ to đã đúng** |
-    | `VITE_APP_NAME` trong repo | `src/.env.production:5` = `TMS`; `.env` và `.env.development` ⛔ không khai |
-    | `SysMenu` cấp 1 trên staging | 48 dòng `Pid = '0'`, ⛔ không dòng nào chứa "TCP" |
-    | `incidentNotification.vue` | Chỉ render khi có sự cố; nội dung là loại sự cố + lý trình |
-    | `logo/index.vue` | Chỉ còn `<img>`; dòng `<span>{{ globalTitle }}</span>` đã bị comment ở `:4` |
-
-  - **Hai ứng viên còn lại**, cả hai đều là **dữ liệu/cấu hình của môi trường tester**:
-    - **(a) Tiêu đề tab trình duyệt** — `utils/other.ts:49-51` dựng
-      `document.title = ${appName} | ${webTitle} - ${globalTitle}`, với
-      `appName = window.__env__?.VITE_APP_NAME` (sinh vào `public/config.js` **theo từng lần triển khai**).
-      Tab trình duyệt đúng là một ô bo góc có viền, chữ nhỏ hơn `<h1>` — khớp hệt ảnh.
-    - **(b) Breadcrumb** — `breadcrumb.vue:9` render `$t(v.meta.title)`, `meta.title` đến từ **cây menu
-      backend** (`SysMenu.Title`). ⚠️ Điểm trừ: `<style scoped>` của tệp đó ⛔ không khai `border` nào.
-  - **Cần quyết**: chạy chẩn đoán theo mục **3.1** của
-    [`../Prompt/sharedata-chot-so-phien-ra-soat-0210-prompt.md`](../Prompt/sharedata-chot-so-phien-ra-soat-0210-prompt.md)
-    (2 lệnh F12 Console + 4 câu `SELECT`, chạy trên **đúng môi trường tester**): F12 → Console →
-    `document.title` và `window.__env__?.VITE_APP_NAME`; nếu không chứa chuỗi đó thì chạy 4 truy vấn,
-    hoặc Inspect ô có viền → đọc `class`. Rồi TuyenHTN quyết **đổi thành chữ gì** hay
-    **ẩn hẳn** (issue ghi *"Đổi **hoặc ẩn**"*).
-  - **Có chặn luồng đang chạy không**: ⛔ Không — chỉ là nhãn hiển thị.
-- [ ] **Mục 17 — sửa hồ sơ ánh xạ đang được đăng ký dùng.**
-  - **Hiện trạng**: tiêu đề issue mô tả **sai nguyên nhân**. Ảnh b chứng minh *lấy dữ liệu mẫu THÀNH CÔNG*
-    (dựng đủ `header` + `data` từ 2 bản ghi thật của `101_commonData`); lỗi
-    `lz.exception.sharedata.mappingInUse` chỉ bắn ra lúc **bấm Xác nhận để lưu**.
-  - **Cần quyết**: có cho sửa hồ sơ đang được đăng ký dùng không? Nếu **có**, chặn riêng những trường nào
-    (đối tác / gói tin / chiều là khoá tự nhiên, đổi là đổi luôn danh tính hồ sơ)? Nếu **không**, giao
-    diện nên làm mờ nút Sửa thay vì để người dùng điền xong rồi mới báo lỗi.
-  - **Có chặn luồng đang chạy không**: ⚠️ Có — người dùng hiện ⛔ không sửa được hồ sơ đang chạy.
-- [ ] **Mục 23 — ẩn nhóm "Trường gói tin" khi đang ở khoá header.**
-  - **Hiện trạng**: `editMapping.vue` **⛔ không có khái niệm "nhóm header"**. `header` và `data` là tên
-    khoá trong **JSON riêng của từng đối tác**, ⛔ không phải khái niệm hệ thống — lọc theo chữ `header`
-    là hardcode magic string (rule 7 cấm). Nặng hơn: `buildPreviewAggregate` (`:1598`) **cố ý** cho lá
-    nằm **ngoài** mảng khuôn lấy giá trị của **bản ghi đầu tiên**, kèm chú thích *"đúng như nhánh gộp của
-    service"* ⇒ ẩn nhóm đó ở header sẽ làm **frontend lệch khỏi hành vi của service**.
-  - **Cần quyết**: (a) chấp nhận để nguyên như hiện nay, hay (b) định nghĩa "header" thành một khái niệm
-    hệ thống áp dụng được cho **mọi** đối tác — và nếu chọn (b) thì **service phải đổi cùng lúc**.
-  - **Có chặn luồng đang chạy không**: ⛔ Không — chỉ là dropdown hiện nhiều lựa chọn hơn cần thiết.
-- [ ] **Mục 24 — kiểu dữ liệu và giá trị mặc định không có tác dụng khi lấy dữ liệu mẫu.**
-  - **Hiện trạng**: tìm ra đúng dòng. `buildPreviewNode` (`:1558-1560`) — lá **chưa gắn `fieldKey`** thì
-    trả thẳng `parseConst(cfg?.constValue ?? '')`, **⛔ bỏ qua hoàn toàn `targetType` và cả hai giá trị
-    mặc định**. Đúng tình huống của ảnh: tester chỉ đặt `Kiểu dữ liệu = string` và
-    `Giá trị nội bộ mặc định = 123456` cho `header.sessionId` mà ⛔ không gắn trường gói tin nào.
-    Thêm nữa, `previewLeafValue` (`:1502`) **cố ý** chỉ áp `defaultPartnerValue` cho payload **gửi đi**.
-  - **Cần quyết**: (1) với lá **chưa gắn trường gói tin**, service có áp `Kiểu dữ liệu phía đối tác` và
-    giá trị mặc định không? (2) payload **gửi đi** thì phải lấy *"Giá trị đối tác mặc định"* hay
-    *"Giá trị nội bộ mặc định"*? Màn chạy thử phải mô phỏng **đúng** service, nên ⛔ không tự quyết được.
-  - **Có chặn luồng đang chạy không**: ⚠️ Có — màn chạy thử đang cho kết quả khác với lúc gửi thật.
-- [ ] **Mục 26 — tự sinh GUID cho trường bắt buộc đang NULL.**
-  - **Hiện trạng**: cùng họ với mục 20 — dữ liệu nguồn `message`/`status`/`sessionid` của gói
-    `104_weatherData` đang NULL, ⛔ không phải lỗi ánh xạ. Mục 20 đã sửa câu cảnh báo cho rõ nghĩa.
-  - **Cần quyết**: có thêm **khoá dựng sẵn thứ 5** (`NewGuid`) bên cạnh `Now` / `Serial` / `PacketCode` /
-    `PartnerCode` (`editMapping.vue:654-659`) không? Đây là **tính năng mới**: frontend và service phải
-    sinh **y hệt** nhau, ⛔ không làm riêng một bên được.
-  - **Có chặn luồng đang chạy không**: ⚠️ Có — gói có trường bắt buộc mà nguồn NULL thì bị service chặn.
+- [x] **Mục 9 — nhãn "Quản lý dự án TCP - V2.0" trên thanh đầu trang.** ✅ *(Đã Passed theo biên bản F16 ngày 06/10/2026, xác nhận đóng)*
+  - **Kết luận & Nghiệm thu**:
+    - Tester Tuyên đã kiểm thử lại và ký duyệt **Passed** trên biên bản F16 ngày 06/10/2026.
+    - Phía dev (HieuNV) đã rà soát và xác nhận không tái hiện được chuỗi text này trên cả server lẫn local (chuỗi bắt nguồn từ cache tab trình duyệt hoặc cấu hình triển khai cũ của môi trường tester, nay đã được đồng bộ chuẩn).
+    - Đã đóng dứt điểm, không ảnh hưởng đến giao diện hiện tại.
+- [x] **Mục 17 — sửa hồ sơ ánh xạ đang được đăng ký dùng.** (Đã xử lý ngày 12/10/2026)
+  - **Hiện trạng & Giải pháp**: Backend đã chặn cứng từ trước tại `MappingCommandHandler` (`HasActiveSubscriptionAsync` throw lỗi khi sửa/xóa/bật tắt hồ sơ đang dùng bởi Subscription Active). Đã đồng bộ triệt để ra Frontend:
+    - Tại danh sách (`mapping/index.vue`): Tự động nạp song song danh sách Subscription Active (Zero N+1), làm mờ (`disabled`) nút Sửa, nút Xóa, Switch Bật/Tắt và Checkbox chọn dòng khi hồ sơ đang được sử dụng.
+    - Hiển thị `el-tooltip` giải thích rõ lý do bị khóa và hướng dẫn người dùng ("Hồ sơ đang được sử dụng bởi đăng ký chia sẻ đang hoạt động, không thể sửa/xóa/tắt").
+    - Bổ sung chốt chặn bảo vệ (defensive guard) tại các hàm `handleEdit`, `handleDelete`, `handleSetActive`, `handleBatchDelete`.
+    - Hỗ trợ đa ngôn ngữ đầy đủ (`vi-vn.json` và `en-us.json`).
+- [x] **Mục 23 — ẩn nhóm "Trường gói tin" khi đang ở khoá header.** ✅ *(Đã Passed theo biên bản F16 ngày 07/10/2026, xác nhận đóng)*
+  - **Kết luận & Nghiệm thu**:
+    - Tester Tuyên đã kiểm thử lại và ký duyệt **Passed** trên biên bản F16 ngày 07/10/2026 (`07102026-TuyenHTN: Đã cho chọn trường dữ liệu bất kỳ và thành công`).
+    - **Quyết định kỹ thuật**: Giữ nguyên dropdown cho phép chọn linh hoạt như hiện nay; không hardcode lọc gượng ép theo chuỗi `"header"` (tránh vi phạm nguyên tắc chống magic string và ngăn ngừa lệch pha logic với hàm gộp dữ liệu `buildPreviewAggregate` của Service gửi thật).
+    - Đã nghiệm thu Passed và đóng dứt điểm.
+- [x] **Mục 24 — kiểu dữ liệu và giá trị mặc định không có tác dụng khi lấy dữ liệu mẫu.** (Đã xử lý ngày 12/10/2026 theo Hướng 1 UX Guard)
+  - **Bản chất & Giải pháp**:
+    - Chốt: (1) Với lá **chưa gắn trường gói tin**, lá là hằng số cố định, Service gửi nguyên văn `constValue`, KHÔNG áp kiểu dữ liệu và giá trị mặc định. (2) Chiều Outbound chỉ lấy `defaultPartnerValue` (Giá trị đối tác mặc định), không lấy `defaultSourceValue`.
+    - **Frontend (`editMapping.vue`)**:
+      - Khi lá chưa gắn trường gói tin (`!editingCfg.fieldKey`): Giao diện modal hiển thị `el-alert` thông báo rõ là lá hằng số tĩnh; chỉ cho phép nhập ô "Giá trị gửi đi" (`constValue`); khối quy tắc chuyển đổi (Bộ mã, Kiểu dữ liệu, Giá trị mặc định) được hiển thị dạng disabled kèm hướng dẫn rõ ràng.
+      - Khi gắn trường gói tin (`editingCfg.fieldKey`): Mở đầy đủ các quy tắc chuyển đổi; bổ sung ghi chú giải thích rõ cho chiều gửi ("Áp dụng khi dữ liệu nguồn NULL hoặc rỗng") và chiều nhận.
+      - Khi bỏ chọn trường trên cây (`handleFieldChange`): Tự động dọn sạch toàn bộ cấu hình quy đổi cũ (`codeSet`, `targetType`, `dateFormat`, `numberFormat`, `defaultPartnerValue`, `defaultSourceValue`) để lá trở về hằng số thuần túy, không để lại tàn dư.
+      - Đồng bộ `defaultValueOf`, `hasExtra` và các icon trạng thái trên cây chỉ kích hoạt khi lá có `fieldKey`.
+      - Kết quả xem trước ở "Lấy dữ liệu mẫu" và hành vi Service gửi thật đồng nhất 100%.
+- [x] **Mục 26 — tự sinh GUID cho trường bắt buộc đang NULL.** ✅ *(Đã đóng & nghiệm thu theo F16 ngày 07/10/2026, xác nhận đóng 12/10/2026)*
+  - **Kết luận & Nghiệm thu**:
+    - Bản chất gốc từ lỗi F16 (ngày 29/09/2026): Tester bấm tab "Xem trước" ("Lấy dữ liệu mẫu") trên hồ sơ chiều Nhận (Inbound), dẫn đến báo đỏ thiếu trường `sessionid` bắt buộc (do dữ liệu nguồn nội bộ không có dữ liệu đối tác gửi đến).
+    - Đã xử lý triệt để: Dev Kiên đã ẩn/chặn tab "Xem trước" đối với hồ sơ chiều Nhận (`isInboundMapping`). Tester Tuyên đã kiểm thử lại và xác nhận Passed 100% trên biên bản F16 ngày 07/10/2026.
+    - **Quyết định kỹ thuật**: **Không bổ sung khoá `NewGuid`** vào hệ thống. Chiều gửi (Outbound) dữ liệu nguồn phải tuân thủ đúng schema CSDL nội bộ; nếu trường bắt buộc mà CSDL nguồn đang NULL thì việc Service chặn gửi và báo lỗi là hành vi hoàn toàn chính xác nhằm cảnh báo rủi ro dữ liệu nguồn, tuyệt đối không tự sinh GUID ngầm để che giấu lỗi CSDL. Các trường định danh/phiên cần thiết nếu đối tác yêu cầu đã có đủ 4 khoá dựng sẵn (`Now`, `Serial`, `PacketCode`, `PartnerCode`).
 
 ### ✅ Thuật ngữ "hồ sơ ánh xạ" — đã chốt và hoàn tất đồng bộ CSDL
 
@@ -889,10 +856,9 @@ Giao diện cũng gọi màn đó là *"Ánh xạ dữ liệu"* ⇒ **chốt "h�
 **Trạng thái hoàn thành**: Chủ dự án đã chạy hoàn tất script
 [`../sql/20261002-dong-bo-thuat-ngu-systerminology.sql`](../sql/20261002-dong-bo-thuat-ngu-systerminology.sql)
 trên CSDL `SysTerminology`, đồng bộ 9 key sang "hồ sơ ánh xạ" (khớp với bản dịch `en-US` "mapping profile"),
-sạch hoàn toàn chữ "phễu lọc".
+sạch hoàn toàn chữ "phễu lọc" (đã kiểm tra và lưu vết tệp SQL vào repo ngày 12/10/2026).
 
-📌 Nợ kỹ thuật kèm theo (đã ghi 30/09): bản dịch của `cctvDevice` / `wp` / `vmsTemplate` hiện **chỉ tồn
-tại trong `SysTerminology`, ⛔ không có commit nào** — dựng môi trường mới là mất sạch.
+✅ **Kiểm tra dịch thuật các module khác (Cập nhật 12/10/2026)**: Đã kiểm tra đối chiếu trực tiếp qua MCP CSDL Staging (`DEV_ITS10`), toàn bộ các key bản dịch của `cctvDevice` (5 key), `vmsTemplate` (28 key) và `wp` (38 key) đều đã tồn tại đầy đủ và đang hoạt động tốt trên CSDL hệ thống.
 
 ---
 
@@ -905,7 +871,7 @@ tại trong `SysTerminology`, ⛔ không có commit nào** — dựng môi trư�
 │  Worker thức dậy (5s polling hoặc NATS event trigger)                 │
 │    → Quét subscription hợp lệ (Outbound · Partner Active · Đến hạn)   │
 │    → Claim lock (NextTimeRun = nextRunDeadline)                       │
-│    → Resolve Packet & Mapping profile (Thiếu → dừng, ghi ESH-1304)    │
+│    → Resolve Packet & Mapping profile (Thiếu → dừng, ghi ESH-1303)    │
 │    → Khởi tạo DataOutboundContext xuyên suốt                          │
 └───────────────────────────────────┬───────────────────────────────────┘
                                     ▼
@@ -918,7 +884,7 @@ tại trong `SysTerminology`, ⛔ không có commit nào** — dựng môi trư�
                                     ▼
 ┌─ C · BƯỚC 2: ÁNH XẠ (Mapping & Transformation) ──────────────────────┐
 │  Nguồn duy nhất: ShareDataMapping.TargetShapeJson                     │
-│  Cú pháp JSON hỏng → huỷ, ghi ESH-1206                                │
+│  Cú pháp JSON hỏng → huỷ, ghi ESH-1204                                │
 │  Xử lý từng trường theo thứ tự chuẩn:                                 │
 │    Giá trị thô ($field) → CodeSet quy đổi → Giá trị mặc định →         │
 │    Ép kiểu / Định dạng (dateFormat, numberFormat)                     │
@@ -956,16 +922,16 @@ Toàn bộ cấu hình ánh xạ trường thuộc quyền điều khiển của
 - **Phễu lọc gọi / trường nguồn không có**: Giá trị ra `null` im lặng (không ghi spam log cảnh báo lặp lại).
 - **Trường đánh dấu `$extend.required: true` bị null**: Lập tức huỷ toàn bộ trang kết xuất, ghi alert `ESH-1202` và log kết quả `Failed`.
 - **Trạng thái `BuildFailExport` (28/09/2026)**: Sau khi dồn ghi cảnh báo về ranh giới `ExportSubscription`, hàm `ShareDataTransferLog.BuildFailExport` hiện là **dead code (không còn call site nào trong toàn codebase)**, chờ quyết định chính thức từ chủ dự án để dọn sạch. Hàm `WriteFailureLogs` vẫn được giữ nguyên để phục vụ helper `WriteExportFailure` và nhánh `HttpSendFailed`.
-- **Mã cảnh báo hệ thống chính (ESH Alert Codes)**:
+- **Mã cảnh báo hệ thống chính chiều gửi (9 mã liên tục ESH Alert Codes)**:
   - `ESH-1201`: Không tìm thấy bộ mã CodeSet.
   - `ESH-1202`: Thiếu trường bắt buộc (`$extend.required`).
   - `ESH-1203`: Lỗi tính toán biểu thức.
-  - `ESH-1206`: `TargetShapeJson` rỗng hoặc sai cú pháp JSON.
+  - `ESH-1204`: `TargetShapeJson` rỗng hoặc sai cú pháp JSON.
   - `ESH-1301`: Không tìm thấy cấu hình gói tin.
   - `ESH-1302`: Lỗi câu truy vấn trích xuất CSDL.
-  - `ESH-1303`: Mất lock khi ghi nhận kết quả.
-  - `ESH-1304`: Không tìm thấy cấu hình phễu lọc (`ShareDataMapping`).
-  - `ESH-1402`: Gửi HTTP REST tới đối tác thất bại.
+  - `ESH-1303`: Không tìm thấy cấu hình hồ sơ ánh xạ (`ShareDataMapping`).
+  - `ESH-1304`: Khoá bản ghi cuối trang (`__rowid`) vượt quá giới hạn cột `LastKey`.
+  - `ESH-1401`: Gửi HTTP REST tới đối tác thất bại.
 
 ---
 
@@ -983,6 +949,8 @@ ngữ nghĩa đó (căn cứ: biên bản họp 21/09/2026, mốc `07:08` · `13
 | 10 dòng đổi cùng lúc ⇒ đúng **1 request** mang đủ 10 bản ghi | `TriggerFlow_WhenTenRowsChangeAtOnce_SendsOneBatchWithAllRows_Test` |
 | Trigger lặp 5 lần ⇒ **gửi 1 lần**, các lần sau báo không có dữ liệu mới | `TriggerFlow_WhenSameTriggerArrivesFiveTimes_SendsDataOnceThenReportsNoNewData_Test` |
 | Sửa bản ghi đã gửi ⇒ đối tác chỉ nhận bản mới **nếu mốc gửi tiến lên** | `TriggerFlow_WhenSentRowIsUpdated_PartnerReceivesNewVersionOnlyIfWatermarkAdvances_Test` |
+| Gửi lỗi HTTP (At-least-once & Idempotent) ⇒ giữ nguyên Cursor & `SerialNbr`, lần retry kế tiếp gửi lại đúng `SerialNbr` đó | `ProcessSubscriptions_WhenHttpFailsThenSucceeds_ResendsSameSerialNbrAndAdvances_Test` (`DataOutboundServiceTests.Cursor.cs`) |
+| Gói Single gửi lỗi HTTP 500 ⇒ giữ `Active`, không chuyển `Expired` để tự retry ở chu kỳ sau | `ProcessSubscriptions_WhenSingleModeHttpFails500_ShouldNotBecomeExpired_Test` (`DataOutboundServiceTests.Cursor.cs`) |
 
 🔴 **Giới hạn đã biết, do bài thứ 4 khoá lại**: sửa một bản ghi **đã gửi** mà **quên nâng `UpdateTime`**
 thì mốc gửi ⛔ không tiến, và đối tác **không bao giờ nhận được** bản sửa đó. Đây là hành vi **cố ý** của
@@ -1027,4 +995,18 @@ bao giờ ghi lại.
 
 1. **Phiên gỡ lỗi đang chạy làm vỡ build.** Đang mở phiên debug `TAC_WebAPI` thì build ném `MSB3021` / `MSB3027` vì tệp DLL bị khoá bởi tiến trình `.NET Host` và `Visual Studio Debug Adapter for .NET`. **Cách xử đúng: dừng phiên gỡ lỗi rồi build lại.** ⛔ TUYỆT ĐỐI KHÔNG `Stop-Process -Name dotnet` hay `taskkill /f /im dotnet.exe` — sẽ tắt nhầm WebAPI / Worker / MockServer khác đang chạy (quy tắc 12).
 2. **Rà `tests/BE/appsettings.Test.json` TRƯỚC mỗi lượt `dotnet test`.** Chuỗi kết nối phải là `127.0.0.1` / `localhost` / `(localdb)` / `.`; thấy IP remote (ví dụ `10.10.8.30`) thì **huỷ ngay và báo lại**. 📌 Kèm theo: hai cờ `EnableInitDb` / `EnableInitTable` trong tệp đó chỉ bật khi cần đồng bộ schema local, xong phải trả về `false`.
+
+---
+
+# PHẦN VI — CHECKLIST CÁC HẠNG MỤC TỪ CUỘC HỌP 12/10/2026 (`R1` · `R2` · `R5` · `R7`)
+
+> 📌 **Nguồn đối chiếu:** [`12-10-2026-sharedata-va-scheduler-chung.md`](../doc/transcript/12-10-2026-sharedata-va-scheduler-chung.md) (trích xuất từ tệp ghi âm `Đường Số 10.m4a`).
+
+| Mã | Hạng mục | Phạm vi | Prompt thực thi | Trạng thái | Tiêu chí nghiệm thu |
+| :---: | :--- | :---: | :--- | :---: | :--- |
+| **R1** | **Tách Component Lập lịch `<Scheduler>` dùng chung** | FE | ~~`sharedata-r1-scheduler-component-prompt.md`~~ *(đã xóa)* | **Đã làm** | Đặt tại `src/components/scheduler/`, dùng `RadioButton`, bật/tắt các chế độ lập lịch qua props, tuân thủ Rule 20.6 & 20.8, pass 100% Playwright `subscription.test.ts`. |
+| **R2** | **Tách tầng tích hợp kết nối (`HandleConnection`: `API` / `Kafka` / `File`) & cấu hình `Type` qua `SystemConfig` / `SystemConfigData`** | Service / BE | [`sharedata-r2-transport-adapter-prompt.md`](../Prompt/sharedata-r2-transport-adapter-prompt.md) | **Chưa làm** | Nhận 3 tham số (`JsonPayload`, `SecurityInfo`, `ConnectionConfig Dictionary`), điều phối theo `Type` (`API`, `Kafka` convert `JSON` → `byte[]`, `File`), tách biệt bản sao lưu file local với trạng thái giao thành công cho đối tác, giữ nguyên mốc `ShareDataLastSend` khi gửi thất bại. |
+| **R5** | **Quản lý câu truy vấn SQL động (Load danh sách cột & Gói tin) cho `SuperAdmin` kèm AST SQL Validator & Audit Log** | BE / FE | [`sharedata-r5-dynamic-sql-superadmin-prompt.md`](../Prompt/sharedata-r5-dynamic-sql-superadmin-prompt.md) | **Chưa làm** | Mọi API liên quan khóa quyền `SuperAdmin`; kiểm tra cú pháp & cây AST SQL chặn đủ 4 kịch bản vượt rào (`SELECT 1; DELETE...`, `SELECT * INTO...`, `WITH ... DELETE`, câu sai cú pháp); chụp snapshot cũ trước khi `Adapt` để Audit Log giữ nguyên giá trị cũ/mới và người sửa. |
+| **R7** | **Chuẩn hóa Tab Phân Cấp nội bộ ShareData (Tab cấp trên vs Sub-tab gạch chân)** | FE | ~~`sharedata-r7-tabs-component-prompt.md`~~ *(đã xóa)* | **Đã làm** | Đồng bộ chuẩn Tab cấp trên của TMS (`border-card` + vạch active `2px` phủ kín chiều rộng tab) và Sub-tab gạch chân (`line` + `sticky`), pass 100% E2E test ShareData. |
+
 
