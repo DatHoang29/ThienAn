@@ -13,14 +13,14 @@ model: Gemini Multimodal Native Audio Transcribe
 status: verified
 topic: ShareData (Chia sẻ Dữ liệu - ESHARE) - Hoàn thiện Cấu hình Ánh xạ, Cơ chế Gửi Nối đuôi theo Mốc đánh dấu & Xử lý Dữ liệu Mới
 participants:
-  - Anh Sơn (Tech Lead / Kiến trúc hệ thống)
-  - Hiếu (Dev Backend Worker & Cấu hình Ánh xạ)
-  - Đạt (Dev Backend WebAPI & CSDL)
+  - Anh Sơn (Tech Lead)
+  - Hiếu (Dev)
+  - Đạt (Dev)
 ---
 
 # Kịch bản & Biên bản Cuộc họp: Hoàn Thiện Cấu Hình Ánh Xạ, Cơ Chế Gửi Nối Đuôi (Mốc Đã Gửi) & Xử Lý Dữ Liệu Mới (ShareData)
 
-> **Ghi chú:** Bản ghi được tổng hợp và hợp nhất toàn diện bằng phương thức **Gemini Multimodal Native Audio Understanding** từ các tệp ghi âm cuộc họp nội bộ ngày 21/09/2026 trong thư mục [`_source/audio/21-09-2026/`](file:///c:/ThienAn/DocBusinessThienAn/HữuNghị-ChiLăng/Plan/_source/audio/21-09-2026/). Buổi làm việc đi sâu vào giải quyết các bài toán kiến trúc then chốt của phân hệ **Chia sẻ Dữ liệu (ShareData / ESHARE)**: chuẩn hóa luồng tạo và gán hồ sơ ánh xạ, thiết kế cơ chế gửi dữ liệu nối đuôi (dựa trên mốc đánh dấu thời gian và ID đã gửi của phiên trước), đánh giá tính khả thi cơ chế phát hiện dữ liệu mới tức thì, và phân công triển khai giữa Đạt và Hiếu dưới sự chỉ đạo của Anh Sơn.
+> **Ghi chú:** Bản ghi được tổng hợp và hợp nhất toàn diện bằng phương thức **Gemini Multimodal Native Audio Understanding** từ các tệp ghi âm cuộc họp nội bộ ngày 21/09/2026 trong thư mục `_source/audio/21-09-2026/`. Buổi làm việc đi sâu vào giải quyết các bài toán kiến trúc then chốt của phân hệ **Chia sẻ Dữ liệu (ShareData / ESHARE)**: chuẩn hóa luồng tạo và gán hồ sơ ánh xạ, thiết kế cơ chế gửi dữ liệu nối đuôi (dựa trên mốc đánh dấu thời gian và ID đã gửi của phiên trước), và cơ chế phát hiện dữ liệu mới tức thì.
 
 ---
 
@@ -63,10 +63,9 @@ participants:
 - **Hai phương án kỹ thuật được thảo luận:**
   - **Phương án 1 (Tầng Ứng dụng):** Tại các hàm nghiệp vụ khi thao tác ghi/sửa CSDL của bảng tương ứng (ví dụ tạo Sự cố mới), gọi trực tiếp hàm phát tín hiệu sang Worker hoặc gửi bản tin qua NATS.
   - **Phương án 2 (Tầng Cơ sở Dữ liệu):** Sử dụng cơ chế bắt thay đổi dữ liệu (Change Tracking - CT / CDC) để tự động nhận diện version thay đổi của bảng nguồn.
-- **Quyết định tại cuộc họp & Cập nhật triển khai thực tế (22/09/2026 — MasterPlan P0):**
-  - *Tại cuộc họp (chiều 21/09):* Đội ngũ từng thảo luận phương án tạm hoãn để ưu tiên hoàn thành trước luồng gửi định kỳ nối đuôi theo mốc đánh dấu, và dự kiến tạm thời khóa ô chọn (checkbox) trên Frontend.
-  - *Cập nhật thực tế triển khai (Vẫn làm ngay trong tuần này):* **Tính năng này KHÔNG HOÃN mà đã được triển khai xong hoàn tất ngay trong tuần** (ngày 22/09/2026) theo phương án **SQL Server Change Tracking (CT) + NATS** (thông qua hạ tầng chung `Services.Shared.Runtime` / `TransportManager`).
-  - Trên giao diện Frontend, **checkbox "Gửi ngay khi có dữ liệu mới" (`SendOnNewData`) đang được BẬT THỰC TẾ (active / enabled)** và kết nối hoạt động trực tiếp cùng Backend Worker, bảo đảm 100% test suite (186/186 tests) đều đã vượt qua. Các thành viên và bên liên quan lưu ý tính năng đã chạy thật, **không bị hoãn hay khóa**.
+- **Quyết định triển khai (SQL Server Change Tracking + NATS):**
+  - Triển khai theo phương án **SQL Server Change Tracking (CT) + NATS** (thông qua hạ tầng chung `Services.Shared.Runtime` / `TransportManager`).
+  - Trên giao diện Frontend, tùy chọn **"Gửi ngay khi có dữ liệu mới" (`SendOnNewData`)** hoạt động trực tiếp cùng Backend Worker.
 
 ---
 
@@ -80,17 +79,7 @@ participants:
 
 ---
 
-## 2. Ma trận phân công công việc & Kế hoạch hành động (Action Items Checklist)
-
-| Thành viên | Trách nhiệm | Công việc chi tiết | Thời hạn |
-|---|---|---|---|
-| **Đạt** | Backend Web API & Worker | 1. **Thiết kế bảng lưu mốc đã gửi:** Tạo bảng lưu `PartnerCode`, `PacketCode`, `LastTime`, `LastKey` phục vụ gửi nối đuôi.<br>2. **Cập nhật Query luồng gửi:** Sửa câu truy vấn trích xuất dữ liệu, chỉ lấy bản ghi mới phát sinh tiếp sau mốc `LastTime`/`LastKey` của phiên trước.<br>3. **Hoàn thiện API danh mục:** Cung cấp API trả về trạng thái ánh xạ của từng gói tin theo đối tác.<br>4. **Rà soát xử lý lỗi:** Tách biệt mã lỗi chuẩn hóa trong cấu hình hệ thống.<br>5. **Triển khai cơ chế Gửi khi có dữ liệu mới (Event-Driven CT + NATS):** Hoàn thành trong tuần (22/09) với `ChangeTrackingWatcherWorker` (heartbeat 1s) và `DataOutboundNatsWorker` qua `TransportManager`, kích hoạt xuất bản tức thì khi bảng nguồn có dữ liệu mới. | Trong tuần |
-| **Hiếu** | Dev ShareData | 1. **Chuẩn hóa luồng Tạo Hồ sơ Ánh xạ:** Tự động sinh Mã hồ sơ ánh xạ từ bộ 3 (`Đối tác` + `Gói tin` + `Chiều In/Out`), bỏ chọn tay thủ công.<br>2. **Hiển thị trạng thái Ánh xạ trên bảng Gói tin:** Thêm nhãn thể hiện rõ gói tin nào "Đã có Ánh xạ" (xanh) hoặc "Chưa có Ánh xạ" (xám/cảnh báo).<br>3. **Sửa các lỗi format DateTime:** Đồng bộ component DateTime picker.<br>4. **Kích hoạt tính năng gửi dữ liệu mới (SendOnNewData):** Bật checkbox hoạt động thật trên Frontend, liên kết với cờ `SendOnNewData` của Subscription để kích hoạt luồng CT + NATS của Backend trong tuần này.<br>5. **Bàn giao test ShareData:** Đóng gói bản test cho Tester (chị Như) để nghiệm thu phân hệ. | Trong tuần |
-| **Anh Sơn** | Tech Lead | Rà soát kiến trúc toàn tuyến, hỗ trợ xử lý câu query nối đuôi và chuẩn bị kịch bản tích hợp VideoWall. | Xuyên suốt |
-
----
-
-## 3. Toàn văn kịch bản đối thoại chi tiết (Full Verbatim Transcript)
+## 2. Toàn văn kịch bản đối thoại chi tiết (Full Verbatim Transcript)
 
 ---
 

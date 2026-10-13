@@ -7,6 +7,9 @@ source:
 date: 2026-09-19
 model: Gemini Native Audio Multimodal
 status: verified
+participants:
+  - Anh Sơn (Tech Lead)
+  - Hiếu (Dev)
 ---
 
 # Thảo luận ShareData — Bổ sung thông tin định danh vào HTTP Header luồng Gửi & Cơ chế nhận diện gói tin Inbound
@@ -44,8 +47,8 @@ status: verified
 ## 2. Toàn văn nội dung đối thoại hợp nhất (Full Verbatim Transcript)
 
 > **Quy ước định danh người nói:**
-> - **Người 1 (Hiếu - Dev):** Lập trình viên phụ trách luồng bóc tách dữ liệu và Mapping của ShareData Worker.
-> - **Người 2 (Anh Sơn - Tech Lead):** Trưởng nhóm kỹ thuật / Kiến trúc sư hướng dẫn giải pháp Header và quản lý Mapping trên RAM.
+> - **Người 1 (Hiếu - Dev)**
+> - **Người 2 (Anh Sơn - Tech Lead)**
 
 | Mốc thời gian | Người nói | Lời thoại chi tiết |
 | :---: | :---: | :--- |
