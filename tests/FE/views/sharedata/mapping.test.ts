@@ -71,10 +71,10 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
             await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: {} }) });
         });
         await page.route('**/api/cfgsystem/sysopconfig/alldatalist*', async (route) => {
-            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: [] }) });
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: {} }) });
         });
         await page.route('**/api/cfgsystem/sysconfigtype/alldatalist*', async (route) => {
-            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: [] }) });
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: {} }) });
         });
         await page.route('**/api/system/sysconfig/loadclientterm*', async (route) => {
             await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: {} }) });
@@ -321,9 +321,9 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
         const handleBox = await dragHandle.boundingBox();
         if (!before || !handleBox) throw new Error('Không lấy được vị trí dialog/drag-handle');
 
-        await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
+        await page.mouse.move(handleBox.x + 120, handleBox.y + handleBox.height / 2);
         await page.mouse.down();
-        await page.mouse.move(handleBox.x + 150, handleBox.y + 100, { steps: 10 });
+        await page.mouse.move(handleBox.x + 250, handleBox.y + 100, { steps: 10 });
         await page.mouse.up();
         await page.waitForTimeout(200);
 
@@ -517,6 +517,79 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
         expect(movedHeaderBox).not.toBeNull();
         // Xác nhận vị trí header di chuyển tịnh tiến xuống dưới, KHÔNG bị giật ngược
         expect(movedHeaderBox!.y).toBeGreaterThan(beforeDragY);
+    });
+
+    test('EC12 — Kiểm tra phân cấp 2 tầng Tab trong editMapping.vue: Tab cấp trên (.mp-direction-tabs border-card) và Sub-tab (.mp-tabs line sticky)', async ({ page }) => {
+        test.slow();
+        await page.goto('/#/sharedata/mapping');
+        const addBtn = page.locator('button:has(.ele-Plus), button:has-text("Thêm mới"), button:has-text("Thêm")').first();
+        await expect(addBtn).toBeVisible({ timeout: 60000 });
+        await addBtn.click();
+
+        const dialog = page.locator('.mp-dialog');
+        await expect(dialog).toBeVisible({ timeout: 5000 });
+
+        // 1. Kiểm tra Tầng 1: Tab cấp trên (.mp-direction-tabs) kiểu border-card với 3 chiều
+        const topTabs = dialog.locator('.mp-direction-tabs');
+        await expect(topTabs).toBeVisible();
+        await expect(topTabs).toHaveClass(/el-tabs--border-card/);
+
+        const tabOutbound = topTabs.getByRole('tab', { name: 'Gửi đi' });
+        const tabInbound = topTabs.getByRole('tab', { name: 'Nhận về' });
+        const tabBoth = topTabs.getByRole('tab', { name: 'Hai chiều' });
+        await expect(tabOutbound).toHaveClass(/is-active/);
+        const topTabIndicator = await tabOutbound.evaluate((el) => {
+            const after = window.getComputedStyle(el, '::after');
+            return { height: after.height, left: after.left, right: after.right };
+        });
+        expect(topTabIndicator).toEqual({ height: '2px', left: '0px', right: '0px' });
+        await expect(tabInbound).toBeVisible();
+        await expect(tabBoth).toBeVisible();
+
+        // 2. Kiểm tra Tầng 2: Sub-tab (.mp-tabs) kiểu line (không phải border-card) và sticky header
+        const subTabs = dialog.locator('.mp-tabs');
+        await expect(subTabs).toBeVisible();
+        await expect(subTabs).not.toHaveClass(/el-tabs--border-card/);
+        const subHeaderPos = await subTabs.locator('.el-tabs__header').evaluate((el) => window.getComputedStyle(el).position);
+        expect(subHeaderPos).toBe('sticky');
+
+        // Chọn Đối tác + Gói tin ở tab Thông tin chung để hiển thị mã sinh tự động
+        const partnerSelect = dialog.locator('.el-select').first();
+        await partnerSelect.click();
+        const subResponsePromise = page.waitForResponse(
+            (resp) => resp.url().includes('/api/sharedata/sharedatasubscription/list') && resp.status() === 200
+        );
+        await page.locator('.el-popper:visible .el-select-dropdown__item', { hasText: 'DT01' }).first().click();
+        await subResponsePromise;
+        await page.waitForTimeout(300);
+
+        const packetSelect = dialog.locator('.el-select').nth(1);
+        await expect(packetSelect).not.toHaveClass(/is-disabled/);
+        await packetSelect.click();
+        await page.locator('.el-popper:visible .el-select-dropdown__item', { hasText: '101_commonData' }).first().click();
+        await page.waitForTimeout(200);
+
+        // Chụp snapshot Modal Hồ sơ ánh xạ ở Sub-tab Thông tin chung
+        await page.screenshot({ path: 'test-results/snapshot-3a-modal-mapping-general-tab.png', fullPage: false });
+
+        // Chuyển sang Sub-tab Ánh xạ, phân tích JSON và cuộn xuống để thấy sticky sub-tab dưới top-level tab
+        const mappingSubTab = subTabs.getByRole('tab', { name: 'Ánh xạ' });
+        await mappingSubTab.click();
+        await expect(mappingSubTab).toHaveClass(/is-active/);
+        const subTabIndicator = await mappingSubTab.evaluate((el) => {
+            const after = window.getComputedStyle(el, '::after');
+            return { height: after.height, left: after.left, right: after.right };
+        });
+        expect(subTabIndicator).toEqual({ height: '2px', left: '0px', right: '0px' });
+        await page.waitForTimeout(300);
+        await partnerJsonTextarea(dialog).fill(genBigJson(20));
+        await dialog.getByRole('button', { name: 'Phân tích' }).click();
+        await page.waitForTimeout(500);
+        await scrollFormLocator(page).evaluate((el) => { el.scrollTop = 120; });
+        await page.waitForTimeout(200);
+
+        await page.screenshot({ path: 'test-results/snapshot-3b-modal-mapping-subtab-sticky.png', fullPage: false });
+        expect(await isHeaderWithinFormViewport(page)).toBe(true);
     });
 });
 

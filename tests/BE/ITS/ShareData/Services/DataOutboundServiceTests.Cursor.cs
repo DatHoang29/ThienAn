@@ -711,6 +711,199 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 .ToList();
         }
 
+        /// <summary>
+        /// Description: F3 - Gói Single khi gửi thất bại (HTTP 500) không được bị chuyển sang Expired
+        ///              mà phải giữ Active và có NextTimeRun để thử lại ở chu kỳ tiếp theo.
+        /// Created date: 12/10/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessSubscriptions_WhenSingleModeHttpFails500_ShouldNotBecomeExpired_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var partnerServer = _host.PartnerServer;
+            partnerServer.ResetDefaults();
+            partnerServer.DefaultStatusCode = HttpStatusCode.InternalServerError;
+            partnerServer.DefaultResponseBody = "Mock 500 Error";
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "103");
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var eqId = $"EQ_F3_{unique}";
+            await db.Insertable(new TmsEquipment { ID = eqId, Code = $"VDS_F3_{unique}", KmNumber = 45, MetNumber = 100 }).ExecuteCommandAsync();
+            var dbNow = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
+            var baseTime = dbNow.AddDays(-35);
+            var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_F3_{unique}",
+                SubCode = $"SUB_F3_{unique}",
+                DatatypeId = "103",
+                ConfigureSub = s =>
+                {
+                    s.Mode = BaseEnums.SubMode.Single;
+                    s.LastTimeRun = baseTime;
+                }
+            });
+            await SeedTrafficRows(db, eqId, $"F3{unique}-", baseTime, 5);
+
+            // Act
+            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
+
+            // Assert
+            var reloadedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
+            Assert.NotNull(reloadedSub);
+            // KỲ VỌNG: Gửi lỗi thì KHÔNG ĐƯỢC Expired! Phải giữ Active để retry!
+            Assert.Equal(BaseEnums.SubSubscriptionState.Active, reloadedSub.State);
+            Assert.NotNull(reloadedSub.NextTimeRun);
+        }
+
+        /// <summary>
+        /// Description: F4 - Kịch bản At-least-once: Khi gửi REST thành công nhưng mất lock lúc CommitSuccess
+        ///              (do timeout/OCC trượt), dòng log cha báo Fail, cursor KHÔNG tiến, SerialNbr KHÔNG tăng.
+        ///              Ở lượt quét tiếp theo, Worker tự động gửi lại đúng trang đó với cùng SerialNbr để đối tác nhận diện idempotent.
+        /// Created date: 12/10/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessSubscriptions_WhenLockLostAtCommit_KeepsCursorAndResendsWithSameSerialNbr_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var partnerServer = _host.PartnerServer;
+            partnerServer.ResetDefaults();
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "103");
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var eqId = $"EQ_F4_{unique}";
+            await db.Insertable(new TmsEquipment { ID = eqId, Code = $"VDS_F4_{unique}", KmNumber = 45, MetNumber = 100 }).ExecuteCommandAsync();
+            var dbNow = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
+            var baseTime = dbNow.AddDays(-35);
+            var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_F4_{unique}",
+                SubCode = $"SUB_F4_{unique}",
+                DatatypeId = "103",
+                ConfigureSub = s =>
+                {
+                    s.LastTimeRun = baseTime;
+                    s.SerialNbr = 10;
+                }
+            });
+            await SeedTrafficRows(db, eqId, $"F4{unique}-", baseTime, 5);
+
+            using var stealDb = db.CopyNew();
+            var callIndex = 0;
+            partnerServer.Responder = (call, req) =>
+            {
+                callIndex++;
+                if (callIndex == 1)
+                {
+                    // Lượt 1: Phá ProcessingUntil trong DB để CommitSuccess bị trượt OCC
+                    stealDb.Updateable<ShareDataSubscription>()
+                        .SetColumns(s => s.ProcessingUntil == DateTime.Now.AddDays(-1))
+                        .Where(s => s.ID == sub.ID)
+                        .ExecuteCommand();
+                }
+                return new PartnerResponsePlan(HttpStatusCode.OK, "{\"success\":true}");
+            };
+
+            // Act 1: Lượt đầu tiên chạy -> Gửi REST OK nhưng CommitSuccess thất bại do mất lock
+            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
+
+            // Assert 1:
+            // 1. Đối tác đã nhận 1 request
+            Assert.Equal(1, partnerServer.TotalReceivedRequests);
+            var req1 = partnerServer.ReceivedRequests[0];
+
+            // 2. Log cha ghi nhận Fail (mất lock khi commit)
+            var logs = await GetLogs(db, sub.ID);
+            var parent = logs.Single(l => l.ParentId == null);
+            Assert.Equal(BaseEnums.SuccessEnums.Fail, parent.Success);
+            Assert.Contains("Mất lock", parent.ErrorMessage ?? string.Empty);
+
+            // 3. Mốc cursor KHÔNG tiến, SerialNbr KHÔNG tăng trong DB
+            var subAfterFail = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
+            Assert.Equal(10, subAfterFail.SerialNbr);
+            Assert.Equal(baseTime, subAfterFail.LastTimeRun!.Value, TimeSpan.FromSeconds(1));
+
+            // Act 2: Cho Subscription đến hạn chạy lại ở lượt quét kế tiếp
+            await MakeSubscriptionDue(db, sub.ID);
+            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
+
+            // Assert 2:
+            // 4. Đối tác nhận thêm request thứ 2 (resend)
+            Assert.Equal(2, partnerServer.TotalReceivedRequests);
+            var req2 = partnerServer.ReceivedRequests[1];
+
+            // 5. Cả 2 request gửi sang đều có CÙNG SerialNbr header = 10 (chứng minh tính Idempotent)
+            var serial1 = req1.Headers.TryGetValue("SerialNbr", out var s1) ? s1 : null;
+            var serial2 = req2.Headers.TryGetValue("SerialNbr", out var s2) ? s2 : null;
+            Assert.NotNull(serial1);
+            Assert.Equal("10", serial1);
+            Assert.Equal(serial1, serial2);
+
+            // 6. Dữ liệu gửi đi ở 2 lượt giống hệt nhau
+            var plates1 = ExtractPlates(req1.Body, $"F4{unique}-");
+            var plates2 = ExtractPlates(req2.Body, $"F4{unique}-");
+            Assert.Equal(5, plates1.Count);
+            Assert.Equal(plates1, plates2);
+
+            // 7. Ở lượt 2 thành công, Cursor đã tiến lên và SerialNbr trong DB đã tăng từ 10 lên 11
+            var subAfterSuccess = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
+            Assert.Equal(11, subAfterSuccess.SerialNbr);
+            Assert.True(subAfterSuccess.LastTimeRun > baseTime);
+        }
+
+        /// <summary>
+        /// Description: F5 - Kiểm tra hành vi hiện tại: Khi gửi HTTP fail 500, fileSender vẫn chạy và ghi tệp ra đĩa
+        ///              nhưng toàn bộ lượt gửi bị coi là thất bại, cursor không tiến.
+        /// Created date: 12/10/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessSubscriptions_WhenHttpFails500_FileSenderStillWritesFile_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var partnerServer = _host.PartnerServer;
+            partnerServer.ResetDefaults();
+            partnerServer.DefaultStatusCode = HttpStatusCode.InternalServerError;
+            partnerServer.DefaultResponseBody = "Mock 500 Error";
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "103");
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var eqId = $"EQ_F5_{unique}";
+            await db.Insertable(new TmsEquipment { ID = eqId, Code = $"VDS_F5_{unique}", KmNumber = 45, MetNumber = 100 }).ExecuteCommandAsync();
+            var dbNow = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
+            var baseTime = dbNow.AddDays(-35);
+            var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_F5_{unique}",
+                SubCode = $"SUB_F5_{unique}",
+                DatatypeId = "103",
+                ConfigureSub = s => s.LastTimeRun = baseTime
+            });
+            await SeedTrafficRows(db, eqId, $"F5{unique}-", baseTime, 5);
+
+            // Act
+            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
+
+            // Assert
+            // 1. HTTP gửi thất bại -> Log cha là Fail
+            var logs = await GetLogs(db, sub.ID);
+            var parent = logs.Single(l => l.ParentId == null);
+            Assert.Equal(BaseEnums.SuccessEnums.Fail, parent.Success);
+
+            // 2. Cursor không tiến
+            await AssertCursorUnchanged(db, partner.Code, sub.ID, baseTime);
+
+            // 3. NHƯNG File vẫn bị ghi ra đĩa dù HTTP thất bại! (Hành vi F5)
+            Assert.False(string.IsNullOrWhiteSpace(parent.FilePath), "FilePath trong log không được rỗng");
+            var fullPath = Path.Combine(Directory.GetCurrentDirectory(), "sharedata/send", parent.FilePath!);
+            Assert.True(File.Exists(fullPath), $"File [{fullPath}] vẫn bị ghi ra đĩa dù HTTP fail");
+            if (File.Exists(fullPath)) File.Delete(fullPath);
+        }
+
         #endregion
     }
 }

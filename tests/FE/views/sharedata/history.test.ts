@@ -33,21 +33,40 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
             }));
         }, mockToken);
 
-        // 3. Mock API Auth UserInfo: /api/system/sysuser/info (POST)
+        // Fallback: Chặn mọi request /api/** lọt ra server thật gây lỗi hoặc treo proxy
+        await page.route('**/api/**', async (route) => {
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: null }) });
+        });
+
+        // 3. Mock API Auth UserInfo
+        const mockUserInfo = {
+            code: 200,
+            result: {
+                account: 'admin',
+                realName: 'Administrator',
+                accountType: '111',
+                roles: ['admin'],
+                authBtnList: ['*'],
+                defaultMenu: '/sharedata/history',
+            },
+        };
+        await page.route('**/api/system/sysauth/userinfo*', async (route) => {
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockUserInfo) });
+        });
         await page.route('**/api/system/sysuser/info*', async (route) => {
-            await route.fulfill({
-                status: 200,
-                contentType: 'application/json',
-                body: JSON.stringify({
-                    code: 200,
-                    result: {
-                        account: 'admin',
-                        realName: 'Administrator',
-                        roles: ['admin'],
-                        authBtnList: ['*'],
-                    },
-                }),
-            });
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockUserInfo) });
+        });
+        await page.route('**/api/system/sysconfig/sysinfo*', async (route) => {
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: {} }) });
+        });
+        await page.route('**/api/system/sysconfig/loadclientterm*', async (route) => {
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: {} }) });
+        });
+        await page.route('**/api/cfgsystem/sysopconfig/alldatalist*', async (route) => {
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: {} }) });
+        });
+        await page.route('**/api/cfgsystem/sysconfigtype/alldatalist*', async (route) => {
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: {} }) });
         });
 
         // 4. Mock API Menu Tree: /api/system/sysmenu/loginmenutree (GET)
@@ -186,6 +205,7 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
                                     id: 'CHILD_STEP_1',
                                     parentId: mockParentId,
                                     stepNo: 1,
+                                    stepNbr: 1,
                                     success: 1,
                                     description: 'Trích xuất thành công 10 bản ghi',
                                 },
@@ -193,6 +213,7 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
                                     id: 'CHILD_STEP_2',
                                     parentId: mockParentId,
                                     stepNo: 2,
+                                    stepNbr: 2,
                                     success: 1,
                                     description: 'Đã gửi đến đối tác qua HTTP (200 OK)',
                                 },
@@ -268,6 +289,7 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
                                     id: 'CHILD_STEP_1',
                                     parentId: mockParentId,
                                     stepNo: 1,
+                                    stepNbr: 1,
                                     success: 1,
                                     description: 'Trích xuất dữ liệu thành công',
                                 },
@@ -275,6 +297,7 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
                                     id: 'CHILD_STEP_2',
                                     parentId: mockParentId,
                                     stepNo: 2,
+                                    stepNbr: 2,
                                     success: 0,
                                     description: 'Gửi thất bại',
                                     errorMessage: 'Máy chủ đối tác trả HTTP 504 Gateway Timeout',
@@ -488,7 +511,7 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
         await expect(serialMergedCell).toBeVisible();
 
         // 3. Khẳng định trường Định dạng nhận diện file .json thành JSON
-        const formatItem = dialog.locator('.el-descriptions__item:has(.el-descriptions__label:has-text("Định dạng"))');
+        const formatItem = dialog.locator('tr:has(.el-descriptions__label:has-text("Định dạng"))');
         await expect(formatItem).toContainText('JSON');
     });
 
@@ -538,10 +561,72 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
         await expect(dialog).toBeVisible();
 
         // Click vào góc ngoài của overlay để kiểm tra tính năng đóng outside
-        const overlay = page.locator('.el-overlay');
+        const overlay = page.locator('.el-overlay:visible').first();
         await overlay.click({ position: { x: 10, y: 10 } });
 
         // Modal phải đóng lại và không còn hiển thị
         await expect(dialog).toBeHidden({ timeout: 5000 });
+    });
+
+    test('7. Hiển thị Tab cấp trên (.history-tabs border-card) chuyển đổi Nhật ký cấu hình và Nhật ký truyền nhận', async ({ page }) => {
+        test.slow();
+        await page.route('**/api/sharedata/sharedataactivitylog/page*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        records: [
+                            {
+                                id: 'LOG_ROW_1',
+                                logType: 1,
+                                transferDirection: 0,
+                                transferType: 0,
+                                action: 1,
+                                targetName: 'Đối tác Cục CSGT',
+                                description: 'Cập nhật cấu hình đối tác',
+                                changedFields: 'address, port',
+                                operatorName: 'Administrator',
+                                success: 1,
+                                datatypeId: 'PKT_01',
+                                partnerName: 'Đối tác Cục CSGT',
+                                serialNbr: '1024',
+                                pduType: 'd2d',
+                                format: 'JSON',
+                                byteSize: 512,
+                                recordCount: 5,
+                                occurredAt: '2026-10-12T09:30:00Z',
+                            },
+                        ],
+                        total: 1,
+                    },
+                }),
+            });
+        });
+
+        await page.goto('/sharedata/history');
+
+        const historyTabs = page.locator('.history-tabs');
+        await expect(historyTabs).toBeVisible({ timeout: 30000 });
+        await expect(historyTabs).toHaveClass(/el-tabs--border-card/);
+        await expect(page.locator('.loading-next')).toHaveCount(0, { timeout: 10000 });
+
+        const configTab = historyTabs.getByRole('tab', { name: /Cấu hình/i });
+        const transferTab = historyTabs.getByRole('tab', { name: /Truyền nhận/i });
+        await expect(configTab).toHaveClass(/is-active/);
+
+        // Chuyển sang tab Truyền nhận
+        await transferTab.click();
+        await expect(transferTab).toHaveClass(/is-active/);
+        const historyTabIndicator = await transferTab.evaluate((el) => {
+            const after = window.getComputedStyle(el, '::after');
+            return { height: after.height, left: after.left, right: after.right };
+        });
+        expect(historyTabIndicator).toEqual({ height: '2px', left: '0px', right: '0px' });
+        await expect(page.locator('.stat-row .stat-card')).toHaveCount(5);
+        await page.waitForTimeout(300);
+
+        await page.screenshot({ path: 'test-results/snapshot-4-history-top-tabs.png', fullPage: false });
     });
 });

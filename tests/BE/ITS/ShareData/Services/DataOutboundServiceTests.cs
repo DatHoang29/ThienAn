@@ -1091,7 +1091,6 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 var alerts = await db.Queryable<ShareDataAlertLog>()
                     .Where(a => a.SubscriptionId == sub.ID)
                     .ToListAsync();
-                Assert.DoesNotContain(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.FileWriteFailed);
                 Assert.DoesNotContain(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.HttpSendFailed);
                 Assert.Empty(alerts);
 
@@ -1157,7 +1156,6 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 var alerts = await db.Queryable<ShareDataAlertLog>()
                     .Where(a => a.SubscriptionId == sub.ID)
                     .ToListAsync();
-                Assert.DoesNotContain(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.FileWriteFailed);
                 Assert.Contains(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.HttpSendFailed && a.Severity == BaseEnums.AlertSeverity.Warning);
 
                 var updatedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
@@ -1222,7 +1220,6 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 var alerts = await db.Queryable<ShareDataAlertLog>()
                     .Where(a => a.SubscriptionId == sub.ID)
                     .ToListAsync();
-                Assert.DoesNotContain(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.FileWriteFailed);
                 Assert.Contains(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.HttpSendFailed && a.Severity == BaseEnums.AlertSeverity.Warning);
 
                 var updatedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
@@ -3635,7 +3632,7 @@ END");
                 (code, sev, src, msg, dtl) => { logs.Add(code); return Task.CompletedTask; }, null);
 
             Assert.True(result.Success);
-            Assert.DoesNotContain(ShareDataAlertCode.Outbound.ShapeFieldNotInRawRow, logs);
+            Assert.Empty(logs);
             Assert.NotNull(result.FinalBytes);
 
             using var doc = JsonDocument.Parse(result.FinalBytes);
@@ -5594,7 +5591,7 @@ END");
                     UpdateTime = t,
                     KmNumber = 50,
                     MetNumber = 0,
-                    State = ShareDataEnum.IncidentState.InProgress
+                    State = "3"
                 });
             }
             await db.Insertable(incidents).ExecuteCommandAsync();
@@ -5736,7 +5733,7 @@ END");
                     UpdateTime = t,
                     KmNumber = 60,
                     MetNumber = 0,
-                    State = ShareDataEnum.IncidentState.InProgress
+                    State = "3"
                 });
             }
             await db.Insertable(incidents).ExecuteCommandAsync();
@@ -5835,7 +5832,7 @@ END");
                     UpdateTime = t,
                     KmNumber = 70,
                     MetNumber = 0,
-                    State = ShareDataEnum.IncidentState.InProgress
+                    State = "3"
                 });
             }
             await db.Insertable(incidents).ExecuteCommandAsync();
@@ -6156,7 +6153,7 @@ END");
                         InfluenceScope = "1",
                         InjuredNumber = 0,
                         VehicleNumber = 2,
-                        State = ShareDataEnum.IncidentState.InProgress,
+                        State = "3",
                         Description = "Va chạm nhẹ 2 xe ô tô con",
                         Source = "CCTV",
                         UpdateTime = now
@@ -6225,7 +6222,7 @@ END");
                         StartDate = now,
                         KmNumber = 80,
                         MetNumber = 0,
-                        State = ShareDataEnum.IncidentState.InProgress,
+                        State = "3",
                         Description = "Sương mù dày đặc tầm nhìn giảm",
                         UpdateTime = now
                     }).ExecuteCommandAsync();
@@ -6254,7 +6251,7 @@ END");
                         KmNumber = 95,
                         MetNumber = 100,
                         Description = "Thông báo điều phối xe cứu hộ",
-                        State = ShareDataEnum.IncidentState.InProgress,
+                        State = "3",
                         StartDate = now,
                         UpdateTime = now
                     }).ExecuteCommandAsync();

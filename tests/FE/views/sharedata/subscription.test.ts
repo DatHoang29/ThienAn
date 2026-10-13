@@ -92,32 +92,44 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 		expect(result.timeRangeError).toBe('');
 	});
 
-	test('TC6 — Quét tĩnh mã nguồn editSubscription.vue: Tuân thủ Rule 20.8 (CẤM !!), submit guard và inline error', async () => {
+	test('TC6 — Quét tĩnh mã nguồn editSubscription.vue, subscriptionTable.vue & scheduler/index.vue: Tuân thủ Rule 20.8 (CẤM !!), submit guard và inline error', async () => {
 		const vueFilePath = path.resolve(
 			__dirname,
 			'../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/sharing/component/editSubscription.vue'
 		);
+		const schedulerFilePath = path.resolve(
+			__dirname,
+			'../../../../TA-ITS015-WEBVUE-V1.0/src/src/components/scheduler/index.vue'
+		);
+		const subTableFilePath = path.resolve(
+			__dirname,
+			'../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/sharing/component/subscriptionTable.vue'
+		);
 		const vueContent = fs.readFileSync(vueFilePath, 'utf8');
+		const schedulerContent = fs.readFileSync(schedulerFilePath, 'utf8');
+		const subTableContent = fs.readFileSync(subTableFilePath, 'utf8');
 
-		// 1. Rule 20.8: Tuyệt đối không dùng toán tử !! trong đoạn xử lý khung giờ
-		const timeRangeBlock = vueContent.substring(
-			vueContent.indexOf('const isEndBeforeStart'),
-			vueContent.indexOf('const daysOfWeek')
+		// 1. Rule 20.8: Tuyệt đối không dùng toán tử !! trong đoạn xử lý khung giờ ở Scheduler và subscriptionTable
+		const timeRangeBlock = schedulerContent.substring(
+			schedulerContent.indexOf('const isEndBeforeStart'),
+			schedulerContent.indexOf('defineExpose')
 		);
 		expect(timeRangeBlock).not.toContain('!!');
+		expect(schedulerContent).not.toContain('!!');
+		expect(subTableContent).not.toContain('!!');
 
-		// 2. Kiểm tra điều kiện chặn dấu bằng (<=)
+		// 2. Kiểm tra điều kiện chặn dấu bằng (<=) trong scheduler/index.vue
 		expect(timeRangeBlock).toContain('endTime.value <= startTime.value');
 
 		// 3. Kiểm tra form-item binding :error hiển thị lỗi inline
-		expect(vueContent).toContain(':error="scheduleKind === \'continuous\' ? timeRangeError : \'\'"');
+		expect(schedulerContent).toContain(':error="scheduleKind === \'continuous\' ? timeRangeError : \'\'"');
 
 		// 4. Kiểm tra submit guard chặn gọi API khi timeRangeError có lỗi
 		const submitBlock = vueContent.substring(
 			vueContent.indexOf('async function submit()'),
 			vueContent.indexOf('defineExpose')
 		);
-		expect(submitBlock).toContain('scheduleKind.value === \'continuous\' && timeRangeError.value');
+		expect(submitBlock).toContain('scheduleKind.value === \'continuous\' && schedulerRef.value?.timeRangeError');
 
 		// 5. Kiểm tra buildSchedule chuẩn hóa chuỗi rỗng thành undefined
 		const buildScheduleBlock = vueContent.substring(
@@ -157,5 +169,171 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 		expect(enJson['lz.validation.sharedataSubscription.timeRangeIncomplete']).toBe(
 			'Please enter both start and end times (or leave both blank).'
 		);
+	});
+
+	test('TC8 — E2E Tab cấp trên trong Bảng đăng ký (subscriptionTable.vue) và Modal Đăng ký chia sẻ (editSubscription.vue)', async ({ context, page }) => {
+		test.slow();
+		test.setTimeout(120_000);
+		const mockToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjQxMDI0NDQ4MDAsIm5hbWUiOiJhZG1pbiJ9.mock_signature';
+		await context.addCookies([{ name: 'token', value: mockToken, url: 'http://localhost:8888' }]);
+
+		await page.addInitScript((token) => {
+			document.cookie = `token=${token}; path=/;`;
+			const pkg = 'tacwebcore';
+			window.localStorage.setItem(`${pkg}:access-token`, JSON.stringify(token));
+			window.sessionStorage.setItem(`${pkg}:token`, JSON.stringify(token));
+			window.sessionStorage.setItem(`${pkg}:userInfo`, JSON.stringify({
+				account: 'admin',
+				realName: 'Administrator',
+				accountType: '111',
+				roles: ['admin'],
+				authBtnList: ['*', 'sharedataSharing:add', 'sharedataSharing:update', 'sharedataSharing:delete'],
+				defaultMenu: '/sharedata/sharing',
+			}));
+		}, mockToken);
+
+		const mockUserInfo = {
+			code: 200,
+			result: {
+				account: 'admin',
+				realName: 'Administrator',
+				accountType: '111',
+				roles: ['admin'],
+				authBtnList: ['*', 'sharedataSharing:add', 'sharedataSharing:update', 'sharedataSharing:delete'],
+				defaultMenu: '/sharedata/sharing',
+			},
+		};
+
+		await page.route('**/api/**', async (route) => {
+			await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: [] }) });
+		});
+		await page.route('**/api/system/sysauth/userinfo*', async (route) => {
+			await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockUserInfo) });
+		});
+		await page.route('**/api/system/sysuser/info*', async (route) => {
+			await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockUserInfo) });
+		});
+		await page.route('**/api/system/sysconfig/sysinfo*', async (route) => {
+			await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: {} }) });
+		});
+		await page.route('**/api/system/sysconfig/loadclientterm*', async (route) => {
+			await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: {} }) });
+		});
+		await page.route('**/api/cfgsystem/sysopconfig/alldatalist*', async (route) => {
+			await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: {} }) });
+		});
+		await page.route('**/api/cfgsystem/sysconfigtype/alldatalist*', async (route) => {
+			await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: {} }) });
+		});
+		await page.route('**/api/system/sysmenu/loginmenutree*', async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({
+					code: 200,
+					result: [
+						{
+							id: 'menu_sharedata',
+							pid: '0',
+							path: '/sharedata',
+							name: 'sharedata',
+							component: 'layout/routerView/parent',
+							meta: { title: 'lz.menu.sharedata', isLink: '', isHide: false, isKeepAlive: true, isAffix: false, isIframe: false, roles: ['admin'], icon: 'ele-Share' },
+							children: [
+								{
+									id: 'menu_sharedata_sharing',
+									pid: 'menu_sharedata',
+									path: '/sharedata/sharing',
+									name: 'sharedataSharing',
+									component: 'sharedata/sharing/index',
+									meta: { title: 'lz.menu.sharedataSharing', isLink: '', isHide: false, isKeepAlive: true, isAffix: false, isIframe: false, roles: ['admin'], icon: 'ele-Share' },
+								},
+							],
+						},
+					],
+				}),
+			});
+		});
+
+		await page.route('**/api/sharedata/sharedatapartner/list*', async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({
+					code: 200,
+					result: [{ id: 'PARTNER_01', code: 'CSGT01', name: 'Cục CSGT Đường bộ', address: '10.10.1.25', port: 8443, status: 1, sessionState: 1 }],
+				}),
+			});
+		});
+		await page.route('**/api/sharedata/sharedatapacket/list*', async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({
+					code: 200,
+					result: [
+						{ id: 'PKT_101', code: '101_commonData', name: 'Dữ liệu giao thông 101' },
+						{ id: 'PKT_102', code: '102_eventData', name: 'Dữ liệu sự kiện 102' },
+					],
+				}),
+			});
+		});
+		await page.route('**/api/sharedata/sharedatasubscription/list*', async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({
+					code: 200,
+					result: [
+						{ id: 'SUB_OUT_1', partnerId: 'PARTNER_01', datatypeId: 'PKT_101', direction: 0, mode: 1, state: 1, mappingState: 1, mappingName: 'Ánh xạ Gửi 101', schedule: { kind: 'continuous', intervalSeconds: 60 } },
+						{ id: 'SUB_IN_1', partnerId: 'PARTNER_01', datatypeId: 'PKT_102', direction: 1, mode: 1, state: 1, mappingState: 1, mappingName: 'Ánh xạ Nhận 102' },
+					],
+				}),
+			});
+		});
+
+		await page.goto('/#/sharedata/sharing');
+
+		const subTabs = page.locator('.sub-direction-tabs');
+		await expect(subTabs).toBeVisible({ timeout: 60000 });
+		await expect(subTabs).toHaveClass(/el-tabs--border-card/);
+
+		const outboundTab = subTabs.getByRole('tab', { name: 'Gửi đi' });
+		const inboundTab = subTabs.getByRole('tab', { name: 'Nhận về' });
+		await expect(outboundTab).toHaveClass(/is-active/);
+		const subTabIndicator = await outboundTab.evaluate((el) => {
+			const after = window.getComputedStyle(el, '::after');
+			return { height: after.height, left: after.left, right: after.right };
+		});
+		expect(subTabIndicator).toEqual({ height: '2px', left: '0px', right: '0px' });
+		await expect(page.locator('.loading-next')).toHaveCount(0, { timeout: 10000 });
+		await page.waitForTimeout(300);
+
+		// Chụp snapshot màn hình Chia sẻ dữ liệu với Tab cấp trên Gửi đi / Nhận về
+		await page.screenshot({ path: 'test-results/snapshot-1-sharing-subscription-tabs.png', fullPage: false });
+
+		// Chuyển sang tab Nhận về trên bảng
+		await inboundTab.click();
+		await expect(inboundTab).toHaveClass(/is-active/);
+
+		// Bấm nút mở Modal Đăng ký chia sẻ
+		const addBtn = page.locator('.sub-table .vxe-button--item button, .sub-table .vxe-toolbar button').first();
+		await addBtn.click();
+
+		const dialog = page.locator('.sharedata-edit-subscription-container .el-dialog');
+		await expect(dialog).toBeVisible({ timeout: 5000 });
+
+		const modalTabs = dialog.locator('.direction-tabs');
+		await expect(modalTabs).toHaveClass(/el-tabs--border-card/);
+		const modalInboundTab = modalTabs.getByRole('tab', { name: 'Nhận về' });
+		await expect(modalInboundTab).toHaveClass(/is-active/);
+
+		// Chuyển về tab Gửi đi trong modal để chụp đầy đủ giao diện form + Scheduler
+		const modalOutboundTab = modalTabs.getByRole('tab', { name: 'Gửi đi' });
+		await modalOutboundTab.click();
+		await expect(modalOutboundTab).toHaveClass(/is-active/);
+		await page.waitForTimeout(300);
+
+		await page.screenshot({ path: 'test-results/snapshot-2-modal-edit-subscription-tabs.png', fullPage: false });
 	});
 });
