@@ -164,4 +164,12 @@ description: Documentation standards, single MasterPlan per subsystem, executabl
    - Verify lại tính năng lập lịch và nhận tín hiệu khi cấu hình nhận sự kiện.
    ```
 
+---
+
+## 🌐 7. Phạm Vi Áp Dụng Chú Thích Tiếng Anh Trong Ngoặc (Chỉ Áp Dụng Cho Tài Liệu Markdown `.md` — Rule 20.13)
+
+* **Quy ước song ngữ `[Tiếng Việt] ([English])`**:
+  - Khi viết tài liệu phân tích kỹ thuật, kiến trúc, đặc tả nghiệp vụ, biên bản họp hoặc MasterPlan bằng tiếng Việt, việc mở ngoặc ghi kèm thuật ngữ tiếng Anh chuẩn (như `Đăng ký (Subscription)`, `Gói tin (Packet)`, `Ánh xạ (Mapping)`, `Trực quan (Builder)`, `Mã nguồn (Raw)`) nhằm giúp lập trình viên và Tech Lead đối chiếu chính xác giữa khái niệm nghiệp vụ và tên class/bảng/API trong mã nguồn.
+  - ⛔ **CẤM TUYỆT ĐỐI áp dụng quy ước này lên giao diện người dùng (HTML/Vue/i18n)**: Trên màn hình HTML/UI (template, component, dialog, tab, button, placeholder, message, và các tệp `vi-vn.json`/`en-us.json`), **ngôn ngữ nào ra ngôn ngữ đó qua hệ thống i18n**. Giao diện tiếng Việt phải dùng tiếng Việt thuần túy, không chèn tiếng Anh trong ngoặc (xem Rule 20.13 trong `frontend-vue_thienan.md`).
+
 

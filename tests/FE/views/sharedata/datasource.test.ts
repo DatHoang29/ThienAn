@@ -114,6 +114,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
 
         const cardField = page.locator('.search-card-field');
         await expect(cardField).toBeVisible({ timeout: 30_000 });
+        await page.waitForTimeout(300);
 
         const searchForm = cardField.locator('.search-form');
         const formCols = searchForm.locator('.el-row > .el-col');
@@ -604,12 +605,13 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         );
         const vueContent = fs.readFileSync(vueFilePath, 'utf8');
 
-        // 1. Quét tĩnh CSS & DOM code: kiểm tra sự hiện diện của các thanh kéo resizer
+        // 1. Quét tĩnh CSS & DOM code: kiểm tra sự hiện diện của thanh kéo ngang resizer
         expect(vueContent).toContain('table-resize-bar');
         expect(vueContent).toContain('detected-table-resizer-top');
         expect(vueContent).toContain('detected-table-resizer-bottom');
         expect(vueContent).toContain('sample-table-resizer');
-        expect(vueContent).toContain('cursor: ns-resize');
+        expect(vueContent).toContain('resizer-handle-line');
+        expect(vueContent).toContain('cursor: row-resize');
         expect(vueContent).not.toContain('!important');
 
         // 2. Mock thêm API SQL Center để trả về dữ liệu mẫu và cột phát hiện
@@ -704,19 +706,15 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const resizedHeight = (await tableWrapper.boundingBox())?.height || 0;
         expect(resizedHeight).toBeGreaterThan(initialHeight + 40);
 
-        // 6. Kiểm tra các nút Preset chiều cao nhanh (280, 450, 650)
-        const btnPreset450 = page.locator('.detected-columns-tools .el-button').filter({ hasText: '450' });
-        await btnPreset450.click();
-        await page.waitForTimeout(200);
-        const heightAt450 = (await tableWrapper.boundingBox())?.height || 0;
-        expect(Math.abs(heightAt450 - 450)).toBeLessThanOrEqual(5);
+        // 6. Kiểm tra không còn hiển thị pill chỉ số px và các nút preset (280/450/650) theo yêu cầu người dùng
+        await expect(page.locator('.detected-columns-tools')).toHaveCount(0);
+        await expect(page.locator('.height-indicator-tag')).toHaveCount(0);
 
-        // Click preset 280
-        const btnPreset280 = page.locator('.detected-columns-tools .el-button').filter({ hasText: '280' });
-        await btnPreset280.click();
+        // Click đúp vào thanh resizer để reset chiều cao về mặc định 280px
+        await topResizer.dblclick();
         await page.waitForTimeout(200);
-        const heightAt280 = (await tableWrapper.boundingBox())?.height || 0;
-        expect(Math.abs(heightAt280 - 280)).toBeLessThanOrEqual(5);
+        const resetHeight = (await tableWrapper.boundingBox())?.height || 0;
+        expect(Math.abs(resetHeight - 280)).toBeLessThanOrEqual(5);
 
         // 7. Kiểm tra bảng Xem trước dữ liệu mẫu (bấm nút Xem dữ liệu mẫu)
         const btnPreview = page.locator('.sql-toolbar-right .el-button').filter({ hasText: /Xem dữ liệu mẫu/ });
@@ -745,19 +743,92 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const resizedSampleHeight = (await sampleBody.boundingBox())?.height || 0;
         expect(resizedSampleHeight).toBeGreaterThan(initialSampleHeight + 30);
 
-        // Kiểm tra nút preset của bảng dữ liệu mẫu (300px)
-        const btnSamplePreset300 = sampleCard.locator('.sample-preview-tools .el-button').filter({ hasText: '300' });
-        await btnSamplePreset300.click();
-        await page.waitForTimeout(200);
-        const heightAt300 = (await sampleBody.boundingBox())?.height || 0;
-        expect(Math.abs(heightAt300 - 300)).toBeLessThanOrEqual(5);
+        // Bảng dữ liệu mẫu cũng không còn hiển thị pill chỉ số và các nút preset
+        await expect(sampleCard.locator('.height-indicator-tag')).toHaveCount(0);
+        await expect(sampleCard.locator('.sample-preview-tools .el-button-group')).toHaveCount(0);
 
-        // Click đúp tag indicator để đặt lại về 180px
-        const sampleTag = sampleCard.locator('.height-indicator-tag');
-        await sampleTag.dblclick();
-        await page.waitForTimeout(200);
-        const resetSampleHeight = (await sampleBody.boundingBox())?.height || 0;
-        expect(Math.abs(resetSampleHeight - 180)).toBeLessThanOrEqual(5);
+        // Nút Đóng của bảng mẫu vẫn hoạt động bình thường
+        const btnCloseSample = sampleCard.locator('.sample-preview-tools .el-button').filter({ hasText: /Đóng/ });
+        await expect(btnCloseSample).toBeVisible();
+        await btnCloseSample.click();
+        await expect(sampleCard).toBeHidden();
+    });
+
+    test('Quy chuẩn ngôn ngữ nhãn UI — Không viết song ngữ lai tiếng Anh trong ngoặc (Rule 20.13)', async ({ page }) => {
+        // 1. Quét tĩnh mã nguồn: VisualQueryBuilder.vue, vi-vn.json, en-us.json
+        const vqbPath = path.resolve(__dirname, '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/component/VisualQueryBuilder.vue');
+        const vqbContent = fs.readFileSync(vqbPath, 'utf-8');
+
+        // CẤM xuất hiện các nhãn song ngữ lai tiếng Anh trong ngoặc trên template VisualQueryBuilder.vue
+        expect(vqbContent).not.toContain('Trực quan (Builder)');
+        expect(vqbContent).not.toContain('Mã nguồn SQL (Raw)');
+        expect(vqbContent).not.toContain('Cột trích xuất (SELECT)');
+        expect(vqbContent).not.toContain('Điều kiện lọc (WHERE)');
+        expect(vqbContent).not.toContain('Sắp xếp (ORDER BY)');
+        expect(vqbContent).not.toContain('Tăng dần (ASC)');
+        expect(vqbContent).not.toContain('Giảm dần (DESC)');
+
+        // Kiểm tra tệp i18n vi-vn.json phải là tiếng Việt thuần túy
+        const viPath = path.resolve(__dirname, '../../../../TA-ITS015-WEBVUE-V1.0/src/src/i18n/lang/vi-vn.json');
+        const viContent = JSON.parse(fs.readFileSync(viPath, 'utf-8'));
+        expect(viContent['lz.label.sharedataDataSource.vqbVisualMode']).toBe('Trực quan');
+        expect(viContent['lz.label.sharedataDataSource.vqbRawMode']).toBe('Mã nguồn SQL');
+
+        // Kiểm tra tệp i18n en-us.json phải là tiếng Anh chuẩn
+        const enPath = path.resolve(__dirname, '../../../../TA-ITS015-WEBVUE-V1.0/src/src/i18n/lang/en-us.json');
+        const enContent = JSON.parse(fs.readFileSync(enPath, 'utf-8'));
+        expect(enContent['lz.label.sharedataDataSource.vqbVisualMode']).toBe('Visual Builder');
+        expect(enContent['lz.label.sharedataDataSource.vqbRawMode']).toBe('Raw SQL');
+
+        // 2. Kiểm tra render DOM thực tế trên trang dataSource
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+
+        const packetRow = page.locator('.packet-pane .vxe-table--body tbody tr').first();
+        await expect(packetRow).toBeVisible({ timeout: 15_000 });
+        await packetRow.click();
+        await page.waitForTimeout(300);
+
+        // Chuyển sang tab Cấu hình SQL
+        const tabs = page.locator('.datasource-right-tabs');
+        const sqlTab = tabs.getByRole('tab', { name: /Cấu hình SQL/ });
+        await sqlTab.click();
+        await expect(sqlTab).toHaveClass(/is-active/);
+
+        // Kiểm tra 2 tab nút chế độ Dual-View trong VisualQueryBuilder
+        const segTabs = page.locator('.vqb-segmented-tabs');
+        await expect(segTabs).toBeVisible();
+
+        const btnVisual = segTabs.locator('.vqb-tab-btn').nth(0);
+        const btnRaw = segTabs.locator('.vqb-tab-btn').nth(1);
+
+        const visualText = (await btnVisual.innerText()).trim();
+        const rawText = (await btnRaw.innerText()).trim();
+
+        // Nhãn phải thuần tiếng Việt, không chứa "(Builder)" hay "(Raw)"
+        expect(visualText).toBe('Trực quan');
+        expect(visualText).not.toContain('Builder');
+        expect(rawText).toBe('Mã nguồn SQL');
+        expect(rawText).not.toContain('Raw');
+
+        // Kiểm tra các card trong Canvas trực quan không chứa từ tiếng Anh trong ngoặc
+        const colCardTitle = page.locator('.vqb-columns-card .vqb-card-title');
+        await expect(colCardTitle).toBeVisible();
+        const colText = await colCardTitle.innerText();
+        expect(colText).toContain('Cột trích xuất:');
+        expect(colText).not.toContain('(SELECT)');
+
+        const filterCardTitle = page.locator('.vqb-filter-card .vqb-card-title');
+        await expect(filterCardTitle).toBeVisible();
+        const filterText = await filterCardTitle.innerText();
+        expect(filterText).toContain('Điều kiện lọc:');
+        expect(filterText).not.toContain('(WHERE)');
+
+        const orderLabel = page.locator('.vqb-order-row .vqb-label');
+        await expect(orderLabel).toBeVisible();
+        const orderText = await orderLabel.innerText();
+        expect(orderText).toContain('Sắp xếp:');
+        expect(orderText).not.toContain('(ORDER BY)');
     });
 });
 

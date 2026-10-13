@@ -96,6 +96,12 @@ src/views/<module>/<feature>/
       // ✅ BẮT BUỘC:
       ElMessage.error(err?.response?.data?.message || err?.message || $t('lz.message.sharedataDataSource.saveSqlFailed'));
       ```
+* **CẤM viết nhãn UI song ngữ lai tiếng Anh trong ngoặc (Rule 20.13 - P0 Safeguard)**:
+  - ⛔ **CẤM** viết nhãn, tiêu đề tab/card, nút bấm, placeholder, option label trên HTML/Vue theo kiểu song ngữ lai tiếng Việt kèm tiếng Anh trong ngoặc (như `Trực quan (Builder)`, `Mã nguồn SQL (Raw)`, `Cột trích xuất (SELECT)`, `Điều kiện lọc (WHERE)`, `Sắp xếp (ORDER BY)`, `Tăng dần (ASC)`, `Giảm dần (DESC)`).
+  - 📌 **Quy tắc chú giải tiếng Anh trong ngoặc `[Tiếng Việt] ([English])` CHỈ ÁP DỤNG cho tài liệu kỹ thuật Markdown (`.md`)** (như Spec, Architecture, MasterPlan, Q&A) nhằm hỗ trợ lập trình viên đối chiếu thuật ngữ nghiệp vụ.
+  - ✅ **BẮT BUỘC trên giao diện HTML/Vue**: Ngôn ngữ nào ra ngôn ngữ đó qua hệ thống i18n:
+    - Trong tệp `src/src/i18n/lang/vi-vn.json` (và giá trị fallback trong template): Dùng tiếng Việt chuẩn mực, thuần túy (ví dụ: `Trực quan`, `Mã nguồn SQL`, `Cột trích xuất:`, `Điều kiện lọc:`, `Sắp xếp:`, `Tăng dần`, `Giảm dần`).
+    - Trong tệp `src/src/i18n/lang/en-us.json`: Dùng tiếng Anh chuẩn xác, tự nhiên (ví dụ: `Visual Builder`, `Raw SQL`, `Columns:`, `Filter Conditions:`, `Order By:`, `Ascending`, `Descending`).
 
 ---
 
