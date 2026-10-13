@@ -104,3 +104,124 @@ src/views/<module>/<feature>/
   - Phía Frontend, môi trường phát triển đã có Vite Dev Server chạy nền với tính năng Hot-Module Replacement (Hot-Reload / HMR).
   - Sau khi sửa code Vue/SCSS, AI **TUYỆT ĐỐI KHÔNG tự chạy build**, tránh gây treo máy và lãng phí thời gian.
   - Chỉ chạy build khi người dùng yêu cầu trực tiếp.
+
+---
+
+## 🏛️ 8. Quy Chuẩn Viết Component Dialog / Drawer & Cấm Tự Chế Entrypoint / Local i18n
+
+Để đảm bảo 100% component đồng bộ tuyệt đối về trải nghiệm, cấu trúc và khả năng bảo trì với toàn bộ codebase dự án, mọi lập trình viên và AI Agent **BẮT BUỘC** tuân thủ các quy tắc sau:
+
+### 1. Khung Mẫu (Skeleton) Bắt Buộc Cho Component Dialog / Drawer
+Mọi dialog form thêm/sửa/xem trước (`component/edit<Feature>.vue`, `component/<feature>Dialog.vue`) **BẮT BUỘC** tuân theo cấu trúc chuẩn:
+
+```vue
+<template>
+	<div class="<tên-chức-năng>-container">
+		<el-dialog
+			ref="dialogRef"
+			v-model="state.isShowDialog"
+			draggable
+			:close-on-click-modal="false"
+			:show-close="!state.isProcessing"
+			:close-on-press-escape="!state.isProcessing"
+			width="750px"
+		>
+			<template #header>
+				<div style="color: var(--el-color-white)">
+					<el-icon size="16" style="margin-right: 3px; display: inline; vertical-align: middle">
+						<ele-Edit />
+					</el-icon>
+					<span>{{ props.title }}</span>
+				</div>
+			</template>
+
+			<el-form
+				ref="editFormRef"
+				:model="state.editForm"
+				:disabled="state.isProcessing"
+				label-width="auto"
+				label-position="left"
+			>
+				<el-row :gutter="10">
+					<el-col :xs="24" :sm="12" class="mb20">
+						<el-form-item :label="$t('lz.entity.base.code')" prop="code">
+							<el-input v-model="state.editForm.code" clearable />
+						</el-form-item>
+					</el-col>
+				</el-row>
+			</el-form>
+
+			<template #footer>
+				<span class="dialog-footer">
+					<el-button @click="cancel" :disabled="state.isProcessing">
+						{{ $t('lz.button.base.cancel') }}
+					</el-button>
+					<el-button type="primary" :disabled="state.isProcessing" @click="submit">
+						{{ $t('lz.button.base.confirm') }}
+					</el-button>
+				</span>
+			</template>
+		</el-dialog>
+	</div>
+</template>
+
+<script lang="ts" setup name="esh<ComponentName>">
+import { reactive, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import type { OperateType } from '/@/types/constants';
+
+const { t: $t } = useI18n(); // Luôn dùng Global i18n
+const dialogRef = ref();
+const editFormRef = ref();
+
+interface Props {
+	operateType?: OperateType;
+	title: string;
+}
+const props = defineProps<Props>();
+const emits = defineEmits(['handleQuery']);
+
+const state = reactive({
+	isShowDialog: false, // ⛔ BẮT BUỘC là isShowDialog, CẤM đặt isShow
+	isProcessing: false,
+	editForm: {} as any,
+});
+
+const openDialog = (row: any) => {
+	editFormRef.value?.resetFields();
+	state.editForm = JSON.parse(JSON.stringify(row));
+	state.isShowDialog = true;
+	dialogRef.value?.resetPosition?.();
+};
+
+const closeDialog = () => {
+	emits('handleQuery');
+	state.isShowDialog = false;
+};
+
+const cancel = () => {
+	state.isShowDialog = false;
+};
+
+const submit = async () => {
+	// Xử lý lưu và gọi closeDialog()
+};
+
+defineExpose({ openDialog });
+</script>
+```
+
+### 2. Bốn Điều Cấm Kỵ Cốt Lõi Khi Viết Component (P0 Safeguards)
+1. ⛔ **CẤM Tự Chế Tệp HTML & CSS Rời Rạc Ngoài Luồng Ứng Dụng**:
+   - Tuyệt đối không tạo file `.html` tĩnh (như `*prototype.html`) hoặc file `.css` ngoài component để làm bản thử nghiệm ad-hoc. Mọi tính năng đều phải được tích hợp chuẩn chỉnh vào luồng SFC Vue, layout và router của hệ thống.
+2. ⛔ **CẤM Dùng i18n Local Scope (`useScope: 'local'`) & Tệp Messages Riêng**:
+   - Toàn bộ dự án sử dụng Single Source of Truth: `const { t: $t } = useI18n()`.
+   - Tất cả key bản dịch BẮT BUỘC đặt tập trung tại `src/src/i18n/lang/vi-vn.json` và `en-us.json` theo đúng cấu trúc tiền tố (`lz.entity.*`, `lz.label.*`, `lz.button.*`, `lz.message.*`, `lz.placeholder.*`).
+   - Tuyệt đối không tạo tệp `*Messages.ts` riêng hoặc dùng `useI18n({ useScope: 'local' })`.
+3. ⛔ **CẤM Tự Sáng Tác Naming State & Footer Lạ Lẫm**:
+   - Biến cờ modal BẮT BUỘC là `state.isShowDialog` (không dùng `state.isShow`).
+   - Cụm nút chân trang BẮT BUỘC là `<span class="dialog-footer">` chứa `cancel()` và `submit()`. Không đóng modal bằng cách gán inline `@click="state.isShow = false"`.
+4. ⛔ **CẤM Lạm Dụng Custom CSS Grid Phá Vỡ Hệ Thống Giao Diện Element Plus**:
+   - Giao diện form và bố cục modal BẮT BUỘC dùng `<el-row :gutter="10">`, `<el-col :xs="24" :sm="..." class="mb20">`, các class tiện ích toàn cục (`w100`, `mb5`, `mb20`, `mr5`, `ml10`, `rs-note`).
+   - Không tự chế các class bố cục dị biệt (`.step-pill`, `.prototype-main-grid`) gây lệch tông giao diện so với các màn hình chuẩn khác của hệ thống.
+

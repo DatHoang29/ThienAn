@@ -216,4 +216,118 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
 
         expect(filesWithImportant, `Phát hiện !important tại: ${filesWithImportant.join(', ')}`).toEqual([]);
     });
+
+    test('3. Bản thử R5 (Cấu hình nguồn dữ liệu 3 bước): kiểm chứng toàn diện lọc VDS/Thời tiết, ẩn chi tiết kỹ thuật, xác thực điều kiện, đa ngôn ngữ VI/EN và màn hình hẹp', async ({ page }) => {
+        const consoleErrors: string[] = [];
+        const pageErrors: string[] = [];
+        page.on('console', (msg) => {
+            if (msg.type() === 'error') consoleErrors.push(msg.text());
+        });
+        page.on('pageerror', (err) => {
+            pageErrors.push(err.message);
+        });
+
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await page.goto('/sharedata-query-prototype.html');
+
+        const dialog = page.locator('.r5-query-prototype-dialog');
+        await expect(dialog).toBeVisible();
+        await expect(page.locator('.prototype-badge')).toBeVisible();
+
+        // 1. Mặc định ẩn Chi tiết kỹ thuật: không xuất hiện tên bảng/SQL/khóa kỹ thuật trong luồng chính
+        await expect(dialog.locator('.source-meta-strip')).toHaveCount(0);
+        await expect(dialog.locator('.field-key-code')).toHaveCount(0);
+        await expect(dialog).not.toContainText('TmsTrafficData');
+        await expect(dialog).not.toContainText('SELECT TOP');
+
+        // Kiểm tra cả tab Danh sách cột gói tin khi Chi tiết kỹ thuật tắt
+        await dialog.locator('.el-tabs__item').filter({ hasText: 'Danh sách cột gói tin' }).click();
+        await expect(dialog.locator('.preview-columns-table')).toBeVisible();
+        await expect(dialog.locator('.preview-columns-table')).not.toContainText('td.ID');
+        await dialog.locator('.el-tabs__item').filter({ hasText: 'Dữ liệu xem trước' }).click();
+
+        // 2. Nguồn VDS với điều kiện mặc định: Tất cả = 1 dòng, Bất kỳ = 5 dòng
+        const previewTableRows = dialog.locator('.preview-data-table .el-table__body-wrapper tbody tr');
+        await expect(previewTableRows).toHaveCount(1);
+
+        const matchAllRadio = dialog.locator('.match-mode-group .el-radio-button').nth(0);
+        const matchAnyRadio = dialog.locator('.match-mode-group .el-radio-button').nth(1);
+        await matchAnyRadio.click();
+        await expect(previewTableRows).toHaveCount(5);
+
+        // 3. Bỏ hết trường -> chặn xác nhận; chọn lại trường bắt buộc -> mở khóa xác nhận
+        const confirmBtn = page.locator('.btn-apply-prototype');
+        while ((await dialog.locator('.field-checklist .el-checkbox.is-checked').count()) > 0) {
+            await dialog.locator('.field-checklist .el-checkbox.is-checked').first().click();
+        }
+        await expect(confirmBtn).toBeDisabled();
+        await dialog.locator('.btn-select-required-fields').click();
+        await expect(dialog.locator('.summary-fields-tag')).toContainText('5/9');
+        await expect(confirmBtn).toBeEnabled();
+
+        // 4. Đổi nguồn sang Thời tiết: đặt lại trường (8/8) và điều kiện mặc định (Tất cả = 2 dòng, Bất kỳ = 3 dòng)
+        await dialog.locator('.source-select').click();
+        await page.locator('.el-select-dropdown__item:visible').filter({ hasText: 'Quan trắc thời tiết trạm ITS' }).first().click();
+        await expect(dialog.locator('.summary-fields-tag')).toContainText('8/8');
+        await expect(previewTableRows).toHaveCount(2);
+        await matchAnyRadio.click();
+        await expect(previewTableRows).toHaveCount(3);
+        await matchAllRadio.click();
+        await expect(previewTableRows).toHaveCount(2);
+
+        // 5. Đổi trường trong dòng lọc -> đặt lại toán tử/giá trị cũ và báo thiếu giá trị; tắt điều kiện đó -> không áp dụng
+        const firstRule = dialog.locator('.condition-row').first();
+        await firstRule.locator('.rule-field-select').click();
+        await page.locator('.el-select-dropdown__item:visible').filter({ hasText: 'Vị trí đặt trạm' }).first().click();
+        await expect(firstRule.locator('.rule-value-input input')).toHaveValue('');
+        await expect(confirmBtn).toBeDisabled();
+
+        // Tắt điều kiện vừa đổi (đang trống giá trị) -> hết lỗi, còn 1 điều kiện (visibility <= 400) khớp 3 dòng
+        await firstRule.locator('.rule-enable-switch').click();
+        await expect(confirmBtn).toBeEnabled();
+        await expect(previewTableRows).toHaveCount(3);
+
+        // 6. Xóa hết điều kiện -> lấy toàn bộ 4 dòng mẫu; giảm giới hạn xem trước xuống 2 -> còn 2 dòng
+        while ((await dialog.locator('.btn-remove-condition').count()) > 0) {
+            await dialog.locator('.btn-remove-condition').first().click();
+        }
+        await expect(dialog.locator('.empty-condition-hint')).toBeVisible();
+        await expect(previewTableRows).toHaveCount(4);
+
+        const limitInput = dialog.locator('.preview-limit-input input');
+        await limitInput.fill('2');
+        await limitInput.press('Enter');
+        await expect(previewTableRows).toHaveCount(2);
+
+        // 7. Mở Chi tiết kỹ thuật -> hiển thị bảng nguồn, khóa trường và tab SQL tham số hóa
+        await dialog.locator('.el-checkbox').filter({ hasText: 'Chi tiết kỹ thuật' }).click();
+        await expect(dialog.locator('.source-meta-strip')).toContainText('TmsWeather w');
+        await dialog.locator('.el-tabs__item').filter({ hasText: 'Truy vấn & Cấu hình sinh tự động' }).click();
+        await expect(dialog.locator('.generated-sql-block')).toContainText('SELECT TOP (2)');
+
+        // 8. Đóng/mở lại dialog và kiểm tra màn hình hẹp (768x900)
+        await page.locator('.prototype-dialog-footer .el-button').first().click();
+        await expect(dialog).toBeHidden();
+        await page.locator('.r5-preview-open').click();
+        await expect(dialog).toBeVisible();
+
+        await page.setViewportSize({ width: 768, height: 900 });
+        const configColBox = await dialog.locator('.config-column').boundingBox();
+        const previewColBox = await dialog.locator('.preview-column').boundingBox();
+        expect(configColBox).not.toBeNull();
+        expect(previewColBox).not.toBeNull();
+        expect(previewColBox!.y).toBeGreaterThan(configColBox!.y + 100);
+
+        // 9. Kiểm tra tiếng Anh (en-us)
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await page.goto('/sharedata-query-prototype.html?lang=en-us');
+        await expect(dialog).toBeVisible();
+        await expect(page.locator('.header-title-text')).toHaveText('Configure Packet Data Source');
+        await expect(dialog).toContainText('Step 1: Select Data');
+        await expect(dialog).toContainText('All conditions');
+        await expect(dialog).not.toContainText('lz.');
+
+        expect(consoleErrors).toEqual([]);
+        expect(pageErrors).toEqual([]);
+    });
 });
