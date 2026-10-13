@@ -282,4 +282,21 @@ defineExpose({ openDialog });
   - **Trong template Vue / `el-tooltip`**:
     - Sử dụng slot `<template #content><div style="white-space: pre-line">{{ ... }}</div></template>` hoặc cấu hình CSS `white-space: pre-line;` để trình duyệt diễn giải đúng ký tự `\n` ngắt dòng.
 
+---
+
+## 🧪 9. Quy Chuẩn Bắt Buộc Viết Test Sau Khi Fix Lặt Vặt (Zero Regression - Rule 18 / 19.67 - P0)
+
+Mọi yêu cầu sửa/chỉnh lỗi dù là lặt vặt nhất ở Frontend (như căn chỉnh CSS, font chữ, màu sắc, khoảng cách padding/margin, chống giật layout modal/tab, placeholder, nhãn i18n, validate form...) **BẮT BUỘC** thực hiện quy trình sau:
+
+1. **Viết/Bổ sung Test Ngay Sau Khi Sửa**:
+   - Thêm test case tương ứng vào bộ kiểm thử Playwright tập trung tại `tests/FE/views/<module>/<feature>.test.ts` (Rule P0.2).
+   - ⛔ **CẤM** kết thúc lượt làm việc hoặc báo "đã sửa xong" mà không bổ sung bài test xác minh.
+2. **Hình thức kiểm thử**:
+   - **Quét tĩnh mã nguồn (Static Code / CSS Scan)**: Kiểm tra file `.vue` không có `!important`, có đầy đủ CSS styles/classes yêu cầu, không dùng toán tử `!!`, chuẩn hóa font-family, có key i18n đầy đủ trong cả `vi-vn.json` và `en-us.json`.
+   - **Kiểm thử E2E / Render DOM**: Mở component/dialog, đo kích thước phần tử (`getBoundingClientRect`), kiểm tra không bị co giật/layout shift khi chuyển tab hoặc đổi trạng thái.
+3. **Thực Thi & Dọn Dẹp (Rule P0.15)**:
+   - Chạy test Playwright để chứng minh bài test pass 100%: `npx playwright test views/<module>/<feature>.test.ts --project=chromium`.
+   - Sau khi test pass, **tự động xóa bỏ các thư mục tạm (`test-results/`)** để giữ sạch Working Tree.
+
+
 

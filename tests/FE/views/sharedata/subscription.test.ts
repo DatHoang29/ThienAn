@@ -141,6 +141,14 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 
 		// 6. Kiểm tra không import thừa package lạ (như locale)
 		expect(vueContent).not.toContain("import { lo } from 'element-plus/es/locale'");
+
+		// 7. Kiểm tra cố định chiều cao modal theo tỷ lệ màn hình (vh) để tránh giật khi chuyển tab
+		const directionTabsBlock = vueContent.substring(vueContent.indexOf('.direction-tabs'));
+		expect(directionTabsBlock).toContain('height: 54vh;');
+		expect(directionTabsBlock).toContain('min-height: 420px;');
+		expect(directionTabsBlock).toContain('max-height: 560px;');
+		expect(directionTabsBlock).toContain('overflow-y: auto;');
+		expect(directionTabsBlock).not.toContain('!important');
 	});
 
 	test('TC7 — Kiểm tra cấu hình i18n trong vi-vn.json và en-us.json', async () => {
@@ -333,6 +341,26 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 		await modalOutboundTab.click();
 		await expect(modalOutboundTab).toHaveClass(/is-active/);
 		await page.waitForTimeout(300);
+
+		// Kiểm tra chiều cao cố định theo tỷ lệ màn hình (vh) không bị giật khi chuyển tab
+		const tabContent = dialog.locator('.direction-tabs .el-tabs__content');
+		await expect(tabContent).toBeVisible();
+		const heightOutbound = await tabContent.evaluate((el) => el.getBoundingClientRect().height);
+		expect(heightOutbound).toBeGreaterThanOrEqual(420);
+
+		// Chuyển lại sang tab Nhận về và đo chiều cao
+		await modalInboundTab.click();
+		await expect(modalInboundTab).toHaveClass(/is-active/);
+		await page.waitForTimeout(200);
+		const heightInbound = await tabContent.evaluate((el) => el.getBoundingClientRect().height);
+
+		// Xác minh chiều cao giữa tab Gửi đi và Nhận về đồng nhất tuyệt đối, không bị giật/nhảy layout
+		expect(Math.abs(heightOutbound - heightInbound)).toBeLessThanOrEqual(1);
+
+		// Chuyển lại tab Gửi đi để chụp snapshot
+		await modalOutboundTab.click();
+		await expect(modalOutboundTab).toHaveClass(/is-active/);
+		await page.waitForTimeout(200);
 
 		await page.screenshot({ path: 'test-results/snapshot-2-modal-edit-subscription-tabs.png', fullPage: false });
 	});

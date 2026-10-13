@@ -2,6 +2,10 @@ import { test, expect } from '@playwright/test';
 import { mockAuth } from '../../setup';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Test E2E cho phân hệ ShareData — Quản lý Gói tin & Trường gói tin (dataSource/index.vue)
@@ -457,6 +461,303 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const updatedBox = await leftPane.boundingBox();
         expect(updatedBox).not.toBeNull();
         expect(updatedBox!.width).toBeGreaterThan(initialWidth + 40);
+    });
+
+    test('6. Quét tĩnh & kiểm thử VisualQueryBuilder.vue: Dải xem trước SQL Tự động sinh dùng font chữ chuẩn và i18n đầy đủ', async () => {
+        const vqbFilePath = path.resolve(
+            __dirname,
+            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/component/VisualQueryBuilder.vue'
+        );
+        const viPath = path.resolve(
+            __dirname,
+            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/i18n/lang/vi-vn.json'
+        );
+        const enPath = path.resolve(
+            __dirname,
+            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/i18n/lang/en-us.json'
+        );
+
+        const vqbContent = fs.readFileSync(vqbFilePath, 'utf8');
+        const viJson = JSON.parse(fs.readFileSync(viPath, 'utf8'));
+        const enJson = JSON.parse(fs.readFileSync(enPath, 'utf8'));
+
+        // 1. Kiểm tra key i18n đầy đủ cho nhãn và placeholder
+        expect(viJson['lz.label.sharedataDataSource.vqbGeneratedSql']).toBe('SQL Tự động sinh:');
+        expect(viJson['lz.label.sharedataDataSource.vqbNoSqlConfigured']).toBe('-- Chưa cấu hình câu truy vấn --');
+
+        expect(enJson['lz.label.sharedataDataSource.vqbGeneratedSql']).toBe('Auto-generated SQL:');
+        expect(enJson['lz.label.sharedataDataSource.vqbNoSqlConfigured']).toBe('-- Query not configured --');
+
+        // 2. Kiểm tra template dùng $t() và không hardcode chuỗi text
+        expect(vqbContent).toContain("$t('lz.label.sharedataDataSource.vqbGeneratedSql')");
+        expect(vqbContent).toContain("$t('lz.label.sharedataDataSource.vqbNoSqlConfigured')");
+
+        // 3. Kiểm tra font chữ chuẩn trong CSS
+        // Nhãn & placeholder rỗng dùng font chữ hệ thống chuẩn var(--el-font-family)
+        expect(vqbContent).toContain('font-family: var(--el-font-family);');
+        // Mã SQL dùng font chữ code chuẩn Consolas, Monaco, "Cascadia Mono", monospace
+        expect(vqbContent).toContain('font-family: Consolas, Monaco, "Cascadia Mono", monospace;');
+
+        // 4. Tuân thủ Rule 20.6 (CẤM !important)
+        const stripCssBlock = vqbContent.substring(vqbContent.indexOf('.vqb-sql-preview-strip'));
+        expect(stripCssBlock).not.toContain('!important');
+
+        // 5. Kiểm tra phân tách trạng thái: có SQL hiện code, rỗng hiện placeholder nghiêng
+        expect(vqbContent).toContain('vqb-sql-code');
+        expect(vqbContent).toContain('vqb-sql-empty');
+
+        // 6. Hiển thị Full SQL: Không bị cắt bớt bằng ellipsis, hỗ trợ xuống dòng pre-wrap & word-break
+        expect(stripCssBlock).not.toContain('text-overflow: ellipsis');
+        expect(stripCssBlock).toContain('white-space: pre-wrap');
+        expect(stripCssBlock).toContain('word-break: break-all');
+        expect(vqbContent).toContain('vqb-copy-btn');
+    });
+
+    test('7. Chống giật khi chuyển tab Cấu hình SQL <-> Danh sách trường: Loại bỏ border ẩn/hiện động của border-card', async ({ page }) => {
+        const vueFilePath = path.resolve(
+            __dirname,
+            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/index.vue'
+        );
+        const vueContent = fs.readFileSync(vueFilePath, 'utf8');
+
+        // 1. Quét tĩnh CSS: kiểm tra .datasource-right-tabs loại bỏ border-left/border-right động
+        const rightTabsCss = vueContent.substring(vueContent.indexOf('.datasource-right-tabs'));
+        expect(rightTabsCss).toContain('border-left: none;');
+        expect(rightTabsCss).toContain('border-right: none;');
+        expect(rightTabsCss).toContain('margin: 0;');
+        expect(rightTabsCss).not.toContain('!important');
+
+        // 2. Render DOM thực tế: Mở màn hình dataSource
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+
+        const tabs = page.locator('.datasource-right-tabs');
+        await expect(tabs).toBeVisible({ timeout: 15_000 });
+
+        const sqlTab = tabs.getByRole('tab', { name: /Cấu hình SQL/ });
+        const fieldsTab = tabs.getByRole('tab', { name: /Danh sách trường/ });
+        await expect(sqlTab).toBeVisible();
+        await expect(fieldsTab).toBeVisible();
+
+        // 3. Kiểm tra border-left và border-right khi sqlTab active: không có viền nhảy
+        const sqlTabBorders = await sqlTab.evaluate((el) => {
+            const style = window.getComputedStyle(el);
+            return {
+                borderLeftWidth: style.borderLeftWidth,
+                borderRightWidth: style.borderRightWidth,
+                borderLeftStyle: style.borderLeftStyle,
+                borderRightStyle: style.borderRightStyle,
+                marginLeft: style.marginLeft,
+            };
+        });
+        expect(sqlTabBorders.borderLeftStyle === 'none' || sqlTabBorders.borderLeftWidth === '0px').toBe(true);
+        expect(sqlTabBorders.borderRightStyle === 'none' || sqlTabBorders.borderRightWidth === '0px').toBe(true);
+
+        const initialBox = await sqlTab.boundingBox();
+        expect(initialBox).not.toBeNull();
+
+        // 4. Chuyển sang fieldsTab
+        await fieldsTab.click();
+        await expect(fieldsTab).toHaveClass(/is-active/);
+        await page.waitForTimeout(200);
+
+        const fieldsTabBorders = await fieldsTab.evaluate((el) => {
+            const style = window.getComputedStyle(el);
+            return {
+                borderLeftWidth: style.borderLeftWidth,
+                borderRightWidth: style.borderRightWidth,
+                borderLeftStyle: style.borderLeftStyle,
+                borderRightStyle: style.borderRightStyle,
+                marginLeft: style.marginLeft,
+            };
+        });
+        expect(fieldsTabBorders.borderLeftStyle === 'none' || fieldsTabBorders.borderLeftWidth === '0px').toBe(true);
+        expect(fieldsTabBorders.borderRightStyle === 'none' || fieldsTabBorders.borderRightWidth === '0px').toBe(true);
+
+        // 5. Chuyển lại sqlTab và kiểm tra toạ độ X và width không đổi (không bị giật layout)
+        await sqlTab.click();
+        await expect(sqlTab).toHaveClass(/is-active/);
+        await page.waitForTimeout(200);
+
+        const backBox = await sqlTab.boundingBox();
+        expect(backBox).not.toBeNull();
+        expect(Math.abs(backBox!.x - initialBox!.x)).toBeLessThanOrEqual(1);
+        expect(Math.abs(backBox!.width - initialBox!.width)).toBeLessThanOrEqual(1);
+
+        // 6. Kiểm tra ngắn gọn nhãn tab thành 'Cấu hình SQL' (bỏ & Dò cột) và bỏ title trùng lặp bên dưới
+        expect(vueContent).not.toContain('class="sql-toolbar-left"');
+        expect(vueContent).not.toContain("{{ $t('lz.label.sharedataDataSource.extractSqlConfig') }}");
+        const viPath = path.resolve(__dirname, '../../../../TA-ITS015-WEBVUE-V1.0/src/src/i18n/lang/vi-vn.json');
+        const enPath = path.resolve(__dirname, '../../../../TA-ITS015-WEBVUE-V1.0/src/src/i18n/lang/en-us.json');
+        const viJson = JSON.parse(fs.readFileSync(viPath, 'utf8'));
+        const enJson = JSON.parse(fs.readFileSync(enPath, 'utf8'));
+        expect(viJson['lz.label.sharedataDataSource.tabSqlCenter']).toBe('Cấu hình SQL');
+        expect(enJson['lz.label.sharedataDataSource.tabSqlCenter']).toBe('SQL Configuration');
+        await expect(sqlTab).toContainText('Cấu hình SQL');
+        await expect(sqlTab).not.toContainText('Dò cột');
+    });
+
+    test('8. Kéo thả resize height cho các table con (danh sách cột phát hiện & dữ liệu mẫu) trong tab Cấu hình SQL', async ({ page }) => {
+        const vueFilePath = path.resolve(
+            __dirname,
+            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/index.vue'
+        );
+        const vueContent = fs.readFileSync(vueFilePath, 'utf8');
+
+        // 1. Quét tĩnh CSS & DOM code: kiểm tra sự hiện diện của các thanh kéo resizer
+        expect(vueContent).toContain('table-resize-bar');
+        expect(vueContent).toContain('detected-table-resizer-top');
+        expect(vueContent).toContain('detected-table-resizer-bottom');
+        expect(vueContent).toContain('sample-table-resizer');
+        expect(vueContent).toContain('cursor: ns-resize');
+        expect(vueContent).not.toContain('!important');
+
+        // 2. Mock thêm API SQL Center để trả về dữ liệu mẫu và cột phát hiện
+        await page.route('**/api/sharedata/sharedatapacket/parseextractcolumns*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        isValid: true,
+                        columns: ['speed', 'vehicle_count', 'lane_id', 'recorded_time'],
+                    },
+                }),
+            });
+        });
+
+        await page.route('**/api/sharedata/sharedatapacket/getextractsql*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        extractSql: 'SELECT TOP 10 td.Speed AS speed, td.Volume AS vehicle_count FROM TmsTrafficData td',
+                        status: 1,
+                        remark: 'SQL mặc định',
+                    },
+                }),
+            });
+        });
+
+        await page.route('**/api/sharedata/sharedatapacket/executeextractsqlsample*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        isSuccess: true,
+                        columns: ['speed', 'vehicle_count'],
+                        rows: [
+                            { speed: 60, vehicle_count: 12 },
+                            { speed: 75, vehicle_count: 8 },
+                        ],
+                    },
+                }),
+            });
+        });
+
+        // 3. Mở trang dataSource
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+
+        // Chờ bảng gói tin hiển thị và click chọn gói tin đầu tiên
+        const packetRow = page.locator('.packet-pane .vxe-table--body tbody tr').first();
+        await expect(packetRow).toBeVisible({ timeout: 15_000 });
+        await packetRow.click();
+        await page.waitForTimeout(300);
+
+        // Chuyển sang tab Cấu hình SQL
+        const tabs = page.locator('.datasource-right-tabs');
+        const sqlTab = tabs.getByRole('tab', { name: /Cấu hình SQL/ });
+        await sqlTab.click();
+        await expect(sqlTab).toHaveClass(/is-active/);
+
+        // 4. Kiểm tra sự xuất hiện của thanh kéo trên và dưới của bảng cột phát hiện
+        const topResizer = page.locator('.detected-table-resizer-top');
+        const bottomResizer = page.locator('.detected-table-resizer-bottom');
+        await expect(topResizer).toBeVisible();
+        await expect(bottomResizer).toBeVisible();
+
+        const tableWrapper = page.locator('.detected-columns-table-wrapper');
+        await expect(tableWrapper).toBeVisible();
+        await tableWrapper.scrollIntoViewIfNeeded();
+
+        // Đo chiều cao ban đầu (mặc định 280px)
+        const initialHeight = (await tableWrapper.boundingBox())?.height || 280;
+        expect(initialHeight).toBeGreaterThanOrEqual(250);
+
+        // 5. Thao tác kéo thả thanh resizer dưới xuống 80px để tăng chiều cao bảng
+        await bottomResizer.scrollIntoViewIfNeeded();
+        const bottomBox = await bottomResizer.boundingBox();
+        expect(bottomBox).not.toBeNull();
+
+        await page.mouse.move(bottomBox!.x + bottomBox!.width / 2, bottomBox!.y + bottomBox!.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(bottomBox!.x + bottomBox!.width / 2, bottomBox!.y + bottomBox!.height / 2 + 80, { steps: 5 });
+        await page.mouse.up();
+        await page.waitForTimeout(200);
+
+        const resizedHeight = (await tableWrapper.boundingBox())?.height || 0;
+        expect(resizedHeight).toBeGreaterThan(initialHeight + 40);
+
+        // 6. Kiểm tra các nút Preset chiều cao nhanh (280, 450, 650)
+        const btnPreset450 = page.locator('.detected-columns-tools .el-button').filter({ hasText: '450' });
+        await btnPreset450.click();
+        await page.waitForTimeout(200);
+        const heightAt450 = (await tableWrapper.boundingBox())?.height || 0;
+        expect(Math.abs(heightAt450 - 450)).toBeLessThanOrEqual(5);
+
+        // Click preset 280
+        const btnPreset280 = page.locator('.detected-columns-tools .el-button').filter({ hasText: '280' });
+        await btnPreset280.click();
+        await page.waitForTimeout(200);
+        const heightAt280 = (await tableWrapper.boundingBox())?.height || 0;
+        expect(Math.abs(heightAt280 - 280)).toBeLessThanOrEqual(5);
+
+        // 7. Kiểm tra bảng Xem trước dữ liệu mẫu (bấm nút Xem dữ liệu mẫu)
+        const btnPreview = page.locator('.sql-toolbar-right .el-button').filter({ hasText: /Xem dữ liệu mẫu/ });
+        await btnPreview.click();
+
+        const sampleCard = page.locator('.sample-preview-card');
+        await expect(sampleCard).toBeVisible({ timeout: 5_000 });
+
+        const sampleResizer = sampleCard.locator('.sample-table-resizer');
+        await expect(sampleResizer).toBeVisible();
+        await sampleResizer.scrollIntoViewIfNeeded();
+
+        // Kéo thanh resizer bảng mẫu xuống 60px
+        const sampleResizerBox = await sampleResizer.boundingBox();
+        expect(sampleResizerBox).not.toBeNull();
+
+        const sampleBody = sampleCard.locator('.sample-preview-body');
+        const initialSampleHeight = (await sampleBody.boundingBox())?.height || 180;
+
+        await page.mouse.move(sampleResizerBox!.x + sampleResizerBox!.width / 2, sampleResizerBox!.y + sampleResizerBox!.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(sampleResizerBox!.x + sampleResizerBox!.width / 2, sampleResizerBox!.y + sampleResizerBox!.height / 2 + 60, { steps: 5 });
+        await page.mouse.up();
+        await page.waitForTimeout(200);
+
+        const resizedSampleHeight = (await sampleBody.boundingBox())?.height || 0;
+        expect(resizedSampleHeight).toBeGreaterThan(initialSampleHeight + 30);
+
+        // Kiểm tra nút preset của bảng dữ liệu mẫu (300px)
+        const btnSamplePreset300 = sampleCard.locator('.sample-preview-tools .el-button').filter({ hasText: '300' });
+        await btnSamplePreset300.click();
+        await page.waitForTimeout(200);
+        const heightAt300 = (await sampleBody.boundingBox())?.height || 0;
+        expect(Math.abs(heightAt300 - 300)).toBeLessThanOrEqual(5);
+
+        // Click đúp tag indicator để đặt lại về 180px
+        const sampleTag = sampleCard.locator('.height-indicator-tag');
+        await sampleTag.dblclick();
+        await page.waitForTimeout(200);
+        const resetSampleHeight = (await sampleBody.boundingBox())?.height || 0;
+        expect(Math.abs(resetSampleHeight - 180)).toBeLessThanOrEqual(5);
     });
 });
 

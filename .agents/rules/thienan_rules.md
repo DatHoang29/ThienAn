@@ -16,7 +16,7 @@ description: Single Source of Truth for ThienAn project — P0 safeguards and re
 
 ## 🛑 BẢNG QUY TẮC CỐT LÕI BẮT BUỘC (P0 SAFEGUARDS)
 
-Mọi AI Agent (Antigravity, Claude Code, Cursor, Codex...) **BẮT BUỘC** tuân thủ tuyệt đối 17 quy tắc sống còn sau:
+Mọi AI Agent (Antigravity, Claude Code, Cursor, Codex...) **BẮT BUỘC** tuân thủ tuyệt đối 18 quy tắc sống còn sau:
 
 | STT | Quy Tắc Cốt Lõi (P0) | Yêu Cầu Chi Tiết |
 | :---: | :--- | :--- |
@@ -37,6 +37,7 @@ Mọi AI Agent (Antigravity, Claude Code, Cursor, Codex...) **BẮT BUỘC** tu�
 | **15** | **Tự Động Dọn Dẹp Test Artifacts** (Rule 19.64) | Sau khi test pass 100%, AI **BẮT BUỘC tự động dọn dẹp các tệp/thư mục tạm** sinh ra do test runner (như `test-results/`, `playwright-report/`, traces, screenshots, log tạm) để giữ sạch Working Tree. Chỉ giữ lại khi test fail để chẩn đoán. |
 | **16** | **Prompt-First Khi Cần Sửa & Ngoại Lệ Cho File `.sql`** (cập nhật 13/10/2026) | Khi user yêu cầu "sửa thì viết prompt", hoặc khi một đợt review/đối chiếu phát hiện chỗ cần sửa trên mã nguồn/tài liệu Markdown (Spec, Q&A): AI ⛔ **KHÔNG tự sửa** mà viết **prompt sửa** trong khung chat, chỉ sửa trực tiếp khi user nói rõ "sửa luôn". **Ngoại lệ cho các tệp kịch bản `.sql` (`DocBusinessThienAn/**/sql/*.sql`)**: AI **ĐƯỢC QUYỀN sửa/cập nhật trực tiếp vào tệp `.sql`** (bổ sung `USE [<TênDB>];`, đối chiếu đúng tên cột/quy ước dữ liệu từ MCP Staging như `SysTerminology.Name = 'lz.<nhóm>'`) để lập trình viên là người kiểm tra và chạy cuối cùng trên DB (AI tuyệt đối không tự thực thi lệnh ghi lên CSDL). |
 | **17** | **Repo Cha `ThienAn` Chỉ Dùng `main`** (bổ sung 12/10/2026) | ThienAn gồm **3 repository**: repo cha `ThienAn` (docs, `.agents`, `.claude`, `tests/`) và 2 repo con `TA-ITS015-WEBAPI-V1.0`, `TA-ITS015-WEBVUE-V1.0`. **Chỉ repo cha**: mọi fix (kể cả fix chạy từ prompt/agent) làm thẳng trên `main` rồi push `origin main`; ⛔ **CẤM** tạo nhánh `fix/*`, `feature/*`, `agents/*` hoặc git worktree riêng; nhánh/worktree lỡ tạo thì merge vào `main` rồi xoá cả local lẫn remote. **Hai repo con WEBAPI và WEBVUE KHÔNG bị ảnh hưởng**: vẫn tạo nhánh theo quy chuẩn Git của Thiên Ân (`git-workflow_thienan.md`). Rule 3 vẫn giữ nguyên: AI chỉ `git add`/`commit`/`push` khi user ra lệnh rõ. |
+| **18** | **Bắt Buộc Viết Test Cho Mọi Fix Frontend Lặt Vặt** (Rule 19.67 - bổ sung 13/10/2026) | Mọi yêu cầu sửa/chỉnh lỗi dù là lặt vặt nhất ở Frontend (UI, CSS, font chữ, căn chỉnh khoảng cách, chống giật modal/tab, placeholder, i18n, form validation...) **BẮT BUỘC viết/bổ sung ngay bài test Playwright tương ứng** tại `tests/FE/` (`tests/FE/views/<module>/<feature>.test.ts`) để verify và bảo đảm không bị hồi quy (Zero Regression). |
 
 ---
 
@@ -70,12 +71,13 @@ flowchart TD
 - **Draggable Dialog:** Dùng `dialogRef.value?.resetPosition?.()`, CẤM sửa tay `style.transform` (tránh giật toạ độ).
 - **TypeScript:** CẤM toán tử `!!`, ngắt dòng thuộc tính template, cấm sửa tay `src/api-services/`.
 - **i18n & Tooltip (Rule 20.12):** Thông báo/tooltip có $\ge 2$ câu (ngăn cách bởi dấu '.') BẮT BUỘC chèn `\n` sau dấu '.'; trong `el-tooltip` dùng slot `<template #content><div style="white-space: pre-line">...</div></template>` để hiển thị đa dòng sạch đẹp.
+- **Bắt Buộc Viết Test Sau Khi Fix Lặt Vặt (Rule 18 / 19.67):** Mọi sửa đổi FE (kể cả căn chỉnh CSS, font, layout, modal, tab, i18n...) BẮT BUỘC viết/bổ sung ngay bài test Playwright tại `tests/FE/` để bảo đảm Zero Regression.
 
 ### 4. [🧪 Quy Chuẩn Kiểm Thử (Testing Suite)](file:///Users/hoangquydat/ThienAn/.agents/rules/testing-rules_thienan.md)
 - **Triết lý:** Test toàn trình nghiệp vụ (Full Business Flow), cấm micro unit test rời rạc, tái hiện bug bằng test fail trước (TDD).
+- **Frontend Test:** Playwright E2E tại `tests/FE/`, timeout mặc định $\le$ 5s. Bắt buộc bổ sung test case Playwright cho mọi fix Frontend lặt vặt (Rule 18 / 19.67).
 - **Backend Test:** Chạy xUnit trên CSDL local, cấm Moq, cấm mock service nội bộ & NATS, cấm bọc `try-catch` quanh Act/Assert.
 - **Test Kết Nối Server Thật (Rule 19.66):** Tách riêng vào thư mục `tests/BE/RealServer/`, dùng `[Collection("real-server")]` riêng biệt (không phụ thuộc `Host` / DB / nghiệp vụ) và bắt buộc gắn `[Fact(Skip = "...")]` để ưu tiên luồng test local pass trước.
-- **Frontend Test:** Playwright E2E tại `tests/FE/`, timeout mặc định $\le$ 5s.
 - **Dọn dẹp Artifacts (Rule 19.64):** Sau khi test pass 100%, BẮT BUỘC tự động dọn dẹp xóa bỏ `test-results/` và các file artifacts tạm.
 
 ### 5. [🗄️ Quy Chuẩn Database & MCP Tooling](file:///Users/hoangquydat/ThienAn/.agents/rules/database-mcp_thienan.md)

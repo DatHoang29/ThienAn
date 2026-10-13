@@ -73,6 +73,9 @@ description: Unified Testing Suite protocol, Playwright FE E2E, xUnit BE on loca
 ## 🎭 3. Quy Chuẩn Kiểm Thử Frontend (Playwright E2E)
 
 * **Vị trí tệp test**: Đặt tại `tests/FE/views/<module>/<feature>.test.ts`.
+* **Bắt buộc viết test cho mọi fix lặt vặt (Rule 18 / 19.67 - Zero Regression)**:
+  - Mọi yêu cầu sửa/chỉnh lỗi dù là lặt vặt nhất ở Frontend (UI, CSS, font chữ, căn chỉnh khoảng cách, chống giật modal/tab, placeholder, i18n, form validation...) **BẮT BUỘC viết/bổ sung ngay bài test Playwright tương ứng** tại `tests/FE/` (`tests/FE/views/<module>/<feature>.test.ts`) để verify và bảo đảm không bị hồi quy.
+  - Test case có thể kết hợp kiểm tra tĩnh mã nguồn CSS/template và kiểm thử tương tác / render DOM.
 * **Timeout kịch bản (Rule 19.61)**: Mặc định tối đa 5s cho mỗi hành động (`waitForSelector`, `expect`), trường hợp mạng chậm chỉ tăng gia số +1 đến 2 giây.
 * **Quy chuẩn bộ chọn (Selectors)**: Ưu tiên chọn theo role, aria-label, class định danh ngữ cảnh cụ thể, tránh dùng selector xpath cứng dễ vỡ.
 * **Lệnh thực thi**:
