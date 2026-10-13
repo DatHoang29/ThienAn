@@ -63,6 +63,11 @@ description: Unified Testing Suite protocol, Playwright FE E2E, xUnit BE on loca
 * Dọn dẹp tập trung tại `Host.ClearAllData()` và mỗi test method tự cô lập dữ liệu bằng **Unique ID / Mã riêng biệt** để đảm bảo test chạy song song không xung đột.
 * ⛔ **CẤM gọi `InitTables<T>()` / `EnsureTablesCreated()`**: Kích hoạt tự động tạo bảng thông qua cấu hình `TableSettings` trong `tests/appsettings.Test.json`.
 
+### Cô Lập Kiểm Thử Kết Nối Server Thật (`tests/BE/RealServer/` - Rule 19.66)
+* **Thư mục & File riêng biệt**: Mọi bài test kết nối trực tiếp tới **server thật / hạ tầng ngoài thật** (ví dụ: NATS Server TLS thật `tls://115.78.1.139:12211`, SMTP/FTP server thật, thiết bị phần cứng thật...) **BẮT BUỘC tách ra thư mục chuyên biệt `tests/BE/RealServer/`** (ví dụ `ShareDataNatsServerConnectionTests.cs`). ⛔ **CẤM** đặt lẫn lộn trong các file test nghiệp vụ local (`tests/BE/ITS/...`).
+* **Collection riêng biệt (`[Collection("real-server")]`) & Không trộn nghiệp vụ**: Các bài test server thật chỉ kiểm chứng tầng kết nối/truyền tải (connect, publish/subscribe round-trip, handshake...), **BẮT BUỘC dùng `[Collection("real-server")]`** (`RealServerTestCollection`, không gắn `ICollectionFixture<Host>`), hoàn toàn độc lập với CSDL local và không kéo theo logic nghiệp vụ (`ShareDataSubscription`, `DataOutboundService`...).
+* **Bắt buộc gắn `[Fact(Skip = "...")]`**: Mọi test gọi ra server thật phải có tham số `Skip` giải thích rõ lý do để luồng test local mặc định luôn chạy độc lập, nhanh và pass 100%; chỉ gỡ `Skip` khi cần chủ động kiểm tra kết nối tới server thật.
+
 ---
 
 ## 🎭 3. Quy Chuẩn Kiểm Thử Frontend (Playwright E2E)

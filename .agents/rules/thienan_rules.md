@@ -73,6 +73,7 @@ flowchart TD
 ### 4. [🧪 Quy Chuẩn Kiểm Thử (Testing Suite)](file:///Users/hoangquydat/ThienAn/.agents/rules/testing-rules_thienan.md)
 - **Triết lý:** Test toàn trình nghiệp vụ (Full Business Flow), cấm micro unit test rời rạc, tái hiện bug bằng test fail trước (TDD).
 - **Backend Test:** Chạy xUnit trên CSDL local, cấm Moq, cấm mock service nội bộ & NATS, cấm bọc `try-catch` quanh Act/Assert.
+- **Test Kết Nối Server Thật (Rule 19.66):** Tách riêng vào thư mục `tests/BE/RealServer/`, dùng `[Collection("real-server")]` riêng biệt (không phụ thuộc `Host` / DB / nghiệp vụ) và bắt buộc gắn `[Fact(Skip = "...")]` để ưu tiên luồng test local pass trước.
 - **Frontend Test:** Playwright E2E tại `tests/FE/`, timeout mặc định $\le$ 5s.
 - **Dọn dẹp Artifacts (Rule 19.64):** Sau khi test pass 100%, BẮT BUỘC tự động dọn dẹp xóa bỏ `test-results/` và các file artifacts tạm.
 
@@ -84,6 +85,6 @@ flowchart TD
 - **MasterPlan & Prompt:** Duy nhất 1 MasterPlan sống per phân hệ. File prompt đặt tại `Prompt/`, có mục cuối cập nhật tài liệu gốc.
 - **Báo cáo rà soát:** Viết hướng về người đọc, cấm phụ lục, trạng thái chỉ có "Đã làm" hoặc "Chưa làm".
 - **Phản hồi Sheet Bug:** Cú pháp `[ddMMyyyy]-[TênDev]: [Bị gì / Fix như nào cụ thể]`, cấm từ ngữ mơ hồ, cấm gộp issue.
-- **Transcript Cuộc Họp:** Tách riêng từng phân hệ vào `doc/transcript/`. Chỉ gồm Mục 1 (Tóm tắt cốt lõi) và Mục 2 (Kịch bản đối thoại chi tiết); ⛔ CẤM/KHÔNG CẦN tạo bảng "Ma trận phân công công việc (Action Items)". Khi nghe file ghi âm dài ($> 15$ phút): **BẮT BUỘC cắt nhỏ thành các đoạn 10–15 phút** (`ffmpeg` / `AVAssetExportSession`) để nghe chi tiết từng giây (xóa file tạm sau khi xong), lọc bỏ tiếng nói chuyện nền ở bàn bên cạnh, và cấm tự suy diễn thuật ngữ theo quán tính tài liệu cũ (ví dụ cấm tự đổi `Kafka` thành `NATS`).
+- **Transcript Cuộc Họp:** Tách riêng từng phân hệ vào `doc/transcript/`. Trong `participants` chỉ giữ vai trò **Tech Lead** (ví dụ `Anh Sơn (Tech Lead)`), còn lại các lập trình viên chỉ ghi **`(Dev)`** (ví dụ `Hiếu (Dev)`, `Đạt (Dev)`) vì Dev cover làm full hết — ⛔ CẤM chia nhỏ kiểu `Dev Backend / Service Worker & Frontend` hay `Dev Backend / WebAPI & Database`. Nội dung chỉ gồm Mục 1 (Tóm tắt cốt lõi) và Mục 2 (Kịch bản đối thoại chi tiết); ⛔ CẤM/KHÔNG CẦN tạo bảng "Ma trận phân công công việc (Action Items)". Khi nghe file ghi âm dài ($> 15$ phút): **BẮT BUỘC cắt nhỏ thành các đoạn 10–15 phút** (`ffmpeg` / `AVAssetExportSession`) để nghe chi tiết từng giây (xóa file tạm sau khi xong), lọc bỏ tiếng nói chuyện nền ở bàn bên cạnh, và cấm tự suy diễn thuật ngữ theo quán tính tài liệu cũ (ví dụ cấm tự đổi `Kafka` thành `NATS`).
 - **Mô tả & Kết quả Công việc (Task Portal):** Chỉ liệt kê các tính năng nghiệp vụ/kỹ thuật sẽ làm; ⛔ CẤM đưa các việc dọn dẹp code (xóa enum/hằng số chết, xóa file mồ côi...) vào danh sách.
 
