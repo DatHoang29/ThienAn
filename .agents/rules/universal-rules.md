@@ -28,6 +28,7 @@ When user's prompt is NOT in English:
 **ALL code MUST follow `@[skills/clean-code]` rules. No exceptions.**
 
 - **Code**: Concise, direct, no over-engineering. Self-documenting.
+- **Scope Discipline (Minimal Diff)**: Không sửa bất kỳ code nào không liên quan đến yêu cầu trực tiếp. Tránh làm thay đổi (change) code quá nhiều không cần thiết.
 - **Testing**: Mandatory. Pyramid (Unit > Int > E2E) + AAA Pattern.
 - **Performance**: Measure first. Adhere to current Core Web Vitals standards.
 - **Infra/Safety**: 5-Phase Deployment. Verify secrets security.

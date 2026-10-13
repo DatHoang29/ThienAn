@@ -99,4 +99,10 @@ namespace Modules.ShareData.Controllers
 8. **Vị Trí `using` & Quy Chuẩn `namespace` (Rule 19.65)**:
    - **Vị trí `using` luôn đứng đầu file**: Mọi chỉ thị `using` **BẮT BUỘC đặt ở đầu tệp tin**, phía trước khai báo `namespace`. ⛔ **TUYỆT ĐỐI CẤM** đặt `using` sau khai báo `namespace` (kể cả khi dùng file-scoped namespace).
    - **Đồng nhất kiểu `namespace`**: Tuân thủ phong cách namespace của module / file gốc hiện hữu. Khi tạo file mới hoặc tách `partial class`, **BẮT BUỘC đồng nhất** với các file cùng class/module: nếu các file hiện tại dùng block-scoped namespace (`namespace X { ... }`) thì file mới bắt buộc dùng block-scoped namespace, ⛔ **CẤM** viết lẫn lộn file-scoped namespace (`namespace X;`) trong cùng một partial class.
+9. **Can Thiệp Tối Thiểu & Cấm Sửa Code Ngoài Phạm Vi (Minimal Diff / Scope Discipline)**:
+   - ⛔ **TUYỆT ĐỐI CẤM** sửa bất kỳ file, class, phương thức hoặc dòng code nào **KHÔNG LIÊN QUAN TRỰC TIẾP** đến yêu cầu hiện tại để tránh làm biến động (change) mã nguồn quá nhiều không cần thiết.
+   - Chỉ sửa đúng các dòng code tối thiểu cần thiết để đạt mục tiêu.
+   - Giữ nguyên 100% logic, định dạng, biến, chú thích của các hàm/file xung quanh đang chạy ổn định.
+   - Cấm tự ý tiện tay refactor, format lại cả file, đổi namespace, đổi kiểu dữ liệu hay sửa file ngoài phạm vi.
+
 
