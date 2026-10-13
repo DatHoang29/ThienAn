@@ -84,5 +84,6 @@ flowchart TD
 - **MasterPlan & Prompt:** Duy nhất 1 MasterPlan sống per phân hệ. File prompt đặt tại `Prompt/`, có mục cuối cập nhật tài liệu gốc.
 - **Báo cáo rà soát:** Viết hướng về người đọc, cấm phụ lục, trạng thái chỉ có "Đã làm" hoặc "Chưa làm".
 - **Phản hồi Sheet Bug:** Cú pháp `[ddMMyyyy]-[TênDev]: [Bị gì / Fix như nào cụ thể]`, cấm từ ngữ mơ hồ, cấm gộp issue.
-- **Transcript Cuộc Họp:** Tách riêng từng phân hệ vào `doc/transcript/`. Chỉ gồm Mục 1 (Tóm tắt cốt lõi) và Mục 2 (Kịch bản đối thoại chi tiết); ⛔ CẤM/KHÔNG CẦN tạo bảng "Ma trận phân công công việc (Action Items)".
+- **Transcript Cuộc Họp:** Tách riêng từng phân hệ vào `doc/transcript/`. Chỉ gồm Mục 1 (Tóm tắt cốt lõi) và Mục 2 (Kịch bản đối thoại chi tiết); ⛔ CẤM/KHÔNG CẦN tạo bảng "Ma trận phân công công việc (Action Items)". Khi nghe file ghi âm dài ($> 15$ phút): **BẮT BUỘC cắt nhỏ thành các đoạn 10–15 phút** (`ffmpeg` / `AVAssetExportSession`) để nghe chi tiết từng giây (xóa file tạm sau khi xong), lọc bỏ tiếng nói chuyện nền ở bàn bên cạnh, và cấm tự suy diễn thuật ngữ theo quán tính tài liệu cũ (ví dụ cấm tự đổi `Kafka` thành `NATS`).
+- **Mô tả & Kết quả Công việc (Task Portal):** Chỉ liệt kê các tính năng nghiệp vụ/kỹ thuật sẽ làm; ⛔ CẤM đưa các việc dọn dẹp code (xóa enum/hằng số chết, xóa file mồ côi...) vào danh sách.
 

@@ -77,4 +77,21 @@ description: Documentation standards, single MasterPlan per subsystem, executabl
    - Chỉ cần tóm tắt quyết định kỹ thuật cốt lõi (Mục 1) và giữ kịch bản đối thoại chi tiết (Mục 2).
 3. **Tách Riêng Theo Từng Phân Hệ**:
    - Khi một cuộc họp/tệp ghi âm thảo luận nhiều phân hệ (ví dụ `VideoWall`, `ShareData`...), **BẮT BUỘC bóc tách thành các file transcript độc lập** và lưu vào thư mục `doc/transcript/` của từng phân hệ tương ứng, kèm theo cập nhật `00-catalog.md`.
+4. **Quy Trình Kỹ Thuật Bắt Buộc Khi Nghe & Trích Xuất Audio (High-Precision Audio Transcription)**:
+   - **Cắt nhỏ file âm thanh (`Audio Chunking` $\le 10\text{–}15$ phút/đoạn):**
+     - ⛔ **CẤM** nạp nguyên một file ghi âm dài ($> 15$ phút) vào công cụ multimodal (`view_file`) trong một lần gọi (gây loãng sự chú ý / attention dilution ở nửa cuối file và làm giảm độ chính xác nhận diện từ).
+     - **BẮT BUỘC** cắt file gốc thành các đoạn ngắn **10–15 phút** (bằng `ffmpeg` hoặc `swift` `AVAssetExportSession` trên macOS) lưu vào thư mục tạm `scratch/`, nghe từng đoạn ở độ phân giải từng giây, và **xóa sạch các file audio cắt tạm** ngay sau khi hoàn tất.
+   - **Phân tách kênh người nói & Lọc tạp âm nền (Speaker Separation & Background Chatter Filtering):**
+     - Khi băng ghi âm có tiếng ồn văn phòng hoặc có cuộc hội thoại khác ở bàn bên cạnh lọt vào mic (overlapping speech), **BẮT BUỘC** đối chiếu giọng nói và mạch câu chuyện để tách riêng lời thoại của nhóm họp chính; ⛔ **TUYỆT ĐỐI KHÔNG** chép nhầm câu nói của người ở bàn khác vào lời thoại cuộc họp.
+   - **Chống suy diễn thuật ngữ theo quán tính ngữ cảnh (Zero Context-Bias Hallucination):**
+     - Nghe chính xác từng âm tiết các thuật ngữ kỹ thuật (`Kafka`, `NATS`, `API`, `byte[]`, `Dictionary`, `SystemConfigData`, `RadioButton`...). ⛔ **CẤM** tự ý thay thế thuật ngữ nghe được bằng thuật ngữ quen thuộc trong tài liệu cũ (như nghe `Kafka` tự đổi thành `NATS`), và không biến câu lấy ví dụ sang phân hệ khác (như phân hệ `Mail`) thành yêu cầu kỹ thuật của phân hệ đang xét.
+
+---
+
+## 📋 6. Quy Chuẩn Liệt Kê Mô Tả Công Việc & Kết Quả Công Việc (Task Management Portal)
+
+1. **Chỉ Liệt Kê Tính Năng Sẽ Làm / Đã Làm (Feature-Only)**:
+   - Khi lập danh sách đầu mục cho phần **Mô tả công việc** và **Kết quả công việc** (báo cáo tiến độ tuần/sprint trên hệ thống quản lý công việc): **CHỈ liệt kê các tính năng nghiệp vụ và kỹ thuật thực tế sẽ làm hoặc đã hoàn thành** (ví dụ: xây dựng component dùng chung, tách tầng kết nối, cơ chế gửi bù, phân quyền & validate truy vấn động, chuẩn hóa giao diện Tab, đa ngôn ngữ i18n...).
+2. ⛔ **CẤM Đưa Các Việc Dọn Dẹp Mã Nguồn (Code Cleanup) Vào Báo Cáo**:
+   - **KHÔNG** liệt kê các thao tác dọn dẹp nội bộ như: xóa enum/hằng số chết, xóa file API/model mồ côi, dọn warning compiler, đổi tên biến nội bộ hoặc các việc bảo trì vụn vặt không mang tính chất tính năng.
 

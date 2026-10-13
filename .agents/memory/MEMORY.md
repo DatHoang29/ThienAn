@@ -19,7 +19,7 @@
 
 ## Reference
 - [Ưu tiên transcript hơn MasterPlan](doc-priority-transcript-over-masterplan.md) — đối chiếu nghiệp vụ: đọc doc/transcript trước, MasterPlan có thể sai
-- [Quy chuẩn cấu trúc tệp transcript](transcript-structure-rules.md) — chỉ giữ Mục 1 (tóm tắt) và Mục 2 (lời thoại chi tiết), cấm tạo bảng phân công (Action Items)
+- [Quy chuẩn cấu trúc & quy trình nghe tệp transcript](transcript-structure-rules.md) — chỉ giữ Mục 1 (tóm tắt) và Mục 2 (lời thoại chi tiết), cấm bảng Action Items; khi nghe audio $> 15$ phút bắt buộc cắt nhỏ 10–15 phút/đoạn, lọc tạp âm bàn bên và cấm đoán từ theo quán tính tài liệu cũ
 - [Biểu mẫu Git Flow F10.TAC-CN01](../../DocBusinessThienAn/QuyDinhChung/doc/F10.TAC-CN01-git-rules.md) — Tài liệu hướng dẫn sử dụng Git Flow, tạo nhánh và các lưu ý khi commit code (chuẩn ISO F10 của Thiên Ân).
 - [Tài liệu Nghiệp vụ HN-CL](../../DocBusinessThienAn/HữuNghị-ChiLăng/INDEX.md) — Nguồn sự thật duy nhất cho tài liệu nghiệp vụ Hữu Nghị - Chi Lăng (luôn mở file này trước).
 - [Kiến trúc & Luồng Dịch thuật SysTerminology](systerminology-localization-flow.md) — Cơ chế đồng bộ DB SysTerminology -> Backend Resources/*.json (auto-generated) -> Frontend IndexedDB (TA-ConfigDb) -> Vue i18n; cấm sửa tay Resources/
