@@ -1,12 +1,8 @@
 import { test, expect } from '@playwright/test';
-import { mockAuth } from '../../setup';
+import { mockAuth, resolveWebvuePath } from '../../setup';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { parsePacketNumber, resolvePacketPolicy } from '../../../../TA-ITS015-WEBVUE-V1.0/src/src/utils/sharedata/packetPolicy';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { parsePacketNumber, resolvePacketPolicy } from '@webvue/utils/sharedata/packetPolicy';
 
 /**
  * Test E2E cho phân hệ ShareData — Quản lý Gói tin & Trường gói tin (dataSource/index.vue)
@@ -202,9 +198,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
     });
 
     test('2. Không có bất kỳ luật !important nào trong toàn bộ CSS/SCSS của phân hệ ShareData', async () => {
-        const sharedataDir = fs.existsSync(path.resolve(process.cwd(), 'TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata'))
-            ? path.resolve(process.cwd(), 'TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata')
-            : path.resolve(process.cwd(), '../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata');
+        const sharedataDir = resolveWebvuePath('views/sharedata');
 
         expect(fs.existsSync(sharedataDir)).toBeTruthy();
 
@@ -475,18 +469,9 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
     });
 
     test('6. Quét tĩnh & kiểm thử VisualQueryBuilder.vue: Dải xem trước SQL Tự động sinh dùng font chữ chuẩn và i18n đầy đủ', async () => {
-        const vqbFilePath = path.resolve(
-            __dirname,
-            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/component/visualQueryBuilder.vue'
-        );
-        const viPath = path.resolve(
-            __dirname,
-            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/i18n/lang/vi-vn.json'
-        );
-        const enPath = path.resolve(
-            __dirname,
-            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/i18n/lang/en-us.json'
-        );
+        const vqbFilePath = resolveWebvuePath('views/sharedata/dataSource/component/queryBuilder.vue');
+        const viPath = resolveWebvuePath('i18n/lang/vi-vn.json');
+        const enPath = resolveWebvuePath('i18n/lang/en-us.json');
 
         const vqbContent = fs.readFileSync(vqbFilePath, 'utf8');
         const viJson = JSON.parse(fs.readFileSync(viPath, 'utf8'));
@@ -525,10 +510,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
     });
 
     test('7. Chống giật khi chuyển tab Cấu hình SQL <-> Danh sách trường: Loại bỏ border ẩn/hiện động của border-card', async ({ page }) => {
-        const vueFilePath = path.resolve(
-            __dirname,
-            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/index.vue'
-        );
+        const vueFilePath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
         const vueContent = fs.readFileSync(vueFilePath, 'utf8');
 
         // 1. Quét tĩnh CSS: kiểm tra .datasource-right-tabs dùng native active-bar chuẩn TMS, không dùng scaleX
@@ -583,8 +565,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         // 6. Kiểm tra ngắn gọn nhãn tab thành 'Cấu hình SQL' (bỏ & Dò cột) và bỏ title trùng lặp bên dưới
         expect(vueContent).not.toContain('class="sql-toolbar-left"');
         expect(vueContent).not.toContain("{{ $t('lz.label.sharedataDataSource.extractSqlConfig') }}");
-        const viPath = path.resolve(__dirname, '../../../../TA-ITS015-WEBVUE-V1.0/src/src/i18n/lang/vi-vn.json');
-        const enPath = path.resolve(__dirname, '../../../../TA-ITS015-WEBVUE-V1.0/src/src/i18n/lang/en-us.json');
+        const viPath = resolveWebvuePath('i18n/lang/vi-vn.json');
+        const enPath = resolveWebvuePath('i18n/lang/en-us.json');
         const viJson = JSON.parse(fs.readFileSync(viPath, 'utf8'));
         const enJson = JSON.parse(fs.readFileSync(enPath, 'utf8'));
         expect(viJson['lz.label.sharedataDataSource.tabSqlCenter']).toBe('Cấu hình SQL');
@@ -594,10 +576,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
     });
 
     test('8. Kéo thả resize height cho các table con (danh sách cột phát hiện & dữ liệu mẫu) trong tab Cấu hình SQL', async ({ page }) => {
-        const vueFilePath = path.resolve(
-            __dirname,
-            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/index.vue'
-        );
+        const vueFilePath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
         const vueContent = fs.readFileSync(vueFilePath, 'utf8');
 
         // 1. Quét tĩnh CSS & DOM code: kiểm tra sự hiện diện của thanh kéo ngang resizer (đã bỏ thanh bên dưới theo yêu cầu)
@@ -784,11 +763,11 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
     });
 
     test('Quy chuẩn ngôn ngữ nhãn UI — Không viết song ngữ lai tiếng Anh trong ngoặc (Rule 20.13)', async ({ page }) => {
-        // 1. Quét tĩnh mã nguồn: VisualQueryBuilder.vue, vi-vn.json, en-us.json
-        const vqbPath = path.resolve(__dirname, '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/component/visualQueryBuilder.vue');
+        // 1. Quét tĩnh mã nguồn: queryBuilder.vue, vi-vn.json, en-us.json
+        const vqbPath = resolveWebvuePath('views/sharedata/dataSource/component/queryBuilder.vue');
         const vqbContent = fs.readFileSync(vqbPath, 'utf-8');
 
-        // CẤM xuất hiện các nhãn song ngữ lai tiếng Anh trong ngoặc trên template VisualQueryBuilder.vue
+        // CẤM xuất hiện các nhãn song ngữ lai tiếng Anh trong ngoặc trên template queryBuilder.vue
         expect(vqbContent).not.toContain('Trực quan (Builder)');
         expect(vqbContent).not.toContain('Mã nguồn SQL (Raw)');
         expect(vqbContent).not.toContain('Cột trích xuất (SELECT)');
@@ -798,13 +777,13 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(vqbContent).not.toContain('Giảm dần (DESC)');
 
         // Kiểm tra tệp i18n vi-vn.json phải là tiếng Việt thuần túy
-        const viPath = path.resolve(__dirname, '../../../../TA-ITS015-WEBVUE-V1.0/src/src/i18n/lang/vi-vn.json');
+        const viPath = resolveWebvuePath('i18n/lang/vi-vn.json');
         const viContent = JSON.parse(fs.readFileSync(viPath, 'utf-8'));
         expect(viContent['lz.label.sharedataDataSource.vqbVisualMode']).toBe('Trực quan');
         expect(viContent['lz.label.sharedataDataSource.vqbRawMode']).toBe('Mã nguồn SQL');
 
         // Kiểm tra tệp i18n en-us.json phải là tiếng Anh chuẩn
-        const enPath = path.resolve(__dirname, '../../../../TA-ITS015-WEBVUE-V1.0/src/src/i18n/lang/en-us.json');
+        const enPath = resolveWebvuePath('i18n/lang/en-us.json');
         const enContent = JSON.parse(fs.readFileSync(enPath, 'utf-8'));
         expect(enContent['lz.label.sharedataDataSource.vqbVisualMode']).toBe('Visual Builder');
         expect(enContent['lz.label.sharedataDataSource.vqbRawMode']).toBe('Raw SQL');
@@ -860,27 +839,18 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
 
     test('10. Đồng bộ 18 trường giữa Cấu hình SQL và Danh sách trường đã lưu, loại bỏ everright-filter khỏi package.json', async ({ page }) => {
         // 1. Quét tĩnh mã nguồn: package.json không còn phụ thuộc everright-filter
-        const packageJsonPath = path.resolve(
-            __dirname,
-            '../../../../TA-ITS015-WEBVUE-V1.0/src/package.json'
-        );
+        const packageJsonPath = resolveWebvuePath('../package.json');
         const pkgContent = fs.readFileSync(packageJsonPath, 'utf8');
         expect(pkgContent).not.toContain('everright-filter');
 
-        // Quét tĩnh VisualQueryBuilder.vue và index.vue: props, buttons, functions đồng bộ
-        const vqbPath = path.resolve(
-            __dirname,
-            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/component/visualQueryBuilder.vue'
-        );
+        // Quét tĩnh queryBuilder.vue và index.vue: props, buttons, functions đồng bộ
+        const vqbPath = resolveWebvuePath('views/sharedata/dataSource/component/queryBuilder.vue');
         const vqbContent = fs.readFileSync(vqbPath, 'utf8');
         expect(vqbContent).toContain('savedFields');
         expect(vqbContent).toContain('handleApplySavedFields');
         expect(vqbContent).toContain('vqbSavedFieldsBtn');
 
-        const indexVuePath = path.resolve(
-            __dirname,
-            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/index.vue'
-        );
+        const indexVuePath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
         const indexVueContent = fs.readFileSync(indexVuePath, 'utf8');
         expect(indexVueContent).toContain(':saved-fields="rawFlatFields"');
         expect(indexVueContent).toContain('handleGenerateSqlFromSavedFields');
@@ -974,15 +944,13 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await btnGenSql.click();
         await page.waitForTimeout(400);
 
-        // 7. Xác thực SQL được sinh ra chứa đủ các trường nghiệp vụ quan trọng và con trỏ
+        // 7. Xác thực SQL được sinh ra chứa đủ các trường nghiệp vụ quan trọng
         const sqlPreview = page.locator('.vqb-sql-preview-strip');
         await expect(sqlPreview).toBeVisible();
         await expect(sqlPreview).toContainText('detectionId');
         await expect(sqlPreview).toContainText('detectTime');
         await expect(sqlPreview).toContainText('licensePlate');
         await expect(sqlPreview).toContainText('speed');
-        await expect(sqlPreview).toContainText('__lastTime');
-        await expect(sqlPreview).toContainText('__rowid');
 
         // 8. Bấm nút "Cột đã lưu (18)" trong Visual Builder để kiểm tra cập nhật danh sách cột trực quan
         await btnSavedInBuilder.click();
@@ -993,11 +961,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
     });
 
     test('Hỗ trợ kéo resize 2 div con trong Visual Query Builder (Cột trích xuất và Điều kiện lọc)', async ({ page }) => {
-        // 1. Quét tĩnh mã nguồn VisualQueryBuilder.vue để kiểm chứng các tính năng resize
-        const vqbPath = path.resolve(
-            __dirname,
-            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/component/visualQueryBuilder.vue'
-        );
+        // 1. Quét tĩnh mã nguồn queryBuilder.vue để kiểm chứng các tính năng resize
+        const vqbPath = resolveWebvuePath('views/sharedata/dataSource/component/queryBuilder.vue');
         const vqbContent = fs.readFileSync(vqbPath, 'utf8');
 
         // Kiểm chứng có 2 thanh resizer riêng biệt cho 2 card con
@@ -1049,7 +1014,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
 
         await page.mouse.move(colResizerBox!.x + colResizerBox!.width / 2, colResizerBox!.y + colResizerBox!.height / 2);
         await page.mouse.down();
-        await page.mouse.move(colResizerBox!.x + colResizerBox!.width / 2, colResizerBox!.y + colResizerBox!.height / 2 + 60, { steps: 5 });
+        await page.mouse.move(colResizerBox!.x + colResizerBox!.width / 2, colResizerBox!.y + colResizerBox!.height / 2 + 60, { steps: 10 });
+        await page.waitForTimeout(100);
         await page.mouse.up();
         await page.waitForTimeout(200);
 
@@ -1077,7 +1043,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
 
         await page.mouse.move(filterResizerBox!.x + filterResizerBox!.width / 2, filterResizerBox!.y + filterResizerBox!.height / 2);
         await page.mouse.down();
-        await page.mouse.move(filterResizerBox!.x + filterResizerBox!.width / 2, filterResizerBox!.y + filterResizerBox!.height / 2 + 50, { steps: 5 });
+        await page.mouse.move(filterResizerBox!.x + filterResizerBox!.width / 2, filterResizerBox!.y + filterResizerBox!.height / 2 + 50, { steps: 10 });
+        await page.waitForTimeout(100);
         await page.mouse.up();
         await page.waitForTimeout(200);
 
@@ -1134,10 +1101,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(resolvePacketPolicy('unknown_pkt').policy).toBe('NotReady');
 
         // 3. Quét tĩnh editPacket.vue để kiểm tra hiển thị chính sách
-        const editPacketPath = path.resolve(
-            __dirname,
-            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/component/editPacket.vue'
-        );
+        const editPacketPath = resolveWebvuePath('views/sharedata/dataSource/component/editPacket.vue');
         const editPacketContent = fs.readFileSync(editPacketPath, 'utf8');
         expect(editPacketContent).toContain('resolvePacketPolicy');
         expect(editPacketContent).toContain('currentPolicy');
@@ -1147,7 +1111,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
     });
 
     test('12. Quy chuẩn đặt tên tệp component — BẮT BUỘC dùng camelCase (chữ cái đầu viết thường), CẤM viết hoa PascalCase (Rule 20.14)', async () => {
-        const sharedataDir = path.resolve(__dirname, '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata');
+        const sharedataDir = resolveWebvuePath('views/sharedata');
         const getVueComponentFiles = (dir: string): string[] => {
             let results: string[] = [];
             const list = fs.readdirSync(dir);
@@ -1173,19 +1137,15 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
             expect(file).not.toBe('VisualQueryBuilder.vue');
         }
 
-        // Kiểm tra tệp visualQueryBuilder.vue tồn tại và có name attribute là camelCase
-        const vqbPath = path.resolve(
-            sharedataDir,
-            'dataSource/component/visualQueryBuilder.vue'
-        );
+        // Kiểm tra tệp queryBuilder.vue tồn tại và có name attribute là camelCase
+        const vqbPath = resolveWebvuePath('views/sharedata/dataSource/component/queryBuilder.vue');
         expect(fs.existsSync(vqbPath)).toBe(true);
         const vqbContent = fs.readFileSync(vqbPath, 'utf8');
-        expect(vqbContent).toContain('name="visualQueryBuilder"');
+        expect(vqbContent).toContain('name="queryBuilder"');
     });
 
-    test('13. Quy chuẩn 100% i18n — CẤM hardcode text mẫu mặc định, nhãn, tooltip, ElMessage trong visualQueryBuilder.vue (Rule 20.15)', async () => {
-        const sharedataDir = path.resolve(__dirname, '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata');
-        const vqbPath = path.resolve(sharedataDir, 'dataSource/component/visualQueryBuilder.vue');
+    test('13. Quy chuẩn 100% i18n — CẤM hardcode text mẫu mặc định, nhãn, tooltip, ElMessage trong queryBuilder.vue (Rule 20.15)', async () => {
+        const vqbPath = resolveWebvuePath('views/sharedata/dataSource/component/queryBuilder.vue');
         expect(fs.existsSync(vqbPath)).toBe(true);
 
         const vqbContent = fs.readFileSync(vqbPath, 'utf8');
@@ -1212,8 +1172,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(vqbContent).toContain("$t(tb.descKey)");
 
         // 5. Kiểm tra tính đầy đủ và đồng bộ giữa vi-vn.json và en-us.json
-        const viPath = path.resolve(__dirname, '../../../../TA-ITS015-WEBVUE-V1.0/src/src/i18n/lang/vi-vn.json');
-        const enPath = path.resolve(__dirname, '../../../../TA-ITS015-WEBVUE-V1.0/src/src/i18n/lang/en-us.json');
+        const viPath = resolveWebvuePath('i18n/lang/vi-vn.json');
+        const enPath = resolveWebvuePath('i18n/lang/en-us.json');
         expect(fs.existsSync(viPath)).toBe(true);
         expect(fs.existsSync(enPath)).toBe(true);
 
@@ -1262,7 +1222,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
 
     test('Bố cục bảng và phân trang dataSource: nội dung table cuộn bên trong, footer phân trang có chiều cao cố định 40px không bị trôi @regression', async ({ page }) => {
         // 1. Kiểm tra tĩnh mã nguồn CSS của dataSource/index.vue
-        const sourcePath = path.resolve(__dirname, '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/index.vue');
+        const sourcePath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
         expect(fs.existsSync(sourcePath)).toBe(true);
         const sourceCode = fs.readFileSync(sourcePath, 'utf8');
 
@@ -1297,8 +1257,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
 
     test('14. Bảo vệ câu query Snapshot — Gói Snapshot (101, 102, 105, 108) không tự động chèn TOP (@pageSize) hay giới hạn cứng (Mục 5 & 6)', async ({ page }) => {
         // 1. Quét tĩnh mã nguồn: Khẳng định logic phân loại isSnapshot không tự thêm TOP (@pageSize) hay con trỏ cursor
-        const indexVuePath = path.resolve(__dirname, '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/index.vue');
-        const vqbPath = path.resolve(__dirname, '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/component/visualQueryBuilder.vue');
+        const indexVuePath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
+        const vqbPath = resolveWebvuePath('views/sharedata/dataSource/component/queryBuilder.vue');
         const indexContent = fs.readFileSync(indexVuePath, 'utf8');
         const vqbContent = fs.readFileSync(vqbPath, 'utf8');
 
@@ -1336,9 +1296,9 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         }
     });
 
-    test('15. Bảo vệ câu query phức tạp — visualQueryBuilder khóa tab Trực quan, chuyển sang Raw SQL và hiển thị cảnh báo chống ghi đè (Mục 5)', async ({ page }) => {
-        // 1. Quét tĩnh mã nguồn visualQueryBuilder.vue
-        const vqbPath = path.resolve(__dirname, '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/component/visualQueryBuilder.vue');
+    test('15. Bảo vệ câu query phức tạp — queryBuilder khóa tab Trực quan, chuyển sang Raw SQL và hiển thị cảnh báo chống ghi đè (Mục 5)', async ({ page }) => {
+        // 1. Quét tĩnh mã nguồn queryBuilder.vue
+        const vqbPath = resolveWebvuePath('views/sharedata/dataSource/component/queryBuilder.vue');
         const vqbContent = fs.readFileSync(vqbPath, 'utf8');
 
         expect(vqbContent).toContain('canUseBuilder');
@@ -1408,23 +1368,274 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
     });
 
     test('16. Nút "Mẫu mặc định" (forceDefaultTemplate) — Nạp lại template chuẩn từ Catalog qua API getextractsql với forceDefaultTemplate=true (Mục 5 & 6)', async ({ page }) => {
-        let requestedForceDefault = false;
+        // ============================================================
+        // BƯỚC 1 (ARRANGE): Mở màn hình nguồn dữ liệu & vào tab Cấu hình SQL
+        // ============================================================
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
 
+        const tabs = page.locator('.datasource-right-tabs');
+        await expect(tabs).toBeVisible({ timeout: 15_000 });
+
+        const sqlTab = tabs.getByRole('tab', { name: /Cấu hình SQL/ });
+        await sqlTab.click();
+        await expect(sqlTab).toHaveClass(/is-active/);
+
+        // Chuẩn bị dữ liệu mẫu chuẩn từ Catalog (Catalog Default Template)
+        const mockCatalogSql = 'SELECT TOP (@pageSize) td.Speed AS speed FROM TmsTrafficData td';
+
+        // Đăng ký mock API: Chỉ trả dữ liệu mẫu Catalog khi gọi với forceDefaultTemplate=true
         await page.route('**/api/sharedata/sharedatapacket/getextractsql*', async (route) => {
             const url = new URL(route.request().url());
             if (url.searchParams.get('forceDefaultTemplate') === 'true') {
-                requestedForceDefault = true;
+                await route.fulfill({
+                    status: 200,
+                    contentType: 'application/json',
+                    body: JSON.stringify({
+                        code: 200,
+                        result: {
+                            extractSql: mockCatalogSql,
+                            status: 1,
+                            remark: 'Catalog Default Template',
+                        },
+                    }),
+                });
+            } else {
+                await route.continue();
             }
+        });
+
+        // ============================================================
+        // BƯỚC 2 (ACT): Bấm nút "Mẫu mặc định" và chờ phản hồi API hoàn thành
+        // ============================================================
+        const btnResetCatalog = page.locator('.vqb-header-actions .el-button').filter({ hasText: /Mẫu mặc định/ });
+        await expect(btnResetCatalog).toBeVisible();
+
+        // Kích hoạt click VÀ đồng thời chờ chính xác response getextractsql trả về thành công
+        const [response] = await Promise.all([
+            page.waitForResponse((res) => {
+                const u = res.url();
+                return u.includes('/api/sharedata/sharedatapacket/getextractsql') && u.includes('forceDefaultTemplate=true') && res.status() === 200;
+            }),
+            btnResetCatalog.click(),
+        ]);
+
+        // ============================================================
+        // BƯỚC 3 (ASSERT): Kiểm chứng dữ liệu trả về đã được nạp đúng vào các thành phần UI
+        // ============================================================
+        // 1. Xác nhận URL của request vừa bắn đi đúng là có query param forceDefaultTemplate=true
+        expect(response.url()).toContain('forceDefaultTemplate=true');
+
+        // 2. Chuyển sang chế độ xem Mã nguồn SQL (Raw SQL) để kiểm chứng câu SQL được nạp trực tiếp vào ô soạn thảo
+        const segTabs = page.locator('.vqb-segmented-tabs');
+        await expect(segTabs).toBeVisible();
+
+        const btnRawMode = segTabs.locator('.vqb-tab-btn').nth(1);
+        await btnRawMode.click();
+
+        const rawTextarea = page.locator('.vqb-raw-textarea textarea');
+        await expect(rawTextarea).toBeVisible();
+        await expect(rawTextarea).toHaveValue(/td\.Speed AS speed/);
+
+        // 3. Chuyển lại về chế độ Trực quan (Builder View) để kiểm chứng parser đã bóc tách đúng cột trích xuất
+        const btnBuilderMode = segTabs.locator('.vqb-tab-btn').nth(0);
+        await btnBuilderMode.click();
+
+        const colExprInput = page.locator('.vqb-col-expr input').first();
+        await expect(colExprInput).toHaveValue('td.Speed');
+
+        const colAliasInput = page.locator('.vqb-col-alias input').first();
+        await expect(colAliasInput).toHaveValue('speed');
+    });
+
+    test('17. Kéo resize thanh chia table (splitpanes splitter) — Pane co giãn mượt mà, table không vỡ layout sau khi kéo', async ({ page }) => {
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+
+        const splitpanes = page.locator('.datasource-splitpanes');
+        await expect(splitpanes).toBeVisible({ timeout: 15_000 });
+
+        const splitter = splitpanes.locator('.splitpanes__splitter').first();
+        await expect(splitter).toBeVisible();
+
+        const packetPane = page.locator('.packet-pane');
+        const fieldPane = page.locator('.field-pane');
+        await expect(packetPane).toBeVisible();
+        await expect(fieldPane).toBeVisible();
+
+        // Đảm bảo splitter đã ổn định vị trí trên màn hình
+        await expect(async () => {
+            const box = await splitter.boundingBox();
+            expect(box).not.toBeNull();
+            expect(box!.y).toBeLessThan(200);
+        }).toPass({ timeout: 5000 });
+
+        const initialPacketBox = await packetPane.boundingBox();
+        expect(initialPacketBox).not.toBeNull();
+        const initialWidth = initialPacketBox!.width;
+
+        const splitterBox = await splitter.boundingBox();
+        expect(splitterBox).not.toBeNull();
+
+        // Kéo splitter sang phải 120px
+        const startX = splitterBox!.x + splitterBox!.width / 2;
+        const startY = splitterBox!.y + 100;
+
+        await page.mouse.move(startX, startY);
+        await page.mouse.down();
+        await page.mouse.move(startX + 120, startY, { steps: 20 });
+        await page.waitForTimeout(300);
+        await page.mouse.up();
+        await page.waitForTimeout(300);
+
+        // Chờ bảng tính toán lại trên @resized
+        await page.waitForTimeout(300);
+
+        const newPacketBox = await packetPane.boundingBox();
+        expect(newPacketBox).not.toBeNull();
+        // Pane bên trái phải rộng hơn ban đầu
+        expect(newPacketBox!.width).toBeGreaterThan(initialWidth + 50);
+
+        // Bảng gói tin xGridPacket vẫn hiển thị ổn định
+        const packetGrid = page.locator('.packet-pane .vxe-grid');
+        await expect(packetGrid).toBeVisible();
+        const packetRows = packetGrid.locator('.vxe-body--row');
+        await expect(packetRows.first()).toBeVisible();
+
+        // Kiểm tra mã nguồn CSS không bị gán !important
+        const vueContent = fs.readFileSync(resolveWebvuePath('views/sharedata/dataSource/index.vue'), 'utf-8');
+        expect(vueContent).not.toMatch(/!important/);
+    });
+
+    test('19. Kiểm tra cột Hành động cố định bên phải (fixed: right) và chống đứt gãy bố cục khi kéo resize cột', async ({ page }) => {
+        // 1. Quét tĩnh mã nguồn index.vue: BẮT BUỘC giữ fixed: 'right' trên cột actionClm của cả 2 bảng
+        const indexVuePath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
+        const indexVueContent = fs.readFileSync(indexVuePath, 'utf-8');
+
+        // Bảng gói tin optionsPacketGrid: actionClm bắt buộc fixed: 'right'
+        expect(indexVueContent).toMatch(/field:\s*'actionClm'[^}]+fixed:\s*'right'/);
+        // Bảng trường optionsFieldGrid: actionClm bắt buộc fixed: 'right'
+        expect(indexVueContent).toMatch(/field:\s*'actionClm'[^}]+fixed:\s*'right'/);
+        // Cơ chế resizableChange chặn mảng trắng bằng cách cập nhật minWidth và đặt resizeWidth = 0
+        expect(indexVueContent).toContain('resizableChange');
+        expect(indexVueContent).toContain('col.resizeWidth = 0');
+
+        // 2. Kiểm tra render DOM thực tế trên trình duyệt
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+
+        const packetGrid = page.locator('.packet-col .vxe-grid');
+        await expect(packetGrid).toBeVisible({ timeout: 15_000 });
+
+        // Chờ các hàng dữ liệu bảng gói tin hiển thị
+        const packetRows = packetGrid.locator('.vxe-body--row');
+        await expect(packetRows.first()).toBeVisible({ timeout: 10_000 });
+
+        // 3. Kiểm chứng cột Hành động được cố định bên phải thông qua .vxe-table--fixed-right-wrapper
+        const packetFixedRight = packetGrid.locator('.vxe-table--fixed-right-wrapper');
+        await expect(packetFixedRight).toBeVisible();
+
+        const actionHeader = packetFixedRight.locator('.vxe-header--column').filter({ hasText: 'Hành động' });
+        await expect(actionHeader).toBeVisible();
+
+        // Mép phải của khối fixed right phải khớp sát mép phải của bảng (được neo cứng bên phải)
+        const gridBox = await packetGrid.boundingBox();
+        const fixedRightBox = await packetFixedRight.boundingBox();
+        expect(gridBox).not.toBeNull();
+        expect(fixedRightBox).not.toBeNull();
+        const rightEdgeDiff = Math.abs((fixedRightBox!.x + fixedRightBox!.width) - (gridBox!.x + gridBox!.width));
+        expect(rightEdgeDiff).toBeLessThanOrEqual(5);
+
+        // Các nút thao tác (copy, edit, delete) trong cột Hành động fixed right phải hiển thị và tương tác được
+        const firstRowActionButtons = packetFixedRight.locator('.vxe-body--row').first().locator('button');
+        await expect(firstRowActionButtons.first()).toBeVisible();
+
+        // 4. Kiểm tra thao tác kéo resize cột Tên gói tin (flex column)
+        const resizer = packetGrid.locator('.vxe-table--main-wrapper .vxe-header--column:has(.vxe-resizable):visible').first().locator('.vxe-resizable');
+        await expect(resizer).toBeVisible();
+        const resizerBox = await resizer.boundingBox();
+        expect(resizerBox).not.toBeNull();
+
+        const startX = resizerBox!.x + resizerBox!.width / 2;
+        const startY = resizerBox!.y + resizerBox!.height / 2;
+        await page.mouse.move(startX, startY);
+        await page.mouse.down();
+        await page.mouse.move(startX - 50, startY, { steps: 15 });
+        await page.waitForTimeout(200);
+        await page.mouse.up();
+        await page.waitForTimeout(300);
+
+        // Sau khi kéo resize, cột Hành động (fixed: 'right') vẫn duy trì vị trí neo sát mép phải
+        await expect(packetFixedRight).toBeVisible();
+        const fixedRightBoxAfter = await packetFixedRight.boundingBox();
+        expect(fixedRightBoxAfter).not.toBeNull();
+        const rightEdgeDiffAfter = Math.abs((fixedRightBoxAfter!.x + fixedRightBoxAfter!.width) - (gridBox!.x + gridBox!.width));
+        expect(rightEdgeDiffAfter).toBeLessThanOrEqual(5);
+
+        // 5. Kiểm chứng bảng Trường (fieldGrid) bên phải cũng có cột Hành động fixed: 'right'
+        const fieldGrid = page.locator('.field-col .vxe-grid');
+        await expect(fieldGrid).toBeVisible({ timeout: 10_000 });
+        const fieldFixedRight = fieldGrid.locator('.vxe-table--fixed-right-wrapper');
+        await expect(fieldFixedRight).toBeVisible();
+        const fieldActionHeader = fieldFixedRight.locator('.vxe-header--column').filter({ hasText: 'Hành động' });
+        await expect(fieldActionHeader).toBeVisible();
+    });
+
+    test('20. Tích hợp Backend Metadata Service (BE-1 / R8) và Visual Query Builder (chọn bảng và cột động từ CSDL)', async ({ page }) => {
+        // ============================================================
+        // 1. Quét tĩnh mã nguồn & quy chuẩn kiến trúc
+        // ============================================================
+        const qbPath = resolveWebvuePath('views/sharedata/dataSource/component/queryBuilder.vue');
+        const qbContent = fs.readFileSync(qbPath, 'utf-8');
+
+        // Rule 20.6: Cấm !important
+        expect(qbContent).not.toMatch(/!important/);
+        // Rule 20.8: Cấm toán tử !!
+        expect(qbContent).not.toMatch(/!!/);
+        // Rule 20.14: Component name camelCase
+        expect(qbContent).toContain('name="queryBuilder"');
+        // Tích hợp API Metadata tables & fields
+        expect(qbContent).toContain('/api/sharedata/metadata/tables');
+        expect(qbContent).toContain('/api/sharedata/metadata/fields');
+        expect(qbContent).toContain('vqb-btn-pick-db-columns');
+        expect(qbContent).toContain('vqb-db-columns-panel');
+        expect(qbContent).toContain('vqb-db-columns-grid');
+
+        // ============================================================
+        // 2. Mock API Metadata & Khởi tạo trang
+        // ============================================================
+        let calledTablesApi = false;
+        let calledFieldsApi = false;
+
+        await page.route('**/api/sharedata/metadata/tables', async (route) => {
+            calledTablesApi = true;
             await route.fulfill({
                 status: 200,
                 contentType: 'application/json',
                 body: JSON.stringify({
                     code: 200,
-                    result: {
-                        extractSql: 'SELECT TOP (@pageSize) td.Speed AS speed FROM TmsTrafficData td',
-                        status: 1,
-                        remark: 'Catalog Default Template',
-                    },
+                    result: [
+                        { tableName: 'TmsZone', displayName: 'Đoạn đường', description: 'Danh mục đoạn đường', category: 'Core' },
+                        { tableName: 'TmsTrafficData', displayName: 'Lưu lượng', description: 'Dò xe, lưu lượng', category: 'Traffic' },
+                        { tableName: 'TmsWeather', displayName: 'Thời tiết', description: 'Dữ liệu thời tiết', category: 'Sensor' },
+                    ],
+                }),
+            });
+        });
+
+        await page.route('**/api/sharedata/metadata/fields*', async (route) => {
+            calledFieldsApi = true;
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: [
+                        { columnName: 'ID', dataType: 'bigint', displayName: 'Mã đoạn', description: 'Định danh duy nhất', suggestedAlias: 'zoneId', isPrimaryKey: true },
+                        { columnName: 'Name', dataType: 'nvarchar(200)', displayName: 'Tên đoạn', description: 'Tên phân đoạn tuyến', suggestedAlias: 'zoneName', isPrimaryKey: false },
+                        { columnName: 'KmFrom', dataType: 'float', displayName: 'Lý trình đầu', description: 'Km bắt đầu', suggestedAlias: 'kmFrom', isPrimaryKey: false },
+                        { columnName: 'KmTo', dataType: 'float', displayName: 'Lý trình cuối', description: 'Km kết thúc', suggestedAlias: 'kmTo', isPrimaryKey: false },
+                    ],
                 }),
             });
         });
@@ -1439,17 +1650,78 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await sqlTab.click();
         await expect(sqlTab).toHaveClass(/is-active/);
 
-        // Tìm nút "Mẫu mặc định" trong Visual Query Builder
-        const btnResetCatalog = page.locator('.vqb-header-actions .el-button').filter({ hasText: /Mẫu mặc định/ });
-        await expect(btnResetCatalog).toBeVisible();
+        // ============================================================
+        // 3. Kiểm tra container Query Builder & Nút chọn cột từ CSDL
+        // ============================================================
+        const qbContainer = page.locator('.visual-query-builder-container');
+        await expect(qbContainer).toBeVisible({ timeout: 10_000 });
 
-        // Nhấn nút Mẫu mặc định
-        await btnResetCatalog.click();
-        await page.waitForTimeout(300);
+        // Nút mở panel chọn cột từ CSDL
+        const pickColsBtn = qbContainer.locator('.vqb-btn-pick-db-columns');
+        await expect(pickColsBtn).toBeVisible();
 
-        // Xác nhận API getextractsql đã được gọi với forceDefaultTemplate=true
-        expect(requestedForceDefault).toBe(true);
+        // Ban đầu panel chưa hiển thị
+        await expect(qbContainer.locator('.vqb-db-columns-panel')).not.toBeVisible();
+
+        // ============================================================
+        // 4. Click mở panel chọn cột CSDL & kiểm tra hiển thị danh sách cột
+        // ============================================================
+        await pickColsBtn.click();
+        const dbColsPanel = qbContainer.locator('.vqb-db-columns-panel');
+        await expect(dbColsPanel).toBeVisible({ timeout: 5_000 });
+
+        // Chờ danh sách cột trả về từ mock API hiển thị
+        const colItems = dbColsPanel.locator('.vqb-db-col-item');
+        await expect(colItems.first()).toBeVisible({ timeout: 5_000 });
+        expect(await colItems.count()).toBeGreaterThanOrEqual(4);
+
+        // Kiểm tra hiển thị tên cột và badge type/PK
+        await expect(dbColsPanel).toContainText('ID');
+        await expect(dbColsPanel).toContainText('bigint');
+        await expect(dbColsPanel).toContainText('PK');
+        await expect(dbColsPanel).toContainText('Name');
+        await expect(dbColsPanel).toContainText('nvarchar(200)');
+
+        // ============================================================
+        // 5. Thao tác chọn / bỏ chọn cột trực quan
+        // ============================================================
+        const colPills = qbContainer.locator('.vqb-columns-list .vqb-column-pill');
+        const initialCount = await colPills.count();
+
+        // Bấm "Chọn tất cả"
+        const selectAllBtn = dbColsPanel.locator('button').filter({ hasText: /Chọn tất cả/ });
+        await selectAllBtn.click();
+
+        // Kiểm tra số lượng cột trích xuất đã tăng lên
+        const countAfterSelectAll = await colPills.count();
+        expect(countAfterSelectAll).toBeGreaterThan(initialCount);
+
+        // Bấm "Bỏ chọn tất cả"
+        const deselectAllBtn = dbColsPanel.locator('button').filter({ hasText: /Bỏ chọn tất cả/ });
+        await deselectAllBtn.click();
+
+        // Sau khi bỏ chọn tất cả, các cột từ DB panel không còn trong danh sách trích xuất
+        const colExprInputs = qbContainer.locator('.vqb-columns-list .vqb-col-expr input');
+        const exprsAfterDeselect = await colExprInputs.evaluateAll((inputs: HTMLInputElement[]) => inputs.map((i) => i.value));
+        expect(exprsAfterDeselect.some((v) => v.includes('Name'))).toBe(false);
+        expect(exprsAfterDeselect.some((v) => v.includes('KmFrom'))).toBe(false);
+        expect(exprsAfterDeselect.some((v) => v.includes('KmTo'))).toBe(false);
+
+        // Chọn lại 1 cột cụ thể (Name) bằng cách click vào card cột
+        const nameColItem = colItems.filter({ hasText: 'Name' }).first();
+        await nameColItem.click();
+
+        // Cột Name xuất hiện trong danh sách cột trích xuất
+        const exprsAfterPick = await colExprInputs.evaluateAll((inputs: HTMLInputElement[]) => inputs.map((i) => i.value));
+        expect(exprsAfterPick.some((v) => v.includes('Name'))).toBe(true);
+
+        // ============================================================
+        // 6. Assert API calls
+        // ============================================================
+        expect(calledTablesApi).toBe(true);
+        expect(calledFieldsApi).toBe(true);
     });
 });
+
 
 

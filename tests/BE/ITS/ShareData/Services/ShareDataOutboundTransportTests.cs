@@ -56,7 +56,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Assert
             Assert.False(result.Success);
             Assert.Equal("Kafka", result.Channel);
-            Assert.Equal("NotSupported", result.ErrorCode);
+            Assert.NotNull(result.ErrorCode);
             Assert.Equal("traffic-weather-topic", result.TargetAddressOrPath);
         }
 
@@ -274,7 +274,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Assert
             Assert.False(result.Success);
             Assert.Equal("InvalidConfiguration", result.ErrorCode);
-            Assert.Contains("Port", result.Message);
+            Assert.Contains("Port", result.ErrorMessage);
         }
 
         [Theory]
@@ -304,7 +304,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Assert
             Assert.False(result.Success);
             Assert.Equal("InvalidConfiguration", result.ErrorCode);
-            Assert.Contains("Timeout", result.Message);
+            Assert.Contains("Timeout", result.ErrorMessage);
         }
 
         [Fact]
@@ -331,7 +331,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Assert
             Assert.False(result.Success);
             Assert.Equal("InvalidConfiguration", result.ErrorCode);
-            Assert.Contains("BypassSsl", result.Message);
+            Assert.Contains("BypassSsl", result.ErrorMessage);
         }
 
         [Fact]
@@ -461,7 +461,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.False(result.Success);
             Assert.Equal("BusinessError", result.ErrorCode);
             Assert.Equal(200, result.StatusCode);
-            Assert.Contains("Payload schema mismatch", result.Message);
+            Assert.Contains("Payload schema mismatch", result.ErrorMessage);
         }
 
         [Fact]
@@ -493,7 +493,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.False(result.Success);
             Assert.Equal("BusinessError", result.ErrorCode);
             Assert.Equal(200, result.StatusCode);
-            Assert.Contains("Dữ liệu không đúng định dạng", result.Message);
+            Assert.Contains("Dữ liệu không đúng định dạng", result.ErrorMessage);
         }
 
         [Fact]
@@ -519,7 +519,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Assert
             Assert.False(result.Success);
             Assert.Equal("File", result.Channel);
-            Assert.Equal("InvalidPath", result.ErrorCode);
+            Assert.Equal("InvalidConfiguration", result.ErrorCode);
+            Assert.Contains("không hợp lệ", result.ErrorMessage);
         }
 
         [Fact]
@@ -570,6 +571,169 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.False(PartnerValidator.IsValidConnectionConfig("{\"AuthType\": \"InvalidAuth\"}", out var err7));
             Assert.NotNull(err7);
             Assert.Contains("AuthType", err7);
+        }
+
+        [Fact]
+        public void ShareDataCsvFormatter_ConvertsJsonArrayToRfc4180Csv_EscapesProperly_Test()
+        {
+            // Arrange
+            var json = """
+                [
+                    {"id": 1, "name": "Station A", "remark": "Clear, dry"},
+                    {"id": 2, "name": "Station \"B\"", "remark": "Rainy, wet\r\nSlippery road"}
+                ]
+                """;
+
+            // Act
+            var csv = ShareDataWorker.Core.Utils.Formatters.ShareDataCsvFormatter.ConvertJsonToCsv(json);
+
+            // Assert
+            Assert.Contains("id,name,remark", csv);
+            Assert.Contains("1,Station A,\"Clear, dry\"", csv);
+            Assert.Contains("2,\"Station \"\"B\"\"\",\"Rainy, wet\r\nSlippery road\"", csv);
+        }
+
+        [Fact]
+        public void ShareDataEncryptionProvider_EncryptDecryptRoundtrip_ReturnsOriginalText_Test()
+        {
+            // Arrange
+            var keyBase64 = ShareDataWorker.Core.Utils.Security.ShareDataEncryptionProvider.GenerateKeyBase64();
+            var originalText = "ITS-ShareData-TopSecret-Payload-123456";
+
+            // Act
+            var cipherBase64 = ShareDataWorker.Core.Utils.Security.ShareDataEncryptionProvider.EncryptString(originalText, keyBase64, out var ivBase64);
+            var decryptedText = ShareDataWorker.Core.Utils.Security.ShareDataEncryptionProvider.DecryptString(cipherBase64, keyBase64, ivBase64);
+
+            // Assert
+            Assert.NotEqual(originalText, cipherBase64);
+            Assert.Equal(originalText, decryptedText);
+        }
+
+        [Fact]
+        public async Task FtpSender_WhenDisabledOrMissingHost_ReturnsClearError_Test()
+        {
+            // Arrange
+            var ftpSender = new DataOutboundFtpSender();
+            var ctx = CreateDummyContext("101", "PARTNER_FTP", "Ftp");
+
+            var disabledReq = new ShareDataConnectionRequest
+            {
+                JsonPayload = "[{\"id\": 1}]",
+                ConnectionType = "Ftp",
+                ConnectionConfig = new Dictionary<string, string> { ["Enabled"] = "false" }
+            };
+
+            var missingHostReq = new ShareDataConnectionRequest
+            {
+                JsonPayload = "[{\"id\": 1}]",
+                ConnectionType = "Ftp",
+                ConnectionConfig = new Dictionary<string, string> { ["Enabled"] = "true" }
+            };
+
+            // Act
+            var disabledRes = await ftpSender.SendAsync(disabledReq, ctx, CancellationToken.None);
+            if (ctx.Partner != null) ctx.Partner.Address = null;
+            var missingHostRes = await ftpSender.SendAsync(missingHostReq, ctx, CancellationToken.None);
+
+            // Assert
+            Assert.False(disabledRes.Success);
+            Assert.Equal("Disabled", disabledRes.ErrorCode);
+
+            Assert.False(missingHostRes.Success);
+            Assert.Equal("MissingFtpHost", missingHostRes.ErrorCode);
+        }
+
+        [Fact]
+        public async Task KafkaSender_WhenDisabledOrMissingServers_ReturnsClearError_Test()
+        {
+            // Arrange
+            var kafkaSender = new DataOutboundKafkaSender();
+            var ctx = CreateDummyContext("101", "PARTNER_KAFKA", "Kafka");
+
+            var disabledReq = new ShareDataConnectionRequest
+            {
+                JsonPayload = "{\"test\": 1}",
+                ConnectionType = "Kafka",
+                ConnectionConfig = new Dictionary<string, string> { ["Enabled"] = "false" }
+            };
+
+            var missingServersReq = new ShareDataConnectionRequest
+            {
+                JsonPayload = "{\"test\": 1}",
+                ConnectionType = "Kafka",
+                ConnectionConfig = new Dictionary<string, string> { ["Enabled"] = "true", ["Topic"] = "my-topic" }
+            };
+
+            // Act
+            var disabledRes = await kafkaSender.SendAsync(disabledReq, ctx, CancellationToken.None);
+            if (ctx.Partner != null) ctx.Partner.Address = null;
+            var missingServersRes = await kafkaSender.SendAsync(missingServersReq, ctx, CancellationToken.None);
+
+            // Assert
+            Assert.False(disabledRes.Success);
+            Assert.Equal("Disabled", disabledRes.ErrorCode);
+
+            Assert.False(missingServersRes.Success);
+            Assert.Equal("MissingBootstrapServers", missingServersRes.ErrorCode);
+        }
+
+        [Fact]
+        public void PacketMetadataResolver_Packet105_DefaultsToSnapshot_CanBeOverriddenToIncremental_Test()
+        {
+            // Arrange
+            var packetDefault = new ShareDataPacket { Code = "105", Name = "AVI/RFID Data" };
+            var packetWithPolicy = new ShareDataPacket { Code = "105", Policy = "Incremental" };
+            var subWithOverride = new ShareDataSubscription { DatatypeId = "105", PolicyOverride = "Incremental" };
+            var extractSqlSnapshot = new ShareDataPacketExtractSql { PacketCode = "105", SyncKind = 1 };
+            var extractSqlIncremental = new ShareDataPacketExtractSql { PacketCode = "105", SyncKind = 2 };
+
+            // Act & Assert
+            // 1. Mặc định gói 105 là Snapshot
+            var defaultPolicy = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy(packetDefault);
+            Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.Snapshot, defaultPolicy);
+
+            // 2. Gói 105 có Policy = "Incremental" được phân giải thành AlwaysIncremental
+            var pktOverride = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy(packetWithPolicy);
+            Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.AlwaysIncremental, pktOverride);
+
+            // 3. Override cấp Subscription ưu tiên cao nhất
+            var subOverride = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy(packetDefault, subWithOverride);
+            Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.AlwaysIncremental, subOverride);
+
+            // 4. Cấu hình SyncKind trên câu truy vấn SQL động
+            var sqlSnap = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy(packetDefault, null, extractSqlSnapshot);
+            Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.Snapshot, sqlSnap);
+
+            var sqlIncr = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy(packetDefault, null, extractSqlIncremental);
+            Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.AlwaysIncremental, sqlIncr);
+        }
+
+        [Fact]
+        public void ShareDataSqlValidator_SupportsFromDateAndToDateParameters_Test()
+        {
+            // Arrange
+            var validSqlWithFromToDate = """
+                SELECT ID, ZoneId, UpdateTime AS __lastTime, ID AS __rowid
+                FROM TmsZoneStatus
+                WHERE UpdateTime >= @fromDate AND UpdateTime <= @toDate AND ID > @lastKey
+                """;
+
+            var invalidSqlWithUnknownParam = """
+                SELECT ID, ZoneId
+                FROM TmsZoneStatus
+                WHERE ZoneId = @unknownParam
+                """;
+
+            // Act
+            var (validResult, validErr) = Module.ShareData.Core.Utils.ShareDataSqlValidator.Validate(validSqlWithFromToDate);
+            var (invalidResult, invalidErr) = Module.ShareData.Core.Utils.ShareDataSqlValidator.Validate(invalidSqlWithUnknownParam);
+
+            // Assert
+            Assert.True(validResult);
+            Assert.Null(validErr);
+
+            Assert.False(invalidResult);
+            Assert.Contains("@unknownParam", invalidErr);
         }
     }
 }

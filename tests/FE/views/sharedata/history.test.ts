@@ -689,4 +689,107 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
         expect(dialogContent).toContain('Consolas, Monaco, monospace');
         expect(dialogContent).not.toContain('!important');
     });
+
+    test('9. Giao diện chẩn đoán lỗi trong modal chi tiết không bị trùng lặp chuỗi lỗi, hiển thị mã lỗi và nút sao chép', async ({ page }) => {
+        const mockParentId = 'PARENT_LOG_DUP_TEST';
+        const rawErrorMsg = 'An error occurred while sending the request.';
+
+        await page.route('**/api/sharedata/sharedataactivitylog/page*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        records: [
+                            {
+                                id: mockParentId,
+                                logType: 1,
+                                transferType: 0,
+                                success: 0,
+                                packetId: 'PKT_DUP_01',
+                                partnerId: 'PARTNER_DUP_01',
+                                occurredAt: '2026-10-14T15:00:00Z',
+                                description: `Lỗi gửi gói tin loại 13 với đối tác "BQP": ${rawErrorMsg}`,
+                                errorMessage: rawErrorMsg,
+                            },
+                        ],
+                        total: 1,
+                    },
+                }),
+            });
+        });
+
+        await page.route('**/api/sharedata/sharedataactivitylog/steps*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: [
+                        {
+                            id: mockParentId,
+                            children: [
+                                {
+                                    id: 'CHILD_STEP_1',
+                                    parentId: mockParentId,
+                                    stepNo: 1,
+                                    stepNbr: 1,
+                                    success: 1,
+                                    description: 'Trích xuất dữ liệu thành công',
+                                },
+                                {
+                                    id: 'CHILD_STEP_2',
+                                    parentId: mockParentId,
+                                    stepNo: 2,
+                                    stepNbr: 2,
+                                    success: 0,
+                                    description: `Ánh xạ hoặc gửi dữ liệu thất bại: ${rawErrorMsg}`,
+                                    errorMessage: rawErrorMsg,
+                                },
+                            ],
+                        },
+                    ],
+                }),
+            });
+        });
+
+        await page.goto('/sharedata/history');
+
+        const detailButton = page.locator('button:has-text("Chi tiết")').first();
+        await expect(detailButton).toBeVisible({ timeout: 30000 });
+        await detailButton.click();
+
+        const dialog = page.locator('.el-dialog');
+        await expect(dialog).toBeVisible();
+
+        // 1. Kiểm tra mô tả chung ở el-descriptions phía trên: đã được làm sạch, không bị nối chuỗi lỗi lặp lại
+        const contentRow = dialog.locator('tr:has(.el-descriptions__label:has-text("Nội dung"))');
+        await expect(contentRow).toBeVisible();
+        await expect(contentRow).not.toContainText(rawErrorMsg);
+        await expect(contentRow).toContainText('Lỗi gửi gói tin loại 13 với đối tác "BQP"');
+
+        // 2. Kiểm tra ô Thông báo lỗi có nút copy
+        const errorRow = dialog.locator('.main-err-wrapper');
+        await expect(errorRow).toBeVisible();
+        await expect(errorRow.locator('.err-text')).toContainText(rawErrorMsg);
+        await expect(errorRow.locator('.copy-err-btn')).toBeVisible();
+
+        // 3. Kiểm tra Bước 2 trong ElSteps:
+        const steps = dialog.locator('.steps-card .el-step');
+        await expect(steps).toHaveCount(2);
+
+        // Mô tả bước (.step-desc-text) đã làm sạch, không lặp lại chuỗi raw error
+        const step2Desc = steps.nth(1).locator('.step-desc-text');
+        await expect(step2Desc).not.toContainText(rawErrorMsg);
+        await expect(step2Desc).toContainText('Ánh xạ hoặc gửi dữ liệu thất bại');
+
+        // Khối Diagnostic Callout (.step-err-box): Chứa tiêu đề thân thiện, gợi ý, raw error code và nút copy
+        const errBox = steps.nth(1).locator('.step-err-box');
+        await expect(errBox).toBeVisible();
+        await expect(errBox.locator('.step-err-title')).toContainText('Không thể kết nối tới máy chủ đối tác');
+        await expect(errBox.locator('.step-err-hint')).toBeVisible();
+        await expect(errBox.locator('.raw-code')).toContainText(rawErrorMsg);
+        await expect(errBox.locator('.err-copy-btn')).toBeVisible();
+    });
 });

@@ -2,6 +2,8 @@
 
 Kho tài liệu nghiệp vụ, đặc tả kỹ thuật và mapping gói tin của phân hệ **Chia sẻ Dữ liệu (ShareData / TMC-PM-ITS-ESHARE)** — Dự án Cao tốc Hữu Nghị – Chi Lăng.
 
+> **Quyết định hiện hành 14/10/2026:** **105 mặc định Snapshot** theo [mapping `All/update`](doc/02-mapping-goi-tin-101-111.md); setting gói cho chọn Snapshot/Incremental và Worker dùng setting. **110 được tạo/cấu hình bình thường với bảng/dữ liệu mô phỏng**. Viết sẵn code Kafka producer, CSV/FTP, mã hóa, cleanup để dùng khi cấu hình áp dụng; phải chạy Playwright sau sửa FE. Tiến độ ở [MasterPlan](Plan/Sharedata_MasterPlan.md). Các prompt/biên bản rà soát cũ là lịch sử, không thay quyết định này.
+
 > 🔴 **Single Source of Truth (SSOT)**: File này là điểm vào duy nhất quản lý toàn bộ danh mục tài liệu của phân hệ ShareData. Mọi bổ sung hoặc thay đổi tài liệu của phân hệ ShareData chỉ cần cập nhật tại đây.
 
 ### Chú giải ký hiệu

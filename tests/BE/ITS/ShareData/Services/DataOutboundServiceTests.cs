@@ -2000,7 +2000,9 @@ END");
             await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.TrafficFlow, unique);
 
             var now = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
-            var (outsideStart, outsideEnd) = now.TimeOfDay.TotalHours < 12
+            var isUtc = Math.Abs((now - DateTime.UtcNow).TotalMinutes) < 120;
+            var localNow = isUtc ? now.AddHours(7) : now;
+            var (outsideStart, outsideEnd) = localNow.TimeOfDay.TotalHours < 12
                 ? ("18:00", "20:00")
                 : ("01:00", "03:00");
             var scheduleJson = $"{{\"startTime\":\"{outsideStart}\",\"endTime\":\"{outsideEnd}\"}}";
@@ -2188,6 +2190,307 @@ END");
             // Gói 102 chưa đến hạn định kỳ vẫn không xuất bản
             var logs102FutureAfterScheduled = await GetLogs(db, sub102Future.ID);
             Assert.Empty(logs102FutureAfterScheduled);
+        }
+
+
+        /// <summary>
+        /// Author: DatHQ
+        /// Description: Kiểm thử thông luồng E2E Worker Outbound:
+        ///              - Trích xuất động qua câu truy vấn SQL trong ShareDataPacketExtractSql (Gói 101 Snapshot & Gói 103 Incremental).
+        ///              - Ánh xạ JSON schema chuẩn và Dispatch tới Đối tác REST API (HttpListener).
+        ///              - Ghi ActivityLog phân cấp cha - con (Step 1, Step 2, Step 3) sạch sẽ, không nối lặp Description.
+        ///              - Gói 103 (Incremental): Tịnh tiến mốc LastTime và LastKey trong ShareDataLastSend và ShareDataSubscription.
+        /// Created date: 14/10/2026
+        /// </summary>
+        [Fact]
+        public async Task OutboundE2E_DynamicQuery_ExtractMapAndDispatchViaRest_WithCleanParentChildLogs_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            var partnerServer = _host.PartnerServer;
+            partnerServer.ResetDefaults();
+
+            var unique = Guid.NewGuid().ToString("N")[..8];
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "103");
+
+            // Seed Template SQL động cho gói 101 (Snapshot)
+            var sql101 = @"SELECT
+    zs.ID AS zoneStatusId,
+    zs.ZoneId AS zoneId,
+    z.Name AS zoneName,
+    z.FromKmNumber AS fromLocationKm,
+    z.FromMetNumber AS fromLocationMet,
+    z.ToKmNumber AS toLocationKm,
+    z.ToMetNumber AS toLocationMet,
+    z.LaneId AS laneId,
+    CAST(zs.AverageSpeed AS DECIMAL(18, 2)) AS averageSpeed,
+    zs.Condition AS trafficCondition,
+    zs.UpdateTime AS dataTime,
+    z.MaxSpeed AS speedLimit,
+    ts.TotalVehicleNumber AS vehicleCount
+FROM TmsZoneStatus zs
+LEFT JOIN TmsZone z ON zs.ZoneId = z.ID
+LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId";
+
+            await db.Insertable(new ShareDataPacketExtractSql
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                PacketCode = "101",
+                PartnerCode = null,
+                ExtractSql = sql101,
+                SyncKind = 1,
+                Status = BaseEnums.StatusEnum.Enable,
+                Remark = $"E2E Template 101 {unique}"
+            }).ExecuteCommandAsync();
+
+            // Seed Template SQL động cho gói 103 (Incremental)
+            var sql103 = @"SELECT TOP (@pageSize)
+    td.ID AS detectionId,
+    td.DetectTime AS detectTime,
+    td.Type AS vehicleType,
+    td.LicensePlate AS licensePlate,
+    td.Speed AS speed,
+    td.Lane AS lane,
+    td.Direction AS direction,
+    td.Location AS locationRoute,
+    td.EquipmentId AS equipmentId,
+    e.KmNumber AS locationKm,
+    e.MetNumber AS locationMet,
+    COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) AS __lastTime,
+    td.ID AS __rowid,
+    td.UpdateTime AS __auditUpdate,
+    td.CreateTime AS __auditCreate
+FROM TmsTrafficData td
+LEFT JOIN TmsEquipment e ON td.EquipmentId = e.ID
+WHERE td.IsDelete IS NULL
+  AND (
+      @lastTime IS NULL
+      OR COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) > @lastTime
+      OR (COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) = @lastTime AND td.ID > @lastKey)
+  )
+ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
+
+            await db.Insertable(new ShareDataPacketExtractSql
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                PacketCode = "103",
+                PartnerCode = null,
+                ExtractSql = sql103,
+                SyncKind = 2,
+                CursorColumn = "DetectTime",
+                Status = BaseEnums.StatusEnum.Enable,
+                Remark = $"E2E Template 103 {unique}"
+            }).ExecuteCommandAsync();
+
+            // Seed Dữ liệu nghiệp vụ kiểm thử
+            var zoneId = $"ZONE_{unique}";
+            var zoneNow = DateTime.Now;
+            await db.Insertable(new TmsZone
+            {
+                ID = zoneId,
+                Name = $"Tuyến Test E2E {unique}",
+                FromKmNumber = 10,
+                FromMetNumber = 500,
+                ToKmNumber = 20,
+                ToMetNumber = 0,
+                LaneId = "LANE_1",
+                MaxSpeed = 80
+            }).ExecuteCommandAsync();
+            await db.Insertable(new TmsZoneStatus
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                ZoneId = zoneId,
+                AverageSpeed = "72.5",
+                Condition = "NORMAL",
+                UpdateTime = zoneNow
+            }).ExecuteCommandAsync();
+            await db.Insertable(new TmsTrafficStatistic
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                ZoneId = zoneId,
+                TotalVehicleNumber = 250
+            }).ExecuteCommandAsync();
+
+            var eqId = $"EQ_{unique}";
+            await db.Insertable(new TmsEquipment
+            {
+                ID = eqId,
+                Code = $"VDS_EQ_{unique}",
+                KmNumber = 35,
+                MetNumber = 150
+            }).ExecuteCommandAsync();
+
+            var baseDetectTime = DateTime.Parse("2026-10-14 10:00:00");
+            var trafficDataId = Guid.NewGuid().ToString("N");
+            var trafficRow = new TmsTrafficData
+            {
+                ID = trafficDataId,
+                EquipmentId = eqId,
+                DetectTime = baseDetectTime,
+                CreateTime = baseDetectTime,
+                UpdateTime = baseDetectTime,
+                Type = "CAR",
+                LicensePlate = $"30A-{unique[..5].ToUpper()}",
+                Speed = 88.0f,
+                Lane = "L1",
+                Direction = "NORTH",
+                Location = "KM35",
+                Height = 150,
+                Width = 180,
+                Length = 450
+            };
+            await db.Insertable(trafficRow).ExecuteCommandAsync();
+            await db.Ado.ExecuteCommandAsync(
+                "UPDATE TmsTrafficData SET CreateTime = DetectTime, UpdateTime = DetectTime WHERE ID = @id",
+                new { id = trafficDataId });
+
+            // Seed Đối tác REST API & Subscription 101
+            var (partner, sub101) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_E2E_{unique}",
+                SubCode = $"SUB_101_{unique}",
+                DatatypeId = "101",
+                ConfigurePartner = p =>
+                {
+                    p.Address = ShareDataPartnerServerMock.DefaultHost;
+                    p.Port = ShareDataPartnerServerMock.DefaultPort;
+                    p.EndPointApiUrl = "/api/sharedata/sharedatainbound";
+                },
+                ConfigureSub = s =>
+                {
+                    s.SendOnNewData = true;
+                    s.IntervalSeconds = 30;
+                }
+            });
+
+            // Seed Subscription 103 thuộc cùng đối tác
+            var sub103 = new ShareDataSubscription
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                Code = $"SUB_103_{unique}",
+                PartnerId = partner.ID,
+                DatatypeId = "103",
+                Direction = BaseEnums.Direction.Outbound,
+                Mode = BaseEnums.SubMode.Periodic,
+                State = BaseEnums.SubSubscriptionState.Active,
+                SendOnNewData = true,
+                NextTimeRun = DateTime.Now.AddSeconds(-10),
+                IntervalSeconds = 30,
+                LastTimeRun = baseDetectTime.AddMinutes(-10)
+            };
+            await db.Insertable(sub103).ExecuteCommandAsync();
+
+            var fields103 = await db.Queryable<ShareDataPacketField>().Where(f => f.DatatypeId == "103").ToListAsync();
+            var shapeDict103 = new Dictionary<string, object>();
+            foreach (var f in fields103)
+            {
+                if (!string.IsNullOrEmpty(f.AliasFieldKey))
+                    shapeDict103[f.AliasFieldKey] = new Dictionary<string, string> { { "$field", f.AliasFieldKey } };
+            }
+            await db.Insertable(new ShareDataMapping
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                PartnerId = partner.ID,
+                DatatypeId = "103",
+                Direction = BaseEnums.Direction.Outbound,
+                IsActive = true,
+                TargetShapeJson = JsonSerializer.Serialize(shapeDict103)
+            }).ExecuteCommandAsync();
+
+            // Act - Kích hoạt TriggerFlow (ProcessSubscriptions theo từng mã gói tin)
+            var worker = CreateWorker(scope);
+            await worker.ProcessSubscriptions("101", CancellationToken.None);
+            await worker.ProcessSubscriptions("103", CancellationToken.None);
+
+            // Assert 1 & 2: Partner server nhận được ít nhất 2 requests với payload chuẩn
+            Assert.True(partnerServer.TotalReceivedRequests >= 2,
+                $"Partner server phải nhận được ít nhất 2 requests, thực tế nhận {partnerServer.TotalReceivedRequests}");
+
+            var req101 = partnerServer.ReceivedRequests.FirstOrDefault(r => r.Body != null && r.Body.Contains(zoneId));
+            Assert.NotNull(req101);
+            using var doc101 = JsonDocument.Parse(req101!.Body);
+            Assert.Equal(JsonValueKind.Array, doc101.RootElement.ValueKind);
+            Assert.True(doc101.RootElement.GetArrayLength() > 0);
+            var item101 = doc101.RootElement[0];
+            Assert.True(item101.TryGetProperty("zoneId", out _));
+            Assert.True(item101.TryGetProperty("averageSpeed", out _));
+            Assert.True(item101.TryGetProperty("trafficCondition", out _));
+
+            var req103 = partnerServer.ReceivedRequests.FirstOrDefault(r => r.Body != null && r.Body.Contains(trafficDataId));
+            Assert.NotNull(req103);
+            using var doc103 = JsonDocument.Parse(req103!.Body);
+            Assert.Equal(JsonValueKind.Array, doc103.RootElement.ValueKind);
+            Assert.True(doc103.RootElement.GetArrayLength() > 0);
+            var item103 = doc103.RootElement[0];
+            Assert.True(item103.TryGetProperty("detectionId", out _));
+            Assert.True(item103.TryGetProperty("licensePlate", out _));
+            Assert.True(item103.TryGetProperty("speed", out _));
+
+            // Assert 3: ActivityLog phân cấp cha - con sạch sẽ, không nối lặp Description
+            var logs101 = await db.Queryable<ShareDataActivityLog>()
+                .Where(l => l.SubscriptionId == sub101.ID)
+                .OrderBy(l => l.OccurredAt)
+                .ToListAsync();
+            Assert.True(logs101.Count >= 4, $"Gói 101 phải có ít nhất 4 dòng log (1 cha + 3 con), thực tế: {logs101.Count}");
+
+            var parent101 = logs101.First(l => l.ParentId == null);
+            Assert.Null(parent101.StepNbr);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, parent101.Success);
+            Assert.True(parent101.RecordCount > 0);
+            Assert.False(string.IsNullOrWhiteSpace(parent101.Description));
+            Assert.DoesNotContain(": :", parent101.Description);
+
+            var step1_101 = logs101.Single(l => l.ParentId == parent101.ID && l.StepNbr == 1);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, step1_101.Success);
+            Assert.DoesNotContain(": :", step1_101.Description ?? string.Empty);
+
+            var step2_101 = logs101.Single(l => l.ParentId == parent101.ID && l.StepNbr == 2);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, step2_101.Success);
+            Assert.DoesNotContain(": :", step2_101.Description ?? string.Empty);
+
+            var step3_101 = logs101.Single(l => l.ParentId == parent101.ID && l.StepNbr == 3);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, step3_101.Success);
+            Assert.DoesNotContain(": :", step3_101.Description ?? string.Empty);
+
+            var logs103 = await db.Queryable<ShareDataActivityLog>()
+                .Where(l => l.SubscriptionId == sub103.ID)
+                .OrderBy(l => l.OccurredAt)
+                .ToListAsync();
+            Assert.True(logs103.Count >= 4, $"Gói 103 phải có ít nhất 4 dòng log (1 cha + 3 con), thực tế: {logs103.Count}");
+
+            var parent103 = logs103.First(l => l.ParentId == null);
+            Assert.Null(parent103.StepNbr);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, parent103.Success);
+            Assert.True(parent103.RecordCount > 0);
+            Assert.DoesNotContain(": :", parent103.Description ?? string.Empty);
+
+            var step1_103 = logs103.Single(l => l.ParentId == parent103.ID && l.StepNbr == 1);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, step1_103.Success);
+            Assert.DoesNotContain(": :", step1_103.Description ?? string.Empty);
+
+            var step2_103 = logs103.Single(l => l.ParentId == parent103.ID && l.StepNbr == 2);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, step2_103.Success);
+            Assert.DoesNotContain(": :", step2_103.Description ?? string.Empty);
+
+            var step3_103 = logs103.Single(l => l.ParentId == parent103.ID && l.StepNbr == 3);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, step3_103.Success);
+            Assert.DoesNotContain(": :", step3_103.Description ?? string.Empty);
+
+            // Assert 4: Gói 103 mốc LastTime / LastKey được cập nhật tịnh tiến chính xác
+            var updatedSub103 = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub103.ID);
+            Assert.NotNull(updatedSub103.LastTimeRun);
+            Assert.Equal(baseDetectTime, updatedSub103.LastTimeRun);
+
+            var lastSend103 = await db.Queryable<ShareDataLastSend>()
+                .Where(c => c.PartnerCode == partner.Code && c.PacketCode == "103")
+                .FirstAsync();
+            Assert.NotNull(lastSend103);
+            Assert.Equal(baseDetectTime, lastSend103.LastTime);
+            Assert.Equal(trafficDataId, lastSend103.LastKey);
         }
 
         #endregion

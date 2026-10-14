@@ -1,5 +1,7 @@
 # Bộ Câu hỏi & Trả lời phỏng vấn / Báo cáo PM (Chị T): Luồng Gửi (Outbound) & Luồng Nhận (Inbound) Dữ liệu
 
+> **Quyết định hiện hành đã chốt 14/10/2026:** **105 mặc định Snapshot** theo [mapping `All/update`](../doc/02-mapping-goi-tin-101-111.md), setting gói cho chọn Snapshot/Incremental và Worker dùng setting đã lưu; không có TOP cứng. **110 được tạo/cấu hình bình thường với bảng/dữ liệu mô phỏng**. Viết sẵn code Kafka producer, CSV/FTP, mã hóa, cleanup để dùng theo cấu hình và chạy Playwright sau sửa FE. Danh sách nhóm gói bên dưới là mặc định, không thay setting; hiện trạng đo/rà soát cũ không thay quyết định mới. Theo dõi triển khai tại [MasterPlan](../Plan/Sharedata_MasterPlan.md).
+
 > **Mục đích:** Tài liệu "phao cứu sinh" (Cheat Sheet) tổng hợp toàn bộ các câu hỏi từ tổng quan đến chi tiết kỹ thuật mà PM (Chị T) hoặc các bên liên quan có thể hỏi về **Luồng Gửi dữ liệu (ShareData Outbound)** và **Luồng Nhận dữ liệu (ShareData Inbound, Phần 6)** của dự án Cao tốc Hữu Nghị – Chi Lăng.  
 > **Căn cứ kỹ thuật:** Dựa trên hiện trạng mã nguồn thực tế và Cơ sở dữ liệu Staging (`10.10.8.30:1433`).
 
@@ -135,7 +137,7 @@
 
 ### Q9. Khác biệt giữa Gói gửi toàn bộ (Snapshot) và Gói gửi nối đuôi (Biến động)?
 * **Trả lời trọng tâm:**  
-  - **Gói Snapshot (101, 102, 105, 108, 110):** Mỗi lần đến lịch gửi, hệ thống lấy toàn bộ ảnh chụp trạng thái hiện tại của thiết bị, biển báo, hiện trạng khu vực (101 lấy toàn bộ; 105 tối đa 100 dòng; 110 chưa triển khai; 102 và 108 chưa xác minh). Không lọc theo mốc cũ, **tuyệt đối không tạo/cập nhật bảng `ShareDataLastSend`**.
+  - **Khi setting là Snapshot:** mỗi lần đến lịch gửi lấy toàn bộ theo SQL cấu hình, không ép TOP cứng và không dùng LastSend để lọc dữ liệu. Mặc định 101, 102, **105**, 108 là Snapshot; **105 theo mapping `All/update`, đã chốt**. Người dùng được chọn Incremental và Worker phải dùng setting/cursor tương ứng. **110 được tạo/cấu hình bình thường**, bổ sung bảng/dữ liệu mô phỏng và test thông luồng; trạng thái triển khai được ghi riêng trong MasterPlan.
   - **Gói Biến động / Nối đuôi (103, 104, 106, 107, 109):** Dữ liệu phát sinh liên tục theo dòng sự kiện (xe chạy qua cảm biến, thời tiết từng phút, sự cố). Hệ thống quét dữ liệu tăng dần qua con trỏ kép `(LastTime, LastKey)` lưu trong bảng `ShareDataLastSend`. Phân trang tối đa **100 bản ghi/trang**.
 
 ---

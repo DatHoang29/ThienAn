@@ -1,5 +1,7 @@
 # Đặc tả Kỹ thuật & Nghiệp vụ: Luồng Gửi và Nhận Dữ liệu (ShareData / ESHARE)
 
+> **Quyết định hiện hành đã chốt 14/10/2026:** **105 mặc định Snapshot** theo [mapping 105 `All/update`](../doc/02-mapping-goi-tin-101-111.md), có setting chọn Snapshot/Incremental và Worker dùng setting đã lưu. Không có trần TOP cứng. **110 được tạo/cấu hình bình thường**, triển khai bảng/dữ liệu mô phỏng để thông luồng. Viết sẵn code Kafka producer, CSV/FTP, mã hóa, cleanup theo cấu hình; Playwright phải chạy sau sửa FE. Phần rà soát ngày 12/10 phía cuối là ảnh chụp lịch sử, không dùng mô tả trần 100 dòng/NotReady ở đó làm yêu cầu hiện tại. Yêu cầu mới chưa đồng nghĩa đã triển khai; tiến độ ở [MasterPlan](../Plan/Sharedata_MasterPlan.md).
+
 > **Phiên bản:** 1.0 · **Ngày lập:** 06/10/2026  
 > **Phân hệ:** Chia sẻ Dữ liệu — Dự án Cao tốc Hữu Nghị – Chi Lăng  
 > **Dịch vụ & Ứng dụng thực thi:**  
@@ -176,7 +178,7 @@ flowchart LR
 #### Bước 1: Lọc & Trích xuất dữ liệu (Extraction)
 - Hệ thống truy vấn CSDL nội bộ `DEV_ITS10` để lấy dữ liệu theo từng loại gói tin:
   - **Với 5 gói biến động (103, 104, 106, 107, 109):** Trích xuất theo cơ chế nối đuôi tăng dần dựa trên mốc `ShareDataLastSend`: lấy bản ghi có `Watermark > LastTime` **hoặc** (`Watermark = LastTime` **và** `ID > LastKey`), sắp xếp `Watermark ASC, ID ASC`, trong đó `Watermark = COALESCE(UpdateTime, CreateTime, thời điểm nghiệp vụ)`. Nhờ đó **không gửi lại bản ghi đã gửi thành công trước đó** nhưng cũng không bỏ sót bản ghi cùng thời điểm khác ID. Phân trang tối đa 100 bản ghi/lô.
-  - **Với 5 gói hiện trạng/danh mục (101, 102, 105, 108, 110):** Không dùng mốc `LastSend`, mỗi lượt lấy trạng thái hiện tại (Snapshot) để đối tác cập nhật hiện trạng. Giới hạn số dòng theo từng gói: **101 lấy toàn bộ** (không có TOP); **105 tối đa 100 dòng**; **110 chưa triển khai** (trả rỗng); 102 và 108 *[Chưa xác minh]*.
+  - **Mặc định Snapshot cho 101, 102, 105, 108; 110 sử dụng nguồn mô phỏng theo yêu cầu mới:** mỗi lượt lấy toàn bộ theo SQL cấu hình, không ép TOP cứng. **105 mặc định Snapshot đã chốt** theo mapping `All/update`. Setting gói cho chọn Snapshot/Incremental và Worker dùng setting: Snapshot không dùng LastSend để lọc; Incremental dùng cursor hợp lệ. Gói 110 được tạo/cấu hình bình thường, cần triển khai bảng/dữ liệu giả và nghiệm thu thông luồng, không giữ quy tắc trả rỗng vì NotReady cố định.
 - 🛑 **Quy tắc kiểm tra rỗng:** Nếu CSDL **không có dữ liệu mới (0 bản ghi)** $\rightarrow$ Dừng xử lý ngay tại Bước 1, **không** gọi gửi API đối tác để chống spam mạng. Hệ thống ghi 1 dòng nhật ký Thành công phẳng (0 bản ghi, thông điệp `NoNewData`) để báo hiệu phiên quét bình thường.
 
 #### Bước 2: Quy đổi giá trị & Đóng gói khuôn JSON (Mapping)
