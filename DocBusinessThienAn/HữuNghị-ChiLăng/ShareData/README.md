@@ -25,6 +25,7 @@ Kho tài liệu nghiệp vụ, đặc tả kỹ thuật và mapping gói tin c�
 |---|---|---|---|---|---|
 | A | `doc/01-yeu-cau-nghiep-vu.md` | full | 27 KB | Yêu cầu hệ thống phần mềm chia sẻ dữ liệu (TMC-PM-ITS-ESHARE / TA-ShareData) | `_source/pdf/chi-dan-ky-thuat.pdf` (chưa có trong repo) |
 | A | `doc/02-mapping-goi-tin-101-111.md` | full | 18 KB | Bảng đặc tả chi tiết ánh xạ từng trường dữ liệu (payload camelCase) ↔ các bảng CSDL WebAPI | `_source/xlsx/ESHARE_TOAN_BO_BANG.xlsx` |
+| A | `doc/03-bao-cao-tong-the-entity-csdl-sharedata.md` | full | 25 KB | Báo cáo tổng thể toàn bộ 14 Entity và bảng CSDL phân hệ ShareData (cũ & mới, cấu trúc, vai trò, CSDL Tenant) | Biên soạn nội bộ |
 | A | `doc/transcript/00-catalog.md` | full | 2 KB | Mục lục toàn bộ bản ghi cuộc họp ShareData | Biên soạn nội bộ |
 | A | `doc/transcript/09-09-2026-review-sharedata.md` | full | 17 KB | Review ShareData toàn diện: Luồng gửi nhận, cấu hình gói tin, SQL alias mapping, xử lý theo giờ/time (9h sáng), switch gửi khi có data mới, Socket wrapper & xóa log đầu ngày | `../Plan/_source/audio/09-09-2026/09-09-2026-review-sharedata-phan-{1,2}.m4a` |
 | A | `doc/transcript/11-09-2026-sharedata-script.md` | full | 20 KB | Chuẩn hóa cấu hình gói tin (gói 101,...): Metadata trường động, mapping 2 chiều, CodeSet, hàm SUM/AVG, NATS/bảng đệm | `../Plan/_source/audio/11-09-2026/11-09-2026-sharedata-videowall-{1,2}.m4a` |

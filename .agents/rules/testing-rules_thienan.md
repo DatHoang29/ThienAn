@@ -121,9 +121,9 @@ description: Unified Testing Suite protocol, Playwright FE E2E, xUnit BE on loca
     }).toPass({ timeout: 5000 });
     ```
   - **Tọa độ kéo an toàn**: Kéo chuột bằng tọa độ offset an toàn (`startY = box.y + 100`), không kéo vào viền mép trên cùng (`box.y`) hoặc giữa tâm nếu có phần tử lồng bên trong cản trở.
-  - **Kiểm thử chống mảng trắng (White Void/Gap) khi kéo cột table**:
-    - Khi kiểm tra tính năng kéo co nhỏ cột (Column Resizing): BẮT BUỘC kiểm tra khoảng cách giữa mép phải cột nội dung cuối cùng và mép trái cột Hành động luôn liền kề ($\text{gap} < 5\text{px}$).
-    - Khẳng định không tồn tại lớp neo tách rời `.vxe-table--fixed-right-wrapper` trên các bảng $\le 7$ cột để tránh xé đôi bảng tạo mảng trắng rỗng ở giữa.
+  - **Kiểm thử kéo resize cột table**:
+    - Khi kiểm tra tính năng kéo co giãn cột (Column Resizing): Kiểm tra các cột nội dung và cột thao tác không bị đứt gãy bố cục hoặc tràn lệch toạ độ.
+    - Với các bảng có cột cố định (`fixed: 'right'`), kiểm tra khối fixed luôn bám sát mép container và không bị trôi lệch sau khi kéo.
 * **Bắt buộc viết test cho mọi fix lặt vặt (Rule 18 / 19.67 - Zero Regression)**:
   - Mọi yêu cầu sửa/chỉnh lỗi dù là lặt vặt nhất ở Frontend (UI, CSS, font chữ, căn chỉnh khoảng cách, chống giật modal/tab, placeholder, i18n, form validation...) **BẮT BUỘC viết/bổ sung ngay bài test Playwright tương ứng** tại `tests/FE/` (`tests/FE/views/<module>/<feature>.test.ts`) để verify và bảo đảm không bị hồi quy.
   - Test case có thể kết hợp kiểm tra tĩnh mã nguồn CSS/template và kiểm thử tương tác / render DOM.
