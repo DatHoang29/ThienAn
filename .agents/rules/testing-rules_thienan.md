@@ -73,6 +73,57 @@ description: Unified Testing Suite protocol, Playwright FE E2E, xUnit BE on loca
 ## 🎭 3. Quy Chuẩn Kiểm Thử Frontend (Playwright E2E)
 
 * **Vị trí tệp test**: Đặt tại `tests/FE/views/<module>/<feature>.test.ts`.
+* **Cấu Trúc Luồng Test Tuyến Tính Tuần Tự (Step-by-Step Flow: Setup → Navigate → Action → Assert)**:
+  - Mọi bài test tương tác giao diện BẮT BUỘC viết tuần tự từ trên xuống dưới theo 4 bước rõ ràng, dễ đọc, dễ hiểu:
+    ```ts
+    test('X. Tên bài test rõ ràng, nêu bật tính năng cần kiểm chứng', async ({ page }) => {
+        // BƯỚC 1: Setup & Mock API qua page.route()
+        // Vai trò của page.route(): Chặn bắt và giả lập dữ liệu trả về từ WebAPI Backend,
+        // giúp Frontend test chạy độc lập, siêu tốc và không bị phụ thuộc vào server thật hay rớt mạng.
+        let isApiCalled = false;
+        await page.route('**/api/sharedata/sharedatapacket/getextractsql*', async (route) => {
+            isApiCalled = true;
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ code: 200, result: { extractSql: 'SELECT ...', status: 1 } }),
+            });
+        });
+
+        // BƯỚC 2: Navigate & Chờ giao diện sẵn sàng
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+        const grid = page.locator('.packet-col .vxe-grid');
+        await expect(grid).toBeVisible({ timeout: 15_000 });
+
+        // BƯỚC 3: Action / Tương tác người dùng
+        const btnAction = page.locator('.btn-target');
+        await btnAction.click();
+        await page.waitForTimeout(300);
+
+        // BƯỚC 4: Assert / Đối chiếu kết quả kỳ vọng
+        expect(isApiCalled).toBe(true);
+        await expect(page.locator('.result-panel')).toBeVisible();
+    });
+    ```
+* **Quy Chuẩn Đường Dẫn Mã Nguồn (Path Alias & Helper — CẤM Hardcode Relative Dài)**:
+  - ⛔ **CẤM** hardcode đường dẫn tương đối lặp lại kiểu: `../../../../TA-ITS015-WEBVUE-V1.0/src/src/...`.
+  - ✅ **BẮT BUỘC**:
+    - Sử dụng Path Alias `@webvue/*` (đã khai báo trong `tests/FE/tsconfig.json` trỏ thẳng tới `TA-ITS015-WEBVUE-V1.0/src/src/*`).
+    - Hoặc dùng hàm helper `resolveWebvuePath(relativePath)` trong `tests/FE/setup.ts` để đọc/kiểm tra file mã nguồn Frontend.
+* **Quy Chuẩn Kiểm Thử Kéo Thả & Resize (Splitter & Column Resizing)**:
+  - **Chờ phần tử ổn định tọa độ trước khi kéo**: Luôn dùng assertion chờ tọa độ ổn định:
+    ```ts
+    await expect(async () => {
+        const box = await splitter.boundingBox();
+        expect(box).not.toBeNull();
+        expect(box!.y).toBeLessThan(200);
+    }).toPass({ timeout: 5000 });
+    ```
+  - **Tọa độ kéo an toàn**: Kéo chuột bằng tọa độ offset an toàn (`startY = box.y + 100`), không kéo vào viền mép trên cùng (`box.y`) hoặc giữa tâm nếu có phần tử lồng bên trong cản trở.
+  - **Kiểm thử chống mảng trắng (White Void/Gap) khi kéo cột table**:
+    - Khi kiểm tra tính năng kéo co nhỏ cột (Column Resizing): BẮT BUỘC kiểm tra khoảng cách giữa mép phải cột nội dung cuối cùng và mép trái cột Hành động luôn liền kề ($\text{gap} < 5\text{px}$).
+    - Khẳng định không tồn tại lớp neo tách rời `.vxe-table--fixed-right-wrapper` trên các bảng $\le 7$ cột để tránh xé đôi bảng tạo mảng trắng rỗng ở giữa.
 * **Bắt buộc viết test cho mọi fix lặt vặt (Rule 18 / 19.67 - Zero Regression)**:
   - Mọi yêu cầu sửa/chỉnh lỗi dù là lặt vặt nhất ở Frontend (UI, CSS, font chữ, căn chỉnh khoảng cách, chống giật modal/tab, placeholder, i18n, form validation...) **BẮT BUỘC viết/bổ sung ngay bài test Playwright tương ứng** tại `tests/FE/` (`tests/FE/views/<module>/<feature>.test.ts`) để verify và bảo đảm không bị hồi quy.
   - Test case có thể kết hợp kiểm tra tĩnh mã nguồn CSS/template và kiểm thử tương tác / render DOM.

@@ -1,9 +1,22 @@
 import type { BrowserContext, Page } from '@playwright/test';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { MOCK_TOKEN, DEFAULT_THEME_CONFIG, DEFAULT_MOCK_USER } from './constants';
 import type { MockUserInfo, MockAuthOptions } from './interfaces';
 
 export * from './constants';
 export * from './interfaces';
+
+const __setupFilename = fileURLToPath(import.meta.url);
+const __setupDirname = path.dirname(__setupFilename);
+
+/**
+ * Trợ thủ chuyển đổi đường dẫn tới thư mục nguồn Frontend (TA-ITS015-WEBVUE-V1.0/src/src)
+ * Giúp các file test không cần viết lặp lại chuỗi `../../../../TA-ITS015-WEBVUE-V1.0/src/src`
+ */
+export const resolveWebvuePath = (...subpaths: string[]) =>
+    path.resolve(__setupDirname, '../../TA-ITS015-WEBVUE-V1.0/src/src', ...subpaths);
+
 
 /**
  * Thiết lập môi trường phiên người dùng và mock các API hệ thống nền tảng

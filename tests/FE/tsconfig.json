@@ -8,7 +8,11 @@
     "types": [
       "node",
       "@playwright/test"
-    ]
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@webvue/*": ["../../TA-ITS015-WEBVUE-V1.0/src/src/*"]
+    }
   },
   "include": [
     "**/*.ts"
