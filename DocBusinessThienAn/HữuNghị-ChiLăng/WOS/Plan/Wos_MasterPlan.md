@@ -102,7 +102,7 @@ Hệ thống trạm quan trắc thời tiết khí tượng WOS gồm 3 cảm bi
 - [ ] Tạo Entity `WosStation` (`Module.Wos.Core/Entities/WosStation.cs`):
   - Thuộc tính: `Id`, `Code`, `Name`, `KmNumber`, `ModbusHost`, `ModbusPort`, `ModbusUnitId`, `PollIntervalSeconds`, `RegisterMapJson`, `Enabled`, `LastPolledAt`, `LastStatus`.
 - [ ] Xây dựng WebAPI CRUD cho trạm WOS: `WosStationController`, Command/Query Handlers, DTO Input/Output, Validators.
-- [ ] Soạn script migration SQL: `SQL/Scripts/WOS/001_create_wos_station.sql`, `002_alter_tmsweather_add_wos_columns.sql`.
+- [ ] Soạn script migration SQL: `DocBusinessThienAn/HữuNghị-ChiLăng/WOS/sql/001_create_wos_station.sql`, `002_alter_tmsweather_add_wos_columns.sql`.
 
 ### Phase 2 — Modbus Client & Codec CR1000X (Protocol Layer)
 - [ ] Tạo project `Services.Wos.CR1000X` (target `netstandard2.0`, ref `FluentModbus`).

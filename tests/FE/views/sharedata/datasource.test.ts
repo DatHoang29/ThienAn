@@ -3,6 +3,7 @@ import { mockAuth } from '../../setup';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parsePacketNumber, resolvePacketPolicy } from '../../../../TA-ITS015-WEBVUE-V1.0/src/src/utils/sharedata/packetPolicy';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -136,9 +137,18 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(boxBtn1).not.toBeNull();
 
         // Cả 4 cột nằm trên cùng 1 hàng ngang (chênh lệch Y <= 5px)
-        expect(Math.abs(boxAlias1!.y - boxType1!.y)).toBeLessThanOrEqual(5);
-        expect(Math.abs(boxType1!.y - boxStatus1!.y)).toBeLessThanOrEqual(5);
-        expect(Math.abs(boxStatus1!.y - boxBtn1!.y)).toBeLessThanOrEqual(5);
+        await expect.poll(async () => {
+            const bAlias = await colAlias.boundingBox();
+            const bType = await colType.boundingBox();
+            const bStatus = await colStatus.boundingBox();
+            const bBtn = await colBtn.boundingBox();
+            if (!bAlias || !bType || !bStatus || !bBtn) return 999;
+            return Math.max(
+                Math.abs(bAlias.y - bType.y),
+                Math.abs(bType.y - bStatus.y),
+                Math.abs(bStatus.y - bBtn.y)
+            );
+        }, { timeout: 5000 }).toBeLessThanOrEqual(5);
 
         // Divider hiển thị ngăn cách ô Trạng thái và cụm nút
         const divider = colBtn.locator('.search-divider');
@@ -467,7 +477,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
     test('6. Quét tĩnh & kiểm thử VisualQueryBuilder.vue: Dải xem trước SQL Tự động sinh dùng font chữ chuẩn và i18n đầy đủ', async () => {
         const vqbFilePath = path.resolve(
             __dirname,
-            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/component/VisualQueryBuilder.vue'
+            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/component/visualQueryBuilder.vue'
         );
         const viPath = path.resolve(
             __dirname,
@@ -521,11 +531,10 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         );
         const vueContent = fs.readFileSync(vueFilePath, 'utf8');
 
-        // 1. Quét tĩnh CSS: kiểm tra .datasource-right-tabs loại bỏ border-left/border-right động
+        // 1. Quét tĩnh CSS: kiểm tra .datasource-right-tabs dùng native active-bar chuẩn TMS, không dùng scaleX
         const rightTabsCss = vueContent.substring(vueContent.indexOf('.datasource-right-tabs'));
-        expect(rightTabsCss).toContain('border-left: none;');
-        expect(rightTabsCss).toContain('border-right: none;');
-        expect(rightTabsCss).toContain('margin: 0;');
+        expect(rightTabsCss).toContain('.el-tabs__active-bar');
+        expect(rightTabsCss).not.toContain('scaleX');
         expect(rightTabsCss).not.toContain('!important');
 
         // 2. Render DOM thực tế: Mở màn hình dataSource
@@ -540,50 +549,36 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(sqlTab).toBeVisible();
         await expect(fieldsTab).toBeVisible();
 
-        // 3. Kiểm tra border-left và border-right khi sqlTab active: không có viền nhảy
-        const sqlTabBorders = await sqlTab.evaluate((el) => {
-            const style = window.getComputedStyle(el);
-            return {
-                borderLeftWidth: style.borderLeftWidth,
-                borderRightWidth: style.borderRightWidth,
-                borderLeftStyle: style.borderLeftStyle,
-                borderRightStyle: style.borderRightStyle,
-                marginLeft: style.marginLeft,
-            };
-        });
-        expect(sqlTabBorders.borderLeftStyle === 'none' || sqlTabBorders.borderLeftWidth === '0px').toBe(true);
-        expect(sqlTabBorders.borderRightStyle === 'none' || sqlTabBorders.borderRightWidth === '0px').toBe(true);
-
-        const initialBox = await sqlTab.boundingBox();
-        expect(initialBox).not.toBeNull();
-
-        // 4. Chuyển sang fieldsTab
-        await fieldsTab.click();
+        // 3. Tab Danh sách trường đã lưu BẮT BUỘC nằm ở vị trí đầu tiên (trái hơn Cấu hình SQL) và active mặc định
+        const fieldsBox = await fieldsTab.boundingBox();
+        const sqlBox = await sqlTab.boundingBox();
+        expect(fieldsBox).not.toBeNull();
+        expect(sqlBox).not.toBeNull();
+        expect(fieldsBox!.x).toBeLessThan(sqlBox!.x);
         await expect(fieldsTab).toHaveClass(/is-active/);
-        await page.waitForTimeout(200);
 
-        const fieldsTabBorders = await fieldsTab.evaluate((el) => {
-            const style = window.getComputedStyle(el);
-            return {
-                borderLeftWidth: style.borderLeftWidth,
-                borderRightWidth: style.borderRightWidth,
-                borderLeftStyle: style.borderLeftStyle,
-                borderRightStyle: style.borderRightStyle,
-                marginLeft: style.marginLeft,
-            };
-        });
-        expect(fieldsTabBorders.borderLeftStyle === 'none' || fieldsTabBorders.borderLeftWidth === '0px').toBe(true);
-        expect(fieldsTabBorders.borderRightStyle === 'none' || fieldsTabBorders.borderRightWidth === '0px').toBe(true);
+        // 4. Kiểm tra thanh gạch dưới active-bar chuẩn TMS: di chuyển mượt mà (translateX) khi đổi tab
+        const activeBar = tabs.locator('.el-tabs__active-bar');
+        await expect(activeBar).toBeVisible();
 
-        // 5. Chuyển lại sqlTab và kiểm tra toạ độ X và width không đổi (không bị giật layout)
+        const initialBarBox = await activeBar.boundingBox();
+        expect(initialBarBox).not.toBeNull();
+
+        // 5. Chuyển sang sqlTab: active-bar di chuyển (move) sang vị trí của sqlTab
         await sqlTab.click();
         await expect(sqlTab).toHaveClass(/is-active/);
-        await page.waitForTimeout(200);
+        await page.waitForTimeout(300);
+        const movedBarBox = await activeBar.boundingBox();
+        expect(movedBarBox).not.toBeNull();
+        expect(movedBarBox!.x).toBeGreaterThan(initialBarBox!.x + 20);
 
-        const backBox = await sqlTab.boundingBox();
-        expect(backBox).not.toBeNull();
-        expect(Math.abs(backBox!.x - initialBox!.x)).toBeLessThanOrEqual(1);
-        expect(Math.abs(backBox!.width - initialBox!.width)).toBeLessThanOrEqual(1);
+        // 6. Chuyển lại fieldsTab: active-bar di chuyển ngược lại khớp toạ độ ban đầu
+        await fieldsTab.click();
+        await expect(fieldsTab).toHaveClass(/is-active/);
+        await page.waitForTimeout(300);
+        const backBarBox = await activeBar.boundingBox();
+        expect(backBarBox).not.toBeNull();
+        expect(Math.abs(backBarBox!.x - initialBarBox!.x)).toBeLessThanOrEqual(1);
 
         // 6. Kiểm tra ngắn gọn nhãn tab thành 'Cấu hình SQL' (bỏ & Dò cột) và bỏ title trùng lặp bên dưới
         expect(vueContent).not.toContain('class="sql-toolbar-left"');
@@ -669,14 +664,11 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await page.setViewportSize({ width: 1600, height: 900 });
         await page.goto('/#/sharedata/dataSource');
 
-        // Chờ bảng gói tin hiển thị và click chọn gói tin đầu tiên
-        const packetRow = page.locator('.packet-pane .vxe-table--body tbody tr').first();
-        await expect(packetRow).toBeVisible({ timeout: 15_000 });
-        await packetRow.click();
-        await page.waitForTimeout(300);
+        // Chờ tabs hiển thị (tự động nạp gói tin đầu tiên)
+        const tabs = page.locator('.datasource-right-tabs');
+        await expect(tabs).toBeVisible({ timeout: 15_000 });
 
         // Chuyển sang tab Cấu hình SQL
-        const tabs = page.locator('.datasource-right-tabs');
         const sqlTab = tabs.getByRole('tab', { name: /Cấu hình SQL/ });
         await sqlTab.click();
         await expect(sqlTab).toHaveClass(/is-active/);
@@ -793,7 +785,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
 
     test('Quy chuẩn ngôn ngữ nhãn UI — Không viết song ngữ lai tiếng Anh trong ngoặc (Rule 20.13)', async ({ page }) => {
         // 1. Quét tĩnh mã nguồn: VisualQueryBuilder.vue, vi-vn.json, en-us.json
-        const vqbPath = path.resolve(__dirname, '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/component/VisualQueryBuilder.vue');
+        const vqbPath = path.resolve(__dirname, '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/component/visualQueryBuilder.vue');
         const vqbContent = fs.readFileSync(vqbPath, 'utf-8');
 
         // CẤM xuất hiện các nhãn song ngữ lai tiếng Anh trong ngoặc trên template VisualQueryBuilder.vue
@@ -821,13 +813,11 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await page.setViewportSize({ width: 1600, height: 900 });
         await page.goto('/#/sharedata/dataSource');
 
-        const packetRow = page.locator('.packet-pane .vxe-table--body tbody tr').first();
-        await expect(packetRow).toBeVisible({ timeout: 15_000 });
-        await packetRow.click();
-        await page.waitForTimeout(300);
+        // Chờ tabs hiển thị (tự động nạp gói tin đầu tiên)
+        const tabs = page.locator('.datasource-right-tabs');
+        await expect(tabs).toBeVisible({ timeout: 15_000 });
 
         // Chuyển sang tab Cấu hình SQL
-        const tabs = page.locator('.datasource-right-tabs');
         const sqlTab = tabs.getByRole('tab', { name: /Cấu hình SQL/ });
         await sqlTab.click();
         await expect(sqlTab).toHaveClass(/is-active/);
@@ -880,12 +870,12 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         // Quét tĩnh VisualQueryBuilder.vue và index.vue: props, buttons, functions đồng bộ
         const vqbPath = path.resolve(
             __dirname,
-            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/component/VisualQueryBuilder.vue'
+            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/component/visualQueryBuilder.vue'
         );
         const vqbContent = fs.readFileSync(vqbPath, 'utf8');
         expect(vqbContent).toContain('savedFields');
         expect(vqbContent).toContain('handleApplySavedFields');
-        expect(vqbContent).toContain('Cột đã lưu');
+        expect(vqbContent).toContain('vqbSavedFieldsBtn');
 
         const indexVuePath = path.resolve(
             __dirname,
@@ -961,14 +951,11 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await page.setViewportSize({ width: 1600, height: 900 });
         await page.goto('/#/sharedata/dataSource');
 
-        // Chờ bảng gói tin hiển thị và click chọn gói tin đầu tiên
-        const packetRow = page.locator('.packet-pane .vxe-table--body tbody tr').first();
-        await expect(packetRow).toBeVisible({ timeout: 15_000 });
-        await packetRow.click();
-        await page.waitForTimeout(300);
+        // Chờ tabs hiển thị (tự động nạp gói tin đầu tiên)
+        const tabs = page.locator('.datasource-right-tabs');
+        await expect(tabs).toBeVisible({ timeout: 15_000 });
 
         // Chuyển sang tab Cấu hình SQL
-        const tabs = page.locator('.datasource-right-tabs');
         const sqlTab = tabs.getByRole('tab', { name: /Cấu hình SQL/ });
         await sqlTab.click();
         await expect(sqlTab).toHaveClass(/is-active/);
@@ -1009,7 +996,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         // 1. Quét tĩnh mã nguồn VisualQueryBuilder.vue để kiểm chứng các tính năng resize
         const vqbPath = path.resolve(
             __dirname,
-            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/component/VisualQueryBuilder.vue'
+            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/component/visualQueryBuilder.vue'
         );
         const vqbContent = fs.readFileSync(vqbPath, 'utf8');
 
@@ -1038,13 +1025,11 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await page.setViewportSize({ width: 1600, height: 900 });
         await page.goto('/#/sharedata/dataSource');
 
-        const packetRow = page.locator('.packet-pane .vxe-table--body tbody tr').first();
-        await expect(packetRow).toBeVisible({ timeout: 15_000 });
-        await packetRow.click();
-        await page.waitForTimeout(300);
+        // Chờ tabs hiển thị (tự động nạp gói tin đầu tiên)
+        const tabs = page.locator('.datasource-right-tabs');
+        await expect(tabs).toBeVisible({ timeout: 15_000 });
 
         // Chuyển sang tab Cấu hình SQL
-        const tabs = page.locator('.datasource-right-tabs');
         const sqlTab = tabs.getByRole('tab', { name: /Cấu hình SQL/ });
         await sqlTab.click();
         await expect(sqlTab).toHaveClass(/is-active/);
@@ -1104,6 +1089,175 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await page.waitForTimeout(200);
         const resetFilterHeight = (await filterCanvas.boundingBox())?.height || 0;
         expect(Math.abs(resetFilterHeight - 180)).toBeLessThanOrEqual(10);
+    });
+
+    test('11. Phân giải chính sách gói tin (resolvePacketPolicy & parsePacketNumber) và cấu hình chính sách trong editPacket.vue', async () => {
+        // 1. Kiểm thử parsePacketNumber
+        expect(parsePacketNumber('101')).toBe(101);
+        expect(parsePacketNumber('101_commonData')).toBe(101);
+        expect(parsePacketNumber('105_traffic_event')).toBe(105);
+        expect(parsePacketNumber('111')).toBe(111);
+        expect(parsePacketNumber('100')).toBeNull();
+        expect(parsePacketNumber('112')).toBeNull();
+        expect(parsePacketNumber('invalid_code')).toBeNull();
+        expect(parsePacketNumber(null)).toBeNull();
+        expect(parsePacketNumber(undefined)).toBeNull();
+
+        // 2. Kiểm thử resolvePacketPolicy
+        // Nhóm Snapshot: 101, 102, 105, 108 (Hiển thị nhãn 'Gửi full')
+        expect(resolvePacketPolicy('101').policy).toBe('Snapshot');
+        expect(resolvePacketPolicy('101').label).toBe('Gửi full');
+        expect(resolvePacketPolicy('101').tagType).toBe('success');
+        expect(resolvePacketPolicy('102').policy).toBe('Snapshot');
+        expect(resolvePacketPolicy('105').policy).toBe('Snapshot');
+        expect(resolvePacketPolicy('108').policy).toBe('Snapshot');
+
+        // Nhóm AlwaysIncremental: 103, 104, 106, 107, 109 (Hiển thị nhãn 'Gửi nối đuôi')
+        expect(resolvePacketPolicy('103').policy).toBe('AlwaysIncremental');
+        expect(resolvePacketPolicy('103').label).toBe('Gửi nối đuôi');
+        expect(resolvePacketPolicy('103').tagType).toBe('primary');
+        expect(resolvePacketPolicy('104').policy).toBe('AlwaysIncremental');
+        expect(resolvePacketPolicy('106').policy).toBe('AlwaysIncremental');
+        expect(resolvePacketPolicy('107').policy).toBe('AlwaysIncremental');
+        expect(resolvePacketPolicy('109').policy).toBe('AlwaysIncremental');
+
+        // Nhóm NotReady: 110
+        expect(resolvePacketPolicy('110').policy).toBe('NotReady');
+        expect(resolvePacketPolicy('110').tagType).toBe('warning');
+
+        // Nhóm Disabled: 111
+        expect(resolvePacketPolicy('111').policy).toBe('Disabled');
+        expect(resolvePacketPolicy('111').tagType).toBe('info');
+
+        // Mã không hợp lệ / chưa xác định
+        expect(resolvePacketPolicy(null).policy).toBe('NotReady');
+        expect(resolvePacketPolicy('unknown_pkt').policy).toBe('NotReady');
+
+        // 3. Quét tĩnh editPacket.vue để kiểm tra hiển thị chính sách
+        const editPacketPath = path.resolve(
+            __dirname,
+            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/component/editPacket.vue'
+        );
+        const editPacketContent = fs.readFileSync(editPacketPath, 'utf8');
+        expect(editPacketContent).toContain('resolvePacketPolicy');
+        expect(editPacketContent).toContain('currentPolicy');
+        expect(editPacketContent).toContain('packet-policy-display');
+        expect(editPacketContent).toContain('policy-desc');
+        expect(editPacketContent).not.toContain('!important');
+    });
+
+    test('12. Quy chuẩn đặt tên tệp component — BẮT BUỘC dùng camelCase (chữ cái đầu viết thường), CẤM viết hoa PascalCase (Rule 20.14)', async () => {
+        const sharedataDir = path.resolve(__dirname, '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata');
+        const getVueComponentFiles = (dir: string): string[] => {
+            let results: string[] = [];
+            const list = fs.readdirSync(dir);
+            list.forEach((file) => {
+                const fullPath = path.join(dir, file);
+                const stat = fs.statSync(fullPath);
+                if (stat && stat.isDirectory()) {
+                    results = results.concat(getVueComponentFiles(fullPath));
+                } else if (file.endsWith('.vue') && dir.includes('component')) {
+                    results.push(file);
+                }
+            });
+            return results;
+        };
+
+        const vueFiles = getVueComponentFiles(sharedataDir);
+        expect(vueFiles.length).toBeGreaterThan(0);
+        for (const file of vueFiles) {
+            const firstChar = file.charAt(0);
+            // Ký tự đầu tiên phải là chữ thường (camelCase)
+            expect(firstChar).toBe(firstChar.toLowerCase());
+            // Cấm tuyệt đối PascalCase như VisualQueryBuilder.vue
+            expect(file).not.toBe('VisualQueryBuilder.vue');
+        }
+
+        // Kiểm tra tệp visualQueryBuilder.vue tồn tại và có name attribute là camelCase
+        const vqbPath = path.resolve(
+            sharedataDir,
+            'dataSource/component/visualQueryBuilder.vue'
+        );
+        expect(fs.existsSync(vqbPath)).toBe(true);
+        const vqbContent = fs.readFileSync(vqbPath, 'utf8');
+        expect(vqbContent).toContain('name="visualQueryBuilder"');
+    });
+
+    test('13. Quy chuẩn 100% i18n — CẤM hardcode text mẫu mặc định, nhãn, tooltip, ElMessage trong visualQueryBuilder.vue (Rule 20.15)', async () => {
+        const sharedataDir = path.resolve(__dirname, '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata');
+        const vqbPath = path.resolve(sharedataDir, 'dataSource/component/visualQueryBuilder.vue');
+        expect(fs.existsSync(vqbPath)).toBe(true);
+
+        const vqbContent = fs.readFileSync(vqbPath, 'utf8');
+
+        // 1. Quét tĩnh: CẤM chuỗi cứng "Mẫu mặc định" trong template và script
+        expect(vqbContent).not.toMatch(/>\s*Mẫu mặc định\s*</);
+        expect(vqbContent).not.toContain("'Mẫu mặc định'");
+        expect(vqbContent).not.toContain('"Mẫu mặc định"');
+
+        // 2. Quét tĩnh: CẤM các chuỗi ElMessage hardcoded tiếng Việt
+        expect(vqbContent).not.toContain('Đang giữ nguyên câu SQL hiện tại');
+        expect(vqbContent).not.toContain('Chưa có trường nào được lưu trong danh sách');
+        expect(vqbContent).not.toContain('Đã sao chép câu SQL');
+        expect(vqbContent).not.toMatch(/Đã nạp .* cột từ danh sách/);
+
+        // 3. Khẳng định operators sử dụng computed và $t
+        expect(vqbContent).toContain("const operators = computed(() => [");
+        expect(vqbContent).toContain("lz.label.sharedataDataSource.opEqual");
+        expect(vqbContent).toContain("lz.label.sharedataDataSource.opIsNotNull");
+
+        // 4. Khẳng định predefinedTables sử dụng descKey và $t
+        expect(vqbContent).toContain("tblDescTrafficData");
+        expect(vqbContent).toContain("tblDescTollTransaction");
+        expect(vqbContent).toContain("$t(tb.descKey)");
+
+        // 5. Kiểm tra tính đầy đủ và đồng bộ giữa vi-vn.json và en-us.json
+        const viPath = path.resolve(__dirname, '../../../../TA-ITS015-WEBVUE-V1.0/src/src/i18n/lang/vi-vn.json');
+        const enPath = path.resolve(__dirname, '../../../../TA-ITS015-WEBVUE-V1.0/src/src/i18n/lang/en-us.json');
+        expect(fs.existsSync(viPath)).toBe(true);
+        expect(fs.existsSync(enPath)).toBe(true);
+
+        const viJson = JSON.parse(fs.readFileSync(viPath, 'utf8'));
+        const enJson = JSON.parse(fs.readFileSync(enPath, 'utf8'));
+
+        const requiredKeys = [
+            'lz.label.sharedataDataSource.vqbVisualMode',
+            'lz.label.sharedataDataSource.vqbRawMode',
+            'lz.label.sharedataDataSource.vqbDefaultTemplate',
+            'lz.label.sharedataDataSource.vqbResetToCatalogTooltip',
+            'lz.message.sharedataDataSource.vqbKeepCurrentSql',
+            'lz.message.sharedataDataSource.vqbNoSavedFields',
+            'lz.message.sharedataDataSource.vqbLoadedSavedFields',
+            'lz.message.sharedataDataSource.vqbCopiedSql',
+            'lz.label.sharedataDataSource.opEqual',
+            'lz.label.sharedataDataSource.opNotEqual',
+            'lz.label.sharedataDataSource.opGreaterThan',
+            'lz.label.sharedataDataSource.opGreaterOrEqual',
+            'lz.label.sharedataDataSource.opLessThan',
+            'lz.label.sharedataDataSource.opLessOrEqual',
+            'lz.label.sharedataDataSource.opLike',
+            'lz.label.sharedataDataSource.opNotLike',
+            'lz.label.sharedataDataSource.opBetween',
+            'lz.label.sharedataDataSource.opIn',
+            'lz.label.sharedataDataSource.opNotIn',
+            'lz.label.sharedataDataSource.opIsNull',
+            'lz.label.sharedataDataSource.opIsNotNull',
+            'lz.label.sharedataDataSource.tblDescTrafficData',
+            'lz.label.sharedataDataSource.tblDescIncident',
+            'lz.label.sharedataDataSource.tblDescWeather',
+            'lz.label.sharedataDataSource.tblDescZoneStatus',
+            'lz.label.sharedataDataSource.tblDescCctvDevice',
+            'lz.label.sharedataDataSource.tblDescVmsCurrent',
+            'lz.label.sharedataDataSource.tblDescTollTransaction',
+        ];
+
+        for (const k of requiredKeys) {
+            expect(viJson[k], `Missing key in vi-vn.json: ${k}`).toBeTruthy();
+            expect(enJson[k], `Missing key in en-us.json: ${k}`).toBeTruthy();
+        }
+
+        expect(viJson['lz.label.sharedataDataSource.vqbDefaultTemplate']).toBe('Mẫu mặc định');
+        expect(enJson['lz.label.sharedataDataSource.vqbDefaultTemplate']).toBe('Default Template');
     });
 });
 

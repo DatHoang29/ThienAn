@@ -1,4 +1,10 @@
 import { test, expect } from '@playwright/test';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Test E2E cho phân hệ ShareData — Modal Chi tiết Nhật ký (Cha - Con)
@@ -513,6 +519,16 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
         // 3. Khẳng định trường Định dạng nhận diện file .json thành JSON
         const formatItem = dialog.locator('tr:has(.el-descriptions__label:has-text("Định dạng"))');
         await expect(formatItem).toContainText('JSON');
+
+        // 4. Khẳng định modal rộng 1080px và nhãn "Đường dẫn" không bị ngắt dòng (white-space: nowrap)
+        await expect(dialog).toHaveCSS('width', '1080px');
+        const evidenceLabel = dialog.locator('.evidence-descriptions .evidence-label').first();
+        await expect(evidenceLabel).toBeVisible();
+        await expect(evidenceLabel).toContainText('Đường dẫn');
+        await expect(evidenceLabel).toHaveCSS('white-space', 'nowrap');
+        const evidencePath = dialog.locator('.evidence-descriptions .evidence-path-text');
+        await expect(evidencePath).toBeVisible();
+        await expect(evidencePath).toContainText('/data/export/packet_7496.json');
     });
 
     test('6. Đóng modal chi tiết khi click outside vào overlay', async ({ page }) => {
@@ -568,7 +584,7 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
         await expect(dialog).toBeHidden({ timeout: 5000 });
     });
 
-    test('7. Hiển thị Tab cấp trên (.history-tabs border-card) chuyển đổi Nhật ký cấu hình và Nhật ký truyền nhận', async ({ page }) => {
+    test('7. Hiển thị Tab cấp trên (.history-tabs) chuyển đổi mượt mà với active-bar trượt chuẩn TMS', async ({ page }) => {
         test.slow();
         await page.route('**/api/sharedata/sharedataactivitylog/page*', async (route) => {
             await route.fulfill({
@@ -609,24 +625,68 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
 
         const historyTabs = page.locator('.history-tabs');
         await expect(historyTabs).toBeVisible({ timeout: 30000 });
-        await expect(historyTabs).toHaveClass(/el-tabs--border-card/);
+        // Chuẩn TMS: Line tabs tiêu chuẩn, không dùng border-card
+        await expect(historyTabs).not.toHaveClass(/el-tabs--border-card/);
         await expect(page.locator('.loading-next')).toHaveCount(0, { timeout: 10000 });
 
         const configTab = historyTabs.getByRole('tab', { name: /Cấu hình/i });
         const transferTab = historyTabs.getByRole('tab', { name: /Truyền nhận/i });
         await expect(configTab).toHaveClass(/is-active/);
 
-        // Chuyển sang tab Truyền nhận
+        // Kiểm tra thanh gạch dưới active-bar chuẩn TMS di chuyển (move) khi đổi tab
+        const activeBar = historyTabs.locator('.el-tabs__active-bar');
+        await expect(activeBar).toBeVisible();
+
+        const initialBarBox = await activeBar.boundingBox();
+        expect(initialBarBox).not.toBeNull();
+
+        // Chuyển sang tab Truyền nhận: active-bar di chuyển (move) sang vị trí của transferTab
         await transferTab.click();
         await expect(transferTab).toHaveClass(/is-active/);
-        const historyTabIndicator = await transferTab.evaluate((el) => {
-            const after = window.getComputedStyle(el, '::after');
-            return { height: after.height, left: after.left, right: after.right };
-        });
-        expect(historyTabIndicator).toEqual({ height: '2px', left: '0px', right: '0px' });
-        await expect(page.locator('.stat-row .stat-card')).toHaveCount(5);
         await page.waitForTimeout(300);
 
+        const movedBarBox = await activeBar.boundingBox();
+        expect(movedBarBox).not.toBeNull();
+        expect(movedBarBox!.x).toBeGreaterThan(initialBarBox!.x + 20);
+        await expect(page.locator('.stat-row .stat-card')).toHaveCount(5);
+
+        // Chuyển lại tab Cấu hình: active-bar di chuyển ngược lại khớp toạ độ ban đầu
+        await configTab.click();
+        await expect(configTab).toHaveClass(/is-active/);
+        await page.waitForTimeout(300);
+
+        const backBarBox = await activeBar.boundingBox();
+        expect(backBarBox).not.toBeNull();
+        expect(Math.abs(backBarBox!.x - initialBarBox!.x)).toBeLessThanOrEqual(1);
+        await expect(page.locator('.stat-row .stat-card')).toHaveCount(3);
+
         await page.screenshot({ path: 'test-results/snapshot-4-history-top-tabs.png', fullPage: false });
+    });
+
+    test('8. Quét tĩnh mã nguồn history/index.vue & activityDetailDialog.vue: Chuẩn hoá Line Tabs không border-card, không scaleX, không !important, và modal 1080px', async () => {
+        const historyIndexPath = path.resolve(
+            __dirname,
+            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/history/index.vue'
+        );
+        const dialogPath = path.resolve(
+            __dirname,
+            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/history/component/activityDetailDialog.vue'
+        );
+        const historyIndexContent = fs.readFileSync(historyIndexPath, 'utf8');
+        const dialogContent = fs.readFileSync(dialogPath, 'utf8');
+
+        // 1. history/index.vue: Chuẩn Line Tabs, không dùng border-card, không dùng scaleX giả lập
+        expect(historyIndexContent).not.toContain('type="border-card"');
+        expect(historyIndexContent).not.toContain('scaleX');
+        expect(historyIndexContent).toContain('.el-tabs__active-bar');
+        expect(historyIndexContent).not.toContain('!important');
+
+        // 2. activityDetailDialog.vue: Chiều rộng 1080px, label nowrap, monospace font
+        expect(dialogContent).toContain('width="1080px"');
+        expect(dialogContent).toContain('evidence-descriptions');
+        expect(dialogContent).toContain('white-space: nowrap');
+        expect(dialogContent).toContain('min-width: 130px');
+        expect(dialogContent).toContain('Consolas, Monaco, monospace');
+        expect(dialogContent).not.toContain('!important');
     });
 });

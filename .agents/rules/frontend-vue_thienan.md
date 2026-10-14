@@ -22,6 +22,22 @@ src/views/<module>/<feature>/
     └── detail<Feature>.vue     # Modal / Drawer Xem chi tiết bản ghi
 ```
 
+### 🏷️ Quy Chuẩn Đặt Tên Tệp Component (`camelCase` Bắt Buộc - CẤM `PascalCase`) (Rule 20.14 - P0 Safeguard)
+* **Tên tệp `.vue`**:
+  - Tên tất cả các tệp component con trong thư mục `src/views/<module>/<feature>/component/` và `src/components/` **BẮT BUỘC viết theo chuẩn `camelCase` (chữ cái đầu viết thường)**.
+  - ✅ **Ví dụ chuẩn**:
+    - `visualQueryBuilder.vue`
+    - `editPacket.vue`, `editPacketField.vue`, `editPartner.vue`, `editSubscription.vue`
+    - `activityDetailDialog.vue`, `alertDetailDrawer.vue`, `subscriptionTable.vue`
+  - ⛔ **TUYỆT ĐỐI CẤM** đặt tên tệp component viết hoa chữ cái đầu (PascalCase) như:
+    - ❌ `VisualQueryBuilder.vue` $\rightarrow$ Đổi thành `visualQueryBuilder.vue`.
+    - ❌ `EditPacket.vue` $\rightarrow$ Đổi thành `editPacket.vue`.
+    - ❌ `SubscriptionTable.vue` $\rightarrow$ Đổi thành `subscriptionTable.vue`.
+* **Thuộc tính name trong `<script lang="ts" setup name="...">`**:
+  - Đồng bộ viết theo `camelCase` (ví dụ `name="visualQueryBuilder"` hoặc `name="sharedataVisualQueryBuilder"`), không viết hoa chữ cái đầu.
+* **Quy ước Import & Sử dụng trong Template**:
+  - Khi import trong script có thể khai báo định danh PascalCase (`const VisualQueryBuilder = defineAsyncComponent(...)`) để gắn vào template (`<VisualQueryBuilder ... />`) theo quy ước Vue, nhưng đường dẫn tệp `import(...)` **BẮT BUỘC trỏ chính xác đến tên tệp `camelCase`**.
+
 ### API Services (Swagger Auto-Generated — CẤM TỰ SỬA TAY & BẮT BUỘC DÙNG `getAPI`)
 * Toàn bộ mã nguồn trong `src/api-services/` được sinh tự động bởi OpenAPI / Swagger Codegen (`pnpm run build-api` hoặc `pwsh api_build/build.ps1`) từ Backend WebAPI.
 * ⛔ **TUYỆT ĐỐI CẤM** tự tạo file API thủ công hoặc sửa tay vào `src/api-services/`.
@@ -102,6 +118,13 @@ src/views/<module>/<feature>/
   - ✅ **BẮT BUỘC trên giao diện HTML/Vue**: Ngôn ngữ nào ra ngôn ngữ đó qua hệ thống i18n:
     - Trong tệp `src/src/i18n/lang/vi-vn.json` (và giá trị fallback trong template): Dùng tiếng Việt chuẩn mực, thuần túy (ví dụ: `Trực quan`, `Mã nguồn SQL`, `Cột trích xuất:`, `Điều kiện lọc:`, `Sắp xếp:`, `Tăng dần`, `Giảm dần`).
     - Trong tệp `src/src/i18n/lang/en-us.json`: Dùng tiếng Anh chuẩn xác, tự nhiên (ví dụ: `Visual Builder`, `Raw SQL`, `Columns:`, `Filter Conditions:`, `Order By:`, `Ascending`, `Descending`).
+* **CẤM hardcode text mẫu mặc định & chuỗi giao diện FE — 100% đưa vào i18n (Rule 20.15 - P0 Safeguard - bổ sung 14/10/2026)**:
+  - ⛔ **CẤM** viết chuỗi text hiển thị thô (như `Mẫu mặc định`, `Đã nạp ...`, `Đã sao chép ...`, `Trực quan`, `Mã nguồn SQL`, `Thêm cột`, `Sắp xếp`, các nhãn toán tử, nhãn bảng mô tả...) trực tiếp trong template HTML/Vue (`<el-button> Mẫu mặc định </el-button>`), placeholder, tooltip, hoặc trong script (`ElMessage.success('Đã sao chép...')`, fallback `|| 'Trực quan'`).
+  - ⛔ **CẤM** viết nhãn mẫu mặc định hoặc text mẫu tĩnh cứng nhắc bằng tiếng Việt/tiếng Anh trong component.
+  - ✅ **BẮT BUỘC**:
+    - 100% text hiển thị cho người dùng (nút bấm, nhãn trường, placeholder, tooltip, thông báo `ElMessage`, danh sách options/operators/mô tả bảng) phải được định nghĩa bằng key trong `src/src/i18n/lang/vi-vn.json` (tiếng Việt thuần túy) và `src/src/i18n/lang/en-us.json` (tiếng Anh thuần túy).
+    - Sử dụng `$t(...)` trong template và script (`const { t: $t } = useI18n()`). Không để fallback text cứng trong template nếu key đã tồn tại.
+    - Mọi màn hình/component mới hoặc sửa đổi đều phải có bài test Playwright quét tĩnh (Static Code Scan) bảo đảm không chứa text thô cứng nhắc.
 
 ---
 

@@ -20,6 +20,18 @@ description: Documentation standards, single MasterPlan per subsystem, executabl
 * ⛔ **TUYỆT ĐỐI CẤM** tạo các file kế hoạch rời rạc theo ngày tháng (`Plan_20261001.md`, `MasterPlan_v2.md`).
 * Mọi tiến độ, quyết định kiến trúc và phương án bị bác BẮT BUỘC cập nhật trực tiếp tại chỗ vào file MasterPlan này.
 
+### Phạm Vi Cốt Lõi Của MasterPlan — Chỉ Báo Cáo Luồng Nghiệp Vụ Chính (Rule 19.52)
+* MasterPlan là tài liệu kế hoạch & kiến trúc nghiệp vụ cấp cao của phân hệ:
+  - **Nội dung ĐƯỢC PHÉP có trong MasterPlan**:
+    1. Hiện trạng kiến trúc nghiệp vụ phân hệ, phân tích luồng dữ liệu (Data Flow), hợp đồng dữ liệu, danh mục gói tin / thiết bị / màn hình.
+    2. Danh sách tính năng và phân rã công việc nghiệp vụ hệ thống (`R1..Rn`, `BE-*`, `FE-*`, các luồng Outbound/Inbound...).
+    3. Trạng thái tiến độ tổng quan: chỉ dùng 2 trạng thái **"Đã làm"** hoặc **"Chưa làm"** kèm tiêu chí nghiệm thu cấp hệ thống.
+    4. Các quyết định kiến trúc nghiệp vụ quan trọng và phương án bị bác (ADR - Architectural Decision Record) được chốt qua cuộc họp/spec.
+  - ⛔ **TUYỆT ĐỐI CẤM đưa vào MasterPlan**:
+    1. **Các quy chuẩn lập trình / coding conventions / linter rules**: Như "Cấm hardcode text mẫu / đưa vào i18n (Rule 20.15)", "Đổi tên component sang camelCase (Rule 20.14)", "Cấm toán tử !! (Rule 20.8)", "Cấm !important (Rule 20.6)"... Mọi quy chuẩn này **BẮT BUỘC nằm tại `.agents/rules/` (SSOT)**.
+    2. **Nhật ký sửa code / fix bug chi tiết sau review**: Như nhật ký sửa CSS, đổi class, tăng width modal, bỏ padding footer, căn lề, sửa thanh tab, thêm computed, escape ký tự `@`... Những thay đổi kỹ thuật này được thể hiện và đối chiếu qua **Git Diff** và **bộ test tự động (Playwright/xUnit)**.
+    3. **Các phần dạng "Phần VII — Nhật ký xử lý & đồng bộ sau review..."**: MasterPlan không phải là changelog, commit log hay bug tracking sheet. Việc đưa chi tiết fix code lặt vặt vào MasterPlan làm loãng tài liệu kiến trúc nghiệp vụ và vi phạm nguyên tắc tập trung quy tắc tại SSOT.
+
 ### Cấu Trúc File Prompt Thực Thi (`<task-slug>-prompt.md` - Section 13 & Rule 19.34)
 * Vị trí lưu trữ: `DocBusinessThienAn/<DựÁn>/<PhânHệ>/Prompt/<task-slug>-prompt.md`.
 * **Đầu file Markdown**: BẮT BUỘC ghi rõ đường dẫn và tên tệp prompt.

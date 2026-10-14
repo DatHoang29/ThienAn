@@ -349,25 +349,37 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 
 		const subTabs = page.locator('.sub-direction-tabs');
 		await expect(subTabs).toBeVisible({ timeout: 60000 });
-		await expect(subTabs).toHaveClass(/el-tabs--border-card/);
 
 		const outboundTab = subTabs.getByRole('tab', { name: 'Gửi đi' });
 		const inboundTab = subTabs.getByRole('tab', { name: 'Nhận về' });
 		await expect(outboundTab).toHaveClass(/is-active/);
-		const subTabIndicator = await outboundTab.evaluate((el) => {
-			const after = window.getComputedStyle(el, '::after');
-			return { height: after.height, left: after.left, right: after.right };
-		});
-		expect(subTabIndicator).toEqual({ height: '2px', left: '0px', right: '0px' });
+
+		// Hàm đọc toạ độ dịch chuyển translateX thực tế của thanh active bar (.el-tabs__active-bar)
+		const getTransformX = async (barLocator: ReturnType<typeof page.locator>) => {
+			return await barLocator.evaluate((el) => {
+				const style = window.getComputedStyle(el);
+				return new DOMMatrix(style.transform).m41;
+			});
+		};
+
+		// 1. Kiểm tra thanh active bar trên bảng: trượt di chuyển native translateX theo chuẩn TMS
+		const subActiveBar = subTabs.locator('.el-tabs__active-bar');
+		await expect(subActiveBar).toBeVisible();
+		const subX1 = await getTransformX(subActiveBar);
+		expect(subX1).toBe(0);
+
 		await expect(page.locator('.loading-next')).toHaveCount(0, { timeout: 10000 });
 		await page.waitForTimeout(300);
 
 		// Chụp snapshot màn hình Chia sẻ dữ liệu với Tab cấp trên Gửi đi / Nhận về
 		await page.screenshot({ path: 'test-results/snapshot-1-sharing-subscription-tabs.png', fullPage: false });
 
-		// Chuyển sang tab Nhận về trên bảng
+		// Chuyển sang tab Nhận về trên bảng: thanh active bar BẮT BUỘC di chuyển (move / translateX)
 		await inboundTab.click();
 		await expect(inboundTab).toHaveClass(/is-active/);
+		await page.waitForTimeout(300);
+		const subX2 = await getTransformX(subActiveBar);
+		expect(subX2).toBeGreaterThan(50);
 
 		// Bấm nút mở Modal Đăng ký chia sẻ
 		const addBtn = page.locator('.sub-table .vxe-button--item button, .sub-table .vxe-toolbar button').first();
@@ -376,16 +388,22 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 		const dialog = page.locator('.sharedata-edit-subscription-container .el-dialog');
 		await expect(dialog).toBeVisible({ timeout: 5000 });
 
+		// 2. Kiểm tra thanh active bar trong Modal (editSubscription.vue): trượt di chuyển native translateX chuẩn TMS
 		const modalTabs = dialog.locator('.direction-tabs');
-		await expect(modalTabs).toHaveClass(/el-tabs--border-card/);
+		const modalActiveBar = modalTabs.locator('.el-tabs__active-bar');
+		await expect(modalActiveBar).toBeVisible();
+
 		const modalInboundTab = modalTabs.getByRole('tab', { name: 'Nhận về' });
 		await expect(modalInboundTab).toHaveClass(/is-active/);
+		await page.waitForTimeout(400);
+		await expect.poll(async () => getTransformX(modalActiveBar)).toBeGreaterThan(50);
 
-		// Chuyển về tab Gửi đi trong modal để chụp đầy đủ giao diện form + Scheduler
+		// Chuyển về tab Gửi đi trong modal: thanh active bar BẮT BUỘC di chuyển (move / translateX) về 0
 		const modalOutboundTab = modalTabs.getByRole('tab', { name: 'Gửi đi' });
 		await modalOutboundTab.click();
 		await expect(modalOutboundTab).toHaveClass(/is-active/);
-		await page.waitForTimeout(300);
+		await page.waitForTimeout(400);
+		await expect.poll(async () => getTransformX(modalActiveBar)).toBeLessThanOrEqual(1);
 
 		// Kiểm tra chiều cao cố định theo tỷ lệ màn hình (vh) không bị giật khi chuyển tab
 		const tabContent = dialog.locator('.direction-tabs .el-tabs__content');
@@ -416,6 +434,74 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 		const textareaHeight = await remarkTextarea.evaluate((el) => el.getBoundingClientRect().height);
 		expect(textareaHeight).toBeGreaterThanOrEqual(100);
 
+		// Kiểm tra el-dialog__footer bỏ padding (padding = 0px) theo yêu cầu giao diện phân hệ ShareData
+		const dialogFooter = dialog.locator('.el-dialog__footer');
+		await expect(dialogFooter).toBeVisible();
+		const footerPadding = await dialogFooter.evaluate((el) => {
+			const cs = window.getComputedStyle(el);
+			return {
+				top: cs.paddingTop,
+				bottom: cs.paddingBottom,
+				left: cs.paddingLeft,
+				right: cs.paddingRight,
+			};
+		});
+		expect(footerPadding.top).toBe('0px');
+		expect(footerPadding.bottom).toBe('0px');
+		expect(footerPadding.left).toBe('0px');
+		expect(footerPadding.right).toBe('0px');
+
 		await page.screenshot({ path: 'test-results/snapshot-2-modal-edit-subscription-tabs.png', fullPage: false });
+	});
+
+	test('TC10 — Cấu hình kênh kết nối đối tác (editPartner.vue: ConnectionType API/File, ConnectionConfig, tuân thủ Rule 20.8 CẤM !!)', async () => {
+		const partnerFilePath = path.resolve(
+			__dirname,
+			'../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/sharing/component/editPartner.vue'
+		);
+		const partnerContent = fs.readFileSync(partnerFilePath, 'utf8');
+
+		// 1. Kiểm tra trường connectionType có 2 option chuẩn API và File
+		expect(partnerContent).toContain('prop="connectionType"');
+		expect(partnerContent).toContain('value="API"');
+		expect(partnerContent).toContain('value="File"');
+
+		// 2. Kiểm tra trường connectionConfig
+		expect(partnerContent).toContain('prop="connectionConfig"');
+
+		// 3. Kiểm tra gán mặc định connectionType = 'API' khi mở dialog thêm mới
+		expect(partnerContent).toContain("state.ruleForm.connectionType = 'API'");
+
+		// 4. Tuân thủ Rule 20.8: CẤM dùng toán tử !! (phủ định kép), dùng Boolean(...) tường minh
+		expect(partnerContent).not.toContain('!!');
+		expect(partnerContent).toContain('state.isEdit = Boolean((row as any)?.id)');
+
+		// 5. Tuân thủ Rule 20.6: Không dùng !important trong style
+		expect(partnerContent).not.toContain('!important');
+	});
+
+	test('TC11 — Bỏ padding ở el-dialog__footer trong modal Tạo/Sửa đăng ký chia sẻ dữ liệu (editSubscription.vue)', async () => {
+		const subFilePath = path.resolve(
+			__dirname,
+			'../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/sharing/component/editSubscription.vue'
+		);
+		const subContent = fs.readFileSync(subFilePath, 'utf8');
+
+		// 1. Quét tĩnh mã nguồn: editSubscription.vue có cấu hình bỏ padding cho .el-dialog__footer
+		expect(subContent).toContain('.el-dialog__footer');
+		expect(subContent).toContain('padding: 0');
+
+		// 2. Tuân thủ Rule 20.6: Không dùng !important
+		expect(subContent).not.toContain('!important');
+
+		// 3. Phân lập phạm vi (Rule 13): Chỉ áp dụng trong phân hệ ShareData, không sửa global element.scss
+		const elementScssPath = path.resolve(
+			__dirname,
+			'../../../../TA-ITS015-WEBVUE-V1.0/src/src/theme/element.scss'
+		);
+		const elementScssContent = fs.readFileSync(elementScssPath, 'utf8');
+		// element.scss vẫn giữ nguyên cấu hình hệ thống
+		expect(elementScssContent).toContain('.el-dialog__footer');
+		expect(elementScssContent).toContain('padding: 15px');
 	});
 });

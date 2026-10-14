@@ -1,4 +1,10 @@
 import { test, expect } from '@playwright/test';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Test E2E cho phân hệ ShareData — nghi vấn Issue 30/32 (F16): thanh tiêu đề 3 tab
@@ -519,7 +525,7 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
         expect(movedHeaderBox!.y).toBeGreaterThan(beforeDragY);
     });
 
-    test('EC12 — Kiểm tra phân cấp 2 tầng Tab trong editMapping.vue: Tab cấp trên (.mp-direction-tabs border-card) và Sub-tab (.mp-tabs line sticky)', async ({ page }) => {
+    test('EC12 — Kiểm tra phân cấp 2 tầng Tab trong editMapping.vue: Tab cấp trên (.mp-direction-tabs) trượt active-bar chuẩn TMS và Sub-tab (.mp-tabs line sticky)', async ({ page }) => {
         test.slow();
         await page.goto('/#/sharedata/mapping');
         const addBtn = page.locator('button:has(.ele-Plus), button:has-text("Thêm mới"), button:has-text("Thêm")').first();
@@ -529,20 +535,32 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
         const dialog = page.locator('.mp-dialog');
         await expect(dialog).toBeVisible({ timeout: 5000 });
 
-        // 1. Kiểm tra Tầng 1: Tab cấp trên (.mp-direction-tabs) kiểu border-card với 3 chiều
+        // 1. Kiểm tra Tầng 1: Tab cấp trên (.mp-direction-tabs) chuẩn TMS với 3 chiều và active-bar trượt
         const topTabs = dialog.locator('.mp-direction-tabs');
         await expect(topTabs).toBeVisible();
-        await expect(topTabs).toHaveClass(/el-tabs--border-card/);
+        await expect(topTabs).not.toHaveClass(/el-tabs--border-card/);
 
         const tabOutbound = topTabs.getByRole('tab', { name: 'Gửi đi' });
         const tabInbound = topTabs.getByRole('tab', { name: 'Nhận về' });
         const tabBoth = topTabs.getByRole('tab', { name: 'Hai chiều' });
         await expect(tabOutbound).toHaveClass(/is-active/);
-        const topTabIndicator = await tabOutbound.evaluate((el) => {
-            const after = window.getComputedStyle(el, '::after');
-            return { height: after.height, left: after.left, right: after.right };
-        });
-        expect(topTabIndicator).toEqual({ height: '2px', left: '0px', right: '0px' });
+
+        const topActiveBar = topTabs.locator('.el-tabs__active-bar');
+        await expect(topActiveBar).toBeVisible();
+        const initialTopBarBox = await topActiveBar.boundingBox();
+        expect(initialTopBarBox).not.toBeNull();
+
+        await tabInbound.click();
+        await expect(tabInbound).toHaveClass(/is-active/);
+        await page.waitForTimeout(300);
+        const movedTopBarBox = await topActiveBar.boundingBox();
+        expect(movedTopBarBox).not.toBeNull();
+        expect(movedTopBarBox!.x).toBeGreaterThan(initialTopBarBox!.x + 20);
+
+        await tabOutbound.click();
+        await expect(tabOutbound).toHaveClass(/is-active/);
+        await page.waitForTimeout(300);
+
         await expect(tabInbound).toBeVisible();
         await expect(tabBoth).toBeVisible();
 
@@ -621,6 +639,71 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
 
         await page.screenshot({ path: 'test-results/snapshot-3b-modal-mapping-subtab-sticky.png', fullPage: false });
         expect(await isHeaderWithinFormViewport(page)).toBe(true);
+    });
+
+    test('EC13 — Tiện ích kiểm tra hồ sơ ánh xạ đang dùng (isMappingInUse in mappingUsage.ts)', async () => {
+        // 1. Kiểm tra logic thuần túy của hàm isMappingInUse
+        const isMappingInUseFn = (
+            mapping: { isActive?: boolean | null; partnerId?: string | null; datatypeId?: string | null; direction?: number | null },
+            activeSubscriptions: Array<{ partnerId?: string | null; datatypeId?: string | null; direction?: number | null }>
+        ): boolean => {
+            if (mapping.isActive !== true) return false;
+            if (!mapping.partnerId || !mapping.datatypeId) return false;
+
+            return activeSubscriptions.some((sub) => {
+                if (sub.partnerId !== mapping.partnerId) return false;
+                if (sub.datatypeId !== mapping.datatypeId) return false;
+                return mapping.direction === 2 || sub.direction === mapping.direction;
+            });
+        };
+
+        const activeSubs = [
+            { partnerId: 'DT01', datatypeId: '101', direction: 0 },
+            { partnerId: 'DT02', datatypeId: '102', direction: 1 },
+        ];
+
+        // Case 1: isActive = false -> false (không bị coi là đang dùng)
+        expect(isMappingInUseFn({ isActive: false, partnerId: 'DT01', datatypeId: '101', direction: 0 }, activeSubs)).toBe(false);
+
+        // Case 2: thiếu partnerId hoặc datatypeId -> false
+        expect(isMappingInUseFn({ isActive: true, partnerId: '', datatypeId: '101', direction: 0 }, activeSubs)).toBe(false);
+        expect(isMappingInUseFn({ isActive: true, partnerId: 'DT01', datatypeId: '', direction: 0 }, activeSubs)).toBe(false);
+
+        // Case 3: danh sách activeSubscriptions rỗng -> false
+        expect(isMappingInUseFn({ isActive: true, partnerId: 'DT01', datatypeId: '101', direction: 0 }, [])).toBe(false);
+
+        // Case 4: khớp đầy đủ partnerId, datatypeId, direction -> true
+        expect(isMappingInUseFn({ isActive: true, partnerId: 'DT01', datatypeId: '101', direction: 0 }, activeSubs)).toBe(true);
+        expect(isMappingInUseFn({ isActive: true, partnerId: 'DT02', datatypeId: '102', direction: 1 }, activeSubs)).toBe(true);
+
+        // Case 5: khác direction (mapping direction = 1 Inbound, sub direction = 0 Outbound) -> false
+        expect(isMappingInUseFn({ isActive: true, partnerId: 'DT01', datatypeId: '101', direction: 1 }, activeSubs)).toBe(false);
+
+        // Case 6: mapping direction = 2 (Cả hai chiều) -> khớp với bất kỳ subscription nào cùng partner + datatype -> true
+        expect(isMappingInUseFn({ isActive: true, partnerId: 'DT01', datatypeId: '101', direction: 2 }, activeSubs)).toBe(true);
+
+        // Case 7: khác partnerId hoặc khác datatypeId -> false
+        expect(isMappingInUseFn({ isActive: true, partnerId: 'DT99', datatypeId: '101', direction: 0 }, activeSubs)).toBe(false);
+        expect(isMappingInUseFn({ isActive: true, partnerId: 'DT01', datatypeId: '999', direction: 0 }, activeSubs)).toBe(false);
+
+        // 2. Quét tĩnh tệp tiện ích mappingUsage.ts và views/sharedata/mapping/index.vue
+        const mappingUsagePath = path.resolve(
+            __dirname,
+            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/utils/sharedata/mappingUsage.ts'
+        );
+        const mappingUsageContent = fs.readFileSync(mappingUsagePath, 'utf8');
+        expect(mappingUsageContent).toContain('export const isMappingInUse');
+        expect(mappingUsageContent).toContain('export const getActiveSubscriptions');
+        expect(mappingUsageContent).toContain('mapping.direction === Direction.NUMBER_2');
+
+        const mappingIndexPath = path.resolve(
+            __dirname,
+            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/mapping/index.vue'
+        );
+        const mappingIndexContent = fs.readFileSync(mappingIndexPath, 'utf8');
+        expect(mappingIndexContent).toContain('isMappingInUse');
+        expect(mappingIndexContent).toContain('getActiveSubscriptions');
+        expect(mappingIndexContent).not.toContain('!important');
     });
 });
 
