@@ -1259,6 +1259,197 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(viJson['lz.label.sharedataDataSource.vqbDefaultTemplate']).toBe('Mẫu mặc định');
         expect(enJson['lz.label.sharedataDataSource.vqbDefaultTemplate']).toBe('Default Template');
     });
+
+    test('Bố cục bảng và phân trang dataSource: nội dung table cuộn bên trong, footer phân trang có chiều cao cố định 40px không bị trôi @regression', async ({ page }) => {
+        // 1. Kiểm tra tĩnh mã nguồn CSS của dataSource/index.vue
+        const sourcePath = path.resolve(__dirname, '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/index.vue');
+        expect(fs.existsSync(sourcePath)).toBe(true);
+        const sourceCode = fs.readFileSync(sourcePath, 'utf8');
+
+        // Khẳng định .full-table và .el-card__body có overflow: hidden
+        expect(sourceCode).toContain('overflow: hidden;');
+        expect(sourceCode).toContain('.xGrid-style');
+        expect(sourceCode).toContain('.vxe-table--body-wrapper');
+        expect(sourceCode).toContain('height: 40px;');
+        expect(sourceCode).toContain('min-height: 40px;');
+        expect(sourceCode).toContain('max-height: 40px;');
+        expect(sourceCode).toContain('flex-wrap: nowrap;');
+
+        // 2. Chạy E2E kiểm tra DOM thực tế
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+
+        // Bảng gói tin xGridPacket phải hiển thị
+        const packetTable = page.locator('.packet-col .vxe-grid');
+        await expect(packetTable).toBeVisible({ timeout: 15_000 });
+
+        // Kiểm tra thanh phân trang vxe-pager ở đáy có chiều cao cố định 40px
+        const pager = page.locator('.packet-col .vxe-pager');
+        await expect(pager).toBeVisible();
+        const pagerBox = await pager.boundingBox();
+        expect(pagerBox).not.toBeNull();
+        expect(pagerBox!.height).toBeCloseTo(40, 1);
+
+        // Kiểm tra body wrapper của bảng tồn tại để cuộn nội dung độc lập
+        const tableBodyWrapper = page.locator('.packet-col .vxe-table--body-wrapper.body--wrapper');
+        await expect(tableBodyWrapper).toBeAttached();
+    });
+
+    test('14. Bảo vệ câu query Snapshot — Gói Snapshot (101, 102, 105, 108) không tự động chèn TOP (@pageSize) hay giới hạn cứng (Mục 5 & 6)', async ({ page }) => {
+        // 1. Quét tĩnh mã nguồn: Khẳng định logic phân loại isSnapshot không tự thêm TOP (@pageSize) hay con trỏ cursor
+        const indexVuePath = path.resolve(__dirname, '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/index.vue');
+        const vqbPath = path.resolve(__dirname, '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/component/visualQueryBuilder.vue');
+        const indexContent = fs.readFileSync(indexVuePath, 'utf8');
+        const vqbContent = fs.readFileSync(vqbPath, 'utf8');
+
+        expect(indexContent).toContain("const isSnapshot = policy.policy.toLowerCase() === 'snapshot';");
+        expect(indexContent).toContain("const topClause = isSnapshot ? '' : 'TOP (@pageSize)\\n';");
+        expect(indexContent).toContain("if (!isSnapshot) {");
+        expect(vqbContent).toContain("builderModel.topOption = isSnapshot ? 'none' : 'pageSize';");
+
+        // 2. Chạy E2E kiểm tra DOM thực tế khi sinh SQL cho gói tin 101 (Snapshot)
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+
+        const tabs = page.locator('.datasource-right-tabs');
+        await expect(tabs).toBeVisible({ timeout: 15_000 });
+
+        const sqlTab = tabs.getByRole('tab', { name: /Cấu hình SQL/ });
+        await sqlTab.click();
+        await expect(sqlTab).toHaveClass(/is-active/);
+
+        // Nút "Sinh SQL từ trường đã lưu"
+        const btnGenSql = page.locator('.sql-toolbar-right .el-button').filter({ hasText: /Sinh SQL từ trường đã lưu/ });
+        if (await btnGenSql.isVisible()) {
+            await btnGenSql.click();
+            await page.waitForTimeout(300);
+
+            const sqlPreview = page.locator('.vqb-sql-preview-strip');
+            await expect(sqlPreview).toBeVisible();
+            const previewText = await sqlPreview.innerText();
+
+            // Gói 101 Snapshot: CẤM chứa TOP (@pageSize) và CẤM chứa __lastTime, __rowid
+            expect(previewText).not.toContain('TOP (@pageSize)');
+            expect(previewText).not.toContain('TOP 10');
+            expect(previewText).not.toContain('__lastTime');
+            expect(previewText).not.toContain('__rowid');
+        }
+    });
+
+    test('15. Bảo vệ câu query phức tạp — visualQueryBuilder khóa tab Trực quan, chuyển sang Raw SQL và hiển thị cảnh báo chống ghi đè (Mục 5)', async ({ page }) => {
+        // 1. Quét tĩnh mã nguồn visualQueryBuilder.vue
+        const vqbPath = path.resolve(__dirname, '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/component/visualQueryBuilder.vue');
+        const vqbContent = fs.readFileSync(vqbPath, 'utf8');
+
+        expect(vqbContent).toContain('canUseBuilder');
+        expect(vqbContent).toContain('builderDisabledReason');
+        expect(vqbContent).toContain('isComplexSql');
+        expect(vqbContent).toContain('vqb-raw-view');
+
+        // 2. Mock API getextractsql trả về câu SQL có JOIN phức tạp
+        const complexSql = 'SELECT d.ID AS id, d.DeviceName AS name, z.ZoneName AS zoneName FROM TmsDevice d INNER JOIN TmsZone z ON d.ZoneId = z.ID WHERE d.IsDelete IS NULL';
+        await page.route('**/api/sharedata/sharedatapacket/getextractsql*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        extractSql: complexSql,
+                        status: 1,
+                        remark: 'SQL phức tạp với JOIN',
+                    },
+                }),
+            });
+        });
+
+        await page.route('**/api/sharedata/sharedatapacket/parseextractcolumns*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        isValid: true,
+                        columns: ['id', 'name', 'zoneName'],
+                    },
+                }),
+            });
+        });
+
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+
+        const tabs = page.locator('.datasource-right-tabs');
+        await expect(tabs).toBeVisible({ timeout: 15_000 });
+
+        const sqlTab = tabs.getByRole('tab', { name: /Cấu hình SQL/ });
+        await sqlTab.click();
+        await expect(sqlTab).toHaveClass(/is-active/);
+
+        // 3. Kiểm tra nút "Trực quan" bị vô hiệu hóa (disabled)
+        const segTabs = page.locator('.vqb-segmented-tabs');
+        await expect(segTabs).toBeVisible();
+
+        const btnVisual = segTabs.locator('.vqb-tab-btn').nth(0);
+        await expect(btnVisual).toHaveClass(/disabled/);
+        await expect(btnVisual).toBeDisabled();
+
+        // 4. Kiểm tra cảnh báo hiển thị trong chế độ Raw Editor
+        const rawAlert = page.locator('.vqb-raw-view .el-alert');
+        await expect(rawAlert).toBeVisible();
+        await expect(rawAlert).toContainText(/phức tạp|JOIN|chống ghi đè/i);
+
+        // 5. Kiểm tra textarea Raw SQL chứa đúng câu SQL phức tạp nguyên bản
+        const rawTextarea = page.locator('.vqb-raw-textarea textarea');
+        await expect(rawTextarea).toBeVisible();
+        const currentSqlVal = await rawTextarea.inputValue();
+        expect(currentSqlVal).toContain('INNER JOIN TmsZone z');
+    });
+
+    test('16. Nút "Mẫu mặc định" (forceDefaultTemplate) — Nạp lại template chuẩn từ Catalog qua API getextractsql với forceDefaultTemplate=true (Mục 5 & 6)', async ({ page }) => {
+        let requestedForceDefault = false;
+
+        await page.route('**/api/sharedata/sharedatapacket/getextractsql*', async (route) => {
+            const url = new URL(route.request().url());
+            if (url.searchParams.get('forceDefaultTemplate') === 'true') {
+                requestedForceDefault = true;
+            }
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        extractSql: 'SELECT TOP (@pageSize) td.Speed AS speed FROM TmsTrafficData td',
+                        status: 1,
+                        remark: 'Catalog Default Template',
+                    },
+                }),
+            });
+        });
+
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+
+        const tabs = page.locator('.datasource-right-tabs');
+        await expect(tabs).toBeVisible({ timeout: 15_000 });
+
+        const sqlTab = tabs.getByRole('tab', { name: /Cấu hình SQL/ });
+        await sqlTab.click();
+        await expect(sqlTab).toHaveClass(/is-active/);
+
+        // Tìm nút "Mẫu mặc định" trong Visual Query Builder
+        const btnResetCatalog = page.locator('.vqb-header-actions .el-button').filter({ hasText: /Mẫu mặc định/ });
+        await expect(btnResetCatalog).toBeVisible();
+
+        // Nhấn nút Mẫu mặc định
+        await btnResetCatalog.click();
+        await page.waitForTimeout(300);
+
+        // Xác nhận API getextractsql đã được gọi với forceDefaultTemplate=true
+        expect(requestedForceDefault).toBe(true);
+    });
 });
 
 

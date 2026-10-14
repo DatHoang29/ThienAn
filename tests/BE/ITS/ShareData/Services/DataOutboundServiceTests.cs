@@ -1076,27 +1076,21 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 var worker = CreateWorker(scope, fileSender: fileSender);
                 await worker.ProcessSubscriptions(CancellationToken.None);
 
-                // Khẳng định API BẮT BUỘC được gọi dù ghi tệp thất bại
-                Assert.Equal(1, partnerServer.TotalReceivedRequests);
-                Assert.NotNull(partnerServer.LastRequest);
-                Assert.Equal(ShareDataPartnerServerMock.DefaultPort, partnerServer.LastRequest!.Port);
-                Assert.Equal("/api/sharedata/sharedatainbound", partnerServer.LastRequest!.Path);
-                Assert.False(string.IsNullOrWhiteSpace(partnerServer.LastRequest!.Body));
-                Assert.Equal(partner.Code, partnerServer.LastRequest!.Headers["PartnerCode"]);
+                // Lưu đệm thất bại: KHÔNG gửi API và KHÔNG tiến mốc
+                Assert.Equal(0, partnerServer.TotalReceivedRequests);
 
                 var logs = await GetLogs(db, sub.ID);
                 Assert.NotEmpty(logs);
-                Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
+                Assert.Equal(BaseEnums.SuccessEnums.Fail, logs[0].Success);
 
                 var alerts = await db.Queryable<ShareDataAlertLog>()
                     .Where(a => a.SubscriptionId == sub.ID)
                     .ToListAsync();
-                Assert.DoesNotContain(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.HttpSendFailed);
-                Assert.Empty(alerts);
+                Assert.Contains(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.HttpSendFailed);
 
                 var updatedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
-                Assert.NotNull(updatedSub.LastTimeRun);
-                Assert.Equal((sub.SerialNbr ?? 0) + 1, updatedSub.SerialNbr);
+                Assert.Null(updatedSub.LastTimeRun);
+                Assert.Equal(sub.SerialNbr, updatedSub.SerialNbr);
             }
             finally
             {
@@ -1147,7 +1141,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 var worker = CreateWorker(scope, fileSender: fileSender);
                 await worker.ProcessSubscriptions(CancellationToken.None);
 
-                Assert.Equal(1, partnerServer.TotalReceivedRequests);
+                Assert.Equal(0, partnerServer.TotalReceivedRequests);
 
                 var logs = await GetLogs(db, sub.ID);
                 Assert.NotEmpty(logs);
@@ -1211,7 +1205,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 var worker = CreateWorker(scope, fileSender: fileSender);
                 await worker.ProcessSubscriptions(CancellationToken.None);
 
-                Assert.Equal(1, partnerServer.TotalReceivedRequests);
+                Assert.Equal(0, partnerServer.TotalReceivedRequests);
 
                 var logs = await GetLogs(db, sub.ID);
                 Assert.NotEmpty(logs);
@@ -5279,7 +5273,7 @@ END");
                     .OrderBy(l => l.OccurredAt)
                     .ToListAsync();
 
-                Assert.Equal(3, logs.Count);
+                Assert.Equal(4, logs.Count);
 
                 var parent = logs.Single(l => l.ParentId == null);
                 Assert.Null(parent.StepNbr);
@@ -5293,6 +5287,10 @@ END");
                 var step2 = logs.Single(l => l.ParentId == parent.ID && l.StepNbr == 2);
                 Assert.Equal(BaseEnums.SuccessEnums.Success, step2.Success);
                 Assert.Equal(parent.RecordCount, step2.RecordCount);
+
+                var step3 = logs.Single(l => l.ParentId == parent.ID && l.StepNbr == 3);
+                Assert.Equal(BaseEnums.SuccessEnums.Success, step3.Success);
+                Assert.Equal(parent.RecordCount, step3.RecordCount);
             }
             finally
             {
@@ -5468,7 +5466,7 @@ END");
                     .OrderBy(l => l.OccurredAt)
                     .ToListAsync();
 
-                Assert.Equal(3, logs.Count);
+                Assert.Equal(4, logs.Count);
 
                 var parent = logs.Single(l => l.ParentId == null);
                 Assert.Equal(BaseEnums.SuccessEnums.Fail, parent.Success);
@@ -5479,9 +5477,13 @@ END");
                 Assert.Equal(parent.RecordCount, step1.RecordCount);
 
                 var step2 = logs.Single(l => l.ParentId == parent.ID && l.StepNbr == 2);
-                Assert.Equal(BaseEnums.SuccessEnums.Fail, step2.Success);
-                Assert.False(string.IsNullOrWhiteSpace(step2.ErrorMessage));
-                Assert.Contains("500", step2.ErrorMessage);
+                Assert.Equal(BaseEnums.SuccessEnums.Success, step2.Success);
+                Assert.Equal(parent.RecordCount, step2.RecordCount);
+
+                var step3 = logs.Single(l => l.ParentId == parent.ID && l.StepNbr == 3);
+                Assert.Equal(BaseEnums.SuccessEnums.Fail, step3.Success);
+                Assert.False(string.IsNullOrWhiteSpace(step3.ErrorMessage));
+                Assert.Contains("500", step3.ErrorMessage);
             }
             finally
             {
@@ -5747,13 +5749,13 @@ END");
                 // Act
                 await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
 
-                // Assert: 250 dòng / trang 100 -> 3 trang -> 3 cây * 3 = 9 logs
+                // Assert: 250 dòng / trang 100 -> 3 trang -> 3 cây * 4 = 12 logs
                 var allLogs = await db.Queryable<ShareDataActivityLog>()
                     .Where(l => l.SubscriptionId == sub.ID)
                     .OrderBy(l => l.OccurredAt)
                     .ToListAsync();
 
-                Assert.Equal(9, allLogs.Count);
+                Assert.Equal(12, allLogs.Count);
 
                 var parentLogs = allLogs.Where(l => l.ParentId == null).ToList();
                 Assert.Equal(3, parentLogs.Count);
@@ -5767,13 +5769,16 @@ END");
                 foreach (var parent in parentLogs)
                 {
                     var steps = allLogs.Where(l => l.ParentId == parent.ID).OrderBy(l => l.StepNbr).ToList();
-                    Assert.Equal(2, steps.Count);
+                    Assert.Equal(3, steps.Count);
                     Assert.Equal(1, steps[0].StepNbr);
                     Assert.Equal(2, steps[1].StepNbr);
+                    Assert.Equal(3, steps[2].StepNbr);
                     Assert.Equal(BaseEnums.SuccessEnums.Success, steps[0].Success);
                     Assert.Equal(BaseEnums.SuccessEnums.Success, steps[1].Success);
+                    Assert.Equal(BaseEnums.SuccessEnums.Success, steps[2].Success);
                     Assert.Equal(parent.RecordCount, steps[0].RecordCount);
                     Assert.Equal(parent.RecordCount, steps[1].RecordCount);
+                    Assert.Equal(parent.RecordCount, steps[2].RecordCount);
                 }
             }
             finally

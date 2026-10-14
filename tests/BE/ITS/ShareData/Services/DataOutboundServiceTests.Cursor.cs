@@ -552,14 +552,14 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         }
 
         /// <summary>
-        /// Description: T09 - Snapshot gói 105 với 120 dòng TollTransactionIn: payload chứa đúng 100 dòng mới nhất
-        ///              (DefaultSnapshotTop = 100, ORDER BY TransactionDateTime DESC). Dòng của test mang thời điểm
-        ///              ở tương lai để luôn nằm trong top, lọc theo tiền tố TransactionId của test.
-        ///              Nguồn: DataOutboundExtractionProcess.cs QueryPacket105 (TOP (@snapshotTop)).
+        /// Description: T09 - Snapshot gói 105 với 120 dòng TollTransactionIn: payload chứa đủ 120 dòng
+        ///              (theo quyết định 14/10/2026: các gói Snapshot gửi full, bỏ trần TOP cứng).
+        ///              Nguồn: DataOutboundExtractionProcess.cs QueryPacket105 (không giới hạn TOP).
         /// Created date: 12/10/2026
+        /// Modified date: 14/10/2026
         /// </summary>
         [Fact]
-        public async Task ProcessSubscriptions_WhenSnapshot105Has120Rows_SendsOnlyNewest100_Test()
+        public async Task ProcessSubscriptions_WhenSnapshot105Has120Rows_SendsAllWithoutTopCeiling_Test()
         {
             // Arrange
             using var scope = _host.Services.CreateScope();
@@ -600,8 +600,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 .Select(r => r.TryGetProperty("transactionId", out var t) ? t.GetString() : null)
                 .Where(t => t != null && t.StartsWith(txnPrefix, StringComparison.Ordinal))
                 .ToList();
-            Assert.Equal(100, sentIds.Count);
-            Assert.Equal(100, sentIds.Distinct().Count());
+            Assert.Equal(120, sentIds.Count);
+            Assert.Equal(120, sentIds.Distinct().Count());
         }
 
         /// <summary>

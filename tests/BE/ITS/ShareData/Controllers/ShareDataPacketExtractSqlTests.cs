@@ -205,4 +205,130 @@ public class ShareDataPacketExtractSqlTests(Host host)
         Assert.Contains("không an toàn hoặc không hợp lệ", ex.Message);
         Assert.True(warningLogged);
     }
+
+    [Theory]
+    [InlineData("SELECT td.ID, td.Speed FROM TmsTrafficData td WHERE td.DetectTime > @lastTime AND td.ID > @lastKey", true)]
+    [InlineData("SELECT TOP (@pageSize) td.ID FROM TmsTrafficData td WHERE td.DetectTime > @lastTime", true)]
+    [InlineData("SELECT td.ID FROM TmsTrafficData td WHERE td.DetectTime BETWEEN @fromDate AND @toDate", false)]
+    [InlineData("SELECT td.ID FROM TmsTrafficData td WHERE td.DetectTime > @unsupportedParam", false)]
+    [InlineData("SELECT td.ID FROM TmsTrafficData td WHERE td.DetectTime > @sqlInjection; SELECT 1", false)]
+    public void ShareDataSqlValidator_Validates_ParametersStrictly(string sql, bool shouldBeValid)
+    {
+        // Act
+        var (isValid, errorMsg) = ShareDataSqlValidator.Validate(sql);
+
+        // Assert
+        if (shouldBeValid)
+        {
+            Assert.True(isValid, errorMsg ?? "Câu SQL chứa tham số hợp lệ nhưng bị từ chối");
+            Assert.Null(errorMsg);
+        }
+        else
+        {
+            Assert.False(isValid);
+            Assert.False(string.IsNullOrWhiteSpace(errorMsg));
+        }
+    }
+
+    [Fact]
+    public async Task GetExtractSql_FallbackHierarchy_PartnerOverTemplateOverCatalog_Test()
+    {
+        // Arrange
+        var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
+        SetUserContext(isSuperAdmin: true, account: operatorAccount);
+
+        var db = host.Services.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var packetCode = $"PKT_FB_{unique}";
+
+        // Tạo 2 đối tác độc lập
+        var partnerA = new ShareDataPartner
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Code = $"PTN_A_{unique}",
+            Name = $"Partner A {unique}",
+            Status = BaseEnums.StatusEnum.Enable
+        };
+        var partnerB = new ShareDataPartner
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Code = $"PTN_B_{unique}",
+            Name = $"Partner B {unique}",
+            Status = BaseEnums.StatusEnum.Enable
+        };
+        await db.Insertable(new[] { partnerA, partnerB }).ExecuteCommandAsync();
+
+        // Tạo gói tin chung
+        var packet = new ShareDataPacket
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Code = packetCode,
+            Name = $"Packet Hierarchy {unique}",
+            Status = BaseEnums.StatusEnum.Enable,
+            ExtractSql = "SELECT ID, Speed AS speed_PacketDefault FROM TmsTrafficData"
+        };
+        await db.Insertable(packet).ExecuteCommandAsync();
+
+        var scope = host.Services.CreateScope();
+        var queryHandler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlQueryHandler>();
+        var commandHandler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlCommandHandler>();
+
+        var sqlPartnerA = "SELECT ID, Speed AS speed_PartnerA FROM TmsTrafficData";
+        var sqlTemplate = "SELECT ID, Speed AS speed_Template FROM TmsTrafficData";
+
+        // Cập nhật câu SQL riêng cho Partner A
+        await commandHandler.HandleAsync(new UpdatePacketExtractSqlInput
+        {
+            PacketCode = packetCode,
+            PartnerCode = partnerA.Code,
+            ExtractSql = sqlPartnerA,
+            Remark = "Custom SQL for Partner A"
+        });
+
+        // Cập nhật câu SQL Template chung (PartnerCode = null)
+        await commandHandler.HandleAsync(new UpdatePacketExtractSqlInput
+        {
+            PacketCode = packetCode,
+            PartnerCode = null,
+            ExtractSql = sqlTemplate,
+            Remark = "Shared template SQL"
+        });
+
+        // Act 1: Truy vấn cho Partner A -> BẮT BUỘC trả về câu SQL riêng của Partner A
+        var resultA = await queryHandler.HandleAsync(new GetPacketExtractSqlInput
+        {
+            PacketCode = packetCode,
+            PartnerCode = partnerA.Code
+        });
+
+        // Act 2: Truy vấn cho Partner B (chưa cấu hình riêng) -> BẮT BUỘC fallback về Template chung
+        var resultB = await queryHandler.HandleAsync(new GetPacketExtractSqlInput
+        {
+            PacketCode = packetCode,
+            PartnerCode = partnerB.Code
+        });
+
+        // Act 3: Truy vấn với ForceDefaultTemplate = true -> BẮT BUỘC nạp lại template chuẩn
+        var resultForce = await queryHandler.HandleAsync(new GetPacketExtractSqlInput
+        {
+            PacketCode = packetCode,
+            PartnerCode = partnerA.Code,
+            ForceDefaultTemplate = true
+        });
+
+        // Assert
+        Assert.NotNull(resultA);
+        Assert.Equal(sqlPartnerA, resultA.ExtractSql);
+        Assert.Equal(partnerA.Code, resultA.PartnerCode);
+        Assert.True(resultA.IsCustomForPartner);
+
+        Assert.NotNull(resultB);
+        Assert.Equal(sqlTemplate, resultB.ExtractSql);
+        Assert.Null(resultB.PartnerCode);
+        Assert.False(resultB.IsCustomForPartner);
+
+        Assert.NotNull(resultForce);
+        Assert.NotEqual(sqlPartnerA, resultForce.ExtractSql);
+        Assert.False(resultForce.IsCustomForPartner);
+    }
 }
