@@ -605,13 +605,16 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         );
         const vueContent = fs.readFileSync(vueFilePath, 'utf8');
 
-        // 1. Quét tĩnh CSS & DOM code: kiểm tra sự hiện diện của thanh kéo ngang resizer
+        // 1. Quét tĩnh CSS & DOM code: kiểm tra sự hiện diện của thanh kéo ngang resizer (đã bỏ thanh bên dưới theo yêu cầu)
         expect(vueContent).toContain('table-resize-bar');
         expect(vueContent).toContain('detected-table-resizer-top');
-        expect(vueContent).toContain('detected-table-resizer-bottom');
+        expect(vueContent).not.toContain('detected-table-resizer-bottom');
         expect(vueContent).toContain('sample-table-resizer');
         expect(vueContent).toContain('resizer-handle-line');
         expect(vueContent).toContain('cursor: row-resize');
+        expect(vueContent).toContain('requestAnimationFrame');
+        expect(vueContent).toContain('will-change: height');
+        expect(vueContent).toContain('pointer-events: none');
         expect(vueContent).not.toContain('!important');
 
         // 2. Mock thêm API SQL Center để trả về dữ liệu mẫu và cột phát hiện
@@ -678,11 +681,10 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await sqlTab.click();
         await expect(sqlTab).toHaveClass(/is-active/);
 
-        // 4. Kiểm tra sự xuất hiện của thanh kéo trên và dưới của bảng cột phát hiện
+        // 4. Kiểm tra sự xuất hiện của thanh kéo trên và xác nhận đã bỏ thanh kéo dưới của bảng cột
         const topResizer = page.locator('.detected-table-resizer-top');
-        const bottomResizer = page.locator('.detected-table-resizer-bottom');
         await expect(topResizer).toBeVisible();
-        await expect(bottomResizer).toBeVisible();
+        await expect(page.locator('.detected-table-resizer-bottom')).toHaveCount(0);
 
         const tableWrapper = page.locator('.detected-columns-table-wrapper');
         await expect(tableWrapper).toBeVisible();
@@ -692,16 +694,51 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const initialHeight = (await tableWrapper.boundingBox())?.height || 280;
         expect(initialHeight).toBeGreaterThanOrEqual(250);
 
-        // 5. Thao tác kéo thả thanh resizer dưới xuống 80px để tăng chiều cao bảng
-        await bottomResizer.scrollIntoViewIfNeeded();
-        const bottomBox = await bottomResizer.boundingBox();
-        expect(bottomBox).not.toBeNull();
+        // 5. Thao tác kéo thả thanh resizer trên lên trên 80px để tăng chiều cao bảng VÀ đo đạc số khung hình thực tế (FPS)
+        await topResizer.scrollIntoViewIfNeeded();
+        const topBox = await topResizer.boundingBox();
+        expect(topBox).not.toBeNull();
 
-        await page.mouse.move(bottomBox!.x + bottomBox!.width / 2, bottomBox!.y + bottomBox!.height / 2);
+        // Kích hoạt đồng hồ đo khung hình (FPS & Frame Deltas) bằng requestAnimationFrame trong trình duyệt
+        await page.evaluate(() => {
+            window.__frameDeltas = [];
+            window.__measuringFps = true;
+            let lastTime = performance.now();
+
+            function frameLoop(now: number) {
+                if (!window.__measuringFps) return;
+                const delta = now - lastTime;
+                window.__frameDeltas?.push(delta);
+                lastTime = now;
+                requestAnimationFrame(frameLoop);
+            }
+            requestAnimationFrame(frameLoop);
+        });
+
+        // Di chuyển chuột qua 25 steps liên tục (kích hoạt chuỗi sự kiện mousemove dày đặc)
+        await page.mouse.move(topBox!.x + topBox!.width / 2, topBox!.y + topBox!.height / 2);
         await page.mouse.down();
-        await page.mouse.move(bottomBox!.x + bottomBox!.width / 2, bottomBox!.y + bottomBox!.height / 2 + 80, { steps: 5 });
+        await page.mouse.move(topBox!.x + topBox!.width / 2, topBox!.y + topBox!.height / 2 - 80, { steps: 25 });
         await page.mouse.up();
         await page.waitForTimeout(200);
+
+        // Thu thập và kiểm chứng chỉ số hiệu năng thực tế từ trình duyệt
+        const fpsMetrics = await page.evaluate(() => {
+            window.__measuringFps = false;
+            const deltas: number[] = window.__frameDeltas || [];
+            if (!deltas.length) return { avgFps: 60, maxDelta: 16, frameCount: 0 };
+            const avgDelta = deltas.reduce((a, b) => a + b, 0) / deltas.length;
+            return {
+                avgFps: Math.round(1000 / avgDelta),
+                maxDelta: Math.max(...deltas),
+                frameCount: deltas.length,
+            };
+        });
+
+        // Khẳng định: trình duyệt liên tục vẽ khung hình, FPS đạt chuẩn mượt mà >= 40 fps và không bị khóa luồng
+        expect(fpsMetrics.frameCount).toBeGreaterThan(0);
+        expect(fpsMetrics.avgFps).toBeGreaterThanOrEqual(40);
+        expect(fpsMetrics.maxDelta).toBeLessThan(120);
 
         const resizedHeight = (await tableWrapper.boundingBox())?.height || 0;
         expect(resizedHeight).toBeGreaterThan(initialHeight + 40);
@@ -829,6 +866,244 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const orderText = await orderLabel.innerText();
         expect(orderText).toContain('Sắp xếp:');
         expect(orderText).not.toContain('(ORDER BY)');
+    });
+
+    test('10. Đồng bộ 18 trường giữa Cấu hình SQL và Danh sách trường đã lưu, loại bỏ everright-filter khỏi package.json', async ({ page }) => {
+        // 1. Quét tĩnh mã nguồn: package.json không còn phụ thuộc everright-filter
+        const packageJsonPath = path.resolve(
+            __dirname,
+            '../../../../TA-ITS015-WEBVUE-V1.0/src/package.json'
+        );
+        const pkgContent = fs.readFileSync(packageJsonPath, 'utf8');
+        expect(pkgContent).not.toContain('everright-filter');
+
+        // Quét tĩnh VisualQueryBuilder.vue và index.vue: props, buttons, functions đồng bộ
+        const vqbPath = path.resolve(
+            __dirname,
+            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/component/VisualQueryBuilder.vue'
+        );
+        const vqbContent = fs.readFileSync(vqbPath, 'utf8');
+        expect(vqbContent).toContain('savedFields');
+        expect(vqbContent).toContain('handleApplySavedFields');
+        expect(vqbContent).toContain('Cột đã lưu');
+
+        const indexVuePath = path.resolve(
+            __dirname,
+            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/index.vue'
+        );
+        const indexVueContent = fs.readFileSync(indexVuePath, 'utf8');
+        expect(indexVueContent).toContain(':saved-fields="rawFlatFields"');
+        expect(indexVueContent).toContain('handleGenerateSqlFromSavedFields');
+        expect(indexVueContent).toContain('Sinh SQL từ trường đã lưu');
+
+        // 2. Mock API danh sách 18 trường metadata trả về cho gói tin PKT_01
+        const mock18Fields = [
+            { id: 'FLD_01', datatypeId: 'PKT_01', aliasFieldKey: 'detectionId', fieldName: 'Mã định danh phát hiện', fieldType: 'long', status: 1 },
+            { id: 'FLD_02', datatypeId: 'PKT_01', aliasFieldKey: 'detectTime', fieldName: 'Thời gian phát hiện', fieldType: 'datetime', status: 1 },
+            { id: 'FLD_03', datatypeId: 'PKT_01', aliasFieldKey: 'vehicleType', fieldName: 'Loại phương tiện', fieldType: 'string', status: 1 },
+            { id: 'FLD_04', datatypeId: 'PKT_01', aliasFieldKey: 'licensePlate', fieldName: 'Biển số xe', fieldType: 'string', status: 1 },
+            { id: 'FLD_05', datatypeId: 'PKT_01', aliasFieldKey: 'speed', fieldName: 'Vận tốc (km/h)', fieldType: 'double', status: 1 },
+            { id: 'FLD_06', datatypeId: 'PKT_01', aliasFieldKey: 'lane', fieldName: 'Làn đường', fieldType: 'int', status: 1 },
+            { id: 'FLD_07', datatypeId: 'PKT_01', aliasFieldKey: 'direction', fieldName: 'Hướng di chuyển', fieldType: 'int', status: 1 },
+            { id: 'FLD_08', datatypeId: 'PKT_01', aliasFieldKey: 'locationRoute', fieldName: 'Vị trí tuyến đường', fieldType: 'string', status: 1 },
+            { id: 'FLD_09', datatypeId: 'PKT_01', aliasFieldKey: 'equipmentId', fieldName: 'Mã thiết bị đo', fieldType: 'string', status: 1 },
+            { id: 'FLD_10', datatypeId: 'PKT_01', aliasFieldKey: 'height', fieldName: 'Chiều cao phương tiện', fieldType: 'double', status: 1 },
+            { id: 'FLD_11', datatypeId: 'PKT_01', aliasFieldKey: 'width', fieldName: 'Chiều rộng phương tiện', fieldType: 'double', status: 1 },
+            { id: 'FLD_12', datatypeId: 'PKT_01', aliasFieldKey: 'length', fieldName: 'Chiều dài phương tiện', fieldType: 'double', status: 1 },
+            { id: 'FLD_13', datatypeId: 'PKT_01', aliasFieldKey: 'zoneId', fieldName: 'Mã khu vực/trạm', fieldType: 'string', status: 1 },
+            { id: 'FLD_14', datatypeId: 'PKT_01', aliasFieldKey: 'ipAddress', fieldName: 'Địa chỉ IP thiết bị', fieldType: 'string', status: 1 },
+            { id: 'FLD_15', datatypeId: 'PKT_01', aliasFieldKey: 'eventType', fieldName: 'Loại sự kiện giao thông', fieldType: 'string', status: 1 },
+            { id: 'FLD_16', datatypeId: 'PKT_01', aliasFieldKey: 'plateColor', fieldName: 'Màu biển số', fieldType: 'string', status: 1 },
+            { id: 'FLD_17', datatypeId: 'PKT_01', aliasFieldKey: 'vehicleBrand', fieldName: 'Hãng xe', fieldType: 'string', status: 1 },
+            { id: 'FLD_18', datatypeId: 'PKT_01', aliasFieldKey: 'vehicleColor', fieldName: 'Màu sơn xe', fieldType: 'string', status: 1 },
+        ];
+
+        await page.route('**/api/sharedata/sharedatapacketfield/list*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: mock18Fields,
+                }),
+            });
+        });
+
+        await page.route('**/api/sharedata/sharedatapacketfield/page*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        records: mock18Fields,
+                        total: mock18Fields.length,
+                    },
+                }),
+            });
+        });
+
+        await page.route('**/api/sharedata/sharedatapacket/parseextractcolumns*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        isValid: true,
+                        columns: mock18Fields.map((f) => f.aliasFieldKey).concat(['__lastTime', '__rowid']),
+                    },
+                }),
+            });
+        });
+
+        // 3. Mở màn hình dataSource
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+
+        // Chờ bảng gói tin hiển thị và click chọn gói tin đầu tiên
+        const packetRow = page.locator('.packet-pane .vxe-table--body tbody tr').first();
+        await expect(packetRow).toBeVisible({ timeout: 15_000 });
+        await packetRow.click();
+        await page.waitForTimeout(300);
+
+        // Chuyển sang tab Cấu hình SQL
+        const tabs = page.locator('.datasource-right-tabs');
+        const sqlTab = tabs.getByRole('tab', { name: /Cấu hình SQL/ });
+        await sqlTab.click();
+        await expect(sqlTab).toHaveClass(/is-active/);
+
+        // 4. Kiểm tra nút tiện ích "Sinh SQL từ trường đã lưu (18)" hiển thị trên toolbar SQL Center
+        const btnGenSql = page.locator('.sql-toolbar-right .el-button').filter({ hasText: /Sinh SQL từ trường đã lưu/ });
+        await expect(btnGenSql).toBeVisible();
+        await expect(btnGenSql).toContainText('18');
+
+        // 5. Kiểm tra nút "Cột đã lưu (18)" trong VisualQueryBuilder hiển thị
+        const btnSavedInBuilder = page.locator('.vqb-header-actions .el-button').filter({ hasText: /Cột đã lưu/ });
+        await expect(btnSavedInBuilder).toBeVisible();
+        await expect(btnSavedInBuilder).toContainText('18');
+
+        // 6. Nhấn nút "Sinh SQL từ trường đã lưu (18)"
+        await btnGenSql.click();
+        await page.waitForTimeout(400);
+
+        // 7. Xác thực SQL được sinh ra chứa đủ các trường nghiệp vụ quan trọng và con trỏ
+        const sqlPreview = page.locator('.vqb-sql-preview-strip');
+        await expect(sqlPreview).toBeVisible();
+        await expect(sqlPreview).toContainText('detectionId');
+        await expect(sqlPreview).toContainText('detectTime');
+        await expect(sqlPreview).toContainText('licensePlate');
+        await expect(sqlPreview).toContainText('speed');
+        await expect(sqlPreview).toContainText('__lastTime');
+        await expect(sqlPreview).toContainText('__rowid');
+
+        // 8. Bấm nút "Cột đã lưu (18)" trong Visual Builder để kiểm tra cập nhật danh sách cột trực quan
+        await btnSavedInBuilder.click();
+        await page.waitForTimeout(300);
+
+        const colCountTag = page.locator('.vqb-columns-card .vqb-card-title .el-tag');
+        await expect(colCountTag).toContainText('20 cột');
+    });
+
+    test('Hỗ trợ kéo resize 2 div con trong Visual Query Builder (Cột trích xuất và Điều kiện lọc)', async ({ page }) => {
+        // 1. Quét tĩnh mã nguồn VisualQueryBuilder.vue để kiểm chứng các tính năng resize
+        const vqbPath = path.resolve(
+            __dirname,
+            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/component/VisualQueryBuilder.vue'
+        );
+        const vqbContent = fs.readFileSync(vqbPath, 'utf8');
+
+        // Kiểm chứng có 2 thanh resizer riêng biệt cho 2 card con
+        expect(vqbContent).toContain('columns-card-resizer');
+        expect(vqbContent).toContain('filter-card-resizer');
+        expect(vqbContent).toContain('vqb-card-resize-bar');
+
+        // Kiểm chứng các hàm xử lý kéo resize và reset
+        expect(vqbContent).toContain('startResizeColumns');
+        expect(vqbContent).toContain('resetColumnsHeight');
+        expect(vqbContent).toContain('startResizeFilter');
+        expect(vqbContent).toContain('resetFilterHeight');
+
+        // Kiểm chứng CSS loại bỏ vạch gạch chéo resize native (resize: none) và tối ưu will-change
+        expect(vqbContent).toContain('resize: none');
+        expect(vqbContent).not.toContain('resize: vertical');
+        expect(vqbContent).toContain('will-change: height');
+
+        // Kiểm chứng logic loại bỏ dấu gạch thừa khi không có điều kiện tiếp theo
+        expect(vqbContent).toContain('hasMultipleFilterItems');
+        expect(vqbContent).toContain('margin-bottom: 14px');
+        expect(vqbContent).toContain('&:not(:first-child)::before');
+
+        // 2. Mở màn hình dataSource
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+
+        const packetRow = page.locator('.packet-pane .vxe-table--body tbody tr').first();
+        await expect(packetRow).toBeVisible({ timeout: 15_000 });
+        await packetRow.click();
+        await page.waitForTimeout(300);
+
+        // Chuyển sang tab Cấu hình SQL
+        const tabs = page.locator('.datasource-right-tabs');
+        const sqlTab = tabs.getByRole('tab', { name: /Cấu hình SQL/ });
+        await sqlTab.click();
+        await expect(sqlTab).toHaveClass(/is-active/);
+
+        // 3. Kiểm tra thanh resizer và chức năng kéo của Card Cột trích xuất
+        const colResizer = page.locator('.columns-card-resizer');
+        await expect(colResizer).toBeVisible();
+        await colResizer.scrollIntoViewIfNeeded();
+
+        const colList = page.locator('.vqb-columns-list');
+        await expect(colList).toBeVisible();
+        const initialColHeight = (await colList.boundingBox())?.height || 105;
+
+        // Kéo thanh resizer xuống 60px để tăng chiều cao
+        const colResizerBox = await colResizer.boundingBox();
+        expect(colResizerBox).not.toBeNull();
+
+        await page.mouse.move(colResizerBox!.x + colResizerBox!.width / 2, colResizerBox!.y + colResizerBox!.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(colResizerBox!.x + colResizerBox!.width / 2, colResizerBox!.y + colResizerBox!.height / 2 + 60, { steps: 5 });
+        await page.mouse.up();
+        await page.waitForTimeout(200);
+
+        const resizedColHeight = (await colList.boundingBox())?.height || 0;
+        expect(resizedColHeight).toBeGreaterThan(initialColHeight + 30);
+
+        // Double click để reset về mặc định
+        await colResizer.dblclick();
+        await page.waitForTimeout(200);
+        const resetColHeight = (await colList.boundingBox())?.height || 0;
+        expect(Math.abs(resetColHeight - 105)).toBeLessThanOrEqual(10);
+
+        // 4. Kiểm tra thanh resizer và chức năng kéo của Card Điều kiện lọc
+        const filterResizer = page.locator('.filter-card-resizer');
+        await expect(filterResizer).toBeVisible();
+        await filterResizer.scrollIntoViewIfNeeded();
+
+        const filterCanvas = page.locator('.vqb-filter-canvas');
+        await expect(filterCanvas).toBeVisible();
+        const initialFilterHeight = (await filterCanvas.boundingBox())?.height || 180;
+
+        // Kéo thanh resizer xuống 50px để tăng chiều cao
+        const filterResizerBox = await filterResizer.boundingBox();
+        expect(filterResizerBox).not.toBeNull();
+
+        await page.mouse.move(filterResizerBox!.x + filterResizerBox!.width / 2, filterResizerBox!.y + filterResizerBox!.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(filterResizerBox!.x + filterResizerBox!.width / 2, filterResizerBox!.y + filterResizerBox!.height / 2 + 50, { steps: 5 });
+        await page.mouse.up();
+        await page.waitForTimeout(200);
+
+        const resizedFilterHeight = (await filterCanvas.boundingBox())?.height || 0;
+        expect(resizedFilterHeight).toBeGreaterThan(initialFilterHeight + 25);
+
+        // Double click để reset về mặc định
+        await filterResizer.dblclick();
+        await page.waitForTimeout(200);
+        const resetFilterHeight = (await filterCanvas.boundingBox())?.height || 0;
+        expect(Math.abs(resetFilterHeight - 180)).toBeLessThanOrEqual(10);
     });
 });
 

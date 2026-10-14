@@ -144,11 +144,14 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 
 		// 7. Kiểm tra cố định chiều cao modal theo tỷ lệ màn hình (vh) để tránh giật khi chuyển tab
 		const directionTabsBlock = vueContent.substring(vueContent.indexOf('.direction-tabs'));
-		expect(directionTabsBlock).toContain('height: 54vh;');
-		expect(directionTabsBlock).toContain('min-height: 420px;');
-		expect(directionTabsBlock).toContain('max-height: 560px;');
+		expect(directionTabsBlock).toContain('height: 38vh;');
+		expect(directionTabsBlock).toContain('min-height: 340px;');
+		expect(directionTabsBlock).toContain('max-height: 400px;');
 		expect(directionTabsBlock).toContain('overflow-y: auto;');
 		expect(directionTabsBlock).not.toContain('!important');
+
+		// 8. Kiểm tra chiều cao mặc định ô Ghi chú (remark) có :rows="6" rộng rãi theo yêu cầu
+		expect(vueContent).toContain(':rows="6"');
 	});
 
 	test('TC7 — Kiểm tra cấu hình i18n trong vi-vn.json và en-us.json', async () => {
@@ -177,9 +180,51 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 		expect(enJson['lz.validation.sharedataSubscription.timeRangeIncomplete']).toBe(
 			'Please enter both start and end times (or leave both blank).'
 		);
+
+		// Kiểm tra đủ 4 kiểu lập lịch dùng chung (continuous, daily, weekly, interval)
+		expect(viJson['lz.label.sharedataSubscription.continuous']).toBe('Liên tục');
+		expect(viJson['lz.label.sharedataSubscription.daily']).toBe('Hàng ngày');
+		expect(viJson['lz.label.sharedataSubscription.weekly']).toBe('Hàng tuần');
+		expect(viJson['lz.label.sharedataSubscription.interval']).toBe('Theo chu kỳ');
+
+		expect(enJson['lz.label.sharedataSubscription.continuous']).toBe('Continuous');
+		expect(enJson['lz.label.sharedataSubscription.daily']).toBe('Daily');
+		expect(enJson['lz.label.sharedataSubscription.weekly']).toBe('Weekly');
+		expect(enJson['lz.label.sharedataSubscription.interval']).toBe('Interval');
 	});
 
-	test('TC8 — E2E Tab cấp trên trong Bảng đăng ký (subscriptionTable.vue) và Modal Đăng ký chia sẻ (editSubscription.vue)', async ({ context, page }) => {
+	test('TC8 — Kiểm tra component Scheduler hỗ trợ đủ 4 mode và ShareData giới hạn đúng continuous & daily', async () => {
+		const schedulerTypesPath = path.resolve(
+			__dirname,
+			'../../../../TA-ITS015-WEBVUE-V1.0/src/src/components/scheduler/types.ts'
+		);
+		const schedulerVuePath = path.resolve(
+			__dirname,
+			'../../../../TA-ITS015-WEBVUE-V1.0/src/src/components/scheduler/index.vue'
+		);
+		const editSubPath = path.resolve(
+			__dirname,
+			'../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/sharing/component/editSubscription.vue'
+		);
+
+		const typesContent = fs.readFileSync(schedulerTypesPath, 'utf8');
+		const schedulerContent = fs.readFileSync(schedulerVuePath, 'utf8');
+		const editSubContent = fs.readFileSync(editSubPath, 'utf8');
+
+		// 1. Scheduler types phải hỗ trợ đủ 4 mode
+		expect(typesContent).toContain("'continuous' | 'daily' | 'weekly' | 'interval'");
+
+		// 2. Scheduler template phải có radio-button cho cả 4 mode
+		expect(schedulerContent).toContain("allowedKinds.includes('continuous')");
+		expect(schedulerContent).toContain("allowedKinds.includes('daily')");
+		expect(schedulerContent).toContain("allowedKinds.includes('weekly')");
+		expect(schedulerContent).toContain("allowedKinds.includes('interval')");
+
+		// 3. ShareData editSubscription.vue chỉ cho phép ['continuous', 'daily']
+		expect(editSubContent).toContain(":allowed-kinds=\"['continuous', 'daily']\"");
+	});
+
+	test('TC9 — E2E Tab cấp trên trong Bảng đăng ký (subscriptionTable.vue) và Modal Đăng ký chia sẻ (editSubscription.vue)', async ({ context, page }) => {
 		test.slow();
 		test.setTimeout(120_000);
 		const mockToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjQxMDI0NDQ4MDAsIm5hbWUiOiJhZG1pbiJ9.mock_signature';
@@ -346,7 +391,8 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 		const tabContent = dialog.locator('.direction-tabs .el-tabs__content');
 		await expect(tabContent).toBeVisible();
 		const heightOutbound = await tabContent.evaluate((el) => el.getBoundingClientRect().height);
-		expect(heightOutbound).toBeGreaterThanOrEqual(420);
+		expect(heightOutbound).toBeGreaterThanOrEqual(340);
+		expect(heightOutbound).toBeLessThanOrEqual(400);
 
 		// Chuyển lại sang tab Nhận về và đo chiều cao
 		await modalInboundTab.click();
@@ -361,6 +407,14 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 		await modalOutboundTab.click();
 		await expect(modalOutboundTab).toHaveClass(/is-active/);
 		await page.waitForTimeout(200);
+
+		// Kiểm tra ô Ghi chú (remark) hiển thị mặc định với rows="6" cao rộng rãi theo đúng yêu cầu
+		const remarkTextarea = dialog.locator('textarea').first();
+		await expect(remarkTextarea).toBeVisible();
+		const rowsAttr = await remarkTextarea.getAttribute('rows');
+		expect(rowsAttr).toBe('6');
+		const textareaHeight = await remarkTextarea.evaluate((el) => el.getBoundingClientRect().height);
+		expect(textareaHeight).toBeGreaterThanOrEqual(100);
 
 		await page.screenshot({ path: 'test-results/snapshot-2-modal-edit-subscription-tabs.png', fullPage: false });
 	});

@@ -14,3 +14,10 @@ export interface MockAuthOptions {
     userInfo?: Partial<MockUserInfo>;
     baseURL?: string;
 }
+
+declare global {
+    interface Window {
+        __frameDeltas?: number[];
+        __measuringFps?: boolean;
+    }
+}

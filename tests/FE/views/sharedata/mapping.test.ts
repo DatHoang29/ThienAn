@@ -572,16 +572,47 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
         // Chụp snapshot Modal Hồ sơ ánh xạ ở Sub-tab Thông tin chung
         await page.screenshot({ path: 'test-results/snapshot-3a-modal-mapping-general-tab.png', fullPage: false });
 
+        const activeBar = subTabs.locator('.el-tabs__active-bar');
+        await expect(activeBar).toBeVisible();
+        const initialBarBox = await activeBar.boundingBox();
+        expect(initialBarBox).not.toBeNull();
+        expect(initialBarBox!.width).toBeGreaterThan(0);
+
         // Chuyển sang Sub-tab Ánh xạ, phân tích JSON và cuộn xuống để thấy sticky sub-tab dưới top-level tab
         const mappingSubTab = subTabs.getByRole('tab', { name: 'Ánh xạ' });
         await mappingSubTab.click();
         await expect(mappingSubTab).toHaveClass(/is-active/);
-        const subTabIndicator = await mappingSubTab.evaluate((el) => {
-            const after = window.getComputedStyle(el, '::after');
-            return { height: after.height, left: after.left, right: after.right };
-        });
-        expect(subTabIndicator).toEqual({ height: '2px', left: '0px', right: '0px' });
         await page.waitForTimeout(300);
+
+        // Kiểm tra thanh gạch dưới là thanh trượt di chuyển (move slider) theo toạ độ X sang phải về phía tab Ánh xạ
+        const movedBarBox = await activeBar.boundingBox();
+        expect(movedBarBox).not.toBeNull();
+        expect(movedBarBox!.x).toBeGreaterThan(initialBarBox!.x + 20);
+
+        // Đảm bảo không dùng pseudo-element ::after scaleX để vẽ gạch chân giả lập (không tăng width từ tâm)
+        const subTabAfter = await mappingSubTab.evaluate((el) => {
+            const after = window.getComputedStyle(el, '::after');
+            return after.content === 'none' || after.height === 'auto' || after.height === '0px';
+        });
+        expect(subTabAfter).toBe(true);
+
+        // Chuyển tiếp sang Sub-tab Dữ liệu gửi thử để kiểm tra thanh tiếp tục trượt di chuyển sang phải
+        const testSubTab = subTabs.getByRole('tab', { name: 'Dữ liệu gửi thử' });
+        await testSubTab.click();
+        await expect(testSubTab).toHaveClass(/is-active/);
+        await page.waitForTimeout(300);
+        const testBarBox = await activeBar.boundingBox();
+        expect(testBarBox).not.toBeNull();
+        expect(testBarBox!.x).toBeGreaterThan(movedBarBox!.x + 20);
+
+        // Chuyển ngược lại về tab Ánh xạ để tiếp tục các bước phân tích JSON tiếp theo
+        await mappingSubTab.click();
+        await expect(mappingSubTab).toHaveClass(/is-active/);
+        await page.waitForTimeout(300);
+        const backBarBox = await activeBar.boundingBox();
+        expect(backBarBox).not.toBeNull();
+        expect(backBarBox!.x).toBeLessThan(testBarBox!.x - 20);
+
         await partnerJsonTextarea(dialog).fill(genBigJson(20));
         await dialog.getByRole('button', { name: 'Phân tích' }).click();
         await page.waitForTimeout(500);

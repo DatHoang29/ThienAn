@@ -6,7 +6,7 @@ source:
 date: 12-10-2026
 model: Gemini Multimodal Native Audio Transcribe
 status: verified
-topic: ShareData & Chuẩn hóa Component Lập Lịch (Schedule) dùng chung toàn hệ thống (Bóc tách tầng tích hợp kết nối API/Kafka/File, Cấu hình Type trong SystemConfig/SystemConfigData, Truy vấn động cho SuperAdmin có Audit Log, Rà soát i18n Anh-Việt)
+topic: ShareData & Chuẩn hóa Component Lập Lịch (Schedule) dùng chung toàn hệ thống (Bóc tách tầng tích hợp kết nối API/Kafka/File, Thảo luận cấu hình Type [đề xuất SystemConfig / chốt thực tế tại ShareDataPartner ngày 13/10], Truy vấn động cho SuperAdmin có Audit Log, Rà soát i18n Anh-Việt)
 participants:
   - Anh Sơn (Tech Lead)
   - Hiếu (Dev)
@@ -23,7 +23,7 @@ participants:
   1. **Chuẩn hóa Component Lập Lịch (Scheduler) dùng chung:** Chấm dứt tình trạng phân mảnh (mỗi phân hệ Bảo trì, Email, ShareData, VideoWall tự code một kiểu); gom thành 1 component duy nhất dùng `RadioButton` (`group button`) có props bật/tắt các mode (liên tục, hàng ngày, hàng tuần, định kỳ).
   2. **Chuẩn hóa Cấu trúc Tab Phân Cấp:** Phân biệt rõ Tab cấp trên (theo chuẩn TMS quản lý) và Tab gạch chân (Sub-tab); yêu cầu vẽ Wireframe trước khi code.
   3. **Bóc tách tầng xử lý kết nối ShareData (`HandleConnection`):** Tách biệt phần xử lý dữ liệu (đầu ra thống nhất là `JSON`) và service tích hợp xử lý kết nối (`API`, `Kafka`, `File`...); bên trong tự convert `JSON` sang `byte[]` khi đẩy qua channel `Kafka`.
-  4. **Khai báo loại kết nối (`Type`) và cấu hình trong `SystemConfig` & `SystemConfigData`:** Đầu vào tầng kết nối gồm 3 phần (Data JSON, Thông tin bảo mật, Cấu hình kết nối dạng `Dictionary` Key-Value như IP, Port, Username). Danh mục `Type` khai báo trong `SystemConfig` / `SystemConfigData` để không fix cứng trên UI.
+  4. **Khai báo loại kết nối (`Type`) và cấu hình kết nối:** Đầu vào tầng kết nối gồm 3 phần (Data JSON, Thông tin bảo mật, Cấu hình kết nối dạng `Dictionary` Key-Value như IP, Port, Username). Trong cuộc họp từng thảo luận khai báo trong `SystemConfig`/`SystemConfigData`; tuy nhiên quyết định triển khai chính thức chốt ngày 13/10/2026 là quản lý tập trung theo đối tác trong `ShareDataPartner`.
   5. **Truy vấn động (Dynamic Query) load danh sách cột & Bảo mật:** Chức năng sửa câu query động trên màn hình chỉ mở cho tài khoản `SuperAdmin`, bắt buộc có code check/validate câu lệnh và ghi Audit Log người sửa.
   6. **Chuẩn hóa Đa ngôn ngữ (i18n):** Rà soát lỗi lệch ngôn ngữ Anh - Việt và thiếu rule `empty` giữa các màn hình.
 
@@ -45,6 +45,11 @@ participants:
   - Cứ xây dựng bản đầy đủ (full option); phân hệ nào không có chế độ nào (ví dụ không có chạy liên tục) thì truyền prop/option (`continuous = false` hoặc `type` tương ứng) để ẩn chế độ đó đi.
 
 ### 1.2. Bóc tách Tầng xử lý dữ liệu và Tầng tích hợp kết nối (`HandleConnection`)
+
+> [!IMPORTANT]
+> **Cập nhật quyết định thiết kế hiện hành (ngày 13/10/2026, sau cuộc họp):**  
+> Trong buổi họp ngày 12/10, các bên từng thảo luận phương án lưu danh mục `Type` và thông tin cấu hình vào `SystemConfig` / `SystemConfigData`. Tuy nhiên, phương án triển khai chính thức được chốt vào ngày **13/10/2026** là lưu `ConnectionType` và `ConnectionConfig` trực tiếp theo từng đối tác trong bảng **`ShareDataPartner`** (không chuyển sang `SystemConfig`/`SystemConfigData` và không tạo bảng/màn hình danh mục riêng tại đó) nhằm bảo đảm tính tự đóng gói, cô lập dữ liệu theo đối tác và không làm phức tạp hóa hệ thống cấu hình chung.
+
 - **Kiến trúc phân tầng ShareData:**
   - **Tầng xử lý dữ liệu (Data Processor):** Đọc dữ liệu từ DB, xử lý ánh xạ (Mapping), quy đổi mã và trả ra đầu ra thống nhất là **JSON**.
   - **Tầng tích hợp xử lý kết nối (`HandleConnection` Service/Module riêng trong code):**
@@ -57,9 +62,9 @@ participants:
       - Nếu `Type` là **`API` (WebAPI REST):** gửi qua HTTP API.
       - Nếu `Type` là **`Kafka`:** bên trong tự chuyển `JSON` thành mảng **`byte[]`** rồi đẩy vào kênh (channel/topic) của đối tác, tầng xử lý bên ngoài không cần quan tâm.
       - Nếu xuất **`File`:** ghi ra file theo cấu hình.
-- **Quản lý danh mục `Type` kết nối trong `SystemConfig` & `SystemConfigData`:**
-  - Không tách màn hình giao diện quản lý riêng cho `Type`, mà quản lý trên màn hình cấu hình đối tác hiện có.
-  - Để danh sách lựa chọn `Type` kết nối không bị fix cứng trên UI, khai báo danh mục và thông tin cấu hình đi kèm trong **`SystemConfig` và `SystemConfigData`**, kết hợp một hàm service ở backend để xử lý thông tin cấu hình mở rộng; phần phương thức gửi thực thi ứng với từng `Type` thì cài đặt trong code backend.
+- **Quản lý danh mục `Type` kết nối trong `ShareDataPartner` (thay vì `SystemConfig`):**
+  - Không tách màn hình giao diện quản lý riêng cho `Type`, mà quản lý trên màn hình cấu hình đối tác hiện có (`ShareDataPartner`).
+  - Giao diện và backend thống nhất tập giá trị `Type` thực sự được hỗ trợ (`API`, `File` và `Kafka` sau khi có quyết định triển khai). Phương thức gửi thực thi ứng với từng `Type` được cài đặt và điều phối trong backend qua `IShareDataConnectionDispatcher`.
 
 ### 1.3. Quản lý Truy vấn động (Dynamic Query) & Audit Log
 - **Bối cảnh nghiệp vụ:** Câu truy vấn (Query) dùng để lấy dữ liệu từ CSDL và load lên danh sách các cột cần được hỗ trợ chỉnh sửa động qua màn hình quản lý thay vì chỉ để cứng.
