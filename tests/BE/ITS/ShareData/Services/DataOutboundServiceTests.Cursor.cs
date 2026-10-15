@@ -927,7 +927,6 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             if (failureMode == "AbortOnCall")
             {
                 partnerServer.AbortOnCall.Add(1);
-                partnerServer.AbortOnCall.Add(2);
             }
 
             await PacketMetadataCatalogTest.SeedPacketToDb(db, "103");

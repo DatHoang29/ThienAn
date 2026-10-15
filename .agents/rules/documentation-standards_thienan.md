@@ -110,7 +110,7 @@ description: Documentation standards, single MasterPlan per subsystem, executabl
 | **Nơi sử dụng** | Tài liệu Markdown kỹ thuật hoặc trả lời phân tích trên khung chat. | Ô **MÔ TẢ CÔNG VIỆC** trên hệ thống quản lý Task (Task Portal). | Ô **KẾT QUẢ CÔNG VIỆC** trên hệ thống quản lý Task (Task Portal). |
 | **Mục đích** | Đối chiếu hiện trạng code/DB với Spec & Transcript, chỉ ra việc đã làm / chưa làm / rủi ro. | Nêu đề bài, phạm vi và danh sách các đầu mục tính năng cần thực hiện của Task/Sprint. | Nhật ký cập nhật kết quả thực hiện cụ thể theo **từng mốc ngày hoàn thành**. |
 | **Chia mốc ngày (`dd/MM/yyyy` + `===`)** | ❌ Không chia theo kiểu nhật ký Task Portal. | ❌ **KHÔNG** ghi ngày tháng `dd/MM/yyyy`, **KHÔNG** dùng dòng `==============================`. | ✅ **BẮT BUỘC** ngăn cách giữa các ngày bằng dòng `==============================` (dòng đầu tiên KHÔNG cần `==============================`). |
-| **Cách trình bày** | Khung 4 trục: Hiện trạng → Đã làm → Chưa làm → Rủi ro & Đề xuất (Bảng Markdown). | Đánh số đầu mục (`1.`, `2.`, `3.`...) kèm phạm vi (`FE`, `BE`, `Service`) và gạch đầu dòng `- ` tóm tắt yêu cầu. | Cú pháp tiêu đề mỗi ngày: Dòng 1 `Phạm vi: [Tên phạm vi]`, Dòng 2 `dd/MM/yyyy: [Tên công việc]`, viết sát liền dòng (chỉ ngắt dòng đơn `\n`, KHÔNG để dòng trống ở giữa) với các gạch đầu dòng `- ` chi tiết kết quả. |
+| **Cách trình bày** | Khung 4 trục: Hiện trạng → Đã làm → Chưa làm → Rủi ro & Đề xuất (Bảng Markdown). | Đánh số đầu mục (`1.`, `2.`, `3.`...) kèm phạm vi (`FE`, `BE`, `Service`) và gạch đầu dòng `- ` tóm tắt yêu cầu. | Cú pháp mỗi ngày: Dòng 1 `[Tên phạm vi]: dd/MM/yyyy` (ví dụ `Backend: 13/10/2026` — ⛔ **CẤM** thêm chữ "Phạm vi: " hay "Scope: "), Dòng 2 `[Tên công việc]` (bỏ ngày tháng ở dòng dưới), viết sát liền dòng (chỉ ngắt dòng đơn `\n`, KHÔNG để dòng trống ở giữa) với các gạch đầu dòng `- ` tóm tắt kết quả ngắn gọn. |
 | **Thứ tự sắp xếp ưu tiên** | Theo luồng kiến trúc hoặc mức độ rủi ro. | ✅ **Việc quan trọng để ở ĐẦU** (`Service / Worker`, Kiến trúc kết nối, Nghiệp vụ/Bảo mật `BE`); **FE giao diện & Đa ngôn ngữ để ở CUỐI**. | ✅ **Việc quan trọng để ở ĐẦU** (`Service / Worker`, Kiến trúc kết nối, Nghiệp vụ/Bảo mật `BE`); **FE giao diện, Đa ngôn ngữ & Support/Verify để ở CUỐI**. |
 | **Mã nội bộ, Tên class chi tiết & Việc dọn code** | Được phép dẫn chiếu mã task của MasterPlan khi phân tích kỹ thuật. | ⛔ **CẤM** ghi mã nội bộ (`R1`, `R2`...), **CẤM** khai báo chi tiết tên class/bảng (chỉ cần ghi khái quát `Service / BE`), và **CẤM** liệt kê việc dọn dẹp code. | ⛔ **CẤM** ghi mã nội bộ (`R1`, `R2`...), **CẤM** khai báo chi tiết tên class/bảng (chỉ cần ghi khái quát `Service / BE`), và **CẤM** liệt kê việc dọn dẹp code. |
 
@@ -146,28 +146,28 @@ description: Documentation standards, single MasterPlan per subsystem, executabl
    - **Chia đều theo mỗi ngày trong tuần (Daily Breakdown)**: Khi task kéo dài 1 tuần, **BẮT BUỘC chia đều các đầu mục theo từng ngày làm việc trong tuần** (được phép tách nhỏ tính năng lớn thành các bước theo ngày để ngày nào cũng có đầu mục kết quả rõ ràng).
 3. **Định dạng & Bố cục chuẩn (Viết sát dòng, chỉ ngắt dòng đơn)**:
    - **Vạch ngăn cách**: Phân tách giữa các ngày bằng dòng `==============================` (**dòng đầu tiên của báo cáo TUYỆT ĐỐI CẤM có `==============================`**).
-   - **Dòng Phạm vi riêng biệt**: Dòng đầu tiên của mỗi ngày là `Phạm vi: [Tên phạm vi]` (ví dụ: `Phạm vi: Backend`, `Phạm vi: Frontend`, `Phạm vi: Service / Backend`, `Phạm vi: Backend / Frontend`, `Phạm vi: Support / Verify`).
-   - **Dòng tiêu đề ngày**: Cú pháp `dd/MM/yyyy: [Tên công việc]` (⛔ **TUYỆT ĐỐI CẤM** lặp lại `(BE)`, `(FE)` trong ngoặc ở cuối dòng này vì đã khai báo `Phạm vi` ở dòng trên).
-   - **Quy chuẩn nội dung theo Phạm vi**: Khi `Phạm vi: Frontend`, toàn bộ các gạch đầu dòng bên dưới **BẮT BUỘC là công việc Frontend**, ⛔ **CẤM** đưa các việc trích xuất backend/CSDL vào scope Frontend.
-   - **Viết sát dòng (KHÔNG để dòng trống ở giữa)**: Toàn bộ các dòng (`Phạm vi: ...`, dòng tiêu đề ngày, các gạch đầu dòng `- `, vạch ngăn cách) **BẮT BUỘC viết sát liền nhau (chỉ dùng ngắt dòng đơn `\n`, không chèn dòng trống)** để khi copy-paste vào trình soạn thảo Task Portal không bị sinh khoảng cách thừa làm bể layout.
-   - **Nội dung gạch đầu dòng**: Mỗi gạch đầu dòng `- ` viết 1 câu ngắn gọn, súc tích mô tả một kết quả nghiệp vụ cụ thể.
+   - **Dòng 1: [Tên phạm vi]: dd/MM/yyyy (Gộp ngày vào phạm vi, bỏ chữ "Phạm vi:")**: Dòng đầu tiên của mỗi ngày có cú pháp `[Tên phạm vi]: dd/MM/yyyy` (ví dụ: `Backend: 13/10/2026`, `Frontend: 14/10/2026`, `Backend / Frontend: 15/10/2026`, `Service / Backend: 16/10/2026`, `Support / Verify: 17/10/2026`). ⛔ **TUYỆT ĐỐI CẤM** thêm tiền tố thừa như `Phạm vi: ` hay `Scope: `.
+   - **Dòng 2: [Tên công việc] (Bỏ ngày bên dưới)**: Dòng thứ 2 ghi trực tiếp tên công việc (ví dụ: `Cơ chế truy vấn SQL động và kiểm tra an toàn cú pháp`), ⛔ **TUYỆT ĐỐI CẤM** lặp lại ngày tháng `dd/MM/yyyy:` hay mã `(BE)`, `(FE)` ở dòng này vì Dòng 1 đã có đầy đủ phạm vi và ngày hoàn thành.
+   - **Quy chuẩn nội dung theo Phạm vi**: Khi phạm vi là `Frontend`, toàn bộ các gạch đầu dòng bên dưới **BẮT BUỘC là công việc Frontend**, ⛔ **CẤM** đưa các việc trích xuất backend/CSDL vào scope Frontend.
+   - **Viết sát dòng (KHÔNG để dòng trống ở giữa)**: Toàn bộ các dòng (dòng phạm vi ngày, dòng tên công việc, các gạch đầu dòng `- `, vạch ngăn cách) **BẮT BUỘC viết sát liền nhau (chỉ dùng ngắt dòng đơn `\n`, không chèn dòng trống)** để khi copy-paste vào trình soạn thảo Task Portal không bị sinh khoảng cách thừa làm bể layout.
+   - **Nội dung gạch đầu dòng (Ngắn gọn, súc tích)**: Mỗi gạch đầu dòng `- ` viết 1 câu ngắn gọn, súc tích mô tả một kết quả nghiệp vụ cụ thể.
    - ⛔ **CẤM** ghi mã ký hiệu nội bộ (`R1`, `R2`, `R5`, `R7`, `BE-7`, `G.1`...).
    - ⛔ **CẤM khai báo chi tiết tên class, tên bảng** (như `ShareDataWorker`, `IntgVmsManager`, `ShareDataPartner`...): **chỉ cần ghi khái quát nghiệp vụ**.
    - ⛔ **CẤM** liệt kê các việc dọn dẹp code.
 4. **Mẫu chuẩn Kết quả công việc**:
    ```text
-   Phạm vi: Backend / Frontend
-   14/10/2026: Cấu hình kênh và thông số kết nối đối tác
+   Backend / Frontend: 14/10/2026
+   Cấu hình kênh và thông số kết nối đối tác
    - Mở rộng lưu trữ các giao thức kết nối (API, Kafka, FTP) cùng tham số kỹ thuật linh hoạt theo từng đối tác.
    - Cập nhật giao diện khai báo đối tác tự động hiển thị các trường cấu hình theo loại giao thức được chọn.
    ==============================
-   Phạm vi: Service / Backend
-   15/10/2026: Xây dựng tầng điều phối kết nối dịch vụ
+   Service / Backend: 15/10/2026
+   Xây dựng tầng điều phối kết nối dịch vụ
    - Xây dựng tầng điều phối kết nối độc lập nhận dữ liệu JSON sau ánh xạ, tách rời logic vận chuyển khỏi quy trình trích xuất cốt lõi.
-   - Tự động chuyển đổi định dạng và gửi dữ liệu theo từng loại kênh đã cấu hình như HTTP REST cho API, mảng byte cho Kafka hoặc FTP.
+   - Hỗ trợ chuyển đổi định dạng và gửi dữ liệu theo từng loại kênh cấu hình: HTTP REST cho API, mảng byte cho Kafka hoặc FTP.
    ==============================
-   Phạm vi: Support / Verify
-   16/10/2026: Hỗ trợ phối hợp sự cố và xác minh hệ thống
+   Support / Verify: 16/10/2026
+   Hỗ trợ phối hợp sự cố và xác minh hệ thống
    - Phối hợp hỗ trợ kiểm thử tính năng nhận sự kiện sự cố và bắn tín hiệu sang hệ thống liên kết.
    - Xác minh toàn trình luồng gửi nhận và hoàn thiện tài liệu kiểm thử.
    ```

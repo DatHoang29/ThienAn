@@ -164,6 +164,13 @@ public sealed class ShareDataPartnerServerMock : IDisposable
 
             if (abort)
             {
+                try
+                {
+                    res.StatusCode = (int)HttpStatusCode.OK;
+                    res.ContentLength64 = 1000;
+                    await res.OutputStream.WriteAsync(new byte[] { 0x7B });
+                }
+                catch { }
                 res.Abort();
                 return;
             }
