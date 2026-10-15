@@ -1,5 +1,6 @@
 using System.Net;
 using System.Reflection;
+using Tests.ShareData.Common;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Module.ShareData.Core.Entities;
@@ -14,6 +15,7 @@ using ShareDataWorker.Infrastructure.Services.DataOutbound.Extraction;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
 using ShareDataWorker.Infrastructure.Services.DataChangeTracking;
 using System.Text.Json;
+using Modules.CfgSystem.Core.Entities;
 using ShareDataWorker.Core.Constants;
 using ShareDataWorker.Infrastructure.Services.DataNats;
 
@@ -44,6 +46,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             db.Deleteable<TmsTrafficData>().ExecuteCommand();
             db.Deleteable<TmsIncident>().ExecuteCommand();
+
+            EnsureDefaultSysOpConfigTrackers(db).GetAwaiter().GetResult();
         }
 
         #region 1. DataChangeTrackingService Static & Status Tests
@@ -598,9 +602,12 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         /// Created date: 27/09/2026
         /// </summary>
         [Fact]
-        public void TrackerWorker_WhenSecondTableBreaksLater_DoesNotPushBackFirstTableRetry_Test()
+        public async Task TrackerWorker_WhenSecondTableBreaksLater_DoesNotPushBackFirstTableRetry_Test()
         {
+            await using var scope = _host.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             var worker = CreateTrackerWorker();
+            await worker.ReloadConfigAsync(db);
             var missing = GetMissingTables(worker);
             var firstTable = worker.TrackedTables[0];
             var secondTable = worker.TrackedTables[1];
@@ -2003,11 +2010,11 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public async Task ChangeTracking_WhenPacketIsNotReadyOrDisabled_TriggerStillBlocked_Test()
         {
             // 1. Kiểm thử tầng ResolveTriggerPackets: TmsIncident và TmsEventType ánh xạ 107, 110, 111
-            // Chỉ có 107_incidentData được kích hoạt, 110_wpData và 111 bắt buộc bị loại bỏ theo policy
+            // Gói 107_incidentData, 110_wpData và 111 đều được resolve; việc loại bỏ gói tắt được thực hiện tại tầng ProcessSubscriptions theo trạng thái DB
             var detectedPackets = InvokeResolveTriggerPackets(["TmsIncident", "TmsEventType"]);
             Assert.Contains("107_incidentData", detectedPackets);
-            Assert.DoesNotContain("110_wpData", detectedPackets);
-            Assert.DoesNotContain("111", detectedPackets);
+            Assert.Contains("110_wpData", detectedPackets);
+            Assert.Contains("111", detectedPackets);
 
             // 2. Kiểm thử toàn trình pipeline CSDL: Dù Subscription bật cờ SendOnNewData, ProcessSubscriptions vẫn chặn không xuất bản
             await using var scope = _host.Services.CreateAsyncScope();
@@ -2106,7 +2113,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 Name = "Dữ liệu định danh phương tiện RFID (chuẩn 105_rfidData)",
                 PacketVersion = "1.0",
                 OrderNo = 5,
-                Status = BaseEnums.StatusEnum.Enable
+                Status = BaseEnums.StatusEnum.Enable,
+                ExtractSql = ShareDataPacketTemplatesTests.GetExtractSql(packetCode)
             };
             await db.Insertable(packet105).ExecuteCommandAsync();
 
@@ -2189,6 +2197,60 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
 
         #region Helpers
+
+        private static async Task EnsureDefaultSysOpConfigTrackers(ISqlSugarClient db)
+        {
+            var existingCodes = await db.Queryable<SysOpConfig>()
+                .Where(x => x.GroupCode == "sharedata_tracker" && x.IsDelete == null)
+                .Select(x => x.Code)
+                .ToListAsync();
+
+            var defaultConfigs = new (string Code, string Name, string Value, int OrderNo, int Status, string Remark)[]
+            {
+                ("TmsZoneStatus", "Trạng thái khu vực giao thông", "101,101_commonData", 10, 1, "Giám sát zone"),
+                ("TmsZone", "Danh mục khu vực giao thông", "101,101_commonData", 20, 1, "Giám sát zone"),
+                ("TmsTrafficStatistic", "Thống kê lưu lượng giao thông", "101,101_commonData", 30, 1, "Giám sát thống kê"),
+                ("CctvDevice", "Thiết bị camera giám sát", "102,102_cctvData", 40, 1, "Giám sát camera"),
+                ("TmsTrafficData", "Dữ liệu lưu lượng VDS và WIM", "103,103_vdsData,106,106_wimData", 50, 1, "Giám sát đo đếm giao thông"),
+                ("TmsWeather", "Dữ liệu khí tượng thời tiết", "104,104_weatherData", 60, 1, "Giám sát thời tiết"),
+                ("TollTransactionIn", "Giao dịch thu phí đầu vào", "105,105_rfidData,109,109_etcData", 70, 1, "Giám sát vào trạm"),
+                ("TollTransactionOut", "Giao dịch thu phí đầu ra", "105,105_rfidData,109,109_etcData", 80, 1, "Giám sát ra trạm"),
+                ("TmsVehicleRegistration", "Đăng ký phương tiện", "105,105_rfidData", 90, 1, "Giám sát phương tiện"),
+                ("TmsIncident", "Sự cố giao thông", "107,107_incidentData,110,110_wpData,111", 100, 1, "Giám sát sự cố"),
+                ("TmsEventType", "Loại sự kiện giao thông", "107,107_incidentData,110,110_wpData,111", 110, 1, "Giám sát loại sự kiện"),
+                ("VmsCurrent", "Thông tin bản tin biển báo VMS", "108,108_vmsInfo", 120, 1, "Giám sát VMS"),
+                ("TmsEquipment", "Danh mục thiết bị phần cứng", "102,102_cctvData,103,103_vdsData,108,108_vmsInfo", 130, 0, "Bảng tra cứu thiết bị, tắt"),
+                ("TollLane", "Danh mục làn thu phí", "109,109_etcData", 140, 1, "Giám sát làn"),
+                ("TollStation", "Danh mục trạm thu phí", "109,109_etcData", 150, 1, "Giám sát trạm")
+            };
+
+            var toInsert = new List<SysOpConfig>();
+            foreach (var cfg in defaultConfigs)
+            {
+                if (!existingCodes.Contains(cfg.Code, StringComparer.OrdinalIgnoreCase))
+                {
+                    toInsert.Add(new SysOpConfig
+                    {
+                        ID = Guid.NewGuid().ToString("N"),
+                        GroupCode = "sharedata_tracker",
+                        Code = cfg.Code,
+                        Name = cfg.Name,
+                        Value = cfg.Value,
+                        OrderNo = cfg.OrderNo,
+                        Status = (BaseEnums.StatusEnum)cfg.Status,
+                        Remark = cfg.Remark,
+                        IsSysConfig = true,
+                        TenantId = "Default",
+                        CreateTime = DateTime.Now
+                    });
+                }
+            }
+
+            if (toInsert.Count > 0)
+            {
+                await db.Insertable(toInsert).ExecuteCommandAsync();
+            }
+        }
 
         private static async Task PrepareDatabase(ISqlSugarClient db, ILogger logger, string packetCode = "103")
         {
@@ -2946,30 +3008,61 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         }
 
         /// <summary>
-        /// Description: Kiểm thử tính năng nạp động danh sách bảng cần giám sát từ appsettings.json ("ShareDataTracker:Tables").
-        ///              Khi có cấu hình thì nạp danh sách bảng tùy biến; khi không có cấu hình thì tự động fallback về 15 bảng mặc định.
+        /// Description: Kiểm thử tính năng nạp cấu hình danh sách bảng cần giám sát từ SysOpConfig.
+        ///              Khi có cấu hình thì nạp danh sách bảng tùy biến; khi nhóm mặc định thì nạp 14 bảng bật (TmsEquipment tắt).
         /// Created date: 27/09/2026
         /// </summary>
         [Fact]
-        public void DataChangeTrackingService_WhenConfiguredInAppSettings_LoadsCustomTables_Test()
+        public async Task DataChangeTrackingService_WhenConfiguredInSysOpConfig_LoadsCustomTables_Test()
         {
-            // Case 1: Nạp cấu hình mặc định từ appsettings.Test.json -> nạp đủ 15 bảng
-            var defaultWorker = CreateTrackerWorker();
-            Assert.NotEmpty(defaultWorker.TrackedTables);
-            Assert.Equal(15, defaultWorker.TrackedTables.Count);
+            // Case 1: Nạp cấu hình mặc định từ SysOpConfig nhóm sharedata_tracker -> nạp đủ 14 bảng bật (TmsEquipment Status=0)
+            await using var scope = _host.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            await EnsureDefaultSysOpConfigTrackers(db);
 
-            // Case 2: Nạp cấu hình danh sách bảng tùy biến từ IConfiguration (chỉ theo dõi các bảng được khai báo trong TablePacketMap)
-            var inMemorySettings = new Dictionary<string, string?>
+            var defaultWorker = CreateTrackerWorker();
+            await defaultWorker.PollChanges(CancellationToken.None);
+            Assert.NotEmpty(defaultWorker.TrackedTables);
+            Assert.Equal(14, defaultWorker.TrackedTables.Count);
+            Assert.DoesNotContain("TmsEquipment", defaultWorker.TrackedTables);
+
+            // Case 2: Nạp cấu hình danh sách bảng tùy biến từ SysOpConfig (chỉ theo dõi các bảng được khai báo)
+            var groupCode = $"sd_custom_{Guid.NewGuid():N}";
+            await db.Insertable(new List<SysOpConfig>
             {
-                ["ShareDataTracker:TablePacketMap:TmsIncident:0"] = "107_incidentData",
-                ["ShareDataTracker:TablePacketMap:TmsTrafficData:0"] = "103_vdsData"
-            };
+                new()
+                {
+                    ID = Guid.NewGuid().ToString("N"),
+                    GroupCode = groupCode,
+                    Code = "TmsIncident",
+                    Name = "Sự cố",
+                    Value = "107_incidentData",
+                    Status = BaseEnums.StatusEnum.Enable,
+                    IsSysConfig = true,
+                    CreateTime = DateTime.Now
+                },
+                new()
+                {
+                    ID = Guid.NewGuid().ToString("N"),
+                    GroupCode = groupCode,
+                    Code = "TmsTrafficData",
+                    Name = "Lưu lượng",
+                    Value = "103_vdsData",
+                    Status = BaseEnums.StatusEnum.Enable,
+                    IsSysConfig = true,
+                    CreateTime = DateTime.Now
+                }
+            }).ExecuteCommandAsync();
 
             var configuration = new ConfigurationBuilder()
-                .AddInMemoryCollection(inMemorySettings)
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["ShareDataTracker:GroupCode"] = groupCode
+                })
                 .Build();
 
             var customWorker = CreateTrackerWorker(config: configuration);
+            await customWorker.PollChanges(CancellationToken.None);
 
             // Assert: Nạp chính xác 2 bảng tùy biến và sinh câu SQL chỉ gồm 2 bảng đó
             Assert.Equal(2, customWorker.TrackedTables.Count);
@@ -2981,32 +3074,77 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         }
 
         /// <summary>
-        /// Description: Kiểm thử nạp bảng ánh xạ TablePacketMap từ IConfiguration ("ShareDataTracker:TablePacketMap").
-        ///              Xác thực hỗ trợ cả mã ngắn ("101"), mã chuẩn ("101_commonData") và mảng 2 phần tử ["101", "101_commonData"].
+        /// Description: Kiểm thử nạp bảng ánh xạ TablePacketMap từ SysOpConfig.
+        ///              Xác thực hỗ trợ cả mã ngắn ("101"), mã chuẩn ("101_commonData") và phân cách dấu phẩy.
         ///              Tất cả đều được chuẩn hoá về mã chuẩn và deduplicate khi phân giải gói tin (ResolvePackets).
         /// Created date: 27/09/2026
         /// </summary>
         [Fact]
-        public void DataChangeTrackingService_WhenConfiguredTablePacketMap_LoadsMapAndNormalizesPackets_Test()
+        public async Task DataChangeTrackingService_WhenConfiguredTablePacketMap_LoadsMapAndNormalizesPackets_Test()
         {
-            // Arrange: Cấu hình TablePacketMap gồm cả mã ngắn, mã đầy đủ, và kết hợp cả hai
-            var inMemorySettings = new Dictionary<string, string?>
+            // Arrange: Cấu hình SysOpConfig gồm cả mã ngắn, mã đầy đủ, và kết hợp cả hai
+            await using var scope = _host.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var groupCode = $"sd_norm_{Guid.NewGuid():N}";
+
+            await db.Insertable(new List<SysOpConfig>
             {
-                ["ShareDataTracker:TablePacketMap:TmsZoneStatus:0"] = "101",
-                ["ShareDataTracker:TablePacketMap:TmsZoneStatus:1"] = "101_commonData",
-                ["ShareDataTracker:TablePacketMap:CctvDevice:0"] = "102",
-                ["ShareDataTracker:TablePacketMap:TmsWeather:0"] = "104_weatherData",
-                ["ShareDataTracker:TablePacketMap:TmsIncident:0"] = "107",
-                ["ShareDataTracker:TablePacketMap:TmsIncident:1"] = "110",
-                ["ShareDataTracker:TablePacketMap:TmsIncident:2"] = "111"
-            };
+                new()
+                {
+                    ID = Guid.NewGuid().ToString("N"),
+                    GroupCode = groupCode,
+                    Code = "TmsZoneStatus",
+                    Name = "Zone Status",
+                    Value = "101, 101_commonData",
+                    Status = BaseEnums.StatusEnum.Enable,
+                    IsSysConfig = true,
+                    CreateTime = DateTime.Now
+                },
+                new()
+                {
+                    ID = Guid.NewGuid().ToString("N"),
+                    GroupCode = groupCode,
+                    Code = "CctvDevice",
+                    Name = "CCTV Device",
+                    Value = "102",
+                    Status = BaseEnums.StatusEnum.Enable,
+                    IsSysConfig = true,
+                    CreateTime = DateTime.Now
+                },
+                new()
+                {
+                    ID = Guid.NewGuid().ToString("N"),
+                    GroupCode = groupCode,
+                    Code = "TmsWeather",
+                    Name = "Weather",
+                    Value = "104_weatherData",
+                    Status = BaseEnums.StatusEnum.Enable,
+                    IsSysConfig = true,
+                    CreateTime = DateTime.Now
+                },
+                new()
+                {
+                    ID = Guid.NewGuid().ToString("N"),
+                    GroupCode = groupCode,
+                    Code = "TmsIncident",
+                    Name = "Incident",
+                    Value = "107, 110, 111",
+                    Status = BaseEnums.StatusEnum.Enable,
+                    IsSysConfig = true,
+                    CreateTime = DateTime.Now
+                }
+            }).ExecuteCommandAsync();
 
             var configuration = new ConfigurationBuilder()
-                .AddInMemoryCollection(inMemorySettings)
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["ShareDataTracker:GroupCode"] = groupCode
+                })
                 .Build();
 
             // Act
             var worker = CreateTrackerWorker(config: configuration);
+            await worker.PollChanges(CancellationToken.None);
 
             // Assert 1: Danh sách bảng được suy ra từ TablePacketMap.Keys
             Assert.Equal(4, worker.TrackedTables.Count);
@@ -3030,10 +3168,63 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.Single(packetsWeather);
             Assert.Equal("104_weatherData", packetsWeather[0]);
 
-            // Assert 5: TmsIncident với [107, 110, 111] -> 110 (NotReady) và 111 (Disabled) bị lọc bỏ theo policy, chỉ còn 107_incidentData
+            // Assert 5: TmsIncident với [107, 110, 111] -> Không lọc catalog cứng nữa, chuẩn hoá cả 3 gói (gói tắt được loại ở ProcessSubscriptions)
             var packetsIncident = DataChangeTrackingService.ResolvePackets(["TmsIncident"], worker.TablePacketMap);
-            Assert.Single(packetsIncident);
-            Assert.Equal("107_incidentData", packetsIncident[0]);
+            Assert.Equal(3, packetsIncident.Count);
+            Assert.Contains(PacketCodeConst.IncidentData, packetsIncident);
+            Assert.Contains(PacketCodeConst.WpData, packetsIncident);
+            Assert.Contains(PacketCodeConst.InterCenter, packetsIncident);
+        }
+
+        [Fact]
+        public async Task ChangeTracking_WhenPacketDisabled_SkipsOutboundProcessingSilently_Test()
+        {
+            // 2.2: Trigger Change Tracking cho gói tắt -> Bỏ qua lặng lẽ, không lỗi, không ghi alert log
+            await using var scope = _host.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var packetCode = $"110_CT_DIS_{unique}";
+
+            await db.Insertable(new ShareDataPacket
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                Code = packetCode,
+                Name = $"Disabled Packet CT {unique}",
+                Status = BaseEnums.StatusEnum.Disable
+            }).ExecuteCommandAsync();
+
+            var partner = new ShareDataPartner
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                Code = $"P_CT_DIS_{unique}",
+                Name = $"Partner CT {unique}",
+                Status = BaseEnums.StatusEnum.Enable
+            };
+            await db.Insertable(partner).ExecuteCommandAsync();
+
+            var sub = new ShareDataSubscription
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                Code = $"SUB_CT_DIS_{unique}",
+                PartnerId = partner.ID,
+                DatatypeId = packetCode,
+                State = BaseEnums.SubSubscriptionState.Active,
+                NextTimeRun = DateTime.UtcNow.AddMinutes(-5),
+                IntervalSeconds = 5
+            };
+            await db.Insertable(sub).ExecuteCommandAsync();
+
+            var worker = _host.Services.GetRequiredService<DataOutboundService>();
+
+            // Act: Gọi xử lý xuất bản theo mã gói (giống như luồng Nats/ChangeTracking kích hoạt)
+            await worker.ProcessSubscriptions(packetCode, CancellationToken.None);
+
+            // Assert: Không phát sinh bất kỳ ShareDataAlertLog nào
+            var alerts = await db.Queryable<ShareDataAlertLog>()
+                .Where(a => a.SubscriptionId == sub.ID || a.PartnerId == partner.ID)
+                .ToListAsync();
+            Assert.Empty(alerts);
         }
 
         /// <summary>
@@ -3100,7 +3291,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             {
                 PacketCodeConst.VdsData,        // "103_vdsData"
                 PacketCodeConst.WimData,        // "106_wimData"
-                PacketCodeConst.IncidentData    // "107_incidentData"
+                PacketCodeConst.IncidentData,   // "107_incidentData"
+                PacketCodeConst.WpData,         // "110_wpData"
+                "111"
             };
 
             var transport = _host.Services.GetRequiredService<TransportManager>();
@@ -3791,11 +3984,11 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             var worker = CreateTrackerWorker(scope);
 
+            // Khởi tạo tracking để nạp cấu hình bảng từ SysOpConfig
+            await worker.PollChanges(CancellationToken.None);
+
             Assert.Contains("TmsZone", worker.TrackedTables);
             Assert.Contains("TmsZoneStatus", worker.TrackedTables);
-
-            // Khởi tạo tracking để mọi bảng đều còn trong DMV sys.change_tracking_tables
-            await worker.PollChanges(CancellationToken.None);
 
             // Act: Gọi TrySkipBrokenTables qua Reflection với Exception chứa thông điệp lỗi có tên TmsZoneStatus
             var fakeEx = new Exception("Invalid column name in table 'TmsZoneStatus'. Operation failed.");
@@ -4052,11 +4245,17 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 ?? _host.Services.GetService<TransportManager>()
                 ?? new TransportManager(new ConfigurationBuilder().Build());
 
-            var emptyConfig = new ConfigurationBuilder().AddInMemoryCollection().Build();
+            var emptyConfig = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ShareDataTracker:GroupCode"] = $"sd_empty_{Guid.NewGuid():N}"
+            }).Build();
             var worker = new DataChangeTrackingService(scopeFactory, logger, transport, emptyConfig);
 
-            var startedAt = (await db.Ado.GetDateTimeAsync("SELECT GETDATE()")).AddSeconds(-5);
+            var initialEsh1603Count = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.NotReady)
+                .CountAsync();
             var initialVersionCount = await db.Queryable<ShareDataTrackVersion>().CountAsync();
+            var startedAt = (await db.Ado.GetDateTimeAsync("SELECT GETDATE()")).AddSeconds(-10);
 
             // Assert 1: worker.TrackedTables rỗng và worker.ActiveChangesSql là chuỗi rỗng
             Assert.Empty(worker.TrackedTables);
@@ -4065,20 +4264,20 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Act 1: Gọi PollChanges lần 1
             await worker.PollChanges(CancellationToken.None);
 
-            // Assert 2: Đếm được đúng 1 dòng ShareDataActivityLog có Remark chứa ESH-1603
-            var logsFirst = await db.Queryable<ShareDataActivityLog>()
-                .Where(x => x.Remark == ShareDataAlertCode.Tracking.NotReady && x.CreateTime >= startedAt)
-                .ToListAsync();
-            Assert.Single(logsFirst);
+            // Assert 2: Đếm được đúng 1 dòng ShareDataActivityLog mới có Remark chứa ESH-1603
+            var logsFirstCount = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.NotReady)
+                .CountAsync();
+            Assert.Equal(initialEsh1603Count + 1, logsFirstCount);
 
             // Act 2: Gọi PollChanges lần 2
             await worker.PollChanges(CancellationToken.None);
 
-            // Assert 3: Số dòng ESH-1603 vẫn đúng 1 (cờ IsEmptyConfigReported chặn ghi lặp)
-            var logsSecond = await db.Queryable<ShareDataActivityLog>()
-                .Where(x => x.Remark == ShareDataAlertCode.Tracking.NotReady && x.CreateTime >= startedAt)
-                .ToListAsync();
-            Assert.Single(logsSecond);
+            // Assert 3: Số dòng ESH-1603 vẫn tăng đúng 1 (cờ IsEmptyConfigReported chặn ghi lặp)
+            var logsSecondCount = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.NotReady)
+                .CountAsync();
+            Assert.Equal(initialEsh1603Count + 1, logsSecondCount);
 
             // Assert 4: ShareDataTrackVersion không bị cắm mốc gốc — số lượng dòng trạng thái không tăng
             var versionCountAfter = await db.Queryable<ShareDataTrackVersion>().CountAsync();
@@ -4143,9 +4342,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             await worker.PollChanges(CancellationToken.None);
             await worker.PollChanges(CancellationToken.None);
 
-            // Assert 1: Đếm dòng ShareDataActivityLog có Remark == ShareDataAlertCode.Tracking.NotReady => đúng 1
+            // Assert 1: Đếm dòng ShareDataActivityLog có Remark == ShareDataAlertCode.Tracking.NotReady do lỗi DB tracking => đúng 1
             var notReadyLogs = await db.Queryable<ShareDataActivityLog>()
-                .Where(x => x.Remark == ShareDataAlertCode.Tracking.NotReady && x.CreateTime >= startedAt)
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.NotReady && x.AfterJson != null && !x.AfterJson.Contains("\"trackedTotal\":0") && x.CreateTime >= startedAt)
                 .ToListAsync();
             Assert.Single(notReadyLogs);
 
@@ -4194,14 +4393,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var eqIdB = $"EQ_INST_B_{testId}";
             var carIdB = $"CAR_INST_B_{testId}";
 
-            var initialEsh1602Count = await dbA.Queryable<ShareDataActivityLog>()
-                .Where(x => x.Remark == ShareDataAlertCode.Tracking.QueryFailed)
-                .CountAsync();
-
-            // 1. Chu kỳ đầu: Khởi tạo mốc gốc qua workerA
+            // 1. Chu kỳ đầu: Khởi tạo mốc gốc và nạp cấu hình cho cả hai instance khi mọi bảng còn lành mạnh
             await workerA.PollChanges(CancellationToken.None);
+            await workerB.PollChanges(CancellationToken.None);
             var initialVersion = await GetStateVersion(dbA);
             Assert.True(initialVersion >= 0);
+
+            var startedAt = (await dbA.Ado.GetDateTimeAsync("SELECT GETDATE()")).AddSeconds(-5);
 
             // 2. Giả lập DBA tắt Change Tracking trên TmsWeather
             await dbA.Ado.ExecuteCommandAsync("ALTER TABLE [TmsWeather] DISABLE CHANGE_TRACKING;");
@@ -4267,13 +4465,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Assert 2: workerB giờ cũng đã tự học cô lập TmsWeather
             Assert.Contains("TmsWeather", GetMissingTables(workerB).Keys);
 
-            // Assert 3: Đếm số dòng ESH-1602 (QueryFailed) phát sinh trong suốt quá trình
-            var finalEsh1602Count = await dbA.Queryable<ShareDataActivityLog>()
-                .Where(x => x.Remark == ShareDataAlertCode.Tracking.QueryFailed)
+            // Assert 3: Đếm số dòng ESH-1602 (QueryFailed) phát sinh trong suốt bài test này
+            var testEsh1602Count = await dbA.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.QueryFailed && x.CreateTime >= startedAt)
                 .CountAsync();
 
-            // Số lượng ESH-1602 kỳ vọng tăng thêm 2 (mỗi instance ghi 1 dòng khi truy vấn hỏng)
-            Assert.Equal(initialEsh1602Count + 2, finalEsh1602Count);
+            // Số lượng ESH-1602 kỳ vọng đúng 2 (mỗi instance ghi 1 dòng khi truy vấn hỏng)
+            Assert.Equal(2, testEsh1602Count);
 
             // Dọn dẹp tài nguyên và dữ liệu tuần tự ở cuối hàm
             // Khôi phục lại Change Tracking cho TmsWeather
@@ -4284,6 +4482,432 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             await dbA.Deleteable<TmsTrafficData>().Where(t => t.ID == carIdA || t.ID == carIdB).ExecuteCommandAsync();
             await dbA.Deleteable<TmsEquipment>().Where(t => t.ID == eqIdA || t.ID == eqIdB).ExecuteCommandAsync();
         }
+
+        #region 11. SysOpConfig Dynamic Tracking Map Tests
+
+        /// <summary>
+        /// Description: Kiểm thử nạp bảng ánh xạ TablePacketMap từ SysOpConfig:
+        ///              - Đọc đúng các bản ghi có Status = Enable.
+        ///              - Loại bỏ bản ghi có Status = Disable (0).
+        ///              - Chuẩn hóa Value (cắt khoảng trắng, loại trùng).
+        /// </summary>
+        [Fact]
+        public async Task DataChangeTrackingService_WhenConfiguredInSysOpConfig_LoadsMapAndFiltersDisabledAndNormalizesValues_Test()
+        {
+            // Arrange
+            await using var scope = _host.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var groupCode = $"sd_tracker_{Guid.NewGuid():N}";
+
+            await db.Insertable(new List<SysOpConfig>
+            {
+                new()
+                {
+                    ID = Guid.NewGuid().ToString("N"),
+                    GroupCode = groupCode,
+                    Code = "TmsZoneStatus",
+                    Name = "Trạng thái zone",
+                    Value = " 101 , 101_commonData , 101 ",
+                    Status = BaseEnums.StatusEnum.Enable,
+                    IsSysConfig = true,
+                    CreateTime = DateTime.Now
+                },
+                new()
+                {
+                    ID = Guid.NewGuid().ToString("N"),
+                    GroupCode = groupCode,
+                    Code = "TmsWeather",
+                    Name = "Thời tiết",
+                    Value = "104_weatherData",
+                    Status = BaseEnums.StatusEnum.Enable,
+                    IsSysConfig = true,
+                    CreateTime = DateTime.Now
+                },
+                new()
+                {
+                    ID = Guid.NewGuid().ToString("N"),
+                    GroupCode = groupCode,
+                    Code = "TmsEquipment",
+                    Name = "Thiết bị",
+                    Value = "102, 103, 108",
+                    Status = BaseEnums.StatusEnum.Disable,
+                    IsSysConfig = true,
+                    CreateTime = DateTime.Now
+                }
+            }).ExecuteCommandAsync();
+
+            var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ShareDataTracker:GroupCode"] = groupCode
+            }).Build();
+
+            var worker = CreateTrackerWorker(config: config);
+
+            // Act
+            await worker.PollChanges(CancellationToken.None);
+
+            // Assert
+            Assert.Contains("TmsZoneStatus", worker.TrackedTables);
+            Assert.Contains("TmsWeather", worker.TrackedTables);
+            Assert.DoesNotContain("TmsEquipment", worker.TrackedTables);
+
+            var zonePackets = worker.TablePacketMap["TmsZoneStatus"];
+            Assert.Equal(2, zonePackets.Count);
+            Assert.Contains("101", zonePackets);
+            Assert.Contains("101_commonData", zonePackets);
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử thêm 1 dòng cấu hình mới vào SysOpConfig rồi gọi nạp lại:
+        ///              - Bảng mới được thêm vào TrackedTables và ActiveChangesSql.
+        ///              - Không reset mốc version toàn cục (LastVersion không bị hạ về -1).
+        /// </summary>
+        [Fact]
+        public async Task DataChangeTrackingService_WhenNewTableAddedInSysOpConfig_ReloadAddsTableWithoutResettingBaseline_Test()
+        {
+            // Arrange
+            await using var scope = _host.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var groupCode = $"sd_tracker_{Guid.NewGuid():N}";
+
+            await db.Insertable(new SysOpConfig
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                GroupCode = groupCode,
+                Code = "TmsZone",
+                Name = "Danh mục zone",
+                Value = "101,101_commonData",
+                Status = BaseEnums.StatusEnum.Enable,
+                IsSysConfig = true,
+                CreateTime = DateTime.Now
+            }).ExecuteCommandAsync();
+
+            var currentDbVer = (await InvokeGetCurrentDbVersion(db)) ?? 1000;
+            await SetStateVersion(db, currentDbVer);
+
+            var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ShareDataTracker:GroupCode"] = groupCode,
+                ["ShareDataTracker:ConfigReloadSeconds"] = "0"
+            }).Build();
+
+            var worker = CreateTrackerWorker(config: config);
+            await worker.PollChanges(CancellationToken.None);
+
+            Assert.Single(worker.TrackedTables);
+            Assert.Contains("TmsZone", worker.TrackedTables);
+
+            // Act: Thêm 1 dòng mới vào SysOpConfig
+            await db.Insertable(new SysOpConfig
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                GroupCode = groupCode,
+                Code = "TmsIncident",
+                Name = "Sự cố",
+                Value = "107",
+                Status = BaseEnums.StatusEnum.Enable,
+                IsSysConfig = true,
+                CreateTime = DateTime.Now
+            }).ExecuteCommandAsync();
+
+            await worker.ReloadConfigAsync(db);
+
+            // Assert
+            Assert.Equal(2, worker.TrackedTables.Count);
+            Assert.Contains("TmsZone", worker.TrackedTables);
+            Assert.Contains("TmsIncident", worker.TrackedTables);
+            Assert.Contains("TmsIncident", worker.ActiveChangesSql);
+
+            var stateVersion = await GetStateVersion(db);
+            Assert.True(stateVersion >= currentDbVer, $"LastVersion={stateVersion} không bị reset về -1.");
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử xóa mềm 1 dòng cấu hình trong SysOpConfig:
+        ///              Bảng đó ngay lập tức bị gỡ khỏi TrackedTables và ActiveChangesSql, ngừng được truy vấn.
+        /// </summary>
+        [Fact]
+        public async Task DataChangeTrackingService_WhenTableRowSoftDeletedInSysOpConfig_TableStopsBeingQueried_Test()
+        {
+            // Arrange
+            await using var scope = _host.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var groupCode = $"sd_tracker_{Guid.NewGuid():N}";
+
+            await db.Insertable(new List<SysOpConfig>
+            {
+                new()
+                {
+                    ID = Guid.NewGuid().ToString("N"),
+                    GroupCode = groupCode,
+                    Code = "TmsZone",
+                    Name = "Danh mục zone",
+                    Value = "101",
+                    Status = BaseEnums.StatusEnum.Enable,
+                    IsSysConfig = true,
+                    CreateTime = DateTime.Now
+                },
+                new()
+                {
+                    ID = Guid.NewGuid().ToString("N"),
+                    GroupCode = groupCode,
+                    Code = "TmsWeather",
+                    Name = "Thời tiết",
+                    Value = "104",
+                    Status = BaseEnums.StatusEnum.Enable,
+                    IsSysConfig = true,
+                    CreateTime = DateTime.Now
+                }
+            }).ExecuteCommandAsync();
+
+            var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ShareDataTracker:GroupCode"] = groupCode,
+                ["ShareDataTracker:ConfigReloadSeconds"] = "0"
+            }).Build();
+
+            var worker = CreateTrackerWorker(config: config);
+            await worker.PollChanges(CancellationToken.None);
+
+            Assert.Equal(2, worker.TrackedTables.Count);
+            Assert.Contains("TmsWeather", worker.ActiveChangesSql);
+
+            // Act: Xóa mềm TmsWeather
+            await db.Updateable<SysOpConfig>()
+                .SetColumns(x => x.IsDelete == DateTime.Now)
+                .Where(x => x.GroupCode == groupCode && x.Code == "TmsWeather")
+                .ExecuteCommandAsync();
+
+            await worker.ReloadConfigAsync(db);
+
+            // Assert
+            Assert.Single(worker.TrackedTables);
+            Assert.Contains("TmsZone", worker.TrackedTables);
+            Assert.DoesNotContain("TmsWeather", worker.TrackedTables);
+            Assert.DoesNotContain("TmsWeather", worker.ActiveChangesSql);
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử khi nhóm cấu hình trong SysOpConfig rỗng:
+        ///              Bỏ hẳn fallback appsettings - Worker không theo dõi bảng nào, không đọc appsettings kể cả khi section còn tồn tại.
+        /// </summary>
+        [Fact]
+        public async Task DataChangeTrackingService_WhenSysOpConfigGroupEmpty_DoesNotFallBackToAppSettings_WorkerRemainsEmpty_Test()
+        {
+            // Arrange: Nhóm trong DB hoàn toàn rỗng, cấu hình IConfiguration vẫn có TablePacketMap (để kiểm chứng không fallback)
+            var groupCode = $"sd_empty_{Guid.NewGuid():N}";
+
+            var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ShareDataTracker:GroupCode"] = groupCode,
+                ["ShareDataTracker:TablePacketMap:CctvDevice:0"] = "102_cctvData",
+                ["ShareDataTracker:TablePacketMap:VmsCurrent:0"] = "108_vmsInfo"
+            }).Build();
+
+            var worker = CreateTrackerWorker(config: config);
+
+            // Act
+            await worker.PollChanges(CancellationToken.None);
+
+            // Assert: Không fallback sang appsettings, TrackedTables và TablePacketMap đều rỗng
+            Assert.Empty(worker.TrackedTables);
+            Assert.Empty(worker.TablePacketMap);
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử nhóm SysOpConfig có bản ghi nhưng tất cả Status = Disable (0):
+        ///              Worker không theo dõi bảng nào và ghi đúng 1 cảnh báo ESH-1603 (không spam).
+        /// </summary>
+        [Fact]
+        public async Task DataChangeTrackingService_WhenGroupHasRowsButAllDisabled_DoesNotTrackAnyTableAndReportsEsh1603Once_Test()
+        {
+            await using var scope = _host.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var groupCode = $"sd_alldisabled_{Guid.NewGuid():N}";
+
+            await db.Insertable(new List<SysOpConfig>
+            {
+                new()
+                {
+                    ID = Guid.NewGuid().ToString("N"),
+                    GroupCode = groupCode,
+                    Code = "TmsZoneStatus",
+                    Name = "Zone Status",
+                    Value = "101",
+                    Status = BaseEnums.StatusEnum.Disable,
+                    IsSysConfig = true,
+                    CreateTime = DateTime.Now
+                },
+                new()
+                {
+                    ID = Guid.NewGuid().ToString("N"),
+                    GroupCode = groupCode,
+                    Code = "TmsWeather",
+                    Name = "Weather",
+                    Value = "104",
+                    Status = BaseEnums.StatusEnum.Disable,
+                    IsSysConfig = true,
+                    CreateTime = DateTime.Now
+                }
+            }).ExecuteCommandAsync();
+
+            var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ShareDataTracker:GroupCode"] = groupCode
+            }).Build();
+
+            var worker = CreateTrackerWorker(config: config);
+
+            var initialEsh1603 = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.NotReady)
+                .CountAsync();
+
+            await worker.PollChanges(CancellationToken.None);
+            await worker.PollChanges(CancellationToken.None);
+
+            var finalEsh1603 = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.NotReady)
+                .CountAsync();
+
+            Assert.Empty(worker.TrackedTables);
+            Assert.Empty(worker.TablePacketMap);
+            Assert.Equal(initialEsh1603 + 1, finalEsh1603);
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử khi truy vấn CSDL gặp lỗi trong chu kỳ nạp lại:
+        ///              Worker giữ nguyên map đang chạy và ghi log Warning (không làm gián đoạn tracking).
+        /// </summary>
+        [Fact]
+        public async Task DataChangeTrackingService_WhenDbQueryFailsDuringReload_RetainsExistingMapAndLogsWarning_Test()
+        {
+            await using var scope = _host.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var groupCode = $"sd_dberr_{Guid.NewGuid():N}";
+
+            await db.Insertable(new SysOpConfig
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                GroupCode = groupCode,
+                Code = "TmsZone",
+                Name = "Zone",
+                Value = "101",
+                Status = BaseEnums.StatusEnum.Enable,
+                IsSysConfig = true,
+                CreateTime = DateTime.Now
+            }).ExecuteCommandAsync();
+
+            var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ShareDataTracker:GroupCode"] = groupCode,
+                ["ShareDataTracker:ConfigReloadSeconds"] = "0"
+            }).Build();
+
+            var worker = CreateTrackerWorker(config: config);
+            await worker.PollChanges(CancellationToken.None);
+
+            Assert.Single(worker.TrackedTables);
+            Assert.Contains("TmsZone", worker.TrackedTables);
+
+            // Act: Gọi ReloadConfigAsync với client đã dispose để giả lập lỗi truy vấn CSDL
+            var brokenDb = db.CopyNew();
+            brokenDb.Ado.Dispose();
+
+            await worker.ReloadConfigAsync(brokenDb);
+
+            // Assert: Map vẫn được bảo toàn nguyên vẹn
+            Assert.Single(worker.TrackedTables);
+            Assert.Contains("TmsZone", worker.TrackedTables);
+            Assert.Equal("101", worker.TablePacketMap["TmsZone"][0]);
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử bảng ban đầu có Status = Disable (0), sau đó được bật Status = Enable (1):
+        ///              Lần nạp lại (ReloadConfigAsync) nhận diện ngay bảng mới và đưa vào TrackedTables/ActiveChangesSql.
+        /// </summary>
+        [Fact]
+        public async Task DataChangeTrackingService_WhenTableDisabledThenEnabled_ReloadPicksUpNewTable_Test()
+        {
+            await using var scope = _host.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var groupCode = $"sd_toggle_{Guid.NewGuid():N}";
+
+            var configId = Guid.NewGuid().ToString("N");
+            await db.Insertable(new SysOpConfig
+            {
+                ID = configId,
+                GroupCode = groupCode,
+                Code = "TmsIncident",
+                Name = "Sự cố",
+                Value = "107",
+                Status = BaseEnums.StatusEnum.Disable,
+                IsSysConfig = true,
+                CreateTime = DateTime.Now
+            }).ExecuteCommandAsync();
+
+            var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ShareDataTracker:GroupCode"] = groupCode,
+                ["ShareDataTracker:ConfigReloadSeconds"] = "0"
+            }).Build();
+
+            var worker = CreateTrackerWorker(config: config);
+            await worker.PollChanges(CancellationToken.None);
+
+            // Ban đầu Status = 0 nên chưa được theo dõi
+            Assert.Empty(worker.TrackedTables);
+
+            // Act: Quản trị bật Status = 1
+            await db.Updateable<SysOpConfig>()
+                .SetColumns(x => x.Status == BaseEnums.StatusEnum.Enable)
+                .Where(x => x.ID == configId)
+                .ExecuteCommandAsync();
+
+            await worker.ReloadConfigAsync(db);
+
+            // Assert: Sau khi reload, bảng TmsIncident đã được đưa vào theo dõi
+            Assert.Single(worker.TrackedTables);
+            Assert.Contains("TmsIncident", worker.TrackedTables);
+            Assert.Contains("TmsIncident", worker.ActiveChangesSql);
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử khi cả SysOpConfig và appsettings đều rỗng:
+        ///              Ghi đúng 1 cảnh báo ESH-1603 (AlertCode.Tracking.NotReady) vào nhật ký.
+        /// </summary>
+        [Fact]
+        public async Task DataChangeTrackingService_WhenBothDbAndAppSettingsEmpty_ReportsEsh1603AlertOnce_Test()
+        {
+            // Arrange
+            await using var scope = _host.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var groupCode = $"sd_tracker_{Guid.NewGuid():N}";
+
+            var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ShareDataTracker:GroupCode"] = groupCode
+            }).Build();
+
+            var worker = CreateTrackerWorker(config: config);
+
+            var initialEsh1603Count = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.NotReady)
+                .CountAsync();
+
+            // Act: Gọi poll 2 lần liên tiếp
+            await worker.PollChanges(CancellationToken.None);
+            await worker.PollChanges(CancellationToken.None);
+
+            // Assert: Số lượng cảnh báo ESH-1603 chỉ tăng đúng 1 lần (không spam mỗi chu kỳ)
+            var finalEsh1603Count = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.NotReady)
+                .CountAsync();
+
+            Assert.Equal(initialEsh1603Count + 1, finalEsh1603Count);
+            Assert.Empty(worker.TrackedTables);
+        }
+
+        #endregion
 
         #endregion
 
@@ -4379,6 +5003,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         private IReadOnlyList<string> InvokeResolveTriggerPackets(IEnumerable<string> changedTables)
         {
             var worker = CreateTrackerWorker();
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            worker.ReloadConfigAsync(db).GetAwaiter().GetResult();
             return DataChangeTrackingService.ResolvePackets(changedTables, worker.TablePacketMap);
         }
 

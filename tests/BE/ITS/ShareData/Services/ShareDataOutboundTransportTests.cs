@@ -98,14 +98,16 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var dispatcher = ShareDataConnectionDispatcher.CreateForHandlers([fileSender]);
             var ctx = CreateDummyContext("103", "PARTNER_FILE", "File");
             var jsonPayload = "{\"vdsCount\": 12, \"speed\": 80}";
-            var customPath = "Out/TestPartner/vds_export.json";
+            var customDir = "Out/TestPartner";
+            var fileNamePattern = "vds_export_{serial}.json";
             var request = new ShareDataConnectionRequest
             {
                 JsonPayload = jsonPayload,
                 ConnectionType = "File",
                 ConnectionConfig = new Dictionary<string, string>
                 {
-                    ["OutputPath"] = customPath
+                    ["DirectoryPath"] = customDir,
+                    ["FileNamePattern"] = fileNamePattern
                 }
             };
 
@@ -115,7 +117,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Assert
             Assert.True(result.Success);
             Assert.Equal("File", result.Channel);
-            Assert.Equal(customPath, result.TargetAddressOrPath);
+            Assert.Equal(Path.Combine(customDir, "vds_export_0.json"), result.TargetAddressOrPath);
             Assert.Equal(Encoding.UTF8.GetByteCount(jsonPayload), result.SentByteSize);
         }
 
@@ -502,20 +504,61 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.Contains("Dữ liệu không đúng định dạng", result.ErrorMessage);
         }
 
+        /// <summary>
+        /// Description: TC3 - Kiểm tra khi máy chủ đối tác ngắt kết nối ngang (server aborts / connection reset),
+        ///              RestSender trả về thông báo lỗi chi tiết có gợi ý kiểm tra giao thức http/https hoặc sai cổng.
+        /// Created date: 15/10/2026
+        /// </summary>
         [Fact]
-        public async Task FileSender_WhenOutputPathHasInvalidCharacters_ReturnsInvalidPathError_Test()
+        public async Task RestSender_WhenServerDropsConnection_ReturnsProtocolMismatchHint_Test()
+        {
+            // Arrange
+            var server = _host.PartnerServer;
+            server.ResetDefaults();
+            server.AbortOnCall.Add(1);
+
+            var restSender = new DataOutboundRestSender();
+            var ctx = CreateDummyContext("101", "PARTNER_ABORT", "API");
+            ctx.Partner!.Address = "127.0.0.1";
+            ctx.Partner!.Port = ShareDataPartnerServerMock.DefaultPort;
+            ctx.Partner!.EndPointApiUrl = "/api/v1/data";
+
+            var request = new ShareDataConnectionRequest
+            {
+                JsonPayload = "{\"data\":\"test\"}",
+                ConnectionType = "API",
+                ConnectionConfig = new Dictionary<string, string>
+                {
+                    ["Address"] = "127.0.0.1",
+                    ["Port"] = ShareDataPartnerServerMock.DefaultPort.ToString(),
+                    ["HttpTimeoutSec"] = "5"
+                }
+            };
+
+            // Act
+            var result = await restSender.SendAsync(request, ctx, CancellationToken.None);
+
+            // Assert
+            Assert.False(result.Success);
+            Assert.Contains("đóng kết nối", result.ErrorMessage);
+            Assert.Contains("http://", result.ErrorMessage);
+            Assert.Contains("cổng", result.ErrorMessage);
+        }
+
+        [Fact]
+        public async Task FileSender_WhenDirectoryPathHasInvalidCharacters_ReturnsInvalidPathError_Test()
         {
             // Arrange
             var fileSender = new DataOutboundFileSender();
             var ctx = CreateDummyContext("103", "PARTNER_FILE_INVALID", "File");
-            var invalidPath = "Out/Invalid|Path\0/test.json";
+            var invalidDir = "Out/Invalid|Path\0";
             var request = new ShareDataConnectionRequest
             {
                 JsonPayload = "{}",
                 ConnectionType = "File",
                 ConnectionConfig = new Dictionary<string, string>
                 {
-                    ["OutputPath"] = invalidPath
+                    ["DirectoryPath"] = invalidDir
                 }
             };
 
@@ -618,10 +661,10 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public void AesGcmCodec_EncodeDecodeRoundtrip_ReturnsOriginalBytes_Test()
         {
             // Arrange
-            var codec = new Module.ShareData.Core.Connection.Codecs.AesGcmCodec();
-            var keyBytes = new byte[Module.ShareData.Core.Connection.Codecs.AesGcmCodec.KeySize];
+            var codec = new Modules.Integration.ShareData.Codecs.AesGcmCodec();
+            var keyBytes = new byte[Modules.Integration.ShareData.Codecs.AesGcmCodec.KeySize];
             System.Security.Cryptography.RandomNumberGenerator.Fill(keyBytes);
-            var ctx = new Module.ShareData.Core.Connection.Codecs.PayloadCodecContext("test-kid", keyBytes);
+            var ctx = new Modules.Integration.ShareData.Codecs.PayloadCodecContext("test-kid", keyBytes);
             var originalBytes = Encoding.UTF8.GetBytes("{\"test\":\"secret-payload-data\"}");
 
             // Act
@@ -640,8 +683,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public void NoneCodec_EncodeDecode_PassesThroughIdenticalBytes_Test()
         {
             // Arrange
-            var codec = new Module.ShareData.Core.Connection.Codecs.NoneCodec();
-            var ctx = new Module.ShareData.Core.Connection.Codecs.PayloadCodecContext(null, null);
+            var codec = new Modules.Integration.ShareData.Codecs.NoneCodec();
+            var ctx = new Modules.Integration.ShareData.Codecs.PayloadCodecContext(null, null);
             var originalBytes = Encoding.UTF8.GetBytes("{\"test\":\"plain-payload\"}");
 
             // Act
@@ -791,12 +834,14 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var mappingSnapPolicy = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy(packetIncr, mappingSnapshot);
             Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.Snapshot, mappingSnapPolicy);
 
-            // 5. Phân giải qua chuỗi packetCode và mapping / syncKind
-            var codeIncr = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy("105", mappingIncremental);
-            Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.AlwaysIncremental, codeIncr);
+            // 5. Cả packet và mapping đều không có SyncKind (null) -> Fallback mặc định Snapshot (1)
+            var packetNull = new ShareDataPacket { Code = "999", Name = "Custom Packet", SyncKind = null };
+            var mappingNull = new ShareDataMapping { SyncKind = null };
+            var nullFallbackPolicy = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy(packetNull, mappingNull);
+            Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.Snapshot, nullFallbackPolicy);
 
-            var codeDirectIncr = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy("105", syncKind: 2);
-            Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.AlwaysIncremental, codeDirectIncr);
+            var packetOnlyNull = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy(packetNull);
+            Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.Snapshot, packetOnlyNull);
         }
 
         [Fact]
@@ -845,6 +890,40 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.NotNull(errInvalid);
             Assert.Contains("ArchiveEnabled", errInvalid);
             Assert.Contains("boolean", errInvalid);
+        }
+
+        [Fact]
+        public void PartnerValidator_RejectsOutputPath_AndValidatesFileNamePatternVariables_Test()
+        {
+            // 1. Rejects OutputPath (deprecated key)
+            Assert.False(PartnerValidator.IsValidConnectionConfig("{\"OutputPath\": \"/tmp/test.json\"}", out var errOutput));
+            Assert.NotNull(errOutput);
+            Assert.Contains("OutputPath", errOutput);
+
+            // 2. FileNamePattern missing both {serial} and {timestamp}
+            Assert.False(PartnerValidator.IsValidConnectionConfig("{\"FileNamePattern\": \"static_data.json\"}", out var errStaticPattern));
+            Assert.NotNull(errStaticPattern);
+            Assert.Contains("FileNamePattern", errStaticPattern);
+            Assert.Contains("{serial}", errStaticPattern);
+
+            // 3. Valid FileNamePattern with {serial} or {timestamp}
+            Assert.True(PartnerValidator.IsValidConnectionConfig("{\"FileNamePattern\": \"data_{serial}.json\"}", out var errSerial));
+            Assert.Null(errSerial);
+
+            Assert.True(PartnerValidator.IsValidConnectionConfig("{\"FileNamePattern\": \"data_{timestamp}.json\"}", out var errTime));
+            Assert.Null(errTime);
+
+            Assert.True(PartnerValidator.IsValidConnectionConfig("{\"FileNamePattern\": \"{packet}_{partner}_{timestamp}_{serial}.json\"}", out var errFull));
+            Assert.Null(errFull);
+
+            // 4. Test IsFileChannel aliases
+            Assert.True(ShareDataConnectionDispatcher.IsFileChannel("File"));
+            Assert.True(ShareDataConnectionDispatcher.IsFileChannel("file"));
+            Assert.True(ShareDataConnectionDispatcher.IsFileChannel("DISK"));
+            Assert.True(ShareDataConnectionDispatcher.IsFileChannel("NAS"));
+            Assert.False(ShareDataConnectionDispatcher.IsFileChannel("API"));
+            Assert.False(ShareDataConnectionDispatcher.IsFileChannel("Kafka"));
+            Assert.False(ShareDataConnectionDispatcher.IsFileChannel(null));
         }
 
         [Fact]

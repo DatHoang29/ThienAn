@@ -44,6 +44,7 @@ const COLUMN_RESERVED_KEYS = [
 	'endpoint',
 	'path',
 	'endpointapiurl',
+	'outputpath',
 ];
 
 const SUGGESTED_KEYS_BY_CHANNEL: Record<string, string[]> = {
@@ -96,8 +97,17 @@ function getKeyError(items: ConfigRow[], index: number, t: (k: string) => string
 		return t('lz.label.sharedataConnectionEditor.errKeyRequired');
 	}
 	const lower = keyTrimmed.toLowerCase();
+	if (lower === 'outputpath') {
+		return t('lz.label.sharedataConnectionEditor.errKeyOutputPath');
+	}
 	if (COLUMN_RESERVED_KEYS.includes(lower)) {
 		return t('lz.label.sharedataConnectionEditor.errKeyReserved');
+	}
+	if (lower === 'filenamepattern') {
+		const val = (row.value ?? '').toLowerCase();
+		if (val && !val.includes('{serial}') && !val.includes('{timestamp}')) {
+			return t('lz.label.sharedataConnectionEditor.errFileNamePatternMissingVariable');
+		}
 	}
 	for (let i = 0; i < items.length; i++) {
 		if (i !== index) {
@@ -123,6 +133,8 @@ function addSuggestedKeys(items: ConfigRow[], connectionType: string): number {
 			let defaultValue = '';
 			if (sugKey.toLowerCase() === 'archiveenabled') {
 				defaultValue = 'true';
+			} else if (sugKey.toLowerCase() === 'filenamepattern') {
+				defaultValue = '{packet}_{partner}_{timestamp}_{serial}';
 			}
 			items.push({
 				id: genRowId(),
@@ -143,6 +155,8 @@ const mockI18n = (key: string): string => {
 		'lz.label.sharedataConnectionEditor.errKeyReserved': 'Địa chỉ và cổng nhập ở trường Địa chỉ/Cổng',
 		'lz.label.sharedataConnectionEditor.errKeyDuplicate': 'Tên thuộc tính bị trùng lặp',
 		'lz.label.sharedataConnectionEditor.errHasInvalidKeys': 'Có thuộc tính cấu hình không hợp lệ, vui lòng kiểm tra lại',
+		'lz.label.sharedataConnectionEditor.errKeyOutputPath': 'Thuộc tính [OutputPath] đã bị bãi bỏ. Vui lòng sử dụng [DirectoryPath] và [FileNamePattern]',
+		'lz.label.sharedataConnectionEditor.errFileNamePatternMissingVariable': 'FileNamePattern phải chứa ít nhất {serial} hoặc {timestamp} để tránh ghi đè tệp',
 	};
 	return dict[key] || key;
 };
@@ -422,5 +436,51 @@ test.describe('ShareData — Cấu hình kết nối đối tác theo mẫu VMS 
 		const archiveRow = items.find((i) => i.key.toLowerCase() === 'archiveenabled');
 		expect(archiveRow).toBeDefined();
 		expect(archiveRow?.value).toBe('true');
+	});
+
+	test('TC11 — RV-12: Nhập OutputPath bị từ chối; FileNamePattern bắt buộc có {serial} hoặc {timestamp}', async () => {
+		const itemsInvalid: ConfigRow[] = [
+			{ id: '1', key: 'OutputPath', value: '/mnt/out/file.json', showSecret: false },
+			{ id: '2', key: 'FileNamePattern', value: 'static_name.json', showSecret: false },
+		];
+
+		// OutputPath (hàng 0) bị báo lỗi bãi bỏ
+		const errOutputPath = getKeyError(itemsInvalid, 0, mockI18n);
+		expect(errOutputPath).toBe('Thuộc tính [OutputPath] đã bị bãi bỏ. Vui lòng sử dụng [DirectoryPath] và [FileNamePattern]');
+
+		// FileNamePattern thiếu biến (hàng 1)
+		const errMissingVar = getKeyError(itemsInvalid, 1, mockI18n);
+		expect(errMissingVar).toBe('FileNamePattern phải chứa ít nhất {serial} hoặc {timestamp} để tránh ghi đè tệp');
+
+		// FileNamePattern hợp lệ (mảng riêng)
+		const itemsValid: ConfigRow[] = [
+			{ id: '3', key: 'FileNamePattern', value: 'data_{timestamp}_{serial}.json', showSecret: false },
+		];
+		const errValidPattern = getKeyError(itemsValid, 0, mockI18n);
+		expect(errValidPattern).toBeNull();
+	});
+
+	test('TC12 — RV-13: JSON lỗi định dạng không bị xóa âm thầm khi lưu', async () => {
+		const editorContent = fs.readFileSync(editorComponentPath, 'utf-8');
+		// Component phải có biến rawInvalidJson, alert cảnh báo lỗi cú pháp và nút xóa lỗi
+		expect(editorContent).toContain('rawInvalidJson');
+		expect(editorContent).toContain('lz.label.sharedataConnectionEditor.errInvalidJson');
+		expect(editorContent).toContain('clearInvalidJson');
+
+		// Giả lập đối tác có chuỗi JSON lỗi: {abc
+		const invalidJson = '{abc';
+		const items = parseJsonToList(invalidJson);
+		// Parse thất bại -> danh sách rỗng
+		expect(items.length).toBe(0);
+
+		// Logic giữ nguyên chuỗi cũ khi lưu nếu có rawInvalidJson
+		let rawInvalid: string | null = invalidJson;
+		const emitVal = rawInvalid ? rawInvalid : serializeListToJson(items);
+		expect(emitVal).toBe('{abc');
+
+		// Chỉ khi người dùng chủ động bấm xóa cấu hình lỗi thì rawInvalid mới về null
+		rawInvalid = null;
+		const emitAfterClear = rawInvalid ? rawInvalid : serializeListToJson(items);
+		expect(emitAfterClear).toBeNull();
 	});
 });

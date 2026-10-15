@@ -31,10 +31,12 @@ participants:
 
 ## 1. Tóm tắt nội dung & Quyết định kỹ thuật cốt lõi (Executive Summary)
 
+> **Cập nhật yêu cầu sau cuộc họp — người dùng chốt ngày 14/10/2026:** gói **105 mặc định Snapshot** theo [mapping 105 `All/update`](../02-mapping-goi-tin-101-111.md); setting gói cho chọn Snapshot/Incremental và Worker dùng setting đã lưu. Gói **110 được tạo/cấu hình bình thường**, bổ sung bảng mô phỏng và dữ liệu giả. Viết sẵn code Kafka producer, CSV/FTP, mã hóa, cleanup để dùng khi cấu hình áp dụng; phải chạy Playwright sau sửa FE. Các quyết định bổ sung này ưu tiên khi đối chiếu yêu cầu hiện hành; lời thoại và raw notes lịch sử bên dưới được giữ nguyên, không phải bằng chứng code đã triển khai.
+
 ### 1.1. Kiến trúc Truy vấn động (Dynamic Query) & Gói tin mẫu (Template Packet)
 - **Thực trạng cũ:** Câu lệnh trích xuất dữ liệu của 11 gói tin (101 - 110) bị hardcode cứng trong mã nguồn C# của Service Worker. Mỗi khi đối tác yêu cầu thêm cột, đổi bảng hoặc đổi điều kiện lọc, lập trình viên phải sửa code và build lại Worker.
 - **Quyết định kỹ thuật:**
-  - **Chuyển sang Truy vấn động (Dynamic Query):** Lưu trữ các câu lệnh SQL trích xuất dữ liệu trong CSDL (`ShareDataPacketExtractSql` hoặc cấu hình gói tin theo đối tác).
+  - **Chuyển sang Truy vấn động (Dynamic Query):** Lưu trữ các câu lệnh SQL trích xuất dữ liệu trực tiếp trong CSDL (lưu chuỗi câu truy vấn dạng template theo gói tin và cấu hình ánh xạ theo đối tác; trong băng ghi âm cuộc họp hoàn toàn **KHÔNG** nhắc đến tên bảng `ShareDataPacketExtractSql`, các bên chỉ chốt lưu trong CSDL/bảng chung thay vì lưu file hay tạo bảng riêng).
   - **Cơ chế Gói tin mẫu (Template / Default Query):** Khi tạo mới cấu hình cho một đối tác, hệ thống tự động tải (load) câu SQL mẫu chuẩn mực của gói tin đó (ví dụ chọn gói 101 sẽ tự nạp SQL trích xuất trạng thái đoạn đường mặc định). Tránh để màn hình trống trơn khiến người dùng phải tự viết lại từ đầu hoặc copy thủ công từ nơi khác.
   - **Giao diện cấu hình trực quan & Thẩm định:** Giao diện cho phép người dùng (phân quyền `SuperAdmin`) xem và chỉnh sửa câu lệnh SQL. Hạn chế dùng `textarea` đơn thuần gây xấu và khó nhìn; ưu tiên tích hợp trình soạn thảo có highlight cú pháp hoặc Query Builder trực quan. Phía Backend bắt buộc có bộ kiểm tra an toàn (Validator chỉ cho phép `SELECT`, cấm DDL/DML) và ghi Audit Log đầy đủ.
   - **Ưu tiên Raw SQL lưu DB hơn Store Procedure:** Nếu viết Store Procedure trong DB thì khi cần sửa logic trên giao diện Web rất khó cập nhật; trong khi lưu chuỗi SQL trong DB thì WebAPI dễ dàng nạp, hiển thị và cho phép chỉnh sửa trực tiếp.
@@ -86,19 +88,35 @@ participants:
   - Hỗ trợ chuyển đổi sang mảng byte (`byte[]`) phục vụ đẩy vào Kafka hoặc socket.
 - **Mã hóa và định dạng nâng cao (Protobuf / ASN.1):**
   - Đề cập đến nhu cầu mã hóa bất đối xứng (Public/Private Key) và các chuẩn giao thức ITS chuyên dụng (như ASN.1 trong thu phí VETC, Protobuf).
-  - **Chốt phương án:** Trong giai đoạn hiện tại, **chưa triển khai mã hóa ngay**. Kiến trúc chỉ cần để ngỏ (chừa sẵn interface/seam) để sau này bổ sung hàm mã hóa/giải mã ở giữa tầng xử lý và tầng kết nối mà không làm ảnh hưởng đến luồng code đang chạy.
+  - **Kết luận tại cuộc họp:** chưa áp dụng mã hóa ngay, chừa điểm mở rộng giữa xử lý dữ liệu và kết nối.
+  - **Yêu cầu bổ sung đã chốt 14/10/2026:** viết sẵn cấu trúc code/provider encode–decode để dùng khi cấu hình áp dụng; việc chưa bật mã hóa không đồng nghĩa được bỏ phần code chuẩn bị. Không coi chỉ có TODO/interface là đã hoàn tất yêu cầu mới.
 
 ### 1.6. Chính sách gói tin từ 101 - 110 & Kiểm thử giả lập (Simulation)
-- **Gói gửi Full:** Các gói như 101, 102, 108 gửi toàn bộ hiện trạng. Hệ thống không ép mức trần cố định bằng code backend; nếu cần giới hạn số lượng bản ghi (để tránh nghẽn), người quản trị có thể tự thêm `TOP 100` hoặc `TOP 500` trực tiếp vào câu lệnh SQL trên giao diện.
-- **Gói gửi Nối đuôi:** Các gói như 103, 104, 105, 106, 107, 109 chỉ quét các bản ghi mới hơn `@LastKey`.
-- **Gói tin chưa có bảng DB thật (như gói 110):**
-  - Tạm thời đặt cờ không sử dụng hoặc ẩn khỏi danh sách kích hoạt.
-  - Khi cần demo thông luồng, có thể cấu hình câu SQL giả lập (giả lập trả về cấu trúc dữ liệu theo spec) để Worker chạy xuyên suốt qua cả 3 bước mà không bị lỗi gãy luồng.
+- **Chế độ mặc định theo [mapping 101–111](../02-mapping-goi-tin-101-111.md)** (ghi chú trong ngoặc ở tiêu đề từng gói):
+
+  | Gói | Ghi chú trong mapping | Mặc định |
+  |---|---|---|
+  | 101 | lấy all / DL được cập nhật | Gửi toàn bộ (Snapshot) |
+  | 102 | lấy all / DL được cập nhật → nats | Gửi toàn bộ (Snapshot) |
+  | 103 | lấy mới nhất từ thời điểm trước đó >= key | Gửi nối đuôi (Incremental) |
+  | 104 | lấy mới nhất từ thời điểm trước đó >= key | Gửi nối đuôi (Incremental) |
+  | 105 | All / update | Gửi toàn bộ (Snapshot) |
+  | 106 | mới nhất từ >= key | Gửi nối đuôi (Incremental) |
+  | 107 | lấy mới nhất từ thời điểm trước đó >= key; giá trị cũ sẽ update trạng thái | Gửi nối đuôi (Incremental) |
+  | 108 | lấy all / DL được cập nhật → nats | Gửi toàn bộ (Snapshot) |
+  | 109 | lấy mới nhất từ thời điểm trước đó >= key | Gửi nối đuôi (Incremental) |
+  | 110 | all / opConfig → xóa hết trừ groupCode thuộc WP | Gửi toàn bộ (Snapshot) |
+  | 111 | skip | Không làm |
+
+- **Gói gửi toàn bộ:** không ép TOP cứng; muốn giới hạn thì thêm vào câu SQL đã cấu hình.
+- **Setting chế độ đồng bộ:** cho chọn Snapshot/Incremental trên cấu hình gói và Worker dùng setting đã lưu; danh sách mặc định không phải policy bất biến theo mã gói.
+- **Gói 110:** cuộc họp ban đầu đề xuất tạm khóa hoặc query giả lập khi chưa có dữ liệu. **Yêu cầu bổ sung đã chốt 14/10/2026** là cho tạo/cấu hình bình thường, triển khai bảng mô phỏng và dữ liệu giả để test cả luồng trích xuất, ánh xạ và gửi. Không tiếp tục dùng đề xuất tạm khóa như chính sách hiện hành.
 
 ### 1.7. Cơ chế dọn dẹp dữ liệu và file log định kỳ (Retention Policy)
 - Các file log gửi nhận và file dữ liệu tạm cần được tổ chức lưu trữ theo cấu trúc thư mục ngày tháng (`yyyy/MM/dd`).
 - Sau này sẽ bổ sung một tác vụ chạy định kỳ (Background Job) để tự động xóa các file tạm và bản ghi log cũ hơn 30 ngày (hoặc theo cấu hình hệ thống).
-- Ưu tiên công việc: Tính năng dọn dẹp log được xếp sau; ưu tiên hàng đầu là hoàn thành luồng kết nối và truy vấn động.
+- Ưu tiên tại cuộc họp: hoàn thành luồng kết nối và truy vấn động trước khi áp dụng dọn log.
+- **Yêu cầu bổ sung đã chốt 14/10/2026:** viết sẵn job cleanup theo cấu hình Enable/RetentionDays/phạm vi dữ liệu; chưa bật sử dụng cho đến khi áp dụng cấu hình. Theo dõi riêng code, kiểm thử và trạng thái kích hoạt.
 
 ---
 
@@ -265,7 +283,7 @@ participants:
 
 ## 1. Lưu Trữ & Quản Lý Truy Vấn Động SQL (Dynamic Query Extraction)
 
-- **Nguyên lý chuyển đổi:** Chuyển toàn bộ câu lệnh trích xuất dữ liệu từ việc hardcode trong mã nguồn C# sang lưu trữ, cấu hình và quản lý động trong CSDL (`ShareDataPacketExtractSql`).
+- **Nguyên lý chuyển đổi:** Chuyển toàn bộ câu lệnh trích xuất dữ liệu từ việc hardcode trong mã nguồn C# sang lưu trữ, cấu hình và quản lý động trực tiếp trong CSDL (lưu chuỗi câu truy vấn tại bảng gói tin mẫu và bảng cấu hình ánh xạ đối tác, không tạo bảng riêng `ShareDataPacketExtractSql`).
 - **Phân loại quản lý:**
   - **Đối tác** (`PartnerCode`): Cho phép tuỳ biến câu lệnh theo từng đối tác cụ thể.
   - **Gói tin** (`PacketCode`): 101 – 111.
@@ -394,3 +412,17 @@ a,b,c,d,e    44444  dong bo voi Backend (thu phi vetc)
 ASN.1 (tham khảo thêm thôi)
 ```
 
+==============================================
+# Note Cá nhân ShareData 14/10/2026
+
+- Build SQL UI, động tham khảo query build mà mình có làm sẵn rồi giờ cần build API lấy table, danh sách field dựa trên 02-mapping-goi-tin-101-111.md.
+- Khi chọn gói tin sẽ có SQL cấu trúc sẵn, SQL động đi theo gói tin vì mình không muốn khi tạo đối tác mới lại tạo lại SQL từ đầu.
+- Cấu hình kết nối dùng Dictionary trong C#, tham khảo cách truyền input và điều phối integration trong `IntgVmsManager.cs`; ghi chú kỹ thuật/raw notes đã được hợp nhất trong tệp transcript này.
+- Dữ liệu nhận parse lại sao cho luồng gửi và nhận giống nhau (hãy tham khảo luồng inbound đang xử lý như nào đối chiếu lại).
+- Viết sẵn cấu trúc mã hóa encode/decode, provider và cấu hình để dùng khi áp dụng; trạng thái bật sử dụng được theo dõi riêng.
+- Các gói snapshot gửi full hết không cần tốp mức trần gì hết.
+- Viết sẵn code cleanup theo cấu hình; chưa kích hoạt xóa ở môi trường sử dụng cho đến khi áp dụng cấu hình.
+- Gói 110 cho tạo/cấu hình bình thường; bổ sung bảng mô phỏng và dữ liệu giả, chuẩn bị script cấu trúc/seed để test toàn trình.
+- Gói 105 mặc định Snapshot theo `02-mapping-goi-tin-101-111.md` mục `All/update`; setting cấu hình gói cho chọn Snapshot/Incremental và Worker dùng setting đã lưu. Đây là quyết định đã chốt, không còn chờ xác nhận.
+- Viết sẵn code Kafka producer, CSV/FTP và pipeline payload chung để dùng khi cấu hình áp dụng; phải phân biệt có code thực thi với đã bật kênh sử dụng.
+- Sau sửa FE phải chạy lại Playwright, ghi rõ số pass/fail/skip hoặc lỗi môi trường cụ thể.

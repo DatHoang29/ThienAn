@@ -14,9 +14,31 @@ description: Backend .NET standards, Wolverine bus, SqlSugar ORM, Clean Architec
 
 ## 🏛️ 1. Cấu Trúc Module Chuẩn (Layer Separation)
 
-Hệ thống phân tách thành 2 tầng project chính:
-1. **`Modules.[TênHệ].Core`**: Chứa toàn bộ Entity, DTO (Data Transfer Object), Interfaces, Enums và Business Core Logic.
-2. **`Modules.[TênHệ]`**: Chứa Controllers, Application Services, Commands/Queries (Wolverine), FluentValidation, DI Extensions.
+> Nguồn đối chiếu của team: `TA-ITS015-WEBAPI-V1.0/.kiro/steering/structure.md`, `.kiro/steering/coding-rules.md` (Module) và `TA-ITS015-WEBAPI-V1.0/docs/PROJECT_STRUCTURE_WPF_WORKER_V3.md` (Service).
+
+### 1.1. Thuật ngữ "phân hệ" (Module / Service)
+* **Phân hệ** là một mảng nghiệp vụ: ShareData, VMS, VideoWall, TMS, VDS, Toll, CCTV, FMS, WP, Barrier, TrafficLight…
+* Mỗi phân hệ có 1 hoặc cả 2 dạng triển khai:
+  - **Module**: chạy trong host WebAPI `TAC_WebAPI`, đặt tại `src/Modules/<PhânHệ>/` (`Modules.<X>.Core` + `Modules.<X>`, có thể thêm `Modules.<X>.Report`).
+  - **Service**: tiến trình chạy độc lập (Worker / Windows Service, WPF), đặt tại `src/Services/<PhânHệ>/`.
+* Nói "phân hệ X" là gồm cả Module lẫn Service của X. Ví dụ phân hệ ShareData gồm Module `Module.ShareData*` và Service `ShareDataWorker*`.
+* Không phải phân hệ: module hạ tầng dùng chung (`CfgSystem`, `DataTransporter`, `Mail`, `Media`, `Notification`, `Report`), mẫu (`Samplev2`, `Services/Sample`), thư viện chung (`src/Shared`, `src/Services/Shared`).
+
+### 1.2. Cấu trúc Module
+1. **`Modules.<X>.Core`**: chỉ chứa hợp đồng — Entity, DTO, Interface, Enum, Constant, Exception/`BaseMsg`, Options, đăng ký DI (`Extensions`). ⛔ **CẤM** đặt logic xử lý nghiệp vụ trong Core của module.
+2. **`Modules.<X>`**: Controllers, Commands/Queries (Wolverine), FluentValidation, DI Extensions và **logic xử lý tại `Infrastructure/Services/<ChứcNăng>/`**. ⛔ Không tạo thư mục `Services/` ngang hàng `Infrastructure/`.
+3. **Driver/giao thức với hệ thống hoặc thiết bị bên ngoài theo hãng** đặt tại `src/Modules/Integration/<PhânHệ>/` (`.Base` chứa interface, project theo hãng chứa phần cài đặt, project gốc làm manager), dùng bởi Module và/hoặc Service.
+
+### 1.3. Cấu trúc Service
+* Theo mẫu `src/Services/Sample` (V3): `Services.<X>` là thư viện lõi chứa logic dùng chung; `Services.<X>.Worker` / `Services.<X>.Wpf` là host mỏng, chỉ tham chiếu thư viện lõi; dùng `Services.Shared` / `Services.Shared.Runtime` (cấu hình nạp lại qua `IConfigLoader`, log, NATS).
+* Thư viện lõi của **service** (`Services.<X>`, `ITS.<X>.Core`) **được** chứa logic — khác với Core của module ở mục 1.2.
+* Service ưu tiên tham chiếu `Modules.<X>.Core` hoặc project Integration. Thư viện thuần mã (codec, formatter, connection keys/options, adapters...) dùng chung giữa module và service đặt thành project riêng `Modules.Integration.<PhânHệ>` (hoặc theo cấu trúc Integration), thuần BCL và không tham chiếu project nào có Furion/Web/SqlSugar; service **không** tham chiếu project module (chứa controller/handler). Việc service tham chiếu project module (hiện chỉ còn CCTV) là **độ lệch tạm thời**, không phải tiền lệ; phân hệ ShareData đã chuẩn hóa thành công sang `Modules.Integration.ShareData`.
+
+### 1.4. Lệch hiện có
+* Các chỗ lệch dưới đây chỉ chuẩn hóa khi có task riêng, không tự sửa kèm task khác:
+  - VDS/TMS để quy tắc thuần trong Core (`Modules.VDS.Core/Topology`, `Media`, `Modules.TMS.Core/Validators`).
+  - CCTV, FMS, WP dùng một project có thư mục `Core/` bên trong (mẫu cũ của `.kiro/steering`); CfgSystem có cả project `Modules.CfgSystem.Core` lẫn thư mục `Core/` trong `Modules.CfgSystem`.
+  - Tên project lẫn `Module.*` / `Modules.*`; service lẫn `ITS.<X>.*` / `Services.<X>.*` / `ShareDataWorker`.
 
 ### Cấu Hình `BaseController` & Swagger Auto-Discovery
 * Mỗi Module bắt buộc có `BaseController.cs` riêng tại `Modules.[TênHệ].Controllers`.

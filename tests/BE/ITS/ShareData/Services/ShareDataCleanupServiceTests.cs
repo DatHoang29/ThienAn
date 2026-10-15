@@ -185,5 +185,45 @@ namespace Tests.ShareData.Infrastructure.Services.Cleanup
             Assert.Contains("12 thư mục", log.Description);
             Assert.Contains("450 bản ghi", log.Description);
         }
+
+        [Fact]
+        public async Task CleanOldInboundPacketsAsync_WhenDisabledByPolicy_ReturnsZeroAndPreservesDonePackets_Test()
+        {
+            // Arrange
+            var db = host.Services.GetRequiredService<ISqlSugarClient>();
+            var inboundDb = db.AsTenant().IsAnyConnection("ShareDataDB")
+                ? db.AsTenant().GetConnectionScope("ShareDataDB")
+                : db;
+
+            var testId = Guid.NewGuid().ToString("N");
+            var packetId = "inbound_old_" + testId;
+
+            var packet = new ShareDataInboundPacket
+            {
+                ID = packetId,
+                PartnerCode = "PARTNER_TEST",
+                PacketCode = "101",
+                ProcessState = BaseEnums.InboundProcessState.Done,
+                RawContent = "{\"test\":true}"
+            };
+
+            await inboundDb.Insertable(packet).ExecuteCommandAsync();
+
+            await inboundDb.Ado.ExecuteCommandAsync(
+                "UPDATE dbo.ShareDataInboundPacket SET CreateTime = DATEADD(day, -45, GETDATE()) WHERE ID = @packetId",
+                new { packetId });
+
+            var service = new ShareDataCleanupService();
+
+            // Act
+            var deletedCount = await service.CleanOldInboundPacketsAsync(inboundDb, retentionDays: 30, batchSize: 500);
+
+            // Assert
+            Assert.Equal(0, deletedCount);
+
+            var checkPacket = await inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packetId);
+            Assert.NotNull(checkPacket);
+            Assert.Equal(BaseEnums.InboundProcessState.Done, checkPacket.ProcessState);
+        }
     }
 }

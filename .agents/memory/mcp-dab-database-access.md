@@ -13,9 +13,9 @@ metadata:
 
 | MCP server | DB | Notes |
 |---|---|---|
-| `mssql_dev` | local Docker `localhost:14333/DEV_ITS10` (container `tac_webapi_sqlserver`) | **stale** ShareData schema (has ShareDataDataSource/EventSource/MappingProfile; missing ShareDataPacket/Table/Mapping/CodeSet) |
+| `mssql_dev` | local Docker `localhost:14333/DEV_ITS10` (container `tac_webapi_sqlserver`) | **Nguồn DB chuẩn khi review/plan/prompt** (rule 16/10/2026). Người dùng đã import bản export staging vào đây ngày 14/10/2026 (mới có schema). |
 | `mssql_test` | local Docker `localhost:14333/test` | |
-| `mssql_staging` | **`10.10.8.30/dev_its10`** (`sa` / `Tac@@1234`) | **source of truth** — has the current branch ShareData schema. Use this for ShareData work. |
+| `mssql_staging` | **`10.10.8.30/dev_its10`** | Chỉ dùng khi người dùng yêu cầu trực tiếp (rule 16/10/2026: review/plan/prompt chỉ đối chiếu local; staging do người dùng tự kiểm). |
 
 Setup fixed 2026-08-27 (was fully broken — DAB CLI not installed):
 - Created `c:\ThienAn\dotnet-tools.json` pinning `Microsoft.DataApiBuilder` 2.0.12. Needs

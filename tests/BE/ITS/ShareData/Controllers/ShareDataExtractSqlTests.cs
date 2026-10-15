@@ -22,7 +22,7 @@ namespace Tests.ShareData.Controllers;
 /// Created date: 13/10/2026
 /// </summary>
 [Collection("api")]
-public class ShareDataPacketExtractSqlTests(Host host)
+public class ShareDataExtractSqlTests(Host host)
 {
     private readonly IHttpContextAccessor _httpContextAccessor = host.Services.GetRequiredService<IHttpContextAccessor>();
 
@@ -93,7 +93,7 @@ public class ShareDataPacketExtractSqlTests(Host host)
 
         // Act & Assert
         var ex = await Assert.ThrowsAsync<AppFriendlyException>(() => handler.HandleAsync(input));
-        Assert.Contains("Chỉ tài khoản SuperAdmin", ex.Message);
+        Assert.True(ex.Message.Contains("Chỉ tài khoản SuperAdmin") || ex.Message.Contains(BaseMsg.ShareData.Exception.SuperAdminRequiredForSqlEdit));
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public class ShareDataPacketExtractSqlTests(Host host)
 
         // Act & Assert
         var ex = await Assert.ThrowsAsync<AppFriendlyException>(() => handler.HandleAsync(input));
-        Assert.Contains("Chỉ tài khoản SuperAdmin", ex.Message);
+        Assert.True(ex.Message.Contains("Chỉ tài khoản SuperAdmin") || ex.Message.Contains(BaseMsg.ShareData.Exception.SuperAdminRequiredForSqlView));
     }
 
     [Fact]
@@ -474,7 +474,7 @@ public class ShareDataPacketExtractSqlTests(Host host)
             ExtractSql = "SELECT ID, Code FROM ShareDataPacket"
         }));
 
-        Assert.Contains("chưa có hồ sơ ánh xạ chiều gửi đang bật", ex.Message);
+        Assert.True(ex.Message.Contains("chưa có hồ sơ ánh xạ chiều gửi đang bật") || ex.Message.Contains(BaseMsg.ShareData.Exception.PartnerMappingNotFound));
     }
 
     [Theory]
@@ -588,5 +588,217 @@ public class ShareDataPacketExtractSqlTests(Host host)
         Assert.NotNull(result.Columns);
         Assert.Contains("ID", result.Columns);
         Assert.NotNull(result.Rows);
+    }
+
+    [Fact]
+    public async Task ExecutePacketSqlSample_BenchmarkWithoutTop_MeasuresExecutionTime_Test()
+    {
+        var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
+        SetUserContext(isSuperAdmin: true, account: operatorAccount);
+
+        var scope = host.Services.CreateScope();
+        var queryHandler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlQueryHandler>();
+
+        var input = new ExecutePacketSqlSampleInput
+        {
+            PacketCode = "101",
+            ExtractSql = "SELECT ID, Code, Name FROM ShareDataPacket",
+            Top = 5
+        };
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var result = await queryHandler.HandleAsync(input);
+        sw.Stop();
+
+        Assert.True(result.IsSuccess, result.ErrorMessage);
+        Assert.NotNull(result.Rows);
+        Assert.True(result.Rows.Count <= 5);
+        Assert.True(sw.ElapsedMilliseconds < 3000, $"Thời gian thực thi: {sw.ElapsedMilliseconds}ms");
+    }
+
+    [Fact]
+    public async Task UpdateExtractSql_WhenIncrementalPacketWithoutIncrementalStructure_ThrowsOops_Test()
+    {
+        // RV-4: Lưu SQL cho gói 103 (Incremental trên DB) không gửi SyncKind, SQL thiếu __rowid -> bị từ chối
+        var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
+        SetUserContext(isSuperAdmin: true, account: operatorAccount);
+
+        var db = host.Services.GetRequiredService<ISqlSugarClient>();
+        var existing = await db.Queryable<ShareDataPacket>().Where(x => x.Code == "103").FirstAsync();
+        if (existing == null)
+        {
+            await db.Insertable(new ShareDataPacket { ID = Guid.NewGuid().ToString("N"), Code = "103", Name = "VDS Data", SyncKind = 2, Status = BaseEnums.StatusEnum.Enable }).ExecuteCommandAsync();
+        }
+        else if (existing.SyncKind != 2)
+        {
+            existing.SyncKind = 2;
+            await db.Updateable(existing).UpdateColumns(p => new { p.SyncKind }).ExecuteCommandAsync();
+        }
+
+        var scope = host.Services.CreateScope();
+        var commandHandler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlCommandHandler>();
+
+        var ex = await Assert.ThrowsAsync<AppFriendlyException>(() => commandHandler.HandleAsync(new UpdatePacketExtractSqlInput
+        {
+            PacketCode = "103",
+            SyncKind = null,
+            ExtractSql = "SELECT TOP (@pageSize) ID, Code, CreateTime AS __lastTime FROM ShareDataPacket ORDER BY CreateTime ASC"
+        }));
+
+        Assert.True(ex.ErrorMessage?.ToString() == BaseMsg.ShareData.Validation.SqlIncrementalMissingRowid
+            || ex.Message.Contains("__rowid")
+            || ex.Message.Contains("sqlIncrementalMissingRowid"));
+    }
+
+    [Fact]
+    public async Task UpdateExtractSql_WhenIncrementalSqlHasDescOrderBy_ThrowsOops_Test()
+    {
+        // RV-4: SQL nối đuôi có ORDER BY __lastTime DESC -> bị từ chối
+        var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
+        SetUserContext(isSuperAdmin: true, account: operatorAccount);
+
+        var db = host.Services.GetRequiredService<ISqlSugarClient>();
+        var existing = await db.Queryable<ShareDataPacket>().Where(x => x.Code == "103").FirstAsync();
+        if (existing == null)
+        {
+            await db.Insertable(new ShareDataPacket { ID = Guid.NewGuid().ToString("N"), Code = "103", Name = "VDS Data", Status = BaseEnums.StatusEnum.Enable }).ExecuteCommandAsync();
+        }
+
+        var scope = host.Services.CreateScope();
+        var commandHandler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlCommandHandler>();
+
+        var ex = await Assert.ThrowsAsync<AppFriendlyException>(() => commandHandler.HandleAsync(new UpdatePacketExtractSqlInput
+        {
+            PacketCode = "103",
+            SyncKind = 2,
+            ExtractSql = "SELECT TOP (@pageSize) ID AS __rowid, Code, CreateTime AS __lastTime FROM ShareDataPacket ORDER BY __lastTime DESC"
+        }));
+
+        Assert.True(ex.ErrorMessage?.ToString() == BaseMsg.ShareData.Validation.SqlIncrementalOrderByDescNotAllowed
+            || ex.Message.Contains("DESC")
+            || ex.Message.Contains("sqlIncrementalOrderByDescNotAllowed"));
+    }
+
+    [Fact]
+    public async Task UpdateExtractSql_WhenLookbackDaysResetToNull_ClearsDatabaseValue_Test()
+    {
+        // RV-5: Lưu LookbackDays = 7, lưu lại với null -> đọc lại ra null
+        var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
+        SetUserContext(isSuperAdmin: true, account: operatorAccount);
+
+        var db = host.Services.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var packetCode = $"PKT_{unique}";
+        await db.Insertable(new ShareDataPacket { ID = Guid.NewGuid().ToString("N"), Code = packetCode, Name = $"Packet {unique}", Status = BaseEnums.StatusEnum.Enable }).ExecuteCommandAsync();
+
+        var scope = host.Services.CreateScope();
+        var commandHandler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlCommandHandler>();
+        var queryHandler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlQueryHandler>();
+
+        await commandHandler.HandleAsync(new UpdatePacketExtractSqlInput
+        {
+            PacketCode = packetCode,
+            SyncKind = 1,
+            LookbackDays = 7,
+            ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM ShareDataPacket"
+        });
+
+        var out1 = await queryHandler.HandleAsync(new GetPacketExtractSqlInput { PacketCode = packetCode });
+        Assert.Equal(7, out1.LookbackDays);
+
+        await commandHandler.HandleAsync(new UpdatePacketExtractSqlInput
+        {
+            PacketCode = packetCode,
+            SyncKind = 1,
+            LookbackDays = null,
+            ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM ShareDataPacket"
+        });
+
+        var out2 = await queryHandler.HandleAsync(new GetPacketExtractSqlInput { PacketCode = packetCode });
+        Assert.Null(out2.LookbackDays);
+    }
+
+    [Theory]
+    [InlineData("SELECT * FROM OtherDb.dbo.TmsZone")]
+    [InlineData("SELECT ConnectionConfig FROM ShareDataPartner")]
+    [InlineData("SELECT * FROM SysOrg")]
+    public void Validate_When3PartTableNameOrSysTableOrPartnerTable_FailsValidation_Test(string sql)
+    {
+        // RV-7: Chặn CSDL khác và bảng chứa bí mật
+        var (isValid, errorMsg) = ShareDataSqlValidator.Validate(sql);
+        Assert.False(isValid);
+        Assert.NotNull(errorMsg);
+    }
+
+    [Fact]
+    public async Task UpdateExtractSql_WhenPacketSyncKindIs2AndCommandSyncKindIsNull_ValidatesIncrementalStructure_Test()
+    {
+        // 2.3: Packet có SyncKind = 2, command gửi SyncKind = null -> Vẫn kiểm cấu trúc nối đuôi
+        var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
+        SetUserContext(isSuperAdmin: true, account: operatorAccount);
+
+        var db = host.Services.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var packetCode = $"PKT_INCR_{unique}";
+        await db.Insertable(new ShareDataPacket
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Code = packetCode,
+            Name = $"Packet Incremental {unique}",
+            SyncKind = 2, // Incremental
+            Status = BaseEnums.StatusEnum.Enable
+        }).ExecuteCommandAsync();
+
+        var scope = host.Services.CreateScope();
+        var commandHandler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlCommandHandler>();
+
+        // Act & Assert: SQL không có __lastTime và __rowid -> fail cấu trúc nối đuôi
+        var ex = await Assert.ThrowsAsync<AppFriendlyException>(() => commandHandler.HandleAsync(new UpdatePacketExtractSqlInput
+        {
+            PacketCode = packetCode,
+            SyncKind = null, // Không truyền SyncKind trong command
+            ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM ShareDataPacket"
+        }));
+
+        Assert.True(ex.ErrorMessage?.ToString() == BaseMsg.ShareData.Validation.SqlIncrementalMissingOrderBy
+            || ex.Message.Contains("sqlIncrementalMissing")
+            || ex.Message.Contains("ORDER BY"));
+    }
+
+    [Fact]
+    public async Task UpdateExtractSql_WhenPacketSyncKindIsNullAndCommandSyncKindIsNull_DefaultsToSnapshot_AllowsSnapshotSql_Test()
+    {
+        // 2.3: Packet có SyncKind = null, command gửi SyncKind = null -> Mặc định Snapshot, không kiểm nối đuôi
+        var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
+        SetUserContext(isSuperAdmin: true, account: operatorAccount);
+
+        var db = host.Services.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var packetCode = $"PKT_SNAP_{unique}";
+        await db.Insertable(new ShareDataPacket
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Code = packetCode,
+            Name = $"Packet Snapshot {unique}",
+            SyncKind = null, // NULL
+            Status = BaseEnums.StatusEnum.Enable
+        }).ExecuteCommandAsync();
+
+        var scope = host.Services.CreateScope();
+        var commandHandler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlCommandHandler>();
+        var queryHandler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlQueryHandler>();
+
+        // Act: SQL dạng Snapshot bình thường (không có __lastTime hay __rowid)
+        await commandHandler.HandleAsync(new UpdatePacketExtractSqlInput
+        {
+            PacketCode = packetCode,
+            SyncKind = null,
+            ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM ShareDataPacket"
+        });
+
+        // Assert: Lưu thành công
+        var output = await queryHandler.HandleAsync(new GetPacketExtractSqlInput { PacketCode = packetCode });
+        Assert.NotNull(output);
+        Assert.Contains("SELECT TOP (@pageSize) ID, Code FROM ShareDataPacket", output.ExtractSql);
     }
 }

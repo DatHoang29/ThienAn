@@ -225,6 +225,26 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const rowBox3 = await searchForm.locator('.el-row').first().boundingBox();
         expect(rowBox3).not.toBeNull();
         expect(boxAlias3!.width / rowBox3!.width).toBeGreaterThan(0.90);
+
+        // Kiểm tra tại màn hình nhỏ hẹp 937px x 692px: input và cụm nút không bị tràn mép / khuất phía sau
+        await page.setViewportSize({ width: 937, height: 692 });
+        await page.waitForTimeout(300);
+
+        const cardBoxNarrow = await cardField.boundingBox();
+        const inputAliasBox = await colAlias.locator('.el-input').boundingBox();
+        const searchBtn = colBtn.locator('.search-btn-wrapper button').first();
+        const resetBtn = colBtn.locator('.search-btn-wrapper button').nth(1);
+
+        expect(cardBoxNarrow).not.toBeNull();
+        expect(inputAliasBox).not.toBeNull();
+        await expect(searchBtn).toBeVisible();
+        await expect(resetBtn).toBeVisible();
+
+        const resetBtnBox = await resetBtn.boundingBox();
+        expect(resetBtnBox).not.toBeNull();
+        // Cả ô input và nút Làm mới đều nằm gọn trong card và màn hình, không bị khuất sau mép phải
+        expect(inputAliasBox!.x + inputAliasBox!.width).toBeLessThanOrEqual(cardBoxNarrow!.x + cardBoxNarrow!.width + 2);
+        expect(resetBtnBox!.x + resetBtnBox!.width).toBeLessThanOrEqual(937);
     });
 
     test('2. Không có bất kỳ luật !important nào trong toàn bộ CSS/SCSS của phân hệ ShareData', async () => {
@@ -1101,17 +1121,17 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(parsePacketNumber(undefined)).toBeNull();
 
         // 2. Kiểm thử resolvePacketPolicy
-        // Nhóm Snapshot: 101, 102, 105, 108 (Hiển thị nhãn 'Gửi full')
+        // Nhóm Snapshot: 101, 102, 105, 108 (Hiển thị key đa ngôn ngữ 'lz.label.sharedataDataSource.policySnapshot')
         expect(resolvePacketPolicy('101').policy).toBe('Snapshot');
-        expect(resolvePacketPolicy('101').label).toBe('Gửi full');
+        expect(resolvePacketPolicy('101').label).toBe('lz.label.sharedataDataSource.policySnapshot');
         expect(resolvePacketPolicy('101').tagType).toBe('success');
         expect(resolvePacketPolicy('102').policy).toBe('Snapshot');
         expect(resolvePacketPolicy('105').policy).toBe('Snapshot');
         expect(resolvePacketPolicy('108').policy).toBe('Snapshot');
 
-        // Nhóm AlwaysIncremental: 103, 104, 106, 107, 109 (Hiển thị nhãn 'Gửi nối đuôi')
+        // Nhóm AlwaysIncremental: 103, 104, 106, 107, 109 (Hiển thị key đa ngôn ngữ 'lz.label.sharedataDataSource.policyAlwaysIncremental')
         expect(resolvePacketPolicy('103').policy).toBe('AlwaysIncremental');
-        expect(resolvePacketPolicy('103').label).toBe('Gửi nối đuôi');
+        expect(resolvePacketPolicy('103').label).toBe('lz.label.sharedataDataSource.policyAlwaysIncremental');
         expect(resolvePacketPolicy('103').tagType).toBe('primary');
         expect(resolvePacketPolicy('104').policy).toBe('AlwaysIncremental');
         expect(resolvePacketPolicy('106').policy).toBe('AlwaysIncremental');
@@ -1962,6 +1982,44 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(subContent).toContain('openSqlCenter');
         expect(subContent).toContain('sqlScope');
         expect(subContent).toContain('openSqlCenter');
+    });
+
+    test('26. Query Builder bảo toàn ngữ nghĩa SQL và khóa Builder khi phát hiện khác biệt (RV-6)', async () => {
+        const qbPath = resolveWebvuePath('views/sharedata/dataSource/component/queryBuilder.vue');
+        const qbContent = fs.readFileSync(qbPath, 'utf8');
+
+        // Bắt buộc có hàm normalizeSqlForComparison
+        expect(qbContent).toContain('normalizeSqlForComparison');
+        // Bắt buộc so sánh normOriginal !== normRegenerated
+        expect(qbContent).toContain('normOriginal !== normRegenerated');
+        // Khóa canUseBuilder = false và thông báo vqbCannotFullyRepresent
+        expect(qbContent).toContain('vqbCannotFullyRepresent');
+        expect(qbContent).toContain("viewMode.value = 'raw'");
+
+        // Kiểm tra đa ngôn ngữ có định nghĩa thông báo
+        const viPath = resolveWebvuePath('i18n/lang/vi-vn.json');
+        const viContent = JSON.parse(fs.readFileSync(viPath, 'utf8'));
+        expect(viContent['lz.message.sharedataDataSource.vqbCannotFullyRepresent']).toBeDefined();
+
+        const enPath = resolveWebvuePath('i18n/lang/en-us.json');
+        const enContent = JSON.parse(fs.readFileSync(enPath, 'utf8'));
+        expect(enContent['lz.message.sharedataDataSource.vqbCannotFullyRepresent']).toBeDefined();
+    });
+
+    test('27. Hiển thị chế độ gửi và trạng thái gói theo dữ liệu DB (syncKind và status)', async () => {
+        // Gói 105 với syncKind: 2 -> AlwaysIncremental ("Gửi nối đuôi")
+        expect(resolvePacketPolicy(2, 1).policy).toBe('AlwaysIncremental');
+        expect(resolvePacketPolicy(2, 1).label).toBe('lz.label.sharedataDataSource.policyAlwaysIncremental');
+        expect(resolvePacketPolicy(2, 1).tagType).toBe('primary');
+
+        // Gói 110/111 với status: 0 -> Disabled ("Đã tắt")
+        expect(resolvePacketPolicy(null, 0).policy).toBe('Disabled');
+        expect(resolvePacketPolicy(2, 0).policy).toBe('Disabled');
+        expect(resolvePacketPolicy(1, 0).tagType).toBe('info');
+
+        // Gói với syncKind: null và status: 1 -> Mặc định Snapshot ("Gửi toàn bộ")
+        expect(resolvePacketPolicy(null, 1).policy).toBe('Snapshot');
+        expect(resolvePacketPolicy(undefined, 1).label).toBe('lz.label.sharedataDataSource.policySnapshot');
     });
 });
 

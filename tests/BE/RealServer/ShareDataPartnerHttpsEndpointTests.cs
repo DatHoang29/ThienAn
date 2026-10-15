@@ -1,3 +1,4 @@
+#if HAS_SHAREDATAWORKER
 using Module.ShareData.Core.Entities;
 using ShareDataWorker.Core.Models.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
@@ -85,3 +86,5 @@ namespace Tests.RealServer
         }
     }
 }
+#endif
+

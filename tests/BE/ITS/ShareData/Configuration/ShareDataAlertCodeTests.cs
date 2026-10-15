@@ -36,8 +36,8 @@ public class ShareDataAlertCodeTests
             }
         }
 
-        // Assert: 1. Tổng số mã lỗi đúng 23 (12 Outbound + 7 Inbound + 4 Tracking)
-        Assert.Equal(23, codes.Count);
+        // Assert: 1. Tổng số mã lỗi đúng 24 (13 Outbound + 7 Inbound + 4 Tracking)
+        Assert.Equal(24, codes.Count);
 
         // Assert: 2. Không có mã lỗi nào bị trùng lặp
         var distinctValues = codes.Select(c => c.Value).Distinct().ToList();
@@ -55,7 +55,7 @@ public class ShareDataAlertCodeTests
         var inboundCount = codes.Count(c => c.Group == nameof(ShareDataAlertCode.Inbound));
         var trackingCount = codes.Count(c => c.Group == nameof(ShareDataAlertCode.Tracking));
 
-        Assert.Equal(12, outboundCount);
+        Assert.Equal(13, outboundCount);
         Assert.Equal(7, inboundCount);
         Assert.Equal(4, trackingCount);
     }

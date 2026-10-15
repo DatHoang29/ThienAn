@@ -140,7 +140,17 @@
       "Bash(/opt/homebrew/bin/gortex hook *)",
       "mcp__mssql_dev__read_records",
       "mcp__mssql_dev__aggregate_records",
-      "Bash(rm \"/Users/hoangquydat/ThienAn/DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/Prompt/sharedata-ket-noi-luu-dem-chieu-nhan-prompt.md\" && ls -1 \"/Users/hoangquydat/ThienAn/DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/Prompt/\")"
+      "Bash(rm \"/Users/hoangquydat/ThienAn/DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/Prompt/sharedata-ket-noi-luu-dem-chieu-nhan-prompt.md\" && ls -1 \"/Users/hoangquydat/ThienAn/DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/Prompt/\")",
+      "mcp__mssql_dev__describe_entities",
+      "mcp__mssql_test__describe_entities",
+      "mcp__mssql_test__read_records",
+      "mcp__mssql_test__aggregate_records",
+      "Bash(command -v gortex node)",
+      "Bash(python3 -c ' *)",
+      "Bash(B=/private/tmp/claude-501/-Users-hoangquydat-ThienAn/600b353f-4f40-465f-80b4-a7cba01f4c63/scratchpad/settings.local.json.bak; jq '.hooks' \"$B\"; echo \"---- current keys\"; jq 'keys' .claude/settings.local.json; echo \"---- user-level hooks \\(command + timeout\\)\"; jq -c '.hooks | to_entries[] | {e:.key, m:.value[0].matcher, c:.value[0].hooks[0].command, t:.value[0].hooks[0].timeout}' ~/.claude/settings.json; echo \"---- gitignore?\"; git check-ignore -v .claude/settings.local.json || echo \"not ignored \\(tracked\\)\")",
+      "Read(//Users/hoangquydat/.claude/**)",
+      "Bash(node --test .agents/hooks/tests/)",
+      "Bash(node .agents/hooks/doctor.mjs)"
     ],
     "additionalDirectories": [
       "c:\\ThienAn\\DocBusinessThienAn\\HữuNghị-ChiLăng\\VideoWall",
@@ -157,7 +167,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/gortex-hook.mjs\"",
             "timeout": 3000,
             "statusMessage": "Watching for Gortex localization completion..."
           }
@@ -169,7 +179,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/gortex-hook.mjs\"",
             "timeout": 3000,
             "statusMessage": "Injecting Gortex orientation snapshot..."
           }
@@ -182,7 +192,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/gortex-hook.mjs\"",
             "timeout": 3000,
             "statusMessage": "Enforcing Gortex graph access policy..."
           }
@@ -194,7 +204,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/gortex-hook.mjs\"",
             "timeout": 3000,
             "statusMessage": "Loading Gortex graph orientation..."
           }
@@ -206,7 +216,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/gortex-hook.mjs\"",
             "timeout": 5000,
             "statusMessage": "Running Gortex post-task diagnostics..."
           }
@@ -218,7 +228,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/gortex-hook.mjs\"",
             "timeout": 3000,
             "statusMessage": "Starting an isolated Gortex subagent turn..."
           }
@@ -230,7 +240,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/gortex-hook.mjs\"",
             "timeout": 3000,
             "statusMessage": "Clearing Gortex subagent turn state..."
           }
@@ -242,7 +252,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "C:/Users/THISPC~1/AppData/Local/Programs/gortex/gortex.exe hook",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/gortex-hook.mjs\"",
             "timeout": 3000,
             "statusMessage": "Surfacing relevant Gortex symbols..."
           }

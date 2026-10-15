@@ -14,7 +14,7 @@
 - **Gortex-First & Default-as-Fallback Protocol**: Luôn luôn ưu tiên dùng bộ công cụ Gortex MCP (`call_mcp_tool` với `ServerName: "gortex"`) cho mọi thao tác mã nguồn (tìm kiếm symbol, usages, dependencies, call chain, đọc và sửa code); nếu Gortex không thực hiện được (bị lỗi, timeout, chưa index file, hoặc thao tác trên tài liệu Markdown) thì mới chuyển sang (fallback) dùng các công cụ mặc định (`view_file`, `grep_search`, `replace_file_content`).
 
 ## Database / MCP
-- [MCP DAB database access](mcp-dab-database-access.md) — 3 DAB MCP server; `mssql_staging` = 10.10.8.30 = source of truth
+- [MCP DAB database access](mcp-dab-database-access.md) — 3 DAB MCP server; review/plan/prompt dùng `mssql_dev`/`mssql_test` (local), `mssql_staging` chỉ khi người dùng yêu cầu
 - [Read-only DB queries: just run them](read-only-db-queries-just-run.md) — chạy read không cần hỏi; vẫn cấm write
 
 ## Reference

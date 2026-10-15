@@ -1,4 +1,4 @@
-using Module.ShareData.Core.Connection;
+using Modules.Integration.ShareData;
 using Xunit;
 
 namespace Tests.ShareData.Configuration

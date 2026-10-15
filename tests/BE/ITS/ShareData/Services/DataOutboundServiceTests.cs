@@ -1,5 +1,6 @@
 using System.Net;
 using System.Reflection;
+using Tests.ShareData.Common;
 using ShareDataWorker.Core.Utils.Parsing;
 using ShareDataWorker.Core.Interfaces.DataOutbound;
 using ShareDataWorker.Core.Models.DataOutbound;
@@ -570,7 +571,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             await PacketMetadataCatalogTest.SeedPacketToDb(db, "104");
             var unique = Guid.NewGuid().ToString("N")[..8];
             var dbNow = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
-            var baseTime = new DateTime(dbNow.Year, dbNow.Month, dbNow.Day, dbNow.Hour, dbNow.Minute, 0).AddHours(-1);
+            var maxExisting = await db.Queryable<TmsWeather>().MaxAsync(w => (DateTime?)w.UpdateTime) ?? dbNow;
+            var baseTime = (maxExisting > dbNow ? maxExisting : dbNow).AddSeconds(1);
 
             var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
             {
@@ -990,9 +992,15 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                     Code = packetCodeWithSuffix,
                     Name = "Dữ liệu giao thông chung",
                     PacketVersion = "1.0",
-                    OrderNo = 1
+                    OrderNo = 1,
+                    ExtractSql = ShareDataPacketTemplatesTests.GetExtractSql(packetCodeWithSuffix)
                 };
                 await db.Insertable(packet).ExecuteCommandAsync();
+            }
+            else if (string.IsNullOrWhiteSpace(packet.ExtractSql))
+            {
+                packet.ExtractSql = ShareDataPacketTemplatesTests.GetExtractSql(packetCodeWithSuffix);
+                await db.Updateable(packet).ExecuteCommandAsync();
             }
 
             var existingFields = await db.Queryable<ShareDataPacketField>().Where(f => f.DatatypeId == packetCodeWithSuffix).ToListAsync();
@@ -1086,7 +1094,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 var alerts = await db.Queryable<ShareDataAlertLog>()
                     .Where(a => a.SubscriptionId == sub.ID)
                     .ToListAsync();
-                Assert.Contains(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.HttpSendFailed);
+                Assert.Contains(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.ArchiveFailed);
 
                 var updatedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
                 Assert.Null(updatedSub.LastTimeRun);
@@ -1150,7 +1158,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 var alerts = await db.Queryable<ShareDataAlertLog>()
                     .Where(a => a.SubscriptionId == sub.ID)
                     .ToListAsync();
-                Assert.Contains(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.HttpSendFailed && a.Severity == BaseEnums.AlertSeverity.Warning);
+                Assert.Contains(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.ArchiveFailed && a.Severity == BaseEnums.AlertSeverity.Warning);
 
                 var updatedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
                 Assert.Null(updatedSub.LastTimeRun);
@@ -1214,7 +1222,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 var alerts = await db.Queryable<ShareDataAlertLog>()
                     .Where(a => a.SubscriptionId == sub.ID)
                     .ToListAsync();
-                Assert.Contains(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.HttpSendFailed && a.Severity == BaseEnums.AlertSeverity.Warning);
+                Assert.Contains(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.ArchiveFailed && a.Severity == BaseEnums.AlertSeverity.Warning);
 
                 var updatedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
                 Assert.Null(updatedSub.LastTimeRun);
@@ -1293,9 +1301,15 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                     Code = "101_commonData",
                     Name = "Dữ liệu giao thông chung",
                     PacketVersion = "1.0",
-                    OrderNo = 1
+                    OrderNo = 1,
+                    ExtractSql = ShareDataPacketTemplatesTests.GetExtractSql("101_commonData")
                 };
                 await db.Insertable(packet).ExecuteCommandAsync();
+            }
+            else if (string.IsNullOrWhiteSpace(packet.ExtractSql))
+            {
+                packet.ExtractSql = ShareDataPacketTemplatesTests.GetExtractSql("101_commonData");
+                await db.Updateable(packet).ExecuteCommandAsync();
             }
 
 
@@ -1380,9 +1394,15 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                     Code = "101_commonData",
                     Name = "Dữ liệu giao thông chung",
                     PacketVersion = "1.0",
-                    OrderNo = 1
+                    OrderNo = 1,
+                    ExtractSql = ShareDataPacketTemplatesTests.GetExtractSql("101_commonData")
                 };
                 await db.Insertable(packet).ExecuteCommandAsync();
+            }
+            else if (string.IsNullOrWhiteSpace(packet.ExtractSql))
+            {
+                packet.ExtractSql = ShareDataPacketTemplatesTests.GetExtractSql("101_commonData");
+                await db.Updateable(packet).ExecuteCommandAsync();
             }
 
             // Case 1: Partner bị Disable -> Không được chọn
@@ -2196,7 +2216,7 @@ END");
         /// <summary>
         /// Author: DatHQ
         /// Description: Kiểm thử thông luồng E2E Worker Outbound:
-        ///              - Trích xuất động qua câu truy vấn SQL trong ShareDataPacketExtractSql (Gói 101 Snapshot & Gói 103 Incremental).
+        ///              - Trích xuất động qua câu truy vấn SQL trong ShareDataPacket.ExtractSql (Gói 101 Snapshot & Gói 103 Incremental).
         ///              - Ánh xạ JSON schema chuẩn và Dispatch tới Đối tác REST API (HttpListener).
         ///              - Ghi ActivityLog phân cấp cha - con (Step 1, Step 2, Step 3) sạch sẽ, không nối lặp Description.
         ///              - Gói 103 (Incremental): Tịnh tiến mốc LastTime và LastKey trong ShareDataLastSend và ShareDataSubscription.
@@ -2481,6 +2501,166 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             Assert.NotNull(lastSend103);
             Assert.Equal(baseDetectTime, lastSend103.LastTime);
             Assert.Equal(trafficDataId, lastSend103.LastKey);
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử toàn trình gói 110 (PublicMessaging - Phương án A, dùng bảng có sẵn TmsIncident, TmsEquipment, VmsCurrent, TmsWeather):
+        ///              - Trích xuất dữ liệu từ các bảng có sẵn qua SQL Template động Snapshot.
+        ///              - Kiểm tra payload JSON gửi qua REST có đủ các trường: messageId, incidentMessage, weatherMessage, guidanceContent, locationKm, locationMet, publishedTime.
+        ///              - Chế độ Snapshot: Không tịnh tiến cursor ShareDataLastSend (LastKey luôn null).
+        ///              - Chạy chu kỳ 2: Tiếp tục gửi toàn bộ bản tin Snapshot hợp lệ.
+        ///              - Trạng thái Status = 0 (Disable): Worker bỏ qua không trích xuất và không sinh AlertLog.
+        /// Created date: 16/10/2026
+        /// </summary>
+        [Fact]
+        public async Task OutboundE2E_Packet110_SnapshotFromExistingTables_DispatchViaRest_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            var partnerServer = _host.PartnerServer;
+            partnerServer.ResetDefaults();
+
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var now = DateTime.Now;
+            var km = 85;
+            var met = 200;
+            var incidentId = $"INC_110_{unique}";
+
+            // 1. Seed dữ liệu vào các bảng nguồn có sẵn
+            await db.Insertable(new TmsIncident
+            {
+                ID = incidentId,
+                Code = $"INC_CODE_{unique}",
+                Name = "Sự cố kiểm thử 110",
+                Description = "Va chạm giao thông",
+                StartDate = now,
+                KmNumber = km,
+                MetNumber = met,
+                State = "PROCESSING",
+                CreateTime = now,
+                UpdateTime = now
+            }).ExecuteCommandAsync();
+
+            var eqId = $"EQ_110_{unique}";
+            await db.Insertable(new TmsEquipment
+            {
+                ID = eqId,
+                Code = $"EQ_CODE_{unique}",
+                KmNumber = km,
+                MetNumber = met,
+                Status = BaseEnums.StatusEnum.Enable,
+                CreateTime = now,
+                UpdateTime = now
+            }).ExecuteCommandAsync();
+
+            await db.Insertable(new VmsCurrent
+            {
+                ID = $"VMS_110_{unique}",
+                EquipmentId = eqId,
+                RowData = "CHÚ Ý SỰ CỐ KM85 - GIẢM TỐC ĐỘ",
+                ExecutedDate = now,
+                CreateTime = now,
+                UpdateTime = now
+            }).ExecuteCommandAsync();
+
+            await db.Insertable(new TmsWeather
+            {
+                ID = $"WEA_110_{unique}",
+                Description = "Trời mưa nhỏ tầm nhìn 1km",
+                TimeDetect = now,
+                CreateTime = now
+            }).ExecuteCommandAsync();
+
+            // 2. Seed Packet 110 với SQL Template chuẩn
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "110");
+            await db.Updateable<ShareDataPacket>()
+                .SetColumns(p => p.Status == BaseEnums.StatusEnum.Enable)
+                .SetColumns(p => p.SyncKind == 1)
+                .SetColumns(p => p.ExtractSql == ShareDataPacketTemplatesTests.Packet110_PublicMessaging)
+                .Where(p => p.Code == "110" || p.Code == "110_publicMessaging")
+                .ExecuteCommandAsync();
+
+            // 3. Đăng ký chia sẻ (Subscription)
+            var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_110_{unique}",
+                SubCode = $"SUB_110_{unique}",
+                DatatypeId = "110",
+                ConfigureSub = s =>
+                {
+                    s.Mode = BaseEnums.SubMode.Periodic;
+                    s.IntervalSeconds = 30;
+                }
+            });
+
+            var worker = CreateWorker(scope);
+
+            // Act: Chu kỳ 1
+            await worker.ProcessSubscriptions(CancellationToken.None);
+
+            // Assert Chu kỳ 1
+            var logs = await GetLogs(db, sub.ID);
+            Assert.NotEmpty(logs);
+            var parentLog = logs.First(l => l.ParentId == null);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, parentLog.Success);
+            Assert.True(parentLog.RecordCount > 0);
+
+            Assert.True(partnerServer.TotalReceivedRequests >= 1);
+            var lastRequest = partnerServer.LastRequest;
+            Assert.NotNull(lastRequest);
+            using var doc = JsonDocument.Parse(lastRequest.Body);
+            Assert.Equal(JsonValueKind.Array, doc.RootElement.ValueKind);
+            var item = doc.RootElement[0];
+
+            Assert.True(item.TryGetProperty("incidentMessage", out var incMsg));
+            Assert.Contains("Sự cố kiểm thử 110", incMsg.GetString());
+
+            Assert.True(item.TryGetProperty("weatherMessage", out var weaMsg));
+            Assert.Contains("Trời mưa nhỏ", weaMsg.GetString());
+
+            Assert.True(item.TryGetProperty("guidanceContent", out var guidMsg));
+            Assert.Contains("CHÚ Ý SỰ CỐ", guidMsg.GetString());
+
+            Assert.True(item.TryGetProperty("messageId", out var msgId));
+            Assert.Equal(incidentId, msgId.GetString());
+
+            // Chế độ Snapshot: LastKey của LastSend luôn là null
+            var lastSend = await db.Queryable<ShareDataLastSend>()
+                .Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == "110")
+                .FirstAsync();
+            Assert.Null(lastSend?.LastKey);
+
+            // Act & Assert: Chu kỳ 2 tiếp tục gửi full bản tin Snapshot
+            var dbNowCycle2 = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
+            await db.Updateable<ShareDataSubscription>()
+                .SetColumns(s => s.NextTimeRun == dbNowCycle2.AddSeconds(-10))
+                .Where(s => s.ID == sub.ID)
+                .ExecuteCommandAsync();
+            await worker.ProcessSubscriptions(CancellationToken.None);
+
+            var logsCycle2 = await GetLogs(db, sub.ID);
+            var parentLogs = logsCycle2.Where(l => l.ParentId == null).ToList();
+            Assert.Equal(2, parentLogs.Count);
+            Assert.All(parentLogs, p => Assert.Equal(BaseEnums.SuccessEnums.Success, p.Success));
+            Assert.Equal(parentLogs[0].RecordCount, parentLogs[1].RecordCount);
+
+            // Assert: Khi gói bị tắt (Status = 0 / Disable) -> Worker bỏ qua, không sinh thêm AlertLog
+            await db.Updateable<ShareDataPacket>()
+                .SetColumns(p => p.Status == BaseEnums.StatusEnum.Disable)
+                .Where(p => p.Code == "110" || p.Code == "110_publicMessaging")
+                .ExecuteCommandAsync();
+            var dbNowDisabled = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
+            await db.Updateable<ShareDataSubscription>()
+                .SetColumns(s => s.NextTimeRun == dbNowDisabled.AddSeconds(-10))
+                .Where(s => s.ID == sub.ID)
+                .ExecuteCommandAsync();
+
+            var alertsBefore = await db.Queryable<ShareDataAlertLog>().Where(a => a.SubscriptionId == sub.ID).CountAsync();
+            await worker.ProcessSubscriptions(CancellationToken.None);
+            var alertsAfter = await db.Queryable<ShareDataAlertLog>().Where(a => a.SubscriptionId == sub.ID).CountAsync();
+            Assert.Equal(alertsBefore, alertsAfter);
         }
 
         #endregion
@@ -6265,6 +6445,179 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             Assert.DoesNotContain("{\"", content);
         }
 
+        [Fact]
+        public async Task ProcessSubscriptions_WhenPacketDisabled_SkipsExportSilentlyWithoutAlertLog_Test()
+        {
+            // 2.2: Gói Status = Disable (như 110/111) có đăng ký -> không trích xuất, không gửi, không ghi ShareDataAlertLog
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var packetCode = $"110_DIS_{unique}";
+
+            await db.Insertable(new ShareDataPacket
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                Code = packetCode,
+                Name = $"Disabled Packet {unique}",
+                Status = BaseEnums.StatusEnum.Disable
+            }).ExecuteCommandAsync();
+
+            var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_DIS_{unique}",
+                SubCode = $"SUB_DIS_{unique}",
+                DatatypeId = packetCode
+            });
+
+            var worker = CreateWorker(scope);
+
+            // Act: Chạy 2 chu kỳ xuất bản
+            await worker.ProcessSubscriptions(CancellationToken.None);
+            await worker.ProcessSubscriptions(CancellationToken.None);
+
+            // Assert: Không ghi nhận ShareDataAlertLog nào cho subscription / partner
+            var alerts = await db.Queryable<ShareDataAlertLog>()
+                .Where(a => a.SubscriptionId == sub.ID || a.PartnerId == partner.ID)
+                .ToListAsync();
+            Assert.Empty(alerts);
+
+            var logs = await GetLogs(db, sub.ID);
+            Assert.Empty(logs);
+        }
+
+        [Fact]
+        public async Task ProcessSubscriptions_WhenPacketAndMappingSyncKindNull_DefaultsToSnapshot_Test()
+        {
+            // 2.2: Gói có SyncKind = null ở cả packet và mapping -> Fallback mặc định Snapshot (không ghi ShareDataLastSend)
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
+            var packet101 = await db.Queryable<ShareDataPacket>().Where(p => p.Code == "101").FirstAsync();
+            packet101.SyncKind = null;
+            await db.Updateable(packet101).UpdateColumns(p => new { p.SyncKind }).ExecuteCommandAsync();
+
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.TrafficFlow, unique);
+
+            var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_SNAP_{unique}",
+                SubCode = $"SUB_SNAP_{unique}",
+                DatatypeId = "101"
+            });
+
+            var mapping = await db.Queryable<ShareDataMapping>()
+                .Where(m => m.PartnerId == partner.ID && m.DatatypeId == "101")
+                .FirstAsync();
+            if (mapping != null)
+            {
+                mapping.SyncKind = null;
+                await db.Updateable(mapping).UpdateColumns(m => new { m.SyncKind }).ExecuteCommandAsync();
+            }
+
+            var worker = CreateWorker(scope);
+            await worker.ProcessSubscriptions(CancellationToken.None);
+
+            var logs = await GetLogs(db, sub.ID);
+            Assert.NotEmpty(logs);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
+
+            var lastSend = await db.Queryable<ShareDataLastSend>()
+                .Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == "101")
+                .FirstAsync();
+            Assert.Null(lastSend);
+        }
+
+        [Fact]
+        public async Task ProcessSubscriptions_WhenPacketDefaultAndMappingSyncKind2_RunsIncrementalAndUpdatesLastSend_Test()
+        {
+            // 2.2: Gói 105 mapping có SyncKind = 2 -> Chạy Incremental, cập nhật mốc ShareDataLastSend
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "105");
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.VehicleIdentification, unique);
+
+            var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_INCR_{unique}",
+                SubCode = $"SUB_INCR_{unique}",
+                DatatypeId = "105"
+            });
+
+            var mapping = await db.Queryable<ShareDataMapping>()
+                .Where(m => m.PartnerId == partner.ID && m.DatatypeId == "105")
+                .FirstAsync();
+            Assert.NotNull(mapping);
+            mapping.SyncKind = 2; // Incremental
+            await db.Updateable(mapping).UpdateColumns(m => new { m.SyncKind }).ExecuteCommandAsync();
+
+            var worker = CreateWorker(scope);
+            await worker.ProcessSubscriptions(CancellationToken.None);
+
+            var logs = await GetLogs(db, sub.ID);
+            Assert.NotEmpty(logs);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
+
+            var lastSend = await db.Queryable<ShareDataLastSend>()
+                .Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == "105")
+                .FirstAsync();
+            Assert.NotNull(lastSend);
+        }
+
+        [Fact]
+        public async Task ProcessSubscriptions_WhenPacketMissingExtractSql_LogsEsh1305_AndDoesNotAdvanceCursor_Test()
+        {
+            // Gói không có ExtractSql -> Ghi cảnh báo ESH-1305, không gửi, không tiến mốc LastSend
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var packetCode = $"103_NO_SQL_{unique}";
+
+            // Tạo gói tin không có ExtractSql
+            var packet = new ShareDataPacket
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                Code = packetCode,
+                Name = $"No SQL Packet {unique}",
+                PacketVersion = "1.0",
+                SyncKind = 2,
+                Status = BaseEnums.StatusEnum.Enable,
+                ExtractSql = null
+            };
+            await db.Insertable(packet).ExecuteCommandAsync();
+
+            var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_NOSQL_{unique}",
+                SubCode = $"SUB_NOSQL_{unique}",
+                DatatypeId = packetCode
+            });
+
+            var worker = CreateWorker(scope);
+            await worker.ProcessSubscriptions(CancellationToken.None);
+
+            // Kiểm tra: Bị ghi alert ESH-1305
+            var alerts = await db.Queryable<ShareDataAlertLog>()
+                .Where(a => a.SubscriptionId == sub.ID && a.AlertCode == ShareDataAlertCode.Outbound.ExtractSqlMissing)
+                .ToListAsync();
+            Assert.NotEmpty(alerts);
+
+            // Không tiến mốc LastSend (LastKey vẫn null, không có bản ghi commit)
+            var lastSend = await db.Queryable<ShareDataLastSend>()
+                .Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == packetCode)
+                .FirstAsync();
+            Assert.NotNull(lastSend);
+            Assert.Null(lastSend.LastKey);
+
+            var subAfter = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
+            Assert.Equal(0, subAfter.SerialNbr ?? 0);
+        }
+
         #endregion
 
         #region 3. Dữ Liệu Khởi Tạo (Seed), Cấu Hình Từ Điển (Dictionary) & Lớp Trợ Giúp (Private Helpers)
@@ -6280,7 +6633,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             [ShareDataEnum.DatatypeIdEnum.TrafficIncident] = ["incidentCode", "incidentName", "eventTypeId", "eventTypeName", "occurredTime", "locationKm", "locationMet", "locationRoute", "direction", "injuredCount", "vehicleCount", "incidentState", "description", "source"],
             [ShareDataEnum.DatatypeIdEnum.VmsDisplay] = ["equipmentCode", "vmsName", "locationKm", "locationMet", "direction", "laneId", "displayContent", "displayImageUrl", "displaySize", "priority", "executedTime"],
             [ShareDataEnum.DatatypeIdEnum.TollCollection] = ["transactionId", "entryTime", "exitTime", "vehicleTypeId", "licensePlate", "tagId", "laneId", "laneName", "stationId", "stationName", "tollPrice", "syncTime"],
-            [ShareDataEnum.DatatypeIdEnum.PublicMessaging] = ["incidentMessage", "guidanceContent", "locationKm", "locationMet", "publishedTime"],
+            [ShareDataEnum.DatatypeIdEnum.PublicMessaging] = ["messageId", "incidentMessage", "weatherMessage", "guidanceContent", "locationKm", "locationMet", "publishedTime"],
             [ShareDataEnum.DatatypeIdEnum.InterCenterExchange] = ["incidentCode", "incidentName", "locationKm", "locationMet", "description"]
         };
 
@@ -6632,6 +6985,13 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         RowData = "SUONG MU DAY - GIAM TOC DO",
                         ExecutedDate = now
                     }).ExecuteCommandAsync();
+                    await db.Insertable(new TmsWeather
+                    {
+                        ID = Guid.NewGuid().ToString("N"),
+                        Description = "Sương mù tầm nhìn dưới 100m",
+                        TimeDetect = now,
+                        CreateTime = now
+                    }).ExecuteCommandAsync();
                     break;
 
                 case ShareDataEnum.DatatypeIdEnum.InterCenterExchange:
@@ -6823,13 +7183,19 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         ID = Guid.NewGuid().ToString("N"),
                         Code = def.Packet.Code,
                         Name = def.Packet.Name,
-                        PacketVersion = def.Packet.PacketVersion
+                        PacketVersion = def.Packet.PacketVersion,
+                        SyncKind = def.Packet.SyncKind,
+                        Status = def.Packet.Status,
+                        ExtractSql = ShareDataPacketTemplatesTests.GetExtractSql(def.Packet.Code)
                     };
                     await db.Insertable(newPacket).ExecuteCommandAsync();
                 }
                 else
                 {
                     existingPacket.PacketVersion = def.Packet.PacketVersion;
+                    existingPacket.SyncKind = def.Packet.SyncKind;
+                    existingPacket.Status = def.Packet.Status;
+                    existingPacket.ExtractSql = ShareDataPacketTemplatesTests.GetExtractSql(def.Packet.Code);
                     await db.Updateable(existingPacket).ExecuteCommandAsync();
                 }
 
@@ -6880,7 +7246,9 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         ID = "packet_101",
                         Code = "101",
                         Name = "Thông tin chung / luồng giao thông",
-                        PacketVersion = "1.0"
+                        PacketVersion = "1.0",
+                        SyncKind = 1,
+                        Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
                     [
@@ -6906,7 +7274,9 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         ID = "packet_102",
                         Code = "102",
                         Name = "Dữ liệu hình ảnh giao thông (CCTV)",
-                        PacketVersion = "1.0"
+                        PacketVersion = "1.0",
+                        SyncKind = 1,
+                        Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
                     [
@@ -6928,7 +7298,9 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         ID = "packet_103",
                         Code = "103",
                         Name = "Dữ liệu dò xe (VDS)",
-                        PacketVersion = "1.0"
+                        PacketVersion = "1.0",
+                        SyncKind = 2,
+                        Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
                     [
@@ -6953,7 +7325,9 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         ID = "packet_104",
                         Code = "104",
                         Name = "Dữ liệu thời tiết",
-                        PacketVersion = "1.0"
+                        PacketVersion = "1.0",
+                        SyncKind = 2,
+                        Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
                     [
@@ -6979,7 +7353,9 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         ID = "packet_105",
                         Code = "105",
                         Name = "Dữ liệu định danh phương tiện (AVI/RFID)",
-                        PacketVersion = "1.0"
+                        PacketVersion = "1.0",
+                        SyncKind = 1,
+                        Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
                     [
@@ -7003,7 +7379,9 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         ID = "packet_106",
                         Code = "106",
                         Name = "Dữ liệu kiểm tra tải trọng xe (WIM)",
-                        PacketVersion = "1.0"
+                        PacketVersion = "1.0",
+                        SyncKind = 2,
+                        Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
                     [
@@ -7024,7 +7402,9 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         ID = "packet_107",
                         Code = "107",
                         Name = "Thông tin sự kiện giao thông",
-                        PacketVersion = "1.0"
+                        PacketVersion = "1.0",
+                        SyncKind = 2,
+                        Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
                     [
@@ -7052,7 +7432,9 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         ID = "packet_108",
                         Code = "108",
                         Name = "Thông tin biển báo điện tử (VMS)",
-                        PacketVersion = "1.0"
+                        PacketVersion = "1.0",
+                        SyncKind = 1,
+                        Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
                     [
@@ -7077,7 +7459,9 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         ID = "packet_109",
                         Code = "109",
                         Name = "Dữ liệu thu phí (ETC/MTC)",
-                        PacketVersion = "1.0"
+                        PacketVersion = "1.0",
+                        SyncKind = 2,
+                        Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
                     [
@@ -7103,15 +7487,21 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         ID = "packet_110",
                         Code = "110",
                         Name = "Trao đổi với người tham gia giao thông",
-                        PacketVersion = "1.0"
+                        PacketVersion = "1.0",
+                        SyncKind = 1,
+                        Status = BaseEnums.StatusEnum.Disable
                     },
                     Fields =
                     [
-                        new() { FieldKey = "incidentMessage", Expression = "CONCAT(ISNULL(i.Name, ''), ' - ', ISNULL(i.Description, ''))", DataType = "string", OrderNo = 1 },
-                        new() { FieldKey = "guidanceContent", Column = "RowData", DataType = "string", OrderNo = 2 },
-                        new() { FieldKey = "locationKm", Column = "KmNumber", DataType = "int", OrderNo = 3 },
-                        new() { FieldKey = "locationMet", Column = "MetNumber", DataType = "int", OrderNo = 4 },
-                        new() { FieldKey = "publishedTime", Column = "StartDate", DataType = "datetime", OrderNo = 5 }
+                        new() { FieldKey = "messageId", Expression = "CAST(i.ID AS NVARCHAR(64))", DataType = "string", OrderNo = 1 },
+                        new() { FieldKey = "incidentMessage", Expression = "CONCAT(ISNULL(i.Name, ''), ' - ', ISNULL(i.Description, ''))", DataType = "string", OrderNo = 2 },
+                        new() { FieldKey = "weatherMessage", Column = "Description", DataType = "string", OrderNo = 3 },
+                        new() { FieldKey = "guidanceContent", Column = "RowData", DataType = "string", OrderNo = 4 },
+                        new() { FieldKey = "locationKm", Column = "KmNumber", DataType = "int", OrderNo = 5 },
+                        new() { FieldKey = "locationMet", Column = "MetNumber", DataType = "int", OrderNo = 6 },
+                        new() { FieldKey = "publishedTime", Column = "StartDate", DataType = "datetime", OrderNo = 7 },
+                        new() { FieldKey = "channel", Expression = "CAST(NULL AS NVARCHAR(64))", DataType = "string", OrderNo = 8 },
+                        new() { FieldKey = "deliveryState", Expression = "CAST(NULL AS NVARCHAR(64))", DataType = "string", OrderNo = 9 }
                     ]
                 };
 
@@ -7122,7 +7512,9 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         ID = "packet_111",
                         Code = "111",
                         Name = "Trao đổi với TT QLĐHGT tuyến",
-                        PacketVersion = "1.0"
+                        PacketVersion = "1.0",
+                        SyncKind = 2,
+                        Status = BaseEnums.StatusEnum.Disable
                     },
                     Fields =
                     [

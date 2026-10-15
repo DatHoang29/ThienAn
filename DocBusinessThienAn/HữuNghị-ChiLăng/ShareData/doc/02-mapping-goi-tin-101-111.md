@@ -174,16 +174,18 @@ Nguồn chính: giao dịch ETC `TollTransactionIn`/`TollTransactionOut`; đăng
 
 ### 110. Trao đổi với người tham gia giao thông (all/  opConfig -> xoa het tru groupCode thuoc WP)
 
-Đây là payload tổng hợp, không có bảng nguồn độc lập.
+Đây là payload tổng hợp, hiện đang chạy theo **Phương án A (16/10/2026)** lấy dữ liệu từ các bảng nguồn có sẵn (`TmsIncident`, `TmsEquipment`, `VmsCurrent`, `TmsWeather`), không thêm entity mới:
 
 | Yêu cầu | Tên field trả về | Bảng - cột | Giá trị mẫu | Ghi chú |
 | --- | --- | --- | --- | --- |
-| Mã thông điệp | `messageId` | — Chưa có | — | Cần tạo ID/outbox để theo dõi phát hành. |
-| Nội dung cảnh báo sự cố | `incidentMessage` | `TmsIncident.Name`, `Description` | `Tai nạn tại Km5+500` | Chỉ lấy sự cố còn hiệu lực theo `State`. |
-| Nội dung thời tiết | `weatherMessage` | `TmsWeather.Description` | `Mưa vừa, tầm nhìn 800m` | Có thể ghép thêm `Foresight`, `WindSpeed`. |
-| Hướng dẫn hiển thị | `guidanceContent` | `VmsCurrent.RowData` / `TmsSignalLog.NewData` | `Giảm tốc độ` | Cần parse JSON. |
-| Vị trí/thời điểm | `locationKm`, `locationMet`, `publishedTime` | Nguồn sự cố/VMS; `StartDate` hoặc `ExecuteTime` | `5`, `500`, `...` | Không có thời điểm phát hành độc lập. |
-| Kênh phát hành/trạng thái gửi | `channel`, `deliveryState` | — Chưa có | — | Cần bảng notification/outbox. |
+| Mã thông điệp | `messageId` | `CAST(i.ID AS NVARCHAR(64))` | `20261015001` | Lấy theo mã sự cố để làm định danh ổn định giữa các lần gửi. |
+| Nội dung cảnh báo sự cố | `incidentMessage` | `CONCAT(ISNULL(i.Name, ''), ' - ', ISNULL(i.Description, ''))` | `Tai nạn tại Km5+500 - Va chạm nhẹ` | Chỉ lấy sự cố còn hiệu lực theo `State` khác FINISHED/CANCELED/Closed/Cancelled. |
+| Nội dung thời tiết | `weatherMessage` | `TmsWeather.Description` | `Mưa vừa, tầm nhìn 800m` | Lấy từ bản ghi `TmsWeather` mới nhất qua `OUTER APPLY`. |
+| Hướng dẫn hiển thị | `guidanceContent` | `VmsCurrent.RowData` | `CHÚ Ý SỰ CỐ - GIẢM TỐC ĐỘ` | Lấy bản tin mới nhất của biển báo VMS cùng lý trình `KmNumber` qua `OUTER APPLY`. |
+| Vị trí/thời điểm | `locationKm`, `locationMet`, `publishedTime` | `i.KmNumber`, `i.MetNumber`, `i.StartDate` | `85`, `200`, `2026-10-15T08:00:00` | Lấy từ sự cố đang hiệu lực. |
+| Kênh phát hành/trạng thái gửi | `channel`, `deliveryState` | `CAST(NULL AS NVARCHAR(64))` | `null` | Chưa có bảng outbox/notification; tạm để trống `null` theo phương án A. |
+
+> 📌 **Ghi chú về tiêu đề:** Ghi chú "(all/ opConfig -> xoa het tru groupCode thuoc WP)" trên tiêu đề gốc chưa được làm rõ ý nghĩa với nghiệp vụ — hiện ghi nhận là câu hỏi mở để làm việc lại khi có nghiệp vụ cụ thể.
 
 ### 111. Trao đổi với TT QLĐHGT tuyến (skip)
 
