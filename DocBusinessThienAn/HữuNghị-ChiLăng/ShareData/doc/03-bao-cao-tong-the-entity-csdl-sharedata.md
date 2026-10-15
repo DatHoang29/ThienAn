@@ -1,8 +1,10 @@
 # 📊 Báo Cáo Tổng Thể Các Entity & Bảng CSDL Phân Hệ ShareData (TMC-PM-ITS-ESHARE)
 
-> 📅 **Ngày cập nhật:** 14/10/2026  
+> 📅 **Ngày cập nhật:** 16/10/2026  
 > 📌 **Tài liệu tham chiếu & SSOT:**  
 > - Bảng đặc tả gói tin 101–111: [`02-mapping-goi-tin-101-111.md`](02-mapping-goi-tin-101-111.md)  
+> - Báo cáo bảng `Sys*` (gồm `SysOpConfig`): [`04-bao-cao-bang-sys-csdl-staging.md`](04-bao-cao-bang-sys-csdl-staging.md)  
+> - Script nạp cấu hình bảng giám sát: [`03-sharedata-seed-cau-hinh.sql`](../sql/03-sharedata-seed-cau-hinh.sql)  
 > - Kế hoạch tổng thể MasterPlan: [`Sharedata_MasterPlan.md`](../Plan/Sharedata_MasterPlan.md)  
 > - Kế hoạch Truy vấn động & Tách tầng kết nối: [PHẦN VII của `Sharedata_MasterPlan.md`](../Plan/Sharedata_MasterPlan.md#phần-vii--các-hạng-mục-từ-cuộc-họp-14102026-truy-vấn-động-nối-đuôi--tầng-kết-nối-r8--r18)  
 > - Mã nguồn C# Entity: [`TA-ITS015-WEBAPI-V1.0/src/Modules/ShareData/Module.ShareData.Core/Entities/`](../../../../TA-ITS015-WEBAPI-V1.0/src/Modules/ShareData/Module.ShareData.Core/Entities/)  
@@ -25,6 +27,7 @@ flowchart TD
         CodeSet["ShareDataCodeSet<br/>(Bộ mã quy đổi giá trị)"]
         LastSend["ShareDataLastSend<br/>(Mốc con trỏ gửi nối đuôi LastKey)"]
         TrackVer["ShareDataTrackVersion<br/>(Mốc SQL Change Tracking)"]
+        OpCfg["SysOpConfig<br/>(nhóm sharedata_tracker, bảng của CfgSystem)"]
         Session["ShareDataSession<br/>(Phiên kết nối FSM)"]
         ActLog["ShareDataActivityLog<br/>(Nhật ký hoạt động & Log lai Option C)"]
         AlertLog["ShareDataAlertLog<br/>(Sự cố & Mã cảnh báo ESH-xxxx)"]
@@ -48,6 +51,7 @@ flowchart TD
     Partner --> LastSend
     Packet --> LastSend
     Partner --> Session
+    OpCfg -. "danh sách bảng giám sát, nạp lại 30s" .-> TrackVer
     
     Sub --> ActLog
     Partner --> ActLog
@@ -58,17 +62,19 @@ flowchart TD
 ```
 
 ### 1. Phân Tách 3 Kết Nối CSDL (DbConnection Configuration)
-1. **Kết nối Chính (`Default` / `DEV_ITS10`):** Lưu trữ 13/14 entity của phân hệ, bao gồm danh mục cấu hình, đăng ký chia sẻ, bộ máy ánh xạ, mốc con trỏ đồng bộ, nhật ký hoạt động và cảnh báo lỗi.
+1. **Kết nối Chính (`Default` / `DEV_ITS10`):** Lưu trữ 12 trong 13 entity của phân hệ (trừ `ShareDataInboundPacket`), bao gồm danh mục cấu hình, đăng ký chia sẻ, bộ máy ánh xạ, mốc con trỏ đồng bộ, nhật ký hoạt động và cảnh báo lỗi.
 2. **Kết nối Nhận Trung Gian (`ShareDataDB` / `DEV_ITS10_Inbound`):** Chứa duy nhất bảng `ShareDataInboundPacket` được gắn thuộc tính `[Tenant(Its015Const.ConnectionConst.ShareData)]`. Bảng này đóng vai trò kho đệm tiếp nhận tức thời các chuỗi JSON/XML thô khổng lồ gửi từ đối tác qua WebAPI, cách ly hoàn toàn nguy cơ quá tải ghi và phình đĩa của CSDL chính.
 3. **Kết nối Log Hệ Thống (`LogDefault` / `DEV_ITS10_Log`):** Ghi vết lịch sử khác biệt dữ liệu (`DiffLog`) và nhật ký vận hành quản trị cấp framework.
 
 ### 2. Quy Chuẩn Kế Thừa Cốt Lõi
-- **100% Entity** đều kế thừa từ lớp cơ sở [`EntityTenant`](file:///Users/hoangquydat/ThienAn/TA-ITS015-WEBAPI-V1.0/src/Shared/Shared.Core/Domain/EntityTenant.cs), được trang bị sẵn bộ trường kiểm toán chuẩn mực:
+- **100% Entity** đều kế thừa từ lớp cơ sở [`EntityTenant`](../../../../TA-ITS015-WEBAPI-V1.0/src/Shared/Shared.Core/Domain/EntityTenant.cs), được trang bị sẵn bộ cột nền (tên cột thực tế trong CSDL):
   - `ID` (varchar/snowflake): Khóa chính bản ghi.
-  - `TenantId` (long): Mã phân vùng đơn vị/tuyến.
+  - `Code`: Mã nghiệp vụ; độ dài do từng bảng khai (ví dụ `SysOpConfig.Code` hiện dài 64).
+  - `TenantId`: Mã phân vùng đơn vị/tuyến.
   - `CreateTime` / `UpdateTime` (datetime): Thời điểm tạo và cập nhật gần nhất.
-  - `CreateUserId` / `UpdateUserId` (varchar): Định danh người dùng tạo/sửa.
-  - `IsDelete` (bool): Cờ xóa mềm (Soft Delete).
+  - `CreateUId` / `UpdateUId` (varchar): Định danh người dùng tạo/sửa.
+  - `RowStatus`: Trạng thái dòng của lớp nền.
+  - `IsDelete`: Cờ xóa mềm (Soft Delete); dòng còn hiệu lực có `IsDelete IS NULL`.
 
 ---
 
@@ -87,10 +93,12 @@ flowchart TD
 | **9** | `ShareDataTrackVersion` | `ShareDataTrackVersion` | **Mới** | 27/09/2026 | Bảng trạng thái worker giám sát SQL Server Change Tracking. Toàn hệ thống duy trì đúng 1 dòng lưu `LastVersion`. |
 | **10** | `ShareDataInboundPacket` | `ShareDataInboundPacket` | **Mới (Cải tiến)** | 15/09/2026 $\rightarrow$ 02/10/2026 | Kho đệm nhận gói tin thô ở CSDL `DEV_ITS10_Inbound` (`[Tenant]`). Bổ sung `ReceiveLogId` làm cầu nối ngữ cảnh sang `ShareDataActivityLog`. |
 | **11** | `ShareDataActivityLog` | `ShareDataActivityLog` | **Cũ (Cải tiến)** | 08/2026 $\rightarrow$ 04/10/2026 | Nhật ký cấu hình và truyền nhận. Bổ sung `ParentId` và `StepNbr` phục vụ mô hình log lai Option C (2 bước cha–con khi có dữ liệu, 1 dòng phẳng khi polling rỗng). |
-| **12** | `ShareDataAlertLog` | `ShareDataAlertLog` | **Cũ (Cải tiến)** | 08/2026 $\rightarrow$ 13/10/2026 | Nhật ký cảnh báo và lỗi hệ thống. Chuẩn hóa 22 mã lỗi liên tục dạng `ESH-xxxx`, hỗ trợ chi tiết `DetailJson` và xác nhận `Acknowledged`. |
+| **12** | `ShareDataAlertLog` | `ShareDataAlertLog` | **Cũ (Cải tiến)** | 08/2026 $\rightarrow$ 13/10/2026 | Nhật ký cảnh báo và lỗi hệ thống. Chuẩn hóa 24 mã lỗi dạng `ESH-xxxx` (xem mục IV.1), hỗ trợ chi tiết `DetailJson` và xác nhận `Acknowledged`. |
 | **13** | `ShareDataSession` | `ShareDataSession` | **Cũ** | 08/2026 | Quản lý phiên kết nối của đối tác theo máy trạng thái FSM (IDLE, CONNECTING, ACTIVE...), đếm gói tin và theo dõi Heartbeat. |
 
 > 📌 **Gọn bảng CSDL (14/10/2026):** Giữ **13 bảng** (12 bảng chính + 1 bảng Inbound), xóa bảng thừa cũ `ShareDataTable` (bảng mồ côi đã có trong CSDL từ trước), không phát sinh bảng riêng cho truy vấn động mà lưu trữ trực tiếp tại `ShareDataPacket` (mẫu chung) và `ShareDataMapping` (riêng đối tác).
+
+> 📌 **Cấu hình bảng giám sát (16/10/2026):** danh sách bảng nguồn mà worker giám sát Change Tracking **không** nằm trong 13 bảng trên. Nó lưu ở bảng `SysOpConfig` (thuộc phân hệ CfgSystem), nhóm `sharedata_tracker`, nạp lại định kỳ không cần khởi động lại Worker. `ShareDataTrackVersion` chỉ giữ mốc `LastVersion`. Chi tiết ở mục [IV.4](#4-cấu-hình-bảng-giám-sát-change-tracking--sysopconfig-nhóm-sharedata_tracker).
 
 ---
 
@@ -294,7 +302,8 @@ flowchart TD
   | :--- | :--- | :---: | :--- |
   | `LastVersion` | `bigint` | Nullable | Mốc số phiên bản Change Tracking lớn nhất đã được quét và phân phối. Giá trị âm = chưa khởi tạo. |
 * **Lưu ý kỹ thuật:**  
-  Đây là bảng trạng thái vận hành máy móc, **tuyệt đối không ghi log hay lỗi** vào bảng này để tránh phình to CSDL (mọi lỗi hạ tầng chuyển sang `ShareDataActivityLog` nhóm `ESH-16xx`).
+  Đây là bảng trạng thái vận hành máy móc, **tuyệt đối không ghi log hay lỗi** vào bảng này để tránh phình to CSDL (mọi lỗi hạ tầng chuyển sang `ShareDataActivityLog` nhóm `ESH-16xx`).  
+  **Cấu hình danh sách bảng giám sát không nằm ở bảng này.** Dòng trạng thái bị tạo lại khi bị xóa mềm hoặc khi mốc bị hạ về `-1` (`ESH-1604`), nên để cấu hình chung dòng thì mỗi lần dòng được tạo lại là mất cấu hình. Danh sách bảng nằm ở `SysOpConfig` (xem mục [IV.4](#4-cấu-hình-bảng-giám-sát-change-tracking--sysopconfig-nhóm-sharedata_tracker)).
 
 ---
 
@@ -360,7 +369,7 @@ flowchart TD
   | `OccurredAt`     | `datetime`      | Not Null | Thời điểm phát sinh cảnh báo / sự cố. |
   | `Severity`       | `int`           | Not Null | Mức độ nghiêm trọng: `0` = Warning (Cảnh báo), `1` = Error (Lỗi). |
   | `AlertSource`    | `int`           | Nullable | Nguồn phát: 0=Session, 1=Packet, 2=Subscription, 3=Protocol, 4=Funnel. |
-  | `AlertCode`      | `nvarchar(32)`  | Not Null | Mã lỗi chuẩn hóa hệ thống dạng `ESH-xxxx` (thuộc 19 mã chuẩn). |
+  | `AlertCode`      | `nvarchar(32)`  | Not Null | Mã lỗi chuẩn hóa hệ thống dạng `ESH-xxxx` (thuộc 24 mã chuẩn, mục IV.1). |
   | `PartnerId`      | `varchar(64)`   | Nullable | ID đối tác liên quan đến sự cố. |
   | `SubscriptionId` | `varchar(64)`   | Nullable | ID đăng ký chia sẻ liên quan. |
   | `Message`        | `nvarchar(1024)`| Not Null | Nội dung thông báo lỗi tiếng Việt hiển thị trực tiếp lên UI. |
@@ -372,13 +381,15 @@ flowchart TD
 
 ## 🧩 IV. Bảng Danh Mục & Bảng Nguồn Nghiệp Vụ Liên Quan
 
-Bên cạnh 14 entity cốt lõi trực thuộc phân hệ, ShareData còn tương tác mật thiết với các bảng hệ thống và bảng dữ liệu nghiệp vụ nguồn sau:
+Bên cạnh 13 entity cốt lõi trực thuộc phân hệ, ShareData còn tương tác mật thiết với các bảng hệ thống và bảng dữ liệu nghiệp vụ nguồn sau.
+
+> 📌 **Quy ước đặt cấu hình (chung toàn dự án, ShareData làm theo):** danh mục giá trị dùng chung nằm ở `SysConfigType`/`SysConfigData`; bản dịch giao diện nằm ở `SysTerminology`; tham số vận hành của từng phân hệ nằm ở `SysOpConfig` theo `GroupCode` (ví dụ `cctv_config`, `mail_config`, `toll_config`, `vds_config`, `sharedata_tracker`). Bảng riêng của phân hệ chỉ chứa dữ liệu nghiệp vụ và trạng thái chạy.
 
 ### 1. Bảng Cấu Hình Danh Mục Hệ Thống (`SysConfigData` / `SysConfigType`)
-- **`sharedata_error_code` (Chuẩn hóa 19 mã liên tục):**
-  - **9 Mã Outbound (Chiều Gửi):** `ESH-1201` (Không tìm thấy đối tác), `ESH-1202` (Không tìm thấy gói tin), `ESH-1203` (Lỗi trích xuất SQL), `ESH-1204` (Lỗi thẩm định SQL), `ESH-1301` (Lỗi ánh xạ JSON), `ESH-1302` (Lỗi quy đổi CodeSet), `ESH-1303` (Lỗi ghi file đệm), `ESH-1304` (Sai định dạng TargetShape), `ESH-1401` (Gửi REST API thất bại).
-  - **6 Mã Inbound (Chiều Nhận):** `ESH-1501` (Gói tin thô rỗng), `ESH-1502` (JSON không hợp lệ), `ESH-1503` (Không tìm thấy đăng ký nhận), `ESH-1504` (Lỗi bóc tách JSON), `ESH-1505` (Lỗi thực thi WriteSql), `ESH-1506` (Lỗi lưu gói thô).
-  - **4 Mã Change Tracking:** `ESH-1601` (Lỗi đọc phiên bản), `ESH-1602` (Phiên bản ngoài cửa sổ lưu trữ), `ESH-1603` (Lỗi quét bảng thay đổi), `ESH-1604` (Lỗi phân phối NATS).
+- **`sharedata_error_code` (24 mã, nạp bằng script `03-sharedata-seed-cau-hinh.sql`):**
+  - **13 Mã Outbound (Chiều Gửi):** `ESH-1201` (Bộ mã CodeSet khai trong metadata không tồn tại), `ESH-1202` (Trường bắt buộc thiếu/null, hủy kết xuất), `ESH-1203` (Biểu thức không qua kiểm tra an toàn hoặc lỗi khi tính, giữ giá trị nguồn), `ESH-1204` (`TargetShapeJson` rỗng hoặc sai cú pháp), `ESH-1301` (Không tìm thấy cấu hình gói tin), `ESH-1302` (Lỗi truy vấn dữ liệu nguồn), `ESH-1303` (Không tìm thấy mapping chiều gửi đang bật), `ESH-1304` (Khóa `__rowid` dài hơn cột `LastKey`), `ESH-1305` (Không tìm thấy câu SQL trích xuất ở mọi tầng), `ESH-1306` (Thứ tự con trỏ không tăng dần hoặc thiếu `__rowid`), `ESH-1307` (Mốc con trỏ mới lùi so với mốc hiện tại), `ESH-1401` (Gửi HTTP REST tới đối tác thất bại), `ESH-1402` (Lưu đệm bằng chứng thất bại, hủy gửi và giữ mốc).
+  - **7 Mã Inbound (Chiều Nhận):** `ESH-1501` (Không đọc được nội dung gói nhận về), `ESH-1502` (Lỗi ghi dữ liệu xuống CSDL nhận), `ESH-1503` (Không tìm thấy cấu hình gói tin nhận về), `ESH-1504` (Đối tác không tồn tại hoặc đang tắt), `ESH-1505` (Gói tin chưa có đăng ký nhận hợp lệ), `ESH-1506` (Gói tin chưa khai câu ghi chiều nhận), `ESH-2405` (Giải mã gói nhận về thất bại).
+  - **4 Mã Change Tracking:** `ESH-1601` (Mốc không hợp lệ, worker đã tự nhảy cóc để hồi phục), `ESH-1602` (Truy vấn `CHANGETABLE` lỗi hoặc bảng nguồn bị cô lập), `ESH-1603` (CSDL/bảng nguồn chưa bật Change Tracking, **hoặc cấu hình bảng giám sát rỗng/toàn bộ bị tắt**), `ESH-1604` (Mốc không còn tương thích CSDL, đã hạ về `-1` để khởi tạo lại).
 - **`shareData_type`:** Phân loại 11 nhóm gói tin chia sẻ dữ liệu.
 
 ### 2. Bảng Thuật Ngữ Đa Ngôn Ngữ (`SysTerminology`)
@@ -397,6 +408,66 @@ Các câu truy vấn SQL trích xuất động trong `ShareDataPacket.ExtractSql
 - **Gói 109 (Thu phí ETC):** `TollTransactionIn`, `TollTransactionOut`, `TollLane`, `TollStation`
 - **Gói 110 (Người tham gia giao thông):** Ghép tổng hợp `TmsIncident`, `TmsWeather`, `VmsCurrent`
 
+### 4. Cấu Hình Bảng Giám Sát Change Tracking — `SysOpConfig` Nhóm `sharedata_tracker`
+
+**Vai trò.** Worker giám sát (`DataChangeTrackingService`) cần biết *bảng nguồn nào* đang được theo dõi và *thay đổi ở bảng đó thì kích hoạt gói tin nào*. Danh sách này nằm ở bảng `SysOpConfig`, nhóm `sharedata_tracker`: sửa trực tiếp trên CSDL, Worker tự nạp lại sau tối đa 30 giây (khóa `ShareDataTracker:ConfigReloadSeconds` trong `appsettings.json`, mã nguồn dự phòng 60 giây nếu không khai), không cần màn hình quản trị riêng và không cần khởi động lại.
+
+**Vì sao không đặt ở nơi khác.**
+- Không ở `appsettings.json` (khóa `ShareDataTracker:TablePacketMap` đã bỏ hẳn): sửa phải triển khai lại, mỗi máy một bản.
+- Không ở `ShareDataTrackVersion`: đó là bảng trạng thái, dòng được tạo lại khi bị xóa mềm hoặc khi mốc bị hạ về `-1`; để cấu hình chung dòng thì mỗi lần như vậy cả hệ thống mất danh sách bảng và chỉ còn cảnh báo `ESH-1603`.
+
+**Cách một dòng `SysOpConfig` được hiểu.**
+
+| Cột | Ý nghĩa trong nhóm `sharedata_tracker` |
+| :--- | :--- |
+| `GroupCode` | Luôn là `sharedata_tracker` (khóa cấu hình `ShareDataTracker:GroupCode` trong `appsettings.json`). |
+| `Code` | Tên bảng nguồn cần giám sát (ví dụ `TmsTrafficData`). Bảng phải tồn tại trong CSDL. |
+| `Value` | Danh sách mã gói tin cần kích hoạt khi bảng có thay đổi, cách nhau dấu phẩy (ví dụ `103,103_vdsData,106,106_wimData`). Tối đa 256 ký tự; khoảng trắng được cắt, mã trùng được bỏ, không phân biệt hoa thường. |
+| `Status` | `1` = bật, `0` = tắt. Dòng tắt hoặc đã xóa mềm (`IsDelete` khác `NULL`) bị bỏ qua. |
+| `OrderNo` | Thứ tự nạp. |
+| `Name`, `Remark` | Mô tả cho người vận hành, Worker không dùng. |
+
+**Danh sách seed (15 bảng, script `03-sharedata-seed-cau-hinh.sql`).**
+
+| Bảng nguồn | Gói tin được kích hoạt | `Status` |
+| :--- | :--- | :---: |
+| `TmsZoneStatus`, `TmsZone`, `TmsTrafficStatistic` | 101 | 1 |
+| `CctvDevice` | 102 | 1 |
+| `TmsTrafficData` | 103, 106 | 1 |
+| `TmsWeather` | 104 | 1 |
+| `TollTransactionIn`, `TollTransactionOut` | 105, 109 | 1 |
+| `TmsVehicleRegistration` | 105 | 1 |
+| `TmsIncident`, `TmsEventType` | 107, 110, 111 | 1 |
+| `VmsCurrent` | 108 | 1 |
+| `TmsEquipment` | 102, 103, 108 | **0** (bảng tra cứu thiết bị, tắt để không kích hoạt quét thừa khi chỉ sửa thông tin thiết bị) |
+| `TollLane`, `TollStation` | 109 | 1 |
+
+Script chỉ `INSERT` dòng chưa có (`WHERE NOT EXISTS`), chạy lại không ghi đè giá trị đã sửa. **Triển khai lần đầu phải chạy script này trước khi chạy Worker**, vì nhóm rỗng thì Worker không giám sát bảng nào.
+
+**Hành vi khi chạy.**
+
+| Tình huống | Kết quả |
+| :--- | :--- |
+| Lượt poll đầu và mỗi `ShareDataTracker:ConfigReloadSeconds` (đang đặt 30 giây trong `appsettings.json`; mã nguồn dự phòng 60 nếu không khai; `0` = chỉ nạp lúc khởi động) | Đọc lại nhóm từ CSDL. |
+| Thêm bảng hoặc bật lại bảng | Được theo dõi từ lượt nạp kế tiếp; **không** đặt lại mốc `LastVersion` của các bảng đang chạy. Bảng chưa bật Change Tracking được bật tự động; bảng không tồn tại hoặc chưa sẵn sàng bị cô lập và thử lại mỗi 5 phút kèm cảnh báo. |
+| Tắt bảng, xóa mềm dòng | Bảng ngừng được theo dõi ở lượt nạp kế tiếp. |
+| Lỗi đọc CSDL ở lượt nạp | Giữ cấu hình đang chạy, ghi cảnh báo; không làm dừng giám sát. |
+| Nhóm rỗng hoặc mọi dòng `Status = 0` | Không giám sát bảng nào, **không** quay về `appsettings.json`, ghi `ESH-1603` đúng 1 lần cho mỗi tiến trình. Luồng quét định kỳ theo lịch vẫn gửi dữ liệu bình thường, chỉ mất trigger tức thì. |
+
+**Sửa cấu hình** (người vận hành tự chạy trên CSDL, không cần khởi động lại Worker):
+
+```sql
+-- Bật/tắt theo dõi một bảng (1 = bật, 0 = tắt)
+UPDATE dbo.SysOpConfig SET Status = 0
+WHERE GroupCode = N'sharedata_tracker' AND Code = N'TmsEquipment' AND IsDelete IS NULL;
+
+-- Đổi danh sách gói tin được kích hoạt của một bảng
+UPDATE dbo.SysOpConfig SET Value = N'103,106'
+WHERE GroupCode = N'sharedata_tracker' AND Code = N'TmsTrafficData' AND IsDelete IS NULL;
+```
+
+> ⚠️ Chỉ khai tên bảng có thật trong CSDL. Bảng sai tên không làm hỏng các bảng khác nhưng gói tương ứng sẽ không bao giờ có trigger, chỉ có cảnh báo lặp lại mỗi 5 phút.
+
 ---
 
 ## ⚠️ V. Các Quy Tắc Sống Còn Khi Thao Tác Với Entity ShareData
@@ -413,3 +484,6 @@ Các câu truy vấn SQL trích xuất động trong `ShareDataPacket.ExtractSql
    - Cột kiểu số nguyên như `ParentId` (string) và `StepNbr` (`int?`): **Cấm gán thuộc tính `Length`** để tránh văng lỗi SQL Server 2716 ("Column, parameter, or variable cannot have a length").
 4. **Quy tắc Can Thiệp Tối Thiểu (Rule P0.13):**  
    - Mọi thao tác thêm/sửa câu SQL hoặc trường dữ liệu phải đảm bảo tính tương thích ngược, không làm biến động các cột nghiệp vụ đang vận hành ổn định.
+5. **Quy tắc Nơi Lưu Danh Sách Bảng Giám Sát:**  
+   - Chỉ cấu hình ở `SysOpConfig`, nhóm `sharedata_tracker`.  
+   - ⛔ Không khai trong `appsettings.json`, ⛔ không đặt vào `ShareDataTrackVersion` (bảng trạng thái, có thể bị tạo lại).

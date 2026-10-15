@@ -20,6 +20,25 @@
 - **Bảng đang trống trên staging (0 dòng):** `SysDictType`, `SysDictData`, `SysRoleOrg`, `SysTenant` — tính năng có trong khung nhưng dự án chưa dùng.
 - Các nhật ký thao tác (`SysOpLog`, `SysDiffLog`) **không** nằm trong CSDL này mà ở CSDL log riêng (`LogDefault`, xem [báo cáo 03](03-bao-cao-tong-the-entity-csdl-sharedata.md)).
 
+### ✅ Quyết định cho ShareData (16/10/2026): dùng bảng cấu hình chung, không tạo bảng cấu hình riêng
+
+Câu hỏi đặt ra: ShareData đã có 13 bảng, các cấu hình liên quan (mã lỗi, danh sách bảng giám sát, bản dịch) có nên lưu trong bảng của ShareData không? **Kết luận: không.** Giữ cả ba bảng dùng chung `SysConfigType/SysConfigData`, `SysTerminology`, `SysOpConfig`; bảng riêng của phân hệ chỉ chứa dữ liệu nghiệp vụ và trạng thái chạy.
+
+| Bảng chung | Quyết định | Các phân hệ khác dùng thế nào (căn cứ mã nguồn) | ShareData dùng cho |
+|---|---|---|---|
+| `SysConfigType` / `SysConfigData` | **Giữ** | TMS, VideoWall, Toll, Mail đều dùng cùng cách: `tms_zone_type`, `vehicle_type`, `tms_incident_status`, `equipment_state`, `videowall_controller_color`, `videowall_event_source`, `toll_*`, `mail_trigger_type`… (khai ở seed `SysConfigTypeSeedData.cs` và enum FE `BaseConfigTypeEnum`) | Danh mục giá trị `sharedata_*`: `sharedata_error_code` (24 mã `ESH-xxxx`), `sharedata_direction`, `sharedata_session_state`… |
+| `SysTerminology` | **Giữ, không đổi** | Toàn hệ thống dùng chung cho bản dịch `lz.*` | Nhãn, thông báo, lỗi đa ngôn ngữ của ShareData |
+| `SysOpConfig` | **Giữ** | Cấu hình vận hành của từng phân hệ nằm trong bảng này theo `GroupCode`. Nhóm đang dùng trong mã: `cctv_config`, `cctv_public_equipment_ids`, `mail_config`, `noti_config`, `toll_config`, `vds_config`, `operation_config`, `tms_traffic_matrix` (thêm `media_config`, `wp_config`, `vms_config`… trên staging, bảng bên dưới) | Nhóm `sharedata_tracker`: danh sách bảng nguồn Worker giám sát Change Tracking (`Code` = tên bảng, `Value` = mã gói tin, `Status` 1/0) |
+
+**Vì sao không đưa vào bảng của ShareData (ví dụ `ShareDataTrackVersion`):** `ShareDataTrackVersion` là bảng **trạng thái** (1 dòng, chỉ giữ mốc `LastVersion`), dòng này bị tạo lại khi xóa mềm hoặc khi mốc hạ về `-1`; để cấu hình chung dòng thì mỗi lần như vậy mất danh sách bảng. Chi tiết ở [báo cáo 03, mục IV.4](03-bao-cao-tong-the-entity-csdl-sharedata.md#4-cấu-hình-bảng-giám-sát-change-tracking--sysopconfig-nhóm-sharedata_tracker).
+
+**Điều cần biết khi dùng `SysOpConfig` cho phân hệ mới:**
+- Khai nhóm trong `SysConfigData` loại `operation_config_type` thì màn hình *Cấu hình hoạt động* mới hiện nhóm (script `03-sharedata-seed-cau-hinh.sql` mục 4 đã làm cho `sharedata_tracker`). Thiếu dòng này, SQL và Worker vẫn chạy, chỉ màn hình không hiện tên nhóm.
+- Độ dài cột trên staging (bản chụp `.dacpac` 14/10/2026): `SysOpConfig.Code` **64**, `Value` 256, `GroupCode` 64; validator cho phép `Code` đến 128 nên mã dài hơn 64 sẽ lỗi khi ghi.
+- Staging còn cột `SysOpConfig.Lang` (16) mà entity không khai.
+
+**Căn cứ và giới hạn của kết luận này:** MCP `mssql_dev` (DEV_ITS10 local) trả rỗng cho `SysConfigType` và `SysOpConfig`, nên không dùng để đếm. Kết luận dựa vào mã nguồn (hằng `GroupCode` trong các module, seed C# của CfgSystem, enum FE) và số liệu staging của báo cáo này. Tệp `.dacpac` chỉ có cấu trúc, không có dữ liệu.
+
 ### Cách đọc cột "Căn cứ"
 
 | Ký hiệu | Nghĩa |
@@ -78,7 +97,7 @@
 | **Service/Worker** | Đọc trực tiếp bảng theo `GroupCode` (mẫu `CctvOptionsLoader`), **không** đi qua API | Dòng thêm/sửa bằng màn hình hay bằng script đều có hiệu lực như nhau |
 | **Script `.sql`** | Thư mục `sql/` của từng phân hệ | Nạp một lần cấu hình mặc định, chạy được trên nhiều môi trường; không phải kênh cấu hình duy nhất |
 
-> 📌 Với nhóm `sharedata_tracker` của ShareData: quản trị thêm hoặc bật/tắt dòng trên màn hình trên, Worker nạp lại sau tối đa `ConfigReloadSeconds` (mặc định 60 giây), không cần sửa code hay chạy `.sql`.
+> 📌 Với nhóm `sharedata_tracker` của ShareData: quản trị thêm hoặc bật/tắt dòng trên màn hình trên (nhóm hiện trong ô chọn sau khi chạy script `03` mục 4), Worker nạp lại sau tối đa `ConfigReloadSeconds` (đang đặt 30 giây trong `appsettings.json`, mã nguồn dự phòng 60 giây), không cần sửa code hay chạy `.sql`.
 
 #### `SysTerminology` — phân bố theo nhóm `Name`
 

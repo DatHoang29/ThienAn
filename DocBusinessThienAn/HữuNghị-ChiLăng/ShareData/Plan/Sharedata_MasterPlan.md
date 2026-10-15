@@ -1251,7 +1251,7 @@ Theo đặc tả [`02-mapping-goi-tin-101-111.md`](../doc/02-mapping-goi-tin-101
 - [x] **DQ-SV-10: Runtime gói 110 trên nguồn mô phỏng:** **Đã làm**
   - Chốt phương án A (16/10/2026): dùng nguồn có sẵn. Gói 110 chạy chế độ Snapshot từ SQL template trong CSDL, gửi đủ các trường theo mapping, `channel`/`deliveryState` để `NULL`. Bài test E2E `OutboundE2E_Packet110_SnapshotFromExistingTables_DispatchViaRest_Test` pass 100%.
 - [x] **DQ-SV-11: Danh sách bảng theo dõi Change Tracking cấu hình động từ `SysOpConfig`:** **Đã làm**
-  - Bảng theo dõi nạp động từ CSDL qua `SysOpConfig` nhóm `sharedata_tracker`, chu kỳ nạp lại định kỳ 60s, thay đổi cấu hình không cần khởi động lại Worker.
+  - Bảng theo dõi nạp động từ CSDL qua `SysOpConfig` nhóm `sharedata_tracker`, chu kỳ nạp lại định kỳ 30s (khóa `ShareDataTracker:ConfigReloadSeconds` trong `appsettings.json`, mã nguồn dự phòng 60s), thay đổi cấu hình không cần khởi động lại Worker.
   - Bỏ hẳn fallback `appsettings.json`, xóa hoàn toàn `ShareDataTracker:TablePacketMap` khỏi Worker. Bảng tắt hoặc nhóm rỗng thì không theo dõi bảng nào và ghi ESH-1603 đúng 1 lần.
   - `TmsEquipment` được seed với `Status = 0` (người dùng đã chốt 16/10/2026: giữ tắt để tránh kích hoạt gửi thừa khi bảng tra cứu chỉ được JOIN). Yêu cầu triển khai: Bắt buộc chạy script seed [`03-sharedata-seed-cau-hinh.sql`](../sql/03-sharedata-seed-cau-hinh.sql) trước khi khởi động Worker bản mới.
   - Suite test `DataChangeTrackingServiceTests` pass 87/87 (100%).

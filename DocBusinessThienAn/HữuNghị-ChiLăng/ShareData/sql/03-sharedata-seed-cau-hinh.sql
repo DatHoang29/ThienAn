@@ -9,6 +9,8 @@ GO
 --                 (13 Outbound, 7 Inbound, 4 Tracking), chỉ thêm các mã chưa có.
 --              3. Nạp danh mục 15 bảng theo dõi Change Tracking 'sharedata_tracker' vào SysOpConfig
 --                 (chỉ thêm các bảng chưa có; bảng TmsEquipment giữ Status = 0).
+--              4. Khai nhóm 'sharedata_tracker' vào SysConfigData loại 'operation_config_type' để màn hình
+--                 "Cấu hình hoạt động" hiển thị và cho chọn nhóm này (chỉ thêm nếu chưa có).
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent, không ghi đè cấu hình đã sửa).
@@ -244,6 +246,57 @@ DECLARE @InsertedTrackers INT = @@ROWCOUNT;
 DECLARE @TotalTrackers INT = (SELECT COUNT(1) FROM @TrackerConfigs);
 DECLARE @SkippedTrackers INT = @TotalTrackers - @InsertedTrackers;
 PRINT N'   -> Đã seed ' + CAST(@InsertedTrackers AS NVARCHAR(10)) + N' cấu hình tracker mới; bỏ qua ' + CAST(@SkippedTrackers AS NVARCHAR(10)) + N' dòng đã tồn tại trong SysOpConfig.';
+
+-- -----------------------------------------------------------------------------------------
+-- 4. KHAI NHÓM sharedata_tracker VÀO SysConfigData (operation_config_type)
+--    Màn hình "Cấu hình hoạt động" lấy danh sách nhóm từ SysConfigData thuộc loại
+--    operation_config_type; thiếu dòng này thì nhóm không hiện trong ô chọn (SQL vẫn chạy).
+-- -----------------------------------------------------------------------------------------
+PRINT N'-> 4. Khai nhóm [sharedata_tracker] vào SysConfigData [operation_config_type]...';
+
+DECLARE @OpConfigTypeId NVARCHAR(64);
+
+SELECT @OpConfigTypeId = ID
+FROM   dbo.SysConfigType
+WHERE  Code = N'operation_config_type'
+  AND  IsDelete IS NULL;
+
+IF @OpConfigTypeId IS NULL
+BEGIN
+    PRINT N'   -> ⚠️ Chưa có SysConfigType [operation_config_type] (do seed của WebAPI tạo khi khởi động lần đầu). Bỏ qua mục 4, chạy lại script sau khi WebAPI đã khởi động.';
+END
+ELSE IF EXISTS (
+    SELECT 1
+    FROM   dbo.SysConfigData
+    WHERE  ConfigTypeId = @OpConfigTypeId
+      AND  Code = N'sharedata_tracker'
+      AND  IsDelete IS NULL
+)
+BEGIN
+    PRINT N'   -> Nhóm [sharedata_tracker] đã được khai, bỏ qua.';
+END
+ELSE
+BEGIN
+    INSERT INTO dbo.SysConfigData (
+        [ID], [ConfigTypeId], [Name], [Code], [Value], [TagType],
+        [OrderNo], [Remark], [Status], [TenantId], [CreateTime], [CreateUId]
+    )
+    VALUES (
+        LOWER(CAST(NEWID() AS NVARCHAR(64))),
+        @OpConfigTypeId,
+        N'ShareData - Bảng giám sát Change Tracking',
+        N'sharedata_tracker',
+        N'',
+        N'',
+        1900,
+        N'Danh sách bảng nguồn Worker ShareData theo dõi Change Tracking: Code = tên bảng, Value = mã gói tin cách nhau dấu phẩy, Status 1 = bật / 0 = tắt.',
+        1,
+        @TenantId,
+        GETDATE(),
+        N'superadmin'
+    );
+    PRINT N'   -> Đã khai nhóm [sharedata_tracker] vào operation_config_type.';
+END
 
 PRINT N'=============================================================================';
 PRINT N'✅ HOÀN TẤT KỊCH BẢN SEED CẤU HÌNH SHAREDATA (03-sharedata-seed-cau-hinh.sql)';
