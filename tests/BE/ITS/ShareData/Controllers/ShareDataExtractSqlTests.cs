@@ -54,7 +54,7 @@ public class ShareDataExtractSqlTests(Host host)
     public void ShareDataSqlValidator_Rejects_DangerousOrMultiStatementQueries(string unsafeSql)
     {
         // Act
-        var (isValid, errorMsg) = ShareDataSqlValidator.Validate(unsafeSql);
+        var (isValid, errorMsg) = SqlValidator.Validate(unsafeSql);
 
         // Assert
         Assert.False(isValid);
@@ -70,7 +70,7 @@ public class ShareDataExtractSqlTests(Host host)
     public void ShareDataSqlValidator_Accepts_ValidSingleReadQueries(string validSql)
     {
         // Act
-        var (isValid, errorMsg) = ShareDataSqlValidator.Validate(validSql);
+        var (isValid, errorMsg) = SqlValidator.Validate(validSql);
 
         // Assert
         Assert.True(isValid, errorMsg ?? "Câu lệnh hợp lệ nhưng bị từ chối.");
@@ -216,7 +216,7 @@ public class ShareDataExtractSqlTests(Host host)
     public void ShareDataSqlValidator_Validates_ParametersStrictly(string sql, bool shouldBeValid)
     {
         // Act
-        var (isValid, errorMsg) = ShareDataSqlValidator.Validate(sql);
+        var (isValid, errorMsg) = SqlValidator.Validate(sql);
 
         // Assert
         if (shouldBeValid)
@@ -725,7 +725,7 @@ public class ShareDataExtractSqlTests(Host host)
     public void Validate_When3PartTableNameOrSysTableOrPartnerTable_FailsValidation_Test(string sql)
     {
         // RV-7: Chặn CSDL khác và bảng chứa bí mật
-        var (isValid, errorMsg) = ShareDataSqlValidator.Validate(sql);
+        var (isValid, errorMsg) = SqlValidator.Validate(sql);
         Assert.False(isValid);
         Assert.NotNull(errorMsg);
     }

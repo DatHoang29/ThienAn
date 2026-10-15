@@ -42,7 +42,7 @@ Nếu tool đã hiện sẵn dạng rút gọn (`mcp__gortex__search`, `read`, `
 
 ## 4. Cưỡng chế
 
-Hook `.agents/hooks/gortex-enforce.mjs` (đăng ký trong `.claude/settings.json`):
+Hook `.agents/hooks/gortex-enforce.mjs` (đăng ký trong `.claude/settings.json`, launcher `.agents/hooks/gortex-hook.mjs` trong `.claude/settings.local.json` dùng `$CLAUDE_PROJECT_DIR`):
 - `PreToolUse` Read|Grep|Glob|Bash → exit 2 khi đụng `.cs/.vue/.ts/.tsx/.js` ngoài vùng được miễn.
 - `SessionStart` → nhắc nạp tool.
 - Tắt tạm khi daemon Gortex không chạy: đặt `GORTEX_ENFORCE=off`.

@@ -90,7 +90,7 @@ flowchart TD
 | **12** | `ShareDataAlertLog` | `ShareDataAlertLog` | **Cũ (Cải tiến)** | 08/2026 $\rightarrow$ 13/10/2026 | Nhật ký cảnh báo và lỗi hệ thống. Chuẩn hóa 22 mã lỗi liên tục dạng `ESH-xxxx`, hỗ trợ chi tiết `DetailJson` và xác nhận `Acknowledged`. |
 | **13** | `ShareDataSession` | `ShareDataSession` | **Cũ** | 08/2026 | Quản lý phiên kết nối của đối tác theo máy trạng thái FSM (IDLE, CONNECTING, ACTIVE...), đếm gói tin và theo dõi Heartbeat. |
 
-> 📌 **Gọn bảng CSDL (14/10/2026):** Giữ **13 bảng** (12 bảng chính + 1 bảng Inbound), xóa **2 bảng thừa** (`ShareDataTable` mồ côi và `ShareDataPacketExtractSql` chưa deploy). Toàn bộ SQL trích xuất lưu tập trung tại `ShareDataPacket` (mẫu chung) và `ShareDataMapping` (riêng đối tác).
+> 📌 **Gọn bảng CSDL (14/10/2026):** Giữ **13 bảng** (12 bảng chính + 1 bảng Inbound), xóa bảng thừa cũ `ShareDataTable` (bảng mồ côi đã có trong CSDL từ trước), không phát sinh bảng riêng cho truy vấn động mà lưu trữ trực tiếp tại `ShareDataPacket` (mẫu chung) và `ShareDataMapping` (riêng đối tác).
 
 ---
 

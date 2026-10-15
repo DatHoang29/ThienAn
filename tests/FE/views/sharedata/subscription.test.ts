@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { resolveWebVueSrc } from '../../setup';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -93,18 +94,9 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 	});
 
 	test('TC6 — Quét tĩnh mã nguồn editSubscription.vue, subscriptionTable.vue & scheduler/index.vue: Tuân thủ Rule 20.8 (CẤM !!), submit guard và inline error', async () => {
-		const vueFilePath = path.resolve(
-			__dirname,
-			'../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/sharing/component/editSubscription.vue'
-		);
-		const schedulerFilePath = path.resolve(
-			__dirname,
-			'../../../../TA-ITS015-WEBVUE-V1.0/src/src/components/scheduler/index.vue'
-		);
-		const subTableFilePath = path.resolve(
-			__dirname,
-			'../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/sharing/component/subscriptionTable.vue'
-		);
+		const vueFilePath = resolveWebVueSrc('views/sharedata/sharing/component/editSubscription.vue');
+		const schedulerFilePath = resolveWebVueSrc('components/scheduler/index.vue');
+		const subTableFilePath = resolveWebVueSrc('views/sharedata/sharing/component/subscriptionTable.vue');
 		const vueContent = fs.readFileSync(vueFilePath, 'utf8');
 		const schedulerContent = fs.readFileSync(schedulerFilePath, 'utf8');
 		const subTableContent = fs.readFileSync(subTableFilePath, 'utf8');
@@ -155,14 +147,8 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 	});
 
 	test('TC7 — Kiểm tra cấu hình i18n trong vi-vn.json và en-us.json', async () => {
-		const viPath = path.resolve(
-			__dirname,
-			'../../../../TA-ITS015-WEBVUE-V1.0/src/src/i18n/lang/vi-vn.json'
-		);
-		const enPath = path.resolve(
-			__dirname,
-			'../../../../TA-ITS015-WEBVUE-V1.0/src/src/i18n/lang/en-us.json'
-		);
+		const viPath = resolveWebVueSrc('i18n/lang/vi-vn.json');
+		const enPath = resolveWebVueSrc('i18n/lang/en-us.json');
 
 		const viJson = JSON.parse(fs.readFileSync(viPath, 'utf8'));
 		const enJson = JSON.parse(fs.readFileSync(enPath, 'utf8'));
@@ -194,25 +180,14 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 	});
 
 	test('TC8 — Kiểm tra component Scheduler hỗ trợ đủ 4 mode và ShareData giới hạn đúng continuous & daily', async () => {
-		const schedulerTypesPath = path.resolve(
-			__dirname,
-			'../../../../TA-ITS015-WEBVUE-V1.0/src/src/components/scheduler/types.ts'
-		);
-		const schedulerVuePath = path.resolve(
-			__dirname,
-			'../../../../TA-ITS015-WEBVUE-V1.0/src/src/components/scheduler/index.vue'
-		);
-		const editSubPath = path.resolve(
-			__dirname,
-			'../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/sharing/component/editSubscription.vue'
-		);
+		const schedulerVuePath = resolveWebVueSrc('components/scheduler/index.vue');
+		const editSubPath = resolveWebVueSrc('views/sharedata/sharing/component/editSubscription.vue');
 
-		const typesContent = fs.readFileSync(schedulerTypesPath, 'utf8');
 		const schedulerContent = fs.readFileSync(schedulerVuePath, 'utf8');
 		const editSubContent = fs.readFileSync(editSubPath, 'utf8');
 
-		// 1. Scheduler types phải hỗ trợ đủ 4 mode
-		expect(typesContent).toContain("'continuous' | 'daily' | 'weekly' | 'interval'");
+		// 1. Scheduler types phải hỗ trợ đủ 4 mode (khai báo trực tiếp trong component theo Rule 20.17)
+		expect(schedulerContent).toContain("'continuous' | 'daily' | 'weekly' | 'interval'");
 
 		// 2. Scheduler template phải có radio-button cho cả 4 mode
 		expect(schedulerContent).toContain("allowedKinds.includes('continuous')");
@@ -455,10 +430,7 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 	});
 
 	test('TC10 — Cấu hình kênh kết nối đối tác (editPartner.vue: ConnectionType API/File, ConnectionConfig, tuân thủ Rule 20.8 CẤM !!)', async () => {
-		const partnerFilePath = path.resolve(
-			__dirname,
-			'../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/sharing/component/editPartner.vue'
-		);
+		const partnerFilePath = resolveWebVueSrc('views/sharedata/sharing/component/editPartner.vue');
 		const partnerContent = fs.readFileSync(partnerFilePath, 'utf8');
 
 		// 1. Kiểm tra trường connectionType có 2 option chuẩn API và File
@@ -481,10 +453,7 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 	});
 
 	test('TC11 — Bỏ padding ở el-dialog__footer trong modal Tạo/Sửa đăng ký chia sẻ dữ liệu (editSubscription.vue)', async () => {
-		const subFilePath = path.resolve(
-			__dirname,
-			'../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/sharing/component/editSubscription.vue'
-		);
+		const subFilePath = resolveWebVueSrc('views/sharedata/sharing/component/editSubscription.vue');
 		const subContent = fs.readFileSync(subFilePath, 'utf8');
 
 		// 1. Quét tĩnh mã nguồn: editSubscription.vue có cấu hình bỏ padding cho .el-dialog__footer
@@ -495,10 +464,7 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 		expect(subContent).not.toContain('!important');
 
 		// 3. Phân lập phạm vi (Rule 13): Chỉ áp dụng trong phân hệ ShareData, không sửa global element.scss
-		const elementScssPath = path.resolve(
-			__dirname,
-			'../../../../TA-ITS015-WEBVUE-V1.0/src/src/theme/element.scss'
-		);
+		const elementScssPath = resolveWebVueSrc('theme/element.scss');
 		const elementScssContent = fs.readFileSync(elementScssPath, 'utf8');
 		// element.scss vẫn giữ nguyên cấu hình hệ thống
 		expect(elementScssContent).toContain('.el-dialog__footer');

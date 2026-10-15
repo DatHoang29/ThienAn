@@ -5,6 +5,7 @@ và cấu trúc Rich Text XML gốc của Microsoft Excel (không làm mất mà
 """
 
 import os
+import re
 import sys
 import zipfile
 import xml.etree.ElementTree as ET
@@ -15,6 +16,142 @@ def excel_date_serial(d: date) -> int:
     """Chuyển đổi date thành số ngày serial của Microsoft Excel (base 1899-12-30)."""
     base = date(1899, 12, 30)
     return (d - base).days
+
+
+def validate_excel_openxml(file_path: str, reference_template_path: str = None) -> tuple[bool, list[str]]:
+    """
+    Kiểm tra tính toàn vẹn (Zero Corruption) của file Excel OpenXML.
+    Đối chiếu với file template gốc để đảm bảo không bị lỗi recovery khi mở bằng Microsoft Excel.
+    """
+    errors = []
+    if not os.path.exists(file_path):
+        return False, [f"Tệp không tồn tại: {file_path}"]
+
+    try:
+        with zipfile.ZipFile(file_path, "r") as z:
+            # 1. Kiểm tra cấu trúc ZIP
+            test_res = z.testzip()
+            if test_res is not None:
+                errors.append(f"Lỗi cấu trúc ZIP tại: {test_res}")
+
+            # 2. Kiểm tra cú pháp XML của tất cả các file .xml và .rels
+            for name in z.namelist():
+                if name.endswith(".xml") or name.endswith(".rels"):
+                    try:
+                        content = z.read(name)
+                        ET.fromstring(content)
+                    except Exception as e:
+                        errors.append(f"Lỗi cú pháp XML trong {name}: {e}")
+
+            # 3. Kiểm tra chuyên sâu xl/worksheets/sheet1.xml
+            if "xl/worksheets/sheet1.xml" in z.namelist():
+                sheet1 = z.read("xl/worksheets/sheet1.xml").decode("utf-8")
+
+                # Cấm các tiền tố namespace tự sinh do ElementTree làm hỏng OpenXML
+                for bad_prefix in ["ns0:", "ns1:", "ns2:", "ns3:", "ns4:"]:
+                    if bad_prefix in sheet1:
+                        errors.append(f"sheet1.xml chứa tiền tố namespace tự sinh không chuẩn: {bad_prefix}")
+
+                # Bắt buộc quan hệ r:id chuẩn cho drawing
+                if "drawing" in sheet1 and 'r:id="' not in sheet1:
+                    errors.append('sheet1.xml thiếu thuộc tính chuẩn r:id trong thẻ drawing')
+
+                # Bắt buộc các tiền tố trong Ignorable (mc:Ignorable) phải được khai báo xmlns:<prefix>
+                ignorable_match = re.search(r'Ignorable="([^"]+)"', sheet1)
+                if ignorable_match:
+                    prefixes = ignorable_match.group(1).split()
+                    for p in prefixes:
+                        if f"xmlns:{p}=" not in sheet1:
+                            errors.append(f"Tiền tố '{p}' trong Ignorable chưa được khai báo xmlns:{p}= trong sheet1.xml!")
+
+                # Bắt buộc có khai báo namespace quan hệ chuẩn
+                if 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"' not in sheet1:
+                    errors.append("sheet1.xml thiếu khai báo xmlns:r cho quan hệ OpenXML")
+
+            # 4. Kiểm tra chuyên sâu xl/sharedStrings.xml
+            if "xl/sharedStrings.xml" in z.namelist():
+                ss_content = z.read("xl/sharedStrings.xml").decode("utf-8")
+                if 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"' not in ss_content:
+                    errors.append("sharedStrings.xml thiếu namespace chính của SpreadsheetML")
+
+            # 5. Đối chiếu danh sách tệp với template gốc
+            if reference_template_path and os.path.exists(reference_template_path):
+                with zipfile.ZipFile(reference_template_path, "r") as z_ref:
+                    missing_parts = set(z_ref.namelist()) - set(z.namelist())
+                    if missing_parts:
+                        errors.append(f"Thiếu các tệp thành phần so với template gốc: {missing_parts}")
+
+        # 6. Kiểm tra tải thử bằng openpyxl nếu có
+        try:
+            import openpyxl
+            wb = openpyxl.load_workbook(file_path)
+            if not wb.sheetnames:
+                errors.append("openpyxl không tìm thấy sheet nào trong workbook")
+        except ImportError:
+            pass
+        except Exception as e:
+            errors.append(f"openpyxl nạp workbook thất bại: {e}")
+
+    except Exception as e:
+        errors.append(f"Lỗi đọc file Excel {file_path}: {e}")
+
+    return (len(errors) == 0, errors)
+
+
+def patch_sheet1_xml_dates_and_heights(
+    sheet_xml: str,
+    r32_height: int,
+    r32_start: date,
+    r32_end: date,
+    r33_height: int,
+    r33_start: date,
+    r33_end: date,
+) -> str:
+    """
+    Cập nhật chiều cao dòng và số ngày serial trực tiếp trên chuỗi XML nguyên gốc.
+    Bảo toàn 100% bit-perfect cấu trúc namespace, r:id, xr:uid và Markup Compatibility.
+    """
+    # 1. Cập nhật Row 32 (chiều cao)
+    sheet_xml = re.sub(
+        r'(<row r="32"[^>]*?\bht=")[^"]*("[^>]*>)',
+        rf'\g<1>{r32_height}\g<2>',
+        sheet_xml,
+    )
+    # 2. Cập nhật Row 32 (ngày bắt đầu J32, K32 và kết thúc L32, M32)
+    s32 = str(excel_date_serial(r32_start))
+    e32 = str(excel_date_serial(r32_end))
+    sheet_xml = re.sub(
+        r'(<c r="[JK]32"[^>]*><v>)\d+(</v></c>)',
+        rf'\g<1>{s32}\g<2>',
+        sheet_xml,
+    )
+    sheet_xml = re.sub(
+        r'(<c r="[LM]32"[^>]*><v>)\d+(</v></c>)',
+        rf'\g<1>{e32}\g<2>',
+        sheet_xml,
+    )
+
+    # 3. Cập nhật Row 33 (chiều cao)
+    sheet_xml = re.sub(
+        r'(<row r="33"[^>]*?\bht=")[^"]*("[^>]*>)',
+        rf'\g<1>{r33_height}\g<2>',
+        sheet_xml,
+    )
+    # 4. Cập nhật Row 33 (ngày bắt đầu J33, K33 và kết thúc L33, M33)
+    s33 = str(excel_date_serial(r33_start))
+    e33 = str(excel_date_serial(r33_end))
+    sheet_xml = re.sub(
+        r'(<c r="[JK]33"[^>]*><v>)\d+(</v></c>)',
+        rf'\g<1>{s33}\g<2>',
+        sheet_xml,
+    )
+    sheet_xml = re.sub(
+        r'(<c r="[LM]33"[^>]*><v>)\d+(</v></c>)',
+        rf'\g<1>{e33}\g<2>',
+        sheet_xml,
+    )
+
+    return sheet_xml
 
 
 def patch_weekly_report(
@@ -30,17 +167,12 @@ def patch_weekly_report(
     next_week_start: date,
     next_week_end: date,
     next_week_task_url: str,
-    this_week_height: int = 320,
-    next_week_height: int = 180,
+    this_week_height: int = 340,
+    next_week_height: int = 190,
 ) -> None:
     """
     Cập nhật file báo cáo tuần từ template gốc mà không làm mất định dạng OpenXML.
-    
-    Bảo toàn:
-      - Logo Thiên Ân (xl/drawings/drawing1.xml + xl/media/image1.png)
-      - Rich Text màu đỏ "THIÊN ÂN" và màu xanh "OF THE DEPLOY DEPARTMENT"
-      - Chú thích màu đỏ/xanh "Đỏ" / "Xanh dương"
-      - Font Times New Roman, border, merge cells, background colors
+    Bảo toàn 100% bit-perfect logo, drawings, styles, font Times New Roman và namespaces.
     """
     if not os.path.exists(template_path):
         raise FileNotFoundError(f"Không tìm thấy template: {template_path}")
@@ -85,53 +217,23 @@ def patch_weekly_report(
     if si_46_t is not None:
         si_46_t.text = next_week_content.strip()
 
-    all_files["xl/sharedStrings.xml"] = ET.tostring(
-        ss_tree, encoding="utf-8", xml_declaration=True
+    raw_ss_xml = ET.tostring(ss_tree, encoding="utf-8")
+    all_files["xl/sharedStrings.xml"] = (
+        b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n' + raw_ss_xml
     )
 
-    # 2. Cập nhật sheet1.xml (số ngày serial và chiều cao dòng)
-    sheet_tree = ET.fromstring(all_files["xl/worksheets/sheet1.xml"])
-    sheet_data = sheet_tree.find(f"{ns}sheetData")
-
-    if sheet_data is not None:
-        for row in sheet_data.findall(f"{ns}row"):
-            r_idx = row.get("r")
-            if r_idx == "32":
-                row.set("ht", str(this_week_height))
-                row.set("customHeight", "1")
-                # J32, K32: Start date
-                # L32, M32: End date
-                s_serial = str(excel_date_serial(this_week_start))
-                e_serial = str(excel_date_serial(this_week_end))
-                for cell in row.findall(f"{ns}c"):
-                    c_ref = cell.get("r")
-                    if c_ref in ["J32", "K32"]:
-                        v = cell.find(f"{ns}v")
-                        if v is not None:
-                            v.text = s_serial
-                    elif c_ref in ["L32", "M32"]:
-                        v = cell.find(f"{ns}v")
-                        if v is not None:
-                            v.text = e_serial
-            elif r_idx == "33":
-                row.set("ht", str(next_week_height))
-                row.set("customHeight", "1")
-                s_serial = str(excel_date_serial(next_week_start))
-                e_serial = str(excel_date_serial(next_week_end))
-                for cell in row.findall(f"{ns}c"):
-                    c_ref = cell.get("r")
-                    if c_ref in ["J33", "K33"]:
-                        v = cell.find(f"{ns}v")
-                        if v is not None:
-                            v.text = s_serial
-                    elif c_ref in ["L33", "M33"]:
-                        v = cell.find(f"{ns}v")
-                        if v is not None:
-                            v.text = e_serial
-
-    all_files["xl/worksheets/sheet1.xml"] = ET.tostring(
-        sheet_tree, encoding="utf-8", xml_declaration=True
+    # 2. Cập nhật sheet1.xml bằng chuỗi regex an toàn (tránh ElementTree phá vỡ namespaces/r:id)
+    orig_sheet1_xml = all_files["xl/worksheets/sheet1.xml"].decode("utf-8")
+    patched_sheet1_xml = patch_sheet1_xml_dates_and_heights(
+        orig_sheet1_xml,
+        r32_height=this_week_height,
+        r32_start=this_week_start,
+        r32_end=this_week_end,
+        r33_height=next_week_height,
+        r33_start=next_week_start,
+        r33_end=next_week_end,
     )
+    all_files["xl/worksheets/sheet1.xml"] = patched_sheet1_xml.encode("utf-8")
 
     # 3. Ghi ra file đích (bảo đảm tất cả file khác trong ZIP giữ nguyên 100%)
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
@@ -139,7 +241,25 @@ def patch_weekly_report(
         for name, data in all_files.items():
             out_z.writestr(name, data)
 
+    # 4. Kiểm tra tính toàn vẹn (Zero Corruption)
+    valid, errors = validate_excel_openxml(output_path, template_path)
+    if not valid:
+        raise ValueError(f"Tệp Excel vừa tạo không đạt chuẩn Zero Corruption: {'; '.join(errors)}")
+
 
 if __name__ == "__main__":
-    print("Direct OpenXML Weekly Report Patcher module ready.")
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    base_dir = os.path.dirname(script_dir)
+    default_template = os.path.join(base_dir, "PCN_WeeklyReport_20261005.xlsx")
+    default_output = os.path.join(base_dir, "PCN_WeeklyReport_20261012.xlsx")
+
+    print("=== KIỂM TRA TÍNH TOÀN VẸN (ZERO CORRUPTION) BÁO CÁO TUẦN ===")
+    for fname in ["PCN_WeeklyReport_20261005.xlsx", "PCN_WeeklyReport_20261012.xlsx"]:
+        fpath = os.path.join(base_dir, fname)
+        if os.path.exists(fpath):
+            is_valid, err_list = validate_excel_openxml(fpath, default_template if fname != "PCN_WeeklyReport_20261005.xlsx" else None)
+            status = "✅ PASS (Hợp lệ 100%)" if is_valid else f"❌ FAIL ({len(err_list)} lỗi: {'; '.join(err_list)})"
+            print(f"- {fname}: {status}")
+
+
 

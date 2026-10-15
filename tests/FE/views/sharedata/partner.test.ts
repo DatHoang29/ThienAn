@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { resolveWebVueSrc } from '../../setup';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -6,22 +7,10 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const editorComponentPath = path.resolve(
-	__dirname,
-	'../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/sharing/component/connectionConfigEditor.vue'
-);
-const editPartnerPath = path.resolve(
-	__dirname,
-	'../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/sharing/component/editPartner.vue'
-);
-const viVnPath = path.resolve(
-	__dirname,
-	'../../../../TA-ITS015-WEBVUE-V1.0/src/src/i18n/lang/vi-vn.json'
-);
-const enUsPath = path.resolve(
-	__dirname,
-	'../../../../TA-ITS015-WEBVUE-V1.0/src/src/i18n/lang/en-us.json'
-);
+const editorComponentPath = resolveWebVueSrc('views/sharedata/sharing/component/connectionConfigEditor.vue');
+const editPartnerPath = resolveWebVueSrc('views/sharedata/sharing/component/editPartner.vue');
+const viVnPath = resolveWebVueSrc('i18n/lang/vi-vn.json');
+const enUsPath = resolveWebVueSrc('i18n/lang/en-us.json');
 
 /**
  * Mô phỏng logic lõi của connectionConfigEditor.vue để kiểm thử thuần túy

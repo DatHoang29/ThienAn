@@ -1,5 +1,5 @@
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
-import { mockAuth } from '../../setup';
+import { mockAuth, resolveWebVueSrc } from '../../setup';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -17,9 +17,7 @@ import path from 'node:path';
  * - Hỗ trợ cả tiếng Việt lẫn tiếng Anh không bị cắt chữ.
  */
 
-const editCodeSetPath = fs.existsSync(path.resolve(process.cwd(), 'TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/codeSet/component/editCodeSet.vue'))
-    ? path.resolve(process.cwd(), 'TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/codeSet/component/editCodeSet.vue')
-    : path.resolve(process.cwd(), '../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/codeSet/component/editCodeSet.vue');
+const editCodeSetPath = resolveWebVueSrc('views/sharedata/codeSet/component/editCodeSet.vue');
 
 test.describe('ShareData — Dialog Chỉnh sửa bộ mã (editCodeSet.vue) @sharedata', () => {
 

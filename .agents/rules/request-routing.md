@@ -58,6 +58,10 @@ When auto-applying an agent, inform the user:
 2. **Respect Overrides**: If user mentions `@agent`, use it.
 3. **Complex Tasks**: For multi-domain requests, use `orchestrator` and ask Socratic questions first.
 
+### ⚡ AUTO SUBAGENT / MULTI-AGENT DELEGATION (Rule 19.70)
+
+> 🔴 **MANDATORY:** Khi prompt chứa danh sách từ 2 task trở lên, tuân thủ quy tắc kích hoạt subagents song song tại [thienan_rules.md](./thienan_rules.md) (Rule #24).
+
 ### ⚠️ AGENT ROUTING CHECKLIST (MANDATORY BEFORE EVERY CODE/DESIGN RESPONSE)
 
 **Before ANY code or design work, you MUST complete this mental checklist:**
@@ -69,26 +73,10 @@ When auto-applying an agent, inform the user:
 | 3 | Did I announce `🤖 Applying knowledge of @[agent]...`? | → STOP. Add announcement before response. |
 | 4 | Did I load required skills from agent's frontmatter? | → STOP. Check `skills:` field and read them. |
 
-**Failure Conditions:**
-
-- ❌ Writing code without identifying an agent = **PROTOCOL VIOLATION**
-- ❌ Skipping the announcement = **USER CANNOT VERIFY AGENT WAS USED**
-- ❌ Ignoring agent-specific rules (e.g., Purple Ban) = **QUALITY FAILURE**
+**Failure Conditions:** Vi phạm checklist (không chọn agent, không thông báo, bỏ qua quy chuẩn) = vi phạm protocol bắt buộc.
 
 > 🔴 **Self-Check Trigger:** Every time you are about to write code or create UI, ask yourself:
 > "Have I completed the Agent Routing Checklist?" If NO → Complete it first.
 
 ---
 
-## 🎭 Gemini Mode Mapping
-
-| Mode     | Agent             | Behavior                                     |
-| -------- | ----------------- | -------------------------------------------- |
-| **plan** | `project-planner` | 4-phase methodology. NO CODE before Phase 4. |
-| **ask**  | -                 | Focus on understanding. Ask questions.       |
-| **edit** | `orchestrator`    | Execute. Check `{task-slug}.md` first.       |
-
-> 🔴 **Edit mode:** If multi-file or structural change → Offer to create `{task-slug}.md`. For single-file fixes → Proceed directly.
-> Full Plan Mode (4-Phase) protocol lives in `code-rules.md`.
-
----

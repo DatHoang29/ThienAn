@@ -38,17 +38,7 @@ Agent activated → Check frontmatter "skills:" → Read SKILL.md (INDEX) → Re
 
 1. **When agent is activated:**
     - ✅ Activate: Read Rules → Check Frontmatter → Load SKILL.md → Apply All.
-2. **Forbidden:** Never skip reading agent rules or skill instructions. "Read → Understand → Apply" is mandatory.
-
----
-
-## 📁 File Dependency Awareness
-
-**Before modifying ANY file:**
-
-1. If `CODEBASE.md` exists, check its File Dependencies section.
-2. Otherwise, discover dependencies with targeted search/import analysis; do not block waiting for a missing file.
-3. Identify dependent files and update all affected files together.
+2. **Checklist:** Tuân thủ quy trình kiểm tra bắt buộc trước khi code tại [request-routing.md](./request-routing.md).
 
 ---
 
@@ -67,17 +57,3 @@ Agent activated → Check frontmatter "skills:" → Read SKILL.md (INDEX) → Re
 
 ---
 
-## 🧠 Read → Understand → Apply
-
-```
-❌ WRONG: Read agent file → Start coding
-✅ CORRECT: Read → Understand WHY → Apply PRINCIPLES → Code
-```
-
-**Before coding, answer:**
-
-1. What is the GOAL of this agent/skill?
-2. What PRINCIPLES must I apply?
-3. How does this DIFFER from generic output?
-
----

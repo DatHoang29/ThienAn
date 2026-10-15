@@ -22,7 +22,7 @@ src/views/<module>/<feature>/
     └── detail<Feature>.vue     # Modal / Drawer Xem chi tiết bản ghi
 ```
 
-### 🏷️ Quy Chuẩn Đặt Tên Tệp Component (`camelCase` Bắt Buộc - CẤM `PascalCase`) (Rule 20.14 - P0 Safeguard)
+### 🏷️ Quy Chuẩn Đặt Tên Tệp Component (`camelCase` Bắt Buộc - CẤM `PascalCase`) (Rule 20.14)
 * **Tên tệp `.vue`**:
   - Tên tất cả các tệp component con trong thư mục `src/views/<module>/<feature>/component/` và `src/components/` **BẮT BUỘC viết theo chuẩn `camelCase` (chữ cái đầu viết thường)**.
   - ✅ **Ví dụ chuẩn**:
@@ -47,7 +47,7 @@ src/views/<module>/<feature>/
 
 ---
 
-## 🎨 2. Quy Chuẩn CSS / SCSS & Theme Dark/Light (P0 Safeguards)
+## 🎨 2. Quy Chuẩn CSS / SCSS & Theme Dark/Light
 
 1. **CẤM Hardcode Mã Màu (`#fff`, `#000`, `#1578a3`, `red`)**:
    - BẮT BUỘC sử dụng CSS variables của Element Plus để đảm bảo tương thích 100% giữa Light Theme và Dark Theme:
@@ -66,6 +66,8 @@ src/views/<module>/<feature>/
    - Mọi tuỳ biến CSS, override giao diện bảng (VxeTable), form, dialog cho một màn hình/phân hệ nghiệp vụ cụ thể (như ShareData, TMS, VMS, VideoWall...) **BẮT BUỘC viết trong khối `<style scoped>` nội bộ của chính component/view đó** (hoặc tệp style riêng thuộc phân hệ).
    - ⛔ **TUYỆT ĐỐI CẤM** nhồi nhét selector hoặc class của component con/nghiệp vụ cụ thể vào các tệp theme/preset dùng chung toàn dự án (như `depthBlueAmber.scss`, `theme.scss`, `app.scss`).
    - *Lý do*: Sửa vào theme chung sẽ gây hiệu ứng lây lan (side-effects), làm thay đổi và vỡ giao diện ngoài ý muốn của các phân hệ khác trên toàn dự án.
+6. **Vị Trí Đặt Code CSS/SCSS (Rule 20.16)**:
+   - Code CSS mới đặt ở cuối cùng khối `<style>`; chỉnh sửa CSS hiện có thì sửa in-place tại chỗ. Chi tiết xem mục 6.5.
 
 ---
 
@@ -99,12 +101,12 @@ src/views/<module>/<feature>/
 * **Phạm vi sửa file i18n**: Phía Frontend, lập trình viên **ĐƯỢC PHÉP** thêm/sửa key bản dịch trong `src/i18n/lang/vi-vn.json` và `en-us.json` khi phát triển giao diện.
   *(Lưu ý: Quy tắc cấm sửa tay file tĩnh chỉ áp dụng cho Backend WebAPI `src/TAC_WebAPI/Resources/*.json` do các file đó được sinh tự động từ CSDL `SysTerminology`).*
 * **Ưu tiên lấy bản dịch**: Luôn ưu tiên dùng key bản dịch chuẩn từ backend resource hoặc file i18n (`src/i18n/lang/vi-vn.json` và `en-us.json`).
-* **CẤM hardcode chuỗi text & thông báo lỗi fallback (P0 Safeguard)**:
-  - ⛔ **CẤM** viết chuỗi tiếng Việt/tiếng Anh trực tiếp trong template, placeholder, `:label`, `:title`, `:description`.
+* **CẤM hardcode text mẫu, chuỗi giao diện & thông báo lỗi fallback — 100% đưa vào i18n (Rule 20.15)**:
+  - ⛔ **CẤM** viết chuỗi tiếng Việt/tiếng Anh trực tiếp trong template, placeholder, `:label`, `:title`, `:description`, tooltip, nhãn nút bấm, nhãn mẫu mặc định (như `Mẫu mặc định`, `Đã nạp ...`, `Đã sao chép ...`, `Trực quan`, `Mã nguồn SQL`, `Thêm cột`, `Sắp xếp`...), hoặc trong script (`ElMessage.success('Đã sao chép...')`).
   - ⛔ **CẤM ĐẶC BIỆT**: Tuyệt đối không hardcode chuỗi thông báo lỗi fallback trong các khối `try-catch`, hàm kiểm tra hoặc `ElMessage` (ví dụ cấm viết: `ElMessage.error(err?.message || 'Lỗi khi lưu cấu hình SQL.')`, `state.error = result?.message || 'Cú pháp SQL không hợp lệ.'`).
   - ✅ **BẮT BUỘC**:
-    - Khi có thông báo mới, **BẮT BUỘC** bổ sung ngay key tương ứng vào cả 2 file `src/src/i18n/lang/vi-vn.json` và `src/src/i18n/lang/en-us.json` (theo quy ước tiền tố `lz.message.<feature>.<actionFailed>`).
-    - Gọi qua `$t(...)` làm giá trị fallback an toàn:
+    - 100% text hiển thị cho người dùng phải được định nghĩa bằng key trong `src/src/i18n/lang/vi-vn.json` (tiếng Việt thuần túy) và `src/src/i18n/lang/en-us.json` (tiếng Anh thuần túy).
+    - Gọi qua `$t(...)` (`const { t: $t } = useI18n()`) làm giá trị fallback an toàn:
       ```ts
       // ❌ CẤM:
       ElMessage.error(err?.response?.data?.message || err?.message || 'Lỗi khi lưu cấu hình SQL.');
@@ -112,19 +114,15 @@ src/views/<module>/<feature>/
       // ✅ BẮT BUỘC:
       ElMessage.error(err?.response?.data?.message || err?.message || $t('lz.message.sharedataDataSource.saveSqlFailed'));
       ```
-* **CẤM viết nhãn UI song ngữ lai tiếng Anh trong ngoặc (Rule 20.13 - P0 Safeguard)**:
+    - Mọi màn hình/component mới hoặc sửa đổi đều phải có bài test Playwright quét tĩnh (Static Code Scan) bảo đảm không chứa text thô cứng nhắc.
+* **CẤM viết nhãn UI song ngữ lai tiếng Anh trong ngoặc (Rule 20.13)**:
   - ⛔ **CẤM** viết nhãn, tiêu đề tab/card, nút bấm, placeholder, option label trên HTML/Vue theo kiểu song ngữ lai tiếng Việt kèm tiếng Anh trong ngoặc (như `Trực quan (Builder)`, `Mã nguồn SQL (Raw)`, `Cột trích xuất (SELECT)`, `Điều kiện lọc (WHERE)`, `Sắp xếp (ORDER BY)`, `Tăng dần (ASC)`, `Giảm dần (DESC)`).
   - 📌 **Quy tắc chú giải tiếng Anh trong ngoặc `[Tiếng Việt] ([English])` CHỈ ÁP DỤNG cho tài liệu kỹ thuật Markdown (`.md`)** (như Spec, Architecture, MasterPlan, Q&A) nhằm hỗ trợ lập trình viên đối chiếu thuật ngữ nghiệp vụ.
   - ✅ **BẮT BUỘC trên giao diện HTML/Vue**: Ngôn ngữ nào ra ngôn ngữ đó qua hệ thống i18n:
     - Trong tệp `src/src/i18n/lang/vi-vn.json` (và giá trị fallback trong template): Dùng tiếng Việt chuẩn mực, thuần túy (ví dụ: `Trực quan`, `Mã nguồn SQL`, `Cột trích xuất:`, `Điều kiện lọc:`, `Sắp xếp:`, `Tăng dần`, `Giảm dần`).
     - Trong tệp `src/src/i18n/lang/en-us.json`: Dùng tiếng Anh chuẩn xác, tự nhiên (ví dụ: `Visual Builder`, `Raw SQL`, `Columns:`, `Filter Conditions:`, `Order By:`, `Ascending`, `Descending`).
-* **CẤM hardcode text mẫu mặc định & chuỗi giao diện FE — 100% đưa vào i18n (Rule 20.15 - P0 Safeguard - bổ sung 14/10/2026)**:
-  - ⛔ **CẤM** viết chuỗi text hiển thị thô (như `Mẫu mặc định`, `Đã nạp ...`, `Đã sao chép ...`, `Trực quan`, `Mã nguồn SQL`, `Thêm cột`, `Sắp xếp`, các nhãn toán tử, nhãn bảng mô tả...) trực tiếp trong template HTML/Vue (`<el-button> Mẫu mặc định </el-button>`), placeholder, tooltip, hoặc trong script (`ElMessage.success('Đã sao chép...')`, fallback `|| 'Trực quan'`).
-  - ⛔ **CẤM** viết nhãn mẫu mặc định hoặc text mẫu tĩnh cứng nhắc bằng tiếng Việt/tiếng Anh trong component.
-  - ✅ **BẮT BUỘC**:
-    - 100% text hiển thị cho người dùng (nút bấm, nhãn trường, placeholder, tooltip, thông báo `ElMessage`, danh sách options/operators/mô tả bảng) phải được định nghĩa bằng key trong `src/src/i18n/lang/vi-vn.json` (tiếng Việt thuần túy) và `src/src/i18n/lang/en-us.json` (tiếng Anh thuần túy).
-    - Sử dụng `$t(...)` trong template và script (`const { t: $t } = useI18n()`). Không để fallback text cứng trong template nếu key đã tồn tại.
-    - Mọi màn hình/component mới hoặc sửa đổi đều phải có bài test Playwright quét tĩnh (Static Code Scan) bảo đảm không chứa text thô cứng nhắc.
+* **Quy chuẩn vị trí đặt key i18n mới (Rule 20.19)**:
+  - Key mới chèn vào dòng cuối cùng của `vi-vn.json` và `en-us.json`; chỉnh sửa key hiện có thì sửa in-place cùng hàng. Chi tiết xem mục 6.5.
 
 ---
 
@@ -169,14 +167,57 @@ src/views/<module>/<feature>/
        ```
      - ⛔ **CẤM** ép kiểu mù quáng bằng `row.code as string` hoặc dùng toán tử non-null assertion `row.code!` để né lỗi type, vì sẽ gây crash ứng dụng runtime khi dữ liệu thực tế là `null` hoặc `undefined`.
 
+4. **Khai Báo `defineProps` Trực Tiếp Trong Component — CẤM Tạo `types.ts` Lẻ Cho Component (Rule 20.17)**:
+   - **Quy chuẩn khai báo Props**:
+     - Toàn bộ định nghĩa interface Props (`interface Props { ... }`) và cú pháp `defineProps<Props>()` hoặc `const props = withDefaults(defineProps<Props>(), { ... })` **BẮT BUỘC khai báo trực tiếp bên trong khối `<script setup lang="ts">` của component `.vue`**.
+     - ⛔ **TUYỆT ĐỐI CẤM** tạo file `types.ts` riêng lẻ chỉ để chứa props hoặc vài kiểu dữ liệu cục bộ của 1 component con làm rác cấu trúc thư mục.
+     - Không tạo các file `types.ts` (hoặc `props.ts`) riêng lẻ trong thư mục component chỉ để chứa vài kiểu dữ liệu hoặc interface props của 1 component (ví dụ: cấm tạo `components/<name>/types.ts` hoặc `component/types.ts` chỉ để định nghĩa Props).
+     - Không tách lẻ file kiểu gây phân mảnh mã nguồn, rác cây thư mục và phải import gián tiếp không cần thiết.
+   - **Tái sử dụng kiểu dữ liệu (Re-exporting Types)**:
+     - Nếu component khác hoặc view cha cần tái sử dụng type/enum liên quan đến component con, hãy export trực tiếp type đó từ `<script setup lang="ts">` của component (ví dụ: `export type ScheduleKind = ...;` ngay trong component `.vue`), và phía component sử dụng chỉ cần import cú pháp chuẩn: `import ComponentName, { type ScheduleKind } from './componentName.vue'`.
+
+5. **Vị Trí Đặt Code Mới (CSS, Script, Key i18n) (Rule 20.16, 20.18, 20.19)**:
+   - **Nguyên tắc chung**: Code mới thêm vào BẮT BUỘC đặt ở dòng cuối cùng của khối tương ứng (move dòng cuối hết); chỉnh sửa thành phần đã có thì BẮT BUỘC giữ nguyên vị trí tại chỗ (in-place cùng hàng), cấm di dời lung tung làm xáo trộn Git diff.
+   - **CSS / SCSS (Rule 20.16)**: Mọi block selector/class CSS mới thêm vào BẮT BUỘC đặt ở cuối cùng của khối `<style>` (tận dụng thứ tự cascade tự nhiên, không cần `!important`). Chỉnh sửa thuộc tính trong selector đã có thì giữ nguyên vị trí tại chỗ khối selector đó.
+   - **Script Trong `<script setup>` (Rule 20.18)**: Mọi hàm, computed property, helper function mới thêm vào BẮT BUỘC đặt ở cuối cùng của khối `<script setup>` (ngay trước `defineExpose` hoặc trước thẻ đóng `</script>`). ⛔ **TUYỆT ĐỐI CẤM** chèn code mới vào giữa các khối logic hiện có (như nhét vào giữa khai báo `state = reactive(...)` và các hàm mở form). Sửa hàm/biến có sẵn thì giữ nguyên in-place cùng hàng.
+   - **Key i18n JSON (Rule 20.19)**: Khi bổ sung key bản dịch mới vào `src/src/i18n/lang/vi-vn.json` và `en-us.json`, **BẮT BUỘC chỉ chèn key mới vào DÒNG CUỐI CÙNG của tệp JSON** (ngay trước dấu đóng `}`). ⛔ **TUYỆT ĐỐI CẤM** di chuyển, tái sắp xếp, xáo trộn hoặc xóa các key đã tồn tại từ trước trong file. Chỉnh sửa key đã có (sửa câu từ, thêm `\n`) thì sửa tại chỗ (in-place cùng hàng).
+
+6. **TypeScript Clean & Tối Giản — CẤM Ép Kiểu Rườm Rà Cho Khởi Tạo State (Rule 20.20)**:
+   - **Bối cảnh & Quy chuẩn khởi tạo**: Khi khai báo các thuộc tính trong `reactive({ ... })`, `ref(...)` hoặc biến cục bộ, viết trực diện, tối giản, ngắn gọn theo chuẩn JavaScript/TypeScript:
+     ```ts
+     // ✅ CHUẨN CLEAN CODE:
+     const state = reactive({
+         apiSyncKind: null,
+         lookbackDays: null,
+         syncKind: 1,
+         cursorColumn: '',
+         isProcessing: false,
+     });
+     ```
+   - ⛔ **TUYỆT ĐỐI CẤM** viết ép kiểu rườm rà, thừa thãi (Over-engineered type assertion) khi TypeScript không hề báo lỗi:
+     - ❌ CẤM: `apiSyncKind: null as number | null,` $\rightarrow$ ✅ CHUẨN: `apiSyncKind: null,`
+     - ❌ CẤM: `lookbackDays: null as number | null,` $\rightarrow$ ✅ CHUẨN: `lookbackDays: null,`
+     - ❌ CẤM: `syncKind: 1 as number | null,` $\rightarrow$ ✅ CHUẨN: `syncKind: 1,`
+     - ❌ CẤM: `cursorColumn: '' as string,` $\rightarrow$ ✅ CHUẨN: `cursorColumn: '',`
+     - ❌ CẤM: `error: '' as string,` $\rightarrow$ ✅ CHUẨN: `error: '',`
+   - *Nguyên tắc*: Trừ khi TypeScript thực sự báo lỗi kiểu bắt buộc (strict compiler error) không thể suy diễn được, luôn ưu tiên cú pháp đơn giản, sạch sẽ nhất (Clean Code), không lạm dụng `as Type | null` làm rác code và gây khó đọc.
+
+7. **Bắt Buộc Kiểm Tra Kiểu (Type Safety) — Tránh Tuyệt Đối Lỗi Đỏ Trong IDE / TS Plugin (Rule 20.21)**:
+   - **Mục tiêu**: Đảm bảo 100% code mới hoặc code được chỉnh sửa không phát sinh bất kỳ lỗi đỏ nào từ TypeScript Language Server / IDE (như `ts-plugin(2367)`, `ts(2322)`, `ts(2339)`).
+   - **Các quy tắc kiểm tra kiểu bắt buộc**:
+     1. **Tránh lỗi `no overlap` (`ts-plugin(2367)`) do so sánh sai kiểu**:
+        - Khi một biến/thuộc tính mang kiểu enum số (như `status?: StatusEnum | undefined`): **BẮT BUỘC chỉ so sánh với enum hoặc số tương ứng** (`status === StatusEnum.NUMBER_0` hoặc `status === 0`).
+        - ⛔ **TUYỆT ĐỐI CẤM** so sánh biến enum số với chuỗi (`status === '0'` hay `status === 'Disable'`) hoặc boolean (`status === false`) vì hai kiểu không có điểm chung (no overlap), sẽ gây lỗi gạch chân đỏ `ts(2367)` trong VS Code.
+     2. **Tránh lỗi thuộc tính không tồn tại (`ts(2339)`) trên DTO**:
+        - Nếu truy cập một trường phụ mở rộng không nằm trong DTO Swagger backend (ví dụ: `syncKind` trong `ShareDataUpdatePacketInput`), **BẮT BUỘC ép kiểu cục bộ an toàn**: `(state.editForm as any).syncKind` để tránh báo đỏ.
+     3. **Tự kiểm tra trước khi bàn giao (Pre-handoff Type Audit)**:
+        - Trước khi hoàn tất mọi thay đổi code TypeScript / Vue, AI phải tự rà soát kiểu dữ liệu của các biểu thức điều kiện `if (...)`, `===`, toán tử ba ngôi `? :` để bảo đảm kiểu dữ liệu hai vế tương thích (overlap) 100%, tuyệt đối không để sót lỗi gạch chân đỏ trong IDE của lập trình viên.
+
 ---
 
-## 🛑 7. Quy Tắc Vận Hành Client Dev (P0 Safeguard)
+## 🛑 7. Quy Tắc Vận Hành Client Dev
 
-* **CẤM TỰ Ý CHẠY `npm run build` / `pnpm build` (Rule 19.13)**:
-  - Phía Frontend, môi trường phát triển đã có Vite Dev Server chạy nền với tính năng Hot-Module Replacement (Hot-Reload / HMR).
-  - Sau khi sửa code Vue/SCSS, AI **TUYỆT ĐỐI KHÔNG tự chạy build**, tránh gây treo máy và lãng phí thời gian.
-  - Chỉ chạy build khi người dùng yêu cầu trực tiếp.
+* **CẤM TỰ Ý CHẠY `npm run build` / `pnpm build` (Rule 19.13)**: Phía Frontend đã có Vite Dev Server chạy nền tích hợp sẵn Hot-Reload (HMR). Sau khi sửa code FE, AI ⛔ **TUYỆT ĐỐI KHÔNG tự chạy build** (tránh treo máy và lãng phí thời gian); chỉ build khi người dùng yêu cầu trực tiếp.
 
 ---
 
@@ -284,7 +325,7 @@ defineExpose({ openDialog });
 </script>
 ```
 
-### 2. Bốn Điều Cấm Kỵ Cốt Lõi Khi Viết Component (P0 Safeguards)
+### 2. Bốn Điều Cấm Kỵ Cốt Lõi Khi Viết Component
 1. ⛔ **CẤM Tự Chế Tệp HTML & CSS Rời Rạc Ngoài Luồng Ứng Dụng**:
    - Tuyệt đối không tạo file `.html` tĩnh (như `*prototype.html`) hoặc file `.css` ngoài component để làm bản thử nghiệm ad-hoc. Mọi tính năng đều phải được tích hợp chuẩn chỉnh vào luồng SFC Vue, layout và router của hệ thống.
 2. ⛔ **CẤM Dùng i18n Local Scope (`useScope: 'local'`) & Tệp Messages Riêng**:
@@ -313,19 +354,9 @@ defineExpose({ openDialog });
 
 ---
 
-## 🧪 9. Quy Chuẩn Bắt Buộc Viết Test Sau Khi Fix Lặt Vặt (Zero Regression - Rule 18 / 19.67 - P0)
+## 🧪 9. Quy Chuẩn Bắt Buộc Viết Test Sau Khi Fix Lặt Vặt (Zero Regression - Rule 19.67)
 
-Mọi yêu cầu sửa/chỉnh lỗi dù là lặt vặt nhất ở Frontend (như căn chỉnh CSS, font chữ, màu sắc, khoảng cách padding/margin, chống giật layout modal/tab, placeholder, nhãn i18n, validate form...) **BẮT BUỘC** thực hiện quy trình sau:
-
-1. **Viết/Bổ sung Test Ngay Sau Khi Sửa**:
-   - Thêm test case tương ứng vào bộ kiểm thử Playwright tập trung tại `tests/FE/views/<module>/<feature>.test.ts` (Rule P0.2).
-   - ⛔ **CẤM** kết thúc lượt làm việc hoặc báo "đã sửa xong" mà không bổ sung bài test xác minh.
-2. **Hình thức kiểm thử**:
-   - **Quét tĩnh mã nguồn (Static Code / CSS Scan)**: Kiểm tra file `.vue` không có `!important`, có đầy đủ CSS styles/classes yêu cầu, không dùng toán tử `!!`, chuẩn hóa font-family, có key i18n đầy đủ trong cả `vi-vn.json` và `en-us.json`.
-   - **Kiểm thử E2E / Render DOM**: Mở component/dialog, đo kích thước phần tử (`getBoundingClientRect`), kiểm tra không bị co giật/layout shift khi chuyển tab hoặc đổi trạng thái.
-3. **Thực Thi & Dọn Dẹp (Rule P0.15)**:
-   - Chạy test Playwright để chứng minh bài test pass 100%: `npx playwright test views/<module>/<feature>.test.ts --project=chromium`.
-   - Sau khi test pass, **tự động xóa bỏ các thư mục tạm (`test-results/`)** để giữ sạch Working Tree.
+Chi tiết quy trình, hình thức kiểm thử (quét tĩnh CSS/template, đo `getBoundingClientRect`) và lệnh thực thi: xem [testing-rules_thienan.md](./testing-rules_thienan.md) §3.
 
 
 

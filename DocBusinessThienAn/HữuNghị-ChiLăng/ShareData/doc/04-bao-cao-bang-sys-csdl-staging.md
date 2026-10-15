@@ -1,7 +1,7 @@
 # 📊 Báo Cáo Các Bảng `Sys*` Trong CSDL Staging — Vai Trò Từng Bảng
 
 > 📅 **Ngày đọc số liệu:** 15/10/2026 · **Nguồn số liệu:** `mssql_staging` (`10.10.8.30 / DEV_ITS10`), chỉ đọc (DAB `read_records`, `aggregate_records`) — đọc theo yêu cầu trực tiếp của người dùng.
-> 📌 **Đối chiếu mã nguồn:** `Modules.CfgSystem.Core/Entities/`, `Shared.DTO/Enums/BaseEnums.cs`, `ShareDataSqlValidator.cs`, module `Mail` (dùng `SysPlugin`), FE `api-services/system/`.
+> 📌 **Đối chiếu mã nguồn:** `Modules.CfgSystem.Core/Entities/`, `Shared.DTO/Enums/BaseEnums.cs`, `SqlValidator.cs`, module `Mail` (dùng `SysPlugin`), FE `api-services/system/`.
 
 ---
 
@@ -147,7 +147,7 @@ flowchart LR
 
 ## 🛡️ IV. Quan sát cần lưu ý
 
-1. **Danh sách bảng bị chặn trong SQL trích xuất ShareData** (`ShareDataSqlValidator.RestrictedTables`): `SysUser`, `SysUserRole`, `SysUserExtOrg`, `SysRole`, `SysRoleMenu`, `SysRoleOrg`, `SysTenant`, `SysConfig`, `SysConfigData`, `SysConfigType`, `SysOrg`, `ShareDataPartner`.
+1. **Danh sách bảng bị chặn trong SQL trích xuất ShareData** (`SqlValidator.RestrictedTables`): `SysUser`, `SysUserRole`, `SysUserExtOrg`, `SysRole`, `SysRoleMenu`, `SysRoleOrg`, `SysTenant`, `SysConfig`, `SysConfigData`, `SysConfigType`, `SysOrg`, `ShareDataPartner`.
    - **Không nằm trong danh sách chặn:** `SysAccess`, `SysApp`, `SysFile`, `SysMenu`, `SysOpConfig`, `SysPlugin`, `SysPos`, `SysTerminology`, `SysDictType`, `SysDictData`.
    - ⚠️ `SysAccess` (có thể chứa token) và `SysOpConfig` (nhóm `mail_config`, 18 dòng, có thể có thông tin kết nối thư) là hai bảng nên được xem xét đưa vào danh sách chặn. **Chưa kiểm** nội dung nhạy cảm của hai bảng này — báo cáo không đọc giá trị `Value`/token.
 2. **Dữ liệu thử lẫn trong staging:** `SysApp` có dòng tên/mã vô nghĩa (`t`/`qw`, `twewe`/`qweweew`…), `SysPlugin` có dòng `Plugin A`, `plugin`, một dòng tên trống và hai dòng cùng tên "Tích hợp VDS". Mã `SysPlugin.Code` được module Mail dùng, nên dòng trùng/rác có thể làm lệch cách gom báo cáo email.

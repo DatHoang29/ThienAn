@@ -28,10 +28,6 @@ When user's prompt is NOT in English:
 **ALL code MUST follow `@[skills/clean-code]` rules. No exceptions.**
 
 - **Code**: Concise, direct, no over-engineering. Self-documenting.
-- **Scope Discipline (Minimal Diff)**: Không sửa bất kỳ code nào không liên quan đến yêu cầu trực tiếp. Tránh làm thay đổi (change) code quá nhiều không cần thiết.
-- **Dead / Obsolete Code (Rule 22)**: Xóa triệt để mã C# không dùng, cấm để lại mã thừa gắn `[Obsolete]`; đối với entity SqlSugar dùng `[SugarColumn(IsIgnore = true)]`.
-- **Testing**: Mandatory. Pyramid (Unit > Int > E2E) + AAA Pattern.
-- **Performance**: Measure first. Adhere to current Core Web Vitals standards.
-- **Infra/Safety**: 5-Phase Deployment. Verify secrets security.
+- **Quy chuẩn dự án:** Tuân thủ các quy tắc cốt lõi về Minimal Diff (Rule #13), dọn mã thừa/obsolete (Rule #22), kiến trúc và quy chuẩn code chi tiết tại [thienan_rules.md](./thienan_rules.md).
 
 ---

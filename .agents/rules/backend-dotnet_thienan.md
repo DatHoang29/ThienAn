@@ -44,14 +44,17 @@ description: Backend .NET standards, Wolverine bus, SqlSugar ORM, Clean Architec
 * Mỗi Module bắt buộc có `BaseController.cs` riêng tại `Modules.[TênHệ].Controllers`.
 * Khai báo hằng số `GroupName` và `BasePath`, gắn `[ApiDescriptionSettings(GroupName)]`:
 ```csharp
-namespace Modules.ShareData.Controllers
+using Shared.Infrastructure.Controllers;
+using Wolverine;
+
+namespace Module.ShareData.Controllers
 {
-    [ApiDescriptionSettings(GroupName)]
     [Route(BasePath + "/[controller]")]
-    public abstract class BaseController : AppControllerBase
+    [ApiDescriptionSettings(GroupName)]
+    public class BaseController : CommonBaseController, ITransient
     {
-        public const string GroupName = "ShareData";
-        public const string BasePath = "api/vms";
+        protected internal new const string BasePath = "api/sharedata";
+        protected internal new const string GroupName = "ShareData";
     }
 }
 ```
@@ -81,7 +84,7 @@ namespace Modules.ShareData.Controllers
 * **Hằng số độ dài `EntityConst`**: BẮT BUỘC dùng `EntityConst.Length32`, `EntityConst.Length64`, `Length128`, `Length256`, `Length512`, `KeyFieldLength`. CẤM hardcode số (như `Length = 32`).
 * ⛔ **CẤM gán `Length` cho kiểu không phải chuỗi (Lỗi SQL Server 2716)**: `Length = EntityConst...` CHỈ dùng cho chuỗi (`string` / `string?`). Tuyệt đối cấm gán vào `int`, `long`, `float`, `DateTime`, `bool`.
 * **Quy định `IsNullable = true`**: Tất cả cột Entity (trừ khóa chính `ID`) bắt buộc khai báo `[SugarColumn(IsNullable = true, ...)]` và dùng kiểu nullable (`string?`, `DateTime?`, `int?`...).
-* **Thuộc Tính Entity Không Ánh Xạ CSDL (Rule 22 / Rule 19.68)**: Nếu Entity class có thuộc tính phụ trợ, tính toán, trạng thái runtime hoặc tạm thời không lưu trữ trong database, **BẮT BUỘC gắn `[SugarColumn(IsIgnore = true)]`** để SqlSugar bỏ qua không sinh/truy vấn cột trên bảng CSDL, tránh lỗi lệch schema (`Invalid column name`).
+* **Thuộc tính Entity không ánh xạ CSDL (Rule 19.68)**: BẮT BUỘC gắn `[SugarColumn(IsIgnore = true)]`. Chi tiết xem mục 4.10.
 
 ### Khóa Chính `ID` (SnowFlake ID - Rule 19.44)
 * **WebAPI**: Được AOP/Interceptors tự động sinh Snowflake ID khi Insert. **CẤM tự gán tay `entity.ID`** trong WebAPI.
@@ -122,16 +125,14 @@ namespace Modules.ShareData.Controllers
 8. **Vị Trí `using` & Quy Chuẩn `namespace` (Rule 19.65)**:
    - **Vị trí `using` luôn đứng đầu file**: Mọi chỉ thị `using` **BẮT BUỘC đặt ở đầu tệp tin**, phía trước khai báo `namespace`. ⛔ **TUYỆT ĐỐI CẤM** đặt `using` sau khai báo `namespace` (kể cả khi dùng file-scoped namespace).
    - **Đồng nhất kiểu `namespace`**: Tuân thủ phong cách namespace của module / file gốc hiện hữu. Khi tạo file mới hoặc tách `partial class`, **BẮT BUỘC đồng nhất** với các file cùng class/module: nếu các file hiện tại dùng block-scoped namespace (`namespace X { ... }`) thì file mới bắt buộc dùng block-scoped namespace, ⛔ **CẤM** viết lẫn lộn file-scoped namespace (`namespace X;`) trong cùng một partial class.
-9. **Can Thiệp Tối Thiểu & Cấm Sửa Code Ngoài Phạm Vi (Minimal Diff / Scope Discipline)**:
-   - ⛔ **TUYỆT ĐỐI CẤM** sửa bất kỳ file, class, phương thức hoặc dòng code nào **KHÔNG LIÊN QUAN TRỰC TIẾP** đến yêu cầu hiện tại để tránh làm biến động (change) mã nguồn quá nhiều không cần thiết.
-   - Chỉ sửa đúng các dòng code tối thiểu cần thiết để đạt mục tiêu.
-   - Giữ nguyên 100% logic, định dạng, biến, chú thích của các hàm/file xung quanh đang chạy ổn định.
-   - Cấm tự ý tiện tay refactor, format lại cả file, đổi namespace, đổi kiểu dữ liệu hay sửa file ngoài phạm vi.
-10. **Xóa Triệt Để Mã Không Dùng — Cấm Gắn `[Obsolete]` Để Lại Mã Thừa (Rule 22 / Rule 19.68)**:
+9. **Can Thiệp Tối Thiểu & Cấm Sửa Code Ngoài Phạm Vi (Minimal Diff - Rule 19.6, 19.35)**:
+   - Chi tiết xem [thienan_rules.md](./thienan_rules.md) bảng P0 quy tắc #13.
+10. **Xóa Triệt Để Mã Không Dùng & Thuộc Tính Entity Không Ánh Xạ (Rule 19.68)**:
     - Đối với code C# thông thường (service, helper, util, DTO, class, method, handler...): Khi không dùng hoặc đã được thay thế bằng giải pháp mới, **BẮT BUỘC XÓA BỎ HOÀN TOÀN (Clean Delete)** khỏi solution.
     - ⛔ **TUYỆT ĐỐI CẤM** để lại mã rác rồi gắn thuộc tính `[Obsolete]` làm bẩn codebase và sinh warning trình biên dịch (CS0618).
     - Mọi test case kiểm thử mã cũ cũng phải được xóa bỏ hoặc thay thế tương ứng bằng bài test cho giải pháp mới.
-11. **Chuẩn Hóa Thông Báo Lỗi & Ngoại Lệ — Cấm Hardcode String Trong `Oops.Oh` (Rule 23 / Rule 19.69)**:
+    - **Thuộc tính Entity không ánh xạ CSDL**: Nếu Entity class có thuộc tính phụ trợ, tính toán, trạng thái runtime hoặc tạm thời không lưu trữ trong database, **BẮT BUỘC gắn `[SugarColumn(IsIgnore = true)]`** để SqlSugar bỏ qua không sinh/truy vấn cột trên bảng CSDL, tránh lỗi lệch schema (`Invalid column name`).
+11. **Chuẩn Hóa Thông Báo Lỗi & Ngoại Lệ — Cấm Hardcode String Trong `Oops.Oh` (Rule 19.69)**:
     - ⛔ **TUYỆT ĐỐI CẤM** hardcode chuỗi string trực tiếp (tiếng Việt hoặc tiếng Anh) trong `Oops.Oh("...")` hay `throw new AppFriendlyException("...")`.
     - **Định danh thông báo qua `BaseMsg`**: Mọi thông báo lỗi, thông điệp kiểm tra dữ liệu (validation), thông báo ngoại lệ nghiệp vụ (exception) **BẮT BUỘC** khai báo tập trung trong `BaseMsg` của module (kế thừa `BaseLocaleManager`) theo tiền tố chuẩn:
       - `lz.validation.<module>.<mãKey>` (hoặc `BaseMsg.BaseValidation.*`): Dùng cho lỗi kiểm tra dữ liệu đầu vào.
@@ -146,6 +147,23 @@ namespace Modules.ShareData.Controllers
       - `Code`: Mã phân cấp sau tiền tố (ví dụ `sharedata.lookbackDaysRange`, `cctv.deviceNotFound`).
       - `Value`: Nội dung thông điệp (hỗ trợ tham số hóa qua placeholder `{0}`, `{1}`...).
     - **Cấm sửa tay file tĩnh Backend**: ⛔ **TUYỆT ĐỐI CẤM** sửa tay vào `TAC_WebAPI/Resources/*.json` vì các file này được sinh tự động (auto-generated) từ CSDL `SysTerminology` qua endpoint `LoadServerTerm`.
-
-
+12. **CẤM Tự Ý Thêm Project & Solution Folder Dư Thừa Vào Solution (`.sln`) (Rule 19.71)**:
+    - Solution file chính (`src/TAC_WebAPI.sln`) là tài nguyên dùng chung của toàn hệ thống WebAPI.
+    - ⛔ **TUYỆT ĐỐI CẤM** tự ý thêm các project không thuộc phạm vi phân hệ đang làm (như thêm nhầm VideoWall, các project dịch vụ ngoài, hoặc test project `tests/BE/test.csproj`) vào file solution WebAPI.
+    - ⛔ **TUYỆT ĐỐI CẤM** tạo các Solution Folder trung gian dư thừa không cần thiết (như tạo thêm Solution Folder lẻ trong khi project có thể lồng trực tiếp vào folder gốc của module, ví dụ lồng thẳng vào `Modules`).
+    - Khi bắt buộc phải thêm project của phân hệ vào solution (ví dụ `Modules.Integration.<PhânHệ>`):
+      - Chỉ thêm đúng project cần thiết phục vụ build/chạy WebAPI.
+      - Phải đăng ký đầy đủ và chính xác trong cả 3 khối: `Project(...)`, `ProjectConfigurationPlatforms`, và `NestedProjects` (trỏ đúng thư mục cha chuẩn, ví dụ `Modules`).
+      - Không để sót cấu hình rác hoặc mapping mồ côi.
+13. **Quy Chuẩn Đặt Tên Kiểu Mới Trong Phân Hệ — Tránh Lặp Tiền Tố (Rule 19.73)**:
+    - Khi kiểu mới đã nằm trong namespace hoặc thư mục của phân hệ (ví dụ `Modules.Integration.ShareData`, `Modules.ShareData` hoặc `ShareData/`): **TUYỆT ĐỐI KHÔNG lặp lại tiền tố của phân hệ ở tên kiểu mới**.
+      - Ví dụ chuẩn: Viết `FormatContext` thay vì `ShareDataFormatContext`, `PayloadCodecResolver` thay vì `ShareDataPayloadCodecResolver`.
+    - **Phạm vi áp dụng**: Bao gồm class, interface (`IConnectionHandler`, không phải `IShareDataConnectionHandler`), enum, record, DTO và tên file (tên file = tên kiểu chính).
+    - **Tiền tố cần tránh**: Tên phân hệ (`ShareData`, `VMS`, `TMS`...) khi namespace/project đã mang tên phân hệ (`Module.ShareData*`, `Modules.Integration.ShareData`, `ShareDataWorker*`).
+    - **Ngoại lệ (giữ nguyên)**:
+      - Các kiểu đã có ở `HEAD` (bảo toàn class/kiểu cũ để tránh xáo trộn codebase và giảm thiểu diff).
+      - Controller (route, Swagger và client FE sinh theo tên, nên theo các `ShareData*Controller` hiện có).
+      - Tên thư mục giữ nguyên theo các thư mục cũ cùng cấp (ví dụ `ShareDataExtraction/`, `ShareDataMetadata/`).
+    - **Trùng tên kiểu khác trong solution**: Đặt tên mô tả khác, tuyệt đối không thêm lại tiền tố phân hệ (ví dụ đặt `PayloadDirection` vì `Direction` đã có ở `Shared.DTO/Enums/BaseEnums.cs`).
+    - **Kiểm trước khi bàn giao**: Liệt kê khai báo kiểu mới trong `git diff HEAD` có tiền tố phân hệ → danh sách phải rỗng (ngoại trừ controller).
 

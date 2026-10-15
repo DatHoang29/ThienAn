@@ -5,7 +5,9 @@ import xml.etree.ElementTree as ET
 
 sys.stdout.reconfigure(encoding='utf-8')
 
-report_path = r'c:\ThienAn\DocBusinessThienAn\HữuNghị-ChiLăng\BaoCaoTuanITS15\PCN_WeeklyReport_20261005.xlsx'
+script_dir = os.path.dirname(os.path.abspath(__file__))
+default_path = os.path.join(os.path.dirname(script_dir), 'PCN_WeeklyReport_20261005.xlsx')
+report_path = sys.argv[1] if len(sys.argv) > 1 else default_path
 
 if not os.path.exists(report_path):
     print(f"Error: {report_path} not found")

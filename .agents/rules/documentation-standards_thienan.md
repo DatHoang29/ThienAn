@@ -52,6 +52,7 @@ description: Documentation standards, single MasterPlan per subsystem, executabl
 4. **CẤM Viết Phụ Lục (Rule 19.14)**:
    - ⛔ TUYỆT ĐỐI KHÔNG tạo `Phụ lục A/B/C`, không tạo mục "nhật ký việc đã xử lý" thừa thãi làm loãng nội dung.
    - Quyết định quan trọng và phương án bị bác BẮT BUỘC ghi thẳng vào MasterPlan, không để trong báo cáo rà soát.
+5. **Phạm Vi Đối Chiếu**: Chỉ đối chiếu code working tree, test và DB local; không lấy staging làm phát hiện.
 
 ---
 
@@ -72,7 +73,7 @@ description: Documentation standards, single MasterPlan per subsystem, executabl
 
 ## 📐 4. Soạn Thảo Đặc Tả Nghiệp Vụ (Specification Standards - Section 22)
 
-1. **Khảo Sát Thực Tế Trước Khi Viết**: Kiểm tra schema DB thật trên staging qua DAB MCP và codebase trước khi viết spec.
+1. **Khảo Sát Thực Tế Trước Khi Viết**: Kiểm tra schema DB thật trên môi trường local (hoặc staging khi người dùng yêu cầu) qua DAB MCP và codebase trước khi viết spec.
 2. **Khung Chuẩn 4 Giai Đoạn**: Khởi tạo/Cấu hình -> Thu thập/Kích hoạt -> Xử lý/Biến đổi -> Đồng bộ/Xuất dữ liệu.
 3. **Trực Quan Hóa Bằng Mermaid Flowchart**: Dùng `flowchart TD` (chiều dọc), bo tròn node xử lý, quote các nhãn có ký tự đặc biệt.
 
@@ -123,9 +124,8 @@ description: Documentation standards, single MasterPlan per subsystem, executabl
    - **Đặt ở CUỐI**: Các hạng mục **Giao diện Frontend (UI / Component / Tab)** và **Đa ngôn ngữ (i18n / thuật ngữ)**.
 3. **Định dạng & Văn phong ngắn gọn**:
    - Tiêu đề đầu mục ngắn gọn (`1.`, `2.`, `3.`...) kèm phạm vi (`(Service / BE)`, `(BE)`, `(FE)`).
-   - Mỗi gạch đầu dòng `- ` chỉ **1 câu ngắn gọn** (15–25 từ), **KHÔNG** liệt kê tên class, tên bảng, tên file, tên biến code hoặc danh sách tham số dài dòng trong ngoặc; chỉ cần nêu khái quát nghiệp vụ và phạm vi `(Service / BE)`.
+   - Mỗi gạch đầu dòng `- ` chỉ **1 câu ngắn gọn** (15–25 từ), không liệt kê tên class, tên bảng, tên file hay tham số chi tiết.
    - **KHÔNG** chia mốc ngày `dd/MM/yyyy`, **KHÔNG** có vạch `==============================`.
-   - ⛔ **CẤM** ghi mã ký hiệu nội bộ (`R1`, `R2`, `R5`...), **CẤM** ghi tên class cụ thể và **CẤM** đưa việc dọn dẹp code.
 4. **Mẫu chuẩn Mô tả công việc**:
    ```text
    1. Tách tầng điều phối kết nối độc lập (Service / BE)
@@ -143,17 +143,14 @@ description: Documentation standards, single MasterPlan per subsystem, executabl
 2. **Thứ tự sắp xếp & Chia đều theo từng ngày trong tuần**:
    - **Đặt ở ĐẦU**: Các đầu mục trọng tâm về **Service / Worker**, **Tầng kết nối**, **Phân quyền / Bảo mật / Nghiệp vụ Backend**.
    - **Đặt ở CUỐI**: Các hạng mục **Giao diện Frontend (Component UI, Tab)**, **Đa ngôn ngữ (i18n)** và các công việc **Support / Verify**.
-   - **Chia đều theo mỗi ngày trong tuần (Daily Breakdown)**: Khi task kéo dài 1 tuần, **BẮT BUỘC chia đều các đầu mục theo từng ngày làm việc trong tuần** (được phép tách nhỏ tính năng lớn thành các bước theo ngày để ngày nào cũng có đầu mục kết quả rõ ràng).
+   - **Chia đều theo mỗi ngày trong tuần (Daily Breakdown)**: Khi task kéo dài 1 tuần, **BẮT BUỘC chia đều các đầu mục theo từng ngày làm việc trong tuần**.
 3. **Định dạng & Bố cục chuẩn (Viết sát dòng, chỉ ngắt dòng đơn)**:
    - **Vạch ngăn cách**: Phân tách giữa các ngày bằng dòng `==============================` (**dòng đầu tiên của báo cáo TUYỆT ĐỐI CẤM có `==============================`**).
-   - **Dòng 1: [Tên phạm vi]: dd/MM/yyyy (Gộp ngày vào phạm vi, bỏ chữ "Phạm vi:")**: Dòng đầu tiên của mỗi ngày có cú pháp `[Tên phạm vi]: dd/MM/yyyy` (ví dụ: `Backend: 13/10/2026`, `Frontend: 14/10/2026`, `Backend / Frontend: 15/10/2026`, `Service / Backend: 16/10/2026`, `Support / Verify: 17/10/2026`). ⛔ **TUYỆT ĐỐI CẤM** thêm tiền tố thừa như `Phạm vi: ` hay `Scope: `.
-   - **Dòng 2: [Tên công việc] (Bỏ ngày bên dưới)**: Dòng thứ 2 ghi trực tiếp tên công việc (ví dụ: `Cơ chế truy vấn SQL động và kiểm tra an toàn cú pháp`), ⛔ **TUYỆT ĐỐI CẤM** lặp lại ngày tháng `dd/MM/yyyy:` hay mã `(BE)`, `(FE)` ở dòng này vì Dòng 1 đã có đầy đủ phạm vi và ngày hoàn thành.
+   - **Dòng 1: [Tên phạm vi]: dd/MM/yyyy (Gộp ngày vào phạm vi, bỏ chữ "Phạm vi:")**: Cú pháp `[Tên phạm vi]: dd/MM/yyyy` (ví dụ: `Backend: 13/10/2026`). ⛔ **TUYỆT ĐỐI CẤM** thêm tiền tố thừa như `Phạm vi: ` hay `Scope: `.
+   - **Dòng 2: [Tên công việc] (Bỏ ngày bên dưới)**: Dòng thứ 2 ghi trực tiếp tên công việc (ví dụ: `Cơ chế truy vấn SQL động và kiểm tra an toàn cú pháp`), ⛔ **TUYỆT ĐỐI CẤM** lặp lại ngày tháng `dd/MM/yyyy:` hay mã `(BE)`, `(FE)` ở dòng này.
    - **Quy chuẩn nội dung theo Phạm vi**: Khi phạm vi là `Frontend`, toàn bộ các gạch đầu dòng bên dưới **BẮT BUỘC là công việc Frontend**, ⛔ **CẤM** đưa các việc trích xuất backend/CSDL vào scope Frontend.
-   - **Viết sát dòng (KHÔNG để dòng trống ở giữa)**: Toàn bộ các dòng (dòng phạm vi ngày, dòng tên công việc, các gạch đầu dòng `- `, vạch ngăn cách) **BẮT BUỘC viết sát liền nhau (chỉ dùng ngắt dòng đơn `\n`, không chèn dòng trống)** để khi copy-paste vào trình soạn thảo Task Portal không bị sinh khoảng cách thừa làm bể layout.
-   - **Nội dung gạch đầu dòng (Ngắn gọn, súc tích)**: Mỗi gạch đầu dòng `- ` viết 1 câu ngắn gọn, súc tích mô tả một kết quả nghiệp vụ cụ thể.
-   - ⛔ **CẤM** ghi mã ký hiệu nội bộ (`R1`, `R2`, `R5`, `R7`, `BE-7`, `G.1`...).
-   - ⛔ **CẤM khai báo chi tiết tên class, tên bảng** (như `ShareDataWorker`, `IntgVmsManager`, `ShareDataPartner`...): **chỉ cần ghi khái quát nghiệp vụ**.
-   - ⛔ **CẤM** liệt kê các việc dọn dẹp code.
+   - **Viết sát dòng (KHÔNG để dòng trống ở giữa)**: Toàn bộ các dòng **BẮT BUỘC viết sát liền nhau (chỉ dùng ngắt dòng đơn `\n`, không chèn dòng trống)** để tránh sinh khoảng cách thừa làm bể layout Task Portal.
+   - **Nội dung gạch đầu dòng**: Mỗi gạch đầu dòng `- ` viết 1 câu ngắn gọn, súc tích mô tả một kết quả nghiệp vụ cụ thể.
 4. **Mẫu chuẩn Kết quả công việc**:
    ```text
    Backend / Frontend: 14/10/2026
@@ -174,10 +171,62 @@ description: Documentation standards, single MasterPlan per subsystem, executabl
 
 ---
 
-## 🌐 7. Phạm Vi Áp Dụng Chú Thích Tiếng Anh Trong Ngoặc (Chỉ Áp Dụng Cho Tài Liệu Markdown `.md` — Rule 20.13)
+## 🌐 7. Phạm Vi Áp Dụng Chú Thích Tiếng Anh Trong Ngoặc (Rule 20.13)
 
-* **Quy ước song ngữ `[Tiếng Việt] ([English])`**:
-  - Khi viết tài liệu phân tích kỹ thuật, kiến trúc, đặc tả nghiệp vụ, biên bản họp hoặc MasterPlan bằng tiếng Việt, việc mở ngoặc ghi kèm thuật ngữ tiếng Anh chuẩn (như `Đăng ký (Subscription)`, `Gói tin (Packet)`, `Ánh xạ (Mapping)`, `Trực quan (Builder)`, `Mã nguồn (Raw)`) nhằm giúp lập trình viên và Tech Lead đối chiếu chính xác giữa khái niệm nghiệp vụ và tên class/bảng/API trong mã nguồn.
-  - ⛔ **CẤM TUYỆT ĐỐI áp dụng quy ước này lên giao diện người dùng (HTML/Vue/i18n)**: Trên màn hình HTML/UI (template, component, dialog, tab, button, placeholder, message, và các tệp `vi-vn.json`/`en-us.json`), **ngôn ngữ nào ra ngôn ngữ đó qua hệ thống i18n**. Giao diện tiếng Việt phải dùng tiếng Việt thuần túy, không chèn tiếng Anh trong ngoặc (xem Rule 20.13 trong `frontend-vue_thienan.md`).
+Quy ước chú giải tiếng Anh trong ngoặc `[Tiếng Việt] ([English])` CHỈ ÁP DỤNG cho tài liệu kỹ thuật Markdown (`.md`). Trên giao diện HTML/UI/i18n, ⛔ **CẤM** viết nhãn song ngữ lai (chi tiết xem [frontend-vue_thienan.md](./frontend-vue_thienan.md) Rule 20.13).
+
+---
+
+## 📑 8. Quy Chuẩn Tạo & Sửa Báo Cáo Tuần / Tài Liệu Excel (Zero-Corruption OpenXML - Rule 19.53, Rule 19.72)
+
+1. **Bảo Toàn 100% Cấu Trúc Bit-Perfect Của Template Gốc**:
+   - Khi tạo hoặc cập nhật file Báo cáo tuần Excel (`PCN_WeeklyReport_*.xlsx`) hoặc tài liệu mẫu OpenXML (`.xlsx`, `.docx`): **BẮT BUỘC đối chiếu cấu trúc XML/OpenXML với file gốc làm chuẩn và kiểm tra tính toàn vẹn (Zero Corruption) trước khi hoàn tất**.
+   - Bảo toàn nguyên vẹn logo (`xl/drawings/drawing1.xml`, `xl/media/image1.png`), rich text màu (`<si><r><rPr>...`), font Times New Roman, border, mergeCells, hyperlinks.
+2. ⛔ **CẤM Dùng `ElementTree.tostring()` Trên `sheet1.xml`**:
+   - `xml.etree.ElementTree` trong Python tự động loại bỏ các namespace không gắn trên thẻ (`xmlns:x14ac`, `xmlns:xr2`, `xmlns:xr3`), làm hỏng khai báo `mc:Ignorable="x14ac xr xr2 xr3"`, đổi sai tiền tố quan hệ `r:id` thành `ns3:id` trên `<drawing>` và `<hyperlink>`, làm mất cờ `standalone="yes"`.
+   - Hậu quả: Khi mở file trên Microsoft Excel sẽ bị bật pop-up cảnh báo lỗi phục hồi (recovery warning).
+3. **Giải Pháp Chuẩn**:
+   - Dùng **kỹ thuật Direct OpenXML Patching bằng Regex có chọn lọc** (`patch_sheet1_xml_dates_and_heights`) trên chuỗi XML nguyên gốc để chỉ thay đổi đúng chiều cao dòng `ht` và số ngày serial (`excel_date_serial`), giữ nguyên 100% từng byte namespace, tiền tố `r:id`, `xr:uid` và header.
+   - Đối với `xl/sharedStrings.xml`: Cập nhật text trong các thẻ `<si>`, giữ nguyên các `si[0..5]` rich text của template gốc, và luôn xuất header chuẩn `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`.
+4. **Kiểm Tra Tính Toàn Vẹn Bắt Buộc Trước Khi Hoàn Tất (`validate_excel_openxml`)**:
+   - BẮT BUỘC chạy hàm kiểm tra `validate_excel_openxml()`:
+     1. `z.testzip()` không có lỗi CRC/cấu trúc zip.
+     2. Tất cả file `.xml` và `.rels` parse hợp lệ.
+     3. `sheet1.xml` KHÔNG chứa các tiền tố namespace tự sinh `ns0:`, `ns1:`, `ns2:`, `ns3:`.
+     4. `sheet1.xml` có đầy đủ thuộc tính chuẩn `r:id` cho `drawing` và `hyperlink`.
+     5. Mọi tiền tố trong `mc:Ignorable` đều có khai báo `xmlns:<prefix>=`.
+     6. Danh sách tệp bên trong ZIP khớp 100% với template chuẩn.
+     7. Tải thử bằng `openpyxl` (hoặc Excel) mở thành công mà không phát sinh lỗi hoặc cảnh báo phục hồi.
+
+---
+
+## 📝 9. Quy Chuẩn Viết Nội Dung Báo Cáo Tiến Độ & Báo Cáo Tuần — Chỉ Báo Cáo Thay Đổi Thực Tế (Rule 19.74)
+
+1. **Nguyên Tắc Cốt Lõi — Chỉ Báo Cáo Những Gì Thực Tế Đã Làm Hoặc Đã Từng Tồn Tại**:
+   - Khi viết báo cáo tuần, báo cáo tiến độ, mô tả/kết quả công việc (Task Portal), tài liệu kiến trúc hoặc phản hồi người dùng:
+     - **Chỉ ghi nhận**: Những tính năng, thành phần, cấu trúc dữ liệu, API, module thực tế đã hoàn thành, đã xây dựng mới hoặc cải tiến.
+     - **Với thao tác xóa / gỡ bỏ**: CHỈ ĐƯỢC GHI "xóa / gỡ bỏ [thành phần X]" nếu thành phần X đó **ĐÃ THỰC SỰ TỒN TẠI TRƯỚC ĐÓ TRONG HỆ THỐNG / CSDL THỰC TẾ** (ví dụ: bảng thừa đã có sẵn trong CSDL từ các phiên bản trước được DROP bỏ).
+
+2. ⛔ **TUYỆT ĐỐI CẤM Ghi "Bỏ / Xóa [Thành Phần X]" Khi X Chưa Từng Tồn Tại Thực Tế**:
+   - ⛔ **CẤM** ghi báo cáo theo kiểu *"Bỏ bảng trung gian X, gom vào..."* khi thực chất bảng X đó chỉ là một phương án nháp, ý tưởng thiết kế nội bộ hoặc chưa từng được tạo/triển khai trong CSDL trước đây.
+   - Báo cáo chuẩn xác theo hướng **giải pháp thực tế được triển khai**:
+     - ❌ **Sai:** `- Bỏ bảng trung gian ShareDataPacketExtractSql, gom trực tiếp câu lệnh SQL vào cấu hình gói tin (ExtractSql).`
+     - ✅ **Đúng:** `- Tích hợp trực tiếp câu lệnh trích xuất dữ liệu động vào cấu hình gói tin và ánh xạ đối tác.`
+
+3. **Mức Độ Chi Tiết Trong Báo Cáo Tuần Excel (`@xlsx` / `PCN_WeeklyReport_*.xlsx`) — Ghi Khái Quát Nghiệp Vụ, CẤM Viết Chi Tiết Code**:
+   - **Chỉ ghi những gì mình làm / kết quả đạt được từ góc độ nghiệp vụ và tính năng hệ thống**.
+   - ⛔ **TUYỆT ĐỐI CẤM** viết chi tiết triển khai code & tên component UI:
+     - CẤM đưa tên hàm/phương thức C# (như `EnsureTablesCreated()`), tên class nội bộ, tên biến, cấu trúc bảng CSDL chi tiết (`SysOpConfig (ShareDataTracker)`), hay các công việc dọn dẹp code nội bộ vào báo cáo tuần.
+     - CẤM đưa tên component kỹ thuật/giao diện nội bộ (như `Visual Query Builder`, `editPacket.vue` -> BẮT BUỘC ghi theo tính năng hệ thống: *Xây dựng tính năng tạo và tùy biến câu truy vấn trích xuất dữ liệu động*).
+   - ⛔ **TUYỆT ĐỐI CẤM** đưa phân hệ không làm trong tuần vào báo cáo (tuần nào chỉ làm ShareData thì CHỈ BÁO CÁO ShareData, bỏ hẳn phân hệ khác).
+   - ⛔ **CẤM** liệt kê lan man các việc phụ trợ/dọn dẹp kỹ thuật lặt vặt (như gom script SQL 00-05, chuẩn hóa cơ chế lưu vết cấu hình, thông luồng từng mã gói nhỏ...). Chỉ chắt lọc 2-3 gạch đầu dòng tính năng lớn cốt lõi.
+   - **Kế hoạch tuần tiếp theo**: Bám sát nghiệp vụ thực tế: Theo dõi và khắc phục các vấn đề phát sinh theo mã task (ví dụ: `XD006.7.1`), xây dựng kịch bản kiểm thử và nghiệm thu chức năng, kiểm thử tích hợp trên môi trường nội bộ.
+   - **Ví dụ đối chiếu**:
+     - ❌ **Sai:** `- Xây dựng Visual Query Builder và tùy biến truy vấn SQL trích xuất động cho các gói tin, hỗ trợ đầy đủ các tham số hóa hệ thống.` $\rightarrow$ ✅ **Đúng:** `- Xây dựng tính năng tạo và tùy biến câu truy vấn trích xuất dữ liệu động.`
+     - ❌ **Sai:** `- Chuyển đổi cơ chế lưu vết cấu hình động sang chuẩn SysOpConfig (ShareDataTracker), loại bỏ hàm tạo bảng động EnsureTablesCreated.` $\rightarrow$ ✅ **Đúng:** `- Tách độc lập tầng kết nối và điều phối giao thức truyền tải (WebAPI, Kafka, FTP) dùng chung cho toàn hệ thống.`
+     - ❌ **Sai:** Để nguyên khối `Phân hệ Tường màn hình (VideoWall)` dù tuần đó không làm việc gì về VideoWall $\rightarrow$ ✅ **Đúng:** Chỉ để `Phân hệ Chia sẻ Dữ liệu (ShareData - ESHARE)`.
+
+
+
 
 

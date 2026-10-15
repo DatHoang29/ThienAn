@@ -14,7 +14,7 @@ namespace Tests.ShareData.Infrastructure.Services.Cleanup
     /// Created date: 14/10/2026
     /// </summary>
     [Collection("api")]
-    public class ShareDataCleanupServiceTests(Host host)
+    public class CleanupServiceTests(Host host)
     {
         [Fact]
         public void CleanOldExportFiles_DeletesOnlyFoldersOlderThanRetentionDays_KeepsRecentFolders_Test()
@@ -39,7 +39,7 @@ namespace Tests.ShareData.Infrastructure.Services.Cleanup
             Directory.CreateDirectory(legacyOldDir);
             File.WriteAllText(Path.Combine(legacyOldDir, "legacy_old.json"), "{\"data\":3}");
 
-            var service = new ShareDataCleanupService();
+            var service = new CleanupService();
 
             // Act
             var deletedCount = service.CleanOldExportFiles(tempRoot, retentionDays: 30);
@@ -100,7 +100,7 @@ namespace Tests.ShareData.Infrastructure.Services.Cleanup
                 "UPDATE dbo.ShareDataActivityLog SET CreateTime = DATEADD(day, -45, GETDATE()) WHERE ID IN (@oldTransferId, @oldConfigId)",
                 new { oldTransferId, oldConfigId });
 
-            var service = new ShareDataCleanupService();
+            var service = new CleanupService();
 
             // Act
             var deletedTotal = await service.CleanOldTransferLogsAsync(db, retentionDays: 30, batchSize: 500);
@@ -150,7 +150,7 @@ namespace Tests.ShareData.Infrastructure.Services.Cleanup
                 "UPDATE dbo.ShareDataAlertLog SET CreateTime = DATEADD(day, -50, GETDATE()) WHERE ID = @oldAlertId",
                 new { oldAlertId });
 
-            var service = new ShareDataCleanupService();
+            var service = new CleanupService();
 
             // Act
             await service.CleanOldTransferLogsAsync(db, retentionDays: 30, batchSize: 500);
@@ -168,7 +168,7 @@ namespace Tests.ShareData.Infrastructure.Services.Cleanup
         {
             // Arrange
             var db = host.Services.GetRequiredService<ISqlSugarClient>();
-            var service = new ShareDataCleanupService();
+            var service = new CleanupService();
 
             // Act
             await service.RecordCleanupActivityAsync(db, filesCleaned: 12, logsCleaned: 450, retentionDays: 30);
@@ -213,7 +213,7 @@ namespace Tests.ShareData.Infrastructure.Services.Cleanup
                 "UPDATE dbo.ShareDataInboundPacket SET CreateTime = DATEADD(day, -45, GETDATE()) WHERE ID = @packetId",
                 new { packetId });
 
-            var service = new ShareDataCleanupService();
+            var service = new CleanupService();
 
             // Act
             var deletedCount = await service.CleanOldInboundPacketsAsync(inboundDb, retentionDays: 30, batchSize: 500);

@@ -18,7 +18,7 @@ public class ShareDataIntegrationAssemblyTests
     public void IntegrationAssembly_ReferencesOnlyBclAssemblies_Test()
     {
         // Arrange
-        var assembly = typeof(ShareDataConnectionKeys).Assembly;
+        var assembly = typeof(ConnectionKeys).Assembly;
         var referencedAssemblies = assembly.GetReferencedAssemblies();
 
         var forbiddenPrefixes = new[]

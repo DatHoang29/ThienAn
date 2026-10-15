@@ -52,7 +52,7 @@ namespace Tests.ShareData.Services
         {
             // Arrange
             var format = new JsonFormat();
-            var ctx = new ShareDataFormatContext("PARTNER_01", "101", 1, DateTime.UtcNow);
+            var ctx = new FormatContext("PARTNER_01", "101", 1, DateTime.UtcNow);
             var originalJson = """[{"id":"Z1","val":100},{"id":"Z2","val":200}]""";
 
             // Act
@@ -71,7 +71,7 @@ namespace Tests.ShareData.Services
             // Arrange
             var format = new KafkaJsonFormat();
             var now = DateTime.UtcNow;
-            var ctx = new ShareDataFormatContext("PARTNER_KAFKA", "103", 42, now);
+            var ctx = new FormatContext("PARTNER_KAFKA", "103", 42, now);
             var originalJson = """{"records":[{"plate":"29A-12345","speed":80}]}""";
 
             // Act
@@ -93,7 +93,7 @@ namespace Tests.ShareData.Services
         {
             // Arrange
             var format = new CsvFormat();
-            var ctx = new ShareDataFormatContext("PARTNER_CSV", "101", 1);
+            var ctx = new FormatContext("PARTNER_CSV", "101", 1);
             var dummyBytes = Encoding.UTF8.GetBytes("id,name\r\n1,Test");
 
             // Act & Assert
@@ -110,7 +110,7 @@ namespace Tests.ShareData.Services
         {
             // Arrange
             var mockKeyResolver = new TestKeyResolver("test-inbound-key", TestAes256Key);
-            var resolver = new ShareDataPayloadCodecResolver(mockKeyResolver);
+            var resolver = new PayloadCodecResolver(mockKeyResolver);
             var config = new Dictionary<string, string>
             {
                 ["Codec"] = "None",
@@ -120,7 +120,7 @@ namespace Tests.ShareData.Services
             };
 
             // Act
-            var (codec, ctx) = resolver.ResolveCodec(config, ShareDataDirection.Inbound);
+            var (codec, ctx) = resolver.ResolveCodec(config, PayloadDirection.Inbound);
 
             // Assert
             Assert.IsType<AesGcmCodec>(codec);
@@ -132,30 +132,30 @@ namespace Tests.ShareData.Services
         public void ResolveCodec_WhenInboundMissingKeyRef_ThrowsInvalidOperationException_Test()
         {
             // Arrange
-            var resolver = new ShareDataPayloadCodecResolver();
+            var resolver = new PayloadCodecResolver();
             var config = new Dictionary<string, string>
             {
                 ["InboundCodec"] = "AesGcm"
             };
 
             // Act & Assert
-            var ex = Assert.Throws<InvalidOperationException>(() => resolver.ResolveCodec(config, ShareDataDirection.Inbound));
+            var ex = Assert.Throws<InvalidOperationException>(() => resolver.ResolveCodec(config, PayloadDirection.Inbound));
             Assert.Contains("DecryptionKeyRef", ex.Message);
         }
 
         #endregion
 
-        #region 3. Unit Tests Xác thực chiều nhận (ShareDataInboundAuthenticator)
+        #region 3. Unit Tests Xác thực chiều nhận (InboundAuthenticator)
 
         [Fact]
         public void InboundAuthenticator_WhenAuthTypeNone_ReturnsTrue_Test()
         {
             // Arrange
-            var reader = new ShareDataConnectionConfigReader(new Dictionary<string, string> { ["InboundAuthType"] = "None" });
+            var reader = new ConnectionConfigReader(new Dictionary<string, string> { ["InboundAuthType"] = "None" });
             var headers = new Dictionary<string, string>();
 
             // Act
-            var result = ShareDataInboundAuthenticator.Authenticate(reader, headers, out var failureReason);
+            var result = InboundAuthenticator.Authenticate(reader, headers, out var failureReason);
 
             // Assert
             Assert.True(result);
@@ -166,7 +166,7 @@ namespace Tests.ShareData.Services
         public void InboundAuthenticator_WhenApiKeyValid_ReturnsTrue_Test()
         {
             // Arrange
-            var reader = new ShareDataConnectionConfigReader(new Dictionary<string, string>
+            var reader = new ConnectionConfigReader(new Dictionary<string, string>
             {
                 ["InboundAuthType"] = "ApiKey",
                 ["InboundHeaderName"] = "X-Partner-Key",
@@ -178,7 +178,7 @@ namespace Tests.ShareData.Services
             };
 
             // Act
-            var result = ShareDataInboundAuthenticator.Authenticate(reader, headers, out var failureReason);
+            var result = InboundAuthenticator.Authenticate(reader, headers, out var failureReason);
 
             // Assert
             Assert.True(result);
@@ -189,7 +189,7 @@ namespace Tests.ShareData.Services
         public void InboundAuthenticator_WhenApiKeyInvalid_ReturnsFalse_Test()
         {
             // Arrange
-            var reader = new ShareDataConnectionConfigReader(new Dictionary<string, string>
+            var reader = new ConnectionConfigReader(new Dictionary<string, string>
             {
                 ["InboundAuthType"] = "ApiKey",
                 ["InboundApiKey"] = "CorrectKey"
@@ -200,7 +200,7 @@ namespace Tests.ShareData.Services
             };
 
             // Act
-            var result = ShareDataInboundAuthenticator.Authenticate(reader, headers, out var failureReason);
+            var result = InboundAuthenticator.Authenticate(reader, headers, out var failureReason);
 
             // Assert
             Assert.False(result);
@@ -211,7 +211,7 @@ namespace Tests.ShareData.Services
         public void InboundAuthenticator_WhenBearerTokenValid_ReturnsTrue_Test()
         {
             // Arrange
-            var reader = new ShareDataConnectionConfigReader(new Dictionary<string, string>
+            var reader = new ConnectionConfigReader(new Dictionary<string, string>
             {
                 ["InboundAuthType"] = "Bearer",
                 ["InboundToken"] = "token_abc_xyz"
@@ -222,7 +222,7 @@ namespace Tests.ShareData.Services
             };
 
             // Act
-            var result = ShareDataInboundAuthenticator.Authenticate(reader, headers, out var failureReason);
+            var result = InboundAuthenticator.Authenticate(reader, headers, out var failureReason);
 
             // Assert
             Assert.True(result);
@@ -233,7 +233,7 @@ namespace Tests.ShareData.Services
         public void InboundAuthenticator_WhenBearerTokenInvalid_ReturnsFalse_Test()
         {
             // Arrange
-            var reader = new ShareDataConnectionConfigReader(new Dictionary<string, string>
+            var reader = new ConnectionConfigReader(new Dictionary<string, string>
             {
                 ["InboundAuthType"] = "Bearer",
                 ["InboundToken"] = "token_abc_xyz"
@@ -244,7 +244,7 @@ namespace Tests.ShareData.Services
             };
 
             // Act
-            var result = ShareDataInboundAuthenticator.Authenticate(reader, headers, out var failureReason);
+            var result = InboundAuthenticator.Authenticate(reader, headers, out var failureReason);
 
             // Assert
             Assert.False(result);
@@ -674,7 +674,7 @@ namespace Tests.ShareData.Services
             return (partner, packet, sub);
         }
 
-        private class TestKeyResolver(string expectedKeyRef, byte[] keyBytes) : IShareDataKeyResolver
+        private class TestKeyResolver(string expectedKeyRef, byte[] keyBytes) : IKeyResolver
         {
             public byte[]? ResolveKey(string keyRef)
             {

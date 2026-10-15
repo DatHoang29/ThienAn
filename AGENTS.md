@@ -8,15 +8,15 @@
 
 ## 🗺️ Dynamic AG-Kit Registry (`.agents/`)
 - **Quy tắc dự án (P0):** Bắt buộc đọc và tuân thủ tuyệt đối:
-  - [`.agents/rules/thienan_rules.md`](file:///.agents/rules/thienan_rules.md) (Git branch/commit, coding conventions, architecture, cấm cross-module comments).
-  - [`.agents/rules/universal-rules.md`](file:///.agents/rules/universal-rules.md) (Clean Code, logging, single-statement if).
-  - [`.agents/rules/core-protocol.md`](file:///.agents/rules/core-protocol.md) (Announcement protocol).
-  - [`.agents/rules/code-rules.md`](file:///.agents/rules/code-rules.md) (4-phase planning, Socratic Gate).
-- **Specialist Agents:** Tự động khám phá và nhận diện vai trò từ thư mục [`.agents/agent/`](file:///.agents/agent/).
-- **Modular Skills:** Tự động khám phá và nạp file `SKILL.md` từ [`.agents/skills/`](file:///.agents/skills/) (bao gồm cả các skill `gortex-*` do Gortex sinh ra). Luôn thông báo `📚 Using skill: @[skill-name]...` trước khi áp dụng.
-- **Workflows & Slash Commands:** Tra cứu quy trình tương ứng tại [`.agents/workflows/{command}.md`](file:///.agents/workflows/).
-- **Memory (SSOT):** Luôn đọc [`.agents/memory/MEMORY.md`](file:///.agents/memory/MEMORY.md). Mọi file memory session chỉ ghi vào `.agents/memory/`, KHÔNG ghi ra bên ngoài.
-- **System Architecture Map:** Xem bảng tổng hợp tại [`.agents/ARCHITECTURE.md`](file:///.agents/ARCHITECTURE.md).
+  - [`.agents/rules/thienan_rules.md`](.agents/rules/thienan_rules.md) (Git branch/commit, coding conventions, architecture, cấm cross-module comments).
+  - [`.agents/rules/universal-rules.md`](.agents/rules/universal-rules.md) (Clean Code, logging, single-statement if).
+  - [`.agents/rules/core-protocol.md`](.agents/rules/core-protocol.md) (Announcement protocol).
+  - [`.agents/rules/code-rules.md`](.agents/rules/code-rules.md) (4-phase planning, Socratic Gate).
+- **Specialist Agents:** Tự động khám phá và nhận diện vai trò từ thư mục [`.agents/agent/`](.agents/agent/).
+- **Modular Skills:** Tự động khám phá và nạp file `SKILL.md` từ [`.agents/skills/`](.agents/skills/) (bao gồm cả các skill `gortex-*` do Gortex sinh ra). Luôn thông báo `📚 Using skill: @[skill-name]...` trước khi áp dụng.
+- **Workflows & Slash Commands:** Tra cứu quy trình tương ứng tại [`.agents/workflows/{command}.md`](.agents/workflows/).
+- **Memory (SSOT):** Luôn đọc [`.agents/memory/MEMORY.md`](.agents/memory/MEMORY.md). Mọi file memory session chỉ ghi vào `.agents/memory/`, KHÔNG ghi ra bên ngoài.
+- **System Architecture Map:** Xem bảng tổng hợp tại [`.agents/ARCHITECTURE.md`](.agents/ARCHITECTURE.md).
 
 ---
 
@@ -29,9 +29,9 @@
 ---
 
 ## 🛑 Critical Mandatory Safeguards
-> 🔴 **SINGLE SOURCE OF TRUTH (SSOT): [`.agents/rules/thienan_rules.md`](file:///.agents/rules/thienan_rules.md)**
+> 🔴 **SINGLE SOURCE OF TRUTH (SSOT): [`.agents/rules/thienan_rules.md`](.agents/rules/thienan_rules.md)**
 > Toàn bộ các quy tắc bắt buộc cốt lõi (P0 Safeguards) của dự án được định nghĩa tập trung và duy nhất tại:
-> 👉 **[`.agents/rules/thienan_rules.md`](file:///.agents/rules/thienan_rules.md)** (Mục 19: Các Quy Tắc Cốt Lõi Bắt Buộc - P0 Safeguards).
+> 👉 **[`.agents/rules/thienan_rules.md`](.agents/rules/thienan_rules.md)** (bảng P0 Safeguards).
 >
 > Mọi AI Agent **BẮT BUỘC** tra cứu, đọc và tuân thủ tuyệt đối các quy tắc từ tệp SSOT trên trước khi thực hiện bất kỳ thao tác nào (bao gồm: kết nối DB local, quy tắc test không dùng `--no-build`, không dùng `try-finally` trong test, không tự xóa DB trong từng test method, không tự ý `git add`/`reset`, không tự động build frontend, cấm tự gán ID SnowFlake, CSS-only cho UI fixes...).
 > Tuyệt đối không duplicate danh sách quy tắc tại đây để đảm bảo nguyên tắc sửa 1 nơi duy nhất.

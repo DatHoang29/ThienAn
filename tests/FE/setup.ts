@@ -17,6 +17,8 @@ const __setupDirname = path.dirname(__setupFilename);
 export const resolveWebvuePath = (...subpaths: string[]) =>
     path.resolve(__setupDirname, '../../TA-ITS015-WEBVUE-V1.0/src/src', ...subpaths);
 
+export const resolveWebVueSrc = resolveWebvuePath;
+
 
 /**
  * Thiết lập môi trường phiên người dùng và mock các API hệ thống nền tảng

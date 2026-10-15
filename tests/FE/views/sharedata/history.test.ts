@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { resolveWebVueSrc } from '../../setup';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -664,14 +665,8 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
     });
 
     test('8. Quét tĩnh mã nguồn history/index.vue & activityDetailDialog.vue: Chuẩn hoá Line Tabs không border-card, không scaleX, không !important, và modal 1080px', async () => {
-        const historyIndexPath = path.resolve(
-            __dirname,
-            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/history/index.vue'
-        );
-        const dialogPath = path.resolve(
-            __dirname,
-            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/history/component/activityDetailDialog.vue'
-        );
+        const historyIndexPath = resolveWebVueSrc('views/sharedata/history/index.vue');
+        const dialogPath = resolveWebVueSrc('views/sharedata/history/component/activityDetailDialog.vue');
         const historyIndexContent = fs.readFileSync(historyIndexPath, 'utf8');
         const dialogContent = fs.readFileSync(dialogPath, 'utf8');
 

@@ -36,7 +36,7 @@ namespace Tests.RealServer
             var packet = new ShareDataPacket { Code = "103" };
             var sub = new ShareDataSubscription { ID = "sub-real-http-1", PartnerId = partner.Code, DatatypeId = "103", SerialNbr = 1 };
             var ctx = new DataOutboundContext(sub, partner, packet, null, DateTime.UtcNow, CancellationToken.None);
-            var request = new ShareDataConnectionRequest
+            var request = new ConnectionRequest
             {
                 JsonPayload = "[{\"licensePlate\":\"29A-12345\"}]",
                 ConnectionType = "API",
@@ -70,7 +70,7 @@ namespace Tests.RealServer
             var packet = new ShareDataPacket { Code = "103" };
             var sub = new ShareDataSubscription { ID = "sub-real-https-2", PartnerId = partner.Code, DatatypeId = "103", SerialNbr = 1 };
             var ctx = new DataOutboundContext(sub, partner, packet, null, DateTime.UtcNow, CancellationToken.None);
-            var request = new ShareDataConnectionRequest
+            var request = new ConnectionRequest
             {
                 JsonPayload = "[{\"licensePlate\":\"29A-12345\"}]",
                 ConnectionType = "API",

@@ -12,10 +12,10 @@ description: Database MCP tooling (Gortex and DAB MCP), staging DB read-only saf
 
 ---
 
-## ⚡ 1. Dual Source of Truth: Gortex & DAB MCP (Rule 19.62 - P0)
+## ⚡ 1. Dual Source of Truth: Gortex & DAB MCP (Rule 19.62)
 
 1. **Gortex-First Protocol cho Mã Nguồn**:
-   - Mọi thao tác tìm kiếm, đọc, phân tích và sửa mã nguồn (C#, Vue, TypeScript, SQL...) BẮT BUỘC gọi công cụ Gortex MCP (`call_mcp_tool` với `ServerName: "gortex"`).
+   - Mọi thao tác tìm kiếm, đọc, phân tích đồ thị và sửa mã nguồn (C#, Vue, TypeScript, SQL...) BẮT BUỘC dùng tool Gortex MCP (tên tool và ánh xạ xem [gortex-tool-map.md](./gortex-tool-map.md)).
    - Tận dụng đồ thị AST để đo blast radius, tìm callers, usages và phân tích ngữ cảnh trước khi sửa code.
 2. **DAB MCP Local cho Cơ Sở Dữ Liệu (cập nhật 16/10/2026)**:
    - Mọi kiểm tra schema, danh sách bảng, cột và dữ liệu đọc từ DB **local** qua DAB MCP: `mssql_dev` (Docker `localhost:14333/DEV_ITS10`) và `mssql_test` (Docker `localhost:14333/test`), bằng các tool `describe_entities`, `read_records`, `aggregate_records`.
@@ -30,11 +30,11 @@ description: Database MCP tooling (Gortex and DAB MCP), staging DB read-only saf
 
 ---
 
-## 🔒 2. An Toàn CSDL: Read-Only & Cấm Tự Chạy DDL/DML (P0 Safeguards)
+## 🔒 2. An Toàn CSDL: Read-Only & Cấm Tự Chạy DDL/DML
 
 1. **MCP Database Read-Only Rule (Section 10)**:
-   - Kết nối DAB MCP vào DB staging CHỈ hoạt động ở chế độ **Read-Only** (`anonymous:read`).
-   - ⛔ **TUYỆT ĐỐI CẤM** dùng MCP để thực thi các câu lệnh thay đổi dữ liệu (`INSERT`, `UPDATE`, `DELETE`) trên CSDL staging.
+   - Kết nối DAB MCP local `mssql_dev`/`mssql_test` CHỈ hoạt động ở chế độ **Read-Only**; `mssql_staging` chỉ khi người dùng yêu cầu trực tiếp.
+   - ⛔ **TUYỆT ĐỐI CẤM** dùng MCP để thực thi các câu lệnh thay đổi dữ liệu (`INSERT`, `UPDATE`, `DELETE`) trên bất kỳ CSDL nào.
 2. **Strict Manual SQL Execution & Direct `.sql` File Edit Rule (Section 9 & Rule 19.4)**:
    - ⛔ **CẤM TUYỆT ĐỐI** tự ý chạy các câu lệnh DDL (`ALTER TABLE`, `CREATE TABLE`, `DROP TABLE`, `CREATE INDEX`) hoặc script thay đổi dữ liệu trực tiếp trên bất kỳ môi trường DB nào.
    - ⛔ **CẤM** tự viết hàm tạo bảng dạng `EnsureTablesCreated()` hoặc gọi `InitTables<T>()` trong code.
@@ -48,7 +48,7 @@ description: Database MCP tooling (Gortex and DAB MCP), staging DB read-only saf
        - Thao tác phá hủy một lần (xóa bảng/cột) tách file riêng `00-<phan-he>-migration-mot-lan.sql`, có `IF EXISTS` bảo vệ và ghi rõ "chỉ chạy một lần".
        - Mỗi thư mục `sql/` có `README.md`: thứ tự chạy, mục đích từng file, môi trường được chạy (file dữ liệu giả lập không chạy lên môi trường thật).
        - Dựa trên cấu trúc bảng/cột hiện có ở DB local khi gom; không đổi nội dung nghiệp vụ của script trong lúc gom.
-     - Với các kịch bản chạy trên CSDL chính Staging, đầu file BẮT BUỘC có `USE [DEV_ITS10]; GO` và ghi rõ schema `dbo.<TênBảng>` để tránh lỗi `Msg 208: Invalid object name` khi tab query đứng nhầm database.
+     - Với các kịch bản chạy trên CSDL triển khai, đầu file BẮT BUỘC có `USE [<TênDB>]; GO` (ví dụ `USE [DEV_ITS10]; GO`) và ghi rõ schema `dbo.<TênBảng>` để tránh lỗi `Msg 208: Invalid object name` khi tab query đứng nhầm database.
      - Đối chiếu cấu trúc cột và dữ liệu qua DB local (`mssql_dev`) trước khi viết (ví dụ: bảng `dbo.SysTerminology` lưu tiền tố nhóm ở cột `Name = N'lz.label' | N'lz.exception' | N'lz.validation'...`, phần mã sau tiền tố ở cột `Code`, và nội dung dịch thuật ở cột `Value`).
 
 ---

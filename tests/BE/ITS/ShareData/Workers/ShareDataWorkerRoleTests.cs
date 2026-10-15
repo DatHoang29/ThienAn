@@ -58,6 +58,6 @@ public class ShareDataWorkerRoleTests
         Assert.Contains(typeof(DataInboundWorker), workers);
         Assert.Contains(typeof(DataChangeTrackingWorker), workers);
         Assert.Contains(typeof(DataNatsWorker), workers);
-        Assert.Contains(typeof(ShareDataCleanupWorker), workers);
+        Assert.Contains(typeof(CleanupWorker), workers);
     }
 }

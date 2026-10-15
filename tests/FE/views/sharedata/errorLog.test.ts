@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { mockAuth } from '../../setup';
+import { mockAuth, resolveWebVueSrc } from '../../setup';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,14 +25,8 @@ test.describe('ShareData — Nhật ký cảnh báo lỗi (errorLog) @sharedata'
     });
 
     test('1. Quét tĩnh mã nguồn errorLog/index.vue & alertDetailDrawer.vue: Tra cứu mã lỗi ESH và không dùng !important', async () => {
-        const errorLogPath = path.resolve(
-            __dirname,
-            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/errorLog/index.vue'
-        );
-        const drawerPath = path.resolve(
-            __dirname,
-            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/errorLog/component/alertDetailDrawer.vue'
-        );
+        const errorLogPath = resolveWebVueSrc('views/sharedata/errorLog/index.vue');
+        const drawerPath = resolveWebVueSrc('views/sharedata/errorLog/component/alertDetailDrawer.vue');
 
         const errorLogContent = fs.readFileSync(errorLogPath, 'utf8');
         const drawerContent = fs.readFileSync(drawerPath, 'utf8');

@@ -45,10 +45,10 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         {
             // Arrange
             var kafkaSender = new DataOutboundKafkaSender();
-            var dispatcher = ShareDataConnectionDispatcher.CreateForHandlers([kafkaSender]);
+            var dispatcher = ConnectionDispatcher.CreateForHandlers([kafkaSender]);
             var ctx = CreateDummyContext("101", "PARTNER_KAFKA", "Kafka");
             var jsonPayload = "{\"temperature\": 28.5, \"humidity\": 65}";
-            var request = new ShareDataConnectionRequest
+            var request = new ConnectionRequest
             {
                 JsonPayload = jsonPayload,
                 ConnectionType = "Kafka",
@@ -75,7 +75,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Arrange
             var kafkaSender = new DataOutboundKafkaSender();
             var ctx = CreateDummyContext("101", "PARTNER_KAFKA", "Kafka");
-            var request = new ShareDataConnectionRequest
+            var request = new ConnectionRequest
             {
                 JsonPayload = string.Empty,
                 ConnectionType = "Kafka"
@@ -95,12 +95,12 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         {
             // Arrange
             var fileSender = new DataOutboundFileSender();
-            var dispatcher = ShareDataConnectionDispatcher.CreateForHandlers([fileSender]);
+            var dispatcher = ConnectionDispatcher.CreateForHandlers([fileSender]);
             var ctx = CreateDummyContext("103", "PARTNER_FILE", "File");
             var jsonPayload = "{\"vdsCount\": 12, \"speed\": 80}";
             var customDir = "Out/TestPartner";
             var fileNamePattern = "vds_export_{serial}.json";
-            var request = new ShareDataConnectionRequest
+            var request = new ConnectionRequest
             {
                 JsonPayload = jsonPayload,
                 ConnectionType = "File",
@@ -128,14 +128,14 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var server = _host.PartnerServer;
             server.ResetDefaults();
             var restSender = new DataOutboundRestSender();
-            var dispatcher = ShareDataConnectionDispatcher.CreateForHandlers([restSender]);
+            var dispatcher = ConnectionDispatcher.CreateForHandlers([restSender]);
             var ctx = CreateDummyContext("101", "PARTNER_API", "API");
             ctx.Partner!.Address = "127.0.0.1";
             ctx.Partner!.Port = 18092;
             ctx.Partner!.EndPointApiUrl = "/api/v1/data";
 
             var jsonPayload = "{\"data\": \"ok\"}";
-            var request = new ShareDataConnectionRequest
+            var request = new ConnectionRequest
             {
                 JsonPayload = jsonPayload,
                 ConnectionType = "API",
@@ -159,9 +159,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public async Task DispatchAsync_WhenPartnerConnectionTypeIsUnknown_ReturnsUnsupportedError_Test()
         {
             // Arrange
-            var dispatcher = ShareDataConnectionDispatcher.CreateForHandlers([]);
+            var dispatcher = ConnectionDispatcher.CreateForHandlers([]);
             var ctx = CreateDummyContext("101", "PARTNER_UNKNOWN", "UnknownProtocolX");
-            var request = new ShareDataConnectionRequest
+            var request = new ConnectionRequest
             {
                 JsonPayload = "{}",
                 ConnectionType = "UnknownProtocolX"
@@ -185,7 +185,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var mapping = new DataMappingResult(true, mappingBytes, 1);
 
             // Act
-            var request = ShareDataConnectionDispatcher.BuildRequest(mapping, ctx);
+            var request = ConnectionDispatcher.BuildRequest(mapping, ctx);
 
             // Assert
             Assert.Equal("{\"tag\":\"RFID_001\"}", request.JsonPayload);
@@ -205,7 +205,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var server = _host.PartnerServer;
             server.ResetDefaults();
             var restSender = new DataOutboundRestSender();
-            var dispatcher = ShareDataConnectionDispatcher.CreateForHandlers([restSender]);
+            var dispatcher = ConnectionDispatcher.CreateForHandlers([restSender]);
             var ctx = CreateDummyContext("101", "PARTNER_LEGACY", "API");
             ctx.Partner!.Address = "127.0.0.1";
             ctx.Partner!.Port = 18092;
@@ -214,7 +214,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             var mappingBytes = Encoding.UTF8.GetBytes("{\"legacy\": true}");
             var mapping = new DataMappingResult(true, mappingBytes, 1);
-            var request = ShareDataConnectionDispatcher.BuildRequest(mapping, ctx);
+            var request = ConnectionDispatcher.BuildRequest(mapping, ctx);
 
             // Act
             var result = await dispatcher.DispatchAsync(request, ctx, CancellationToken.None);
@@ -235,7 +235,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var server = _host.PartnerServer;
             server.ResetDefaults();
             var restSender = new DataOutboundRestSender();
-            var dispatcher = ShareDataConnectionDispatcher.CreateForHandlers([restSender]);
+            var dispatcher = ConnectionDispatcher.CreateForHandlers([restSender]);
             var ctx = CreateDummyContext("101", "PARTNER_COLS", "API");
             ctx.Partner!.Address = "127.0.0.1";
             ctx.Partner!.Port = 18092;
@@ -244,7 +244,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             var mappingBytes = Encoding.UTF8.GetBytes("{\"override\": true}");
             var mapping = new DataMappingResult(true, mappingBytes, 1);
-            var request = ShareDataConnectionDispatcher.BuildRequest(mapping, ctx);
+            var request = ConnectionDispatcher.BuildRequest(mapping, ctx);
 
             // Act
             var result = await dispatcher.DispatchAsync(request, ctx, CancellationToken.None);
@@ -269,7 +269,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var ctx = CreateDummyContext("101", "PARTNER_BAD_PORT", "API");
             ctx.Partner!.Address = "127.0.0.1";
             ctx.Partner!.Port = invalidPort;
-            var request = new ShareDataConnectionRequest
+            var request = new ConnectionRequest
             {
                 JsonPayload = "{}",
                 ConnectionType = "API",
@@ -294,7 +294,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Arrange
             var restSender = new DataOutboundRestSender();
             var ctx = CreateDummyContext("101", "PARTNER_BAD_TIMEOUT", "API");
-            var request = new ShareDataConnectionRequest
+            var request = new ConnectionRequest
             {
                 JsonPayload = "{}",
                 ConnectionType = "API",
@@ -321,7 +321,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Arrange
             var restSender = new DataOutboundRestSender();
             var ctx = CreateDummyContext("101", "PARTNER_BAD_SSL", "API");
-            var request = new ShareDataConnectionRequest
+            var request = new ConnectionRequest
             {
                 JsonPayload = "{}",
                 ConnectionType = "API",
@@ -350,7 +350,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             server.ResetDefaults();
             var restSender = new DataOutboundRestSender();
             var ctx = CreateDummyContext("101", "PARTNER_BEARER", "API");
-            var request = new ShareDataConnectionRequest
+            var request = new ConnectionRequest
             {
                 JsonPayload = "{\"data\":\"test\"}",
                 ConnectionType = "API",
@@ -381,7 +381,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             server.ResetDefaults();
             var restSender = new DataOutboundRestSender();
             var ctx = CreateDummyContext("101", "PARTNER_APIKEY", "API");
-            var request = new ShareDataConnectionRequest
+            var request = new ConnectionRequest
             {
                 JsonPayload = "{\"data\":\"test\"}",
                 ConnectionType = "API",
@@ -413,7 +413,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             server.ResetDefaults();
             var restSender = new DataOutboundRestSender();
             var ctx = CreateDummyContext("101", "PARTNER_BASIC", "API");
-            var request = new ShareDataConnectionRequest
+            var request = new ConnectionRequest
             {
                 JsonPayload = "{\"data\":\"test\"}",
                 ConnectionType = "API",
@@ -448,7 +448,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             var restSender = new DataOutboundRestSender();
             var ctx = CreateDummyContext("101", "PARTNER_BIZ_ERR", "API");
-            var request = new ShareDataConnectionRequest
+            var request = new ConnectionRequest
             {
                 JsonPayload = "{\"data\":\"test\"}",
                 ConnectionType = "API",
@@ -482,7 +482,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             var restSender = new DataOutboundRestSender();
             var ctx = CreateDummyContext("101", "PARTNER_FURION_ERR", "API");
-            var request = new ShareDataConnectionRequest
+            var request = new ConnectionRequest
             {
                 JsonPayload = "{\"data\":\"test\"}",
                 ConnectionType = "API",
@@ -523,7 +523,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             ctx.Partner!.Port = ShareDataPartnerServerMock.DefaultPort;
             ctx.Partner!.EndPointApiUrl = "/api/v1/data";
 
-            var request = new ShareDataConnectionRequest
+            var request = new ConnectionRequest
             {
                 JsonPayload = "{\"data\":\"test\"}",
                 ConnectionType = "API",
@@ -552,7 +552,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var fileSender = new DataOutboundFileSender();
             var ctx = CreateDummyContext("103", "PARTNER_FILE_INVALID", "File");
             var invalidDir = "Out/Invalid|Path\0";
-            var request = new ShareDataConnectionRequest
+            var request = new ConnectionRequest
             {
                 JsonPayload = "{}",
                 ConnectionType = "File",
@@ -638,7 +638,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         }
 
         [Fact]
-        public void ShareDataCsvFormatter_ConvertsJsonArrayToRfc4180Csv_EscapesProperly_Test()
+        public void CsvFormatter_ConvertsJsonArrayToRfc4180Csv_EscapesProperly_Test()
         {
             // Arrange
             var json = """
@@ -649,7 +649,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 """;
 
             // Act
-            var csv = ShareDataWorker.Core.Utils.Formatters.ShareDataCsvFormatter.ConvertJsonToCsv(json);
+            var csv = ShareDataWorker.Core.Utils.Formatters.CsvFormatter.ConvertJsonToCsv(json);
 
             // Assert
             Assert.Contains("id,name,remark", csv);
@@ -703,14 +703,14 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var ftpSender = new DataOutboundFtpSender();
             var ctx = CreateDummyContext("101", "PARTNER_FTP", "Ftp");
 
-            var disabledReq = new ShareDataConnectionRequest
+            var disabledReq = new ConnectionRequest
             {
                 JsonPayload = "[{\"id\": 1}]",
                 ConnectionType = "Ftp",
                 ConnectionConfig = new Dictionary<string, string> { ["Enabled"] = "false" }
             };
 
-            var missingHostReq = new ShareDataConnectionRequest
+            var missingHostReq = new ConnectionRequest
             {
                 JsonPayload = "[{\"id\": 1}]",
                 ConnectionType = "Ftp",
@@ -737,14 +737,14 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var kafkaSender = new DataOutboundKafkaSender();
             var ctx = CreateDummyContext("101", "PARTNER_KAFKA", "Kafka");
 
-            var disabledReq = new ShareDataConnectionRequest
+            var disabledReq = new ConnectionRequest
             {
                 JsonPayload = "{\"test\": 1}",
                 ConnectionType = "Kafka",
                 ConnectionConfig = new Dictionary<string, string> { ["Enabled"] = "false" }
             };
 
-            var missingServersReq = new ShareDataConnectionRequest
+            var missingServersReq = new ConnectionRequest
             {
                 JsonPayload = "{\"test\": 1}",
                 ConnectionType = "Kafka",
@@ -772,7 +772,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             ctx.Partner!.Address = "10.0.0.1";
             ctx.Partner!.Port = 9092;
 
-            var reqWithBootstrap = new ShareDataConnectionRequest
+            var reqWithBootstrap = new ConnectionRequest
             {
                 JsonPayload = "{\"test\": 1}",
                 ConnectionType = "Kafka",
@@ -782,7 +782,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 }
             };
 
-            var reqFallback = new ShareDataConnectionRequest
+            var reqFallback = new ConnectionRequest
             {
                 JsonPayload = "{\"test\": 1}",
                 ConnectionType = "Kafka",
@@ -845,7 +845,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         }
 
         [Fact]
-        public void ShareDataSqlValidator_SupportsFromDateAndToDateParameters_Test()
+        public void SqlValidator_SupportsFromDateAndToDateParameters_Test()
         {
             // Arrange
             var validSqlWithFromToDate = """
@@ -861,8 +861,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 """;
 
             // Act
-            var (validResult, validErr) = Module.ShareData.Core.Utils.ShareDataSqlValidator.Validate(validSqlWithFromToDate);
-            var (invalidResult, invalidErr) = Module.ShareData.Core.Utils.ShareDataSqlValidator.Validate(invalidSqlWithUnknownParam);
+            var (validResult, validErr) = Module.ShareData.Core.Utils.SqlValidator.Validate(validSqlWithFromToDate);
+            var (invalidResult, invalidErr) = Module.ShareData.Core.Utils.SqlValidator.Validate(invalidSqlWithUnknownParam);
 
             // Assert
             Assert.True(validResult);
@@ -917,13 +917,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.Null(errFull);
 
             // 4. Test IsFileChannel aliases
-            Assert.True(ShareDataConnectionDispatcher.IsFileChannel("File"));
-            Assert.True(ShareDataConnectionDispatcher.IsFileChannel("file"));
-            Assert.True(ShareDataConnectionDispatcher.IsFileChannel("DISK"));
-            Assert.True(ShareDataConnectionDispatcher.IsFileChannel("NAS"));
-            Assert.False(ShareDataConnectionDispatcher.IsFileChannel("API"));
-            Assert.False(ShareDataConnectionDispatcher.IsFileChannel("Kafka"));
-            Assert.False(ShareDataConnectionDispatcher.IsFileChannel(null));
+            Assert.True(ConnectionDispatcher.IsFileChannel("File"));
+            Assert.True(ConnectionDispatcher.IsFileChannel("file"));
+            Assert.True(ConnectionDispatcher.IsFileChannel("DISK"));
+            Assert.True(ConnectionDispatcher.IsFileChannel("NAS"));
+            Assert.False(ConnectionDispatcher.IsFileChannel("API"));
+            Assert.False(ConnectionDispatcher.IsFileChannel("Kafka"));
+            Assert.False(ConnectionDispatcher.IsFileChannel(null));
         }
 
         [Fact]
@@ -931,7 +931,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         {
             var fileSender = new DataOutboundFileSender();
             var ctx = CreateDummyContext("103", "PARTNER_FILE_TRAVERSAL", "File");
-            var request = new ShareDataConnectionRequest
+            var request = new ConnectionRequest
             {
                 PayloadBytes = Encoding.UTF8.GetBytes("test-content"),
                 ConnectionType = "File",
@@ -955,7 +955,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var fileSender = new DataOutboundFileSender();
             var ctx = CreateDummyContext("103", "PARTNER_FILE_CUSTOM", "File");
             var expectedBytes = Encoding.UTF8.GetBytes("custom-file-payload-content");
-            var request = new ShareDataConnectionRequest
+            var request = new ConnectionRequest
             {
                 PayloadBytes = expectedBytes,
                 FileExtension = ".csv",
@@ -994,7 +994,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var restSender = new DataOutboundRestSender();
             var ctx = CreateDummyContext("101", "PARTNER_BYTES", "API");
             var expectedBytes = Encoding.UTF8.GetBytes("{\"cipher\":\"encrypted_payload_123\"}");
-            var request = new ShareDataConnectionRequest
+            var request = new ConnectionRequest
             {
                 PayloadBytes = expectedBytes,
                 ContentType = "application/json",
@@ -1020,7 +1020,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var ftpSender = new DataOutboundFtpSender();
             var ctx = CreateDummyContext("101", "PARTNER_FTP_CSV", "FTP");
             var csvBytes = Encoding.UTF8.GetBytes("ID,Code,Name\r\n1,A,Item1\r\n2,B,Item2");
-            var request = new ShareDataConnectionRequest
+            var request = new ConnectionRequest
             {
                 PayloadBytes = csvBytes,
                 ContentType = "text/csv",

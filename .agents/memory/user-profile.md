@@ -30,3 +30,6 @@ partner mapping/codeset config, DATEX-style PDU envelopes.
 - AI **TUYỆT ĐỐI KHÔNG ĐƯỢC CHẠY LỆNH `git add`** trừ khi người dùng trực tiếp ra lệnh cụ thể ("khi nào tôi kêu mới được làm").
 - Mọi lần sửa code hoặc tài liệu: AI luôn để nguyên ở trạng thái unstaged trong Working Tree để người dùng tự kiểm tra diff qua IDE.
 
+**Tự Động Kích Hoạt Subagents (Rule 24)**:
+- Khi người dùng gửi danh sách từ 2 task trở lên (đánh số `1.`, `2.`, `3.`... hoặc gạch đầu dòng `- `, danh sách prompt `@prompt-*.md`), AI **luôn tự động kích hoạt subagents** (`invoke_subagent`) chạy song song cùng lúc, không chạy tuần tự đơn lẻ và không cần người dùng phải nhắc.
+

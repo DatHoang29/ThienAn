@@ -20,7 +20,7 @@ description: Unified Testing Suite protocol, Playwright FE E2E, xUnit BE on loca
 2. **Tái Hiện Bug Trước Khi Fix (TDD Red-Green - Rule 19.59)**:
    - Khi nhận task sửa lỗi (fix bug), BẮT BUỘC viết bài test tái hiện lỗi thất bại (Fail/Red) trước.
    - Sau đó mới sửa code để test chuyển sang thành công (Pass/Green).
-3. **Bộ Kiểm Thử Hợp Nhất (Unified Test Suite - Rule 19.63 - P0)**:
+3. **Bộ Kiểm Thử Hợp Nhất (Unified Test Suite - Rule 19.63)**:
    - **Frontend Test**: BẮT BUỘC viết bằng Playwright tại `tests/FE/` (`pnpm test:e2e`).
    - **Backend Test**: BẮT BUỘC viết bằng xUnit tại `tests/BE/` (`dotnet test tests/BE/test.csproj`).
    - ⛔ **CẤM TUYỆT ĐỐI** tạo file script test ad-hoc rải rác (`test.js`, `test.ps1`, `verify.sh`...) ở ngoài thư mục quy định.
@@ -124,9 +124,12 @@ description: Unified Testing Suite protocol, Playwright FE E2E, xUnit BE on loca
   - **Kiểm thử kéo resize cột table**:
     - Khi kiểm tra tính năng kéo co giãn cột (Column Resizing): Kiểm tra các cột nội dung và cột thao tác không bị đứt gãy bố cục hoặc tràn lệch toạ độ.
     - Với các bảng có cột cố định (`fixed: 'right'`), kiểm tra khối fixed luôn bám sát mép container và không bị trôi lệch sau khi kéo.
-* **Bắt buộc viết test cho mọi fix lặt vặt (Rule 18 / 19.67 - Zero Regression)**:
+* **Bắt buộc viết test cho mọi fix lặt vặt (Rule 19.67 - Zero Regression)**:
   - Mọi yêu cầu sửa/chỉnh lỗi dù là lặt vặt nhất ở Frontend (UI, CSS, font chữ, căn chỉnh khoảng cách, chống giật modal/tab, placeholder, i18n, form validation...) **BẮT BUỘC viết/bổ sung ngay bài test Playwright tương ứng** tại `tests/FE/` (`tests/FE/views/<module>/<feature>.test.ts`) để verify và bảo đảm không bị hồi quy.
-  - Test case có thể kết hợp kiểm tra tĩnh mã nguồn CSS/template và kiểm thử tương tác / render DOM.
+  - ⛔ **CẤM** kết thúc lượt làm việc hoặc báo "đã sửa xong" mà không bổ sung bài test xác minh.
+  - **Hình thức kiểm thử**:
+    - **Quét tĩnh mã nguồn (Static Code / CSS Scan)**: Kiểm tra file `.vue` không có `!important`, có đầy đủ CSS styles/classes yêu cầu, không dùng toán tử `!!`, chuẩn hóa font-family, có key i18n đầy đủ trong cả `vi-vn.json` và `en-us.json`.
+    - **Kiểm thử E2E / Render DOM**: Mở component/dialog, đo kích thước phần tử (`getBoundingClientRect`), kiểm tra không bị co giật/layout shift khi chuyển tab hoặc đổi trạng thái.
 * **Timeout kịch bản (Rule 19.61)**: Mặc định tối đa 5s cho mỗi hành động (`waitForSelector`, `expect`), trường hợp mạng chậm chỉ tăng gia số +1 đến 2 giây.
 * **Quy chuẩn bộ chọn (Selectors)**: Ưu tiên chọn theo role, aria-label, class định danh ngữ cảnh cụ thể, tránh dùng selector xpath cứng dễ vỡ.
 * **Lệnh thực thi**:
@@ -134,13 +137,16 @@ description: Unified Testing Suite protocol, Playwright FE E2E, xUnit BE on loca
   # Chạy toàn bộ E2E test
   pnpm test:e2e
 
+  # Chạy test theo file cụ thể
+  npx playwright test views/<module>/<feature>.test.ts --project=chromium
+
   # Chạy test theo kịch bản cụ thể
   pnpm test:e2e -g "EC10|EC11"
   ```
 
 ---
 
-## 🧹 4. Tự Động Dọn Dẹp Test Artifacts Sau Khi Test Pass (Rule 19.64 - P0)
+## 🧹 4. Tự Động Dọn Dẹp Test Artifacts Sau Khi Test Pass (Rule 19.64)
 
 * **Tự động xóa artifacts khi Pass 100%**: Sau khi toàn bộ các bài test chạy thành công (Pass/Green), AI **BẮT BUỘC tự động dọn dẹp và xóa sạch các thư mục/tệp tạm sinh ra do test runner** (như `test-results/`, `playwright-report/`, traces, screenshots, video, log tạm...) ở cả thư mục gốc và thư mục con `tests/FE/`.
 * **Giữ sạch Working Tree**: Đảm bảo trạng thái Working Tree của Git luôn sạch sẽ, không để tồn đọng các tệp rác phát sinh trong quá trình chạy test làm ô nhiễm `git status`.

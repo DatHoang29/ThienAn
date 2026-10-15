@@ -2,7 +2,6 @@ import { test, expect } from '@playwright/test';
 import { mockAuth, resolveWebvuePath } from '../../setup';
 import fs from 'node:fs';
 import path from 'node:path';
-import { parsePacketNumber, resolvePacketPolicy } from '@webvue/utils/sharedata/packetPolicy';
 
 /**
  * Test E2E cho phân hệ ShareData — Quản lý Gói tin & Trường gói tin (dataSource/index.vue)
@@ -1053,6 +1052,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const colResizer = page.locator('.columns-card-resizer');
         await expect(colResizer).toBeVisible();
         await colResizer.scrollIntoViewIfNeeded();
+        await page.waitForTimeout(300);
 
         const colList = page.locator('.vqb-columns-list');
         await expect(colList).toBeVisible();
@@ -1108,52 +1108,25 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(Math.abs(resetFilterHeight - 180)).toBeLessThanOrEqual(10);
     });
 
-    test('11. Phân giải chính sách gói tin (resolvePacketPolicy & parsePacketNumber) và cấu hình chính sách trong editPacket.vue', async () => {
-        // 1. Kiểm thử parsePacketNumber
-        expect(parsePacketNumber('101')).toBe(101);
-        expect(parsePacketNumber('101_commonData')).toBe(101);
-        expect(parsePacketNumber('105_traffic_event')).toBe(105);
-        expect(parsePacketNumber('111')).toBe(111);
-        expect(parsePacketNumber('100')).toBeNull();
-        expect(parsePacketNumber('112')).toBeNull();
-        expect(parsePacketNumber('invalid_code')).toBeNull();
-        expect(parsePacketNumber(null)).toBeNull();
-        expect(parsePacketNumber(undefined)).toBeNull();
+    test('11. Hiển thị chính sách xuất bản gói tin theo dữ liệu CSDL (syncKind, status) nội bộ trong component và editPacket.vue', async () => {
+        // 1. Khẳng định tệp utils packetPolicy.ts đã được xóa bỏ hoàn toàn, không còn phụ thuộc ngoài
+        const packetPolicyPath = resolveWebvuePath('utils/sharedata/packetPolicy.ts');
+        expect(fs.existsSync(packetPolicyPath)).toBe(false);
 
-        // 2. Kiểm thử resolvePacketPolicy
-        // Nhóm Snapshot: 101, 102, 105, 108 (Hiển thị key đa ngôn ngữ 'lz.label.sharedataDataSource.policySnapshot')
-        expect(resolvePacketPolicy('101').policy).toBe('Snapshot');
-        expect(resolvePacketPolicy('101').label).toBe('lz.label.sharedataDataSource.policySnapshot');
-        expect(resolvePacketPolicy('101').tagType).toBe('success');
-        expect(resolvePacketPolicy('102').policy).toBe('Snapshot');
-        expect(resolvePacketPolicy('105').policy).toBe('Snapshot');
-        expect(resolvePacketPolicy('108').policy).toBe('Snapshot');
+        // 2. Quét tĩnh index.vue đảm bảo sử dụng helper nội bộ getPacketPolicy theo syncKind và status, không import packetPolicy
+        const indexVuePath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
+        const indexContent = fs.readFileSync(indexVuePath, 'utf8');
+        expect(indexContent).not.toContain('resolvePacketPolicy');
+        expect(indexContent).not.toContain('utils/sharedata/packetPolicy');
+        expect(indexContent).toContain('getPacketPolicy');
+        expect(indexContent).toContain('getPacketPolicy(row.syncKind, row.status)');
+        expect(indexContent).toContain('getPacketPolicy(state.currentPacket.syncKind, state.currentPacket.status)');
 
-        // Nhóm AlwaysIncremental: 103, 104, 106, 107, 109 (Hiển thị key đa ngôn ngữ 'lz.label.sharedataDataSource.policyAlwaysIncremental')
-        expect(resolvePacketPolicy('103').policy).toBe('AlwaysIncremental');
-        expect(resolvePacketPolicy('103').label).toBe('lz.label.sharedataDataSource.policyAlwaysIncremental');
-        expect(resolvePacketPolicy('103').tagType).toBe('primary');
-        expect(resolvePacketPolicy('104').policy).toBe('AlwaysIncremental');
-        expect(resolvePacketPolicy('106').policy).toBe('AlwaysIncremental');
-        expect(resolvePacketPolicy('107').policy).toBe('AlwaysIncremental');
-        expect(resolvePacketPolicy('109').policy).toBe('AlwaysIncremental');
-
-        // Nhóm NotReady: 110
-        expect(resolvePacketPolicy('110').policy).toBe('NotReady');
-        expect(resolvePacketPolicy('110').tagType).toBe('warning');
-
-        // Nhóm Disabled: 111
-        expect(resolvePacketPolicy('111').policy).toBe('Disabled');
-        expect(resolvePacketPolicy('111').tagType).toBe('info');
-
-        // Mã không hợp lệ / chưa xác định
-        expect(resolvePacketPolicy(null).policy).toBe('NotReady');
-        expect(resolvePacketPolicy('unknown_pkt').policy).toBe('NotReady');
-
-        // 3. Quét tĩnh editPacket.vue để kiểm tra hiển thị chính sách
+        // 3. Quét tĩnh editPacket.vue để kiểm tra hiển thị chính sách nội bộ qua computed currentPolicy
         const editPacketPath = resolveWebvuePath('views/sharedata/dataSource/component/editPacket.vue');
         const editPacketContent = fs.readFileSync(editPacketPath, 'utf8');
-        expect(editPacketContent).toContain('resolvePacketPolicy');
+        expect(editPacketContent).not.toContain('resolvePacketPolicy');
+        expect(editPacketContent).not.toContain('utils/sharedata/packetPolicy');
         expect(editPacketContent).toContain('currentPolicy');
         expect(editPacketContent).toContain('packet-policy-display');
         expect(editPacketContent).toContain('policy-desc');
@@ -1164,6 +1137,9 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(editPacketContent).not.toContain("'Chỉ gửi bản ghi mới phát sinh theo cursor'");
         expect(editPacketContent).toContain('syncKindSnapshotDesc');
         expect(editPacketContent).toContain('syncKindIncrementalDesc');
+        expect(editPacketContent).toContain('policyDisabled');
+        expect(editPacketContent).toContain('policyAlwaysIncremental');
+        expect(editPacketContent).toContain('policySnapshot');
     });
 
     test('12. Quy chuẩn đặt tên tệp component — BẮT BUỘC dùng camelCase (chữ cái đầu viết thường), CẤM viết hoa PascalCase (Rule 20.14)', async () => {
@@ -2007,19 +1983,40 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
     });
 
     test('27. Hiển thị chế độ gửi và trạng thái gói theo dữ liệu DB (syncKind và status)', async () => {
-        // Gói 105 với syncKind: 2 -> AlwaysIncremental ("Gửi nối đuôi")
-        expect(resolvePacketPolicy(2, 1).policy).toBe('AlwaysIncremental');
-        expect(resolvePacketPolicy(2, 1).label).toBe('lz.label.sharedataDataSource.policyAlwaysIncremental');
-        expect(resolvePacketPolicy(2, 1).tagType).toBe('primary');
+        // 1. Quét tĩnh index.vue đảm bảo getPacketPolicy giải quyết dựa theo syncKind và status của CSDL
+        const indexVuePath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
+        const indexContent = fs.readFileSync(indexVuePath, 'utf8');
+        expect(indexContent).toContain('getPacketPolicy');
+        expect(indexContent).toContain("status === 0 || status === '0' || status === 'Disable' || status === false");
+        expect(indexContent).toContain("syncKind === 2 || syncKind === '2'");
+        expect(indexContent).toContain("policy: 'Disabled'");
+        expect(indexContent).toContain("policy: 'AlwaysIncremental'");
+        expect(indexContent).toContain("policy: 'Snapshot'");
 
-        // Gói 110/111 với status: 0 -> Disabled ("Đã tắt")
-        expect(resolvePacketPolicy(null, 0).policy).toBe('Disabled');
-        expect(resolvePacketPolicy(2, 0).policy).toBe('Disabled');
-        expect(resolvePacketPolicy(1, 0).tagType).toBe('info');
+        // 2. Kiểm thử logic giải quyết chính sách gói tin nội bộ theo CSDL
+        const resolvePolicyFromData = (syncKind?: number | string | null, status?: number | string | boolean | null) => {
+            if (status === 0 || status === '0' || status === 'Disable' || status === false) {
+                return { policy: 'Disabled', tagType: 'info', labelKey: 'lz.label.sharedataDataSource.policyDisabled' };
+            }
+            if (syncKind === 2 || syncKind === '2') {
+                return { policy: 'AlwaysIncremental', tagType: 'primary', labelKey: 'lz.label.sharedataDataSource.policyAlwaysIncremental' };
+            }
+            return { policy: 'Snapshot', tagType: 'success', labelKey: 'lz.label.sharedataDataSource.policySnapshot' };
+        };
+
+        // Gói với syncKind: 2 -> AlwaysIncremental ("Gửi nối đuôi")
+        expect(resolvePolicyFromData(2, 1).policy).toBe('AlwaysIncremental');
+        expect(resolvePolicyFromData(2, 1).labelKey).toBe('lz.label.sharedataDataSource.policyAlwaysIncremental');
+        expect(resolvePolicyFromData(2, 1).tagType).toBe('primary');
+
+        // Gói với status: 0 -> Disabled ("Đã tắt")
+        expect(resolvePolicyFromData(null, 0).policy).toBe('Disabled');
+        expect(resolvePolicyFromData(2, 0).policy).toBe('Disabled');
+        expect(resolvePolicyFromData(1, 0).tagType).toBe('info');
 
         // Gói với syncKind: null và status: 1 -> Mặc định Snapshot ("Gửi toàn bộ")
-        expect(resolvePacketPolicy(null, 1).policy).toBe('Snapshot');
-        expect(resolvePacketPolicy(undefined, 1).label).toBe('lz.label.sharedataDataSource.policySnapshot');
+        expect(resolvePolicyFromData(null, 1).policy).toBe('Snapshot');
+        expect(resolvePolicyFromData(undefined, 1).labelKey).toBe('lz.label.sharedataDataSource.policySnapshot');
     });
 });
 

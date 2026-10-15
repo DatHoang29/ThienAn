@@ -54,7 +54,7 @@ description: Git branching workflow, Vietnamese commit conventions, and pre-comm
 ## 📝 3. Quy Định Nội Dung Commit & Format Chuẩn
 
 ### Cú Pháp Commit Message (BẮT BUỘC Tiếng Việt Có Dấu - Rule 19.55)
-* **Summary (Dòng 1):** `[type]([scope]): [noi-dung-cong-viec-tieng-viet-co-dau]`
+* **Summary (Dòng 1):** `<type>(<scope>): [nội dung công việc tiếng Việt có dấu]`
   - *Ví dụ:* `feat(vms): thêm mới dịch vụ`, `fix(sharedata): xử lý danh sách lỗi kiểm thử F16 phân hệ sharedata`
   - Scope là tên module viết thường: `sharedata`, `vms`, `tms`, `videowall`, `toll`, `test`...
 * **Dòng 2:** Lặp lại nguyên văn Summary (⛔ TUYỆT ĐỐI KHÔNG thêm nhãn `Description:`).
@@ -74,7 +74,7 @@ fix(sharedata): xử lý danh sách lỗi kiểm thử F16 phân hệ sharedata
 
 ---
 
-## 🛑 4. Quy Định Vận Hành Git Đối Với Trợ Lý AI (P0 Safeguards)
+## 🛑 4. Quy Định Vận Hành Git Đối Với Trợ Lý AI
 
 1. **CẤM TUYỆT ĐỐI TỰ Ý `git add` VÀ `git reset` (Strict No Auto-Stage / No Auto-Unstage)**:
    - AI **TUYỆT ĐỐI KHÔNG CHẠY `git add`** hoặc đưa file vào Staged Changes khi người dùng không yêu cầu trực tiếp.
@@ -83,6 +83,11 @@ fix(sharedata): xử lý danh sách lỗi kiểm thử F16 phân hệ sharedata
 2. **CẤM TỰ Ý COMMIT VÀ PUSH (Rule 19.58)**:
    - Quyền commit và push hoàn toàn thuộc về lập trình viên.
    - BẮT BUỘC viết test đầy đủ, kiểm chứng pass 100%, người dùng kiểm tra xác nhận thì mới được commit.
+3. **Repo Cha `ThienAn` Chỉ Dùng `main`**:
+   - ThienAn gồm 3 repository: repo cha `ThienAn` (docs, `.agents`, `.claude`, `tests/`) và 2 repo con `TA-ITS015-WEBAPI-V1.0`, `TA-ITS015-WEBVUE-V1.0`.
+   - **Chỉ repo cha**: Mọi fix (kể cả fix chạy từ prompt/agent) làm thẳng trên `main` rồi push `origin main`; ⛔ **CẤM** tạo nhánh `fix/*`, `feature/*`, `agents/*` hoặc git worktree riêng; nhánh/worktree lỡ tạo thì merge vào `main` rồi xoá cả local lẫn remote.
+   - **Hai repo con WEBAPI và WEBVUE KHÔNG bị ảnh hưởng**: Vẫn tạo nhánh theo quy chuẩn Git của Thiên Ân (Mục 2).
+   - Quy tắc cấm tự ý git vẫn giữ nguyên: AI chỉ `git add`/`commit`/`push` khi người dùng ra lệnh rõ.
 
 ---
 

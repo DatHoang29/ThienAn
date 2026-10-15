@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { resolveWebVueSrc } from '../../setup';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -641,7 +642,7 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
         expect(await isHeaderWithinFormViewport(page)).toBe(true);
     });
 
-    test('EC13 — Tiện ích kiểm tra hồ sơ ánh xạ đang dùng (isMappingInUse in mappingUsage.ts)', async () => {
+    test('EC13 — Kiểm tra hồ sơ ánh xạ đang dùng đặt trực tiếp tại mapping/index.vue (Colocation chuẩn Clean Code)', async () => {
         // 1. Kiểm tra logic thuần túy của hàm isMappingInUse
         const isMappingInUseFn = (
             mapping: { isActive?: boolean | null; partnerId?: string | null; datatypeId?: string | null; direction?: number | null },
@@ -686,23 +687,16 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
         expect(isMappingInUseFn({ isActive: true, partnerId: 'DT99', datatypeId: '101', direction: 0 }, activeSubs)).toBe(false);
         expect(isMappingInUseFn({ isActive: true, partnerId: 'DT01', datatypeId: '999', direction: 0 }, activeSubs)).toBe(false);
 
-        // 2. Quét tĩnh tệp tiện ích mappingUsage.ts và views/sharedata/mapping/index.vue
-        const mappingUsagePath = path.resolve(
-            __dirname,
-            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/utils/sharedata/mappingUsage.ts'
-        );
-        const mappingUsageContent = fs.readFileSync(mappingUsagePath, 'utf8');
-        expect(mappingUsageContent).toContain('export const isMappingInUse');
-        expect(mappingUsageContent).toContain('export const getActiveSubscriptions');
-        expect(mappingUsageContent).toContain('mapping.direction === Direction.NUMBER_2');
+        // 2. Quét tĩnh tệp views/sharedata/mapping/index.vue và đảm bảo mappingUsage.ts đã được xóa sạch
+        const mappingUsagePath = resolveWebVueSrc('utils/sharedata/mappingUsage.ts');
+        expect(fs.existsSync(mappingUsagePath)).toBe(false);
 
-        const mappingIndexPath = path.resolve(
-            __dirname,
-            '../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/mapping/index.vue'
-        );
+        const mappingIndexPath = resolveWebVueSrc('views/sharedata/mapping/index.vue');
         const mappingIndexContent = fs.readFileSync(mappingIndexPath, 'utf8');
-        expect(mappingIndexContent).toContain('isMappingInUse');
-        expect(mappingIndexContent).toContain('getActiveSubscriptions');
+        expect(mappingIndexContent).toContain('const isMappingInUse');
+        expect(mappingIndexContent).toContain('const getActiveSubscriptions');
+        expect(mappingIndexContent).toContain('mapping.direction === Direction.NUMBER_2');
+        expect(mappingIndexContent).not.toContain('mappingUsage');
         expect(mappingIndexContent).not.toContain('!important');
     });
 });
