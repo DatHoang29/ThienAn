@@ -102,6 +102,36 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await page.route('**/api/sysConst/list*', async (route) => {
             await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: [] }) });
         });
+
+        await page.route('**/api/sharedata/sharedatapacket/getextractsql*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        extractSql: 'SELECT TOP (100) td.Speed AS speed FROM TmsTrafficData td',
+                        status: 1,
+                        syncKind: 1,
+                        lookbackDays: null,
+                    },
+                }),
+            });
+        });
+
+        await page.route('**/api/sharedata/sharedatapacket/parseextractcolumns*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        isValid: true,
+                        columns: ['speed'],
+                    },
+                }),
+            });
+        });
     });
 
     test('1. Kiểm tra bố cục đáp ứng card Trường gói tin qua 3 cấp độ màn hình (>1400px, 1100px-1400px, <1100px)', async ({ page }) => {
@@ -1108,6 +1138,12 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(editPacketContent).toContain('packet-policy-display');
         expect(editPacketContent).toContain('policy-desc');
         expect(editPacketContent).not.toContain('!important');
+
+        // 4. Tuân thủ Rule 21 (Rule 20.15) — CẤM hardcode text trong editPacket.vue, 100% qua i18n $t
+        expect(editPacketContent).not.toContain("'Mỗi chu kỳ truyền toàn bộ dữ liệu hiện hành'");
+        expect(editPacketContent).not.toContain("'Chỉ gửi bản ghi mới phát sinh theo cursor'");
+        expect(editPacketContent).toContain('syncKindSnapshotDesc');
+        expect(editPacketContent).toContain('syncKindIncrementalDesc');
     });
 
     test('12. Quy chuẩn đặt tên tệp component — BẮT BUỘC dùng camelCase (chữ cái đầu viết thường), CẤM viết hoa PascalCase (Rule 20.14)', async () => {
@@ -1360,11 +1396,10 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(rawAlert).toBeVisible();
         await expect(rawAlert).toContainText(/phức tạp|JOIN|chống ghi đè/i);
 
-        // 5. Kiểm tra textarea Raw SQL chứa đúng câu SQL phức tạp nguyên bản
-        const rawTextarea = page.locator('.vqb-raw-textarea textarea');
-        await expect(rawTextarea).toBeVisible();
-        const currentSqlVal = await rawTextarea.inputValue();
-        expect(currentSqlVal).toContain('INNER JOIN TmsZone z');
+        // 5. Kiểm tra Monaco Editor Raw SQL chứa đúng câu SQL phức tạp nguyên bản
+        const monacoEditor = page.locator('.vqb-monaco-editor');
+        await expect(monacoEditor).toBeVisible();
+        await expect(monacoEditor).toContainText('INNER JOIN TmsZone z');
     });
 
     test('16. Nút "Mẫu mặc định" (forceDefaultTemplate) — Nạp lại template chuẩn từ Catalog qua API getextractsql với forceDefaultTemplate=true (Mục 5 & 6)', async ({ page }) => {
@@ -1433,9 +1468,9 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const btnRawMode = segTabs.locator('.vqb-tab-btn').nth(1);
         await btnRawMode.click();
 
-        const rawTextarea = page.locator('.vqb-raw-textarea textarea');
-        await expect(rawTextarea).toBeVisible();
-        await expect(rawTextarea).toHaveValue(/td\.Speed AS speed/);
+        const monacoEditor = page.locator('.vqb-monaco-editor');
+        await expect(monacoEditor).toBeVisible();
+        await expect(monacoEditor).toContainText(/td\.Speed\s+AS\s+speed/);
 
         // 3. Chuyển lại về chế độ Trực quan (Builder View) để kiểm chứng parser đã bóc tách đúng cột trích xuất
         const btnBuilderMode = segTabs.locator('.vqb-tab-btn').nth(0);
@@ -1720,6 +1755,213 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         // ============================================================
         expect(calledTablesApi).toBe(true);
         expect(calledFieldsApi).toBe(true);
+    });
+
+    test('21. Phạm vi SQL (Mẫu chung / Đối tác) & Tạo SQL riêng từ mẫu (Mục 2)', async ({ page }) => {
+        // Mock partner list
+        await page.route('**/api/sharedata/sharedatapartner/list*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: [
+                        { id: 'p1', code: 'PARTNER_A', name: 'Đối tác A' },
+                        { id: 'p2', code: 'PARTNER_B', name: 'Đối tác B' },
+                    ],
+                }),
+            });
+        });
+
+        // Mock getextractsql: khi gọi với partnerCode=PARTNER_A thì trả isCustomForPartner=false (đang dùng mẫu chung)
+        await page.route('**/api/sharedata/sharedatapacket/getextractsql*', async (route) => {
+            const url = new URL(route.request().url());
+            const partner = url.searchParams.get('partnerCode');
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        extractSql: 'SELECT TOP (100) ID, Speed FROM TmsTrafficData',
+                        status: 1,
+                        isCustomForPartner: partner === 'PARTNER_B',
+                        syncKind: 1,
+                        lookbackDays: null,
+                    },
+                }),
+            });
+        });
+
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+
+        const packetGrid = page.locator('.packet-col .vxe-grid');
+        await expect(packetGrid).toBeVisible({ timeout: 15_000 });
+        await page.locator('.vxe-table--body-wrapper tbody tr').first().click();
+
+        const tabs = page.locator('.datasource-right-tabs');
+        await expect(tabs).toBeVisible({ timeout: 15_000 });
+
+        const sqlTab = tabs.getByRole('tab', { name: /Cấu hình SQL/ });
+        await sqlTab.click();
+        await expect(sqlTab).toHaveClass(/is-active/);
+
+        // 1. Kiểm tra dropdown Phạm vi SQL xuất hiện
+        const scopeSelect = page.locator('.sql-scope-select');
+        await expect(scopeSelect).toBeVisible();
+
+        // 2. Chọn đối tác PARTNER_A (chưa có SQL riêng)
+        await scopeSelect.click();
+        const optionA = page.locator('.el-select-dropdown__item:visible').filter({ hasText: /PARTNER_A/ });
+        await optionA.click();
+
+        // 3. Hiển thị tag "Đang dùng mẫu chung" và nút "Tạo SQL riêng từ mẫu"
+        const commonTag = page.locator('.sql-scope-control .el-tag').filter({ hasText: /mẫu chung/i });
+        await expect(commonTag).toBeVisible();
+
+        const btnCreateCustom = page.locator('.sql-scope-control .el-button').filter({ hasText: /Tạo SQL riêng từ mẫu/i });
+        await expect(btnCreateCustom).toBeVisible();
+
+        // 4. Kiểm tra nút đồng bộ cột bị vô hiệu hóa khi ở phạm vi đối tác
+        const btnSyncDisabled = page.locator('.sql-toolbar-right button').filter({ hasText: /Đồng bộ/i });
+        await expect(btnSyncDisabled).toBeDisabled();
+
+        // 5. Bấm nút "Tạo SQL riêng từ mẫu" -> chuyển thành tag "Riêng đối tác"
+        await btnCreateCustom.click();
+        const customTag = page.locator('.sql-scope-control .el-tag').filter({ hasText: /Riêng đối tác/i });
+        await expect(customTag).toBeVisible();
+    });
+
+    test('22. Cấu hình Chế độ đồng bộ (Toàn bộ / Nối đuôi) & Số ngày quét lùi tối đa (Mục 8 & 20)', async ({ page }) => {
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+
+        const packetGrid = page.locator('.packet-col .vxe-grid');
+        await expect(packetGrid).toBeVisible({ timeout: 15_000 });
+        await page.locator('.vxe-table--body-wrapper tbody tr').first().click();
+
+        const tabs = page.locator('.datasource-right-tabs');
+        await expect(tabs).toBeVisible({ timeout: 15_000 });
+
+        const sqlTab = tabs.getByRole('tab', { name: /Cấu hình SQL/ });
+        await sqlTab.click();
+        await expect(sqlTab).toHaveClass(/is-active/);
+
+        // Chờ tải xong dữ liệu SQL của gói tin
+        await page.waitForTimeout(600);
+
+        // 1. Kiểm tra dropdown Chế độ đồng bộ
+        const syncKindControl = page.locator('.sql-sync-kind-control');
+        await expect(syncKindControl).toBeVisible();
+
+        // 2. Kiểm tra ô số Số ngày quét lùi tối đa
+        const lookbackControl = page.locator('.sql-lookback-control');
+        await expect(lookbackControl).toBeVisible();
+
+        // 3. Chọn chế độ "Gửi nối đuôi" -> Banner hướng dẫn hiển thị
+        const syncSelect = syncKindControl.locator('.el-select');
+        await syncSelect.click();
+        await page.waitForTimeout(200);
+        const incrementalOption = page.locator('.el-select-dropdown__item:visible').filter({ hasText: /Gửi nối đuôi/ }).first();
+        await expect(incrementalOption).toBeVisible();
+        await incrementalOption.click({ force: true });
+
+        const incrementalBanner = page.locator('.sql-center-pane .el-alert').filter({ hasText: /Gửi nối đuôi/i });
+        await expect(incrementalBanner).toBeVisible();
+    });
+
+    test('23. Khối khai báo tham số truy vấn QueryParameterPanel & Tham số @fromDate / @toDate (Mục 8 & 9)', async ({ page }) => {
+        // Quét tĩnh component queryParameterPanel.vue
+        const paramPanelPath = resolveWebvuePath('views/sharedata/dataSource/component/queryParameterPanel.vue');
+        expect(fs.existsSync(paramPanelPath)).toBe(true);
+        const panelContent = fs.readFileSync(paramPanelPath, 'utf8');
+
+        // Bắt buộc hỗ trợ 5 tham số hệ thống
+        expect(panelContent).toContain('@lastTime');
+        expect(panelContent).toContain('@lastKey');
+        expect(panelContent).toContain('@pageSize');
+        expect(panelContent).toContain('@fromDate');
+        expect(panelContent).toContain('@toDate');
+
+        // Mock API trả về câu SQL có tham số @fromDate, @toDate và 1 tham số lạ @customParam
+        await page.route('**/api/sharedata/sharedatapacket/getextractsql*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        extractSql: 'SELECT TOP (@pageSize) ID FROM TmsTrafficData WHERE CreateTime >= @fromDate AND CreateTime <= @toDate AND Extra = @customParam',
+                        status: 1,
+                        syncKind: 2,
+                        lookbackDays: 7,
+                    },
+                }),
+            });
+        });
+
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+
+        const packetGrid = page.locator('.packet-col .vxe-grid');
+        await expect(packetGrid).toBeVisible({ timeout: 15_000 });
+        await page.locator('.vxe-table--body-wrapper tbody tr').first().click();
+
+        const tabs = page.locator('.datasource-right-tabs');
+        await expect(tabs).toBeVisible({ timeout: 15_000 });
+        const sqlTab = tabs.getByRole('tab', { name: /Cấu hình SQL/ });
+        await page.waitForTimeout(500);
+        await sqlTab.click();
+        await expect(sqlTab).toHaveClass(/is-active/);
+
+        // 1. Kiểm tra panel Tham số truy vấn xuất hiện
+        const paramPanel = page.locator('.query-parameter-panel-card');
+        await expect(paramPanel).toBeVisible();
+        await expect(paramPanel).toContainText(/Tham số truy vấn/i);
+
+        // 2. Kiểm tra các tham số được dò thấy
+        const paramsTable = paramPanel.locator('.params-table');
+        await expect(paramsTable).toBeVisible();
+        await expect(paramsTable).toContainText('@pageSize');
+        await expect(paramsTable).toContainText('@fromDate');
+        await expect(paramsTable).toContainText('@toDate');
+        await expect(paramsTable).toContainText('@customParam');
+
+        // 3. Tham số hợp lệ có tag "Được hỗ trợ", tham số lạ có tag "Không được hỗ trợ"
+        await expect(paramsTable).toContainText(/Được hỗ trợ/i);
+        await expect(paramsTable).toContainText(/Không được hỗ trợ/i);
+    });
+
+    test('24. Nhãn giao diện đối tác không dùng từ Stub — Kafka và FTP hiển thị "Chưa bật" (Mục 18)', async () => {
+        // Quét tĩnh mã nguồn editPartner.vue và file i18n
+        const editPartnerPath = resolveWebvuePath('views/sharedata/sharing/component/editPartner.vue');
+        const partnerContent = fs.readFileSync(editPartnerPath, 'utf8');
+
+        // Không hardcode từ "Stub" trong template giao diện hiển thị cho người dùng
+        expect(partnerContent).not.toContain('Kafka Stub');
+        expect(partnerContent).not.toContain('FTP Stub');
+
+        const viPath = resolveWebvuePath('i18n/lang/vi-vn.json');
+        const viContent = JSON.parse(fs.readFileSync(viPath, 'utf8'));
+        expect(viContent['lz.label.sharedataPartner.typeKafkaStub']).toContain('Chưa bật');
+        expect(viContent['lz.label.sharedataPartner.typeFtpStub']).toContain('Chưa bật');
+
+        const enPath = resolveWebvuePath('i18n/lang/en-us.json');
+        const enContent = JSON.parse(fs.readFileSync(enPath, 'utf8'));
+        expect(enContent['lz.label.sharedataPartner.typeKafkaStub']).toContain('Disabled');
+        expect(enContent['lz.label.sharedataPartner.typeFtpStub']).toContain('Disabled');
+    });
+
+    test('25. editSubscription hiển thị cấu hình SQL đang dùng chiều gửi Outbound (Mục 2)', async () => {
+        // Quét tĩnh mã nguồn editSubscription.vue
+        const subPath = resolveWebvuePath('views/sharedata/sharing/component/editSubscription.vue');
+        const subContent = fs.readFileSync(subPath, 'utf8');
+
+        expect(subContent).toContain('resolveExtractSql');
+        expect(subContent).toContain('openSqlCenter');
+        expect(subContent).toContain('sqlScope');
+        expect(subContent).toContain('openSqlCenter');
     });
 });
 

@@ -9,7 +9,7 @@ public class ShareDataAlertCodeTests
 {
     [Fact]
     [Trait("Feature", "BE-7")]
-    public void ShareDataAlertCode_AllConstants_MustMatchRegex_NoDuplicates_AndTotal19()
+    public void ShareDataAlertCode_AllConstants_MustMatchRegex_NoDuplicates_AndTotal23()
     {
         // Arrange
         var nestedTypes = typeof(ShareDataAlertCode).GetNestedTypes(BindingFlags.Public | BindingFlags.Static);
@@ -36,8 +36,8 @@ public class ShareDataAlertCodeTests
             }
         }
 
-        // Assert: 1. Tổng số mã lỗi đúng 19 (9 Outbound + 6 Inbound + 4 Tracking)
-        Assert.Equal(19, codes.Count);
+        // Assert: 1. Tổng số mã lỗi đúng 23 (12 Outbound + 7 Inbound + 4 Tracking)
+        Assert.Equal(23, codes.Count);
 
         // Assert: 2. Không có mã lỗi nào bị trùng lặp
         var distinctValues = codes.Select(c => c.Value).Distinct().ToList();
@@ -55,8 +55,8 @@ public class ShareDataAlertCodeTests
         var inboundCount = codes.Count(c => c.Group == nameof(ShareDataAlertCode.Inbound));
         var trackingCount = codes.Count(c => c.Group == nameof(ShareDataAlertCode.Tracking));
 
-        Assert.Equal(9, outboundCount);
-        Assert.Equal(6, inboundCount);
+        Assert.Equal(12, outboundCount);
+        Assert.Equal(7, inboundCount);
         Assert.Equal(4, trackingCount);
     }
 }

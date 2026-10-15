@@ -52,11 +52,12 @@ public class ShareDataWorkerRoleTests
         var services = BuildServicesWithRole(role);
         var workers = GetRegisteredHostedServices(services);
 
-        // Assert: Mặc định đăng ký đủ 4 workers (vừa gửi vừa nhận theo đúng thiết kế Production)
-        Assert.Equal(4, workers.Count);
+        // Assert: Mặc định đăng ký đủ 5 workers (vừa gửi vừa nhận theo đúng thiết kế Production)
+        Assert.Equal(5, workers.Count);
         Assert.Contains(typeof(DataOutboundWorker), workers);
         Assert.Contains(typeof(DataInboundWorker), workers);
         Assert.Contains(typeof(DataChangeTrackingWorker), workers);
         Assert.Contains(typeof(DataNatsWorker), workers);
+        Assert.Contains(typeof(ShareDataCleanupWorker), workers);
     }
 }

@@ -904,6 +904,133 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             if (File.Exists(fullPath)) File.Delete(fullPath);
         }
 
+        /// <summary>
+        /// Description: TC2 - Sửa cấu hình đối tác giữa 2 kỳ chạy thì worker tự gửi bù đúng các bản ghi cũ và tiến cursor.
+        ///              - Kỳ 1: Gửi HTTP lỗi (ClosedPort hoặc AbortOnCall). Log cha ghi nhận Fail, cảnh báo HttpSendFailed,
+        ///                ErrorMessage chứa URL đã gọi, file vẫn được lưu đệm (bằng chứng), LastTimeRun / SerialNbr / ShareDataLastSend không đổi.
+        ///              - Giữa 2 kỳ: Sửa cấu hình đối tác (Port/phục hồi mạng), ResetDefaults và kích hoạt kỳ chạy tiếp theo (MakeSubscriptionDue).
+        ///              - Kỳ 2: Worker tự gửi bù đúng 5 bản ghi cũ, mock nhận đủ 5 biển số, header PartnerCode / PacketCode đúng,
+        ///                header SerialNbr bằng giá trị trước kỳ 1 (không tăng khi lỗi). Sau kỳ 2: LastTimeRun tiến lên, SerialNbr tăng 1, log bước gửi thành công.
+        /// Created date: 15/10/2026
+        /// </summary>
+        [Theory]
+        [InlineData("ClosedPort")]
+        [InlineData("AbortOnCall")]
+        public async Task ProcessSubscriptions_WhenPartnerConnectionFixedBetweenRuns_ResendsSameRecordsAndAdvancesCursor_Test(string failureMode)
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var partnerServer = _host.PartnerServer;
+            partnerServer.ResetDefaults();
+
+            if (failureMode == "AbortOnCall")
+            {
+                partnerServer.AbortOnCall.Add(1);
+                partnerServer.AbortOnCall.Add(2);
+            }
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "103");
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var eqId = $"EQ_TC2_{unique}";
+            var platePrefix = $"TC2{unique}-";
+            await db.Insertable(new TmsEquipment { ID = eqId, Code = $"VDS_TC2_{unique}", KmNumber = 45, MetNumber = 100 }).ExecuteCommandAsync();
+            var dbNow = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
+            var baseTime = dbNow.AddDays(-35);
+
+            var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_TC2_{unique}",
+                SubCode = $"SUB_TC2_{unique}",
+                DatatypeId = "103",
+                ConfigureSub = s => { s.LastTimeRun = baseTime; s.SerialNbr = 0; },
+                ConfigurePartner = p =>
+                {
+                    if (failureMode == "ClosedPort")
+                    {
+                        p.Port = ShareDataPartnerServerMock.ClosedPort;
+                    }
+                }
+            });
+
+            var seededRows = await SeedTrafficRows(db, eqId, platePrefix, baseTime, 5);
+            var expectedPlates = seededRows.Select(r => r.LicensePlate!).OrderBy(p => p, StringComparer.Ordinal).ToList();
+            var expectedPacketCode = PacketMetadataCatalogTest.Get("103").Packet.Code;
+
+            var subBefore = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
+            var initialLastTime = subBefore.LastTimeRun;
+            var initialSerial = subBefore.SerialNbr ?? 0;
+
+            // Act 1: Kỳ 1 chạy khi kết nối đối tác lỗi
+            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
+
+            // Assert 1:
+            var logsRun1 = await GetLogs(db, sub.ID);
+            var parentRun1 = logsRun1.Single(l => l.ParentId == null);
+            Assert.Equal(BaseEnums.SuccessEnums.Fail, parentRun1.Success);
+
+            // Cảnh báo HttpSendFailed
+            var alertsRun1 = await db.Queryable<ShareDataAlertLog>()
+                .Where(a => a.SubscriptionId == sub.ID && a.AlertCode == ShareDataAlertCode.Outbound.HttpSendFailed)
+                .ToListAsync();
+            Assert.NotEmpty(alertsRun1);
+
+            // ErrorMessage chứa URL đã gọi
+            var expectedUrlPort = failureMode == "ClosedPort" ? ShareDataPartnerServerMock.ClosedPort : ShareDataPartnerServerMock.DefaultPort;
+            Assert.Contains(expectedUrlPort.ToString(), parentRun1.ErrorMessage);
+
+            // File vẫn được lưu đệm/xuất (log có FilePath)
+            Assert.False(string.IsNullOrWhiteSpace(parentRun1.FilePath));
+            var fullPathRun1 = Path.Combine(Directory.GetCurrentDirectory(), "sharedata/send", parentRun1.FilePath!);
+            Assert.True(File.Exists(fullPathRun1), $"File [{fullPathRun1}] phải được lưu đệm trước khi gửi");
+            if (File.Exists(fullPathRun1)) File.Delete(fullPathRun1);
+
+            // LastTimeRun, SerialNbr, ShareDataLastSend KHÔNG đổi
+            await AssertCursorUnchanged(db, partner.Code, sub.ID, baseTime);
+
+            // 3. Mô phỏng sửa cấu hình đối tác giữa 2 kỳ chạy
+            if (failureMode == "ClosedPort")
+            {
+                await db.Updateable<ShareDataPartner>()
+                    .SetColumns(p => p.Port == ShareDataPartnerServerMock.DefaultPort)
+                    .Where(p => p.ID == partner.ID)
+                    .ExecuteCommandAsync();
+            }
+            partnerServer.ResetDefaults();
+            await MakeSubscriptionDue(db, sub.ID);
+
+            // Act 2: Kỳ 2 chạy sau khi sửa cấu hình
+            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
+
+            // Assert 2:
+            // Mock nhận đúng 5 biển số đã seed
+            var receivedPlates = partnerServer.ReceivedRequests.SelectMany(r => ExtractPlates(r.Body, platePrefix)).ToList();
+            Assert.Equal(5, receivedPlates.Count);
+            Assert.Equal(expectedPlates, receivedPlates);
+
+            // Headers đúng: PartnerCode, PacketCode, SerialNbr bằng giá trị trước kỳ 1
+            var successfulRequest = partnerServer.LastRequest!;
+            Assert.Equal(partner.Code, successfulRequest.Headers["PartnerCode"]);
+            Assert.Equal(expectedPacketCode, successfulRequest.Headers["PacketCode"]);
+            Assert.Equal(initialSerial.ToString(), successfulRequest.Headers["SerialNbr"]);
+
+            // Sau kỳ 2: LastTimeRun tiến lên, SerialNbr tăng 1, log gửi thành công
+            var subAfterRun2 = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
+            Assert.True(subAfterRun2.LastTimeRun > initialLastTime, "LastTimeRun phải tiến lên sau kỳ gửi thành công");
+            Assert.Equal(initialSerial + 1, subAfterRun2.SerialNbr);
+
+            var logsRun2 = await GetLogs(db, sub.ID);
+            var parentRun2 = logsRun2.Where(l => l.ParentId == null).OrderByDescending(l => l.OccurredAt).First();
+            Assert.Equal(BaseEnums.SuccessEnums.Success, parentRun2.Success);
+            Assert.Equal(5, parentRun2.RecordCount);
+
+            if (!string.IsNullOrWhiteSpace(parentRun2.FilePath))
+            {
+                var fullPathRun2 = Path.Combine(Directory.GetCurrentDirectory(), "sharedata/send", parentRun2.FilePath!);
+                if (File.Exists(fullPathRun2)) File.Delete(fullPathRun2);
+            }
+        }
+
         #endregion
     }
 }

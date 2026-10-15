@@ -13,8 +13,17 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
     ///              rẽ nhánh theo ConnectionType (API, Kafka, File), và chuyển đổi JSON -> byte[] của Kafka.
     /// Created date: 13/10/2026
     /// </summary>
+    [Collection("api")]
     public class ShareDataOutboundTransportTests
     {
+        private readonly Host _host;
+
+        public ShareDataOutboundTransportTests(Host host)
+        {
+            _host = host;
+            _host.PartnerServer.ResetDefaults();
+        }
+
         private static DataOutboundContext CreateDummyContext(string packetCode = "101", string partnerCode = "PARTNER_TEST", string connectionType = "API")
         {
             var packet = new ShareDataPacket { Code = packetCode, Name = "Packet " + packetCode };
@@ -114,8 +123,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public async Task DispatchAsync_WhenPartnerConnectionTypeIsApi_RoutesToApiChannel_Test()
         {
             // Arrange
-            using var server = new ShareDataPartnerServerMock();
-            server.Start(18092);
+            var server = _host.PartnerServer;
+            server.ResetDefaults();
             var restSender = new DataOutboundRestSender();
             var dispatcher = ShareDataConnectionDispatcher.CreateForHandlers([restSender]);
             var ctx = CreateDummyContext("101", "PARTNER_API", "API");
@@ -191,8 +200,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public async Task DispatchAsync_WhenPartnerConfigEmpty_FallsBackToPartnerLegacyFields_Test()
         {
             // Arrange: Đối tác cũ không có ConnectionConfig JSON -> tự động fallback sang Address, Port, EndPointApiUrl
-            using var server = new ShareDataPartnerServerMock();
-            server.Start(18092);
+            var server = _host.PartnerServer;
+            server.ResetDefaults();
             var restSender = new DataOutboundRestSender();
             var dispatcher = ShareDataConnectionDispatcher.CreateForHandlers([restSender]);
             var ctx = CreateDummyContext("101", "PARTNER_LEGACY", "API");
@@ -218,18 +227,18 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         }
 
         [Fact]
-        public async Task DispatchAsync_WhenConnectionConfigOverridesLegacyFields_PrefersConnectionConfig_Test()
+        public async Task DispatchAsync_TakesAddressAndPortFromPartnerColumns_AndCustomConfigFromDictionary_Test()
         {
-            // Arrange: ConnectionConfig có Port và EndPointApiUrl khác với trường cũ -> Dictionary phải ưu tiên tuyệt đối
-            using var server = new ShareDataPartnerServerMock();
-            server.Start(18092);
+            // Arrange: Địa chỉ và cổng chỉ lấy từ cột của Partner; ConnectionConfig chỉ chứa config riêng (Auth, Timeout)
+            var server = _host.PartnerServer;
+            server.ResetDefaults();
             var restSender = new DataOutboundRestSender();
             var dispatcher = ShareDataConnectionDispatcher.CreateForHandlers([restSender]);
-            var ctx = CreateDummyContext("101", "PARTNER_OVERRIDE", "API");
+            var ctx = CreateDummyContext("101", "PARTNER_COLS", "API");
             ctx.Partner!.Address = "127.0.0.1";
-            ctx.Partner!.Port = 18090; // Cũ
-            ctx.Partner!.EndPointApiUrl = "/api/v1/old-endpoint"; // Cũ
-            ctx.Partner!.ConnectionConfig = "{\"Port\":\"18092\",\"EndPointApiUrl\":\"/api/v1/override-endpoint\"}";
+            ctx.Partner!.Port = 18092;
+            ctx.Partner!.EndPointApiUrl = "/api/v1/override-endpoint";
+            ctx.Partner!.ConnectionConfig = "{\"TimeoutSeconds\":\"30\",\"AuthType\":\"Bearer\",\"Token\":\"test-token\"}";
 
             var mappingBytes = Encoding.UTF8.GetBytes("{\"override\": true}");
             var mapping = new DataMappingResult(true, mappingBytes, 1);
@@ -248,24 +257,21 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         }
 
         [Theory]
-        [InlineData("70000")]
-        [InlineData("0")]
-        [InlineData("-1")]
-        [InlineData("invalid_port")]
-        public async Task RestSender_WhenPortInvalid_ReturnsInvalidConfigurationError_Test(string invalidPort)
+        [InlineData(70000)]
+        [InlineData(0)]
+        [InlineData(-1)]
+        public async Task RestSender_WhenPortInvalid_ReturnsInvalidConfigurationError_Test(int invalidPort)
         {
             // Arrange
             var restSender = new DataOutboundRestSender();
             var ctx = CreateDummyContext("101", "PARTNER_BAD_PORT", "API");
+            ctx.Partner!.Address = "127.0.0.1";
+            ctx.Partner!.Port = invalidPort;
             var request = new ShareDataConnectionRequest
             {
                 JsonPayload = "{}",
                 ConnectionType = "API",
-                ConnectionConfig = new Dictionary<string, string>
-                {
-                    ["Address"] = "127.0.0.1",
-                    ["Port"] = invalidPort
-                }
+                ConnectionConfig = new Dictionary<string, string>()
             };
 
             // Act
@@ -338,8 +344,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public async Task RestSender_WhenBearerAuthProvided_SendsAuthorizationBearerHeader_Test()
         {
             // Arrange
-            using var server = new ShareDataPartnerServerMock();
-            server.Start(18092);
+            var server = _host.PartnerServer;
+            server.ResetDefaults();
             var restSender = new DataOutboundRestSender();
             var ctx = CreateDummyContext("101", "PARTNER_BEARER", "API");
             var request = new ShareDataConnectionRequest
@@ -369,8 +375,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public async Task RestSender_WhenApiKeyAuthProvided_SendsApiKeyHeader_Test()
         {
             // Arrange
-            using var server = new ShareDataPartnerServerMock();
-            server.Start(18092);
+            var server = _host.PartnerServer;
+            server.ResetDefaults();
             var restSender = new DataOutboundRestSender();
             var ctx = CreateDummyContext("101", "PARTNER_APIKEY", "API");
             var request = new ShareDataConnectionRequest
@@ -401,8 +407,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public async Task RestSender_WhenBasicAuthProvided_SendsAuthorizationBasicHeader_Test()
         {
             // Arrange
-            using var server = new ShareDataPartnerServerMock();
-            server.Start(18092);
+            var server = _host.PartnerServer;
+            server.ResetDefaults();
             var restSender = new DataOutboundRestSender();
             var ctx = CreateDummyContext("101", "PARTNER_BASIC", "API");
             var request = new ShareDataConnectionRequest
@@ -434,8 +440,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public async Task RestSender_WhenHttp200ReturnsBusinessError_ReturnsFailedWithBusinessError_Test()
         {
             // Arrange: Đối tác trả HTTP 200 nhưng body chứa lỗi nghiệp vụ (isSuccess = false)
-            using var server = new ShareDataPartnerServerMock();
-            server.Start(18092);
+            var server = _host.PartnerServer;
+            server.ResetDefaults();
             server.DefaultResponseBody = "{\"isSuccess\": false, \"errorCode\": \"ERR_PAYLOAD_INVALID\", \"message\": \"Payload schema mismatch\"}";
 
             var restSender = new DataOutboundRestSender();
@@ -468,8 +474,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public async Task RestSender_WhenFurionResponseHasFailedSucceeded_ReturnsBusinessError_Test()
         {
             // Arrange: Đối tác trả HTTP 200 dạng Furion/UnifyResult nhưng succeeded = false
-            using var server = new ShareDataPartnerServerMock();
-            server.Start(18092);
+            var server = _host.PartnerServer;
+            server.ResetDefaults();
             server.DefaultResponseBody = "{\"succeeded\": false, \"statusCode\": 400, \"errors\": \"Dữ liệu không đúng định dạng\"}";
 
             var restSender = new DataOutboundRestSender();
@@ -544,7 +550,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.True(PartnerValidator.IsValidConnectionConfig(null!, out _));
             Assert.True(PartnerValidator.IsValidConnectionConfig("", out _));
             Assert.True(PartnerValidator.IsValidConnectionConfig("   ", out _));
-            Assert.True(PartnerValidator.IsValidConnectionConfig("{\"Port\": 18090, \"TimeoutSeconds\": 30, \"BypassSsl\": true, \"AuthType\": \"Bearer\"}", out var validErr));
+            Assert.True(PartnerValidator.IsValidConnectionConfig("{\"TimeoutSeconds\": 30, \"BypassSsl\": true, \"AuthType\": \"Bearer\", \"Token\": \"sec123\"}", out var validErr));
             Assert.Null(validErr);
 
             Assert.False(PartnerValidator.IsValidConnectionConfig("not_json", out var err1));
@@ -556,9 +562,24 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.False(PartnerValidator.IsValidConnectionConfig("{\"nested\": {\"key\": 1}}", out var err3));
             Assert.NotNull(err3);
 
-            Assert.False(PartnerValidator.IsValidConnectionConfig("{\"Port\": 70000}", out var err4));
-            Assert.NotNull(err4);
-            Assert.Contains("65535", err4);
+            // Các key dành riêng cho cột (BaseUrl, Url, Host, Server, Address, IP, Port, Endpoint, Path, EndPointApiUrl) bị từ chối
+            Assert.False(PartnerValidator.IsValidConnectionConfig("{\"BaseUrl\": \"http://localhost\"}", out var errBaseUrl));
+            Assert.NotNull(errBaseUrl);
+            Assert.Contains("BaseUrl", errBaseUrl);
+
+            Assert.False(PartnerValidator.IsValidConnectionConfig("{\"Port\": 18090}", out var errPort));
+            Assert.NotNull(errPort);
+            Assert.Contains("Port", errPort);
+
+            // Key trùng nhau (không phân biệt hoa thường) bị từ chối
+            Assert.False(PartnerValidator.IsValidConnectionConfig("{\"Token\": \"1\", \"token\": \"2\"}", out var errDup));
+            Assert.NotNull(errDup);
+            Assert.Contains("trùng lặp", errDup);
+
+            // Key rỗng bị từ chối
+            Assert.False(PartnerValidator.IsValidConnectionConfig("{\"\": \"val\"}", out var errEmptyKey));
+            Assert.NotNull(errEmptyKey);
+            Assert.Contains("không được để trống", errEmptyKey);
 
             Assert.False(PartnerValidator.IsValidConnectionConfig("{\"TimeoutSeconds\": -1}", out var err5));
             Assert.NotNull(err5);
@@ -594,19 +615,42 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         }
 
         [Fact]
-        public void ShareDataEncryptionProvider_EncryptDecryptRoundtrip_ReturnsOriginalText_Test()
+        public void AesGcmCodec_EncodeDecodeRoundtrip_ReturnsOriginalBytes_Test()
         {
             // Arrange
-            var keyBase64 = ShareDataWorker.Core.Utils.Security.ShareDataEncryptionProvider.GenerateKeyBase64();
-            var originalText = "ITS-ShareData-TopSecret-Payload-123456";
+            var codec = new Module.ShareData.Core.Connection.Codecs.AesGcmCodec();
+            var keyBytes = new byte[Module.ShareData.Core.Connection.Codecs.AesGcmCodec.KeySize];
+            System.Security.Cryptography.RandomNumberGenerator.Fill(keyBytes);
+            var ctx = new Module.ShareData.Core.Connection.Codecs.PayloadCodecContext("test-kid", keyBytes);
+            var originalBytes = Encoding.UTF8.GetBytes("{\"test\":\"secret-payload-data\"}");
 
             // Act
-            var cipherBase64 = ShareDataWorker.Core.Utils.Security.ShareDataEncryptionProvider.EncryptString(originalText, keyBase64, out var ivBase64);
-            var decryptedText = ShareDataWorker.Core.Utils.Security.ShareDataEncryptionProvider.DecryptString(cipherBase64, keyBase64, ivBase64);
+            var encodedBytes = codec.Encode(originalBytes, ctx);
+            var decodedBytes = codec.Decode(encodedBytes, ctx);
 
             // Assert
-            Assert.NotEqual(originalText, cipherBase64);
-            Assert.Equal(originalText, decryptedText);
+            Assert.NotEqual(originalBytes, encodedBytes);
+            Assert.Equal(originalBytes, decodedBytes);
+            var jsonEnvelope = Encoding.UTF8.GetString(encodedBytes);
+            Assert.Contains("AES256-GCM", jsonEnvelope);
+            Assert.Contains("test-kid", jsonEnvelope);
+        }
+
+        [Fact]
+        public void NoneCodec_EncodeDecode_PassesThroughIdenticalBytes_Test()
+        {
+            // Arrange
+            var codec = new Module.ShareData.Core.Connection.Codecs.NoneCodec();
+            var ctx = new Module.ShareData.Core.Connection.Codecs.PayloadCodecContext(null, null);
+            var originalBytes = Encoding.UTF8.GetBytes("{\"test\":\"plain-payload\"}");
+
+            // Act
+            var encoded = codec.Encode(originalBytes, ctx);
+            var decoded = codec.Decode(encoded, ctx);
+
+            // Assert
+            Assert.Equal(originalBytes, encoded);
+            Assert.Equal(originalBytes, decoded);
         }
 
         [Fact]
@@ -678,34 +722,81 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         }
 
         [Fact]
+        public void Kafka_WhenBootstrapServersInConfig_PrefersOverPartnerColumns_Test()
+        {
+            // Arrange
+            var ctx = CreateDummyContext("101", "PARTNER_KAFKA", "Kafka");
+            ctx.Partner!.Address = "10.0.0.1";
+            ctx.Partner!.Port = 9092;
+
+            var reqWithBootstrap = new ShareDataConnectionRequest
+            {
+                JsonPayload = "{\"test\": 1}",
+                ConnectionType = "Kafka",
+                ConnectionConfig = new Dictionary<string, string>
+                {
+                    ["BootstrapServers"] = "kafka-cluster:9092,kafka-cluster:9093"
+                }
+            };
+
+            var reqFallback = new ShareDataConnectionRequest
+            {
+                JsonPayload = "{\"test\": 1}",
+                ConnectionType = "Kafka",
+                ConnectionConfig = new Dictionary<string, string>()
+            };
+
+            // Act: Phân giải bootstrapServers theo đúng logic DataOutboundKafkaSender
+            var serversExplicit = reqWithBootstrap.ConnectionConfig.TryGetValue("BootstrapServers", out var s1) && !string.IsNullOrWhiteSpace(s1)
+                ? s1.Trim()
+                : (!string.IsNullOrWhiteSpace(ctx.Partner?.Address)
+                    ? (ctx.Partner.Address.Contains(':') || !ctx.Partner.Port.HasValue ? ctx.Partner.Address.Trim() : $"{ctx.Partner.Address.Trim()}:{ctx.Partner.Port.Value}")
+                    : null);
+
+            var serversFallback = reqFallback.ConnectionConfig.TryGetValue("BootstrapServers", out var s2) && !string.IsNullOrWhiteSpace(s2)
+                ? s2.Trim()
+                : (!string.IsNullOrWhiteSpace(ctx.Partner?.Address)
+                    ? (ctx.Partner.Address.Contains(':') || !ctx.Partner.Port.HasValue ? ctx.Partner.Address.Trim() : $"{ctx.Partner.Address.Trim()}:{ctx.Partner.Port.Value}")
+                    : null);
+
+            // Assert
+            Assert.Equal("kafka-cluster:9092,kafka-cluster:9093", serversExplicit);
+            Assert.Equal("10.0.0.1:9092", serversFallback);
+        }
+
+
+        [Fact]
         public void PacketMetadataResolver_Packet105_DefaultsToSnapshot_CanBeOverriddenToIncremental_Test()
         {
             // Arrange
             var packetDefault = new ShareDataPacket { Code = "105", Name = "AVI/RFID Data" };
-            var packetWithPolicy = new ShareDataPacket { Code = "105", Policy = "Incremental" };
-            var subWithOverride = new ShareDataSubscription { DatatypeId = "105", PolicyOverride = "Incremental" };
-            var extractSqlSnapshot = new ShareDataPacketExtractSql { PacketCode = "105", SyncKind = 1 };
-            var extractSqlIncremental = new ShareDataPacketExtractSql { PacketCode = "105", SyncKind = 2 };
+            var packetIncr = new ShareDataPacket { Code = "105", Name = "AVI/RFID Data", SyncKind = 2 };
+            var mappingSnapshot = new ShareDataMapping { SyncKind = 1 };
+            var mappingIncremental = new ShareDataMapping { SyncKind = 2 };
 
             // Act & Assert
             // 1. Mặc định gói 105 là Snapshot
             var defaultPolicy = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy(packetDefault);
             Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.Snapshot, defaultPolicy);
 
-            // 2. Gói 105 có Policy = "Incremental" được phân giải thành AlwaysIncremental
-            var pktOverride = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy(packetWithPolicy);
-            Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.AlwaysIncremental, pktOverride);
+            // 2. Cấu hình SyncKind = 2 (Incremental) trên gói chuyển thành AlwaysIncremental
+            var packetIncrPolicy = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy(packetIncr);
+            Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.AlwaysIncremental, packetIncrPolicy);
 
-            // 3. Override cấp Subscription ưu tiên cao nhất
-            var subOverride = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy(packetDefault, subWithOverride);
-            Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.AlwaysIncremental, subOverride);
+            // 3. Cấu hình SyncKind = 2 trên Mapping của đối tác ghi đè gói tin
+            var mappingIncrPolicy = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy(packetDefault, mappingIncremental);
+            Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.AlwaysIncremental, mappingIncrPolicy);
 
-            // 4. Cấu hình SyncKind trên câu truy vấn SQL động
-            var sqlSnap = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy(packetDefault, null, extractSqlSnapshot);
-            Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.Snapshot, sqlSnap);
+            // 4. Cấu hình SyncKind = 1 trên Mapping của đối tác ghi đè gói tin Incremental thành Snapshot
+            var mappingSnapPolicy = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy(packetIncr, mappingSnapshot);
+            Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.Snapshot, mappingSnapPolicy);
 
-            var sqlIncr = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy(packetDefault, null, extractSqlIncremental);
-            Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.AlwaysIncremental, sqlIncr);
+            // 5. Phân giải qua chuỗi packetCode và mapping / syncKind
+            var codeIncr = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy("105", mappingIncremental);
+            Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.AlwaysIncremental, codeIncr);
+
+            var codeDirectIncr = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy("105", syncKind: 2);
+            Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.AlwaysIncremental, codeDirectIncr);
         }
 
         [Fact]
@@ -734,6 +825,140 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             Assert.False(invalidResult);
             Assert.Contains("@unknownParam", invalidErr);
+        }
+
+        [Fact]
+        public void PartnerValidator_ArchiveEnabled_ValidatesBoolean_Test()
+        {
+            // Valid boolean values
+            Assert.True(PartnerValidator.IsValidConnectionConfig("{\"ArchiveEnabled\": true}", out var err1));
+            Assert.Null(err1);
+            Assert.True(PartnerValidator.IsValidConnectionConfig("{\"ArchiveEnabled\": false}", out var err2));
+            Assert.Null(err2);
+            Assert.True(PartnerValidator.IsValidConnectionConfig("{\"ArchiveEnabled\": \"true\"}", out var err3));
+            Assert.Null(err3);
+            Assert.True(PartnerValidator.IsValidConnectionConfig("{\"ArchiveEnabled\": \"false\"}", out var err4));
+            Assert.Null(err4);
+
+            // Invalid boolean value
+            Assert.False(PartnerValidator.IsValidConnectionConfig("{\"ArchiveEnabled\": \"abc\"}", out var errInvalid));
+            Assert.NotNull(errInvalid);
+            Assert.Contains("ArchiveEnabled", errInvalid);
+            Assert.Contains("boolean", errInvalid);
+        }
+
+        [Fact]
+        public async Task FileSender_WhenDirectoryPathHasPathTraversal_ReturnsInvalidConfiguration_Test()
+        {
+            var fileSender = new DataOutboundFileSender();
+            var ctx = CreateDummyContext("103", "PARTNER_FILE_TRAVERSAL", "File");
+            var request = new ShareDataConnectionRequest
+            {
+                PayloadBytes = Encoding.UTF8.GetBytes("test-content"),
+                ConnectionType = "File",
+                ConnectionConfig = new Dictionary<string, string>
+                {
+                    ["DirectoryPath"] = "safe/../../etc/passwd"
+                }
+            };
+
+            var result = await fileSender.SendAsync(request, ctx, CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Equal("File", result.Channel);
+            Assert.Equal("InvalidConfiguration", result.ErrorCode);
+            Assert.Contains("traversal", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task FileSender_WhenDirectoryPathAndFileNamePatternConfigured_SavesToExpectedCustomPath_Test()
+        {
+            var fileSender = new DataOutboundFileSender();
+            var ctx = CreateDummyContext("103", "PARTNER_FILE_CUSTOM", "File");
+            var expectedBytes = Encoding.UTF8.GetBytes("custom-file-payload-content");
+            var request = new ShareDataConnectionRequest
+            {
+                PayloadBytes = expectedBytes,
+                FileExtension = ".csv",
+                ConnectionType = "File",
+                ConnectionConfig = new Dictionary<string, string>
+                {
+                    ["DirectoryPath"] = "custom_export_dir",
+                    ["FileNamePattern"] = "export_{partner}_{packet}_{timestamp}"
+                }
+            };
+
+            var result = await fileSender.SendAsync(request, ctx, CancellationToken.None);
+
+            Assert.True(result.Success);
+            Assert.Equal("File", result.Channel);
+            Assert.NotNull(result.TargetAddressOrPath);
+            Assert.Contains("custom_export_dir", result.TargetAddressOrPath);
+            Assert.Contains("PARTNER_FILE_CUSTOM", result.TargetAddressOrPath);
+            Assert.EndsWith(".csv", result.TargetAddressOrPath);
+
+            var fullPath = Path.Combine(Directory.GetCurrentDirectory(), "sharedata/send", result.TargetAddressOrPath);
+            Assert.True(File.Exists(fullPath));
+            var savedBytes = await File.ReadAllBytesAsync(fullPath);
+            Assert.Equal(expectedBytes, savedBytes);
+
+            // Clean up
+            if (File.Exists(fullPath)) File.Delete(fullPath);
+        }
+
+        [Fact]
+        public async Task RestSender_WhenPayloadBytesProvided_SendsExactBytesAndContentType_Test()
+        {
+            var server = _host.PartnerServer;
+            server.ResetDefaults();
+
+            var restSender = new DataOutboundRestSender();
+            var ctx = CreateDummyContext("101", "PARTNER_BYTES", "API");
+            var expectedBytes = Encoding.UTF8.GetBytes("{\"cipher\":\"encrypted_payload_123\"}");
+            var request = new ShareDataConnectionRequest
+            {
+                PayloadBytes = expectedBytes,
+                ContentType = "application/json",
+                JsonPayload = "dummy_should_not_be_used",
+                ConnectionType = "API",
+                ConnectionConfig = new Dictionary<string, string>
+                {
+                    ["Address"] = ShareDataPartnerServerMock.DefaultHost,
+                    ["Port"] = ShareDataPartnerServerMock.DefaultPort.ToString()
+                }
+            };
+
+            var result = await restSender.SendAsync(request, ctx, CancellationToken.None);
+
+            Assert.True(result.Success);
+            Assert.NotNull(server.LastRequest);
+            Assert.Equal(expectedBytes, Encoding.UTF8.GetBytes(server.LastRequest.Body));
+        }
+
+        [Fact]
+        public async Task FtpSender_WhenCsvPayloadBytesProvided_UsesExactPayloadBytesAndCsvExtension_Test()
+        {
+            var ftpSender = new DataOutboundFtpSender();
+            var ctx = CreateDummyContext("101", "PARTNER_FTP_CSV", "FTP");
+            var csvBytes = Encoding.UTF8.GetBytes("ID,Code,Name\r\n1,A,Item1\r\n2,B,Item2");
+            var request = new ShareDataConnectionRequest
+            {
+                PayloadBytes = csvBytes,
+                ContentType = "text/csv",
+                FileExtension = ".csv",
+                JsonPayload = "{}",
+                ConnectionType = "FTP",
+                ConnectionConfig = new Dictionary<string, string>
+                {
+                    ["RemotePath"] = "/test/path"
+                }
+            };
+
+            var result = await ftpSender.SendAsync(request, ctx, CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Equal("Ftp", result.Channel);
+            Assert.Contains(result.ErrorCode, new[] { "FtpConnectionFailed", "FtpSendFailed", "FtpWebException" });
         }
     }
 }

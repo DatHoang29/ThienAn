@@ -365,5 +365,7 @@ của `Sharedata_MasterPlan.md` kèm 2 số đo staging.
 
 *(Loạt prompt Frontend nhóm A–F từ review 16/09/2026, `16-09-2026-prompt-flatten-datapublication.md` và `sharedata-bo-qua-khi-khong-co-kenh-prompt.md` cũng đã được xóa theo Auto-Cleanup.)*
 
+*(Các tệp prompt đã hoàn tất kiểm thử đợt 14–15/10/2026 gồm: `sharedata-sua-loi-doi-chieu-dynamic-query-prompt.md`, `sharedata-cau-hinh-ket-noi-mau-vms-prompt.md`, `sharedata-doi-xung-chieu-nhan-prompt.md`, `sharedata-luu-dem-gui-lai-prompt.md`, `sharedata-refactor-doc-cau-hinh-chieu-gui-prompt.md`, `sharedata-gon-bang-csdl-prompt.md`, `sharedata-dong-bo-ket-qua-va-plan-prompt.md`, `sharedata-chuan-bi-trien-khai-staging-prompt.md`, `sharedata-fix-sau-review-prompt.md` đã được xoá theo yêu cầu trực tiếp của người dùng; trạng thái chi tiết và kết quả kiểm thử được lưu trữ đầy đủ tại [PHẦN VII của Sharedata_MasterPlan.md](../Plan/Sharedata_MasterPlan.md#phần-vii--các-hạng-mục-từ-cuộc-họp-14102026-truy-vấn-động-nối-đuôi--tầng-kết-nối-r8--r18)).*
+
 
 

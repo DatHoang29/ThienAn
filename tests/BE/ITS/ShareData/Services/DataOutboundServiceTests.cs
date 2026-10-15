@@ -2236,16 +2236,11 @@ FROM TmsZoneStatus zs
 LEFT JOIN TmsZone z ON zs.ZoneId = z.ID
 LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId";
 
-            await db.Insertable(new ShareDataPacketExtractSql
-            {
-                ID = Guid.NewGuid().ToString("N"),
-                PacketCode = "101",
-                PartnerCode = null,
-                ExtractSql = sql101,
-                SyncKind = 1,
-                Status = BaseEnums.StatusEnum.Enable,
-                Remark = $"E2E Template 101 {unique}"
-            }).ExecuteCommandAsync();
+            await db.Updateable<ShareDataPacket>()
+                .SetColumns(p => p.ExtractSql == sql101)
+                .SetColumns(p => p.SyncKind == 1)
+                .Where(p => p.Code == "101" || p.Code == "101_commonData")
+                .ExecuteCommandAsync();
 
             // Seed Template SQL động cho gói 103 (Incremental)
             var sql103 = @"SELECT TOP (@pageSize)
@@ -2274,17 +2269,12 @@ WHERE td.IsDelete IS NULL
   )
 ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
-            await db.Insertable(new ShareDataPacketExtractSql
-            {
-                ID = Guid.NewGuid().ToString("N"),
-                PacketCode = "103",
-                PartnerCode = null,
-                ExtractSql = sql103,
-                SyncKind = 2,
-                CursorColumn = "DetectTime",
-                Status = BaseEnums.StatusEnum.Enable,
-                Remark = $"E2E Template 103 {unique}"
-            }).ExecuteCommandAsync();
+            await db.Updateable<ShareDataPacket>()
+                .SetColumns(p => p.ExtractSql == sql103)
+                .SetColumns(p => p.SyncKind == 2)
+                .SetColumns(p => p.CursorColumn == "DetectTime")
+                .Where(p => p.Code == "103" || p.Code == "103_vdsData")
+                .ExecuteCommandAsync();
 
             // Seed Dữ liệu nghiệp vụ kiểm thử
             var zoneId = $"ZONE_{unique}";
@@ -4688,10 +4678,10 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
 
         /// <summary>
-        /// Description: Kiểm DataOutboundRestSender dựng đúng URL cho cả đối tác có Port và không có Port.
-        ///              Kiểm ở tầng dựng URI chứ không gửi thật: trường hợp không có Port nghĩa là cổng 80,
-        ///              mà bind cổng 80 cần quyền quản trị nên không chạy được trên máy lập trình viên.
+        /// Description: Kiểm DataOutboundRestSender dựng đúng URL cho cả đối tác có Port và không có Port,
+        ///              đối tác có/không scheme http/https, cổng khai báo trong Address, và URL tuyệt đối trong EndPointApiUrl.
         /// Created date: 30/09/2026
+        /// Updated date: 15/10/2026
         /// </summary>
         [Fact]
         public void RestSender_Send_UrlWithAndWithoutPort_ConstructsCorrectUri_Test()
@@ -4717,6 +4707,26 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             // Act & Assert 2: Partner không có Port (null) -> cổng 80 mặc định, không hiện trong URL
             var withoutPort = Build(sender, method, new ShareDataPartner { Address = "partner.example.com", Port = null, EndPointApiUrl = "/data" });
             Assert.Equal("http://partner.example.com/data", withoutPort?.ToString());
+
+            // TC1 - Case 1: Address không có https:// nên mặc định http:// (đây chính là nguyên nhân sự cố dev 14/10/2026 khi đối tác chỉ nhận TLS)
+            var noScheme = Build(sender, method, new ShareDataPartner { Address = "tacorp.vn", Port = 12204, EndPointApiUrl = "/api/sharedata/shareDataInbound/receive" });
+            Assert.Equal("http://tacorp.vn:12204/api/sharedata/shareDataInbound/receive", noScheme?.ToString());
+
+            // TC1 - Case 2: Address có https:// tường minh
+            var withHttps = Build(sender, method, new ShareDataPartner { Address = "https://tacorp.vn", Port = 12204, EndPointApiUrl = "/api/sharedata/shareDataInbound/receive" });
+            Assert.Equal("https://tacorp.vn:12204/api/sharedata/shareDataInbound/receive", withHttps?.ToString());
+
+            // TC1 - Case 3: Cổng trong Address (12204) được ưu tiên, bỏ qua cột Port (12205)
+            var portInAddress = Build(sender, method, new ShareDataPartner { Address = "https://tacorp.vn:12204", Port = 12205, EndPointApiUrl = "/api/sharedata/shareDataInbound/receive" });
+            Assert.Equal("https://tacorp.vn:12204/api/sharedata/shareDataInbound/receive", portInAddress?.ToString());
+
+            // TC1 - Case 4: Address có dấu '/' cuối không làm dư '//' trong URL
+            var trailingSlash = Build(sender, method, new ShareDataPartner { Address = "https://tacorp.vn/", Port = 12204, EndPointApiUrl = "/api/sharedata/shareDataInbound/receive" });
+            Assert.Equal("https://tacorp.vn:12204/api/sharedata/shareDataInbound/receive", trailingSlash?.ToString());
+
+            // TC1 - Case 5: EndPointApiUrl là URL tuyệt đối -> dùng thẳng, bỏ qua Address/Port
+            var absoluteEndpoint = Build(sender, method, new ShareDataPartner { Address = "1.2.3.4", Port = 1, EndPointApiUrl = "https://tacorp.vn:12204/api/sharedata/shareDataInbound/receive" });
+            Assert.Equal("https://tacorp.vn:12204/api/sharedata/shareDataInbound/receive", absoluteEndpoint?.ToString());
         }
 
 
@@ -6179,6 +6189,80 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                     .Where(s => s.ID == sub.ID)
                     .ExecuteCommandAsync();
             }
+        }
+
+        [Fact]
+        public async Task ProcessSubscriptions_WhenArchiveEnabledIsFalse_SkipsEvidenceFile_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.TrafficFlow, unique);
+
+            var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_NOARCH_{unique}",
+                SubCode = $"SUB_NOARCH_{unique}",
+                DatatypeId = "101",
+                ConfigurePartner = p =>
+                {
+                    p.ConnectionConfig = "{\"ArchiveEnabled\": false}";
+                }
+            });
+
+            // Act
+            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
+
+            // Assert
+            var logs = await GetLogs(db, sub.ID);
+            Assert.NotEmpty(logs);
+            var parentLog = logs.Single(l => l.ParentId == null);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, parentLog.Success);
+            Assert.Null(parentLog.FilePath);
+            Assert.Contains("ArchiveEnabled=false", parentLog.Description);
+        }
+
+        [Fact]
+        public async Task ProcessSubscriptions_WhenPartnerConfiguresCsvFormat_SavesEvidenceAsCsv_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.TrafficFlow, unique);
+
+            var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_CSV_{unique}",
+                SubCode = $"SUB_CSV_{unique}",
+                DatatypeId = "101",
+                ConfigurePartner = p =>
+                {
+                    p.ConnectionConfig = "{\"Format\": \"Csv\"}";
+                }
+            });
+
+            // Act
+            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
+
+            // Assert
+            var logs = await GetLogs(db, sub.ID);
+            Assert.NotEmpty(logs);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
+            Assert.NotNull(logs[0].FilePath);
+            Assert.EndsWith(".csv", logs[0].FilePath);
+
+            var fullPath = Path.Combine(Directory.GetCurrentDirectory(), "sharedata/send", logs[0].FilePath!);
+            Assert.True(File.Exists(fullPath));
+
+            var content = await File.ReadAllTextAsync(fullPath);
+            Assert.Contains("zoneId", content);
+            Assert.DoesNotContain("{\"", content);
         }
 
         #endregion
