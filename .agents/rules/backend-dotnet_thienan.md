@@ -59,6 +59,7 @@ namespace Modules.ShareData.Controllers
 * **Hằng số độ dài `EntityConst`**: BẮT BUỘC dùng `EntityConst.Length32`, `EntityConst.Length64`, `Length128`, `Length256`, `Length512`, `KeyFieldLength`. CẤM hardcode số (như `Length = 32`).
 * ⛔ **CẤM gán `Length` cho kiểu không phải chuỗi (Lỗi SQL Server 2716)**: `Length = EntityConst...` CHỈ dùng cho chuỗi (`string` / `string?`). Tuyệt đối cấm gán vào `int`, `long`, `float`, `DateTime`, `bool`.
 * **Quy định `IsNullable = true`**: Tất cả cột Entity (trừ khóa chính `ID`) bắt buộc khai báo `[SugarColumn(IsNullable = true, ...)]` và dùng kiểu nullable (`string?`, `DateTime?`, `int?`...).
+* **Thuộc Tính Entity Không Ánh Xạ CSDL (Rule 22 / Rule 19.68)**: Nếu Entity class có thuộc tính phụ trợ, tính toán, trạng thái runtime hoặc tạm thời không lưu trữ trong database, **BẮT BUỘC gắn `[SugarColumn(IsIgnore = true)]`** để SqlSugar bỏ qua không sinh/truy vấn cột trên bảng CSDL, tránh lỗi lệch schema (`Invalid column name`).
 
 ### Khóa Chính `ID` (SnowFlake ID - Rule 19.44)
 * **WebAPI**: Được AOP/Interceptors tự động sinh Snowflake ID khi Insert. **CẤM tự gán tay `entity.ID`** trong WebAPI.
@@ -104,5 +105,25 @@ namespace Modules.ShareData.Controllers
    - Chỉ sửa đúng các dòng code tối thiểu cần thiết để đạt mục tiêu.
    - Giữ nguyên 100% logic, định dạng, biến, chú thích của các hàm/file xung quanh đang chạy ổn định.
    - Cấm tự ý tiện tay refactor, format lại cả file, đổi namespace, đổi kiểu dữ liệu hay sửa file ngoài phạm vi.
+10. **Xóa Triệt Để Mã Không Dùng — Cấm Gắn `[Obsolete]` Để Lại Mã Thừa (Rule 22 / Rule 19.68)**:
+    - Đối với code C# thông thường (service, helper, util, DTO, class, method, handler...): Khi không dùng hoặc đã được thay thế bằng giải pháp mới, **BẮT BUỘC XÓA BỎ HOÀN TOÀN (Clean Delete)** khỏi solution.
+    - ⛔ **TUYỆT ĐỐI CẤM** để lại mã rác rồi gắn thuộc tính `[Obsolete]` làm bẩn codebase và sinh warning trình biên dịch (CS0618).
+    - Mọi test case kiểm thử mã cũ cũng phải được xóa bỏ hoặc thay thế tương ứng bằng bài test cho giải pháp mới.
+11. **Chuẩn Hóa Thông Báo Lỗi & Ngoại Lệ — Cấm Hardcode String Trong `Oops.Oh` (Rule 23 / Rule 19.69)**:
+    - ⛔ **TUYỆT ĐỐI CẤM** hardcode chuỗi string trực tiếp (tiếng Việt hoặc tiếng Anh) trong `Oops.Oh("...")` hay `throw new AppFriendlyException("...")`.
+    - **Định danh thông báo qua `BaseMsg`**: Mọi thông báo lỗi, thông điệp kiểm tra dữ liệu (validation), thông báo ngoại lệ nghiệp vụ (exception) **BẮT BUỘC** khai báo tập trung trong `BaseMsg` của module (kế thừa `BaseLocaleManager`) theo tiền tố chuẩn:
+      - `lz.validation.<module>.<mãKey>` (hoặc `BaseMsg.BaseValidation.*`): Dùng cho lỗi kiểm tra dữ liệu đầu vào.
+      - `lz.exception.<module>.<mãKey>` (hoặc `BaseMsg.BaseException.*`): Dùng cho lỗi logic nghiệp vụ, vi phạm trạng thái.
+      - `lz.entity.<module>.<mãKey>` (hoặc `BaseMsg.BaseEntity.*`): Dùng cho tên trường, tên thực thể phục vụ ghép vào placeholder `{0}`, `{1}`.
+    - **Tham số hóa thông điệp qua Furion**: Khi thông báo cần chèn tham số động (phạm vi, tên đối tượng, mã lỗi), sử dụng placeholder `{0}`, `{1}` trong CSDL và truyền đối số vào `Oops.Oh`:
+      ```csharp
+      throw Oops.Oh(BaseMsg.ShareData.Validation.LookbackDaysRange, 1, 365);
+      ```
+    - **Cấu hình trên CSDL `SysTerminology`**: Mọi key thông báo mới **BẮT BUỘC** tạo script SQL idempotent (`DocBusinessThienAn/**/sql/*.sql`) để seed vào bảng `SysTerminology` trên CSDL với đầy đủ 2 ngôn ngữ (`Lang = 'vi-VN'` và `Lang = 'en-US'`), `Status = 1`:
+      - `Name`: Tiền tố nhóm (`lz.validation`, `lz.exception`, `lz.entity`...).
+      - `Code`: Mã phân cấp sau tiền tố (ví dụ `sharedata.lookbackDaysRange`, `cctv.deviceNotFound`).
+      - `Value`: Nội dung thông điệp (hỗ trợ tham số hóa qua placeholder `{0}`, `{1}`...).
+    - **Cấm sửa tay file tĩnh Backend**: ⛔ **TUYỆT ĐỐI CẤM** sửa tay vào `TAC_WebAPI/Resources/*.json` vì các file này được sinh tự động (auto-generated) từ CSDL `SysTerminology` qua endpoint `LoadServerTerm`.
+
 
 

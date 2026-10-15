@@ -16,7 +16,7 @@ description: Single Source of Truth for ThienAn project — P0 safeguards and re
 
 ## 🛑 BẢNG QUY TẮC CỐT LÕI BẮT BUỘC (P0 SAFEGUARDS)
 
-Mọi AI Agent (Antigravity, Claude Code, Cursor, Codex...) **BẮT BUỘC** tuân thủ tuyệt đối 21 quy tắc sống còn sau:
+Mọi AI Agent (Antigravity, Claude Code, Cursor, Codex...) **BẮT BUỘC** tuân thủ tuyệt đối 22 quy tắc sống còn sau:
 
 | STT | Quy Tắc Cốt Lõi (P0) | Yêu Cầu Chi Tiết |
 | :---: | :--- | :--- |
@@ -41,6 +41,8 @@ Mọi AI Agent (Antigravity, Claude Code, Cursor, Codex...) **BẮT BUỘC** tu�
 | **19** | **Cấm Viết Nhãn Giao Diện Song Ngữ Lai** (Rule 20.13 - bổ sung 13/10/2026) | ⛔ **CẤM** viết nhãn, tiêu đề, nút bấm, placeholder trên giao diện người dùng (HTML/Vue/Element Plus) theo kiểu lai song ngữ nửa nạc nửa mỡ tiếng Việt kèm tiếng Anh trong ngoặc (như `Trực quan (Builder)`, `Mã nguồn SQL (Raw)`, `Cột trích xuất (SELECT)`, `Sắp xếp (ORDER BY)`). Quy tắc ghi chú giải thuật ngữ tiếng Anh trong ngoặc `[Tiếng Việt] ([English])` **CHỈ ÁP DỤNG cho tài liệu kỹ thuật Markdown (`.md`)**. Trên HTML/UI, ngôn ngữ nào ra ngôn ngữ đó qua hệ thống đa ngôn ngữ i18n (`vi-vn.json`: tiếng Việt thuần túy, `en-us.json`: tiếng Anh thuần túy). |
 | **20** | **Quy Chuẩn Đặt Tên Tệp Component (`camelCase` Bắt Buộc)** (Rule 20.14 - bổ sung 14/10/2026) | Tên tất cả các tệp component `.vue` trong `component/` **BẮT BUỘC viết theo chuẩn `camelCase` (chữ cái đầu viết thường)** (như `visualQueryBuilder.vue`, `editPacket.vue`, `alertDetailDrawer.vue`). ⛔ **CẤM** đặt tên tệp kiểu PascalCase viết hoa chữ cái đầu (như `VisualQueryBuilder.vue`, `EditPacket.vue`). Thuộc tính `name` trong `<script lang="ts" setup name="...">` cũng đồng bộ viết theo `camelCase`. |
 | **21** | **Cấm Hardcode Text Mẫu & Giao Diện FE Vào Code — 100% Đưa Vào i18n** (Rule 20.15 - bổ sung 14/10/2026) | ⛔ **CẤM** viết text cứng, nhãn mẫu mặc định (như `Mẫu mặc định`), tooltip, placeholder, chuỗi `ElMessage` trực tiếp trong component/script Vue. BẮT BUỘC khai báo qua `$t(...)` và đồng bộ 100% vào cả `vi-vn.json` (thuần Việt) và `en-us.json` (thuần Anh). |
+| **22** | **Cấm Để Mã Obsolete Trong Code C# — Xóa Triệt Để Mã Thừa & Dùng `[SugarColumn(IsIgnore = true)]` Cho Entity** (Rule 19.68 - bổ sung 14/10/2026) | Đối với code C# thông thường (service, helper, util, DTO, class, method, handler...): Khi không dùng hoặc đã được thay thế bằng giải pháp mới, **BẮT BUỘC XÓA BỎ HOÀN TOÀN (Clean Delete)**. ⛔ **TUYỆT ĐỐI CẤM** để lại mã thừa và gắn thuộc tính `[Obsolete]` làm rác codebase, gây warning trình biên dịch và làm rối người đọc. Đối với Entity CSDL (thuộc tính của bảng SqlSugar Entity Table): Nếu có property trong Entity class mà không muốn map/sinh cột vào CSDL (hoặc thuộc tính phụ trợ/tính toán/tạm thời), **BẮT BUỘC dùng `[SugarColumn(IsIgnore = true)]`** để SqlSugar bỏ qua không sinh cột/can thiệp CSDL. |
+| **23** | **Cấm Hardcode Chuỗi String Trong `Oops.Oh` — 100% Định Danh Qua `BaseMsg` & Cấu Hình Trên `SysTerminology`** (Rule 19.69 - bổ sung 15/10/2026) | ⛔ **TUYỆT ĐỐI CẤM** hardcode chuỗi string trực tiếp tiếng Việt/Anh trong `throw Oops.Oh("...")`. Mọi thông báo lỗi, validation, exception **BẮT BUỘC** dùng hằng số định danh từ `BaseMsg` (kế thừa `BaseLocaleManager`) và seed bản dịch tương ứng (`vi-VN`, `en-US`) vào bảng CSDL `SysTerminology` (`Name = 'lz.validation' | 'lz.exception'`, `Code = '<module>.<key>'`, `Status = 1`). ⛔ **CẤM** sửa tay vào file tĩnh `TAC_WebAPI/Resources/*.json`. |
 
 ---
 
@@ -68,6 +70,8 @@ flowchart TD
 - **Wolverine CQRS:** Thin Controller (`MessBus.InvokeAsync()`), CommandHandler `IWolverineHandler`, FluentValidation, Mapster.
 - **SqlSugar & Entity:** Kế thừa `EntityTenant`, `EntityConst.Length*` (cấm gán Length vào kiểu số), cấm raw SQL DML, worker dùng `baseClient.CopyNew()`.
 - **C# Conventions:** Zero unnecessary usings (IDE0005), using luôn đứng trước namespace, đồng nhất block-scoped namespace trong partial class (Rule 19.65), cấm hậu tố `-Async`, ưu tiên `var`, auto-properties `{ get; set; }`.
+- **Xóa Code Không Dùng (Rule 22 / Rule 19.68):** Xóa triệt để code C# thừa (cấm gán `[Obsolete]` làm rác codebase); dùng `[SugarColumn(IsIgnore = true)]` cho property Entity không map DB.
+- **Localization & Exception (Rule 23 / Rule 19.69):** CẤM hardcode string trong `Oops.Oh`; định danh 100% qua `BaseMsg` và seed vào CSDL `SysTerminology` (cấm sửa tay `Resources/*.json`).
 
 ### 3. [💻 Quy Chuẩn Frontend Vue 3 / TypeScript](file:///Users/hoangquydat/ThienAn/.agents/rules/frontend-vue_thienan.md)
 - **CSS / SCSS:** CẤM hardcode mã màu (dùng CSS vars Element Plus), block comment `/* */`, CẤM `!important`.

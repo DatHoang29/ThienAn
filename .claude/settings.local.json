@@ -137,13 +137,17 @@
       "Bash(sed -i '' 's/Căn cứ: `BAO-CAO-REVIEW-SHAREDATA.md` cùng thư mục\\\\./Căn cứ: Phụ lục §6 trong `Đặc tả Background Service ShareData.md` cùng thư mục./; s/\\(xem BAO-CAO-REVIEW-SHAREDATA.md\\)/\\(xem Phụ lục §6 trong \"Đặc tả Background Service ShareData.md\"\\)/' PROMPT-VIET-TEST-CASE-SHAREDATA.md)",
       "Bash(git branch *)",
       "Bash(timeout 10 /opt/homebrew/bin/gortex hook --mode=enrich)",
-      "Bash(/opt/homebrew/bin/gortex hook *)"
+      "Bash(/opt/homebrew/bin/gortex hook *)",
+      "mcp__mssql_dev__read_records",
+      "mcp__mssql_dev__aggregate_records",
+      "Bash(rm \"/Users/hoangquydat/ThienAn/DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/Prompt/sharedata-ket-noi-luu-dem-chieu-nhan-prompt.md\" && ls -1 \"/Users/hoangquydat/ThienAn/DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/Prompt/\")"
     ],
     "additionalDirectories": [
       "c:\\ThienAn\\DocBusinessThienAn\\HữuNghị-ChiLăng\\VideoWall",
       "C:\\Users\\This PC\\.claude\\plans",
       "C:\\ThienAn\\DocBusinessThienAn\\HữuNghị-ChiLăng\\ShareData\\Prompt",
-      "\\tmp"
+      "\\tmp",
+      "/Users/hoangquydat/ThienAn/DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/Prompt"
     ]
   },
   "hooks": {
