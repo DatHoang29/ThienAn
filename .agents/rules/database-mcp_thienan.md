@@ -35,6 +35,7 @@ description: Database MCP tooling (Gortex and DAB MCP), staging DB read-only saf
    - ⛔ **CẤM** tự viết hàm tạo bảng dạng `EnsureTablesCreated()` hoặc gọi `InitTables<T>()` trong code.
    - ✅ **Quyền sửa trực tiếp file `.sql` (`DocBusinessThienAn/**/sql/*.sql`)**: AI **ĐƯỢC QUYỀN tạo mới và sửa/cập nhật trực tiếp vào các tệp kịch bản `.sql`** mà không cần chờ viết prompt xin phép trước. Lập trình viên sẽ là người kiểm tra (check) và chạy thực thi cuối cùng trên CSDL.
    - **Quy chuẩn bắt buộc khi viết/sửa file `.sql`:**
+     - **Quy chuẩn đặt tên file `.sql` (`ddMMyyyy` bắt buộc)**: Tên mọi tệp kịch bản SQL mới hoặc sửa BẮT BUỘC bắt đầu bằng tiền tố ngày tháng theo định dạng `ddMMyyyy-<ten-mo-ta-kebab-case>.sql` (ví dụ: `15102026-bo-sung-dich-thuat-sql-trich-xuat.sql`, `02102026-dong-bo-thuat-ngu-systerminology.sql`). ⛔ **CẤM** dùng `yyyyMMdd` hay định dạng ngày tháng lộn xộn khác để đảm bảo 1 rule duy nhất toàn dự án.
      - Với các kịch bản chạy trên CSDL chính Staging, đầu file BẮT BUỘC có `USE [DEV_ITS10]; GO` và ghi rõ schema `dbo.<TênBảng>` để tránh lỗi `Msg 208: Invalid object name` khi tab query đứng nhầm database.
      - Đối chiếu cấu trúc cột và dữ liệu thực tế qua `mssql_staging` trước khi viết (ví dụ: bảng `dbo.SysTerminology` lưu tiền tố nhóm ở cột `Name = N'lz.label' | N'lz.exception' | N'lz.validation'...`, phần mã sau tiền tố ở cột `Code`, và nội dung dịch thuật ở cột `Value`).
 
