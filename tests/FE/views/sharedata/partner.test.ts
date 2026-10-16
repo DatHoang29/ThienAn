@@ -382,15 +382,11 @@ test.describe('ShareData — Cấu hình kết nối đối tác theo mẫu VMS 
 		expect(addedSecondTime).toBe(0);
 	});
 
-	test('TC9 — Chọn nhóm "Chiều nhận" thì có đủ 6 key, InboundApiKey và InboundToken được che bí mật (#14)', async () => {
+	test('TC9 — Chọn nhóm "Chiều nhận" thì có đủ key giải mã InboundCodec và DecryptionKeyRef (#14)', async () => {
 		const editorContent = fs.readFileSync(editorComponentPath, 'utf-8');
 
-		// Kiểm tra editor component có khai báo INBOUND_KEYS với đủ 6 key
+		// Kiểm tra editor component có khai báo INBOUND_KEYS với InboundCodec và DecryptionKeyRef
 		const expectedInboundKeys = [
-			'InboundAuthType',
-			'InboundHeaderName',
-			'InboundApiKey',
-			'InboundToken',
 			'InboundCodec',
 			'DecryptionKeyRef',
 		];
@@ -398,17 +394,6 @@ test.describe('ShareData — Cấu hình kết nối đối tác theo mẫu VMS 
 		for (const key of expectedInboundKeys) {
 			expect(editorContent).toContain(key);
 		}
-
-		// Kiểm tra SECRET_KEYS có chứa inboundapikey và inboundtoken
-		expect(editorContent.toLowerCase()).toContain('inboundapikey');
-		expect(editorContent.toLowerCase()).toContain('inboundtoken');
-
-		// Giả lập logic kiểm tra bí mật
-		const isSecretKey = (k: string) => ['inboundapikey', 'inboundtoken', 'apikey', 'token', 'password'].includes(k.toLowerCase());
-		expect(isSecretKey('InboundApiKey')).toBe(true);
-		expect(isSecretKey('InboundToken')).toBe(true);
-		expect(isSecretKey('InboundAuthType')).toBe(false);
-		expect(isSecretKey('InboundCodec')).toBe(false);
 
 		// Kiểm tra dropdown menu gợi ý nhóm Chiều nhận tồn tại
 		expect(editorContent).toContain('command="inbound"');

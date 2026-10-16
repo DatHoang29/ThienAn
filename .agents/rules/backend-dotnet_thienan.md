@@ -157,7 +157,7 @@ namespace Module.ShareData.Controllers
       - Không để sót cấu hình rác hoặc mapping mồ côi.
 13. **Quy Chuẩn Đặt Tên Kiểu Mới Trong Phân Hệ — Tránh Lặp Tiền Tố (Rule 19.73)**:
     - Khi kiểu mới đã nằm trong namespace hoặc thư mục của phân hệ (ví dụ `Modules.Integration.ShareData`, `Modules.ShareData` hoặc `ShareData/`): **TUYỆT ĐỐI KHÔNG lặp lại tiền tố của phân hệ ở tên kiểu mới**.
-      - Ví dụ chuẩn: Viết `FormatContext` thay vì `ShareDataFormatContext`, `PayloadCodecResolver` thay vì `ShareDataPayloadCodecResolver`.
+      - Ví dụ chuẩn: Viết `FormatContext` thay vì `ShareDataFormatContext`, `PayloadEncrypt` thay vì `ShareDataPayloadEncrypt`.
     - **Phạm vi áp dụng**: Bao gồm class, interface (`IConnectionHandler`, không phải `IShareDataConnectionHandler`), enum, record, DTO và tên file (tên file = tên kiểu chính).
     - **Tiền tố cần tránh**: Tên phân hệ (`ShareData`, `VMS`, `TMS`...) khi namespace/project đã mang tên phân hệ (`Module.ShareData*`, `Modules.Integration.ShareData`, `ShareDataWorker*`).
     - **Ngoại lệ (giữ nguyên)**:
@@ -166,4 +166,56 @@ namespace Module.ShareData.Controllers
       - Tên thư mục giữ nguyên theo các thư mục cũ cùng cấp (ví dụ `ShareDataExtraction/`, `ShareDataMetadata/`).
     - **Trùng tên kiểu khác trong solution**: Đặt tên mô tả khác, tuyệt đối không thêm lại tiền tố phân hệ (ví dụ đặt `PayloadDirection` vì `Direction` đã có ở `Shared.DTO/Enums/BaseEnums.cs`).
     - **Kiểm trước khi bàn giao**: Liệt kê khai báo kiểu mới trong `git diff HEAD` có tiền tố phân hệ → danh sách phải rỗng (ngoại trừ controller).
+14. **Quy Chuẩn Ngắt Dòng Khi Gọi Hàm / Phương Thức Nhiều Tham Số (Rule 19.75)**:
+    - Khi gọi hàm/phương thức có từ 3 tham số trở lên, hoặc tham số biểu thức dài/phức tạp, hoặc sử dụng Named Arguments (`paramName: value`):
+      - **BẮT BUỘC xuống dòng ngay sau dấu mở ngoặc `(`**.
+      - Mỗi đối số nằm riêng trên một dòng, thụt lề 1 cấp (1 tab hoặc 4 spaces).
+      - **Dấu đóng ngoặc `);` nằm riêng trên một dòng mới**, thẳng hàng với dòng bắt đầu gọi phương thức.
+      - ⛔ **TUYỆT ĐỐI CẤM** viết mở ngoặc `(` rồi dồn ngay tham số đầu tiên trên cùng dòng mà các tham số sau lại ngắt dòng lộn xộn.
+      - Ví dụ chuẩn:
+        ```csharp
+        // CHUẨN:
+        var parameters = SqlParameterBuilder.BuildParameters(
+            lastTime: isSnapshot ? null : (command.FromTime ?? fromDate),
+            lastKey: string.Empty,
+            pageSize: safeTop,
+            fromDate: fromDate,
+            toDate: DateTime.Now
+        );
+
+        // ❌ CẤM (dồn dòng sau dấu ngoặc mở):
+        var parameters = SqlParameterBuilder.BuildParameters( lastTime: isSnapshot ? null : (command.FromTime ?? fromDate),
+            lastKey: string.Empty, pageSize: safeTop, fromDate: fromDate, toDate: DateTime.Now );
+        ```
+15. **Cấm Bí Danh Thừa & Hàm Bọc Mỏng Chỉ Chuyển Tiếp Sang Lớp Khác (Rule 19.78)**:
+    - ⛔ **TUYỆT ĐỐI CẤM** hai dạng mã thừa không thêm ý nghĩa:
+      - **Bí danh**: field/property/hằng chỉ gán lại thành viên của lớp khác.
+      - **Hàm bọc mỏng**: hàm chỉ có một dòng `return Other.Method(args);` (kể cả đổi tên, đổi thứ tự tham số) mà không thêm logic, kiểm tra hay chuyển đổi.
+    - Lý do: thêm một chỗ phải theo dõi, dễ lệch khi nguồn đổi, buộc người đọc đi qua hai lớp mới thấy logic thật, và sinh thêm hàm mồ côi khi đổi nguồn.
+    - **Cách đúng**: tham chiếu thẳng nguồn gốc tại nơi cần dùng.
+      ```csharp
+      // CHUẨN:
+      .Must(v => ConnectTypes.IsSupported(v))
+      .Must(v => ConnectConfigValidator.Check(v) != ConnectConfigIssue.EmptyKey)
+
+      // ❌ CẤM (bí danh):
+      public static readonly HashSet<string> ColumnReservedKeys = ConnectConfigValidator.ColumnReservedKeys;
+
+      // ❌ CẤM (hàm bọc mỏng):
+      public static bool IsValidConnectionType(string type)
+      {
+          return ConnectTypes.IsSupported(type);
+      }
+      public static ConnectConfigIssue Check(string? configStr)
+      {
+          return ConnectConfigValidator.Check(configStr);
+      }
+      ```
+    - **Ngoại lệ (phải ghi lý do bằng comment tại chỗ khai báo)**:
+      - Đổi kiểu hoặc đóng gói để che chi tiết nội bộ (ví dụ trả `IReadOnlySet<string>` thay cho `HashSet<string>`).
+      - Giữ tương thích ngược cho API công khai có nơi dùng bên ngoài, đã kiểm chứng bằng `find_usages`.
+      - Biến cục bộ trong hàm để rút gọn biểu thức dài (không phải field/hàm của lớp).
+      - Hàm thực hiện một phần việc thật: kiểm tra đầu vào, ghép nhiều lời gọi, xử lý ngoại lệ, đổi kiểu dữ liệu, ghi log.
+    - **Kiểm trước khi bàn giao**: với mỗi field/hàm mới trong `git diff HEAD`, dùng `find_usages` và đọc thân hàm; nếu chỉ chuyển tiếp sang lớp khác và không thuộc ngoại lệ thì xóa và sửa nơi gọi dùng thẳng nguồn gốc.
+    - Liên quan: Rule 19.68 (xóa mã không dùng), Rule 19.33 (không dựng lại tính năng có sẵn), Rule 19.49-51 (cấm sinh hàm mới làm hàm cũ mồ côi).
 

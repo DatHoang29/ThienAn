@@ -16,7 +16,7 @@ description: Single Source of Truth for ThienAn project — P0 safeguards and re
 
 ## 🛑 BẢNG QUY TẮC CỐT LÕI BẮT BUỘC (P0 SAFEGUARDS)
 
-Mọi AI Agent (Antigravity, Claude Code, Cursor, Codex...) **BẮT BUỘC** tuân thủ tuyệt đối 32 quy tắc sống còn sau:
+Mọi AI Agent (Antigravity, Claude Code, Cursor, Codex...) **BẮT BUỘC** tuân thủ tuyệt đối 35 quy tắc sống còn sau:
 
 | STT | Quy Tắc Cốt Lõi (P0) | Yêu Cầu Chi Tiết |
 | :---: | :--- | :--- |
@@ -52,6 +52,10 @@ Mọi AI Agent (Antigravity, Claude Code, Cursor, Codex...) **BẮT BUỘC** tu�
 | **30** | **Chỉ Báo Cáo Thay Đổi Thực Tế (Cấm Ghi Xóa Thành Phần Chưa Từng Tồn Tại)** (Rule 19.74) | Khi viết báo cáo tiến độ, Task Portal, tài liệu: chỉ báo cáo tính năng/kết quả thực tế đã làm, hoặc thành phần **đã thực sự tồn tại trước đó** mà mình xóa/gỡ bỏ. ⛔ **TUYỆT ĐỐI CẤM** ghi "Bỏ / Xóa [thành phần X]" khi X chỉ là ý tưởng thiết kế nội bộ hoặc chưa từng được tạo thực tế. Chi tiết: [documentation-standards_thienan.md](./documentation-standards_thienan.md) §9. |
 | **31** | **Clean TypeScript State — Cấm Ép Kiểu Rườm Rà** (Rule 20.20) | Khi khởi tạo state (`reactive`, `ref`), viết trực diện, tối giản (`apiSyncKind: null, syncKind: 1`). ⛔ **TUYỆT ĐỐI CẤM** viết ép kiểu rườm rà, thừa thãi (`null as number | null`, `'' as string`) khi TypeScript không hề báo lỗi. Chi tiết: [frontend-vue_thienan.md](./frontend-vue_thienan.md) §6.6. |
 | **32** | **Kiểm Tra Kiểu TypeScript & Zero Lỗi Đỏ Trong IDE** (Rule 20.21) | Code TypeScript mới hoặc chỉnh sửa **BẮT BUỘC kiểm tra tương thích kiểu** giữa hai vế so sánh (`===`, `if`), cấm so sánh enum số với chuỗi/boolean gây lỗi `no overlap` (`ts-plugin(2367)`). Bảo đảm không phát sinh lỗi gạch chân đỏ trong IDE. Chi tiết: [frontend-vue_thienan.md](./frontend-vue_thienan.md) §6.7. |
+| **33** | **Quy Chuẩn Ngắt Dòng Khi Gọi Hàm / Phương Thức Nhiều Tham Số** (Rule 19.75) | Khi gọi hàm/phương thức có từ 3 tham số trở lên, hoặc tham số biểu thức dài, hoặc dùng Named Arguments (`argName: val`): BẮT BUỘC xuống dòng ngay sau dấu mở ngoặc `(`, mỗi tham số nằm trên một dòng riêng, và dấu đóng ngoặc `);` nằm riêng 1 dòng thẳng hàng với câu lệnh gọi. ⛔ **CẤM** viết dồn dập hoặc mở ngoặc không xuống dòng. Chi tiết: [backend-dotnet_thienan.md](./backend-dotnet_thienan.md) §4.14. |
+| **34** | **Cấm Tự Ý Sửa Dữ Liệu, Chỉ Số & Nội Dung Không Được Yêu Cầu** (Rule 19.76) | ⛔ **TUYỆT ĐỐI CẤM** tự ý thay đổi, ghi đè hoặc đặt lại (revert) các giá trị dữ liệu, chỉ số, ngày công (man-days), điểm số, cấu hình, tham số hay bất kỳ nội dung nào mà người dùng **KHÔNG YÊU CẦU SỬA**. Khi xử lý file (mã nguồn, Excel, tài liệu, config), chỉ can thiệp đúng phạm vi và mục tiêu được chỉ định rõ; giữ nguyên 100% các dữ liệu và thiết lập người dùng đã nhập trước đó. |
+| **35** | **Quy Chuẩn Báo Cáo KPI & Định Mức Ngày Công (Tuần 5.5 Ngày Công)** (Rule 19.77) | Báo cáo KPI đánh giá theo chu kỳ 1 tháng, ngày báo cáo BẮT BUỘC nằm trong tháng đánh giá. Định mức ngày công tính chuẩn **1 tuần = 5.5 ngày công** (thứ 2 đến sáng thứ 7). ⛔ **CẤM** tự ý sửa/hạ số ngày công người dùng đã nhập. Chi tiết: [documentation-standards_thienan.md](./documentation-standards_thienan.md) §10. |
+| **36** | **Cấm Bí Danh Thừa & Hàm Bọc Mỏng Chỉ Chuyển Tiếp Sang Lớp Khác** (Rule 19.78) | ⛔ **TUYỆT ĐỐI CẤM** khai báo field/property/hằng chỉ để gán lại thành viên của lớp khác (`public static readonly X = Other.X;`) và hàm bọc mỏng chỉ trả về lời gọi hàm của lớp khác (`return Other.Method(args);`) mà không thêm logic. Nơi cần dùng thì tham chiếu thẳng nguồn gốc. Chỉ giữ khi có lý do ghi rõ bằng comment (đổi kiểu để che chi tiết, tương thích ngược API công khai đã kiểm chứng bằng `find_usages`). Chi tiết: [backend-dotnet_thienan.md](./backend-dotnet_thienan.md) §4.15. |
 
 ---
 

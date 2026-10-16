@@ -133,11 +133,12 @@ public partial class Host : IAsyncLifetime
     /// </summary>
     public void ClearExportedFiles()
     {
+#if HAS_SHAREDATAWORKER
         // Dựng đường dẫn ĐÚNG như bên ghi dựng (DataOutboundFileSender.SaveExportFile) để hai bên không lệch
         // nhau khi ai đó cấu hình NasStorage:BasePath.
         var configuration = _host?.Services.GetService<IConfiguration>();
         var basePath = configuration?.GetValue<string>("NasStorage:BasePath") ?? "sharedata/send";
-        var root = Modules.Integration.ShareData.Connections.ExportPathHelper.ResolveRootPath(basePath);
+        var root = Modules.Integration.ShareData.Connect.ExportPathHelper.ResolveRootPath(basePath);
 
         // GenerateExportRelativePath luôn trả về chuỗi bắt đầu bằng "Out/" nên Out là thứ duy nhất bên ghi tạo
         // ra dưới root. Chỉ xoá đúng nó, không xoá bản thân root (có thể là thư mục dùng chung / điểm mount).
@@ -157,6 +158,7 @@ public partial class Host : IAsyncLifetime
         {
             // Nuốt lỗi có chủ đích: thiếu quyền trên thư mục xuất cũng không phải lý do để bộ test không chạy.
         }
+#endif
     }
 
     public void ClearAllCache()

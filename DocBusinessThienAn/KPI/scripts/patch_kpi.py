@@ -2,31 +2,43 @@ import os
 import sys
 import zipfile
 import re
-import openpyxl
 
-sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 
-template_path = r'c:\ThienAn\DocBusinessThienAn\KPI\2026.08_KPI_TenHoTenLot.xlsx'
-output_path = r'c:\ThienAn\DocBusinessThienAn\KPI\2026.10_KPI_DatHoangQuy.xlsx'
+script_dir = os.path.dirname(os.path.abspath(__file__))
+kpi_dir = os.path.dirname(script_dir)
+template_path = os.path.join(kpi_dir, '2026.10_KPI_DatHoangQuy.xlsx')
+output_path = os.path.join(kpi_dir, '2026.10_KPI_DatHoangQuy.xlsx')
 
 with zipfile.ZipFile(template_path, 'r') as z:
     all_files = {name: z.read(name) for name in z.namelist()}
 
 # 1. Patch xl/sharedStrings.xml
 sst_raw = all_files['xl/sharedStrings.xml'].decode('utf-8')
-
 m_sst = re.search(r'<sst\s+[^>]*count="(\d+)"\s+uniqueCount="(\d+)"', sst_raw)
 orig_count = int(m_sst.group(1))
 orig_unique = int(m_sst.group(2))
+
+t1_desc = """- Triển khai cơ chế gửi nối đuôi dữ liệu và gửi tức thì khi có dữ liệu mới
+- Xử lý luồng gửi dữ liệu: lấy dữ liệu từ CSDL và chuyển đổi đúng cấu trúc đối tác yêu cầu
+- Tự động đóng gói và ghi file dữ liệu gửi đi để lưu trữ làm bằng chứng đối soát
+- Chuẩn hóa luồng log cha - con và theo dõi fix bug kiểm thử F16"""
+
+t2_desc = """- Nghiên cứu tài liệu chuẩn giao tiếp ISAPI của thiết bị điều khiển màn hình
+- Xây dựng API và cơ chế phân quyền VideoWall theo người dùng, tổ chức và ô màn hình
+- Phát triển Worker Service giao tiếp thiết bị qua ISAPI/NATS
+- Xây dựng form WPF test thiết bị
+- Trực tiếp ra site kiểm thử thiết bị (2 ngày): kiểm tra kết nối phần cứng và điều khiển màn hình tại hiện trường"""
 
 new_strings = [
     "Hoàng Quý Đạt",
     "[2026] XD001.5.6 Service tích hợp dữ liệu 2",
     "https://wework.base.vn/tasks?task=11034326",
-    "- Triển khai cơ chế gửi nối đuôi dữ liệu và gửi tức thì khi có dữ liệu mới\n- Chuẩn hóa luồng log cha - con và theo dõi fix bug kiểm thử F16",
+    t1_desc,
     "XD001.6.3. Service tích hợp thiết bị",
     "https://wework.base.vn/tasks?task=11004386",
-    "- Xây dựng API và cơ chế phân quyền VideoWall theo người dùng, tổ chức và ô màn hình\n- Phát triển Worker Service giao tiếp thiết bị qua ISAPI/NATS và form WPF test thiết bị",
+    t2_desc,
     "2026-10"
 ]
 
@@ -52,7 +64,19 @@ sst_raw = re.sub(r'uniqueCount="\d+"', f'uniqueCount="{new_unique}"', sst_raw, c
 sst_raw = sst_raw.replace('</sst>', ''.join(si_snippets) + '</sst>')
 all_files['xl/sharedStrings.xml'] = sst_raw.encode('utf-8')
 
-# 2. Patch xl/worksheets/sheet1.xml
+# 2. Patch styles.xml - Remove quotePrefix="1" from xf 157 to prevent "'" in formula bar
+st_raw = all_files['xl/styles.xml'].decode('utf-8')
+st_raw = st_raw.replace('fontId="43" fillId="0" borderId="80" xfId="2" quotePrefix="1"', 'fontId="43" fillId="0" borderId="80" xfId="2"')
+all_files['xl/styles.xml'] = st_raw.encode('utf-8')
+
+# 3. Patch sheet1.xml.rels - Map exact URLs to hyperlinks
+rels_raw = all_files['xl/worksheets/_rels/sheet1.xml.rels'].decode('utf-8')
+rels_raw = rels_raw.replace('Target="https://wework.base.vn/tasks?task=10759745"', 'Target="https://wework.base.vn/tasks?task=11034326"')
+if 'Id="rId5"' not in rels_raw:
+    rels_raw = rels_raw.replace('</Relationships>', '<Relationship Id="rId5" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://wework.base.vn/tasks?task=11004386" TargetMode="External"/></Relationships>')
+all_files['xl/worksheets/_rels/sheet1.xml.rels'] = rels_raw.encode('utf-8')
+
+# 4. Patch xl/worksheets/sheet1.xml
 s1_raw = all_files['xl/worksheets/sheet1.xml'].decode('utf-8')
 
 # Row 4 (Name)
@@ -61,22 +85,23 @@ s1_raw = s1_raw.replace('<c r="H4" s="202"/>', f'<c r="H4" s="202" t="s"><v>{idx
 # Row 5 (Period: 2026-10)
 s1_raw = s1_raw.replace('<c r="H5" s="202" t="s"><v>3</v></c>', f'<c r="H5" s="202" t="s"><v>{idx_period}</v></c>')
 
-# Row 13 (Task 1: 5 days, complexity 3)
+# Row 13 (Task 1: 10.5 days, complexity 3)
 r13_old_start = s1_raw.find('<row r="13"')
 r13_old_end = s1_raw.find('</row>', r13_old_start) + len('</row>')
 r13_old = s1_raw[r13_old_start:r13_old_end]
 
 r13_new = r13_old
+r13_new = r13_new.replace('ht="108.9"', 'ht="115"')
 r13_new = r13_new.replace('<c r="D13" s="138" t="s"><v>66</v></c>', f'<c r="D13" s="138" t="s"><v>{idx_t1_d}</v></c>')
 r13_new = r13_new.replace('<c r="E13" s="157" t="s"><v>67</v></c>', f'<c r="E13" s="157" t="s"><v>{idx_t1_e}</v></c>')
 r13_new = r13_new.replace('<c r="F13" s="158" t="s"><v>68</v></c>', f'<c r="F13" s="158" t="s"><v>{idx_t1_f}</v></c>')
-r13_new = r13_new.replace('<c r="H13" s="137"/>', '<c r="H13" s="137"><v>5</v></c>')
-r13_new = r13_new.replace('<c r="I13" s="137"/>', '<c r="I13" s="137"><v>3</v></c>')
+r13_new = re.sub(r'<c r="H13" s="137"[^>]*>(<v>[^<]*</v>)?</c>', '<c r="H13" s="137"><v>10.5</v></c>', r13_new)
+r13_new = re.sub(r'<c r="I13" s="137"[^>]*>(<v>[^<]*</v>)?</c>', '<c r="I13" s="137"><v>4</v></c>', r13_new)
 r13_new = r13_new.replace('<c r="V13" s="141"><v>5</v></c>', '<c r="V13" s="141"><v>4</v></c>')
 r13_new = r13_new.replace('<c r="W13" s="141"><v>5</v></c>', '<c r="W13" s="141"><v>4</v></c>')
 s1_raw = s1_raw[:r13_old_start] + r13_new + s1_raw[r13_old_end:]
 
-# Row 14 (Task 2: 3 days, complexity 3)
+# Row 14 (Task 2: 10 days, complexity 4)
 r14_old_start = s1_raw.find('<row r="14"')
 r14_old_end = s1_raw.find('</row>', r14_old_start) + len('</row>')
 r14_old = s1_raw[r14_old_start:r14_old_end]
@@ -85,7 +110,7 @@ r14_x_start = r14_old.find('<c r="X14"')
 r14_formulas = r14_old[r14_x_start:]  # contains X14 to AO14 and </row>
 
 r14_prefix_new = (
-    '<row r="14" spans="1:41" s="122" customFormat="1" ht="108.9" customHeight="1">'
+    '<row r="14" spans="1:41" s="122" customFormat="1" ht="125" customHeight="1">'
     '<c r="A14" s="137"><v>2</v></c>'
     '<c r="B14" s="137" t="s"><v>64</v></c>'
     '<c r="C14" s="160" t="s"><v>65</v></c>'
@@ -93,8 +118,8 @@ r14_prefix_new = (
     f'<c r="E14" s="157" t="s"><v>{idx_t2_e}</v></c>'
     f'<c r="F14" s="158" t="s"><v>{idx_t2_f}</v></c>'
     '<c r="G14" s="161" t="s"><v>69</v></c>'
-    '<c r="H14" s="137"><v>3</v></c>'
-    '<c r="I14" s="137"><v>3</v></c>'
+    '<c r="H14" s="137"><v>10</v></c>'
+    '<c r="I14" s="137"><v>4</v></c>'
     '<c r="J14" s="139"><v>1</v></c>'
     '<c r="K14" s="139"><v>1</v></c>'
     '<c r="L14" s="137"><v>1</v></c>'
@@ -142,39 +167,60 @@ for r_idx, clean_prefix in [(17, row17_clean_inputs), (18, row18_clean_inputs), 
     r_start = s1_raw.find(f'<row r="{r_idx}"')
     r_end = s1_raw.find('</row>', r_start) + len('</row>')
     row_str = s1_raw[r_start:r_end]
-    
     x_pos = row_str.find(f'<c r="X{r_idx}"')
     row_formulas = row_str[x_pos:]
     row_formulas_clean = re.sub(r'<v>[^<]*</v>', '<v>0</v>', row_formulas)
-    
     s1_raw = s1_raw[:r_start] + clean_prefix + row_formulas_clean + s1_raw[r_end:]
 
-# Update Row 20 cached totals for Days (8) and Complexity (6)
-s1_raw = s1_raw.replace('<c r="H20" s="137"><f>SUM(H13:H19)</f><v>5.5</v></c>', '<c r="H20" s="137"><f>SUM(H13:H19)</f><v>8</v></c>')
-s1_raw = s1_raw.replace('<c r="I20" s="137"><f>SUM(I13:I19)</f><v>8</v></c>', '<c r="I20" s="137"><f>SUM(I13:I19)</f><v>6</v></c>')
+# Update Row 20 cached totals for Days (20.5) and Complexity (6)
+s1_raw = re.sub(r'(<c r="H20"[^>]*><f>SUM\(H13:H19\)</f><v>)[^<]*(</v></c>)', r'\g<1>20.5\g<2>', s1_raw)
+s1_raw = re.sub(r'(<c r="I20"[^>]*><f>SUM\(I13:I19\)</f><v>)[^<]*(</v></c>)', r'\g<1>6\g<2>', s1_raw)
+
+# Hyperlinks tag in sheet1.xml: ensure both E13 and E14 are registered
+old_hl = '<hyperlinks><hyperlink ref="E13" r:id="rId1" xr:uid="{00000000-0004-0000-0000-000003000000}"/></hyperlinks>'
+new_hl = '<hyperlinks><hyperlink ref="E13" r:id="rId1" xr:uid="{00000000-0004-0000-0000-000003000000}"/><hyperlink ref="E14" r:id="rId5" xr:uid="{00000000-0004-0000-0000-000003000001}"/></hyperlinks>'
+s1_raw = s1_raw.replace(old_hl, new_hl)
 
 all_files['xl/worksheets/sheet1.xml'] = s1_raw.encode('utf-8')
 
-# 3. Patch xl/worksheets/sheet2.xml
+# 5. Patch xl/worksheets/sheet2.xml
 s2_raw = all_files['xl/worksheets/sheet2.xml'].decode('utf-8')
 
 # Set employee name cached value in C6
-s2_raw = s2_raw.replace("<c r=\"C6\" s=\"105\"><f>'01. T&#7893;ng task'!H4</f><v>0</v></c>", f"<c r=\"C6\" s=\"105\" t=\"str\"><f>'01. T&#7893;ng task'!H4</f><v>Ho&#224;ng Qu&#253; &#272;&#7841;t</v></c>")
+s2_raw = s2_raw.replace("<c r=\"C6\" s=\"294\"><f>'01. Tổng task'!H4</f><v>0</v></c>", "<c r=\"C6\" s=\"294\" t=\"str\"><f>'01. Tổng task'!H4</f><v>Hoàng Quý Đạt</v></c>")
 
 # Set Report Date = 17/10/2026 (Serial Date: 46312) in M7
 s2_raw = s2_raw.replace('<c r="M7" s="299"><v>46242</v></c>', '<c r="M7" s="299"><v>46312</v></c>')
 
 # Set Evaluation Period cached value = 2026-10 in C8
-s2_raw = s2_raw.replace("<c r=\"C8\" s=\"283\" t=\"str\"><f>'01. T&#7893;ng task'!H5</f><v>2026-08</v></c>", f"<c r=\"C8\" s=\"283\" t=\"str\"><f>'01. T&#7893;ng task'!H5</f><v>2026-10</v></c>")
+s2_raw = s2_raw.replace("<c r=\"C8\" s=\"283\" t=\"str\"><f>'01. Tổng task'!H5</f><v>2026-08</v></c>", "<c r=\"C8\" s=\"283\" t=\"str\"><f>'01. Tổng task'!H5</f><v>2026-10</v></c>")
+
+# Joined tasks for C12 and P12
+joined_tasks_esc = '[2026] XD001.5.6 Service tích hợp dữ liệu 2&#10;XD001.6.3. Service tích hợp thiết bị'
+s2_raw = re.sub(r'(<c r="P12"[^>]*>.*?<v>)(.*?)(</v></c>)', r'\g<1>' + joined_tasks_esc + r'\g<3>', s2_raw)
+s2_raw = re.sub(r'(<c r="C12"[^>]*>.*?<v>)(.*?)(</v></c>)', r'\g<1>' + joined_tasks_esc + r'\g<3>', s2_raw)
+
+# Clear stale B13 and C13
+s2_raw = s2_raw.replace('<v>Xuất sắc</v></c>', '<v></v></c>')
+s2_raw = s2_raw.replace('<c r="C13" s="244" t="str"><f>P13</f><v>0</v></c>', '<c r="C13" s="244" t="str"><f>P13</f><v></v></c>')
+
+# Update M12 (count=2), N12 (sum complexity=8), O12 (weighted=100)
+s2_raw = re.sub(r'(<c r="M12"[^>]*>.*?<v>)(.*?)(</v></c>)', r'\g<1>2\g<3>', s2_raw)
+s2_raw = re.sub(r'(<c r="N12"[^>]*>.*?<v>)(.*?)(</v></c>)', r'\g<1>8\g<3>', s2_raw)
+s2_raw = re.sub(r'(<c r="O12"[^>]*>.*?<v>)(.*?)(</v></c>)', r'\g<1>100\g<3>', s2_raw)
+
+# Set Employee Signature name in A63
+s2_raw = s2_raw.replace('<c r="A63" s="209"><f>IF(C6&lt;&gt;"",C6,"")</f><v>0</v></c>', '<c r="A63" s="209" t="str"><f>IF(C6&lt;&gt;"",C6,"")</f><v>Hoàng Quý Đạt</v></c>')
 
 # Section B self-evaluation = 8
 s2_raw = s2_raw.replace('<c r="H18" s="86"/>', '<c r="H18" s="86"><v>8</v></c>')
 s2_raw = s2_raw.replace('<c r="H19" s="90"/>', '<c r="H19" s="90"><v>8</v></c>')
 s2_raw = s2_raw.replace('<c r="H20" s="86"/>', '<c r="H20" s="86"><v>8</v></c>')
 s2_raw = s2_raw.replace('<c r="H21" s="90"/>', '<c r="H21" s="90"><v>8</v></c>')
+
 all_files['xl/worksheets/sheet2.xml'] = s2_raw.encode('utf-8')
 
-# Write back lossless zip
+# 6. Write back lossless zip
 with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as out_z:
     for name, data in all_files.items():
         out_z.writestr(name, data)

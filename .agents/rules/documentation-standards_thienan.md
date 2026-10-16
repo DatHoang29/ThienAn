@@ -226,6 +226,20 @@ Quy ước chú giải tiếng Anh trong ngoặc `[Tiếng Việt] ([English])` 
      - ❌ **Sai:** `- Chuyển đổi cơ chế lưu vết cấu hình động sang chuẩn SysOpConfig (ShareDataTracker), loại bỏ hàm tạo bảng động EnsureTablesCreated.` $\rightarrow$ ✅ **Đúng:** `- Tách độc lập tầng kết nối và điều phối giao thức truyền tải (WebAPI, Kafka, FTP) dùng chung cho toàn hệ thống.`
      - ❌ **Sai:** Để nguyên khối `Phân hệ Tường màn hình (VideoWall)` dù tuần đó không làm việc gì về VideoWall $\rightarrow$ ✅ **Đúng:** Chỉ để `Phân hệ Chia sẻ Dữ liệu (ShareData - ESHARE)`.
 
+---
+
+## ⏱️ 10. Quy Chuẩn Báo Cáo KPI Tháng & Định Mức Ngày Công (Rule 19.77)
+
+1. **Chu Kỳ Báo Cáo & Ngày Báo Cáo**:
+   - Báo cáo KPI được lập và đánh giá theo **chu kỳ 1 tháng** (định dạng `YYYY-MM`, ví dụ: `2026-10`).
+   - **Ngày báo cáo** (ô `M7` / `K7` trong file Excel KPI): **BẮT BUỘC phải nằm trong tháng đánh giá đó** (ví dụ: kỳ `2026-10` thì ngày báo cáo phải là một ngày trong tháng 10/2026, như `17/10/2026`).
+
+2. **Định Mức Tính Ngày Công (Man-Days) — Chuẩn 5.5 Ngày / Tuần**:
+   - Quy chuẩn tính ngày công trong công ty: **1 tuần làm việc = 5.5 ngày công** (từ thứ 2 đến sáng thứ 7).
+   - Tổng số ngày công trong kỳ báo cáo 1 tháng được phân bổ theo định mức thực tế của tháng ($\approx 20.5 - 22$ ngày công/tháng, ví dụ: 2 task chia 10.5 ngày và 10 ngày = 20.5 ngày công).
+   - ⛔ **TUYỆT ĐỐI CẤM** tự ý thay đổi, hạ thấp, ghi đè hoặc đặt lại (revert) các giá trị ngày công mà người dùng đã khai báo hoặc điều chỉnh trong file KPI (tuân thủ nghiêm ngặt P0 Rule 34).
+
+
 
 
 

@@ -21,9 +21,9 @@ using ShareDataWorker.Infrastructure.Logging;
 using ShareDataWorker.Infrastructure.Services.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Mapping;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
-using Modules.Integration.ShareData.Connections;
-using Modules.Integration.ShareData.Connections.Handlers;
-using DataOutboundRestSender = Modules.Integration.ShareData.Connections.Handlers.RestConnectionHandler;
+using Modules.Integration.ShareData.Connect;
+using Modules.Integration.ShareData.Connect.Handlers;
+using DataOutboundRestSender = Modules.Integration.ShareData.Connect.Handlers.RestConnectHandler;
 
 namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 {
@@ -2295,7 +2295,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             await db.Updateable<ShareDataPacket>()
                 .SetColumns(p => p.ExtractSql == sql103)
                 .SetColumns(p => p.SyncMode == BaseEnums.SyncMode.Incremental)
-                .SetColumns(p => p.TimeColumn == "DetectTime")
+                .SetColumns(p => p.CursorTimeColumn == "DetectTime")
                 .Where(p => p.Code == "103" || p.Code == "103_vdsData")
                 .ExecuteCommandAsync();
 
@@ -4872,7 +4872,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             // Arrange
             static Uri? Build(ShareDataPartner p)
             {
-                var ok = RestConnectionHandler.TryBuildEndpointUri(p.Address, p.Port, p.EndPointApiUrl, p.Code, out var uri, out var error);
+                var ok = RestConnectHandler.TryBuildEndpointUri(p.Address, p.Port, p.EndPointApiUrl, p.Code, out var uri, out var error);
                 Assert.True(ok, error);
                 return uri;
             }
@@ -6486,7 +6486,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         [Fact]
         public async Task ProcessSubscriptions_WhenPacketAndMappingSyncKindNull_DefaultsToSnapshot_Test()
         {
-            // 2.2: Gói có SyncMode = null ở cả packet và mapping -> Fallback mặc định Snapshot (không ghi ShareDataLastSend)
+            // 2.2: Gói có SyncMode = null -> Fallback mặc định Snapshot (không ghi ShareDataLastSend)
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
@@ -6505,15 +6505,6 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 DatatypeId = "101"
             });
 
-            var mapping = await db.Queryable<ShareDataMapping>()
-                .Where(m => m.PartnerId == partner.ID && m.DatatypeId == "101")
-                .FirstAsync();
-            if (mapping != null)
-            {
-                mapping.SyncMode = null;
-                await db.Updateable(mapping).UpdateColumns(m => new { m.SyncMode }).ExecuteCommandAsync();
-            }
-
             var worker = CreateWorker(scope);
             await worker.ProcessSubscriptions(CancellationToken.None);
 
@@ -6530,11 +6521,15 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         [Fact]
         public async Task ProcessSubscriptions_WhenPacketDefaultAndMappingSyncKind2_RunsIncrementalAndUpdatesLastSend_Test()
         {
-            // 2.2: Gói 105 mapping có SyncMode = Incremental -> Chạy Incremental, cập nhật mốc ShareDataLastSend
+            // 2.2: Gói 105 packet có SyncMode = Incremental -> Chạy Incremental, cập nhật mốc ShareDataLastSend
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
             await PacketMetadataCatalogTest.SeedPacketToDb(db, "105");
+            var packet105 = await db.Queryable<ShareDataPacket>().Where(p => p.Code == "105").FirstAsync();
+            packet105.SyncMode = BaseEnums.SyncMode.Incremental;
+            await db.Updateable(packet105).UpdateColumns(p => new { p.SyncMode }).ExecuteCommandAsync();
+
             var unique = Guid.NewGuid().ToString("N")[..8];
             await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.VehicleIdentification, unique);
 
@@ -6544,13 +6539,6 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 SubCode = $"SUB_INCR_{unique}",
                 DatatypeId = "105"
             });
-
-            var mapping = await db.Queryable<ShareDataMapping>()
-                .Where(m => m.PartnerId == partner.ID && m.DatatypeId == "105")
-                .FirstAsync();
-            Assert.NotNull(mapping);
-            mapping.SyncMode = BaseEnums.SyncMode.Incremental;
-            await db.Updateable(mapping).UpdateColumns(m => new { m.SyncMode }).ExecuteCommandAsync();
 
             var worker = CreateWorker(scope);
             await worker.ProcessSubscriptions(CancellationToken.None);
@@ -7019,12 +7007,12 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataOutboundService>>();
             var config = configuration ?? scope.ServiceProvider.GetRequiredService<IConfiguration>();
             var clientFactory = httpClientFactory ?? scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
-            var dispatcher = scope.ServiceProvider.GetService<IConnectionDispatcher>()
-                ?? ConnectionDispatcher.CreateForHandlers([
-                    new RestConnectionHandler(clientFactory),
-                    new FileConnectionHandler(config.GetSection("NasStorage:BasePath").Value ?? "/tmp"),
-                    new KafkaConnectionHandler(),
-                    new FtpConnectionHandler()
+            var dispatcher = scope.ServiceProvider.GetService<IConnectDispatcher>()
+                ?? ConnectDispatcher.CreateForHandlers([
+                    new RestConnectHandler(clientFactory),
+                    new FileConnectHandler(config.GetSection("NasStorage:BasePath").Value ?? "/tmp"),
+                    new KafkaConnectHandler(),
+                    new FtpConnectHandler()
                 ]);
 
             return new DataOutboundService(
@@ -7553,16 +7541,16 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         #endregion
     }
 
-    internal static class RestConnectionHandlerTestExtensions
+    internal static class RestConnectHandlerTestExtensions
     {
-        public static Task<ConnectionResult> Send(
-            this RestConnectionHandler handler,
+        public static Task<ConnectResult> Send(
+            this RestConnectHandler handler,
             DataMappingResult mapping,
             DataOutboundContext ctx,
             CancellationToken ct = default)
         {
-            var (req, connCtx) = ConnectionRequestBuilder.Build(mapping, ctx);
-            return handler.SendAsync(req, connCtx, ct);
+            var (req, connCtx) = ConnectRequestBuilder.Build(mapping, ctx);
+            return handler.Send(req, connCtx, ct);
         }
     }
 }

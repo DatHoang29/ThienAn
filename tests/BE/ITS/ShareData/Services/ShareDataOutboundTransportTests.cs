@@ -1,7 +1,8 @@
 using Module.ShareData.Controllers.Partner.Validators;
 using Module.ShareData.Core.Entities;
-using Modules.Integration.ShareData.Connections;
-using Modules.Integration.ShareData.Connections.Handlers;
+using Modules.Integration.ShareData;
+using Modules.Integration.ShareData.Connect;
+using Modules.Integration.ShareData.Connect.Handlers;
 using Modules.Integration.ShareData.Formats;
 using ShareDataWorker.Core.Models.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound;
@@ -9,10 +10,16 @@ using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
 using System.Text;
 using Tests.ShareData.Mocks;
 
-using DataOutboundRestSender = Modules.Integration.ShareData.Connections.Handlers.RestConnectionHandler;
-using DataOutboundFileSender = Modules.Integration.ShareData.Connections.Handlers.FileConnectionHandler;
-using DataOutboundKafkaSender = Modules.Integration.ShareData.Connections.Handlers.KafkaConnectionHandler;
-using DataOutboundFtpSender = Modules.Integration.ShareData.Connections.Handlers.FtpConnectionHandler;
+using ConnectionRequest = Modules.Integration.ShareData.Connect.ConnectRequest;
+using ConnectionResult = Modules.Integration.ShareData.Connect.ConnectResult;
+using ConnectionDispatcher = Modules.Integration.ShareData.Connect.ConnectDispatcher;
+using IConnectionDispatcher = Modules.Integration.ShareData.Connect.IConnectDispatcher;
+using IConnectionHandler = Modules.Integration.ShareData.Connect.IConnectHandler;
+
+using DataOutboundRestSender = Modules.Integration.ShareData.Connect.Handlers.RestConnectHandler;
+using DataOutboundFileSender = Modules.Integration.ShareData.Connect.Handlers.FileConnectHandler;
+using DataOutboundKafkaSender = Modules.Integration.ShareData.Connect.Handlers.KafkaConnectHandler;
+using DataOutboundFtpSender = Modules.Integration.ShareData.Connect.Handlers.FtpConnectHandler;
 
 namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 {
@@ -54,10 +61,10 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         {
             // Arrange
             var kafkaSender = new DataOutboundKafkaSender();
-            var dispatcher = ConnectionDispatcher.CreateForHandlers([kafkaSender]);
+            var dispatcher = ConnectDispatcher.CreateForHandlers([kafkaSender]);
             var ctx = CreateDummyContext("101", "PARTNER_KAFKA", "Kafka");
             var jsonPayload = "{\"temperature\": 28.5, \"humidity\": 65}";
-            var request = new ConnectionRequest
+            var request = new ConnectRequest
             {
                 JsonPayload = jsonPayload,
                 ConnectionType = "Kafka",
@@ -69,7 +76,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var result = await dispatcher.DispatchAsync(request, ctx, CancellationToken.None);
+            var result = await dispatcher.Dispatch(request, ctx, CancellationToken.None);
 
             // Assert
             Assert.False(result.Success);
@@ -84,14 +91,14 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Arrange
             var kafkaSender = new DataOutboundKafkaSender();
             var ctx = CreateDummyContext("101", "PARTNER_KAFKA", "Kafka");
-            var request = new ConnectionRequest
+            var request = new ConnectRequest
             {
                 JsonPayload = string.Empty,
                 ConnectionType = "Kafka"
             };
 
             // Act
-            var result = await kafkaSender.SendAsync(request, ctx, CancellationToken.None);
+            var result = await kafkaSender.Send(request, ctx, CancellationToken.None);
 
             // Assert
             Assert.False(result.Success);
@@ -104,12 +111,12 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         {
             // Arrange
             var fileSender = new DataOutboundFileSender();
-            var dispatcher = ConnectionDispatcher.CreateForHandlers([fileSender]);
+            var dispatcher = ConnectDispatcher.CreateForHandlers([fileSender]);
             var ctx = CreateDummyContext("103", "PARTNER_FILE", "File");
             var jsonPayload = "{\"vdsCount\": 12, \"speed\": 80}";
             var customDir = "Out/TestPartner";
             var fileNamePattern = "vds_export_{serial}.json";
-            var request = new ConnectionRequest
+            var request = new ConnectRequest
             {
                 JsonPayload = jsonPayload,
                 ConnectionType = "File",
@@ -121,7 +128,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var result = await dispatcher.DispatchAsync(request, ctx, CancellationToken.None);
+            var result = await dispatcher.Dispatch(request, ctx, CancellationToken.None);
 
             // Assert
             Assert.True(result.Success);
@@ -137,14 +144,14 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var server = _host.PartnerServer;
             server.ResetDefaults();
             var restSender = new DataOutboundRestSender();
-            var dispatcher = ConnectionDispatcher.CreateForHandlers([restSender]);
+            var dispatcher = ConnectDispatcher.CreateForHandlers([restSender]);
             var ctx = CreateDummyContext("101", "PARTNER_API", "API");
             ctx.Partner!.Address = "127.0.0.1";
             ctx.Partner!.Port = 18092;
             ctx.Partner!.EndPointApiUrl = "/api/v1/data";
 
             var jsonPayload = "{\"data\": \"ok\"}";
-            var request = new ConnectionRequest
+            var request = new ConnectRequest
             {
                 JsonPayload = jsonPayload,
                 ConnectionType = "API",
@@ -155,7 +162,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var result = await dispatcher.DispatchAsync(request, ctx, CancellationToken.None);
+            var result = await dispatcher.Dispatch(request, ctx, CancellationToken.None);
 
             // Assert
             Assert.True(result.Success);
@@ -168,16 +175,16 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public async Task DispatchAsync_WhenPartnerConnectionTypeIsUnknown_ReturnsUnsupportedError_Test()
         {
             // Arrange
-            var dispatcher = ConnectionDispatcher.CreateForHandlers([]);
+            var dispatcher = ConnectDispatcher.CreateForHandlers([]);
             var ctx = CreateDummyContext("101", "PARTNER_UNKNOWN", "UnknownProtocolX");
-            var request = new ConnectionRequest
+            var request = new ConnectRequest
             {
                 JsonPayload = "{}",
                 ConnectionType = "UnknownProtocolX"
             };
 
             // Act
-            var result = await dispatcher.DispatchAsync(request, ctx, CancellationToken.None);
+            var result = await dispatcher.Dispatch(request, ctx, CancellationToken.None);
 
             // Assert
             Assert.False(result.Success);
@@ -194,7 +201,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var mapping = new DataMappingResult(true, mappingBytes, 1);
 
             // Act
-            var request = ConnectionRequestBuilder.BuildRequest(mapping, ctx);
+            var request = ConnectRequestBuilder.BuildRequest(mapping, ctx);
 
             // Assert
             Assert.Equal("{\"tag\":\"RFID_001\"}", request.JsonPayload);
@@ -214,7 +221,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var server = _host.PartnerServer;
             server.ResetDefaults();
             var restSender = new DataOutboundRestSender();
-            var dispatcher = ConnectionDispatcher.CreateForHandlers([restSender]);
+            var dispatcher = ConnectDispatcher.CreateForHandlers([restSender]);
             var ctx = CreateDummyContext("101", "PARTNER_LEGACY", "API");
             ctx.Partner!.Address = "127.0.0.1";
             ctx.Partner!.Port = 18092;
@@ -223,10 +230,10 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             var mappingBytes = Encoding.UTF8.GetBytes("{\"legacy\": true}");
             var mapping = new DataMappingResult(true, mappingBytes, 1);
-            var request = ConnectionRequestBuilder.BuildRequest(mapping, ctx);
+            var request = ConnectRequestBuilder.BuildRequest(mapping, ctx);
 
             // Act
-            var result = await dispatcher.DispatchAsync(request, ctx, CancellationToken.None);
+            var result = await dispatcher.Dispatch(request, ctx, CancellationToken.None);
 
             // Assert
             Assert.True(result.Success);
@@ -244,7 +251,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var server = _host.PartnerServer;
             server.ResetDefaults();
             var restSender = new DataOutboundRestSender();
-            var dispatcher = ConnectionDispatcher.CreateForHandlers([restSender]);
+            var dispatcher = ConnectDispatcher.CreateForHandlers([restSender]);
             var ctx = CreateDummyContext("101", "PARTNER_COLS", "API");
             ctx.Partner!.Address = "127.0.0.1";
             ctx.Partner!.Port = 18092;
@@ -253,10 +260,10 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             var mappingBytes = Encoding.UTF8.GetBytes("{\"override\": true}");
             var mapping = new DataMappingResult(true, mappingBytes, 1);
-            var request = ConnectionRequestBuilder.BuildRequest(mapping, ctx);
+            var request = ConnectRequestBuilder.BuildRequest(mapping, ctx);
 
             // Act
-            var result = await dispatcher.DispatchAsync(request, ctx, CancellationToken.None);
+            var result = await dispatcher.Dispatch(request, ctx, CancellationToken.None);
 
             // Assert
             Assert.True(result.Success);
@@ -278,7 +285,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var ctx = CreateDummyContext("101", "PARTNER_BAD_PORT", "API");
             ctx.Partner!.Address = "127.0.0.1";
             ctx.Partner!.Port = invalidPort;
-            var request = new ConnectionRequest
+            var request = new ConnectRequest
             {
                 JsonPayload = "{}",
                 ConnectionType = "API",
@@ -286,7 +293,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var result = await restSender.SendAsync(request, ctx, CancellationToken.None);
+            var result = await restSender.Send(request, ctx, CancellationToken.None);
 
             // Assert
             Assert.False(result.Success);
@@ -303,7 +310,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Arrange
             var restSender = new DataOutboundRestSender();
             var ctx = CreateDummyContext("101", "PARTNER_BAD_TIMEOUT", "API");
-            var request = new ConnectionRequest
+            var request = new ConnectRequest
             {
                 JsonPayload = "{}",
                 ConnectionType = "API",
@@ -316,7 +323,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var result = await restSender.SendAsync(request, ctx, CancellationToken.None);
+            var result = await restSender.Send(request, ctx, CancellationToken.None);
 
             // Assert
             Assert.False(result.Success);
@@ -330,7 +337,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Arrange
             var restSender = new DataOutboundRestSender();
             var ctx = CreateDummyContext("101", "PARTNER_BAD_SSL", "API");
-            var request = new ConnectionRequest
+            var request = new ConnectRequest
             {
                 JsonPayload = "{}",
                 ConnectionType = "API",
@@ -343,7 +350,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var result = await restSender.SendAsync(request, ctx, CancellationToken.None);
+            var result = await restSender.Send(request, ctx, CancellationToken.None);
 
             // Assert
             Assert.False(result.Success);
@@ -359,7 +366,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             server.ResetDefaults();
             var restSender = new DataOutboundRestSender();
             var ctx = CreateDummyContext("101", "PARTNER_BEARER", "API");
-            var request = new ConnectionRequest
+            var request = new ConnectRequest
             {
                 JsonPayload = "{\"data\":\"test\"}",
                 ConnectionType = "API",
@@ -373,7 +380,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var result = await restSender.SendAsync(request, ctx, CancellationToken.None);
+            var result = await restSender.Send(request, ctx, CancellationToken.None);
 
             // Assert
             Assert.True(result.Success);
@@ -390,7 +397,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             server.ResetDefaults();
             var restSender = new DataOutboundRestSender();
             var ctx = CreateDummyContext("101", "PARTNER_APIKEY", "API");
-            var request = new ConnectionRequest
+            var request = new ConnectRequest
             {
                 JsonPayload = "{\"data\":\"test\"}",
                 ConnectionType = "API",
@@ -405,7 +412,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var result = await restSender.SendAsync(request, ctx, CancellationToken.None);
+            var result = await restSender.Send(request, ctx, CancellationToken.None);
 
             // Assert
             Assert.True(result.Success);
@@ -422,7 +429,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             server.ResetDefaults();
             var restSender = new DataOutboundRestSender();
             var ctx = CreateDummyContext("101", "PARTNER_BASIC", "API");
-            var request = new ConnectionRequest
+            var request = new ConnectRequest
             {
                 JsonPayload = "{\"data\":\"test\"}",
                 ConnectionType = "API",
@@ -437,7 +444,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var result = await restSender.SendAsync(request, ctx, CancellationToken.None);
+            var result = await restSender.Send(request, ctx, CancellationToken.None);
 
             // Assert
             Assert.True(result.Success);
@@ -457,7 +464,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             var restSender = new DataOutboundRestSender();
             var ctx = CreateDummyContext("101", "PARTNER_BIZ_ERR", "API");
-            var request = new ConnectionRequest
+            var request = new ConnectRequest
             {
                 JsonPayload = "{\"data\":\"test\"}",
                 ConnectionType = "API",
@@ -472,7 +479,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var result = await restSender.SendAsync(request, ctx, CancellationToken.None);
+            var result = await restSender.Send(request, ctx, CancellationToken.None);
 
             // Assert
             Assert.False(result.Success);
@@ -491,7 +498,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             var restSender = new DataOutboundRestSender();
             var ctx = CreateDummyContext("101", "PARTNER_FURION_ERR", "API");
-            var request = new ConnectionRequest
+            var request = new ConnectRequest
             {
                 JsonPayload = "{\"data\":\"test\"}",
                 ConnectionType = "API",
@@ -504,7 +511,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var result = await restSender.SendAsync(request, ctx, CancellationToken.None);
+            var result = await restSender.Send(request, ctx, CancellationToken.None);
 
             // Assert
             Assert.False(result.Success);
@@ -532,7 +539,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             ctx.Partner!.Port = ShareDataPartnerServerMock.DefaultPort;
             ctx.Partner!.EndPointApiUrl = "/api/v1/data";
 
-            var request = new ConnectionRequest
+            var request = new ConnectRequest
             {
                 JsonPayload = "{\"data\":\"test\"}",
                 ConnectionType = "API",
@@ -545,7 +552,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var result = await restSender.SendAsync(request, ctx, CancellationToken.None);
+            var result = await restSender.Send(request, ctx, CancellationToken.None);
 
             // Assert
             Assert.False(result.Success);
@@ -561,7 +568,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var fileSender = new DataOutboundFileSender();
             var ctx = CreateDummyContext("103", "PARTNER_FILE_INVALID", "File");
             var invalidDir = "Out/Invalid|Path\0";
-            var request = new ConnectionRequest
+            var request = new ConnectRequest
             {
                 JsonPayload = "{}",
                 ConnectionType = "File",
@@ -572,7 +579,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var result = await fileSender.SendAsync(request, ctx, CancellationToken.None);
+            var result = await fileSender.Send(request, ctx, CancellationToken.None);
 
             // Assert
             Assert.False(result.Success);
@@ -588,15 +595,20 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.True(PartnerValidator.IsValidConnectionType("API"));
             Assert.True(PartnerValidator.IsValidConnectionType("REST"));
             Assert.True(PartnerValidator.IsValidConnectionType("HTTP"));
+            Assert.True(PartnerValidator.IsValidConnectionType("WEBAPI"));
             Assert.True(PartnerValidator.IsValidConnectionType("File"));
+            Assert.True(PartnerValidator.IsValidConnectionType("DISK"));
+            Assert.True(PartnerValidator.IsValidConnectionType("NAS"));
             Assert.True(PartnerValidator.IsValidConnectionType("Kafka"));
             Assert.True(PartnerValidator.IsValidConnectionType("FTP"));
+            Assert.True(PartnerValidator.IsValidConnectionType("FTPS"));
             Assert.True(PartnerValidator.IsValidConnectionType("api"));
             Assert.True(PartnerValidator.IsValidConnectionType("kafka"));
 
             Assert.False(PartnerValidator.IsValidConnectionType("RabbitMQ"));
             Assert.False(PartnerValidator.IsValidConnectionType("gRPC"));
             Assert.False(PartnerValidator.IsValidConnectionType("MQTT"));
+            Assert.False(PartnerValidator.IsValidConnectionType("ABC"));
 
             // Arrange & Act & Assert: ConnectionConfig
             Assert.True(PartnerValidator.IsValidConnectionConfig(null!, out _));
@@ -712,14 +724,14 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var ftpSender = new DataOutboundFtpSender();
             var ctx = CreateDummyContext("101", "PARTNER_FTP", "Ftp");
 
-            var disabledReq = new ConnectionRequest
+            var disabledReq = new ConnectRequest
             {
                 JsonPayload = "[{\"id\": 1}]",
                 ConnectionType = "Ftp",
                 ConnectionConfig = new Dictionary<string, string> { ["Enabled"] = "false" }
             };
 
-            var missingHostReq = new ConnectionRequest
+            var missingHostReq = new ConnectRequest
             {
                 JsonPayload = "[{\"id\": 1}]",
                 ConnectionType = "Ftp",
@@ -727,9 +739,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var disabledRes = await ftpSender.SendAsync(disabledReq, ctx, CancellationToken.None);
+            var disabledRes = await ftpSender.Send(disabledReq, ctx, CancellationToken.None);
             if (ctx.Partner != null) ctx.Partner.Address = null;
-            var missingHostRes = await ftpSender.SendAsync(missingHostReq, ctx, CancellationToken.None);
+            var missingHostRes = await ftpSender.Send(missingHostReq, ctx, CancellationToken.None);
 
             // Assert
             Assert.False(disabledRes.Success);
@@ -746,14 +758,14 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var kafkaSender = new DataOutboundKafkaSender();
             var ctx = CreateDummyContext("101", "PARTNER_KAFKA", "Kafka");
 
-            var disabledReq = new ConnectionRequest
+            var disabledReq = new ConnectRequest
             {
                 JsonPayload = "{\"test\": 1}",
                 ConnectionType = "Kafka",
                 ConnectionConfig = new Dictionary<string, string> { ["Enabled"] = "false" }
             };
 
-            var missingServersReq = new ConnectionRequest
+            var missingServersReq = new ConnectRequest
             {
                 JsonPayload = "{\"test\": 1}",
                 ConnectionType = "Kafka",
@@ -761,9 +773,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var disabledRes = await kafkaSender.SendAsync(disabledReq, ctx, CancellationToken.None);
+            var disabledRes = await kafkaSender.Send(disabledReq, ctx, CancellationToken.None);
             if (ctx.Partner != null) ctx.Partner.Address = null;
-            var missingServersRes = await kafkaSender.SendAsync(missingServersReq, ctx, CancellationToken.None);
+            var missingServersRes = await kafkaSender.Send(missingServersReq, ctx, CancellationToken.None);
 
             // Assert
             Assert.False(disabledRes.Success);
@@ -781,7 +793,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             ctx.Partner!.Address = "10.0.0.1";
             ctx.Partner!.Port = 9092;
 
-            var reqWithBootstrap = new ConnectionRequest
+            var reqWithBootstrap = new ConnectRequest
             {
                 JsonPayload = "{\"test\": 1}",
                 ConnectionType = "Kafka",
@@ -791,7 +803,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 }
             };
 
-            var reqFallback = new ConnectionRequest
+            var reqFallback = new ConnectRequest
             {
                 JsonPayload = "{\"test\": 1}",
                 ConnectionType = "Kafka",
@@ -818,16 +830,15 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
 
         [Fact]
-        public void PacketMetadataResolver_Packet105_DefaultsToSnapshot_CanBeOverriddenToIncremental_Test()
+        public void PacketMetadataResolver_Packet105_DefaultsToSnapshot_CanBeConfiguredToIncremental_Test()
         {
             // Arrange
             var packetDefault = new ShareDataPacket { Code = "105", Name = "AVI/RFID Data" };
             var packetIncr = new ShareDataPacket { Code = "105", Name = "AVI/RFID Data", SyncMode = BaseEnums.SyncMode.Incremental };
-            var mappingSnapshot = new ShareDataMapping { SyncMode = BaseEnums.SyncMode.Snapshot };
-            var mappingIncremental = new ShareDataMapping { SyncMode = BaseEnums.SyncMode.Incremental };
+            var packetSnapshot = new ShareDataPacket { Code = "105", Name = "AVI/RFID Data", SyncMode = BaseEnums.SyncMode.Snapshot };
 
             // Act & Assert
-            // 1. Mặc định gói 105 là Snapshot
+            // 1. Mặc định gói 105 không set SyncMode là Snapshot
             var defaultPolicy = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy(packetDefault);
             Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.Snapshot, defaultPolicy);
 
@@ -835,22 +846,14 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var packetIncrPolicy = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy(packetIncr);
             Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.AlwaysIncremental, packetIncrPolicy);
 
-            // 3. Cấu hình SyncMode = Incremental trên Mapping của đối tác ghi đè gói tin
-            var mappingIncrPolicy = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy(packetDefault, mappingIncremental);
-            Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.AlwaysIncremental, mappingIncrPolicy);
+            // 3. Cấu hình SyncMode = Snapshot trên gói là Snapshot
+            var packetSnapPolicy = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy(packetSnapshot);
+            Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.Snapshot, packetSnapPolicy);
 
-            // 4. Cấu hình SyncMode = Snapshot trên Mapping của đối tác ghi đè gói tin Incremental thành Snapshot
-            var mappingSnapPolicy = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy(packetIncr, mappingSnapshot);
-            Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.Snapshot, mappingSnapPolicy);
-
-            // 5. Cả packet và mapping đều không có SyncMode (null) -> Fallback mặc định Snapshot (1)
+            // 4. Packet có SyncMode = null -> Fallback mặc định Snapshot (1)
             var packetNull = new ShareDataPacket { Code = "999", Name = "Custom Packet", SyncMode = null };
-            var mappingNull = new ShareDataMapping { SyncMode = null };
-            var nullFallbackPolicy = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy(packetNull, mappingNull);
+            var nullFallbackPolicy = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy(packetNull);
             Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.Snapshot, nullFallbackPolicy);
-
-            var packetOnlyNull = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy(packetNull);
-            Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.Snapshot, packetOnlyNull);
         }
 
         [Fact]
@@ -926,13 +929,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.Null(errFull);
 
             // 4. Test IsFileChannel aliases
-            Assert.True(ConnectionDispatcher.IsFileChannel("File"));
-            Assert.True(ConnectionDispatcher.IsFileChannel("file"));
-            Assert.True(ConnectionDispatcher.IsFileChannel("DISK"));
-            Assert.True(ConnectionDispatcher.IsFileChannel("NAS"));
-            Assert.False(ConnectionDispatcher.IsFileChannel("API"));
-            Assert.False(ConnectionDispatcher.IsFileChannel("Kafka"));
-            Assert.False(ConnectionDispatcher.IsFileChannel(null));
+            Assert.True(ConnectDispatcher.IsFileChannel("File"));
+            Assert.True(ConnectDispatcher.IsFileChannel("file"));
+            Assert.True(ConnectDispatcher.IsFileChannel("DISK"));
+            Assert.True(ConnectDispatcher.IsFileChannel("NAS"));
+            Assert.False(ConnectDispatcher.IsFileChannel("API"));
+            Assert.False(ConnectDispatcher.IsFileChannel("Kafka"));
+            Assert.False(ConnectDispatcher.IsFileChannel(null));
         }
 
         [Fact]
@@ -940,7 +943,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         {
             var fileSender = new DataOutboundFileSender();
             var ctx = CreateDummyContext("103", "PARTNER_FILE_TRAVERSAL", "File");
-            var request = new ConnectionRequest
+            var request = new ConnectRequest
             {
                 PayloadBytes = Encoding.UTF8.GetBytes("test-content"),
                 ConnectionType = "File",
@@ -950,7 +953,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 }
             };
 
-            var result = await fileSender.SendAsync(request, ctx, CancellationToken.None);
+            var result = await fileSender.Send(request, ctx, CancellationToken.None);
 
             Assert.False(result.Success);
             Assert.Equal("File", result.Channel);
@@ -964,7 +967,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var fileSender = new DataOutboundFileSender();
             var ctx = CreateDummyContext("103", "PARTNER_FILE_CUSTOM", "File");
             var expectedBytes = Encoding.UTF8.GetBytes("custom-file-payload-content");
-            var request = new ConnectionRequest
+            var request = new ConnectRequest
             {
                 PayloadBytes = expectedBytes,
                 FileExtension = ".csv",
@@ -976,7 +979,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 }
             };
 
-            var result = await fileSender.SendAsync(request, ctx, CancellationToken.None);
+            var result = await fileSender.Send(request, ctx, CancellationToken.None);
 
             Assert.True(result.Success);
             Assert.Equal("File", result.Channel);
@@ -1003,7 +1006,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var restSender = new DataOutboundRestSender();
             var ctx = CreateDummyContext("101", "PARTNER_BYTES", "API");
             var expectedBytes = Encoding.UTF8.GetBytes("{\"cipher\":\"encrypted_payload_123\"}");
-            var request = new ConnectionRequest
+            var request = new ConnectRequest
             {
                 PayloadBytes = expectedBytes,
                 ContentType = "application/json",
@@ -1016,7 +1019,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 }
             };
 
-            var result = await restSender.SendAsync(request, ctx, CancellationToken.None);
+            var result = await restSender.Send(request, ctx, CancellationToken.None);
 
             Assert.True(result.Success);
             Assert.NotNull(server.LastRequest);
@@ -1029,7 +1032,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var ftpSender = new DataOutboundFtpSender();
             var ctx = CreateDummyContext("101", "PARTNER_FTP_CSV", "FTP");
             var csvBytes = Encoding.UTF8.GetBytes("ID,Code,Name\r\n1,A,Item1\r\n2,B,Item2");
-            var request = new ConnectionRequest
+            var request = new ConnectRequest
             {
                 PayloadBytes = csvBytes,
                 ContentType = "text/csv",
@@ -1042,7 +1045,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 }
             };
 
-            var result = await ftpSender.SendAsync(request, ctx, CancellationToken.None);
+            var result = await ftpSender.Send(request, ctx, CancellationToken.None);
 
             Assert.False(result.Success);
             Assert.Equal("Ftp", result.Channel);
@@ -1174,22 +1177,22 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
     internal static class TestTransportExtensions
     {
-        public static Task<ConnectionResult> DispatchAsync(
-            this IConnectionDispatcher dispatcher,
-            ConnectionRequest request,
+        public static Task<ConnectResult> Dispatch(
+            this IConnectDispatcher dispatcher,
+            ConnectRequest request,
             DataOutboundContext ctx,
             CancellationToken ct = default)
         {
-            return dispatcher.DispatchAsync(request, ConnectionRequestBuilder.BuildContext(ctx), ct);
+            return dispatcher.Dispatch(request, ConnectRequestBuilder.BuildContext(ctx), ct);
         }
 
-        public static Task<ConnectionResult> SendAsync(
-            this IConnectionHandler handler,
-            ConnectionRequest request,
+        public static Task<ConnectResult> Send(
+            this IConnectHandler handler,
+            ConnectRequest request,
             DataOutboundContext ctx,
             CancellationToken ct = default)
         {
-            return handler.SendAsync(request, ConnectionRequestBuilder.BuildContext(ctx), ct);
+            return handler.Send(request, ConnectRequestBuilder.BuildContext(ctx), ct);
         }
     }
 }

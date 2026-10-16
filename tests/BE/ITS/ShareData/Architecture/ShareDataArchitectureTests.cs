@@ -11,14 +11,24 @@ namespace Tests.ShareData.Architecture;
 ///              - Tầng kết nối là thư viện thuần BCL (System.*, netstandard, mscorlib).
 ///              - Tuyệt đối cấm phụ thuộc Furion, Web, ORM (SqlSugar), Wolverine hay các module/worker khác.
 /// </summary>
-public class ShareDataIntegrationAssemblyTests
+public class ShareDataArchitectureTests
 {
+    /// <summary>
+    /// [Trait] trong xUnit: Đây là thuộc tính gắn siêu dữ liệu (metadata/tag/category) cho bài test,
+    /// cho phép gán nhãn để phân loại bài kiểm thử theo nhóm tính năng, mức độ ưu tiên hoặc môi trường thực thi.
+    /// 
+    /// Ý nghĩa của Feature = "Architecture":
+    /// Phân loại đây là nhóm kiểm thử kiến trúc (Architecture Tests / Convention Tests) nhằm kiểm tra cấu trúc
+    /// mã nguồn, quy tắc tham chiếu và tính độc lập giữa các tầng/dự án mà không cần khởi động CSDL hay môi trường mạng.
+    /// Giúp lập trình viên có thể lọc và chạy riêng nhóm test kiến trúc nhanh chóng bằng lệnh:
+    /// `dotnet test --filter "Feature=Architecture"`.
+    /// </summary>
     [Fact]
     [Trait("Feature", "Architecture")]
     public void IntegrationAssembly_ReferencesOnlyBclAssemblies_Test()
     {
         // Arrange
-        var assembly = typeof(ConnectionKeys).Assembly;
+        var assembly = typeof(ConnectKeys).Assembly;
         var referencedAssemblies = assembly.GetReferencedAssemblies();
 
         var forbiddenPrefixes = new[]

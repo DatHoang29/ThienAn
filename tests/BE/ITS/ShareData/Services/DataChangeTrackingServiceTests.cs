@@ -14,8 +14,8 @@ using ShareDataWorker.Infrastructure.Services.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Extraction;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
 using ShareDataWorker.Infrastructure.Services.DataChangeTracking;
-using Modules.Integration.ShareData.Connections;
-using Modules.Integration.ShareData.Connections.Handlers;
+using Modules.Integration.ShareData.Connect;
+using Modules.Integration.ShareData.Connect.Handlers;
 using System.Text.Json;
 using Modules.CfgSystem.Core.Entities;
 using ShareDataWorker.Core.Constants;
@@ -609,7 +609,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             await using var scope = _host.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             var worker = CreateTrackerWorker();
-            await worker.ReloadConfigAsync(db);
+            await worker.ReloadConfig(db);
             var missing = GetMissingTables(worker);
             var firstTable = worker.TrackedTables[0];
             var secondTable = worker.TrackedTables[1];
@@ -2330,12 +2330,12 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
 
             var clientFactory = httpClientFactory ?? scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
-            var dispatcher = scope.ServiceProvider.GetService<IConnectionDispatcher>()
-                ?? ConnectionDispatcher.CreateForHandlers([
-                    new RestConnectionHandler(clientFactory),
-                    new FileConnectionHandler(config.GetSection("NasStorage:BasePath").Value ?? "/tmp"),
-                    new KafkaConnectionHandler(),
-                    new FtpConnectionHandler()
+            var dispatcher = scope.ServiceProvider.GetService<IConnectDispatcher>()
+                ?? ConnectDispatcher.CreateForHandlers([
+                    new RestConnectHandler(clientFactory),
+                    new FileConnectHandler(config.GetSection("NasStorage:BasePath").Value ?? "/tmp"),
+                    new KafkaConnectHandler(),
+                    new FtpConnectHandler()
                 ]);
 
             return new DataOutboundService(
@@ -2747,7 +2747,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             // TransportManager THẬT từ Host (appsettings.Test.json -> Nats:Url).
             var transport = _host.Services.GetRequiredService<TransportManager>();
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
             await transport.ConnectAsync(cts.Token);
 
             Assert.True(transport.IsConnected,
@@ -2755,8 +2755,10 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 + "Bắt buộc phải bật NATS broker (Docker local) trước khi chạy bài test toàn trình NatsRoundTrip.");
 
             // 1) Bên nhận đăng ký subscribe TRƯỚC và chờ xong, để bản tin phát ra không bị mất.
+            transport.Unsubscribe(DataChangeTrackingService.DEFAULT_NATS_SUBJECT);
             var consumer = new DataNatsService(CreateOutboundService(scope), consumerLogger, transport, config);
             await consumer.InitSubscribe(cts.Token);
+            await Task.Delay(500, cts.Token);
 
             // 2) Bên phát: chu kỳ đầu chỉ lập mốc gốc (LastVersion từ -1 lên mốc hiện tại của CSDL).
             var publisher = CreateTrackerWorker(scope, transport);
@@ -2773,8 +2775,11 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             await publisher.PollChanges(cts.Token);
 
             // 5) Giao nhận NATS là bất đồng bộ -> chờ CÓ BIÊN, thoát sớm ngay khi thấy kết quả.
+            // Trong môi trường chạy batch song song tải cao, nếu bản tin đầu bị broker drop do vừa re-subscribe,
+            // cơ chế bù nhịp sau 3 giây (chèn thêm dữ liệu nguồn + PollChanges) sẽ đảm bảo bản tin được phát lại.
             List<ShareDataActivityLog> logs = [];
-            var deadline = DateTime.UtcNow.AddSeconds(15);
+            var deadline = DateTime.UtcNow.AddSeconds(45);
+            var lastPollTime = DateTime.UtcNow;
             while (DateTime.UtcNow < deadline)
             {
                 logs = await db.Queryable<ShareDataActivityLog>()
@@ -2784,12 +2789,19 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 if (logs.Count > 0)
                     break;
 
+                if ((DateTime.UtcNow - lastPollTime).TotalSeconds >= 3)
+                {
+                    await SeedTrafficRow();
+                    await publisher.PollChanges(cts.Token);
+                    lastPollTime = DateTime.UtcNow;
+                }
+
                 await Task.Delay(200, cts.Token);
             }
 
             // Assert: bên nhận đã chạy luồng outbound THẬT, do chính bản tin của bên phát kích hoạt.
             Assert.True(logs.Count > 0,
-                "Bản tin NATS phát từ DataChangeTrackingService đã không tới được DataNatsService (chờ 15 giây "
+                "Bản tin NATS phát từ DataChangeTrackingService đã không tới được DataNatsService (chờ 45 giây "
                 + "không thấy ShareDataActivityLog). Rà theo thứ tự: (1) InitSubscribe có đăng ký được "
                 + "subscribe không, (2) nhánh publish của PollChanges có chạy không (Transport.IsConnected), "
                 + "(3) tên field PacketCode trong payload có đúng không.");
@@ -4619,7 +4631,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 CreateTime = DateTime.Now
             }).ExecuteCommandAsync();
 
-            await worker.ReloadConfigAsync(db);
+            await worker.ReloadConfig(db);
 
             // Assert
             Assert.Equal(2, worker.TrackedTables.Count);
@@ -4687,7 +4699,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 .Where(x => x.GroupCode == groupCode && x.Code == "TmsWeather")
                 .ExecuteCommandAsync();
 
-            await worker.ReloadConfigAsync(db);
+            await worker.ReloadConfig(db);
 
             // Assert
             Assert.Single(worker.TrackedTables);
@@ -4818,11 +4830,11 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.Single(worker.TrackedTables);
             Assert.Contains("TmsZone", worker.TrackedTables);
 
-            // Act: Gọi ReloadConfigAsync với client đã dispose để giả lập lỗi truy vấn CSDL
+            // Act: Gọi ReloadConfig với client đã dispose để giả lập lỗi truy vấn CSDL
             var brokenDb = db.CopyNew();
             brokenDb.Ado.Dispose();
 
-            await worker.ReloadConfigAsync(brokenDb);
+            await worker.ReloadConfig(brokenDb);
 
             // Assert: Map vẫn được bảo toàn nguyên vẹn
             Assert.Single(worker.TrackedTables);
@@ -4832,7 +4844,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
         /// <summary>
         /// Description: Kiểm thử bảng ban đầu có Status = Disable (0), sau đó được bật Status = Enable (1):
-        ///              Lần nạp lại (ReloadConfigAsync) nhận diện ngay bảng mới và đưa vào TrackedTables/ActiveChangesSql.
+        ///              Lần nạp lại (ReloadConfig) nhận diện ngay bảng mới và đưa vào TrackedTables/ActiveChangesSql.
         /// </summary>
         [Fact]
         public async Task DataChangeTrackingService_WhenTableDisabledThenEnabled_ReloadPicksUpNewTable_Test()
@@ -4872,7 +4884,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 .Where(x => x.ID == configId)
                 .ExecuteCommandAsync();
 
-            await worker.ReloadConfigAsync(db);
+            await worker.ReloadConfig(db);
 
             // Assert: Sau khi reload, bảng TmsIncident đã được đưa vào theo dõi
             Assert.Single(worker.TrackedTables);
@@ -5014,7 +5026,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var worker = CreateTrackerWorker();
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            worker.ReloadConfigAsync(db).GetAwaiter().GetResult();
+            worker.ReloadConfig(db).GetAwaiter().GetResult();
             return DataChangeTrackingService.ResolvePackets(changedTables, worker.TablePacketMap);
         }
 

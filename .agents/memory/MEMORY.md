@@ -24,6 +24,7 @@
 - [Tài liệu Nghiệp vụ HN-CL](../../DocBusinessThienAn/HữuNghị-ChiLăng/INDEX.md) — Nguồn sự thật duy nhất cho tài liệu nghiệp vụ Hữu Nghị - Chi Lăng (luôn mở file này trước).
 - [Kiến trúc & Luồng Dịch thuật SysTerminology](systerminology-localization-flow.md) — Cơ chế đồng bộ DB SysTerminology -> Backend Resources/*.json (auto-generated) -> Frontend IndexedDB (TA-ConfigDb) -> Vue i18n; cấm sửa tay Resources/
 - [SqlSugar docs & CodeFirst pitfalls](sqlsugar-docs.md) — link no-entity / raw SQL / JSON→SQL / bẫy EnableIncreTable & expression tree
+- [Biểu mẫu KPI chuẩn](../../DocBusinessThienAn/KPI/2026.10_KPI_DatHoangQuy.xlsx) — Tệp chuẩn duy nhất cho các kỳ đánh giá KPI tiếp theo (`2026.10_KPI_DatHoangQuy.xlsx`, tệp cũ `2026.08` đã xóa); quy chuẩn: gỡ `quotePrefix="1"` ở style hyperlink và khai báo đủ quan hệ rels trong `_rels/sheet1.xml.rels`.
 - [Tech decisions](tech-decisions.md) — bảo trì `.agents/manifest.json` ↔ frontmatter (AG-Kit tooling, không phải app)
 
 ---

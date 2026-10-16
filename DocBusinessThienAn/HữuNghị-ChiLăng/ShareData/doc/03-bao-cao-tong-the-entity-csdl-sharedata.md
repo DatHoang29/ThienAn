@@ -82,12 +82,12 @@ flowchart TD
 
 | STT | Tên Entity C# | Tên Bảng SQL Server | Phân Loại | Thời Điểm | Vai Trò & Bản Chất Nâng Cấp Kỹ Thuật |
 | :---: | :--- | :--- | :---: | :---: | :--- |
-| **1** | `ShareDataPacket` | `ShareDataPacket` | **Cũ (Cải tiến)** | 08/2026 $\rightarrow$ 14/10/2026 | Danh mục 11 gói tin chuẩn (101–111). Lưu **SQL Template mẫu mặc định** (`ExtractSql`), chế độ đồng bộ (`SyncKind`), cột con trỏ (`CursorColumn`) và số ngày quét lùi (`LookbackDays`). |
+| **1** | `ShareDataPacket` | `ShareDataPacket` | **Cũ (Cải tiến)** | 08/2026 $\rightarrow$ 14/10/2026 | Danh mục 11 gói tin chuẩn (101–111). Lưu **SQL Template mẫu mặc định** (`ExtractSql`), chế độ đồng bộ (`SyncMode`), cột con trỏ (`CursorTimeColumn`) và số ngày quét lùi (`MaxLookbackDays`). |
 | **2** | `ShareDataPacketField` | `ShareDataPacketField` | **Cũ** | 08/2026 | Khai báo từ điển danh mục các trường dữ liệu của từng gói tin (`DatatypeId`, `AliasFieldKey`, `Type`, `GroupName`). |
 | **3** | `ShareDataPacketSql` | `ShareDataPacketSql` | **Cũ** | 15/09/2026 | Câu lệnh SQL ghi (`WriteSql`) chiều **NHẬN** của gói tin (chạy `MERGE` sử dụng `OPENJSON(@records)` trên CSDL Inbound). |
 | **4** | `ShareDataPartner` | `ShareDataPartner` | **Cũ (Cải tiến)** | 08/2026 $\rightarrow$ 13/10/2026 | Danh mục đối tác tích hợp. Mới bổ sung `ConnectionType` và `ConnectionConfig` dạng `Dictionary<string, string>` JSON linh hoạt. |
 | **5** | `ShareDataSubscription` | `ShareDataSubscription` | **Cũ (Cải tiến)** | 08/2026 $\rightarrow$ 12/10/2026 | Hồ sơ đăng ký chia sẻ 2 chiều. Chứa lịch gửi `ScheduleJson`, `NextTimeRun`, `ProcessingUntil`, `LastTimeRun`, cờ `SendOnNewData`. Đã bỏ `MappingId` cứng để phân giải sống. |
-| **6** | `ShareDataMapping` | `ShareDataMapping` | **Cũ (Cải tiến)** | 08/2026 $\rightarrow$ 14/10/2026 | Hồ sơ ánh xạ cấu trúc dữ liệu (`PartnerSchemaJson`, `TargetShapeJson`) kết hợp lưu **SQL trích xuất riêng của đối tác** (`ExtractSql`, `SyncKind`, `CursorColumn`, `LookbackDays`) khi cần override template gói. |
+| **6** | `ShareDataMapping` | `ShareDataMapping` | **Cũ (Cải tiến)** | 08/2026 $\rightarrow$ 14/10/2026 | Hồ sơ ánh xạ cấu trúc dữ liệu (`PartnerSchemaJson`, `TargetShapeJson`) kết hợp lưu **SQL trích xuất riêng của đối tác** (`ExtractSql`, `SyncMode`, `CursorTimeColumn`, `MaxLookbackDays`) khi cần override template gói. |
 | **7** | `ShareDataCodeSet` | `ShareDataCodeSet` | **Cũ** | 08/2026 | Bộ mã quy đổi giá trị danh mục nội bộ $\leftrightarrow$ giá trị chuẩn của đối tác qua cấu trúc JSON `ValuesJson`. |
 | **8** | `ShareDataLastSend` | `ShareDataLastSend` | **Mới** | 21/09/2026 | Lưu mốc con trỏ kép (`LastTime`, `LastKey`) cho từng cặp `(PartnerCode, PacketCode)` để gửi dữ liệu nối đuôi liên tục không trùng lặp. |
 | **9** | `ShareDataTrackVersion` | `ShareDataTrackVersion` | **Mới** | 27/09/2026 | Bảng trạng thái worker giám sát SQL Server Change Tracking. Toàn hệ thống duy trì đúng 1 dòng lưu `LastVersion`. |
@@ -323,7 +323,6 @@ flowchart TD
   | `ProcessedAt`   | `datetime`      | Nullable | Thời điểm Worker hoàn tất xử lý gói tin. |
   | `ErrorMessage`  | `nvarchar(512)` | Nullable | Nội dung lỗi chi tiết nếu quá trình ánh xạ/ghi thất bại. |
   | `ReceiveLogId`  | `nvarchar(64)`  | Nullable | *(Mới 02/10/2026)* Khóa ngoại logic lưu `ID` của dòng log cha trong `ShareDataActivityLog` (CSDL chính). |
-  | `SenderProcessedAt` | `datetime`  | Nullable | *(Mới 14/10/2026)* Mốc thời gian bên gửi trích xuất/gửi dữ liệu (đọc từ HTTP header hoặc Kafka header `ProcessedAt`). |
 * **Lưu ý kỹ thuật:**  
   Cột `ReceiveLogId` là cây cầu nối xuyên 2 CSDL vật lý độc lập, cho phép Worker khi xử lý xong ở CSDL Inbound có thể quay ngược lại CSDL chính để cập nhật trạng thái và số lượng bản ghi cho dòng log cha.
 
@@ -388,7 +387,7 @@ Bên cạnh 13 entity cốt lõi trực thuộc phân hệ, ShareData còn tươ
 ### 1. Bảng Cấu Hình Danh Mục Hệ Thống (`SysConfigData` / `SysConfigType`)
 - **`sharedata_error_code` (24 mã, nạp bằng script `03-sharedata-seed-cau-hinh.sql`):**
   - **13 Mã Outbound (Chiều Gửi):** `ESH-1201` (Bộ mã CodeSet khai trong metadata không tồn tại), `ESH-1202` (Trường bắt buộc thiếu/null, hủy kết xuất), `ESH-1203` (Biểu thức không qua kiểm tra an toàn hoặc lỗi khi tính, giữ giá trị nguồn), `ESH-1204` (`TargetShapeJson` rỗng hoặc sai cú pháp), `ESH-1301` (Không tìm thấy cấu hình gói tin), `ESH-1302` (Lỗi truy vấn dữ liệu nguồn), `ESH-1303` (Không tìm thấy mapping chiều gửi đang bật), `ESH-1304` (Khóa `__rowid` dài hơn cột `LastKey`), `ESH-1305` (Không tìm thấy câu SQL trích xuất ở mọi tầng), `ESH-1306` (Thứ tự con trỏ không tăng dần hoặc thiếu `__rowid`), `ESH-1307` (Mốc con trỏ mới lùi so với mốc hiện tại), `ESH-1401` (Gửi HTTP REST tới đối tác thất bại), `ESH-1402` (Lưu đệm bằng chứng thất bại, hủy gửi và giữ mốc).
-  - **7 Mã Inbound (Chiều Nhận):** `ESH-1501` (Không đọc được nội dung gói nhận về), `ESH-1502` (Lỗi ghi dữ liệu xuống CSDL nhận), `ESH-1503` (Không tìm thấy cấu hình gói tin nhận về), `ESH-1504` (Đối tác không tồn tại hoặc đang tắt), `ESH-1505` (Gói tin chưa có đăng ký nhận hợp lệ), `ESH-1506` (Gói tin chưa khai câu ghi chiều nhận), `ESH-2405` (Giải mã gói nhận về thất bại).
+  - **7 Mã Inbound (Chiều Nhận):** `ESH-1501` (Không đọc được nội dung gói nhận về), `ESH-1502` (Lỗi ghi dữ liệu xuống CSDL nhận), `ESH-1503` (Không tìm thấy cấu hình gói tin nhận về), `ESH-1504` (Đối tác không tồn tại hoặc đang tắt), `ESH-1505` (Gói tin chưa có đăng ký nhận hợp lệ), `ESH-1506` (Gói tin chưa khai câu ghi chiều nhận), `ESH-1507` (Giải mã gói nhận về thất bại).
   - **4 Mã Change Tracking:** `ESH-1601` (Mốc không hợp lệ, worker đã tự nhảy cóc để hồi phục), `ESH-1602` (Truy vấn `CHANGETABLE` lỗi hoặc bảng nguồn bị cô lập), `ESH-1603` (CSDL/bảng nguồn chưa bật Change Tracking, **hoặc cấu hình bảng giám sát rỗng/toàn bộ bị tắt**), `ESH-1604` (Mốc không còn tương thích CSDL, đã hạ về `-1` để khởi tạo lại).
 - **`shareData_type`:** Phân loại 11 nhóm gói tin chia sẻ dữ liệu.
 

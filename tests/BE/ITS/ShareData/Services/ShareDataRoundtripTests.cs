@@ -1,16 +1,12 @@
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Furion.FriendlyException;
 using Microsoft.Extensions.DependencyInjection;
 using Module.ShareData.Controllers.Inbound.Commands;
 using Modules.Integration.ShareData;
-using Modules.Integration.ShareData.Authentication;
 using Modules.Integration.ShareData.Codecs;
 using Modules.Integration.ShareData.Formats;
 using Module.ShareData.Core.Dto.Inbound;
 using Module.ShareData.Core.Entities;
-using Module.ShareData.Core.Exceptions;
 using ShareDataWorker.Core.Interfaces;
 using ShareDataWorker.Infrastructure.Logging;
 using Shared.DTO.Enums;
@@ -19,11 +15,9 @@ using SqlSugar;
 namespace Tests.ShareData.Services
 {
     /// <summary>
-    /// Description: Bộ kiểm thử roundtrip hai chiều gửi – nhận và xác thực chiều nhận chuẩn hoá (#14).
+    /// Description: Bộ kiểm thử roundtrip hai chiều gửi – nhận chuẩn hoá (#14).
     ///              - Kiểm thử tầng định dạng payload Formats (Json, KafkaJson, Csv)
     ///              - Kiểm thử phân giải khóa và Codec hai chiều (Outbound vs Inbound)
-    ///              - Kiểm thử xác thực chiều nhận ApiKey, Bearer Token và xử lý mã lỗi 401
-    ///              - Kiểm thử lưu trữ header ProcessedAt vào cột SenderProcessedAt
     ///              - Kiểm thử giải mã Inbound Codec trước khi parse
     ///              - Kiểm thử roundtrip toàn trình gói 101/103 với cùng bộ khung TargetShapeJson S,
     ///                hỗ trợ MERGE idempotency khi gửi trùng gói.
@@ -110,7 +104,7 @@ namespace Tests.ShareData.Services
         {
             // Arrange
             var mockKeyResolver = new TestKeyResolver("test-inbound-key", TestAes256Key);
-            var resolver = new PayloadCodecResolver(mockKeyResolver);
+            var resolver = new PayloadEncrypt(mockKeyResolver);
             var config = new Dictionary<string, string>
             {
                 ["Codec"] = "None",
@@ -132,7 +126,7 @@ namespace Tests.ShareData.Services
         public void ResolveCodec_WhenInboundMissingKeyRef_ThrowsInvalidOperationException_Test()
         {
             // Arrange
-            var resolver = new PayloadCodecResolver();
+            var resolver = new PayloadEncrypt();
             var config = new Dictionary<string, string>
             {
                 ["InboundCodec"] = "AesGcm"
@@ -145,233 +139,7 @@ namespace Tests.ShareData.Services
 
         #endregion
 
-        #region 3. Unit Tests Xác thực chiều nhận (InboundAuthenticator)
-
-        [Fact]
-        public void InboundAuthenticator_WhenAuthTypeNone_ReturnsTrue_Test()
-        {
-            // Arrange
-            var reader = new ConnectionConfigReader(new Dictionary<string, string> { ["InboundAuthType"] = "None" });
-            var headers = new Dictionary<string, string>();
-
-            // Act
-            var result = InboundAuthenticator.Authenticate(reader, headers, out var failureReason);
-
-            // Assert
-            Assert.True(result);
-            Assert.Null(failureReason);
-        }
-
-        [Fact]
-        public void InboundAuthenticator_WhenApiKeyValid_ReturnsTrue_Test()
-        {
-            // Arrange
-            var reader = new ConnectionConfigReader(new Dictionary<string, string>
-            {
-                ["InboundAuthType"] = "ApiKey",
-                ["InboundHeaderName"] = "X-Partner-Key",
-                ["InboundApiKey"] = "SecretKey_12345"
-            });
-            var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["X-Partner-Key"] = "SecretKey_12345"
-            };
-
-            // Act
-            var result = InboundAuthenticator.Authenticate(reader, headers, out var failureReason);
-
-            // Assert
-            Assert.True(result);
-            Assert.Null(failureReason);
-        }
-
-        [Fact]
-        public void InboundAuthenticator_WhenApiKeyInvalid_ReturnsFalse_Test()
-        {
-            // Arrange
-            var reader = new ConnectionConfigReader(new Dictionary<string, string>
-            {
-                ["InboundAuthType"] = "ApiKey",
-                ["InboundApiKey"] = "CorrectKey"
-            });
-            var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["X-Api-Key"] = "WrongKey"
-            };
-
-            // Act
-            var result = InboundAuthenticator.Authenticate(reader, headers, out var failureReason);
-
-            // Assert
-            Assert.False(result);
-            Assert.NotNull(failureReason);
-        }
-
-        [Fact]
-        public void InboundAuthenticator_WhenBearerTokenValid_ReturnsTrue_Test()
-        {
-            // Arrange
-            var reader = new ConnectionConfigReader(new Dictionary<string, string>
-            {
-                ["InboundAuthType"] = "Bearer",
-                ["InboundToken"] = "token_abc_xyz"
-            });
-            var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["Authorization"] = "Bearer token_abc_xyz"
-            };
-
-            // Act
-            var result = InboundAuthenticator.Authenticate(reader, headers, out var failureReason);
-
-            // Assert
-            Assert.True(result);
-            Assert.Null(failureReason);
-        }
-
-        [Fact]
-        public void InboundAuthenticator_WhenBearerTokenInvalid_ReturnsFalse_Test()
-        {
-            // Arrange
-            var reader = new ConnectionConfigReader(new Dictionary<string, string>
-            {
-                ["InboundAuthType"] = "Bearer",
-                ["InboundToken"] = "token_abc_xyz"
-            });
-            var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["Authorization"] = "Bearer wrong_token"
-            };
-
-            // Act
-            var result = InboundAuthenticator.Authenticate(reader, headers, out var failureReason);
-
-            // Assert
-            Assert.False(result);
-            Assert.NotNull(failureReason);
-        }
-
-        #endregion
-
-        #region 4. Integration Tests WebAPI Handler (Xác thực 401 & SenderProcessedAt)
-
-        [Fact]
-        public async Task InboundCommandHandler_WhenApiKeyMatches_SavesPendingPacket_Test()
-        {
-            // Arrange
-            var unique = Guid.NewGuid().ToString("N")[..8];
-            var apiKey = $"KEY_{unique}";
-            var connConfig = JsonSerializer.Serialize(new
-            {
-                InboundAuthType = "ApiKey",
-                InboundHeaderName = "X-Api-Key",
-                InboundApiKey = apiKey
-            });
-
-            var (partner, packet, sub) = await SeedPartnerAndPacketAsync(unique, connConfig);
-
-            using var scope = _host.Services.CreateScope();
-            var handler = scope.ServiceProvider.GetRequiredService<InboundCommandHandler>();
-
-            var input = new ShareDataAddInboundInput
-            {
-                PartnerCode = partner.Code,
-                PacketCode = packet.Code,
-                SerialNbr = 1,
-                RawContent = """{"data":[]}""",
-                RequestHeaders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    ["X-Api-Key"] = apiKey
-                }
-            };
-
-            // Act
-            await handler.HandleAsync(input);
-
-            // Assert
-            var saved = await _inboundDb.Queryable<ShareDataInboundPacket>()
-                .Where(p => p.PartnerCode == partner.Code && p.PacketCode == packet.Code && p.SerialNbr == 1)
-                .FirstAsync();
-            Assert.NotNull(saved);
-            Assert.Equal(BaseEnums.InboundProcessState.Pending, saved.ProcessState);
-        }
-
-        [Fact]
-        public async Task InboundCommandHandler_WhenApiKeyWrong_Throws401AndDoesNotSavePacket_Test()
-        {
-            // Arrange
-            var unique = Guid.NewGuid().ToString("N")[..8];
-            var connConfig = JsonSerializer.Serialize(new
-            {
-                InboundAuthType = "ApiKey",
-                InboundApiKey = "ExpectedKey_123"
-            });
-
-            var (partner, packet, _) = await SeedPartnerAndPacketAsync(unique, connConfig);
-
-            using var scope = _host.Services.CreateScope();
-            var handler = scope.ServiceProvider.GetRequiredService<InboundCommandHandler>();
-
-            var input = new ShareDataAddInboundInput
-            {
-                PartnerCode = partner.Code,
-                PacketCode = packet.Code,
-                SerialNbr = 99,
-                RawContent = """{"data":[]}""",
-                RequestHeaders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    ["X-Api-Key"] = "WrongKey_999"
-                }
-            };
-
-            // Act & Assert
-            var ex = await Assert.ThrowsAsync<AppFriendlyException>(() => handler.HandleAsync(input));
-            Assert.Equal(401, ex.StatusCode);
-            Assert.Equal(BaseMsg.ShareData.Exception.InboundUnauthorized, ex.ErrorMessage);
-
-            // Xác nhận không có bản ghi packet mới nào được lưu
-            var packetCount = await _inboundDb.Queryable<ShareDataInboundPacket>()
-                .Where(p => p.PartnerCode == partner.Code && p.PacketCode == packet.Code && p.SerialNbr == 99)
-                .CountAsync();
-            Assert.Equal(0, packetCount);
-        }
-
-        [Fact]
-        public async Task InboundCommandHandler_WhenProcessedAtProvided_SavesSenderProcessedAt_Test()
-        {
-            // Arrange
-            var unique = Guid.NewGuid().ToString("N")[..8];
-            var (partner, packet, _) = await SeedPartnerAndPacketAsync(unique, null);
-
-            var exportTimestamp = new DateTime(2026, 10, 14, 15, 30, 45, DateTimeKind.Utc);
-
-            using var scope = _host.Services.CreateScope();
-            var handler = scope.ServiceProvider.GetRequiredService<InboundCommandHandler>();
-
-            var input = new ShareDataAddInboundInput
-            {
-                PartnerCode = partner.Code,
-                PacketCode = packet.Code,
-                SerialNbr = 5,
-                RawContent = """{"data":[]}""",
-                SenderProcessedAt = exportTimestamp
-            };
-
-            // Act
-            await handler.HandleAsync(input);
-
-            // Assert
-            var saved = await _inboundDb.Queryable<ShareDataInboundPacket>()
-                .Where(p => p.PartnerCode == partner.Code && p.PacketCode == packet.Code && p.SerialNbr == 5)
-                .FirstAsync();
-            Assert.NotNull(saved);
-            Assert.NotNull(saved.SenderProcessedAt);
-            Assert.Equal(exportTimestamp, saved.SenderProcessedAt.Value);
-        }
-
-        #endregion
-
-        #region 5. Integration Tests Worker Giải mã (AesGcm)
+        #region 3. Integration Tests Worker Giải mã (AesGcm)
 
         [Fact]
         public async Task ProcessPendingPackets_WhenInboundCodecWrongKey_FailsWithDecodeFailedAlert_Test()
@@ -420,7 +188,7 @@ namespace Tests.ShareData.Services
 
         #endregion
 
-        #region 6. Full Roundtrip Tests (Gói 101 và 103, cùng bộ khung TargetShapeJson S)
+        #region 4. Full Roundtrip Tests (Gói 101 và 103, cùng bộ khung TargetShapeJson S)
 
         [Fact]
         public async Task Roundtrip_Packet101_WithCodeSetAndDateFormat_SavesToDestinationTable_Test()
@@ -502,8 +270,7 @@ namespace Tests.ShareData.Services
                 PartnerCode = partner.Code,
                 PacketCode = packet.Code,
                 SerialNbr = 1,
-                RawContent = payloadJson,
-                SenderProcessedAt = DateTime.UtcNow
+                RawContent = payloadJson
             };
             await handler.HandleAsync(input);
 

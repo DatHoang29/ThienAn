@@ -1,7 +1,7 @@
 #if HAS_SHAREDATAWORKER
 using Module.ShareData.Core.Entities;
-using Modules.Integration.ShareData.Connections;
-using Modules.Integration.ShareData.Connections.Handlers;
+using Modules.Integration.ShareData.Connect;
+using Modules.Integration.ShareData.Connect.Handlers;
 using ShareDataWorker.Core.Models.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
 
@@ -27,7 +27,7 @@ namespace Tests.RealServer
         public async Task RestSender_WhenCallingRealServerWithHttp_FailsDueToDroppedConnection_Test()
         {
             // Arrange
-            var sender = new RestConnectionHandler();
+            var sender = new RestConnectHandler();
             var partner = new ShareDataPartner
             {
                 Code = "PARTNER_REAL_HTTP",
@@ -38,7 +38,7 @@ namespace Tests.RealServer
             var packet = new ShareDataPacket { Code = "103" };
             var sub = new ShareDataSubscription { ID = "sub-real-http-1", PartnerId = partner.Code, DatatypeId = "103", SerialNbr = 1 };
             var ctx = new DataOutboundContext(sub, partner, packet, null, DateTime.UtcNow, CancellationToken.None);
-            var request = new ConnectionRequest
+            var request = new ConnectRequest
             {
                 JsonPayload = "[{\"licensePlate\":\"29A-12345\"}]",
                 ConnectionType = "API",
@@ -46,7 +46,7 @@ namespace Tests.RealServer
             };
 
             // Act
-            var result = await sender.SendAsync(request, ConnectionRequestBuilder.BuildContext(ctx), CancellationToken.None);
+            var result = await sender.Send(request, ConnectRequestBuilder.BuildContext(ctx), CancellationToken.None);
 
             // Assert
             Assert.False(result.Success);
@@ -61,7 +61,7 @@ namespace Tests.RealServer
         public async Task RestSender_WhenCallingRealServerWithHttpsIp_FailsDueToCertificateMismatch_Test()
         {
             // Arrange
-            var sender = new RestConnectionHandler();
+            var sender = new RestConnectHandler();
             var partner = new ShareDataPartner
             {
                 Code = "PARTNER_REAL_HTTPS_IP",
@@ -72,7 +72,7 @@ namespace Tests.RealServer
             var packet = new ShareDataPacket { Code = "103" };
             var sub = new ShareDataSubscription { ID = "sub-real-https-2", PartnerId = partner.Code, DatatypeId = "103", SerialNbr = 1 };
             var ctx = new DataOutboundContext(sub, partner, packet, null, DateTime.UtcNow, CancellationToken.None);
-            var request = new ConnectionRequest
+            var request = new ConnectRequest
             {
                 JsonPayload = "[{\"licensePlate\":\"29A-12345\"}]",
                 ConnectionType = "API",
@@ -80,7 +80,7 @@ namespace Tests.RealServer
             };
 
             // Act
-            var result = await sender.SendAsync(request, ConnectionRequestBuilder.BuildContext(ctx), CancellationToken.None);
+            var result = await sender.Send(request, ConnectRequestBuilder.BuildContext(ctx), CancellationToken.None);
 
             // Assert
             Assert.False(result.Success);

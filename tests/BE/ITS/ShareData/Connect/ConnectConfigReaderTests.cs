@@ -1,14 +1,14 @@
 using Modules.Integration.ShareData;
 using Xunit;
 
-namespace Tests.ShareData.Configuration
+namespace Tests.ShareData.Connect
 {
     /// <summary>
-    /// Description: Bộ kiểm thử đơn vị cho bộ đọc cấu hình dùng chung ConnectionConfigReader.
+    /// Description: Bộ kiểm thử đơn vị cho bộ đọc cấu hình dùng chung ConnectConfigReader.
     ///              Kiểm chứng thứ tự ưu tiên alias, chuỗi rỗng/GetRawString, parse lỗi trả mặc định, và không phân biệt hoa thường.
     /// Created date: 15/10/2026
     /// </summary>
-    public class ConnectionConfigReaderTests
+    public class ConnectConfigReaderTests
     {
         [Fact]
         public void GetString_CaseInsensitive_AndTrimsWhitespace_Test()
@@ -18,7 +18,7 @@ namespace Tests.ShareData.Configuration
             {
                 ["timeoutseconds"] = "  45  "
             };
-            var reader = new ConnectionConfigReader(dict);
+            var reader = new ConnectConfigReader(dict);
 
             // Act
             var val = reader.GetString("TimeoutSeconds");
@@ -37,12 +37,12 @@ namespace Tests.ShareData.Configuration
                 ["HttpTimeoutSec"] = "30",
                 ["TimeoutSec"] = "15"
             };
-            var reader = new ConnectionConfigReader(dict);
+            var reader = new ConnectConfigReader(dict);
 
             // Act
             var val = reader.GetString(
-                ConnectionKeys.TimeoutSeconds,
-                ConnectionKeys.TimeoutSecondsAliases);
+                ConnectKeys.TimeoutSeconds,
+                ConnectKeys.TimeoutSecondsAliases);
 
             // Assert
             Assert.Equal("60", val);
@@ -58,12 +58,12 @@ namespace Tests.ShareData.Configuration
                 ["HttpTimeoutSec"] = "25",
                 ["TimeoutSec"] = "10"
             };
-            var reader = new ConnectionConfigReader(dict);
+            var reader = new ConnectConfigReader(dict);
 
             // Act
             var val = reader.GetString(
-                ConnectionKeys.TimeoutSeconds,
-                ConnectionKeys.TimeoutSecondsAliases);
+                ConnectKeys.TimeoutSeconds,
+                ConnectKeys.TimeoutSecondsAliases);
 
             // Assert
             Assert.Equal("25", val);
@@ -78,12 +78,12 @@ namespace Tests.ShareData.Configuration
                 ["TimeoutSeconds"] = "   ",
                 ["HttpTimeoutSec"] = ""
             };
-            var reader = new ConnectionConfigReader(dict);
+            var reader = new ConnectConfigReader(dict);
 
             // Act
             var val = reader.GetString(
-                ConnectionKeys.TimeoutSeconds,
-                ConnectionKeys.TimeoutSecondsAliases);
+                ConnectKeys.TimeoutSeconds,
+                ConnectKeys.TimeoutSecondsAliases);
 
             // Assert
             Assert.Null(val);
@@ -97,11 +97,11 @@ namespace Tests.ShareData.Configuration
             {
                 ["Password"] = "  secret_pass  "
             };
-            var reader = new ConnectionConfigReader(dict);
+            var reader = new ConnectConfigReader(dict);
 
             // Act
-            var raw = reader.GetRawString(ConnectionKeys.Password, defaultValue: "default", trim: false);
-            var trimmed = reader.GetRawString(ConnectionKeys.Password, defaultValue: "default", trim: true);
+            var raw = reader.GetRawString(ConnectKeys.Password, defaultValue: "default", trim: false);
+            var trimmed = reader.GetRawString(ConnectKeys.Password, defaultValue: "default", trim: true);
 
             // Assert
             Assert.Equal("  secret_pass  ", raw);
@@ -116,10 +116,10 @@ namespace Tests.ShareData.Configuration
             {
                 ["Username"] = ""
             };
-            var reader = new ConnectionConfigReader(dict);
+            var reader = new ConnectConfigReader(dict);
 
             // Act
-            var val = reader.GetRawString(ConnectionKeys.Username, defaultValue: "fallback");
+            var val = reader.GetRawString(ConnectKeys.Username, defaultValue: "fallback");
 
             // Assert
             Assert.Equal("", val);
@@ -130,7 +130,7 @@ namespace Tests.ShareData.Configuration
         {
             // Arrange
             var dict = new Dictionary<string, string>();
-            var reader = new ConnectionConfigReader(dict);
+            var reader = new ConnectConfigReader(dict);
 
             // Act
             var val = reader.GetRawString("NonExistentKey", defaultValue: "my_default");
@@ -151,10 +151,10 @@ namespace Tests.ShareData.Configuration
             {
                 dict["TimeoutSeconds"] = configuredValue;
             }
-            var reader = new ConnectionConfigReader(dict);
+            var reader = new ConnectConfigReader(dict);
 
             // Act
-            var result = reader.GetInt(ConnectionKeys.TimeoutSeconds, defaultValue);
+            var result = reader.GetInt(ConnectKeys.TimeoutSeconds, defaultValue);
 
             // Assert
             Assert.Equal(expected, result);
@@ -173,10 +173,10 @@ namespace Tests.ShareData.Configuration
             {
                 dict["BypassSsl"] = configuredValue;
             }
-            var reader = new ConnectionConfigReader(dict);
+            var reader = new ConnectConfigReader(dict);
 
             // Act
-            var result = reader.GetBool(ConnectionKeys.BypassSsl, defaultValue);
+            var result = reader.GetBool(ConnectKeys.BypassSsl, defaultValue);
 
             // Assert
             Assert.Equal(expected, result);
@@ -191,7 +191,7 @@ namespace Tests.ShareData.Configuration
                 ["Proto1"] = "SaslPlaintext",
                 ["Proto2"] = "invalid_protocol"
             };
-            var reader = new ConnectionConfigReader(dict);
+            var reader = new ConnectConfigReader(dict);
 
             // Act
             var val1 = reader.GetOptionalEnum<Confluent.Kafka.SecurityProtocol>("Proto1");
