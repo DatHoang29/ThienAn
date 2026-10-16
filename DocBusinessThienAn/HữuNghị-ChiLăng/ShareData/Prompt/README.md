@@ -19,6 +19,14 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 ## Danh sách Prompt
 
+### 🔵 Kiểm tra kiểu cột ID của con trỏ nối đuôi (15/10/2026)
+
+| # | Prompt | Task | Phạm vi & Trạng thái |
+|---|---|---|---|
+| 1 | [`sharedata-kiem-tra-kieu-cot-id-con-tro-noi-duoi-prompt.md`](sharedata-kiem-tra-kieu-cot-id-con-tro-noi-duoi-prompt.md) | — (phát sinh từ đối chiếu biên bản 14/10/2026) | ⏳ **Chưa thực thi.** Kiểm tra **chỉ đọc** trên DB local/dev: kiểu cột `ID` và cột thời gian của các bảng nguồn gói nối đuôi 103, 104, 106, 107, 109; thử `ID > N''` khi `ID` là `uniqueidentifier`; so độ dài `ID` với cột `LastKey`. Không sửa mã, không sửa dữ liệu. Phụ lục ghi chú gợi ý đặt tên `cursorKey`/`cursorTime` (chưa đổi, vì phải migrate `ExtractSql` đã lưu). |
+
+---
+
 ### ⚪ Issue 33 (F16) — Mã gói tin trùng tên trong bảng Cấu hình đối tác (07/10/2026)
 
 | # | Prompt | Task | Phạm vi & Trạng thái |

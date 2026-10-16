@@ -111,8 +111,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
                     result: {
                         extractSql: 'SELECT TOP (100) td.Speed AS speed FROM TmsTrafficData td',
                         status: 1,
-                        syncKind: 1,
-                        lookbackDays: null,
+                        syncMode: 1,
+                        maxLookbackDays: null,
                     },
                 }),
             });
@@ -1108,19 +1108,19 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(Math.abs(resetFilterHeight - 180)).toBeLessThanOrEqual(10);
     });
 
-    test('11. Hiển thị chính sách xuất bản gói tin theo dữ liệu CSDL (syncKind, status) nội bộ trong component và editPacket.vue', async () => {
+    test('11. Hiển thị chính sách xuất bản gói tin theo dữ liệu CSDL (syncMode, status) nội bộ trong component và editPacket.vue', async () => {
         // 1. Khẳng định tệp utils packetPolicy.ts đã được xóa bỏ hoàn toàn, không còn phụ thuộc ngoài
         const packetPolicyPath = resolveWebvuePath('utils/sharedata/packetPolicy.ts');
         expect(fs.existsSync(packetPolicyPath)).toBe(false);
 
-        // 2. Quét tĩnh index.vue đảm bảo sử dụng helper nội bộ getPacketPolicy theo syncKind và status, không import packetPolicy
+        // 2. Quét tĩnh index.vue đảm bảo sử dụng helper nội bộ getPacketPolicy theo syncMode và status, không import packetPolicy
         const indexVuePath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
         const indexContent = fs.readFileSync(indexVuePath, 'utf8');
         expect(indexContent).not.toContain('resolvePacketPolicy');
         expect(indexContent).not.toContain('utils/sharedata/packetPolicy');
         expect(indexContent).toContain('getPacketPolicy');
-        expect(indexContent).toContain('getPacketPolicy(row.syncKind, row.status)');
-        expect(indexContent).toContain('getPacketPolicy(state.currentPacket.syncKind, state.currentPacket.status)');
+        expect(indexContent).toContain('getPacketPolicy(row.syncMode, row.status)');
+        expect(indexContent).toContain('getPacketPolicy(state.currentPacket.syncMode, state.currentPacket.status)');
 
         // 3. Quét tĩnh editPacket.vue để kiểm tra hiển thị chính sách nội bộ qua computed currentPolicy
         const editPacketPath = resolveWebvuePath('views/sharedata/dataSource/component/editPacket.vue');
@@ -1135,8 +1135,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         // 4. Tuân thủ Rule 21 (Rule 20.15) — CẤM hardcode text trong editPacket.vue, 100% qua i18n $t
         expect(editPacketContent).not.toContain("'Mỗi chu kỳ truyền toàn bộ dữ liệu hiện hành'");
         expect(editPacketContent).not.toContain("'Chỉ gửi bản ghi mới phát sinh theo cursor'");
-        expect(editPacketContent).toContain('syncKindSnapshotDesc');
-        expect(editPacketContent).toContain('syncKindIncrementalDesc');
+        expect(editPacketContent).toContain('syncModeSnapshotDesc');
+        expect(editPacketContent).toContain('syncModeIncrementalDesc');
         expect(editPacketContent).toContain('policyDisabled');
         expect(editPacketContent).toContain('policyAlwaysIncremental');
         expect(editPacketContent).toContain('policySnapshot');
@@ -1782,8 +1782,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
                         extractSql: 'SELECT TOP (100) ID, Speed FROM TmsTrafficData',
                         status: 1,
                         isCustomForPartner: partner === 'PARTNER_B',
-                        syncKind: 1,
-                        lookbackDays: null,
+                        syncMode: 1,
+                        maxLookbackDays: null,
                     },
                 }),
             });
@@ -1848,7 +1848,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await page.waitForTimeout(600);
 
         // 1. Kiểm tra dropdown Chế độ đồng bộ
-        const syncKindControl = page.locator('.sql-sync-kind-control');
+        const syncKindControl = page.locator('.sql-sync-mode-control, .sql-sync-kind-control');
         await expect(syncKindControl).toBeVisible();
 
         // 2. Kiểm tra ô số Số ngày quét lùi tối đa
@@ -1890,8 +1890,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
                     result: {
                         extractSql: 'SELECT TOP (@pageSize) ID FROM TmsTrafficData WHERE CreateTime >= @fromDate AND CreateTime <= @toDate AND Extra = @customParam',
                         status: 1,
-                        syncKind: 2,
-                        lookbackDays: 7,
+                        syncMode: 2,
+                        maxLookbackDays: 7,
                     },
                 }),
             });
@@ -1982,29 +1982,29 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(enContent['lz.message.sharedataDataSource.vqbCannotFullyRepresent']).toBeDefined();
     });
 
-    test('27. Hiển thị chế độ gửi và trạng thái gói theo dữ liệu DB (syncKind và status)', async () => {
-        // 1. Quét tĩnh index.vue đảm bảo getPacketPolicy giải quyết dựa theo syncKind và status của CSDL
+    test('27. Hiển thị chế độ gửi và trạng thái gói theo dữ liệu DB (syncMode và status)', async () => {
+        // 1. Quét tĩnh index.vue đảm bảo getPacketPolicy giải quyết dựa theo syncMode và status của CSDL
         const indexVuePath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
         const indexContent = fs.readFileSync(indexVuePath, 'utf8');
         expect(indexContent).toContain('getPacketPolicy');
         expect(indexContent).toContain("status === 0 || status === '0' || status === 'Disable' || status === false");
-        expect(indexContent).toContain("syncKind === 2 || syncKind === '2'");
+        expect(indexContent).toContain("syncMode === SyncMode.Incremental || syncMode === '2'");
         expect(indexContent).toContain("policy: 'Disabled'");
         expect(indexContent).toContain("policy: 'AlwaysIncremental'");
         expect(indexContent).toContain("policy: 'Snapshot'");
 
         // 2. Kiểm thử logic giải quyết chính sách gói tin nội bộ theo CSDL
-        const resolvePolicyFromData = (syncKind?: number | string | null, status?: number | string | boolean | null) => {
+        const resolvePolicyFromData = (syncMode?: number | string | null, status?: number | string | boolean | null) => {
             if (status === 0 || status === '0' || status === 'Disable' || status === false) {
                 return { policy: 'Disabled', tagType: 'info', labelKey: 'lz.label.sharedataDataSource.policyDisabled' };
             }
-            if (syncKind === 2 || syncKind === '2') {
+            if (syncMode === 2 || syncMode === '2') {
                 return { policy: 'AlwaysIncremental', tagType: 'primary', labelKey: 'lz.label.sharedataDataSource.policyAlwaysIncremental' };
             }
             return { policy: 'Snapshot', tagType: 'success', labelKey: 'lz.label.sharedataDataSource.policySnapshot' };
         };
 
-        // Gói với syncKind: 2 -> AlwaysIncremental ("Gửi nối đuôi")
+        // Gói với syncMode: 2 -> AlwaysIncremental ("Gửi nối đuôi")
         expect(resolvePolicyFromData(2, 1).policy).toBe('AlwaysIncremental');
         expect(resolvePolicyFromData(2, 1).labelKey).toBe('lz.label.sharedataDataSource.policyAlwaysIncremental');
         expect(resolvePolicyFromData(2, 1).tagType).toBe('primary');
@@ -2014,7 +2014,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(resolvePolicyFromData(2, 0).policy).toBe('Disabled');
         expect(resolvePolicyFromData(1, 0).tagType).toBe('info');
 
-        // Gói với syncKind: null và status: 1 -> Mặc định Snapshot ("Gửi toàn bộ")
+        // Gói với syncMode: null và status: 1 -> Mặc định Snapshot ("Gửi toàn bộ")
         expect(resolvePolicyFromData(null, 1).policy).toBe('Snapshot');
         expect(resolvePolicyFromData(undefined, 1).labelKey).toBe('lz.label.sharedataDataSource.policySnapshot');
     });

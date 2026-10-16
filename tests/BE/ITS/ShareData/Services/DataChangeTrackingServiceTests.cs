@@ -14,6 +14,8 @@ using ShareDataWorker.Infrastructure.Services.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Extraction;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
 using ShareDataWorker.Infrastructure.Services.DataChangeTracking;
+using Modules.Integration.ShareData.Connections;
+using Modules.Integration.ShareData.Connections.Handlers;
 using System.Text.Json;
 using Modules.CfgSystem.Core.Entities;
 using ShareDataWorker.Core.Constants;
@@ -2326,16 +2328,23 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataOutboundService>>();
             var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
-            var hostEnv = scope.ServiceProvider.GetService<IHostEnvironment>();
 
             var clientFactory = httpClientFactory ?? scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
+            var dispatcher = scope.ServiceProvider.GetService<IConnectionDispatcher>()
+                ?? ConnectionDispatcher.CreateForHandlers([
+                    new RestConnectionHandler(clientFactory),
+                    new FileConnectionHandler(config.GetSection("NasStorage:BasePath").Value ?? "/tmp"),
+                    new KafkaConnectionHandler(),
+                    new FtpConnectionHandler()
+                ]);
 
             return new DataOutboundService(
                 scopeFactory,
                 logger,
-                new DataOutboundFileSender(config, hostEnv),
-                new DataOutboundRestSender(clientFactory),
-                new DataOutboundExtractionProcess());
+                new DataOutboundExtractionProcess(),
+                dispatcher,
+                null,
+                config);
         }
 
         #endregion

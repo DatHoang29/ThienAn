@@ -380,7 +380,7 @@ public class ShareDataExtractSqlTests(Host host)
             Name = $"Packet Revert {unique}",
             Status = BaseEnums.StatusEnum.Enable,
             ExtractSql = templateSql,
-            SyncKind = 1
+            SyncMode = BaseEnums.SyncMode.Snapshot
         };
         await db.Insertable(packet).ExecuteCommandAsync();
 
@@ -393,7 +393,7 @@ public class ShareDataExtractSqlTests(Host host)
             Direction = BaseEnums.Direction.Outbound,
             IsActive = true,
             ExtractSql = customSql,
-            SyncKind = 2
+            SyncMode = BaseEnums.SyncMode.Incremental
         };
         await db.Insertable(mapping).ExecuteCommandAsync();
 
@@ -430,7 +430,7 @@ public class ShareDataExtractSqlTests(Host host)
 
         var dbMapping = await db.Queryable<ShareDataMapping>().Where(m => m.ID == mapping.ID).FirstAsync();
         Assert.Null(dbMapping.ExtractSql);
-        Assert.Null(dbMapping.SyncKind);
+        Assert.Null(dbMapping.SyncMode);
     }
 
     [Fact]
@@ -482,7 +482,7 @@ public class ShareDataExtractSqlTests(Host host)
     [InlineData(366)]
     [InlineData(-10)]
     [InlineData(500)]
-    public async Task UpdateExtractSql_WhenLookbackDaysOutOfRange_ThrowsOops_Test(int lookbackDays)
+    public async Task UpdateExtractSql_WhenLookbackDaysOutOfRange_ThrowsOops_Test(int lookBackDays)
     {
         // Arrange
         var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
@@ -494,7 +494,7 @@ public class ShareDataExtractSqlTests(Host host)
         var input = new UpdatePacketExtractSqlInput
         {
             PacketCode = "101",
-            LookbackDays = lookbackDays
+            MaxLookBackDays = lookBackDays
         };
 
         // Act & Assert
@@ -619,7 +619,7 @@ public class ShareDataExtractSqlTests(Host host)
     [Fact]
     public async Task UpdateExtractSql_WhenIncrementalPacketWithoutIncrementalStructure_ThrowsOops_Test()
     {
-        // RV-4: Lưu SQL cho gói 103 (Incremental trên DB) không gửi SyncKind, SQL thiếu __rowid -> bị từ chối
+        // RV-4: Lưu SQL cho gói 103 (Incremental trên DB) không gửi SyncMode, SQL thiếu __rowid -> bị từ chối
         var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
@@ -627,12 +627,12 @@ public class ShareDataExtractSqlTests(Host host)
         var existing = await db.Queryable<ShareDataPacket>().Where(x => x.Code == "103").FirstAsync();
         if (existing == null)
         {
-            await db.Insertable(new ShareDataPacket { ID = Guid.NewGuid().ToString("N"), Code = "103", Name = "VDS Data", SyncKind = 2, Status = BaseEnums.StatusEnum.Enable }).ExecuteCommandAsync();
+            await db.Insertable(new ShareDataPacket { ID = Guid.NewGuid().ToString("N"), Code = "103", Name = "VDS Data", SyncMode = BaseEnums.SyncMode.Incremental, Status = BaseEnums.StatusEnum.Enable }).ExecuteCommandAsync();
         }
-        else if (existing.SyncKind != 2)
+        else if (existing.SyncMode != BaseEnums.SyncMode.Incremental)
         {
-            existing.SyncKind = 2;
-            await db.Updateable(existing).UpdateColumns(p => new { p.SyncKind }).ExecuteCommandAsync();
+            existing.SyncMode = BaseEnums.SyncMode.Incremental;
+            await db.Updateable(existing).UpdateColumns(p => new { p.SyncMode }).ExecuteCommandAsync();
         }
 
         var scope = host.Services.CreateScope();
@@ -641,7 +641,7 @@ public class ShareDataExtractSqlTests(Host host)
         var ex = await Assert.ThrowsAsync<AppFriendlyException>(() => commandHandler.HandleAsync(new UpdatePacketExtractSqlInput
         {
             PacketCode = "103",
-            SyncKind = null,
+            SyncMode = null,
             ExtractSql = "SELECT TOP (@pageSize) ID, Code, CreateTime AS __lastTime FROM ShareDataPacket ORDER BY CreateTime ASC"
         }));
 
@@ -670,7 +670,7 @@ public class ShareDataExtractSqlTests(Host host)
         var ex = await Assert.ThrowsAsync<AppFriendlyException>(() => commandHandler.HandleAsync(new UpdatePacketExtractSqlInput
         {
             PacketCode = "103",
-            SyncKind = 2,
+            SyncMode = BaseEnums.SyncMode.Incremental,
             ExtractSql = "SELECT TOP (@pageSize) ID AS __rowid, Code, CreateTime AS __lastTime FROM ShareDataPacket ORDER BY __lastTime DESC"
         }));
 
@@ -682,7 +682,7 @@ public class ShareDataExtractSqlTests(Host host)
     [Fact]
     public async Task UpdateExtractSql_WhenLookbackDaysResetToNull_ClearsDatabaseValue_Test()
     {
-        // RV-5: Lưu LookbackDays = 7, lưu lại với null -> đọc lại ra null
+        // RV-5: Lưu MaxLookBackDays = 7, lưu lại với null -> đọc lại ra null
         var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
@@ -698,24 +698,24 @@ public class ShareDataExtractSqlTests(Host host)
         await commandHandler.HandleAsync(new UpdatePacketExtractSqlInput
         {
             PacketCode = packetCode,
-            SyncKind = 1,
-            LookbackDays = 7,
+            SyncMode = BaseEnums.SyncMode.Snapshot,
+            MaxLookBackDays = 7,
             ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM ShareDataPacket"
         });
 
         var out1 = await queryHandler.HandleAsync(new GetPacketExtractSqlInput { PacketCode = packetCode });
-        Assert.Equal(7, out1.LookbackDays);
+        Assert.Equal(7, out1.MaxLookBackDays);
 
         await commandHandler.HandleAsync(new UpdatePacketExtractSqlInput
         {
             PacketCode = packetCode,
-            SyncKind = 1,
-            LookbackDays = null,
+            SyncMode = BaseEnums.SyncMode.Snapshot,
+            MaxLookBackDays = null,
             ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM ShareDataPacket"
         });
 
         var out2 = await queryHandler.HandleAsync(new GetPacketExtractSqlInput { PacketCode = packetCode });
-        Assert.Null(out2.LookbackDays);
+        Assert.Null(out2.MaxLookBackDays);
     }
 
     [Theory]
@@ -733,7 +733,7 @@ public class ShareDataExtractSqlTests(Host host)
     [Fact]
     public async Task UpdateExtractSql_WhenPacketSyncKindIs2AndCommandSyncKindIsNull_ValidatesIncrementalStructure_Test()
     {
-        // 2.3: Packet có SyncKind = 2, command gửi SyncKind = null -> Vẫn kiểm cấu trúc nối đuôi
+        // 2.3: Packet có SyncMode = Incremental, command gửi SyncMode = null -> Vẫn kiểm cấu trúc nối đuôi
         var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
@@ -745,7 +745,7 @@ public class ShareDataExtractSqlTests(Host host)
             ID = Guid.NewGuid().ToString("N"),
             Code = packetCode,
             Name = $"Packet Incremental {unique}",
-            SyncKind = 2, // Incremental
+            SyncMode = BaseEnums.SyncMode.Incremental,
             Status = BaseEnums.StatusEnum.Enable
         }).ExecuteCommandAsync();
 
@@ -756,7 +756,7 @@ public class ShareDataExtractSqlTests(Host host)
         var ex = await Assert.ThrowsAsync<AppFriendlyException>(() => commandHandler.HandleAsync(new UpdatePacketExtractSqlInput
         {
             PacketCode = packetCode,
-            SyncKind = null, // Không truyền SyncKind trong command
+            SyncMode = null, // Không truyền SyncMode trong command
             ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM ShareDataPacket"
         }));
 
@@ -768,7 +768,7 @@ public class ShareDataExtractSqlTests(Host host)
     [Fact]
     public async Task UpdateExtractSql_WhenPacketSyncKindIsNullAndCommandSyncKindIsNull_DefaultsToSnapshot_AllowsSnapshotSql_Test()
     {
-        // 2.3: Packet có SyncKind = null, command gửi SyncKind = null -> Mặc định Snapshot, không kiểm nối đuôi
+        // 2.3: Packet có SyncMode = null, command gửi SyncMode = null -> Mặc định Snapshot, không kiểm nối đuôi
         var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
@@ -780,7 +780,7 @@ public class ShareDataExtractSqlTests(Host host)
             ID = Guid.NewGuid().ToString("N"),
             Code = packetCode,
             Name = $"Packet Snapshot {unique}",
-            SyncKind = null, // NULL
+            SyncMode = null, // NULL
             Status = BaseEnums.StatusEnum.Enable
         }).ExecuteCommandAsync();
 
@@ -792,7 +792,7 @@ public class ShareDataExtractSqlTests(Host host)
         await commandHandler.HandleAsync(new UpdatePacketExtractSqlInput
         {
             PacketCode = packetCode,
-            SyncKind = null,
+            SyncMode = null,
             ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM ShareDataPacket"
         });
 

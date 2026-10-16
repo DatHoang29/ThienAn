@@ -137,7 +137,7 @@ public partial class Host : IAsyncLifetime
         // nhau khi ai đó cấu hình NasStorage:BasePath.
         var configuration = _host?.Services.GetService<IConfiguration>();
         var basePath = configuration?.GetValue<string>("NasStorage:BasePath") ?? "sharedata/send";
-        var root = Path.IsPathRooted(basePath) ? basePath : Path.Combine(Directory.GetCurrentDirectory(), basePath);
+        var root = Modules.Integration.ShareData.Connections.ExportPathHelper.ResolveRootPath(basePath);
 
         // GenerateExportRelativePath luôn trả về chuỗi bắt đầu bằng "Out/" nên Out là thứ duy nhất bên ghi tạo
         // ra dưới root. Chỉ xoá đúng nó, không xoá bản thân root (có thể là thư mục dùng chung / điểm mount).

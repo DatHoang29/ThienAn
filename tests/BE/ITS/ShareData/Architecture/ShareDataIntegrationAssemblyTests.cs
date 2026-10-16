@@ -44,11 +44,13 @@ public class ShareDataIntegrationAssemblyTests
                 Assert.DoesNotContain(forbidden, name, StringComparison.OrdinalIgnoreCase);
             }
 
-            var isBcl = name.StartsWith("System", StringComparison.OrdinalIgnoreCase)
+            var isAllowed = name.StartsWith("System", StringComparison.OrdinalIgnoreCase)
                      || name.Equals("mscorlib", StringComparison.OrdinalIgnoreCase)
-                     || name.Equals("netstandard", StringComparison.OrdinalIgnoreCase);
+                     || name.Equals("netstandard", StringComparison.OrdinalIgnoreCase)
+                     || name.StartsWith("Microsoft.Extensions.", StringComparison.OrdinalIgnoreCase)
+                     || name.StartsWith("Confluent.Kafka", StringComparison.OrdinalIgnoreCase);
 
-            Assert.True(isBcl, $"Assembly '{name}' không thuộc BCL (.NET Core Base Class Library). Modules.Integration.ShareData phải là pure BCL assembly.");
+            Assert.True(isAllowed, $"Assembly '{name}' không thuộc danh sách thư viện được phép của Modules.Integration.ShareData.");
         }
     }
 }

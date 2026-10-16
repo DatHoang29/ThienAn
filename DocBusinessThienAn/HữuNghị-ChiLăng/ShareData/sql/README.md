@@ -5,7 +5,7 @@
 
 ---
 
-## 📌 1. Bảng Thứ Tự Chạy Kịch Bản (00 → 05)
+## 📌 1. Bảng Thứ Tự Chạy Kịch Bản (00 → 06)
 
 Mọi kịch bản SQL của phân hệ ShareData được phân tách rõ ràng theo đúng vai trò nghiệp vụ với tiền tố số thứ tự chạy `NN-sharedata-<vai-tro>.sql`:
 
@@ -13,10 +13,11 @@ Mọi kịch bản SQL của phân hệ ShareData được phân tách rõ ràng
 | :---: | :--- | :---: | :--- | :---: | :---: |
 | **00** | [`00-sharedata-migration-mot-lan.sql`](00-sharedata-migration-mot-lan.sql) | `DEV_ITS10` | Bổ sung cột cấu hình truy vấn vào `ShareDataPacket`/`ShareDataMapping` và DROP bảng mồ côi `ShareDataTable`. | ⚠️ **Chỉ chạy 1 lần** (khi nâng cấp/di trú) | Mọi môi trường |
 | **01** | [`01-sharedata-cau-truc.sql`](01-sharedata-cau-truc.sql) | `DEV_ITS10`<br/>`DEV_ITS10_Inbound` | • Khối 1 (`DEV_ITS10`): Chuẩn hóa cấu hình địa chỉ/cổng/endpoint từ JSON `ConnectionConfig` sang các cột riêng (`Address`, `Port`, `EndPointApiUrl`) trên `ShareDataPartner`.<br/>• Khối 2 (`DEV_ITS10_Inbound`): Bổ sung cột `SenderProcessedAt DATETIME2 NULL` cho bảng `ShareDataInboundPacket`. | Chạy lại an toàn (**Idempotent**) | Mọi môi trường |
-| **02** | [`02-sharedata-seed-goi-tin.sql`](02-sharedata-seed-goi-tin.sql) | `DEV_ITS10` | Nạp câu truy vấn SQL trích xuất mẫu Catalog (gói 101–110), chuẩn hóa `SyncKind` mặc định khi còn NULL (Snapshot / Incremental) và cập nhật `Status = 0` (Disable) cho các gói tạm hoãn (110*, 111*). Có cờ `@GhiDeMauGoiTin = 0` bảo vệ dữ liệu quản trị đã sửa. | Chạy lại an toàn (**Idempotent**) | Mọi môi trường |
+| **02** | [`02-sharedata-seed-goi-tin.sql`](02-sharedata-seed-goi-tin.sql) | `DEV_ITS10` | Nạp câu truy vấn SQL trích xuất mẫu Catalog (gói 101–110), chuẩn hóa `SyncMode` mặc định khi còn NULL (Snapshot / Incremental) và cập nhật `Status = 0` (Disable) cho các gói tạm hoãn (110*, 111*). Có cờ `@GhiDeMauGoiTin = 0` bảo vệ dữ liệu quản trị đã sửa. | Chạy lại an toàn (**Idempotent**) | Mọi môi trường |
 | **03** | [`03-sharedata-seed-cau-hinh.sql`](03-sharedata-seed-cau-hinh.sql) | `DEV_ITS10` | Khởi tạo `SysConfigType` `sharedata_error_code`, nạp đủ 24 mã cảnh báo lỗi `ESH-xxxx` (theo ESHARE §9) vào `SysConfigData`, nạp danh mục 15 bảng theo dõi Change Tracking `sharedata_tracker` vào `SysOpConfig`, khai nhóm `sharedata_tracker` vào `SysConfigData` loại `operation_config_type` để màn hình *Cấu hình hoạt động* hiển thị. | Chạy lại an toàn (**Idempotent**) | Mọi môi trường |
 | **04** | [`04-sharedata-dich-thuat.sql`](04-sharedata-dich-thuat.sql) | `DEV_ITS10` | Nạp từ điển bản dịch đa ngôn ngữ (`vi-VN`, `en-US`) cho 36 mã khóa chuẩn hóa (SQL trích xuất, LookbackDays, SQL Validator, Metadata) vào bảng `SysTerminology` qua `MERGE` không ghi đè bản dịch đã sửa. | Chạy lại an toàn (**Idempotent**) | Mọi môi trường |
 | **05** | [`05-sharedata-du-lieu-gia-lap.sql`](05-sharedata-du-lieu-gia-lap.sql) | `DEV_ITS10` | Nạp dữ liệu giả lập (Mock Data) cho gói 104 (`TmsWeather`), gói 106 (`TmsTrafficData` WIM), gói 110 (`TmsIncident`, `TmsEquipment`, `VmsCurrent`) phục vụ test Worker E2E. | Chạy lại an toàn (**Idempotent**) | ⚠️ **Chỉ Local / Test**<br/>⛔ **CẤM chạy Staging/Production** |
+| **06** | [`06-sharedata-doi-ten-cot-dong-bo.sql`](06-sharedata-doi-ten-cot-dong-bo.sql) | `DEV_ITS10` | Đổi tên 3 trường cấu hình đồng bộ trên `ShareDataPacket` và `ShareDataMapping` (`SyncKind` → `SyncMode`, `CursorColumn` → `TimeColumn`, `LookbackDays` → `MaxLookbackDays`). | Chạy lại an toàn (**Idempotent**) | Mọi môi trường |
 
 ---
 

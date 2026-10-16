@@ -1,5 +1,7 @@
 #if HAS_SHAREDATAWORKER
 using Module.ShareData.Core.Entities;
+using Modules.Integration.ShareData.Connections;
+using Modules.Integration.ShareData.Connections.Handlers;
 using ShareDataWorker.Core.Models.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
 
@@ -25,7 +27,7 @@ namespace Tests.RealServer
         public async Task RestSender_WhenCallingRealServerWithHttp_FailsDueToDroppedConnection_Test()
         {
             // Arrange
-            var sender = new DataOutboundRestSender();
+            var sender = new RestConnectionHandler();
             var partner = new ShareDataPartner
             {
                 Code = "PARTNER_REAL_HTTP",
@@ -44,7 +46,7 @@ namespace Tests.RealServer
             };
 
             // Act
-            var result = await sender.SendAsync(request, ctx, CancellationToken.None);
+            var result = await sender.SendAsync(request, ConnectionRequestBuilder.BuildContext(ctx), CancellationToken.None);
 
             // Assert
             Assert.False(result.Success);
@@ -59,7 +61,7 @@ namespace Tests.RealServer
         public async Task RestSender_WhenCallingRealServerWithHttpsIp_FailsDueToCertificateMismatch_Test()
         {
             // Arrange
-            var sender = new DataOutboundRestSender();
+            var sender = new RestConnectionHandler();
             var partner = new ShareDataPartner
             {
                 Code = "PARTNER_REAL_HTTPS_IP",
@@ -78,7 +80,7 @@ namespace Tests.RealServer
             };
 
             // Act
-            var result = await sender.SendAsync(request, ctx, CancellationToken.None);
+            var result = await sender.SendAsync(request, ConnectionRequestBuilder.BuildContext(ctx), CancellationToken.None);
 
             // Assert
             Assert.False(result.Success);

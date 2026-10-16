@@ -409,22 +409,30 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 		const textareaHeight = await remarkTextarea.evaluate((el) => el.getBoundingClientRect().height);
 		expect(textareaHeight).toBeGreaterThanOrEqual(100);
 
-		// Kiểm tra el-dialog__footer bỏ padding (padding = 0px) theo yêu cầu giao diện phân hệ ShareData
+		// Kiểm tra el-dialog__footer có khoảng đệm chuẩn và thoáng (padding-bottom >= 12px) để nút bấm không dính sát đáy dialog
 		const dialogFooter = dialog.locator('.el-dialog__footer');
 		await expect(dialogFooter).toBeVisible();
 		const footerPadding = await dialogFooter.evaluate((el) => {
 			const cs = window.getComputedStyle(el);
 			return {
-				top: cs.paddingTop,
-				bottom: cs.paddingBottom,
-				left: cs.paddingLeft,
-				right: cs.paddingRight,
+				top: parseFloat(cs.paddingTop),
+				bottom: parseFloat(cs.paddingBottom),
+				left: parseFloat(cs.paddingLeft),
+				right: parseFloat(cs.paddingRight),
 			};
 		});
-		expect(footerPadding.top).toBe('0px');
-		expect(footerPadding.bottom).toBe('0px');
-		expect(footerPadding.left).toBe('0px');
-		expect(footerPadding.right).toBe('0px');
+		expect(footerPadding.bottom).toBeGreaterThanOrEqual(12);
+		expect(footerPadding.top).toBeGreaterThanOrEqual(12);
+
+		// Kiểm tra bounding rect nút bấm footer ('Bỏ qua', 'Đăng ký') cách mép dưới dialog >= 12px
+		const footerBtn = dialogFooter.locator('button').first();
+		await expect(footerBtn).toBeVisible();
+		const btnBox = await footerBtn.boundingBox();
+		const dialogBox = await dialog.boundingBox();
+		if (btnBox && dialogBox) {
+			const bottomDistance = (dialogBox.y + dialogBox.height) - (btnBox.y + btnBox.height);
+			expect(bottomDistance).toBeGreaterThanOrEqual(12);
+		}
 
 		await page.screenshot({ path: 'test-results/snapshot-2-modal-edit-subscription-tabs.png', fullPage: false });
 	});
@@ -452,13 +460,13 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 		expect(partnerContent).not.toContain('!important');
 	});
 
-	test('TC11 — Bỏ padding ở el-dialog__footer trong modal Tạo/Sửa đăng ký chia sẻ dữ liệu (editSubscription.vue)', async () => {
+	test('TC11 — Khoảng đệm thoáng ở el-dialog__footer trong modal Tạo/Sửa đăng ký chia sẻ dữ liệu (editSubscription.vue)', async () => {
 		const subFilePath = resolveWebVueSrc('views/sharedata/sharing/component/editSubscription.vue');
 		const subContent = fs.readFileSync(subFilePath, 'utf8');
 
-		// 1. Quét tĩnh mã nguồn: editSubscription.vue có cấu hình bỏ padding cho .el-dialog__footer
+		// 1. Quét tĩnh mã nguồn: editSubscription.vue có cấu hình khoảng đệm chuẩn cho .el-dialog__footer (padding: 12px 20px 20px)
 		expect(subContent).toContain('.el-dialog__footer');
-		expect(subContent).toContain('padding: 0');
+		expect(subContent).toMatch(/padding:\s*12px 20px 20px;/);
 
 		// 2. Tuân thủ Rule 20.6: Không dùng !important
 		expect(subContent).not.toContain('!important');

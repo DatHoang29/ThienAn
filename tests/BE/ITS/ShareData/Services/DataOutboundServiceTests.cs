@@ -21,6 +21,9 @@ using ShareDataWorker.Infrastructure.Logging;
 using ShareDataWorker.Infrastructure.Services.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Mapping;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
+using Modules.Integration.ShareData.Connections;
+using Modules.Integration.ShareData.Connections.Handlers;
+using DataOutboundRestSender = Modules.Integration.ShareData.Connections.Handlers.RestConnectionHandler;
 
 namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 {
@@ -1060,7 +1063,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var (fileSender, blockerPath) = CreateFailingFileSender(scope);
+            var (failingConfig, blockerPath) = CreateFailingConfig();
 
             await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
             var unique = Guid.NewGuid().ToString("N")[..8];
@@ -1081,7 +1084,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             try
             {
-                var worker = CreateWorker(scope, fileSender: fileSender);
+                var worker = CreateWorker(scope, configuration: failingConfig);
                 await worker.ProcessSubscriptions(CancellationToken.None);
 
                 // Lưu đệm thất bại: KHÔNG gửi API và KHÔNG tiến mốc
@@ -1125,7 +1128,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             partnerServer.ResetDefaults();
             partnerServer.DefaultStatusCode = HttpStatusCode.InternalServerError;
             partnerServer.DefaultResponseBody = "Simulated HTTP 500 server error";
-            var (fileSender, blockerPath) = CreateFailingFileSender(scope);
+            var (failingConfig, blockerPath) = CreateFailingConfig();
 
             await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
             var unique = Guid.NewGuid().ToString("N")[..8];
@@ -1146,7 +1149,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             try
             {
-                var worker = CreateWorker(scope, fileSender: fileSender);
+                var worker = CreateWorker(scope, configuration: failingConfig);
                 await worker.ProcessSubscriptions(CancellationToken.None);
 
                 Assert.Equal(0, partnerServer.TotalReceivedRequests);
@@ -1189,7 +1192,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             partnerServer.ResetDefaults();
             partnerServer.DefaultStatusCode = HttpStatusCode.ServiceUnavailable;
             partnerServer.DefaultResponseBody = "Simulated HTTP error";
-            var (fileSender, blockerPath) = CreateFailingFileSender(scope);
+            var (failingConfig, blockerPath) = CreateFailingConfig();
 
             await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
             var unique = Guid.NewGuid().ToString("N")[..8];
@@ -1210,7 +1213,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             try
             {
-                var worker = CreateWorker(scope, fileSender: fileSender);
+                var worker = CreateWorker(scope, configuration: failingConfig);
                 await worker.ProcessSubscriptions(CancellationToken.None);
 
                 Assert.Equal(0, partnerServer.TotalReceivedRequests);
@@ -2258,7 +2261,7 @@ LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId";
 
             await db.Updateable<ShareDataPacket>()
                 .SetColumns(p => p.ExtractSql == sql101)
-                .SetColumns(p => p.SyncKind == 1)
+                .SetColumns(p => p.SyncMode == BaseEnums.SyncMode.Snapshot)
                 .Where(p => p.Code == "101" || p.Code == "101_commonData")
                 .ExecuteCommandAsync();
 
@@ -2291,8 +2294,8 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
             await db.Updateable<ShareDataPacket>()
                 .SetColumns(p => p.ExtractSql == sql103)
-                .SetColumns(p => p.SyncKind == 2)
-                .SetColumns(p => p.CursorColumn == "DetectTime")
+                .SetColumns(p => p.SyncMode == BaseEnums.SyncMode.Incremental)
+                .SetColumns(p => p.TimeColumn == "DetectTime")
                 .Where(p => p.Code == "103" || p.Code == "103_vdsData")
                 .ExecuteCommandAsync();
 
@@ -2577,7 +2580,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             await PacketMetadataCatalogTest.SeedPacketToDb(db, "110");
             await db.Updateable<ShareDataPacket>()
                 .SetColumns(p => p.Status == BaseEnums.StatusEnum.Enable)
-                .SetColumns(p => p.SyncKind == 1)
+                .SetColumns(p => p.SyncMode == BaseEnums.SyncMode.Snapshot)
                 .SetColumns(p => p.ExtractSql == ShareDataPacketTemplatesTests.Packet110_PublicMessaging)
                 .Where(p => p.Code == "110" || p.Code == "110_publicMessaging")
                 .ExecuteCommandAsync();
@@ -2789,8 +2792,8 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             };
 
             var time = new DateTime(2026, 8, 23, 15, 30, 45);
-            var path1 = DataOutboundFileSender.GenerateExportRelativePath("PARTNER_A", "101", time, DataOutboundFileSender.ResolveFileDiscriminator(sub1));
-            var path2 = DataOutboundFileSender.GenerateExportRelativePath("PARTNER_A", "101", time, DataOutboundFileSender.ResolveFileDiscriminator(sub2));
+            var path1 = ExportPathHelper.GenerateExportRelativePath("PARTNER_A", "101", time, ExportPathHelper.ResolveFileDiscriminator(sub1.SerialNbr, sub1.ID));
+            var path2 = ExportPathHelper.GenerateExportRelativePath("PARTNER_A", "101", time, ExportPathHelper.ResolveFileDiscriminator(sub2.SerialNbr, sub2.ID));
 
             Assert.NotEqual(path1, path2);
             Assert.Contains("5_SUB_ID_1", path1);
@@ -4867,45 +4870,39 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         public void RestSender_Send_UrlWithAndWithoutPort_ConstructsCorrectUri_Test()
         {
             // Arrange
-            var sender = new DataOutboundRestSender();
-            var method = typeof(DataOutboundRestSender).GetMethod(
-                "TryBuildEndpointUri",
-                BindingFlags.NonPublic | BindingFlags.Instance)!;
-
-            static Uri? Build(DataOutboundRestSender s, MethodInfo m, ShareDataPartner p)
+            static Uri? Build(ShareDataPartner p)
             {
-                var args = new object?[] { p, null, null };
-                var ok = (bool)m.Invoke(s, args)!;
-                Assert.True(ok, (string?)args[2]);
-                return (Uri?)args[1];
+                var ok = RestConnectionHandler.TryBuildEndpointUri(p.Address, p.Port, p.EndPointApiUrl, p.Code, out var uri, out var error);
+                Assert.True(ok, error);
+                return uri;
             }
 
             // Act & Assert 1: Partner có Port
-            var withPort = Build(sender, method, new ShareDataPartner { Address = "192.168.1.10", Port = 9000, EndPointApiUrl = "/api/v1/feed" });
+            var withPort = Build(new ShareDataPartner { Address = "192.168.1.10", Port = 9000, EndPointApiUrl = "/api/v1/feed" });
             Assert.Equal("http://192.168.1.10:9000/api/v1/feed", withPort?.ToString());
 
             // Act & Assert 2: Partner không có Port (null) -> cổng 80 mặc định, không hiện trong URL
-            var withoutPort = Build(sender, method, new ShareDataPartner { Address = "partner.example.com", Port = null, EndPointApiUrl = "/data" });
+            var withoutPort = Build(new ShareDataPartner { Address = "partner.example.com", Port = null, EndPointApiUrl = "/data" });
             Assert.Equal("http://partner.example.com/data", withoutPort?.ToString());
 
             // TC1 - Case 1: Address không có https:// nên mặc định http:// (đây chính là nguyên nhân sự cố dev 14/10/2026 khi đối tác chỉ nhận TLS)
-            var noScheme = Build(sender, method, new ShareDataPartner { Address = "tacorp.vn", Port = 12204, EndPointApiUrl = "/api/sharedata/shareDataInbound/receive" });
+            var noScheme = Build(new ShareDataPartner { Address = "tacorp.vn", Port = 12204, EndPointApiUrl = "/api/sharedata/shareDataInbound/receive" });
             Assert.Equal("http://tacorp.vn:12204/api/sharedata/shareDataInbound/receive", noScheme?.ToString());
 
             // TC1 - Case 2: Address có https:// tường minh
-            var withHttps = Build(sender, method, new ShareDataPartner { Address = "https://tacorp.vn", Port = 12204, EndPointApiUrl = "/api/sharedata/shareDataInbound/receive" });
+            var withHttps = Build(new ShareDataPartner { Address = "https://tacorp.vn", Port = 12204, EndPointApiUrl = "/api/sharedata/shareDataInbound/receive" });
             Assert.Equal("https://tacorp.vn:12204/api/sharedata/shareDataInbound/receive", withHttps?.ToString());
 
             // TC1 - Case 3: Cổng trong Address (12204) được ưu tiên, bỏ qua cột Port (12205)
-            var portInAddress = Build(sender, method, new ShareDataPartner { Address = "https://tacorp.vn:12204", Port = 12205, EndPointApiUrl = "/api/sharedata/shareDataInbound/receive" });
+            var portInAddress = Build(new ShareDataPartner { Address = "https://tacorp.vn:12204", Port = 12205, EndPointApiUrl = "/api/sharedata/shareDataInbound/receive" });
             Assert.Equal("https://tacorp.vn:12204/api/sharedata/shareDataInbound/receive", portInAddress?.ToString());
 
             // TC1 - Case 4: Address có dấu '/' cuối không làm dư '//' trong URL
-            var trailingSlash = Build(sender, method, new ShareDataPartner { Address = "https://tacorp.vn/", Port = 12204, EndPointApiUrl = "/api/sharedata/shareDataInbound/receive" });
+            var trailingSlash = Build(new ShareDataPartner { Address = "https://tacorp.vn/", Port = 12204, EndPointApiUrl = "/api/sharedata/shareDataInbound/receive" });
             Assert.Equal("https://tacorp.vn:12204/api/sharedata/shareDataInbound/receive", trailingSlash?.ToString());
 
             // TC1 - Case 5: EndPointApiUrl là URL tuyệt đối -> dùng thẳng, bỏ qua Address/Port
-            var absoluteEndpoint = Build(sender, method, new ShareDataPartner { Address = "1.2.3.4", Port = 1, EndPointApiUrl = "https://tacorp.vn:12204/api/sharedata/shareDataInbound/receive" });
+            var absoluteEndpoint = Build(new ShareDataPartner { Address = "1.2.3.4", Port = 1, EndPointApiUrl = "https://tacorp.vn:12204/api/sharedata/shareDataInbound/receive" });
             Assert.Equal("https://tacorp.vn:12204/api/sharedata/shareDataInbound/receive", absoluteEndpoint?.ToString());
         }
 
@@ -6489,14 +6486,14 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         [Fact]
         public async Task ProcessSubscriptions_WhenPacketAndMappingSyncKindNull_DefaultsToSnapshot_Test()
         {
-            // 2.2: Gói có SyncKind = null ở cả packet và mapping -> Fallback mặc định Snapshot (không ghi ShareDataLastSend)
+            // 2.2: Gói có SyncMode = null ở cả packet và mapping -> Fallback mặc định Snapshot (không ghi ShareDataLastSend)
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
             await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
             var packet101 = await db.Queryable<ShareDataPacket>().Where(p => p.Code == "101").FirstAsync();
-            packet101.SyncKind = null;
-            await db.Updateable(packet101).UpdateColumns(p => new { p.SyncKind }).ExecuteCommandAsync();
+            packet101.SyncMode = null;
+            await db.Updateable(packet101).UpdateColumns(p => new { p.SyncMode }).ExecuteCommandAsync();
 
             var unique = Guid.NewGuid().ToString("N")[..8];
             await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.TrafficFlow, unique);
@@ -6513,8 +6510,8 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 .FirstAsync();
             if (mapping != null)
             {
-                mapping.SyncKind = null;
-                await db.Updateable(mapping).UpdateColumns(m => new { m.SyncKind }).ExecuteCommandAsync();
+                mapping.SyncMode = null;
+                await db.Updateable(mapping).UpdateColumns(m => new { m.SyncMode }).ExecuteCommandAsync();
             }
 
             var worker = CreateWorker(scope);
@@ -6533,7 +6530,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         [Fact]
         public async Task ProcessSubscriptions_WhenPacketDefaultAndMappingSyncKind2_RunsIncrementalAndUpdatesLastSend_Test()
         {
-            // 2.2: Gói 105 mapping có SyncKind = 2 -> Chạy Incremental, cập nhật mốc ShareDataLastSend
+            // 2.2: Gói 105 mapping có SyncMode = Incremental -> Chạy Incremental, cập nhật mốc ShareDataLastSend
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
@@ -6552,8 +6549,8 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 .Where(m => m.PartnerId == partner.ID && m.DatatypeId == "105")
                 .FirstAsync();
             Assert.NotNull(mapping);
-            mapping.SyncKind = 2; // Incremental
-            await db.Updateable(mapping).UpdateColumns(m => new { m.SyncKind }).ExecuteCommandAsync();
+            mapping.SyncMode = BaseEnums.SyncMode.Incremental;
+            await db.Updateable(mapping).UpdateColumns(m => new { m.SyncMode }).ExecuteCommandAsync();
 
             var worker = CreateWorker(scope);
             await worker.ProcessSubscriptions(CancellationToken.None);
@@ -6585,7 +6582,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 Code = packetCode,
                 Name = $"No SQL Packet {unique}",
                 PacketVersion = "1.0",
-                SyncKind = 2,
+                SyncMode = BaseEnums.SyncMode.Incremental,
                 Status = BaseEnums.StatusEnum.Enable,
                 ExtractSql = null
             };
@@ -7016,28 +7013,36 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         private static DataOutboundService CreateWorker(
             IServiceScope scope,
             IHttpClientFactory? httpClientFactory = null,
-            IDataOutboundFileSender? fileSender = null)
+            IConfiguration? configuration = null)
         {
             var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataOutboundService>>();
-            var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+            var config = configuration ?? scope.ServiceProvider.GetRequiredService<IConfiguration>();
             var clientFactory = httpClientFactory ?? scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
-            var hostEnv = scope.ServiceProvider.GetService<IHostEnvironment>();
+            var dispatcher = scope.ServiceProvider.GetService<IConnectionDispatcher>()
+                ?? ConnectionDispatcher.CreateForHandlers([
+                    new RestConnectionHandler(clientFactory),
+                    new FileConnectionHandler(config.GetSection("NasStorage:BasePath").Value ?? "/tmp"),
+                    new KafkaConnectionHandler(),
+                    new FtpConnectionHandler()
+                ]);
+
             return new DataOutboundService(
                 scopeFactory,
                 logger,
-                fileSender ?? new DataOutboundFileSender(config, hostEnv),
-                new DataOutboundRestSender(clientFactory),
-                scope.ServiceProvider.GetRequiredService<IDataOutboundExtractionProcess>());
+                scope.ServiceProvider.GetRequiredService<IDataOutboundExtractionProcess>(),
+                dispatcher,
+                null,
+                config);
         }
 
         /// <summary>
-        /// Description: Dựng DataOutboundFileSender THẬT nhưng trỏ NasStorage:BasePath vào một TỆP đang tồn tại,
-        ///              nên Directory.CreateDirectory ném IOException — lỗi ghi tệp thật thay vì giả lập kết quả.
+        /// Description: Cấu hình NasStorage:BasePath trỏ vào một TỆP đang tồn tại,
+        ///              nên Directory.CreateDirectory hoặc File.WriteAllBytes ném IOException — lỗi ghi tệp thật.
         ///              Bên gọi phải xoá BlockerPath trong khối finally.
         /// Created date: 29/09/2026
         /// </summary>
-        private static (DataOutboundFileSender Sender, string BlockerPath) CreateFailingFileSender(IServiceScope scope)
+        private static (IConfiguration FailingConfig, string BlockerPath) CreateFailingConfig()
         {
             var blockerPath = Path.Combine(Path.GetTempPath(), $"sharedata-blocked-{Guid.NewGuid():N}.tmp");
             File.WriteAllText(blockerPath, "block");
@@ -7046,7 +7051,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 .AddInMemoryCollection(new Dictionary<string, string?> { ["NasStorage:BasePath"] = blockerPath })
                 .Build();
 
-            return (new DataOutboundFileSender(config, scope.ServiceProvider.GetService<IHostEnvironment>()), blockerPath);
+            return (config, blockerPath);
         }
         private static async Task<List<ShareDataActivityLog>> GetLogs(ISqlSugarClient db, string subId)
         {
@@ -7184,7 +7189,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = def.Packet.Code,
                         Name = def.Packet.Name,
                         PacketVersion = def.Packet.PacketVersion,
-                        SyncKind = def.Packet.SyncKind,
+                        SyncMode = def.Packet.SyncMode,
                         Status = def.Packet.Status,
                         ExtractSql = ShareDataPacketTemplatesTests.GetExtractSql(def.Packet.Code)
                     };
@@ -7193,7 +7198,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 else
                 {
                     existingPacket.PacketVersion = def.Packet.PacketVersion;
-                    existingPacket.SyncKind = def.Packet.SyncKind;
+                    existingPacket.SyncMode = def.Packet.SyncMode;
                     existingPacket.Status = def.Packet.Status;
                     existingPacket.ExtractSql = ShareDataPacketTemplatesTests.GetExtractSql(def.Packet.Code);
                     await db.Updateable(existingPacket).ExecuteCommandAsync();
@@ -7247,7 +7252,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "101",
                         Name = "Thông tin chung / luồng giao thông",
                         PacketVersion = "1.0",
-                        SyncKind = 1,
+                        SyncMode = BaseEnums.SyncMode.Snapshot,
                         Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
@@ -7275,7 +7280,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "102",
                         Name = "Dữ liệu hình ảnh giao thông (CCTV)",
                         PacketVersion = "1.0",
-                        SyncKind = 1,
+                        SyncMode = BaseEnums.SyncMode.Snapshot,
                         Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
@@ -7299,7 +7304,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "103",
                         Name = "Dữ liệu dò xe (VDS)",
                         PacketVersion = "1.0",
-                        SyncKind = 2,
+                        SyncMode = BaseEnums.SyncMode.Incremental,
                         Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
@@ -7326,7 +7331,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "104",
                         Name = "Dữ liệu thời tiết",
                         PacketVersion = "1.0",
-                        SyncKind = 2,
+                        SyncMode = BaseEnums.SyncMode.Incremental,
                         Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
@@ -7354,7 +7359,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "105",
                         Name = "Dữ liệu định danh phương tiện (AVI/RFID)",
                         PacketVersion = "1.0",
-                        SyncKind = 1,
+                        SyncMode = BaseEnums.SyncMode.Snapshot,
                         Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
@@ -7380,7 +7385,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "106",
                         Name = "Dữ liệu kiểm tra tải trọng xe (WIM)",
                         PacketVersion = "1.0",
-                        SyncKind = 2,
+                        SyncMode = BaseEnums.SyncMode.Incremental,
                         Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
@@ -7403,7 +7408,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "107",
                         Name = "Thông tin sự kiện giao thông",
                         PacketVersion = "1.0",
-                        SyncKind = 2,
+                        SyncMode = BaseEnums.SyncMode.Incremental,
                         Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
@@ -7433,7 +7438,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "108",
                         Name = "Thông tin biển báo điện tử (VMS)",
                         PacketVersion = "1.0",
-                        SyncKind = 1,
+                        SyncMode = BaseEnums.SyncMode.Snapshot,
                         Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
@@ -7460,7 +7465,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "109",
                         Name = "Dữ liệu thu phí (ETC/MTC)",
                         PacketVersion = "1.0",
-                        SyncKind = 2,
+                        SyncMode = BaseEnums.SyncMode.Incremental,
                         Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
@@ -7488,7 +7493,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "110",
                         Name = "Trao đổi với người tham gia giao thông",
                         PacketVersion = "1.0",
-                        SyncKind = 1,
+                        SyncMode = BaseEnums.SyncMode.Snapshot,
                         Status = BaseEnums.StatusEnum.Disable
                     },
                     Fields =
@@ -7513,7 +7518,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "111",
                         Name = "Trao đổi với TT QLĐHGT tuyến",
                         PacketVersion = "1.0",
-                        SyncKind = 2,
+                        SyncMode = BaseEnums.SyncMode.Incremental,
                         Status = BaseEnums.StatusEnum.Disable
                     },
                     Fields =
@@ -7546,5 +7551,18 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         }
 
         #endregion
+    }
+
+    internal static class RestConnectionHandlerTestExtensions
+    {
+        public static Task<ConnectionResult> Send(
+            this RestConnectionHandler handler,
+            DataMappingResult mapping,
+            DataOutboundContext ctx,
+            CancellationToken ct = default)
+        {
+            var (req, connCtx) = ConnectionRequestBuilder.Build(mapping, ctx);
+            return handler.SendAsync(req, connCtx, ct);
+        }
     }
 }

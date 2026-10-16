@@ -1,9 +1,18 @@
 using Module.ShareData.Controllers.Partner.Validators;
 using Module.ShareData.Core.Entities;
+using Modules.Integration.ShareData.Connections;
+using Modules.Integration.ShareData.Connections.Handlers;
+using Modules.Integration.ShareData.Formats;
 using ShareDataWorker.Core.Models.DataOutbound;
+using ShareDataWorker.Infrastructure.Services.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
 using System.Text;
 using Tests.ShareData.Mocks;
+
+using DataOutboundRestSender = Modules.Integration.ShareData.Connections.Handlers.RestConnectionHandler;
+using DataOutboundFileSender = Modules.Integration.ShareData.Connections.Handlers.FileConnectionHandler;
+using DataOutboundKafkaSender = Modules.Integration.ShareData.Connections.Handlers.KafkaConnectionHandler;
+using DataOutboundFtpSender = Modules.Integration.ShareData.Connections.Handlers.FtpConnectionHandler;
 
 namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 {
@@ -185,7 +194,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var mapping = new DataMappingResult(true, mappingBytes, 1);
 
             // Act
-            var request = ConnectionDispatcher.BuildRequest(mapping, ctx);
+            var request = ConnectionRequestBuilder.BuildRequest(mapping, ctx);
 
             // Assert
             Assert.Equal("{\"tag\":\"RFID_001\"}", request.JsonPayload);
@@ -214,7 +223,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             var mappingBytes = Encoding.UTF8.GetBytes("{\"legacy\": true}");
             var mapping = new DataMappingResult(true, mappingBytes, 1);
-            var request = ConnectionDispatcher.BuildRequest(mapping, ctx);
+            var request = ConnectionRequestBuilder.BuildRequest(mapping, ctx);
 
             // Act
             var result = await dispatcher.DispatchAsync(request, ctx, CancellationToken.None);
@@ -244,7 +253,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             var mappingBytes = Encoding.UTF8.GetBytes("{\"override\": true}");
             var mapping = new DataMappingResult(true, mappingBytes, 1);
-            var request = ConnectionDispatcher.BuildRequest(mapping, ctx);
+            var request = ConnectionRequestBuilder.BuildRequest(mapping, ctx);
 
             // Act
             var result = await dispatcher.DispatchAsync(request, ctx, CancellationToken.None);
@@ -638,7 +647,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         }
 
         [Fact]
-        public void CsvFormatter_ConvertsJsonArrayToRfc4180Csv_EscapesProperly_Test()
+        public void CsvFormat_ConvertsJsonArrayToRfc4180Csv_EscapesProperly_Test()
         {
             // Arrange
             var json = """
@@ -649,7 +658,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 """;
 
             // Act
-            var csv = ShareDataWorker.Core.Utils.Formatters.CsvFormatter.ConvertJsonToCsv(json);
+            var csv = CsvFormat.ConvertJsonToCsv(json);
 
             // Assert
             Assert.Contains("id,name,remark", csv);
@@ -813,30 +822,30 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         {
             // Arrange
             var packetDefault = new ShareDataPacket { Code = "105", Name = "AVI/RFID Data" };
-            var packetIncr = new ShareDataPacket { Code = "105", Name = "AVI/RFID Data", SyncKind = 2 };
-            var mappingSnapshot = new ShareDataMapping { SyncKind = 1 };
-            var mappingIncremental = new ShareDataMapping { SyncKind = 2 };
+            var packetIncr = new ShareDataPacket { Code = "105", Name = "AVI/RFID Data", SyncMode = BaseEnums.SyncMode.Incremental };
+            var mappingSnapshot = new ShareDataMapping { SyncMode = BaseEnums.SyncMode.Snapshot };
+            var mappingIncremental = new ShareDataMapping { SyncMode = BaseEnums.SyncMode.Incremental };
 
             // Act & Assert
             // 1. Mặc định gói 105 là Snapshot
             var defaultPolicy = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy(packetDefault);
             Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.Snapshot, defaultPolicy);
 
-            // 2. Cấu hình SyncKind = 2 (Incremental) trên gói chuyển thành AlwaysIncremental
+            // 2. Cấu hình SyncMode = Incremental trên gói chuyển thành AlwaysIncremental
             var packetIncrPolicy = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy(packetIncr);
             Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.AlwaysIncremental, packetIncrPolicy);
 
-            // 3. Cấu hình SyncKind = 2 trên Mapping của đối tác ghi đè gói tin
+            // 3. Cấu hình SyncMode = Incremental trên Mapping của đối tác ghi đè gói tin
             var mappingIncrPolicy = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy(packetDefault, mappingIncremental);
             Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.AlwaysIncremental, mappingIncrPolicy);
 
-            // 4. Cấu hình SyncKind = 1 trên Mapping của đối tác ghi đè gói tin Incremental thành Snapshot
+            // 4. Cấu hình SyncMode = Snapshot trên Mapping của đối tác ghi đè gói tin Incremental thành Snapshot
             var mappingSnapPolicy = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy(packetIncr, mappingSnapshot);
             Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.Snapshot, mappingSnapPolicy);
 
-            // 5. Cả packet và mapping đều không có SyncKind (null) -> Fallback mặc định Snapshot (1)
-            var packetNull = new ShareDataPacket { Code = "999", Name = "Custom Packet", SyncKind = null };
-            var mappingNull = new ShareDataMapping { SyncKind = null };
+            // 5. Cả packet và mapping đều không có SyncMode (null) -> Fallback mặc định Snapshot (1)
+            var packetNull = new ShareDataPacket { Code = "999", Name = "Custom Packet", SyncMode = null };
+            var mappingNull = new ShareDataMapping { SyncMode = null };
             var nullFallbackPolicy = ShareDataWorker.Core.Utils.Resolvers.PacketMetadataResolver.ResolvePacketPolicy(packetNull, mappingNull);
             Assert.Equal(ShareDataWorker.Core.Enums.ShareDataEnum.PacketPolicy.Snapshot, nullFallbackPolicy);
 
@@ -976,7 +985,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.Contains("PARTNER_FILE_CUSTOM", result.TargetAddressOrPath);
             Assert.EndsWith(".csv", result.TargetAddressOrPath);
 
-            var fullPath = Path.Combine(Directory.GetCurrentDirectory(), "sharedata/send", result.TargetAddressOrPath);
+            var fullPath = Path.Combine(ExportPathHelper.ResolveRootPath("sharedata/send"), result.TargetAddressOrPath);
             Assert.True(File.Exists(fullPath));
             var savedBytes = await File.ReadAllBytesAsync(fullPath);
             Assert.Equal(expectedBytes, savedBytes);
@@ -1038,6 +1047,149 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.False(result.Success);
             Assert.Equal("Ftp", result.Channel);
             Assert.Contains(result.ErrorCode, new[] { "FtpConnectionFailed", "FtpSendFailed", "FtpWebException" });
+        }
+
+        [Fact]
+        public void ExportPathHelper_ResolveRootPath_WhenPathIsRooted_ReturnsNormalizedRootedPath_Test()
+        {
+            // Arrange
+            var absolutePath = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "sharedata_abs_root"));
+
+            // Act
+            var resolvedWithDefaultBase = ExportPathHelper.ResolveRootPath(absolutePath);
+            var resolvedWithCustomBase = ExportPathHelper.ResolveRootPath(absolutePath, "/some/other/custom/base");
+
+            // Assert
+            Assert.Equal(absolutePath, resolvedWithDefaultBase);
+            Assert.Equal(absolutePath, resolvedWithCustomBase);
+        }
+
+        [Fact]
+        public void ExportPathHelper_ResolveRootPath_WhenPathIsRelative_CombinesWithBaseDirectory_Test()
+        {
+            // Arrange
+            var customBase = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "custom_base_dir"));
+            var relativePath = "reports/daily_export";
+
+            // Act
+            var resolvedCustom = ExportPathHelper.ResolveRootPath(relativePath, customBase);
+            var resolvedDefault = ExportPathHelper.ResolveRootPath(relativePath);
+
+            // Assert
+            Assert.Equal(Path.GetFullPath(Path.Combine(customBase, relativePath)), resolvedCustom);
+            Assert.Equal(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, relativePath)), resolvedDefault);
+        }
+
+        [Fact]
+        public void ExportPathHelper_ResolveRootPath_WhenPathIsEmptyOrNull_UsesDefaultShareDataSendUnderBaseDirectory_Test()
+        {
+            // Arrange
+            var customBase = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "custom_base_default"));
+
+            // Act
+            var resolvedNull = ExportPathHelper.ResolveRootPath(null);
+            var resolvedEmpty = ExportPathHelper.ResolveRootPath("");
+            var resolvedWhitespace = ExportPathHelper.ResolveRootPath("   ");
+            var resolvedCustomNull = ExportPathHelper.ResolveRootPath(null, customBase);
+
+            // Assert
+            var expectedDefault = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "sharedata/send"));
+            Assert.Equal(expectedDefault, resolvedNull);
+            Assert.Equal(expectedDefault, resolvedEmpty);
+            Assert.Equal(expectedDefault, resolvedWhitespace);
+            Assert.Equal(Path.GetFullPath(Path.Combine(customBase, "sharedata/send")), resolvedCustomNull);
+        }
+
+        [Fact]
+        public void ExportPathHelper_ResolveRootPath_WhenCurrentDirectoryChanges_StillResolvesUnderBaseDirectoryNotCwd_Test()
+        {
+            // Arrange
+            var originalCwd = Directory.GetCurrentDirectory();
+            var tempCwd = Path.Combine(Path.GetTempPath(), "test_scm_cwd_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempCwd);
+            Directory.SetCurrentDirectory(tempCwd);
+
+            // Act
+            var resolved = ExportPathHelper.ResolveRootPath("sharedata/send");
+
+            // Phục hồi CWD tuần tự (Strict AAA, không try-finally)
+            Directory.SetCurrentDirectory(originalCwd);
+            Directory.Delete(tempCwd, true);
+
+            // Assert
+            var expected = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "sharedata/send"));
+            Assert.Equal(expected, resolved);
+            Assert.DoesNotContain(tempCwd, resolved);
+        }
+
+        [Fact]
+        public async Task FileConnectionHandler_And_DataOutboundService_ResolveSameRoot_ForSameConfiguration_Test()
+        {
+            // Arrange
+            var testBasePath = "sharedata_test_verify/send";
+            var relativeFile = $"test_proof_{Guid.NewGuid():N}.json";
+            var testPayload = Encoding.UTF8.GetBytes("{\"proof\": true}");
+
+            var fileHandler = new DataOutboundFileSender(testBasePath);
+
+            var inMemoryConfig = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["NasStorage:BasePath"] = testBasePath
+                })
+                .Build();
+
+            var outboundService = new DataOutboundService(
+                null!,
+                null!,
+                null!,
+                null!,
+                null,
+                inMemoryConfig);
+
+            var saveMethod = typeof(DataOutboundService).GetMethod(
+                "SaveExportFile",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            Assert.NotNull(saveMethod);
+
+            // Act
+            var fileHandlerFullPath = await fileHandler.SaveExportFile(relativeFile, testPayload, CancellationToken.None);
+            var serviceTask = (Task<string>)saveMethod.Invoke(outboundService, [relativeFile, testPayload, CancellationToken.None])!;
+            var serviceFullPath = await serviceTask;
+
+            // Assert: Hai nơi PHẢI cho cùng một gốc cho cùng một cấu hình
+            Assert.Equal(fileHandlerFullPath, serviceFullPath);
+            Assert.StartsWith(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, testBasePath)), fileHandlerFullPath);
+            Assert.True(File.Exists(fileHandlerFullPath));
+
+            // Clean up file test
+            if (File.Exists(fileHandlerFullPath)) File.Delete(fileHandlerFullPath);
+            var testDir = Path.GetDirectoryName(fileHandlerFullPath);
+            if (Directory.Exists(testDir) && !Directory.EnumerateFileSystemEntries(testDir).Any())
+            {
+                Directory.Delete(testDir);
+            }
+        }
+    }
+
+    internal static class TestTransportExtensions
+    {
+        public static Task<ConnectionResult> DispatchAsync(
+            this IConnectionDispatcher dispatcher,
+            ConnectionRequest request,
+            DataOutboundContext ctx,
+            CancellationToken ct = default)
+        {
+            return dispatcher.DispatchAsync(request, ConnectionRequestBuilder.BuildContext(ctx), ct);
+        }
+
+        public static Task<ConnectionResult> SendAsync(
+            this IConnectionHandler handler,
+            ConnectionRequest request,
+            DataOutboundContext ctx,
+            CancellationToken ct = default)
+        {
+            return handler.SendAsync(request, ConnectionRequestBuilder.BuildContext(ctx), ct);
         }
     }
 }
