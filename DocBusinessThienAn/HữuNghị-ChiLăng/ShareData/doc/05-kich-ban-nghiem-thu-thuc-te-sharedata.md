@@ -33,12 +33,14 @@ Chạy trên DB local; script có `USE` riêng.
 | # | Script (thư mục `sql/`) | CSDL | Ghi chú |
 |---|---|---|---|
 | 00 | [`00-sharedata-migration-mot-lan.sql`](../sql/00-sharedata-migration-mot-lan.sql) | `DEV_ITS10` | Một lần; dọn bảng thừa, chuyển dữ liệu sang Packet/Mapping (bỏ qua nếu DB đã dọn) |
-| 01 | [`01-sharedata-cau-truc.sql`](../sql/01-sharedata-cau-truc.sql) | `DEV_ITS10`<br/>`DEV_ITS10_Inbound` | Cột đối tác (`Address`, `Port`, `EndPointApiUrl`) trên DB chính; cột `SenderProcessedAt` trên DB Inbound |
-| 02 | [`02-sharedata-seed-goi-tin.sql`](../sql/02-sharedata-seed-goi-tin.sql) | `DEV_ITS10` | Mẫu SQL 101–110, SyncMode mặc định khi null, tắt gói 110/111; cờ `@GhiDeMauGoiTin = 0` không ghi đè |
+| 01 | [`01-sharedata-cau-truc.sql`](../sql/01-sharedata-cau-truc.sql) | `DEV_ITS10` | Cột đối tác (`Address`, `Port`, `EndPointApiUrl`) trên DEV_ITS10 |
+| 02 | [`02-sharedata-seed-goi-tin.sql`](../sql/02-sharedata-seed-goi-tin.sql) | `DEV_ITS10` | Mẫu SQL 101–110, SyncMode mặc định khi null, bật gói 110, tắt gói 111; cờ `@GhiDeMauGoiTin = 0` không ghi đè |
 | 03 | [`03-sharedata-seed-cau-hinh.sql`](../sql/03-sharedata-seed-cau-hinh.sql) | `DEV_ITS10` | Khởi tạo SysConfigType, nạp 24 mã lỗi ESH-xxxx và nhóm `sharedata_tracker` (15 bảng, idempotent) |
-| 04 | [`04-sharedata-dich-thuat.sql`](../sql/04-sharedata-dich-thuat.sql) | `DEV_ITS10` | 36 khóa bản dịch vi/en cho MaxLookbackDays, SQL trích xuất, SQL Validator, Metadata (MERGE không ghi đè) |
+| 04 | [`04-sharedata-dich-thuat.sql`](../sql/04-sharedata-dich-thuat.sql) | `DEV_ITS10` | 48 khóa bản dịch vi/en cho MaxLookBackDays, SQL trích xuất, SQL Validator, Metadata và **12 khóa lỗi cấu hình kết nối đối tác** (`sharedata.connectConfig*`) (MERGE không ghi đè). **Bắt buộc chạy trước mục C**, nếu không thông báo lỗi ở C3/C6 hiện khóa thô |
 | 05 | [`05-sharedata-du-lieu-gia-lap.sql`](../sql/05-sharedata-du-lieu-gia-lap.sql) | `DEV_ITS10` | **Chỉ local/test** (104 Thời tiết, 106 WIM, 110 Sự cố/VMS) |
+| 06 | [`06-sharedata-doi-ten-cot-dong-bo.sql`](../sql/06-sharedata-doi-ten-cot-dong-bo.sql) | `DEV_ITS10` | Đổi tên cột đồng bộ ShareDataPacket/ShareDataMapping (SyncKind→SyncMode, TimeColumn/CursorColumn→CursorTimeColumn, LookbackDays→MaxLookBackDays). Idempotent; chỉ cần khi DB còn tên cũ. |
 
+> ⚠️ **Cảnh báo thứ tự chạy:** Với CSDL cũ còn mang tên cột cũ (`SyncKind`, `TimeColumn`/`CursorColumn`, `LookbackDays`), cần chạy script `06` trước script `02` (hoặc trước khi nghiệm thu) để đổi tên và bảo toàn dữ liệu cấu hình. Các truy vấn kiểm tra ở mục 0.5 đều dùng tên cột mới (`SyncMode`, `CursorTimeColumn`, `MaxLookBackDays`), DB cũ bắt buộc phải chạy `06` trước.
 > Chi tiết mục đích, thứ tự và hướng dẫn thực thi xem tại [`sql/README.md`](../sql/README.md).
 
 ### 0.3. Thành phần cần chạy
@@ -84,7 +86,7 @@ http.createServer((req, res) => {
 ### 0.5. Truy vấn kiểm tra (chỉ đọc, chạy trên DB local)
 
 ```sql
-SELECT Code, SyncMode, Status, CursorTimeColumn, MaxLookbackDays FROM dbo.ShareDataPacket ORDER BY Code;
+SELECT Code, SyncMode, Status, CursorTimeColumn, MaxLookBackDays FROM dbo.ShareDataPacket ORDER BY Code;
 SELECT TOP 20 * FROM dbo.ShareDataLastSend;                                   -- mốc gửi nối đuôi
 SELECT TOP 30 * FROM dbo.ShareDataActivityLog ORDER BY CreateTime DESC;       -- nhật ký cha–con
 SELECT TOP 30 * FROM dbo.ShareDataAlertLog    ORDER BY CreateTime DESC;       -- cảnh báo ESH-xxxx
@@ -102,8 +104,8 @@ SELECT TOP 20 * FROM dbo.ShareDataInboundPacket ORDER BY CreateTime DESC;     --
 |---|---|---|---|
 | A1 | Mở danh sách gói tin | Tag chế độ mỗi gói **khớp cột `SyncMode` trong DB** (0.5): 101, 102, 105, 108 là *gửi toàn bộ*; 103, 104, 106, 107, 109 là *nối đuôi* | ☐ Đạt ☐ Không đạt |
 | A2 | Mở gói **105** (chưa chỉnh gì) | Chế độ mặc định **Snapshot / gửi toàn bộ** (không phải nối đuôi) | ☐ ☐ |
-| A3 | Đổi 105 sang *nối đuôi*, đặt `CursorTimeColumn` và `MaxLookbackDays = 7` → Lưu → tải lại trang → mở lại | Chế độ, cột mốc, 7 ngày **giữ nguyên**; tag danh sách đổi theo | ☐ ☐ |
-| A4 | Xóa trắng `MaxLookbackDays` → Lưu → mở lại | Ô **rỗng** (không quay về 7) | ☐ ☐ |
+| A3 | Đổi 105 sang *nối đuôi*, đặt `CursorTimeColumn` và `MaxLookBackDays = 7` → Lưu → tải lại trang → mở lại | Chế độ, cột mốc, 7 ngày **giữ nguyên**; tag danh sách đổi theo | ☐ ☐ |
+| A4 | Xóa trắng `MaxLookBackDays` → Lưu → mở lại | Ô **rỗng** (không quay về 7) | ☐ ☐ |
 | A5 | Đổi 105 về *gửi toàn bộ* → Lưu | Lưu được; câu SQL không bị kiểm cấu trúc nối đuôi | ☐ ☐ |
 | A6 | Xem gói **111** (và 110 nếu chưa bật) | Hiện **"Đã tắt"**; không có nút chạy/gửi | ☐ ☐ |
 
@@ -126,8 +128,10 @@ SELECT TOP 20 * FROM dbo.ShareDataInboundPacket ORDER BY CreateTime DESC;     --
 |---|---|---|---|
 | C1 | Tạo đối tác **P-REST**: Address `http://localhost`, Port `9090`, EndPoint `/api/receive`, kiểu REST | Lưu được, mở lại giữ nguyên | ☐ ☐ |
 | C2 | Trong cấu hình kết nối thêm `Format=Json`, `ArchiveEnabled=true` và 1 key tùy ý → Lưu → mở lại | Mọi key **giữ nguyên**; giá trị bí mật (Token/ApiKey/Password) **bị che** khi hiển thị | ☐ ☐ |
-| C3 | Thêm key trùng tên cột (`Address`, `Port`, `EndPointApiUrl`), key trùng nhau, key rỗng | **Từng trường hợp bị từ chối** | ☐ ☐ |
+| C3 | Thêm key trùng tên cột (`Address`, `Port`, `EndPointApiUrl`), key trùng nhau, key rỗng | **Từng trường hợp bị từ chối**, thông báo hiển thị theo ngôn ngữ đang chọn (nhóm lỗi: khóa trùng cột, khóa trùng nhau, khóa rỗng), không hiện khóa thô `lz.validation...` | ☐ ☐ |
 | C4 | Mở đối tác khác rồi quay lại P-REST | Cấu hình **không lẫn** sang nhau (không mang token qua đối tác khác) | ☐ ☐ |
+| C5 | Tạo đối tác kiểu FTPS (rồi DISK, NAS) → Lưu được; mở lại giữ nguyên kiểu đã nhập | Được chấp nhận và gửi qua đúng kênh (FTPS bật `UseSsl`, DISK/NAS đi kênh File). Một giá trị lạ (ví dụ "ABC") vẫn bị từ chối | ☐ ☐ |
+| C6 | Kiểm tra 12 trường hợp cấu hình kết nối đối tác sai (JSON không phải object, cú pháp lỗi, key rỗng, key trùng tên cột, key bãi bỏ OutputPath, trùng lặp key, cấu trúc lồng nhau, Timeout không nguyên dương, Boolean sai định dạng, AuthType/Codec không hỗ trợ, FileNamePattern thiếu token) | Từng trường hợp bị từ chối với thông điệp đa ngôn ngữ chuẩn từ BaseMsg.ShareData.Validation (mã ConnectConfigIssue tương ứng) | ☐ ☐ |
 
 ## 🅳 D. Gửi (chiều ra)
 
@@ -145,21 +149,24 @@ SELECT TOP 20 * FROM dbo.ShareDataInboundPacket ORDER BY CreateTime DESC;     --
 | D8 | `DirectoryPath` ngoài thư mục cho phép; `FileNamePattern` có `../` hoặc `/` | **Bị từ chối**, không ghi tệp nào ngoài thư mục | ☐ ☐ |
 | D9 | (Cần NATS) Đăng ký gói **101** với *gửi ngay khi có dữ liệu mới* bật, `DebounceSec = 10`; chạy `UPDATE dbo.TmsZoneStatus SET UpdateTime = GETDATE() WHERE ID = '<ID>'` | Gửi trong khoảng `DebounceSec`, **không đợi hết chu kỳ** | ☐ ☐ |
 | D10 | Đăng ký chế độ *Single* (một lần): gửi thành công; làm lại với receiver lỗi (`FAIL`) | Thành công → *hết hạn*; lỗi → **giữ hoạt động** và thử lại ở chu kỳ sau | ☐ ☐ |
-| D11 | (Tùy chọn) Đặt `Codec=AesGcm` + `EncryptionKeyRef` (khóa khai ở `ShareDataSecurity:Keys`) | Body receiver là dữ liệu mã hóa, không đọc được; không có khóa → lỗi rõ ràng, **không gửi** và không tiến mốc | ☐ ☐ |
+| D11 | (Mã hóa chỉ viết sẵn `EncryptManager`, chưa nối luồng gửi/nhận theo quyết định 16/10/2026) | Chưa nối vào luồng (quyết định 16/10/2026): BỎ QUA, chỉ nghiệm thu khi áp dụng mã hóa | Bỏ qua (chưa nối) |
+| D12 | (Tùy chọn — cần hạ tầng thử, mặc định kênh chưa bật) Đối tác kiểu **Kafka**, `BootstrapServers` + `Topic` trong cấu hình; broker local | Message là byte[] UTF-8 JSON, có 4 header định danh; gửi lỗi (tắt broker) thì cảnh báo và mốc không tiến | ☐ ☐ |
+| D13 | (Tùy chọn — cần hạ tầng thử, mặc định kênh chưa bật) Đối tác kiểu **Ftp** (hoặc **FTPS**), `RemotePath` trong cấu hình; FTP server local | Tệp tải lên đúng nội dung, tên theo mẫu; sai mật khẩu thì lỗi rõ ràng, mốc không tiến | ☐ ☐ |
+| D14 | (Tùy chọn — cần hạ tầng thử, mặc định kênh chưa bật) Cấu hình `Format=Csv` cho kênh **File** hoặc **Ftp** | Tệp CSV phân cách dấu phẩy, đúng thứ tự cột; bằng chứng lưu (`ArchiveEnabled`) đúng byte như tệp đã gửi | ☐ ☐ |
 
 ## 🅴 E. Nhận (chiều vào)
 
-Điều kiện: một đối tác có đăng ký chiều **Inbound**, ánh xạ ngược cho gói 101 hoặc 103; cấu hình kết nối `InboundAuthType=ApiKey`, `InboundApiKey=<khóa thử>` (tên header mặc định `X-Api-Key`).
+Điều kiện: một đối tác có đăng ký chiều **Inbound**, ánh xạ ngược cho gói 101 hoặc 103.
 
 Dùng nội dung `body` đã bắt được ở D1/D3 làm dữ liệu thử (đã đúng định dạng của chính hệ thống).
 
 | # | Bước | Kết quả mong đợi | Kết quả |
 |---|---|---|---|
-| E1 | `POST /api/sharedata/shareDataInbound/receive` với header `PartnerCode`, `PacketCode`, `SerialNbr`, `X-Api-Key` đúng; body = nội dung ở trên | HTTP **200**; `ShareDataInboundPacket` (CSDL Inbound) có 1 dòng mới; Worker xử lý xong, `ProcessState` chuyển sang hoàn tất; dữ liệu vào bảng đích | ☐ ☐ |
+| E1 | `POST /api/sharedata/shareDataInbound/receive` với header `PartnerCode`, `PacketCode`, `SerialNbr`; body = nội dung ở trên | HTTP **200**; `ShareDataInboundPacket` (CSDL Inbound) có 1 dòng mới; Worker xử lý xong, `ProcessState` chuyển sang hoàn tất; dữ liệu vào bảng đích | ☐ ☐ |
 | E2 | Gửi lại **đúng gói cũ** | Không nhân đôi dòng ở bảng đích (MERGE) | ☐ ☐ |
-| E3 | Sai `X-Api-Key` | **401**, không có dòng mới ở `ShareDataInboundPacket` | ☐ ☐ |
-| E4 | Thiếu `PartnerCode` hoặc đối tác không tồn tại | Bị từ chối, không có dòng mới | ☐ ☐ |
-| E5 | Body không đọc được (sai định dạng/không giải mã được) | Gói ghi nhận **lỗi** có mã cảnh báo; không làm hỏng các gói khác | ☐ ☐ |
+| E3 | Thiếu `PartnerCode` hoặc đối tác không tồn tại | Bị từ chối, không có dòng mới | ☐ ☐ |
+| E4 | Body không đọc được (sai định dạng JSON) | Gói ghi nhận **lỗi** có mã cảnh báo (lỗi đọc gói); không làm hỏng các gói khác | ☐ ☐ |
+| E5 | (Mã hóa chỉ viết sẵn `EncryptManager`, chưa nối luồng gửi/nhận theo quyết định 16/10/2026) | Chưa nối vào luồng (quyết định 16/10/2026): BỎ QUA, chỉ nghiệm thu khi áp dụng mã hóa | Bỏ qua (chưa nối) |
 
 ## 🅵 F. Bảng theo dõi động (màn *Cấu hình hoạt động*, thư mục `cfgSystem/sysOpConfig`, nhóm `sharedata_tracker`)
 
@@ -173,11 +180,13 @@ Dùng nội dung `body` đã bắt được ở D1/D3 làm dữ liệu thử (đ
 | F6 | **Tắt tất cả** dòng của nhóm | Worker báo ESH-1603 **đúng 1 lần**, không còn kích hoạt tức thì; luồng quét định kỳ (D1/D3) **vẫn gửi** | ☐ ☐ |
 | F7 | Bật lại các dòng đã tắt | Theo dõi trở lại sau ≤ 60 giây, không quét lại từ đầu, không mất thay đổi | ☐ ☐ |
 
-## 🅶 G. Gói 110 (chỉ làm sau [prompt gói 110](../Prompt/sharedata-goi-110-nguon-co-san-prompt.md))
+## 🅶 G. Gói 110 (Gói 110 chạy trên nguồn có sẵn — phương án A, 16/10/2026, Master Plan R13)
+
+Điều kiện: đã chạy script 05 để có mock TmsWeather; Worker đang chạy.
 
 | # | Bước | Kết quả mong đợi | Kết quả |
 |---|---|---|---|
-| G1 | Gói 110 đang bật; đăng ký REST tới receiver; có dữ liệu mock (sự cố + VMS + thời tiết) | Receiver nhận payload có `incidentMessage`, `weatherMessage`, `guidanceContent`, `locationKm`, `locationMet`, `publishedTime`; `channel`, `deliveryState` rỗng (chưa có nguồn) | ☐ ☐ |
+| G1 | Gói 110 đang bật; đăng ký REST tới receiver; đã chạy script 05 để có mock TmsWeather (cùng mock sự cố, VMS) | Receiver nhận payload có `incidentMessage`, `weatherMessage`, `guidanceContent`, `locationKm`, `locationMet`, `publishedTime`; `channel`, `deliveryState` rỗng (chưa có nguồn) | ☐ ☐ |
 | G2 | Chu kỳ kế tiếp | Gửi **toàn bộ** lại (Snapshot), không có mốc | ☐ ☐ |
 | G3 | Đặt gói 110 `Status = 0` | Không gửi, không sinh cảnh báo mới | ☐ ☐ |
 | G4 | Gói 111 | Không chạy, không cảnh báo | ☐ ☐ |
@@ -186,8 +195,21 @@ Dùng nội dung `body` đã bắt được ở D1/D3 làm dữ liệu thử (đ
 
 | # | Bước | Kết quả mong đợi | Kết quả |
 |---|---|---|---|
-| H1 | Đổi ngôn ngữ giao diện vi ↔ en, lặp lại B5 và C3 | Thông báo lỗi đổi ngôn ngữ đúng, không còn chuỗi cứng lẫn lộn | ☐ ☐ |
-| H2 | Dọn dẹp định kỳ (ShareDataCleanup) | Chưa làm — Đã gỡ bỏ toàn bộ mã CleanupService/CleanupWorker ngày 15/10/2026 theo yêu cầu của chủ dự án (giữ nguyên cleanup ESH-16 trong DataChangeTrackingService SV-13) | Bỏ qua (Chưa làm) |
+| H1 | Đổi ngôn ngữ giao diện vi ↔ en, lặp lại B5, C3 và C6 | Thông báo lỗi đổi ngôn ngữ đúng, không còn chuỗi cứng lẫn lộn | ☐ ☐ |
+| H2 | Dọn dẹp định kỳ (Cleanup) | Đã viết sẵn logic cleanup ở dạng comment, chưa kích hoạt, chưa có test (Master Plan R15/DQ-SV-9). Cleanup ESH-16 trong DataChangeTrackingService (SV-13) giữ nguyên. | Bỏ qua (chưa kích hoạt) |
+
+---
+
+## 🅸 I. Nghiệm thu toàn trình tự gửi — tự nhận nội bộ (In-Process Loopback)
+
+Kịch bản chứng minh luồng toàn trình gửi → nhận hoạt động trọn vẹn khi chưa có đối tác bên ngoài hoặc không cần phần mềm bên ngoài hỗ trợ. Kịch bản này đã được khóa tự động bằng bài test `ShareDataSendReceiveTests` (chạy thật trên CSDL test local, không dùng mock).
+
+| # | Bước | Kết quả mong đợi | Kết quả |
+|---|---|---|---|
+| I1 | Cấu hình đối tác 'Nội bộ' trỏ endpoint về WebAPI cục bộ (`/api/sharedata/shareDataInbound/receive`), tạo đăng ký Outbound & Inbound cho gói Snapshot (105) | Worker gửi dữ liệu thành công qua HTTP; Inbound tiếp nhận, lưu bằng chứng đĩa và MERGE vào bảng đích đầy đủ 100% cột | ☐ ☐ |
+| I2 | Gửi lặp lại cùng gói Snapshot (kiểm tra Idempotency) | MERGE không nhân đôi số dòng trong bảng đích | ☐ ☐ |
+| I3 | Thử nghiệm gói Incremental (104) qua 2 chu kỳ: đợt 1 (3 dòng ban đầu), đợt 2 (1 dòng mới + 1 dòng cập nhật) | Đợt 1 nạp 3 dòng và tiến mốc; đợt 2 chỉ gửi 2 dòng thay đổi, bảng đích cập nhật đúng giá trị mới và tổng 4 dòng | ☐ ☐ |
+| I4 | Thử nghiệm đối tác trỏ endpoint lỗi (404 Not Found) | Gửi thất bại sạch sẽ, mốc không tiến, tệp bằng chứng vẫn lưu trên đĩa, ghi cảnh báo vào `ShareDataAlertLog` | ☐ ☐ |
 
 ---
 
@@ -197,6 +219,7 @@ Dùng nội dung `body` đã bắt được ở D1/D3 làm dữ liệu thử (đ
 - Trả lại các dòng `sharedata_tracker` đã đổi (F3–F7).
 - Xóa `received-*.json`, file `FAIL`, thư mục tệp bằng chứng thử trong `sharedata/send`.
 - Nếu đã thêm `Nats__Enabled=true` vào cấu hình debug để thử D9, trả lại như cũ.
+- Dọn topic/tệp thử cho D12–D14 nếu có chạy: xóa topic/message thử trên Kafka broker, xóa tệp đã tải lên trên FTP server local và thư mục File local.
 
 ## 📝 Ghi nhận kết quả
 
@@ -204,4 +227,4 @@ Dùng nội dung `body` đã bắt được ở D1/D3 làm dữ liệu thử (đ
 |---|---|---|---|
 | | | | |
 
-**Tiêu chí đạt:** toàn bộ mục A–F đạt; G đạt sau khi prompt gói 110 xong; H không phát sinh lỗi. Kết quả tổng hợp ghi lại ở `DQ-TEST-3` của MasterPlan.
+**Tiêu chí đạt:** toàn bộ mục A–F đạt; G đạt; H không phát sinh lỗi; I đạt (đã khóa bằng test tự động `ShareDataSendReceiveTests`). Kết quả tổng hợp ghi lại ở `DQ-TEST-3` của MasterPlan.

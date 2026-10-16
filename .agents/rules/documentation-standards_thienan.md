@@ -197,6 +197,7 @@ Quy ước chú giải tiếng Anh trong ngoặc `[Tiếng Việt] ([English])` 
      5. Mọi tiền tố trong `mc:Ignorable` đều có khai báo `xmlns:<prefix>=`.
      6. Danh sách tệp bên trong ZIP khớp 100% với template chuẩn.
      7. Tải thử bằng `openpyxl` (hoặc Excel) mở thành công mà không phát sinh lỗi hoặc cảnh báo phục hồi.
+     8. **Bảo toàn 100% công thức (Zero Formula Loss):** Tự động đối chiếu danh sách các ô có công thức (`<f>...</f>`) với template gốc. ⛔ **TUYỆT ĐỐI CẤM** xóa mất công thức hoặc thay thế bằng giá trị số/chuỗi tĩnh.
 
 ---
 
@@ -276,15 +277,16 @@ Quy ước chú giải tiếng Anh trong ngoặc `[Tiếng Việt] ([English])` 
      - *Phân hệ VideoWall:* Nghiên cứu chuẩn giao tiếp ISAPI Hikvision; xây dựng API phân quyền điều khiển theo người dùng và khu vực màn hình; phát triển Worker Service chạy nền kết nối thiết bị qua NATS; làm tool WPF kiểm thử và trực tiếp ra site kiểm thử thiết bị nghiệm thu thành công.
      - *Phân hệ ShareData:* Xây dựng cơ chế gửi nối đuôi và truyền nhận dữ liệu tức thì, tối ưu tải hệ thống; tự động đóng gói lưu trữ file đối soát và chuẩn hóa log phục vụ nghiệm thu hệ thống.
 
-5. **Tạo Mới Tháng Mới Dựa Trên `2026.09_KPI_DatHoangQuy.xlsx` & Bắt Buộc Đối Chiếu Format Với `2026.08_KPI_TenHoTenLot.xlsx` (Zero UI Misalignment)**:
-   - **Tạo mới tháng mới:** Khi cần tạo báo cáo KPI cho tháng mới, **BẮT BUỘC dựa trên tệp chuẩn hoàn chỉnh gần nhất là `DocBusinessThienAn/KPI/2026.09_KPI_DatHoangQuy.xlsx` để tạo**. Tệp này đã chuẩn hóa sẵn cấu trúc bảng chuỗi (sharedStrings), tự động co giãn dòng theo nội dung và đồng bộ liên kết.
-   - **Tệp baseline đối chiếu:** `DocBusinessThienAn/KPI/2026.08_KPI_TenHoTenLot.xlsx` là baseline chuẩn (Read-Only), **chỉ dùng để đối chiếu format xem có đúng hay không**.
-   - ⛔ **TUYỆT ĐỐI CẤM SỬA ĐỔI, GHI ĐÈ HOẶC XÓA TỆP `2026.08_KPI_TenHoTenLot.xlsx`** dưới mọi hình thức. Tệp này được bảo vệ nghiêm ngặt ở chế độ Chỉ Đọc (Read-Only) để làm thước đo đối chiếu format vĩnh viễn cho mọi kỳ đánh giá KPI tiếp theo.
-   - **Bắt buộc đối chiếu format sau khi hoàn thành:** Sau khi tạo hoặc chỉnh sửa bất kỳ file KPI tháng mới nào (ví dụ `2026.09_KPI_DatHoangQuy.xlsx`), **BẮT BUỘC phải mở và đối chiếu lại toàn diện cấu trúc XML và format với file gốc `2026.08_KPI_TenHoTenLot.xlsx`**:
+5. **Tạo Mới Tháng Mới Dựa Trên `2026.09_KPI_DatHoangQuy.xlsx` & Bắt Buộc Đối Chiếu Cả Format Và Công Thức Với `2026.08_KPI_TenHoTenLot.xlsx` (Zero UI & Formula Misalignment)**:
+   - **Tạo mới tháng mới:** Khi cần tạo báo cáo KPI cho tháng mới, **BẮT BUỘC dựa trên tệp chuẩn hoàn chỉnh gần nhất là `DocBusinessThienAn/BaoCao/KPI/2026.09_KPI_DatHoangQuy.xlsx` để tạo**. Tệp này đã chuẩn hóa sẵn cấu trúc bảng chuỗi (sharedStrings), tự động co giãn dòng theo nội dung và đồng bộ liên kết.
+   - **Tệp baseline đối chiếu:** `DocBusinessThienAn/BaoCao/KPI/2026.08_KPI_TenHoTenLot.xlsx` là baseline chuẩn (Read-Only), **chỉ dùng để đối chiếu format và công thức xem có đúng hay không**.
+   - ⛔ **TUYỆT ĐỐI CẤM SỬA ĐỔI, GHI ĐÈ HOẶC XÓA TỆP `DocBusinessThienAn/BaoCao/KPI/2026.08_KPI_TenHoTenLot.xlsx`** dưới mọi hình thức. Tệp này được bảo vệ nghiêm ngặt ở chế độ Chỉ Đọc (Read-Only) để làm thước đo đối chiếu format vĩnh viễn cho mọi kỳ đánh giá KPI tiếp theo.
+   - **Bắt buộc đối chiếu format & công thức sau khi hoàn thành:** Sau khi tạo hoặc chỉnh sửa bất kỳ file KPI tháng mới nào (ví dụ `2026.09_KPI_DatHoangQuy.xlsx`), **BẮT BUỘC phải mở và đối chiếu lại toàn diện cấu trúc XML, format và công thức tính toán với file gốc `2026.08_KPI_TenHoTenLot.xlsx`**:
      - **Đối chiếu vị trí & định dạng dòng TỔNG KẾT:** BẮT BUỘC nằm cố định tại **Row 20**, `ht="22.5" customHeight="1"`, `mergeCell ref="A20:G20"`, đúng mã style (`s="329"` cho A20: font Segoe UI 11pt Bold, màu nền `fillId=28`, viền dày `borderId=91`, `s="330"`, `s="331"`, `s="146"`, `s="147"`, `s="148"`, `s="149"`).
      - **Đối chiếu giao diện & đối tượng vẽ (Drawing Shapes):** Kiểm tra các nút bo góc, hình vẽ, icon màu chỉ thị (như nút `DEV`, `DOC`, chấm tròn điểm số) có bị lệch dòng hoặc trôi ra ngoài bảng hay không. Các đối tượng vẽ trong OpenXML (`drawing1.xml`) được neo cố định theo số dòng (`<xdr:row>`), do đó vị trí bảng hướng dẫn (hàng 26 - 33) **BẮT BUỘC giữ nguyên vị trí dòng tuyệt đối theo file gốc**, tuyệt đối không được tự ý dịch chuyển làm lệch hình vẽ.
      - **Đối chiếu định dạng ô (Styles):** Font chữ, độ cao dòng (`ht`), màu nền (`fillId`), viền ô (`borderId`) và căn lề (đặc biệt `wrapText="1"` cho các ô nhiều dòng như `G12`) phải đồng bộ 100% với file gốc.
-     - **Đối chiếu cấu trúc XML:** Chạy hàm `validate_excel_openxml()` đối chiếu với template gốc để đảm bảo không phát sinh bất kỳ lỗi cú pháp hoặc hỏng tệp nào.
+     - **Đối chiếu bảo toàn 100% công thức (Zero Formula Loss):** Quét và so sánh danh sách các ô có công thức (`<f>...</f>`) trên cả Sheet 1 và Sheet 2 (239/239 công thức) so với baseline. ⛔ **TUYỆT ĐỐI CẤM** làm mất hoặc ghi đè công thức thành giá trị tĩnh.
+     - **Đối chiếu cấu trúc XML:** Chạy hàm `validate_excel_openxml(output_path, baseline_compare_path)` đối chiếu với template gốc để đảm bảo không phát sinh bất kỳ lỗi cú pháp hoặc hỏng tệp nào.
 
 6. **Đồng Bộ Tuyệt Đối Giữa URL Hyperlink Và Nội Dung Text Hiển Thị (Nội Dung Link Phải Giống Nội Dung Text) (Rule 19.79)**:
    - Trong file Excel KPI (sheet `01. Tổng task`, cột E "Link công việc") cũng như mọi file Excel/tài liệu trong dự án:

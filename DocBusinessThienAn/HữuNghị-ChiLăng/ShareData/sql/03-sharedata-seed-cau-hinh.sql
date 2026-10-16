@@ -101,8 +101,6 @@ VALUES
     -- Inbound (7 mã)
     (N'ESH-1501', N'Không đọc được nội dung gói tin nhận về', N'inbound', N'danger', 1501,
      N'Kiểm tra định dạng JSON/XML của gói tin nhận.'),
-    (N'ESH-2405', N'Giải mã gói tin nhận về thất bại (sai khóa, sai envelope hoặc sai tag)', N'inbound', N'danger', 2405,
-     N'Kiểm tra thuật toán mã hóa, khóa bí mật hoặc định dạng envelope.'),
     (N'ESH-1502', N'Lỗi ghi dữ liệu xuống CSDL nhận', N'inbound', N'danger', 1502,
      N'Kiểm tra kết nối và quyền ghi CSDL Inbound.'),
     (N'ESH-1503', N'Không tìm thấy cấu hình gói tin cho DatatypeId nhận về', N'inbound', N'danger', 1503,
@@ -113,6 +111,8 @@ VALUES
      N'Kiểm tra cấu hình mapping chiều nhận ShareDataMapping.'),
     (N'ESH-1506', N'Gói tin chưa khai câu ghi chiều nhận (ShareDataPacketWrite)', N'inbound', N'danger', 1506,
      N'Kiểm tra cấu hình câu ghi CSDL trong ShareDataPacketWrite.'),
+    (N'ESH-1507', N'Giải mã gói tin nhận về thất bại (sai khóa, sai envelope hoặc sai tag)', N'inbound', N'danger', 1507,
+     N'Kiểm tra thuật toán mã hóa, khóa bí mật hoặc định dạng envelope.'),
 
     -- Tracking (4 mã)
     (N'ESH-1601', N'Mốc Change Tracking không hợp lệ — đã tự nhảy cóc để hồi phục', N'tracking', N'warning', 1601,

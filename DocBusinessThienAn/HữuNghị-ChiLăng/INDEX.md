@@ -132,7 +132,7 @@ Phân loại tài liệu theo **3-Tier Context Budget**:
 ```
 HữuNghị-ChiLăng/
 ├── INDEX.md                                  🤖👤 File bạn đang đọc (Chỉ mục cấp dự án & Meeting Hub)
-├── BaoCaoTuanITS15/                          👤    Báo cáo tuần tiến độ dự án ITS15
+├── (Báo cáo tuần lưu tại: DocBusinessThienAn/BaoCao/BaoCaoTuan/) 👤
 ├── ShareData/                                🤖👤 Phân hệ Chia sẻ Dữ liệu (ESHARE)
 │   ├── README.md                             🤖👤 SSOT phân hệ ShareData (kèm Tier Table)
 │   ├── DacTa/                                🤖    Tier A: Đặc tả nghiệp vụ, luồng gửi, câu hỏi PM

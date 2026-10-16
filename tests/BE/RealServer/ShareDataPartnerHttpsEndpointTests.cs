@@ -41,8 +41,8 @@ namespace Tests.RealServer
             var request = new ConnectRequest
             {
                 JsonPayload = "[{\"licensePlate\":\"29A-12345\"}]",
-                ConnectionType = "API",
-                ConnectionConfig = new Dictionary<string, string>()
+                ConnectType = "API",
+                ConnectConfig = new Dictionary<string, string>()
             };
 
             // Act
@@ -75,8 +75,8 @@ namespace Tests.RealServer
             var request = new ConnectRequest
             {
                 JsonPayload = "[{\"licensePlate\":\"29A-12345\"}]",
-                ConnectionType = "API",
-                ConnectionConfig = new Dictionary<string, string>()
+                ConnectType = "API",
+                ConnectConfig = new Dictionary<string, string>()
             };
 
             // Act

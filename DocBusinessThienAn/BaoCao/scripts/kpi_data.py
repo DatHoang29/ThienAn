@@ -18,7 +18,7 @@ POSITION = "Nhân viên phát triển phần mềm"
 MANAGER_NAME = "Trần Hồng Sơn"
 PROJECT_NAME = "[SW2026] ITS015 - Hữu Nghị-Chi Lăng"
 
-# Tên tệp Excel xuất ra (lưu tại thư mục DocBusinessThienAn/KPI/)
+# Tên tệp Excel xuất ra (lưu tại thư mục DocBusinessThienAn/BaoCao/KPI/)
 OUTPUT_FILENAME = "2026.09_KPI_DatHoangQuy.xlsx"
 
 # ==============================================================================

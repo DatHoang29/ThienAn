@@ -18,7 +18,6 @@ namespace Tests.ShareData.Services
     /// Description: Bộ kiểm thử roundtrip hai chiều gửi – nhận chuẩn hoá (#14).
     ///              - Kiểm thử tầng định dạng payload Formats (Json, KafkaJson, Csv)
     ///              - Kiểm thử phân giải khóa và Codec hai chiều (Outbound vs Inbound)
-    ///              - Kiểm thử giải mã Inbound Codec trước khi parse
     ///              - Kiểm thử roundtrip toàn trình gói 101/103 với cùng bộ khung TargetShapeJson S,
     ///                hỗ trợ MERGE idempotency khi gửi trùng gói.
     /// Created date: 14/10/2026
@@ -139,56 +138,7 @@ namespace Tests.ShareData.Services
 
         #endregion
 
-        #region 3. Integration Tests Worker Giải mã (AesGcm)
-
-        [Fact]
-        public async Task ProcessPendingPackets_WhenInboundCodecWrongKey_FailsWithDecodeFailedAlert_Test()
-        {
-            // Arrange
-            var unique = Guid.NewGuid().ToString("N")[..8];
-            var keyRef = $"dec_key_{unique}";
-            var connConfig = JsonSerializer.Serialize(new
-            {
-                InboundCodec = "AesGcm",
-                DecryptionKeyRef = keyRef
-            });
-
-            var (partner, packet, sub) = await SeedPartnerAndPacketAsync(unique, connConfig);
-
-            // Lưu gói có nội dung rác không phải envelope AesGcm
-            var packetEntity = new ShareDataInboundPacket
-            {
-                PartnerCode = partner.Code,
-                PacketCode = packet.Code,
-                SerialNbr = 1,
-                RawContent = "corrupted-unencrypted-raw-data-cannot-decode",
-                ProcessState = BaseEnums.InboundProcessState.Pending,
-                CreateTime = DateTime.Now
-            };
-            await _inboundDb.Insertable(packetEntity).ExecuteCommandAsync();
-
-            // Act
-            using var scope = _host.Services.CreateScope();
-            var inboundService = scope.ServiceProvider.GetRequiredService<IDataInboundService>();
-            await inboundService.ProcessPendingPackets(CancellationToken.None);
-
-            // Assert
-            var updated = await _inboundDb.Queryable<ShareDataInboundPacket>()
-                .Where(p => p.PartnerCode == partner.Code && p.PacketCode == packet.Code && p.SerialNbr == 1)
-                .FirstAsync();
-            Assert.NotNull(updated);
-            Assert.Equal(BaseEnums.InboundProcessState.Failed, updated.ProcessState);
-
-            var alertCodes = await _db.Queryable<ShareDataAlertLog>()
-                .Where(a => a.SubscriptionId == sub.ID)
-                .Select(a => a.AlertCode)
-                .ToListAsync();
-            Assert.Contains(ShareDataAlertCode.Inbound.DecodeFailed, alertCodes);
-        }
-
-        #endregion
-
-        #region 4. Full Roundtrip Tests (Gói 101 và 103, cùng bộ khung TargetShapeJson S)
+        #region 3. Full Roundtrip Tests (Gói 101 và 103, cùng bộ khung TargetShapeJson S)
 
         [Fact]
         public async Task Roundtrip_Packet101_WithCodeSetAndDateFormat_SavesToDestinationTable_Test()

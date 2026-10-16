@@ -23,7 +23,6 @@ using ShareDataWorker.Infrastructure.Services.DataOutbound.Mapping;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
 using Modules.Integration.ShareData.Connect;
 using Modules.Integration.ShareData.Connect.Handlers;
-using DataOutboundRestSender = Modules.Integration.ShareData.Connect.Handlers.RestConnectHandler;
 
 namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 {
@@ -1681,7 +1680,7 @@ END");
 
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var restSender = new DataOutboundRestSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var restSender = new RestConnectHandler(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var shapeJson = $$"""
             {
@@ -4222,13 +4221,13 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
 
         /// <summary>
-        /// Description: Kiểm tra khi partner là null thì DataOutboundRestSender trả về thất bại và không ném ngoại lệ.
+        /// Description: Kiểm tra khi partner là null thì RestConnectHandler trả về thất bại và không ném ngoại lệ.
         /// Created date: 18/09/2026
         /// </summary>
         [Fact]
         public async Task RestSender_WhenPartnerIsNull_ReturnsFailWithoutThrowing_Test()
         {
-            var sender = new DataOutboundRestSender();
+            var sender = new RestConnectHandler();
             var ctx = new DataOutboundContext(new ShareDataSubscription(), null, new ShareDataPacket(), null, DateTime.Now, CancellationToken.None);
             var mapping = new DataMappingResult(true, [1, 2, 3], 1, null);
 
@@ -4248,7 +4247,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         {
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var sender = new DataOutboundRestSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var sender = new RestConnectHandler(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var sampleJson = """
             {
@@ -4317,7 +4316,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         {
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var sender = new DataOutboundRestSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var sender = new RestConnectHandler(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var sampleArrayJson = """
             [
@@ -4362,7 +4361,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         {
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var restSender = new DataOutboundRestSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var restSender = new RestConnectHandler(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var sampleJson = """{"header":{"dataTime":"2026-09-18T14:05:31+07:00"},"data":[{"id":1}]}""";
             var finalBytes = System.Text.Encoding.UTF8.GetBytes(sampleJson);
@@ -4762,7 +4761,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
 
         /// <summary>
-        /// Description: Kiểm tra DataOutboundRestSender khi FinalBytes rỗng hoặc null thì trả về thành công an toàn, ByteSize = 0 và không gửi request HTTP.
+        /// Description: Kiểm tra RestConnectHandler khi FinalBytes rỗng hoặc null thì trả về thành công an toàn, ByteSize = 0 và không gửi request HTTP.
         /// Created date: 18/09/2026
         /// </summary>
         [Fact]
@@ -4771,7 +4770,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             // Arrange
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var sender = new DataOutboundRestSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var sender = new RestConnectHandler(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var partner = new ShareDataPartner
             {
@@ -4793,7 +4792,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
 
         /// <summary>
-        /// Description: Kiểm tra DataOutboundRestSender khi đối tác trả về HTTP 500 kèm nội dung lỗi thì bắt trọn vẹn StatusCode và Response Body trong SendResult.
+        /// Description: Kiểm tra RestConnectHandler khi đối tác trả về HTTP 500 kèm nội dung lỗi thì bắt trọn vẹn StatusCode và Response Body trong SendResult.
         /// Created date: 18/09/2026
         /// </summary>
         [Fact]
@@ -4806,7 +4805,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             partnerServer.DefaultStatusCode = HttpStatusCode.InternalServerError;
             partnerServer.DefaultResponseBody = errorPayload;
 
-            var sender = new DataOutboundRestSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var sender = new RestConnectHandler(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var partner = new ShareDataPartner
             {
@@ -4832,14 +4831,14 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
 
         /// <summary>
-        /// Description: Kiểm tra DataOutboundRestSender khi gặp ngoại lệ mạng HttpRequestException (timeout, refused) thì bắt an toàn và trả về thất bại.
+        /// Description: Kiểm tra RestConnectHandler khi gặp ngoại lệ mạng HttpRequestException (timeout, refused) thì bắt an toàn và trả về thất bại.
         /// Created date: 18/09/2026
         /// </summary>
         [Fact]
         public async Task RestSender_Send_HttpRequestException_ReturnsFailureResult_Test()
         {
             // Arrange
-            var sender = new DataOutboundRestSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var sender = new RestConnectHandler(_host.Services.GetRequiredService<IHttpClientFactory>());
             var partner = new ShareDataPartner
             {
                 Code = "PARTNER_NET_ERR",
@@ -4861,7 +4860,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
 
         /// <summary>
-        /// Description: Kiểm DataOutboundRestSender dựng đúng URL cho cả đối tác có Port và không có Port,
+        /// Description: Kiểm RestConnectHandler dựng đúng URL cho cả đối tác có Port và không có Port,
         ///              đối tác có/không scheme http/https, cổng khai báo trong Address, và URL tuyệt đối trong EndPointApiUrl.
         /// Created date: 30/09/2026
         /// Updated date: 15/10/2026
@@ -4917,7 +4916,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             // Arrange
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var sender = new DataOutboundRestSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var sender = new RestConnectHandler(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var sampleJson = """{"header":{"source":"ITS"},"data":[{"id":100,"speed":60}]}""";
             var finalBytes = Encoding.UTF8.GetBytes(sampleJson);
@@ -4977,7 +4976,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             // Arrange
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var sender = new DataOutboundRestSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var sender = new RestConnectHandler(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var mapping = new DataMappingResult(true, Encoding.UTF8.GetBytes("""{"test":1}"""), 1);
             var exportedAt = new DateTime(2026, 9, 19, 10, 0, 0, DateTimeKind.Local);
@@ -5016,7 +5015,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             // Arrange
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var sender = new DataOutboundRestSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var sender = new RestConnectHandler(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var mapping = new DataMappingResult(true, Encoding.UTF8.GetBytes("""{"test":1}"""), 1);
             var partner = new ShareDataPartner
@@ -5053,7 +5052,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             // Arrange
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var sender = new DataOutboundRestSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var sender = new RestConnectHandler(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var exportedAt = new DateTime(2026, 9, 19, 14, 5, 31, 234, DateTimeKind.Local);
             var partner = new ShareDataPartner
@@ -5120,7 +5119,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             // Arrange
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var sender = new DataOutboundRestSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var sender = new RestConnectHandler(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var mapping = new DataMappingResult(true, Encoding.UTF8.GetBytes("""{"test":1}"""), 1);
             var maliciousPartner = new ShareDataPartner
@@ -7020,8 +7019,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 logger,
                 scope.ServiceProvider.GetRequiredService<IDataOutboundExtractionProcess>(),
                 dispatcher,
-                null,
-                config);
+                configuration: config);
         }
 
         /// <summary>

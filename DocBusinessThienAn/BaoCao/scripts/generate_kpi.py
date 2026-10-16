@@ -11,10 +11,14 @@ if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-kpi_dir = os.path.dirname(script_dir)
+bao_cao_dir = os.path.dirname(script_dir)
+kpi_dir = os.path.join(bao_cao_dir, 'KPI')
+
+# Nạp module kiểm định dùng chung excel_validator
+sys.path.insert(0, script_dir)
+from excel_validator import validate_excel_openxml, date_to_serial
 
 # Nạp dữ liệu cấu hình từ file kpi_data.py cùng thư mục
-sys.path.insert(0, script_dir)
 from kpi_data import (
     PERIOD, EMPLOYEE_NAME, START_DATE, REPORT_DATE,
     DEPARTMENT, POSITION, MANAGER_NAME, PROJECT_NAME,
@@ -27,11 +31,6 @@ baseline_compare_path = os.path.join(kpi_dir, '2026.08_KPI_TenHoTenLot.xlsx')
 def xml_escape(val):
     """Escape XML characters."""
     return str(val).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-
-def date_to_serial(date_str):
-    """Chuyển đổi chuỗi ngày DD/MM/YYYY sang số serial date của Excel."""
-    d, m, y = map(int, date_str.strip().split('/'))
-    return (datetime.date(y, m, d) - datetime.date(1899, 12, 30)).days
 
 def calc_row_height(desc, min_ht=28.0, col_width=45):
     """Tính toán chiều cao dòng (pt) dựa trên nội dung mô tả công việc."""
@@ -51,12 +50,15 @@ def calc_row_height(desc, min_ht=28.0, col_width=45):
 # Quy tắc: Nếu cần tạo mới thì dựa trên 2026.09_KPI_DatHoangQuy.xlsx để tạo cho tháng mới.
 # 2026.08_KPI_TenHoTenLot.xlsx là baseline Read-Only dùng để đối chiếu format.
 # ==============================================================================
-base_template_path = os.path.join(kpi_dir, '2026.09_KPI_DatHoangQuy.xlsx')
-if os.path.exists(base_template_path):
-    with open(base_template_path, 'rb') as f:
-        content = f.read()
-else:
-    content = subprocess.check_output(['git', 'show', 'be79321:DocBusinessThienAn/KPI/2026.10_KPI_DatHoangQuy.xlsx'])
+try:
+    content = subprocess.check_output(['git', 'show', 'HEAD:DocBusinessThienAn/KPI/2026.09_KPI_DatHoangQuy.xlsx'])
+except Exception:
+    base_template_path = os.path.join(kpi_dir, '2026.09_KPI_DatHoangQuy.xlsx')
+    if os.path.exists(base_template_path):
+        with open(base_template_path, 'rb') as f:
+            content = f.read()
+    else:
+        content = subprocess.check_output(['git', 'show', 'be79321:DocBusinessThienAn/KPI/2026.10_KPI_DatHoangQuy.xlsx'])
 
 with zipfile.ZipFile(io.BytesIO(content)) as z:
     all_files = {name: z.read(name) for name in z.namelist()}
@@ -274,19 +276,20 @@ with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as out_z:
     for name, data in all_files.items():
         out_z.writestr(name, data)
 
-# Chạy kiểm định tính toàn vẹn OpenXML
-sys.path.append(os.path.join(kpi_dir, '..', 'BaoCaoTuanITS15', 'scripts'))
-from openxml_weekly_report_patcher import validate_excel_openxml
-valid, errors = validate_excel_openxml(output_path)
+# Chạy kiểm định tính toàn vẹn OpenXML & đối chiếu template gốc (gọi hàm từ excel_validator)
+valid, errors = validate_excel_openxml(output_path, baseline_compare_path)
 if not valid:
     print(f"❌ VALIDATION_FAILED: {errors}")
     sys.exit(1)
 
 # ==============================================================================
-# 7. ĐỐI CHIẾU FORMAT TOÀN DIỆN VỚI FILE GỐC 2026.08_KPI_TenHoTenLot.xlsx (Rule 35)
+# 7. ĐỐI CHIẾU FORMAT & CÔNG THỨC VỚI FILE GỐC 2026.08_KPI_TenHoTenLot.xlsx (Rule 28, Rule 35)
 # ==============================================================================
 format_ok = True
 format_msgs = []
+total_base_formulas = 0
+total_out_formulas = 0
+
 if os.path.exists(baseline_compare_path):
     with zipfile.ZipFile(baseline_compare_path) as z_base, zipfile.ZipFile(output_path) as z_out:
         s1_out = ET.fromstring(z_out.read('xl/worksheets/sheet1.xml'))
@@ -321,9 +324,27 @@ if os.path.exists(baseline_compare_path):
                 format_ok = False
                 format_msgs.append(f"Dòng {r} chưa được ẩn (hidden='1')")
 
+        # 4. Kiểm tra bảo toàn 100% công thức (<f>...</f>) so với file baseline
+        for sheet_file in ['xl/worksheets/sheet1.xml', 'xl/worksheets/sheet2.xml']:
+            if sheet_file in z_base.namelist() and sheet_file in z_out.namelist():
+                base_s = ET.fromstring(z_base.read(sheet_file))
+                out_s = ET.fromstring(z_out.read(sheet_file))
+                base_f = {c.attrib.get('r'): c.find(f'{ns}f').text 
+                          for c in base_s.findall(f'.//{ns}c') 
+                          if c.find(f'{ns}f') is not None}
+                out_f = {c.attrib.get('r'): c.find(f'{ns}f').text 
+                         for c in out_s.findall(f'.//{ns}c') 
+                         if c.find(f'{ns}f') is not None}
+                total_base_formulas += len(base_f)
+                total_out_formulas += len(out_f)
+                lost_f = set(base_f.keys()) - set(out_f.keys())
+                if lost_f:
+                    format_ok = False
+                    format_msgs.append(f"{sheet_file} bị mất công thức tại các ô: {sorted(list(lost_f))}")
+
 print(f"✅ SUCCESS: Đã xuất tệp KPI hoàn chỉnh: {output_path}")
 print(f"📊 Kích thước tệp: {os.path.getsize(output_path)} bytes | Kiểm định OpenXML: {valid}")
 if format_ok:
-    print(f"🎯 Đối chiếu format với 2026.08_KPI_TenHoTenLot.xlsx: KHỚP 100% (Row 20, Viền Medium, Ẩn task dư)")
+    print(f"🎯 Đối chiếu format & công thức với 2026.08_KPI_TenHoTenLot.xlsx: KHỚP 100% ({total_out_formulas}/{total_base_formulas} công thức, Row 20, Viền Medium, Ẩn task dư)")
 else:
-    print(f"⚠️ Cảnh báo đối chiếu format: {format_msgs}")
+    print(f"⚠️ Cảnh báo đối chiếu format & công thức: {format_msgs}")

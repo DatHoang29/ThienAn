@@ -68,6 +68,13 @@ description: Unified Testing Suite protocol, Playwright FE E2E, xUnit BE on loca
 * **Collection riêng biệt (`[Collection("real-server")]`) & Không trộn nghiệp vụ**: Các bài test server thật chỉ kiểm chứng tầng kết nối/truyền tải (connect, publish/subscribe round-trip, handshake...), **BẮT BUỘC dùng `[Collection("real-server")]`** (`RealServerTestCollection`, không gắn `ICollectionFixture<Host>`), hoàn toàn độc lập với CSDL local và không kéo theo logic nghiệp vụ (`ShareDataSubscription`, `DataOutboundService`...).
 * **Bắt buộc gắn `[Fact(Skip = "...")]`**: Mọi test gọi ra server thật phải có tham số `Skip` giải thích rõ lý do để luồng test local mặc định luôn chạy độc lập, nhanh và pass 100%; chỉ gỡ `Skip` khi cần chủ động kiểm tra kết nối tới server thật.
 
+### 2.6. Quy Chuẩn Kiểm Thử NATS Tích Hợp Thật (Phương Án 3 — Rule 19.81)
+Khi kiểm thử tích hợp với NATS broker thật (Docker local 127.0.0.1:4222):
+- **Cách ly Subject NATS độc lập cho từng bài test:** Mỗi test method tự sinh `uniqueSubject = $"ta.its.event.sharedata.newdata.{testName}_{testId}"` và inject qua `ConfigurationBuilder` đè cả 2 khóa `Nats:NewDataSubject` và `Nats:Subject`. Tuyệt đối không dùng chung subject mặc định (`DEFAULT_NATS_SUBJECT`).
+- **Cơ chế Retry Probe Loop (100ms):** Do `TransportManager.SubscribeAsync` ủy quyền cho client đăng ký `Subscribe` bất đồng bộ trong background `Task.Run`, phát probe 1 lần duy nhất sẽ bị broker drop nếu gói `SUB` chưa tới nơi. BẮT BUỘC phát lặp probe trong vòng lặp `while (DateTime.UtcNow < deadline)` với `await Task.Delay(100, cts.Token)` cho tới khi listener nhận được (`received.Count > 0`), sau đó `received.Clear()`.
+- **Làm sạch Subscription:** Gọi `transport.Unsubscribe(uniqueSubject)` ở đầu và cuối bài test để giải phóng handler trên singleton `TransportManager`.
+- **Tăng hạn định timeout khi chạy batch lớn:** Đặt timeout tối thiểu 45–60 giây cho các assertion chờ bản tin NATS toàn trình để tránh fail giả do tải cao của luồng CPU/threadpool.
+
 ---
 
 ## 🎭 3. Quy Chuẩn Kiểm Thử Frontend (Playwright E2E)

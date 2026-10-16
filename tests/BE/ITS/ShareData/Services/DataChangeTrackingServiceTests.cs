@@ -2343,8 +2343,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 logger,
                 new DataOutboundExtractionProcess(),
                 dispatcher,
-                null,
-                config);
+                configuration: config);
         }
 
         #endregion
@@ -2754,14 +2753,31 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 "Không thể kết nối tới NATS broker tại 127.0.0.1:4222 (Nats:Url trong appsettings.Test.json). "
                 + "Bắt buộc phải bật NATS broker (Docker local) trước khi chạy bài test toàn trình NatsRoundTrip.");
 
+            var uniqueSubject = $"ta.its.event.sharedata.newdata.roundtrip_{testId}";
+            var testConfig = new ConfigurationBuilder()
+                .AddConfiguration(config)
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Nats:NewDataSubject"] = uniqueSubject,
+                    ["Nats:Subject"] = uniqueSubject
+                })
+                .Build();
+
             // 1) Bên nhận đăng ký subscribe TRƯỚC và chờ xong, để bản tin phát ra không bị mất.
-            transport.Unsubscribe(DataChangeTrackingService.DEFAULT_NATS_SUBJECT);
-            var consumer = new DataNatsService(CreateOutboundService(scope), consumerLogger, transport, config);
+            transport.Unsubscribe(uniqueSubject);
+            var consumer = new DataNatsService(
+                CreateOutboundService(scope),
+                consumerLogger,
+                transport,
+                testConfig);
             await consumer.InitSubscribe(cts.Token);
             await Task.Delay(500, cts.Token);
 
             // 2) Bên phát: chu kỳ đầu chỉ lập mốc gốc (LastVersion từ -1 lên mốc hiện tại của CSDL).
-            var publisher = CreateTrackerWorker(scope, transport);
+            var publisher = CreateTrackerWorker(
+                scope,
+                transport,
+                testConfig);
             await publisher.PollChanges(cts.Token);
 
             Assert.True(await GetStateVersion(db) >= 0,
@@ -2817,7 +2833,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 .FirstAsync();
             Assert.NotNull(checkpoint);
 
-            transport.Unsubscribe(DataChangeTrackingService.DEFAULT_NATS_SUBJECT);
+            transport.Unsubscribe(uniqueSubject);
         }
 
         [Fact]
@@ -3325,31 +3341,52 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 "Không thể kết nối tới NATS broker tại 127.0.0.1:4222 (Nats:Url trong appsettings.Test.json). "
                 + "Bắt buộc phải bật NATS broker (Docker local) trước khi chạy bài test.");
 
+            var uniqueSubject = $"ta.its.event.sharedata.newdata.two_tables_{testId}";
+            var testConfig = new ConfigurationBuilder()
+                .AddConfiguration(config)
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Nats:NewDataSubject"] = uniqueSubject,
+                    ["Nats:Subject"] = uniqueSubject
+                })
+                .Build();
+
             var received = new List<string>();
 
-            // Mở kênh nghe trên DEFAULT_NATS_SUBJECT
-            transport.Unsubscribe(DataChangeTrackingService.DEFAULT_NATS_SUBJECT);
-            await transport.SubscribeAsync(DataChangeTrackingService.DEFAULT_NATS_SUBJECT, msg =>
+            // Mở kênh nghe trên uniqueSubject
+            transport.Unsubscribe(uniqueSubject);
+            await transport.SubscribeAsync(uniqueSubject, msg =>
             {
                 lock (received)
                     received.Add(msg);
                 return Task.CompletedTask;
             });
 
-            // Bản tin mồi để đảm bảo listener đã sẵn sàng
-            await transport.PublishAsync(DataChangeTrackingService.DEFAULT_NATS_SUBJECT, new { Probe = true });
-            var probeReceived = await WaitUntil(() =>
+            // Bản tin mồi phát lặp định kỳ (mỗi 100ms) cho tới khi listener nhận được,
+            // khắc phục triệt để race condition khi NATS broker đăng ký subscribe nền.
+            var probeDeadline = DateTime.UtcNow.AddSeconds(5);
+            while (DateTime.UtcNow < probeDeadline)
             {
+                await transport.PublishAsync(uniqueSubject, new { Probe = true });
+                await Task.Delay(100, cts.Token);
                 lock (received)
-                    return received.Count > 0;
-            }, TimeSpan.FromSeconds(5));
-            Assert.True(probeReceived, "Listener NATS không nhận được bản tin mồi.");
+                {
+                    if (received.Count > 0)
+                        break;
+                }
+            }
             lock (received)
+            {
+                Assert.True(received.Count > 0, "Listener NATS không nhận được bản tin mồi sau 5 giây.");
                 received.Clear();
+            }
 
             // Cắm mốc gốc: PollChanges lượt đầu
             await SetStateVersion(db, -1);
-            var publisher = CreateTrackerWorker(scope, transport);
+            var publisher = CreateTrackerWorker(
+                scope,
+                transport,
+                testConfig);
             await publisher.PollChanges(cts.Token);
             Assert.True(await GetStateVersion(db) >= 0,
                 "Change Tracking chưa sẵn sàng trên CSDL test nên mốc gốc không lập được.");
@@ -3417,7 +3454,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 Assert.Equal(expectedPacketCodes.OrderBy(c => c).ToArray(), actualPacketCodes);
             }
 
-            transport.Unsubscribe(DataChangeTrackingService.DEFAULT_NATS_SUBJECT);
+            transport.Unsubscribe(uniqueSubject);
             await db.Deleteable<TmsTrafficData>().Where(t => t.EquipmentId == eqId).ExecuteCommandAsync();
             await db.Deleteable<TmsIncident>().Where(i => i.Code != null && i.Code.StartsWith($"INC_{testId}_")).ExecuteCommandAsync();
         }

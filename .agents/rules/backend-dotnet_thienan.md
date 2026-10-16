@@ -216,4 +216,20 @@ namespace Module.ShareData.Controllers
       (c) Rút gọn biểu thức dài bằng biến cục bộ trong thân hàm (không phải field/method của lớp).
     - Cách kiểm tra trước khi bàn giao: `find_usages` trên mỗi field/hằng/hàm mới thêm; thành phần chỉ chuyển tiếp sang lớp khác và không có lý do (a)-(c) thì xóa.
     - Liên quan Rule 19.68 (xóa mã không dùng) và 19.33 (không dựng lại tính năng có sẵn).
+16. **Cấm Tham Chiếu Prompt / Phiên AI Trong Comment, Tên Hàm Và Mô Tả Test (Rule 19.80)**:
+    - ⛔ **TUYỆT ĐỐI CẤM** ghi vào comment (XML doc `///`, `//`, `/* */`), mô tả test (`[Fact]`, `Description:`), chú thích SQL hoặc tên hàm/biến các tham chiếu tới prompt, phiên AI hay số thứ tự yêu cầu giao cho AI.
+    - Lý do: người đọc mã không có prompt đó, tham chiếu mất nghĩa và gây hiểu nhầm; mã phải tự giải thích.
+      ```csharp
+      // ❌ CẤM:
+      // Chuẩn bị payload một lần theo định dạng và codec (Prompt #15)
+      /// khác kỳ vọng "có cảnh báo NotReady" trong prompt
+      /// xem mục 4.1 của prompt
+
+      // CHUẨN (nêu lý do/hành vi, cần truy nguồn thì dùng mã hạng mục):
+      // Chuẩn bị payload một lần theo định dạng, rồi lưu bằng chứng và gửi đúng bộ byte đó (R18)
+      ```
+    - Cách đúng: mô tả lý do hoặc hành vi bằng lời; cần truy nguồn thì dùng mã hạng mục bền vững trong Master Plan (`R*`, `DQ-*`, `SV-*`, `BE-*`) hoặc ngày quyết định kèm link transcript; test mô tả hành vi mong đợi, không dẫn "kỳ vọng trong prompt".
+    - Phạm vi: C#, Vue/TS (kể cả test Playwright), SQL và tài liệu kỹ thuật trong repo. Ngoại lệ duy nhất: thư mục `Prompt/` (nơi lưu chính các prompt).
+    - Kiểm trước khi bàn giao: tìm `(?i)prompt\s*#?\d*|theo prompt` trong các file đã sửa; trong comment và mô tả phải không còn kết quả.
+    - Liên quan Rule 19.74 (chỉ báo cáo thay đổi thực tế).
 

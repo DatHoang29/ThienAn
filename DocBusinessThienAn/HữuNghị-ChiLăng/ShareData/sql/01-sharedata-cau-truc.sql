@@ -1,13 +1,11 @@
 -- =========================================================================================
 -- FILE: 01-sharedata-cau-truc.sql
 -- DESCRIPTION: Bổ sung và chuẩn hóa cấu trúc cột/bảng cho phân hệ ShareData (ESHARE):
---              - Khối 1 (CSDL chính DEV_ITS10):
+--              - CSDL chính DEV_ITS10:
 --                + Đảm bảo các cột ConnectionType, ConnectionConfig tồn tại trên ShareDataPartner.
 --                + Kiểm tra xung đột và chuyển đổi cấu hình địa chỉ/cổng/endpoint từ JSON
 --                  ConnectionConfig sang các cột riêng (Address, Port, EndPointApiUrl).
 --                + Dọn dẹp các key địa chỉ/cổng khỏi ConnectionConfig bằng JSON_MODIFY.
---              - Khối 2 (CSDL nhận DEV_ITS10_Inbound):
---                + Bổ sung cột SenderProcessedAt DATETIME2 NULL vào bảng ShareDataInboundPacket.
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
@@ -15,7 +13,7 @@
 -- =========================================================================================
 
 -- =========================================================================================
--- KHỐI 1: CSDL CHÍNH [DEV_ITS10] - CHUẨN HÓA CỘT ĐỐI TÁC ShareDataPartner
+-- CSDL CHÍNH [DEV_ITS10] - CHUẨN HÓA CỘT ĐỐI TÁC ShareDataPartner
 -- =========================================================================================
 USE [DEV_ITS10];
 GO
@@ -23,7 +21,7 @@ GO
 SET NOCOUNT ON;
 
 PRINT N'=============================================================================';
-PRINT N'BẮT ĐẦU KHỐI 1: CHUẨN HÓA CỘT ĐỐI TÁC ShareDataPartner TRÊN DEV_ITS10';
+PRINT N'CHUẨN HÓA CỘT ĐỐI TÁC ShareDataPartner TRÊN DEV_ITS10';
 PRINT N'=============================================================================';
 
 -- 0. Đảm bảo các cột ConnectionType và ConnectionConfig đã tồn tại trên ShareDataPartner
@@ -171,7 +169,7 @@ BEGIN
       );
     PRINT N'  -> Đã dọn dẹp các key địa chỉ/cổng trong JSON ConnectionConfig: ' + CAST(@@ROWCOUNT AS NVARCHAR(10)) + N' dòng.';
 
-    PRINT N'✅ Hoàn tất Khối 1: Chuẩn hóa cột đối tác trên DEV_ITS10.';
+    PRINT N'✅ Hoàn tất: Chuẩn hóa cột đối tác trên DEV_ITS10.';
 END
 ELSE
 BEGIN
@@ -179,46 +177,3 @@ BEGIN
 END
 GO
 
--- =========================================================================================
--- KHỐI 2: CSDL NHẬN [DEV_ITS10_Inbound] - BỔ SUNG CỘT BẢNG ShareDataInboundPacket
--- =========================================================================================
-USE [DEV_ITS10_Inbound];
-GO
-
-SET NOCOUNT ON;
-
-PRINT N'=============================================================================';
-PRINT N'BẮT ĐẦU KHỐI 2: BỔ SUNG CỘT CHO BẢNG ShareDataInboundPacket TRÊN DEV_ITS10_Inbound';
-PRINT N'=============================================================================';
-
-IF OBJECT_ID(N'dbo.ShareDataInboundPacket', N'U') IS NULL
-BEGIN
-    PRINT N'⚠️ Không tìm thấy bảng dbo.ShareDataInboundPacket trên CSDL DEV_ITS10_Inbound.';
-    PRINT N'⚠️ Vui lòng đảm bảo bạn đang chạy trên CSDL Inbound (DEV_ITS10_Inbound) thay vì CSDL chính.';
-END
-ELSE
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 
-        FROM sys.columns
-        WHERE object_id = OBJECT_ID(N'dbo.ShareDataInboundPacket')
-          AND name = N'SenderProcessedAt'
-    )
-    BEGIN
-        ALTER TABLE dbo.ShareDataInboundPacket ADD SenderProcessedAt DATETIME2 NULL;
-        PRINT N'  -> Đã thêm cột SenderProcessedAt DATETIME2 NULL vào bảng ShareDataInboundPacket.';
-    END
-    ELSE
-    BEGIN
-        PRINT N'  -> Cột SenderProcessedAt đã tồn tại trên ShareDataInboundPacket, bỏ qua.';
-    END
-
-    /* Đối chiếu kiểm tra cấu trúc cột */
-    SELECT name AS ColumnName, TYPE_NAME(system_type_id) AS DataType, max_length, is_nullable
-    FROM   sys.columns
-    WHERE  object_id = OBJECT_ID(N'dbo.ShareDataInboundPacket')
-      AND  name = N'SenderProcessedAt';
-
-    PRINT N'✅ Hoàn tất Khối 2: Cột SenderProcessedAt trên DEV_ITS10_Inbound.';
-END
-GO

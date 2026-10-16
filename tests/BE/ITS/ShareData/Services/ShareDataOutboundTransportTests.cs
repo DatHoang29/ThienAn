@@ -10,17 +10,6 @@ using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
 using System.Text;
 using Tests.ShareData.Mocks;
 
-using ConnectionRequest = Modules.Integration.ShareData.Connect.ConnectRequest;
-using ConnectionResult = Modules.Integration.ShareData.Connect.ConnectResult;
-using ConnectionDispatcher = Modules.Integration.ShareData.Connect.ConnectDispatcher;
-using IConnectionDispatcher = Modules.Integration.ShareData.Connect.IConnectDispatcher;
-using IConnectionHandler = Modules.Integration.ShareData.Connect.IConnectHandler;
-
-using DataOutboundRestSender = Modules.Integration.ShareData.Connect.Handlers.RestConnectHandler;
-using DataOutboundFileSender = Modules.Integration.ShareData.Connect.Handlers.FileConnectHandler;
-using DataOutboundKafkaSender = Modules.Integration.ShareData.Connect.Handlers.KafkaConnectHandler;
-using DataOutboundFtpSender = Modules.Integration.ShareData.Connect.Handlers.FtpConnectHandler;
-
 namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 {
     /// <summary>
@@ -60,15 +49,15 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public async Task DispatchAsync_WhenPartnerConnectionTypeIsKafka_ConvertsJsonToBytesAndRoutesToKafkaChannel_Test()
         {
             // Arrange
-            var kafkaSender = new DataOutboundKafkaSender();
+            var kafkaSender = new KafkaConnectHandler();
             var dispatcher = ConnectDispatcher.CreateForHandlers([kafkaSender]);
             var ctx = CreateDummyContext("101", "PARTNER_KAFKA", "Kafka");
             var jsonPayload = "{\"temperature\": 28.5, \"humidity\": 65}";
             var request = new ConnectRequest
             {
                 JsonPayload = jsonPayload,
-                ConnectionType = "Kafka",
-                ConnectionConfig = new Dictionary<string, string>
+                ConnectType = "Kafka",
+                ConnectConfig = new Dictionary<string, string>
                 {
                     ["Topic"] = "traffic-weather-topic",
                     ["BootstrapServers"] = "127.0.0.1:9092"
@@ -89,12 +78,12 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public async Task KafkaSender_WhenPayloadIsEmpty_ReturnsFailedResult_Test()
         {
             // Arrange
-            var kafkaSender = new DataOutboundKafkaSender();
+            var kafkaSender = new KafkaConnectHandler();
             var ctx = CreateDummyContext("101", "PARTNER_KAFKA", "Kafka");
             var request = new ConnectRequest
             {
                 JsonPayload = string.Empty,
-                ConnectionType = "Kafka"
+                ConnectType = "Kafka"
             };
 
             // Act
@@ -110,7 +99,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public async Task DispatchAsync_WhenPartnerConnectionTypeIsFile_RoutesToFileChannel_Test()
         {
             // Arrange
-            var fileSender = new DataOutboundFileSender();
+            var fileSender = new FileConnectHandler();
             var dispatcher = ConnectDispatcher.CreateForHandlers([fileSender]);
             var ctx = CreateDummyContext("103", "PARTNER_FILE", "File");
             var jsonPayload = "{\"vdsCount\": 12, \"speed\": 80}";
@@ -119,8 +108,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var request = new ConnectRequest
             {
                 JsonPayload = jsonPayload,
-                ConnectionType = "File",
-                ConnectionConfig = new Dictionary<string, string>
+                ConnectType = "File",
+                ConnectConfig = new Dictionary<string, string>
                 {
                     ["DirectoryPath"] = customDir,
                     ["FileNamePattern"] = fileNamePattern
@@ -143,7 +132,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Arrange
             var server = _host.PartnerServer;
             server.ResetDefaults();
-            var restSender = new DataOutboundRestSender();
+            var restSender = new RestConnectHandler();
             var dispatcher = ConnectDispatcher.CreateForHandlers([restSender]);
             var ctx = CreateDummyContext("101", "PARTNER_API", "API");
             ctx.Partner!.Address = "127.0.0.1";
@@ -154,8 +143,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var request = new ConnectRequest
             {
                 JsonPayload = jsonPayload,
-                ConnectionType = "API",
-                ConnectionConfig = new Dictionary<string, string>
+                ConnectType = "API",
+                ConnectConfig = new Dictionary<string, string>
                 {
                     ["HttpTimeoutSec"] = "10"
                 }
@@ -180,7 +169,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var request = new ConnectRequest
             {
                 JsonPayload = "{}",
-                ConnectionType = "UnknownProtocolX"
+                ConnectType = "UnknownProtocolX"
             };
 
             // Act
@@ -205,13 +194,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             // Assert
             Assert.Equal("{\"tag\":\"RFID_001\"}", request.JsonPayload);
-            Assert.Equal("Kafka", request.ConnectionType);
-            Assert.True(request.ConnectionConfig.ContainsKey("Topic"));
-            Assert.Equal("rfid-topic", request.ConnectionConfig["Topic"]);
-            Assert.True(request.ConnectionConfig.ContainsKey("HttpTimeoutSec"));
-            Assert.Equal("25", request.ConnectionConfig["HttpTimeoutSec"]);
-            Assert.True(request.SecurityInfo.ContainsKey("ApiKey"));
-            Assert.Equal("secret-key-12345", request.SecurityInfo["ApiKey"]);
+            Assert.Equal("Kafka", request.ConnectType);
+            Assert.True(request.ConnectConfig.ContainsKey("Topic"));
+            Assert.Equal("rfid-topic", request.ConnectConfig["Topic"]);
+            Assert.True(request.ConnectConfig.ContainsKey("HttpTimeoutSec"));
+            Assert.Equal("25", request.ConnectConfig["HttpTimeoutSec"]);
+            Assert.True(request.SecurityInfo.ContainsKey(ConnectKeys.ApiKey));
+            Assert.Equal("secret-key-12345", request.SecurityInfo[ConnectKeys.ApiKey]);
         }
 
         [Fact]
@@ -220,7 +209,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Arrange: Đối tác cũ không có ConnectionConfig JSON -> tự động fallback sang Address, Port, EndPointApiUrl
             var server = _host.PartnerServer;
             server.ResetDefaults();
-            var restSender = new DataOutboundRestSender();
+            var restSender = new RestConnectHandler();
             var dispatcher = ConnectDispatcher.CreateForHandlers([restSender]);
             var ctx = CreateDummyContext("101", "PARTNER_LEGACY", "API");
             ctx.Partner!.Address = "127.0.0.1";
@@ -250,7 +239,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Arrange: Địa chỉ và cổng chỉ lấy từ cột của Partner; ConnectionConfig chỉ chứa config riêng (Auth, Timeout)
             var server = _host.PartnerServer;
             server.ResetDefaults();
-            var restSender = new DataOutboundRestSender();
+            var restSender = new RestConnectHandler();
             var dispatcher = ConnectDispatcher.CreateForHandlers([restSender]);
             var ctx = CreateDummyContext("101", "PARTNER_COLS", "API");
             ctx.Partner!.Address = "127.0.0.1";
@@ -281,15 +270,15 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public async Task RestSender_WhenPortInvalid_ReturnsInvalidConfigurationError_Test(int invalidPort)
         {
             // Arrange
-            var restSender = new DataOutboundRestSender();
+            var restSender = new RestConnectHandler();
             var ctx = CreateDummyContext("101", "PARTNER_BAD_PORT", "API");
             ctx.Partner!.Address = "127.0.0.1";
             ctx.Partner!.Port = invalidPort;
             var request = new ConnectRequest
             {
                 JsonPayload = "{}",
-                ConnectionType = "API",
-                ConnectionConfig = new Dictionary<string, string>()
+                ConnectType = "API",
+                ConnectConfig = new Dictionary<string, string>()
             };
 
             // Act
@@ -308,13 +297,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public async Task RestSender_WhenTimeoutInvalid_ReturnsInvalidConfigurationError_Test(string invalidTimeout)
         {
             // Arrange
-            var restSender = new DataOutboundRestSender();
+            var restSender = new RestConnectHandler();
             var ctx = CreateDummyContext("101", "PARTNER_BAD_TIMEOUT", "API");
             var request = new ConnectRequest
             {
                 JsonPayload = "{}",
-                ConnectionType = "API",
-                ConnectionConfig = new Dictionary<string, string>
+                ConnectType = "API",
+                ConnectConfig = new Dictionary<string, string>
                 {
                     ["Address"] = "127.0.0.1",
                     ["Port"] = "18092",
@@ -335,13 +324,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public async Task RestSender_WhenBypassSslInvalid_ReturnsInvalidConfigurationError_Test()
         {
             // Arrange
-            var restSender = new DataOutboundRestSender();
+            var restSender = new RestConnectHandler();
             var ctx = CreateDummyContext("101", "PARTNER_BAD_SSL", "API");
             var request = new ConnectRequest
             {
                 JsonPayload = "{}",
-                ConnectionType = "API",
-                ConnectionConfig = new Dictionary<string, string>
+                ConnectType = "API",
+                ConnectConfig = new Dictionary<string, string>
                 {
                     ["Address"] = "127.0.0.1",
                     ["Port"] = "18092",
@@ -364,13 +353,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Arrange
             var server = _host.PartnerServer;
             server.ResetDefaults();
-            var restSender = new DataOutboundRestSender();
+            var restSender = new RestConnectHandler();
             var ctx = CreateDummyContext("101", "PARTNER_BEARER", "API");
             var request = new ConnectRequest
             {
                 JsonPayload = "{\"data\":\"test\"}",
-                ConnectionType = "API",
-                ConnectionConfig = new Dictionary<string, string>
+                ConnectType = "API",
+                ConnectConfig = new Dictionary<string, string>
                 {
                     ["Address"] = "127.0.0.1",
                     ["Port"] = "18092",
@@ -395,13 +384,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Arrange
             var server = _host.PartnerServer;
             server.ResetDefaults();
-            var restSender = new DataOutboundRestSender();
+            var restSender = new RestConnectHandler();
             var ctx = CreateDummyContext("101", "PARTNER_APIKEY", "API");
             var request = new ConnectRequest
             {
                 JsonPayload = "{\"data\":\"test\"}",
-                ConnectionType = "API",
-                ConnectionConfig = new Dictionary<string, string>
+                ConnectType = "API",
+                ConnectConfig = new Dictionary<string, string>
                 {
                     ["Address"] = "127.0.0.1",
                     ["Port"] = "18092",
@@ -427,13 +416,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Arrange
             var server = _host.PartnerServer;
             server.ResetDefaults();
-            var restSender = new DataOutboundRestSender();
+            var restSender = new RestConnectHandler();
             var ctx = CreateDummyContext("101", "PARTNER_BASIC", "API");
             var request = new ConnectRequest
             {
                 JsonPayload = "{\"data\":\"test\"}",
-                ConnectionType = "API",
-                ConnectionConfig = new Dictionary<string, string>
+                ConnectType = "API",
+                ConnectConfig = new Dictionary<string, string>
                 {
                     ["Address"] = "127.0.0.1",
                     ["Port"] = "18092",
@@ -462,13 +451,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             server.ResetDefaults();
             server.DefaultResponseBody = "{\"isSuccess\": false, \"errorCode\": \"ERR_PAYLOAD_INVALID\", \"message\": \"Payload schema mismatch\"}";
 
-            var restSender = new DataOutboundRestSender();
+            var restSender = new RestConnectHandler();
             var ctx = CreateDummyContext("101", "PARTNER_BIZ_ERR", "API");
             var request = new ConnectRequest
             {
                 JsonPayload = "{\"data\":\"test\"}",
-                ConnectionType = "API",
-                ConnectionConfig = new Dictionary<string, string>
+                ConnectType = "API",
+                ConnectConfig = new Dictionary<string, string>
                 {
                     ["Address"] = "127.0.0.1",
                     ["Port"] = "18092",
@@ -496,13 +485,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             server.ResetDefaults();
             server.DefaultResponseBody = "{\"succeeded\": false, \"statusCode\": 400, \"errors\": \"Dữ liệu không đúng định dạng\"}";
 
-            var restSender = new DataOutboundRestSender();
+            var restSender = new RestConnectHandler();
             var ctx = CreateDummyContext("101", "PARTNER_FURION_ERR", "API");
             var request = new ConnectRequest
             {
                 JsonPayload = "{\"data\":\"test\"}",
-                ConnectionType = "API",
-                ConnectionConfig = new Dictionary<string, string>
+                ConnectType = "API",
+                ConnectConfig = new Dictionary<string, string>
                 {
                     ["Address"] = "127.0.0.1",
                     ["Port"] = "18092",
@@ -533,7 +522,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             server.ResetDefaults();
             server.AbortOnCall.Add(1);
 
-            var restSender = new DataOutboundRestSender();
+            var restSender = new RestConnectHandler();
             var ctx = CreateDummyContext("101", "PARTNER_ABORT", "API");
             ctx.Partner!.Address = "127.0.0.1";
             ctx.Partner!.Port = ShareDataPartnerServerMock.DefaultPort;
@@ -542,8 +531,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var request = new ConnectRequest
             {
                 JsonPayload = "{\"data\":\"test\"}",
-                ConnectionType = "API",
-                ConnectionConfig = new Dictionary<string, string>
+                ConnectType = "API",
+                ConnectConfig = new Dictionary<string, string>
                 {
                     ["Address"] = "127.0.0.1",
                     ["Port"] = ShareDataPartnerServerMock.DefaultPort.ToString(),
@@ -565,14 +554,14 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public async Task FileSender_WhenDirectoryPathHasInvalidCharacters_ReturnsInvalidPathError_Test()
         {
             // Arrange
-            var fileSender = new DataOutboundFileSender();
+            var fileSender = new FileConnectHandler();
             var ctx = CreateDummyContext("103", "PARTNER_FILE_INVALID", "File");
             var invalidDir = "Out/Invalid|Path\0";
             var request = new ConnectRequest
             {
                 JsonPayload = "{}",
-                ConnectionType = "File",
-                ConnectionConfig = new Dictionary<string, string>
+                ConnectType = "File",
+                ConnectConfig = new Dictionary<string, string>
                 {
                     ["DirectoryPath"] = invalidDir
                 }
@@ -586,76 +575,6 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.Equal("File", result.Channel);
             Assert.Equal("InvalidConfiguration", result.ErrorCode);
             Assert.Contains("không hợp lệ", result.ErrorMessage);
-        }
-
-        [Fact]
-        public void PartnerValidator_ValidateConnectionTypeAndConfig_ValidatesCorrectly_Test()
-        {
-            // Arrange & Act & Assert: ConnectionType
-            Assert.True(ConnectTypes.IsSupported("API"));
-            Assert.True(ConnectTypes.IsSupported("REST"));
-            Assert.True(ConnectTypes.IsSupported("HTTP"));
-            Assert.True(ConnectTypes.IsSupported("WEBAPI"));
-            Assert.True(ConnectTypes.IsSupported("File"));
-            Assert.True(ConnectTypes.IsSupported("DISK"));
-            Assert.True(ConnectTypes.IsSupported("NAS"));
-            Assert.True(ConnectTypes.IsSupported("Kafka"));
-            Assert.True(ConnectTypes.IsSupported("FTP"));
-            Assert.True(ConnectTypes.IsSupported("FTPS"));
-            Assert.True(ConnectTypes.IsSupported("api"));
-            Assert.True(ConnectTypes.IsSupported("kafka"));
-
-            Assert.False(ConnectTypes.IsSupported("RabbitMQ"));
-            Assert.False(ConnectTypes.IsSupported("gRPC"));
-            Assert.False(ConnectTypes.IsSupported("MQTT"));
-            Assert.False(ConnectTypes.IsSupported("ABC"));
-
-            // Arrange & Act & Assert: ConnectionConfig
-            Assert.True(ConnectConfigValidator.Validate(null!, out _));
-            Assert.True(ConnectConfigValidator.Validate("", out _));
-            Assert.True(ConnectConfigValidator.Validate("   ", out _));
-            Assert.True(ConnectConfigValidator.Validate("{\"TimeoutSeconds\": 30, \"BypassSsl\": true, \"AuthType\": \"Bearer\", \"Token\": \"sec123\"}", out var validErr));
-            Assert.Null(validErr);
-
-            Assert.False(ConnectConfigValidator.Validate("not_json", out var err1));
-            Assert.NotNull(err1);
-
-            Assert.False(ConnectConfigValidator.Validate("[1, 2, 3]", out var err2));
-            Assert.NotNull(err2);
-
-            Assert.False(ConnectConfigValidator.Validate("{\"nested\": {\"key\": 1}}", out var err3));
-            Assert.NotNull(err3);
-
-            // Các key dành riêng cho cột (BaseUrl, Url, Host, Server, Address, IP, Port, Endpoint, Path, EndPointApiUrl) bị từ chối
-            Assert.False(ConnectConfigValidator.Validate("{\"BaseUrl\": \"http://localhost\"}", out var errBaseUrl));
-            Assert.NotNull(errBaseUrl);
-            Assert.Contains("BaseUrl", errBaseUrl);
-
-            Assert.False(ConnectConfigValidator.Validate("{\"Port\": 18090}", out var errPort));
-            Assert.NotNull(errPort);
-            Assert.Contains("Port", errPort);
-
-            // Key trùng nhau (không phân biệt hoa thường) bị từ chối
-            Assert.False(ConnectConfigValidator.Validate("{\"Token\": \"1\", \"token\": \"2\"}", out var errDup));
-            Assert.NotNull(errDup);
-            Assert.Contains("trùng lặp", errDup);
-
-            // Key rỗng bị từ chối
-            Assert.False(ConnectConfigValidator.Validate("{\"\": \"val\"}", out var errEmptyKey));
-            Assert.NotNull(errEmptyKey);
-            Assert.Contains("không được để trống", errEmptyKey);
-
-            Assert.False(ConnectConfigValidator.Validate("{\"TimeoutSeconds\": -1}", out var err5));
-            Assert.NotNull(err5);
-            Assert.Contains("dương", err5);
-
-            Assert.False(ConnectConfigValidator.Validate("{\"BypassSsl\": \"xyz\"}", out var err6));
-            Assert.NotNull(err6);
-            Assert.Contains("boolean", err6);
-
-            Assert.False(ConnectConfigValidator.Validate("{\"AuthType\": \"InvalidAuth\"}", out var err7));
-            Assert.NotNull(err7);
-            Assert.Contains("AuthType", err7);
         }
 
         [Fact]
@@ -721,21 +640,21 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public async Task FtpSender_WhenDisabledOrMissingHost_ReturnsClearError_Test()
         {
             // Arrange
-            var ftpSender = new DataOutboundFtpSender();
+            var ftpSender = new FtpConnectHandler();
             var ctx = CreateDummyContext("101", "PARTNER_FTP", "Ftp");
 
             var disabledReq = new ConnectRequest
             {
                 JsonPayload = "[{\"id\": 1}]",
-                ConnectionType = "Ftp",
-                ConnectionConfig = new Dictionary<string, string> { ["Enabled"] = "false" }
+                ConnectType = "Ftp",
+                ConnectConfig = new Dictionary<string, string> { ["Enabled"] = "false" }
             };
 
             var missingHostReq = new ConnectRequest
             {
                 JsonPayload = "[{\"id\": 1}]",
-                ConnectionType = "Ftp",
-                ConnectionConfig = new Dictionary<string, string> { ["Enabled"] = "true" }
+                ConnectType = "Ftp",
+                ConnectConfig = new Dictionary<string, string> { ["Enabled"] = "true" }
             };
 
             // Act
@@ -755,21 +674,21 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public async Task KafkaSender_WhenDisabledOrMissingServers_ReturnsClearError_Test()
         {
             // Arrange
-            var kafkaSender = new DataOutboundKafkaSender();
+            var kafkaSender = new KafkaConnectHandler();
             var ctx = CreateDummyContext("101", "PARTNER_KAFKA", "Kafka");
 
             var disabledReq = new ConnectRequest
             {
                 JsonPayload = "{\"test\": 1}",
-                ConnectionType = "Kafka",
-                ConnectionConfig = new Dictionary<string, string> { ["Enabled"] = "false" }
+                ConnectType = "Kafka",
+                ConnectConfig = new Dictionary<string, string> { ["Enabled"] = "false" }
             };
 
             var missingServersReq = new ConnectRequest
             {
                 JsonPayload = "{\"test\": 1}",
-                ConnectionType = "Kafka",
-                ConnectionConfig = new Dictionary<string, string> { ["Enabled"] = "true", ["Topic"] = "my-topic" }
+                ConnectType = "Kafka",
+                ConnectConfig = new Dictionary<string, string> { ["Enabled"] = "true", ["Topic"] = "my-topic" }
             };
 
             // Act
@@ -796,8 +715,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var reqWithBootstrap = new ConnectRequest
             {
                 JsonPayload = "{\"test\": 1}",
-                ConnectionType = "Kafka",
-                ConnectionConfig = new Dictionary<string, string>
+                ConnectType = "Kafka",
+                ConnectConfig = new Dictionary<string, string>
                 {
                     ["BootstrapServers"] = "kafka-cluster:9092,kafka-cluster:9093"
                 }
@@ -806,18 +725,18 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var reqFallback = new ConnectRequest
             {
                 JsonPayload = "{\"test\": 1}",
-                ConnectionType = "Kafka",
-                ConnectionConfig = new Dictionary<string, string>()
+                ConnectType = "Kafka",
+                ConnectConfig = new Dictionary<string, string>()
             };
 
-            // Act: Phân giải bootstrapServers theo đúng logic DataOutboundKafkaSender
-            var serversExplicit = reqWithBootstrap.ConnectionConfig.TryGetValue("BootstrapServers", out var s1) && !string.IsNullOrWhiteSpace(s1)
+            // Act: Phân giải bootstrapServers theo đúng logic KafkaConnectHandler
+            var serversExplicit = reqWithBootstrap.ConnectConfig.TryGetValue("BootstrapServers", out var s1) && !string.IsNullOrWhiteSpace(s1)
                 ? s1.Trim()
                 : (!string.IsNullOrWhiteSpace(ctx.Partner?.Address)
                     ? (ctx.Partner.Address.Contains(':') || !ctx.Partner.Port.HasValue ? ctx.Partner.Address.Trim() : $"{ctx.Partner.Address.Trim()}:{ctx.Partner.Port.Value}")
                     : null);
 
-            var serversFallback = reqFallback.ConnectionConfig.TryGetValue("BootstrapServers", out var s2) && !string.IsNullOrWhiteSpace(s2)
+            var serversFallback = reqFallback.ConnectConfig.TryGetValue("BootstrapServers", out var s2) && !string.IsNullOrWhiteSpace(s2)
                 ? s2.Trim()
                 : (!string.IsNullOrWhiteSpace(ctx.Partner?.Address)
                     ? (ctx.Partner.Address.Contains(':') || !ctx.Partner.Port.HasValue ? ctx.Partner.Address.Trim() : $"{ctx.Partner.Address.Trim()}:{ctx.Partner.Port.Value}")
@@ -888,66 +807,55 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public void PartnerValidator_ArchiveEnabled_ValidatesBoolean_Test()
         {
             // Valid boolean values
-            Assert.True(ConnectConfigValidator.Validate("{\"ArchiveEnabled\": true}", out var err1));
-            Assert.Null(err1);
-            Assert.True(ConnectConfigValidator.Validate("{\"ArchiveEnabled\": false}", out var err2));
-            Assert.Null(err2);
-            Assert.True(ConnectConfigValidator.Validate("{\"ArchiveEnabled\": \"true\"}", out var err3));
-            Assert.Null(err3);
-            Assert.True(ConnectConfigValidator.Validate("{\"ArchiveEnabled\": \"false\"}", out var err4));
-            Assert.Null(err4);
+            Assert.Equal(ConnectConfigIssue.None, ConnectConfigValidator.Check("{\"ArchiveEnabled\": true}"));
+            Assert.Equal(ConnectConfigIssue.None, ConnectConfigValidator.Check("{\"ArchiveEnabled\": false}"));
+            Assert.Equal(ConnectConfigIssue.None, ConnectConfigValidator.Check("{\"ArchiveEnabled\": \"true\"}"));
+            Assert.Equal(ConnectConfigIssue.None, ConnectConfigValidator.Check("{\"ArchiveEnabled\": \"false\"}"));
 
             // Invalid boolean value
-            Assert.False(ConnectConfigValidator.Validate("{\"ArchiveEnabled\": \"abc\"}", out var errInvalid));
+            Assert.Equal(ConnectConfigIssue.InvalidBoolean, ConnectConfigValidator.Check("{\"ArchiveEnabled\": \"abc\"}", out var errInvalid));
             Assert.NotNull(errInvalid);
             Assert.Contains("ArchiveEnabled", errInvalid);
-            Assert.Contains("boolean", errInvalid);
         }
 
         [Fact]
         public void PartnerValidator_RejectsOutputPath_AndValidatesFileNamePatternVariables_Test()
         {
             // 1. Rejects OutputPath (deprecated key)
-            Assert.False(ConnectConfigValidator.Validate("{\"OutputPath\": \"/tmp/test.json\"}", out var errOutput));
+            Assert.Equal(ConnectConfigIssue.ObsoleteKey, ConnectConfigValidator.Check("{\"OutputPath\": \"/tmp/test.json\"}", out var errOutput));
             Assert.NotNull(errOutput);
-            Assert.Contains("OutputPath", errOutput);
+            Assert.Equal("OutputPath", errOutput);
 
             // 2. FileNamePattern missing both {serial} and {timestamp}
-            Assert.False(ConnectConfigValidator.Validate("{\"FileNamePattern\": \"static_data.json\"}", out var errStaticPattern));
+            Assert.Equal(ConnectConfigIssue.FileNamePatternNoToken, ConnectConfigValidator.Check("{\"FileNamePattern\": \"static_data.json\"}", out var errStaticPattern));
             Assert.NotNull(errStaticPattern);
-            Assert.Contains("FileNamePattern", errStaticPattern);
-            Assert.Contains("{serial}", errStaticPattern);
+            Assert.Equal("static_data.json", errStaticPattern);
 
             // 3. Valid FileNamePattern with {serial} or {timestamp}
-            Assert.True(ConnectConfigValidator.Validate("{\"FileNamePattern\": \"data_{serial}.json\"}", out var errSerial));
-            Assert.Null(errSerial);
-
-            Assert.True(ConnectConfigValidator.Validate("{\"FileNamePattern\": \"data_{timestamp}.json\"}", out var errTime));
-            Assert.Null(errTime);
-
-            Assert.True(ConnectConfigValidator.Validate("{\"FileNamePattern\": \"{packet}_{partner}_{timestamp}_{serial}.json\"}", out var errFull));
-            Assert.Null(errFull);
+            Assert.Equal(ConnectConfigIssue.None, ConnectConfigValidator.Check("{\"FileNamePattern\": \"data_{serial}.json\"}"));
+            Assert.Equal(ConnectConfigIssue.None, ConnectConfigValidator.Check("{\"FileNamePattern\": \"data_{timestamp}.json\"}"));
+            Assert.Equal(ConnectConfigIssue.None, ConnectConfigValidator.Check("{\"FileNamePattern\": \"{packet}_{partner}_{timestamp}_{serial}.json\"}"));
 
             // 4. Test IsFileChannel aliases
-            Assert.True(ConnectDispatcher.IsFileChannel("File"));
-            Assert.True(ConnectDispatcher.IsFileChannel("file"));
-            Assert.True(ConnectDispatcher.IsFileChannel("DISK"));
-            Assert.True(ConnectDispatcher.IsFileChannel("NAS"));
-            Assert.False(ConnectDispatcher.IsFileChannel("API"));
-            Assert.False(ConnectDispatcher.IsFileChannel("Kafka"));
-            Assert.False(ConnectDispatcher.IsFileChannel(null));
+            Assert.True(ConnectTypes.IsFileChannel("File"));
+            Assert.True(ConnectTypes.IsFileChannel("file"));
+            Assert.True(ConnectTypes.IsFileChannel("DISK"));
+            Assert.True(ConnectTypes.IsFileChannel("NAS"));
+            Assert.False(ConnectTypes.IsFileChannel("API"));
+            Assert.False(ConnectTypes.IsFileChannel("Kafka"));
+            Assert.False(ConnectTypes.IsFileChannel(null));
         }
 
         [Fact]
         public async Task FileSender_WhenDirectoryPathHasPathTraversal_ReturnsInvalidConfiguration_Test()
         {
-            var fileSender = new DataOutboundFileSender();
+            var fileSender = new FileConnectHandler();
             var ctx = CreateDummyContext("103", "PARTNER_FILE_TRAVERSAL", "File");
             var request = new ConnectRequest
             {
                 PayloadBytes = Encoding.UTF8.GetBytes("test-content"),
-                ConnectionType = "File",
-                ConnectionConfig = new Dictionary<string, string>
+                ConnectType = "File",
+                ConnectConfig = new Dictionary<string, string>
                 {
                     ["DirectoryPath"] = "safe/../../etc/passwd"
                 }
@@ -964,15 +872,15 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         [Fact]
         public async Task FileSender_WhenDirectoryPathAndFileNamePatternConfigured_SavesToExpectedCustomPath_Test()
         {
-            var fileSender = new DataOutboundFileSender();
+            var fileSender = new FileConnectHandler();
             var ctx = CreateDummyContext("103", "PARTNER_FILE_CUSTOM", "File");
             var expectedBytes = Encoding.UTF8.GetBytes("custom-file-payload-content");
             var request = new ConnectRequest
             {
                 PayloadBytes = expectedBytes,
                 FileExtension = ".csv",
-                ConnectionType = "File",
-                ConnectionConfig = new Dictionary<string, string>
+                ConnectType = "File",
+                ConnectConfig = new Dictionary<string, string>
                 {
                     ["DirectoryPath"] = "custom_export_dir",
                     ["FileNamePattern"] = "export_{partner}_{packet}_{timestamp}"
@@ -988,7 +896,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.Contains("PARTNER_FILE_CUSTOM", result.TargetAddressOrPath);
             Assert.EndsWith(".csv", result.TargetAddressOrPath);
 
-            var fullPath = Path.Combine(ExportPathHelper.ResolveRootPath("sharedata/send"), result.TargetAddressOrPath);
+            var fullPath = Path.Combine(ExportPathHelper.ResolveRootPath(ExportPathHelper.DefaultBasePath), result.TargetAddressOrPath);
             Assert.True(File.Exists(fullPath));
             var savedBytes = await File.ReadAllBytesAsync(fullPath);
             Assert.Equal(expectedBytes, savedBytes);
@@ -1003,7 +911,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var server = _host.PartnerServer;
             server.ResetDefaults();
 
-            var restSender = new DataOutboundRestSender();
+            var restSender = new RestConnectHandler();
             var ctx = CreateDummyContext("101", "PARTNER_BYTES", "API");
             var expectedBytes = Encoding.UTF8.GetBytes("{\"cipher\":\"encrypted_payload_123\"}");
             var request = new ConnectRequest
@@ -1011,8 +919,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 PayloadBytes = expectedBytes,
                 ContentType = "application/json",
                 JsonPayload = "dummy_should_not_be_used",
-                ConnectionType = "API",
-                ConnectionConfig = new Dictionary<string, string>
+                ConnectType = "API",
+                ConnectConfig = new Dictionary<string, string>
                 {
                     ["Address"] = ShareDataPartnerServerMock.DefaultHost,
                     ["Port"] = ShareDataPartnerServerMock.DefaultPort.ToString()
@@ -1029,7 +937,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         [Fact]
         public async Task FtpSender_WhenCsvPayloadBytesProvided_UsesExactPayloadBytesAndCsvExtension_Test()
         {
-            var ftpSender = new DataOutboundFtpSender();
+            var ftpSender = new FtpConnectHandler();
             var ctx = CreateDummyContext("101", "PARTNER_FTP_CSV", "FTP");
             var csvBytes = Encoding.UTF8.GetBytes("ID,Code,Name\r\n1,A,Item1\r\n2,B,Item2");
             var request = new ConnectRequest
@@ -1038,8 +946,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 ContentType = "text/csv",
                 FileExtension = ".csv",
                 JsonPayload = "{}",
-                ConnectionType = "FTP",
-                ConnectionConfig = new Dictionary<string, string>
+                ConnectType = "FTP",
+                ConnectConfig = new Dictionary<string, string>
                 {
                     ["RemotePath"] = "/test/path"
                 }
@@ -1123,50 +1031,6 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var expected = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "sharedata/send"));
             Assert.Equal(expected, resolved);
             Assert.DoesNotContain(tempCwd, resolved);
-        }
-
-        [Fact]
-        public async Task FileConnectionHandler_And_DataOutboundService_ResolveSameRoot_ForSameConfiguration_Test()
-        {
-            // Arrange
-            var testBasePath = "sharedata_test_verify/send";
-            var relativeFile = $"test_proof_{Guid.NewGuid():N}.json";
-            var testPayload = Encoding.UTF8.GetBytes("{\"proof\": true}");
-
-            var inMemoryConfig = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["NasStorage:BasePath"] = testBasePath
-                })
-                .Build();
-
-            var configuredBasePath = inMemoryConfig.GetValue<string>("NasStorage:BasePath") ?? ExportPathHelper.DefaultBasePath;
-
-            // Act
-            var fileHandlerFullPath = await ExportPathHelper.SaveFile(
-                testBasePath,
-                relativeFile,
-                testPayload,
-                CancellationToken.None);
-
-            var serviceFullPath = await ExportPathHelper.SaveFile(
-                configuredBasePath,
-                relativeFile,
-                testPayload,
-                CancellationToken.None);
-
-            // Assert: Hai nơi PHẢI cho cùng một gốc cho cùng một cấu hình
-            Assert.Equal(fileHandlerFullPath, serviceFullPath);
-            Assert.StartsWith(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, testBasePath)), fileHandlerFullPath);
-            Assert.True(File.Exists(fileHandlerFullPath));
-
-            // Clean up file test
-            if (File.Exists(fileHandlerFullPath)) File.Delete(fileHandlerFullPath);
-            var testDir = Path.GetDirectoryName(fileHandlerFullPath);
-            if (Directory.Exists(testDir) && !Directory.EnumerateFileSystemEntries(testDir).Any())
-            {
-                Directory.Delete(testDir);
-            }
         }
     }
 

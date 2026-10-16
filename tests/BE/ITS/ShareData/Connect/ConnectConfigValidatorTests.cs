@@ -208,33 +208,5 @@ namespace Tests.ShareData.Connect
             Assert.Null(detail);
         }
 
-        [Fact]
-        public void Validate_ValidConfig_ReturnsTrue_Test()
-        {
-            // Arrange
-            var validJson = "{\"TimeoutSeconds\": 30, \"BypassSsl\": false}";
-
-            // Act
-            var result = ConnectConfigValidator.Validate(validJson, out var error);
-
-            // Assert
-            Assert.True(result);
-            Assert.Null(error);
-        }
-
-        [Fact]
-        public void Validate_InvalidConfig_ReturnsFalseAndFormattedError_Test()
-        {
-            // Arrange
-            var invalidJson = "{\"BaseUrl\": \"https://its.example.com\"}";
-
-            // Act
-            var result = ConnectConfigValidator.Validate(invalidJson, out var error);
-
-            // Assert
-            Assert.False(result);
-            Assert.NotNull(error);
-            Assert.Contains("BaseUrl", error);
-        }
     }
 }

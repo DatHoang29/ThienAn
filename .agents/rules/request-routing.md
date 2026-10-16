@@ -60,7 +60,7 @@ When auto-applying an agent, inform the user:
 
 ### ⚡ AUTO SUBAGENT / MULTI-AGENT DELEGATION (Rule 19.70)
 
-> 🔴 **MANDATORY:** Khi prompt chứa danh sách từ 2 task trở lên, tuân thủ quy tắc kích hoạt subagents song song tại [thienan_rules.md](./thienan_rules.md) (Rule #24).
+> 🔴 **MANDATORY:** Khi prompt chứa danh sách từ 2 task trở lên, hoặc khi prompt chứa các phần việc được ngăn cách bởi dấu phân cách (như `=========`, `---`, `===`...): BẮT BUỘC tự động kích hoạt subagents song song để xử lý độc lập từng phần việc theo [thienan_rules.md](./thienan_rules.md) (Rule #24).
 
 ### ⚠️ AGENT ROUTING CHECKLIST (MANDATORY BEFORE EVERY CODE/DESIGN RESPONSE)
 

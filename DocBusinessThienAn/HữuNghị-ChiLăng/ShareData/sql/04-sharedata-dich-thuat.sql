@@ -5,10 +5,10 @@ GO
 -- FILE: 04-sharedata-dich-thuat.sql
 -- DESCRIPTION: Bổ sung từ điển bản dịch đa ngôn ngữ (vi-VN, en-US) cho phân hệ ShareData (ESHARE) vào SysTerminology:
 --              1. Chuẩn hóa lại mã khóa cũ lz.validation.sharedata.lookbackDaysRange (nếu có).
---              2. Nạp toàn bộ 36 mã khóa dịch thuật chuẩn hóa:
+--              2. Nạp toàn bộ 48 mã khóa dịch thuật chuẩn hóa:
 --                 - 1 khóa khoảng số ngày quét lùi (lookbackDaysRange).
 --                 - 10 khóa quản trị câu truy vấn SQL trích xuất (superAdmin, packetCode, partnerMapping...).
---                 - 25 khóa kiểm tra SQL Validator, Metadata và cấu hình kênh đối tác OutputPath.
+--                 - 37 khóa kiểm tra SQL Validator, Metadata và cấu hình kênh đối tác (OutputPath, ConnectConfig).
 --              3. Cơ chế Idempotent:
 --                 - MERGE chỉ INSERT các bản ghi chưa có (WHEN NOT MATCHED THEN INSERT).
 --                 - Không ghi đè (không UPDATE) lên các nội dung dịch mà quản trị viên đã chỉnh sửa trực tiếp trên DB.
@@ -47,7 +47,7 @@ WHERE Code = N'lz.validation.sharedata.lookbackDaysRange'
   );
 
 -- -----------------------------------------------------------------------------------------
--- 2. DANH MỤC 36 KHÓA BẢN DỊCH SHAREDATA
+-- 2. DANH MỤC 48 KHÓA BẢN DỊCH SHAREDATA
 -- -----------------------------------------------------------------------------------------
 DECLARE @Translations TABLE (
     [Name] NVARCHAR(64),
@@ -215,7 +215,58 @@ VALUES
 
     (N'lz.validation', N'sharedata.sqlIncrementalMissingRowid',
      N'Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc có cột con trỏ khóa [__rowid].',
-     N'Incremental queries must include the key cursor column [__rowid].');
+     N'Incremental queries must include the key cursor column [__rowid].'),
+
+    -- =========================================================================
+    -- NHÓM 6: PARTNER VALIDATOR - KIỂM TRA CẤU HÌNH KẾT NỐI ĐỐI TÁC (12 khóa)
+    -- =========================================================================
+    (N'lz.validation', N'sharedata.connectConfigNotJsonObject',
+     N'Cấu hình kết nối (ConnectionConfig) phải là đối tượng JSON phẳng dạng key-value.',
+     N'ConnectionConfig must be a flat key-value JSON object.'),
+
+    (N'lz.validation', N'sharedata.connectConfigSyntaxError',
+     N'Cấu hình kết nối (ConnectionConfig) sai cú pháp JSON.',
+     N'ConnectionConfig contains invalid JSON syntax.'),
+
+    (N'lz.validation', N'sharedata.connectConfigEmptyKey',
+     N'Cấu hình kết nối (ConnectionConfig) không được chứa khóa (Key) rỗng.',
+     N'ConnectionConfig cannot contain empty keys.'),
+
+    (N'lz.validation', N'sharedata.connectConfigReservedKey',
+     N'Khóa cấu hình bị cấm sử dụng vì là khóa dành riêng của hệ thống.',
+     N'Configuration key is reserved by the system and cannot be used.'),
+
+    (N'lz.validation', N'sharedata.connectConfigObsoleteKey',
+     N'Thuộc tính [OutputPath] đã bị bãi bỏ. Vui lòng sử dụng [DirectoryPath] và [FileNamePattern].',
+     N'Attribute [OutputPath] is obsolete. Please use [DirectoryPath] and [FileNamePattern].'),
+
+    (N'lz.validation', N'sharedata.connectConfigDuplicateKey',
+     N'Cấu hình kết nối (ConnectionConfig) chứa khóa bị trùng lặp (không phân biệt hoa thường).',
+     N'ConnectionConfig contains duplicate keys (case-insensitive).'),
+
+    (N'lz.validation', N'sharedata.connectConfigNestedValue',
+     N'Cấu hình kết nối (ConnectionConfig) chỉ cho phép giá trị phẳng (chuỗi/số/boolean), không cho phép lồng mảng hoặc object con.',
+     N'ConnectionConfig only allows flat primitive values (string/number/boolean); nested arrays or objects are not allowed.'),
+
+    (N'lz.validation', N'sharedata.connectConfigInvalidTimeout',
+     N'Giá trị Timeout phải là số nguyên dương (giây).',
+     N'Timeout value must be a positive integer (seconds).'),
+
+    (N'lz.validation', N'sharedata.connectConfigInvalidBoolean',
+     N'Giá trị cấu hình boolean chỉ chấp nhận ''true'' hoặc ''false''.',
+     N'Boolean configuration value only accepts ''true'' or ''false''.'),
+
+    (N'lz.validation', N'sharedata.connectConfigUnsupportedAuthType',
+     N'Giá trị AuthType chỉ hỗ trợ: None, Bearer, ApiKey, Basic.',
+     N'AuthType only supports: None, Bearer, ApiKey, Basic.'),
+
+    (N'lz.validation', N'sharedata.connectConfigUnsupportedCodec',
+     N'Giá trị mã hóa (Codec / InboundCodec) chỉ hỗ trợ: None, AesGcm.',
+     N'Codec / InboundCodec only supports: None, AesGcm.'),
+
+    (N'lz.validation', N'sharedata.connectConfigFileNamePatternNoToken',
+     N'Thuộc tính [FileNamePattern] bắt buộc chứa ít nhất một biến động ({serial}, {timestamp}, {packet} hoặc {partner}) để tránh ghi đè tệp.',
+     N'Attribute [FileNamePattern] must contain at least one dynamic token ({serial}, {timestamp}, {packet}, or {partner}) to prevent file overwriting.');
 
 -- -----------------------------------------------------------------------------------------
 -- 3. NẠP DỮ LIỆU ĐA NGÔN NGỮ (MERGE CHỈ THÊM DÒNG CHƯA CÓ, KHÔNG GHI ĐÈ)

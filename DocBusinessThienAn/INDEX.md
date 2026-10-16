@@ -34,12 +34,15 @@ Phân loại tài liệu theo **chi phí context** (token budget), quy định r
 DocBusinessThienAn/
 ├── INDEX.md                          🤖👤 Entry point cấp cao nhất (file bạn đang đọc)
 ├── llms.txt                          🤖    Bản đồ compact cho AI định tuyến nhanh
+├── BaoCao/                           🤖👤 Quản lý báo cáo tập trung (Báo cáo tuần, KPI, script validate)
+│   ├── BaoCaoTuan/                   👤    Báo cáo tuần tiến độ dự án ITS15 (.xlsx)
+│   ├── KPI/                          👤    Báo cáo đánh giá KPI cá nhân (.xlsx)
+│   └── scripts/                      🤖    Script thao tác & kiểm định OpenXML dùng chung (Single Validator)
 ├── QuyDinhChung/                     🤖👤 Quy định chung & biểu mẫu toàn công ty (F10 Git Flow)
 │   ├── README.md                     🤖👤 SSOT quy định chung & Tier Table
 │   └── doc/                          🤖    Tài liệu hướng dẫn, cheatsheet
 └── HữuNghị-ChiLăng/                  🤖👤 Dự án Cao tốc Hữu Nghị – Chi Lăng (GIỮ có dấu)
     ├── INDEX.md                      🤖👤 Chỉ mục cấp dự án & Meeting Matrix toàn tuyến
-    ├── BaoCaoTuanITS15/              👤    Báo cáo tuần tiến độ dự án ITS15
     │
     │   ┌─ CẤU TRÚC CHUẨN MỖI PHÂN HỆ (ShareData / VideoWall / WOS) ────────┐
     │   │  README.md          🤖👤 SSOT phân hệ + Tier Table                  │
