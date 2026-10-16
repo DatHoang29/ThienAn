@@ -592,68 +592,68 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public void PartnerValidator_ValidateConnectionTypeAndConfig_ValidatesCorrectly_Test()
         {
             // Arrange & Act & Assert: ConnectionType
-            Assert.True(PartnerValidator.IsValidConnectionType("API"));
-            Assert.True(PartnerValidator.IsValidConnectionType("REST"));
-            Assert.True(PartnerValidator.IsValidConnectionType("HTTP"));
-            Assert.True(PartnerValidator.IsValidConnectionType("WEBAPI"));
-            Assert.True(PartnerValidator.IsValidConnectionType("File"));
-            Assert.True(PartnerValidator.IsValidConnectionType("DISK"));
-            Assert.True(PartnerValidator.IsValidConnectionType("NAS"));
-            Assert.True(PartnerValidator.IsValidConnectionType("Kafka"));
-            Assert.True(PartnerValidator.IsValidConnectionType("FTP"));
-            Assert.True(PartnerValidator.IsValidConnectionType("FTPS"));
-            Assert.True(PartnerValidator.IsValidConnectionType("api"));
-            Assert.True(PartnerValidator.IsValidConnectionType("kafka"));
+            Assert.True(ConnectTypes.IsSupported("API"));
+            Assert.True(ConnectTypes.IsSupported("REST"));
+            Assert.True(ConnectTypes.IsSupported("HTTP"));
+            Assert.True(ConnectTypes.IsSupported("WEBAPI"));
+            Assert.True(ConnectTypes.IsSupported("File"));
+            Assert.True(ConnectTypes.IsSupported("DISK"));
+            Assert.True(ConnectTypes.IsSupported("NAS"));
+            Assert.True(ConnectTypes.IsSupported("Kafka"));
+            Assert.True(ConnectTypes.IsSupported("FTP"));
+            Assert.True(ConnectTypes.IsSupported("FTPS"));
+            Assert.True(ConnectTypes.IsSupported("api"));
+            Assert.True(ConnectTypes.IsSupported("kafka"));
 
-            Assert.False(PartnerValidator.IsValidConnectionType("RabbitMQ"));
-            Assert.False(PartnerValidator.IsValidConnectionType("gRPC"));
-            Assert.False(PartnerValidator.IsValidConnectionType("MQTT"));
-            Assert.False(PartnerValidator.IsValidConnectionType("ABC"));
+            Assert.False(ConnectTypes.IsSupported("RabbitMQ"));
+            Assert.False(ConnectTypes.IsSupported("gRPC"));
+            Assert.False(ConnectTypes.IsSupported("MQTT"));
+            Assert.False(ConnectTypes.IsSupported("ABC"));
 
             // Arrange & Act & Assert: ConnectionConfig
-            Assert.True(PartnerValidator.IsValidConnectionConfig(null!, out _));
-            Assert.True(PartnerValidator.IsValidConnectionConfig("", out _));
-            Assert.True(PartnerValidator.IsValidConnectionConfig("   ", out _));
-            Assert.True(PartnerValidator.IsValidConnectionConfig("{\"TimeoutSeconds\": 30, \"BypassSsl\": true, \"AuthType\": \"Bearer\", \"Token\": \"sec123\"}", out var validErr));
+            Assert.True(ConnectConfigValidator.Validate(null!, out _));
+            Assert.True(ConnectConfigValidator.Validate("", out _));
+            Assert.True(ConnectConfigValidator.Validate("   ", out _));
+            Assert.True(ConnectConfigValidator.Validate("{\"TimeoutSeconds\": 30, \"BypassSsl\": true, \"AuthType\": \"Bearer\", \"Token\": \"sec123\"}", out var validErr));
             Assert.Null(validErr);
 
-            Assert.False(PartnerValidator.IsValidConnectionConfig("not_json", out var err1));
+            Assert.False(ConnectConfigValidator.Validate("not_json", out var err1));
             Assert.NotNull(err1);
 
-            Assert.False(PartnerValidator.IsValidConnectionConfig("[1, 2, 3]", out var err2));
+            Assert.False(ConnectConfigValidator.Validate("[1, 2, 3]", out var err2));
             Assert.NotNull(err2);
 
-            Assert.False(PartnerValidator.IsValidConnectionConfig("{\"nested\": {\"key\": 1}}", out var err3));
+            Assert.False(ConnectConfigValidator.Validate("{\"nested\": {\"key\": 1}}", out var err3));
             Assert.NotNull(err3);
 
             // Các key dành riêng cho cột (BaseUrl, Url, Host, Server, Address, IP, Port, Endpoint, Path, EndPointApiUrl) bị từ chối
-            Assert.False(PartnerValidator.IsValidConnectionConfig("{\"BaseUrl\": \"http://localhost\"}", out var errBaseUrl));
+            Assert.False(ConnectConfigValidator.Validate("{\"BaseUrl\": \"http://localhost\"}", out var errBaseUrl));
             Assert.NotNull(errBaseUrl);
             Assert.Contains("BaseUrl", errBaseUrl);
 
-            Assert.False(PartnerValidator.IsValidConnectionConfig("{\"Port\": 18090}", out var errPort));
+            Assert.False(ConnectConfigValidator.Validate("{\"Port\": 18090}", out var errPort));
             Assert.NotNull(errPort);
             Assert.Contains("Port", errPort);
 
             // Key trùng nhau (không phân biệt hoa thường) bị từ chối
-            Assert.False(PartnerValidator.IsValidConnectionConfig("{\"Token\": \"1\", \"token\": \"2\"}", out var errDup));
+            Assert.False(ConnectConfigValidator.Validate("{\"Token\": \"1\", \"token\": \"2\"}", out var errDup));
             Assert.NotNull(errDup);
             Assert.Contains("trùng lặp", errDup);
 
             // Key rỗng bị từ chối
-            Assert.False(PartnerValidator.IsValidConnectionConfig("{\"\": \"val\"}", out var errEmptyKey));
+            Assert.False(ConnectConfigValidator.Validate("{\"\": \"val\"}", out var errEmptyKey));
             Assert.NotNull(errEmptyKey);
             Assert.Contains("không được để trống", errEmptyKey);
 
-            Assert.False(PartnerValidator.IsValidConnectionConfig("{\"TimeoutSeconds\": -1}", out var err5));
+            Assert.False(ConnectConfigValidator.Validate("{\"TimeoutSeconds\": -1}", out var err5));
             Assert.NotNull(err5);
             Assert.Contains("dương", err5);
 
-            Assert.False(PartnerValidator.IsValidConnectionConfig("{\"BypassSsl\": \"xyz\"}", out var err6));
+            Assert.False(ConnectConfigValidator.Validate("{\"BypassSsl\": \"xyz\"}", out var err6));
             Assert.NotNull(err6);
             Assert.Contains("boolean", err6);
 
-            Assert.False(PartnerValidator.IsValidConnectionConfig("{\"AuthType\": \"InvalidAuth\"}", out var err7));
+            Assert.False(ConnectConfigValidator.Validate("{\"AuthType\": \"InvalidAuth\"}", out var err7));
             Assert.NotNull(err7);
             Assert.Contains("AuthType", err7);
         }
@@ -679,42 +679,42 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         }
 
         [Fact]
-        public void AesGcmCodec_EncodeDecodeRoundtrip_ReturnsOriginalBytes_Test()
+        public void AesGcmEncryptor_EncryptDecryptRoundtrip_ReturnsOriginalBytes_Test()
         {
             // Arrange
-            var codec = new Modules.Integration.ShareData.Codecs.AesGcmCodec();
-            var keyBytes = new byte[Modules.Integration.ShareData.Codecs.AesGcmCodec.KeySize];
+            var encryptor = new Modules.Integration.ShareData.Encryption.AesGcmEncryptor();
+            var keyBytes = new byte[Modules.Integration.ShareData.Encryption.AesGcmEncryptor.KeySize];
             System.Security.Cryptography.RandomNumberGenerator.Fill(keyBytes);
-            var ctx = new Modules.Integration.ShareData.Codecs.PayloadCodecContext("test-kid", keyBytes);
+            var ctx = new Modules.Integration.ShareData.Encryption.EncryptContext("test-kid", keyBytes);
             var originalBytes = Encoding.UTF8.GetBytes("{\"test\":\"secret-payload-data\"}");
 
             // Act
-            var encodedBytes = codec.Encode(originalBytes, ctx);
-            var decodedBytes = codec.Decode(encodedBytes, ctx);
+            var encryptedBytes = encryptor.Encrypt(originalBytes, ctx);
+            var decryptedBytes = encryptor.Decrypt(encryptedBytes, ctx);
 
             // Assert
-            Assert.NotEqual(originalBytes, encodedBytes);
-            Assert.Equal(originalBytes, decodedBytes);
-            var jsonEnvelope = Encoding.UTF8.GetString(encodedBytes);
+            Assert.NotEqual(originalBytes, encryptedBytes);
+            Assert.Equal(originalBytes, decryptedBytes);
+            var jsonEnvelope = Encoding.UTF8.GetString(encryptedBytes);
             Assert.Contains("AES256-GCM", jsonEnvelope);
             Assert.Contains("test-kid", jsonEnvelope);
         }
 
         [Fact]
-        public void NoneCodec_EncodeDecode_PassesThroughIdenticalBytes_Test()
+        public void PlainEncryptor_EncryptDecrypt_PassesThroughIdenticalBytes_Test()
         {
             // Arrange
-            var codec = new Modules.Integration.ShareData.Codecs.NoneCodec();
-            var ctx = new Modules.Integration.ShareData.Codecs.PayloadCodecContext(null, null);
+            var encryptor = new Modules.Integration.ShareData.Encryption.PlainEncryptor();
+            var ctx = new Modules.Integration.ShareData.Encryption.EncryptContext(null, null);
             var originalBytes = Encoding.UTF8.GetBytes("{\"test\":\"plain-payload\"}");
 
             // Act
-            var encoded = codec.Encode(originalBytes, ctx);
-            var decoded = codec.Decode(encoded, ctx);
+            var encrypted = encryptor.Encrypt(originalBytes, ctx);
+            var decrypted = encryptor.Decrypt(encrypted, ctx);
 
             // Assert
-            Assert.Equal(originalBytes, encoded);
-            Assert.Equal(originalBytes, decoded);
+            Assert.Equal(originalBytes, encrypted);
+            Assert.Equal(originalBytes, decrypted);
         }
 
         [Fact]
@@ -888,17 +888,17 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public void PartnerValidator_ArchiveEnabled_ValidatesBoolean_Test()
         {
             // Valid boolean values
-            Assert.True(PartnerValidator.IsValidConnectionConfig("{\"ArchiveEnabled\": true}", out var err1));
+            Assert.True(ConnectConfigValidator.Validate("{\"ArchiveEnabled\": true}", out var err1));
             Assert.Null(err1);
-            Assert.True(PartnerValidator.IsValidConnectionConfig("{\"ArchiveEnabled\": false}", out var err2));
+            Assert.True(ConnectConfigValidator.Validate("{\"ArchiveEnabled\": false}", out var err2));
             Assert.Null(err2);
-            Assert.True(PartnerValidator.IsValidConnectionConfig("{\"ArchiveEnabled\": \"true\"}", out var err3));
+            Assert.True(ConnectConfigValidator.Validate("{\"ArchiveEnabled\": \"true\"}", out var err3));
             Assert.Null(err3);
-            Assert.True(PartnerValidator.IsValidConnectionConfig("{\"ArchiveEnabled\": \"false\"}", out var err4));
+            Assert.True(ConnectConfigValidator.Validate("{\"ArchiveEnabled\": \"false\"}", out var err4));
             Assert.Null(err4);
 
             // Invalid boolean value
-            Assert.False(PartnerValidator.IsValidConnectionConfig("{\"ArchiveEnabled\": \"abc\"}", out var errInvalid));
+            Assert.False(ConnectConfigValidator.Validate("{\"ArchiveEnabled\": \"abc\"}", out var errInvalid));
             Assert.NotNull(errInvalid);
             Assert.Contains("ArchiveEnabled", errInvalid);
             Assert.Contains("boolean", errInvalid);
@@ -908,24 +908,24 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public void PartnerValidator_RejectsOutputPath_AndValidatesFileNamePatternVariables_Test()
         {
             // 1. Rejects OutputPath (deprecated key)
-            Assert.False(PartnerValidator.IsValidConnectionConfig("{\"OutputPath\": \"/tmp/test.json\"}", out var errOutput));
+            Assert.False(ConnectConfigValidator.Validate("{\"OutputPath\": \"/tmp/test.json\"}", out var errOutput));
             Assert.NotNull(errOutput);
             Assert.Contains("OutputPath", errOutput);
 
             // 2. FileNamePattern missing both {serial} and {timestamp}
-            Assert.False(PartnerValidator.IsValidConnectionConfig("{\"FileNamePattern\": \"static_data.json\"}", out var errStaticPattern));
+            Assert.False(ConnectConfigValidator.Validate("{\"FileNamePattern\": \"static_data.json\"}", out var errStaticPattern));
             Assert.NotNull(errStaticPattern);
             Assert.Contains("FileNamePattern", errStaticPattern);
             Assert.Contains("{serial}", errStaticPattern);
 
             // 3. Valid FileNamePattern with {serial} or {timestamp}
-            Assert.True(PartnerValidator.IsValidConnectionConfig("{\"FileNamePattern\": \"data_{serial}.json\"}", out var errSerial));
+            Assert.True(ConnectConfigValidator.Validate("{\"FileNamePattern\": \"data_{serial}.json\"}", out var errSerial));
             Assert.Null(errSerial);
 
-            Assert.True(PartnerValidator.IsValidConnectionConfig("{\"FileNamePattern\": \"data_{timestamp}.json\"}", out var errTime));
+            Assert.True(ConnectConfigValidator.Validate("{\"FileNamePattern\": \"data_{timestamp}.json\"}", out var errTime));
             Assert.Null(errTime);
 
-            Assert.True(PartnerValidator.IsValidConnectionConfig("{\"FileNamePattern\": \"{packet}_{partner}_{timestamp}_{serial}.json\"}", out var errFull));
+            Assert.True(ConnectConfigValidator.Validate("{\"FileNamePattern\": \"{packet}_{partner}_{timestamp}_{serial}.json\"}", out var errFull));
             Assert.Null(errFull);
 
             // 4. Test IsFileChannel aliases
@@ -1133,8 +1133,6 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var relativeFile = $"test_proof_{Guid.NewGuid():N}.json";
             var testPayload = Encoding.UTF8.GetBytes("{\"proof\": true}");
 
-            var fileHandler = new DataOutboundFileSender(testBasePath);
-
             var inMemoryConfig = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
                 {
@@ -1142,23 +1140,20 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 })
                 .Build();
 
-            var outboundService = new DataOutboundService(
-                null!,
-                null!,
-                null!,
-                null!,
-                null,
-                inMemoryConfig);
-
-            var saveMethod = typeof(DataOutboundService).GetMethod(
-                "SaveExportFile",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            Assert.NotNull(saveMethod);
+            var configuredBasePath = inMemoryConfig.GetValue<string>("NasStorage:BasePath") ?? ExportPathHelper.DefaultBasePath;
 
             // Act
-            var fileHandlerFullPath = await fileHandler.SaveExportFile(relativeFile, testPayload, CancellationToken.None);
-            var serviceTask = (Task<string>)saveMethod.Invoke(outboundService, [relativeFile, testPayload, CancellationToken.None])!;
-            var serviceFullPath = await serviceTask;
+            var fileHandlerFullPath = await ExportPathHelper.SaveFile(
+                testBasePath,
+                relativeFile,
+                testPayload,
+                CancellationToken.None);
+
+            var serviceFullPath = await ExportPathHelper.SaveFile(
+                configuredBasePath,
+                relativeFile,
+                testPayload,
+                CancellationToken.None);
 
             // Assert: Hai nơi PHẢI cho cùng một gốc cho cùng một cấu hình
             Assert.Equal(fileHandlerFullPath, serviceFullPath);

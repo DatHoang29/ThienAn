@@ -239,8 +239,45 @@ Quy ước chú giải tiếng Anh trong ngoặc `[Tiếng Việt] ([English])` 
    - Tổng số ngày công trong kỳ báo cáo 1 tháng được phân bổ theo định mức thực tế của tháng ($\approx 20.5 - 22$ ngày công/tháng, ví dụ: 2 task chia 10.5 ngày và 10 ngày = 20.5 ngày công).
    - ⛔ **TUYỆT ĐỐI CẤM** tự ý thay đổi, hạ thấp, ghi đè hoặc đặt lại (revert) các giá trị ngày công mà người dùng đã khai báo hoặc điều chỉnh trong file KPI (tuân thủ nghiêm ngặt P0 Rule 34).
 
+3. **Quy Tắc Định Dạng Dòng TỔNG KẾT (Cố Định Row 20) & Ẩn Task Dư (Zero Leftover Columns)**:
+   - **Dòng TỔNG KẾT cố định tại Row 20:**
+     - Dòng `TỔNG KẾT` trong Sheet `01. Tổng task` **BẮT BUỘC giữ nguyên cố định tại Row 20**, bảo toàn 100% định dạng dòng chuẩn từ file gốc `2026.08_KPI_TenHoTenLot.xlsx`:
+       - Độ cao dòng: `ht="22.5" customHeight="1"`.
+       - Merge cell: `mergeCell ref="A20:G20"`.
+       - Định dạng ô (Styles): `A20` dùng `s="329"` (Segoe UI 11pt Bold, màu nền `fillId=28`, viền dày `borderId=91`), `B20..F20` dùng `s="330"`, `G20` dùng `s="331"`, `H20..I20` dùng `s="146"`, `J20..W20` dùng `s="147"`, `X20..AA20, AF20..AO20` dùng `s="148"`, `AB20..AE20` dùng `s="149"`.
+       - Công thức tổng: `SUM(H13:H19)`, `SUM(I13:I19)`, `IFERROR(SUM(...)/SUM(...), 0)`.
+       - **Viền trên đậm (Border Top = Medium) của dòng TỔNG KẾT:** Đường phân cách phía trên dòng `TỔNG KẾT` BẮT BUỘC phải là **đường viền đậm (`medium`) xuyên suốt toàn bộ các cột từ A đến AO**:
+         - Dòng task cuối cùng trước các dòng ẩn (ví dụ Row 14 khi có 2 task): BẮT BUỘC áp dụng các style có viền đáy đậm `bottom="medium"` (`A14: s="333"`, `B14: s="334"`, `C14: s="335"`, `D14: s="336"`, `E14: s="337"`, `F14: s="338"` giống như Row 16 trong file gốc).
+         - Các ô `A20:G20` của dòng TỔNG KẾT (Borders 91, 92, 93) BẮT BUỘC có thuộc tính viền trên `top style="medium"` để bảo đảm đường kẻ luôn đậm và liền mạch 100% với các cột H20..AO20.
+     - ⛔ **TUYỆT ĐỐI CẤM** xóa bỏ dòng làm kéo dòng `TỔNG KẾT` lên hàng 14, 15... làm sai lệch vị trí row, sai lệch format dòng và làm vỡ tọa độ neo các nút drawing shapes (`drawing1.xml`).
+   - **Xử lý các dòng task chưa sử dụng (dòng 15..19):**
+     - Khi số lượng task thực tế ít hơn 7 (ví dụ có 2 task tại dòng 13, 14): Toàn bộ các dòng task mẫu còn lại (dòng 15, 16, 17, 18, 19) **BẮT BUỘC đặt thuộc tính ẩn dòng (`hidden="1"`)**.
+     - **Dọn sạch cột dư thừa:** BẮT BUỘC xóa bỏ toàn bộ các giá trị mẫu dư thừa trên các dòng ẩn này (như chữ `DOC` ở `G15`, `DEV` ở `G16`, các giá trị tính toán mẫu thừa ở cột X-AO) để không gây sai lệch dữ liệu hay để lại rác khi unhide.
+   - Giữ nguyên khoảng cách chuẩn 5 dòng trắng (dòng 21-25) sau dòng `TỔNG KẾT` trước khi đến bảng `THANG ĐIỂM KPI` (dòng 26-33).
 
+4. **Quy Chuẩn Viết "Phần Kết Quả Nổi Bật" (Cột G12 Sheet `02. Tổng KPI`)**:
+   - Viết cô đọng theo cấu trúc: **Tài liệu tìm hiểu/nghiên cứu được gì** và **Thực hiện/tối ưu được gì**, phân định rành mạch theo từng phân hệ thực hiện (như VideoWall, ShareData) để người đọc/leader nhận diện ngay phạm vi công việc.
+   - Nêu trực diện vào năng lực kỹ thuật và kết quả thực chiến (chuẩn format plain text, không dùng markdown `**` trong Excel):
+     - *Phân hệ VideoWall (Tìm hiểu & Kiểm thử site):* Nghiên cứu tài liệu chuẩn giao tiếp ISAPI (Hikvision) nắm rõ cơ chế điều khiển màn hình; phát triển Worker Service qua NATS điều khiển thiết bị không nghẽn WebAPI, tự làm form WPF test thiết bị và trực tiếp ra site kiểm thử 2 ngày nghiệm thu thành công.
+     - *Phân hệ ShareData (Thực hiện & Tối ưu):* Triển khai cơ chế gửi nối đuôi kết hợp Change Tracking & NATS giúp đẩy dữ liệu tức thì và tối ưu tải CSDL nhanh hơn.
+   - ⛔ **CẤM** viết dài dòng lan man, sáo rỗng hoặc giật tít hình thức chung chung. Cấm để markdown `**` trong chuỗi text Excel.
 
+5. **Bắt Buộc Đối Chiếu Format Với File Gốc `2026.08_KPI_TenHoTenLot.xlsx` & Cấm Sửa File Gốc (Zero UI Misalignment)**:
+   - **Tệp baseline chuẩn:** `DocBusinessThienAn/KPI/2026.08_KPI_TenHoTenLot.xlsx`.
+   - ⛔ **TUYỆT ĐỐI CẤM SỬA ĐỔI, GHI ĐÈ HOẶC XÓA TỆP `2026.08_KPI_TenHoTenLot.xlsx`** dưới mọi hình thức. Tệp này được bảo vệ nghiêm ngặt ở chế độ Chỉ Đọc (Read-Only) để làm thước đo đối chiếu format vĩnh viễn cho mọi kỳ đánh giá KPI tiếp theo.
+   - **Bắt buộc đối chiếu format sau khi hoàn thành:** Sau khi tạo hoặc chỉnh sửa bất kỳ file KPI tháng mới nào (ví dụ `2026.09_KPI_DatHoangQuy.xlsx`), **BẮT BUỘC phải mở và đối chiếu lại toàn diện cấu trúc XML và format với file gốc `2026.08_KPI_TenHoTenLot.xlsx`**:
+     - **Đối chiếu vị trí & định dạng dòng TỔNG KẾT:** BẮT BUỘC nằm cố định tại **Row 20**, `ht="22.5" customHeight="1"`, `mergeCell ref="A20:G20"`, đúng mã style (`s="329"` cho A20: font Segoe UI 11pt Bold, màu nền `fillId=28`, viền dày `borderId=91`, `s="330"`, `s="331"`, `s="146"`, `s="147"`, `s="148"`, `s="149"`).
+     - **Đối chiếu giao diện & đối tượng vẽ (Drawing Shapes):** Kiểm tra các nút bo góc, hình vẽ, icon màu chỉ thị (như nút `DEV`, `DOC`, chấm tròn điểm số) có bị lệch dòng hoặc trôi ra ngoài bảng hay không. Các đối tượng vẽ trong OpenXML (`drawing1.xml`) được neo cố định theo số dòng (`<xdr:row>`), do đó vị trí bảng hướng dẫn (hàng 26 - 33) **BẮT BUỘC giữ nguyên vị trí dòng tuyệt đối theo file gốc**, tuyệt đối không được tự ý dịch chuyển làm lệch hình vẽ.
+     - **Đối chiếu định dạng ô (Styles):** Font chữ, độ cao dòng (`ht`), màu nền (`fillId`), viền ô (`borderId`) và căn lề (đặc biệt `wrapText="1"` cho các ô nhiều dòng như `G12`) phải đồng bộ 100% với file gốc.
+     - **Đối chiếu cấu trúc XML:** Chạy hàm `validate_excel_openxml()` đối chiếu với template gốc để đảm bảo không phát sinh bất kỳ lỗi cú pháp hoặc hỏng tệp nào.
 
-
-
+6. **Đồng Bộ Tuyệt Đối Giữa URL Hyperlink Và Nội Dung Text Hiển Thị (Nội Dung Link Phải Giống Nội Dung Text) (Rule 19.79)**:
+   - Trong file Excel KPI (sheet `01. Tổng task`, cột E "Link công việc") cũng như mọi file Excel/tài liệu trong dự án:
+     - **Nội dung văn bản hiển thị trong ô (Cell Text / `sharedStrings.xml`) BẮT BUỘC PHẢI TRÙNG KHỚP 100% với địa chỉ liên kết thực tế (`Target` trong file `_rels/sheet*.xml.rels`)**.
+     - Ví dụ: Nếu liên kết mở task `https://wework.base.vn/tasks?task=11004385` thì text hiển thị trên bảng tính cũng phải chính xác là `https://wework.base.vn/tasks?task=11004385`.
+   - ⛔ **TUYỆT ĐỐI CẤM** để xảy ra tình trạng "bấm link này ra link nọ", tức là nội dung text hiển thị mang mã task cũ hoặc task khác (như `11034326`) trong khi URL hyperlink lại trỏ đến mã task mới (như `11004385`), hoặc ngược lại.
+   - **Quy trình cập nhật liên kết bằng script / OpenXML patch:**
+     - Mỗi khi cập nhật link task, **BẮT BUỘC thực hiện cập nhật đồng thời ở cả 2 nơi**:
+       1. Thay thế chuỗi URL trong `xl/sharedStrings.xml` để text hiển thị trên ô được cập nhật chuẩn xác.
+       2. Thay thế thuộc tính `Target` của `<Relationship>` tương ứng trong `xl/worksheets/_rels/sheet*.xml.rels`.
+     - Loại bỏ hoàn toàn thuộc tính `quotePrefix="1"` trong `xl/styles.xml` đối với các ô link để tránh dấu phẩy trên `'` cản trở việc click link trên thanh công thức.

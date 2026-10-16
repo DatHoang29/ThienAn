@@ -3,7 +3,7 @@ using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Module.ShareData.Controllers.Inbound.Commands;
 using Modules.Integration.ShareData;
-using Modules.Integration.ShareData.Codecs;
+using Modules.Integration.ShareData.Encryption;
 using Modules.Integration.ShareData.Formats;
 using Module.ShareData.Core.Dto.Inbound;
 using Module.ShareData.Core.Entities;
@@ -97,14 +97,14 @@ namespace Tests.ShareData.Services
 
         #endregion
 
-        #region 2. Unit Tests Codec Resolver hai chiều
+        #region 2. Unit Tests EncryptManager hai chiều
 
         [Fact]
-        public void ResolveCodec_WhenInbound_ReadsInboundCodecAndDecryptionKeyRef_Test()
+        public void GetEncryptor_WhenInbound_ReadsInboundCodecAndDecryptionKeyRef_Test()
         {
             // Arrange
             var mockKeyResolver = new TestKeyResolver("test-inbound-key", TestAes256Key);
-            var resolver = new PayloadEncrypt(mockKeyResolver);
+            var encryptManager = new EncryptManager(mockKeyResolver);
             var config = new Dictionary<string, string>
             {
                 ["Codec"] = "None",
@@ -114,26 +114,26 @@ namespace Tests.ShareData.Services
             };
 
             // Act
-            var (codec, ctx) = resolver.ResolveCodec(config, PayloadDirection.Inbound);
+            var (encryptor, ctx) = encryptManager.GetEncryptor(config, PayloadDirection.Inbound);
 
             // Assert
-            Assert.IsType<AesGcmCodec>(codec);
+            Assert.IsType<AesGcmEncryptor>(encryptor);
             Assert.Equal("test-inbound-key", ctx.KeyRef);
             Assert.Equal(TestAes256Key, ctx.KeyBytes);
         }
 
         [Fact]
-        public void ResolveCodec_WhenInboundMissingKeyRef_ThrowsInvalidOperationException_Test()
+        public void GetEncryptor_WhenInboundMissingKeyRef_ThrowsInvalidOperationException_Test()
         {
             // Arrange
-            var resolver = new PayloadEncrypt();
+            var encryptManager = new EncryptManager();
             var config = new Dictionary<string, string>
             {
                 ["InboundCodec"] = "AesGcm"
             };
 
             // Act & Assert
-            var ex = Assert.Throws<InvalidOperationException>(() => resolver.ResolveCodec(config, PayloadDirection.Inbound));
+            var ex = Assert.Throws<InvalidOperationException>(() => encryptManager.GetEncryptor(config, PayloadDirection.Inbound));
             Assert.Contains("DecryptionKeyRef", ex.Message);
         }
 

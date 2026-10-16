@@ -134,7 +134,7 @@ public partial class Host : IAsyncLifetime
     public void ClearExportedFiles()
     {
 #if HAS_SHAREDATAWORKER
-        // Dựng đường dẫn ĐÚNG như bên ghi dựng (DataOutboundFileSender.SaveExportFile) để hai bên không lệch
+        // Dựng đường dẫn ĐÚNG như bên ghi dựng (ExportPathHelper.SaveFile) để hai bên không lệch
         // nhau khi ai đó cấu hình NasStorage:BasePath.
         var configuration = _host?.Services.GetService<IConfiguration>();
         var basePath = configuration?.GetValue<string>("NasStorage:BasePath") ?? "sharedata/send";

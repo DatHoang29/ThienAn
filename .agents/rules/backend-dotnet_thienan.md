@@ -187,12 +187,11 @@ namespace Module.ShareData.Controllers
         var parameters = SqlParameterBuilder.BuildParameters( lastTime: isSnapshot ? null : (command.FromTime ?? fromDate),
             lastKey: string.Empty, pageSize: safeTop, fromDate: fromDate, toDate: DateTime.Now );
         ```
-15. **Cấm Bí Danh Thừa & Hàm Bọc Mỏng Chỉ Chuyển Tiếp Sang Lớp Khác (Rule 19.78)**:
-    - ⛔ **TUYỆT ĐỐI CẤM** hai dạng mã thừa không thêm ý nghĩa:
-      - **Bí danh**: field/property/hằng chỉ gán lại thành viên của lớp khác.
-      - **Hàm bọc mỏng**: hàm chỉ có một dòng `return Other.Method(args);` (kể cả đổi tên, đổi thứ tự tham số) mà không thêm logic, kiểm tra hay chuyển đổi.
-    - Lý do: thêm một chỗ phải theo dõi, dễ lệch khi nguồn đổi, buộc người đọc đi qua hai lớp mới thấy logic thật, và sinh thêm hàm mồ côi khi đổi nguồn.
-    - **Cách đúng**: tham chiếu thẳng nguồn gốc tại nơi cần dùng.
+15. **Cấm Khai Báo Lại / Bí Danh Hằng Của Lớp Khác & Hàm Bọc Mỏng (Rule 19.78)**:
+    - ⛔ **CẤM** khai báo field/property/hằng chỉ để gán lại hoặc trỏ sang một thành viên của lớp khác mà không thêm ý nghĩa, ví dụ:
+        `public static readonly HashSet<string> ColumnReservedKeys = ConnectConfigValidator.ColumnReservedKeys;`
+      Đây là mã thừa: thêm một chỗ phải theo dõi, dễ lệch khi nguồn đổi và buộc đọc mã phải đi qua hai lớp.
+    - ⛔ **CẤM** tạo các hàm static/instance bọc mỏng chỉ đơn thuần chuyển tiếp lời gọi hàm sang lớp khác (`return Other.Method(args);`) mà không bổ sung logic nghiệp vụ hay chuyển đổi dữ liệu. Nơi cần dùng thì tham chiếu thẳng nguồn gốc (`ConnectTypes.IsSupported(...)`, `ConnectConfigValidator.Check(...)`).
       ```csharp
       // CHUẨN:
       .Must(v => ConnectTypes.IsSupported(v))
@@ -211,11 +210,10 @@ namespace Module.ShareData.Controllers
           return ConnectConfigValidator.Check(configStr);
       }
       ```
-    - **Ngoại lệ (phải ghi lý do bằng comment tại chỗ khai báo)**:
-      - Đổi kiểu hoặc đóng gói để che chi tiết nội bộ (ví dụ trả `IReadOnlySet<string>` thay cho `HashSet<string>`).
-      - Giữ tương thích ngược cho API công khai có nơi dùng bên ngoài, đã kiểm chứng bằng `find_usages`.
-      - Biến cục bộ trong hàm để rút gọn biểu thức dài (không phải field/hàm của lớp).
-      - Hàm thực hiện một phần việc thật: kiểm tra đầu vào, ghép nhiều lời gọi, xử lý ngoại lệ, đổi kiểu dữ liệu, ghi log.
-    - **Kiểm trước khi bàn giao**: với mỗi field/hàm mới trong `git diff HEAD`, dùng `find_usages` và đọc thân hàm; nếu chỉ chuyển tiếp sang lớp khác và không thuộc ngoại lệ thì xóa và sửa nơi gọi dùng thẳng nguồn gốc.
-    - Liên quan: Rule 19.68 (xóa mã không dùng), Rule 19.33 (không dựng lại tính năng có sẵn), Rule 19.49-51 (cấm sinh hàm mới làm hàm cũ mồ côi).
+    - Chỉ giữ bí danh / hàm bọc khi có lý do ghi rõ bằng comment, và thuộc một trong các trường hợp:
+      (a) Đổi kiểu hoặc đóng gói để che giấu chi tiết triển khai (ví dụ trả về `IReadOnlySet` thay cho `HashSet`);
+      (b) Giữ tương thích ngược cho API công khai có nơi dùng bên ngoài đã được kiểm chứng bằng `find_usages`;
+      (c) Rút gọn biểu thức dài bằng biến cục bộ trong thân hàm (không phải field/method của lớp).
+    - Cách kiểm tra trước khi bàn giao: `find_usages` trên mỗi field/hằng/hàm mới thêm; thành phần chỉ chuyển tiếp sang lớp khác và không có lý do (a)-(c) thì xóa.
+    - Liên quan Rule 19.68 (xóa mã không dùng) và 19.33 (không dựng lại tính năng có sẵn).
 

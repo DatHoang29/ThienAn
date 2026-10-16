@@ -24,7 +24,7 @@
 - [Tài liệu Nghiệp vụ HN-CL](../../DocBusinessThienAn/HữuNghị-ChiLăng/INDEX.md) — Nguồn sự thật duy nhất cho tài liệu nghiệp vụ Hữu Nghị - Chi Lăng (luôn mở file này trước).
 - [Kiến trúc & Luồng Dịch thuật SysTerminology](systerminology-localization-flow.md) — Cơ chế đồng bộ DB SysTerminology -> Backend Resources/*.json (auto-generated) -> Frontend IndexedDB (TA-ConfigDb) -> Vue i18n; cấm sửa tay Resources/
 - [SqlSugar docs & CodeFirst pitfalls](sqlsugar-docs.md) — link no-entity / raw SQL / JSON→SQL / bẫy EnableIncreTable & expression tree
-- [Biểu mẫu KPI chuẩn](../../DocBusinessThienAn/KPI/2026.10_KPI_DatHoangQuy.xlsx) — Tệp chuẩn duy nhất cho các kỳ đánh giá KPI tiếp theo (`2026.10_KPI_DatHoangQuy.xlsx`, tệp cũ `2026.08` đã xóa); quy chuẩn: gỡ `quotePrefix="1"` ở style hyperlink và khai báo đủ quan hệ rels trong `_rels/sheet1.xml.rels`.
+- [Biểu mẫu KPI chuẩn](../../DocBusinessThienAn/KPI/2026.09_KPI_DatHoangQuy.xlsx) — Tệp chuẩn cho các kỳ đánh giá KPI tiếp theo (`2026.09_KPI_DatHoangQuy.xlsx`); quy chuẩn: `DocBusinessThienAn/KPI/2026.08_KPI_TenHoTenLot.xlsx` là baseline gốc CHỈ ĐỌC (⛔ TUYỆT ĐỐI CẤM SỬA/GHI ĐÈ/XÓA); sau khi làm xong KPI tháng mới BẮT BUỘC đối chiếu format toàn diện với `2026.08` (cố định dòng TỔNG KẾT tại Row 20 bảo toàn 100% format dòng gốc, ẩn task dư 15-19 kèm dọn sạch cột DOC/DEV, bảo toàn tọa độ drawing shapes, viết Kết quả nổi bật phân hệ VideoWall & ShareData theo Phương án 2, và đồng bộ tuyệt đối 100% giữa URL hyperlink và text hiển thị trong ô).
 - [Tech decisions](tech-decisions.md) — bảo trì `.agents/manifest.json` ↔ frontmatter (AG-Kit tooling, không phải app)
 
 ---
