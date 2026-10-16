@@ -157,8 +157,8 @@ namespace Module.ShareData.Controllers
       - Không để sót cấu hình rác hoặc mapping mồ côi.
 13. **Quy Chuẩn Đặt Tên Kiểu Mới Trong Phân Hệ — Tránh Lặp Tiền Tố (Rule 19.73)**:
     - Khi kiểu mới đã nằm trong namespace hoặc thư mục của phân hệ (ví dụ `Modules.Integration.ShareData`, `Modules.ShareData` hoặc `ShareData/`): **TUYỆT ĐỐI KHÔNG lặp lại tiền tố của phân hệ ở tên kiểu mới**.
-      - Ví dụ chuẩn: Viết `FormatContext` thay vì `ShareDataFormatContext`, `PayloadEncrypt` thay vì `ShareDataPayloadEncrypt`.
-    - **Phạm vi áp dụng**: Bao gồm class, interface (`IConnectionHandler`, không phải `IShareDataConnectionHandler`), enum, record, DTO và tên file (tên file = tên kiểu chính).
+      - Ví dụ chuẩn: Viết `FormatContext` thay vì `ShareDataFormatContext`, `EncryptManager` thay vì `ShareDataEncryptManager`.
+    - **Phạm vi áp dụng**: Bao gồm class, interface (`IConnectHandler`, không phải `IShareDataConnectHandler`), enum, record, DTO và tên file (tên file = tên kiểu chính).
     - **Tiền tố cần tránh**: Tên phân hệ (`ShareData`, `VMS`, `TMS`...) khi namespace/project đã mang tên phân hệ (`Module.ShareData*`, `Modules.Integration.ShareData`, `ShareDataWorker*`).
     - **Ngoại lệ (giữ nguyên)**:
       - Các kiểu đã có ở `HEAD` (bảo toàn class/kiểu cũ để tránh xáo trộn codebase và giảm thiểu diff).

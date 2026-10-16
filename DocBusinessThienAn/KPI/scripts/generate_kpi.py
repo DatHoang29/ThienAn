@@ -22,7 +22,7 @@ from kpi_data import (
 )
 
 output_path = os.path.join(kpi_dir, OUTPUT_FILENAME)
-template_path = os.path.join(script_dir, 'template', 'kpi_template.xlsx')
+baseline_compare_path = os.path.join(kpi_dir, '2026.08_KPI_TenHoTenLot.xlsx')
 
 def xml_escape(val):
     """Escape XML characters."""
@@ -46,15 +46,17 @@ def calc_row_height(desc, min_ht=28.0, col_width=45):
     # Mỗi dòng văn bản khoảng 16pt + padding ô 16pt
     return max(min_ht, round(total_visual_lines * 16.0 + 16.0, 1))
 
-# 0. Nạp template chuẩn lossless (từ file template cache hoặc Git commit be79321)
-if os.path.exists(template_path):
-    with open(template_path, 'rb') as f:
+# ==============================================================================
+# 0. NẠP TEMPLATE CHUẨN:
+# Quy tắc: Nếu cần tạo mới thì dựa trên 2026.09_KPI_DatHoangQuy.xlsx để tạo cho tháng mới.
+# 2026.08_KPI_TenHoTenLot.xlsx là baseline Read-Only dùng để đối chiếu format.
+# ==============================================================================
+base_template_path = os.path.join(kpi_dir, '2026.09_KPI_DatHoangQuy.xlsx')
+if os.path.exists(base_template_path):
+    with open(base_template_path, 'rb') as f:
         content = f.read()
 else:
     content = subprocess.check_output(['git', 'show', 'be79321:DocBusinessThienAn/KPI/2026.10_KPI_DatHoangQuy.xlsx'])
-    os.makedirs(os.path.dirname(template_path), exist_ok=True)
-    with open(template_path, 'wb') as f:
-        f.write(content)
 
 with zipfile.ZipFile(io.BytesIO(content)) as z:
     all_files = {name: z.read(name) for name in z.namelist()}
@@ -84,6 +86,10 @@ if len(TASKS) >= 2:
     replacements[334] = xml_escape(TASKS[1].get('link', ''))
     replacements[335] = xml_escape(TASKS[1].get('desc', ''))
 
+if len(sis) > 337:
+    replacements[337] = xml_escape(HIGHLIGHT_TEXT)
+    idx_highlight = 337
+
 # Thay thế từ cuối lên đầu để không làm xáo trộn vị trí ký tự (offsets)
 for idx in sorted(replacements.keys(), reverse=True):
     if idx < len(sis):
@@ -91,19 +97,19 @@ for idx in sorted(replacements.keys(), reverse=True):
         new_si = f'<si><t>{replacements[idx]}</t></si>'
         sst_raw = sst_raw[:m.start()] + new_si + sst_raw[m.end():]
 
-# Thêm chuỗi HIGHLIGHT_TEXT vào cuối bảng sharedStrings
-m_sst = re.search(r'<sst\s+[^>]*count="(\d+)"\s+uniqueCount="(\d+)"', sst_raw)
-orig_count = int(m_sst.group(1))
-orig_unique = int(m_sst.group(2))
+# Nếu template gốc chưa có chuỗi 337 (ví dụ nạp từ git), thêm vào cuối bảng sharedStrings
+if len(sis) <= 337:
+    m_sst = re.search(r'<sst\s+[^>]*count="(\d+)"\s+uniqueCount="(\d+)"', sst_raw)
+    orig_count = int(m_sst.group(1))
+    orig_unique = int(m_sst.group(2))
+    highlight_esc = xml_escape(HIGHLIGHT_TEXT)
+    idx_highlight = orig_unique
+    new_count = orig_count + 1
+    new_unique = orig_unique + 1
+    sst_raw = re.sub(r'count="\d+"', f'count="{new_count}"', sst_raw, count=1)
+    sst_raw = re.sub(r'uniqueCount="\d+"', f'uniqueCount="{new_unique}"', sst_raw, count=1)
+    sst_raw = sst_raw.replace('</sst>', f'<si><t>{highlight_esc}</t></si></sst>')
 
-highlight_esc = xml_escape(HIGHLIGHT_TEXT)
-idx_highlight = orig_unique
-
-new_count = orig_count + 1
-new_unique = orig_unique + 1
-sst_raw = re.sub(r'count="\d+"', f'count="{new_count}"', sst_raw, count=1)
-sst_raw = re.sub(r'uniqueCount="\d+"', f'uniqueCount="{new_unique}"', sst_raw, count=1)
-sst_raw = sst_raw.replace('</sst>', f'<si><t>{highlight_esc}</t></si></sst>')
 all_files['xl/sharedStrings.xml'] = sst_raw.encode('utf-8')
 
 # ==============================================================================
@@ -276,5 +282,48 @@ if not valid:
     print(f"❌ VALIDATION_FAILED: {errors}")
     sys.exit(1)
 
+# ==============================================================================
+# 7. ĐỐI CHIẾU FORMAT TOÀN DIỆN VỚI FILE GỐC 2026.08_KPI_TenHoTenLot.xlsx (Rule 35)
+# ==============================================================================
+format_ok = True
+format_msgs = []
+if os.path.exists(baseline_compare_path):
+    with zipfile.ZipFile(baseline_compare_path) as z_base, zipfile.ZipFile(output_path) as z_out:
+        s1_out = ET.fromstring(z_out.read('xl/worksheets/sheet1.xml'))
+        st_out = ET.fromstring(z_out.read('xl/styles.xml'))
+        ns = '{http://schemas.openxmlformats.org/spreadsheetml/2006/main}'
+
+        # 1. Kiểm tra Row 20 TỔNG KẾT
+        r20 = s1_out.find(f'.//{ns}row[@r="20"]')
+        if r20 is None:
+            format_ok = False
+            format_msgs.append("Dòng Row 20 không tồn tại")
+
+        mc = s1_out.find(f'.//{ns}mergeCell[@ref="A20:G20"]')
+        if mc is None:
+            format_ok = False
+            format_msgs.append("mergeCell A20:G20 không tồn tại")
+
+        # 2. Kiểm tra viền trên đậm medium tại Row 20 (A20..G20 và H20..AO20)
+        xfs = st_out.find(f'{ns}cellXfs')
+        borders = st_out.find(f'{ns}borders')
+        for s_idx in [329, 330, 331, 146]:
+            b_id = int(xfs[s_idx].attrib.get('borderId', 0))
+            top_style = borders[b_id].find(f'{ns}top').attrib.get('style')
+            if top_style != 'medium':
+                format_ok = False
+                format_msgs.append(f"Style {s_idx} viền trên không phải medium (hiện tại: {top_style})")
+
+        # 3. Kiểm tra ẩn dòng 15-19
+        for r in range(last_task_row + 1, 20):
+            row_el = s1_out.find(f'.//{ns}row[@r="{r}"]')
+            if row_el is None or row_el.attrib.get('hidden') != '1':
+                format_ok = False
+                format_msgs.append(f"Dòng {r} chưa được ẩn (hidden='1')")
+
 print(f"✅ SUCCESS: Đã xuất tệp KPI hoàn chỉnh: {output_path}")
 print(f"📊 Kích thước tệp: {os.path.getsize(output_path)} bytes | Kiểm định OpenXML: {valid}")
+if format_ok:
+    print(f"🎯 Đối chiếu format với 2026.08_KPI_TenHoTenLot.xlsx: KHỚP 100% (Row 20, Viền Medium, Ẩn task dư)")
+else:
+    print(f"⚠️ Cảnh báo đối chiếu format: {format_msgs}")

@@ -231,8 +231,8 @@ Quy ước chú giải tiếng Anh trong ngoặc `[Tiếng Việt] ([English])` 
 ## ⏱️ 10. Quy Chuẩn Báo Cáo KPI Tháng & Định Mức Ngày Công (Rule 19.77)
 
 1. **Chu Kỳ Báo Cáo & Ngày Báo Cáo**:
-   - Báo cáo KPI được lập và đánh giá theo **chu kỳ 1 tháng** (định dạng `YYYY-MM`, ví dụ: `2026-10`).
-   - **Ngày báo cáo** (ô `M7` / `K7` trong file Excel KPI): **BẮT BUỘC phải nằm trong tháng đánh giá đó** (ví dụ: kỳ `2026-10` thì ngày báo cáo phải là một ngày trong tháng 10/2026, như `17/10/2026`).
+   - Báo cáo KPI được lập và đánh giá theo **chu kỳ 1 tháng** (định dạng `YYYY-MM`, ví dụ: `2026-09` hoặc `2026-10`).
+   - **Ngày báo cáo** (ô `M7` Sheet 2): **BẮT BUỘC ghi ngày hôm nay** — ngày thực tế thao tác lập/chỉnh sửa báo cáo (sửa ngày nào ghi ngày báo cáo ngày đó, ví dụ sửa ngày 16/10/2026 thì ghi `16/10/2026`).
 
 2. **Định Mức Tính Ngày Công (Man-Days) — Chuẩn 5.5 Ngày / Tuần**:
    - Quy chuẩn tính ngày công trong công ty: **1 tuần làm việc = 5.5 ngày công** (từ thứ 2 đến sáng thứ 7).
@@ -255,15 +255,30 @@ Quy ước chú giải tiếng Anh trong ngoặc `[Tiếng Việt] ([English])` 
      - **Dọn sạch cột dư thừa:** BẮT BUỘC xóa bỏ toàn bộ các giá trị mẫu dư thừa trên các dòng ẩn này (như chữ `DOC` ở `G15`, `DEV` ở `G16`, các giá trị tính toán mẫu thừa ở cột X-AO) để không gây sai lệch dữ liệu hay để lại rác khi unhide.
    - Giữ nguyên khoảng cách chuẩn 5 dòng trắng (dòng 21-25) sau dòng `TỔNG KẾT` trước khi đến bảng `THANG ĐIỂM KPI` (dòng 26-33).
 
-4. **Quy Chuẩn Viết "Phần Kết Quả Nổi Bật" (Cột G12 Sheet `02. Tổng KPI`)**:
-   - Viết cô đọng theo cấu trúc: **Tài liệu tìm hiểu/nghiên cứu được gì** và **Thực hiện/tối ưu được gì**, phân định rành mạch theo từng phân hệ thực hiện (như VideoWall, ShareData) để người đọc/leader nhận diện ngay phạm vi công việc.
-   - Nêu trực diện vào năng lực kỹ thuật và kết quả thực chiến (chuẩn format plain text, không dùng markdown `**` trong Excel):
-     - *Phân hệ VideoWall (Tìm hiểu & Kiểm thử site):* Nghiên cứu tài liệu chuẩn giao tiếp ISAPI (Hikvision) nắm rõ cơ chế điều khiển màn hình; phát triển Worker Service qua NATS điều khiển thiết bị không nghẽn WebAPI, tự làm form WPF test thiết bị và trực tiếp ra site kiểm thử 2 ngày nghiệm thu thành công.
-     - *Phân hệ ShareData (Thực hiện & Tối ưu):* Triển khai cơ chế gửi nối đuôi kết hợp Change Tracking & NATS giúp đẩy dữ liệu tức thì và tối ưu tải CSDL nhanh hơn.
-   - ⛔ **CẤM** viết dài dòng lan man, sáo rỗng hoặc giật tít hình thức chung chung. Cấm để markdown `**` trong chuỗi text Excel.
+4. **Quy Chuẩn Viết Mô Tả Task & "Phần Kết Quả Nổi Bật" (Cột G12 Sheet `02. Tổng KPI`) — Chuẩn Thô Gọn, Súc Tích & Dễ Hiểu**:
+   - **Văn phong thô, ngắn gọn, súc tích:** Làm gì ghi nấy trực diện, gãy gọn, không văn vẻ hoa mỹ hay diễn đạt sáo rỗng.
+   - ⛔ **TUYỆT ĐỐI CẤM Báo Cáo Quá Chi Tiết Kỹ Thuật Nội Bộ:**
+     - ⛔ **CẤM** ghi chi tiết các bước xử lý code, truy vấn CSDL hay thao tác nội bộ (như *"xử lý luồng: lấy dữ liệu từ CSDL và chuyển đổi..."*).
+     - Chỉ ghi ở mức tính năng nghiệp vụ rõ ràng: *"Chuyển đổi cấu trúc dữ liệu theo chuẩn đối tác yêu cầu"*, *"Triển khai gửi dữ liệu nối đuôi và truyền nhận tức thì"*.
+   - ⛔ **TUYỆT ĐỐI CẤM Dùng Từ Ngữ Văn Vẻ Sáo Rỗng & Thuật Ngữ Hàn Lâm:**
+     - ⛔ **CẤM** dùng các từ ngữ văn vẻ hoa mỹ (như *"làm chủ"*, *"vận hành mượt mà không bị nghẽn tải"*...).
+     - ⛔ **CẤM** dùng các thuật ngữ quá hàn lâm, chuyên sâu khó hiểu (như *"ma trận"*, *"polling"*...) làm người ngoài ngành (HR, Quản lý) khó nắm bắt.
+   - ⛔ **TUYỆT ĐỐI CẤM Dùng Từ Ngữ Mang Tính Cá Nhân Hóa Cảm Tính:**
+     - ⛔ **CẤM** dùng các từ ngữ mang tính cá nhân hóa cảm tính như *"tự làm"*, *"tự xây dựng"*, *"tự mình"*. Báo cáo công việc trong tổ chức cần mang tính khách quan, trung tính: chỉ ghi *"làm"*, *"xây dựng"*, *"triển khai"*, *"phát triển"*.
+   - ⛔ **TUYỆT ĐỐI CẤM Ghi Số Ngày Công / Thời Gian Cụ Thể Trong Nội Dung Task & Kết Quả Nổi Bật:**
+     - ⛔ **CẤM** đưa các cụm từ chỉ số ngày thực hiện (như *"2 ngày"*, *"3 ngày"*, *"trong x ngày"*) vào nội dung mô tả task hoặc ô G12.
+     - Toàn bộ thời lượng/ngày công đã được định lượng và quản lý riêng tại cột I ("Ngày công thực hiện"). Nội dung mô tả chỉ tập trung vào hành động và kết quả đạt được (ví dụ: *"Trực tiếp ra site kiểm thử và nghiệm thu thiết bị"* thay vì *"...(2 ngày)"*).
+   - ⛔ **TUYỆT ĐỐI CẤM Ghi Nhận Fix Bug Lặt Vặt:**
+     - ⛔ **CẤM** note các việc fix bug con, lỗi lặt vặt (như *"chuẩn hóa log cha - con và theo dõi fix bug kiểm thử F16"*) vào KPI.
+     - Thay vào đó, ghi ngắn gọn mục tiêu nghiệm thu: *"Tự động đóng gói và lưu trữ file dữ liệu đối soát"*, *"Chuẩn hóa luồng log phục vụ nghiệm thu hệ thống"*.
+   - Chuẩn format plain text, ⛔ **CẤM** để ký tự markdown `**` trong chuỗi text Excel.
+   - **Ví dụ chuẩn mực ô G12:**
+     - *Phân hệ VideoWall:* Nghiên cứu chuẩn giao tiếp ISAPI Hikvision; xây dựng API phân quyền điều khiển theo người dùng và khu vực màn hình; phát triển Worker Service chạy nền kết nối thiết bị qua NATS; làm tool WPF kiểm thử và trực tiếp ra site kiểm thử thiết bị nghiệm thu thành công.
+     - *Phân hệ ShareData:* Xây dựng cơ chế gửi nối đuôi và truyền nhận dữ liệu tức thì, tối ưu tải hệ thống; tự động đóng gói lưu trữ file đối soát và chuẩn hóa log phục vụ nghiệm thu hệ thống.
 
-5. **Bắt Buộc Đối Chiếu Format Với File Gốc `2026.08_KPI_TenHoTenLot.xlsx` & Cấm Sửa File Gốc (Zero UI Misalignment)**:
-   - **Tệp baseline chuẩn:** `DocBusinessThienAn/KPI/2026.08_KPI_TenHoTenLot.xlsx`.
+5. **Tạo Mới Tháng Mới Dựa Trên `2026.09_KPI_DatHoangQuy.xlsx` & Bắt Buộc Đối Chiếu Format Với `2026.08_KPI_TenHoTenLot.xlsx` (Zero UI Misalignment)**:
+   - **Tạo mới tháng mới:** Khi cần tạo báo cáo KPI cho tháng mới, **BẮT BUỘC dựa trên tệp chuẩn hoàn chỉnh gần nhất là `DocBusinessThienAn/KPI/2026.09_KPI_DatHoangQuy.xlsx` để tạo**. Tệp này đã chuẩn hóa sẵn cấu trúc bảng chuỗi (sharedStrings), tự động co giãn dòng theo nội dung và đồng bộ liên kết.
+   - **Tệp baseline đối chiếu:** `DocBusinessThienAn/KPI/2026.08_KPI_TenHoTenLot.xlsx` là baseline chuẩn (Read-Only), **chỉ dùng để đối chiếu format xem có đúng hay không**.
    - ⛔ **TUYỆT ĐỐI CẤM SỬA ĐỔI, GHI ĐÈ HOẶC XÓA TỆP `2026.08_KPI_TenHoTenLot.xlsx`** dưới mọi hình thức. Tệp này được bảo vệ nghiêm ngặt ở chế độ Chỉ Đọc (Read-Only) để làm thước đo đối chiếu format vĩnh viễn cho mọi kỳ đánh giá KPI tiếp theo.
    - **Bắt buộc đối chiếu format sau khi hoàn thành:** Sau khi tạo hoặc chỉnh sửa bất kỳ file KPI tháng mới nào (ví dụ `2026.09_KPI_DatHoangQuy.xlsx`), **BẮT BUỘC phải mở và đối chiếu lại toàn diện cấu trúc XML và format với file gốc `2026.08_KPI_TenHoTenLot.xlsx`**:
      - **Đối chiếu vị trí & định dạng dòng TỔNG KẾT:** BẮT BUỘC nằm cố định tại **Row 20**, `ht="22.5" customHeight="1"`, `mergeCell ref="A20:G20"`, đúng mã style (`s="329"` cho A20: font Segoe UI 11pt Bold, màu nền `fillId=28`, viền dày `borderId=91`, `s="330"`, `s="331"`, `s="146"`, `s="147"`, `s="148"`, `s="149"`).
