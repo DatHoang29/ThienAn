@@ -30,6 +30,8 @@ const viVnPath = resolveWebVueSrc('i18n/lang/vi-vn.json');
 const enUsPath = resolveWebVueSrc('i18n/lang/en-us.json');
 const modifyRecordPath = resolveWebVueSrc('components/table/modifyRecord.vue');
 const subscriptionTablePath = resolveWebVueSrc('views/sharedata/sharing/component/subscriptionTable.vue');
+const appScssPath = resolveWebVueSrc('theme/app.scss');
+const loadingScssPath = resolveWebVueSrc('views/sharedata/style/loading.scss');
 const partnerValidatorPath = path.resolve(__dirname, '../../../../TA-ITS015-WEBAPI-V1.0/src/Modules/ShareData/Module.ShareData/Controllers/Partner/Validators/PartnerValidator.cs');
 
 test.describe('ShareData — Kiểm thử 10 lỗi giao diện và logic (Sharing & DataSource)', () => {
@@ -66,18 +68,22 @@ test.describe('ShareData — Kiểm thử 10 lỗi giao diện và logic (Sharin
 		expect(content).toContain('align-items: center;');
 	});
 
-	test('Bug 4 — Chỉ hỗ trợ WebAPI; disable các tùy chọn File, Kafka, FTP trong modal đối tác', async () => {
+	test('Bug 4 — Kênh kết nối: Mở hỗ trợ đầy đủ các kênh WebAPI, File, Kafka, FTP trong modal đối tác', async () => {
 		const content = fs.readFileSync(editPartnerPath, 'utf-8');
 		// Option API không bị disabled
 		expect(content).toMatch(/<el-option [^>]*value="API"[^>]*\/>/);
 		expect(content).not.toMatch(/value="API"[^>]*:disabled="true"/);
-		// Option File bị disabled
-		expect(content).toMatch(/value="File"[^>]*:disabled="true"/);
-		// Option Kafka bị disabled
-		expect(content).toMatch(/value="Kafka"[^>]*:disabled="true"/);
-		// Option FTP bị disabled
-		expect(content).toMatch(/value="FTP"[^>]*:disabled="true"/);
+		// Option File không bị disabled
+		expect(content).toMatch(/<el-option [^>]*value="File"[^>]*\/>/);
+		expect(content).not.toMatch(/value="File"[^>]*:disabled="true"/);
+		// Option Kafka không bị disabled
+		expect(content).toMatch(/<el-option [^>]*value="Kafka"[^>]*\/>/);
+		expect(content).not.toMatch(/value="Kafka"[^>]*:disabled="true"/);
+		// Option FTP không bị disabled
+		expect(content).toMatch(/<el-option [^>]*value="FTP"[^>]*\/>/);
+		expect(content).not.toMatch(/value="FTP"[^>]*:disabled="true"/);
 	});
+
 
 	test('Bug 5 — Nhãn gợi ý nhóm cấu hình thuần Việt và thuần Anh (Rule 20.13: Cấm song ngữ lai)', async () => {
 		const viVn = JSON.parse(fs.readFileSync(viVnPath, 'utf-8'));
@@ -92,14 +98,14 @@ test.describe('ShareData — Kiểm thử 10 lỗi giao diện và logic (Sharin
 		expect(enUs['lz.label.sharedataConnectionEditor.groupInbound']).toBe('Inbound');
 	});
 
-	test('Bug 6 — Ô ghi chú trong modal đối tác bỏ margin-bottom và tăng rows lên 2', async () => {
+	test('Bug 6 — Ô ghi chú trong modal đối tác bỏ margin-bottom và tăng rows', async () => {
 		const content = fs.readFileSync(editPartnerPath, 'utf-8');
 		// Cột ghi chú không có class mb20
 		expect(content).toMatch(/<el-col :xs="24" :sm="24" :md="24" :lg="24" :xl="24">\s*<el-form-item :label="\$t\('lz\.entity\.sharedataPartner\.remark'\)"/);
 		// Form item có style margin-bottom: 0
 		expect(content).toContain('style="margin-bottom: 0;"');
-		// Input textarea có :rows="2"
-		expect(content).toMatch(/<el-input[^>]*type="textarea"[^>]*:rows="2"/);
+		// Input textarea có :rows="2" hoặc :rows="3"
+		expect(content).toMatch(/<el-input[^>]*type="textarea"[^>]*:rows="[23]"/);
 	});
 
 	test('Bug 7 — Tiêu đề "Tạo mới tên đối tác" có chữ "tên" viết thường', async () => {
@@ -147,6 +153,29 @@ test.describe('ShareData — Kiểm thử 10 lỗi giao diện và logic (Sharin
 		const subTableContent = fs.readFileSync(subscriptionTablePath, 'utf-8');
 		expect(subTableContent).toContain('.vxe-cell.c--tooltip');
 		expect(subTableContent).toContain('gap: 4px');
+	});
+
+	test('Bug 11 — Chuẩn hóa style loading 8-dots spinner đóng gói trực tiếp trong component sharing/index.vue', async () => {
+		const content = fs.readFileSync(sharingIndexPath, 'utf-8');
+		// 1. Cả 3 card trang sharing đều cấu hình :element-loading-text="$t('lz.label.base.loading')"
+		expect(content).toMatch(/<el-card[^>]*v-loading="loading"[^>]*:element-loading-text="\$t\('lz\.label\.base\.loading'\)"[^>]*class="eshare-body__left"/);
+		expect(content).toMatch(/<el-card[^>]*v-loading="loading"[^>]*:element-loading-text="\$t\('lz\.label\.base\.loading'\)"[^>]*:body-style="\{ padding: '12px 14px' \}"/);
+		expect(content).toMatch(/<el-card[^>]*v-loading="loading"[^>]*:element-loading-text="\$t\('lz\.label\.base\.loading'\)"[^>]*class="sub-card"/);
+
+		// 2. Style loading 8-dots spinner viết trực tiếp bên trong <style scoped> của sharing/index.vue
+		expect(content).toContain(':deep(.el-loading-mask)');
+		expect(content).toContain('mask-image');
+		expect(content).toContain('sharedata-roll');
+		expect(content).toContain('Đang tải...');
+
+		// 3. app.scss và loading.scss KHÔNG còn tồn tại/chứa style phân hệ ShareData
+		const appScssContent = fs.readFileSync(appScssPath, 'utf-8');
+		expect(appScssContent).not.toContain('.eshare-sharing');
+		expect(appScssContent).not.toContain('sharedata-roll');
+		expect(fs.existsSync(loadingScssPath)).toBe(false);
+
+		// 4. View trang sharing KHÔNG còn import loading.scss
+		expect(content).not.toContain("@import '../style/loading.scss';");
 	});
 });
 
@@ -270,7 +299,7 @@ test.describe('E2E Runtime UI Check trên http://localhost:8888/#/shareData/shar
 		const remarkInput = dialog.locator('textarea');
 		await expect(remarkInput).toBeVisible();
 		const rowsAttr = await remarkInput.getAttribute('rows');
-		expect(rowsAttr).toBe('2');
+		expect(Number(rowsAttr)).toBeGreaterThanOrEqual(2);
 
 		// 5. Kiểm tra nút Xác nhận tồn tại và sẵn sàng (Bug 8)
 		const confirmBtn = dialog.locator('.dialog-footer button.el-button--primary');

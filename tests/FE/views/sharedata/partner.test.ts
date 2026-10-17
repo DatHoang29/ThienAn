@@ -169,12 +169,11 @@ test.describe('ShareData — Cấu hình kết nối đối tác theo mẫu VMS 
 		expect(editorContent.includes('!!'), 'connectionConfigEditor.vue không được chứa !!').toBeFalsy();
 		expect(partnerContent.includes('!!'), 'editPartner.vue không được chứa !!').toBeFalsy();
 
-		// editPartner.vue phải nhúng connectionConfigEditor và bỏ các biến/methods cũ
-		expect(partnerContent).toContain('<connection-config-editor');
+		// editPartner.vue phải nhúng connectionConfigForm và bỏ các biến/methods cũ
+		expect(partnerContent).toContain('<connection-config-form');
 		expect(partnerContent).not.toContain('configMode');
 		expect(partnerContent).not.toContain('buildConnectionConfigJson');
 		expect(partnerContent).not.toContain('parseConnectionConfigToJson');
-		expect(partnerContent).not.toContain('connectionConfigForm');
 		expect(partnerContent).not.toContain('rawJsonConfig');
 
 		// Kiểm tra không hardcode string: tất cả label/button/placeholder đều dùng $t
@@ -452,5 +451,25 @@ test.describe('ShareData — Cấu hình kết nối đối tác theo mẫu VMS 
 		rawInvalid = null;
 		const emitAfterClear = rawInvalid ? rawInvalid : serializeListToJson(items);
 		expect(emitAfterClear).toBeNull();
+	});
+
+	test('TC13 — Modal editPartner.vue có width tối thiểu 880px, ô ghi chú rows="3" và padding-bottom dialog body bằng 0', async () => {
+		const partnerContent = fs.readFileSync(editPartnerPath, 'utf-8');
+
+		// Kiểm tra dialog có width >= 880px
+		const widthMatch = partnerContent.match(/<el-dialog[^>]*width="(\d+)px"/);
+		expect(widthMatch).not.toBeNull();
+		const widthValue = Number(widthMatch![1]);
+		expect(widthValue).toBeGreaterThanOrEqual(880);
+
+		// Kiểm tra class định danh cho dialog để style không bị ảnh hưởng Teleport
+		expect(partnerContent).toContain('class="sharedata-edit-partner-dialog"');
+
+		// Kiểm tra ô remark có :rows="3"
+		expect(partnerContent).toMatch(/<el-input[^>]*v-model="state\.ruleForm\.remark"[^>]*:rows="3"/);
+
+		// Kiểm tra padding-bottom: 0 cho body dialog
+		expect(partnerContent).toContain('padding-bottom: 0');
+		expect(partnerContent).toMatch(/:global\(\.sharedata-edit-partner-dialog\s+\.el-dialog__body\)/);
 	});
 });

@@ -738,11 +738,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(filterText).toContain('Điều kiện lọc:');
         expect(filterText).not.toContain('(WHERE)');
 
-        const orderLabel = page.locator('.vqb-order-row .vqb-label');
-        await expect(orderLabel).toBeVisible();
-        const orderText = await orderLabel.innerText();
-        expect(orderText).toContain('Sắp xếp:');
-        expect(orderText).not.toContain('(ORDER BY)');
+        const orderLabel = page.locator('.vqb-order-row');
+        await expect(orderLabel).toHaveCount(0);
     });
 
     test('10. Đồng bộ 18 trường giữa Cấu hình SQL và Danh sách trường đã lưu, loại bỏ everright-filter khỏi package.json', async ({ page }) => {
@@ -756,7 +753,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const vqbContent = fs.readFileSync(vqbPath, 'utf8');
         expect(vqbContent).toContain('savedFields');
         expect(vqbContent).toContain('handleApplySavedFields');
-        expect(vqbContent).toContain('vqbSavedFieldsBtn');
+        expect(vqbContent).not.toContain('vqbSavedFieldsBtn');
 
         const indexVuePath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
         const indexVueContent = fs.readFileSync(indexVuePath, 'utf8');
@@ -843,29 +840,28 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(btnGenSql).toBeVisible();
         await expect(btnGenSql).toContainText('18');
 
-        // 5. Kiểm tra nút "Cột đã lưu (18)" trong VisualQueryBuilder hiển thị
+        // 5. Kiểm tra nút "Cột đã lưu" và "Kiểm an toàn" đã được loại bỏ (Item 3)
         const btnSavedInBuilder = page.locator('.vqb-header-actions .el-button').filter({ hasText: /Cột đã lưu/ });
-        await expect(btnSavedInBuilder).toBeVisible();
-        await expect(btnSavedInBuilder).toContainText('18');
+        await expect(btnSavedInBuilder).toHaveCount(0);
+        const btnCheckSafety = page.locator('.sql-toolbar-right .el-button').filter({ hasText: /Kiểm an toàn/ });
+        await expect(btnCheckSafety).toHaveCount(0);
 
         // 6. Nhấn nút "Sinh SQL từ trường đã lưu (18)"
         await btnGenSql.click();
         await page.waitForTimeout(400);
 
-        // 7. Xác thực SQL được sinh ra chứa đủ các trường nghiệp vụ quan trọng
+        // 7. Xác thực SQL được sinh ra chứa đủ các trường nghiệp vụ quan trọng và không chứa OPTION (RECOMPILE) (Item 11)
         const sqlPreview = page.locator('.vqb-sql-preview-strip');
         await expect(sqlPreview).toBeVisible();
         await expect(sqlPreview).toContainText('detectionId');
         await expect(sqlPreview).toContainText('detectTime');
         await expect(sqlPreview).toContainText('licensePlate');
         await expect(sqlPreview).toContainText('speed');
+        await expect(sqlPreview).not.toContainText('OPTION (RECOMPILE)');
 
-        // 8. Bấm nút "Cột đã lưu (18)" trong Visual Builder để kiểm tra cập nhật danh sách cột trực quan
-        await btnSavedInBuilder.click();
-        await page.waitForTimeout(300);
-
+        // 8. Visual Query Builder mặc định tự động fill cột từ trường đã lưu (Item 6)
         const colCountTag = page.locator('.vqb-columns-card .vqb-card-title .el-tag');
-        await expect(colCountTag).toContainText('20 cột');
+        await expect(colCountTag).toContainText('18 cột');
     });
 
     test('Hỗ trợ kéo resize 2 div con trong Visual Query Builder (Cột trích xuất và Điều kiện lọc)', async ({ page }) => {
@@ -1880,9 +1876,9 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(indexContent).toContain('v-if="false" class="mb5 field-col-btn"');
 
         // 4. Kiểm tra khoảng cách icon và chữ trong modifyRecord.vue (chống dính chữ)
-        expect(modifyRecordContent).toContain('gap: 6px;');
+        expect(modifyRecordContent).toContain('gap: 4px;');
         expect(modifyRecordContent).toContain('.el-icon');
-        expect(modifyRecordContent).toContain('margin-right: 6px;');
+        expect(modifyRecordContent).toContain('margin-right: 4px;');
 
         // 6. Bảng nguồn được lọc theo phạm vi mã gói tin (packetCode)
         expect(qbContent).toContain('PACKET_ALLOWED_TABLES');
@@ -1897,10 +1893,26 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(qbContent).toContain('const DEFAULT_COLUMNS_HEIGHT = 72;');
         expect(qbContent).toContain(':style="{ height: columnsHeight + \'px\' }"');
 
-        // 11. Thanh splitter phân cách giữa 2 khung được bo tròn ở đầu và cuối (border-radius: 6px, margin: 2px 0)
+        // 11. Thanh splitter phân cách giữa 2 khung được bo tròn ở đầu và cuối (border-radius: 6px, margin: 2px 0) và không có icon pseudo-element nửa trắng nửa xanh (Item 4)
         expect(indexContent).toContain('.splitpanes__splitter {');
         expect(indexContent).toContain('border-radius: 6px;');
         expect(indexContent).toContain('height: calc(100% - 4px);');
+        expect(indexContent).toContain('&::before,\n\t\t\t&::after {\n\t\t\t\tdisplay: none;\n\t\t\t}');
+
+        // 12. Padding cho button Cấu hình (Item 1)
+        expect(indexContent).toContain('.packet-pane {');
+        expect(indexContent).toContain('padding-right: 8px;');
+
+        // 13. Giảm padding cho 2 tab (Item 2)
+        expect(indexContent).toContain('padding: 0 10px;');
+        expect(indexContent).toContain('height: 30px;');
+        expect(indexContent).toContain('line-height: 30px;');
+
+        // 14. Không còn useOptionRecompile hay vqb-order-row trong queryBuilder.vue và không có OPTION (RECOMPILE) / handleCheckSqlSafety (Items 3, 11)
+        expect(qbContent).not.toContain('useOptionRecompile');
+        expect(qbContent).not.toContain('vqb-order-row');
+        expect(indexContent).not.toContain('OPTION (RECOMPILE)');
+        expect(indexContent).not.toContain('handleCheckSqlSafety');
     });
 });
 

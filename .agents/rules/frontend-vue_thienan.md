@@ -68,6 +68,13 @@ src/views/<module>/<feature>/
    - *Lý do*: Sửa vào theme chung sẽ gây hiệu ứng lây lan (side-effects), làm thay đổi và vỡ giao diện ngoài ý muốn của các phân hệ khác trên toàn dự án.
 6. **Vị Trí Đặt Code CSS/SCSS (Rule 20.16)**:
    - Code CSS mới đặt ở cuối cùng khối `<style>`; chỉnh sửa CSS hiện có thì sửa in-place tại chỗ. Chi tiết xem mục 6.5.
+7. **Đóng Gói CSS Phân Hệ Nội Bộ — CẤM Viết CSS Đặc Thù Của Phân Hệ Ra File CSS Global (`app.scss`, `index.scss`) (Rule 20.22)**:
+   - **Bối cảnh & Mục tiêu**: File CSS global (`theme/app.scss`, `theme/index.scss`) chỉ dành riêng cho các utility classes hệ thống chung (`.w100`, `.mb5`, `.mr5`, flex utilities) và theme layout toàn cục. CSS phục vụ hiệu ứng, loading, bố cục, hoặc custom selector riêng của từng phân hệ (như ShareData, TMS, VideoWall...) nếu đưa ra file global sẽ làm phình to bundle CSS toàn cục, gây rò rỉ selector (leaking styles), khó quản lý và làm ô nhiễm style các module khác.
+   - **Các quy định bắt buộc**:
+     1. ⛔ **TUYỆT ĐỐI CẤM** viết CSS/SCSS đặc thù của một phân hệ ra file CSS global (`src/src/theme/app.scss`, `src/src/theme/index.scss`).
+     2. ✅ **Đóng gói nội bộ phân hệ**: Mọi style dùng chung giữa các màn hình trong cùng một phân hệ BẮT BUỘC đặt trong thư mục `src/src/views/<phân-hệ>/style/` (ví dụ: `src/src/views/sharedata/style/loading.scss`).
+     3. ✅ **Import tại component / view**: Tại các view / component chính cần sử dụng, import nội bộ bằng cú pháp `@import '../style/<tên-style>.scss';` hoặc `@import './style/<tên-style>.scss';` trong khối `<style lang="scss">`.
+     4. ✅ **Scope selector an toàn**: Các selector trong file style phân hệ vẫn phải được bọc prefix theo class cha định danh của phân hệ (ví dụ: `.eshare-sharing`, `.esh-datasource-container`, `[class*='sharedata-']`) để cô lập hoàn toàn phạm vi ảnh hưởng.
 
 ---
 
@@ -212,6 +219,9 @@ src/views/<module>/<feature>/
         - Nếu truy cập một trường phụ mở rộng không nằm trong DTO Swagger backend (ví dụ: `syncKind` trong `ShareDataUpdatePacketInput`), **BẮT BUỘC ép kiểu cục bộ an toàn**: `(state.editForm as any).syncKind` để tránh báo đỏ.
      3. **Tự kiểm tra trước khi bàn giao (Pre-handoff Type Audit)**:
         - Trước khi hoàn tất mọi thay đổi code TypeScript / Vue, AI phải tự rà soát kiểu dữ liệu của các biểu thức điều kiện `if (...)`, `===`, toán tử ba ngôi `? :` để bảo đảm kiểu dữ liệu hai vế tương thích (overlap) 100%, tuyệt đối không để sót lỗi gạch chân đỏ trong IDE của lập trình viên.
+
+8. **Đóng Gói CSS Phân Hệ Nội Bộ — CẤM Viết CSS Đặc Thù Của Phân Hệ Ra File CSS Global (Rule 20.22)**:
+   - Chi tiết quy định cấm viết CSS phân hệ ra `app.scss`/`index.scss` và hướng dẫn đóng gói tại `src/src/views/<phân-hệ>/style/`: xem mục 2.7.
 
 ---
 
