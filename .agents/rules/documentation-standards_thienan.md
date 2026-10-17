@@ -284,7 +284,10 @@ Quy ước chú giải tiếng Anh trong ngoặc `[Tiếng Việt] ([English])` 
    - **Bắt buộc đối chiếu format & công thức sau khi hoàn thành:** Sau khi tạo hoặc chỉnh sửa bất kỳ file KPI tháng mới nào (ví dụ `2026.09_KPI_DatHoangQuy.xlsx`), **BẮT BUỘC phải mở và đối chiếu lại toàn diện cấu trúc XML, format và công thức tính toán với file gốc `2026.08_KPI_TenHoTenLot.xlsx`**:
      - **Đối chiếu vị trí & định dạng dòng TỔNG KẾT:** BẮT BUỘC nằm cố định tại **Row 20**, `ht="22.5" customHeight="1"`, `mergeCell ref="A20:G20"`, đúng mã style (`s="329"` cho A20: font Segoe UI 11pt Bold, màu nền `fillId=28`, viền dày `borderId=91`, `s="330"`, `s="331"`, `s="146"`, `s="147"`, `s="148"`, `s="149"`).
      - **Đối chiếu giao diện & đối tượng vẽ (Drawing Shapes):** Kiểm tra các nút bo góc, hình vẽ, icon màu chỉ thị (như nút `DEV`, `DOC`, chấm tròn điểm số) có bị lệch dòng hoặc trôi ra ngoài bảng hay không. Các đối tượng vẽ trong OpenXML (`drawing1.xml`) được neo cố định theo số dòng (`<xdr:row>`), do đó vị trí bảng hướng dẫn (hàng 26 - 33) **BẮT BUỘC giữ nguyên vị trí dòng tuyệt đối theo file gốc**, tuyệt đối không được tự ý dịch chuyển làm lệch hình vẽ.
-     - **Đối chiếu định dạng ô (Styles):** Font chữ, độ cao dòng (`ht`), màu nền (`fillId`), viền ô (`borderId`) và căn lề (đặc biệt `wrapText="1"` cho các ô nhiều dòng như `G12`) phải đồng bộ 100% với file gốc.
+     - **Đối chiếu định dạng ô (Styles) & Màu chữ (Zero Color Regression):**
+       - Font chữ, độ cao dòng (`ht`), màu nền (`fillId`), viền ô (`borderId`) và căn lề (đặc biệt `wrapText="1"` cho các ô nhiều dòng như `G12`, `F13`, `F14`) phải đồng bộ 100% với file gốc.
+       - **Bảo toàn màu chữ chuẩn & cấm chữ màu vàng/cam ngoài vùng sao; Bảo toàn viền mỏng FFD5DEE8 khối C6..C8 (Cấm viền đậm FF4E5D78):** Ô Họ tên nhân viên `C6` và ô Kỳ đánh giá `C8` (Sheet 2) BẮT BUỘC dùng Style 112 (màu text chuẩn `#1E293B`, `fillId=0` transparent, `borderId=21` viền mỏng `FFD5DEE8` xung quanh), đối chiếu 1:1 với baseline `2026.08` Style 294 và Style 283; ⛔ **CẤM** gán nhầm style rating sao vàng (như 105 trong 2026.08 hoặc 107 trong 2026.09 có font `FFFFC000`), ⛔ **CẤM** gán nhầm style 283 vào ô C8 làm viền bị đậm màu `FF4E5D78`. Quét cấm chữ vàng/cam `FFFFC000` trên toàn bộ các ô ngoài khu vực đánh giá sao (`L36..L39`) và đối chiếu toàn vẹn 100% đường viền (Zero Border Corruption) của Sheet 2 so với baseline.
+       - **Bảo toàn Wrap-Text & Chiều cao hàng khít vừa đủ xem (Row 13, 14):** Hàng mô tả task ở Sheet 1 BẮT BUỘC giữ nguyên `wrapText=1`, có thuộc tính `customHeight="1"` và chiều cao hàng chuẩn khít vừa đủ xem (Row 13 `ht="87"`, Row 14 `ht="101.75"`); ⛔ **TUYỆT ĐỐI CẤM** gán đè style không tồn tại vào các ô `D14..F14` làm Excel mất wrapText khiến chiều cao hàng bị co rúm lại thành 1 dòng.
      - **Đối chiếu bảo toàn 100% công thức (Zero Formula Loss):** Quét và so sánh danh sách các ô có công thức (`<f>...</f>`) trên cả Sheet 1 và Sheet 2 (239/239 công thức) so với baseline. ⛔ **TUYỆT ĐỐI CẤM** làm mất hoặc ghi đè công thức thành giá trị tĩnh.
      - **Đối chiếu cấu trúc XML:** Chạy hàm `validate_excel_openxml(output_path, baseline_compare_path)` đối chiếu với template gốc để đảm bảo không phát sinh bất kỳ lỗi cú pháp hoặc hỏng tệp nào.
 
@@ -298,3 +301,28 @@ Quy ước chú giải tiếng Anh trong ngoặc `[Tiếng Việt] ([English])` 
        1. Thay thế chuỗi URL trong `xl/sharedStrings.xml` để text hiển thị trên ô được cập nhật chuẩn xác.
        2. Thay thế thuộc tính `Target` của `<Relationship>` tương ứng trong `xl/worksheets/_rels/sheet*.xml.rels`.
      - Loại bỏ hoàn toàn thuộc tính `quotePrefix="1"` trong `xl/styles.xml` đối với các ô link để tránh dấu phẩy trên `'` cản trở việc click link trên thanh công thức.
+
+---
+
+## 🖱️ 11. Quy Chuẩn Viết Kịch Bản Nghiệm Thu & Hướng Dẫn Thao Tác Thủ Công — Ưu Tiên Giao Diện (UI-First - Rule 19.82)
+
+1. **Phạm vi áp dụng**: mọi tài liệu hướng dẫn người dùng/QA tự làm theo từng bước (kịch bản nghiệm thu, hướng dẫn dựng dữ liệu nền, hướng dẫn kiểm thử thủ công), ví dụ `DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/doc/05-kich-ban-nghiem-thu-thuc-te-sharedata.md`. Không áp dụng cho tài liệu kỹ thuật nội bộ mô tả script, không áp dụng cho test tự động (xem [testing-rules_thienan.md](./testing-rules_thienan.md)).
+
+2. **Thứ tự cách làm**:
+   - **CÁCH 1 — Giao diện**: lộ trình chính, viết đầy đủ từ đầu đến cuối bằng thao tác trên giao diện (FE) đã có, đặt TRƯỚC.
+   - **CÁCH 2 — Script SQL / API / dòng lệnh**: đường phụ (đường tắt khi cần nạp nhanh hàng loạt), đặt SAU CÁCH 1.
+   - ⛔ **CẤM** nhắc script `.sql` trong các bước của CÁCH 1, và ⛔ **CẤM** đặt script làm cách mặc định hay "khuyến nghị" thay cho giao diện khi giao diện đã làm được.
+
+3. **Thứ tự bước trong CÁCH 1**: đi theo phụ thuộc dữ liệu, bắt đầu từ thực thể gốc mà các thực thể sau phải chọn từ danh sách (ví dụ đối tác và gói tin có trước, rồi ánh xạ, rồi đăng ký). Đầu mục có sơ đồ phụ thuộc một dòng và nêu lý do thứ tự; mỗi bước chỉ dùng dữ liệu đã được tạo ở các bước trước. Một thao tác chỉ mô tả chi tiết ở MỘT nơi, nơi khác dùng liên kết.
+
+4. **Ngoại lệ không có giao diện**: chỉ khi đã kiểm bằng mã FE/BE rằng thao tác THẬT SỰ không có màn hình hoặc API tương ứng mới được dùng SQL trong lộ trình chính. Khi đó gom vào MỘT khung cảnh báo "ngoại lệ", nêu lý do, câu SQL và cách kiểm; không rải rác nhiều chỗ.
+
+5. **Độ chính xác của bước giao diện**: tên màn hình, nút, nhãn, trường bắt buộc, giới hạn nhập (ví dụ độ dài tối đa), ràng buộc khóa sửa phải đối chiếu mã FE và i18n; bước chưa xác minh được thì ghi "(cần kiểm)". Mỗi bước kèm kết quả mong đợi quan sát được trên giao diện.
+
+6. **Kiểm sau khi dựng dữ liệu**: kiểm trên giao diện trước (số bản ghi hiển thị, trạng thái, bộ lọc). Truy vấn SQL chỉ-đọc chỉ là kiểm phụ để đối soát.
+
+7. **Ví dụ đối chiếu**:
+   - ❌ **Sai:** Mục dựng dữ liệu nền mở đầu bằng "chạy script 02, 03, 04" rồi mới có phần "tự tạo trên giao diện" ngắn ở sau, và thiếu bước tạo đối tác.
+   - ✅ **Đúng:** CÁCH 1 là lộ trình giao diện đủ các bước từ đối tác trở đi; CÁCH 2 (script) nằm phía sau như đường tắt tùy chọn; phần duy nhất cần SQL được đóng khung ngoại lệ.
+
+8. **Lý do**: người nghiệm thu và người dùng thật vận hành hệ thống qua giao diện; giao diện đã xây xong nên đi bằng giao diện vừa dựng được dữ liệu vừa kiểm chứng chính giao diện đó, tránh tình trạng dữ liệu dựng bằng script khác với dữ liệu người dùng tạo ra.

@@ -77,6 +77,15 @@ def validate_excel_openxml(file_path: str, reference_template_path: str = None) 
                 if 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"' not in sheet1:
                     errors.append("sheet1.xml thiếu khai báo xmlns:r cho quan hệ OpenXML")
 
+                # Bắt buộc các dòng task (Row 13, 14) phải có customHeight="1" để không bị Excel co rúm chiều cao dòng
+                s1_root = ET.fromstring(sheet1)
+                ns_main = '{http://schemas.openxmlformats.org/spreadsheetml/2006/main}'
+                for r_elem in s1_root.findall(f'.//{ns_main}row'):
+                    r_id = r_elem.attrib.get('r')
+                    if r_id in ['13', '14']:
+                        if r_elem.attrib.get('customHeight') != '1':
+                            errors.append(f"sheet1.xml dòng {r_id} thiếu thuộc tính customHeight=\"1\" khiến chiều cao dòng bị co rút")
+
             # 4. Kiểm tra chuyên sâu xl/sharedStrings.xml
             if "xl/sharedStrings.xml" in z.namelist():
                 ss_content = z.read("xl/sharedStrings.xml").decode("utf-8")
@@ -107,6 +116,92 @@ def validate_excel_openxml(file_path: str, reference_template_path: str = None) 
                             lost_f = set(ref_f.keys()) - set(cur_f.keys())
                             if lost_f:
                                 errors.append(f"{part} bị mất công thức tại các ô: {sorted(list(lost_f))}")
+
+                    # 6. Kiểm tra toàn vẹn định dạng màu sắc (Zero Color Corruption)
+                    if "xl/styles.xml" in z.namelist() and "xl/worksheets/sheet2.xml" in z.namelist():
+                        st_root = ET.fromstring(z.read("xl/styles.xml"))
+                        s2_root = ET.fromstring(z.read("xl/worksheets/sheet2.xml"))
+                        ns = '{http://schemas.openxmlformats.org/spreadsheetml/2006/main}'
+                        xfs = st_root.find(f'{ns}cellXfs')
+                        fonts = st_root.find(f'{ns}fonts')
+
+                        # Kiểm tra ô Họ tên nhân viên C6 trong Sheet 2 (bắt buộc màu chữ chuẩn #1E293B, không nền)
+                        c6 = s2_root.find(f'.//{ns}c[@r="C6"]')
+                        if c6 is not None:
+                            s_idx = int(c6.attrib.get('s', 0))
+                            if s_idx < len(xfs):
+                                xf = xfs[s_idx]
+                                f_id = int(xf.attrib.get('fontId', 0))
+                                fill_id = int(xf.attrib.get('fillId', 0))
+                                font = fonts[f_id]
+                                color = font.find(f'{ns}color')
+                                rgb = color.attrib.get('rgb') if color is not None else ''
+                                if rgb != 'FF1E293B' or fill_id != 0:
+                                    errors.append(f"Sheet 2 ô C6 sai định dạng: màu chữ '{rgb}' (yêu cầu FF1E293B) hoặc fillId={fill_id} (yêu cầu 0)")
+
+                        # Quét cấm chữ màu vàng/cam FFFFC000 trên toàn bộ các ô ngoài khu vực đánh giá sao (L36..L39)
+                        for part in ["xl/worksheets/sheet1.xml", "xl/worksheets/sheet2.xml"]:
+                            if part in z.namelist():
+                                s_root = ET.fromstring(z.read(part))
+                                for c in s_root.findall(f'.//{ns}c'):
+                                    ref = c.attrib.get('r')
+                                    if part.endswith("sheet2.xml") and ref in ['L36', 'L37', 'L38', 'L39']:
+                                        continue
+                                    s_idx = int(c.attrib.get('s', 0))
+                                    if s_idx < len(xfs):
+                                        f_id = int(xfs[s_idx].attrib.get('fontId', 0))
+                                        font = fonts[f_id]
+                                        color = font.find(f'{ns}color')
+                                        if color is not None:
+                                            rgb = color.attrib.get('rgb', '')
+                                            if 'C000' in rgb or rgb == 'FFFFFF00':
+                                                errors.append(f"{part} ô {ref} chứa font chữ màu vàng/cam sai quy chuẩn: {rgb}")
+
+                        # 7. Kiểm tra toàn vẹn đường viền (Zero Border Corruption) so với baseline
+                        if "xl/worksheets/sheet2.xml" in z_ref.namelist() and "xl/styles.xml" in z_ref.namelist():
+                            st_ref = ET.fromstring(z_ref.read("xl/styles.xml"))
+                            s2_ref = ET.fromstring(z_ref.read("xl/worksheets/sheet2.xml"))
+                            
+                            def extract_cell_borders(s_elem, st_elem):
+                                cellXfs_elem = st_elem.find(f'{ns}cellXfs')
+                                borders_elem = st_elem.find(f'{ns}borders')
+                                res = {}
+                                for c in s_elem.findall(f'.//{ns}c'):
+                                    c_ref = c.attrib.get('r')
+                                    s_id = int(c.attrib.get('s', 0))
+                                    if s_id < len(cellXfs_elem):
+                                        xf_elem = cellXfs_elem[s_id]
+                                        b_id = int(xf_elem.attrib.get('borderId', 0))
+                                        b_elem = borders_elem[b_id]
+                                        sides = {}
+                                        for side in ['left', 'right', 'top', 'bottom']:
+                                            side_elem = b_elem.find(f'{ns}{side}')
+                                            if side_elem is not None:
+                                                style_val = side_elem.attrib.get('style', 'none')
+                                                color_elem = side_elem.find(f'{ns}color')
+                                                rgb_val = color_elem.attrib.get('rgb') if color_elem is not None else (color_elem.attrib.get('indexed') if color_elem is not None else '')
+                                                sides[side] = (style_val, rgb_val)
+                                            else:
+                                                sides[side] = ('none', '')
+                                        res[c_ref] = sides
+                                return res
+
+                            b_cur = extract_cell_borders(s2_root, st_root)
+                            b_ref = extract_cell_borders(s2_ref, st_ref)
+                            for c_ref, sides_c in b_cur.items():
+                                if c_ref in b_ref:
+                                    sides_r = b_ref[c_ref]
+                                    for s in ['left', 'right', 'top', 'bottom']:
+                                        if sides_c[s] != sides_r[s]:
+                                            errors.append(f"Sheet 2 ô {c_ref} sai định dạng viền {s}: hiện tại {sides_c[s]} != baseline {sides_r[s]}")
+
+                            # Kiểm tra nghiêm ngặt khối thông tin C6..C8: cấm đường viền màu đậm FF4E5D78 hoặc medium/thick
+                            for c_ref in ['C6', 'C7', 'C8']:
+                                if c_ref in b_cur:
+                                    for s in ['left', 'right', 'top', 'bottom']:
+                                        style_val, rgb_val = b_cur[c_ref][s]
+                                        if '4E5D78' in str(rgb_val) or style_val in ['medium', 'thick']:
+                                            errors.append(f"Sheet 2 ô {c_ref} viền {s} bị đậm sai quy chuẩn: style='{style_val}', color='{rgb_val}' (yêu cầu thin FFD5DEE8)")
 
         # 6. Kiểm tra tải thử bằng openpyxl nếu có
         try:

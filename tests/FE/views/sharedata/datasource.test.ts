@@ -1884,6 +1884,47 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(resolvePolicyFromData(null, 1).policy).toBe('Snapshot');
         expect(resolvePolicyFromData(undefined, 1).labelKey).toBe('lz.label.sharedataDataSource.policySnapshot');
     });
+
+    test('28. Kiểm thử các cải tiến giao diện và logic dữ liệu tại dataSource & queryBuilder', async () => {
+        const indexVuePath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
+        const indexContent = fs.readFileSync(indexVuePath, 'utf8');
+
+        const qbPath = resolveWebvuePath('views/sharedata/dataSource/component/queryBuilder.vue');
+        const qbContent = fs.readFileSync(qbPath, 'utf8');
+
+        const modifyRecordPath = resolveWebvuePath('components/table/modifyRecord.vue');
+        const modifyRecordContent = fs.readFileSync(modifyRecordPath, 'utf8');
+
+        // 1. Kiểm tra treeConfig expandAll: true và loadData(treeData) trực tiếp để hiển thị danh sách trường ngay khi chọn gói
+        expect(indexContent).toContain("treeConfig: { children: 'children', trigger: 'row', expandAll: true, reserve: true }");
+        expect(indexContent).toContain('await xGridField.value.loadData(treeData);');
+        expect(indexContent).toContain('await xGridField.value.setAllTreeExpand(true);');
+
+        // 2 & 3. Tạm ẩn SearchButton và có debounce watcher 300ms tự động gọi search API khi gõ
+        expect(indexContent).toContain('debouncedQueryPacket');
+        expect(indexContent).toContain('debouncedQueryField');
+        expect(indexContent).toContain('debounce(() => {');
+        expect(indexContent).toContain('v-if="false" class="search-btn-wrapper"');
+        expect(indexContent).toContain('v-if="false" class="mb5 field-col-btn"');
+
+        // 4. Kiểm tra khoảng cách icon và chữ trong modifyRecord.vue (chống dính chữ)
+        expect(modifyRecordContent).toContain('gap: 6px;');
+        expect(modifyRecordContent).toContain('.el-icon');
+        expect(modifyRecordContent).toContain('margin-right: 6px;');
+
+        // 6. Bảng nguồn được lọc theo phạm vi mã gói tin (packetCode)
+        expect(qbContent).toContain('PACKET_ALLOWED_TABLES');
+        expect(qbContent).toContain("'101': ['TmsZoneStatus', 'TmsZone', 'TmsTrafficStatistic', 'TmsEquipment', 'TmsRoute']");
+        expect(qbContent).toContain("'102': ['CctvDevice', 'TmsEquipment']");
+        expect(qbContent).toContain("'104': ['TmsWeather']");
+
+        // 8. Thanh tiêu đề gói tin không còn tag policy tĩnh
+        expect(indexContent).not.toMatch(/<div class="packet-header-bar">[\s\S]*?<el-tag :type="getPacketPolicy[\s\S]*?<\/el-tag>[\s\S]*?<\/div>/);
+
+        // 10. Chiều cao cột trích xuất gọn gàng (DEFAULT_COLUMNS_HEIGHT = 72) và height: auto
+        expect(qbContent).toContain('const DEFAULT_COLUMNS_HEIGHT = 72;');
+        expect(qbContent).toContain("minHeight: '52px', height: 'auto'");
+    });
 });
 
 

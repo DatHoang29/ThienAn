@@ -92,3 +92,15 @@ SECTION_B_SCORES = {
     "H20": 8,  # Kỷ luật lao động
     "H21": 8   # Phối hợp & giao tiếp
 }
+
+# ==============================================================================
+# 5. ĐỊNH HƯỚNG NGHỀ NGHIỆP (Mục F Sheet 02. Đánh giá KPI - Phương án 2)
+# ==============================================================================
+SHORT_TERM_GOAL = """- Nắm bắt luồng dữ liệu và nghiệp vụ tổng thể của toàn hệ thống ITS.
+- Độc lập phụ trách thiết kế, triển khai và tối ưu các module nghiệp vụ được giao.
+- Nghiên cứu, ứng dụng các công nghệ và giải pháp mới vào sản phẩm."""
+
+LONG_TERM_GOAL = """- Đảm nhiệm vai trò Tech Lead, chịu trách nhiệm về kiến trúc kỹ thuật và chất lượng bàn giao của dự án.
+- Làm cầu nối kỹ thuật giữa khách hàng/ban quản lý và đội ngũ phát triển: làm rõ yêu cầu, lập kế hoạch, phân bổ task và báo cáo định kỳ.
+- Thiết lập tiêu chuẩn kỹ thuật, thực hiện review code và quản lý rủi ro kỹ thuật.
+- Xây dựng tài liệu kỹ thuật, hướng dẫn và đào tạo đội ngũ kế cận cho dự án."""
