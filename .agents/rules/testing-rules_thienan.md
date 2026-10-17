@@ -62,6 +62,7 @@ description: Unified Testing Suite protocol, Playwright FE E2E, xUnit BE on loca
 * ⛔ **CẤM tự ý xóa bảng DB trong từng test method**: Không viết `db.Deleteable<Table>().ExecuteCommand()` rải rác trong từng test.
 * Dọn dẹp tập trung tại `Host.ClearAllData()` và mỗi test method tự cô lập dữ liệu bằng **Unique ID / Mã riêng biệt** để đảm bảo test chạy song song không xung đột.
 * ⛔ **CẤM gọi `InitTables<T>()` / `EnsureTablesCreated()`**: Kích hoạt tự động tạo bảng thông qua cấu hình `TableSettings` trong `tests/appsettings.Test.json`.
+* **Ưu tiên tuyệt đối SqlSugar ORM trong bài test & helper test**: Mọi thao tác truy vấn/cập nhật trên bảng Entity CSDL bắt buộc dùng SqlSugar ORM (`Queryable<T>()`, `Insertable<T>()`, `Updateable<T>()`, `Deleteable<T>()` kèm `.ClearFilter()` khi cần đọc/xử lý bản ghi đã xóa mềm); ⛔ **CẤM** viết câu lệnh SQL thuần `db.Ado.ExecuteCommandAsync("DELETE/UPDATE FROM ...")` hoặc `db.Ado.GetIntAsync("SELECT COUNT(1) FROM ...")` trên bảng Entity (ngoại trừ lệnh DDL hệ thống như `ALTER TABLE ... CHANGE_TRACKING` hoặc truy vấn bảng/hàm hệ thống SQL Server như `sys.change_tracking_tables`, `CHANGETABLE(...)`, `SELECT GETDATE()`).
 
 ### Cô Lập Kiểm Thử Kết Nối Server Thật (`tests/BE/RealServer/` - Rule 19.66)
 * **Thư mục & File riêng biệt**: Mọi bài test kết nối trực tiếp tới **server thật / hạ tầng ngoài thật** (ví dụ: NATS Server TLS thật `tls://115.78.1.139:12211`, SMTP/FTP server thật, thiết bị phần cứng thật...) **BẮT BUỘC tách ra thư mục chuyên biệt `tests/BE/RealServer/`** (ví dụ `ShareDataNatsServerConnectionTests.cs`). ⛔ **CẤM** đặt lẫn lộn trong các file test nghiệp vụ local (`tests/BE/ITS/...`).
@@ -158,3 +159,29 @@ Khi kiểm thử tích hợp với NATS broker thật (Docker local 127.0.0.1:42
 * **Tự động xóa artifacts khi Pass 100%**: Sau khi toàn bộ các bài test chạy thành công (Pass/Green), AI **BẮT BUỘC tự động dọn dẹp và xóa sạch các thư mục/tệp tạm sinh ra do test runner** (như `test-results/`, `playwright-report/`, traces, screenshots, video, log tạm...) ở cả thư mục gốc và thư mục con `tests/FE/`.
 * **Giữ sạch Working Tree**: Đảm bảo trạng thái Working Tree của Git luôn sạch sẽ, không để tồn đọng các tệp rác phát sinh trong quá trình chạy test làm ô nhiễm `git status`.
 * **Giữ lại artifacts khi Test Thất Bại (Fail)**: Trong trường hợp test bị fail, ĐƯỢC PHÉP giữ lại các artifacts trong `test-results/` để lập trình viên và AI phân tích nguyên nhân lỗi (traces, screenshots). Tuy nhiên, ngay sau khi sửa xong mã nguồn và chạy lại test thành công, AI **BẮT BUỘC thực thi lệnh dọn dẹp xóa bỏ thư mục `test-results/`**.
+
+---
+
+## 🗂️ 5. Tệp Test Bám Đúng Luồng Nghiệp Vụ Chính — Không Tự Tạo Tệp Mới (Rule 19.84)
+
+1. **Một tệp test ↔ một lớp/luồng nghiệp vụ có thật trong mã nguồn**:
+   - Controller → `tests/BE/ITS/<Module>/Controllers/<TênController>Tests.cs` (ví dụ `ShareDataSubscriptionControllerTests` cho `ShareDataSubscriptionController`).
+   - Service / Worker / lớp hạ tầng → `tests/BE/ITS/<Module>/Services/<TênLớp>Tests.cs` (ví dụ `DataOutboundServiceTests` cho `DataOutboundService`).
+   - Luồng toàn trình nhiều thành phần → đặt theo tên luồng nghiệp vụ đã có (ví dụ `ShareDataSendReceiveTests`), không mở luồng trùng ý nghĩa.
+   - FE → `tests/FE/views/<module>/<màn hoặc khối chức năng>.test.ts`, theo tệp đã có của màn hình/hộp thoại lớn (ví dụ `partner.test.ts` cho hộp thoại đối tác); component con kiểm trong tệp của khối cha (ví dụ form cấu hình kết nối của hộp thoại đối tác → `partner.test.ts`).
+2. **Thêm vào tệp có sẵn, không tạo mới**:
+   - Trước khi viết test, BẮT BUỘC tìm tệp test sẵn có của lớp/luồng (`search_text` tên lớp, tên controller trong `tests/`) rồi thêm case vào đó.
+   - Tệp quá dài thì tách `partial class` theo nhánh nghiệp vụ của CHÍNH lớp đó: `<Tên>Tests.<NhánhNghiệpVụ>.cs` (ví dụ `DataOutboundServiceTests.Cursor.cs`).
+   - Chỉ tạo tệp mới khi mã nguồn có lớp/luồng mới chưa có tệp test; báo cáo rõ lớp nguồn tương ứng.
+   - ⛔ **CẤM** đặt tên tệp theo tính năng con, đợt sửa, mã prompt hay mã hạng mục (`PacketMetadataTests`, `PacketTemplateTests`, `...FixTests`); ⛔ **CẤM** hai tệp cùng kiểm một lớp nguồn.
+3. **Đi qua đúng điểm vào của luồng thật**:
+   - API: gọi `IMessageBus.InvokeAsync(input)` đúng như controller (đi qua validator và middleware của pipeline). Chỉ được gọi validator trực tiếp khi riêng nhánh lỗi của validator là thứ cần kiểm.
+   - Worker: gọi phương thức public của service đúng như Worker gọi (`ProcessSubscriptions`, `ProcessPendingPackets`, `PollChanges`…).
+   - ⛔ **CẤM** gọi thẳng handler hay hàm nội bộ để bỏ qua pipeline; ⛔ **CẤM** dựng lại logic production trong helper test (hàm bọc chuyển tiếp, bản sao SQL/danh sách).
+4. **Dữ liệu tiền đề dựng bằng đúng nguồn production dùng**:
+   - Dùng seed class, script seed của phân hệ hoặc chính lệnh Add qua bus để tạo đối tác, gói tin, đăng ký, ánh xạ…
+   - Kết quả mong đợi so với nguồn thật (seed class, bảng cấu hình, script), ⛔ **CẤM** so với hằng hoặc danh sách tự chép vào test.
+5. **Ví dụ đối chiếu**:
+   - ❌ **Sai:** tạo `PacketMetadataTests.cs` riêng, lấy `PacketExtractSqlQueryHandler` từ DI rồi gọi `HandleAsync` trực tiếp, so số bảng với `MetadataService.AllowedTables`.
+   - ✅ **Đúng:** thêm case vào `ShareDataPacketControllerTests` (hoặc partial `ShareDataPacketControllerTests.Metadata.cs`), gọi `IMessageBus.InvokeAsync<List<MetadataTableDto>>(new GetMetadataTablesInput())` như controller, so với danh mục bảng nguồn thật trên CSDL test.
+6. **Lý do**: test là bằng chứng luồng nghiệp vụ chạy đúng; tệp rải theo đợt sửa làm trùng lặp, khó tìm, và test gọi tắt bỏ qua pipeline có thể xanh trong khi luồng thật vẫn lỗi.

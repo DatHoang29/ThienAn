@@ -5,17 +5,17 @@ GO
 -- FILE: 04-sharedata-dich-thuat.sql
 -- DESCRIPTION: Bổ sung từ điển bản dịch đa ngôn ngữ (vi-VN, en-US) cho phân hệ ShareData (ESHARE) vào SysTerminology:
 --              1. Chuẩn hóa lại mã khóa cũ lz.validation.sharedata.lookbackDaysRange (nếu có).
---              2. Nạp toàn bộ 48 mã khóa dịch thuật chuẩn hóa:
+--              2. Nạp toàn bộ 49 mã khóa dịch thuật chuẩn hóa:
 --                 - 1 khóa khoảng số ngày quét lùi (lookbackDaysRange).
 --                 - 10 khóa quản trị câu truy vấn SQL trích xuất (superAdmin, packetCode, partnerMapping...).
---                 - 37 khóa kiểm tra SQL Validator, Metadata và cấu hình kênh đối tác (OutputPath, ConnectConfig).
+--                 - 38 khóa kiểm tra SQL Validator, Metadata và cấu hình kênh đối tác (OutputPath, ConnectConfig).
 --              3. Cơ chế Idempotent:
 --                 - MERGE chỉ INSERT các bản ghi chưa có (WHEN NOT MATCHED THEN INSERT).
 --                 - Không ghi đè (không UPDATE) lên các nội dung dịch mà quản trị viên đã chỉnh sửa trực tiếp trên DB.
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 16102026
+-- CẬP NHẬT LẦN CUỐI: 17102026
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -47,7 +47,7 @@ WHERE Code = N'lz.validation.sharedata.lookbackDaysRange'
   );
 
 -- -----------------------------------------------------------------------------------------
--- 2. DANH MỤC 48 KHÓA BẢN DỊCH SHAREDATA
+-- 2. DANH MỤC 49 KHÓA BẢN DỊCH SHAREDATA
 -- -----------------------------------------------------------------------------------------
 DECLARE @Translations TABLE (
     [Name] NVARCHAR(64),
@@ -135,7 +135,7 @@ VALUES
      N'Attribute [OutputPath] is deprecated. Please use [DirectoryPath] and [FileNamePattern].'),
 
     -- =========================================================================
-    -- NHÓM 5: SQL VALIDATOR - KIỂM SOÁT CÚ PHÁP VÀ AN TOÀN TRUY VẤN (20 khóa)
+    -- NHÓM 5: SQL VALIDATOR - KIỂM SOÁT CÚ PHÁP VÀ AN TOÀN TRUY VẤN (21 khóa)
     -- =========================================================================
     (N'lz.validation', N'sharedata.sqlScriptEmpty',
      N'Câu lệnh truy vấn không được để trống.',

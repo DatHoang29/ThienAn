@@ -2,6 +2,7 @@ using System.Net;
 using System.Reflection;
 using Tests.ShareData.Common;
 using ShareDataWorker.Core.Utils.Parsing;
+using ShareDataWorker.Core.Interfaces;
 using ShareDataWorker.Core.Interfaces.DataOutbound;
 using ShareDataWorker.Core.Models.DataOutbound;
 using System.Globalization;
@@ -23,6 +24,7 @@ using ShareDataWorker.Infrastructure.Services.DataOutbound.Mapping;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
 using Modules.Integration.ShareData.PacketSend;
 using Modules.Integration.ShareData.PacketSend.Senders;
+using Module.ShareData.Infrastructure.Persistence.SeedData;
 
 namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 {
@@ -995,13 +997,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                     Name = "Dữ liệu giao thông chung",
                     PacketVersion = "1.0",
                     OrderNo = 1,
-                    ExtractSql = ShareDataPacketTemplates.GetExtractSql(packetCodeWithSuffix)
+                    ExtractSql = ShareDataPacketSeedData.GetExtractSql(packetCodeWithSuffix)
                 };
                 await db.Insertable(packet).ExecuteCommandAsync();
             }
             else if (string.IsNullOrWhiteSpace(packet.ExtractSql))
             {
-                packet.ExtractSql = ShareDataPacketTemplates.GetExtractSql(packetCodeWithSuffix);
+                packet.ExtractSql = ShareDataPacketSeedData.GetExtractSql(packetCodeWithSuffix);
                 await db.Updateable(packet).ExecuteCommandAsync();
             }
 
@@ -1304,13 +1306,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                     Name = "Dữ liệu giao thông chung",
                     PacketVersion = "1.0",
                     OrderNo = 1,
-                    ExtractSql = ShareDataPacketTemplates.GetExtractSql("101_commonData")
+                    ExtractSql = ShareDataPacketSeedData.GetExtractSql("101_commonData")
                 };
                 await db.Insertable(packet).ExecuteCommandAsync();
             }
             else if (string.IsNullOrWhiteSpace(packet.ExtractSql))
             {
-                packet.ExtractSql = ShareDataPacketTemplates.GetExtractSql("101_commonData");
+                packet.ExtractSql = ShareDataPacketSeedData.GetExtractSql("101_commonData");
                 await db.Updateable(packet).ExecuteCommandAsync();
             }
 
@@ -1397,13 +1399,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                     Name = "Dữ liệu giao thông chung",
                     PacketVersion = "1.0",
                     OrderNo = 1,
-                    ExtractSql = ShareDataPacketTemplates.GetExtractSql("101_commonData")
+                    ExtractSql = ShareDataPacketSeedData.GetExtractSql("101_commonData")
                 };
                 await db.Insertable(packet).ExecuteCommandAsync();
             }
             else if (string.IsNullOrWhiteSpace(packet.ExtractSql))
             {
-                packet.ExtractSql = ShareDataPacketTemplates.GetExtractSql("101_commonData");
+                packet.ExtractSql = ShareDataPacketSeedData.GetExtractSql("101_commonData");
                 await db.Updateable(packet).ExecuteCommandAsync();
             }
 
@@ -1591,7 +1593,7 @@ END");
 
 
         /// <summary>
-        /// Description: Kiểm tra tích hợp toàn trình luồng Outbound: từ trích xuất thô -> Map giải $meta, $extend, CodeSet -> tạo FinalBytes -> RestSender gửi trực tiếp tới đối tác qua HTTP.
+        /// Description: Kiểm tra tích hợp toàn trình luồng Outbound: từ trích xuất thô -> Map giải $meta, $extend, CodeSet -> tạo FinalBytes -> HttpSender gửi trực tiếp tới đối tác qua HTTP.
         /// Created date: 18/09/2026
         /// </summary>
         /// <summary>
@@ -1680,7 +1682,7 @@ END");
 
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var restSender = new RestPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var httpSender = new HttpPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var shapeJson = $$"""
             {
@@ -1742,7 +1744,7 @@ END");
             Assert.Equal(1, mapResult.RecordCount);
 
             // Act 2: Send via HTTP REST
-            var sendResult = await restSender.Send(mapResult, ctx, CancellationToken.None);
+            var sendResult = await httpSender.Send(mapResult, ctx, CancellationToken.None);
 
             // Assert 2: Gửi HTTP thành công
             Assert.True(sendResult.Success);
@@ -2580,7 +2582,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             await db.Updateable<ShareDataPacket>()
                 .SetColumns(p => p.Status == BaseEnums.StatusEnum.Enable)
                 .SetColumns(p => p.SyncMode == BaseEnums.SyncMode.Snapshot)
-                .SetColumns(p => p.ExtractSql == ShareDataPacketTemplates.Packet110_PublicMessaging)
+                .SetColumns(p => p.ExtractSql == ShareDataPacketSeedData.Sql110_PublicMessaging)
                 .Where(p => p.Code == "110" || p.Code == "110_publicMessaging")
                 .ExecuteCommandAsync();
 
@@ -2667,7 +2669,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
         #endregion
 
-        #region 2. Các Kiểm Thử Thành Phần (Component, RestSender, Mapping, Transform & Serialization)
+        #region 2. Các Kiểm Thử Thành Phần (Component, HttpSender, Mapping, Transform & Serialization)
 
         /// <summary>
         /// Description: Kiểm tra thứ tự các thuộc tính JSON của gói tin 101 được sắp xếp đúng theo OrderNo từ 1 đến 12.
@@ -4221,13 +4223,13 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
 
         /// <summary>
-        /// Description: Kiểm tra khi partner là null thì RestPacketSender trả về thất bại và không ném ngoại lệ.
+        /// Description: Kiểm tra khi partner là null thì HttpPacketSender trả về thất bại và không ném ngoại lệ.
         /// Created date: 18/09/2026
         /// </summary>
         [Fact]
-        public async Task RestSender_WhenPartnerIsNull_ReturnsFailWithoutThrowing_Test()
+        public async Task HttpSender_WhenPartnerIsNull_ReturnsFailWithoutThrowing_Test()
         {
-            var sender = new RestPacketSender();
+            var sender = new HttpPacketSender();
             var ctx = new DataOutboundContext(new ShareDataSubscription(), null, new ShareDataPacket(), null, DateTime.Now, CancellationToken.None);
             var mapping = new DataMappingResult(true, [1, 2, 3], 1, null);
 
@@ -4239,15 +4241,15 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
 
         /// <summary>
-        /// Description: C1, C3, C4, C5 - Kiểm tra RestSender gửi trực tiếp JSON FinalBytes, Content-Type là application/json, không còn vỏ tự chế 7 khoá, parse 1 lần ra thẳng object có header và data.
+        /// Description: C1, C3, C4, C5 - Kiểm tra HttpSender gửi trực tiếp JSON FinalBytes, Content-Type là application/json, không còn vỏ tự chế 7 khoá, parse 1 lần ra thẳng object có header và data.
         /// Created date: 18/09/2026
         /// </summary>
         [Fact]
-        public async Task RestSender_SendsDirectFinalBytes_WithoutHttpPayloadWrapper_C1_C3_C4_C5_Test()
+        public async Task HttpSender_SendsDirectFinalBytes_WithoutHttpPayloadWrapper_C1_C3_C4_C5_Test()
         {
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var sender = new RestPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var sender = new HttpPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var sampleJson = """
             {
@@ -4308,15 +4310,15 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
 
         /// <summary>
-        /// Description: C2, C7 - Kiểm tra khi bộ khung phẳng (mảng), RestSender gửi thẳng mảng JSON không bọc vỏ, số lượng bản ghi bằng đúng số dòng thô.
+        /// Description: C2, C7 - Kiểm tra khi bộ khung phẳng (mảng), HttpSender gửi thẳng mảng JSON không bọc vỏ, số lượng bản ghi bằng đúng số dòng thô.
         /// Created date: 18/09/2026
         /// </summary>
         [Fact]
-        public async Task RestSender_SendsDirectArray_ForFlatShape_C2_C7_Test()
+        public async Task HttpSender_SendsDirectArray_ForFlatShape_C2_C7_Test()
         {
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var sender = new RestPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var sender = new HttpPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var sampleArrayJson = """
             [
@@ -4353,7 +4355,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
 
         /// <summary>
-        /// Description: C6 - Kiểm tra tính nhất quán: tệp kết xuất local (FileSender) và thân HTTP (RestSender) đều sử dụng chung FinalBytes nguyên bản.
+        /// Description: C6 - Kiểm tra tính nhất quán: tệp kết xuất local (FileSender) và thân HTTP (HttpSender) đều sử dụng chung FinalBytes nguyên bản.
         /// Created date: 18/09/2026
         /// </summary>
         [Fact]
@@ -4361,7 +4363,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         {
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var restSender = new RestPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var httpSender = new HttpPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var sampleJson = """{"header":{"dataTime":"2026-09-18T14:05:31+07:00"},"data":[{"id":1}]}""";
             var finalBytes = System.Text.Encoding.UTF8.GetBytes(sampleJson);
@@ -4379,7 +4381,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             var ctx = new DataOutboundContext(sub, partner, packet, null, DateTime.Now, CancellationToken.None);
 
             // Act - HTTP
-            var httpResult = await restSender.Send(mapping, ctx, CancellationToken.None);
+            var httpResult = await httpSender.Send(mapping, ctx, CancellationToken.None);
 
             // Assert
             Assert.True(httpResult.Success);
@@ -4761,16 +4763,16 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
 
         /// <summary>
-        /// Description: Kiểm tra RestPacketSender khi FinalBytes rỗng hoặc null thì trả về thành công an toàn, ByteSize = 0 và không gửi request HTTP.
+        /// Description: Kiểm tra HttpPacketSender khi FinalBytes rỗng hoặc null thì trả về thành công an toàn, ByteSize = 0 và không gửi request HTTP.
         /// Created date: 18/09/2026
         /// </summary>
         [Fact]
-        public async Task RestSender_Send_EmptyOrNullFinalBytes_HandlesSafely_Test()
+        public async Task HttpSender_Send_EmptyOrNullFinalBytes_HandlesSafely_Test()
         {
             // Arrange
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var sender = new RestPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var sender = new HttpPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var partner = new ShareDataPartner
             {
@@ -4792,11 +4794,11 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
 
         /// <summary>
-        /// Description: Kiểm tra RestPacketSender khi đối tác trả về HTTP 500 kèm nội dung lỗi thì bắt trọn vẹn StatusCode và Response Body trong SendResult.
+        /// Description: Kiểm tra HttpPacketSender khi đối tác trả về HTTP 500 kèm nội dung lỗi thì bắt trọn vẹn StatusCode và Response Body trong SendResult.
         /// Created date: 18/09/2026
         /// </summary>
         [Fact]
-        public async Task RestSender_Send_PartnerReturns500WithPayload_CapturesErrorBody_Test()
+        public async Task HttpSender_Send_PartnerReturns500WithPayload_CapturesErrorBody_Test()
         {
             // Arrange
             const string errorPayload = """{"error": "Internal server error", "detail": "DB down"}""";
@@ -4805,7 +4807,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             partnerServer.DefaultStatusCode = HttpStatusCode.InternalServerError;
             partnerServer.DefaultResponseBody = errorPayload;
 
-            var sender = new RestPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var sender = new HttpPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var partner = new ShareDataPartner
             {
@@ -4831,14 +4833,14 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
 
         /// <summary>
-        /// Description: Kiểm tra RestPacketSender khi gặp ngoại lệ mạng HttpRequestException (timeout, refused) thì bắt an toàn và trả về thất bại.
+        /// Description: Kiểm tra HttpPacketSender khi gặp ngoại lệ mạng HttpRequestException (timeout, refused) thì bắt an toàn và trả về thất bại.
         /// Created date: 18/09/2026
         /// </summary>
         [Fact]
-        public async Task RestSender_Send_HttpRequestException_ReturnsFailureResult_Test()
+        public async Task HttpSender_Send_HttpRequestException_ReturnsFailureResult_Test()
         {
             // Arrange
-            var sender = new RestPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var sender = new HttpPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
             var partner = new ShareDataPartner
             {
                 Code = "PARTNER_NET_ERR",
@@ -4860,18 +4862,18 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
 
         /// <summary>
-        /// Description: Kiểm RestPacketSender dựng đúng URL cho cả đối tác có Port và không có Port,
+        /// Description: Kiểm HttpPacketSender dựng đúng URL cho cả đối tác có Port và không có Port,
         ///              đối tác có/không scheme http/https, cổng khai báo trong Address, và URL tuyệt đối trong EndPointApiUrl.
         /// Created date: 30/09/2026
         /// Updated date: 15/10/2026
         /// </summary>
         [Fact]
-        public void RestSender_Send_UrlWithAndWithoutPort_ConstructsCorrectUri_Test()
+        public void HttpSender_Send_UrlWithAndWithoutPort_ConstructsCorrectUri_Test()
         {
             // Arrange
             static Uri? Build(ShareDataPartner p)
             {
-                var ok = RestPacketSender.TryBuildEndpointUri(p.Address, p.Port, p.EndPointApiUrl, p.Code, out var uri, out var error);
+                var ok = HttpPacketSender.TryBuildEndpointUri(p.Address, p.Port, p.EndPointApiUrl, p.Code, out var uri, out var error);
                 Assert.True(ok, error);
                 return uri;
             }
@@ -4907,16 +4909,16 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
 
         /// <summary>
-        /// Description: Kiểm tra RestSender gửi kèm đủ 4 HTTP Header định danh (PartnerCode, DatatypeId, SerialNbr, ProcessedAt) lấy đúng từ ctx, DatatypeId là mã không phải GUID, ProcessedAt parse round-trip khớp ExportedAt, và thân bản tin (body) khớp FinalBytes từng byte không đổi.
+        /// Description: Kiểm tra HttpSender gửi kèm đủ 4 HTTP Header định danh (PartnerCode, DatatypeId, SerialNbr, ProcessedAt) lấy đúng từ ctx, DatatypeId là mã không phải GUID, ProcessedAt parse round-trip khớp ExportedAt, và thân bản tin (body) khớp FinalBytes từng byte không đổi.
         /// Created date: 19/09/2026
         /// </summary>
         [Fact]
-        public async Task RestSender_Send_WithIdentityHeaders_PreservesBodyBytesAndSendsCorrectHeaders_Test()
+        public async Task HttpSender_Send_WithIdentityHeaders_PreservesBodyBytesAndSendsCorrectHeaders_Test()
         {
             // Arrange
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var sender = new RestPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var sender = new HttpPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var sampleJson = """{"header":{"source":"ITS"},"data":[{"id":100,"speed":60}]}""";
             var finalBytes = Encoding.UTF8.GetBytes(sampleJson);
@@ -4967,16 +4969,16 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
 
         /// <summary>
-        /// Description: Kiểm tra khi Partner.Code là null thì RestSender bỏ hẳn header PartnerCode, các header còn lại vẫn gửi đủ.
+        /// Description: Kiểm tra khi Partner.Code là null thì HttpSender bỏ hẳn header PartnerCode, các header còn lại vẫn gửi đủ.
         /// Created date: 19/09/2026
         /// </summary>
         [Fact]
-        public async Task RestSender_Send_WhenPartnerCodeIsNull_OmitsPartnerCodeHeader_Test()
+        public async Task HttpSender_Send_WhenPartnerCodeIsNull_OmitsPartnerCodeHeader_Test()
         {
             // Arrange
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var sender = new RestPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var sender = new HttpPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var mapping = new DataMappingResult(true, Encoding.UTF8.GetBytes("""{"test":1}"""), 1);
             var exportedAt = new DateTime(2026, 9, 19, 10, 0, 0, DateTimeKind.Local);
@@ -5006,16 +5008,16 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
 
         /// <summary>
-        /// Description: Kiểm tra khi Subscription.SerialNbr là null thì RestSender bỏ hẳn header SerialNbr, không gửi chuỗi rỗng.
+        /// Description: Kiểm tra khi Subscription.SerialNbr là null thì HttpSender bỏ hẳn header SerialNbr, không gửi chuỗi rỗng.
         /// Created date: 19/09/2026
         /// </summary>
         [Fact]
-        public async Task RestSender_Send_WhenSerialNbrIsNull_OmitsSerialNbrHeader_Test()
+        public async Task HttpSender_Send_WhenSerialNbrIsNull_OmitsSerialNbrHeader_Test()
         {
             // Arrange
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var sender = new RestPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var sender = new HttpPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var mapping = new DataMappingResult(true, Encoding.UTF8.GetBytes("""{"test":1}"""), 1);
             var partner = new ShareDataPartner
@@ -5047,12 +5049,12 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         /// Created date: 19/09/2026
         /// </summary>
         [Fact]
-        public async Task RestSender_ProcessedAtHeader_MatchesBodyDataTimeExactly_Test()
+        public async Task HttpSender_ProcessedAtHeader_MatchesBodyDataTimeExactly_Test()
         {
             // Arrange
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var sender = new RestPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var sender = new HttpPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var exportedAt = new DateTime(2026, 9, 19, 14, 5, 31, 234, DateTimeKind.Local);
             var partner = new ShareDataPartner
@@ -5114,12 +5116,12 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         /// Created date: 19/09/2026
         /// </summary>
         [Fact]
-        public async Task RestSender_Send_WhenPartnerCodeContainsCrLf_CatchesSafelyAndReturnsFailure_Test()
+        public async Task HttpSender_Send_WhenPartnerCodeContainsCrLf_CatchesSafelyAndReturnsFailure_Test()
         {
             // Arrange
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var sender = new RestPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var sender = new HttpPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var mapping = new DataMappingResult(true, Encoding.UTF8.GetBytes("""{"test":1}"""), 1);
             var maliciousPartner = new ShareDataPartner
@@ -7010,7 +7012,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             var clientFactory = httpClientFactory ?? scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
             var dispatcher = scope.ServiceProvider.GetService<IPacketSendDispatcher>()
                 ?? PacketSendDispatcher.CreateForHandlers([
-                    new RestPacketSender(clientFactory),
+                    new HttpPacketSender(clientFactory),
                     new FilePacketSender(config.GetSection("NasStorage:BasePath").Value ?? "/tmp"),
                     new KafkaPacketSender(),
                     new FtpPacketSender()
@@ -7020,7 +7022,8 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 scopeFactory,
                 logger,
                 scope.ServiceProvider.GetRequiredService<IDataOutboundExtractionProcess>(),
-                new DataOutboundTransport(dispatcher, config));
+                new DataOutboundTransport(dispatcher, config),
+                scope.ServiceProvider.GetService<IDataWorkerSettingService>());
         }
 
         /// <summary>
@@ -7178,7 +7181,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         PacketVersion = def.Packet.PacketVersion,
                         SyncMode = def.Packet.SyncMode,
                         Status = def.Packet.Status,
-                        ExtractSql = ShareDataPacketTemplates.GetExtractSql(def.Packet.Code)
+                        ExtractSql = ShareDataPacketSeedData.GetExtractSql(def.Packet.Code)
                     };
                     await db.Insertable(newPacket).ExecuteCommandAsync();
                 }
@@ -7187,7 +7190,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                     existingPacket.PacketVersion = def.Packet.PacketVersion;
                     existingPacket.SyncMode = def.Packet.SyncMode;
                     existingPacket.Status = def.Packet.Status;
-                    existingPacket.ExtractSql = ShareDataPacketTemplates.GetExtractSql(def.Packet.Code);
+                    existingPacket.ExtractSql = ShareDataPacketSeedData.GetExtractSql(def.Packet.Code);
                     await db.Updateable(existingPacket).ExecuteCommandAsync();
                 }
 
@@ -7540,10 +7543,10 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         #endregion
     }
 
-    internal static class RestPacketSenderTestExtensions
+    internal static class HttpPacketSenderTestExtensions
     {
         public static Task<PacketSendResult> Send(
-            this RestPacketSender handler,
+            this HttpPacketSender handler,
             DataMappingResult mapping,
             DataOutboundContext ctx,
             CancellationToken ct = default)

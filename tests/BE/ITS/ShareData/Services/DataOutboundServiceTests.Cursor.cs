@@ -500,7 +500,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         ///              "application/json; charset=utf-8" đúng giá trị; SerialNbr giữ nguyên sau khi gửi thất bại
         ///              (lượt retry gửi lại cùng giá trị) và tăng thêm 1 sau khi gửi thành công.
         ///              Nguồn: DataOutboundRestSender.AddIdentityHeaders (dòng 93-105); ExportPage tăng SerialNbr sau CommitSuccess (dòng 583).
-        ///              Test RestSender_Send_WithIdentityHeaders… đã phủ riêng bộ gửi; test này phủ toàn pipeline.
+        ///              Test HttpSender_Send_WithIdentityHeaders… đã phủ riêng bộ gửi; test này phủ toàn pipeline.
         /// Created date: 12/10/2026
         /// </summary>
         [Fact]

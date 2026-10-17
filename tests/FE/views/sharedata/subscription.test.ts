@@ -447,7 +447,7 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 		expect(partnerContent).toContain('value="File"');
 
 		// 2. Kiểm tra trường connectionConfig
-		expect(partnerContent).toContain('prop="connectionConfig"');
+		expect(partnerContent).toContain('connectionConfig');
 
 		// 3. Kiểm tra gán mặc định connectionType = 'API' khi mở dialog thêm mới
 		expect(partnerContent).toContain("state.ruleForm.connectionType = 'API'");

@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Text.RegularExpressions;
 using Module.ShareData.Core.Constants;
 using Module.ShareData.Core.Entities;
+using Module.ShareData.Core.Utils;
 using Module.ShareData.Infrastructure.Persistence.SeedData;
 using Shared.DTO.Enums;
 using Shared.Infrastructure.Persistence.SqlSugar;
@@ -255,6 +256,51 @@ public class ShareDataPacketSeedDataTests
         Assert.NotEqual(
             NormalizeSql(originalSql),
             NormalizeSql(tamperedSql));
+    }
+
+    [Theory]
+    [InlineData("101")]
+    [InlineData("102")]
+    [InlineData("103")]
+    [InlineData("104")]
+    [InlineData("105")]
+    [InlineData("106")]
+    [InlineData("107")]
+    [InlineData("108")]
+    [InlineData("109")]
+    public void SeedSql_Passes_SqlValidator_WithoutDatabase_Test(string packetCode)
+    {
+        // Arrange
+        var seedSql = SeedScriptReader.GetExtractSql(packetCode);
+
+        // Act
+        var (isValid, errorMessage, columns) = SqlValidator.ValidateAndExtractColumns(null, seedSql);
+
+        // Assert
+        Assert.True(isValid, $"Gói {packetCode} không hợp lệ: {errorMessage}");
+        Assert.Null(errorMessage);
+        Assert.NotNull(columns);
+        Assert.NotEmpty(columns);
+    }
+
+    [Theory]
+    [InlineData("103")]
+    [InlineData("104")]
+    [InlineData("106")]
+    [InlineData("107")]
+    [InlineData("109")]
+    public void IncrementalSeedSql_Passes_IncrementalStructureValidation_Test(string packetCode)
+    {
+        // Arrange
+        var seedSql = SeedScriptReader.GetExtractSql(packetCode);
+        var (_, _, columns) = SqlValidator.ValidateAndExtractColumns(null, seedSql);
+
+        // Act
+        var (isValid, errorMessage) = SqlValidator.ValidateIncrementalStructure(seedSql, columns);
+
+        // Assert
+        Assert.True(isValid, $"Gói {packetCode} không hợp lệ cấu trúc Incremental: {errorMessage}");
+        Assert.Null(errorMessage);
     }
 
     private static void AssertEqualNormalizedSql(string expected, string actual)

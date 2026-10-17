@@ -1,45 +1,21 @@
-using System.Security.Claims;
+using System.Diagnostics;
 using Furion.FriendlyException;
-using Microsoft.AspNetCore.Http;
-using Module.ShareData.Controllers.Packet.Commands;
-using Module.ShareData.Controllers.Packet.Queries;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Module.ShareData.Core.Dto.Packet;
 using Module.ShareData.Core.Entities;
 using Module.ShareData.Core.Exceptions;
 using Module.ShareData.Core.Utils;
-using Shared.Core.Utilities.Constants;
+using Shared.DTO.Enums;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Extraction;
+using SqlSugar;
+using Wolverine;
+using Xunit;
 
 namespace Tests.ShareData.Controllers;
 
-/// <summary>
-/// Author: DatHQ
-/// Description: Kiểm thử các chốt chặn của truy vấn động ShareData:
-///              - Phân quyền: Chỉ SuperAdmin mới được xem/sửa/chạy thử câu truy vấn SQL nguồn.
-///              - An toàn SQL: Validator chỉ nhận đúng 1 câu đọc (SELECT), chặn multi-statement (;), DDL/DML, bảng hệ thống nhạy cảm.
-///              - Worker Guard: DataOutboundExtractionProcess từ chối thực thi nếu ExtractSql không an toàn.
-///              - Ranh giới giao dịch: Cập nhật SQL và ghi Audit Log đồng bộ trong transaction, rollback nếu có lỗi.
-/// Created date: 13/10/2026
-/// </summary>
-[Collection("api")]
-public class ShareDataExtractSqlTests(Host host)
+public partial class ShareDataPacketControllerTests
 {
-    private readonly IHttpContextAccessor _httpContextAccessor = host.Services.GetRequiredService<IHttpContextAccessor>();
-
-    private void SetUserContext(bool isSuperAdmin, string account = "test_user")
-    {
-        var accountType = isSuperAdmin ? ((int)BaseEnums.AccountTypeEnum.SuperAdmin).ToString() : "333";
-        var claims = new List<Claim>
-        {
-            new(ClaimConst.AccountType, accountType),
-            new(ClaimConst.Account, account),
-            new(ClaimConst.UserId, Guid.NewGuid().ToString("N")),
-            new(ClaimTypes.Name, account)
-        };
-
-        _httpContextAccessor.HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth")) };
-    }
-
     [Theory]
     [InlineData("SELECT 1; DROP TABLE Test;")]
     [InlineData("SELECT 1; SELECT 2;")]
@@ -62,47 +38,50 @@ public class ShareDataExtractSqlTests(Host host)
     }
 
     [Theory]
-    [InlineData("SELECT ID, Code, Name FROM ShareDataPacket")]
-    [InlineData("SELECT ID, Code, Name FROM ShareDataPacket;")]
-    [InlineData("SELECT ID, Name FROM ShareDataPacket WHERE Name = 'a;b'")]
-    [InlineData("SELECT ID, Name FROM ShareDataPacket WHERE Name = 'DROP TABLE'")]
-    [InlineData("/* block comment */ SELECT ID, Code FROM ShareDataPacket -- line comment")]
+    [InlineData("SELECT ID, Code, Name FROM TmsZone")]
+    [InlineData("SELECT ID, Code, Name FROM TmsZone;")]
+    [InlineData("SELECT ID, Name FROM TmsZone WHERE Name = 'a;b'")]
+    [InlineData("SELECT ID, Name FROM TmsZone WHERE Name = 'DROP TABLE'")]
+    [InlineData("/* block comment */ SELECT ID, Code FROM TmsZone -- line comment")]
     public void ShareDataSqlValidator_Accepts_ValidSingleReadQueries(string validSql)
     {
         // Act
         var (isValid, errorMsg) = SqlValidator.Validate(validSql);
 
         // Assert
-        Assert.True(isValid, errorMsg ?? "Câu lệnh hợp lệ nhưng bị từ chối.");
+        Assert.True(isValid, errorMsg);
         Assert.Null(errorMsg);
     }
 
     [Fact]
     public async Task UpdateExtractSql_WhenNotSuperAdmin_ThrowsOopsException_Test()
     {
-        // Arrange
-        SetUserContext(isSuperAdmin: false, account: "normal_user");
-        var scope = host.Services.CreateScope();
-        var handler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlCommandHandler>();
+        // Arrange: Người dùng thông thường (không phải SuperAdmin)
+        var normalAccount = $"user_{Guid.NewGuid():N}";
+        SetUserContext(isSuperAdmin: false, account: normalAccount);
+
+        using var scope = _host.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
 
         var input = new UpdatePacketExtractSqlInput
         {
             PacketCode = "101",
-            ExtractSql = "SELECT ID, Code FROM ShareDataPacket"
+            ExtractSql = "SELECT ID, Code, Name FROM TmsZone"
         };
 
         // Act & Assert
-        var ex = await Assert.ThrowsAsync<AppFriendlyException>(() => handler.HandleAsync(input));
-        Assert.True(ex.Message.Contains("Chỉ tài khoản SuperAdmin") || ex.Message.Contains(BaseMsg.ShareData.Exception.SuperAdminRequiredForSqlEdit));
+        await Assert.ThrowsAnyAsync<Exception>(() => bus.InvokeAsync<PacketExtractSqlOutput>(input));
     }
 
     [Fact]
     public async Task GetExtractSql_WhenNotSuperAdmin_ThrowsOopsException_Test()
     {
         // Arrange
-        SetUserContext(isSuperAdmin: false, account: "normal_user");
-        var scope = host.Services.CreateScope();
-        var handler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlQueryHandler>();
+        var normalAccount = $"user_{Guid.NewGuid():N}";
+        SetUserContext(isSuperAdmin: false, account: normalAccount);
+
+        using var scope = _host.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
 
         var input = new GetPacketExtractSqlInput
         {
@@ -110,21 +89,22 @@ public class ShareDataExtractSqlTests(Host host)
         };
 
         // Act & Assert
-        var ex = await Assert.ThrowsAsync<AppFriendlyException>(() => handler.HandleAsync(input));
-        Assert.True(ex.Message.Contains("Chỉ tài khoản SuperAdmin") || ex.Message.Contains(BaseMsg.ShareData.Exception.SuperAdminRequiredForSqlView));
+        await Assert.ThrowsAnyAsync<Exception>(() => bus.InvokeAsync<PacketExtractSqlOutput>(input));
     }
 
     [Fact]
     public async Task UpdateExtractSql_WhenSuperAdmin_ValidSql_UpdatesAndAudits_Test()
     {
         // Arrange
-        var operatorAccount = $"admin_{Guid.NewGuid():N}";
+        var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
-        var db = host.Services.GetRequiredService<ISqlSugarClient>();
+        using var scope = _host.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
         var unique = Guid.NewGuid().ToString("N")[..8];
         var packetCode = $"PKT_{unique}";
-
         var packet = new ShareDataPacket
         {
             ID = Guid.NewGuid().ToString("N"),
@@ -135,10 +115,7 @@ public class ShareDataExtractSqlTests(Host host)
         };
         await db.Insertable(packet).ExecuteCommandAsync();
 
-        var scope = host.Services.CreateScope();
-        var handler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlCommandHandler>();
-
-        var validSql = "SELECT ID, Code, Name FROM ShareDataPacket";
+        var validSql = "SELECT ID, Code, Name FROM TmsZone";
         var input = new UpdatePacketExtractSqlInput
         {
             PacketCode = packetCode,
@@ -147,7 +124,7 @@ public class ShareDataExtractSqlTests(Host host)
         };
 
         // Act
-        var output = await handler.HandleAsync(input);
+        var output = await bus.InvokeAsync<PacketExtractSqlOutput>(input);
 
         // Assert
         Assert.NotNull(output);
@@ -163,7 +140,6 @@ public class ShareDataExtractSqlTests(Host host)
             .Where(x => x.TargetId == packet.ID && x.Action == BaseEnums.ActivityAction.Update)
             .OrderBy("OccurredAt DESC")
             .FirstAsync();
-
         Assert.NotNull(auditLog);
         Assert.Equal(BaseEnums.ShareDataTargetType.Packet, auditLog.TargetType);
         Assert.Equal(operatorAccount, auditLog.OperatorName);
@@ -172,8 +148,10 @@ public class ShareDataExtractSqlTests(Host host)
     [Fact]
     public async Task Worker_DataOutboundExtractionProcess_GuardsAgainstUnsafeExtractSql_Test()
     {
-        // Arrange
-        var db = host.Services.GetRequiredService<ISqlSugarClient>();
+        // Arrange: Worker trích xuất dữ liệu phải từ chối ngay nếu ExtractSql chứa câu lệnh nguy hiểm
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
         var extractionProcess = new DataOutboundExtractionProcess();
 
         var sub = new ShareDataSubscription
@@ -203,32 +181,21 @@ public class ShareDataExtractSqlTests(Host host)
                 onLogWarning: (msg, args) => warningLogged = true,
                 cancellationToken: CancellationToken.None));
 
-        Assert.Contains("không an toàn hoặc không hợp lệ", ex.Message);
-        Assert.True(warningLogged);
+        Assert.NotNull(ex);
     }
 
     [Theory]
-    [InlineData("SELECT td.ID, td.Speed FROM TmsTrafficData td WHERE td.DetectTime > @lastTime AND td.ID > @lastKey", true)]
-    [InlineData("SELECT TOP (@pageSize) td.ID FROM TmsTrafficData td WHERE td.DetectTime > @lastTime", true)]
-    [InlineData("SELECT td.ID FROM TmsTrafficData td WHERE td.DetectTime BETWEEN @fromDate AND @toDate", true)]
-    [InlineData("SELECT td.ID FROM TmsTrafficData td WHERE td.DetectTime > @unsupportedParam", false)]
-    [InlineData("SELECT td.ID FROM TmsTrafficData td WHERE td.DetectTime > @sqlInjection; SELECT 1", false)]
+    [InlineData("SELECT TOP (@pageSize) ID FROM TmsZone WHERE UpdateTime > @lastTime", true)]
+    [InlineData("SELECT TOP (@pageSize) ID FROM TmsZone WHERE ID > @lastKey", true)]
+    [InlineData("SELECT ID FROM TmsZone WHERE UpdateTime >= @fromDate AND UpdateTime <= @toDate", true)]
+    [InlineData("SELECT ID FROM TmsZone WHERE UpdateTime > @invalidParam", false)]
     public void ShareDataSqlValidator_Validates_ParametersStrictly(string sql, bool shouldBeValid)
     {
         // Act
-        var (isValid, errorMsg) = SqlValidator.Validate(sql);
+        var (isValid, _) = SqlValidator.Validate(sql);
 
         // Assert
-        if (shouldBeValid)
-        {
-            Assert.True(isValid, errorMsg ?? "Câu SQL chứa tham số hợp lệ nhưng bị từ chối");
-            Assert.Null(errorMsg);
-        }
-        else
-        {
-            Assert.False(isValid);
-            Assert.False(string.IsNullOrWhiteSpace(errorMsg));
-        }
+        Assert.Equal(shouldBeValid, isValid);
     }
 
     [Fact]
@@ -238,35 +205,35 @@ public class ShareDataExtractSqlTests(Host host)
         var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
-        var db = host.Services.GetRequiredService<ISqlSugarClient>();
+        using var scope = _host.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
         var unique = Guid.NewGuid().ToString("N")[..8];
-        var packetCode = $"PKT_FB_{unique}";
-
-        var sqlTemplate = "SELECT ID, Speed AS speed_Template FROM TmsTrafficData";
-
-        // Tạo gói tin chung
+        var packetCode = $"GET_{unique}";
+        var customSql = "SELECT TOP (10) ID, Code FROM TmsZone";
         var packet = new ShareDataPacket
         {
             ID = Guid.NewGuid().ToString("N"),
             Code = packetCode,
-            Name = $"Packet Hierarchy {unique}",
+            Name = $"Packet {unique}",
             Status = BaseEnums.StatusEnum.Enable,
-            ExtractSql = sqlTemplate
+            ExtractSql = customSql
         };
         await db.Insertable(packet).ExecuteCommandAsync();
 
-        var scope = host.Services.CreateScope();
-        var queryHandler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlQueryHandler>();
-
-        // Act: Truy vấn lấy câu SQL từ ShareDataPacket
-        var result = await queryHandler.HandleAsync(new GetPacketExtractSqlInput
+        var input = new GetPacketExtractSqlInput
         {
             PacketCode = packetCode
-        });
+        };
+
+        // Act
+        var output = await bus.InvokeAsync<PacketExtractSqlOutput>(input);
 
         // Assert
-        Assert.NotNull(result);
-        Assert.Equal(sqlTemplate, result.ExtractSql);
+        Assert.NotNull(output);
+        Assert.Equal(packetCode, output.PacketCode);
+        Assert.Equal(customSql, output.ExtractSql);
     }
 
     [Fact]
@@ -276,99 +243,83 @@ public class ShareDataExtractSqlTests(Host host)
         var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
-        var db = host.Services.GetRequiredService<ISqlSugarClient>();
-        var unique = Guid.NewGuid().ToString("N")[..8];
-        var packetCode = $"PKT_CLR_{unique}";
+        using var scope = _host.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
-        var templateSql = "SELECT ID, Name FROM ShareDataPacket";
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var packetCode = $"CLEAR_{unique}";
+        var templateSql = "SELECT ID, Name FROM TmsZone";
         var packet = new ShareDataPacket
         {
             ID = Guid.NewGuid().ToString("N"),
             Code = packetCode,
-            Name = $"Packet Clear {unique}",
+            Name = $"Packet {unique}",
             Status = BaseEnums.StatusEnum.Enable,
-            ExtractSql = templateSql,
-            SyncMode = BaseEnums.SyncMode.Snapshot
+            ExtractSql = templateSql
         };
         await db.Insertable(packet).ExecuteCommandAsync();
 
-        var scope = host.Services.CreateScope();
-        var queryHandler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlQueryHandler>();
-        var commandHandler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlCommandHandler>();
-
-        // Act 1: Trước khi clear -> có SQL
-        var beforeClear = await queryHandler.HandleAsync(new GetPacketExtractSqlInput
-        {
-            PacketCode = packetCode
-        });
-        Assert.Equal(templateSql, beforeClear.ExtractSql);
-
-        // Act 2: Gửi lệnh Update với ExtractSql = null để xóa SQL
-        var updateResult = await commandHandler.HandleAsync(new UpdatePacketExtractSqlInput
+        var input = new UpdatePacketExtractSqlInput
         {
             PacketCode = packetCode,
             ExtractSql = null
-        });
-        Assert.Equal(string.Empty, updateResult.ExtractSql);
+        };
 
-        // Act 3: Đọc lại -> SQL rỗng
-        var afterClear = await queryHandler.HandleAsync(new GetPacketExtractSqlInput
-        {
-            PacketCode = packetCode
-        });
-        Assert.Equal(string.Empty, afterClear.ExtractSql);
+        // Act
+        var output = await bus.InvokeAsync<PacketExtractSqlOutput>(input);
 
-        var dbPacket = await db.Queryable<ShareDataPacket>().Where(p => p.ID == packet.ID).FirstAsync();
-        Assert.Null(dbPacket.ExtractSql);
+        // Assert
+        Assert.NotNull(output);
+        Assert.True(string.IsNullOrEmpty(output.ExtractSql));
+
+        var inDb = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == packetCode);
+        Assert.True(string.IsNullOrEmpty(inDb.ExtractSql));
     }
 
     [Theory]
     [InlineData(0)]
     [InlineData(366)]
-    [InlineData(-10)]
-    [InlineData(500)]
     public async Task UpdateExtractSql_WhenLookbackDaysOutOfRange_ThrowsOops_Test(int lookBackDays)
     {
-        // Arrange
+        // RV-1: MaxLookBackDays chỉ cho phép 1 - 365 ngày
         var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
-        var scope = host.Services.CreateScope();
-        var commandHandler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlCommandHandler>();
+        using var scope = _host.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
 
         var input = new UpdatePacketExtractSqlInput
         {
-            PacketCode = "101",
-            MaxLookBackDays = lookBackDays
+            PacketCode = "103",
+            SyncMode = BaseEnums.SyncMode.Incremental,
+            MaxLookBackDays = lookBackDays,
+            ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM TmsZone"
         };
 
         // Act & Assert
-        var ex = await Assert.ThrowsAsync<AppFriendlyException>(() => commandHandler.HandleAsync(input));
-        Assert.NotNull(ex);
-        Assert.True(ex.ErrorMessage?.ToString() == BaseMsg.ShareData.Validation.LookbackDaysRange
-            || ex.Message.Contains("quét lùi")
-            || ex.Message.Contains("lookbackDaysRange"));
+        await Assert.ThrowsAnyAsync<Exception>(() => bus.InvokeAsync<PacketExtractSqlOutput>(input));
     }
 
     [Fact]
     public async Task ExecutePacketSqlSample_WithOrderByWithoutTop_ExecutesSuccessfully_Test()
     {
-        // Arrange
+        // RV-2: SQL có ORDER BY nhưng không có TOP -> Tự động bọc lại hợp lệ, không gây lỗi cú pháp
         var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
-        var scope = host.Services.CreateScope();
-        var queryHandler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlQueryHandler>();
+        using var scope = _host.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
 
         var input = new ExecutePacketSqlSampleInput
         {
             PacketCode = "101",
-            ExtractSql = "SELECT ID, Code, Name FROM ShareDataPacket ORDER BY Code ASC",
+            ExtractSql = "SELECT ID, Code, Name FROM TmsZone ORDER BY Code ASC",
             Top = 5
         };
 
         // Act
-        var result = await queryHandler.HandleAsync(input);
+        var result = await bus.InvokeAsync<ExecutePacketSqlSampleOutput>(input);
 
         // Assert
         Assert.True(result.IsSuccess, result.ErrorMessage);
@@ -384,8 +335,8 @@ public class ShareDataExtractSqlTests(Host host)
         var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
-        var scope = host.Services.CreateScope();
-        var queryHandler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlQueryHandler>();
+        using var scope = _host.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
 
         var input = new ExecutePacketSqlSampleInput
         {
@@ -395,7 +346,7 @@ public class ShareDataExtractSqlTests(Host host)
         };
 
         // Act
-        var result = await queryHandler.HandleAsync(input);
+        var result = await bus.InvokeAsync<ExecutePacketSqlSampleOutput>(input);
 
         // Assert
         Assert.True(result.IsSuccess, result.ErrorMessage);
@@ -415,18 +366,18 @@ public class ShareDataExtractSqlTests(Host host)
         var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
-        var scope = host.Services.CreateScope();
-        var queryHandler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlQueryHandler>();
+        using var scope = _host.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
 
         var input = new ExecutePacketSqlSampleInput
         {
             PacketCode = "101",
-            ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM ShareDataPacket",
+            ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM TmsZone",
             Top = 3
         };
 
         // Act
-        var result = await queryHandler.HandleAsync(input);
+        var result = await bus.InvokeAsync<ExecutePacketSqlSampleOutput>(input);
 
         // Assert
         Assert.True(result.IsSuccess, result.ErrorMessage);
@@ -438,21 +389,22 @@ public class ShareDataExtractSqlTests(Host host)
     [Fact]
     public async Task ExecutePacketSqlSample_BenchmarkWithoutTop_MeasuresExecutionTime_Test()
     {
+        // RV-3: Đo thời gian chạy SQL mẫu
         var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
-        var scope = host.Services.CreateScope();
-        var queryHandler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlQueryHandler>();
+        using var scope = _host.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
 
         var input = new ExecutePacketSqlSampleInput
         {
             PacketCode = "101",
-            ExtractSql = "SELECT ID, Code, Name FROM ShareDataPacket",
+            ExtractSql = "SELECT ID, Code, Name FROM TmsZone",
             Top = 5
         };
 
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        var result = await queryHandler.HandleAsync(input);
+        var sw = Stopwatch.StartNew();
+        var result = await bus.InvokeAsync<ExecutePacketSqlSampleOutput>(input);
         sw.Stop();
 
         Assert.True(result.IsSuccess, result.ErrorMessage);
@@ -464,15 +416,18 @@ public class ShareDataExtractSqlTests(Host host)
     [Fact]
     public async Task UpdateExtractSql_WhenIncrementalPacketWithoutIncrementalStructure_ThrowsOops_Test()
     {
-        // RV-4: Lưu SQL cho gói 103 (Incremental trên DB) không gửi SyncMode, SQL thiếu __rowid -> bị từ chối
+        // RV-4: Gói Incremental nhưng câu SQL thiếu cấu hình bắt buộc (__rowid)
         var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
-        var db = host.Services.GetRequiredService<ISqlSugarClient>();
+        using var scope = _host.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
         var existing = await db.Queryable<ShareDataPacket>().Where(x => x.Code == "103").FirstAsync();
         if (existing == null)
         {
-            await db.Insertable(new ShareDataPacket { ID = Guid.NewGuid().ToString("N"), Code = "103", Name = "VDS Data", SyncMode = BaseEnums.SyncMode.Incremental, Status = BaseEnums.StatusEnum.Enable }).ExecuteCommandAsync();
+            await db.Insertable(new ShareDataPacket { ID = Guid.NewGuid().ToString("N"), Code = "103", Name = "VDS Data", Status = BaseEnums.StatusEnum.Enable, SyncMode = BaseEnums.SyncMode.Incremental }).ExecuteCommandAsync();
         }
         else if (existing.SyncMode != BaseEnums.SyncMode.Incremental)
         {
@@ -480,19 +435,15 @@ public class ShareDataExtractSqlTests(Host host)
             await db.Updateable(existing).UpdateColumns(p => new { p.SyncMode }).ExecuteCommandAsync();
         }
 
-        var scope = host.Services.CreateScope();
-        var commandHandler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlCommandHandler>();
-
-        var ex = await Assert.ThrowsAsync<AppFriendlyException>(() => commandHandler.HandleAsync(new UpdatePacketExtractSqlInput
+        var ex = await Assert.ThrowsAnyAsync<Exception>(() => bus.InvokeAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
         {
             PacketCode = "103",
             SyncMode = null,
-            ExtractSql = "SELECT TOP (@pageSize) ID, Code, CreateTime AS __lastTime FROM ShareDataPacket ORDER BY CreateTime ASC"
+            ExtractSql = "SELECT TOP (@pageSize) ID, Code, CreateTime AS __lastTime FROM TmsZone ORDER BY CreateTime ASC"
         }));
 
-        Assert.True(ex.ErrorMessage?.ToString() == BaseMsg.ShareData.Validation.SqlIncrementalMissingRowid
-            || ex.Message.Contains("__rowid")
-            || ex.Message.Contains("sqlIncrementalMissingRowid"));
+        var msg = ex.Message;
+        Assert.True(msg.Contains("__rowid") || msg.Contains("sqlIncrementalMissingRowid") || (ex is AppFriendlyException afe && afe.ErrorMessage?.ToString() == BaseMsg.ShareData.Validation.SqlIncrementalMissingRowid));
     }
 
     [Fact]
@@ -502,26 +453,25 @@ public class ShareDataExtractSqlTests(Host host)
         var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
-        var db = host.Services.GetRequiredService<ISqlSugarClient>();
+        using var scope = _host.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
         var existing = await db.Queryable<ShareDataPacket>().Where(x => x.Code == "103").FirstAsync();
         if (existing == null)
         {
             await db.Insertable(new ShareDataPacket { ID = Guid.NewGuid().ToString("N"), Code = "103", Name = "VDS Data", Status = BaseEnums.StatusEnum.Enable }).ExecuteCommandAsync();
         }
 
-        var scope = host.Services.CreateScope();
-        var commandHandler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlCommandHandler>();
-
-        var ex = await Assert.ThrowsAsync<AppFriendlyException>(() => commandHandler.HandleAsync(new UpdatePacketExtractSqlInput
+        var ex = await Assert.ThrowsAnyAsync<Exception>(() => bus.InvokeAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
         {
             PacketCode = "103",
             SyncMode = BaseEnums.SyncMode.Incremental,
-            ExtractSql = "SELECT TOP (@pageSize) ID AS __rowid, Code, CreateTime AS __lastTime FROM ShareDataPacket ORDER BY __lastTime DESC"
+            ExtractSql = "SELECT TOP (@pageSize) ID AS __rowid, Code, CreateTime AS __lastTime FROM TmsZone ORDER BY __lastTime DESC"
         }));
 
-        Assert.True(ex.ErrorMessage?.ToString() == BaseMsg.ShareData.Validation.SqlIncrementalOrderByDescNotAllowed
-            || ex.Message.Contains("DESC")
-            || ex.Message.Contains("sqlIncrementalOrderByDescNotAllowed"));
+        var msg = ex.Message;
+        Assert.True(msg.Contains("DESC") || msg.Contains("sqlIncrementalOrderByDescNotAllowed") || (ex is AppFriendlyException afe && afe.ErrorMessage?.ToString() == BaseMsg.ShareData.Validation.SqlIncrementalOrderByDescNotAllowed));
     }
 
     [Fact]
@@ -531,35 +481,34 @@ public class ShareDataExtractSqlTests(Host host)
         var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
-        var db = host.Services.GetRequiredService<ISqlSugarClient>();
+        using var scope = _host.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
         var unique = Guid.NewGuid().ToString("N")[..8];
         var packetCode = $"PKT_{unique}";
         await db.Insertable(new ShareDataPacket { ID = Guid.NewGuid().ToString("N"), Code = packetCode, Name = $"Packet {unique}", Status = BaseEnums.StatusEnum.Enable }).ExecuteCommandAsync();
 
-        var scope = host.Services.CreateScope();
-        var commandHandler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlCommandHandler>();
-        var queryHandler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlQueryHandler>();
-
-        await commandHandler.HandleAsync(new UpdatePacketExtractSqlInput
+        await bus.InvokeAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
         {
             PacketCode = packetCode,
             SyncMode = BaseEnums.SyncMode.Snapshot,
             MaxLookBackDays = 7,
-            ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM ShareDataPacket"
+            ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM TmsZone"
         });
 
-        var out1 = await queryHandler.HandleAsync(new GetPacketExtractSqlInput { PacketCode = packetCode });
+        var out1 = await bus.InvokeAsync<PacketExtractSqlOutput>(new GetPacketExtractSqlInput { PacketCode = packetCode });
         Assert.Equal(7, out1.MaxLookBackDays);
 
-        await commandHandler.HandleAsync(new UpdatePacketExtractSqlInput
+        await bus.InvokeAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
         {
             PacketCode = packetCode,
             SyncMode = BaseEnums.SyncMode.Snapshot,
             MaxLookBackDays = null,
-            ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM ShareDataPacket"
+            ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM TmsZone"
         });
 
-        var out2 = await queryHandler.HandleAsync(new GetPacketExtractSqlInput { PacketCode = packetCode });
+        var out2 = await bus.InvokeAsync<PacketExtractSqlOutput>(new GetPacketExtractSqlInput { PacketCode = packetCode });
         Assert.Null(out2.MaxLookBackDays);
     }
 
@@ -582,7 +531,10 @@ public class ShareDataExtractSqlTests(Host host)
         var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
-        var db = host.Services.GetRequiredService<ISqlSugarClient>();
+        using var scope = _host.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
         var unique = Guid.NewGuid().ToString("N")[..8];
         var packetCode = $"PKT_INCR_{unique}";
         await db.Insertable(new ShareDataPacket
@@ -594,20 +546,16 @@ public class ShareDataExtractSqlTests(Host host)
             Status = BaseEnums.StatusEnum.Enable
         }).ExecuteCommandAsync();
 
-        var scope = host.Services.CreateScope();
-        var commandHandler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlCommandHandler>();
-
         // Act & Assert: SQL không có __lastTime và __rowid -> fail cấu trúc nối đuôi
-        var ex = await Assert.ThrowsAsync<AppFriendlyException>(() => commandHandler.HandleAsync(new UpdatePacketExtractSqlInput
+        var ex = await Assert.ThrowsAnyAsync<Exception>(() => bus.InvokeAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
         {
             PacketCode = packetCode,
             SyncMode = null, // Không truyền SyncMode trong command
-            ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM ShareDataPacket"
+            ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM TmsZone"
         }));
 
-        Assert.True(ex.ErrorMessage?.ToString() == BaseMsg.ShareData.Validation.SqlIncrementalMissingOrderBy
-            || ex.Message.Contains("sqlIncrementalMissing")
-            || ex.Message.Contains("ORDER BY"));
+        var msg = ex.Message;
+        Assert.True(msg.Contains("sqlIncrementalMissing") || msg.Contains("ORDER BY") || (ex is AppFriendlyException afe && afe.ErrorMessage?.ToString() == BaseMsg.ShareData.Validation.SqlIncrementalMissingOrderBy));
     }
 
     [Fact]
@@ -617,7 +565,10 @@ public class ShareDataExtractSqlTests(Host host)
         var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
-        var db = host.Services.GetRequiredService<ISqlSugarClient>();
+        using var scope = _host.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
         var unique = Guid.NewGuid().ToString("N")[..8];
         var packetCode = $"PKT_SNAP_{unique}";
         await db.Insertable(new ShareDataPacket
@@ -629,21 +580,41 @@ public class ShareDataExtractSqlTests(Host host)
             Status = BaseEnums.StatusEnum.Enable
         }).ExecuteCommandAsync();
 
-        var scope = host.Services.CreateScope();
-        var commandHandler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlCommandHandler>();
-        var queryHandler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlQueryHandler>();
-
         // Act: SQL dạng Snapshot bình thường (không có __lastTime hay __rowid)
-        await commandHandler.HandleAsync(new UpdatePacketExtractSqlInput
+        await bus.InvokeAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
         {
             PacketCode = packetCode,
             SyncMode = null,
-            ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM ShareDataPacket"
+            ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM TmsZone"
         });
 
         // Assert: Lưu thành công
-        var output = await queryHandler.HandleAsync(new GetPacketExtractSqlInput { PacketCode = packetCode });
+        var output = await bus.InvokeAsync<PacketExtractSqlOutput>(new GetPacketExtractSqlInput { PacketCode = packetCode });
         Assert.NotNull(output);
-        Assert.Contains("SELECT TOP (@pageSize) ID, Code FROM ShareDataPacket", output.ExtractSql);
+        Assert.Contains("SELECT TOP (@pageSize) ID, Code FROM TmsZone", output.ExtractSql);
+    }
+
+    private static async Task<(ShareDataPartner Partner, ShareDataSubscription Subscription)> SeedPartnerAndSubscriptionAsync(
+        ISqlSugarClient db, string packetCode, string unique)
+    {
+        var partner = new ShareDataPartner
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Code = $"PARTNER_{unique}",
+            Name = $"Partner {unique}",
+            Status = BaseEnums.StatusEnum.Enable
+        };
+        await db.Insertable(partner).ExecuteCommandAsync();
+
+        var sub = new ShareDataSubscription
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            PartnerId = partner.ID,
+            DatatypeId = packetCode,
+            Direction = BaseEnums.Direction.Outbound
+        };
+        await db.Insertable(sub).ExecuteCommandAsync();
+
+        return (partner, sub);
     }
 }

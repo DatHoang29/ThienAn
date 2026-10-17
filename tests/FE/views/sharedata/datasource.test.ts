@@ -1481,8 +1481,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         // Rule 20.14: Component name camelCase
         expect(qbContent).toContain('name="queryBuilder"');
         // Tích hợp API Metadata tables & fields
-        expect(qbContent).toContain('/api/sharedata/metadata/tables');
-        expect(qbContent).toContain('/api/sharedata/metadata/fields');
+        expect(qbContent).toContain('/api/sharedata/sharedatapacket/getmetadatatables');
+        expect(qbContent).toContain('/api/sharedata/sharedatapacket/getmetadatafields');
         expect(qbContent).toContain('vqb-btn-pick-db-columns');
         expect(qbContent).toContain('vqb-db-columns-panel');
         expect(qbContent).toContain('vqb-db-columns-grid');
@@ -1493,7 +1493,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         let calledTablesApi = false;
         let calledFieldsApi = false;
 
-        await page.route('**/api/sharedata/metadata/tables', async (route) => {
+        await page.route('**/api/sharedata/sharedatapacket/getmetadatatables', async (route) => {
             calledTablesApi = true;
             await route.fulfill({
                 status: 200,
@@ -1509,7 +1509,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
             });
         });
 
-        await page.route('**/api/sharedata/metadata/fields*', async (route) => {
+        await page.route('**/api/sharedata/sharedatapacket/getmetadatafields*', async (route) => {
             calledFieldsApi = true;
             await route.fulfill({
                 status: 200,

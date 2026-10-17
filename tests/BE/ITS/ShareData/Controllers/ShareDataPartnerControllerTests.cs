@@ -6,10 +6,10 @@ namespace Tests.ShareData.Controllers
 {
     /// <summary>
     /// Description: Kiểm thử đơn vị cho PartnerValidator và hàm kiểm tra cấu trúc cấu hình kết nối CheckStructure.
-    ///              Xác nhận 6 lỗi cấu trúc bị chặn và các lỗi giá trị cấu hình không còn bị chặn khi lưu (P13-BE).
+    ///              Xác nhận 6 lỗi cấu trúc bị chặn và các lỗi giá trị cấu hình không còn bị chặn khi lưu.
     /// Created date: 17/10/2026
     /// </summary>
-    public class PartnerValidatorTests
+    public class ShareDataPartnerControllerTests
     {
         [Theory]
         [InlineData(null)]

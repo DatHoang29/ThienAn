@@ -24,10 +24,10 @@ namespace Tests.RealServer
         /// Created date: 15/10/2026
         /// </summary>
         [Fact(Skip = "Gọi server đối tác thật 115.78.1.139 — chỉ gỡ Skip khi cần kiểm tra kết nối")]
-        public async Task RestSender_WhenCallingRealServerWithHttp_FailsDueToDroppedConnection_Test()
+        public async Task HttpSender_WhenCallingRealServerWithHttp_FailsDueToDroppedConnection_Test()
         {
             // Arrange
-            var sender = new RestPacketSender();
+            var sender = new HttpPacketSender();
             var partner = new ShareDataPartner
             {
                 Code = "PARTNER_REAL_HTTP",
@@ -58,10 +58,10 @@ namespace Tests.RealServer
         /// Created date: 15/10/2026
         /// </summary>
         [Fact(Skip = "Gọi server đối tác thật 115.78.1.139 — chỉ gỡ Skip khi cần kiểm tra kết nối")]
-        public async Task RestSender_WhenCallingRealServerWithHttpsIp_FailsDueToCertificateMismatch_Test()
+        public async Task HttpSender_WhenCallingRealServerWithHttpsIp_FailsDueToCertificateMismatch_Test()
         {
             // Arrange
-            var sender = new RestPacketSender();
+            var sender = new HttpPacketSender();
             var partner = new ShareDataPartner
             {
                 Code = "PARTNER_REAL_HTTPS_IP",

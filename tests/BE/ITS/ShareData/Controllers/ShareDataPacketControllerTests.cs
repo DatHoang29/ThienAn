@@ -2,28 +2,27 @@ using System.Security.Claims;
 using Furion.FriendlyException;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Module.ShareData.Controllers.Packet.Commands;
-using Module.ShareData.Controllers.Packet.Queries;
 using Module.ShareData.Core.Dto.Packet;
 using Module.ShareData.Core.Entities;
 using Module.ShareData.Infrastructure.Persistence.SeedData;
 using Shared.Core.Utilities.Constants;
 using Shared.DTO.Enums;
-using ShareDataWorker.Infrastructure.Logging;
 using SqlSugar;
+using Wolverine;
 using Xunit;
 
 namespace Tests.ShareData.Controllers;
 
 /// <summary>
 /// Author: DatHQ
-/// Description: Kiểm thử logic tự điền SQL mẫu mặc định và các cấu hình đồng bộ khi tạo gói tin,
-///              khôi phục mẫu mặc định qua API GetExtractSql, và đảm bảo không phát sinh cảnh báo thiếu SQL.
+/// Description: Bộ kiểm thử tích hợp cho ShareDataPacketController qua Wolverine IMessageBus (Rule 19.84).
+///              Bao gồm quản lý thêm/sửa/xóa gói tin, tự động điền mẫu SQL trích xuất và đồng bộ.
 /// Created date: 17/10/2026
 /// </summary>
 [Collection("api")]
-public class PacketTemplateTests(Host host)
+public partial class ShareDataPacketControllerTests(Host host)
 {
+    private readonly Host _host = host;
     private readonly IHttpContextAccessor _httpContextAccessor = host.Services.GetRequiredService<IHttpContextAccessor>();
 
     private void SetUserContext(bool isSuperAdmin, string account = "test_operator")
@@ -48,8 +47,8 @@ public class PacketTemplateTests(Host host)
     {
         // Arrange
         SetUserContext(isSuperAdmin: true);
-        using var scope = host.Services.CreateScope();
-        var handler = scope.ServiceProvider.GetRequiredService<PacketCommandHandler>();
+        using var scope = _host.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var unique = Guid.NewGuid().ToString("N")[..8];
@@ -61,8 +60,8 @@ public class PacketTemplateTests(Host host)
             PacketVersion = "1.0"
         };
 
-        // Act
-        await handler.HandleAsync(input);
+        // Act: Gọi qua điểm vào thật IMessageBus theo Rule 19.84
+        await bus.InvokeAsync(input);
 
         // Assert
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
@@ -76,8 +75,8 @@ public class PacketTemplateTests(Host host)
     {
         // Arrange
         SetUserContext(isSuperAdmin: true);
-        using var scope = host.Services.CreateScope();
-        var handler = scope.ServiceProvider.GetRequiredService<PacketCommandHandler>();
+        using var scope = _host.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var unique = Guid.NewGuid().ToString("N")[..8];
@@ -90,7 +89,7 @@ public class PacketTemplateTests(Host host)
         };
 
         // Act
-        await handler.HandleAsync(input);
+        await bus.InvokeAsync(input);
 
         // Assert
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
@@ -104,8 +103,8 @@ public class PacketTemplateTests(Host host)
     {
         // Arrange
         SetUserContext(isSuperAdmin: true);
-        using var scope = host.Services.CreateScope();
-        var handler = scope.ServiceProvider.GetRequiredService<PacketCommandHandler>();
+        using var scope = _host.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var unique = Guid.NewGuid().ToString("N")[..8];
@@ -118,7 +117,7 @@ public class PacketTemplateTests(Host host)
         };
 
         // Act
-        await handler.HandleAsync(input);
+        await bus.InvokeAsync(input);
 
         // Assert
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
@@ -131,8 +130,8 @@ public class PacketTemplateTests(Host host)
     {
         // Arrange
         SetUserContext(isSuperAdmin: true);
-        using var scope = host.Services.CreateScope();
-        var handler = scope.ServiceProvider.GetRequiredService<PacketCommandHandler>();
+        using var scope = _host.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var unique = Guid.NewGuid().ToString("N")[..8];
@@ -147,7 +146,7 @@ public class PacketTemplateTests(Host host)
         };
 
         // Act
-        await handler.HandleAsync(input);
+        await bus.InvokeAsync(input);
 
         // Assert
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
@@ -160,8 +159,8 @@ public class PacketTemplateTests(Host host)
     {
         // Arrange
         SetUserContext(isSuperAdmin: true);
-        using var scope = host.Services.CreateScope();
-        var handler = scope.ServiceProvider.GetRequiredService<PacketCommandHandler>();
+        using var scope = _host.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var unique = Guid.NewGuid().ToString("N")[..8];
@@ -174,7 +173,7 @@ public class PacketTemplateTests(Host host)
         };
 
         // Act
-        await handler.HandleAsync(input);
+        await bus.InvokeAsync(input);
 
         // Assert
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
@@ -187,8 +186,8 @@ public class PacketTemplateTests(Host host)
     {
         // Arrange
         SetUserContext(isSuperAdmin: true);
-        using var scope = host.Services.CreateScope();
-        var handler = scope.ServiceProvider.GetRequiredService<PacketCommandHandler>();
+        using var scope = _host.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
 
         var unique = Guid.NewGuid().ToString("N")[..8];
         var code = $"101_dup_{unique}";
@@ -205,10 +204,10 @@ public class PacketTemplateTests(Host host)
             PacketVersion = "1.0"
         };
 
-        await handler.HandleAsync(input1);
+        await bus.InvokeAsync(input1);
 
         // Act & Assert
-        await Assert.ThrowsAsync<AppFriendlyException>(() => handler.HandleAsync(input2));
+        await Assert.ThrowsAnyAsync<Exception>(() => bus.InvokeAsync(input2));
     }
 
     [Fact]
@@ -216,8 +215,8 @@ public class PacketTemplateTests(Host host)
     {
         // Arrange
         SetUserContext(isSuperAdmin: true);
-        using var scope = host.Services.CreateScope();
-        var queryHandler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlQueryHandler>();
+        using var scope = _host.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var unique = Guid.NewGuid().ToString("N")[..8];
@@ -236,7 +235,7 @@ public class PacketTemplateTests(Host host)
         await db.Insertable(packet).ExecuteCommandAsync();
 
         // Act
-        var output = await queryHandler.HandleAsync(new GetPacketExtractSqlInput
+        var output = await bus.InvokeAsync<PacketExtractSqlOutput>(new GetPacketExtractSqlInput
         {
             PacketCode = code,
             ForceDefaultTemplate = true
@@ -259,8 +258,8 @@ public class PacketTemplateTests(Host host)
     {
         // Arrange
         SetUserContext(isSuperAdmin: true);
-        using var scope = host.Services.CreateScope();
-        var queryHandler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlQueryHandler>();
+        using var scope = _host.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var unique = Guid.NewGuid().ToString("N")[..8];
@@ -279,7 +278,7 @@ public class PacketTemplateTests(Host host)
         await db.Insertable(packet).ExecuteCommandAsync();
 
         // Act
-        var output = await queryHandler.HandleAsync(new GetPacketExtractSqlInput
+        var output = await bus.InvokeAsync<PacketExtractSqlOutput>(new GetPacketExtractSqlInput
         {
             PacketCode = code,
             ForceDefaultTemplate = true
@@ -296,8 +295,8 @@ public class PacketTemplateTests(Host host)
     {
         // Arrange
         SetUserContext(isSuperAdmin: true);
-        using var scope = host.Services.CreateScope();
-        var handler = scope.ServiceProvider.GetRequiredService<PacketCommandHandler>();
+        using var scope = _host.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var unique = Guid.NewGuid().ToString("N")[..8];
@@ -310,7 +309,7 @@ public class PacketTemplateTests(Host host)
         };
 
         // Act
-        await handler.HandleAsync(input);
+        await bus.InvokeAsync(input);
 
         // Assert: Gói tin đã tự điền ExtractSql nên không bị thiếu câu truy vấn nguồn
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);

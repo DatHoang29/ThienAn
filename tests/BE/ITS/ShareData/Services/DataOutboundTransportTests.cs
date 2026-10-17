@@ -373,6 +373,29 @@ namespace Tests.ShareData.Services
             Assert.Contains(result.Warnings, w => w.Contains("Cảnh báo từ Dispatcher"));
         }
 
+        [Fact]
+        public void BuildRequest_WhenPartnerHasSecurityAndConnectionConfig_ExtractsSecurityInfoAndConfigProperly_Test()
+        {
+            // Arrange
+            var ctx = CreateContext("105", "PARTNER_CONFIG", "Kafka");
+            ctx.Partner!.ConnectionConfig = "{\"ApiKey\":\"secret-key-12345\",\"Topic\":\"rfid-topic\",\"HttpTimeoutSec\":\"25\"}";
+            var mappingBytes = Encoding.UTF8.GetBytes("{\"tag\":\"RFID_001\"}");
+            var mapping = new DataMappingResult(true, mappingBytes, 1);
+
+            // Act
+            var request = DataOutboundTransport.BuildRequest(mapping, ctx);
+
+            // Assert
+            Assert.Equal("{\"tag\":\"RFID_001\"}", request.JsonPayload);
+            Assert.Equal("Kafka", request.ConnectType);
+            Assert.True(request.ConnectConfig.ContainsKey("Topic"));
+            Assert.Equal("rfid-topic", request.ConnectConfig["Topic"]);
+            Assert.True(request.ConnectConfig.ContainsKey("HttpTimeoutSec"));
+            Assert.Equal("25", request.ConnectConfig["HttpTimeoutSec"]);
+            Assert.True(request.SecurityInfo.ContainsKey(ConnectKeys.ApiKey));
+            Assert.Equal("secret-key-12345", request.SecurityInfo[ConnectKeys.ApiKey]);
+        }
+
         private sealed class FakePacketSendDispatcher : IPacketSendDispatcher
         {
             public int DispatchCallCount { get; private set; }
