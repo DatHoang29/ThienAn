@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Module.ShareData.Core.Dto.Packet;
 using Module.ShareData.Core.Entities;
 using Module.ShareData.Infrastructure.Persistence.SeedData;
+using Module.ShareData.Infrastructure.Services.ShareDataExtraction;
 using Shared.Core.Utilities.Constants;
 using Shared.DTO.Enums;
 using SqlSugar;
@@ -66,7 +67,8 @@ public partial class ShareDataPacketControllerTests(Host host)
         // Assert
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
         Assert.NotNull(packet);
-        Assert.Equal(ShareDataPacketSeedData.Sql101_TrafficFlow, packet.ExtractSql);
+        Assert.True(PacketDefaultTemplate.TryGet("101", out var tpl101));
+        Assert.Equal(tpl101.ExtractSql, packet.ExtractSql);
         Assert.Equal(BaseEnums.SyncMode.Snapshot, packet.SyncMode);
     }
 
@@ -94,7 +96,8 @@ public partial class ShareDataPacketControllerTests(Host host)
         // Assert
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
         Assert.NotNull(packet);
-        Assert.Equal(ShareDataPacketSeedData.Sql101_TrafficFlow, packet.ExtractSql);
+        Assert.True(PacketDefaultTemplate.TryGet("101", out var tpl101Prefix));
+        Assert.Equal(tpl101Prefix.ExtractSql, packet.ExtractSql);
         Assert.Equal(BaseEnums.SyncMode.Snapshot, packet.SyncMode);
     }
 
@@ -244,7 +247,8 @@ public partial class ShareDataPacketControllerTests(Host host)
         // Assert
         Assert.NotNull(output);
         Assert.True(output.HasDefaultTemplate);
-        Assert.Equal(ShareDataPacketSeedData.Sql103_VehicleDetection, output.ExtractSql);
+        Assert.True(PacketDefaultTemplate.TryGet("103", out var tpl103));
+        Assert.Equal(tpl103.ExtractSql, output.ExtractSql);
         Assert.Equal(BaseEnums.SyncMode.Incremental, output.SyncMode);
         Assert.Equal(1, output.MaxLookBackDays);
 
@@ -315,6 +319,7 @@ public partial class ShareDataPacketControllerTests(Host host)
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
         Assert.NotNull(packet);
         Assert.False(string.IsNullOrWhiteSpace(packet.ExtractSql));
-        Assert.Equal(ShareDataPacketSeedData.Sql101_TrafficFlow, packet.ExtractSql);
+        Assert.True(PacketDefaultTemplate.TryGet("101", out var tpl101Reg));
+        Assert.Equal(tpl101Reg.ExtractSql, packet.ExtractSql);
     }
 }

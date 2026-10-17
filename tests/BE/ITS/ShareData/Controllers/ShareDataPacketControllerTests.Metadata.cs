@@ -1,8 +1,11 @@
 using Furion.FriendlyException;
 using Microsoft.Extensions.DependencyInjection;
 using Module.ShareData.Core.Dto.Metadata;
+using Module.ShareData.Core.Entities;
 using Module.ShareData.Core.Exceptions;
+using Module.ShareData.Infrastructure.Persistence.SeedData;
 using Module.ShareData.Infrastructure.Services.ShareDataMetadata;
+using SqlSugar;
 using Wolverine;
 using Xunit;
 
@@ -17,13 +20,34 @@ public partial class ShareDataPacketControllerTests
         SetUserContext(isSuperAdmin: true, account: $"superadmin_{Guid.NewGuid():N}");
         using var scope = _host.Services.CreateScope();
         var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         // Act: Đi qua đúng điểm vào IMessageBus (Rule 19.84)
         var tables = await bus.InvokeAsync<List<MetadataTableDto>>(new GetMetadataTablesInput());
 
+        List<ShareDataSourceTable> sourceTables = null!;
+        if (db.DbMaintenance.IsAnyTable("ShareDataSourceTable", false))
+        {
+            sourceTables = await db.Queryable<ShareDataSourceTable>()
+                .Where(x => x.IsDelete == null && x.IsQueryable == true && !string.IsNullOrWhiteSpace(x.TableName))
+                .OrderBy(x => x.OrderNo)
+                .OrderBy(x => x.ID)
+                .ToListAsync();
+        }
+
+        if (sourceTables == null || sourceTables.Count == 0)
+        {
+            sourceTables = new ShareDataSourceTableSeedData()
+                .HasData()
+                .Where(x => x.IsQueryable == true && !string.IsNullOrWhiteSpace(x.TableName))
+                .OrderBy(x => x.OrderNo)
+                .ThenBy(x => x.ID)
+                .ToList();
+        }
+
         // Assert
         Assert.NotNull(tables);
-        Assert.Equal(MetadataService.AllowedTables.Count, tables.Count);
+        Assert.Equal(sourceTables.Count, tables.Count);
         Assert.Contains(tables, t => t.TableName == "TmsZone" && t.DefaultAlias == "z");
         Assert.Contains(tables, t => t.TableName == "TmsTrafficData" && t.DefaultAlias == "td");
     }

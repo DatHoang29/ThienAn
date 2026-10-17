@@ -1,7 +1,7 @@
 # 🗄️ Danh Mục Kịch Bản SQL Phân Hệ ShareData (ESHARE)
 
 > **Căn cứ quy chuẩn:** [`.agents/rules/database-mcp_thienan.md` §2](../../../../.agents/rules/database-mcp_thienan.md) (Gom script theo vai trò, không tách theo ngày).  
-> **Cập nhật lần cuối:** 16/10/2026
+> **Cập nhật lần cuối:** 17/10/2026
 
 ---
 
@@ -11,12 +11,12 @@ Mọi kịch bản SQL của phân hệ ShareData được phân tách rõ ràng
 
 | Thứ Tự | Tên Tệp Kịch Bản | CSDL Đích | Mục Đích Nghiệp Vụ | Đặc Tính Chạy Lại | Môi Trường Cho Phép |
 | :---: | :--- | :---: | :--- | :---: | :---: |
-| **00** | [`00-sharedata-migration-mot-lan.sql`](00-sharedata-migration-mot-lan.sql) | `DEV_ITS10` | Bổ sung 4 cột cấu hình truy vấn vào `ShareDataPacket`/`ShareDataMapping`, dọn dẹp các dòng `ShareDataPacketSql` có `TableName = 'ROOT'` của thiết kế cũ (xóa mềm), và DROP bảng mồ côi `ShareDataTable` nếu rỗng. (Không chuyển dữ liệu). | ⚠️ **Chỉ chạy 1 lần** (khi nâng cấp/di trú) | Mọi môi trường |
+| **00** | [`00-sharedata-migration-mot-lan.sql`](00-sharedata-migration-mot-lan.sql) | `DEV_ITS10` | Tạo/nâng cấp danh mục bảng nguồn `ShareDataSourceTable` (có `IsTracked`, `IsQueryable`, `Category`, `DefaultAlias`, chép `Status` → `IsTracked`), di trú mốc từ `SysOpConfig` (`sharedata_tracker`) + `ShareDataTrackVersion` cũ sang, xóa mềm các dòng cấu hình cũ trong `SysOpConfig`/`SysDictData`, dọn dòng `ShareDataPacketSql` có `TableName = 'ROOT'` cũ (xóa mềm), và DROP bảng mồ côi (`ShareDataTable`, `ShareDataTrackVersion`). | ⚠️ **Chỉ chạy 1 lần** (khi nâng cấp/di trú) | Mọi môi trường |
 | **01** | [`01-sharedata-cau-truc.sql`](01-sharedata-cau-truc.sql) | `DEV_ITS10` | Chuẩn hóa cấu hình địa chỉ/cổng/endpoint từ JSON `ConnectionConfig` sang các cột riêng (`Address`, `Port`, `EndPointApiUrl`) trên `ShareDataPartner`. | Chạy lại an toàn (**Idempotent**) | Mọi môi trường |
 | **02** | [`02-sharedata-seed-goi-tin.sql`](02-sharedata-seed-goi-tin.sql) | `DEV_ITS10` | Khởi tạo bản ghi cho 11 gói tin (101–111) nếu chưa tồn tại (idempotent), nạp câu truy vấn SQL trích xuất mẫu Catalog (gói 101–110), chuẩn hóa `SyncMode` mặc định khi còn NULL (Snapshot / Incremental) và cập nhật `Status = 1` (Enable) cho gói 110*, `Status = 0` (Disable) cho gói 111*. Có cờ `@GhiDeMauGoiTin = 0` bảo vệ dữ liệu quản trị đã sửa. | Chạy lại an toàn (**Idempotent**) | Mọi môi trường |
-| **03** | [`03-sharedata-seed-cau-hinh.sql`](03-sharedata-seed-cau-hinh.sql) | `DEV_ITS10` | Khởi tạo `SysConfigType` `sharedata_error_code`, nạp đủ 24 mã cảnh báo lỗi `ESH-xxxx` (theo ESHARE §9) vào `SysConfigData`, nạp danh mục 15 bảng theo dõi Change Tracking `sharedata_tracker` vào `SysOpConfig`, khai nhóm `sharedata_tracker` vào `SysConfigData` loại `operation_config_type` để màn hình *Cấu hình hoạt động* hiển thị. (Cần loại cấu hình `operation_config_type` do WebAPI seed ở lần chạy đầu tiên; nếu chạy script trước khi WebAPI chạy thì cần chạy lại script sau khi WebAPI đã chạy một lần để hiển thị đầy đủ). | Chạy lại an toàn (**Idempotent**) | Mọi môi trường |
-| **04** | [`04-sharedata-dich-thuat.sql`](04-sharedata-dich-thuat.sql) | `DEV_ITS10` | Nạp từ điển bản dịch đa ngôn ngữ (`vi-VN`, `en-US`) cho 48 mã khóa chuẩn hóa (SQL trích xuất, LookbackDays, SQL Validator, Metadata, ConnectConfig) vào bảng `SysTerminology` qua `MERGE` không ghi đè bản dịch đã sửa. (Sau khi chạy script trên DB, trên giao diện cần bấm nút 🔄 tại avatar góc phải trên → chọn mục Ngôn ngữ để làm mới cache bản dịch). | Chạy lại an toàn (**Idempotent**) | Mọi môi trường |
-| **05** | [`05-sharedata-du-lieu-gia-lap.sql`](05-sharedata-du-lieu-gia-lap.sql) | `DEV_ITS10`, `DEV_ITS10_Inbound` | Nạp dữ liệu giả lập (Mock Data) cho gói 104 (`TmsWeather`), gói 106 (`TmsTrafficData` WIM), gói 110 (`TmsIncident`, `TmsEquipment`, `VmsCurrent`) và Khối 4 chuẩn bị bảng đích `InboundTrafficFlow` (trên `DEV_ITS10_Inbound`) kèm cấu hình câu MERGE ghi chiều nhận trên `ShareDataPacketSql` (`DEV_ITS10`) phục vụ kiểm thử thông luồng E0. | Chạy lại an toàn (**Idempotent**) | ⚠️ **Chỉ Local / Test**<br/>⛔ **CẤM chạy Staging/Production** |
+| **03** | [`03-sharedata-seed-cau-hinh.sql`](03-sharedata-seed-cau-hinh.sql) | `DEV_ITS10` | Khởi tạo `SysConfigType` `sharedata_error_code`, nạp đủ 25 mã cảnh báo lỗi `ESH-xxxx` (bổ sung `ESH-1403` theo ESHARE §9) vào `SysConfigData`, nạp danh mục 15 bảng nguồn vào `ShareDataSourceTable` (hai công tắc `IsTracked`, `IsQueryable`, `Category`, `DefaultAlias`), và nạp 46 tham số vận hành vào `SysOpConfig` nhóm `sharedata_config` (17 Worker, 23 FE/WebAPI, 6 BE WebAPI) kèm khai nhóm vào `SysConfigData` loại `operation_config_type` để màn hình *Cấu hình hoạt động* hiển thị. (Cần loại cấu hình `operation_config_type` do WebAPI seed ở lần chạy đầu tiên; nếu chạy script trước khi WebAPI chạy thì cần chạy lại script sau khi WebAPI đã chạy một lần để hiển thị đầy đủ). | Chạy lại an toàn (**Idempotent**) | Mọi môi trường |
+| **04** | [`04-sharedata-dich-thuat.sql`](04-sharedata-dich-thuat.sql) | `DEV_ITS10` | Nạp từ điển bản dịch đa ngôn ngữ (`vi-VN`, `en-US`) cho 49 mã khóa chuẩn hóa (98 bản ghi song ngữ gồm SQL trích xuất, LookbackDays, SQL Validator, Metadata, ConnectConfig, SqlTableNotAllowed) vào bảng `SysTerminology` qua `MERGE` không ghi đè bản dịch đã sửa. (Sau khi chạy script trên DB, trên giao diện cần bấm nút 🔄 tại avatar góc phải trên → chọn mục Ngôn ngữ để làm mới cache bản dịch). | Chạy lại an toàn (**Idempotent**) | Mọi môi trường |
+| **05** | [`05-sharedata-du-lieu-gia-lap.sql`](05-sharedata-du-lieu-gia-lap.sql) | `DEV_ITS10`, `DEV_ITS10_Inbound` | Nạp dữ liệu giả lập (Mock Data) cho gói 104 (`TmsWeather`), gói 106 (`TmsTrafficData` WIM), gói 110 (`TmsIncident`, `TmsEquipment`, `VmsCurrent`) và Khối 4 chuẩn bị gói kiểm thử riêng `E2E_INBOUND_TEST` (`ShareDataPacket` ID `1500000000900`, `ShareDataPacketSql` ID `1500000000903`) kèm bảng đích `InboundTrafficFlow` (trên `DEV_ITS10_Inbound`) phục vụ kiểm thử thông luồng hai chiều E0 mà không ảnh hưởng gói 101. | Chạy lại an toàn (**Idempotent**) | ⚠️ **Chỉ Local / Test**<br/>⛔ **CẤM chạy Staging/Production** |
 | **06** | [`06-sharedata-doi-ten-cot-dong-bo.sql`](06-sharedata-doi-ten-cot-dong-bo.sql) | `DEV_ITS10` | Đổi tên 3 trường cấu hình đồng bộ trên `ShareDataPacket` và `ShareDataMapping` (`SyncKind` → `SyncMode`, `TimeColumn` → `CursorTimeColumn`, `LookbackDays` → `MaxLookBackDays`). | Chạy lại an toàn (**Idempotent**) | Mọi môi trường |
 
 ---
@@ -27,9 +27,9 @@ Mọi kịch bản SQL của phân hệ ShareData được phân tách rõ ràng
 Chạy lần lượt theo đúng thứ tự số từ `01` đến `04`:
 1. `01-sharedata-cau-truc.sql` (chuẩn hóa cột địa chỉ/cổng của đối tác trên DEV_ITS10).
 2. `02-sharedata-seed-goi-tin.sql` (tự động tạo 11 gói tin nếu chưa có và nạp câu truy vấn mẫu Catalog 101–110).
-3. `03-sharedata-seed-cau-hinh.sql` (tự động tạo `SysConfigType` và nạp mã lỗi, cấu hình Change Tracking; chạy lại nếu lần đầu WebAPI chưa seed loại `operation_config_type`).
-4. `04-sharedata-dich-thuat.sql` (nạp 48 khóa thuật ngữ tiếng Việt & tiếng Anh; sau khi chạy bấm 🔄 ở avatar → Ngôn ngữ).
-5. *(Tùy chọn cho môi trường Local/Test)*: Chạy `05-sharedata-du-lieu-gia-lap.sql` để có dữ liệu mẫu và bảng đích chiều nhận chạy thử.
+3. `03-sharedata-seed-cau-hinh.sql` (tự động tạo `SysConfigType`, nạp 25 mã lỗi ESH, 15 bảng nguồn `ShareDataSourceTable` và 46 tham số vận hành `SysOpConfig` nhóm `sharedata_config`).
+4. `04-sharedata-dich-thuat.sql` (nạp 49 khóa thuật ngữ tiếng Việt & tiếng Anh; sau khi chạy bấm 🔄 ở avatar → Ngôn ngữ).
+5. *(Tùy chọn cho môi trường Local/Test)*: Chạy `05-sharedata-du-lieu-gia-lap.sql` để có dữ liệu mẫu và gói kiểm thử riêng `E2E_INBOUND_TEST` kèm bảng đích chiều nhận chạy thử.
 
 > ℹ️ *Bỏ qua file `00-sharedata-migration-mot-lan.sql` vì CSDL mới không có các bảng tạm/cũ cần dọn.*  
 > 📌 *Lưu ý về môi trường Local:* Cấu hình `.vscode/launch.json` ghim cứng các cờ CodeFirst của ConfigId 0 (`DEV_ITS10`) về `false` bằng biến môi trường để bảo vệ CSDL.
@@ -38,16 +38,16 @@ Chạy lần lượt theo đúng thứ tự số từ `01` đến `04`:
 1. **BẪY THỨ TỰ CẦN LƯU Ý:** Nếu CSDL còn tên cột cũ (`SyncKind`, `TimeColumn`, `LookbackDays`), BẮT BUỘC chạy script `06-sharedata-doi-ten-cot-dong-bo.sql` **TRƯỚC `00` và TRƯỚC mọi lần chạy CodeFirst**. Nếu CodeFirst hoặc `00` chạy trước thì các cột mới đã tồn tại, khiến `06` bỏ qua việc đổi tên và dữ liệu cũ sẽ nằm lại ở cột cũ.
 2. **Thứ tự thực thi đầy đủ cho DB cũ:**
    - Bước 1: `06-sharedata-doi-ten-cot-dong-bo.sql` (đổi tên các cột đồng bộ sang `SyncMode`, `CursorTimeColumn`, `MaxLookBackDays`).
-   - Bước 2: `00-sharedata-migration-mot-lan.sql` (bổ sung cột cấu hình còn thiếu, dọn dòng `ROOT` cũ và DROP bảng `ShareDataTable` nếu rỗng; không chuyển dữ liệu).
+   - Bước 2: `00-sharedata-migration-mot-lan.sql` (tạo/nâng cấp `ShareDataSourceTable`, di trú mốc từ `SysOpConfig` + `ShareDataTrackVersion` sang, xóa mềm các dòng cấu hình cũ trong `SysOpConfig`, dọn dòng `ROOT` cũ và DROP bảng mồ côi `ShareDataTable`, `ShareDataTrackVersion`).
    - Bước 3: `01-sharedata-cau-truc.sql` (chuẩn hóa địa chỉ/cổng sang cột riêng trên `DEV_ITS10`).
    - Bước 4: `02-sharedata-seed-goi-tin.sql` (bổ sung gói tin thiếu, nạp câu truy vấn mẫu; `@GhiDeMauGoiTin = 0` bảo vệ SQL đã tùy biến).
-   - Bước 5: `03-sharedata-seed-cau-hinh.sql` (nạp mã lỗi ESH và cấu hình Change Tracking).
-   - Bước 6: `04-sharedata-dich-thuat.sql` (nạp thuật ngữ đa ngôn ngữ; sau khi chạy bấm 🔄 ở avatar → Ngôn ngữ).
+   - Bước 5: `03-sharedata-seed-cau-hinh.sql` (nạp 25 mã lỗi ESH, 15 bảng nguồn `ShareDataSourceTable` và 46 tham số vận hành `SysOpConfig` nhóm `sharedata_config`).
+   - Bước 6: `04-sharedata-dich-thuat.sql` (nạp 49 khóa thuật ngữ đa ngôn ngữ; sau khi chạy bấm 🔄 ở avatar → Ngôn ngữ).
 3. **An toàn khi chạy lại:**
    - Các file `01`, `02`, `03`, `04`, `06` đều có cơ chế Idempotent (`IF NOT EXISTS`, `WHERE NOT EXISTS`, `WHEN NOT MATCHED THEN INSERT`).
    - `02-sharedata-seed-goi-tin.sql`: Biến `@GhiDeMauGoiTin = 0` (mặc định) đảm bảo **KHÔNG ghi đè** các câu lệnh SQL trích xuất mà quản trị viên đã tùy biến. Nếu muốn reset về Catalog chuẩn thì mới đổi sang `@GhiDeMauGoiTin = 1`.
-   - `03-sharedata-seed-cau-hinh.sql`: Chỉ thêm mã lỗi hoặc bảng Change Tracking chưa có trong DB, không ghi đè các cấu hình đang chạy.
-   - `04-sharedata-dich-thuat.sql`: Chỉ nạp bổ sung các bản dịch còn thiếu, không làm mất bản dịch đã chỉnh sửa.
+   - `03-sharedata-seed-cau-hinh.sql`: Chỉ thêm mã lỗi, bảng nguồn `ShareDataSourceTable` hoặc tham số `sharedata_config` chưa có trong DB, không ghi đè các cấu hình đang chạy.
+   - `04-sharedata-dich-thuat.sql`: Chỉ nạp bổ sung các bản dịch còn thiếu trong 49 khóa, không làm mất bản dịch đã chỉnh sửa.
 
 ### C. Khởi Tạo DB Mới Bằng Cờ CodeFirst + Seed (Thử Nghiệm)
 

@@ -5,17 +5,17 @@ GO
 -- FILE: 04-sharedata-dich-thuat.sql
 -- DESCRIPTION: Bổ sung từ điển bản dịch đa ngôn ngữ (vi-VN, en-US) cho phân hệ ShareData (ESHARE) vào SysTerminology:
 --              1. Chuẩn hóa lại mã khóa cũ lz.validation.sharedata.lookbackDaysRange (nếu có).
---              2. Nạp toàn bộ 49 mã khóa dịch thuật chuẩn hóa:
+--              2. Nạp toàn bộ 50 mã khóa dịch thuật chuẩn hóa:
 --                 - 1 khóa khoảng số ngày quét lùi (lookbackDaysRange).
 --                 - 10 khóa quản trị câu truy vấn SQL trích xuất (superAdmin, packetCode, partnerMapping...).
---                 - 38 khóa kiểm tra SQL Validator, Metadata và cấu hình kênh đối tác (OutputPath, ConnectConfig).
+--                 - 39 khóa kiểm tra SQL Validator, Metadata và cấu hình kênh đối tác (OutputPath, ConnectConfig).
 --              3. Cơ chế Idempotent:
 --                 - MERGE chỉ INSERT các bản ghi chưa có (WHEN NOT MATCHED THEN INSERT).
 --                 - Không ghi đè (không UPDATE) lên các nội dung dịch mà quản trị viên đã chỉnh sửa trực tiếp trên DB.
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 17102026
+-- CẬP NHẬT LẦN CUỐI: 17/10/2026
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -188,6 +188,10 @@ VALUES
     (N'lz.validation', N'sharedata.sqlSensitiveTableBlocked',
      N'Không được phép truy vấn bảng hệ thống nhạy cảm: [{0}].',
      N'Querying sensitive system table [{0}] is not allowed.'),
+
+    (N'lz.validation', N'sharedata.sqlTableNotAllowed',
+     N'Bảng {0} chưa có trong danh mục bảng nguồn được phép chia sẻ.' + CHAR(10) + N'Thêm bảng vào ShareDataSourceTable (IsQueryable = 1) rồi thử lại.',
+     N'Table {0} is not in the allowed sharing source tables.' + CHAR(10) + N'Add the table to ShareDataSourceTable (IsQueryable = 1) and try again.'),
 
     (N'lz.validation', N'sharedata.sqlUnsupportedParameter',
      N'Tham số [@{0}] không được hỗ trợ. Chỉ hỗ trợ: @lastTime, @lastKey, @pageSize, @fromDate, @toDate.',

@@ -25,6 +25,7 @@ using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
 using Modules.Integration.ShareData.PacketSend;
 using Modules.Integration.ShareData.PacketSend.Senders;
 using Module.ShareData.Infrastructure.Persistence.SeedData;
+using Module.ShareData.Infrastructure.Services.ShareDataExtraction;
 
 namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 {
@@ -997,13 +998,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                     Name = "Dữ liệu giao thông chung",
                     PacketVersion = "1.0",
                     OrderNo = 1,
-                    ExtractSql = ShareDataPacketSeedData.GetExtractSql(packetCodeWithSuffix)
+                    ExtractSql = PacketDefaultTemplate.TryGet(packetCodeWithSuffix, out var tpl) ? tpl.ExtractSql : null
                 };
                 await db.Insertable(packet).ExecuteCommandAsync();
             }
             else if (string.IsNullOrWhiteSpace(packet.ExtractSql))
             {
-                packet.ExtractSql = ShareDataPacketSeedData.GetExtractSql(packetCodeWithSuffix);
+                packet.ExtractSql = PacketDefaultTemplate.TryGet(packetCodeWithSuffix, out var tpl) ? tpl.ExtractSql : null;
                 await db.Updateable(packet).ExecuteCommandAsync();
             }
 
@@ -1306,13 +1307,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                     Name = "Dữ liệu giao thông chung",
                     PacketVersion = "1.0",
                     OrderNo = 1,
-                    ExtractSql = ShareDataPacketSeedData.GetExtractSql("101_commonData")
+                    ExtractSql = PacketDefaultTemplate.TryGet("101_commonData", out var tpl) ? tpl.ExtractSql : null
                 };
                 await db.Insertable(packet).ExecuteCommandAsync();
             }
             else if (string.IsNullOrWhiteSpace(packet.ExtractSql))
             {
-                packet.ExtractSql = ShareDataPacketSeedData.GetExtractSql("101_commonData");
+                packet.ExtractSql = PacketDefaultTemplate.TryGet("101_commonData", out var tpl) ? tpl.ExtractSql : null;
                 await db.Updateable(packet).ExecuteCommandAsync();
             }
 
@@ -1399,13 +1400,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                     Name = "Dữ liệu giao thông chung",
                     PacketVersion = "1.0",
                     OrderNo = 1,
-                    ExtractSql = ShareDataPacketSeedData.GetExtractSql("101_commonData")
+                    ExtractSql = PacketDefaultTemplate.TryGet("101_commonData", out var tpl) ? tpl.ExtractSql : null
                 };
                 await db.Insertable(packet).ExecuteCommandAsync();
             }
             else if (string.IsNullOrWhiteSpace(packet.ExtractSql))
             {
-                packet.ExtractSql = ShareDataPacketSeedData.GetExtractSql("101_commonData");
+                packet.ExtractSql = PacketDefaultTemplate.TryGet("101_commonData", out var tpl) ? tpl.ExtractSql : null;
                 await db.Updateable(packet).ExecuteCommandAsync();
             }
 
@@ -2579,10 +2580,11 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
             // 2. Seed Packet 110 với SQL Template chuẩn
             await PacketMetadataCatalogTest.SeedPacketToDb(db, "110");
+            PacketDefaultTemplate.TryGet("110", out var tpl110);
             await db.Updateable<ShareDataPacket>()
                 .SetColumns(p => p.Status == BaseEnums.StatusEnum.Enable)
                 .SetColumns(p => p.SyncMode == BaseEnums.SyncMode.Snapshot)
-                .SetColumns(p => p.ExtractSql == ShareDataPacketSeedData.Sql110_PublicMessaging)
+                .SetColumns(p => p.ExtractSql == (tpl110 != null ? tpl110.ExtractSql : null))
                 .Where(p => p.Code == "110" || p.Code == "110_publicMessaging")
                 .ExecuteCommandAsync();
 
@@ -7181,7 +7183,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         PacketVersion = def.Packet.PacketVersion,
                         SyncMode = def.Packet.SyncMode,
                         Status = def.Packet.Status,
-                        ExtractSql = ShareDataPacketSeedData.GetExtractSql(def.Packet.Code)
+                        ExtractSql = PacketDefaultTemplate.TryGet(def.Packet.Code, out var tplNew) ? tplNew.ExtractSql : null
                     };
                     await db.Insertable(newPacket).ExecuteCommandAsync();
                 }
@@ -7190,7 +7192,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                     existingPacket.PacketVersion = def.Packet.PacketVersion;
                     existingPacket.SyncMode = def.Packet.SyncMode;
                     existingPacket.Status = def.Packet.Status;
-                    existingPacket.ExtractSql = ShareDataPacketSeedData.GetExtractSql(def.Packet.Code);
+                    existingPacket.ExtractSql = PacketDefaultTemplate.TryGet(def.Packet.Code, out var tplOld) ? tplOld.ExtractSql : null;
                     await db.Updateable(existingPacket).ExecuteCommandAsync();
                 }
 

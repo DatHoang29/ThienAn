@@ -1,5 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-using Module.ShareData.Controllers.Inbound.Commands;
 using Module.ShareData.Core.Dto.ActivityLog;
 using Module.ShareData.Core.Dto.Inbound;
 using Module.ShareData.Core.Entities;
@@ -13,7 +12,7 @@ namespace Tests.ShareData.Services;
 
 /// <summary>
 /// Description: Bộ kiểm thử tích hợp cho luồng NHẬN dữ liệu (SV-8b: Log 2 bước cha - con)
-///              Kiểm thử WebAPI InboundCommandHandler, Worker DataInboundService, và ActivityLogger.
+///              Kiểm thử Worker DataInboundService và ActivityLogger.
 /// Created date: 02/10/2026
 /// </summary>
 [Collection("api")]
@@ -142,64 +141,6 @@ public partial class DataInboundServiceTests(Host host)
         Assert.Equal(BaseEnums.TransferDirection.RCV, saved.TransferDirection);
         Assert.Null(saved.ParentId);
         Assert.Null(saved.StepNbr);
-    }
-
-    #endregion
-
-    #region 2. WebAPI tiếp nhận gói: ghi nhật ký tiếp nhận
-
-    /// <summary>
-    /// STT 2: WebAPI tiếp nhận gói: ghi nhật ký tiếp nhận
-    /// Gửi lệnh tiếp nhận gói hợp lệ => bảng ShareDataActivityLog xuất hiện đúng 1 dòng nhật ký tiếp nhận
-    /// Gói trong ShareDataInboundPacket được lưu ở trạng thái Pending.
-    /// </summary>
-    [Fact]
-    public async Task InboundCommandHandler_WhenValidPacketReceived_LogsReceiveActivity_Test()
-    {
-        // Arrange
-        var unique = Guid.NewGuid().ToString("N")[..8];
-        var (partner, packet, sub, _) = await SeedInboundEnvironmentAsync(unique);
-
-        using var scope = _host.Services.CreateScope();
-        var handler = scope.ServiceProvider.GetRequiredService<InboundCommandHandler>();
-
-        var input = new ShareDataAddInboundInput
-        {
-            PartnerCode = partner.Code,
-            PacketCode = packet.Code,
-            PacketVersion = "1.0",
-            SerialNbr = 1,
-            PduType = "DATA",
-            Format = BaseEnums.PublishFormat.Data,
-            RawContent = "{\"data\":[{\"id\":\"1\",\"val\":\"A\"}]}"
-        };
-
-        // Act
-        await handler.HandleAsync(input);
-
-        // Assert: Kiểm tra gói tin trong ShareDataInboundPacket
-        var savedPacket = await _inboundDb.Queryable<ShareDataInboundPacket>()
-            .Where(p => p.PartnerCode == partner.Code && p.PacketCode == packet.Code)
-            .FirstAsync();
-        Assert.NotNull(savedPacket);
-        Assert.Equal(BaseEnums.InboundProcessState.Pending, savedPacket.ProcessState);
-
-        // Kiểm tra dòng nhật ký tiếp nhận do WebAPI ghi (Dòng cha và Dòng con Bước 1)
-        var parentLog = await _db.Queryable<ShareDataActivityLog>()
-            .Where(l => l.SubscriptionId == sub.ID && l.TransferDirection == BaseEnums.TransferDirection.RCV && l.ParentId == null)
-            .FirstAsync();
-        Assert.NotNull(parentLog);
-        Assert.Null(parentLog.ParentId);
-        Assert.Null(parentLog.StepNbr);
-        Assert.Equal(BaseEnums.TransferDirection.RCV, parentLog.TransferDirection);
-        Assert.Contains(packet.Code, parentLog.Description ?? "");
-
-        var step1Log = await _db.Queryable<ShareDataActivityLog>()
-            .Where(l => l.SubscriptionId == sub.ID && l.TransferDirection == BaseEnums.TransferDirection.RCV && l.ParentId == parentLog.ID)
-            .FirstAsync();
-        Assert.NotNull(step1Log);
-        Assert.Equal(1, step1Log.StepNbr);
-        Assert.Equal(parentLog.ID, step1Log.ParentId);
     }
 
     #endregion
@@ -529,11 +470,8 @@ public partial class DataInboundServiceTests(Host host)
         var unique = Guid.NewGuid().ToString("N")[..8];
         var (partner, packet, sub, _) = await SeedInboundEnvironmentAsync(unique);
 
-        using var scope = _host.Services.CreateScope();
-        var handler = scope.ServiceProvider.GetRequiredService<InboundCommandHandler>();
-
-        // 1. WebAPI tiếp nhận gói
-        await handler.HandleAsync(new ShareDataAddInboundInput
+        // 1. WebAPI tiếp nhận gói qua Wolverine Bus
+        await _bus.InvokeAsync(new ShareDataAddInboundInput
         {
             PartnerCode = partner.Code,
             PacketCode = packet.Code,
@@ -543,6 +481,8 @@ public partial class DataInboundServiceTests(Host host)
             Format = BaseEnums.PublishFormat.Data,
             RawContent = "{\"data\":[{\"id\":\"P1\",\"val\":\"V1\"},{\"id\":\"P2\",\"val\":\"V2\"}]}"
         });
+
+        using var scope = _host.Services.CreateScope();
 
         // 2. Worker xử lý gói
         var inboundService = scope.ServiceProvider.GetRequiredService<IDataInboundService>();

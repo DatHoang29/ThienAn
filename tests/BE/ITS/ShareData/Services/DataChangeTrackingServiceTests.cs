@@ -5,6 +5,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Module.ShareData.Core.Entities;
 using Module.ShareData.Infrastructure.Persistence.SeedData;
+using Module.ShareData.Infrastructure.Services.ShareDataExtraction;
 using Modules.TMS.Core.Entities;
 using Modules.TOLL.Core.Entities;
 using Modules.VMS.Core.Entities;
@@ -2151,7 +2152,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 PacketVersion = "1.0",
                 OrderNo = 5,
                 Status = BaseEnums.StatusEnum.Enable,
-                ExtractSql = ShareDataPacketSeedData.GetExtractSql(packetCode)
+                ExtractSql = PacketDefaultTemplate.TryGet(packetCode, out var tpl105) ? tpl105.ExtractSql : null
             };
             await db.Insertable(packet105).ExecuteCommandAsync();
 
@@ -3143,7 +3144,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         /// Modified date: 17/10/2026
         /// </summary>
         [Fact]
-        public async Task DataChangeTrackingService_WhenConfiguredInSysOpConfig_LoadsCustomTables_Test()
+        public async Task DataChangeTrackingService_WhenConfiguredInShareDataSourceTable_LoadsCustomTables_Test()
         {
             // Case 1: Nạp cấu hình mặc định từ ShareDataSourceTable -> nạp đủ 14 bảng bật (TmsEquipment Status=0)
             await using var scope = _host.Services.CreateAsyncScope();

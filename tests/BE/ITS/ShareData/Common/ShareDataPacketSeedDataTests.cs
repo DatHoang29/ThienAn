@@ -6,6 +6,7 @@ using Module.ShareData.Core.Constants;
 using Module.ShareData.Core.Entities;
 using Module.ShareData.Core.Utils;
 using Module.ShareData.Infrastructure.Persistence.SeedData;
+using Module.ShareData.Infrastructure.Services.ShareDataExtraction;
 using Shared.DTO.Enums;
 using Shared.Infrastructure.Persistence.SqlSugar;
 using Xunit;
@@ -164,49 +165,39 @@ public class ShareDataPacketSeedDataTests
     public void ExtractSql_MatchesLegacy_And_SeedScript02_Test()
     {
         // 101 - 109 đối chiếu với LegacyPacketSql
-        AssertEqualNormalizedSql(
-            LegacyPacketSql.Packet101,
-            ShareDataPacketSeedData.GetExtractSql("101")!);
-        AssertEqualNormalizedSql(
-            LegacyPacketSql.Packet102,
-            ShareDataPacketSeedData.GetExtractSql("102")!);
-        AssertEqualNormalizedSql(
-            LegacyPacketSql.Packet103,
-            ShareDataPacketSeedData.GetExtractSql("103")!);
-        AssertEqualNormalizedSql(
-            LegacyPacketSql.Packet104,
-            ShareDataPacketSeedData.GetExtractSql("104")!);
+        Assert.True(PacketDefaultTemplate.TryGet("101", out var tpl101));
+        AssertEqualNormalizedSql(LegacyPacketSql.Packet101, tpl101.ExtractSql!);
+        Assert.True(PacketDefaultTemplate.TryGet("102", out var tpl102));
+        AssertEqualNormalizedSql(LegacyPacketSql.Packet102, tpl102.ExtractSql!);
+        Assert.True(PacketDefaultTemplate.TryGet("103", out var tpl103));
+        AssertEqualNormalizedSql(LegacyPacketSql.Packet103, tpl103.ExtractSql!);
+        Assert.True(PacketDefaultTemplate.TryGet("104", out var tpl104));
+        AssertEqualNormalizedSql(LegacyPacketSql.Packet104, tpl104.ExtractSql!);
 
         // 105: Ngoại lệ bỏ trần cứng TOP (@snapshotTop)
         var legacy105WithoutTop = LegacyPacketSql.Packet105.Replace(
             "TOP (@snapshotTop)",
             string.Empty,
             StringComparison.OrdinalIgnoreCase);
-        AssertEqualNormalizedSql(
-            legacy105WithoutTop,
-            ShareDataPacketSeedData.GetExtractSql("105")!);
+        Assert.True(PacketDefaultTemplate.TryGet("105", out var tpl105));
+        AssertEqualNormalizedSql(legacy105WithoutTop, tpl105.ExtractSql!);
 
-        AssertEqualNormalizedSql(
-            LegacyPacketSql.Packet106,
-            ShareDataPacketSeedData.GetExtractSql("106")!);
-        AssertEqualNormalizedSql(
-            LegacyPacketSql.Packet107,
-            ShareDataPacketSeedData.GetExtractSql("107")!);
-        AssertEqualNormalizedSql(
-            LegacyPacketSql.Packet108,
-            ShareDataPacketSeedData.GetExtractSql("108")!);
-        AssertEqualNormalizedSql(
-            LegacyPacketSql.Packet109,
-            ShareDataPacketSeedData.GetExtractSql("109")!);
+        Assert.True(PacketDefaultTemplate.TryGet("106", out var tpl106));
+        AssertEqualNormalizedSql(LegacyPacketSql.Packet106, tpl106.ExtractSql!);
+        Assert.True(PacketDefaultTemplate.TryGet("107", out var tpl107));
+        AssertEqualNormalizedSql(LegacyPacketSql.Packet107, tpl107.ExtractSql!);
+        Assert.True(PacketDefaultTemplate.TryGet("108", out var tpl108));
+        AssertEqualNormalizedSql(LegacyPacketSql.Packet108, tpl108.ExtractSql!);
+        Assert.True(PacketDefaultTemplate.TryGet("109", out var tpl109));
+        AssertEqualNormalizedSql(LegacyPacketSql.Packet109, tpl109.ExtractSql!);
 
         // 110: đối chiếu với script 02
         var script110Sql = SeedScriptReader.GetExtractSql("110");
-        AssertEqualNormalizedSql(
-            script110Sql,
-            ShareDataPacketSeedData.GetExtractSql("110")!);
+        Assert.True(PacketDefaultTemplate.TryGet("110", out var tpl110));
+        AssertEqualNormalizedSql(script110Sql, tpl110.ExtractSql!);
 
-        // 111: null
-        Assert.Null(ShareDataPacketSeedData.GetExtractSql("111"));
+        // 111: không có template
+        Assert.False(PacketDefaultTemplate.TryGet("111", out _));
     }
 
     [Fact]
@@ -250,7 +241,8 @@ public class ShareDataPacketSeedDataTests
     [Fact]
     public void ParityComparator_FailsWhenSingleCharacterDiffers_NegativeTest()
     {
-        var originalSql = ShareDataPacketSeedData.GetExtractSql("101")!;
+        Assert.True(PacketDefaultTemplate.TryGet("101", out var tpl101));
+        var originalSql = tpl101.ExtractSql!;
         var tamperedSql = originalSql.Replace("zoneStatusId", "zoneStatusId_tampered");
 
         Assert.NotEqual(

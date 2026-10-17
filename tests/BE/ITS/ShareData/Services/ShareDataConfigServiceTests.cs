@@ -58,6 +58,14 @@ public class ShareDataConfigServiceTests(Host host)
         var (subMin, subMax) = service.GetSubscriptionIntervalRange();
         Assert.Equal(5, subMin);
         Assert.Equal(86400, subMax);
+
+        var (prioMin, prioMax) = service.GetSubscriptionPriorityRange();
+        Assert.Equal(0, prioMin);
+        Assert.Equal(10, prioMax);
+
+        var (debMin, debMax) = service.GetSubscriptionDebounceSecRange();
+        Assert.Equal(0, debMin);
+        Assert.Equal(3600, debMax);
     }
 
     [Fact]
@@ -81,7 +89,11 @@ public class ShareDataConfigServiceTests(Host host)
             new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "packet_lookback_days_max", Value = "90", Status = BaseEnums.StatusEnum.Enable },
             new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "log_list_default_top", Value = "500", Status = BaseEnums.StatusEnum.Enable },
             new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "subscription_interval_sec_min", Value = "10", Status = BaseEnums.StatusEnum.Enable },
-            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "subscription_interval_sec_max", Value = "3600", Status = BaseEnums.StatusEnum.Enable }
+            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "subscription_interval_sec_max", Value = "3600", Status = BaseEnums.StatusEnum.Enable },
+            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "subscription_priority_min", Value = "1", Status = BaseEnums.StatusEnum.Enable },
+            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "subscription_priority_max", Value = "8", Status = BaseEnums.StatusEnum.Enable },
+            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "subscription_debounce_sec_min", Value = "5", Status = BaseEnums.StatusEnum.Enable },
+            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "subscription_debounce_sec_max", Value = "1800", Status = BaseEnums.StatusEnum.Enable }
         };
         await db.Insertable(testRows).ExecuteCommandAsync();
 
@@ -101,6 +113,14 @@ public class ShareDataConfigServiceTests(Host host)
         var (subMin, subMax) = service.GetSubscriptionIntervalRange();
         Assert.Equal(10, subMin);
         Assert.Equal(3600, subMax);
+
+        var (prioMin, prioMax) = service.GetSubscriptionPriorityRange();
+        Assert.Equal(1, prioMin);
+        Assert.Equal(8, prioMax);
+
+        var (debMin, debMax) = service.GetSubscriptionDebounceSecRange();
+        Assert.Equal(5, debMin);
+        Assert.Equal(1800, debMax);
     }
 
     [Fact]

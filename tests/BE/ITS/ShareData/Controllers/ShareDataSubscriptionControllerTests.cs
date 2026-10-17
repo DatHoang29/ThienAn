@@ -1,7 +1,12 @@
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using Module.ShareData.Controllers.Subscription.Validators;
 using Module.ShareData.Core.Dto.Subscription;
 using Module.ShareData.Core.Entities;
+using Module.ShareData.Infrastructure.Services.ShareDataConfig;
+using Modules.CfgSystem.Core.Entities;
 using Newtonsoft.Json;
+using Shared.DTO.Enums;
 
 namespace Tests.ShareData.Controllers;
 
@@ -72,5 +77,85 @@ public class ShareDataSubscriptionControllerTests(Host host)
         var schedule = JsonConvert.DeserializeObject<ShareDataScheduleDto>(saved!.ScheduleJson!);
         Assert.Equal("06:00", schedule!.StartTime);
         Assert.Equal("22:00", schedule.EndTime);
+    }
+
+    /// <summary>
+    /// Description: Kiểm chứng Priority và DebounceSec dùng giá trị dự phòng (0..10 và 0..3600)
+    /// khi CSDL không có cấu hình, và áp dụng đúng cấu hình tùy biến khi đọc từ SysOpConfig.
+    /// Created date: 17/10/2026
+    /// </summary>
+    [Fact]
+    public async Task AddSubscription_PriorityAndDebounceSec_ValidatesFallbackAndConfiguredRanges_Test()
+    {
+        // Arrange
+        var db = host.Services.GetRequiredService<ISqlSugarClient>();
+        var fallbackValidator = new AddSubscriptionValidator(host.Localizer);
+        var unique = Guid.NewGuid().ToString("N");
+
+        ShareDataAddSubscriptionInput CreateInput(int? priority = null, int? debounce = null) =>
+            new()
+            {
+                PartnerId = $"P_{unique}",
+                DatatypeId = $"DT_{unique}",
+                Direction = BaseEnums.Direction.Outbound,
+                Mode = BaseEnums.SubMode.Periodic,
+                IntervalSeconds = 30,
+                Priority = priority,
+                DebounceSec = debounce,
+                Schedule = new ShareDataScheduleDto
+                {
+                    Kind = "continuous",
+                    IntervalSeconds = 30,
+                    StartTime = "06:00",
+                    EndTime = "22:00"
+                }
+            };
+
+        // 1. Fallback verification (Priority: 0..10, DebounceSec: 0..3600)
+        var resPrioFail = await fallbackValidator.ValidateAsync(CreateInput(priority: 11));
+        var resDebFail = await fallbackValidator.ValidateAsync(CreateInput(debounce: 3601));
+        var resFallbackOk = await fallbackValidator.ValidateAsync(CreateInput(priority: 5, debounce: 60));
+
+        Assert.False(resPrioFail.IsValid);
+        Assert.False(resDebFail.IsValid);
+        Assert.True(resFallbackOk.IsValid);
+
+        // 2. Custom configuration from SysOpConfig (isolated group)
+        var isolatedGroup = $"sd_sub_cfg_{unique}";
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ShareDataConfig:GroupCode"] = isolatedGroup
+            })
+            .Build();
+
+        var testRows = new List<SysOpConfig>
+        {
+            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "subscription_priority_min", Value = "2", Status = BaseEnums.StatusEnum.Enable },
+            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "subscription_priority_max", Value = "7", Status = BaseEnums.StatusEnum.Enable },
+            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "subscription_debounce_sec_min", Value = "10", Status = BaseEnums.StatusEnum.Enable },
+            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "subscription_debounce_sec_max", Value = "120", Status = BaseEnums.StatusEnum.Enable }
+        };
+        await db.Insertable(testRows).ExecuteCommandAsync();
+
+        var configService = new ShareDataConfigService(
+            db: db,
+            logger: NullLogger<ShareDataConfigService>.Instance,
+            configuration: config);
+        var customValidator = new AddSubscriptionValidator(
+            host.Localizer,
+            configService);
+
+        var resCustomPrioLow = await customValidator.ValidateAsync(CreateInput(priority: 1));
+        var resCustomPrioHigh = await customValidator.ValidateAsync(CreateInput(priority: 8));
+        var resCustomDebLow = await customValidator.ValidateAsync(CreateInput(debounce: 5));
+        var resCustomDebHigh = await customValidator.ValidateAsync(CreateInput(debounce: 150));
+        var resCustomOk = await customValidator.ValidateAsync(CreateInput(priority: 5, debounce: 30));
+
+        Assert.False(resCustomPrioLow.IsValid);
+        Assert.False(resCustomPrioHigh.IsValid);
+        Assert.False(resCustomDebLow.IsValid);
+        Assert.False(resCustomDebHigh.IsValid);
+        Assert.True(resCustomOk.IsValid);
     }
 }

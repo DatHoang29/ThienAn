@@ -3,7 +3,6 @@ using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Module.ShareData.Controllers.Inbound.Commands;
 using Module.ShareData.Core.Dto.Inbound;
 using Module.ShareData.Core.Entities;
 using Modules.Integration.ShareData;
@@ -305,8 +304,8 @@ namespace Tests.ShareData.Services
                 // Act 3 & Assert 4: POST lại đúng payload (với SerialNbr = 2) để chứng minh MERGE idempotency
                 using (var scope = _host.Services.CreateScope())
                 {
-                    var inboundHandler = scope.ServiceProvider.GetRequiredService<InboundCommandHandler>();
-                    await inboundHandler.HandleAsync(new ShareDataAddInboundInput
+                    var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
+                    await bus.InvokeAsync(new ShareDataAddInboundInput
                     {
                         PartnerCode = partner.Code,
                         PacketCode = packet.Code,
