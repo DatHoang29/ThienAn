@@ -5,6 +5,7 @@ GO
 -- FILE: 02-sharedata-seed-goi-tin.sql
 -- DESCRIPTION: Nạp Template câu truy vấn SQL trích xuất chuẩn Catalog (gói 101-110),
 --              chuẩn hóa chế độ gửi (SyncMode) và trạng thái gói (Status) trong ShareDataPacket:
+--              0. Khởi tạo bản ghi cho 11 gói tin (101 - 111) nếu chưa tồn tại (idempotent).
 --              1. Nạp câu truy vấn SQL trích xuất mẫu chuẩn cho các gói tin 101 - 110:
 --                 - Sử dụng biến @GhiDeMauGoiTin BIT = 0 (mặc định không ghi đè câu lệnh SQL mà
 --                   SuperAdmin/quản trị viên đã chỉnh sửa trên màn hình quản trị).
@@ -49,6 +50,149 @@ IF COL_LENGTH('dbo.ShareDataPacket', 'CursorTimeColumn') IS NULL
 
 IF COL_LENGTH('dbo.ShareDataPacket', 'MaxLookBackDays') IS NULL
     ALTER TABLE [dbo].[ShareDataPacket] ADD [MaxLookBackDays] INT NULL;
+GO
+
+-- -----------------------------------------------------------------------------------------
+-- 0.1 KHỞI TẠO BẢN GHI CHO CÁC GÓI TIN CHƯA TỒN TẠI (IDEMPOTENT)
+-- -----------------------------------------------------------------------------------------
+PRINT N'-> 0.1. Kiểm tra và khởi tạo các gói tin còn thiếu trong bảng ShareDataPacket...';
+
+DECLARE @InsertedPackets INT = 0;
+DECLARE @ExistingPackets INT = 0;
+
+-- Gói 101: CommonData
+IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE [Code] = '101' OR [Code] LIKE '101_%')
+BEGIN
+    INSERT INTO [dbo].[ShareDataPacket] ([ID], [Code], [Name], [PacketVersion], [Description], [OrderNo], [Status], [Remark], [CreateTime], [IsDelete])
+    VALUES (N'1500000000101', N'101_commonData', N'Dữ liệu thông tin chung / luồng giao thông', N'1.0', N'Gói 101: Dữ liệu thông tin chung / luồng giao thông', 101, 1, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData', GETDATE(), 0);
+    SET @InsertedPackets = @InsertedPackets + 1;
+END
+ELSE
+BEGIN
+    SET @ExistingPackets = @ExistingPackets + 1;
+END
+
+-- Gói 102: CctvData
+IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE [Code] = '102' OR [Code] LIKE '102_%')
+BEGIN
+    INSERT INTO [dbo].[ShareDataPacket] ([ID], [Code], [Name], [PacketVersion], [Description], [OrderNo], [Status], [Remark], [CreateTime], [IsDelete])
+    VALUES (N'1500000000102', N'102_cctvData', N'Dữ liệu hình ảnh giao thông CCTV', N'1.0', N'Gói 102: Dữ liệu hình ảnh giao thông CCTV', 102, 1, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData', GETDATE(), 0);
+    SET @InsertedPackets = @InsertedPackets + 1;
+END
+ELSE
+BEGIN
+    SET @ExistingPackets = @ExistingPackets + 1;
+END
+
+-- Gói 103: VdsData
+IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE [Code] = '103' OR [Code] LIKE '103_%')
+BEGIN
+    INSERT INTO [dbo].[ShareDataPacket] ([ID], [Code], [Name], [PacketVersion], [Description], [OrderNo], [Status], [Remark], [CreateTime], [IsDelete])
+    VALUES (N'1500000000103', N'103_vdsData', N'Dữ liệu đếm xe VDS', N'1.0', N'Gói 103: Dữ liệu đếm xe VDS', 103, 1, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData', GETDATE(), 0);
+    SET @InsertedPackets = @InsertedPackets + 1;
+END
+ELSE
+BEGIN
+    SET @ExistingPackets = @ExistingPackets + 1;
+END
+
+-- Gói 104: WeatherData
+IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE [Code] = '104' OR [Code] LIKE '104_%')
+BEGIN
+    INSERT INTO [dbo].[ShareDataPacket] ([ID], [Code], [Name], [PacketVersion], [Description], [OrderNo], [Status], [Remark], [CreateTime], [IsDelete])
+    VALUES (N'1500000000104', N'104_weatherData', N'Dữ liệu khí tượng / thời tiết', N'1.0', N'Gói 104: Dữ liệu khí tượng / thời tiết', 104, 1, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData', GETDATE(), 0);
+    SET @InsertedPackets = @InsertedPackets + 1;
+END
+ELSE
+BEGIN
+    SET @ExistingPackets = @ExistingPackets + 1;
+END
+
+-- Gói 105: RfidData
+IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE [Code] = '105' OR [Code] LIKE '105_%')
+BEGIN
+    INSERT INTO [dbo].[ShareDataPacket] ([ID], [Code], [Name], [PacketVersion], [Description], [OrderNo], [Status], [Remark], [CreateTime], [IsDelete])
+    VALUES (N'1500000000105', N'105_rfidData', N'Dữ liệu định danh phương tiện AVI / RFID', N'1.0', N'Gói 105: Dữ liệu định danh phương tiện AVI / RFID', 105, 1, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData', GETDATE(), 0);
+    SET @InsertedPackets = @InsertedPackets + 1;
+END
+ELSE
+BEGIN
+    SET @ExistingPackets = @ExistingPackets + 1;
+END
+
+-- Gói 106: WimData
+IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE [Code] = '106' OR [Code] LIKE '106_%')
+BEGIN
+    INSERT INTO [dbo].[ShareDataPacket] ([ID], [Code], [Name], [PacketVersion], [Description], [OrderNo], [Status], [Remark], [CreateTime], [IsDelete])
+    VALUES (N'1500000000106', N'106_wimData', N'Dữ liệu cân tải trọng xe tự động WIM', N'1.0', N'Gói 106: Dữ liệu cân tải trọng xe tự động WIM', 106, 1, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData', GETDATE(), 0);
+    SET @InsertedPackets = @InsertedPackets + 1;
+END
+ELSE
+BEGIN
+    SET @ExistingPackets = @ExistingPackets + 1;
+END
+
+-- Gói 107: IncidentData
+IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE [Code] = '107' OR [Code] LIKE '107_%')
+BEGIN
+    INSERT INTO [dbo].[ShareDataPacket] ([ID], [Code], [Name], [PacketVersion], [Description], [OrderNo], [Status], [Remark], [CreateTime], [IsDelete])
+    VALUES (N'1500000000107', N'107_incidentData', N'Dữ liệu thông tin sự cố / sự kiện giao thông', N'1.0', N'Gói 107: Dữ liệu thông tin sự cố / sự kiện giao thông', 107, 1, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData', GETDATE(), 0);
+    SET @InsertedPackets = @InsertedPackets + 1;
+END
+ELSE
+BEGIN
+    SET @ExistingPackets = @ExistingPackets + 1;
+END
+
+-- Gói 108: VmsInfo
+IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE [Code] = '108' OR [Code] LIKE '108_%')
+BEGIN
+    INSERT INTO [dbo].[ShareDataPacket] ([ID], [Code], [Name], [PacketVersion], [Description], [OrderNo], [Status], [Remark], [CreateTime], [IsDelete])
+    VALUES (N'1500000000108', N'108_vmsInfo', N'Dữ liệu thông tin biển báo điện tử VMS', N'1.0', N'Gói 108: Dữ liệu thông tin biển báo điện tử VMS', 108, 1, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData', GETDATE(), 0);
+    SET @InsertedPackets = @InsertedPackets + 1;
+END
+ELSE
+BEGIN
+    SET @ExistingPackets = @ExistingPackets + 1;
+END
+
+-- Gói 109: EtcData
+IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE [Code] = '109' OR [Code] LIKE '109_%')
+BEGIN
+    INSERT INTO [dbo].[ShareDataPacket] ([ID], [Code], [Name], [PacketVersion], [Description], [OrderNo], [Status], [Remark], [CreateTime], [IsDelete])
+    VALUES (N'1500000000109', N'109_etcData', N'Dữ liệu giao dịch thu phí ETC', N'1.0', N'Gói 109: Dữ liệu giao dịch thu phí ETC', 109, 1, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData', GETDATE(), 0);
+    SET @InsertedPackets = @InsertedPackets + 1;
+END
+ELSE
+BEGIN
+    SET @ExistingPackets = @ExistingPackets + 1;
+END
+
+-- Gói 110: WpData
+IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE [Code] = '110' OR [Code] LIKE '110_%')
+BEGIN
+    INSERT INTO [dbo].[ShareDataPacket] ([ID], [Code], [Name], [PacketVersion], [Description], [OrderNo], [Status], [Remark], [CreateTime], [IsDelete])
+    VALUES (N'1500000000110', N'110_wpData', N'Dữ liệu trao đổi thông tin với người tham gia giao thông', N'1.0', N'Gói 110: Dữ liệu trao đổi thông tin với người tham gia giao thông', 110, 1, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData', GETDATE(), 0);
+    SET @InsertedPackets = @InsertedPackets + 1;
+END
+ELSE
+BEGIN
+    SET @ExistingPackets = @ExistingPackets + 1;
+END
+
+-- Gói 111: InterCenter (Status = 0: Disable)
+IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE [Code] = '111' OR [Code] LIKE '111_%')
+BEGIN
+    INSERT INTO [dbo].[ShareDataPacket] ([ID], [Code], [Name], [PacketVersion], [Description], [OrderNo], [Status], [Remark], [CreateTime], [IsDelete])
+    VALUES (N'1500000000111', N'111', N'Dữ liệu trao đổi thông tin giữa các TT QLĐHGT tuyến', N'1.0', N'Gói 111: Dữ liệu trao đổi thông tin giữa các TT QLĐHGT tuyến', 111, 0, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData (tạm thời chưa kích hoạt)', GETDATE(), 0);
+    SET @InsertedPackets = @InsertedPackets + 1;
+END
+ELSE
+BEGIN
+    SET @ExistingPackets = @ExistingPackets + 1;
+END
+
+PRINT N'   -> Đã khởi tạo mới: ' + CAST(@InsertedPackets AS NVARCHAR(10)) + N' gói, đã có sẵn: ' + CAST(@ExistingPackets AS NVARCHAR(10)) + N' gói.';
 GO
 
 DECLARE @GhiDeMauGoiTin BIT = 0;

@@ -46,7 +46,7 @@ namespace Tests.RealServer
             };
 
             // Act
-            var result = await sender.Send(request, ConnectRequestBuilder.BuildContext(ctx), CancellationToken.None);
+            var result = await sender.Send(request, DataOutboundTransport.BuildContext(ctx), CancellationToken.None);
 
             // Assert
             Assert.False(result.Success);
@@ -80,7 +80,7 @@ namespace Tests.RealServer
             };
 
             // Act
-            var result = await sender.Send(request, ConnectRequestBuilder.BuildContext(ctx), CancellationToken.None);
+            var result = await sender.Send(request, DataOutboundTransport.BuildContext(ctx), CancellationToken.None);
 
             // Assert
             Assert.False(result.Success);

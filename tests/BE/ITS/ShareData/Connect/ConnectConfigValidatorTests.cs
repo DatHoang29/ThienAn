@@ -137,7 +137,7 @@ namespace Tests.ShareData.Connect
         [Theory]
         [InlineData("{\"BypassSsl\": \"not_a_bool\"}")]
         [InlineData("{\"IgnoreSsl\": 123}")]
-        [InlineData("{\"ArchiveEnabled\": \"invalid\"}")]
+        [InlineData("{\"Insecure\": \"invalid\"}")]
         public void Check_InvalidBoolean_ReturnsInvalidBoolean_Test(string json)
         {
             // Act
@@ -162,16 +162,16 @@ namespace Tests.ShareData.Connect
         }
 
         [Fact]
-        public void Check_UnsupportedCodec_ReturnsUnsupportedCodec_Test()
+        public void Check_UnsupportedEncryptor_ReturnsUnsupportedEncryptor_Test()
         {
             // Arrange
-            var json = "{\"Codec\": \"Bzip2Unsupported\"}";
+            var json = $"{{\"{ConnectKeys.Encryptor}\": \"Bzip2Unsupported\"}}";
 
             // Act
             var issue = ConnectConfigValidator.Check(json, out _);
 
             // Assert
-            Assert.Equal(ConnectConfigIssue.UnsupportedCodec, issue);
+            Assert.Equal(ConnectConfigIssue.UnsupportedEncryptor, issue);
         }
 
         [Theory]
@@ -190,15 +190,15 @@ namespace Tests.ShareData.Connect
         public void Check_ValidConfig_ReturnsNone_Test()
         {
             // Arrange
-            var validJson = @"
-            {
+            var validJson = $@"
+            {{
                 ""TimeoutSeconds"": 60,
                 ""BypassSsl"": true,
                 ""AuthType"": ""Bearer"",
-                ""Codec"": ""None"",
-                ""FileNamePattern"": ""data_{timestamp}_{serial}.json"",
+                ""{ConnectKeys.Encryptor}"": ""None"",
+                ""FileNamePattern"": ""data_{{timestamp}}_{{serial}}.json"",
                 ""Username"": ""admin""
-            }";
+            }}";
 
             // Act
             var issue = ConnectConfigValidator.Check(validJson, out var detail);

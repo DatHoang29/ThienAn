@@ -8,6 +8,8 @@ GO
 --              2. Gói 106 (Tải trọng WIM - TmsTrafficData): Bản ghi WIM_MOCK_106_01 và WIM_MOCK_106_02.
 --              3. Gói 110 (Sự cố & Biển báo VMS): TmsIncident (INCIDENT_MOCK_110_01),
 --                 TmsEquipment (EQUIP_VMS_KM25) và VmsCurrent (VMS_CURR_KM25).
+--              4. Chuẩn bị chiều nhận E0 (Gói 101): Bảng đích InboundTrafficFlow trên DEV_ITS10_Inbound
+--                 và câu ghi MERGE OPENJSON(@records) trên ShareDataPacketSql của DEV_ITS10.
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: ⚠️ CHỈ CHẠY TRÊN LOCAL VÀ TEST.
 --             ⛔ TUYỆT ĐỐI CẤM CHẠY TRÊN CƠ SỞ DỮ LIỆU THẬT (STAGING / PRODUCTION)!
@@ -152,6 +154,114 @@ END
 ELSE
 BEGIN
     PRINT N'  -> Dữ liệu TmsIncident (INCIDENT_MOCK_110_01) đã tồn tại, bỏ qua.';
+END
+GO
+
+-- -----------------------------------------------------------------------------------------
+-- 4. CHUẨN BỊ CHIỀU NHẬN E0: BẢNG ĐÍCH InboundTrafficFlow VÀ CÂU GHI ShareDataPacketSql
+-- -----------------------------------------------------------------------------------------
+-- 4.1 Tạo bảng đích InboundTrafficFlow trên CSDL DEV_ITS10_Inbound
+IF DB_ID(N'DEV_ITS10_Inbound') IS NOT NULL
+BEGIN
+    EXEC(N'
+    USE [DEV_ITS10_Inbound];
+    IF OBJECT_ID(N''[dbo].[InboundTrafficFlow]'', N''U'') IS NULL
+    BEGIN
+        CREATE TABLE [dbo].[InboundTrafficFlow] (
+            [id] NVARCHAR(64) NOT NULL PRIMARY KEY,
+            [code] NVARCHAR(64) NULL,
+            [recorded_time] DATETIME2 NULL,
+            [val] INT NULL
+        );
+        PRINT N''  -> Đã tạo bảng đích [dbo].[InboundTrafficFlow] trên CSDL DEV_ITS10_Inbound.'';
+    END
+    ELSE
+    BEGIN
+        PRINT N''  -> Bảng [dbo].[InboundTrafficFlow] đã tồn tại trên CSDL DEV_ITS10_Inbound, bỏ qua.'';
+    END
+    ');
+END
+ELSE
+BEGIN
+    PRINT N'⚠️ CSDL DEV_ITS10_Inbound chưa tồn tại, bỏ qua tạo bảng InboundTrafficFlow (vui lòng khởi tạo CSDL Inbound trước).';
+END
+GO
+
+-- 4.2 Nạp cấu hình câu ghi chiều nhận (MERGE OPENJSON) vào ShareDataPacketSql trên CSDL DEV_ITS10
+USE [DEV_ITS10];
+GO
+
+IF OBJECT_ID(N'[dbo].[ShareDataPacketSql]', N'U') IS NOT NULL
+BEGIN
+    PRINT N'  -> Kiểm tra và nạp cấu hình câu MERGE ghi chiều nhận cho gói 101...';
+
+    -- Seed cho mã gói chuẩn 101_commonData
+    IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacketSql] WHERE [PacketCode] = '101_commonData' AND [TableName] = 'dbo.InboundTrafficFlow' AND [IsDelete] IS NULL)
+    BEGIN
+        INSERT INTO [dbo].[ShareDataPacketSql] (
+            [ID], [TenantId], [PacketCode], [OrderNo], [TableName], [WriteSql],
+            [Status], [Remark], [CreateTime], [IsDelete]
+        ) VALUES (
+            '1500000000901', 1, '101_commonData', 1, 'dbo.InboundTrafficFlow',
+            N'MERGE dbo.InboundTrafficFlow AS target
+USING (
+    SELECT id, code, recorded_time, val
+    FROM OPENJSON(@records)
+    WITH (
+        id NVARCHAR(64) ''$.id'',
+        code NVARCHAR(64) ''$.code'',
+        recorded_time DATETIME2 ''$.time'',
+        val INT ''$.val''
+    )
+) AS src
+ON target.id = src.id
+WHEN MATCHED THEN
+    UPDATE SET target.code = src.code, target.recorded_time = src.recorded_time, target.val = src.val
+WHEN NOT MATCHED THEN
+    INSERT (id, code, recorded_time, val) VALUES (src.id, src.code, src.recorded_time, src.val)
+OUTPUT $action;',
+            1, N'Cấu hình câu ghi MERGE chiều nhận mẫu cho gói 101_commonData (Kịch bản E0)', GETDATE(), NULL
+        );
+        PRINT N'  -> Đã nạp câu ghi MERGE chiều nhận cho gói 101_commonData vào ShareDataPacketSql.';
+    END
+    ELSE
+    BEGIN
+        PRINT N'  -> Cấu hình câu ghi cho gói 101_commonData đã tồn tại trong ShareDataPacketSql, bỏ qua.';
+    END
+
+    -- Seed dự phòng cho mã gói ngắn 101 (nếu người dùng tạo gói mã 101 trên giao diện)
+    IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacketSql] WHERE [PacketCode] = '101' AND [TableName] = 'dbo.InboundTrafficFlow' AND [IsDelete] IS NULL)
+    BEGIN
+        INSERT INTO [dbo].[ShareDataPacketSql] (
+            [ID], [TenantId], [PacketCode], [OrderNo], [TableName], [WriteSql],
+            [Status], [Remark], [CreateTime], [IsDelete]
+        ) VALUES (
+            '1500000000902', 1, '101', 1, 'dbo.InboundTrafficFlow',
+            N'MERGE dbo.InboundTrafficFlow AS target
+USING (
+    SELECT id, code, recorded_time, val
+    FROM OPENJSON(@records)
+    WITH (
+        id NVARCHAR(64) ''$.id'',
+        code NVARCHAR(64) ''$.code'',
+        recorded_time DATETIME2 ''$.time'',
+        val INT ''$.val''
+    )
+) AS src
+ON target.id = src.id
+WHEN MATCHED THEN
+    UPDATE SET target.code = src.code, target.recorded_time = src.recorded_time, target.val = src.val
+WHEN NOT MATCHED THEN
+    INSERT (id, code, recorded_time, val) VALUES (src.id, src.code, src.recorded_time, src.val)
+OUTPUT $action;',
+            1, N'Cấu hình câu ghi MERGE chiều nhận mẫu cho gói 101 (Kịch bản E0)', GETDATE(), NULL
+        );
+        PRINT N'  -> Đã nạp câu ghi MERGE chiều nhận cho gói 101 vào ShareDataPacketSql.';
+    END
+END
+ELSE
+BEGIN
+    PRINT N'⚠️ Bảng dbo.ShareDataPacketSql chưa tồn tại trên DEV_ITS10, bỏ qua nạp câu ghi chiều nhận.';
 END
 GO
 

@@ -13,7 +13,25 @@ internal static class SeedScriptReader
     /// <summary>
     /// Thông tin gói tin được trích xuất từ kịch bản seed SQL.
     /// </summary>
-    public sealed record SeedPacketInfo(string Code, string ExtractSql, int SyncMode);
+    public sealed record SeedPacketInfo(
+        string Code,
+        string ExtractSql,
+        int SyncMode,
+        string? CursorTimeColumn = null,
+        int? MaxLookBackDays = null);
+
+    /// <summary>
+    /// Thông tin bản ghi INSERT gói tin khởi tạo từ kịch bản seed SQL.
+    /// </summary>
+    public sealed record SeedInsertedPacketInfo(
+        string Id,
+        string Code,
+        string Name,
+        string PacketVersion,
+        string Description,
+        int OrderNo,
+        int Status,
+        string? Remark);
 
     /// <summary>
     /// Description: Lấy chuỗi SQL trích xuất của gói tin tương ứng (101, 102...).
@@ -67,13 +85,43 @@ internal static class SeedScriptReader
         return Cache.Value;
     }
 
+    /// <summary>
+    /// Description: Đọc danh sách 11 gói tin khởi tạo từ các câu lệnh INSERT trong tệp seed 02.
+    /// </summary>
+    public static IReadOnlyList<SeedInsertedPacketInfo> ReadInsertedPackets()
+    {
+        var scriptPath = ResolveSeedScriptPath();
+        var content = File.ReadAllText(scriptPath);
+
+        var regex = new Regex(
+            @"VALUES\s*\(\s*N'(?<id>\d+)',\s*N'(?<code>[^']+)',\s*N'(?<name>[^']+)',\s*N'(?<version>[^']+)',\s*N'(?<desc>[^']+)',\s*(?<order>\d+),\s*(?<status>\d+),\s*N'(?<remark>[^']*)'",
+            RegexOptions.Singleline);
+
+        var matches = regex.Matches(content);
+        var list = new List<SeedInsertedPacketInfo>();
+        foreach (Match m in matches)
+        {
+            list.Add(new SeedInsertedPacketInfo(
+                m.Groups["id"].Value,
+                m.Groups["code"].Value,
+                m.Groups["name"].Value,
+                m.Groups["version"].Value,
+                m.Groups["desc"].Value,
+                int.Parse(m.Groups["order"].Value),
+                int.Parse(m.Groups["status"].Value),
+                m.Groups["remark"].Value));
+        }
+
+        return list;
+    }
+
     private static Dictionary<string, SeedPacketInfo> LoadAllInternal()
     {
         var scriptPath = ResolveSeedScriptPath();
         var content = File.ReadAllText(scriptPath);
 
         var regex = new Regex(
-            @"SET \[ExtractSql\] = N'(.*?)',\s*\[SyncMode\]\s*=\s*(\d+).*?WHERE \(\[Code\] = '(\d{3})'",
+            @"SET \[ExtractSql\] = N'(?<sql>.*?)',\s*\[SyncMode\]\s*=\s*(?<sync>\d+),\s*\[CursorTimeColumn\]\s*=\s*(?<cursor>NULL|N'[^']*'),\s*\[MaxLookBackDays\]\s*=\s*(?<lookback>NULL|\d+).*?WHERE \(\[Code\] = '(?<code>\d{3})'",
             RegexOptions.Singleline);
 
         var matches = regex.Matches(content);
@@ -86,14 +134,24 @@ internal static class SeedScriptReader
         var dict = new Dictionary<string, SeedPacketInfo>(StringComparer.OrdinalIgnoreCase);
         foreach (Match match in matches)
         {
-            var rawSql = match.Groups[1].Value;
-            var syncModeStr = match.Groups[2].Value;
-            var code = match.Groups[3].Value;
+            var rawSql = match.Groups["sql"].Value;
+            var syncModeStr = match.Groups["sync"].Value;
+            var cursorRaw = match.Groups["cursor"].Value;
+            var lookbackRaw = match.Groups["lookback"].Value;
+            var code = match.Groups["code"].Value;
 
             var extractSql = rawSql.Replace("''", "'");
             var syncMode = int.Parse(syncModeStr);
 
-            dict[code] = new SeedPacketInfo(code, extractSql, syncMode);
+            string? cursor = cursorRaw.Equals("NULL", StringComparison.OrdinalIgnoreCase)
+                ? null
+                : cursorRaw.Trim().TrimStart('N').Trim('\'');
+
+            int? lookback = lookbackRaw.Equals("NULL", StringComparison.OrdinalIgnoreCase)
+                ? null
+                : int.Parse(lookbackRaw);
+
+            dict[code] = new SeedPacketInfo(code, extractSql, syncMode, cursor, lookback);
         }
 
         return dict;

@@ -43,7 +43,7 @@ const SUGGESTED_KEYS_BY_CHANNEL: Record<string, string[]> = {
 	FTP: ['RemotePath', 'Username', 'Password', 'UseSsl', 'Format', 'TimeoutSeconds'],
 };
 
-const COMMON_KEYS = ['ArchiveEnabled', 'Enabled', 'Codec', 'EncryptionKeyRef'];
+const COMMON_KEYS = ['Enabled', 'Encryptor', 'EncryptionKeyRef'];
 
 let rowCounter = 0;
 const genRowId = () => `row_${Date.now()}_${++rowCounter}`;
@@ -120,9 +120,7 @@ function addSuggestedKeys(items: ConfigRow[], connectionType: string): number {
 	allSuggestions.forEach((sugKey) => {
 		if (!existingKeys.has(sugKey.toLowerCase())) {
 			let defaultValue = '';
-			if (sugKey.toLowerCase() === 'archiveenabled') {
-				defaultValue = 'true';
-			} else if (sugKey.toLowerCase() === 'filenamepattern') {
+			if (sugKey.toLowerCase() === 'filenamepattern') {
 				defaultValue = '{packet}_{partner}_{timestamp}_{serial}';
 			}
 			items.push({
@@ -150,7 +148,7 @@ const mockI18n = (key: string): string => {
 	return dict[key] || key;
 };
 
-test.describe('ShareData — Cấu hình kết nối đối tác theo mẫu VMS (Prompt #13) @sharedata', () => {
+test.describe('ShareData — Cấu hình kết nối đối tác theo mẫu VMS (R11) @sharedata', () => {
 
 	test('TC1 — Kiểm tra tĩnh mã nguồn connectionConfigEditor.vue và editPartner.vue (Rules 9, 11, 20, 21)', async () => {
 		expect(fs.existsSync(editorComponentPath), 'File connectionConfigEditor.vue phải tồn tại').toBeTruthy();
@@ -274,7 +272,7 @@ test.describe('ShareData — Cấu hình kết nối đối tác theo mẫu VMS 
 		const items: ConfigRow[] = [];
 		// Bấm nút thêm key gợi ý cho kênh Kafka
 		const added = addSuggestedKeys(items, 'Kafka');
-		expect(added).toBe(11); // 7 Kafka keys + 4 Common keys (bao gồm ArchiveEnabled)
+		expect(added).toBe(10); // 7 Kafka keys + 3 Common keys
 
 		// Điền các giá trị vào
 		const valMap: Record<string, string> = {
@@ -286,7 +284,7 @@ test.describe('ShareData — Cấu hình kết nối đối tác theo mẫu VMS 
 			SaslUsername: 'kafka_user',
 			SaslPassword: 'kafka_password_secret',
 			Enabled: 'true',
-			Codec: 'Json',
+			Encryptor: 'None',
 			EncryptionKeyRef: 'kms-key-01',
 		};
 
@@ -307,7 +305,7 @@ test.describe('ShareData — Cấu hình kết nối đối tác theo mẫu VMS 
 		expect(parsed.SecurityProtocol).toBe('SaslPlaintext');
 		expect(parsed.SaslUsername).toBe('kafka_user');
 		expect(parsed.SaslPassword).toBe('kafka_password_secret');
-		expect(parsed.Codec).toBe('Json');
+		expect(parsed.Encryptor).toBe('None');
 	});
 
 	test('TC6 — Nhập BaseUrl hoặc bất kỳ key dành cho cột thì bị báo lỗi reserved', async () => {
@@ -362,8 +360,8 @@ test.describe('ShareData — Cấu hình kết nối đối tác theo mẫu VMS 
 		];
 
 		const added = addSuggestedKeys(items, 'API');
-		// Gợi ý API có 8 keys + 4 common keys = 12 keys tổng cộng. Đã có 2 keys => chỉ thêm 10 keys
-		expect(added).toBe(10);
+		// Gợi ý API có 8 keys + 3 common keys = 11 keys tổng cộng. Đã có 2 keys => chỉ thêm 9 keys
+		expect(added).toBe(9);
 
 		// Giá trị của TimeoutSeconds đã có trước đó phải giữ nguyên 60
 		const timeoutRow = items.find((i) => i.key === 'TimeoutSeconds');
@@ -382,12 +380,12 @@ test.describe('ShareData — Cấu hình kết nối đối tác theo mẫu VMS 
 		expect(addedSecondTime).toBe(0);
 	});
 
-	test('TC9 — Chọn nhóm "Chiều nhận" thì có đủ key giải mã InboundCodec và DecryptionKeyRef (#14)', async () => {
+	test('TC9 — Chọn nhóm "Chiều nhận" thì có đủ key giải mã InboundEncryptor và DecryptionKeyRef', async () => {
 		const editorContent = fs.readFileSync(editorComponentPath, 'utf-8');
 
-		// Kiểm tra editor component có khai báo INBOUND_KEYS với InboundCodec và DecryptionKeyRef
+		// Kiểm tra editor component có khai báo INBOUND_KEYS với InboundEncryptor và DecryptionKeyRef
 		const expectedInboundKeys = [
-			'InboundCodec',
+			'InboundEncryptor',
 			'DecryptionKeyRef',
 		];
 
@@ -400,16 +398,14 @@ test.describe('ShareData — Cấu hình kết nối đối tác theo mẫu VMS 
 		expect(editorContent).toContain('lz.label.sharedataConnectionEditor.groupInbound');
 	});
 
-	test('TC10 — "ArchiveEnabled" có trong COMMON_KEYS của connectionConfigEditor.vue với giá trị mặc định true (#15)', async () => {
+	test('TC10 — "ArchiveEnabled" không còn trong COMMON_KEYS của connectionConfigEditor.vue và không được gợi ý', async () => {
 		const editorContent = fs.readFileSync(editorComponentPath, 'utf-8');
-		expect(editorContent).toContain('ArchiveEnabled');
-		expect(editorContent).toContain("defaultValue = 'true'");
+		expect(editorContent).not.toContain("'ArchiveEnabled'");
 
 		const items: ConfigRow[] = [];
 		addSuggestedKeys(items, 'API');
 		const archiveRow = items.find((i) => i.key.toLowerCase() === 'archiveenabled');
-		expect(archiveRow).toBeDefined();
-		expect(archiveRow?.value).toBe('true');
+		expect(archiveRow).toBeUndefined();
 	});
 
 	test('TC11 — RV-12: Nhập OutputPath bị từ chối; FileNamePattern bắt buộc có {serial} hoặc {timestamp}', async () => {

@@ -258,29 +258,15 @@ public class ShareDataExtractSqlTests(Host host)
         var scope = host.Services.CreateScope();
         var queryHandler = scope.ServiceProvider.GetRequiredService<PacketExtractSqlQueryHandler>();
 
-        // Act 1: Truy vấn có PartnerCode -> vẫn trả về câu SQL từ ShareDataPacket
-        var resultA = await queryHandler.HandleAsync(new GetPacketExtractSqlInput
-        {
-            PacketCode = packetCode,
-            PartnerCode = "ANY_PARTNER"
-        });
-
-        // Act 2: Truy vấn không có PartnerCode -> trả về câu SQL từ ShareDataPacket
-        var resultB = await queryHandler.HandleAsync(new GetPacketExtractSqlInput
+        // Act: Truy vấn lấy câu SQL từ ShareDataPacket
+        var result = await queryHandler.HandleAsync(new GetPacketExtractSqlInput
         {
             PacketCode = packetCode
         });
 
         // Assert
-        Assert.NotNull(resultA);
-        Assert.Equal(sqlTemplate, resultA.ExtractSql);
-        Assert.False(resultA.IsCustomForPartner);
-        Assert.Null(resultA.MappingId);
-
-        Assert.NotNull(resultB);
-        Assert.Equal(sqlTemplate, resultB.ExtractSql);
-        Assert.False(resultB.IsCustomForPartner);
-        Assert.Null(resultB.MappingId);
+        Assert.NotNull(result);
+        Assert.Equal(sqlTemplate, result.ExtractSql);
     }
 
     [Fact]

@@ -190,7 +190,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var mapping = new DataMappingResult(true, mappingBytes, 1);
 
             // Act
-            var request = ConnectRequestBuilder.BuildRequest(mapping, ctx);
+            var request = DataOutboundTransport.BuildRequest(mapping, ctx);
 
             // Assert
             Assert.Equal("{\"tag\":\"RFID_001\"}", request.JsonPayload);
@@ -219,7 +219,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             var mappingBytes = Encoding.UTF8.GetBytes("{\"legacy\": true}");
             var mapping = new DataMappingResult(true, mappingBytes, 1);
-            var request = ConnectRequestBuilder.BuildRequest(mapping, ctx);
+            var request = DataOutboundTransport.BuildRequest(mapping, ctx);
 
             // Act
             var result = await dispatcher.Dispatch(request, ctx, CancellationToken.None);
@@ -249,7 +249,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             var mappingBytes = Encoding.UTF8.GetBytes("{\"override\": true}");
             var mapping = new DataMappingResult(true, mappingBytes, 1);
-            var request = ConnectRequestBuilder.BuildRequest(mapping, ctx);
+            var request = DataOutboundTransport.BuildRequest(mapping, ctx);
 
             // Act
             var result = await dispatcher.Dispatch(request, ctx, CancellationToken.None);
@@ -804,21 +804,6 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         }
 
         [Fact]
-        public void PartnerValidator_ArchiveEnabled_ValidatesBoolean_Test()
-        {
-            // Valid boolean values
-            Assert.Equal(ConnectConfigIssue.None, ConnectConfigValidator.Check("{\"ArchiveEnabled\": true}"));
-            Assert.Equal(ConnectConfigIssue.None, ConnectConfigValidator.Check("{\"ArchiveEnabled\": false}"));
-            Assert.Equal(ConnectConfigIssue.None, ConnectConfigValidator.Check("{\"ArchiveEnabled\": \"true\"}"));
-            Assert.Equal(ConnectConfigIssue.None, ConnectConfigValidator.Check("{\"ArchiveEnabled\": \"false\"}"));
-
-            // Invalid boolean value
-            Assert.Equal(ConnectConfigIssue.InvalidBoolean, ConnectConfigValidator.Check("{\"ArchiveEnabled\": \"abc\"}", out var errInvalid));
-            Assert.NotNull(errInvalid);
-            Assert.Contains("ArchiveEnabled", errInvalid);
-        }
-
-        [Fact]
         public void PartnerValidator_RejectsOutputPath_AndValidatesFileNamePatternVariables_Test()
         {
             // 1. Rejects OutputPath (deprecated key)
@@ -1042,7 +1027,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             DataOutboundContext ctx,
             CancellationToken ct = default)
         {
-            return dispatcher.Dispatch(request, ConnectRequestBuilder.BuildContext(ctx), ct);
+            return dispatcher.Dispatch(request, DataOutboundTransport.BuildContext(ctx), ct);
         }
 
         public static Task<ConnectResult> Send(
@@ -1051,7 +1036,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             DataOutboundContext ctx,
             CancellationToken ct = default)
         {
-            return handler.Send(request, ConnectRequestBuilder.BuildContext(ctx), ct);
+            return handler.Send(request, DataOutboundTransport.BuildContext(ctx), ct);
         }
     }
 }

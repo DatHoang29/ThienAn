@@ -18,7 +18,6 @@ using Modules.Integration.ShareData.Connect;
 using Modules.Integration.ShareData.Connect.Handlers;
 using System.Text.Json;
 using Modules.CfgSystem.Core.Entities;
-using ShareDataWorker.Core.Constants;
 using ShareDataWorker.Infrastructure.Services.DataNats;
 
 namespace Tests.ShareData.Infrastructure.Services.DataOutbound
@@ -2116,7 +2115,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 PacketVersion = "1.0",
                 OrderNo = 5,
                 Status = BaseEnums.StatusEnum.Enable,
-                ExtractSql = ShareDataPacketTemplatesTests.GetExtractSql(packetCode)
+                ExtractSql = ShareDataPacketTemplates.GetExtractSql(packetCode)
             };
             await db.Insertable(packet105).ExecuteCommandAsync();
 
@@ -2342,8 +2341,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 scopeFactory,
                 logger,
                 new DataOutboundExtractionProcess(),
-                dispatcher,
-                configuration: config);
+                new DataOutboundTransport(dispatcher, config));
         }
 
         #endregion

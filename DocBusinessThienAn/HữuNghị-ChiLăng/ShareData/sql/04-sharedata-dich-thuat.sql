@@ -260,9 +260,9 @@ VALUES
      N'Giá trị AuthType chỉ hỗ trợ: None, Bearer, ApiKey, Basic.',
      N'AuthType only supports: None, Bearer, ApiKey, Basic.'),
 
-    (N'lz.validation', N'sharedata.connectConfigUnsupportedCodec',
-     N'Giá trị mã hóa (Codec / InboundCodec) chỉ hỗ trợ: None, AesGcm.',
-     N'Codec / InboundCodec only supports: None, AesGcm.'),
+    (N'lz.validation', N'sharedata.connectConfigUnsupportedEncryptor',
+     N'Giá trị mã hóa (Encryptor / InboundEncryptor) chỉ hỗ trợ: None, AesGcm.',
+     N'Encryptor / InboundEncryptor only supports: None, AesGcm.'),
 
     (N'lz.validation', N'sharedata.connectConfigFileNamePatternNoToken',
      N'Thuộc tính [FileNamePattern] bắt buộc chứa ít nhất một biến động ({serial}, {timestamp}, {packet} hoặc {partner}) để tránh ghi đè tệp.',
@@ -271,6 +271,10 @@ VALUES
 -- -----------------------------------------------------------------------------------------
 -- 3. NẠP DỮ LIỆU ĐA NGÔN NGỮ (MERGE CHỈ THÊM DÒNG CHƯA CÓ, KHÔNG GHI ĐÈ)
 -- -----------------------------------------------------------------------------------------
+-- Xóa idempotent khóa cũ đã đổi tên (nếu có)
+DELETE FROM dbo.SysTerminology
+WHERE [Name] = N'lz.validation' AND [Code] = N'sharedata.connectConfigUnsupportedCodec';
+
 -- 3.1. Xử lý bản dịch Tiếng Việt (vi-VN)
 MERGE INTO dbo.SysTerminology AS target
 USING (SELECT [Name], [Code], [ViValue] AS [Value], N'vi-VN' AS [Lang] FROM @Translations) AS source

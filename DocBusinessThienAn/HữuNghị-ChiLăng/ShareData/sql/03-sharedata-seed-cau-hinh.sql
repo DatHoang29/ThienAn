@@ -88,7 +88,7 @@ VALUES
     (N'ESH-1304', N'Khoá bản ghi cuối trang (__rowid) dài hơn cột LastKey cho phép — huỷ kết xuất trước khi gửi', N'outbound', N'danger', 1304,
      N'Kiểm tra kiểu dữ liệu hoặc giá trị khóa __rowid.'),
     (N'ESH-1305', N'Không tìm thấy câu lệnh SQL trích xuất dữ liệu ở bất kỳ tầng nào', N'outbound', N'danger', 1305,
-     N'Kiểm tra câu truy vấn SQL trong ShareDataMapping hoặc ShareDataPacket.'),
+     N'Kiểm tra câu truy vấn SQL (ExtractSql) trong cấu hình gói tin ShareDataPacket.'),
     (N'ESH-1306', N'Thứ tự con trỏ dữ liệu không tăng dần hoặc thiếu khóa __rowid', N'outbound', N'danger', 1306,
      N'Kiểm tra mệnh đề ORDER BY trong câu lệnh trích xuất dữ liệu.'),
     (N'ESH-1307', N'Mốc con trỏ gửi mới lùi lại so với mốc hiện tại trong CSDL', N'outbound', N'warning', 1307,

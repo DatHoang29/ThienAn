@@ -50,8 +50,8 @@ namespace Tests.ShareData.Connect
             var data = Encoding.UTF8.GetBytes("hello-plain-world");
             var config = new Dictionary<string, string>
             {
-                ["Codec"] = EncryptorNames.None,
-                ["InboundCodec"] = EncryptorNames.None
+                [ConnectKeys.Encryptor] = EncryptorNames.None,
+                [ConnectKeys.InboundEncryptor] = EncryptorNames.None
             };
 
             // Act
@@ -72,10 +72,10 @@ namespace Tests.ShareData.Connect
             var originalBytes = Encoding.UTF8.GetBytes("{\"device\":\"VMS_01\",\"status\":\"Normal\"}");
             var config = new Dictionary<string, string>
             {
-                ["Codec"] = EncryptorNames.AesGcm,
-                ["EncryptionKeyRef"] = "my-secret-key",
-                ["InboundCodec"] = EncryptorNames.AesGcm,
-                ["DecryptionKeyRef"] = "my-secret-key"
+                [ConnectKeys.Encryptor] = EncryptorNames.AesGcm,
+                [ConnectKeys.EncryptionKeyRef] = "my-secret-key",
+                [ConnectKeys.InboundEncryptor] = EncryptorNames.AesGcm,
+                [ConnectKeys.DecryptionKeyRef] = "my-secret-key"
             };
 
             // Act
@@ -99,8 +99,8 @@ namespace Tests.ShareData.Connect
             var corruptedBytes = Encoding.UTF8.GetBytes("not-a-valid-json-envelope");
             var config = new Dictionary<string, string>
             {
-                ["InboundCodec"] = EncryptorNames.AesGcm,
-                ["DecryptionKeyRef"] = "key-ref"
+                [ConnectKeys.InboundEncryptor] = EncryptorNames.AesGcm,
+                [ConnectKeys.DecryptionKeyRef] = "key-ref"
             };
 
             // Act & Assert
@@ -124,10 +124,10 @@ namespace Tests.ShareData.Connect
             var originalBytes = Encoding.UTF8.GetBytes("{\"secret\":\"confidential\"}");
             var config = new Dictionary<string, string>
             {
-                ["Codec"] = EncryptorNames.AesGcm,
-                ["EncryptionKeyRef"] = "key-ref",
-                ["InboundCodec"] = EncryptorNames.AesGcm,
-                ["DecryptionKeyRef"] = "key-ref"
+                [ConnectKeys.Encryptor] = EncryptorNames.AesGcm,
+                [ConnectKeys.EncryptionKeyRef] = "key-ref",
+                [ConnectKeys.InboundEncryptor] = EncryptorNames.AesGcm,
+                [ConnectKeys.DecryptionKeyRef] = "key-ref"
             };
 
             var encryptedBytes = managerOutbound.Encrypt(config, originalBytes);
@@ -137,7 +137,7 @@ namespace Tests.ShareData.Connect
         }
 
         [Fact]
-        public void GetEncryptor_OutboundReadsCodecAndEncryptionKeyRef_InboundReadsInboundCodecAndDecryptionKeyRef_Test()
+        public void GetEncryptor_OutboundReadsEncryptorAndEncryptionKeyRef_InboundReadsInboundEncryptorAndDecryptionKeyRef_Test()
         {
             // Arrange
             var keyResolver = new MultiKeyResolver(new Dictionary<string, byte[]>
@@ -149,9 +149,9 @@ namespace Tests.ShareData.Connect
 
             var config1 = new Dictionary<string, string>
             {
-                ["Codec"] = EncryptorNames.AesGcm,
-                ["EncryptionKeyRef"] = "out-key",
-                ["InboundCodec"] = EncryptorNames.None
+                [ConnectKeys.Encryptor] = EncryptorNames.AesGcm,
+                [ConnectKeys.EncryptionKeyRef] = "out-key",
+                [ConnectKeys.InboundEncryptor] = EncryptorNames.None
             };
 
             // Act 1
@@ -166,9 +166,9 @@ namespace Tests.ShareData.Connect
             // Arrange 2 (ngược lại)
             var config2 = new Dictionary<string, string>
             {
-                ["Codec"] = EncryptorNames.None,
-                ["InboundCodec"] = EncryptorNames.AesGcm,
-                ["DecryptionKeyRef"] = "in-key"
+                [ConnectKeys.Encryptor] = EncryptorNames.None,
+                [ConnectKeys.InboundEncryptor] = EncryptorNames.AesGcm,
+                [ConnectKeys.DecryptionKeyRef] = "in-key"
             };
 
             // Act 2

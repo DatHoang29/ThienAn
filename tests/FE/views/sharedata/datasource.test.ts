@@ -1284,7 +1284,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(monacoEditor).toContainText('INNER JOIN TmsZone z');
     });
 
-    test('16. Nút "Mẫu mặc định" (forceDefaultTemplate) — Nạp lại template chuẩn từ Catalog qua API getextractsql với forceDefaultTemplate=true (Mục 5 & 6)', async ({ page }) => {
+    test('16. Nút "Mẫu mặc định" (forceDefaultTemplate) — Nạp lại template chuẩn qua API getextractsql với forceDefaultTemplate=true', async ({ page }) => {
         // ============================================================
         // BƯỚC 1 (ARRANGE): Mở màn hình nguồn dữ liệu & vào tab Cấu hình SQL
         // ============================================================
@@ -1298,10 +1298,10 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await sqlTab.click();
         await expect(sqlTab).toHaveClass(/is-active/);
 
-        // Chuẩn bị dữ liệu mẫu chuẩn từ Catalog (Catalog Default Template)
+        // Chuẩn bị dữ liệu mẫu chuẩn (Default Template)
         const mockCatalogSql = 'SELECT TOP (@pageSize) td.Speed AS speed FROM TmsTrafficData td';
 
-        // Đăng ký mock API: Chỉ trả dữ liệu mẫu Catalog khi gọi với forceDefaultTemplate=true
+        // Đăng ký mock API: Chỉ trả dữ liệu mẫu khi gọi với forceDefaultTemplate=true
         await page.route('**/api/sharedata/sharedatapacket/getextractsql*', async (route) => {
             const url = new URL(route.request().url());
             if (url.searchParams.get('forceDefaultTemplate') === 'true') {
@@ -1313,7 +1313,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
                         result: {
                             extractSql: mockCatalogSql,
                             status: 1,
-                            remark: 'Catalog Default Template',
+                            hasDefaultTemplate: true,
+                            remark: 'Default Template',
                         },
                     }),
                 });
@@ -1639,26 +1640,19 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(calledFieldsApi).toBe(true);
     });
 
-    test('21. Phạm vi SQL (Mẫu chung / Đối tác) & Tạo SQL riêng từ mẫu (Mục 2)', async ({ page }) => {
-        // Mock partner list
-        await page.route('**/api/sharedata/sharedatapartner/list*', async (route) => {
-            await route.fulfill({
-                status: 200,
-                contentType: 'application/json',
-                body: JSON.stringify({
-                    code: 200,
-                    result: [
-                        { id: 'p1', code: 'PARTNER_A', name: 'Đối tác A' },
-                        { id: 'p2', code: 'PARTNER_B', name: 'Đối tác B' },
-                    ],
-                }),
-            });
-        });
+    test('21. Một câu lệnh SQL duy nhất cho mỗi gói tin — Không còn phạm vi đối tác và nút đồng bộ luôn khả dụng', async ({ page }) => {
+        // Quét tĩnh mã nguồn index.vue không còn chứa partnerScope và isCustomForPartner
+        const indexPath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
+        const indexContent = fs.readFileSync(indexPath, 'utf8');
 
-        // Mock getextractsql: khi gọi với partnerCode=PARTNER_A thì trả isCustomForPartner=false (đang dùng mẫu chung)
+        expect(indexContent).not.toContain('sql-scope-control');
+        expect(indexContent).not.toContain('sql-scope-select');
+        expect(indexContent).not.toContain('partnerScope');
+        expect(indexContent).not.toContain('isCustomForPartner');
+        expect(indexContent).not.toContain('createCustomFromTemplate');
+
+        // Mock API getextractsql
         await page.route('**/api/sharedata/sharedatapacket/getextractsql*', async (route) => {
-            const url = new URL(route.request().url());
-            const partner = url.searchParams.get('partnerCode');
             await route.fulfill({
                 status: 200,
                 contentType: 'application/json',
@@ -1667,7 +1661,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
                     result: {
                         extractSql: 'SELECT TOP (100) ID, Speed FROM TmsTrafficData',
                         status: 1,
-                        isCustomForPartner: partner === 'PARTNER_B',
+                        hasDefaultTemplate: true,
                         syncMode: 1,
                         maxLookBackDays: null,
                     },
@@ -1689,30 +1683,16 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await sqlTab.click();
         await expect(sqlTab).toHaveClass(/is-active/);
 
-        // 1. Kiểm tra dropdown Phạm vi SQL xuất hiện
+        // 1. Khối chọn phạm vi đối tác không còn tồn tại trên DOM
+        const scopeControl = page.locator('.sql-scope-control');
+        await expect(scopeControl).toHaveCount(0);
+
         const scopeSelect = page.locator('.sql-scope-select');
-        await expect(scopeSelect).toBeVisible();
+        await expect(scopeSelect).toHaveCount(0);
 
-        // 2. Chọn đối tác PARTNER_A (chưa có SQL riêng)
-        await scopeSelect.click();
-        const optionA = page.locator('.el-select-dropdown__item:visible').filter({ hasText: /PARTNER_A/ });
-        await optionA.click();
-
-        // 3. Hiển thị tag "Đang dùng mẫu chung" và nút "Tạo SQL riêng từ mẫu"
-        const commonTag = page.locator('.sql-scope-control .el-tag').filter({ hasText: /mẫu chung/i });
-        await expect(commonTag).toBeVisible();
-
-        const btnCreateCustom = page.locator('.sql-scope-control .el-button').filter({ hasText: /Tạo SQL riêng từ mẫu/i });
-        await expect(btnCreateCustom).toBeVisible();
-
-        // 4. Kiểm tra nút đồng bộ cột bị vô hiệu hóa khi ở phạm vi đối tác
-        const btnSyncDisabled = page.locator('.sql-toolbar-right button').filter({ hasText: /Đồng bộ/i });
-        await expect(btnSyncDisabled).toBeDisabled();
-
-        // 5. Bấm nút "Tạo SQL riêng từ mẫu" -> chuyển thành tag "Riêng đối tác"
-        await btnCreateCustom.click();
-        const customTag = page.locator('.sql-scope-control .el-tag').filter({ hasText: /Riêng đối tác/i });
-        await expect(customTag).toBeVisible();
+        // 2. Nút Đồng bộ vào Gói tin hiển thị bình thường, không bị bọc tooltip vô hiệu hóa
+        const btnSync = page.locator('.sql-toolbar-right button').filter({ hasText: /Đồng bộ/i });
+        await expect(btnSync).toBeVisible();
     });
 
     test('22. Cấu hình Chế độ đồng bộ (Toàn bộ / Nối đuôi) & Số ngày quét lùi tối đa (Mục 8 & 20)', async ({ page }) => {

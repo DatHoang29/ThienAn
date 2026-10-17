@@ -127,11 +127,11 @@ SELECT TOP 20 * FROM dbo.ShareDataInboundPacket ORDER BY CreateTime DESC;     --
 | # | Bước | Kết quả mong đợi | Kết quả |
 |---|---|---|---|
 | C1 | Tạo đối tác **P-REST**: Address `http://localhost`, Port `9090`, EndPoint `/api/receive`, kiểu REST | Lưu được, mở lại giữ nguyên | ☐ ☐ |
-| C2 | Trong cấu hình kết nối thêm `Format=Json`, `ArchiveEnabled=true` và 1 key tùy ý → Lưu → mở lại | Mọi key **giữ nguyên**; giá trị bí mật (Token/ApiKey/Password) **bị che** khi hiển thị | ☐ ☐ |
+| C2 | Trong cấu hình kết nối thêm `Format=Json`, `Enabled=true` và 1 key tùy ý → Lưu → mở lại | Mọi key **giữ nguyên**; giá trị bí mật (Token/ApiKey/Password) **bị che** khi hiển thị | ☐ ☐ |
 | C3 | Thêm key trùng tên cột (`Address`, `Port`, `EndPointApiUrl`), key trùng nhau, key rỗng | **Từng trường hợp bị từ chối**, thông báo hiển thị theo ngôn ngữ đang chọn (nhóm lỗi: khóa trùng cột, khóa trùng nhau, khóa rỗng), không hiện khóa thô `lz.validation...` | ☐ ☐ |
 | C4 | Mở đối tác khác rồi quay lại P-REST | Cấu hình **không lẫn** sang nhau (không mang token qua đối tác khác) | ☐ ☐ |
 | C5 | Tạo đối tác kiểu FTPS (rồi DISK, NAS) → Lưu được; mở lại giữ nguyên kiểu đã nhập | Được chấp nhận và gửi qua đúng kênh (FTPS bật `UseSsl`, DISK/NAS đi kênh File). Một giá trị lạ (ví dụ "ABC") vẫn bị từ chối | ☐ ☐ |
-| C6 | Kiểm tra 12 trường hợp cấu hình kết nối đối tác sai (JSON không phải object, cú pháp lỗi, key rỗng, key trùng tên cột, key bãi bỏ OutputPath, trùng lặp key, cấu trúc lồng nhau, Timeout không nguyên dương, Boolean sai định dạng, AuthType/Codec không hỗ trợ, FileNamePattern thiếu token) | Từng trường hợp bị từ chối với thông điệp đa ngôn ngữ chuẩn từ BaseMsg.ShareData.Validation (mã ConnectConfigIssue tương ứng) | ☐ ☐ |
+| C6 | Kiểm tra 12 trường hợp cấu hình kết nối đối tác sai (JSON không phải object, cú pháp lỗi, key rỗng, key trùng tên cột, key bãi bỏ OutputPath, trùng lặp key, cấu trúc lồng nhau, Timeout không nguyên dương, Boolean sai định dạng, AuthType/Encryptor không hỗ trợ, FileNamePattern thiếu token) | Từng trường hợp bị từ chối với thông điệp đa ngôn ngữ chuẩn từ BaseMsg.ShareData.Validation (mã ConnectConfigIssue tương ứng) | ☐ ☐ |
 
 ## 🅳 D. Gửi (chiều ra)
 
@@ -143,8 +143,8 @@ SELECT TOP 20 * FROM dbo.ShareDataInboundPacket ORDER BY CreateTime DESC;     --
 | D2 | Màn *Lịch sử chia sẻ* (`history`) | Có bản ghi **cha** và các bản ghi **con** theo bước/trang; mô tả **không nối lặp** | ☐ ☐ |
 | D3 | Đăng ký gói **103** (nối đuôi), chờ 1 chu kỳ; sau đó chạy `UPDATE dbo.TmsTrafficData SET UpdateTime = GETDATE() WHERE ID IN (<3 ID bất kỳ>)` trên DB local; chờ chu kỳ kế | Chu kỳ sau gửi **đúng 3 dòng** vừa đổi; chu kỳ tiếp theo không có dòng mới → ghi *không có dữ liệu mới*, **không gửi lặp**; `ShareDataLastSend` tiến, không lùi | ☐ ☐ |
 | D4 | Tạo file `FAIL` cạnh receiver → chờ chu kỳ gửi → xóa file `FAIL` → chờ chu kỳ | Khi lỗi: cảnh báo ở màn *Nhật ký lỗi* (`errorLog`), `ShareDataLastSend` **không tiến**; khi hết lỗi: gửi bù đủ dữ liệu bị lỡ, không sót | ☐ ☐ |
-| D5 | `ArchiveEnabled=true`: tìm tệp trong `NasStorage:BasePath` (mặc định `sharedata/send`, tương đối với thư mục chạy Worker) theo `Out/<Đối tác>/yyyy/MM/dd/<Gói>/…`; so sánh với `body` ở `received-<n>.json` | Tệp bằng chứng **đúng từng byte** bản đã gửi | ☐ ☐ |
-| D6 | Đặt `ArchiveEnabled=false`, chờ 1 lần gửi | **Không** sinh tệp mới; log cha ghi chú không lưu bằng chứng | ☐ ☐ |
+| D5 | Tìm tệp bằng chứng trong `NasStorage:BasePath` (mặc định `sharedata/send`, tương đối với thư mục chạy Worker) theo `Out/<Đối tác>/yyyy/MM/dd/<Gói>/…`; so sánh với `body` ở `received-<n>.json` | Tệp bằng chứng **đúng từng byte** bản đã gửi | ☐ ☐ |
+| D6 | Đặt khóa cũ `ArchiveEnabled=false`, chờ 1 lần gửi | Khóa cũ bị bỏ qua, **vẫn sinh tệp bằng chứng** bình thường; log cha không ghi chú không lưu | ☐ ☐ |
 | D7 | Đối tác kiểu **File**: `DirectoryPath` nằm trong `thư mục gốc BasePath`, `FileNamePattern` có `{serial}`/`{timestamp}` | Sinh tệp đúng tên, mỗi trang một tệp, không ghi đè | ☐ ☐ |
 | D8 | `DirectoryPath` ngoài thư mục cho phép; `FileNamePattern` có `../` hoặc `/` | **Bị từ chối**, không ghi tệp nào ngoài thư mục | ☐ ☐ |
 | D9 | (Cần NATS) Đăng ký gói **101** với *gửi ngay khi có dữ liệu mới* bật, `DebounceSec = 10`; chạy `UPDATE dbo.TmsZoneStatus SET UpdateTime = GETDATE() WHERE ID = '<ID>'` | Gửi trong khoảng `DebounceSec`, **không đợi hết chu kỳ** | ☐ ☐ |
@@ -152,7 +152,7 @@ SELECT TOP 20 * FROM dbo.ShareDataInboundPacket ORDER BY CreateTime DESC;     --
 | D11 | (Mã hóa chỉ viết sẵn `EncryptManager`, chưa nối luồng gửi/nhận theo quyết định 16/10/2026) | Chưa nối vào luồng (quyết định 16/10/2026): BỎ QUA, chỉ nghiệm thu khi áp dụng mã hóa | Bỏ qua (chưa nối) |
 | D12 | (Tùy chọn — cần hạ tầng thử, mặc định kênh chưa bật) Đối tác kiểu **Kafka**, `BootstrapServers` + `Topic` trong cấu hình; broker local | Message là byte[] UTF-8 JSON, có 4 header định danh; gửi lỗi (tắt broker) thì cảnh báo và mốc không tiến | ☐ ☐ |
 | D13 | (Tùy chọn — cần hạ tầng thử, mặc định kênh chưa bật) Đối tác kiểu **Ftp** (hoặc **FTPS**), `RemotePath` trong cấu hình; FTP server local | Tệp tải lên đúng nội dung, tên theo mẫu; sai mật khẩu thì lỗi rõ ràng, mốc không tiến | ☐ ☐ |
-| D14 | (Tùy chọn — cần hạ tầng thử, mặc định kênh chưa bật) Cấu hình `Format=Csv` cho kênh **File** hoặc **Ftp** | Tệp CSV phân cách dấu phẩy, đúng thứ tự cột; bằng chứng lưu (`ArchiveEnabled`) đúng byte như tệp đã gửi | ☐ ☐ |
+| D14 | (Tùy chọn — cần hạ tầng thử, mặc định kênh chưa bật) Cấu hình `Format=Csv` cho kênh **File** hoặc **Ftp** | Tệp CSV phân cách dấu phẩy, đúng thứ tự cột; bằng chứng lưu đúng byte như tệp đã gửi | ☐ ☐ |
 
 ## 🅴 E. Nhận (chiều vào)
 

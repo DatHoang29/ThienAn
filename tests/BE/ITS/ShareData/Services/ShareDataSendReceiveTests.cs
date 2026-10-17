@@ -13,6 +13,7 @@ using ShareDataWorker.Core.Interfaces;
 using ShareDataWorker.Core.Interfaces.DataOutbound;
 using ShareDataWorker.Infrastructure.Logging;
 using ShareDataWorker.Infrastructure.Services.DataOutbound;
+using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
 using Shared.DTO.Enums;
 using SqlSugar;
 using Tests.ShareData.Common;
@@ -62,8 +63,7 @@ namespace Tests.ShareData.Services
                 scopeFactory,
                 logger,
                 extraction,
-                dispatcher,
-                configuration: configuration);
+                new DataOutboundTransport(dispatcher, configuration));
         }
 
         #region 1. Test Gói Snapshot (Gói 105 - RFID Data)

@@ -995,13 +995,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                     Name = "Dữ liệu giao thông chung",
                     PacketVersion = "1.0",
                     OrderNo = 1,
-                    ExtractSql = ShareDataPacketTemplatesTests.GetExtractSql(packetCodeWithSuffix)
+                    ExtractSql = ShareDataPacketTemplates.GetExtractSql(packetCodeWithSuffix)
                 };
                 await db.Insertable(packet).ExecuteCommandAsync();
             }
             else if (string.IsNullOrWhiteSpace(packet.ExtractSql))
             {
-                packet.ExtractSql = ShareDataPacketTemplatesTests.GetExtractSql(packetCodeWithSuffix);
+                packet.ExtractSql = ShareDataPacketTemplates.GetExtractSql(packetCodeWithSuffix);
                 await db.Updateable(packet).ExecuteCommandAsync();
             }
 
@@ -1304,13 +1304,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                     Name = "Dữ liệu giao thông chung",
                     PacketVersion = "1.0",
                     OrderNo = 1,
-                    ExtractSql = ShareDataPacketTemplatesTests.GetExtractSql("101_commonData")
+                    ExtractSql = ShareDataPacketTemplates.GetExtractSql("101_commonData")
                 };
                 await db.Insertable(packet).ExecuteCommandAsync();
             }
             else if (string.IsNullOrWhiteSpace(packet.ExtractSql))
             {
-                packet.ExtractSql = ShareDataPacketTemplatesTests.GetExtractSql("101_commonData");
+                packet.ExtractSql = ShareDataPacketTemplates.GetExtractSql("101_commonData");
                 await db.Updateable(packet).ExecuteCommandAsync();
             }
 
@@ -1397,13 +1397,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                     Name = "Dữ liệu giao thông chung",
                     PacketVersion = "1.0",
                     OrderNo = 1,
-                    ExtractSql = ShareDataPacketTemplatesTests.GetExtractSql("101_commonData")
+                    ExtractSql = ShareDataPacketTemplates.GetExtractSql("101_commonData")
                 };
                 await db.Insertable(packet).ExecuteCommandAsync();
             }
             else if (string.IsNullOrWhiteSpace(packet.ExtractSql))
             {
-                packet.ExtractSql = ShareDataPacketTemplatesTests.GetExtractSql("101_commonData");
+                packet.ExtractSql = ShareDataPacketTemplates.GetExtractSql("101_commonData");
                 await db.Updateable(packet).ExecuteCommandAsync();
             }
 
@@ -2580,7 +2580,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             await db.Updateable<ShareDataPacket>()
                 .SetColumns(p => p.Status == BaseEnums.StatusEnum.Enable)
                 .SetColumns(p => p.SyncMode == BaseEnums.SyncMode.Snapshot)
-                .SetColumns(p => p.ExtractSql == ShareDataPacketTemplatesTests.Packet110_PublicMessaging)
+                .SetColumns(p => p.ExtractSql == ShareDataPacketTemplates.Packet110_PublicMessaging)
                 .Where(p => p.Code == "110" || p.Code == "110_publicMessaging")
                 .ExecuteCommandAsync();
 
@@ -6368,7 +6368,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         }
 
         [Fact]
-        public async Task ProcessSubscriptions_WhenArchiveEnabledIsFalse_SkipsEvidenceFile_Test()
+        public async Task ProcessSubscriptions_WhenLegacyArchiveEnabledIsFalse_IgnoresKeyAndSavesEvidence_Test()
         {
             // Arrange
             using var scope = _host.Services.CreateScope();
@@ -6397,8 +6397,10 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             Assert.NotEmpty(logs);
             var parentLog = logs.Single(l => l.ParentId == null);
             Assert.Equal(BaseEnums.SuccessEnums.Success, parentLog.Success);
-            Assert.Null(parentLog.FilePath);
-            Assert.Contains("ArchiveEnabled=false", parentLog.Description);
+            Assert.NotNull(parentLog.FilePath);
+            Assert.DoesNotContain("ArchiveEnabled=false", parentLog.Description ?? string.Empty);
+            Assert.Contains("Gửi thành công", parentLog.Description ?? string.Empty);
+            Assert.Contains("bản ghi cho đối tác", parentLog.Description ?? string.Empty);
         }
 
         [Fact]
@@ -7018,8 +7020,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 scopeFactory,
                 logger,
                 scope.ServiceProvider.GetRequiredService<IDataOutboundExtractionProcess>(),
-                dispatcher,
-                configuration: config);
+                new DataOutboundTransport(dispatcher, config));
         }
 
         /// <summary>
@@ -7177,7 +7178,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         PacketVersion = def.Packet.PacketVersion,
                         SyncMode = def.Packet.SyncMode,
                         Status = def.Packet.Status,
-                        ExtractSql = ShareDataPacketTemplatesTests.GetExtractSql(def.Packet.Code)
+                        ExtractSql = ShareDataPacketTemplates.GetExtractSql(def.Packet.Code)
                     };
                     await db.Insertable(newPacket).ExecuteCommandAsync();
                 }
@@ -7186,7 +7187,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                     existingPacket.PacketVersion = def.Packet.PacketVersion;
                     existingPacket.SyncMode = def.Packet.SyncMode;
                     existingPacket.Status = def.Packet.Status;
-                    existingPacket.ExtractSql = ShareDataPacketTemplatesTests.GetExtractSql(def.Packet.Code);
+                    existingPacket.ExtractSql = ShareDataPacketTemplates.GetExtractSql(def.Packet.Code);
                     await db.Updateable(existingPacket).ExecuteCommandAsync();
                 }
 
@@ -7547,7 +7548,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             DataOutboundContext ctx,
             CancellationToken ct = default)
         {
-            var (req, connCtx) = ConnectRequestBuilder.Build(mapping, ctx);
+            var (req, connCtx) = DataOutboundTransport.Build(mapping, ctx);
             return handler.Send(req, connCtx, ct);
         }
     }

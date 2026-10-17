@@ -15,9 +15,9 @@ using SqlSugar;
 namespace Tests.ShareData.Services
 {
     /// <summary>
-    /// Description: Bộ kiểm thử roundtrip hai chiều gửi – nhận chuẩn hoá (#14).
+    /// Description: Bộ kiểm thử roundtrip hai chiều gửi – nhận chuẩn hoá (R17).
     ///              - Kiểm thử tầng định dạng payload Formats (Json, KafkaJson, Csv)
-    ///              - Kiểm thử phân giải khóa và Codec hai chiều (Outbound vs Inbound)
+    ///              - Kiểm thử phân giải khóa và bộ mã hóa Encryptor hai chiều (Outbound vs Inbound)
     ///              - Kiểm thử roundtrip toàn trình gói 101/103 với cùng bộ khung TargetShapeJson S,
     ///                hỗ trợ MERGE idempotency khi gửi trùng gói.
     /// Created date: 14/10/2026
@@ -99,17 +99,17 @@ namespace Tests.ShareData.Services
         #region 2. Unit Tests EncryptManager hai chiều
 
         [Fact]
-        public void GetEncryptor_WhenInbound_ReadsInboundCodecAndDecryptionKeyRef_Test()
+        public void GetEncryptor_WhenInbound_ReadsInboundEncryptorAndDecryptionKeyRef_Test()
         {
             // Arrange
             var mockKeyResolver = new TestKeyResolver("test-inbound-key", TestAes256Key);
             var encryptManager = new EncryptManager(mockKeyResolver);
             var config = new Dictionary<string, string>
             {
-                ["Codec"] = "None",
-                ["EncryptionKeyRef"] = "outbound-key",
-                ["InboundCodec"] = "AesGcm",
-                ["DecryptionKeyRef"] = "test-inbound-key"
+                [ConnectKeys.Encryptor] = EncryptorNames.None,
+                [ConnectKeys.EncryptionKeyRef] = "outbound-key",
+                [ConnectKeys.InboundEncryptor] = EncryptorNames.AesGcm,
+                [ConnectKeys.DecryptionKeyRef] = "test-inbound-key"
             };
 
             // Act
@@ -128,7 +128,7 @@ namespace Tests.ShareData.Services
             var encryptManager = new EncryptManager();
             var config = new Dictionary<string, string>
             {
-                ["InboundCodec"] = "AesGcm"
+                [ConnectKeys.InboundEncryptor] = EncryptorNames.AesGcm
             };
 
             // Act & Assert
