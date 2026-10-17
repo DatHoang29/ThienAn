@@ -176,6 +176,17 @@ test.describe('ShareData — Kiểm thử 10 lỗi giao diện và logic (Sharin
 
 		// 4. View trang sharing KHÔNG còn import loading.scss
 		expect(content).not.toContain("@import '../style/loading.scss';");
+
+		// 5. Kích thước spinner rõ bự, thoáng đẹp (50px thường, 54px sub-card, text 14px)
+		expect(content).toMatch(/\.circular\s*\{[^}]*width:\s*50px;\s*height:\s*50px;/);
+		expect(content).toMatch(/\.sub-card\s+:deep\(\.el-loading-spinner\s+\.circular\)\s*\{\s*width:\s*54px;\s*height:\s*54px;\s*\}/);
+		expect(content).toMatch(/\.el-loading-text\s*\{[^}]*font-size:\s*14px;/);
+
+		// 6. Animation xoay mượt mà (linear), không dùng steps(8) gây khựng/lag, có tăng tốc phần cứng
+		expect(content).toContain('animation: sharedata-roll 0.9s linear infinite;');
+		expect(content).not.toContain('steps(8)');
+		expect(content).toContain('will-change: transform;');
+		expect(content).toContain('transform-origin: center;');
 	});
 });
 
@@ -310,5 +321,22 @@ test.describe('E2E Runtime UI Check trên http://localhost:8888/#/shareData/shar
 		const cancelBtn = dialog.locator('.dialog-footer button:has-text("Hủy")');
 		await cancelBtn.click();
 		await expect(dialog).toBeHidden();
+	});
+
+	test('Bug 12 — Reactive slot #row_datatype và packetNameOf chống hiển thị Snowflake ID thô', async () => {
+		const labelHelperPath = resolveWebVueSrc('utils/sharedata/labelHelper.ts');
+		const helperContent = fs.readFileSync(labelHelperPath, 'utf-8');
+		const subTableContent = fs.readFileSync(subscriptionTablePath, 'utf-8');
+
+		// 1. labelHelper.ts: xử lý an toàn ép kiểu String(id).trim() và fallback khi list rỗng
+		expect(helperContent).toContain('String(id).trim()');
+		expect(helperContent).toContain('!Array.isArray(list) || list.length === 0');
+
+		// 2. subscriptionTable.vue: có template slot #row_datatype để Vue Reactivity tự re-render khi packetList nạp xong
+		expect(subTableContent).toContain('<template #row_datatype="{ row }">');
+		expect(subTableContent).toContain("slots: { default: 'row_datatype' }");
+
+		// 3. subscriptionTable.vue: có watcher theo dõi packetList để cập nhật options.data
+		expect(subTableContent).toContain('watch(packetList, () => {');
 	});
 });

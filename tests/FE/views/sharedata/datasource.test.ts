@@ -1914,6 +1914,237 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(indexContent).not.toContain('OPTION (RECOMPILE)');
         expect(indexContent).not.toContain('handleCheckSqlSafety');
     });
+
+    test('28. Cụm tag biến hệ thống hiển thị ở cả 2 chế độ (builder/raw) và tự động chèn/thêm điều kiện khi click', async () => {
+        const qbPath = resolveWebvuePath('views/sharedata/dataSource/component/queryBuilder.vue');
+        const qbContent = fs.readFileSync(qbPath, 'utf8');
+
+        // 1. Tag biến hệ thống không còn bị gắn v-if="viewMode === 'builder'"
+        expect(qbContent).not.toMatch(/<div[^>]*v-if="viewMode === 'builder'"[^>]*class="vqb-cursor-chips"/);
+        expect(qbContent).toContain('class="vqb-cursor-chips"');
+
+        // 2. Định nghĩa danh sách biến hệ thống có mô tả i18n
+        expect(qbContent).toContain('const systemParamsList = [');
+        expect(qbContent).toContain("name: '@lastTime'");
+        expect(qbContent).toContain("descKey: 'lz.label.sharedataDataSource.paramSourceLastTime'");
+        expect(qbContent).toContain("name: '@lastKey'");
+        expect(qbContent).toContain("descKey: 'lz.label.sharedataDataSource.paramSourceLastKey'");
+        expect(qbContent).toContain("name: '@pageSize'");
+        expect(qbContent).toContain("descKey: 'lz.label.sharedataDataSource.paramSourcePageSize'");
+        expect(qbContent).toContain("name: '@fromDate'");
+        expect(qbContent).toContain("descKey: 'lz.label.sharedataDataSource.paramSourceFromDate'");
+        expect(qbContent).toContain("name: '@toDate'");
+        expect(qbContent).toContain("descKey: 'lz.label.sharedataDataSource.paramSourceToDate'");
+
+        // 3. Bọc tag trong tooltip
+        expect(qbContent).toContain('<el-tooltip');
+        expect(qbContent).toContain(':content="$t(param.descKey)"');
+        expect(qbContent).toContain('@click="handleInsertParam(param.name)"');
+
+        // 4. Logic xử lý clipboard và thông báo thành công
+        expect(qbContent).toContain('navigator?.clipboard?.writeText');
+        expect(qbContent).toContain('lz.message.sharedataDataSource.paramInserted');
+
+        // 5. Logic xử lý builder mode: pageSize và tự động tạo rule mới theo từng loại biến
+        expect(qbContent).toContain("paramName === '@pageSize'");
+        expect(qbContent).toContain("builderModel.topOption = 'pageSize'");
+        expect(qbContent).toContain("paramName === '@lastTime'");
+        expect(qbContent).toContain("COALESCE(${alias}.UpdateTime, ${alias}.CreateTime, ${alias}.DetectTime)");
+        expect(qbContent).toContain("paramName === '@lastKey'");
+        expect(qbContent).toContain("${alias}.ID");
+        expect(qbContent).toContain("paramName === '@fromDate'");
+        expect(qbContent).toContain("paramName === '@toDate'");
+
+        // 6. Kiểm tra từ điển i18n vi-vn và en-us
+        const viPath = resolveWebvuePath('i18n/lang/vi-vn.json');
+        const viContent = JSON.parse(fs.readFileSync(viPath, 'utf8'));
+        expect(viContent['lz.message.sharedataDataSource.paramInserted']).toBe('Đã chèn biến {name} vào câu lệnh SQL');
+
+        const enPath = resolveWebvuePath('i18n/lang/en-us.json');
+        const enContent = JSON.parse(fs.readFileSync(enPath, 'utf8'));
+        expect(enContent['lz.message.sharedataDataSource.paramInserted']).toBe('Inserted variable {name} into SQL query');
+    });
+
+    test('29. Mệnh đề ORDER BY sinh ra từ queryBuilder và index.vue luôn hợp lệ, không bao giờ chứa ASC ASC hay DESC ASC', async () => {
+        const qbPath = resolveWebvuePath('views/sharedata/dataSource/component/queryBuilder.vue');
+        const qbContent = fs.readFileSync(qbPath, 'utf8');
+
+        const indexVuePath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
+        const indexContent = fs.readFileSync(indexVuePath, 'utf8');
+
+        // 1. Quét tĩnh queryBuilder.vue: đảm bảo generateSql kiểm tra chuỗi kết thúc ASC/DESC
+        expect(qbContent).toContain('let orderExpr = builderModel.orderByField.trim();');
+        expect(qbContent).toContain('!/\\b(ASC|DESC)$/i.test(orderExpr)');
+        expect(qbContent).toContain('const orderClause = orderExpr ? `\\nORDER BY ${orderExpr}` : \'\';');
+
+        // 2. Quét tĩnh queryBuilder.vue: parseSqlToModel bảo toàn orderSlice khi có nhiều cột (dấu phẩy)
+        expect(qbContent).toContain("if (orderSlice.includes(',')) {");
+        expect(qbContent).toContain('parsedOrderBy = orderSlice;');
+
+        // 3. Quét tĩnh index.vue: handleGenerateSqlFromSavedFields phân tách chuẩn xác whereClause và orderClause
+        expect(indexContent).toContain('const whereClause = isSnapshot');
+        expect(indexContent).toContain('const orderClause = isSnapshot');
+        expect(indexContent).toContain('ORDER BY ${alias}.UpdateTime DESC');
+        expect(indexContent).toContain('ORDER BY COALESCE(${alias}.UpdateTime, ${alias}.CreateTime, ${alias}.DetectTime) ASC, ${alias}.ID ASC');
+
+        // 4. Mô phỏng hàm generateSql để kiểm chứng các kịch bản thực tế
+        const simulateGenerateOrderClause = (orderByField: string, orderDirection: 'ASC' | 'DESC') => {
+            let orderExpr = orderByField.trim();
+            if (orderExpr && !/\b(ASC|DESC)$/i.test(orderExpr) && orderDirection) {
+                orderExpr = `${orderExpr} ${orderDirection}`;
+            }
+            return orderExpr ? `\nORDER BY ${orderExpr}` : '';
+        };
+
+        // Kịch bản A: Đa cột đã có ASC/DESC (mẫu gói tin TmsTrafficData, TmsIncident, TmsWeather, TollTransactionOut)
+        const multiColWithAsc = 'COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC';
+        const resA = simulateGenerateOrderClause(multiColWithAsc, 'ASC');
+        expect(resA).toBe('\nORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC');
+        expect(resA).not.toContain('ASC ASC');
+        expect(resA).not.toContain('DESC ASC');
+
+        // Kịch bản B: Cột đơn đã có DESC (mẫu TmsZoneStatus, CctvDevice, VmsCurrent)
+        const singleColDesc = 'zs.UpdateTime DESC';
+        const resB = simulateGenerateOrderClause(singleColDesc, 'ASC');
+        expect(resB).toBe('\nORDER BY zs.UpdateTime DESC');
+        expect(resB).not.toContain('DESC ASC');
+        expect(resB).not.toContain('ASC ASC');
+
+        // Kịch bản C: Cột đơn chưa có thứ tự sắp xếp -> Tự động nối orderDirection
+        const singleColPlain = 'td.ID';
+        const resCAsc = simulateGenerateOrderClause(singleColPlain, 'ASC');
+        expect(resCAsc).toBe('\nORDER BY td.ID ASC');
+        expect(resCAsc).not.toContain('ASC ASC');
+
+        const resCDesc = simulateGenerateOrderClause(singleColPlain, 'DESC');
+        expect(resCDesc).toBe('\nORDER BY td.ID DESC');
+        expect(resCDesc).not.toContain('DESC DESC');
+
+        // Kịch bản D: Rỗng -> Không sinh mệnh đề ORDER BY
+        expect(simulateGenerateOrderClause('', 'ASC')).toBe('');
+        expect(simulateGenerateOrderClause('   ', 'DESC')).toBe('');
+
+        // 5. Kiểm tra toàn bộ predefinedTables trong queryBuilder không sinh ra lỗi cú pháp
+        const defaultOrderByMatches = qbContent.match(/defaultOrderBy:\s*['"`]([^'"`]+)['"`]/g) || [];
+        expect(defaultOrderByMatches.length).toBeGreaterThanOrEqual(7);
+        for (const match of defaultOrderByMatches) {
+            const raw = match.replace(/defaultOrderBy:\s*['"`]/, '').replace(/['"`]$/, '');
+            const clause = simulateGenerateOrderClause(raw, 'ASC');
+            expect(clause).not.toContain('ASC ASC');
+            expect(clause).not.toContain('DESC ASC');
+            expect(clause).not.toContain('ASC DESC');
+            expect(clause).not.toContain('DESC DESC');
+        }
+    });
+
+    test('31. Rút gọn nhãn Bảng nguồn súc tích và tăng độ rộng ô chọn lên 260px trong Visual Query Builder', async ({ page }) => {
+        const qbPath = resolveWebvuePath('views/sharedata/dataSource/component/queryBuilder.vue');
+        const qbContent = fs.readFileSync(qbPath, 'utf8');
+
+        // 1. Quét tĩnh mã nguồn: sử dụng hàm getTableShortLabel và class vqb-table-select có width: 260px
+        expect(qbContent).toContain(':label="getTableShortLabel(tb)"');
+        expect(qbContent).toContain('function getTableShortLabel(tb: { name: string; descKey?: string; description?: string }): string');
+        expect(qbContent).toContain('.vqb-table-select {\n\t\t\twidth: 260px;');
+        expect(qbContent).not.toContain(':label="`${tb.name} (${tb.descKey ? $t(tb.descKey) : tb.description})`"');
+
+        // 2. Kiểm thử logic chuẩn hóa nhãn rút gọn cho các bảng nguồn ITS
+        const simulateShortLabel = (name: string) => {
+            const shortMap: Record<string, string> = {
+                TmsZone: 'Đoạn đường',
+                TmsZoneStatus: 'Lưu thông',
+                TmsTrafficStatistic: 'Thống kê',
+                TmsEquipment: 'Thiết bị',
+                TmsTrafficData: 'Dò xe',
+                TmsWeather: 'Thời tiết',
+                TmsIncident: 'Sự cố',
+                TmsEventType: 'Loại sự cố',
+                CctvDevice: 'Camera CCTV',
+                VmsCurrent: 'Biển báo VMS',
+                VmsBoard: 'Thiết bị VMS',
+                TollTransactionIn: 'Thu phí vào',
+                TollTransactionOut: 'Thu phí ra',
+                TollLane: 'Làn thu phí',
+                TollStation: 'Trạm thu phí',
+                TmsRoute: 'Tuyến đường',
+                TmsWimData: 'Cân tải trọng',
+                TmsVehicleRegistration: 'Đăng kiểm',
+            };
+            const desc = shortMap[name];
+            return desc ? `${name} (${desc})` : name;
+        };
+
+        expect(simulateShortLabel('TmsZone')).toBe('TmsZone (Đoạn đường)');
+        expect(simulateShortLabel('TmsZoneStatus')).toBe('TmsZoneStatus (Lưu thông)');
+        expect(simulateShortLabel('TmsTrafficStatistic')).toBe('TmsTrafficStatistic (Thống kê)');
+        expect(simulateShortLabel('TmsEquipment')).toBe('TmsEquipment (Thiết bị)');
+        expect(simulateShortLabel('TmsTrafficData')).toBe('TmsTrafficData (Dò xe)');
+        expect(simulateShortLabel('TmsWeather')).toBe('TmsWeather (Thời tiết)');
+        expect(simulateShortLabel('TmsIncident')).toBe('TmsIncident (Sự cố)');
+        expect(simulateShortLabel('TmsEventType')).toBe('TmsEventType (Loại sự cố)');
+        expect(simulateShortLabel('CctvDevice')).toBe('CctvDevice (Camera CCTV)');
+        expect(simulateShortLabel('VmsCurrent')).toBe('VmsCurrent (Biển báo VMS)');
+        expect(simulateShortLabel('VmsBoard')).toBe('VmsBoard (Thiết bị VMS)');
+        expect(simulateShortLabel('TollTransactionIn')).toBe('TollTransactionIn (Thu phí vào)');
+        expect(simulateShortLabel('TollTransactionOut')).toBe('TollTransactionOut (Thu phí ra)');
+        expect(simulateShortLabel('TollLane')).toBe('TollLane (Làn thu phí)');
+        expect(simulateShortLabel('TollStation')).toBe('TollStation (Trạm thu phí)');
+        expect(simulateShortLabel('TmsRoute')).toBe('TmsRoute (Tuyến đường)');
+        expect(simulateShortLabel('TmsWimData')).toBe('TmsWimData (Cân tải trọng)');
+        expect(simulateShortLabel('TmsVehicleRegistration')).toBe('TmsVehicleRegistration (Đăng kiểm)');
+        expect(simulateShortLabel('CustomUnknownTable')).toBe('CustomUnknownTable');
+
+        // Nhãn không còn chứa mã gói hay câu mô tả dài
+        const allLabels = [
+            'TmsZone', 'TmsZoneStatus', 'TmsTrafficStatistic', 'TmsEquipment',
+            'TmsTrafficData', 'TmsWeather', 'TmsIncident', 'TmsEventType',
+            'CctvDevice', 'VmsCurrent', 'VmsBoard', 'TollTransactionIn',
+            'TollTransactionOut', 'TollLane', 'TollStation', 'TmsRoute',
+            'TmsWimData', 'TmsVehicleRegistration'
+        ].map(simulateShortLabel);
+
+        for (const lbl of allLabels) {
+            expect(lbl).not.toMatch(/\(Gói\s*\d+/i);
+            expect(lbl).not.toMatch(/P\d{3}/i);
+            expect(lbl.length).toBeLessThanOrEqual(35);
+        }
+
+        // 3. Render giao diện thực tế: kiểm tra select Bảng nguồn và độ rộng hiển thị
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+
+        const packetGrid = page.locator('.packet-col .vxe-grid');
+        await expect(packetGrid).toBeVisible({ timeout: 15_000 });
+        await page.locator('.vxe-table--body-wrapper tbody tr').first().click();
+
+        const tabs = page.locator('.datasource-right-tabs');
+        await expect(tabs).toBeVisible({ timeout: 15_000 });
+
+        const sqlTab = tabs.getByRole('tab', { name: /Cấu hình SQL/ });
+        await sqlTab.click();
+        await expect(sqlTab).toHaveClass(/is-active/);
+
+        const tableSelect = page.locator('.visual-query-builder-container .vqb-table-select');
+        await expect(tableSelect).toBeVisible();
+
+        const box = await tableSelect.boundingBox();
+        expect(box).toBeTruthy();
+        if (box) {
+            expect(box.width).toBeGreaterThanOrEqual(250);
+        }
+
+        // Mở dropdown chọn bảng nguồn
+        await tableSelect.click();
+        const popper = page.locator('.el-select__popper:visible');
+        await expect(popper).toBeVisible({ timeout: 5_000 });
+
+        const optItems = popper.locator('.el-select-dropdown__item');
+        const optCount = await optItems.count();
+        expect(optCount).toBeGreaterThan(0);
+
+        const firstOptText = (await optItems.first().innerText()).trim();
+        expect(firstOptText).not.toMatch(/\(Gói\s*\d+/i);
+        expect(firstOptText).not.toMatch(/P\d{3}/i);
+    });
 });
 
 

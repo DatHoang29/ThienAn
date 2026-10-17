@@ -5,16 +5,14 @@ GO
 -- FILE: 03-sharedata-seed-cau-hinh.sql
 -- DESCRIPTION: Nạp cấu hình danh mục và hệ thống cho phân hệ ShareData (ESHARE):
 --              1. Khởi tạo SysConfigType 'sharedata_error_code' (nếu chưa có).
---              2. Nạp đầy đủ 24 mã cảnh báo lỗi ESH-xxxx theo ESHARE §9 vào SysConfigData
---                 (13 Outbound, 7 Inbound, 4 Tracking), chỉ thêm các mã chưa có.
---              3. Nạp danh mục 15 bảng theo dõi Change Tracking 'sharedata_tracker' vào SysOpConfig
---                 (chỉ thêm các bảng chưa có; bảng TmsEquipment giữ Status = 0).
---              4. Khai nhóm 'sharedata_tracker' vào SysConfigData loại 'operation_config_type' để màn hình
---                 "Cấu hình hoạt động" hiển thị và cho chọn nhóm này (chỉ thêm nếu chưa có).
+--              2. Nạp đầy đủ 25 mã cảnh báo lỗi ESH-xxxx theo ESHARE §9 vào SysConfigData
+--                 (14 Outbound, 7 Inbound, 4 Tracking), chỉ thêm các mã chưa có.
+--              3. Đảm bảo bảng ShareDataTrackTable tồn tại và nạp danh mục 15 bảng theo dõi
+--                 Change Tracking (chỉ thêm các bảng chưa có; bảng TmsEquipment giữ Status = 0).
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent, không ghi đè cấu hình đã sửa).
--- CẬP NHẬT LẦN CUỐI: 16102026
+-- CẬP NHẬT LẦN CUỐI: 17/10/2026
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -55,9 +53,9 @@ BEGIN
 END
 
 -- -----------------------------------------------------------------------------------------
--- 2. NẠP DANH SÁCH 24 MÃ CẢNH BÁO LỖI ESH-xxxx VÀO SysConfigData
+-- 2. NẠP DANH SÁCH 25 MÃ CẢNH BÁO LỖI ESH-xxxx VÀO SysConfigData
 -- -----------------------------------------------------------------------------------------
-PRINT N'-> 2. Nạp danh mục 24 mã cảnh báo lỗi ESH-xxxx vào SysConfigData...';
+PRINT N'-> 2. Nạp danh mục 25 mã cảnh báo lỗi ESH-xxxx vào SysConfigData...';
 
 DECLARE @ErrorCodes TABLE (
     [Code] NVARCHAR(64),
@@ -70,7 +68,7 @@ DECLARE @ErrorCodes TABLE (
 
 INSERT INTO @ErrorCodes ([Code], [Name], [Value], [TagType], [OrderNo], [Remark])
 VALUES
-    -- Outbound (13 mã)
+    -- Outbound (14 mã)
     (N'ESH-1201', N'Bộ mã khai trong metadata không tồn tại trong CSDL', N'outbound', N'warning', 1201,
      N'Kiểm tra lại cấu hình CodeSet trong metadata.'),
     (N'ESH-1202', N'Trường bắt buộc bị thiếu hoặc null — huỷ kết xuất', N'outbound', N'danger', 1202,
@@ -97,6 +95,8 @@ VALUES
      N'Kiểm tra kết nối mạng và endpoint của đối tác.'),
     (N'ESH-1402', N'Lưu đệm payload/bằng chứng thất bại, hủy gửi và giữ nguyên mốc', N'outbound', N'danger', 1402,
      N'Kiểm tra quyền ghi thư mục NasStorage:BasePath hoặc dung lượng ổ đĩa lưu trữ bằng chứng.'),
+    (N'ESH-1403', N'Giá trị cấu hình kết nối không hợp lệ bị bỏ qua hoặc thay bằng mặc định', N'outbound', N'warning', 1403,
+     N'Kiểm tra lại cấu hình kết nối ConnectionConfig của đối tác.'),
 
     -- Inbound (7 mã)
     (N'ESH-1501', N'Không đọc được nội dung gói tin nhận về', N'inbound', N'danger', 1501,
@@ -156,147 +156,129 @@ DECLARE @SkippedErrors INT = @TotalErrors - @InsertedErrors;
 PRINT N'   -> Đã seed ' + CAST(@InsertedErrors AS NVARCHAR(10)) + N' mã lỗi mới; bỏ qua ' + CAST(@SkippedErrors AS NVARCHAR(10)) + N' mã đã có sẵn trong SysConfigData.';
 
 -- -----------------------------------------------------------------------------------------
--- 3. NẠP DANH SÁCH 15 BẢNG GIÁM SÁT CHANGE TRACKING VÀO SysOpConfig (sharedata_tracker)
+-- 3. ĐẢM BẢO BẢNG ShareDataTrackTable TỒN TẠI VÀ NẠP 15 BẢNG GIÁM SÁT CHANGE TRACKING
 -- -----------------------------------------------------------------------------------------
-PRINT N'-> 3. Nạp danh mục 15 bảng theo dõi Change Tracking vào SysOpConfig...';
+PRINT N'-> 3. Kiểm tra bảng ShareDataTrackTable và nạp danh mục 15 bảng theo dõi Change Tracking...';
 
-DECLARE @TrackerConfigs TABLE (
-    [Code] NVARCHAR(128),
-    [Name] NVARCHAR(64),
-    [Value] NVARCHAR(256),
-    [OrderNo] INT,
-    [Status] INT,
-    [Remark] NVARCHAR(1024)
+IF OBJECT_ID(N'[dbo].[ShareDataTrackTable]', N'U') IS NULL
+BEGIN
+    PRINT N'   -> Đang tạo bảng [dbo].[ShareDataTrackTable]...';
+    CREATE TABLE [dbo].[ShareDataTrackTable] (
+        [ID]             VARCHAR(64)    NOT NULL PRIMARY KEY,
+        [TableName]      NVARCHAR(128)  NOT NULL,
+        [Name]           NVARCHAR(128)  NULL,
+        [PacketCodes]    NVARCHAR(250)  NULL,
+        [Status]         INT            NULL,
+        [OrderNo]        INT            NULL,
+        [Remark]         NVARCHAR(1000) NULL,
+        [LastVersion]    BIGINT         NULL,
+        [LastChangeTime] DATETIME       NULL,
+        [LastIssue]      NVARCHAR(250)  NULL,
+        [Code]           NVARCHAR(128)  NULL,
+        [TenantId]       VARCHAR(64)    NULL,
+        [CreateTime]     DATETIME       NULL,
+        [UpdateTime]     DATETIME       NULL,
+        [CreateUId]      VARCHAR(64)    NULL,
+        [UpdateUId]      VARCHAR(64)    NULL,
+        [RowStatus]      NVARCHAR(64)   NULL,
+        [IsDelete]       DATETIME       NULL
+    );
+
+    CREATE UNIQUE NONCLUSTERED INDEX [index_ShareDataTrackTable_TableName]
+        ON [dbo].[ShareDataTrackTable] ([TableName] ASC, [IsDelete] ASC);
+
+    PRINT N'   -> Đã tạo bảng [dbo].[ShareDataTrackTable] thành công.';
+END
+
+DECLARE @TrackTables TABLE (
+    [ID]          VARCHAR(64),
+    [TableName]   NVARCHAR(128),
+    [Name]        NVARCHAR(128),
+    [PacketCodes] NVARCHAR(250),
+    [OrderNo]     INT,
+    [Status]      INT,
+    [Remark]      NVARCHAR(1000)
 );
 
-INSERT INTO @TrackerConfigs ([Code], [Name], [Value], [OrderNo], [Status], [Remark])
+INSERT INTO @TrackTables ([ID], [TableName], [Name], [PacketCodes], [OrderNo], [Status], [Remark])
 VALUES
-    (N'TmsZoneStatus', N'Trạng thái khu vực giao thông', N'101,101_commonData', 10, 1,
+    ('1500000000201', N'TmsZoneStatus', N'Trạng thái khu vực giao thông', N'101,101_commonData', 10, 1,
      N'Giám sát thay đổi trạng thái zone để kích hoạt gói dữ liệu dùng chung (101).'),
 
-    (N'TmsZone', N'Danh mục khu vực giao thông', N'101,101_commonData', 20, 1,
+    ('1500000000202', N'TmsZone', N'Danh mục khu vực giao thông', N'101,101_commonData', 20, 1,
      N'Giám sát thay đổi danh mục zone để kích hoạt gói dữ liệu dùng chung (101).'),
 
-    (N'TmsTrafficStatistic', N'Thống kê lưu lượng giao thông', N'101,101_commonData', 30, 1,
+    ('1500000000203', N'TmsTrafficStatistic', N'Thống kê lưu lượng giao thông', N'101,101_commonData', 30, 1,
      N'Giám sát dữ liệu thống kê giao thông để kích hoạt gói dữ liệu dùng chung (101).'),
 
-    (N'CctvDevice', N'Thiết bị camera giám sát', N'102,102_cctvData', 40, 1,
+    ('1500000000204', N'CctvDevice', N'Thiết bị camera giám sát', N'102,102_cctvData', 40, 1,
      N'Giám sát dữ liệu camera để kích hoạt gói dữ liệu CCTV (102).'),
 
-    (N'TmsTrafficData', N'Dữ liệu lưu lượng VDS và WIM', N'103,103_vdsData,106,106_wimData', 50, 1,
+    ('1500000000205', N'TmsTrafficData', N'Dữ liệu lưu lượng VDS và WIM', N'103,103_vdsData,106,106_wimData', 50, 1,
      N'Giám sát dữ liệu đo đếm giao thông kích hoạt gói VDS (103) và WIM cân tải trọng (106).'),
 
-    (N'TmsWeather', N'Dữ liệu khí tượng thời tiết', N'104,104_weatherData', 60, 1,
+    ('1500000000206', N'TmsWeather', N'Dữ liệu khí tượng thời tiết', N'104,104_weatherData', 60, 1,
      N'Giám sát dữ liệu trạm khí tượng để kích hoạt gói thời tiết (104).'),
 
-    (N'TollTransactionIn', N'Giao dịch thu phí đầu vào', N'105,105_rfidData,109,109_etcData', 70, 1,
+    ('1500000000207', N'TollTransactionIn', N'Giao dịch thu phí đầu vào', N'105,105_rfidData,109,109_etcData', 70, 1,
      N'Giám sát giao dịch vào trạm kích hoạt gói RFID (105) và gói ETC thu phí (109).'),
 
-    (N'TollTransactionOut', N'Giao dịch thu phí đầu ra', N'105,105_rfidData,109,109_etcData', 80, 1,
+    ('1500000000208', N'TollTransactionOut', N'Giao dịch thu phí đầu ra', N'105,105_rfidData,109,109_etcData', 80, 1,
      N'Giám sát giao dịch ra trạm kích hoạt gói RFID (105) và gói ETC thu phí (109).'),
 
-    (N'TmsVehicleRegistration', N'Đăng ký phương tiện', N'105,105_rfidData', 90, 1,
+    ('1500000000209', N'TmsVehicleRegistration', N'Đăng ký phương tiện', N'105,105_rfidData', 90, 1,
      N'Giám sát dữ liệu phương tiện đăng ký kích hoạt gói RFID (105).'),
 
-    (N'TmsIncident', N'Sự cố giao thông', N'107,107_incidentData,110,110_wpData,111', 100, 1,
+    ('1500000000210', N'TmsIncident', N'Sự cố giao thông', N'107,107_incidentData,110,110_wpData,111', 100, 1,
      N'Giám sát sự cố giao thông kích hoạt gói sự cố (107) và các gói tích hợp phụ trợ (110, 111).'),
 
-    (N'TmsEventType', N'Loại sự kiện giao thông', N'107,107_incidentData,110,110_wpData,111', 110, 1,
+    ('1500000000211', N'TmsEventType', N'Loại sự kiện giao thông', N'107,107_incidentData,110,110_wpData,111', 110, 1,
      N'Giám sát danh mục loại sự kiện giao thông kích hoạt gói sự cố (107) và phụ trợ (110, 111).'),
 
-    (N'VmsCurrent', N'Thông tin bản tin biển báo VMS', N'108,108_vmsInfo', 120, 1,
+    ('1500000000212', N'VmsCurrent', N'Thông tin bản tin biển báo VMS', N'108,108_vmsInfo', 120, 1,
      N'Giám sát trạng thái hiển thị biển báo VMS kích hoạt gói tin VMS (108).'),
 
-    (N'TmsEquipment', N'Danh mục thiết bị phần cứng', N'102,102_cctvData,103,103_vdsData,108,108_vmsInfo', 130, 0,
+    ('1500000000213', N'TmsEquipment', N'Danh mục thiết bị phần cứng', N'102,102_cctvData,103,103_vdsData,108,108_vmsInfo', 130, 0,
      N'Bảng tra cứu thiết bị, tắt (Status = 0) để tránh trigger quét thừa cho 102/103/108 khi chỉ cập nhật thông tin thiết bị.'),
 
-    (N'TollLane', N'Danh mục làn thu phí', N'109,109_etcData', 140, 1,
+    ('1500000000214', N'TollLane', N'Danh mục làn thu phí', N'109,109_etcData', 140, 1,
      N'Giám sát danh mục làn thu phí trạm kích hoạt gói dữ liệu ETC (109).'),
 
-    (N'TollStation', N'Danh mục trạm thu phí', N'109,109_etcData', 150, 1,
+    ('1500000000215', N'TollStation', N'Danh mục trạm thu phí', N'109,109_etcData', 150, 1,
      N'Giám sát danh mục trạm thu phí kích hoạt gói dữ liệu ETC (109).');
 
-INSERT INTO [dbo].[SysOpConfig] (
-    [ID], [GroupCode], [Code], [Name], [Value], [IsSysConfig], [OrderNo], 
-    [Remark], [Status], [TenantId], [CreateTime], [CreateUId]
+INSERT INTO [dbo].[ShareDataTrackTable] (
+    [ID], [TableName], [Name], [PacketCodes], [OrderNo],
+    [Remark], [Status], [LastVersion], [TenantId], [CreateTime], [CreateUId]
 )
-SELECT 
-    LOWER(CAST(NEWID() AS NVARCHAR(64))),
-    N'sharedata_tracker',
-    src.[Code],
+SELECT
+    CASE
+        WHEN EXISTS (SELECT 1 FROM [dbo].[ShareDataTrackTable] ex WHERE ex.[ID] = src.[ID])
+            THEN LOWER(CAST(NEWID() AS VARCHAR(64)))
+        ELSE src.[ID]
+    END,
+    src.[TableName],
     src.[Name],
-    src.[Value],
-    1,
+    src.[PacketCodes],
     src.[OrderNo],
     src.[Remark],
     src.[Status],
+    NULL,
     @TenantId,
     GETDATE(),
-    N'superadmin'
-FROM @TrackerConfigs src
+    'superadmin'
+FROM @TrackTables src
 WHERE NOT EXISTS (
-    SELECT 1 
-    FROM [dbo].[SysOpConfig] target
-    WHERE target.[GroupCode] = N'sharedata_tracker'
-      AND target.[Code] = src.[Code]
+    SELECT 1
+    FROM [dbo].[ShareDataTrackTable] target
+    WHERE target.[TableName] = src.[TableName]
       AND target.[IsDelete] IS NULL
 );
 
 DECLARE @InsertedTrackers INT = @@ROWCOUNT;
-DECLARE @TotalTrackers INT = (SELECT COUNT(1) FROM @TrackerConfigs);
+DECLARE @TotalTrackers INT = (SELECT COUNT(1) FROM @TrackTables);
 DECLARE @SkippedTrackers INT = @TotalTrackers - @InsertedTrackers;
-PRINT N'   -> Đã seed ' + CAST(@InsertedTrackers AS NVARCHAR(10)) + N' cấu hình tracker mới; bỏ qua ' + CAST(@SkippedTrackers AS NVARCHAR(10)) + N' dòng đã tồn tại trong SysOpConfig.';
-
--- -----------------------------------------------------------------------------------------
--- 4. KHAI NHÓM sharedata_tracker VÀO SysConfigData (operation_config_type)
---    Màn hình "Cấu hình hoạt động" lấy danh sách nhóm từ SysConfigData thuộc loại
---    operation_config_type; thiếu dòng này thì nhóm không hiện trong ô chọn (SQL vẫn chạy).
--- -----------------------------------------------------------------------------------------
-PRINT N'-> 4. Khai nhóm [sharedata_tracker] vào SysConfigData [operation_config_type]...';
-
-DECLARE @OpConfigTypeId NVARCHAR(64);
-
-SELECT @OpConfigTypeId = ID
-FROM   dbo.SysConfigType
-WHERE  Code = N'operation_config_type'
-  AND  IsDelete IS NULL;
-
-IF @OpConfigTypeId IS NULL
-BEGIN
-    PRINT N'   -> ⚠️ Chưa có SysConfigType [operation_config_type] (do seed của WebAPI tạo khi khởi động lần đầu). Bỏ qua mục 4, chạy lại script sau khi WebAPI đã khởi động.';
-END
-ELSE IF EXISTS (
-    SELECT 1
-    FROM   dbo.SysConfigData
-    WHERE  ConfigTypeId = @OpConfigTypeId
-      AND  Code = N'sharedata_tracker'
-      AND  IsDelete IS NULL
-)
-BEGIN
-    PRINT N'   -> Nhóm [sharedata_tracker] đã được khai, bỏ qua.';
-END
-ELSE
-BEGIN
-    INSERT INTO dbo.SysConfigData (
-        [ID], [ConfigTypeId], [Name], [Code], [Value], [TagType],
-        [OrderNo], [Remark], [Status], [TenantId], [CreateTime], [CreateUId]
-    )
-    VALUES (
-        LOWER(CAST(NEWID() AS NVARCHAR(64))),
-        @OpConfigTypeId,
-        N'ShareData - Bảng giám sát Change Tracking',
-        N'sharedata_tracker',
-        N'',
-        N'',
-        1900,
-        N'Danh sách bảng nguồn Worker ShareData theo dõi Change Tracking: Code = tên bảng, Value = mã gói tin cách nhau dấu phẩy, Status 1 = bật / 0 = tắt.',
-        1,
-        @TenantId,
-        GETDATE(),
-        N'superadmin'
-    );
-    PRINT N'   -> Đã khai nhóm [sharedata_tracker] vào operation_config_type.';
-END
+PRINT N'   -> Đã seed ' + CAST(@InsertedTrackers AS NVARCHAR(10)) + N' bảng giám sát mới; bỏ qua ' + CAST(@SkippedTrackers AS NVARCHAR(10)) + N' dòng đã tồn tại trong ShareDataTrackTable.';
 
 PRINT N'=============================================================================';
 PRINT N'✅ HOÀN TẤT KỊCH BẢN SEED CẤU HÌNH SHAREDATA (03-sharedata-seed-cau-hinh.sql)';

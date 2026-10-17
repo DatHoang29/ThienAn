@@ -4,6 +4,7 @@ using Tests.ShareData.Common;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Module.ShareData.Core.Entities;
+using Module.ShareData.Infrastructure.Persistence.SeedData;
 using Modules.TMS.Core.Entities;
 using Modules.TOLL.Core.Entities;
 using Modules.VMS.Core.Entities;
@@ -14,10 +15,9 @@ using ShareDataWorker.Infrastructure.Services.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Extraction;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
 using ShareDataWorker.Infrastructure.Services.DataChangeTracking;
-using Modules.Integration.ShareData.Connect;
-using Modules.Integration.ShareData.Connect.Handlers;
+using Modules.Integration.ShareData.PacketSend;
+using Modules.Integration.ShareData.PacketSend.Senders;
 using System.Text.Json;
-using Modules.CfgSystem.Core.Entities;
 using ShareDataWorker.Infrastructure.Services.DataNats;
 
 namespace Tests.ShareData.Infrastructure.Services.DataOutbound
@@ -25,7 +25,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
     /// <summary>
     /// Description: Bộ kiểm thử chuyên biệt cho SQL Server Change Tracking & DataChangeTrackingService.
     /// Created date: 22/09/2026
-    /// Modified date: 28/09/2026
+    /// Modified date: 17/10/2026
     /// </summary>
     [Collection("api")]
     public class DataChangeTrackingServiceTests
@@ -48,14 +48,14 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             db.Deleteable<TmsTrafficData>().ExecuteCommand();
             db.Deleteable<TmsIncident>().ExecuteCommand();
 
-            EnsureDefaultSysOpConfigTrackers(db).GetAwaiter().GetResult();
+            EnsureDefaultTrackTables(db).GetAwaiter().GetResult();
         }
 
         #region 1. DataChangeTrackingService Static & Status Tests
 
         /// <summary>
         /// Description: Kiểm thử chu kỳ đầu tiên của PollChangeTracking: Tự động khởi tạo cấu hình Change Tracking,
-        ///              kiểm tra CSDL và thiết lập mốc LastVersion trong bảng ShareDataTrackVersion ban đầu (>= 0).
+        ///              kiểm tra CSDL và thiết lập mốc LastVersion trong bảng ShareDataTrackTable ban đầu (>= 0).
         /// Created date: 26/09/2026
         /// </summary>
         [Fact]
@@ -276,9 +276,11 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         }
 
         /// <summary>
-        /// Description: Kiểm chứng khi CHỈ MỘT PHẦN bảng nguồn có mốc tối thiểu mới hơn mốc đang giữ: worker cô lập
-        ///              riêng chúng, GIỮ nguyên mốc, và các bảng còn lành vẫn nằm trong câu truy vấn thay đổi.
+        /// Description: Kiểm chứng khi CHỈ MỘT PHẦN bảng nguồn có mốc tối thiểu mới hơn mốc đang giữ: worker nhảy cóc
+        ///              RIÊNG bảng quá hạn đó lên version hiện tại, ghi LastIssue và ESH-1601, trong khi các bảng lành
+        ///              mạnh khác vẫn giữ nguyên mốc để tiếp tục bắt thay đổi.
         /// Created date: 02/10/2026
+        /// Modified date: 17/10/2026
         /// </summary>
         [Fact]
         public async Task PollChanges_WhenOnlySomeTablesAreStale_IsolatesThemAndKeepsTriggerForHealthy_Test()
@@ -294,7 +296,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var baseline = await GetStateVersion(db);
             Assert.True(baseline >= 0, "Baseline version phải >= 0 sau khi khởi tạo.");
 
-            // Arrange 2: Disable / Enable TmsWeather => minValid nhảy lên bằng version CSDL hiện tại
+            // Arrange 2: Disable / Enable TmsWeather => minValid của TmsWeather nhảy lên bằng version CSDL hiện tại
             var isTracked = await db.Ado.GetIntAsync(
                 "SELECT COUNT(1) FROM sys.change_tracking_tables WHERE object_id = OBJECT_ID('TmsWeather')") > 0;
             if (isTracked)
@@ -312,47 +314,49 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 CreateTime = DateTime.Now
             }).ExecuteCommandAsync();
 
-            // Arrange 4: Đặt mốc xuống dưới minValid (nhưng >= 0, không âm, để không đi nhánh khởi tạo)
+            // Arrange 4: Hạ riêng mốc của TmsWeather xuống dưới minValid (nhưng >= 0), giữ các bảng khác ở minValid (hợp lệ)
             var staleVersion = Math.Max(0L, minValid - 1);
-            await SetStateVersion(db, staleVersion);
+            await SetStateVersion(db, minValid);
+            await db.Updateable<ShareDataTrackTable>()
+                .SetColumns(x => x.LastVersion == staleVersion)
+                .SetColumns(x => x.LastIssue == null)
+                .Where(x => x.IsDelete == null && x.TableName == "TmsWeather")
+                .ExecuteCommandAsync();
 
             var startedAt = (await db.Ado.GetDateTimeAsync("SELECT GETDATE()")).AddSeconds(-5);
 
             // Act: PollChanges lần 1
             await worker.PollChanges(CancellationToken.None);
 
-            // Assert 1: TmsWeather bị cô lập riêng trong RAM
+            // Assert 1: TmsWeather đã được nhảy cóc riêng lên version hiện tại và ghi LastIssue, KHÔNG bị cô lập vào MissingTables
             var missing = GetMissingTables(worker);
-            Assert.True(missing.ContainsKey("TmsWeather"),
-                $"TmsWeather phải bị cô lập. Danh sách đang cô lập: [{string.Join(", ", missing.Keys)}].");
+            Assert.False(missing.ContainsKey("TmsWeather"));
+            var weatherRow = await GetTrackState(db, "TmsWeather");
+            Assert.NotNull(weatherRow);
+            Assert.True(weatherRow!.LastVersion > minValid);
+            Assert.False(string.IsNullOrWhiteSpace(weatherRow.LastIssue));
 
-            // Assert 2: 🔴 Câu truy vấn đang áp dụng đã loại TmsWeather nhưng GIỮ các bảng lành
-            Assert.DoesNotContain("TmsWeather", worker.ActiveChangesSql);
+            // Assert 2: Câu truy vấn đang áp dụng vẫn giữ cả TmsWeather và TmsTrafficData
+            Assert.Contains("TmsWeather", worker.ActiveChangesSql);
             Assert.Contains("TmsTrafficData", worker.ActiveChangesSql);
 
-            // Assert 3: 🔴 KHÔNG có dòng ESH-1601 nào — mốc KHÔNG bị nhảy cóc vì chỉ một phần quá hạn
-            var esh1601Count = await db.Queryable<ShareDataActivityLog>()
+            // Assert 3: Đúng 1 dòng ESH-1601 (SelfHeal) mang staleTables chứa TmsWeather
+            var esh1601Rows = await db.Queryable<ShareDataActivityLog>()
                 .Where(x => x.Remark == ShareDataAlertCode.Tracking.SelfHeal && x.CreateTime >= startedAt)
-                .CountAsync();
-            Assert.Equal(0, esh1601Count);
-
-            // Assert 4: Đúng 1 dòng ESH-1602 mang staleTables chứa TmsWeather
-            var esh1602Rows = await db.Queryable<ShareDataActivityLog>()
-                .Where(x => x.Remark == ShareDataAlertCode.Tracking.QueryFailed && x.CreateTime >= startedAt)
                 .Where(x => x.AfterJson != null && x.AfterJson.Contains("staleTables"))
                 .ToListAsync();
 
-            Assert.Single(esh1602Rows);
-            Assert.Contains("TmsWeather", esh1602Rows[0].AfterJson!);
+            Assert.Single(esh1601Rows);
+            Assert.Contains("TmsWeather", esh1601Rows[0].AfterJson!);
 
-            // Assert 5: PollChanges lần 2 — KHÔNG sinh thêm dòng cô lập nào (bảng đã nằm trong MissingTables)
+            // Assert 4: PollChanges lần 2 — KHÔNG sinh thêm dòng ESH-1601 nào (mốc của TmsWeather đã hợp lệ lại)
             await worker.PollChanges(CancellationToken.None);
 
-            var esh1602CountAfterSecondPoll = await db.Queryable<ShareDataActivityLog>()
-                .Where(x => x.Remark == ShareDataAlertCode.Tracking.QueryFailed && x.CreateTime >= startedAt)
+            var esh1601CountAfterSecondPoll = await db.Queryable<ShareDataActivityLog>()
+                .Where(x => x.Remark == ShareDataAlertCode.Tracking.SelfHeal && x.CreateTime >= startedAt)
                 .Where(x => x.AfterJson != null && x.AfterJson.Contains("staleTables"))
                 .CountAsync();
-            Assert.Equal(1, esh1602CountAfterSecondPoll);
+            Assert.Equal(1, esh1601CountAfterSecondPoll);
 
             // Bật lại tracking TmsWeather
             await db.Ado.ExecuteCommandAsync(
@@ -444,11 +448,11 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             var worker = CreateTrackerWorker(scope);
 
-            // Act 1: Chu kỳ poll đầu tiên khởi tạo mốc LastVersion trong bảng ShareDataTrackVersion = currentVer
+            // Act 1: Chu kỳ poll đầu tiên khởi tạo mốc LastVersion trong bảng ShareDataTrackTable = currentVer
             await worker.PollChanges(CancellationToken.None);
             Assert.True(await GetStateVersion(db) >= 0);
 
-            // Act 2: Giả lập mốc LastVersion trong bảng ShareDataTrackVersion bị lệch hoặc âm (-10)
+            // Act 2: Giả lập mốc LastVersion trong bảng ShareDataTrackTable bị lệch hoặc âm (-10)
             await SetStateVersion(db, -10);
             await worker.PollChanges(CancellationToken.None);
 
@@ -479,9 +483,10 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         /// Description: Kiểm thử khả năng tự phục hồi và cô lập lỗi (Fault Isolation / Self-Healing) khi một bảng nguồn
         ///              bị mất Change Tracking (DBA tắt CT hoặc bảng bị drop/recreate):
         ///              - Worker KHÔNG bị sập / crash vòng lặp polling vô hạn.
-        ///              - Tự động phát hiện bảng bị mất CT, cô lập bảng lỗi ra khỏi câu truy vấn (trong RAM).
+        ///              - Tự động phát hiện bảng bị mất CT, cô lập bảng lỗi ra khỏi câu truy vấn (trong RAM) và ghi LastIssue.
         ///              - Các bảng nguồn lành mạnh còn lại (healthy tables) vẫn tiếp tục được giám sát, phát hiện thay đổi và tiến mốc LastVersion.
         /// Created date: 27/09/2026
+        /// Modified date: 17/10/2026
         /// </summary>
         [Fact]
         public async Task ChangeTracking_WhenSourceTableLosesTracking_IsolatesBrokenTableAndProcessesHealthyTables_Test()
@@ -537,23 +542,24 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.True(currentVer > initialVersion);
 
             // Act: Chu kỳ poll tiếp theo chạy khi TmsWeather đã mất CT
-            // Trước khi sửa: Lệnh này văng SqlException ("Change tracking is not enabled on table 'TmsWeather'")
-            // Sau khi sửa: Worker tự động cô lập TmsWeather, truy vấn các bảng còn lại, phát hiện TmsTrafficData thay đổi và tiến LastVersion = currentVer
             await worker.PollChanges(CancellationToken.None);
 
             // Assert 1:
-            // Mốc version của worker PHẢI tiến lên currentVer (chứng minh bảng lành mạnh đã được xử lý, không bị nghẽn bởi TmsWeather)
-            var newVersion = await GetStateVersion(db);
-            Assert.Equal(currentVer, newVersion);
+            // Mốc version của TmsTrafficData PHẢI tiến lên currentVer (chứng minh bảng lành mạnh đã được xử lý, không bị nghẽn bởi TmsWeather)
+            var trafficRow = await GetTrackState(db, "TmsTrafficData");
+            Assert.NotNull(trafficRow);
+            Assert.Equal(currentVer, trafficRow!.LastVersion);
 
             // Assert 2:
-            // TmsWeather bị cô lập trong RAM, loại khỏi câu SQL đang áp dụng, và có mốc hẹn thử lại riêng
+            // TmsWeather bị cô lập trong RAM, loại khỏi câu SQL đang áp dụng, có mốc hẹn thử lại riêng và có LastIssue trong DB
             Assert.Contains("TmsWeather", GetMissingTables(worker).Keys);
             Assert.DoesNotContain("TmsWeather", worker.ActiveChangesSql);
             Assert.True(GetMissingTables(worker)["TmsWeather"] > DateTime.UtcNow);
+            var brokenWeatherRow = await GetTrackState(db, "TmsWeather");
+            Assert.NotNull(brokenWeatherRow);
+            Assert.False(string.IsNullOrWhiteSpace(brokenWeatherRow!.LastIssue));
 
-            // Act 2: Có thay đổi dữ liệu mới trong hệ thống làm version CSDL tiến lên TRƯỚC khi DBA bật lại Change Tracking cho TmsWeather,
-            // khiến min_valid_version của TmsWeather mới hơn LastVersion hiện tại của worker.
+            // Act 2: Có thay đổi dữ liệu mới trong hệ thống làm version CSDL tiến lên TRƯỚC khi DBA bật lại Change Tracking cho TmsWeather
             await db.Insertable(new TmsTrafficData
             {
                 ID = $"CAR_ISO2_{testId}",
@@ -575,19 +581,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             await worker.PollChanges(CancellationToken.None);
 
-            // Assert 3a: Bật lại tracking CHƯA đủ — mốc tối thiểu của TmsWeather mới hơn mốc worker đang giữ lúc bắt đầu chu kỳ,
-            // nên bảng vẫn phải nằm ngoài câu SQL (xem MasterPlan §6b).
-            Assert.Contains("TmsWeather", GetMissingTables(worker).Keys);
-            Assert.DoesNotContain("TmsWeather", worker.ActiveChangesSql);
-
-            // Act 3: Sau khi chu kỳ poll trên đã nâng LastVersion của worker lên mốc mới, đến chu kỳ tiếp theo
-            // khi mốc hẹn thử lại tới hạn, TmsWeather sẽ được khôi phục vì LastVersion >= min_valid_version.
-            ExpireMissingTableRetry(worker);
-            await worker.PollChanges(CancellationToken.None);
-
-            // Assert 3b: Giờ mốc đã vượt/bằng min_valid_version, TmsWeather được khôi phục
+            // Assert 3: Với mốc riêng từng bảng trong ShareDataTrackTable, TryRestoreMissingTables tự động nâng mốc riêng của TmsWeather
+            // lên currentVersion, xóa LastIssue và khôi phục ngay TmsWeather vào ActiveChangesSql
             Assert.Empty(GetMissingTables(worker));
             Assert.Contains("TmsWeather", worker.ActiveChangesSql);
+            var restoredWeatherRow = await GetTrackState(db, "TmsWeather");
+            Assert.NotNull(restoredWeatherRow);
+            Assert.Null(restoredWeatherRow!.LastIssue);
 
             // Luôn khôi phục lại Change Tracking cho TmsWeather để không ảnh hưởng các test khác
             await db.Ado.ExecuteCommandAsync(
@@ -1629,12 +1629,12 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             tcs.SetResult();
             await Task.WhenAll(tasks);
 
-            var versionCount = await db.Queryable<ShareDataTrackVersion>().CountAsync();
-            Assert.Equal(1, versionCount);
+            var rowCount = await db.Queryable<ShareDataTrackTable>().Where(x => x.IsDelete == null).CountAsync();
+            Assert.Equal(15, rowCount);
 
-            var finalState = await GetTrackState(db);
+            var finalState = await GetTrackState(db, "TmsZoneStatus");
             Assert.NotNull(finalState);
-            Assert.True(finalState.LastVersion > initialVersion);
+            Assert.True(finalState!.LastVersion > initialVersion);
 
             if (transport.IsConnected)
             {
@@ -1886,7 +1886,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             await db.Insertable(downtimeList).ExecuteCommandAsync();
 
             // 3. Mô phỏng DataChangeTrackingService khởi động lại:
-            // Tạo instance mới của DataChangeTrackingService (mốc LastVersion trong bảng ShareDataTrackVersion khởi tạo = -1)
+            // Tạo instance mới của DataChangeTrackingService (mốc LastVersion trong bảng ShareDataTrackTable khởi tạo = -1)
             // và kích hoạt vòng poll đầu tiên (nhảy thẳng tới version hiện tại của DB, không sinh NATS trigger cho 3 bản ghi ở bước 2)
             await SetStateVersion(db, -1);
             var newWatcher = CreateTrackerWorker(scope, transport);
@@ -2199,58 +2199,71 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
         #region Helpers
 
-        private static async Task EnsureDefaultSysOpConfigTrackers(ISqlSugarClient db)
+        private static async Task EnsureDefaultTrackTables(ISqlSugarClient db)
         {
-            var existingCodes = await db.Queryable<SysOpConfig>()
-                .Where(x => x.GroupCode == "sharedata_tracker" && x.IsDelete == null)
-                .Select(x => x.Code)
+            if (!db.DbMaintenance.IsAnyTable("ShareDataTrackTable", false))
+                db.CodeFirst.InitTables<ShareDataTrackTable>();
+
+            var seedRows = new ShareDataTrackTableSeedData().HasData().ToList();
+            var seedTableNames = seedRows
+                .Where(x => !string.IsNullOrWhiteSpace(x.TableName))
+                .Select(x => x.TableName!.Trim())
+                .ToList();
+
+            await db.Deleteable<ShareDataTrackTable>()
+                .Where(x => x.IsDelete != null || !seedTableNames.Contains(x.TableName))
+                .ExecuteCommandAsync();
+
+            var existingRows = await db.Queryable<ShareDataTrackTable>()
+                .Where(x => x.IsDelete == null)
                 .ToListAsync();
 
-            var defaultConfigs = new (string Code, string Name, string Value, int OrderNo, int Status, string Remark)[]
-            {
-                ("TmsZoneStatus", "Trạng thái khu vực giao thông", "101,101_commonData", 10, 1, "Giám sát zone"),
-                ("TmsZone", "Danh mục khu vực giao thông", "101,101_commonData", 20, 1, "Giám sát zone"),
-                ("TmsTrafficStatistic", "Thống kê lưu lượng giao thông", "101,101_commonData", 30, 1, "Giám sát thống kê"),
-                ("CctvDevice", "Thiết bị camera giám sát", "102,102_cctvData", 40, 1, "Giám sát camera"),
-                ("TmsTrafficData", "Dữ liệu lưu lượng VDS và WIM", "103,103_vdsData,106,106_wimData", 50, 1, "Giám sát đo đếm giao thông"),
-                ("TmsWeather", "Dữ liệu khí tượng thời tiết", "104,104_weatherData", 60, 1, "Giám sát thời tiết"),
-                ("TollTransactionIn", "Giao dịch thu phí đầu vào", "105,105_rfidData,109,109_etcData", 70, 1, "Giám sát vào trạm"),
-                ("TollTransactionOut", "Giao dịch thu phí đầu ra", "105,105_rfidData,109,109_etcData", 80, 1, "Giám sát ra trạm"),
-                ("TmsVehicleRegistration", "Đăng ký phương tiện", "105,105_rfidData", 90, 1, "Giám sát phương tiện"),
-                ("TmsIncident", "Sự cố giao thông", "107,107_incidentData,110,110_wpData,111", 100, 1, "Giám sát sự cố"),
-                ("TmsEventType", "Loại sự kiện giao thông", "107,107_incidentData,110,110_wpData,111", 110, 1, "Giám sát loại sự kiện"),
-                ("VmsCurrent", "Thông tin bản tin biển báo VMS", "108,108_vmsInfo", 120, 1, "Giám sát VMS"),
-                ("TmsEquipment", "Danh mục thiết bị phần cứng", "102,102_cctvData,103,103_vdsData,108,108_vmsInfo", 130, 0, "Bảng tra cứu thiết bị, tắt"),
-                ("TollLane", "Danh mục làn thu phí", "109,109_etcData", 140, 1, "Giám sát làn"),
-                ("TollStation", "Danh mục trạm thu phí", "109,109_etcData", 150, 1, "Giám sát trạm")
-            };
+            var existingByTable = existingRows
+                .Where(x => !string.IsNullOrWhiteSpace(x.TableName))
+                .ToDictionary(x => x.TableName!.Trim(), StringComparer.OrdinalIgnoreCase);
 
-            var toInsert = new List<SysOpConfig>();
-            foreach (var cfg in defaultConfigs)
+            var toInsert = new List<ShareDataTrackTable>();
+            foreach (var seed in seedRows)
             {
-                if (!existingCodes.Contains(cfg.Code, StringComparer.OrdinalIgnoreCase))
+                var tableName = seed.TableName!.Trim();
+                if (!existingByTable.TryGetValue(tableName, out var existing))
                 {
-                    toInsert.Add(new SysOpConfig
+                    toInsert.Add(new ShareDataTrackTable
                     {
-                        ID = Guid.NewGuid().ToString("N"),
-                        GroupCode = "sharedata_tracker",
-                        Code = cfg.Code,
-                        Name = cfg.Name,
-                        Value = cfg.Value,
-                        OrderNo = cfg.OrderNo,
-                        Status = (BaseEnums.StatusEnum)cfg.Status,
-                        Remark = cfg.Remark,
-                        IsSysConfig = true,
-                        TenantId = "Default",
-                        CreateTime = DateTime.Now
+                        ID = seed.ID,
+                        TableName = seed.TableName,
+                        Name = seed.Name,
+                        PacketCodes = seed.PacketCodes,
+                        OrderNo = seed.OrderNo,
+                        Status = seed.Status,
+                        Remark = seed.Remark,
+                        LastVersion = seed.LastVersion,
+                        LastChangeTime = null,
+                        LastIssue = null,
+                        TenantId = seed.TenantId,
+                        CreateTime = seed.CreateTime,
+                        UpdateTime = seed.UpdateTime
                     });
+                }
+                else if (existing.Status != seed.Status
+                      || existing.PacketCodes != seed.PacketCodes
+                      || existing.OrderNo != seed.OrderNo
+                      || existing.Name != seed.Name
+                      || existing.Remark != seed.Remark)
+                {
+                    await db.Updateable<ShareDataTrackTable>()
+                        .SetColumns(x => x.Status == seed.Status)
+                        .SetColumns(x => x.PacketCodes == seed.PacketCodes)
+                        .SetColumns(x => x.OrderNo == seed.OrderNo)
+                        .SetColumns(x => x.Name == seed.Name)
+                        .SetColumns(x => x.Remark == seed.Remark)
+                        .Where(x => x.ID == existing.ID)
+                        .ExecuteCommandAsync();
                 }
             }
 
             if (toInsert.Count > 0)
-            {
                 await db.Insertable(toInsert).ExecuteCommandAsync();
-            }
         }
 
         private static async Task PrepareDatabase(ISqlSugarClient db, ILogger logger, string packetCode = "103")
@@ -2329,12 +2342,12 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
 
             var clientFactory = httpClientFactory ?? scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
-            var dispatcher = scope.ServiceProvider.GetService<IConnectDispatcher>()
-                ?? ConnectDispatcher.CreateForHandlers([
-                    new RestConnectHandler(clientFactory),
-                    new FileConnectHandler(config.GetSection("NasStorage:BasePath").Value ?? "/tmp"),
-                    new KafkaConnectHandler(),
-                    new FtpConnectHandler()
+            var dispatcher = scope.ServiceProvider.GetService<IPacketSendDispatcher>()
+                ?? PacketSendDispatcher.CreateForHandlers([
+                    new RestPacketSender(clientFactory),
+                    new FilePacketSender(config.GetSection("NasStorage:BasePath").Value ?? "/tmp"),
+                    new KafkaPacketSender(),
+                    new FtpPacketSender()
                 ]);
 
             return new DataOutboundService(
@@ -2900,7 +2913,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var state = new ShareDataTrackVersion { ID = Guid.NewGuid().ToString("N"), LastVersion = 0 };
+            var state = new ShareDataTrackTable { ID = Guid.NewGuid().ToString("N"), TableName = "TmsWeather", LastVersion = 0 };
             var startedAt = (await db.Ado.GetDateTimeAsync("SELECT GETDATE()")).AddSeconds(-5);
 
             // Act & Assert: lỗi vẫn phải văng lên
@@ -2965,95 +2978,85 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         }
 
         /// <summary>
-        /// Description: Kiểm thử toàn trình — mỗi lần chạy tiến trình worker phải sinh đúng 1 dòng trạng thái
-        ///              trong ShareDataTrackVersion, có mốc version hợp lệ và nhịp sống được cập nhật.
-        /// <summary>
-        /// Description: Kiểm thử cấu trúc bảng ShareDataTrackVersion: Toàn hệ thống giữ đúng 1 dòng duy nhất.
-        ///              Hai lượt poll liên tiếp không sinh dòng mới, nhịp sống cập nhật qua UpdateTime.
+        /// Description: Kiểm thử cấu trúc bảng ShareDataTrackTable: Mỗi bảng nguồn có đúng 1 dòng cấu hình.
+        ///              Hai lượt poll liên tiếp không sinh dòng mới, giữ nguyên ID và cập nhật UpdateTime.
         /// Created date: 27/09/2026
+        /// Modified date: 17/10/2026
         /// </summary>
         [Fact]
         public async Task TrackState_WhenPolled_KeepsExactlyOneRow_Test()
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            await EnsureDefaultTrackTables(db);
             var worker = CreateTrackerWorker();
+
+            var countBefore = await db.Queryable<ShareDataTrackTable>().Where(x => x.IsDelete == null).CountAsync();
 
             // Act: 2 lượt poll liên tiếp
             await worker.PollChanges(CancellationToken.None);
-            var afterFirst = await GetTrackState(db);
+            var afterFirst = await GetTrackState(db, "TmsZoneStatus");
             await worker.PollChanges(CancellationToken.None);
 
-            // Assert: vẫn đúng 1 dòng duy nhất toàn hệ thống, không sinh dòng mới mỗi lượt
-            var rowCount = await db.Queryable<ShareDataTrackVersion>().CountAsync();
-            Assert.Equal(1, rowCount);
+            // Assert: số dòng giữ nguyên (15 dòng cấu hình), không sinh dòng mới mỗi lượt
+            var rowCount = await db.Queryable<ShareDataTrackTable>().Where(x => x.IsDelete == null).CountAsync();
+            Assert.Equal(countBefore, rowCount);
 
-            var afterSecond = await GetTrackState(db);
+            var afterSecond = await GetTrackState(db, "TmsZoneStatus");
             Assert.NotNull(afterFirst);
             Assert.NotNull(afterSecond);
             Assert.True(afterSecond!.LastVersion >= 0);
             Assert.Equal(afterFirst!.ID, afterSecond.ID);
 
-            // Nhịp sống = UpdateTime do base EntityTenant tự ghi GETDATE() mỗi lần UPDATE
             Assert.NotNull(afterSecond.UpdateTime);
             Assert.True(afterSecond.UpdateTime >= afterSecond.CreateTime);
         }
 
         /// <summary>
-        /// Description: Kiểm thử cơ chế resume — khi khởi động mà CSDL đã có dòng trạng thái của lần chạy trước,
-        ///              mốc version phải được tiếp tục từ đó thay vì quay về -1.
+        /// Description: Kiểm thử cơ chế resume — khi khởi động mà CSDL đã có mốc trạng thái của lần chạy trước
+        ///              trong ShareDataTrackTable, mốc version phải được tiếp tục từ đó thay vì quay về -1.
         /// Created date: 27/09/2026
+        /// Modified date: 17/10/2026
         /// </summary>
         [Fact]
         public async Task TrackState_WhenPreviousRunExists_ResumesItsVersion_Test()
         {
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            await EnsureDefaultTrackTables(db);
             var worker = CreateTrackerWorker(scope);
 
             var currentVerObj = await db.Ado.GetScalarAsync(DataChangeTrackingService.SqlCurrentVersion);
             var previousVersion = currentVerObj == null || currentVerObj == DBNull.Value ? 0L : Convert.ToInt64(currentVerObj);
-            
-            var trackState = await GetTrackState(db);
-            string previousId;
-            if (trackState == null)
-            {
-                previousId = Guid.NewGuid().ToString("N");
-                await db.Insertable(new ShareDataTrackVersion
-                {
-                    ID = previousId,
-                    LastVersion = previousVersion
-                }).ExecuteCommandAsync();
-            }
-            else
-            {
-                previousId = trackState.ID;
-                trackState.LastVersion = previousVersion;
-                await db.Updateable(trackState).ExecuteCommandAsync();
-            }
+
+            await SetStateVersion(db, previousVersion);
+            var trackState = await GetTrackState(db, "TmsZoneStatus");
+            Assert.NotNull(trackState);
+            var previousId = trackState!.ID;
 
             // Act: chu kỳ quét đầu tiên, đi qua đúng đường sản xuất
             await worker.PollChanges(CancellationToken.None);
 
             // Assert: tiếp tục đúng dòng trạng thái hiện có và TIẾP TỤC mốc LastVersion của lần chạy trước
-            var state = await GetTrackState(db);
+            var state = await GetTrackState(db, "TmsZoneStatus");
             Assert.NotNull(state);
             Assert.Equal(previousId, state!.ID);
             Assert.Equal(previousVersion, state.LastVersion);
         }
 
         /// <summary>
-        /// Description: Kiểm thử tính năng nạp cấu hình danh sách bảng cần giám sát từ SysOpConfig.
-        ///              Khi có cấu hình thì nạp danh sách bảng tùy biến; khi nhóm mặc định thì nạp 14 bảng bật (TmsEquipment tắt).
+        /// Description: Kiểm thử tính năng nạp cấu hình danh sách bảng cần giám sát từ ShareDataTrackTable.
+        ///              Khi cấu hình mặc định thì nạp 14 bảng bật (TmsEquipment tắt); khi chỉ bật 2 bảng thì chỉ theo dõi 2 bảng đó.
         /// Created date: 27/09/2026
+        /// Modified date: 17/10/2026
         /// </summary>
         [Fact]
         public async Task DataChangeTrackingService_WhenConfiguredInSysOpConfig_LoadsCustomTables_Test()
         {
-            // Case 1: Nạp cấu hình mặc định từ SysOpConfig nhóm sharedata_tracker -> nạp đủ 14 bảng bật (TmsEquipment Status=0)
+            // Case 1: Nạp cấu hình mặc định từ ShareDataTrackTable -> nạp đủ 14 bảng bật (TmsEquipment Status=0)
             await using var scope = _host.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            await EnsureDefaultSysOpConfigTrackers(db);
+            await EnsureDefaultTrackTables(db);
 
             var defaultWorker = CreateTrackerWorker();
             await defaultWorker.PollChanges(CancellationToken.None);
@@ -3061,42 +3064,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.Equal(14, defaultWorker.TrackedTables.Count);
             Assert.DoesNotContain("TmsEquipment", defaultWorker.TrackedTables);
 
-            // Case 2: Nạp cấu hình danh sách bảng tùy biến từ SysOpConfig (chỉ theo dõi các bảng được khai báo)
-            var groupCode = $"sd_custom_{Guid.NewGuid():N}";
-            await db.Insertable(new List<SysOpConfig>
-            {
-                new()
-                {
-                    ID = Guid.NewGuid().ToString("N"),
-                    GroupCode = groupCode,
-                    Code = "TmsIncident",
-                    Name = "Sự cố",
-                    Value = "107_incidentData",
-                    Status = BaseEnums.StatusEnum.Enable,
-                    IsSysConfig = true,
-                    CreateTime = DateTime.Now
-                },
-                new()
-                {
-                    ID = Guid.NewGuid().ToString("N"),
-                    GroupCode = groupCode,
-                    Code = "TmsTrafficData",
-                    Name = "Lưu lượng",
-                    Value = "103_vdsData",
-                    Status = BaseEnums.StatusEnum.Enable,
-                    IsSysConfig = true,
-                    CreateTime = DateTime.Now
-                }
-            }).ExecuteCommandAsync();
+            // Case 2: Tắt các bảng khác, chỉ giữ TmsIncident và TmsTrafficData đang bật trong ShareDataTrackTable
+            await db.Updateable<ShareDataTrackTable>()
+                .SetColumns(x => x.Status == BaseEnums.StatusEnum.Disable)
+                .Where(x => x.IsDelete == null && x.TableName != "TmsIncident" && x.TableName != "TmsTrafficData")
+                .ExecuteCommandAsync();
 
-            var configuration = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["ShareDataTracker:GroupCode"] = groupCode
-                })
-                .Build();
-
-            var customWorker = CreateTrackerWorker(config: configuration);
+            var customWorker = CreateTrackerWorker();
             await customWorker.PollChanges(CancellationToken.None);
 
             // Assert: Nạp chính xác 2 bảng tùy biến và sinh câu SQL chỉ gồm 2 bảng đó
@@ -3106,79 +3080,56 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.Contains("TmsIncident", customWorker.ActiveChangesSql);
             Assert.Contains("TmsTrafficData", customWorker.ActiveChangesSql);
             Assert.DoesNotContain("TollLane", customWorker.ActiveChangesSql);
+
+            await EnsureDefaultTrackTables(db);
         }
 
         /// <summary>
-        /// Description: Kiểm thử nạp bảng ánh xạ TablePacketMap từ SysOpConfig.
+        /// Description: Kiểm thử nạp bảng ánh xạ TablePacketMap từ ShareDataTrackTable.
         ///              Xác thực hỗ trợ cả mã ngắn ("101"), mã chuẩn ("101_commonData") và phân cách dấu phẩy.
         ///              Tất cả đều được chuẩn hoá về mã chuẩn và deduplicate khi phân giải gói tin (ResolvePackets).
         /// Created date: 27/09/2026
+        /// Modified date: 17/10/2026
         /// </summary>
         [Fact]
         public async Task DataChangeTrackingService_WhenConfiguredTablePacketMap_LoadsMapAndNormalizesPackets_Test()
         {
-            // Arrange: Cấu hình SysOpConfig gồm cả mã ngắn, mã đầy đủ, và kết hợp cả hai
+            // Arrange: Cấu hình ShareDataTrackTable gồm cả mã ngắn, mã đầy đủ, và kết hợp cả hai
             await using var scope = _host.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var groupCode = $"sd_norm_{Guid.NewGuid():N}";
+            await EnsureDefaultTrackTables(db);
 
-            await db.Insertable(new List<SysOpConfig>
-            {
-                new()
-                {
-                    ID = Guid.NewGuid().ToString("N"),
-                    GroupCode = groupCode,
-                    Code = "TmsZoneStatus",
-                    Name = "Zone Status",
-                    Value = "101, 101_commonData",
-                    Status = BaseEnums.StatusEnum.Enable,
-                    IsSysConfig = true,
-                    CreateTime = DateTime.Now
-                },
-                new()
-                {
-                    ID = Guid.NewGuid().ToString("N"),
-                    GroupCode = groupCode,
-                    Code = "CctvDevice",
-                    Name = "CCTV Device",
-                    Value = "102",
-                    Status = BaseEnums.StatusEnum.Enable,
-                    IsSysConfig = true,
-                    CreateTime = DateTime.Now
-                },
-                new()
-                {
-                    ID = Guid.NewGuid().ToString("N"),
-                    GroupCode = groupCode,
-                    Code = "TmsWeather",
-                    Name = "Weather",
-                    Value = "104_weatherData",
-                    Status = BaseEnums.StatusEnum.Enable,
-                    IsSysConfig = true,
-                    CreateTime = DateTime.Now
-                },
-                new()
-                {
-                    ID = Guid.NewGuid().ToString("N"),
-                    GroupCode = groupCode,
-                    Code = "TmsIncident",
-                    Name = "Incident",
-                    Value = "107, 110, 111",
-                    Status = BaseEnums.StatusEnum.Enable,
-                    IsSysConfig = true,
-                    CreateTime = DateTime.Now
-                }
-            }).ExecuteCommandAsync();
+            await db.Updateable<ShareDataTrackTable>()
+                .SetColumns(x => x.Status == BaseEnums.StatusEnum.Disable)
+                .Where(x => x.IsDelete == null)
+                .ExecuteCommandAsync();
 
-            var configuration = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["ShareDataTracker:GroupCode"] = groupCode
-                })
-                .Build();
+            await db.Updateable<ShareDataTrackTable>()
+                .SetColumns(x => x.Status == BaseEnums.StatusEnum.Enable)
+                .SetColumns(x => x.PacketCodes == "101, 101_commonData")
+                .Where(x => x.IsDelete == null && x.TableName == "TmsZoneStatus")
+                .ExecuteCommandAsync();
+
+            await db.Updateable<ShareDataTrackTable>()
+                .SetColumns(x => x.Status == BaseEnums.StatusEnum.Enable)
+                .SetColumns(x => x.PacketCodes == "102")
+                .Where(x => x.IsDelete == null && x.TableName == "CctvDevice")
+                .ExecuteCommandAsync();
+
+            await db.Updateable<ShareDataTrackTable>()
+                .SetColumns(x => x.Status == BaseEnums.StatusEnum.Enable)
+                .SetColumns(x => x.PacketCodes == "104_weatherData")
+                .Where(x => x.IsDelete == null && x.TableName == "TmsWeather")
+                .ExecuteCommandAsync();
+
+            await db.Updateable<ShareDataTrackTable>()
+                .SetColumns(x => x.Status == BaseEnums.StatusEnum.Enable)
+                .SetColumns(x => x.PacketCodes == "107, 110, 111")
+                .Where(x => x.IsDelete == null && x.TableName == "TmsIncident")
+                .ExecuteCommandAsync();
 
             // Act
-            var worker = CreateTrackerWorker(config: configuration);
+            var worker = CreateTrackerWorker();
             await worker.PollChanges(CancellationToken.None);
 
             // Assert 1: Danh sách bảng được suy ra từ TablePacketMap.Keys
@@ -3203,12 +3154,14 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.Single(packetsWeather);
             Assert.Equal("104_weatherData", packetsWeather[0]);
 
-            // Assert 5: TmsIncident với [107, 110, 111] -> Không lọc catalog cứng nữa, chuẩn hoá cả 3 gói (gói tắt được loại ở ProcessSubscriptions)
+            // Assert 5: TmsIncident với [107, 110, 111] -> chuẩn hoá cả 3 gói
             var packetsIncident = DataChangeTrackingService.ResolvePackets(["TmsIncident"], worker.TablePacketMap);
             Assert.Equal(3, packetsIncident.Count);
             Assert.Contains(PacketCodeConst.IncidentData, packetsIncident);
             Assert.Contains(PacketCodeConst.WpData, packetsIncident);
             Assert.Contains(PacketCodeConst.InterCenter, packetsIncident);
+
+            await EnsureDefaultTrackTables(db);
         }
 
         [Fact]

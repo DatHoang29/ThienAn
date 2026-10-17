@@ -2,7 +2,7 @@ using System.Text;
 using Microsoft.Extensions.Configuration;
 using Module.ShareData.Core.Entities;
 using Modules.Integration.ShareData;
-using Modules.Integration.ShareData.Connect;
+using Modules.Integration.ShareData.PacketSend;
 using ShareDataWorker.Core.Enums;
 using ShareDataWorker.Core.Interfaces.DataOutbound;
 using ShareDataWorker.Core.Models.DataOutbound;
@@ -97,9 +97,9 @@ namespace Tests.ShareData.Services
         {
             // Arrange
             var config = CreateConfig();
-            var dispatcher = new FakeConnectDispatcher
+            var dispatcher = new FakePacketSendDispatcher
             {
-                ResultToReturn = new ConnectResult
+                ResultToReturn = new PacketSendResult
                 {
                     Success = true,
                     Channel = ConnectTypes.Api,
@@ -136,7 +136,7 @@ namespace Tests.ShareData.Services
         {
             // Arrange
             var config = CreateConfig();
-            var dispatcher = new FakeConnectDispatcher();
+            var dispatcher = new FakePacketSendDispatcher();
             var transport = new DataOutboundTransport(dispatcher, config);
             var connCfg = new Dictionary<string, string>
             {
@@ -168,7 +168,7 @@ namespace Tests.ShareData.Services
         {
             // Arrange
             var config = CreateConfig();
-            var dispatcher = new FakeConnectDispatcher();
+            var dispatcher = new FakePacketSendDispatcher();
             var transport = new DataOutboundTransport(dispatcher, config);
             var ctx = CreateContext(connectionType: ConnectTypes.File);
             var rawJson = "[{\"id\":1}]";
@@ -193,7 +193,7 @@ namespace Tests.ShareData.Services
         {
             // Arrange
             var config = CreateConfig();
-            var dispatcher = new FakeConnectDispatcher();
+            var dispatcher = new FakePacketSendDispatcher();
             var transport = new DataOutboundTransport(dispatcher, config);
             var customTargetDir = Path.Combine(_tempDirectory, "custom_target");
             var connCfg = new Dictionary<string, string>
@@ -223,7 +223,7 @@ namespace Tests.ShareData.Services
             await File.WriteAllTextAsync(blockerFilePath, "blocking file");
 
             var config = CreateConfig(customBasePath: blockerFilePath);
-            var dispatcher = new FakeConnectDispatcher();
+            var dispatcher = new FakePacketSendDispatcher();
             var transport = new DataOutboundTransport(dispatcher, config);
             var ctx = CreateContext();
             var rawJson = "[{\"id\":1}]";
@@ -247,9 +247,9 @@ namespace Tests.ShareData.Services
         {
             // Arrange
             var config = CreateConfig();
-            var dispatcher = new FakeConnectDispatcher
+            var dispatcher = new FakePacketSendDispatcher
             {
-                ResultToReturn = new ConnectResult
+                ResultToReturn = new PacketSendResult
                 {
                     Success = false,
                     ErrorMessage = null,
@@ -280,7 +280,7 @@ namespace Tests.ShareData.Services
         {
             // Arrange: Khóa cấu hình cũ ArchiveEnabled=false bị bỏ qua, hệ thống luôn lưu bằng chứng
             var config = CreateConfig();
-            var dispatcher = new FakeConnectDispatcher();
+            var dispatcher = new FakePacketSendDispatcher();
             var transport = new DataOutboundTransport(dispatcher, config);
             var connCfg = new Dictionary<string, string>
             {
@@ -303,12 +303,82 @@ namespace Tests.ShareData.Services
             Assert.True(File.Exists(fullPath));
         }
 
-        private sealed class FakeConnectDispatcher : IConnectDispatcher
+        [Fact]
+        public async Task Send_WhenConfigContainsOutputPathAndUnsupportedEncryptor_EmitsTransportWarnings_Test()
+        {
+            // Arrange
+            var config = CreateConfig();
+            var dispatcher = new FakePacketSendDispatcher();
+            var transport = new DataOutboundTransport(dispatcher, config);
+            var connCfg = new Dictionary<string, string>
+            {
+                [ConnectKeys.OutputPath] = "/deprecated/out/path",
+                [ConnectKeys.Encryptor] = "UnsupportedAlgoX",
+                [ConnectKeys.InboundEncryptor] = "UnsupportedInboundY"
+            };
+            var ctx = CreateContext(config: connCfg);
+            var rawJson = "[{\"id\":1}]";
+            var mapping = new DataMappingResult(true, Encoding.UTF8.GetBytes(rawJson), 1);
+
+            // Act
+            var result = await transport.Send(
+                mapping,
+                ctx,
+                CancellationToken.None);
+
+            // Assert
+            Assert.True(result.Success);
+            Assert.NotNull(result.Warnings);
+            Assert.Contains(result.Warnings, w => w.Contains("Khóa [OutputPath] là khóa đã bãi bỏ, bị bỏ qua."));
+            Assert.Contains(result.Warnings, w => w.Contains("Thuật toán mã hóa Encryptor [UnsupportedAlgoX] không được hỗ trợ."));
+            Assert.Contains(result.Warnings, w => w.Contains("Thuật toán mã hóa InboundEncryptor [UnsupportedInboundY] không được hỗ trợ."));
+        }
+
+        [Fact]
+        public async Task Send_WhenDispatcherReturnsWarnings_MergesWarningsIntoResult_Test()
+        {
+            // Arrange
+            var config = CreateConfig();
+            var dispatcher = new FakePacketSendDispatcher
+            {
+                ResultToReturn = new PacketSendResult
+                {
+                    Success = true,
+                    Channel = ConnectTypes.Api,
+                    SentByteSize = 50,
+                    TargetAddressOrPath = "http://127.0.0.1:18090/api/receive",
+                    Warnings = ["Cảnh báo từ Dispatcher kênh API."]
+                }
+            };
+            var transport = new DataOutboundTransport(dispatcher, config);
+            var connCfg = new Dictionary<string, string>
+            {
+                [ConnectKeys.OutputPath] = "/deprecated/out/path"
+            };
+            var ctx = CreateContext(config: connCfg);
+            var rawJson = "[{\"id\":1}]";
+            var mapping = new DataMappingResult(true, Encoding.UTF8.GetBytes(rawJson), 1);
+
+            // Act
+            var result = await transport.Send(
+                mapping,
+                ctx,
+                CancellationToken.None);
+
+            // Assert
+            Assert.True(result.Success);
+            Assert.NotNull(result.Warnings);
+            Assert.Equal(2, result.Warnings.Count);
+            Assert.Contains(result.Warnings, w => w.Contains("OutputPath"));
+            Assert.Contains(result.Warnings, w => w.Contains("Cảnh báo từ Dispatcher"));
+        }
+
+        private sealed class FakePacketSendDispatcher : IPacketSendDispatcher
         {
             public int DispatchCallCount { get; private set; }
-            public ConnectRequest? LastRequest { get; private set; }
-            public ConnectContext? LastContext { get; private set; }
-            public ConnectResult ResultToReturn { get; set; } = new ConnectResult
+            public PacketSendRequest? LastRequest { get; private set; }
+            public PacketSendContext? LastContext { get; private set; }
+            public PacketSendResult ResultToReturn { get; set; } = new PacketSendResult
             {
                 Success = true,
                 Channel = ConnectTypes.Api,
@@ -316,9 +386,9 @@ namespace Tests.ShareData.Services
                 TargetAddressOrPath = "http://127.0.0.1:18090/api/receive"
             };
 
-            public Task<ConnectResult> Dispatch(
-                ConnectRequest request,
-                ConnectContext context,
+            public Task<PacketSendResult> Dispatch(
+                PacketSendRequest request,
+                PacketSendContext context,
                 CancellationToken cancellationToken = default)
             {
                 DispatchCallCount++;

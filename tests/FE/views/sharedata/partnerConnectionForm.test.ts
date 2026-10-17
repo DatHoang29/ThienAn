@@ -72,12 +72,12 @@ function createDefaultFormState(): FormStateModel {
 		api: {
 			authType: 'None',
 			token: '',
-			headerName: 'X-Api-Key',
+			headerName: '',
 			apiKey: '',
 			username: '',
 			password: '',
 			format: '',
-			timeoutSeconds: 30,
+			timeoutSeconds: null as any,
 			bypassSsl: false,
 			successField: '',
 			errorMessageField: '',
@@ -96,7 +96,7 @@ function createDefaultFormState(): FormStateModel {
 			useSsl: false,
 			format: '',
 			enabled: true,
-			timeoutSeconds: 30,
+			timeoutSeconds: null as any,
 			fileName: '',
 		},
 		kafka: {
@@ -104,7 +104,7 @@ function createDefaultFormState(): FormStateModel {
 			topic: '',
 			clientId: '',
 			securityProtocol: 'Plaintext',
-			saslMechanism: 'PLAIN',
+			saslMechanism: 'Plain',
 			saslUsername: '',
 			saslPassword: '',
 			sslCaLocation: '',
@@ -121,12 +121,12 @@ function createDefaultFormState(): FormStateModel {
 }
 
 function getManagedKeys(channel: string): string[] {
-	const common = ['Encryptor', 'EncryptionKeyRef', 'InboundEncryptor', 'DecryptionKeyRef', 'Enabled'];
+	const common = ['Encryptor', 'EncryptionKeyRef', 'InboundEncryptor', 'DecryptionKeyRef'];
 	if (channel === 'API') {
 		return [
 			...common,
-			'AuthType', 'Token', 'HeaderName', 'ApiKeyHeader', 'ApiKey', 'Username', 'User',
-			'Password', 'Pass', 'Format', 'TimeoutSeconds', 'HttpTimeoutSec', 'TimeoutSec',
+			'AuthType', 'Token', 'HeaderName', 'ApiKeyHeader', 'ApiKey', 'Username',
+			'Password', 'Format', 'TimeoutSeconds', 'HttpTimeoutSec', 'TimeoutSec',
 			'BypassSsl', 'IgnoreSsl', 'Insecure', 'SuccessField', 'ErrorMessageField', 'ErrorCodeField', 'ResponseContract'
 		];
 	}
@@ -134,18 +134,18 @@ function getManagedKeys(channel: string): string[] {
 		return [...common, 'DirectoryPath', 'BasePath', 'FileNamePattern', 'Format'];
 	}
 	if (channel === 'FTP') {
-		return [...common, 'RemotePath', 'Username', 'User', 'Password', 'Pass', 'UseSsl', 'EnableSsl', 'Format', 'TimeoutSeconds', 'FileName'];
+		return [...common, 'Enabled', 'RemotePath', 'Username', 'User', 'Password', 'Pass', 'UseSsl', 'EnableSsl', 'Format', 'TimeoutSeconds', 'FileName'];
 	}
 	if (channel === 'Kafka') {
-		return [...common, 'BootstrapServers', 'Topic', 'Channel', 'ClientId', 'SecurityProtocol', 'SaslMechanism', 'SaslUsername', 'SaslPassword', 'SslCaLocation', 'TimeoutMs'];
+		return [...common, 'Enabled', 'BootstrapServers', 'Topic', 'Channel', 'ClientId', 'SecurityProtocol', 'SaslMechanism', 'SaslUsername', 'SaslPassword', 'SslCaLocation', 'TimeoutMs'];
 	}
 	return common;
 }
 
 function parseJsonToFormLogic(jsonStr: string | null | undefined, channel: string, state: FormStateModel) {
 	if (!jsonStr || !jsonStr.trim()) {
-		state.api.timeoutSeconds = 30;
-		state.ftp.timeoutSeconds = 30;
+		state.api.timeoutSeconds = null as any;
+		state.ftp.timeoutSeconds = null as any;
 		return { extra: null as Record<string, string> | null, rawInvalid: null as string | null };
 	}
 	let parsed: Record<string, any>;
@@ -199,9 +199,9 @@ function parseJsonToFormLogic(jsonStr: string | null | undefined, channel: strin
 	if (apiHeader != null) state.api.headerName = apiHeader;
 	const apiApiKey = resolveField('ApiKey');
 	if (apiApiKey != null) state.api.apiKey = apiApiKey;
-	const apiUser = resolveField('Username', ['User']);
+	const apiUser = resolveField('Username');
 	if (apiUser != null) state.api.username = apiUser;
-	const apiPass = resolveField('Password', ['Pass']);
+	const apiPass = resolveField('Password');
 	if (apiPass != null) state.api.password = apiPass;
 	const apiFmt = resolveField('Format');
 	if (apiFmt != null) state.api.format = apiFmt;
@@ -209,9 +209,9 @@ function parseJsonToFormLogic(jsonStr: string | null | undefined, channel: strin
 	if (apiTimeout != null && !Number.isNaN(Number(apiTimeout))) {
 		const num = parseInt(apiTimeout, 10);
 		if (num > 0) state.api.timeoutSeconds = num;
-		else state.api.timeoutSeconds = 30;
+		else state.api.timeoutSeconds = null as any;
 	} else {
-		state.api.timeoutSeconds = 30;
+		state.api.timeoutSeconds = null as any;
 	}
 	const apiBypass = resolveField('BypassSsl', ['IgnoreSsl', 'Insecure']);
 	if (apiBypass != null) state.api.bypassSsl = apiBypass.toLowerCase() === 'true';
@@ -234,19 +234,23 @@ function parseJsonToFormLogic(jsonStr: string | null | undefined, channel: strin
 	// Phân giải FTP
 	const ftpRemote = resolveField('RemotePath');
 	if (ftpRemote != null) state.ftp.remotePath = ftpRemote;
-	if (apiUser != null) state.ftp.username = apiUser;
-	if (apiPass != null) state.ftp.password = apiPass;
+	const ftpUser = resolveField('Username', ['User']);
+	if (ftpUser != null) state.ftp.username = ftpUser;
+	const ftpPass = resolveField('Password', ['Pass']);
+	if (ftpPass != null) state.ftp.password = ftpPass;
 	const ftpSsl = resolveField('UseSsl', ['EnableSsl']);
 	if (ftpSsl != null) state.ftp.useSsl = ftpSsl.toLowerCase() === 'true';
-	if (apiFmt != null) state.ftp.format = apiFmt;
+	const ftpFmt = resolveField('Format');
+	if (ftpFmt != null) state.ftp.format = ftpFmt;
 	const ftpEnabled = resolveField('Enabled');
 	if (ftpEnabled != null) state.ftp.enabled = ftpEnabled.toLowerCase() !== 'false';
-	if (apiTimeout != null && !Number.isNaN(Number(apiTimeout))) {
-		const num = parseInt(apiTimeout, 10);
+	const ftpTimeout = resolveField('TimeoutSeconds');
+	if (ftpTimeout != null && !Number.isNaN(Number(ftpTimeout))) {
+		const num = parseInt(ftpTimeout, 10);
 		if (num > 0) state.ftp.timeoutSeconds = num;
-		else state.ftp.timeoutSeconds = 30;
+		else state.ftp.timeoutSeconds = null as any;
 	} else {
-		state.ftp.timeoutSeconds = 30;
+		state.ftp.timeoutSeconds = null as any;
 	}
 	const ftpFileName = resolveField('FileName');
 	if (ftpFileName != null) state.ftp.fileName = ftpFileName;
@@ -306,15 +310,12 @@ function serializeFormLogic(state: FormStateModel, channel: string, extraObj: Re
 		const auth = state.api.authType;
 		if (auth && auth !== 'None') {
 			out['AuthType'] = auth;
-			if (auth === 'Bearer' && state.api.token) out['Token'] = state.api.token;
-			else if (auth === 'ApiKey') {
-				if (state.api.headerName) out['HeaderName'] = state.api.headerName.trim();
-				if (state.api.apiKey) out['ApiKey'] = state.api.apiKey;
-			} else if (auth === 'Basic') {
-				if (state.api.username) out['Username'] = state.api.username.trim();
-				if (state.api.password) out['Password'] = state.api.password;
-			}
 		}
+		if (state.api.token) out['Token'] = state.api.token;
+		if (state.api.headerName?.trim()) out['HeaderName'] = state.api.headerName.trim();
+		if (state.api.apiKey) out['ApiKey'] = state.api.apiKey;
+		if (state.api.username?.trim()) out['Username'] = state.api.username.trim();
+		if (state.api.password) out['Password'] = state.api.password;
 		if (state.api.format) out['Format'] = state.api.format;
 		if (state.api.timeoutSeconds != null && state.api.timeoutSeconds > 0) out['TimeoutSeconds'] = String(state.api.timeoutSeconds);
 		if (state.api.bypassSsl) out['BypassSsl'] = 'true';
@@ -333,25 +334,19 @@ function serializeFormLogic(state: FormStateModel, channel: string, extraObj: Re
 		if (state.ftp.useSsl) out['UseSsl'] = 'true';
 		if (state.ftp.format) out['Format'] = state.ftp.format;
 		if (!state.ftp.enabled) out['Enabled'] = 'false';
-		if (state.ftp.timeoutSeconds) out['TimeoutSeconds'] = String(state.ftp.timeoutSeconds);
+		if (state.ftp.timeoutSeconds != null && state.ftp.timeoutSeconds > 0) out['TimeoutSeconds'] = String(state.ftp.timeoutSeconds);
 		if (state.ftp.fileName?.trim()) out['FileName'] = state.ftp.fileName.trim();
 	} else if (channel === 'Kafka') {
 		if (state.kafka.bootstrapServers?.trim()) out['BootstrapServers'] = state.kafka.bootstrapServers.trim();
 		if (state.kafka.topic?.trim()) out['Topic'] = state.kafka.topic.trim();
 		if (state.kafka.clientId?.trim()) out['ClientId'] = state.kafka.clientId.trim();
-		if (state.kafka.securityProtocol) out['SecurityProtocol'] = state.kafka.securityProtocol;
-		const hasSasl = state.kafka.securityProtocol === 'SaslPlaintext' || state.kafka.securityProtocol === 'SaslSsl';
-		if (hasSasl) {
-			if (state.kafka.saslMechanism) out['SaslMechanism'] = state.kafka.saslMechanism;
-			if (state.kafka.saslUsername?.trim()) out['SaslUsername'] = state.kafka.saslUsername.trim();
-			if (state.kafka.saslPassword) out['SaslPassword'] = state.kafka.saslPassword;
-		}
-		const hasSsl = state.kafka.securityProtocol === 'Ssl' || state.kafka.securityProtocol === 'SaslSsl';
-		if (hasSsl && state.kafka.sslCaLocation?.trim()) {
-			out['SslCaLocation'] = state.kafka.sslCaLocation.trim();
-		}
+		if (state.kafka.securityProtocol?.trim()) out['SecurityProtocol'] = state.kafka.securityProtocol.trim();
+		if (state.kafka.saslMechanism?.trim()) out['SaslMechanism'] = state.kafka.saslMechanism.trim();
+		if (state.kafka.saslUsername?.trim()) out['SaslUsername'] = state.kafka.saslUsername.trim();
+		if (state.kafka.saslPassword) out['SaslPassword'] = state.kafka.saslPassword;
+		if (state.kafka.sslCaLocation?.trim()) out['SslCaLocation'] = state.kafka.sslCaLocation.trim();
 		if (!state.kafka.enabled) out['Enabled'] = 'false';
-		if (state.kafka.timeoutMs) out['TimeoutMs'] = String(state.kafka.timeoutMs);
+		if (state.kafka.timeoutMs != null && state.kafka.timeoutMs > 0) out['TimeoutMs'] = String(state.kafka.timeoutMs);
 	}
 
 	if (state.encryption.encryptor && state.encryption.encryptor !== 'None') {
@@ -561,17 +556,12 @@ test.describe('ShareData — Bản thử Form cấu hình kết nối đối tá
 		expect(parsed2.ApiKeyHeader).toBe('X-Legacy-Header');
 	});
 
-	test('TC5 — Quy tắc 3: Ghi ra dạng chuỗi ("true"/"false", "30"), ô trống không ghi, AuthType None không ghi, rỗng hết emit null', async () => {
+	test('TC5 — Quy tắc 3: Ghi ra dạng chuỗi ("true"/"false", "30"), ô trống không ghi, AuthType None không ghi, rỗng hết emit null (Quyết định L3, L4)', async () => {
 		const state = createDefaultFormState();
 
-		// Trạng thái mặc định: có default TimeoutSeconds = 30
+		// Trạng thái mặc định: tất cả ô rỗng/null -> emit null (đối tác chưa cấu hình mở ra lưu giữ nguyên null)
 		const defaultOut = serializeFormLogic(state, 'API', null);
-		expect(defaultOut).toBe(JSON.stringify({ TimeoutSeconds: '30' }));
-
-		// Khi tất cả ô trống hoàn toàn (timeoutSeconds bị xóa/null) -> emit null
-		state.api.timeoutSeconds = null as any;
-		const nullOut = serializeFormLogic(state, 'API', null);
-		expect(nullOut).toBeNull();
+		expect(defaultOut).toBeNull();
 
 		// Điền các giá trị
 		state.api.authType = 'Bearer';
@@ -591,12 +581,13 @@ test.describe('ShareData — Bản thử Form cấu hình kết nối đối tá
 		expect(parsed.AuthType).toBe('Bearer');
 		expect(parsed.Token).toBe('my_bearer_token');
 
-		// Khi AuthType là None thì không ghi AuthType
+		// Khi AuthType là None và các trường khác rỗng -> emit null
 		state.api.authType = 'None';
 		state.api.token = '';
+		state.api.timeoutSeconds = null as any;
+		state.api.bypassSsl = false;
 		const outNoAuth = serializeFormLogic(state, 'API', null);
-		const parsedNoAuth = JSON.parse(outNoAuth!);
-		expect(parsedNoAuth.AuthType).toBeUndefined();
+		expect(outNoAuth).toBeNull();
 	});
 
 	test('TC6 — Quy tắc 4: Đổi kiểu kết nối giữ nguyên state RAM, khi lưu chỉ ghi khóa của kiểu đang chọn', async () => {
@@ -670,12 +661,12 @@ test.describe('ShareData — Bản thử Form cấu hình kết nối đối tá
 		expect(hasToken3).toBeTruthy();
 	});
 
-	test('TC9 — Kênh Kafka: SASL và SSL CA Location hiển thị điều kiện theo SecurityProtocol', async () => {
+	test('TC9 — Kênh Kafka: Ghi nhận mọi ô có giá trị của kênh đang chọn, không phụ thuộc SecurityProtocol (Quyết định L3)', async () => {
 		const state = createDefaultFormState();
 		state.kafka.bootstrapServers = '10.10.8.200:9092';
 		state.kafka.topic = 'its.traffic';
 
-		// 1. Plaintext -> không ghi SASL hay SSL
+		// 1. Plaintext nhưng người dùng đã nhập SASL/SSL -> vẫn ghi ra JSON để không mất dữ liệu âm thầm
 		state.kafka.securityProtocol = 'Plaintext';
 		state.kafka.saslUsername = 'user';
 		state.kafka.saslPassword = 'pwd';
@@ -683,16 +674,17 @@ test.describe('ShareData — Bản thử Form cấu hình kết nối đối tá
 		const outPlain = serializeFormLogic(state, 'Kafka', null);
 		const parsedPlain = JSON.parse(outPlain!);
 		expect(parsedPlain.SecurityProtocol).toBe('Plaintext');
-		expect(parsedPlain.SaslUsername).toBeUndefined();
-		expect(parsedPlain.SslCaLocation).toBeUndefined();
+		expect(parsedPlain.SaslUsername).toBe('user');
+		expect(parsedPlain.SaslPassword).toBe('pwd');
+		expect(parsedPlain.SslCaLocation).toBe('/cert.pem');
 
-		// 2. SaslSsl -> ghi cả SASL và SSL
+		// 2. SaslSsl -> ghi cả SaslMechanism, SaslUsername, SaslPassword và SslCaLocation
 		state.kafka.securityProtocol = 'SaslSsl';
-		state.kafka.saslMechanism = 'PLAIN';
+		state.kafka.saslMechanism = 'ScramSha256';
 		const outSaslSsl = serializeFormLogic(state, 'Kafka', null);
 		const parsedSaslSsl = JSON.parse(outSaslSsl!);
 		expect(parsedSaslSsl.SecurityProtocol).toBe('SaslSsl');
-		expect(parsedSaslSsl.SaslMechanism).toBe('PLAIN');
+		expect(parsedSaslSsl.SaslMechanism).toBe('ScramSha256');
 		expect(parsedSaslSsl.SaslUsername).toBe('user');
 		expect(parsedSaslSsl.SaslPassword).toBe('pwd');
 		expect(parsedSaslSsl.SslCaLocation).toBe('/cert.pem');
@@ -733,44 +725,41 @@ test.describe('ShareData — Bản thử Form cấu hình kết nối đối tá
 		expect(JSON.parse(outFtpOff!).Enabled).toBe('false');
 	});
 
-	test('TC11 — Form cấu hình kết nối: el-col full-width (:sm="24") và Timeout mặc định 30 giây (Task 2)', async () => {
+	test('TC11 — Form cấu hình kết nối: Bố cục 2 cột (:sm="12"), Placeholder mặc định (30/15/5000), không tự ghi đè khi chưa nhập (P13 Việc 4, L4)', async () => {
 		const formContent = fs.readFileSync(formComponentPath, 'utf-8');
 
-		// 1. Kiểm tra default timeoutSeconds = 30 trong formState của connectionConfigForm.vue
-		expect(formContent).toMatch(/api:\s*\{[\s\S]*?timeoutSeconds:\s*30/);
-		expect(formContent).toMatch(/ftp:\s*\{[\s\S]*?timeoutSeconds:\s*30/);
+		// 1. Kiểm tra default timeoutSeconds: null trong formState của connectionConfigForm.vue (chỉ serialize khi người dùng nhập)
+		expect(formContent).toMatch(/api:\s*\{[\s\S]*?timeoutSeconds:\s*null/);
+		expect(formContent).toMatch(/ftp:\s*\{[\s\S]*?timeoutSeconds:\s*null/);
+		expect(formContent).toMatch(/kafka:\s*\{[\s\S]*?timeoutMs:\s*null/);
 
-		// 2. Kiểm tra các el-col trong channel-api là full-width (:sm="24")
+		// 2. Kiểm tra các el-col trong channel-api là bố cục 2 cột (:sm="12")
 		const apiSectionMatch = formContent.match(/<div v-if="normalizedChannel === 'API'" class="channel-fields channel-api">([\s\S]*?)<\/div>\s*<!-- ── 2\. KÊNH FILE/);
 		expect(apiSectionMatch, 'Phải tìm thấy section channel-api').toBeTruthy();
 		const apiSection = apiSectionMatch![1];
 
-		// Không còn chia cột hẹp :sm="12", :sm="10", :sm="14"
-		expect(apiSection.includes(':sm="12"')).toBeFalsy();
-		expect(apiSection.includes(':sm="10"')).toBeFalsy();
-		expect(apiSection.includes(':sm="14"')).toBeFalsy();
+		// Có chia cột :sm="12" cho các ô thông số ngắn
+		expect(apiSection.includes(':sm="12"')).toBeTruthy();
 
-		// Tất cả el-col trong channel-api đều có :sm="24"
-		const colMatches = apiSection.match(/<el-col\b[^>]*>/g) ?? [];
-		expect(colMatches.length).toBeGreaterThan(0);
-		for (const col of colMatches) {
-			expect(col).toContain(':sm="24"');
-		}
+		// 3. Kiểm tra các placeholder mặc định của backend handler
+		expect(formContent).toContain('lz.placeholder.sharedataConnectionForm.timeoutApi');
+		expect(formContent).toContain('lz.placeholder.sharedataConnectionForm.timeoutFtp');
+		expect(formContent).toContain('lz.placeholder.sharedataConnectionForm.timeoutKafka');
 
-		// 3. Kiểm tra logic parseJsonToForm mặc định timeoutSeconds = 30 khi không truyền timeout
+		// 4. Kiểm tra logic parseJsonToForm mặc định timeoutSeconds = null khi không truyền timeout
 		const state = createDefaultFormState();
-		expect(state.api.timeoutSeconds).toBe(30);
-		expect(state.ftp.timeoutSeconds).toBe(30);
+		expect(state.api.timeoutSeconds).toBeNull();
+		expect(state.ftp.timeoutSeconds).toBeNull();
 
-		// Parse json không có timeout -> vẫn giữ default 30
+		// Parse json không có timeout -> vẫn giữ null (để hiển thị placeholder, không serialize nếu người dùng không gõ)
 		parseJsonToFormLogic(JSON.stringify({ AuthType: 'Bearer', Token: 'abc' }), 'API', state);
-		expect(state.api.timeoutSeconds).toBe(30);
+		expect(state.api.timeoutSeconds).toBeNull();
 
-		// Parse json rỗng -> reset về default 30
+		// Parse json rỗng -> reset về null
 		state.api.timeoutSeconds = 99;
 		state.ftp.timeoutSeconds = 99;
 		parseJsonToFormLogic('', 'API', state);
-		expect(state.api.timeoutSeconds).toBe(30);
-		expect(state.ftp.timeoutSeconds).toBe(30);
+		expect(state.api.timeoutSeconds).toBeNull();
+		expect(state.ftp.timeoutSeconds).toBeNull();
 	});
 });

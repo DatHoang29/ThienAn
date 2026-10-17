@@ -9,10 +9,12 @@ GO
 --              2. Đồng bộ các cột cấu hình vào CSDL test (nếu tồn tại) cho ShareDataPacket.
 --              3. Kiểm tra và DROP bảng mồ côi ShareDataTable (chỉ xóa nếu bảng rỗng).
 --              4. Dọn dòng ROOT của thiết kế cũ trong ShareDataPacketSql (xóa mềm).
+--              5. Tạo bảng ShareDataTrackTable, di trú cấu hình từ SysOpConfig (sharedata_tracker)
+--                 kèm mốc LastVersion từ ShareDataTrackVersion, xóa mềm SysOpConfig và DROP ShareDataTrackVersion.
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: ⚠️ CHỈ CHẠY MỘT LẦN KHI NÂNG CẤP/DI TRÚ HỆ THỐNG.
--- CẬP NHẬT LẦN CUỐI: 16/10/2026
+-- CẬP NHẬT LẦN CUỐI: 17/10/2026
 -- =========================================================================================
 
 PRINT N'=============================================================================';
@@ -168,6 +170,168 @@ END
 ELSE
 BEGIN
     PRINT N'  -> Bảng ShareDataPacketSql không tồn tại, bỏ qua.';
+END
+GO
+
+-- -----------------------------------------------------------------------------------------
+-- 5. TẠO BẢNG ShareDataTrackTable, DI TRÚ TỪ SysOpConfig + ShareDataTrackVersion VÀ DỌN BẢNG CŨ
+-- -----------------------------------------------------------------------------------------
+-- 5.a Tạo bảng dbo.ShareDataTrackTable nếu chưa tồn tại
+IF OBJECT_ID(N'[dbo].[ShareDataTrackTable]', N'U') IS NULL
+BEGIN
+    PRINT N'  -> Đang tạo bảng [dbo].[ShareDataTrackTable]...';
+    CREATE TABLE [dbo].[ShareDataTrackTable] (
+        [ID]             VARCHAR(64)    NOT NULL PRIMARY KEY,
+        [TableName]      NVARCHAR(128)  NOT NULL,
+        [Name]           NVARCHAR(128)  NULL,
+        [PacketCodes]    NVARCHAR(250)  NULL,
+        [Status]         INT            NULL,
+        [OrderNo]        INT            NULL,
+        [Remark]         NVARCHAR(1000) NULL,
+        [LastVersion]    BIGINT         NULL,
+        [LastChangeTime] DATETIME       NULL,
+        [LastIssue]      NVARCHAR(250)  NULL,
+        [Code]           NVARCHAR(128)  NULL,
+        [TenantId]       VARCHAR(64)    NULL,
+        [CreateTime]     DATETIME       NULL,
+        [UpdateTime]     DATETIME       NULL,
+        [CreateUId]      VARCHAR(64)    NULL,
+        [UpdateUId]      VARCHAR(64)    NULL,
+        [RowStatus]      NVARCHAR(64)   NULL,
+        [IsDelete]       DATETIME       NULL
+    );
+
+    CREATE UNIQUE NONCLUSTERED INDEX [index_ShareDataTrackTable_TableName]
+        ON [dbo].[ShareDataTrackTable] ([TableName] ASC, [IsDelete] ASC);
+
+    PRINT N'  -> Đã tạo bảng [dbo].[ShareDataTrackTable] và unique index thành công.';
+END
+ELSE
+BEGIN
+    PRINT N'  -> Bảng [dbo].[ShareDataTrackTable] đã tồn tại, bỏ qua bước tạo bảng.';
+    IF NOT EXISTS (
+        SELECT 1 FROM sys.indexes
+        WHERE name = N'index_ShareDataTrackTable_TableName'
+          AND object_id = OBJECT_ID(N'[dbo].[ShareDataTrackTable]')
+    )
+    BEGIN
+        CREATE UNIQUE NONCLUSTERED INDEX [index_ShareDataTrackTable_TableName]
+            ON [dbo].[ShareDataTrackTable] ([TableName] ASC, [IsDelete] ASC);
+        PRINT N'  -> Đã bổ sung unique index [index_ShareDataTrackTable_TableName].';
+    END
+END
+GO
+
+-- 5.b Nếu bảng ShareDataTrackTable đang rỗng (0 dòng), chuyển dữ liệu từ SysOpConfig + ShareDataTrackVersion
+IF OBJECT_ID(N'[dbo].[ShareDataTrackTable]', N'U') IS NOT NULL
+BEGIN
+    DECLARE @CurrentTrackCount INT = 0;
+    SELECT @CurrentTrackCount = COUNT(1) FROM [dbo].[ShareDataTrackTable];
+
+    IF @CurrentTrackCount = 0
+    BEGIN
+        DECLARE @OldVersion BIGINT = NULL;
+
+        IF OBJECT_ID(N'[dbo].[ShareDataTrackVersion]', N'U') IS NOT NULL
+        BEGIN
+            DECLARE @sqlReadOldVer NVARCHAR(500) = N'
+                SELECT TOP 1 @verOut = [LastVersion]
+                FROM [dbo].[ShareDataTrackVersion]
+                WHERE [IsDelete] IS NULL
+                ORDER BY [ID];
+            ';
+            EXEC sp_executesql @sqlReadOldVer, N'@verOut BIGINT OUTPUT', @verOut = @OldVersion OUTPUT;
+            PRINT N'  -> Đọc mốc LastVersion từ ShareDataTrackVersion: ' + ISNULL(CAST(@OldVersion AS NVARCHAR(30)), N'NULL');
+        END
+
+        IF OBJECT_ID(N'[dbo].[SysOpConfig]', N'U') IS NOT NULL
+           AND EXISTS (SELECT 1 FROM [dbo].[SysOpConfig] WHERE [GroupCode] = N'sharedata_tracker' AND [IsDelete] IS NULL)
+        BEGIN
+            INSERT INTO [dbo].[ShareDataTrackTable] (
+                [ID], [TableName], [Name], [PacketCodes], [Status], [OrderNo],
+                [Remark], [LastVersion], [TenantId], [CreateTime], [CreateUId]
+            )
+            SELECT
+                CASE [Code]
+                    WHEN N'TmsZoneStatus'          THEN '1500000000201'
+                    WHEN N'TmsZone'                THEN '1500000000202'
+                    WHEN N'TmsTrafficStatistic'    THEN '1500000000203'
+                    WHEN N'CctvDevice'             THEN '1500000000204'
+                    WHEN N'TmsTrafficData'         THEN '1500000000205'
+                    WHEN N'TmsWeather'             THEN '1500000000206'
+                    WHEN N'TollTransactionIn'      THEN '1500000000207'
+                    WHEN N'TollTransactionOut'     THEN '1500000000208'
+                    WHEN N'TmsVehicleRegistration' THEN '1500000000209'
+                    WHEN N'TmsIncident'            THEN '1500000000210'
+                    WHEN N'TmsEventType'           THEN '1500000000211'
+                    WHEN N'VmsCurrent'             THEN '1500000000212'
+                    WHEN N'TmsEquipment'           THEN '1500000000213'
+                    WHEN N'TollLane'               THEN '1500000000214'
+                    WHEN N'TollStation'            THEN '1500000000215'
+                    ELSE LOWER(CAST(NEWID() AS VARCHAR(64)))
+                END,
+                [Code],
+                [Name],
+                [Value],
+                [Status],
+                [OrderNo],
+                [Remark],
+                @OldVersion,
+                [TenantId],
+                ISNULL([CreateTime], GETDATE()),
+                ISNULL([CreateUId], 'superadmin')
+            FROM [dbo].[SysOpConfig]
+            WHERE [GroupCode] = N'sharedata_tracker'
+              AND [IsDelete] IS NULL;
+
+            PRINT N'  -> Đã di trú ' + CAST(@@ROWCOUNT AS NVARCHAR(20))
+                + N' dòng từ SysOpConfig (sharedata_tracker) sang ShareDataTrackTable.';
+        END
+        ELSE
+        BEGIN
+            PRINT N'  -> Không có dòng SysOpConfig (sharedata_tracker) nào để di trú (sẽ được nạp ở script 03).';
+        END
+    END
+    ELSE
+    BEGIN
+        PRINT N'  -> Bảng ShareDataTrackTable đã có ' + CAST(@CurrentTrackCount AS NVARCHAR(20)) + N' dòng, bỏ qua bước chép từ SysOpConfig.';
+    END
+END
+GO
+
+-- 5.c Xóa mềm các dòng SysOpConfig có GroupCode = 'sharedata_tracker'
+IF OBJECT_ID(N'[dbo].[SysOpConfig]', N'U') IS NOT NULL
+BEGIN
+    IF EXISTS (SELECT 1 FROM [dbo].[SysOpConfig] WHERE [GroupCode] = N'sharedata_tracker' AND [IsDelete] IS NULL)
+    BEGIN
+        UPDATE [dbo].[SysOpConfig]
+        SET [IsDelete] = GETDATE()
+        WHERE [GroupCode] = N'sharedata_tracker'
+          AND [IsDelete] IS NULL;
+
+        PRINT N'  -> Đã xóa mềm ' + CAST(@@ROWCOUNT AS NVARCHAR(20)) + N' dòng SysOpConfig (GroupCode = sharedata_tracker).';
+    END
+    ELSE
+    BEGIN
+        PRINT N'  -> Không còn dòng SysOpConfig (GroupCode = sharedata_tracker) đang hoạt động, bỏ qua.';
+    END
+END
+GO
+
+-- 5.d Kiểm tra và DROP bảng cũ ShareDataTrackVersion
+IF OBJECT_ID(N'[dbo].[ShareDataTrackVersion]', N'U') IS NOT NULL
+BEGIN
+    DECLARE @trackVerRowCount INT = 0;
+    DECLARE @sqlCountTrackVer NVARCHAR(500) = N'SELECT @cnt = COUNT(1) FROM [dbo].[ShareDataTrackVersion]';
+    EXEC sp_executesql @sqlCountTrackVer, N'@cnt INT OUTPUT', @cnt = @trackVerRowCount OUTPUT;
+
+    PRINT N'  -> Bảng cũ ShareDataTrackVersion hiện có ' + CAST(@trackVerRowCount AS NVARCHAR(20)) + N' bản ghi trước khi DROP.';
+    DROP TABLE [dbo].[ShareDataTrackVersion];
+    PRINT N'  -> Đã DROP bảng cũ [dbo].[ShareDataTrackVersion] thành công.';
+END
+ELSE
+BEGIN
+    PRINT N'  -> Bảng cũ [dbo].[ShareDataTrackVersion] không tồn tại, bỏ qua.';
 END
 GO
 

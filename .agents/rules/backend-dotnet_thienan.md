@@ -232,4 +232,7 @@ namespace Module.ShareData.Controllers
     - Phạm vi: C#, Vue/TS (kể cả test Playwright), SQL và tài liệu kỹ thuật trong repo. Ngoại lệ duy nhất: thư mục `Prompt/` (nơi lưu chính các prompt).
     - Kiểm trước khi bàn giao: tìm `(?i)prompt\s*#?\d*|theo prompt` trong các file đã sửa; trong comment và mô tả phải không còn kết quả.
     - Liên quan Rule 19.74 (chỉ báo cáo thay đổi thực tế).
+17. **Khai Báo Field Luôn Đặt Ở Đầu Lớp & Cấm Mở Hàm `Reset*` Chỉ Phục Vụ Test (Rule 19.47, Rule 19.83)**:
+    - **Vị trí khai báo Field**: Mọi khai báo hằng và biến thành viên (`const`, `static readonly`, `readonly`, field) **BẮT BUỘC đặt ở ĐẦU thân lớp**, phía trước tất cả các phương thức (hoặc tại tệp khai báo field chung của `partial class`), kèm XML doc chuẩn dự án. ⛔ **TUYỆT ĐỐI CẤM** đặt khai báo field chen giữa các phương thức hoặc ở cuối lớp.
+    - **Cấm hàm `Reset*` chỉ phục vụ test (No Test-Only Reset Seam)**: ⛔ **TUYỆT ĐỐI CẤM** thêm các phương thức `public`/`internal` kiểu `Reset*()`, `Clear*()` vào production code chỉ để gọi từ bài test xUnit, đặc biệt khi khóa bộ nhớ trong đã tự cô lập theo Unique ID của dữ liệu test (ví dụ `{partnerId}:{configHash}`).
 

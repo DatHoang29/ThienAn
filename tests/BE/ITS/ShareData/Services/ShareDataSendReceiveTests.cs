@@ -5,8 +5,8 @@ using Microsoft.Extensions.Logging;
 using Module.ShareData.Controllers.Inbound.Commands;
 using Module.ShareData.Core.Dto.Inbound;
 using Module.ShareData.Core.Entities;
-using Modules.Integration.ShareData.Connect;
-using Modules.Integration.ShareData.Connect.Handlers;
+using Modules.Integration.ShareData.PacketSend;
+using Modules.Integration.ShareData.PacketSend.Senders;
 using Modules.TMS.Core.Entities;
 using Modules.TOLL.Core.Entities;
 using ShareDataWorker.Core.Interfaces;
@@ -23,7 +23,7 @@ namespace Tests.ShareData.Services
     /// <summary>
     /// Author: DatHQ
     /// Description: Bộ kiểm thử tích hợp gửi thật -> nhận thật -> MERGE (P4.3).
-    ///              - Không mock HTTP: DataOutboundService với RestConnectHandler THẬT gọi in-process qua Host.CreateApiClient()
+    ///              - Không mock HTTP: DataOutboundService với RestPacketSender THẬT gọi in-process qua Host.CreateApiClient()
     ///              - Dữ liệu nguồn trích xuất từ SQL mẫu THẬT (SeedScriptReader)
     ///              - Kiểm thử 1 gói Snapshot (105_rfidData) và 1 gói Incremental (104_weatherData)
     ///              - Kiểm thử tính lũy tiến cursor và tính MERGE idempotency (không nhân đôi bản ghi)
@@ -52,11 +52,11 @@ namespace Tests.ShareData.Services
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataOutboundService>>();
             var extraction = scope.ServiceProvider.GetRequiredService<IDataOutboundExtractionProcess>();
             var clientFact = new DelegatingClientFactory(clientFactory);
-            var dispatcher = ConnectDispatcher.CreateForHandlers([
-                new RestConnectHandler(clientFact),
-                new FileConnectHandler(configuration.GetValue<string>("NasStorage:BasePath") ?? "sharedata/send"),
-                new KafkaConnectHandler(),
-                new FtpConnectHandler()
+            var dispatcher = PacketSendDispatcher.CreateForHandlers([
+                new RestPacketSender(clientFact),
+                new FilePacketSender(configuration.GetValue<string>("NasStorage:BasePath") ?? "sharedata/send"),
+                new KafkaPacketSender(),
+                new FtpPacketSender()
             ]);
 
             return new DataOutboundService(

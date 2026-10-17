@@ -1,8 +1,8 @@
 using Module.ShareData.Controllers.Partner.Validators;
 using Module.ShareData.Core.Entities;
 using Modules.Integration.ShareData;
-using Modules.Integration.ShareData.Connect;
-using Modules.Integration.ShareData.Connect.Handlers;
+using Modules.Integration.ShareData.PacketSend;
+using Modules.Integration.ShareData.PacketSend.Senders;
 using Modules.Integration.ShareData.Formats;
 using ShareDataWorker.Core.Models.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound;
@@ -49,11 +49,11 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public async Task DispatchAsync_WhenPartnerConnectionTypeIsKafka_ConvertsJsonToBytesAndRoutesToKafkaChannel_Test()
         {
             // Arrange
-            var kafkaSender = new KafkaConnectHandler();
-            var dispatcher = ConnectDispatcher.CreateForHandlers([kafkaSender]);
+            var kafkaSender = new KafkaPacketSender();
+            var dispatcher = PacketSendDispatcher.CreateForHandlers([kafkaSender]);
             var ctx = CreateDummyContext("101", "PARTNER_KAFKA", "Kafka");
             var jsonPayload = "{\"temperature\": 28.5, \"humidity\": 65}";
-            var request = new ConnectRequest
+            var request = new PacketSendRequest
             {
                 JsonPayload = jsonPayload,
                 ConnectType = "Kafka",
@@ -78,9 +78,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public async Task KafkaSender_WhenPayloadIsEmpty_ReturnsFailedResult_Test()
         {
             // Arrange
-            var kafkaSender = new KafkaConnectHandler();
+            var kafkaSender = new KafkaPacketSender();
             var ctx = CreateDummyContext("101", "PARTNER_KAFKA", "Kafka");
-            var request = new ConnectRequest
+            var request = new PacketSendRequest
             {
                 JsonPayload = string.Empty,
                 ConnectType = "Kafka"
@@ -99,13 +99,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public async Task DispatchAsync_WhenPartnerConnectionTypeIsFile_RoutesToFileChannel_Test()
         {
             // Arrange
-            var fileSender = new FileConnectHandler();
-            var dispatcher = ConnectDispatcher.CreateForHandlers([fileSender]);
+            var fileSender = new FilePacketSender();
+            var dispatcher = PacketSendDispatcher.CreateForHandlers([fileSender]);
             var ctx = CreateDummyContext("103", "PARTNER_FILE", "File");
             var jsonPayload = "{\"vdsCount\": 12, \"speed\": 80}";
             var customDir = "Out/TestPartner";
             var fileNamePattern = "vds_export_{serial}.json";
-            var request = new ConnectRequest
+            var request = new PacketSendRequest
             {
                 JsonPayload = jsonPayload,
                 ConnectType = "File",
@@ -132,15 +132,15 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Arrange
             var server = _host.PartnerServer;
             server.ResetDefaults();
-            var restSender = new RestConnectHandler();
-            var dispatcher = ConnectDispatcher.CreateForHandlers([restSender]);
+            var restSender = new RestPacketSender();
+            var dispatcher = PacketSendDispatcher.CreateForHandlers([restSender]);
             var ctx = CreateDummyContext("101", "PARTNER_API", "API");
             ctx.Partner!.Address = "127.0.0.1";
             ctx.Partner!.Port = 18092;
             ctx.Partner!.EndPointApiUrl = "/api/v1/data";
 
             var jsonPayload = "{\"data\": \"ok\"}";
-            var request = new ConnectRequest
+            var request = new PacketSendRequest
             {
                 JsonPayload = jsonPayload,
                 ConnectType = "API",
@@ -164,9 +164,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public async Task DispatchAsync_WhenPartnerConnectionTypeIsUnknown_ReturnsUnsupportedError_Test()
         {
             // Arrange
-            var dispatcher = ConnectDispatcher.CreateForHandlers([]);
+            var dispatcher = PacketSendDispatcher.CreateForHandlers([]);
             var ctx = CreateDummyContext("101", "PARTNER_UNKNOWN", "UnknownProtocolX");
-            var request = new ConnectRequest
+            var request = new PacketSendRequest
             {
                 JsonPayload = "{}",
                 ConnectType = "UnknownProtocolX"
@@ -209,8 +209,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Arrange: Đối tác cũ không có ConnectionConfig JSON -> tự động fallback sang Address, Port, EndPointApiUrl
             var server = _host.PartnerServer;
             server.ResetDefaults();
-            var restSender = new RestConnectHandler();
-            var dispatcher = ConnectDispatcher.CreateForHandlers([restSender]);
+            var restSender = new RestPacketSender();
+            var dispatcher = PacketSendDispatcher.CreateForHandlers([restSender]);
             var ctx = CreateDummyContext("101", "PARTNER_LEGACY", "API");
             ctx.Partner!.Address = "127.0.0.1";
             ctx.Partner!.Port = 18092;
@@ -239,8 +239,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Arrange: Địa chỉ và cổng chỉ lấy từ cột của Partner; ConnectionConfig chỉ chứa config riêng (Auth, Timeout)
             var server = _host.PartnerServer;
             server.ResetDefaults();
-            var restSender = new RestConnectHandler();
-            var dispatcher = ConnectDispatcher.CreateForHandlers([restSender]);
+            var restSender = new RestPacketSender();
+            var dispatcher = PacketSendDispatcher.CreateForHandlers([restSender]);
             var ctx = CreateDummyContext("101", "PARTNER_COLS", "API");
             ctx.Partner!.Address = "127.0.0.1";
             ctx.Partner!.Port = 18092;
@@ -270,11 +270,11 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public async Task RestSender_WhenPortInvalid_ReturnsInvalidConfigurationError_Test(int invalidPort)
         {
             // Arrange
-            var restSender = new RestConnectHandler();
+            var restSender = new RestPacketSender();
             var ctx = CreateDummyContext("101", "PARTNER_BAD_PORT", "API");
             ctx.Partner!.Address = "127.0.0.1";
             ctx.Partner!.Port = invalidPort;
-            var request = new ConnectRequest
+            var request = new PacketSendRequest
             {
                 JsonPayload = "{}",
                 ConnectType = "API",
@@ -297,9 +297,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public async Task RestSender_WhenTimeoutInvalid_ReturnsInvalidConfigurationError_Test(string invalidTimeout)
         {
             // Arrange
-            var restSender = new RestConnectHandler();
+            var restSender = new RestPacketSender();
             var ctx = CreateDummyContext("101", "PARTNER_BAD_TIMEOUT", "API");
-            var request = new ConnectRequest
+            var request = new PacketSendRequest
             {
                 JsonPayload = "{}",
                 ConnectType = "API",
@@ -324,9 +324,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public async Task RestSender_WhenBypassSslInvalid_ReturnsInvalidConfigurationError_Test()
         {
             // Arrange
-            var restSender = new RestConnectHandler();
+            var restSender = new RestPacketSender();
             var ctx = CreateDummyContext("101", "PARTNER_BAD_SSL", "API");
-            var request = new ConnectRequest
+            var request = new PacketSendRequest
             {
                 JsonPayload = "{}",
                 ConnectType = "API",
@@ -353,9 +353,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Arrange
             var server = _host.PartnerServer;
             server.ResetDefaults();
-            var restSender = new RestConnectHandler();
+            var restSender = new RestPacketSender();
             var ctx = CreateDummyContext("101", "PARTNER_BEARER", "API");
-            var request = new ConnectRequest
+            var request = new PacketSendRequest
             {
                 JsonPayload = "{\"data\":\"test\"}",
                 ConnectType = "API",
@@ -384,9 +384,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Arrange
             var server = _host.PartnerServer;
             server.ResetDefaults();
-            var restSender = new RestConnectHandler();
+            var restSender = new RestPacketSender();
             var ctx = CreateDummyContext("101", "PARTNER_APIKEY", "API");
-            var request = new ConnectRequest
+            var request = new PacketSendRequest
             {
                 JsonPayload = "{\"data\":\"test\"}",
                 ConnectType = "API",
@@ -416,9 +416,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Arrange
             var server = _host.PartnerServer;
             server.ResetDefaults();
-            var restSender = new RestConnectHandler();
+            var restSender = new RestPacketSender();
             var ctx = CreateDummyContext("101", "PARTNER_BASIC", "API");
-            var request = new ConnectRequest
+            var request = new PacketSendRequest
             {
                 JsonPayload = "{\"data\":\"test\"}",
                 ConnectType = "API",
@@ -451,9 +451,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             server.ResetDefaults();
             server.DefaultResponseBody = "{\"isSuccess\": false, \"errorCode\": \"ERR_PAYLOAD_INVALID\", \"message\": \"Payload schema mismatch\"}";
 
-            var restSender = new RestConnectHandler();
+            var restSender = new RestPacketSender();
             var ctx = CreateDummyContext("101", "PARTNER_BIZ_ERR", "API");
-            var request = new ConnectRequest
+            var request = new PacketSendRequest
             {
                 JsonPayload = "{\"data\":\"test\"}",
                 ConnectType = "API",
@@ -485,9 +485,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             server.ResetDefaults();
             server.DefaultResponseBody = "{\"succeeded\": false, \"statusCode\": 400, \"errors\": \"Dữ liệu không đúng định dạng\"}";
 
-            var restSender = new RestConnectHandler();
+            var restSender = new RestPacketSender();
             var ctx = CreateDummyContext("101", "PARTNER_FURION_ERR", "API");
-            var request = new ConnectRequest
+            var request = new PacketSendRequest
             {
                 JsonPayload = "{\"data\":\"test\"}",
                 ConnectType = "API",
@@ -522,13 +522,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             server.ResetDefaults();
             server.AbortOnCall.Add(1);
 
-            var restSender = new RestConnectHandler();
+            var restSender = new RestPacketSender();
             var ctx = CreateDummyContext("101", "PARTNER_ABORT", "API");
             ctx.Partner!.Address = "127.0.0.1";
             ctx.Partner!.Port = ShareDataPartnerServerMock.DefaultPort;
             ctx.Partner!.EndPointApiUrl = "/api/v1/data";
 
-            var request = new ConnectRequest
+            var request = new PacketSendRequest
             {
                 JsonPayload = "{\"data\":\"test\"}",
                 ConnectType = "API",
@@ -554,10 +554,10 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public async Task FileSender_WhenDirectoryPathHasInvalidCharacters_ReturnsInvalidPathError_Test()
         {
             // Arrange
-            var fileSender = new FileConnectHandler();
+            var fileSender = new FilePacketSender();
             var ctx = CreateDummyContext("103", "PARTNER_FILE_INVALID", "File");
             var invalidDir = "Out/Invalid|Path\0";
-            var request = new ConnectRequest
+            var request = new PacketSendRequest
             {
                 JsonPayload = "{}",
                 ConnectType = "File",
@@ -640,17 +640,17 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public async Task FtpSender_WhenDisabledOrMissingHost_ReturnsClearError_Test()
         {
             // Arrange
-            var ftpSender = new FtpConnectHandler();
+            var ftpSender = new FtpPacketSender();
             var ctx = CreateDummyContext("101", "PARTNER_FTP", "Ftp");
 
-            var disabledReq = new ConnectRequest
+            var disabledReq = new PacketSendRequest
             {
                 JsonPayload = "[{\"id\": 1}]",
                 ConnectType = "Ftp",
                 ConnectConfig = new Dictionary<string, string> { ["Enabled"] = "false" }
             };
 
-            var missingHostReq = new ConnectRequest
+            var missingHostReq = new PacketSendRequest
             {
                 JsonPayload = "[{\"id\": 1}]",
                 ConnectType = "Ftp",
@@ -674,17 +674,17 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         public async Task KafkaSender_WhenDisabledOrMissingServers_ReturnsClearError_Test()
         {
             // Arrange
-            var kafkaSender = new KafkaConnectHandler();
+            var kafkaSender = new KafkaPacketSender();
             var ctx = CreateDummyContext("101", "PARTNER_KAFKA", "Kafka");
 
-            var disabledReq = new ConnectRequest
+            var disabledReq = new PacketSendRequest
             {
                 JsonPayload = "{\"test\": 1}",
                 ConnectType = "Kafka",
                 ConnectConfig = new Dictionary<string, string> { ["Enabled"] = "false" }
             };
 
-            var missingServersReq = new ConnectRequest
+            var missingServersReq = new PacketSendRequest
             {
                 JsonPayload = "{\"test\": 1}",
                 ConnectType = "Kafka",
@@ -712,7 +712,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             ctx.Partner!.Address = "10.0.0.1";
             ctx.Partner!.Port = 9092;
 
-            var reqWithBootstrap = new ConnectRequest
+            var reqWithBootstrap = new PacketSendRequest
             {
                 JsonPayload = "{\"test\": 1}",
                 ConnectType = "Kafka",
@@ -722,14 +722,14 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 }
             };
 
-            var reqFallback = new ConnectRequest
+            var reqFallback = new PacketSendRequest
             {
                 JsonPayload = "{\"test\": 1}",
                 ConnectType = "Kafka",
                 ConnectConfig = new Dictionary<string, string>()
             };
 
-            // Act: Phân giải bootstrapServers theo đúng logic KafkaConnectHandler
+            // Act: Phân giải bootstrapServers theo đúng logic KafkaPacketSender
             var serversExplicit = reqWithBootstrap.ConnectConfig.TryGetValue("BootstrapServers", out var s1) && !string.IsNullOrWhiteSpace(s1)
                 ? s1.Trim()
                 : (!string.IsNullOrWhiteSpace(ctx.Partner?.Address)
@@ -834,9 +834,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         [Fact]
         public async Task FileSender_WhenDirectoryPathHasPathTraversal_ReturnsInvalidConfiguration_Test()
         {
-            var fileSender = new FileConnectHandler();
+            var fileSender = new FilePacketSender();
             var ctx = CreateDummyContext("103", "PARTNER_FILE_TRAVERSAL", "File");
-            var request = new ConnectRequest
+            var request = new PacketSendRequest
             {
                 PayloadBytes = Encoding.UTF8.GetBytes("test-content"),
                 ConnectType = "File",
@@ -857,10 +857,10 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         [Fact]
         public async Task FileSender_WhenDirectoryPathAndFileNamePatternConfigured_SavesToExpectedCustomPath_Test()
         {
-            var fileSender = new FileConnectHandler();
+            var fileSender = new FilePacketSender();
             var ctx = CreateDummyContext("103", "PARTNER_FILE_CUSTOM", "File");
             var expectedBytes = Encoding.UTF8.GetBytes("custom-file-payload-content");
-            var request = new ConnectRequest
+            var request = new PacketSendRequest
             {
                 PayloadBytes = expectedBytes,
                 FileExtension = ".csv",
@@ -896,10 +896,10 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var server = _host.PartnerServer;
             server.ResetDefaults();
 
-            var restSender = new RestConnectHandler();
+            var restSender = new RestPacketSender();
             var ctx = CreateDummyContext("101", "PARTNER_BYTES", "API");
             var expectedBytes = Encoding.UTF8.GetBytes("{\"cipher\":\"encrypted_payload_123\"}");
-            var request = new ConnectRequest
+            var request = new PacketSendRequest
             {
                 PayloadBytes = expectedBytes,
                 ContentType = "application/json",
@@ -922,10 +922,10 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         [Fact]
         public async Task FtpSender_WhenCsvPayloadBytesProvided_UsesExactPayloadBytesAndCsvExtension_Test()
         {
-            var ftpSender = new FtpConnectHandler();
+            var ftpSender = new FtpPacketSender();
             var ctx = CreateDummyContext("101", "PARTNER_FTP_CSV", "FTP");
             var csvBytes = Encoding.UTF8.GetBytes("ID,Code,Name\r\n1,A,Item1\r\n2,B,Item2");
-            var request = new ConnectRequest
+            var request = new PacketSendRequest
             {
                 PayloadBytes = csvBytes,
                 ContentType = "text/csv",
@@ -1021,18 +1021,18 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
     internal static class TestTransportExtensions
     {
-        public static Task<ConnectResult> Dispatch(
-            this IConnectDispatcher dispatcher,
-            ConnectRequest request,
+        public static Task<PacketSendResult> Dispatch(
+            this IPacketSendDispatcher dispatcher,
+            PacketSendRequest request,
             DataOutboundContext ctx,
             CancellationToken ct = default)
         {
             return dispatcher.Dispatch(request, DataOutboundTransport.BuildContext(ctx), ct);
         }
 
-        public static Task<ConnectResult> Send(
-            this IConnectHandler handler,
-            ConnectRequest request,
+        public static Task<PacketSendResult> Send(
+            this IPacketSender handler,
+            PacketSendRequest request,
             DataOutboundContext ctx,
             CancellationToken ct = default)
         {

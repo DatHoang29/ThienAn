@@ -33,7 +33,6 @@ const COLUMN_RESERVED_KEYS = [
 	'endpoint',
 	'path',
 	'endpointapiurl',
-	'outputpath',
 ];
 
 const SUGGESTED_KEYS_BY_CHANNEL: Record<string, string[]> = {
@@ -86,17 +85,8 @@ function getKeyError(items: ConfigRow[], index: number, t: (k: string) => string
 		return t('lz.label.sharedataConnectionEditor.errKeyRequired');
 	}
 	const lower = keyTrimmed.toLowerCase();
-	if (lower === 'outputpath') {
-		return t('lz.label.sharedataConnectionEditor.errKeyOutputPath');
-	}
 	if (COLUMN_RESERVED_KEYS.includes(lower)) {
 		return t('lz.label.sharedataConnectionEditor.errKeyReserved');
-	}
-	if (lower === 'filenamepattern') {
-		const val = (row.value ?? '').toLowerCase();
-		if (val && !val.includes('{serial}') && !val.includes('{timestamp}')) {
-			return t('lz.label.sharedataConnectionEditor.errFileNamePatternMissingVariable');
-		}
 	}
 	for (let i = 0; i < items.length; i++) {
 		if (i !== index) {
@@ -104,6 +94,24 @@ function getKeyError(items: ConfigRow[], index: number, t: (k: string) => string
 			if (otherKey === lower) {
 				return t('lz.label.sharedataConnectionEditor.errKeyDuplicate');
 			}
+		}
+	}
+	return null;
+}
+
+function getKeyWarning(items: ConfigRow[], index: number, t: (k: string) => string): string | null {
+	const row = items[index];
+	if (!row) return null;
+	const keyTrimmed = row.key?.trim() ?? '';
+	if (!keyTrimmed) return null;
+	const lower = keyTrimmed.toLowerCase();
+	if (lower === 'outputpath') {
+		return t('lz.label.sharedataConnectionEditor.errKeyOutputPath');
+	}
+	if (lower === 'filenamepattern') {
+		const val = (row.value ?? '').toLowerCase();
+		if (val && !val.includes('{serial}') && !val.includes('{timestamp}')) {
+			return t('lz.label.sharedataConnectionEditor.errFileNamePatternMissingVariable');
 		}
 	}
 	return null;
@@ -407,26 +415,30 @@ test.describe('ShareData — Cấu hình kết nối đối tác theo mẫu VMS 
 		expect(archiveRow).toBeUndefined();
 	});
 
-	test('TC11 — RV-12: Nhập OutputPath bị từ chối; FileNamePattern bắt buộc có {serial} hoặc {timestamp}', async () => {
+	test('TC11 — RV-12: Nhập OutputPath và FileNamePattern thiếu token đổi từ lỗi sang CẢNH BÁO (P13 Việc 5)', async () => {
 		const itemsInvalid: ConfigRow[] = [
 			{ id: '1', key: 'OutputPath', value: '/mnt/out/file.json', showSecret: false },
 			{ id: '2', key: 'FileNamePattern', value: 'static_name.json', showSecret: false },
 		];
 
-		// OutputPath (hàng 0) bị báo lỗi bãi bỏ
-		const errOutputPath = getKeyError(itemsInvalid, 0, mockI18n);
-		expect(errOutputPath).toBe('Thuộc tính [OutputPath] đã bị bãi bỏ. Vui lòng sử dụng [DirectoryPath] và [FileNamePattern]');
+		// Không coi là lỗi chặn lưu (getKeyError trả về null)
+		expect(getKeyError(itemsInvalid, 0, mockI18n)).toBeNull();
+		expect(getKeyError(itemsInvalid, 1, mockI18n)).toBeNull();
 
-		// FileNamePattern thiếu biến (hàng 1)
-		const errMissingVar = getKeyError(itemsInvalid, 1, mockI18n);
-		expect(errMissingVar).toBe('FileNamePattern phải chứa ít nhất {serial} hoặc {timestamp} để tránh ghi đè tệp');
+		// OutputPath (hàng 0) hiển thị thông điệp cảnh báo bãi bỏ
+		const warnOutputPath = getKeyWarning(itemsInvalid, 0, mockI18n);
+		expect(warnOutputPath).toBe('Thuộc tính [OutputPath] đã bị bãi bỏ. Vui lòng sử dụng [DirectoryPath] và [FileNamePattern]');
 
-		// FileNamePattern hợp lệ (mảng riêng)
+		// FileNamePattern thiếu biến (hàng 1) hiển thị thông điệp cảnh báo
+		const warnMissingVar = getKeyWarning(itemsInvalid, 1, mockI18n);
+		expect(warnMissingVar).toBe('FileNamePattern phải chứa ít nhất {serial} hoặc {timestamp} để tránh ghi đè tệp');
+
+		// FileNamePattern hợp lệ (mảng riêng) -> không có cảnh báo
 		const itemsValid: ConfigRow[] = [
 			{ id: '3', key: 'FileNamePattern', value: 'data_{timestamp}_{serial}.json', showSecret: false },
 		];
-		const errValidPattern = getKeyError(itemsValid, 0, mockI18n);
-		expect(errValidPattern).toBeNull();
+		const warnValidPattern = getKeyWarning(itemsValid, 0, mockI18n);
+		expect(warnValidPattern).toBeNull();
 	});
 
 	test('TC12 — RV-13: JSON lỗi định dạng không bị xóa âm thầm khi lưu', async () => {
