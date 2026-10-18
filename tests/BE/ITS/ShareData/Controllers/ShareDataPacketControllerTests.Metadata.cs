@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Module.ShareData.Core.Dto.Metadata;
 using Module.ShareData.Core.Entities;
 using Module.ShareData.Core.Exceptions;
-using Module.ShareData.Infrastructure.Persistence.SeedData;
+using Tests.ShareData.Common;
 using Module.ShareData.Infrastructure.Services.ShareDataExtraction;
 using SqlSugar;
 using Wolverine;
@@ -37,8 +37,7 @@ public partial class ShareDataPacketControllerTests
 
         if (sourceTables == null || sourceTables.Count == 0)
         {
-            sourceTables = new ShareDataSourceTableSeedData()
-                .HasData()
+            sourceTables = SeedScriptReader.ReadSourceTables()
                 .Where(x => x.IsQueryable == true && !string.IsNullOrWhiteSpace(x.TableName))
                 .OrderBy(x => x.OrderNo)
                 .ThenBy(x => x.ID)
@@ -139,5 +138,22 @@ public partial class ShareDataPacketControllerTests
         {
             TableName = invalidTableName
         }));
+    }
+
+    [Fact]
+    public async Task GetMetadataTables_WhenEmptyCatalog_ReturnsEmptyList_Test()
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true, account: $"superadmin_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager>();
+        var service = new PacketSqlService(null!, userManager, null);
+
+        // Act
+        var result = await service.GetAllowedTables();
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Empty(result);
     }
 }

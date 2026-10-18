@@ -28,7 +28,7 @@ public class ShareDataSubscriptionControllerTests(Host host)
         // Arrange
         var bus = host.Services.GetRequiredService<IMessageBus>();
         var db = host.Services.GetRequiredService<ISqlSugarClient>();
-        var limitOption = host.Services.GetRequiredService<LimitOption>();
+        var limitOption = host.Services.GetRequiredService<ILimitOption>();
         var validator = new AddSubscriptionValidator(host.Localizer, limitOption);
         var unique = Guid.NewGuid().ToString("N");
 
@@ -90,7 +90,7 @@ public class ShareDataSubscriptionControllerTests(Host host)
     {
         // Arrange
         var db = host.Services.GetRequiredService<ISqlSugarClient>();
-        var fallbackLimitOption = host.Services.GetRequiredService<LimitOption>();
+        var fallbackLimitOption = host.Services.GetRequiredService<ILimitOption>();
         var fallbackValidator = new AddSubscriptionValidator(host.Localizer, fallbackLimitOption);
         var unique = Guid.NewGuid().ToString("N");
 

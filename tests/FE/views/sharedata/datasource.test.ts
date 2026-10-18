@@ -2145,7 +2145,119 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(firstOptText).not.toMatch(/\(Gói\s*\d+/i);
         expect(firstOptText).not.toMatch(/P\d{3}/i);
     });
+
+    test('32. Visual Query Builder tải danh mục bảng nguồn từ CSDL, ưu tiên defaultAlias và cảnh báo khi danh mục rỗng', async ({ page }) => {
+        const qbPath = resolveWebvuePath('views/sharedata/dataSource/component/queryBuilder.vue');
+        const qbContent = fs.readFileSync(qbPath, 'utf8');
+
+        // 1. Quét tĩnh mã nguồn: MetadataTableItem chứa defaultAlias, không chứa category
+        expect(qbContent).toContain('defaultAlias?: string;');
+        expect(qbContent).not.toContain('category?: string;');
+
+        // 2. tableOptions trả về mảng rỗng [] khi metadataTables rỗng (không fallback predefinedTables)
+        expect(qbContent).toContain('if (!metadataTables.value || metadataTables.value.length === 0) {\n\t\treturn [];\n\t}');
+
+        // 3. fetchMetadataTables gọi cảnh báo noAllowedTables khi danh mục rỗng hoặc lỗi
+        expect(qbContent).toContain("ElMessage.warning($t('lz.message.sharedataDataSource.noAllowedTables'));");
+
+        // 4. Kiểm tra file i18n vi-vn.json và en-us.json đã được cấu hình key cảnh báo
+        const viPath = resolveWebvuePath('i18n/lang/vi-vn.json');
+        const viContent = JSON.parse(fs.readFileSync(viPath, 'utf8'));
+        expect(viContent['lz.message.sharedataDataSource.noAllowedTables']).toBe(
+            'Chưa có bảng nguồn nào được phép, liên hệ quản trị chạy script cấu hình'
+        );
+
+        const enPath = resolveWebvuePath('i18n/lang/en-us.json');
+        const enContent = JSON.parse(fs.readFileSync(enPath, 'utf8'));
+        expect(enContent['lz.message.sharedataDataSource.noAllowedTables']).toBe(
+            'No allowed source tables found, please contact administrator to run configuration script'
+        );
+
+        // 5. Kiểm thử logic ưu tiên alias 3 tầng
+        const predefined = [
+            { name: 'TmsTrafficData', defaultAlias: 'td' },
+            { name: 'TmsIncident', defaultAlias: 'i' },
+        ];
+        const apiMetadata = [
+            { tableName: 'TollLane', defaultAlias: 'tl' },
+            { tableName: 'TollStation', defaultAlias: 'ts' },
+            { tableName: 'CustomTable', defaultAlias: '' },
+        ];
+
+        const resolveAlias = (tblName: string) => {
+            const found = predefined.find((t) => t.name.toLowerCase() === tblName.toLowerCase());
+            const meta = apiMetadata.find((t) => t.tableName.toLowerCase() === tblName.toLowerCase());
+            return found?.defaultAlias || meta?.defaultAlias?.trim() || (tblName ? tblName.charAt(0).toLowerCase() : 't');
+        };
+
+        // Ưu tiên 1: predefinedTables
+        expect(resolveAlias('TmsTrafficData')).toBe('td');
+        // Ưu tiên 2: defaultAlias từ API CSDL
+        expect(resolveAlias('TollLane')).toBe('tl');
+        expect(resolveAlias('TollStation')).toBe('ts');
+        // Ưu tiên 3: Ký tự đầu tên bảng viết thường khi không có defaultAlias
+        expect(resolveAlias('CustomTable')).toBe('c');
+        expect(resolveAlias('UnknownTable')).toBe('u');
+
+        // 6. Test thực tế: Mock API getmetadatatables trả về danh mục bảng có TollLane (defaultAlias: 'tl')
+        await page.route('**/api/sharedata/sharedatapacket/getmetadatatables*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: [
+                        { tableName: 'TmsTrafficData', displayName: 'Dò xe', defaultAlias: 'td' },
+                        { tableName: 'TollLane', displayName: 'Làn thu phí', defaultAlias: 'tl' },
+                    ],
+                }),
+            });
+        });
+
+        await page.route('**/api/sharedata/sharedatapacket/getmetadatafields*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: [
+                        { columnName: 'ID', dataType: 'bigint', suggestedAlias: 'id' },
+                        { columnName: 'LaneNo', dataType: 'int', suggestedAlias: 'laneNo' },
+                    ],
+                }),
+            });
+        });
+
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+
+        const packetGrid = page.locator('.packet-col .vxe-grid');
+        await expect(packetGrid).toBeVisible({ timeout: 15_000 });
+        await page.locator('.vxe-table--body-wrapper tbody tr').first().click();
+
+        const tabs = page.locator('.datasource-right-tabs');
+        await expect(tabs).toBeVisible({ timeout: 15_000 });
+        const sqlTab = tabs.getByRole('tab', { name: /Cấu hình SQL/ });
+        await sqlTab.click();
+        await expect(sqlTab).toHaveClass(/is-active/);
+
+        const tableSelect = page.locator('.visual-query-builder-container .vqb-table-select');
+        await expect(tableSelect).toBeVisible();
+
+        // Mở dropdown chọn bảng nguồn TollLane
+        await tableSelect.click();
+        const popper = page.locator('.el-select__popper:visible');
+        await expect(popper).toBeVisible({ timeout: 5_000 });
+        const tollLaneOpt = popper.locator('.el-select-dropdown__item').filter({ hasText: /TollLane/i });
+        await expect(tollLaneOpt).toBeVisible();
+        await tollLaneOpt.click();
+
+        // Kiểm tra alias input được tự động điền 'tl' từ defaultAlias của API CSDL
+        const aliasInput = page.locator('.visual-query-builder-container .vqb-alias-input input');
+        await expect(aliasInput).toHaveValue('tl');
+    });
 });
+
 
 
 

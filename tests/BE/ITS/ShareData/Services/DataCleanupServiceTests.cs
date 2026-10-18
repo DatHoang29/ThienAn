@@ -57,10 +57,8 @@ public class DataCleanupServiceTests(Host host)
         }).ExecuteCommandAsync();
         await db.Ado.ExecuteCommandAsync("UPDATE ShareDataActivityLog SET CreateTime = @oldTime WHERE ID = @id", new { oldTime, id = businessId });
 
-        var opt = DataWorkerOption.Values.Default with { TrackingLogRetentionDays = 7, TrackingLogPurgeBatch = 1000 };
-
         // Act
-        await cleanupService.CleanTrackingLogs(opt, CancellationToken.None);
+        await cleanupService.CleanTrackingLogs(CancellationToken.None);
 
         // Assert
         Assert.Null(await db.Queryable<ShareDataActivityLog>().Where(x => x.ID == trackingId).FirstAsync());

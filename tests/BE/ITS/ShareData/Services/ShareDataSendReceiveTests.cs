@@ -83,7 +83,7 @@ namespace Tests.ShareData.Services
                 logger,
                 extraction,
                 new DataOutboundTransport(dispatcher, configuration),
-                scope.ServiceProvider.GetService<IDataWorkerOpConfigReader>());
+                scope.ServiceProvider.GetRequiredService<IDataWorkerOption>());
         }
 
         #region 1. Test Gói Snapshot (Gói 105 - RFID Data)

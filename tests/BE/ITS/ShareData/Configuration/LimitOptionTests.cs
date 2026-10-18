@@ -141,4 +141,15 @@ public class LimitOptionTests(Host host)
         Assert.Equal(50, values.SqlSampleTop.Max);
         Assert.Equal(10, values.SqlSampleTop.Default);
     }
+
+    [Fact]
+    public void LimitOption_WhenResolvedFromServiceProvider_ResolvesILimitOption_Test()
+    {
+        // Act
+        var limitOption = _host.Services.GetService<ILimitOption>();
+
+        // Assert
+        Assert.NotNull(limitOption);
+        Assert.IsType<LimitOption>(limitOption);
+    }
 }

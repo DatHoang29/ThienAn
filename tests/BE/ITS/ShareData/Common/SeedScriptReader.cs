@@ -1,6 +1,7 @@
 namespace Tests.ShareData.Common;
 
 using System.Text.RegularExpressions;
+using Module.ShareData.Core.Entities;
 
 /// <summary>
 /// Description: Đọc và phân tích cú pháp tệp seed SQL '02-sharedata-seed-goi-tin.sql'
@@ -191,5 +192,74 @@ internal static class SeedScriptReader
 
         throw new FileNotFoundException(
             $"Không tìm thấy tệp seed 02-sharedata-seed-goi-tin.sql khi dò từ thư mục gốc '{AppContext.BaseDirectory}'.");
+    }
+
+    /// <summary>
+    /// Đọc danh mục 15 bảng nguồn từ script 03-sharedata-seed-cau-hinh.sql (mục 3.4).
+    /// </summary>
+    public static List<ShareDataSourceTable> ReadSourceTables()
+    {
+        var scriptPath = ResolveScript03Path();
+        var content = File.ReadAllText(scriptPath);
+
+        var regex = new Regex(
+            @"\(\s*'(?<id>[^']+)',\s*N'(?<tableName>[^']+)',\s*N'(?<name>[^']+)',\s*N'(?<packetCodes>[^']*)',\s*(?<order>\d+),\s*(?<tracked>\d+),\s*(?<queryable>\d+),\s*N'(?<alias>[^']*)',\s*N'(?<remark>(?:''|[^'])*)'\s*\)",
+            RegexOptions.Singleline);
+
+        var matches = regex.Matches(content);
+        var list = new List<ShareDataSourceTable>();
+        foreach (Match m in matches)
+        {
+            list.Add(new ShareDataSourceTable
+            {
+                ID = m.Groups["id"].Value,
+                TableName = m.Groups["tableName"].Value,
+                Name = m.Groups["name"].Value,
+                PacketCodes = m.Groups["packetCodes"].Value,
+                OrderNo = int.Parse(m.Groups["order"].Value),
+                IsTracked = m.Groups["tracked"].Value == "1",
+                IsQueryable = m.Groups["queryable"].Value == "1",
+                DefaultAlias = m.Groups["alias"].Value,
+                Remark = m.Groups["remark"].Value.Replace("''", "'")
+            });
+        }
+
+        return list;
+    }
+
+    private static string ResolveScript03Path()
+    {
+        var currentDir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (currentDir != null)
+        {
+            var targetFile = Path.Combine(
+                currentDir.FullName,
+                "DocBusinessThienAn",
+                "HữuNghị-ChiLăng",
+                "ShareData",
+                "sql",
+                "03-sharedata-seed-cau-hinh.sql");
+
+            if (File.Exists(targetFile))
+            {
+                return targetFile;
+            }
+
+            var altFile = Path.Combine(
+                currentDir.FullName,
+                "ShareData",
+                "sql",
+                "03-sharedata-seed-cau-hinh.sql");
+
+            if (File.Exists(altFile))
+            {
+                return altFile;
+            }
+
+            currentDir = currentDir.Parent;
+        }
+
+        throw new FileNotFoundException(
+            $"Không tìm thấy tệp seed 03-sharedata-seed-cau-hinh.sql khi dò từ thư mục gốc '{AppContext.BaseDirectory}'.");
     }
 }

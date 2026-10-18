@@ -17,7 +17,7 @@ GO
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent, không ghi đè dữ liệu quản trị đã sửa).
--- CẬP NHẬT LẦN CUỐI: 16102026
+-- CẬP NHẬT LẦN CUỐI: 18/10/2026
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -25,6 +25,13 @@ SET NOCOUNT ON;
 PRINT N'=============================================================================';
 PRINT N'BẮT ĐẦU KỊCH BẢN SEED GÓI TIN SHAREDATA (02-sharedata-seed-goi-tin.sql)';
 PRINT N'=============================================================================';
+
+IF OBJECT_ID('dbo.ShareDataPacket', 'U') IS NULL
+BEGIN
+    PRINT N'⚠️ Bảng [dbo].[ShareDataPacket] chưa tồn tại (chưa chạy CodeFirst)! Vui lòng chạy CodeFirst trước khi nạp dữ liệu gói tin.';
+    RETURN;
+END;
+GO
 
 -- -----------------------------------------------------------------------------------------
 -- 0. CẤU HÌNH GHI ĐÈ TEMPLATE
@@ -37,19 +44,6 @@ IF @GhiDeMauGoiTin = 1
     PRINT N'⚠️ CHẾ ĐỘ: GHI ĐÈ TOÀN BỘ (@GhiDeMauGoiTin = 1) - Các câu lệnh trích xuất sẽ được đặt lại theo Catalog!';
 ELSE
     PRINT N'ℹ️ CHẾ ĐỘ: AN TOÀN (@GhiDeMauGoiTin = 0) - Chỉ nạp mẫu cho gói chưa có ExtractSql, giữ nguyên cấu hình đã sửa.';
-
--- 1. ĐẢM BẢO CÁC CỘT CẤU HÌNH TRUY VẤN TỒN TẠI TRÊN ShareDataPacket
-IF COL_LENGTH('dbo.ShareDataPacket', 'ExtractSql') IS NULL
-    ALTER TABLE [dbo].[ShareDataPacket] ADD [ExtractSql] NVARCHAR(MAX) NULL;
-
-IF COL_LENGTH('dbo.ShareDataPacket', 'SyncMode') IS NULL
-    ALTER TABLE [dbo].[ShareDataPacket] ADD [SyncMode] INT NULL; -- 1 = Snapshot, 2 = Incremental
-
-IF COL_LENGTH('dbo.ShareDataPacket', 'CursorTimeColumn') IS NULL
-    ALTER TABLE [dbo].[ShareDataPacket] ADD [CursorTimeColumn] NVARCHAR(128) NULL;
-
-IF COL_LENGTH('dbo.ShareDataPacket', 'MaxLookBackDays') IS NULL
-    ALTER TABLE [dbo].[ShareDataPacket] ADD [MaxLookBackDays] INT NULL;
 GO
 
 -- -----------------------------------------------------------------------------------------

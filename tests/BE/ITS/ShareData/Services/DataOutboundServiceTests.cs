@@ -1441,7 +1441,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             await service.ProcessSubscriptions(CancellationToken.None);
 
             // Assert:
-            // Sub hợp lệ sẽ được claim lease và ghi log
+            // Sub hợp lệ sẽ được giữ khóa và ghi log
             var validLogs = await db.Queryable<ShareDataActivityLog>()
                 .Where(l => l.SubscriptionId == subValid.ID)
                 .ToListAsync();
@@ -5605,7 +5605,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         /// Created date: 29/09/2026
         /// </summary>
         [Fact]
-        public async Task ProcessSubscriptions_WhenTwoWorkersScanConcurrently_OnlyOneClaimsLockAndNoDuplicateExport_Test()
+        public async Task ProcessSubscriptions_WhenTwoWorkersScanConcurrently_OnlyOneGetsLockAndNoDuplicateExport_Test()
         {
             // Arrange
             using var scope = _host.Services.CreateScope();
@@ -7029,7 +7029,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 logger,
                 scope.ServiceProvider.GetRequiredService<IDataOutboundExtractionProcess>(),
                 new DataOutboundTransport(dispatcher, config),
-                scope.ServiceProvider.GetService<IDataWorkerOpConfigReader>());
+                scope.ServiceProvider.GetRequiredService<IDataWorkerOption>());
         }
 
         /// <summary>

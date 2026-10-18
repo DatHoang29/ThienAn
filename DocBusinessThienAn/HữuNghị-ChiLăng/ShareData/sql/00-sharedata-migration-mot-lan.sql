@@ -4,15 +4,16 @@ GO
 -- =========================================================================================
 -- FILE: 00-sharedata-migration-mot-lan.sql
 -- DESCRIPTION: Kịch bản di trú một lần cho phân hệ ShareData (ESHARE):
---              1. Bổ sung các cột cấu hình truy vấn và đồng bộ vào ShareDataPacket
---                 (ExtractSql, SyncMode, CursorTimeColumn, MaxLookBackDays).
---              2. Đồng bộ các cột cấu hình vào CSDL test (nếu tồn tại) cho ShareDataPacket.
---              3. Kiểm tra và DROP bảng mồ côi ShareDataTable (chỉ xóa nếu bảng rỗng).
---              4. Dọn dòng ROOT của thiết kế cũ trong ShareDataPacketSql (xóa mềm).
---              5. Tạo / Đổi tên bảng thành ShareDataSourceTable (có IsTracked, IsQueryable, Category, DefaultAlias;
---                 chép Status -> IsTracked), di trú cấu hình từ SysOpConfig (sharedata_tracker) kèm mốc LastVersion
---                 từ ShareDataTrackVersion, xóa mềm SysOpConfig và DROP ShareDataTrackVersion.
---              6. Di trú cột ConnectionType trên ShareDataPartner từ NVARCHAR sang INT (1-Api, 2-File, 3-Ftp, 4-Ftps, 5-Kafka).
+--              1. Kiểm tra và DROP bảng mồ côi ShareDataTable (chỉ xóa nếu bảng rỗng).
+--              2. Dọn dòng ROOT của thiết kế cũ trong ShareDataPacketSql (xóa mềm).
+--              3. Di trú dữ liệu bảng nguồn sang ShareDataSourceTable (CodeFirst tạo khung trước):
+--                 - Chép dữ liệu từ ShareDataTrackTable (nếu tồn tại) sang ShareDataSourceTable,
+--                   giữ LastVersion, LastChangeTime, LastIssue, chuyển Status -> IsTracked, sau đó DROP ShareDataTrackTable.
+--                 - Xóa cột Category trên ShareDataSourceTable nếu còn tồn tại.
+--                 - Di trú từ SysOpConfig (sharedata_tracker) + ShareDataTrackVersion sang nếu bảng rỗng.
+--                 - Xóa mềm các dòng SysOpConfig (sharedata_tracker).
+--                 - Kiểm tra và DROP bảng cũ ShareDataTrackVersion.
+--              4. Di trú cột ConnectionType trên ShareDataPartner từ NVARCHAR sang INT (1-Api, 2-File, 3-Ftp, 4-Ftps, 5-Kafka).
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: ⚠️ CHỈ CHẠY MỘT LẦN KHI NÂNG CẤP/DI TRÚ HỆ THỐNG.
@@ -24,82 +25,7 @@ PRINT N'BẮT ĐẦU KỊCH BẢN DI TRÚ MỘT LẦN CSDL SHAREDATA (00-shareda
 PRINT N'=============================================================================';
 
 -- -----------------------------------------------------------------------------------------
--- 1. BỔ SUNG CỘT CẤU HÌNH TRUY VẤN VÀO BẢNG ShareDataPacket
--- -----------------------------------------------------------------------------------------
-IF COL_LENGTH('dbo.ShareDataPacket', 'ExtractSql') IS NULL
-BEGIN
-    PRINT N'  -> Đang thêm cột ExtractSql vào bảng ShareDataPacket...';
-    ALTER TABLE [dbo].[ShareDataPacket] ADD [ExtractSql] NVARCHAR(MAX) NULL;
-END
-ELSE
-    PRINT N'  -> Cột ExtractSql đã tồn tại trên ShareDataPacket, bỏ qua.';
-
-IF COL_LENGTH('dbo.ShareDataPacket', 'SyncMode') IS NULL
-BEGIN
-    PRINT N'  -> Đang thêm cột SyncMode vào bảng ShareDataPacket...';
-    ALTER TABLE [dbo].[ShareDataPacket] ADD [SyncMode] INT NULL; -- 1 = Snapshot, 2 = Incremental
-END
-ELSE
-    PRINT N'  -> Cột SyncMode đã tồn tại trên ShareDataPacket, bỏ qua.';
-
-IF COL_LENGTH('dbo.ShareDataPacket', 'CursorTimeColumn') IS NULL
-BEGIN
-    PRINT N'  -> Đang thêm cột CursorTimeColumn vào bảng ShareDataPacket...';
-    ALTER TABLE [dbo].[ShareDataPacket] ADD [CursorTimeColumn] NVARCHAR(128) NULL;
-END
-ELSE
-    PRINT N'  -> Cột CursorTimeColumn đã tồn tại trên ShareDataPacket, bỏ qua.';
-
-IF COL_LENGTH('dbo.ShareDataPacket', 'MaxLookBackDays') IS NULL
-BEGIN
-    PRINT N'  -> Đang thêm cột MaxLookBackDays vào bảng ShareDataPacket...';
-    ALTER TABLE [dbo].[ShareDataPacket] ADD [MaxLookBackDays] INT NULL;
-END
-ELSE
-    PRINT N'  -> Cột MaxLookBackDays đã tồn tại trên ShareDataPacket, bỏ qua.';
-GO
-
--- -----------------------------------------------------------------------------------------
--- 2. ĐỒNG BỘ CỘT CẤU HÌNH VÀO CSDL test (NẾU TỒN TẠI) CHO BẢNG ShareDataPacket
--- -----------------------------------------------------------------------------------------
-IF DB_ID('test') IS NOT NULL
-BEGIN
-    PRINT N'  -> Phát hiện CSDL [test], kiểm tra và bổ sung cột vào [test].[dbo].[ShareDataPacket]...';
-    EXEC('
-        USE [test];
-        IF COL_LENGTH(''dbo.ShareDataPacket'', ''ExtractSql'') IS NULL
-        BEGIN
-            PRINT N''    -> [test] Đang thêm cột ExtractSql vào bảng ShareDataPacket...'';
-            ALTER TABLE [dbo].[ShareDataPacket] ADD [ExtractSql] NVARCHAR(MAX) NULL;
-        END
-
-        IF COL_LENGTH(''dbo.ShareDataPacket'', ''SyncMode'') IS NULL
-        BEGIN
-            PRINT N''    -> [test] Đang thêm cột SyncMode vào bảng ShareDataPacket...'';
-            ALTER TABLE [dbo].[ShareDataPacket] ADD [SyncMode] INT NULL;
-        END
-
-        IF COL_LENGTH(''dbo.ShareDataPacket'', ''CursorTimeColumn'') IS NULL
-        BEGIN
-            PRINT N''    -> [test] Đang thêm cột CursorTimeColumn vào bảng ShareDataPacket...'';
-            ALTER TABLE [dbo].[ShareDataPacket] ADD [CursorTimeColumn] NVARCHAR(128) NULL;
-        END
-
-        IF COL_LENGTH(''dbo.ShareDataPacket'', ''MaxLookBackDays'') IS NULL
-        BEGIN
-            PRINT N''    -> [test] Đang thêm cột MaxLookBackDays vào bảng ShareDataPacket...'';
-            ALTER TABLE [dbo].[ShareDataPacket] ADD [MaxLookBackDays] INT NULL;
-        END
-    ');
-END
-ELSE
-BEGIN
-    PRINT N'  -> CSDL [test] không tồn tại trên máy chủ hiện tại, bỏ qua.';
-END
-GO
-
--- -----------------------------------------------------------------------------------------
--- 3. KIỂM TRA VÀ DROP BẢNG MỒ CÔI ShareDataTable
+-- 1. KIỂM TRA VÀ DROP BẢNG MỒ CÔI ShareDataTable
 -- -----------------------------------------------------------------------------------------
 IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'ShareDataTable')
 BEGIN
@@ -128,7 +54,7 @@ END
 GO
 
 -- -----------------------------------------------------------------------------------------
--- 4. DỌN DÒNG ROOT CỦA THIẾT KẾ CŨ TRONG BẢNG ShareDataPacketSql
+-- 2. DỌN DÒNG ROOT CỦA THIẾT KẾ CŨ TRONG BẢNG ShareDataPacketSql
 -- -----------------------------------------------------------------------------------------
 IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'ShareDataPacketSql')
 BEGIN
@@ -176,139 +102,93 @@ END
 GO
 
 -- -----------------------------------------------------------------------------------------
--- 5. TẠO / ĐỔI TÊN BẢNG ShareDataSourceTable, DI TRÚ TỪ SysOpConfig + ShareDataTrackVersion VÀ DỌN BẢNG CŨ
+-- 3. DI TRÚ DỮ LIỆU BẢNG NGUỒN SANG ShareDataSourceTable VÀ DỌN BẢNG CŨ
 -- -----------------------------------------------------------------------------------------
--- 5.a Nếu còn bảng cũ ShareDataTrackTable và chưa có ShareDataSourceTable thì đổi tên sang ShareDataSourceTable
-IF OBJECT_ID(N'[dbo].[ShareDataSourceTable]', N'U') IS NULL
-   AND OBJECT_ID(N'[dbo].[ShareDataTrackTable]', N'U') IS NOT NULL
+-- 3.a Nếu còn bảng cũ ShareDataTrackTable: chép dữ liệu sang ShareDataSourceTable rồi DROP ShareDataTrackTable
+IF OBJECT_ID(N'[dbo].[ShareDataTrackTable]', N'U') IS NOT NULL
+   AND OBJECT_ID(N'[dbo].[ShareDataSourceTable]', N'U') IS NOT NULL
 BEGIN
-    PRINT N'  -> Phát hiện bảng [dbo].[ShareDataTrackTable], đang đổi tên sang [dbo].[ShareDataSourceTable]...';
-    EXEC sp_rename N'dbo.ShareDataTrackTable', N'ShareDataSourceTable';
+    PRINT N'  -> Phát hiện bảng cũ [dbo].[ShareDataTrackTable], đang chuyển dữ liệu sang [dbo].[ShareDataSourceTable]...';
 
-    IF EXISTS (
-        SELECT 1 FROM sys.indexes
-        WHERE name = N'index_ShareDataTrackTable_TableName'
-          AND object_id = OBJECT_ID(N'[dbo].[ShareDataSourceTable]')
-    )
-    BEGIN
-        EXEC sp_rename N'dbo.ShareDataSourceTable.index_ShareDataTrackTable_TableName', N'index_ShareDataSourceTable_TableName', N'INDEX';
-    END
-    PRINT N'  -> Đã đổi tên sang [dbo].[ShareDataSourceTable] thành công.';
+    DECLARE @sqlMigrateTrackTable NVARCHAR(MAX) = N'
+        INSERT INTO [dbo].[ShareDataSourceTable] (
+            [ID], [TableName], [Name], [PacketCodes], [IsTracked], [OrderNo],
+            [Remark], [LastVersion], [LastChangeTime], [LastIssue], [IsQueryable],
+            [DefaultAlias], [TenantId], [CreateTime], [CreateUId]
+        )
+        SELECT
+            src.[ID],
+            src.[TableName],
+            ' + CASE WHEN COL_LENGTH(N'dbo.ShareDataTrackTable', N'Name') IS NOT NULL THEN N'src.[Name]' ELSE N'NULL' END + N',
+            ' + CASE WHEN COL_LENGTH(N'dbo.ShareDataTrackTable', N'PacketCodes') IS NOT NULL THEN N'src.[PacketCodes]' ELSE N'NULL' END + N',
+            ' + CASE 
+                    WHEN COL_LENGTH(N'dbo.ShareDataTrackTable', N'IsTracked') IS NOT NULL THEN N'src.[IsTracked]'
+                    WHEN COL_LENGTH(N'dbo.ShareDataTrackTable', N'Status') IS NOT NULL THEN N'CASE WHEN src.[Status] = 1 THEN 1 ELSE 0 END'
+                    ELSE N'1'
+                END + N',
+            ' + CASE WHEN COL_LENGTH(N'dbo.ShareDataTrackTable', N'OrderNo') IS NOT NULL THEN N'src.[OrderNo]' ELSE N'NULL' END + N',
+            ' + CASE WHEN COL_LENGTH(N'dbo.ShareDataTrackTable', N'Remark') IS NOT NULL THEN N'src.[Remark]' ELSE N'NULL' END + N',
+            ' + CASE WHEN COL_LENGTH(N'dbo.ShareDataTrackTable', N'LastVersion') IS NOT NULL THEN N'src.[LastVersion]' ELSE N'NULL' END + N',
+            ' + CASE WHEN COL_LENGTH(N'dbo.ShareDataTrackTable', N'LastChangeTime') IS NOT NULL THEN N'src.[LastChangeTime]' ELSE N'NULL' END + N',
+            ' + CASE WHEN COL_LENGTH(N'dbo.ShareDataTrackTable', N'LastIssue') IS NOT NULL THEN N'src.[LastIssue]' ELSE N'NULL' END + N',
+            ' + CASE WHEN COL_LENGTH(N'dbo.ShareDataTrackTable', N'IsQueryable') IS NOT NULL THEN N'ISNULL(src.[IsQueryable], 1)' ELSE N'1' END + N',
+            ' + CASE WHEN COL_LENGTH(N'dbo.ShareDataTrackTable', N'DefaultAlias') IS NOT NULL THEN N'src.[DefaultAlias]' ELSE N'NULL' END + N',
+            ' + CASE WHEN COL_LENGTH(N'dbo.ShareDataTrackTable', N'TenantId') IS NOT NULL THEN N'src.[TenantId]' ELSE N'NULL' END + N',
+            ' + CASE WHEN COL_LENGTH(N'dbo.ShareDataTrackTable', N'CreateTime') IS NOT NULL THEN N'src.[CreateTime]' ELSE N'GETDATE()' END + N',
+            ' + CASE WHEN COL_LENGTH(N'dbo.ShareDataTrackTable', N'CreateUId') IS NOT NULL THEN N'src.[CreateUId]' ELSE N'''superadmin''' END + N'
+        FROM [dbo].[ShareDataTrackTable] src
+        WHERE NOT EXISTS (
+            SELECT 1 FROM [dbo].[ShareDataSourceTable] dst
+            WHERE dst.[TableName] = src.[TableName]
+        );
+    ';
+    EXEC sp_executesql @sqlMigrateTrackTable;
+    PRINT N'  -> Đã di trú dữ liệu từ ShareDataTrackTable sang ShareDataSourceTable.';
+
+    PRINT N'  -> Đang DROP bảng cũ [dbo].[ShareDataTrackTable]...';
+    DROP TABLE [dbo].[ShareDataTrackTable];
+    PRINT N'  -> Đã DROP bảng cũ [dbo].[ShareDataTrackTable] thành công.';
 END
-ELSE IF OBJECT_ID(N'[dbo].[ShareDataSourceTable]', N'U') IS NOT NULL
+ELSE IF OBJECT_ID(N'[dbo].[ShareDataTrackTable]', N'U') IS NOT NULL
+   AND OBJECT_ID(N'[dbo].[ShareDataSourceTable]', N'U') IS NULL
 BEGIN
-    PRINT N'  -> Bảng [dbo].[ShareDataSourceTable] đã tồn tại, kiểm tra nâng cấp cột...';
-END
-ELSE
-BEGIN
-    PRINT N'  -> Bảng cũ [dbo].[ShareDataTrackTable] không tồn tại, sẽ tạo mới [dbo].[ShareDataSourceTable].';
-END
-GO
-
--- 5.b Tạo bảng dbo.ShareDataSourceTable nếu chưa tồn tại
-IF OBJECT_ID(N'[dbo].[ShareDataSourceTable]', N'U') IS NULL
-BEGIN
-    PRINT N'  -> Đang tạo bảng [dbo].[ShareDataSourceTable]...';
-    CREATE TABLE [dbo].[ShareDataSourceTable] (
-        [ID]             VARCHAR(64)    NOT NULL PRIMARY KEY,
-        [TableName]      NVARCHAR(128)  NOT NULL,
-        [Name]           NVARCHAR(128)  NULL,
-        [PacketCodes]    NVARCHAR(256)  NULL,
-        [IsTracked]      BIT            NULL,
-        [OrderNo]        INT            NULL,
-        [Remark]         NVARCHAR(512)  NULL,
-        [LastVersion]    BIGINT         NULL,
-        [LastChangeTime] DATETIME       NULL,
-        [LastIssue]      NVARCHAR(512)  NULL,
-        [IsQueryable]    BIT            NULL,
-        [Category]       NVARCHAR(128)  NULL,
-        [DefaultAlias]   NVARCHAR(32)   NULL,
-        [Code]           NVARCHAR(128)  NULL,
-        [TenantId]       VARCHAR(64)    NULL,
-        [CreateTime]     DATETIME       NULL,
-        [UpdateTime]     DATETIME       NULL,
-        [CreateUId]      VARCHAR(64)    NULL,
-        [UpdateUId]      VARCHAR(64)    NULL,
-        [RowStatus]      NVARCHAR(64)   NULL,
-        [IsDelete]       DATETIME       NULL
-    );
-
-    CREATE UNIQUE NONCLUSTERED INDEX [index_ShareDataSourceTable_TableName]
-        ON [dbo].[ShareDataSourceTable] ([TableName] ASC, [IsDelete] ASC);
-
-    PRINT N'  -> Đã tạo bảng [dbo].[ShareDataSourceTable] và unique index thành công.';
+    PRINT N'⚠️ Bảng [dbo].[ShareDataSourceTable] chưa được CodeFirst tạo ra. Vui lòng chạy ứng dụng để CodeFirst tạo bảng trước khi chạy di trú!';
 END
 ELSE
 BEGIN
-    PRINT N'  -> Bảng [dbo].[ShareDataSourceTable] đã tồn tại, kiểm tra và bổ sung cột nếu thiếu.';
-    IF COL_LENGTH(N'dbo.ShareDataSourceTable', N'IsTracked') IS NULL
-    BEGIN
-        ALTER TABLE [dbo].[ShareDataSourceTable] ADD [IsTracked] BIT NULL;
-        PRINT N'  -> Đã bổ sung cột [IsTracked] vào ShareDataSourceTable.';
-    END
-    ELSE
-    BEGIN
-        PRINT N'  -> Cột [IsTracked] đã tồn tại, bỏ qua.';
-    END
-
-    IF COL_LENGTH(N'dbo.ShareDataSourceTable', N'Status') IS NOT NULL
-    BEGIN
-        EXEC sp_executesql N'
-            UPDATE [dbo].[ShareDataSourceTable]
-            SET [IsTracked] = CASE WHEN [Status] = 1 THEN 1 ELSE 0 END
-            WHERE [IsTracked] IS NULL;
-        ';
-        PRINT N'  -> Đã chuyển dữ liệu từ cột [Status] cũ sang [IsTracked].';
-    END
-
-    IF COL_LENGTH(N'dbo.ShareDataSourceTable', N'IsQueryable') IS NULL
-    BEGIN
-        ALTER TABLE [dbo].[ShareDataSourceTable] ADD [IsQueryable] BIT NULL;
-        PRINT N'  -> Đã bổ sung cột [IsQueryable] vào ShareDataSourceTable.';
-    END
-    ELSE
-    BEGIN
-        PRINT N'  -> Cột [IsQueryable] đã tồn tại, bỏ qua.';
-    END
-
-    IF COL_LENGTH(N'dbo.ShareDataSourceTable', N'Category') IS NULL
-    BEGIN
-        ALTER TABLE [dbo].[ShareDataSourceTable] ADD [Category] NVARCHAR(128) NULL;
-        PRINT N'  -> Đã bổ sung cột [Category] vào ShareDataSourceTable.';
-    END
-    ELSE
-    BEGIN
-        PRINT N'  -> Cột [Category] đã tồn tại, bỏ qua.';
-    END
-
-    IF COL_LENGTH(N'dbo.ShareDataSourceTable', N'DefaultAlias') IS NULL
-    BEGIN
-        ALTER TABLE [dbo].[ShareDataSourceTable] ADD [DefaultAlias] NVARCHAR(32) NULL;
-        PRINT N'  -> Đã bổ sung cột [DefaultAlias] vào ShareDataSourceTable.';
-    END
-    ELSE
-    BEGIN
-        PRINT N'  -> Cột [DefaultAlias] đã tồn tại, bỏ qua.';
-    END
-
-    IF NOT EXISTS (
-        SELECT 1 FROM sys.indexes
-        WHERE name = N'index_ShareDataSourceTable_TableName'
-          AND object_id = OBJECT_ID(N'[dbo].[ShareDataSourceTable]')
-    )
-    BEGIN
-        CREATE UNIQUE NONCLUSTERED INDEX [index_ShareDataSourceTable_TableName]
-            ON [dbo].[ShareDataSourceTable] ([TableName] ASC, [IsDelete] ASC);
-        PRINT N'  -> Đã tạo unique index [index_ShareDataSourceTable_TableName].';
-    END
-    ELSE
-    BEGIN
-        PRINT N'  -> Unique index [index_ShareDataSourceTable_TableName] đã tồn tại, bỏ qua.';
-    END
+    PRINT N'  -> Bảng cũ [dbo].[ShareDataTrackTable] không tồn tại, bỏ qua.';
 END
 GO
 
--- 5.c Nếu bảng ShareDataSourceTable đang rỗng (0 dòng), chuyển dữ liệu từ SysOpConfig + ShareDataTrackVersion
+-- 3.b Xóa cột Category trên ShareDataSourceTable nếu còn tồn tại
+IF OBJECT_ID(N'[dbo].[ShareDataSourceTable]', N'U') IS NOT NULL
+   AND COL_LENGTH(N'dbo.ShareDataSourceTable', N'Category') IS NOT NULL
+BEGIN
+    PRINT N'  -> Phát hiện cột [Category] trên [dbo].[ShareDataSourceTable], đang dọn default constraint và DROP cột...';
+
+    DECLARE @defConstraint NVARCHAR(256);
+    SELECT @defConstraint = d.name
+    FROM sys.default_constraints d
+    JOIN sys.columns c ON d.parent_object_id = c.object_id AND d.parent_column_id = c.column_id
+    WHERE d.parent_object_id = OBJECT_ID(N'dbo.ShareDataSourceTable')
+      AND c.name = N'Category';
+
+    IF @defConstraint IS NOT NULL
+    BEGIN
+        EXEC(N'ALTER TABLE [dbo].[ShareDataSourceTable] DROP CONSTRAINT [' + @defConstraint + N'];');
+        PRINT N'  -> Đã DROP default constraint [' + @defConstraint + N'] của cột Category.';
+    END;
+
+    ALTER TABLE [dbo].[ShareDataSourceTable] DROP COLUMN [Category];
+    PRINT N'  -> Đã DROP cột [Category] trên [dbo].[ShareDataSourceTable] thành công.';
+END
+ELSE
+BEGIN
+    PRINT N'  -> Cột [Category] không tồn tại trên ShareDataSourceTable, bỏ qua.';
+END
+GO
+
+-- 3.c Nếu bảng ShareDataSourceTable đang rỗng (0 dòng), chuyển dữ liệu từ SysOpConfig + ShareDataTrackVersion
 IF OBJECT_ID(N'[dbo].[ShareDataSourceTable]', N'U') IS NOT NULL
 BEGIN
     DECLARE @CurrentSourceCount INT = 0;
@@ -339,7 +219,7 @@ BEGIN
         BEGIN
             INSERT INTO [dbo].[ShareDataSourceTable] (
                 [ID], [TableName], [Name], [PacketCodes], [IsTracked], [OrderNo],
-                [Remark], [LastVersion], [IsQueryable], [Category], [DefaultAlias],
+                [Remark], [LastVersion], [IsQueryable], [DefaultAlias],
                 [TenantId], [CreateTime], [CreateUId]
             )
             SELECT
@@ -369,13 +249,6 @@ BEGIN
                 [Remark],
                 @OldVersion,
                 1,
-                CASE
-                    WHEN [Code] IN (N'TmsZone', N'TmsZoneStatus', N'TmsTrafficStatistic', N'TmsTrafficData', N'TmsWeather', N'TmsIncident', N'TmsEventType') THEN N'Giao thông'
-                    WHEN [Code] IN (N'CctvDevice', N'VmsCurrent', N'TmsEquipment') THEN N'Thiết bị & Giám sát'
-                    WHEN [Code] IN (N'TollTransactionIn', N'TollTransactionOut', N'TollLane', N'TollStation') THEN N'Thu phí'
-                    WHEN [Code] = N'TmsVehicleRegistration' THEN N'Đăng kiểm'
-                    ELSE N'Khác'
-                END,
                 CASE [Code]
                     WHEN N'TmsZone'                THEN N'z'
                     WHEN N'TmsZoneStatus'          THEN N'zs'
@@ -416,7 +289,7 @@ BEGIN
 END
 GO
 
--- 5.d Xóa mềm các dòng SysOpConfig có GroupCode = 'sharedata_tracker'
+-- 3.d Xóa mềm các dòng SysOpConfig có GroupCode = 'sharedata_tracker'
 IF OBJECT_ID(N'[dbo].[SysOpConfig]', N'U') IS NOT NULL
 BEGIN
     IF EXISTS (SELECT 1 FROM [dbo].[SysOpConfig] WHERE [GroupCode] = N'sharedata_tracker' AND [IsDelete] IS NULL)
@@ -435,7 +308,7 @@ BEGIN
 END
 GO
 
--- 5.e Kiểm tra và DROP bảng cũ ShareDataTrackVersion
+-- 3.e Kiểm tra và DROP bảng cũ ShareDataTrackVersion
 IF OBJECT_ID(N'[dbo].[ShareDataTrackVersion]', N'U') IS NOT NULL
 BEGIN
     DECLARE @trackVerRowCount INT = 0;
@@ -453,14 +326,13 @@ END
 GO
 
 -- -----------------------------------------------------------------------------------------
--- 6. DI TRÚ CỘT ConnectionType TRÊN BẢNG ShareDataPartner TỪ NVARCHAR SANG INT
+-- 4. DI TRÚ CỘT ConnectionType TRÊN BẢNG ShareDataPartner TỪ NVARCHAR SANG INT
 -- -----------------------------------------------------------------------------------------
 IF OBJECT_ID(N'dbo.ShareDataPartner', N'U') IS NOT NULL
 BEGIN
     IF COL_LENGTH(N'dbo.ShareDataPartner', N'ConnectionType') IS NULL
     BEGIN
-        PRINT N'  -> Đang thêm mới cột ConnectionType kiểu INT vào bảng ShareDataPartner...';
-        ALTER TABLE [dbo].[ShareDataPartner] ADD [ConnectionType] INT NULL;
+        PRINT N'  -> Cột ConnectionType chưa tồn tại trên ShareDataPartner (sẽ được CodeFirst tạo kiểu INT), bỏ qua.';
     END
     ELSE
     BEGIN
@@ -506,8 +378,7 @@ BEGIN
         BEGIN
             IF COL_LENGTH(N''dbo.ShareDataPartner'', N''ConnectionType'') IS NULL
             BEGIN
-                PRINT N''    -> [test] Đang thêm cột ConnectionType INT vào ShareDataPartner...'';
-                ALTER TABLE [dbo].[ShareDataPartner] ADD [ConnectionType] INT NULL;
+                PRINT N''    -> [test] Cột ConnectionType chưa tồn tại trên ShareDataPartner (sẽ được CodeFirst tạo kiểu INT), bỏ qua.'';
             END
             ELSE
             BEGIN

@@ -4,7 +4,6 @@ using Tests.ShareData.Common;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Module.ShareData.Core.Entities;
-using Module.ShareData.Infrastructure.Persistence.SeedData;
 using Module.ShareData.Infrastructure.Services.ShareDataExtraction;
 using Modules.TMS.Core.Entities;
 using Modules.TOLL.Core.Entities;
@@ -2242,7 +2241,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             if (!db.DbMaintenance.IsAnyTable("ShareDataSourceTable", false))
                 db.CodeFirst.InitTables<ShareDataSourceTable>();
 
-            var seedRows = new ShareDataSourceTableSeedData().HasData().ToList();
+            var seedRows = SeedScriptReader.ReadSourceTables();
             var seedTableNames = seedRows
                 .Where(x => !string.IsNullOrWhiteSpace(x.TableName))
                 .Select(x => x.TableName!.Trim())
@@ -2301,7 +2300,6 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                         OrderNo = seed.OrderNo,
                         IsTracked = seed.IsTracked,
                         IsQueryable = seed.IsQueryable,
-                        Category = seed.Category,
                         DefaultAlias = seed.DefaultAlias,
                         Remark = seed.Remark,
                         LastVersion = seed.LastVersion,
@@ -2426,7 +2424,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 scopeFactory,
                 logger,
                 new DataOutboundExtractionProcess(),
-                new DataOutboundTransport(dispatcher, config));
+                new DataOutboundTransport(dispatcher, config),
+                scope.ServiceProvider.GetRequiredService<IDataWorkerOption>());
         }
 
         #endregion
@@ -4704,7 +4703,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         ///              chỉ đúng 1 instance nâng được mốc CAS và xử lý thay đổi, không phát trigger trùng.
         /// </summary>
         [Fact]
-        public async Task DataChangeTrackingService_WhenTwoInstancesPollConcurrently_DoesNotDuplicateClaim_Test()
+        public async Task DataChangeTrackingService_WhenTwoInstancesPollConcurrently_DoesNotCheckSameChangeTwice_Test()
         {
             await using var scope1 = _host.Services.CreateAsyncScope();
             await using var scope2 = _host.Services.CreateAsyncScope();
@@ -4815,13 +4814,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         }
 
         /// <summary>
-        /// Description: Kiểm thử (f): Đối chiếu 15 dòng trong ShareDataSourceTableSeedData.HasData()
+        /// Description: Kiểm thử: Đối chiếu 15 dòng được đọc bởi SeedScriptReader.ReadSourceTables()
         ///              trùng khớp 100% với 15 dòng trong script 03-sharedata-seed-cau-hinh.sql.
         /// </summary>
         [Fact]
-        public void ShareDataSourceTableSeedData_MatchesSqlScript03_Exactly15Rows_Test()
+        public void SeedScriptReader_MatchesSqlScript03_Exactly15Rows_Test()
         {
-            var seedRows = new ShareDataSourceTableSeedData().HasData().OrderBy(x => x.OrderNo).ToList();
+            var seedRows = SeedScriptReader.ReadSourceTables().OrderBy(x => x.OrderNo).ToList();
             Assert.Equal(15, seedRows.Count);
 
             var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
@@ -5018,9 +5017,10 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         {
             var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
             var logger = (scope?.ServiceProvider ?? _host.Services).GetRequiredService<ILogger<DataChangeTrackingService>>();
+            var workerOption = (scope?.ServiceProvider ?? _host.Services).GetRequiredService<IDataWorkerOption>();
             transport ??= new TransportManager(new ConfigurationBuilder().Build());
             config ??= _host.Services.GetService<IConfiguration>();
-            return new DataChangeTrackingService(scopeFactory, logger, transport, config);
+            return new DataChangeTrackingService(scopeFactory, logger, transport, workerOption, config);
         }
 
         /// <summary>
@@ -5070,8 +5070,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         {
             var method = typeof(DataChangeTrackingService).GetMethod("QueryChangedTables", BindingFlags.NonPublic | BindingFlags.Instance)
                 ?? throw new InvalidOperationException("QueryChangedTables method not found");
-            IReadOnlyList<ShareDataSourceTable> claimed = [trackTable];
-            var task = (Task<List<string>>)method.Invoke(worker, [db, claimed, sql])!;
+            IReadOnlyList<ShareDataSourceTable> tablesToCheck = [trackTable];
+            var task = (Task<List<string>>)method.Invoke(worker, [db, tablesToCheck, sql])!;
             return await task;
         }
 
