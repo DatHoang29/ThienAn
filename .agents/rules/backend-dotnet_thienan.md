@@ -32,7 +32,7 @@ description: Backend .NET standards, Wolverine bus, SqlSugar ORM, Clean Architec
 ### 1.3. Cấu trúc Service
 * Theo mẫu `src/Services/Sample` (V3): `Services.<X>` là thư viện lõi chứa logic dùng chung; `Services.<X>.Worker` / `Services.<X>.Wpf` là host mỏng, chỉ tham chiếu thư viện lõi; dùng `Services.Shared` / `Services.Shared.Runtime` (cấu hình nạp lại qua `IConfigLoader`, log, NATS).
 * Thư viện lõi của **service** (`Services.<X>`, `ITS.<X>.Core`) **được** chứa logic — khác với Core của module ở mục 1.2.
-* Service ưu tiên tham chiếu `Modules.<X>.Core` hoặc project Integration. Thư viện thuần mã (codec, formatter, connection keys/options, adapters...) dùng chung giữa module và service đặt thành project riêng `Modules.Integration.<PhânHệ>` (hoặc theo cấu trúc Integration), thuần BCL và không tham chiếu project nào có Furion/Web/SqlSugar; service **không** tham chiếu project module (chứa controller/handler). Việc service tham chiếu project module (hiện chỉ còn CCTV) là **độ lệch tạm thời**, không phải tiền lệ; phân hệ ShareData đã chuẩn hóa thành công sang `Modules.Integration.ShareData` (cho phép dùng các gói kênh truyền vận độc lập `Confluent.Kafka`, `Microsoft.Extensions.Http`, `Microsoft.Extensions.Logging.Abstractions`, vẫn cấm Furion, SqlSugar, Web, Shared.*).
+* Service ưu tiên tham chiếu `Modules.<X>.Core` hoặc project Integration. Thư viện thuần mã (codec, formatter, connection keys/options, adapters...) dùng chung giữa module và service đặt thành project riêng `Modules.Integration.<PhânHệ>` (hoặc theo cấu trúc Integration), thuần BCL và không tham chiếu project nào có Furion/Web/SqlSugar; service **không** tham chiếu project module (chứa controller/handler). Việc service tham chiếu project module (hiện chỉ còn CCTV) là **độ lệch tạm thời**, không phải tiền lệ; phân hệ ShareData đã chuẩn hóa thành công sang `Modules.Integration.Delivery` (cho phép dùng các gói kênh truyền vận độc lập `Confluent.Kafka`, `Microsoft.Extensions.Http`, `Microsoft.Extensions.Logging.Abstractions`, vẫn cấm Furion, SqlSugar, Web, Shared.*).
 
 ### 1.4. Lệch hiện có
 * Các chỗ lệch dưới đây chỉ chuẩn hóa khi có task riêng, không tự sửa kèm task khác:
@@ -156,10 +156,10 @@ namespace Module.ShareData.Controllers
       - Phải đăng ký đầy đủ và chính xác trong cả 3 khối: `Project(...)`, `ProjectConfigurationPlatforms`, và `NestedProjects` (trỏ đúng thư mục cha chuẩn, ví dụ `Modules`).
       - Không để sót cấu hình rác hoặc mapping mồ côi.
 13. **Quy Chuẩn Đặt Tên Kiểu Mới Trong Phân Hệ — Tránh Lặp Tiền Tố (Rule 19.73)**:
-    - Khi kiểu mới đã nằm trong namespace hoặc thư mục của phân hệ (ví dụ `Modules.Integration.ShareData`, `Modules.ShareData` hoặc `ShareData/`): **TUYỆT ĐỐI KHÔNG lặp lại tiền tố của phân hệ ở tên kiểu mới**.
+    - Khi kiểu mới đã nằm trong namespace hoặc thư mục của phân hệ (ví dụ `Modules.Integration.Delivery`, `Modules.ShareData` hoặc `ShareData/`): **TUYỆT ĐỐI KHÔNG lặp lại tiền tố của phân hệ ở tên kiểu mới**.
       - Ví dụ chuẩn: Viết `FormatContext` thay vì `ShareDataFormatContext`, `EncryptManager` thay vì `ShareDataEncryptManager`.
     - **Phạm vi áp dụng**: Bao gồm class, interface (`IConnectHandler`, không phải `IShareDataConnectHandler`), enum, record, DTO và tên file (tên file = tên kiểu chính).
-    - **Tiền tố cần tránh**: Tên phân hệ (`ShareData`, `VMS`, `TMS`...) khi namespace/project đã mang tên phân hệ (`Module.ShareData*`, `Modules.Integration.ShareData`, `ShareDataWorker*`).
+    - **Tiền tố cần tránh**: Tên phân hệ (`ShareData`, `VMS`, `TMS`...) khi namespace/project đã mang tên phân hệ (`Module.ShareData*`, `Modules.Integration.Delivery`, `ShareDataWorker*`).
     - **Ngoại lệ (giữ nguyên)**:
       - Các kiểu đã có ở `HEAD` (bảo toàn class/kiểu cũ để tránh xáo trộn codebase và giảm thiểu diff).
       - Controller (route, Swagger và client FE sinh theo tên, nên theo các `ShareData*Controller` hiện có).
