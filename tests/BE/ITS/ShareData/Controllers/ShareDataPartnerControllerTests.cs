@@ -1,5 +1,6 @@
 using Module.ShareData.Controllers.Partner.Validators;
-using Modules.Integration.ShareData;
+using Modules.Integration.ShareData.Base.Constants;
+using Modules.Integration.ShareData.Base.Enums;
 using Xunit;
 
 namespace Tests.ShareData.Controllers

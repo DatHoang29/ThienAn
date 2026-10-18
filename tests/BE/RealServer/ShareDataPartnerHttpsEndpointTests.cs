@@ -1,5 +1,6 @@
 #if HAS_SHAREDATAWORKER
 using Module.ShareData.Core.Entities;
+using Modules.Integration.ShareData.Base.Models.PacketSend;
 using Modules.Integration.ShareData.PacketSend;
 using Modules.Integration.ShareData.PacketSend.Senders;
 using ShareDataWorker.Core.Models.DataOutbound;

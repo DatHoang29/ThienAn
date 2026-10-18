@@ -1,6 +1,6 @@
 # ✅ Kịch Bản Nghiệm Thu Thật — Phân Hệ ShareData
 
-> 📅 **Soạn & Cập nhật:** 17/10/2026 · **Người chạy:** người dùng tự khởi động dự án và kiểm tay · **Môi trường:** DB **local/test** (⛔ không chạy trên staging hay môi trường thật).  
+> 📅 **Soạn & Cập nhật:** 18/10/2026 · **Người chạy:** người dùng tự khởi động dự án và kiểm tay · **Môi trường:** DB **local/test** (⛔ không chạy trên staging hay môi trường thật).  
 > 📌 **Căn cứ:** [`Sharedata_MasterPlan.md`](../Plan/Sharedata_MasterPlan.md) PHẦN VII, [`02-mapping-goi-tin-101-111.md`](02-mapping-goi-tin-101-111.md), code Worker/WebAPI/FE tại thời điểm soạn.  
 > 📌 **Phạm vi:** Nghiệm thu luồng nghiệp vụ với **API và DB thật**. Phần Playwright với API giả lập đã chấp nhận (R16 bỏ); kịch bản này thay cho nó.  
 > 📌 **Nguyên tắc ghi nhận:** Mỗi mục có: **Bước** → **Kết quả mong đợi** → **☐ Đạt / ☐ Không đạt**. Ghi lỗi vào bảng cuối tài liệu.
@@ -9,7 +9,7 @@
 
 ## 🗺️ Lộ Trình Nhanh (8 Bước Nghiệm Thu)
 
-1. [Kiểm tra cấu hình và môi trường](#01-trỏ-đúng-db-quan-trọng--chạy-bằng-vs-code-debug) (Mục 0.1)
+1. [Kiểm tra dữ liệu cũ và môi trường](#00-kiểm-dữ-liệu-cũ-trước-khi-bật-worker) (Mục 0.0 & 0.1)
 2. [Chuẩn bị cấu trúc bảng và dữ liệu nền](#02-chuẩn-bị-dữ-liệu-nền-chọn-một-trong-hai-cách) (Mục 0.2: CÁCH 1 dựng A→Z trên giao diện từ Đối tác hoặc CÁCH 2 chạy Script SQL tùy chọn)
 3. [Khởi động các thành phần hệ thống theo thứ tự: WebAPI → Worker → Frontend](#03-thành-phần-cần-chạy) (Mục 0.3)
 4. [Bật receiver giả lập đối tác nhận](#04-receiver-giả-đối-tác-nhận) (Mục 0.4)
@@ -21,6 +21,30 @@
 ---
 
 ## 🧭 0. Điều kiện trước khi chạy
+
+### 0.0. Kiểm dữ liệu cũ trước khi bật Worker
+
+Trước khi khởi động Worker trên CSDL có sẵn dữ liệu cũ (hoặc sau khi khôi phục CSDL), cần kiểm tra các đăng ký chia sẻ (`ShareDataSubscription`) đang ở trạng thái `State = 1` (Active). Nếu các đăng ký này trỏ tới đối tác có địa chỉ thật bên ngoài (`Address` không phải `localhost` hoặc `127.0.0.1`), Worker khi bật lên sẽ lập tức quét và gửi gói tin thử nghiệm ra bên ngoài.
+
+```sql
+-- Liệt kê đăng ký State = 1 kèm Address/Port của đối tác:
+SELECT s.ID, s.PacketCode, s.PartnerID, p.Name AS PartnerName, p.ConnectionType, p.Address, p.Port, s.State
+FROM dbo.ShareDataSubscription s
+JOIN dbo.ShareDataPartner p ON s.PartnerID = p.ID
+WHERE s.IsDelete IS NULL AND s.State = 1;
+
+-- Đưa State về 2 (Paused) cho đăng ký không trỏ localhost:
+UPDATE s
+SET s.State = 2, s.UpdateTime = GETDATE()
+FROM dbo.ShareDataSubscription s
+JOIN dbo.ShareDataPartner p ON s.PartnerID = p.ID
+WHERE s.IsDelete IS NULL AND s.State = 1
+  AND (p.Address IS NULL OR (p.Address NOT LIKE '%localhost%' AND p.Address NOT LIKE '%127.0.0.1%'));
+```
+
+> 💡 **Lưu ý dữ liệu cũ:**
+> - Trên CSDL đã vận hành trước đó, các gói tin có thể mang ID kiểu GUID (các ID cố định trong Phụ lục C chỉ áp dụng khi nạp mới từ đầu).
+> - Nếu phát hiện gói tin dư thừa không nằm trong danh mục chuẩn (ví dụ gói thử nghiệm cũ `101_commonData1`), cần đánh dấu xóa mềm (`UPDATE dbo.ShareDataPacket SET IsDelete = GETDATE() WHERE Code = '101_commonData1';`) hoặc tính đến các gói này khi đối chiếu số lượng trong các câu truy vấn đếm.
 
 ### 0.1. Trỏ đúng DB (quan trọng) — chạy bằng VS Code debug
 
@@ -57,7 +81,7 @@ Dữ liệu nền cho phân hệ ShareData bao gồm: 11 gói tin chia sẻ (`Sh
 | **Dựng dữ liệu nền trên giao diện (Ưu tiên)** | **[Cách 1](#023-cách-1--lộ-trình-az-dựng-dữ-liệu-nền-trên-giao-diện-tài-khoản-superadmin)** (Lộ trình A→Z trên giao diện) | **Khuyên dùng theo chủ trương dự án.** Đi tuần tự theo chuỗi phụ thuộc chuẩn: **Đối tác → Gói tin → Ánh xạ → Đăng ký chia sẻ → (Bảng nguồn, Mã ESH, Thuật ngữ, Tham số sharedata_config)**. Trực quan, kiểm soát 100% từng cấu hình trực tiếp trên WebVue. |
 | **CSDL mới hoàn toàn** (local / dev / test) | **[Cách 2](#024-cách-2--nạp-nhanh-bằng-script-sql-tùy-chọn)** (Tùy chọn nạp nhanh: Script SQL `02` → `03` → `04` → `05`) | Đường tắt nạp nhanh toàn bộ 11 gói tin, 25 mã cảnh báo lỗi, 15 bảng nguồn và 46 tham số vận hành chỉ trong một lần chạy. Sau khi chạy script, vẫn tiếp tục làm **Bước 1, 3, 4 của mục 0.2.3** trên UI để tạo Đối tác, Ánh xạ và Đăng ký. |
 | **CSDL đã có dữ liệu cũ** (đang chạy / nâng cấp) | **[Cách 2](#024-cách-2--nạp-nhanh-bằng-script-sql-tùy-chọn)** (Script di trú: `06` → `00` → `01` → `02` → `03` → `04`) | Chạy script di trú để chuẩn hóa cấu trúc, đổi tên cột đồng bộ (`06`), di trú sang `ShareDataSourceTable` (`00`) và bảo toàn dữ liệu hiện có. Sau đó thực hiện **Bước 1, 3, 4 của mục 0.2.3** trên UI. |
-| **Nạp nhanh mã lỗi và bản dịch thuật ngữ** | **[Cách 2](#024-cách-2--nạp-nhanh-bằng-script-sql-tùy-chọn)** (Đường tắt nạp nhanh: Script SQL `03` và `04`) | Số lượng khóa bản dịch (48 khóa hai ngôn ngữ vi/en = 96 bản ghi) và mã lỗi (25 mã) rất lớn. Nhập tay trên giao diện tốn thời gian; script `03` và `04` chạy theo cơ chế idempotent, an toàn tuyệt đối. |
+| **Nạp nhanh mã lỗi và bản dịch thuật ngữ** | **[Cách 2](#024-cách-2--nạp-nhanh-bằng-script-sql-tùy-chọn)** (Đường tắt nạp nhanh: Script SQL `03` và `04`) | Số lượng khóa bản dịch (49 khóa hai ngôn ngữ vi/en = 98 bản ghi) và mã lỗi (25 mã) rất lớn. Nhập tay trên giao diện tốn thời gian; script `03` và `04` chạy theo cơ chế idempotent, an toàn tuyệt đối. |
 
 ---
 
@@ -122,14 +146,14 @@ Theo chủ trương của chủ dự án, **ưu tiên thao tác trực tiếp tr
 2. Tại danh sách Đối tác (cột bên trái), bấm nút **Thêm mới**:
    - **Mã đối tác** (`code`): Nhập `P-REST`. *(Bắt buộc; duy nhất trong toàn hệ thống; chữ cái/số/gạch dưới; **KHÔNG sửa được sau khi lưu** - ô nhập bị vô hiệu hóa).*
    - **Tên đối tác** (`name`): Nhập `Đối tác thử nghiệm REST API`. *(Bắt buộc).*
-   - **Loại kết nối** (`connectionType`): Chọn `API` (WebAPI / REST). *(Lưu ý: Giao diện hiện tại chỉ hỗ trợ kênh `API`; các tùy chọn `File`, `Kafka`, `FTP` đang được vô hiệu hóa để bảo đảm an toàn vận hành).*
+   - **Loại kết nối** (`connectionType`): Chọn `API` (WebAPI / REST). *(Giao diện hỗ trợ đầy đủ 4 loại kết nối: `API`, `File`, `Kafka`, `FTP`).*
    - **Địa chỉ** (`address`): Nhập `http://localhost`. *(Bắt buộc).*
    - **Cổng** (`port`): Nhập `9090`. *(Bắt buộc; số nguyên từ 1 đến 65535; **KHÔNG sửa được sau khi lưu** - ô nhập bị vô hiệu hóa).*
    - **Đường dẫn API** (`endPointApiUrl`): Nhập `/api/receive`. *(Tùy chọn; hệ thống tự động chuẩn hóa dấu gạch chéo `/` ở đầu nếu người dùng quên nhập).*
    - **Địa chỉ đầy đủ** (`fullAddress`): Hiển thị `http://localhost:9090/api/receive` *(Chỉ đọc).*
-   - **Cấu hình kết nối JSON** (`connectionConfig`): Nhập `{ "Format": "Json", "Encryptor": "None", "Enabled": "true" }` (hoặc để trống, hệ thống sẽ tự áp dụng giá trị mặc định chuẩn).
+   - **Cấu hình kết nối** (`connectionConfigForm`): Giao diện cung cấp form nhập nhóm trực quan gồm các khối: *Xác thực* (`sectionAuth`), *Dữ liệu* (`sectionData`), *Nâng cao* (`collapseAdvanced`), *Mã hóa* (`collapseEncryption`), và *Tham số mở rộng* (`collapseExtra`). Người dùng có thể điền trực tiếp trên các trường của form (ví dụ định dạng JSON, thuật toán mã hóa) hoặc bấm nút **"Sửa JSON thô"** (`switchToRaw`) để nhập chuỗi JSON trực tiếp: `{ "Format": "Json", "Encryptor": "None", "Enabled": "true" }` (hoặc để trống, hệ thống sẽ tự áp dụng giá trị mặc định chuẩn).
    - **Ghi chú** (`remark`): Nhập ghi chú tùy ý (tối đa 256 ký tự).
-   - Bấm nút **Lưu**.
+   - Bấm nút **Xác nhận** (hoặc Lưu).
 3. ⚠️ **Ràng buộc vận hành & Thao tác bấm "Kết nối" trên giao diện:**
    - **Khóa sửa đối tác:** Nút sửa cấu hình đối tác bị KHÓA khi đối tác đang ở trạng thái "Kết nối" hoặc còn bất kỳ đăng ký nào đang ở trạng thái "Hoạt động".
    - **Nút "Kết nối" trên thẻ đối tác:** Sau khi lưu thẻ đối tác, trên card đối tác `P-REST`, bấm nút **"Kết nối"** (nút chuyển sang trạng thái xanh / đã kết nối).  
@@ -165,7 +189,7 @@ Theo chủ trương của chủ dự án, **ưu tiên thao tác trực tiếp tr
 1. Mở màn hình: **Chia sẻ dữ liệu** → **Cấu hình ánh xạ** (`views/sharedata/mapping/index.vue`).
 2. Bấm nút **Thêm mới** trên thanh công cụ:
    - **Tab Thông tin chung (`info`):**
-     + **Chiều:** Chọn **Gửi đi (Outbound)** (`Direction = 1`) hoặc **Nhận về (Inbound)** (`Direction = 2`).
+     + **Chiều:** Chọn **Gửi đi (Outbound)** (`Direction = 0`) hoặc **Nhận về (Inbound)** (`Direction = 1`). *(Lưu ý: `Direction = 2` là Hai chiều - Both, chỉ dùng cho Mapping khi một cấu hình dùng chung cả gửi và nhận).*
      + **Đối tác:** Chọn đối tác `P-REST` vừa tạo ở Bước 1.
      + **Gói tin:** Chọn gói tin tương ứng (`101_commonData` hoặc `103_vdsData`) vừa tạo ở Bước 2.
      + **Tên ánh xạ:** Nhập tên mô tả (ví dụ: `Ánh xạ gửi gói 101 chuẩn` hoặc `Ánh xạ nhận gói 101`).
@@ -183,14 +207,14 @@ Theo chủ trương của chủ dự án, **ưu tiên thao tác trực tiếp tr
 ##### Bước 4 — Khởi tạo đăng ký chia sẻ (`ShareDataSubscription`)
 1. Mở màn hình: **Chia sẻ dữ liệu** → **Đối tác & Đăng ký chia sẻ** (`views/sharedata/sharing/index.vue`).
 2. Nhấp chọn đối tác `P-REST` ở danh sách bên trái. Ở khung bên phải, thực hiện tạo đăng ký cho từng chiều:
-   - **Chiều gửi (Tab "Gửi đi" - Outbound):**
+   - **Chiều gửi (Tab "Gửi đi" - Outbound, `Direction = 0`):**
      1. Bấm nút **Thêm mới** đăng ký gửi.
      2. **Gói tin:** Chọn gói tin `101_commonData` (hoặc `103_vdsData`).
      3. **Lịch gửi (`scheduler`):** Chọn loại *Định kỳ (Continuous)*, đặt chu kỳ gửi thử nghiệm ngắn (ví dụ: `30` giây; giới hạn từ 5s đến 86400s theo `feConfig.subscriptionInterval`). Chế độ Theo sự kiện đã được ẩn trên giao diện.
      4. **Cờ `sendOnNewData` (*Gửi khi có dữ liệu mới*):** Bật để Worker lắng nghe sự kiện NATS từ Change Tracking và kích hoạt gửi ngay lập tức khi bảng nguồn có thay đổi dữ liệu mà không cần chờ hết chu kỳ 30 giây (kịch bản D9 yêu cầu NATS local cổng 4222).
      5. **Trạng thái:** Vì đã tạo Ánh xạ ở Bước 3 và đã bấm "Kết nối" ở Bước 1, đăng ký sẽ mang trạng thái **`Active` (Hoạt động)** ngay sau khi lưu.
      6. Bấm nút **Lưu**.
-   - **Chiều nhận (Tab "Nhận về" - Inbound):**
+   - **Chiều nhận (Tab "Nhận về" - Inbound, `Direction = 1`):**
      1. Chuyển sang tab **Nhận về**. Bấm nút **Thêm mới** đăng ký nhận.
      2. **Gói tin:** Chọn gói tin `101_commonData`.
      3. **Trạng thái:** Chọn *Hoạt động (Active)* → Bấm nút **Lưu**.
@@ -230,7 +254,7 @@ Theo chủ trương của chủ dự án, **ưu tiên thao tác trực tiếp tr
 3. **Đồng bộ bộ nhớ cache thuật ngữ lên giao diện:** Sau khi nạp xong, người dùng thực hiện một trong hai cách:
    - *Cách 1 (UI):* Bấm vào ảnh đại diện (avatar) ở góc trên bên phải màn hình → chọn mục **"Ngôn ngữ"** → bấm nút biểu tượng **🔄 (Làm mới từ điển)**; hoặc bấm nút 🔄 trên thanh công cụ màn hình Thuật ngữ.
    - *Cách 2 (API):* Gọi trực tiếp HTTP `GET http://localhost:5005/api/system/sysconfig/loadserverterm?language=vi-VN` (và `language=en-US`).
-4. 💡 **Đường tắt thực tế:** Do số lượng bản dịch gồm 48 khóa $\times$ 2 ngôn ngữ = 96 bản ghi, việc nhập tay từng dòng trên giao diện rất mất thời gian. Khuyến nghị người dùng nên sử dụng **CÁCH 2 (đường tắt)** chạy script `04-sharedata-dich-thuat.sql` để nạp tự động an toàn trong vài giây.
+4. 💡 **Đường tắt thực tế:** Do số lượng bản dịch gồm 49 khóa $\times$ 2 ngôn ngữ = 98 bản ghi, việc nhập tay từng dòng trên giao diện rất mất thời gian. Khuyến nghị người dùng nên sử dụng **CÁCH 2 (đường tắt)** chạy script `04-sharedata-dich-thuat.sql` để nạp tự động an toàn trong vài giây.
 
 ---
 
@@ -238,7 +262,7 @@ Theo chủ trương của chủ dự án, **ưu tiên thao tác trực tiếp tr
 1. Mở màn hình: **Hệ thống** → **Cấu hình hoạt động** (`views/cfgSystem/sysOpConfig/index.vue`).
 2. Tại ô lọc *Nhóm cấu hình*: Chọn nhóm `sharedata_config` (Cấu hình vận hành & giới hạn Chia sẻ dữ liệu).
 3. Bảng bên phải hiển thị danh sách 46 tham số vận hành của phân hệ ShareData (gồm 17 tham số Worker, 23 tham số FE và 6 tham số WebAPI; chi tiết xem [Phụ lục F](#phụ-lục-f-danh-mục-46-tham-số-vận-hành-sharedata-sysopconfig-nhóm-sharedata_config)).
-4. Người dùng có thể chỉnh sửa trực tiếp giá trị tham số trên giao diện mà không cần build lại mã nguồn hay khởi động lại ứng dụng. Worker và WebAPI sẽ tự động nạp lại giá trị mới sau tối đa `ConfigReloadSeconds` (30 giây). Nếu không cấu hình hoặc để trống, hệ thống luôn tự động dùng giá trị dự phòng an toàn trong mã nguồn.
+4. Người dùng có thể chỉnh sửa trực tiếp giá trị tham số trên giao diện mà không cần build lại mã nguồn hay khởi động lại ứng dụng. Phía WebAPI (`ShareDataConfigService` đăng ký `IScoped`) truy vấn trực tiếp `SysOpConfig` theo từng HTTP request nên nhận giá trị mới ngay lập tức không có độ trễ; phía Worker quét nạp lại định kỳ sau mỗi chu kỳ `ConfigReloadSeconds` (30 giây). Nếu không cấu hình hoặc để trống, hệ thống luôn tự động dùng giá trị dự phòng an toàn trong mã nguồn.
 
 ---
 
@@ -343,15 +367,20 @@ WHERE IsDelete IS NULL;
 -- Mong đợi: TotalSources = 15, TrackedSources = 14, UntrackedSources = 1, QueryableSources = 15
 
 -- 4. Kiểm tra các khóa dịch thuật ShareData (bao gồm khóa mới SqlTableNotAllowed):
-SELECT COUNT(1) AS TotalTerms
+SELECT Code, Lang AS [Language], Value AS [Terminology]
 FROM dbo.SysTerminology
-WHERE (Code LIKE 'lz.entity.sharedata%' 
-    OR Code LIKE 'lz.label.sharedata%' 
-    OR Code LIKE 'lz.validation.sharedata%' 
-    OR Code LIKE 'lz.button.sharedata%' 
-    OR Code LIKE 'lz.message.sharedata%')
+WHERE IsDelete IS NULL
+  AND Code IN ('sharedata.sqlTableNotAllowed', 'sharedata.connectConfigFileNamePatternNoToken', 'sharedata.lookbackDaysRange')
+ORDER BY Code, Lang;
+
+-- Đếm tổng số bản ghi thuật ngữ ShareData theo danh mục script 04:
+SELECT COUNT(1) AS TotalTerms,
+       COUNT(DISTINCT Code) AS UniqueKeys
+FROM dbo.SysTerminology
+WHERE Name IN ('lz.validation', 'lz.exception')
+  AND Code LIKE 'sharedata.%'
   AND IsDelete IS NULL;
--- Mong đợi: TotalTerms >= 49
+-- Mong đợi: TotalTerms = 98 (49 khóa song ngữ vi-VN và en-US), UniqueKeys = 49
 
 -- 5. Kiểm tra 46 tham số vận hành SysOpConfig nhóm sharedata_config:
 SELECT COUNT(1) AS TotalConfigs
@@ -367,15 +396,16 @@ FROM dbo.ShareDataPartner WHERE IsDelete IS NULL;
 
 SELECT COUNT(1) AS TotalMappings,
        SUM(CASE WHEN IsActive = 1 THEN 1 ELSE 0 END) AS ActiveMappings,
-       SUM(CASE WHEN Direction = 1 THEN 1 ELSE 0 END) AS OutboundMappings,
-       SUM(CASE WHEN Direction = 2 THEN 1 ELSE 0 END) AS InboundMappings
+       SUM(CASE WHEN Direction = 0 THEN 1 ELSE 0 END) AS OutboundMappings,
+       SUM(CASE WHEN Direction = 1 THEN 1 ELSE 0 END) AS InboundMappings,
+       SUM(CASE WHEN Direction = 2 THEN 1 ELSE 0 END) AS BothMappings
 FROM dbo.ShareDataMapping WHERE IsDelete IS NULL;
 -- Mong đợi: TotalMappings >= 2 (có ánh xạ gửi 101 và nhận 101)
 
 SELECT COUNT(1) AS TotalSubscriptions,
        SUM(CASE WHEN State = 1 THEN 1 ELSE 0 END) AS ActiveSubscriptions,
-       SUM(CASE WHEN Direction = 1 THEN 1 ELSE 0 END) AS OutboundSubscriptions,
-       SUM(CASE WHEN Direction = 2 THEN 1 ELSE 0 END) AS InboundSubscriptions
+       SUM(CASE WHEN Direction = 0 THEN 1 ELSE 0 END) AS OutboundSubscriptions,
+       SUM(CASE WHEN Direction = 1 THEN 1 ELSE 0 END) AS InboundSubscriptions
 FROM dbo.ShareDataSubscription WHERE IsDelete IS NULL;
 -- Mong đợi: TotalSubscriptions >= 2 (có đăng ký gửi 101 và nhận 101 đang Active)
 ```
@@ -390,7 +420,7 @@ Khởi động các thành phần theo đúng thứ tự phụ thuộc: **WebAPI
 |:---:|---|---|
 | **1** | **WebAPI** (`TAC_WebAPI`) | Khởi chạy qua cấu hình debug `🌐 TAC_WebAPI (Local Docker)` (cổng `5005`). Đăng nhập tài khoản **SuperAdmin** trên giao diện để có đủ quyền lưu SQL và cấu hình. |
 | **2** | **ShareDataWorker** | Khởi chạy qua cấu hình debug `📦 ShareDataWorker (Local Docker)`. Cấu hình này **ĐÃ CÓ SẴN `"Nats__Enabled": "true"`** trong `.vscode/launch.json`. Do đó, chỉ cần bật một NATS server local (cổng `4222`) là có thể thử nghiệm kịch bản D9 (gửi ngay khi có dữ liệu mới). Nếu không chạy NATS, luồng quét định kỳ vẫn vận hành bình thường. |
-| **3** | **Frontend** (`WebVue`) | Khởi chạy qua cấu hình `🎨 WebVue (Dev Server)` hoặc terminal `cd TA-ITS015-WEBVUE-V1.0 && npm run dev`. |
+| **3** | **Frontend** (`WebVue`) | Khởi chạy qua cấu hình `🎨 WebVue (Dev Server)` hoặc terminal `cd TA-ITS015-WEBVUE-V1.0/src && pnpm dev`. |
 | **4** | **Receiver giả** (đối tác nhận) | Bật script node giả lập máy chủ đối tác tiếp nhận dữ liệu (xem mục 0.4). |
 
 ---
@@ -447,7 +477,7 @@ Trước khi thực hiện các bài test nhóm D, cần đảm bảo đối tá
 1. **Tạo đăng ký gửi (Outbound):** Vui lòng xem và thực hiện theo **Bước 4 mục 0.2.3** (tạo đăng ký chiều Outbound cho đối tác `P-REST` với gói `101_commonData` và gói `103_vdsData`, chu kỳ gửi 30 giây).
 2. **Tạo ánh xạ (Phễu lọc) chiều gửi:** *(Nếu chưa tạo ở Bước 3 mục 0.2.3)* Vào màn hình *Cấu hình ánh xạ* → Bấm nút **Thêm mới**:
    - Tab **Thông tin chung** (`info`):
-     + Chọn tab chiều: **Gửi đi (Outbound)** (giá trị `Direction = 1`).
+     + Chọn tab chiều: **Gửi đi (Outbound)** (giá trị `Direction = 0`).
      + Chọn **Đối tác**: Chọn đối tác `P-REST`.
      + Chọn **Gói tin**: Chọn `101_commonData` (hoặc `103_vdsData`).
      + Nhập **Tên ánh xạ**: `Ánh xạ gửi gói 101 chuẩn`.
@@ -500,7 +530,7 @@ Trước khi thực hiện các bài test nhóm D, cần đảm bảo đối tá
    ```sql
    SELECT ID, PartnerId, DatatypeId, Direction, IsActive, TargetShapeJson
    FROM dbo.ShareDataMapping
-   WHERE Direction IN (1, 3) AND IsActive = 1 AND IsDelete IS NULL;
+   WHERE Direction IN (0, 2) AND IsActive = 1 AND IsDelete IS NULL;
    ```
 
 #### E0: Chuẩn bị chiều nhận (Bảng đích, câu ghi MERGE và Ánh xạ chiều nhận cho gói `E2E_INBOUND_TEST`)
@@ -512,13 +542,13 @@ Trước khi thực hiện các bài test nhóm E, cần chuẩn bị hạ tần
    - Đã được nạp sẵn tự động khi chạy **Khối 4 của script `05-sharedata-du-lieu-gia-lap.sql`** (tạo gói `E2E_INBOUND_TEST` ID `1500000000900`, tạo bảng `InboundTrafficFlow` trên `DEV_ITS10_Inbound` và chèn câu MERGE vào `ShareDataPacketSql` ID `1500000000903` cho gói `E2E_INBOUND_TEST`).
    - Nếu chưa chạy script 05, có thể thực thi câu lệnh SQL tại [Phụ lục D](#phụ-lục-d-mẫu-cấu-hình-chiều-nhận-e0-bảng-đích-câu-merge-và-targetshapejson).
 2. **Tạo đăng ký nhận (Inbound):** Vào màn hình *Đối tác & Đăng ký chia sẻ* → Tab *Đăng ký chia sẻ* → Thêm mới:
-   - Chọn tab chiều: **Nhận về (Inbound)** (`Direction = 2`).
+   - Chọn tab chiều: **Nhận về (Inbound)** (`Direction = 1`).
    - Chọn **Đối tác**: `P-REST`.
    - Chọn **Gói tin**: `E2E_INBOUND_TEST`.
    - Đặt trạng thái: **Hoạt động** (`State = 1`).
    - Nhấn **Xác nhận**.
 3. **Tạo ánh xạ chiều Nhận:** Vào màn hình *Cấu hình ánh xạ* → Bấm nút **Thêm mới**:
-   - Tab **Thông tin chung**: Chọn tab **Nhận về (Inbound)** (`Direction = 2`), Đối tác: `P-REST`, Gói tin: `E2E_INBOUND_TEST`, Tên: `Ánh xạ nhận gói E2E_INBOUND_TEST`, Bật: `isActive = true`.
+   - Tab **Thông tin chung**: Chọn tab **Nhận về (Inbound)** (`Direction = 1`), Đối tác: `P-REST`, Gói tin: `E2E_INBOUND_TEST`, Tên: `Ánh xạ nhận gói E2E_INBOUND_TEST`, Bật: `isActive = true`.
    - Tab **Cấu hình ánh xạ**: Khác với chiều gửi, chiều nhận **không yêu cầu các trường `$meta`**. `TargetShapeJson` cho chiều nhận chỉ cần chỉ định các trường dữ liệu đưa vào `@records` để câu lệnh `OPENJSON(@records)` bóc tách:
      ```json
      {
@@ -533,6 +563,38 @@ Trước khi thực hiện các bài test nhóm E, cần chuẩn bị hạ tần
      }
      ```
    - Bấm **Lưu**.
+4. **Dữ liệu JSON mẫu và lệnh gọi HTTP POST thử nghiệm tiếp nhận:**
+   - Dữ liệu gửi mẫu (`body` JSON) tuân thủ cấu trúc của `TargetShapeJson` (mảng `data` chứa các trường `id`, `code`, `time`, `val`):
+     ```json
+     {
+       "data": [
+         {
+           "id": "1",
+           "code": "FLOW_01",
+           "time": "2026-10-18 08:00:00",
+           "val": 120
+         }
+       ]
+     }
+     ```
+   - Câu lệnh `curl` gọi trực tiếp vào WebAPI local để đẩy gói tin (phục vụ nghiệm thu E1):
+     ```bash
+     curl -X POST http://localhost:5005/api/sharedata/shareDataInbound/receive \
+       -H "Content-Type: application/json" \
+       -H "PartnerCode: P-REST" \
+       -H "PacketCode: E2E_INBOUND_TEST" \
+       -H "SerialNbr: 1" \
+       -d '{
+         "data": [
+           {
+             "id": "1",
+             "code": "FLOW_01",
+             "time": "2026-10-18 08:00:00",
+             "val": 120
+           }
+         ]
+       }'
+     ```
 
 ---
 
@@ -542,9 +604,9 @@ Trước khi thực hiện các bài test nhóm E, cần chuẩn bị hạ tần
 |---|---|---|---|
 | A1 | Mở danh sách gói tin | Tag chế độ mỗi gói **khớp cột `SyncMode` trong DB** (0.5): 101, 102, 105, 108, 110 là *gửi toàn bộ* (Snapshot); 103, 104, 106, 107, 109 là *nối đuôi* (Incremental) | ☐ Đạt ☐ Không đạt |
 | A2 | Mở gói **105** (chưa chỉnh gì) | Chế độ mặc định **Snapshot / gửi toàn bộ** (không phải nối đuôi) | ☐ ☐ |
-| A3 | Đổi 105 sang *nối đuôi*, đặt `CursorTimeColumn` và `MaxLookBackDays = 7` → Lưu → tải lại trang → mở lại | Chế độ, cột mốc, 7 ngày **giữ nguyên**; tag danh sách đổi theo | ☐ ☐ |
-| A4 | Xóa trắng `MaxLookBackDays` → Lưu → mở lại | Ô **rỗng** (không quay về 7) | ☐ ☐ |
-| A5 | Đổi 105 về *gửi toàn bộ* → Lưu | Lưu được; câu SQL không bị kiểm cấu trúc nối đuôi | ☐ ☐ |
+| A3 | Thử đổi gói 105 sang *nối đuôi* (Incremental / 2) trong khi vẫn giữ nguyên câu SQL dạng Snapshot (chưa có `TOP`, `ORDER BY`, cột con trỏ) → bấm Lưu. Sau đó cập nhật câu SQL đầy đủ cấu trúc nối đuôi (có `TOP (@pageSize)`, `__lastTime`, `__rowid`, và `ORDER BY __lastTime ASC, __rowid ASC`), đặt `CursorTimeColumn = 'UpdateTime'`, `MaxLookBackDays = 7` → bấm Lưu → tải lại trang và mở lại gói 105 | Khi câu SQL chưa đúng cấu trúc nối đuôi: **Bị từ chối lưu**, hệ thống hiển thị thông báo lỗi kiểm tra cấu trúc SQL nối đuôi (thiếu `TOP (@pageSize)`, thiếu `ORDER BY ... ASC`, hoặc thiếu `__lastTime`/`__rowid`). Sau khi sửa SQL chuẩn: **Lưu thành công**, mở lại giữ nguyên chế độ nối đuôi, cột mốc `UpdateTime`, quét lùi 7 ngày; tag trên danh sách đổi sang Nối đuôi | ☐ ☐ |
+| A4 | Xóa trắng ô `MaxLookBackDays` → bấm Lưu → tải lại trang và mở lại gói 105 | Ô `MaxLookBackDays` hiển thị **rỗng** (giá trị `null` trong CSDL, không tự động quay về 7) | ☐ ☐ |
+| A5 | Đổi gói 105 về lại chế độ *gửi toàn bộ* (Snapshot), khôi phục câu SQL mẫu chuẩn qua nút "Mẫu mặc định" → bấm Lưu | **Lưu thành công**; hệ thống không kiểm tra cấu trúc nối đuôi đối với gói Snapshot | ☐ ☐ |
 | A6 | Xem gói **111** (và 110 nếu chưa bật) | Hiện **"Đã tắt"**; không có nút chạy/gửi | ☐ ☐ |
 | A7 | Tạo gói mới mã chuẩn (ví dụ `105_rfidData` hoặc `101_commonData`) | Mở tab *Cấu hình SQL* thấy hiển thị SQL mẫu Catalog, chế độ đồng bộ và số ngày quét lùi khớp hoàn toàn theo [Phụ lục C](#phụ-lục-c-danh-mục-chuẩn-11-gói-tin-sharedata); gửi dữ liệu bình thường mà không cần dán đè câu SQL | ☐ ☐ |
 
@@ -563,7 +625,7 @@ Trước khi thực hiện các bài test nhóm E, cần chuẩn bị hạ tần
 | B7 | *Đã bỏ (SQL một tầng trên ShareDataPacket, không còn cấu hình SQL riêng theo đối tác)* | Đã chuẩn hóa kiến trúc: câu SQL đặt duy nhất tại `ShareDataPacket.ExtractSql`, không còn phân tầng SQL riêng cho đối tác | Bỏ qua (đã chuẩn hóa) |
 | B8 | (Nếu có tài khoản không phải SuperAdmin) thử lưu SQL | **Bị chặn quyền** (chức năng lưu SQL yêu cầu quyền SuperAdmin) | ☐ ☐ |
 | B9 | Nhập câu SQL đọc bảng ngoài danh mục `ShareDataSourceTable` (ví dụ `SELECT TOP 10 * FROM dbo.BangLaNgoaiDanhMuc;`) → bấm Dò cột, Xem mẫu hoặc Lưu | **Bị từ chối ngay lập tức**, thông báo hiển thị đúng ngôn ngữ theo khóa `SqlTableNotAllowed`: *"Bảng BangLaNgoaiDanhMuc chưa có trong danh mục bảng nguồn được phép chia sẻ. Thêm bảng vào ShareDataSourceTable (IsQueryable = 1) rồi thử lại."* (Yêu cầu đã chạy script 04 và bấm 🔄 làm mới từ điển) | ☐ Đạt ☐ Không đạt |
-| B10 | Đặt `IsQueryable = 0` cho bảng `TmsWeather` trong CSDL: `UPDATE dbo.ShareDataSourceTable SET IsQueryable = 0, UpdateTime = GETDATE() WHERE TableName = 'TmsWeather' AND IsDelete IS NULL;` → mở màn hình *Cấu hình gói tin* tab *Cấu hình SQL* | Bảng `TmsWeather` **biến mất** khỏi danh sách dropdown chọn Bảng nguồn của bộ dựng Visual Query Builder; nếu dán câu SQL chứa bảng `TmsWeather` thì bị từ chối khi Lưu/Dò cột; tuy nhiên luồng Worker gửi gói 104 đang chạy nền **vẫn gửi dữ liệu bình thường** (vì `IsTracked = 1`) | ☐ ☐ |
+| B10 | Đặt `IsQueryable = 0` cho bảng `TmsWeather` trong CSDL: `UPDATE dbo.ShareDataSourceTable SET IsQueryable = 0, UpdateTime = GETDATE() WHERE TableName = 'TmsWeather' AND IsDelete IS NULL;` → mở màn hình *Cấu hình gói tin* tab *Cấu hình SQL* | Bảng `TmsWeather` **biến mất** khỏi danh sách dropdown chọn Bảng nguồn của bộ dựng Visual Query Builder; nếu dán câu SQL chứa bảng `TmsWeather` thì bị từ chối khi Lưu/Dò cột (WebAPI chặn); tuy nhiên luồng Worker gửi gói 104 đang chạy nền **vẫn gửi dữ liệu bình thường** (vì Worker chỉ kiểm tra `IsTracked = 1`, hoàn toàn không kiểm tra `IsQueryable`) | ☐ ☐ |
 | B11 | Bật lại `IsQueryable = 1` cho `TmsWeather`: `UPDATE dbo.ShareDataSourceTable SET IsQueryable = 1, UpdateTime = GETDATE() WHERE TableName = 'TmsWeather' AND IsDelete IS NULL;` → tải lại trang *Cấu hình gói tin* | Bảng `TmsWeather` **xuất hiện trở lại ngay lập tức** trong dropdown chọn Bảng nguồn; các thao tác dò cột, xem trước và lưu câu SQL hoạt động bình thường | ☐ ☐ |
 
 ---
@@ -572,12 +634,12 @@ Trước khi thực hiện các bài test nhóm E, cần chuẩn bị hạ tần
 
 | # | Bước | Kết quả mong đợi | Kết quả |
 |---|---|---|---|
-| C1 | Mở đối tác **P-REST** (đã tạo ở Bước 1 mục 0.2.3, hoặc tạo mới nếu chưa có): Address `http://localhost`, Port `9090`, EndPoint `/api/receive`, kiểu `API`. Chỉnh sửa tham số (ví dụ đổi Tên hoặc EndPoint) → Lưu | Lưu thành công, mở lại giữ nguyên các giá trị đã cập nhật. Cổng (Port) và Mã (Code) hiển thị vô hiệu hóa (disabled), không cho phép sửa đổi | ☐ Đạt ☐ Không đạt |
-| C2 | Trong cấu hình kết nối thêm `Format=Json`, `Encryptor=None`, `Enabled=true` và 1 key tùy ý → Lưu → mở lại | Mọi key **giữ nguyên**; giá trị bí mật (Token/ApiKey/Password) **bị che** khi hiển thị | ☐ ☐ |
-| C3 | Thêm key trùng tên cột (`Address`, `Port`, `EndPointApiUrl`), key trùng nhau, key rỗng *(Yêu cầu đã chạy script 04 và bấm 🔄 đồng bộ từ điển)* | **Từng trường hợp bị từ chối**, thông báo hiển thị theo ngôn ngữ đang chọn (nhóm lỗi: khóa trùng cột, khóa trùng nhau, khóa rỗng), không hiện khóa thô `lz.validation...` | ☐ ☐ |
+| C1 | Mở đối tác **P-REST** (đã tạo ở Bước 1 mục 0.2.3, hoặc tạo mới nếu chưa có): Address `http://localhost`, Port `9090`, EndPoint `/api/receive`, kiểu `API`. Chỉnh sửa tham số (ví dụ đổi Tên hoặc EndPoint) → Lưu / Xác nhận | Lưu thành công, mở lại giữ nguyên các giá trị đã cập nhật. Cổng (Port) và Mã (Code) hiển thị vô hiệu hóa (disabled), không cho phép sửa đổi | ☐ Đạt ☐ Không đạt |
+| C2 | Trong cấu hình kết nối (nhập trên form nhóm hoặc bấm "Sửa JSON thô") thêm `Format=Json`, `Encryptor=None`, `Enabled=true` và 1 key tùy ý → Xác nhận → mở lại | Mọi key **giữ nguyên**; giá trị bí mật (Token/ApiKey/Password) **bị che** khi hiển thị | ☐ ☐ |
+| C3 | Thử thêm key trùng tên cột (`Address`, `Port`, `EndPointApiUrl`), key trùng nhau, key rỗng (nhập qua chế độ "Sửa JSON thô"; yêu cầu đã chạy script 04 và bấm 🔄 đồng bộ từ điển) | **Từng trường hợp bị từ chối**, thông báo hiển thị theo ngôn ngữ đang chọn (nhóm lỗi: khóa trùng cột, khóa trùng nhau, khóa rỗng), không hiện mã lỗi thô chưa dịch | ☐ ☐ |
 | C4 | Mở đối tác khác rồi quay lại P-REST | Cấu hình **không lẫn** sang nhau (không mang token qua đối tác khác) | ☐ ☐ |
 | C5 | Tạo đối tác kiểu FTPS (rồi DISK, NAS) → Lưu được; mở lại giữ nguyên kiểu đã nhập | Được chấp nhận và gửi qua đúng kênh (FTPS bật `UseSsl`, DISK/NAS đi kênh File). Một giá trị lạ (ví dụ "ABC") vẫn bị từ chối | ☐ ☐ |
-| C6 | Kiểm tra 12 trường hợp cấu hình kết nối đối tác sai (JSON không phải object, cú pháp lỗi, key rỗng, key trùng tên cột, key bãi bỏ OutputPath, trùng lặp key, cấu trúc lồng nhau, Timeout không nguyên dương, Boolean sai định dạng, AuthType/Encryptor không hỗ trợ, FileNamePattern thiếu token). Thử đặt khóa cũ `ArchiveEnabled=false` | Từng trường hợp sai bị từ chối với thông điệp đa ngôn ngữ chuẩn từ `BaseMsg.ShareData.Validation` (mã `ConnectConfigIssue` tương ứng). Riêng khóa cũ `ArchiveEnabled` **bị bỏ qua mà không báo lỗi**, cấu hình lưu bình thường | ☐ ☐ |
+| C6 | Kiểm tra 12 trường hợp cấu hình kết nối đối tác sai (các trường hợp form chặn không cho nhập sai như JSON không phải object, cú pháp lỗi, cấu trúc lồng nhau, boolean sai định dạng, AuthType/Encryptor không hỗ trợ đã được kiểm chứng tự động 100% qua bộ test `ConnectConfigValidatorTests`; với các trường hợp nhập được qua "Sửa JSON thô" như key rỗng, key trùng tên cột, key bãi bỏ OutputPath, trùng lặp key, Timeout không nguyên dương, FileNamePattern thiếu token thì kiểm tra trực tiếp trên UI). Thử đặt khóa cũ `ArchiveEnabled=false` | Từng trường hợp sai bị từ chối với thông điệp đa ngôn ngữ chuẩn từ `BaseMsg.ShareData.Validation` (mã `ConnectConfigIssue` tương ứng). Riêng khóa cũ `ArchiveEnabled` **bị bỏ qua mà không báo lỗi**, cấu hình lưu bình thường | ☐ ☐ |
 
 ---
 
@@ -612,7 +674,7 @@ Dùng nội dung `body` đã chuẩn bị ở E0 làm dữ liệu thử nghiệm
 
 | # | Bước | Kết quả mong đợi | Kết quả |
 |---|---|---|---|
-| E1 | `POST /api/sharedata/shareDataInbound/receive` với header `PartnerCode: P-REST`, `PacketCode: E2E_INBOUND_TEST`, `SerialNbr: 1`; body = payload JSON mẫu ở E0 | HTTP **200**; `ShareDataInboundPacket` (CSDL Inbound) có 1 dòng mới; Worker xử lý xong, `ProcessState` chuyển sang hoàn tất (`Completed`); dữ liệu được MERGE thành công vào bảng đích `InboundTrafficFlow` | ☐ Đạt ☐ Không đạt |
+| E1 | `POST /api/sharedata/shareDataInbound/receive` với header `PartnerCode: P-REST`, `PacketCode: E2E_INBOUND_TEST`, `SerialNbr: 1`; body = payload JSON mẫu ở E0 | HTTP **200**; `ShareDataInboundPacket` (CSDL Inbound) có 1 dòng mới; Worker xử lý xong, `ProcessState` chuyển sang hoàn tất (`Done`, giá trị số 2); dữ liệu được MERGE thành công vào bảng đích `InboundTrafficFlow` | ☐ Đạt ☐ Không đạt |
 | E2 | Gửi lại **đúng gói cũ** với cùng `SerialNbr` | Câu lệnh MERGE thực thi cập nhật, **không nhân đôi số dòng** ở bảng đích (đảm bảo tính Idempotent) | ☐ ☐ |
 | E3 | Gửi gói tin thiếu header `PartnerCode` hoặc đối tác không tồn tại trong CSDL | Bị từ chối ngay từ cổng WebAPI hoặc Worker ghi nhận lỗi `ESH-1504`, không sinh dòng dữ liệu mới trong bảng đích | ☐ ☐ |
 | E4 | Body không đọc được (chuỗi rác sai định dạng JSON) | Gói ghi nhận trạng thái **lỗi** (`Failed`) với mã cảnh báo `ESH-1501` (lỗi đọc gói); không làm ảnh hưởng hoặc làm treo các gói khác | ☐ ☐ |
@@ -656,7 +718,7 @@ Dùng nội dung `body` đã chuẩn bị ở E0 làm dữ liệu thử nghiệm
 | # | Bước | Kết quả mong đợi | Kết quả |
 |---|---|---|---|
 | H1 | Đổi ngôn ngữ giao diện vi ↔ en, lặp lại các bài kiểm tra B5, C3 và C6 | Toàn bộ thông báo lỗi và xác thực đổi ngôn ngữ đồng bộ, không còn chuỗi cứng tiếng Việt lẫn lộn khi đang chọn tiếng Anh | ☐ Đạt ☐ Không đạt |
-| H2 | Dọn dẹp định kỳ (Cleanup) | Đã viết sẵn logic cleanup ở dạng comment, chưa kích hoạt, chưa có test (Master Plan R15/DQ-SV-9). Cleanup ESH-16 trong DataChangeTrackingService (SV-13) giữ nguyên. | Bỏ qua (chưa kích hoạt) |
+| H2 | Dọn dẹp định kỳ (Cleanup) | Service dọn dẹp `DataCleanupService` được triển khai dưới dạng stub, chưa đăng ký vào DI và chưa nối vào luồng chạy chính thức theo thống nhất kỹ thuật 16/10/2026 (logic chi tiết lưu trong chú thích mã nguồn, Master Plan R15/DQ-SV-9). Cơ chế dọn nhật ký Change Tracking ESH-16 trong `DataChangeTrackingService` (SV-13) vẫn hoạt động độc lập bình thường. | Bỏ qua (chưa kích hoạt) |
 
 ---
 
@@ -679,7 +741,7 @@ Kịch bản chứng minh luồng toàn trình gửi → nhận hoạt động t
 
 | # | Bước | Kết quả mong đợi | Kết quả |
 |---|---|---|---|
-| J1 | Khởi động Worker / WebAPI / FE khi trong CSDL chưa có hoặc thiếu dòng cấu hình (hoặc bị xóa mềm) | Hệ thống **tự động kích hoạt cơ chế dự phòng (fallback)**: lấy giá trị mặc định được định nghĩa sẵn trong mã nguồn (`DataWorkerSettingService` cho Worker, `ShareDataConfigService` cho WebAPI, `SHAREDATA_FE_CONFIG_FALLBACK` cho FE); không phát sinh exception, không làm sập ứng dụng | ☐ Đạt ☐ Không đạt |
+| J1 | Khởi động Worker / WebAPI / FE khi trong CSDL chưa có hoặc thiếu dòng cấu hình (hoặc bị xóa mềm) | Hệ thống **tự động kích hoạt cơ chế dự phòng (fallback)**: lấy giá trị mặc định được định nghĩa sẵn trong mã nguồn (`DataWorkerOpConfigReader` cho Worker, `ShareDataConfigService` cho WebAPI, `SHAREDATA_FE_CONFIG_FALLBACK` cho FE); không phát sinh exception, không làm sập ứng dụng | ☐ Đạt ☐ Không đạt |
 | J2 | Trên màn hình *Cấu hình hoạt động*, lọc nhóm `sharedata_config`, chỉnh sửa giá trị 1 tham số của Worker (ví dụ tăng `outbound_check_interval_sec` từ `5` lên `10`) → bấm Lưu | Sau thời gian ≤ `ConfigReloadSeconds` (30 giây), log console của Worker ghi nhận dòng thông báo phát hiện cấu hình thay đổi: ghi rõ giá trị cũ (`5`) → giá trị mới (`10`) và chu kỳ quét mới lập tức có hiệu lực | ☐ ☐ |
 | J3 | Sửa giá trị tham số trong `SysOpConfig` thành chuỗi sai định dạng (ví dụ đặt `outbound_check_interval_sec = 'abc'`) hoặc đặt giá trị vượt quá khoảng cho phép (ví dụ `outbound_check_interval_sec = 9999`) | Worker nhận biết giá trị không hợp lệ, **tự động giữ/quay về giá trị dự phòng mặc định (5 giây)** và ghi **đúng 1 cảnh báo** ra log/alert (`ESH-1403` hoặc log cảnh báo cấu hình), không spam log liên tục | ☐ ☐ |
 | J4 | Tắt dòng tham số bằng cách đổi trạng thái `Status = 0` (hoặc xóa mềm `IsDelete = GETDATE()`) trong `SysOpConfig` | Hệ thống coi như tham số không tồn tại trong DB và **tự động chuyển sang sử dụng giá trị mặc định trong mã**, đảm bảo luồng vận hành không bị gián đoạn | ☐ ☐ |
@@ -776,7 +838,23 @@ Kịch bản chứng minh luồng toàn trình gửi → nhận hoạt động t
 > 📌 *Nguồn trích xuất chuẩn:* [`ShareDataSendReceiveTests.cs`](../../../../tests/BE/ITS/ShareData/Services/ShareDataSendReceiveTests.cs) và [`05-sharedata-du-lieu-gia-lap.sql`](../sql/05-sharedata-du-lieu-gia-lap.sql) Khối 4.  
 > ℹ️ **Lý do dùng gói kiểm thử riêng `E2E_INBOUND_TEST`:** Gói `101_commonData` là gói tin chuẩn của chiều GỬI (Outbound). Sử dụng gói kiểm thử riêng `E2E_INBOUND_TEST` (ID `1500000000900`) giúp cô lập hoàn toàn môi trường kiểm thử E2E hai chiều, tránh xung đột cấu hình ánh xạ giữa luồng gửi D và luồng nhận E, đồng thời dễ dàng dọn dẹp sạch sẽ sau kiểm thử mà không đụng chạm dữ liệu sản xuất.
 
-#### 1. Tạo bảng đích trên CSDL `[DEV_ITS10_Inbound]`
+#### 1. Tạo gói kiểm thử riêng `E2E_INBOUND_TEST` trên CSDL `[DEV_ITS10]`
+```sql
+USE [DEV_ITS10];
+GO
+
+IF NOT EXISTS (SELECT 1 FROM dbo.ShareDataPacket WHERE Code = 'E2E_INBOUND_TEST' AND IsDelete IS NULL)
+BEGIN
+    INSERT INTO dbo.ShareDataPacket (
+        [ID], [TenantId], [Code], [Name], [Status], [OrderNo], [SyncMode], [Remark], [CreateTime], [IsDelete]
+    ) VALUES (
+        '1500000000900', 1, 'E2E_INBOUND_TEST', N'Gói tin kiểm thử E2E chiều nhận', 1, 900, 1, N'Gói tin dùng cho kịch bản nghiệm thu chiều nhận E0', GETDATE(), NULL
+    );
+END
+GO
+```
+
+#### 2. Tạo bảng đích trên CSDL `[DEV_ITS10_Inbound]`
 ```sql
 USE [DEV_ITS10_Inbound];
 GO
@@ -793,7 +871,7 @@ END
 GO
 ```
 
-#### 2. Cấu hình câu ghi MERGE vào bảng `[dbo].[ShareDataPacketSql]` trên CSDL `[DEV_ITS10]`
+#### 3. Cấu hình câu ghi MERGE vào bảng `[dbo].[ShareDataPacketSql]` trên CSDL `[DEV_ITS10]`
 ```sql
 USE [DEV_ITS10];
 GO
@@ -827,7 +905,7 @@ END
 GO
 ```
 
-#### 3. Cấu hình `TargetShapeJson` cho Ánh xạ chiều Nhận (Inbound Mapping)
+#### 4. Cấu hình `TargetShapeJson` cho Ánh xạ chiều Nhận (Inbound Mapping)
 ```json
 {
   "data": [
@@ -904,7 +982,7 @@ GO
 
 ### Phụ lục F: Danh mục 46 tham số vận hành ShareData (SysOpConfig nhóm sharedata_config)
 
-> 📌 *Nguồn trích xuất chuẩn:* [`03-sharedata-seed-cau-hinh.sql`](../sql/03-sharedata-seed-cau-hinh.sql) (Mục 4), lớp cấu hình Worker `DataWorkerSettingService.cs` (`ShareDataWorker/Infrastructure/Services`), dịch vụ WebAPI `ShareDataConfigService.cs` (`Module.ShareData/Services`), và hằng số dự phòng giao diện `SHAREDATA_FE_CONFIG_FALLBACK` (`TA-ITS015-WEBVUE-V1.0/src/src/types/constants/sharedataFeConfig.ts`).  
+> 📌 *Nguồn trích xuất chuẩn:* [`03-sharedata-seed-cau-hinh.sql`](../sql/03-sharedata-seed-cau-hinh.sql) (Mục 4), lớp cấu hình Worker `DataWorkerOpConfigReader.cs` (`ShareDataWorker.Core.Configuration`), dịch vụ WebAPI `ShareDataConfigService.cs` (`Module.ShareData/Services`), và hằng số dự phòng giao diện `SHAREDATA_FE_CONFIG_FALLBACK` (`TA-ITS015-WEBVUE-V1.0/src/src/types/constants/sharedataFeConfig.ts`).  
 > ℹ️ Toàn bộ 46 tham số được phân nhóm theo tiền tố và thành phần sử dụng: 17 tham số Worker (nhóm A), 23 tham số FE/WebAPI dùng chung (nhóm B), và 6 tham số WebAPI/SQL Center (nhóm C). Người dùng có thể tra cứu và điều chỉnh trên màn hình *Cấu hình hoạt động* (lọc theo nhóm `sharedata_config`).
 
 | STT | Mã tham số (`Code`) | Tên hiển thị (`Name`) | Mặc định (`Value`) | Thứ tự (`OrderNo`) | Khoảng hợp lệ & Đơn vị | Thành phần sử dụng | Ý nghĩa vận hành chi tiết |
@@ -984,7 +1062,7 @@ GO
      ```
 3. **Dọn dẹp dữ liệu thử nghiệm nghiệp vụ:**
    - Xóa các bản ghi đăng ký chia sẻ (Subscription) và phễu lọc (Mapping) đã tạo thử nghiệm cho kịch bản D0 và E0.
-   - Xóa đối tác thử nghiệm `P-REST` (trên giao diện hoặc đặt `IsDelete = 1`).
+   - Xóa đối tác thử nghiệm `P-REST` (trên giao diện hoặc đặt `IsDelete = GETDATE()`).
    - Xóa dữ liệu thử nghiệm trong bảng đích chiều nhận:
      ```sql
      USE [DEV_ITS10_Inbound];
@@ -1013,7 +1091,7 @@ GO
 | **D12** | Chiều gửi | **Tùy chọn** | Kênh truyền Kafka yêu cầu máy chủ Kafka broker local đang hoạt động. |
 | **D13** | Chiều gửi | **Tùy chọn** | Kênh truyền Ftp/FTPS yêu cầu máy chủ FTP server local đang hoạt động. |
 | **D14** | Chiều gửi | **Tùy chọn** | Định dạng CSV cho kênh File/Ftp yêu cầu cấu hình đối tác và môi trường tương ứng. |
-| **H2** | Hệ thống chung | **Bỏ qua** | Logic dọn dẹp định kỳ (Cleanup) hiện tại đang ở dạng thiết kế thử nghiệm và chú thích mã nguồn, chưa được kích hoạt chính thức trong chu trình chạy của Worker (theo Master Plan R15/DQ-SV-9). |
+| **H2** | Hệ thống chung | **Bỏ qua** | Service dọn dẹp `DataCleanupService` được triển khai dưới dạng stub, chưa đăng ký vào DI và chưa nối vào luồng chạy chính thức theo thống nhất kỹ thuật 16/10/2026 (logic chi tiết lưu trong chú thích mã nguồn, Master Plan R15/DQ-SV-9). |
 
 ---
 

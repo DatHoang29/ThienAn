@@ -42,7 +42,7 @@ description: Database MCP tooling (Gortex and DAB MCP), staging DB read-only saf
    - **Quy chuẩn bắt buộc khi viết/sửa file `.sql`:**
      - **Quy chuẩn đặt tên file `.sql` (`ddMMyyyy` bắt buộc)**: Tên mọi tệp kịch bản SQL mới hoặc sửa BẮT BUỘC bắt đầu bằng tiền tố ngày tháng theo định dạng `ddMMyyyy-<ten-mo-ta-kebab-case>.sql` (ví dụ: `15102026-bo-sung-dich-thuat-sql-trich-xuat.sql`, `02102026-dong-bo-thuat-ngu-systerminology.sql`). ⛔ **CẤM** dùng `yyyyMMdd` hay định dạng ngày tháng lộn xộn khác để đảm bảo 1 rule duy nhất toàn dự án. Chuẩn này áp dụng cho script lẻ **không thuộc** bộ script gom theo vai trò dưới đây.
      - **Gom script theo vai trò, không tách theo ngày (bổ sung 16/10/2026):** tách nhiều file theo ngày làm người chạy không biết chạy file nào, theo thứ tự nào. Mỗi phân hệ giữ thư mục `sql/` với **vài file, mỗi file một vai trò cố định**:
-       - Tên `NN-<phan-he>-<vai-tro>.sql`, `NN` là **thứ tự chạy** (ví dụ ShareData: `01` cấu trúc bảng/cột, `02` seed mẫu gói tin, `03` seed cấu hình, `04` dịch thuật, `05` dữ liệu giả lập chỉ cho local/test). Không đặt ngày trong tên; ghi `Cập nhật lần cuối: ddMMyyyy` trong phần đầu file.
+       - Tên `NN-<phan-he>-<vai-tro>.sql`, `NN` là **thứ tự chạy** (ví dụ ShareData: `01` chuyển dữ liệu khi đổi cấu trúc — không chứa DDL cho bảng có entity, xem mục 3, `02` seed mẫu gói tin, `03` seed cấu hình, `04` dịch thuật, `05` dữ liệu giả lập chỉ cho local/test). Không đặt ngày trong tên; ghi `Cập nhật lần cuối: ddMMyyyy` trong phần đầu file.
        - Thay đổi mới thuộc vai trò nào thì **sửa vào đúng file đó**, ⛔ không tạo thêm file theo ngày. Chỉ tạo file mới khi có vai trò chưa có.
        - Mọi file **chạy lại được** (idempotent: `IF NOT EXISTS` / `MERGE` / `UPDATE` có điều kiện), không ghi đè giá trị quản trị đã sửa trên màn hình, có `USE [<TênDB>]; GO`, `PRINT` số dòng đã thêm/đã bỏ qua.
        - Thao tác phá hủy một lần (xóa bảng/cột) tách file riêng `00-<phan-he>-migration-mot-lan.sql`, có `IF EXISTS` bảo vệ và ghi rõ "chỉ chạy một lần".
@@ -50,6 +50,20 @@ description: Database MCP tooling (Gortex and DAB MCP), staging DB read-only saf
        - Dựa trên cấu trúc bảng/cột hiện có ở DB local khi gom; không đổi nội dung nghiệp vụ của script trong lúc gom.
      - Với các kịch bản chạy trên CSDL triển khai, đầu file BẮT BUỘC có `USE [<TênDB>]; GO` (ví dụ `USE [DEV_ITS10]; GO`) và ghi rõ schema `dbo.<TênBảng>` để tránh lỗi `Msg 208: Invalid object name` khi tab query đứng nhầm database.
      - Đối chiếu cấu trúc cột và dữ liệu qua DB local (`mssql_dev`) trước khi viết (ví dụ: bảng `dbo.SysTerminology` lưu tiền tố nhóm ở cột `Name = N'lz.label' | N'lz.exception' | N'lz.validation'...`, phần mã sau tiền tố ở cột `Code`, và nội dung dịch thuật ở cột `Value`).
+3. **Bảng có entity: CodeFirst tạo khung trước; dữ liệu nhập qua giao diện nếu có màn hình, chưa có màn hình thì bắt buộc viết `.sql` (Rule 19.85, bổ sung 18/10/2026)**:
+   - **Cấu trúc:** bảng có entity `[SugarTable]` (ví dụ `ShareDataSourceTable`, `ShareDataPacket`, `ShareDataPartner`): bảng, cột, kiểu, độ dài, index (kể cả index duy nhất) **chỉ khai ở entity** bằng `[SugarColumn]`, `[SugarIndex]`. Entity là nguồn duy nhất; script không chép lại cấu trúc.
+   - **Thứ tự bắt buộc khi thêm/sửa bảng:** (1) sửa entity → (2) chạy CodeFirst để ra khung (bật tạm `TableSettings.EnableInitTable` qua cấu hình debug, ⛔ không sửa/commit `Database.json`) → (3) nạp dữ liệu theo loại entity bên dưới.
+   - ⛔ **CẤM** script `.sql` tự `CREATE TABLE`, `ALTER TABLE ... ADD`, `CREATE INDEX` cho bảng có entity. Lý do: hai nơi khai cấu trúc sẽ lệch nhau (đã gặp: script tạo index duy nhất `(TableName, IsDelete)` trong khi entity khai index thường trên `TableName`).
+   - **Xếp loại entity trước khi nạp dữ liệu** — kiểm bằng mã FE (`views/<phân-hệ>/`, `api-services/`) xem có màn hình thêm/sửa dữ liệu của bảng đó không:
+
+     | Loại | Dấu hiệu | Cách nạp dữ liệu | Ví dụ ShareData |
+     |---|---|---|---|
+     | **(a) Có màn hình** | Có màn hình thêm/sửa trên giao diện | Nhập **qua giao diện** là đường chính (Rule 19.82). Không bắt buộc viết `.sql`; script nạp nhanh nếu đã có chỉ là đường phụ (CÁCH 2). | `ShareDataPartner`, `ShareDataMapping`, `ShareDataSubscription`, `ShareDataPacket` |
+     | **(b) Chỉ có trong hệ thống** | Chưa có màn hình (chưa tính tới hướng làm giao diện) | Chạy CodeFirst ra khung xong **BẮT BUỘC viết `.sql` nạp dữ liệu** (idempotent), đưa vào thứ tự chạy trong `sql/README.md` và khung "ngoại lệ" của kịch bản nghiệm thu. `.sql` là nguồn dữ liệu duy nhất: ⛔ không viết seed class (`ISqlSugarEntitySeedData`) chép lại cùng dữ liệu; mã chạy thật ⛔ không dùng danh sách cứng làm dự phòng khi bảng trống, chỉ ghi cảnh báo để người vận hành chạy `.sql`. Test dựng dữ liệu bằng cách đọc chính script đó. | `ShareDataSourceTable` |
+
+   - Khi sau này làm màn hình cho entity loại (b) thì chuyển sang loại (a): giao diện thành đường chính, `.sql` lùi thành đường phụ.
+   - Script di trú `00-<phan-he>-migration-mot-lan.sql` viết theo giả định CodeFirst **đã chạy**: chép dữ liệu từ bảng/cột cũ sang bảng/cột mới (chỉ điền chỗ mới còn trống), rồi mới xóa bảng/cột cũ, có `IF EXISTS` bảo vệ. ⛔ Không dùng `sp_rename` để sinh bảng/cột mới (CodeFirst chạy trước sẽ tạo sẵn bảng/cột mới rỗng, đổi tên sau đó bị bỏ qua và dữ liệu cũ kẹt lại).
+   - Ngoại lệ: bảng **không có entity** (ví dụ bảng đích kiểm thử trên CSDL nhận) được tạo bằng `.sql`.
 
 ---
 

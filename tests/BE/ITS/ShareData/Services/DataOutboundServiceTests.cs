@@ -22,6 +22,10 @@ using ShareDataWorker.Infrastructure.Logging;
 using ShareDataWorker.Infrastructure.Services.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Mapping;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
+using Modules.Integration.ShareData.Base.Constants;
+using Modules.Integration.ShareData.Base.Helpers;
+using Modules.Integration.ShareData.Base.Interfaces.PacketSend;
+using Modules.Integration.ShareData.Base.Models.PacketSend;
 using Modules.Integration.ShareData.PacketSend;
 using Modules.Integration.ShareData.PacketSend.Senders;
 using Module.ShareData.Infrastructure.Persistence.SeedData;
@@ -7025,7 +7029,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 logger,
                 scope.ServiceProvider.GetRequiredService<IDataOutboundExtractionProcess>(),
                 new DataOutboundTransport(dispatcher, config),
-                scope.ServiceProvider.GetService<IDataWorkerSettingService>());
+                scope.ServiceProvider.GetService<IDataWorkerOpConfigReader>());
         }
 
         /// <summary>

@@ -2,7 +2,12 @@ using System.Text;
 using Module.ShareData.Controllers.Partner.Validators;
 using Module.ShareData.Core.Entities;
 using Module.ShareData.Core.Utils;
-using Modules.Integration.ShareData;
+using Modules.Integration.ShareData.Base.Constants;
+using Modules.Integration.ShareData.Base.Enums;
+using Modules.Integration.ShareData.Base.Helpers;
+using Modules.Integration.ShareData.Base.Interfaces.PacketSend;
+using Modules.Integration.ShareData.Base.Models.Encryption;
+using Modules.Integration.ShareData.Base.Models.PacketSend;
 using Modules.Integration.ShareData.Encryption;
 using Modules.Integration.ShareData.Formats;
 using Modules.Integration.ShareData.PacketSend;
@@ -86,10 +91,10 @@ public partial class PacketSendTests
     public void AesGcmEncryptor_EncryptDecryptRoundtrip_ReturnsOriginalBytes_Test()
     {
         // Arrange
-        var encryptor = new Modules.Integration.ShareData.Encryption.AesGcmEncryptor();
-        var keyBytes = new byte[Modules.Integration.ShareData.Encryption.AesGcmEncryptor.KeySize];
+        var encryptor = new AesGcmEncryptor();
+        var keyBytes = new byte[AesGcmEncryptor.KeySize];
         System.Security.Cryptography.RandomNumberGenerator.Fill(keyBytes);
-        var ctx = new Modules.Integration.ShareData.Encryption.EncryptContext("test-kid", keyBytes);
+        var ctx = new EncryptContext("test-kid", keyBytes);
         var originalBytes = Encoding.UTF8.GetBytes("{\"test\":\"secret-payload-data\"}");
 
         // Act
@@ -108,8 +113,8 @@ public partial class PacketSendTests
     public void PlainEncryptor_EncryptDecrypt_PassesThroughIdenticalBytes_Test()
     {
         // Arrange
-        var encryptor = new Modules.Integration.ShareData.Encryption.PlainEncryptor();
-        var ctx = new Modules.Integration.ShareData.Encryption.EncryptContext(null, null);
+        var encryptor = new PlainEncryptor();
+        var ctx = new EncryptContext(null, null);
         var originalBytes = Encoding.UTF8.GetBytes("{\"test\":\"plain-payload\"}");
 
         // Act

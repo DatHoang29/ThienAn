@@ -79,7 +79,7 @@ flowchart TD
   - `ShareDataActivityLog`: Nhật ký truyền nhận (dòng cha và các bước con).
   - `ShareDataAlertLog`: Cảnh báo sự cố (mã lỗi ESH).
   - `ShareDataLastSend`: Lưu mốc thời gian và ID gửi gần nhất của từng đối tác và gói tin (cursor nối đuôi).
-  - `ShareDataTrackVersion`: Giám sát nhịp sống và trạng thái bắt biến động Change Tracking.
+  - `ShareDataSourceTable`: Danh mục bảng nguồn giám sát Change Tracking và bộ dựng SQL, mỗi bảng giữ mốc riêng (`LastVersion`, `LastChangeTime`, `LastIssue`).
 - **Nhóm bảng dữ liệu nguồn trích xuất (chiều Gửi đi):**
   - **Gói 101** (Giao thông chung): `TmsZoneStatus`, `TmsZone`, `TmsTrafficStatistic`
   - **Gói 102** (Camera CCTV): `CctvDevice`, `TmsEquipment` *(Hiện tại gói này không có data: Bảng CctvDevice chỉ có 1 camera mẫu, không có hình ảnh snapshot thực tế)*

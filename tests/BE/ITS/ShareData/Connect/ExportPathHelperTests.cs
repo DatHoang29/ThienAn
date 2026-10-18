@@ -1,4 +1,4 @@
-using Modules.Integration.ShareData.PacketSend;
+using Modules.Integration.ShareData.Base.Helpers;
 using System.Text;
 
 namespace Tests.ShareData.Connect

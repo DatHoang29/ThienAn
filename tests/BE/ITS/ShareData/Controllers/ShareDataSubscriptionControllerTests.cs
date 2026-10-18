@@ -28,7 +28,8 @@ public class ShareDataSubscriptionControllerTests(Host host)
         // Arrange
         var bus = host.Services.GetRequiredService<IMessageBus>();
         var db = host.Services.GetRequiredService<ISqlSugarClient>();
-        var validator = new AddSubscriptionValidator(host.Localizer);
+        var configService = host.Services.GetRequiredService<ShareDataConfigService>();
+        var validator = new AddSubscriptionValidator(host.Localizer, configService);
         var unique = Guid.NewGuid().ToString("N");
 
         var partner = new ShareDataPartner
@@ -89,7 +90,8 @@ public class ShareDataSubscriptionControllerTests(Host host)
     {
         // Arrange
         var db = host.Services.GetRequiredService<ISqlSugarClient>();
-        var fallbackValidator = new AddSubscriptionValidator(host.Localizer);
+        var fallbackConfigService = host.Services.GetRequiredService<ShareDataConfigService>();
+        var fallbackValidator = new AddSubscriptionValidator(host.Localizer, fallbackConfigService);
         var unique = Guid.NewGuid().ToString("N");
 
         ShareDataAddSubscriptionInput CreateInput(int? priority = null, int? debounce = null) =>

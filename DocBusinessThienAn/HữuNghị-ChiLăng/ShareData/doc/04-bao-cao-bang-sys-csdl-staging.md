@@ -20,20 +20,29 @@
 - **Bảng đang trống trên staging (0 dòng):** `SysDictType`, `SysDictData`, `SysRoleOrg`, `SysTenant` — tính năng có trong khung nhưng dự án chưa dùng.
 - Các nhật ký thao tác (`SysOpLog`, `SysDiffLog`) **không** nằm trong CSDL này mà ở CSDL log riêng (`LogDefault`, xem [báo cáo 03](03-bao-cao-tong-the-entity-csdl-sharedata.md)).
 
-### ✅ Quyết định cho ShareData (16/10/2026): dùng bảng cấu hình chung, không tạo bảng cấu hình riêng
+### ✅ Quyết định cho ShareData: phân định bảng nghiệp vụ riêng và bảng cấu hình dùng chung
 
-Câu hỏi đặt ra: ShareData đã có 13 bảng, các cấu hình liên quan (mã lỗi, danh sách bảng giám sát, bản dịch) có nên lưu trong bảng của ShareData không? **Kết luận: không.** Giữ cả ba bảng dùng chung `SysConfigType/SysConfigData`, `SysTerminology`, `SysOpConfig`; bảng riêng của phân hệ chỉ chứa dữ liệu nghiệp vụ và trạng thái chạy.
+~~*Quyết định cũ (16/10/2026): dùng cả ba bảng cấu hình chung `SysConfigType/SysConfigData`, `SysTerminology`, `SysOpConfig` (nhóm `sharedata_tracker`), không tạo bảng cấu hình riêng.*~~
+
+**Quyết định cập nhật (17/10/2026):**
+- **Danh mục bảng nguồn chuyển sang bảng riêng `ShareDataSourceTable`:** Đây là quy tắc nghiệp vụ riêng của ShareData (quản lý bảng nguồn phục vụ Change Tracking và bộ dựng SQL Query Builder). Bảng không có giao diện người dùng; sửa trực tiếp bằng `.sql` để truy vết lỗi nhanh và kiểm soát chặt chẽ.
+- **Mã lỗi ESH và bản dịch vẫn dùng bảng hệ thống chung:** `SysConfigType/SysConfigData` (25 mã `ESH-xxxx`) và `SysTerminology` (`lz.*`).
+- **`SysOpConfig` nhóm `sharedata_config`:** Lưu 46 tham số vận hành và giới hạn cấu hình động (17 tham số Worker, 23 tham số FE, 6 tham số WebAPI), toàn bộ đều có giá trị mặc định dự phòng an toàn trong mã nguồn (`ShareDataConfigService` và `DataWorkerOpConfigReader`).
 
 | Bảng chung | Quyết định | Các phân hệ khác dùng thế nào (căn cứ mã nguồn) | ShareData dùng cho |
 |---|---|---|---|
-| `SysConfigType` / `SysConfigData` | **Giữ** | TMS, VideoWall, Toll, Mail đều dùng cùng cách: `tms_zone_type`, `vehicle_type`, `tms_incident_status`, `equipment_state`, `videowall_controller_color`, `videowall_event_source`, `toll_*`, `mail_trigger_type`… (khai ở seed `SysConfigTypeSeedData.cs` và enum FE `BaseConfigTypeEnum`) | Danh mục giá trị `sharedata_*`: `sharedata_error_code` (24 mã `ESH-xxxx`), `sharedata_direction`, `sharedata_session_state`… |
+| `SysConfigType` / `SysConfigData` | **Giữ** | TMS, VideoWall, Toll, Mail đều dùng cùng cách: `tms_zone_type`, `vehicle_type`, `tms_incident_status`, `equipment_state`, `videowall_controller_color`, `videowall_event_source`, `toll_*`, `mail_trigger_type`… (khai ở seed `SysConfigTypeSeedData.cs` và enum FE `BaseConfigTypeEnum`) | Danh mục giá trị `sharedata_*`: `sharedata_error_code` (25 mã `ESH-xxxx`), `sharedata_direction`, `sharedata_session_state`… |
 | `SysTerminology` | **Giữ, không đổi** | Toàn hệ thống dùng chung cho bản dịch `lz.*` | Nhãn, thông báo, lỗi đa ngôn ngữ của ShareData |
-| `SysOpConfig` | **Giữ** | Cấu hình vận hành của từng phân hệ nằm trong bảng này theo `GroupCode`. Nhóm đang dùng trong mã: `cctv_config`, `cctv_public_equipment_ids`, `mail_config`, `noti_config`, `toll_config`, `vds_config`, `operation_config`, `tms_traffic_matrix` (thêm `media_config`, `wp_config`, `vms_config`… trên staging, bảng bên dưới) | Nhóm `sharedata_tracker`: danh sách bảng nguồn Worker giám sát Change Tracking (`Code` = tên bảng, `Value` = mã gói tin, `Status` 1/0) |
+| `SysOpConfig` | **Giữ** | Cấu hình vận hành của từng phân hệ nằm trong bảng này theo `GroupCode`. Nhóm đang dùng trong mã: `cctv_config`, `cctv_public_equipment_ids`, `mail_config`, `noti_config`, `toll_config`, `vds_config`, `operation_config`, `tms_traffic_matrix` (thêm `media_config`, `wp_config`, `vms_config`… trên staging, bảng bên dưới) | Nhóm `sharedata_config`: 46 tham số vận hành và giới hạn (17 Worker, 23 FE, 6 WebAPI), nạp lại định kỳ |
 
-**Vì sao không đưa vào bảng của ShareData (ví dụ `ShareDataTrackVersion`):** `ShareDataTrackVersion` là bảng **trạng thái** (1 dòng, chỉ giữ mốc `LastVersion`), dòng này bị tạo lại khi xóa mềm hoặc khi mốc hạ về `-1`; để cấu hình chung dòng thì mỗi lần như vậy mất danh sách bảng. Chi tiết ở [báo cáo 03, mục IV.4](03-bao-cao-tong-the-entity-csdl-sharedata.md#4-cấu-hình-bảng-giám-sát-change-tracking--sysopconfig-nhóm-sharedata_tracker).
+**Vì sao chọn bảng riêng `ShareDataSourceTable` thay cho bảng chung `SysOpConfig` và `ShareDataTrackVersion` cũ:**
+- Tách biệt rõ ràng quy tắc bảng nguồn của ShareData với các cấu hình vận hành dùng chung.
+- Hỗ trợ linh hoạt cả hai công tắc nghiệp vụ `IsTracked` (bật/tắt giám sát Change Tracking) và `IsQueryable` (cho phép/chặn trích xuất SQL qua Visual Query Builder), kèm `Category` và `DefaultAlias`.
+- Mỗi bảng nguồn giữ một mốc trạng thái độc lập (`LastVersion`, `LastChangeTime`, `LastIssue`), không phụ thuộc bảng chung, loại bỏ hoàn toàn rủi ro mất danh sách bảng khi đặt lại mốc.
+- Chi tiết xem tại [báo cáo 03, mục IV.4](03-bao-cao-tong-the-entity-csdl-sharedata.md#4-danh-mục-bảng-nguồn--bảng-sharedatasourcetable).
 
 **Điều cần biết khi dùng `SysOpConfig` cho phân hệ mới:**
-- Khai nhóm trong `SysConfigData` loại `operation_config_type` thì màn hình *Cấu hình hoạt động* mới hiện nhóm (script `03-sharedata-seed-cau-hinh.sql` mục 4 đã làm cho `sharedata_tracker`). Thiếu dòng này, SQL và Worker vẫn chạy, chỉ màn hình không hiện tên nhóm.
+- Khai nhóm trong `SysConfigData` loại `operation_config_type` thì màn hình *Cấu hình hoạt động* mới hiện nhóm (script `03-sharedata-seed-cau-hinh.sql` mục 4 đã khai nhóm `sharedata_config`). Thiếu dòng này, SQL và Worker vẫn chạy, chỉ màn hình không hiện tên nhóm.
 - Độ dài cột trên staging (bản chụp `.dacpac` 14/10/2026): `SysOpConfig.Code` **64**, `Value` 256, `GroupCode` 64; validator cho phép `Code` đến 128 nên mã dài hơn 64 sẽ lỗi khi ghi.
 - Staging còn cột `SysOpConfig.Lang` (16) mà entity không khai.
 
@@ -83,7 +92,7 @@ Câu hỏi đặt ra: ShareData đã có 13 bảng, các cấu hình liên quan 
 | `tms_incident_action_group` | 2 | Nhóm hành động sự cố TMS |
 | `tms_traffic_matrix` | 2 | Ma trận lưu lượng TMS |
 
-📌 Nhóm `sharedata_tracker` (danh sách bảng theo dõi Change Tracking của ShareData) **chưa có** trên staging tại thời điểm đọc — khớp với việc script seed chưa chạy.
+📌 Nhóm `sharedata_tracker` (danh sách bảng theo dõi Change Tracking cũ của ShareData) đã được **bãi bỏ ngày 17/10/2026** và chuyển sang bảng riêng `ShareDataSourceTable` của ShareData. Nhóm cấu hình mới của ShareData trên `SysOpConfig` là `sharedata_config` (46 tham số vận hành và giới hạn).
 
 #### `SysOpConfig` — cách cấu hình: API, giao diện, script
 
@@ -97,7 +106,7 @@ Câu hỏi đặt ra: ShareData đã có 13 bảng, các cấu hình liên quan 
 | **Service/Worker** | Đọc trực tiếp bảng theo `GroupCode` (mẫu `CctvOptionsLoader`), **không** đi qua API | Dòng thêm/sửa bằng màn hình hay bằng script đều có hiệu lực như nhau |
 | **Script `.sql`** | Thư mục `sql/` của từng phân hệ | Nạp một lần cấu hình mặc định, chạy được trên nhiều môi trường; không phải kênh cấu hình duy nhất |
 
-> 📌 Với nhóm `sharedata_tracker` của ShareData: quản trị thêm hoặc bật/tắt dòng trên màn hình trên (nhóm hiện trong ô chọn sau khi chạy script `03` mục 4), Worker nạp lại sau tối đa `ConfigReloadSeconds` (đang đặt 30 giây trong `appsettings.json`, mã nguồn dự phòng 60 giây), không cần sửa code hay chạy `.sql`.
+> 📌 Với ShareData: Danh mục bảng nguồn và mốc Change Tracking được cấu hình trực tiếp bằng SQL trên bảng riêng `ShareDataSourceTable` (không có giao diện, Worker nạp lại định kỳ theo `ConfigReloadSeconds`). Màn hình *Cấu hình hoạt động* dùng để quản trị 46 tham số vận hành và giới hạn thuộc nhóm `sharedata_config` (script `03-sharedata-seed-cau-hinh.sql` mục 4 đã seed).
 
 #### `SysTerminology` — phân bố theo nhóm `Name`
 

@@ -1,6 +1,10 @@
 using System.Security.Cryptography;
 using System.Text;
-using Modules.Integration.ShareData;
+using Modules.Integration.ShareData.Base.Constants;
+using Modules.Integration.ShareData.Base.Enums.Encryption;
+using Modules.Integration.ShareData.Base.Exceptions.Encryption;
+using Modules.Integration.ShareData.Base.Interfaces.Encryption;
+using Modules.Integration.ShareData.Base.Models.Encryption;
 using Modules.Integration.ShareData.Encryption;
 using Xunit;
 

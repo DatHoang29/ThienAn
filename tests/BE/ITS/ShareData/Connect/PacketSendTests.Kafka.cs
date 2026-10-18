@@ -1,5 +1,7 @@
 using Confluent.Kafka;
-using Modules.Integration.ShareData;
+using Modules.Integration.ShareData.Base.Constants;
+using Modules.Integration.ShareData.Base.Interfaces.PacketSend;
+using Modules.Integration.ShareData.Base.Models.PacketSend;
 using Modules.Integration.ShareData.PacketSend;
 using Modules.Integration.ShareData.PacketSend.Senders;
 using Xunit;

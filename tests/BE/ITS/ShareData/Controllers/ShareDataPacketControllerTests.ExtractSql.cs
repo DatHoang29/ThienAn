@@ -594,6 +594,43 @@ public partial class ShareDataPacketControllerTests
         Assert.Contains("SELECT TOP (@pageSize) ID, Code FROM TmsZone", output.ExtractSql);
     }
 
+    [Fact]
+    public async Task UpdateExtractSql_WhenTableNotQueryable_RejectsWithSecurityError_Test()
+    {
+        // Arrange
+        var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
+        SetUserContext(isSuperAdmin: true, account: operatorAccount);
+
+        using var scope = _host.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N");
+        var packetCode = $"PKT_SEC_{unique}";
+
+        await db.Insertable(new ShareDataPacket
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Code = packetCode,
+            Name = $"Packet {unique}",
+            Status = BaseEnums.StatusEnum.Enable
+        }).ExecuteCommandAsync();
+
+        var input = new UpdatePacketExtractSqlInput
+        {
+            PacketCode = packetCode,
+            ExtractSql = "SELECT * FROM NonAllowedTable"
+        };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAnyAsync<Exception>(() => bus.InvokeAsync<PacketExtractSqlOutput>(input));
+        var msg = ex.ToString();
+        Assert.True(
+            msg.Contains(BaseMsg.ShareData.Validation.SqlTableNotAllowed)
+            || msg.Contains("NonAllowedTable")
+            || (ex is AppFriendlyException afe && afe.ErrorMessage?.ToString() == BaseMsg.ShareData.Validation.SqlTableNotAllowed),
+            $"Kỳ vọng ngoại lệ chứa mã SqlTableNotAllowed hoặc tên bảng NonAllowedTable, nhận được: {msg}");
+    }
+
     private static async Task<(ShareDataPartner Partner, ShareDataSubscription Subscription)> SeedPartnerAndSubscriptionAsync(
         ISqlSugarClient db, string packetCode, string unique)
     {

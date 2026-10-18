@@ -3,26 +3,26 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Modules.CfgSystem.Core.Entities;
 using Shared.DTO.Enums;
+using ShareDataWorker.Core.Configuration;
 using ShareDataWorker.Core.Interfaces;
-using ShareDataWorker.Infrastructure.Services.DataWorkerSettings;
 using SqlSugar;
 using Xunit;
 
-namespace Tests.ShareData.Services;
+namespace Tests.ShareData.Configuration;
 
 /// <summary>
 /// Author: DatHQ
-/// Description: Bộ kiểm thử đơn vị và tích hợp cho DataWorkerSettingService (đọc 17 tham số cấu hình vận hành Worker từ SysOpConfig).
+/// Description: Bộ kiểm thử đơn vị và tích hợp cho DataWorkerOpConfigReader (đọc 17 tham số cấu hình vận hành Worker từ SysOpConfig).
 ///              Kiểm tra cơ chế fallback mặc định khi DB rỗng/lỗi/dòng tắt/ngoài khoảng an toàn.
-/// Created date: 17/10/2026
+/// Created date: 18/10/2026
 /// </summary>
 [Collection("api")]
-public class DataWorkerSettingServiceTests(Host host)
+public class DataWorkerOpConfigReaderTests(Host host)
 {
     private readonly Host _host = host;
 
     [Fact]
-    public async Task GetSettings_WhenNoConfigGroupExists_ReturnsExactFallbackDefaults_Test()
+    public async Task GetOptions_WhenNoConfigGroupExists_ReturnsExactFallbackDefaults_Test()
     {
         // Arrange: Cấu hình group code không tồn tại để kiểm tra fallback hoàn toàn
         var isolatedGroup = $"sd_cfg_missing_{Guid.NewGuid():N}";
@@ -34,10 +34,10 @@ public class DataWorkerSettingServiceTests(Host host)
             .Build();
 
         var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
-        var service = new DataWorkerSettingService(scopeFactory, NullLogger<DataWorkerSettingService>.Instance, config);
+        var service = new DataWorkerOpConfigReader(scopeFactory, NullLogger<DataWorkerOpConfigReader>.Instance, config);
 
         // Act
-        var settings = await service.GetSettings();
+        var settings = await service.GetOptions();
 
         // Assert: 17 tham số đều khớp 100% với giá trị dự phòng chuẩn
         Assert.NotNull(settings);
@@ -61,7 +61,7 @@ public class DataWorkerSettingServiceTests(Host host)
     }
 
     [Fact]
-    public async Task GetSettings_WhenValidConfigInDatabase_LoadsConfiguredValues_Test()
+    public async Task GetOptions_WhenValidConfigInDatabase_LoadsConfiguredValues_Test()
     {
         // Arrange: Tạo group code cô lập và chèn các tham số hợp lệ
         var isolatedGroup = $"sd_cfg_valid_{Guid.NewGuid():N}";
@@ -85,10 +85,10 @@ public class DataWorkerSettingServiceTests(Host host)
         await db.Insertable(testRows).ExecuteCommandAsync();
 
         var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
-        var service = new DataWorkerSettingService(scopeFactory, NullLogger<DataWorkerSettingService>.Instance, config);
+        var service = new DataWorkerOpConfigReader(scopeFactory, NullLogger<DataWorkerOpConfigReader>.Instance, config);
 
         // Act
-        var settings = await service.GetSettings();
+        var settings = await service.GetOptions();
 
         // Assert: Các trường có trong DB nhận giá trị cấu hình, các trường khác giữ nguyên dự phòng
         Assert.Equal(12, settings.OutboundCheckIntervalSec);
@@ -99,7 +99,7 @@ public class DataWorkerSettingServiceTests(Host host)
     }
 
     [Fact]
-    public async Task GetSettings_WhenValuesInvalidOrOutOfRange_FallsBackToDefaultsWithoutThrowing_Test()
+    public async Task GetOptions_WhenValuesInvalidOrOutOfRange_FallsBackToDefaultsWithoutThrowing_Test()
     {
         // Arrange: Chèn giá trị không phải số, số âm, hoặc ngoài khoảng cho phép
         var isolatedGroup = $"sd_cfg_invalid_{Guid.NewGuid():N}";
@@ -123,10 +123,10 @@ public class DataWorkerSettingServiceTests(Host host)
         await db.Insertable(testRows).ExecuteCommandAsync();
 
         var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
-        var service = new DataWorkerSettingService(scopeFactory, NullLogger<DataWorkerSettingService>.Instance, config);
+        var service = new DataWorkerOpConfigReader(scopeFactory, NullLogger<DataWorkerOpConfigReader>.Instance, config);
 
         // Act
-        var settings = await service.GetSettings();
+        var settings = await service.GetOptions();
 
         // Assert: Tự động dùng fallback an toàn, không ném exception
         Assert.Equal(5, settings.OutboundCheckIntervalSec);
@@ -136,7 +136,7 @@ public class DataWorkerSettingServiceTests(Host host)
     }
 
     [Fact]
-    public async Task GetSettings_WhenRowsDisabledOrSoftDeleted_IgnoresThem_Test()
+    public async Task GetOptions_WhenRowsDisabledOrSoftDeleted_IgnoresThem_Test()
     {
         // Arrange: Chèn dòng bị tắt hoặc xóa mềm
         var isolatedGroup = $"sd_cfg_disabled_{Guid.NewGuid():N}";
@@ -158,10 +158,10 @@ public class DataWorkerSettingServiceTests(Host host)
         await db.Insertable(testRows).ExecuteCommandAsync();
 
         var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
-        var service = new DataWorkerSettingService(scopeFactory, NullLogger<DataWorkerSettingService>.Instance, config);
+        var service = new DataWorkerOpConfigReader(scopeFactory, NullLogger<DataWorkerOpConfigReader>.Instance, config);
 
         // Act
-        var settings = await service.GetSettings();
+        var settings = await service.GetOptions();
 
         // Assert: Bị bỏ qua, giữ giá trị dự phòng
         Assert.Equal(5, settings.OutboundCheckIntervalSec);

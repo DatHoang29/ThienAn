@@ -1,7 +1,10 @@
 using System.Text;
 using Microsoft.Extensions.Configuration;
 using Module.ShareData.Core.Entities;
-using Modules.Integration.ShareData;
+using Modules.Integration.ShareData.Base.Constants;
+using Modules.Integration.ShareData.Base.Helpers;
+using Modules.Integration.ShareData.Base.Interfaces.PacketSend;
+using Modules.Integration.ShareData.Base.Models.PacketSend;
 using Modules.Integration.ShareData.PacketSend;
 using ShareDataWorker.Core.Enums;
 using ShareDataWorker.Core.Interfaces.DataOutbound;

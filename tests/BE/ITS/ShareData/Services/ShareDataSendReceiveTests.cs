@@ -5,7 +5,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Module.ShareData.Core.Dto.Inbound;
 using Module.ShareData.Core.Entities;
-using Modules.Integration.ShareData;
+using Modules.Integration.ShareData.Base.Constants;
+using Modules.Integration.ShareData.Base.Enums.Encryption;
+using Modules.Integration.ShareData.Base.Helpers;
+using Modules.Integration.ShareData.Base.Interfaces.Encryption;
+using Modules.Integration.ShareData.Base.Interfaces.PacketSend;
+using Modules.Integration.ShareData.Base.Models.Formats;
+using Modules.Integration.ShareData.Base.Models.PacketSend;
 using Modules.Integration.ShareData.Encryption;
 using Modules.Integration.ShareData.Formats;
 using Modules.Integration.ShareData.PacketSend;
@@ -77,7 +83,7 @@ namespace Tests.ShareData.Services
                 logger,
                 extraction,
                 new DataOutboundTransport(dispatcher, configuration),
-                scope.ServiceProvider.GetService<IDataWorkerSettingService>());
+                scope.ServiceProvider.GetService<IDataWorkerOpConfigReader>());
         }
 
         #region 1. Test Gói Snapshot (Gói 105 - RFID Data)
