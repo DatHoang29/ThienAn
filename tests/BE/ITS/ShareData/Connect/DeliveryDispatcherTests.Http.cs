@@ -1,9 +1,9 @@
 using System.Text;
-using Modules.Integration.ShareData.Base.Constants;
-using Modules.Integration.ShareData.Base.Interfaces.PacketSend;
-using Modules.Integration.ShareData.Base.Models.PacketSend;
-using Modules.Integration.ShareData.PacketSend;
-using Modules.Integration.ShareData.PacketSend.Senders;
+using Modules.Integration.Delivery.Base.Constants;
+using Modules.Integration.Delivery.Base.Interfaces;
+using Modules.Integration.Delivery.Base.Models;
+using Modules.Integration.Delivery;
+using Modules.Integration.Delivery.Senders;
 using ShareDataWorker.Core.Models.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
 using Tests.ShareData.Mocks;
@@ -12,7 +12,7 @@ using Xunit;
 
 namespace Tests.ShareData.Connect;
 
-public partial class PacketSendTests
+public partial class DeliveryDispatcherTests
 {
     [Fact]
     public async Task DispatchAsync_WhenPartnerConnectionTypeIsApi_RoutesToApiChannel_Test()
@@ -20,15 +20,15 @@ public partial class PacketSendTests
         // Arrange
         var server = _host.PartnerServer;
         server.ResetDefaults();
-        var httpSender = new HttpPacketSender();
-        var dispatcher = PacketSendDispatcher.CreateForHandlers([httpSender]);
+        var httpSender = new HttpDeliverySender();
+        var dispatcher = DeliveryDispatcher.CreateForHandlers([httpSender]);
         var ctx = CreateDummyContext("101", "PARTNER_API", BaseEnums.ConnectionType.Api);
         ctx.Partner!.Address = "127.0.0.1";
         ctx.Partner!.Port = 18092;
         ctx.Partner!.EndPointApiUrl = "/api/v1/data";
 
         var jsonPayload = "{\"data\": \"ok\"}";
-        var request = new PacketSendRequest
+        var request = new DeliveryRequest
         {
             JsonPayload = jsonPayload,
             ConnectType = BaseEnums.ConnectionType.Api,
@@ -54,8 +54,8 @@ public partial class PacketSendTests
         // Arrange: Đối tác cũ không có ConnectionConfig JSON -> tự động fallback sang Address, Port, EndPointApiUrl
         var server = _host.PartnerServer;
         server.ResetDefaults();
-        var httpSender = new HttpPacketSender();
-        var dispatcher = PacketSendDispatcher.CreateForHandlers([httpSender]);
+        var httpSender = new HttpDeliverySender();
+        var dispatcher = DeliveryDispatcher.CreateForHandlers([httpSender]);
         var ctx = CreateDummyContext("101", "PARTNER_LEGACY", BaseEnums.ConnectionType.Api);
         ctx.Partner!.Address = "127.0.0.1";
         ctx.Partner!.Port = 18092;
@@ -84,8 +84,8 @@ public partial class PacketSendTests
         // Arrange: Địa chỉ và cổng chỉ lấy từ cột của Partner; ConnectionConfig chỉ chứa config riêng (Auth, Timeout)
         var server = _host.PartnerServer;
         server.ResetDefaults();
-        var httpSender = new HttpPacketSender();
-        var dispatcher = PacketSendDispatcher.CreateForHandlers([httpSender]);
+        var httpSender = new HttpDeliverySender();
+        var dispatcher = DeliveryDispatcher.CreateForHandlers([httpSender]);
         var ctx = CreateDummyContext("101", "PARTNER_COLS", "API");
         ctx.Partner!.Address = "127.0.0.1";
         ctx.Partner!.Port = 18092;
@@ -115,11 +115,11 @@ public partial class PacketSendTests
     public async Task HttpSender_WhenPortInvalid_ReturnsInvalidConfigurationError_Test(int invalidPort)
     {
         // Arrange
-        var httpSender = new HttpPacketSender();
+        var httpSender = new HttpDeliverySender();
         var ctx = CreateDummyContext("101", "PARTNER_BAD_PORT", "API");
         ctx.Partner!.Address = "127.0.0.1";
         ctx.Partner!.Port = invalidPort;
-        var request = new PacketSendRequest
+        var request = new DeliveryRequest
         {
             JsonPayload = "{}",
             ConnectType = BaseEnums.ConnectionType.Api,
@@ -142,9 +142,9 @@ public partial class PacketSendTests
     public async Task HttpSender_WhenTimeoutInvalid_ReturnsInvalidConfigurationError_Test(string invalidTimeout)
     {
         // Arrange
-        var httpSender = new HttpPacketSender();
+        var httpSender = new HttpDeliverySender();
         var ctx = CreateDummyContext("101", "PARTNER_BAD_TIMEOUT", "API");
-        var request = new PacketSendRequest
+        var request = new DeliveryRequest
         {
             JsonPayload = "{}",
             ConnectType = BaseEnums.ConnectionType.Api,
@@ -169,9 +169,9 @@ public partial class PacketSendTests
     public async Task HttpSender_WhenBypassSslInvalid_ReturnsInvalidConfigurationError_Test()
     {
         // Arrange
-        var httpSender = new HttpPacketSender();
+        var httpSender = new HttpDeliverySender();
         var ctx = CreateDummyContext("101", "PARTNER_BAD_SSL", "API");
-        var request = new PacketSendRequest
+        var request = new DeliveryRequest
         {
             JsonPayload = "{}",
             ConnectType = BaseEnums.ConnectionType.Api,
@@ -198,9 +198,9 @@ public partial class PacketSendTests
         // Arrange
         var server = _host.PartnerServer;
         server.ResetDefaults();
-        var httpSender = new HttpPacketSender();
+        var httpSender = new HttpDeliverySender();
         var ctx = CreateDummyContext("101", "PARTNER_BEARER", "API");
-        var request = new PacketSendRequest
+        var request = new DeliveryRequest
         {
             JsonPayload = "{\"data\":\"test\"}",
             ConnectType = BaseEnums.ConnectionType.Api,
@@ -229,9 +229,9 @@ public partial class PacketSendTests
         // Arrange
         var server = _host.PartnerServer;
         server.ResetDefaults();
-        var httpSender = new HttpPacketSender();
+        var httpSender = new HttpDeliverySender();
         var ctx = CreateDummyContext("101", "PARTNER_APIKEY", "API");
-        var request = new PacketSendRequest
+        var request = new DeliveryRequest
         {
             JsonPayload = "{\"data\":\"test\"}",
             ConnectType = BaseEnums.ConnectionType.Api,
@@ -261,9 +261,9 @@ public partial class PacketSendTests
         // Arrange
         var server = _host.PartnerServer;
         server.ResetDefaults();
-        var httpSender = new HttpPacketSender();
+        var httpSender = new HttpDeliverySender();
         var ctx = CreateDummyContext("101", "PARTNER_BASIC", "API");
-        var request = new PacketSendRequest
+        var request = new DeliveryRequest
         {
             JsonPayload = "{\"data\":\"test\"}",
             ConnectType = BaseEnums.ConnectionType.Api,
@@ -296,9 +296,9 @@ public partial class PacketSendTests
         server.ResetDefaults();
         server.DefaultResponseBody = "{\"isSuccess\": false, \"errorCode\": \"ERR_PAYLOAD_INVALID\", \"message\": \"Payload schema mismatch\"}";
 
-        var httpSender = new HttpPacketSender();
+        var httpSender = new HttpDeliverySender();
         var ctx = CreateDummyContext("101", "PARTNER_BIZ_ERR", "API");
-        var request = new PacketSendRequest
+        var request = new DeliveryRequest
         {
             JsonPayload = "{\"data\":\"test\"}",
             ConnectType = BaseEnums.ConnectionType.Api,
@@ -330,9 +330,9 @@ public partial class PacketSendTests
         server.ResetDefaults();
         server.DefaultResponseBody = "{\"succeeded\": false, \"statusCode\": 400, \"errors\": \"Dữ liệu không đúng định dạng\"}";
 
-        var httpSender = new HttpPacketSender();
+        var httpSender = new HttpDeliverySender();
         var ctx = CreateDummyContext("101", "PARTNER_FURION_ERR", "API");
-        var request = new PacketSendRequest
+        var request = new DeliveryRequest
         {
             JsonPayload = "{\"data\":\"test\"}",
             ConnectType = BaseEnums.ConnectionType.Api,
@@ -362,13 +362,13 @@ public partial class PacketSendTests
         server.ResetDefaults();
         server.AbortOnCall.Add(1);
 
-        var httpSender = new HttpPacketSender();
+        var httpSender = new HttpDeliverySender();
         var ctx = CreateDummyContext("101", "PARTNER_ABORT", "API");
         ctx.Partner!.Address = "127.0.0.1";
         ctx.Partner!.Port = ShareDataPartnerServerMock.DefaultPort;
         ctx.Partner!.EndPointApiUrl = "/api/v1/data";
 
-        var request = new PacketSendRequest
+        var request = new DeliveryRequest
         {
             JsonPayload = "{\"data\":\"test\"}",
             ConnectType = BaseEnums.ConnectionType.Api,
@@ -396,10 +396,10 @@ public partial class PacketSendTests
         var server = _host.PartnerServer;
         server.ResetDefaults();
 
-        var httpSender = new HttpPacketSender();
+        var httpSender = new HttpDeliverySender();
         var ctx = CreateDummyContext("101", "PARTNER_BYTES", "API");
         var expectedBytes = Encoding.UTF8.GetBytes("{\"cipher\":\"encrypted_payload_123\"}");
-        var request = new PacketSendRequest
+        var request = new DeliveryRequest
         {
             PayloadBytes = expectedBytes,
             ContentType = "application/json",
@@ -426,9 +426,9 @@ public partial class PacketSendTests
     {
         // Arrange
         _host.PartnerServer.ResetDefaults();
-        var handler = new HttpPacketSender();
+        var handler = new HttpDeliverySender();
         var ctx = CreateSendContext();
-        var request = new PacketSendRequest
+        var request = new DeliveryRequest
         {
             JsonPayload = "{\"test\": 1}",
             ConnectType = BaseEnums.ConnectionType.Api,
@@ -455,9 +455,9 @@ public partial class PacketSendTests
     {
         // Arrange
         _host.PartnerServer.ResetDefaults();
-        var handler = new HttpPacketSender();
+        var handler = new HttpDeliverySender();
         var ctx = CreateSendContext();
-        var request = new PacketSendRequest
+        var request = new DeliveryRequest
         {
             JsonPayload = "{\"test\": 1}",
             ConnectType = BaseEnums.ConnectionType.Api,
@@ -482,9 +482,9 @@ public partial class PacketSendTests
     {
         // Arrange
         _host.PartnerServer.ResetDefaults();
-        var handler = new HttpPacketSender();
+        var handler = new HttpDeliverySender();
         var ctx = CreateSendContext();
-        var request = new PacketSendRequest
+        var request = new DeliveryRequest
         {
             JsonPayload = "{\"test\": 1}",
             ConnectType = BaseEnums.ConnectionType.Api,
@@ -509,9 +509,9 @@ public partial class PacketSendTests
     {
         // Arrange
         _host.PartnerServer.ResetDefaults();
-        var handler = new HttpPacketSender();
+        var handler = new HttpDeliverySender();
         var ctx = CreateSendContext();
-        var request = new PacketSendRequest
+        var request = new DeliveryRequest
         {
             JsonPayload = "{\"test\": 1}",
             ConnectType = BaseEnums.ConnectionType.Api,
@@ -535,9 +535,9 @@ public partial class PacketSendTests
     {
         // Arrange
         _host.PartnerServer.ResetDefaults();
-        var handler = new HttpPacketSender();
+        var handler = new HttpDeliverySender();
         var ctx = CreateSendContext();
-        var request = new PacketSendRequest
+        var request = new DeliveryRequest
         {
             JsonPayload = "{\"test\": 1}",
             ConnectType = BaseEnums.ConnectionType.Api,

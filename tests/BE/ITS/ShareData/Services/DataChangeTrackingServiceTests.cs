@@ -9,17 +9,20 @@ using Modules.TMS.Core.Entities;
 using Modules.TOLL.Core.Entities;
 using Modules.VMS.Core.Entities;
 using Services.Shared.Messaging;
+using ShareDataWorker.Core.Interfaces;
 using ShareDataWorker.Core.Utils.Resolvers;
 using ShareDataWorker.Infrastructure.Logging;
 using ShareDataWorker.Infrastructure.Services.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Extraction;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
 using ShareDataWorker.Infrastructure.Services.DataChangeTracking;
-using Modules.Integration.ShareData.Base.Interfaces.PacketSend;
-using Modules.Integration.ShareData.PacketSend;
-using Modules.Integration.ShareData.PacketSend.Senders;
+using ShareDataWorker.Infrastructure.Services.DataWorkerConfig;
+using Modules.Integration.Delivery.Base.Interfaces;
+using Modules.Integration.Delivery;
+using Modules.Integration.Delivery.Senders;
 using System.Text.Json;
 using ShareDataWorker.Infrastructure.Services.DataNats;
+using Shared.DTO.Enums;
 
 namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 {
@@ -2412,12 +2415,12 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
 
             var clientFactory = httpClientFactory ?? scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
-            var dispatcher = scope.ServiceProvider.GetService<IPacketSendDispatcher>()
-                ?? PacketSendDispatcher.CreateForHandlers([
-                    new HttpPacketSender(clientFactory),
-                    new FilePacketSender(config.GetSection("NasStorage:BasePath").Value ?? "/tmp"),
-                    new KafkaPacketSender(),
-                    new FtpPacketSender()
+            var dispatcher = scope.ServiceProvider.GetService<IDeliveryDispatcher>()
+                ?? DeliveryDispatcher.CreateForHandlers([
+                    new HttpDeliverySender(clientFactory),
+                    new FileDeliverySender(config.GetSection("NasStorage:BasePath").Value ?? "/tmp"),
+                    new KafkaDeliverySender(),
+                    new FtpDeliverySender()
                 ]);
 
             return new DataOutboundService(
@@ -2425,7 +2428,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 logger,
                 new DataOutboundExtractionProcess(),
                 new DataOutboundTransport(dispatcher, config),
-                scope.ServiceProvider.GetRequiredService<IDataWorkerOption>());
+                scope.ServiceProvider.GetRequiredService<DataWorkerConfigService>());
         }
 
         #endregion
@@ -5017,7 +5020,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         {
             var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
             var logger = (scope?.ServiceProvider ?? _host.Services).GetRequiredService<ILogger<DataChangeTrackingService>>();
-            var workerOption = (scope?.ServiceProvider ?? _host.Services).GetRequiredService<IDataWorkerOption>();
+            var workerOption = (scope?.ServiceProvider ?? _host.Services).GetRequiredService<DataWorkerConfigService>();
             transport ??= new TransportManager(new ConfigurationBuilder().Build());
             config ??= _host.Services.GetService<IConfiguration>();
             return new DataChangeTrackingService(scopeFactory, logger, transport, workerOption, config);

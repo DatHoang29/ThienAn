@@ -22,14 +22,15 @@ using ShareDataWorker.Infrastructure.Logging;
 using ShareDataWorker.Infrastructure.Services.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Mapping;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
-using Modules.Integration.ShareData.Base.Constants;
-using Modules.Integration.ShareData.Base.Helpers;
-using Modules.Integration.ShareData.Base.Interfaces.PacketSend;
-using Modules.Integration.ShareData.Base.Models.PacketSend;
-using Modules.Integration.ShareData.PacketSend;
-using Modules.Integration.ShareData.PacketSend.Senders;
-using Module.ShareData.Infrastructure.Persistence.SeedData;
+using ShareDataWorker.Infrastructure.Services.DataWorkerConfig;
+using Modules.Integration.Delivery.Base.Constants;
+using Modules.Integration.Delivery.Base.Helpers;
+using Modules.Integration.Delivery.Base.Interfaces;
+using Modules.Integration.Delivery.Base.Models;
+using Modules.Integration.Delivery;
+using Modules.Integration.Delivery.Senders;
 using Module.ShareData.Infrastructure.Services.ShareDataExtraction;
+using Shared.DTO.Enums;
 
 namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 {
@@ -1023,7 +1024,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                     DatatypeId = packetCodeWithSuffix,
                     AliasFieldKey = k,
                     Type = "string",
-                    IsRequired = (k == "zoneStatusId" || k == "zoneId") ? Shared.DTO.Enums.BaseEnums.IsRequired.IsRequired : Shared.DTO.Enums.BaseEnums.IsRequired.NoRequired
+                    IsRequired = (k == "zoneStatusId" || k == "zoneId") ? BaseEnums.IsRequired.IsRequired : BaseEnums.IsRequired.NoRequired
                 }).ToList();
                 await db.Insertable(newFields).ExecuteCommandAsync();
             }
@@ -1334,7 +1335,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                     DatatypeId = "101_commonData",
                     AliasFieldKey = k,
                     Type = "string",
-                    IsRequired = (k == "zoneStatusId" || k == "zoneId") ? Shared.DTO.Enums.BaseEnums.IsRequired.IsRequired : Shared.DTO.Enums.BaseEnums.IsRequired.NoRequired
+                    IsRequired = (k == "zoneStatusId" || k == "zoneId") ? BaseEnums.IsRequired.IsRequired : BaseEnums.IsRequired.NoRequired
                 }).ToList();
                 await db.Insertable(newFields).ExecuteCommandAsync();
             }
@@ -1687,7 +1688,7 @@ END");
 
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var httpSender = new HttpPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var httpSender = new HttpDeliverySender(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var shapeJson = $$"""
             {
@@ -4229,13 +4230,13 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
 
         /// <summary>
-        /// Description: Kiểm tra khi partner là null thì HttpPacketSender trả về thất bại và không ném ngoại lệ.
+        /// Description: Kiểm tra khi partner là null thì HttpDeliverySender trả về thất bại và không ném ngoại lệ.
         /// Created date: 18/09/2026
         /// </summary>
         [Fact]
         public async Task HttpSender_WhenPartnerIsNull_ReturnsFailWithoutThrowing_Test()
         {
-            var sender = new HttpPacketSender();
+            var sender = new HttpDeliverySender();
             var ctx = new DataOutboundContext(new ShareDataSubscription(), null, new ShareDataPacket(), null, DateTime.Now, CancellationToken.None);
             var mapping = new DataMappingResult(true, [1, 2, 3], 1, null);
 
@@ -4255,7 +4256,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         {
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var sender = new HttpPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var sender = new HttpDeliverySender(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var sampleJson = """
             {
@@ -4324,7 +4325,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         {
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var sender = new HttpPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var sender = new HttpDeliverySender(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var sampleArrayJson = """
             [
@@ -4369,7 +4370,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         {
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var httpSender = new HttpPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var httpSender = new HttpDeliverySender(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var sampleJson = """{"header":{"dataTime":"2026-09-18T14:05:31+07:00"},"data":[{"id":1}]}""";
             var finalBytes = System.Text.Encoding.UTF8.GetBytes(sampleJson);
@@ -4769,7 +4770,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
 
         /// <summary>
-        /// Description: Kiểm tra HttpPacketSender khi FinalBytes rỗng hoặc null thì trả về thành công an toàn, ByteSize = 0 và không gửi request HTTP.
+        /// Description: Kiểm tra HttpDeliverySender khi FinalBytes rỗng hoặc null thì trả về thành công an toàn, ByteSize = 0 và không gửi request HTTP.
         /// Created date: 18/09/2026
         /// </summary>
         [Fact]
@@ -4778,7 +4779,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             // Arrange
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var sender = new HttpPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var sender = new HttpDeliverySender(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var partner = new ShareDataPartner
             {
@@ -4800,7 +4801,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
 
         /// <summary>
-        /// Description: Kiểm tra HttpPacketSender khi đối tác trả về HTTP 500 kèm nội dung lỗi thì bắt trọn vẹn StatusCode và Response Body trong SendResult.
+        /// Description: Kiểm tra HttpDeliverySender khi đối tác trả về HTTP 500 kèm nội dung lỗi thì bắt trọn vẹn StatusCode và Response Body trong SendResult.
         /// Created date: 18/09/2026
         /// </summary>
         [Fact]
@@ -4813,7 +4814,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             partnerServer.DefaultStatusCode = HttpStatusCode.InternalServerError;
             partnerServer.DefaultResponseBody = errorPayload;
 
-            var sender = new HttpPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var sender = new HttpDeliverySender(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var partner = new ShareDataPartner
             {
@@ -4839,14 +4840,14 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
 
         /// <summary>
-        /// Description: Kiểm tra HttpPacketSender khi gặp ngoại lệ mạng HttpRequestException (timeout, refused) thì bắt an toàn và trả về thất bại.
+        /// Description: Kiểm tra HttpDeliverySender khi gặp ngoại lệ mạng HttpRequestException (timeout, refused) thì bắt an toàn và trả về thất bại.
         /// Created date: 18/09/2026
         /// </summary>
         [Fact]
         public async Task HttpSender_Send_HttpRequestException_ReturnsFailureResult_Test()
         {
             // Arrange
-            var sender = new HttpPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var sender = new HttpDeliverySender(_host.Services.GetRequiredService<IHttpClientFactory>());
             var partner = new ShareDataPartner
             {
                 Code = "PARTNER_NET_ERR",
@@ -4868,7 +4869,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
 
         /// <summary>
-        /// Description: Kiểm HttpPacketSender dựng đúng URL cho cả đối tác có Port và không có Port,
+        /// Description: Kiểm HttpDeliverySender dựng đúng URL cho cả đối tác có Port và không có Port,
         ///              đối tác có/không scheme http/https, cổng khai báo trong Address, và URL tuyệt đối trong EndPointApiUrl.
         /// Created date: 30/09/2026
         /// Updated date: 15/10/2026
@@ -4879,7 +4880,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             // Arrange
             static Uri? Build(ShareDataPartner p)
             {
-                var ok = HttpPacketSender.TryBuildEndpointUri(p.Address, p.Port, p.EndPointApiUrl, p.Code, out var uri, out var error);
+                var ok = HttpDeliverySender.TryBuildEndpointUri(p.Address, p.Port, p.EndPointApiUrl, p.Code, out var uri, out var error);
                 Assert.True(ok, error);
                 return uri;
             }
@@ -4924,7 +4925,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             // Arrange
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var sender = new HttpPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var sender = new HttpDeliverySender(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var sampleJson = """{"header":{"source":"ITS"},"data":[{"id":100,"speed":60}]}""";
             var finalBytes = Encoding.UTF8.GetBytes(sampleJson);
@@ -4984,7 +4985,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             // Arrange
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var sender = new HttpPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var sender = new HttpDeliverySender(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var mapping = new DataMappingResult(true, Encoding.UTF8.GetBytes("""{"test":1}"""), 1);
             var exportedAt = new DateTime(2026, 9, 19, 10, 0, 0, DateTimeKind.Local);
@@ -5023,7 +5024,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             // Arrange
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var sender = new HttpPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var sender = new HttpDeliverySender(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var mapping = new DataMappingResult(true, Encoding.UTF8.GetBytes("""{"test":1}"""), 1);
             var partner = new ShareDataPartner
@@ -5060,7 +5061,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             // Arrange
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var sender = new HttpPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var sender = new HttpDeliverySender(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var exportedAt = new DateTime(2026, 9, 19, 14, 5, 31, 234, DateTimeKind.Local);
             var partner = new ShareDataPartner
@@ -5127,7 +5128,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             // Arrange
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            var sender = new HttpPacketSender(_host.Services.GetRequiredService<IHttpClientFactory>());
+            var sender = new HttpDeliverySender(_host.Services.GetRequiredService<IHttpClientFactory>());
 
             var mapping = new DataMappingResult(true, Encoding.UTF8.GetBytes("""{"test":1}"""), 1);
             var maliciousPartner = new ShareDataPartner
@@ -7016,12 +7017,12 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataOutboundService>>();
             var config = configuration ?? scope.ServiceProvider.GetRequiredService<IConfiguration>();
             var clientFactory = httpClientFactory ?? scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
-            var dispatcher = scope.ServiceProvider.GetService<IPacketSendDispatcher>()
-                ?? PacketSendDispatcher.CreateForHandlers([
-                    new HttpPacketSender(clientFactory),
-                    new FilePacketSender(config.GetSection("NasStorage:BasePath").Value ?? "/tmp"),
-                    new KafkaPacketSender(),
-                    new FtpPacketSender()
+            var dispatcher = scope.ServiceProvider.GetService<IDeliveryDispatcher>()
+                ?? DeliveryDispatcher.CreateForHandlers([
+                    new HttpDeliverySender(clientFactory),
+                    new FileDeliverySender(config.GetSection("NasStorage:BasePath").Value ?? "/tmp"),
+                    new KafkaDeliverySender(),
+                    new FtpDeliverySender()
                 ]);
 
             return new DataOutboundService(
@@ -7029,7 +7030,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 logger,
                 scope.ServiceProvider.GetRequiredService<IDataOutboundExtractionProcess>(),
                 new DataOutboundTransport(dispatcher, config),
-                scope.ServiceProvider.GetRequiredService<IDataWorkerOption>());
+                scope.ServiceProvider.GetRequiredService<DataWorkerConfigService>());
         }
 
         /// <summary>
@@ -7213,7 +7214,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         AliasFieldKey = field.FieldKey,
                         Type = field.DataType,
                         Name = field.Name,
-                        IsRequired = field.Required ? Shared.DTO.Enums.BaseEnums.IsRequired.IsRequired : Shared.DTO.Enums.BaseEnums.IsRequired.NoRequired,
+                        IsRequired = field.Required ? BaseEnums.IsRequired.IsRequired : BaseEnums.IsRequired.NoRequired,
                         CreateTime = baseTime.AddSeconds(order++)
                     });
                 }
@@ -7549,10 +7550,10 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         #endregion
     }
 
-    internal static class HttpPacketSenderTestExtensions
+    internal static class HttpDeliverySenderTestExtensions
     {
-        public static Task<PacketSendResult> Send(
-            this HttpPacketSender handler,
+        public static Task<DeliveryResult> Send(
+            this HttpDeliverySender handler,
             DataMappingResult mapping,
             DataOutboundContext ctx,
             CancellationToken ct = default)

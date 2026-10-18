@@ -1,25 +1,25 @@
 using Confluent.Kafka;
-using Modules.Integration.ShareData.Base.Constants;
-using Modules.Integration.ShareData.Base.Interfaces.PacketSend;
-using Modules.Integration.ShareData.Base.Models.PacketSend;
-using Modules.Integration.ShareData.PacketSend;
-using Modules.Integration.ShareData.PacketSend.Senders;
+using Modules.Integration.Delivery.Base.Constants;
+using Modules.Integration.Delivery.Base.Interfaces;
+using Modules.Integration.Delivery.Base.Models;
+using Modules.Integration.Delivery;
+using Modules.Integration.Delivery.Senders;
 using Shared.DTO.Enums;
 using Xunit;
 
 namespace Tests.ShareData.Connect;
 
-public partial class PacketSendTests
+public partial class DeliveryDispatcherTests
 {
     [Fact]
     public async Task DispatchAsync_WhenPartnerConnectionTypeIsKafka_ConvertsJsonToBytesAndRoutesToKafkaChannel_Test()
     {
         // Arrange
-        var kafkaSender = new KafkaPacketSender();
-        var dispatcher = PacketSendDispatcher.CreateForHandlers([kafkaSender]);
+        var kafkaSender = new KafkaDeliverySender();
+        var dispatcher = DeliveryDispatcher.CreateForHandlers([kafkaSender]);
         var ctx = CreateDummyContext("101", "PARTNER_KAFKA", BaseEnums.ConnectionType.Kafka);
         var jsonPayload = "{\"temperature\": 28.5, \"humidity\": 65}";
-        var request = new PacketSendRequest
+        var request = new DeliveryRequest
         {
             JsonPayload = jsonPayload,
             ConnectType = BaseEnums.ConnectionType.Kafka,
@@ -44,9 +44,9 @@ public partial class PacketSendTests
     public async Task KafkaSender_WhenPayloadIsEmpty_ReturnsFailedResult_Test()
     {
         // Arrange
-        var kafkaSender = new KafkaPacketSender();
+        var kafkaSender = new KafkaDeliverySender();
         var ctx = CreateDummyContext("101", "PARTNER_KAFKA", BaseEnums.ConnectionType.Kafka);
-        var request = new PacketSendRequest
+        var request = new DeliveryRequest
         {
             JsonPayload = string.Empty,
             ConnectType = BaseEnums.ConnectionType.Kafka
@@ -65,17 +65,17 @@ public partial class PacketSendTests
     public async Task KafkaSender_WhenDisabledOrMissingServers_ReturnsClearError_Test()
     {
         // Arrange
-        var kafkaSender = new KafkaPacketSender();
+        var kafkaSender = new KafkaDeliverySender();
         var ctx = CreateDummyContext("101", "PARTNER_KAFKA", BaseEnums.ConnectionType.Kafka);
 
-        var disabledReq = new PacketSendRequest
+        var disabledReq = new DeliveryRequest
         {
             JsonPayload = "{\"test\": 1}",
             ConnectType = BaseEnums.ConnectionType.Kafka,
             ConnectConfig = new Dictionary<string, string> { ["Enabled"] = "false" }
         };
 
-        var missingServersReq = new PacketSendRequest
+        var missingServersReq = new DeliveryRequest
         {
             JsonPayload = "{\"test\": 1}",
             ConnectType = BaseEnums.ConnectionType.Kafka,
@@ -103,7 +103,7 @@ public partial class PacketSendTests
         ctx.Partner!.Address = "10.0.0.1";
         ctx.Partner!.Port = 9092;
 
-        var reqWithBootstrap = new PacketSendRequest
+        var reqWithBootstrap = new DeliveryRequest
         {
             JsonPayload = "{\"test\": 1}",
             ConnectType = BaseEnums.ConnectionType.Kafka,
@@ -113,14 +113,14 @@ public partial class PacketSendTests
             }
         };
 
-        var reqFallback = new PacketSendRequest
+        var reqFallback = new DeliveryRequest
         {
             JsonPayload = "{\"test\": 1}",
             ConnectType = BaseEnums.ConnectionType.Kafka,
             ConnectConfig = new Dictionary<string, string>()
         };
 
-        // Act: Phân giải bootstrapServers theo đúng logic KafkaPacketSender
+        // Act: Phân giải bootstrapServers theo đúng logic KafkaDeliverySender
         var serversExplicit = reqWithBootstrap.ConnectConfig.TryGetValue("BootstrapServers", out var s1) && !string.IsNullOrWhiteSpace(s1)
             ? s1.Trim()
             : (!string.IsNullOrWhiteSpace(ctx.Partner?.Address)
@@ -146,7 +146,7 @@ public partial class PacketSendTests
         var warnings = new List<string>();
 
         // Act
-        var pConfig = KafkaPacketSender.BuildProducerConfig(config, "127.0.0.1:9092", warnings);
+        var pConfig = KafkaDeliverySender.BuildProducerConfig(config, "127.0.0.1:9092", warnings);
 
         // Assert
         Assert.Equal(5000, pConfig.MessageTimeoutMs);
@@ -164,7 +164,7 @@ public partial class PacketSendTests
         var warnings = new List<string>();
 
         // Act
-        var pConfig = KafkaPacketSender.BuildProducerConfig(config, "127.0.0.1:9092", warnings);
+        var pConfig = KafkaDeliverySender.BuildProducerConfig(config, "127.0.0.1:9092", warnings);
 
         // Assert
         Assert.Equal(expectedClamped, pConfig.MessageTimeoutMs);
@@ -180,7 +180,7 @@ public partial class PacketSendTests
         var warnings = new List<string>();
 
         // Act
-        var pConfig = KafkaPacketSender.BuildProducerConfig(config, "127.0.0.1:9092", warnings);
+        var pConfig = KafkaDeliverySender.BuildProducerConfig(config, "127.0.0.1:9092", warnings);
 
         // Assert
         Assert.Null(pConfig.SecurityProtocol);
@@ -195,7 +195,7 @@ public partial class PacketSendTests
         var badConfig = new Dictionary<string, string> { [ConnectKeys.SaslMechanism] = "SCRAM-SHA-256" };
         var badWarnings = new List<string>();
 
-        var badPConfig = KafkaPacketSender.BuildProducerConfig(badConfig, "127.0.0.1:9092", badWarnings);
+        var badPConfig = KafkaDeliverySender.BuildProducerConfig(badConfig, "127.0.0.1:9092", badWarnings);
 
         Assert.Null(badPConfig.SaslMechanism);
         Assert.Single(badWarnings);
@@ -205,7 +205,7 @@ public partial class PacketSendTests
         var okConfig = new Dictionary<string, string> { [ConnectKeys.SaslMechanism] = "ScramSha256" };
         var okWarnings = new List<string>();
 
-        var okPConfig = KafkaPacketSender.BuildProducerConfig(okConfig, "127.0.0.1:9092", okWarnings);
+        var okPConfig = KafkaDeliverySender.BuildProducerConfig(okConfig, "127.0.0.1:9092", okWarnings);
 
         Assert.Equal(SaslMechanism.ScramSha256, okPConfig.SaslMechanism);
         Assert.Empty(okWarnings);

@@ -1,31 +1,31 @@
 using System.Text;
-using Modules.Integration.ShareData.Base.Constants;
-using Modules.Integration.ShareData.Base.Interfaces.PacketSend;
-using Modules.Integration.ShareData.Base.Models.PacketSend;
-using Modules.Integration.ShareData.PacketSend;
-using Modules.Integration.ShareData.PacketSend.Senders;
+using Modules.Integration.Delivery;
+using Modules.Integration.Delivery.Base.Constants;
+using Modules.Integration.Delivery.Base.Interfaces;
+using Modules.Integration.Delivery.Base.Models;
+using Modules.Integration.Delivery.Senders;
 using Shared.DTO.Enums;
 using Xunit;
 
 namespace Tests.ShareData.Connect;
 
-public partial class PacketSendTests
+public partial class DeliveryDispatcherTests
 {
     [Fact]
     public async Task FtpSender_WhenDisabledOrMissingHost_ReturnsClearError_Test()
     {
         // Arrange
-        var ftpSender = new FtpPacketSender();
+        var ftpSender = new FtpDeliverySender();
         var ctx = CreateDummyContext("101", "PARTNER_FTP", BaseEnums.ConnectionType.Ftp);
 
-        var disabledReq = new PacketSendRequest
+        var disabledReq = new DeliveryRequest
         {
             JsonPayload = "[{\"id\": 1}]",
             ConnectType = BaseEnums.ConnectionType.Ftp,
             ConnectConfig = new Dictionary<string, string> { ["Enabled"] = "false" }
         };
 
-        var missingHostReq = new PacketSendRequest
+        var missingHostReq = new DeliveryRequest
         {
             JsonPayload = "[{\"id\": 1}]",
             ConnectType = BaseEnums.ConnectionType.Ftp,
@@ -48,10 +48,10 @@ public partial class PacketSendTests
     [Fact]
     public async Task FtpSender_WhenCsvPayloadBytesProvided_UsesExactPayloadBytesAndCsvExtension_Test()
     {
-        var ftpSender = new FtpPacketSender();
+        var ftpSender = new FtpDeliverySender();
         var ctx = CreateDummyContext("101", "PARTNER_FTP_CSV", BaseEnums.ConnectionType.Ftp);
         var csvBytes = Encoding.UTF8.GetBytes("ID,Code,Name\r\n1,A,Item1\r\n2,B,Item2");
-        var request = new PacketSendRequest
+        var request = new DeliveryRequest
         {
             PayloadBytes = csvBytes,
             ContentType = "text/csv",
@@ -79,7 +79,7 @@ public partial class PacketSendTests
         var warnings = new List<string>();
 
         // Act
-        var ftpConfig = FtpPacketSender.ReadFtpConfig(config, null, warnings);
+        var ftpConfig = FtpDeliverySender.ReadFtpConfig(config, null, warnings);
 
         // Assert
         Assert.Equal(15, ftpConfig.TimeoutSeconds);
@@ -98,7 +98,7 @@ public partial class PacketSendTests
         var warnings = new List<string>();
 
         // Act
-        var ftpConfig = FtpPacketSender.ReadFtpConfig(config, null, warnings);
+        var ftpConfig = FtpDeliverySender.ReadFtpConfig(config, null, warnings);
 
         // Assert
         Assert.Equal(expectedClamped, ftpConfig.TimeoutSeconds);
@@ -119,7 +119,7 @@ public partial class PacketSendTests
         var warnings = new List<string>();
 
         // Act
-        var ftpConfig = FtpPacketSender.ReadFtpConfig(config, null, warnings);
+        var ftpConfig = FtpDeliverySender.ReadFtpConfig(config, null, warnings);
 
         // Assert
         Assert.True(ftpConfig.IsEnabled);

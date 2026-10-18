@@ -1,8 +1,8 @@
 #if HAS_SHAREDATAWORKER
 using Module.ShareData.Core.Entities;
-using Modules.Integration.ShareData.Base.Models.PacketSend;
-using Modules.Integration.ShareData.PacketSend;
-using Modules.Integration.ShareData.PacketSend.Senders;
+using Modules.Integration.Delivery.Base.Models;
+using Modules.Integration.Delivery;
+using Modules.Integration.Delivery.Senders;
 using ShareDataWorker.Core.Models.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
 using Shared.DTO.Enums;
@@ -29,7 +29,7 @@ namespace Tests.RealServer
         public async Task HttpSender_WhenCallingRealServerWithHttp_FailsDueToDroppedConnection_Test()
         {
             // Arrange
-            var sender = new HttpPacketSender();
+            var sender = new HttpDeliverySender();
             var partner = new ShareDataPartner
             {
                 Code = "PARTNER_REAL_HTTP",
@@ -40,7 +40,7 @@ namespace Tests.RealServer
             var packet = new ShareDataPacket { Code = "103" };
             var sub = new ShareDataSubscription { ID = "sub-real-http-1", PartnerId = partner.Code, DatatypeId = "103", SerialNbr = 1 };
             var ctx = new DataOutboundContext(sub, partner, packet, null, DateTime.UtcNow, CancellationToken.None);
-            var request = new PacketSendRequest
+            var request = new DeliveryRequest
             {
                 JsonPayload = "[{\"licensePlate\":\"29A-12345\"}]",
                 ConnectType = BaseEnums.ConnectionType.Api,
@@ -63,7 +63,7 @@ namespace Tests.RealServer
         public async Task HttpSender_WhenCallingRealServerWithHttpsIp_FailsDueToCertificateMismatch_Test()
         {
             // Arrange
-            var sender = new HttpPacketSender();
+            var sender = new HttpDeliverySender();
             var partner = new ShareDataPartner
             {
                 Code = "PARTNER_REAL_HTTPS_IP",
@@ -74,7 +74,7 @@ namespace Tests.RealServer
             var packet = new ShareDataPacket { Code = "103" };
             var sub = new ShareDataSubscription { ID = "sub-real-https-2", PartnerId = partner.Code, DatatypeId = "103", SerialNbr = 1 };
             var ctx = new DataOutboundContext(sub, partner, packet, null, DateTime.UtcNow, CancellationToken.None);
-            var request = new PacketSendRequest
+            var request = new DeliveryRequest
             {
                 JsonPayload = "[{\"licensePlate\":\"29A-12345\"}]",
                 ConnectType = BaseEnums.ConnectionType.Api,

@@ -64,8 +64,8 @@
     <ShareDataWorkerProject>$(RepoRoot)\src\Services\ShareData\ShareDataWorker\ShareDataWorker.csproj</ShareDataWorkerProject>
     <ShareDataWorkerCoreProject>$(RepoRoot)\src\Services\ShareData\ShareDataWorker.Core\ShareDataWorker.Core.csproj</ShareDataWorkerCoreProject>
     <ShareDataModuleProject>$(RepoRoot)\src\Modules\ShareData\Module.ShareData\Module.ShareData.csproj</ShareDataModuleProject>
-    <ShareDataIntegrationProject>$(RepoRoot)\src\Modules\Integration\ShareData\Modules.Integration.ShareData\Modules.Integration.ShareData.csproj</ShareDataIntegrationProject>
-    <ShareDataIntegrationBaseProject>$(RepoRoot)\src\Modules\Integration\ShareData\Modules.Integration.ShareData.Base\Modules.Integration.ShareData.Base.csproj</ShareDataIntegrationBaseProject>
+    <ShareDataIntegrationProject>$(RepoRoot)\src\Modules\Integration\Delivery\Modules.Integration.Delivery\Modules.Integration.Delivery.csproj</ShareDataIntegrationProject>
+    <ShareDataIntegrationBaseProject>$(RepoRoot)\src\Modules\Integration\Delivery\Modules.Integration.Delivery.Base\Modules.Integration.Delivery.Base.csproj</ShareDataIntegrationBaseProject>
     <VideoWallModuleProject>$(RepoRoot)\src\Modules\VideoWall\Module.VideoWall\Module.VideoWall.csproj</VideoWallModuleProject>
     <VideoWallIsapiSource>$(RepoRoot)\src\Services\VideoWall\ITS.VideoWall.Core\Interfaces\IVwISAPIDeviceClient.cs</VideoWallIsapiSource>
     <VideoWallWorkerCoreProject>$(RepoRoot)\src\Services\VideoWall\ITS.VideoWall.Core\ITS.VideoWall.Core.csproj</VideoWallWorkerCoreProject>
@@ -131,7 +131,7 @@
     <ProjectReference Include="$(ShareDataWorkerCoreProject)" />
   </ItemGroup>
 
-  <!-- Tham chiếu Modules.Integration.ShareData nếu có (chỉ ở TFM net10.0) -->
+  <!-- Tham chiếu Modules.Integration.Delivery nếu có (chỉ ở TFM net10.0) -->
   <ItemGroup Condition="Exists('$(ShareDataIntegrationProject)') And '$(TargetFramework)' != 'net10.0-windows'">
     <ProjectReference Include="$(ShareDataIntegrationProject)" />
     <ProjectReference Include="$(ShareDataIntegrationBaseProject)" Condition="Exists('$(ShareDataIntegrationBaseProject)')" />

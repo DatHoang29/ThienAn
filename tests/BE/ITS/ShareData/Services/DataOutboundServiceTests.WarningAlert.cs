@@ -5,6 +5,7 @@ using ShareDataWorker.Infrastructure.Services.DataOutbound;
 using Tests.ShareData.Common;
 using Tests.ShareData.Mocks;
 using Xunit;
+using Shared.DTO.Enums;
 
 namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 {

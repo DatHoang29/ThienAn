@@ -1,10 +1,10 @@
 # 📊 Báo Cáo Tổng Thể Các Entity & Bảng CSDL Phân Hệ ShareData (TMC-PM-ITS-ESHARE)
 
-> 📅 **Ngày cập nhật:** 17/10/2026  
+> 📅 **Ngày cập nhật:** 18/10/2026  
 > 📌 **Tài liệu tham chiếu & SSOT:**  
 > - Bảng đặc tả gói tin 101–111: [`02-mapping-goi-tin-101-111.md`](02-mapping-goi-tin-101-111.md)  
 > - Báo cáo bảng `Sys*`: [`04-bao-cao-bang-sys-csdl-staging.md`](04-bao-cao-bang-sys-csdl-staging.md)  
-> - Script nạp cấu hình mã lỗi ESH, danh mục bảng nguồn và tham số vận hành: [`03-sharedata-seed-cau-hinh.sql`](../sql/03-sharedata-seed-cau-hinh.sql) (nạp 25 mã cảnh báo lỗi `ESH-xxxx` vào `SysConfigData`, 15 bảng nguồn vào `ShareDataSourceTable` và 46 tham số vận hành vào `SysOpConfig` nhóm `sharedata_config`)  
+> - Script nạp cấu hình mã lỗi ESH, danh mục bảng nguồn và tham số vận hành: [`03-sharedata-seed-cau-hinh.sql`](../sql/03-sharedata-seed-cau-hinh.sql) (nạp 25 mã cảnh báo lỗi `ESH-xxxx` vào `SysConfigData`, 15 bảng nguồn vào `ShareDataSourceTable` và 47 tham số vận hành vào `SysOpConfig` nhóm `sharedata_config`)  
 > - Kế hoạch tổng thể MasterPlan: [`Sharedata_MasterPlan.md`](../Plan/Sharedata_MasterPlan.md)  
 > - Kế hoạch Truy vấn động & Tách tầng kết nối: [PHẦN VII của `Sharedata_MasterPlan.md`](../Plan/Sharedata_MasterPlan.md#phần-vii--các-hạng-mục-từ-cuộc-họp-14102026-truy-vấn-động-nối-đuôi--tầng-kết-nối-r8--r18)  
 > - Mã nguồn C# Entity: [`TA-ITS015-WEBAPI-V1.0/src/Modules/ShareData/Module.ShareData.Core/Entities/`](../../../../TA-ITS015-WEBAPI-V1.0/src/Modules/ShareData/Module.ShareData.Core/Entities/)  
@@ -84,12 +84,12 @@ flowchart TD
 | **1** | `ShareDataPacket` | `ShareDataPacket` | **Cũ (Cải tiến)** | 08/2026 $\rightarrow$ 14/10/2026 | Danh mục 11 gói tin chuẩn (101–111). Lưu **SQL Template mẫu mặc định** (`ExtractSql`), chế độ đồng bộ (`SyncMode`), cột con trỏ (`CursorTimeColumn`) và số ngày quét lùi (`MaxLookBackDays`). |
 | **2** | `ShareDataPacketField` | `ShareDataPacketField` | **Cũ** | 08/2026 | Khai báo từ điển danh mục các trường dữ liệu của từng gói tin (`DatatypeId`, `AliasFieldKey`, `Type`, `GroupName`). |
 | **3** | `ShareDataPacketSql` | `ShareDataPacketSql` | **Cũ** | 15/09/2026 | Câu lệnh SQL ghi (`WriteSql`) chiều **NHẬN** của gói tin (chạy `MERGE` sử dụng `OPENJSON(@records)` trên CSDL Inbound). |
-| **4** | `ShareDataPartner` | `ShareDataPartner` | **Cũ (Cải tiến)** | 08/2026 $\rightarrow$ 13/10/2026 | Danh mục đối tác tích hợp. Bổ sung `ConnectionType` (chuẩn hóa qua `ConnectTypes`: `API`, `Kafka`, `File`, `Ftp`) và `ConnectionConfig` dạng `Dictionary<string, string>` JSON linh hoạt. |
+| **4** | `ShareDataPartner` | `ShareDataPartner` | **Cũ (Cải tiến)** | 08/2026 $\rightarrow$ 13/10/2026 | Danh mục đối tác tích hợp. Bổ sung `ConnectionType` (lưu số nguyên theo `BaseEnums.ConnectionType`: 1-API, 2-File, 3-FTP, 4-FTPS, 5-Kafka) và `ConnectionConfig` dạng `Dictionary<string, string>` JSON linh hoạt. |
 | **5** | `ShareDataSubscription` | `ShareDataSubscription` | **Cũ (Cải tiến)** | 08/2026 $\rightarrow$ 12/10/2026 | Hồ sơ đăng ký chia sẻ 2 chiều. Chứa lịch gửi `ScheduleJson`, `NextTimeRun`, `ProcessingUntil`, `LastTimeRun`, cờ `SendOnNewData`. Đã bỏ `MappingId` cứng để phân giải sống. |
 | **6** | `ShareDataMapping` | `ShareDataMapping` | **Cũ (Cải tiến)** | 08/2026 $\rightarrow$ 14/10/2026 | Hồ sơ ánh xạ cấu trúc dữ liệu (`PartnerSchemaJson`, `TargetShapeJson`) chuyển đổi giữa dữ liệu nguồn nội bộ và cấu trúc JSON chuẩn của đối tác cho cả 2 chiều Gửi/Nhận. |
 | **7** | `ShareDataCodeSet` | `ShareDataCodeSet` | **Cũ** | 08/2026 | Bộ mã quy đổi giá trị danh mục nội bộ $\leftrightarrow$ giá trị chuẩn của đối tác qua cấu trúc JSON `ValuesJson`. |
 | **8** | `ShareDataLastSend` | `ShareDataLastSend` | **Mới** | 21/09/2026 | Lưu mốc con trỏ kép (`LastTime`, `LastKey`) cho từng cặp `(PartnerCode, PacketCode)` để gửi dữ liệu nối đuôi liên tục không trùng lặp. |
-| **9** | `ShareDataSourceTable` | `ShareDataSourceTable` | **Cũ (Cải tiến)** | 27/09/2026 $\rightarrow$ 17/10/2026 | Danh mục bảng nguồn của phân hệ ShareData: kết hợp giám sát SQL Server Change Tracking (`IsTracked`, `LastVersion`, `LastChangeTime`, `LastIssue`) và tra cứu trên bộ dựng truy vấn Visual Query Builder (`IsQueryable`, `Category`, `DefaultAlias`). |
+| **9** | `ShareDataSourceTable` | `ShareDataSourceTable` | **Cũ (Cải tiến)** | 27/09/2026 $\rightarrow$ 17/10/2026 | Danh mục bảng nguồn của phân hệ ShareData: kết hợp giám sát SQL Server Change Tracking (`IsTracked`, `LastVersion`, `LastChangeTime`, `LastIssue`) và tra cứu trên bộ dựng truy vấn Visual Query Builder (`IsQueryable`, `DefaultAlias`). |
 | **10** | `ShareDataInboundPacket` | `ShareDataInboundPacket` | **Mới (Cải tiến)** | 15/09/2026 $\rightarrow$ 02/10/2026 | Kho đệm nhận gói tin thô ở CSDL `DEV_ITS10_Inbound` (`[Tenant]`). Bổ sung `ReceiveLogId` làm cầu nối ngữ cảnh sang `ShareDataActivityLog`. |
 | **11** | `ShareDataActivityLog` | `ShareDataActivityLog` | **Cũ (Cải tiến)** | 08/2026 $\rightarrow$ 04/10/2026 | Nhật ký cấu hình và truyền nhận. Bổ sung `ParentId` và `StepNbr` phục vụ mô hình log lai Option C (2 bước cha–con khi có dữ liệu, 1 dòng phẳng khi polling rỗng). |
 | **12** | `ShareDataAlertLog` | `ShareDataAlertLog` | **Cũ (Cải tiến)** | 08/2026 $\rightarrow$ 17/10/2026 | Nhật ký cảnh báo và lỗi hệ thống. Chuẩn hóa 25 mã lỗi dạng `ESH-xxxx` (xem mục IV.1), hỗ trợ chi tiết `DetailJson` và xác nhận `Acknowledged`. |
@@ -97,7 +97,7 @@ flowchart TD
 
 > 📌 **Gọn bảng CSDL (14/10/2026):** Giữ **13 bảng** (12 bảng chính + 1 bảng Inbound), xóa bảng thừa cũ `ShareDataTable` (bảng mồ côi đã có trong CSDL từ trước), không phát sinh bảng riêng cho truy vấn động mà lưu trữ trực tiếp câu truy vấn trích xuất và tham số đồng bộ tại `ShareDataPacket` (`ExtractSql`, `SyncMode`, `CursorTimeColumn`, `MaxLookBackDays`).
 
-> 📌 **Danh mục bảng nguồn ShareDataSourceTable (17/10/2026):** Quyết định ngày 17/10/2026 hợp nhất danh sách bảng nguồn theo dõi Change Tracking từ `SysOpConfig` (nhóm `sharedata_tracker`) và bảng trạng thái `ShareDataTrackVersion` cũ về bảng danh mục nguồn tập trung `ShareDataSourceTable` của ShareData (di trú qua script [`00-sharedata-migration-mot-lan.sql`](../sql/00-sharedata-migration-mot-lan.sql)). Mỗi dòng đại diện cho 1 bảng nguồn có mốc `LastVersion`, `LastChangeTime`, `LastIssue` riêng, hai công tắc độc lập `IsTracked` (bật/tắt quét Change Tracking) và `IsQueryable` (cho phép dùng trên bộ dựng truy vấn Visual Query Builder), cùng `Category` và `DefaultAlias`. Sửa trực tiếp bằng `.sql`, Worker tự nạp lại định kỳ. Chi tiết ở mục [IV.4](#4-danh-mục-bảng-nguồn--bảng-sharedatasourcetable).
+> 📌 **Danh mục bảng nguồn ShareDataSourceTable (17/10/2026):** Quyết định ngày 17/10/2026 hợp nhất danh sách bảng nguồn theo dõi Change Tracking từ `SysOpConfig` (nhóm `sharedata_tracker`) và bảng trạng thái `ShareDataTrackVersion` cũ về bảng danh mục nguồn tập trung `ShareDataSourceTable` của ShareData (di trú qua script [`00-sharedata-migration-mot-lan.sql`](../sql/00-sharedata-migration-mot-lan.sql)). Mỗi dòng đại diện cho 1 bảng nguồn có mốc `LastVersion`, `LastChangeTime`, `LastIssue` riêng, hai công tắc độc lập `IsTracked` (bật/tắt quét Change Tracking) và `IsQueryable` (cho phép dùng trên bộ dựng truy vấn Visual Query Builder), cùng `DefaultAlias`. Sửa trực tiếp bằng `.sql`, Worker tự nạp lại định kỳ. Chi tiết ở mục [IV.4](#4-danh-mục-bảng-nguồn--bảng-sharedatasourcetable).
 
 ---
 
@@ -182,7 +182,7 @@ flowchart TD
   | `Address`          | `nvarchar(128)` | Nullable | Địa chỉ IP / Hostname máy chủ đối tác. |
   | `Port`             | `int`           | Nullable | Cổng dịch vụ mạng đối tác. |
   | `EndPointApiUrl`   | `nvarchar(256)` | Nullable | Đường dẫn URL API nhận dữ liệu của đối tác. |
-  | `ConnectionType`   | `nvarchar(64)`  | Nullable | *(Mới 13/10/2026)* Loại kênh kết nối chuẩn hóa qua `ConnectTypes`: `API` (mặc định; alias `REST`, `HTTP`, `WEBAPI`), `Kafka`, `File` (alias `DISK`, `NAS`), `Ftp` (alias `FTPS`). |
+  | `ConnectionType`   | `int`           | Nullable | *(Mới 13/10/2026, chuyển enum INT 17/10/2026)* Loại kênh kết nối lưu số nguyên theo `BaseEnums.ConnectionType`: 1-API (mặc định), 2-File, 3-FTP, 4-FTPS, 5-Kafka. |
   | `ConnectionConfig` | `nvarchar(max)` | Nullable | *(Cập nhật 14/10/2026 theo mẫu VMS)* Cấu hình kết nối JSON động dạng `Dictionary<string, string>` chỉ chứa tham số riêng theo kênh (AuthType, Token, ApiKey, TimeoutSeconds, BypassSsl, Topic, DirectoryPath...), tuyệt đối **không** chứa địa chỉ/cổng (địa chỉ và cổng chỉ lấy từ các cột `Address`, `Port`, `EndPointApiUrl`). |
   | `Status`           | `int`           | Nullable | Trạng thái hoạt động (`1` = Bật, `2` = Tắt). |
   | `SessionState`     | `int`           | Nullable | Trạng thái phiên kết nối hiện thời. |
@@ -297,12 +297,12 @@ flowchart TD
 
 #### 10. Entity `ShareDataSourceTable` — Bảng `ShareDataSourceTable` *(Cũ 27/09/2026 → Cải tiến 17/10/2026)*
 * **Vị trí tệp:** [`TA-ITS015-WEBAPI-V1.0/src/Modules/ShareData/Module.ShareData.Core/Entities/ShareDataSourceTable.cs`](file:///Users/hoangquydat/ThienAn/TA-ITS015-WEBAPI-V1.0/src/Modules/ShareData/Module.ShareData.Core/Entities/ShareDataSourceTable.cs)
-* **Lớp khởi tạo dữ liệu gốc:** [`TA-ITS015-WEBAPI-V1.0/src/Modules/ShareData/Module.ShareData/Infrastructure/Persistence/SeedData/ShareDataSourceTableSeedData.cs`](file:///Users/hoangquydat/ThienAn/TA-ITS015-WEBAPI-V1.0/src/Modules/ShareData/Module.ShareData/Infrastructure/Persistence/SeedData/ShareDataSourceTableSeedData.cs)
+* **Dữ liệu khởi tạo chuẩn:** Script [`03-sharedata-seed-cau-hinh.sql`](../sql/03-sharedata-seed-cau-hinh.sql) mục 3.4 (và bộ đọc `SeedScriptReader` trong kiểm thử).
 * **Kết nối CSDL:** `Default` (`DEV_ITS10`)
 * **Vai trò nghiệp vụ:**  
   Danh mục bảng nguồn tập trung của phân hệ ShareData, đảm nhận đồng thời 2 vai trò:
   1. Cấu hình danh sách bảng giám sát **SQL Server Change Tracking** kèm quy tắc ánh xạ gói tin kích hoạt (`PacketCodes`) và trạng thái con trỏ `LastVersion`, thời điểm phát hiện thay đổi `LastChangeTime`, tóm tắt sự cố `LastIssue` độc lập theo từng bảng nguồn.
-  2. Cấu hình danh mục bảng phục vụ tra cứu trên bộ dựng truy vấn **Visual Query Builder** (`IsQueryable`, `Category`, `DefaultAlias`), bảo đảm tính an toàn khi trích xuất dữ liệu.
+  2. Cấu hình danh mục bảng phục vụ tra cứu trên bộ dựng truy vấn **Visual Query Builder** (`IsQueryable`, `DefaultAlias`), bảo đảm tính an toàn khi trích xuất dữ liệu.
 * **Cấu trúc trường cốt lõi:**
   | Tên trường C# | Kiểu CSDL | Ràng buộc | Mô tả chức năng |
   | :--- | :--- | :---: | :--- |
@@ -316,7 +316,6 @@ flowchart TD
   | `LastChangeTime` | `datetime` (`DateTime?`) | Nullable | Thời điểm gần nhất Worker phát hiện bảng có bản ghi thay đổi (`SYS_CHANGE_OPERATION IN ('I', 'U')`). |
   | `LastIssue`      | `nvarchar(512)` | Nullable | Mô tả ngắn vấn đề gần nhất của bảng (tự động xóa về `null` khi bảng truy vấn thành công trở lại). |
   | `IsQueryable`    | `bit` (`bool?`) | Nullable | Cho phép dùng bảng này trong bộ dựng truy vấn Visual Query Builder và trong câu lệnh SQL của gói tin (`1` = Cho phép, `0` = Chặn). |
-  | `Category`       | `nvarchar(128)` | Nullable | Nhóm nghiệp vụ hiển thị trên bộ dựng truy vấn (`Giao thông & Thiết bị`, `Sự cố & Thời tiết`, `Thu phí ETC`, `Giám sát & Biển báo`). |
   | `DefaultAlias`   | `nvarchar(32)`  | Nullable | Bí danh mặc định khi chọn bảng trên bộ dựng truy vấn (`zs`, `z`, `td`, `c`, `w`, `tin`, `tout`, `vr`, `i`, `et`, `v`, `eq`, `tl`, `ts`). |
   | `ID`, `Code`, `TenantId`, `CreateTime`, `UpdateTime`, `CreateUId`, `UpdateUId`, `RowStatus`, `IsDelete` | Các cột nền | Kế thừa `EntityTenant` | Khóa chính Snowflake/chuỗi cố định (`1500000000201`..`1500000000215`), phân vùng đơn vị, dấu thời gian tạo/cập nhật và cờ xóa mềm. |
 * **Lưu ý kỹ thuật:**  
@@ -432,11 +431,11 @@ Các câu truy vấn SQL trích xuất động trong `ShareDataPacket.ExtractSql
 
 **Vai trò.** Bảng `ShareDataSourceTable` là danh mục bảng nguồn tập trung của phân hệ ShareData, kết hợp 2 chức năng quan trọng:
 1. **Giám sát Change Tracking:** Worker giám sát (`DataChangeTrackingService`) đọc bảng này để biết *bảng nguồn nào đang bật theo dõi (`IsTracked = 1`)*, *thay đổi ở bảng đó kích hoạt gói tin nào (`PacketCodes`)* và *mốc `LastVersion` hiện tại của từng bảng là bao nhiêu*. Sửa trực tiếp bằng câu lệnh SQL trên CSDL, Worker tự nạp lại sau tối đa 30 giây (khóa `ShareDataTracker:ConfigReloadSeconds` trong `appsettings.json`, mã nguồn dự phòng 60 giây nếu không khai), không làm màn hình quản trị riêng và không cần khởi động lại Worker.
-2. **Quản lý danh mục Visual Query Builder & An toàn SQL:** WebAPI đọc bảng này để hiển thị danh mục bảng cho phép người dùng chọn trên bộ dựng truy vấn (`IsQueryable = 1`, `Category`, `DefaultAlias`); đồng thời `SqlValidator` sử dụng bảng này để kiểm tra và chặn đứng mọi câu lệnh SQL đọc bảng ngoài danh mục hoặc bảng bị cấm (`IsQueryable = 0`).
+2. **Quản lý danh mục Visual Query Builder & An toàn SQL:** WebAPI đọc bảng này để hiển thị danh mục bảng cho phép người dùng chọn trên bộ dựng truy vấn (`IsQueryable = 1`, `DefaultAlias`); đồng thời `SqlValidator` sử dụng bảng này để kiểm tra và chặn đứng mọi câu lệnh SQL đọc bảng ngoài danh mục hoặc bảng bị cấm (`IsQueryable = 0`).
 
 **Vì sao đặt ở bảng `ShareDataSourceTable`.**
 - **Quy tắc nghiệp vụ riêng của ShareData:** Ánh xạ `TableName -> PacketCodes` gắn chặt với danh mục gói tin `101..111` của riêng phân hệ ShareData, không phải tham số vận hành chung cấp hệ thống.
-- **Truy lỗi và quan sát trạng thái tại một chỗ:** Gom cả cấu hình (`TableName`, `PacketCodes`, `IsTracked`, `IsQueryable`, `Category`, `DefaultAlias`) lẫn trạng thái chạy (`LastVersion`, `LastChangeTime`, `LastIssue`, `UpdateTime`) trên cùng một dòng giúp người vận hành chỉ cần một câu `SELECT` là kiểm tra được ngay bảng nào đang bật, mốc version tới đâu, lần cuối có dữ liệu mới lúc nào và có đang bị cô lập vì lỗi gì không.
+- **Truy lỗi và quan sát trạng thái tại một chỗ:** Gom cả cấu hình (`TableName`, `PacketCodes`, `IsTracked`, `IsQueryable`, `DefaultAlias`) lẫn trạng thái chạy (`LastVersion`, `LastChangeTime`, `LastIssue`, `UpdateTime`) trên cùng một dòng giúp người vận hành chỉ cần một câu `SELECT` là kiểm tra được ngay bảng nào đang bật, mốc version tới đâu, lần cuối có dữ liệu mới lúc nào và có đang bị cô lập vì lỗi gì không.
 - **Mốc `LastVersion` riêng cho từng bảng:** Mỗi bảng nguồn có mốc `LastVersion` độc lập nên khi thêm bảng mới, bật lại bảng cũ hoặc một bảng bị quá hạn retention phải nhảy cóc, các bảng lành mạnh khác không bị ảnh hưởng mốc và không bỏ sót thay đổi.
 - **Dòng cấu hình không bao giờ bị tạo lại hay mất cấu hình:** Worker chỉ thực hiện `UPDATE` trên các cột trạng thái (`LastVersion`, `LastChangeTime`, `LastIssue`, `UpdateTime`); không bao giờ xóa hay tạo lại dòng ngay cả khi khởi tạo lần đầu, hạ mốc về `-1` hay nhảy cóc tự hồi phục.
 
@@ -454,28 +453,27 @@ Các câu truy vấn SQL trích xuất động trong `ShareDataPacket.ExtractSql
 | `LastChangeTime` | `datetime` | Thời điểm gần nhất phát hiện bảng có bản ghi thêm mới hoặc cập nhật (`SYS_CHANGE_OPERATION IN ('I', 'U')`). |
 | `LastIssue` | `nvarchar(512)` | Mô tả ngắn vấn đề gần nhất của bảng (`NULL` khi bình thường; tự động xóa về `NULL` ngay khi bảng truy vấn thành công trở lại). |
 | `IsQueryable` | `bit` (`bool?`) | `1` = Cho phép dùng bảng trên bộ dựng truy vấn Visual Query Builder và câu lệnh SQL gói tin; `0` = Chặn (ẩn khỏi UI và `SqlValidator` báo lỗi `SqlTableNotAllowed`). |
-| `Category` | `nvarchar(128)` | Nhóm nghiệp vụ gom cụm trên giao diện Visual Query Builder (`Giao thông & Thiết bị`, `Sự cố & Thời tiết`, `Thu phí ETC`, `Giám sát & Biển báo`). |
 | `DefaultAlias` | `nvarchar(32)` | Bí danh mặc định khi sinh câu SQL trên Visual Query Builder (`zs`, `z`, `td`, `c`, `w`, `tin`, `tout`, `vr`, `i`, `et`, `v`, `eq`, `tl`, `ts`). |
 
-**Danh sách seed (15 bảng, script `03-sharedata-seed-cau-hinh.sql` & `ShareDataSourceTableSeedData.cs`).**
+**Danh sách seed (15 bảng, script `03-sharedata-seed-cau-hinh.sql` mục 3.4).**
 
-| Bảng nguồn (`TableName`) | Nhóm nghiệp vụ (`Category`) | Bí danh (`DefaultAlias`) | Gói kích hoạt (`PacketCodes`) | `IsTracked` | `IsQueryable` |
-| :--- | :--- | :---: | :--- | :---: | :---: |
-| `TmsZoneStatus` | Giao thông & Thiết bị | `zs` | `101,101_commonData` | 1 | 1 |
-| `TmsZone` | Giao thông & Thiết bị | `z` | `101,101_commonData` | 1 | 1 |
-| `TmsTrafficStatistic` | Giao thông & Thiết bị | `tstat` | `101,101_commonData` | 1 | 1 |
-| `CctvDevice` | Giám sát & Biển báo | `c` | `102,102_cctvData` | 1 | 1 |
-| `TmsTrafficData` | Giao thông & Thiết bị | `td` | `103,103_vdsData,106,106_wimData` | 1 | 1 |
-| `TmsWeather` | Sự cố & Thời tiết | `w` | `104,104_weatherData` | 1 | 1 |
-| `TollTransactionIn` | Thu phí ETC | `tin` | `105,105_rfidData,109,109_etcData` | 1 | 1 |
-| `TollTransactionOut` | Thu phí ETC | `tout` | `105,105_rfidData,109,109_etcData` | 1 | 1 |
-| `TmsVehicleRegistration` | Thu phí ETC | `vr` | `105,105_rfidData` | 1 | 1 |
-| `TmsIncident` | Sự cố & Thời tiết | `i` | `107,107_incidentData,110,110_wpData,111` | 1 | 1 |
-| `TmsEventType` | Sự cố & Thời tiết | `et` | `107,107_incidentData,110,110_wpData,111` | 1 | 1 |
-| `VmsCurrent` | Giám sát & Biển báo | `v` | `108,108_vmsInfo` | 1 | 1 |
-| `TmsEquipment` | Giao thông & Thiết bị | `eq` | `102,102_cctvData,103,103_vdsData,108,108_vmsInfo` | **0** | **1** |
-| `TollLane` | Thu phí ETC | `tl` | `109,109_etcData` | 1 | 1 |
-| `TollStation` | Thu phí ETC | `ts` | `109,109_etcData` | 1 | 1 |
+| Bảng nguồn (`TableName`) | Bí danh (`DefaultAlias`) | Gói kích hoạt (`PacketCodes`) | `IsTracked` | `IsQueryable` |
+| :--- | :---: | :--- | :---: | :---: |
+| `TmsZoneStatus` | `zs` | `101,101_commonData` | 1 | 1 |
+| `TmsZone` | `z` | `101,101_commonData` | 1 | 1 |
+| `TmsTrafficStatistic` | `tstat` | `101,101_commonData` | 1 | 1 |
+| `CctvDevice` | `c` | `102,102_cctvData` | 1 | 1 |
+| `TmsTrafficData` | `td` | `103,103_vdsData,106,106_wimData` | 1 | 1 |
+| `TmsWeather` | `w` | `104,104_weatherData` | 1 | 1 |
+| `TollTransactionIn` | `tin` | `105,105_rfidData,109,109_etcData` | 1 | 1 |
+| `TollTransactionOut` | `tout` | `105,105_rfidData,109,109_etcData` | 1 | 1 |
+| `TmsVehicleRegistration` | `vr` | `105,105_rfidData` | 1 | 1 |
+| `TmsIncident` | `i` | `107,107_incidentData,110,110_wpData,111` | 1 | 1 |
+| `TmsEventType` | `et` | `107,107_incidentData,110,110_wpData,111` | 1 | 1 |
+| `VmsCurrent` | `v` | `108,108_vmsInfo` | 1 | 1 |
+| `TmsEquipment` | `eq` | `102,102_cctvData,103,103_vdsData,108,108_vmsInfo` | **0** | **1** |
+| `TollLane` | `tl` | `109,109_etcData` | 1 | 1 |
+| `TollStation` | `ts` | `109,109_etcData` | 1 | 1 |
 
 > 📌 *Lưu ý về bảng `TmsEquipment`:* Đặt `IsTracked = 0` (tắt giám sát Change Tracking) để tránh trigger quét thừa cho 102/103/108 khi chỉ cập nhật thông tin thiết bị, nhưng đặt `IsQueryable = 1` để vẫn được phép tra cứu trong các gói tin.
 
@@ -499,7 +497,7 @@ Script chỉ `INSERT` dòng chưa có (`WHERE NOT EXISTS`), chạy lại không 
 
 ```sql
 -- 1. Xem tình trạng danh mục bảng nguồn, mốc version và hai công tắc IsTracked / IsQueryable
-SELECT TableName, Name, Category, DefaultAlias, IsTracked, IsQueryable, LastVersion, LastChangeTime, LastIssue, UpdateTime
+SELECT TableName, Name, DefaultAlias, IsTracked, IsQueryable, LastVersion, LastChangeTime, LastIssue, UpdateTime
 FROM dbo.ShareDataSourceTable
 WHERE IsDelete IS NULL
 ORDER BY OrderNo;
@@ -521,10 +519,10 @@ WHERE TableName = N'TmsTrafficData' AND IsDelete IS NULL;
 
 -- 5. Thêm một bảng nguồn mới vào danh mục
 INSERT INTO dbo.ShareDataSourceTable
-    (ID, TableName, Name, PacketCodes, IsTracked, IsQueryable, Category, DefaultAlias, OrderNo, Remark, LastVersion, TenantId, CreateTime, CreateUId)
+    (ID, TableName, Name, PacketCodes, IsTracked, IsQueryable, DefaultAlias, OrderNo, Remark, LastVersion, TenantId, CreateTime, CreateUId)
 VALUES
     (LOWER(CAST(NEWID() AS VARCHAR(64))), N'TmsRoute', N'Danh mục tuyến đường', N'101,101_commonData',
-     1, 1, N'Giao thông & Thiết bị', N'r', 160, N'Bảng bổ sung danh mục nguồn', NULL, N'Default', GETDATE(), N'superadmin');
+     1, 1, N'r', 160, N'Bảng bổ sung danh mục nguồn', NULL, N'Default', GETDATE(), N'superadmin');
 ```
 
 > ⚠️ Chỉ khai tên bảng có thật trong CSDL. Bảng sai tên không làm hỏng các bảng khác nhưng cột `LastIssue` của bảng đó sẽ ghi nhận lỗi và gói tương ứng không được kích hoạt từ bảng lỗi đó.

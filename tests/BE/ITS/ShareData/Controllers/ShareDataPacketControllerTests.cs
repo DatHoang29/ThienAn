@@ -4,13 +4,14 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Module.ShareData.Core.Dto.Packet;
 using Module.ShareData.Core.Entities;
-using Module.ShareData.Infrastructure.Persistence.SeedData;
 using Module.ShareData.Infrastructure.Services.ShareDataExtraction;
 using Shared.Core.Utilities.Constants;
 using Shared.DTO.Enums;
 using SqlSugar;
 using Wolverine;
 using Xunit;
+
+using Tests.ShareData.Common;
 
 namespace Tests.ShareData.Controllers;
 
@@ -21,10 +22,54 @@ namespace Tests.ShareData.Controllers;
 /// Created date: 17/10/2026
 /// </summary>
 [Collection("api")]
-public partial class ShareDataPacketControllerTests(Host host)
+public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
 {
     private readonly Host _host = host;
     private readonly IHttpContextAccessor _httpContextAccessor = host.Services.GetRequiredService<IHttpContextAccessor>();
+
+    public async Task InitializeAsync()
+    {
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        await EnsureCatalogTables(db);
+    }
+
+    public Task DisposeAsync() => Task.CompletedTask;
+
+    private static async Task EnsureCatalogTables(ISqlSugarClient db)
+    {
+        if (!db.DbMaintenance.IsAnyTable("ShareDataSourceTable", false))
+            db.CodeFirst.InitTables<ShareDataSourceTable>();
+
+        var existingTables = (await db.Queryable<ShareDataSourceTable>().Where(x => x.IsDelete == null).ToListAsync())
+            .Select(x => x.TableName?.Trim())
+            .Where(x => !string.IsNullOrEmpty(x))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var seedRows = SeedScriptReader.ReadSourceTables();
+        var toInsert = seedRows
+            .Where(s => !string.IsNullOrEmpty(s.TableName) && !existingTables.Contains(s.TableName.Trim()))
+            .Select(s => new ShareDataSourceTable
+            {
+                ID = s.ID,
+                TableName = s.TableName,
+                Name = s.Name,
+                PacketCodes = s.PacketCodes,
+                OrderNo = s.OrderNo,
+                IsTracked = s.IsTracked,
+                IsQueryable = s.IsQueryable,
+                DefaultAlias = s.DefaultAlias,
+                Remark = s.Remark,
+                LastVersion = s.LastVersion,
+                TenantId = s.TenantId,
+                CreateTime = s.CreateTime
+            }).ToList();
+
+        if (toInsert.Count > 0)
+        {
+            await db.Insertable(toInsert).ExecuteCommandAsync();
+        }
+    }
 
     private void SetUserContext(bool isSuperAdmin, string account = "test_operator")
     {

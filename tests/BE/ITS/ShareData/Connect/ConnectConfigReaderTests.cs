@@ -1,5 +1,5 @@
-using Modules.Integration.ShareData.Base.Constants;
-using Modules.Integration.ShareData.Base.Helpers;
+using Modules.Integration.Delivery.Base.Constants;
+using Modules.Integration.Delivery.Base.Helpers;
 using Xunit;
 
 namespace Tests.ShareData.Connect

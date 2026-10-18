@@ -1,6 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
 using Module.ShareData.Core.Entities;
-using ShareDataWorker.Core.Configuration;
 using ShareDataWorker.Core.Interfaces;
 using ShareDataWorker.Infrastructure.Logging;
 using Shared.DTO.Enums;

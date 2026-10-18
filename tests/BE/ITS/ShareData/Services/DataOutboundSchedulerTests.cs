@@ -12,6 +12,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
     public class DataOutboundSchedulerTests
     {
         private const string VietnamStandardScheduleJson = "{\"startTime\": \"08:00\", \"endTime\": \"17:00\"}";
+        private const int DefaultIntervalSeconds = 60;
 
         #region 1. Kiểm thử ca lỗi gốc rễ: Máy chủ DB chạy UTC trong khi người dùng cấu hình giờ Việt Nam
 
@@ -36,7 +37,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var nextRun = DataOutboundScheduler.ComputeNextTimeRun(sub, nowUtc);
+            var nextRun = DataOutboundScheduler.ComputeNextTimeRun(sub, nowUtc, DefaultIntervalSeconds);
 
             // Assert: Lần chạy tiếp theo phải là now + 30 giây (01:26:58 UTC), KHÔNG BỊ kẹp về 08:00:00 UTC
             var expectedNextRun = new DateTime(2026, 10, 5, 1, 26, 58, DateTimeKind.Utc);
@@ -60,7 +61,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var nextRun = DataOutboundScheduler.ComputeNextTimeRun(sub, nowUtc);
+            var nextRun = DataOutboundScheduler.ComputeNextTimeRun(sub, nowUtc, DefaultIntervalSeconds);
 
             // Assert: Phải kẹp đến 08:00:00 sáng VN = 01:00:00 UTC cùng ngày
             var expectedNextRun = new DateTime(2026, 10, 5, 1, 0, 0, DateTimeKind.Utc);
@@ -84,7 +85,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var nextRun = DataOutboundScheduler.ComputeNextTimeRun(sub, nowUtc);
+            var nextRun = DataOutboundScheduler.ComputeNextTimeRun(sub, nowUtc, DefaultIntervalSeconds);
 
             // Assert: Phải kẹp sang 08:00:00 sáng VN hôm sau = 01:00:00 UTC ngày hôm sau (06/10/2026)
             var expectedNextRun = new DateTime(2026, 10, 6, 1, 0, 0, DateTimeKind.Utc);
@@ -146,7 +147,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var nextRun = DataOutboundScheduler.ComputeNextTimeRun(sub, nowLocal);
+            var nextRun = DataOutboundScheduler.ComputeNextTimeRun(sub, nowLocal, DefaultIntervalSeconds);
 
             // Assert: Lần chạy tiếp theo là 08:26:58 Local
             var expectedNextRun = new DateTime(2026, 10, 5, 8, 26, 58, DateTimeKind.Local);
@@ -173,7 +174,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var nextRun = DataOutboundScheduler.ComputeNextTimeRun(sub, nowUtc);
+            var nextRun = DataOutboundScheduler.ComputeNextTimeRun(sub, nowUtc, DefaultIntervalSeconds);
 
             // Assert: Lần chạy tiếp theo phải là 08:00 VN = 01:00:00 UTC cùng ngày
             var expectedNextRun = new DateTime(2026, 10, 5, 1, 0, 0, DateTimeKind.Utc);
@@ -232,7 +233,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var nextRun = DataOutboundScheduler.ComputeNextTimeRun(sub, nowLocal);
+            var nextRun = DataOutboundScheduler.ComputeNextTimeRun(sub, nowLocal, DefaultIntervalSeconds);
 
             // Assert: kẹp tới 22:00 tối cùng ngày
             var expectedNextRun = new DateTime(2026, 10, 7, 22, 0, 0, DateTimeKind.Local);
@@ -256,7 +257,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var nextRun = DataOutboundScheduler.ComputeNextTimeRun(sub, nowLocal);
+            var nextRun = DataOutboundScheduler.ComputeNextTimeRun(sub, nowLocal, DefaultIntervalSeconds);
 
             // Assert: không bị kẹp
             var expectedNextRun = new DateTime(2026, 10, 7, 23, 0, 30, DateTimeKind.Local);
@@ -280,7 +281,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Act
-            var nextRun = DataOutboundScheduler.ComputeNextTimeRun(sub, nowLocal);
+            var nextRun = DataOutboundScheduler.ComputeNextTimeRun(sub, nowLocal, DefaultIntervalSeconds);
 
             // Assert: không bị kẹp
             var expectedNextRun = new DateTime(2026, 10, 7, 4, 0, 30, DateTimeKind.Local);
@@ -342,17 +343,17 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             // Act & Assert 1: Lúc 06:00:00 -> NextRun là 06:00:30 (Gửi lần 1)
             var t0 = new DateTime(2026, 10, 9, 6, 0, 0, DateTimeKind.Local);
-            var next0 = DataOutboundScheduler.ComputeNextTimeRun(sub, t0);
+            var next0 = DataOutboundScheduler.ComputeNextTimeRun(sub, t0, DefaultIntervalSeconds);
             Assert.Equal(new DateTime(2026, 10, 9, 6, 0, 30, DateTimeKind.Local), next0);
 
             // Act & Assert 2: Lúc 06:00:30 -> NextRun là 06:01:00 (Gửi lần 2)
             var t1 = new DateTime(2026, 10, 9, 6, 0, 30, DateTimeKind.Local);
-            var next1 = DataOutboundScheduler.ComputeNextTimeRun(sub, t1);
+            var next1 = DataOutboundScheduler.ComputeNextTimeRun(sub, t1, DefaultIntervalSeconds);
             Assert.Equal(new DateTime(2026, 10, 9, 6, 1, 0, DateTimeKind.Local), next1);
 
             // Act & Assert 3: Lúc 06:01:00 -> candidate là 06:01:30 (> 06:01:00) -> Kẹp sang 06:00:00 ngày hôm sau
             var t2 = new DateTime(2026, 10, 9, 6, 1, 0, DateTimeKind.Local);
-            var next2 = DataOutboundScheduler.ComputeNextTimeRun(sub, t2);
+            var next2 = DataOutboundScheduler.ComputeNextTimeRun(sub, t2, DefaultIntervalSeconds);
             Assert.Equal(new DateTime(2026, 10, 10, 6, 0, 0, DateTimeKind.Local), next2);
         }
 
@@ -408,7 +409,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             };
 
             var t0 = new DateTime(2026, 10, 9, 23, 0, 0, DateTimeKind.Local);
-            var next30 = DataOutboundScheduler.ComputeNextTimeRun(sub30, t0);
+            var next30 = DataOutboundScheduler.ComputeNextTimeRun(sub30, t0, DefaultIntervalSeconds);
             // Lần tiếp theo vượt quá 23:00:10 nên kẹp sang 23:00:00 ngày hôm sau
             Assert.Equal(new DateTime(2026, 10, 10, 23, 0, 0, DateTimeKind.Local), next30);
 
@@ -420,18 +421,45 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             };
 
             // Bắn lần 1 lúc 23:00:00 -> lần tiếp 23:00:05
-            var next5_0 = DataOutboundScheduler.ComputeNextTimeRun(sub5, t0);
+            var next5_0 = DataOutboundScheduler.ComputeNextTimeRun(sub5, t0, DefaultIntervalSeconds);
             Assert.Equal(new DateTime(2026, 10, 9, 23, 0, 5, DateTimeKind.Local), next5_0);
 
             // Bắn lần 2 lúc 23:00:05 -> lần tiếp 23:00:10
             var t0_5 = new DateTime(2026, 10, 9, 23, 0, 5, DateTimeKind.Local);
-            var next5_1 = DataOutboundScheduler.ComputeNextTimeRun(sub5, t0_5);
+            var next5_1 = DataOutboundScheduler.ComputeNextTimeRun(sub5, t0_5, DefaultIntervalSeconds);
             Assert.Equal(new DateTime(2026, 10, 9, 23, 0, 10, DateTimeKind.Local), next5_1);
 
             // Bắn lần 3 lúc 23:00:10 -> candidate là 23:00:15 > 23:00:10 -> kẹp sang ngày hôm sau
             var t0_10 = new DateTime(2026, 10, 9, 23, 0, 10, DateTimeKind.Local);
-            var next5_2 = DataOutboundScheduler.ComputeNextTimeRun(sub5, t0_10);
+            var next5_2 = DataOutboundScheduler.ComputeNextTimeRun(sub5, t0_10, DefaultIntervalSeconds);
             Assert.Equal(new DateTime(2026, 10, 10, 23, 0, 0, DateTimeKind.Local), next5_2);
+        }
+
+        #endregion
+
+        #region 7. Kiểm thử fallback defaultIntervalSeconds khi IntervalSeconds của đăng ký null hoặc không hợp lệ
+
+        /// <summary>
+        /// Description: Kiểm thử ComputeNextTimeRun khi đăng ký không cấu hình IntervalSeconds (null)
+        ///              thì sử dụng đúng defaultIntervalSeconds được truyền từ cấu hình worker.
+        /// Created date: 18/10/2026
+        /// </summary>
+        [Fact]
+        public void ComputeNextTimeRun_WhenIntervalSecondsNull_UsesProvidedDefaultInterval_Test()
+        {
+            // Arrange
+            var now = new DateTime(2026, 10, 18, 10, 0, 0, DateTimeKind.Local);
+            var sub = new ShareDataSubscription
+            {
+                IntervalSeconds = null
+            };
+            const int testDefaultInterval = 45;
+
+            // Act
+            var nextRun = DataOutboundScheduler.ComputeNextTimeRun(sub, now, testDefaultInterval);
+
+            // Assert
+            Assert.Equal(now.AddSeconds(testDefaultInterval), nextRun);
         }
 
         #endregion

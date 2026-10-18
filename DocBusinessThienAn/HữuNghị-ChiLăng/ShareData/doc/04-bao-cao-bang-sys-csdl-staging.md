@@ -27,17 +27,17 @@
 **Quyết định cập nhật (17/10/2026):**
 - **Danh mục bảng nguồn chuyển sang bảng riêng `ShareDataSourceTable`:** Đây là quy tắc nghiệp vụ riêng của ShareData (quản lý bảng nguồn phục vụ Change Tracking và bộ dựng SQL Query Builder). Bảng không có giao diện người dùng; sửa trực tiếp bằng `.sql` để truy vết lỗi nhanh và kiểm soát chặt chẽ.
 - **Mã lỗi ESH và bản dịch vẫn dùng bảng hệ thống chung:** `SysConfigType/SysConfigData` (25 mã `ESH-xxxx`) và `SysTerminology` (`lz.*`).
-- **`SysOpConfig` nhóm `sharedata_config`:** Lưu 46 tham số vận hành và giới hạn cấu hình động (17 tham số Worker, 23 tham số FE, 6 tham số WebAPI), toàn bộ đều có giá trị mặc định dự phòng an toàn trong mã nguồn (`ShareDataConfigService` và `DataWorkerOpConfigReader`).
+- **`SysOpConfig` nhóm `sharedata_config`:** Lưu 47 tham số vận hành và giới hạn cấu hình động (18 tham số Worker, 23 tham số FE, 6 tham số WebAPI), toàn bộ đều có giá trị mặc định dự phòng an toàn trong mã nguồn (`LimitOption` và `DataWorkerOption`).
 
 | Bảng chung | Quyết định | Các phân hệ khác dùng thế nào (căn cứ mã nguồn) | ShareData dùng cho |
 |---|---|---|---|
 | `SysConfigType` / `SysConfigData` | **Giữ** | TMS, VideoWall, Toll, Mail đều dùng cùng cách: `tms_zone_type`, `vehicle_type`, `tms_incident_status`, `equipment_state`, `videowall_controller_color`, `videowall_event_source`, `toll_*`, `mail_trigger_type`… (khai ở seed `SysConfigTypeSeedData.cs` và enum FE `BaseConfigTypeEnum`) | Danh mục giá trị `sharedata_*`: `sharedata_error_code` (25 mã `ESH-xxxx`), `sharedata_direction`, `sharedata_session_state`… |
 | `SysTerminology` | **Giữ, không đổi** | Toàn hệ thống dùng chung cho bản dịch `lz.*` | Nhãn, thông báo, lỗi đa ngôn ngữ của ShareData |
-| `SysOpConfig` | **Giữ** | Cấu hình vận hành của từng phân hệ nằm trong bảng này theo `GroupCode`. Nhóm đang dùng trong mã: `cctv_config`, `cctv_public_equipment_ids`, `mail_config`, `noti_config`, `toll_config`, `vds_config`, `operation_config`, `tms_traffic_matrix` (thêm `media_config`, `wp_config`, `vms_config`… trên staging, bảng bên dưới) | Nhóm `sharedata_config`: 46 tham số vận hành và giới hạn (17 Worker, 23 FE, 6 WebAPI), nạp lại định kỳ |
+| `SysOpConfig` | **Giữ** | Cấu hình vận hành của từng phân hệ nằm trong bảng này theo `GroupCode`. Nhóm đang dùng trong mã: `cctv_config`, `cctv_public_equipment_ids`, `mail_config`, `noti_config`, `toll_config`, `vds_config`, `operation_config`, `tms_traffic_matrix` (thêm `media_config`, `wp_config`, `vms_config`… trên staging, bảng bên dưới) | Nhóm `sharedata_config`: 47 tham số vận hành và giới hạn (18 Worker, 23 FE, 6 WebAPI), nạp lại định kỳ |
 
 **Vì sao chọn bảng riêng `ShareDataSourceTable` thay cho bảng chung `SysOpConfig` và `ShareDataTrackVersion` cũ:**
 - Tách biệt rõ ràng quy tắc bảng nguồn của ShareData với các cấu hình vận hành dùng chung.
-- Hỗ trợ linh hoạt cả hai công tắc nghiệp vụ `IsTracked` (bật/tắt giám sát Change Tracking) và `IsQueryable` (cho phép/chặn trích xuất SQL qua Visual Query Builder), kèm `Category` và `DefaultAlias`.
+- Hỗ trợ linh hoạt cả hai công tắc nghiệp vụ `IsTracked` (bật/tắt giám sát Change Tracking) và `IsQueryable` (cho phép/chặn trích xuất SQL qua Visual Query Builder), kèm `DefaultAlias` (đã loại bỏ `Category`).
 - Mỗi bảng nguồn giữ một mốc trạng thái độc lập (`LastVersion`, `LastChangeTime`, `LastIssue`), không phụ thuộc bảng chung, loại bỏ hoàn toàn rủi ro mất danh sách bảng khi đặt lại mốc.
 - Chi tiết xem tại [báo cáo 03, mục IV.4](03-bao-cao-tong-the-entity-csdl-sharedata.md#4-danh-mục-bảng-nguồn--bảng-sharedatasourcetable).
 
@@ -120,7 +120,7 @@
 | `lz.button` | 118 | Nút bấm |
 | `param` | 20 | Tham số |
 | `lz._root`, `lz.router`, `lz.param`, `lz.ui` | 8 / 3 / 2 / 1 | Gốc, route, tham số, UI |
-| `lz.validation.sharedata.scheduleTimeRangeInvalid` | 2 | ⚠️ Bất thường — xem mục IV |
+| `lz.validation...scheduleTimeRangeInvalid` (thừa tiền tố) | 2 | ⚠️ Bất thường — xem mục IV |
 
 ### B. Tài khoản & phân quyền
 
@@ -179,7 +179,7 @@ flowchart LR
    - **Không nằm trong danh sách chặn:** `SysAccess`, `SysApp`, `SysFile`, `SysMenu`, `SysOpConfig`, `SysPlugin`, `SysPos`, `SysTerminology`, `SysDictType`, `SysDictData`.
    - ⚠️ `SysAccess` (có thể chứa token) và `SysOpConfig` (nhóm `mail_config`, 18 dòng, có thể có thông tin kết nối thư) là hai bảng nên được xem xét đưa vào danh sách chặn. **Chưa kiểm** nội dung nhạy cảm của hai bảng này — báo cáo không đọc giá trị `Value`/token.
 2. **Dữ liệu thử lẫn trong staging:** `SysApp` có dòng tên/mã vô nghĩa (`t`/`qw`, `twewe`/`qweweew`…), `SysPlugin` có dòng `Plugin A`, `plugin`, một dòng tên trống và hai dòng cùng tên "Tích hợp VDS". Mã `SysPlugin.Code` được module Mail dùng, nên dòng trùng/rác có thể làm lệch cách gom báo cáo email.
-3. **`SysTerminology` có 2 dòng `Name` bất thường:** `Name` = `lz.validation.sharedata.scheduleTimeRangeInvalid` (đầy đủ khóa) thay vì tiền tố nhóm (`lz.validation`). Cần đối chiếu cách khóa này được tra cứu.
+3. **`SysTerminology` có 2 dòng `Name` bất thường:** `Name` bị gán nhầm cả chuỗi `lz.validation...scheduleTimeRangeInvalid` (thừa tiền tố phân hệ) thay vì tiền tố nhóm chuẩn (`lz.validation`). Cần đối chiếu cách khóa này được tra cứu.
 4. **Bảng trống** (`SysDictType`, `SysDictData`, `SysRoleOrg`, `SysTenant`): giữ nguyên trong CSDL nhưng chưa có dữ liệu — không phải lỗi, chỉ cho biết tính năng chưa dùng.
 
 ---

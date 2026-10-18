@@ -2109,6 +2109,20 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         }
 
         // 3. Render giao diện thực tế: kiểm tra select Bảng nguồn và độ rộng hiển thị
+        await page.route('**/api/sharedata/sharedatapacket/getmetadatatables*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: [
+                        { tableName: 'TmsZone', displayName: 'Đoạn đường', defaultAlias: 'z' },
+                        { tableName: 'TmsTrafficData', displayName: 'Dò xe', defaultAlias: 'td' },
+                    ],
+                }),
+            });
+        });
+
         await page.setViewportSize({ width: 1600, height: 900 });
         await page.goto('/#/sharedata/dataSource');
 

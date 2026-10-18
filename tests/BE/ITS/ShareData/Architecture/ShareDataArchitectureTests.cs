@@ -1,16 +1,16 @@
 using System;
 using System.Reflection;
-using Modules.Integration.ShareData.Base.Constants;
-using Modules.Integration.ShareData.PacketSend;
+using Modules.Integration.Delivery.Base.Constants;
+using Modules.Integration.Delivery;
 using Xunit;
 
 namespace Tests.ShareData.Architecture;
 
 /// <summary>
 /// Author: DatHQ
-/// Description: Kiểm thử kiến trúc bảo vệ ranh giới của tầng kết nối Modules.Integration.ShareData và Modules.Integration.ShareData.Base:
+/// Description: Kiểm thử kiến trúc bảo vệ ranh giới của tầng kết nối Modules.Integration.Delivery và Modules.Integration.Delivery.Base:
 ///              - Tầng kết nối Base là thư viện thuần BCL (System.*, netstandard, mscorlib).
-///              - Tầng kết nối xử lý chỉ thêm Microsoft.Extensions.*, Confluent.Kafka và Modules.Integration.ShareData.Base.
+///              - Tầng kết nối xử lý chỉ thêm Microsoft.Extensions.*, Confluent.Kafka và Modules.Integration.Delivery.Base.
 ///              - Tuyệt đối cấm phụ thuộc Furion, Web, ORM (SqlSugar), Wolverine hay các module/worker khác.
 /// </summary>
 public class ShareDataArchitectureTests
@@ -52,7 +52,7 @@ public class ShareDataArchitectureTests
                      || name.Equals("netstandard", StringComparison.OrdinalIgnoreCase)
                      || name.Equals("Shared.DTO", StringComparison.OrdinalIgnoreCase);
 
-            Assert.True(isAllowed, $"Assembly '{name}' không thuộc danh sách thư viện được phép của Modules.Integration.ShareData.Base.");
+            Assert.True(isAllowed, $"Assembly '{name}' không thuộc danh sách thư viện được phép của Modules.Integration.Delivery.Base.");
         }
     }
 
@@ -61,7 +61,7 @@ public class ShareDataArchitectureTests
     public void IntegrationAssembly_ReferencesOnlyBclAssemblies_Test()
     {
         // Arrange
-        var assembly = typeof(PacketSendDispatcher).Assembly;
+        var assembly = typeof(DeliveryDispatcher).Assembly;
         var referencedAssemblies = assembly.GetReferencedAssemblies();
 
         var forbiddenPrefixes = new[]
@@ -91,10 +91,10 @@ public class ShareDataArchitectureTests
                      || name.Equals("netstandard", StringComparison.OrdinalIgnoreCase)
                      || name.StartsWith("Microsoft.Extensions.", StringComparison.OrdinalIgnoreCase)
                      || name.StartsWith("Confluent.Kafka", StringComparison.OrdinalIgnoreCase)
-                     || name.Equals("Modules.Integration.ShareData.Base", StringComparison.OrdinalIgnoreCase)
+                     || name.Equals("Modules.Integration.Delivery.Base", StringComparison.OrdinalIgnoreCase)
                      || name.Equals("Shared.DTO", StringComparison.OrdinalIgnoreCase);
 
-            Assert.True(isAllowed, $"Assembly '{name}' không thuộc danh sách thư viện được phép của Modules.Integration.ShareData.");
+            Assert.True(isAllowed, $"Assembly '{name}' không thuộc danh sách thư viện được phép của Modules.Integration.Delivery.");
         }
     }
 }

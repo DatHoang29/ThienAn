@@ -4,7 +4,7 @@ GO
 -- =========================================================================================
 -- FILE: 04-sharedata-dich-thuat.sql
 -- DESCRIPTION: Bổ sung từ điển bản dịch đa ngôn ngữ (vi-VN, en-US) cho phân hệ ShareData (ESHARE) vào SysTerminology:
---              1. Chuẩn hóa lại mã khóa cũ lz.validation.sharedata.lookbackDaysRange (nếu có).
+--              1. Chuẩn hóa lại mã khóa cũ thừa tiền tố (như lz.validation...lookbackDaysRange nếu có).
 --              2. Nạp toàn bộ 50 mã khóa dịch thuật chuẩn hóa:
 --                 - 1 khóa khoảng số ngày quét lùi (lookbackDaysRange).
 --                 - 10 khóa quản trị câu truy vấn SQL trích xuất (superAdmin, packetCode, partnerMapping...).
@@ -37,7 +37,8 @@ SET Name = N'lz.validation',
     Remark = ISNULL(Remark, N'ShareData Localization'),
     UpdateTime = GETDATE(),
     UpdateUId = N'superadmin'
-WHERE Code = N'lz.validation.sharedata.lookbackDaysRange'
+WHERE Code LIKE N'lz.validation%lookbackDaysRange'
+  AND Code <> N'sharedata.lookbackDaysRange'
   AND NOT EXISTS (
       SELECT 1
       FROM dbo.SysTerminology t2

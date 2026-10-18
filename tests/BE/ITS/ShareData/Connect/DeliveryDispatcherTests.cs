@@ -2,16 +2,16 @@ using System.Text;
 using Module.ShareData.Controllers.Partner.Validators;
 using Module.ShareData.Core.Entities;
 using Module.ShareData.Core.Utils;
-using Modules.Integration.ShareData.Base.Constants;
-using Modules.Integration.ShareData.Base.Enums;
-using Modules.Integration.ShareData.Base.Helpers;
-using Modules.Integration.ShareData.Base.Interfaces.PacketSend;
-using Modules.Integration.ShareData.Base.Models.Encrypt;
-using Modules.Integration.ShareData.Base.Models.PacketSend;
-using Modules.Integration.ShareData.Encrypt;
-using Modules.Integration.ShareData.Formats;
-using Modules.Integration.ShareData.PacketSend;
-using Modules.Integration.ShareData.PacketSend.Senders;
+using Modules.Integration.Delivery;
+using Modules.Integration.Delivery.Base.Constants;
+using Modules.Integration.Delivery.Base.Enums;
+using Modules.Integration.Delivery.Base.Helpers;
+using Modules.Integration.Delivery.Base.Interfaces;
+using Modules.Integration.Delivery.Base.Models;
+using Modules.Integration.Delivery.Base.Models.Encrypt;
+using Modules.Integration.Delivery.Encrypt;
+using Modules.Integration.Delivery.Formats;
+using Modules.Integration.Delivery.Senders;
 using ShareDataWorker.Core.Models.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
 using Tests.ShareData.Mocks;
@@ -22,16 +22,16 @@ namespace Tests.ShareData.Connect;
 
 /// <summary>
 /// Author: DatHQ
-/// Description: Bộ kiểm thử tích hợp cho tầng gửi gói tin (PacketSend) và PacketSendDispatcher (Rule 19.84).
+/// Description: Bộ kiểm thử tích hợp cho tầng chuyển giao (Delivery) và DeliveryDispatcher (Rule 19.84).
 ///              Bao gồm điều phối dispatcher, mã hóa/giải mã, định dạng đường dẫn xuất và các kênh truyền Http, File, Ftp, Kafka.
 /// Created date: 17/10/2026
 /// </summary>
 [Collection("api")]
-public partial class PacketSendTests
+public partial class DeliveryDispatcherTests
 {
     private readonly Host _host;
 
-    public PacketSendTests(Host host)
+    public DeliveryDispatcherTests(Host host)
     {
         _host = host;
         _host.PartnerServer.ResetDefaults();
@@ -59,9 +59,9 @@ public partial class PacketSendTests
         return CreateDummyContext(packetCode, partnerCode, type);
     }
 
-    private static PacketSendContext CreateSendContext(string partnerCode = "PARTNER_WARN", string connectionType = "API")
+    private static DeliveryContext CreateSendContext(string partnerCode = "PARTNER_WARN", string connectionType = "API")
     {
-        return new PacketSendContext(
+        return new DeliveryContext(
             PartnerCode: partnerCode,
             PacketCode: "101",
             SubscriptionId: "sub-warn-1",
@@ -78,8 +78,8 @@ public partial class PacketSendTests
     public async Task DispatchAsync_WhenPartnerConnectionTypeIsUnknown_ReturnsUnsupportedError_Test()
     {
         // Arrange
-        var dispatcher = PacketSendDispatcher.CreateForHandlers([]);
-        var request = new PacketSendRequest
+        var dispatcher = DeliveryDispatcher.CreateForHandlers([]);
+        var request = new DeliveryRequest
         {
             JsonPayload = "{}",
             ConnectType = (BaseEnums.ConnectionType)999,
@@ -141,11 +141,11 @@ public partial class PacketSendTests
         {
             Code = "105",
             Name = "Vehicle Event Packet",
-            SyncMode = Shared.DTO.Enums.BaseEnums.SyncMode.Incremental
+            SyncMode = BaseEnums.SyncMode.Incremental
         };
 
         // Act & Assert
-        Assert.Equal(Shared.DTO.Enums.BaseEnums.SyncMode.Incremental, packet105.SyncMode);
+        Assert.Equal(BaseEnums.SyncMode.Incremental, packet105.SyncMode);
     }
 
     [Fact]
@@ -169,10 +169,10 @@ public partial class PacketSendTests
         var configWithValidTokens = "{\"FileNamePattern\":\"export_{partner}_{packet}_{serial}_{timestamp}.json\"}";
 
         // Act & Assert: CheckStructure cho phép lưu nhưng phát hiện cảnh báo cấu hình
-        var structure1 = PartnerValidator.CheckStructure(configWithOutputPath);
+        var structure1 = ConnectConfigValidator.CheckStructure(configWithOutputPath);
         Assert.Equal(ConnectConfigIssue.None, structure1);
 
-        var structure2 = PartnerValidator.CheckStructure(configWithValidTokens);
+        var structure2 = ConnectConfigValidator.CheckStructure(configWithValidTokens);
         Assert.Equal(ConnectConfigIssue.None, structure2);
     }
 
@@ -244,18 +244,18 @@ public partial class PacketSendTests
 
 internal static class TestTransportExtensions
 {
-    public static Task<PacketSendResult> Dispatch(
-        this IPacketSendDispatcher dispatcher,
-        PacketSendRequest request,
+    public static Task<DeliveryResult> Dispatch(
+        this IDeliveryDispatcher dispatcher,
+        DeliveryRequest request,
         DataOutboundContext ctx,
         CancellationToken ct = default)
     {
         return dispatcher.Dispatch(request, DataOutboundTransport.BuildContext(ctx), ct);
     }
 
-    public static Task<PacketSendResult> Send(
-        this IPacketSender handler,
-        PacketSendRequest request,
+    public static Task<DeliveryResult> Send(
+        this IDeliverySender handler,
+        DeliveryRequest request,
         DataOutboundContext ctx,
         CancellationToken ct = default)
     {

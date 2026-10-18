@@ -1,9 +1,6 @@
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging.Abstractions;
 using Module.ShareData.Controllers.Subscription.Validators;
 using Module.ShareData.Core.Dto.Subscription;
 using Module.ShareData.Core.Entities;
-using Module.ShareData.Infrastructure.Configuration;
 using Modules.CfgSystem.Core.Entities;
 using Newtonsoft.Json;
 using Shared.DTO.Enums;
@@ -28,8 +25,7 @@ public class ShareDataSubscriptionControllerTests(Host host)
         // Arrange
         var bus = host.Services.GetRequiredService<IMessageBus>();
         var db = host.Services.GetRequiredService<ISqlSugarClient>();
-        var limitOption = host.Services.GetRequiredService<ILimitOption>();
-        var validator = new AddSubscriptionValidator(host.Localizer, limitOption);
+        var validator = new AddSubscriptionValidator(host.Localizer);
         var unique = Guid.NewGuid().ToString("N");
 
         var partner = new ShareDataPartner
@@ -82,25 +78,34 @@ public class ShareDataSubscriptionControllerTests(Host host)
 
     /// <summary>
     /// Description: Kiểm chứng Priority và DebounceSec dùng giá trị dự phòng (0..10 và 0..3600)
-    /// khi CSDL không có cấu hình, và áp dụng đúng cấu hình tùy biến khi đọc từ SysOpConfig.
+    /// khi CSDL không có cấu hình.
     /// Created date: 17/10/2026
     /// </summary>
     [Fact]
-    public async Task AddSubscription_PriorityAndDebounceSec_ValidatesFallbackAndConfiguredRanges_Test()
+    public async Task AddSubscription_PriorityAndDebounceSec_ValidatesFallbackRanges_Test()
     {
         // Arrange
+        var bus = host.Services.GetRequiredService<IMessageBus>();
         var db = host.Services.GetRequiredService<ISqlSugarClient>();
-        var fallbackLimitOption = host.Services.GetRequiredService<ILimitOption>();
-        var fallbackValidator = new AddSubscriptionValidator(host.Localizer, fallbackLimitOption);
         var unique = Guid.NewGuid().ToString("N");
 
-        ShareDataAddSubscriptionInput CreateInput(int? priority = null, int? debounce = null) =>
+        var partner = new ShareDataPartner
+        {
+            ID = $"P_{unique}",
+            Code = $"P_CODE_{unique}",
+            Name = $"Partner {unique}",
+            Status = BaseEnums.StatusEnum.Enable
+        };
+        await db.Insertable(partner).ExecuteCommandAsync();
+
+        ShareDataAddSubscriptionInput CreateInput(int? priority = null, int? debounce = null, BaseEnums.SubMode mode = BaseEnums.SubMode.Periodic) =>
             new()
             {
-                PartnerId = $"P_{unique}",
+                PartnerId = partner.ID,
                 DatatypeId = $"DT_{unique}",
                 Direction = BaseEnums.Direction.Outbound,
-                Mode = BaseEnums.SubMode.Periodic,
+                Mode = mode,
+                EventSourceId = mode == BaseEnums.SubMode.Event ? $"EV_{unique}" : null,
                 IntervalSeconds = 30,
                 Priority = priority,
                 DebounceSec = debounce,
@@ -114,50 +119,17 @@ public class ShareDataSubscriptionControllerTests(Host host)
             };
 
         // 1. Fallback verification (Priority: 0..10, DebounceSec: 0..3600)
-        var resPrioFail = await fallbackValidator.ValidateAsync(CreateInput(priority: 11));
-        var resDebFail = await fallbackValidator.ValidateAsync(CreateInput(debounce: 3601));
-        var resFallbackOk = await fallbackValidator.ValidateAsync(CreateInput(priority: 5, debounce: 60));
+        await Assert.ThrowsAnyAsync<Exception>(() => bus.InvokeAsync(CreateInput(priority: 11)));
+        await Assert.ThrowsAnyAsync<Exception>(() => bus.InvokeAsync(CreateInput(debounce: 3601)));
 
-        Assert.False(resPrioFail.IsValid);
-        Assert.False(resDebFail.IsValid);
-        Assert.True(resFallbackOk.IsValid);
+        // 2. Valid input within fallback range succeeds (Mode = Event to preserve DebounceSec)
+        await bus.InvokeAsync(CreateInput(priority: 5, debounce: 60, mode: BaseEnums.SubMode.Event));
 
-        // 2. Custom configuration from SysOpConfig (isolated group)
-        var isolatedGroup = $"sd_sub_cfg_{unique}";
-        var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["ShareDataConfig:GroupCode"] = isolatedGroup
-            })
-            .Build();
-
-        var testRows = new List<SysOpConfig>
-        {
-            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "subscription_priority_min", Value = "2", Status = BaseEnums.StatusEnum.Enable },
-            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "subscription_priority_max", Value = "7", Status = BaseEnums.StatusEnum.Enable },
-            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "subscription_debounce_sec_min", Value = "10", Status = BaseEnums.StatusEnum.Enable },
-            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "subscription_debounce_sec_max", Value = "120", Status = BaseEnums.StatusEnum.Enable }
-        };
-        await db.Insertable(testRows).ExecuteCommandAsync();
-
-        var customLimitOption = new LimitOption(
-            db: db,
-            logger: NullLogger<LimitOption>.Instance,
-            configuration: config);
-        var customValidator = new AddSubscriptionValidator(
-            host.Localizer,
-            customLimitOption);
-
-        var resCustomPrioLow = await customValidator.ValidateAsync(CreateInput(priority: 1));
-        var resCustomPrioHigh = await customValidator.ValidateAsync(CreateInput(priority: 8));
-        var resCustomDebLow = await customValidator.ValidateAsync(CreateInput(debounce: 5));
-        var resCustomDebHigh = await customValidator.ValidateAsync(CreateInput(debounce: 150));
-        var resCustomOk = await customValidator.ValidateAsync(CreateInput(priority: 5, debounce: 30));
-
-        Assert.False(resCustomPrioLow.IsValid);
-        Assert.False(resCustomPrioHigh.IsValid);
-        Assert.False(resCustomDebLow.IsValid);
-        Assert.False(resCustomDebHigh.IsValid);
-        Assert.True(resCustomOk.IsValid);
+        var saved = await db.Queryable<ShareDataSubscription>()
+            .Where(s => s.PartnerId == partner.ID && s.DatatypeId == $"DT_{unique}")
+            .FirstAsync();
+        Assert.NotNull(saved);
+        Assert.Equal(5, saved.Priority);
+        Assert.Equal(60, saved.DebounceSec);
     }
 }

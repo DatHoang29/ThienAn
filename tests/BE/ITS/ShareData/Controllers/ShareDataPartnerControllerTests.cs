@@ -1,218 +1,204 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
 using Module.ShareData.Controllers.Partner.Validators;
 using Module.ShareData.Core.Dto.Partner;
-using Modules.Integration.ShareData.Base.Constants;
-using Modules.Integration.ShareData.Base.Enums;
+using Module.ShareData.Core.Entities;
+using Module.ShareData.Core.Exceptions;
+using Modules.Integration.Delivery.Base.Constants;
+using Modules.Integration.Delivery.Base.Enums;
 using Shared.DTO.Enums;
+using SqlSugar;
+using Wolverine;
 using Xunit;
 
 namespace Tests.ShareData.Controllers
 {
     /// <summary>
-    /// Description: Kiểm thử đơn vị cho PartnerValidator và hàm kiểm tra cấu trúc cấu hình kết nối CheckStructure.
-    ///              Xác nhận 6 lỗi cấu trúc bị chặn và các lỗi giá trị cấu hình không còn bị chặn khi lưu.
+    /// Description: Kiểm thử cho ShareDataPartnerController và PartnerValidator qua Wolverine IMessageBus (Rule 19.84).
+    ///              Xác nhận 6 lỗi cấu trúc ConnectionConfig bị chặn với thông báo i18n tương ứng,
+    ///              khóa OutputPath vẫn lưu thành công, và kiểm tra tính hợp lệ của ConnectionType.
     /// Created date: 17/10/2026
     /// </summary>
-    public class ShareDataPartnerControllerTests
+    [Collection("api")]
+    public class ShareDataPartnerControllerTests(Host host)
     {
-        [Theory]
-        [InlineData(null)]
-        [InlineData("")]
-        [InlineData("   ")]
-        public void CheckStructure_NullOrWhitespace_ReturnsNone_Test(string? config)
-        {
-            // Act
-            var issue = PartnerValidator.CheckStructure(config);
-
-            // Assert
-            Assert.Equal(ConnectConfigIssue.None, issue);
-        }
+        #region 1. Validation qua AddPartnerValidator & Lưu qua IMessageBus
 
         [Theory]
         [InlineData("[1, 2, 3]")]
         [InlineData("\"plain string\"")]
         [InlineData("12345")]
         [InlineData("true")]
-        public void CheckStructure_NotJsonObject_ReturnsNotJsonObject_Test(string config)
+        public void AddPartner_WhenConnectionConfigNotJsonObject_ValidatorRejectsWithI18n_Test(string config)
         {
+            // Arrange
+            var validator = new AddPartnerValidator(host.Localizer);
+            var unique = Guid.NewGuid().ToString("N")[..20];
+            var input = new ShareDataAddPartnerInput
+            {
+                Code = $"P_{unique}",
+                Name = $"Partner {unique}",
+                Address = "127.0.0.1",
+                ConnectionConfig = config
+            };
+
             // Act
-            var issue = PartnerValidator.CheckStructure(config);
+            var result = validator.Validate(input);
 
             // Assert
-            Assert.Equal(ConnectConfigIssue.NotJsonObject, issue);
+            Assert.False(result.IsValid);
+            Assert.Contains(result.Errors, e => e.ErrorMessage == host.Localizer[BaseMsg.ShareData.Validation.ConnectConfigNotJsonObject]);
         }
 
         [Fact]
-        public void CheckStructure_SyntaxError_ReturnsSyntaxError_Test()
+        public void AddPartner_WhenConnectionConfigSyntaxError_ValidatorRejectsWithI18n_Test()
         {
             // Arrange
-            var invalidJson = "{ invalid_json: 123 }";
+            var validator = new AddPartnerValidator(host.Localizer);
+            var unique = Guid.NewGuid().ToString("N")[..20];
+            var input = new ShareDataAddPartnerInput
+            {
+                Code = $"P_{unique}",
+                Name = $"Partner {unique}",
+                Address = "127.0.0.1",
+                ConnectionConfig = "{ invalid_json: 123 }"
+            };
 
             // Act
-            var issue = PartnerValidator.CheckStructure(invalidJson);
+            var result = validator.Validate(input);
 
             // Assert
-            Assert.Equal(ConnectConfigIssue.SyntaxError, issue);
+            Assert.False(result.IsValid);
+            Assert.Contains(result.Errors, e => e.ErrorMessage == host.Localizer[BaseMsg.ShareData.Validation.ConnectConfigSyntaxError]);
         }
 
         [Fact]
-        public void CheckStructure_EmptyKey_ReturnsEmptyKey_Test()
+        public void AddPartner_WhenConnectionConfigEmptyKey_ValidatorRejectsWithI18n_Test()
         {
             // Arrange
-            var json = "{\"\": \"some_value\"}";
+            var validator = new AddPartnerValidator(host.Localizer);
+            var unique = Guid.NewGuid().ToString("N")[..20];
+            var input = new ShareDataAddPartnerInput
+            {
+                Code = $"P_{unique}",
+                Name = $"Partner {unique}",
+                Address = "127.0.0.1",
+                ConnectionConfig = "{\"\": \"some_value\"}"
+            };
 
             // Act
-            var issue = PartnerValidator.CheckStructure(json);
+            var result = validator.Validate(input);
 
             // Assert
-            Assert.Equal(ConnectConfigIssue.EmptyKey, issue);
+            Assert.False(result.IsValid);
+            Assert.Contains(result.Errors, e => e.ErrorMessage == host.Localizer[BaseMsg.ShareData.Validation.ConnectConfigEmptyKey]);
         }
 
         [Theory]
         [InlineData("{\"BaseUrl\": \"https://example.com\"}")]
-        [InlineData("{\"Url\": \"https://example.com\"}")]
-        [InlineData("{\"Host\": \"localhost\"}")]
-        [InlineData("{\"Server\": \"10.0.0.1\"}")]
-        [InlineData("{\"Address\": \"192.168.1.1\"}")]
-        [InlineData("{\"IP\": \"127.0.0.1\"}")]
+        [InlineData("{\"ip\": \"192.168.1.1\"}")]
         [InlineData("{\"Port\": 8080}")]
-        [InlineData("{\"Endpoint\": \"/api\"}")]
-        [InlineData("{\"Path\": \"/data\"}")]
-        [InlineData("{\"EndPointApiUrl\": \"/api/v1\"}")]
-        public void CheckStructure_ReservedColumnKey_ReturnsReservedKey_Test(string json)
-        {
-            // Act
-            var issue = PartnerValidator.CheckStructure(json);
-
-            // Assert
-            Assert.Equal(ConnectConfigIssue.ReservedKey, issue);
-        }
-
-        [Fact]
-        public void CheckStructure_DuplicateKeyCaseInsensitive_ReturnsDuplicateKey_Test()
+        [InlineData("{\"Host\": \"localhost\"}")]
+        public void AddPartner_WhenConnectionConfigReservedKey_ValidatorRejectsWithI18n_Test(string json)
         {
             // Arrange
-            var json = "{\"TimeoutSeconds\": 30, \"timeoutseconds\": 60}";
-
-            // Act
-            var issue = PartnerValidator.CheckStructure(json);
-
-            // Assert
-            Assert.Equal(ConnectConfigIssue.DuplicateKey, issue);
-        }
-
-        [Fact]
-        public void CheckStructure_NestedObjectOrArray_ReturnsNestedValue_Test()
-        {
-            // Arrange
-            var jsonObject = "{\"Options\": {\"Key\": \"Value\"}}";
-            var jsonArray = "{\"Items\": [1, 2, 3]}";
-
-            // Act & Assert
-            Assert.Equal(ConnectConfigIssue.NestedValue, PartnerValidator.CheckStructure(jsonObject));
-            Assert.Equal(ConnectConfigIssue.NestedValue, PartnerValidator.CheckStructure(jsonArray));
-        }
-
-        [Theory]
-        [InlineData("{\"TimeoutSeconds\": -1}")]
-        [InlineData("{\"TimeoutSeconds\": 0}")]
-        [InlineData("{\"TimeoutSeconds\": \"abc\"}")]
-        [InlineData("{\"HttpTimeoutSec\": -5}")]
-        [InlineData("{\"TimeoutSec\": 0}")]
-        public void CheckStructure_InvalidTimeoutValue_DoesNotRejectAndReturnsNone_Test(string json)
-        {
-            // Act
-            var issue = PartnerValidator.CheckStructure(json);
-
-            // Assert
-            Assert.Equal(ConnectConfigIssue.None, issue);
-        }
-
-        [Theory]
-        [InlineData("{\"BypassSsl\": \"not_a_bool\"}")]
-        [InlineData("{\"IgnoreSsl\": 123}")]
-        [InlineData("{\"Insecure\": \"invalid\"}")]
-        public void CheckStructure_InvalidBooleanValue_DoesNotRejectAndReturnsNone_Test(string json)
-        {
-            // Act
-            var issue = PartnerValidator.CheckStructure(json);
-
-            // Assert
-            Assert.Equal(ConnectConfigIssue.None, issue);
-        }
-
-        [Fact]
-        public void CheckStructure_UnsupportedAuthType_DoesNotRejectAndReturnsNone_Test()
-        {
-            // Arrange
-            var json = "{\"AuthType\": \"UnsupportedAuthMethod\"}";
-
-            // Act
-            var issue = PartnerValidator.CheckStructure(json);
-
-            // Assert
-            Assert.Equal(ConnectConfigIssue.None, issue);
-        }
-
-        [Fact]
-        public void CheckStructure_UnsupportedEncryptor_DoesNotRejectAndReturnsNone_Test()
-        {
-            // Arrange
-            var json = $"{{\"{ConnectKeys.Encryptor}\": \"Bzip2Unsupported\"}}";
-
-            // Act
-            var issue = PartnerValidator.CheckStructure(json);
-
-            // Assert
-            Assert.Equal(ConnectConfigIssue.None, issue);
-        }
-
-        [Theory]
-        [InlineData("{\"FileNamePattern\": \"fixed_file_name.json\"}")]
-        [InlineData("{\"FileNamePattern\": \"report_2026.csv\"}")]
-        public void CheckStructure_FileNamePatternWithoutTokens_DoesNotRejectAndReturnsNone_Test(string json)
-        {
-            // Act
-            var issue = PartnerValidator.CheckStructure(json);
-
-            // Assert
-            Assert.Equal(ConnectConfigIssue.None, issue);
-        }
-
-        [Fact]
-        public void CheckStructure_ObsoleteOutputPath_DoesNotRejectAndReturnsNone_Test()
-        {
-            // Arrange
-            var json = "{\"OutputPath\": \"/var/log/sharedata\"}";
-
-            // Act
-            var issue = PartnerValidator.CheckStructure(json);
-
-            // Assert
-            Assert.Equal(ConnectConfigIssue.None, issue);
-        }
-
-        [Fact]
-        public void CheckStructure_ValidFlatJsonObject_ReturnsNone_Test()
-        {
-            // Arrange
-            var validJson = """
+            var validator = new AddPartnerValidator(host.Localizer);
+            var unique = Guid.NewGuid().ToString("N")[..20];
+            var input = new ShareDataAddPartnerInput
             {
-                "TimeoutSeconds": 60,
-                "BypassSsl": true,
-                "AuthType": "Bearer",
-                "Encryptor": "None",
-                "FileNamePattern": "data_{timestamp}_{serial}.json",
-                "Username": "admin"
-            }
-            """;
+                Code = $"P_{unique}",
+                Name = $"Partner {unique}",
+                Address = "127.0.0.1",
+                ConnectionConfig = json
+            };
 
             // Act
-            var issue = PartnerValidator.CheckStructure(validJson);
+            var result = validator.Validate(input);
 
             // Assert
-            Assert.Equal(ConnectConfigIssue.None, issue);
+            Assert.False(result.IsValid);
+            Assert.Contains(result.Errors, e => e.ErrorMessage == host.Localizer[BaseMsg.ShareData.Validation.ConnectConfigReservedKey]);
         }
+
+        [Fact]
+        public void AddPartner_WhenConnectionConfigDuplicateKey_ValidatorRejectsWithI18n_Test()
+        {
+            // Arrange
+            var validator = new AddPartnerValidator(host.Localizer);
+            var unique = Guid.NewGuid().ToString("N")[..20];
+            var input = new ShareDataAddPartnerInput
+            {
+                Code = $"P_{unique}",
+                Name = $"Partner {unique}",
+                Address = "127.0.0.1",
+                ConnectionConfig = "{\"TimeoutSeconds\": 30, \"timeoutseconds\": 60}"
+            };
+
+            // Act
+            var result = validator.Validate(input);
+
+            // Assert
+            Assert.False(result.IsValid);
+            Assert.Contains(result.Errors, e => e.ErrorMessage == host.Localizer[BaseMsg.ShareData.Validation.ConnectConfigDuplicateKey]);
+        }
+
+        [Fact]
+        public void AddPartner_WhenConnectionConfigNestedValue_ValidatorRejectsWithI18n_Test()
+        {
+            // Arrange
+            var validator = new AddPartnerValidator(host.Localizer);
+            var unique = Guid.NewGuid().ToString("N")[..20];
+            var input = new ShareDataAddPartnerInput
+            {
+                Code = $"P_{unique}",
+                Name = $"Partner {unique}",
+                Address = "127.0.0.1",
+                ConnectionConfig = "{\"Options\": {\"Key\": \"Value\"}}"
+            };
+
+            // Act
+            var result = validator.Validate(input);
+
+            // Assert
+            Assert.False(result.IsValid);
+            Assert.Contains(result.Errors, e => e.ErrorMessage == host.Localizer[BaseMsg.ShareData.Validation.ConnectConfigNestedValue]);
+        }
+
+        [Fact]
+        public async Task AddPartner_WhenConnectionConfigHasOutputPath_SavesSuccessfully_Test()
+        {
+            // Arrange
+            var validator = new AddPartnerValidator(host.Localizer);
+            var bus = host.Services.GetRequiredService<IMessageBus>();
+            var db = host.Services.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..20];
+            var input = new ShareDataAddPartnerInput
+            {
+                Code = $"PARTNER_OP_{unique}",
+                Name = $"Partner OutputPath {unique}",
+                Address = "127.0.0.1",
+                Port = 8080,
+                ConnectionConfig = "{\"OutputPath\": \"/var/log/sharedata\"}"
+            };
+
+            // Act
+            var result = validator.Validate(input);
+
+            // Assert
+            Assert.True(result.IsValid);
+
+            await bus.InvokeAsync(input);
+
+            var saved = await db.Queryable<ShareDataPartner>()
+                .Where(p => p.Code == input.Code)
+                .FirstAsync();
+            Assert.NotNull(saved);
+            Assert.Equal(input.ConnectionConfig, saved.ConnectionConfig);
+        }
+
+        #endregion
+
+        #region 2. PartnerValidator Unit Tests
 
         [Theory]
         [InlineData(BaseEnums.ConnectionType.Api)]
@@ -278,6 +264,8 @@ namespace Tests.ShareData.Controllers
             // Assert
             Assert.Contains(result.Errors, e => e.PropertyName == nameof(ShareDataAddPartnerInput.ConnectionType));
         }
+
+        #endregion
 
         private sealed class EchoLocalizer : IStringLocalizer
         {

@@ -3,8 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Modules.CfgSystem.Core.Entities;
 using Shared.DTO.Enums;
-using ShareDataWorker.Core.Configuration;
-using ShareDataWorker.Core.Interfaces;
+using ShareDataWorker.Infrastructure.Services.DataWorkerConfig;
 using SqlSugar;
 using Xunit;
 
@@ -12,12 +11,12 @@ namespace Tests.ShareData.Configuration;
 
 /// <summary>
 /// Author: DatHQ
-/// Description: Bộ kiểm thử đơn vị và tích hợp cho DataWorkerOption (quản lý 18 tham số cấu hình vận hành Worker từ SysOpConfig).
+/// Description: Bộ kiểm thử đơn vị và tích hợp cho DataWorkerConfigService (quản lý 18 tham số cấu hình vận hành Worker từ SysOpConfig).
 ///              Kiểm tra cơ chế fallback mặc định khi DB rỗng/lỗi/dòng tắt/ngoài khoảng an toàn, và phương thức Delay.
 /// Created date: 18/10/2026
 /// </summary>
 [Collection("api")]
-public class DataWorkerOptionTests(Host host)
+public class DataWorkerConfigServiceTests(Host host)
 {
     private readonly Host _host = host;
 
@@ -34,7 +33,7 @@ public class DataWorkerOptionTests(Host host)
             .Build();
 
         var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
-        var service = new DataWorkerOption(scopeFactory, NullLogger<DataWorkerOption>.Instance, config);
+        var service = new DataWorkerConfigService(scopeFactory, NullLogger<DataWorkerConfigService>.Instance, config);
 
         // Act
         var settings = await service.Get();
@@ -87,7 +86,7 @@ public class DataWorkerOptionTests(Host host)
         await db.Insertable(testRows).ExecuteCommandAsync();
 
         var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
-        var service = new DataWorkerOption(scopeFactory, NullLogger<DataWorkerOption>.Instance, config);
+        var service = new DataWorkerConfigService(scopeFactory, NullLogger<DataWorkerConfigService>.Instance, config);
 
         // Act
         var settings = await service.Get();
@@ -122,12 +121,12 @@ public class DataWorkerOptionTests(Host host)
             new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "inbound_check_interval_sec", Value = "999999", Status = BaseEnums.StatusEnum.Enable }, // Out of max 300
             new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "tracking_poll_interval_sec", Value = "-5", Status = BaseEnums.StatusEnum.Enable }, // Out of min 1
             new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "outbound_page_size", Value = "   ", Status = BaseEnums.StatusEnum.Enable }, // Whitespace
-            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "cleanup_interval_min", Value = "10", Status = BaseEnums.StatusEnum.Enable } // Out of min 60
+            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "cleanup_interval_min", Value = "0", Status = BaseEnums.StatusEnum.Enable } // Out of min 1
         };
         await db.Insertable(testRows).ExecuteCommandAsync();
 
         var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
-        var service = new DataWorkerOption(scopeFactory, NullLogger<DataWorkerOption>.Instance, config);
+        var service = new DataWorkerConfigService(scopeFactory, NullLogger<DataWorkerConfigService>.Instance, config);
 
         // Act
         var settings = await service.Get();
@@ -164,7 +163,7 @@ public class DataWorkerOptionTests(Host host)
         await db.Insertable(testRows).ExecuteCommandAsync();
 
         var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
-        var service = new DataWorkerOption(scopeFactory, NullLogger<DataWorkerOption>.Instance, config);
+        var service = new DataWorkerConfigService(scopeFactory, NullLogger<DataWorkerConfigService>.Instance, config);
 
         // Act
         var settings = await service.Get();
@@ -180,7 +179,7 @@ public class DataWorkerOptionTests(Host host)
     {
         // Arrange
         var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
-        var service = new DataWorkerOption(scopeFactory, NullLogger<DataWorkerOption>.Instance);
+        var service = new DataWorkerConfigService(scopeFactory, NullLogger<DataWorkerConfigService>.Instance, new ConfigurationBuilder().Build());
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
@@ -189,5 +188,16 @@ public class DataWorkerOptionTests(Host host)
         {
             await service.Delay(o => o.OutboundCheckIntervalSec, cts.Token);
         });
+    }
+
+    [Fact]
+    public void DataWorkerConfigService_WhenResolvedFromServiceProvider_ResolvesDataWorkerConfigService_Test()
+    {
+        // Act
+        using var scope = _host.Services.CreateScope();
+        var service = scope.ServiceProvider.GetService<DataWorkerConfigService>();
+
+        // Assert
+        Assert.NotNull(service);
     }
 }

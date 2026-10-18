@@ -1,27 +1,29 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using Module.ShareData.Infrastructure.Configuration;
+using Module.ShareData.Core.Constants;
+using Module.ShareData.Infrastructure.Services.ShareDataConfig;
 using Modules.CfgSystem.Core.Entities;
 using Shared.DTO.Enums;
 using SqlSugar;
+using Wolverine;
 using Xunit;
 
 namespace Tests.ShareData.Configuration;
 
 /// <summary>
 /// Author: DatHQ
-/// Description: Bộ kiểm thử đơn vị và tích hợp cho LimitOption (WebAPI đọc các giới hạn vận hành từ SysOpConfig).
+/// Description: Bộ kiểm thử đơn vị và tích hợp cho ShareDataConfigService (WebAPI đọc các giới hạn vận hành từ SysOpConfig qua IMessageBus).
 ///              Kiểm tra cơ chế fallback mặc định và khoảng an toàn tuyệt đối.
 /// Created date: 18/10/2026
 /// </summary>
 [Collection("api")]
-public class LimitOptionTests(Host host)
+public class ShareDataConfigServiceTests(Host host)
 {
     private readonly Host _host = host;
 
     [Fact]
-    public void LimitOption_WhenNoDatabaseConfig_ReturnsExactDefaults_Test()
+    public async Task ShareDataConfigService_WhenNoDatabaseConfig_ReturnsExactDefaults_Test()
     {
         // Arrange
         var isolatedGroup = $"sd_webapi_missing_{Guid.NewGuid():N}";
@@ -33,30 +35,30 @@ public class LimitOptionTests(Host host)
             .Build();
 
         using var scope = _host.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
 
-        var service = new LimitOption(
-            db: db,
-            logger: NullLogger<LimitOption>.Instance,
+        var service = new ShareDataConfigService(
+            bus: bus,
+            logger: NullLogger<ShareDataConfigService>.Instance,
             configuration: config);
 
         // Act
-        var values = service.Get();
+        var values = await service.Get();
 
         // Assert
-        Assert.Equal(LimitOption.Defaults, values);
-        Assert.Equal(LimitOption.Defaults.PacketLookbackDays.Min, values.PacketLookbackDays.Min);
-        Assert.Equal(LimitOption.Defaults.PacketLookbackDays.Max, values.PacketLookbackDays.Max);
-        Assert.Equal(LimitOption.Defaults.SqlSampleTop, values.SqlSampleTop);
-        Assert.Equal(LimitOption.Defaults.MappingSampleTop, values.MappingSampleTop);
-        Assert.Equal(LimitOption.Defaults.LogListDefaultTop, values.LogListDefaultTop);
-        Assert.Equal(LimitOption.Defaults.SubscriptionInterval, values.SubscriptionInterval);
-        Assert.Equal(LimitOption.Defaults.SubscriptionPriority, values.SubscriptionPriority);
-        Assert.Equal(LimitOption.Defaults.SubscriptionDebounceSec, values.SubscriptionDebounceSec);
+        Assert.Equal(ShareDataConfigService.Defaults, values);
+        Assert.Equal(ShareDataConfigService.Defaults.PacketLookbackDays.Min, values.PacketLookbackDays.Min);
+        Assert.Equal(ShareDataConfigService.Defaults.PacketLookbackDays.Max, values.PacketLookbackDays.Max);
+        Assert.Equal(ShareDataConfigService.Defaults.SqlSampleTop, values.SqlSampleTop);
+        Assert.Equal(ShareDataConfigService.Defaults.MappingSampleTop, values.MappingSampleTop);
+        Assert.Equal(ShareDataConfigService.Defaults.LogListDefaultTop, values.LogListDefaultTop);
+        Assert.Equal(ShareDataConfigService.Defaults.SubscriptionInterval, values.SubscriptionInterval);
+        Assert.Equal(ShareDataConfigService.Defaults.SubscriptionPriority, values.SubscriptionPriority);
+        Assert.Equal(ShareDataConfigService.Defaults.SubscriptionDebounceSec, values.SubscriptionDebounceSec);
     }
 
     [Fact]
-    public async Task LimitOption_WhenValidConfigInDatabase_LoadsCustomLimits_Test()
+    public async Task ShareDataConfigService_WhenValidConfigInDatabase_LoadsCustomLimits_Test()
     {
         // Arrange
         var isolatedGroup = $"sd_webapi_valid_{Guid.NewGuid():N}";
@@ -68,6 +70,7 @@ public class LimitOptionTests(Host host)
             .Build();
 
         using var scope = _host.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var testRows = new List<SysOpConfig>
@@ -83,14 +86,15 @@ public class LimitOptionTests(Host host)
             new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "subscription_debounce_sec_max", Value = "1800", Status = BaseEnums.StatusEnum.Enable }
         };
         await db.Insertable(testRows).ExecuteCommandAsync();
+        scope.ServiceProvider.GetRequiredService<Shared.Infrastructure.Services.BaseCacheService>().RemoveByPrefixKey("sysOpConfig");
 
-        var service = new LimitOption(
-            db: db,
-            logger: NullLogger<LimitOption>.Instance,
+        var service = new ShareDataConfigService(
+            bus: bus,
+            logger: NullLogger<ShareDataConfigService>.Instance,
             configuration: config);
 
         // Act
-        var values = service.Get();
+        var values = await service.Get();
 
         // Assert
         Assert.Equal(3, values.PacketLookbackDays.Min);
@@ -105,7 +109,7 @@ public class LimitOptionTests(Host host)
     }
 
     [Fact]
-    public async Task LimitOption_WhenTripletMisaligned_FallsBackToDefaultTriplet_Test()
+    public async Task ShareDataConfigService_WhenTripletMisaligned_FallsBackToDefaultTriplet_Test()
     {
         // Arrange: Cấu hình default > max hoặc max < min -> lệch bộ
         var isolatedGroup = $"sd_webapi_misaligned_{Guid.NewGuid():N}";
@@ -117,6 +121,7 @@ public class LimitOptionTests(Host host)
             .Build();
 
         using var scope = _host.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var testRows = new List<SysOpConfig>
@@ -126,30 +131,31 @@ public class LimitOptionTests(Host host)
             new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "sql_sample_top_default", Value = "15", Status = BaseEnums.StatusEnum.Enable }
         };
         await db.Insertable(testRows).ExecuteCommandAsync();
+        scope.ServiceProvider.GetRequiredService<Shared.Infrastructure.Services.BaseCacheService>().RemoveByPrefixKey("sysOpConfig");
 
-        var service = new LimitOption(
-            db: db,
-            logger: NullLogger<LimitOption>.Instance,
+        var service = new ShareDataConfigService(
+            bus: bus,
+            logger: NullLogger<ShareDataConfigService>.Instance,
             configuration: config);
 
         // Act
-        var values = service.Get();
+        var values = await service.Get();
 
         // Assert: Phải quay về nguyên bộ dự phòng (1, 50, 10)
-        Assert.Equal(LimitOption.Defaults.SqlSampleTop, values.SqlSampleTop);
+        Assert.Equal(ShareDataConfigService.Defaults.SqlSampleTop, values.SqlSampleTop);
         Assert.Equal(1, values.SqlSampleTop.Min);
         Assert.Equal(50, values.SqlSampleTop.Max);
         Assert.Equal(10, values.SqlSampleTop.Default);
     }
 
     [Fact]
-    public void LimitOption_WhenResolvedFromServiceProvider_ResolvesILimitOption_Test()
+    public void ShareDataConfigService_WhenResolvedFromServiceProvider_ResolvesShareDataConfigService_Test()
     {
         // Act
-        var limitOption = _host.Services.GetService<ILimitOption>();
+        using var scope = _host.Services.CreateScope();
+        var service = scope.ServiceProvider.GetService<ShareDataConfigService>();
 
         // Assert
-        Assert.NotNull(limitOption);
-        Assert.IsType<LimitOption>(limitOption);
+        Assert.NotNull(service);
     }
 }

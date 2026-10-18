@@ -5,6 +5,7 @@ using Modules.TMS.Core.Entities;
 using Modules.TOLL.Core.Entities;
 using ShareDataWorker.Core.Enums;
 using ShareDataWorker.Infrastructure.Logging;
+using Shared.DTO.Enums;
 
 namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 {

@@ -1,5 +1,6 @@
 using Module.ShareData.Core.Dto.ActivityLog;
 using Module.ShareData.Core.Entities;
+using Shared.DTO.Enums;
 
 namespace Tests.ShareData.Controllers;
 

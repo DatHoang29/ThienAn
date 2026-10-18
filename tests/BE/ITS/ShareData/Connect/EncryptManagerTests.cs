@@ -1,21 +1,22 @@
 using System.Security.Cryptography;
 using System.Text;
-using Modules.Integration.ShareData.Base.Constants;
-using Modules.Integration.ShareData.Base.Enums.Encrypt;
-using Modules.Integration.ShareData.Base.Exceptions.Encrypt;
-using Modules.Integration.ShareData.Base.Interfaces.Encrypt;
-using Modules.Integration.ShareData.Base.Models.Encrypt;
-using Modules.Integration.ShareData.Encrypt;
+using Microsoft.Extensions.Configuration;
+using Modules.Integration.Delivery.Base.Constants;
+using Modules.Integration.Delivery.Base.Enums.Encrypt;
+using Modules.Integration.Delivery.Base.Exceptions.Encrypt;
+using Modules.Integration.Delivery.Base.Interfaces.Encrypt;
+using Modules.Integration.Delivery.Base.Models.Encrypt;
+using Modules.Integration.Delivery.Encrypt;
 using Xunit;
 
 namespace Tests.ShareData.Connect
 {
     /// <summary>
     /// Author: DatHQ
-    /// Description: Bộ kiểm thử đơn vị cho EncryptManager ở tầng kết nối.
+    /// Description: Bộ kiểm thử đơn vị cho EncryptManager và EncryptKeyReader ở tầng kết nối.
     ///              Kiểm chứng các luồng mã hóa, giải mã, bọc ngoại lệ DecryptFailedException và điều phối theo chiều Outbound/Inbound.
     /// Created date: 16/10/2026
-    /// Modified date: 18/10/2026 (Đổi tên theo chuẩn Encrypt)
+    /// Modified date: 18/10/2026 (Chuyển sang IEncryptKeyReader và EncryptKeyReader)
     /// </summary>
     public class EncryptManagerTests
     {
@@ -31,7 +32,8 @@ namespace Tests.ShareData.Connect
         public void EncryptAndDecrypt_WhenDataNullOrEmpty_ReturnsOriginalOrEmptyBytes_Test()
         {
             // Arrange
-            var manager = new EncryptManager();
+            var cfg = new ConfigurationBuilder().Build();
+            var manager = new EncryptManager(new EncryptKeyReader(cfg));
             var emptyData = Array.Empty<byte>();
 
             // Act
@@ -51,7 +53,8 @@ namespace Tests.ShareData.Connect
         public void EncryptAndDecrypt_WhenConfigNoneOrEmpty_ReturnsOriginalBytes_Test()
         {
             // Arrange
-            var manager = new EncryptManager();
+            var cfg = new ConfigurationBuilder().Build();
+            var manager = new EncryptManager(new EncryptKeyReader(cfg));
             var data = Encoding.UTF8.GetBytes("hello-plain-world");
             var config = new Dictionary<string, string>
             {
@@ -72,8 +75,14 @@ namespace Tests.ShareData.Connect
         public void EncryptAndDecrypt_WhenAesGcmWith256BitKey_RoundtripsSuccessfully_Test()
         {
             // Arrange
-            var keyResolver = new SimpleKeyResolver("my-secret-key", TestAes256Key);
-            var manager = new EncryptManager(keyResolver);
+            var cfg = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["ShareDataSecurity:Keys:my-secret-key"] = Convert.ToBase64String(TestAes256Key)
+                })
+                .Build();
+            var keyReader = new EncryptKeyReader(cfg);
+            var manager = new EncryptManager(keyReader);
             var originalBytes = Encoding.UTF8.GetBytes("{\"device\":\"VMS_01\",\"status\":\"Normal\"}");
             var config = new Dictionary<string, string>
             {
@@ -99,8 +108,14 @@ namespace Tests.ShareData.Connect
         public void Decrypt_WhenCipherCorrupted_ThrowsDecryptFailedException_Test()
         {
             // Arrange
-            var keyResolver = new SimpleKeyResolver("key-ref", TestAes256Key);
-            var manager = new EncryptManager(keyResolver);
+            var cfg = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["ShareDataSecurity:Keys:key-ref"] = Convert.ToBase64String(TestAes256Key)
+                })
+                .Build();
+            var keyReader = new EncryptKeyReader(cfg);
+            var manager = new EncryptManager(keyReader);
             var corruptedBytes = Encoding.UTF8.GetBytes("not-a-valid-json-envelope");
             var config = new Dictionary<string, string>
             {
@@ -120,11 +135,23 @@ namespace Tests.ShareData.Connect
             var wrongKey = new byte[AesGcmEncrypt.KeySize];
             RandomNumberGenerator.Fill(wrongKey);
 
-            var keyResolverOutbound = new SimpleKeyResolver("key-ref", TestAes256Key);
-            var managerOutbound = new EncryptManager(keyResolverOutbound);
+            var cfgOutbound = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["ShareDataSecurity:Keys:key-ref"] = Convert.ToBase64String(TestAes256Key)
+                })
+                .Build();
+            var keyReaderOutbound = new EncryptKeyReader(cfgOutbound);
+            var managerOutbound = new EncryptManager(keyReaderOutbound);
 
-            var keyResolverInbound = new SimpleKeyResolver("key-ref", wrongKey);
-            var managerInbound = new EncryptManager(keyResolverInbound);
+            var cfgInbound = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["ShareDataSecurity:Keys:key-ref"] = Convert.ToBase64String(wrongKey)
+                })
+                .Build();
+            var keyReaderInbound = new EncryptKeyReader(cfgInbound);
+            var managerInbound = new EncryptManager(keyReaderInbound);
 
             var originalBytes = Encoding.UTF8.GetBytes("{\"secret\":\"confidential\"}");
             var config = new Dictionary<string, string>
@@ -145,12 +172,15 @@ namespace Tests.ShareData.Connect
         public void GetEncryptor_OutboundReadsEncryptorAndEncryptionKeyRef_InboundReadsInboundEncryptorAndDecryptionKeyRef_Test()
         {
             // Arrange
-            var keyResolver = new MultiKeyResolver(new Dictionary<string, byte[]>
-            {
-                ["out-key"] = TestAes256Key,
-                ["in-key"] = TestAes256Key
-            });
-            var manager = new EncryptManager(keyResolver);
+            var cfg = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["ShareDataSecurity:Keys:out-key"] = Convert.ToBase64String(TestAes256Key),
+                    ["ShareDataSecurity:Keys:in-key"] = Convert.ToBase64String(TestAes256Key)
+                })
+                .Build();
+            var keyReader = new EncryptKeyReader(cfg);
+            var manager = new EncryptManager(keyReader);
 
             var config1 = new Dictionary<string, string>
             {
@@ -186,20 +216,46 @@ namespace Tests.ShareData.Connect
             Assert.Equal("in-key", inCtx2.KeyRef);
         }
 
-        private class SimpleKeyResolver(string expectedRef, byte[] key) : IKeyResolver
+        [Fact]
+        public void GetEncryptor_WhenKeyMissingInConfig_ThrowsInvalidOperationException_Test()
         {
-            public byte[]? ResolveKey(string keyRef)
+            // Arrange
+            var cfg = new ConfigurationBuilder().Build();
+            var keyReader = new EncryptKeyReader(cfg);
+            var manager = new EncryptManager(keyReader);
+            var config = new Dictionary<string, string>
             {
-                return string.Equals(keyRef, expectedRef, StringComparison.OrdinalIgnoreCase) ? key : null;
-            }
+                [ConnectKeys.Encryptor] = EncryptNames.AesGcm,
+                [ConnectKeys.EncryptionKeyRef] = "missing-key"
+            };
+
+            // Act & Assert
+            var ex = Assert.Throws<InvalidOperationException>(() => manager.GetEncryptor(config, PayloadDirection.Outbound));
+            Assert.Contains("Không tìm thấy khóa mã hóa bảo mật", ex.Message);
         }
 
-        private class MultiKeyResolver(IDictionary<string, byte[]> keys) : IKeyResolver
+        [Fact]
+        public void EncryptKeyReader_GetKey_WhenKeyExists_ReturnsDecodedBytes_WhenMissingOrEmpty_ReturnsNull_Test()
         {
-            public byte[]? ResolveKey(string keyRef)
-            {
-                return keys.TryGetValue(keyRef, out var key) ? key : null;
-            }
+            // Arrange
+            var cfg = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["ShareDataSecurity:Keys:valid-key"] = Convert.ToBase64String(TestAes256Key),
+                    ["ShareDataSecurity:Keys:empty-key"] = "   "
+                })
+                .Build();
+            var reader = new EncryptKeyReader(cfg);
+
+            // Act
+            var validKey = reader.GetKey("valid-key");
+            var emptyKey = reader.GetKey("empty-key");
+            var missingKey = reader.GetKey("missing-key");
+
+            // Assert
+            Assert.Equal(TestAes256Key, validKey);
+            Assert.Null(emptyKey);
+            Assert.Null(missingKey);
         }
     }
 }

@@ -5,17 +5,17 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Module.ShareData.Core.Dto.Inbound;
 using Module.ShareData.Core.Entities;
-using Modules.Integration.ShareData.Base.Constants;
-using Modules.Integration.ShareData.Base.Enums.Encrypt;
-using Modules.Integration.ShareData.Base.Helpers;
-using Modules.Integration.ShareData.Base.Interfaces.Encrypt;
-using Modules.Integration.ShareData.Base.Interfaces.PacketSend;
-using Modules.Integration.ShareData.Base.Models.Formats;
-using Modules.Integration.ShareData.Base.Models.PacketSend;
-using Modules.Integration.ShareData.Encrypt;
-using Modules.Integration.ShareData.Formats;
-using Modules.Integration.ShareData.PacketSend;
-using Modules.Integration.ShareData.PacketSend.Senders;
+using Modules.Integration.Delivery.Base.Constants;
+using Modules.Integration.Delivery.Base.Enums.Encrypt;
+using Modules.Integration.Delivery.Base.Helpers;
+using Modules.Integration.Delivery.Base.Interfaces.Encrypt;
+using Modules.Integration.Delivery.Base.Interfaces;
+using Modules.Integration.Delivery.Base.Models.Formats;
+using Modules.Integration.Delivery.Base.Models;
+using Modules.Integration.Delivery.Encrypt;
+using Modules.Integration.Delivery.Formats;
+using Modules.Integration.Delivery;
+using Modules.Integration.Delivery.Senders;
 using Modules.TMS.Core.Entities;
 using Modules.TOLL.Core.Entities;
 using ShareDataWorker.Core.Interfaces;
@@ -23,17 +23,19 @@ using ShareDataWorker.Core.Interfaces.DataOutbound;
 using ShareDataWorker.Infrastructure.Logging;
 using ShareDataWorker.Infrastructure.Services.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
+using ShareDataWorker.Infrastructure.Services.DataWorkerConfig;
 using Shared.DTO.Enums;
 using SqlSugar;
 using Tests.ShareData.Common;
 using Wolverine;
+using Modules.Integration.Delivery.Base.Enums;
 
 namespace Tests.ShareData.Services
 {
     /// <summary>
     /// Author: DatHQ
     /// Description: Bộ kiểm thử tích hợp gửi thật -> nhận thật -> MERGE.
-    ///              - Không mock HTTP: DataOutboundService với HttpPacketSender THẬT gọi in-process qua Host.CreateApiClient()
+    ///              - Không mock HTTP: DataOutboundService với HttpDeliverySender THẬT gọi in-process qua Host.CreateApiClient()
     ///              - Dữ liệu nguồn trích xuất từ SQL mẫu THẬT (SeedScriptReader)
     ///              - Kiểm thử 1 gói Snapshot (105_rfidData) và 1 gói Incremental (104_weatherData)
     ///              - Kiểm thử tính lũy tiến cursor và tính MERGE idempotency (không nhân đôi bản ghi)
@@ -71,11 +73,11 @@ namespace Tests.ShareData.Services
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataOutboundService>>();
             var extraction = scope.ServiceProvider.GetRequiredService<IDataOutboundExtractionProcess>();
             var clientFact = new DelegatingClientFactory(clientFactory);
-            var dispatcher = PacketSendDispatcher.CreateForHandlers([
-                new HttpPacketSender(clientFact),
-                new FilePacketSender(configuration.GetValue<string>("NasStorage:BasePath") ?? "sharedata/send"),
-                new KafkaPacketSender(),
-                new FtpPacketSender()
+            var dispatcher = DeliveryDispatcher.CreateForHandlers([
+                new HttpDeliverySender(clientFact),
+                new FileDeliverySender(configuration.GetValue<string>("NasStorage:BasePath") ?? "sharedata/send"),
+                new KafkaDeliverySender(),
+                new FtpDeliverySender()
             ]);
 
             return new DataOutboundService(
@@ -83,7 +85,7 @@ namespace Tests.ShareData.Services
                 logger,
                 extraction,
                 new DataOutboundTransport(dispatcher, configuration),
-                scope.ServiceProvider.GetRequiredService<IDataWorkerOption>());
+                scope.ServiceProvider.GetRequiredService<DataWorkerConfigService>());
         }
 
         #region 1. Test Gói Snapshot (Gói 105 - RFID Data)
@@ -720,8 +722,14 @@ namespace Tests.ShareData.Services
         public void GetEncryptor_WhenInbound_ReadsInboundEncryptorAndDecryptionKeyRef_Test()
         {
             // Arrange
-            var mockKeyResolver = new TestKeyResolver("test-inbound-key", TestAes256Key);
-            var encryptManager = new EncryptManager(mockKeyResolver);
+            var cfg = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["ShareDataSecurity:Keys:test-inbound-key"] = Convert.ToBase64String(TestAes256Key)
+                })
+                .Build();
+            var keyReader = new EncryptKeyReader(cfg);
+            var encryptManager = new EncryptManager(keyReader);
             var config = new Dictionary<string, string>
             {
                 [ConnectKeys.Encryptor] = EncryptNames.None,
@@ -743,7 +751,9 @@ namespace Tests.ShareData.Services
         public void GetEncryptor_WhenInboundMissingKeyRef_ThrowsInvalidOperationException_Test()
         {
             // Arrange
-            var encryptManager = new EncryptManager();
+            var cfg = new ConfigurationBuilder().Build();
+            var keyReader = new EncryptKeyReader(cfg);
+            var encryptManager = new EncryptManager(keyReader);
             var config = new Dictionary<string, string>
             {
                 [ConnectKeys.InboundEncryptor] = EncryptNames.AesGcm
@@ -1135,18 +1145,6 @@ namespace Tests.ShareData.Services
             await _db.Insertable(packetSql).ExecuteCommandAsync();
 
             return (partner, packet, sub);
-        }
-
-        private class TestKeyResolver(string expectedKeyRef, byte[] keyBytes) : IKeyResolver
-        {
-            public byte[]? ResolveKey(string keyRef)
-            {
-                if (string.Equals(keyRef, expectedKeyRef, StringComparison.OrdinalIgnoreCase))
-                {
-                    return keyBytes;
-                }
-                return null;
-            }
         }
 
         #endregion

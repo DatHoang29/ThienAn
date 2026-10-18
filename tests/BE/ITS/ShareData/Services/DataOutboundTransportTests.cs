@@ -1,11 +1,11 @@
 using System.Text;
 using Microsoft.Extensions.Configuration;
 using Module.ShareData.Core.Entities;
-using Modules.Integration.ShareData.Base.Constants;
-using Modules.Integration.ShareData.Base.Helpers;
-using Modules.Integration.ShareData.Base.Interfaces.PacketSend;
-using Modules.Integration.ShareData.Base.Models.PacketSend;
-using Modules.Integration.ShareData.PacketSend;
+using Modules.Integration.Delivery.Base.Constants;
+using Modules.Integration.Delivery.Base.Helpers;
+using Modules.Integration.Delivery.Base.Interfaces;
+using Modules.Integration.Delivery.Base.Models;
+using Modules.Integration.Delivery;
 using ShareDataWorker.Core.Enums;
 using ShareDataWorker.Core.Interfaces.DataOutbound;
 using ShareDataWorker.Core.Models.DataOutbound;
@@ -101,9 +101,9 @@ namespace Tests.ShareData.Services
         {
             // Arrange
             var config = CreateConfig();
-            var dispatcher = new FakePacketSendDispatcher
+            var dispatcher = new FakeDeliveryDispatcher
             {
-                ResultToReturn = new PacketSendResult
+                ResultToReturn = new DeliveryResult
                 {
                     Success = true,
                     Channel = "API",
@@ -140,7 +140,7 @@ namespace Tests.ShareData.Services
         {
             // Arrange
             var config = CreateConfig();
-            var dispatcher = new FakePacketSendDispatcher();
+            var dispatcher = new FakeDeliveryDispatcher();
             var transport = new DataOutboundTransport(dispatcher, config);
             var connCfg = new Dictionary<string, string>
             {
@@ -172,7 +172,7 @@ namespace Tests.ShareData.Services
         {
             // Arrange
             var config = CreateConfig();
-            var dispatcher = new FakePacketSendDispatcher();
+            var dispatcher = new FakeDeliveryDispatcher();
             var transport = new DataOutboundTransport(dispatcher, config);
             var ctx = CreateContext(connectionType: BaseEnums.ConnectionType.File);
             var rawJson = "[{\"id\":1}]";
@@ -197,7 +197,7 @@ namespace Tests.ShareData.Services
         {
             // Arrange
             var config = CreateConfig();
-            var dispatcher = new FakePacketSendDispatcher();
+            var dispatcher = new FakeDeliveryDispatcher();
             var transport = new DataOutboundTransport(dispatcher, config);
             var customTargetDir = Path.Combine(_tempDirectory, "custom_target");
             var connCfg = new Dictionary<string, string>
@@ -227,7 +227,7 @@ namespace Tests.ShareData.Services
             await File.WriteAllTextAsync(blockerFilePath, "blocking file");
 
             var config = CreateConfig(customBasePath: blockerFilePath);
-            var dispatcher = new FakePacketSendDispatcher();
+            var dispatcher = new FakeDeliveryDispatcher();
             var transport = new DataOutboundTransport(dispatcher, config);
             var ctx = CreateContext();
             var rawJson = "[{\"id\":1}]";
@@ -251,9 +251,9 @@ namespace Tests.ShareData.Services
         {
             // Arrange
             var config = CreateConfig();
-            var dispatcher = new FakePacketSendDispatcher
+            var dispatcher = new FakeDeliveryDispatcher
             {
-                ResultToReturn = new PacketSendResult
+                ResultToReturn = new DeliveryResult
                 {
                     Success = false,
                     ErrorMessage = null,
@@ -284,7 +284,7 @@ namespace Tests.ShareData.Services
         {
             // Arrange: Khóa cấu hình cũ ArchiveEnabled=false bị bỏ qua, hệ thống luôn lưu bằng chứng
             var config = CreateConfig();
-            var dispatcher = new FakePacketSendDispatcher();
+            var dispatcher = new FakeDeliveryDispatcher();
             var transport = new DataOutboundTransport(dispatcher, config);
             var connCfg = new Dictionary<string, string>
             {
@@ -312,7 +312,7 @@ namespace Tests.ShareData.Services
         {
             // Arrange
             var config = CreateConfig();
-            var dispatcher = new FakePacketSendDispatcher();
+            var dispatcher = new FakeDeliveryDispatcher();
             var transport = new DataOutboundTransport(dispatcher, config);
             var connCfg = new Dictionary<string, string>
             {
@@ -343,9 +343,9 @@ namespace Tests.ShareData.Services
         {
             // Arrange
             var config = CreateConfig();
-            var dispatcher = new FakePacketSendDispatcher
+            var dispatcher = new FakeDeliveryDispatcher
             {
-                ResultToReturn = new PacketSendResult
+                ResultToReturn = new DeliveryResult
                 {
                     Success = true,
                     Channel = "API",
@@ -400,12 +400,12 @@ namespace Tests.ShareData.Services
             Assert.Equal("secret-key-12345", request.SecurityInfo[ConnectKeys.ApiKey]);
         }
 
-        private sealed class FakePacketSendDispatcher : IPacketSendDispatcher
+        private sealed class FakeDeliveryDispatcher : IDeliveryDispatcher
         {
             public int DispatchCallCount { get; private set; }
-            public PacketSendRequest? LastRequest { get; private set; }
-            public PacketSendContext? LastContext { get; private set; }
-            public PacketSendResult ResultToReturn { get; set; } = new PacketSendResult
+            public DeliveryRequest? LastRequest { get; private set; }
+            public DeliveryContext? LastContext { get; private set; }
+            public DeliveryResult ResultToReturn { get; set; } = new DeliveryResult
             {
                 Success = true,
                 Channel = "API",
@@ -413,9 +413,9 @@ namespace Tests.ShareData.Services
                 TargetAddressOrPath = "http://127.0.0.1:18090/api/receive"
             };
 
-            public Task<PacketSendResult> Dispatch(
-                PacketSendRequest request,
-                PacketSendContext context,
+            public Task<DeliveryResult> Dispatch(
+                DeliveryRequest request,
+                DeliveryContext context,
                 CancellationToken cancellationToken = default)
             {
                 DispatchCallCount++;
