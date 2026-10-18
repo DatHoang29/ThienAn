@@ -53,8 +53,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 .Where(a => a.SubscriptionId == sub.ID && a.AlertCode == ShareDataAlertCode.Outbound.ConfigValueIgnored)
                 .ToListAsync();
             Assert.Single(alerts1);
-            Assert.Equal(BaseEnums.AlertSeverity.Warning, alerts1[0].Severity);
-            Assert.Equal(BaseEnums.AlertSource.Protocol, alerts1[0].AlertSource);
+            Assert.Equal(AlertSeverity.Warning, alerts1[0].Severity);
+            Assert.Equal(AlertSource.Protocol, alerts1[0].AlertSource);
             Assert.Contains("OutputPath", alerts1[0].Message);
             Assert.Contains("xác thực", alerts1[0].Message);
 

@@ -72,8 +72,8 @@ public partial class DataInboundServiceTests(Host host)
                 Code = $"SUB_IN_{unique}",
                 PartnerId = partnerId,
                 DatatypeId = packetId,
-                Direction = BaseEnums.Direction.Inbound,
-                State = BaseEnums.SubSubscriptionState.Active,
+                Direction = Direction.Inbound,
+                State = SubSubscriptionState.Active,
                 SerialNbr = 0,
                 CreateTime = DateTime.Now
             };
@@ -85,7 +85,7 @@ public partial class DataInboundServiceTests(Host host)
                 ID = mappingId,
                 PartnerId = partnerId,
                 DatatypeId = packetId,
-                Direction = BaseEnums.Direction.Inbound,
+                Direction = Direction.Inbound,
                 IsActive = true,
                 TargetShapeJson = """
                 {
@@ -123,7 +123,7 @@ public partial class DataInboundServiceTests(Host host)
 
         // Act
         await logger.LogTransferAsync(
-            BaseEnums.TransferDirection.RCV,
+            TransferDirection.RCV,
             partnerId: partnerId,
             partnerName: "Partner Test",
             subscriptionId: null,
@@ -138,7 +138,7 @@ public partial class DataInboundServiceTests(Host host)
         Assert.NotNull(saved);
         Assert.False(string.IsNullOrWhiteSpace(saved.ID));
         Assert.Equal(partnerId, saved.PartnerId);
-        Assert.Equal(BaseEnums.TransferDirection.RCV, saved.TransferDirection);
+        Assert.Equal(TransferDirection.RCV, saved.TransferDirection);
         Assert.Null(saved.ParentId);
         Assert.Null(saved.StepNbr);
     }
@@ -168,7 +168,7 @@ public partial class DataInboundServiceTests(Host host)
             SubscriptionId = sub.ID,
             PartnerId = partner.ID,
             PartnerName = partner.Name,
-            TransferDirection = BaseEnums.TransferDirection.RCV,
+            TransferDirection = TransferDirection.RCV,
             DatatypeId = packet.Code,
             Success = BaseEnums.SuccessEnums.Success,
             RecordCount = 0,
@@ -186,7 +186,7 @@ public partial class DataInboundServiceTests(Host host)
             SubscriptionId = sub.ID,
             PartnerId = partner.ID,
             PartnerName = partner.Name,
-            TransferDirection = BaseEnums.TransferDirection.RCV,
+            TransferDirection = TransferDirection.RCV,
             DatatypeId = packet.Code,
             Success = BaseEnums.SuccessEnums.Success,
             Description = "Bước 1/2: Đã nhận payload (64 bytes)",
@@ -203,9 +203,9 @@ public partial class DataInboundServiceTests(Host host)
             PacketVersion = "1.0",
             SerialNbr = 1,
             PduType = "DATA",
-            Format = BaseEnums.PublishFormat.Data,
+            Format = PublishFormat.Data,
             RawContent = "{\"data\":[{\"id\":\"101\",\"val\":\"Val1\"},{\"id\":\"102\",\"val\":\"Val2\"}]}",
-            ProcessState = BaseEnums.InboundProcessState.Pending,
+            ProcessState = InboundProcessState.Pending,
             ReceiveLogId = parentLogId,
             CreateTime = DateTime.Now
         };
@@ -219,7 +219,7 @@ public partial class DataInboundServiceTests(Host host)
         // Assert: Gói tin chuyển sang Done
         var updatedPacket = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packetEntity.ID);
         Assert.NotNull(updatedPacket);
-        Assert.Equal(BaseEnums.InboundProcessState.Done, updatedPacket.ProcessState);
+        Assert.Equal(InboundProcessState.Done, updatedPacket.ProcessState);
 
         // Kiểm tra dòng con Bước 2
         var step2Log = await _db.Queryable<ShareDataActivityLog>()
@@ -262,7 +262,7 @@ public partial class DataInboundServiceTests(Host host)
             SubscriptionId = sub.ID,
             PartnerId = partner.ID,
             PartnerName = partner.Name,
-            TransferDirection = BaseEnums.TransferDirection.RCV,
+            TransferDirection = TransferDirection.RCV,
             DatatypeId = packet.Code,
             Success = BaseEnums.SuccessEnums.Success,
             RecordCount = 0,
@@ -280,7 +280,7 @@ public partial class DataInboundServiceTests(Host host)
             SubscriptionId = sub.ID,
             PartnerId = partner.ID,
             PartnerName = partner.Name,
-            TransferDirection = BaseEnums.TransferDirection.RCV,
+            TransferDirection = TransferDirection.RCV,
             DatatypeId = packet.Code,
             Success = BaseEnums.SuccessEnums.Success,
             Description = "Bước 1/2: Đã nhận payload (32 bytes)",
@@ -297,9 +297,9 @@ public partial class DataInboundServiceTests(Host host)
             PacketVersion = "1.0",
             SerialNbr = 1,
             PduType = "DATA",
-            Format = BaseEnums.PublishFormat.Data,
+            Format = PublishFormat.Data,
             RawContent = "{ JSON_CORRUPT_NOT_VALID }}",
-            ProcessState = BaseEnums.InboundProcessState.Pending,
+            ProcessState = InboundProcessState.Pending,
             ReceiveLogId = parentLogId,
             CreateTime = DateTime.Now
         };
@@ -313,7 +313,7 @@ public partial class DataInboundServiceTests(Host host)
         // Assert: Gói tin chuyển sang Failed
         var updatedPacket = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packetEntity.ID);
         Assert.NotNull(updatedPacket);
-        Assert.Equal(BaseEnums.InboundProcessState.Failed, updatedPacket.ProcessState);
+        Assert.Equal(InboundProcessState.Failed, updatedPacket.ProcessState);
 
         // Dòng con Bước 2 thất bại
         var step2Log = await _db.Queryable<ShareDataActivityLog>()
@@ -354,7 +354,7 @@ public partial class DataInboundServiceTests(Host host)
             ID = parentLogId,
             PartnerId = partner.ID,
             PartnerName = partner.Name,
-            TransferDirection = BaseEnums.TransferDirection.RCV,
+            TransferDirection = TransferDirection.RCV,
             DatatypeId = packet.Code,
             Success = BaseEnums.SuccessEnums.Success,
             RecordCount = 0,
@@ -371,9 +371,9 @@ public partial class DataInboundServiceTests(Host host)
             PacketVersion = "1.0",
             SerialNbr = 1,
             PduType = "DATA",
-            Format = BaseEnums.PublishFormat.Data,
+            Format = PublishFormat.Data,
             RawContent = "{\"data\":[]}",
-            ProcessState = BaseEnums.InboundProcessState.Pending,
+            ProcessState = InboundProcessState.Pending,
             ReceiveLogId = parentLogId,
             CreateTime = DateTime.Now
         };
@@ -387,7 +387,7 @@ public partial class DataInboundServiceTests(Host host)
         // Assert: Gói tin chuyển sang NoSubscription
         var updatedPacket = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packetEntity.ID);
         Assert.NotNull(updatedPacket);
-        Assert.Equal(BaseEnums.InboundProcessState.NoSubscription, updatedPacket.ProcessState);
+        Assert.Equal(InboundProcessState.NoSubscription, updatedPacket.ProcessState);
 
         // Không sinh dòng con Bước 2
         var step2Count = await _db.Queryable<ShareDataActivityLog>()
@@ -426,9 +426,9 @@ public partial class DataInboundServiceTests(Host host)
             PacketVersion = "1.0",
             SerialNbr = 1,
             PduType = "DATA",
-            Format = BaseEnums.PublishFormat.Data,
+            Format = PublishFormat.Data,
             RawContent = "{\"data\":[{\"id\":\"L1\",\"val\":\"Legacy\"}]}",
-            ProcessState = BaseEnums.InboundProcessState.Pending,
+            ProcessState = InboundProcessState.Pending,
             ReceiveLogId = null, // Gói cũ không có ReceiveLogId
             CreateTime = DateTime.Now
         };
@@ -442,11 +442,11 @@ public partial class DataInboundServiceTests(Host host)
         // Assert: Gói chuyển Done bình thường
         var updatedPacket = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packetEntity.ID);
         Assert.NotNull(updatedPacket);
-        Assert.Equal(BaseEnums.InboundProcessState.Done, updatedPacket.ProcessState);
+        Assert.Equal(InboundProcessState.Done, updatedPacket.ProcessState);
 
         // Sinh 1 dòng log độc lập với ParentId = null, StepNbr = null
         var logs = await _db.Queryable<ShareDataActivityLog>()
-            .Where(l => l.SubscriptionId == sub.ID && l.TransferDirection == BaseEnums.TransferDirection.RCV)
+            .Where(l => l.SubscriptionId == sub.ID && l.TransferDirection == TransferDirection.RCV)
             .ToListAsync();
         Assert.Single(logs);
         Assert.Null(logs[0].ParentId);
@@ -478,7 +478,7 @@ public partial class DataInboundServiceTests(Host host)
             PacketVersion = "1.0",
             SerialNbr = 1,
             PduType = "DATA",
-            Format = BaseEnums.PublishFormat.Data,
+            Format = PublishFormat.Data,
             RawContent = "{\"data\":[{\"id\":\"P1\",\"val\":\"V1\"},{\"id\":\"P2\",\"val\":\"V2\"}]}"
         });
 
@@ -501,13 +501,13 @@ public partial class DataInboundServiceTests(Host host)
         Assert.NotNull(pageResult);
         var gridRecords = pageResult.Records.ToList();
         Assert.NotEmpty(gridRecords);
-        Assert.All(gridRecords, r => Assert.Equal(BaseEnums.TransferDirection.RCV, r.TransferDirection));
+        Assert.All(gridRecords, r => Assert.Equal(TransferDirection.RCV, r.TransferDirection));
 
         var updatedPacket = await _inboundDb.Queryable<ShareDataInboundPacket>()
             .Where(p => p.PartnerCode == partner.Code && p.PacketCode == packet.Code)
             .FirstAsync();
         Assert.NotNull(updatedPacket);
-        Assert.Equal(BaseEnums.InboundProcessState.Done, updatedPacket.ProcessState);
+        Assert.Equal(InboundProcessState.Done, updatedPacket.ProcessState);
     }
 
     #endregion
@@ -530,7 +530,7 @@ public partial class DataInboundServiceTests(Host host)
             PacketCode = "PKT_ANY",
             SerialNbr = 1,
             RawContent = "{}",
-            ProcessState = BaseEnums.InboundProcessState.Pending,
+            ProcessState = InboundProcessState.Pending,
             CreateTime = DateTime.Now
         };
         await _inboundDb.Insertable(packetEntity).ExecuteCommandAsync();
@@ -542,7 +542,7 @@ public partial class DataInboundServiceTests(Host host)
 
         // Assert
         var updated = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packetEntity.ID);
-        Assert.Equal(BaseEnums.InboundProcessState.Failed, updated.ProcessState);
+        Assert.Equal(InboundProcessState.Failed, updated.ProcessState);
         Assert.False(string.IsNullOrWhiteSpace(updated.ErrorMessage));
     }
 
@@ -576,7 +576,7 @@ public partial class DataInboundServiceTests(Host host)
             PacketCode = "PKT_ANY",
             SerialNbr = 1,
             RawContent = "{}",
-            ProcessState = BaseEnums.InboundProcessState.Pending,
+            ProcessState = InboundProcessState.Pending,
             CreateTime = DateTime.Now
         };
         await _inboundDb.Insertable(packetEntity).ExecuteCommandAsync();
@@ -588,7 +588,7 @@ public partial class DataInboundServiceTests(Host host)
 
         // Assert
         var updated = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packetEntity.ID);
-        Assert.Equal(BaseEnums.InboundProcessState.Failed, updated.ProcessState);
+        Assert.Equal(InboundProcessState.Failed, updated.ProcessState);
         Assert.Contains("trạng thái không sử dụng", updated.ErrorMessage ?? "");
     }
 
@@ -623,7 +623,7 @@ public partial class DataInboundServiceTests(Host host)
             PacketCode = $"PKT_GHOST_{unique}",
             SerialNbr = 1,
             RawContent = "{}",
-            ProcessState = BaseEnums.InboundProcessState.Pending,
+            ProcessState = InboundProcessState.Pending,
             CreateTime = DateTime.Now
         };
         await _inboundDb.Insertable(packetEntity).ExecuteCommandAsync();
@@ -635,7 +635,7 @@ public partial class DataInboundServiceTests(Host host)
 
         // Assert
         var updated = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packetEntity.ID);
-        Assert.Equal(BaseEnums.InboundProcessState.Failed, updated.ProcessState);
+        Assert.Equal(InboundProcessState.Failed, updated.ProcessState);
         Assert.Contains("PacketCode", updated.ErrorMessage ?? "");
     }
 
@@ -656,7 +656,7 @@ public partial class DataInboundServiceTests(Host host)
 
         // Chuyển đăng ký sang Paused
         await _db.Updateable<ShareDataSubscription>()
-            .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Paused)
+            .SetColumns(s => s.State == SubSubscriptionState.Paused)
             .Where(s => s.ID == sub.ID)
             .ExecuteCommandAsync();
 
@@ -667,7 +667,7 @@ public partial class DataInboundServiceTests(Host host)
             PacketCode = packet.Code,
             SerialNbr = 1,
             RawContent = "{\"data\":[{\"id\":\"1\",\"val\":\"A\"}]}",
-            ProcessState = BaseEnums.InboundProcessState.Pending,
+            ProcessState = InboundProcessState.Pending,
             CreateTime = DateTime.Now
         };
         await _inboundDb.Insertable(packetEntity).ExecuteCommandAsync();
@@ -679,7 +679,7 @@ public partial class DataInboundServiceTests(Host host)
 
         // Assert: gói vẫn ở Pending, KHÔNG bị Failed
         var updated = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packetEntity.ID);
-        Assert.Equal(BaseEnums.InboundProcessState.Pending, updated.ProcessState);
+        Assert.Equal(InboundProcessState.Pending, updated.ProcessState);
     }
 
     #endregion
@@ -709,7 +709,7 @@ public partial class DataInboundServiceTests(Host host)
             PacketCode = packet.Code,
             SerialNbr = 1,
             RawContent = "{\"data\":[{\"id\":\"1\",\"val\":\"A\"}]}",
-            ProcessState = BaseEnums.InboundProcessState.Pending,
+            ProcessState = InboundProcessState.Pending,
             CreateTime = DateTime.Now
         };
         await _inboundDb.Insertable(packetEntity).ExecuteCommandAsync();
@@ -721,7 +721,7 @@ public partial class DataInboundServiceTests(Host host)
 
         // Assert
         var updated = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packetEntity.ID);
-        Assert.Equal(BaseEnums.InboundProcessState.Failed, updated.ProcessState);
+        Assert.Equal(InboundProcessState.Failed, updated.ProcessState);
         Assert.Contains("chưa khai câu ghi", updated.ErrorMessage ?? "");
     }
 
@@ -747,7 +747,7 @@ public partial class DataInboundServiceTests(Host host)
             PacketCode = packet.Code,
             SerialNbr = 1,
             RawContent = "<root><item id=\"1\"><value>ABC</value></item></root>",
-            ProcessState = BaseEnums.InboundProcessState.Pending,
+            ProcessState = InboundProcessState.Pending,
             ReceiveLogId = Guid.NewGuid().ToString("N"),
             CreateTime = DateTime.Now
         };
@@ -760,7 +760,7 @@ public partial class DataInboundServiceTests(Host host)
 
         // Assert
         var updated = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packetEntity.ID);
-        Assert.Equal(BaseEnums.InboundProcessState.Failed, updated.ProcessState);
+        Assert.Equal(InboundProcessState.Failed, updated.ProcessState);
         Assert.Contains("XML", updated.ErrorMessage ?? "");
     }
 
@@ -787,7 +787,7 @@ public partial class DataInboundServiceTests(Host host)
             PacketCode = packet.Code,
             SerialNbr = 1,
             RawContent = "{\"data\":[{\"id\":\"S1\",\"val\":\"Stuck\"}]}",
-            ProcessState = BaseEnums.InboundProcessState.Processing,
+            ProcessState = InboundProcessState.Processing,
             ProcessedAt = DateTime.Now.AddMinutes(-15), // Quá 10 phút timeout
             CreateTime = DateTime.Now
         };
@@ -800,7 +800,7 @@ public partial class DataInboundServiceTests(Host host)
 
         // Assert: Gói bị kẹt đã được gỡ và xử lý thành công
         var updated = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packetEntity.ID);
-        Assert.Equal(BaseEnums.InboundProcessState.Done, updated.ProcessState);
+        Assert.Equal(InboundProcessState.Done, updated.ProcessState);
     }
 
     #endregion
@@ -826,7 +826,7 @@ public partial class DataInboundServiceTests(Host host)
             PacketCode = packet.Code,
             SerialNbr = 1,
             RawContent = "NOT_VALID_JSON",
-            ProcessState = BaseEnums.InboundProcessState.Pending,
+            ProcessState = InboundProcessState.Pending,
             CreateTime = DateTime.Now
         };
 
@@ -837,7 +837,7 @@ public partial class DataInboundServiceTests(Host host)
             PacketCode = packet.Code,
             SerialNbr = 2,
             RawContent = "{\"data\":[{\"id\":\"G1\",\"val\":\"OK\"}]}",
-            ProcessState = BaseEnums.InboundProcessState.Pending,
+            ProcessState = InboundProcessState.Pending,
             CreateTime = DateTime.Now.AddSeconds(1)
         };
 
@@ -851,10 +851,10 @@ public partial class DataInboundServiceTests(Host host)
 
         // Assert: gói 1 Failed, gói 2 Done — không bị chặn
         var updatedBad = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(badPacket.ID);
-        Assert.Equal(BaseEnums.InboundProcessState.Failed, updatedBad.ProcessState);
+        Assert.Equal(InboundProcessState.Failed, updatedBad.ProcessState);
 
         var updatedGood = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(goodPacket.ID);
-        Assert.Equal(BaseEnums.InboundProcessState.Done, updatedGood.ProcessState);
+        Assert.Equal(InboundProcessState.Done, updatedGood.ProcessState);
     }
 
     #endregion
@@ -879,7 +879,7 @@ public partial class DataInboundServiceTests(Host host)
             PacketCode = packet.Code,
             SerialNbr = 5,
             RawContent = "{\"data\":[{\"id\":\"A\",\"val\":\"1\"}]}",
-            ProcessState = BaseEnums.InboundProcessState.Pending,
+            ProcessState = InboundProcessState.Pending,
             CreateTime = DateTime.Now
         };
 
@@ -890,7 +890,7 @@ public partial class DataInboundServiceTests(Host host)
             PacketCode = packet.Code,
             SerialNbr = 10,
             RawContent = "{\"data\":[{\"id\":\"B\",\"val\":\"2\"}]}",
-            ProcessState = BaseEnums.InboundProcessState.Pending,
+            ProcessState = InboundProcessState.Pending,
             CreateTime = DateTime.Now.AddSeconds(1)
         };
 
@@ -936,7 +936,7 @@ public partial class DataInboundServiceTests(Host host)
             PacketCode = packet.Code,
             SerialNbr = 1,
             RawContent = "{\"data\":[{\"id\":\"FB1\",\"val\":\"Fallback\"}]}",
-            ProcessState = BaseEnums.InboundProcessState.Pending,
+            ProcessState = InboundProcessState.Pending,
             CreateTime = DateTime.Now
         };
         await _inboundDb.Insertable(packetEntity).ExecuteCommandAsync();
@@ -948,7 +948,7 @@ public partial class DataInboundServiceTests(Host host)
 
         // Assert: xử lý thành công dù không có phễu lọc
         var updated = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packetEntity.ID);
-        Assert.Equal(BaseEnums.InboundProcessState.Done, updated.ProcessState);
+        Assert.Equal(InboundProcessState.Done, updated.ProcessState);
     }
 
     #endregion

@@ -1,10 +1,12 @@
 using System.Net;
 using System.Reflection;
+using Microsoft.Extensions.Configuration;
 using Tests.ShareData.Common;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Module.ShareData.Core.Entities;
 using Module.ShareData.Infrastructure.Services.ShareDataExtraction;
+using Modules.Integration.Delivery.Base.Helpers;
 using Modules.TMS.Core.Entities;
 using Modules.TOLL.Core.Entities;
 using Modules.VMS.Core.Entities;
@@ -16,7 +18,6 @@ using ShareDataWorker.Infrastructure.Services.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Extraction;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
 using ShareDataWorker.Infrastructure.Services.DataChangeTracking;
-using ShareDataWorker.Infrastructure.Services.DataWorkerConfig;
 using Modules.Integration.Delivery.Base.Interfaces;
 using Modules.Integration.Delivery;
 using Modules.Integration.Delivery.Senders;
@@ -44,9 +45,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             using var scope = host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             db.Updateable<ShareDataSubscription>()
-                .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Expired)
+                .SetColumns(s => s.State == SubSubscriptionState.Expired)
                 .SetColumns(s => s.NextTimeRun == DateTime.MaxValue)
-                .Where(s => s.State == BaseEnums.SubSubscriptionState.Active)
+                .Where(s => s.State == SubSubscriptionState.Active)
                 .ExecuteCommand();
 
             db.Deleteable<TmsTrafficData>().ExecuteCommand();
@@ -1279,7 +1280,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 updatedSub.LastTimeRun?.ToString("yyyy-MM-dd HH:mm:ss"));
             Assert.Equal(10, updatedSub.SerialNbr);
             await db.Updateable<ShareDataSubscription>()
-                .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Paused)
+                .SetColumns(s => s.State == SubSubscriptionState.Paused)
                 .Where(s => s.ID == sub.ID)
                 .ExecuteCommandAsync();
         }
@@ -2082,9 +2083,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 Code = subCode111,
                 PartnerId = partner.ID,
                 DatatypeId = "111",
-                Direction = BaseEnums.Direction.Outbound,
-                Mode = BaseEnums.SubMode.Periodic,
-                State = BaseEnums.SubSubscriptionState.Active,
+                Direction = Direction.Outbound,
+                Mode = SubMode.Periodic,
+                State = SubSubscriptionState.Active,
                 SendOnNewData = true,
                 NextTimeRun = null,
                 IntervalSeconds = 300
@@ -2358,7 +2359,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 Code = partnerCode,
                 Name = $"Partner {partnerCode}",
                 Status = BaseEnums.StatusEnum.Enable,
-                SessionState = BaseEnums.SessionState.Connected,
+                SessionState = SessionState.Connected,
                 Address = ShareDataPartnerServerMock.DefaultHost,
                 Port = ShareDataPartnerServerMock.DefaultPort,
                 EndPointApiUrl = "/api/sharedata/sharedatainbound"
@@ -2371,9 +2372,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 Code = subCode,
                 PartnerId = partner.ID,
                 DatatypeId = datatypeId,
-                Direction = BaseEnums.Direction.Outbound,
-                Mode = BaseEnums.SubMode.Periodic,
-                State = BaseEnums.SubSubscriptionState.Active,
+                Direction = Direction.Outbound,
+                Mode = SubMode.Periodic,
+                State = SubSubscriptionState.Active,
                 NextTimeRun = DateTime.Now.AddSeconds(-10),
                 IntervalSeconds = 30
             };
@@ -2400,7 +2401,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 ID = Guid.NewGuid().ToString("N"),
                 PartnerId = partner.ID,
                 DatatypeId = mappingDatatype,
-                Direction = BaseEnums.Direction.Outbound,
+                Direction = Direction.Outbound,
                 IsActive = true,
                 TargetShapeJson = System.Text.Json.JsonSerializer.Serialize(shapeDict)
             }).ExecuteCommandAsync();
@@ -2415,10 +2416,14 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
 
             var clientFactory = httpClientFactory ?? scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
+            var fileConfig = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [ExportPathHelper.BasePathConfigKey] = config.GetSection(ExportPathHelper.BasePathConfigKey).Value ?? Path.Combine(Path.GetTempPath(), "sharedata_send")
+            }).Build();
             var dispatcher = scope.ServiceProvider.GetService<IDeliveryDispatcher>()
                 ?? DeliveryDispatcher.CreateForHandlers([
                     new HttpDeliverySender(clientFactory),
-                    new FileDeliverySender(config.GetSection("NasStorage:BasePath").Value ?? "/tmp"),
+                    new FileDeliverySender(fileConfig, scope.ServiceProvider.GetRequiredService<ILogger<FileDeliverySender>>()),
                     new KafkaDeliverySender(),
                     new FtpDeliverySender()
                 ]);
@@ -2428,7 +2433,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 logger,
                 new DataOutboundExtractionProcess(),
                 new DataOutboundTransport(dispatcher, config),
-                scope.ServiceProvider.GetRequiredService<DataWorkerConfigService>());
+                scope.ServiceProvider.GetRequiredService<IDataWorkerConfigService>());
         }
 
         #endregion
@@ -3229,7 +3234,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 Code = $"SUB_CT_DIS_{unique}",
                 PartnerId = partner.ID,
                 DatatypeId = packetCode,
-                State = BaseEnums.SubSubscriptionState.Active,
+                State = SubSubscriptionState.Active,
                 NextTimeRun = DateTime.UtcNow.AddMinutes(-5),
                 IntervalSeconds = 5
             };
@@ -3464,8 +3469,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             await PrepareDatabase(db, outboundLogger, packetCode);
             await db.Updateable<ShareDataSubscription>()
-                .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Paused)
-                .Where(s => s.State == BaseEnums.SubSubscriptionState.Active)
+                .SetColumns(s => s.State == SubSubscriptionState.Paused)
+                .Where(s => s.State == SubSubscriptionState.Active)
                 .ExecuteCommandAsync();
             var now = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
             var baseTime = now.AddHours(1);
@@ -3543,7 +3548,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.Equal(10, items.Count);
 
             await db.Updateable<ShareDataSubscription>()
-                .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Paused)
+                .SetColumns(s => s.State == SubSubscriptionState.Paused)
                 .Where(s => s.ID == sub.ID)
                 .ExecuteCommandAsync();
             await db.Deleteable<ShareDataLastSend>().Where(c => c.PartnerCode == partnerCode).ExecuteCommandAsync();
@@ -3573,8 +3578,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             await PrepareDatabase(db, outboundLogger, packetCode);
             await db.Updateable<ShareDataSubscription>()
-                .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Paused)
-                .Where(s => s.State == BaseEnums.SubSubscriptionState.Active)
+                .SetColumns(s => s.State == SubSubscriptionState.Paused)
+                .Where(s => s.State == SubSubscriptionState.Active)
                 .ExecuteCommandAsync();
             var now = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
             var baseTime = now.AddHours(2);
@@ -3661,7 +3666,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.Equal((sub.SerialNbr ?? 0) + 1, updatedSub.SerialNbr);
 
             await db.Updateable<ShareDataSubscription>()
-                .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Paused)
+                .SetColumns(s => s.State == SubSubscriptionState.Paused)
                 .Where(s => s.ID == sub.ID)
                 .ExecuteCommandAsync();
             await db.Deleteable<ShareDataLastSend>().Where(c => c.PartnerCode == partnerCode).ExecuteCommandAsync();
@@ -3692,8 +3697,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             await PrepareDatabase(db, outboundLogger, packetCode);
             await db.Updateable<ShareDataSubscription>()
-                .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Paused)
-                .Where(s => s.State == BaseEnums.SubSubscriptionState.Active)
+                .SetColumns(s => s.State == SubSubscriptionState.Paused)
+                .Where(s => s.State == SubSubscriptionState.Active)
                 .ExecuteCommandAsync();
             var now = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
             var baseTime = now.AddHours(3);
@@ -3808,7 +3813,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.Equal(0, lastLog.RecordCount);
 
             await db.Updateable<ShareDataSubscription>()
-                .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Paused)
+                .SetColumns(s => s.State == SubSubscriptionState.Paused)
                 .Where(s => s.ID == sub.ID)
                 .ExecuteCommandAsync();
             await db.Deleteable<ShareDataLastSend>().Where(c => c.PartnerCode == partnerCode).ExecuteCommandAsync();
@@ -5020,10 +5025,10 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         {
             var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
             var logger = (scope?.ServiceProvider ?? _host.Services).GetRequiredService<ILogger<DataChangeTrackingService>>();
-            var workerOption = (scope?.ServiceProvider ?? _host.Services).GetRequiredService<DataWorkerConfigService>();
+            var workerConfig = (scope?.ServiceProvider ?? _host.Services).GetRequiredService<IDataWorkerConfigService>();
             transport ??= new TransportManager(new ConfigurationBuilder().Build());
             config ??= _host.Services.GetService<IConfiguration>();
-            return new DataChangeTrackingService(scopeFactory, logger, transport, workerOption, config);
+            return new DataChangeTrackingService(scopeFactory, logger, transport, workerConfig, config);
         }
 
         /// <summary>

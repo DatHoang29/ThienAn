@@ -23,7 +23,6 @@ using ShareDataWorker.Core.Interfaces.DataOutbound;
 using ShareDataWorker.Infrastructure.Logging;
 using ShareDataWorker.Infrastructure.Services.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
-using ShareDataWorker.Infrastructure.Services.DataWorkerConfig;
 using Shared.DTO.Enums;
 using SqlSugar;
 using Tests.ShareData.Common;
@@ -73,9 +72,13 @@ namespace Tests.ShareData.Services
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataOutboundService>>();
             var extraction = scope.ServiceProvider.GetRequiredService<IDataOutboundExtractionProcess>();
             var clientFact = new DelegatingClientFactory(clientFactory);
+            var fileConfig = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [ExportPathHelper.BasePathConfigKey] = configuration.GetValue<string>(ExportPathHelper.BasePathConfigKey) ?? Path.Combine(Path.GetTempPath(), "sharedata_send")
+            }).Build();
             var dispatcher = DeliveryDispatcher.CreateForHandlers([
                 new HttpDeliverySender(clientFact),
-                new FileDeliverySender(configuration.GetValue<string>("NasStorage:BasePath") ?? "sharedata/send"),
+                new FileDeliverySender(fileConfig, scope.ServiceProvider.GetRequiredService<ILogger<FileDeliverySender>>()),
                 new KafkaDeliverySender(),
                 new FtpDeliverySender()
             ]);
@@ -85,7 +88,7 @@ namespace Tests.ShareData.Services
                 logger,
                 extraction,
                 new DataOutboundTransport(dispatcher, configuration),
-                scope.ServiceProvider.GetRequiredService<DataWorkerConfigService>());
+                scope.ServiceProvider.GetRequiredService<IDataWorkerConfigService>());
         }
 
         #region 1. Test Gói Snapshot (Gói 105 - RFID Data)
@@ -975,8 +978,8 @@ namespace Tests.ShareData.Services
                 Code = partnerCode,
                 Name = $"Partner {partnerCode}",
                 Status = BaseEnums.StatusEnum.Enable,
-                SessionState = BaseEnums.SessionState.Connected,
-                ConnectionType = BaseEnums.ConnectionType.Api,
+                SessionState = SessionState.Connected,
+                ConnectionType = ConnectionType.Api,
                 Address = "http://localhost",
                 Port = 80,
                 EndPointApiUrl = endPointApiUrl,
@@ -997,7 +1000,7 @@ namespace Tests.ShareData.Services
                 OrderNo = 1,
                 Status = BaseEnums.StatusEnum.Enable,
                 ExtractSql = extractSql,
-                SyncMode = (BaseEnums.SyncMode)syncMode,
+                SyncMode = (SyncMode)syncMode,
                 CursorTimeColumn = syncMode == 2 ? "UpdateTime" : null
             };
             await _db.Insertable(packet).ExecuteCommandAsync();
@@ -1009,9 +1012,9 @@ namespace Tests.ShareData.Services
                 Code = $"SUB_OUT_{partnerCode}",
                 PartnerId = partner.ID,
                 DatatypeId = packet.ID,
-                Direction = BaseEnums.Direction.Outbound,
-                Mode = BaseEnums.SubMode.Periodic,
-                State = BaseEnums.SubSubscriptionState.Active,
+                Direction = Direction.Outbound,
+                Mode = SubMode.Periodic,
+                State = SubSubscriptionState.Active,
                 NextTimeRun = dbNow.AddMinutes(-5),
                 IntervalSeconds = 30,
                 SerialNbr = 1
@@ -1023,7 +1026,7 @@ namespace Tests.ShareData.Services
                 ID = Guid.NewGuid().ToString("N"),
                 PartnerId = partner.ID,
                 DatatypeId = packet.ID,
-                Direction = BaseEnums.Direction.Outbound,
+                Direction = Direction.Outbound,
                 IsActive = true,
                 TargetShapeJson = targetShapeJson,
                 UpdateTime = dbNow
@@ -1037,9 +1040,9 @@ namespace Tests.ShareData.Services
                 Code = $"SUB_IN_{partnerCode}",
                 PartnerId = partner.ID,
                 DatatypeId = packet.ID,
-                Direction = BaseEnums.Direction.Inbound,
-                Mode = BaseEnums.SubMode.Periodic,
-                State = BaseEnums.SubSubscriptionState.Active,
+                Direction = Direction.Inbound,
+                Mode = SubMode.Periodic,
+                State = SubSubscriptionState.Active,
                 CreateTime = dbNow
             };
             await _db.Insertable(inboundSub).ExecuteCommandAsync();
@@ -1049,7 +1052,7 @@ namespace Tests.ShareData.Services
                 ID = Guid.NewGuid().ToString("N"),
                 PartnerId = partner.ID,
                 DatatypeId = packet.ID,
-                Direction = BaseEnums.Direction.Inbound,
+                Direction = Direction.Inbound,
                 IsActive = true,
                 TargetShapeJson = targetShapeJson,
                 UpdateTime = dbNow
@@ -1097,7 +1100,7 @@ namespace Tests.ShareData.Services
                 Code = $"PARTNER_RT_{unique}",
                 Name = $"Partner RT {unique}",
                 Status = BaseEnums.StatusEnum.Enable,
-                ConnectionType = BaseEnums.ConnectionType.Api,
+                ConnectionType = ConnectionType.Api,
                 ConnectionConfig = connectionConfig
             };
             await _db.Insertable(partner).ExecuteCommandAsync();
@@ -1116,8 +1119,8 @@ namespace Tests.ShareData.Services
                 ID = Guid.NewGuid().ToString("N"),
                 PartnerId = partner.ID,
                 DatatypeId = packet.ID,
-                Direction = BaseEnums.Direction.Inbound,
-                State = BaseEnums.SubSubscriptionState.Active,
+                Direction = Direction.Inbound,
+                State = SubSubscriptionState.Active,
                 CreateTime = DateTime.Now
             };
             await _db.Insertable(sub).ExecuteCommandAsync();
@@ -1127,7 +1130,7 @@ namespace Tests.ShareData.Services
                 ID = Guid.NewGuid().ToString("N"),
                 PartnerId = partner.ID,
                 DatatypeId = packet.ID,
-                Direction = BaseEnums.Direction.Inbound,
+                Direction = Direction.Inbound,
                 IsActive = true,
                 TargetShapeJson = targetShapeJson ?? """{"data":[{"id":{"$field":"id"},"val":{"$field":"val"}}]}""",
                 UpdateTime = DateTime.Now

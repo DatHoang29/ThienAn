@@ -37,7 +37,7 @@ public class DataCleanupServiceTests(Host host)
         await db.Insertable(new ShareDataActivityLog
         {
             ID = trackingId,
-            LogType = BaseEnums.LogTypeEnum.Transfer,
+            LogType = LogTypeEnum.Transfer,
             Remark = ShareDataAlertCode.Tracking.SelfHeal,
             Description = "Dòng hạ tầng quá hạn dùng cho test dọn nhật ký.",
             CreateTime = oldTime,
@@ -48,7 +48,7 @@ public class DataCleanupServiceTests(Host host)
         await db.Insertable(new ShareDataActivityLog
         {
             ID = businessId,
-            LogType = BaseEnums.LogTypeEnum.Transfer,
+            LogType = LogTypeEnum.Transfer,
             Remark = null,
             Description = "Dòng nghiệp vụ quá hạn — PHẢI còn nguyên sau khi dọn.",
             CreateTime = oldTime,

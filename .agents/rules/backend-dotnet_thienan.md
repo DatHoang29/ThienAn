@@ -117,7 +117,7 @@ namespace Module.ShareData.Controllers
    - ⛔ CẤM `try-catch` dồn dập, lồng nhau nhiều lớp.
    - ⛔ CẤM nuốt lỗi ở hàm con / helper (`catch { return null; }`). Để exception ném tự nhiên lên orchestrator / tầng cha điều phối để log và rollback giao dịch.
 6. **Thứ Tự Thành Viên Class (Rule 19.47)**:
-   - Cấu trúc theo nhóm: Constants/Fields tĩnh -> Fields/Dependencies DI -> Constructor -> Public Methods -> Protected/Internal Methods -> Private Helper Methods.
+   - Cấu trúc theo nhóm: Constants/Fields tĩnh -> Fields/Dependencies DI -> Kiểu lồng (record/class/struct/enum) -> Constructor -> Public Methods -> Protected/Internal Methods -> Private Helper Methods (chi tiết mục 17).
    - Khi thêm code mới, thêm vào cuối nhóm tương ứng (Append-only).
 7. **Tôn Trọng Phong Cách Mã Nguồn & Signature (Rule 19.49, 19.50, 19.51)**:
    - Cấm tự ý đổi signature phương thức / service dùng chung.
@@ -163,6 +163,7 @@ namespace Module.ShareData.Controllers
     - **Ngoại lệ (giữ nguyên)**:
       - Các kiểu đã có ở `HEAD` (bảo toàn class/kiểu cũ để tránh xáo trộn codebase và giảm thiểu diff).
       - Controller (route, Swagger và client FE sinh theo tên, nên theo các `ShareData*Controller` hiện có).
+      - Lớp bọc enum của phân hệ (`NotiEnums`, `TollEnums`, `ShareDataEnum` — Rule 19.90, mục 22).
       - Tên thư mục giữ nguyên theo các thư mục cũ cùng cấp (ví dụ `ShareDataExtraction/`, `ShareDataMetadata/`).
     - **Trùng tên kiểu khác trong solution**: Đặt tên mô tả khác, tuyệt đối không thêm lại tiền tố phân hệ (ví dụ đặt `PayloadDirection` vì `Direction` đã có ở `Shared.DTO/Enums/BaseEnums.cs`).
     - **Kiểm trước khi bàn giao**: Liệt kê khai báo kiểu mới trong `git diff HEAD` có tiền tố phân hệ → danh sách phải rỗng (ngoại trừ controller).
@@ -172,6 +173,7 @@ namespace Module.ShareData.Controllers
       - Mỗi đối số nằm riêng trên một dòng, thụt lề 1 cấp (1 tab hoặc 4 spaces).
       - **Dấu đóng ngoặc `);` nằm riêng trên một dòng mới**, thẳng hàng với dòng bắt đầu gọi phương thức.
       - ⛔ **TUYỆT ĐỐI CẤM** viết mở ngoặc `(` rồi dồn ngay tham số đầu tiên trên cùng dòng mà các tham số sau lại ngắt dòng lộn xộn.
+      - **Phạm vi**: chỉ áp cho lời gọi/khai báo **mới viết** hoặc **có thêm đối số**. Dòng cũ không đổi nội dung, hoặc chỉ đổi tên biến/câu thông báo, thì giữ nguyên bố cục cũ — ⛔ không dùng rule này làm lý do định dạng lại dòng cũ (Rule 19.89, mục 21).
       - Ví dụ chuẩn:
         ```csharp
         // CHUẨN:
@@ -232,8 +234,24 @@ namespace Module.ShareData.Controllers
     - Phạm vi: C#, Vue/TS (kể cả test Playwright), SQL và tài liệu kỹ thuật trong repo. Ngoại lệ duy nhất: thư mục `Prompt/` (nơi lưu chính các prompt).
     - Kiểm trước khi bàn giao: tìm `(?i)prompt\s*#?\d*|theo prompt` trong các file đã sửa; trong comment và mô tả phải không còn kết quả.
     - Liên quan Rule 19.74 (chỉ báo cáo thay đổi thực tế).
-17. **Khai Báo Field Luôn Đặt Ở Đầu Lớp & Cấm Mở Hàm `Reset*` Chỉ Phục Vụ Test (Rule 19.47, Rule 19.83)**:
+17. **Khai Báo Field & Kiểu Lồng Luôn Đặt Ở Đầu Lớp & Cấm Mở Hàm `Reset*` Chỉ Phục Vụ Test (Rule 19.47, Rule 19.83)**:
     - **Vị trí khai báo Field**: Mọi khai báo hằng và biến thành viên (`const`, `static readonly`, `readonly`, field) **BẮT BUỘC đặt ở ĐẦU thân lớp**, phía trước tất cả các phương thức (hoặc tại tệp khai báo field chung của `partial class`), kèm XML doc chuẩn dự án. ⛔ **TUYỆT ĐỐI CẤM** đặt khai báo field chen giữa các phương thức hoặc ở cuối lớp.
+    - **Vị trí kiểu lồng (bổ sung 18/10/2026)**: `record`, `record struct`, `class`, `struct`, `enum` khai **bên trong** lớp (kể cả `private sealed record` chỉ dùng nội bộ, lớp `Visitor`, lớp giả trong test) cũng **BẮT BUỘC đặt ở đầu thân lớp**, ngay sau các field và trước hàm khởi tạo. Thứ tự: hằng/field tĩnh → field DI/biến thành viên → kiểu lồng → hàm khởi tạo → phương thức. `partial class`: đặt ở đầu thân lớp trong tệp partial dùng kiểu đó (dùng ở nhiều tệp thì đặt ở tệp chính). Áp dụng cả mã test.
+      ```csharp
+      // ❌ CẤM — kiểu lồng nằm sau các hàm:
+      private async Task<...> GetTrackedTableVersions(...) { ... }
+      private sealed record TrackedTableVersion { ... }
+
+      // ✅ CHUẨN:
+      private readonly ILogger<DataChangeTrackingService> _logger;
+      private sealed record TrackedTableVersion { ... }
+      public DataChangeTrackingService(...) { ... }
+      ```
+    - **Chỉ áp cho khai báo mới (Rule 19.89 ưu tiên)**: field/kiểu lồng do lần sửa này thêm vào thì đặt đúng chỗ ngay khi viết. Khai báo đã có ở `HEAD` mà lần sửa không đổi nội dung thì ⛔ **không dời**, kể cả khi đang nằm sai chỗ — chỉ báo lại trong báo cáo. Dời khai báo mới (đã lỡ đặt sai) thì giữ nguyên nội dung khối.
+    - **Kiểm trước khi bàn giao**: chạy `mcp__gortex__search_ast` với `language: "csharp"`, `path_prefix` là thư mục đã sửa (dạng `ThienAn/TA-ITS015-WEBAPI-V1.0/src/...` hoặc `ThienAn/tests/BE/...`, test thì thêm `exclude_tests: false`) và mẫu dưới; không được còn kết quả là **khai báo mới** (kết quả là khai báo đã có ở `HEAD` thì bỏ qua):
+      ```
+      (declaration_list [(method_declaration) (constructor_declaration)] [(field_declaration) (record_declaration) (class_declaration) (struct_declaration) (enum_declaration) (interface_declaration)] @match)
+      ```
     - **Cấm hàm `Reset*` chỉ phục vụ test (No Test-Only Reset Seam)**: ⛔ **TUYỆT ĐỐI CẤM** thêm các phương thức `public`/`internal` kiểu `Reset*()`, `Clear*()` vào production code chỉ để gọi từ bài test xUnit, đặc biệt khi khóa bộ nhớ trong đã tự cô lập theo Unique ID của dữ liệu test (ví dụ `{partnerId}:{configHash}`).
 18. **Ưu Tiên Dependency Injection Qua Hàm Khởi Tạo (Rule 19.86, bổ sung 18/10/2026)**:
     - **Lấy phụ thuộc qua hàm khởi tạo**: lớp cần service, cấu hình đọc từ DB/`SysOpConfig`, `ISqlSugarClient`, logger… thì **BẮT BUỘC nhận qua hàm khởi tạo** (DI). ⛔ **CẤM** tự `new` service có phụ thuộc trong mã nghiệp vụ, ⛔ **CẤM** gọi `GetService`/`GetRequiredService` rải trong mã nghiệp vụ (service locator) — chỉ dùng `IServiceScopeFactory` khi lớp Singleton (BackgroundService, bộ đệm) cần phụ thuộc Scoped.
@@ -246,4 +264,79 @@ namespace Module.ShareData.Controllers
     - ⛔ **CẤM** dùng thuật ngữ chuyên biệt hoặc tiếng lóng kỹ thuật khi đã có từ thông dụng thay được: `claim`, `lease`, `tombstone`, `hydrate`, `fan-out`, `seam`, `upsert`... Chỉ dùng khi đó là **tên chuẩn của C#/.NET/thư viện đang dùng** (ví dụ `Claim`, `ClaimsPrincipal`, `ClaimTypes` của ASP.NET Identity; `Lock`, `Semaphore`; `Merge` khi nói đúng câu lệnh SQL `MERGE`) hoặc thật sự không có từ nào khác diễn đạt được; khi dùng thì XML doc phải giải thích bằng tiếng Việt.
     - Comment, log và thông báo tiếng Việt cũng ⛔ **không chêm thuật ngữ tiếng Anh** khi đã có từ Việt rõ nghĩa (ví dụ viết "giữ khóa", "nhận xử lý", "tiến mốc phiên bản" thay cho "claim lease", "claim LastVersion").
     - Áp dụng cho mã mới và mã đang sửa; mã cũ không nằm trong phạm vi sửa thì giữ nguyên (Rule 19.35).
+20. **`BackgroundService` Trên .NET 10 — Không Thêm `await Task.Yield()` Đầu `ExecuteAsync` (Rule 19.88, bổ sung 18/10/2026)**:
+    - Áp dụng cho project có `<TargetFramework>net10.0</TargetFramework>` trở lên (kiểm trong `.csproj` trước khi viết).
+    - Từ .NET 10, `BackgroundService` tự chạy **toàn bộ** `ExecuteAsync` trên luồng nền và trả về ngay, nên mã trước `await` đầu tiên không còn chặn host khởi động ([thông báo thay đổi của Microsoft](https://learn.microsoft.com/en-us/dotnet/core/compatibility/extensions/10.0/backgroundservice-executeasync-task)).
+    - ⛔ **CẤM** thêm `await Task.Yield();` (hoặc `await Task.Delay(1)`, `Task.Run(...)` bọc cả vòng lặp) ở đầu `ExecuteAsync` chỉ để "nhường luồng"; đây là cách làm của .NET 8/9, trên .NET 10 là mã thừa. Gặp trong mã đang sửa thì bỏ luôn kèm comment giải thích cũ.
+    - Cần chạy việc gì **đồng bộ lúc khởi động** (trước khi host coi là đã chạy) thì đặt ở hàm khởi tạo, override `StartAsync` làm trước rồi mới gọi `base.StartAsync`, hoặc cài `IHostedLifecycleService` — ⛔ không dựa vào phần mã trước `await` đầu tiên của `ExecuteAsync`.
+    - Project còn chạy .NET 8/9 thì giữ `await Task.Yield()` như cũ.
+21. **Giữ Nguyên Dòng Cũ Khi Nội Dung Không Đổi — Phần Thêm Mới Mới Xuống Dòng (Rule 19.89, bổ sung 18/10/2026)**:
+    - Áp dụng cho mọi tệp mã (C#, Vue/TS, SQL, JSON i18n) khi sửa tệp đã có ở `HEAD`; là cách làm cụ thể của Rule 19.6 (can thiệp tối thiểu).
+    - **Luôn ưu tiên hơn các rule định dạng/thứ tự** (Rule 19.47 thứ tự thành viên, 19.75 ngắt dòng tham số, 19.83 field/kiểu lồng ở đầu lớp, 20.9 ngắt dòng thuộc tính Vue...): các rule đó chỉ áp cho mã mới thêm trong lần sửa. Mã đã có ở `HEAD` mà không đổi nội dung thì giữ nguyên vị trí và định dạng, kể cả khi đang lệch rule — chỉ báo lại, không sửa.
+    - **Dòng cũ không đổi nội dung → giữ nguyên.** ⛔ **CẤM**: tách hoặc gộp dòng; đổi thụt lề (tab ↔ dấu cách); thêm/bớt khoảng trắng cuối dòng hay dòng trống; đổi BOM hoặc kiểu xuống dòng (CRLF/LF) của tệp; viết lại chú thích cùng nội dung thành nhiều dòng; thêm đối số có giá trị bằng mặc định.
+      ```csharp
+      // ❌ CẤM — trước và sau cùng nghĩa:
+      -        public SubscriptionValidator(IStringLocalizer localizer, bool isCreate = true)
+      +        public SubscriptionValidator(
+      +            IStringLocalizer localizer,
+      +            bool isCreate = true)
+
+      -            Include(new SubscriptionValidator(localizer));
+      +            Include(new SubscriptionValidator(
+      +                localizer,
+      +                isCreate: true));   // isCreate mặc định đã là true
+      ```
+    - **Sửa một phần dòng cũ → chỉ thay đúng phần đó, giữ bố cục dòng.**
+      ```csharp
+      // ✅ CHUẨN — chỉ đổi tên biến, dòng giữ nguyên bố cục:
+      -                        newlyBroken.Count, string.Join(", ", newlyBroken), TableRetryInterval.TotalMinutes, ...);
+      +                        newlyBroken.Count, string.Join(", ", newlyBroken), tableRetryInterval.TotalMinutes, ...);
+      // ❌ CẤM — đổi một tên biến mà tách cả lời gọi ra mỗi đối số một dòng.
+      ```
+    - **Có thêm mới → phần mới viết ở dòng mới.** Câu lệnh, hàm, thuộc tính, rule validator mới viết thành dòng riêng. Lời gọi/khai báo được **thêm đối số** thì được xuống dòng theo Rule 19.75:
+      ```csharp
+      // ✅ CHUẨN — có thêm tham số configService:
+      -        public PacketQueryHandler(BaseRepository<ShareDataPacket> packetRep)
+      +        public PacketQueryHandler(
+      +            BaseRepository<ShareDataPacket> packetRep,
+      +            ShareDataConfigService configService)
+      ```
+    - **Quan hệ với Rule 19.75 (C#) và Rule 20.9 (thuộc tính template Vue)**: hai rule ngắt dòng chỉ áp cho mã mới và chỗ có thêm mới; ⛔ không dùng làm lý do định dạng lại dòng cũ.
+    - **Chú thích nhiều dòng**: mỗi dòng một `//` (hoặc `///`) thật. ⛔ Không để lọt chuỗi `\n` vào giữa dòng mã/chú thích (đã gặp: hai dòng chú thích bị gộp thành một dòng chứa `\n` khi sửa bằng công cụ).
+    - **Kiểm trước khi bàn giao**: xem `git diff` từng tệp đã sửa; khối thay đổi nào bỏ hết khoảng trắng/xuống dòng mà hai bên giống nhau thì trả về như cũ. Tìm `\n` lạc bằng `search_text` regex `\\n\s{4,}//`.
+22. **Chỗ Đặt Enum Của Phân Hệ — Không Dời Enum Cũ Khỏi `BaseEnums`; Phân Hệ Mới Dùng Lớp Bọc Ở Core (Rule 19.90, bổ sung 18/10/2026)**:
+    - **Phân hệ đã có nhóm enum trong `Shared.DTO/Enums/BaseEnums.cs` từ trước** (ShareData, TMS, VMS, VDS, VideoWall, CCTV, WP...):
+      - ⛔ **KHÔNG dời** enum cũ ra khỏi `BaseEnums`. Dời làm đổi mọi dòng `BaseEnums.X` (đã gặp: chuyển 21 enum ShareData làm đổi khoảng 318 dòng chỉ để bỏ tiền tố) — Rule 19.89 ưu tiên.
+      - Enum **mới** của phân hệ đó, dùng chung WebAPI và Worker: thêm **cạnh nhóm enum của phân hệ trong `BaseEnums`** (cuối nhóm), để phân hệ chỉ có một chỗ chứa enum. Chỉ chuyển cả nhóm sang Core khi có yêu cầu riêng.
+      - Enum chỉ service/worker của phân hệ dùng: đặt ở lớp bọc sẵn có của service (ShareData: `ShareDataEnum` ở `ShareDataWorker.Core`).
+    - **Phân hệ chưa có enum trong `BaseEnums`**: ⛔ **CẤM** thêm vào `BaseEnums` (chỉ giữ enum dùng chung nhiều phân hệ như `StatusEnum`). Đặt ở `Modules.<X>.Core/Enums/` của phân hệ; WebAPI module và service của phân hệ cùng dùng qua tham chiếu Core, ⛔ không khai thêm bản thứ hai ở `*.Worker.Core`.
+    - **Cách khai báo ở Core — theo nếp `NotiEnums` (Notification, SonTH) và `TollEnums` (TOLL)**: một tệp `Enums/<PhânHệ>Enums.cs`, một lớp bọc `public class <PhânHệ>Enums` chứa các enum con. Phân hệ đã có lớp bọc thì thêm vào lớp đó, không tạo lớp mới.
+      ```csharp
+      namespace Modules.Notification.Core.Enums
+      {
+          /// <summary>
+          /// Author: SonTH
+          /// Description: Các enum riêng của phân hệ Notification.
+          /// Created date: 17/09/2026
+          /// </summary>
+          public class NotiEnums
+          {
+              /// <summary>Phạm vi người nhận của một thông báo.</summary>
+              public enum TargetTypeEnum
+              {
+                  [Description("Người dùng")]
+                  User = 1,
+                  [Description("Tổ chức")]
+                  Org = 2,
+              }
+          }
+      }
+      // Gọi: NotiEnums.TargetTypeEnum.User
+      ```
+    - ⛔ **CẤM** tách mỗi enum một tệp đứng riêng trong namespace (tên chung như `Direction`, `IsRequired`, `AlertSource` đứng trần dễ trùng kiểu khác khi một tệp dùng nhiều namespace). ⛔ Cấm tạo lớp bọc thứ hai cho cùng phân hệ hoặc khai lại enum đã có — trước khi thêm, `search_symbols` tên enum trong toàn solution.
+    - Lớp bọc giữ tiền tố phân hệ (`NotiEnums`, `TollEnums`, `ShareDataEnum`) — ngoại lệ của Rule 19.73. Enum con bên trong không lặp tiền tố.
+    - Mỗi enum có XML doc; mỗi giá trị gán số tường minh, kèm `[Description("...")]` để Swagger/FE hiển thị.
+    - **Ảnh hưởng FE**: Swagger đặt tên model theo **tên kiểu** enum (đã kiểm: `BaseEnums.SessionState` sinh ra `api-services/.../models/session-state.ts`). Dời enum vào/ra lớp bọc không đổi tên model; **đổi tên** enum thì phải sinh lại client FE và sửa chỗ dùng.
+    - **Thư viện dùng chung** (`Modules.Integration.<X>.Base`, ví dụ Delivery, Barrier): enum đặt ở `.Base/Enums/` của thư viện, theo cách khai báo đã có trong thư viện đó; ⛔ không đặt trong `Shared.DTO`.
+    - **Kiểm trước khi bàn giao**: `git diff HEAD -- src/Shared/Shared.DTO/Enums/BaseEnums.cs` không có dòng `- public enum` (không dời enum cũ) và chỉ có `+ public enum` của phân hệ đã có nhóm trong `BaseEnums`; `find_files` thư mục `Modules.<X>.Core/Enums/` chỉ có tệp lớp bọc của phân hệ.
 

@@ -17,12 +17,12 @@ public partial class DeliveryDispatcherTests
         // Arrange
         var kafkaSender = new KafkaDeliverySender();
         var dispatcher = DeliveryDispatcher.CreateForHandlers([kafkaSender]);
-        var ctx = CreateDummyContext("101", "PARTNER_KAFKA", BaseEnums.ConnectionType.Kafka);
+        var ctx = CreateDummyContext("101", "PARTNER_KAFKA", ConnectionType.Kafka);
         var jsonPayload = "{\"temperature\": 28.5, \"humidity\": 65}";
         var request = new DeliveryRequest
         {
             JsonPayload = jsonPayload,
-            ConnectType = BaseEnums.ConnectionType.Kafka,
+            ConnectType = ConnectionType.Kafka,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["Topic"] = "traffic-weather-topic",
@@ -45,11 +45,11 @@ public partial class DeliveryDispatcherTests
     {
         // Arrange
         var kafkaSender = new KafkaDeliverySender();
-        var ctx = CreateDummyContext("101", "PARTNER_KAFKA", BaseEnums.ConnectionType.Kafka);
+        var ctx = CreateDummyContext("101", "PARTNER_KAFKA", ConnectionType.Kafka);
         var request = new DeliveryRequest
         {
             JsonPayload = string.Empty,
-            ConnectType = BaseEnums.ConnectionType.Kafka
+            ConnectType = ConnectionType.Kafka
         };
 
         // Act
@@ -66,19 +66,19 @@ public partial class DeliveryDispatcherTests
     {
         // Arrange
         var kafkaSender = new KafkaDeliverySender();
-        var ctx = CreateDummyContext("101", "PARTNER_KAFKA", BaseEnums.ConnectionType.Kafka);
+        var ctx = CreateDummyContext("101", "PARTNER_KAFKA", ConnectionType.Kafka);
 
         var disabledReq = new DeliveryRequest
         {
             JsonPayload = "{\"test\": 1}",
-            ConnectType = BaseEnums.ConnectionType.Kafka,
+            ConnectType = ConnectionType.Kafka,
             ConnectConfig = new Dictionary<string, string> { ["Enabled"] = "false" }
         };
 
         var missingServersReq = new DeliveryRequest
         {
             JsonPayload = "{\"test\": 1}",
-            ConnectType = BaseEnums.ConnectionType.Kafka,
+            ConnectType = ConnectionType.Kafka,
             ConnectConfig = new Dictionary<string, string> { ["Enabled"] = "true", ["Topic"] = "my-topic" }
         };
 
@@ -99,14 +99,14 @@ public partial class DeliveryDispatcherTests
     public void Kafka_WhenBootstrapServersInConfig_PrefersOverPartnerColumns_Test()
     {
         // Arrange
-        var ctx = CreateDummyContext("101", "PARTNER_KAFKA", BaseEnums.ConnectionType.Kafka);
+        var ctx = CreateDummyContext("101", "PARTNER_KAFKA", ConnectionType.Kafka);
         ctx.Partner!.Address = "10.0.0.1";
         ctx.Partner!.Port = 9092;
 
         var reqWithBootstrap = new DeliveryRequest
         {
             JsonPayload = "{\"test\": 1}",
-            ConnectType = BaseEnums.ConnectionType.Kafka,
+            ConnectType = ConnectionType.Kafka,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["BootstrapServers"] = "kafka-cluster:9092,kafka-cluster:9093"
@@ -116,7 +116,7 @@ public partial class DeliveryDispatcherTests
         var reqFallback = new DeliveryRequest
         {
             JsonPayload = "{\"test\": 1}",
-            ConnectType = BaseEnums.ConnectionType.Kafka,
+            ConnectType = ConnectionType.Kafka,
             ConnectConfig = new Dictionary<string, string>()
         };
 

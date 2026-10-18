@@ -201,12 +201,12 @@ namespace Tests.ShareData.Controllers
         #region 2. PartnerValidator Unit Tests
 
         [Theory]
-        [InlineData(BaseEnums.ConnectionType.Api)]
-        [InlineData(BaseEnums.ConnectionType.File)]
-        [InlineData(BaseEnums.ConnectionType.Ftp)]
-        [InlineData(BaseEnums.ConnectionType.Ftps)]
-        [InlineData(BaseEnums.ConnectionType.Kafka)]
-        public void PartnerValidator_ValidConnectionType_PassesValidation_Test(BaseEnums.ConnectionType connectionType)
+        [InlineData(ConnectionType.Api)]
+        [InlineData(ConnectionType.File)]
+        [InlineData(ConnectionType.Ftp)]
+        [InlineData(ConnectionType.Ftps)]
+        [InlineData(ConnectionType.Kafka)]
+        public void PartnerValidator_ValidConnectionType_PassesValidation_Test(ConnectionType connectionType)
         {
             // Arrange
             var validator = new PartnerValidator(new EchoLocalizer());
@@ -255,7 +255,7 @@ namespace Tests.ShareData.Controllers
                 Code = "PARTNER_01",
                 Name = "Partner 01",
                 Address = "127.0.0.1",
-                ConnectionType = (BaseEnums.ConnectionType)999
+                ConnectionType = (ConnectionType)999
             };
 
             // Act

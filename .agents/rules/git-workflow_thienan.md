@@ -88,6 +88,29 @@ fix(sharedata): xử lý danh sách lỗi kiểm thử F16 phân hệ sharedata
    - **Chỉ repo cha**: Mọi fix (kể cả fix chạy từ prompt/agent) làm thẳng trên `main` rồi push `origin main`; ⛔ **CẤM** tạo nhánh `fix/*`, `feature/*`, `agents/*` hoặc git worktree riêng; nhánh/worktree lỡ tạo thì merge vào `main` rồi xoá cả local lẫn remote.
    - **Hai repo con WEBAPI và WEBVUE KHÔNG bị ảnh hưởng**: Vẫn tạo nhánh theo quy chuẩn Git của Thiên Ân (Mục 2).
    - Quy tắc cấm tự ý git vẫn giữ nguyên: AI chỉ `git add`/`commit`/`push` khi người dùng ra lệnh rõ.
+4. **Đồng Bộ `dev` Trước Mọi Lần Push; Commit Một Phần Khi Thư Mục Đang Có Mã Sửa Dở (Rule 19.91, bổ sung 18/10/2026)**:
+   - **Nguyên tắc chung (repo con WEBAPI, WEBVUE)**: trước **MỌI** lần push nhánh lên remote, nhánh **BẮT BUỘC** chứa `origin/dev` mới nhất:
+     1. `git fetch origin`.
+     2. `git rebase origin/dev` (hoặc `git merge origin/dev` khi người dùng không muốn viết lại lịch sử đã push).
+     3. Build và chạy lại test liên quan sau khi đồng bộ.
+     4. Kiểm `git merge-base --is-ancestor origin/dev HEAD` trả về 0 → mới push.
+     ⛔ **CẤM** push nhánh chưa chứa `origin/dev` mới nhất. Repo cha chỉ có `main`: đồng bộ `origin/main` thay cho `dev`.
+   - **Trường hợp commit/push một phần** (ví dụ riêng thư mục Delivery) trong lúc thư mục làm việc còn mã sửa dở, tệp đã stage hoặc stash cũ: làm theo các bước dưới.
+   - **Kiểm trước, không đoán**: `git fetch origin` rồi đếm:
+     - `git rev-list --count HEAD..origin/<nhánh>`: remote có commit mà local chưa có? (đã gặp: nhánh ShareData local ở `56bb4bc3` trong khi remote có thêm 3 commit của chính người dùng).
+     - `git rev-list --count HEAD..origin/dev`: dev có commit mới?
+     - `git status --porcelain`, `git stash list`: có mã sửa dở, tệp đã stage, stash cũ?
+     - Tệp mà các commit remote/dev sửa có trùng tệp đang sửa dở không (`git diff --name-only HEAD origin/<nhánh>` đối chiếu `git status`).
+   - ⛔ **CẤM trong thư mục làm việc chính** khi còn mã sửa dở hoặc tệp đã stage: `git stash`, `git rebase` (kể cả `--autostash`), `git pull`, `git reset`, `git checkout -- .`, `git clean`. Các lệnh này làm mất trạng thái stage người dùng đã chọn hoặc gây xung đột với mã dở. ⛔ Không đụng stash cũ của người dùng.
+   - **Repo con (WEBAPI, WEBVUE): làm trong worktree tạm**
+     1. `git worktree add --detach ../_wt-<việc> origin/<nhánh>` (lấy nhánh từ remote, không từ local, để giữ commit remote mà local chưa có).
+     2. `git rebase origin/dev`. Có xung đột → `git rebase --abort`, dừng, báo danh sách tệp; ⛔ không tự giải xung đột.
+     3. Chép đúng phần cần commit từ thư mục chính sang (`rsync -a --exclude bin --exclude obj --exclude .DS_Store ...`), build phần đó trong worktree.
+     4. Commit theo mục 3, kiểm `git show --stat HEAD` chỉ có tệp của phần việc.
+     5. Push. Rebase viết lại commit đã push thì chỉ được `git push --force-with-lease=refs/heads/<nhánh>:<sha origin/<nhánh> đã kiểm ở bước đầu> origin HEAD:refs/heads/<nhánh>`; ⛔ CẤM `--force` trần. Người dùng không muốn viết lại lịch sử thì thay rebase bằng `git merge origin/dev` và push thường.
+     6. `git worktree remove ../_wt-<việc>`.
+   - **Repo cha (`main`, không dùng worktree — mục 4.3)**: commit bằng pathspec ở cuối lệnh (`git commit -m ... -- <đường dẫn>`) để không cuốn theo tệp khác đang stage; chỉ `git push origin main` khi `HEAD..origin/main` bằng 0, lớn hơn 0 thì dừng, báo.
+   - **Báo cáo sau push**: mã commit; `git log --oneline origin/dev..origin/<nhánh>`; trạng thái thư mục chính (đi sau remote bao nhiêu commit, tệp nào sẽ xung đột khi đồng bộ, thư mục chưa track nào phải xóa trước khi pull vì nội dung đã lên remote).
 
 ---
 
@@ -97,7 +120,7 @@ fix(sharedata): xử lý danh sách lỗi kiểm thử F16 phân hệ sharedata
 3. **Coding Standards:** Tuân thủ Clean Code, PascalCase, camelCase, cấu trúc thư mục quy định.
 4. **Dọn rác code:** Xóa sạch code debug, `console.log`, comment rác, using thừa (IDE0005).
 5. **Chạy test tự động:** 100% test cases pass (Full Business Flow, E2E Playwright).
-6. **Merge Conflict:** Đồng bộ branch của bạn với `dev` mới nhất trước khi tạo PR.
+6. **Merge Conflict:** Đồng bộ branch của bạn với `dev` mới nhất **trước mỗi lần push** và trước khi tạo PR (Rule 19.91, mục 4.4).
 7. **Tài liệu:** Cập nhật tài liệu kỹ thuật, MasterPlan nếu có thay đổi logic hoặc API.
 8. **File & Commit Message:** Chỉ commit file liên quan trực tiếp, commit message đúng chuẩn tiếng Việt có dấu.
 9. **Bảo mật & Credentials:** Tuyệt đối không commit API keys, mật khẩu DB, credentials, dữ liệu cá nhân.

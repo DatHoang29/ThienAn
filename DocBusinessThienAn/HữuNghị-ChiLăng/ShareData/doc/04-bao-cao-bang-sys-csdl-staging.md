@@ -27,7 +27,7 @@
 **Quyết định cập nhật (17/10/2026):**
 - **Danh mục bảng nguồn chuyển sang bảng riêng `ShareDataSourceTable`:** Đây là quy tắc nghiệp vụ riêng của ShareData (quản lý bảng nguồn phục vụ Change Tracking và bộ dựng SQL Query Builder). Bảng không có giao diện người dùng; sửa trực tiếp bằng `.sql` để truy vết lỗi nhanh và kiểm soát chặt chẽ.
 - **Mã lỗi ESH và bản dịch vẫn dùng bảng hệ thống chung:** `SysConfigType/SysConfigData` (25 mã `ESH-xxxx`) và `SysTerminology` (`lz.*`).
-- **`SysOpConfig` nhóm `sharedata_config`:** Lưu 47 tham số vận hành và giới hạn cấu hình động (18 tham số Worker, 23 tham số FE, 6 tham số WebAPI), toàn bộ đều có giá trị mặc định dự phòng an toàn trong mã nguồn (`LimitOption` và `DataWorkerOption`).
+- **`SysOpConfig` nhóm `sharedata_config`:** Lưu 47 tham số vận hành và giới hạn cấu hình động (18 tham số Worker, 23 tham số FE, 6 tham số WebAPI), toàn bộ đều có giá trị mặc định dự phòng an toàn và khoảng an toàn tuyệt đối trong mã nguồn (khai tập trung tại `ShareDataConst.cs` thuộc `Module.ShareData.Core/Constants`, nạp qua `ShareDataConfigService` ở WebAPI và `DataWorkerConfigService` ở Worker).
 
 | Bảng chung | Quyết định | Các phân hệ khác dùng thế nào (căn cứ mã nguồn) | ShareData dùng cho |
 |---|---|---|---|

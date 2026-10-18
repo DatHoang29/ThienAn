@@ -46,7 +46,7 @@ public partial class DataInboundServiceTests
 
         // Assert
         var updated = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packetEntity.ID);
-        Assert.True(updated.ProcessState == BaseEnums.InboundProcessState.Failed, $"ProcessState={updated.ProcessState}, Error={updated.ErrorMessage}");
+        Assert.True(updated.ProcessState == InboundProcessState.Failed, $"ProcessState={updated.ProcessState}, Error={updated.ErrorMessage}");
 
         var markers = await _inboundDb.Queryable<ShareDataInboundPacket>().Where(p => p.ID == markerId).CountAsync();
         Assert.Equal(0, markers);
@@ -86,7 +86,7 @@ public partial class DataInboundServiceTests
             .Where(p => p.PartnerCode == partner.Code)
             .OrderBy(p => p.ProcessedAt)
             .ToListAsync();
-        Assert.All(processed, p => Assert.Equal(BaseEnums.InboundProcessState.Done, p.ProcessState));
+        Assert.All(processed, p => Assert.Equal(InboundProcessState.Done, p.ProcessState));
         Assert.Equal([serial1.ID, serial2.ID, serial3.ID], processed.Select(p => p.ID).ToArray());
     }
 
@@ -115,7 +115,7 @@ public partial class DataInboundServiceTests
             .Where(p => p.PartnerCode == partner.Code)
             .OrderBy(p => p.ProcessedAt)
             .ToListAsync();
-        Assert.All(processed, p => Assert.Equal(BaseEnums.InboundProcessState.Done, p.ProcessState));
+        Assert.All(processed, p => Assert.Equal(InboundProcessState.Done, p.ProcessState));
         Assert.Equal([earlier.ID, later.ID], processed.Select(p => p.ID).ToArray());
     }
 
@@ -179,7 +179,7 @@ public partial class DataInboundServiceTests
 
         // Assert
         var updated = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packetEntity.ID);
-        Assert.Equal(BaseEnums.InboundProcessState.NoSubscription, updated.ProcessState);
+        Assert.Equal(InboundProcessState.NoSubscription, updated.ProcessState);
         Assert.Equal("Chưa có đăng ký nhận cho loại gói tin này.", updated.ErrorMessage);
 
         var logs = await _db.Queryable<ShareDataActivityLog>().Where(l => l.PartnerId == partner.ID).CountAsync();
@@ -206,7 +206,7 @@ public partial class DataInboundServiceTests
 
         // Assert
         var updated = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packetEntity.ID);
-        Assert.Equal(BaseEnums.InboundProcessState.Failed, updated.ProcessState);
+        Assert.Equal(InboundProcessState.Failed, updated.ProcessState);
         Assert.False(string.IsNullOrWhiteSpace(updated.ErrorMessage));
 
         var alertCodes = await _db.Queryable<ShareDataAlertLog>()
@@ -229,7 +229,7 @@ public partial class DataInboundServiceTests
         var unique = Guid.NewGuid().ToString("N")[..8];
         var (partner, packet, sub, _) = await SeedInboundEnvironmentAsync(unique);
         await _db.Updateable<ShareDataSubscription>()
-            .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Paused)
+            .SetColumns(s => s.State == SubSubscriptionState.Paused)
             .Where(s => s.ID == sub.ID)
             .ExecuteCommandAsync();
         var packetEntity = await SeedPendingPacket(partner.Code!, packet.Code!, 1, "{\"data\":[{\"id\":\"1\",\"val\":\"A\"}]}", DateTime.Now);
@@ -240,7 +240,7 @@ public partial class DataInboundServiceTests
         var stateWhilePaused = (await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packetEntity.ID)).ProcessState;
 
         await _db.Updateable<ShareDataSubscription>()
-            .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Active)
+            .SetColumns(s => s.State == SubSubscriptionState.Active)
             .Where(s => s.ID == sub.ID)
             .ExecuteCommandAsync();
 
@@ -248,9 +248,9 @@ public partial class DataInboundServiceTests
         await service.ProcessPendingPackets(CancellationToken.None);
 
         // Assert
-        Assert.Equal(BaseEnums.InboundProcessState.Pending, stateWhilePaused);
+        Assert.Equal(InboundProcessState.Pending, stateWhilePaused);
         var updated = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packetEntity.ID);
-        Assert.Equal(BaseEnums.InboundProcessState.Done, updated.ProcessState);
+        Assert.Equal(InboundProcessState.Done, updated.ProcessState);
     }
 
     /// <summary>
@@ -300,7 +300,7 @@ public partial class DataInboundServiceTests
 
         // Assert
         var updated = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packetEntity.ID);
-        Assert.True(updated.ProcessState == BaseEnums.InboundProcessState.Done, $"ProcessState={updated.ProcessState}, Error={updated.ErrorMessage}");
+        Assert.True(updated.ProcessState == InboundProcessState.Done, $"ProcessState={updated.ProcessState}, Error={updated.ErrorMessage}");
 
         var marker = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(markerId);
         using var doc = System.Text.Json.JsonDocument.Parse(marker.RawContent!);
@@ -352,7 +352,7 @@ public partial class DataInboundServiceTests
 
         // Assert
         var updated = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packetEntity.ID);
-        Assert.True(updated.ProcessState == BaseEnums.InboundProcessState.Done, $"ProcessState={updated.ProcessState}, Error={updated.ErrorMessage}");
+        Assert.True(updated.ProcessState == InboundProcessState.Done, $"ProcessState={updated.ProcessState}, Error={updated.ErrorMessage}");
 
         var marker = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(markerId);
         using var doc = System.Text.Json.JsonDocument.Parse(marker.RawContent!);
@@ -375,7 +375,7 @@ public partial class DataInboundServiceTests
             PacketCode = packetCode,
             SerialNbr = serialNbr,
             RawContent = rawContent,
-            ProcessState = BaseEnums.InboundProcessState.Pending,
+            ProcessState = InboundProcessState.Pending,
             CreateTime = createTime
         };
         await _inboundDb.Insertable(entity).ExecuteCommandAsync();

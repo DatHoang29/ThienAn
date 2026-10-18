@@ -41,8 +41,8 @@ public class ShareDataSubscriptionControllerTests(Host host)
         {
             PartnerId = partner.ID,
             DatatypeId = $"DT_{unique}",
-            Direction = BaseEnums.Direction.Outbound,
-            Mode = BaseEnums.SubMode.Periodic,
+            Direction = Direction.Outbound,
+            Mode = SubMode.Periodic,
             IntervalSeconds = 30,
             Schedule = new ShareDataScheduleDto { Kind = "continuous", IntervalSeconds = 30, StartTime = "22:00", EndTime = "05:00" }
         };
@@ -55,8 +55,8 @@ public class ShareDataSubscriptionControllerTests(Host host)
         {
             PartnerId = partner.ID,
             DatatypeId = $"DT_{unique}",
-            Direction = BaseEnums.Direction.Outbound,
-            Mode = BaseEnums.SubMode.Periodic,
+            Direction = Direction.Outbound,
+            Mode = SubMode.Periodic,
             IntervalSeconds = 30,
             Schedule = new ShareDataScheduleDto { Kind = "continuous", IntervalSeconds = 30, StartTime = "06:00", EndTime = "22:00" }
         };
@@ -98,14 +98,14 @@ public class ShareDataSubscriptionControllerTests(Host host)
         };
         await db.Insertable(partner).ExecuteCommandAsync();
 
-        ShareDataAddSubscriptionInput CreateInput(int? priority = null, int? debounce = null, BaseEnums.SubMode mode = BaseEnums.SubMode.Periodic) =>
+        ShareDataAddSubscriptionInput CreateInput(int? priority = null, int? debounce = null, SubMode mode = SubMode.Periodic) =>
             new()
             {
                 PartnerId = partner.ID,
                 DatatypeId = $"DT_{unique}",
-                Direction = BaseEnums.Direction.Outbound,
+                Direction = Direction.Outbound,
                 Mode = mode,
-                EventSourceId = mode == BaseEnums.SubMode.Event ? $"EV_{unique}" : null,
+                EventSourceId = mode == SubMode.Event ? $"EV_{unique}" : null,
                 IntervalSeconds = 30,
                 Priority = priority,
                 DebounceSec = debounce,
@@ -123,7 +123,7 @@ public class ShareDataSubscriptionControllerTests(Host host)
         await Assert.ThrowsAnyAsync<Exception>(() => bus.InvokeAsync(CreateInput(debounce: 3601)));
 
         // 2. Valid input within fallback range succeeds (Mode = Event to preserve DebounceSec)
-        await bus.InvokeAsync(CreateInput(priority: 5, debounce: 60, mode: BaseEnums.SubMode.Event));
+        await bus.InvokeAsync(CreateInput(priority: 5, debounce: 60, mode: SubMode.Event));
 
         var saved = await db.Queryable<ShareDataSubscription>()
             .Where(s => s.PartnerId == partner.ID && s.DatatypeId == $"DT_{unique}")

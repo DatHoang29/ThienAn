@@ -43,7 +43,7 @@ namespace Tests.RealServer
             var request = new DeliveryRequest
             {
                 JsonPayload = "[{\"licensePlate\":\"29A-12345\"}]",
-                ConnectType = BaseEnums.ConnectionType.Api,
+                ConnectType = ConnectionType.Api,
                 ConnectConfig = new Dictionary<string, string>()
             };
 
@@ -77,7 +77,7 @@ namespace Tests.RealServer
             var request = new DeliveryRequest
             {
                 JsonPayload = "[{\"licensePlate\":\"29A-12345\"}]",
-                ConnectType = BaseEnums.ConnectionType.Api,
+                ConnectType = ConnectionType.Api,
                 ConnectConfig = new Dictionary<string, string>()
             };
 

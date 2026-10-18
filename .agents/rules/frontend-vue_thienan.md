@@ -147,6 +147,7 @@ src/views/<module>/<feature>/
      ```
 2. **Ngắt Dòng Thuộc Tính Template (Rule 20.9)**:
    - Khi component có từ 3 props/events trở lên, ngắt mỗi thuộc tính thành một dòng riêng biệt, thụt đầu dòng rõ ràng để dễ review Git diff.
+   - Chỉ áp cho thẻ mới viết hoặc thẻ có thêm thuộc tính; thẻ cũ không đổi nội dung thì giữ nguyên dòng và thụt lề cũ (Rule 19.89, [backend-dotnet_thienan.md](./backend-dotnet_thienan.md) §4.21).
 
 3. **Type Safety Cho Tham Số Modal/Dialog Nhận DTO Backend (Rule 20.10)**:
    - **Bối cảnh & Lỗi thường gặp**: Toàn bộ các model/DTO sinh từ Swagger / C# backend (`api-services/**`) đều có các thuộc tính dạng nullable/optional (`id?: string | null; code?: string | null | undefined; name?: string | null | undefined;`).

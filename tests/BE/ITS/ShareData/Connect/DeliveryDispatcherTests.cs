@@ -1,4 +1,7 @@
 using System.Text;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Module.ShareData.Controllers.Partner.Validators;
 using Module.ShareData.Core.Entities;
 using Module.ShareData.Core.Utils;
@@ -37,7 +40,18 @@ public partial class DeliveryDispatcherTests
         _host.PartnerServer.ResetDefaults();
     }
 
-    private static DataOutboundContext CreateDummyContext(string packetCode = "101", string partnerCode = "PARTNER_TEST", BaseEnums.ConnectionType? connectionType = BaseEnums.ConnectionType.Api)
+    private FileDeliverySender CreateFileSender(string? basePath = null)
+    {
+        var path = basePath ?? ExportPathHelper.DefaultBasePath;
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            [ExportPathHelper.BasePathConfigKey] = path
+        }).Build();
+
+        return new FileDeliverySender(config, _host.Services.GetRequiredService<ILogger<FileDeliverySender>>());
+    }
+
+    private static DataOutboundContext CreateDummyContext(string packetCode = "101", string partnerCode = "PARTNER_TEST", ConnectionType? connectionType = ConnectionType.Api)
     {
         var packet = new ShareDataPacket { Code = packetCode, Name = "Packet " + packetCode };
         var partner = new ShareDataPartner
@@ -55,7 +69,7 @@ public partial class DeliveryDispatcherTests
 
     private static DataOutboundContext CreateDummyContext(string packetCode, string partnerCode, string connectionTypeStr)
     {
-        BaseEnums.ConnectionType? type = Enum.TryParse<BaseEnums.ConnectionType>(connectionTypeStr, true, out var parsed) ? parsed : null;
+        ConnectionType? type = Enum.TryParse<ConnectionType>(connectionTypeStr, true, out var parsed) ? parsed : null;
         return CreateDummyContext(packetCode, partnerCode, type);
     }
 
@@ -82,7 +96,7 @@ public partial class DeliveryDispatcherTests
         var request = new DeliveryRequest
         {
             JsonPayload = "{}",
-            ConnectType = (BaseEnums.ConnectionType)999,
+            ConnectType = (ConnectionType)999,
             ConnectConfig = new Dictionary<string, string>()
         };
 
@@ -141,11 +155,11 @@ public partial class DeliveryDispatcherTests
         {
             Code = "105",
             Name = "Vehicle Event Packet",
-            SyncMode = BaseEnums.SyncMode.Incremental
+            SyncMode = SyncMode.Incremental
         };
 
         // Act & Assert
-        Assert.Equal(BaseEnums.SyncMode.Incremental, packet105.SyncMode);
+        Assert.Equal(SyncMode.Incremental, packet105.SyncMode);
     }
 
     [Fact]
@@ -238,6 +252,49 @@ public partial class DeliveryDispatcherTests
         finally
         {
             Directory.SetCurrentDirectory(originalCwd);
+        }
+    }
+
+    [Fact]
+    public async Task AddDelivery_RegistersAllFourSenders_AndDispatcherSelectsExpectedChannel_Test()
+    {
+        // Arrange
+        var senders = _host.Services.GetServices<IDeliverySender>().ToList();
+
+        // Assert: đủ 4 kênh
+        Assert.Equal(4, senders.Count);
+
+        // Mỗi ConnectType đúng 1 bản
+        var senderTypes = senders.Select(s => s.ConnectType).ToList();
+        Assert.Contains(ConnectionType.Api, senderTypes);
+        Assert.Contains(ConnectionType.File, senderTypes);
+        Assert.Contains(ConnectionType.Kafka, senderTypes);
+        Assert.Contains(ConnectionType.Ftp, senderTypes);
+        Assert.Equal(4, senderTypes.Distinct().Count());
+
+        // DeliveryDispatcher chọn đúng kênh
+        var dispatcher = _host.Services.GetRequiredService<IDeliveryDispatcher>();
+        var request = new DeliveryRequest
+        {
+            JsonPayload = "{}",
+            ConnectType = ConnectionType.File,
+            ConnectConfig = new Dictionary<string, string>
+            {
+                [ConnectKeys.DirectoryPath] = "test_dispatch_check",
+                [ConnectKeys.FileNamePattern] = "check_{serial}.json"
+            }
+        };
+        var ctx = CreateSendContext(connectionType: "File");
+
+        var result = await dispatcher.Dispatch(request, ctx, CancellationToken.None);
+
+        Assert.True(result.Success);
+        Assert.Equal("File", result.Channel);
+
+        if (!string.IsNullOrWhiteSpace(result.TargetAddressOrPath))
+        {
+            var fullPath = Path.Combine(ExportPathHelper.ResolveRootPath(ExportPathHelper.DefaultBasePath), result.TargetAddressOrPath);
+            if (File.Exists(fullPath)) File.Delete(fullPath);
         }
     }
 }

@@ -2,8 +2,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Modules.CfgSystem.Core.Entities;
+using ShareDataWorker.Core.Configuration;
+using ShareDataWorker.Core.Interfaces;
 using Shared.DTO.Enums;
-using ShareDataWorker.Infrastructure.Services.DataWorkerConfig;
+using ShareDataWorker.Infrastructure.Services.WorkerConfig;
 using SqlSugar;
 using Xunit;
 
@@ -40,6 +42,7 @@ public class DataWorkerConfigServiceTests(Host host)
 
         // Assert: 18 tham số đều khớp 100% với giá trị dự phòng chuẩn
         Assert.NotNull(settings);
+        Assert.Equal(DataWorkerConfig.Defaults, settings);
         Assert.Equal(5, settings.OutboundCheckIntervalSec);
         Assert.Equal(5, settings.InboundCheckIntervalSec);
         Assert.Equal(1, settings.TrackingPollIntervalSec);
@@ -195,9 +198,10 @@ public class DataWorkerConfigServiceTests(Host host)
     {
         // Act
         using var scope = _host.Services.CreateScope();
-        var service = scope.ServiceProvider.GetService<DataWorkerConfigService>();
+        var service = scope.ServiceProvider.GetRequiredService<IDataWorkerConfigService>();
 
         // Assert
         Assert.NotNull(service);
+        Assert.IsType<DataWorkerConfigService>(service);
     }
 }

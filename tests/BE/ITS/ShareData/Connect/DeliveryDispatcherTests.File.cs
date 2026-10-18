@@ -17,16 +17,16 @@ public partial class DeliveryDispatcherTests
     public async Task DispatchAsync_WhenPartnerConnectionTypeIsFile_RoutesToFileChannel_Test()
     {
         // Arrange
-        var fileSender = new FileDeliverySender();
+        var fileSender = CreateFileSender();
         var dispatcher = DeliveryDispatcher.CreateForHandlers([fileSender]);
-        var ctx = CreateDummyContext("103", "PARTNER_FILE", BaseEnums.ConnectionType.File);
+        var ctx = CreateDummyContext("103", "PARTNER_FILE", ConnectionType.File);
         var jsonPayload = "{\"vdsCount\": 12, \"speed\": 80}";
         var customDir = "Out/TestPartner";
         var fileNamePattern = "vds_export_{serial}.json";
         var request = new DeliveryRequest
         {
             JsonPayload = jsonPayload,
-            ConnectType = BaseEnums.ConnectionType.File,
+            ConnectType = ConnectionType.File,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["DirectoryPath"] = customDir,
@@ -48,13 +48,13 @@ public partial class DeliveryDispatcherTests
     public async Task FileSender_WhenDirectoryPathHasInvalidCharacters_ReturnsInvalidPathError_Test()
     {
         // Arrange
-        var fileSender = new FileDeliverySender();
-        var ctx = CreateDummyContext("103", "PARTNER_FILE_INVALID", BaseEnums.ConnectionType.File);
+        var fileSender = CreateFileSender();
+        var ctx = CreateDummyContext("103", "PARTNER_FILE_INVALID", ConnectionType.File);
         var invalidDir = "Out/Invalid|Path\0";
         var request = new DeliveryRequest
         {
             JsonPayload = "{}",
-            ConnectType = BaseEnums.ConnectionType.File,
+            ConnectType = ConnectionType.File,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["DirectoryPath"] = invalidDir
@@ -94,12 +94,12 @@ public partial class DeliveryDispatcherTests
     [Fact]
     public async Task FileSender_WhenDirectoryPathHasPathTraversal_ReturnsInvalidConfiguration_Test()
     {
-        var fileSender = new FileDeliverySender();
-        var ctx = CreateDummyContext("103", "PARTNER_FILE_TRAVERSAL", BaseEnums.ConnectionType.File);
+        var fileSender = CreateFileSender();
+        var ctx = CreateDummyContext("103", "PARTNER_FILE_TRAVERSAL", ConnectionType.File);
         var request = new DeliveryRequest
         {
             PayloadBytes = Encoding.UTF8.GetBytes("test-content"),
-            ConnectType = BaseEnums.ConnectionType.File,
+            ConnectType = ConnectionType.File,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["DirectoryPath"] = "safe/../../etc/passwd"
@@ -117,14 +117,14 @@ public partial class DeliveryDispatcherTests
     [Fact]
     public async Task FileSender_WhenDirectoryPathAndFileNamePatternConfigured_SavesToExpectedCustomPath_Test()
     {
-        var fileSender = new FileDeliverySender();
-        var ctx = CreateDummyContext("103", "PARTNER_FILE_CUSTOM", BaseEnums.ConnectionType.File);
+        var fileSender = CreateFileSender();
+        var ctx = CreateDummyContext("103", "PARTNER_FILE_CUSTOM", ConnectionType.File);
         var expectedBytes = Encoding.UTF8.GetBytes("custom-file-payload-content");
         var request = new DeliveryRequest
         {
             PayloadBytes = expectedBytes,
             FileExtension = ".csv",
-            ConnectType = BaseEnums.ConnectionType.File,
+            ConnectType = ConnectionType.File,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["DirectoryPath"] = "custom_export_dir",
@@ -154,12 +154,12 @@ public partial class DeliveryDispatcherTests
     public async Task FileSender_WhenFileNamePatternMissingRequiredTokens_EmitsWarning_Test()
     {
         // Arrange
-        var handler = new FileDeliverySender();
+        var handler = CreateFileSender();
         var ctx = CreateSendContext(connectionType: "File");
         var request = new DeliveryRequest
         {
             PayloadBytes = Encoding.UTF8.GetBytes("{\"file\": 1}"),
-            ConnectType = BaseEnums.ConnectionType.File,
+            ConnectType = ConnectionType.File,
             ConnectConfig = new Dictionary<string, string>
             {
                 [ConnectKeys.DirectoryPath] = "test_warn_out",
@@ -187,12 +187,12 @@ public partial class DeliveryDispatcherTests
     public async Task FileSender_WhenFileNamePatternHasSerialToken_DoesNotEmitMissingTokenWarning_Test()
     {
         // Arrange
-        var handler = new FileDeliverySender();
+        var handler = CreateFileSender();
         var ctx = CreateSendContext(connectionType: "File");
         var request = new DeliveryRequest
         {
             PayloadBytes = Encoding.UTF8.GetBytes("{\"file\": 2}"),
-            ConnectType = BaseEnums.ConnectionType.File,
+            ConnectType = ConnectionType.File,
             ConnectConfig = new Dictionary<string, string>
             {
                 [ConnectKeys.DirectoryPath] = "test_warn_out",

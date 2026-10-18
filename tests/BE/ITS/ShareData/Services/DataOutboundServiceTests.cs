@@ -1,5 +1,6 @@
 using System.Net;
 using System.Reflection;
+using Microsoft.Extensions.Configuration;
 using Tests.ShareData.Common;
 using ShareDataWorker.Core.Utils.Parsing;
 using ShareDataWorker.Core.Interfaces;
@@ -22,7 +23,6 @@ using ShareDataWorker.Infrastructure.Logging;
 using ShareDataWorker.Infrastructure.Services.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Mapping;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
-using ShareDataWorker.Infrastructure.Services.DataWorkerConfig;
 using Modules.Integration.Delivery.Base.Constants;
 using Modules.Integration.Delivery.Base.Helpers;
 using Modules.Integration.Delivery.Base.Interfaces;
@@ -52,9 +52,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             using var scope = host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             db.Updateable<ShareDataSubscription>()
-                .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Expired)
+                .SetColumns(s => s.State == SubSubscriptionState.Expired)
                 .SetColumns(s => s.NextTimeRun == DateTime.MaxValue)
-                .Where(s => s.State == BaseEnums.SubSubscriptionState.Active)
+                .Where(s => s.State == SubSubscriptionState.Active)
                 .ExecuteCommand();
 
             db.Deleteable<TmsTrafficData>().ExecuteCommand();
@@ -96,7 +96,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.True(doc.RootElement.GetArrayLength() > 0);
 
             var updatedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
-            Assert.Equal(BaseEnums.SubSubscriptionState.Active, updatedSub.State);
+            Assert.Equal(SubSubscriptionState.Active, updatedSub.State);
             Assert.Equal((sub.SerialNbr ?? 0) + 1, updatedSub.SerialNbr);
             Assert.NotNull(updatedSub.NextTimeRun);
         }
@@ -243,7 +243,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 ID = mappingId,
                 PartnerId = partner.ID,
                 DatatypeId = "101",
-                Direction = BaseEnums.Direction.Outbound,
+                Direction = Direction.Outbound,
                 TargetShapeJson = JsonSerializer.Serialize(targetShape),
                 IsActive = true
             }).ExecuteCommandAsync();
@@ -346,7 +346,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 .Where(a => a.SubscriptionId == sub.ID && a.AlertCode == "ESH-1203")
                 .ToListAsync();
             Assert.NotEmpty(alerts);
-            Assert.Equal(BaseEnums.AlertSeverity.Warning, alerts[0].Severity);
+            Assert.Equal(AlertSeverity.Warning, alerts[0].Severity);
         }
 
 
@@ -874,8 +874,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 .Where(a => a.SubscriptionId == sub.ID && a.AlertCode == ShareDataAlertCode.Outbound.HttpSendFailed)
                 .ToListAsync();
             Assert.Single(alerts);
-            Assert.Equal(BaseEnums.AlertSeverity.Warning, alerts[0].Severity);
-            Assert.Equal(BaseEnums.AlertSource.Protocol, alerts[0].AlertSource);
+            Assert.Equal(AlertSeverity.Warning, alerts[0].Severity);
+            Assert.Equal(AlertSource.Protocol, alerts[0].AlertSource);
             Assert.Contains("500", alerts[0].Message);
             Assert.NotNull(alerts[0].DetailJson);
             Assert.Contains("500", alerts[0].DetailJson);
@@ -924,8 +924,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 .Where(a => a.SubscriptionId == sub.ID && a.AlertCode == ShareDataAlertCode.Outbound.HttpSendFailed)
                 .ToListAsync();
             Assert.Single(alerts);
-            Assert.Equal(BaseEnums.AlertSeverity.Warning, alerts[0].Severity);
-            Assert.Equal(BaseEnums.AlertSource.Protocol, alerts[0].AlertSource);
+            Assert.Equal(AlertSeverity.Warning, alerts[0].Severity);
+            Assert.Equal(AlertSource.Protocol, alerts[0].AlertSource);
             Assert.False(string.IsNullOrWhiteSpace(alerts[0].Message));
         }
 
@@ -974,7 +974,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 .Where(a => a.SubscriptionId == sub.ID && a.AlertCode == ShareDataAlertCode.Outbound.HttpSendFailed)
                 .ToListAsync();
             Assert.NotEmpty(alerts);
-            Assert.Equal(BaseEnums.AlertSeverity.Warning, alerts[0].Severity);
+            Assert.Equal(AlertSeverity.Warning, alerts[0].Severity);
         }
 
 
@@ -1024,7 +1024,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                     DatatypeId = packetCodeWithSuffix,
                     AliasFieldKey = k,
                     Type = "string",
-                    IsRequired = (k == "zoneStatusId" || k == "zoneId") ? BaseEnums.IsRequired.IsRequired : BaseEnums.IsRequired.NoRequired
+                    IsRequired = (k == "zoneStatusId" || k == "zoneId") ? IsRequired.IsRequired : IsRequired.NoRequired
                 }).ToList();
                 await db.Insertable(newFields).ExecuteCommandAsync();
             }
@@ -1114,7 +1114,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             {
                 File.Delete(blockerPath);
                 await db.Updateable<ShareDataSubscription>()
-                    .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Expired)
+                    .SetColumns(s => s.State == SubSubscriptionState.Expired)
                     .SetColumns(s => s.NextTimeRun == DateTime.MaxValue)
                     .Where(s => s.ID == sub.ID)
                     .ExecuteCommandAsync();
@@ -1168,7 +1168,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 var alerts = await db.Queryable<ShareDataAlertLog>()
                     .Where(a => a.SubscriptionId == sub.ID)
                     .ToListAsync();
-                Assert.Contains(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.ArchiveFailed && a.Severity == BaseEnums.AlertSeverity.Warning);
+                Assert.Contains(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.ArchiveFailed && a.Severity == AlertSeverity.Warning);
 
                 var updatedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
                 Assert.Null(updatedSub.LastTimeRun);
@@ -1178,7 +1178,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             {
                 File.Delete(blockerPath);
                 await db.Updateable<ShareDataSubscription>()
-                    .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Expired)
+                    .SetColumns(s => s.State == SubSubscriptionState.Expired)
                     .SetColumns(s => s.NextTimeRun == DateTime.MaxValue)
                     .Where(s => s.ID == sub.ID)
                     .ExecuteCommandAsync();
@@ -1232,7 +1232,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 var alerts = await db.Queryable<ShareDataAlertLog>()
                     .Where(a => a.SubscriptionId == sub.ID)
                     .ToListAsync();
-                Assert.Contains(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.ArchiveFailed && a.Severity == BaseEnums.AlertSeverity.Warning);
+                Assert.Contains(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.ArchiveFailed && a.Severity == AlertSeverity.Warning);
 
                 var updatedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
                 Assert.Null(updatedSub.LastTimeRun);
@@ -1242,7 +1242,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             {
                 File.Delete(blockerPath);
                 await db.Updateable<ShareDataSubscription>()
-                    .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Expired)
+                    .SetColumns(s => s.State == SubSubscriptionState.Expired)
                     .SetColumns(s => s.NextTimeRun == DateTime.MaxValue)
                     .Where(s => s.ID == sub.ID)
                     .ExecuteCommandAsync();
@@ -1335,7 +1335,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                     DatatypeId = "101_commonData",
                     AliasFieldKey = k,
                     Type = "string",
-                    IsRequired = (k == "zoneStatusId" || k == "zoneId") ? BaseEnums.IsRequired.IsRequired : BaseEnums.IsRequired.NoRequired
+                    IsRequired = (k == "zoneStatusId" || k == "zoneId") ? IsRequired.IsRequired : IsRequired.NoRequired
                 }).ToList();
                 await db.Insertable(newFields).ExecuteCommandAsync();
             }
@@ -1419,7 +1419,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var (pDisabled, subDisabled) = await SeedOutboundSubscription(db, new OutboundSubSeed { PartnerCode = $"P_DIS_{uniqueId}", SubCode = $"S_DIS_{uniqueId}", DatatypeId = "101_commonData", ConfigurePartner = p => p.Status = BaseEnums.StatusEnum.Disable });
 
             // Case 2: Partner bị Disconnected -> Không được chọn
-            var (pDisconn, subDisconn) = await SeedOutboundSubscription(db, new OutboundSubSeed { PartnerCode = $"P_DCN_{uniqueId}", SubCode = $"S_DCN_{uniqueId}", DatatypeId = "101_commonData", ConfigurePartner = p => p.SessionState = BaseEnums.SessionState.Disconnected });
+            var (pDisconn, subDisconn) = await SeedOutboundSubscription(db, new OutboundSubSeed { PartnerCode = $"P_DCN_{uniqueId}", SubCode = $"S_DCN_{uniqueId}", DatatypeId = "101_commonData", ConfigurePartner = p => p.SessionState = SessionState.Disconnected });
 
             // Case 3: Partner bị xoá mềm (IsDelete != null) -> Không được chọn
             var (pDeleted, subDeleted) = await SeedOutboundSubscription(db, new OutboundSubSeed { PartnerCode = $"P_DEL_{uniqueId}", SubCode = $"S_DEL_{uniqueId}", DatatypeId = "101_commonData", ConfigurePartner = p => p.IsDelete = now });
@@ -1433,7 +1433,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 ConfigurePartner = p =>
                 {
                     p.Status = BaseEnums.StatusEnum.Enable;
-                    p.SessionState = BaseEnums.SessionState.Connected;
+                    p.SessionState = SessionState.Connected;
                     p.IsDelete = null;
                 }
             });
@@ -1538,7 +1538,7 @@ END");
                 Assert.Equal(BaseEnums.SuccessEnums.Success, goodLogs[0].Success);
 
                 var updatedGoodSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(goodSub.ID);
-                Assert.Equal(BaseEnums.SubSubscriptionState.Active, updatedGoodSub.State);
+                Assert.Equal(SubSubscriptionState.Active, updatedGoodSub.State);
                 Assert.Equal((goodSub.SerialNbr ?? 0) + 1, updatedGoodSub.SerialNbr);
             }
             finally
@@ -1576,7 +1576,7 @@ END");
             Assert.Equal(BaseEnums.SuccessEnums.Success, goodLogs[0].Success);
 
             var updatedGoodSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(goodSub.ID);
-            Assert.Equal(BaseEnums.SubSubscriptionState.Active, updatedGoodSub.State);
+            Assert.Equal(SubSubscriptionState.Active, updatedGoodSub.State);
             Assert.Equal((goodSub.SerialNbr ?? 0) + 1, updatedGoodSub.SerialNbr);
 
             var badLogs = await GetLogs(db, badSub.ID);
@@ -1592,7 +1592,7 @@ END");
             Assert.Equal(ShareDataAlertCode.Outbound.PacketNotFound, badAlerts[0].AlertCode);
 
             var updatedBadSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(badSub.ID);
-            Assert.Equal(BaseEnums.SubSubscriptionState.Active, updatedBadSub.State);
+            Assert.Equal(SubSubscriptionState.Active, updatedBadSub.State);
             Assert.NotNull(updatedBadSub.NextTimeRun);
             Assert.True(updatedBadSub.NextTimeRun > (await db.Ado.GetDateTimeAsync("SELECT GETDATE()")).AddSeconds(-5), "NextTimeRun phải được ReleaseLock cập nhật lại (không còn kẹt ở mốc lockDurationSeconds cũ).");
         }
@@ -1737,7 +1737,7 @@ END");
             {
                 DatatypeId = "101",
                 SerialNbr = 9999,
-                Format = BaseEnums.PublishFormat.Data
+                Format = PublishFormat.Data
             };
             var ctx = new DataOutboundContext(sub, partner, packet, mapping, DateTime.Now, CancellationToken.None);
 
@@ -2268,7 +2268,7 @@ LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId";
 
             await db.Updateable<ShareDataPacket>()
                 .SetColumns(p => p.ExtractSql == sql101)
-                .SetColumns(p => p.SyncMode == BaseEnums.SyncMode.Snapshot)
+                .SetColumns(p => p.SyncMode == SyncMode.Snapshot)
                 .Where(p => p.Code == "101" || p.Code == "101_commonData")
                 .ExecuteCommandAsync();
 
@@ -2301,7 +2301,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
             await db.Updateable<ShareDataPacket>()
                 .SetColumns(p => p.ExtractSql == sql103)
-                .SetColumns(p => p.SyncMode == BaseEnums.SyncMode.Incremental)
+                .SetColumns(p => p.SyncMode == SyncMode.Incremental)
                 .SetColumns(p => p.CursorTimeColumn == "DetectTime")
                 .Where(p => p.Code == "103" || p.Code == "103_vdsData")
                 .ExecuteCommandAsync();
@@ -2394,9 +2394,9 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 Code = $"SUB_103_{unique}",
                 PartnerId = partner.ID,
                 DatatypeId = "103",
-                Direction = BaseEnums.Direction.Outbound,
-                Mode = BaseEnums.SubMode.Periodic,
-                State = BaseEnums.SubSubscriptionState.Active,
+                Direction = Direction.Outbound,
+                Mode = SubMode.Periodic,
+                State = SubSubscriptionState.Active,
                 SendOnNewData = true,
                 NextTimeRun = DateTime.Now.AddSeconds(-10),
                 IntervalSeconds = 30,
@@ -2416,7 +2416,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 ID = Guid.NewGuid().ToString("N"),
                 PartnerId = partner.ID,
                 DatatypeId = "103",
-                Direction = BaseEnums.Direction.Outbound,
+                Direction = Direction.Outbound,
                 IsActive = true,
                 TargetShapeJson = JsonSerializer.Serialize(shapeDict103)
             }).ExecuteCommandAsync();
@@ -2588,7 +2588,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             PacketDefaultTemplate.TryGet("110", out var tpl110);
             await db.Updateable<ShareDataPacket>()
                 .SetColumns(p => p.Status == BaseEnums.StatusEnum.Enable)
-                .SetColumns(p => p.SyncMode == BaseEnums.SyncMode.Snapshot)
+                .SetColumns(p => p.SyncMode == SyncMode.Snapshot)
                 .SetColumns(p => p.ExtractSql == (tpl110 != null ? tpl110.ExtractSql : null))
                 .Where(p => p.Code == "110" || p.Code == "110_publicMessaging")
                 .ExecuteCommandAsync();
@@ -2601,7 +2601,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 DatatypeId = "110",
                 ConfigureSub = s =>
                 {
-                    s.Mode = BaseEnums.SubMode.Periodic;
+                    s.Mode = SubMode.Periodic;
                     s.IntervalSeconds = 30;
                 }
             });
@@ -4283,7 +4283,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 EndPointApiUrl = "/api/v1/sharedata"
             };
             var packet = new ShareDataPacket { Code = "101_commonData", PacketVersion = "1.0" };
-            var sub = new ShareDataSubscription { DatatypeId = "101", SerialNbr = 1287, Format = BaseEnums.PublishFormat.Data };
+            var sub = new ShareDataSubscription { DatatypeId = "101", SerialNbr = 1287, Format = PublishFormat.Data };
             var ctx = new DataOutboundContext(sub, partner, packet, null, DateTime.Now, CancellationToken.None);
 
             // Act
@@ -4344,7 +4344,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 EndPointApiUrl = "/api/v1/sharedata"
             };
             var packet = new ShareDataPacket { Code = "101", PacketVersion = "1.0" };
-            var sub = new ShareDataSubscription { DatatypeId = "101", Format = BaseEnums.PublishFormat.Data };
+            var sub = new ShareDataSubscription { DatatypeId = "101", Format = PublishFormat.Data };
             var ctx = new DataOutboundContext(sub, partner, packet, null, DateTime.Now, CancellationToken.None);
 
             // Act
@@ -5460,7 +5460,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 await db.Deleteable<TmsTrafficData>().Where(t => t.EquipmentId == eqId).ExecuteCommandAsync();
                 await db.Deleteable<TmsEquipment>().Where(e => e.ID == eqId).ExecuteCommandAsync();
                 await db.Updateable<ShareDataSubscription>()
-                    .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Expired)
+                    .SetColumns(s => s.State == SubSubscriptionState.Expired)
                     .SetColumns(s => s.NextTimeRun == DateTime.MaxValue)
                     .Where(s => s.ID == sub.ID)
                     .ExecuteCommandAsync();
@@ -5516,7 +5516,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             Assert.Equal(2100, plates.Distinct().Count());
 
             await db.Updateable<ShareDataSubscription>()
-                .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Expired)
+                .SetColumns(s => s.State == SubSubscriptionState.Expired)
                 .SetColumns(s => s.NextTimeRun == DateTime.MaxValue)
                 .Where(s => s.ID == sub.ID)
                 .ExecuteCommandAsync();
@@ -5570,7 +5570,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             Assert.Equal(1, logs.Count(l => l.ParentId == null && l.Success == BaseEnums.SuccessEnums.Fail));
 
             var alerts = await db.Queryable<ShareDataAlertLog>().Where(a => a.SubscriptionId == sub.ID).ToListAsync();
-            Assert.Contains(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.HttpSendFailed && a.Severity == BaseEnums.AlertSeverity.Warning);
+            Assert.Contains(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.HttpSendFailed && a.Severity == AlertSeverity.Warning);
 
             // Watermark dừng đúng bản ghi thứ 200 — không nhảy tới 250, không lùi
             var lastSend = await db.Queryable<ShareDataLastSend>().Where(c => c.PartnerCode == partner.Code).FirstAsync();
@@ -5594,7 +5594,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             Assert.Equal(250, plates.Distinct().Count());
 
             await db.Updateable<ShareDataSubscription>()
-                .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Expired)
+                .SetColumns(s => s.State == SubSubscriptionState.Expired)
                 .SetColumns(s => s.NextTimeRun == DateTime.MaxValue)
                 .Where(s => s.ID == sub.ID)
                 .ExecuteCommandAsync();
@@ -5646,7 +5646,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             await db.Deleteable<TmsTrafficData>().Where(t => t.EquipmentId == eqId).ExecuteCommandAsync();
             await db.Deleteable<TmsEquipment>().Where(e => e.ID == eqId).ExecuteCommandAsync();
             await db.Updateable<ShareDataSubscription>()
-                .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Expired)
+                .SetColumns(s => s.State == SubSubscriptionState.Expired)
                 .SetColumns(s => s.NextTimeRun == DateTime.MaxValue)
                 .Where(s => s.ID == sub.ID)
                 .ExecuteCommandAsync();
@@ -5724,7 +5724,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             Assert.Equal(250, plates.Distinct().Count());
 
             await db.Updateable<ShareDataSubscription>()
-                .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Expired)
+                .SetColumns(s => s.State == SubSubscriptionState.Expired)
                 .SetColumns(s => s.NextTimeRun == DateTime.MaxValue)
                 .Where(s => s.ID == sub.ID)
                 .ExecuteCommandAsync();
@@ -5744,9 +5744,9 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             _host.PartnerServer.ResetDefaults();
 
             await db.Updateable<ShareDataSubscription>()
-                .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Expired)
+                .SetColumns(s => s.State == SubSubscriptionState.Expired)
                 .SetColumns(s => s.NextTimeRun == DateTime.MaxValue)
-                .Where(s => s.State == BaseEnums.SubSubscriptionState.Active)
+                .Where(s => s.State == SubSubscriptionState.Active)
                 .ExecuteCommandAsync();
 
             await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
@@ -5793,7 +5793,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             finally
             {
                 await db.Updateable<ShareDataSubscription>()
-                    .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Expired)
+                    .SetColumns(s => s.State == SubSubscriptionState.Expired)
                     .SetColumns(s => s.NextTimeRun == DateTime.MaxValue)
                     .Where(s => s.ID == sub.ID)
                     .ExecuteCommandAsync();
@@ -5845,7 +5845,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             finally
             {
                 await db.Updateable<ShareDataSubscription>()
-                    .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Expired)
+                    .SetColumns(s => s.State == SubSubscriptionState.Expired)
                     .SetColumns(s => s.NextTimeRun == DateTime.MaxValue)
                     .Where(s => s.ID == sub.ID)
                     .ExecuteCommandAsync();
@@ -5919,7 +5919,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             finally
             {
                 await db.Updateable<ShareDataSubscription>()
-                    .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Expired)
+                    .SetColumns(s => s.State == SubSubscriptionState.Expired)
                     .SetColumns(s => s.NextTimeRun == DateTime.MaxValue)
                     .Where(s => s.ID == sub.ID)
                     .ExecuteCommandAsync();
@@ -5987,7 +5987,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             {
                 partnerServer.ResetDefaults();
                 await db.Updateable<ShareDataSubscription>()
-                    .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Expired)
+                    .SetColumns(s => s.State == SubSubscriptionState.Expired)
                     .SetColumns(s => s.NextTimeRun == DateTime.MaxValue)
                     .Where(s => s.ID == sub.ID)
                     .ExecuteCommandAsync();
@@ -6042,7 +6042,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             finally
             {
                 await db.Updateable<ShareDataSubscription>()
-                    .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Expired)
+                    .SetColumns(s => s.State == SubSubscriptionState.Expired)
                     .SetColumns(s => s.NextTimeRun == DateTime.MaxValue)
                     .Where(s => s.ID == sub.ID)
                     .ExecuteCommandAsync();
@@ -6136,7 +6136,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             {
                 partnerServer.ResetDefaults();
                 await db.Updateable<ShareDataSubscription>()
-                    .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Expired)
+                    .SetColumns(s => s.State == SubSubscriptionState.Expired)
                     .SetColumns(s => s.NextTimeRun == DateTime.MaxValue)
                     .Where(s => s.ID == sub.ID)
                     .ExecuteCommandAsync();
@@ -6182,7 +6182,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             finally
             {
                 await db.Updateable<ShareDataSubscription>()
-                    .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Expired)
+                    .SetColumns(s => s.State == SubSubscriptionState.Expired)
                     .SetColumns(s => s.NextTimeRun == DateTime.MaxValue)
                     .Where(s => s.ID == sub.ID)
                     .ExecuteCommandAsync();
@@ -6284,7 +6284,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 await db.Deleteable<TmsIncident>().Where(i => i.EventTypeId == eventTypeId).ExecuteCommandAsync();
                 await db.Deleteable<TmsEventType>().Where(e => e.ID == eventTypeId).ExecuteCommandAsync();
                 await db.Updateable<ShareDataSubscription>()
-                    .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Expired)
+                    .SetColumns(s => s.State == SubSubscriptionState.Expired)
                     .SetColumns(s => s.NextTimeRun == DateTime.MaxValue)
                     .Where(s => s.ID == sub.ID)
                     .ExecuteCommandAsync();
@@ -6369,7 +6369,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 await db.Deleteable<TmsIncident>().Where(i => i.EventTypeId == eventTypeId).ExecuteCommandAsync();
                 await db.Deleteable<TmsEventType>().Where(e => e.ID == eventTypeId).ExecuteCommandAsync();
                 await db.Updateable<ShareDataSubscription>()
-                    .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Expired)
+                    .SetColumns(s => s.State == SubSubscriptionState.Expired)
                     .SetColumns(s => s.NextTimeRun == DateTime.MaxValue)
                     .Where(s => s.ID == sub.ID)
                     .ExecuteCommandAsync();
@@ -6537,7 +6537,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
             await PacketMetadataCatalogTest.SeedPacketToDb(db, "105");
             var packet105 = await db.Queryable<ShareDataPacket>().Where(p => p.Code == "105").FirstAsync();
-            packet105.SyncMode = BaseEnums.SyncMode.Incremental;
+            packet105.SyncMode = SyncMode.Incremental;
             await db.Updateable(packet105).UpdateColumns(p => new { p.SyncMode }).ExecuteCommandAsync();
 
             var unique = Guid.NewGuid().ToString("N")[..8];
@@ -6580,7 +6580,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 Code = packetCode,
                 Name = $"No SQL Packet {unique}",
                 PacketVersion = "1.0",
-                SyncMode = BaseEnums.SyncMode.Incremental,
+                SyncMode = SyncMode.Incremental,
                 Status = BaseEnums.StatusEnum.Enable,
                 ExtractSql = null
             };
@@ -6691,7 +6691,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 Code = s.PartnerCode,
                 Name = $"Partner {s.PartnerCode}",
                 Status = BaseEnums.StatusEnum.Enable,
-                SessionState = BaseEnums.SessionState.Connected,
+                SessionState = SessionState.Connected,
                 Address = ShareDataPartnerServerMock.DefaultHost,
                 Port = ShareDataPartnerServerMock.DefaultPort,
                 EndPointApiUrl = "/api/sharedata/sharedatainbound"
@@ -6705,9 +6705,9 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 Code = s.SubCode,
                 PartnerId = partner.ID,
                 DatatypeId = s.DatatypeId,
-                Direction = BaseEnums.Direction.Outbound,
-                Mode = BaseEnums.SubMode.Periodic,
-                State = BaseEnums.SubSubscriptionState.Active,
+                Direction = Direction.Outbound,
+                Mode = SubMode.Periodic,
+                State = SubSubscriptionState.Active,
                 NextTimeRun = dbNow.AddSeconds(-10),
                 IntervalSeconds = 30
             };
@@ -6736,7 +6736,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 ID = Guid.NewGuid().ToString("N"),
                 PartnerId = partner.ID,
                 DatatypeId = s.DatatypeId,
-                Direction = BaseEnums.Direction.Outbound,
+                Direction = Direction.Outbound,
                 IsActive = true,
                 TargetShapeJson = System.Text.Json.JsonSerializer.Serialize(shapeToUse)
             }).ExecuteCommandAsync();
@@ -7017,10 +7017,14 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataOutboundService>>();
             var config = configuration ?? scope.ServiceProvider.GetRequiredService<IConfiguration>();
             var clientFactory = httpClientFactory ?? scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
+            var fileConfig = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [ExportPathHelper.BasePathConfigKey] = config.GetSection(ExportPathHelper.BasePathConfigKey).Value ?? Path.Combine(Path.GetTempPath(), "sharedata_send")
+            }).Build();
             var dispatcher = scope.ServiceProvider.GetService<IDeliveryDispatcher>()
                 ?? DeliveryDispatcher.CreateForHandlers([
                     new HttpDeliverySender(clientFactory),
-                    new FileDeliverySender(config.GetSection("NasStorage:BasePath").Value ?? "/tmp"),
+                    new FileDeliverySender(fileConfig, scope.ServiceProvider.GetRequiredService<ILogger<FileDeliverySender>>()),
                     new KafkaDeliverySender(),
                     new FtpDeliverySender()
                 ]);
@@ -7030,7 +7034,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 logger,
                 scope.ServiceProvider.GetRequiredService<IDataOutboundExtractionProcess>(),
                 new DataOutboundTransport(dispatcher, config),
-                scope.ServiceProvider.GetRequiredService<DataWorkerConfigService>());
+                scope.ServiceProvider.GetRequiredService<IDataWorkerConfigService>());
         }
 
         /// <summary>
@@ -7214,7 +7218,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         AliasFieldKey = field.FieldKey,
                         Type = field.DataType,
                         Name = field.Name,
-                        IsRequired = field.Required ? BaseEnums.IsRequired.IsRequired : BaseEnums.IsRequired.NoRequired,
+                        IsRequired = field.Required ? IsRequired.IsRequired : IsRequired.NoRequired,
                         CreateTime = baseTime.AddSeconds(order++)
                     });
                 }
@@ -7249,7 +7253,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "101",
                         Name = "Thông tin chung / luồng giao thông",
                         PacketVersion = "1.0",
-                        SyncMode = BaseEnums.SyncMode.Snapshot,
+                        SyncMode = SyncMode.Snapshot,
                         Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
@@ -7277,7 +7281,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "102",
                         Name = "Dữ liệu hình ảnh giao thông (CCTV)",
                         PacketVersion = "1.0",
-                        SyncMode = BaseEnums.SyncMode.Snapshot,
+                        SyncMode = SyncMode.Snapshot,
                         Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
@@ -7301,7 +7305,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "103",
                         Name = "Dữ liệu dò xe (VDS)",
                         PacketVersion = "1.0",
-                        SyncMode = BaseEnums.SyncMode.Incremental,
+                        SyncMode = SyncMode.Incremental,
                         Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
@@ -7328,7 +7332,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "104",
                         Name = "Dữ liệu thời tiết",
                         PacketVersion = "1.0",
-                        SyncMode = BaseEnums.SyncMode.Incremental,
+                        SyncMode = SyncMode.Incremental,
                         Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
@@ -7356,7 +7360,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "105",
                         Name = "Dữ liệu định danh phương tiện (AVI/RFID)",
                         PacketVersion = "1.0",
-                        SyncMode = BaseEnums.SyncMode.Snapshot,
+                        SyncMode = SyncMode.Snapshot,
                         Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
@@ -7382,7 +7386,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "106",
                         Name = "Dữ liệu kiểm tra tải trọng xe (WIM)",
                         PacketVersion = "1.0",
-                        SyncMode = BaseEnums.SyncMode.Incremental,
+                        SyncMode = SyncMode.Incremental,
                         Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
@@ -7405,7 +7409,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "107",
                         Name = "Thông tin sự kiện giao thông",
                         PacketVersion = "1.0",
-                        SyncMode = BaseEnums.SyncMode.Incremental,
+                        SyncMode = SyncMode.Incremental,
                         Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
@@ -7435,7 +7439,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "108",
                         Name = "Thông tin biển báo điện tử (VMS)",
                         PacketVersion = "1.0",
-                        SyncMode = BaseEnums.SyncMode.Snapshot,
+                        SyncMode = SyncMode.Snapshot,
                         Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
@@ -7462,7 +7466,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "109",
                         Name = "Dữ liệu thu phí (ETC/MTC)",
                         PacketVersion = "1.0",
-                        SyncMode = BaseEnums.SyncMode.Incremental,
+                        SyncMode = SyncMode.Incremental,
                         Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
@@ -7490,7 +7494,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "110",
                         Name = "Trao đổi với người tham gia giao thông",
                         PacketVersion = "1.0",
-                        SyncMode = BaseEnums.SyncMode.Snapshot,
+                        SyncMode = SyncMode.Snapshot,
                         Status = BaseEnums.StatusEnum.Disable
                     },
                     Fields =
@@ -7515,7 +7519,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "111",
                         Name = "Trao đổi với TT QLĐHGT tuyến",
                         PacketVersion = "1.0",
-                        SyncMode = BaseEnums.SyncMode.Incremental,
+                        SyncMode = SyncMode.Incremental,
                         Status = BaseEnums.StatusEnum.Disable
                     },
                     Fields =

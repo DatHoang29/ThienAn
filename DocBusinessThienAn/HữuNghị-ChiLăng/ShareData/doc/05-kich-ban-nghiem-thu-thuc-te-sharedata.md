@@ -258,8 +258,8 @@ Theo chủ trương của chủ dự án, **ưu tiên thao tác trực tiếp tr
 ##### Bước 8 (Tùy chọn) — Cấu hình tham số vận hành ShareData (`SysOpConfig` nhóm `sharedata_config`)
 1. Mở màn hình: **Hệ thống** → **Cấu hình hoạt động** (`views/cfgSystem/sysOpConfig/index.vue`).
 2. Tại ô lọc *Nhóm cấu hình*: Chọn nhóm `sharedata_config` (Cấu hình vận hành & giới hạn Chia sẻ dữ liệu).
-3. Bảng bên phải hiển thị danh sách 47 tham số vận hành của phân hệ ShareData (gồm 18 tham số Worker, 23 tham số FE và 6 tham số WebAPI; chi tiết xem [Phụ lục F](#phụ-lục-f-danh-mục-46-tham-số-vận-hành-sharedata-sysopconfig-nhóm-sharedata_config)).
-4. Người dùng có thể chỉnh sửa trực tiếp giá trị tham số trên giao diện mà không cần build lại mã nguồn hay khởi động lại ứng dụng. Phía WebAPI (`LimitOption` đăng ký `IScoped` qua `ILimitOption`) truy vấn trực tiếp `SysOpConfig` theo từng HTTP request nên nhận giá trị mới ngay lập tức không có độ trễ; phía Worker quét nạp lại định kỳ sau mỗi chu kỳ `ConfigReloadSeconds` (30 giây). Nếu không cấu hình hoặc để trống, hệ thống luôn tự động dùng giá trị dự phòng an toàn trong mã nguồn.
+3. Bảng bên phải hiển thị danh sách 47 tham số vận hành của phân hệ ShareData (gồm 18 tham số Worker, 23 tham số FE và 6 tham số WebAPI; chi tiết xem [Phụ lục F](#phụ-lục-f-danh-mục-47-tham-số-vận-hành-sharedata-sysopconfig-nhóm-sharedata_config)).
+4. Người dùng có thể chỉnh sửa trực tiếp giá trị tham số trên giao diện mà không cần build lại mã nguồn hay khởi động lại ứng dụng. Phía WebAPI (`ShareDataConfigService` đăng ký `IScoped`) truy vấn trực tiếp `SysOpConfig` theo từng HTTP request qua `IMessageBus` nên nhận giá trị mới ngay lập tức không có độ trễ; phía Worker (`DataWorkerConfigService`) quét nạp lại định kỳ sau mỗi chu kỳ `ConfigReloadSeconds` (30 giây). Nếu không cấu hình hoặc để trống, hệ thống luôn tự động dùng giá trị dự phòng an toàn và khoảng an toàn tuyệt đối khai báo tại `ShareDataConst` (`Module.ShareData.Core/Constants`).
 
 ---
 
@@ -739,7 +739,7 @@ Kịch bản chứng minh luồng toàn trình gửi → nhận hoạt động t
 
 | # | Bước | Kết quả mong đợi | Kết quả |
 |---|---|---|---|
-| J1 | Khởi động Worker / WebAPI / FE khi trong CSDL chưa có hoặc thiếu dòng cấu hình (hoặc bị xóa mềm) | Hệ thống **tự động kích hoạt cơ chế dự phòng (fallback)**: lấy giá trị mặc định được định nghĩa sẵn trong mã nguồn (`IDataWorkerOption` (`DataWorkerOption`) cho Worker, `ILimitOption` (`LimitOption`) cho WebAPI, `SHAREDATA_FE_CONFIG_FALLBACK` cho FE); không phát sinh exception, không làm sập ứng dụng | ☐ Đạt ☐ Không đạt |
+| J1 | Khởi động Worker / WebAPI / FE khi trong CSDL chưa có hoặc thiếu dòng cấu hình (hoặc bị xóa mềm) | Hệ thống **tự động kích hoạt cơ chế dự phòng (fallback)**: lấy giá trị mặc định được định nghĩa sẵn trong mã nguồn (`DataWorkerConfigService` cho Worker, `ShareDataConfigService` cho WebAPI, `SHAREDATA_FE_CONFIG_FALLBACK` cho FE, khai tập trung tại `ShareDataConst`); không phát sinh exception, không làm sập ứng dụng | ☐ Đạt ☐ Không đạt |
 | J2 | Trên màn hình *Cấu hình hoạt động*, lọc nhóm `sharedata_config`, chỉnh sửa giá trị 1 tham số của Worker (ví dụ tăng `outbound_check_interval_sec` từ `5` lên `10`) → bấm Lưu | Sau thời gian ≤ `ConfigReloadSeconds` (30 giây), log console của Worker ghi nhận dòng thông báo phát hiện cấu hình thay đổi: ghi rõ giá trị cũ (`5`) → giá trị mới (`10`) và chu kỳ quét mới lập tức có hiệu lực | ☐ ☐ |
 | J3 | Sửa giá trị tham số trong `SysOpConfig` thành chuỗi sai định dạng (ví dụ đặt `outbound_check_interval_sec = 'abc'`) hoặc đặt giá trị vượt quá khoảng cho phép (ví dụ `outbound_check_interval_sec = 9999`) | Worker nhận biết giá trị không hợp lệ, **tự động giữ/quay về giá trị dự phòng mặc định (5 giây)** và ghi **đúng 1 cảnh báo** ra log/alert (`ESH-1403` hoặc log cảnh báo cấu hình), không spam log liên tục | ☐ ☐ |
 | J4 | Tắt dòng tham số bằng cách đổi trạng thái `Status = 0` (hoặc xóa mềm `IsDelete = GETDATE()`) trong `SysOpConfig` | Hệ thống coi như tham số không tồn tại trong DB và **tự động chuyển sang sử dụng giá trị mặc định trong mã**, đảm bảo luồng vận hành không bị gián đoạn | ☐ ☐ |
@@ -980,7 +980,7 @@ GO
 
 ### Phụ lục F: Danh mục 47 tham số vận hành ShareData (SysOpConfig nhóm sharedata_config)
 
-> 📌 *Nguồn trích xuất chuẩn:* [`03-sharedata-seed-cau-hinh.sql`](../sql/03-sharedata-seed-cau-hinh.sql) (Mục 4), lớp cấu hình Worker `DataWorkerOption.cs` (`ShareDataWorker.Core/Configuration`), dịch vụ WebAPI `LimitOption.cs` (`Module.ShareData/Infrastructure/Configuration`), và hằng số dự phòng giao diện `SHAREDATA_FE_CONFIG_FALLBACK` (`TA-ITS015-WEBVUE-V1.0/src/src/types/constants/sharedataFeConfig.ts`).  
+> 📌 *Nguồn trích xuất chuẩn:* [`03-sharedata-seed-cau-hinh.sql`](../sql/03-sharedata-seed-cau-hinh.sql) (Mục 4), dịch vụ cấu hình Worker `DataWorkerConfigService.cs` (`ShareDataWorker/Infrastructure/Services/DataWorkerConfig`), dịch vụ WebAPI `ShareDataConfigService.cs` (`Module.ShareData/Infrastructure/Services/ShareDataConfig`, đọc `SysOpConfig` qua `IMessageBus`), hằng số và bảng đặc tả cấu hình `ShareDataConst.cs` (`Module.ShareData.Core/Constants`), và hằng số dự phòng giao diện `SHAREDATA_FE_CONFIG_FALLBACK` (`TA-ITS015-WEBVUE-V1.0/src/src/types/constants/sharedataFeConfig.ts`).  
 > ℹ️ Toàn bộ 47 tham số được phân nhóm theo tiền tố và thành phần sử dụng: 18 tham số Worker (nhóm A), 23 tham số FE/WebAPI dùng chung (nhóm B), và 6 tham số WebAPI/SQL Center (nhóm C). Người dùng có thể tra cứu và điều chỉnh trên màn hình *Cấu hình hoạt động* (lọc theo nhóm `sharedata_config`).
 
 | STT | Mã tham số (`Code`) | Tên hiển thị (`Name`) | Mặc định (`Value`) | Thứ tự (`OrderNo`) | Khoảng hợp lệ & Đơn vị | Thành phần sử dụng | Ý nghĩa vận hành chi tiết |

@@ -16,19 +16,19 @@ public partial class DeliveryDispatcherTests
     {
         // Arrange
         var ftpSender = new FtpDeliverySender();
-        var ctx = CreateDummyContext("101", "PARTNER_FTP", BaseEnums.ConnectionType.Ftp);
+        var ctx = CreateDummyContext("101", "PARTNER_FTP", ConnectionType.Ftp);
 
         var disabledReq = new DeliveryRequest
         {
             JsonPayload = "[{\"id\": 1}]",
-            ConnectType = BaseEnums.ConnectionType.Ftp,
+            ConnectType = ConnectionType.Ftp,
             ConnectConfig = new Dictionary<string, string> { ["Enabled"] = "false" }
         };
 
         var missingHostReq = new DeliveryRequest
         {
             JsonPayload = "[{\"id\": 1}]",
-            ConnectType = BaseEnums.ConnectionType.Ftp,
+            ConnectType = ConnectionType.Ftp,
             ConnectConfig = new Dictionary<string, string> { ["Enabled"] = "true" }
         };
 
@@ -49,7 +49,7 @@ public partial class DeliveryDispatcherTests
     public async Task FtpSender_WhenCsvPayloadBytesProvided_UsesExactPayloadBytesAndCsvExtension_Test()
     {
         var ftpSender = new FtpDeliverySender();
-        var ctx = CreateDummyContext("101", "PARTNER_FTP_CSV", BaseEnums.ConnectionType.Ftp);
+        var ctx = CreateDummyContext("101", "PARTNER_FTP_CSV", ConnectionType.Ftp);
         var csvBytes = Encoding.UTF8.GetBytes("ID,Code,Name\r\n1,A,Item1\r\n2,B,Item2");
         var request = new DeliveryRequest
         {
@@ -57,7 +57,7 @@ public partial class DeliveryDispatcherTests
             ContentType = "text/csv",
             FileExtension = ".csv",
             JsonPayload = "{}",
-            ConnectType = BaseEnums.ConnectionType.Ftp,
+            ConnectType = ConnectionType.Ftp,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["RemotePath"] = "/test/path"

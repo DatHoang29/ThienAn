@@ -84,7 +84,7 @@ flowchart TD
 | **1** | `ShareDataPacket` | `ShareDataPacket` | **Cũ (Cải tiến)** | 08/2026 $\rightarrow$ 14/10/2026 | Danh mục 11 gói tin chuẩn (101–111). Lưu **SQL Template mẫu mặc định** (`ExtractSql`), chế độ đồng bộ (`SyncMode`), cột con trỏ (`CursorTimeColumn`) và số ngày quét lùi (`MaxLookBackDays`). |
 | **2** | `ShareDataPacketField` | `ShareDataPacketField` | **Cũ** | 08/2026 | Khai báo từ điển danh mục các trường dữ liệu của từng gói tin (`DatatypeId`, `AliasFieldKey`, `Type`, `GroupName`). |
 | **3** | `ShareDataPacketSql` | `ShareDataPacketSql` | **Cũ** | 15/09/2026 | Câu lệnh SQL ghi (`WriteSql`) chiều **NHẬN** của gói tin (chạy `MERGE` sử dụng `OPENJSON(@records)` trên CSDL Inbound). |
-| **4** | `ShareDataPartner` | `ShareDataPartner` | **Cũ (Cải tiến)** | 08/2026 $\rightarrow$ 13/10/2026 | Danh mục đối tác tích hợp. Bổ sung `ConnectionType` (lưu số nguyên theo `BaseEnums.ConnectionType`: 1-API, 2-File, 3-FTP, 4-FTPS, 5-Kafka) và `ConnectionConfig` dạng `Dictionary<string, string>` JSON linh hoạt. |
+| **4** | `ShareDataPartner` | `ShareDataPartner` | **Cũ (Cải tiến)** | 08/2026 $\rightarrow$ 13/10/2026 | Danh mục đối tác tích hợp. Bổ sung `ConnectionType` (lưu số nguyên theo enum `ConnectionType` tại `Modules.Integration.Delivery.Base/Enums`: 1-API, 2-File, 3-FTP, 4-FTPS, 5-Kafka) và `ConnectionConfig` dạng `Dictionary<string, string>` JSON linh hoạt. |
 | **5** | `ShareDataSubscription` | `ShareDataSubscription` | **Cũ (Cải tiến)** | 08/2026 $\rightarrow$ 12/10/2026 | Hồ sơ đăng ký chia sẻ 2 chiều. Chứa lịch gửi `ScheduleJson`, `NextTimeRun`, `ProcessingUntil`, `LastTimeRun`, cờ `SendOnNewData`. Đã bỏ `MappingId` cứng để phân giải sống. |
 | **6** | `ShareDataMapping` | `ShareDataMapping` | **Cũ (Cải tiến)** | 08/2026 $\rightarrow$ 14/10/2026 | Hồ sơ ánh xạ cấu trúc dữ liệu (`PartnerSchemaJson`, `TargetShapeJson`) chuyển đổi giữa dữ liệu nguồn nội bộ và cấu trúc JSON chuẩn của đối tác cho cả 2 chiều Gửi/Nhận. |
 | **7** | `ShareDataCodeSet` | `ShareDataCodeSet` | **Cũ** | 08/2026 | Bộ mã quy đổi giá trị danh mục nội bộ $\leftrightarrow$ giá trị chuẩn của đối tác qua cấu trúc JSON `ValuesJson`. |
@@ -123,7 +123,7 @@ flowchart TD
   | `Status`           | `int` (`BaseEnums.StatusEnum?`) | Nullable | Trạng thái sử dụng (`Enable` = 1, `Disable` = 0). |
   | `Remark`           | `nvarchar(256)` | Nullable | Ghi chú gói tin. |
   | `ExtractSql`       | `nvarchar(max)` | Nullable | *(Mới 14/10/2026)* Câu truy vấn SQL trích xuất dữ liệu nguồn động mẫu chuẩn (chiều Gửi - Outbound) dành cho SuperAdmin. |
-  | `SyncMode`         | `int` (`BaseEnums.SyncMode?`) | Nullable | *(Mới 14/10/2026)* Chế độ đồng bộ dữ liệu: `1` = Snapshot (gửi toàn bộ), `2` = Incremental (gửi nối đuôi). |
+  | `SyncMode`         | `int` (`SyncMode?`) | Nullable | *(Mới 14/10/2026)* Chế độ đồng bộ dữ liệu (enum `SyncMode` tại `Module.ShareData.Core/Enums`): `1` = Snapshot (gửi toàn bộ), `2` = Incremental (gửi nối đuôi). |
   | `CursorTimeColumn` | `nvarchar(128)` | Nullable | *(Mới 14/10/2026)* Tên cột hoặc biểu thức cursor thời gian mẫu (ví dụ `UpdateTime`). |
   | `MaxLookBackDays`  | `int`           | Nullable | *(Mới 14/10/2026)* Số ngày quét lùi tối đa (`1–365`, `null` = không giới hạn). |
 * **Lưu ý kỹ thuật:**  
@@ -182,7 +182,7 @@ flowchart TD
   | `Address`          | `nvarchar(128)` | Nullable | Địa chỉ IP / Hostname máy chủ đối tác. |
   | `Port`             | `int`           | Nullable | Cổng dịch vụ mạng đối tác. |
   | `EndPointApiUrl`   | `nvarchar(256)` | Nullable | Đường dẫn URL API nhận dữ liệu của đối tác. |
-  | `ConnectionType`   | `int`           | Nullable | *(Mới 13/10/2026, chuyển enum INT 17/10/2026)* Loại kênh kết nối lưu số nguyên theo `BaseEnums.ConnectionType`: 1-API (mặc định), 2-File, 3-FTP, 4-FTPS, 5-Kafka. |
+  | `ConnectionType`   | `int`           | Nullable | *(Mới 13/10/2026, chuyển enum INT 17/10/2026)* Loại kênh kết nối lưu số nguyên theo enum `ConnectionType` (`Modules.Integration.Delivery.Base/Enums`): 1-API (mặc định), 2-File, 3-FTP, 4-FTPS, 5-Kafka. |
   | `ConnectionConfig` | `nvarchar(max)` | Nullable | *(Cập nhật 14/10/2026 theo mẫu VMS)* Cấu hình kết nối JSON động dạng `Dictionary<string, string>` chỉ chứa tham số riêng theo kênh (AuthType, Token, ApiKey, TimeoutSeconds, BypassSsl, Topic, DirectoryPath...), tuyệt đối **không** chứa địa chỉ/cổng (địa chỉ và cổng chỉ lấy từ các cột `Address`, `Port`, `EndPointApiUrl`). |
   | `Status`           | `int`           | Nullable | Trạng thái hoạt động (`1` = Bật, `2` = Tắt). |
   | `SessionState`     | `int`           | Nullable | Trạng thái phiên kết nối hiện thời. |

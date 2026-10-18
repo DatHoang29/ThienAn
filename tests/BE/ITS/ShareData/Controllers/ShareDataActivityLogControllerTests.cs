@@ -26,9 +26,9 @@ public class ShareDataActivityLogControllerTests(Host host)
             SubscriptionId = subId,
             ParentId = null,
             StepNbr = null,
-            LogType = BaseEnums.LogTypeEnum.Transfer,
-            Action = BaseEnums.ActivityAction.Send,
-            TransferDirection = BaseEnums.TransferDirection.SND,
+            LogType = LogTypeEnum.Transfer,
+            Action = ActivityAction.Send,
+            TransferDirection = TransferDirection.SND,
             Success = BaseEnums.SuccessEnums.Success,
             OccurredAt = now,
             CreateTime = now,
@@ -43,9 +43,9 @@ public class ShareDataActivityLogControllerTests(Host host)
             SubscriptionId = subId,
             ParentId = parentId,
             StepNbr = 1,
-            LogType = BaseEnums.LogTypeEnum.Transfer,
-            Action = BaseEnums.ActivityAction.Send,
-            TransferDirection = BaseEnums.TransferDirection.SND,
+            LogType = LogTypeEnum.Transfer,
+            Action = ActivityAction.Send,
+            TransferDirection = TransferDirection.SND,
             Success = BaseEnums.SuccessEnums.Success,
             OccurredAt = now.AddMilliseconds(10),
             CreateTime = now.AddMilliseconds(10),
@@ -60,9 +60,9 @@ public class ShareDataActivityLogControllerTests(Host host)
             SubscriptionId = subId,
             ParentId = parentId,
             StepNbr = 2,
-            LogType = BaseEnums.LogTypeEnum.Transfer,
-            Action = BaseEnums.ActivityAction.Send,
-            TransferDirection = BaseEnums.TransferDirection.SND,
+            LogType = LogTypeEnum.Transfer,
+            Action = ActivityAction.Send,
+            TransferDirection = TransferDirection.SND,
             Success = BaseEnums.SuccessEnums.Success,
             OccurredAt = now.AddMilliseconds(20),
             CreateTime = now.AddMilliseconds(20),
@@ -120,7 +120,7 @@ public class ShareDataActivityLogControllerTests(Host host)
         var input = new ShareDataSummaryActivityLogInput
         {
             PartnerId = partnerId,
-            LogType = BaseEnums.LogTypeEnum.Transfer
+            LogType = LogTypeEnum.Transfer
         };
 
         // Act

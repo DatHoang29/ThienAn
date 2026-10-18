@@ -185,3 +185,23 @@ Khi kiểm thử tích hợp với NATS broker thật (Docker local 127.0.0.1:42
    - ❌ **Sai:** tạo `PacketMetadataTests.cs` riêng, lấy `PacketExtractSqlQueryHandler` từ DI rồi gọi `HandleAsync` trực tiếp, so số bảng với `MetadataService.AllowedTables`.
    - ✅ **Đúng:** thêm case vào `ShareDataPacketControllerTests` (hoặc partial `ShareDataPacketControllerTests.Metadata.cs`), gọi `IMessageBus.InvokeAsync<List<MetadataTableDto>>(new GetMetadataTablesInput())` như controller, so với danh mục bảng nguồn thật trên CSDL test.
 6. **Lý do**: test là bằng chứng luồng nghiệp vụ chạy đúng; tệp rải theo đợt sửa làm trùng lặp, khó tìm, và test gọi tắt bỏ qua pipeline có thể xanh trong khi luồng thật vẫn lỗi.
+
+---
+
+## ⏱️ 6. Chạy Test Theo Phạm Vi Sửa Để Tiết Kiệm Thời Gian (Rule 19.92, bổ sung 18/10/2026)
+
+Bối cảnh: cả bộ test ShareData mất khoảng 12 phút; chạy cả bộ sau mỗi lần sửa nhỏ làm chậm vòng sửa–kiểm.
+
+1. **Sau khi sửa mã, kiểm chứng theo phạm vi đã sửa trước**, ⛔ không mặc định chạy cả bộ.
+2. **Xác định phạm vi** (gộp cả hai nguồn, vì đồ thị Gortex có thể thiếu cạnh từ test — đã gặp: báo 0% phủ cho Delivery trong khi có hơn 100 test):
+   - Gortex: `change(operation:"detect")` → dùng symbol ID trả về cho `change(operation:"tests")` (hoặc `get_test_targets`).
+   - `search_text` tên lớp/hàm đã sửa trong `tests/` để lấy các lớp test còn thiếu.
+3. **Lệnh chạy theo lớp test**:
+   ```bash
+   dotnet test tests/BE/test.csproj -f net10.0 --filter "FullyQualifiedName~<LớpTest1>|FullyQualifiedName~<LớpTest2>"
+   ```
+   FE: chạy đúng tệp spec đã liên quan (`npx playwright test tests/FE/views/<module>/<tệp>.test.ts`).
+4. **Mở rộng sang cả bộ của phân hệ** (`--filter FullyQualifiedName~<PhânHệ>`) khi sửa phần dùng chung rộng: entity/DTO/enum dùng chung, đăng ký DI, cấu hình (`appsettings*`, `SysOpConfig`), project Core của phân hệ, `Shared.*`, script SQL/seed, hoặc test theo phạm vi lộ lỗi lan sang lớp khác.
+5. **Trước commit/push**: chạy cả bộ test của phân hệ **một lần**, phải pass 100% (Pre-Commit Checklist #5 trong git-workflow). Chạy theo phạm vi chỉ dùng trong vòng sửa–kiểm.
+6. **Trước khi chạy** (mọi phạm vi): kiểm không có phiên test khác (`pgrep -fl "dotnet test|testhost"`, cổng mock `lsof -nP -iTCP:18090-18093 -sTCP:LISTEN`); có thì chờ, ⛔ không chạy song song, không kill tiến trình của người dùng.
+7. **Báo cáo** ghi rõ lệnh `--filter` đã dùng, số test chạy/pass/fail/skip, và nói rõ là chạy **theo phạm vi** hay **cả bộ**.

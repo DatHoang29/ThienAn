@@ -60,7 +60,7 @@ namespace Tests.ShareData.Services
         private static DataOutboundContext CreateContext(
             string packetCode = "101",
             string partnerCode = "PARTNER_01",
-            BaseEnums.ConnectionType? connectionType = BaseEnums.ConnectionType.Api,
+            ConnectionType? connectionType = ConnectionType.Api,
             Dictionary<string, string>? config = null)
         {
             var partner = new ShareDataPartner
@@ -174,7 +174,7 @@ namespace Tests.ShareData.Services
             var config = CreateConfig();
             var dispatcher = new FakeDeliveryDispatcher();
             var transport = new DataOutboundTransport(dispatcher, config);
-            var ctx = CreateContext(connectionType: BaseEnums.ConnectionType.File);
+            var ctx = CreateContext(connectionType: ConnectionType.File);
             var rawJson = "[{\"id\":1}]";
             var mapping = new DataMappingResult(true, Encoding.UTF8.GetBytes(rawJson), 1);
 
@@ -204,7 +204,7 @@ namespace Tests.ShareData.Services
             {
                 [ConnectKeys.DirectoryPath] = customTargetDir
             };
-            var ctx = CreateContext(connectionType: BaseEnums.ConnectionType.File, config: connCfg);
+            var ctx = CreateContext(connectionType: ConnectionType.File, config: connCfg);
             var rawJson = "[{\"id\":1}]";
             var mapping = new DataMappingResult(true, Encoding.UTF8.GetBytes(rawJson), 1);
 
@@ -381,7 +381,7 @@ namespace Tests.ShareData.Services
         public void BuildRequest_WhenPartnerHasSecurityAndConnectionConfig_ExtractsSecurityInfoAndConfigProperly_Test()
         {
             // Arrange
-            var ctx = CreateContext("105", "PARTNER_CONFIG", BaseEnums.ConnectionType.Kafka);
+            var ctx = CreateContext("105", "PARTNER_CONFIG", ConnectionType.Kafka);
             ctx.Partner!.ConnectionConfig = "{\"ApiKey\":\"secret-key-12345\",\"Topic\":\"rfid-topic\",\"HttpTimeoutSec\":\"25\"}";
             var mappingBytes = Encoding.UTF8.GetBytes("{\"tag\":\"RFID_001\"}");
             var mapping = new DataMappingResult(true, mappingBytes, 1);
@@ -391,7 +391,7 @@ namespace Tests.ShareData.Services
 
             // Assert
             Assert.Equal("{\"tag\":\"RFID_001\"}", request.JsonPayload);
-            Assert.Equal(BaseEnums.ConnectionType.Kafka, request.ConnectType);
+            Assert.Equal(ConnectionType.Kafka, request.ConnectType);
             Assert.True(request.ConnectConfig.ContainsKey("Topic"));
             Assert.Equal("rfid-topic", request.ConnectConfig["Topic"]);
             Assert.True(request.ConnectConfig.ContainsKey("HttpTimeoutSec"));

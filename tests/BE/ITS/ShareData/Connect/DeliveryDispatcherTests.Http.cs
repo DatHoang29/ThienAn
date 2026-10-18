@@ -22,7 +22,7 @@ public partial class DeliveryDispatcherTests
         server.ResetDefaults();
         var httpSender = new HttpDeliverySender();
         var dispatcher = DeliveryDispatcher.CreateForHandlers([httpSender]);
-        var ctx = CreateDummyContext("101", "PARTNER_API", BaseEnums.ConnectionType.Api);
+        var ctx = CreateDummyContext("101", "PARTNER_API", ConnectionType.Api);
         ctx.Partner!.Address = "127.0.0.1";
         ctx.Partner!.Port = 18092;
         ctx.Partner!.EndPointApiUrl = "/api/v1/data";
@@ -31,7 +31,7 @@ public partial class DeliveryDispatcherTests
         var request = new DeliveryRequest
         {
             JsonPayload = jsonPayload,
-            ConnectType = BaseEnums.ConnectionType.Api,
+            ConnectType = ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["HttpTimeoutSec"] = "10"
@@ -56,7 +56,7 @@ public partial class DeliveryDispatcherTests
         server.ResetDefaults();
         var httpSender = new HttpDeliverySender();
         var dispatcher = DeliveryDispatcher.CreateForHandlers([httpSender]);
-        var ctx = CreateDummyContext("101", "PARTNER_LEGACY", BaseEnums.ConnectionType.Api);
+        var ctx = CreateDummyContext("101", "PARTNER_LEGACY", ConnectionType.Api);
         ctx.Partner!.Address = "127.0.0.1";
         ctx.Partner!.Port = 18092;
         ctx.Partner!.EndPointApiUrl = "/api/v1/legacy-data";
@@ -122,7 +122,7 @@ public partial class DeliveryDispatcherTests
         var request = new DeliveryRequest
         {
             JsonPayload = "{}",
-            ConnectType = BaseEnums.ConnectionType.Api,
+            ConnectType = ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>()
         };
 
@@ -147,7 +147,7 @@ public partial class DeliveryDispatcherTests
         var request = new DeliveryRequest
         {
             JsonPayload = "{}",
-            ConnectType = BaseEnums.ConnectionType.Api,
+            ConnectType = ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["Address"] = "127.0.0.1",
@@ -174,7 +174,7 @@ public partial class DeliveryDispatcherTests
         var request = new DeliveryRequest
         {
             JsonPayload = "{}",
-            ConnectType = BaseEnums.ConnectionType.Api,
+            ConnectType = ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["Address"] = "127.0.0.1",
@@ -203,7 +203,7 @@ public partial class DeliveryDispatcherTests
         var request = new DeliveryRequest
         {
             JsonPayload = "{\"data\":\"test\"}",
-            ConnectType = BaseEnums.ConnectionType.Api,
+            ConnectType = ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["Address"] = "127.0.0.1",
@@ -234,7 +234,7 @@ public partial class DeliveryDispatcherTests
         var request = new DeliveryRequest
         {
             JsonPayload = "{\"data\":\"test\"}",
-            ConnectType = BaseEnums.ConnectionType.Api,
+            ConnectType = ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["Address"] = "127.0.0.1",
@@ -266,7 +266,7 @@ public partial class DeliveryDispatcherTests
         var request = new DeliveryRequest
         {
             JsonPayload = "{\"data\":\"test\"}",
-            ConnectType = BaseEnums.ConnectionType.Api,
+            ConnectType = ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["Address"] = "127.0.0.1",
@@ -301,7 +301,7 @@ public partial class DeliveryDispatcherTests
         var request = new DeliveryRequest
         {
             JsonPayload = "{\"data\":\"test\"}",
-            ConnectType = BaseEnums.ConnectionType.Api,
+            ConnectType = ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["Address"] = "127.0.0.1",
@@ -335,7 +335,7 @@ public partial class DeliveryDispatcherTests
         var request = new DeliveryRequest
         {
             JsonPayload = "{\"data\":\"test\"}",
-            ConnectType = BaseEnums.ConnectionType.Api,
+            ConnectType = ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["Address"] = "127.0.0.1",
@@ -371,7 +371,7 @@ public partial class DeliveryDispatcherTests
         var request = new DeliveryRequest
         {
             JsonPayload = "{\"data\":\"test\"}",
-            ConnectType = BaseEnums.ConnectionType.Api,
+            ConnectType = ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["Address"] = "127.0.0.1",
@@ -404,7 +404,7 @@ public partial class DeliveryDispatcherTests
             PayloadBytes = expectedBytes,
             ContentType = "application/json",
             JsonPayload = "dummy_should_not_be_used",
-            ConnectType = BaseEnums.ConnectionType.Api,
+            ConnectType = ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["Address"] = ShareDataPartnerServerMock.DefaultHost,
@@ -431,7 +431,7 @@ public partial class DeliveryDispatcherTests
         var request = new DeliveryRequest
         {
             JsonPayload = "{\"test\": 1}",
-            ConnectType = BaseEnums.ConnectionType.Api,
+            ConnectType = ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>
             {
                 [ConnectKeys.AuthType] = authType,
@@ -460,7 +460,7 @@ public partial class DeliveryDispatcherTests
         var request = new DeliveryRequest
         {
             JsonPayload = "{\"test\": 1}",
-            ConnectType = BaseEnums.ConnectionType.Api,
+            ConnectType = ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>
             {
                 [ConnectKeys.AuthType] = "OAuth3Custom",
@@ -487,7 +487,7 @@ public partial class DeliveryDispatcherTests
         var request = new DeliveryRequest
         {
             JsonPayload = "{\"test\": 1}",
-            ConnectType = BaseEnums.ConnectionType.Api,
+            ConnectType = ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>
             {
                 [ConnectKeys.AuthType] = "Bearer",
@@ -514,7 +514,7 @@ public partial class DeliveryDispatcherTests
         var request = new DeliveryRequest
         {
             JsonPayload = "{\"test\": 1}",
-            ConnectType = BaseEnums.ConnectionType.Api,
+            ConnectType = ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>
             {
                 [ConnectKeys.AuthType] = "ApiKey"
@@ -540,7 +540,7 @@ public partial class DeliveryDispatcherTests
         var request = new DeliveryRequest
         {
             JsonPayload = "{\"test\": 1}",
-            ConnectType = BaseEnums.ConnectionType.Api,
+            ConnectType = ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>
             {
                 [ConnectKeys.AuthType] = "Basic",

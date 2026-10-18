@@ -10,16 +10,16 @@ namespace Tests.ShareData.Connect
         public void DefaultType_ReturnsApi_Test()
         {
             // Assert
-            Assert.Equal(BaseEnums.ConnectionType.Api, ConnectionTypeExtensions.DefaultType);
+            Assert.Equal(ConnectionType.Api, ConnectionTypeExtensions.DefaultType);
         }
 
         [Theory]
-        [InlineData(BaseEnums.ConnectionType.File, true)]
-        [InlineData(BaseEnums.ConnectionType.Api, false)]
-        [InlineData(BaseEnums.ConnectionType.Ftp, false)]
-        [InlineData(BaseEnums.ConnectionType.Ftps, false)]
-        [InlineData(BaseEnums.ConnectionType.Kafka, false)]
-        public void IsFileChannel_WithEnumValues_ReturnsExpected_Test(BaseEnums.ConnectionType type, bool expected)
+        [InlineData(ConnectionType.File, true)]
+        [InlineData(ConnectionType.Api, false)]
+        [InlineData(ConnectionType.Ftp, false)]
+        [InlineData(ConnectionType.Ftps, false)]
+        [InlineData(ConnectionType.Kafka, false)]
+        public void IsFileChannel_WithEnumValues_ReturnsExpected_Test(ConnectionType type, bool expected)
         {
             // Act
             var result = type.IsFileChannel();
@@ -32,9 +32,9 @@ namespace Tests.ShareData.Connect
         public void IsFileChannel_WithNullable_ReturnsExpected_Test()
         {
             // Arrange
-            BaseEnums.ConnectionType? fileType = BaseEnums.ConnectionType.File;
-            BaseEnums.ConnectionType? nullType = null;
-            BaseEnums.ConnectionType? apiType = BaseEnums.ConnectionType.Api;
+            ConnectionType? fileType = ConnectionType.File;
+            ConnectionType? nullType = null;
+            ConnectionType? apiType = ConnectionType.Api;
 
             // Act & Assert
             Assert.True(fileType.IsFileChannel());
@@ -43,12 +43,12 @@ namespace Tests.ShareData.Connect
         }
 
         [Theory]
-        [InlineData(BaseEnums.ConnectionType.Ftps, true)]
-        [InlineData(BaseEnums.ConnectionType.Ftp, false)]
-        [InlineData(BaseEnums.ConnectionType.Api, false)]
-        [InlineData(BaseEnums.ConnectionType.File, false)]
-        [InlineData(BaseEnums.ConnectionType.Kafka, false)]
-        public void IsFtps_WithEnumValues_ReturnsExpected_Test(BaseEnums.ConnectionType type, bool expected)
+        [InlineData(ConnectionType.Ftps, true)]
+        [InlineData(ConnectionType.Ftp, false)]
+        [InlineData(ConnectionType.Api, false)]
+        [InlineData(ConnectionType.File, false)]
+        [InlineData(ConnectionType.Kafka, false)]
+        public void IsFtps_WithEnumValues_ReturnsExpected_Test(ConnectionType type, bool expected)
         {
             // Act
             var result = type.IsFtps();
@@ -61,9 +61,9 @@ namespace Tests.ShareData.Connect
         public void IsFtps_WithNullable_ReturnsExpected_Test()
         {
             // Arrange
-            BaseEnums.ConnectionType? ftpsType = BaseEnums.ConnectionType.Ftps;
-            BaseEnums.ConnectionType? nullType = null;
-            BaseEnums.ConnectionType? ftpType = BaseEnums.ConnectionType.Ftp;
+            ConnectionType? ftpsType = ConnectionType.Ftps;
+            ConnectionType? nullType = null;
+            ConnectionType? ftpType = ConnectionType.Ftp;
 
             // Act & Assert
             Assert.True(ftpsType.IsFtps());
