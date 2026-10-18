@@ -11,7 +11,6 @@ namespace Tests.ShareData.Controllers;
 [Collection("api")]
 public class ShareDataActivityLogControllerTests(Host host)
 {
-    private readonly IMessageBus _bus = host.Services.GetRequiredService<IMessageBus>();
     private readonly ISqlSugarClient _db = host.Services.GetRequiredService<ISqlSugarClient>();
 
     private async Task<(ShareDataActivityLog Parent, ShareDataActivityLog Child1, ShareDataActivityLog Child2, string SubId)> SeedParentAndTwoChildrenAsync()
@@ -92,7 +91,7 @@ public class ShareDataActivityLogControllerTests(Host host)
         };
 
         // Act
-        var result = await _bus.InvokeAsync<SqlSugarPagedList<ShareDataPageActivityLogOutput>>(input);
+        var result = await host.Services.CallApiAsync<SqlSugarPagedList<ShareDataPageActivityLogOutput>>(input);
 
         // Assert
         Assert.NotNull(result);
@@ -124,7 +123,7 @@ public class ShareDataActivityLogControllerTests(Host host)
         };
 
         // Act
-        var result = await _bus.InvokeAsync<ShareDataSummaryActivityLogOutput>(input);
+        var result = await host.Services.CallApiAsync<ShareDataSummaryActivityLogOutput>(input);
 
         // Assert
         Assert.NotNull(result);
@@ -148,7 +147,7 @@ public class ShareDataActivityLogControllerTests(Host host)
         };
 
         // Act
-        var result = await _bus.InvokeAsync<List<ShareDataActivityLogOutput>>(input);
+        var result = await host.Services.CallApiAsync<List<ShareDataActivityLogOutput>>(input);
 
         // Assert
         Assert.NotNull(result);
@@ -172,7 +171,7 @@ public class ShareDataActivityLogControllerTests(Host host)
         };
 
         // Act
-        var result = await _bus.InvokeAsync<List<ShareDataActivityLogOutput>>(input);
+        var result = await host.Services.CallApiAsync<List<ShareDataActivityLogOutput>>(input);
 
         // Assert
         Assert.NotNull(result);
@@ -206,7 +205,7 @@ public class ShareDataActivityLogControllerTests(Host host)
         };
 
         // Act
-        var result = await _bus.InvokeAsync<ShareDataActivityLogOutput>(input);
+        var result = await host.Services.CallApiAsync<ShareDataActivityLogOutput>(input);
 
         // Assert
         Assert.NotNull(result);

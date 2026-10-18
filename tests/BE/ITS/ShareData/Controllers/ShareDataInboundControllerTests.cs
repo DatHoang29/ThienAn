@@ -3,19 +3,18 @@ using Module.ShareData.Core.Entities;
 using ShareDataWorker.Extensions;
 using Shared.DTO.Enums;
 using SqlSugar;
-using Wolverine;
 
 namespace Tests.ShareData.Controllers;
 
 /// <summary>
-/// Description: Kiểm thử điểm vào tiếp nhận gói tin (Inbound) qua Wolverine Bus
+/// Description: Kiểm thử điểm vào tiếp nhận gói tin (Inbound) qua CallApiAsync (mô phỏng luồng API thật)
 /// Created date: 17/10/2026
 /// </summary>
 [Collection("api")]
 public class ShareDataInboundControllerTests(Host host)
 {
     /// <summary>
-    /// Description: Kiểm chứng tiếp nhận gói tin hợp lệ qua Wolverine Bus: lưu gói tin thô
+    /// Description: Kiểm chứng tiếp nhận gói tin hợp lệ qua CallApiAsync: lưu gói tin thô
     /// vào ShareDataInboundPacket (trạng thái Pending) và ghi ActivityLog đầy đủ dòng cha và dòng con Bước 1.
     /// Created date: 17/10/2026
     /// </summary>
@@ -25,7 +24,6 @@ public class ShareDataInboundControllerTests(Host host)
         // Arrange
         var db = host.Services.GetRequiredService<ISqlSugarClient>();
         var inboundDb = db.AsTenant().GetConnectionScope(ShareDataWorkerExtensions.InboundConnectionKey);
-        var bus = host.Services.GetRequiredService<IMessageBus>();
         var unique = Guid.NewGuid().ToString("N")[..8];
 
         var partner = new ShareDataPartner
@@ -101,8 +99,8 @@ public class ShareDataInboundControllerTests(Host host)
             RawContent = "{\"data\":[{\"id\":\"1\",\"val\":\"A\"}]}"
         };
 
-        // Act: Tiếp nhận gói qua Wolverine Bus
-        await bus.InvokeAsync(input);
+        // Act: Tiếp nhận gói qua CallApiAsync (mô phỏng luồng API thật)
+        await host.Services.CallApiAsync(input);
 
         // Assert: Kiểm tra gói tin trong ShareDataInboundPacket
         var savedPacket = await inboundDb.Queryable<ShareDataInboundPacket>()

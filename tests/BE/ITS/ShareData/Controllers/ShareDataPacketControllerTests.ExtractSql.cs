@@ -14,7 +14,6 @@ using Shared.DTO.Enums;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Extraction;
 using SqlSugar;
 using Tests.ShareData.Common;
-using Wolverine;
 using Xunit;
 
 namespace Tests.ShareData.Controllers;
@@ -66,7 +65,6 @@ public partial class ShareDataPacketControllerTests
         SetUserContext(isSuperAdmin: false, account: normalAccount);
 
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
 
         var input = new UpdatePacketExtractSqlInput
         {
@@ -75,7 +73,7 @@ public partial class ShareDataPacketControllerTests
         };
 
         // Act & Assert
-        await Assert.ThrowsAnyAsync<Exception>(() => bus.InvokeAsync<PacketExtractSqlOutput>(input));
+        await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(input));
     }
 
     [Fact]
@@ -86,7 +84,6 @@ public partial class ShareDataPacketControllerTests
         SetUserContext(isSuperAdmin: false, account: normalAccount);
 
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
 
         var input = new GetPacketExtractSqlInput
         {
@@ -94,7 +91,7 @@ public partial class ShareDataPacketControllerTests
         };
 
         // Act & Assert
-        await Assert.ThrowsAnyAsync<Exception>(() => bus.InvokeAsync<PacketExtractSqlOutput>(input));
+        await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(input));
     }
 
     [Fact]
@@ -105,7 +102,6 @@ public partial class ShareDataPacketControllerTests
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var unique = Guid.NewGuid().ToString("N")[..8];
@@ -129,7 +125,7 @@ public partial class ShareDataPacketControllerTests
         };
 
         // Act
-        var output = await bus.InvokeAsync<PacketExtractSqlOutput>(input);
+        var output = await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(input);
 
         // Assert
         Assert.NotNull(output);
@@ -211,7 +207,6 @@ public partial class ShareDataPacketControllerTests
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var unique = Guid.NewGuid().ToString("N")[..8];
@@ -233,7 +228,7 @@ public partial class ShareDataPacketControllerTests
         };
 
         // Act
-        var output = await bus.InvokeAsync<PacketExtractSqlOutput>(input);
+        var output = await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(input);
 
         // Assert
         Assert.NotNull(output);
@@ -249,7 +244,6 @@ public partial class ShareDataPacketControllerTests
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var unique = Guid.NewGuid().ToString("N")[..8];
@@ -272,7 +266,7 @@ public partial class ShareDataPacketControllerTests
         };
 
         // Act
-        var output = await bus.InvokeAsync<PacketExtractSqlOutput>(input);
+        var output = await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(input);
 
         // Assert
         Assert.NotNull(output);
@@ -292,7 +286,6 @@ public partial class ShareDataPacketControllerTests
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
 
         var input = new UpdatePacketExtractSqlInput
         {
@@ -303,7 +296,7 @@ public partial class ShareDataPacketControllerTests
         };
 
         // Act & Assert
-        await Assert.ThrowsAnyAsync<Exception>(() => bus.InvokeAsync<PacketExtractSqlOutput>(input));
+        await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(input));
     }
 
     [Fact]
@@ -314,7 +307,6 @@ public partial class ShareDataPacketControllerTests
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
 
         var input = new ExecutePacketSqlSampleInput
         {
@@ -324,7 +316,7 @@ public partial class ShareDataPacketControllerTests
         };
 
         // Act
-        var result = await bus.InvokeAsync<ExecutePacketSqlSampleOutput>(input);
+        var result = await scope.ServiceProvider.CallApiAsync<ExecutePacketSqlSampleOutput>(input);
 
         // Assert
         Assert.True(result.IsSuccess, result.ErrorMessage);
@@ -341,7 +333,6 @@ public partial class ShareDataPacketControllerTests
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
 
         var input = new ExecutePacketSqlSampleInput
         {
@@ -351,7 +342,7 @@ public partial class ShareDataPacketControllerTests
         };
 
         // Act
-        var result = await bus.InvokeAsync<ExecutePacketSqlSampleOutput>(input);
+        var result = await scope.ServiceProvider.CallApiAsync<ExecutePacketSqlSampleOutput>(input);
 
         // Assert
         Assert.True(result.IsSuccess, result.ErrorMessage);
@@ -372,7 +363,6 @@ public partial class ShareDataPacketControllerTests
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
 
         var input = new ExecutePacketSqlSampleInput
         {
@@ -382,7 +372,7 @@ public partial class ShareDataPacketControllerTests
         };
 
         // Act
-        var result = await bus.InvokeAsync<ExecutePacketSqlSampleOutput>(input);
+        var result = await scope.ServiceProvider.CallApiAsync<ExecutePacketSqlSampleOutput>(input);
 
         // Assert
         Assert.True(result.IsSuccess, result.ErrorMessage);
@@ -399,7 +389,6 @@ public partial class ShareDataPacketControllerTests
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
 
         var input = new ExecutePacketSqlSampleInput
         {
@@ -409,7 +398,7 @@ public partial class ShareDataPacketControllerTests
         };
 
         var sw = Stopwatch.StartNew();
-        var result = await bus.InvokeAsync<ExecutePacketSqlSampleOutput>(input);
+        var result = await scope.ServiceProvider.CallApiAsync<ExecutePacketSqlSampleOutput>(input);
         sw.Stop();
 
         Assert.True(result.IsSuccess, result.ErrorMessage);
@@ -426,7 +415,6 @@ public partial class ShareDataPacketControllerTests
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var existing = await db.Queryable<ShareDataPacket>().Where(x => x.Code == "103").FirstAsync();
@@ -440,7 +428,7 @@ public partial class ShareDataPacketControllerTests
             await db.Updateable(existing).UpdateColumns(p => new { p.SyncMode }).ExecuteCommandAsync();
         }
 
-        var ex = await Assert.ThrowsAnyAsync<Exception>(() => bus.InvokeAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
+        var ex = await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
         {
             PacketCode = "103",
             SyncMode = null,
@@ -459,7 +447,6 @@ public partial class ShareDataPacketControllerTests
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var existing = await db.Queryable<ShareDataPacket>().Where(x => x.Code == "103").FirstAsync();
@@ -468,7 +455,7 @@ public partial class ShareDataPacketControllerTests
             await db.Insertable(new ShareDataPacket { ID = Guid.NewGuid().ToString("N"), Code = "103", Name = "VDS Data", Status = BaseEnums.StatusEnum.Enable }).ExecuteCommandAsync();
         }
 
-        var ex = await Assert.ThrowsAnyAsync<Exception>(() => bus.InvokeAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
+        var ex = await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
         {
             PacketCode = "103",
             SyncMode = SyncMode.Incremental,
@@ -487,14 +474,13 @@ public partial class ShareDataPacketControllerTests
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var unique = Guid.NewGuid().ToString("N")[..8];
         var packetCode = $"PKT_{unique}";
         await db.Insertable(new ShareDataPacket { ID = Guid.NewGuid().ToString("N"), Code = packetCode, Name = $"Packet {unique}", Status = BaseEnums.StatusEnum.Enable }).ExecuteCommandAsync();
 
-        await bus.InvokeAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
+        await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
         {
             PacketCode = packetCode,
             SyncMode = SyncMode.Snapshot,
@@ -502,10 +488,10 @@ public partial class ShareDataPacketControllerTests
             ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM TmsZone"
         });
 
-        var out1 = await bus.InvokeAsync<PacketExtractSqlOutput>(new GetPacketExtractSqlInput { PacketCode = packetCode });
+        var out1 = await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new GetPacketExtractSqlInput { PacketCode = packetCode });
         Assert.Equal(7, out1.MaxLookBackDays);
 
-        await bus.InvokeAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
+        await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
         {
             PacketCode = packetCode,
             SyncMode = SyncMode.Snapshot,
@@ -513,7 +499,7 @@ public partial class ShareDataPacketControllerTests
             ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM TmsZone"
         });
 
-        var out2 = await bus.InvokeAsync<PacketExtractSqlOutput>(new GetPacketExtractSqlInput { PacketCode = packetCode });
+        var out2 = await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new GetPacketExtractSqlInput { PacketCode = packetCode });
         Assert.Null(out2.MaxLookBackDays);
     }
 
@@ -537,7 +523,6 @@ public partial class ShareDataPacketControllerTests
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var unique = Guid.NewGuid().ToString("N")[..8];
@@ -552,7 +537,7 @@ public partial class ShareDataPacketControllerTests
         }).ExecuteCommandAsync();
 
         // Act & Assert: SQL không có __lastTime và __rowid -> fail cấu trúc nối đuôi
-        var ex = await Assert.ThrowsAnyAsync<Exception>(() => bus.InvokeAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
+        var ex = await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
         {
             PacketCode = packetCode,
             SyncMode = null, // Không truyền SyncMode trong command
@@ -571,7 +556,6 @@ public partial class ShareDataPacketControllerTests
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var unique = Guid.NewGuid().ToString("N")[..8];
@@ -586,7 +570,7 @@ public partial class ShareDataPacketControllerTests
         }).ExecuteCommandAsync();
 
         // Act: SQL dạng Snapshot bình thường (không có __lastTime hay __rowid)
-        await bus.InvokeAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
+        await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
         {
             PacketCode = packetCode,
             SyncMode = null,
@@ -594,7 +578,7 @@ public partial class ShareDataPacketControllerTests
         });
 
         // Assert: Lưu thành công
-        var output = await bus.InvokeAsync<PacketExtractSqlOutput>(new GetPacketExtractSqlInput { PacketCode = packetCode });
+        var output = await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new GetPacketExtractSqlInput { PacketCode = packetCode });
         Assert.NotNull(output);
         Assert.Contains("SELECT TOP (@pageSize) ID, Code FROM TmsZone", output.ExtractSql);
     }
@@ -607,7 +591,6 @@ public partial class ShareDataPacketControllerTests
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
         var unique = Guid.NewGuid().ToString("N");
         var packetCode = $"PKT_SEC_{unique}";
@@ -627,7 +610,7 @@ public partial class ShareDataPacketControllerTests
         };
 
         // Act & Assert
-        var ex = await Assert.ThrowsAnyAsync<Exception>(() => bus.InvokeAsync<PacketExtractSqlOutput>(input));
+        var ex = await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(input));
         var msg = ex.ToString();
         Assert.True(
             msg.Contains(BaseMsg.ShareData.Validation.SqlTableNotAllowed)

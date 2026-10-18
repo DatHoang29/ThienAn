@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using FluentValidation;
 using Furion.FriendlyException;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -8,7 +9,6 @@ using Module.ShareData.Infrastructure.Services.ShareDataExtraction;
 using Shared.Core.Utilities.Constants;
 using Shared.DTO.Enums;
 using SqlSugar;
-using Wolverine;
 using Xunit;
 
 using Tests.ShareData.Common;
@@ -38,9 +38,6 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
 
     private static async Task EnsureCatalogTables(ISqlSugarClient db)
     {
-        if (!db.DbMaintenance.IsAnyTable("ShareDataSourceTable", false))
-            db.CodeFirst.InitTables<ShareDataSourceTable>();
-
         var existingTables = (await db.Queryable<ShareDataSourceTable>().Where(x => x.IsDelete == null).ToListAsync())
             .Select(x => x.TableName?.Trim())
             .Where(x => !string.IsNullOrEmpty(x))
@@ -94,7 +91,6 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         // Arrange
         SetUserContext(isSuperAdmin: true);
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var unique = Guid.NewGuid().ToString("N")[..8];
@@ -106,8 +102,8 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             PacketVersion = "1.0"
         };
 
-        // Act: Gọi qua điểm vào thật IMessageBus theo Rule 19.84
-        await bus.InvokeAsync(input);
+        // Act: Gọi qua điểm vào thật CallApiAsync theo Rule 19.84
+        await scope.ServiceProvider.CallApiAsync(input);
 
         // Assert
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
@@ -123,7 +119,6 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         // Arrange
         SetUserContext(isSuperAdmin: true);
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var unique = Guid.NewGuid().ToString("N")[..8];
@@ -136,7 +131,7 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         };
 
         // Act
-        await bus.InvokeAsync(input);
+        await scope.ServiceProvider.CallApiAsync(input);
 
         // Assert
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
@@ -152,7 +147,6 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         // Arrange
         SetUserContext(isSuperAdmin: true);
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var unique = Guid.NewGuid().ToString("N")[..8];
@@ -165,7 +159,7 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         };
 
         // Act
-        await bus.InvokeAsync(input);
+        await scope.ServiceProvider.CallApiAsync(input);
 
         // Assert
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
@@ -179,7 +173,6 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         // Arrange
         SetUserContext(isSuperAdmin: true);
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var unique = Guid.NewGuid().ToString("N")[..8];
@@ -194,7 +187,7 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         };
 
         // Act
-        await bus.InvokeAsync(input);
+        await scope.ServiceProvider.CallApiAsync(input);
 
         // Assert
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
@@ -208,7 +201,6 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         // Arrange
         SetUserContext(isSuperAdmin: true);
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var unique = Guid.NewGuid().ToString("N")[..8];
@@ -221,7 +213,7 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         };
 
         // Act
-        await bus.InvokeAsync(input);
+        await scope.ServiceProvider.CallApiAsync(input);
 
         // Assert
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
@@ -235,7 +227,6 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         // Arrange
         SetUserContext(isSuperAdmin: true);
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
 
         var unique = Guid.NewGuid().ToString("N")[..8];
         var code = $"101_dup_{unique}";
@@ -252,10 +243,10 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             PacketVersion = "1.0"
         };
 
-        await bus.InvokeAsync(input1);
+        await scope.ServiceProvider.CallApiAsync(input1);
 
         // Act & Assert
-        await Assert.ThrowsAnyAsync<Exception>(() => bus.InvokeAsync(input2));
+        await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync(input2));
     }
 
     [Fact]
@@ -264,7 +255,6 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         // Arrange
         SetUserContext(isSuperAdmin: true);
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var unique = Guid.NewGuid().ToString("N")[..8];
@@ -283,7 +273,7 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         await db.Insertable(packet).ExecuteCommandAsync();
 
         // Act
-        var output = await bus.InvokeAsync<PacketExtractSqlOutput>(new GetPacketExtractSqlInput
+        var output = await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new GetPacketExtractSqlInput
         {
             PacketCode = code,
             ForceDefaultTemplate = true
@@ -308,7 +298,6 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         // Arrange
         SetUserContext(isSuperAdmin: true);
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var unique = Guid.NewGuid().ToString("N")[..8];
@@ -327,7 +316,7 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         await db.Insertable(packet).ExecuteCommandAsync();
 
         // Act
-        var output = await bus.InvokeAsync<PacketExtractSqlOutput>(new GetPacketExtractSqlInput
+        var output = await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new GetPacketExtractSqlInput
         {
             PacketCode = code,
             ForceDefaultTemplate = true
@@ -345,7 +334,6 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         // Arrange
         SetUserContext(isSuperAdmin: true);
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var unique = Guid.NewGuid().ToString("N")[..8];
@@ -358,7 +346,7 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         };
 
         // Act
-        await bus.InvokeAsync(input);
+        await scope.ServiceProvider.CallApiAsync(input);
 
         // Assert: Gói tin đã tự điền ExtractSql nên không bị thiếu câu truy vấn nguồn
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
@@ -366,5 +354,92 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         Assert.False(string.IsNullOrWhiteSpace(packet.ExtractSql));
         Assert.True(PacketDefaultTemplate.TryGet("101", out var tpl101Reg));
         Assert.Equal(tpl101Reg.ExtractSql, packet.ExtractSql);
+    }
+
+    [Theory]
+    [MemberData(nameof(GetInvalidAddPacketData))]
+    public async Task AddPacket_InvalidData_ThrowsValidationException_Test(
+        string? code, string? name, string? description, string expectedProperty)
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true);
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var testCode = code switch
+        {
+            "" => "",
+            null => null,
+            _ => code.Length > 128 ? code : $"{code}_{unique}"
+        };
+
+        var input = new ShareDataAddPacketInput
+        {
+            Code = testCode,
+            Name = name,
+            Description = description,
+            PacketVersion = "1.0"
+        };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => scope.ServiceProvider.CallApiAsync(input));
+        Assert.Contains(ex.Errors, e => e.PropertyName == expectedProperty);
+
+        if (!string.IsNullOrEmpty(testCode))
+        {
+            var inDb = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == testCode);
+            Assert.Null(inDb);
+        }
+    }
+
+    public static IEnumerable<object?[]> GetInvalidAddPacketData()
+    {
+        yield return new object?[] { "", "Valid Name", null, nameof(ShareDataAddPacketInput.Code) };
+        yield return new object?[] { new string('A', 129), "Valid Name", null, nameof(ShareDataAddPacketInput.Code) };
+        yield return new object?[] { "VALID_CODE", "", null, nameof(ShareDataAddPacketInput.Name) };
+        yield return new object?[] { "VALID_CODE", new string('B', 129), null, nameof(ShareDataAddPacketInput.Name) };
+        yield return new object?[] { "VALID_CODE", "Valid Name", new string('C', 257), nameof(ShareDataAddPacketInput.Description) };
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(null)]
+    public async Task UpdatePacket_EmptyId_ThrowsValidationException_Test(string? id)
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true);
+        using var scope = _host.Services.CreateScope();
+
+        var input = new ShareDataUpdatePacketInput
+        {
+            ID = id,
+            Code = $"PKT_UPDATE_{Guid.NewGuid():N}",
+            Name = "Packet Update Test",
+            PacketVersion = "1.0"
+        };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => scope.ServiceProvider.CallApiAsync(input));
+        Assert.Contains(ex.Errors, e => e.PropertyName == nameof(ShareDataUpdatePacketInput.ID));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(null)]
+    public async Task DeletePacket_EmptyId_ThrowsValidationException_Test(string? id)
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true);
+        using var scope = _host.Services.CreateScope();
+
+        var input = new ShareDataDeletePacketInput
+        {
+            ID = id
+        };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => scope.ServiceProvider.CallApiAsync(input));
+        Assert.Contains(ex.Errors, e => e.PropertyName == nameof(ShareDataDeletePacketInput.ID));
     }
 }

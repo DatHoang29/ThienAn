@@ -6,7 +6,6 @@ using Module.ShareData.Core.Exceptions;
 using Tests.ShareData.Common;
 using Module.ShareData.Infrastructure.Services.ShareDataExtraction;
 using SqlSugar;
-using Wolverine;
 using Xunit;
 
 namespace Tests.ShareData.Controllers;
@@ -19,11 +18,10 @@ public partial class ShareDataPacketControllerTests
         // Arrange
         SetUserContext(isSuperAdmin: true, account: $"superadmin_{Guid.NewGuid():N}");
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
-        // Act: Đi qua đúng điểm vào IMessageBus (Rule 19.84)
-        var tables = await bus.InvokeAsync<List<MetadataTableDto>>(new GetMetadataTablesInput());
+        // Act: Đi qua đúng điểm vào qua CallApiAsync (Rule 19.84)
+        var tables = await scope.ServiceProvider.CallApiAsync<List<MetadataTableDto>>(new GetMetadataTablesInput());
 
         List<ShareDataSourceTable> sourceTables = null!;
         if (db.DbMaintenance.IsAnyTable("ShareDataSourceTable", false))
@@ -49,6 +47,13 @@ public partial class ShareDataPacketControllerTests
         Assert.Equal(sourceTables.Count, tables.Count);
         Assert.Contains(tables, t => t.TableName == "TmsZone" && t.DefaultAlias == "z");
         Assert.Contains(tables, t => t.TableName == "TmsTrafficData" && t.DefaultAlias == "td");
+        Assert.All(tables, t => Assert.NotNull(t.PacketCodes));
+
+        var zoneStatus = Assert.Single(tables, t => t.TableName == "TmsZoneStatus");
+        Assert.Contains("101", zoneStatus.PacketCodes);
+
+        var weather = Assert.Single(tables, t => t.TableName == "TmsWeather");
+        Assert.Contains("104", weather.PacketCodes);
     }
 
     [Fact]
@@ -57,10 +62,9 @@ public partial class ShareDataPacketControllerTests
         // Arrange
         SetUserContext(isSuperAdmin: true, account: $"superadmin_{Guid.NewGuid():N}");
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
 
         // Act
-        var fields = await bus.InvokeAsync<List<MetadataFieldDto>>(new GetMetadataFieldsInput
+        var fields = await scope.ServiceProvider.CallApiAsync<List<MetadataFieldDto>>(new GetMetadataFieldsInput
         {
             TableName = "TmsZone"
         });
@@ -78,10 +82,9 @@ public partial class ShareDataPacketControllerTests
         // Arrange: Người dùng không phải SuperAdmin
         SetUserContext(isSuperAdmin: false, account: $"operator_{Guid.NewGuid():N}");
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
 
         // Act & Assert
-        var ex = await Assert.ThrowsAnyAsync<Exception>(() => bus.InvokeAsync<List<MetadataTableDto>>(new GetMetadataTablesInput()));
+        var ex = await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<List<MetadataTableDto>>(new GetMetadataTablesInput()));
         var msg = ex.Message;
         Assert.True(msg.Contains("superAdminRequiredForMetadata") || (ex is AppFriendlyException afe && afe.ErrorMessage?.ToString() == BaseMsg.ShareData.Exception.SuperAdminRequiredForMetadata));
     }
@@ -92,10 +95,9 @@ public partial class ShareDataPacketControllerTests
         // Arrange
         SetUserContext(isSuperAdmin: false, account: $"operator_{Guid.NewGuid():N}");
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
 
         // Act & Assert
-        var ex = await Assert.ThrowsAnyAsync<Exception>(() => bus.InvokeAsync<List<MetadataFieldDto>>(new GetMetadataFieldsInput
+        var ex = await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<List<MetadataFieldDto>>(new GetMetadataFieldsInput
         {
             TableName = "TmsZone"
         }));
@@ -112,10 +114,9 @@ public partial class ShareDataPacketControllerTests
         // Arrange
         SetUserContext(isSuperAdmin: true, account: $"superadmin_{Guid.NewGuid():N}");
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
 
         // Act & Assert
-        await Assert.ThrowsAnyAsync<Exception>(() => bus.InvokeAsync<List<MetadataFieldDto>>(new GetMetadataFieldsInput
+        await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<List<MetadataFieldDto>>(new GetMetadataFieldsInput
         {
             TableName = tableName
         }));
@@ -131,10 +132,9 @@ public partial class ShareDataPacketControllerTests
         // Arrange
         SetUserContext(isSuperAdmin: true, account: $"superadmin_{Guid.NewGuid():N}");
         using var scope = _host.Services.CreateScope();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
 
         // Act & Assert
-        await Assert.ThrowsAnyAsync<Exception>(() => bus.InvokeAsync<List<MetadataFieldDto>>(new GetMetadataFieldsInput
+        await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<List<MetadataFieldDto>>(new GetMetadataFieldsInput
         {
             TableName = invalidTableName
         }));

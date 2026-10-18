@@ -12,7 +12,7 @@ using Modules.TOLL.Core.Entities;
 using Modules.VMS.Core.Entities;
 using Services.Shared.Messaging;
 using ShareDataWorker.Core.Interfaces;
-using ShareDataWorker.Core.Utils.Resolvers;
+using ShareDataWorker.Core.Utils;
 using ShareDataWorker.Infrastructure.Logging;
 using ShareDataWorker.Infrastructure.Services.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Extraction;
@@ -2242,9 +2242,6 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
         private static async Task EnsureDefaultTrackTables(ISqlSugarClient db)
         {
-            if (!db.DbMaintenance.IsAnyTable("ShareDataSourceTable", false))
-                db.CodeFirst.InitTables<ShareDataSourceTable>();
-
             var seedRows = SeedScriptReader.ReadSourceTables();
             var seedTableNames = seedRows
                 .Where(x => !string.IsNullOrWhiteSpace(x.TableName))
@@ -3124,7 +3121,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         /// <summary>
         /// Description: Kiểm thử nạp bảng ánh xạ TablePacketMap từ ShareDataSourceTable.
         ///              Xác thực hỗ trợ cả mã ngắn ("101"), mã chuẩn ("101_commonData") và phân cách dấu phẩy.
-        ///              Tất cả đều được chuẩn hoá về mã chuẩn và deduplicate khi phân giải gói tin (ResolvePackets).
+        ///              Tất cả đều được chuẩn hoá về mã chuẩn và deduplicate khi phân giải gói tin (GetTriggeredPackets).
         /// Created date: 27/09/2026
         /// Modified date: 17/10/2026
         /// </summary>
@@ -3177,22 +3174,22 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.Contains("TmsIncident", worker.TrackedTables);
 
             // Assert 2: TmsZoneStatus với mảng cả 2 mã ["101", "101_commonData"] -> Deduplicate về đúng 1 gói "101_commonData"
-            var packetsZone = DataChangeTrackingService.ResolvePackets(["TmsZoneStatus"], worker.TablePacketMap);
+            var packetsZone = DataChangeTrackingService.GetTriggeredPackets(["TmsZoneStatus"], worker.TablePacketMap);
             Assert.Single(packetsZone);
             Assert.Equal("101_commonData", packetsZone[0]);
 
             // Assert 3: CctvDevice với mã ngắn "102" -> Chuẩn hoá thành "102_cctvData"
-            var packetsCctv = DataChangeTrackingService.ResolvePackets(["CctvDevice"], worker.TablePacketMap);
+            var packetsCctv = DataChangeTrackingService.GetTriggeredPackets(["CctvDevice"], worker.TablePacketMap);
             Assert.Single(packetsCctv);
             Assert.Equal("102_cctvData", packetsCctv[0]);
 
             // Assert 4: TmsWeather với mã đầy đủ "104_weatherData" -> Giữ nguyên "104_weatherData"
-            var packetsWeather = DataChangeTrackingService.ResolvePackets(["TmsWeather"], worker.TablePacketMap);
+            var packetsWeather = DataChangeTrackingService.GetTriggeredPackets(["TmsWeather"], worker.TablePacketMap);
             Assert.Single(packetsWeather);
             Assert.Equal("104_weatherData", packetsWeather[0]);
 
             // Assert 5: TmsIncident với [107, 110, 111] -> chuẩn hoá cả 3 gói
-            var packetsIncident = DataChangeTrackingService.ResolvePackets(["TmsIncident"], worker.TablePacketMap);
+            var packetsIncident = DataChangeTrackingService.GetTriggeredPackets(["TmsIncident"], worker.TablePacketMap);
             Assert.Equal(3, packetsIncident.Count);
             Assert.Contains(PacketCodeConst.IncidentData, packetsIncident);
             Assert.Contains(PacketCodeConst.WpData, packetsIncident);
@@ -3250,39 +3247,6 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 .Where(a => a.SubscriptionId == sub.ID || a.PartnerId == partner.ID)
                 .ToListAsync();
             Assert.Empty(alerts);
-        }
-
-        /// <summary>
-        /// Description: Kiểm thử đơn vị phương thức PacketMetadataResolver.NormalizePacketCode
-        ///              cho toàn bộ 11 gói tin chuẩn từ 101 đến 111 đối với cả mã ngắn và mã chuẩn.
-        /// Created date: 27/09/2026
-        /// </summary>
-        [Theory]
-        [InlineData("101", "101_commonData")]
-        [InlineData("101_commonData", "101_commonData")]
-        [InlineData("102", "102_cctvData")]
-        [InlineData("102_cctvData", "102_cctvData")]
-        [InlineData("103", "103_vdsData")]
-        [InlineData("103_vdsData", "103_vdsData")]
-        [InlineData("104", "104_weatherData")]
-        [InlineData("104_weatherData", "104_weatherData")]
-        [InlineData("105", "105_rfidData")]
-        [InlineData("105_rfidData", "105_rfidData")]
-        [InlineData("106", "106_wimData")]
-        [InlineData("106_wimData", "106_wimData")]
-        [InlineData("107", "107_incidentData")]
-        [InlineData("107_incidentData", "107_incidentData")]
-        [InlineData("108", "108_vmsInfo")]
-        [InlineData("108_vmsInfo", "108_vmsInfo")]
-        [InlineData("109", "109_etcData")]
-        [InlineData("109_etcData", "109_etcData")]
-        [InlineData("110", "110_wpData")]
-        [InlineData("110_wpData", "110_wpData")]
-        [InlineData("111", "111")]
-        public void NormalizePacketCode_ResolvesShortAndCanonicalCorrectly(string input, string expected)
-        {
-            var normalized = PacketMetadataResolver.NormalizePacketCode(input);
-            Assert.Equal(expected, normalized);
         }
 
         #region 8. Chuông vs Hàng (Signal vs Batching & Update Watermark Tests)
@@ -5092,7 +5056,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             worker.ReloadConfig(db).GetAwaiter().GetResult();
-            return DataChangeTrackingService.ResolvePackets(changedTables, worker.TablePacketMap);
+            return DataChangeTrackingService.GetTriggeredPackets(changedTables, worker.TablePacketMap);
         }
 
         private static async Task<long?> InvokeGetCurrentDbVersion(ISqlSugarClient db)

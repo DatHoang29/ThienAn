@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Module.ShareData.Core.Constants;
 using Modules.CfgSystem.Core.Entities;
 using ShareDataWorker.Core.Configuration;
 using ShareDataWorker.Core.Interfaces;
@@ -30,7 +31,7 @@ public class DataWorkerConfigServiceTests(Host host)
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ShareDataWorkerSetting:GroupCode"] = isolatedGroup
+                [ShareDataConst.ConfigGroupOverrideKey] = isolatedGroup
             })
             .Build();
 
@@ -71,7 +72,7 @@ public class DataWorkerConfigServiceTests(Host host)
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ShareDataWorkerSetting:GroupCode"] = isolatedGroup
+                [ShareDataConst.ConfigGroupOverrideKey] = isolatedGroup
             })
             .Build();
 
@@ -111,7 +112,7 @@ public class DataWorkerConfigServiceTests(Host host)
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ShareDataWorkerSetting:GroupCode"] = isolatedGroup
+                [ShareDataConst.ConfigGroupOverrideKey] = isolatedGroup
             })
             .Build();
 
@@ -150,7 +151,7 @@ public class DataWorkerConfigServiceTests(Host host)
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ShareDataWorkerSetting:GroupCode"] = isolatedGroup
+                [ShareDataConst.ConfigGroupOverrideKey] = isolatedGroup
             })
             .Build();
 

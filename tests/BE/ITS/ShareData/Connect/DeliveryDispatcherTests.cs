@@ -148,21 +148,6 @@ public partial class DeliveryDispatcherTests
     }
 
     [Fact]
-    public void PacketMetadataResolver_Packet105_DefaultsToSnapshot_CanBeConfiguredToIncremental_Test()
-    {
-        // Arrange
-        var packet105 = new ShareDataPacket
-        {
-            Code = "105",
-            Name = "Vehicle Event Packet",
-            SyncMode = SyncMode.Incremental
-        };
-
-        // Act & Assert
-        Assert.Equal(SyncMode.Incremental, packet105.SyncMode);
-    }
-
-    [Fact]
     public void SqlValidator_SupportsFromDateAndToDateParameters_Test()
     {
         // Arrange: Cú pháp SQL với @fromDate và @toDate phải được SqlValidator chấp thuận

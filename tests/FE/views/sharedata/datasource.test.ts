@@ -1880,11 +1880,9 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(modifyRecordContent).toContain('.el-icon');
         expect(modifyRecordContent).toContain('margin-right: 4px;');
 
-        // 6. Bảng nguồn được lọc theo phạm vi mã gói tin (packetCode)
-        expect(qbContent).toContain('PACKET_ALLOWED_TABLES');
-        expect(qbContent).toContain("'101': ['TmsZoneStatus', 'TmsZone', 'TmsTrafficStatistic', 'TmsEquipment', 'TmsRoute']");
-        expect(qbContent).toContain("'102': ['CctvDevice', 'TmsEquipment']");
-        expect(qbContent).toContain("'104': ['TmsWeather']");
+        // 6. Bỏ PACKET_ALLOWED_TABLES viết cứng, danh sách bảng theo gói lấy từ PacketCodes của ShareDataSourceTable
+        expect(qbContent).not.toContain('PACKET_ALLOWED_TABLES');
+        expect(qbContent).toContain('packetCodes?: string[]');
 
         // 8. Thanh tiêu đề gói tin không còn tag policy tĩnh
         expect(indexContent).not.toMatch(/<div class="packet-header-bar">[\s\S]*?<el-tag :type="getPacketPolicy[\s\S]*?<\/el-tag>[\s\S]*?<\/div>/);
@@ -2269,6 +2267,91 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         // Kiểm tra alias input được tự động điền 'tl' từ defaultAlias của API CSDL
         const aliasInput = page.locator('.visual-query-builder-container .vqb-alias-input input');
         await expect(aliasInput).toHaveValue('tl');
+    });
+
+    test('30. Kiểm thử queryBuilder sắp xếp bảng theo PacketCodes lên đầu và giữ tất cả bảng khác', async ({ page }) => {
+        // 1. Kiểm tra unit logic sắp xếp bảng theo packetCodes của queryBuilder
+        const mockTables = [
+            { tableName: 'TmsEquipment', displayName: 'Thiết bị', defaultAlias: 'eq', packetCodes: [] },
+            { tableName: 'TmsZoneStatus', displayName: 'Trạng thái Zone', defaultAlias: 'zs', packetCodes: ['101', '110'] },
+            { tableName: 'TmsWeather', displayName: 'Thời tiết', defaultAlias: 'w', packetCodes: ['104', '110'] },
+            { tableName: 'TmsTrafficData', displayName: 'Dữ liệu giao thông', defaultAlias: 'td', packetCodes: ['103', '106'] },
+        ];
+
+        const matchesPacket = (itemPacketCodes: string[] | undefined, targetPacketCode: string) => {
+            if (!itemPacketCodes || itemPacketCodes.length === 0 || !targetPacketCode) return false;
+            const rawCode = targetPacketCode.trim().toLowerCase();
+            const numericCode = rawCode.match(/^\D*(\d+)/)?.[1] || '';
+            return itemPacketCodes.some((p) => {
+                const pClean = (p || '').trim().toLowerCase();
+                if (!pClean) return false;
+                if (pClean === rawCode) return true;
+                if (rawCode.startsWith(`${pClean}_`) || rawCode.startsWith(`${pClean}-`)) return true;
+                if (pClean.startsWith(`${rawCode}_`) || pClean.startsWith(`${rawCode}-`)) return true;
+                const pNumeric = pClean.match(/^\D*(\d+)/)?.[1] || '';
+                return Boolean(numericCode && pNumeric && numericCode === pNumeric);
+            });
+        };
+
+        const sortTablesForPacket = (tables: typeof mockTables, packetCode: string) => {
+            return [...tables].sort((a, b) => {
+                const aMatch = matchesPacket(a.packetCodes, packetCode);
+                const bMatch = matchesPacket(b.packetCodes, packetCode);
+                if (aMatch && !bMatch) return -1;
+                if (!aMatch && bMatch) return 1;
+                return 0;
+            });
+        };
+
+        // Khi mở gói 101: TmsZoneStatus lên đầu tiên, các bảng khác (kể cả TmsEquipment không có 101) vẫn còn đầy đủ
+        const sorted101 = sortTablesForPacket(mockTables, '101_commonData');
+        expect(sorted101[0].tableName).toBe('TmsZoneStatus');
+        expect(sorted101.map((t) => t.tableName)).toContain('TmsEquipment');
+        expect(sorted101.length).toBe(mockTables.length);
+
+        // Khi mở gói 104: TmsWeather lên đầu tiên, TmsEquipment và TmsZoneStatus vẫn còn
+        const sorted104 = sortTablesForPacket(mockTables, '104');
+        expect(sorted104[0].tableName).toBe('TmsWeather');
+        expect(sorted104.length).toBe(mockTables.length);
+
+        // 2. Mock API getmetadatatables với packetCodes và kiểm tra trên giao diện
+        await page.route('**/api/sharedata/sharedatapacket/getmetadatatables*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: [
+                        { tableName: 'TmsEquipment', displayName: 'Thiết bị', defaultAlias: 'eq', packetCodes: [] },
+                        { tableName: 'TmsZoneStatus', displayName: 'Trạng thái Zone', defaultAlias: 'zs', packetCodes: ['101', '110'] },
+                        { tableName: 'TmsWeather', displayName: 'Thời tiết', defaultAlias: 'w', packetCodes: ['104', '110'] },
+                    ],
+                }),
+            });
+        });
+
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+
+        const packetGrid = page.locator('.packet-col .vxe-grid');
+        await expect(packetGrid).toBeVisible({ timeout: 15_000 });
+        await page.locator('.vxe-table--body-wrapper tbody tr').first().click();
+
+        const tabs = page.locator('.datasource-right-tabs');
+        await expect(tabs).toBeVisible({ timeout: 15_000 });
+        const sqlTab = tabs.getByRole('tab', { name: /Cấu hình SQL/ });
+        await sqlTab.click();
+        await expect(sqlTab).toHaveClass(/is-active/);
+
+        const tableSelect = page.locator('.visual-query-builder-container .vqb-table-select');
+        await expect(tableSelect).toBeVisible();
+
+        // Mở dropdown chọn bảng: kiểm tra cả bảng ưu tiên và bảng không có packetCodes đều xuất hiện
+        await tableSelect.click();
+        const popper = page.locator('.el-select__popper:visible');
+        await expect(popper).toBeVisible({ timeout: 5_000 });
+        const eqOpt = popper.locator('.el-select-dropdown__item').filter({ hasText: /TmsEquipment/i });
+        await expect(eqOpt).toBeVisible();
     });
 });
 

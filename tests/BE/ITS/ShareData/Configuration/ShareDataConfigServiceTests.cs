@@ -30,7 +30,7 @@ public class ShareDataConfigServiceTests(Host host)
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ShareDataConfig:GroupCode"] = isolatedGroup
+                [ShareDataConst.ConfigGroupOverrideKey] = isolatedGroup
             })
             .Build();
 
@@ -65,7 +65,7 @@ public class ShareDataConfigServiceTests(Host host)
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ShareDataConfig:GroupCode"] = isolatedGroup
+                [ShareDataConst.ConfigGroupOverrideKey] = isolatedGroup
             })
             .Build();
 
@@ -116,7 +116,7 @@ public class ShareDataConfigServiceTests(Host host)
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ShareDataConfig:GroupCode"] = isolatedGroup
+                [ShareDataConst.ConfigGroupOverrideKey] = isolatedGroup
             })
             .Build();
 

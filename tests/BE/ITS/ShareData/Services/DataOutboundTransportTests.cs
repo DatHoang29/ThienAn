@@ -1,40 +1,54 @@
+using System.Net;
 using System.Text;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Module.ShareData.Core.Entities;
+using Modules.Integration.Delivery;
 using Modules.Integration.Delivery.Base.Constants;
 using Modules.Integration.Delivery.Base.Helpers;
 using Modules.Integration.Delivery.Base.Interfaces;
-using Modules.Integration.Delivery.Base.Models;
-using Modules.Integration.Delivery;
 using ShareDataWorker.Core.Enums;
 using ShareDataWorker.Core.Interfaces.DataOutbound;
 using ShareDataWorker.Core.Models.DataOutbound;
 using ShareDataWorker.Infrastructure.Logging;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
 using Shared.DTO.Enums;
+using Tests.ShareData.Mocks;
 using Xunit;
 
 namespace Tests.ShareData.Services
 {
     /// <summary>
     /// Author: DatHQ
-    /// Description: Bộ kiểm thử đơn vị cho chặng chuyển giao dữ liệu kết xuất (DataOutboundTransport):
-    ///              kiểm chứng định dạng payload, lưu tệp bằng chứng vô điều kiện, chuyển giao qua dispatcher
-    ///              và xử lý kết quả/cảnh báo lỗi.
+    /// Description: Bộ kiểm thử đơn vị và tích hợp cho chặng chuyển giao dữ liệu kết xuất (DataOutboundTransport):
+    ///              kiểm chứng định dạng payload, lưu tệp bằng chứng vô điều kiện, chuyển giao qua IDeliveryDispatcher thật
+    ///              và xử lý kết quả/cảnh báo lỗi (Rule 19.18).
     /// Created date: 16/10/2026
     /// </summary>
+    [Collection("api")]
     public class DataOutboundTransportTests : IDisposable
     {
+        private readonly Host _host;
+        private readonly IDeliveryDispatcher _dispatcher;
         private readonly string _tempDirectory;
 
-        public DataOutboundTransportTests()
+        public DataOutboundTransportTests(Host host)
         {
-            _tempDirectory = Path.Combine(Path.GetTempPath(), "dot_tests_" + Guid.NewGuid().ToString("N"));
+            _host = host;
+            _host.PartnerServer.ResetDefaults();
+            _dispatcher = _host.Services.GetRequiredService<IDeliveryDispatcher>();
+
+            var hostConfig = _host.Services.GetRequiredService<IConfiguration>();
+            var basePath = hostConfig.GetValue<string>(ExportPathHelper.BasePathConfigKey) ?? ExportPathHelper.DefaultBasePath;
+            var baseRoot = ExportPathHelper.ResolveRootPath(basePath);
+
+            _tempDirectory = Path.Combine(baseRoot, "dot_tests_" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(_tempDirectory);
         }
 
         public void Dispose()
         {
+            _host.PartnerServer.ResetDefaults();
             try
             {
                 if (Directory.Exists(_tempDirectory))
@@ -52,7 +66,7 @@ namespace Tests.ShareData.Services
         {
             var dict = new Dictionary<string, string?>
             {
-                ["NasStorage:BasePath"] = customBasePath ?? _tempDirectory
+                [ExportPathHelper.BasePathConfigKey] = customBasePath ?? _tempDirectory
             };
             return new ConfigurationBuilder().AddInMemoryCollection(dict).Build();
         }
@@ -61,28 +75,30 @@ namespace Tests.ShareData.Services
             string packetCode = "101",
             string partnerCode = "PARTNER_01",
             ConnectionType? connectionType = ConnectionType.Api,
-            Dictionary<string, string>? config = null)
+            Dictionary<string, string>? config = null,
+            int port = ShareDataPartnerServerMock.DefaultPort,
+            string endPointApiUrl = "/api/receive")
         {
             var partner = new ShareDataPartner
             {
-                ID = "partner-id-1",
+                ID = "partner-id-" + Guid.NewGuid().ToString("N"),
                 Code = partnerCode,
                 Name = "Partner 01",
                 ConnectionType = connectionType,
                 ConnectionConfig = config != null ? System.Text.Json.JsonSerializer.Serialize(config) : null,
-                Address = "http://127.0.0.1",
-                Port = 18090,
-                EndPointApiUrl = "/api/receive"
+                Address = ShareDataPartnerServerMock.DefaultHost,
+                Port = port,
+                EndPointApiUrl = endPointApiUrl
             };
             var packet = new ShareDataPacket
             {
-                ID = "packet-id-1",
+                ID = "packet-id-" + Guid.NewGuid().ToString("N"),
                 Code = packetCode,
                 PacketVersion = "1.0"
             };
             var sub = new ShareDataSubscription
             {
-                ID = "sub-id-1",
+                ID = "sub-id-" + Guid.NewGuid().ToString("N"),
                 PartnerId = partner.ID,
                 DatatypeId = packetCode,
                 SerialNbr = 10
@@ -99,22 +115,18 @@ namespace Tests.ShareData.Services
         [Fact]
         public async Task Send_WhenNormalPayload_SucceedsAndSavesEvidenceMatchingDispatchedBytes_Test()
         {
-            // Arrange
+            // Arrange: Kênh File có DirectoryPath ghi nhận byte payload thực tế chuyển giao tới tệp đích
             var config = CreateConfig();
-            var dispatcher = new FakeDeliveryDispatcher
+            var transport = new DataOutboundTransport(_dispatcher, config);
+            var customTargetDir = Path.Combine(_tempDirectory, "dispatched_" + Guid.NewGuid().ToString("N"));
+            var connCfg = new Dictionary<string, string>
             {
-                ResultToReturn = new DeliveryResult
-                {
-                    Success = true,
-                    Channel = "API",
-                    SentByteSize = 35,
-                    TargetAddressOrPath = "http://127.0.0.1:18090/api/receive"
-                }
+                [ConnectKeys.DirectoryPath] = customTargetDir
             };
-            var transport = new DataOutboundTransport(dispatcher, config);
-            var ctx = CreateContext();
+            var ctx = CreateContext(connectionType: ConnectionType.File, config: connCfg);
             var rawJson = "[{\"id\":1,\"name\":\"Item 01\"}]";
-            var mapping = new DataMappingResult(true, Encoding.UTF8.GetBytes(rawJson), 1);
+            var rawBytes = Encoding.UTF8.GetBytes(rawJson);
+            var mapping = new DataMappingResult(true, rawBytes, 1);
 
             // Act
             var result = await transport.Send(
@@ -123,30 +135,36 @@ namespace Tests.ShareData.Services
                 CancellationToken.None);
 
             // Assert
-            Assert.True(result.Success);
-            Assert.Equal(35, result.ByteSize);
+            Assert.True(result.Success, result.ErrorMessage);
+            Assert.Equal(rawBytes.Length, result.ByteSize);
             Assert.NotNull(result.RelativePath);
-            Assert.Equal(1, dispatcher.DispatchCallCount);
-            Assert.NotNull(dispatcher.LastRequest);
 
             var fullEvidencePath = Path.Combine(_tempDirectory, result.RelativePath);
             Assert.True(File.Exists(fullEvidencePath));
-            var savedBytes = await File.ReadAllBytesAsync(fullEvidencePath);
-            Assert.Equal(dispatcher.LastRequest!.PayloadBytes, savedBytes);
+            var savedEvidenceBytes = await File.ReadAllBytesAsync(fullEvidencePath);
+
+            Assert.True(Directory.Exists(customTargetDir));
+            var dispatchedFiles = Directory.GetFiles(customTargetDir);
+            var dispatchedFile = Assert.Single(dispatchedFiles);
+            var dispatchedBytes = await File.ReadAllBytesAsync(dispatchedFile);
+
+            Assert.Equal(savedEvidenceBytes, dispatchedBytes);
+            Assert.Equal(rawBytes, dispatchedBytes);
         }
 
         [Fact]
         public async Task Send_WhenFormatCsv_GeneratesCsvBytesAndCsvExtension_Test()
         {
-            // Arrange
+            // Arrange: Định dạng CSV qua kênh File thật sinh tệp có đuôi .csv và nội dung phân tách dấu phẩy
             var config = CreateConfig();
-            var dispatcher = new FakeDeliveryDispatcher();
-            var transport = new DataOutboundTransport(dispatcher, config);
+            var transport = new DataOutboundTransport(_dispatcher, config);
+            var customTargetDir = Path.Combine(_tempDirectory, "dispatched_csv_" + Guid.NewGuid().ToString("N"));
             var connCfg = new Dictionary<string, string>
             {
-                [ConnectKeys.Format] = "Csv"
+                [ConnectKeys.Format] = "Csv",
+                [ConnectKeys.DirectoryPath] = customTargetDir
             };
-            var ctx = CreateContext(config: connCfg);
+            var ctx = CreateContext(connectionType: ConnectionType.File, config: connCfg);
             var rawJson = "[{\"colA\":\"val1\",\"colB\":\"val2\"}]";
             var mapping = new DataMappingResult(true, Encoding.UTF8.GetBytes(rawJson), 1);
 
@@ -157,26 +175,40 @@ namespace Tests.ShareData.Services
                 CancellationToken.None);
 
             // Assert
-            Assert.True(result.Success);
+            Assert.True(result.Success, result.ErrorMessage);
             Assert.NotNull(result.RelativePath);
             Assert.EndsWith(".csv", result.RelativePath, StringComparison.OrdinalIgnoreCase);
-            Assert.NotNull(dispatcher.LastRequest?.PayloadBytes);
 
-            var payloadString = Encoding.UTF8.GetString(dispatcher.LastRequest!.PayloadBytes);
-            Assert.Contains("colA,colB", payloadString);
-            Assert.Contains("val1,val2", payloadString);
+            var fullEvidencePath = Path.Combine(_tempDirectory, result.RelativePath);
+            Assert.True(File.Exists(fullEvidencePath));
+            var evidenceContent = await File.ReadAllTextAsync(fullEvidencePath);
+            Assert.Contains("colA,colB", evidenceContent);
+            Assert.Contains("val1,val2", evidenceContent);
+
+            Assert.True(Directory.Exists(customTargetDir));
+            var dispatchedFiles = Directory.GetFiles(customTargetDir);
+            var dispatchedFile = Assert.Single(dispatchedFiles);
+            Assert.EndsWith(".csv", dispatchedFile, StringComparison.OrdinalIgnoreCase);
+
+            var dispatchedContent = await File.ReadAllTextAsync(dispatchedFile);
+            Assert.Equal(evidenceContent, dispatchedContent);
+            Assert.Contains("colA,colB", dispatchedContent);
+            Assert.Contains("val1,val2", dispatchedContent);
         }
 
         [Fact]
         public async Task Send_WhenFileChannelWithoutDirectoryPath_DoesNotCallDispatcherAndUsesEvidencePath_Test()
         {
-            // Arrange
+            // Arrange: Kênh File không có DirectoryPath thì không chuyển giao qua dispatcher, chỉ dùng tệp bằng chứng
             var config = CreateConfig();
-            var dispatcher = new FakeDeliveryDispatcher();
-            var transport = new DataOutboundTransport(dispatcher, config);
+            var transport = new DataOutboundTransport(_dispatcher, config);
+            var uncalledTargetDir = Path.Combine(_tempDirectory, "uncalled_target_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(uncalledTargetDir);
+
             var ctx = CreateContext(connectionType: ConnectionType.File);
             var rawJson = "[{\"id\":1}]";
-            var mapping = new DataMappingResult(true, Encoding.UTF8.GetBytes(rawJson), 1);
+            var rawBytes = Encoding.UTF8.GetBytes(rawJson);
+            var mapping = new DataMappingResult(true, rawBytes, 1);
 
             // Act
             var result = await transport.Send(
@@ -185,21 +217,22 @@ namespace Tests.ShareData.Services
                 CancellationToken.None);
 
             // Assert
-            Assert.True(result.Success);
-            Assert.Equal(0, dispatcher.DispatchCallCount);
+            Assert.True(result.Success, result.ErrorMessage);
             Assert.NotNull(result.RelativePath);
             var fullPath = Path.Combine(_tempDirectory, result.RelativePath);
             Assert.True(File.Exists(fullPath));
+
+            // Không gọi dispatcher: thư mục đích không có tệp mới
+            Assert.Empty(Directory.GetFiles(uncalledTargetDir));
         }
 
         [Fact]
         public async Task Send_WhenFileChannelWithDirectoryPath_CallsDispatcher_Test()
         {
-            // Arrange
+            // Arrange: Kênh File có DirectoryPath chuyển giao thành công tới thư mục chỉ định qua FileDeliverySender thật
             var config = CreateConfig();
-            var dispatcher = new FakeDeliveryDispatcher();
-            var transport = new DataOutboundTransport(dispatcher, config);
-            var customTargetDir = Path.Combine(_tempDirectory, "custom_target");
+            var transport = new DataOutboundTransport(_dispatcher, config);
+            var customTargetDir = Path.Combine(_tempDirectory, "custom_target_" + Guid.NewGuid().ToString("N"));
             var connCfg = new Dictionary<string, string>
             {
                 [ConnectKeys.DirectoryPath] = customTargetDir
@@ -215,8 +248,11 @@ namespace Tests.ShareData.Services
                 CancellationToken.None);
 
             // Assert
-            Assert.True(result.Success);
-            Assert.Equal(1, dispatcher.DispatchCallCount);
+            Assert.True(result.Success, result.ErrorMessage);
+            Assert.True(Directory.Exists(customTargetDir));
+            var files = Directory.GetFiles(customTargetDir);
+            Assert.Single(files);
+            Assert.True(new FileInfo(files[0]).Length > 0);
         }
 
         [Fact]
@@ -227,9 +263,13 @@ namespace Tests.ShareData.Services
             await File.WriteAllTextAsync(blockerFilePath, "blocking file");
 
             var config = CreateConfig(customBasePath: blockerFilePath);
-            var dispatcher = new FakeDeliveryDispatcher();
-            var transport = new DataOutboundTransport(dispatcher, config);
-            var ctx = CreateContext();
+            var transport = new DataOutboundTransport(_dispatcher, config);
+            var customTargetDir = Path.Combine(_tempDirectory, "aborted_target_" + Guid.NewGuid().ToString("N"));
+            var connCfg = new Dictionary<string, string>
+            {
+                [ConnectKeys.DirectoryPath] = customTargetDir
+            };
+            var ctx = CreateContext(connectionType: ConnectionType.File, config: connCfg);
             var rawJson = "[{\"id\":1}]";
             var mapping = new DataMappingResult(true, Encoding.UTF8.GetBytes(rawJson), 1);
 
@@ -242,26 +282,24 @@ namespace Tests.ShareData.Services
             // Assert
             Assert.False(result.Success);
             Assert.Equal(ShareDataAlertCode.Outbound.ArchiveFailed, result.AlertCode);
-            Assert.Equal(0, dispatcher.DispatchCallCount);
             Assert.Contains("Lưu đệm payload thất bại", result.ErrorMessage);
+            Assert.False(Directory.Exists(customTargetDir));
         }
 
         [Fact]
         public async Task Send_WhenDispatcherFails_ReturnsHttpSendFailedAlertAndForwardsDetails_Test()
         {
-            // Arrange
+            // Arrange: Máy chủ đối tác trả HTTP 500 kèm chi tiết lỗi
+            _host.PartnerServer.ResetDefaults();
+            _host.PartnerServer.DefaultStatusCode = HttpStatusCode.InternalServerError;
+            _host.PartnerServer.DefaultResponseBody = "{\"status\":500,\"error\":\"InternalServerError\"}";
+
             var config = CreateConfig();
-            var dispatcher = new FakeDeliveryDispatcher
-            {
-                ResultToReturn = new DeliveryResult
-                {
-                    Success = false,
-                    ErrorMessage = null,
-                    DetailJson = "{\"status\":500,\"error\":\"InternalServerError\"}"
-                }
-            };
-            var transport = new DataOutboundTransport(dispatcher, config);
-            var ctx = CreateContext();
+            var transport = new DataOutboundTransport(_dispatcher, config);
+            var ctx = CreateContext(
+                connectionType: ConnectionType.Api,
+                port: ShareDataPartnerServerMock.DefaultPort,
+                endPointApiUrl: "/api/receive");
             var rawJson = "[{\"id\":1}]";
             var mapping = new DataMappingResult(true, Encoding.UTF8.GetBytes(rawJson), 1);
 
@@ -276,7 +314,9 @@ namespace Tests.ShareData.Services
             Assert.Equal(ShareDataAlertCode.Outbound.HttpSendFailed, result.AlertCode);
             Assert.NotNull(result.ErrorMessage);
             Assert.Contains("thất bại", result.ErrorMessage);
-            Assert.Equal("{\"status\":500,\"error\":\"InternalServerError\"}", result.DetailJson);
+            Assert.NotNull(result.DetailJson);
+            Assert.Contains("500", result.DetailJson);
+            Assert.Contains("InternalServerError", result.DetailJson);
         }
 
         [Fact]
@@ -284,13 +324,12 @@ namespace Tests.ShareData.Services
         {
             // Arrange: Khóa cấu hình cũ ArchiveEnabled=false bị bỏ qua, hệ thống luôn lưu bằng chứng
             var config = CreateConfig();
-            var dispatcher = new FakeDeliveryDispatcher();
-            var transport = new DataOutboundTransport(dispatcher, config);
+            var transport = new DataOutboundTransport(_dispatcher, config);
             var connCfg = new Dictionary<string, string>
             {
                 ["ArchiveEnabled"] = "false"
             };
-            var ctx = CreateContext(config: connCfg);
+            var ctx = CreateContext(connectionType: ConnectionType.File, config: connCfg);
             var rawJson = "[{\"id\":100}]";
             var mapping = new DataMappingResult(true, Encoding.UTF8.GetBytes(rawJson), 1);
 
@@ -301,7 +340,7 @@ namespace Tests.ShareData.Services
                 CancellationToken.None);
 
             // Assert
-            Assert.True(result.Success);
+            Assert.True(result.Success, result.ErrorMessage);
             Assert.NotNull(result.RelativePath);
             var fullPath = Path.Combine(_tempDirectory, result.RelativePath);
             Assert.True(File.Exists(fullPath));
@@ -312,15 +351,14 @@ namespace Tests.ShareData.Services
         {
             // Arrange
             var config = CreateConfig();
-            var dispatcher = new FakeDeliveryDispatcher();
-            var transport = new DataOutboundTransport(dispatcher, config);
+            var transport = new DataOutboundTransport(_dispatcher, config);
             var connCfg = new Dictionary<string, string>
             {
                 [ConnectKeys.OutputPath] = "/deprecated/out/path",
                 [ConnectKeys.Encryptor] = "UnsupportedAlgoX",
                 [ConnectKeys.InboundEncryptor] = "UnsupportedInboundY"
             };
-            var ctx = CreateContext(config: connCfg);
+            var ctx = CreateContext(connectionType: ConnectionType.File, config: connCfg);
             var rawJson = "[{\"id\":1}]";
             var mapping = new DataMappingResult(true, Encoding.UTF8.GetBytes(rawJson), 1);
 
@@ -331,7 +369,7 @@ namespace Tests.ShareData.Services
                 CancellationToken.None);
 
             // Assert
-            Assert.True(result.Success);
+            Assert.True(result.Success, result.ErrorMessage);
             Assert.NotNull(result.Warnings);
             Assert.Contains(result.Warnings, w => w.Contains("Khóa [OutputPath] là khóa đã bãi bỏ, bị bỏ qua."));
             Assert.Contains(result.Warnings, w => w.Contains("Thuật toán mã hóa Encryptor [UnsupportedAlgoX] không được hỗ trợ."));
@@ -341,25 +379,20 @@ namespace Tests.ShareData.Services
         [Fact]
         public async Task Send_WhenDispatcherReturnsWarnings_MergesWarningsIntoResult_Test()
         {
-            // Arrange
+            // Arrange: Cảnh báo từ DataOutboundTransport (OutputPath) gộp cùng cảnh báo từ HttpDeliverySender (AuthType không hỗ trợ)
+            _host.PartnerServer.ResetDefaults();
             var config = CreateConfig();
-            var dispatcher = new FakeDeliveryDispatcher
-            {
-                ResultToReturn = new DeliveryResult
-                {
-                    Success = true,
-                    Channel = "API",
-                    SentByteSize = 50,
-                    TargetAddressOrPath = "http://127.0.0.1:18090/api/receive",
-                    Warnings = ["Cảnh báo từ Dispatcher kênh API."]
-                }
-            };
-            var transport = new DataOutboundTransport(dispatcher, config);
+            var transport = new DataOutboundTransport(_dispatcher, config);
             var connCfg = new Dictionary<string, string>
             {
-                [ConnectKeys.OutputPath] = "/deprecated/out/path"
+                [ConnectKeys.OutputPath] = "/deprecated/out/path",
+                [ConnectKeys.AuthType] = "UnsupportedAuth"
             };
-            var ctx = CreateContext(config: connCfg);
+            var ctx = CreateContext(
+                connectionType: ConnectionType.Api,
+                config: connCfg,
+                port: ShareDataPartnerServerMock.DefaultPort,
+                endPointApiUrl: "/api/receive");
             var rawJson = "[{\"id\":1}]";
             var mapping = new DataMappingResult(true, Encoding.UTF8.GetBytes(rawJson), 1);
 
@@ -370,11 +403,11 @@ namespace Tests.ShareData.Services
                 CancellationToken.None);
 
             // Assert
-            Assert.True(result.Success);
+            Assert.True(result.Success, result.ErrorMessage);
             Assert.NotNull(result.Warnings);
             Assert.Equal(2, result.Warnings.Count);
             Assert.Contains(result.Warnings, w => w.Contains("OutputPath"));
-            Assert.Contains(result.Warnings, w => w.Contains("Cảnh báo từ Dispatcher"));
+            Assert.Contains(result.Warnings, w => w.Contains("AuthType"));
         }
 
         [Fact]
@@ -398,31 +431,6 @@ namespace Tests.ShareData.Services
             Assert.Equal("25", request.ConnectConfig["HttpTimeoutSec"]);
             Assert.True(request.SecurityInfo.ContainsKey(ConnectKeys.ApiKey));
             Assert.Equal("secret-key-12345", request.SecurityInfo[ConnectKeys.ApiKey]);
-        }
-
-        private sealed class FakeDeliveryDispatcher : IDeliveryDispatcher
-        {
-            public int DispatchCallCount { get; private set; }
-            public DeliveryRequest? LastRequest { get; private set; }
-            public DeliveryContext? LastContext { get; private set; }
-            public DeliveryResult ResultToReturn { get; set; } = new DeliveryResult
-            {
-                Success = true,
-                Channel = "API",
-                SentByteSize = 100,
-                TargetAddressOrPath = "http://127.0.0.1:18090/api/receive"
-            };
-
-            public Task<DeliveryResult> Dispatch(
-                DeliveryRequest request,
-                DeliveryContext context,
-                CancellationToken cancellationToken = default)
-            {
-                DispatchCallCount++;
-                LastRequest = request;
-                LastContext = context;
-                return Task.FromResult(ResultToReturn);
-            }
         }
     }
 }

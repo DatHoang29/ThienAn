@@ -1,14 +1,16 @@
-using Module.ShareData.Controllers.Subscription.Validators;
+using FluentValidation;
+using Microsoft.Extensions.DependencyInjection;
 using Module.ShareData.Core.Dto.Subscription;
 using Module.ShareData.Core.Entities;
 using Modules.CfgSystem.Core.Entities;
 using Newtonsoft.Json;
 using Shared.DTO.Enums;
+using SqlSugar;
 
 namespace Tests.ShareData.Controllers;
 
 /// <summary>
-/// Description: Kiểm thử validator và luồng Thêm mới đăng ký chia sẻ qua Wolverine Bus
+/// Description: Kiểm thử validator và luồng Thêm mới đăng ký chia sẻ qua CallApiAsync (mô phỏng MVC API thật).
 /// Created date: 08/10/2026
 /// </summary>
 [Collection("api")]
@@ -16,16 +18,15 @@ public class ShareDataSubscriptionControllerTests(Host host)
 {
     /// <summary>
     /// Description: Kiểm chứng EndTime nhỏ hơn StartTime bị validator chặn; EndTime hợp lệ thì
-    /// lưu thành công qua Wolverine Bus và ScheduleJson lưu đúng StartTime/EndTime đã nhập.
+    /// lưu thành công qua CallApiAsync và ScheduleJson lưu đúng StartTime/EndTime đã nhập.
     /// Created date: 08/10/2026
     /// </summary>
     [Fact]
     public async Task AddSubscription_WhenEndTimeBeforeStartTime_ValidatorRejects_ValidRangeSavesSuccessfully_Test()
     {
         // Arrange
-        var bus = host.Services.GetRequiredService<IMessageBus>();
-        var db = host.Services.GetRequiredService<ISqlSugarClient>();
-        var validator = new AddSubscriptionValidator(host.Localizer);
+        var sp = host.Services;
+        var db = sp.GetRequiredService<ISqlSugarClient>();
         var unique = Guid.NewGuid().ToString("N");
 
         var partner = new ShareDataPartner
@@ -47,9 +48,9 @@ public class ShareDataSubscriptionControllerTests(Host host)
             Schedule = new ShareDataScheduleDto { Kind = "continuous", IntervalSeconds = 30, StartTime = "22:00", EndTime = "05:00" }
         };
 
-        // Act + Assert: nhánh KHÔNG hợp lệ — EndTime < StartTime
-        var invalidResult = await validator.ValidateAsync(invalidInput);
-        Assert.False(invalidResult.IsValid);
+        // Act + Assert: nhánh KHÔNG hợp lệ — EndTime < StartTime bị validator chặn
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => sp.CallApiAsync(invalidInput));
+        Assert.Contains(ex.Errors, e => e.PropertyName == nameof(ShareDataAddSubscriptionInput.Schedule));
 
         var validInput = new ShareDataAddSubscriptionInput
         {
@@ -61,11 +62,8 @@ public class ShareDataSubscriptionControllerTests(Host host)
             Schedule = new ShareDataScheduleDto { Kind = "continuous", IntervalSeconds = 30, StartTime = "06:00", EndTime = "22:00" }
         };
 
-        // Act + Assert: nhánh hợp lệ — EndTime >= StartTime, lưu thật qua bus
-        var validResult = await validator.ValidateAsync(validInput);
-        Assert.True(validResult.IsValid);
-
-        await bus.InvokeAsync(validInput);
+        // Act + Assert: nhánh hợp lệ — EndTime >= StartTime, lưu thật qua CallApiAsync
+        await sp.CallApiAsync(validInput);
 
         var saved = await db.Queryable<ShareDataSubscription>()
             .Where(s => s.PartnerId == partner.ID && s.DatatypeId == validInput.DatatypeId)
@@ -85,8 +83,8 @@ public class ShareDataSubscriptionControllerTests(Host host)
     public async Task AddSubscription_PriorityAndDebounceSec_ValidatesFallbackRanges_Test()
     {
         // Arrange
-        var bus = host.Services.GetRequiredService<IMessageBus>();
-        var db = host.Services.GetRequiredService<ISqlSugarClient>();
+        var sp = host.Services;
+        var db = sp.GetRequiredService<ISqlSugarClient>();
         var unique = Guid.NewGuid().ToString("N");
 
         var partner = new ShareDataPartner
@@ -119,11 +117,11 @@ public class ShareDataSubscriptionControllerTests(Host host)
             };
 
         // 1. Fallback verification (Priority: 0..10, DebounceSec: 0..3600)
-        await Assert.ThrowsAnyAsync<Exception>(() => bus.InvokeAsync(CreateInput(priority: 11)));
-        await Assert.ThrowsAnyAsync<Exception>(() => bus.InvokeAsync(CreateInput(debounce: 3601)));
+        await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput(priority: 11)));
+        await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput(debounce: 3601)));
 
         // 2. Valid input within fallback range succeeds (Mode = Event to preserve DebounceSec)
-        await bus.InvokeAsync(CreateInput(priority: 5, debounce: 60, mode: SubMode.Event));
+        await sp.CallApiAsync(CreateInput(priority: 5, debounce: 60, mode: SubMode.Event));
 
         var saved = await db.Queryable<ShareDataSubscription>()
             .Where(s => s.PartnerId == partner.ID && s.DatatypeId == $"DT_{unique}")
