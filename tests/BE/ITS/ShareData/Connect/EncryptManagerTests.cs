@@ -1,11 +1,11 @@
 using System.Security.Cryptography;
 using System.Text;
 using Modules.Integration.ShareData.Base.Constants;
-using Modules.Integration.ShareData.Base.Enums.Encryption;
-using Modules.Integration.ShareData.Base.Exceptions.Encryption;
-using Modules.Integration.ShareData.Base.Interfaces.Encryption;
-using Modules.Integration.ShareData.Base.Models.Encryption;
-using Modules.Integration.ShareData.Encryption;
+using Modules.Integration.ShareData.Base.Enums.Encrypt;
+using Modules.Integration.ShareData.Base.Exceptions.Encrypt;
+using Modules.Integration.ShareData.Base.Interfaces.Encrypt;
+using Modules.Integration.ShareData.Base.Models.Encrypt;
+using Modules.Integration.ShareData.Encrypt;
 using Xunit;
 
 namespace Tests.ShareData.Connect
@@ -15,6 +15,7 @@ namespace Tests.ShareData.Connect
     /// Description: Bộ kiểm thử đơn vị cho EncryptManager ở tầng kết nối.
     ///              Kiểm chứng các luồng mã hóa, giải mã, bọc ngoại lệ DecryptFailedException và điều phối theo chiều Outbound/Inbound.
     /// Created date: 16/10/2026
+    /// Modified date: 18/10/2026 (Đổi tên theo chuẩn Encrypt)
     /// </summary>
     public class EncryptManagerTests
     {
@@ -54,8 +55,8 @@ namespace Tests.ShareData.Connect
             var data = Encoding.UTF8.GetBytes("hello-plain-world");
             var config = new Dictionary<string, string>
             {
-                [ConnectKeys.Encryptor] = EncryptorNames.None,
-                [ConnectKeys.InboundEncryptor] = EncryptorNames.None
+                [ConnectKeys.Encryptor] = EncryptNames.None,
+                [ConnectKeys.InboundEncryptor] = EncryptNames.None
             };
 
             // Act
@@ -76,9 +77,9 @@ namespace Tests.ShareData.Connect
             var originalBytes = Encoding.UTF8.GetBytes("{\"device\":\"VMS_01\",\"status\":\"Normal\"}");
             var config = new Dictionary<string, string>
             {
-                [ConnectKeys.Encryptor] = EncryptorNames.AesGcm,
+                [ConnectKeys.Encryptor] = EncryptNames.AesGcm,
                 [ConnectKeys.EncryptionKeyRef] = "my-secret-key",
-                [ConnectKeys.InboundEncryptor] = EncryptorNames.AesGcm,
+                [ConnectKeys.InboundEncryptor] = EncryptNames.AesGcm,
                 [ConnectKeys.DecryptionKeyRef] = "my-secret-key"
             };
 
@@ -103,7 +104,7 @@ namespace Tests.ShareData.Connect
             var corruptedBytes = Encoding.UTF8.GetBytes("not-a-valid-json-envelope");
             var config = new Dictionary<string, string>
             {
-                [ConnectKeys.InboundEncryptor] = EncryptorNames.AesGcm,
+                [ConnectKeys.InboundEncryptor] = EncryptNames.AesGcm,
                 [ConnectKeys.DecryptionKeyRef] = "key-ref"
             };
 
@@ -116,7 +117,7 @@ namespace Tests.ShareData.Connect
         public void Decrypt_WhenWrongKey_ThrowsDecryptFailedException_Test()
         {
             // Arrange
-            var wrongKey = new byte[AesGcmEncryptor.KeySize];
+            var wrongKey = new byte[AesGcmEncrypt.KeySize];
             RandomNumberGenerator.Fill(wrongKey);
 
             var keyResolverOutbound = new SimpleKeyResolver("key-ref", TestAes256Key);
@@ -128,9 +129,9 @@ namespace Tests.ShareData.Connect
             var originalBytes = Encoding.UTF8.GetBytes("{\"secret\":\"confidential\"}");
             var config = new Dictionary<string, string>
             {
-                [ConnectKeys.Encryptor] = EncryptorNames.AesGcm,
+                [ConnectKeys.Encryptor] = EncryptNames.AesGcm,
                 [ConnectKeys.EncryptionKeyRef] = "key-ref",
-                [ConnectKeys.InboundEncryptor] = EncryptorNames.AesGcm,
+                [ConnectKeys.InboundEncryptor] = EncryptNames.AesGcm,
                 [ConnectKeys.DecryptionKeyRef] = "key-ref"
             };
 
@@ -153,35 +154,35 @@ namespace Tests.ShareData.Connect
 
             var config1 = new Dictionary<string, string>
             {
-                [ConnectKeys.Encryptor] = EncryptorNames.AesGcm,
+                [ConnectKeys.Encryptor] = EncryptNames.AesGcm,
                 [ConnectKeys.EncryptionKeyRef] = "out-key",
-                [ConnectKeys.InboundEncryptor] = EncryptorNames.None
+                [ConnectKeys.InboundEncryptor] = EncryptNames.None
             };
 
             // Act 1
-            var (outEncryptor1, outCtx1) = manager.GetEncryptor(config1, PayloadDirection.Outbound);
-            var (inEncryptor1, _) = manager.GetEncryptor(config1, PayloadDirection.Inbound);
+            var (outEncrypt1, outCtx1) = manager.GetEncryptor(config1, PayloadDirection.Outbound);
+            var (inEncrypt1, _) = manager.GetEncryptor(config1, PayloadDirection.Inbound);
 
             // Assert 1
-            Assert.IsType<AesGcmEncryptor>(outEncryptor1);
+            Assert.IsType<AesGcmEncrypt>(outEncrypt1);
             Assert.Equal("out-key", outCtx1.KeyRef);
-            Assert.IsType<PlainEncryptor>(inEncryptor1);
+            Assert.IsType<PlainEncrypt>(inEncrypt1);
 
             // Arrange 2 (ngược lại)
             var config2 = new Dictionary<string, string>
             {
-                [ConnectKeys.Encryptor] = EncryptorNames.None,
-                [ConnectKeys.InboundEncryptor] = EncryptorNames.AesGcm,
+                [ConnectKeys.Encryptor] = EncryptNames.None,
+                [ConnectKeys.InboundEncryptor] = EncryptNames.AesGcm,
                 [ConnectKeys.DecryptionKeyRef] = "in-key"
             };
 
             // Act 2
-            var (outEncryptor2, _) = manager.GetEncryptor(config2, PayloadDirection.Outbound);
-            var (inEncryptor2, inCtx2) = manager.GetEncryptor(config2, PayloadDirection.Inbound);
+            var (outEncrypt2, _) = manager.GetEncryptor(config2, PayloadDirection.Outbound);
+            var (inEncrypt2, inCtx2) = manager.GetEncryptor(config2, PayloadDirection.Inbound);
 
             // Assert 2
-            Assert.IsType<PlainEncryptor>(outEncryptor2);
-            Assert.IsType<AesGcmEncryptor>(inEncryptor2);
+            Assert.IsType<PlainEncrypt>(outEncrypt2);
+            Assert.IsType<AesGcmEncrypt>(inEncrypt2);
             Assert.Equal("in-key", inCtx2.KeyRef);
         }
 

@@ -7,6 +7,7 @@ using Modules.Integration.ShareData.PacketSend.Senders;
 using ShareDataWorker.Core.Models.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
 using Tests.ShareData.Mocks;
+using Shared.DTO.Enums;
 using Xunit;
 
 namespace Tests.ShareData.Connect;
@@ -21,7 +22,7 @@ public partial class PacketSendTests
         server.ResetDefaults();
         var httpSender = new HttpPacketSender();
         var dispatcher = PacketSendDispatcher.CreateForHandlers([httpSender]);
-        var ctx = CreateDummyContext("101", "PARTNER_API", "API");
+        var ctx = CreateDummyContext("101", "PARTNER_API", BaseEnums.ConnectionType.Api);
         ctx.Partner!.Address = "127.0.0.1";
         ctx.Partner!.Port = 18092;
         ctx.Partner!.EndPointApiUrl = "/api/v1/data";
@@ -30,7 +31,7 @@ public partial class PacketSendTests
         var request = new PacketSendRequest
         {
             JsonPayload = jsonPayload,
-            ConnectType = "API",
+            ConnectType = BaseEnums.ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["HttpTimeoutSec"] = "10"
@@ -55,7 +56,7 @@ public partial class PacketSendTests
         server.ResetDefaults();
         var httpSender = new HttpPacketSender();
         var dispatcher = PacketSendDispatcher.CreateForHandlers([httpSender]);
-        var ctx = CreateDummyContext("101", "PARTNER_LEGACY", "API");
+        var ctx = CreateDummyContext("101", "PARTNER_LEGACY", BaseEnums.ConnectionType.Api);
         ctx.Partner!.Address = "127.0.0.1";
         ctx.Partner!.Port = 18092;
         ctx.Partner!.EndPointApiUrl = "/api/v1/legacy-data";
@@ -121,7 +122,7 @@ public partial class PacketSendTests
         var request = new PacketSendRequest
         {
             JsonPayload = "{}",
-            ConnectType = "API",
+            ConnectType = BaseEnums.ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>()
         };
 
@@ -146,7 +147,7 @@ public partial class PacketSendTests
         var request = new PacketSendRequest
         {
             JsonPayload = "{}",
-            ConnectType = "API",
+            ConnectType = BaseEnums.ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["Address"] = "127.0.0.1",
@@ -173,7 +174,7 @@ public partial class PacketSendTests
         var request = new PacketSendRequest
         {
             JsonPayload = "{}",
-            ConnectType = "API",
+            ConnectType = BaseEnums.ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["Address"] = "127.0.0.1",
@@ -202,7 +203,7 @@ public partial class PacketSendTests
         var request = new PacketSendRequest
         {
             JsonPayload = "{\"data\":\"test\"}",
-            ConnectType = "API",
+            ConnectType = BaseEnums.ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["Address"] = "127.0.0.1",
@@ -233,7 +234,7 @@ public partial class PacketSendTests
         var request = new PacketSendRequest
         {
             JsonPayload = "{\"data\":\"test\"}",
-            ConnectType = "API",
+            ConnectType = BaseEnums.ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["Address"] = "127.0.0.1",
@@ -265,7 +266,7 @@ public partial class PacketSendTests
         var request = new PacketSendRequest
         {
             JsonPayload = "{\"data\":\"test\"}",
-            ConnectType = "API",
+            ConnectType = BaseEnums.ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["Address"] = "127.0.0.1",
@@ -300,7 +301,7 @@ public partial class PacketSendTests
         var request = new PacketSendRequest
         {
             JsonPayload = "{\"data\":\"test\"}",
-            ConnectType = "API",
+            ConnectType = BaseEnums.ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["Address"] = "127.0.0.1",
@@ -334,7 +335,7 @@ public partial class PacketSendTests
         var request = new PacketSendRequest
         {
             JsonPayload = "{\"data\":\"test\"}",
-            ConnectType = "API",
+            ConnectType = BaseEnums.ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["Address"] = "127.0.0.1",
@@ -370,7 +371,7 @@ public partial class PacketSendTests
         var request = new PacketSendRequest
         {
             JsonPayload = "{\"data\":\"test\"}",
-            ConnectType = "API",
+            ConnectType = BaseEnums.ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["Address"] = "127.0.0.1",
@@ -403,7 +404,7 @@ public partial class PacketSendTests
             PayloadBytes = expectedBytes,
             ContentType = "application/json",
             JsonPayload = "dummy_should_not_be_used",
-            ConnectType = "API",
+            ConnectType = BaseEnums.ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["Address"] = ShareDataPartnerServerMock.DefaultHost,
@@ -430,7 +431,7 @@ public partial class PacketSendTests
         var request = new PacketSendRequest
         {
             JsonPayload = "{\"test\": 1}",
-            ConnectType = "API",
+            ConnectType = BaseEnums.ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>
             {
                 [ConnectKeys.AuthType] = authType,
@@ -459,7 +460,7 @@ public partial class PacketSendTests
         var request = new PacketSendRequest
         {
             JsonPayload = "{\"test\": 1}",
-            ConnectType = "API",
+            ConnectType = BaseEnums.ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>
             {
                 [ConnectKeys.AuthType] = "OAuth3Custom",
@@ -486,7 +487,7 @@ public partial class PacketSendTests
         var request = new PacketSendRequest
         {
             JsonPayload = "{\"test\": 1}",
-            ConnectType = "API",
+            ConnectType = BaseEnums.ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>
             {
                 [ConnectKeys.AuthType] = "Bearer",
@@ -513,7 +514,7 @@ public partial class PacketSendTests
         var request = new PacketSendRequest
         {
             JsonPayload = "{\"test\": 1}",
-            ConnectType = "API",
+            ConnectType = BaseEnums.ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>
             {
                 [ConnectKeys.AuthType] = "ApiKey"
@@ -539,7 +540,7 @@ public partial class PacketSendTests
         var request = new PacketSendRequest
         {
             JsonPayload = "{\"test\": 1}",
-            ConnectType = "API",
+            ConnectType = BaseEnums.ConnectionType.Api,
             ConnectConfig = new Dictionary<string, string>
             {
                 [ConnectKeys.AuthType] = "Basic",

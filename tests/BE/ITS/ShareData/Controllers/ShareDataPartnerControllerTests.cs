@@ -1,6 +1,9 @@
+using Microsoft.Extensions.Localization;
 using Module.ShareData.Controllers.Partner.Validators;
+using Module.ShareData.Core.Dto.Partner;
 using Modules.Integration.ShareData.Base.Constants;
 using Modules.Integration.ShareData.Base.Enums;
+using Shared.DTO.Enums;
 using Xunit;
 
 namespace Tests.ShareData.Controllers
@@ -209,6 +212,81 @@ namespace Tests.ShareData.Controllers
 
             // Assert
             Assert.Equal(ConnectConfigIssue.None, issue);
+        }
+
+        [Theory]
+        [InlineData(BaseEnums.ConnectionType.Api)]
+        [InlineData(BaseEnums.ConnectionType.File)]
+        [InlineData(BaseEnums.ConnectionType.Ftp)]
+        [InlineData(BaseEnums.ConnectionType.Ftps)]
+        [InlineData(BaseEnums.ConnectionType.Kafka)]
+        public void PartnerValidator_ValidConnectionType_PassesValidation_Test(BaseEnums.ConnectionType connectionType)
+        {
+            // Arrange
+            var validator = new PartnerValidator(new EchoLocalizer());
+            var input = new ShareDataAddPartnerInput
+            {
+                Code = "PARTNER_01",
+                Name = "Partner 01",
+                Address = "127.0.0.1",
+                ConnectionType = connectionType
+            };
+
+            // Act
+            var result = validator.Validate(input);
+
+            // Assert
+            Assert.DoesNotContain(result.Errors, e => e.PropertyName == nameof(ShareDataAddPartnerInput.ConnectionType));
+        }
+
+        [Fact]
+        public void PartnerValidator_NullConnectionType_PassesValidation_Test()
+        {
+            // Arrange
+            var validator = new PartnerValidator(new EchoLocalizer());
+            var input = new ShareDataAddPartnerInput
+            {
+                Code = "PARTNER_01",
+                Name = "Partner 01",
+                Address = "127.0.0.1",
+                ConnectionType = null
+            };
+
+            // Act
+            var result = validator.Validate(input);
+
+            // Assert
+            Assert.DoesNotContain(result.Errors, e => e.PropertyName == nameof(ShareDataAddPartnerInput.ConnectionType));
+        }
+
+        [Fact]
+        public void PartnerValidator_InvalidConnectionType_FailsValidation_Test()
+        {
+            // Arrange
+            var validator = new PartnerValidator(new EchoLocalizer());
+            var input = new ShareDataAddPartnerInput
+            {
+                Code = "PARTNER_01",
+                Name = "Partner 01",
+                Address = "127.0.0.1",
+                ConnectionType = (BaseEnums.ConnectionType)999
+            };
+
+            // Act
+            var result = validator.Validate(input);
+
+            // Assert
+            Assert.Contains(result.Errors, e => e.PropertyName == nameof(ShareDataAddPartnerInput.ConnectionType));
+        }
+
+        private sealed class EchoLocalizer : IStringLocalizer
+        {
+            public LocalizedString this[string name] => new(name, name, resourceNotFound: false);
+
+            public LocalizedString this[string name, params object[] arguments] =>
+                new(name, string.Format(name, arguments), resourceNotFound: false);
+
+            public IEnumerable<LocalizedString> GetAllStrings(bool includeParentCultures) => [];
         }
     }
 }

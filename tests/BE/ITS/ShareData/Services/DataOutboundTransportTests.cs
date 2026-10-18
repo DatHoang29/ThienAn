@@ -11,6 +11,7 @@ using ShareDataWorker.Core.Interfaces.DataOutbound;
 using ShareDataWorker.Core.Models.DataOutbound;
 using ShareDataWorker.Infrastructure.Logging;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
+using Shared.DTO.Enums;
 using Xunit;
 
 namespace Tests.ShareData.Services
@@ -59,7 +60,7 @@ namespace Tests.ShareData.Services
         private static DataOutboundContext CreateContext(
             string packetCode = "101",
             string partnerCode = "PARTNER_01",
-            string connectionType = "API",
+            BaseEnums.ConnectionType? connectionType = BaseEnums.ConnectionType.Api,
             Dictionary<string, string>? config = null)
         {
             var partner = new ShareDataPartner
@@ -105,7 +106,7 @@ namespace Tests.ShareData.Services
                 ResultToReturn = new PacketSendResult
                 {
                     Success = true,
-                    Channel = ConnectTypes.Api,
+                    Channel = "API",
                     SentByteSize = 35,
                     TargetAddressOrPath = "http://127.0.0.1:18090/api/receive"
                 }
@@ -173,7 +174,7 @@ namespace Tests.ShareData.Services
             var config = CreateConfig();
             var dispatcher = new FakePacketSendDispatcher();
             var transport = new DataOutboundTransport(dispatcher, config);
-            var ctx = CreateContext(connectionType: ConnectTypes.File);
+            var ctx = CreateContext(connectionType: BaseEnums.ConnectionType.File);
             var rawJson = "[{\"id\":1}]";
             var mapping = new DataMappingResult(true, Encoding.UTF8.GetBytes(rawJson), 1);
 
@@ -203,7 +204,7 @@ namespace Tests.ShareData.Services
             {
                 [ConnectKeys.DirectoryPath] = customTargetDir
             };
-            var ctx = CreateContext(connectionType: ConnectTypes.File, config: connCfg);
+            var ctx = CreateContext(connectionType: BaseEnums.ConnectionType.File, config: connCfg);
             var rawJson = "[{\"id\":1}]";
             var mapping = new DataMappingResult(true, Encoding.UTF8.GetBytes(rawJson), 1);
 
@@ -347,7 +348,7 @@ namespace Tests.ShareData.Services
                 ResultToReturn = new PacketSendResult
                 {
                     Success = true,
-                    Channel = ConnectTypes.Api,
+                    Channel = "API",
                     SentByteSize = 50,
                     TargetAddressOrPath = "http://127.0.0.1:18090/api/receive",
                     Warnings = ["Cảnh báo từ Dispatcher kênh API."]
@@ -380,7 +381,7 @@ namespace Tests.ShareData.Services
         public void BuildRequest_WhenPartnerHasSecurityAndConnectionConfig_ExtractsSecurityInfoAndConfigProperly_Test()
         {
             // Arrange
-            var ctx = CreateContext("105", "PARTNER_CONFIG", "Kafka");
+            var ctx = CreateContext("105", "PARTNER_CONFIG", BaseEnums.ConnectionType.Kafka);
             ctx.Partner!.ConnectionConfig = "{\"ApiKey\":\"secret-key-12345\",\"Topic\":\"rfid-topic\",\"HttpTimeoutSec\":\"25\"}";
             var mappingBytes = Encoding.UTF8.GetBytes("{\"tag\":\"RFID_001\"}");
             var mapping = new DataMappingResult(true, mappingBytes, 1);
@@ -390,7 +391,7 @@ namespace Tests.ShareData.Services
 
             // Assert
             Assert.Equal("{\"tag\":\"RFID_001\"}", request.JsonPayload);
-            Assert.Equal("Kafka", request.ConnectType);
+            Assert.Equal(BaseEnums.ConnectionType.Kafka, request.ConnectType);
             Assert.True(request.ConnectConfig.ContainsKey("Topic"));
             Assert.Equal("rfid-topic", request.ConnectConfig["Topic"]);
             Assert.True(request.ConnectConfig.ContainsKey("HttpTimeoutSec"));
@@ -407,7 +408,7 @@ namespace Tests.ShareData.Services
             public PacketSendResult ResultToReturn { get; set; } = new PacketSendResult
             {
                 Success = true,
-                Channel = ConnectTypes.Api,
+                Channel = "API",
                 SentByteSize = 100,
                 TargetAddressOrPath = "http://127.0.0.1:18090/api/receive"
             };

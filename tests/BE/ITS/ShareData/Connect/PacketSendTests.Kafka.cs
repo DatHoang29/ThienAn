@@ -4,6 +4,7 @@ using Modules.Integration.ShareData.Base.Interfaces.PacketSend;
 using Modules.Integration.ShareData.Base.Models.PacketSend;
 using Modules.Integration.ShareData.PacketSend;
 using Modules.Integration.ShareData.PacketSend.Senders;
+using Shared.DTO.Enums;
 using Xunit;
 
 namespace Tests.ShareData.Connect;
@@ -16,12 +17,12 @@ public partial class PacketSendTests
         // Arrange
         var kafkaSender = new KafkaPacketSender();
         var dispatcher = PacketSendDispatcher.CreateForHandlers([kafkaSender]);
-        var ctx = CreateDummyContext("101", "PARTNER_KAFKA", "Kafka");
+        var ctx = CreateDummyContext("101", "PARTNER_KAFKA", BaseEnums.ConnectionType.Kafka);
         var jsonPayload = "{\"temperature\": 28.5, \"humidity\": 65}";
         var request = new PacketSendRequest
         {
             JsonPayload = jsonPayload,
-            ConnectType = "Kafka",
+            ConnectType = BaseEnums.ConnectionType.Kafka,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["Topic"] = "traffic-weather-topic",
@@ -44,11 +45,11 @@ public partial class PacketSendTests
     {
         // Arrange
         var kafkaSender = new KafkaPacketSender();
-        var ctx = CreateDummyContext("101", "PARTNER_KAFKA", "Kafka");
+        var ctx = CreateDummyContext("101", "PARTNER_KAFKA", BaseEnums.ConnectionType.Kafka);
         var request = new PacketSendRequest
         {
             JsonPayload = string.Empty,
-            ConnectType = "Kafka"
+            ConnectType = BaseEnums.ConnectionType.Kafka
         };
 
         // Act
@@ -65,19 +66,19 @@ public partial class PacketSendTests
     {
         // Arrange
         var kafkaSender = new KafkaPacketSender();
-        var ctx = CreateDummyContext("101", "PARTNER_KAFKA", "Kafka");
+        var ctx = CreateDummyContext("101", "PARTNER_KAFKA", BaseEnums.ConnectionType.Kafka);
 
         var disabledReq = new PacketSendRequest
         {
             JsonPayload = "{\"test\": 1}",
-            ConnectType = "Kafka",
+            ConnectType = BaseEnums.ConnectionType.Kafka,
             ConnectConfig = new Dictionary<string, string> { ["Enabled"] = "false" }
         };
 
         var missingServersReq = new PacketSendRequest
         {
             JsonPayload = "{\"test\": 1}",
-            ConnectType = "Kafka",
+            ConnectType = BaseEnums.ConnectionType.Kafka,
             ConnectConfig = new Dictionary<string, string> { ["Enabled"] = "true", ["Topic"] = "my-topic" }
         };
 
@@ -98,14 +99,14 @@ public partial class PacketSendTests
     public void Kafka_WhenBootstrapServersInConfig_PrefersOverPartnerColumns_Test()
     {
         // Arrange
-        var ctx = CreateDummyContext("101", "PARTNER_KAFKA", "Kafka");
+        var ctx = CreateDummyContext("101", "PARTNER_KAFKA", BaseEnums.ConnectionType.Kafka);
         ctx.Partner!.Address = "10.0.0.1";
         ctx.Partner!.Port = 9092;
 
         var reqWithBootstrap = new PacketSendRequest
         {
             JsonPayload = "{\"test\": 1}",
-            ConnectType = "Kafka",
+            ConnectType = BaseEnums.ConnectionType.Kafka,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["BootstrapServers"] = "kafka-cluster:9092,kafka-cluster:9093"
@@ -115,7 +116,7 @@ public partial class PacketSendTests
         var reqFallback = new PacketSendRequest
         {
             JsonPayload = "{\"test\": 1}",
-            ConnectType = "Kafka",
+            ConnectType = BaseEnums.ConnectionType.Kafka,
             ConnectConfig = new Dictionary<string, string>()
         };
 

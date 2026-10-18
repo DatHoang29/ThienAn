@@ -4,6 +4,7 @@ using Modules.Integration.ShareData.Base.Interfaces.PacketSend;
 using Modules.Integration.ShareData.Base.Models.PacketSend;
 using Modules.Integration.ShareData.PacketSend;
 using Modules.Integration.ShareData.PacketSend.Senders;
+using Shared.DTO.Enums;
 using Xunit;
 
 namespace Tests.ShareData.Connect;
@@ -15,19 +16,19 @@ public partial class PacketSendTests
     {
         // Arrange
         var ftpSender = new FtpPacketSender();
-        var ctx = CreateDummyContext("101", "PARTNER_FTP", "Ftp");
+        var ctx = CreateDummyContext("101", "PARTNER_FTP", BaseEnums.ConnectionType.Ftp);
 
         var disabledReq = new PacketSendRequest
         {
             JsonPayload = "[{\"id\": 1}]",
-            ConnectType = "Ftp",
+            ConnectType = BaseEnums.ConnectionType.Ftp,
             ConnectConfig = new Dictionary<string, string> { ["Enabled"] = "false" }
         };
 
         var missingHostReq = new PacketSendRequest
         {
             JsonPayload = "[{\"id\": 1}]",
-            ConnectType = "Ftp",
+            ConnectType = BaseEnums.ConnectionType.Ftp,
             ConnectConfig = new Dictionary<string, string> { ["Enabled"] = "true" }
         };
 
@@ -48,7 +49,7 @@ public partial class PacketSendTests
     public async Task FtpSender_WhenCsvPayloadBytesProvided_UsesExactPayloadBytesAndCsvExtension_Test()
     {
         var ftpSender = new FtpPacketSender();
-        var ctx = CreateDummyContext("101", "PARTNER_FTP_CSV", "FTP");
+        var ctx = CreateDummyContext("101", "PARTNER_FTP_CSV", BaseEnums.ConnectionType.Ftp);
         var csvBytes = Encoding.UTF8.GetBytes("ID,Code,Name\r\n1,A,Item1\r\n2,B,Item2");
         var request = new PacketSendRequest
         {
@@ -56,7 +57,7 @@ public partial class PacketSendTests
             ContentType = "text/csv",
             FileExtension = ".csv",
             JsonPayload = "{}",
-            ConnectType = "FTP",
+            ConnectType = BaseEnums.ConnectionType.Ftp,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["RemotePath"] = "/test/path"

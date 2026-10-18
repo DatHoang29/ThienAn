@@ -5,6 +5,7 @@ using Modules.Integration.ShareData.PacketSend;
 using Modules.Integration.ShareData.PacketSend.Senders;
 using ShareDataWorker.Core.Models.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
+using Shared.DTO.Enums;
 
 namespace Tests.RealServer
 {
@@ -42,7 +43,7 @@ namespace Tests.RealServer
             var request = new PacketSendRequest
             {
                 JsonPayload = "[{\"licensePlate\":\"29A-12345\"}]",
-                ConnectType = "API",
+                ConnectType = BaseEnums.ConnectionType.Api,
                 ConnectConfig = new Dictionary<string, string>()
             };
 
@@ -76,7 +77,7 @@ namespace Tests.RealServer
             var request = new PacketSendRequest
             {
                 JsonPayload = "[{\"licensePlate\":\"29A-12345\"}]",
-                ConnectType = "API",
+                ConnectType = BaseEnums.ConnectionType.Api,
                 ConnectConfig = new Dictionary<string, string>()
             };
 

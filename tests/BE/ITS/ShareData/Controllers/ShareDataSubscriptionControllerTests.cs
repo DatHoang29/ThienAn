@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Module.ShareData.Controllers.Subscription.Validators;
 using Module.ShareData.Core.Dto.Subscription;
 using Module.ShareData.Core.Entities;
-using Module.ShareData.Infrastructure.Services.ShareDataConfig;
+using Module.ShareData.Infrastructure.Configuration;
 using Modules.CfgSystem.Core.Entities;
 using Newtonsoft.Json;
 using Shared.DTO.Enums;
@@ -28,8 +28,8 @@ public class ShareDataSubscriptionControllerTests(Host host)
         // Arrange
         var bus = host.Services.GetRequiredService<IMessageBus>();
         var db = host.Services.GetRequiredService<ISqlSugarClient>();
-        var configService = host.Services.GetRequiredService<ShareDataConfigService>();
-        var validator = new AddSubscriptionValidator(host.Localizer, configService);
+        var limitOption = host.Services.GetRequiredService<LimitOption>();
+        var validator = new AddSubscriptionValidator(host.Localizer, limitOption);
         var unique = Guid.NewGuid().ToString("N");
 
         var partner = new ShareDataPartner
@@ -90,8 +90,8 @@ public class ShareDataSubscriptionControllerTests(Host host)
     {
         // Arrange
         var db = host.Services.GetRequiredService<ISqlSugarClient>();
-        var fallbackConfigService = host.Services.GetRequiredService<ShareDataConfigService>();
-        var fallbackValidator = new AddSubscriptionValidator(host.Localizer, fallbackConfigService);
+        var fallbackLimitOption = host.Services.GetRequiredService<LimitOption>();
+        var fallbackValidator = new AddSubscriptionValidator(host.Localizer, fallbackLimitOption);
         var unique = Guid.NewGuid().ToString("N");
 
         ShareDataAddSubscriptionInput CreateInput(int? priority = null, int? debounce = null) =>
@@ -140,13 +140,13 @@ public class ShareDataSubscriptionControllerTests(Host host)
         };
         await db.Insertable(testRows).ExecuteCommandAsync();
 
-        var configService = new ShareDataConfigService(
+        var customLimitOption = new LimitOption(
             db: db,
-            logger: NullLogger<ShareDataConfigService>.Instance,
+            logger: NullLogger<LimitOption>.Instance,
             configuration: config);
         var customValidator = new AddSubscriptionValidator(
             host.Localizer,
-            configService);
+            customLimitOption);
 
         var resCustomPrioLow = await customValidator.ValidateAsync(CreateInput(priority: 1));
         var resCustomPrioHigh = await customValidator.ValidateAsync(CreateInput(priority: 8));

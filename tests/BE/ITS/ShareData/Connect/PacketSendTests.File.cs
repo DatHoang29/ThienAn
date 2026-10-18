@@ -6,6 +6,7 @@ using Modules.Integration.ShareData.Base.Models.PacketSend;
 using Modules.Integration.ShareData.Formats;
 using Modules.Integration.ShareData.PacketSend;
 using Modules.Integration.ShareData.PacketSend.Senders;
+using Shared.DTO.Enums;
 using Xunit;
 
 namespace Tests.ShareData.Connect;
@@ -18,14 +19,14 @@ public partial class PacketSendTests
         // Arrange
         var fileSender = new FilePacketSender();
         var dispatcher = PacketSendDispatcher.CreateForHandlers([fileSender]);
-        var ctx = CreateDummyContext("103", "PARTNER_FILE", "File");
+        var ctx = CreateDummyContext("103", "PARTNER_FILE", BaseEnums.ConnectionType.File);
         var jsonPayload = "{\"vdsCount\": 12, \"speed\": 80}";
         var customDir = "Out/TestPartner";
         var fileNamePattern = "vds_export_{serial}.json";
         var request = new PacketSendRequest
         {
             JsonPayload = jsonPayload,
-            ConnectType = "File",
+            ConnectType = BaseEnums.ConnectionType.File,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["DirectoryPath"] = customDir,
@@ -48,12 +49,12 @@ public partial class PacketSendTests
     {
         // Arrange
         var fileSender = new FilePacketSender();
-        var ctx = CreateDummyContext("103", "PARTNER_FILE_INVALID", "File");
+        var ctx = CreateDummyContext("103", "PARTNER_FILE_INVALID", BaseEnums.ConnectionType.File);
         var invalidDir = "Out/Invalid|Path\0";
         var request = new PacketSendRequest
         {
             JsonPayload = "{}",
-            ConnectType = "File",
+            ConnectType = BaseEnums.ConnectionType.File,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["DirectoryPath"] = invalidDir
@@ -94,11 +95,11 @@ public partial class PacketSendTests
     public async Task FileSender_WhenDirectoryPathHasPathTraversal_ReturnsInvalidConfiguration_Test()
     {
         var fileSender = new FilePacketSender();
-        var ctx = CreateDummyContext("103", "PARTNER_FILE_TRAVERSAL", "File");
+        var ctx = CreateDummyContext("103", "PARTNER_FILE_TRAVERSAL", BaseEnums.ConnectionType.File);
         var request = new PacketSendRequest
         {
             PayloadBytes = Encoding.UTF8.GetBytes("test-content"),
-            ConnectType = "File",
+            ConnectType = BaseEnums.ConnectionType.File,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["DirectoryPath"] = "safe/../../etc/passwd"
@@ -117,13 +118,13 @@ public partial class PacketSendTests
     public async Task FileSender_WhenDirectoryPathAndFileNamePatternConfigured_SavesToExpectedCustomPath_Test()
     {
         var fileSender = new FilePacketSender();
-        var ctx = CreateDummyContext("103", "PARTNER_FILE_CUSTOM", "File");
+        var ctx = CreateDummyContext("103", "PARTNER_FILE_CUSTOM", BaseEnums.ConnectionType.File);
         var expectedBytes = Encoding.UTF8.GetBytes("custom-file-payload-content");
         var request = new PacketSendRequest
         {
             PayloadBytes = expectedBytes,
             FileExtension = ".csv",
-            ConnectType = "File",
+            ConnectType = BaseEnums.ConnectionType.File,
             ConnectConfig = new Dictionary<string, string>
             {
                 ["DirectoryPath"] = "custom_export_dir",
@@ -158,7 +159,7 @@ public partial class PacketSendTests
         var request = new PacketSendRequest
         {
             PayloadBytes = Encoding.UTF8.GetBytes("{\"file\": 1}"),
-            ConnectType = "File",
+            ConnectType = BaseEnums.ConnectionType.File,
             ConnectConfig = new Dictionary<string, string>
             {
                 [ConnectKeys.DirectoryPath] = "test_warn_out",
@@ -191,7 +192,7 @@ public partial class PacketSendTests
         var request = new PacketSendRequest
         {
             PayloadBytes = Encoding.UTF8.GetBytes("{\"file\": 2}"),
-            ConnectType = "File",
+            ConnectType = BaseEnums.ConnectionType.File,
             ConnectConfig = new Dictionary<string, string>
             {
                 [ConnectKeys.DirectoryPath] = "test_warn_out",

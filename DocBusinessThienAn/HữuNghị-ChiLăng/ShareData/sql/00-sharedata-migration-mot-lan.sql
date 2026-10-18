@@ -12,10 +12,11 @@ GO
 --              5. Tạo / Đổi tên bảng thành ShareDataSourceTable (có IsTracked, IsQueryable, Category, DefaultAlias;
 --                 chép Status -> IsTracked), di trú cấu hình từ SysOpConfig (sharedata_tracker) kèm mốc LastVersion
 --                 từ ShareDataTrackVersion, xóa mềm SysOpConfig và DROP ShareDataTrackVersion.
+--              6. Di trú cột ConnectionType trên ShareDataPartner từ NVARCHAR sang INT (1-Api, 2-File, 3-Ftp, 4-Ftps, 5-Kafka).
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: ⚠️ CHỈ CHẠY MỘT LẦN KHI NÂNG CẤP/DI TRÚ HỆ THỐNG.
--- CẬP NHẬT LẦN CUỐI: 17/10/2026
+-- CẬP NHẬT LẦN CUỐI: 18/10/2026
 -- =========================================================================================
 
 PRINT N'=============================================================================';
@@ -448,6 +449,93 @@ END
 ELSE
 BEGIN
     PRINT N'  -> Bảng cũ [dbo].[ShareDataTrackVersion] không tồn tại, bỏ qua.';
+END
+GO
+
+-- -----------------------------------------------------------------------------------------
+-- 6. DI TRÚ CỘT ConnectionType TRÊN BẢNG ShareDataPartner TỪ NVARCHAR SANG INT
+-- -----------------------------------------------------------------------------------------
+IF OBJECT_ID(N'dbo.ShareDataPartner', N'U') IS NOT NULL
+BEGIN
+    IF COL_LENGTH(N'dbo.ShareDataPartner', N'ConnectionType') IS NULL
+    BEGIN
+        PRINT N'  -> Đang thêm mới cột ConnectionType kiểu INT vào bảng ShareDataPartner...';
+        ALTER TABLE [dbo].[ShareDataPartner] ADD [ConnectionType] INT NULL;
+    END
+    ELSE
+    BEGIN
+        DECLARE @curPartnerColType NVARCHAR(128);
+        SELECT @curPartnerColType = tp.name
+        FROM sys.columns c
+        JOIN sys.types tp ON c.user_type_id = tp.user_type_id
+        WHERE c.object_id = OBJECT_ID(N'dbo.ShareDataPartner')
+          AND c.name = N'ConnectionType';
+
+        IF @curPartnerColType <> N'int'
+        BEGIN
+            PRINT N'  -> Phát hiện cột ConnectionType kiểu ' + @curPartnerColType + N', đang chuẩn hóa dữ liệu sang số nguyên (1-Api, 2-File, 3-Ftp, 4-Ftps, 5-Kafka)...';
+
+            UPDATE [dbo].[ShareDataPartner]
+            SET [ConnectionType] = CASE
+                WHEN UPPER(LTRIM(RTRIM(CAST([ConnectionType] AS NVARCHAR(64))))) IN (N'API', N'REST', N'HTTP', N'WEBAPI', N'1') THEN 1
+                WHEN UPPER(LTRIM(RTRIM(CAST([ConnectionType] AS NVARCHAR(64))))) IN (N'FILE', N'DISK', N'NAS', N'2') THEN 2
+                WHEN UPPER(LTRIM(RTRIM(CAST([ConnectionType] AS NVARCHAR(64))))) IN (N'FTP', N'3') THEN 3
+                WHEN UPPER(LTRIM(RTRIM(CAST([ConnectionType] AS NVARCHAR(64))))) IN (N'FTPS', N'4') THEN 4
+                WHEN UPPER(LTRIM(RTRIM(CAST([ConnectionType] AS NVARCHAR(64))))) IN (N'KAFKA', N'5') THEN 5
+                ELSE NULL
+            END;
+
+            PRINT N'  -> Đang chuyển kiểu cột ConnectionType sang INT NULL...';
+            ALTER TABLE [dbo].[ShareDataPartner] ALTER COLUMN [ConnectionType] INT NULL;
+            PRINT N'  -> Đã di trú cột ConnectionType sang INT NULL thành công.';
+        END
+        ELSE
+        BEGIN
+            PRINT N'  -> Cột ConnectionType trên ShareDataPartner đã là kiểu INT, bỏ qua.';
+        END
+    END
+END
+GO
+
+IF DB_ID('test') IS NOT NULL
+BEGIN
+    PRINT N'  -> Phát hiện CSDL [test], kiểm tra và di trú ConnectionType trên [test].[dbo].[ShareDataPartner]...';
+    EXEC('
+        USE [test];
+        IF OBJECT_ID(N''dbo.ShareDataPartner'', N''U'') IS NOT NULL
+        BEGIN
+            IF COL_LENGTH(N''dbo.ShareDataPartner'', N''ConnectionType'') IS NULL
+            BEGIN
+                PRINT N''    -> [test] Đang thêm cột ConnectionType INT vào ShareDataPartner...'';
+                ALTER TABLE [dbo].[ShareDataPartner] ADD [ConnectionType] INT NULL;
+            END
+            ELSE
+            BEGIN
+                DECLARE @curTestType NVARCHAR(128);
+                SELECT @curTestType = tp.name
+                FROM sys.columns c
+                JOIN sys.types tp ON c.user_type_id = tp.user_type_id
+                WHERE c.object_id = OBJECT_ID(N''dbo.ShareDataPartner'')
+                  AND c.name = N''ConnectionType'';
+
+                IF @curTestType <> N''int''
+                BEGIN
+                    PRINT N''    -> [test] Đang chuẩn hóa dữ liệu ConnectionType sang số nguyên...'';
+                    UPDATE [dbo].[ShareDataPartner]
+                    SET [ConnectionType] = CASE
+                        WHEN UPPER(LTRIM(RTRIM(CAST([ConnectionType] AS NVARCHAR(64))))) IN (N''API'', N''REST'', N''HTTP'', N''WEBAPI'', N''1'') THEN 1
+                        WHEN UPPER(LTRIM(RTRIM(CAST([ConnectionType] AS NVARCHAR(64))))) IN (N''FILE'', N''DISK'', N''NAS'', N''2'') THEN 2
+                        WHEN UPPER(LTRIM(RTRIM(CAST([ConnectionType] AS NVARCHAR(64))))) IN (N''FTP'', N''3'') THEN 3
+                        WHEN UPPER(LTRIM(RTRIM(CAST([ConnectionType] AS NVARCHAR(64))))) IN (N''FTPS'', N''4'') THEN 4
+                        WHEN UPPER(LTRIM(RTRIM(CAST([ConnectionType] AS NVARCHAR(64))))) IN (N''KAFKA'', N''5'') THEN 5
+                        ELSE NULL
+                    END;
+                    ALTER TABLE [dbo].[ShareDataPartner] ALTER COLUMN [ConnectionType] INT NULL;
+                    PRINT N''    -> [test] Đã di trú cột ConnectionType sang INT NULL thành công.'';
+                END
+            END
+        END
+    ');
 END
 GO
 

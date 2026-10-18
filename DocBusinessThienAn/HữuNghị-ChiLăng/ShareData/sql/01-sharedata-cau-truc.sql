@@ -2,14 +2,14 @@
 -- FILE: 01-sharedata-cau-truc.sql
 -- DESCRIPTION: Bổ sung và chuẩn hóa cấu trúc cột/bảng cho phân hệ ShareData (ESHARE):
 --              - CSDL chính DEV_ITS10:
---                + Đảm bảo các cột ConnectionType, ConnectionConfig tồn tại trên ShareDataPartner.
+--                + Đảm bảo các cột ConnectionType (INT NULL - enum), ConnectionConfig tồn tại trên ShareDataPartner.
 --                + Kiểm tra xung đột và chuyển đổi cấu hình địa chỉ/cổng/endpoint từ JSON
 --                  ConnectionConfig sang các cột riêng (Address, Port, EndPointApiUrl).
 --                + Dọn dẹp các key địa chỉ/cổng khỏi ConnectionConfig bằng JSON_MODIFY.
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 16102026
+-- CẬP NHẬT LẦN CUỐI: 18/10/2026
 -- =========================================================================================
 
 -- =========================================================================================
@@ -29,11 +29,36 @@ IF OBJECT_ID(N'dbo.ShareDataPartner', N'U') IS NOT NULL
 BEGIN
     IF COL_LENGTH(N'dbo.ShareDataPartner', N'ConnectionType') IS NULL
     BEGIN
-        ALTER TABLE [dbo].[ShareDataPartner] ADD [ConnectionType] NVARCHAR(64) NULL;
-        PRINT N'  -> Đã bổ sung cột ConnectionType vào bảng ShareDataPartner.';
+        ALTER TABLE [dbo].[ShareDataPartner] ADD [ConnectionType] INT NULL;
+        PRINT N'  -> Đã bổ sung cột ConnectionType kiểu INT vào bảng ShareDataPartner.';
     END
     ELSE
-        PRINT N'  -> Cột ConnectionType đã tồn tại trên ShareDataPartner, bỏ qua.';
+    BEGIN
+        DECLARE @partnerColType NVARCHAR(128);
+        SELECT @partnerColType = tp.name
+        FROM sys.columns c
+        JOIN sys.types tp ON c.user_type_id = tp.user_type_id
+        WHERE c.object_id = OBJECT_ID(N'dbo.ShareDataPartner')
+          AND c.name = N'ConnectionType';
+
+        IF @partnerColType <> N'int'
+        BEGIN
+            PRINT N'  -> Phát hiện cột ConnectionType kiểu ' + @partnerColType + N', đang chuẩn hóa dữ liệu sang số nguyên (1..5)...';
+            UPDATE [dbo].[ShareDataPartner]
+            SET [ConnectionType] = CASE
+                WHEN UPPER(LTRIM(RTRIM(CAST([ConnectionType] AS NVARCHAR(64))))) IN (N'API', N'REST', N'HTTP', N'WEBAPI', N'1') THEN 1
+                WHEN UPPER(LTRIM(RTRIM(CAST([ConnectionType] AS NVARCHAR(64))))) IN (N'FILE', N'DISK', N'NAS', N'2') THEN 2
+                WHEN UPPER(LTRIM(RTRIM(CAST([ConnectionType] AS NVARCHAR(64))))) IN (N'FTP', N'3') THEN 3
+                WHEN UPPER(LTRIM(RTRIM(CAST([ConnectionType] AS NVARCHAR(64))))) IN (N'FTPS', N'4') THEN 4
+                WHEN UPPER(LTRIM(RTRIM(CAST([ConnectionType] AS NVARCHAR(64))))) IN (N'KAFKA', N'5') THEN 5
+                ELSE NULL
+            END;
+            ALTER TABLE [dbo].[ShareDataPartner] ALTER COLUMN [ConnectionType] INT NULL;
+            PRINT N'  -> Đã chuyển đổi cột ConnectionType sang INT NULL trên ShareDataPartner.';
+        END
+        ELSE
+            PRINT N'  -> Cột ConnectionType (INT) đã tồn tại trên ShareDataPartner, bỏ qua.';
+    END
 
     IF COL_LENGTH(N'dbo.ShareDataPartner', N'ConnectionConfig') IS NULL
     BEGIN

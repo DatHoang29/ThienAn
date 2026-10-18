@@ -35,10 +35,11 @@ public class ShareDataWorkerRoleTests
     }
 
     /// <summary>
-    /// Description: SV-4 - Khởi động worker mặc định luôn đăng ký đầy đủ 4 workers
-    ///              (DataOutboundWorker, DataInboundWorker, DataChangeTrackingWorker, DataNatsWorker)
+    /// Description: SV-4 - Khởi động worker mặc định luôn đăng ký đầy đủ 5 workers
+    ///              (DataOutboundWorker, DataInboundWorker, DataChangeTrackingWorker, DataCleanupWorker, DataNatsWorker)
     ///              phục vụ vận hành 2 chiều đồng thời theo thiết kế Production.
     /// Created date: 12/10/2026
+    /// Modified date: 18/10/2026
     /// </summary>
     [Theory]
     [Trait("Feature", "SV-4")]
@@ -52,11 +53,12 @@ public class ShareDataWorkerRoleTests
         var services = BuildServicesWithRole(role);
         var workers = GetRegisteredHostedServices(services);
 
-        // Assert: Mặc định đăng ký đủ 4 workers (vừa gửi vừa nhận theo đúng thiết kế Production)
-        Assert.Equal(4, workers.Count);
+        // Assert: Mặc định đăng ký đủ 5 workers (vừa gửi vừa nhận vừa dọn dẹp theo đúng thiết kế Production)
+        Assert.Equal(5, workers.Count);
         Assert.Contains(typeof(DataOutboundWorker), workers);
         Assert.Contains(typeof(DataInboundWorker), workers);
         Assert.Contains(typeof(DataChangeTrackingWorker), workers);
+        Assert.Contains(typeof(DataCleanupWorker), workers);
         Assert.Contains(typeof(DataNatsWorker), workers);
     }
 }

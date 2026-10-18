@@ -868,12 +868,13 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		expect(partnerContent.includes('!!'), 'editPartner.vue không được chứa !!').toBeFalsy();
 		expect(editorContent.includes('!!'), 'connectionConfigEditor.vue không được chứa !!').toBeFalsy();
 
-		// Mở hỗ trợ đầy đủ các kênh WebAPI, File, Kafka, FTP trong modal đối tác
-		expect(partnerContent).toContain('value="API"');
-		expect(partnerContent).toContain('value="File"');
-		expect(partnerContent).toContain('value="Kafka"');
-		expect(partnerContent).toContain('value="FTP"');
-		expect(partnerContent).not.toContain('value="File" :disabled="true"');
+		// Mở hỗ trợ đầy đủ các kênh WebAPI (1), File (2), FTP (3), FTPS (4), Kafka (5) trong modal đối tác
+		expect(partnerContent).toContain(':value="1"');
+		expect(partnerContent).toContain(':value="2"');
+		expect(partnerContent).toContain(':value="3"');
+		expect(partnerContent).toContain(':value="4"');
+		expect(partnerContent).toContain(':value="5"');
+		expect(partnerContent).not.toContain(':value="2" :disabled="true"');
 
 		// Yêu cầu 3: Bỏ padding bottom cho phần div nội dung giữa .el-dialog__body
 		expect(partnerContent).toContain(':deep(.el-dialog__body)');
@@ -948,6 +949,10 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		// Rule 20.13: Cấm song ngữ lai
 		expect(viVn['lz.tooltip.sharedataPartner.channelDisabled']).toBe('Kênh kết nối chưa được kích hoạt trong phiên bản này');
 		expect(enUs['lz.tooltip.sharedataPartner.channelDisabled']).toBe('This connection channel is not yet enabled in this version');
+		expect(viVn['lz.label.sharedataPartner.typeFtp']).toBe('Máy chủ FTP');
+		expect(enUs['lz.label.sharedataPartner.typeFtp']).toBe('FTP Server');
+		expect(viVn['lz.label.sharedataPartner.typeFtps']).toBe('Máy chủ FTPS');
+		expect(enUs['lz.label.sharedataPartner.typeFtps']).toBe('FTPS Server');
 	});
 
 	test('TC3 — Quy tắc 1: Không mất dữ liệu âm thầm — Khóa lạ hoặc khóa kênh khác vào Tham số bổ sung', async () => {
@@ -1234,6 +1239,47 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		parseJsonToFormLogic('', 'API', state);
 		expect(state.api.timeoutSeconds).toBeNull();
 		expect(state.ftp.timeoutSeconds).toBeNull();
+	});
+
+	test('TC12 — Hỗ trợ ConnectionTypeEnum số nguyên (1..5) và tương thích ngược chuỗi trên FE', async () => {
+		// 1. Kiểm tra baseEnum.ts có ConnectionTypeEnum
+		const baseEnumPath = resolveWebVueSrc('types/enums/baseEnum.ts');
+		expect(fs.existsSync(baseEnumPath)).toBeTruthy();
+		const baseEnumContent = fs.readFileSync(baseEnumPath, 'utf-8');
+		expect(baseEnumContent).toContain('export enum ConnectionTypeEnum');
+		expect(baseEnumContent).toMatch(/Api\s*=\s*1/);
+		expect(baseEnumContent).toMatch(/File\s*=\s*2/);
+		expect(baseEnumContent).toMatch(/Ftp\s*=\s*3/);
+		expect(baseEnumContent).toMatch(/Ftps\s*=\s*4/);
+		expect(baseEnumContent).toMatch(/Kafka\s*=\s*5/);
+
+		// 2. Kiểm tra sharedataFeConfig.ts re-export ConnectionTypeEnum
+		const feConfigPath = resolveWebVueSrc('types/constants/sharedataFeConfig.ts');
+		const feConfigContent = fs.readFileSync(feConfigPath, 'utf-8');
+		expect(feConfigContent).toContain('ConnectionTypeEnum');
+
+		// 3. Kiểm tra connectionConfigForm.vue hỗ trợ props.connectionType nhận string | number | null
+		const formContent = fs.readFileSync(formComponentPath, 'utf-8');
+		expect(formContent).toContain('connectionType?: string | number | null');
+
+		// 4. Kiểm tra connectionConfigEditor.vue nhận prop connectionType dạng [String, Number]
+		const editorContent = fs.readFileSync(editorComponentPath, 'utf-8');
+		expect(editorContent).toContain('type: [String, Number]');
+
+		// 5. Kiểm tra editPartner.vue có đầy đủ 5 option enum số (1=Api, 2=File, 3=Ftp, 4=Ftps, 5=Kafka)
+		const partnerContent = fs.readFileSync(editPartnerPath, 'utf-8');
+		expect(partnerContent).toContain(':value="1"');
+		expect(partnerContent).toContain(':value="2"');
+		expect(partnerContent).toContain(':value="3"');
+		expect(partnerContent).toContain(':value="4"');
+		expect(partnerContent).toContain(':value="5"');
+
+		// 6. Kiểm tra hàm fallback chuyển chuỗi legacy sang số nguyên enum trong editPartner.vue
+		expect(partnerContent).toContain('ConnectionTypeEnum.Api');
+		expect(partnerContent).toContain('ConnectionTypeEnum.File');
+		expect(partnerContent).toContain('ConnectionTypeEnum.Ftp');
+		expect(partnerContent).toContain('ConnectionTypeEnum.Ftps');
+		expect(partnerContent).toContain('ConnectionTypeEnum.Kafka');
 	});
 });
 

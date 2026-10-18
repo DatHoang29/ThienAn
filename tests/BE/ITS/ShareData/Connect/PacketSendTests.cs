@@ -6,15 +6,16 @@ using Modules.Integration.ShareData.Base.Constants;
 using Modules.Integration.ShareData.Base.Enums;
 using Modules.Integration.ShareData.Base.Helpers;
 using Modules.Integration.ShareData.Base.Interfaces.PacketSend;
-using Modules.Integration.ShareData.Base.Models.Encryption;
+using Modules.Integration.ShareData.Base.Models.Encrypt;
 using Modules.Integration.ShareData.Base.Models.PacketSend;
-using Modules.Integration.ShareData.Encryption;
+using Modules.Integration.ShareData.Encrypt;
 using Modules.Integration.ShareData.Formats;
 using Modules.Integration.ShareData.PacketSend;
 using Modules.Integration.ShareData.PacketSend.Senders;
 using ShareDataWorker.Core.Models.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
 using Tests.ShareData.Mocks;
+using Shared.DTO.Enums;
 using Xunit;
 
 namespace Tests.ShareData.Connect;
@@ -36,7 +37,7 @@ public partial class PacketSendTests
         _host.PartnerServer.ResetDefaults();
     }
 
-    private static DataOutboundContext CreateDummyContext(string packetCode = "101", string partnerCode = "PARTNER_TEST", string connectionType = "API")
+    private static DataOutboundContext CreateDummyContext(string packetCode = "101", string partnerCode = "PARTNER_TEST", BaseEnums.ConnectionType? connectionType = BaseEnums.ConnectionType.Api)
     {
         var packet = new ShareDataPacket { Code = packetCode, Name = "Packet " + packetCode };
         var partner = new ShareDataPartner
@@ -50,6 +51,12 @@ public partial class PacketSendTests
         };
         var sub = new ShareDataSubscription { ID = "sub-test-1", PartnerId = "partner-1", DatatypeId = packetCode };
         return new DataOutboundContext(sub, partner, packet, null, DateTime.UtcNow, CancellationToken.None);
+    }
+
+    private static DataOutboundContext CreateDummyContext(string packetCode, string partnerCode, string connectionTypeStr)
+    {
+        BaseEnums.ConnectionType? type = Enum.TryParse<BaseEnums.ConnectionType>(connectionTypeStr, true, out var parsed) ? parsed : null;
+        return CreateDummyContext(packetCode, partnerCode, type);
     }
 
     private static PacketSendContext CreateSendContext(string partnerCode = "PARTNER_WARN", string connectionType = "API")
@@ -75,7 +82,7 @@ public partial class PacketSendTests
         var request = new PacketSendRequest
         {
             JsonPayload = "{}",
-            ConnectType = "SatelliteMesh",
+            ConnectType = (BaseEnums.ConnectionType)999,
             ConnectConfig = new Dictionary<string, string>()
         };
 
@@ -88,18 +95,18 @@ public partial class PacketSendTests
     }
 
     [Fact]
-    public void AesGcmEncryptor_EncryptDecryptRoundtrip_ReturnsOriginalBytes_Test()
+    public void AesGcmEncrypt_EncryptDecryptRoundtrip_ReturnsOriginalBytes_Test()
     {
         // Arrange
-        var encryptor = new AesGcmEncryptor();
-        var keyBytes = new byte[AesGcmEncryptor.KeySize];
+        var encrypt = new AesGcmEncrypt();
+        var keyBytes = new byte[AesGcmEncrypt.KeySize];
         System.Security.Cryptography.RandomNumberGenerator.Fill(keyBytes);
         var ctx = new EncryptContext("test-kid", keyBytes);
         var originalBytes = Encoding.UTF8.GetBytes("{\"test\":\"secret-payload-data\"}");
 
         // Act
-        var encryptedBytes = encryptor.Encrypt(originalBytes, ctx);
-        var decryptedBytes = encryptor.Decrypt(encryptedBytes, ctx);
+        var encryptedBytes = encrypt.Encrypt(originalBytes, ctx);
+        var decryptedBytes = encrypt.Decrypt(encryptedBytes, ctx);
 
         // Assert
         Assert.NotEqual(originalBytes, encryptedBytes);
@@ -110,16 +117,16 @@ public partial class PacketSendTests
     }
 
     [Fact]
-    public void PlainEncryptor_EncryptDecrypt_PassesThroughIdenticalBytes_Test()
+    public void PlainEncrypt_EncryptDecrypt_PassesThroughIdenticalBytes_Test()
     {
         // Arrange
-        var encryptor = new PlainEncryptor();
+        var encrypt = new PlainEncrypt();
         var ctx = new EncryptContext(null, null);
         var originalBytes = Encoding.UTF8.GetBytes("{\"test\":\"plain-payload\"}");
 
         // Act
-        var encrypted = encryptor.Encrypt(originalBytes, ctx);
-        var decrypted = encryptor.Decrypt(encrypted, ctx);
+        var encrypted = encrypt.Encrypt(originalBytes, ctx);
+        var decrypted = encrypt.Decrypt(encrypted, ctx);
 
         // Assert
         Assert.Equal(originalBytes, encrypted);

@@ -29,7 +29,6 @@ public class ShareDataArchitectureTests
             "Microsoft.AspNetCore",
             "Wolverine",
             "SqlSugar",
-            "Shared.",
             "Module.ShareData",
             "ShareDataWorker",
             "Confluent.Kafka",
@@ -50,7 +49,8 @@ public class ShareDataArchitectureTests
 
             var isAllowed = name.StartsWith("System", StringComparison.OrdinalIgnoreCase)
                      || name.Equals("mscorlib", StringComparison.OrdinalIgnoreCase)
-                     || name.Equals("netstandard", StringComparison.OrdinalIgnoreCase);
+                     || name.Equals("netstandard", StringComparison.OrdinalIgnoreCase)
+                     || name.Equals("Shared.DTO", StringComparison.OrdinalIgnoreCase);
 
             Assert.True(isAllowed, $"Assembly '{name}' không thuộc danh sách thư viện được phép của Modules.Integration.ShareData.Base.");
         }
@@ -70,7 +70,6 @@ public class ShareDataArchitectureTests
             "Microsoft.AspNetCore",
             "Wolverine",
             "SqlSugar",
-            "Shared.",
             "Module.ShareData",
             "ShareDataWorker"
         };
@@ -92,7 +91,8 @@ public class ShareDataArchitectureTests
                      || name.Equals("netstandard", StringComparison.OrdinalIgnoreCase)
                      || name.StartsWith("Microsoft.Extensions.", StringComparison.OrdinalIgnoreCase)
                      || name.StartsWith("Confluent.Kafka", StringComparison.OrdinalIgnoreCase)
-                     || name.Equals("Modules.Integration.ShareData.Base", StringComparison.OrdinalIgnoreCase);
+                     || name.Equals("Modules.Integration.ShareData.Base", StringComparison.OrdinalIgnoreCase)
+                     || name.Equals("Shared.DTO", StringComparison.OrdinalIgnoreCase);
 
             Assert.True(isAllowed, $"Assembly '{name}' không thuộc danh sách thư viện được phép của Modules.Integration.ShareData.");
         }

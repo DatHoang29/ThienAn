@@ -437,20 +437,20 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 		await page.screenshot({ path: 'test-results/snapshot-2-modal-edit-subscription-tabs.png', fullPage: false });
 	});
 
-	test('TC10 — Cấu hình kênh kết nối đối tác (editPartner.vue: ConnectionType API/File, ConnectionConfig, tuân thủ Rule 20.8 CẤM !!)', async () => {
+	test('TC10 — Cấu hình kênh kết nối đối tác (editPartner.vue: ConnectionType enum 1..5, ConnectionConfig, tuân thủ Rule 20.8 CẤM !!)', async () => {
 		const partnerFilePath = resolveWebVueSrc('views/sharedata/sharing/component/editPartner.vue');
 		const partnerContent = fs.readFileSync(partnerFilePath, 'utf8');
 
-		// 1. Kiểm tra trường connectionType có 2 option chuẩn API và File
+		// 1. Kiểm tra trường connectionType có các option chuẩn dạng số nguyên enum (API=1, File=2, ...)
 		expect(partnerContent).toContain('prop="connectionType"');
-		expect(partnerContent).toContain('value="API"');
-		expect(partnerContent).toContain('value="File"');
+		expect(partnerContent).toContain(':value="1"');
+		expect(partnerContent).toContain(':value="2"');
 
 		// 2. Kiểm tra trường connectionConfig
 		expect(partnerContent).toContain('connectionConfig');
 
-		// 3. Kiểm tra gán mặc định connectionType = 'API' khi mở dialog thêm mới
-		expect(partnerContent).toContain("state.ruleForm.connectionType = 'API'");
+		// 3. Kiểm tra gán mặc định connectionType = ConnectionTypeEnum.Api khi mở dialog thêm mới
+		expect(partnerContent).toContain('state.ruleForm.connectionType = ConnectionTypeEnum.Api');
 
 		// 4. Tuân thủ Rule 20.8: CẤM dùng toán tử !! (phủ định kép), dùng Boolean(...) tường minh
 		expect(partnerContent).not.toContain('!!');

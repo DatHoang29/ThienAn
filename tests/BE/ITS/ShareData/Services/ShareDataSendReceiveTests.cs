@@ -6,13 +6,13 @@ using Microsoft.Extensions.Logging;
 using Module.ShareData.Core.Dto.Inbound;
 using Module.ShareData.Core.Entities;
 using Modules.Integration.ShareData.Base.Constants;
-using Modules.Integration.ShareData.Base.Enums.Encryption;
+using Modules.Integration.ShareData.Base.Enums.Encrypt;
 using Modules.Integration.ShareData.Base.Helpers;
-using Modules.Integration.ShareData.Base.Interfaces.Encryption;
+using Modules.Integration.ShareData.Base.Interfaces.Encrypt;
 using Modules.Integration.ShareData.Base.Interfaces.PacketSend;
 using Modules.Integration.ShareData.Base.Models.Formats;
 using Modules.Integration.ShareData.Base.Models.PacketSend;
-using Modules.Integration.ShareData.Encryption;
+using Modules.Integration.ShareData.Encrypt;
 using Modules.Integration.ShareData.Formats;
 using Modules.Integration.ShareData.PacketSend;
 using Modules.Integration.ShareData.PacketSend.Senders;
@@ -724,9 +724,9 @@ namespace Tests.ShareData.Services
             var encryptManager = new EncryptManager(mockKeyResolver);
             var config = new Dictionary<string, string>
             {
-                [ConnectKeys.Encryptor] = EncryptorNames.None,
+                [ConnectKeys.Encryptor] = EncryptNames.None,
                 [ConnectKeys.EncryptionKeyRef] = "outbound-key",
-                [ConnectKeys.InboundEncryptor] = EncryptorNames.AesGcm,
+                [ConnectKeys.InboundEncryptor] = EncryptNames.AesGcm,
                 [ConnectKeys.DecryptionKeyRef] = "test-inbound-key"
             };
 
@@ -734,7 +734,7 @@ namespace Tests.ShareData.Services
             var (encryptor, ctx) = encryptManager.GetEncryptor(config, PayloadDirection.Inbound);
 
             // Assert
-            Assert.IsType<AesGcmEncryptor>(encryptor);
+            Assert.IsType<AesGcmEncrypt>(encryptor);
             Assert.Equal("test-inbound-key", ctx.KeyRef);
             Assert.Equal(TestAes256Key, ctx.KeyBytes);
         }
@@ -746,7 +746,7 @@ namespace Tests.ShareData.Services
             var encryptManager = new EncryptManager();
             var config = new Dictionary<string, string>
             {
-                [ConnectKeys.InboundEncryptor] = EncryptorNames.AesGcm
+                [ConnectKeys.InboundEncryptor] = EncryptNames.AesGcm
             };
 
             // Act & Assert
@@ -966,7 +966,7 @@ namespace Tests.ShareData.Services
                 Name = $"Partner {partnerCode}",
                 Status = BaseEnums.StatusEnum.Enable,
                 SessionState = BaseEnums.SessionState.Connected,
-                ConnectionType = "API",
+                ConnectionType = BaseEnums.ConnectionType.Api,
                 Address = "http://localhost",
                 Port = 80,
                 EndPointApiUrl = endPointApiUrl,
@@ -1087,7 +1087,7 @@ namespace Tests.ShareData.Services
                 Code = $"PARTNER_RT_{unique}",
                 Name = $"Partner RT {unique}",
                 Status = BaseEnums.StatusEnum.Enable,
-                ConnectionType = "API",
+                ConnectionType = BaseEnums.ConnectionType.Api,
                 ConnectionConfig = connectionConfig
             };
             await _db.Insertable(partner).ExecuteCommandAsync();
