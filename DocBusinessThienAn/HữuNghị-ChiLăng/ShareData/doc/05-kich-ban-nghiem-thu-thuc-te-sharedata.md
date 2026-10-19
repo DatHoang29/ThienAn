@@ -1,13 +1,13 @@
 # ✅ Kịch Bản Nghiệm Thu Thật — Phân Hệ ShareData
 
-> 📅 **Soạn & Cập nhật:** 19/10/2026 · **Người chạy:** người dùng tự khởi động dự án và kiểm tay · **Môi trường:** DB **local/test** (⛔ không chạy trên staging hay môi trường thật).  
+> 📅 **Soạn & Cập nhật:** 19/10/2026 · **Người chạy:** người dùng tự khởi động dự án và kiểm tay · **Môi trường:** DB **local/test** (mục 0.1–0.6) và **staging** (mục 0.7).  
 > 📌 **Căn cứ:** [`Sharedata_MasterPlan.md`](../Plan/Sharedata_MasterPlan.md) PHẦN VII, [`02-mapping-goi-tin-101-111.md`](02-mapping-goi-tin-101-111.md), code Worker/WebAPI/FE tại thời điểm soạn.  
 > 📌 **Phạm vi:** Nghiệm thu luồng nghiệp vụ với **API và DB thật**. Phần Playwright với API giả lập đã chấp nhận (R16 bỏ); kịch bản này thay cho nó.  
 > 📌 **Nguyên tắc ghi nhận:** Mỗi mục có: **Bước** → **Kết quả mong đợi** → **☐ Đạt / ☐ Không đạt**. Ghi lỗi vào bảng cuối tài liệu.
 
 ---
 
-## 🗺️ Lộ Trình Nhanh (8 Bước Nghiệm Thu)
+## 🗺️ Lộ Trình Nhanh (9 Bước Nghiệm Thu)
 
 1. [Kiểm tra dữ liệu cũ và môi trường](#00-kiểm-dữ-liệu-cũ-trước-khi-bật-worker) (Mục 0.0 & 0.1)
 2. [Chuẩn bị cấu trúc bảng và dữ liệu nền](#02-chuẩn-bị-dữ-liệu-nền-chọn-một-trong-hai-cách) (Mục 0.2: CÁCH 1 dựng A→Z trên giao diện từ Đối tác hoặc CÁCH 2 chạy Script SQL tùy chọn)
@@ -15,8 +15,9 @@
 4. [Bật receiver giả lập đối tác nhận](#04-receiver-giả-đối-tác-nhận) (Mục 0.4)
 5. [Đồng bộ từ điển đa ngôn ngữ trên giao diện](#đồng-bộ-từ-điển-đa-ngôn-ngữ-trên-giao-diện) (🔄)
 6. [Chuẩn bị dữ liệu ánh xạ cho chiều gửi D0 và bảng đích chiều nhận E0](#06-chuẩn-bị-riêng-cho-chiều-gửi-d0-và-chiều-nhận-e0) (Mục 0.6)
-7. [Thực hiện nghiệm thu chi tiết từng phân hệ từ A đến I](#🅰️-a-chế-độ-và-trạng-thái-gói-tin-màn-hình-cấu-hình-gói-tin--sql-center-thư-mục-datasource) (Mục A–I)
-8. [Dọn dẹp dữ liệu thử nghiệm sau kiểm thử](#🧹-dọn-sau-khi-test) (Mục Dọn sau khi test)
+7. [Chạy nghiệm thu trên staging (khi kiểm thử môi trường staging)](#07-chạy-nghiệm-thu-trên-staging) (Mục 0.7)
+8. [Thực hiện nghiệm thu chi tiết từng phân hệ từ A đến I](#🅰️-a-chế-độ-và-trạng-thái-gói-tin-màn-hình-cấu-hình-gói-tin--sql-center-thư-mục-datasource) (Mục A–I)
+9. [Dọn dẹp dữ liệu thử nghiệm sau kiểm thử](#🧹-dọn-sau-khi-test) (Mục Dọn sau khi test)
 
 ---
 
@@ -27,18 +28,19 @@
 Trước khi khởi động Worker trên CSDL có sẵn dữ liệu cũ (hoặc sau khi khôi phục CSDL), cần kiểm tra các đăng ký chia sẻ (`ShareDataSubscription`) đang ở trạng thái `State = 1` (Active). Nếu các đăng ký này trỏ tới đối tác có địa chỉ thật bên ngoài (`Address` không phải `localhost` hoặc `127.0.0.1`), Worker khi bật lên sẽ lập tức quét và gửi gói tin thử nghiệm ra bên ngoài.
 
 ```sql
--- Liệt kê đăng ký State = 1 kèm Address/Port của đối tác:
-SELECT s.ID, s.PacketCode, s.PartnerID, p.Name AS PartnerName, p.ConnectionType, p.Address, p.Port, s.State
+-- Liệt kê đăng ký chiều gửi (Direction = 0) State = 1 kèm Address/Port của đối tác:
+-- (Lưu danh sách ID của câu SELECT trước khi chạy UPDATE để bật lại sau khi nghiệm thu xong)
+SELECT s.ID, s.DatatypeId, s.PartnerId, p.Name AS PartnerName, p.ConnectionType, p.Address, p.Port, s.State
 FROM dbo.ShareDataSubscription s
-JOIN dbo.ShareDataPartner p ON s.PartnerID = p.ID
-WHERE s.IsDelete IS NULL AND s.State = 1;
+JOIN dbo.ShareDataPartner p ON s.PartnerId = p.ID
+WHERE s.IsDelete IS NULL AND s.Direction = 0 AND s.State = 1;
 
 -- Đưa State về 2 (Paused) cho đăng ký không trỏ localhost:
 UPDATE s
 SET s.State = 2, s.UpdateTime = GETDATE()
 FROM dbo.ShareDataSubscription s
-JOIN dbo.ShareDataPartner p ON s.PartnerID = p.ID
-WHERE s.IsDelete IS NULL AND s.State = 1
+JOIN dbo.ShareDataPartner p ON s.PartnerId = p.ID
+WHERE s.IsDelete IS NULL AND s.Direction = 0 AND s.State = 1
   AND (p.Address IS NULL OR (p.Address NOT LIKE '%localhost%' AND p.Address NOT LIKE '%127.0.0.1%'));
 ```
 
@@ -74,12 +76,12 @@ Dữ liệu nền cho phân hệ ShareData bao gồm: 11 gói tin chia sẻ (`Sh
 
 | Bảng | Màn hình | Cách nạp (Giao diện / Script / Hệ thống tự ghi) | Script |
 |---|---|---|---|
-| `ShareDataPartner` | `views/sharedata/partner/index.vue` | **Giao diện** | *Không có script seed (tạo UI ở Bước 1)* |
+| `ShareDataPartner` | `views/sharedata/sharing/index.vue` | **Giao diện** | *Không có script seed (tạo UI ở Bước 1)* |
 | `ShareDataPacket` | `views/sharedata/dataSource/index.vue` | **Giao diện** | Script `02-sharedata-seed-goi-tin.sql` *(nạp nhanh bằng 02)* |
 | `ShareDataPacketField` | `views/sharedata/dataSource/component/fieldConfig.vue` | **Giao diện** | *Sinh khi trích xuất hoặc cấu hình trên UI* |
 | `ShareDataCodeSet` | `views/sharedata/codeSet/index.vue` | **Giao diện** | *Cấu hình trên UI ở Bước 3* |
 | `ShareDataMapping` | `views/sharedata/mapping/index.vue` | **Giao diện** | *Cấu hình trên UI ở Bước 3* |
-| `ShareDataSubscription` | `views/sharedata/subscription/index.vue` | **Giao diện** | *Cấu hình trên UI ở Bước 4* |
+| `ShareDataSubscription` | `views/sharedata/sharing/index.vue` | **Giao diện** | *Cấu hình trên UI ở Bước 4* |
 | `SysOpConfig` (nhóm `sharedata_config`) | `views/cfgSystem/sysOpConfig/index.vue` *(màn Cấu hình hoạt động)* | **Giao diện** | Script `03-sharedata-seed-cau-hinh.sql` *(nạp bằng 03, sửa trên màn Cấu hình hoạt động)* |
 | `SysConfigData` (Mã lỗi ESH) | `views/cfgSystem/sysConfigType/index.vue` | **Giao diện** | Script `03-sharedata-seed-cau-hinh.sql` *(nên dùng 03)* |
 | `SysTerminology` | `views/cfgSystem/sysTerminology/index.vue` | **Giao diện** | Script `04-sharedata-dich-thuat.sql` *(nên dùng 04, sau đó bấm 🔄)* |
@@ -88,9 +90,9 @@ Dữ liệu nền cho phân hệ ShareData bao gồm: 11 gói tin chia sẻ (`Sh
 | `InboundTrafficFlow` | *Không có màn hình* | **Bắt buộc script** | Script `05-sharedata-du-lieu-gia-lap.sql` *(05, chỉ local/test trên `DEV_ITS10_Inbound`)* |
 | `ShareDataSession` | *Không có màn hình* | **Hệ thống tự ghi** | *Tự động ghi khi đối tác kết nối/xác thực* |
 | `ShareDataLastSend` | *Không có màn hình* | **Hệ thống tự ghi** | *Worker gửi tự động cập nhật mốc* |
-| `ShareDataInboundPacket` | `views/sharedata/inbound/index.vue` *(tra cứu)* | **Hệ thống tự ghi** | *Inbound Worker tiếp nhận gói tin thô* |
-| `ShareDataActivityLog` | `views/sharedata/activityLog/index.vue` *(tra cứu)* | **Hệ thống tự ghi** | *WebAPI & Worker tự động ghi nhật ký* |
-| `ShareDataAlertLog` | `views/sharedata/alertLog/index.vue` *(tra cứu)* | **Hệ thống tự ghi** | *Worker tự động ghi cảnh báo lỗi ESH* |
+| `ShareDataInboundPacket` | Không có màn hình (tra bằng SQL trên DEV_ITS10_Inbound) | **Hệ thống tự ghi** | *Inbound Worker tiếp nhận gói tin thô* |
+| `ShareDataActivityLog` | `views/sharedata/history/index.vue` *(tra cứu)* | **Hệ thống tự ghi** | *WebAPI & Worker tự động ghi nhật ký* |
+| `ShareDataAlertLog` | `views/sharedata/errorLog/index.vue` *(tra cứu)* | **Hệ thống tự ghi** | *Worker tự động ghi cảnh báo lỗi ESH* |
 
 #### 0.2.1. Bảng lựa chọn cách chuẩn bị dữ liệu
 
@@ -617,6 +619,55 @@ Trước khi thực hiện các bài test nhóm E, cần chuẩn bị hạ tần
 
 ---
 
+### 0.7. Chạy nghiệm thu trên staging
+
+Khi thực hiện nghiệm thu trên môi trường staging, người kiểm thử tuân thủ các thông số hạ tầng, trình tự chuẩn bị và các điểm khác biệt dưới đây:
+
+#### (a) Bảng thông số kết nối staging
+
+| Thành phần | Thông số kết nối trên staging | Ghi chú |
+|---|---|---|
+| **SQL Server** | `10.10.8.30:1433` | CSDL chính `DEV_ITS10`, CSDL nhận gói `DEV_ITS10_Inbound` |
+| **WebAPI** | `<URL_WEBAPI_STAGING>` | Tài khoản kiểm thử `<USER_TEST_STAGING>` |
+| **Frontend** | `<URL_FE_STAGING>` | Giao diện WebVue trên môi trường staging |
+| **Worker** | Máy `<MAY_WORKER_STAGING>`, thư mục chạy `<THU_MUC_WORKER>` | Thư mục bằng chứng file gửi: `<THU_MUC_WORKER>/sharedata/send` |
+| **NATS** | `tls://115.78.1.139:12211` | Tài khoản và mật khẩu cấu hình trên Worker & WebAPI staging |
+
+#### (b) Trình tự chuẩn bị S1–S8
+
+1. **S1:** Dừng `ShareDataWorker` staging.
+2. **S2:** Chạy câu `SELECT` ở mục 0.0, lưu lại danh sách ID; sau đó chạy câu `UPDATE` để tạm thời tắt (`State = 2`) toàn bộ các đăng ký chia sẻ chiều Outbound (`Direction = 0`).
+3. **S3:** Triển khai bản build mới của WebAPI, Worker và Frontend lên môi trường staging.
+4. **S4:** Bật CodeFirst WebAPI 1 lần để tạo mới các bảng CSDL cần thiết (`ShareDataSourceTable`, `ShareDataInboundPacket`).
+5. **S5:** Chạy lần lượt các script trên CSDL `DEV_ITS10` theo đúng thứ tự: `06` → `00` → `01` → `02` → `03` → `04`. Đối với script `05-sharedata-du-lieu-gia-lap.sql`, **chỉ chạy Khối 4** (dữ liệu mẫu phục vụ test gói tin); **tuyệt đối KHÔNG chạy Khối 1–3** vì staging đã có dữ liệu thật.
+6. **S6:** Đăng nhập WebAPI với quyền SuperAdmin, vào menu **Hệ thống** → **Quản lý bộ nhớ đệm** → **Làm mới từ điển** (để nạp đầy đủ các thuật ngữ `SysTerminology` mới từ script `04`).
+7. **S7:** Khởi động lại `ShareDataWorker` staging.
+8. **S8:** Chạy các câu SQL đối soát tại mục 0.2.5; kiểm tra log khởi động của Worker đảm bảo không phát sinh mã cảnh báo `ESH`.
+
+#### (c) Bảng các điểm khác biệt khi chạy trên staging
+
+| Mục | Thao tác trên staging | Lý do |
+|---|---|---|
+| **0.1, 0.4** | Bỏ qua (không bật local). | Môi trường staging sử dụng máy chủ dịch vụ và đối tác/endpoint thật của staging. |
+| **D5, D7, D8, D14** | Xem file xuất ra tại `<THU_MUC_WORKER>/sharedata/send` thay vì `C:\sharedata\send`; nếu máy Worker chạy Linux thì đổi dấu gạch chéo theo chuẩn OS. | Đường dẫn lưu bằng chứng trên máy chủ Worker staging phụ thuộc vào hệ điều hành và thư mục cài đặt thực tế. |
+| **C7, C8, D12, D13** | Địa chỉ FTP, Kafka, NATS, Webhook dùng IP/host nội bộ của hạ tầng staging (thay cho `localhost`). | Các dịch vụ truyền thông trên staging phân tán trên các cụm máy chủ nội bộ riêng. |
+| **D9** | Cấu hình địa chỉ HTTP Endpoint nhận gói về WebAPI của phân hệ nhận trên staging. | Đảm bảo luồng gửi gói tin chuyển tiếp đúng tới WebAPI của phân hệ đối tác trên staging. |
+| **E1–E4** | Gửi vào CSDL `DEV_ITS10_Inbound` trên `10.10.8.30` thay vì local. | Dữ liệu chiều nhận trên staging được lưu vào CSDL tiếp nhận trung gian chuyên biệt trên máy chủ staging. |
+| **G (kiểm tra phân tán)** | Nếu staging chạy $\ge 2$ instance Worker, quan sát log cả 2 instance xem có hiện tượng tranh chấp khóa hay gửi trùng không; nếu chỉ 1 instance thì ghi nhận nghiệm thu ở mức đơn tiến trình. | Xác minh cơ chế khóa phân tán Lease Lock hoạt động đúng khi môi trường staging có cụm Worker đa instance. |
+| **I (kiểm tra quyền)** | Dùng tài khoản người dùng thật được phân quyền theo vai trò (thay vì SuperAdmin). | Nghiệm thu thực tế cơ chế phân quyền RBAC trên môi trường thật. |
+| **A3–A5, B10–B11, F, J, H3** | Chỉ thực hiện trên tenant/gói test; **KHÔNG** sửa cấu hình `SysOpConfig` chung đang phục vụ phân hệ khác; hoàn tất phải dọn ngay. | Tránh ảnh hưởng đến các phân hệ khác hoặc dữ liệu dùng chung đang vận hành trên staging. |
+| **D3, D9** | Đối tác kiểm thử trên staging cần dùng IP tĩnh đã đăng ký trong danh sách cho phép (IP Whitelist) của tường lửa staging nếu có. | Hạ tầng mạng staging có thể áp dụng chính sách tường lửa bảo vệ các cổng dịch vụ nội bộ. |
+
+#### (d) Dọn sau khi nghiệm thu trên staging
+
+1. Bật lại các đăng ký chia sẻ (Subscription) đã tắt ở bước S2 theo danh sách ID đã lưu.
+2. Xóa đối tác kiểm thử (`P-REST` ở kịch bản C1, các đối tác tạo thêm ở C7, C8).
+3. Xóa gói tin kiểm thử `E2E_INBOUND_TEST` và dòng `ShareDataPacketSql` tương ứng (ID `1500000000903`).
+4. `DROP` bảng kiểm thử `InboundTrafficFlow` trên CSDL `DEV_ITS10_Inbound` nếu có tạo ở kịch bản E0.
+5. Khôi phục `SysOpConfig` và `ShareDataSourceTable` theo hướng dẫn tại mục [🧹 Dọn sau khi test](#🧹-dọn-sau-khi-test).
+
+---
+
 ## 🅰️ A. Chế độ và trạng thái gói tin (màn hình *Cấu hình gói tin / SQL Center*, thư mục `dataSource`)
 
 | # | Bước | Kết quả mong đợi | Kết quả |
@@ -646,6 +697,7 @@ Trước khi thực hiện các bài test nhóm E, cần chuẩn bị hạ tần
 | B9 | Nhập câu SQL đọc bảng ngoài danh mục `ShareDataSourceTable` (ví dụ `SELECT TOP 10 * FROM dbo.BangLaNgoaiDanhMuc;`) → bấm Dò cột, Xem mẫu hoặc Lưu | **Bị từ chối ngay lập tức**, thông báo hiển thị đúng ngôn ngữ theo khóa `SqlTableNotAllowed`: *"Bảng BangLaNgoaiDanhMuc chưa có trong danh mục bảng nguồn được phép chia sẻ. Thêm bảng vào ShareDataSourceTable (IsQueryable = 1) rồi thử lại."* (Yêu cầu đã chạy script 04 và bấm 🔄 làm mới từ điển) | ☐ Đạt ☐ Không đạt |
 | B10 | Đặt `IsQueryable = 0` cho bảng `TmsWeather` trong CSDL: `UPDATE dbo.ShareDataSourceTable SET IsQueryable = 0, UpdateTime = GETDATE() WHERE TableName = 'TmsWeather' AND IsDelete IS NULL;` → mở màn hình *Cấu hình gói tin* tab *Cấu hình SQL* | Bảng `TmsWeather` **biến mất** khỏi danh sách dropdown chọn Bảng nguồn của bộ dựng Visual Query Builder; nếu dán câu SQL chứa bảng `TmsWeather` thì bị từ chối khi Lưu/Dò cột (WebAPI chặn); tuy nhiên luồng Worker gửi gói 104 đang chạy nền **vẫn gửi dữ liệu bình thường** (vì Worker chỉ kiểm tra `IsTracked = 1`, hoàn toàn không kiểm tra `IsQueryable`) | ☐ ☐ |
 | B11 | Bật lại `IsQueryable = 1` cho `TmsWeather`: `UPDATE dbo.ShareDataSourceTable SET IsQueryable = 1, UpdateTime = GETDATE() WHERE TableName = 'TmsWeather' AND IsDelete IS NULL;` → tải lại trang *Cấu hình gói tin* | Bảng `TmsWeather` **xuất hiện trở lại ngay lập tức** trong dropdown chọn Bảng nguồn; các thao tác dò cột, xem trước và lưu câu SQL hoạt động bình thường | ☐ ☐ |
+| B12 | Dùng dòng F5 `BangKhongTonTai_Test` với `IsQueryable = 1`, chọn bảng đó trên bộ dựng truy vấn | Danh sách cột rỗng, không hiện cột đoán; log WebAPI có cảnh báo *"Bảng nguồn BangKhongTonTai_Test có trong ShareDataSourceTable nhưng không đọc được cột trên CSDL, kiểm tra lại cấu hình bảng nguồn."* (`PacketSqlService.GetTableFields`) | ☐ ☐ |
 
 ---
 
@@ -712,12 +764,12 @@ Dùng nội dung `body` đã chuẩn bị ở E0 làm dữ liệu thử nghiệm
 | F1 | Chạy `SELECT TableName, Name, PacketCodes, OrderNo, IsTracked, IsQueryable, LastVersion, LastChangeTime, LastIssue FROM dbo.ShareDataSourceTable WHERE IsDelete IS NULL ORDER BY OrderNo;` | Thấy đúng 15 dòng danh mục bảng nguồn; 14 bảng theo dõi `IsTracked = 1` (Bật), riêng bảng `TmsEquipment` ở trạng thái **tắt theo dõi** (`IsTracked = 0`); cả 15 bảng đều có `IsQueryable = 1` (cho phép dùng trong bộ dựng SQL); các bảng đã bật Change Tracking có `LastVersion >= 0` và `LastIssue IS NULL` | ☐ Đạt ☐ Không đạt |
 | F2 | Sửa 1 thiết bị trong bảng `TmsEquipment` (khi `IsTracked = 0`) | **Không** kích hoạt gửi các gói 102/103/108 (tránh trigger quét thừa khi chỉ bảo trì thiết bị) | ☐ ☐ |
 | F3 | Bật theo dõi `TmsEquipment` (`UPDATE dbo.ShareDataSourceTable SET IsTracked = 1, UpdateTime = GETDATE() WHERE TableName = 'TmsEquipment' AND IsDelete IS NULL;`), chờ ≤ chu kỳ `reload_interval_sec` (mặc định 30 giây), sửa thiết bị, rồi **tắt lại** (`IsTracked = 0`) | Log Worker ghi *đã cập nhật cấu hình bảng giám sát (Thêm mới: 1)*; sửa thiết bị lúc bật thì **có** kích hoạt và tiến `LastVersion`, `LastChangeTime`; sau khi tắt lại thì dừng trigger | ☐ ☐ |
-| F4 | Tắt theo dõi 1 bảng (`UPDATE dbo.ShareDataSourceTable SET IsTracked = 0, UpdateTime = GETDATE() WHERE TableName = 'TmsWeather' AND IsDelete IS NULL;`) | Bảng `TmsWeather` **ngừng** được theo dõi sau ≤ 30–60 giây (sau khi kiểm xong, khôi phục `IsTracked = 1`) | ☐ ☐ |
+| F4 | Tắt theo dõi 1 bảng (`UPDATE dbo.ShareDataSourceTable SET IsTracked = 0, UpdateTime = GETDATE() WHERE TableName = 'TmsWeather' AND IsDelete IS NULL;`) | Bảng `TmsWeather` **ngừng** được theo dõi sau ≤ chu kỳ `reload_interval_sec` (mặc định 30 giây) (sau khi kiểm xong, khôi phục `IsTracked = 1`) | ☐ ☐ |
 | F5 | Thêm 1 dòng với **tên bảng không tồn tại trong CSDL** (ví dụ `TableName = 'BangKhongTonTai_Test'`, `PacketCodes = '101_commonData'`, `IsTracked = 1`, `IsQueryable = 1`) | Worker ghi nhận cảnh báo `ESH-1603` và cập nhật lý do vào cột `LastIssue` của dòng đó; các bảng hợp lệ khác **vẫn tiếp tục được theo dõi bình thường** (xóa dòng test sau khi kiểm) | ☐ ☐ |
 | F6 | **Tắt theo dõi tất cả** 15 dòng (`UPDATE dbo.ShareDataSourceTable SET IsTracked = 0, UpdateTime = GETDATE() WHERE IsDelete IS NULL;`) | Worker ghi cảnh báo `ESH-1603` **đúng 1 lần**, không còn kích hoạt gửi tức thì; luồng quét định kỳ (D1/D3) **vẫn gửi bình thường** | ☐ ☐ |
-| F7 | Bật lại theo dõi 14 dòng chuẩn (`UPDATE dbo.ShareDataSourceTable SET IsTracked = 1, UpdateTime = GETDATE() WHERE IsDelete IS NULL AND TableName <> 'TmsEquipment';`) | Hệ thống tự động theo dõi trở lại sau ≤ 30–60 giây, giữ nguyên `LastVersion` của từng dòng, không quét lại từ đầu, không làm mất các thay đổi | ☐ ☐ |
+| F7 | Bật lại theo dõi 14 dòng chuẩn (`UPDATE dbo.ShareDataSourceTable SET IsTracked = 1, UpdateTime = GETDATE() WHERE IsDelete IS NULL AND TableName <> 'TmsEquipment';`) | Hệ thống tự động theo dõi trở lại sau ≤ chu kỳ `reload_interval_sec` (mặc định 30 giây), giữ nguyên `LastVersion` của từng dòng, không quét lại từ đầu, không làm mất các thay đổi | ☐ ☐ |
 | F8 | Thêm mới hoặc bật thêm 1 dòng bảng hợp lệ (`LastVersion IS NULL`) trong khi các bảng khác đang chạy ổn định (`LastVersion > 0`) | Chỉ riêng bảng mới được khởi tạo `LastVersion = CHANGE_TRACKING_CURRENT_VERSION()`; **giá trị `LastVersion` của 14 bảng đang chạy hoàn toàn không bị đặt lại (không reset)** | ☐ ☐ |
-| F9 | Bảng không hợp lệ / chưa bật Change Tracking cùng tồn tại với các bảng hợp lệ đang có thay đổi dữ liệu | Dòng bảng lỗi được ghi chú vào cột `LastIssue`; các bảng hợp lệ còn lại vẫn tiến mốc `LastVersion` trong một câu lệnh (`UPDATE ... OUTPUT`), cập nhật `LastChangeTime` và bắn sự kiện NATS bình thường | ☐ ☐ |
+| F9 | Bảng không hợp lệ / chưa bật Change Tracking cùng tồn tại với các bảng hợp lệ đang có thay đổi dữ liệu | Dòng bảng lỗi được ghi chú vào cột `LastIssue`; các bảng hợp lệ còn lại cập nhật từng dòng có điều kiện LastVersion = mốc cũ; instance nào cập nhật được dòng thì mới phát sự kiện, cập nhật `LastChangeTime` và bắn sự kiện NATS bình thường | ☐ ☐ |
 
 ---
 
@@ -765,7 +817,7 @@ Kịch bản chứng minh luồng toàn trình gửi → nhận hoạt động t
 |---|---|---|---|
 | J1 | Khởi động Worker / WebAPI / FE khi trong CSDL chưa có hoặc thiếu dòng cấu hình (hoặc bị xóa mềm) | Hệ thống **tự động kích hoạt cơ chế dự phòng (fallback)**: lấy giá trị mặc định được định nghĩa sẵn trong mã nguồn (`DataWorkerConfigService` cho Worker, `ShareDataConfigService` cho WebAPI, `SHAREDATA_FE_CONFIG_FALLBACK` cho FE, khai tập trung tại `ShareDataConst`); không phát sinh exception, không làm sập ứng dụng | ☐ Đạt ☐ Không đạt |
 | J2 | Trên màn hình *Cấu hình hoạt động*, lọc nhóm `sharedata_config`, chỉnh sửa giá trị 1 tham số của Worker (ví dụ tăng `outbound_check_interval_sec` từ `5` lên `10`) → bấm Lưu | Sau thời gian ≤ chu kỳ `reload_interval_sec` (30 giây), log console của Worker ghi nhận dòng thông báo phát hiện cấu hình thay đổi: ghi rõ giá trị cũ (`5`) → giá trị mới (`10`) và chu kỳ quét mới lập tức có hiệu lực | ☐ ☐ |
-| J3 | Sửa giá trị tham số trong `SysOpConfig` thành chuỗi sai định dạng (ví dụ đặt `outbound_check_interval_sec = 'abc'`) hoặc đặt giá trị vượt quá khoảng cho phép (ví dụ `outbound_check_interval_sec = 9999`) | Worker nhận biết giá trị không hợp lệ, **tự động giữ/quay về giá trị dự phòng mặc định (5 giây)** và ghi **đúng 1 cảnh báo** ra log/alert (`ESH-1403` hoặc log cảnh báo cấu hình), không spam log liên tục | ☐ ☐ |
+| J3 | Sửa giá trị tham số trong `SysOpConfig` thành chuỗi sai định dạng (ví dụ đặt `outbound_check_interval_sec = 'abc'`) hoặc đặt giá trị vượt quá khoảng cho phép (ví dụ `outbound_check_interval_sec = 9999`) | Worker nhận biết giá trị không hợp lệ, **tự động giữ/quay về giá trị dự phòng mặc định (5 giây)** và ghi nhận log cảnh báo của `DataWorkerConfigService`: *"Cấu hình SysOpConfig [sharedata_config.<mã>] có giá trị '<giá trị>' không phải số nguyên; dùng giá trị dự phòng <mặc định>."* (hoặc câu *"Cấu hình SysOpConfig [sharedata_config.<mã>] có giá trị <giá trị> ngoài khoảng an toàn [min..max]; dùng giá trị dự phòng <mặc định>."*), mỗi cặp mã–giá trị đúng 1 lần, không sinh cảnh báo ESH | ☐ ☐ |
 | J4 | Tắt dòng tham số bằng cách đổi trạng thái `Status = 0` (hoặc xóa mềm `IsDelete = GETDATE()`) trong `SysOpConfig` | Hệ thống coi như tham số không tồn tại trong DB và **tự động chuyển sang sử dụng giá trị mặc định trong mã**, đảm bảo luồng vận hành không bị gián đoạn | ☐ ☐ |
 | J5 | Đặt `packet_lookback_days_max = 730` trong `SysOpConfig` → vào màn hình *Cấu hình gói tin* (SQL Center), chọn gói Incremental (103), nhập `MaxLookBackDays = 700` → Lưu | Giao diện WebVue đọc cấu hình từ API cho phép nhập đến 730 ngày (không bị chặn ở 365); WebAPI kiểm tra hợp lệ với cận trên 730 và **cho phép lưu thành công** xuống CSDL | ☐ ☐ |
 | J6 | Kiểm tra tính đồng bộ ngưỡng tối thiểu chu kỳ gửi `subscription_interval_sec_min = 5`: thử nhập chu kỳ `3` giây trên form Đăng ký gói tin, hoặc gọi trực tiếp API tạo đăng ký với `IntervalSeconds = 3` | Cả giao diện Vue (`editSubscription.vue`) và backend `SubscriptionValidator` đều **đồng bộ chặn cứng** giá trị nhỏ hơn 5 giây với thông báo lỗi rõ ràng, không có sự sai lệch ngưỡng giữa FE và BE | ☐ ☐ |
@@ -813,23 +865,23 @@ Kịch bản chứng minh luồng toàn trình gửi → nhận hoạt động t
 
 ### Phụ lục B: Danh mục 15 bảng nguồn ShareData (`ShareDataSourceTable`)
 
-> 📌 *Nguồn trích xuất chuẩn:* [`03-sharedata-seed-cau-hinh.sql`](../sql/03-sharedata-seed-cau-hinh.sql) (Mục 3.4) và nạp qua `SeedScriptReader` khi khởi động WebAPI.
+> 📌 *Nguồn trích xuất chuẩn:* [`03-sharedata-seed-cau-hinh.sql`](../sql/03-sharedata-seed-cau-hinh.sql) (Mục 3.4).
 
 | STT | ID cố định (`ID`) | Tên bảng CSDL (`TableName`) | Tên hiển thị (`Name`) | Gói tin kích hoạt (`PacketCodes`) | Thứ tự (`OrderNo`) | Theo dõi CT (`IsTracked`) | Bộ dựng SQL (`IsQueryable`) | Bí danh (`DefaultAlias`) | Ghi chú vai trò (`Remark`) |
 |:---:|:---:|---|---|---|:---:|:---:|:---:|:---:|---|
 | 1 | `1500000000201` | `TmsZoneStatus` | Trạng thái khu vực giao thông | `101,101_commonData` | 10 | Bật (1) | Bật (1) | `zs` | Giám sát thay đổi trạng thái zone để kích hoạt gói dữ liệu dùng chung (101). |
 | 2 | `1500000000202` | `TmsZone` | Danh mục khu vực giao thông | `101,101_commonData` | 20 | Bật (1) | Bật (1) | `z` | Giám sát thay đổi danh mục zone để kích hoạt gói dữ liệu dùng chung (101). |
-| 3 | `1500000000203` | `TmsTrafficStatistic` | Thống kê lưu lượng giao thông | `101,101_commonData` | 30 | Bật (1) | Bật (1) | `ts` | Giám sát dữ liệu thống kê giao thông để kích hoạt gói dữ liệu dùng chung (101). |
-| 4 | `1500000000204` | `CctvDevice` | Thiết bị camera giám sát | `102,102_cctvData` | 40 | Bật (1) | Bật (1) | `cd` | Giám sát dữ liệu camera để kích hoạt gói dữ liệu CCTV (102). |
+| 3 | `1500000000203` | `TmsTrafficStatistic` | Thống kê lưu lượng giao thông | `101,101_commonData` | 30 | Bật (1) | Bật (1) | `tstat` | Giám sát dữ liệu thống kê giao thông để kích hoạt gói dữ liệu dùng chung (101). |
+| 4 | `1500000000204` | `CctvDevice` | Thiết bị camera giám sát | `102,102_cctvData` | 40 | Bật (1) | Bật (1) | `c` | Giám sát dữ liệu camera để kích hoạt gói dữ liệu CCTV (102). |
 | 5 | `1500000000205` | `TmsTrafficData` | Dữ liệu lưu lượng VDS và WIM | `103,103_vdsData,106,106_wimData` | 50 | Bật (1) | Bật (1) | `td` | Giám sát dữ liệu đo đếm giao thông kích hoạt gói VDS (103) và WIM cân tải trọng (106). |
 | 6 | `1500000000206` | `TmsWeather` | Dữ liệu khí tượng thời tiết | `104,104_weatherData` | 60 | Bật (1) | Bật (1) | `w` | Giám sát dữ liệu trạm khí tượng để kích hoạt gói thời tiết (104). |
-| 7 | `1500000000207` | `TollTransactionIn` | Giao dịch thu phí đầu vào | `105,105_rfidData,109,109_etcData` | 70 | Bật (1) | Bật (1) | `ti` | Giám sát giao dịch vào trạm kích hoạt gói RFID (105) và gói ETC thu phí (109). |
-| 8 | `1500000000208` | `TollTransactionOut` | Giao dịch thu phí đầu ra | `105,105_rfidData,109,109_etcData` | 80 | Bật (1) | Bật (1) | `to` | Giám sát giao dịch ra trạm kích hoạt gói RFID (105) và gói ETC thu phí (109). |
+| 7 | `1500000000207` | `TollTransactionIn` | Giao dịch thu phí đầu vào | `105,105_rfidData,109,109_etcData` | 70 | Bật (1) | Bật (1) | `tin` | Giám sát giao dịch vào trạm kích hoạt gói RFID (105) và gói ETC thu phí (109). |
+| 8 | `1500000000208` | `TollTransactionOut` | Giao dịch thu phí đầu ra | `105,105_rfidData,109,109_etcData` | 80 | Bật (1) | Bật (1) | `tout` | Giám sát giao dịch ra trạm kích hoạt gói RFID (105) và gói ETC thu phí (109). |
 | 9 | `1500000000209` | `TmsVehicleRegistration` | Đăng ký phương tiện | `105,105_rfidData` | 90 | Bật (1) | Bật (1) | `vr` | Giám sát dữ liệu phương tiện đăng ký kích hoạt gói RFID (105). |
-| 10 | `1500000000210` | `TmsIncident` | Sự cố giao thông | `107,107_incidentData,110,110_wpData,111` | 100 | Bật (1) | Bật (1) | `inc` | Giám sát sự cố giao thông kích hoạt gói sự cố (107) và các gói tích hợp phụ trợ (110, 111). |
+| 10 | `1500000000210` | `TmsIncident` | Sự cố giao thông | `107,107_incidentData,110,110_wpData,111` | 100 | Bật (1) | Bật (1) | `i` | Giám sát sự cố giao thông kích hoạt gói sự cố (107) và các gói tích hợp phụ trợ (110, 111). |
 | 11 | `1500000000211` | `TmsEventType` | Loại sự kiện giao thông | `107,107_incidentData,110,110_wpData,111` | 110 | Bật (1) | Bật (1) | `et` | Giám sát danh mục loại sự kiện giao thông kích hoạt gói sự cố (107) và phụ trợ (110, 111). |
-| 12 | `1500000000212` | `VmsCurrent` | Thông tin bản tin biển báo VMS | `108,108_vmsInfo` | 120 | Bật (1) | Bật (1) | `vc` | Giám sát trạng thái hiển thị biển báo VMS kích hoạt gói tin VMS (108). |
-| 13 | `1500000000213` | `TmsEquipment` | Danh mục thiết bị phần cứng | `102,102_cctvData,103,103_vdsData,108,108_vmsInfo` | 130 | **Tắt (0)** | Bật (1) | `eq` | Bảng tra cứu thiết bị, mặc định tắt theo dõi để tránh trigger quét thừa cho 102/103/108 khi chỉ sửa thông tin thiết bị; vẫn cho phép truy vấn (IsQueryable = 1). |
+| 12 | `1500000000212` | `VmsCurrent` | Thông tin bản tin biển báo VMS | `108,108_vmsInfo` | 120 | Bật (1) | Bật (1) | `v` | Giám sát trạng thái hiển thị biển báo VMS kích hoạt gói tin VMS (108). |
+| 13 | `1500000000213` | `TmsEquipment` | Danh mục thiết bị phần cứng | `102,102_cctvData,103,103_vdsData,108,108_vmsInfo` | 130 | **Tắt (0)** | Bật (1) | `eq` | Bảng tra cứu thiết bị, tắt giám sát Change Tracking (IsTracked = 0) để tránh trigger quét thừa cho 102/103/108 khi chỉ cập nhật thông tin thiết bị, nhưng vẫn mở cho bộ dựng truy vấn (IsQueryable = 1). |
 | 14 | `1500000000214` | `TollLane` | Danh mục làn thu phí | `109,109_etcData` | 140 | Bật (1) | Bật (1) | `tl` | Giám sát danh mục làn thu phí trạm kích hoạt gói dữ liệu ETC (109). |
 | 15 | `1500000000215` | `TollStation` | Danh mục trạm thu phí | `109,109_etcData` | 150 | Bật (1) | Bật (1) | `ts` | Giám sát danh mục trạm thu phí kích hoạt gói dữ liệu ETC (109). |
 
@@ -1031,17 +1083,17 @@ GO
 | 15 | `tracking_log_retention_days` | Số ngày lưu giữ nhật ký hạ tầng Change Tracking | `7` | 41 | 1–365 ngày | Worker | Số ngày lưu giữ nhật ký hạ tầng Change Tracking mã ESH-16xx. |
 | 16 | `tracking_log_purge_batch` | Số dòng xóa mỗi lô nhật ký Change Tracking | `1000` | 42 | 100–50000 dòng | Worker | Số dòng xóa tối đa mỗi lô khi dọn nhật ký hạ tầng Change Tracking. |
 | 17 | `tracking_change_retention_days` | Số ngày giữ lịch sử CHANGE_RETENTION khi bật CT | `2` | 43 | 1–30 ngày | Worker | Số ngày giữ lịch sử thay đổi khi tự bật Change Tracking cho CSDL. |
-| 18 | `cleanup_interval_min` | Chu kỳ chạy dọn dẹp định kỳ (phút) | `1440` | 46 | 60–10080 phút | Worker | Chu kỳ dọn dẹp nhật ký Change Tracking ESH-16xx cũ hơn số ngày retention. |
+| 18 | `cleanup_interval_min` | Chu kỳ chạy dọn dẹp định kỳ (phút) | `1440` | 46 | 1–43200 phút | Worker | Chu kỳ dọn dẹp nhật ký Change Tracking ESH-16xx cũ hơn số ngày retention. |
 | 19 | `reload_interval_sec` | Chu kỳ nạp lại cấu hình và danh sách bảng nguồn (giây) | `30` | 47 | 5–3600 giây | Worker | Chu kỳ nạp lại cấu hình vận hành và danh sách bảng nguồn từ CSDL (thay thế cấu hình appsettings cũ). |
 | **B. Tham số Giới hạn Giao diện FE & Dùng chung WebAPI (23 mã)** |
-| 20 | `subscription_interval_sec_min` | Chu kỳ gửi - tối thiểu | `5` | 101 | 1–86400 giây | FE / BE | Giới hạn dưới chu kỳ gửi khi đăng ký gói tin (chặn cùng ngưỡng ở FE và BE). |
-| 21 | `subscription_interval_sec_max` | Chu kỳ gửi - tối đa | `86400` | 102 | 1–86400 giây | FE / BE | Giới hạn trên chu kỳ gửi khi đăng ký gói tin (tối đa 24 giờ). |
+| 20 | `subscription_interval_sec_min` | Chu kỳ gửi - tối thiểu | `5` | 101 | 1–604800 giây | FE / BE | Giới hạn dưới chu kỳ gửi khi đăng ký gói tin (chặn cùng ngưỡng ở FE và BE). |
+| 21 | `subscription_interval_sec_max` | Chu kỳ gửi - tối đa | `86400` | 102 | 1–604800 giây | FE / BE | Giới hạn trên chu kỳ gửi khi đăng ký gói tin (tối đa 7 ngày). |
 | 22 | `subscription_interval_sec_default` | Chu kỳ gửi - mặc định | `30` | 103 | Giây | FE | Giá trị chu kỳ gửi mặc định hiển thị trên form Đăng ký gói tin. |
-| 23 | `subscription_debounce_sec_min` | Thời gian gom sự kiện - tối thiểu | `0` | 111 | 0–3600 giây | FE / BE | Giới hạn dưới thời gian gom sự kiện NATS khi đăng ký gói tin. |
-| 24 | `subscription_debounce_sec_max` | Thời gian gom sự kiện - tối đa | `3600` | 112 | 0–3600 giây | FE / BE | Giới hạn trên thời gian gom sự kiện NATS khi đăng ký gói tin. |
+| 23 | `subscription_debounce_sec_min` | Thời gian gom sự kiện - tối thiểu | `0` | 111 | 0–86400 giây | FE / BE | Giới hạn dưới thời gian gom sự kiện NATS khi đăng ký gói tin. |
+| 24 | `subscription_debounce_sec_max` | Thời gian gom sự kiện - tối đa | `3600` | 112 | 0–86400 giây | FE / BE | Giới hạn trên thời gian gom sự kiện NATS khi đăng ký gói tin. |
 | 25 | `subscription_debounce_sec_default` | Thời gian gom sự kiện - mặc định | `30` | 113 | Giây | FE | Giá trị thời gian gom sự kiện mặc định hiển thị trên form Đăng ký gói tin. |
-| 26 | `subscription_priority_min` | Độ ưu tiên - tối thiểu | `0` | 121 | 0–10 | FE / BE | Giới hạn dưới mức độ ưu tiên hàng đợi của đăng ký gửi. |
-| 27 | `subscription_priority_max` | Độ ưu tiên - tối đa | `10` | 122 | 0–10 | FE / BE | Giới hạn trên mức độ ưu tiên hàng đợi của đăng ký gửi. |
+| 26 | `subscription_priority_min` | Độ ưu tiên - tối thiểu | `0` | 121 | 0–100 | FE / BE | Giới hạn dưới mức độ ưu tiên hàng đợi của đăng ký gửi. |
+| 27 | `subscription_priority_max` | Độ ưu tiên - tối đa | `10` | 122 | 0–100 | FE / BE | Giới hạn trên mức độ ưu tiên hàng đợi của đăng ký gửi. |
 | 28 | `subscription_priority_default` | Độ ưu tiên - mặc định | `5` | 123 | 0–10 | FE | Mức độ ưu tiên mặc định khi tạo mới đăng ký gửi gói tin. |
 | 29 | `partner_heartbeat_sec_min` | Heartbeat - tối thiểu | `5` | 201 | 1–300 giây | FE | Giới hạn dưới chu kỳ gửi heartbeat kiểm tra kết nối đối tác. |
 | 30 | `partner_heartbeat_sec_max` | Heartbeat - tối đa | `300` | 202 | 1–300 giây | FE | Giới hạn trên chu kỳ gửi heartbeat kiểm tra kết nối đối tác. |
@@ -1052,18 +1104,18 @@ GO
 | 35 | `partner_datagram_size_min` | Kích thước datagram - tối thiểu | `512` | 221 | 512–65507 Byte | FE | Giới hạn dưới kích thước gói tin datagram của kênh UDP. |
 | 36 | `partner_datagram_size_max` | Kích thước datagram - tối đa | `65507` | 222 | 512–65507 Byte | FE | Giới hạn trên kích thước datagram (giới hạn phần cứng UDP 65507 Byte). |
 | 37 | `partner_datagram_size_default` | Kích thước datagram - mặc định | `1024` | 223 | Byte | FE | Kích thước gói tin datagram mặc định khi tạo mới đối tác UDP. |
-| 38 | `mapping_sample_top_min` | Số bản ghi mẫu - tối thiểu | `1` | 301 | 1–50 bản ghi | FE / BE | Giới hạn dưới số lượng bản ghi mẫu trích xuất khi cấu hình ánh xạ. |
-| 39 | `mapping_sample_top_max` | Số bản ghi mẫu - tối đa | `50` | 302 | 1–50 bản ghi | FE / BE | Giới hạn trên số lượng bản ghi mẫu trích xuất khi cấu hình ánh xạ. |
-| 40 | `mapping_sample_top_default` | Số bản ghi mẫu - mặc định | `5` | 303 | Bản ghi | FE / BE | Số lượng bản ghi mẫu mặc định khi bấm xem mẫu tại màn hình Ánh xạ. |
+| 38 | `mapping_sample_top_min` | Số bản ghi mẫu - tối thiểu | `1` | 301 | 1–500 bản ghi | FE / BE | Giới hạn dưới số lượng bản ghi mẫu trích xuất khi cấu hình ánh xạ. |
+| 39 | `mapping_sample_top_max` | Số bản ghi mẫu - tối đa | `50` | 302 | 1–500 bản ghi | FE / BE | Giới hạn trên số lượng bản ghi mẫu trích xuất khi cấu hình ánh xạ. |
+| 40 | `mapping_sample_top_default` | Số bản ghi mẫu - mặc định | `5` | 303 | 1–500 bản ghi | FE / BE | Số lượng bản ghi mẫu mặc định khi bấm xem mẫu tại màn hình Ánh xạ. |
 | 41 | `history_range_default_days` | Khoảng tra cứu - mặc định | `7` | 401 | 1–31 ngày | FE | Khoảng thời gian mặc định khi mở màn hình Lịch sử chia sẻ và Nhật ký lỗi. |
 | 42 | `history_range_max_days` | Khoảng tra cứu - tối đa | `31` | 402 | 1–31 ngày | FE | Khoảng thời gian tra cứu tối đa cho phép chọn trên bộ lọc ngày. |
 | **C. Tham số WebAPI Backend & SQL Center (6 mã)** |
-| 43 | `packet_lookback_days_min` | Số ngày quét lùi tối đa - tối thiểu | `1` | 501 | ≥ 1 ngày | BE / FE | Giới hạn dưới của MaxLookBackDays khi cấu hình SQL trích xuất gói tin. |
-| 44 | `packet_lookback_days_max` | Số ngày quét lùi tối đa - tối đa | `365` | 502 | 1–730 ngày | BE / FE | Giới hạn trên của MaxLookBackDays (mặc định 365, có thể tăng lên 730). |
-| 45 | `sql_sample_top_min` | Số dòng xem mẫu SQL Center - tối thiểu | `1` | 511 | 1–50 bản ghi | BE / FE | Giới hạn dưới khi chạy thử SQL trích xuất tại SQL Center. |
-| 46 | `sql_sample_top_max` | Số dòng xem mẫu SQL Center - tối đa | `50` | 512 | 1–50 bản ghi | BE / FE | Giới hạn trên khi chạy thử SQL trích xuất tại SQL Center. |
-| 47 | `sql_sample_top_default` | Số dòng xem mẫu SQL Center - mặc định | `10` | 513 | Bản ghi | BE / FE | Số dòng xem mẫu mặc định khi chạy thử câu SQL tại SQL Center. |
-| 48 | `log_list_default_top` | Số dòng nhật ký trả về mặc định | `1000` | 521 | 1–10000 bản ghi | BE | Số dòng mặc định trả về khi truy vấn danh sách ActivityLog / AlertLog. |
+| 43 | `packet_lookback_days_min` | Số ngày quét lùi tối đa - tối thiểu | `1` | 501 | 1–3650 ngày | BE / FE | Giới hạn dưới của MaxLookBackDays khi cấu hình SQL trích xuất gói tin. |
+| 44 | `packet_lookback_days_max` | Số ngày quét lùi tối đa - tối đa | `365` | 502 | 1–3650 ngày | BE / FE | Giới hạn trên của MaxLookBackDays (mặc định 365, tối đa 3650). |
+| 45 | `sql_sample_top_min` | Số dòng xem mẫu SQL Center - tối thiểu | `1` | 511 | 1–500 bản ghi | BE / FE | Giới hạn dưới khi chạy thử SQL trích xuất tại SQL Center. |
+| 46 | `sql_sample_top_max` | Số dòng xem mẫu SQL Center - tối đa | `50` | 512 | 1–500 bản ghi | BE / FE | Giới hạn trên khi chạy thử SQL trích xuất tại SQL Center. |
+| 47 | `sql_sample_top_default` | Số dòng xem mẫu SQL Center - mặc định | `10` | 513 | 1–500 bản ghi | BE / FE | Số dòng xem mẫu mặc định khi chạy thử câu SQL tại SQL Center. |
+| 48 | `log_list_default_top` | Số dòng nhật ký trả về mặc định | `1000` | 521 | 1–100000 bản ghi | BE | Số dòng mặc định trả về khi truy vấn danh sách ActivityLog / AlertLog. |
 
 ---
 
@@ -1074,21 +1126,47 @@ GO
    - Xóa bỏ bản sao cấu hình debug tạm trong file [`.vscode/launch.json`](../../../../.vscode/launch.json) (nếu đã tạo ở mục 0.2.2).
    - Đảm bảo các cờ CodeFirst/Seed trong file cấu hình dự án giữ nguyên giá trị `false`.
    - Nếu đã thêm biến môi trường `"Nats__Enabled": "false"` hoặc tùy chỉnh cổng NATS, trả lại như ban đầu.
-2. **Khôi phục danh mục 15 bảng nguồn (`ShareDataSourceTable`):**
-   - Trả lại trạng thái ban đầu của 15 dòng trong bảng `dbo.ShareDataSourceTable` theo đúng [Phụ lục B](#phụ-lục-b-danh-mục-15-bảng-nguồn-sharedata-sharedatasourcetable) (xóa các dòng bảng thử nghiệm như `BangKhongTonTai_Test`, khôi phục `IsDelete = NULL`, đưa `TmsEquipment` về trạng thái tắt theo dõi `IsTracked = 0`, 14 bảng còn lại `IsTracked = 1`, và cả 15 bảng `IsQueryable = 1`):
+2. **Khôi phục tham số vận hành `SysOpConfig` (nhóm `sharedata_config` đã sửa ở J2–J5, H3):**
+   - Đưa các tham số đã sửa thử nghiệm về giá trị mặc định: `outbound_check_interval_sec = '5'`, `packet_lookback_days_max = '365'`, `cleanup_interval_min = '1440'`; khôi phục dòng đã tắt/xóa mềm ở J4 về `Status = 1`, `IsDelete = NULL`.
+   > 💡 **Ghi chú:** Script `03-sharedata-seed-cau-hinh.sql` không ghi đè các giá trị đã tồn tại trong `SysOpConfig` (`WHERE NOT EXISTS`), nên bắt buộc chạy câu lệnh `UPDATE` dưới đây để khôi phục:
      ```sql
      USE [DEV_ITS10];
+     UPDATE dbo.SysOpConfig
+     SET Value = CASE Code
+             WHEN 'outbound_check_interval_sec' THEN '5'
+             WHEN 'packet_lookback_days_max' THEN '365'
+             WHEN 'cleanup_interval_min' THEN '1440'
+             ELSE Value
+         END,
+         Status = 1,
+         IsDelete = NULL,
+         UpdateTime = GETDATE()
+     WHERE GroupCode = 'sharedata_config'
+       AND Code IN ('outbound_check_interval_sec', 'packet_lookback_days_max', 'cleanup_interval_min');
+     ```
+3. **Khôi phục danh mục 15 bảng nguồn (`ShareDataSourceTable`):**
+   - Trả lại trạng thái ban đầu của 15 dòng trong bảng `dbo.ShareDataSourceTable` theo đúng [Phụ lục B](#phụ-lục-b-danh-mục-15-bảng-nguồn-sharedata-sharedatasourcetable) (xóa dòng bảng thử nghiệm `TableName = N'BangKhongTonTai_Test'`, khôi phục `IsDelete = NULL`, đưa `TmsEquipment` về trạng thái tắt theo dõi `IsTracked = 0`, 14 bảng còn lại `IsTracked = 1`, và cả 15 bảng `IsQueryable = 1`):
+   > 💡 **Lý do lọc theo `TableName` thay vì `ID`:** Trên CSDL cũ, script `00-sharedata-migration-mot-lan.sql` giữ ID cũ (00 dòng 114–120), do đó lọc theo danh sách `TableName` bảo đảm độ chính xác tuyệt đối trên mọi môi trường CSDL.
+     ```sql
+     USE [DEV_ITS10];
+     -- Xóa các dòng bảng thử nghiệm:
      DELETE FROM dbo.ShareDataSourceTable
-     WHERE ID NOT BETWEEN '1500000000201' AND '1500000000215';
+     WHERE TableName = N'BangKhongTonTai_Test';
 
+     -- Khôi phục 15 bảng nguồn chuẩn theo Phụ lục B:
      UPDATE dbo.ShareDataSourceTable
      SET IsDelete = NULL,
          IsTracked = CASE WHEN TableName = N'TmsEquipment' THEN 0 ELSE 1 END,
          IsQueryable = 1,
          UpdateTime = GETDATE()
-     WHERE ID BETWEEN '1500000000201' AND '1500000000215';
+     WHERE TableName IN (
+         N'TmsZoneStatus', N'TmsZone', N'TmsTrafficStatistic', N'CctvDevice',
+         N'TmsTrafficData', N'TmsWeather', N'TollTransactionIn', N'TollTransactionOut',
+         N'TmsVehicleRegistration', N'TmsIncident', N'TmsEventType', N'VmsCurrent',
+         N'TmsEquipment', N'TollLane', N'TollStation'
+     );
      ```
-3. **Dọn dẹp dữ liệu thử nghiệm nghiệp vụ:**
+4. **Dọn dẹp dữ liệu thử nghiệm nghiệp vụ:**
    - Xóa các bản ghi đăng ký chia sẻ (Subscription) và phễu lọc (Mapping) đã tạo thử nghiệm cho kịch bản D0 và E0.
    - Xóa đối tác thử nghiệm `P-REST` (trên giao diện hoặc đặt `IsDelete = GETDATE()`).
    - Xóa dữ liệu thử nghiệm trong bảng đích chiều nhận:
@@ -1102,7 +1180,7 @@ GO
      DELETE FROM dbo.ShareDataPacketSql WHERE ID = '1500000000903' OR PacketCode = 'E2E_INBOUND_TEST';
      DELETE FROM dbo.ShareDataPacket WHERE ID = '1500000000900' OR Code = 'E2E_INBOUND_TEST';
      ```
-4. **Dọn dẹp tệp tin trên ổ đĩa:**
+5. **Dọn dẹp tệp tin trên ổ đĩa:**
    - Xóa các tệp `received-*.json` và file `FAIL` do receiver sinh ra trong quá trình kiểm thử.
    - Xóa các thư mục/tệp bằng chứng sinh ra trong thư mục `sharedata/send` (đường dẫn tương đối của Worker).
    - Dọn dẹp topic/tệp thử cho D12–D14 nếu có chạy thử nghiệm: xóa topic/message thử trên Kafka broker, xóa tệp đã tải lên trên FTP server local và thư mục File local.
