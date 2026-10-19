@@ -1,10 +1,7 @@
 namespace Tests.ShareData.Common;
 
 using Module.ShareData.Core.Entities;
-using ShareDataWorker.Core.Constants;
-using ShareDataWorker.Core.Enums;
 using ShareDataWorker.Core.Utils;
-using ShareDataWorker.Infrastructure.Logging;
 using Shared.DTO.Enums;
 using Xunit;
 
@@ -25,7 +22,7 @@ public class PacketHelperTests
         {
             Code = "105",
             Name = "Vehicle Event Packet",
-            SyncMode = SyncMode.Incremental
+            SyncMode = BaseEnums.SyncMode.Incremental
         };
 
         // Act

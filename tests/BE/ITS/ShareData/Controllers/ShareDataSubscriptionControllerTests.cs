@@ -1,11 +1,8 @@
 using FluentValidation;
-using Microsoft.Extensions.DependencyInjection;
 using Module.ShareData.Core.Dto.Subscription;
 using Module.ShareData.Core.Entities;
 using Modules.CfgSystem.Core.Entities;
 using Newtonsoft.Json;
-using Shared.DTO.Enums;
-using SqlSugar;
 
 namespace Tests.ShareData.Controllers;
 
@@ -42,8 +39,8 @@ public class ShareDataSubscriptionControllerTests(Host host)
         {
             PartnerId = partner.ID,
             DatatypeId = $"DT_{unique}",
-            Direction = Direction.Outbound,
-            Mode = SubMode.Periodic,
+            Direction = BaseEnums.Direction.Outbound,
+            Mode = BaseEnums.SubMode.Periodic,
             IntervalSeconds = 30,
             Schedule = new ShareDataScheduleDto { Kind = "continuous", IntervalSeconds = 30, StartTime = "22:00", EndTime = "05:00" }
         };
@@ -56,8 +53,8 @@ public class ShareDataSubscriptionControllerTests(Host host)
         {
             PartnerId = partner.ID,
             DatatypeId = $"DT_{unique}",
-            Direction = Direction.Outbound,
-            Mode = SubMode.Periodic,
+            Direction = BaseEnums.Direction.Outbound,
+            Mode = BaseEnums.SubMode.Periodic,
             IntervalSeconds = 30,
             Schedule = new ShareDataScheduleDto { Kind = "continuous", IntervalSeconds = 30, StartTime = "06:00", EndTime = "22:00" }
         };
@@ -96,14 +93,14 @@ public class ShareDataSubscriptionControllerTests(Host host)
         };
         await db.Insertable(partner).ExecuteCommandAsync();
 
-        ShareDataAddSubscriptionInput CreateInput(int? priority = null, int? debounce = null, SubMode mode = SubMode.Periodic) =>
+        ShareDataAddSubscriptionInput CreateInput(int? priority = null, int? debounce = null, BaseEnums.SubMode mode = BaseEnums.SubMode.Periodic) =>
             new()
             {
                 PartnerId = partner.ID,
                 DatatypeId = $"DT_{unique}",
-                Direction = Direction.Outbound,
+                Direction = BaseEnums.Direction.Outbound,
                 Mode = mode,
-                EventSourceId = mode == SubMode.Event ? $"EV_{unique}" : null,
+                EventSourceId = mode == BaseEnums.SubMode.Event ? $"EV_{unique}" : null,
                 IntervalSeconds = 30,
                 Priority = priority,
                 DebounceSec = debounce,
@@ -121,7 +118,7 @@ public class ShareDataSubscriptionControllerTests(Host host)
         await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput(debounce: 3601)));
 
         // 2. Valid input within fallback range succeeds (Mode = Event to preserve DebounceSec)
-        await sp.CallApiAsync(CreateInput(priority: 5, debounce: 60, mode: SubMode.Event));
+        await sp.CallApiAsync(CreateInput(priority: 5, debounce: 60, mode: BaseEnums.SubMode.Event));
 
         var saved = await db.Queryable<ShareDataSubscription>()
             .Where(s => s.PartnerId == partner.ID && s.DatatypeId == $"DT_{unique}")
@@ -129,5 +126,261 @@ public class ShareDataSubscriptionControllerTests(Host host)
         Assert.NotNull(saved);
         Assert.Equal(5, saved.Priority);
         Assert.Equal(60, saved.DebounceSec);
+    }
+
+    /// <summary>
+    /// Description: Kiểm chứng các giá trị ngoài khoảng (dưới min hoặc trên max) của chu kỳ,
+    /// ưu tiên và gom sự kiện bị từ chối kèm thông báo lỗi nêu rõ khoảng hợp lệ.
+    /// Created date: 19/10/2026
+    /// </summary>
+    [Fact]
+    public async Task AddSubscription_WhenValueOutsideRange_RejectsWithRangeMessage_Test()
+    {
+        // Arrange
+        var sp = host.Services;
+        var db = sp.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N");
+
+        var partner = new ShareDataPartner
+        {
+            ID = $"P_{unique}",
+            Code = $"P_RANGE_{unique}",
+            Name = $"Partner {unique}",
+            Status = BaseEnums.StatusEnum.Enable
+        };
+        await db.Insertable(partner).ExecuteCommandAsync();
+
+        ShareDataAddSubscriptionInput CreateInput(
+            int? interval = 30,
+            int? priority = 1,
+            int? debounce = null,
+            BaseEnums.SubMode mode = BaseEnums.SubMode.Periodic) =>
+            new()
+            {
+                PartnerId = partner.ID,
+                DatatypeId = $"DT_{unique}",
+                Direction = BaseEnums.Direction.Outbound,
+                Mode = mode,
+                EventSourceId = mode == BaseEnums.SubMode.Event ? $"EV_{unique}" : null,
+                IntervalSeconds = interval,
+                Priority = priority,
+                DebounceSec = debounce,
+                Schedule = new ShareDataScheduleDto
+                {
+                    Kind = "continuous",
+                    IntervalSeconds = interval,
+                    StartTime = "06:00",
+                    EndTime = "22:00"
+                }
+            };
+
+        // Act & Assert
+        // 1. Chu kỳ dưới min (4 < 5) hoặc trên max (86401 > 86400)
+        var exIntervalMin = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput(interval: 4)));
+        Assert.Contains("5..86400", exIntervalMin.Message);
+
+        var exIntervalMax = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput(interval: 86401)));
+        Assert.Contains("5..86400", exIntervalMax.Message);
+
+        // 2. Độ ưu tiên dưới min (-1 < 0) hoặc trên max (11 > 10)
+        var exPriorityMin = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput(priority: -1)));
+        Assert.Contains("0..10", exPriorityMin.Message);
+
+        var exPriorityMax = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput(priority: 11)));
+        Assert.Contains("0..10", exPriorityMax.Message);
+
+        // 3. Gom sự kiện dưới min (-1 < 0) hoặc trên max (3601 > 3600)
+        var exDebounceMin = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput(debounce: -1, mode: BaseEnums.SubMode.Event)));
+        Assert.Contains("0..3600", exDebounceMin.Message);
+
+        var exDebounceMax = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput(debounce: 3601, mode: BaseEnums.SubMode.Event)));
+        Assert.Contains("0..3600", exDebounceMax.Message);
+    }
+
+    /// <summary>
+    /// Description: Kiểm chứng các giá trị tại đúng cận min và max của chu kỳ, ưu tiên và
+    /// gom sự kiện được chấp nhận và lưu thành công vào CSDL.
+    /// Created date: 19/10/2026
+    /// </summary>
+    [Fact]
+    public async Task AddSubscription_WhenBoundaryValues_SavesSuccessfully_Test()
+    {
+        // Arrange
+        var sp = host.Services;
+        var db = sp.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N");
+
+        var partner = new ShareDataPartner
+        {
+            ID = $"P_{unique}",
+            Code = $"P_BOUND_{unique}",
+            Name = $"Partner {unique}",
+            Status = BaseEnums.StatusEnum.Enable
+        };
+        await db.Insertable(partner).ExecuteCommandAsync();
+
+        // 1. Cận Min: Interval = 5, Priority = 1, DebounceSec = 0
+        var minInput = new ShareDataAddSubscriptionInput
+        {
+            PartnerId = partner.ID,
+            DatatypeId = $"DT_MIN_{unique}",
+            Direction = BaseEnums.Direction.Outbound,
+            Mode = BaseEnums.SubMode.Event,
+            EventSourceId = $"EV_{unique}",
+            IntervalSeconds = 5,
+            Priority = 1,
+            DebounceSec = 0,
+            Schedule = new ShareDataScheduleDto
+            {
+                Kind = "continuous",
+                IntervalSeconds = 5,
+                StartTime = "06:00",
+                EndTime = "22:00"
+            }
+        };
+
+        // 2. Cận Max: Interval = 86400, Priority = 10, DebounceSec = 3600
+        var maxInput = new ShareDataAddSubscriptionInput
+        {
+            PartnerId = partner.ID,
+            DatatypeId = $"DT_MAX_{unique}",
+            Direction = BaseEnums.Direction.Outbound,
+            Mode = BaseEnums.SubMode.Event,
+            EventSourceId = $"EV_{unique}",
+            IntervalSeconds = 86400,
+            Priority = 10,
+            DebounceSec = 3600,
+            Schedule = new ShareDataScheduleDto
+            {
+                Kind = "continuous",
+                IntervalSeconds = 86400,
+                StartTime = "06:00",
+                EndTime = "22:00"
+            }
+        };
+
+        // Act
+        await sp.CallApiAsync(minInput);
+        await sp.CallApiAsync(maxInput);
+
+        // Assert
+        var savedMin = await db.Queryable<ShareDataSubscription>()
+            .Where(s => s.PartnerId == partner.ID && s.DatatypeId == minInput.DatatypeId)
+            .FirstAsync();
+        Assert.NotNull(savedMin);
+        Assert.Equal(5, savedMin.IntervalSeconds);
+        Assert.Equal(1, savedMin.Priority);
+        Assert.Equal(0, savedMin.DebounceSec);
+
+        var savedMax = await db.Queryable<ShareDataSubscription>()
+            .Where(s => s.PartnerId == partner.ID && s.DatatypeId == maxInput.DatatypeId)
+            .FirstAsync();
+        Assert.NotNull(savedMax);
+        Assert.Equal(86400, savedMax.IntervalSeconds);
+        Assert.Equal(10, savedMax.Priority);
+        Assert.Equal(3600, savedMax.DebounceSec);
+    }
+
+    /// <summary>
+    /// Description: Kiểm chứng các giới hạn động được ghi đè và áp dụng chính xác
+    /// thông qua nhóm cấu hình SysOpConfig cách ly.
+    /// Created date: 19/10/2026
+    /// </summary>
+    [Fact]
+    public async Task AddSubscription_WhenDynamicLimitsChangedViaIsolatedConfigGroup_AppliesCustomLimits_Test()
+    {
+        // Arrange
+        var sp = host.Services;
+        var db = sp.GetRequiredService<ISqlSugarClient>();
+        var config = sp.GetRequiredService<IConfiguration>();
+        var cache = sp.GetRequiredService<BaseCacheService>();
+        var unique = Guid.NewGuid().ToString("N");
+        var isolatedGroup = $"sd_sub_dyn_{unique}";
+
+        var partner = new ShareDataPartner
+        {
+            ID = $"P_{unique}",
+            Code = $"P_DYN_{unique}",
+            Name = $"Partner {unique}",
+            Status = BaseEnums.StatusEnum.Enable
+        };
+        await db.Insertable(partner).ExecuteCommandAsync();
+
+        var customConfigs = new List<SysOpConfig>
+        {
+            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "subscription_interval_sec_min", Value = "10", Status = BaseEnums.StatusEnum.Enable },
+            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "subscription_interval_sec_max", Value = "300", Status = BaseEnums.StatusEnum.Enable },
+            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "subscription_priority_min", Value = "2", Status = BaseEnums.StatusEnum.Enable },
+            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "subscription_priority_max", Value = "8", Status = BaseEnums.StatusEnum.Enable },
+            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "subscription_debounce_sec_min", Value = "15", Status = BaseEnums.StatusEnum.Enable },
+            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "subscription_debounce_sec_max", Value = "120", Status = BaseEnums.StatusEnum.Enable }
+        };
+        await db.Insertable(customConfigs).ExecuteCommandAsync();
+
+        config[ShareDataConst.ConfigGroupOverrideKey] = isolatedGroup;
+        cache.RemoveByPrefixKey("sysOpConfig");
+
+        ShareDataAddSubscriptionInput CreateInput(
+            string datatypeSuffix,
+            int? interval = 60,
+            int? priority = 5,
+            int? debounce = null,
+            BaseEnums.SubMode mode = BaseEnums.SubMode.Periodic) =>
+            new()
+            {
+                PartnerId = partner.ID,
+                DatatypeId = $"DT_{datatypeSuffix}_{unique}",
+                Direction = BaseEnums.Direction.Outbound,
+                Mode = mode,
+                EventSourceId = mode == BaseEnums.SubMode.Event ? $"EV_{unique}" : null,
+                IntervalSeconds = interval,
+                Priority = priority,
+                DebounceSec = debounce,
+                Schedule = new ShareDataScheduleDto
+                {
+                    Kind = "continuous",
+                    IntervalSeconds = interval,
+                    StartTime = "06:00",
+                    EndTime = "22:00"
+                }
+            };
+
+        // Act & Assert
+        // 1. Kiểm tra dưới min (7 < 10) và trên max (301 > 300) của Interval
+        var exIntervalUnder = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput("IV_UNDER", interval: 7)));
+        Assert.Contains("10..300", exIntervalUnder.Message);
+
+        var exIntervalAbove = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput("IV_ABOVE", interval: 301)));
+        Assert.Contains("10..300", exIntervalAbove.Message);
+
+        // 2. Kiểm tra dưới min (1 < 2) và trên max (9 > 8) của Priority
+        var exPriorityUnder = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput("PR_UNDER", priority: 1)));
+        Assert.Contains("2..8", exPriorityUnder.Message);
+
+        var exPriorityAbove = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput("PR_ABOVE", priority: 9)));
+        Assert.Contains("2..8", exPriorityAbove.Message);
+
+        // 3. Kiểm tra dưới min (14 < 15) và trên max (121 > 120) của DebounceSec
+        var exDebounceUnder = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput("DB_UNDER", debounce: 14, mode: BaseEnums.SubMode.Event)));
+        Assert.Contains("15..120", exDebounceUnder.Message);
+
+        var exDebounceAbove = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput("DB_ABOVE", debounce: 121, mode: BaseEnums.SubMode.Event)));
+        Assert.Contains("15..120", exDebounceAbove.Message);
+
+        // 4. Giá trị hợp lệ theo cấu hình mới lưu thành công
+        var validInput = CreateInput("VALID", interval: 10, priority: 2, debounce: 15, mode: BaseEnums.SubMode.Event);
+        await sp.CallApiAsync(validInput);
+
+        var saved = await db.Queryable<ShareDataSubscription>()
+            .Where(s => s.PartnerId == partner.ID && s.DatatypeId == validInput.DatatypeId)
+            .FirstAsync();
+        Assert.NotNull(saved);
+        Assert.Equal(10, saved.IntervalSeconds);
+        Assert.Equal(2, saved.Priority);
+        Assert.Equal(15, saved.DebounceSec);
+
+        // Cleanup
+        config[ShareDataConst.ConfigGroupOverrideKey] = null;
+        cache.RemoveByPrefixKey("sysOpConfig");
     }
 }

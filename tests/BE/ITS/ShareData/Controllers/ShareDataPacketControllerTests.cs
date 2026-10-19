@@ -1,15 +1,10 @@
 using System.Security.Claims;
 using FluentValidation;
-using Furion.FriendlyException;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
 using Module.ShareData.Core.Dto.Packet;
 using Module.ShareData.Core.Entities;
 using Module.ShareData.Infrastructure.Services.ShareDataExtraction;
 using Shared.Core.Utilities.Constants;
-using Shared.DTO.Enums;
-using SqlSugar;
-using Xunit;
 
 using Tests.ShareData.Common;
 
@@ -110,7 +105,7 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         Assert.NotNull(packet);
         Assert.True(PacketDefaultTemplate.TryGet("101", out var tpl101));
         Assert.Equal(tpl101.ExtractSql, packet.ExtractSql);
-        Assert.Equal(SyncMode.Snapshot, packet.SyncMode);
+        Assert.Equal(BaseEnums.SyncMode.Snapshot, packet.SyncMode);
     }
 
     [Fact]
@@ -138,7 +133,7 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         Assert.NotNull(packet);
         Assert.True(PacketDefaultTemplate.TryGet("101", out var tpl101Prefix));
         Assert.Equal(tpl101Prefix.ExtractSql, packet.ExtractSql);
-        Assert.Equal(SyncMode.Snapshot, packet.SyncMode);
+        Assert.Equal(BaseEnums.SyncMode.Snapshot, packet.SyncMode);
     }
 
     [Fact]
@@ -268,7 +263,7 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             Name = $"Packet 103 Test {unique}",
             Status = BaseEnums.StatusEnum.Enable,
             ExtractSql = savedCustomSql,
-            SyncMode = SyncMode.Snapshot
+            SyncMode = BaseEnums.SyncMode.Snapshot
         };
         await db.Insertable(packet).ExecuteCommandAsync();
 
@@ -284,7 +279,7 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         Assert.True(output.HasDefaultTemplate);
         Assert.True(PacketDefaultTemplate.TryGet("103", out var tpl103));
         Assert.Equal(tpl103.ExtractSql, output.ExtractSql);
-        Assert.Equal(SyncMode.Incremental, output.SyncMode);
+        Assert.Equal(BaseEnums.SyncMode.Incremental, output.SyncMode);
         Assert.Equal(1, output.MaxLookBackDays);
 
         // DB không bị thay đổi
@@ -311,7 +306,7 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             Name = $"Non template packet {unique}",
             Status = BaseEnums.StatusEnum.Enable,
             ExtractSql = savedSql,
-            SyncMode = SyncMode.Snapshot
+            SyncMode = BaseEnums.SyncMode.Snapshot
         };
         await db.Insertable(packet).ExecuteCommandAsync();
 

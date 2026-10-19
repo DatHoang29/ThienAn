@@ -1,6 +1,5 @@
 using Modules.Integration.Delivery.Base.Constants;
 using Modules.Integration.Delivery.Base.Helpers;
-using Xunit;
 
 namespace Tests.ShareData.Connect
 {

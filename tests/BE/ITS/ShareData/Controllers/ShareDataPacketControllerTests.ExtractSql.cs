@@ -2,19 +2,13 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using Furion.FriendlyException;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
-using Module.ShareData.Core.Constants;
 using Module.ShareData.Core.Dto.Packet;
 using Module.ShareData.Core.Entities;
 using Module.ShareData.Core.Exceptions;
 using Module.ShareData.Core.Utils;
 using Module.ShareData.Infrastructure.Services.ShareDataExtraction;
-using Shared.DTO.Enums;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Extraction;
-using SqlSugar;
 using Tests.ShareData.Common;
-using Xunit;
 
 namespace Tests.ShareData.Controllers;
 
@@ -138,11 +132,11 @@ public partial class ShareDataPacketControllerTests
         Assert.Equal(validSql, savedPacket.ExtractSql);
 
         var auditLog = await db.Queryable<ShareDataActivityLog>()
-            .Where(x => x.TargetId == packet.ID && x.Action == ActivityAction.Update)
+            .Where(x => x.TargetId == packet.ID && x.Action == BaseEnums.ActivityAction.Update)
             .OrderBy("OccurredAt DESC")
             .FirstAsync();
         Assert.NotNull(auditLog);
-        Assert.Equal(ShareDataTargetType.Packet, auditLog.TargetType);
+        Assert.Equal(BaseEnums.ShareDataTargetType.Packet, auditLog.TargetType);
         Assert.Equal(operatorAccount, auditLog.OperatorName);
     }
 
@@ -159,7 +153,7 @@ public partial class ShareDataPacketControllerTests
         {
             ID = Guid.NewGuid().ToString("N"),
             DatatypeId = "101",
-            Direction = Direction.Outbound
+            Direction = BaseEnums.Direction.Outbound
         };
 
         var unsafePacket = new ShareDataPacket
@@ -290,7 +284,7 @@ public partial class ShareDataPacketControllerTests
         var input = new UpdatePacketExtractSqlInput
         {
             PacketCode = "103",
-            SyncMode = SyncMode.Incremental,
+            SyncMode = BaseEnums.SyncMode.Incremental,
             MaxLookBackDays = lookBackDays,
             ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM TmsZone"
         };
@@ -420,11 +414,11 @@ public partial class ShareDataPacketControllerTests
         var existing = await db.Queryable<ShareDataPacket>().Where(x => x.Code == "103").FirstAsync();
         if (existing == null)
         {
-            await db.Insertable(new ShareDataPacket { ID = Guid.NewGuid().ToString("N"), Code = "103", Name = "VDS Data", Status = BaseEnums.StatusEnum.Enable, SyncMode = SyncMode.Incremental }).ExecuteCommandAsync();
+            await db.Insertable(new ShareDataPacket { ID = Guid.NewGuid().ToString("N"), Code = "103", Name = "VDS Data", Status = BaseEnums.StatusEnum.Enable, SyncMode = BaseEnums.SyncMode.Incremental }).ExecuteCommandAsync();
         }
-        else if (existing.SyncMode != SyncMode.Incremental)
+        else if (existing.SyncMode != BaseEnums.SyncMode.Incremental)
         {
-            existing.SyncMode = SyncMode.Incremental;
+            existing.SyncMode = BaseEnums.SyncMode.Incremental;
             await db.Updateable(existing).UpdateColumns(p => new { p.SyncMode }).ExecuteCommandAsync();
         }
 
@@ -458,7 +452,7 @@ public partial class ShareDataPacketControllerTests
         var ex = await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
         {
             PacketCode = "103",
-            SyncMode = SyncMode.Incremental,
+            SyncMode = BaseEnums.SyncMode.Incremental,
             ExtractSql = "SELECT TOP (@pageSize) ID AS __rowid, Code, CreateTime AS __lastTime FROM TmsZone ORDER BY __lastTime DESC"
         }));
 
@@ -483,7 +477,7 @@ public partial class ShareDataPacketControllerTests
         await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
         {
             PacketCode = packetCode,
-            SyncMode = SyncMode.Snapshot,
+            SyncMode = BaseEnums.SyncMode.Snapshot,
             MaxLookBackDays = 7,
             ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM TmsZone"
         });
@@ -494,7 +488,7 @@ public partial class ShareDataPacketControllerTests
         await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
         {
             PacketCode = packetCode,
-            SyncMode = SyncMode.Snapshot,
+            SyncMode = BaseEnums.SyncMode.Snapshot,
             MaxLookBackDays = null,
             ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM TmsZone"
         });
@@ -532,7 +526,7 @@ public partial class ShareDataPacketControllerTests
             ID = Guid.NewGuid().ToString("N"),
             Code = packetCode,
             Name = $"Packet Incremental {unique}",
-            SyncMode = SyncMode.Incremental,
+            SyncMode = BaseEnums.SyncMode.Incremental,
             Status = BaseEnums.StatusEnum.Enable
         }).ExecuteCommandAsync();
 
@@ -636,7 +630,7 @@ public partial class ShareDataPacketControllerTests
             ID = Guid.NewGuid().ToString("N"),
             PartnerId = partner.ID,
             DatatypeId = packetCode,
-            Direction = Direction.Outbound
+            Direction = BaseEnums.Direction.Outbound
         };
         await db.Insertable(sub).ExecuteCommandAsync();
 
@@ -653,7 +647,7 @@ public partial class ShareDataPacketControllerTests
         foreach (var order in snapshotPackets)
         {
             var p = packets[order];
-            Assert.Equal(SyncMode.Snapshot, p.SyncMode);
+            Assert.Equal(BaseEnums.SyncMode.Snapshot, p.SyncMode);
             Assert.Null(p.CursorTimeColumn);
             Assert.Null(p.MaxLookBackDays);
             Assert.Equal(BaseEnums.StatusEnum.Enable, p.Status);
@@ -664,7 +658,7 @@ public partial class ShareDataPacketControllerTests
         foreach (var order in incrementalPackets)
         {
             var p = packets[order];
-            Assert.Equal(SyncMode.Incremental, p.SyncMode);
+            Assert.Equal(BaseEnums.SyncMode.Incremental, p.SyncMode);
             Assert.Equal("UpdateTime", p.CursorTimeColumn);
             Assert.Equal(1, p.MaxLookBackDays);
             Assert.Equal(BaseEnums.StatusEnum.Enable, p.Status);

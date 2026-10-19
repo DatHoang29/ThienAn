@@ -1,12 +1,9 @@
 using Furion.FriendlyException;
-using Microsoft.Extensions.DependencyInjection;
 using Module.ShareData.Core.Dto.Metadata;
 using Module.ShareData.Core.Entities;
 using Module.ShareData.Core.Exceptions;
 using Tests.ShareData.Common;
 using Module.ShareData.Infrastructure.Services.ShareDataExtraction;
-using SqlSugar;
-using Xunit;
 
 namespace Tests.ShareData.Controllers;
 

@@ -511,7 +511,7 @@ public class VwWindowSceneTests(Host host)
         Assert.NotNull(inserted);
 
         if (simulateSaveDataFailure)
-            await WaitForCondition(() => host.MockServer.SaveSceneDataCallCount >= 1);
+            await WaitForCondition(() => host.MockServer.SaveSceneDataCallCount >= 2);
         else
             await WaitForCondition(() => host.MockServer.GetCapabilitiesCallCount >= 1);
 
@@ -702,7 +702,10 @@ public class VwWindowSceneTests(Host host)
                 .FirstAsync(u => u.Code == addInput.Code && u.IsDelete == null);
             Assert.NotNull(inserted);
 
-            await WaitForCondition(() => host.MockServer.SaveSceneDataCallCount >= initialSaveCount + 2);
+            await WaitForCondition(() =>
+                host.MockServer.SaveSceneDataCallCount >= initialSaveCount + 2
+                && host.MockServer.AddWindowCallCount >= initialAddCount + 2
+                && host.MockServer.DeleteAllWindowsCallCount >= initialDeleteCount + 2);
             // Mỗi controller được dọn dẹp canvas (DeleteAllWindows = 2)
             Assert.True(
                 host.MockServer.DeleteAllWindowsCallCount - initialDeleteCount == 2,
@@ -820,6 +823,9 @@ public class VwWindowSceneTests(Host host)
             };
             await _db.Insertable(existingWin).ExecuteCommandAsync();
             host.MockServer.ResetDefaults();
+            var initialDeleteCount = host.MockServer.DeleteAllWindowsCallCount;
+            var initialAddCount = host.MockServer.AddWindowCallCount;
+            var initialSaveCount = host.MockServer.SaveSceneDataCallCount;
 
             var deleteInput = new VwDeleteWindowSceneInput { ID = existingWin.ID };
 
@@ -831,12 +837,14 @@ public class VwWindowSceneTests(Host host)
                 .FirstAsync(u => u.ID == existingWin.ID && u.IsDelete == null);
             Assert.Null(active);
 
-            await WaitForCondition(() => host.MockServer.SaveSceneDataCallCount >= 2);
+            await WaitForCondition(() =>
+                host.MockServer.SaveSceneDataCallCount >= initialSaveCount + 2
+                && host.MockServer.DeleteAllWindowsCallCount >= initialDeleteCount + 2);
 
             // Cả 2 controller đều được xoá window và lưu snapshot rỗng
-            Assert.Equal(2, host.MockServer.DeleteAllWindowsCallCount);
-            Assert.Equal(0, host.MockServer.AddWindowCallCount); // Không còn window nào
-            Assert.Equal(2, host.MockServer.SaveSceneDataCallCount);
+            Assert.Equal(2, host.MockServer.DeleteAllWindowsCallCount - initialDeleteCount);
+            Assert.Equal(0, host.MockServer.AddWindowCallCount - initialAddCount); // Không còn window nào
+            Assert.Equal(2, host.MockServer.SaveSceneDataCallCount - initialSaveCount);
 
             if (!await _db.Queryable<VwController>().AnyAsync(u => u.ParentControllerId == null && u.IsDelete == null))
             {
@@ -934,6 +942,7 @@ public class VwWindowSceneTests(Host host)
 
         host.MockServer.ResetDefaults();
         var initialAddCount = host.MockServer.AddWindowCallCount;
+        var initialSaveCount = host.MockServer.SaveSceneDataCallCount;
 
         // 3. Act
         var switchInput = new VwSwitchWindowSourceInput
@@ -947,8 +956,11 @@ public class VwWindowSceneTests(Host host)
         var updated = await _db.Queryable<VwWindowScene>().FirstAsync(u => u.ID == window.ID);
         Assert.NotNull(updated);
         Assert.Equal(source2.ID, updated.SourceId);
-        await WaitForCondition(() => host.MockServer.AddWindowCallCount > initialAddCount);
+        await WaitForCondition(() =>
+            host.MockServer.AddWindowCallCount > initialAddCount
+            && host.MockServer.SaveSceneDataCallCount > initialSaveCount);
         Assert.True(host.MockServer.AddWindowCallCount > initialAddCount);
+        Assert.True(host.MockServer.SaveSceneDataCallCount > initialSaveCount);
     }
 
     /// <summary>

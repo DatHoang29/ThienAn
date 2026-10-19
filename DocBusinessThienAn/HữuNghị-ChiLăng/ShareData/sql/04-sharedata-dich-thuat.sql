@@ -60,11 +60,27 @@ DECLARE @Translations TABLE (
 INSERT INTO @Translations ([Name], [Code], [ViValue], [EnValue])
 VALUES
     -- =========================================================================
-    -- NHÓM 1: CẤU HÌNH VÀ THAM SỐ GÓI TIN (1 khóa)
+    -- NHÓM 1: CẤU HÌNH VÀ THAM SỐ GÓI TIN / ĐĂNG KÝ
     -- =========================================================================
     (N'lz.validation', N'sharedata.lookbackDaysRange',
      N'Số ngày quét lùi tối đa phải nằm trong khoảng từ {0} đến {1} ngày.',
      N'Maximum lookback days must be between {0} and {1} days.'),
+
+    (N'lz.entity', N'sharedata.intervalSeconds',
+     N'Chu kỳ gửi (giây)',
+     N'Interval (seconds)'),
+
+    (N'lz.entity', N'sharedata.priority',
+     N'Độ ưu tiên',
+     N'Priority'),
+
+    (N'lz.entity', N'sharedata.debounceSec',
+     N'Thời gian gom sự kiện (giây)',
+     N'Debounce time (seconds)'),
+
+    (N'lz.validation', N'sharedata.valueOutOfRange',
+     N'{0} phải nằm trong khoảng {1}..{2}.',
+     N'{0} must be in range {1}..{2}.'),
 
     -- =========================================================================
     -- NHÓM 2: QUẢN TRỊ VÀ CẤU HÌNH SQL TRÍCH XUẤT (10 khóa)

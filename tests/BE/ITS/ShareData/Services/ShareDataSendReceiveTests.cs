@@ -1,17 +1,12 @@
 using System.Text;
 using System.Text.Json;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Module.ShareData.Core.Dto.Inbound;
 using Module.ShareData.Core.Entities;
 using Modules.Integration.Delivery.Base.Constants;
 using Modules.Integration.Delivery.Base.Enums.Encrypt;
 using Modules.Integration.Delivery.Base.Helpers;
-using Modules.Integration.Delivery.Base.Interfaces.Encrypt;
-using Modules.Integration.Delivery.Base.Interfaces;
 using Modules.Integration.Delivery.Base.Models.Formats;
-using Modules.Integration.Delivery.Base.Models;
 using Modules.Integration.Delivery.Encrypt;
 using Modules.Integration.Delivery.Formats;
 using Modules.Integration.Delivery;
@@ -23,11 +18,7 @@ using ShareDataWorker.Core.Interfaces.DataOutbound;
 using ShareDataWorker.Infrastructure.Logging;
 using ShareDataWorker.Infrastructure.Services.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
-using Shared.DTO.Enums;
-using SqlSugar;
 using Tests.ShareData.Common;
-using Wolverine;
-using Modules.Integration.Delivery.Base.Enums;
 
 namespace Tests.ShareData.Services
 {
@@ -978,7 +969,7 @@ namespace Tests.ShareData.Services
                 Code = partnerCode,
                 Name = $"Partner {partnerCode}",
                 Status = BaseEnums.StatusEnum.Enable,
-                SessionState = SessionState.Connected,
+                SessionState = BaseEnums.SessionState.Connected,
                 ConnectionType = ConnectionType.Api,
                 Address = "http://localhost",
                 Port = 80,
@@ -1000,7 +991,7 @@ namespace Tests.ShareData.Services
                 OrderNo = 1,
                 Status = BaseEnums.StatusEnum.Enable,
                 ExtractSql = extractSql,
-                SyncMode = (SyncMode)syncMode,
+                SyncMode = (BaseEnums.SyncMode)syncMode,
                 CursorTimeColumn = syncMode == 2 ? "UpdateTime" : null
             };
             await _db.Insertable(packet).ExecuteCommandAsync();
@@ -1012,9 +1003,9 @@ namespace Tests.ShareData.Services
                 Code = $"SUB_OUT_{partnerCode}",
                 PartnerId = partner.ID,
                 DatatypeId = packet.ID,
-                Direction = Direction.Outbound,
-                Mode = SubMode.Periodic,
-                State = SubSubscriptionState.Active,
+                Direction = BaseEnums.Direction.Outbound,
+                Mode = BaseEnums.SubMode.Periodic,
+                State = BaseEnums.SubSubscriptionState.Active,
                 NextTimeRun = dbNow.AddMinutes(-5),
                 IntervalSeconds = 30,
                 SerialNbr = 1
@@ -1026,7 +1017,7 @@ namespace Tests.ShareData.Services
                 ID = Guid.NewGuid().ToString("N"),
                 PartnerId = partner.ID,
                 DatatypeId = packet.ID,
-                Direction = Direction.Outbound,
+                Direction = BaseEnums.Direction.Outbound,
                 IsActive = true,
                 TargetShapeJson = targetShapeJson,
                 UpdateTime = dbNow
@@ -1040,9 +1031,9 @@ namespace Tests.ShareData.Services
                 Code = $"SUB_IN_{partnerCode}",
                 PartnerId = partner.ID,
                 DatatypeId = packet.ID,
-                Direction = Direction.Inbound,
-                Mode = SubMode.Periodic,
-                State = SubSubscriptionState.Active,
+                Direction = BaseEnums.Direction.Inbound,
+                Mode = BaseEnums.SubMode.Periodic,
+                State = BaseEnums.SubSubscriptionState.Active,
                 CreateTime = dbNow
             };
             await _db.Insertable(inboundSub).ExecuteCommandAsync();
@@ -1052,7 +1043,7 @@ namespace Tests.ShareData.Services
                 ID = Guid.NewGuid().ToString("N"),
                 PartnerId = partner.ID,
                 DatatypeId = packet.ID,
-                Direction = Direction.Inbound,
+                Direction = BaseEnums.Direction.Inbound,
                 IsActive = true,
                 TargetShapeJson = targetShapeJson,
                 UpdateTime = dbNow
@@ -1119,8 +1110,8 @@ namespace Tests.ShareData.Services
                 ID = Guid.NewGuid().ToString("N"),
                 PartnerId = partner.ID,
                 DatatypeId = packet.ID,
-                Direction = Direction.Inbound,
-                State = SubSubscriptionState.Active,
+                Direction = BaseEnums.Direction.Inbound,
+                State = BaseEnums.SubSubscriptionState.Active,
                 CreateTime = DateTime.Now
             };
             await _db.Insertable(sub).ExecuteCommandAsync();
@@ -1130,7 +1121,7 @@ namespace Tests.ShareData.Services
                 ID = Guid.NewGuid().ToString("N"),
                 PartnerId = partner.ID,
                 DatatypeId = packet.ID,
-                Direction = Direction.Inbound,
+                Direction = BaseEnums.Direction.Inbound,
                 IsActive = true,
                 TargetShapeJson = targetShapeJson ?? """{"data":[{"id":{"$field":"id"},"val":{"$field":"val"}}]}""",
                 UpdateTime = DateTime.Now

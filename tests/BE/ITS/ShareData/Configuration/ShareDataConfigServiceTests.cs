@@ -1,13 +1,6 @@
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using Module.ShareData.Core.Constants;
 using Module.ShareData.Infrastructure.Services.ShareDataConfig;
 using Modules.CfgSystem.Core.Entities;
-using Shared.DTO.Enums;
-using SqlSugar;
-using Wolverine;
-using Xunit;
 
 namespace Tests.ShareData.Configuration;
 
@@ -157,5 +150,54 @@ public class ShareDataConfigServiceTests(Host host)
 
         // Assert
         Assert.NotNull(service);
+    }
+
+    [Fact]
+    public async Task ShareDataConfigService_WhenValuesInvalidOrOutOfRangeOrDuplicate_HandlesSafely_Test()
+    {
+        // Arrange: Chèn giá trị chữ, ngoài khoảng, Code lạ và Code trùng (dòng sau thắng)
+        var isolatedGroup = $"sd_webapi_invalid_{Guid.NewGuid():N}";
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [ShareDataConst.ConfigGroupOverrideKey] = isolatedGroup
+            })
+            .Build();
+
+        using var scope = _host.Services.CreateScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+        var baseId = DateTime.UtcNow.Ticks;
+        var testRows = new List<SysOpConfig>
+        {
+            // Giá trị chữ -> fallback
+            new() { ID = $"{baseId}_1", GroupCode = isolatedGroup, Code = "packet_lookback_days_min", Value = "NOT_A_NUMBER", Status = BaseEnums.StatusEnum.Enable },
+            // Ngoài khoảng max -> fallback
+            new() { ID = $"{baseId}_2", GroupCode = isolatedGroup, Code = "packet_lookback_days_max", Value = "999999", Status = BaseEnums.StatusEnum.Enable },
+            // Ngoài khoảng min -> fallback
+            new() { ID = $"{baseId}_3", GroupCode = isolatedGroup, Code = "subscription_interval_sec_min", Value = "-10", Status = BaseEnums.StatusEnum.Enable },
+            // Code lạ không có trong spec -> bị bỏ qua
+            new() { ID = $"{baseId}_4", GroupCode = isolatedGroup, Code = "unknown_webapi_config_code", Value = "123", Status = BaseEnums.StatusEnum.Enable },
+            // Code trùng: dòng 1 đặt 100, dòng 2 đặt 500 -> dòng sau thắng (500)
+            new() { ID = $"{baseId}_5", GroupCode = isolatedGroup, Code = "log_list_default_top", Value = "100", Status = BaseEnums.StatusEnum.Enable },
+            new() { ID = $"{baseId}_6", GroupCode = isolatedGroup, Code = "log_list_default_top", Value = "500", Status = BaseEnums.StatusEnum.Enable }
+        };
+        await db.Insertable(testRows).ExecuteCommandAsync();
+        scope.ServiceProvider.GetRequiredService<Shared.Infrastructure.Services.BaseCacheService>().RemoveByPrefixKey("sysOpConfig");
+
+        var service = new ShareDataConfigService(
+            bus: bus,
+            logger: NullLogger<ShareDataConfigService>.Instance,
+            configuration: config);
+
+        // Act
+        var values = await service.Get();
+
+        // Assert
+        Assert.Equal(ShareDataConfigService.Defaults.PacketLookbackDays.Min, values.PacketLookbackDays.Min);
+        Assert.Equal(ShareDataConfigService.Defaults.PacketLookbackDays.Max, values.PacketLookbackDays.Max);
+        Assert.Equal(ShareDataConfigService.Defaults.SubscriptionInterval.Min, values.SubscriptionInterval.Min);
+        Assert.Equal(500, values.LogListDefaultTop);
     }
 }

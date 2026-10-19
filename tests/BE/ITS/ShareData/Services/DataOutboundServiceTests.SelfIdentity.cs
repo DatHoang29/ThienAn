@@ -3,7 +3,6 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Module.ShareData.Core.Entities;
-using ShareDataWorker.Core.Enums;
 using Xunit;
 
 public partial class DataOutboundServiceTests

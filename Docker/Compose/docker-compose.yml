@@ -61,6 +61,47 @@ services:
     volumes:
       - tac_webapi_redis_data:/data
 
+  # =========================================================================
+  # 4. KAFKA MESSAGE BROKER (Sự kiện / Dòng dữ liệu phân tán - KRaft 1 node)
+  # =========================================================================
+  tac-kafka:
+    # Image Apache Kafka 3.8.0 chạy KRaft mode không cần ZooKeeper
+    image: apache/kafka:3.8.0
+    container_name: tac_webapi_kafka
+    restart: always
+    ports:
+      - "19092:19092"
+    environment:
+      - KAFKA_NODE_ID=1
+      - KAFKA_PROCESS_ROLES=broker,controller
+      - KAFKA_LISTENERS=PLAINTEXT://:19092,CONTROLLER://:9093
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://127.0.0.1:19092
+      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@localhost:9093
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
+      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1
+      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
+
+  # =========================================================================
+  # 5. FTP SERVER (Truyền nhận tệp CSV / JSON)
+  # =========================================================================
+  tac-ftp:
+    # Image FTP server nhẹ trên Alpine Linux
+    image: delfer/alpine-ftp-server:latest
+    container_name: tac_webapi_ftp
+    restart: always
+    ports:
+      - "2121:21"
+      - "21000-21010:21000-21010"
+    environment:
+      - USERS=tactest|Tac@@1234|/ftp/tactest
+      - ADDRESS=127.0.0.1
+      - MIN_PORT=21000
+      - MAX_PORT=21010
+    command: ["/bin/sh", "-c", "mkdir -m 777 -p /ftp/tactest/sharedata-test && rm -rf /sharedata-test && ln -s /ftp/tactest/sharedata-test /sharedata-test && exec /bin/start_vsftpd.sh"]
+
 # ===========================================================================
 # CẤU HÌNH VOLUME LƯU TRỮ VĨNH VIỄN (PERSISTENT DATA)
 # ===========================================================================

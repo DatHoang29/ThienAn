@@ -1,20 +1,12 @@
 using System.Net;
 using System.Text;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Module.ShareData.Core.Entities;
-using Modules.Integration.Delivery;
 using Modules.Integration.Delivery.Base.Constants;
 using Modules.Integration.Delivery.Base.Helpers;
 using Modules.Integration.Delivery.Base.Interfaces;
-using ShareDataWorker.Core.Enums;
-using ShareDataWorker.Core.Interfaces.DataOutbound;
 using ShareDataWorker.Core.Models.DataOutbound;
 using ShareDataWorker.Infrastructure.Logging;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
-using Shared.DTO.Enums;
-using Tests.ShareData.Mocks;
-using Xunit;
 
 namespace Tests.ShareData.Services
 {

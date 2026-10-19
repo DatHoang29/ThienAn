@@ -3,9 +3,7 @@ using System.Text.Json;
 using Module.ShareData.Core.Entities;
 using Modules.TMS.Core.Entities;
 using Modules.TOLL.Core.Entities;
-using ShareDataWorker.Core.Enums;
 using ShareDataWorker.Infrastructure.Logging;
-using Shared.DTO.Enums;
 
 namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 {
@@ -637,7 +635,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                     if (disabled)
                         p.Status = BaseEnums.StatusEnum.Disable;
                     else
-                        p.SessionState = SessionState.Disconnected;
+                        p.SessionState = BaseEnums.SessionState.Disconnected;
                 }
             });
             await SeedTrafficRows(db, eqId, $"T15{unique}-", baseTime, 3);
@@ -691,7 +689,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         {
             var dbNow = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
             await db.Updateable<ShareDataSubscription>()
-                .SetColumns(s => s.State == SubSubscriptionState.Active)
+                .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Active)
                 .SetColumns(s => s.NextTimeRun == dbNow.AddSeconds(-10))
                 .Where(s => s.ID == subId)
                 .ExecuteCommandAsync();
@@ -741,7 +739,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 DatatypeId = "103",
                 ConfigureSub = s =>
                 {
-                    s.Mode = SubMode.Single;
+                    s.Mode = BaseEnums.SubMode.Single;
                     s.LastTimeRun = baseTime;
                 }
             });
@@ -754,7 +752,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var reloadedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
             Assert.NotNull(reloadedSub);
             // KỲ VỌNG: Gửi lỗi thì KHÔNG ĐƯỢC Expired! Phải giữ Active để retry!
-            Assert.Equal(SubSubscriptionState.Active, reloadedSub.State);
+            Assert.Equal(BaseEnums.SubSubscriptionState.Active, reloadedSub.State);
             Assert.NotNull(reloadedSub.NextTimeRun);
         }
 

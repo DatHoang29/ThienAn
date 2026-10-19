@@ -2,12 +2,8 @@ using System.Text;
 using Modules.Integration.Delivery;
 using Modules.Integration.Delivery.Base.Constants;
 using Modules.Integration.Delivery.Base.Helpers;
-using Modules.Integration.Delivery.Base.Interfaces;
 using Modules.Integration.Delivery.Base.Models;
 using Modules.Integration.Delivery.Formats;
-using Modules.Integration.Delivery.Senders;
-using Shared.DTO.Enums;
-using Xunit;
 
 namespace Tests.ShareData.Connect;
 

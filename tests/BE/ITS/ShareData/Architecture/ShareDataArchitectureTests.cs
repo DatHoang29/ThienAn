@@ -1,8 +1,5 @@
-using System;
-using System.Reflection;
 using Modules.Integration.Delivery.Base.Constants;
 using Modules.Integration.Delivery;
-using Xunit;
 
 namespace Tests.ShareData.Architecture;
 

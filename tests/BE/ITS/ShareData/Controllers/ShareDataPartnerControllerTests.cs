@@ -1,13 +1,7 @@
 using FluentValidation;
-using Microsoft.Extensions.DependencyInjection;
 using Module.ShareData.Core.Dto.Partner;
 using Module.ShareData.Core.Entities;
 using Module.ShareData.Core.Exceptions;
-using Modules.Integration.Delivery.Base.Constants;
-using Modules.Integration.Delivery.Base.Enums;
-using Shared.DTO.Enums;
-using SqlSugar;
-using Xunit;
 
 namespace Tests.ShareData.Controllers
 {

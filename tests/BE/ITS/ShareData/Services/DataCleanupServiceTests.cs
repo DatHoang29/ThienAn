@@ -1,10 +1,6 @@
-using Microsoft.Extensions.DependencyInjection;
 using Module.ShareData.Core.Entities;
 using ShareDataWorker.Core.Interfaces;
 using ShareDataWorker.Infrastructure.Logging;
-using Shared.DTO.Enums;
-using SqlSugar;
-using Xunit;
 
 namespace Tests.ShareData.Services;
 
@@ -37,7 +33,7 @@ public class DataCleanupServiceTests(Host host)
         await db.Insertable(new ShareDataActivityLog
         {
             ID = trackingId,
-            LogType = LogTypeEnum.Transfer,
+            LogType = BaseEnums.LogTypeEnum.Transfer,
             Remark = ShareDataAlertCode.Tracking.SelfHeal,
             Description = "Dòng hạ tầng quá hạn dùng cho test dọn nhật ký.",
             CreateTime = oldTime,
@@ -48,7 +44,7 @@ public class DataCleanupServiceTests(Host host)
         await db.Insertable(new ShareDataActivityLog
         {
             ID = businessId,
-            LogType = LogTypeEnum.Transfer,
+            LogType = BaseEnums.LogTypeEnum.Transfer,
             Remark = null,
             Description = "Dòng nghiệp vụ quá hạn — PHẢI còn nguyên sau khi dọn.",
             CreateTime = oldTime,

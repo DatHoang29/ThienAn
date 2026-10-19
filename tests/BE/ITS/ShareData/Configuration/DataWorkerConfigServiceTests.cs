@@ -1,14 +1,8 @@
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using Module.ShareData.Core.Constants;
 using Modules.CfgSystem.Core.Entities;
 using ShareDataWorker.Core.Configuration;
 using ShareDataWorker.Core.Interfaces;
-using Shared.DTO.Enums;
 using ShareDataWorker.Infrastructure.Services.WorkerConfig;
-using SqlSugar;
-using Xunit;
 
 namespace Tests.ShareData.Configuration;
 
@@ -204,5 +198,42 @@ public class DataWorkerConfigServiceTests(Host host)
         // Assert
         Assert.NotNull(service);
         Assert.IsType<DataWorkerConfigService>(service);
+    }
+
+    [Fact]
+    public async Task Get_WhenUnknownOrDuplicateCodesInDatabase_HandlesCorrectly_Test()
+    {
+        // Arrange: Chèn Code lạ và Code trùng (dòng sau thắng)
+        var isolatedGroup = $"sd_cfg_dup_{Guid.NewGuid():N}";
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [ShareDataConst.ConfigGroupOverrideKey] = isolatedGroup
+            })
+            .Build();
+
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+        var baseId = DateTime.UtcNow.Ticks;
+        var testRows = new List<SysOpConfig>
+        {
+            // Code lạ ngoài spec -> bị bỏ qua
+            new() { ID = $"{baseId}_0", GroupCode = isolatedGroup, Code = "unknown_worker_config_code", Value = "999", Status = BaseEnums.StatusEnum.Enable },
+            // Code trùng: dòng 1 đặt 10, dòng 2 đặt 25 -> dòng sau thắng (25)
+            new() { ID = $"{baseId}_1", GroupCode = isolatedGroup, Code = "outbound_check_interval_sec", Value = "10", Status = BaseEnums.StatusEnum.Enable },
+            new() { ID = $"{baseId}_2", GroupCode = isolatedGroup, Code = "outbound_check_interval_sec", Value = "25", Status = BaseEnums.StatusEnum.Enable }
+        };
+        await db.Insertable(testRows).ExecuteCommandAsync();
+
+        var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
+        var service = new DataWorkerConfigService(scopeFactory, NullLogger<DataWorkerConfigService>.Instance, config);
+
+        // Act
+        var settings = await service.Get();
+
+        // Assert
+        Assert.Equal(25, settings.OutboundCheckIntervalSec);
+        Assert.Equal(DataWorkerConfig.Defaults.InboundCheckIntervalSec, settings.InboundCheckIntervalSec);
     }
 }

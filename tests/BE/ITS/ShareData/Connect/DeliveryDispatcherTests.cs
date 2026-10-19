@@ -1,25 +1,17 @@
 using System.Text;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Module.ShareData.Controllers.Partner.Validators;
 using Module.ShareData.Core.Entities;
 using Module.ShareData.Core.Utils;
 using Modules.Integration.Delivery;
 using Modules.Integration.Delivery.Base.Constants;
-using Modules.Integration.Delivery.Base.Enums;
 using Modules.Integration.Delivery.Base.Helpers;
 using Modules.Integration.Delivery.Base.Interfaces;
 using Modules.Integration.Delivery.Base.Models;
 using Modules.Integration.Delivery.Base.Models.Encrypt;
 using Modules.Integration.Delivery.Encrypt;
-using Modules.Integration.Delivery.Formats;
 using Modules.Integration.Delivery.Senders;
 using ShareDataWorker.Core.Models.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
-using Tests.ShareData.Mocks;
-using Shared.DTO.Enums;
-using Xunit;
 
 namespace Tests.ShareData.Connect;
 
@@ -281,6 +273,68 @@ public partial class DeliveryDispatcherTests
             var fullPath = Path.Combine(ExportPathHelper.ResolveRootPath(ExportPathHelper.DefaultBasePath), result.TargetAddressOrPath);
             if (File.Exists(fullPath)) File.Delete(fullPath);
         }
+    }
+
+    [Fact]
+    public async Task Dispatch_WhenConnectConfigContainsRawConfig_FailsWithInvalidConnectionConfigAndNoFileCreated_Test()
+    {
+        // Arrange
+        var tempDir = Path.Combine(Path.GetTempPath(), $"sharedata_dispatch_rawconfig_{Guid.NewGuid():N}");
+        var fileSender = CreateFileSender(tempDir);
+        var dispatcher = DeliveryDispatcher.CreateForHandlers([fileSender]);
+        var ctx = CreateSendContext(partnerCode: "PARTNER_RAWCONFIG", connectionType: "File");
+
+        var request = new DeliveryRequest
+        {
+            JsonPayload = "{\"test\": 1}",
+            ConnectType = ConnectionType.File,
+            ConnectConfig = new Dictionary<string, string>
+            {
+                [ConnectKeys.RawConfig] = "INVALID_RAW_CONFIG_PAYLOAD",
+                [ConnectKeys.DirectoryPath] = tempDir,
+                [ConnectKeys.FileNamePattern] = "raw_{serial}.json"
+            }
+        };
+
+        // Act
+        var result = await dispatcher.Dispatch(request, ctx, CancellationToken.None);
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Equal("InvalidConnectionConfig", result.ErrorCode);
+
+        if (Directory.Exists(tempDir))
+        {
+            Assert.Empty(Directory.GetFiles(tempDir));
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public async Task Dispatch_WhenConnectTypeIsFtpsAndConfigMissingUseSsl_DefaultsUseSslToTrueAndRoutesToFtpChannel_Test()
+    {
+        // Arrange
+        var ftpSender = new FtpDeliverySender();
+        var dispatcher = DeliveryDispatcher.CreateForHandlers([ftpSender]);
+        var ctx = CreateSendContext(partnerCode: "PARTNER_FTPS_AUTOSSL", connectionType: "Ftps");
+
+        var request = new DeliveryRequest
+        {
+            JsonPayload = "{\"test\": 1}",
+            ConnectType = ConnectionType.Ftps,
+            ConnectConfig = new Dictionary<string, string>
+            {
+                [ConnectKeys.Enabled] = "false"
+            }
+        };
+
+        // Act
+        var result = await dispatcher.Dispatch(request, ctx, CancellationToken.None);
+
+        // Assert
+        Assert.Equal("Ftp", result.Channel);
+        Assert.True(request.ConnectConfig.ContainsKey(ConnectKeys.UseSsl));
+        Assert.Equal("true", request.ConnectConfig[ConnectKeys.UseSsl]);
     }
 }
 

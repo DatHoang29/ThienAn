@@ -1,8 +1,6 @@
 using Module.ShareData.Core.Dto.Inbound;
 using Module.ShareData.Core.Entities;
 using ShareDataWorker.Extensions;
-using Shared.DTO.Enums;
-using SqlSugar;
 
 namespace Tests.ShareData.Controllers;
 
@@ -60,8 +58,8 @@ public class ShareDataInboundControllerTests(Host host)
             Code = $"SUB_IN_{unique}",
             PartnerId = partner.ID,
             DatatypeId = packet.ID,
-            Direction = Direction.Inbound,
-            State = SubSubscriptionState.Active,
+            Direction = BaseEnums.Direction.Inbound,
+            State = BaseEnums.SubSubscriptionState.Active,
             SerialNbr = 0,
             CreateTime = DateTime.Now
         };
@@ -72,7 +70,7 @@ public class ShareDataInboundControllerTests(Host host)
             ID = Guid.NewGuid().ToString("N"),
             PartnerId = partner.ID,
             DatatypeId = packet.ID,
-            Direction = Direction.Inbound,
+            Direction = BaseEnums.Direction.Inbound,
             IsActive = true,
             TargetShapeJson = """
             {
@@ -95,7 +93,7 @@ public class ShareDataInboundControllerTests(Host host)
             PacketVersion = "1.0",
             SerialNbr = 1,
             PduType = "DATA",
-            Format = PublishFormat.Data,
+            Format = BaseEnums.PublishFormat.Data,
             RawContent = "{\"data\":[{\"id\":\"1\",\"val\":\"A\"}]}"
         };
 
@@ -107,20 +105,20 @@ public class ShareDataInboundControllerTests(Host host)
             .Where(p => p.PartnerCode == partner.Code && p.PacketCode == packet.Code)
             .FirstAsync();
         Assert.NotNull(savedPacket);
-        Assert.Equal(InboundProcessState.Pending, savedPacket.ProcessState);
+        Assert.Equal(BaseEnums.InboundProcessState.Pending, savedPacket.ProcessState);
 
         // Kiểm tra dòng nhật ký tiếp nhận (Dòng cha và Dòng con Bước 1)
         var parentLog = await db.Queryable<ShareDataActivityLog>()
-            .Where(l => l.SubscriptionId == sub.ID && l.TransferDirection == TransferDirection.RCV && l.ParentId == null)
+            .Where(l => l.SubscriptionId == sub.ID && l.TransferDirection == BaseEnums.TransferDirection.RCV && l.ParentId == null)
             .FirstAsync();
         Assert.NotNull(parentLog);
         Assert.Null(parentLog.ParentId);
         Assert.Null(parentLog.StepNbr);
-        Assert.Equal(TransferDirection.RCV, parentLog.TransferDirection);
+        Assert.Equal(BaseEnums.TransferDirection.RCV, parentLog.TransferDirection);
         Assert.Contains(packet.Code, parentLog.Description ?? string.Empty);
 
         var step1Log = await db.Queryable<ShareDataActivityLog>()
-            .Where(l => l.SubscriptionId == sub.ID && l.TransferDirection == TransferDirection.RCV && l.ParentId == parentLog.ID)
+            .Where(l => l.SubscriptionId == sub.ID && l.TransferDirection == BaseEnums.TransferDirection.RCV && l.ParentId == parentLog.ID)
             .FirstAsync();
         Assert.NotNull(step1Log);
         Assert.Equal(1, step1Log.StepNbr);

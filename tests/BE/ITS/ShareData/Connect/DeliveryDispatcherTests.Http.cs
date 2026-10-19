@@ -1,14 +1,10 @@
 using System.Text;
 using Modules.Integration.Delivery.Base.Constants;
-using Modules.Integration.Delivery.Base.Interfaces;
 using Modules.Integration.Delivery.Base.Models;
 using Modules.Integration.Delivery;
 using Modules.Integration.Delivery.Senders;
 using ShareDataWorker.Core.Models.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
-using Tests.ShareData.Mocks;
-using Shared.DTO.Enums;
-using Xunit;
 
 namespace Tests.ShareData.Connect;
 

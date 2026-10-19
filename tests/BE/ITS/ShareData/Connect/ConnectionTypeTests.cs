@@ -1,6 +1,4 @@
 using Modules.Integration.Delivery.Base.Extensions;
-using Shared.DTO.Enums;
-using Xunit;
 
 namespace Tests.ShareData.Connect
 {
