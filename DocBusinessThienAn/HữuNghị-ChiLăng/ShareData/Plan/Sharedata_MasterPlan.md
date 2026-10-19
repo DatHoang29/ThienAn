@@ -1095,7 +1095,7 @@ bao giờ ghi lại.
 > - **Khóa tương đương SQL động = hardcode cũ:** `ShareDataSeedParityTests.cs` (**33 tests pass 100%**) đối chiếu SQL mẫu trích xuất gói 101–109 từ commit `56bb4bc3` với seed script 02. Gói 105 chuẩn hóa bỏ mệnh đề `TOP (@snapshotTop)` theo phê duyệt, khớp 100% logic trích xuất.
 > - **Kiểm thử toàn trình gửi → nhận nội bộ HTTP trên CSDL thật:** `ShareDataSendReceiveTests.cs` (**3 tests pass 100%**) chứng minh toàn trình In-process: Outbound Worker trích xuất bằng SQL động → đóng gói JSON → HTTP POST `/api/sharedata/shareDataInbound/receive` → Inbound Worker nhận và MERGE vào bảng đích CSDL thật (Snapshot gói 105, Incremental gói 104 kèm tịnh tiến cursor mốc thời gian, âm tính Endpoint 404 không tiến mốc nhưng lưu bằng chứng).
 > - **Dọn dẹp thiết kế cũ chiều nhận:** Gỡ hoàn toàn bộ lọc `TableName != "ROOT"` trong `DataInboundService.cs` (`ResolveContextAsync`), thêm bước soft-delete dòng ROOT thiết kế cũ trong `00-sharedata-migration-mot-lan.sql`.
-> - **Tài liệu nghiệm thu:** Bổ sung Mục I "Nghiệm thu toàn trình tự gửi — tự nhận nội bộ (In-Process Loopback)" trong `05-kich-ban-nghiem-thu-thuc-te-sharedata.md`.
+> - **Tài liệu nghiệm thu:** Bổ sung Mục I "Nghiệm thu toàn trình tự gửi — tự nhận nội bộ (In-Process Loopback)" trong [`06-khoi-dong-3-du-an-va-nghiem-thu-sharedata.md`](../doc/06-khoi-dong-3-du-an-va-nghiem-thu-sharedata.md).
 
 
 ## VII.1 · Checklist hạng mục

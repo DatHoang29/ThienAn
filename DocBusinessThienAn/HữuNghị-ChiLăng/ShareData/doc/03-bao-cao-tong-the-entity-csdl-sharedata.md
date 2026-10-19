@@ -95,7 +95,7 @@ flowchart TD
 | **12** | `ShareDataAlertLog` | `ShareDataAlertLog` | **Cũ (Cải tiến)** | **Hệ thống tự ghi** | 08/2026 $\rightarrow$ 17/10/2026 | Nhật ký cảnh báo và lỗi hệ thống. Chuẩn hóa 25 mã lỗi dạng `ESH-xxxx` (xem mục IV.1), hỗ trợ chi tiết `DetailJson` và xác nhận `Acknowledged`. Màn hình tra cứu `views/sharedata/errorLog/index.vue`. |
 | **13** | `ShareDataSession` | `ShareDataSession` | **Cũ** | **Hệ thống tự ghi** | 08/2026 | Quản lý phiên kết nối của đối tác theo máy trạng thái FSM (IDLE, CONNECTING, ACTIVE...), đếm gói tin và theo dõi Heartbeat. Tự động ghi nhận khi đối tác kết nối / xác thực. |
 
-> 📌 **Gọn bảng CSDL (14/10/2026):** Giữ **13 bảng** (12 bảng chính + 1 bảng Inbound), xóa bảng thừa cũ `ShareDataTable` (bảng mồ côi đã có trong CSDL từ trước), không phát sinh bảng riêng cho truy vấn động mà lưu trữ trực tiếp câu truy vấn trích xuất và tham số đồng bộ tại `ShareDataPacket` (`ExtractSql`, `SyncMode`, `CursorTimeColumn`, `MaxLookBackDays`).
+> 📌 **Gọn bảng CSDL (14/10/2026):** Giữ **13 bảng** (12 bảng chính + 1 bảng Inbound), script 00 xóa ShareDataTable khi bảng rỗng; CSDL còn dữ liệu thì giữ, không ảnh hưởng chạy, không phát sinh bảng riêng cho truy vấn động mà lưu trữ trực tiếp câu truy vấn trích xuất và tham số đồng bộ tại `ShareDataPacket` (`ExtractSql`, `SyncMode`, `CursorTimeColumn`, `MaxLookBackDays`).
 
 > 📌 **Danh mục bảng nguồn ShareDataSourceTable (17/10/2026):** Quyết định ngày 17/10/2026 hợp nhất danh sách bảng nguồn theo dõi Change Tracking từ `SysOpConfig` (nhóm `sharedata_tracker`) và bảng trạng thái `ShareDataTrackVersion` cũ về bảng danh mục nguồn tập trung `ShareDataSourceTable` của ShareData (di trú qua script [`00-sharedata-migration-mot-lan.sql`](../sql/00-sharedata-migration-mot-lan.sql)). Mỗi dòng đại diện cho 1 bảng nguồn có mốc `LastVersion`, `LastChangeTime`, `LastIssue` riêng, hai công tắc độc lập `IsTracked` (bật/tắt quét Change Tracking) và `IsQueryable` (cho phép dùng trên bộ dựng truy vấn Visual Query Builder), cùng `DefaultAlias`. Sửa trực tiếp bằng `.sql`, Worker tự nạp lại định kỳ. Chi tiết ở mục [IV.4](#4-danh-mục-bảng-nguồn--bảng-sharedatasourcetable).
 
@@ -316,7 +316,7 @@ flowchart TD
   | `LastChangeTime` | `datetime` (`DateTime?`) | Nullable | Thời điểm gần nhất Worker phát hiện bảng có bản ghi thay đổi (`SYS_CHANGE_OPERATION IN ('I', 'U')`). |
   | `LastIssue`      | `nvarchar(512)` | Nullable | Mô tả ngắn vấn đề gần nhất của bảng (tự động xóa về `null` khi bảng truy vấn thành công trở lại). |
   | `IsQueryable`    | `bit` (`bool?`) | Nullable | Cho phép dùng bảng này trong bộ dựng truy vấn Visual Query Builder và trong câu lệnh SQL của gói tin (`1` = Cho phép, `0` = Chặn). |
-  | `DefaultAlias`   | `nvarchar(32)`  | Nullable | Bí danh mặc định khi chọn bảng trên bộ dựng truy vấn (`zs`, `z`, `td`, `c`, `w`, `tin`, `tout`, `vr`, `i`, `et`, `v`, `eq`, `tl`, `ts`). |
+  | `DefaultAlias`   | `nvarchar(32)`  | Nullable | Bí danh mặc định khi chọn bảng trên bộ dựng truy vấn (`zs`, `z`, `tstat`, `td`, `c`, `w`, `tin`, `tout`, `vr`, `i`, `et`, `v`, `eq`, `tl`, `ts`). |
   | `ID`, `Code`, `TenantId`, `CreateTime`, `UpdateTime`, `CreateUId`, `UpdateUId`, `RowStatus`, `IsDelete` | Các cột nền | Kế thừa `EntityTenant` | Khóa chính Snowflake/chuỗi cố định (`1500000000201`..`1500000000215`), phân vùng đơn vị, dấu thời gian tạo/cập nhật và cờ xóa mềm. |
 * **Lưu ý kỹ thuật:**  
   - **Hai công tắc độc lập:** `IsTracked` (quản lý việc quét Change Tracking tại Background Worker) và `IsQueryable` (quản lý việc cho phép dùng trên bộ dựng Visual Query Builder và kiểm tra an toàn trong câu lệnh SQL qua `SqlValidator`). Ví dụ bảng `TmsEquipment` có `IsTracked = 0` (để tránh quét thừa khi chỉ sửa thông tin thiết bị) nhưng `IsQueryable = 1` (để vẫn được phép tra cứu trong các gói 102/103/108).
@@ -453,7 +453,7 @@ Các câu truy vấn SQL trích xuất động trong `ShareDataPacket.ExtractSql
 | `LastChangeTime` | `datetime` | Thời điểm gần nhất phát hiện bảng có bản ghi thêm mới hoặc cập nhật (`SYS_CHANGE_OPERATION IN ('I', 'U')`). |
 | `LastIssue` | `nvarchar(512)` | Mô tả ngắn vấn đề gần nhất của bảng (`NULL` khi bình thường; tự động xóa về `NULL` ngay khi bảng truy vấn thành công trở lại). |
 | `IsQueryable` | `bit` (`bool?`) | `1` = Cho phép dùng bảng trên bộ dựng truy vấn Visual Query Builder và câu lệnh SQL gói tin; `0` = Chặn (ẩn khỏi UI và `SqlValidator` báo lỗi `SqlTableNotAllowed`). |
-| `DefaultAlias` | `nvarchar(32)` | Bí danh mặc định khi sinh câu SQL trên Visual Query Builder (`zs`, `z`, `td`, `c`, `w`, `tin`, `tout`, `vr`, `i`, `et`, `v`, `eq`, `tl`, `ts`). |
+| `DefaultAlias` | `nvarchar(32)` | Bí danh mặc định khi sinh câu SQL trên Visual Query Builder (`zs`, `z`, `tstat`, `td`, `c`, `w`, `tin`, `tout`, `vr`, `i`, `et`, `v`, `eq`, `tl`, `ts`). |
 
 **Danh sách seed (15 bảng, script `03-sharedata-seed-cau-hinh.sql` mục 3.4).**
 

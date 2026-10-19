@@ -8,7 +8,7 @@
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 18/10/2026
+-- CẬP NHẬT LẦN CUỐI: 19/10/2026
 -- =========================================================================================
 
 -- =========================================================================================
@@ -151,10 +151,6 @@ BEGIN
     PRINT N'  -> Đã dọn dẹp các key địa chỉ/cổng trong JSON ConnectionConfig: ' + CAST(@@ROWCOUNT AS NVARCHAR(10)) + N' dòng.';
 
     PRINT N'✅ Hoàn tất: Chuẩn hóa cột đối tác trên DEV_ITS10.';
-END
-ELSE
-BEGIN
-    PRINT N'  -> Bảng ShareDataPartner hoặc cột ConnectionConfig chưa sẵn sàng, bỏ qua chuyển đổi JSON.';
 END
 GO
 

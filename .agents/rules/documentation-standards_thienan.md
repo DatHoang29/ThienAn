@@ -306,7 +306,7 @@ Quy ước chú giải tiếng Anh trong ngoặc `[Tiếng Việt] ([English])` 
 
 ## 🖱️ 11. Quy Chuẩn Viết Kịch Bản Nghiệm Thu & Hướng Dẫn Thao Tác Thủ Công — Ưu Tiên Giao Diện (UI-First - Rule 19.82)
 
-1. **Phạm vi áp dụng**: mọi tài liệu hướng dẫn người dùng/QA tự làm theo từng bước (kịch bản nghiệm thu, hướng dẫn dựng dữ liệu nền, hướng dẫn kiểm thử thủ công), ví dụ `DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/doc/05-kich-ban-nghiem-thu-thuc-te-sharedata.md`. Không áp dụng cho tài liệu kỹ thuật nội bộ mô tả script, không áp dụng cho test tự động (xem [testing-rules_thienan.md](./testing-rules_thienan.md)).
+1. **Phạm vi áp dụng**: mọi tài liệu hướng dẫn người dùng/QA tự làm theo từng bước (kịch bản nghiệm thu, hướng dẫn dựng dữ liệu nền, hướng dẫn kiểm thử thủ công), ví dụ `DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/doc/06-khoi-dong-3-du-an-va-nghiem-thu-sharedata.md`. Không áp dụng cho tài liệu kỹ thuật nội bộ mô tả script, không áp dụng cho test tự động (xem [testing-rules_thienan.md](./testing-rules_thienan.md)).
 
 2. **Thứ tự cách làm**:
    - **CÁCH 1 — Giao diện**: lộ trình chính, viết đầy đủ từ đầu đến cuối bằng thao tác trên giao diện (FE) đã có, đặt TRƯỚC.
