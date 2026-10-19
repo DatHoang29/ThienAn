@@ -33,7 +33,7 @@
 > Toàn bộ các quy tắc bắt buộc cốt lõi (P0 Safeguards) của dự án được định nghĩa tập trung và duy nhất tại:
 > 👉 **[`.agents/rules/thienan_rules.md`](.agents/rules/thienan_rules.md)** (bảng P0 Safeguards).
 >
-> Mọi AI Agent **BẮT BUỘC** tra cứu, đọc và tuân thủ tuyệt đối các quy tắc từ tệp SSOT trên trước khi thực hiện bất kỳ thao tác nào (bao gồm: kết nối DB local, quy tắc test không dùng `--no-build`, không dùng `try-finally` trong test, không tự xóa DB trong từng test method, không tự ý `git add`/`reset`, không tự động build frontend, cấm tự gán ID SnowFlake, CSS-only cho UI fixes...).
+> Mọi AI Agent **BẮT BUỘC** tra cứu, đọc và tuân thủ tuyệt đối các quy tắc từ tệp SSOT trên trước khi thực hiện bất kỳ thao tác nào (bao gồm: kết nối DB local, quy tắc test không dùng `--no-build`, không dùng `try-finally` trong test, không tự xóa DB trong từng test method, không tự ý `git add`/`reset`, không tự động build frontend, cấm tự gán ID trong WebAPI, CSS-only cho UI fixes...).
 > Tuyệt đối không duplicate danh sách quy tắc tại đây để đảm bảo nguyên tắc sửa 1 nơi duy nhất.
 
 ---

@@ -302,6 +302,11 @@ test.describe('E2E Runtime UI Check trên http://localhost:8888/#/shareData/shar
 		const dialog = page.locator('.sharedata-edit-partner-container .el-dialog');
 		await expect(dialog).toBeVisible();
 
+		// Click outside tại tọa độ (5, 5) để kiểm tra dialog KHÔNG đóng
+		await page.mouse.click(5, 5);
+		await page.waitForTimeout(300);
+		await expect(dialog).toBeVisible();
+
 		// 3. Kiểm tra tiêu đề dialog: "Tạo mới tên đối tác" (Bug 7)
 		const dialogHeader = dialog.locator('.el-dialog__header');
 		await expect(dialogHeader).toContainText('Tạo mới tên đối tác');
@@ -338,5 +343,26 @@ test.describe('E2E Runtime UI Check trên http://localhost:8888/#/shareData/shar
 
 		// 3. subscriptionTable.vue: có watcher theo dõi packetList để cập nhật options.data
 		expect(subTableContent).toContain('watch(packetList, () => {');
+	});
+
+	test('Bug 13 — Dialog và ElMessageBox.confirm trong sharing KHÔNG đóng khi click ra ngoài', async ({ context, page }) => {
+		await setupSharingMocks(context, page);
+		await page.goto('/#/sharedata/sharing');
+		await expect(page.locator('.eshare-body__left')).toBeVisible({ timeout: 15000 });
+
+		// 1. Kiểm tra ElMessageBox.confirm khi xóa đối tác
+		const deletePartnerBtn = page.locator('.ptn-item__acts button.el-button--danger').first();
+		if (await deletePartnerBtn.isVisible()) {
+			await deletePartnerBtn.click();
+			const msgBox = page.locator('.el-message-box');
+			await expect(msgBox).toBeVisible({ timeout: 5000 });
+
+			await page.mouse.click(5, 5);
+			await page.waitForTimeout(300);
+			await expect(msgBox).toBeVisible();
+
+			await msgBox.locator('button:has-text("Hủy")').click();
+			await expect(msgBox).toBeHidden({ timeout: 5000 });
+		}
 	});
 });

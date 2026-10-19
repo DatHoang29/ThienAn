@@ -22,29 +22,7 @@ test.describe('ShareData — Nhật ký cảnh báo lỗi (errorLog) @sharedata'
                 defaultMenu: '/sharedata/errorLog',
             },
         });
-    });
 
-    test('1. Quét tĩnh mã nguồn errorLog/index.vue & alertDetailDrawer.vue: Tra cứu mã lỗi ESH và không dùng !important', async () => {
-        const errorLogPath = resolveWebVueSrc('views/sharedata/errorLog/index.vue');
-        const drawerPath = resolveWebVueSrc('views/sharedata/errorLog/component/alertDetailDrawer.vue');
-
-        const errorLogContent = fs.readFileSync(errorLogPath, 'utf8');
-        const drawerContent = fs.readFileSync(drawerPath, 'utf8');
-
-        // 1. Quét errorLog/index.vue
-        expect(errorLogContent).toContain("field: 'alertCodeDesc'");
-        expect(errorLogContent).toContain('alertCodeDescOf');
-        expect(errorLogContent).toContain('BaseConfigTypeEnum.SharedataErrorCode');
-        expect(errorLogContent).not.toContain('!important');
-
-        // 2. Quét alertDetailDrawer.vue
-        expect(drawerContent).toContain('alertInfo?.name');
-        expect(drawerContent).toContain('alertInfo?.remark');
-        expect(drawerContent).toContain('BaseConfigTypeEnum.SharedataErrorCode');
-        expect(drawerContent).not.toContain('!important');
-    });
-
-    test('2. Hiển thị bảng nhật ký lỗi với cột Mô tả mã lỗi ESH và mở Drawer chi tiết hiển thị Hướng xử lý', async ({ page }) => {
         // Mock API Login Menu Tree chứa route cho errorLog
         await page.route('**/api/system/sysmenu/loginmenutree*', async (route) => {
             await route.fulfill({
@@ -93,7 +71,29 @@ test.describe('ShareData — Nhật ký cảnh báo lỗi (errorLog) @sharedata'
                 }),
             });
         });
+    });
 
+    test('1. Quét tĩnh mã nguồn errorLog/index.vue & alertDetailDrawer.vue: Tra cứu mã lỗi ESH và không dùng !important', async () => {
+        const errorLogPath = resolveWebVueSrc('views/sharedata/errorLog/index.vue');
+        const drawerPath = resolveWebVueSrc('views/sharedata/errorLog/component/alertDetailDrawer.vue');
+
+        const errorLogContent = fs.readFileSync(errorLogPath, 'utf8');
+        const drawerContent = fs.readFileSync(drawerPath, 'utf8');
+
+        // 1. Quét errorLog/index.vue
+        expect(errorLogContent).toContain("field: 'alertCodeDesc'");
+        expect(errorLogContent).toContain('alertCodeDescOf');
+        expect(errorLogContent).toContain('BaseConfigTypeEnum.SharedataErrorCode');
+        expect(errorLogContent).not.toContain('!important');
+
+        // 2. Quét alertDetailDrawer.vue
+        expect(drawerContent).toContain('alertInfo?.name');
+        expect(drawerContent).toContain('alertInfo?.remark');
+        expect(drawerContent).toContain('BaseConfigTypeEnum.SharedataErrorCode');
+        expect(drawerContent).not.toContain('!important');
+    });
+
+    test('2. Hiển thị bảng nhật ký lỗi với cột Mô tả mã lỗi ESH và mở Drawer chi tiết hiển thị Hướng xử lý', async ({ page }) => {
         // Mock API trả về danh mục cấu hình hệ thống (BaseConfig) cho sharedata_error_code
         await page.route('**/api/cfgsystem/sysconfigtype/alldatalist*', async (route) => {
             await route.fulfill({
@@ -209,5 +209,42 @@ test.describe('ShareData — Nhật ký cảnh báo lỗi (errorLog) @sharedata'
         await expect(drawer.locator('.el-descriptions')).toContainText('Không tìm thấy bộ mã CodeSet');
         await expect(drawer.locator('.el-descriptions')).toContainText('Kiểm tra bảng ShareDataCodeSet');
         await expect(drawer.locator('.el-descriptions')).toContainText('CodeSet CS_STATUS not found');
+
+        // Click outside vào lớp phủ (tọa độ 5, 5) để khẳng định Drawer KHÔNG đóng
+        await page.mouse.click(5, 5);
+        await page.waitForTimeout(300);
+        await expect(drawer).toBeVisible();
+
+        // Đóng Drawer bằng nút đóng
+        await drawer.locator('.el-drawer__close-btn').click();
+        await expect(drawer).toBeHidden();
+    });
+
+    test('3. ElMessageBox.confirm trong errorLog KHÔNG đóng khi click ra ngoài', async ({ page }) => {
+        await page.route('**/api/sharedata/sharedataalertlog/summary*', async (route) => {
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: { unackedCount: 1, totalCount: 1 } }) });
+        });
+        await page.route('**/api/sharedata/sharedataalertlog/page*', async (route) => {
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: { records: [{ id: 'ALERT_1', alertCode: 'ESH-1201', severity: 2, alertSource: 1, message: 'Test alert', occurredAt: '2026-10-14T08:00:00Z' }], total: 1 } }) });
+        });
+
+        await page.goto('/sharedata/errorLog');
+        await expect(page.locator('.full-table')).toBeVisible({ timeout: 15_000 });
+
+        const ackAllBtn = page.locator('button:has-text("Xác nhận tất cả")').first();
+        if (await ackAllBtn.isVisible()) {
+            await ackAllBtn.click();
+            const msgBox = page.locator('.el-message-box');
+            await expect(msgBox).toBeVisible({ timeout: 5000 });
+
+            // Click outside tại tọa độ (5, 5)
+            await page.mouse.click(5, 5);
+            await page.waitForTimeout(300);
+            await expect(msgBox).toBeVisible();
+
+            // Đóng bằng nút Hủy
+            await msgBox.locator('button:has-text("Hủy")').click();
+            await expect(msgBox).toBeHidden({ timeout: 5000 });
+        }
     });
 });

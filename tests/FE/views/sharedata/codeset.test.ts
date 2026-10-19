@@ -247,5 +247,47 @@ test.describe('ShareData — Dialog Chỉnh sửa bộ mã (editCodeSet.vue) @sh
             const tableMaxHeight = await table.evaluate((el) => window.getComputedStyle(el).maxHeight);
             expect(tableMaxHeight).not.toBe('300px');
         });
+
+        test('4. Dialog editCodeSet và ElMessageBox.confirm KHÔNG đóng khi click ra ngoài', async ({ context, page }) => {
+            await setupCodeSetMock(context, page, 'vi-vn');
+            await page.goto('/#/sharedata/codeSet');
+
+            await page.locator('.loading-next').waitFor({ state: 'detached', timeout: 30000 }).catch(() => {});
+
+            // 1. Kiểm tra editCodeSet dialog
+            const addButton = page.locator('button:has(.ele-Plus), .vxe-toolbar button, .el-button').filter({ hasText: /Thêm|Add/ }).first();
+            await expect(addButton).toBeVisible({ timeout: 60000 });
+            await addButton.click();
+
+            const dialog = page.locator('.el-overlay:not([style*="display: none"]) .el-dialog');
+            await expect(dialog).toBeVisible({ timeout: 10000 });
+
+            // Click outside tại tọa độ (5, 5)
+            await page.mouse.click(5, 5);
+            await page.waitForTimeout(300);
+            await expect(dialog).toBeVisible();
+
+            // Đóng dialog bằng nút Hủy
+            const cancelBtn = dialog.locator('.dialog-footer button:has-text("Hủy"), .dialog-footer button:has-text("Cancel")').first();
+            await cancelBtn.click();
+            await expect(dialog).toBeHidden({ timeout: 5000 });
+
+            // 2. Kiểm tra ElMessageBox.confirm khi bấm Xóa trên hàng
+            const deleteBtn = page.locator('.vxe-body--row button.el-button--danger').first();
+            if (await deleteBtn.isVisible()) {
+                await deleteBtn.click();
+                const msgBox = page.locator('.el-message-box');
+                await expect(msgBox).toBeVisible({ timeout: 5000 });
+
+                // Click outside tại tọa độ (5, 5)
+                await page.mouse.click(5, 5);
+                await page.waitForTimeout(300);
+                await expect(msgBox).toBeVisible();
+
+                // Đóng bằng nút Hủy
+                await msgBox.locator('button:has-text("Hủy"), button:has-text("Cancel")').first().click();
+                await expect(msgBox).toBeHidden({ timeout: 5000 });
+            }
+        });
     });
 });

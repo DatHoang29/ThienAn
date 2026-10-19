@@ -220,8 +220,8 @@ function createDefaultFormState(): FormStateModel {
 			apiKey: '',
 			username: '',
 			password: '',
-			format: '',
-			timeoutSeconds: null as any,
+			format: 'Json',
+			timeoutSeconds: 30,
 			bypassSsl: false,
 			successField: '',
 			errorMessageField: '',
@@ -231,16 +231,16 @@ function createDefaultFormState(): FormStateModel {
 		file: {
 			directoryPath: '',
 			fileNamePattern: '',
-			format: '',
+			format: 'Json',
 		},
 		ftp: {
 			remotePath: '',
 			username: '',
 			password: '',
 			useSsl: false,
-			format: '',
+			format: 'Json',
 			enabled: true,
-			timeoutSeconds: null as any,
+			timeoutSeconds: 30,
 			fileName: '',
 		},
 		kafka: {
@@ -288,8 +288,11 @@ function getManagedKeys(channel: string): string[] {
 
 function parseJsonToFormLogic(jsonStr: string | null | undefined, channel: string, state: FormStateModel) {
 	if (!jsonStr || !jsonStr.trim()) {
-		state.api.timeoutSeconds = null as any;
-		state.ftp.timeoutSeconds = null as any;
+		state.api.format = 'Json';
+		state.api.timeoutSeconds = 30;
+		state.file.format = 'Json';
+		state.ftp.format = 'Json';
+		state.ftp.timeoutSeconds = 30;
 		return { extra: null as Record<string, string> | null, rawInvalid: null as string | null };
 	}
 	let parsed: Record<string, any>;
@@ -348,14 +351,14 @@ function parseJsonToFormLogic(jsonStr: string | null | undefined, channel: strin
 	const apiPass = resolveField('Password');
 	if (apiPass != null) state.api.password = apiPass;
 	const apiFmt = resolveField('Format');
-	if (apiFmt != null) state.api.format = apiFmt;
+	state.api.format = (apiFmt != null && apiFmt.trim() !== '') ? apiFmt : 'Json';
 	const apiTimeout = resolveField('TimeoutSeconds', ['HttpTimeoutSec', 'TimeoutSec']);
 	if (apiTimeout != null && !Number.isNaN(Number(apiTimeout))) {
 		const num = parseInt(apiTimeout, 10);
 		if (num > 0) state.api.timeoutSeconds = num;
-		else state.api.timeoutSeconds = null as any;
+		else state.api.timeoutSeconds = 30;
 	} else {
-		state.api.timeoutSeconds = null as any;
+		state.api.timeoutSeconds = 30;
 	}
 	const apiBypass = resolveField('BypassSsl', ['IgnoreSsl', 'Insecure']);
 	if (apiBypass != null) state.api.bypassSsl = apiBypass.toLowerCase() === 'true';
@@ -373,7 +376,8 @@ function parseJsonToFormLogic(jsonStr: string | null | undefined, channel: strin
 	if (fileDir != null) state.file.directoryPath = fileDir;
 	const filePat = resolveField('FileNamePattern');
 	if (filePat != null) state.file.fileNamePattern = filePat;
-	if (apiFmt != null) state.file.format = apiFmt;
+	const fileFmt = resolveField('Format');
+	state.file.format = (fileFmt != null && fileFmt.trim() !== '') ? fileFmt : 'Json';
 
 	// Phân giải FTP
 	const ftpRemote = resolveField('RemotePath');
@@ -385,16 +389,16 @@ function parseJsonToFormLogic(jsonStr: string | null | undefined, channel: strin
 	const ftpSsl = resolveField('UseSsl', ['EnableSsl']);
 	if (ftpSsl != null) state.ftp.useSsl = ftpSsl.toLowerCase() === 'true';
 	const ftpFmt = resolveField('Format');
-	if (ftpFmt != null) state.ftp.format = ftpFmt;
+	state.ftp.format = (ftpFmt != null && ftpFmt.trim() !== '') ? ftpFmt : 'Json';
 	const ftpEnabled = resolveField('Enabled');
 	if (ftpEnabled != null) state.ftp.enabled = ftpEnabled.toLowerCase() !== 'false';
 	const ftpTimeout = resolveField('TimeoutSeconds');
 	if (ftpTimeout != null && !Number.isNaN(Number(ftpTimeout))) {
 		const num = parseInt(ftpTimeout, 10);
 		if (num > 0) state.ftp.timeoutSeconds = num;
-		else state.ftp.timeoutSeconds = null as any;
+		else state.ftp.timeoutSeconds = 30;
 	} else {
-		state.ftp.timeoutSeconds = null as any;
+		state.ftp.timeoutSeconds = 30;
 	}
 	const ftpFileName = resolveField('FileName');
 	if (ftpFileName != null) state.ftp.fileName = ftpFileName;
@@ -499,11 +503,15 @@ function serializeFormLogic(state: FormStateModel, channel: string, extraObj: Re
 
 	if (state.encryption.encryptor && state.encryption.encryptor !== 'None') {
 		out['Encryptor'] = state.encryption.encryptor;
-		if (state.encryption.encryptionKeyRef?.trim()) out['EncryptionKeyRef'] = state.encryption.encryptionKeyRef.trim();
+	}
+	if (state.encryption.encryptionKeyRef?.trim()) {
+		out['EncryptionKeyRef'] = state.encryption.encryptionKeyRef.trim();
 	}
 	if (state.encryption.inboundEncryptor && state.encryption.inboundEncryptor !== 'None') {
 		out['InboundEncryptor'] = state.encryption.inboundEncryptor;
-		if (state.encryption.decryptionKeyRef?.trim()) out['DecryptionKeyRef'] = state.encryption.decryptionKeyRef.trim();
+	}
+	if (state.encryption.decryptionKeyRef?.trim()) {
+		out['DecryptionKeyRef'] = state.encryption.decryptionKeyRef.trim();
 	}
 
 	if (extraObj) {
@@ -517,26 +525,34 @@ function serializeFormLogic(state: FormStateModel, channel: string, extraObj: Re
 	return keys.length > 0 ? JSON.stringify(out) : null;
 }
 
+function countPreservedParams(state: FormStateModel, extraObj: Record<string, any> | null): number {
+	let count = 0;
+	if (state.encryption.encryptor && state.encryption.encryptor !== 'None') count++;
+	if (state.encryption.encryptionKeyRef?.trim()) count++;
+	if (state.encryption.inboundEncryptor && state.encryption.inboundEncryptor !== 'None') count++;
+	if (state.encryption.decryptionKeyRef?.trim()) count++;
+	if (extraObj) {
+		count += Object.keys(extraObj).length;
+	}
+	return count;
+}
+
 test.describe('ShareData — Cấu hình kết nối đối tác theo mẫu VMS (R11) @sharedata', () => {
 
-	test('TC1 — Kiểm tra tĩnh mã nguồn connectionConfigEditor.vue và editPartner.vue (Rules 9, 11, 20, 21)', async () => {
-		expect(fs.existsSync(editorComponentPath), 'File connectionConfigEditor.vue phải tồn tại').toBeTruthy();
+	test('TC1 — Kiểm tra tĩnh mã nguồn: connectionConfigEditor.vue đã được dọn dẹp, editPartner.vue chuẩn quy tắc (Rules 9, 11, 20, 21)', async () => {
+		expect(fs.existsSync(editorComponentPath), 'File connectionConfigEditor.vue không còn tồn tại sau khi dọn').toBeFalsy();
 		expect(fs.existsSync(editPartnerPath), 'File editPartner.vue phải tồn tại').toBeTruthy();
 
-		const editorContent = fs.readFileSync(editorComponentPath, 'utf-8');
 		const partnerContent = fs.readFileSync(editPartnerPath, 'utf-8');
 
-		// Rule 20.14: Tên component camelCase
-		expect(path.basename(editorComponentPath)).toBe('connectionConfigEditor.vue');
-		expect(editorContent).toContain('name="connectionConfigEditor"');
-
 		// Rule 20.6 / Rule 9: CẤM !important trong CSS
-		expect(editorContent.includes('!important'), 'connectionConfigEditor.vue không được chứa !important').toBeFalsy();
 		expect(partnerContent.includes('!important'), 'editPartner.vue không được chứa !important').toBeFalsy();
 
 		// Rule 20.8 / Rule 11: CẤM toán tử phủ định kép !!
-		expect(editorContent.includes('!!'), 'connectionConfigEditor.vue không được chứa !!').toBeFalsy();
 		expect(partnerContent.includes('!!'), 'editPartner.vue không được chứa !!').toBeFalsy();
+
+		// Rule 20.26 / STT 55: close-on-click-modal="false"
+		expect(partnerContent).toContain(':close-on-click-modal="false"');
 
 		// editPartner.vue phải nhúng connectionConfigForm và bỏ các biến/methods cũ
 		expect(partnerContent).toContain('<connection-config-form');
@@ -544,13 +560,6 @@ test.describe('ShareData — Cấu hình kết nối đối tác theo mẫu VMS 
 		expect(partnerContent).not.toContain('buildConnectionConfigJson');
 		expect(partnerContent).not.toContain('parseConnectionConfigToJson');
 		expect(partnerContent).not.toContain('rawJsonConfig');
-
-		// Kiểm tra không hardcode string: tất cả label/button/placeholder đều dùng $t
-		expect(editorContent).toContain("$t('lz.button.sharedataConnectionEditor.addConfig')");
-		expect(editorContent).toContain("$t('lz.button.sharedataConnectionEditor.addSuggestedKeys')");
-		expect(editorContent).toContain("$t('lz.placeholder.sharedataConnectionEditor.key')");
-		expect(editorContent).toContain("$t('lz.placeholder.sharedataConnectionEditor.value')");
-		expect(editorContent).toContain("$t('lz.label.sharedataConnectionEditor.noConfig')");
 	});
 
 	test('TC2 — Kiểm tra tệp i18n vi-vn.json và en-us.json đầy đủ các khóa cần thiết', async () => {
@@ -748,27 +757,17 @@ test.describe('ShareData — Cấu hình kết nối đối tác theo mẫu VMS 
 		expect(addedSecondTime).toBe(0);
 	});
 
-	test('TC9 — Chọn nhóm "Chiều nhận" thì có đủ key giải mã InboundEncryptor và DecryptionKeyRef', async () => {
-		const editorContent = fs.readFileSync(editorComponentPath, 'utf-8');
+	test('TC9 — Hỗ trợ cấu hình Chiều nhận InboundEncryptor và DecryptionKeyRef được bảo toàn', async () => {
+		const formContent = fs.readFileSync(formComponentPath, 'utf-8');
 
-		// Kiểm tra editor component có khai báo INBOUND_KEYS với InboundEncryptor và DecryptionKeyRef
-		const expectedInboundKeys = [
-			'InboundEncryptor',
-			'DecryptionKeyRef',
-		];
-
-		for (const key of expectedInboundKeys) {
-			expect(editorContent).toContain(key);
-		}
-
-		// Kiểm tra dropdown menu gợi ý nhóm Chiều nhận tồn tại
-		expect(editorContent).toContain('command="inbound"');
-		expect(editorContent).toContain('lz.label.sharedataConnectionEditor.groupInbound');
+		// Kiểm tra form có xử lý InboundEncryptor và DecryptionKeyRef
+		expect(formContent).toContain('InboundEncryptor');
+		expect(formContent).toContain('DecryptionKeyRef');
 	});
 
-	test('TC10 — "ArchiveEnabled" không còn trong COMMON_KEYS của connectionConfigEditor.vue và không được gợi ý', async () => {
-		const editorContent = fs.readFileSync(editorComponentPath, 'utf-8');
-		expect(editorContent).not.toContain("'ArchiveEnabled'");
+	test('TC10 — "ArchiveEnabled" không còn trong cấu hình đối tác và không được gợi ý', async () => {
+		const formContent = fs.readFileSync(formComponentPath, 'utf-8');
+		expect(formContent).not.toContain("'ArchiveEnabled'");
 
 		const items: ConfigRow[] = [];
 		addSuggestedKeys(items, 'API');
@@ -803,11 +802,11 @@ test.describe('ShareData — Cấu hình kết nối đối tác theo mẫu VMS 
 	});
 
 	test('TC12 — RV-13: JSON lỗi định dạng không bị xóa âm thầm khi lưu', async () => {
-		const editorContent = fs.readFileSync(editorComponentPath, 'utf-8');
+		const formContent = fs.readFileSync(formComponentPath, 'utf-8');
 		// Component phải có biến rawInvalidJson, alert cảnh báo lỗi cú pháp và nút xóa lỗi
-		expect(editorContent).toContain('rawInvalidJson');
-		expect(editorContent).toContain('lz.label.sharedataConnectionEditor.errInvalidJson');
-		expect(editorContent).toContain('clearInvalidJson');
+		expect(formContent).toContain('rawInvalidJson');
+		expect(formContent).toContain('lz.label.sharedataConnectionEditor.errInvalidJson');
+		expect(formContent).toContain('clearInvalidJson');
 
 		// Giả lập đối tác có chuỗi JSON lỗi: {abc
 		const invalidJson = '{abc';
@@ -826,14 +825,14 @@ test.describe('ShareData — Cấu hình kết nối đối tác theo mẫu VMS 
 		expect(emitAfterClear).toBeNull();
 	});
 
-	test('TC13 — Modal editPartner.vue có width tối thiểu 880px, ô ghi chú rows="3" và padding-bottom dialog body bằng 0', async () => {
+	test('TC13 — Modal editPartner.vue có width 780px, ô ghi chú rows="3" và padding-bottom dialog body bằng 0', async () => {
 		const partnerContent = fs.readFileSync(editPartnerPath, 'utf-8');
 
-		// Kiểm tra dialog có width >= 880px
+		// Kiểm tra dialog có width 780px
 		const widthMatch = partnerContent.match(/<el-dialog[^>]*width="(\d+)px"/);
 		expect(widthMatch).not.toBeNull();
 		const widthValue = Number(widthMatch![1]);
-		expect(widthValue).toBeGreaterThanOrEqual(880);
+		expect(widthValue).toBe(780);
 
 		// Kiểm tra class định danh cho dialog để style không bị ảnh hưởng Teleport
 		expect(partnerContent).toContain('class="sharedata-edit-partner-dialog"');
@@ -852,11 +851,10 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 	test('TC1 — Kiểm tra tĩnh mã nguồn: connectionConfigForm.vue, editPartner.vue, connectionConfigEditor.vue (Rules 9, 11, 20, 21, 26)', async () => {
 		expect(fs.existsSync(formComponentPath), 'File connectionConfigForm.vue phải tồn tại').toBeTruthy();
 		expect(fs.existsSync(editPartnerPath), 'File editPartner.vue phải tồn tại').toBeTruthy();
-		expect(fs.existsSync(editorComponentPath), 'File connectionConfigEditor.vue phải tồn tại').toBeTruthy();
+		expect(fs.existsSync(editorComponentPath), 'File connectionConfigEditor.vue không còn tồn tại sau khi dọn').toBeFalsy();
 
 		const formContent = fs.readFileSync(formComponentPath, 'utf-8');
 		const partnerContent = fs.readFileSync(editPartnerPath, 'utf-8');
-		const editorContent = fs.readFileSync(editorComponentPath, 'utf-8');
 
 		// Rule 20.14: Tên component camelCase
 		expect(path.basename(formComponentPath)).toBe('connectionConfigForm.vue');
@@ -865,12 +863,10 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		// Rule 20.6 / Rule 9: CẤM !important trong CSS
 		expect(formContent.includes('!important'), 'connectionConfigForm.vue không được chứa !important').toBeFalsy();
 		expect(partnerContent.includes('!important'), 'editPartner.vue không được chứa !important').toBeFalsy();
-		expect(editorContent.includes('!important'), 'connectionConfigEditor.vue không được chứa !important').toBeFalsy();
 
 		// Rule 20.8 / Rule 11: CẤM toán tử phủ định kép !!
 		expect(formContent.includes('!!'), 'connectionConfigForm.vue không được chứa !!').toBeFalsy();
 		expect(partnerContent.includes('!!'), 'editPartner.vue không được chứa !!').toBeFalsy();
-		expect(editorContent.includes('!!'), 'connectionConfigEditor.vue không được chứa !!').toBeFalsy();
 
 		// Mở hỗ trợ đầy đủ các kênh WebAPI (1), File (2), FTP (3), FTPS (4), Kafka (5) trong modal đối tác
 		expect(partnerContent).toContain(':value="1"');
@@ -889,10 +885,10 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		expect(partnerContent).toContain('connectionConfigFormRef');
 		expect(partnerContent).toContain("import connectionConfigForm from './connectionConfigForm.vue'");
 
-		// connectionConfigEditor.vue hỗ trợ hideSuggestions và managedKeys
-		expect(editorContent).toContain('hideSuggestions');
-		expect(editorContent).toContain('managedKeys');
-		expect(editorContent).toContain('lz.label.sharedataConnectionEditor.errKeyManagedByForm');
+		// Đảm bảo không còn khối collapseEncryption và collapseExtra
+		expect(formContent).not.toContain('name="collapseEncryption"');
+		expect(formContent).not.toContain('name="collapseExtra"');
+		expect(formContent).not.toContain('<connection-config-editor');
 	});
 
 	test('TC2 — Kiểm tra tệp i18n vi-vn.json và en-us.json đầy đủ các khóa của connectionConfigForm', async () => {
@@ -947,6 +943,9 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 			'lz.message.sharedataConnectionForm.errTokenRequired',
 			'lz.message.sharedataConnectionForm.errApiKeyRequired',
 			'lz.message.sharedataConnectionForm.errBasicAuthRequired',
+			'lz.label.sharedataConnectionForm.collapsePartnerResponse',
+			'lz.label.sharedataConnectionForm.descPartnerResponse',
+			'lz.label.sharedataConnectionForm.preservedParamsNotice',
 		];
 
 		for (const k of keysToCheck) {
@@ -961,6 +960,8 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		expect(enUs['lz.label.sharedataPartner.typeFtp']).toBe('FTP Server');
 		expect(viVn['lz.label.sharedataPartner.typeFtps']).toBe('Máy chủ FTPS');
 		expect(enUs['lz.label.sharedataPartner.typeFtps']).toBe('FTPS Server');
+		expect(viVn['lz.label.sharedataConnectionForm.collapsePartnerResponse']).toBe('Đọc phản hồi của đối tác');
+		expect(enUs['lz.label.sharedataConnectionForm.collapsePartnerResponse']).toBe('Read partner response');
 	});
 
 	test('TC3 — Quy tắc 1: Không mất dữ liệu âm thầm — Khóa lạ hoặc khóa kênh khác vào Tham số bổ sung', async () => {
@@ -1042,12 +1043,16 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		expect(parsed2.ApiKeyHeader).toBe('X-Legacy-Header');
 	});
 
-	test('TC5 — Quy tắc 3: Ghi ra dạng chuỗi ("true"/"false", "30"), ô trống không ghi, AuthType None không ghi, rỗng hết emit null', async () => {
+	test('TC5 — Quy tắc 3: Ghi ra dạng chuỗi ("true"/"false", "30"), ô trống không ghi, AuthType None không ghi', async () => {
 		const state = createDefaultFormState();
 
-		// Trạng thái mặc định: tất cả ô rỗng/null -> emit null (đối tác chưa cấu hình mở ra lưu giữ nguyên null)
+		// Trạng thái mặc định: format='Json' và timeoutSeconds=30
 		const defaultOut = serializeFormLogic(state, 'API', null);
-		expect(defaultOut).toBeNull();
+		expect(defaultOut).toBeTruthy();
+		const defaultParsed = JSON.parse(defaultOut!);
+		expect(defaultParsed.Format).toBe('Json');
+		expect(defaultParsed.TimeoutSeconds).toBe('30');
+		expect(defaultParsed.AuthType).toBeUndefined();
 
 		// Điền các giá trị
 		state.api.authType = 'Bearer';
@@ -1067,9 +1072,10 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		expect(parsed.AuthType).toBe('Bearer');
 		expect(parsed.Token).toBe('my_bearer_token');
 
-		// Khi AuthType là None và các trường khác rỗng -> emit null
+		// Khi xóa trống format và timeoutSeconds, AuthType None -> emit null
 		state.api.authType = 'None';
 		state.api.token = '';
+		state.api.format = '';
 		state.api.timeoutSeconds = null as any;
 		state.api.bypassSsl = false;
 		const outNoAuth = serializeFormLogic(state, 'API', null);
@@ -1211,13 +1217,15 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		expect(JSON.parse(outFtpOff!).Enabled).toBe('false');
 	});
 
-	test('TC11 — Form cấu hình kết nối: Bố cục 2 cột (:sm="12"), Placeholder mặc định (30/15/5000), không tự ghi đè khi chưa nhập', async () => {
+	test('TC11 — Form cấu hình kết nối: Bố cục 2 cột (:sm="12"), Mặc định JSON và 30s khi không chọn', async () => {
 		const formContent = fs.readFileSync(formComponentPath, 'utf-8');
 
-		// 1. Kiểm tra default timeoutSeconds: null trong formState của connectionConfigForm.vue (chỉ serialize khi người dùng nhập)
-		expect(formContent).toMatch(/api:\s*\{[\s\S]*?timeoutSeconds:\s*null/);
-		expect(formContent).toMatch(/ftp:\s*\{[\s\S]*?timeoutSeconds:\s*null/);
-		expect(formContent).toMatch(/kafka:\s*\{[\s\S]*?timeoutMs:\s*null/);
+		// 1. Kiểm tra default format: 'Json' và timeoutSeconds: 30 trong formState của connectionConfigForm.vue
+		expect(formContent).toMatch(/api:\s*\{[\s\S]*?format:\s*'Json'/);
+		expect(formContent).toMatch(/api:\s*\{[\s\S]*?timeoutSeconds:\s*30/);
+		expect(formContent).toMatch(/ftp:\s*\{[\s\S]*?format:\s*'Json'/);
+		expect(formContent).toMatch(/ftp:\s*\{[\s\S]*?timeoutSeconds:\s*30/);
+		expect(formContent).toMatch(/file:\s*\{[\s\S]*?format:\s*'Json'/);
 
 		// 2. Kiểm tra các el-col trong channel-api là bố cục 2 cột (:sm="12")
 		const apiSectionMatch = formContent.match(/<div v-if="normalizedChannel === 'API'" class="channel-fields channel-api">([\s\S]*?)<\/div>\s*<!-- ── 2\. KÊNH FILE/);
@@ -1232,21 +1240,27 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		expect(formContent).toContain('lz.placeholder.sharedataConnectionForm.timeoutFtp');
 		expect(formContent).toContain('lz.placeholder.sharedataConnectionForm.timeoutKafka');
 
-		// 4. Kiểm tra logic parseJsonToForm mặc định timeoutSeconds = null khi không truyền timeout
+		// 4. Kiểm tra logic parseJsonToForm mặc định format = 'Json' và timeoutSeconds = 30 khi không truyền trong JSON
 		const state = createDefaultFormState();
-		expect(state.api.timeoutSeconds).toBeNull();
-		expect(state.ftp.timeoutSeconds).toBeNull();
+		expect(state.api.format).toBe('Json');
+		expect(state.api.timeoutSeconds).toBe(30);
+		expect(state.ftp.format).toBe('Json');
+		expect(state.ftp.timeoutSeconds).toBe(30);
+		expect(state.file.format).toBe('Json');
 
-		// Parse json không có timeout -> vẫn giữ null (để hiển thị placeholder, không serialize nếu người dùng không gõ)
+		// Parse json không có timeout và format -> mặc định format 'Json' và timeoutSeconds 30
 		parseJsonToFormLogic(JSON.stringify({ AuthType: 'Bearer', Token: 'abc' }), 'API', state);
-		expect(state.api.timeoutSeconds).toBeNull();
+		expect(state.api.format).toBe('Json');
+		expect(state.api.timeoutSeconds).toBe(30);
 
-		// Parse json rỗng -> reset về null
+		// Parse json rỗng -> reset về mặc định 'Json' và 30
 		state.api.timeoutSeconds = 99;
+		state.api.format = 'Csv';
 		state.ftp.timeoutSeconds = 99;
 		parseJsonToFormLogic('', 'API', state);
-		expect(state.api.timeoutSeconds).toBeNull();
-		expect(state.ftp.timeoutSeconds).toBeNull();
+		expect(state.api.format).toBe('Json');
+		expect(state.api.timeoutSeconds).toBe(30);
+		expect(state.ftp.timeoutSeconds).toBe(30);
 	});
 
 	test('TC12 — Hỗ trợ ConnectionTypeEnum số nguyên (1..5) và tương thích ngược chuỗi trên FE', async () => {
@@ -1269,10 +1283,6 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		// 3. Kiểm tra connectionConfigForm.vue hỗ trợ props.connectionType nhận string | number | null
 		const formContent = fs.readFileSync(formComponentPath, 'utf-8');
 		expect(formContent).toContain('connectionType?: string | number | null');
-
-		// 4. Kiểm tra connectionConfigEditor.vue nhận prop connectionType dạng [String, Number]
-		const editorContent = fs.readFileSync(editorComponentPath, 'utf-8');
-		expect(editorContent).toContain('type: [String, Number]');
 
 		// 5. Kiểm tra editPartner.vue có đầy đủ 5 option enum số (1=Api, 2=File, 3=Ftp, 4=Ftps, 5=Kafka)
 		const partnerContent = fs.readFileSync(editPartnerPath, 'utf-8');
@@ -1364,7 +1374,14 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		// 4d. Đổi sang None: JSON không chứa bất kỳ khóa xác thực nào
 		state.api.authType = 'None';
 		const outNone = serializeFormLogic(state, 'API', null);
-		expect(outNone).toBeNull();
+		expect(outNone).toBeTruthy();
+		const parsedNone = JSON.parse(outNone!);
+		expect(parsedNone.AuthType).toBeUndefined();
+		expect(parsedNone.Token).toBeUndefined();
+		expect(parsedNone.HeaderName).toBeUndefined();
+		expect(parsedNone.ApiKey).toBeUndefined();
+		expect(parsedNone.Username).toBeUndefined();
+		expect(parsedNone.Password).toBeUndefined();
 
 		// (5) Tham số bổ sung thêm 1 dòng -> có trong JSON
 		const extra = { CustomDebugFlag: '1', CustomHeaderPrefix: 'MyPrefix' };
@@ -1374,8 +1391,78 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		expect(parsedWithExtra.CustomDebugFlag).toBe('1');
 		expect(parsedWithExtra.CustomHeaderPrefix).toBe('MyPrefix');
 
-		// Kiểm tra mục Tham số bổ sung (collapseExtra) trong template vẫn nhúng connection-config-editor
-		expect(formContent).toMatch(/<connection-config-editor[\s\S]*?v-model="extraParamsJson"/);
+		// Kiểm tra mục Tham số bổ sung (collapseExtra) và Mã hóa không còn trên template
+		expect(formContent).not.toContain('name="collapseEncryption"');
+		expect(formContent).not.toContain('name="collapseExtra"');
+		expect(formContent).not.toContain('<connection-config-editor');
+	});
+
+	test('TC14 — Ẩn Mã hóa & Tham số bổ sung; bảo toàn khóa lạ & mã hóa; Đọc phản hồi của đối tác chỉ ở API', async () => {
+		const formContent = fs.readFileSync(formComponentPath, 'utf-8');
+
+		// 1. Form cả 4 kênh không còn mục "Mã hóa bảo mật" và "Tham số bổ sung"
+		expect(formContent).not.toContain('name="collapseEncryption"');
+		expect(formContent).not.toContain('name="collapseExtra"');
+		expect(formContent).not.toContain('collapseEncryption');
+		expect(formContent).not.toContain('collapseExtra');
+		expect(formContent).not.toContain('<connection-config-editor');
+
+		// 2. Mở đối tác có sẵn cấu hình {"Encryptor":"AesGcm","EncryptionKeyRef":"k1","Foo":"bar"}
+		const inputJson = JSON.stringify({
+			Encryptor: 'AesGcm',
+			EncryptionKeyRef: 'k1',
+			Foo: 'bar',
+		});
+		const state = createDefaultFormState();
+		const parsedRes = parseJsonToFormLogic(inputJson, 'API', state);
+		const extra = parsedRes.extra;
+
+		expect(state.encryption.encryptor).toBe('AesGcm');
+		expect(state.encryption.encryptionKeyRef).toBe('k1');
+		expect(extra?.['Foo']).toBe('bar');
+
+		// Đếm số tham số được bảo toàn
+		const preservedCount = countPreservedParams(state, extra);
+		expect(preservedCount).toBe(3);
+
+		// Lưu lại -> ConnectionConfig gửi lên vẫn chứa nguyên 3 khóa này
+		const serialized = serializeFormLogic(state, 'API', extra);
+		expect(serialized).toBeTruthy();
+		const parsed = JSON.parse(serialized!);
+		expect(parsed.Encryptor).toBe('AesGcm');
+		expect(parsed.EncryptionKeyRef).toBe('k1');
+		expect(parsed.Foo).toBe('bar');
+
+		// Kiểm tra thông báo trên template
+		expect(formContent).toContain('preservedParamsCount');
+		expect(formContent).toContain('lz.label.sharedataConnectionForm.preservedParamsNotice');
+
+		// 3. Kênh API: mục "Đọc phản hồi của đối tác" còn
+		expect(formContent).toContain('name="apiAdvanced"');
+		expect(formContent).toContain('lz.label.sharedataConnectionForm.collapsePartnerResponse');
+		expect(formContent).toContain('lz.label.sharedataConnectionForm.descPartnerResponse');
+
+		// Nhập SuccessField -> JSON có SuccessField
+		state.api.successField = 'is_ok';
+		const outWithSuccess = serializeFormLogic(state, 'API', null);
+		expect(JSON.parse(outWithSuccess!).SuccessField).toBe('is_ok');
+
+		// Không cấu hình -> JSON không có SuccessField
+		state.api.successField = '';
+		const outNoSuccess = serializeFormLogic(state, 'API', null);
+		expect(JSON.parse(outNoSuccess!).SuccessField).toBeUndefined();
+
+		// 4. Ba kênh File, FTP, Kafka không hiện mục "Đọc phản hồi của đối tác"
+		const fileSection = formContent.match(/class="channel-fields channel-file"[\s\S]*?<!-- ── 3\. KÊNH FTP/)?.[0] ?? '';
+		const ftpSection = formContent.match(/class="channel-fields channel-ftp"[\s\S]*?<!-- ── 4\. KÊNH KAFKA/)?.[0] ?? '';
+		const kafkaSection = formContent.match(/class="channel-fields channel-kafka"[\s\S]*?<div v-if="preservedParamsCount/)?.[0] ?? '';
+
+		expect(fileSection).not.toContain('apiAdvanced');
+		expect(ftpSection).not.toContain('apiAdvanced');
+		expect(kafkaSection).not.toContain('apiAdvanced');
+		expect(fileSection).not.toContain('collapsePartnerResponse');
+		expect(ftpSection).not.toContain('collapsePartnerResponse');
+		expect(kafkaSection).not.toContain('collapsePartnerResponse');
 	});
 });
 

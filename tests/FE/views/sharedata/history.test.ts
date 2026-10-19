@@ -532,7 +532,7 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
         await expect(evidencePath).toContainText('/data/export/packet_7496.json');
     });
 
-    test('6. Đóng modal chi tiết khi click outside vào overlay', async ({ page }) => {
+    test('6. KHÔNG đóng khi click ra ngoài, vẫn đóng được bằng nút đóng/Esc', async ({ page }) => {
         const mockParentId = 'PARENT_LOG_CLICK_OUTSIDE';
 
         await page.route('**/api/sharedata/sharedataactivitylog/page*', async (route) => {
@@ -577,11 +577,15 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
         const dialog = page.locator('.el-dialog');
         await expect(dialog).toBeVisible();
 
-        // Click vào góc ngoài của overlay để kiểm tra tính năng đóng outside
-        const overlay = page.locator('.el-overlay:visible').first();
-        await overlay.click({ position: { x: 10, y: 10 } });
+        // Click ra ngoài vùng nội dung modal (vào overlay tại tọa độ 5, 5)
+        await page.mouse.click(5, 5);
+        await page.waitForTimeout(300);
 
-        // Modal phải đóng lại và không còn hiển thị
+        // Hộp thoại KHÔNG đóng khi click ra ngoài
+        await expect(dialog).toBeVisible();
+
+        // Vẫn đóng được bằng nút đóng hoặc phím Escape
+        await page.keyboard.press('Escape');
         await expect(dialog).toBeHidden({ timeout: 5000 });
     });
 
@@ -786,5 +790,67 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
         await expect(errBox.locator('.step-err-hint')).toBeVisible();
         await expect(errBox.locator('.raw-code')).toContainText(rawErrorMsg);
         await expect(errBox.locator('.err-copy-btn')).toBeVisible();
+    });
+
+    test('10. Quét tĩnh toàn bộ views/sharedata: Mọi el-dialog, el-drawer phải có close-on-click-modal="false", mọi ElMessageBox.confirm phải có closeOnClickModal: false', async () => {
+        const shareDataDir = resolveWebVueSrc('views/sharedata');
+
+        function getAllVueFiles(dir: string): string[] {
+            let results: string[] = [];
+            const entries = fs.readdirSync(dir, { withFileTypes: true });
+            for (const entry of entries) {
+                const fullPath = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    results = results.concat(getAllVueFiles(fullPath));
+                } else if (entry.name.endsWith('.vue')) {
+                    results.push(fullPath);
+                }
+            }
+            return results;
+        }
+
+        const vueFiles = getAllVueFiles(shareDataDir);
+        expect(vueFiles.length).toBeGreaterThan(0);
+
+        const dialogIssues: string[] = [];
+        const msgBoxIssues: string[] = [];
+
+        for (const file of vueFiles) {
+            const relPath = path.relative(shareDataDir, file);
+            const content = fs.readFileSync(file, 'utf8');
+
+            // 1. Kiểm tra mọi <el-dialog> và <el-drawer>
+            const tagRegex = /<(el-dialog|el-drawer)\b([^>]*)/g;
+            let tagMatch: RegExpExecArray | null;
+            while ((tagMatch = tagRegex.exec(content)) !== null) {
+                const tag = tagMatch[1];
+                const attrs = tagMatch[2];
+                if (!attrs.includes('close-on-click-modal="false"')) {
+                    dialogIssues.push(`${relPath}: <${tag}> thiếu close-on-click-modal="false"`);
+                }
+            }
+
+            // 2. Kiểm tra mọi ElMessageBox.confirm
+            const keyword = 'ElMessageBox.confirm';
+            let pos = 0;
+            while ((pos = content.indexOf(keyword, pos)) !== -1) {
+                const startParen = content.indexOf('(', pos);
+                let depth = 1;
+                let i = startParen + 1;
+                while (i < content.length && depth > 0) {
+                    if (content[i] === '(') depth++;
+                    else if (content[i] === ')') depth--;
+                    i++;
+                }
+                const fullCall = content.substring(pos, i);
+                if (!fullCall.includes('closeOnClickModal: false')) {
+                    msgBoxIssues.push(`${relPath}: ${fullCall.substring(0, 80)} thiếu closeOnClickModal: false`);
+                }
+                pos = i;
+            }
+        }
+
+        expect(dialogIssues, `Phát hiện el-dialog/el-drawer chưa cấu hình close-on-click-modal="false":\n${dialogIssues.join('\n')}`).toEqual([]);
+        expect(msgBoxIssues, `Phát hiện ElMessageBox.confirm chưa cấu hình closeOnClickModal: false:\n${msgBoxIssues.join('\n')}`).toEqual([]);
     });
 });

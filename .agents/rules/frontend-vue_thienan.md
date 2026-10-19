@@ -100,6 +100,9 @@ src/views/<module>/<feature>/
     ```
   - ⛔ **TUYỆT ĐỐI CẤM** can thiệp trực tiếp bằng tay vào `dialogEl.style.transform = ...`, vì sẽ làm lệch (desync) trạng thái đóng gói nội bộ của hook `useDraggable`, gây hiện tượng dialog bị giật/snap lại vị trí cũ khi kéo chuột.
   - Căn chỉnh vị trí top an toàn bằng CSS selector lồng `:deep(.el-overlay .el-dialog.mp-dialog)` mà không dùng `!important`.
+* **Cấm Tự Động Đóng Hộp Thoại Khi Click Ra Ngoài — Bắt Buộc `close-on-click-modal="false"` (Rule 20.26)**:
+  - Mọi `<el-dialog>`, `<el-drawer>` và `ElMessageBox.confirm` / `ElMessageBox.prompt` **BẮT BUỘC** đặt `:close-on-click-modal="false"` (hoặc `closeOnClickModal: false` trong đối số tùy chọn).
+  - *Lý do*: Tránh trường hợp người dùng thao tác lệch chuột làm mất dữ liệu đang nhập.
 
 ---
 

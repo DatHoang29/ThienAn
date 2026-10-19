@@ -699,6 +699,41 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
         expect(mappingIndexContent).not.toContain('mappingUsage');
         expect(mappingIndexContent).not.toContain('!important');
     });
+
+    test('8. Hộp thoại editMapping và ElMessageBox.confirm KHÔNG đóng khi click ra ngoài', async ({ page }) => {
+        await page.goto('/#/sharedata/mapping');
+
+        const addBtn = page.locator('button:has-text("Thêm")').first();
+        await expect(addBtn).toBeVisible({ timeout: 15_000 });
+        await addBtn.click();
+
+        const dialog = page.locator('.el-overlay:not([style*="display: none"]) .el-dialog').first();
+        await expect(dialog).toBeVisible({ timeout: 5000 });
+
+        // Click outside tại tọa độ (5, 5)
+        await page.mouse.click(5, 5);
+        await page.waitForTimeout(300);
+        await expect(dialog).toBeVisible();
+
+        // Đóng dialog bằng nút Hủy
+        await dialog.locator('.dialog-footer button:has-text("Hủy")').click();
+        await expect(dialog).toBeHidden({ timeout: 5000 });
+
+        // Kiểm tra ElMessageBox.confirm khi xóa mapping
+        const deleteBtn = page.locator('.vxe-body--row button.el-button--danger').first();
+        if (await deleteBtn.isVisible()) {
+            await deleteBtn.click();
+            const msgBox = page.locator('.el-message-box');
+            await expect(msgBox).toBeVisible({ timeout: 5000 });
+
+            await page.mouse.click(5, 5);
+            await page.waitForTimeout(300);
+            await expect(msgBox).toBeVisible();
+
+            await msgBox.locator('button:has-text("Hủy")').click();
+            await expect(msgBox).toBeHidden({ timeout: 5000 });
+        }
+    });
 });
 
 
