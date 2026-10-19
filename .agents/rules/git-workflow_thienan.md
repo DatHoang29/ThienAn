@@ -61,6 +61,15 @@ description: Git branching workflow, Vietnamese commit conventions, and pre-comm
 * **Dòng 3 trở đi:** Dòng trống, sau đó là các gạch đầu dòng (`- `) ngắn gọn mô tả **fix cái gì / làm cái gì** tại file nào.
 * ⛔ **CẤM tự ý chèn thẻ metadata** `Ref: ...`, `Reviewer: ...`, `CR: ...` khi không có yêu cầu.
 
+### Tính Toàn Vẹn Của Commit (Atomic Commit & Phụ Thuộc Hoàn Chỉnh - Rule 19.93)
+* **Gom đủ tệp liên quan vào cùng 1 commit**: Khi `git add` và commit (`commit -m`), BẮT BUỘC gom toàn bộ các tệp cấu thành và phụ thuộc trực tiếp của tính năng vào cùng một commit (Atomic Commit).
+* **Đặc biệt khi thêm/tách thư viện, project mới**:
+  - Bắt buộc add: Mã nguồn (`.cs`, `.ts`, `.vue`), tệp dự án (`.csproj`, `package.json`).
+  - **Bắt buộc add tệp Solution (`.sln` như `src/TAC_WebAPI.sln`)**: Đăng ký project mới vào solution để IDE (VS Code, Visual Studio) nhận diện và biên dịch được giải pháp.
+  - Bắt buộc add tệp cấu hình (DI registration, extension, `appsettings.json`...) cần thiết để chạy/build project.
+* ⛔ **CẤM commit dở dang / sót tệp cấu trúc**: Tuyệt đối cấm commit mã nguồn hoặc `.csproj` mà quên `.sln`. Việc thiếu `.sln` khiến IDE của thành viên khác khi pull về không thấy project, báo lỗi thiếu reference hoặc lỗi build.
+* ⛔ **CẤM tách thành các commit chắp vá**: Cấm commit code trước rồi mới commit `.sln` ở một commit lẻ tẻ sau đó chỉ vì lúc đầu quên add.
+
 ### Ví Dụ Commit Message Chuẩn:
 ```text
 fix(sharedata): xử lý danh sách lỗi kiểm thử F16 phân hệ sharedata
@@ -111,6 +120,15 @@ fix(sharedata): xử lý danh sách lỗi kiểm thử F16 phân hệ sharedata
      6. `git worktree remove ../_wt-<việc>`.
    - **Repo cha (`main`, không dùng worktree — mục 4.3)**: commit bằng pathspec ở cuối lệnh (`git commit -m ... -- <đường dẫn>`) để không cuốn theo tệp khác đang stage; chỉ `git push origin main` khi `HEAD..origin/main` bằng 0, lớn hơn 0 thì dừng, báo.
    - **Báo cáo sau push**: mã commit; `git log --oneline origin/dev..origin/<nhánh>`; trạng thái thư mục chính (đi sau remote bao nhiêu commit, tệp nào sẽ xung đột khi đồng bộ, thư mục chưa track nào phải xóa trước khi pull vì nội dung đã lên remote).
+5. **Toàn Vẹn Tệp Phụ Thuộc Khi Commit — Bắt Buộc Kèm `.sln`, `.csproj` Khi Thêm/Tách Project Mới (Atomic Commit & Dependency Completeness) (Rule 19.93, bổ sung 19/10/2026)**:
+   - **Nguyên tắc Atomic Commit**: Khi thực hiện `git add` và commit một tính năng, module, hoặc thư viện mới (khi người dùng cho phép): **BẮT BUỘC đưa đầy đủ tất cả các tệp liên quan trực tiếp đến tính năng đó vào cùng một commit**.
+   - **Bắt buộc kèm `.sln` và `.csproj`**: Khi thêm, tách hoặc cấu trúc lại project/thư viện (ví dụ tách thư viện `Modules.Integration.Delivery`):
+     + Tệp mã nguồn (`.cs`, `.ts`, `.vue`);
+     + Tệp dự án (`.csproj`, `package.json`);
+     + **Tệp Solution (`.sln` như `src/TAC_WebAPI.sln`)**: BẮT BUỘC `git add` và commit tệp `.sln` chứa định nghĩa project mới;
+     + Tệp đăng ký DI, extension, hoặc `appsettings.json` liên quan trực tiếp.
+   - ⛔ **TUYỆT ĐỐI CẤM commit dở dang thiếu tệp cấu trúc**: Cấm commit mã nguồn hoặc `.csproj` mà quên `.sln`. Việc thiếu `.sln` trong commit khiến VS Code / Visual Studio của thành viên khác khi pull code về không nhận diện được project mới trong Solution Explorer, Omnisharp/C# Dev Kit báo đỏ và gãy quy trình build giải pháp.
+   - ⛔ **CẤM tách thành các commit chắp vá**: Cấm commit mã nguồn trước rồi commit `.sln` sau ở commit khác chỉ vì quên. Trước khi commit, BẮT BUỘC kiểm tra `git status` để rà soát toàn bộ tệp mới (`??`) và tệp cấu trúc đã được đưa vào Staging đầy đủ.
 
 ---
 
@@ -122,6 +140,6 @@ fix(sharedata): xử lý danh sách lỗi kiểm thử F16 phân hệ sharedata
 5. **Chạy test tự động:** 100% test cases pass (Full Business Flow, E2E Playwright).
 6. **Merge Conflict:** Đồng bộ branch của bạn với `dev` mới nhất **trước mỗi lần push** và trước khi tạo PR (Rule 19.91, mục 4.4).
 7. **Tài liệu:** Cập nhật tài liệu kỹ thuật, MasterPlan nếu có thay đổi logic hoặc API.
-8. **File & Commit Message:** Chỉ commit file liên quan trực tiếp, commit message đúng chuẩn tiếng Việt có dấu.
+8. **File & Toàn Vẹn Tệp Phụ Thuộc (Rule 19.93):** Chỉ commit file liên quan trực tiếp, nhưng BẮT BUỘC gom đầy đủ các tệp cấu trúc (`.sln`, `.csproj`, `package.json`...) khi thêm/đổi project; cấm để sót `.sln` làm gãy solution/IDE của đồng đội. Commit message đúng chuẩn tiếng Việt có dấu.
 9. **Bảo mật & Credentials:** Tuyệt đối không commit API keys, mật khẩu DB, credentials, dữ liệu cá nhân.
 10. **Kiểm tra staging:** Xác nhận hệ thống vận hành ổn định trên staging trước khi release.
