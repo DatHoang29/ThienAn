@@ -153,4 +153,49 @@ public partial class ShareDataPacketControllerTests
         Assert.NotNull(result);
         Assert.Empty(result);
     }
+
+    [Fact]
+    public async Task GetMetadataFields_WhenWhitelistedTableMissingInDb_ReturnsEmpty_Test()
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true, account: $"superadmin_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+        var testId = Guid.NewGuid().ToString("N");
+        var missingTableName = $"ZzMissing{testId}";
+        var testRow = new ShareDataSourceTable
+        {
+            ID = testId,
+            TableName = missingTableName,
+            Name = $"Bảng mẫu chưa migrate {missingTableName}",
+            IsQueryable = true,
+            IsTracked = true,
+            OrderNo = 9999,
+            DefaultAlias = "zm",
+            PacketCodes = "101",
+            Remark = "Test missing table in database"
+        };
+
+        await db.Insertable(testRow).ExecuteCommandAsync();
+
+        try
+        {
+            // Act
+            var fields = await scope.ServiceProvider.CallApiAsync<List<MetadataFieldDto>>(new GetMetadataFieldsInput
+            {
+                TableName = missingTableName
+            });
+
+            // Assert
+            Assert.NotNull(fields);
+            Assert.Empty(fields);
+        }
+        finally
+        {
+            await db.Deleteable<ShareDataSourceTable>()
+                .Where(x => x.ID == testId)
+                .ExecuteCommandAsync();
+        }
+    }
 }
