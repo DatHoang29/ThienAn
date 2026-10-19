@@ -71,17 +71,17 @@ test.describe('ShareData — Kiểm thử 10 lỗi giao diện và logic (Sharin
 	test('Bug 4 — Kênh kết nối: Mở hỗ trợ đầy đủ các kênh WebAPI, File, Kafka, FTP trong modal đối tác', async () => {
 		const content = fs.readFileSync(editPartnerPath, 'utf-8');
 		// Option API không bị disabled
-		expect(content).toMatch(/<el-option [^>]*value="API"[^>]*\/>/);
-		expect(content).not.toMatch(/value="API"[^>]*:disabled="true"/);
+		expect(content).toMatch(/<el-option [^>]*:value="1"[^>]*\/>/);
+		expect(content).not.toMatch(/:value="1"[^>]*:disabled="true"/);
 		// Option File không bị disabled
-		expect(content).toMatch(/<el-option [^>]*value="File"[^>]*\/>/);
-		expect(content).not.toMatch(/value="File"[^>]*:disabled="true"/);
-		// Option Kafka không bị disabled
-		expect(content).toMatch(/<el-option [^>]*value="Kafka"[^>]*\/>/);
-		expect(content).not.toMatch(/value="Kafka"[^>]*:disabled="true"/);
+		expect(content).toMatch(/<el-option [^>]*:value="2"[^>]*\/>/);
+		expect(content).not.toMatch(/:value="2"[^>]*:disabled="true"/);
 		// Option FTP không bị disabled
-		expect(content).toMatch(/<el-option [^>]*value="FTP"[^>]*\/>/);
-		expect(content).not.toMatch(/value="FTP"[^>]*:disabled="true"/);
+		expect(content).toMatch(/<el-option [^>]*:value="3"[^>]*\/>/);
+		expect(content).not.toMatch(/:value="3"[^>]*:disabled="true"/);
+		// Option Kafka không bị disabled
+		expect(content).toMatch(/<el-option [^>]*:value="5"[^>]*\/>/);
+		expect(content).not.toMatch(/:value="5"[^>]*:disabled="true"/);
 	});
 
 
