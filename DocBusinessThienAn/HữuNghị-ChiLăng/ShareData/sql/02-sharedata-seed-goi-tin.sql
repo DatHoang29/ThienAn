@@ -13,7 +13,7 @@ GO
 --              2. Chuẩn hóa SyncMode mặc định theo nghiệp vụ cho các gói còn NULL:
 --                 - Snapshot (1): 101, 102, 105, 108
 --                 - Incremental (2): 103, 104, 106, 107, 109
---              3. Cập nhật Status = 0 (Disable) cho các gói 110* và 111* do tạm hoãn/chưa hoàn thiện.
+--              3. Cập nhật Status = 1 (Enable) cho các gói 110* và Status = 0 (Disable) cho các gói 111*.
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent, không ghi đè dữ liệu quản trị đã sửa).

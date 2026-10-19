@@ -5,10 +5,10 @@ GO
 -- FILE: 04-sharedata-dich-thuat.sql
 -- DESCRIPTION: Bổ sung từ điển bản dịch đa ngôn ngữ (vi-VN, en-US) cho phân hệ ShareData (ESHARE) vào SysTerminology:
 --              1. Chuẩn hóa lại mã khóa cũ thừa tiền tố (như lz.validation...lookbackDaysRange nếu có).
---              2. Nạp toàn bộ 50 mã khóa dịch thuật chuẩn hóa:
---                 - 1 khóa khoảng số ngày quét lùi (lookbackDaysRange).
+--              2. Nạp toàn bộ 53 mã khóa dịch thuật chuẩn hóa (106 bản ghi đa ngôn ngữ vi-VN và en-US):
+--                 - 5 khóa cấu hình và tham số gói tin / đăng ký.
 --                 - 10 khóa quản trị câu truy vấn SQL trích xuất (superAdmin, packetCode, partnerMapping...).
---                 - 39 khóa kiểm tra SQL Validator, Metadata và cấu hình kênh đối tác (OutputPath, ConnectConfig).
+--                 - 38 khóa kiểm tra SQL Validator, Metadata và cấu hình kênh đối tác (OutputPath, ConnectConfig).
 --              3. Cơ chế Idempotent:
 --                 - MERGE chỉ INSERT các bản ghi chưa có (WHEN NOT MATCHED THEN INSERT).
 --                 - Không ghi đè (không UPDATE) lên các nội dung dịch mà quản trị viên đã chỉnh sửa trực tiếp trên DB.
@@ -48,7 +48,7 @@ WHERE Code LIKE N'lz.validation%lookbackDaysRange'
   );
 
 -- -----------------------------------------------------------------------------------------
--- 2. DANH MỤC 49 KHÓA BẢN DỊCH SHAREDATA
+-- 2. DANH MỤC 53 KHÓA BẢN DỊCH SHAREDATA
 -- -----------------------------------------------------------------------------------------
 DECLARE @Translations TABLE (
     [Name] NVARCHAR(64),
