@@ -1692,6 +1692,122 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         }
 
         /// <summary>
+        /// Description: Kiểm thử đua tranh đồng thời giữa 2 worker DataChangeTrackingService cùng poll trên cùng bảng có thay đổi:
+        ///              chỉ đúng 1 worker thực hiện tiến mốc LastVersion và phát trigger NATS đúng 1 lần, worker còn lại bỏ qua an toàn.
+        /// Created date: 19/10/2026
+        /// </summary>
+        [Fact]
+        public async Task PollChanges_WhenTwoWorkersPollSimultaneouslyOnSameTable_OnlyOneWorkerAdvancesAndPublishesTrigger_Test()
+        {
+            await using var scope1 = _host.Services.CreateAsyncScope();
+            await using var scope2 = _host.Services.CreateAsyncScope();
+            var db = scope1.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var config = scope1.ServiceProvider.GetRequiredService<IConfiguration>();
+
+            var transport = _host.Services.GetRequiredService<TransportManager>();
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            await transport.ConnectAsync(cts.Token);
+
+            var testId = Guid.NewGuid().ToString("N")[..8];
+            var uniqueSubject = $"ta.its.event.sharedata.newdata.two_{testId}";
+            var testConfig = new ConfigurationBuilder()
+                .AddConfiguration(config)
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Nats:NewDataSubject"] = uniqueSubject,
+                    ["Nats:Subject"] = uniqueSubject
+                })
+                .Build();
+
+            var eventCount = 0;
+            var probeReceived = 0;
+            if (transport.IsConnected)
+            {
+                transport.Unsubscribe(uniqueSubject);
+                await transport.SubscribeAsync(uniqueSubject, (string msg) =>
+                {
+                    if (msg.Contains("\"Probe\":true", StringComparison.OrdinalIgnoreCase))
+                        Interlocked.Increment(ref probeReceived);
+                    else if (msg.Contains("101_commonData", StringComparison.OrdinalIgnoreCase))
+                        Interlocked.Increment(ref eventCount);
+                    return Task.CompletedTask;
+                });
+
+                var probeDeadline = DateTime.UtcNow.AddSeconds(5);
+                while (DateTime.UtcNow < probeDeadline && Volatile.Read(ref probeReceived) == 0)
+                {
+                    await transport.PublishAsync(uniqueSubject, new { Probe = true });
+                    await Task.Delay(100, cts.Token);
+                }
+            }
+
+            var worker1 = CreateTrackerWorker(scope1, transport, testConfig);
+            var worker2 = CreateTrackerWorker(scope2, transport, testConfig);
+
+            await worker1.ReloadConfig(db);
+            await worker2.ReloadConfig(db);
+
+            await SetStateVersion(db, 0);
+            await worker1.PollChanges(cts.Token);
+            var initialVersion = await GetStateVersion(db);
+            Assert.True(initialVersion >= 0);
+
+            var zoneId = $"ZONE_2W_{testId}";
+            var statusId = Guid.NewGuid().ToString("N");
+
+            await db.Insertable(new TmsZone
+            {
+                ID = zoneId,
+                Name = $"Zone 2W {testId}",
+                FromKmNumber = 30,
+                FromMetNumber = 0,
+                ToKmNumber = 40,
+                ToMetNumber = 0,
+                LaneId = "L1",
+                MaxSpeed = 80
+            }).ExecuteCommandAsync();
+
+            await db.Insertable(new TmsZoneStatus
+            {
+                ID = statusId,
+                ZoneId = zoneId,
+                AverageSpeed = "80.0",
+                Condition = "NORMAL",
+                UpdateTime = DateTime.Now
+            }).ExecuteCommandAsync();
+
+            var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var task1 = Task.Run(async () =>
+            {
+                await tcs.Task;
+                await worker1.PollChanges(cts.Token);
+            });
+            var task2 = Task.Run(async () =>
+            {
+                await tcs.Task;
+                await worker2.PollChanges(cts.Token);
+            });
+
+            tcs.SetResult();
+            await Task.WhenAll(task1, task2);
+
+            var finalState = await GetTrackState(db, "TmsZoneStatus");
+            Assert.NotNull(finalState);
+            Assert.True(finalState!.LastVersion > initialVersion);
+
+            if (transport.IsConnected)
+            {
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                while (eventCount == 0 && sw.ElapsedMilliseconds < 3000)
+                    await Task.Delay(50, cts.Token);
+
+                Assert.Equal(1, eventCount);
+            }
+
+            transport.Unsubscribe(uniqueSubject);
+        }
+
+        /// <summary>
         /// Description: Kiểm thử phân giải định danh gói tin: Khi DatatypeId trong Subscription lưu GUID trỏ tới ShareDataPacket.ID, trigger theo mã Code vẫn phải khớp và xuất bản thành công.
         /// Created date: 23/09/2026
         /// </summary>
@@ -3850,7 +3966,16 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var currentVer = currentVerObj == null || currentVerObj == DBNull.Value ? 0L : Convert.ToInt64(currentVerObj);
             var futureVer = currentVer + 1_000_000L;
 
-            await SetStateVersion(db, futureVer);
+            var testTable = "TmsZoneStatus";
+            await EnsureDefaultTrackTables(db);
+            await db.Updateable<ShareDataSourceTable>()
+                .SetColumns(x => x.LastVersion == 0)
+                .Where(x => x.IsDelete == null && x.IsTracked == true)
+                .ExecuteCommandAsync();
+            await db.Updateable<ShareDataSourceTable>()
+                .SetColumns(x => x.LastVersion == futureVer)
+                .Where(x => x.IsDelete == null && x.TableName == testTable)
+                .ExecuteCommandAsync();
 
             // Act
             var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -3864,7 +3989,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             await Task.WhenAll(tasks);
 
             // Assert
-            var dbState = await GetTrackState(db);
+            var dbState = await GetTrackState(db, testTable);
             Assert.NotNull(dbState);
             Assert.True(dbState!.LastVersion == -1 || (dbState!.LastVersion >= currentVer && dbState!.LastVersion < futureVer));
 
