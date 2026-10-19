@@ -155,6 +155,7 @@ namespace Module.ShareData.Controllers
       - Chỉ thêm đúng project cần thiết phục vụ build/chạy WebAPI.
       - Phải đăng ký đầy đủ và chính xác trong cả 3 khối: `Project(...)`, `ProjectConfigurationPlatforms`, và `NestedProjects` (trỏ đúng thư mục cha chuẩn, ví dụ `Modules`).
       - Không để sót cấu hình rác hoặc mapping mồ côi.
+      - **Đồng bộ commit tệp `.sln` cùng lúc với `.csproj` và mã nguồn (Rule 19.93)**: Khi thêm project mới vào solution, bắt buộc `git add` và commit tệp `.sln` trong cùng commit với project đó; tuyệt đối cấm commit mã nguồn nhưng bỏ quên `.sln` khiến VS Code / Visual Studio không load được project.
 13. **Quy Chuẩn Đặt Tên Kiểu Mới Trong Phân Hệ — Tránh Lặp Tiền Tố (Rule 19.73)**:
     - Khi kiểu mới đã nằm trong namespace hoặc thư mục của phân hệ (ví dụ `Modules.Integration.Delivery`, `Modules.ShareData` hoặc `ShareData/`): **TUYỆT ĐỐI KHÔNG lặp lại tiền tố của phân hệ ở tên kiểu mới**.
       - Ví dụ chuẩn: Viết `FormatContext` thay vì `ShareDataFormatContext`, `EncryptManager` thay vì `ShareDataEncryptManager`.
@@ -340,4 +341,15 @@ namespace Module.ShareData.Controllers
     - **Ảnh hưởng FE**: Swagger đặt tên model theo **tên kiểu** enum (đã kiểm: `BaseEnums.SessionState` sinh ra `api-services/.../models/session-state.ts`). Dời enum vào/ra lớp bọc không đổi tên model; **đổi tên** enum thì phải sinh lại client FE và sửa chỗ dùng.
     - **Thư viện dùng chung** (`Modules.Integration.<X>.Base`, ví dụ Delivery, Barrier): enum đặt ở `.Base/Enums/` của thư viện, theo cách khai báo đã có trong thư viện đó; ⛔ không đặt trong `Shared.DTO`.
     - **Kiểm trước khi bàn giao**: `git diff HEAD -- src/Shared/Shared.DTO/Enums/BaseEnums.cs` không có dòng `- public enum` (không dời enum cũ) và chỉ có `+ public enum` của phân hệ đã có nhóm trong `BaseEnums`; `find_files` thư mục `Modules.<X>.Core/Enums/` chỉ có tệp lớp bọc của phân hệ.
+23. **Toàn Vẹn Tệp Phụ Thuộc Khi Commit — Bắt Buộc Kèm `.sln`, `.csproj` Khi Thêm/Tách Project Mới (Rule 19.93, bổ sung 19/10/2026)**:
+    - **Nguyên tắc Atomic Commit & Toàn vẹn môi trường phát triển**: Khi thêm mới, tách hoặc tái cấu trúc một thư viện/project (ví dụ tách tầng gửi gói tin thành thư viện dùng chung `Modules.Integration.Delivery`):
+      - BẮT BUỘC đưa đồng thời vào cùng một commit:
+        (1) Toàn bộ mã nguồn C# mới (`.cs`);
+        (2) Tệp cấu hình project (`.csproj`);
+        (3) **Tệp Solution (`src/TAC_WebAPI.sln`)** đã đăng ký project vào đúng Solution Folder;
+        (4) Cấu hình DI (Dependency Injection), Extension methods và cấu hình liên quan (nếu có).
+      - ⛔ **TUYỆT ĐỐI CẤM** chỉ commit mã nguồn hoặc `.csproj` mà bỏ sót `.sln`. Việc thiếu `.sln` trong commit khiến thành viên khác (hoặc chính lập trình viên khi mở VS Code / Visual Studio trên môi trường khác) không load được project mới vào Solution Explorer, Omnisharp/C# Dev Kit không nhận diện được reference, gây báo đỏ và gãy quy trình làm việc.
+      - ⛔ **CẤM** tách thành các commit chắp vá (commit mã nguồn trước, sau đó phát hiện thiếu mới commit `.sln` ở commit lẻ tiếp theo).
+      - **Kiểm tra trước khi commit**: Chạy `git status` (hoặc kiểm tra Working Tree) để rà soát: mọi tệp mới trong thư mục project mới đã được `git add`, và tệp `.sln` ở trạng thái staged sẵn sàng commit cùng nhau.
+
 
