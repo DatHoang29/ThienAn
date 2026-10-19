@@ -3,7 +3,7 @@ using Module.ShareData.Core.Dto.ActivityLog;
 using Module.ShareData.Core.Dto.Inbound;
 using Module.ShareData.Core.Entities;
 using Module.ShareData.Infrastructure.Services.ShareDataActivityService;
-using ShareDataWorker.Core.Interfaces;
+using ShareDataWorker.Infrastructure.Services.DataInbound;
 using ShareDataWorker.Infrastructure.Logging;
 using Shared.DTO.Enums;
 using Tests.ShareData.Mocks;
@@ -213,7 +213,7 @@ public partial class DataInboundServiceTests(Host host)
 
         // Act: Worker quét và xử lý
         using var scope = _host.Services.CreateScope();
-        var inboundService = scope.ServiceProvider.GetRequiredService<IDataInboundService>();
+        var inboundService = scope.ServiceProvider.GetRequiredService<DataInboundService>();
         await inboundService.ProcessPendingPackets(CancellationToken.None);
 
         // Assert: Gói tin chuyển sang Done
@@ -307,7 +307,7 @@ public partial class DataInboundServiceTests(Host host)
 
         // Act
         using var scope = _host.Services.CreateScope();
-        var inboundService = scope.ServiceProvider.GetRequiredService<IDataInboundService>();
+        var inboundService = scope.ServiceProvider.GetRequiredService<DataInboundService>();
         await inboundService.ProcessPendingPackets(CancellationToken.None);
 
         // Assert: Gói tin chuyển sang Failed
@@ -381,7 +381,7 @@ public partial class DataInboundServiceTests(Host host)
 
         // Act
         using var scope = _host.Services.CreateScope();
-        var inboundService = scope.ServiceProvider.GetRequiredService<IDataInboundService>();
+        var inboundService = scope.ServiceProvider.GetRequiredService<DataInboundService>();
         await inboundService.ProcessPendingPackets(CancellationToken.None);
 
         // Assert: Gói tin chuyển sang NoSubscription
@@ -436,7 +436,7 @@ public partial class DataInboundServiceTests(Host host)
 
         // Act
         using var scope = _host.Services.CreateScope();
-        var inboundService = scope.ServiceProvider.GetRequiredService<IDataInboundService>();
+        var inboundService = scope.ServiceProvider.GetRequiredService<DataInboundService>();
         await inboundService.ProcessPendingPackets(CancellationToken.None);
 
         // Assert: Gói chuyển Done bình thường
@@ -485,7 +485,7 @@ public partial class DataInboundServiceTests(Host host)
         using var scope = _host.Services.CreateScope();
 
         // 2. Worker xử lý gói
-        var inboundService = scope.ServiceProvider.GetRequiredService<IDataInboundService>();
+        var inboundService = scope.ServiceProvider.GetRequiredService<DataInboundService>();
         await inboundService.ProcessPendingPackets(CancellationToken.None);
 
         // Act: Truy vấn phân trang cho lưới
@@ -537,7 +537,7 @@ public partial class DataInboundServiceTests(Host host)
 
         // Act
         using var scope = _host.Services.CreateScope();
-        var svc = scope.ServiceProvider.GetRequiredService<IDataInboundService>();
+        var svc = scope.ServiceProvider.GetRequiredService<DataInboundService>();
         await svc.ProcessPendingPackets(CancellationToken.None);
 
         // Assert
@@ -583,7 +583,7 @@ public partial class DataInboundServiceTests(Host host)
 
         // Act
         using var scope = _host.Services.CreateScope();
-        var svc = scope.ServiceProvider.GetRequiredService<IDataInboundService>();
+        var svc = scope.ServiceProvider.GetRequiredService<DataInboundService>();
         await svc.ProcessPendingPackets(CancellationToken.None);
 
         // Assert
@@ -630,7 +630,7 @@ public partial class DataInboundServiceTests(Host host)
 
         // Act
         using var scope = _host.Services.CreateScope();
-        var svc = scope.ServiceProvider.GetRequiredService<IDataInboundService>();
+        var svc = scope.ServiceProvider.GetRequiredService<DataInboundService>();
         await svc.ProcessPendingPackets(CancellationToken.None);
 
         // Assert
@@ -674,7 +674,7 @@ public partial class DataInboundServiceTests(Host host)
 
         // Act
         using var scope = _host.Services.CreateScope();
-        var svc = scope.ServiceProvider.GetRequiredService<IDataInboundService>();
+        var svc = scope.ServiceProvider.GetRequiredService<DataInboundService>();
         await svc.ProcessPendingPackets(CancellationToken.None);
 
         // Assert: gói vẫn ở Pending, KHÔNG bị Failed
@@ -716,7 +716,7 @@ public partial class DataInboundServiceTests(Host host)
 
         // Act
         using var scope = _host.Services.CreateScope();
-        var svc = scope.ServiceProvider.GetRequiredService<IDataInboundService>();
+        var svc = scope.ServiceProvider.GetRequiredService<DataInboundService>();
         await svc.ProcessPendingPackets(CancellationToken.None);
 
         // Assert
@@ -755,7 +755,7 @@ public partial class DataInboundServiceTests(Host host)
 
         // Act
         using var scope = _host.Services.CreateScope();
-        var svc = scope.ServiceProvider.GetRequiredService<IDataInboundService>();
+        var svc = scope.ServiceProvider.GetRequiredService<DataInboundService>();
         await svc.ProcessPendingPackets(CancellationToken.None);
 
         // Assert
@@ -795,7 +795,7 @@ public partial class DataInboundServiceTests(Host host)
 
         // Act
         using var scope = _host.Services.CreateScope();
-        var svc = scope.ServiceProvider.GetRequiredService<IDataInboundService>();
+        var svc = scope.ServiceProvider.GetRequiredService<DataInboundService>();
         await svc.ProcessPendingPackets(CancellationToken.None);
 
         // Assert: Gói bị kẹt đã được gỡ và xử lý thành công
@@ -846,7 +846,7 @@ public partial class DataInboundServiceTests(Host host)
 
         // Act
         using var scope = _host.Services.CreateScope();
-        var svc = scope.ServiceProvider.GetRequiredService<IDataInboundService>();
+        var svc = scope.ServiceProvider.GetRequiredService<DataInboundService>();
         await svc.ProcessPendingPackets(CancellationToken.None);
 
         // Assert: gói 1 Failed, gói 2 Done — không bị chặn
@@ -899,7 +899,7 @@ public partial class DataInboundServiceTests(Host host)
 
         // Act
         using var scope = _host.Services.CreateScope();
-        var svc = scope.ServiceProvider.GetRequiredService<IDataInboundService>();
+        var svc = scope.ServiceProvider.GetRequiredService<DataInboundService>();
         await svc.ProcessPendingPackets(CancellationToken.None);
 
         // Assert: Subscription.SerialNbr phải bằng 10 (max)
@@ -943,7 +943,7 @@ public partial class DataInboundServiceTests(Host host)
 
         // Act
         using var scope = _host.Services.CreateScope();
-        var svc = scope.ServiceProvider.GetRequiredService<IDataInboundService>();
+        var svc = scope.ServiceProvider.GetRequiredService<DataInboundService>();
         await svc.ProcessPendingPackets(CancellationToken.None);
 
         // Assert: xử lý thành công dù không có phễu lọc

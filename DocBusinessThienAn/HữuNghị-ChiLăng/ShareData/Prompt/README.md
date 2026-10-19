@@ -19,6 +19,17 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 ## Danh sách Prompt
 
+### 🟢 Refactor hạn chế interface & Furion cho Delivery/Worker (19/10/2026)
+
+| # | Prompt | Task | Phạm vi & Trạng thái |
+|---|---|---|---|
+| 1 | [`sharedata-refactor-phase1b-go-3-interface-delivery-prompt.md`](sharedata-refactor-phase1b-go-3-interface-delivery-prompt.md) | — (Rule 19.94 cập nhật 19/10/2026) | ⏳ **Chưa thực thi.** BE: gỡ 3 interface còn lại của `Modules.Integration.Delivery` (`IDeliverySender`, `IPayloadFormat`, `IEncrypt`); `DeliveryDispatcher` nhận 4 lớp gửi cụ thể và rẽ nhánh theo loại kết nối; `PayloadFormatRegistry` thành 2 hàm tĩnh; `EncryptManager` bỏ `PlainEncrypt`; test kiến trúc kiểm 6 assembly ShareData/Delivery không khai interface. Chạy sau Phase 1 (gỡ 11 interface 1:1 — đã áp, chưa commit), trước #2. |
+| 2 | [`sharedata-refactor-phase2-furion-worker-delivery-prompt.md`](sharedata-refactor-phase2-furion-worker-delivery-prompt.md) | — | ⏳ **Chưa thực thi.** Bật Furion cho `ShareDataWorker` (`Inject(false)`), marker `ISingleton` cho lớp Delivery và Worker, bỏ đăng ký tay; sửa `ShareDataArchitectureTests` cho phép Delivery dùng Furion; smoke test khởi động tiến trình Worker thật. Chạy sau #1. |
+
+📌 Cùng đợt có Phase 1 (gỡ 11 interface 1:1), Phase 3 (ngoại lệ/`BaseMsg`/seed 04), Phase 4 (`Utils` → `Helpers`), Phase 5 (gom tài liệu) được giao trong chat, không lưu tệp. Kiểm WEBAPI 19/10/2026: mới Phase 1 được áp.
+
+---
+
 ### 🔵 Kiểm tra kiểu cột ID của con trỏ nối đuôi (15/10/2026)
 
 | # | Prompt | Task | Phạm vi & Trạng thái |

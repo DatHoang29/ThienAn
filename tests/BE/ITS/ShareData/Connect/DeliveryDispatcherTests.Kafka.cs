@@ -60,7 +60,7 @@ public partial class DeliveryDispatcherTests
         var topic = $"sharedata.test.{Guid.NewGuid():N}";
         var groupId = $"group.test.{Guid.NewGuid():N}";
         using var kafkaSender = new KafkaDeliverySender();
-        var dispatcher = DeliveryDispatcher.CreateForHandlers([kafkaSender]);
+        var dispatcher = new DeliveryDispatcher([kafkaSender]);
 
         var ctx = CreateSendContext(partnerCode: "PARTNER_KAFKA_REAL", connectionType: "Kafka");
         var jsonPayload = "{\"temperature\": 29.2, \"humidity\": 70}";
@@ -286,7 +286,7 @@ public partial class DeliveryDispatcherTests
     {
         // Arrange
         var kafkaSender = new KafkaDeliverySender();
-        var dispatcher = DeliveryDispatcher.CreateForHandlers([kafkaSender]);
+        var dispatcher = new DeliveryDispatcher([kafkaSender]);
         var ctx = CreateDummyContext("101", "PARTNER_KAFKA", ConnectionType.Kafka);
         var jsonPayload = "{\"temperature\": 28.5, \"humidity\": 65}";
         var request = new DeliveryRequest

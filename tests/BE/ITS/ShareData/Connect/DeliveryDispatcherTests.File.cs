@@ -14,7 +14,7 @@ public partial class DeliveryDispatcherTests
     {
         // Arrange
         var fileSender = CreateFileSender();
-        var dispatcher = DeliveryDispatcher.CreateForHandlers([fileSender]);
+        var dispatcher = new DeliveryDispatcher([fileSender]);
         var ctx = CreateDummyContext("103", "PARTNER_FILE", ConnectionType.File);
         var jsonPayload = "{\"vdsCount\": 12, \"speed\": 80}";
         var customDir = "Out/TestPartner";

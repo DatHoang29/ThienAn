@@ -9,7 +9,6 @@ using Modules.TMS.Core.Entities;
 using Modules.TOLL.Core.Entities;
 using Modules.VMS.Core.Entities;
 using Services.Shared.Messaging;
-using ShareDataWorker.Core.Interfaces;
 using ShareDataWorker.Infrastructure.Logging;
 using ShareDataWorker.Infrastructure.Services.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Extraction;
@@ -2533,8 +2532,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             {
                 [ExportPathHelper.BasePathConfigKey] = config.GetSection(ExportPathHelper.BasePathConfigKey).Value ?? Path.Combine(Path.GetTempPath(), "sharedata_send")
             }).Build();
-            var dispatcher = scope.ServiceProvider.GetService<IDeliveryDispatcher>()
-                ?? DeliveryDispatcher.CreateForHandlers([
+            var dispatcher = scope.ServiceProvider.GetService<DeliveryDispatcher>()
+                ?? new DeliveryDispatcher([
                     new HttpDeliverySender(clientFactory),
                     new FileDeliverySender(fileConfig, scope.ServiceProvider.GetRequiredService<ILogger<FileDeliverySender>>()),
                     new KafkaDeliverySender(),
@@ -2546,7 +2545,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 logger,
                 new DataOutboundExtractionProcess(),
                 new DataOutboundTransport(dispatcher, config),
-                scope.ServiceProvider.GetRequiredService<IDataWorkerConfigService>());
+                scope.ServiceProvider.GetRequiredService<DataWorkerConfigService>());
         }
 
         #endregion
@@ -2855,7 +2854,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Arrange
             await using var scope = _host.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            var realService = scope.ServiceProvider.GetRequiredService<ShareDataWorker.Core.Interfaces.IDataOutboundService>();
+            var realService = scope.ServiceProvider.GetRequiredService<DataOutboundService>();
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataNatsService>>();
 
             var testId = Guid.NewGuid().ToString("N")[..8];
@@ -5156,11 +5155,11 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             IServiceScope? scope = null,
             TransportManager? transport = null,
             IConfiguration? config = null,
-            IDataWorkerConfigService? workerConfig = null)
+            DataWorkerConfigService? workerConfig = null)
         {
             var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
             var logger = (scope?.ServiceProvider ?? _host.Services).GetRequiredService<ILogger<DataChangeTrackingService>>();
-            workerConfig ??= (scope?.ServiceProvider ?? _host.Services).GetRequiredService<IDataWorkerConfigService>();
+            workerConfig ??= (scope?.ServiceProvider ?? _host.Services).GetRequiredService<DataWorkerConfigService>();
             transport ??= new TransportManager(new ConfigurationBuilder().Build());
             config ??= _host.Services.GetService<IConfiguration>();
             return new DataChangeTrackingService(scopeFactory, logger, transport, workerConfig, config);

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using Module.ShareData.Core.Entities;
+using Modules.Integration.Delivery;
 using Modules.Integration.Delivery.Base.Constants;
 using Modules.Integration.Delivery.Base.Helpers;
 using Modules.Integration.Delivery.Base.Interfaces;
@@ -13,7 +14,7 @@ namespace Tests.ShareData.Services
     /// <summary>
     /// Author: DatHQ
     /// Description: Bộ kiểm thử đơn vị và tích hợp cho chặng chuyển giao dữ liệu kết xuất (DataOutboundTransport):
-    ///              kiểm chứng định dạng payload, lưu tệp bằng chứng vô điều kiện, chuyển giao qua IDeliveryDispatcher thật
+    ///              kiểm chứng định dạng payload, lưu tệp bằng chứng vô điều kiện, chuyển giao qua DeliveryDispatcher thật
     ///              và xử lý kết quả/cảnh báo lỗi (Rule 19.18).
     /// Created date: 16/10/2026
     /// </summary>
@@ -21,14 +22,14 @@ namespace Tests.ShareData.Services
     public class DataOutboundTransportTests : IDisposable
     {
         private readonly Host _host;
-        private readonly IDeliveryDispatcher _dispatcher;
+        private readonly DeliveryDispatcher _dispatcher;
         private readonly string _tempDirectory;
 
         public DataOutboundTransportTests(Host host)
         {
             _host = host;
             _host.PartnerServer.ResetDefaults();
-            _dispatcher = _host.Services.GetRequiredService<IDeliveryDispatcher>();
+            _dispatcher = _host.Services.GetRequiredService<DeliveryDispatcher>();
 
             var hostConfig = _host.Services.GetRequiredService<IConfiguration>();
             var basePath = hostConfig.GetValue<string>(ExportPathHelper.BasePathConfigKey) ?? ExportPathHelper.DefaultBasePath;

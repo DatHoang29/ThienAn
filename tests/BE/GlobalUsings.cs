@@ -15,8 +15,10 @@ global using Xunit;
 
 // ─── Shared của dự án ───
 global using Module.ShareData.Core.Constants;
+#if !TFM_WINDOWS
 global using Modules.Integration.Delivery.Base.Enums;
 global using ShareDataWorker.Core.Enums;
+#endif
 global using Shared.DTO.Constants.Application;
 global using Shared.DTO.Constants.Localization;
 global using Shared.DTO.Enums;

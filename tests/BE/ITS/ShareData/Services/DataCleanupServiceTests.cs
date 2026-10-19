@@ -1,5 +1,5 @@
 using Module.ShareData.Core.Entities;
-using ShareDataWorker.Core.Interfaces;
+using ShareDataWorker.Infrastructure.Services.DataCleanup;
 using ShareDataWorker.Infrastructure.Logging;
 
 namespace Tests.ShareData.Services;
@@ -24,7 +24,7 @@ public class DataCleanupServiceTests(Host host)
         // Arrange
         using var scope = _host.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-        var cleanupService = scope.ServiceProvider.GetRequiredService<IDataCleanupService>();
+        var cleanupService = scope.ServiceProvider.GetRequiredService<DataCleanupService>();
 
         var oldTime = (await db.Ado.GetDateTimeAsync("SELECT GETDATE()")).AddDays(-30);
         var trackingId = Guid.NewGuid().ToString("N");

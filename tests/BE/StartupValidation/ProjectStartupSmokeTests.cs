@@ -1,6 +1,7 @@
 #if HAS_SHAREDATAWORKER
-using ShareDataWorker.Core.Interfaces;
 using ShareDataWorker.Extensions;
+using ShareDataWorker.Infrastructure.Services.DataInbound;
+using ShareDataWorker.Infrastructure.Services.DataOutbound;
 #endif
 #if HAS_VIDEOWALL_WPF
 using Module.VideoWall.WPF.Api;
@@ -95,8 +96,8 @@ namespace Tests.StartupValidation
 
             using var host = builder.Build();
             Assert.NotNull(host);
-            Assert.NotNull(host.Services.GetService<IDataOutboundService>());
-            Assert.NotNull(host.Services.GetService<IDataInboundService>());
+            Assert.NotNull(host.Services.GetService<DataOutboundService>());
+            Assert.NotNull(host.Services.GetService<DataInboundService>());
         }
 #endif
 

@@ -1,7 +1,7 @@
 using System.Net;
 using ShareDataWorker.Core.Utils.Parsing;
-using ShareDataWorker.Core.Interfaces;
-using ShareDataWorker.Core.Interfaces.DataOutbound;
+using ShareDataWorker.Infrastructure.Services.DataOutbound.Extraction;
+using ShareDataWorker.Infrastructure.Services.WorkerConfig;
 using ShareDataWorker.Core.Models.DataOutbound;
 using System.Globalization;
 using System.Text;
@@ -6067,7 +6067,9 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             });
 
             var eventTypeId = $"ET_LOCK_{unique}";
-            await db.Insertable(new TmsEventType { ID = eventTypeId, Name = "Incident Lock Test" }).ExecuteCommandAsync();
+            await db.Insertable(new TmsEventType { ID = eventTypeId, Name = "Incident Lock Test" })
+                .InsertColumns(x => new { x.ID, x.Name })
+                .ExecuteCommandAsync();
 
             var incidents = new List<TmsIncident>();
             for (var i = 1; i <= 250; i++)
@@ -6209,7 +6211,9 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             });
 
             var eventTypeId = $"ET_TREE_{unique}";
-            await db.Insertable(new TmsEventType { ID = eventTypeId, Name = "Incident Tree Test" }).ExecuteCommandAsync();
+            await db.Insertable(new TmsEventType { ID = eventTypeId, Name = "Incident Tree Test" })
+                .InsertColumns(x => new { x.ID, x.Name })
+                .ExecuteCommandAsync();
 
             var incidents = new List<TmsIncident>();
             for (var i = 1; i <= 250; i++)
@@ -6311,7 +6315,9 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             });
 
             var eventTypeId = $"ET_GRID_{unique}";
-            await db.Insertable(new TmsEventType { ID = eventTypeId, Name = "Incident Grid Test" }).ExecuteCommandAsync();
+            await db.Insertable(new TmsEventType { ID = eventTypeId, Name = "Incident Grid Test" })
+                .InsertColumns(x => new { x.ID, x.Name })
+                .ExecuteCommandAsync();
 
             var incidents = new List<TmsIncident>();
             for (var i = 1; i <= 250; i++)
@@ -7014,8 +7020,8 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             {
                 [ExportPathHelper.BasePathConfigKey] = config.GetSection(ExportPathHelper.BasePathConfigKey).Value ?? Path.Combine(Path.GetTempPath(), "sharedata_send")
             }).Build();
-            var dispatcher = scope.ServiceProvider.GetService<IDeliveryDispatcher>()
-                ?? DeliveryDispatcher.CreateForHandlers([
+            var dispatcher = scope.ServiceProvider.GetService<DeliveryDispatcher>()
+                ?? new DeliveryDispatcher([
                     new HttpDeliverySender(clientFactory),
                     new FileDeliverySender(fileConfig, scope.ServiceProvider.GetRequiredService<ILogger<FileDeliverySender>>()),
                     new KafkaDeliverySender(),
@@ -7025,9 +7031,9 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             return new DataOutboundService(
                 scopeFactory,
                 logger,
-                scope.ServiceProvider.GetRequiredService<IDataOutboundExtractionProcess>(),
+                scope.ServiceProvider.GetRequiredService<DataOutboundExtractionProcess>(),
                 new DataOutboundTransport(dispatcher, config),
-                scope.ServiceProvider.GetRequiredService<IDataWorkerConfigService>());
+                scope.ServiceProvider.GetRequiredService<DataWorkerConfigService>());
         }
 
         /// <summary>

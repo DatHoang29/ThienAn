@@ -13,11 +13,12 @@ using Modules.Integration.Delivery;
 using Modules.Integration.Delivery.Senders;
 using Modules.TMS.Core.Entities;
 using Modules.TOLL.Core.Entities;
-using ShareDataWorker.Core.Interfaces;
-using ShareDataWorker.Core.Interfaces.DataOutbound;
 using ShareDataWorker.Infrastructure.Logging;
+using ShareDataWorker.Infrastructure.Services.DataInbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound;
+using ShareDataWorker.Infrastructure.Services.DataOutbound.Extraction;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
+using ShareDataWorker.Infrastructure.Services.WorkerConfig;
 using Tests.ShareData.Common;
 
 namespace Tests.ShareData.Services
@@ -61,13 +62,13 @@ namespace Tests.ShareData.Services
         {
             var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataOutboundService>>();
-            var extraction = scope.ServiceProvider.GetRequiredService<IDataOutboundExtractionProcess>();
+            var extraction = scope.ServiceProvider.GetRequiredService<DataOutboundExtractionProcess>();
             var clientFact = new DelegatingClientFactory(clientFactory);
             var fileConfig = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
             {
                 [ExportPathHelper.BasePathConfigKey] = configuration.GetValue<string>(ExportPathHelper.BasePathConfigKey) ?? Path.Combine(Path.GetTempPath(), "sharedata_send")
             }).Build();
-            var dispatcher = DeliveryDispatcher.CreateForHandlers([
+            var dispatcher = new DeliveryDispatcher([
                 new HttpDeliverySender(clientFact),
                 new FileDeliverySender(fileConfig, scope.ServiceProvider.GetRequiredService<ILogger<FileDeliverySender>>()),
                 new KafkaDeliverySender(),
@@ -79,7 +80,7 @@ namespace Tests.ShareData.Services
                 logger,
                 extraction,
                 new DataOutboundTransport(dispatcher, configuration),
-                scope.ServiceProvider.GetRequiredService<IDataWorkerConfigService>());
+                scope.ServiceProvider.GetRequiredService<DataWorkerConfigService>());
         }
 
         #region 1. Test Gói Snapshot (Gói 105 - RFID Data)
@@ -267,7 +268,7 @@ namespace Tests.ShareData.Services
                 // Act 2: Chạy DataInboundService để MERGE vào bảng đích
                 using (var scope = _host.Services.CreateScope())
                 {
-                    var inboundWorker = scope.ServiceProvider.GetRequiredService<IDataInboundService>();
+                    var inboundWorker = scope.ServiceProvider.GetRequiredService<DataInboundService>();
                     await inboundWorker.ProcessPendingPackets(CancellationToken.None);
                 }
 
@@ -315,7 +316,7 @@ namespace Tests.ShareData.Services
                         RawContent = inboundPkt.RawContent
                     });
 
-                    var inboundWorker = scope.ServiceProvider.GetRequiredService<IDataInboundService>();
+                    var inboundWorker = scope.ServiceProvider.GetRequiredService<DataInboundService>();
                     await inboundWorker.ProcessPendingPackets(CancellationToken.None);
                 }
 
@@ -468,7 +469,7 @@ namespace Tests.ShareData.Services
                     var worker = CreateWorker(scope, config, () => _host.CreateApiClient());
                     await worker.ProcessSubscriptions(CancellationToken.None);
 
-                    var inboundWorker = scope.ServiceProvider.GetRequiredService<IDataInboundService>();
+                    var inboundWorker = scope.ServiceProvider.GetRequiredService<DataInboundService>();
                     await inboundWorker.ProcessPendingPackets(CancellationToken.None);
                 }
 
@@ -525,7 +526,7 @@ namespace Tests.ShareData.Services
                     var worker = CreateWorker(scope, config, () => _host.CreateApiClient());
                     await worker.ProcessSubscriptions(CancellationToken.None);
 
-                    var inboundWorker = scope.ServiceProvider.GetRequiredService<IDataInboundService>();
+                    var inboundWorker = scope.ServiceProvider.GetRequiredService<DataInboundService>();
                     await inboundWorker.ProcessPendingPackets(CancellationToken.None);
                 }
 
@@ -847,7 +848,7 @@ namespace Tests.ShareData.Services
             await bus.InvokeAsync(input);
 
             // Act 2: Worker xử lý
-            var inboundService = scope.ServiceProvider.GetRequiredService<IDataInboundService>();
+            var inboundService = scope.ServiceProvider.GetRequiredService<DataInboundService>();
             await inboundService.ProcessPendingPackets(CancellationToken.None);
 
             // Assert: Bản ghi vào bảng đích đúng cấu trúc và giá trị
@@ -912,7 +913,7 @@ namespace Tests.ShareData.Services
 
             using var scope = _host.Services.CreateScope();
             var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
-            var inboundService = scope.ServiceProvider.GetRequiredService<IDataInboundService>();
+            var inboundService = scope.ServiceProvider.GetRequiredService<DataInboundService>();
 
             // Act: Gửi lần 1 và xử lý qua điểm vào MessageBus
             await bus.InvokeAsync(new ShareDataAddInboundInput

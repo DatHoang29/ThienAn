@@ -84,7 +84,7 @@ public partial class DeliveryDispatcherTests
     public async Task DispatchAsync_WhenPartnerConnectionTypeIsUnknown_ReturnsUnsupportedError_Test()
     {
         // Arrange
-        var dispatcher = DeliveryDispatcher.CreateForHandlers([]);
+        var dispatcher = new DeliveryDispatcher([]);
         var request = new DeliveryRequest
         {
             JsonPayload = "{}",
@@ -250,7 +250,7 @@ public partial class DeliveryDispatcherTests
         Assert.Equal(4, senderTypes.Distinct().Count());
 
         // DeliveryDispatcher chọn đúng kênh
-        var dispatcher = _host.Services.GetRequiredService<IDeliveryDispatcher>();
+        var dispatcher = _host.Services.GetRequiredService<DeliveryDispatcher>();
         var request = new DeliveryRequest
         {
             JsonPayload = "{}",
@@ -281,7 +281,7 @@ public partial class DeliveryDispatcherTests
         // Arrange
         var tempDir = Path.Combine(Path.GetTempPath(), $"sharedata_dispatch_rawconfig_{Guid.NewGuid():N}");
         var fileSender = CreateFileSender(tempDir);
-        var dispatcher = DeliveryDispatcher.CreateForHandlers([fileSender]);
+        var dispatcher = new DeliveryDispatcher([fileSender]);
         var ctx = CreateSendContext(partnerCode: "PARTNER_RAWCONFIG", connectionType: "File");
 
         var request = new DeliveryRequest
@@ -315,7 +315,7 @@ public partial class DeliveryDispatcherTests
     {
         // Arrange
         var ftpSender = new FtpDeliverySender();
-        var dispatcher = DeliveryDispatcher.CreateForHandlers([ftpSender]);
+        var dispatcher = new DeliveryDispatcher([ftpSender]);
         var ctx = CreateSendContext(partnerCode: "PARTNER_FTPS_AUTOSSL", connectionType: "Ftps");
 
         var request = new DeliveryRequest
@@ -341,7 +341,7 @@ public partial class DeliveryDispatcherTests
 internal static class TestTransportExtensions
 {
     public static Task<DeliveryResult> Dispatch(
-        this IDeliveryDispatcher dispatcher,
+        this DeliveryDispatcher dispatcher,
         DeliveryRequest request,
         DataOutboundContext ctx,
         CancellationToken ct = default)

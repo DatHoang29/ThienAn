@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Module.ShareData.Core.Dto.ActivityLog;
 using Module.ShareData.Core.Entities;
-using ShareDataWorker.Core.Interfaces;
+using ShareDataWorker.Infrastructure.Services.DataInbound;
 using ShareDataWorker.Infrastructure.Logging;
 using Shared.DTO.Enums;
 
@@ -42,7 +42,7 @@ public partial class DataInboundServiceTests
 
         // Act
         using var scope = _host.Services.CreateScope();
-        await scope.ServiceProvider.GetRequiredService<IDataInboundService>().ProcessPendingPackets(CancellationToken.None);
+        await scope.ServiceProvider.GetRequiredService<DataInboundService>().ProcessPendingPackets(CancellationToken.None);
 
         // Assert
         var updated = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packetEntity.ID);
@@ -79,7 +79,7 @@ public partial class DataInboundServiceTests
 
         // Act
         using var scope = _host.Services.CreateScope();
-        await scope.ServiceProvider.GetRequiredService<IDataInboundService>().ProcessPendingPackets(CancellationToken.None);
+        await scope.ServiceProvider.GetRequiredService<DataInboundService>().ProcessPendingPackets(CancellationToken.None);
 
         // Assert
         var processed = await _inboundDb.Queryable<ShareDataInboundPacket>()
@@ -108,7 +108,7 @@ public partial class DataInboundServiceTests
 
         // Act
         using var scope = _host.Services.CreateScope();
-        await scope.ServiceProvider.GetRequiredService<IDataInboundService>().ProcessPendingPackets(CancellationToken.None);
+        await scope.ServiceProvider.GetRequiredService<DataInboundService>().ProcessPendingPackets(CancellationToken.None);
 
         // Assert
         var processed = await _inboundDb.Queryable<ShareDataInboundPacket>()
@@ -144,7 +144,7 @@ public partial class DataInboundServiceTests
 
         // Act
         using var scope = _host.Services.CreateScope();
-        await scope.ServiceProvider.GetRequiredService<IDataInboundService>().ProcessPendingPackets(CancellationToken.None);
+        await scope.ServiceProvider.GetRequiredService<DataInboundService>().ProcessPendingPackets(CancellationToken.None);
 
         // Assert
         var marker = await _inboundDb.Queryable<ShareDataInboundPacket>().Where(p => p.ID == markerId).FirstAsync();
@@ -175,7 +175,7 @@ public partial class DataInboundServiceTests
 
         // Act
         using var scope = _host.Services.CreateScope();
-        await scope.ServiceProvider.GetRequiredService<IDataInboundService>().ProcessPendingPackets(CancellationToken.None);
+        await scope.ServiceProvider.GetRequiredService<DataInboundService>().ProcessPendingPackets(CancellationToken.None);
 
         // Assert
         var updated = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packetEntity.ID);
@@ -202,7 +202,7 @@ public partial class DataInboundServiceTests
 
         // Act
         using var scope = _host.Services.CreateScope();
-        await scope.ServiceProvider.GetRequiredService<IDataInboundService>().ProcessPendingPackets(CancellationToken.None);
+        await scope.ServiceProvider.GetRequiredService<DataInboundService>().ProcessPendingPackets(CancellationToken.None);
 
         // Assert
         var updated = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packetEntity.ID);
@@ -235,7 +235,7 @@ public partial class DataInboundServiceTests
         var packetEntity = await SeedPendingPacket(partner.Code!, packet.Code!, 1, "{\"data\":[{\"id\":\"1\",\"val\":\"A\"}]}", DateTime.Now);
 
         using var scope = _host.Services.CreateScope();
-        var service = scope.ServiceProvider.GetRequiredService<IDataInboundService>();
+        var service = scope.ServiceProvider.GetRequiredService<DataInboundService>();
         await service.ProcessPendingPackets(CancellationToken.None);
         var stateWhilePaused = (await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packetEntity.ID)).ProcessState;
 
@@ -296,7 +296,7 @@ public partial class DataInboundServiceTests
 
         // Act
         using var scope = _host.Services.CreateScope();
-        await scope.ServiceProvider.GetRequiredService<IDataInboundService>().ProcessPendingPackets(CancellationToken.None);
+        await scope.ServiceProvider.GetRequiredService<DataInboundService>().ProcessPendingPackets(CancellationToken.None);
 
         // Assert
         var updated = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packetEntity.ID);
@@ -348,7 +348,7 @@ public partial class DataInboundServiceTests
 
         // Act
         using var scope = _host.Services.CreateScope();
-        await scope.ServiceProvider.GetRequiredService<IDataInboundService>().ProcessPendingPackets(CancellationToken.None);
+        await scope.ServiceProvider.GetRequiredService<DataInboundService>().ProcessPendingPackets(CancellationToken.None);
 
         // Assert
         var updated = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packetEntity.ID);

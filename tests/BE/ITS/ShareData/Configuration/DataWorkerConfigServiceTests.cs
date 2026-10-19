@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Modules.CfgSystem.Core.Entities;
 using ShareDataWorker.Core.Configuration;
-using ShareDataWorker.Core.Interfaces;
 using ShareDataWorker.Infrastructure.Services.WorkerConfig;
 
 namespace Tests.ShareData.Configuration;
@@ -194,11 +193,10 @@ public class DataWorkerConfigServiceTests(Host host)
     {
         // Act
         using var scope = _host.Services.CreateScope();
-        var service = scope.ServiceProvider.GetRequiredService<IDataWorkerConfigService>();
+        var service = scope.ServiceProvider.GetRequiredService<DataWorkerConfigService>();
 
         // Assert
         Assert.NotNull(service);
-        Assert.IsType<DataWorkerConfigService>(service);
     }
 
     [Fact]

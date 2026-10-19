@@ -12,7 +12,7 @@ namespace Tests.ShareData.Connect
     /// Description: Bộ kiểm thử đơn vị cho EncryptManager và EncryptKeyReader ở tầng kết nối.
     ///              Kiểm chứng các luồng mã hóa, giải mã, bọc ngoại lệ DecryptFailedException và điều phối theo chiều Outbound/Inbound.
     /// Created date: 16/10/2026
-    /// Modified date: 18/10/2026 (Chuyển sang IEncryptKeyReader và EncryptKeyReader)
+    /// Modified date: 19/10/2026 (Chuyển sang EncryptKeyReader)
     /// </summary>
     public class EncryptManagerTests
     {
