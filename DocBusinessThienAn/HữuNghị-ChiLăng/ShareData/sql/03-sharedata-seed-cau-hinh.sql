@@ -10,12 +10,12 @@ GO
 --              3. Nạp danh mục 15 bảng nguồn vào ShareDataSourceTable (IsTracked = 0 cho TmsEquipment,
 --                 IsQueryable = 1 cả 15 bảng; CodeFirst tạo khung trước theo Rule 19.85).
 --              4. Khai báo nhóm 'sharedata_config' vào SysConfigData (loại 'operation_config_type'),
---                 nạp 47 tham số vận hành & giới hạn kiểm tra vào SysOpConfig (18 mã Worker, 23 mã FE,
+--                 nạp 48 tham số vận hành & giới hạn kiểm tra vào SysOpConfig (19 mã Worker, 23 mã FE,
 --                 6 mã BE) và xóa mềm nhóm cũ 'sharedata_fe_config'.
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent, không ghi đè cấu hình đã sửa).
--- CẬP NHẬT LẦN CUỐI: 18/10/2026
+-- CẬP NHẬT LẦN CUỐI: 19/10/2026
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -305,10 +305,10 @@ PRINT N'   -> Đã seed ' + CAST(@InsertedSources AS NVARCHAR(10)) + N' bảng n
 GO
 
 -- -----------------------------------------------------------------------------------------
--- 4. KHỞI TẠO NHÓM sharedata_config TRONG SysConfigData VÀ SEED 47 THAM SỐ SysOpConfig
+-- 4. KHỞI TẠO NHÓM sharedata_config TRONG SysConfigData VÀ SEED 48 THAM SỐ SysOpConfig
 -- -----------------------------------------------------------------------------------------
 SET NOCOUNT ON;
-PRINT N'-> 4. Khởi tạo nhóm cấu hình hoạt động [sharedata_config] và nạp 47 tham số vào SysOpConfig...';
+PRINT N'-> 4. Khởi tạo nhóm cấu hình hoạt động [sharedata_config] và nạp 48 tham số vào SysOpConfig...';
 
 DECLARE @TenantIdOp NVARCHAR(64) = (SELECT TOP 1 CAST([TenantId] AS NVARCHAR(64)) FROM [dbo].[SysOpConfig] WHERE [TenantId] IS NOT NULL);
 IF @TenantIdOp IS NULL
@@ -362,7 +362,7 @@ BEGIN
     PRINT N'   -> ⚠️ Không tìm thấy SysConfigType [operation_config_type], bỏ qua đăng ký nhóm vào SysConfigData.';
 END
 
--- 4.2 Khai báo danh sách 47 tham số nhóm sharedata_config (18 mã Worker + 23 mã FE + 6 mã BE)
+-- 4.2 Khai báo danh sách 48 tham số nhóm sharedata_config (19 mã Worker + 23 mã FE + 6 mã BE)
 DECLARE @OpConfigs TABLE (
     [Code]    NVARCHAR(128),
     [Name]    NVARCHAR(128),
@@ -373,7 +373,7 @@ DECLARE @OpConfigs TABLE (
 
 INSERT INTO @OpConfigs ([Code], [Name], [Value], [OrderNo], [Remark])
 VALUES
-    -- A. 18 tham số vận hành của ShareDataWorker
+    -- A. 19 tham số vận hành của ShareDataWorker
     (N'outbound_check_interval_sec', N'Chu kỳ quét gửi gói tin (giây)', N'5', 10,
      N'Chu kỳ vòng lặp quét gửi gói tin của Outbound Worker (giây, khoảng cho phép: 1–300).'),
     (N'inbound_check_interval_sec', N'Chu kỳ quét nhận gói tin (giây)', N'5', 11,
@@ -410,6 +410,8 @@ VALUES
      N'Số ngày giữ lịch sử thay đổi CHANGE_RETENTION khi tự bật Change Tracking cho CSDL (ngày, khoảng cho phép: 1–30).'),
     (N'cleanup_interval_min', N'Chu kỳ chạy dọn dẹp định kỳ (phút)', N'1440', 46,
      N'Chu kỳ lặp của tác vụ dọn dẹp định kỳ (phút, khoảng cho phép: 60–10080, mặc định 1440 = 24 giờ).'),
+    (N'reload_interval_sec', N'Chu kỳ nạp lại cấu hình và danh sách bảng nguồn (giây)', N'30', 47,
+     N'Chu kỳ nạp lại cấu hình vận hành và danh sách bảng nguồn từ CSDL (giây, khoảng cho phép: 5–3600, mặc định 30).'),
 
     -- B. 23 tham số giới hạn giao diện FE & dùng chung WebAPI
     (N'subscription_interval_sec_min', N'Chu kỳ gửi - tối thiểu', N'5', 101,

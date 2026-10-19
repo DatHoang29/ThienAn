@@ -27,13 +27,13 @@
 **Quyết định cập nhật (17/10/2026):**
 - **Danh mục bảng nguồn chuyển sang bảng riêng `ShareDataSourceTable`:** Đây là quy tắc nghiệp vụ riêng của ShareData (quản lý bảng nguồn phục vụ Change Tracking và bộ dựng SQL Query Builder). Bảng không có giao diện người dùng; sửa trực tiếp bằng `.sql` để truy vết lỗi nhanh và kiểm soát chặt chẽ.
 - **Mã lỗi ESH và bản dịch vẫn dùng bảng hệ thống chung:** `SysConfigType/SysConfigData` (25 mã `ESH-xxxx`) và `SysTerminology` (`lz.*`).
-- **`SysOpConfig` nhóm `sharedata_config`:** Lưu 47 tham số vận hành và giới hạn cấu hình động (18 tham số Worker, 23 tham số FE, 6 tham số WebAPI), toàn bộ đều có giá trị mặc định dự phòng an toàn và khoảng an toàn tuyệt đối trong mã nguồn (khai tập trung tại `ShareDataConst.cs` thuộc `Module.ShareData.Core/Constants`, nạp qua `ShareDataConfigService` ở WebAPI và `DataWorkerConfigService` ở Worker).
+- **`SysOpConfig` nhóm `sharedata_config`:** Lưu 48 tham số vận hành và giới hạn cấu hình động (19 tham số Worker, 23 tham số FE, 6 tham số WebAPI), toàn bộ đều có giá trị mặc định dự phòng an toàn và khoảng an toàn tuyệt đối trong mã nguồn (khai tập trung tại `ShareDataConst.cs` thuộc `Module.ShareData.Core/Constants`, nạp qua `ShareDataConfigService` ở WebAPI và `DataWorkerConfigService` ở Worker).
 
 | Bảng chung | Quyết định | Các phân hệ khác dùng thế nào (căn cứ mã nguồn) | ShareData dùng cho |
 |---|---|---|---|
 | `SysConfigType` / `SysConfigData` | **Giữ** | TMS, VideoWall, Toll, Mail đều dùng cùng cách: `tms_zone_type`, `vehicle_type`, `tms_incident_status`, `equipment_state`, `videowall_controller_color`, `videowall_event_source`, `toll_*`, `mail_trigger_type`… (khai ở seed `SysConfigTypeSeedData.cs` và enum FE `BaseConfigTypeEnum`) | Danh mục giá trị `sharedata_*`: `sharedata_error_code` (25 mã `ESH-xxxx`), `sharedata_direction`, `sharedata_session_state`… |
 | `SysTerminology` | **Giữ, không đổi** | Toàn hệ thống dùng chung cho bản dịch `lz.*` | Nhãn, thông báo, lỗi đa ngôn ngữ của ShareData |
-| `SysOpConfig` | **Giữ** | Cấu hình vận hành của từng phân hệ nằm trong bảng này theo `GroupCode`. Nhóm đang dùng trong mã: `cctv_config`, `cctv_public_equipment_ids`, `mail_config`, `noti_config`, `toll_config`, `vds_config`, `operation_config`, `tms_traffic_matrix` (thêm `media_config`, `wp_config`, `vms_config`… trên staging, bảng bên dưới) | Nhóm `sharedata_config`: 47 tham số vận hành và giới hạn (18 Worker, 23 FE, 6 WebAPI), nạp lại định kỳ |
+| `SysOpConfig` | **Giữ** | Cấu hình vận hành của từng phân hệ nằm trong bảng này theo `GroupCode`. Nhóm đang dùng trong mã: `cctv_config`, `cctv_public_equipment_ids`, `mail_config`, `noti_config`, `toll_config`, `vds_config`, `operation_config`, `tms_traffic_matrix` (thêm `media_config`, `wp_config`, `vms_config`… trên staging, bảng bên dưới) | Nhóm `sharedata_config`: 48 tham số vận hành và giới hạn (19 Worker, 23 FE, 6 WebAPI), nạp lại định kỳ |
 
 **Vì sao chọn bảng riêng `ShareDataSourceTable` thay cho bảng chung `SysOpConfig` và `ShareDataTrackVersion` cũ:**
 - Tách biệt rõ ràng quy tắc bảng nguồn của ShareData với các cấu hình vận hành dùng chung.
@@ -92,7 +92,7 @@
 | `tms_incident_action_group` | 2 | Nhóm hành động sự cố TMS |
 | `tms_traffic_matrix` | 2 | Ma trận lưu lượng TMS |
 
-📌 Nhóm `sharedata_tracker` (danh sách bảng theo dõi Change Tracking cũ của ShareData) đã được **bãi bỏ ngày 17/10/2026** và chuyển sang bảng riêng `ShareDataSourceTable` của ShareData. Nhóm cấu hình mới của ShareData trên `SysOpConfig` là `sharedata_config` (46 tham số vận hành và giới hạn).
+📌 Nhóm `sharedata_tracker` (danh sách bảng theo dõi Change Tracking cũ của ShareData) đã được **bãi bỏ ngày 17/10/2026** và chuyển sang bảng riêng `ShareDataSourceTable` của ShareData. Nhóm cấu hình mới của ShareData trên `SysOpConfig` là `sharedata_config` (48 tham số vận hành và giới hạn).
 
 #### `SysOpConfig` — cách cấu hình: API, giao diện, script
 
@@ -106,7 +106,7 @@
 | **Service/Worker** | Đọc trực tiếp bảng theo `GroupCode` (mẫu `CctvOptionsLoader`), **không** đi qua API | Dòng thêm/sửa bằng màn hình hay bằng script đều có hiệu lực như nhau |
 | **Script `.sql`** | Thư mục `sql/` của từng phân hệ | Nạp một lần cấu hình mặc định, chạy được trên nhiều môi trường; không phải kênh cấu hình duy nhất |
 
-> 📌 Với ShareData: Danh mục bảng nguồn và mốc Change Tracking được cấu hình trực tiếp bằng SQL trên bảng riêng `ShareDataSourceTable` (không có giao diện, Worker nạp lại định kỳ theo `ConfigReloadSeconds`). Màn hình *Cấu hình hoạt động* dùng để quản trị 46 tham số vận hành và giới hạn thuộc nhóm `sharedata_config` (script `03-sharedata-seed-cau-hinh.sql` mục 4 đã seed).
+> 📌 Với ShareData: Danh mục bảng nguồn và mốc Change Tracking được cấu hình trực tiếp bằng SQL trên bảng riêng `ShareDataSourceTable` (không có giao diện, Worker nạp lại định kỳ theo tham số `reload_interval_sec` trong `SysOpConfig` nhóm `sharedata_config`, mặc định 30 giây, khoảng 5–3600; không còn chế độ 0). Màn hình *Cấu hình hoạt động* dùng để quản trị 48 tham số vận hành và giới hạn thuộc nhóm `sharedata_config` (script `03-sharedata-seed-cau-hinh.sql` mục 4 đã seed).
 
 #### `SysTerminology` — phân bố theo nhóm `Name`
 

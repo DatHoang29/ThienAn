@@ -20,6 +20,10 @@ using Modules.Integration.Delivery;
 using Modules.Integration.Delivery.Senders;
 using System.Text.Json;
 using ShareDataWorker.Infrastructure.Services.DataNats;
+using Modules.CfgSystem.Core.Entities;
+using Module.ShareData.Core.Constants;
+using ShareDataWorker.Infrastructure.Services.WorkerConfig;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 {
@@ -4192,11 +4196,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             await EnsureDefaultTrackTables(db);
 
-            var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["ShareDataTracker:ConfigReloadSeconds"] = "0"
-            }).Build();
-            var worker = CreateTrackerWorker(scope, config: config);
+            var worker = CreateTrackerWorker(scope);
 
             // Khởi tạo mốc gốc ban đầu
             await worker.PollChanges(CancellationToken.None);
@@ -4567,11 +4567,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.NotNull(zoneBefore);
             Assert.Equal(currentDbVer, zoneBefore!.LastVersion);
 
-            var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["ShareDataTracker:ConfigReloadSeconds"] = "0"
-            }).Build();
-            var worker = CreateTrackerWorker(scope, config: config);
+            var worker = CreateTrackerWorker(scope);
 
             // Act
             await worker.PollChanges(CancellationToken.None);
@@ -4893,12 +4889,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             await EnsureDefaultTrackTables(db);
 
-            var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["ShareDataTracker:ConfigReloadSeconds"] = "0"
-            }).Build();
-
-            var worker = CreateTrackerWorker(scope, config: config);
+            var worker = CreateTrackerWorker(scope);
             await worker.PollChanges(CancellationToken.None);
 
             Assert.Equal(14, worker.TrackedTables.Count);
@@ -4926,12 +4917,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             await EnsureDefaultTrackTables(db);
 
-            var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["ShareDataTracker:ConfigReloadSeconds"] = "0"
-            }).Build();
-
-            var worker = CreateTrackerWorker(scope, config: config);
+            var worker = CreateTrackerWorker(scope);
             await worker.PollChanges(CancellationToken.None);
 
             // Ban đầu TmsEquipment có Status = Disable nên chưa được theo dõi
@@ -4949,6 +4935,70 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.Contains("TmsEquipment", worker.TrackedTables);
             Assert.Contains("[TmsEquipment]", worker.ActiveChangesSql);
 
+            await EnsureDefaultTrackTables(db);
+        }
+
+        /// <summary>
+        /// Description: Kiểm thử reload_interval_sec trong nhóm SysOpConfig cách ly:
+        ///              DataChangeTrackingService tự động lên lịch nạp lại danh sách bảng nguồn theo đúng chu kỳ đó.
+        /// </summary>
+        [Fact]
+        public async Task DataChangeTrackingService_WhenReloadIntervalConfiguredInSysOpConfig_ReloadsAccordingToInterval_Test()
+        {
+            // Arrange
+            await using var scope = _host.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            await EnsureDefaultTrackTables(db);
+
+            var isolatedGroup = $"sd_cfg_reload_{Guid.NewGuid():N}";
+            var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [ShareDataConst.ConfigGroupOverrideKey] = isolatedGroup
+            }).Build();
+
+            var testRow = new SysOpConfig
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                GroupCode = isolatedGroup,
+                Code = ShareDataConst.ConfigKeyReloadIntervalSec,
+                Value = "5",
+                Status = BaseEnums.StatusEnum.Enable
+            };
+            await db.Insertable(testRow).ExecuteCommandAsync();
+
+            var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
+            var workerConfig = new DataWorkerConfigService(scopeFactory, NullLogger<DataWorkerConfigService>.Instance, config);
+            var worker = CreateTrackerWorker(scope, config: config, workerConfig: workerConfig);
+
+            // Act 1: Lượt poll đầu tiên -> khởi tạo mốc và nạp danh sách 14 bảng (chưa có TmsEquipment)
+            await worker.PollChanges(CancellationToken.None);
+            Assert.DoesNotContain("TmsEquipment", worker.TrackedTables);
+
+            // Assert 1: Thời điểm nạp lại kế tiếp được đặt theo reload_interval_sec (5 giây)
+            var nextReloadField = typeof(DataChangeTrackingService).GetField("_nextConfigReloadTime", BindingFlags.NonPublic | BindingFlags.Instance)!;
+            var nextReload = (DateTime?)nextReloadField.GetValue(worker);
+            Assert.NotNull(nextReload);
+            var remainingSec = (nextReload.Value - DateTime.UtcNow).TotalSeconds;
+            Assert.InRange(remainingSec, 1, 6);
+
+            // Bật theo dõi TmsEquipment trong CSDL
+            await db.Updateable<ShareDataSourceTable>()
+                .SetColumns(x => x.IsTracked == true)
+                .Where(x => x.TableName == "TmsEquipment")
+                .ExecuteCommandAsync();
+
+            // Act 2: Poll lần 2 ngay lập tức khi chưa hết 5s -> chưa đến chu kỳ nạp lại -> bảng mới chưa được nạp
+            await worker.PollChanges(CancellationToken.None);
+            Assert.DoesNotContain("TmsEquipment", worker.TrackedTables);
+
+            // Act 3: Đưa mốc nạp lại về quá khứ (giả lập hết chu kỳ 5 giây) và poll
+            nextReloadField.SetValue(worker, DateTime.UtcNow.AddSeconds(-1));
+            await worker.PollChanges(CancellationToken.None);
+
+            // Assert 3: Danh sách bảng đã được nạp lại và nhận diện TmsEquipment
+            Assert.Contains("TmsEquipment", worker.TrackedTables);
+
+            // Dọn dẹp lại trạng thái
             await EnsureDefaultTrackTables(db);
         }
 
@@ -4977,11 +5027,15 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 .ToListAsync();
         }
 
-        private DataChangeTrackingService CreateTrackerWorker(IServiceScope? scope = null, TransportManager? transport = null, IConfiguration? config = null)
+        private DataChangeTrackingService CreateTrackerWorker(
+            IServiceScope? scope = null,
+            TransportManager? transport = null,
+            IConfiguration? config = null,
+            IDataWorkerConfigService? workerConfig = null)
         {
             var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
             var logger = (scope?.ServiceProvider ?? _host.Services).GetRequiredService<ILogger<DataChangeTrackingService>>();
-            var workerConfig = (scope?.ServiceProvider ?? _host.Services).GetRequiredService<IDataWorkerConfigService>();
+            workerConfig ??= (scope?.ServiceProvider ?? _host.Services).GetRequiredService<IDataWorkerConfigService>();
             transport ??= new TransportManager(new ConfigurationBuilder().Build());
             config ??= _host.Services.GetService<IConfiguration>();
             return new DataChangeTrackingService(scopeFactory, logger, transport, workerConfig, config);

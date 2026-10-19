@@ -4,7 +4,7 @@
 > 📌 **Tài liệu tham chiếu & SSOT:**  
 > - Bảng đặc tả gói tin 101–111: [`02-mapping-goi-tin-101-111.md`](02-mapping-goi-tin-101-111.md)  
 > - Báo cáo bảng `Sys*`: [`04-bao-cao-bang-sys-csdl-staging.md`](04-bao-cao-bang-sys-csdl-staging.md)  
-> - Script nạp cấu hình mã lỗi ESH, danh mục bảng nguồn và tham số vận hành: [`03-sharedata-seed-cau-hinh.sql`](../sql/03-sharedata-seed-cau-hinh.sql) (nạp 25 mã cảnh báo lỗi `ESH-xxxx` vào `SysConfigData`, 15 bảng nguồn vào `ShareDataSourceTable` và 47 tham số vận hành vào `SysOpConfig` nhóm `sharedata_config`)  
+> - Script nạp cấu hình mã lỗi ESH, danh mục bảng nguồn và tham số vận hành: [`03-sharedata-seed-cau-hinh.sql`](../sql/03-sharedata-seed-cau-hinh.sql) (nạp 25 mã cảnh báo lỗi `ESH-xxxx` vào `SysConfigData`, 15 bảng nguồn vào `ShareDataSourceTable` và 48 tham số vận hành vào `SysOpConfig` nhóm `sharedata_config`)  
 > - Kế hoạch tổng thể MasterPlan: [`Sharedata_MasterPlan.md`](../Plan/Sharedata_MasterPlan.md)  
 > - Kế hoạch Truy vấn động & Tách tầng kết nối: [PHẦN VII của `Sharedata_MasterPlan.md`](../Plan/Sharedata_MasterPlan.md#phần-vii--các-hạng-mục-từ-cuộc-họp-14102026-truy-vấn-động-nối-đuôi--tầng-kết-nối-r8--r18)  
 > - Mã nguồn C# Entity: [`TA-ITS015-WEBAPI-V1.0/src/Modules/ShareData/Module.ShareData.Core/Entities/`](../../../../TA-ITS015-WEBAPI-V1.0/src/Modules/ShareData/Module.ShareData.Core/Entities/)  
@@ -79,21 +79,21 @@ flowchart TD
 
 ## 📑 II. Bảng Đối Chiếu Tổng Thể: Entity Cũ vs. Entity Mới / Cải Tiến
 
-| STT | Tên Entity C# | Tên Bảng SQL Server | Phân Loại | Thời Điểm | Vai Trò & Bản Chất Nâng Cấp Kỹ Thuật |
-| :---: | :--- | :--- | :---: | :--- | :---: | :--- |
-| **1** | `ShareDataPacket` | `ShareDataPacket` | **Cũ (Cải tiến)** | 08/2026 $\rightarrow$ 14/10/2026 | Danh mục 11 gói tin chuẩn (101–111). Lưu **SQL Template mẫu mặc định** (`ExtractSql`), chế độ đồng bộ (`SyncMode`), cột con trỏ (`CursorTimeColumn`) và số ngày quét lùi (`MaxLookBackDays`). |
-| **2** | `ShareDataPacketField` | `ShareDataPacketField` | **Cũ** | 08/2026 | Khai báo từ điển danh mục các trường dữ liệu của từng gói tin (`DatatypeId`, `AliasFieldKey`, `Type`, `GroupName`). |
-| **3** | `ShareDataPacketSql` | `ShareDataPacketSql` | **Cũ** | 15/09/2026 | Câu lệnh SQL ghi (`WriteSql`) chiều **NHẬN** của gói tin (chạy `MERGE` sử dụng `OPENJSON(@records)` trên CSDL Inbound). |
-| **4** | `ShareDataPartner` | `ShareDataPartner` | **Cũ (Cải tiến)** | 08/2026 $\rightarrow$ 13/10/2026 | Danh mục đối tác tích hợp. Bổ sung `ConnectionType` (lưu số nguyên theo enum `ConnectionType` tại `Modules.Integration.Delivery.Base/Enums`: 1-API, 2-File, 3-FTP, 4-FTPS, 5-Kafka) và `ConnectionConfig` dạng `Dictionary<string, string>` JSON linh hoạt. |
-| **5** | `ShareDataSubscription` | `ShareDataSubscription` | **Cũ (Cải tiến)** | 08/2026 $\rightarrow$ 12/10/2026 | Hồ sơ đăng ký chia sẻ 2 chiều. Chứa lịch gửi `ScheduleJson`, `NextTimeRun`, `ProcessingUntil`, `LastTimeRun`, cờ `SendOnNewData`. Đã bỏ `MappingId` cứng để phân giải sống. |
-| **6** | `ShareDataMapping` | `ShareDataMapping` | **Cũ (Cải tiến)** | 08/2026 $\rightarrow$ 14/10/2026 | Hồ sơ ánh xạ cấu trúc dữ liệu (`PartnerSchemaJson`, `TargetShapeJson`) chuyển đổi giữa dữ liệu nguồn nội bộ và cấu trúc JSON chuẩn của đối tác cho cả 2 chiều Gửi/Nhận. |
-| **7** | `ShareDataCodeSet` | `ShareDataCodeSet` | **Cũ** | 08/2026 | Bộ mã quy đổi giá trị danh mục nội bộ $\leftrightarrow$ giá trị chuẩn của đối tác qua cấu trúc JSON `ValuesJson`. |
-| **8** | `ShareDataLastSend` | `ShareDataLastSend` | **Mới** | 21/09/2026 | Lưu mốc con trỏ kép (`LastTime`, `LastKey`) cho từng cặp `(PartnerCode, PacketCode)` để gửi dữ liệu nối đuôi liên tục không trùng lặp. |
-| **9** | `ShareDataSourceTable` | `ShareDataSourceTable` | **Cũ (Cải tiến)** | 27/09/2026 $\rightarrow$ 17/10/2026 | Danh mục bảng nguồn của phân hệ ShareData: kết hợp giám sát SQL Server Change Tracking (`IsTracked`, `LastVersion`, `LastChangeTime`, `LastIssue`) và tra cứu trên bộ dựng truy vấn Visual Query Builder (`IsQueryable`, `DefaultAlias`). |
-| **10** | `ShareDataInboundPacket` | `ShareDataInboundPacket` | **Mới (Cải tiến)** | 15/09/2026 $\rightarrow$ 02/10/2026 | Kho đệm nhận gói tin thô ở CSDL `DEV_ITS10_Inbound` (`[Tenant]`). Bổ sung `ReceiveLogId` làm cầu nối ngữ cảnh sang `ShareDataActivityLog`. |
-| **11** | `ShareDataActivityLog` | `ShareDataActivityLog` | **Cũ (Cải tiến)** | 08/2026 $\rightarrow$ 04/10/2026 | Nhật ký cấu hình và truyền nhận. Bổ sung `ParentId` và `StepNbr` phục vụ mô hình log lai Option C (2 bước cha–con khi có dữ liệu, 1 dòng phẳng khi polling rỗng). |
-| **12** | `ShareDataAlertLog` | `ShareDataAlertLog` | **Cũ (Cải tiến)** | 08/2026 $\rightarrow$ 17/10/2026 | Nhật ký cảnh báo và lỗi hệ thống. Chuẩn hóa 25 mã lỗi dạng `ESH-xxxx` (xem mục IV.1), hỗ trợ chi tiết `DetailJson` và xác nhận `Acknowledged`. |
-| **13** | `ShareDataSession` | `ShareDataSession` | **Cũ** | 08/2026 | Quản lý phiên kết nối của đối tác theo máy trạng thái FSM (IDLE, CONNECTING, ACTIVE...), đếm gói tin và theo dõi Heartbeat. |
+| STT | Tên Entity C# | Tên Bảng SQL Server | Phân Loại | Cách Nạp Dữ Liệu | Thời Điểm | Vai Trò & Bản Chất Nâng Cấp Kỹ Thuật |
+| :---: | :--- | :--- | :---: | :---: | :--- | :---: | :--- |
+| **1** | `ShareDataPacket` | `ShareDataPacket` | **Cũ (Cải tiến)** | **Giao diện / Script** | 08/2026 $\rightarrow$ 14/10/2026 | Danh mục 11 gói tin chuẩn (101–111). Lưu **SQL Template mẫu mặc định** (`ExtractSql`), chế độ đồng bộ (`SyncMode`), cột con trỏ (`CursorTimeColumn`) và số ngày quét lùi (`MaxLookBackDays`). Màn hình `views/sharedata/dataSource/index.vue` hoặc Script `02`. |
+| **2** | `ShareDataPacketField` | `ShareDataPacketField` | **Cũ** | **Giao diện** | 08/2026 | Khai báo từ điển danh mục các trường dữ liệu của từng gói tin (`DatatypeId`, `AliasFieldKey`, `Type`, `GroupName`). Màn hình `views/sharedata/dataSource/component/fieldConfig.vue`. |
+| **3** | `ShareDataPacketSql` | `ShareDataPacketSql` | **Cũ** | **Script (bắt buộc)** | 15/09/2026 | Câu lệnh SQL ghi (`WriteSql`) chiều **NHẬN** của gói tin (chạy `MERGE` sử dụng `OPENJSON(@records)` trên CSDL Inbound). Chưa có màn hình quản trị; nạp qua Script `05` (gói test) hoặc script riêng. |
+| **4** | `ShareDataPartner` | `ShareDataPartner` | **Cũ (Cải tiến)** | **Giao diện** | 08/2026 $\rightarrow$ 13/10/2026 | Danh mục đối tác tích hợp. Bổ sung `ConnectionType` (lưu số nguyên theo enum `ConnectionType` tại `Modules.Integration.Delivery.Base/Enums`: 1-API, 2-File, 3-FTP, 4-FTPS, 5-Kafka) và `ConnectionConfig` dạng `Dictionary<string, string>` JSON linh hoạt. Màn hình `views/sharedata/partner/index.vue`. |
+| **5** | `ShareDataSubscription` | `ShareDataSubscription` | **Cũ (Cải tiến)** | **Giao diện** | 08/2026 $\rightarrow$ 12/10/2026 | Hồ sơ đăng ký chia sẻ 2 chiều. Chứa lịch gửi `ScheduleJson`, `NextTimeRun`, `ProcessingUntil`, `LastTimeRun`, cờ `SendOnNewData`. Đã bỏ `MappingId` cứng để phân giải sống. Màn hình `views/sharedata/subscription/index.vue`. |
+| **6** | `ShareDataMapping` | `ShareDataMapping` | **Cũ (Cải tiến)** | **Giao diện** | 08/2026 $\rightarrow$ 14/10/2026 | Hồ sơ ánh xạ cấu trúc dữ liệu (`PartnerSchemaJson`, `TargetShapeJson`) chuyển đổi giữa dữ liệu nguồn nội bộ và cấu trúc JSON chuẩn của đối tác cho cả 2 chiều Gửi/Nhận. Màn hình `views/sharedata/mapping/index.vue`. |
+| **7** | `ShareDataCodeSet` | `ShareDataCodeSet` | **Cũ** | **Giao diện** | 08/2026 | Bộ mã quy đổi giá trị danh mục nội bộ $\leftrightarrow$ giá trị chuẩn của đối tác qua cấu trúc JSON `ValuesJson`. Màn hình `views/sharedata/codeSet/index.vue`. |
+| **8** | `ShareDataLastSend` | `ShareDataLastSend` | **Mới** | **Hệ thống tự ghi** | 21/09/2026 | Lưu mốc con trỏ kép (`LastTime`, `LastKey`) cho từng cặp `(PartnerCode, PacketCode)` để gửi dữ liệu nối đuôi liên tục không trùng lặp. Worker gửi tự động cập nhật mốc. |
+| **9** | `ShareDataSourceTable` | `ShareDataSourceTable` | **Cũ (Cải tiến)** | **Script (bắt buộc)** | 27/09/2026 $\rightarrow$ 17/10/2026 | Danh mục bảng nguồn của phân hệ ShareData: kết hợp giám sát SQL Server Change Tracking (`IsTracked`, `LastVersion`, `LastChangeTime`, `LastIssue`) và tra cứu trên bộ dựng truy vấn Visual Query Builder (`IsQueryable`, `DefaultAlias`). Chưa có màn hình quản trị; nạp qua Script `03` (DB cũ thêm `00`). |
+| **10** | `ShareDataInboundPacket` | `ShareDataInboundPacket` | **Mới (Cải tiến)** | **Hệ thống tự ghi** | 15/09/2026 $\rightarrow$ 02/10/2026 | Kho đệm nhận gói tin thô ở CSDL `DEV_ITS10_Inbound` (`[Tenant]`). Bổ sung `ReceiveLogId` làm cầu nối ngữ cảnh sang `ShareDataActivityLog`. Màn hình tra cứu `views/sharedata/inbound/index.vue`. |
+| **11** | `ShareDataActivityLog` | `ShareDataActivityLog` | **Cũ (Cải tiến)** | **Hệ thống tự ghi** | 08/2026 $\rightarrow$ 04/10/2026 | Nhật ký cấu hình và truyền nhận. Bổ sung `ParentId` và `StepNbr` phục vụ mô hình log lai Option C (2 bước cha–con khi có dữ liệu, 1 dòng phẳng khi polling rỗng). Màn hình tra cứu `views/sharedata/activityLog/index.vue`. |
+| **12** | `ShareDataAlertLog` | `ShareDataAlertLog` | **Cũ (Cải tiến)** | **Hệ thống tự ghi** | 08/2026 $\rightarrow$ 17/10/2026 | Nhật ký cảnh báo và lỗi hệ thống. Chuẩn hóa 25 mã lỗi dạng `ESH-xxxx` (xem mục IV.1), hỗ trợ chi tiết `DetailJson` và xác nhận `Acknowledged`. Màn hình tra cứu `views/sharedata/alertLog/index.vue`. |
+| **13** | `ShareDataSession` | `ShareDataSession` | **Cũ** | **Hệ thống tự ghi** | 08/2026 | Quản lý phiên kết nối của đối tác theo máy trạng thái FSM (IDLE, CONNECTING, ACTIVE...), đếm gói tin và theo dõi Heartbeat. Tự động ghi nhận khi đối tác kết nối / xác thực. |
 
 > 📌 **Gọn bảng CSDL (14/10/2026):** Giữ **13 bảng** (12 bảng chính + 1 bảng Inbound), xóa bảng thừa cũ `ShareDataTable` (bảng mồ côi đã có trong CSDL từ trước), không phát sinh bảng riêng cho truy vấn động mà lưu trữ trực tiếp câu truy vấn trích xuất và tham số đồng bộ tại `ShareDataPacket` (`ExtractSql`, `SyncMode`, `CursorTimeColumn`, `MaxLookBackDays`).
 
@@ -123,7 +123,7 @@ flowchart TD
   | `Status`           | `int` (`BaseEnums.StatusEnum?`) | Nullable | Trạng thái sử dụng (`Enable` = 1, `Disable` = 0). |
   | `Remark`           | `nvarchar(256)` | Nullable | Ghi chú gói tin. |
   | `ExtractSql`       | `nvarchar(max)` | Nullable | *(Mới 14/10/2026)* Câu truy vấn SQL trích xuất dữ liệu nguồn động mẫu chuẩn (chiều Gửi - Outbound) dành cho SuperAdmin. |
-  | `SyncMode`         | `int` (`SyncMode?`) | Nullable | *(Mới 14/10/2026)* Chế độ đồng bộ dữ liệu (enum `SyncMode` tại `Module.ShareData.Core/Enums`): `1` = Snapshot (gửi toàn bộ), `2` = Incremental (gửi nối đuôi). |
+  | `SyncMode`         | `int` (`SyncMode?`) | Nullable | *(Mới 14/10/2026)* Chế độ đồng bộ dữ liệu (enum `SyncMode` tại `Shared.DTO.Enums.BaseEnums`): `1` = Snapshot (gửi toàn bộ), `2` = Incremental (gửi nối đuôi). |
   | `CursorTimeColumn` | `nvarchar(128)` | Nullable | *(Mới 14/10/2026)* Tên cột hoặc biểu thức cursor thời gian mẫu (ví dụ `UpdateTime`). |
   | `MaxLookBackDays`  | `int`           | Nullable | *(Mới 14/10/2026)* Số ngày quét lùi tối đa (`1–365`, `null` = không giới hạn). |
 * **Lưu ý kỹ thuật:**  
@@ -153,7 +153,7 @@ flowchart TD
 * **Vị trí tệp:** [`TA-ITS015-WEBAPI-V1.0/src/Modules/ShareData/Module.ShareData.Core/Entities/ShareDataPacketSql.cs`](file:///Users/hoangquydat/ThienAn/TA-ITS015-WEBAPI-V1.0/src/Modules/ShareData/Module.ShareData.Core/Entities/ShareDataPacketSql.cs)
 * **Kết nối CSDL:** `Default` (`DEV_ITS10`) *(chứa cấu hình, thực thi trên Inbound)*
 * **Vai trò nghiệp vụ:**  
-  Lưu trữ câu lệnh SQL ghi chiều **NHẬN (Inbound)** cho từng gói tin. Khi Worker xử lý gói tin nhận từ đối tác, nó sẽ nạp các câu lệnh này theo `OrderNo` tăng dần và thực thi câu lệnh `MERGE` an toàn trên CSDL Inbound.
+  Lưu trữ câu lệnh SQL ghi chiều **NHẬN (Inbound)** cho từng gói tin. Khi Worker xử lý gói tin nhận từ đối tác, nó sẽ nạp các câu lệnh này theo `OrderNo` tăng dần và thực thi câu lệnh `MERGE` an toàn trên CSDL Inbound. Hiện tại chưa có màn hình quản trị trên giao diện người dùng; câu lệnh ghi chiều nhận bắt buộc phải nạp và quản lý bằng script SQL (ví dụ script `05-sharedata-du-lieu-gia-lap.sql` cho gói test `E2E_INBOUND_TEST`; các gói nhận thật phải viết câu lệnh `INSERT` riêng vào bảng này).
 * **Cấu trúc trường cốt lõi:**
   | Tên trường C# | Kiểu CSDL | Ràng buộc | Mô tả chức năng |
   | :--- | :--- | :---: | :--- |
@@ -430,7 +430,7 @@ Các câu truy vấn SQL trích xuất động trong `ShareDataPacket.ExtractSql
 ### 4. Danh Mục Bảng Nguồn — Bảng `ShareDataSourceTable`
 
 **Vai trò.** Bảng `ShareDataSourceTable` là danh mục bảng nguồn tập trung của phân hệ ShareData, kết hợp 2 chức năng quan trọng:
-1. **Giám sát Change Tracking:** Worker giám sát (`DataChangeTrackingService`) đọc bảng này để biết *bảng nguồn nào đang bật theo dõi (`IsTracked = 1`)*, *thay đổi ở bảng đó kích hoạt gói tin nào (`PacketCodes`)* và *mốc `LastVersion` hiện tại của từng bảng là bao nhiêu*. Sửa trực tiếp bằng câu lệnh SQL trên CSDL, Worker tự nạp lại sau tối đa 30 giây (khóa `ShareDataTracker:ConfigReloadSeconds` trong `appsettings.json`, mã nguồn dự phòng 60 giây nếu không khai), không làm màn hình quản trị riêng và không cần khởi động lại Worker.
+1. **Giám sát Change Tracking:** Worker giám sát (`DataChangeTrackingService`) đọc bảng này để biết *bảng nguồn nào đang bật theo dõi (`IsTracked = 1`)*, *thay đổi ở bảng đó kích hoạt gói tin nào (`PacketCodes`)* và *mốc `LastVersion` hiện tại của từng bảng là bao nhiêu*. Sửa trực tiếp bằng câu lệnh SQL trên CSDL, Worker tự nạp lại theo tham số `reload_interval_sec` trong `SysOpConfig` nhóm `sharedata_config` (mặc định 30 giây, khoảng 5–3600, sửa trên màn Cấu hình hoạt động; không còn chế độ 0), không làm màn hình quản trị riêng và không cần khởi động lại Worker.
 2. **Quản lý danh mục Visual Query Builder & An toàn SQL:** WebAPI đọc bảng này để hiển thị danh mục bảng cho phép người dùng chọn trên bộ dựng truy vấn (`IsQueryable = 1`, `DefaultAlias`); đồng thời `SqlValidator` sử dụng bảng này để kiểm tra và chặn đứng mọi câu lệnh SQL đọc bảng ngoài danh mục hoặc bảng bị cấm (`IsQueryable = 0`).
 
 **Vì sao đặt ở bảng `ShareDataSourceTable`.**
@@ -483,7 +483,7 @@ Script chỉ `INSERT` dòng chưa có (`WHERE NOT EXISTS`), chạy lại không 
 
 | Tình huống | Kết quả |
 | :--- | :--- |
-| Lượt poll đầu và mỗi `ShareDataTracker:ConfigReloadSeconds` (đang đặt `30` giây trong `appsettings.json`; mã nguồn dự phòng `60` giây nếu không khai; `0` = chỉ nạp lúc khởi động) | Đọc lại các dòng `IsDelete IS NULL AND IsTracked = 1` từ `ShareDataSourceTable`. |
+| Lượt poll đầu và định kỳ theo tham số `reload_interval_sec` trong `SysOpConfig` nhóm `sharedata_config` (mặc định `30` giây, khoảng 5–3600; không còn chế độ 0) | Đọc lại các dòng `IsDelete IS NULL AND IsTracked = 1` từ `ShareDataSourceTable`. |
 | Thêm bảng mới hoặc bật lại bảng (`IsTracked = 1`, `LastVersion IS NULL` hoặc `< 0`) | Chỉ khởi tạo `LastVersion` cho đúng bảng mới/vừa bật ở lượt poll kế tiếp; **không** làm đổi mốc `LastVersion` của các bảng đang chạy khác. Bảng chưa bật Change Tracking được tự động bật. |
 | Bảng phát hiện có thay đổi (`I`/`U`) | Chiếm quyền nguyên tử bảng đó bằng `UPDATE ... OUTPUT` (nâng `LastVersion = @currentVersion`), cập nhật `LastChangeTime = GETDATE()`, xóa `LastIssue = NULL`, phát trigger NATS cho các gói trong `PacketCodes`. Hai instance chạy song song không bao giờ phát trigger trùng. |
 | Một bảng bị quá hạn retention (`LastVersion < min_valid_version`) | Chỉ nhảy cóc `LastVersion = @currentVersion` cho **riêng bảng quá hạn đó**, ghi nguyên nhân vào `LastIssue` và ghi cảnh báo `ESH-1601`; các bảng lành mạnh khác vẫn giữ nguyên mốc và bắt đủ thay đổi. |
