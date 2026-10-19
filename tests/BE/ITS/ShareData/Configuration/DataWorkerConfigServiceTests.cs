@@ -310,4 +310,61 @@ public class DataWorkerConfigServiceTests(Host host)
         // Assert: Fallback về 30
         Assert.Equal(ShareDataConst.DefaultReloadIntervalSec, settings.ReloadIntervalSec);
     }
+
+    [Fact]
+    public async Task Get_WhenConfigChangedInIsolatedGroup_SubsequentGetReturnsNewValues_Test()
+    {
+        // Arrange: Cấu hình nhóm cách ly với reload_interval_sec = 5 (mức tối thiểu cho phép)
+        var isolatedGroup = $"sd_cfg_dyn_change_{Guid.NewGuid():N}";
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [ShareDataConst.ConfigGroupOverrideKey] = isolatedGroup
+            })
+            .Build();
+
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+        var rowReload = new SysOpConfig
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            GroupCode = isolatedGroup,
+            Code = ShareDataConst.ConfigKeyReloadIntervalSec,
+            Value = "5",
+            Status = BaseEnums.StatusEnum.Enable
+        };
+        var rowOutbound = new SysOpConfig
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            GroupCode = isolatedGroup,
+            Code = ShareDataConst.ConfigKeyOutboundCheckIntervalSec,
+            Value = "8",
+            Status = BaseEnums.StatusEnum.Enable
+        };
+        await db.Insertable(new[] { rowReload, rowOutbound }).ExecuteCommandAsync();
+
+        var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
+        var service = new DataWorkerConfigService(scopeFactory, NullLogger<DataWorkerConfigService>.Instance, config);
+
+        // Act 1: Lần Get đầu tiên nạp giá trị ban đầu từ CSDL
+        var initial = await service.Get();
+        Assert.Equal(8, initial.OutboundCheckIntervalSec);
+        Assert.Equal(5, initial.ReloadIntervalSec);
+
+        // Arrange 2: Cập nhật giá trị cấu hình trong nhóm cách ly
+        await db.Updateable<SysOpConfig>()
+            .SetColumns(x => x.Value == "25")
+            .Where(x => x.GroupCode == isolatedGroup && x.Code == ShareDataConst.ConfigKeyOutboundCheckIntervalSec)
+            .ExecuteCommandAsync();
+
+        // Chờ chu kỳ reload_interval_sec trôi qua để cache hết hạn
+        await Task.Delay(5200);
+
+        // Act 2: Lần Get tiếp theo trả về giá trị mới đã cập nhật
+        var updated = await service.Get();
+
+        // Assert: Giá trị mới được nạp thành công
+        Assert.Equal(25, updated.OutboundCheckIntervalSec);
+    }
 }
