@@ -37,7 +37,7 @@ public class DataWorkerConfigServiceTests(Host host)
 
         // Assert: 19 tham số đều khớp 100% với giá trị dự phòng chuẩn
         Assert.NotNull(settings);
-        Assert.Equal(DataWorkerConfig.Defaults, settings);
+        Assert.Equivalent(new DataWorkerConfig(), settings);
         Assert.Equal(5, settings.OutboundCheckIntervalSec);
         Assert.Equal(5, settings.InboundCheckIntervalSec);
         Assert.Equal(1, settings.TrackingPollIntervalSec);
@@ -235,7 +235,7 @@ public class DataWorkerConfigServiceTests(Host host)
 
         // Assert
         Assert.Equal(25, settings.OutboundCheckIntervalSec);
-        Assert.Equal(DataWorkerConfig.Defaults.InboundCheckIntervalSec, settings.InboundCheckIntervalSec);
+        Assert.Equal(new DataWorkerConfig().InboundCheckIntervalSec, settings.InboundCheckIntervalSec);
     }
 
     [Fact]
