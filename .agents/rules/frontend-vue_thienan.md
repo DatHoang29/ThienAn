@@ -369,5 +369,61 @@ defineExpose({ openDialog });
 
 Chi tiết quy trình, hình thức kiểm thử (quét tĩnh CSS/template, đo `getBoundingClientRect`) và lệnh thực thi: xem [testing-rules_thienan.md](./testing-rules_thienan.md) §3.
 
+---
+
+## 📊 10. Quy Chuẩn VxeTable (`useVxeTable`), Dữ Liệu Cấu Hình (`BaseConfigTypeEnum`) & Phân Cấp i18n (Rule 20.25, bổ sung 19/10/2026)
+
+### 10.1. VxeTable Grid Pattern
+- BẮT BUỘC khởi tạo grid thông qua hook `useVxeTable`:
+  ```typescript
+  import { VxeGridInstance } from 'vxe-table';
+  import { useVxeTable } from '/@/hooks/useVxeTableOptionsHook';
+
+  const xGrid = ref<VxeGridInstance>();
+
+  const options = useVxeTable<PageEquipmentOutput>(
+      {
+          id: 'tmsEquipGrid',      // Bắt buộc có ID duy nhất để lưu cấu hình ẩn/hiện cột của người dùng
+          name: 'Equipment_Export', // Tiền tố tên tệp khi xuất Excel
+          columns: [
+              { type: 'checkbox', fixed: 'left', width: 45 },
+              { field: 'code', title: $t('lz.entity.base.code'), minWidth: 140, sortable: true },
+              { field: 'name', title: $t('lz.entity.base.name'), minWidth: 180 },
+              { field: 'status', title: $t('lz.entity.base.status'), width: 120, slots: { default: 'row_status' } },
+              { title: $t('lz.label.base.action'), fixed: 'right', width: 140, slots: { default: 'row_buttons' } },
+          ],
+      },
+      {
+          proxyConfig: { autoLoad: true, ajax: { query: ({ page, sort }) => handleQueryApi(page, sort) } },
+          sortConfig: { defaultSort: { field: 'createTime', order: 'desc' } },
+          pagerConfig: { pageSize: 50 },
+      }
+  );
+  ```
+
+### 10.2. Quản Lý Dữ Liệu Cấu Hình (Pinia `BaseConfigStore`)
+- ⛔ **CẤM** hardcode chuỗi mã loại cấu hình trực tiếp (như `'status_type'`, `'direction_type'`).
+- BẮT BUỘC sử dụng enum `BaseConfigTypeEnum` từ `/@/types/enums`:
+  ```typescript
+  import { BaseConfigTypeEnum } from '/@/types/enums';
+  import { useBaseConfig } from '/@/stores/baseConfig';
+
+  const { getConfigDataByCode, getConfigItemByCode } = useBaseConfig();
+
+  // 1. Lấy danh sách options cho dropdown / radio
+  const statusOptions = computed(() => getConfigDataByCode(BaseConfigTypeEnum.SysStatusType));
+
+  // 2. Lấy 1 item để hiển thị tên trên bảng hoặc TagInfo
+  const statusItem = getConfigItemByCode(BaseConfigTypeEnum.SysStatusType, row.status);
+  ```
+- Khi bind vào form có trường dữ liệu là số, bắt buộc dùng `parseInt(item.code)` vì trường code của SysConfig luôn là string.
+
+### 10.3. Phân Cấp Namespace i18n
+1. **`base` (`lz.*.base.*`)**: Dùng chung cho toàn hệ thống (code, name, status, confirmDelete, saveSuccess...). BẮT BUỘC kiểm tra `base` trước khi tạo mới key.
+2. **`{module}` (`lz.*.{module}.*`)**: Dùng chung cho toàn module (nhiều màn hình cùng dùng).
+3. **`{module}{Feature}` (`lz.*.{module}{Feature}.*`)**: Dành riêng cho 1 màn hình cụ thể.
+- 100% text trên UI phải đưa vào i18n đồng bộ cả `vi-vn.json` và `en-us.json`. ⛔ **CẤM** viết song ngữ lai.
+
+
 
 

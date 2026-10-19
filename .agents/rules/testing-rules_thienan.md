@@ -36,7 +36,7 @@ description: Unified Testing Suite protocol, Playwright FE E2E, xUnit BE on loca
 
 ### Cấm Thư Viện Mock Ngoài (No-Moq Rule - Section 15 & Rule 19.18)
 * ⛔ **CẤM DÙNG Moq, NSubstitute, FakeItEasy** hoặc các thư viện mock bên ngoài.
-* ⛔ **CẤM mock Service nội bộ & NATS**: Toàn bộ service nghiệp vụ (`IDataOutboundService`, `IDataInboundService`...) và bus tin nhắn nội bộ bắt buộc lấy bản thật từ `host.Services`.
+* ⛔ **CẤM mock Service nội bộ & NATS**: Toàn bộ service nghiệp vụ (`DataOutboundService`, `DataInboundService`...) và bus tin nhắn nội bộ bắt buộc lấy bản thật từ `host.Services` bằng tên lớp cụ thể (Rule 19.94); ⛔ không tạo interface chỉ để thay lớp giả trong test.
 * **Ngoại lệ duy nhất được giả lập**: Máy chủ HTTP của đối tác bên thứ ba bên ngoài, và BẮT BUỘC dùng mock server thật bằng `HttpListener` trên `127.0.0.1` (dùng `MockHttpClientFactoryTest` trong `tests/Mock/`).
 
 ### Cấu Trúc Test Chuẩn AAA (Rule 19.43, 19.46)
@@ -46,7 +46,7 @@ description: Unified Testing Suite protocol, Playwright FE E2E, xUnit BE on loca
   public async Task ProcessData_FullFlow_Success_Test()
   {
       // 1. Arrange: Khởi tạo service, seed data với Unique ID
-      var service = host.Services.GetRequiredService<IDataOutboundService>();
+      var service = host.Services.GetRequiredService<DataOutboundService>();
       var uniqueCode = $"PARTNER_{Guid.NewGuid():N}";
       
       // 2. Act: Thực thi luồng nghiệp vụ
