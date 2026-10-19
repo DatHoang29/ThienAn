@@ -1631,11 +1631,6 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             foreach (var w in workers)
                 await w.ReloadConfig(db);
 
-            await SetStateVersion(db, 0);
-            await workers[0].PollChanges(cts.Token);
-            var initialVersion = await GetStateVersion(db);
-            Assert.True(initialVersion >= 0);
-
             var zoneId = $"ZONE_10W_{testId}";
             var statusId = Guid.NewGuid().ToString("N");
 
@@ -1650,6 +1645,11 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 LaneId = "L1",
                 MaxSpeed = 80
             }).ExecuteCommandAsync();
+
+            await SetStateVersion(db, 0);
+            await workers[0].PollChanges(cts.Token);
+            var initialVersion = await GetStateVersion(db, "TmsZoneStatus");
+            Assert.True(initialVersion >= 0);
 
             await db.Insertable(new TmsZoneStatus
             {
@@ -5183,8 +5183,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         /// Description: Lấy mốc version Change Tracking đang lưu; chưa có mốc thì trả về -1.
         /// Created date: 27/09/2026
         /// </summary>
-        private static async Task<long> GetStateVersion(ISqlSugarClient db) =>
-            (await GetTrackState(db))?.LastVersion ?? -1;
+        private static async Task<long> GetStateVersion(ISqlSugarClient db, string? tableName = null) =>
+            (await GetTrackState(db, tableName))?.LastVersion ?? -1;
 
         /// <summary>
         /// Description: Ghi đè mốc version trên toàn bộ các dòng đang bật trong bảng ShareDataSourceTable (mô phỏng mốc bị lệch hoặc quá cũ).
