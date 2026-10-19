@@ -1747,11 +1747,6 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             await worker1.ReloadConfig(db);
             await worker2.ReloadConfig(db);
 
-            await SetStateVersion(db, 0);
-            await worker1.PollChanges(cts.Token);
-            var initialVersion = await GetStateVersion(db);
-            Assert.True(initialVersion >= 0);
-
             var zoneId = $"ZONE_2W_{testId}";
             var statusId = Guid.NewGuid().ToString("N");
 
@@ -1766,6 +1761,11 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 LaneId = "L1",
                 MaxSpeed = 80
             }).ExecuteCommandAsync();
+
+            await SetStateVersion(db, 0);
+            await worker1.PollChanges(cts.Token);
+            var initialVersion = await GetStateVersion(db, "TmsZoneStatus");
+            Assert.True(initialVersion >= 0);
 
             await db.Insertable(new TmsZoneStatus
             {
