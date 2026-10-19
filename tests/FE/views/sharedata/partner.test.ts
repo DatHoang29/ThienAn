@@ -455,11 +455,15 @@ function serializeFormLogic(state: FormStateModel, channel: string, extraObj: Re
 		if (auth && auth !== 'None') {
 			out['AuthType'] = auth;
 		}
-		if (state.api.token) out['Token'] = state.api.token;
-		if (state.api.headerName?.trim()) out['HeaderName'] = state.api.headerName.trim();
-		if (state.api.apiKey) out['ApiKey'] = state.api.apiKey;
-		if (state.api.username?.trim()) out['Username'] = state.api.username.trim();
-		if (state.api.password) out['Password'] = state.api.password;
+		if (auth === 'Bearer') {
+			if (state.api.token) out['Token'] = state.api.token;
+		} else if (auth === 'ApiKey') {
+			if (state.api.headerName?.trim()) out['HeaderName'] = state.api.headerName.trim();
+			if (state.api.apiKey) out['ApiKey'] = state.api.apiKey;
+		} else if (auth === 'Basic') {
+			if (state.api.username?.trim()) out['Username'] = state.api.username.trim();
+			if (state.api.password) out['Password'] = state.api.password;
+		}
 		if (state.api.format) out['Format'] = state.api.format;
 		if (state.api.timeoutSeconds != null && state.api.timeoutSeconds > 0) out['TimeoutSeconds'] = String(state.api.timeoutSeconds);
 		if (state.api.bypassSsl) out['BypassSsl'] = 'true';
@@ -935,7 +939,11 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 			'lz.label.sharedataConnectionForm.collapseEncryption',
 			'lz.label.sharedataConnectionForm.encryptionNotice',
 			'lz.label.sharedataConnectionForm.collapseExtra',
-			'lz.message.sharedataConnectionForm.errCannotSwitchToFormInvalidJson',
+			'lz.label.sharedataConnectionForm.summaryDefault',
+			'lz.label.sharedataConnectionForm.summaryCustomCount',
+			'lz.label.sharedataConnectionForm.summaryExtraCount',
+			'lz.label.sharedataConnectionForm.summaryEncrypted',
+			'lz.label.sharedataConnectionForm.summaryNoEncryption',
 			'lz.message.sharedataConnectionForm.errTokenRequired',
 			'lz.message.sharedataConnectionForm.errApiKeyRequired',
 			'lz.message.sharedataConnectionForm.errBasicAuthRequired',
@@ -1280,6 +1288,94 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		expect(partnerContent).toContain('ConnectionTypeEnum.Ftp');
 		expect(partnerContent).toContain('ConnectionTypeEnum.Ftps');
 		expect(partnerContent).toContain('ConnectionTypeEnum.Kafka');
+	});
+
+	test('TC13 — Form cấu hình kết nối: Bỏ chế độ raw, ẩn hiện ô xác thực theo AuthType, cách ly JSON và lưu Tham số bổ sung', async () => {
+		const formContent = fs.readFileSync(formComponentPath, 'utf-8');
+
+		// (1) Không còn nút chuyển chế độ (chỉ còn form, không có raw mode)
+		expect(formContent).not.toContain('bottom-action-bar');
+		expect(formContent).not.toContain('toggleMode');
+		expect(formContent).not.toContain('switchToRaw');
+		expect(formContent).not.toContain('switchToForm');
+		expect(formContent).not.toContain('raw-mode-container');
+		expect(formContent).not.toContain('rawEditorRef');
+		// Vẫn giữ rawInvalidJson để khôi phục khi JSON hỏng
+		expect(formContent).toContain('rawInvalidJson');
+
+		// (2) Auth None -> không có ô Token / Khóa API / Mật khẩu (dùng v-if cho từng AuthType)
+		expect(formContent).toMatch(/v-if="formState\.api\.authType === 'Bearer'/);
+		expect(formContent).toMatch(/v-if="formState\.api\.authType === 'ApiKey'/);
+		expect(formContent).toMatch(/v-if="formState\.api\.authType === 'Basic'/);
+		expect(formContent).not.toContain('noteNotUsedWithAuth');
+		expect(formContent).not.toContain('warnNoAuthWithCreds');
+
+		// (3) Kiểm tra các khối điều kiện hiển thị ô nhập liệu theo AuthType
+		expect(formContent).toContain('v-model="formState.api.token"');
+		expect(formContent).toContain('v-model="formState.api.headerName"');
+		expect(formContent).toContain('v-model="formState.api.apiKey"');
+		expect(formContent).toContain('v-model="formState.api.username"');
+		expect(formContent).toContain('v-model="formState.api.password"');
+
+		// (4) Đổi phương thức rồi lưu -> JSON chỉ chứa khóa của phương thức hiện tại
+		const state = createDefaultFormState();
+		state.api.token = 'bearer_token_abc';
+		state.api.headerName = 'X-Custom-Key';
+		state.api.apiKey = 'api_key_xyz';
+		state.api.username = 'basic_user';
+		state.api.password = 'basic_pass';
+
+		// 4a. Khi chọn Bearer: JSON chỉ có AuthType và Token
+		state.api.authType = 'Bearer';
+		const outBearer = serializeFormLogic(state, 'API', null);
+		expect(outBearer).toBeTruthy();
+		const parsedBearer = JSON.parse(outBearer!);
+		expect(parsedBearer.AuthType).toBe('Bearer');
+		expect(parsedBearer.Token).toBe('bearer_token_abc');
+		expect(parsedBearer.HeaderName).toBeUndefined();
+		expect(parsedBearer.ApiKey).toBeUndefined();
+		expect(parsedBearer.Username).toBeUndefined();
+		expect(parsedBearer.Password).toBeUndefined();
+
+		// 4b. Đổi sang ApiKey: JSON chỉ có AuthType, HeaderName và ApiKey
+		state.api.authType = 'ApiKey';
+		const outApiKey = serializeFormLogic(state, 'API', null);
+		expect(outApiKey).toBeTruthy();
+		const parsedApiKey = JSON.parse(outApiKey!);
+		expect(parsedApiKey.AuthType).toBe('ApiKey');
+		expect(parsedApiKey.HeaderName).toBe('X-Custom-Key');
+		expect(parsedApiKey.ApiKey).toBe('api_key_xyz');
+		expect(parsedApiKey.Token).toBeUndefined();
+		expect(parsedApiKey.Username).toBeUndefined();
+		expect(parsedApiKey.Password).toBeUndefined();
+
+		// 4c. Đổi sang Basic: JSON chỉ có AuthType, Username và Password
+		state.api.authType = 'Basic';
+		const outBasic = serializeFormLogic(state, 'API', null);
+		expect(outBasic).toBeTruthy();
+		const parsedBasic = JSON.parse(outBasic!);
+		expect(parsedBasic.AuthType).toBe('Basic');
+		expect(parsedBasic.Username).toBe('basic_user');
+		expect(parsedBasic.Password).toBe('basic_pass');
+		expect(parsedBasic.Token).toBeUndefined();
+		expect(parsedBasic.HeaderName).toBeUndefined();
+		expect(parsedBasic.ApiKey).toBeUndefined();
+
+		// 4d. Đổi sang None: JSON không chứa bất kỳ khóa xác thực nào
+		state.api.authType = 'None';
+		const outNone = serializeFormLogic(state, 'API', null);
+		expect(outNone).toBeNull();
+
+		// (5) Tham số bổ sung thêm 1 dòng -> có trong JSON
+		const extra = { CustomDebugFlag: '1', CustomHeaderPrefix: 'MyPrefix' };
+		const outWithExtra = serializeFormLogic(state, 'API', extra);
+		expect(outWithExtra).toBeTruthy();
+		const parsedWithExtra = JSON.parse(outWithExtra!);
+		expect(parsedWithExtra.CustomDebugFlag).toBe('1');
+		expect(parsedWithExtra.CustomHeaderPrefix).toBe('MyPrefix');
+
+		// Kiểm tra mục Tham số bổ sung (collapseExtra) trong template vẫn nhúng connection-config-editor
+		expect(formContent).toMatch(/<connection-config-editor[\s\S]*?v-model="extraParamsJson"/);
 	});
 });
 
