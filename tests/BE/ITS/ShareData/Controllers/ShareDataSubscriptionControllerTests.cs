@@ -1,6 +1,9 @@
 using FluentValidation;
+using Furion.FriendlyException;
+using Module.ShareData.Core.Constants;
 using Module.ShareData.Core.Dto.Subscription;
 using Module.ShareData.Core.Entities;
+using Module.ShareData.Core.Exceptions;
 using Modules.CfgSystem.Core.Entities;
 using Newtonsoft.Json;
 
@@ -177,24 +180,24 @@ public class ShareDataSubscriptionControllerTests(Host host)
         // Act & Assert
         // 1. Chu kỳ dưới min (4 < 5) hoặc trên max (86401 > 86400)
         var exIntervalMin = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput(interval: 4)));
-        Assert.Contains("5..86400", exIntervalMin.Message);
+        AssertRangeViolation(exIntervalMin, 5, 86400);
 
         var exIntervalMax = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput(interval: 86401)));
-        Assert.Contains("5..86400", exIntervalMax.Message);
+        AssertRangeViolation(exIntervalMax, 5, 86400);
 
         // 2. Độ ưu tiên dưới min (-1 < 0) hoặc trên max (11 > 10)
         var exPriorityMin = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput(priority: -1)));
-        Assert.Contains("0..10", exPriorityMin.Message);
+        AssertRangeViolation(exPriorityMin, 0, 10);
 
         var exPriorityMax = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput(priority: 11)));
-        Assert.Contains("0..10", exPriorityMax.Message);
+        AssertRangeViolation(exPriorityMax, 0, 10);
 
         // 3. Gom sự kiện dưới min (-1 < 0) hoặc trên max (3601 > 3600)
         var exDebounceMin = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput(debounce: -1, mode: BaseEnums.SubMode.Event)));
-        Assert.Contains("0..3600", exDebounceMin.Message);
+        AssertRangeViolation(exDebounceMin, 0, 3600);
 
         var exDebounceMax = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput(debounce: 3601, mode: BaseEnums.SubMode.Event)));
-        Assert.Contains("0..3600", exDebounceMax.Message);
+        AssertRangeViolation(exDebounceMax, 0, 3600);
     }
 
     /// <summary>
@@ -208,6 +211,10 @@ public class ShareDataSubscriptionControllerTests(Host host)
         // Arrange
         var sp = host.Services;
         var db = sp.GetRequiredService<ISqlSugarClient>();
+        var config = sp.GetRequiredService<IConfiguration>();
+        var cache = sp.GetRequiredService<BaseCacheService>();
+        config[ShareDataConst.ConfigGroupOverrideKey] = null;
+        cache.RemoveByPrefixKey("sysOpConfig");
         var unique = Guid.NewGuid().ToString("N");
 
         var partner = new ShareDataPartner
@@ -348,24 +355,24 @@ public class ShareDataSubscriptionControllerTests(Host host)
         // Act & Assert
         // 1. Kiểm tra dưới min (7 < 10) và trên max (301 > 300) của Interval
         var exIntervalUnder = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput("IV_UNDER", interval: 7)));
-        Assert.Contains("10..300", exIntervalUnder.Message);
+        AssertRangeViolation(exIntervalUnder, 10, 300);
 
         var exIntervalAbove = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput("IV_ABOVE", interval: 301)));
-        Assert.Contains("10..300", exIntervalAbove.Message);
+        AssertRangeViolation(exIntervalAbove, 10, 300);
 
         // 2. Kiểm tra dưới min (1 < 2) và trên max (9 > 8) của Priority
         var exPriorityUnder = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput("PR_UNDER", priority: 1)));
-        Assert.Contains("2..8", exPriorityUnder.Message);
+        AssertRangeViolation(exPriorityUnder, 2, 8);
 
         var exPriorityAbove = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput("PR_ABOVE", priority: 9)));
-        Assert.Contains("2..8", exPriorityAbove.Message);
+        AssertRangeViolation(exPriorityAbove, 2, 8);
 
         // 3. Kiểm tra dưới min (14 < 15) và trên max (121 > 120) của DebounceSec
         var exDebounceUnder = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput("DB_UNDER", debounce: 14, mode: BaseEnums.SubMode.Event)));
-        Assert.Contains("15..120", exDebounceUnder.Message);
+        AssertRangeViolation(exDebounceUnder, 15, 120);
 
         var exDebounceAbove = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput("DB_ABOVE", debounce: 121, mode: BaseEnums.SubMode.Event)));
-        Assert.Contains("15..120", exDebounceAbove.Message);
+        AssertRangeViolation(exDebounceAbove, 15, 120);
 
         // 4. Giá trị hợp lệ theo cấu hình mới lưu thành công
         var validInput = CreateInput("VALID", interval: 10, priority: 2, debounce: 15, mode: BaseEnums.SubMode.Event);
@@ -382,5 +389,21 @@ public class ShareDataSubscriptionControllerTests(Host host)
         // Cleanup
         config[ShareDataConst.ConfigGroupOverrideKey] = null;
         cache.RemoveByPrefixKey("sysOpConfig");
+    }
+
+    private static void AssertRangeViolation(Exception ex, int min, int max)
+    {
+        var rangeText = $"{min}..{max}";
+        if (ex is AppFriendlyException afe)
+        {
+            Assert.True(
+                ex.Message.Contains(rangeText, StringComparison.Ordinal)
+                || afe.ErrorMessage?.ToString() == BaseMsg.ShareData.Validation.ValueOutOfRange,
+                $"Expected exception to specify range [{rangeText}] or ErrorMessage to be '{BaseMsg.ShareData.Validation.ValueOutOfRange}', but Message was '{ex.Message}' and ErrorMessage was '{afe.ErrorMessage}'.");
+        }
+        else
+        {
+            Assert.Contains(rangeText, ex.Message);
+        }
     }
 }
