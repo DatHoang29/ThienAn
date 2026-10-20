@@ -36,7 +36,12 @@ description: Documentation standards, single MasterPlan per subsystem, executabl
 * Vị trí lưu trữ: `DocBusinessThienAn/<DựÁn>/<PhânHệ>/Prompt/<task-slug>-prompt.md`.
 * **Đầu file Markdown**: BẮT BUỘC ghi rõ đường dẫn và tên tệp prompt.
 * **Mục cuối cùng của Prompt (Rule 19.23)**: BẮT BUỘC có mục `## Việc cuối — Cập nhật lại tài liệu gốc` (chỉ định cập nhật lại MasterPlan và tài liệu liên quan sau khi code change hoàn tất).
-* ⛔ **CẤM tự động xóa file Prompt**: File prompt sau khi thực thi phải được giữ lại để lập trình viên review và đối chiếu; chỉ xóa khi người dùng yêu cầu trực tiếp.
+* ⛔ **CẤM tự động xóa file Prompt**: File prompt sau khi thực thi phải được giữ lại để lập trình viên review và đối chiếu; chỉ xóa khi người dùng yêu cầu trực tiếp ("prompt nào xong xoá").
+
+### Tách Biệt Prompt Backend Và Frontend Để Chạy Song Song (Rule 19.98)
+* Khi tạo hoặc phát hiện prompt kỹ thuật/nghiệp vụ: **BẮT BUỘC phân tách độc lập thành các file prompt riêng biệt cho Backend (BE) và Frontend (FE)** (ví dụ: `<task-slug>-be-prompt.md` và `<task-slug>-fe-prompt.md`).
+* ⛔ **TUYỆT ĐỐI CẤM** gộp chung cả yêu cầu BE và FE vào một file prompt duy nhất khi cả hai phân tầng đều có phần việc.
+* **Mục đích**: Tách biệt rõ ràng phạm vi tệp thay đổi giữa 2 tầng, tránh xung đột file (zero file conflict), và tạo điều kiện kích hoạt ngay các subagents chuyên biệt (BE Specialist, FE Specialist) chạy song song cùng lúc theo Rule #24 (Rule 19.70).
 
 ---
 

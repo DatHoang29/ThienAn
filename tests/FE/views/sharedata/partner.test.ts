@@ -172,10 +172,6 @@ interface FormStateModel {
 		format: string;
 		timeoutSeconds: number;
 		bypassSsl: boolean;
-		successField: string;
-		errorMessageField: string;
-		errorCodeField: string;
-		responseContract: string;
 	};
 	file: {
 		directoryPath: string;
@@ -188,7 +184,6 @@ interface FormStateModel {
 		password: string;
 		useSsl: boolean;
 		format: string;
-		enabled: boolean;
 		timeoutSeconds: number;
 		fileName: string;
 	};
@@ -201,7 +196,6 @@ interface FormStateModel {
 		saslUsername: string;
 		saslPassword: string;
 		sslCaLocation: string;
-		enabled: boolean;
 		timeoutMs: number;
 	};
 	encryption: {
@@ -224,10 +218,6 @@ function createDefaultFormState(): FormStateModel {
 			format: 'Json',
 			timeoutSeconds: 30,
 			bypassSsl: false,
-			successField: '',
-			errorMessageField: '',
-			errorCodeField: '',
-			responseContract: 'Auto',
 		},
 		file: {
 			directoryPath: '',
@@ -240,7 +230,6 @@ function createDefaultFormState(): FormStateModel {
 			password: '',
 			useSsl: false,
 			format: 'Json',
-			enabled: true,
 			timeoutSeconds: 30,
 			fileName: '',
 		},
@@ -253,7 +242,6 @@ function createDefaultFormState(): FormStateModel {
 			saslUsername: '',
 			saslPassword: '',
 			sslCaLocation: '',
-			enabled: true,
 			timeoutMs: null as any,
 		},
 		encryption: {
@@ -291,7 +279,6 @@ function parseJsonToFormLogic(jsonStr: string | null | undefined, channel: strin
 	if (!jsonStr || !jsonStr.trim()) {
 		state.api.format = 'Json';
 		state.api.timeoutSeconds = 30;
-		state.api.responseContract = 'Auto';
 		state.file.format = 'Json';
 		state.ftp.format = 'Json';
 		state.ftp.timeoutSeconds = 30;
@@ -364,20 +351,6 @@ function parseJsonToFormLogic(jsonStr: string | null | undefined, channel: strin
 	}
 	const apiBypass = resolveField('BypassSsl', ['IgnoreSsl', 'Insecure']);
 	if (apiBypass != null) state.api.bypassSsl = apiBypass.toLowerCase() === 'true';
-	const apiSucc = resolveField('SuccessField');
-	if (apiSucc != null) state.api.successField = apiSucc;
-	const apiErr = resolveField('ErrorMessageField');
-	if (apiErr != null) state.api.errorMessageField = apiErr;
-	const apiCode = resolveField('ErrorCodeField');
-	if (apiCode != null) state.api.errorCodeField = apiCode;
-	const apiResp = resolveField('ResponseContract');
-	if (state.api.successField.trim()) {
-		state.api.responseContract = 'Custom';
-	} else if (apiResp != null && apiResp.trim().toLowerCase() === 'httponly') {
-		state.api.responseContract = 'HttpOnly';
-	} else {
-		state.api.responseContract = 'Auto';
-	}
 
 	// Phân giải File
 	const fileDir = resolveField('DirectoryPath', ['BasePath']);
@@ -398,8 +371,6 @@ function parseJsonToFormLogic(jsonStr: string | null | undefined, channel: strin
 	if (ftpSsl != null) state.ftp.useSsl = ftpSsl.toLowerCase() === 'true';
 	const ftpFmt = resolveField('Format');
 	state.ftp.format = (ftpFmt != null && ftpFmt.trim() !== '') ? ftpFmt : 'Json';
-	const ftpEnabled = resolveField('Enabled');
-	if (ftpEnabled != null) state.ftp.enabled = ftpEnabled.toLowerCase() !== 'false';
 	const ftpTimeout = resolveField('TimeoutSeconds');
 	if (ftpTimeout != null && !Number.isNaN(Number(ftpTimeout))) {
 		const num = parseInt(ftpTimeout, 10);
@@ -428,7 +399,6 @@ function parseJsonToFormLogic(jsonStr: string | null | undefined, channel: strin
 	if (kafkaSaslPass != null) state.kafka.saslPassword = kafkaSaslPass;
 	const kafkaSslCa = resolveField('SslCaLocation');
 	if (kafkaSslCa != null) state.kafka.sslCaLocation = kafkaSslCa;
-	if (ftpEnabled != null) state.kafka.enabled = ftpEnabled.toLowerCase() !== 'false';
 	const kafkaTimeout = resolveField('TimeoutMs');
 	if (kafkaTimeout != null && !Number.isNaN(Number(kafkaTimeout))) {
 		const num = parseInt(kafkaTimeout, 10);
@@ -479,15 +449,6 @@ function serializeFormLogic(state: FormStateModel, channel: string, extraObj: Re
 		if (state.api.format) out['Format'] = state.api.format;
 		if (state.api.timeoutSeconds != null && state.api.timeoutSeconds > 0) out['TimeoutSeconds'] = String(state.api.timeoutSeconds);
 		if (state.api.bypassSsl) out['BypassSsl'] = 'true';
-		if (state.api.responseContract === 'Auto') {
-			out['ResponseContract'] = 'Auto';
-		} else if (state.api.responseContract === 'HttpOnly') {
-			out['ResponseContract'] = 'HttpOnly';
-		} else {
-			if (state.api.successField?.trim()) out['SuccessField'] = state.api.successField.trim();
-			if (state.api.errorMessageField?.trim()) out['ErrorMessageField'] = state.api.errorMessageField.trim();
-			if (state.api.errorCodeField?.trim()) out['ErrorCodeField'] = state.api.errorCodeField.trim();
-		}
 	} else if (channel === 'File') {
 		if (state.file.directoryPath?.trim()) out['DirectoryPath'] = state.file.directoryPath.trim();
 		if (state.file.fileNamePattern?.trim()) out['FileNamePattern'] = state.file.fileNamePattern.trim();
@@ -498,7 +459,6 @@ function serializeFormLogic(state: FormStateModel, channel: string, extraObj: Re
 		if (state.ftp.password) out['Password'] = state.ftp.password;
 		if (state.ftp.useSsl) out['UseSsl'] = 'true';
 		if (state.ftp.format) out['Format'] = state.ftp.format;
-		if (!state.ftp.enabled) out['Enabled'] = 'false';
 		if (state.ftp.timeoutSeconds != null && state.ftp.timeoutSeconds > 0) out['TimeoutSeconds'] = String(state.ftp.timeoutSeconds);
 		if (state.ftp.fileName?.trim()) out['FileName'] = state.ftp.fileName.trim();
 	} else if (channel === 'Kafka') {
@@ -510,7 +470,6 @@ function serializeFormLogic(state: FormStateModel, channel: string, extraObj: Re
 		if (state.kafka.saslUsername?.trim()) out['SaslUsername'] = state.kafka.saslUsername.trim();
 		if (state.kafka.saslPassword) out['SaslPassword'] = state.kafka.saslPassword;
 		if (state.kafka.sslCaLocation?.trim()) out['SslCaLocation'] = state.kafka.sslCaLocation.trim();
-		if (!state.kafka.enabled) out['Enabled'] = 'false';
 		if (state.kafka.timeoutMs != null && state.kafka.timeoutMs > 0) out['TimeoutMs'] = String(state.kafka.timeoutMs);
 	}
 
@@ -564,8 +523,9 @@ test.describe('ShareData — Cấu hình kết nối đối tác theo mẫu VMS 
 		// Rule 20.8 / Rule 11: CẤM toán tử phủ định kép !!
 		expect(partnerContent.includes('!!'), 'editPartner.vue không được chứa !!').toBeFalsy();
 
-		// Rule 20.26 / STT 55: close-on-click-modal="false"
-		expect(partnerContent).toContain(':close-on-click-modal="false"');
+		// Rule 20.26 / STT 55: đóng khi click ngoài kết hợp before-close và chặn khi đang xử lý (!state.loading)
+		expect(partnerContent).toContain(':close-on-click-modal="!state.loading"');
+		expect(partnerContent).toContain(':before-close="handleBeforeClose"');
 
 		// editPartner.vue phải nhúng connectionConfigForm và bỏ các biến/methods cũ
 		expect(partnerContent).toContain('<connection-config-form');
@@ -938,10 +898,8 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 			'lz.label.sharedataConnectionForm.fileNamePattern',
 			'lz.label.sharedataConnectionForm.insertToken',
 			'lz.label.sharedataConnectionForm.samplePreview',
-			'lz.label.sharedataConnectionForm.ftpServerHint',
 			'lz.label.sharedataConnectionForm.remotePath',
 			'lz.label.sharedataConnectionForm.useSsl',
-			'lz.label.sharedataConnectionForm.enabled',
 			'lz.label.sharedataConnectionForm.bootstrapServers',
 			'lz.label.sharedataConnectionForm.topic',
 			'lz.label.sharedataConnectionForm.clientId',
@@ -957,12 +915,14 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 			'lz.message.sharedataConnectionForm.errTokenRequired',
 			'lz.message.sharedataConnectionForm.errApiKeyRequired',
 			'lz.message.sharedataConnectionForm.errBasicAuthRequired',
-			'lz.label.sharedataConnectionForm.errorDetection',
-			'lz.label.sharedataConnectionForm.errorDetectionAuto',
-			'lz.label.sharedataConnectionForm.errorDetectionHttpOnly',
-			'lz.label.sharedataConnectionForm.errorDetectionCustom',
-			'lz.tooltip.sharedataConnectionForm.errorDetection',
 			'lz.label.sharedataConnectionForm.preservedParamsNotice',
+			'lz.label.sharedataPartner.ftpHost',
+			'lz.label.sharedataPartner.ftpPort',
+			'lz.placeholder.sharedataPartner.ftpHost',
+			'lz.label.sharedataConnectionForm.sectionFtpConn',
+			'lz.placeholder.sharedataConnectionForm.fileName',
+			'lz.label.sharedataConnectionForm.fileNameHint',
+			'lz.label.sharedataConnectionForm.fileNameHintFixed',
 		];
 
 		for (const k of keysToCheck) {
@@ -979,6 +939,20 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 			'lz.label.sharedataConnectionForm.descPartnerResponse',
 			'lz.label.sharedataPartner.typeFtps',
 			'lz.placeholder.sharedataPartner.fullAddress',
+			'lz.label.sharedataConnectionForm.errorDetection',
+			'lz.label.sharedataConnectionForm.errorDetectionAuto',
+			'lz.label.sharedataConnectionForm.errorDetectionHttpOnly',
+			'lz.label.sharedataConnectionForm.errorDetectionCustom',
+			'lz.tooltip.sharedataConnectionForm.errorDetection',
+			'lz.label.sharedataConnectionForm.warnCustomFieldRequired',
+			'lz.label.sharedataConnectionForm.successField',
+			'lz.label.sharedataConnectionForm.errorMessageField',
+			'lz.label.sharedataConnectionForm.errorCodeField',
+			'lz.placeholder.sharedataConnectionForm.successField',
+			'lz.placeholder.sharedataConnectionForm.errorMessageField',
+			'lz.placeholder.sharedataConnectionForm.errorCodeField',
+			'lz.label.sharedataConnectionForm.ftpServerHint',
+			'lz.label.sharedataConnectionForm.enabled',
 		];
 		for (const k of removedKeys) {
 			expect(viVn[k], `vi-vn.json không được còn key ${k}`).toBeUndefined();
@@ -992,8 +966,10 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		expect(enUs['lz.label.sharedataPartner.typeFtp']).toBe('FTP Server');
 		expect(viVn['lz.label.sharedataConnectionForm.useSsl']).toBe('Mã hóa kết nối FTPS');
 		expect(enUs['lz.label.sharedataConnectionForm.useSsl']).toBe('FTPS encryption');
-		expect(viVn['lz.label.sharedataConnectionForm.errorDetection']).toBe('Nhận biết đối tác báo lỗi');
-		expect(enUs['lz.label.sharedataConnectionForm.errorDetection']).toBe('Partner error detection');
+		expect(viVn['lz.label.sharedataPartner.ftpHost']).toBe('Máy chủ FTP');
+		expect(enUs['lz.label.sharedataPartner.ftpHost']).toBe('FTP server');
+		expect(viVn['lz.label.sharedataConnectionForm.sectionFtpConn']).toBe('Kết nối máy chủ');
+		expect(enUs['lz.label.sharedataConnectionForm.sectionFtpConn']).toBe('Server connection');
 	});
 
 	test('TC3 — Quy tắc 1: Không mất dữ liệu âm thầm — Khóa lạ hoặc khóa kênh khác vào Tham số bổ sung', async () => {
@@ -1104,13 +1080,12 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		expect(parsed.AuthType).toBe('Bearer');
 		expect(parsed.Token).toBe('my_bearer_token');
 
-		// Khi xóa trống format và timeoutSeconds, AuthType None và chọn Custom nhưng không nhập trường -> emit null
+		// Khi xóa trống format và timeoutSeconds, AuthType None, không còn trường nào -> emit null
 		state.api.authType = 'None';
 		state.api.token = '';
 		state.api.format = '';
 		state.api.timeoutSeconds = null as any;
 		state.api.bypassSsl = false;
-		state.api.responseContract = 'Custom';
 		const outNoAuth = serializeFormLogic(state, 'API', null);
 		expect(outNoAuth).toBeNull();
 	});
@@ -1215,7 +1190,7 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		expect(parsedSaslSsl.SslCaLocation).toBe('/cert.pem');
 	});
 
-	test('TC10 — Cấu hình mã hóa bảo mật (Encryptor & InboundEncryptor) và Enabled chỉ ghi khi false', async () => {
+	test('TC10 — Cấu hình mã hóa bảo mật (Encryptor & InboundEncryptor) và không còn đọc/ghi Enabled', async () => {
 		const state = createDefaultFormState();
 		state.api.timeoutSeconds = 30;
 
@@ -1239,15 +1214,20 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		expect(parsedAes.InboundEncryptor).toBe('AesGcm');
 		expect(parsedAes.DecryptionKeyRef).toBe('kms://key-in-01');
 
-		// 3. Enabled: kênh FTP mặc định enabled=true -> không ghi; khi enabled=false -> ghi "false"
+		// 3. Enabled: không còn đọc/ghi; cấu hình cũ có Enabled=false lưu lại sẽ bỏ khóa này
 		state.ftp.remotePath = '/pub';
-		state.ftp.enabled = true;
-		const outFtpOn = serializeFormLogic(state, 'FTP', null);
-		expect(JSON.parse(outFtpOn!).Enabled).toBeUndefined();
+		const outFtp = serializeFormLogic(state, 'FTP', null);
+		expect(JSON.parse(outFtp!).Enabled).toBeUndefined();
 
-		state.ftp.enabled = false;
-		const outFtpOff = serializeFormLogic(state, 'FTP', null);
-		expect(JSON.parse(outFtpOff!).Enabled).toBe('false');
+		const stateOldFtp = createDefaultFormState();
+		const parsedOldFtp = parseJsonToFormLogic(JSON.stringify({ Enabled: 'false', RemotePath: '/pub' }), 'FTP', stateOldFtp);
+		expect(parsedOldFtp.extra).toBeNull();
+		expect(JSON.parse(serializeFormLogic(stateOldFtp, 'FTP', parsedOldFtp.extra)!).Enabled).toBeUndefined();
+
+		const stateOldKafka = createDefaultFormState();
+		const parsedOldKafka = parseJsonToFormLogic(JSON.stringify({ Enabled: 'false', Topic: 't' }), 'Kafka', stateOldKafka);
+		expect(parsedOldKafka.extra).toBeNull();
+		expect(JSON.parse(serializeFormLogic(stateOldKafka, 'Kafka', parsedOldKafka.extra)!).Enabled).toBeUndefined();
 	});
 
 	test('TC11 — Form cấu hình kết nối: Bố cục 2 cột (:sm="12"), Mặc định JSON và 30s khi không chọn', async () => {
@@ -1470,45 +1450,24 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		expect(formContent).toContain('preservedParamsCount');
 		expect(formContent).toContain('lz.label.sharedataConnectionForm.preservedParamsNotice');
 
-		// 3. Kênh API: ô chọn "Nhận biết đối tác báo lỗi" (errorDetection) thay cho khối thu gọn cũ
+		// 3. Kênh API: không còn ô chọn nhận biết đối tác báo lỗi và 3 ô tên trường tùy chỉnh
 		expect(formContent).not.toContain('name="apiAdvanced"');
 		expect(formContent).not.toContain('collapsePartnerResponse');
 		expect(formContent).not.toContain('descPartnerResponse');
 		expect(formContent).not.toContain('Furion');
-		expect(formContent).toContain('lz.label.sharedataConnectionForm.errorDetection');
-		expect(formContent).toContain('lz.label.sharedataConnectionForm.errorDetectionAuto');
-		expect(formContent).toContain('lz.label.sharedataConnectionForm.errorDetectionHttpOnly');
-		expect(formContent).toContain('lz.label.sharedataConnectionForm.errorDetectionCustom');
-		expect(formContent).toContain('lz.tooltip.sharedataConnectionForm.errorDetection');
+		expect(formContent).not.toContain('errorDetection');
+		expect(formContent).not.toContain('responseContract');
+		expect(formContent).not.toContain('successField');
 
-		// 3a. Khi mở: có SuccessField -> chọn Custom; khi lưu ghi các trường tùy chỉnh, không ghi ResponseContract
-		const stateCustom = createDefaultFormState();
-		parseJsonToFormLogic(JSON.stringify({ SuccessField: 'is_ok', ErrorMessageField: 'err_msg' }), 'API', stateCustom);
-		expect(stateCustom.api.responseContract).toBe('Custom');
-		const outWithSuccess = serializeFormLogic(stateCustom, 'API', null);
-		const parsedCustom = JSON.parse(outWithSuccess!);
-		expect(parsedCustom.SuccessField).toBe('is_ok');
-		expect(parsedCustom.ErrorMessageField).toBe('err_msg');
-		expect(parsedCustom.ResponseContract).toBeUndefined();
-
-		// 3b. Khi mở: ResponseContract = HttpOnly -> chọn HttpOnly; khi lưu ghi ResponseContract="HttpOnly", không ghi 3 trường tùy chỉnh
-		const stateHttpOnly = createDefaultFormState();
-		parseJsonToFormLogic(JSON.stringify({ ResponseContract: 'HttpOnly' }), 'API', stateHttpOnly);
-		expect(stateHttpOnly.api.responseContract).toBe('HttpOnly');
-		stateHttpOnly.api.successField = 'leftover_should_not_save';
-		const outHttpOnly = serializeFormLogic(stateHttpOnly, 'API', null);
-		const parsedHttpOnly = JSON.parse(outHttpOnly!);
-		expect(parsedHttpOnly.ResponseContract).toBe('HttpOnly');
-		expect(parsedHttpOnly.SuccessField).toBeUndefined();
-
-		// 3c. Khi mở: các trường hợp còn lại (trống, Auto, UnifyResult) -> chọn Auto; khi lưu ghi ResponseContract="Auto"
-		const stateAuto = createDefaultFormState();
-		parseJsonToFormLogic(JSON.stringify({ ResponseContract: 'UnifyResult' }), 'API', stateAuto);
-		expect(stateAuto.api.responseContract).toBe('Auto');
-		const outAuto = serializeFormLogic(stateAuto, 'API', null);
-		const parsedAuto = JSON.parse(outAuto!);
-		expect(parsedAuto.ResponseContract).toBe('Auto');
-		expect(parsedAuto.SuccessField).toBeUndefined();
+		// 3a. Cấu hình cũ có ResponseContract/SuccessField -> lưu lại không còn 2 khóa đó
+		const stateLegacy = createDefaultFormState();
+		const legacyParsed = parseJsonToFormLogic(JSON.stringify({ ResponseContract: 'HttpOnly', SuccessField: 'x' }), 'API', stateLegacy);
+		expect(legacyParsed.extra).toBeNull();
+		const outLegacy = JSON.parse(serializeFormLogic(stateLegacy, 'API', legacyParsed.extra)!);
+		expect(outLegacy.ResponseContract).toBeUndefined();
+		expect(outLegacy.SuccessField).toBeUndefined();
+		expect(outLegacy.ErrorMessageField).toBeUndefined();
+		expect(outLegacy.ErrorCodeField).toBeUndefined();
 
 		// 4. Ba kênh File, FTP, Kafka không chứa ô chọn errorDetection
 		const fileSection = formContent.match(/class="channel-fields channel-file"[\s\S]*?<!-- ── 3\. KÊNH FTP/)?.[0] ?? '';
@@ -1517,7 +1476,19 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 
 		expect(fileSection).not.toContain('errorDetection');
 		expect(ftpSection).not.toContain('errorDetection');
+		expect(ftpSection).not.toContain('<el-alert');
+		expect(ftpSection).not.toContain('formState.ftp.enabled');
 		expect(kafkaSection).not.toContain('errorDetection');
+		expect(kafkaSection).not.toContain('formState.kafka.enabled');
+		expect(formContent).not.toContain('ftpServerHint');
+
+		// 5. Khối FTP: "Mã hóa kết nối FTPS" và "Thời gian chờ" cùng nằm trong mục "Kết nối máy chủ", ô Tên tệp có cảnh báo ghi đè
+		const ftpConnPart = ftpSection.match(/sectionFtpConn[\s\S]*?sectionData/)?.[0] ?? '';
+		expect(ftpConnPart).toContain('formState.ftp.useSsl');
+		expect(ftpConnPart).toContain('formState.ftp.timeoutSeconds');
+		const ftpDataPart = ftpSection.slice(ftpSection.indexOf('sectionData'));
+		expect(ftpDataPart).not.toContain('formState.ftp.timeoutSeconds');
+		expect(ftpSection).toContain("'warning-text': Boolean(formState.ftp.fileName?.trim())");
 	});
 
 	test('TC15 — Gộp FTP/FTPS và gọn phần đầu form đối tác (Endpoint API + gợi ý Địa chỉ đầy đủ khớp TryBuildEndpointUri)', async () => {
@@ -1563,9 +1534,24 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		// 4. Kiểm tra logic chuyển đổi FTPS (4) <-> FTP (3) + UseSsl trong editPartner.vue
 		expect(partnerContent).toContain('state.ruleForm.connectionType === ConnectionTypeEnum.Ftps');
 		expect(partnerContent).toContain('payload.connectionType = ConnectionTypeEnum.Ftps');
+
+		// 5. Hàng Loại kết nối | Endpoint nằm ngay sau hàng Mã | Tên, trước Địa chỉ | Cổng
+		const idxName = partnerContent.indexOf("lz.entity.sharedataPartner.name'");
+		const idxType = partnerContent.indexOf("lz.label.sharedataPartner.connectionType'");
+		const idxAddr = partnerContent.indexOf('prop="address"');
+		expect(idxName).toBeGreaterThan(-1);
+		expect(idxType).toBeGreaterThan(idxName);
+		expect(idxAddr).toBeGreaterThan(idxType);
+
+		// 6. Nhãn Địa chỉ/Cổng đổi theo loại FTP; thêm mới chọn FTP mà cổng trống thì điền sẵn 21
+		expect(partnerContent).toContain("lz.label.sharedataPartner.ftpHost");
+		expect(partnerContent).toContain("lz.label.sharedataPartner.ftpPort");
+		expect(partnerContent).toContain("lz.placeholder.sharedataPartner.ftpHost");
+		expect(partnerContent).toContain('@change="onConnectionTypeChange"');
+		expect(partnerContent).toContain('state.ruleForm.port = 21');
 	});
 
-	test('TC16 — Kiểm tra trên trình duyệt: 5 trường hợp gợi ý Địa chỉ đầy đủ, 3 chế độ Nhận biết đối tác báo lỗi và gộp FTP/FTPS', async ({ context, page }) => {
+	test('TC16 — Kiểm tra trên trình duyệt: 5 trường hợp gợi ý Địa chỉ đầy đủ, bỏ ô Nhận biết đối tác báo lỗi và gọn khối FTP', async ({ context, page }) => {
 		let lastUpdatedPayload: Record<string, any> | null = null;
 		await mockAuth(context, page, {
 			language: 'vi-vn',
@@ -1665,8 +1651,8 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		const dialog = page.locator('.sharedata-edit-partner-container .el-dialog');
 		await expect(dialog).toBeVisible();
 
-		const addressInput = dialog.locator('.el-form-item').filter({ hasText: 'Địa chỉ' }).first().locator('input');
-		const portInput = dialog.locator('.el-form-item').filter({ hasText: 'Cổng' }).first().locator('input');
+		const addressInput = dialog.locator('.el-form-item').filter({ has: page.locator('.el-form-item__label', { hasText: 'Địa chỉ (IP/host)' }) }).locator('input');
+		const portInput = dialog.locator('.el-form-item').filter({ has: page.locator('.el-form-item__label', { hasText: /^\s*Cổng\s*$/ }) }).locator('input');
 		const endpointItem = dialog.locator('.el-form-item').filter({ hasText: 'Endpoint' }).first();
 		const endpointInput = endpointItem.locator('input');
 		const hintLocator = dialog.locator('.full-endpoint-hint');
@@ -1714,32 +1700,20 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		await endpointInput.fill('/api/x');
 		await expect(hintLocator).toBeHidden();
 
-		// Điền lại địa chỉ chuẩn để kiểm tra 3 chế độ Nhận biết đối tác báo lỗi
+		// Điền lại địa chỉ chuẩn; khối "Gửi dữ liệu" kênh API không còn ô chọn nhận biết lỗi
 		await addressInput.fill('10.0.0.5');
 		await endpointInput.fill('/api/receive');
-
-		const errorDetectionSelect = dialog.locator('.channel-api .el-form-item').filter({ hasText: 'Nhận biết đối tác báo lỗi' }).locator('.el-select');
-		await expect(errorDetectionSelect).toBeVisible();
-		await expect(errorDetectionSelect).toContainText('Tự động (khuyến nghị)');
+		await expect(dialog.getByText('Nhận biết đối tác báo lỗi')).toHaveCount(0);
+		await expect(dialog.locator('.channel-api .el-select').filter({ hasText: 'Tự động (khuyến nghị)' })).toHaveCount(0);
 		await expect(dialog.locator('.channel-api .el-col-md-8')).toHaveCount(0);
-
-		// Chọn "Chỉ theo mã HTTP"
-		await errorDetectionSelect.click();
-		await page.locator('.el-select-dropdown__item:visible').filter({ hasText: 'Chỉ theo mã HTTP' }).click();
-		await expect(dialog.locator('.channel-api .el-col-md-8')).toHaveCount(0);
+		await expect(dialog.locator('.channel-api .el-form-item').filter({ hasText: 'Bỏ qua kiểm tra chứng chỉ' })).toBeVisible();
 		if (screenshotDir) {
-			await dialog.screenshot({ path: path.join(screenshotDir, 'partner-api-httponly.png') });
-		}
-
-		// Chọn "Tùy chỉnh" -> hiện 3 ô nhập tên trường (.el-col-md-8)
-		await errorDetectionSelect.click();
-		await page.locator('.el-select-dropdown__item:visible').filter({ hasText: 'Tùy chỉnh' }).click();
-		await expect(dialog.locator('.channel-api .el-col-md-8')).toHaveCount(3);
-		if (screenshotDir) {
-			await dialog.screenshot({ path: path.join(screenshotDir, 'partner-api-custom.png') });
+			await dialog.screenshot({ path: path.join(screenshotDir, 'partner-api-auto.png') });
 		}
 
 		// 2. Đổi Loại kênh kết nối sang "Máy chủ FTP" -> ô Endpoint ẩn, công tắc "Mã hóa kết nối FTPS" hiện
+		await portInput.fill('');
+		await portInput.blur();
 		const connTypeSelect = dialog.locator('.el-form-item').filter({ hasText: 'Loại kênh kết nối' }).locator('.el-select');
 		await connTypeSelect.click();
 		const visibleOptions = page.locator('.el-select-dropdown:visible .el-select-dropdown__item');
@@ -1750,12 +1724,38 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		await expect(hintLocator).toBeHidden();
 		const ftpsSwitchItem = dialog.locator('.channel-ftp .el-form-item').filter({ hasText: 'Mã hóa kết nối FTPS' });
 		await expect(ftpsSwitchItem).toBeVisible();
+
+		// Nhãn đổi theo loại FTP, cổng điền sẵn 21 khi thêm mới
+		await expect(dialog.locator('.el-form-item__label', { hasText: 'Máy chủ FTP' })).toBeVisible();
+		await expect(dialog.locator('.el-form-item__label', { hasText: 'Cổng FTP' })).toBeVisible();
+		await expect(dialog.locator('.el-form-item').filter({ has: page.locator('.el-form-item__label', { hasText: 'Cổng FTP' }) }).locator('input')).toHaveValue('21');
+		await expect(dialog.locator('.channel-ftp .el-alert')).toHaveCount(0);
+
+		// 2 mục mới: "Kết nối máy chủ" chứa FTPS và Thời gian chờ; "Gửi dữ liệu" không còn Thời gian chờ và Kênh đang bật
+		const ftpTitles = dialog.locator('.channel-ftp .section-title');
+		await expect(ftpTitles).toHaveCount(2);
+		await expect(ftpTitles.nth(0)).toContainText('Kết nối máy chủ');
+		await expect(ftpTitles.nth(1)).toContainText('Gửi dữ liệu');
+		await expect(dialog.locator('.channel-ftp .el-form-item').filter({ hasText: 'Thời gian chờ' })).toHaveCount(1);
+		await expect(dialog.locator('.channel-ftp .el-form-item').filter({ hasText: 'Kênh đang bật' })).toHaveCount(0);
+
+		// Ô Tên tệp: có giá trị thì câu ghi đè chuyển sang dạng cảnh báo
+		const fileNameItem = dialog.locator('.channel-ftp .el-form-item').filter({ has: page.locator('.el-form-item__label', { hasText: 'Tên tệp' }) });
+		await expect(fileNameItem.locator('input')).toHaveAttribute('placeholder', 'Để trống để hệ thống tự đặt tên');
+		await expect(fileNameItem.locator('.warning-text')).toHaveCount(0);
+		await fileNameItem.locator('input').fill('data.json');
+		await expect(fileNameItem.locator('.warning-text')).toContainText('ghi đè tệp trước');
+		await fileNameItem.locator('input').fill('');
 		if (screenshotDir) {
 			await dialog.screenshot({ path: path.join(screenshotDir, 'partner-ftp-ftps.png') });
 		}
 
-		// Đóng dialog Thêm
+		// Đóng dialog Thêm (xác nhận bỏ thay đổi nếu form dirty)
 		await dialog.locator('.dialog-footer button:has-text("Hủy")').click();
+		const confirmBox = page.locator('.el-message-box');
+		if (await confirmBox.isVisible({ timeout: 1000 }).catch(() => false)) {
+			await confirmBox.locator('button:has-text("Bỏ thay đổi")').click();
+		}
 		await expect(dialog).toBeHidden();
 
 		// 3. Mở sửa đối tác FTPS (connectionType = 4) -> hiển thị "Máy chủ FTP" + bật "Mã hóa kết nối FTPS", lưu gửi connectionType = 4
@@ -1770,6 +1770,116 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		await expect.poll(() => lastUpdatedPayload).not.toBeNull();
 		expect(lastUpdatedPayload!.connectionType).toBe(4);
 		expect(JSON.parse(lastUpdatedPayload!.connectionConfig).UseSsl).toBe('true');
+	});
+
+	test('TC30 — Rule 20.26: Hộp thoại tạo mới/chỉnh sửa đối tác đóng khi click ngoài nếu chưa sửa, hỏi xác nhận nếu có thay đổi; tiêu đề chuẩn "Tạo mới đối tác"', async ({ context, page }) => {
+		await mockAuth(context, page, {
+			language: 'vi-vn',
+			userInfo: {
+				authBtnList: ['*', 'sharedataSharing:add', 'sharedataSharing:update', 'sharedataSharing:delete'],
+				defaultMenu: '/sharedata/sharing',
+			},
+		});
+
+		await page.route('**/api/system/sysmenu/loginmenutree*', async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({
+					code: 200,
+					result: [
+						{
+							id: 'menu_sharedata',
+							pid: '0',
+							path: '/sharedata',
+							name: 'sharedata',
+							component: 'layout/routerView/parent',
+							meta: { title: 'lz.menu.sharedata', isLink: '', isHide: false, isKeepAlive: true, isAffix: false, isIframe: false, roles: ['admin'], icon: 'ele-Share' },
+							children: [
+								{
+									id: 'menu_sharedata_sharing',
+									pid: 'menu_sharedata',
+									path: '/sharedata/sharing',
+									name: 'sharedataSharing',
+									component: 'sharedata/sharing/index',
+									meta: { title: 'lz.menu.sharedataSharing', isLink: '', isHide: false, isKeepAlive: true, isAffix: false, isIframe: false, roles: ['admin'], icon: 'ele-Connection' },
+								},
+							],
+						},
+					],
+				}),
+			});
+		});
+
+		await page.route('**/api/sharedata/sharedatapartner/list*', async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({ code: 200, result: [] }),
+			});
+		});
+
+		await page.route('**/api/sharedata/sharedatasession/list*', async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({ code: 200, result: [] }),
+			});
+		});
+
+		await page.route('**/api/sharedata/sharedatasubscription/list*', async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({ code: 200, result: [] }),
+			});
+		});
+
+		await page.setViewportSize({ width: 1600, height: 900 });
+		await page.goto('/#/sharedata/sharing');
+		await expect(page.locator('.eshare-body__left')).toBeVisible({ timeout: 15000 });
+
+		const addBtn = page.locator('.ptn-list__head button:has-text("Thêm")');
+		await expect(addBtn).toBeVisible();
+
+		// 1. Mở dialog Thêm -> kiểm tra tiêu đề là "Tạo mới đối tác" (không còn "tên đối tác")
+		await addBtn.click();
+		const dialog = page.locator('.sharedata-edit-partner-container .el-dialog');
+		await expect(dialog).toBeVisible();
+		const headerEl = dialog.locator('.el-dialog__header');
+		await expect(headerEl).toContainText('Tạo mới đối tác');
+		await expect(headerEl).not.toContainText('tên đối tác');
+
+		// 2. Chưa sửa gì -> click outside tại (5, 5) -> đóng ngay lập tức không hỏi xác nhận
+		await page.mouse.click(5, 5);
+		await expect(dialog).toBeHidden({ timeout: 5000 });
+
+		// 3. Mở lại -> sửa trường Mã đối tác -> click outside -> hiện hộp hỏi confirmDiscardChanges
+		await addBtn.click();
+		await expect(dialog).toBeVisible();
+
+		const codeInput = dialog.locator('.el-form-item').filter({ has: page.locator('.el-form-item__label', { hasText: 'Mã đối tác' }) }).locator('input');
+		await codeInput.fill('PARTNER_DIRTY_TEST');
+
+		await page.mouse.click(5, 5);
+		const confirmBox = page.locator('.el-message-box');
+		await expect(confirmBox).toBeVisible({ timeout: 5000 });
+		await expect(confirmBox).toContainText('Có thay đổi chưa lưu');
+
+		// 4. Bấm "Tiếp tục sửa" -> hộp thoại vẫn mở và giá trị giữ nguyên
+		const keepEditingBtn = confirmBox.locator('button:has-text("Tiếp tục sửa")');
+		await keepEditingBtn.click();
+		await expect(confirmBox).toBeHidden({ timeout: 3000 });
+		await expect(dialog).toBeVisible();
+		await expect(codeInput).toHaveValue('PARTNER_DIRTY_TEST');
+
+		// 5. Click outside lần nữa -> hiện hộp hỏi -> bấm "Bỏ thay đổi" -> hộp thoại đóng
+		await page.mouse.click(5, 5);
+		await expect(confirmBox).toBeVisible({ timeout: 5000 });
+		const discardBtn = confirmBox.locator('button:has-text("Bỏ thay đổi")');
+		await discardBtn.click();
+		await expect(confirmBox).toBeHidden({ timeout: 3000 });
+		await expect(dialog).toBeHidden({ timeout: 5000 });
 	});
 });
 

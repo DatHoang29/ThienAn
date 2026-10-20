@@ -35,6 +35,15 @@ internal static class SeedScriptReader
         string? Remark);
 
     /// <summary>
+    /// Thông tin câu ghi chiều nhận trích xuất từ kịch bản seed SQL.
+    /// </summary>
+    public sealed record SeedWriteSqlInfo(
+        string PacketCode,
+        string TableName,
+        int OrderNo,
+        string WriteSql);
+
+    /// <summary>
     /// Description: Lấy chuỗi SQL trích xuất của gói tin tương ứng (101, 102...).
     ///              Ném ngoại lệ InvalidOperationException nếu không tìm thấy.
     /// </summary>
@@ -261,5 +270,45 @@ internal static class SeedScriptReader
 
         throw new FileNotFoundException(
             $"Không tìm thấy tệp seed 03-sharedata-seed-cau-hinh.sql khi dò từ thư mục gốc '{AppContext.BaseDirectory}'.");
+    }
+
+    private static readonly Lazy<IReadOnlyList<SeedWriteSqlInfo>> WriteSqlStatementsCache = new(LoadWriteSqlStatementsInternal);
+
+    /// <summary>
+    /// Description: Đọc danh sách 18 câu ghi chiều nhận từ kịch bản seed 02.
+    /// </summary>
+    public static IReadOnlyList<SeedWriteSqlInfo> ReadWriteSqlStatements()
+    {
+        return WriteSqlStatementsCache.Value;
+    }
+
+    private static IReadOnlyList<SeedWriteSqlInfo> LoadWriteSqlStatementsInternal()
+    {
+        var scriptPath = ResolveSeedScriptPath();
+        var content = File.ReadAllText(scriptPath);
+
+        var regex = new Regex(
+            @"INSERT\s+INTO\s+\[dbo\]\.\[ShareDataPacketSql\][^\)]*\)\s*VALUES\s*\(\s*LOWER\(CONVERT\(NVARCHAR\(64\),\s*NEWID\(\)\)\),\s*'(?<packetCode>[^']+)',\s*'(?<tableName>[^']+)',\s*(?<orderNo>\d+),\s*N'(?<writeSql>.*?)',\s*1,\s*@TenantIdPacketSql,\s*GETDATE\(\),\s*'SHAREDATA-SEED-02'\);",
+            RegexOptions.Singleline);
+
+        var matches = regex.Matches(content);
+        if (matches.Count != 18)
+        {
+            throw new InvalidOperationException(
+                $"Kỳ vọng 18 câu ghi chiều nhận trong kịch bản seed 02, nhưng tìm thấy {matches.Count} câu.");
+        }
+
+        var list = new List<SeedWriteSqlInfo>(matches.Count);
+        foreach (Match match in matches)
+        {
+            var packetCode = match.Groups["packetCode"].Value;
+            var tableName = match.Groups["tableName"].Value;
+            var orderNo = int.Parse(match.Groups["orderNo"].Value);
+            var writeSql = match.Groups["writeSql"].Value.Replace("''", "'");
+
+            list.Add(new SeedWriteSqlInfo(packetCode, tableName, orderNo, writeSql));
+        }
+
+        return list;
     }
 }

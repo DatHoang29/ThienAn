@@ -2121,14 +2121,14 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         }
     });
 
-    test('31. Rút gọn nhãn Bảng nguồn súc tích và tăng độ rộng ô chọn lên 260px trong Visual Query Builder', async ({ page }) => {
+    test('31. Rút gọn nhãn Bảng nguồn súc tích và ô chọn Bảng nguồn co giãn theo nội dung trong Visual Query Builder', async ({ page }) => {
         const qbPath = resolveWebvuePath('views/sharedata/dataSource/component/queryBuilder.vue');
         const qbContent = fs.readFileSync(qbPath, 'utf8');
 
-        // 1. Quét tĩnh mã nguồn: sử dụng hàm getTableShortLabel và class vqb-table-select có width: 260px
+        // 1. Quét tĩnh mã nguồn: sử dụng hàm getTableShortLabel và class vqb-table-select có width: fit-content
         expect(qbContent).toContain(':label="getTableShortLabel(tb)"');
         expect(qbContent).toContain('function getTableShortLabel(tb: { name: string; descKey?: string; description?: string }): string');
-        expect(qbContent).toContain('.vqb-table-select {\n\t\t\twidth: 260px;');
+        expect(qbContent).toContain('.vqb-table-select {\n\t\t\twidth: fit-content;');
         expect(qbContent).not.toContain(':label="`${tb.name} (${tb.descKey ? $t(tb.descKey) : tb.description})`"');
 
         // 2. Kiểm thử logic chuẩn hóa nhãn rút gọn cho các bảng nguồn ITS
@@ -2227,7 +2227,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const box = await tableSelect.boundingBox();
         expect(box).toBeTruthy();
         if (box) {
-            expect(box.width).toBeGreaterThanOrEqual(250);
+            expect(box.width).toBeGreaterThanOrEqual(80);
+            expect(box.width).toBeLessThan(260);
         }
 
         // Mở dropdown chọn bảng nguồn
@@ -2490,13 +2491,13 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(finishedIcon).toHaveCount(0);
     });
 
-    test('33. Hộp thoại editPacket, editPacketField và ElMessageBox.confirm KHÔNG đóng khi click ra ngoài', async ({ page }) => {
+    test('33. Rule 20.26 — Hộp thoại form đóng khi bấm ra ngoài nếu chưa sửa, hỏi xác nhận nếu có thay đổi; hộp confirm đóng khi bấm ra ngoài', async ({ page }) => {
         await page.goto('/#/sharedata/dataSource');
 
         const packetGrid = page.locator('.packet-col .vxe-grid');
         await expect(packetGrid).toBeVisible({ timeout: 15_000 });
 
-        // 1. Kiểm tra editPacket dialog
+        // 1. Kiểm tra editPacket dialog: chưa sửa gì -> bấm ra ngoài lớp phủ thì hộp đóng ngay
         const addPacketBtn = page.locator('.packet-col button:has-text("Thêm")').first();
         await expect(addPacketBtn).toBeVisible();
         await addPacketBtn.click();
@@ -2504,47 +2505,55 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const packetDialog = page.locator('.el-overlay:not([style*="display: none"]) .el-dialog').first();
         await expect(packetDialog).toBeVisible({ timeout: 5000 });
 
-        // Click outside tại tọa độ (5, 5)
+        // Click outside tại tọa độ (5, 5) khi chưa sửa gì -> đóng ngay không hỏi
         await page.mouse.click(5, 5);
-        await page.waitForTimeout(300);
-        await expect(packetDialog).toBeVisible();
-
-        // Đóng dialog bằng nút Hủy
-        await packetDialog.locator('.dialog-footer button:has-text("Hủy")').click();
         await expect(packetDialog).toBeHidden({ timeout: 5000 });
 
-        // 2. Kiểm tra editPacketField dialog
-        await page.locator('.packet-col .vxe-table--body-wrapper tbody tr').first().click();
-        const addFieldBtn = page.locator('button:has-text("Thêm trường")').first();
-        if (await addFieldBtn.isVisible()) {
-            await addFieldBtn.click();
-            const fieldDialog = page.locator('.el-overlay:not([style*="display: none"]) .el-dialog').first();
-            await expect(fieldDialog).toBeVisible({ timeout: 5000 });
+        // 2. Mở lại, sửa một ô (nhập mã gói) -> bấm ra ngoài -> hiện hộp hỏi confirmDiscardChanges
+        await addPacketBtn.click();
+        await expect(packetDialog).toBeVisible({ timeout: 5000 });
 
-            // Click outside
-            await page.mouse.click(5, 5);
-            await page.waitForTimeout(300);
-            await expect(fieldDialog).toBeVisible();
+        const codeInput = packetDialog.locator('input').first();
+        await codeInput.fill('TEST_CODE');
 
-            await fieldDialog.locator('.dialog-footer button:has-text("Hủy")').click();
-            await expect(fieldDialog).toBeHidden({ timeout: 5000 });
-        }
+        // Bấm ra ngoài lớp phủ -> hiện hộp hỏi
+        await page.mouse.click(5, 5);
+        const confirmBox = page.locator('.el-message-box');
+        await expect(confirmBox).toBeVisible({ timeout: 5000 });
+        await expect(confirmBox).toContainText('Có thay đổi chưa lưu');
 
-        // 3. Kiểm tra ElMessageBox.confirm khi bấm Xóa
+        // Bấm "Tiếp tục sửa" -> hộp thoại vẫn mở và giữ nguyên dữ liệu
+        const keepEditingBtn = confirmBox.locator('button:has-text("Tiếp tục sửa")');
+        await keepEditingBtn.click();
+        await expect(confirmBox).toBeHidden({ timeout: 3000 });
+        await expect(packetDialog).toBeVisible();
+        await expect(codeInput).toHaveValue('TEST_CODE');
+
+        // Bấm ra ngoài lần nữa -> hiện hộp hỏi -> bấm "Bỏ thay đổi" -> hộp thoại đóng
+        await page.mouse.click(5, 5);
+        await expect(confirmBox).toBeVisible({ timeout: 5000 });
+        const discardBtn = confirmBox.locator('button:has-text("Bỏ thay đổi")');
+        await discardBtn.click();
+        await expect(confirmBox).toBeHidden({ timeout: 3000 });
+        await expect(packetDialog).toBeHidden({ timeout: 5000 });
+
+        // 3. Kiểm tra ElMessageBox.confirm: bấm ra ngoài lớp phủ thì hộp đóng (Hủy) mà không gọi API
+        let deleteApiCalled = false;
+        await page.route('**/api/sharedata/sharedatapacket/delete*', async (route) => {
+            deleteApiCalled = true;
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: true }) });
+        });
+
         const deletePacketBtn = page.locator('.packet-col button.el-button--danger').first();
         if (await deletePacketBtn.isVisible()) {
             await deletePacketBtn.click();
             const msgBox = page.locator('.el-message-box');
             await expect(msgBox).toBeVisible({ timeout: 5000 });
 
-            // Click outside
+            // Click outside -> đóng confirm mà không gọi API delete
             await page.mouse.click(5, 5);
-            await page.waitForTimeout(300);
-            await expect(msgBox).toBeVisible();
-
-            // Đóng bằng nút Hủy trên confirm
-            await msgBox.locator('button:has-text("Hủy")').click();
             await expect(msgBox).toBeHidden({ timeout: 5000 });
+            expect(deleteApiCalled).toBe(false);
         }
     });
 
@@ -2763,6 +2772,75 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         // 3. Ô maxLookBackDays đọc min/max từ feConfig.packetLookbackDays
         expect(content).toContain(':min="feConfig.packetLookbackDays.min"');
         expect(content).toContain(':max="feConfig.packetLookbackDays.max"');
+    });
+
+    test('40. Dòng cấu hình đầu (Bảng nguồn, Bí danh, Giới hạn TOP) và hộp thông báo el-alert co giãn theo nội dung kèm padding top-bottom', async ({ page }) => {
+        const qbPath = resolveWebvuePath('views/sharedata/dataSource/component/queryBuilder.vue');
+        const qbContent = fs.readFileSync(qbPath, 'utf-8');
+        const idxPath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
+        const idxContent = fs.readFileSync(idxPath, 'utf-8');
+
+        // 1. Kiểm tra CSS dòng cấu hình đầu trong queryBuilder.vue
+        expect(qbContent).toContain('.vqb-table-select {\n\t\t\twidth: fit-content;');
+        expect(qbContent).toContain('.vqb-alias-input {\n\t\t\twidth: fit-content;');
+        expect(qbContent).toContain('.vqb-top-select {\n\t\t\twidth: 190px;\n\t\t}');
+
+        // 2. Kiểm tra CSS el-alert trong dataSource/index.vue
+        expect(idxContent).toContain(':deep(.el-alert) {\n\twidth: fit-content;\n\tmax-width: 100%;\n\talign-self: flex-start;\n\tflex-shrink: 0;\n\tpadding: 8px 14px;');
+
+        // 3. Kiểm chứng trực tiếp trên trình duyệt
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+
+        const packetGrid = page.locator('.packet-col .vxe-grid');
+        await expect(packetGrid).toBeVisible({ timeout: 15_000 });
+        await page.locator('.vxe-table--body-wrapper tbody tr').first().click();
+
+        const tabs = page.locator('.datasource-right-tabs');
+        await expect(tabs).toBeVisible({ timeout: 15_000 });
+        const sqlTab = tabs.getByRole('tab', { name: /Cấu hình SQL/ });
+        await sqlTab.click();
+        await expect(sqlTab).toHaveClass(/is-active/);
+
+        const topSelect = page.locator('.visual-query-builder-container .vqb-top-select');
+        await expect(topSelect).toBeVisible();
+        const topBox = await topSelect.boundingBox();
+        expect(topBox).toBeTruthy();
+        if (topBox) {
+            expect(Math.round(topBox.width)).toBe(190);
+        }
+
+        const aliasInput = page.locator('.visual-query-builder-container .vqb-alias-input');
+        await expect(aliasInput).toBeVisible();
+        const aliasBox = await aliasInput.boundingBox();
+        expect(aliasBox).toBeTruthy();
+        if (aliasBox) {
+            expect(aliasBox.width).toBeLessThan(95);
+        }
+
+        // Chuyển Chế độ đồng bộ sang Gửi nối đuôi để hiển thị el-alert hướng dẫn
+        const syncModeSelect = page.locator('.sql-sync-mode-control .el-select');
+        await syncModeSelect.click();
+        const syncPopper = page.locator('.el-select__popper:visible');
+        await expect(syncPopper).toBeVisible({ timeout: 5_000 });
+        await syncPopper.locator('.el-select-dropdown__item', { hasText: /Gửi nối đuôi|Incremental/i }).click();
+
+        const alerts = page.locator('.sql-center-pane .el-alert:visible');
+        await expect(alerts.first()).toBeVisible({ timeout: 5_000 });
+
+        const alertStyle = await alerts.first().evaluate((el) => {
+            const cs = window.getComputedStyle(el);
+            return {
+                flexShrink: cs.flexShrink,
+                paddingTop: cs.paddingTop,
+                paddingBottom: cs.paddingBottom,
+                height: el.getBoundingClientRect().height,
+            };
+        });
+        expect(alertStyle.flexShrink).toBe('0');
+        expect(alertStyle.paddingTop).toBe('8px');
+        expect(alertStyle.paddingBottom).toBe('8px');
+        expect(alertStyle.height).toBeGreaterThanOrEqual(32);
     });
 });
 
