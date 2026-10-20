@@ -190,7 +190,7 @@ Khi kiểm thử tích hợp với NATS broker thật (Docker local 127.0.0.1:42
 
 ## ⏱️ 6. Chạy Test Theo Phạm Vi Sửa Để Tiết Kiệm Thời Gian (Rule 19.92, bổ sung 18/10/2026)
 
-Bối cảnh: cả bộ test ShareData mất khoảng 12 phút; chạy cả bộ sau mỗi lần sửa nhỏ làm chậm vòng sửa–kiểm.
+Bối cảnh: cả bộ test ShareData (677 test) mất khoảng 13 phút (12 phút 52 giây, đo ngày 20/10/2026 sau khi tối ưu phân trang); chạy cả bộ sau mỗi lần sửa nhỏ làm chậm vòng sửa–kiểm.
 
 1. **Sau khi sửa mã, kiểm chứng theo phạm vi đã sửa trước**, ⛔ không mặc định chạy cả bộ.
 2. **Xác định phạm vi** (gộp cả hai nguồn, vì đồ thị Gortex có thể thiếu cạnh từ test — đã gặp: báo 0% phủ cho Delivery trong khi có hơn 100 test):
