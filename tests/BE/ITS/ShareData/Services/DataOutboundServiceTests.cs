@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using Module.ShareData.Core.Dto.ActivityLog;
 using Module.ShareData.Core.Entities;
 using Modules.CCTV.Core.Entities;
+using Modules.CfgSystem.Core.Entities;
 using Modules.TMS.Core.Entities;
 using Modules.TOLL.Core.Entities;
 using Modules.VMS.Core.Entities;
@@ -5465,7 +5466,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         /// Created date: 29/09/2026
         /// </summary>
         [Fact]
-        public async Task ProcessSubscriptions_WhenBacklogExceedsPageLimit_StopsAtTwentyPagesAndResumesNextRun_Test()
+        public async Task ProcessSubscriptions_WhenBacklogExceedsPageLimit_StopsAtConfiguredPageLimitAndResumesNextRun_Test()
         {
             // Arrange
             using var scope = _host.Services.CreateScope();
@@ -5481,31 +5482,32 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             var baseTime = dbNow.AddDays(-34);
             var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed { PartnerCode = $"P_PG_{unique}", SubCode = $"SUB_PG_{unique}", DatatypeId = "103", ConfigureSub = s => s.LastTimeRun = baseTime });
 
-            var rows = await SeedTrafficRows(db, eqId, platePrefix, baseTime, 2100);
+            var rows = await SeedTrafficRows(db, eqId, platePrefix, baseTime, 310);
 
+            var workerConfig = await CreateWorkerConfigWithMaxPages(scope, db, 3);
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
 
-            // Act 1: Lượt 1 — dừng đúng ở trần 20 trang
-            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
+            // Act 1: Lượt 1 — dừng đúng ở trần 3 trang
+            await CreateWorker(scope, workerConfig: workerConfig).ProcessSubscriptions(CancellationToken.None);
 
-            // Assert 1 (lọc ParentId == null để đếm đúng 20 trang cha)
+            // Assert 1 (lọc ParentId == null để đếm đúng 3 trang cha)
             var firstRun = (await GetLogs(db, sub.ID)).Where(l => l.ParentId == null && l.RecordCount > 0).ToList();
-            Assert.Equal(20, firstRun.Count);
-            Assert.Equal(2000, firstRun.Sum(l => l.RecordCount));
+            Assert.Equal(3, firstRun.Count);
+            Assert.Equal(300, firstRun.Sum(l => l.RecordCount));
 
-            // Act 2: Lượt 2 — lấy nốt 100 dòng còn lại, không mất dữ liệu
+            // Act 2: Lượt 2 — lấy nốt 10 dòng còn lại, không mất dữ liệu
             await db.Updateable<ShareDataSubscription>()
                 .SetColumns(s => s.NextTimeRun == baseTime)
                 .Where(s => s.ID == sub.ID)
                 .ExecuteCommandAsync();
 
-            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
+            await CreateWorker(scope, workerConfig: workerConfig).ProcessSubscriptions(CancellationToken.None);
 
             // Assert 2
             var plates = await CollectExportedPlates(db, sub.ID, platePrefix);
-            Assert.Equal(2100, plates.Count);
-            Assert.Equal(2100, plates.Distinct().Count());
+            Assert.Equal(310, plates.Count);
+            Assert.Equal(310, plates.Distinct().Count());
 
             await db.Updateable<ShareDataSubscription>()
                 .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Expired)
@@ -7009,7 +7011,8 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         private static DataOutboundService CreateWorker(
             IServiceScope scope,
             IHttpClientFactory? httpClientFactory = null,
-            IConfiguration? configuration = null)
+            IConfiguration? configuration = null,
+            DataWorkerConfigService? workerConfig = null)
         {
             var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataOutboundService>>();
@@ -7031,7 +7034,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 logger,
                 scope.ServiceProvider.GetRequiredService<DataOutboundExtractionProcess>(),
                 new DataOutboundTransport(dispatcher, config),
-                scope.ServiceProvider.GetRequiredService<DataWorkerConfigService>());
+                workerConfig ?? scope.ServiceProvider.GetRequiredService<DataWorkerConfigService>());
         }
 
         /// <summary>
@@ -7063,6 +7066,33 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         {
             var fullPath = Path.Combine(Directory.GetCurrentDirectory(), "sharedata/send", relativePath);
             return await File.ReadAllTextAsync(fullPath);
+        }
+
+        /// <summary>
+        /// Description: Tạo DataWorkerConfigService đọc nhóm cấu hình cô lập với trần số trang mỗi lượt do test đặt,
+        ///              không ảnh hưởng cấu hình dùng chung của các bài test khác.
+        /// Created date: 20/10/2026
+        /// </summary>
+        private static async Task<DataWorkerConfigService> CreateWorkerConfigWithMaxPages(IServiceScope scope, ISqlSugarClient db, int maxPagesPerRun)
+        {
+            var isolatedGroup = $"sd_outbound_pages_{Guid.NewGuid():N}";
+            await db.Insertable(new SysOpConfig
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                GroupCode = isolatedGroup,
+                Code = ShareDataConst.ConfigKeyOutboundMaxPagesPerRun,
+                Value = maxPagesPerRun.ToString(CultureInfo.InvariantCulture),
+                Status = BaseEnums.StatusEnum.Enable
+            }).ExecuteCommandAsync();
+
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?> { [ShareDataConst.ConfigGroupOverrideKey] = isolatedGroup })
+                .Build();
+
+            return new DataWorkerConfigService(
+                scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>(),
+                Microsoft.Extensions.Logging.Abstractions.NullLogger<DataWorkerConfigService>.Instance,
+                config);
         }
 
         /// <summary>
