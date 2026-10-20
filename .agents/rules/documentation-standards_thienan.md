@@ -88,7 +88,7 @@ description: Documentation standards, single MasterPlan per subsystem, executabl
 
 1. **Cấu Trúc Tệp Transcript Chuẩn (Tier A)**:
    - **Frontmatter**: `tier: A`, `read: full`, `source` (đường dẫn audio gốc), `date`, `model`, `status`, `topic`, `participants`.
-   - **Quy tắc ghi `participants`**: Chỉ giữ vai trò của **Tech Lead** (ví dụ: `Anh Sơn (Tech Lead)`), còn các lập trình viên chỉ ghi ngắn gọn là **`(Dev)`** (ví dụ: `Hiếu (Dev)`, `Đạt (Dev)`). ⛔ **CẤM** tự chia nhỏ vai trò của Dev thành `Dev Backend / Service Worker & Frontend` hay `Dev Backend / WebAPI & Database`, vì mọi Dev đều cover full toàn bộ các tầng.
+   - **Quy tắc ghi `participants`**: Chỉ ghi danh xưng vai trò chuẩn, gồm: **Tech Lead**, **Dev**, **BA**, **PM**. ⛔ **TUYỆT ĐỐI CẤM** ghi tên cá nhân cụ thể (như không ghi "Anh Sơn", "Hiếu", "Đạt"...), và ⛔ **CẤM** tự chia nhỏ vai trò của Dev thành các chức danh rườm rà (như Dev FE, Dev BE, Dev Worker...) vì mọi Dev đều cover full stack.
    - **Mục 1**: Tóm tắt nội dung & Quyết định kỹ thuật cốt lõi (Executive Summary theo các chủ đề chính).
    - **Mục 2**: Kịch bản đối thoại chi tiết theo dòng thời gian (Detailed Transcript từng mốc timeline, giữ nguyên ngữ cảnh và lời thoại thực tế của các thành viên).
 2. ⛔ **CẤM / KHÔNG CẦN TẠO MỤC "Ma trận phân công công việc (Action Items)"**:
@@ -96,10 +96,16 @@ description: Documentation standards, single MasterPlan per subsystem, executabl
    - Chỉ cần tóm tắt quyết định kỹ thuật cốt lõi (Mục 1) và giữ kịch bản đối thoại chi tiết (Mục 2).
 3. **Tách Riêng Theo Từng Phân Hệ**:
    - Khi một cuộc họp/tệp ghi âm thảo luận nhiều phân hệ (ví dụ `VideoWall`, `ShareData`...), **BẮT BUỘC bóc tách thành các file transcript độc lập** và lưu vào thư mục `doc/transcript/` của từng phân hệ tương ứng, kèm theo cập nhật `00-catalog.md`.
-4. **Quy Trình Kỹ Thuật Bắt Buộc Khi Nghe & Trích Xuất Audio (High-Precision Audio Transcription)**:
-   - **Cắt nhỏ file âm thanh (`Audio Chunking` $\le 10\text{–}15$ phút/đoạn):**
-     - ⛔ **CẤM** nạp nguyên một file ghi âm dài ($> 15$ phút) vào công cụ multimodal (`view_file`) trong một lần gọi (gây loãng sự chú ý / attention dilution ở nửa cuối file và làm giảm độ chính xác nhận diện từ).
-     - **BẮT BUỘC** cắt file gốc thành các đoạn ngắn **10–15 phút** (bằng `ffmpeg` hoặc `swift` `AVAssetExportSession` trên macOS) lưu vào thư mục tạm `scratch/`, nghe từng đoạn ở độ phân giải từng giây, và **xóa sạch các file audio cắt tạm** ngay sau khi hoàn tất.
+4. **Quy Trình Kỹ Thuật Bắt Buộc Khi Nghe & Trích Xuất Audio (High-Precision Audio Transcription - Rule 19.99)**:
+   - **Cắt nhỏ file âm thanh (`Audio Chunking` & Giới hạn Chunk Nghe Chuyên Sâu):**
+     - ⛔ **CẤM** nạp nguyên một file ghi âm dài ($> 15$ phút) vào công cụ multimodal (`view_file` / `read_file`) trong một lần gọi (gây loãng sự chú ý / attention dilution ở nửa cuối file và làm giảm độ chính xác nhận diện từ).
+     - **BẮT BUỘC** cắt file gốc thành các đoạn ngắn (bằng `ffmpeg` hoặc `swift` `AVAssetExportSession` trên macOS) lưu vào thư mục tạm `scratch/`, và **xóa sạch các file audio cắt tạm** ngay sau khi hoàn tất.
+     - **Độ dài chunk**: Với bản ghi âm tổng quan chung có thể cắt $10\text{–}15$ phút/đoạn; nhưng **với các phân đoạn thảo luận kiến trúc cốt lõi, công nghệ hoặc chốt quyết định kỹ thuật, BẮT BUỘC cắt lát nhỏ $\le 3\text{–}5$ phút/đoạn** để AI nghe rõ từng âm tiết, bắt trọn từng câu chữ và không bị trôi chi tiết.
+   - **Cấm Tự Ý Tóm Tắt Rút Gọn & Suy Diễn Đổi Thể (Zero Paraphrasing & Zero Inversion Bias - P0 Safeguard):**
+     - ⛔ **TUYỆT ĐỐI CẤM** tự ý tóm tắt vội vàng, diễn giải rút gọn làm mất vế câu hoặc đổi thể từ **khẳng định / đang cân nhắc** sang thể **phủ định** (ví dụ: cấm tự ý đổi từ *"Hữu Nghị Chi Lăng hiện tại đang là Map Server đúng không? Map Server! Nhưng cái hầm có thể là sẽ chuyển qua dạng hình..."* thành *"Không dùng Map Server"*).
+     - **Bảo toàn 100% Thuật ngữ Kỹ thuật & Tên Công nghệ**: Giữ nguyên vẹn mọi tên công nghệ, giải pháp, phần mềm, thiết bị được phát biểu (`Map Server`, `SolarWinds`, `Zabbix`, `PLC Modbus`, `Barie`, `Jet Fan interlock`...).
+   - **Phân Định Rạch Ròi Giữa Nền Tảng Hiện Hữu (Baseline) & Phương Án Cân Nhắc (Proposal):**
+     - Bắt buộc ghi nhận rõ: Hệ thống toàn tuyến hiện tại đang chạy nền tảng công nghệ gì, và ý tưởng đang trao đổi là áp dụng chung hay chỉ là phương án đề xuất cục bộ cho một phân đoạn đặc thù (ví dụ: hầm ngắn vài km nên cân nhắc thêm sơ đồ hình ảnh 2D).
    - **Phân tách kênh người nói & Lọc tạp âm nền (Speaker Separation & Background Chatter Filtering):**
      - Khi băng ghi âm có tiếng ồn văn phòng hoặc có cuộc hội thoại khác ở bàn bên cạnh lọt vào mic (overlapping speech), **BẮT BUỘC** đối chiếu giọng nói và mạch câu chuyện để tách riêng lời thoại của nhóm họp chính; ⛔ **TUYỆT ĐỐI KHÔNG** chép nhầm câu nói của người ở bàn khác vào lời thoại cuộc họp.
    - **Chống suy diễn thuật ngữ theo quán tính ngữ cảnh (Zero Context-Bias Hallucination):**
