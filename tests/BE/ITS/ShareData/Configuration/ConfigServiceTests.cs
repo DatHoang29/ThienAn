@@ -6,17 +6,18 @@ namespace Tests.ShareData.Configuration;
 
 /// <summary>
 /// Author: DatHQ
-/// Description: Bộ kiểm thử đơn vị và tích hợp cho ShareDataConfigService (WebAPI đọc các giới hạn vận hành từ SysOpConfig qua IMessageBus).
+/// Description: Bộ kiểm thử đơn vị và tích hợp cho ConfigService (WebAPI đọc các giới hạn vận hành từ SysOpConfig qua IMessageBus).
 ///              Kiểm tra cơ chế fallback mặc định và khoảng an toàn tuyệt đối.
 /// Created date: 18/10/2026
+/// Modified date: 20/10/2026 (Đồng bộ tên ConfigServiceTests theo Rule 19.84)
 /// </summary>
 [Collection("api")]
-public class ShareDataConfigServiceTests(Host host)
+public class ConfigServiceTests(Host host)
 {
     private readonly Host _host = host;
 
     [Fact]
-    public async Task ShareDataConfigService_WhenNoDatabaseConfig_ReturnsExactDefaults_Test()
+    public async Task ConfigService_WhenNoDatabaseConfig_ReturnsExactDefaults_Test()
     {
         // Arrange
         var isolatedGroup = $"sd_webapi_missing_{Guid.NewGuid():N}";
@@ -30,28 +31,28 @@ public class ShareDataConfigServiceTests(Host host)
         using var scope = _host.Services.CreateScope();
         var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
 
-        var service = new ShareDataConfigService(
+        var service = new ConfigService(
             bus: bus,
-            logger: NullLogger<ShareDataConfigService>.Instance,
+            logger: NullLogger<ConfigService>.Instance,
             configuration: config);
 
         // Act
         var values = await service.Get();
 
         // Assert
-        Assert.Equal(ShareDataConfigService.Defaults, values);
-        Assert.Equal(ShareDataConfigService.Defaults.PacketLookbackDays.Min, values.PacketLookbackDays.Min);
-        Assert.Equal(ShareDataConfigService.Defaults.PacketLookbackDays.Max, values.PacketLookbackDays.Max);
-        Assert.Equal(ShareDataConfigService.Defaults.SqlSampleTop, values.SqlSampleTop);
-        Assert.Equal(ShareDataConfigService.Defaults.MappingSampleTop, values.MappingSampleTop);
-        Assert.Equal(ShareDataConfigService.Defaults.LogListDefaultTop, values.LogListDefaultTop);
-        Assert.Equal(ShareDataConfigService.Defaults.SubscriptionInterval, values.SubscriptionInterval);
-        Assert.Equal(ShareDataConfigService.Defaults.SubscriptionPriority, values.SubscriptionPriority);
-        Assert.Equal(ShareDataConfigService.Defaults.SubscriptionDebounceSec, values.SubscriptionDebounceSec);
+        Assert.Equal(ConfigService.Defaults, values);
+        Assert.Equal(ConfigService.Defaults.PacketLookbackDays.Min, values.PacketLookbackDays.Min);
+        Assert.Equal(ConfigService.Defaults.PacketLookbackDays.Max, values.PacketLookbackDays.Max);
+        Assert.Equal(ConfigService.Defaults.SqlSampleTop, values.SqlSampleTop);
+        Assert.Equal(ConfigService.Defaults.MappingSampleTop, values.MappingSampleTop);
+        Assert.Equal(ConfigService.Defaults.LogListDefaultTop, values.LogListDefaultTop);
+        Assert.Equal(ConfigService.Defaults.SubscriptionInterval, values.SubscriptionInterval);
+        Assert.Equal(ConfigService.Defaults.SubscriptionPriority, values.SubscriptionPriority);
+        Assert.Equal(ConfigService.Defaults.SubscriptionDebounceSec, values.SubscriptionDebounceSec);
     }
 
     [Fact]
-    public async Task ShareDataConfigService_WhenValidConfigInDatabase_LoadsCustomLimits_Test()
+    public async Task ConfigService_WhenValidConfigInDatabase_LoadsCustomLimits_Test()
     {
         // Arrange
         var isolatedGroup = $"sd_webapi_valid_{Guid.NewGuid():N}";
@@ -81,9 +82,9 @@ public class ShareDataConfigServiceTests(Host host)
         await db.Insertable(testRows).ExecuteCommandAsync();
         scope.ServiceProvider.GetRequiredService<Shared.Infrastructure.Services.BaseCacheService>().RemoveByPrefixKey("sysOpConfig");
 
-        var service = new ShareDataConfigService(
+        var service = new ConfigService(
             bus: bus,
-            logger: NullLogger<ShareDataConfigService>.Instance,
+            logger: NullLogger<ConfigService>.Instance,
             configuration: config);
 
         // Act
@@ -102,7 +103,7 @@ public class ShareDataConfigServiceTests(Host host)
     }
 
     [Fact]
-    public async Task ShareDataConfigService_WhenTripletMisaligned_FallsBackToDefaultTriplet_Test()
+    public async Task ConfigService_WhenTripletMisaligned_FallsBackToDefaultTriplet_Test()
     {
         // Arrange: Cấu hình default > max hoặc max < min -> lệch bộ
         var isolatedGroup = $"sd_webapi_misaligned_{Guid.NewGuid():N}";
@@ -126,34 +127,34 @@ public class ShareDataConfigServiceTests(Host host)
         await db.Insertable(testRows).ExecuteCommandAsync();
         scope.ServiceProvider.GetRequiredService<Shared.Infrastructure.Services.BaseCacheService>().RemoveByPrefixKey("sysOpConfig");
 
-        var service = new ShareDataConfigService(
+        var service = new ConfigService(
             bus: bus,
-            logger: NullLogger<ShareDataConfigService>.Instance,
+            logger: NullLogger<ConfigService>.Instance,
             configuration: config);
 
         // Act
         var values = await service.Get();
 
         // Assert: Phải quay về nguyên bộ dự phòng (1, 50, 10)
-        Assert.Equal(ShareDataConfigService.Defaults.SqlSampleTop, values.SqlSampleTop);
+        Assert.Equal(ConfigService.Defaults.SqlSampleTop, values.SqlSampleTop);
         Assert.Equal(1, values.SqlSampleTop.Min);
         Assert.Equal(50, values.SqlSampleTop.Max);
         Assert.Equal(10, values.SqlSampleTop.Default);
     }
 
     [Fact]
-    public void ShareDataConfigService_WhenResolvedFromServiceProvider_ResolvesShareDataConfigService_Test()
+    public void ConfigService_WhenResolvedFromServiceProvider_ResolvesConfigService_Test()
     {
         // Act
         using var scope = _host.Services.CreateScope();
-        var service = scope.ServiceProvider.GetService<ShareDataConfigService>();
+        var service = scope.ServiceProvider.GetService<ConfigService>();
 
         // Assert
         Assert.NotNull(service);
     }
 
     [Fact]
-    public async Task ShareDataConfigService_WhenValuesInvalidOrOutOfRangeOrDuplicate_HandlesSafely_Test()
+    public async Task ConfigService_WhenValuesInvalidOrOutOfRangeOrDuplicate_HandlesSafely_Test()
     {
         // Arrange: Chèn giá trị chữ, ngoài khoảng, Code lạ và Code trùng (dòng sau thắng)
         var isolatedGroup = $"sd_webapi_invalid_{Guid.NewGuid():N}";
@@ -186,18 +187,18 @@ public class ShareDataConfigServiceTests(Host host)
         await db.Insertable(testRows).ExecuteCommandAsync();
         scope.ServiceProvider.GetRequiredService<Shared.Infrastructure.Services.BaseCacheService>().RemoveByPrefixKey("sysOpConfig");
 
-        var service = new ShareDataConfigService(
+        var service = new ConfigService(
             bus: bus,
-            logger: NullLogger<ShareDataConfigService>.Instance,
+            logger: NullLogger<ConfigService>.Instance,
             configuration: config);
 
         // Act
         var values = await service.Get();
 
         // Assert
-        Assert.Equal(ShareDataConfigService.Defaults.PacketLookbackDays.Min, values.PacketLookbackDays.Min);
-        Assert.Equal(ShareDataConfigService.Defaults.PacketLookbackDays.Max, values.PacketLookbackDays.Max);
-        Assert.Equal(ShareDataConfigService.Defaults.SubscriptionInterval.Min, values.SubscriptionInterval.Min);
+        Assert.Equal(ConfigService.Defaults.PacketLookbackDays.Min, values.PacketLookbackDays.Min);
+        Assert.Equal(ConfigService.Defaults.PacketLookbackDays.Max, values.PacketLookbackDays.Max);
+        Assert.Equal(ConfigService.Defaults.SubscriptionInterval.Min, values.SubscriptionInterval.Min);
         Assert.Equal(500, values.LogListDefaultTop);
     }
 }

@@ -95,7 +95,7 @@ internal static class SeedScriptReader
         var content = File.ReadAllText(scriptPath);
 
         var regex = new Regex(
-            @"VALUES\s*\(\s*N'(?<id>\d+)',\s*N'(?<code>[^']+)',\s*N'(?<name>[^']+)',\s*N'(?<version>[^']+)',\s*N'(?<desc>[^']+)',\s*(?<order>\d+),\s*(?<status>\d+),\s*N'(?<remark>[^']*)'",
+            @"VALUES\s*\(\s*(?:LOWER\(CONVERT\(NVARCHAR\(64\),\s*NEWID\(\)\)\)|N?'(?<id>[^']+)?'),\s*N'(?<code>[^']+)',\s*N'(?<name>[^']+)',\s*N'(?<version>[^']+)',\s*N'(?<desc>[^']+)',\s*(?<order>\d+),\s*(?<status>\d+),\s*N'(?<remark>[^']*)'",
             RegexOptions.Singleline);
 
         var matches = regex.Matches(content);
@@ -103,7 +103,7 @@ internal static class SeedScriptReader
         foreach (Match m in matches)
         {
             list.Add(new SeedInsertedPacketInfo(
-                m.Groups["id"].Value,
+                m.Groups["id"].Success ? m.Groups["id"].Value : Guid.NewGuid().ToString("N"),
                 m.Groups["code"].Value,
                 m.Groups["name"].Value,
                 m.Groups["version"].Value,
@@ -203,7 +203,7 @@ internal static class SeedScriptReader
         var content = File.ReadAllText(scriptPath);
 
         var regex = new Regex(
-            @"\(\s*'(?<id>[^']+)',\s*N'(?<tableName>[^']+)',\s*N'(?<name>[^']+)',\s*N'(?<packetCodes>[^']*)',\s*(?<order>\d+),\s*(?<tracked>\d+),\s*(?<queryable>\d+),\s*N'(?<alias>[^']*)',\s*N'(?<remark>(?:''|[^'])*)'\s*\)",
+            @"\(\s*(?:'(?<id>[^']+)',\s*)?N'(?<tableName>[^']+)',\s*N'(?<name>[^']+)',\s*N'(?<packetCodes>[^']*)',\s*(?<order>\d+),\s*(?<tracked>\d+),\s*(?<queryable>\d+),\s*N'(?<alias>[^']*)',\s*N'(?<remark>(?:''|[^'])*)'\s*\)",
             RegexOptions.Singleline);
 
         var matches = regex.Matches(content);
@@ -212,7 +212,7 @@ internal static class SeedScriptReader
         {
             list.Add(new ShareDataSourceTable
             {
-                ID = m.Groups["id"].Value,
+                ID = m.Groups["id"].Success ? m.Groups["id"].Value : Guid.NewGuid().ToString("N"),
                 TableName = m.Groups["tableName"].Value,
                 Name = m.Groups["name"].Value,
                 PacketCodes = m.Groups["packetCodes"].Value,

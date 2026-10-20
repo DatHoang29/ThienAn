@@ -5,9 +5,9 @@ GO
 -- FILE: 04-sharedata-dich-thuat.sql
 -- DESCRIPTION: Bổ sung từ điển bản dịch đa ngôn ngữ (vi-VN, en-US) cho phân hệ ShareData (ESHARE) vào SysTerminology:
 --              1. Chuẩn hóa lại mã khóa cũ thừa tiền tố (như lz.validation...lookbackDaysRange nếu có).
---              2. Nạp toàn bộ 93 mã khóa dịch thuật chuẩn hóa (186 bản ghi đa ngôn ngữ vi-VN và en-US):
+--              2. Nạp toàn bộ 94 mã khóa dịch thuật chuẩn hóa (188 bản ghi đa ngôn ngữ vi-VN và en-US):
 --                 - 17 khóa trường thực thể (Entity) dùng cho validation / khóa ngoại.
---                 - 30 khóa ngoại lệ nghiệp vụ (Exception: phân hệ ShareData, quyền quản trị).
+--                 - 31 khóa ngoại lệ nghiệp vụ (Exception: phân hệ ShareData, quyền quản trị).
 --                 - 46 khóa kiểm tra hợp lệ (Validation: SQL Validator, kết nối, đăng ký, gói tin, bộ mã, ánh xạ).
 --              3. Cơ chế Idempotent:
 --                 - MERGE chỉ INSERT các bản ghi chưa có (WHEN NOT MATCHED THEN INSERT).
@@ -15,7 +15,7 @@ GO
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 19/10/2026
+-- CẬP NHẬT LẦN CUỐI: 20/10/2026
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -237,7 +237,7 @@ VALUES
      N'Cannot change the subscription state from [{0}] to [{1}].'),
 
     -- =========================================================================
-    -- NHÓM 4: QUẢN TRỊ VÀ CẤU HÌNH SQL TRÍCH XUẤT & METADATA (8 khóa)
+    -- NHÓM 4: QUẢN TRỊ VÀ CẤU HÌNH SQL TRÍCH XUẤT & METADATA (9 khóa)
     -- =========================================================================
     (N'lz.exception', N'sharedata.superAdminRequiredForSqlEdit',
      N'Chỉ tài khoản SuperAdmin mới có quyền chỉnh sửa câu truy vấn nguồn dữ liệu.',
@@ -254,6 +254,10 @@ VALUES
     (N'lz.exception', N'sharedata.superAdminRequiredForSqlPreview',
      N'Chỉ tài khoản SuperAdmin mới có quyền chạy thử câu truy vấn nguồn dữ liệu.',
      N'Only SuperAdmin accounts are authorized to preview data source query results.'),
+
+    (N'lz.exception', N'sharedata.sqlSampleExecutionFailed',
+     N'Chạy thử câu truy vấn thất bại: {0}',
+     N'Sample query execution failed: {0}'),
 
     (N'lz.exception', N'sharedata.superAdminRequiredForColumnSync',
      N'Chỉ tài khoản SuperAdmin mới có quyền đồng bộ trường dữ liệu của gói tin.',

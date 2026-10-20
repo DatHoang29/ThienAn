@@ -15,7 +15,7 @@ Mọi kịch bản SQL của phân hệ ShareData được phân tách rõ ràng
 | **01** | [`01-sharedata-cau-truc.sql`](01-sharedata-cau-truc.sql) | `DEV_ITS10` | Chuẩn hóa cấu hình đối tác `ShareDataPartner` (CodeFirst tạo khung trước gồm `ConnectionType`, `ConnectionConfig`): kiểm tra xung đột và chuyển đổi cấu hình địa chỉ/cổng/endpoint từ JSON `ConnectionConfig` sang các cột riêng (`Address`, `Port`, `EndPointApiUrl`), dọn dẹp các key địa chỉ/cổng khỏi `ConnectionConfig` bằng `JSON_MODIFY`. | Chạy lại an toàn (**Idempotent**) | Mọi môi trường |
 | **02** | [`02-sharedata-seed-goi-tin.sql`](02-sharedata-seed-goi-tin.sql) | `DEV_ITS10` | Khởi tạo bản ghi cho 11 gói tin (101–111) nếu chưa tồn tại (idempotent), nạp câu truy vấn SQL trích xuất mẫu Catalog (gói 101–110), chuẩn hóa `SyncMode` mặc định khi còn NULL (Snapshot / Incremental) và cập nhật `Status = 1` (Enable) cho gói 110*, `Status = 0` (Disable) cho gói 111*. Có cờ `@GhiDeMauGoiTin = 0` bảo vệ dữ liệu quản trị đã sửa. | Chạy lại an toàn (**Idempotent**) | Mọi môi trường |
 | **03** | [`03-sharedata-seed-cau-hinh.sql`](03-sharedata-seed-cau-hinh.sql) | `DEV_ITS10` | Khởi tạo `SysConfigType` `sharedata_error_code`, nạp đủ 25 mã cảnh báo lỗi `ESH-xxxx` (bổ sung `ESH-1403` theo ESHARE §9) vào `SysConfigData`, nạp danh mục 15 bảng nguồn vào `ShareDataSourceTable` (CodeFirst tạo khung trước, nạp hai công tắc `IsTracked`, `IsQueryable`, `DefaultAlias` — đã loại bỏ cột `Category`), và nạp 48 tham số vận hành vào `SysOpConfig` nhóm `sharedata_config` (19 Worker, 23 FE/WebAPI, 6 BE WebAPI) kèm khai nhóm vào `SysConfigData` loại `operation_config_type` để màn hình *Cấu hình hoạt động* hiển thị. | Chạy lại an toàn (**Idempotent**) | Mọi môi trường |
-| **04** | [`04-sharedata-dich-thuat.sql`](04-sharedata-dich-thuat.sql) | `DEV_ITS10` | Nạp từ điển bản dịch đa ngôn ngữ (`vi-VN`, `en-US`) cho 93 mã khóa chuẩn hóa (186 bản ghi song ngữ gồm SQL trích xuất, LookbackDays, SQL Validator, Metadata, ConnectConfig, SqlTableNotAllowed) vào bảng `SysTerminology` qua `MERGE` không ghi đè bản dịch đã sửa. (Sau khi chạy script trên DB, trên giao diện cần bấm nút 🔄 tại avatar góc phải trên → chọn mục Ngôn ngữ để làm mới cache bản dịch). | Chạy lại an toàn (**Idempotent**) | Mọi môi trường |
+| **04** | [`04-sharedata-dich-thuat.sql`](04-sharedata-dich-thuat.sql) | `DEV_ITS10` | Nạp từ điển bản dịch đa ngôn ngữ (`vi-VN`, `en-US`) cho 94 mã khóa chuẩn hóa (188 bản ghi song ngữ gồm SQL trích xuất, LookbackDays, SQL Validator, Metadata, ConnectConfig, SqlTableNotAllowed) vào bảng `SysTerminology` qua `MERGE` không ghi đè bản dịch đã sửa. (Sau khi chạy script trên DB, trên giao diện cần bấm nút 🔄 tại avatar góc phải trên → chọn mục Ngôn ngữ để làm mới cache bản dịch). | Chạy lại an toàn (**Idempotent**) | Mọi môi trường |
 | **05** | [`05-sharedata-du-lieu-gia-lap.sql`](05-sharedata-du-lieu-gia-lap.sql) | `DEV_ITS10`, `DEV_ITS10_Inbound` | Nạp dữ liệu giả lập (Mock Data) cho gói 104 (`TmsWeather`), gói 106 (`TmsTrafficData` WIM), gói 110 (`TmsIncident`, `TmsEquipment`, `VmsCurrent`) và Khối 4 chuẩn bị gói kiểm thử riêng `E2E_INBOUND_TEST` (`ShareDataPacket` mã `E2E_INBOUND_TEST`, `ShareDataPacketSql` bảng `InboundTrafficFlow`) kèm bảng đích `InboundTrafficFlow` (trên `DEV_ITS10_Inbound` - ngoại lệ duy nhất không có entity) phục vụ kiểm thử thông luồng hai chiều E0 mà không ảnh hưởng gói 101. | Chạy lại an toàn (**Idempotent**) | Khối 1–3: chỉ Local/Test ⛔ cấm Staging; Khối 4 (E2E_INBOUND_TEST): được chạy trên Staging, dọn theo [doc 05 mục 4](../doc/05-chay-sql-tu-dau-sharedata.md#4-khôi-phục-và-dọn-dẹp-bằng-sql) |
 | **06** | [`06-sharedata-doi-ten-cot-dong-bo.sql`](06-sharedata-doi-ten-cot-dong-bo.sql) | `DEV_ITS10` | Đồng bộ 3 trường cấu hình đồng bộ trên `ShareDataPacket` (`SyncKind` → `SyncMode`, `TimeColumn`/`CursorColumn` → `CursorTimeColumn`, `LookbackDays` → `MaxLookBackDays`): chạy SAU CodeFirst, sao chép dữ liệu sang cột mới do CodeFirst tạo sẵn và DROP cột cũ; dọn cột di sản trên `ShareDataMapping`. Tự động bỏ qua nếu chưa chạy CodeFirst. | Chạy lại an toàn (**Idempotent**) | Mọi môi trường |
 
@@ -33,7 +33,7 @@ Mọi kịch bản SQL của phân hệ ShareData được phân tách rõ ràng
 2. Chạy lần lượt các kịch bản seed:
    - `02-sharedata-seed-goi-tin.sql` (tự động tạo 11 gói tin nếu chưa có và nạp câu truy vấn mẫu Catalog 101–110).
    - `03-sharedata-seed-cau-hinh.sql` (tự động tạo `SysConfigType`, nạp 25 mã lỗi ESH, 15 bảng nguồn `ShareDataSourceTable` và 48 tham số vận hành `SysOpConfig` nhóm `sharedata_config`).
-   - `04-sharedata-dich-thuat.sql` (nạp 93 khóa thuật ngữ tiếng Việt & tiếng Anh (186 bản ghi song ngữ); sau khi chạy bấm 🔄 ở avatar → Ngôn ngữ).
+   - `04-sharedata-dich-thuat.sql` (nạp 94 khóa thuật ngữ tiếng Việt & tiếng Anh (188 bản ghi song ngữ); sau khi chạy bấm 🔄 ở avatar → Ngôn ngữ).
    - *(Tùy chọn cho Local/Test)*: Chạy `05-sharedata-du-lieu-gia-lap.sql` để có dữ liệu mẫu và gói kiểm thử riêng `E2E_INBOUND_TEST` kèm bảng đích chiều nhận chạy thử.
 
 > ℹ️ *Bỏ qua các file `06`, `00`, `01` vì CSDL mới đã có cấu trúc chuẩn từ CodeFirst và không có dữ liệu cũ cần di trú.*  
@@ -58,13 +58,13 @@ CodeFirst (bật tạm EnableInitTable qua cấu hình debug) → [DB cũ: 06 �
 6. **Bước 5 — `03-sharedata-seed-cau-hinh.sql`:**
    Nạp 25 mã lỗi ESH, 15 bảng nguồn `ShareDataSourceTable` và 48 tham số vận hành `SysOpConfig` nhóm `sharedata_config`.
 7. **Bước 6 — `04-sharedata-dich-thuat.sql`:**
-   Nạp 93 khóa thuật ngữ đa ngôn ngữ (186 bản ghi song ngữ); sau khi chạy bấm 🔄 ở avatar → Ngôn ngữ.
+   Nạp 94 khóa thuật ngữ đa ngôn ngữ (188 bản ghi song ngữ); sau khi chạy bấm 🔄 ở avatar → Ngôn ngữ.
 
 ### C. Tính An Toàn Khi Chạy Lại (Idempotent)
 - Các file `01`, `02`, `03`, `04`, `06` đều có cơ chế Idempotent (`IF NOT EXISTS`, `WHERE NOT EXISTS`, `WHEN NOT MATCHED THEN INSERT`).
 - `02-sharedata-seed-goi-tin.sql`: Biến `@GhiDeMauGoiTin = 0` (mặc định) đảm bảo **KHÔNG ghi đè** các câu lệnh SQL trích xuất mà quản trị viên đã tùy biến. Nếu muốn reset về Catalog chuẩn thì mới đổi sang `@GhiDeMauGoiTin = 1`.
 - `03-sharedata-seed-cau-hinh.sql`: Chỉ thêm mã lỗi, bảng nguồn `ShareDataSourceTable` hoặc tham số `sharedata_config` chưa có trong DB, không ghi đè các cấu hình đang chạy.
-- `04-sharedata-dich-thuat.sql`: Chỉ nạp bổ sung các bản dịch còn thiếu trong 93 khóa, không làm mất bản dịch đã chỉnh sửa.
+- `04-sharedata-dich-thuat.sql`: Chỉ nạp bổ sung các bản dịch còn thiếu trong 94 khóa, không làm mất bản dịch đã chỉnh sửa.
 
 ### D. Khởi Tạo DB Mới Bằng Cờ CodeFirst (Thử Nghiệm)
 

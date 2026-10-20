@@ -6,6 +6,7 @@ using Module.ShareData.Core.Dto.Packet;
 using Module.ShareData.Core.Entities;
 using Module.ShareData.Core.Exceptions;
 using Module.ShareData.Core.Helpers;
+using Module.ShareData.Infrastructure.Services.ShareDataConfig;
 using Module.ShareData.Infrastructure.Services.ShareDataExtraction;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Extraction;
 using Tests.ShareData.Common;
@@ -787,6 +788,89 @@ public partial class ShareDataPacketControllerTests
         // Assert
         Assert.True(isValid, $"Gói {packetCode} không hợp lệ cấu trúc Incremental: {errorMessage}");
         Assert.Null(errorMessage);
+    }
+
+    [Fact]
+    public async Task UpdateExtractSql_WhenMaxLookBackDaysOutOfRange_ThrowsOopsWithConfigRange_Test()
+    {
+        var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
+        SetUserContext(isSuperAdmin: true, account: operatorAccount);
+
+        using var scope = _host.Services.CreateScope();
+        var configService = scope.ServiceProvider.GetRequiredService<ConfigService>();
+        var limit = await configService.Get();
+
+        var ex = await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
+        {
+            PacketCode = "101",
+            SyncMode = BaseEnums.SyncMode.Snapshot,
+            MaxLookBackDays = limit.PacketLookbackDays.Max + 1,
+            ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM TmsZone"
+        }));
+
+        Assert.True(
+            (ex is AppFriendlyException afe && afe.ErrorMessage?.ToString() == BaseMsg.ShareData.Validation.LookbackDaysRange)
+            || (ex.Message.Contains(limit.PacketLookbackDays.Min.ToString()) && ex.Message.Contains(limit.PacketLookbackDays.Max.ToString())),
+            $"Exception Message '{ex.Message}' không khớp khóa hoặc không chứa min/max [{limit.PacketLookbackDays.Min}..{limit.PacketLookbackDays.Max}].");
+    }
+
+    [Fact]
+    public async Task ParsePacketColumns_And_ExecutePacketSqlSample_WhenSqlViolatesSecurity_ReturnsBlockedError_Test()
+    {
+        var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
+        SetUserContext(isSuperAdmin: true, account: operatorAccount);
+
+        using var scope = _host.Services.CreateScope();
+        var expectedError = _host.Localizer[BaseMsg.ShareData.Validation.SqlOnlySelectAllowed].Value;
+
+        // 1. ParsePacketColumns
+        var parseResult = await scope.ServiceProvider.CallApiAsync<ParsePacketColumnsOutput>(new ParsePacketColumnsInput
+        {
+            ExtractSql = "EXEC sp_who2"
+        });
+        Assert.False(parseResult.IsValid);
+        Assert.Equal(expectedError, parseResult.ErrorMessage);
+
+        // 2. ExecutePacketSqlSample
+        var sampleResult = await scope.ServiceProvider.CallApiAsync<ExecutePacketSqlSampleOutput>(new ExecutePacketSqlSampleInput
+        {
+            PacketCode = "101",
+            ExtractSql = "EXEC sp_who2",
+            Top = 5
+        });
+        Assert.False(sampleResult.IsSuccess);
+        Assert.Equal(expectedError, sampleResult.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task ExecutePacketSqlSample_WhenSqlExecutionFails_ReturnsFailureWithLocalizedMessage_Test()
+    {
+        var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
+        SetUserContext(isSuperAdmin: true, account: operatorAccount);
+
+        using var scope = _host.Services.CreateScope();
+
+        var input = new ExecutePacketSqlSampleInput
+        {
+            PacketCode = "101",
+            ExtractSql = "SELECT TOP (@pageSize) CAST('x' AS INT) AS a FROM TmsZone",
+            Top = 5
+        };
+
+        var result = await scope.ServiceProvider.CallApiAsync<ExecutePacketSqlSampleOutput>(input);
+
+        Assert.False(result.IsSuccess);
+        Assert.NotNull(result.ErrorMessage);
+
+        var template = _host.Localizer[BaseMsg.ShareData.Exception.SqlSampleExecutionFailed].Value;
+        var prefix = template.Contains("{0}", StringComparison.Ordinal)
+            ? template.Split("{0}")[0].Trim()
+            : template;
+
+        Assert.True(
+            result.ErrorMessage.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+            || result.ErrorMessage.Contains(BaseMsg.ShareData.Exception.SqlSampleExecutionFailed, StringComparison.OrdinalIgnoreCase),
+            $"ErrorMessage '{result.ErrorMessage}' không khớp mẫu '{prefix}' hoặc khóa '{BaseMsg.ShareData.Exception.SqlSampleExecutionFailed}'.");
     }
 
     private static void AssertEqualNormalizedSql(string expected, string actual)

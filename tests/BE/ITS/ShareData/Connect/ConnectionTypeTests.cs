@@ -1,16 +1,9 @@
-using Modules.Integration.Delivery.Base.Extensions;
+using Modules.Integration.Delivery.Base.Enums;
 
 namespace Tests.ShareData.Connect
 {
     public class ConnectionTypeTests
     {
-        [Fact]
-        public void DefaultType_ReturnsApi_Test()
-        {
-            // Assert
-            Assert.Equal(ConnectionType.Api, ConnectionTypeExtensions.DefaultType);
-        }
-
         [Theory]
         [InlineData(ConnectionType.File, true)]
         [InlineData(ConnectionType.Api, false)]

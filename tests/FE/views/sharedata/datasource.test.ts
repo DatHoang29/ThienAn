@@ -2731,6 +2731,39 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
             }
         }
     });
+
+    test('38. Ô bí danh (vqb-col-alias) và biểu thức (vqb-col-expr) co giãn tự động theo nội dung, vừa khít text và có padding 8px', async () => {
+        const qbPath = resolveWebvuePath('views/sharedata/dataSource/component/queryBuilder.vue');
+        const content = fs.readFileSync(qbPath, 'utf-8');
+
+        // 1. Kiểm tra CSS định nghĩa width: fit-content, field-sizing: content và padding 8px đều 4 phía
+        expect(content).toContain('field-sizing: content;');
+        expect(content).toContain('padding: 8px;');
+        expect(content).toContain('width: fit-content;');
+        expect(content).toContain('.vqb-col-alias');
+
+        // 2. Đảm bảo không còn fixed width hay min-width lớn làm phình ô ngắn
+        expect(content).not.toMatch(/\.vqb-col-alias\s*\{\s*width:\s*100px;/);
+        expect(content).not.toMatch(/\.vqb-col-alias\s*\{[^}]*min-width:\s*90px;/);
+    });
+
+    test('39. Màn Nguồn dữ liệu: kiểm quyền SuperAdmin theo accountType 111, bỏ top cố định khi xem mẫu và dùng giới hạn packetLookbackDays từ cấu hình', async () => {
+        const idxPath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
+        const content = fs.readFileSync(idxPath, 'utf-8');
+
+        // 1. isSuperAdmin chỉ kiểm tra accountType === '111'
+        expect(content).toContain("return u?.accountType === '111';");
+        expect(content).not.toContain("u?.account === 'superadmin'");
+
+        // 2. handlePreviewSample không truyền cứng top: 10
+        const previewMatch = content.match(/const handlePreviewSample = async \(\) => \{[\s\S]*?executeextractsqlsample[\s\S]*?\}\);/);
+        expect(previewMatch).toBeTruthy();
+        expect(previewMatch![0]).not.toContain('top: 10');
+
+        // 3. Ô maxLookBackDays đọc min/max từ feConfig.packetLookbackDays
+        expect(content).toContain(':min="feConfig.packetLookbackDays.min"');
+        expect(content).toContain(':max="feConfig.packetLookbackDays.max"');
+    });
 });
 
 
