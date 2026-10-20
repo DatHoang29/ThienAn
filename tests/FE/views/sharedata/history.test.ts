@@ -532,7 +532,7 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
         await expect(evidencePath).toContainText('/data/export/packet_7496.json');
     });
 
-    test('6. KHÔNG đóng khi click ra ngoài, vẫn đóng được bằng nút đóng/Esc', async ({ page }) => {
+    test('6. Hộp chỉ xem chi tiết đóng khi click ra ngoài (Rule 20.26) hoặc phím Esc', async ({ page }) => {
         const mockParentId = 'PARENT_LOG_CLICK_OUTSIDE';
 
         await page.route('**/api/sharedata/sharedataactivitylog/page*', async (route) => {
@@ -581,11 +581,7 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
         await page.mouse.click(5, 5);
         await page.waitForTimeout(300);
 
-        // Hộp thoại KHÔNG đóng khi click ra ngoài
-        await expect(dialog).toBeVisible();
-
-        // Vẫn đóng được bằng nút đóng hoặc phím Escape
-        await page.keyboard.press('Escape');
+        // Hộp thoại chỉ xem đóng khi click ra ngoài theo Rule 20.26
         await expect(dialog).toBeHidden({ timeout: 5000 });
     });
 
@@ -792,7 +788,7 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
         await expect(errBox.locator('.err-copy-btn')).toBeVisible();
     });
 
-    test('10. Quét tĩnh toàn bộ views/sharedata: Mọi el-dialog, el-drawer phải có close-on-click-modal="false", mọi ElMessageBox.confirm phải có closeOnClickModal: false', async () => {
+    test('10. Quét tĩnh toàn bộ views/sharedata: Tuân thủ Rule 20.26 mới (không còn close-on-click-modal="false", form thêm/sửa có :before-close đi kèm :close-on-click-modal="!state.")', async () => {
         const shareDataDir = resolveWebVueSrc('views/sharedata');
 
         function getAllVueFiles(dir: string): string[] {
@@ -812,45 +808,35 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
         const vueFiles = getAllVueFiles(shareDataDir);
         expect(vueFiles.length).toBeGreaterThan(0);
 
-        const dialogIssues: string[] = [];
-        const msgBoxIssues: string[] = [];
+        const oldModalIssues: string[] = [];
+        const formBeforeCloseIssues: string[] = [];
 
         for (const file of vueFiles) {
             const relPath = path.relative(shareDataDir, file);
             const content = fs.readFileSync(file, 'utf8');
 
-            // 1. Kiểm tra mọi <el-dialog> và <el-drawer>
-            const tagRegex = /<(el-dialog|el-drawer)\b([^>]*)/g;
-            let tagMatch: RegExpExecArray | null;
-            while ((tagMatch = tagRegex.exec(content)) !== null) {
-                const tag = tagMatch[1];
-                const attrs = tagMatch[2];
-                if (!attrs.includes('close-on-click-modal="false"')) {
-                    dialogIssues.push(`${relPath}: <${tag}> thiếu close-on-click-modal="false"`);
-                }
+            // 1. Không tệp nào còn close-on-click-modal="false" hay closeOnClickModal: false
+            if (content.includes('close-on-click-modal="false"')) {
+                oldModalIssues.push(`${relPath}: còn chứa close-on-click-modal="false"`);
+            }
+            if (content.includes('closeOnClickModal: false')) {
+                oldModalIssues.push(`${relPath}: còn chứa closeOnClickModal: false`);
             }
 
-            // 2. Kiểm tra mọi ElMessageBox.confirm
-            const keyword = 'ElMessageBox.confirm';
-            let pos = 0;
-            while ((pos = content.indexOf(keyword, pos)) !== -1) {
-                const startParen = content.indexOf('(', pos);
-                let depth = 1;
-                let i = startParen + 1;
-                while (i < content.length && depth > 0) {
-                    if (content[i] === '(') depth++;
-                    else if (content[i] === ')') depth--;
-                    i++;
+            // 2. Mọi <el-dialog> có :before-close= thì cũng có :close-on-click-modal="!state. (form thêm/sửa)
+            const tagRegex = /<(el-dialog)\b([^>]*)/g;
+            let tagMatch: RegExpExecArray | null;
+            while ((tagMatch = tagRegex.exec(content)) !== null) {
+                const attrs = tagMatch[2];
+                if (attrs.includes(':before-close=')) {
+                    if (!attrs.includes(':close-on-click-modal="!state.')) {
+                        formBeforeCloseIssues.push(`${relPath}: dialog có :before-close nhưng thiếu :close-on-click-modal="!state."`);
+                    }
                 }
-                const fullCall = content.substring(pos, i);
-                if (!fullCall.includes('closeOnClickModal: false')) {
-                    msgBoxIssues.push(`${relPath}: ${fullCall.substring(0, 80)} thiếu closeOnClickModal: false`);
-                }
-                pos = i;
             }
         }
 
-        expect(dialogIssues, `Phát hiện el-dialog/el-drawer chưa cấu hình close-on-click-modal="false":\n${dialogIssues.join('\n')}`).toEqual([]);
-        expect(msgBoxIssues, `Phát hiện ElMessageBox.confirm chưa cấu hình closeOnClickModal: false:\n${msgBoxIssues.join('\n')}`).toEqual([]);
+        expect(oldModalIssues, `Phát hiện tệp còn dùng cấu hình Rule 20.26 cũ:\n${oldModalIssues.join('\n')}`).toEqual([]);
+        expect(formBeforeCloseIssues, `Phát hiện form có :before-close nhưng thiếu :close-on-click-modal="!state.":\n${formBeforeCloseIssues.join('\n')}`).toEqual([]);
     });
 });

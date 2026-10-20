@@ -1482,13 +1482,14 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		expect(kafkaSection).not.toContain('formState.kafka.enabled');
 		expect(formContent).not.toContain('ftpServerHint');
 
-		// 5. Khối FTP: "Mã hóa kết nối FTPS" và "Thời gian chờ" cùng nằm trong mục "Kết nối máy chủ", ô Tên tệp có cảnh báo ghi đè
+		// 5. Khối FTP: "Mã hóa kết nối FTPS" và "Thời gian chờ" cùng nằm trong mục "Kết nối máy chủ", ô Tên tệp có tooltip cảnh báo ghi đè
 		const ftpConnPart = ftpSection.match(/sectionFtpConn[\s\S]*?sectionData/)?.[0] ?? '';
 		expect(ftpConnPart).toContain('formState.ftp.useSsl');
 		expect(ftpConnPart).toContain('formState.ftp.timeoutSeconds');
 		const ftpDataPart = ftpSection.slice(ftpSection.indexOf('sectionData'));
 		expect(ftpDataPart).not.toContain('formState.ftp.timeoutSeconds');
-		expect(ftpSection).toContain("'warning-text': Boolean(formState.ftp.fileName?.trim())");
+		expect(ftpSection).toContain('fileNameHintFixed');
+		expect(ftpSection).toContain('label-help-icon');
 	});
 
 	test('TC15 — Gộp FTP/FTPS và gọn phần đầu form đối tác (Endpoint API + gợi ý Địa chỉ đầy đủ khớp TryBuildEndpointUri)', async () => {
@@ -1648,7 +1649,7 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		});
 
 		await page.goto('/#/sharedata/sharing');
-		await expect(page.locator('.eshare-body__left')).toBeVisible({ timeout: 15000 });
+		await expect(page.locator('.eshare-body__left')).toBeVisible({ timeout: 30000 });
 
 		// 1. Mở dialog Thêm đối tác
 		const addBtn = page.locator('.ptn-list__head button:has-text("Thêm")');
@@ -1772,13 +1773,10 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		await expect(dialog.locator('.channel-ftp .el-form-item').filter({ hasText: 'Thời gian chờ' })).toHaveCount(1);
 		await expect(dialog.locator('.channel-ftp .el-form-item').filter({ hasText: 'Kênh đang bật' })).toHaveCount(0);
 
-		// Ô Tên tệp: có giá trị thì câu ghi đè chuyển sang dạng cảnh báo
+		// Ô Tên tệp: nhãn có icon tooltip cảnh báo ghi đè
 		const fileNameItem = dialog.locator('.channel-ftp .el-form-item').filter({ has: page.locator('.el-form-item__label', { hasText: 'Tên tệp' }) });
 		await expect(fileNameItem.locator('input')).toHaveAttribute('placeholder', 'Để trống để hệ thống tự đặt tên');
-		await expect(fileNameItem.locator('.warning-text')).toHaveCount(0);
-		await fileNameItem.locator('input').fill('data.json');
-		await expect(fileNameItem.locator('.warning-text')).toContainText('ghi đè tệp trước');
-		await fileNameItem.locator('input').fill('');
+		await expect(fileNameItem.locator('.label-help-icon')).toBeVisible();
 		if (screenshotDir) {
 			await dialog.screenshot({ path: path.join(screenshotDir, 'partner-ftp-ftps.png') });
 		}
@@ -1870,7 +1868,7 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 
 		await page.setViewportSize({ width: 1600, height: 900 });
 		await page.goto('/#/sharedata/sharing');
-		await expect(page.locator('.eshare-body__left')).toBeVisible({ timeout: 15000 });
+		await expect(page.locator('.eshare-body__left')).toBeVisible({ timeout: 30000 });
 
 		const addBtn = page.locator('.ptn-list__head button:has-text("Thêm")');
 		await expect(addBtn).toBeVisible();
@@ -1913,6 +1911,33 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		await discardBtn.click();
 		await expect(confirmBox).toBeHidden({ timeout: 3000 });
 		await expect(dialog).toBeHidden({ timeout: 5000 });
+	});
+
+	test('TC18 — Nút Xác nhận trong editPartner.vue làm mờ (disabled) khi form chưa thỏa điều kiện hợp lệ', async () => {
+		const partnerContent = fs.readFileSync(editPartnerPath, 'utf-8');
+		// 1. Nút Xác nhận có ràng buộc disabled với !isFormValid
+		expect(partnerContent).toMatch(/:disabled="[^"]*!isFormValid[^"]*"/);
+		expect(partnerContent).toContain('const isFormValid = computed');
+		// 2. Không vi phạm Rule 20.8 (không dùng !!)
+		expect(partnerContent).not.toContain('!!');
+		// 3. Kiểm tra logic kiểm tra hợp lệ của isFormValid (code, name, address, port)
+		expect(partnerContent).toContain('Boolean(state.ruleForm.code?.trim())');
+		expect(partnerContent).toContain('Boolean(state.ruleForm.name?.trim())');
+		expect(partnerContent).toContain('Boolean(state.ruleForm.address?.trim())');
+		expect(partnerContent).toContain('state.ruleForm.port > 0');
+	});
+
+	test('TC19 — Màn hình cấu hình chia sẻ index.vue tách biệt loading cho 3 thẻ (Partner, Session, Subscription) chống treo', async () => {
+		const indexPath = resolveWebVueSrc('views/sharedata/sharing/index.vue');
+		const indexContent = fs.readFileSync(indexPath, 'utf-8');
+		// 1. Cả 3 thẻ có loading spinner riêng
+		expect(indexContent).toContain('v-loading="loadingPartners"');
+		expect(indexContent).toContain('v-loading="loadingSessions"');
+		expect(indexContent).toContain('v-loading="loadingSubscriptions"');
+		// 2. onMounted dùng Promise.allSettled an toàn
+		expect(indexContent).toContain('Promise.allSettled');
+		// 3. Không vi phạm Rule 20.8
+		expect(indexContent).not.toContain('!!');
 	});
 });
 

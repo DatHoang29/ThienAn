@@ -129,6 +129,11 @@ fix(sharedata): xử lý danh sách lỗi kiểm thử F16 phân hệ sharedata
      + Tệp đăng ký DI, extension, hoặc `appsettings.json` liên quan trực tiếp.
    - ⛔ **TUYỆT ĐỐI CẤM commit dở dang thiếu tệp cấu trúc**: Cấm commit mã nguồn hoặc `.csproj` mà quên `.sln`. Việc thiếu `.sln` trong commit khiến VS Code / Visual Studio của thành viên khác khi pull code về không nhận diện được project mới trong Solution Explorer, Omnisharp/C# Dev Kit báo đỏ và gãy quy trình build giải pháp.
    - ⛔ **CẤM tách thành các commit chắp vá**: Cấm commit mã nguồn trước rồi commit `.sln` sau ở commit khác chỉ vì quên. Trước khi commit, BẮT BUỘC kiểm tra `git status` để rà soát toàn bộ tệp mới (`??`) và tệp cấu trúc đã được đưa vào Staging đầy đủ.
+6. **Cấm Commit & Push Các Tệp Cấu Hình Môi Trường Local & Khóa Bí Mật (Rule 19.100)**:
+   - Khi người dùng ra lệnh commit (`commit -m`) theo rule rồi push:
+     + **Frontend (`TA-ITS015-WEBVUE-V1.0`)**: ⛔ **TUYỆT ĐỐI CẤM** `git add`, commit hoặc push tệp `src/.env.development` (hoặc `.env.local`, `.env.development.local`). Tệp này chứa cấu hình URL API/NATS local riêng của máy lập trình viên.
+     + **Backend (`TA-ITS015-WEBAPI-V1.0`)**: ⛔ **TUYỆT ĐỐI CẤM** commit `src/TAC_WebAPI/Configuration/Database.json`, `src/TAC_WebAPI/TAKey.key`, `src/TAC_WebAPI/TAKeyData.key`, `src/DLLs/Shared.Core.Security.dll`.
+     + **Quy cách thực hiện an toàn**: Khi `git add`, AI BẮT BUỘC dùng danh sách tệp cụ thể liên quan đến tính năng (hoặc loại trừ các tệp trên), ⛔ **CẤM** dùng `git add .` hoặc `git add -A` bừa bãi làm cuốn nhầm các tệp cấu hình local vào commit.
 
 ---
 
@@ -141,5 +146,5 @@ fix(sharedata): xử lý danh sách lỗi kiểm thử F16 phân hệ sharedata
 6. **Merge Conflict:** Đồng bộ branch của bạn với `dev` mới nhất **trước mỗi lần push** và trước khi tạo PR (Rule 19.91, mục 4.4).
 7. **Tài liệu:** Cập nhật tài liệu kỹ thuật, MasterPlan nếu có thay đổi logic hoặc API.
 8. **File & Toàn Vẹn Tệp Phụ Thuộc (Rule 19.93):** Chỉ commit file liên quan trực tiếp, nhưng BẮT BUỘC gom đầy đủ các tệp cấu trúc (`.sln`, `.csproj`, `package.json`...) khi thêm/đổi project; cấm để sót `.sln` làm gãy solution/IDE của đồng đội. Commit message đúng chuẩn tiếng Việt có dấu.
-9. **Bảo mật & Credentials:** Tuyệt đối không commit API keys, mật khẩu DB, credentials, dữ liệu cá nhân.
+9. **Bảo mật & Cấu hình Local (Rule 19.100):** Tuyệt đối không commit API keys, mật khẩu DB, credentials, dữ liệu cá nhân, và ⛔ **CẤM commit tệp cấu hình môi trường local `.env.development` (Frontend) cũng như `Database.json`, `TAKey*.key`, `Shared.Core.Security.dll` (Backend)**.
 10. **Kiểm tra staging:** Xác nhận hệ thống vận hành ổn định trên staging trước khi release.

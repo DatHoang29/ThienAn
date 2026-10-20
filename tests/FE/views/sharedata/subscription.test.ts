@@ -145,8 +145,9 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 		// 8. Kiểm tra chiều cao mặc định ô Ghi chú (remark) có :rows="6" rộng rãi theo yêu cầu
 		expect(vueContent).toContain(':rows="6"');
 
-		// 9. Rule 20.26 / STT 55: close-on-click-modal="false"
-		expect(vueContent).toContain(':close-on-click-modal="false"');
+		// 9. Rule 20.26 / STT 55: đóng khi click ngoài kết hợp before-close và chặn khi đang xử lý (!state.loading)
+		expect(vueContent).toContain(':close-on-click-modal="!state.loading"');
+		expect(vueContent).toContain(':before-close="handleBeforeClose"');
 	});
 
 	test('TC7 — Kiểm tra cấu hình i18n trong vi-vn.json và en-us.json', async () => {

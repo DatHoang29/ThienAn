@@ -700,7 +700,7 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
         expect(mappingIndexContent).not.toContain('!important');
     });
 
-    test('8. Hộp thoại editMapping và ElMessageBox.confirm KHÔNG đóng khi click ra ngoài', async ({ page }) => {
+    test('8. Hộp thoại editMapping tuân thủ Rule 20.26 mới (khi chưa sửa bấm ngoài đóng ngay, ElMessageBox.confirm bấm ngoài tự hủy)', async ({ page }) => {
         await page.goto('/#/sharedata/mapping');
 
         const addBtn = page.locator('button:has-text("Thêm")').first();
@@ -710,16 +710,11 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
         const dialog = page.locator('.el-overlay:not([style*="display: none"]) .el-dialog').first();
         await expect(dialog).toBeVisible({ timeout: 5000 });
 
-        // Click outside tại tọa độ (5, 5)
+        // Click outside tại tọa độ (5, 5) -> Chưa sửa gì nên đóng ngay theo Rule 20.26
         await page.mouse.click(5, 5);
-        await page.waitForTimeout(300);
-        await expect(dialog).toBeVisible();
-
-        // Đóng dialog bằng nút Hủy
-        await dialog.locator('.dialog-footer button:has-text("Hủy")').click();
         await expect(dialog).toBeHidden({ timeout: 5000 });
 
-        // Kiểm tra ElMessageBox.confirm khi xóa mapping
+        // Kiểm tra ElMessageBox.confirm khi xóa mapping: bấm ngoài tự hủy/đóng theo Rule 20.26
         const deleteBtn = page.locator('.vxe-body--row button.el-button--danger').first();
         if (await deleteBtn.isVisible()) {
             await deleteBtn.click();
@@ -727,12 +722,73 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
             await expect(msgBox).toBeVisible({ timeout: 5000 });
 
             await page.mouse.click(5, 5);
-            await page.waitForTimeout(300);
-            await expect(msgBox).toBeVisible();
-
-            await msgBox.locator('button:has-text("Hủy")').click();
             await expect(msgBox).toBeHidden({ timeout: 5000 });
         }
+    });
+
+    test('9. Hộp luật của lá trong editMapping: Chọn "Bỏ thay đổi" hoàn nguyên cấu hình lá, "Tiếp tục sửa" giữ nguyên, bấm OK giữ thay đổi', async ({ page }) => {
+        const dialog = await openAddDialogAndReachMappingTab(page);
+
+        // Dán JSON mẫu có 1 trường để tạo 1 lá
+        await partnerJsonTextarea(dialog).fill(JSON.stringify({ deviceCode: 'DEV_01' }));
+        await dialog.getByRole('button', { name: 'Phân tích' }).click();
+        await page.waitForTimeout(500);
+
+        // Mở hộp luật của lá "deviceCode" (bấm icon cột phải .mp-node-icons)
+        const leafRuleBtn = dialog.locator('.mp-node-icons').first();
+        await expect(leafRuleBtn).toBeVisible({ timeout: 10000 });
+        await leafRuleBtn.click();
+
+        const leafDialog = page.locator('.el-dialog:has(.mp-leaf-form)');
+        await expect(leafDialog).toBeVisible({ timeout: 5000 });
+
+        // 1. Sửa ô hằng số (constValue) thành "CUSTOM_VALUE"
+        const constInput = leafDialog.locator('.el-form-item:has-text("Giá trị gửi đi") input, .el-form-item:has-text("Value sent") input, .mp-leaf-form input').first();
+        await constInput.fill('CUSTOM_VALUE');
+
+        // Bấm nút "Đóng" (handleCancelLeaf) -> Hiện MessageBox xác nhận
+        const closeBtn = leafDialog.locator('.mp-form-footer button').first();
+        await closeBtn.click();
+
+        const confirmBox = page.locator('.el-message-box');
+        await expect(confirmBox).toBeVisible({ timeout: 5000 });
+
+        // Kịch bản A1: Chọn "Tiếp tục sửa" -> Hộp luật vẫn mở, giá trị đang sửa còn nguyên
+        await confirmBox.locator('button:has-text("Tiếp tục sửa"), button:has-text("Keep editing")').click();
+        await expect(confirmBox).toBeHidden({ timeout: 5000 });
+        await expect(leafDialog).toBeVisible();
+        await expect(constInput).toHaveValue('CUSTOM_VALUE');
+
+        // Kịch bản A2: Bấm "Đóng" lần nữa -> Chọn "Bỏ thay đổi" -> Hộp đóng, giá trị về cũ
+        await closeBtn.click();
+        await expect(confirmBox).toBeVisible({ timeout: 5000 });
+        await confirmBox.locator('button:has-text("Bỏ thay đổi"), button:has-text("Discard")').click();
+        await expect(confirmBox).toBeHidden({ timeout: 5000 });
+        await expect(leafDialog).toBeHidden({ timeout: 5000 });
+
+        // Mở lại lá đó: ô constValue phải về giá trị cũ (rỗng)
+        await leafRuleBtn.click();
+        await expect(leafDialog).toBeVisible({ timeout: 5000 });
+        await expect(constInput).toHaveValue('');
+
+        // Kịch bản A3: Sửa rồi bấm OK -> mở lại: giá trị mới được giữ
+        await constInput.fill('SAVED_VALUE');
+        const okBtn = leafDialog.locator('.mp-form-footer button:has-text("OK")');
+        await okBtn.click();
+        await expect(leafDialog).toBeHidden({ timeout: 5000 });
+
+        await leafRuleBtn.click();
+        await expect(leafDialog).toBeVisible({ timeout: 5000 });
+        await expect(constInput).toHaveValue('SAVED_VALUE');
+        await okBtn.click();
+        await expect(leafDialog).toBeHidden({ timeout: 5000 });
+
+        // Kịch bản A4: Mở lá không sửa gì hoặc sửa rồi "Bỏ thay đổi", đóng hộp Ánh xạ bên ngoài KHÔNG bị hỏi xác nhận
+        await leafRuleBtn.click();
+        await expect(leafDialog).toBeVisible({ timeout: 5000 });
+        await closeBtn.click(); // đóng không sửa gì -> không hiện confirmBox
+        await expect(confirmBox).toBeHidden();
+        await expect(leafDialog).toBeHidden({ timeout: 5000 });
     });
 });
 

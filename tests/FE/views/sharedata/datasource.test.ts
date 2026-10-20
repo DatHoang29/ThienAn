@@ -569,6 +569,17 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(page.locator('.detected-columns-tools')).toHaveCount(0);
         await expect(page.locator('.height-indicator-tag')).toHaveCount(0);
 
+        // Kiểm tra chữ "mới:" không bị hardcode trong index.vue và cả hai file ngôn ngữ có khóa detectedColumnsNew
+        const idxPath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
+        const idxContent = fs.readFileSync(idxPath, 'utf-8');
+        expect(idxContent).not.toContain('}} mới:');
+        expect(idxContent).toContain('lz.label.sharedataDataSource.detectedColumnsNew');
+
+        const viJson = JSON.parse(fs.readFileSync(resolveWebvuePath('i18n/lang/vi-vn.json'), 'utf-8'));
+        const enJson = JSON.parse(fs.readFileSync(resolveWebvuePath('i18n/lang/en-us.json'), 'utf-8'));
+        expect(viJson['lz.label.sharedataDataSource.detectedColumnsNew']).toBe('Cột mới phát hiện:');
+        expect(enJson['lz.label.sharedataDataSource.detectedColumnsNew']).toBe('Newly detected columns:');
+
         // 5. Kiểm tra bảng Xem trước dữ liệu mẫu (bấm nút Chạy thử)
         const btnPreview = page.locator('.sql-toolbar-right .el-button').filter({ hasText: /Chạy thử/ });
         await expect(btnPreview).toBeVisible();
@@ -1715,7 +1726,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(btnSync).toBeVisible();
     });
 
-    test('22. Cấu hình Chế độ đồng bộ (Toàn bộ / Nối đuôi) & Số ngày quét lùi tối đa (Mục 8 & 20)', async ({ page }) => {
+    test('22. Cấu hình Chế độ đồng bộ (Toàn bộ / Nối đuôi) & Số ngày quét lùi (Mục 8 & 20)', async ({ page }) => {
         await page.setViewportSize({ width: 1600, height: 900 });
         await page.goto('/#/sharedata/dataSource');
 
@@ -1737,7 +1748,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const syncKindControl = page.locator('.sql-sync-mode-control, .sql-sync-kind-control');
         await expect(syncKindControl).toBeVisible();
 
-        // 2. Kiểm tra ô số Số ngày quét lùi tối đa
+        // 2. Kiểm tra ô số Số ngày quét lùi
         const lookbackControl = page.locator('.sql-lookback-control');
         await expect(lookbackControl).toBeVisible();
 
@@ -2761,8 +2772,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(previewMatch).toBeTruthy();
         expect(previewMatch![0]).not.toContain('top: 10');
 
-        // 3. Ô maxLookBackDays đọc min/max từ feConfig.packetLookbackDays (đảm bảo không âm >= 1)
-        expect(content).toContain(':min="Math.max(1, feConfig.packetLookbackDays?.min ?? 1)"');
+        // 3. Ô maxLookBackDays không âm (:min="0") và đọc max từ feConfig.packetLookbackDays
+        expect(content).toContain(':min="0"');
         expect(content).toContain(':max="feConfig.packetLookbackDays?.max ?? 365"');
     });
 
@@ -2780,7 +2791,36 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         // 2. Kiểm tra CSS el-alert trong dataSource/index.vue
         expect(idxContent).toContain(':deep(.el-alert) {\n\twidth: fit-content;\n\tmax-width: 100%;\n\talign-self: flex-start;\n\tflex-shrink: 0;\n\tpadding: 3px 10px;');
 
-        // 3. Kiểm chứng trực tiếp trên trình duyệt
+        // 3. Mock API getmetadatatables & getmetadatafields trước khi mở trang
+        await page.route('**/api/sharedata/sharedatapacket/getmetadatatables*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: [
+                        { tableName: 'TmsTrafficData', displayName: 'Dò xe', defaultAlias: 'td' },
+                        { tableName: 'TollLane', displayName: 'Làn thu phí', defaultAlias: 'tl' },
+                    ],
+                }),
+            });
+        });
+
+        await page.route('**/api/sharedata/sharedatapacket/getmetadatafields*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: [
+                        { columnName: 'ID', dataType: 'bigint', suggestedAlias: 'id' },
+                        { columnName: 'LaneNo', dataType: 'int', suggestedAlias: 'laneNo' },
+                    ],
+                }),
+            });
+        });
+
+        // 4. Kiểm chứng trực tiếp trên trình duyệt
         await page.setViewportSize({ width: 1600, height: 900 });
         await page.goto('/#/sharedata/dataSource');
 
@@ -2854,6 +2894,51 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(idxContent).toContain('font-size: 12px;\n\t\tline-height: 1.35;');
         expect(idxContent).toContain('font-size: 12px;\n\t\tpadding: 2px;\n\t\tmargin: 0;\n\t\ttop: 50%;\n\t\tright: 6px;');
         expect(idxContent).not.toMatch(/:deep\(\.el-alert\)[^}]+!important/);
+    });
+
+    test('42. Trình soạn thảo Monaco Editor trong Raw SQL Mode có thanh kéo resize và scrollbar slider bo tròn', async () => {
+        const qbPath = resolveWebvuePath('views/sharedata/dataSource/component/queryBuilder.vue');
+        const qbContent = fs.readFileSync(qbPath, 'utf-8');
+
+        // 1. Kiểm tra CSS bo tròn thumb scrollbar của Monaco editor
+        expect(qbContent).toContain('.vqb-monaco-editor :deep(.monaco-editor .scrollbar .slider) {\n\tborder-radius: 4px;\n}');
+
+        // 2. Kiểm tra thanh kéo resize raw-editor-resizer và hàm handleStartResizeRawEditor
+        expect(qbContent).toContain('class="vqb-card-resize-bar raw-editor-resizer"');
+        expect(qbContent).toContain('@mousedown="handleStartResizeRawEditor"');
+        expect(qbContent).toContain('const rawEditorHeight = ref(');
+        expect(qbContent).toContain('editorInstance?.layout()');
+
+        // 3. Kiểm tra khóa i18n dragToResize
+        const viPath = resolveWebvuePath('i18n/lang/vi-vn.json');
+        const enPath = resolveWebvuePath('i18n/lang/en-us.json');
+        const viJson = JSON.parse(fs.readFileSync(viPath, 'utf8'));
+        const enJson = JSON.parse(fs.readFileSync(enPath, 'utf8'));
+        expect(viJson['lz.label.sharedataDataSource.dragToResize']).toBe('Kéo để chỉnh độ cao');
+        expect(enJson['lz.label.sharedataDataSource.dragToResize']).toBe('Drag to resize height');
+    });
+
+    test('43. Toolbar SQL Center gọn hàng cùng dòng, khoảng cách 6px, nút bấm bên phải và cache metadata', async () => {
+        const idxPath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
+        const idxContent = fs.readFileSync(idxPath, 'utf8');
+
+        // 1. Kiểm tra cấu trúc toolbar
+        expect(idxContent).toContain('class="sql-toolbar-bar"');
+        expect(idxContent).toContain('class="sql-sync-mode-control sql-sync-kind-control"');
+        expect(idxContent).toContain('class="sql-lookback-control"');
+        expect(idxContent).toContain('style="width: 110px"');
+        expect(idxContent).toContain('style="width: 90px"');
+
+        // 2. Kiểm tra CSS nowrap, gap 6px và margin-left: auto
+        expect(idxContent).toContain('flex-wrap: nowrap;');
+        expect(idxContent).toContain('gap: 6px;');
+        expect(idxContent).toContain('margin-left: auto;');
+
+        // 3. Kiểm tra cache metadata trong queryBuilder.vue
+        const qbPath = resolveWebvuePath('views/sharedata/dataSource/component/queryBuilder.vue');
+        const qbContent = fs.readFileSync(qbPath, 'utf8');
+        expect(qbContent).toContain('let cachedMetadataTables: any[] | null = null;');
+        expect(qbContent).toContain('const metadataFieldsCache = new Map<string, any[]>();');
     });
 });
 
