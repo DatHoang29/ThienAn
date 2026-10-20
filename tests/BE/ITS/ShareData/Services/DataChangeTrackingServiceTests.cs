@@ -14,7 +14,6 @@ using ShareDataWorker.Infrastructure.Services.DataOutbound;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Extraction;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;
 using ShareDataWorker.Infrastructure.Services.DataChangeTracking;
-using Modules.Integration.Delivery.Base.Interfaces;
 using Modules.Integration.Delivery;
 using Modules.Integration.Delivery.Senders;
 using System.Text.Json;
@@ -2271,7 +2270,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 PacketVersion = "1.0",
                 OrderNo = 5,
                 Status = BaseEnums.StatusEnum.Enable,
-                ExtractSql = PacketDefaultTemplate.TryGet(packetCode, out var tpl105) ? tpl105.ExtractSql : null
+                ExtractSql = PacketTemplateSeed.TryGet(packetCode, out var tpl105) ? tpl105.ExtractSql : null
             };
             await db.Insertable(packet105).ExecuteCommandAsync();
 
@@ -2533,12 +2532,11 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 [ExportPathHelper.BasePathConfigKey] = config.GetSection(ExportPathHelper.BasePathConfigKey).Value ?? Path.Combine(Path.GetTempPath(), "sharedata_send")
             }).Build();
             var dispatcher = scope.ServiceProvider.GetService<DeliveryDispatcher>()
-                ?? new DeliveryDispatcher([
+                ?? new DeliveryDispatcher(
                     new HttpDeliverySender(clientFactory),
                     new FileDeliverySender(fileConfig, scope.ServiceProvider.GetRequiredService<ILogger<FileDeliverySender>>()),
-                    new KafkaDeliverySender(),
-                    new FtpDeliverySender()
-                ]);
+                    new FtpDeliverySender(),
+                    new KafkaDeliverySender());
 
             return new DataOutboundService(
                 scopeFactory,

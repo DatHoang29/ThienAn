@@ -22,6 +22,11 @@ src/views/<module>/<feature>/
     └── detail<Feature>.vue     # Modal / Drawer Xem chi tiết bản ghi
 ```
 
+* **Thư mục module** (tích hợp từ Kiro FE, 20/10/2026): `views/tms/`, `views/vms/`, `views/fms/`, `views/system/`, `views/bigScreen/` (màn hình toàn màn hình), `views/login/`; thư mục chức năng viết `camelCase` (`dutySchedule`, `equipmentType`). Đường dẫn rút gọn `/@/` trỏ tới `src/src/` (`import { getAPI } from '/@/utils/axios-utils'`).
+* **Mẫu `<script setup>`**: `<script lang="ts" setup name="tmsEquip">`, `const { t: $t } = useI18n();`. Tên component đặt bằng `name` (plugin `vite-plugin-vue-setup-extend`) theo dạng `<module><ChứcNăng>` camelCase (`tmsEquip`, `tmsEditEquip`, `vmsImage`).
+* **Nạp component chậm**: component nâng cao dùng `defineAsyncComponent(() => import('/@/components/advanced/table-header-operation.vue'))` (cùng `search-button-operation.vue`, `tag-info.vue`).
+* **Props/Emits/State**: khai `interface Props` + `defineProps<Props>()` (cần mặc định thì `withDefaults`); `interface Emits { (e: 'handleQuery'): void }` + `defineEmits<Emits>()`; mở hàm cho cha bằng `defineExpose({ openDialog })`; trạng thái gom trong `const state = reactive({ isShowDialog, ruleForm, queryParams, loading, ... })`.
+
 ### 🏷️ Quy Chuẩn Đặt Tên Tệp Component (`camelCase` Bắt Buộc - CẤM `PascalCase`) (Rule 20.14)
 * **Tên tệp `.vue`**:
   - Tên tất cả các tệp component con trong thư mục `src/views/<module>/<feature>/component/` và `src/components/` **BẮT BUỘC viết theo chuẩn `camelCase` (chữ cái đầu viết thường)**.
@@ -44,6 +49,8 @@ src/views/<module>/<feature>/
 * ⛔ **TUYỆT ĐỐI CẤM** gọi trực tiếp `axiosInstance.get/post(...)` hoặc `axios.get/post(...)` và CẤM hardcode chuỗi URL (`${serveConfig.basePath}/api/...`) trong các component/view `.vue`.
 * ✅ **BẮT BUỘC**: 100% các cuộc gọi API từ Frontend phải thông qua wrapper chuẩn: `getAPI(XxxApi)` từ `/@/utils/axios-utils`.
 * Khi Backend cập nhật API hoặc DTO: Chạy script generate đồng bộ (`build-api`) để cập nhật tự động các client class typed.
+* **API hoặc kiểu dữ liệu chưa được sinh** (theo Kiro FE): ⛔ không tự tạo hay sửa tệp trong `api-services/` để "chạy tạm" — báo người dùng là API chưa được generate và chờ họ chạy lại `pnpm build-api` rồi mới làm tiếp.
+* **Tên hàm sinh tự động**: `api<Module><ChứcNăng><Hành động><Method>` (`apiTmsTmsequipmentPagePost`, `apiTmsTmsequipmentAddPost`, `apiTmsTmsequipmentDeletePost`). Ví dụ gọi: `await getAPI(TmsEquipmentApi).apiTmsTmsequipmentPagePost({ page: 1, pageSize: 50, field: 'createTime', order: 'desc' } as PageEquipmentInput)`.
 
 ---
 
@@ -53,7 +60,10 @@ src/views/<module>/<feature>/
    - BẮT BUỘC sử dụng CSS variables của Element Plus để đảm bảo tương thích 100% giữa Light Theme và Dark Theme:
      - Màu chủ đạo: `var(--el-color-primary)`, `var(--el-color-success)`, `var(--el-color-warning)`, `var(--el-color-danger)`.
      - Màu chữ: `var(--el-text-color-primary)`, `var(--el-text-color-regular)`, `var(--el-text-color-secondary)`.
-     - Màu nền & viền: `var(--el-bg-color)`, `var(--el-fill-color-light)`, `var(--el-border-color)`.
+     - Màu nền & viền: `var(--el-bg-color)`, `var(--el-fill-color-light)`, `var(--el-border-color)`, `var(--el-border-color-light)`.
+     - Biến thể (theo Kiro FE): `var(--el-color-primary-light-3)` … `-light-9` (nhạt dần), `var(--el-color-primary-dark-2)` (đậm hơn). Nghĩa màu: primary = thao tác chính/link; success = hoạt động/thành công; warning = cảnh báo/chờ xử lý; danger = lỗi/xóa/ngừng; info = thông tin phụ.
+     - Nút, thẻ, thông báo của Element dùng prop `type="primary|success|warning|danger|info"` (`<el-tag type="success">`), ⛔ không `style="background: #1578a3"`.
+   - Lớp tiện ích có sẵn: `w100`, `mb5`, `mb20`; responsive bằng điểm ngắt của `el-col` (`:xs="24" :sm="12" :md="8" :lg="6" :xl="6"`); style riêng của trang ưu tiên `scoped`.
 2. **CẤM Lạm Dụng `!important` Trong CSS/SCSS (Rule 20.6)**:
    - ⛔ TUYỆT ĐỐI KHÔNG sử dụng `!important` bừa bãi trong CSS/SCSS (đặc biệt trong scoped styles và component).
    - *Lý do*: Phá vỡ CSS cascade chain, khiến trình duyệt tính toán lại cây kiểu gây giật lag và khó bảo trì.
@@ -103,10 +113,27 @@ src/views/<module>/<feature>/
 * **Cấm Tự Động Đóng Hộp Thoại Khi Click Ra Ngoài — Bắt Buộc `close-on-click-modal="false"` (Rule 20.26)**:
   - Mọi `<el-dialog>`, `<el-drawer>` và `ElMessageBox.confirm` / `ElMessageBox.prompt` **BẮT BUỘC** đặt `:close-on-click-modal="false"` (hoặc `closeOnClickModal: false` trong đối số tùy chọn).
   - *Lý do*: Tránh trường hợp người dùng thao tác lệch chuột làm mất dữ liệu đang nhập.
+* **Bảng đối chiếu trình bày modal — mọi modal phải nhìn giống nhau** (tích hợp từ Kiro FE trong `TA-ITS015-WEBVUE-V1.0/.kiro/steering/coding-rules.md`; mẫu tham chiếu `views/tms/workContact/component/editWorkContact.vue`; khung đầy đủ ở §8):
+
+  | Hạng mục | Chuẩn | ⛔ Không dùng |
+  |---|---|---|
+  | Tiêu đề | slot `#header` với icon `ele-Edit` + `{{ props.title }}` | thuộc tính `:title="props.title"` |
+  | Thuộc tính dialog | `draggable` + `:close-on-click-modal="false"` + `width="700px"` | `align-center` |
+  | Nhãn form | `label-width="auto"` + `label-position="left"` | `label-position="right"`, `label-width="120px"` |
+  | Khoảng cách cột | `<el-row :gutter="10">` | `:gutter="16"` |
+  | Cột | `<el-col :xs="24" :sm="24" :md="12" :lg="12" :xl="12" class="mb20">`; textarea/trường dài dùng cột 24 ở mọi điểm ngắt | `:span="12"` (thiếu responsive, thiếu `mb20`) |
+  | Kiểm tra dữ liệu | `:rules="[...]"` đặt ngay trên `el-form-item` | object `rules` riêng rồi `:rules="rules"` trên `el-form` |
+  | Chân dialog | `<span class="dialog-footer">` bọc 2 nút | đặt nút thẳng trong slot `#footer` |
+  | Nút xác nhận | `:disabled="state.isProcessing"` | `:loading="state.loading"` |
+  | Độ dài trường | `EntityFieldLength.Length64/128/256` cho cả `:maxlength` lẫn thông điệp | số viết cứng (`maxlength="256"`) |
+
+  Thông điệp kiểm tra dùng khóa chung: `$t('lz.validation.base.required', { PropertyName: $t('lz.entity.base.code') })`, `$t('lz.validation.base.maxlength', { PropertyName, MaxLength: EntityFieldLength.Length64 })`; placeholder `$t('lz.label.base.pleaseType', { input: ... })`; tiêu đề `$t('lz.label.base.titleAdd' | 'titleEdit', { name: ... })`.
 
 ---
 
 ## 🌐 5. Đa Ngôn Ngữ (i18n Scope Rules)
+
+* **Cấu trúc khóa** (tích hợp từ Kiro FE): `lz.entity.{base|<module>|<module><ChứcNăng>}.<trường>` (`lz.entity.base.code`, `lz.entity.tms.equipmentType`, `lz.entity.tmsEquipment.vendor`); `lz.label.*` (nhãn: `lz.label.base.pleaseType`, `lz.label.tms.zoneInfo`); `lz.validation.base.*` (`required`, `maxLength`); `lz.message.base.*` (`saveSuccess`, `confirmDelete`); `lz.button.base.*` (`confirm`, `cancel`); giá trị cấu hình `lz.param.<typeCode>.<code>` (`lz.param.status_type.1`). Phân cấp `base` → `<module>` → `<module><ChứcNăng>` ở §10.3. Trong script: `ElMessage.success($t('lz.message.base.saveSuccess'))`.
 
 * **Phạm vi sửa file i18n**: Phía Frontend, lập trình viên **ĐƯỢC PHÉP** thêm/sửa key bản dịch trong `src/i18n/lang/vi-vn.json` và `en-us.json` khi phát triển giao diện.
   *(Lưu ý: Quy tắc cấm sửa tay file tĩnh chỉ áp dụng cho Backend WebAPI `src/TAC_WebAPI/Resources/*.json` do các file đó được sinh tự động từ CSDL `SysTerminology`).*
@@ -252,7 +279,7 @@ Mọi dialog form thêm/sửa/xem trước (`component/edit<Feature>.vue`, `comp
 			:close-on-click-modal="false"
 			:show-close="!state.isProcessing"
 			:close-on-press-escape="!state.isProcessing"
-			width="750px"
+			width="700px"
 		>
 			<template #header>
 				<div style="color: var(--el-color-white)">
@@ -271,7 +298,7 @@ Mọi dialog form thêm/sửa/xem trước (`component/edit<Feature>.vue`, `comp
 				label-position="left"
 			>
 				<el-row :gutter="10">
-					<el-col :xs="24" :sm="12" class="mb20">
+					<el-col :xs="24" :sm="24" :md="12" :lg="12" :xl="12" class="mb20">
 						<el-form-item :label="$t('lz.entity.base.code')" prop="code">
 							<el-input v-model="state.editForm.code" clearable />
 						</el-form-item>
@@ -404,6 +431,8 @@ Chi tiết quy trình, hình thức kiểm thử (quét tĩnh CSS/template, đo 
   );
   ```
 
+- Hook `useVxeTable` tự đọc kết quả API: phân trang lấy `data.result.records` (dòng) + `data.result.total` (tổng); không phân trang lấy `data.result` (Kiro FE).
+
 ### 10.2. Quản Lý Dữ Liệu Cấu Hình (Pinia `BaseConfigStore`)
 - ⛔ **CẤM** hardcode chuỗi mã loại cấu hình trực tiếp (như `'status_type'`, `'direction_type'`).
 - BẮT BUỘC sử dụng enum `BaseConfigTypeEnum` từ `/@/types/enums`:
@@ -420,12 +449,58 @@ Chi tiết quy trình, hình thức kiểm thử (quét tĩnh CSS/template, đo 
   const statusItem = getConfigItemByCode(BaseConfigTypeEnum.SysStatusType, row.status);
   ```
 - Khi bind vào form có trường dữ liệu là số, bắt buộc dùng `parseInt(item.code)` vì trường code của SysConfig luôn là string.
+- Danh sách (dropdown, radio) dùng `getConfigDataByCode()`; một mục (formatter cột VxeTable, `TagInfo`) dùng `getConfigItemByCode()` — ví dụ cột `formatter: ({ cellValue }) => getConfigItemByCode(BaseConfigTypeEnum.TmsDirectionType, cellValue)?.name`, slot `<TagInfo :config-item="getConfigItemByCode(BaseConfigTypeEnum.SysStatusType, row.status)" />`; cấu hình vận hành (`SysOpConfig`) dùng `getOpConfigListByGroupCode()`. Backend thêm loại cấu hình mới thì thêm giá trị vào `BaseConfigTypeEnum` (Kiro FE).
 
 ### 10.3. Phân Cấp Namespace i18n
 1. **`base` (`lz.*.base.*`)**: Dùng chung cho toàn hệ thống (code, name, status, confirmDelete, saveSuccess...). BẮT BUỘC kiểm tra `base` trước khi tạo mới key.
 2. **`{module}` (`lz.*.{module}.*`)**: Dùng chung cho toàn module (nhiều màn hình cùng dùng).
 3. **`{module}{Feature}` (`lz.*.{module}{Feature}.*`)**: Dành riêng cho 1 màn hình cụ thể.
 - 100% text trên UI phải đưa vào i18n đồng bộ cả `vi-vn.json` và `en-us.json`. ⛔ **CẤM** viết song ngữ lai.
+
+---
+
+## 🧱 11. Store, Kiểu Dữ Liệu, Sự Kiện Thời Gian Thực, Trang CRUD, Lưu Trữ & Phân Quyền (tích hợp từ Kiro FE, 20/10/2026)
+
+> Nguồn: bộ rule Kiro FE `TA-ITS015-WEBVUE-V1.0/.kiro/steering/` (`coding-rules.md`, `structure.md`, `tech.md`, `product.md`) — đã tích hợp đủ vào tệp này; bản sao `DocBusinessThienAn/KiroR/` đã xóa. Rule nào tệp này đã quy định chặt hơn thì theo tệp này.
+
+### 11.1. Pinia
+- Viết store kiểu **Options API**: `defineStore('baseConfig', { state: () => ({ ... }), actions: { ... } })`, ⛔ không dùng kiểu Setup API.
+- Store chính: `themeConfig.ts` (giao diện, bố cục, ngôn ngữ), `userInfo.ts` (đăng nhập, người dùng, quyền), `baseConfig.ts` (dữ liệu cấu hình, §10.2), `routesList.ts` (route động từ backend).
+
+### 11.2. Kiểu & Enum
+- `types/enums/baseEnum.ts`: mọi enum (`BaseConfigTypeEnum`, `StatusTypeEnum`, `DateTimeFormatEnum`…); `types/constants/operate.ts`: `OperateType = 'add' | 'edit' | 'copy' | 'view' | 'other'`; `types/constants/natsEvent.ts`: hằng sự kiện NATS.
+
+### 11.3. Sự Kiện Thời Gian Thực (NATS qua `mittBus`)
+```typescript
+import mittBus from '/@/utils/mitt';
+import { NatsEvent } from '/@/types/constants/natsEvent';
+
+onMounted(() => mittBus.on(NatsEvent.StatusFms as any, handleNatsDeviceStatus));
+onUnmounted(() => mittBus.off(NatsEvent.StatusFms as any, handleNatsDeviceStatus));
+```
+- Đăng ký ở `onMounted` thì **bắt buộc** hủy ở `onUnmounted` (tránh xử lý trùng khi vào lại màn hình).
+
+### 11.4. Trang CRUD Chuẩn
+- **`index.vue`**: form tìm kiếm (`el-card` + `el-form` + `el-row`/`el-col`); `vxe-grid` có toolbar (thêm/xóa/làm mới/chọn cột); nút trên từng dòng (sao chép/sửa/xóa) gắn `v-auth`; `ref` tới component sửa; các hàm `handleQuery`, `resetQuery`, `handleAdd`, `handleEdit`, `handleDelete`, `handleBatchDelete`.
+- **`component/edit<ChứcNăng>.vue`**: `el-dialog` + `el-form` có kiểm tra (thông điệp i18n); `openDialog(row)` mở cho cha qua `defineExpose`; `submit()` gọi thêm/sửa qua `getAPI(...)`; xong thì `emit('handleQuery')` để cha tải lại.
+- **Thao tác chuẩn**: thêm `state.operateType = 'add'; editRef.value?.openDialog({ status: 1, orderNo: 100 })`; sửa `state.operateType = 'edit'; editRef.value?.openDialog(row)`; xóa có xác nhận `ElMessageBox.confirm($t('lz.message.base.confirmDelete', { name: row.name }), …)` (kèm `closeOnClickModal: false`, §4) → `getAPI(Api).api…DeletePost({ id: row.id })` → `handleQuery()` → `ElMessage.success($t('lz.message.base.deleteSuccess'))`.
+
+### 11.5. Lưu Trữ Trình Duyệt
+- `import { Local, Session } from '/@/utils/storage'`: `Local.set/get` (localStorage, lâu dài), `Session.set/get` (sessionStorage, tạm thời; token đi qua cookie). ⛔ Không gọi thẳng `localStorage`/`sessionStorage`.
+
+### 11.6. Phân Quyền
+- Mức route: `meta.roles: ['admin', 'common']`.
+- Mức nút: `v-auth="'<featureId>:<action>'"` (`tmsEquip:page`, `tmsEquip:add`, `tmsEquip:update`, `tmsEquip:delete`).
+
+### 11.7. Công Cụ & Thư Viện
+- Vite 5, Vue 3.5 (Composition API, `<script setup>`), TypeScript strict, Pinia 3, Vue Router 5; Element Plus 2 (chính), PrimeVue 4 (bổ sung), VxeTable 4 (xuất Excel), WangEditor 5; bản đồ/biểu đồ: Leaflet 1.9 + Leaflet-Geoman, MapLibre GL 5, OpenLayers 10, ECharts 6 (+ echarts-gl); thời gian thực: SignalR, MQTT 5, NATS WebSocket; HTTP: Axios + client sinh từ Swagger.
+- Định dạng: Prettier (tab, độ rộng 2, `printWidth` 200, nháy đơn, dấu phẩy cuối kiểu es5); ESLint với `vue-eslint-parser` + `@typescript-eslint`.
+- Lệnh (thư mục `src/`): `pnpm install`, `pnpm dev` (cổng mặc định 8888), `pnpm lint-fix`; bản production loại `console`/`debugger`. ⛔ Không tự chạy `pnpm build` (Rule 19.13, §7). Node.js 18+ khuyến nghị, dùng pnpm.
+
+### 11.8. Bố Cục Mã Nguồn & Route
+- `src/src/`: `api-services/<module>/` (sinh tự động), `components/` (dùng chung: `leafletMap/`, `table/`, `editor/`, `livecam/`, `scEcharts/`), `directive/`, `hooks/`, `i18n/`, `indexedDb/` (Dexie), `layout/`, `router/`, `stores/` (store riêng ITS ở `stores/its/`), `theme/`, `transporter/`, `types/`, `utils/` (`axios-utils.ts`, `storage.ts`, `locale.ts`), `views/`. Ngoài `src/src/`: `public/` (`config.js`), `api_build/` (script sinh API), `.env*` (⛔ không commit `.env.development`).
+- Route lấy từ backend qua `SysMenuApi.apiSystemSysmenuLoginmenutreeGet`; đường dẫn `component` của menu ánh xạ vào `views/**`, nên đặt màn hình mới đúng thư mục khai trên menu. Route tĩnh (đăng nhập, toàn màn hình) ở `router/route.ts`; `router/backEnd.ts` đang dùng, `frontEnd.ts` không dùng.
+- Component dùng chung đặt ở `src/components/`; component riêng của chức năng đặt cạnh view (`views/<module>/<chứcNăng>/component/`).
 
 
 

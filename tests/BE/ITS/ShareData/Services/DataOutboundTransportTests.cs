@@ -4,7 +4,6 @@ using Module.ShareData.Core.Entities;
 using Modules.Integration.Delivery;
 using Modules.Integration.Delivery.Base.Constants;
 using Modules.Integration.Delivery.Base.Helpers;
-using Modules.Integration.Delivery.Base.Interfaces;
 using ShareDataWorker.Core.Models.DataOutbound;
 using ShareDataWorker.Infrastructure.Logging;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Transport;

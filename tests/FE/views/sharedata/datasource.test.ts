@@ -1200,14 +1200,46 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const packetTable = page.locator('.packet-col .vxe-grid');
         await expect(packetTable).toBeVisible({ timeout: 15_000 });
 
-        // Kiểm tra thanh phân trang vxe-pager ở đáy có chiều cao cố định 40px
+        // Kiểm tra thanh phân trang vxe-pager ở đáy có chiều cao cố định 40px và bám sát đáy card
         const pager = page.locator('.packet-col .vxe-pager');
         await expect(pager).toBeVisible();
+        const cardBox = await page.locator('.packet-col .full-table').boundingBox();
+        const gridBox = await page.locator('.packet-col .vxe-grid').boundingBox();
         const pagerBox = await pager.boundingBox();
+
         expect(pagerBox).not.toBeNull();
         expect(pagerBox!.height).toBeCloseTo(40, 1);
+        expect(cardBox).not.toBeNull();
+        expect(gridBox).not.toBeNull();
 
-        // Kiểm tra body wrapper của bảng tồn tại để cuộn nội dung độc lập
+        // Độ lệch giữa đáy pager và đáy card không vượt quá padding (khoảng trống thừa < 10px)
+        const gap900 = cardBox!.y + cardBox!.height - (pagerBox!.y + pagerBox!.height);
+        expect(gap900).toBeLessThanOrEqual(10);
+        expect(gridBox!.height).toBeGreaterThan(600);
+
+        // Kiểm tra co giãn phản hồi khi viewport cao 1200px: bảng tự động giãn theo màn hình
+        await page.setViewportSize({ width: 1600, height: 1200 });
+        await page.waitForTimeout(300);
+        const cardBox1200 = await page.locator('.packet-col .full-table').boundingBox();
+        const gridBox1200 = await page.locator('.packet-col .vxe-grid').boundingBox();
+        const pagerBox1200 = await pager.boundingBox();
+        const gap1200 = cardBox1200!.y + cardBox1200!.height - (pagerBox1200!.y + pagerBox1200!.height);
+        expect(gridBox1200!.height).toBeGreaterThan(900);
+        expect(gap1200).toBeLessThanOrEqual(10);
+
+        // Kiểm tra co giãn phản hồi khi viewport thấp 600px: bảng tự động co lại khít vừa vặn
+        await page.setViewportSize({ width: 1600, height: 600 });
+        await page.waitForTimeout(300);
+        const cardBox600 = await page.locator('.packet-col .full-table').boundingBox();
+        const gridBox600 = await page.locator('.packet-col .vxe-grid').boundingBox();
+        const pagerBox600 = await pager.boundingBox();
+        const gap600 = cardBox600!.y + cardBox600!.height - (pagerBox600!.y + pagerBox600!.height);
+        expect(gridBox600!.height).toBeLessThan(450);
+        expect(gap600).toBeLessThanOrEqual(10);
+
+        // Khôi phục viewport chuẩn và kiểm tra body wrapper của bảng tồn tại để cuộn nội dung độc lập
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.waitForTimeout(200);
         const tableBodyWrapper = page.locator('.packet-col .vxe-table--body-wrapper.body--wrapper');
         await expect(tableBodyWrapper).toBeAttached();
     });
@@ -2513,6 +2545,190 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
             // Đóng bằng nút Hủy trên confirm
             await msgBox.locator('button:has-text("Hủy")').click();
             await expect(msgBox).toBeHidden({ timeout: 5000 });
+        }
+    });
+
+    test('35. Bấm dấu x trên hộp cảnh báo lỗi el-alert thì thông báo tắt ngay lập tức', async ({ page }) => {
+        await page.route('**/api/sharedata/sharedatapacket/parseextractcolumns*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        isValid: false,
+                        errorMessage: 'Bảng [TmsZoneStatus] không nằm trong danh mục bảng nguồn được phép truy vấn của ShareData.',
+                    },
+                }),
+            });
+        });
+
+        await page.goto('/#/sharedata/dataSource');
+        const tabs = page.locator('.datasource-right-tabs');
+        await expect(tabs).toBeVisible({ timeout: 15_000 });
+
+        const sqlTab = tabs.getByRole('tab', { name: /Cấu hình SQL/ });
+        await sqlTab.click();
+        await expect(sqlTab).toHaveClass(/is-active/);
+
+        // Alert lỗi phải hiển thị
+        const errorAlert = page.locator('.sql-center-pane .el-alert--error');
+        await expect(errorAlert).toBeVisible({ timeout: 5000 });
+        await expect(errorAlert).toContainText('Bảng [TmsZoneStatus] không nằm trong danh mục');
+
+        // Bấm nút đóng 'x'
+        const closeBtn = errorAlert.locator('.el-alert__close-btn');
+        await expect(closeBtn).toBeVisible();
+        await closeBtn.click();
+
+        // Alert phải biến mất
+        await expect(errorAlert).toBeHidden({ timeout: 3000 });
+    });
+
+    test('36. Khối Điều kiện lọc có thể gom vô (collapsible) tương tự Tham số truy vấn', async ({ page }) => {
+        // 1. Quét tĩnh mã nguồn queryBuilder.vue
+        const qbPath = resolveWebvuePath('views/sharedata/dataSource/component/queryBuilder.vue');
+        const qbContent = fs.readFileSync(qbPath, 'utf8');
+
+        // Phải có class is-collapsed và tag badge filterRuleCount
+        expect(qbContent).toContain("class=\"vqb-filter-card\" :class=\"{ 'is-collapsed': isFilterCollapsed }\"");
+        expect(qbContent).toContain('{{ filterRuleCount }}');
+        expect(qbContent).toContain('v-show="!isFilterCollapsed"');
+        expect(qbContent).toContain('toggleFilterCollapse');
+        expect(qbContent).toContain('handleAddRuleWithExpand');
+        expect(qbContent).toContain('handleAddSubGroupWithExpand');
+
+        // 2. Mở màn hình dataSource
+        await page.goto('/#/sharedata/dataSource');
+        const tabs = page.locator('.datasource-right-tabs');
+        await expect(tabs).toBeVisible({ timeout: 15_000 });
+
+        const sqlTab = tabs.getByRole('tab', { name: /Cấu hình SQL/ });
+        await sqlTab.click();
+        await expect(sqlTab).toHaveClass(/is-active/);
+
+        // Khối Điều kiện lọc
+        const filterCard = page.locator('.vqb-filter-card');
+        await expect(filterCard).toBeVisible({ timeout: 5000 });
+
+        // Badge số lượng điều kiện
+        const filterBadge = filterCard.locator('.vqb-card-title .el-tag');
+        await expect(filterBadge).toBeVisible();
+
+        // Canvas và Resizer
+        const filterCanvas = filterCard.locator('.vqb-filter-canvas');
+        const filterResizer = filterCard.locator('.filter-card-resizer');
+
+        // Nút toggle Mở rộng / Thu gọn
+        const toggleBtn = filterCard.locator('.vqb-card-tools .el-button').filter({ hasText: /Mở rộng|Thu gọn/ });
+        await expect(toggleBtn).toBeVisible();
+
+        // Nếu ban đầu rỗng, khối thu gọn: canvas và resizer bị ẩn
+        if (await toggleBtn.innerText().then((t) => t.includes('Mở rộng'))) {
+            await expect(filterCanvas).toBeHidden();
+            await expect(filterResizer).toBeHidden();
+
+            // Bấm Mở rộng -> hiển thị canvas và resizer
+            await toggleBtn.click();
+            await expect(filterCanvas).toBeVisible();
+            await expect(filterResizer).toBeVisible();
+            await expect(toggleBtn).toContainText('Thu gọn');
+
+            // Bấm Thu gọn -> ẩn canvas và resizer
+            await toggleBtn.click();
+            await expect(filterCanvas).toBeHidden();
+            await expect(filterResizer).toBeHidden();
+            await expect(toggleBtn).toContainText('Mở rộng');
+        } else {
+            // Đang mở, bấm Thu gọn -> ẩn
+            await toggleBtn.click();
+            await expect(filterCanvas).toBeHidden();
+            await expect(filterResizer).toBeHidden();
+            await expect(toggleBtn).toContainText('Mở rộng');
+
+            // Bấm Mở rộng -> hiện
+            await toggleBtn.click();
+            await expect(filterCanvas).toBeVisible();
+            await expect(filterResizer).toBeVisible();
+            await expect(toggleBtn).toContainText('Thu gọn');
+        }
+
+        // Bấm nút "+ Thêm điều kiện" trong khi đang thu gọn -> tự động mở rộng
+        // Đóng lại trước:
+        if (await toggleBtn.innerText().then((t) => t.includes('Thu gọn'))) {
+            await toggleBtn.click();
+            await expect(filterCanvas).toBeHidden();
+        }
+
+        const addRuleBtn = filterCard.locator('.vqb-card-tools .el-button').filter({ hasText: /Thêm điều kiện/ });
+        await addRuleBtn.click();
+
+        // Sau khi thêm điều kiện, canvas phải tự động mở rộng và badge >= 1
+        await expect(filterCanvas).toBeVisible();
+        await expect(toggleBtn).toContainText('Thu gọn');
+        const badgeCount = Number((await filterBadge.innerText()).trim());
+        expect(badgeCount).toBeGreaterThanOrEqual(1);
+    });
+
+    test('37. Bố cục tự động co giãn theo chiều cao màn hình: Bảng gói tin và trường gói tin giãn đầy đủ 100% không để lại khoảng trắng thừa @regression', async ({ page }) => {
+        // Quét tĩnh mã nguồn dataSource/index.vue đảm bảo không lạm dụng !important
+        const sourcePath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
+        const sourceCode = fs.readFileSync(sourcePath, 'utf8');
+        expect(sourceCode).not.toContain('!important');
+
+        // Danh sách các kích thước viewport thực tế cần kiểm thử co giãn
+        const viewports = [
+            { width: 1440, height: 900, name: 'Laptop tiêu chuẩn (1440x900)' },
+            { width: 1920, height: 1080, name: 'Màn hình lớn Full HD (1920x1080)' },
+            { width: 1280, height: 720, name: 'Màn hình nhỏ HD (1280x720)' },
+        ];
+
+        for (const vp of viewports) {
+            await page.setViewportSize({ width: vp.width, height: vp.height });
+            await page.goto('/#/sharedata/dataSource');
+
+            const packetGrid = page.locator('.packet-col .vxe-grid');
+            await expect(packetGrid).toBeVisible({ timeout: 15_000 });
+
+            // 1. Kiểm tra bảng gói tin bên trái (packet-col):
+            const packetCard = page.locator('.packet-col .full-table');
+            const packetPager = page.locator('.packet-col .vxe-pager');
+            await expect(packetPager).toBeVisible();
+
+            const cardBox = await packetCard.boundingBox();
+            const gridBox = await packetGrid.boundingBox();
+            const pagerBox = await packetPager.boundingBox();
+
+            expect(cardBox).not.toBeNull();
+            expect(gridBox).not.toBeNull();
+            expect(pagerBox).not.toBeNull();
+
+            // Bảng vxe-grid phải chiếm phần lớn chiều cao của card (không bị co rút về 7 dòng ~350px trên màn hình lớn)
+            expect(gridBox!.height).toBeGreaterThan(cardBox!.height * 0.85);
+
+            // Đáy thanh phân trang phải bám sát đáy card (khoảng cách hở <= 10px do padding 5px)
+            const packetGap = cardBox!.y + cardBox!.height - (pagerBox!.y + pagerBox!.height);
+            expect(packetGap).toBeLessThanOrEqual(10);
+
+            // 2. Kiểm tra bảng trường gói tin bên phải (field-col, tab savedFields):
+            const fieldTab = page.locator('.datasource-right-tabs').getByRole('tab', { name: /Trường đã lưu/ });
+            if (await fieldTab.isVisible()) {
+                await fieldTab.click();
+                const fieldCard = page.locator('.field-col .right-pane-card');
+                const fieldGrid = page.locator('.field-col .vxe-grid');
+                const fieldPager = page.locator('.field-col .vxe-pager');
+
+                if (await fieldPager.isVisible()) {
+                    const fCardBox = await fieldCard.boundingBox();
+                    const fGridBox = await fieldGrid.boundingBox();
+                    const fPagerBox = await fieldPager.boundingBox();
+
+                    if (fCardBox && fGridBox && fPagerBox) {
+                        const fieldGap = fCardBox.y + fCardBox.height - (fPagerBox.y + fPagerBox.height);
+                        expect(fieldGap).toBeLessThanOrEqual(15);
+                    }
+                }
+            }
         }
     });
 });

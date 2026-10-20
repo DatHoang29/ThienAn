@@ -122,7 +122,7 @@ internal static class SeedScriptReader
         var content = File.ReadAllText(scriptPath);
 
         var regex = new Regex(
-            @"SET \[ExtractSql\] = N'(?<sql>.*?)',\s*\[SyncMode\]\s*=\s*(?<sync>\d+),\s*\[CursorTimeColumn\]\s*=\s*(?<cursor>NULL|N'[^']*'),\s*\[MaxLookBackDays\]\s*=\s*(?<lookback>NULL|\d+).*?WHERE \(\[Code\] = '(?<code>\d{3})'",
+            @"SET \[TemplateSql\] = N'(?<sql>.*?)'\s*WHERE \(\[Code\] = '(?<code>\d{3})'.*?SET \[ExtractSql\] = \[TemplateSql\],\s*\[SyncMode\]\s*=\s*(?<sync>\d+),\s*\[CursorTimeColumn\]\s*=\s*(?<cursor>NULL|N'[^']*'),\s*\[MaxLookBackDays\]\s*=\s*(?<lookback>NULL|\d+)",
             RegexOptions.Singleline);
 
         var matches = regex.Matches(content);

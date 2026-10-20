@@ -17,7 +17,7 @@ public partial class DeliveryDispatcherTests
         var server = _host.PartnerServer;
         server.ResetDefaults();
         var httpSender = new HttpDeliverySender();
-        var dispatcher = new DeliveryDispatcher([httpSender]);
+        var dispatcher = CreateDispatcher(http: httpSender);
         var ctx = CreateDummyContext("101", "PARTNER_API", ConnectionType.Api);
         ctx.Partner!.Address = "127.0.0.1";
         ctx.Partner!.Port = 18092;
@@ -51,7 +51,7 @@ public partial class DeliveryDispatcherTests
         var server = _host.PartnerServer;
         server.ResetDefaults();
         var httpSender = new HttpDeliverySender();
-        var dispatcher = new DeliveryDispatcher([httpSender]);
+        var dispatcher = CreateDispatcher(http: httpSender);
         var ctx = CreateDummyContext("101", "PARTNER_LEGACY", ConnectionType.Api);
         ctx.Partner!.Address = "127.0.0.1";
         ctx.Partner!.Port = 18092;
@@ -81,7 +81,7 @@ public partial class DeliveryDispatcherTests
         var server = _host.PartnerServer;
         server.ResetDefaults();
         var httpSender = new HttpDeliverySender();
-        var dispatcher = new DeliveryDispatcher([httpSender]);
+        var dispatcher = CreateDispatcher(http: httpSender);
         var ctx = CreateDummyContext("101", "PARTNER_COLS", "API");
         ctx.Partner!.Address = "127.0.0.1";
         ctx.Partner!.Port = 18092;

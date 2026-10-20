@@ -5,17 +5,17 @@ GO
 -- FILE: 04-sharedata-dich-thuat.sql
 -- DESCRIPTION: Bổ sung từ điển bản dịch đa ngôn ngữ (vi-VN, en-US) cho phân hệ ShareData (ESHARE) vào SysTerminology:
 --              1. Chuẩn hóa lại mã khóa cũ thừa tiền tố (như lz.validation...lookbackDaysRange nếu có).
---              2. Nạp toàn bộ 53 mã khóa dịch thuật chuẩn hóa (106 bản ghi đa ngôn ngữ vi-VN và en-US):
---                 - 5 khóa cấu hình và tham số gói tin / đăng ký.
---                 - 10 khóa quản trị câu truy vấn SQL trích xuất (superAdmin, packetCode, partnerMapping...).
---                 - 38 khóa kiểm tra SQL Validator, Metadata và cấu hình kênh đối tác (OutputPath, ConnectConfig).
+--              2. Nạp toàn bộ 93 mã khóa dịch thuật chuẩn hóa (186 bản ghi đa ngôn ngữ vi-VN và en-US):
+--                 - 17 khóa trường thực thể (Entity) dùng cho validation / khóa ngoại.
+--                 - 30 khóa ngoại lệ nghiệp vụ (Exception: phân hệ ShareData, quyền quản trị).
+--                 - 46 khóa kiểm tra hợp lệ (Validation: SQL Validator, kết nối, đăng ký, gói tin, bộ mã, ánh xạ).
 --              3. Cơ chế Idempotent:
 --                 - MERGE chỉ INSERT các bản ghi chưa có (WHEN NOT MATCHED THEN INSERT).
 --                 - Không ghi đè (không UPDATE) lên các nội dung dịch mà quản trị viên đã chỉnh sửa trực tiếp trên DB.
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 17/10/2026
+-- CẬP NHẬT LẦN CUỐI: 19/10/2026
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -48,7 +48,7 @@ WHERE Code LIKE N'lz.validation%lookbackDaysRange'
   );
 
 -- -----------------------------------------------------------------------------------------
--- 2. DANH MỤC 53 KHÓA BẢN DỊCH SHAREDATA
+-- 2. DANH MỤC 93 KHÓA BẢN DỊCH SHAREDATA (186 BẢN GHI ĐA NGÔN NGỮ)
 -- -----------------------------------------------------------------------------------------
 DECLARE @Translations TABLE (
     [Name] NVARCHAR(64),
@@ -60,7 +60,7 @@ DECLARE @Translations TABLE (
 INSERT INTO @Translations ([Name], [Code], [ViValue], [EnValue])
 VALUES
     -- =========================================================================
-    -- NHÓM 1: CẤU HÌNH VÀ THAM SỐ GÓI TIN / ĐĂNG KÝ
+    -- NHÓM 1: CẤU HÌNH VÀ THAM SỐ GÓI TIN / ĐĂNG KÝ (5 khóa)
     -- =========================================================================
     (N'lz.validation', N'sharedata.lookbackDaysRange',
      N'Số ngày quét lùi tối đa phải nằm trong khoảng từ {0} đến {1} ngày.',
@@ -83,7 +83,161 @@ VALUES
      N'{0} must be in range {1}..{2}.'),
 
     -- =========================================================================
-    -- NHÓM 2: QUẢN TRỊ VÀ CẤU HÌNH SQL TRÍCH XUẤT (10 khóa)
+    -- NHÓM 2: TRƯỜNG THỰC THỂ (ENTITY) CHO VALIDATION / KHÓA NGOẠI (14 khóa)
+    -- =========================================================================
+    (N'lz.entity', N'sharedata.aliasFieldKey',
+     N'Khóa field',
+     N'Field key'),
+
+    (N'lz.entity', N'sharedata.codeSetCode',
+     N'Mã bộ mã quy đổi',
+     N'Code set code'),
+
+    (N'lz.entity', N'sharedata.codeSetDefaultPartnerValue',
+     N'Giá trị đối tác mặc định',
+     N'Default partner value'),
+
+    (N'lz.entity', N'sharedata.codeSetDefaultSourceValue',
+     N'Giá trị nội bộ mặc định',
+     N'Default internal value'),
+
+    (N'lz.entity', N'sharedata.codeSetValues',
+     N'Bảng quy đổi giá trị',
+     N'Value conversion table'),
+
+    (N'lz.entity', N'sharedata.datatypeId',
+     N'Loại dữ liệu chia sẻ',
+     N'Shared data type'),
+
+    (N'lz.entity', N'sharedata.direction',
+     N'Chiều chia sẻ',
+     N'Direction'),
+
+    (N'lz.entity', N'sharedata.eventSourceId',
+     N'Nguồn sự kiện',
+     N'Event source'),
+
+    (N'lz.entity', N'sharedata.groupName',
+     N'Nhóm trường',
+     N'Field group'),
+
+    (N'lz.entity', N'sharedata.isRequired',
+     N'Bắt buộc',
+     N'Required'),
+
+    (N'lz.entity', N'sharedata.mode',
+     N'Chế độ đăng ký',
+     N'Subscription mode'),
+
+    (N'lz.entity', N'sharedata.packetCode',
+     N'Gói tin',
+     N'Packet'),
+
+    (N'lz.entity', N'sharedata.partnerId',
+     N'Đối tác chia sẻ',
+     N'Sharing partner'),
+
+    (N'lz.entity', N'sharedata.schedule',
+     N'Lịch gửi',
+     N'Sending schedule'),
+
+    -- =========================================================================
+    -- NHÓM 3: NGOẠI LỆ NGHIỆP VỤ PHÂN HỆ SHAREDATA (23 khóa)
+    -- =========================================================================
+    (N'lz.exception', N'sharedata.codeSetInUse',
+     N'Bộ mã đang được gói tin hoặc hồ sơ ánh xạ sử dụng, không thể xóa.',
+     N'The code set is used by a packet or mapping profile and cannot be deleted.'),
+
+    (N'lz.exception', N'sharedata.codeSetPartnerValueDuplicated',
+     N'Giá trị đối tác [{0}] bị trùng trong cùng bộ mã.',
+     N'Partner value [{0}] is duplicated in the same code set.'),
+
+    (N'lz.exception', N'sharedata.codeSetSourceValueDuplicated',
+     N'Giá trị nguồn [{0}] bị trùng trong cùng bộ mã.',
+     N'Source value [{0}] is duplicated in the same code set.'),
+
+    (N'lz.exception', N'sharedata.httpContextUnavailable',
+     N'Không lấy được ngữ cảnh HTTP để đọc nội dung gói tin.',
+     N'Unable to get the HTTP context to read the packet content.'),
+
+    (N'lz.exception', N'sharedata.mappingCodeSetNotExist',
+     N'Bộ mã [{0}] không tồn tại.',
+     N'Code set [{0}] does not exist.'),
+
+    (N'lz.exception', N'sharedata.mappingConflictInUse',
+     N'Không thể bật hồ sơ ánh xạ này vì hồ sơ đang áp dụng cho cùng đối tác/gói tin/chiều đang được đăng ký bật sử dụng, vui lòng tạm dừng đăng ký đó trước.',
+     N'Cannot enable this mapping profile because the active profile for the same partner/packet/direction is used by an enabled subscription. Please pause that subscription first.'),
+
+    (N'lz.exception', N'sharedata.mappingInUse',
+     N'Hồ sơ ánh xạ đang được sử dụng trong cấu hình đăng ký, không thể sửa đổi hoặc xóa.',
+     N'The mapping profile is used by an enabled subscription and cannot be edited or deleted.'),
+
+    (N'lz.exception', N'sharedata.mappingMetaFieldsRequired',
+     N'Hồ sơ có chiều gửi phải khai đủ các giá trị hệ thống. Còn thiếu: [{0}].',
+     N'An outbound profile must declare all system values. Missing: [{0}].'),
+
+    (N'lz.exception', N'sharedata.mappingNotResolved',
+     N'Chưa có ánh xạ đang áp dụng cho đối tác và gói tin này.',
+     N'No active mapping exists for this partner and packet.'),
+
+    (N'lz.exception', N'sharedata.packetCodeNameLocked',
+     N'Gói tin đang được hồ sơ ánh xạ sử dụng, chỉ được sửa các trường mô tả, không được đổi Mã/Tên.',
+     N'The packet is used by a mapping profile. Only descriptive fields can be edited; Code/Name cannot be changed.'),
+
+    (N'lz.exception', N'sharedata.packetExtractSqlMissing',
+     N'Gói tin [{0}] chưa cấu hình câu truy vấn trích xuất (ExtractSql).',
+     N'Packet [{0}] has no extract SQL configured.'),
+
+    (N'lz.exception', N'sharedata.packetFieldInUse',
+     N'Field gói tin đang được hồ sơ ánh xạ sử dụng, không thể xóa.',
+     N'The packet field is used by a mapping profile and cannot be deleted.'),
+
+    (N'lz.exception', N'sharedata.packetFieldLocked',
+     N'Field gói tin đang được hồ sơ ánh xạ sử dụng, chỉ được sửa Nhóm trường/Ghi chú.',
+     N'The packet field is used by a mapping profile. Only Field group/Remark can be edited.'),
+
+    (N'lz.exception', N'sharedata.packetInUse',
+     N'Gói tin đang được hồ sơ ánh xạ sử dụng, không thể xóa.',
+     N'The packet is used by a mapping profile and cannot be deleted.'),
+
+    (N'lz.exception', N'sharedata.partnerDisabled',
+     N'Đối tác đang ở trạng thái không sử dụng.',
+     N'The partner is disabled.'),
+
+    (N'lz.exception', N'sharedata.partnerHasActiveSubscription',
+     N'Đối tác còn đăng ký đang chạy, vui lòng hủy trước khi xóa.',
+     N'The partner still has running subscriptions. Please cancel them before deleting.'),
+
+    (N'lz.exception', N'sharedata.partnerNotConnected',
+     N'Đối tác chưa kết nối, vui lòng kết nối trước khi bật đăng ký.',
+     N'The partner is not connected. Please connect before enabling the subscription.'),
+
+    (N'lz.exception', N'sharedata.partnerSessionActive',
+     N'Đối tác đang có phiên kết nối, vui lòng ngắt kết nối trước.',
+     N'The partner has an active session. Please disconnect first.'),
+
+    (N'lz.exception', N'sharedata.subscriptionDuplicated',
+     N'Đối tác đã có đăng ký cho gói tin này.',
+     N'The partner already has a subscription for this packet.'),
+
+    (N'lz.exception', N'sharedata.subscriptionFinished',
+     N'Đăng ký đã kết thúc, không thể sửa.',
+     N'The subscription has ended and cannot be edited.'),
+
+    (N'lz.exception', N'sharedata.subscriptionMustPauseBeforeDelete',
+     N'Đăng ký đang chạy, vui lòng tắt trước khi xóa.',
+     N'The subscription is running. Please turn it off before deleting.'),
+
+    (N'lz.exception', N'sharedata.subscriptionMustPauseBeforeUpdate',
+     N'Vui lòng tắt đăng ký trước khi sửa.',
+     N'Please turn off the subscription before editing.'),
+
+    (N'lz.exception', N'sharedata.subscriptionStateInvalid',
+     N'Không thể chuyển trạng thái đăng ký từ [{0}] sang [{1}].',
+     N'Cannot change the subscription state from [{0}] to [{1}].'),
+
+    -- =========================================================================
+    -- NHÓM 4: QUẢN TRỊ VÀ CẤU HÌNH SQL TRÍCH XUẤT & METADATA (8 khóa)
     -- =========================================================================
     (N'lz.exception', N'sharedata.superAdminRequiredForSqlEdit',
      N'Chỉ tài khoản SuperAdmin mới có quyền chỉnh sửa câu truy vấn nguồn dữ liệu.',
@@ -109,29 +263,48 @@ VALUES
      N'Không tìm thấy gói tin có mã [{0}].',
      N'Packet with code [{0}] was not found.'),
 
-    (N'lz.exception', N'sharedata.partnerCodeNotFound',
-     N'Không tìm thấy đối tác có mã [{0}].',
-     N'Partner with code [{0}] was not found.'),
-
-    (N'lz.exception', N'sharedata.partnerMappingNotFound',
-     N'Đối tác [{0}] chưa có hồ sơ ánh xạ chiều gửi đang bật cho gói tin [{1}].',
-     N'Partner [{0}] has no active outbound mapping profile for packet [{1}].'),
+    (N'lz.exception', N'sharedata.superAdminRequiredForMetadata',
+     N'Chỉ tài khoản SuperAdmin mới có quyền truy cập siêu dữ liệu CSDL.',
+     N'Only SuperAdmin accounts are authorized to access database metadata.'),
 
     (N'lz.validation', N'sharedata.packetCodeRequired',
      N'Mã gói tin không được để trống.',
      N'Packet code is required.'),
 
-    (N'lz.validation', N'sharedata.extractSqlRequired',
-     N'Câu lệnh truy vấn SQL không được để trống.',
-     N'SQL extract query is required.'),
+    -- =========================================================================
+    -- NHÓM 5: KIỂM TRA HỢP LỆ NGHIỆP VỤ GÓI TIN, BỘ MÃ, ĐĂNG KÝ (7 khóa)
+    -- =========================================================================
+    (N'lz.validation', N'sharedata.codeSetValuesRequired',
+     N'Bảng quy đổi phải có ít nhất một dòng.',
+     N'The conversion table must have at least one row.'),
+
+    (N'lz.validation', N'sharedata.eventSourceRequired',
+     N'Chế độ theo sự kiện bắt buộc chọn nguồn sự kiện.',
+     N'Event-driven mode requires an event source.'),
+
+    (N'lz.validation', N'sharedata.mappingFieldKeyRequired',
+     N'Mỗi dòng hồ sơ ánh xạ bắt buộc chỉ ra field của gói tin.',
+     N'Each mapping row must specify a packet field.'),
+
+    (N'lz.validation', N'sharedata.packetCodeHeaderRequired',
+     N'Thiếu header PacketCode.',
+     N'The PacketCode header is missing.'),
+
+    (N'lz.validation', N'sharedata.partnerCodeHeaderRequired',
+     N'Thiếu header PartnerCode.',
+     N'The PartnerCode header is missing.'),
+
+    (N'lz.validation', N'sharedata.scheduleRequired',
+     N'Chế độ định kỳ bắt buộc cấu hình lịch gửi.',
+     N'Periodic mode requires a sending schedule.'),
+
+    (N'lz.validation', N'sharedata.scheduleTimeRangeInvalid',
+     N'Giờ kết thúc phải lớn hơn hoặc bằng giờ bắt đầu.',
+     N'End time must be greater than or equal to start time.'),
 
     -- =========================================================================
-    -- NHÓM 3: METADATA CƠ SỞ DỮ LIỆU (4 khóa)
+    -- NHÓM 6: METADATA CƠ SỞ DỮ LIỆU (3 khóa)
     -- =========================================================================
-    (N'lz.exception', N'sharedata.superAdminRequiredForMetadata',
-     N'Chỉ tài khoản SuperAdmin mới có quyền truy cập siêu dữ liệu CSDL.',
-     N'Only SuperAdmin accounts are authorized to access database metadata.'),
-
     (N'lz.validation', N'sharedata.tableNameRequired',
      N'Tên bảng nguồn không được để trống.',
      N'Source table name is required.'),
@@ -145,14 +318,7 @@ VALUES
      N'Table ''{0}'' is not in the allowed sharing catalog.'),
 
     -- =========================================================================
-    -- NHÓM 4: CẤU HÌNH KÊNH ĐỐI TÁC (1 khóa)
-    -- =========================================================================
-    (N'lz.validation', N'sharedata.outputPathDeprecated',
-     N'Thuộc tính [OutputPath] đã bị bãi bỏ. Vui lòng sử dụng [DirectoryPath] và [FileNamePattern].',
-     N'Attribute [OutputPath] is deprecated. Please use [DirectoryPath] and [FileNamePattern].'),
-
-    -- =========================================================================
-    -- NHÓM 5: SQL VALIDATOR - KIỂM SOÁT CÚ PHÁP VÀ AN TOÀN TRUY VẤN (21 khóa)
+    -- NHÓM 7: SQL VALIDATOR - KIỂM SOÁT CÚ PHÁP VÀ AN TOÀN TRUY VẤN (21 khóa)
     -- =========================================================================
     (N'lz.validation', N'sharedata.sqlScriptEmpty',
      N'Câu lệnh truy vấn không được để trống.',
@@ -239,7 +405,7 @@ VALUES
      N'Incremental queries must include the key cursor column [__rowid].'),
 
     -- =========================================================================
-    -- NHÓM 6: PARTNER VALIDATOR - KIỂM TRA CẤU HÌNH KẾT NỐI ĐỐI TÁC (12 khóa)
+    -- NHÓM 8: PARTNER VALIDATOR - KIỂM TRA CẤU HÌNH KẾT NỐI ĐỐI TÁC (12 khóa)
     -- =========================================================================
     (N'lz.validation', N'sharedata.connectConfigNotJsonObject',
      N'Cấu hình kết nối (ConnectionConfig) phải là đối tượng JSON phẳng dạng key-value.',

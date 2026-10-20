@@ -68,12 +68,11 @@ namespace Tests.ShareData.Services
             {
                 [ExportPathHelper.BasePathConfigKey] = configuration.GetValue<string>(ExportPathHelper.BasePathConfigKey) ?? Path.Combine(Path.GetTempPath(), "sharedata_send")
             }).Build();
-            var dispatcher = new DeliveryDispatcher([
+            var dispatcher = new DeliveryDispatcher(
                 new HttpDeliverySender(clientFact),
                 new FileDeliverySender(fileConfig, scope.ServiceProvider.GetRequiredService<ILogger<FileDeliverySender>>()),
-                new KafkaDeliverySender(),
-                new FtpDeliverySender()
-            ]);
+                new FtpDeliverySender(),
+                new KafkaDeliverySender());
 
             return new DataOutboundService(
                 scopeFactory,
@@ -737,7 +736,7 @@ namespace Tests.ShareData.Services
             var (encryptor, ctx) = encryptManager.GetEncryptor(config, PayloadDirection.Inbound);
 
             // Assert
-            Assert.IsType<AesGcmEncrypt>(encryptor);
+            Assert.Equal(EncryptNames.AesGcm, encryptor);
             Assert.Equal("test-inbound-key", ctx.KeyRef);
             Assert.Equal(TestAes256Key, ctx.KeyBytes);
         }

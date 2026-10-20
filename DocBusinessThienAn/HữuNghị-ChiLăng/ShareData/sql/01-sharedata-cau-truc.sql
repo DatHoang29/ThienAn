@@ -1,14 +1,15 @@
 -- =========================================================================================
 -- FILE: 01-sharedata-cau-truc.sql
--- DESCRIPTION: Chuẩn hóa cấu hình đối tác cho phân hệ ShareData (ESHARE):
+-- DESCRIPTION: Chuẩn hóa cấu hình đối tác và cấu trúc bảng cho phân hệ ShareData (ESHARE):
 --              - Bảng ShareDataPartner đã được CodeFirst tạo khung trước (gồm ConnectionType, ConnectionConfig).
 --              - Kiểm tra xung đột và chuyển đổi cấu hình địa chỉ/cổng/endpoint từ JSON
 --                ConnectionConfig sang các cột riêng (Address, Port, EndPointApiUrl).
 --              - Dọn dẹp các key địa chỉ/cổng khỏi ConnectionConfig bằng JSON_MODIFY.
+--              - Bổ sung cột TemplateSql (NVARCHAR(MAX)) vào bảng dbo.ShareDataPacket để lưu câu truy vấn mẫu gốc của gói tin.
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 19/10/2026
+-- CẬP NHẬT LẦN CUỐI: 20/10/2026
 -- =========================================================================================
 
 -- =========================================================================================
@@ -153,4 +154,22 @@ BEGIN
     PRINT N'✅ Hoàn tất: Chuẩn hóa cột đối tác trên DEV_ITS10.';
 END
 GO
+
+-- =========================================================================================
+-- BỔ SUNG CỘT TemplateSql VÀO BẢNG dbo.ShareDataPacket (NẾU CHƯA CÓ)
+-- =========================================================================================
+IF OBJECT_ID(N'dbo.ShareDataPacket', N'U') IS NOT NULL
+BEGIN
+    IF COL_LENGTH(N'dbo.ShareDataPacket', N'TemplateSql') IS NULL
+    BEGIN
+        ALTER TABLE dbo.ShareDataPacket ADD TemplateSql NVARCHAR(MAX) NULL;
+        PRINT N'  -> Đã bổ sung cột TemplateSql vào bảng dbo.ShareDataPacket.';
+    END
+    ELSE
+    BEGIN
+        PRINT N'  -> Cột TemplateSql đã tồn tại trên dbo.ShareDataPacket. Bỏ qua.';
+    END
+END
+GO
+
 

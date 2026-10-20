@@ -195,7 +195,7 @@ SELECT COUNT(1) AS TotalTerms,
 FROM dbo.SysTerminology
 WHERE Remark = N'ShareData Localization'
   AND IsDelete IS NULL;
--- Mong đợi: TotalTerms = 106 (53 khóa song ngữ vi-VN và en-US), UniqueKeys = 53
+-- Mong đợi: TotalTerms = 186 (93 khóa song ngữ vi-VN và en-US), UniqueKeys = 93
 
 -- 5. Kiểm tra 48 tham số vận hành SysOpConfig nhóm sharedata_config:
 SELECT COUNT(1) AS TotalConfigs
@@ -508,7 +508,7 @@ GO
 ### Phụ lục E: Danh mục thuật ngữ ShareData (SysTerminology)
 
 > 📌 *Nguồn trích xuất chuẩn:* [`04-sharedata-dich-thuat.sql`](../sql/04-sharedata-dich-thuat.sql) và lớp hằng số [`BaseMsg.cs`](../../../../TA-ITS015-WEBAPI-V1.0/src/Modules/ShareData/Module.ShareData.Core/Exceptions/BaseMsg.cs).  
-> ℹ️ Toàn bộ phân hệ ShareData bao gồm chính xác **53 mã khóa thuật ngữ**, tương ứng với **106 bản ghi song ngữ** (`vi-VN` và `en-US`) trong bảng `SysTerminology` (đã bổ sung khóa `sharedata.sqlTableNotAllowed` chặn truy vấn bảng ngoài danh mục `ShareDataSourceTable`). Khi nhập bằng tay trên giao diện màn hình *Hệ thống* → *Thuật ngữ*, người dùng tạo từng dòng với Tiền tố (`Name`), Mã (`Code`), và Giá trị (`Value`) cho từng ngôn ngữ.
+> ℹ️ Toàn bộ phân hệ ShareData bao gồm chính xác **93 mã khóa thuật ngữ**, tương ứng với **186 bản ghi song ngữ** (`vi-VN` và `en-US`) trong bảng `SysTerminology` (đã bổ sung khóa `sharedata.sqlTableNotAllowed` chặn truy vấn bảng ngoài danh mục `ShareDataSourceTable`). Khi nhập bằng tay trên giao diện màn hình *Hệ thống* → *Thuật ngữ*, người dùng tạo từng dòng với Tiền tố (`Name`), Mã (`Code`), và Giá trị (`Value`) cho từng ngôn ngữ.
 
 | STT | Tiền tố (`Name`) | Mã khóa (`Code`) | Bản dịch tiếng Việt (`vi-VN`) | Bản dịch tiếng Anh (`en-US`) |
 |:---:|---|---|---|---|

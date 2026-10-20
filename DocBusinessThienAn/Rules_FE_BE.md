@@ -1,5 +1,5 @@
 # 📌 BỘ QUY CHUẨN KỸ THUẬT BACKEND VÀ FRONTEND (THIÊN ÂN)
-> **Nguồn gốc:** Tổng hợp từ thảo luận kiến trúc thực tế (Transcript `Street No. 8.m4a`), bộ quy chuẩn `KiroR` (`BE/.kiro` & `FE/.kiro`), và hệ thống SSOT `.agents/rules/`.
+> **Nguồn gốc:** Tổng hợp từ thảo luận kiến trúc thực tế (Transcript `Street No. 8.m4a`), bộ quy chuẩn Kiro (`TA-ITS015-WEBAPI-V1.0/.kiro/steering`, `TA-ITS015-WEBVUE-V1.0/.kiro/steering`), và hệ thống SSOT `.agents/rules/`. Từ 20/10/2026 nội dung Kiro đã tích hợp đủ vào `.agents/rules/backend-dotnet_thienan.md` và `frontend-vue_thienan.md` (bản sao `DocBusinessThienAn/KiroR/` đã xóa); khi lệch, theo `.agents/rules/`.
 
 ---
 

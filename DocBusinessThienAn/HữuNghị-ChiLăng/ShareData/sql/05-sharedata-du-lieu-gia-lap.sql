@@ -10,17 +10,18 @@ GO
 --                 TmsEquipment (EQUIP_VMS_KM25), VmsCurrent (VMS_CURR_KM25) và TmsWeather (WEATHER_MOCK_110_01).
 --              4. Chuẩn bị chiều nhận E0 (cô lập qua gói kiểm thử riêng E2E_INBOUND_TEST):
 --                 - Tạo bảng đích dbo.InboundTrafficFlow trên CSDL DEV_ITS10_Inbound.
---                 - Xóa mềm 2 dòng ShareDataPacketSql cũ (1500000000901, 1500000000902) nếu từng chạy bản cũ.
---                 - Khởi tạo gói kiểm thử E2E_INBOUND_TEST (ID 1500000000900) trong ShareDataPacket
---                   và câu ghi MERGE OPENJSON(@records) (ID 1500000000903) trong ShareDataPacketSql.
--- GHI CHÚ:     Khi ShareDataWorker đang chạy, thao tác chèn vào các bảng nguồn đang bật theo dõi
---              Change Tracking (TmsWeather, TmsTrafficData, TmsIncident, VmsCurrent) sẽ kích hoạt
---              luồng phát hiện thay đổi và gửi gói tin ngay (dùng được cho kịch bản D9).
+--                 - Xóa mềm các dòng ShareDataPacketSql cũ nếu từng chạy bản cũ.
+--                 - Khởi tạo gói kiểm thử E2E_INBOUND_TEST trong ShareDataPacket
+--                   và câu ghi MERGE OPENJSON(@records) trong ShareDataPacketSql.
+-- GHI CHÚ:     - Khi ShareDataWorker đang chạy, thao tác chèn vào các bảng nguồn đang bật theo dõi
+--                Change Tracking (TmsWeather, TmsTrafficData, TmsIncident, VmsCurrent) sẽ kích hoạt
+--                luồng phát hiện thay đổi và gửi gói tin ngay (dùng được cho kịch bản D9).
+--              - Mọi dòng script tạo đều ghi nhận CreateUId = N'SHAREDATA-SEED-GIA-LAP'.
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: ⚠️ CHỈ CHẠY TRÊN LOCAL VÀ TEST.
 --             ⛔ TUYỆT ĐỐI CẤM CHẠY TRÊN CƠ SỞ DỮ LIỆU THẬT (STAGING / PRODUCTION)!
--- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent, IF NOT EXISTS kiểm tra theo khóa, mỗi khối một batch).
--- CẬP NHẬT LẦN CUỐI: 17/10/2026
+-- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent, chống trùng theo khóa nghiệp vụ hoặc CreateUId).
+-- CẬP NHẬT LẦN CUỐI: 19/10/2026
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -36,25 +37,31 @@ GO
 -- -----------------------------------------------------------------------------------------
 SET NOCOUNT ON;
 
-IF NOT EXISTS (SELECT 1 FROM [dbo].[TmsWeather] WHERE [RefId] = N'WS_HN_01')
+DECLARE @SeedUser NVARCHAR(64) = N'SHAREDATA-SEED-GIA-LAP';
+
+IF NOT EXISTS (
+    SELECT 1 FROM [dbo].[TmsWeather]
+    WHERE ([RefId] = N'WS_HN_01' OR [ID] = N'WEATHER_MOCK_104_01' OR ([CreateUId] = @SeedUser AND [RefId] = N'WS_HN_01'))
+      AND [IsDelete] IS NULL
+)
 BEGIN
     PRINT N'  -> [Khối 1] Đang seed dữ liệu mẫu trạm thời tiết WS_HN_01, WS_HN_02 (Gói 104)...';
     INSERT INTO [dbo].[TmsWeather] (
         [ID], [TenantId], [RefId], [LocationDetail], [Temperature], [Hudmidity],
         [WindDirection], [WindSpeed], [Rain], [RainHour], [Foresight],
         [TimeDetect], [Description], [ShortDescription], [Type],
-        [CreateTime], [UpdateTime], [IsDelete]
+        [CreateTime], [UpdateTime], [IsDelete], [CreateUId]
     ) VALUES (
-        N'WEATHER_MOCK_104_01', NULL, N'WS_HN_01', N'Trạm Km12+500 Hữu Nghị - Chi Lăng', 26.5, 78.0,
+        LOWER(CONVERT(NVARCHAR(64), NEWID())), NULL, N'WS_HN_01', N'Trạm Km12+500 Hữu Nghị - Chi Lăng', 26.5, 78.0,
         N'Đông Bắc', 12.5, 0.0, 0.0, 1000.0,
         GETDATE(), N'Thời tiết nhiều mây, tầm nhìn tốt', N'CLOUDY', N'1',
-        GETDATE(), GETDATE(), NULL
+        GETDATE(), GETDATE(), NULL, @SeedUser
     ),
     (
-        N'WEATHER_MOCK_104_02', NULL, N'WS_HN_02', N'Trạm Km45+200 Hữu Nghị - Chi Lăng', 24.2, 85.0,
+        LOWER(CONVERT(NVARCHAR(64), NEWID())), NULL, N'WS_HN_02', N'Trạm Km45+200 Hữu Nghị - Chi Lăng', 24.2, 85.0,
         N'Bắc', 18.0, 2.5, 1.2, 800.0,
         GETDATE(), N'Mưa rào nhẹ rải rác', N'LIGHT_RAIN', N'1',
-        GETDATE(), GETDATE(), NULL
+        GETDATE(), GETDATE(), NULL, @SeedUser
     );
     PRINT N'  -> [Khối 1] Đã seed thành công 2 bản ghi TmsWeather (WS_HN_01, WS_HN_02).';
 END
@@ -69,7 +76,13 @@ GO
 -- -----------------------------------------------------------------------------------------
 SET NOCOUNT ON;
 
-IF NOT EXISTS (SELECT 1 FROM [dbo].[TmsTrafficData] WHERE [ID] = N'WIM_MOCK_106_01')
+DECLARE @SeedUser NVARCHAR(64) = N'SHAREDATA-SEED-GIA-LAP';
+
+IF NOT EXISTS (
+    SELECT 1 FROM [dbo].[TmsTrafficData]
+    WHERE (([CreateUId] = @SeedUser AND [Location] = N'KM15') OR [ID] = N'WIM_MOCK_106_01')
+      AND [IsDelete] IS NULL
+)
 BEGIN
     PRINT N'  -> [Khối 2] Đang seed dữ liệu mẫu kiểm tra tải trọng WIM (Gói 106)...';
     INSERT INTO [dbo].[TmsTrafficData] (
@@ -77,20 +90,20 @@ BEGIN
         [IpAddress], [Height], [Width], [Length],
         [AlarmHeight], [AlarmWidth], [AlarmLength], [AlarmSpeed],
         [LicensePlate], [Type], [Direction], [ZoneId],
-        [CreateTime], [UpdateTime], [IsDelete]
+        [CreateTime], [UpdateTime], [IsDelete], [CreateUId]
     ) VALUES (
-        N'WIM_MOCK_106_01', NULL, GETDATE(), N'KM15', N'Lane1', 65.5,
+        LOWER(CONVERT(NVARCHAR(64), NEWID())), NULL, GETDATE(), N'KM15', N'Lane1', 65.5,
         N'10.10.8.101', 380, 250, 1200,
         0, 0, 0, 0,
         N'29C-12345', N'TRUCK', N'1', NULL,
-        GETDATE(), GETDATE(), NULL
+        GETDATE(), GETDATE(), NULL, @SeedUser
     ),
     (
-        N'WIM_MOCK_106_02', NULL, GETDATE(), N'KM15', N'Lane2', 58.0,
+        LOWER(CONVERT(NVARCHAR(64), NEWID())), NULL, GETDATE(), N'KM15', N'Lane2', 58.0,
         N'10.10.8.101', 420, 260, 1650,
         1, 1, 0, 0,
         N'98H-67890', N'CONTAINER', N'1', NULL,
-        GETDATE(), GETDATE(), NULL
+        GETDATE(), GETDATE(), NULL, @SeedUser
     );
     PRINT N'  -> [Khối 2] Đã seed thành công 2 bản ghi TmsTrafficData WIM (WIM_MOCK_106_01, WIM_MOCK_106_02).';
 END
@@ -105,84 +118,109 @@ GO
 -- -----------------------------------------------------------------------------------------
 SET NOCOUNT ON;
 
-IF NOT EXISTS (SELECT 1 FROM [dbo].[TmsIncident] WHERE [ID] = N'INCIDENT_MOCK_110_01')
+DECLARE @SeedUser NVARCHAR(64) = N'SHAREDATA-SEED-GIA-LAP';
+
+IF NOT EXISTS (
+    SELECT 1 FROM [dbo].[TmsIncident]
+    WHERE ([Code] = N'SC_20261014_01' OR [ID] = N'INCIDENT_MOCK_110_01' OR ([CreateUId] = @SeedUser AND [Code] = N'SC_20261014_01'))
+      AND [IsDelete] IS NULL
+)
 BEGIN
-    PRINT N'  -> [Khối 3] Đang seed bản ghi sự cố giao thông INCIDENT_MOCK_110_01 (Gói 110)...';
+    PRINT N'  -> [Khối 3] Đang seed bản ghi sự cố giao thông (Gói 110)...';
     INSERT INTO [dbo].[TmsIncident] (
         [ID], [TenantId], [Code], [Name], [EventTypeId], [EventGroup],
         [StartDate], [Source], [Location], [KmNumber], [MetNumber],
         [InfluenceScope], [InjuredNumber], [VehicleNumber],
-        [State], [Description], [CreateTime], [UpdateTime], [IsDelete]
+        [State], [Description], [CreateTime], [UpdateTime], [IsDelete], [CreateUId]
     ) VALUES (
-        N'INCIDENT_MOCK_110_01', NULL, N'SC_20261014_01', N'Sự cố va quẹt nhẹ xe tải', NULL, N'TRAFFIC',
+        LOWER(CONVERT(NVARCHAR(64), NEWID())), NULL, N'SC_20261014_01', N'Sự cố va quẹt nhẹ xe tải', NULL, N'TRAFFIC',
         GETDATE(), N'0', N'0', 25, 400,
         N'1', 0, 2,
         N'PROCESSING', N'Va quẹt tại Km25+400 hướng Lạng Sơn đi Hà Nội, lưu thông chậm',
-        GETDATE(), GETDATE(), NULL
+        GETDATE(), GETDATE(), NULL, @SeedUser
     );
-    PRINT N'  -> [Khối 3] Đã seed thành công TmsIncident (INCIDENT_MOCK_110_01).';
+    PRINT N'  -> [Khối 3] Đã seed thành công TmsIncident (SC_20261014_01).';
 END
 ELSE
 BEGIN
-    PRINT N'  -> [Khối 3] Dữ liệu TmsIncident (INCIDENT_MOCK_110_01) đã tồn tại, bỏ qua.';
+    PRINT N'  -> [Khối 3] Dữ liệu TmsIncident (SC_20261014_01) đã tồn tại, bỏ qua.';
 END
 
-IF NOT EXISTS (SELECT 1 FROM [dbo].[TmsEquipment] WHERE [ID] = N'EQUIP_VMS_KM25')
+DECLARE @VmsEquipmentId NVARCHAR(64);
+
+IF NOT EXISTS (
+    SELECT 1 FROM [dbo].[TmsEquipment]
+    WHERE ([Code] = N'VMS_KM25_HN' OR [ID] = N'EQUIP_VMS_KM25' OR ([CreateUId] = @SeedUser AND [Code] = N'VMS_KM25_HN'))
+      AND [IsDelete] IS NULL
+)
 BEGIN
-    PRINT N'  -> [Khối 3] Đang seed thiết bị VMS EQUIP_VMS_KM25 tại Km25 (Gói 110)...';
+    PRINT N'  -> [Khối 3] Đang seed thiết bị VMS tại Km25 (Gói 110)...';
+    SET @VmsEquipmentId = LOWER(CONVERT(NVARCHAR(64), NEWID()));
     INSERT INTO [dbo].[TmsEquipment] (
         [ID], [TenantId], [Code], [Name], [EquipmentTypeId], [Ip],
         [KmNumber], [MetNumber], [DirectionId], [Status],
-        [CreateTime], [UpdateTime], [IsDelete]
+        [CreateTime], [UpdateTime], [IsDelete], [CreateUId]
     ) VALUES (
-        N'EQUIP_VMS_KM25', NULL, N'VMS_KM25_HN', N'Biển báo VMS Km25', N'EQUIP_TYPE_VMS', N'10.10.8.201',
+        @VmsEquipmentId, NULL, N'VMS_KM25_HN', N'Biển báo VMS Km25', N'EQUIP_TYPE_VMS', N'10.10.8.201',
         25, 400, 1, 1,
-        GETDATE(), GETDATE(), NULL
+        GETDATE(), GETDATE(), NULL, @SeedUser
     );
-    PRINT N'  -> [Khối 3] Đã seed thành công TmsEquipment (EQUIP_VMS_KM25).';
+    PRINT N'  -> [Khối 3] Đã seed thành công TmsEquipment (VMS_KM25_HN).';
 END
 ELSE
 BEGIN
-    PRINT N'  -> [Khối 3] Dữ liệu TmsEquipment (EQUIP_VMS_KM25) đã tồn tại, bỏ qua.';
+    SELECT TOP 1 @VmsEquipmentId = [ID]
+    FROM [dbo].[TmsEquipment]
+    WHERE ([Code] = N'VMS_KM25_HN' OR [ID] = N'EQUIP_VMS_KM25')
+      AND [IsDelete] IS NULL;
+    PRINT N'  -> [Khối 3] Dữ liệu TmsEquipment (VMS_KM25_HN) đã tồn tại, bỏ qua.';
 END
 
-IF NOT EXISTS (SELECT 1 FROM [dbo].[VmsCurrent] WHERE [ID] = N'VMS_CURR_KM25')
+IF NOT EXISTS (
+    SELECT 1 FROM [dbo].[VmsCurrent]
+    WHERE (([EquipmentId] = @VmsEquipmentId AND @VmsEquipmentId IS NOT NULL) OR [ID] = N'VMS_CURR_KM25' OR ([CreateUId] = @SeedUser AND [Name] = N'Cảnh báo sự cố Km25'))
+      AND [IsDelete] IS NULL
+)
 BEGIN
-    PRINT N'  -> [Khối 3] Đang seed bản tin biển báo VMS_CURR_KM25 (Gói 110)...';
+    PRINT N'  -> [Khối 3] Đang seed bản tin biển báo VMS (Gói 110)...';
     INSERT INTO [dbo].[VmsCurrent] (
         [ID], [TenantId], [EquipmentId], [Name], [RowData], [ExecutedDate],
-        [CreateTime], [UpdateTime], [IsDelete]
+        [CreateTime], [UpdateTime], [IsDelete], [CreateUId]
     ) VALUES (
-        N'VMS_CURR_KM25', NULL, N'EQUIP_VMS_KM25', N'Cảnh báo sự cố Km25',
+        LOWER(CONVERT(NVARCHAR(64), NEWID())), NULL, @VmsEquipmentId, N'Cảnh báo sự cố Km25',
         N'CHÚ Ý: SỰ CỐ KM25 - XE GIẢM TỐC ĐỘ DƯỚI 60KM/H',
-        GETDATE(), GETDATE(), GETDATE(), NULL
+        GETDATE(), GETDATE(), GETDATE(), NULL, @SeedUser
     );
-    PRINT N'  -> [Khối 3] Đã seed thành công VmsCurrent (VMS_CURR_KM25).';
+    PRINT N'  -> [Khối 3] Đã seed thành công VmsCurrent.';
 END
 ELSE
 BEGIN
-    PRINT N'  -> [Khối 3] Dữ liệu VmsCurrent (VMS_CURR_KM25) đã tồn tại, bỏ qua.';
+    PRINT N'  -> [Khối 3] Dữ liệu VmsCurrent đã tồn tại, bỏ qua.';
 END
 
-IF NOT EXISTS (SELECT 1 FROM [dbo].[TmsWeather] WHERE [ID] = N'WEATHER_MOCK_110_01')
+IF NOT EXISTS (
+    SELECT 1 FROM [dbo].[TmsWeather]
+    WHERE ([RefId] = N'WS_KM25' OR [ID] = N'WEATHER_MOCK_110_01' OR ([CreateUId] = @SeedUser AND [RefId] = N'WS_KM25'))
+      AND [IsDelete] IS NULL
+)
 BEGIN
-    PRINT N'  -> [Khối 3] Đang seed dữ liệu thời tiết WEATHER_MOCK_110_01 tại Km25 (Gói 110)...';
+    PRINT N'  -> [Khối 3] Đang seed dữ liệu thời tiết tại Km25 (Gói 110)...';
     INSERT INTO [dbo].[TmsWeather] (
         [ID], [TenantId], [RefId], [LocationDetail], [Temperature], [Hudmidity],
         [WindDirection], [WindSpeed], [Rain], [RainHour], [Foresight],
         [TimeDetect], [Description], [ShortDescription], [Type],
-        [CreateTime], [UpdateTime], [IsDelete]
+        [CreateTime], [UpdateTime], [IsDelete], [CreateUId]
     ) VALUES (
-        N'WEATHER_MOCK_110_01', NULL, N'WS_KM25', N'Trạm Km25+400 Hữu Nghị - Chi Lăng', 28.5, 75.0,
+        LOWER(CONVERT(NVARCHAR(64), NEWID())), NULL, N'WS_KM25', N'Trạm Km25+400 Hữu Nghị - Chi Lăng', 28.5, 75.0,
         N'Đông Bắc', 12.0, 0.0, 0.0, 10000.0,
         GETDATE(), N'Trời nhiều mây, tầm nhìn thoáng, không mưa', N'CLOUDY', N'1',
-        GETDATE(), GETDATE(), NULL
+        GETDATE(), GETDATE(), NULL, @SeedUser
     );
-    PRINT N'  -> [Khối 3] Đã seed thành công TmsWeather (WEATHER_MOCK_110_01).';
+    PRINT N'  -> [Khối 3] Đã seed thành công TmsWeather (WS_KM25).';
 END
 ELSE
 BEGIN
-    PRINT N'  -> [Khối 3] Dữ liệu TmsWeather (WEATHER_MOCK_110_01) đã tồn tại, bỏ qua.';
+    PRINT N'  -> [Khối 3] Dữ liệu TmsWeather (WS_KM25) đã tồn tại, bỏ qua.';
 END
 GO
 
@@ -224,6 +262,8 @@ GO
 
 SET NOCOUNT ON;
 
+DECLARE @SeedUser NVARCHAR(64) = N'SHAREDATA-SEED-GIA-LAP';
+
 DECLARE @DefaultTenantId NVARCHAR(64) = (
     SELECT TOP 1 [TenantId]
     FROM [dbo].[ShareDataPacket]
@@ -232,27 +272,31 @@ DECLARE @DefaultTenantId NVARCHAR(64) = (
 IF @DefaultTenantId IS NULL
     SET @DefaultTenantId = N'Default';
 
--- 4.2.a Xóa mềm idempotent 2 dòng ShareDataPacketSql cũ (1500000000901, 1500000000902) nếu từng chạy bản cũ
+-- 4.2.a Xóa mềm idempotent các dòng ShareDataPacketSql cũ nếu từng chạy bản cũ
 IF OBJECT_ID(N'[dbo].[ShareDataPacketSql]', N'U') IS NOT NULL
 BEGIN
     IF EXISTS (
         SELECT 1
         FROM [dbo].[ShareDataPacketSql]
-        WHERE [ID] IN (N'1500000000901', N'1500000000902')
-          AND [IsDelete] IS NULL
+        WHERE (
+            ([CreateUId] = @SeedUser AND [PacketCode] IN (N'101', N'101_commonData'))
+            OR [ID] IN (N'1500000000901', N'1500000000902') -- dòng do bản cũ của script tạo
+        ) AND [IsDelete] IS NULL
     )
     BEGIN
         UPDATE [dbo].[ShareDataPacketSql]
         SET [IsDelete] = GETDATE(),
             [Status] = 0,
             [UpdateTime] = GETDATE()
-        WHERE [ID] IN (N'1500000000901', N'1500000000902')
-          AND [IsDelete] IS NULL;
-        PRINT N'  -> [Khối 4.2] Đã xóa mềm ' + CAST(@@ROWCOUNT AS NVARCHAR(10)) + N' dòng ShareDataPacketSql cũ (1500000000901/1500000000902).';
+        WHERE (
+            ([CreateUId] = @SeedUser AND [PacketCode] IN (N'101', N'101_commonData'))
+            OR [ID] IN (N'1500000000901', N'1500000000902')
+        ) AND [IsDelete] IS NULL;
+        PRINT N'  -> [Khối 4.2] Đã xóa mềm ' + CAST(@@ROWCOUNT AS NVARCHAR(10)) + N' dòng ShareDataPacketSql cũ của gói 101/101_commonData.';
     END
     ELSE
     BEGIN
-        PRINT N'  -> [Khối 4.2] Không có dòng ShareDataPacketSql cũ (1500000000901/1500000000902) cần xóa mềm, bỏ qua.';
+        PRINT N'  -> [Khối 4.2] Không có dòng ShareDataPacketSql cũ cần xóa mềm, bỏ qua.';
     END
 END
 
@@ -262,15 +306,15 @@ BEGIN
     IF NOT EXISTS (
         SELECT 1
         FROM [dbo].[ShareDataPacket]
-        WHERE ([ID] = N'1500000000900' OR ([Code] = N'E2E_INBOUND_TEST' AND [IsDelete] IS NULL))
+        WHERE [Code] = N'E2E_INBOUND_TEST' AND [IsDelete] IS NULL
     )
     BEGIN
         INSERT INTO [dbo].[ShareDataPacket] (
             [ID], [TenantId], [Code], [Name], [PacketVersion], [Description],
             [OrderNo], [Status], [ExtractSql], [SyncMode], [CursorTimeColumn], [MaxLookBackDays],
-            [Remark], [CreateTime], [UpdateTime], [IsDelete]
+            [Remark], [CreateTime], [UpdateTime], [IsDelete], [CreateUId]
         ) VALUES (
-            N'1500000000900',
+            LOWER(CONVERT(NVARCHAR(64), NEWID())),
             @DefaultTenantId,
             N'E2E_INBOUND_TEST',
             N'Gói kiểm thử chiều nhận E0 (chỉ local)',
@@ -285,9 +329,10 @@ BEGIN
             N'Chỉ dùng kiểm thử chiều nhận E0 trên local/test, tách biệt với gói 101_commonData',
             GETDATE(),
             GETDATE(),
-            NULL
+            NULL,
+            @SeedUser
         );
-        PRINT N'  -> [Khối 4.2] Đã thêm gói kiểm thử E2E_INBOUND_TEST (ID: 1500000000900) vào ShareDataPacket.';
+        PRINT N'  -> [Khối 4.2] Đã thêm gói kiểm thử E2E_INBOUND_TEST vào ShareDataPacket.';
     END
     ELSE
     BEGIN
@@ -305,14 +350,14 @@ BEGIN
     IF NOT EXISTS (
         SELECT 1
         FROM [dbo].[ShareDataPacketSql]
-        WHERE ([ID] = N'1500000000903' OR ([PacketCode] = N'E2E_INBOUND_TEST' AND [TableName] = N'dbo.InboundTrafficFlow' AND [IsDelete] IS NULL))
+        WHERE [PacketCode] = N'E2E_INBOUND_TEST' AND [TableName] = N'dbo.InboundTrafficFlow' AND [IsDelete] IS NULL
     )
     BEGIN
         INSERT INTO [dbo].[ShareDataPacketSql] (
             [ID], [TenantId], [PacketCode], [Code], [OrderNo], [TableName], [WriteSql],
-            [Status], [Remark], [CreateTime], [UpdateTime], [IsDelete]
+            [Status], [Remark], [CreateTime], [UpdateTime], [IsDelete], [CreateUId]
         ) VALUES (
-            N'1500000000903',
+            LOWER(CONVERT(NVARCHAR(64), NEWID())),
             @DefaultTenantId,
             N'E2E_INBOUND_TEST',
             N'E2E_INBOUND_TEST',
@@ -339,9 +384,10 @@ OUTPUT $action;',
             N'Chỉ dùng kiểm thử chiều nhận E0 trên local/test cho gói E2E_INBOUND_TEST',
             GETDATE(),
             GETDATE(),
-            NULL
+            NULL,
+            @SeedUser
         );
-        PRINT N'  -> [Khối 4.2] Đã nạp câu ghi MERGE chiều nhận cho gói E2E_INBOUND_TEST (ID: 1500000000903) vào ShareDataPacketSql.';
+        PRINT N'  -> [Khối 4.2] Đã nạp câu ghi MERGE chiều nhận cho gói E2E_INBOUND_TEST vào ShareDataPacketSql.';
     END
     ELSE
     BEGIN

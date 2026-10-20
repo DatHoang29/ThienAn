@@ -1,7 +1,7 @@
 namespace Tests.ShareData.Common;
 
 using Module.ShareData.Core.Entities;
-using ShareDataWorker.Core.Utils;
+using ShareDataWorker.Core.Helpers;
 using Shared.DTO.Enums;
 using Xunit;
 

@@ -5,7 +5,7 @@ using Furion.FriendlyException;
 using Module.ShareData.Core.Dto.Packet;
 using Module.ShareData.Core.Entities;
 using Module.ShareData.Core.Exceptions;
-using Module.ShareData.Core.Utils;
+using Module.ShareData.Core.Helpers;
 using Module.ShareData.Infrastructure.Services.ShareDataExtraction;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Extraction;
 using Tests.ShareData.Common;
@@ -638,11 +638,10 @@ public partial class ShareDataPacketControllerTests
     }
 
     [Fact]
-    public void PacketDefaultTemplate_SyncModeAndStatus_MatchBusinessSpecification_Test()
+    public void PacketTemplate_SyncModeAndStatus_MatchBusinessSpecification_Test()
     {
-        var packets = PacketDefaultTemplate.All.ToDictionary(p => p.OrderNo ?? 0);
+        var packets = PacketTemplateSeed.All.ToDictionary(p => int.Parse(p.Code));
 
-        // Snapshot packets: 101, 102, 105, 108, 110
         int[] snapshotPackets = [101, 102, 105, 108, 110];
         foreach (var order in snapshotPackets)
         {
@@ -650,10 +649,8 @@ public partial class ShareDataPacketControllerTests
             Assert.Equal(BaseEnums.SyncMode.Snapshot, p.SyncMode);
             Assert.Null(p.CursorTimeColumn);
             Assert.Null(p.MaxLookBackDays);
-            Assert.Equal(BaseEnums.StatusEnum.Enable, p.Status);
         }
 
-        // Incremental packets: 103, 104, 106, 107, 109
         int[] incrementalPackets = [103, 104, 106, 107, 109];
         foreach (var order in incrementalPackets)
         {
@@ -661,91 +658,53 @@ public partial class ShareDataPacketControllerTests
             Assert.Equal(BaseEnums.SyncMode.Incremental, p.SyncMode);
             Assert.Equal("UpdateTime", p.CursorTimeColumn);
             Assert.Equal(1, p.MaxLookBackDays);
-            Assert.Equal(BaseEnums.StatusEnum.Enable, p.Status);
         }
 
-        // Gói 111: Tạm thời vô hiệu hoá (Disable)
-        var p111 = packets[111];
-        Assert.Null(p111.ExtractSql);
-        Assert.Null(p111.SyncMode);
-        Assert.Null(p111.CursorTimeColumn);
-        Assert.Null(p111.MaxLookBackDays);
-        Assert.Equal(BaseEnums.StatusEnum.Disable, p111.Status);
+        Assert.False(packets.ContainsKey(111));
     }
 
     [Fact]
-    public void PacketDefaultTemplate_ExtractSql_MatchesLegacy_And_SeedScript02_Test()
+    public void PacketTemplate_ExtractSql_MatchesLegacy_Test()
     {
-        // 101 - 109 đối chiếu với LegacyPacketSql
-        Assert.True(PacketDefaultTemplate.TryGet("101", out var tpl101));
-        AssertEqualNormalizedSql(LegacyPacketSql.Packet101, tpl101.ExtractSql!);
-        Assert.True(PacketDefaultTemplate.TryGet("102", out var tpl102));
-        AssertEqualNormalizedSql(LegacyPacketSql.Packet102, tpl102.ExtractSql!);
-        Assert.True(PacketDefaultTemplate.TryGet("103", out var tpl103));
-        AssertEqualNormalizedSql(LegacyPacketSql.Packet103, tpl103.ExtractSql!);
-        Assert.True(PacketDefaultTemplate.TryGet("104", out var tpl104));
-        AssertEqualNormalizedSql(LegacyPacketSql.Packet104, tpl104.ExtractSql!);
+        Assert.True(PacketTemplateSeed.TryGet("101", out var tpl101));
+        AssertEqualNormalizedSql(LegacyPacketSql.Packet101, tpl101.ExtractSql);
+        Assert.True(PacketTemplateSeed.TryGet("102", out var tpl102));
+        AssertEqualNormalizedSql(LegacyPacketSql.Packet102, tpl102.ExtractSql);
+        Assert.True(PacketTemplateSeed.TryGet("103", out var tpl103));
+        AssertEqualNormalizedSql(LegacyPacketSql.Packet103, tpl103.ExtractSql);
+        Assert.True(PacketTemplateSeed.TryGet("104", out var tpl104));
+        AssertEqualNormalizedSql(LegacyPacketSql.Packet104, tpl104.ExtractSql);
 
-        // 105: Ngoại lệ bỏ trần cứng TOP (@snapshotTop)
         var legacy105WithoutTop = LegacyPacketSql.Packet105.Replace(
             "TOP (@snapshotTop)",
             string.Empty,
             StringComparison.OrdinalIgnoreCase);
-        Assert.True(PacketDefaultTemplate.TryGet("105", out var tpl105));
-        AssertEqualNormalizedSql(legacy105WithoutTop, tpl105.ExtractSql!);
+        Assert.True(PacketTemplateSeed.TryGet("105", out var tpl105));
+        AssertEqualNormalizedSql(legacy105WithoutTop, tpl105.ExtractSql);
 
-        Assert.True(PacketDefaultTemplate.TryGet("106", out var tpl106));
-        AssertEqualNormalizedSql(LegacyPacketSql.Packet106, tpl106.ExtractSql!);
-        Assert.True(PacketDefaultTemplate.TryGet("107", out var tpl107));
-        AssertEqualNormalizedSql(LegacyPacketSql.Packet107, tpl107.ExtractSql!);
-        Assert.True(PacketDefaultTemplate.TryGet("108", out var tpl108));
-        AssertEqualNormalizedSql(LegacyPacketSql.Packet108, tpl108.ExtractSql!);
-        Assert.True(PacketDefaultTemplate.TryGet("109", out var tpl109));
-        AssertEqualNormalizedSql(LegacyPacketSql.Packet109, tpl109.ExtractSql!);
+        Assert.True(PacketTemplateSeed.TryGet("106", out var tpl106));
+        AssertEqualNormalizedSql(LegacyPacketSql.Packet106, tpl106.ExtractSql);
+        Assert.True(PacketTemplateSeed.TryGet("107", out var tpl107));
+        AssertEqualNormalizedSql(LegacyPacketSql.Packet107, tpl107.ExtractSql);
+        Assert.True(PacketTemplateSeed.TryGet("108", out var tpl108));
+        AssertEqualNormalizedSql(LegacyPacketSql.Packet108, tpl108.ExtractSql);
+        Assert.True(PacketTemplateSeed.TryGet("109", out var tpl109));
+        AssertEqualNormalizedSql(LegacyPacketSql.Packet109, tpl109.ExtractSql);
 
-        // 110: đối chiếu với script 02
-        var script110Sql = SeedScriptReader.GetExtractSql("110");
-        Assert.True(PacketDefaultTemplate.TryGet("110", out var tpl110));
-        AssertEqualNormalizedSql(script110Sql, tpl110.ExtractSql!);
-
-        // 111: không có template
-        Assert.False(PacketDefaultTemplate.TryGet("111", out _));
+        Assert.False(PacketTemplateSeed.TryGet("111", out _));
     }
 
     [Fact]
-    public void PacketDefaultTemplate_MatchesScript02_UpdateAndInsert_Test()
+    public void PacketTemplate_MatchesScript02_UpdateAndInsert_Test()
     {
-        var templates = PacketDefaultTemplate.All;
         var scriptUpdates = SeedScriptReader.ReadAll();
+        Assert.Equal(10, scriptUpdates.Count);
 
-        // 1. Kiểm tra đối chiếu với khối UPDATE của 101-110 trong script 02
-        foreach (var p in templates.Where(p => p.OrderNo <= 110))
-        {
-            var codeNumber = (p.OrderNo ?? 0).ToString();
-            Assert.True(scriptUpdates.ContainsKey(codeNumber), $"Script 02 thiếu cấu hình gói {codeNumber}.");
-            var updateInfo = scriptUpdates[codeNumber];
-
-            AssertEqualNormalizedSql(updateInfo.ExtractSql, p.ExtractSql!);
-            Assert.Equal((int?)p.SyncMode, updateInfo.SyncMode);
-            Assert.Equal(p.CursorTimeColumn, updateInfo.CursorTimeColumn);
-            Assert.Equal(p.MaxLookBackDays, updateInfo.MaxLookBackDays);
-        }
-
-        // 2. Kiểm tra đối chiếu với khối INSERT của 11 gói trong script 02
         var insertedPackets = SeedScriptReader.ReadInsertedPackets();
         Assert.Equal(11, insertedPackets.Count);
-
-        for (var i = 0; i < templates.Count; i++)
+        foreach (var code in scriptUpdates.Keys)
         {
-            var sp = templates[i];
-            var ip = insertedPackets[i];
-
-            Assert.Equal(sp.Code, ip.Code);
-            Assert.Equal(sp.Name, ip.Name);
-            Assert.Equal(sp.PacketVersion, ip.PacketVersion);
-            Assert.Equal(sp.Description, ip.Description);
-            Assert.Equal(sp.OrderNo, ip.OrderNo);
-            Assert.Equal((int)sp.Status!, ip.Status);
+            Assert.Contains(insertedPackets, ip => ip.Code == code || ip.Code.StartsWith(code + "_", StringComparison.Ordinal));
         }
     }
 

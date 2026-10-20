@@ -103,7 +103,7 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         // Assert
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
         Assert.NotNull(packet);
-        Assert.True(PacketDefaultTemplate.TryGet("101", out var tpl101));
+        Assert.True(PacketTemplateSeed.TryGet("101", out var tpl101));
         Assert.Equal(tpl101.ExtractSql, packet.ExtractSql);
         Assert.Equal(BaseEnums.SyncMode.Snapshot, packet.SyncMode);
     }
@@ -131,7 +131,7 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         // Assert
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
         Assert.NotNull(packet);
-        Assert.True(PacketDefaultTemplate.TryGet("101", out var tpl101Prefix));
+        Assert.True(PacketTemplateSeed.TryGet("101", out var tpl101Prefix));
         Assert.Equal(tpl101Prefix.ExtractSql, packet.ExtractSql);
         Assert.Equal(BaseEnums.SyncMode.Snapshot, packet.SyncMode);
     }
@@ -277,7 +277,7 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         // Assert
         Assert.NotNull(output);
         Assert.True(output.HasDefaultTemplate);
-        Assert.True(PacketDefaultTemplate.TryGet("103", out var tpl103));
+        Assert.True(PacketTemplateSeed.TryGet("103", out var tpl103));
         Assert.Equal(tpl103.ExtractSql, output.ExtractSql);
         Assert.Equal(BaseEnums.SyncMode.Incremental, output.SyncMode);
         Assert.Equal(1, output.MaxLookBackDays);
@@ -347,7 +347,7 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
         Assert.NotNull(packet);
         Assert.False(string.IsNullOrWhiteSpace(packet.ExtractSql));
-        Assert.True(PacketDefaultTemplate.TryGet("101", out var tpl101Reg));
+        Assert.True(PacketTemplateSeed.TryGet("101", out var tpl101Reg));
         Assert.Equal(tpl101Reg.ExtractSql, packet.ExtractSql);
     }
 

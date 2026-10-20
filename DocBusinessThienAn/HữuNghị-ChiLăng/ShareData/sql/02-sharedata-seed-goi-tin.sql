@@ -5,19 +5,19 @@ GO
 -- FILE: 02-sharedata-seed-goi-tin.sql
 -- DESCRIPTION: Nạp Template câu truy vấn SQL trích xuất chuẩn Catalog (gói 101-110),
 --              chuẩn hóa chế độ gửi (SyncMode) và trạng thái gói (Status) trong ShareDataPacket:
---              0. Khởi tạo bản ghi cho 11 gói tin (101 - 111) nếu chưa tồn tại (idempotent).
+--              0. Khởi tạo bản ghi cho 11 gói tin (101 - 111) nếu chưa tồn tại (idempotent,
+--                 chống trùng theo Code + IsDelete IS NULL, ID sinh động bằng LOWER(CONVERT(NVARCHAR(64), NEWID()))).
 --              1. Nạp câu truy vấn SQL trích xuất mẫu chuẩn cho các gói tin 101 - 110:
---                 - Sử dụng biến @GhiDeMauGoiTin BIT = 0 (mặc định không ghi đè câu lệnh SQL mà
---                   SuperAdmin/quản trị viên đã chỉnh sửa trên màn hình quản trị).
---                 - Khi @GhiDeMauGoiTin = 1: Cho phép ghi đè toàn bộ đưa về template Catalog chuẩn.
+--                 - Luôn cập nhật TemplateSql bằng câu truy vấn mẫu gốc chuẩn Catalog (tra theo Code, IsDelete IS NULL).
+--                 - ExtractSql = TemplateSql chỉ khi ExtractSql đang trống hoặc @GhiDeMauGoiTin = 1 (giữ đúng ý nghĩa cờ).
 --              2. Chuẩn hóa SyncMode mặc định theo nghiệp vụ cho các gói còn NULL:
 --                 - Snapshot (1): 101, 102, 105, 108
 --                 - Incremental (2): 103, 104, 106, 107, 109
 --              3. Cập nhật Status = 1 (Enable) cho các gói 110* và Status = 0 (Disable) cho các gói 111*.
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
--- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent, không ghi đè dữ liệu quản trị đã sửa).
--- CẬP NHẬT LẦN CUỐI: 19/10/2026
+-- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent, chống trùng theo khóa nghiệp vụ, không ghi đè dữ liệu quản trị đã sửa).
+-- CẬP NHẬT LẦN CUỐI: 20/10/2026
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -55,10 +55,10 @@ DECLARE @InsertedPackets INT = 0;
 DECLARE @ExistingPackets INT = 0;
 
 -- Gói 101: CommonData
-IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE ([ID] = N'1500000000101') OR (([Code] = '101' OR [Code] LIKE '101[_]%') AND [IsDelete] IS NULL))
+IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE ([Code] = '101' OR [Code] LIKE '101[_]%') AND [IsDelete] IS NULL)
 BEGIN
     INSERT INTO [dbo].[ShareDataPacket] ([ID], [Code], [Name], [PacketVersion], [Description], [OrderNo], [Status], [Remark], [CreateTime], [IsDelete])
-    VALUES (N'1500000000101', N'101_commonData', N'Dữ liệu thông tin chung / luồng giao thông', N'1.0', N'Gói 101: Dữ liệu thông tin chung / luồng giao thông', 101, 1, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData', GETDATE(), 0);
+    VALUES (LOWER(CONVERT(NVARCHAR(64), NEWID())), N'101_commonData', N'Dữ liệu thông tin chung / luồng giao thông', N'1.0', N'Gói 101: Dữ liệu thông tin chung / luồng giao thông', 101, 1, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData', GETDATE(), 0);
     SET @InsertedPackets = @InsertedPackets + 1;
 END
 ELSE
@@ -67,10 +67,10 @@ BEGIN
 END
 
 -- Gói 102: CctvData
-IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE ([ID] = N'1500000000102') OR (([Code] = '102' OR [Code] LIKE '102[_]%') AND [IsDelete] IS NULL))
+IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE ([Code] = '102' OR [Code] LIKE '102[_]%') AND [IsDelete] IS NULL)
 BEGIN
     INSERT INTO [dbo].[ShareDataPacket] ([ID], [Code], [Name], [PacketVersion], [Description], [OrderNo], [Status], [Remark], [CreateTime], [IsDelete])
-    VALUES (N'1500000000102', N'102_cctvData', N'Dữ liệu hình ảnh giao thông CCTV', N'1.0', N'Gói 102: Dữ liệu hình ảnh giao thông CCTV', 102, 1, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData', GETDATE(), 0);
+    VALUES (LOWER(CONVERT(NVARCHAR(64), NEWID())), N'102_cctvData', N'Dữ liệu hình ảnh giao thông CCTV', N'1.0', N'Gói 102: Dữ liệu hình ảnh giao thông CCTV', 102, 1, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData', GETDATE(), 0);
     SET @InsertedPackets = @InsertedPackets + 1;
 END
 ELSE
@@ -79,10 +79,10 @@ BEGIN
 END
 
 -- Gói 103: VdsData
-IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE ([ID] = N'1500000000103') OR (([Code] = '103' OR [Code] LIKE '103[_]%') AND [IsDelete] IS NULL))
+IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE ([Code] = '103' OR [Code] LIKE '103[_]%') AND [IsDelete] IS NULL)
 BEGIN
     INSERT INTO [dbo].[ShareDataPacket] ([ID], [Code], [Name], [PacketVersion], [Description], [OrderNo], [Status], [Remark], [CreateTime], [IsDelete])
-    VALUES (N'1500000000103', N'103_vdsData', N'Dữ liệu đếm xe VDS', N'1.0', N'Gói 103: Dữ liệu đếm xe VDS', 103, 1, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData', GETDATE(), 0);
+    VALUES (LOWER(CONVERT(NVARCHAR(64), NEWID())), N'103_vdsData', N'Dữ liệu đếm xe VDS', N'1.0', N'Gói 103: Dữ liệu đếm xe VDS', 103, 1, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData', GETDATE(), 0);
     SET @InsertedPackets = @InsertedPackets + 1;
 END
 ELSE
@@ -91,10 +91,10 @@ BEGIN
 END
 
 -- Gói 104: WeatherData
-IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE ([ID] = N'1500000000104') OR (([Code] = '104' OR [Code] LIKE '104[_]%') AND [IsDelete] IS NULL))
+IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE ([Code] = '104' OR [Code] LIKE '104[_]%') AND [IsDelete] IS NULL)
 BEGIN
     INSERT INTO [dbo].[ShareDataPacket] ([ID], [Code], [Name], [PacketVersion], [Description], [OrderNo], [Status], [Remark], [CreateTime], [IsDelete])
-    VALUES (N'1500000000104', N'104_weatherData', N'Dữ liệu khí tượng / thời tiết', N'1.0', N'Gói 104: Dữ liệu khí tượng / thời tiết', 104, 1, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData', GETDATE(), 0);
+    VALUES (LOWER(CONVERT(NVARCHAR(64), NEWID())), N'104_weatherData', N'Dữ liệu khí tượng / thời tiết', N'1.0', N'Gói 104: Dữ liệu khí tượng / thời tiết', 104, 1, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData', GETDATE(), 0);
     SET @InsertedPackets = @InsertedPackets + 1;
 END
 ELSE
@@ -103,10 +103,10 @@ BEGIN
 END
 
 -- Gói 105: RfidData
-IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE ([ID] = N'1500000000105') OR (([Code] = '105' OR [Code] LIKE '105[_]%') AND [IsDelete] IS NULL))
+IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE ([Code] = '105' OR [Code] LIKE '105[_]%') AND [IsDelete] IS NULL)
 BEGIN
     INSERT INTO [dbo].[ShareDataPacket] ([ID], [Code], [Name], [PacketVersion], [Description], [OrderNo], [Status], [Remark], [CreateTime], [IsDelete])
-    VALUES (N'1500000000105', N'105_rfidData', N'Dữ liệu định danh phương tiện AVI / RFID', N'1.0', N'Gói 105: Dữ liệu định danh phương tiện AVI / RFID', 105, 1, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData', GETDATE(), 0);
+    VALUES (LOWER(CONVERT(NVARCHAR(64), NEWID())), N'105_rfidData', N'Dữ liệu định danh phương tiện AVI / RFID', N'1.0', N'Gói 105: Dữ liệu định danh phương tiện AVI / RFID', 105, 1, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData', GETDATE(), 0);
     SET @InsertedPackets = @InsertedPackets + 1;
 END
 ELSE
@@ -115,10 +115,10 @@ BEGIN
 END
 
 -- Gói 106: WimData
-IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE ([ID] = N'1500000000106') OR (([Code] = '106' OR [Code] LIKE '106[_]%') AND [IsDelete] IS NULL))
+IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE ([Code] = '106' OR [Code] LIKE '106[_]%') AND [IsDelete] IS NULL)
 BEGIN
     INSERT INTO [dbo].[ShareDataPacket] ([ID], [Code], [Name], [PacketVersion], [Description], [OrderNo], [Status], [Remark], [CreateTime], [IsDelete])
-    VALUES (N'1500000000106', N'106_wimData', N'Dữ liệu cân tải trọng xe tự động WIM', N'1.0', N'Gói 106: Dữ liệu cân tải trọng xe tự động WIM', 106, 1, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData', GETDATE(), 0);
+    VALUES (LOWER(CONVERT(NVARCHAR(64), NEWID())), N'106_wimData', N'Dữ liệu cân tải trọng xe tự động WIM', N'1.0', N'Gói 106: Dữ liệu cân tải trọng xe tự động WIM', 106, 1, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData', GETDATE(), 0);
     SET @InsertedPackets = @InsertedPackets + 1;
 END
 ELSE
@@ -127,10 +127,10 @@ BEGIN
 END
 
 -- Gói 107: IncidentData
-IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE ([ID] = N'1500000000107') OR (([Code] = '107' OR [Code] LIKE '107[_]%') AND [IsDelete] IS NULL))
+IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE ([Code] = '107' OR [Code] LIKE '107[_]%') AND [IsDelete] IS NULL)
 BEGIN
     INSERT INTO [dbo].[ShareDataPacket] ([ID], [Code], [Name], [PacketVersion], [Description], [OrderNo], [Status], [Remark], [CreateTime], [IsDelete])
-    VALUES (N'1500000000107', N'107_incidentData', N'Dữ liệu thông tin sự cố / sự kiện giao thông', N'1.0', N'Gói 107: Dữ liệu thông tin sự cố / sự kiện giao thông', 107, 1, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData', GETDATE(), 0);
+    VALUES (LOWER(CONVERT(NVARCHAR(64), NEWID())), N'107_incidentData', N'Dữ liệu thông tin sự cố / sự kiện giao thông', N'1.0', N'Gói 107: Dữ liệu thông tin sự cố / sự kiện giao thông', 107, 1, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData', GETDATE(), 0);
     SET @InsertedPackets = @InsertedPackets + 1;
 END
 ELSE
@@ -139,10 +139,10 @@ BEGIN
 END
 
 -- Gói 108: VmsInfo
-IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE ([ID] = N'1500000000108') OR (([Code] = '108' OR [Code] LIKE '108[_]%') AND [IsDelete] IS NULL))
+IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE ([Code] = '108' OR [Code] LIKE '108[_]%') AND [IsDelete] IS NULL)
 BEGIN
     INSERT INTO [dbo].[ShareDataPacket] ([ID], [Code], [Name], [PacketVersion], [Description], [OrderNo], [Status], [Remark], [CreateTime], [IsDelete])
-    VALUES (N'1500000000108', N'108_vmsInfo', N'Dữ liệu thông tin biển báo điện tử VMS', N'1.0', N'Gói 108: Dữ liệu thông tin biển báo điện tử VMS', 108, 1, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData', GETDATE(), 0);
+    VALUES (LOWER(CONVERT(NVARCHAR(64), NEWID())), N'108_vmsInfo', N'Dữ liệu thông tin biển báo điện tử VMS', N'1.0', N'Gói 108: Dữ liệu thông tin biển báo điện tử VMS', 108, 1, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData', GETDATE(), 0);
     SET @InsertedPackets = @InsertedPackets + 1;
 END
 ELSE
@@ -151,10 +151,10 @@ BEGIN
 END
 
 -- Gói 109: EtcData
-IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE ([ID] = N'1500000000109') OR (([Code] = '109' OR [Code] LIKE '109[_]%') AND [IsDelete] IS NULL))
+IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE ([Code] = '109' OR [Code] LIKE '109[_]%') AND [IsDelete] IS NULL)
 BEGIN
     INSERT INTO [dbo].[ShareDataPacket] ([ID], [Code], [Name], [PacketVersion], [Description], [OrderNo], [Status], [Remark], [CreateTime], [IsDelete])
-    VALUES (N'1500000000109', N'109_etcData', N'Dữ liệu giao dịch thu phí ETC', N'1.0', N'Gói 109: Dữ liệu giao dịch thu phí ETC', 109, 1, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData', GETDATE(), 0);
+    VALUES (LOWER(CONVERT(NVARCHAR(64), NEWID())), N'109_etcData', N'Dữ liệu giao dịch thu phí ETC', N'1.0', N'Gói 109: Dữ liệu giao dịch thu phí ETC', 109, 1, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData', GETDATE(), 0);
     SET @InsertedPackets = @InsertedPackets + 1;
 END
 ELSE
@@ -163,10 +163,10 @@ BEGIN
 END
 
 -- Gói 110: WpData
-IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE ([ID] = N'1500000000110') OR (([Code] = '110' OR [Code] LIKE '110[_]%') AND [IsDelete] IS NULL))
+IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE ([Code] = '110' OR [Code] LIKE '110[_]%') AND [IsDelete] IS NULL)
 BEGIN
     INSERT INTO [dbo].[ShareDataPacket] ([ID], [Code], [Name], [PacketVersion], [Description], [OrderNo], [Status], [Remark], [CreateTime], [IsDelete])
-    VALUES (N'1500000000110', N'110_wpData', N'Dữ liệu trao đổi thông tin với người tham gia giao thông', N'1.0', N'Gói 110: Dữ liệu trao đổi thông tin với người tham gia giao thông', 110, 1, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData', GETDATE(), 0);
+    VALUES (LOWER(CONVERT(NVARCHAR(64), NEWID())), N'110_wpData', N'Dữ liệu trao đổi thông tin với người tham gia giao thông', N'1.0', N'Gói 110: Dữ liệu trao đổi thông tin với người tham gia giao thông', 110, 1, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData', GETDATE(), 0);
     SET @InsertedPackets = @InsertedPackets + 1;
 END
 ELSE
@@ -175,10 +175,10 @@ BEGIN
 END
 
 -- Gói 111: InterCenter (Status = 0: Disable)
-IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE ([ID] = N'1500000000111') OR (([Code] = '111' OR [Code] LIKE '111[_]%') AND [IsDelete] IS NULL))
+IF NOT EXISTS (SELECT 1 FROM [dbo].[ShareDataPacket] WHERE ([Code] = '111' OR [Code] LIKE '111[_]%') AND [IsDelete] IS NULL)
 BEGIN
     INSERT INTO [dbo].[ShareDataPacket] ([ID], [Code], [Name], [PacketVersion], [Description], [OrderNo], [Status], [Remark], [CreateTime], [IsDelete])
-    VALUES (N'1500000000111', N'111', N'Dữ liệu trao đổi thông tin giữa các TT QLĐHGT tuyến', N'1.0', N'Gói 111: Dữ liệu trao đổi thông tin giữa các TT QLĐHGT tuyến', 111, 0, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData (tạm thời chưa kích hoạt)', GETDATE(), 0);
+    VALUES (LOWER(CONVERT(NVARCHAR(64), NEWID())), N'111', N'Dữ liệu trao đổi thông tin giữa các TT QLĐHGT tuyến', N'1.0', N'Gói 111: Dữ liệu trao đổi thông tin giữa các TT QLĐHGT tuyến', 111, 0, N'Khởi tạo mặc định theo chuẩn phân hệ ShareData (tạm thời chưa kích hoạt)', GETDATE(), 0);
     SET @InsertedPackets = @InsertedPackets + 1;
 END
 ELSE
@@ -197,7 +197,7 @@ PRINT N'-> 1. Bắt đầu nạp Template câu lệnh SQL trích xuất vào b�
 
 -- Gói 101: TrafficFlow (Snapshot)
 UPDATE [dbo].[ShareDataPacket]
-SET [ExtractSql] = N'SELECT
+SET [TemplateSql] = N'SELECT
     zs.ID AS zoneStatusId,
     zs.ZoneId AS zoneId,
     z.Name AS zoneName,
@@ -213,11 +213,17 @@ SET [ExtractSql] = N'SELECT
     ts.TotalVehicleNumber AS vehicleCount
 FROM TmsZoneStatus zs
 LEFT JOIN TmsZone z ON zs.ZoneId = z.ID
-LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId',
+LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId'
+WHERE ([Code] = '101' OR [Code] LIKE '101_%')
+  AND [IsDelete] IS NULL;
+
+UPDATE [dbo].[ShareDataPacket]
+SET [ExtractSql] = [TemplateSql],
     [SyncMode] = 1,
     [CursorTimeColumn] = NULL,
     [MaxLookBackDays] = NULL
 WHERE ([Code] = '101' OR [Code] LIKE '101_%')
+  AND [IsDelete] IS NULL
   AND (@GhiDeMauGoiTin = 1 OR [ExtractSql] IS NULL OR LTRIM(RTRIM([ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 SET @TotalUpdated = @TotalUpdated + @UpdatedRows;
@@ -225,7 +231,7 @@ PRINT N'   - Gói 101 (TrafficFlow): đã cập nhật ' + CAST(@UpdatedRows AS 
 
 -- Gói 102: CctvImage (Snapshot)
 UPDATE [dbo].[ShareDataPacket]
-SET [ExtractSql] = N'SELECT
+SET [TemplateSql] = N'SELECT
     e.Code AS cameraCode,
     c.Name AS cameraName,
     NULL AS snapshot,
@@ -235,11 +241,17 @@ SET [ExtractSql] = N'SELECT
     e.MetNumber AS locationMet,
     e.DirectionId AS direction
 FROM CctvDevice c
-LEFT JOIN TmsEquipment e ON c.Ip = e.Ip',
+LEFT JOIN TmsEquipment e ON c.Ip = e.Ip'
+WHERE ([Code] = '102' OR [Code] LIKE '102_%')
+  AND [IsDelete] IS NULL;
+
+UPDATE [dbo].[ShareDataPacket]
+SET [ExtractSql] = [TemplateSql],
     [SyncMode] = 1,
     [CursorTimeColumn] = NULL,
     [MaxLookBackDays] = NULL
 WHERE ([Code] = '102' OR [Code] LIKE '102_%')
+  AND [IsDelete] IS NULL
   AND (@GhiDeMauGoiTin = 1 OR [ExtractSql] IS NULL OR LTRIM(RTRIM([ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 SET @TotalUpdated = @TotalUpdated + @UpdatedRows;
@@ -247,7 +259,7 @@ PRINT N'   - Gói 102 (CctvImage): đã cập nhật ' + CAST(@UpdatedRows AS NV
 
 -- Gói 103: VehicleDetection (Incremental)
 UPDATE [dbo].[ShareDataPacket]
-SET [ExtractSql] = N'SELECT TOP (@pageSize)
+SET [TemplateSql] = N'SELECT TOP (@pageSize)
     td.ID AS detectionId,
     td.DetectTime AS detectTime,
     td.Type AS vehicleType,
@@ -272,11 +284,17 @@ WHERE td.IsDelete IS NULL
       OR (COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) = @lastTime AND td.ID > @lastKey)
   )
 ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC
-OPTION (RECOMPILE)',
+OPTION (RECOMPILE)'
+WHERE ([Code] = '103' OR [Code] LIKE '103_%')
+  AND [IsDelete] IS NULL;
+
+UPDATE [dbo].[ShareDataPacket]
+SET [ExtractSql] = [TemplateSql],
     [SyncMode] = 2,
     [CursorTimeColumn] = N'UpdateTime',
     [MaxLookBackDays] = 1
 WHERE ([Code] = '103' OR [Code] LIKE '103_%')
+  AND [IsDelete] IS NULL
   AND (@GhiDeMauGoiTin = 1 OR [ExtractSql] IS NULL OR LTRIM(RTRIM([ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 SET @TotalUpdated = @TotalUpdated + @UpdatedRows;
@@ -284,7 +302,7 @@ PRINT N'   - Gói 103 (VehicleDetection): đã cập nhật ' + CAST(@UpdatedRow
 
 -- Gói 104: Weather (Incremental)
 UPDATE [dbo].[ShareDataPacket]
-SET [ExtractSql] = N'SELECT TOP (@pageSize)
+SET [TemplateSql] = N'SELECT TOP (@pageSize)
     w.RefId AS weatherStationId,
     w.LocationDetail AS locationDetail,
     w.Temperature AS temperature,
@@ -309,11 +327,17 @@ WHERE w.IsDelete IS NULL
       OR (COALESCE(w.UpdateTime, w.CreateTime, w.TimeDetect) = @lastTime AND w.ID > @lastKey)
   )
 ORDER BY COALESCE(w.UpdateTime, w.CreateTime, w.TimeDetect) ASC, w.ID ASC
-OPTION (RECOMPILE)',
+OPTION (RECOMPILE)'
+WHERE ([Code] = '104' OR [Code] LIKE '104_%')
+  AND [IsDelete] IS NULL;
+
+UPDATE [dbo].[ShareDataPacket]
+SET [ExtractSql] = [TemplateSql],
     [SyncMode] = 2,
     [CursorTimeColumn] = N'UpdateTime',
     [MaxLookBackDays] = 1
 WHERE ([Code] = '104' OR [Code] LIKE '104_%')
+  AND [IsDelete] IS NULL
   AND (@GhiDeMauGoiTin = 1 OR [ExtractSql] IS NULL OR LTRIM(RTRIM([ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 SET @TotalUpdated = @TotalUpdated + @UpdatedRows;
@@ -321,7 +345,7 @@ PRINT N'   - Gói 104 (Weather): đã cập nhật ' + CAST(@UpdatedRows AS NVAR
 
 -- Gói 105: VehicleIdentification (Snapshot)
 UPDATE [dbo].[ShareDataPacket]
-SET [ExtractSql] = N'SELECT
+SET [TemplateSql] = N'SELECT
     i.TransactionId AS transactionId,
     i.TagId AS tagId,
     NULLIF(ISNULL(NULLIF(i.PlateEdit, ''''), NULLIF(i.PlateLpr, '''')), '''') AS licensePlate,
@@ -337,11 +361,17 @@ LEFT JOIN TmsVehicleRegistration vr
        ON NULLIF(ISNULL(NULLIF(i.PlateEdit, ''''), NULLIF(i.PlateLpr, '''')), '''') = vr.LicensePlate
       AND vr.IsDelete IS NULL
 WHERE i.IsDelete IS NULL
-ORDER BY i.TransactionDateTime DESC',
+ORDER BY i.TransactionDateTime DESC'
+WHERE ([Code] = '105' OR [Code] LIKE '105_%')
+  AND [IsDelete] IS NULL;
+
+UPDATE [dbo].[ShareDataPacket]
+SET [ExtractSql] = [TemplateSql],
     [SyncMode] = 1,
     [CursorTimeColumn] = NULL,
     [MaxLookBackDays] = NULL
 WHERE ([Code] = '105' OR [Code] LIKE '105_%')
+  AND [IsDelete] IS NULL
   AND (@GhiDeMauGoiTin = 1 OR [ExtractSql] IS NULL OR LTRIM(RTRIM([ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 SET @TotalUpdated = @TotalUpdated + @UpdatedRows;
@@ -349,7 +379,7 @@ PRINT N'   - Gói 105 (VehicleIdentification): đã cập nhật ' + CAST(@Updat
 
 -- Gói 106: WeighInMotion (Incremental)
 UPDATE [dbo].[ShareDataPacket]
-SET [ExtractSql] = N'SELECT TOP (@pageSize)
+SET [TemplateSql] = N'SELECT TOP (@pageSize)
     td.DetectTime AS detectTime,
     td.Lane AS lane,
     td.Location AS locationCode,
@@ -369,11 +399,17 @@ WHERE td.IsDelete IS NULL
       OR (COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) = @lastTime AND td.ID > @lastKey)
   )
 ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC
-OPTION (RECOMPILE)',
+OPTION (RECOMPILE)'
+WHERE ([Code] = '106' OR [Code] LIKE '106_%')
+  AND [IsDelete] IS NULL;
+
+UPDATE [dbo].[ShareDataPacket]
+SET [ExtractSql] = [TemplateSql],
     [SyncMode] = 2,
     [CursorTimeColumn] = N'UpdateTime',
     [MaxLookBackDays] = 1
 WHERE ([Code] = '106' OR [Code] LIKE '106_%')
+  AND [IsDelete] IS NULL
   AND (@GhiDeMauGoiTin = 1 OR [ExtractSql] IS NULL OR LTRIM(RTRIM([ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 SET @TotalUpdated = @TotalUpdated + @UpdatedRows;
@@ -381,7 +417,7 @@ PRINT N'   - Gói 106 (WeighInMotion): đã cập nhật ' + CAST(@UpdatedRows A
 
 -- Gói 107: TrafficIncident (Incremental)
 UPDATE [dbo].[ShareDataPacket]
-SET [ExtractSql] = N'SELECT TOP (@pageSize)
+SET [TemplateSql] = N'SELECT TOP (@pageSize)
     i.Code AS incidentCode,
     i.Name AS incidentName,
     i.EventTypeId AS eventTypeId,
@@ -409,11 +445,17 @@ WHERE i.IsDelete IS NULL
       OR (COALESCE(i.UpdateTime, i.CreateTime, i.StartDate) = @lastTime AND i.ID > @lastKey)
   )
 ORDER BY COALESCE(i.UpdateTime, i.CreateTime, i.StartDate) ASC, i.ID ASC
-OPTION (RECOMPILE)',
+OPTION (RECOMPILE)'
+WHERE ([Code] = '107' OR [Code] LIKE '107_%')
+  AND [IsDelete] IS NULL;
+
+UPDATE [dbo].[ShareDataPacket]
+SET [ExtractSql] = [TemplateSql],
     [SyncMode] = 2,
     [CursorTimeColumn] = N'UpdateTime',
     [MaxLookBackDays] = 1
 WHERE ([Code] = '107' OR [Code] LIKE '107_%')
+  AND [IsDelete] IS NULL
   AND (@GhiDeMauGoiTin = 1 OR [ExtractSql] IS NULL OR LTRIM(RTRIM([ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 SET @TotalUpdated = @TotalUpdated + @UpdatedRows;
@@ -421,7 +463,7 @@ PRINT N'   - Gói 107 (TrafficIncident): đã cập nhật ' + CAST(@UpdatedRows
 
 -- Gói 108: VmsDisplay (Snapshot)
 UPDATE [dbo].[ShareDataPacket]
-SET [ExtractSql] = N'SELECT
+SET [TemplateSql] = N'SELECT
     e.Code AS equipmentCode,
     v.Name AS vmsName,
     e.KmNumber AS locationKm,
@@ -434,11 +476,17 @@ SET [ExtractSql] = N'SELECT
     v.Priority AS priority,
     v.ExecutedDate AS executedTime
 FROM VmsCurrent v
-LEFT JOIN TmsEquipment e ON v.EquipmentId = e.ID',
+LEFT JOIN TmsEquipment e ON v.EquipmentId = e.ID'
+WHERE ([Code] = '108' OR [Code] LIKE '108_%')
+  AND [IsDelete] IS NULL;
+
+UPDATE [dbo].[ShareDataPacket]
+SET [ExtractSql] = [TemplateSql],
     [SyncMode] = 1,
     [CursorTimeColumn] = NULL,
     [MaxLookBackDays] = NULL
 WHERE ([Code] = '108' OR [Code] LIKE '108_%')
+  AND [IsDelete] IS NULL
   AND (@GhiDeMauGoiTin = 1 OR [ExtractSql] IS NULL OR LTRIM(RTRIM([ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 SET @TotalUpdated = @TotalUpdated + @UpdatedRows;
@@ -446,7 +494,7 @@ PRINT N'   - Gói 108 (VmsDisplay): đã cập nhật ' + CAST(@UpdatedRows AS N
 
 -- Gói 109: TollCollection (Incremental)
 UPDATE [dbo].[ShareDataPacket]
-SET [ExtractSql] = N'SELECT TOP (@pageSize)
+SET [TemplateSql] = N'SELECT TOP (@pageSize)
     t.TransactionId AS transactionId,
     t.TransactionDateTimeIn AS entryTime,
     t.TransactionDateTime AS exitTime,
@@ -473,11 +521,17 @@ WHERE t.IsDelete IS NULL
       OR (COALESCE(t.UpdateTime, t.CreateTime, t.TransactionDateTime) = @lastTime AND t.ID > @lastKey)
   )
 ORDER BY COALESCE(t.UpdateTime, t.CreateTime, t.TransactionDateTime) ASC, t.ID ASC
-OPTION (RECOMPILE)',
+OPTION (RECOMPILE)'
+WHERE ([Code] = '109' OR [Code] LIKE '109_%')
+  AND [IsDelete] IS NULL;
+
+UPDATE [dbo].[ShareDataPacket]
+SET [ExtractSql] = [TemplateSql],
     [SyncMode] = 2,
     [CursorTimeColumn] = N'UpdateTime',
     [MaxLookBackDays] = 1
 WHERE ([Code] = '109' OR [Code] LIKE '109_%')
+  AND [IsDelete] IS NULL
   AND (@GhiDeMauGoiTin = 1 OR [ExtractSql] IS NULL OR LTRIM(RTRIM([ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 SET @TotalUpdated = @TotalUpdated + @UpdatedRows;
@@ -485,7 +539,7 @@ PRINT N'   - Gói 109 (TollCollection): đã cập nhật ' + CAST(@UpdatedRows 
 
 -- Gói 110: PublicMessaging (Snapshot)
 UPDATE [dbo].[ShareDataPacket]
-SET [ExtractSql] = N'SELECT
+SET [TemplateSql] = N'SELECT
     CAST(i.ID AS NVARCHAR(64)) AS messageId,
     CONCAT(ISNULL(i.Name, ''''), '' - '', ISNULL(i.Description, '''')) AS incidentMessage,
     w.Description AS weatherMessage,
@@ -518,11 +572,17 @@ OUTER APPLY (
 WHERE (i.State IS NULL OR (
     i.State != ''FINISHED'' AND i.State != ''CANCELED''
     AND i.State != ''Closed'' AND i.State != ''Cancelled''
-))',
+))'
+WHERE ([Code] = '110' OR [Code] LIKE '110_%')
+  AND [IsDelete] IS NULL;
+
+UPDATE [dbo].[ShareDataPacket]
+SET [ExtractSql] = [TemplateSql],
     [SyncMode] = 1,
     [CursorTimeColumn] = NULL,
     [MaxLookBackDays] = NULL
 WHERE ([Code] = '110' OR [Code] LIKE '110_%')
+  AND [IsDelete] IS NULL
   AND (@GhiDeMauGoiTin = 1 OR [ExtractSql] IS NULL OR LTRIM(RTRIM([ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 SET @TotalUpdated = @TotalUpdated + @UpdatedRows;

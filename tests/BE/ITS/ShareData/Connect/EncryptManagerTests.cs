@@ -2,7 +2,6 @@ using System.Security.Cryptography;
 using System.Text;
 using Modules.Integration.Delivery.Base.Constants;
 using Modules.Integration.Delivery.Base.Enums.Encrypt;
-using Modules.Integration.Delivery.Base.Exceptions.Encrypt;
 using Modules.Integration.Delivery.Encrypt;
 
 namespace Tests.ShareData.Connect
@@ -10,9 +9,9 @@ namespace Tests.ShareData.Connect
     /// <summary>
     /// Author: DatHQ
     /// Description: Bộ kiểm thử đơn vị cho EncryptManager và EncryptKeyReader ở tầng kết nối.
-    ///              Kiểm chứng các luồng mã hóa, giải mã, bọc ngoại lệ DecryptFailedException và điều phối theo chiều Outbound/Inbound.
+    ///              Kiểm chứng các luồng mã hóa, giải mã, bọc ngoại lệ CryptographicException và điều phối theo chiều Outbound/Inbound.
     /// Created date: 16/10/2026
-    /// Modified date: 19/10/2026 (Chuyển sang EncryptKeyReader)
+    /// Modified date: 19/10/2026 (Chuyển sang CryptographicException)
     /// </summary>
     public class EncryptManagerTests
     {
@@ -101,7 +100,7 @@ namespace Tests.ShareData.Connect
         }
 
         [Fact]
-        public void Decrypt_WhenCipherCorrupted_ThrowsDecryptFailedException_Test()
+        public void Decrypt_WhenCipherCorrupted_ThrowsCryptographicException_Test()
         {
             // Arrange
             var cfg = new ConfigurationBuilder()
@@ -120,12 +119,12 @@ namespace Tests.ShareData.Connect
             };
 
             // Act & Assert
-            var ex = Assert.Throws<DecryptFailedException>(() => manager.Decrypt(config, corruptedBytes));
+            var ex = Assert.ThrowsAny<CryptographicException>(() => manager.Decrypt(config, corruptedBytes));
             Assert.NotNull(ex.Message);
         }
 
         [Fact]
-        public void Decrypt_WhenWrongKey_ThrowsDecryptFailedException_Test()
+        public void Decrypt_WhenWrongKey_ThrowsCryptographicException_Test()
         {
             // Arrange
             var wrongKey = new byte[AesGcmEncrypt.KeySize];
@@ -161,7 +160,7 @@ namespace Tests.ShareData.Connect
             var encryptedBytes = managerOutbound.Encrypt(config, originalBytes);
 
             // Act & Assert
-            Assert.Throws<DecryptFailedException>(() => managerInbound.Decrypt(config, encryptedBytes));
+            Assert.ThrowsAny<CryptographicException>(() => managerInbound.Decrypt(config, encryptedBytes));
         }
 
         [Fact]
@@ -190,9 +189,9 @@ namespace Tests.ShareData.Connect
             var (inEncrypt1, _) = manager.GetEncryptor(config1, PayloadDirection.Inbound);
 
             // Assert 1
-            Assert.IsType<AesGcmEncrypt>(outEncrypt1);
+            Assert.Equal(EncryptNames.AesGcm, outEncrypt1);
             Assert.Equal("out-key", outCtx1.KeyRef);
-            Assert.IsType<PlainEncrypt>(inEncrypt1);
+            Assert.Equal(EncryptNames.None, inEncrypt1);
 
             // Arrange 2 (ngược lại)
             var config2 = new Dictionary<string, string>
@@ -207,8 +206,8 @@ namespace Tests.ShareData.Connect
             var (inEncrypt2, inCtx2) = manager.GetEncryptor(config2, PayloadDirection.Inbound);
 
             // Assert 2
-            Assert.IsType<PlainEncrypt>(outEncrypt2);
-            Assert.IsType<AesGcmEncrypt>(inEncrypt2);
+            Assert.Equal(EncryptNames.None, outEncrypt2);
+            Assert.Equal(EncryptNames.AesGcm, inEncrypt2);
             Assert.Equal("in-key", inCtx2.KeyRef);
         }
 

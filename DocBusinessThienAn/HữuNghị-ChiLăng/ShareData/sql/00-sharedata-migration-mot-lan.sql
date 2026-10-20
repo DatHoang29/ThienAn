@@ -10,14 +10,15 @@ GO
 --                 - Chép dữ liệu từ ShareDataTrackTable (nếu tồn tại) sang ShareDataSourceTable,
 --                   giữ LastVersion, LastChangeTime, LastIssue, chuyển Status -> IsTracked, sau đó DROP ShareDataTrackTable.
 --                 - Xóa cột Category trên ShareDataSourceTable nếu còn tồn tại.
---                 - Di trú từ SysOpConfig (sharedata_tracker) + ShareDataTrackVersion sang nếu bảng rỗng.
+--                 - Di trú từ SysOpConfig (sharedata_tracker) + ShareDataTrackVersion sang nếu bảng rỗng
+--                   (chống trùng theo TableName, ID sinh động bằng LOWER(CONVERT(NVARCHAR(64), NEWID()))).
 --                 - Xóa mềm các dòng SysOpConfig (sharedata_tracker).
 --                 - Kiểm tra và DROP bảng cũ ShareDataTrackVersion.
 --              4. Di trú cột ConnectionType trên ShareDataPartner từ NVARCHAR sang INT (1-Api, 2-File, 3-Ftp, 4-Ftps, 5-Kafka).
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: ⚠️ CHỈ CHẠY MỘT LẦN KHI NÂNG CẤP/DI TRÚ HỆ THỐNG.
--- CẬP NHẬT LẦN CUỐI: 18/10/2026
+-- CẬP NHẬT LẦN CUỐI: 19/10/2026
 -- =========================================================================================
 
 PRINT N'=============================================================================';
@@ -223,33 +224,16 @@ BEGIN
                 [TenantId], [CreateTime], [CreateUId]
             )
             SELECT
-                CASE [Code]
-                    WHEN N'TmsZoneStatus'          THEN '1500000000201'
-                    WHEN N'TmsZone'                THEN '1500000000202'
-                    WHEN N'TmsTrafficStatistic'    THEN '1500000000203'
-                    WHEN N'CctvDevice'             THEN '1500000000204'
-                    WHEN N'TmsTrafficData'         THEN '1500000000205'
-                    WHEN N'TmsWeather'             THEN '1500000000206'
-                    WHEN N'TollTransactionIn'      THEN '1500000000207'
-                    WHEN N'TollTransactionOut'     THEN '1500000000208'
-                    WHEN N'TmsVehicleRegistration' THEN '1500000000209'
-                    WHEN N'TmsIncident'            THEN '1500000000210'
-                    WHEN N'TmsEventType'           THEN '1500000000211'
-                    WHEN N'VmsCurrent'             THEN '1500000000212'
-                    WHEN N'TmsEquipment'           THEN '1500000000213'
-                    WHEN N'TollLane'               THEN '1500000000214'
-                    WHEN N'TollStation'            THEN '1500000000215'
-                    ELSE LOWER(CAST(NEWID() AS VARCHAR(64)))
-                END,
-                [Code],
-                [Name],
-                [Value],
-                CASE WHEN [Status] = 1 THEN 1 ELSE 0 END,
-                [OrderNo],
-                [Remark],
+                LOWER(CONVERT(NVARCHAR(64), NEWID())),
+                src.[Code],
+                src.[Name],
+                src.[Value],
+                CASE WHEN src.[Status] = 1 THEN 1 ELSE 0 END,
+                src.[OrderNo],
+                src.[Remark],
                 @OldVersion,
                 1,
-                CASE [Code]
+                CASE src.[Code]
                     WHEN N'TmsZone'                THEN N'z'
                     WHEN N'TmsZoneStatus'          THEN N'zs'
                     WHEN N'TmsTrafficStatistic'    THEN N'ts'
@@ -267,12 +251,18 @@ BEGIN
                     WHEN N'TollStation'            THEN N's'
                     ELSE N't'
                 END,
-                [TenantId],
-                ISNULL([CreateTime], GETDATE()),
-                ISNULL([CreateUId], 'superadmin')
-            FROM [dbo].[SysOpConfig]
-            WHERE [GroupCode] = N'sharedata_tracker'
-              AND [IsDelete] IS NULL;
+                src.[TenantId],
+                ISNULL(src.[CreateTime], GETDATE()),
+                ISNULL(src.[CreateUId], 'superadmin')
+            FROM [dbo].[SysOpConfig] src
+            WHERE src.[GroupCode] = N'sharedata_tracker'
+              AND src.[IsDelete] IS NULL
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM [dbo].[ShareDataSourceTable] target
+                  WHERE target.[TableName] = src.[Code]
+                    AND target.[IsDelete] IS NULL
+              );
 
             PRINT N'  -> Đã di trú ' + CAST(@@ROWCOUNT AS NVARCHAR(20))
                 + N' dòng từ SysOpConfig (sharedata_tracker) sang ShareDataSourceTable.';

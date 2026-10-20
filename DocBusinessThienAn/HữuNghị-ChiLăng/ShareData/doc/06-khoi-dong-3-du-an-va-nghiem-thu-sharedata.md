@@ -23,7 +23,7 @@
 
 ### 1.1. Điều kiện tiên quyết
 - Đã hoàn tất khởi tạo CSDL và chạy xong toàn bộ script SQL bắt buộc tại [05-chay-sql-tu-dau-sharedata.md](05-chay-sql-tu-dau-sharedata.md).
-- CSDL đã có đầy đủ 15 bảng nguồn `ShareDataSourceTable`, 25 mã cảnh báo lỗi ESH trong `SysConfigData`, 48 tham số vận hành nhóm `sharedata_config` trong `SysOpConfig`, và 53 khóa thuật ngữ (106 bản ghi song ngữ) trong `SysTerminology`.
+- CSDL đã có đầy đủ 15 bảng nguồn `ShareDataSourceTable`, 25 mã cảnh báo lỗi ESH trong `SysConfigData`, 48 tham số vận hành nhóm `sharedata_config` trong `SysOpConfig`, và 93 khóa thuật ngữ (186 bản ghi song ngữ) trong `SysTerminology`.
 
 ### 1.2. Trỏ đúng DB (quan trọng) — chạy bằng VS Code debug
 
@@ -235,7 +235,7 @@ Theo chủ trương của chủ dự án, **ưu tiên thao tác trực tiếp tr
 3. **Đồng bộ bộ nhớ cache thuật ngữ lên giao diện:** Sau khi nạp xong, người dùng thực hiện một trong hai cách:
    - *Cách 1 (UI):* Bấm vào ảnh đại diện (avatar) ở góc trên bên phải màn hình → chọn mục **"Ngôn ngữ"** → bấm nút biểu tượng **🔄 (Làm mới từ điển)**; hoặc bấm nút 🔄 trên thanh công cụ màn hình Thuật ngữ.
    - *Cách 2 (API):* Gọi trực tiếp HTTP `GET http://localhost:5005/api/system/sysconfig/loadserverterm?language=vi-VN` (và `language=en-US`).
-4. 💡 **Đường tắt thực tế:** Do số lượng bản dịch gồm 53 khóa $\times$ 2 ngôn ngữ = 106 bản ghi, việc nhập tay từng dòng trên giao diện rất mất thời gian. Khuyến nghị người dùng nên sử dụng **CÁCH 2 (đường tắt)** chạy script `04-sharedata-dich-thuat.sql` để nạp tự động an toàn trong vài giây.
+4. 💡 **Đường tắt thực tế:** Do số lượng bản dịch gồm 93 khóa $\times$ 2 ngôn ngữ = 186 bản ghi, việc nhập tay từng dòng trên giao diện rất mất thời gian. Khuyến nghị người dùng nên sử dụng **CÁCH 2 (đường tắt)** chạy script `04-sharedata-dich-thuat.sql` để nạp tự động an toàn trong vài giây.
 
 ---
 
@@ -467,7 +467,7 @@ Trước khi thực hiện các bài test nhóm E, cần chuẩn bị hạ tần
 | C3 | Kiểm tra kiểm thực các trường trên form: Timeout ngoài khoảng cho phép (API: 1..300s, FTP: 1..120s, Kafka: 500..60000ms), FileNamePattern của File/FTP thiếu `{serial}` hoặc `{timestamp}`, AuthType yêu cầu Token/ApiKey/Username/Password tương ứng nhưng để trống | **Hiển thị cảnh báo trực quan** dưới từng ô nhập theo ngôn ngữ đang chọn (`vi-vn` / `en-us`), nút chuyển secret che/mở mật khẩu hoạt động trơn tru; không cho phép lưu cấu hình không hợp lệ | ☐ ☐ |
 | C4 | Mở đối tác khác rồi quay lại P-REST | Cấu hình **không lẫn** sang nhau (không mang token qua đối tác khác) | ☐ ☐ |
 | C5 | Tạo đối tác chọn kênh trong danh mục hợp lệ: FTPS (4), File (2), FTP (3), Kafka (5) → Lưu được; mở lại giữ nguyên kênh đã chọn | Được chấp nhận và lưu đúng mã số enum (1..5) xuống CSDL, gửi qua đúng kênh tương ứng (FTPS bật UseSsl, File đi kênh ghi đĩa cục bộ/mạng). Form chọn kiểu dạng danh sách thả xuống (dropdown), ngăn chặn hoàn toàn việc nhập giá trị lạ | ☐ ☐ |
-| C6 | Kiểm tra các trường hợp cấu hình kết nối đối tác sai: form chặn trực tiếp trên UI (JSON lỗi cú pháp thì hiện cảnh báo `rawInvalidJson`, Timeout không hợp lệ, enum không chuẩn...) hoặc được kiểm chứng tự động 100% qua bộ test backend `ConnectConfigValidatorTests`. Khi có chuỗi JSON lỗi trước đó, hệ thống giữ nguyên chuỗi khi lưu trừ khi bấm nút "Xóa cấu hình lỗi" | Từng trường hợp sai bị từ chối với thông điệp đa ngôn ngữ chuẩn từ `BaseMsg.ShareData.Validation` hoặc cảnh báo UI tương ứng; cấu hình hợp lệ lưu bình thường | ☐ ☐ |
+| C6 | Kiểm tra các trường hợp cấu hình kết nối đối tác sai: form chặn trực tiếp trên UI (JSON lỗi cú pháp thì hiện cảnh báo `rawInvalidJson`, Timeout không hợp lệ, enum không chuẩn...) hoặc được kiểm chứng tự động 100% qua bộ test backend `ConnectConfigValidatorTests` (kiểm tra qua phương thức `ConnectConfigValidator.Check(config)`). Khi có chuỗi JSON lỗi trước đó, hệ thống giữ nguyên chuỗi khi lưu trừ khi bấm nút "Xóa cấu hình lỗi" | Từng trường hợp sai bị từ chối với thông điệp đa ngôn ngữ chuẩn từ `BaseMsg.ShareData.Validation` hoặc cảnh báo UI tương ứng; cấu hình hợp lệ lưu bình thường | ☐ ☐ |
 | C7 | Nghiệm thu kênh **Kafka** (`ConnectionType = Kafka` hoặc 5, hạ tầng Docker local `tac_webapi_kafka`): Tạo đối tác `P-KAFKA`, chọn kiểu `Kafka` (5), cấu hình `BootstrapServers = 127.0.0.1:19092`, `Topic = test.sharedata.traffic` (khóa chuẩn từ `ConnectKeys`). Tạo Đăng ký gửi gói 101 sang P-KAFKA | Lưu đối tác thành công. Khi Worker chạy, bản tin đẩy vào broker; kiểm tra message trong container bằng lệnh `docker exec -it tac_webapi_kafka kafka-console-consumer --bootstrap-server 127.0.0.1:19092 --topic test.sharedata.traffic --from-beginning` thấy bản tin JSON UTF-8 đầy đủ 4 header định danh | ☐ ☐ |
 | C8 | Nghiệm thu kênh **FTP** (`ConnectionType = Ftp` hoặc 3, hạ tầng Docker local `tac_webapi_ftp`): Tạo đối tác `P-FTP`, chọn kiểu `Ftp` (3), Address `127.0.0.1`, Port `2121`, cấu hình thêm `Username = tactest`, `Password = Tac@@1234`, `RemotePath = /sharedata-test`, `FileName = packet_{packet}_{timestamp}.json` (hoặc `FileNamePattern`). Tạo Đăng ký gửi gói 101 sang P-FTP | Lưu đối tác thành công. Khi Worker chạy, tệp tải lên FTP server thành công; kiểm tra tệp trong container bằng lệnh `docker exec -it tac_webapi_ftp ls -la /ftp/tactest/sharedata-test` thấy tệp xuất hiện đúng tên, nội dung JSON/CSV khớp chính xác từng byte với tệp bằng chứng tại `sharedata/send` | ☐ ☐ |
 

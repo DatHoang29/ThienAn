@@ -7,9 +7,10 @@ namespace Tests.ShareData.Controllers
 {
     /// <summary>
     /// Description: Kiểm thử cho ShareDataPartnerController và PartnerValidator qua CallApiAsync.
-    ///              Xác nhận các lỗi cấu trúc ConnectionConfig bị chặn với thông báo i18n tương ứng,
-    ///              khóa OutputPath vẫn lưu thành công, và kiểm tra tính hợp lệ của ConnectionType.
+    ///              Xác nhận các lỗi cấu trúc và giá trị ConnectionConfig bị chặn với thông báo i18n tương ứng,
+    ///              cấu hình hợp lệ lưu thành công, và kiểm tra tính hợp lệ của ConnectionType.
     /// Created date: 17/10/2026
+    /// Modified date: 19/10/2026
     /// </summary>
     [Collection("api")]
     public class ShareDataPartnerControllerTests(Host host)
@@ -175,7 +176,168 @@ namespace Tests.ShareData.Controllers
         }
 
         [Fact]
-        public async Task AddPartner_WhenConnectionConfigHasOutputPath_SavesSuccessfully_Test()
+        public async Task AddPartner_WhenConnectionConfigObsoleteKey_ValidatorRejectsWithI18n_Test()
+        {
+            // Arrange
+            var sp = host.Services;
+            var db = sp.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..20];
+            var code = $"P_OBS_{unique}";
+            var input = new ShareDataAddPartnerInput
+            {
+                Code = code,
+                Name = $"Partner ObsoleteKey {unique}",
+                Address = "127.0.0.1",
+                Port = 8080,
+                ConnectionConfig = "{\"OutputPath\": \"/var/log/sharedata\"}"
+            };
+
+            // Act & Assert
+            var ex = await Assert.ThrowsAsync<ValidationException>(() => sp.CallApiAsync(input));
+            Assert.Contains(ex.Errors, e => e.PropertyName == nameof(ShareDataAddPartnerInput.ConnectionConfig)
+                                         && e.ErrorMessage == host.Localizer[BaseMsg.ShareData.Validation.ConnectConfigObsoleteKey]);
+
+            var inDb = await db.Queryable<ShareDataPartner>().FirstAsync(x => x.Code == code);
+            Assert.Null(inDb);
+        }
+
+        [Theory]
+        [InlineData("{\"TimeoutSeconds\": -1}")]
+        [InlineData("{\"TimeoutSeconds\": 0}")]
+        [InlineData("{\"TimeoutSeconds\": \"abc\"}")]
+        [InlineData("{\"HttpTimeoutSec\": -5}")]
+        [InlineData("{\"TimeoutSec\": 0}")]
+        public async Task AddPartner_WhenConnectionConfigInvalidTimeout_ValidatorRejectsWithI18n_Test(string json)
+        {
+            // Arrange
+            var sp = host.Services;
+            var db = sp.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..20];
+            var code = $"P_TO_{unique}";
+            var input = new ShareDataAddPartnerInput
+            {
+                Code = code,
+                Name = $"Partner InvalidTimeout {unique}",
+                Address = "127.0.0.1",
+                ConnectionConfig = json
+            };
+
+            // Act & Assert
+            var ex = await Assert.ThrowsAsync<ValidationException>(() => sp.CallApiAsync(input));
+            Assert.Contains(ex.Errors, e => e.PropertyName == nameof(ShareDataAddPartnerInput.ConnectionConfig)
+                                         && e.ErrorMessage == host.Localizer[BaseMsg.ShareData.Validation.ConnectConfigInvalidTimeout]);
+
+            var inDb = await db.Queryable<ShareDataPartner>().FirstAsync(x => x.Code == code);
+            Assert.Null(inDb);
+        }
+
+        [Theory]
+        [InlineData("{\"BypassSsl\": \"not_a_bool\"}")]
+        [InlineData("{\"IgnoreSsl\": 123}")]
+        [InlineData("{\"Insecure\": \"invalid\"}")]
+        public async Task AddPartner_WhenConnectionConfigInvalidBoolean_ValidatorRejectsWithI18n_Test(string json)
+        {
+            // Arrange
+            var sp = host.Services;
+            var db = sp.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..20];
+            var code = $"P_BOOL_{unique}";
+            var input = new ShareDataAddPartnerInput
+            {
+                Code = code,
+                Name = $"Partner InvalidBoolean {unique}",
+                Address = "127.0.0.1",
+                ConnectionConfig = json
+            };
+
+            // Act & Assert
+            var ex = await Assert.ThrowsAsync<ValidationException>(() => sp.CallApiAsync(input));
+            Assert.Contains(ex.Errors, e => e.PropertyName == nameof(ShareDataAddPartnerInput.ConnectionConfig)
+                                         && e.ErrorMessage == host.Localizer[BaseMsg.ShareData.Validation.ConnectConfigInvalidBoolean]);
+
+            var inDb = await db.Queryable<ShareDataPartner>().FirstAsync(x => x.Code == code);
+            Assert.Null(inDb);
+        }
+
+        [Fact]
+        public async Task AddPartner_WhenConnectionConfigUnsupportedAuthType_ValidatorRejectsWithI18n_Test()
+        {
+            // Arrange
+            var sp = host.Services;
+            var db = sp.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..20];
+            var code = $"P_AUTH_{unique}";
+            var input = new ShareDataAddPartnerInput
+            {
+                Code = code,
+                Name = $"Partner UnsupportedAuthType {unique}",
+                Address = "127.0.0.1",
+                ConnectionConfig = "{\"AuthType\": \"UnsupportedAuthMethod\"}"
+            };
+
+            // Act & Assert
+            var ex = await Assert.ThrowsAsync<ValidationException>(() => sp.CallApiAsync(input));
+            Assert.Contains(ex.Errors, e => e.PropertyName == nameof(ShareDataAddPartnerInput.ConnectionConfig)
+                                         && e.ErrorMessage == host.Localizer[BaseMsg.ShareData.Validation.ConnectConfigUnsupportedAuthType]);
+
+            var inDb = await db.Queryable<ShareDataPartner>().FirstAsync(x => x.Code == code);
+            Assert.Null(inDb);
+        }
+
+        [Fact]
+        public async Task AddPartner_WhenConnectionConfigUnsupportedEncryptor_ValidatorRejectsWithI18n_Test()
+        {
+            // Arrange
+            var sp = host.Services;
+            var db = sp.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..20];
+            var code = $"P_ENC_{unique}";
+            var input = new ShareDataAddPartnerInput
+            {
+                Code = code,
+                Name = $"Partner UnsupportedEncryptor {unique}",
+                Address = "127.0.0.1",
+                ConnectionConfig = "{\"Encryptor\": \"Bzip2Unsupported\"}"
+            };
+
+            // Act & Assert
+            var ex = await Assert.ThrowsAsync<ValidationException>(() => sp.CallApiAsync(input));
+            Assert.Contains(ex.Errors, e => e.PropertyName == nameof(ShareDataAddPartnerInput.ConnectionConfig)
+                                         && e.ErrorMessage == host.Localizer[BaseMsg.ShareData.Validation.ConnectConfigUnsupportedEncryptor]);
+
+            var inDb = await db.Queryable<ShareDataPartner>().FirstAsync(x => x.Code == code);
+            Assert.Null(inDb);
+        }
+
+        [Theory]
+        [InlineData("{\"FileNamePattern\": \"fixed_file_name.json\"}")]
+        [InlineData("{\"FileNamePattern\": \"report_2026.csv\"}")]
+        public async Task AddPartner_WhenConnectionConfigFileNamePatternNoToken_ValidatorRejectsWithI18n_Test(string json)
+        {
+            // Arrange
+            var sp = host.Services;
+            var db = sp.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..20];
+            var code = $"P_PAT_{unique}";
+            var input = new ShareDataAddPartnerInput
+            {
+                Code = code,
+                Name = $"Partner FileNamePatternNoToken {unique}",
+                Address = "127.0.0.1",
+                ConnectionConfig = json
+            };
+
+            // Act & Assert
+            var ex = await Assert.ThrowsAsync<ValidationException>(() => sp.CallApiAsync(input));
+            Assert.Contains(ex.Errors, e => e.PropertyName == nameof(ShareDataAddPartnerInput.ConnectionConfig)
+                                         && e.ErrorMessage == host.Localizer[BaseMsg.ShareData.Validation.ConnectConfigFileNamePatternNoToken]);
+
+            var inDb = await db.Queryable<ShareDataPartner>().FirstAsync(x => x.Code == code);
+            Assert.Null(inDb);
+        }
+
+        [Fact]
+        public async Task AddPartner_WhenConnectionConfigValid_SavesSuccessfully_Test()
         {
             // Arrange
             var sp = host.Services;
@@ -183,14 +345,14 @@ namespace Tests.ShareData.Controllers
             var unique = Guid.NewGuid().ToString("N")[..20];
             var input = new ShareDataAddPartnerInput
             {
-                Code = $"PARTNER_OP_{unique}",
-                Name = $"Partner OutputPath {unique}",
+                Code = $"PARTNER_OK_{unique}",
+                Name = $"Partner Valid Config {unique}",
                 Address = "127.0.0.1",
                 Port = 8080,
-                ConnectionConfig = "{\"OutputPath\": \"/var/log/sharedata\"}"
+                ConnectionConfig = "{\"TimeoutSeconds\": 60, \"BypassSsl\": true, \"AuthType\": \"Bearer\", \"Encryptor\": \"None\", \"FileNamePattern\": \"data_{timestamp}_{serial}.json\"}"
             };
 
-            // Act: Gọi CallApiAsync mô phỏng luồng API thật (chạy validator DI rồi gọi bus)
+            // Act: Gọi CallApiAsync mô phỏng luồng API thật
             await sp.CallApiAsync(input);
 
             // Assert

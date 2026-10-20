@@ -412,7 +412,7 @@ Bên cạnh 13 entity cốt lõi trực thuộc phân hệ, ShareData còn tươ
 - **`shareData_type`:** Phân loại 11 nhóm gói tin chia sẻ dữ liệu.
 
 ### 2. Bảng Thuật Ngữ Đa Ngôn Ngữ (`SysTerminology`)
-- Chứa toàn bộ các nhãn hiển thị đa ngôn ngữ tiếng Việt (`vi-vn`) và tiếng Anh (`en-us`) phục vụ giao diện người dùng ShareData theo tiền tố `lz.validation`, `lz.exception`, `lz.entity` — 53 khóa, 106 dòng vi-VN/en-US, nạp bằng script 04.
+- Chứa toàn bộ các nhãn hiển thị đa ngôn ngữ tiếng Việt (`vi-vn`) và tiếng Anh (`en-us`) phục vụ giao diện người dùng ShareData theo tiền tố `lz.validation`, `lz.exception`, `lz.entity` — 93 khóa, 186 bản ghi song ngữ (dòng vi-VN/en-US), nạp bằng script 04.
 
 ### 3. Bảng CSDL Nguồn Trích Xuất Dữ Liệu (Source Tables 101–110)
 Các câu truy vấn SQL trích xuất động trong `ShareDataPacket.ExtractSql` đọc trực tiếp từ các bảng nghiệp vụ sau:

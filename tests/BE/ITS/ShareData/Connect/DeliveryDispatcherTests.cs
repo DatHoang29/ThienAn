@@ -1,11 +1,10 @@
 using System.Text;
 using Microsoft.Extensions.Logging;
 using Module.ShareData.Core.Entities;
-using Module.ShareData.Core.Utils;
+using Module.ShareData.Core.Helpers;
 using Modules.Integration.Delivery;
 using Modules.Integration.Delivery.Base.Constants;
 using Modules.Integration.Delivery.Base.Helpers;
-using Modules.Integration.Delivery.Base.Interfaces;
 using Modules.Integration.Delivery.Base.Models;
 using Modules.Integration.Delivery.Base.Models.Encrypt;
 using Modules.Integration.Delivery.Encrypt;
@@ -41,6 +40,20 @@ public partial class DeliveryDispatcherTests
         }).Build();
 
         return new FileDeliverySender(config, _host.Services.GetRequiredService<ILogger<FileDeliverySender>>());
+    }
+
+    private DeliveryDispatcher CreateDispatcher(
+        HttpDeliverySender? http = null,
+        FileDeliverySender? file = null,
+        FtpDeliverySender? ftp = null,
+        KafkaDeliverySender? kafka = null)
+    {
+        return new DeliveryDispatcher(
+            http ?? _host.Services.GetRequiredService<HttpDeliverySender>(),
+            file ?? _host.Services.GetRequiredService<FileDeliverySender>(),
+            ftp ?? _host.Services.GetRequiredService<FtpDeliverySender>(),
+            kafka ?? _host.Services.GetRequiredService<KafkaDeliverySender>(),
+            _host.Services.GetService<ILogger<DeliveryDispatcher>>());
     }
 
     private static DataOutboundContext CreateDummyContext(string packetCode = "101", string partnerCode = "PARTNER_TEST", ConnectionType? connectionType = ConnectionType.Api)
@@ -84,7 +97,7 @@ public partial class DeliveryDispatcherTests
     public async Task DispatchAsync_WhenPartnerConnectionTypeIsUnknown_ReturnsUnsupportedError_Test()
     {
         // Arrange
-        var dispatcher = new DeliveryDispatcher([]);
+        var dispatcher = CreateDispatcher();
         var request = new DeliveryRequest
         {
             JsonPayload = "{}",
@@ -123,16 +136,15 @@ public partial class DeliveryDispatcherTests
     }
 
     [Fact]
-    public void PlainEncrypt_EncryptDecrypt_PassesThroughIdenticalBytes_Test()
+    public void NoneEncrypt_EncryptDecrypt_PassesThroughIdenticalBytes_Test()
     {
         // Arrange
-        var encrypt = new PlainEncrypt();
-        var ctx = new EncryptContext(null, null);
+        var encryptManager = _host.Services.GetRequiredService<EncryptManager>();
         var originalBytes = Encoding.UTF8.GetBytes("{\"test\":\"plain-payload\"}");
 
-        // Act
-        var encrypted = encrypt.Encrypt(originalBytes, ctx);
-        var decrypted = encrypt.Decrypt(encrypted, ctx);
+        // Act: cấu hình không mã hóa (hoặc null) trả nguyên dữ liệu
+        var encrypted = encryptManager.Encrypt(null, originalBytes);
+        var decrypted = encryptManager.Decrypt(null, encrypted);
 
         // Assert
         Assert.Equal(originalBytes, encrypted);
@@ -235,22 +247,24 @@ public partial class DeliveryDispatcherTests
     [Fact]
     public async Task AddDelivery_RegistersAllFourSenders_AndDispatcherSelectsExpectedChannel_Test()
     {
-        // Arrange
-        var senders = _host.Services.GetServices<IDeliverySender>().ToList();
+        // Arrange: kiểm tra 4 lớp gửi và DeliveryDispatcher đều lấy được từ host bằng GetRequiredService
+        var httpSender = _host.Services.GetRequiredService<HttpDeliverySender>();
+        var fileSender = _host.Services.GetRequiredService<FileDeliverySender>();
+        var ftpSender = _host.Services.GetRequiredService<FtpDeliverySender>();
+        var kafkaSender = _host.Services.GetRequiredService<KafkaDeliverySender>();
+        var dispatcher = _host.Services.GetRequiredService<DeliveryDispatcher>();
 
         // Assert: đủ 4 kênh
-        Assert.Equal(4, senders.Count);
+        Assert.NotNull(httpSender);
+        Assert.NotNull(fileSender);
+        Assert.NotNull(ftpSender);
+        Assert.NotNull(kafkaSender);
+        Assert.NotNull(dispatcher);
 
-        // Mỗi ConnectType đúng 1 bản
-        var senderTypes = senders.Select(s => s.ConnectType).ToList();
-        Assert.Contains(ConnectionType.Api, senderTypes);
-        Assert.Contains(ConnectionType.File, senderTypes);
-        Assert.Contains(ConnectionType.Kafka, senderTypes);
-        Assert.Contains(ConnectionType.Ftp, senderTypes);
-        Assert.Equal(4, senderTypes.Distinct().Count());
-
-        // DeliveryDispatcher chọn đúng kênh
-        var dispatcher = _host.Services.GetRequiredService<DeliveryDispatcher>();
+        Assert.Equal(ConnectionType.Api, httpSender.ConnectType);
+        Assert.Equal(ConnectionType.File, fileSender.ConnectType);
+        Assert.Equal(ConnectionType.Ftp, ftpSender.ConnectType);
+        Assert.Equal(ConnectionType.Kafka, kafkaSender.ConnectType);
         var request = new DeliveryRequest
         {
             JsonPayload = "{}",
@@ -281,7 +295,7 @@ public partial class DeliveryDispatcherTests
         // Arrange
         var tempDir = Path.Combine(Path.GetTempPath(), $"sharedata_dispatch_rawconfig_{Guid.NewGuid():N}");
         var fileSender = CreateFileSender(tempDir);
-        var dispatcher = new DeliveryDispatcher([fileSender]);
+        var dispatcher = CreateDispatcher(file: fileSender);
         var ctx = CreateSendContext(partnerCode: "PARTNER_RAWCONFIG", connectionType: "File");
 
         var request = new DeliveryRequest
@@ -315,7 +329,7 @@ public partial class DeliveryDispatcherTests
     {
         // Arrange
         var ftpSender = new FtpDeliverySender();
-        var dispatcher = new DeliveryDispatcher([ftpSender]);
+        var dispatcher = CreateDispatcher(ftp: ftpSender);
         var ctx = CreateSendContext(partnerCode: "PARTNER_FTPS_AUTOSSL", connectionType: "Ftps");
 
         var request = new DeliveryRequest
@@ -350,7 +364,34 @@ internal static class TestTransportExtensions
     }
 
     public static Task<DeliveryResult> Send(
-        this IDeliverySender handler,
+        this HttpDeliverySender handler,
+        DeliveryRequest request,
+        DataOutboundContext ctx,
+        CancellationToken ct = default)
+    {
+        return handler.Send(request, DataOutboundTransport.BuildContext(ctx), ct);
+    }
+
+    public static Task<DeliveryResult> Send(
+        this FileDeliverySender handler,
+        DeliveryRequest request,
+        DataOutboundContext ctx,
+        CancellationToken ct = default)
+    {
+        return handler.Send(request, DataOutboundTransport.BuildContext(ctx), ct);
+    }
+
+    public static Task<DeliveryResult> Send(
+        this FtpDeliverySender handler,
+        DeliveryRequest request,
+        DataOutboundContext ctx,
+        CancellationToken ct = default)
+    {
+        return handler.Send(request, DataOutboundTransport.BuildContext(ctx), ct);
+    }
+
+    public static Task<DeliveryResult> Send(
+        this KafkaDeliverySender handler,
         DeliveryRequest request,
         DataOutboundContext ctx,
         CancellationToken ct = default)
