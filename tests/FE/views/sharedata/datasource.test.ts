@@ -439,7 +439,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(sqlTab).toBeVisible();
         await expect(fieldsTab).toBeVisible();
 
-        // 3. Tab Danh sách trường đã lưu BẮT BUỘC nằm ở vị trí đầu tiên (trái hơn Cấu hình SQL) và active mặc định
+        // 3. Tab Danh sách trường BẮT BUỘC nằm ở vị trí đầu tiên (trái hơn Cấu hình SQL) và active mặc định
         const fieldsBox = await fieldsTab.boundingBox();
         const sqlBox = await sqlTab.boundingBox();
         expect(fieldsBox).not.toBeNull();
@@ -483,13 +483,13 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(sqlTab).not.toContainText('Dò cột');
     });
 
-    test('8. Kéo thả resize height cho các table con (danh sách cột phát hiện & dữ liệu mẫu) trong tab Cấu hình SQL', async ({ page }) => {
+    test('8. Kéo thả resize height cho table con dữ liệu mẫu trong tab Cấu hình SQL và dọn bảng cột cũ', async ({ page }) => {
         const vueFilePath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
         const vueContent = fs.readFileSync(vueFilePath, 'utf8');
 
-        // 1. Quét tĩnh CSS & DOM code: kiểm tra sự hiện diện của thanh kéo ngang resizer (đã bỏ thanh bên dưới theo yêu cầu)
+        // 1. Quét tĩnh CSS & DOM code: kiểm tra thanh kéo resize bảng mẫu, không còn thanh kéo bảng cột cũ
         expect(vueContent).toContain('table-resize-bar');
-        expect(vueContent).toContain('detected-table-resizer-top');
+        expect(vueContent).not.toContain('detected-table-resizer-top');
         expect(vueContent).not.toContain('detected-table-resizer-bottom');
         expect(vueContent).toContain('sample-table-resizer');
         expect(vueContent).toContain('resizer-handle-line');
@@ -560,80 +560,18 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await sqlTab.click();
         await expect(sqlTab).toHaveClass(/is-active/);
 
-        // 4. Kiểm tra sự xuất hiện của thanh kéo trên và xác nhận đã bỏ thanh kéo dưới của bảng cột
-        const topResizer = page.locator('.detected-table-resizer-top');
-        await expect(topResizer).toBeVisible();
+        // 4. Khối đối chiếu cột mới hiển thị, không còn thanh resizer trên/dưới của bảng cột cũ
+        const columnDiff = page.locator('.sql-column-diff');
+        await expect(columnDiff).toBeVisible();
+        await expect(page.locator('.detected-table-resizer-top')).toHaveCount(0);
         await expect(page.locator('.detected-table-resizer-bottom')).toHaveCount(0);
-
-        const tableWrapper = page.locator('.detected-columns-table-wrapper');
-        await expect(tableWrapper).toBeVisible();
-        await tableWrapper.scrollIntoViewIfNeeded();
-
-        // Đo chiều cao ban đầu (mặc định 280px)
-        const initialHeight = (await tableWrapper.boundingBox())?.height || 280;
-        expect(initialHeight).toBeGreaterThanOrEqual(250);
-
-        // 5. Thao tác kéo thả thanh resizer trên lên trên 80px để tăng chiều cao bảng VÀ đo đạc số khung hình thực tế (FPS)
-        await topResizer.scrollIntoViewIfNeeded();
-        const topBox = await topResizer.boundingBox();
-        expect(topBox).not.toBeNull();
-
-        // Kích hoạt đồng hồ đo khung hình (FPS & Frame Deltas) bằng requestAnimationFrame trong trình duyệt
-        await page.evaluate(() => {
-            window.__frameDeltas = [];
-            window.__measuringFps = true;
-            let lastTime = performance.now();
-
-            function frameLoop(now: number) {
-                if (!window.__measuringFps) return;
-                const delta = now - lastTime;
-                window.__frameDeltas?.push(delta);
-                lastTime = now;
-                requestAnimationFrame(frameLoop);
-            }
-            requestAnimationFrame(frameLoop);
-        });
-
-        // Di chuyển chuột qua 25 steps liên tục (kích hoạt chuỗi sự kiện mousemove dày đặc)
-        await page.mouse.move(topBox!.x + topBox!.width / 2, topBox!.y + topBox!.height / 2);
-        await page.mouse.down();
-        await page.mouse.move(topBox!.x + topBox!.width / 2, topBox!.y + topBox!.height / 2 - 80, { steps: 25 });
-        await page.mouse.up();
-        await page.waitForTimeout(200);
-
-        // Thu thập và kiểm chứng chỉ số hiệu năng thực tế từ trình duyệt
-        const fpsMetrics = await page.evaluate(() => {
-            window.__measuringFps = false;
-            const deltas: number[] = window.__frameDeltas || [];
-            if (!deltas.length) return { avgFps: 60, maxDelta: 16, frameCount: 0 };
-            const avgDelta = deltas.reduce((a, b) => a + b, 0) / deltas.length;
-            return {
-                avgFps: Math.round(1000 / avgDelta),
-                maxDelta: Math.max(...deltas),
-                frameCount: deltas.length,
-            };
-        });
-
-        // Khẳng định: trình duyệt liên tục vẽ khung hình, FPS đạt chuẩn mượt mà >= 40 fps và không bị khóa luồng
-        expect(fpsMetrics.frameCount).toBeGreaterThan(0);
-        expect(fpsMetrics.avgFps).toBeGreaterThanOrEqual(40);
-        expect(fpsMetrics.maxDelta).toBeLessThan(120);
-
-        const resizedHeight = (await tableWrapper.boundingBox())?.height || 0;
-        expect(resizedHeight).toBeGreaterThan(initialHeight + 40);
-
-        // 6. Kiểm tra không còn hiển thị pill chỉ số px và các nút preset (280/450/650) theo yêu cầu người dùng
+        await expect(page.locator('.detected-columns-table-wrapper')).toHaveCount(0);
         await expect(page.locator('.detected-columns-tools')).toHaveCount(0);
         await expect(page.locator('.height-indicator-tag')).toHaveCount(0);
 
-        // Click đúp vào thanh resizer để reset chiều cao về mặc định 280px
-        await topResizer.dblclick();
-        await page.waitForTimeout(200);
-        const resetHeight = (await tableWrapper.boundingBox())?.height || 0;
-        expect(Math.abs(resetHeight - 280)).toBeLessThanOrEqual(5);
-
-        // 7. Kiểm tra bảng Xem trước dữ liệu mẫu (bấm nút Xem dữ liệu mẫu)
-        const btnPreview = page.locator('.sql-toolbar-right .el-button').filter({ hasText: /Xem dữ liệu mẫu/ });
+        // 5. Kiểm tra bảng Xem trước dữ liệu mẫu (bấm nút Chạy thử)
+        const btnPreview = page.locator('.sql-toolbar-right .el-button').filter({ hasText: /Chạy thử/ });
+        await expect(btnPreview).toBeVisible();
         await btnPreview.click();
 
         const sampleCard = page.locator('.sample-preview-card');
@@ -688,7 +626,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const viPath = resolveWebvuePath('i18n/lang/vi-vn.json');
         const viContent = JSON.parse(fs.readFileSync(viPath, 'utf-8'));
         expect(viContent['lz.label.sharedataDataSource.vqbVisualMode']).toBe('Trực quan');
-        expect(viContent['lz.label.sharedataDataSource.vqbRawMode']).toBe('Mã nguồn SQL');
+        expect(viContent['lz.label.sharedataDataSource.vqbRawMode']).toBe('SQL');
         expect(viContent['lz.label.sharedataDataSource.vqbTableAlias']).toBe('Bí danh:');
         expect(viContent['lz.placeholder.sharedataDataSource.vqbTableAlias']).toBe('Bí danh (vd: t)');
         expect(viContent['lz.placeholder.sharedataDataSource.vqbColAlias']).toBe('Bí danh (vd: speed)');
@@ -697,7 +635,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const enPath = resolveWebvuePath('i18n/lang/en-us.json');
         const enContent = JSON.parse(fs.readFileSync(enPath, 'utf-8'));
         expect(enContent['lz.label.sharedataDataSource.vqbVisualMode']).toBe('Visual Builder');
-        expect(enContent['lz.label.sharedataDataSource.vqbRawMode']).toBe('Raw SQL');
+        expect(enContent['lz.label.sharedataDataSource.vqbRawMode']).toBe('SQL');
         expect(enContent['lz.label.sharedataDataSource.vqbTableAlias']).toBe('Alias:');
         expect(enContent['lz.placeholder.sharedataDataSource.vqbTableAlias']).toBe('Alias (e.g. t)');
         expect(enContent['lz.placeholder.sharedataDataSource.vqbColAlias']).toBe('Alias (e.g. speed)');
@@ -728,7 +666,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         // Nhãn phải thuần tiếng Việt, không chứa "(Builder)" hay "(Raw)"
         expect(visualText).toBe('Trực quan');
         expect(visualText).not.toContain('Builder');
-        expect(rawText).toBe('Mã nguồn SQL');
+        expect(rawText).toBe('SQL');
         expect(rawText).not.toContain('Raw');
 
         // Kiểm tra các card trong Canvas trực quan không chứa từ tiếng Anh trong ngoặc
@@ -760,18 +698,32 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const pkgContent = fs.readFileSync(packageJsonPath, 'utf8');
         expect(pkgContent).not.toContain('everright-filter');
 
-        // Quét tĩnh queryBuilder.vue: thứ tự DOM QueryParameterPanel đặt ngay dưới vqb-header và trước vqb-canvas
+        // Quét tĩnh queryBuilder.vue: thứ tự DOM QueryParameterPanel đặt trong vqb-filter-card (Visual mode) và sau Monaco editor (Raw SQL mode)
         const vqbPath = resolveWebvuePath('views/sharedata/dataSource/component/queryBuilder.vue');
         const vqbContent = fs.readFileSync(vqbPath, 'utf8');
-        const headerIndex = vqbContent.indexOf('class="vqb-header"');
+        const filterCardIndex = vqbContent.indexOf('class="vqb-filter-card"');
         const paramPanelIndex = vqbContent.indexOf('<QueryParameterPanel');
-        const canvasIndex = vqbContent.indexOf('class="vqb-canvas"');
-        const previewStripIndex = vqbContent.indexOf('class="vqb-sql-preview-strip"');
+        const rawViewIndex = vqbContent.indexOf('class="vqb-raw-view"');
+        const secondParamPanelIndex = vqbContent.lastIndexOf('<QueryParameterPanel');
 
-        expect(headerIndex).toBeGreaterThan(-1);
-        expect(paramPanelIndex).toBeGreaterThan(headerIndex);
-        expect(canvasIndex).toBeGreaterThan(paramPanelIndex);
-        expect(previewStripIndex).toBeGreaterThan(canvasIndex);
+        expect(filterCardIndex).toBeGreaterThan(-1);
+        expect(paramPanelIndex).toBeGreaterThan(filterCardIndex);
+        expect(rawViewIndex).toBeGreaterThan(paramPanelIndex);
+        expect(secondParamPanelIndex).toBeGreaterThan(rawViewIndex);
+
+        // Quét tĩnh thứ tự DOM các khối: Bảng nguồn < Điều kiện lọc < Cột trích xuất < SQL preview
+        const configRowIndex = vqbContent.indexOf('class="vqb-config-row"');
+        const columnsCardIndex = vqbContent.indexOf('class="vqb-columns-card"');
+        const sqlPreviewIndex = vqbContent.indexOf('class="vqb-sql-preview-strip"');
+
+        expect(configRowIndex).toBeGreaterThan(-1);
+        expect(filterCardIndex).toBeGreaterThan(configRowIndex);
+        expect(columnsCardIndex).toBeGreaterThan(filterCardIndex);
+        expect(sqlPreviewIndex).toBeGreaterThan(columnsCardIndex);
+
+        // Khẳng định không còn nhãn gợi ý cột hay hàm reset cột theo bảng
+        expect(vqbContent).not.toContain('vqbSuggestColumns');
+        expect(vqbContent).not.toContain('handleResetColumnsByTable');
 
         // Quét tĩnh index.vue: Không còn nút/hàm sinh SQL từ trường đã lưu, có cờ isUsingDefaultTemplate
         const indexVuePath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
@@ -888,6 +840,17 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await sqlTab.click();
         await expect(sqlTab).toHaveClass(/is-active/);
 
+        // Kiểm tra thứ tự hiển thị trên giao diện: .vqb-filter-card nằm trên .vqb-columns-card
+        const filterCardEl = page.locator('.vqb-filter-card');
+        const columnsCardEl = page.locator('.vqb-columns-card');
+        await expect(filterCardEl).toBeVisible();
+        await expect(columnsCardEl).toBeVisible();
+        const filterCardBox = await filterCardEl.boundingBox();
+        const columnsCardBox = await columnsCardEl.boundingBox();
+        expect(filterCardBox).not.toBeNull();
+        expect(columnsCardBox).not.toBeNull();
+        expect(filterCardBox!.y).toBeLessThan(columnsCardBox!.y);
+
         // 4. Kiểm tra nút "Sinh SQL từ trường đã lưu" HOÀN TOÀN KHÔNG TỒN TẠI (Item A, D)
         const btnGenSql = page.locator('.sql-toolbar-right .el-button').filter({ hasText: /Sinh SQL từ trường đã lưu/ });
         await expect(btnGenSql).toHaveCount(0);
@@ -896,7 +859,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect.poll(() => getExtractSqlCalls.some((c) => c.packetCode === '101_commonData' && c.forceDefaultTemplate)).toBeTruthy();
 
         // Banner thông báo "Đang dùng mẫu mặc định, chưa lưu" hiển thị
-        const defaultAlert = page.locator('.el-alert').filter({ hasText: /Đang dùng mẫu mặc định, chưa lưu/ });
+        const defaultAlert = page.locator('.el-alert').filter({ hasText: /Đang dùng mẫu.*chưa lưu/i });
         await expect(defaultAlert).toBeVisible();
 
         // SQL Preview chứa câu SQL từ template
@@ -904,24 +867,15 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(sqlPreview).toBeVisible();
         await expect(sqlPreview).toContainText('TmsZoneStatus');
 
-        // 6. Kiểm tra thứ tự DOM: QueryParameterPanel nằm trước vqb-config-row và trước vqb-sql-preview-strip (Item B, D)
-        const paramPanel = page.locator('.query-parameter-panel-card');
-        const configRow = page.locator('.vqb-config-row');
+        // 6. Chuyển sang Raw SQL mode để kiểm tra QueryParameterPanel nằm dưới Monaco editor
+        const btnRaw = page.locator('.vqb-segmented-tabs .vqb-tab-btn').nth(1);
+        await btnRaw.click();
+        const paramPanel = page.locator('.vqb-raw-view .query-parameter-panel-card');
         await expect(paramPanel).toBeVisible();
-        await expect(configRow).toBeVisible();
+        await expect(paramPanel).toContainText(/chưa dùng biến nào/i);
 
-        const paramBox = await paramPanel.boundingBox();
-        const configBox = await configRow.boundingBox();
-        const previewBox = await sqlPreview.boundingBox();
-
-        expect(paramBox).not.toBeNull();
-        expect(configBox).not.toBeNull();
-        expect(previewBox).not.toBeNull();
-
-        if (paramBox && configBox && previewBox) {
-            expect(paramBox.y).toBeLessThan(configBox.y);
-            expect(configBox.y).toBeLessThan(previewBox.y);
-        }
+        // Chuyển lại về chế độ Trực quan
+        await page.locator('.vqb-segmented-tabs .vqb-tab-btn').nth(0).click();
 
         // 7. Gói không có mẫu mặc định (hasDefaultTemplate = false) -> SQL trống, không gọi forceDefaultTemplate (Item A, D)
         const rowPkt2 = page.locator('.packet-pane .vxe-table--body-wrapper .vxe-body--row').filter({ hasText: /999_customData/ });
@@ -1004,7 +958,10 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const resetColHeight = (await colList.boundingBox())?.height || 0;
         expect(Math.abs(resetColHeight - 72)).toBeLessThanOrEqual(10);
 
-        // 4. Kiểm tra thanh resizer và chức năng kéo của Card Điều kiện lọc
+        // 4. Kiểm tra thanh resizer và chức năng kéo của Card Điều kiện lọc (thêm điều kiện để hiện canvas)
+        const addRuleBtn = page.locator('.vqb-filter-card .vqb-card-tools .el-button').filter({ hasText: /Thêm điều kiện/ });
+        await addRuleBtn.click();
+
         const filterResizer = page.locator('.filter-card-resizer');
         await expect(filterResizer).toBeVisible();
         await filterResizer.scrollIntoViewIfNeeded();
@@ -1173,8 +1130,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
             expect(enJson[k], `Missing key in en-us.json: ${k}`).toBeTruthy();
         }
 
-        expect(viJson['lz.label.sharedataDataSource.vqbDefaultTemplate']).toBe('Mẫu mặc định');
-        expect(enJson['lz.label.sharedataDataSource.vqbDefaultTemplate']).toBe('Default Template');
+        expect(viJson['lz.label.sharedataDataSource.vqbDefaultTemplate']).toBe('Khôi phục mẫu');
+        expect(enJson['lz.label.sharedataDataSource.vqbDefaultTemplate']).toBe('Restore template');
     });
 
     test('Bố cục bảng và phân trang dataSource: nội dung table cuộn bên trong, footer phân trang có chiều cao cố định 40px không bị trôi @regression', async ({ page }) => {
@@ -1341,6 +1298,28 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
     });
 
     test('16. Nút "Mẫu mặc định" (forceDefaultTemplate) — Nạp lại template chuẩn qua API getextractsql với forceDefaultTemplate=true', async ({ page }) => {
+        // Chuẩn bị dữ liệu mẫu chuẩn (Default Template)
+        const mockCatalogSql = 'SELECT TOP (@pageSize) td.Speed AS speed FROM TmsTrafficData td';
+
+        // Đăng ký mock API: Trả dữ liệu gói tin có hasDefaultTemplate = true
+        await page.route('**/api/sharedata/sharedatapacket/getextractsql*', async (route) => {
+            const url = new URL(route.request().url());
+            const force = url.searchParams.get('forceDefaultTemplate') === 'true';
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        extractSql: force ? mockCatalogSql : 'SELECT td.Speed FROM TmsTrafficData td',
+                        status: 1,
+                        hasDefaultTemplate: true,
+                        remark: 'Default Template',
+                    },
+                }),
+            });
+        });
+
         // ============================================================
         // BƯỚC 1 (ARRANGE): Mở màn hình nguồn dữ liệu & vào tab Cấu hình SQL
         // ============================================================
@@ -1354,36 +1333,15 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await sqlTab.click();
         await expect(sqlTab).toHaveClass(/is-active/);
 
-        // Chuẩn bị dữ liệu mẫu chuẩn (Default Template)
-        const mockCatalogSql = 'SELECT TOP (@pageSize) td.Speed AS speed FROM TmsTrafficData td';
-
-        // Đăng ký mock API: Chỉ trả dữ liệu mẫu khi gọi với forceDefaultTemplate=true
-        await page.route('**/api/sharedata/sharedatapacket/getextractsql*', async (route) => {
-            const url = new URL(route.request().url());
-            if (url.searchParams.get('forceDefaultTemplate') === 'true') {
-                await route.fulfill({
-                    status: 200,
-                    contentType: 'application/json',
-                    body: JSON.stringify({
-                        code: 200,
-                        result: {
-                            extractSql: mockCatalogSql,
-                            status: 1,
-                            hasDefaultTemplate: true,
-                            remark: 'Default Template',
-                        },
-                    }),
-                });
-            } else {
-                await route.continue();
-            }
-        });
-
         // ============================================================
-        // BƯỚC 2 (ACT): Bấm nút "Mẫu mặc định" và chờ phản hồi API hoàn thành
+        // BƯỚC 2 (ACT): Mở menu "Mẫu SQL ▾", chọn "Khôi phục mẫu" và chờ phản hồi API hoàn thành
         // ============================================================
-        const btnResetCatalog = page.locator('.vqb-header-actions .el-button').filter({ hasText: /Mẫu mặc định/ });
-        await expect(btnResetCatalog).toBeVisible();
+        const templateDropdownBtn = page.locator('.vqb-header-actions .vqb-template-dropdown-btn');
+        await expect(templateDropdownBtn).toBeVisible();
+        await templateDropdownBtn.click();
+
+        const restoreTemplateItem = page.locator('.el-dropdown-menu__item').filter({ hasText: /Khôi phục mẫu/ });
+        await expect(restoreTemplateItem).toBeVisible();
 
         // Kích hoạt click VÀ đồng thời chờ chính xác response getextractsql trả về thành công
         const [response] = await Promise.all([
@@ -1391,7 +1349,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
                 const u = res.url();
                 return u.includes('/api/sharedata/sharedatapacket/getextractsql') && u.includes('forceDefaultTemplate=true') && res.status() === 200;
             }),
-            btnResetCatalog.click(),
+            restoreTemplateItem.click(),
         ]);
 
         // ============================================================
@@ -1420,6 +1378,12 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
 
         const colAliasInput = page.locator('.vqb-col-alias input').first();
         await expect(colAliasInput).toHaveValue('speed');
+
+        // 4. Kiểm tra menu "Lấy SQL đã lưu làm mẫu" bị disabled khi đang dùng mẫu mặc định chưa lưu
+        await templateDropdownBtn.click();
+        const setAsTemplateItem = page.locator('.el-dropdown-menu__item').filter({ hasText: /Lấy SQL đã lưu làm mẫu/ });
+        await expect(setAsTemplateItem).toBeVisible();
+        await expect(setAsTemplateItem).toHaveClass(/is-disabled/);
     });
 
     test('17. Kéo resize thanh chia table (splitpanes splitter) — Pane co giãn mượt mà, table không vỡ layout sau khi kéo', async ({ page }) => {
@@ -1746,8 +1710,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const scopeSelect = page.locator('.sql-scope-select');
         await expect(scopeSelect).toHaveCount(0);
 
-        // 2. Nút Đồng bộ vào Gói tin hiển thị bình thường, không bị bọc tooltip vô hiệu hóa
-        const btnSync = page.locator('.sql-toolbar-right button').filter({ hasText: /Đồng bộ/i });
+        // 2. Nút Cập nhật vào Danh sách trường hiển thị trong khối đối chiếu
+        const btnSync = page.locator('.sql-column-diff-actions button').filter({ hasText: /Cập nhật vào Danh sách trường|Đồng bộ/i });
         await expect(btnSync).toBeVisible();
     });
 
@@ -1833,22 +1797,30 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await sqlTab.click();
         await expect(sqlTab).toHaveClass(/is-active/);
 
-        // 1. Kiểm tra panel Tham số truy vấn xuất hiện
-        const paramPanel = page.locator('.query-parameter-panel-card');
+        // 1. Chuyển sang chế độ Raw SQL để kiểm tra
+        const segTabs = page.locator('.vqb-segmented-tabs');
+        if (await segTabs.isVisible()) {
+            await segTabs.locator('.vqb-tab-btn').nth(1).click();
+        }
+
+        // 2. Kiểm tra panel Tham số truy vấn trong Raw view xuất hiện dưới dạng tag strip (không còn bảng params-table)
+        const paramPanel = page.locator('.vqb-raw-view .query-parameter-panel-card');
         await expect(paramPanel).toBeVisible();
-        await expect(paramPanel).toContainText(/Tham số truy vấn/i);
+        await expect(paramPanel).toContainText(/Biến trong câu truy vấn/i);
+        await expect(paramPanel.locator('.params-table')).toHaveCount(0);
 
-        // 2. Kiểm tra các tham số được dò thấy
-        const paramsTable = paramPanel.locator('.params-table');
-        await expect(paramsTable).toBeVisible();
-        await expect(paramsTable).toContainText('@pageSize');
-        await expect(paramsTable).toContainText('@fromDate');
-        await expect(paramsTable).toContainText('@toDate');
-        await expect(paramsTable).toContainText('@customParam');
+        // 3. Kiểm tra các tag tham số
+        const tags = paramPanel.locator('.param-tag-item');
+        await expect(tags).toHaveCount(4);
+        await expect(paramPanel).toContainText('@pageSize');
+        await expect(paramPanel).toContainText('@fromDate');
+        await expect(paramPanel).toContainText('@toDate');
+        await expect(paramPanel).toContainText('@customParam');
 
-        // 3. Tham số hợp lệ có tag "Được hỗ trợ", tham số lạ có tag "Không được hỗ trợ"
-        await expect(paramsTable).toContainText(/Được hỗ trợ/i);
-        await expect(paramsTable).toContainText(/Không được hỗ trợ/i);
+        // 4. Tham số lạ có tag danger kèm "không hỗ trợ"
+        const dangerTag = paramPanel.locator('.el-tag--danger');
+        await expect(dangerTag).toBeVisible();
+        await expect(dangerTag).toContainText(/không hỗ trợ/i);
     });
 
     test('24. Nhãn giao diện đối tác không dùng từ Stub — Kafka và FTP hiển thị "Chưa bật" (Mục 18)', async () => {
@@ -2001,13 +1973,18 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(indexContent).not.toContain('handleCheckSqlSafety');
     });
 
-    test('28. Cụm tag biến hệ thống hiển thị ở cả 2 chế độ (builder/raw) và tự động chèn/thêm điều kiện khi click', async () => {
+    test('28. Cụm dropdown biến hệ thống hiển thị ở cả 2 chế độ (builder/raw) và tự động chèn/thêm điều kiện khi click', async ({ page }) => {
         const qbPath = resolveWebvuePath('views/sharedata/dataSource/component/queryBuilder.vue');
         const qbContent = fs.readFileSync(qbPath, 'utf8');
 
-        // 1. Tag biến hệ thống không còn bị gắn v-if="viewMode === 'builder'"
-        expect(qbContent).not.toMatch(/<div[^>]*v-if="viewMode === 'builder'"[^>]*class="vqb-cursor-chips"/);
-        expect(qbContent).toContain('class="vqb-cursor-chips"');
+        // Quét tĩnh: queryBuilder.vue không còn :deep(.vqb-param-dropdown-menu) và :deep(.vqb-template-dropdown-menu)
+        expect(qbContent).not.toContain(':deep(.vqb-param-dropdown-menu)');
+        expect(qbContent).not.toContain(':deep(.vqb-template-dropdown-menu)');
+
+        // 1. Tag biến hệ thống chuyển thành dropdown duy nhất trong header actions, không còn class vqb-cursor-chips
+        expect(qbContent).not.toContain('class="vqb-cursor-chips"');
+        expect(qbContent).toContain('class="vqb-param-dropdown"');
+        expect(qbContent).toContain('vqb-param-dropdown-btn');
 
         // 2. Định nghĩa danh sách biến hệ thống có mô tả i18n
         expect(qbContent).toContain('const systemParamsList = [');
@@ -2022,10 +1999,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(qbContent).toContain("name: '@toDate'");
         expect(qbContent).toContain("descKey: 'lz.label.sharedataDataSource.paramSourceToDate'");
 
-        // 3. Bọc tag trong tooltip
-        expect(qbContent).toContain('<el-tooltip');
-        expect(qbContent).toContain(':content="$t(param.descKey)"');
-        expect(qbContent).toContain('@click="handleInsertParam(param.name)"');
+        // 3. Dropdown menu gọi handleInsertParam
+        expect(qbContent).toContain('@command="handleInsertParam"');
 
         // 4. Logic xử lý clipboard và thông báo thành công
         expect(qbContent).toContain('navigator?.clipboard?.writeText');
@@ -2049,6 +2024,65 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const enPath = resolveWebvuePath('i18n/lang/en-us.json');
         const enContent = JSON.parse(fs.readFileSync(enPath, 'utf8'));
         expect(enContent['lz.message.sharedataDataSource.paramInserted']).toBe('Inserted variable {name} into SQL query');
+
+        // 7. Kiểm tra giao diện và CSS menu thả xuống (Chèn biến hệ thống và Mẫu SQL)
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+
+        const tabs = page.locator('.datasource-right-tabs');
+        await expect(tabs).toBeVisible({ timeout: 15_000 });
+
+        const sqlTab = tabs.getByRole('tab', { name: /Cấu hình SQL/ });
+        await sqlTab.click();
+        await expect(sqlTab).toHaveClass(/is-active/);
+
+        // Mở menu "Chèn biến hệ thống"
+        const paramDropdownBtn = page.locator('.vqb-param-dropdown-btn');
+        await expect(paramDropdownBtn).toBeVisible();
+        await paramDropdownBtn.click();
+
+        const paramMenu = page.locator('.vqb-param-dropdown-menu:visible');
+        await expect(paramMenu).toBeVisible();
+
+        const lastTimeItem = paramMenu.locator('.el-dropdown-menu__item').filter({ hasText: /@lastTime/ });
+        await expect(lastTimeItem).toBeVisible();
+
+        const codeItem = lastTimeItem.locator('.param-code-item');
+        const descItem = lastTimeItem.locator('.param-desc-item');
+        await expect(codeItem).toBeVisible();
+        await expect(descItem).toBeVisible();
+
+        const codeBox = await codeItem.boundingBox();
+        const descBox = await descItem.boundingBox();
+        expect(codeBox).not.toBeNull();
+        expect(descBox).not.toBeNull();
+        // Mô tả bắt đầu sau tên ít nhất 8px
+        expect(descBox!.x - (codeBox!.x + codeBox!.width)).toBeGreaterThanOrEqual(7.5);
+
+        const descMarginLeft = await descItem.evaluate((el) => window.getComputedStyle(el).marginLeft);
+        expect(descMarginLeft).toBe('8px');
+
+        const codeFont = await codeItem.evaluate((el) => window.getComputedStyle(el).fontFamily.toLowerCase());
+        expect(codeFont.includes('monospace') || codeFont.includes('consolas')).toBeTruthy();
+
+        // Đóng menu chèn biến
+        await page.keyboard.press('Escape');
+        await expect(paramMenu).not.toBeVisible();
+
+        // Mở menu "Mẫu SQL ▾"
+        const templateDropdownBtn = page.locator('.vqb-template-dropdown-btn');
+        await expect(templateDropdownBtn).toBeVisible();
+        await templateDropdownBtn.click();
+
+        const templateMenu = page.locator('.vqb-template-dropdown-menu:visible');
+        await expect(templateMenu).toBeVisible();
+
+        const itemDesc = templateMenu.locator('.item-desc').first();
+        await expect(itemDesc).toBeVisible();
+        const itemDescFontSize = await itemDesc.evaluate((el) => window.getComputedStyle(el).fontSize);
+        expect(itemDescFontSize).toBe('11px');
+
+        await page.keyboard.press('Escape');
     });
 
     test('29. Mệnh đề ORDER BY sinh ra từ queryBuilder và index.vue luôn hợp lệ, không bao giờ chứa ASC ASC hay DESC ASC', async () => {
@@ -2594,18 +2628,17 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(errorAlert).toBeHidden({ timeout: 3000 });
     });
 
-    test('36. Khối Điều kiện lọc có thể gom vô (collapsible) tương tự Tham số truy vấn', async ({ page }) => {
+    test('36. Khối Điều kiện lọc không dùng accordion, hiển thị gợi ý khi rỗng và hỗ trợ autocomplete gợi ý biến', async ({ page }) => {
         // 1. Quét tĩnh mã nguồn queryBuilder.vue
         const qbPath = resolveWebvuePath('views/sharedata/dataSource/component/queryBuilder.vue');
         const qbContent = fs.readFileSync(qbPath, 'utf8');
 
-        // Phải có class is-collapsed và tag badge filterRuleCount
-        expect(qbContent).toContain("class=\"vqb-filter-card\" :class=\"{ 'is-collapsed': isFilterCollapsed }\"");
-        expect(qbContent).toContain('{{ filterRuleCount }}');
-        expect(qbContent).toContain('v-show="!isFilterCollapsed"');
-        expect(qbContent).toContain('toggleFilterCollapse');
-        expect(qbContent).toContain('handleAddRuleWithExpand');
-        expect(qbContent).toContain('handleAddSubGroupWithExpand');
+        // Bỏ accordion collapse (isFilterCollapsed không còn)
+        expect(qbContent).not.toContain('isFilterCollapsed');
+        expect(qbContent).not.toContain('toggleFilterCollapse');
+        expect(qbContent).toContain('vqb-no-filter-hint');
+        expect(qbContent).toContain('queryFilterParamSuggestions');
+        expect(qbContent).toContain('el-autocomplete');
 
         // 2. Mở màn hình dataSource
         await page.goto('/#/sharedata/dataSource');
@@ -2624,59 +2657,18 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const filterBadge = filterCard.locator('.vqb-card-title .el-tag');
         await expect(filterBadge).toBeVisible();
 
-        // Canvas và Resizer
-        const filterCanvas = filterCard.locator('.vqb-filter-canvas');
-        const filterResizer = filterCard.locator('.filter-card-resizer');
+        // Không còn nút Thu gọn / Mở rộng
+        const toggleBtn = filterCard.locator('.filter-collapse-btn');
+        await expect(toggleBtn).toHaveCount(0);
 
-        // Nút toggle Mở rộng / Thu gọn
-        const toggleBtn = filterCard.locator('.vqb-card-tools .el-button').filter({ hasText: /Mở rộng|Thu gọn/ });
-        await expect(toggleBtn).toBeVisible();
-
-        // Nếu ban đầu rỗng, khối thu gọn: canvas và resizer bị ẩn
-        if (await toggleBtn.innerText().then((t) => t.includes('Mở rộng'))) {
-            await expect(filterCanvas).toBeHidden();
-            await expect(filterResizer).toBeHidden();
-
-            // Bấm Mở rộng -> hiển thị canvas và resizer
-            await toggleBtn.click();
-            await expect(filterCanvas).toBeVisible();
-            await expect(filterResizer).toBeVisible();
-            await expect(toggleBtn).toContainText('Thu gọn');
-
-            // Bấm Thu gọn -> ẩn canvas và resizer
-            await toggleBtn.click();
-            await expect(filterCanvas).toBeHidden();
-            await expect(filterResizer).toBeHidden();
-            await expect(toggleBtn).toContainText('Mở rộng');
-        } else {
-            // Đang mở, bấm Thu gọn -> ẩn
-            await toggleBtn.click();
-            await expect(filterCanvas).toBeHidden();
-            await expect(filterResizer).toBeHidden();
-            await expect(toggleBtn).toContainText('Mở rộng');
-
-            // Bấm Mở rộng -> hiện
-            await toggleBtn.click();
-            await expect(filterCanvas).toBeVisible();
-            await expect(filterResizer).toBeVisible();
-            await expect(toggleBtn).toContainText('Thu gọn');
-        }
-
-        // Bấm nút "+ Thêm điều kiện" trong khi đang thu gọn -> tự động mở rộng
-        // Đóng lại trước:
-        if (await toggleBtn.innerText().then((t) => t.includes('Thu gọn'))) {
-            await toggleBtn.click();
-            await expect(filterCanvas).toBeHidden();
-        }
-
+        // Nút "+ Thêm điều kiện"
         const addRuleBtn = filterCard.locator('.vqb-card-tools .el-button').filter({ hasText: /Thêm điều kiện/ });
-        await addRuleBtn.click();
+        await expect(addRuleBtn).toBeVisible();
 
-        // Sau khi thêm điều kiện, canvas phải tự động mở rộng và badge >= 1
-        await expect(filterCanvas).toBeVisible();
-        await expect(toggleBtn).toContainText('Thu gọn');
-        const badgeCount = Number((await filterBadge.innerText()).trim());
-        expect(badgeCount).toBeGreaterThanOrEqual(1);
+        // Bấm "+ Thêm điều kiện" -> thêm 1 rule mới và có el-autocomplete
+        await addRuleBtn.click();
+        const ruleValueInput = filterCard.locator('.vqb-rule-val input').first();
+        await expect(ruleValueInput).toBeVisible();
     });
 
     test('37. Bố cục tự động co giãn theo chiều cao màn hình: Bảng gói tin và trường gói tin giãn đầy đủ 100% không để lại khoảng trắng thừa @regression', async ({ page }) => {
@@ -2769,9 +2761,9 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(previewMatch).toBeTruthy();
         expect(previewMatch![0]).not.toContain('top: 10');
 
-        // 3. Ô maxLookBackDays đọc min/max từ feConfig.packetLookbackDays
-        expect(content).toContain(':min="feConfig.packetLookbackDays.min"');
-        expect(content).toContain(':max="feConfig.packetLookbackDays.max"');
+        // 3. Ô maxLookBackDays đọc min/max từ feConfig.packetLookbackDays (đảm bảo không âm >= 1)
+        expect(content).toContain(':min="Math.max(1, feConfig.packetLookbackDays?.min ?? 1)"');
+        expect(content).toContain(':max="feConfig.packetLookbackDays?.max ?? 365"');
     });
 
     test('40. Dòng cấu hình đầu (Bảng nguồn, Bí danh, Giới hạn TOP) và hộp thông báo el-alert co giãn theo nội dung kèm padding top-bottom', async ({ page }) => {
@@ -2786,7 +2778,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(qbContent).toContain('.vqb-top-select {\n\t\t\twidth: 190px;\n\t\t}');
 
         // 2. Kiểm tra CSS el-alert trong dataSource/index.vue
-        expect(idxContent).toContain(':deep(.el-alert) {\n\twidth: fit-content;\n\tmax-width: 100%;\n\talign-self: flex-start;\n\tflex-shrink: 0;\n\tpadding: 8px 14px;');
+        expect(idxContent).toContain(':deep(.el-alert) {\n\twidth: fit-content;\n\tmax-width: 100%;\n\talign-self: flex-start;\n\tflex-shrink: 0;\n\tpadding: 3px 10px;');
 
         // 3. Kiểm chứng trực tiếp trên trình duyệt
         await page.setViewportSize({ width: 1600, height: 900 });
@@ -2838,9 +2830,30 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
             };
         });
         expect(alertStyle.flexShrink).toBe('0');
-        expect(alertStyle.paddingTop).toBe('8px');
-        expect(alertStyle.paddingBottom).toBe('8px');
-        expect(alertStyle.height).toBeGreaterThanOrEqual(32);
+        expect(alertStyle.paddingTop).toBe('3px');
+        expect(alertStyle.paddingBottom).toBe('3px');
+        expect(alertStyle.height).toBeLessThanOrEqual(30);
+    });
+
+    test('41. Màn Nguồn dữ liệu: Bổ sung bản dịch nút Dò lại và cấu hình CSS el-alert nhỏ gọn thanh thoát', async () => {
+        const viPath = resolveWebvuePath('i18n/lang/vi-vn.json');
+        const enPath = resolveWebvuePath('i18n/lang/en-us.json');
+        const viJson = JSON.parse(fs.readFileSync(viPath, 'utf8'));
+        const enJson = JSON.parse(fs.readFileSync(enPath, 'utf8'));
+
+        // 1. Kiểm tra bản dịch nút "Dò lại"
+        expect(viJson['lz.button.sharedataDataSource.detectColumns']).toBe('Dò lại');
+        expect(enJson['lz.button.sharedataDataSource.detectColumns']).toBe('Re-detect');
+
+        // 2. Kiểm tra CSS el-alert trong dataSource/index.vue đạt chuẩn nhỏ gọn
+        const idxPath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
+        const idxContent = fs.readFileSync(idxPath, 'utf8');
+        expect(idxContent).toContain('padding: 3px 10px;');
+        expect(idxContent).toContain('padding-right: 28px;');
+        expect(idxContent).toContain('font-size: 13px;\n\t\tmargin-right: 6px;');
+        expect(idxContent).toContain('font-size: 12px;\n\t\tline-height: 1.35;');
+        expect(idxContent).toContain('font-size: 12px;\n\t\tpadding: 2px;\n\t\tmargin: 0;\n\t\ttop: 50%;\n\t\tright: 6px;');
+        expect(idxContent).not.toMatch(/:deep\(\.el-alert\)[^}]+!important/);
     });
 });
 

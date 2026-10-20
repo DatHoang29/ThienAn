@@ -1535,13 +1535,20 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		expect(partnerContent).toContain('state.ruleForm.connectionType === ConnectionTypeEnum.Ftps');
 		expect(partnerContent).toContain('payload.connectionType = ConnectionTypeEnum.Ftps');
 
-		// 5. Hàng Loại kết nối | Endpoint nằm ngay sau hàng Mã | Tên, trước Địa chỉ | Cổng
+		// 5. Loại kênh kết nối nằm cuối phần đầu form, sau Địa chỉ | Cổng và Endpoint
 		const idxName = partnerContent.indexOf("lz.entity.sharedataPartner.name'");
-		const idxType = partnerContent.indexOf("lz.label.sharedataPartner.connectionType'");
 		const idxAddr = partnerContent.indexOf('prop="address"');
+		const idxPort = partnerContent.indexOf('prop="port"');
+		const idxEndpoint = partnerContent.indexOf('prop="endPointApiUrl"');
+		const idxType = partnerContent.indexOf("lz.label.sharedataPartner.connectionType'");
+		const idxConfig = partnerContent.indexOf('lz.label.sharedataPartner.connectionConfig');
 		expect(idxName).toBeGreaterThan(-1);
-		expect(idxType).toBeGreaterThan(idxName);
-		expect(idxAddr).toBeGreaterThan(idxType);
+		expect(idxAddr).toBeGreaterThan(idxName);
+		expect(idxPort).toBeGreaterThan(idxAddr);
+		expect(idxEndpoint).toBeGreaterThan(idxPort);
+		expect(idxType).toBeGreaterThan(idxEndpoint);
+		expect(idxConfig).toBeGreaterThan(idxType);
+		expect(partnerContent).toMatch(/<el-col[^>]*v-if="state\.ruleForm\.connectionType === 1"[^>]*:sm="24"/);
 
 		// 6. Nhãn Địa chỉ/Cổng đổi theo loại FTP; thêm mới chọn FTP mà cổng trống thì điền sẵn 21
 		expect(partnerContent).toContain("lz.label.sharedataPartner.ftpHost");
@@ -1707,6 +1714,16 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		await expect(dialog.locator('.channel-api .el-select').filter({ hasText: 'Tự động (khuyến nghị)' })).toHaveCount(0);
 		await expect(dialog.locator('.channel-api .el-col-md-8')).toHaveCount(0);
 		await expect(dialog.locator('.channel-api .el-form-item').filter({ hasText: 'Bỏ qua kiểm tra chứng chỉ' })).toBeVisible();
+
+		// Bố cục khi chọn API: ô Cổng < ô Endpoint < ô Loại kênh
+		const portItem = dialog.locator('.el-form-item').filter({ has: page.locator('.el-form-item__label', { hasText: /^\s*Cổng\s*$/ }) });
+		const connTypeItem = dialog.locator('.el-form-item').filter({ hasText: 'Loại kênh kết nối' });
+		const portBoxApi = await portItem.boundingBox();
+		const endpointBoxApi = await endpointItem.boundingBox();
+		const connTypeBoxApi = await connTypeItem.boundingBox();
+		expect(portBoxApi!.y).toBeLessThan(endpointBoxApi!.y);
+		expect(endpointBoxApi!.y).toBeLessThan(connTypeBoxApi!.y);
+
 		if (screenshotDir) {
 			await dialog.screenshot({ path: path.join(screenshotDir, 'partner-api-auto.png') });
 		}
@@ -1718,10 +1735,26 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		await connTypeSelect.click();
 		const visibleOptions = page.locator('.el-select-dropdown:visible .el-select-dropdown__item');
 		await expect(visibleOptions).toHaveCount(4);
+		if (screenshotDir) {
+			await visibleOptions.filter({ hasText: 'Xuất tệp tin' }).click();
+			await dialog.screenshot({ path: path.join(screenshotDir, 'partner-file.png') });
+			await connTypeSelect.click();
+		}
 		await visibleOptions.filter({ hasText: 'Máy chủ FTP' }).click();
 
 		await expect(endpointInput).toBeHidden();
 		await expect(hintLocator).toBeHidden();
+
+		// Bố cục khi chọn FTP: ô Địa chỉ và ô Cổng cùng hàng, nhỏ hơn ô Loại kênh; ô Loại kênh không nhảy cột
+		const addressItemFtp = dialog.locator('.el-form-item').filter({ has: page.locator('.el-form-item__label', { hasText: 'Máy chủ FTP' }) });
+		const portItemFtp = dialog.locator('.el-form-item').filter({ has: page.locator('.el-form-item__label', { hasText: 'Cổng FTP' }) });
+		const addrBoxFtp = await addressItemFtp.boundingBox();
+		const portBoxFtp = await portItemFtp.boundingBox();
+		const connTypeBoxFtp = await connTypeItem.boundingBox();
+		expect(Math.round(addrBoxFtp!.y)).toBe(Math.round(portBoxFtp!.y));
+		expect(portBoxFtp!.y).toBeLessThan(connTypeBoxFtp!.y);
+		expect(Math.round(connTypeBoxFtp!.x)).toBe(Math.round(connTypeBoxApi!.x));
+
 		const ftpsSwitchItem = dialog.locator('.channel-ftp .el-form-item').filter({ hasText: 'Mã hóa kết nối FTPS' });
 		await expect(ftpsSwitchItem).toBeVisible();
 

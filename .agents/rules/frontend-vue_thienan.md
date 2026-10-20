@@ -85,6 +85,10 @@ src/views/<module>/<feature>/
      2. ✅ **Đóng gói nội bộ phân hệ**: Mọi style dùng chung giữa các màn hình trong cùng một phân hệ BẮT BUỘC đặt trong thư mục `src/src/views/<phân-hệ>/style/` (ví dụ: `src/src/views/sharedata/style/loading.scss`).
      3. ✅ **Import tại component / view**: Tại các view / component chính cần sử dụng, import nội bộ bằng cú pháp `@import '../style/<tên-style>.scss';` hoặc `@import './style/<tên-style>.scss';` trong khối `<style lang="scss">`.
      4. ✅ **Scope selector an toàn**: Các selector trong file style phân hệ vẫn phải được bọc prefix theo class cha định danh của phân hệ (ví dụ: `.eshare-sharing`, `.esh-datasource-container`, `[class*='sharedata-']`) để cô lập hoàn toàn phạm vi ảnh hưởng.
+8. **Định dạng nội dung menu/popper bị đưa ra `<body>` (bổ sung 20/10/2026)**:
+   - `el-dropdown`, `el-select`, `el-autocomplete`, `el-popover`, `el-tooltip` mặc định đưa phần nổi (menu, gợi ý, popover) ra thẳng `<body>`. Trong `<style scoped>`, `:deep(.lớp-menu) .x` biên dịch thành `[data-v-xxx] .lớp-menu .x` — cần phần tử cha mang `data-v-xxx` — nên **không khớp** khi menu đã ở `<body>`.
+   - ✅ Viết class scoped thường đặt trên phần tử nằm trong slot của chính component (`.vqb-suggest-item { … }`, `.lớp-menu .x { … }`): phần tử trong slot vẫn mang `data-v-xxx` dù đã bị đưa ra ngoài. Hoặc dùng `popper-class="<tên-riêng>"` kèm một khối `<style lang="scss">` không scoped, mọi selector bắt đầu bằng tên riêng đó (tiền lệ `views/bigScreen/trafficInfo/component/incidentNotification.vue`).
+   - ⛔ Không dùng `:deep(.lớp-của-menu)` cho phần nổi. Đã gặp: menu "Chèn biến hệ thống" ở `sharedata/dataSource/component/queryBuilder.vue` hiện dính chữ `@lastTimeMốc…` vì CSS không áp.
 
 ---
 

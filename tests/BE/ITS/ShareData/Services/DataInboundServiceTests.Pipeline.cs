@@ -1,9 +1,16 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Module.ShareData.Core.Constants;
 using Module.ShareData.Core.Dto.ActivityLog;
 using Module.ShareData.Core.Entities;
-using ShareDataWorker.Infrastructure.Services.DataInbound;
+using Modules.CfgSystem.Core.Entities;
+using Modules.TMS.Core.Entities;
 using ShareDataWorker.Infrastructure.Logging;
+using ShareDataWorker.Infrastructure.Services.DataInbound;
+using ShareDataWorker.Infrastructure.Services.WorkerConfig;
 using Shared.DTO.Enums;
+using Tests.ShareData.Common;
 
 namespace Tests.ShareData.Services;
 
@@ -359,6 +366,300 @@ public partial class DataInboundServiceTests
         var conds = doc.RootElement.EnumerateArray().ToDictionary(r => r.GetProperty("id").GetString()!, r => r.GetProperty("val").GetString());
         Assert.Equal("CONGESTED", conds["R1"]);
         Assert.Equal(hasDefault ? "UNKNOWN" : "ZZZ_99", conds["R2"]);
+    }
+
+    /// <summary>
+    /// Description: B1 - 18 câu ghi chiều nhận trong kịch bản seed 02 biên dịch thành công (0 lỗi)
+    ///              với lược đồ CSDL Inbound hiện hành khi kiểm tra qua sys.sp_describe_first_result_set.
+    /// Created date: 20/10/2026
+    /// </summary>
+    [Fact]
+    public async Task SeedWriteSql_WhenCompiledOnInboundDatabase_AllStatementsBindToCurrentSchema_Test()
+    {
+        // Arrange
+        var statements = SeedScriptReader.ReadWriteSqlStatements();
+        Assert.Equal(18, statements.Count);
+
+        const string sqlParams = "@records nvarchar(max), @now datetime, @tenantId nvarchar(64), @operator nvarchar(64), @partnerId nvarchar(64), @partnerCode nvarchar(64), @datatypeId nvarchar(64), @serialNbr int, @packetId nvarchar(64)";
+
+        // Act & Assert
+        foreach (var stmt in statements)
+        {
+            var parameters = new SugarParameter[]
+            {
+                new("@tsql", stmt.WriteSql),
+                new("@params", sqlParams)
+            };
+
+            var dt = await _inboundDb.Ado.GetDataTableAsync(
+                "EXEC sys.sp_describe_first_result_set @tsql = @tsql, @params = @params;",
+                parameters);
+
+            if (dt.Columns.Contains("error_number") && dt.Rows.Count > 0 && dt.Rows[0]["error_number"] != DBNull.Value)
+            {
+                var errNum = Convert.ToInt32(dt.Rows[0]["error_number"]);
+                var errMsg = dt.Rows[0]["error_message"]?.ToString();
+                Assert.True(errNum == 0, $"Lỗi biên dịch câu ghi gói {stmt.PacketCode} bảng {stmt.TableName}: [{errNum}] {errMsg}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Description: B2 - Câu MERGE thật của gói 101 giữ giá trị cũ khi đối tác bỏ trống trường.
+    ///              Gói 1 tạo dòng TmsZone với Name=\"Đoạn 1\", MaxSpeed=80. Gói 2 cùng zoneId, bỏ trường zoneName, đổi speedLimit=100.
+    ///              Sau khi xử lý, Name giữ nguyên \"Đoạn 1\", MaxSpeed cập nhật thành 100, UpdateUId = \"SHAREDATA_INBOUND\".
+    /// Created date: 20/10/2026
+    /// </summary>
+    [Fact]
+    public async Task ProcessPendingPackets_WhenPartnerOmitsField_SeedMergeKeepsExistingValue_Test()
+    {
+        // Arrange
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var partnerId = Guid.NewGuid().ToString("N");
+        var partnerCode = $"PARTNER_B2_{unique}";
+        var partner = new ShareDataPartner
+        {
+            ID = partnerId,
+            Code = partnerCode,
+            Name = $"Đối tác B2 {unique}",
+            Status = BaseEnums.StatusEnum.Enable
+        };
+        await _db.Insertable(partner).ExecuteCommandAsync();
+
+        var packetCode = "101_commonData";
+        var packet = await _db.Queryable<ShareDataPacket>().Where(p => p.Code == packetCode).FirstAsync();
+        if (packet == null)
+        {
+            packet = new ShareDataPacket
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                Code = packetCode,
+                Name = "Gói 101 CommonData",
+                Status = BaseEnums.StatusEnum.Enable
+            };
+            await _db.Insertable(packet).ExecuteCommandAsync();
+        }
+
+        var seedWrites = SeedScriptReader.ReadWriteSqlStatements().Where(s => s.PacketCode == packetCode).ToList();
+        Assert.Equal(3, seedWrites.Count);
+
+        var existingWrites = await _db.Queryable<ShareDataPacketSql>()
+            .Where(w => w.PacketCode == packetCode && w.IsDelete == null)
+            .ToListAsync();
+        if (existingWrites.Count == 0)
+        {
+            var packetSqlEntities = seedWrites.Select(sw => new ShareDataPacketSql
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                PacketCode = packetCode,
+                TableName = sw.TableName,
+                OrderNo = sw.OrderNo,
+                WriteSql = sw.WriteSql,
+                Status = BaseEnums.StatusEnum.Enable
+            }).ToList();
+            await _db.Insertable(packetSqlEntities).ExecuteCommandAsync();
+        }
+
+        var sub = new ShareDataSubscription
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            PartnerId = partner.ID,
+            DatatypeId = packet.ID,
+            Direction = BaseEnums.Direction.Inbound,
+            State = BaseEnums.SubSubscriptionState.Active
+        };
+        await _db.Insertable(sub).ExecuteCommandAsync();
+
+        var zoneId = $"ZONE_B2_{unique}";
+        var content1 = $"{{\"data\":[{{\"zoneId\":\"{zoneId}\",\"zoneName\":\"Đoạn 1\",\"speedLimit\":80}}]}}";
+        var content2 = $"{{\"data\":[{{\"zoneId\":\"{zoneId}\",\"speedLimit\":100}}]}}";
+
+        var packet1 = await SeedPendingPacket(partnerCode, packetCode, 1, content1, DateTime.Now);
+        var packet2 = await SeedPendingPacket(partnerCode, packetCode, 2, content2, DateTime.Now.AddSeconds(1));
+
+        // Act
+        using var scope = _host.Services.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<DataInboundService>();
+        await service.ProcessPendingPackets(CancellationToken.None);
+
+        // Assert
+        var p1Updated = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packet1.ID);
+        var p2Updated = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packet2.ID);
+        Assert.Equal(BaseEnums.InboundProcessState.Done, p1Updated.ProcessState);
+        Assert.Equal(BaseEnums.InboundProcessState.Done, p2Updated.ProcessState);
+
+        var zoneRow = await _inboundDb.Ado.GetDataTableAsync(
+            "SELECT Name, MaxSpeed, UpdateUId FROM dbo.TmsZone WHERE ID = @id",
+            new { id = zoneId });
+        Assert.True(zoneRow.Rows.Count > 0, $"Không tìm thấy bản ghi TmsZone với ID = {zoneId}");
+        Assert.Equal("Đoạn 1", zoneRow.Rows[0]["Name"]?.ToString());
+        Assert.Equal(100, Convert.ToInt32(zoneRow.Rows[0]["MaxSpeed"]));
+        Assert.Equal("SHAREDATA_INBOUND", zoneRow.Rows[0]["UpdateUId"]?.ToString());
+    }
+
+    /// <summary>
+    /// Description: B3 - Khi CSDL hủy transaction (SET XACT_ABORT ON), RollbackQuietly bắt êm lỗi hủy giao dịch
+    ///              để không làm gián đoạn lượt quét; gói 1 đánh dấu Failed và gói 2 kế tiếp được xử lý thành Done.
+    /// Created date: 20/10/2026
+    /// </summary>
+    [Fact]
+    public async Task ProcessPendingPackets_WhenServerAbortsTransaction_KeepsSqlErrorAndProcessesNextPacket_Test()
+    {
+        // Arrange
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (partner, packet, _, mapping) = await SeedInboundEnvironmentAsync(unique);
+
+        var shape = """
+            {
+                "data": [
+                    {
+                        "id": { "$field": "id" },
+                        "isError": { "$field": "isError" }
+                    }
+                ]
+            }
+            """;
+        await _db.Updateable<ShareDataMapping>()
+            .SetColumns(m => m.TargetShapeJson == shape)
+            .Where(m => m.ID == mapping.ID)
+            .ExecuteCommandAsync();
+
+        var abortSql = """
+            SET XACT_ABORT ON;
+            IF EXISTS (SELECT 1 FROM OPENJSON(@records) WITH (isError bit '$.isError') WHERE isError = 1)
+                SELECT CAST('not-a-number' AS INT);
+            ELSE
+                SELECT 'INSERT';
+            """;
+
+        await _db.Updateable<ShareDataPacketSql>()
+            .SetColumns(s => s.WriteSql == abortSql)
+            .Where(s => s.PacketCode == packet.Code)
+            .ExecuteCommandAsync();
+
+        var content1 = "{\"data\":[{\"id\":\"1\",\"isError\":true}]}";
+        var content2 = "{\"data\":[{\"id\":\"2\",\"isError\":false}]}";
+
+        var packet1 = await SeedPendingPacket(partner.Code!, packet.Code!, 1, content1, DateTime.Now);
+        var packet2 = await SeedPendingPacket(partner.Code!, packet.Code!, 2, content2, DateTime.Now.AddSeconds(1));
+
+        // Act
+        using var scope = _host.Services.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<DataInboundService>();
+        await service.ProcessPendingPackets(CancellationToken.None);
+
+        // Assert
+        var updated1 = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packet1.ID);
+        var updated2 = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packet2.ID);
+
+        Assert.Equal(BaseEnums.InboundProcessState.Failed, updated1.ProcessState);
+        Assert.Contains("SqlTransaction has completed", updated1.ErrorMessage);
+        Assert.Equal(BaseEnums.InboundProcessState.Done, updated2.ProcessState);
+    }
+
+    /// <summary>
+    /// Description: B4 - Khi cấu hình InboundMaxPacketsPerRun = 1, mỗi lượt chạy chỉ xử lý đúng 1 gói,
+    ///              các gói còn lại vẫn giữ nguyên Pending.
+    /// Created date: 20/10/2026
+    /// </summary>
+    [Fact]
+    public async Task ProcessPendingPackets_WhenMaxPacketsPerRunConfigured_ProcessesOnlyThatMany_Test()
+    {
+        // Arrange
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var isolatedGroup = $"sd_cfg_b4_max_{unique}";
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [ShareDataConst.ConfigGroupOverrideKey] = isolatedGroup
+            })
+            .Build();
+
+        var (partner, packet, _, _) = await SeedInboundEnvironmentAsync(unique);
+        var p1 = await SeedPendingPacket(partner.Code!, packet.Code!, 1, "{\"data\":[{\"id\":\"1\",\"val\":\"A\"}]}", DateTime.Now);
+        var p2 = await SeedPendingPacket(partner.Code!, packet.Code!, 2, "{\"data\":[{\"id\":\"2\",\"val\":\"B\"}]}", DateTime.Now.AddSeconds(1));
+        var p3 = await SeedPendingPacket(partner.Code!, packet.Code!, 3, "{\"data\":[{\"id\":\"3\",\"val\":\"C\"}]}", DateTime.Now.AddSeconds(2));
+
+        var cfgRow = new SysOpConfig
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            GroupCode = isolatedGroup,
+            Code = ShareDataConst.ConfigKeyInboundMaxPacketsPerRun,
+            Value = "1",
+            Status = BaseEnums.StatusEnum.Enable
+        };
+        await _db.Insertable(cfgRow).ExecuteCommandAsync();
+
+        var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
+        var workerConfig = new DataWorkerConfigService(scopeFactory, NullLogger<DataWorkerConfigService>.Instance, config);
+        var service = new DataInboundService(scopeFactory, NullLogger<DataInboundService>.Instance, workerConfig);
+
+        // Act
+        await service.ProcessPendingPackets(CancellationToken.None);
+
+        // Assert
+        var updated1 = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(p1.ID);
+        var updated2 = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(p2.ID);
+        var updated3 = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(p3.ID);
+
+        Assert.Equal(BaseEnums.InboundProcessState.Done, updated1.ProcessState);
+        Assert.Equal(BaseEnums.InboundProcessState.Pending, updated2.ProcessState);
+        Assert.Equal(BaseEnums.InboundProcessState.Pending, updated3.ProcessState);
+    }
+
+    /// <summary>
+    /// Description: B4 - Khi cấu hình InboundStuckTimeoutMin nhỏ hơn mặc định 10 phút,
+    ///              gói bị kẹt ở Processing quá thời gian cấu hình được nhả về Pending và xử lý thành Done.
+    /// Created date: 20/10/2026
+    /// </summary>
+    [Fact]
+    public async Task ProcessPendingPackets_WhenStuckTimeoutConfigured_ReleasesPacketAfterConfiguredMinutes_Test()
+    {
+        // Arrange
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var isolatedGroup = $"sd_cfg_b4_stuck_{unique}";
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [ShareDataConst.ConfigGroupOverrideKey] = isolatedGroup
+            })
+            .Build();
+
+        var (partner, packet, _, _) = await SeedInboundEnvironmentAsync(unique);
+
+        var cfgRow = new SysOpConfig
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            GroupCode = isolatedGroup,
+            Code = ShareDataConst.ConfigKeyInboundStuckTimeoutMin,
+            Value = "2",
+            Status = BaseEnums.StatusEnum.Enable
+        };
+        await _db.Insertable(cfgRow).ExecuteCommandAsync();
+
+        var stuckPacket = new ShareDataInboundPacket
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            PartnerCode = partner.Code,
+            PacketCode = packet.Code,
+            SerialNbr = 1,
+            RawContent = "{\"data\":[{\"id\":\"STUCK\",\"val\":\"Val\"}]}",
+            ProcessState = BaseEnums.InboundProcessState.Processing,
+            ProcessedAt = DateTime.Now.AddMinutes(-4), // 4 phút trước: vượt ngưỡng 2 phút cấu hình nhưng chưa tới 10 phút mặc định
+            CreateTime = DateTime.Now.AddMinutes(-5)
+        };
+        await _inboundDb.Insertable(stuckPacket).ExecuteCommandAsync();
+
+        var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
+        var workerConfig = new DataWorkerConfigService(scopeFactory, NullLogger<DataWorkerConfigService>.Instance, config);
+        var service = new DataInboundService(scopeFactory, NullLogger<DataInboundService>.Instance, workerConfig);
+
+        // Act
+        await service.ProcessPendingPackets(CancellationToken.None);
+
+        // Assert
+        var updated = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(stuckPacket.ID);
+        Assert.Equal(BaseEnums.InboundProcessState.Done, updated.ProcessState);
     }
 
     /// <summary>

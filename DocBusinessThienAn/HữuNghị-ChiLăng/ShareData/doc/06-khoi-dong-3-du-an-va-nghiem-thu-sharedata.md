@@ -127,11 +127,11 @@ Theo chủ trương của chủ dự án, **ưu tiên thao tác trực tiếp tr
 2. Tại danh sách Đối tác (cột bên trái), bấm nút **Thêm mới**:
    - **Mã đối tác** (`code`): Nhập `P-REST`. *(Bắt buộc; duy nhất trong toàn hệ thống; chữ cái/số/gạch dưới; **KHÔNG sửa được sau khi lưu** - ô nhập bị vô hiệu hóa).*
    - **Tên đối tác** (`name`): Nhập `Đối tác thử nghiệm REST API`. *(Bắt buộc).*
-   - **Loại kết nối** (`connectionType`): Chọn `API` (WebAPI / REST). *(Giao diện hiển thị 4 lựa chọn trên dropdown: `API` (1), `File` (2), `FTP` (3 — khi bật công tắc "Mã hóa kết nối FTPS" sẽ lưu `connectionType = 4` FTPS; mở đối tác loại 4 tự động hiển thị FTP + bật công tắc FTPS), `Kafka` (5)).*
    - **Địa chỉ** (`address`): Nhập `http://localhost`. *(Bắt buộc).*
    - **Cổng** (`port`): Nhập `9090`. *(Bắt buộc; số nguyên từ 1 đến 65535; **KHÔNG sửa được sau khi lưu** - ô nhập bị vô hiệu hóa).*
-   - **Đường dẫn API** (`endPointApiUrl`): Xếp cùng hàng với *Loại kết nối* (chỉ hiện khi chọn kênh `API`); nhập `/api/receive`. *(Tùy chọn; hệ thống tự động chuẩn hóa dấu gạch chéo `/` ở đầu nếu người dùng quên nhập).*
+   - **Đường dẫn API** (`endPointApiUrl`): Chiếm cả hàng, chỉ hiện khi chọn kênh `API`; nhập `/api/receive`. *(Tùy chọn; hệ thống tự động chuẩn hóa dấu gạch chéo `/` ở đầu nếu người dùng quên nhập).*
    - **Địa chỉ đầy đủ** (`fullAddress`): Dòng gợi ý ngay dưới ô Endpoint API hiển thị `http://localhost:9090/api/receive` *(đồng bộ quy tắc ghép URL với Backend `TryBuildEndpointUri`).*
+   - **Loại kết nối** (`connectionType`): Chọn `API` (WebAPI / REST). *(Giao diện hiển thị 4 lựa chọn trên dropdown: `API` (1), `File` (2), `FTP` (3 — khi bật công tắc "Mã hóa kết nối FTPS" sẽ lưu `connectionType = 4` FTPS; mở đối tác loại 4 tự động hiển thị FTP + bật công tắc FTPS), `Kafka` (5)).*
    - **Cấu hình kết nối** (`connectionConfigForm`): Giao diện cung cấp form nhập nhóm trực quan gồm các khối: *Xác thực* (`sectionAuth`), *Dữ liệu* (`sectionData`); riêng kênh API có ô chọn *Nhận biết đối tác báo lỗi* (3 chế độ: *Tự động (khuyến nghị)* mặc định `"Auto"` tự phát hiện `succeeded: false`, *Chỉ theo mã HTTP* `"HttpOnly"`, và *Tùy chỉnh* khai `SuccessField`/`ErrorMessageField`/`ErrorCodeField`). Đã ẩn 2 mục *Mã hóa bảo mật* và *Tham số bổ sung*; khi đối tác đã có sẵn khóa mã hóa hoặc khóa cấu hình khác, hệ thống tự động giữ nguyên và hiển thị dòng chú thích số tham số được bảo toàn ("Cấu hình có N tham số khác được giữ nguyên"). Người dùng điền trực tiếp trên các trường của form (phương thức xác thực, định dạng JSON/CSV, thời gian chờ...).
    - **Ghi chú** (`remark`): Nhập ghi chú tùy ý (tối đa 256 ký tự).
    - Bấm nút **Xác nhận** (hoặc Lưu).
