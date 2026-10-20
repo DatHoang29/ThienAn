@@ -552,4 +552,130 @@ public partial class DeliveryDispatcherTests
         Assert.NotNull(result.Warnings);
         Assert.Contains(result.Warnings, w => w.Contains("Basic yêu cầu Username và Password"));
     }
+
+    [Fact]
+    public async Task HttpSender_WhenNoResponseContractAndSucceededFalse_ReturnsBusinessError_Test()
+    {
+        // Arrange
+        var server = _host.PartnerServer;
+        server.ResetDefaults();
+        server.DefaultResponseBody = "{\"succeeded\":false,\"code\":400,\"message\":\"lz.exception.base.dataNotExist\"}";
+
+        var httpSender = new HttpDeliverySender();
+        var ctx = CreateSendContext("PARTNER_DEFAULT_ERR");
+        var request = new DeliveryRequest
+        {
+            JsonPayload = "{\"data\":\"test\"}",
+            ConnectType = ConnectionType.Api,
+            ConnectConfig = new Dictionary<string, string>()
+        };
+
+        // Act
+        var result = await httpSender.Send(
+            request,
+            ctx,
+            CancellationToken.None
+        );
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Equal("BusinessError", result.ErrorCode);
+        Assert.Equal(200, result.StatusCode);
+        Assert.Contains("[400] lz.exception.base.dataNotExist", result.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task HttpSender_WhenResponseContractHttpOnlyAndSucceededFalse_ReturnsSuccess_Test()
+    {
+        // Arrange
+        var server = _host.PartnerServer;
+        server.ResetDefaults();
+        server.DefaultResponseBody = "{\"succeeded\":false,\"code\":400,\"message\":\"lz.exception.base.dataNotExist\"}";
+
+        var httpSender = new HttpDeliverySender();
+        var ctx = CreateSendContext("PARTNER_HTTP_ONLY");
+        var request = new DeliveryRequest
+        {
+            JsonPayload = "{\"data\":\"test\"}",
+            ConnectType = ConnectionType.Api,
+            ConnectConfig = new Dictionary<string, string>
+            {
+                [ConnectKeys.ResponseContract] = "HttpOnly"
+            }
+        };
+
+        // Act
+        var result = await httpSender.Send(
+            request,
+            ctx,
+            CancellationToken.None
+        );
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.Equal(200, result.StatusCode);
+    }
+
+    [Fact]
+    public async Task HttpSender_WhenResponseContractAutoAndSucceededFalse_ReturnsBusinessError_Test()
+    {
+        // Arrange
+        var server = _host.PartnerServer;
+        server.ResetDefaults();
+        server.DefaultResponseBody = "{\"succeeded\":false,\"code\":400,\"message\":\"lz.exception.base.dataNotExist\"}";
+
+        var httpSender = new HttpDeliverySender();
+        var ctx = CreateSendContext("PARTNER_AUTO_CONTRACT");
+        var request = new DeliveryRequest
+        {
+            JsonPayload = "{\"data\":\"test\"}",
+            ConnectType = ConnectionType.Api,
+            ConnectConfig = new Dictionary<string, string>
+            {
+                [ConnectKeys.ResponseContract] = "Auto"
+            }
+        };
+
+        // Act
+        var result = await httpSender.Send(
+            request,
+            ctx,
+            CancellationToken.None
+        );
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Equal("BusinessError", result.ErrorCode);
+        Assert.Equal(200, result.StatusCode);
+        Assert.Contains("[400] lz.exception.base.dataNotExist", result.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task HttpSender_WhenNoResponseContractAndSucceededTrue_ReturnsSuccess_Test()
+    {
+        // Arrange
+        var server = _host.PartnerServer;
+        server.ResetDefaults();
+        server.DefaultResponseBody = "{\"succeeded\":true}";
+
+        var httpSender = new HttpDeliverySender();
+        var ctx = CreateSendContext("PARTNER_SUCCEEDED_TRUE");
+        var request = new DeliveryRequest
+        {
+            JsonPayload = "{\"data\":\"test\"}",
+            ConnectType = ConnectionType.Api,
+            ConnectConfig = new Dictionary<string, string>()
+        };
+
+        // Act
+        var result = await httpSender.Send(
+            request,
+            ctx,
+            CancellationToken.None
+        );
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.Equal(200, result.StatusCode);
+    }
 }

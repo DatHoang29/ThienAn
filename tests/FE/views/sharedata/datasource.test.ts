@@ -2732,13 +2732,13 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         }
     });
 
-    test('38. Ô bí danh (vqb-col-alias) và biểu thức (vqb-col-expr) co giãn tự động theo nội dung, vừa khít text và có padding 8px', async () => {
+    test('38. Ô bí danh (vqb-col-alias) và biểu thức (vqb-col-expr) co giãn tự động theo nội dung, vừa khít text và có padding 6px', async () => {
         const qbPath = resolveWebvuePath('views/sharedata/dataSource/component/queryBuilder.vue');
         const content = fs.readFileSync(qbPath, 'utf-8');
 
-        // 1. Kiểm tra CSS định nghĩa width: fit-content, field-sizing: content và padding 8px đều 4 phía
+        // 1. Kiểm tra CSS định nghĩa width: fit-content, field-sizing: content và padding 6px đều 4 phía
         expect(content).toContain('field-sizing: content;');
-        expect(content).toContain('padding: 8px;');
+        expect(content).toContain('padding: 6px;');
         expect(content).toContain('width: fit-content;');
         expect(content).toContain('.vqb-col-alias');
 

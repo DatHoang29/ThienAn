@@ -1,5 +1,4 @@
 using System.Net;
-using ShareDataWorker.Core.Helpers;
 using ShareDataWorker.Infrastructure.Services.DataOutbound.Extraction;
 using ShareDataWorker.Infrastructure.Services.WorkerConfig;
 using ShareDataWorker.Core.Models.DataOutbound;

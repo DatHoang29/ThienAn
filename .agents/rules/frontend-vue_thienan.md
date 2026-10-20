@@ -110,15 +110,22 @@ src/views/<module>/<feature>/
     ```
   - ⛔ **TUYỆT ĐỐI CẤM** can thiệp trực tiếp bằng tay vào `dialogEl.style.transform = ...`, vì sẽ làm lệch (desync) trạng thái đóng gói nội bộ của hook `useDraggable`, gây hiện tượng dialog bị giật/snap lại vị trí cũ khi kéo chuột.
   - Căn chỉnh vị trí top an toàn bằng CSS selector lồng `:deep(.el-overlay .el-dialog.mp-dialog)` mà không dùng `!important`.
-* **Cấm Tự Động Đóng Hộp Thoại Khi Click Ra Ngoài — Bắt Buộc `close-on-click-modal="false"` (Rule 20.26)**:
-  - Mọi `<el-dialog>`, `<el-drawer>` và `ElMessageBox.confirm` / `ElMessageBox.prompt` **BẮT BUỘC** đặt `:close-on-click-modal="false"` (hoặc `closeOnClickModal: false` trong đối số tùy chọn).
-  - *Lý do*: Tránh trường hợp người dùng thao tác lệch chuột làm mất dữ liệu đang nhập.
+* **Bấm Ra Ngoài Thì Đóng — Form Có Thay Đổi Chưa Lưu Phải Hỏi Trước Khi Đóng (Rule 20.26, đổi 20/10/2026)**:
+  - *Vì sao đổi*: người dùng phản ánh hộp thoại "bấm ra ngoài không tự tắt, phải bấm dấu X". Bản cũ cấm hẳn việc đóng khi bấm ra ngoài để chống mất dữ liệu đang nhập; bản mới giữ mục đích đó bằng bước hỏi xác nhận, chỉ khi thật sự có dữ liệu chưa lưu.
+  - **Hộp chỉ để xem** (`<el-drawer>`/`<el-dialog>` chi tiết nhật ký, cảnh báo, xem trước): để mặc định, bấm ra ngoài hoặc Esc là đóng.
+  - **`ElMessageBox.confirm` / `prompt`**: để mặc định (bấm ra ngoài = Hủy, không mất dữ liệu).
+  - **Form thêm/sửa**:
+    - `:close-on-click-modal="!state.isProcessing"`, `:close-on-press-escape="!state.isProcessing"`, `:show-close="!state.isProcessing"`, `:before-close="beforeClose"`.
+    - Lúc mở form chụp lại dữ liệu ban đầu (`JSON.stringify` của `ruleForm` sau khi nạp xong). `beforeClose(done)`: dữ liệu hiện tại khác bản chụp → `ElMessageBox.confirm($t('lz.message.base.confirmDiscardChanges'), …)`, đồng ý thì `done()`, hủy thì giữ hộp; giống bản chụp → `done()` ngay.
+    - Nút "Bỏ qua"/"Hủy" gọi cùng `beforeClose`, không gán thẳng `isShowDialog = false`. Lưu thành công thì đóng thẳng, không hỏi.
+    - Tiền lệ trong dự án: `views/mail/mauMail/component/editMau.vue` (hỏi khi có thay đổi chưa lưu — câu chữ trong tệp đó đang viết cứng, ⛔ không chép, dùng khóa i18n), `views/vds/config/component/editVdsConfig.vue` (chặn đóng khi đang lưu).
+  - Mã cũ ở phân hệ khác giữ nguyên tới khi sửa tới màn đó (Rule 19.89).
 * **Bảng đối chiếu trình bày modal — mọi modal phải nhìn giống nhau** (tích hợp từ Kiro FE trong `TA-ITS015-WEBVUE-V1.0/.kiro/steering/coding-rules.md`; mẫu tham chiếu `views/tms/workContact/component/editWorkContact.vue`; khung đầy đủ ở §8):
 
   | Hạng mục | Chuẩn | ⛔ Không dùng |
   |---|---|---|
   | Tiêu đề | slot `#header` với icon `ele-Edit` + `{{ props.title }}` | thuộc tính `:title="props.title"` |
-  | Thuộc tính dialog | `draggable` + `:close-on-click-modal="false"` + `width="700px"` | `align-center` |
+  | Thuộc tính dialog | `draggable` + `:close-on-click-modal="!state.isProcessing"` + `:before-close="beforeClose"` + `width="700px"` (Rule 20.26 bản 20/10/2026; Kiro gốc ghi `:close-on-click-modal="false"`) | `align-center` |
   | Nhãn form | `label-width="auto"` + `label-position="left"` | `label-position="right"`, `label-width="120px"` |
   | Khoảng cách cột | `<el-row :gutter="10">` | `:gutter="16"` |
   | Cột | `<el-col :xs="24" :sm="24" :md="12" :lg="12" :xl="12" class="mb20">`; textarea/trường dài dùng cột 24 ở mọi điểm ngắt | `:span="12"` (thiếu responsive, thiếu `mb20`) |
@@ -276,9 +283,10 @@ Mọi dialog form thêm/sửa/xem trước (`component/edit<Feature>.vue`, `comp
 			ref="dialogRef"
 			v-model="state.isShowDialog"
 			draggable
-			:close-on-click-modal="false"
+			:close-on-click-modal="!state.isProcessing"
 			:show-close="!state.isProcessing"
 			:close-on-press-escape="!state.isProcessing"
+			:before-close="beforeClose"
 			width="700px"
 		>
 			<template #header>

@@ -424,5 +424,134 @@ namespace Tests.ShareData.Services
             Assert.True(request.SecurityInfo.ContainsKey(ConnectKeys.ApiKey));
             Assert.Equal("secret-key-12345", request.SecurityInfo[ConnectKeys.ApiKey]);
         }
+
+        [Fact]
+        public async Task Send_WhenPartnerReturnsHttp200WithSucceededFalseAndNoResponseContract_FailsKeepsLastSendAndLogsAlert_Test()
+        {
+            // Arrange
+            _host.PartnerServer.ResetDefaults();
+            _host.PartnerServer.DefaultStatusCode = HttpStatusCode.OK;
+            _host.PartnerServer.DefaultResponseBody = "{\"succeeded\":false,\"code\":400,\"message\":\"lz.exception.base.dataNotExist\"}";
+
+            var config = CreateConfig();
+            var transport = new DataOutboundTransport(_dispatcher, config);
+
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var partnerCode = $"P_BIZ_ERR_{unique}";
+            var packetCode = $"PKT_BIZ_ERR_{unique}";
+            var initialLastTime = new DateTime(2026, 10, 20, 8, 0, 0);
+            var rowTime = initialLastTime.AddMinutes(5);
+            var packetId = $"pkt-id-{unique}";
+
+            var partner = new ShareDataPartner
+            {
+                ID = $"partner-id-{unique}",
+                Code = partnerCode,
+                Name = $"Partner {partnerCode}",
+                Status = BaseEnums.StatusEnum.Enable,
+                SessionState = BaseEnums.SessionState.Connected,
+                ConnectionType = ConnectionType.Api,
+                ConnectionConfig = null,
+                Address = ShareDataPartnerServerMock.DefaultHost,
+                Port = ShareDataPartnerServerMock.DefaultPort,
+                EndPointApiUrl = "/api/receive"
+            };
+            await db.Insertable(partner).ExecuteCommandAsync();
+
+            var packet = new ShareDataPacket
+            {
+                ID = packetId,
+                Code = packetCode,
+                Name = $"Packet {packetCode}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Enable,
+                SyncMode = BaseEnums.SyncMode.Incremental,
+                CursorTimeColumn = "UpdateTime",
+                ExtractSql = $"SELECT TOP (@pageSize) UpdateTime AS __lastTime, ID AS __rowid, Code AS code FROM ShareDataPacket WHERE ID = '{packetId}'",
+                CreateTime = rowTime,
+                UpdateTime = rowTime
+            };
+            await db.Insertable(packet).ExecuteCommandAsync();
+            await db.Updateable<ShareDataPacket>()
+                .SetColumns(p => p.UpdateTime == rowTime)
+                .Where(p => p.ID == packetId)
+                .ExecuteCommandAsync();
+
+            var initialLastSend = new ShareDataLastSend
+            {
+                ID = $"lastsend-id-{unique}",
+                PartnerCode = partnerCode,
+                PacketCode = packetCode,
+                LastTime = initialLastTime,
+                LastKey = "INIT_KEY",
+                CreateTime = initialLastTime,
+                UpdateTime = initialLastTime
+            };
+            await db.Insertable(initialLastSend).ExecuteCommandAsync();
+
+            var sub = new ShareDataSubscription
+            {
+                ID = $"sub-id-{unique}",
+                Code = $"SUB_{unique}",
+                PartnerId = partner.ID,
+                DatatypeId = packet.ID,
+                Direction = BaseEnums.Direction.Outbound,
+                Mode = BaseEnums.SubMode.Periodic,
+                State = BaseEnums.SubSubscriptionState.Active,
+                SendOnNewData = true,
+                LastTimeRun = initialLastTime,
+                SerialNbr = 1
+            };
+            await db.Insertable(sub).ExecuteCommandAsync();
+
+            var mapping = new ShareDataMapping
+            {
+                ID = $"map-id-{unique}",
+                PartnerId = partner.ID,
+                DatatypeId = packet.ID,
+                Direction = BaseEnums.Direction.Outbound,
+                IsActive = true,
+                TargetShapeJson = "{\"code\":{\"$field\":\"code\"}}",
+                UpdateTime = rowTime
+            };
+            await db.Insertable(mapping).ExecuteCommandAsync();
+
+            var outboundService = new ShareDataWorker.Infrastructure.Services.DataOutbound.DataOutboundService(
+                scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>(),
+                scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ShareDataWorker.Infrastructure.Services.DataOutbound.DataOutboundService>>(),
+                scope.ServiceProvider.GetRequiredService<ShareDataWorker.Infrastructure.Services.DataOutbound.Extraction.DataOutboundExtractionProcess>(),
+                transport,
+                scope.ServiceProvider.GetRequiredService<ShareDataWorker.Infrastructure.Services.WorkerConfig.DataWorkerConfigService>()
+            );
+
+            // Act
+            await outboundService.ProcessSubscriptions(packetCode, CancellationToken.None);
+
+            // Assert
+            var logs = await db.Queryable<ShareDataActivityLog>()
+                .Where(l => l.SubscriptionId == sub.ID && l.ParentId == null)
+                .ToListAsync();
+            var parentLog = Assert.Single(logs);
+            Assert.Equal(BaseEnums.SuccessEnums.Fail, parentLog.Success);
+
+            var lastSendAfter = await db.Queryable<ShareDataLastSend>()
+                .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
+                .FirstAsync();
+            Assert.NotNull(lastSendAfter);
+            Assert.Equal(
+                initialLastTime,
+                lastSendAfter.LastTime!.Value,
+                TimeSpan.FromSeconds(1)
+            );
+            Assert.Equal("INIT_KEY", lastSendAfter.LastKey);
+
+            var alerts = await db.Queryable<ShareDataAlertLog>()
+                .Where(a => a.SubscriptionId == sub.ID && a.AlertCode == ShareDataAlertCode.Outbound.HttpSendFailed)
+                .ToListAsync();
+            var alert = Assert.Single(alerts);
+            Assert.Contains("[400] lz.exception.base.dataNotExist", alert.Message);
+        }
     }
 }
