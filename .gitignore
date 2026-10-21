@@ -8,6 +8,7 @@
 logs/
 test-results/
 playwright-report/
+publish/
 *.user
 .env
 __pycache__/
