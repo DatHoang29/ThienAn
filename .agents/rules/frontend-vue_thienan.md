@@ -43,13 +43,13 @@ src/views/<module>/<feature>/
 * **Quy ước Import & Sử dụng trong Template**:
   - Khi import trong script có thể khai báo định danh PascalCase (`const VisualQueryBuilder = defineAsyncComponent(...)`) để gắn vào template (`<VisualQueryBuilder ... />`) theo quy ước Vue, nhưng đường dẫn tệp `import(...)` **BẮT BUỘC trỏ chính xác đến tên tệp `camelCase`**.
 
-### API Services (Swagger Auto-Generated — CẤM TỰ SỬA TAY & BẮT BUỘC DÙNG `getAPI`)
+### API Services (Swagger Auto-Generated — CẤM TẠO SERVICE RIÊNG, CẤM RAW AXIOS & BẮT BUỘC DÙNG `getAPI`) (Rule 20.28)
 * Toàn bộ mã nguồn trong `src/api-services/` được sinh tự động bởi OpenAPI / Swagger Codegen (`pnpm run build-api` hoặc `pwsh api_build/build.ps1`) từ Backend WebAPI.
-* ⛔ **TUYỆT ĐỐI CẤM** tự tạo file API thủ công hoặc sửa tay vào `src/api-services/`.
+* ⛔ **TUYỆT ĐỐI CẤM** tự ý tạo thêm tầng service riêng lẻ (như `packetSqlService.ts`, `xxxService.ts`) trong `views/` hoặc `services/` làm phân mảnh kiến trúc. BẮT BUỘC tra cứu cách các view/component khác trong cùng phân hệ gọi API để bám sát và đồng nhất 100%.
 * ⛔ **TUYỆT ĐỐI CẤM** gọi trực tiếp `axiosInstance.get/post(...)` hoặc `axios.get/post(...)` và CẤM hardcode chuỗi URL (`${serveConfig.basePath}/api/...`) trong các component/view `.vue`.
 * ✅ **BẮT BUỘC**: 100% các cuộc gọi API từ Frontend phải thông qua wrapper chuẩn: `getAPI(XxxApi)` từ `/@/utils/axios-utils`.
 * Khi Backend cập nhật API hoặc DTO: Chạy script generate đồng bộ (`build-api`) để cập nhật tự động các client class typed.
-* **API hoặc kiểu dữ liệu chưa được sinh** (theo Kiro FE): ⛔ không tự tạo hay sửa tệp trong `api-services/` để "chạy tạm" — báo người dùng là API chưa được generate và chờ họ chạy lại `pnpm build-api` rồi mới làm tiếp.
+* **API hoặc kiểu dữ liệu chưa kịp sinh**: Bổ sung method chuẩn Swagger vào class `XxxApi` tại `api-services/<module>/apis/` (gồm 4 khối: `AxiosParamCreator`, `Fp`, `Factory`, `Class`) để component gọi thông qua `getAPI(XxxApi)`. Tuyệt đối không lách bằng cách gọi thô `axiosInstance` hay tạo file service ngoài luồng.
 * **Tên hàm sinh tự động**: `api<Module><ChứcNăng><Hành động><Method>` (`apiTmsTmsequipmentPagePost`, `apiTmsTmsequipmentAddPost`, `apiTmsTmsequipmentDeletePost`). Ví dụ gọi: `await getAPI(TmsEquipmentApi).apiTmsTmsequipmentPagePost({ page: 1, pageSize: 50, field: 'createTime', order: 'desc' } as PageEquipmentInput)`.
 
 ---
@@ -252,15 +252,19 @@ src/views/<module>/<feature>/
    - *Nguyên tắc*: Trừ khi TypeScript thực sự báo lỗi kiểu bắt buộc (strict compiler error) không thể suy diễn được, luôn ưu tiên cú pháp đơn giản, sạch sẽ nhất (Clean Code), không lạm dụng `as Type | null` làm rác code và gây khó đọc.
 
 7. **Bắt Buộc Kiểm Tra Kiểu (Type Safety) — Tránh Tuyệt Đối Lỗi Đỏ Trong IDE / TS Plugin (Rule 20.21)**:
-   - **Mục tiêu**: Đảm bảo 100% code mới hoặc code được chỉnh sửa không phát sinh bất kỳ lỗi đỏ nào từ TypeScript Language Server / IDE (như `ts-plugin(2367)`, `ts(2322)`, `ts(2339)`).
+   - **Mục tiêu**: Đảm bảo 100% code mới hoặc code được chỉnh sửa không phát sinh bất kỳ lỗi đỏ nào từ TypeScript Language Server / IDE (như `ts-plugin(7006)`, `ts-plugin(2367)`, `ts(2322)`, `ts(2339)`).
    - **Các quy tắc kiểm tra kiểu bắt buộc**:
-     1. **Tránh lỗi `no overlap` (`ts-plugin(2367)`) do so sánh sai kiểu**:
+     1. **Bắt buộc khai báo đúng kiểu tham số sự kiện / callback (`ts-plugin(7006)`) — CẤM dùng `:any`**:
+        - Khi viết hàm xử lý sự kiện (event handler), lắng nghe DOM listener (`addEventListener`), hoặc callback thư viện thứ 3 (Monaco editor, resize drag handle, window event, v.v.): **BẮT BUỘC khai báo đúng kiểu sự kiện chuẩn của DOM hoặc interface sự kiện chính xác của thư viện** (ví dụ: `(e: MouseEvent) => ...`, `(e: KeyboardEvent) => ...`, `(e: Event) => ...` hoặc `(e: editor.IContentSizeChangedEvent)` từ `monaco-editor`).
+        - ⛔ **TUYỆT ĐỐI CẤM dùng `:any`** (như `(e: any) => ...`) để lách lỗi kiểu. Bắt buộc tra cứu và dùng đúng kiểu sự kiện thực tế.
+        - ⛔ **TUYỆT ĐỐI CẤM để trần** `(e) => { ... }` hoặc `const handleDrag = (e) => { ... }` khiến TypeScript báo lỗi gạch chân đỏ: `Parameter 'e' implicitly has an 'any' type.ts-plugin(7006)`.
+     2. **Tránh lỗi `no overlap` (`ts-plugin(2367)`) do so sánh sai kiểu**:
         - Khi một biến/thuộc tính mang kiểu enum số (như `status?: StatusEnum | undefined`): **BẮT BUỘC chỉ so sánh với enum hoặc số tương ứng** (`status === StatusEnum.NUMBER_0` hoặc `status === 0`).
         - ⛔ **TUYỆT ĐỐI CẤM** so sánh biến enum số với chuỗi (`status === '0'` hay `status === 'Disable'`) hoặc boolean (`status === false`) vì hai kiểu không có điểm chung (no overlap), sẽ gây lỗi gạch chân đỏ `ts(2367)` trong VS Code.
-     2. **Tránh lỗi thuộc tính không tồn tại (`ts(2339)`) trên DTO**:
+     3. **Tránh lỗi thuộc tính không tồn tại (`ts(2339)`) trên DTO**:
         - Nếu truy cập một trường phụ mở rộng không nằm trong DTO Swagger backend (ví dụ: `syncKind` trong `ShareDataUpdatePacketInput`), **BẮT BUỘC ép kiểu cục bộ an toàn**: `(state.editForm as any).syncKind` để tránh báo đỏ.
-     3. **Tự kiểm tra trước khi bàn giao (Pre-handoff Type Audit)**:
-        - Trước khi hoàn tất mọi thay đổi code TypeScript / Vue, AI phải tự rà soát kiểu dữ liệu của các biểu thức điều kiện `if (...)`, `===`, toán tử ba ngôi `? :` để bảo đảm kiểu dữ liệu hai vế tương thích (overlap) 100%, tuyệt đối không để sót lỗi gạch chân đỏ trong IDE của lập trình viên.
+     4. **Tự kiểm tra trước khi bàn giao (Pre-handoff Type Audit)**:
+        - Trước khi hoàn tất mọi thay đổi code TypeScript / Vue, AI phải tự rà soát kiểu dữ liệu của các biểu thức điều kiện `if (...)`, `===`, toán tử ba ngôi `? :`, cũng như khai báo kiểu cho mọi tham số sự kiện/callback để bảo đảm zero lỗi đỏ trong IDE của lập trình viên.
 
 8. **Đóng Gói CSS Phân Hệ Nội Bộ — CẤM Viết CSS Đặc Thù Của Phân Hệ Ra File CSS Global (Rule 20.22)**:
    - Chi tiết quy định cấm viết CSS phân hệ ra `app.scss`/`index.scss` và hướng dẫn đóng gói tại `src/src/views/<phân-hệ>/style/`: xem mục 2.7.

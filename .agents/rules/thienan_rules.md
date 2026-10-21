@@ -59,11 +59,12 @@ Quy tắc kỹ thuật chi tiết lưu giữ toàn văn tại các tệp chuyên
 - **Rule 20.16, Rule 20.18, Rule 20.19** (STT 26) — Code, style, i18n mới move dòng cuối; edit giữ cùng hàng (§6.5)
 - **Rule 20.17** (STT 27) — Khai báo `defineProps` inline, cấm tạo `types.ts` lẻ (§6.4)
 - **Rule 20.20** (STT 31) — Clean TypeScript State, cấm ép kiểu rườm rà (§6.6)
-- **Rule 20.21** (STT 32) — Tương thích kiểu TS & Zero lỗi đỏ trong IDE (§6.7)
+- **Rule 20.21** (STT 32) — Tương thích kiểu TS, khai báo type sự kiện `(e)` chuẩn (cấm `:any`) & Zero lỗi đỏ IDE (`ts-plugin(7006)`) (§6.7)
 - **Rule 20.22** (STT 41) — Đóng gói CSS phân hệ nội bộ, cấm viết CSS đặc thù ra global (§2.7)
 - **Rule 20.25** (STT 54) — Quy chuẩn VxeTable (`useVxeTable`), dữ liệu cấu hình & i18n (§10)
 - **Rule 20.26** (STT 55) — Bấm ra ngoài thì đóng dialog; form có sửa chưa lưu phải hỏi trước (§4)
 - **Rule 20.27** (STT 59) — Định dạng ngày tháng bộ lọc FE (`el-date-picker` bắt buộc `format="DD/MM/YYYY"`) (§10.4)
+- **Rule 20.28** (STT 60) — Gọi API 100% qua `getAPI(XxxApi)`, CẤM tạo service tùy tiện & CẤM gọi raw `axiosInstance` (`${serveConfig.basePath}`) (§1.1)
 
 ### 2. Backend .NET & Clean Architecture ([backend-dotnet_thienan.md](./backend-dotnet_thienan.md))
 - **Rule 19.67** (STT 18) — Ưu tiên sửa code trước, chỉ viết test khi có yêu cầu (Fix-First & On-Demand) (§4.25)
