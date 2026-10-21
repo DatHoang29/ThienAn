@@ -1739,7 +1739,6 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const incrementalPanel = page.locator('.sync-mode-panel-card.incremental-mode');
         await expect(incrementalPanel).toBeVisible();
         await expect(incrementalPanel.locator('.sync-time-select')).toBeVisible();
-        await expect(incrementalPanel.locator('.sync-key-select')).toBeVisible();
         await expect(incrementalPanel.locator('.sync-status-line')).toBeVisible();
         await expect(incrementalPanel.locator('.sync-check-item')).toHaveCount(0);
         await expect(incrementalPanel.locator('.btn-apply-cursor')).toHaveCount(0);
@@ -3069,7 +3068,6 @@ FROM TmsTrafficData td WITH (NOLOCK)`,
         const incrementalPanel = page.locator('.sync-mode-panel-card.incremental-mode');
         await expect(incrementalPanel).toBeVisible({ timeout: 5_000 });
         await expect(incrementalPanel.locator('.sync-time-select')).toBeVisible();
-        await expect(incrementalPanel.locator('.sync-key-select')).toBeVisible();
         await expect(incrementalPanel.locator('.sync-check-item')).toHaveCount(0);
         await expect(incrementalPanel.locator('.btn-apply-cursor')).toHaveCount(0);
 
@@ -3082,12 +3080,7 @@ FROM TmsTrafficData td WITH (NOLOCK)`,
         const btnAutoFix = incrementalPanel.locator('.btn-auto-fix');
         await expect(btnAutoFix).toBeVisible();
 
-        // 3. Chọn cột phân biệt td.ID và bấm nút [Sửa tự động]
-        const keyInput = incrementalPanel.locator('.sync-key-select input');
-        await keyInput.fill('td.ID');
-        await keyInput.press('Enter');
-        await page.waitForTimeout(200);
-
+        // 3. Bấm nút [Sửa tự động] (khóa phân biệt tự động gán ID bảng chính)
         await btnAutoFix.click();
         await page.waitForTimeout(400);
 
