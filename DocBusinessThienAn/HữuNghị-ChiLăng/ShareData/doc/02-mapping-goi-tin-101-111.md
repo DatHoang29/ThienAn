@@ -190,6 +190,7 @@ Nguồn chính: giao dịch ETC `TollTransactionIn`/`TollTransactionOut`; đăng
 ### 111. Trao đổi với TT QLĐHGT tuyến (skip)
 
 Đây là envelope tổng hợp cho 101–109; hiện chưa có bảng giao dịch liên trung tâm.
+*Ghi chú (20/10/2026):* Đã có câu SQL mẫu đọc `TmsSignalLog`; `packetType`, `payload` và các trường chưa có nguồn tạm để `NULL` cho tới khi có hạ tầng envelope / outbox. Gói giữ `Status = 0` (tạm hoãn).
 
 | Yêu cầu | Tên field trả về | Bảng - cột | Giá trị mẫu | Ghi chú |
 | --- | --- | --- | --- | --- |

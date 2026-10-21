@@ -1,7 +1,7 @@
 namespace Tests.ShareData.Common;
 
 /// <summary>
-/// Description: Cung cấp câu truy vấn mẫu chuẩn của các gói tin 101-110 đọc từ script seed 02,
+/// Description: Cung cấp câu truy vấn mẫu chuẩn của các gói tin 101-111 đọc từ script seed 02,
 ///              dùng chung cho các bài test thay cho mẫu viết cứng trong mã.
 /// </summary>
 internal static class PacketTemplateSeed

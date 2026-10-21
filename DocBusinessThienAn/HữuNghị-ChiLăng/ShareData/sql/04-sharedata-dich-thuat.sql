@@ -251,17 +251,17 @@ VALUES
      N'Chỉ tài khoản SuperAdmin mới có quyền kiểm tra câu truy vấn nguồn dữ liệu.',
      N'Only SuperAdmin accounts are authorized to validate data source queries.'),
 
-    (N'lz.exception', N'sharedata.superAdminRequiredForSqlPreview',
-     N'Chỉ tài khoản SuperAdmin mới có quyền chạy thử câu truy vấn nguồn dữ liệu.',
-     N'Only SuperAdmin accounts are authorized to preview data source query results.'),
+    (N'lz.validation', N'sharedata.packetExtractSqlMissingForField',
+     N'Gói tin chưa có câu lệnh SQL trích xuất nên chưa thể thêm trường dữ liệu.',
+     N'The packet does not have an extract SQL query configured yet, so fields cannot be added.'),
 
-    (N'lz.exception', N'sharedata.sqlSampleExecutionFailed',
-     N'Chạy thử câu truy vấn thất bại: {0}',
-     N'Sample query execution failed: {0}'),
+    (N'lz.validation', N'sharedata.fieldKeyNotInExtractSql',
+     N'Khóa [{0}] không có trong câu lệnh SQL trích xuất của gói tin.',
+     N'The field key [{0}] is not present in the extract SQL query of the packet.'),
 
-    (N'lz.exception', N'sharedata.superAdminRequiredForColumnSync',
-     N'Chỉ tài khoản SuperAdmin mới có quyền đồng bộ trường dữ liệu của gói tin.',
-     N'Only SuperAdmin accounts are authorized to sync packet field definitions.'),
+    (N'lz.validation', N'sharedata.fieldKeyCannotBeModified',
+     N'Không thể sửa khóa trường hoặc gói tin của trường dữ liệu; muốn đổi khóa hãy sửa bí danh trong câu SQL rồi khai trường mới.',
+     N'Field key or packet cannot be modified; to change a field key, update the alias in the extract SQL and create a new field.'),
 
     (N'lz.exception', N'sharedata.packetCodeNotFound',
      N'Không tìm thấy gói tin có mã [{0}].',
@@ -408,6 +408,8 @@ VALUES
      N'Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc có cột con trỏ khóa [__rowid].',
      N'Incremental queries must include the key cursor column [__rowid].'),
 
+
+
     -- =========================================================================
     -- NHÓM 8: PARTNER VALIDATOR - KIỂM TRA CẤU HÌNH KẾT NỐI ĐỐI TÁC (12 khóa)
     -- =========================================================================
@@ -462,9 +464,22 @@ VALUES
 -- -----------------------------------------------------------------------------------------
 -- 3. NẠP DỮ LIỆU ĐA NGÔN NGỮ (MERGE CHỈ THÊM DÒNG CHƯA CÓ, KHÔNG GHI ĐÈ)
 -- -----------------------------------------------------------------------------------------
--- Xóa idempotent khóa cũ đã đổi tên (nếu có)
+-- Xóa idempotent khóa cũ đã đổi tên hoặc bãi bỏ (nếu có)
 DELETE FROM dbo.SysTerminology
-WHERE [Name] = N'lz.validation' AND [Code] = N'sharedata.connectConfigUnsupportedCodec';
+WHERE ([Name] = N'lz.validation'
+  AND [Code] IN (
+      N'sharedata.connectConfigUnsupportedCodec',
+      N'sharedata.sqlIncrementalNewStyleTopNotAllowed',
+      N'sharedata.sqlIncrementalNewStyleOrderByNotAllowed',
+      N'sharedata.sqlIncrementalNewStyleOptionNotAllowed',
+      N'sharedata.sqlIncrementalNewStyleWithNotAllowed',
+      N'sharedata.sqlIncrementalNewStyleParamsNotAllowed'
+  ))
+  OR ([Name] = N'lz.exception' AND [Code] IN (
+      N'sharedata.superAdminRequiredForColumnSync',
+      N'sharedata.superAdminRequiredForSqlPreview',
+      N'sharedata.sqlSampleExecutionFailed'
+  ));
 
 -- 3.1. Xử lý bản dịch Tiếng Việt (vi-VN)
 MERGE INTO dbo.SysTerminology AS target

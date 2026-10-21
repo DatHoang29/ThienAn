@@ -251,7 +251,11 @@ VALUES
 
     (N'TollStation', N'Danh mục trạm thu phí', N'109,109_etcData', 150, 1, 1,
      N'ts',
-     N'Giám sát danh mục trạm thu phí kích hoạt gói dữ liệu ETC (109).');
+     N'Giám sát danh mục trạm thu phí kích hoạt gói dữ liệu ETC (109).'),
+
+    (N'TmsSignalLog', N'Nhật ký tín hiệu điều khiển', N'111', 160, 1, 1,
+     N'sl',
+     N'Giám sát dữ liệu nhật ký tín hiệu điều khiển kích hoạt gói trao đổi thông tin TT QLĐHGT tuyến (111).');
 
 -- Bổ sung thông tin cột mới cho các dòng đã tồn tại (không ghi đè IsTracked / LastVersion đang chạy)
 UPDATE target

@@ -212,7 +212,7 @@ Quy ước chú giải tiếng Anh trong ngoặc `[Tiếng Việt] ([English])` 
 
 ---
 
-## 📝 9. Quy Chuẩn Viết Nội Dung Báo Cáo Tiến Độ & Báo Cáo Tuần — Chỉ Báo Cáo Thay Đổi Thực Tế (Rule 19.74)
+## 📝 9. Quy Chuẩn Viết Nội Dung Báo Cáo Tiến Độ & Báo Cáo Tuần — Chỉ Báo Cáo Thay Đổi Thực Tế (Rule 19.74, Rule 19.76)
 
 1. **Nguyên Tắc Cốt Lõi — Chỉ Báo Cáo Những Gì Thực Tế Đã Làm Hoặc Đã Từng Tồn Tại**:
    - Khi viết báo cáo tuần, báo cáo tiến độ, mô tả/kết quả công việc (Task Portal), tài liệu kiến trúc hoặc phản hồi người dùng:
@@ -225,7 +225,11 @@ Quy ước chú giải tiếng Anh trong ngoặc `[Tiếng Việt] ([English])` 
      - ❌ **Sai:** `- Bỏ bảng trung gian ShareDataPacketExtractSql, gom trực tiếp câu lệnh SQL vào cấu hình gói tin (ExtractSql).`
      - ✅ **Đúng:** `- Tích hợp trực tiếp câu lệnh trích xuất dữ liệu động vào cấu hình gói tin và ánh xạ đối tác.`
 
-3. **Mức Độ Chi Tiết Trong Báo Cáo Tuần Excel (`@xlsx` / `PCN_WeeklyReport_*.xlsx`) — Ghi Khái Quát Nghiệp Vụ, CẤM Viết Chi Tiết Code**:
+3. ⛔ **Cấm Tự Ý Sửa Dữ Liệu, Chỉ Số & Nội Dung Không Được Yêu Cầu (Rule 19.76)**:
+   - ⛔ **TUYỆT ĐỐI CẤM** tự ý thay đổi, ghi đè hoặc đặt lại (revert) các giá trị dữ liệu, chỉ số, ngày công (man-days), điểm số, cấu hình, tham số hay bất kỳ nội dung nào mà người dùng **KHÔNG YÊU CẦU SỬA**.
+   - Khi xử lý file (mã nguồn, Excel, tài liệu, config), chỉ can thiệp đúng phạm vi và mục tiêu được chỉ định rõ; giữ nguyên 100% các dữ liệu và thiết lập người dùng đã nhập trước đó.
+
+4. **Mức Độ Chi Tiết Trong Báo Cáo Tuần Excel (`@xlsx` / `PCN_WeeklyReport_*.xlsx`) — Ghi Khái Quát Nghiệp Vụ, CẤM Viết Chi Tiết Code**:
    - **Chỉ ghi những gì mình làm / kết quả đạt được từ góc độ nghiệp vụ và tính năng hệ thống**.
    - ⛔ **TUYỆT ĐỐI CẤM** viết chi tiết triển khai code & tên component UI:
      - CẤM đưa tên hàm/phương thức C# (như `EnsureTablesCreated()`), tên class nội bộ, tên biến, cấu trúc bảng CSDL chi tiết (`SysOpConfig (ShareDataTracker)`), hay các công việc dọn dẹp code nội bộ vào báo cáo tuần.

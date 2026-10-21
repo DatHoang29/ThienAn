@@ -164,8 +164,6 @@ public partial class ShareDataPacketControllerTests
             ExtractSql = "SELECT 1; DROP TABLE TestTbl;"
         };
 
-        var warningLogged = false;
-
         // Act & Assert
         var ex = await Assert.ThrowsAsync<ShareDataWorker.Core.Exceptions.ShareDataException>(() =>
             extractionProcess.Extract(
@@ -174,7 +172,7 @@ public partial class ShareDataPacketControllerTests
                 unsafePacket,
                 cursor: null,
                 pageSize: 10,
-                onLogWarning: (msg, args) => warningLogged = true,
+                onLogWarning: (_, _) => { },
                 cancellationToken: CancellationToken.None));
 
         Assert.NotNull(ex);
@@ -454,7 +452,7 @@ public partial class ShareDataPacketControllerTests
         {
             PacketCode = "103",
             SyncMode = BaseEnums.SyncMode.Incremental,
-            ExtractSql = "SELECT TOP (@pageSize) ID AS __rowid, Code, CreateTime AS __lastTime FROM TmsZone ORDER BY __lastTime DESC"
+            ExtractSql = "SELECT TOP (@pageSize) ID AS __rowid, Code, CreateTime AS __lastTime FROM TmsZone WHERE @lastTime IS NULL OR CreateTime > @lastTime ORDER BY __lastTime DESC"
         }));
 
         var msg = ex.Message;
@@ -652,7 +650,7 @@ public partial class ShareDataPacketControllerTests
             Assert.Null(p.MaxLookBackDays);
         }
 
-        int[] incrementalPackets = [103, 104, 106, 107, 109];
+        int[] incrementalPackets = [103, 104, 106, 107, 109, 111];
         foreach (var order in incrementalPackets)
         {
             var p = packets[order];
@@ -661,7 +659,7 @@ public partial class ShareDataPacketControllerTests
             Assert.Equal(1, p.MaxLookBackDays);
         }
 
-        Assert.False(packets.ContainsKey(111));
+        Assert.True(packets.ContainsKey(111));
     }
 
     [Fact]
@@ -692,14 +690,15 @@ public partial class ShareDataPacketControllerTests
         Assert.True(PacketTemplateSeed.TryGet("109", out var tpl109));
         AssertEqualNormalizedSql(LegacyPacketSql.Packet109, tpl109.ExtractSql);
 
-        Assert.False(PacketTemplateSeed.TryGet("111", out _));
+        Assert.True(PacketTemplateSeed.TryGet("111", out var tpl111));
+        Assert.False(string.IsNullOrWhiteSpace(tpl111.ExtractSql));
     }
 
     [Fact]
     public void PacketTemplate_MatchesScript02_UpdateAndInsert_Test()
     {
         var scriptUpdates = SeedScriptReader.ReadAll();
-        Assert.Equal(10, scriptUpdates.Count);
+        Assert.Equal(11, scriptUpdates.Count);
 
         var insertedPackets = SeedScriptReader.ReadInsertedPackets();
         Assert.Equal(11, insertedPackets.Count);
@@ -755,6 +754,8 @@ public partial class ShareDataPacketControllerTests
     [InlineData("107")]
     [InlineData("108")]
     [InlineData("109")]
+    [InlineData("110")]
+    [InlineData("111")]
     public void SeedSql_Passes_SqlValidator_WithoutDatabase_Test(string packetCode)
     {
         // Arrange
@@ -776,6 +777,7 @@ public partial class ShareDataPacketControllerTests
     [InlineData("106")]
     [InlineData("107")]
     [InlineData("109")]
+    [InlineData("111")]
     public void IncrementalSeedSql_Passes_IncrementalStructureValidation_Test(string packetCode)
     {
         // Arrange

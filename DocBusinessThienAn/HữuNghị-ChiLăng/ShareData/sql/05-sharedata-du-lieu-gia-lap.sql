@@ -11,17 +11,21 @@ GO
 --              4. Chuẩn bị chiều nhận E0 (cô lập qua gói kiểm thử riêng E2E_INBOUND_TEST):
 --                 - Tạo bảng đích dbo.InboundTrafficFlow trên CSDL DEV_ITS10_Inbound.
 --                 - Xóa mềm các dòng ShareDataPacketSql cũ nếu từng chạy bản cũ.
---                 - Khởi tạo gói kiểm thử E2E_INBOUND_TEST trong ShareDataPacket
---                   và câu ghi MERGE OPENJSON(@records) trong ShareDataPacketSql.
+--                 - Khởi tạo gói kiểm thử E2E_INBOUND_TEST trong ShareDataPacket (OrderNo = 101)
+--                   sao chép TemplateSql & ExtractSql từ gói 101 và câu ghi MERGE trong ShareDataPacketSql.
+--              5. Gói 111 (InterCenter - TmsSignalLog): 3 bản ghi SIGNAL_MOCK_111_01..03.
+--              6. Dữ liệu giả lập 150 dòng trùng timestamp (TmsTrafficData) kiểm thử phân trang con trỏ @lastKey.
+--              7. Dữ liệu giả lập 3 dòng cũ hơn Lookback Window (TmsTrafficData) kiểm thử bộ lọc thời gian.
+--              8. Khối dọn dẹp dữ liệu giả lập (@XoaDuLieuGiaLap = 1): Xóa toàn bộ dữ liệu mock đã tạo.
 -- GHI CHÚ:     - Khi ShareDataWorker đang chạy, thao tác chèn vào các bảng nguồn đang bật theo dõi
 --                Change Tracking (TmsWeather, TmsTrafficData, TmsIncident, VmsCurrent) sẽ kích hoạt
 --                luồng phát hiện thay đổi và gửi gói tin ngay (dùng được cho kịch bản D9).
 --              - Mọi dòng script tạo đều ghi nhận CreateUId = N'SHAREDATA-SEED-GIA-LAP'.
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: ⚠️ CHỈ CHẠY TRÊN LOCAL VÀ TEST.
---             ⛔ TUYỆT ĐỐI CẤM CHẠY TRÊN CƠ SỞ DỮ LIỆU THẬT (STAGING / PRODUCTION)!
+--             Khối 4 & Khối 8 được phép chạy trên Staging để kiểm thử chiều nhận E0.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent, chống trùng theo khóa nghiệp vụ hoặc CreateUId).
--- CẬP NHẬT LẦN CUỐI: 19/10/2026
+-- CẬP NHẬT LẦN CUỐI: 21/10/2026
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -300,9 +304,18 @@ BEGIN
     END
 END
 
--- 4.2.b Khởi tạo gói kiểm thử chiều nhận E2E_INBOUND_TEST trong ShareDataPacket
+-- 4.2.b Khởi tạo/cập nhật gói kiểm thử chiều nhận E2E_INBOUND_TEST trong ShareDataPacket
 IF OBJECT_ID(N'[dbo].[ShareDataPacket]', N'U') IS NOT NULL
 BEGIN
+    DECLARE @Template101 NVARCHAR(MAX), @Extract101 NVARCHAR(MAX);
+    SELECT TOP 1
+        @Template101 = [TemplateSql],
+        @Extract101 = [ExtractSql]
+    FROM [dbo].[ShareDataPacket]
+    WHERE ([Code] = N'101' OR [Code] LIKE N'101[_]%')
+      AND [IsDelete] IS NULL
+    ORDER BY CASE WHEN [Code] = N'101' THEN 0 ELSE 1 END, [ID];
+
     IF NOT EXISTS (
         SELECT 1
         FROM [dbo].[ShareDataPacket]
@@ -311,7 +324,7 @@ BEGIN
     BEGIN
         INSERT INTO [dbo].[ShareDataPacket] (
             [ID], [TenantId], [Code], [Name], [PacketVersion], [Description],
-            [OrderNo], [Status], [ExtractSql], [SyncMode], [CursorTimeColumn], [MaxLookBackDays],
+            [OrderNo], [Status], [TemplateSql], [ExtractSql], [SyncMode], [CursorTimeColumn], [MaxLookBackDays],
             [Remark], [CreateTime], [UpdateTime], [IsDelete], [CreateUId]
         ) VALUES (
             LOWER(CONVERT(NVARCHAR(64), NEWID())),
@@ -320,10 +333,11 @@ BEGIN
             N'Gói kiểm thử chiều nhận E0 (chỉ local)',
             N'1.0',
             N'Gói kiểm thử chiều nhận độc lập cho kịch bản E0 trên môi trường local/test',
-            900,
+            101,
             1,
-            NULL,
-            NULL,
+            @Template101,
+            @Extract101,
+            1,
             NULL,
             NULL,
             N'Chỉ dùng kiểm thử chiều nhận E0 trên local/test, tách biệt với gói 101_commonData',
@@ -332,11 +346,20 @@ BEGIN
             NULL,
             @SeedUser
         );
-        PRINT N'  -> [Khối 4.2] Đã thêm gói kiểm thử E2E_INBOUND_TEST vào ShareDataPacket.';
+        PRINT N'  -> [Khối 4.2] Đã thêm gói kiểm thử E2E_INBOUND_TEST vào ShareDataPacket (OrderNo = 101).';
     END
     ELSE
     BEGIN
-        PRINT N'  -> [Khối 4.2] Gói kiểm thử E2E_INBOUND_TEST đã tồn tại trong ShareDataPacket, bỏ qua.';
+        UPDATE [dbo].[ShareDataPacket]
+        SET [OrderNo] = 101,
+            [TemplateSql] = COALESCE([TemplateSql], @Template101),
+            [ExtractSql] = COALESCE([ExtractSql], @Extract101),
+            [UpdateTime] = GETDATE()
+        WHERE [Code] = N'E2E_INBOUND_TEST'
+          AND [IsDelete] IS NULL
+          AND ([OrderNo] <> 101 OR [TemplateSql] IS NULL OR [ExtractSql] IS NULL);
+
+        PRINT N'  -> [Khối 4.2] Gói kiểm thử E2E_INBOUND_TEST đã tồn tại trong ShareDataPacket (đồng bộ OrderNo = 101 và SQL).';
     END
 END
 ELSE
@@ -397,6 +420,247 @@ END
 ELSE
 BEGIN
     PRINT N'⚠️ [Khối 4.2] Bảng dbo.ShareDataPacketSql chưa tồn tại trên DEV_ITS10, bỏ qua nạp câu ghi chiều nhận.';
+END
+GO
+
+-- -----------------------------------------------------------------------------------------
+-- 5. SEED DỮ LIỆU GÓI 111: INTERCENTER (TmsSignalLog)
+-- -----------------------------------------------------------------------------------------
+USE [DEV_ITS10];
+GO
+
+SET NOCOUNT ON;
+
+DECLARE @SeedUser NVARCHAR(64) = N'SHAREDATA-SEED-GIA-LAP';
+
+IF OBJECT_ID(N'[dbo].[TmsSignalLog]', N'U') IS NOT NULL
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM [dbo].[TmsSignalLog]
+        WHERE [ID] IN (N'SIGNAL_MOCK_111_01', N'SIGNAL_MOCK_111_02', N'SIGNAL_MOCK_111_03')
+           OR ([CreateUId] = @SeedUser AND [EquipmentId] = N'VMS_HN_01')
+    )
+    BEGIN
+        PRINT N'  -> [Khối 5] Đang seed 3 bản ghi mẫu TmsSignalLog (Gói 111)...';
+        INSERT INTO [dbo].[TmsSignalLog] (
+            [ID], [TenantId], [EquipmentId], [OldData], [NewData],
+            [State], [Status], [Priority], [ExecuteBy], [ExecuteTime],
+            [Remark], [CreateTime], [UpdateTime], [IsDelete], [CreateUId]
+        ) VALUES (
+            N'SIGNAL_MOCK_111_01', NULL, N'VMS_HN_01', N'{"speed":80}', N'{"speed":60,"msg":"MUA TO GIAM TOC DO"}',
+            N'EXECUTED', 1, 1, N'operator_hn', GETDATE(),
+            N'Lệnh điều khiển hiển thị biển VMS giảm tốc độ', GETDATE(), GETDATE(), NULL, @SeedUser
+        ),
+        (
+            N'SIGNAL_MOCK_111_02', NULL, N'VMS_HN_01', N'{"speed":60}', N'{"speed":80,"msg":"DUONG THONG THOANG"}',
+            N'EXECUTED', 1, 2, N'operator_hn', GETDATE(),
+            N'Lệnh khôi phục tốc độ bình thường', GETDATE(), GETDATE(), NULL, @SeedUser
+        ),
+        (
+            N'SIGNAL_MOCK_111_03', NULL, N'VMS_HN_02', NULL, N'{"alert":"SU CO KM25 PHAN LUONG"}',
+            N'PENDING', 1, 1, N'system_auto', GETDATE(),
+            N'Cảnh báo phân luồng khẩn cấp từ trung tâm Chi Lăng', GETDATE(), GETDATE(), NULL, @SeedUser
+        );
+        PRINT N'  -> [Khối 5] Đã seed 3 bản ghi TmsSignalLog thành công.';
+    END
+    ELSE
+    BEGIN
+        PRINT N'  -> [Khối 5] Dữ liệu mẫu TmsSignalLog đã tồn tại, bỏ qua.';
+    END
+END
+ELSE
+BEGIN
+    PRINT N'⚠️ [Khối 5] Bảng dbo.TmsSignalLog chưa tồn tại trên DEV_ITS10, bỏ qua.';
+END
+GO
+
+-- -----------------------------------------------------------------------------------------
+-- 6. SEED DỮ LIỆU PHÂN TRANG CON TRỎ @lastKey (150 BẢN GHI TRÙNG MỐC THỜI GIAN)
+-- -----------------------------------------------------------------------------------------
+USE [DEV_ITS10];
+GO
+
+SET NOCOUNT ON;
+
+DECLARE @SeedUser NVARCHAR(64) = N'SHAREDATA-SEED-GIA-LAP';
+
+IF OBJECT_ID(N'[dbo].[TmsTrafficData]', N'U') IS NOT NULL
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM [dbo].[TmsTrafficData]
+        WHERE [CreateUId] = @SeedUser AND [LocationDetail] = N'MOCK_LASTKEY_TEST'
+    )
+    BEGIN
+        PRINT N'  -> [Khối 6] Đang nạp 150 bản ghi trùng mốc thời gian vào TmsTrafficData để kiểm thử @lastKey...';
+        
+        DECLARE @FixedTime DATETIME2 = DATEADD(HOUR, -2, GETDATE());
+        DECLARE @i INT = 1;
+
+        WHILE @i <= 150
+        BEGIN
+            INSERT INTO [dbo].[TmsTrafficData] (
+                [ID], [TenantId], [EquipmentId], [PlateNumber], [VehicleType],
+                [Speed], [LaneNo], [DetectTime], [LocationDetail],
+                [CreateTime], [UpdateTime], [IsDelete], [CreateUId]
+            ) VALUES (
+                N'LKSAME_ID_' + RIGHT('000' + CAST(@i AS NVARCHAR(3)), 3),
+                NULL,
+                N'WIM_HN_01',
+                N'12A-' + RIGHT('00000' + CAST(@i AS NVARCHAR(5)), 5),
+                1,
+                65.0,
+                1,
+                @FixedTime,
+                N'MOCK_LASTKEY_TEST',
+                @FixedTime,
+                @FixedTime,
+                NULL,
+                @SeedUser
+            );
+            SET @i = @i + 1;
+        END;
+        PRINT N'  -> [Khối 6] Đã nạp thành công 150 bản ghi kiểm thử phân trang con trỏ @lastKey.';
+    END
+    ELSE
+    BEGIN
+        PRINT N'  -> [Khối 6] 150 bản ghi kiểm thử @lastKey đã tồn tại, bỏ qua.';
+    END
+END
+ELSE
+BEGIN
+    PRINT N'⚠️ [Khối 6] Bảng dbo.TmsTrafficData chưa tồn tại trên DEV_ITS10, bỏ qua.';
+END
+GO
+
+-- -----------------------------------------------------------------------------------------
+-- 7. SEED DỮ LIỆU CŨ HƠN LOOKBACK WINDOW ĐỂ KIỂM THỬ BỘ LỌC THỜI GIAN
+-- -----------------------------------------------------------------------------------------
+USE [DEV_ITS10];
+GO
+
+SET NOCOUNT ON;
+
+DECLARE @SeedUser NVARCHAR(64) = N'SHAREDATA-SEED-GIA-LAP';
+
+IF OBJECT_ID(N'[dbo].[TmsTrafficData]', N'U') IS NOT NULL
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM [dbo].[TmsTrafficData]
+        WHERE [CreateUId] = @SeedUser AND [LocationDetail] = N'MOCK_LOOKBACK_EXCLUDE'
+    )
+    BEGIN
+        PRINT N'  -> [Khối 7] Đang nạp 3 bản ghi cũ hơn Lookback Window vào TmsTrafficData...';
+        
+        DECLARE @OldTime DATETIME2 = DATEADD(DAY, -10, GETDATE());
+
+        INSERT INTO [dbo].[TmsTrafficData] (
+            [ID], [TenantId], [EquipmentId], [PlateNumber], [VehicleType],
+            [Speed], [LaneNo], [DetectTime], [LocationDetail],
+            [CreateTime], [UpdateTime], [IsDelete], [CreateUId]
+        ) VALUES (
+            N'LKOLD_ID_001', NULL, N'WIM_HN_01', N'12A-99901', 1, 60.0, 1, @OldTime, N'MOCK_LOOKBACK_EXCLUDE', @OldTime, @OldTime, NULL, @SeedUser
+        ),
+        (
+            N'LKOLD_ID_002', NULL, N'WIM_HN_01', N'12A-99902', 2, 55.0, 1, @OldTime, N'MOCK_LOOKBACK_EXCLUDE', @OldTime, @OldTime, NULL, @SeedUser
+        ),
+        (
+            N'LKOLD_ID_003', NULL, N'WIM_HN_01', N'12A-99903', 1, 70.0, 2, @OldTime, N'MOCK_LOOKBACK_EXCLUDE', @OldTime, @OldTime, NULL, @SeedUser
+        );
+        PRINT N'  -> [Khối 7] Đã nạp thành công 3 bản ghi cũ hơn Lookback Window.';
+    END
+    ELSE
+    BEGIN
+        PRINT N'  -> [Khối 7] Dữ liệu kiểm thử Lookback Window đã tồn tại, bỏ qua.';
+    END
+END
+ELSE
+BEGIN
+    PRINT N'⚠️ [Khối 7] Bảng dbo.TmsTrafficData chưa tồn tại trên DEV_ITS10, bỏ qua.';
+END
+GO
+
+-- -----------------------------------------------------------------------------------------
+-- 8. KHỐI DỌN DẸP DỮ LIỆU GIẢ LẬP (KÍCH HOẠT KHI @XoaDuLieuGiaLap = 1)
+-- -----------------------------------------------------------------------------------------
+USE [DEV_ITS10];
+GO
+
+SET NOCOUNT ON;
+
+DECLARE @XoaDuLieuGiaLap BIT = 0; -- Đặt = 1 khi cần dọn sạch dữ liệu mock
+DECLARE @SeedUser NVARCHAR(64) = N'SHAREDATA-SEED-GIA-LAP';
+
+IF @XoaDuLieuGiaLap = 1
+BEGIN
+    PRINT N'=============================================================================';
+    PRINT N'BẮT ĐẦU DỌN DẸP TOÀN BỘ DỮ LIỆU GIẢ LẬP (@XoaDuLieuGiaLap = 1)...';
+    PRINT N'=============================================================================';
+
+    IF OBJECT_ID(N'[dbo].[TmsWeather]', N'U') IS NOT NULL
+    BEGIN
+        DELETE FROM [dbo].[TmsWeather] WHERE [CreateUId] = @SeedUser;
+        PRINT N'  -> Đã xóa dữ liệu giả lập trong TmsWeather: ' + CAST(@@ROWCOUNT AS NVARCHAR(10)) + N' bản ghi.';
+    END
+
+    IF OBJECT_ID(N'[dbo].[TmsTrafficData]', N'U') IS NOT NULL
+    BEGIN
+        DELETE FROM [dbo].[TmsTrafficData] WHERE [CreateUId] = @SeedUser;
+        PRINT N'  -> Đã xóa dữ liệu giả lập trong TmsTrafficData: ' + CAST(@@ROWCOUNT AS NVARCHAR(10)) + N' bản ghi.';
+    END
+
+    IF OBJECT_ID(N'[dbo].[TmsIncident]', N'U') IS NOT NULL
+    BEGIN
+        DELETE FROM [dbo].[TmsIncident] WHERE [CreateUId] = @SeedUser;
+        PRINT N'  -> Đã xóa dữ liệu giả lập trong TmsIncident: ' + CAST(@@ROWCOUNT AS NVARCHAR(10)) + N' bản ghi.';
+    END
+
+    IF OBJECT_ID(N'[dbo].[TmsEquipment]', N'U') IS NOT NULL
+    BEGIN
+        DELETE FROM [dbo].[TmsEquipment] WHERE [CreateUId] = @SeedUser;
+        PRINT N'  -> Đã xóa dữ liệu giả lập trong TmsEquipment: ' + CAST(@@ROWCOUNT AS NVARCHAR(10)) + N' bản ghi.';
+    END
+
+    IF OBJECT_ID(N'[dbo].[VmsCurrent]', N'U') IS NOT NULL
+    BEGIN
+        DELETE FROM [dbo].[VmsCurrent] WHERE [CreateUId] = @SeedUser;
+        PRINT N'  -> Đã xóa dữ liệu giả lập trong VmsCurrent: ' + CAST(@@ROWCOUNT AS NVARCHAR(10)) + N' bản ghi.';
+    END
+
+    IF OBJECT_ID(N'[dbo].[TmsSignalLog]', N'U') IS NOT NULL
+    BEGIN
+        DELETE FROM [dbo].[TmsSignalLog] WHERE [CreateUId] = @SeedUser;
+        PRINT N'  -> Đã xóa dữ liệu giả lập trong TmsSignalLog: ' + CAST(@@ROWCOUNT AS NVARCHAR(10)) + N' bản ghi.';
+    END
+
+    IF OBJECT_ID(N'[dbo].[ShareDataPacket]', N'U') IS NOT NULL
+    BEGIN
+        DELETE FROM [dbo].[ShareDataPacket] WHERE [Code] = N'E2E_INBOUND_TEST';
+        PRINT N'  -> Đã xóa gói kiểm thử E2E_INBOUND_TEST trong ShareDataPacket: ' + CAST(@@ROWCOUNT AS NVARCHAR(10)) + N' bản ghi.';
+    END
+
+    IF OBJECT_ID(N'[dbo].[ShareDataPacketSql]', N'U') IS NOT NULL
+    BEGIN
+        DELETE FROM [dbo].[ShareDataPacketSql] WHERE [PacketCode] = N'E2E_INBOUND_TEST';
+        PRINT N'  -> Đã xóa câu ghi E2E_INBOUND_TEST trong ShareDataPacketSql: ' + CAST(@@ROWCOUNT AS NVARCHAR(10)) + N' bản ghi.';
+    END
+
+    IF DB_ID(N'DEV_ITS10_Inbound') IS NOT NULL
+    BEGIN
+        EXEC(N'
+            USE [DEV_ITS10_Inbound];
+            IF OBJECT_ID(N''[dbo].[InboundTrafficFlow]'', N''U'') IS NOT NULL
+            BEGIN
+                DELETE FROM [dbo].[InboundTrafficFlow];
+                PRINT N''  -> Đã xóa dữ liệu bảng [DEV_ITS10_Inbound].[dbo].[InboundTrafficFlow].'';
+            END
+        ');
+    END
+
+    PRINT N'✅ Đã hoàn tất dọn dẹp dữ liệu giả lập!';
+END
+ELSE
+BEGIN
+    PRINT N'  -> Biến @XoaDuLieuGiaLap = 0 (mặc định), không kích hoạt khối dọn dẹp.';
 END
 GO
 

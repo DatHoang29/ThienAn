@@ -3,16 +3,17 @@ GO
 
 -- =========================================================================================
 -- FILE: 02-sharedata-seed-goi-tin.sql
--- DESCRIPTION: Nạp Template câu truy vấn SQL trích xuất chuẩn Catalog (gói 101-110),
---              chuẩn hóa chế độ gửi (SyncMode) và trạng thái gói (Status) trong ShareDataPacket:
+-- DESCRIPTION: Nạp Template câu truy vấn SQL trích xuất chuẩn Catalog (gói 101-111),
+--              chuẩn hóa chế độ gửi (SyncMode), số thứ tự (OrderNo) và trạng thái gói (Status) trong ShareDataPacket:
 --              0. Khởi tạo bản ghi cho 11 gói tin (101 - 111) nếu chưa tồn tại (idempotent,
 --                 chống trùng theo Code + IsDelete IS NULL, ID sinh động bằng LOWER(CONVERT(NVARCHAR(64), NEWID()))).
---              1. Nạp câu truy vấn SQL trích xuất mẫu chuẩn cho các gói tin 101 - 110:
---                 - Luôn cập nhật TemplateSql bằng câu truy vấn mẫu gốc chuẩn Catalog (tra theo Code, IsDelete IS NULL).
---                 - ExtractSql = TemplateSql chỉ khi ExtractSql đang trống hoặc @GhiDeMauGoiTin = 1 (giữ đúng ý nghĩa cờ).
+--              0.2 Chuẩn hóa OrderNo về đúng 101 - 111 cho các gói khớp mã chuẩn.
+--              1. Nạp câu truy vấn SQL trích xuất mẫu chuẩn cho các gói tin 101 - 111:
+--                 - TemplateSql được cập nhật bằng câu truy vấn mẫu gốc chuẩn Catalog khi đang trống hoặc @GhiDeMauGoiTin = 1 (cách duy nhất làm mới TemplateSql sau khi tạo).
+--                 - ExtractSql = TemplateSql chỉ khi ExtractSql đang trống hoặc @GhiDeMauGoiTin = 1.
 --              2. Chuẩn hóa SyncMode mặc định theo nghiệp vụ cho các gói còn NULL:
---                 - Snapshot (1): 101, 102, 105, 108
---                 - Incremental (2): 103, 104, 106, 107, 109
+--                 - Snapshot (1): 101, 102, 105, 108, 110
+--                 - Incremental (2): 103, 104, 106, 107, 109, 111
 --              3. Cập nhật Status = 1 (Enable) cho các gói 110* và Status = 0 (Disable) cho các gói 111*.
 --              4. Nạp câu ghi chiều nhận chuẩn Catalog (ShareDataPacketSql) cho các gói đã có câu ghi (101-109,
 --                 chống trùng theo PacketCode + TableName kèm IsDelete IS NULL, ID sinh động bằng LOWER(CONVERT(NVARCHAR(64), NEWID()))).
@@ -38,14 +39,14 @@ GO
 -- -----------------------------------------------------------------------------------------
 -- 0. CẤU HÌNH GHI ĐÈ TEMPLATE
 -- -----------------------------------------------------------------------------------------
--- @GhiDeMauGoiTin = 0 (Mặc định): Chỉ nạp template nếu ExtractSql đang NULL hoặc rỗng.
--- @GhiDeMauGoiTin = 1: Buộc ghi đè toàn bộ câu truy vấn về mẫu chuẩn Catalog.
+-- @GhiDeMauGoiTin = 0 (Mặc định): Chỉ nạp TemplateSql và ExtractSql nếu đang NULL hoặc rỗng.
+-- @GhiDeMauGoiTin = 1: Buộc ghi đè toàn bộ câu truy vấn TemplateSql và ExtractSql về mẫu chuẩn Catalog (cách duy nhất đổi TemplateSql sau khi tạo).
 DECLARE @GhiDeMauGoiTin BIT = 0;
 
 IF @GhiDeMauGoiTin = 1
-    PRINT N'⚠️ CHẾ ĐỘ: GHI ĐÈ TOÀN BỘ (@GhiDeMauGoiTin = 1) - Các câu lệnh trích xuất sẽ được đặt lại theo Catalog!';
+    PRINT N'⚠️ CHẾ ĐỘ: GHI ĐÈ TOÀN BỘ (@GhiDeMauGoiTin = 1) - Các câu lệnh trích xuất và TemplateSql sẽ được đặt lại theo Catalog!';
 ELSE
-    PRINT N'ℹ️ CHẾ ĐỘ: AN TOÀN (@GhiDeMauGoiTin = 0) - Chỉ nạp mẫu cho gói chưa có ExtractSql, giữ nguyên cấu hình đã sửa.';
+    PRINT N'ℹ️ CHẾ ĐỘ: AN TOÀN (@GhiDeMauGoiTin = 0) - Chỉ nạp mẫu cho gói chưa có TemplateSql/ExtractSql, giữ nguyên cấu hình đã sửa.';
 GO
 
 -- -----------------------------------------------------------------------------------------
@@ -191,11 +192,29 @@ END
 PRINT N'   -> Đã khởi tạo mới: ' + CAST(@InsertedPackets AS NVARCHAR(10)) + N' gói, đã có sẵn: ' + CAST(@ExistingPackets AS NVARCHAR(10)) + N' gói.';
 GO
 
+-- -----------------------------------------------------------------------------------------
+-- 0.2 CHUẨN HÓA OrderNo CHO CÁC GÓI TIN CHUẨN CATALOG (101 - 111)
+-- -----------------------------------------------------------------------------------------
+PRINT N'-> 0.2. Chuẩn hóa OrderNo về mã chuẩn 101 - 111 cho các gói khớp mã...';
+
+UPDATE [dbo].[ShareDataPacket] SET [OrderNo] = 101 WHERE ([Code] = '101' OR [Code] LIKE '101[_]%') AND [IsDelete] IS NULL AND ([OrderNo] IS NULL OR [OrderNo] <> 101);
+UPDATE [dbo].[ShareDataPacket] SET [OrderNo] = 102 WHERE ([Code] = '102' OR [Code] LIKE '102[_]%') AND [IsDelete] IS NULL AND ([OrderNo] IS NULL OR [OrderNo] <> 102);
+UPDATE [dbo].[ShareDataPacket] SET [OrderNo] = 103 WHERE ([Code] = '103' OR [Code] LIKE '103[_]%') AND [IsDelete] IS NULL AND ([OrderNo] IS NULL OR [OrderNo] <> 103);
+UPDATE [dbo].[ShareDataPacket] SET [OrderNo] = 104 WHERE ([Code] = '104' OR [Code] LIKE '104[_]%') AND [IsDelete] IS NULL AND ([OrderNo] IS NULL OR [OrderNo] <> 104);
+UPDATE [dbo].[ShareDataPacket] SET [OrderNo] = 105 WHERE ([Code] = '105' OR [Code] LIKE '105[_]%') AND [IsDelete] IS NULL AND ([OrderNo] IS NULL OR [OrderNo] <> 105);
+UPDATE [dbo].[ShareDataPacket] SET [OrderNo] = 106 WHERE ([Code] = '106' OR [Code] LIKE '106[_]%') AND [IsDelete] IS NULL AND ([OrderNo] IS NULL OR [OrderNo] <> 106);
+UPDATE [dbo].[ShareDataPacket] SET [OrderNo] = 107 WHERE ([Code] = '107' OR [Code] LIKE '107[_]%') AND [IsDelete] IS NULL AND ([OrderNo] IS NULL OR [OrderNo] <> 107);
+UPDATE [dbo].[ShareDataPacket] SET [OrderNo] = 108 WHERE ([Code] = '108' OR [Code] LIKE '108[_]%') AND [IsDelete] IS NULL AND ([OrderNo] IS NULL OR [OrderNo] <> 108);
+UPDATE [dbo].[ShareDataPacket] SET [OrderNo] = 109 WHERE ([Code] = '109' OR [Code] LIKE '109[_]%') AND [IsDelete] IS NULL AND ([OrderNo] IS NULL OR [OrderNo] <> 109);
+UPDATE [dbo].[ShareDataPacket] SET [OrderNo] = 110 WHERE ([Code] = '110' OR [Code] LIKE '110[_]%') AND [IsDelete] IS NULL AND ([OrderNo] IS NULL OR [OrderNo] <> 110);
+UPDATE [dbo].[ShareDataPacket] SET [OrderNo] = 111 WHERE ([Code] = '111' OR [Code] LIKE '111[_]%') AND [IsDelete] IS NULL AND ([OrderNo] IS NULL OR [OrderNo] <> 111);
+GO
+
 DECLARE @GhiDeMauGoiTin BIT = 0;
 DECLARE @UpdatedRows INT = 0;
 DECLARE @TotalUpdated INT = 0;
 
-PRINT N'-> 1. Bắt đầu nạp Template câu lệnh SQL trích xuất vào bảng ShareDataPacket...';
+PRINT N'-> 1. Bắt đầu nạp Template câu lệnh SQL trích xuất vào bảng ShareDataPacket (101 - 111)...';
 
 -- Gói 101: TrafficFlow (Snapshot)
 UPDATE [dbo].[ShareDataPacket]
@@ -216,15 +235,16 @@ SET [TemplateSql] = N'SELECT
 FROM TmsZoneStatus zs
 LEFT JOIN TmsZone z ON zs.ZoneId = z.ID
 LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId'
-WHERE ([Code] = '101' OR [Code] LIKE '101_%')
-  AND [IsDelete] IS NULL;
+WHERE ([Code] = '101' OR [Code] LIKE '101[_]%')
+  AND [IsDelete] IS NULL
+  AND (@GhiDeMauGoiTin = 1 OR [TemplateSql] IS NULL OR LTRIM(RTRIM([TemplateSql])) = '');
 
 UPDATE [dbo].[ShareDataPacket]
 SET [ExtractSql] = [TemplateSql],
     [SyncMode] = 1,
     [CursorTimeColumn] = NULL,
     [MaxLookBackDays] = NULL
-WHERE ([Code] = '101' OR [Code] LIKE '101_%')
+WHERE ([Code] = '101' OR [Code] LIKE '101[_]%')
   AND [IsDelete] IS NULL
   AND (@GhiDeMauGoiTin = 1 OR [ExtractSql] IS NULL OR LTRIM(RTRIM([ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
@@ -244,15 +264,16 @@ SET [TemplateSql] = N'SELECT
     e.DirectionId AS direction
 FROM CctvDevice c
 LEFT JOIN TmsEquipment e ON c.Ip = e.Ip'
-WHERE ([Code] = '102' OR [Code] LIKE '102_%')
-  AND [IsDelete] IS NULL;
+WHERE ([Code] = '102' OR [Code] LIKE '102[_]%')
+  AND [IsDelete] IS NULL
+  AND (@GhiDeMauGoiTin = 1 OR [TemplateSql] IS NULL OR LTRIM(RTRIM([TemplateSql])) = '');
 
 UPDATE [dbo].[ShareDataPacket]
 SET [ExtractSql] = [TemplateSql],
     [SyncMode] = 1,
     [CursorTimeColumn] = NULL,
     [MaxLookBackDays] = NULL
-WHERE ([Code] = '102' OR [Code] LIKE '102_%')
+WHERE ([Code] = '102' OR [Code] LIKE '102[_]%')
   AND [IsDelete] IS NULL
   AND (@GhiDeMauGoiTin = 1 OR [ExtractSql] IS NULL OR LTRIM(RTRIM([ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
@@ -287,15 +308,16 @@ WHERE td.IsDelete IS NULL
   )
 ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC
 OPTION (RECOMPILE)'
-WHERE ([Code] = '103' OR [Code] LIKE '103_%')
-  AND [IsDelete] IS NULL;
+WHERE ([Code] = '103' OR [Code] LIKE '103[_]%')
+  AND [IsDelete] IS NULL
+  AND (@GhiDeMauGoiTin = 1 OR [TemplateSql] IS NULL OR LTRIM(RTRIM([TemplateSql])) = '');
 
 UPDATE [dbo].[ShareDataPacket]
 SET [ExtractSql] = [TemplateSql],
     [SyncMode] = 2,
     [CursorTimeColumn] = N'UpdateTime',
     [MaxLookBackDays] = 1
-WHERE ([Code] = '103' OR [Code] LIKE '103_%')
+WHERE ([Code] = '103' OR [Code] LIKE '103[_]%')
   AND [IsDelete] IS NULL
   AND (@GhiDeMauGoiTin = 1 OR [ExtractSql] IS NULL OR LTRIM(RTRIM([ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
@@ -330,15 +352,16 @@ WHERE w.IsDelete IS NULL
   )
 ORDER BY COALESCE(w.UpdateTime, w.CreateTime, w.TimeDetect) ASC, w.ID ASC
 OPTION (RECOMPILE)'
-WHERE ([Code] = '104' OR [Code] LIKE '104_%')
-  AND [IsDelete] IS NULL;
+WHERE ([Code] = '104' OR [Code] LIKE '104[_]%')
+  AND [IsDelete] IS NULL
+  AND (@GhiDeMauGoiTin = 1 OR [TemplateSql] IS NULL OR LTRIM(RTRIM([TemplateSql])) = '');
 
 UPDATE [dbo].[ShareDataPacket]
 SET [ExtractSql] = [TemplateSql],
     [SyncMode] = 2,
     [CursorTimeColumn] = N'UpdateTime',
     [MaxLookBackDays] = 1
-WHERE ([Code] = '104' OR [Code] LIKE '104_%')
+WHERE ([Code] = '104' OR [Code] LIKE '104[_]%')
   AND [IsDelete] IS NULL
   AND (@GhiDeMauGoiTin = 1 OR [ExtractSql] IS NULL OR LTRIM(RTRIM([ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
@@ -364,15 +387,16 @@ LEFT JOIN TmsVehicleRegistration vr
       AND vr.IsDelete IS NULL
 WHERE i.IsDelete IS NULL
 ORDER BY i.TransactionDateTime DESC'
-WHERE ([Code] = '105' OR [Code] LIKE '105_%')
-  AND [IsDelete] IS NULL;
+WHERE ([Code] = '105' OR [Code] LIKE '105[_]%')
+  AND [IsDelete] IS NULL
+  AND (@GhiDeMauGoiTin = 1 OR [TemplateSql] IS NULL OR LTRIM(RTRIM([TemplateSql])) = '');
 
 UPDATE [dbo].[ShareDataPacket]
 SET [ExtractSql] = [TemplateSql],
     [SyncMode] = 1,
     [CursorTimeColumn] = NULL,
     [MaxLookBackDays] = NULL
-WHERE ([Code] = '105' OR [Code] LIKE '105_%')
+WHERE ([Code] = '105' OR [Code] LIKE '105[_]%')
   AND [IsDelete] IS NULL
   AND (@GhiDeMauGoiTin = 1 OR [ExtractSql] IS NULL OR LTRIM(RTRIM([ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
@@ -402,15 +426,16 @@ WHERE td.IsDelete IS NULL
   )
 ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC
 OPTION (RECOMPILE)'
-WHERE ([Code] = '106' OR [Code] LIKE '106_%')
-  AND [IsDelete] IS NULL;
+WHERE ([Code] = '106' OR [Code] LIKE '106[_]%')
+  AND [IsDelete] IS NULL
+  AND (@GhiDeMauGoiTin = 1 OR [TemplateSql] IS NULL OR LTRIM(RTRIM([TemplateSql])) = '');
 
 UPDATE [dbo].[ShareDataPacket]
 SET [ExtractSql] = [TemplateSql],
     [SyncMode] = 2,
     [CursorTimeColumn] = N'UpdateTime',
     [MaxLookBackDays] = 1
-WHERE ([Code] = '106' OR [Code] LIKE '106_%')
+WHERE ([Code] = '106' OR [Code] LIKE '106[_]%')
   AND [IsDelete] IS NULL
   AND (@GhiDeMauGoiTin = 1 OR [ExtractSql] IS NULL OR LTRIM(RTRIM([ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
@@ -448,15 +473,16 @@ WHERE i.IsDelete IS NULL
   )
 ORDER BY COALESCE(i.UpdateTime, i.CreateTime, i.StartDate) ASC, i.ID ASC
 OPTION (RECOMPILE)'
-WHERE ([Code] = '107' OR [Code] LIKE '107_%')
-  AND [IsDelete] IS NULL;
+WHERE ([Code] = '107' OR [Code] LIKE '107[_]%')
+  AND [IsDelete] IS NULL
+  AND (@GhiDeMauGoiTin = 1 OR [TemplateSql] IS NULL OR LTRIM(RTRIM([TemplateSql])) = '');
 
 UPDATE [dbo].[ShareDataPacket]
 SET [ExtractSql] = [TemplateSql],
     [SyncMode] = 2,
     [CursorTimeColumn] = N'UpdateTime',
     [MaxLookBackDays] = 1
-WHERE ([Code] = '107' OR [Code] LIKE '107_%')
+WHERE ([Code] = '107' OR [Code] LIKE '107[_]%')
   AND [IsDelete] IS NULL
   AND (@GhiDeMauGoiTin = 1 OR [ExtractSql] IS NULL OR LTRIM(RTRIM([ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
@@ -479,15 +505,16 @@ SET [TemplateSql] = N'SELECT
     v.ExecutedDate AS executedTime
 FROM VmsCurrent v
 LEFT JOIN TmsEquipment e ON v.EquipmentId = e.ID'
-WHERE ([Code] = '108' OR [Code] LIKE '108_%')
-  AND [IsDelete] IS NULL;
+WHERE ([Code] = '108' OR [Code] LIKE '108[_]%')
+  AND [IsDelete] IS NULL
+  AND (@GhiDeMauGoiTin = 1 OR [TemplateSql] IS NULL OR LTRIM(RTRIM([TemplateSql])) = '');
 
 UPDATE [dbo].[ShareDataPacket]
 SET [ExtractSql] = [TemplateSql],
     [SyncMode] = 1,
     [CursorTimeColumn] = NULL,
     [MaxLookBackDays] = NULL
-WHERE ([Code] = '108' OR [Code] LIKE '108_%')
+WHERE ([Code] = '108' OR [Code] LIKE '108[_]%')
   AND [IsDelete] IS NULL
   AND (@GhiDeMauGoiTin = 1 OR [ExtractSql] IS NULL OR LTRIM(RTRIM([ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
@@ -524,15 +551,16 @@ WHERE t.IsDelete IS NULL
   )
 ORDER BY COALESCE(t.UpdateTime, t.CreateTime, t.TransactionDateTime) ASC, t.ID ASC
 OPTION (RECOMPILE)'
-WHERE ([Code] = '109' OR [Code] LIKE '109_%')
-  AND [IsDelete] IS NULL;
+WHERE ([Code] = '109' OR [Code] LIKE '109[_]%')
+  AND [IsDelete] IS NULL
+  AND (@GhiDeMauGoiTin = 1 OR [TemplateSql] IS NULL OR LTRIM(RTRIM([TemplateSql])) = '');
 
 UPDATE [dbo].[ShareDataPacket]
 SET [ExtractSql] = [TemplateSql],
     [SyncMode] = 2,
     [CursorTimeColumn] = N'UpdateTime',
     [MaxLookBackDays] = 1
-WHERE ([Code] = '109' OR [Code] LIKE '109_%')
+WHERE ([Code] = '109' OR [Code] LIKE '109[_]%')
   AND [IsDelete] IS NULL
   AND (@GhiDeMauGoiTin = 1 OR [ExtractSql] IS NULL OR LTRIM(RTRIM([ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
@@ -575,20 +603,64 @@ WHERE (i.State IS NULL OR (
     i.State != ''FINISHED'' AND i.State != ''CANCELED''
     AND i.State != ''Closed'' AND i.State != ''Cancelled''
 ))'
-WHERE ([Code] = '110' OR [Code] LIKE '110_%')
-  AND [IsDelete] IS NULL;
+WHERE ([Code] = '110' OR [Code] LIKE '110[_]%')
+  AND [IsDelete] IS NULL
+  AND (@GhiDeMauGoiTin = 1 OR [TemplateSql] IS NULL OR LTRIM(RTRIM([TemplateSql])) = '');
 
 UPDATE [dbo].[ShareDataPacket]
 SET [ExtractSql] = [TemplateSql],
     [SyncMode] = 1,
     [CursorTimeColumn] = NULL,
     [MaxLookBackDays] = NULL
-WHERE ([Code] = '110' OR [Code] LIKE '110_%')
+WHERE ([Code] = '110' OR [Code] LIKE '110[_]%')
   AND [IsDelete] IS NULL
   AND (@GhiDeMauGoiTin = 1 OR [ExtractSql] IS NULL OR LTRIM(RTRIM([ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 SET @TotalUpdated = @TotalUpdated + @UpdatedRows;
 PRINT N'   - Gói 110 (PublicMessaging): đã cập nhật ' + CAST(@UpdatedRows AS NVARCHAR(10)) + N' bản ghi.';
+
+-- Gói 111: InterCenter (Incremental, Status = 0: Disable)
+UPDATE [dbo].[ShareDataPacket]
+SET [TemplateSql] = N'SELECT TOP (@pageSize)
+    CAST(NULL AS NVARCHAR(16)) AS packetType,
+    CAST(NULL AS NVARCHAR(MAX)) AS payload,
+    GETDATE() AS createdTime,
+    sl.NewData AS controlCommand,
+    sl.State AS controlState,
+    CAST(NULL AS NVARCHAR(64)) AS connectionState,
+    CAST(NULL AS DATETIME) AS ackTime,
+    CAST(NULL AS INT) AS retryCount,
+    CAST(NULL AS NVARCHAR(512)) AS error,
+    CAST(NULL AS NVARCHAR(64)) AS partnerId,
+    COALESCE(sl.UpdateTime, sl.CreateTime) AS __lastTime,
+    sl.ID AS __rowid,
+    sl.UpdateTime AS __auditUpdate,
+    sl.CreateTime AS __auditCreate
+FROM TmsSignalLog sl
+WHERE sl.IsDelete IS NULL
+  AND (
+      @lastTime IS NULL
+      OR COALESCE(sl.UpdateTime, sl.CreateTime) > @lastTime
+      OR (COALESCE(sl.UpdateTime, sl.CreateTime) = @lastTime AND sl.ID > @lastKey)
+  )
+ORDER BY COALESCE(sl.UpdateTime, sl.CreateTime) ASC, sl.ID ASC
+OPTION (RECOMPILE)'
+WHERE ([Code] = '111' OR [Code] LIKE '111[_]%')
+  AND [IsDelete] IS NULL
+  AND (@GhiDeMauGoiTin = 1 OR [TemplateSql] IS NULL OR LTRIM(RTRIM([TemplateSql])) = '');
+
+UPDATE [dbo].[ShareDataPacket]
+SET [ExtractSql] = [TemplateSql],
+    [SyncMode] = 2,
+    [CursorTimeColumn] = N'UpdateTime',
+    [MaxLookBackDays] = 1,
+    [Status] = 0
+WHERE ([Code] = '111' OR [Code] LIKE '111[_]%')
+  AND [IsDelete] IS NULL
+  AND (@GhiDeMauGoiTin = 1 OR [ExtractSql] IS NULL OR LTRIM(RTRIM([ExtractSql])) = '');
+SET @UpdatedRows = @@ROWCOUNT;
+SET @TotalUpdated = @TotalUpdated + @UpdatedRows;
+PRINT N'   - Gói 111 (InterCenter): đã cập nhật ' + CAST(@UpdatedRows AS NVARCHAR(10)) + N' bản ghi.';
 
 PRINT N'   -> Tổng số bản ghi template SQL đã cập nhật: ' + CAST(@TotalUpdated AS NVARCHAR(10)) + N' dòng.';
 
@@ -609,17 +681,18 @@ WHERE [SyncMode] IS NULL
        OR [Code] LIKE '110[_]%');
 PRINT N'   - Cập nhật SyncMode = 1 (Snapshot) cho các gói 101, 102, 105, 108, 110 còn NULL: ' + CAST(@@ROWCOUNT AS NVARCHAR(10)) + N' dòng.';
 
--- Gói Incremental (103, 104, 106, 107, 109)
+-- Gói Incremental (103, 104, 106, 107, 109, 111)
 UPDATE [dbo].[ShareDataPacket]
 SET [SyncMode] = 2
 WHERE [SyncMode] IS NULL
-  AND ([Code] IN ('103', '104', '106', '107', '109')
+  AND ([Code] IN ('103', '104', '106', '107', '109', '111')
        OR [Code] LIKE '103[_]%'
        OR [Code] LIKE '104[_]%'
        OR [Code] LIKE '106[_]%'
        OR [Code] LIKE '107[_]%'
-       OR [Code] LIKE '109[_]%');
-PRINT N'   - Cập nhật SyncMode = 2 (Incremental) cho các gói 103, 104, 106, 107, 109 còn NULL: ' + CAST(@@ROWCOUNT AS NVARCHAR(10)) + N' dòng.';
+       OR [Code] LIKE '109[_]%'
+       OR [Code] LIKE '111[_]%');
+PRINT N'   - Cập nhật SyncMode = 2 (Incremental) cho các gói 103, 104, 106, 107, 109, 111 còn NULL: ' + CAST(@@ROWCOUNT AS NVARCHAR(10)) + N' dòng.';
 
 -- -----------------------------------------------------------------------------------------
 -- 3. CHUẨN HÓA TRẠNG THÁI GÓI (Status = 1 CHO 110*, Status = 0 CHO 111*)

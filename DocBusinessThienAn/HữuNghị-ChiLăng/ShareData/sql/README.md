@@ -62,14 +62,14 @@ CodeFirst (bật tạm EnableInitTable qua cấu hình debug) → [DB cũ: 06 �
 
 ### C. Tính An Toàn Khi Chạy Lại (Idempotent)
 - Các file `01`, `02`, `03`, `04`, `06` đều có cơ chế Idempotent (`IF NOT EXISTS`, `WHERE NOT EXISTS`, `WHEN NOT MATCHED THEN INSERT`).
-- `02-sharedata-seed-goi-tin.sql`: Biến `@GhiDeMauGoiTin = 0` (mặc định) đảm bảo **KHÔNG ghi đè** các câu lệnh SQL trích xuất mà quản trị viên đã tùy biến. Nếu muốn reset về Catalog chuẩn thì mới đổi sang `@GhiDeMauGoiTin = 1`.
+- `02-sharedata-seed-goi-tin.sql`: Nạp SQL mẫu cho 11 gói (101–111) chỉ khi trống, chuẩn hóa `OrderNo` các gói chuẩn về đúng dải 101–111. Biến `@GhiDeMauGoiTin = 0` (mặc định) đảm bảo **KHÔNG ghi đè** các câu lệnh SQL trích xuất mà quản trị viên đã tùy biến. Biến `@GhiDeMauGoiTin = 1` là **cách duy nhất** để làm mới lại `TemplateSql` và `ExtractSql` về mẫu Catalog chuẩn.
 - `03-sharedata-seed-cau-hinh.sql`: Chỉ thêm mã lỗi, bảng nguồn `ShareDataSourceTable` hoặc tham số `sharedata_config` chưa có trong DB, không ghi đè các cấu hình đang chạy.
 - `04-sharedata-dich-thuat.sql`: Chỉ nạp bổ sung các bản dịch còn thiếu trong 94 khóa, không làm mất bản dịch đã chỉnh sửa.
 
 ### D. Khởi Tạo DB Mới Bằng Cờ CodeFirst (Thử Nghiệm)
 
 > ⚠️ **LƯU Ý QUAN TRỌNG:**
-> - Theo Rule 19.85, các lớp Seed class trong mã nguồn C# đã được loại bỏ hoàn toàn để Entity là Single Source of Truth duy nhất cho cấu trúc, và script SQL (`02`, `03`) là nguồn duy nhất cho dữ liệu seed ban đầu. Mẫu câu SQL trích xuất của 11 gói tin Catalog được cung cấp qua bộ nhớ đệm tĩnh `PacketDefaultTemplate` trong WebAPI.
+> - Theo Rule 19.85, các lớp Seed class trong mã nguồn C# đã được loại bỏ hoàn toàn để Entity là Single Source of Truth duy nhất cho cấu trúc, và script SQL (`02`, `03`) là nguồn duy nhất cho dữ liệu seed ban đầu. Toàn bộ câu SQL mẫu của 11 gói tin Catalog được lưu trữ và nạp qua script `02-sharedata-seed-goi-tin.sql` (bỏ hoàn toàn mã cứng `PacketDefaultTemplate.cs` trong C#).
 > - **CẢNH BÁO:** Tuyệt đối **KHÔNG** bật cờ `EnableInitSeed` trên CSDL đã có dữ liệu hoặc đã có các gói tin do giao diện/script tạo ra với ID khác (có thể sinh dòng trùng mã `Code`). CSDL đang chạy bắt buộc dùng script `00` → `06`.
 
 #### Các bước thử nghiệm:

@@ -183,6 +183,7 @@ namespace Module.ShareData.Controllers
 9. **Can Thiệp Tối Thiểu & Cấm Sửa Code Ngoài Phạm Vi (Minimal Diff - Rule 19.6, 19.35)**:
    - Chi tiết xem [thienan_rules.md](./thienan_rules.md) bảng P0 quy tắc #13.
 10. **Xóa Triệt Để Mã Không Dùng & Thuộc Tính Entity Không Ánh Xạ (Rule 19.68)**:
+    - **Bỏ là bỏ hết các liên đới (Cascading Cleanup)**: Khi bỏ một tính năng, nút bấm hoặc API: BẮT BUỘC xóa sạch các thành phần liên đới từ Frontend đến Backend (handler, DTO, hằng số `BaseMsg`, script dịch thuật, test case). Tuyệt đối không để lại mã chết / zombie code.
     - Đối với code C# thông thường (service, helper, util, DTO, class, method, handler...): Khi không dùng hoặc đã được thay thế bằng giải pháp mới, **BẮT BUỘC XÓA BỎ HOÀN TOÀN (Clean Delete)** khỏi solution.
     - ⛔ **TUYỆT ĐỐI CẤM** để lại mã rác rồi gắn thuộc tính `[Obsolete]` làm bẩn codebase và sinh warning trình biên dịch (CS0618).
     - Mọi test case kiểm thử mã cũ cũng phải được xóa bỏ hoặc thay thế tương ứng bằng bài test cho giải pháp mới.

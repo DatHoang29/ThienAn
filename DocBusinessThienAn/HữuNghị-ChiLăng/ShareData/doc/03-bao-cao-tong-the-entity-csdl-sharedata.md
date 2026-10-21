@@ -119,10 +119,11 @@ flowchart TD
   | `Name`             | `nvarchar(128)` | Nullable | Tên tiếng Việt hiển thị trên giao diện. |
   | `PacketVersion`    | `nvarchar(16)`  | Nullable | Phiên bản định dạng gói tin (ví dụ `1.0`). |
   | `Description`      | `nvarchar(256)` | Nullable | Mô tả chi tiết phạm vi nghiệp vụ gói tin. |
-  | `OrderNo`          | `int`           | Nullable | Thứ tự sắp xếp trên danh sách và cây menu. |
+  | `OrderNo`          | `int`           | Nullable | Loại gói chuẩn (101–111) khi tạo gói (mặc định 101, khóa khi sửa), quyết định câu SQL mẫu sao chép từ gói nguồn. |
   | `Status`           | `int` (`BaseEnums.StatusEnum?`) | Nullable | Trạng thái sử dụng (`Enable` = 1, `Disable` = 0). |
   | `Remark`           | `nvarchar(256)` | Nullable | Ghi chú gói tin. |
-  | `ExtractSql`       | `nvarchar(max)` | Nullable | *(Mới 14/10/2026)* Câu truy vấn SQL trích xuất dữ liệu nguồn động mẫu chuẩn (chiều Gửi - Outbound) dành cho SuperAdmin. |
+  | `TemplateSql`      | `nvarchar(max)` | Nullable | *(Mới 20/10/2026)* SQL mẫu của gói, chỉ ghi một lần khi tạo gói (`IsOnlyIgnoreUpdate = true`), dùng cho chức năng "Khôi phục SQL mẫu". Không còn mẫu viết cứng trong mã C# (đã xóa `PacketDefaultTemplate.cs`). |
+  | `ExtractSql`       | `nvarchar(max)` | Nullable | Câu truy vấn SQL trích xuất dữ liệu đang chạy (chiều Gửi - Outbound), ghi đè khi người dùng Lưu SQL. |
   | `SyncMode`         | `int` (`SyncMode?`) | Nullable | *(Mới 14/10/2026)* Chế độ đồng bộ dữ liệu (enum `SyncMode` tại `Shared.DTO.Enums.BaseEnums`): `1` = Snapshot (gửi toàn bộ), `2` = Incremental (gửi nối đuôi). |
   | `CursorTimeColumn` | `nvarchar(128)` | Nullable | *(Mới 14/10/2026)* Tên cột hoặc biểu thức cursor thời gian mẫu (ví dụ `UpdateTime`). |
   | `MaxLookBackDays`  | `int`           | Nullable | *(Mới 14/10/2026)* Số ngày quét lùi tối đa (`1–365`, `null` = không giới hạn). |

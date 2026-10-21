@@ -790,6 +790,21 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
         await expect(confirmBox).toBeHidden();
         await expect(leafDialog).toBeHidden({ timeout: 5000 });
     });
+
+    test('Modal editMapping — Hiện el-alert hướng dẫn khi gói tin chưa có trường chia sẻ (Prompt #17 Mục C.4)', async ({ page }) => {
+        // Quét tĩnh file editMapping.vue có alert packet-no-fields-alert
+        const mappingPath = resolveWebVueSrc('views/sharedata/mapping/component/editMapping.vue');
+        const mappingContent = fs.readFileSync(mappingPath, 'utf-8');
+        expect(mappingContent).toContain('packet-no-fields-alert');
+        expect(mappingContent).toContain('packetHasNoFieldsHint');
+
+        const viPath = resolveWebVueSrc('i18n/lang/vi-vn.json');
+        const enPath = resolveWebVueSrc('i18n/lang/en-us.json');
+        const viJson = JSON.parse(fs.readFileSync(viPath, 'utf-8'));
+        const enJson = JSON.parse(fs.readFileSync(enPath, 'utf-8'));
+        expect(viJson['lz.label.sharedataMapping.packetHasNoFieldsHint']).toBe('Gói chưa có trường để chia sẻ. Vào Nguồn dữ liệu → Danh sách trường để chọn cột cần chia sẻ.');
+        expect(enJson['lz.label.sharedataMapping.packetHasNoFieldsHint']).toBe('Packet has no fields to share. Go to Data Source → Saved Fields to select columns to share.');
+    });
 });
 
 

@@ -26,6 +26,9 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     {
         using var scope = _host.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        await db.Deleteable<ShareDataPacket>()
+            .Where(x => x.Code != null && (x.Code.Contains("_upd_lock_") || x.Code.Contains("_src_") || x.Code.Contains("_save_sql_")))
+            .ExecuteCommandAsync();
         await EnsureCatalogTables(db);
     }
 
@@ -81,7 +84,7 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AddPacket_StandardCode101CommonData_AutoFillsTemplateAndSyncMode_Test()
+    public async Task AddPacket_OrderNo101_AutoFillsTemplateAndSyncModeFromSource_Test()
     {
         // Arrange
         SetUserContext(isSuperAdmin: true);
@@ -89,12 +92,27 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var unique = Guid.NewGuid().ToString("N")[..8];
+        Assert.True(PacketTemplateSeed.TryGet("101", out var tpl101));
+        await db.Insertable(new ShareDataPacket
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Code = $"101_src_{unique}",
+            Name = $"Source 101 {unique}",
+            OrderNo = 101,
+            Status = BaseEnums.StatusEnum.Enable,
+            TemplateSql = tpl101.ExtractSql,
+            SyncMode = tpl101.SyncMode,
+            CursorTimeColumn = tpl101.CursorTimeColumn,
+            CreateTime = DateTime.UtcNow.AddYears(-10)
+        }).ExecuteCommandAsync();
+
         var code = $"101_commonData_{unique}";
         var input = new ShareDataAddPacketInput
         {
             Code = code,
             Name = $"Packet 101 {unique}",
-            PacketVersion = "1.0"
+            PacketVersion = "1.0",
+            OrderNo = 101
         };
 
         // Act: Gọi qua điểm vào thật CallApiAsync theo Rule 19.84
@@ -103,13 +121,13 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         // Assert
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
         Assert.NotNull(packet);
-        Assert.True(PacketTemplateSeed.TryGet("101", out var tpl101));
+        Assert.Equal(tpl101.ExtractSql, packet.TemplateSql);
         Assert.Equal(tpl101.ExtractSql, packet.ExtractSql);
         Assert.Equal(BaseEnums.SyncMode.Snapshot, packet.SyncMode);
     }
 
     [Fact]
-    public async Task AddPacket_PrefixMatches101Custom_AutoFillsTemplate_Test()
+    public async Task AddPacket_CustomCodeWithOrderNo103_AutoFillsTemplateAndSyncModeFromSource_Test()
     {
         // Arrange
         SetUserContext(isSuperAdmin: true);
@@ -117,12 +135,28 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var unique = Guid.NewGuid().ToString("N")[..8];
-        var code = $"101_tuychinh_{unique}";
+        Assert.True(PacketTemplateSeed.TryGet("103", out var tpl103));
+        await db.Insertable(new ShareDataPacket
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Code = $"103_src_{unique}",
+            Name = $"Source 103 {unique}",
+            OrderNo = 103,
+            Status = BaseEnums.StatusEnum.Enable,
+            TemplateSql = tpl103.ExtractSql,
+            SyncMode = tpl103.SyncMode,
+            CursorTimeColumn = tpl103.CursorTimeColumn,
+            MaxLookBackDays = tpl103.MaxLookBackDays,
+            CreateTime = DateTime.UtcNow.AddYears(-10)
+        }).ExecuteCommandAsync();
+
+        var code = $"custom_vds_{unique}";
         var input = new ShareDataAddPacketInput
         {
             Code = code,
-            Name = $"Packet Custom 101 {unique}",
-            PacketVersion = "1.0"
+            Name = $"Packet Custom 103 {unique}",
+            PacketVersion = "1.0",
+            OrderNo = 103
         };
 
         // Act
@@ -131,13 +165,15 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         // Assert
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
         Assert.NotNull(packet);
-        Assert.True(PacketTemplateSeed.TryGet("101", out var tpl101Prefix));
-        Assert.Equal(tpl101Prefix.ExtractSql, packet.ExtractSql);
-        Assert.Equal(BaseEnums.SyncMode.Snapshot, packet.SyncMode);
+        Assert.Equal(tpl103.ExtractSql, packet.TemplateSql);
+        Assert.Equal(tpl103.ExtractSql, packet.ExtractSql);
+        Assert.Equal(BaseEnums.SyncMode.Incremental, packet.SyncMode);
+        Assert.Equal(tpl103.CursorTimeColumn, packet.CursorTimeColumn);
+        Assert.Equal(tpl103.MaxLookBackDays, packet.MaxLookBackDays);
     }
 
     [Fact]
-    public async Task AddPacket_NonStandardCode_KeepsExtractSqlNull_Test()
+    public async Task AddPacket_OrderNo111_AutoFillsTemplateFromSource_Test()
     {
         // Arrange
         SetUserContext(isSuperAdmin: true);
@@ -145,12 +181,28 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var unique = Guid.NewGuid().ToString("N")[..8];
-        var code = $"999_xyz_{unique}";
+        Assert.True(PacketTemplateSeed.TryGet("111", out var tpl111));
+        await db.Insertable(new ShareDataPacket
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Code = $"111_src_{unique}",
+            Name = $"Source 111 {unique}",
+            OrderNo = 111,
+            Status = BaseEnums.StatusEnum.Enable,
+            TemplateSql = tpl111.ExtractSql,
+            SyncMode = tpl111.SyncMode,
+            CursorTimeColumn = tpl111.CursorTimeColumn,
+            MaxLookBackDays = tpl111.MaxLookBackDays,
+            CreateTime = DateTime.UtcNow.AddYears(-10)
+        }).ExecuteCommandAsync();
+
+        var code = $"111_intercenter_{unique}";
         var input = new ShareDataAddPacketInput
         {
             Code = code,
-            Name = $"Non standard packet {unique}",
-            PacketVersion = "1.0"
+            Name = $"Packet 111 {unique}",
+            PacketVersion = "1.0",
+            OrderNo = 111
         };
 
         // Act
@@ -159,11 +211,15 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         // Assert
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
         Assert.NotNull(packet);
-        Assert.Null(packet.ExtractSql);
+        Assert.Equal(tpl111.ExtractSql, packet.TemplateSql);
+        Assert.Equal(tpl111.ExtractSql, packet.ExtractSql);
+        Assert.Equal(BaseEnums.SyncMode.Incremental, packet.SyncMode);
+        Assert.Equal(tpl111.CursorTimeColumn, packet.CursorTimeColumn);
+        Assert.Equal(tpl111.MaxLookBackDays, packet.MaxLookBackDays);
     }
 
     [Fact]
-    public async Task AddPacket_WithExistingExtractSql_PreservesCustomSql_Test()
+    public async Task AddPacket_ClientSendsCustomTemplateSql_IsIgnoredAndOverwrittenBySource_Test()
     {
         // Arrange
         SetUserContext(isSuperAdmin: true);
@@ -171,6 +227,63 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var unique = Guid.NewGuid().ToString("N")[..8];
+        Assert.True(PacketTemplateSeed.TryGet("101", out var tpl101));
+        await db.Insertable(new ShareDataPacket
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Code = $"101_src_{unique}",
+            Name = $"Source 101 {unique}",
+            OrderNo = 101,
+            Status = BaseEnums.StatusEnum.Enable,
+            TemplateSql = tpl101.ExtractSql,
+            SyncMode = tpl101.SyncMode,
+            CursorTimeColumn = tpl101.CursorTimeColumn,
+            CreateTime = DateTime.UtcNow.AddYears(-10)
+        }).ExecuteCommandAsync();
+
+        var code = $"101_ignore_client_tpl_{unique}";
+        var input = new ShareDataAddPacketInput
+        {
+            Code = code,
+            Name = $"Packet Ignore Client Tpl {unique}",
+            PacketVersion = "1.0",
+            OrderNo = 101,
+            TemplateSql = "SELECT 'HACKED' AS val"
+        };
+
+        // Act
+        await scope.ServiceProvider.CallApiAsync(input);
+
+        // Assert: TemplateSql do client gửi lên bị bỏ qua, ghi đè bằng mẫu từ nguồn
+        var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
+        Assert.NotNull(packet);
+        Assert.Equal(tpl101.ExtractSql, packet.TemplateSql);
+        Assert.NotEqual("SELECT 'HACKED' AS val", packet.TemplateSql);
+    }
+
+    [Fact]
+    public async Task AddPacket_WithExistingExtractSql_PreservesCustomExtractSqlAndLoadsTemplateSqlFromSource_Test()
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true);
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        Assert.True(PacketTemplateSeed.TryGet("101", out var tpl101));
+        await db.Insertable(new ShareDataPacket
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Code = $"101_src_{unique}",
+            Name = $"Source 101 {unique}",
+            OrderNo = 101,
+            Status = BaseEnums.StatusEnum.Enable,
+            TemplateSql = tpl101.ExtractSql,
+            SyncMode = tpl101.SyncMode,
+            CursorTimeColumn = tpl101.CursorTimeColumn,
+            CreateTime = DateTime.UtcNow.AddYears(-10)
+        }).ExecuteCommandAsync();
+
         var code = $"101_predefined_{unique}";
         var customSql = "SELECT TOP (1) 1 AS val";
         var input = new ShareDataAddPacketInput
@@ -178,20 +291,22 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             Code = code,
             Name = $"Custom Sql Packet {unique}",
             PacketVersion = "1.0",
+            OrderNo = 101,
             ExtractSql = customSql
         };
 
         // Act
         await scope.ServiceProvider.CallApiAsync(input);
 
-        // Assert
+        // Assert: ExtractSql giữ giá trị client gửi, TemplateSql nạp từ nguồn
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
         Assert.NotNull(packet);
         Assert.Equal(customSql, packet.ExtractSql);
+        Assert.Equal(tpl101.ExtractSql, packet.TemplateSql);
     }
 
     [Fact]
-    public async Task AddPacket_Code111_DoesNotAutoFillTemplate_Test()
+    public async Task AddPacket_WhenNoSourcePacketExists_LeavesTemplateSqlAndExtractSqlNull_Test()
     {
         // Arrange
         SetUserContext(isSuperAdmin: true);
@@ -199,21 +314,144 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var unique = Guid.NewGuid().ToString("N")[..8];
-        var code = $"111_{unique}";
+        var code = $"102_nosource_{unique}";
         var input = new ShareDataAddPacketInput
         {
             Code = code,
-            Name = $"Packet 111 {unique}",
-            PacketVersion = "1.0"
+            Name = $"No Source Packet {unique}",
+            PacketVersion = "1.0",
+            OrderNo = 102
         };
 
         // Act
         await scope.ServiceProvider.CallApiAsync(input);
 
-        // Assert
+        // Assert: Không tìm thấy nguồn -> TemplateSql và ExtractSql đều null
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
         Assert.NotNull(packet);
+        Assert.Null(packet.TemplateSql);
         Assert.Null(packet.ExtractSql);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(0)]
+    [InlineData(100)]
+    [InlineData(112)]
+    [InlineData(999)]
+    public async Task AddPacket_InvalidOrderNo_ThrowsValidationException_Test(int? orderNo)
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true);
+        using var scope = _host.Services.CreateScope();
+
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var input = new ShareDataAddPacketInput
+        {
+            Code = $"pkt_invalid_order_{unique}",
+            Name = $"Packet Invalid Order {unique}",
+            PacketVersion = "1.0",
+            OrderNo = orderNo
+        };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => scope.ServiceProvider.CallApiAsync(input));
+        Assert.Contains(ex.Errors, e => e.PropertyName == nameof(ShareDataAddPacketInput.OrderNo));
+    }
+
+    [Fact]
+    public async Task UpdatePacket_WhenClientSendsDifferentTemplateSqlOrOrderNo_PreservesTemplateSqlAndOrderNo_Test()
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true);
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var code = $"101_upd_lock_{unique}";
+        Assert.True(PacketTemplateSeed.TryGet("101", out var tpl101));
+        var originalTemplate = tpl101.ExtractSql;
+        var originalExtract = "SELECT 'ORIGINAL_EXTRACT' AS val";
+
+        var packet = new ShareDataPacket
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Code = code,
+            Name = $"Packet Update Lock {unique}",
+            OrderNo = 101,
+            Status = BaseEnums.StatusEnum.Enable,
+            TemplateSql = originalTemplate,
+            ExtractSql = originalExtract,
+            SyncMode = BaseEnums.SyncMode.Snapshot,
+            CreateTime = DateTime.UtcNow.AddYears(-10)
+        };
+        await db.Insertable(packet).ExecuteCommandAsync();
+
+        var updateInput = new ShareDataUpdatePacketInput
+        {
+            ID = packet.ID,
+            Code = code,
+            Name = $"Packet Update Lock Modified {unique}",
+            OrderNo = 108,
+            TemplateSql = "SELECT 'HACKED_TEMPLATE' AS val",
+            ExtractSql = "SELECT 'HACKED_EXTRACT' AS val"
+        };
+
+        // Act
+        await scope.ServiceProvider.CallApiAsync(updateInput);
+
+        // Assert: TemplateSql và OrderNo không bị thay đổi bởi UpdatePacket
+        var inDb = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.ID == packet.ID);
+        Assert.NotNull(inDb);
+        Assert.Equal($"Packet Update Lock Modified {unique}", inDb.Name);
+        Assert.Equal(originalTemplate, inDb.TemplateSql);
+        Assert.Equal(101, inDb.OrderNo);
+        Assert.Equal(originalExtract, inDb.ExtractSql);
+    }
+
+    [Fact]
+    public async Task UpdateExtractSql_UpdatesExtractSqlOnly_PreservesTemplateSql_Test()
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true);
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var code = $"101_save_sql_{unique}";
+        Assert.True(PacketTemplateSeed.TryGet("101", out var tpl101));
+        var originalTemplate = tpl101.ExtractSql;
+
+        var packet = new ShareDataPacket
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Code = code,
+            Name = $"Packet Save Sql {unique}",
+            OrderNo = 101,
+            Status = BaseEnums.StatusEnum.Enable,
+            TemplateSql = originalTemplate,
+            ExtractSql = "SELECT z.ID AS zoneId FROM TmsZone z",
+            SyncMode = BaseEnums.SyncMode.Snapshot,
+            CreateTime = DateTime.UtcNow.AddYears(-10)
+        };
+        await db.Insertable(packet).ExecuteCommandAsync();
+
+        var newExtractSql = "SELECT z.ID AS zoneId, z.Name AS zoneName FROM TmsZone z";
+        var input = new UpdatePacketExtractSqlInput
+        {
+            PacketCode = code,
+            ExtractSql = newExtractSql,
+            SyncMode = BaseEnums.SyncMode.Snapshot
+        };
+
+        // Act
+        await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(input);
+
+        // Assert: ExtractSql được cập nhật, TemplateSql giữ nguyên
+        var inDb = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.ID == packet.ID);
+        Assert.NotNull(inDb);
+        Assert.Equal(newExtractSql, inDb.ExtractSql);
+        Assert.Equal(originalTemplate, inDb.TemplateSql);
     }
 
     [Fact]
@@ -229,13 +467,15 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         {
             Code = code,
             Name = $"Packet Dup 1 {unique}",
-            PacketVersion = "1.0"
+            PacketVersion = "1.0",
+            OrderNo = 101
         };
         var input2 = new ShareDataAddPacketInput
         {
             Code = code,
             Name = $"Packet Dup 2 {unique}",
-            PacketVersion = "1.0"
+            PacketVersion = "1.0",
+            OrderNo = 101
         };
 
         await scope.ServiceProvider.CallApiAsync(input1);
@@ -245,7 +485,7 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetExtractSql_ForceDefaultTemplateTrue_ReturnsStandardTemplateWithoutChangingDatabase_Test()
+    public async Task GetExtractSql_ForceDefaultTemplateTrue_ReturnsPacketTemplateSqlWithoutChangingDatabase_Test()
     {
         // Arrange
         SetUserContext(isSuperAdmin: true);
@@ -255,15 +495,20 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var unique = Guid.NewGuid().ToString("N")[..8];
         var code = $"103_default_{unique}";
         var savedCustomSql = "SELECT TOP (1) ID FROM TmsTrafficData";
+        var packetTemplateSql = "SELECT 'CUSTOM_PACKET_TEMPLATE' AS val";
 
         var packet = new ShareDataPacket
         {
             ID = Guid.NewGuid().ToString("N"),
             Code = code,
             Name = $"Packet 103 Test {unique}",
+            OrderNo = 103,
             Status = BaseEnums.StatusEnum.Enable,
             ExtractSql = savedCustomSql,
-            SyncMode = BaseEnums.SyncMode.Snapshot
+            TemplateSql = packetTemplateSql,
+            SyncMode = BaseEnums.SyncMode.Incremental,
+            CursorTimeColumn = "UpdateTime",
+            MaxLookBackDays = 2
         };
         await db.Insertable(packet).ExecuteCommandAsync();
 
@@ -274,13 +519,13 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             ForceDefaultTemplate = true
         });
 
-        // Assert
+        // Assert: Trả đúng TemplateSql của chính gói đó, giữ nguyên SyncMode/Cursor/Lookback của gói
         Assert.NotNull(output);
         Assert.True(output.HasDefaultTemplate);
-        Assert.True(PacketTemplateSeed.TryGet("103", out var tpl103));
-        Assert.Equal(tpl103.ExtractSql, output.ExtractSql);
+        Assert.Equal(packetTemplateSql, output.ExtractSql);
         Assert.Equal(BaseEnums.SyncMode.Incremental, output.SyncMode);
-        Assert.Equal(1, output.MaxLookBackDays);
+        Assert.Equal("UpdateTime", output.CursorTimeColumn);
+        Assert.Equal(2, output.MaxLookBackDays);
 
         // DB không bị thay đổi
         var inDb = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
@@ -306,6 +551,7 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             Name = $"Non template packet {unique}",
             Status = BaseEnums.StatusEnum.Enable,
             ExtractSql = savedSql,
+            TemplateSql = null,
             SyncMode = BaseEnums.SyncMode.Snapshot
         };
         await db.Insertable(packet).ExecuteCommandAsync();
@@ -332,12 +578,27 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
         var unique = Guid.NewGuid().ToString("N")[..8];
+        Assert.True(PacketTemplateSeed.TryGet("101", out var tpl101Reg));
+        await db.Insertable(new ShareDataPacket
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Code = $"101_src_{unique}",
+            Name = $"Source 101 {unique}",
+            OrderNo = 101,
+            Status = BaseEnums.StatusEnum.Enable,
+            TemplateSql = tpl101Reg.ExtractSql,
+            SyncMode = tpl101Reg.SyncMode,
+            CursorTimeColumn = tpl101Reg.CursorTimeColumn,
+            CreateTime = DateTime.UtcNow.AddYears(-10)
+        }).ExecuteCommandAsync();
+
         var code = $"101_reg_{unique}";
         var input = new ShareDataAddPacketInput
         {
             Code = code,
             Name = $"Packet Regression {unique}",
-            PacketVersion = "1.0"
+            PacketVersion = "1.0",
+            OrderNo = 101
         };
 
         // Act
@@ -347,8 +608,9 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
         Assert.NotNull(packet);
         Assert.False(string.IsNullOrWhiteSpace(packet.ExtractSql));
-        Assert.True(PacketTemplateSeed.TryGet("101", out var tpl101Reg));
-        Assert.Equal(tpl101Reg.ExtractSql, packet.ExtractSql);
+        Assert.True(PacketTemplateSeed.TryGet("101", out var tplExpected));
+        Assert.Equal(tplExpected.ExtractSql, packet.ExtractSql);
+        Assert.Equal(tplExpected.ExtractSql, packet.TemplateSql);
     }
 
     [Theory]
@@ -374,7 +636,8 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             Code = testCode,
             Name = name,
             Description = description,
-            PacketVersion = "1.0"
+            PacketVersion = "1.0",
+            OrderNo = 101
         };
 
         // Act & Assert

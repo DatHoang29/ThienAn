@@ -1119,11 +1119,11 @@ bao giờ ghi lại.
 
 ## VII.2 · Mục tiêu & định hướng kỹ thuật
 
-1. **Xóa bỏ hardcode SQL trích xuất:** chuyển câu lệnh lấy dữ liệu của 10 gói tin (101–110) từ mã nguồn C# sang CSDL. Cung cấp **Template Query** tự động nạp khi tạo mới đối tác để người dùng không phải cấu hình lại từ đầu.
-2. **Visual Query Builder & bộ API hỗ trợ UI:** WebAPI trả về danh sách bảng nguồn cho phép và danh mục trường dữ liệu theo `02-mapping-goi-tin-101-111.md`. Giao diện soạn thảo trực quan, kiểm tra an toàn cú pháp (chỉ `SELECT`, cấm DML/DDL) và ghi Audit Log chi tiết.
+1. **Mô hình SQL mẫu và trích xuất mới (chốt 20/10/2026):** Mỗi gói có 2 cột `TemplateSql` (SQL mẫu, chỉ ghi khi tạo gói qua `IsOnlyIgnoreUpdate`) và `ExtractSql` (SQL đang chạy, ghi đè khi Lưu). Bỏ hoàn toàn `PacketDefaultTemplate.cs` (mẫu viết cứng trong mã C#), bỏ chức năng 'Lấy SQL đã lưu làm mẫu'. Script `02-sharedata-seed-goi-tin.sql` là nơi duy nhất chứa câu SQL mẫu chuẩn của 11 gói (101–111). Khi tạo mới gói tin, chọn Loại gói (101–111, mặc định 101, khóa khi sửa), hệ thống tự sao chép `TemplateSql` và `ExtractSql` từ gói nguồn cùng loại trong CSDL.
+2. **Visual Query Builder & bộ API hỗ trợ UI:** WebAPI trả về danh sách bảng nguồn cho phép và danh mục trường dữ liệu theo `02-mapping-goi-tin-101-111.md`. Giao diện soạn thảo trực quan, kiểm tra an toàn cú pháp (chỉ `SELECT`, cấm DML/DDL) và ghi Audit Log chi tiết. Cả 11 gói (101–111) đều mở được ở chế độ Trực quan nhờ hỗ trợ đầy đủ `INNER`/`LEFT JOIN` và 'Lấy 1 dòng mới nhất' (`OUTER APPLY (SELECT TOP 1 ...)`).
 3. **Cấu hình động cơ chế đồng bộ (Snapshot vs Nối đuôi):**
    - **Gói Snapshot (hiện trạng / toàn bộ):** gửi toàn bộ dữ liệu, **không áp mức trần (TOP) cứng** trong Backend. Người quản trị đặt `TOP` trực tiếp trong câu SQL nếu cần.
-   - **Gói Nối đuôi (Incremental):** cấu hình trên UI chế độ đồng bộ và trường mốc nối đuôi (`@LastKey` là thời gian hoặc khóa tổng hợp), đồng bộ tới Worker. Giới hạn quét lùi `MaxLookBackDays` (1–365 ngày).
+   - **Gói Nối đuôi (Incremental):** giữ kiểu "biến mốc nằm trong câu SQL, hệ thống điền giá trị" (giống Azure Data Factory, đúng quyết định buổi họp 14/10/2026); giao diện chỉ còn chọn cột thời gian / khóa phụ và tự áp điều kiện con trỏ vào câu SQL, gom gọn trên một hàng với một dòng trạng thái ✓/✗ + [Sửa tự động]; biến con trỏ (`@lastTime`, `@lastKey`, `@pageSize`) do Worker nạp giá trị khi chạy. Giới hạn quét lùi `MaxLookBackDays` (1–365 ngày).
 4. **Tách tầng kết nối độc lập (`Connection Layer`) & cấu hình `Dictionary`:**
    - Tách 3 bước: (1) Trích xuất → (2) Ánh xạ ra **Object chung (JSON)** → (3) Tầng kết nối vận chuyển.
    - Thông tin kết nối riêng theo kênh nằm trong `Dictionary<string, string>` (mô hình `IntgVmsManager.cs`), không phình cột bảng CSDL; địa chỉ/cổng ở cột đối tác.
@@ -1203,7 +1203,7 @@ Theo đặc tả [`02-mapping-goi-tin-101-111.md`](../doc/02-mapping-goi-tin-101
 | **107** | Thông tin sự kiện giao thông (Sự cố) | **Incremental (Nối đuôi)** | `TmsIncident`, `TmsEventType` | `COALESCE(UpdateTime, StartDate)` | Có sẵn |
 | **108** | Thông tin hiển thị biển báo (VMS) | **Snapshot (Full)** | `VmsCurrent`, `TmsEquipment`, `TmsSignalLog` | Không dùng (lấy full hiện trạng) | Có sẵn |
 | **110** | Trao đổi người tham gia giao thông | **Snapshot theo mapping (all / opConfig)** | `TmsIncident`, `TmsEquipment`, `VmsCurrent`, `TmsWeather` | Không dùng (lấy full hiện trạng) | **Đã làm** (R13, `DQ-DB-6`, `DQ-SV-10`, phương án A) |
-| **111** | Trao đổi với TT QLĐHGT tuyến | **Envelope / Gộp** | Gói bao thư chứa 101–109 | Theo gói con | Tạm hoãn (skip) |
+| **111** | Trao đổi với TT QLĐHGT tuyến | **Incremental (Nối đuôi)** | `TmsSignalLog`, có câu SQL mẫu (20/10/2026) | `LogTime` | Tạm hoãn (`Status = 0`, skip) |
 
 > 📌 **Cập nhật 16/10/2026:** Chế độ gửi (Snapshot / Incremental) và trạng thái gói lấy hoàn toàn từ CSDL (`SyncMode` và `Status`), xóa bỏ hoàn toàn các catalog cứng theo mã gói trong code. Gói tắt (`Status = 0`, ví dụ gói 111; còn gói 110 đã bật `Status = 1`) được Worker bỏ qua lặng lẽ (chỉ log Information, không ghi `ShareDataAlertLog`).
 
@@ -1322,8 +1322,8 @@ Theo đặc tả [`02-mapping-goi-tin-101-111.md`](../doc/02-mapping-goi-tin-101
 
 - [x] **DQ-FE-1: Query Builder bảo toàn nghĩa SQL:** **Đã làm**
   - Hai chế độ: soạn SQL thô và trực quan (Builder); nạp danh mục bảng/trường qua Metadata API.
-  - Bảo toàn `TOP`, alias, toán tử `>=`/`<=`, `BETWEEN`/`OR`, `ORDER BY`; khóa Builder với truy vấn phức tạp (JOIN, UNION, subquery); hỗ trợ mở lại query sinh từ Builder (`RV-6`).
-  - Nút "Mẫu mặc định" khôi phục query chuẩn, panel kéo giãn được.
+  - Bảo toàn alias, toán tử `>=`/`<=`, `BETWEEN`/`OR`, `ORDER BY`; hỗ trợ đầy đủ `INNER`/`LEFT JOIN` và 'Lấy 1 dòng mới nhất' (`OUTER APPLY (SELECT TOP 1 ...)`) cho phép mở và hiển thị trực quan toàn bộ 11 gói (101–111), có test chặn hồi quy; chỉ khóa Builder với truy vấn tự do chứa UNION hoặc subquery không theo quy chuẩn; bỏ ô "Giới hạn TOP" và menu chèn biến hệ thống (chuyển sang tự động hóa tại `SyncModePanel`).
+  - Nút "Mẫu SQL ▾" tinh gọn còn "Khôi phục SQL mẫu" (đọc trực tiếp `TemplateSql` của chính gói trong CSDL mà không ghi đè DB); bỏ chức năng "Lấy SQL đã lưu làm mẫu", panel kéo giãn được.
   - Nguồn: [queryBuilder.vue](../../../../TA-ITS015-WEBVUE-V1.0/src/src/views/sharedata/dataSource/component/queryBuilder.vue).
 - [x] **DQ-FE-2: Thống nhất 1 SQL cho mỗi gói tin & Nút Mẫu mặc định:** **Đã làm**
   - Màn hình SQL Center `dataSource/index.vue` loại bỏ hoàn toàn việc chọn đối tác (`sql-scope-control`), nút 'Đồng bộ vào Gói tin' luôn sẵn sàng; mỗi gói tin chỉ có DUY NHẤT 1 câu SQL trích xuất.

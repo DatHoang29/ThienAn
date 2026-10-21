@@ -8,4 +8,4 @@
 # Claude Code Harness - ThienAn
 
 > 🔴 **SINGLE SOURCE OF TRUTH (SSOT): `.agents/`**
-> Toàn bộ quy tắc dự án, build/test commands và critical mandatory safeguards được nạp tự động qua `@AGENTS.md` và `@.agents/rules/thienan_rules.md` ở trên.
+> Toàn bộ quy tắc dự án, build/test commands và P0 safeguards được nạp tự động qua các tệp `@import` ở trên.

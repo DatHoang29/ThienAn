@@ -8,7 +8,7 @@
       "timeout": 10
     },
     {
-      "matcher": "run_command|write_to_file",
+      "matcher": "run_command|write_file|edit_file|write_to_file|Write|Edit|Bash",
       "command": "node .agents/hooks/thienan-guardrails.mjs",
       "timeout": 10
     }

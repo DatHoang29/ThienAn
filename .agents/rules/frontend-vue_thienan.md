@@ -265,6 +265,10 @@ src/views/<module>/<feature>/
 8. **Đóng Gói CSS Phân Hệ Nội Bộ — CẤM Viết CSS Đặc Thù Của Phân Hệ Ra File CSS Global (Rule 20.22)**:
    - Chi tiết quy định cấm viết CSS phân hệ ra `app.scss`/`index.scss` và hướng dẫn đóng gói tại `src/src/views/<phân-hệ>/style/`: xem mục 2.7.
 
+9. **Bỏ Là Bỏ Hết Các Liên Đới (Cascading Cleanup - Rule 19.68)**:
+   - Khi gỡ bỏ một nút bấm, component hoặc tính năng UI: **BẮT BUỘC gỡ bỏ triệt để toàn bộ biến state/ref, hàm xử lý (handlers), watcher, computed, component/dialog liên quan, SCSS riêng của nó**, và cập nhật bài test tương ứng.
+   - ⛔ **TUYỆT ĐỐI CẤM** để lại mã chết (dead code / zombie code) rải rác trong file `.vue`.
+
 ---
 
 ## 🛑 7. Quy Tắc Vận Hành Client Dev

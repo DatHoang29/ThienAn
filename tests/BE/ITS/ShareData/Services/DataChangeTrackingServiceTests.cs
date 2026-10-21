@@ -1001,7 +1001,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             await PrepareDatabase(db, logger, packetCode);
             var (partner, sub) = await SeedOutboundSubscription(db, partnerCode, subCode, packetCode, s => s.SendOnNewData = true);
 
-            var baseTime = DateTime.Now;
+            var now = DateTime.Now;
+            var baseTime = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, now.Second, DateTimeKind.Local);
             var initialLastTime = baseTime.AddMinutes(-10);
 
             // Giả lập LastSend đã ghi nhận mốc thời gian và key cao trước đó
@@ -1669,7 +1670,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             await Task.WhenAll(tasks);
 
             var rowCount = await db.Queryable<ShareDataSourceTable>().Where(x => x.IsDelete == null).CountAsync();
-            Assert.Equal(15, rowCount);
+            Assert.Equal(16, rowCount);
 
             var finalState = await GetTrackState(db, "TmsZoneStatus");
             Assert.NotNull(finalState);
@@ -3189,14 +3190,14 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
         /// <summary>
         /// Description: Kiểm thử tính năng nạp cấu hình danh sách bảng cần giám sát từ ShareDataSourceTable.
-        ///              Khi cấu hình mặc định thì nạp 14 bảng bật (TmsEquipment tắt); khi chỉ bật 2 bảng thì chỉ theo dõi 2 bảng đó.
+        ///              Khi cấu hình mặc định thì nạp 15 bảng bật (TmsEquipment tắt); khi chỉ bật 2 bảng thì chỉ theo dõi 2 bảng đó.
         /// Created date: 27/09/2026
         /// Modified date: 17/10/2026
         /// </summary>
         [Fact]
         public async Task DataChangeTrackingService_WhenConfiguredInShareDataSourceTable_LoadsCustomTables_Test()
         {
-            // Case 1: Nạp cấu hình mặc định từ ShareDataSourceTable -> nạp đủ 14 bảng bật (TmsEquipment Status=0)
+            // Case 1: Nạp cấu hình mặc định từ ShareDataSourceTable -> nạp đủ 15 bảng bật (TmsEquipment Status=0)
             await using var scope = _host.Services.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             await EnsureDefaultTrackTables(db);
@@ -3204,7 +3205,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var defaultWorker = CreateTrackerWorker();
             await defaultWorker.PollChanges(CancellationToken.None);
             Assert.NotEmpty(defaultWorker.TrackedTables);
-            Assert.Equal(14, defaultWorker.TrackedTables.Count);
+            Assert.Equal(15, defaultWorker.TrackedTables.Count);
             Assert.DoesNotContain("TmsEquipment", defaultWorker.TrackedTables);
 
             // Case 2: Tắt các bảng khác, chỉ giữ TmsIncident và TmsTrafficData đang bật trong ShareDataSourceTable
@@ -4071,7 +4072,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             // Assert
             var allRows = await db.Queryable<ShareDataSourceTable>().Where(x => x.IsDelete == null).ToListAsync();
-            Assert.Equal(15, allRows.Count);
+            Assert.Equal(16, allRows.Count);
             var enabledRows = allRows.Where(x => x.IsTracked == true).ToList();
             Assert.All(enabledRows, r =>
             {
@@ -4337,9 +4338,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             await worker.ReloadConfig(db);
             await worker.PollChanges(CancellationToken.None);
 
-            // Assert 1: Còn 14 dòng chưa xóa mềm trong ShareDataSourceTable (worker KHÔNG tự INSERT dòng mới)
+            // Assert 1: Còn 15 dòng chưa xóa mềm trong ShareDataSourceTable (worker KHÔNG tự INSERT dòng mới)
             var aliveCount = await db.Queryable<ShareDataSourceTable>().Where(x => x.IsDelete == null).CountAsync();
-            Assert.Equal(14, aliveCount);
+            Assert.Equal(15, aliveCount);
             Assert.DoesNotContain("TmsWeather", worker.TrackedTables);
 
             // Assert 2: Dòng cũ vẫn còn VẬT LÝ trong CSDL — chỉ bị xoá mềm, không bị xoá cứng
@@ -4900,10 +4901,10 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         ///              trùng khớp 100% với 15 dòng trong script 03-sharedata-seed-cau-hinh.sql.
         /// </summary>
         [Fact]
-        public void SeedScriptReader_MatchesSqlScript03_Exactly15Rows_Test()
+        public void SeedScriptReader_MatchesSqlScript03_Exactly16Rows_Test()
         {
             var seedRows = SeedScriptReader.ReadSourceTables().OrderBy(x => x.OrderNo).ToList();
-            Assert.Equal(15, seedRows.Count);
+            Assert.Equal(16, seedRows.Count);
 
             var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
             var sql03Path = Path.Combine(repoRoot, "DocBusinessThienAn", "HữuNghị-ChiLăng", "ShareData", "sql", "03-sharedata-seed-cau-hinh.sql");
@@ -4942,7 +4943,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 .Where(x => x.IsDelete == null)
                 .OrderBy(x => x.OrderNo)
                 .ToListAsync();
-            Assert.Equal(15, beforeRows.Count);
+            Assert.Equal(16, beforeRows.Count);
 
             var worker = CreateTrackerWorker(scope);
 
@@ -5014,7 +5015,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var worker = CreateTrackerWorker(scope);
             await worker.PollChanges(CancellationToken.None);
 
-            Assert.Equal(14, worker.TrackedTables.Count);
+            Assert.Equal(15, worker.TrackedTables.Count);
             Assert.Contains("TmsZone", worker.TrackedTables);
 
             // Act: Gọi ReloadConfig với client đã dispose để giả lập lỗi truy vấn CSDL
@@ -5024,7 +5025,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             await worker.ReloadConfig(brokenDb);
 
             // Assert: Map vẫn được bảo toàn nguyên vẹn
-            Assert.Equal(14, worker.TrackedTables.Count);
+            Assert.Equal(15, worker.TrackedTables.Count);
             Assert.Contains("TmsZone", worker.TrackedTables);
         }
 
@@ -5092,7 +5093,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var workerConfig = new DataWorkerConfigService(scopeFactory, NullLogger<DataWorkerConfigService>.Instance, config);
             var worker = CreateTrackerWorker(scope, config: config, workerConfig: workerConfig);
 
-            // Act 1: Lượt poll đầu tiên -> khởi tạo mốc và nạp danh sách 14 bảng (chưa có TmsEquipment)
+            // Act 1: Lượt poll đầu tiên -> khởi tạo mốc và nạp danh sách 15 bảng (chưa có TmsEquipment)
             await worker.PollChanges(CancellationToken.None);
             Assert.DoesNotContain("TmsEquipment", worker.TrackedTables);
 

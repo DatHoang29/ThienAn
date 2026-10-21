@@ -4,6 +4,7 @@
 
 ### Changed
 
+- rules: Thu gọn bộ rule nạp sẵn mỗi phiên (`.claude/CLAUDE.md` và 6 tệp `@import`) từ 72.280 ký tự xuống 19.868 ký tự (giảm ~72,5%, tiết kiệm ~13.100 token/phiên). Riêng `thienan_rules.md` thu gọn từ 55.155 ký tự xuống 11.930 ký tự (đạt mục tiêu ≤ 12.000 ký tự). Phân loại 58 quy tắc: 21 quy tắc P0/Chung nạp sẵn viết gọn, 37 quy tắc theo chủ đề chuyển sang bảng chỉ mục 6 miền quy chuẩn chuyên sâu; bảo toàn 100% số hiệu rule (Rule 19.80, Rule 20.26, Rule 51, Mục 19 P0...) và không làm mất bất kỳ quy tắc nào.
 - hook: bỏ bộ Gortex cấp người dùng, sửa 3 hook lỗi (`prompt-submit.mjs`, `thienan-guardrails.mjs`, `gortex-enforce.mjs`), dùng biến `$CLAUDE_PROJECT_DIR` để đảm bảo hoạt động chính xác khi `cwd` chuyển sang thư mục con. Thêm `--mode=enrich` vào hook Gortex local cấp dự án (`.claude/settings.local.json`).
 
 ## 2026.8.31
