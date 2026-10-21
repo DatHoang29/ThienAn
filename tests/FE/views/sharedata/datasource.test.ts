@@ -1143,7 +1143,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         // Kiểm tra thanh phân trang vxe-pager ở đáy có chiều cao cố định 40px và bám sát đáy card
         const pager = page.locator('.packet-col .vxe-pager');
         await expect(pager).toBeVisible();
-        const cardBox = await page.locator('.packet-col .full-table').boundingBox();
+        const count = await page.locator(".packet-col .full-table").count(); console.log("COUNT:", count); const cardBox = await page.locator('.packet-col .full-table').boundingBox();
         const gridBox = await page.locator('.packet-col .vxe-grid').boundingBox();
         const pagerBox = await pager.boundingBox();
 
@@ -1153,7 +1153,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(gridBox).not.toBeNull();
 
         // Độ lệch giữa đáy pager và đáy card không vượt quá padding (khoảng trống thừa < 10px)
-        const gap900 = cardBox!.y + cardBox!.height - (pagerBox!.y + pagerBox!.height);
+        console.log("DEBUG_BOXES:", { cardBox, gridBox, pagerBox }); const gap900 = cardBox!.y + cardBox!.height - (pagerBox!.y + pagerBox!.height);
         expect(gap900).toBeLessThanOrEqual(10);
         expect(gridBox!.height).toBeGreaterThan(600);
 
