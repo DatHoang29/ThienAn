@@ -69,3 +69,58 @@ test('Prompt Submit Hook: Định hướng SSOT chuẩn JSON không chứa rule 
   assert.match(parsed.hookSpecificOutput?.additionalContext, /TUÂN THỦ SSOT TẠI \.agents/);
 });
 
+test('Hooks: Hoạt động chính xác khi cwd là thư mục con với CLAUDE_PROJECT_DIR', () => {
+  const subCwd = path.join(root, 'tests/BE');
+  const env = { ...process.env, CLAUDE_PROJECT_DIR: root };
+
+  // 1. prompt-submit
+  const promptRes = spawnSync(process.execPath, [path.join(root, '.agents/hooks/prompt-submit.mjs')], {
+    cwd: subCwd,
+    env,
+    encoding: 'utf8'
+  });
+  assert.equal(promptRes.status, 0);
+  assert.equal(promptRes.stderr, '');
+  assert.match(promptRes.stdout, /UserPromptSubmit/);
+
+  // 2. thienan-guardrails
+  const guardRes = spawnSync(process.execPath, [path.join(root, '.agents/hooks/thienan-guardrails.mjs')], {
+    cwd: subCwd,
+    env,
+    input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'git status' } }),
+    encoding: 'utf8'
+  });
+  assert.equal(guardRes.status, 0);
+  assert.equal(guardRes.stderr, '');
+
+  // 3. gortex-enforce session-start
+  const sessionRes = spawnSync(process.execPath, [path.join(root, '.agents/hooks/gortex-enforce.mjs'), 'session-start'], {
+    cwd: subCwd,
+    env,
+    encoding: 'utf8'
+  });
+  assert.equal(sessionRes.status, 0);
+  assert.equal(sessionRes.stderr, '');
+  assert.match(sessionRes.stdout, /SessionStart/);
+
+  // 4. gortex-enforce pre-tool-use (cho qua)
+  const enforcePass = spawnSync(process.execPath, [path.join(root, '.agents/hooks/gortex-enforce.mjs'), 'pre-tool-use'], {
+    cwd: subCwd,
+    env,
+    input: JSON.stringify({ tool_name: 'Read', tool_input: { file_path: 'README.md' } }),
+    encoding: 'utf8'
+  });
+  assert.equal(enforcePass.status, 0);
+  assert.equal(enforcePass.stderr, '');
+
+  // 5. gortex-enforce pre-tool-use (chặn)
+  const enforceBlock = spawnSync(process.execPath, [path.join(root, '.agents/hooks/gortex-enforce.mjs'), 'pre-tool-use'], {
+    cwd: subCwd,
+    env,
+    input: JSON.stringify({ tool_name: 'Read', tool_input: { file_path: 'src/App.cs' } }),
+    encoding: 'utf8'
+  });
+  assert.equal(enforceBlock.status, 2);
+  assert.match(enforceBlock.stderr, /bị chặn/);
+});
+

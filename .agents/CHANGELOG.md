@@ -1,5 +1,11 @@
 # AG Kit Toolkit Changelog
 
+## 2026.10.21
+
+### Changed
+
+- hook: bỏ bộ Gortex cấp người dùng, sửa 3 hook lỗi (`prompt-submit.mjs`, `thienan-guardrails.mjs`, `gortex-enforce.mjs`), dùng biến `$CLAUDE_PROJECT_DIR` để đảm bảo hoạt động chính xác khi `cwd` chuyển sang thư mục con. Thêm `--mode=enrich` vào hook Gortex local cấp dự án (`.claude/settings.local.json`).
+
 ## 2026.8.31
 
 ### Added

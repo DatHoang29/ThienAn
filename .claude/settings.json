@@ -5,8 +5,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .agents/hooks/prompt-submit.mjs",
-            "timeout": 5
+            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/prompt-submit.mjs\"",
+            "timeout": 10
           }
         ]
       }
@@ -17,8 +17,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .agents/hooks/thienan-guardrails.mjs",
-            "timeout": 5
+            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/thienan-guardrails.mjs\"",
+            "timeout": 10
           }
         ]
       },
@@ -27,8 +27,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .agents/hooks/gortex-enforce.mjs pre-tool-use",
-            "timeout": 5
+            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/gortex-enforce.mjs\" pre-tool-use",
+            "timeout": 10
           }
         ]
       }
@@ -38,8 +38,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .agents/hooks/gortex-enforce.mjs session-start",
-            "timeout": 5
+            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/gortex-enforce.mjs\" session-start",
+            "timeout": 10
           }
         ]
       }

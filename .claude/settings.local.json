@@ -39,7 +39,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/gortex-hook.mjs\"",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/gortex-hook.mjs\" --mode=enrich",
             "timeout": 3000,
             "statusMessage": "Watching for Gortex localization completion..."
           }
@@ -51,7 +51,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/gortex-hook.mjs\"",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/gortex-hook.mjs\" --mode=enrich",
             "timeout": 3000,
             "statusMessage": "Injecting Gortex orientation snapshot..."
           }
@@ -64,7 +64,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/gortex-hook.mjs\"",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/gortex-hook.mjs\" --mode=enrich",
             "timeout": 3000,
             "statusMessage": "Enforcing Gortex graph access policy..."
           }
@@ -76,7 +76,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/gortex-hook.mjs\"",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/gortex-hook.mjs\" --mode=enrich",
             "timeout": 3000,
             "statusMessage": "Loading Gortex graph orientation..."
           }
@@ -88,7 +88,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/gortex-hook.mjs\"",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/gortex-hook.mjs\" --mode=enrich",
             "timeout": 5000,
             "statusMessage": "Running Gortex post-task diagnostics..."
           }
@@ -100,7 +100,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/gortex-hook.mjs\"",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/gortex-hook.mjs\" --mode=enrich",
             "timeout": 3000,
             "statusMessage": "Starting an isolated Gortex subagent turn..."
           }
@@ -112,7 +112,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/gortex-hook.mjs\"",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/gortex-hook.mjs\" --mode=enrich",
             "timeout": 3000,
             "statusMessage": "Clearing Gortex subagent turn state..."
           }
@@ -124,7 +124,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/gortex-hook.mjs\"",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/gortex-hook.mjs\" --mode=enrich",
             "timeout": 3000,
             "statusMessage": "Surfacing relevant Gortex symbols..."
           }

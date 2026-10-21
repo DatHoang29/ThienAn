@@ -14,7 +14,7 @@ description: Backend .NET standards, Wolverine bus, SqlSugar ORM, Clean Architec
 
 ## 🏛️ 1. Cấu Trúc Module Chuẩn (Layer Separation)
 
-> Nguồn đối chiếu của team: bộ rule Kiro BE (`TA-ITS015-WEBAPI-V1.0/.kiro/steering/` gồm `coding-rules.md`, `structure.md`, `tech.md`, `product.md`; bản `src/.kiro/steering` giống hệt) — **đã tích hợp đủ vào tệp này ngày 20/10/2026** (§1.5 tạo module, §1.6 công nghệ, §2 đặt tên/luồng CQRS/cache/Refit, §3 SqlSugar, §4.24 Base Helper/upload/thời gian); rule nào tệp này đã quy định chặt hơn thì theo tệp này. Bản sao `DocBusinessThienAn/KiroR/` đã xóa. FE: `frontend-vue_thienan.md` và `TA-ITS015-WEBAPI-V1.0/docs/PROJECT_STRUCTURE_WPF_WORKER_V3.md` (Service).
+> Nguồn đối chiếu của team: bộ rule Kiro BE (`TA-ITS015-WEBAPI-V1.0/.kiro/steering/` gồm `coding-rules.md`, `structure.md`, `tech.md`, `product.md`; bản `src/.kiro/steering` giống hệt) và bản tóm tắt `DocBusinessThienAn/Rules_FE_BE.md` — **đã tích hợp đủ vào tệp này ngày 20/10/2026** (§1.5 tạo module, §1.6 công nghệ, §2 đặt tên/luồng CQRS/cache/Refit, §3 SqlSugar, §4.24 Base Helper/upload/thời gian); rule nào tệp này đã quy định chặt hơn thì theo tệp này. Các bản sao `DocBusinessThienAn/KiroR/` và `DocBusinessThienAn/Rules_FE_BE.md` đã xóa để bảo đảm SSOT tập trung tại `.agents/rules/`. FE: `frontend-vue_thienan.md` và `TA-ITS015-WEBAPI-V1.0/docs/PROJECT_STRUCTURE_WPF_WORKER_V3.md` (Service).
 
 ### 1.1. Thuật ngữ "phân hệ" (Module / Service)
 * **Phân hệ** là một mảng nghiệp vụ: ShareData, VMS, VideoWall, TMS, VDS, Toll, CCTV, FMS, WP, Barrier, TrafficLight…
@@ -417,6 +417,22 @@ namespace Module.ShareData.Controllers
       - **Không tính là tự tạo interface**: cài đặt interface của framework/thư viện (`BackgroundService`/`IHostedService`, `IValidator<T>`, `IDisposable`, `ISqlSugarEntitySeedData<T>`…) và marker Furion (`IScoped`, `ITransient`, `ISingleton`, `IDynamicApiController`).
       - ⛔ **Lớp giả trong test không được tính là lớp cài đặt thứ hai** (Rule 19.18 cấm tự tạo lớp giả cho service nội bộ). Test lấy lớp thật bằng tên lớp: `GetRequiredService<DataOutboundService>()`.
     - **Đăng ký DI bằng marker Furion** (đã chạy thử Furion 4.9.8.41 ngày 19/10/2026):
+      ```csharp
+      // Kế thừa trực tiếp IScoped, ITransient hoặc ISingleton của Furion (không tạo interface 1:1)
+      namespace Modules.TMS.Infrastructure.Services.Equipment
+      {
+          public class TmsEquipmentService : IScoped
+          {
+              private readonly BaseRepository<TmsEquipment> _repo;
+              public TmsEquipmentService(BaseRepository<TmsEquipment> repo)
+              {
+                  _repo = repo;
+              }
+
+              public async Task ProcessBusinessLogic(long id) { ... }
+          }
+      }
+      ```
       - Lớp kế thừa `IScoped` / `ITransient` / `ISingleton` (chọn vòng đời theo Rule 19.86); ⛔ không viết thêm `services.AddXxx<...>()` cho lớp đã có marker. Vẫn đăng ký tay những gì Furion không quét: `AddHostedService<>`, `AddHttpClient()`, `ISqlSugarClient`, lớp của thư viện ngoài.
       - Marker đăng ký chính lớp cụ thể và interface nghiệp vụ **đầu tiên** của lớp (mặc định `SelfWithFirstInterface`, tự bỏ qua `IDisposable`). Trường hợp hiếm còn interface (plugin), nhiều lớp cài đặt cùng một interface đều được đăng ký đủ trong `IEnumerable<>`, không cần gắn `[Injection]`.
       - **Marker chỉ có tác dụng dưới WebAPI** — host duy nhất bật Furion (`webBuilder.Inject()`). Lớp chạy trong Service (kể cả thư viện Integration chỉ Service dùng) ⛔ không gắn marker: đăng ký tay bằng **chính lớp cụ thể**, đúng một lần trong `Add<X>Services`/`Add<ThưViện>` (`services.AddSingleton<XxxService>()`), giữ `AddHostedService<>` viết tay (§1.3). Mã chạy trong Service ⛔ không dùng thứ chỉ có ở web/Furion: `HttpContext`, `App.*`, `Oops`, người dùng đăng nhập (`UserManager`).
@@ -425,7 +441,13 @@ namespace Module.ShareData.Controllers
     - **Phạm vi áp dụng (Rule 19.89 ưu tiên)**: bắt buộc cho mã viết mới. Mã cũ của mình chuẩn hóa bằng task refactor riêng, chia phase, không làm kèm task khác ("cứ viết cho nó lấy trước đi rồi mốt dọn lại sau", "nó refactor mệt"); interface 1:1 đã có trong **mã của mình** thì gỡ khi đang sửa phần đó hoặc khi làm task refactor. **Mã của người khác** (tác giả theo `git log`/`Author:`) chỉ sửa khi người dùng yêu cầu rõ.
     - **Cách gỡ một interface 1:1** (làm trọn trong một lần): xóa tệp interface; bỏ `: IXxx` khỏi lớp; đổi kiểu tham số hàm khởi tạo, đăng ký DI và `GetRequiredService`/`GetService` sang lớp cụ thể; chuyển `<summary>` của interface sang hàm của lớp nếu lớp chưa có; xóa `using` namespace không còn kiểu nào và thư mục `Interfaces/` rỗng; sửa chú thích còn nhắc tên interface. **Giữ nguyên tên tham số/biến đã có** (Rule 19.87), kể cả khi tên trùng tên kiểu — `DataOutboundService DataOutboundService` vẫn biên dịch được.
     - **Cách kiểm nhanh**: Gortex `find_implementations(<id interface>)` hoặc `search_text` mẫu `class \w+[^{]*\bIXxx\b` trong `src/` (không tính `tests/`). Đúng một lớp cài đặt ⇒ interface 1:1 ⇒ gỡ.
-    - **Phân cấp Base thống nhất** ("chia cho đúng thôi chứ đừng có mỗi cái tạo một cái riêng"): Base toàn hệ thống (`CommonBaseController`, `SqlSugarRepository<T>`, `BaseLocaleManager` ở `Shared.DTO/Constants/Localization`) $\rightarrow$ Base cấp module (`BaseController`, `BaseRepository<T>`, `BaseMsg : BaseLocaleManager`) $\rightarrow$ chức năng chỉ thêm phần riêng của mình. ⛔ **CẤM** tự tạo Base hay lớp exception riêng ở từng chức năng (Feature) hoặc thư viện.
+    - **Phân cấp Base thống nhất** ("chia cho đúng thôi chứ đừng có mỗi cái tạo một cái riêng"):
+      ```text
+      Shared (Toàn hệ thống: CommonBaseController, SqlSugarRepository<T>, BaseLocaleManager)
+        └── Modules.{Name} (Phân hệ: BaseController, BaseRepository<T>, BaseMsg)
+              └── Feature (Chức năng cụ thể: chỉ thêm phần riêng, cấm tự tạo Base ad-hoc)
+      ```
+      Base toàn hệ thống (`CommonBaseController`, `SqlSugarRepository<T>`, `BaseLocaleManager` ở `Shared.DTO/Constants/Localization`) $\rightarrow$ Base cấp module (`BaseController`, `BaseRepository<T>`, `BaseMsg : BaseLocaleManager`) $\rightarrow$ chức năng chỉ thêm phần riêng của mình. ⛔ **CẤM** tự tạo Base hay lớp exception riêng ở từng chức năng (Feature) hoặc thư viện.
     - **Base Helper trung gian**: Mọi tiện ích hệ thống dùng chung gom vào `Shared.Utility.Helpers.BaseHelper` (`FileHp`, `NetworkHp`, `ImageHp`, `ExcelHp`, `RetryHp`, `EChartHp`) làm tầng trung gian để dễ tìm kiếm và tái sử dụng.
       - **Thời gian (bổ sung 20/10/2026, theo Kiro BE `coding-rules.md` mục "Shared Utility Functions")**: mã mới ở project có tham chiếu `Shared.Utility` lấy giờ hiện tại bằng `BaseUtil.TimeServer.GetTimeServer()`, ⛔ không gọi thẳng `DateTime.Now`; giờ FE gửi lên (UTC+0) đổi về giờ server bằng `BaseUtil.TimeServer.GetTimeServer(utcTime)`. Tiền lệ: CCTV, CfgSystem, FMS, Mail, `Integration.NxVms`. Hiện `GetTimeServer()` trả `DateTime.Now`, nên đổi không làm thay đổi hành vi. Thư viện thuần BCL (`*.Base`, `Modules.Integration.Delivery`) không tham chiếu `Shared.Utility` thì giữ `DateTime.Now`. Mã cũ giữ nguyên (Rule 19.89). `CreateTime`/`UpdateTime` của entity do framework tự gán.
       - **Tải tệp (`IUploadService`, `Shared.Core`, tiêm qua DI)** — tích hợp từ Kiro BE: ảnh/biểu tượng base64 `await _uploadService.UploadAsync(new BaseUploadInput { Data = base64, FolderPath = BaseUploadConfig.Folder.EquipmentType })`; tệp từ form `UploadAsync(command.File, "Upload/<ChứcNăng>/Documents", fileName)`; nội dung chữ/JSON `UploadTextAsync(new BaseUploadInput { Data, FolderPath, FileName })`. Thư mục định sẵn ở `BaseUploadConfig` (`Folder.EquipmentType`, `Folder.EventType`, `Vms.Template`, `Vms.SendToDevice`); ⛔ không tự ghép đường dẫn lưu trữ khi đã có hằng.

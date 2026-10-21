@@ -473,7 +473,7 @@ Chi tiết quy trình, hình thức kiểm thử (quét tĩnh CSS/template, đo 
 
 ## 🧱 11. Store, Kiểu Dữ Liệu, Sự Kiện Thời Gian Thực, Trang CRUD, Lưu Trữ & Phân Quyền (tích hợp từ Kiro FE, 20/10/2026)
 
-> Nguồn: bộ rule Kiro FE `TA-ITS015-WEBVUE-V1.0/.kiro/steering/` (`coding-rules.md`, `structure.md`, `tech.md`, `product.md`) — đã tích hợp đủ vào tệp này; bản sao `DocBusinessThienAn/KiroR/` đã xóa. Rule nào tệp này đã quy định chặt hơn thì theo tệp này.
+> Nguồn: bộ rule Kiro FE `TA-ITS015-WEBVUE-V1.0/.kiro/steering/` (`coding-rules.md`, `structure.md`, `tech.md`, `product.md`) và bản tóm tắt `DocBusinessThienAn/Rules_FE_BE.md` — đã tích hợp đủ vào tệp này; các bản sao `DocBusinessThienAn/KiroR/` và `DocBusinessThienAn/Rules_FE_BE.md` đã xóa để bảo đảm SSOT tập trung tại `.agents/rules/`. Rule nào tệp này đã quy định chặt hơn thì theo tệp này.
 
 ### 11.1. Pinia
 - Viết store kiểu **Options API**: `defineStore('baseConfig', { state: () => ({ ... }), actions: { ... } })`, ⛔ không dùng kiểu Setup API.
