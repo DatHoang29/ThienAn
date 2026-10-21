@@ -17,9 +17,12 @@ description: Unified Testing Suite protocol, Playwright FE E2E, xUnit BE on loca
 1. **Kiểm Thử Toàn Trình Nghiệp Vụ (Full Business Flow - Rule 19.10)**:
    - **BẮT BUỘC** viết các bài kiểm thử tích hợp luồng nghiệp vụ hoàn chỉnh (Full Flow Integration Test) chạy trên CSDL Test Local thật.
    - ⛔ **TUYỆT ĐỐI CẤM** viết các micro unit test vụn vặt chỉ để kiểm tra từng hàm helper static, rẽ nhánh if/else nhỏ lẻ với các object giả lập in-memory rời rạc.
-2. **Tái Hiện Bug Trước Khi Fix (TDD Red-Green - Rule 19.59)**:
-   - Khi nhận task sửa lỗi (fix bug), BẮT BUỘC viết bài test tái hiện lỗi thất bại (Fail/Red) trước.
-   - Sau đó mới sửa code để test chuyển sang thành công (Pass/Green).
+2. **Ưu Tiên Sửa Code Trước — Chỉ Viết Test Khi Có Yêu Cầu (Rule 19.67 - Fix-First & On-Demand Testing)**:
+   - Áp dụng thống nhất cho cả **Frontend (Playwright)** và **Backend (xUnit / C#)**.
+   - Khi người dùng báo lỗi, phản hồi vấn đề hoặc yêu cầu chỉnh sửa/bổ sung tính năng: AI **BẮT BUỘC tập trung xử lý và sửa mã nguồn dứt điểm trước (Fix-First)**, biên dịch kiểm tra thành công và báo cáo ngay để người dùng review trực quan trên môi trường dev.
+   - ⛔ **TUYỆT ĐỐI CẤM** tự ý dừng luồng công việc để ngồi viết thêm các test case Playwright / unit test / integration test xUnit mới cho mỗi lần sửa nhỏ làm chậm trễ tiến độ làm việc của dự án.
+   - **Chỉ viết test khi người dùng yêu cầu rõ ràng (On-Demand Testing)**: CHỈ viết thêm hoặc cập nhật bài test khi người dùng có chỉ thị rõ ràng (ví dụ: *"hãy viết test"*, *"bổ sung test cho API này"*, *"viết kịch bản kiểm thử"*), hoặc khi triển khai các luồng nghiệp vụ lớn có yêu cầu bộ test suite đi kèm trong spec.
+   - **Chạy regression test sẵn có**: Được phép chạy kiểm tra các bài test đã có sẵn theo phạm vi sửa đổi (filter test theo scope) để đảm bảo không làm gãy logic cũ, nhưng tuyệt đối không tự ý viết thêm test mới khi chưa được yêu cầu.
 3. **Bộ Kiểm Thử Hợp Nhất (Unified Test Suite - Rule 19.63)**:
    - **Frontend Test**: BẮT BUỘC viết bằng Playwright tại `tests/FE/` (`pnpm test:e2e`).
    - **Backend Test**: BẮT BUỘC viết bằng xUnit tại `tests/BE/` (`dotnet test tests/BE/test.csproj`).
@@ -75,6 +78,12 @@ Khi kiểm thử tích hợp với NATS broker thật (Docker local 127.0.0.1:42
 - **Cơ chế Retry Probe Loop (100ms):** Do `TransportManager.SubscribeAsync` ủy quyền cho client đăng ký `Subscribe` bất đồng bộ trong background `Task.Run`, phát probe 1 lần duy nhất sẽ bị broker drop nếu gói `SUB` chưa tới nơi. BẮT BUỘC phát lặp probe trong vòng lặp `while (DateTime.UtcNow < deadline)` với `await Task.Delay(100, cts.Token)` cho tới khi listener nhận được (`received.Count > 0`), sau đó `received.Clear()`.
 - **Làm sạch Subscription:** Gọi `transport.Unsubscribe(uniqueSubject)` ở đầu và cuối bài test để giải phóng handler trên singleton `TransportManager`.
 - **Tăng hạn định timeout khi chạy batch lớn:** Đặt timeout tối thiểu 45–60 giây cho các assertion chờ bản tin NATS toàn trình để tránh fail giả do tải cao của luồng CPU/threadpool.
+
+### 2.7. Quy Tắc Sửa Code Trước & Chỉ Viết Test Khi Có Yêu Cầu (Rule 19.67 - Fix-First & On-Demand Cho Backend)
+* **Tập trung sửa dứt điểm code C# trước (Fix-First)**: Khi nhận yêu cầu sửa lỗi logic, xử lý dữ liệu, controller, command/query handler, worker hay dịch vụ Backend: AI **BẮT BUỘC sửa mã nguồn dứt điểm trước**, biên dịch kiểm tra thành công (`dotnet build`) và báo cáo ngay.
+* ⛔ **CẤM** tự ý ngồi viết thêm test case xUnit mới cho mỗi lần sửa nhỏ làm chậm trễ tiến độ làm việc của dự án.
+* **Chỉ viết test xUnit khi người dùng yêu cầu**: Chỉ tạo mới file test trong `tests/BE/` hoặc bổ sung test method khi người dùng chỉ thị rõ ràng (ví dụ: *"viết test BE cho hàm này"*, *"bổ sung xUnit"*).
+* **Được chạy test regression có sẵn**: Được phép chạy các bài test xUnit đã có sẵn trong `tests/BE/` liên quan đến phạm vi sửa đổi để kiểm tra tính toàn vẹn (dùng filter theo class/method), nhưng ⛔ không tự ý viết thêm test mới khi chưa được yêu cầu.
 
 ---
 
@@ -132,12 +141,11 @@ Khi kiểm thử tích hợp với NATS broker thật (Docker local 127.0.0.1:42
   - **Kiểm thử kéo resize cột table**:
     - Khi kiểm tra tính năng kéo co giãn cột (Column Resizing): Kiểm tra các cột nội dung và cột thao tác không bị đứt gãy bố cục hoặc tràn lệch toạ độ.
     - Với các bảng có cột cố định (`fixed: 'right'`), kiểm tra khối fixed luôn bám sát mép container và không bị trôi lệch sau khi kéo.
-* **Bắt buộc viết test cho mọi fix lặt vặt (Rule 19.67 - Zero Regression)**:
-  - Mọi yêu cầu sửa/chỉnh lỗi dù là lặt vặt nhất ở Frontend (UI, CSS, font chữ, căn chỉnh khoảng cách, chống giật modal/tab, placeholder, i18n, form validation...) **BẮT BUỘC viết/bổ sung ngay bài test Playwright tương ứng** tại `tests/FE/` (`tests/FE/views/<module>/<feature>.test.ts`) để verify và bảo đảm không bị hồi quy.
-  - ⛔ **CẤM** kết thúc lượt làm việc hoặc báo "đã sửa xong" mà không bổ sung bài test xác minh.
-  - **Hình thức kiểm thử**:
-    - **Quét tĩnh mã nguồn (Static Code / CSS Scan)**: Kiểm tra file `.vue` không có `!important`, có đầy đủ CSS styles/classes yêu cầu, không dùng toán tử `!!`, chuẩn hóa font-family, có key i18n đầy đủ trong cả `vi-vn.json` và `en-us.json`.
-    - **Kiểm thử E2E / Render DOM**: Mở component/dialog, đo kích thước phần tử (`getBoundingClientRect`), kiểm tra không bị co giật/layout shift khi chuyển tab hoặc đổi trạng thái.
+* **Ưu tiên sửa code trước — Chỉ viết test khi có yêu cầu (Rule 19.67 - Fix-First & On-Demand Testing)**:
+  - **Tập trung sửa dứt điểm code trước (Fix-First)**: Khi người dùng báo lỗi/vấn đề (UI/UX, CSS, font chữ, layout shift, logic, tính năng nhỏ...), AI **BẮT BUỘC tập trung xử lý và sửa mã nguồn dứt điểm trước**, báo cáo rõ ràng kết quả để người dùng review trực quan ngay trên môi trường dev.
+  - ⛔ **CẤM** tự ý dừng luồng làm việc để ngồi viết thêm các test case Playwright / unit test mới cho mỗi lần sửa lặt vặt làm chậm tiến độ.
+  - **Chỉ viết test khi người dùng yêu cầu rõ ràng (On-Demand Testing)**: CHỈ viết thêm / cập nhật bài test khi người dùng có chỉ thị rõ ràng (ví dụ: *"hãy viết test"*, *"bổ sung test"*, *"viết kịch bản kiểm thử"*), hoặc khi triển khai các luồng nghiệp vụ lớn có yêu cầu test suite đi kèm.
+  - **Chạy regression test sẵn có**: Được phép chạy nhanh các bài test đã có sẵn theo phạm vi sửa đổi (filter test theo scope) để đảm bảo không làm gãy logic cũ, nhưng tuyệt đối không tự ý viết thêm test mới khi chưa được yêu cầu.
 * **Timeout kịch bản (Rule 19.61)**: Mặc định tối đa 5s cho mỗi hành động (`waitForSelector`, `expect`), trường hợp mạng chậm chỉ tăng gia số +1 đến 2 giây.
 * **Quy chuẩn bộ chọn (Selectors)**: Ưu tiên chọn theo role, aria-label, class định danh ngữ cảnh cụ thể, tránh dùng selector xpath cứng dễ vỡ.
 * **Lệnh thực thi**:

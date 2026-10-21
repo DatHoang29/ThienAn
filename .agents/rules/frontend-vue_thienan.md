@@ -411,9 +411,9 @@ defineExpose({ openDialog });
 
 ---
 
-## 🧪 9. Quy Chuẩn Bắt Buộc Viết Test Sau Khi Fix Lặt Vặt (Zero Regression - Rule 19.67)
+## 🧪 9. Ưu Tiên Sửa Code Trước — Chỉ Viết Test Khi Có Yêu Cầu (Rule 19.67 - Fix-First & On-Demand Testing)
 
-Chi tiết quy trình, hình thức kiểm thử (quét tĩnh CSS/template, đo `getBoundingClientRect`) và lệnh thực thi: xem [testing-rules_thienan.md](./testing-rules_thienan.md) §3.
+Khi sửa lỗi hoặc điều chỉnh giao diện (UI/UX, CSS, font chữ, alignment...), tập trung sửa dứt điểm code trước để người dùng review ngay. ⛔ CẤM tự ý viết thêm bài test cho mỗi fix nhỏ làm chậm tiến độ. Chỉ viết test khi người dùng yêu cầu rõ ràng. Chi tiết quy chuẩn: xem [testing-rules_thienan.md](./testing-rules_thienan.md) §3.
 
 ---
 

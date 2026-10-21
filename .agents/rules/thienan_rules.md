@@ -34,6 +34,7 @@ Mọi AI Agent **BẮT BUỘC** tuân thủ tuyệt đối các quy tắc cốt 
 | **15** | **Tự Động Dọn Dẹp Test Artifacts** (Rule 19.64) | Sau khi test pass, AI tự động xóa file/thư mục tạm do test runner sinh ra (`test-results/`, traces, screenshots) để giữ sạch Working Tree. Chi tiết: [testing-rules_thienan.md](./testing-rules_thienan.md) §4. |
 | **16** | **Prompt-First Khi Cần Sửa & Ngoại Lệ File `.sql`** | Phát hiện chỗ cần sửa: ⛔ KHÔNG tự sửa mà viết prompt tại `DocBusinessThienAn/<DựÁn>/<PhânHệ>/Prompt/`. Ngoại lệ: được sửa trực tiếp file `.sql` (không tự chạy DB). Chi tiết: [database-mcp_thienan.md](./database-mcp_thienan.md) §2.2. |
 | **17** | **Repo Cha `ThienAn` Chỉ Dùng `main`** | Repo cha `ThienAn`: mọi fix làm thẳng trên `main` rồi push `origin main`; ⛔ CẤM tạo nhánh `fix/*`, `feature/*`, `agents/*` hoặc worktree. Chi tiết: [git-workflow_thienan.md](./git-workflow_thienan.md) §4.3. |
+| **18** | **Ưu Tiên Sửa Code Trước — Chỉ Viết Test Khi Có Yêu Cầu** (Rule 19.67) | Áp dụng cho cả FE & BE: Sửa dứt điểm code trước để review dev; ⛔ CẤM tự ý viết thêm test mới cho mỗi lần sửa nhỏ làm chậm tiến độ. Chỉ viết test khi người dùng yêu cầu. Chi tiết: [testing-rules_thienan.md](./testing-rules_thienan.md) §1, §2.7, §3. |
 | **21** | **Cấm Hardcode Text Mẫu — 100% Đưa Vào i18n** (Rule 20.15) | ⛔ CẤM text cứng, tooltip, placeholder, `ElMessage` trong code FE. 100% qua `$t(...)` và đồng bộ cả `vi-vn.json` và `en-us.json`. Chi tiết: [frontend-vue_thienan.md](./frontend-vue_thienan.md) §5. |
 | **24** | **Tự Động Phân Luồng Subagents & Xử Lý Tuần Tự Task Lệ Thuộc** (Rule 19.70) | Prompt có từ 2 task hoặc nhiều message liên tiếp: tự động kích hoạt subagents. Task độc lập chạy song song; task lệ thuộc BẮT BUỘC chạy tuần tự (Sequential Chain). |
 | **30** | **Chỉ Báo Cáo Thay Đổi Thực Tế** (Rule 19.74) | Báo cáo/portal chỉ ghi kết quả thực tế đã làm hoặc thành phần đã tồn tại bị xóa. ⛔ CẤM ghi xóa thành phần chưa từng tồn tại. Chi tiết: [documentation-standards_thienan.md](./documentation-standards_thienan.md) §9. |
@@ -77,7 +78,7 @@ Quy tắc kỹ thuật chi tiết lưu giữ toàn văn tại các tệp chuyên
 - **Rule 19.94** (STT 53) — Ưu tiên thư viện có sẵn (Furion), hạn chế interface 1:1, phân cấp Base/Helper (§4.24)
 
 ### 3. Testing Suite Protocol ([testing-rules_thienan.md](./testing-rules_thienan.md))
-- **Rule 19.67** (STT 18) — Bắt buộc viết test FE Playwright cho mọi fix lặt vặt (§3)
+- **Rule 19.67** (STT 18) — Ưu tiên sửa code trước, chỉ viết test khi có yêu cầu (Fix-First & On-Demand) (§3)
 - **Rule 19.81** (STT 39) — Kiểm thử NATS: Cách ly subject độc lập từng test & Retry Probe Loop (§2.6)
 - **Rule 19.84** (STT 43) — Tệp test bám đúng luồng nghiệp vụ chính, thêm vào tệp có sẵn (§5)
 - **Rule 19.92, Rule 51** (STT 51) — Chạy test theo phạm vi sửa để tiết kiệm thời gian (filter test) (§6)

@@ -474,6 +474,12 @@ namespace Module.ShareData.Controllers
       - Tệp thứ hai trở đi (service khác, lớp vai trò `...Reader`/`...Resolver`/`...Builder`/`...Rules`, hằng, kiểu dữ liệu, tệp `partial`) đặt vào **thư mục con đặt tên theo chủ đề**. Tiền lệ: `Modules.TMS/Infrastructure/Services/Incident/Classification/`, `Incident/Snapshot/`, `Modules.TMS.Report/Infrastructure/Services/TrafficData/Rules/`. Tương tự, `ShapeReaderService.cs` chuyển vào `ShareDataMapping/Shape/ShapeReaderService.cs`, cấp đầu `ShareDataMapping/` chỉ còn duy nhất `MappingResolverService.cs`.
       - Chuyển tệp có sẵn vào thư mục con chỉ là **đổi vị trí**: giữ nguyên tên lớp, tên tệp, namespace và nội dung (Rule đặt tên — tên đã có ở `HEAD` giữ nguyên), nên không phải sửa `using` ở nơi gọi.
       - Phạm vi: `src/Modules` ("service trong cái module"). `src/Services` chưa áp ("cái service kia chưa có thống nhất cái cấu trúc"). Mã cũ theo Rule 19.89; mã của người khác chỉ sửa khi người dùng yêu cầu. Khảo sát 20/10/2026: nhiều thư mục của phân hệ khác còn ≥ 2 tệp ở cấp đầu (TMS `Incident`, `TrafficData`; VDS `TrafficData`; VMS `Imaging`, `Process`; Notification `Config`…) — không tự sửa.
+25. **Ưu Tiên Sửa Code Trước — Chỉ Viết Test Khi Có Yêu Cầu (Rule 19.67 - Fix-First & On-Demand Testing cho Backend, bổ sung 21/10/2026)**:
+    - **Tập trung sửa dứt điểm code Backend trước (Fix-First)**: Khi người dùng báo lỗi, yêu cầu chỉnh sửa logic, API, Entity, Handler, DTO hoặc Worker: AI **BẮT BUỘC tập trung sửa code xử lý dứt điểm trước**, đảm bảo build thành công (`dotnet build`) và báo cáo ngay kết quả cho người dùng review.
+    - ⛔ **TUYỆT ĐỐI CẤM** tự ý dừng tiến độ để ngồi viết thêm các test method xUnit mới trong `tests/BE/` cho mỗi lần sửa nhỏ/lặt vặt làm chậm tiến độ làm việc của dự án.
+    - **Chỉ viết test khi người dùng yêu cầu (On-Demand Testing)**: CHỈ viết thêm hoặc bổ sung test xUnit khi người dùng có chỉ thị rõ ràng (ví dụ: *"viết test"*, *"bổ sung test cho API này"*, *"viết kịch bản kiểm thử"*), hoặc khi triển khai các module/flow lớn có quy định rõ trong spec.
+    - **Chạy regression test sẵn có**: Được phép chạy kiểm tra các test xUnit đã có sẵn bằng filter (`dotnet test tests/BE/test.csproj --filter ...`) để đảm bảo không làm gãy logic cũ, nhưng tuyệt đối không tự ý viết thêm mã test mới khi chưa được yêu cầu.
+
 
 
 
