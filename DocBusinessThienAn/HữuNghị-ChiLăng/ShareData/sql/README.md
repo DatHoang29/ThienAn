@@ -42,17 +42,17 @@ CodeFirst tạo khung (WebAPI EnableInitTable = true) ➔ (1) sharedata-seed-goi
    Tự động tạo `SysConfigType` `sharedata_error_code`, nạp 25 mã lỗi ESH-xxxx, 15 bảng nguồn `ShareDataSourceTable` và 48 tham số vận hành `SysOpConfig` nhóm `sharedata_config`.
 4. **Bước 3 — `sharedata-dich-thuat.sql`:**
    Nạp 94 khóa thuật ngữ tiếng Việt & tiếng Anh (188 bản ghi song ngữ); sau khi chạy bấm 🔄 ở avatar → Ngôn ngữ để làm mới cache.
-5. **Bước 4 (Tùy chọn cho Local/Test) — `sharedata-du-lieu-gia-lap.sql`:**
-   Nạp dữ liệu mẫu thời tiết, tải trọng WIM, sự cố/VMS, tín hiệu, kiểm thử phân trang con trỏ và gói kiểm thử riêng `E2E_INBOUND_TEST` kèm bảng đích chiều nhận chạy thử.
+5. **Bước 4 (Tùy chọn cho Local/Test) — `sharedata-du-lieu-gia-lap_local.sql`:**
+   Nạp dữ liệu mẫu thời tiết, tải trọng WIM, sự cố/VMS, tín hiệu, kiểm thử phân trang con trỏ và gói kiểm thử riêng `E2E_INBOUND_TEST` kèm bảng đích chiều nhận chạy thử. (⛔ **CẤM chạy trên Staging/Production**, file mang hậu tố `_local.sql`).
 
 > 📌 *Lưu ý về môi trường Local:* Cấu hình `.vscode/launch.json` ghim cứng các cờ CodeFirst của ConfigId 0 (`DEV_ITS10`) về `false` bằng biến môi trường để bảo vệ CSDL. Khi cần init bảng thì bật tạm thời.
 
 ### B. Tính An Toàn Khi Chạy Lại (Idempotent)
-- Cả 4 file `sharedata-seed-goi-tin.sql`, `sharedata-seed-cau-hinh.sql`, `sharedata-dich-thuat.sql`, `sharedata-du-lieu-gia-lap.sql` đều có cơ chế Idempotent (`IF NOT EXISTS`, `WHERE NOT EXISTS`, `WHEN NOT MATCHED THEN INSERT`).
+- Cả 4 file `sharedata-seed-goi-tin.sql`, `sharedata-seed-cau-hinh.sql`, `sharedata-dich-thuat.sql`, `sharedata-du-lieu-gia-lap_local.sql` đều có cơ chế Idempotent (`IF NOT EXISTS`, `WHERE NOT EXISTS`, `WHEN NOT MATCHED THEN INSERT`).
 - `sharedata-seed-goi-tin.sql`: Nạp SQL mẫu cho 11 gói (101–111) chỉ khi trống, chuẩn hóa `OrderNo` các gói chuẩn về đúng dải 101–111. Biến `@GhiDeMauGoiTin = 0` (mặc định) đảm bảo **KHÔNG ghi đè** các câu lệnh SQL trích xuất mà quản trị viên đã tùy biến. Biến `@GhiDeMauGoiTin = 1` là **cách duy nhất** để làm mới lại `TemplateSql` và `ExtractSql` về mẫu Catalog chuẩn.
 - `sharedata-seed-cau-hinh.sql`: Chỉ thêm mã lỗi, bảng nguồn `ShareDataSourceTable` hoặc tham số `sharedata_config` chưa có trong DB, không ghi đè các cấu hình đang chạy.
 - `sharedata-dich-thuat.sql`: Chỉ nạp bổ sung các bản dịch còn thiếu trong 94 khóa, không làm mất bản dịch đã chỉnh sửa.
-- `sharedata-du-lieu-gia-lap.sql`: Kiểm tra dữ liệu tồn tại trước khi chèn, có thể chạy dọn dẹp sạch sẽ bằng cách gán `@XoaDuLieuGiaLap = 1`.
+- `sharedata-du-lieu-gia-lap_local.sql`: Kiểm tra dữ liệu tồn tại trước khi chèn, có thể chạy dọn dẹp sạch sẽ bằng cách gán `@XoaDuLieuGiaLap = 1`. Mọi dòng đều gắn `CreateUId = N'SHAREDATA-SEED-GIA-LAP'`.
 
 ### C. Khởi Tạo DB Mới Bằng Cờ CodeFirst (Thử Nghiệm)
 
@@ -93,5 +93,5 @@ ORDER BY [OrderNo];
 ## ⚠️ 3. Lưu Ý Quan Trọng Về CSDL Đích (Database Target)
 
 - Hầu hết các script thao tác trên CSDL chính **`[DEV_ITS10]`**.
-- Riêng **Khối 4.1 của `sharedata-du-lieu-gia-lap.sql`** thao tác trên CSDL nhận **`[DEV_ITS10_Inbound]`** (tạo bảng đích `InboundTrafficFlow`). Đảm bảo user thực thi có quyền truy cập trên cả hai CSDL hoặc chạy riêng từng khối theo đúng database context.
+- Riêng **Khối 4.1 của `sharedata-du-lieu-gia-lap_local.sql`** thao tác trên CSDL nhận **`[DEV_ITS10_Inbound]`** (tạo bảng đích `InboundTrafficFlow`). Đảm bảo user thực thi có quyền truy cập trên cả hai CSDL hoặc chạy riêng từng khối theo đúng database context.
 - Theo quy định **P0 Safeguards (Rule 16)**: AI tuyệt đối không tự thực thi lệnh ghi lên CSDL. Lập trình viên là người kiểm tra và thực thi script cuối cùng trên DB.

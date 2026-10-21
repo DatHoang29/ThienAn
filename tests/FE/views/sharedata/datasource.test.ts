@@ -1135,6 +1135,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         // 2. Chạy E2E kiểm tra DOM thực tế
         await page.setViewportSize({ width: 1600, height: 900 });
         await page.goto('/#/sharedata/dataSource');
+        await page.evaluate(() => { window.scrollTo(0, 0); document.documentElement.scrollTop = 0; document.body.scrollTop = 0; });
 
         // Bảng gói tin xGridPacket phải hiển thị
         const packetTable = page.locator('.packet-col .vxe-grid');
@@ -2618,6 +2619,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         for (const vp of viewports) {
             await page.setViewportSize({ width: vp.width, height: vp.height });
             await page.goto('/#/sharedata/dataSource');
+            await page.evaluate(() => { window.scrollTo(0, 0); document.documentElement.scrollTop = 0; document.body.scrollTop = 0; });
 
             const packetGrid = page.locator('.packet-col .vxe-grid');
             await expect(packetGrid).toBeVisible({ timeout: 15_000 });
