@@ -473,6 +473,43 @@ Khi sửa lỗi hoặc điều chỉnh giao diện (UI/UX, CSS, font chữ, alig
 3. **`{module}{Feature}` (`lz.*.{module}{Feature}.*`)**: Dành riêng cho 1 màn hình cụ thể.
 - 100% text trên UI phải đưa vào i18n đồng bộ cả `vi-vn.json` và `en-us.json`. ⛔ **CẤM** viết song ngữ lai.
 
+### 10.4. Định Dạng Ngày Tháng Trên Bộ Lọc & Form (`el-date-picker` Bắt Buộc `format="DD/MM/YYYY"`) (Rule 20.27, bổ sung 21/10/2026)
+- **Bối cảnh & Mục tiêu**:
+  - Element Plus `<el-date-picker>` mặc định hiển thị ngày tháng theo định dạng quốc tế `YYYY-MM-DD` (hoặc `YYYY-MM-DD HH:mm:ss`) nếu thiếu thuộc tính `format`. Thói quen chuẩn của người dùng Việt Nam và hệ thống Thiên Ân là `ngày/tháng/năm` (`DD/MM/YYYY`).
+- **Quy định bắt buộc**:
+  1. **Bộ lọc / Input chỉ có ngày (`type="date"` hoặc `type="daterange"`)**:
+     - ✅ BẮT BUỘC khai báo thuộc tính `format="DD/MM/YYYY"`.
+     - Giữ `value-format="YYYY-MM-DD"` (để truyền giá trị chuẩn ISO cho Backend WebAPI).
+     - Ví dụ chuẩn:
+       ```vue
+       <el-date-picker
+           v-model="state.dateRange"
+           type="daterange"
+           format="DD/MM/YYYY"
+           value-format="YYYY-MM-DD"
+           :start-placeholder="$t('lz.placeholder.sharedataHistory.dateFrom')"
+           :end-placeholder="$t('lz.placeholder.sharedataHistory.dateTo')"
+           class="w100"
+       />
+       ```
+  2. **Bộ lọc / Input có ngày và giờ (`type="datetime"` hoặc `type="datetimerange"`)**:
+     - ✅ BẮT BUỘC khai báo thuộc tính `format="DD/MM/YYYY HH:mm:ss"` (hoặc `format="DD/MM/YYYY HH:mm"` nếu form không dùng giây).
+     - Giữ `value-format="YYYY-MM-DD HH:mm:ss"` (hoặc `value-format="YYYY-MM-DD HH:mm"`).
+     - Ví dụ chuẩn:
+       ```vue
+       <el-date-picker
+           v-model="state.dateRange"
+           type="datetimerange"
+           format="DD/MM/YYYY HH:mm:ss"
+           value-format="YYYY-MM-DD HH:mm:ss"
+           :start-placeholder="$t('lz.entity.base.startTime')"
+           :end-placeholder="$t('lz.entity.base.endTime')"
+           class="w100"
+       />
+       ```
+  3. ⛔ **TUYỆT ĐỐI CẤM** bỏ quên thuộc tính `format` trên `el-date-picker` dẫn tới hiển thị năm trước ngày sau (`YYYY-MM-DD`) gây nhầm lẫn cho người dùng.
+  4. **Bảng dữ liệu hiển thị (VxeTable / el-table)**: BẮT BUỘC dùng formatter hiển thị thống nhất qua `DateTimeFormatEnum.DateTimeDefault` (`DD/MM/YYYY HH:mm:ss`) hoặc `DD/MM/YYYY`.
+
 ---
 
 ## 🧱 11. Store, Kiểu Dữ Liệu, Sự Kiện Thời Gian Thực, Trang CRUD, Lưu Trữ & Phân Quyền (tích hợp từ Kiro FE, 20/10/2026)

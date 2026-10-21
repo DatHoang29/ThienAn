@@ -63,6 +63,7 @@ Quy tắc kỹ thuật chi tiết lưu giữ toàn văn tại các tệp chuyên
 - **Rule 20.22** (STT 41) — Đóng gói CSS phân hệ nội bộ, cấm viết CSS đặc thù ra global (§2.7)
 - **Rule 20.25** (STT 54) — Quy chuẩn VxeTable (`useVxeTable`), dữ liệu cấu hình & i18n (§10)
 - **Rule 20.26** (STT 55) — Bấm ra ngoài thì đóng dialog; form có sửa chưa lưu phải hỏi trước (§4)
+- **Rule 20.27** (STT 59) — Định dạng ngày tháng bộ lọc FE (`el-date-picker` bắt buộc `format="DD/MM/YYYY"`) (§10.4)
 
 ### 2. Backend .NET & Clean Architecture ([backend-dotnet_thienan.md](./backend-dotnet_thienan.md))
 - **Rule 19.67** (STT 18) — Ưu tiên sửa code trước, chỉ viết test khi có yêu cầu (Fix-First & On-Demand) (§4.25)
