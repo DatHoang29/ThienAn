@@ -154,11 +154,16 @@ Theo chủ trương của chủ dự án, **ưu tiên thao tác trực tiếp tr
 4. Cấu hình SQL trích xuất và tham số đồng bộ:
    - Nhấp chọn gói tin vừa tạo ở danh sách bên trái.
    - Ở khung bên phải, chuyển sang tab **Cấu hình SQL** (`tabSqlCenter`).
-   - Khung soạn thảo SQL đã hiển thị câu truy vấn trích xuất chuẩn. Nếu muốn khôi phục lại câu SQL chuẩn từ hệ thống, bấm nút **Mẫu mặc định** (`vqbDefaultTemplate`). *(Lưu ý: Bấm nút này chỉ nạp nội dung lên khung soạn thảo, chưa ghi đè xuống CSDL cho tới khi bấm nút Lưu).*
-   - Kiểm tra **Chế độ đồng bộ** (`syncMode`): Chọn *Toàn bộ* (Snapshot) cho các gói 101/102/105/108/110; hoặc *Nối đuôi* (Incremental) cho các gói 103/104/106/107/109 theo đúng [Phụ lục C](05-chay-sql-tu-dau-sharedata.md#phụ-lục-c-danh-mục-chuẩn-11-gói-tin-sharedata).
-   - Nếu là gói *Nối đuôi*: Nhập **Quét lùi tối đa (ngày)** (`maxLookBackDays` = 1).
+   - Khung soạn thảo SQL (Monaco Editor) đã hiển thị câu truy vấn trích xuất chuẩn. Nếu muốn khôi phục lại câu SQL chuẩn từ hệ thống, bấm nút **Khôi phục SQL mẫu** (`vqbResetToTemplateTitle`). *(Lưu ý: Bấm nút này chỉ nạp nội dung lên khung soạn thảo, chưa ghi đè xuống CSDL cho tới khi bấm nút Lưu).*
+   - **Điều kiện lấy dữ liệu (`SyncModePanel`):**
+     + Kiểm tra **Chế độ đồng bộ** (`syncMode`): Chọn *Toàn bộ* (Snapshot) cho các gói 101/102/105/108/110; hoặc *Nối đuôi* (Incremental) cho các gói 103/104/106/107/109 theo đúng [Phụ lục C](05-chay-sql-tu-dau-sharedata.md#phụ-lục-c-danh-mục-chuẩn-11-gói-tin-sharedata).
+     + Nếu là gói *Nối đuôi*: Chọn cột thời gian con trỏ (`cursorTimeColumn`), chọn **Khóa phụ** (`selectedKeyExpr` - dùng khi nhiều dòng cùng mốc thời gian, như mã làn / mã trạm / vị trí hoặc khóa chính để tránh sót hoặc trùng dữ liệu) và nhập **Quét lùi tối đa (ngày)** (`maxLookBackDays` = 1).
+   - **Trường trích xuất (sau AS):** Hệ thống tự động bóc tách các bí danh sau `AS` trong câu SELECT:
+     + Chip màu xanh (✓): Bí danh đã được khai báo thành trường gói tin.
+     + Chip viền nét đứt: Bí danh chưa khai trường.
+     + Chip gạch ngang đỏ nhạt: Trường gói tin đã khai nhưng câu SQL không trả về.
+     + Dòng trạng thái dưới chip: Tóm tắt số trường đã khai · chưa khai kèm nút `[Khai thêm M trường]` · số trường SQL không trả về.
    - Bấm nút **Lưu** (`save`) để lưu cấu hình SQL và các tham số đồng bộ xuống CSDL.
-   - *(Tùy chọn)* Bấm nút **Đồng bộ vào Gói tin** (`syncToFields`) để hệ thống phân tích các cột trả về từ câu SQL và sinh danh mục trường dữ liệu nguồn.
 5. 💡 **Khuyến nghị gói tin tối thiểu để nghiệm thu:** Để thực hiện nhanh các kịch bản kiểm thử, người dùng tối thiểu cần khởi tạo 2 gói tin:
    - Gói **`101_commonData`** (Snapshot, phục vụ kịch bản D1, D5, E0, E1).
    - Gói **`103_vdsData`** (Incremental, phục vụ kịch bản D3 nối đuôi).  

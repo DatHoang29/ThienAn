@@ -199,8 +199,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
 
         const searchForm = cardField.locator('.search-form');
         const formCols = searchForm.locator('.el-row > .el-col');
-        // Nút tìm kiếm & đặt lại tạm ẩn theo yêu cầu người dùng (gọi API tự động có debounce), nên form còn 3 cột: alias, type, status
-        await expect(formCols).toHaveCount(3);
+        await expect(formCols).toHaveCount(4);
 
         const colAlias = cardField.locator('.field-col-alias');
         const colType = cardField.locator('.field-col-type');
@@ -2793,11 +2792,11 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         // 2. Kiểm tra CSS el-alert trong dataSource/index.vue đạt chuẩn nhỏ gọn
         const idxPath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
         const idxContent = fs.readFileSync(idxPath, 'utf8');
-        expect(idxContent).toContain('padding: 3px 10px;');
-        expect(idxContent).toContain('padding-right: 28px;');
-        expect(idxContent).toContain('font-size: 13px;\n\t\tmargin-right: 6px;');
+        expect(idxContent).toContain('padding: 4px 12px;');
+        expect(idxContent).toContain('padding-right: 34px;');
+        expect(idxContent).toContain('font-size: 14px;\n\t\tmargin-right: 6px;');
         expect(idxContent).toContain('font-size: 12px;\n\t\tline-height: 1.35;');
-        expect(idxContent).toContain('font-size: 12px;\n\t\tpadding: 2px;\n\t\tmargin: 0;\n\t\ttop: 50%;\n\t\tright: 6px;');
+        expect(idxContent).toContain('font-size: 16px;\n\t\twidth: 20px;\n\t\theight: 20px;');
         expect(idxContent).not.toMatch(/:deep\(\.el-alert\)[^}]+!important/);
     });
 
@@ -3937,39 +3936,16 @@ LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId`;
         console.log('[Test 54] Done!');
     });
 
-    test('55. Form editPacketField — Chọn cột SQL, chọn tất cả, batchAdd và Khóa chỉ đọc khi sửa (Mục C.1, C.2)', async ({ page }) => {
-        const availableCols = [
-            { fieldKey: 'speed', dataType: 'int', assigned: false },
-            { fieldKey: 'vehicle_count', dataType: 'int', assigned: false },
-            { fieldKey: 'lane_id', dataType: 'int', assigned: false },
-        ];
-
-        await page.route('**/api/sharedata/sharedatapacketfield/getextractcolumns*', async (route) => {
+    test('55. Form editPacketField — Ô aliasFieldKey là input text cho gõ tay tự do khi Thêm và Sửa', async ({ page }) => {
+        let addPayload: any = null;
+        await page.route('**/api/sharedata/sharedatapacketfield/add*', async (route) => {
+            addPayload = JSON.parse(route.request().postData() || '{}');
             await route.fulfill({
                 status: 200,
                 contentType: 'application/json',
                 body: JSON.stringify({
                     code: 200,
-                    result: {
-                        sqlAvailable: true,
-                        columns: availableCols,
-                    },
-                }),
-            });
-        });
-
-        let batchAddPayload: any = null;
-        await page.route('**/api/sharedata/sharedatapacketfield/batchadd*', async (route) => {
-            batchAddPayload = JSON.parse(route.request().postData() || '{}');
-            await route.fulfill({
-                status: 200,
-                contentType: 'application/json',
-                body: JSON.stringify({
-                    code: 200,
-                    result: {
-                        addedCount: batchAddPayload.fieldKeys?.length || 0,
-                        skippedKeys: [],
-                    },
+                    result: true,
                 }),
             });
         });
@@ -3980,6 +3956,9 @@ LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId`;
         const tabs = page.locator('.datasource-right-tabs');
         await expect(tabs).toBeVisible({ timeout: 15_000 });
 
+        // Chuyển sang Tab Danh sách trường
+        await page.locator('#tab-savedFields').click();
+
         // Bấm nút Thêm trường trong bảng Danh sách trường
         const btnAddField = page.locator('.saved-fields-grid-wrapper button').filter({ hasText: /Thêm/ }).first();
         await btnAddField.click();
@@ -3987,25 +3966,24 @@ LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId`;
         const dialog = page.locator('.edit-packetfield-container .el-dialog');
         await expect(dialog).toBeVisible({ timeout: 10_000 });
 
-        // 1. Ô khóa trường là el-select multiple
-        const colSelect = dialog.locator('.el-select').first();
-        await expect(colSelect).toBeVisible();
+        // 1. Ô khóa trường là el-input gõ tay tự do (không phải dropdown, không disabled)
+        const keyFormItem = dialog.locator('.el-form-item').filter({ hasText: /Khóa field/i });
+        const inputKey = keyFormItem.locator('input');
+        await expect(inputKey).toBeVisible();
+        await expect(inputKey).toBeEnabled();
 
-        // 2. Nút "Chọn tất cả" có mặt và bấm được
-        const btnSelectAll = dialog.locator('.btn-select-all');
-        await expect(btnSelectAll).toBeVisible();
-        await btnSelectAll.click();
+        // 2. Nhập tự do mã trường và tên trường
+        await inputKey.fill('custom_speed');
+        const nameInput = dialog.locator('.el-form-item').filter({ hasText: /^Tên/ }).locator('input').first();
+        await nameInput.fill('Tốc độ tùy chỉnh');
 
-        // Sau khi chọn tất cả (3 cột), hiển thị batchAddHint alert và ẩn ô Tên trường / Kiểu dữ liệu
-        await expect(dialog.locator('.el-alert:has-text("Sửa tên hiển thị, kiểu từng trường sau khi thêm")')).toBeVisible();
-
-        // 3. Bấm Xác nhận -> gọi batchAdd
+        // 3. Bấm Xác nhận -> gọi api add thành công
         const btnSubmit = dialog.locator('.el-dialog__footer .el-button--primary');
         await btnSubmit.click();
 
-        expect(batchAddPayload).toBeTruthy();
-        const submittedKeys = batchAddPayload.fields ? batchAddPayload.fields.map((f: any) => f.aliasFieldKey) : batchAddPayload.fieldKeys;
-        expect(submittedKeys).toEqual(['speed', 'vehicle_count', 'lane_id']);
+        expect(addPayload).toBeTruthy();
+        expect(addPayload.aliasFieldKey).toBe('custom_speed');
+        expect(addPayload.name).toBe('Tốc độ tùy chỉnh');
     });
 
     test('56. Tab Danh sách trường — Thẻ cảnh báo trường không có trong SQL (Mục C.3)', async ({ page }) => {
@@ -4073,6 +4051,167 @@ LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId`;
         const infoTag = page.locator('.field-sql-tag.el-tag--info');
         await expect(infoTag).toBeVisible({ timeout: 10_000 });
         await expect(infoTag).toContainText('Không có trong SQL');
+    });
+
+    test('57. Commit đầu tiên (c5be7f33) — editMapping modal co giãn tự nhiên theo nội dung và khung rỗng nét đứt', async () => {
+        const editMappingPath = resolveWebvuePath('views/sharedata/mapping/component/editMapping.vue');
+        const content = fs.readFileSync(editMappingPath, 'utf8');
+
+        // 1. .mp-form-body không còn cố định 92vh, tự co giãn theo nội dung
+        expect(content).not.toContain('height: calc(92vh - 130px);');
+        expect(content).toContain('min-height: 380px;');
+        expect(content).toContain('max-height: calc(88vh - 120px);');
+        expect(content).toContain('overflow-y: auto;');
+
+        // 2. Khung trạng thái rỗng .mp-tree-empty có viền nét đứt
+        expect(content).toContain('.mp-tree-empty {');
+        expect(content).toContain('border: 1px dashed var(--el-border-color);');
+        expect(content).toContain('border-radius: 6px;');
+
+        // 3. treeMaxHeight tính toán linh hoạt theo window.innerHeight
+        expect(content).toContain('Math.round(vh * 0.85 - 260)');
+    });
+
+    test('58. Commit đầu tiên (c5be7f33) — Định dạng bộ lọc ngày tháng chuẩn DD/MM/YYYY trên errorLog và history (Rule 20.27)', async () => {
+        const errorLogPath = resolveWebvuePath('views/sharedata/errorLog/index.vue');
+        const errorLogContent = fs.readFileSync(errorLogPath, 'utf8');
+        expect(errorLogContent).toContain('format="DD/MM/YYYY"');
+        expect(errorLogContent).toContain('value-format="YYYY-MM-DD"');
+
+        const historyPath = resolveWebvuePath('views/sharedata/history/index.vue');
+        const historyContent = fs.readFileSync(historyPath, 'utf8');
+        expect(historyContent).toContain('format="DD/MM/YYYY HH:mm:ss"');
+        expect(historyContent).toContain('value-format="YYYY-MM-DD HH:mm:ss"');
+    });
+
+    test('59. Commit đầu tiên (c5be7f33) — Cấu hình nguồn dữ liệu: canh lề trái cột text, font-weight nhóm trường và dọn listener rác', async () => {
+        const indexPath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
+        const indexContent = fs.readFileSync(indexPath, 'utf8');
+
+        // 1. Cột name và aliasFieldKey canh lề trái
+        expect(indexContent).toMatch(/field:\s*'name'[^}]+align:\s*'left'/);
+        expect(indexContent).toMatch(/field:\s*'aliasFieldKey'[^}]+align:\s*'left'/);
+
+        // 2. Không còn listener rác đã xóa trong onUnmounted
+        expect(indexContent).not.toContain('onResizingSampleBottom');
+        expect(indexContent).not.toContain('stopResizeSample');
+
+        // 3. Phân cấp font nhóm trường trong bảng
+        expect(indexContent).toContain('.field-group-row');
+    });
+
+    test('60. Commit đầu tiên (c5be7f33) & Item 3 — Danh mục query table gợi ý theo mã gói tin 101–111 (02-mapping-goi-tin-101-111.md)', async () => {
+        const qbPath = resolveWebvuePath('views/sharedata/dataSource/component/queryBuilder.vue');
+        const qbContent = fs.readFileSync(qbPath, 'utf8');
+
+        const sqlEditorPath = resolveWebvuePath('views/sharedata/dataSource/component/sqlEditor.vue');
+        const sqlEditorContent = fs.readFileSync(sqlEditorPath, 'utf8');
+
+        // 1. queryBuilder.vue và sqlEditor.vue đều chứa bản đồ PACKET_RELATED_TABLES_MAP khớp tài liệu 02
+        for (const content of [qbContent, sqlEditorContent]) {
+            expect(content).toContain('PACKET_RELATED_TABLES_MAP');
+            expect(content).toContain("'101': ['TmsZoneStatus', 'TmsZone', 'TmsTrafficStatistic']");
+            expect(content).toContain("'102': ['CctvDevice', 'TmsEquipment']");
+            expect(content).toContain("'103': ['TmsTrafficData', 'TmsTrafficStatistic', 'TmsZoneStatus', 'TmsEquipment']");
+            expect(content).toContain("'104': ['TmsWeather', 'TmsZone', 'TmsEquipment']");
+            expect(content).toContain("'107': ['TmsIncident', 'TmsEventType', 'TmsEquipment']");
+            expect(content).toContain("'108': ['VmsCurrent', 'TmsSignalLog', 'VmsProcess', 'TmsEquipment']");
+            expect(content).toContain("'109': ['TollTransactionIn', 'TollTransactionOut', 'TollLane', 'TollStation', 'TollMasterData']");
+            expect(content).toContain("'110': ['TmsIncident', 'TmsEquipment', 'VmsCurrent', 'TmsWeather']");
+            expect(content).toContain("'111': ['TmsSignalLog', 'TmsEquipment']");
+        }
+
+        // 2. sqlEditor.vue đăng ký completion provider cho Monaco Editor dựa trên gói tin
+        expect(sqlEditorContent).toContain("monaco.languages.registerCompletionItemProvider('sql'");
+        expect(sqlEditorContent).toContain('PACKET_RELATED_TABLES_MAP[packetNum]');
+    });
+
+    test('61. Giao diện Cấu hình SQL gọn cảnh báo và chip trường trích xuất (sau AS) theo prompt 21/10/2026', async () => {
+        const sqlEditorPath = resolveWebvuePath('views/sharedata/dataSource/component/sqlEditor.vue');
+        const sqlEditorContent = fs.readFileSync(sqlEditorPath, 'utf8');
+
+        const syncPanelPath = resolveWebvuePath('views/sharedata/dataSource/component/syncModePanel.vue');
+        const syncPanelContent = fs.readFileSync(syncPanelPath, 'utf8');
+
+        const indexPath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
+        const indexContent = fs.readFileSync(indexPath, 'utf8');
+
+        // 1. Chip chỉ ghi tên bí danh, không còn .chip-type (string)
+        expect(sqlEditorContent).not.toContain('class="chip-type');
+        expect(sqlEditorContent).toContain('chip-declared');
+        expect(sqlEditorContent).toContain('chip-undeclared');
+        expect(sqlEditorContent).toContain('chip-missing');
+
+        // 2. Dòng trạng thái duy nhất dưới chip có class .sql-extracted-status-line và giữ .sql-unshared-columns-alert
+        expect(sqlEditorContent).toContain('sql-extracted-status-line');
+        expect(sqlEditorContent).toContain('btn-declare-fields');
+        expect(sqlEditorContent).toContain('fieldsDeclaredCount');
+        expect(sqlEditorContent).toContain('fieldsUndeclaredCount');
+        expect(sqlEditorContent).toContain('fieldsMissingCount');
+
+        // 3. syncModePanel: Cảnh báo phần nối đuôi thành dòng nhỏ có link [Gỡ]
+        expect(syncPanelContent).toContain('residual-cursor-warning');
+        expect(syncPanelContent).toContain('btn-remove-cursor');
+
+        // 4. index.vue: Thanh công cụ chứa cả Khôi phục SQL mẫu, Sao chép và Lưu
+        expect(indexContent).toContain('vqb-reset-template-btn');
+        expect(indexContent).toContain('handleCopySql');
+
+        // 5. sqlEditor.vue: Legend giải thích ý nghĩa màu sắc bên cạnh số lượng trường, bỏ tooltip dày đặc quanh chip
+        expect(sqlEditorContent).toContain('sql-extracted-legend');
+        expect(sqlEditorContent).toContain('legendDeclared');
+        expect(sqlEditorContent).toContain('legendUndeclared');
+        expect(sqlEditorContent).toContain('legendMissing');
+        expect(sqlEditorContent).not.toContain('<el-tooltip\n\t\t\t\t\t\tv-for="col in nonSystemColumns"');
+    });
+
+    test('62. Biến câu truy vấn theo chế độ đồng bộ và ô Khóa phụ cho Gửi nối đuôi theo prompt 21/10/2026', async () => {
+        const queryParamPanelPath = resolveWebvuePath('views/sharedata/dataSource/component/queryParameterPanel.vue');
+        const queryParamPanelContent = fs.readFileSync(queryParamPanelPath, 'utf8');
+
+        const sqlEditorPath = resolveWebvuePath('views/sharedata/dataSource/component/sqlEditor.vue');
+        const sqlEditorContent = fs.readFileSync(sqlEditorPath, 'utf8');
+
+        const syncPanelPath = resolveWebvuePath('views/sharedata/dataSource/component/syncModePanel.vue');
+        const syncPanelContent = fs.readFileSync(syncPanelPath, 'utf8');
+
+        const viPath = resolveWebvuePath('i18n/lang/vi-vn.json');
+        const viContent = fs.readFileSync(viPath, 'utf8');
+
+        const enPath = resolveWebvuePath('i18n/lang/en-us.json');
+        const enContent = fs.readFileSync(enPath, 'utf8');
+
+        // 1. queryParameterPanel.vue nhận syncMode, phân biệt biến chỉ dùng khi nối đuôi
+        expect(queryParamPanelContent).toContain('syncMode?: number | string');
+        expect(queryParamPanelContent).toContain('isSnapshot');
+        expect(queryParamPanelContent).toContain('isIncrementalOnlyParam');
+        expect(queryParamPanelContent).toContain('paramIncrementalOnlyTag');
+        expect(queryParamPanelContent).toContain('paramSnapshotNotUsedHint');
+
+        // 2. sqlEditor.vue truyền syncMode vào QueryParameterPanel
+        expect(sqlEditorContent).toContain(':sync-mode="props.syncMode"');
+
+        // 3. syncModePanel.vue: có ô Khóa phụ trong chế độ nối đuôi
+        expect(syncPanelContent).toContain('sync-key-select');
+        expect(syncPanelContent).toContain('selectedKeyExpr');
+        expect(syncPanelContent).toContain('onKeyExprChange');
+        expect(syncPanelContent).toContain('cursorKeyColHint');
+
+        // 4. syncModePanel.vue: cảnh báo phần nối đuôi còn sót liệt kê động các phần, không ghi cứng 100 dòng
+        expect(syncPanelContent).toContain('residualCursorWithPartsWarning');
+        expect(syncPanelContent).toContain('residualCursorFilterPart');
+        expect(syncPanelContent).not.toContain('100 dòng');
+
+        // 5. Đồng bộ i18n đầy đủ 2 ngôn ngữ
+        expect(viContent).toContain('lz.label.sharedataDataSource.paramIncrementalOnlyTag');
+        expect(viContent).toContain('lz.label.sharedataDataSource.paramSnapshotNotUsedHint');
+        expect(viContent).toContain('lz.label.sharedataDataSource.residualCursorFilterPart');
+        expect(viContent).toContain('lz.message.sharedataDataSource.residualCursorWithPartsWarning');
+
+        expect(enContent).toContain('lz.label.sharedataDataSource.paramIncrementalOnlyTag');
+        expect(enContent).toContain('lz.label.sharedataDataSource.paramSnapshotNotUsedHint');
+        expect(enContent).toContain('lz.label.sharedataDataSource.residualCursorFilterPart');
+        expect(enContent).toContain('lz.message.sharedataDataSource.residualCursorWithPartsWarning');
     });
 });
 

@@ -136,7 +136,7 @@ Toàn bộ cấu trúc bảng và index do CodeFirst tạo trước (`TableSetti
 
 ##### Bước 2: Nạp dữ liệu seed chuẩn (theo thứ tự script)
 - Chạy lần lượt các script seed chuẩn: (1) `sharedata-seed-goi-tin.sql` $\rightarrow$ (2) `sharedata-seed-cau-hinh.sql` $\rightarrow$ (3) `sharedata-dich-thuat.sql` $\rightarrow$ (4) (tùy chọn) `sharedata-du-lieu-gia-lap.sql`.
-- ⚠️ **Lưu ý về danh mục bảng nguồn trên Query Builder:** Nếu chưa chạy script 2 `sharedata-seed-cau-hinh.sql` (mục 3.4), bảng `ShareDataSourceTable` sẽ rỗng; khi đó ô chọn Bảng nguồn trên bộ dựng truy vấn Visual Query Builder sẽ trống và hiển thị thông báo yêu cầu liên hệ quản trị chạy script cấu hình.
+- ⚠️ **Lưu ý về danh mục bảng nguồn và câu lệnh trích xuất:** Bảng `ShareDataSourceTable` lưu trữ danh mục bảng nguồn phục vụ Change Tracking và theo dõi sự kiện NATS; câu lệnh trích xuất dữ liệu của gói tin (`ExtractSql`) được cấu hình trực tiếp bằng SQL trên tab Cấu hình SQL của màn hình Nguồn dữ liệu.
 
 ##### Truy vấn kiểm tra cấu trúc cột trên `ShareDataPacket` (chỉ đọc):
 ```sql

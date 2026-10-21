@@ -19,6 +19,14 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 ## Danh sách Prompt
 
+### 🟠 Đợt 21/10/2026 — Review giao diện Cấu hình SQL (nhận xét Son Tran)
+
+| # | Prompt | Task | Phạm vi & Trạng thái |
+|---|---|---|---|
+| 1 | `sharedata-cau-hinh-sql-lay-cau-sql-lam-chinh-fe-prompt.md` | — (Son Tran review 21/10/2026: "tập trung SQL thôi… trích xuất ra các field sau AS + kết hợp điều kiện… chứ không đi từ giao diện thiết lập ra SQL") | ✅ **Đã thực thi và xoá theo yêu cầu (21/10/2026).** Chỉ FE (tận dụng API `parseextractcolumns` và `getextractcolumns` đã có sẵn). Đã comment thẻ component `<QueryBuilder>` lại ở `index.vue`, bảo toàn nguyên vẹn 100% `queryBuilder.vue`, `visualSql.ts` và toàn bộ khóa i18n cũ; triển khai component `sqlEditor.vue` làm khung soạn SQL chính (Monaco Editor có thanh kéo giãn chiều cao, nút Khôi phục SQL mẫu gọn trên header); tích hợp `SyncModePanel` và `QueryParameterPanel`; bổ sung khối Trường trích xuất (sau AS) dạng chips (✓ đã khai / ⓘ chưa khai kèm nút [Khai thêm trường] / ⚠️ cảnh báo trường đã khai nhưng SQL không trả về); tự động dò cột bằng debounce 800ms khi người dùng sửa SQL. Playwright test 60 pass 100%. |
+| 2 | `sharedata-cau-hinh-sql-gon-canh-bao-truong-trich-xuat-fe-prompt.md` | — (người dùng review ảnh tab Cấu hình SQL gói `101_commonData` sau prompt #1: "UI vẫn còn rối") | ✅ **Đã thực thi và xoá theo yêu cầu (21/10/2026).** Chỉ FE, không đổi logic. Gộp ba thông điệp cam thành một dòng trạng thái dưới chip; chip chỉ ghi tên (bỏ `(string)`, chưa khai = viền nét đứt, đã khai nhưng SQL không trả về = chip gạch ngang); gom Khôi phục / Sao chép / Lưu vào thanh toolbar; cảnh báo nối đuôi thành dòng nhỏ có link [Gỡ]. Giữ nguyên các class test đang bám và bảo toàn bảng gợi ý theo gói tin 101–111. Playwright test 61 pass 100%. |
+| 3 | `sharedata-cau-hinh-sql-bien-theo-che-do-va-khoa-phu-fe-prompt.md` | — (người dùng đối chiếu ảnh tab Cấu hình SQL với transcript 14/10/2026: ở Gửi toàn bộ vẫn hiện `@lastTime` / `@lastKey`; thiếu ô khóa phụ cho nối đuôi) | ✅ **Đã thực thi và xoá theo yêu cầu (21/10/2026).** Chỉ FE, không đổi API. Panel "Biến trong câu truy vấn" nhận prop syncMode (ở Gửi toàn bộ: các biến con trỏ @lastTime, @lastKey, @pageSize đổi sang tag cam "chỉ dùng khi nối đuôi", tooltip hướng dẫn gỡ khỏi SQL; @fromDate/@toDate giữ nguyên). Cảnh báo nối đuôi còn sót liệt kê động các phần (TOP và điều kiện con trỏ), bỏ chữ "100 dòng" ghi cứng. Thêm ô Khóa phụ kèm tooltip hướng dẫn cho chế độ Gửi nối đuôi. Playwright test 62 pass 100% (bộ test liên quan 54–62: 9/9 test pass 100%). |
+
 ### 🟡 Đợt 20/10/2026 — Nguồn câu ghi chiều nhận, test bổ sung, thư mục service một tệp
 
 | # | Prompt | Task | Phạm vi & Trạng thái |
