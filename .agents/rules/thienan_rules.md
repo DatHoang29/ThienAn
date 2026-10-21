@@ -50,6 +50,7 @@ Mọi AI Agent **BẮT BUỘC** tuân thủ tuyệt đối các quy tắc cốt 
 Quy tắc kỹ thuật chi tiết lưu giữ toàn văn tại các tệp chuyên biệt. Tra cứu theo số hiệu rule:
 
 ### 1. Frontend Vue 3 & TypeScript ([frontend-vue_thienan.md](./frontend-vue_thienan.md))
+- **Rule 19.67** (STT 18) — Ưu tiên sửa code trước, chỉ viết test khi có yêu cầu (Fix-First & On-Demand) (§9)
 - **Rule 20.6** (STT 9) — Cấm `!important` trong CSS/SCSS (§2.2)
 - **Rule 20.7, Rule 19.27** (STT 10) — CSS-First & cấm xóa props template (§3)
 - **Rule 20.8** (STT 11) — Cấm toán tử phủ định kép `!!` (§6.1)
@@ -64,6 +65,7 @@ Quy tắc kỹ thuật chi tiết lưu giữ toàn văn tại các tệp chuyên
 - **Rule 20.26** (STT 55) — Bấm ra ngoài thì đóng dialog; form có sửa chưa lưu phải hỏi trước (§4)
 
 ### 2. Backend .NET & Clean Architecture ([backend-dotnet_thienan.md](./backend-dotnet_thienan.md))
+- **Rule 19.67** (STT 18) — Ưu tiên sửa code trước, chỉ viết test khi có yêu cầu (Fix-First & On-Demand) (§4.25)
 - **Rule 19.68** (STT 22) — Cấm mã obsolete trong C#, dùng `[SugarColumn(IsIgnore=true)]` (§4.10)
 - **Rule 19.69, Rule 19.26** (STT 23) — Cấm hardcode string trong `Oops.Oh`, dùng `BaseMsg` & `SysTerminology` (§4.11)
 - **Rule 19.71** (STT 25) — Cấm thêm project & solution folder dư thừa vào `.sln` (§4.12)
@@ -78,7 +80,7 @@ Quy tắc kỹ thuật chi tiết lưu giữ toàn văn tại các tệp chuyên
 - **Rule 19.94** (STT 53) — Ưu tiên thư viện có sẵn (Furion), hạn chế interface 1:1, phân cấp Base/Helper (§4.24)
 
 ### 3. Testing Suite Protocol ([testing-rules_thienan.md](./testing-rules_thienan.md))
-- **Rule 19.67** (STT 18) — Ưu tiên sửa code trước, chỉ viết test khi có yêu cầu (Fix-First & On-Demand) (§3)
+- **Rule 19.67** (STT 18) — Ưu tiên sửa code trước, chỉ viết test khi có yêu cầu (Fix-First & On-Demand cho cả FE & BE) (§1, §2.7, §3)
 - **Rule 19.81** (STT 39) — Kiểm thử NATS: Cách ly subject độc lập từng test & Retry Probe Loop (§2.6)
 - **Rule 19.84** (STT 43) — Tệp test bám đúng luồng nghiệp vụ chính, thêm vào tệp có sẵn (§5)
 - **Rule 19.92, Rule 51** (STT 51) — Chạy test theo phạm vi sửa để tiết kiệm thời gian (filter test) (§6)
