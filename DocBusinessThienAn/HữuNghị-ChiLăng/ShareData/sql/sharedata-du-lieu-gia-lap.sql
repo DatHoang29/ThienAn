@@ -2,7 +2,7 @@ USE [DEV_ITS10];
 GO
 
 -- =========================================================================================
--- FILE: 05-sharedata-du-lieu-gia-lap.sql
+-- FILE: sharedata-du-lieu-gia-lap.sql
 -- DESCRIPTION: Nạp dữ liệu giả lập (Mock Data) phục vụ kiểm thử thông luồng ShareData Worker E2E:
 --              1. Gói 104 (Thời tiết - TmsWeather): Trạm WS_HN_01 (Km12+500) và WS_HN_02 (Km45+200).
 --              2. Gói 106 (Tải trọng WIM - TmsTrafficData): Bản ghi WIM_MOCK_106_01 và WIM_MOCK_106_02.
@@ -31,7 +31,7 @@ GO
 SET NOCOUNT ON;
 
 PRINT N'=============================================================================';
-PRINT N'BẮT ĐẦU KỊCH BẢN NẠP DỮ LIỆU GIẢ LẬP SHAREDATA (05-sharedata-du-lieu-gia-lap.sql)';
+PRINT N'BẮT ĐẦU KỊCH BẢN NẠP DỮ LIỆU GIẢ LẬP SHAREDATA (sharedata-du-lieu-gia-lap.sql)';
 PRINT N'⚠️ CẢNH BÁO: CHỈ DÀNH CHO MÔI TRƯỜNG LOCAL / TEST!';
 PRINT N'=============================================================================';
 GO
@@ -665,6 +665,6 @@ END
 GO
 
 PRINT N'=============================================================================';
-PRINT N'✅ HOÀN TẤT KỊCH BẢN NẠP DỮ LIỆU GIẢ LẬP SHAREDATA (05-sharedata-du-lieu-gia-lap.sql)';
+PRINT N'✅ HOÀN TẤT KỊCH BẢN NẠP DỮ LIỆU GIẢ LẬP SHAREDATA (sharedata-du-lieu-gia-lap.sql)';
 PRINT N'=============================================================================';
 GO

@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 using Module.ShareData.Core.Entities;
 
 /// <summary>
-/// Description: Đọc và phân tích cú pháp tệp seed SQL '02-sharedata-seed-goi-tin.sql'
+/// Description: Đọc và phân tích cú pháp tệp seed SQL 'sharedata-seed-goi-tin.sql'
 ///              để trích xuất chuỗi SQL cấu hình và SyncMode của các gói tin ShareData.
 /// </summary>
 internal static class SeedScriptReader
@@ -59,7 +59,7 @@ internal static class SeedScriptReader
         if (!all.TryGetValue(normalizedCode, out var info))
         {
             throw new InvalidOperationException(
-                $"Không tìm thấy cấu hình trích xuất của gói tin '{normalizedCode}' trong kịch bản seed 02-sharedata-seed-goi-tin.sql.");
+                $"Không tìm thấy cấu hình trích xuất của gói tin '{normalizedCode}' trong kịch bản seed sharedata-seed-goi-tin.sql.");
         }
 
         return info.ExtractSql;
@@ -81,7 +81,7 @@ internal static class SeedScriptReader
         if (!all.TryGetValue(normalizedCode, out var info))
         {
             throw new InvalidOperationException(
-                $"Không tìm thấy SyncMode của gói tin '{normalizedCode}' trong kịch bản seed 02-sharedata-seed-goi-tin.sql.");
+                $"Không tìm thấy SyncMode của gói tin '{normalizedCode}' trong kịch bản seed sharedata-seed-goi-tin.sql.");
         }
 
         return info.SyncMode;
@@ -178,33 +178,57 @@ internal static class SeedScriptReader
                 "HữuNghị-ChiLăng",
                 "ShareData",
                 "sql",
-                "02-sharedata-seed-goi-tin.sql");
+                "sharedata-seed-goi-tin.sql");
 
             if (File.Exists(targetFile))
             {
                 return targetFile;
             }
 
+            var legacyFile = Path.Combine(
+                currentDir.FullName,
+                "DocBusinessThienAn",
+                "HữuNghị-ChiLăng",
+                "ShareData",
+                "sql",
+                "02-sharedata-seed-goi-tin.sql");
+
+            if (File.Exists(legacyFile))
+            {
+                return legacyFile;
+            }
+
             var altFile = Path.Combine(
                 currentDir.FullName,
                 "ShareData",
                 "sql",
-                "02-sharedata-seed-goi-tin.sql");
+                "sharedata-seed-goi-tin.sql");
 
             if (File.Exists(altFile))
             {
                 return altFile;
             }
 
+            var altLegacyFile = Path.Combine(
+                currentDir.FullName,
+                "ShareData",
+                "sql",
+                "02-sharedata-seed-goi-tin.sql");
+
+            if (File.Exists(altLegacyFile))
+            {
+                return altLegacyFile;
+            }
+
             currentDir = currentDir.Parent;
         }
 
         throw new FileNotFoundException(
-            $"Không tìm thấy tệp seed 02-sharedata-seed-goi-tin.sql khi dò từ thư mục gốc '{AppContext.BaseDirectory}'.");
+            $"Không tìm thấy tệp seed sharedata-seed-goi-tin.sql khi dò từ thư mục gốc '{AppContext.BaseDirectory}'.");
     }
 
     /// <summary>
-    /// Đọc danh mục 15 bảng nguồn từ script 03-sharedata-seed-cau-hinh.sql (mục 3.4).
+    /// Đọc danh mục 15 bảng nguồn từ script sharedata-seed-cau-hinh.sql (mục 3.4).
     /// </summary>
     public static List<ShareDataSourceTable> ReadSourceTables()
     {
@@ -247,29 +271,53 @@ internal static class SeedScriptReader
                 "HữuNghị-ChiLăng",
                 "ShareData",
                 "sql",
-                "03-sharedata-seed-cau-hinh.sql");
+                "sharedata-seed-cau-hinh.sql");
 
             if (File.Exists(targetFile))
             {
                 return targetFile;
             }
 
+            var legacyFile = Path.Combine(
+                currentDir.FullName,
+                "DocBusinessThienAn",
+                "HữuNghị-ChiLăng",
+                "ShareData",
+                "sql",
+                "03-sharedata-seed-cau-hinh.sql");
+
+            if (File.Exists(legacyFile))
+            {
+                return legacyFile;
+            }
+
             var altFile = Path.Combine(
                 currentDir.FullName,
                 "ShareData",
                 "sql",
-                "03-sharedata-seed-cau-hinh.sql");
+                "sharedata-seed-cau-hinh.sql");
 
             if (File.Exists(altFile))
             {
                 return altFile;
             }
 
+            var altLegacyFile = Path.Combine(
+                currentDir.FullName,
+                "ShareData",
+                "sql",
+                "03-sharedata-seed-cau-hinh.sql");
+
+            if (File.Exists(altLegacyFile))
+            {
+                return altLegacyFile;
+            }
+
             currentDir = currentDir.Parent;
         }
 
         throw new FileNotFoundException(
-            $"Không tìm thấy tệp seed 03-sharedata-seed-cau-hinh.sql khi dò từ thư mục gốc '{AppContext.BaseDirectory}'.");
+            $"Không tìm thấy tệp seed sharedata-seed-cau-hinh.sql khi dò từ thư mục gốc '{AppContext.BaseDirectory}'.");
     }
 
     private static readonly Lazy<IReadOnlyList<SeedWriteSqlInfo>> WriteSqlStatementsCache = new(LoadWriteSqlStatementsInternal);

@@ -2,7 +2,7 @@ USE [DEV_ITS10];
 GO
 
 -- =========================================================================================
--- FILE: 02-sharedata-seed-goi-tin.sql
+-- FILE: sharedata-seed-goi-tin.sql
 -- DESCRIPTION: Nạp Template câu truy vấn SQL trích xuất chuẩn Catalog (gói 101-111),
 --              chuẩn hóa chế độ gửi (SyncMode), số thứ tự (OrderNo) và trạng thái gói (Status) trong ShareDataPacket:
 --              0. Khởi tạo bản ghi cho 11 gói tin (101 - 111) nếu chưa tồn tại (idempotent,
@@ -26,7 +26,7 @@ GO
 SET NOCOUNT ON;
 
 PRINT N'=============================================================================';
-PRINT N'BẮT ĐẦU KỊCH BẢN SEED GÓI TIN SHAREDATA (02-sharedata-seed-goi-tin.sql)';
+PRINT N'BẮT ĐẦU KỊCH BẢN SEED GÓI TIN SHAREDATA (sharedata-seed-goi-tin.sql)';
 PRINT N'=============================================================================';
 
 IF OBJECT_ID('dbo.ShareDataPacket', 'U') IS NULL
@@ -1436,6 +1436,6 @@ PRINT N'   -> Tổng số câu ghi chiều nhận đã nạp mới: ' + CAST(@To
 
 
 PRINT N'=============================================================================';
-PRINT N'✅ HOÀN TẤT KỊCH BẢN SEED GÓI TIN SHAREDATA (02-sharedata-seed-goi-tin.sql)';
+PRINT N'✅ HOÀN TẤT KỊCH BẢN SEED GÓI TIN SHAREDATA (sharedata-seed-goi-tin.sql)';
 PRINT N'=============================================================================';
 GO

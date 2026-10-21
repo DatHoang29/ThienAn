@@ -2,7 +2,7 @@ USE [DEV_ITS10];
 GO
 
 -- =========================================================================================
--- FILE: 03-sharedata-seed-cau-hinh.sql
+-- FILE: sharedata-seed-cau-hinh.sql
 -- DESCRIPTION: Nạp cấu hình danh mục, bảng nguồn và tham số vận hành cho phân hệ ShareData (ESHARE):
 --              1. Khởi tạo SysConfigType 'sharedata_error_code' (nếu chưa có).
 --              2. Nạp đầy đủ 25 mã cảnh báo lỗi ESH-xxxx theo ESHARE §9 vào SysConfigData
@@ -22,7 +22,7 @@ GO
 SET NOCOUNT ON;
 
 PRINT N'=============================================================================';
-PRINT N'BẮT ĐẦU KỊCH BẢN SEED CẤU HÌNH SHAREDATA (03-sharedata-seed-cau-hinh.sql)';
+PRINT N'BẮT ĐẦU KỊCH BẢN SEED CẤU HÌNH SHAREDATA (sharedata-seed-cau-hinh.sql)';
 PRINT N'=============================================================================';
 
 DECLARE @TenantId NVARCHAR(64) = (SELECT TOP 1 CAST([TenantId] AS NVARCHAR(64)) FROM [dbo].[SysOpConfig] WHERE [TenantId] IS NOT NULL);
@@ -556,6 +556,6 @@ IF @SoftDeletedUnusedOpConfigs > 0
     PRINT N'   -> Đã xóa mềm ' + CAST(@SoftDeletedUnusedOpConfigs AS NVARCHAR(10)) + N' tham số SysOpConfig không còn sử dụng (cleanup_enabled, cleanup_retention_days).';
 
 PRINT N'=============================================================================';
-PRINT N'✅ HOÀN TẤT KỊCH BẢN SEED CẤU HÌNH SHAREDATA (03-sharedata-seed-cau-hinh.sql)';
+PRINT N'✅ HOÀN TẤT KỊCH BẢN SEED CẤU HÌNH SHAREDATA (sharedata-seed-cau-hinh.sql)';
 PRINT N'=============================================================================';
 GO

@@ -2,7 +2,7 @@ USE [DEV_ITS10];
 GO
 
 -- =========================================================================================
--- FILE: 04-sharedata-dich-thuat.sql
+-- FILE: sharedata-dich-thuat.sql
 -- DESCRIPTION: Bổ sung từ điển bản dịch đa ngôn ngữ (vi-VN, en-US) cho phân hệ ShareData (ESHARE) vào SysTerminology:
 --              1. Chuẩn hóa lại mã khóa cũ thừa tiền tố (như lz.validation...lookbackDaysRange nếu có).
 --              2. Nạp toàn bộ 94 mã khóa dịch thuật chuẩn hóa (188 bản ghi đa ngôn ngữ vi-VN và en-US):
@@ -21,7 +21,7 @@ GO
 SET NOCOUNT ON;
 
 PRINT N'=============================================================================';
-PRINT N'BẮT ĐẦU KỊCH BẢN SEED BẢN DỊCH THUẬT NGỮ SHAREDATA (04-sharedata-dich-thuat.sql)';
+PRINT N'BẮT ĐẦU KỊCH BẢN SEED BẢN DỊCH THUẬT NGỮ SHAREDATA (sharedata-dich-thuat.sql)';
 PRINT N'=============================================================================';
 
 DECLARE @TenantId NVARCHAR(64) = (SELECT TOP 1 CAST([TenantId] AS NVARCHAR(64)) FROM [dbo].[SysTerminology] WHERE [TenantId] IS NOT NULL);
@@ -507,6 +507,6 @@ DECLARE @SkippedEn INT = @TotalKeys - @InsertedEn;
 PRINT N'  -> [en-US] Đã thêm mới ' + CAST(@InsertedEn AS NVARCHAR(10)) + N' bản dịch; bỏ qua ' + CAST(@SkippedEn AS NVARCHAR(10)) + N' bản dịch đã tồn tại.';
 
 PRINT N'=============================================================================';
-PRINT N'✅ HOÀN TẤT KỊCH BẢN SEED BẢN DỊCH THUẬT NGỮ SHAREDATA (04-sharedata-dich-thuat.sql)';
+PRINT N'✅ HOÀN TẤT KỊCH BẢN SEED BẢN DỊCH THUẬT NGỮ SHAREDATA (sharedata-dich-thuat.sql)';
 PRINT N'=============================================================================';
 GO

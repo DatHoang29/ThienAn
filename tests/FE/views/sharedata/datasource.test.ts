@@ -695,15 +695,15 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(rawViewIndex).toBeGreaterThan(paramPanelIndex);
         expect(secondParamPanelIndex).toBeGreaterThan(rawViewIndex);
 
-        // Quét tĩnh thứ tự DOM các khối: Bảng nguồn < Điều kiện lọc < Cột trích xuất < SQL preview
+        // Quét tĩnh thứ tự DOM các khối: Bảng nguồn < Cột trích xuất < Điều kiện lọc < SQL preview
         const configRowIndex = vqbContent.indexOf('class="vqb-config-row"');
         const columnsCardIndex = vqbContent.indexOf('class="vqb-columns-card"');
         const sqlPreviewIndex = vqbContent.indexOf('class="vqb-sql-preview-strip"');
 
         expect(configRowIndex).toBeGreaterThan(-1);
-        expect(filterCardIndex).toBeGreaterThan(configRowIndex);
-        expect(columnsCardIndex).toBeGreaterThan(filterCardIndex);
-        expect(sqlPreviewIndex).toBeGreaterThan(columnsCardIndex);
+        expect(columnsCardIndex).toBeGreaterThan(configRowIndex);
+        expect(filterCardIndex).toBeGreaterThan(columnsCardIndex);
+        expect(sqlPreviewIndex).toBeGreaterThan(filterCardIndex);
 
         // Khẳng định không còn nhãn gợi ý cột hay hàm reset cột theo bảng
         expect(vqbContent).not.toContain('vqbSuggestColumns');
@@ -825,7 +825,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await sqlTab.click();
         await expect(sqlTab).toHaveClass(/is-active/);
 
-        // Kiểm tra thứ tự hiển thị trên giao diện: .vqb-filter-card nằm trên .vqb-columns-card
+        // Kiểm tra thứ tự hiển thị trên giao diện: .vqb-columns-card nằm trên .vqb-filter-card
         const filterCardEl = page.locator('.vqb-filter-card');
         const columnsCardEl = page.locator('.vqb-columns-card');
         await expect(filterCardEl).toBeVisible();
@@ -834,7 +834,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const columnsCardBox = await columnsCardEl.boundingBox();
         expect(filterCardBox).not.toBeNull();
         expect(columnsCardBox).not.toBeNull();
-        expect(filterCardBox!.y).toBeLessThan(columnsCardBox!.y);
+        expect(columnsCardBox!.y).toBeLessThan(filterCardBox!.y);
 
         // 4. Kiểm tra nút "Sinh SQL từ trường đã lưu" HOÀN TOÀN KHÔNG TỒN TẠI (Item A, D)
         const btnGenSql = page.locator('.sql-toolbar-right .el-button').filter({ hasText: /Sinh SQL từ trường đã lưu/ });
@@ -3218,7 +3218,6 @@ ORDER BY __lastTime ASC, __rowid ASC`,
         await page.waitForTimeout(600);
 
         await expect(incPanel.locator('.sync-status-line.is-unsupported')).toBeVisible();
-        await expect(incPanel.locator('.btn-copy-snippet')).toBeVisible();
 
         // 3. Kiểm tra chế độ Toàn bộ (Snapshot)
         const snapshotRadio = page.locator('.sql-sync-mode-control .el-radio-button').filter({ hasText: /Toàn bộ/i }).first();

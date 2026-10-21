@@ -4898,7 +4898,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
         /// <summary>
         /// Description: Kiểm thử: Đối chiếu 15 dòng được đọc bởi SeedScriptReader.ReadSourceTables()
-        ///              trùng khớp 100% với 15 dòng trong script 03-sharedata-seed-cau-hinh.sql.
+        ///              trùng khớp 100% với 15 dòng trong script sharedata-seed-cau-hinh.sql.
         /// </summary>
         [Fact]
         public void SeedScriptReader_MatchesSqlScript03_Exactly16Rows_Test()
@@ -4907,7 +4907,11 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.Equal(16, seedRows.Count);
 
             var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
-            var sql03Path = Path.Combine(repoRoot, "DocBusinessThienAn", "HữuNghị-ChiLăng", "ShareData", "sql", "03-sharedata-seed-cau-hinh.sql");
+            var sql03Path = Path.Combine(repoRoot, "DocBusinessThienAn", "HữuNghị-ChiLăng", "ShareData", "sql", "sharedata-seed-cau-hinh.sql");
+            if (!File.Exists(sql03Path))
+            {
+                sql03Path = Path.Combine(repoRoot, "DocBusinessThienAn", "HữuNghị-ChiLăng", "ShareData", "sql", "03-sharedata-seed-cau-hinh.sql");
+            }
             Assert.True(File.Exists(sql03Path), $"Không tìm thấy tệp SQL tại {sql03Path}");
 
             var sqlContent = File.ReadAllText(sql03Path);

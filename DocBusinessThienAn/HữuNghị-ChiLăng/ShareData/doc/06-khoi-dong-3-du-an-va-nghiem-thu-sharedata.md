@@ -98,7 +98,7 @@ http.createServer((req, res) => {
 
 ### 2.2. Làm mới từ điển đa ngôn ngữ trên giao diện
 
-Sau khi thực thi script `04-sharedata-dich-thuat.sql` (ở tài liệu 05), người dùng **BẮT BUỘC** đồng bộ bộ nhớ cache thuật ngữ lên giao diện:
+Sau khi thực thi script `sharedata-dich-thuat.sql` (thứ tự 3, ở tài liệu 05), người dùng **BẮT BUỘC** đồng bộ bộ nhớ cache thuật ngữ lên giao diện:
 - **Cách 1 (UI):** Bấm vào ảnh đại diện (avatar) ở góc trên bên phải màn hình → chọn mục **"Ngôn ngữ"** → bấm nút biểu tượng **🔄 (Làm mới từ điển)**.
 - **Cách 2 (API):** Gọi trực tiếp HTTP `GET http://localhost:5005/api/system/sysconfig/loadserverterm?language=vi-VN` (hoặc `language=en-US`).
 
@@ -235,7 +235,7 @@ Theo chủ trương của chủ dự án, **ưu tiên thao tác trực tiếp tr
 3. **Đồng bộ bộ nhớ cache thuật ngữ lên giao diện:** Sau khi nạp xong, người dùng thực hiện một trong hai cách:
    - *Cách 1 (UI):* Bấm vào ảnh đại diện (avatar) ở góc trên bên phải màn hình → chọn mục **"Ngôn ngữ"** → bấm nút biểu tượng **🔄 (Làm mới từ điển)**; hoặc bấm nút 🔄 trên thanh công cụ màn hình Thuật ngữ.
    - *Cách 2 (API):* Gọi trực tiếp HTTP `GET http://localhost:5005/api/system/sysconfig/loadserverterm?language=vi-VN` (và `language=en-US`).
-4. 💡 **Đường tắt thực tế:** Do số lượng bản dịch gồm 93 khóa $\times$ 2 ngôn ngữ = 186 bản ghi, việc nhập tay từng dòng trên giao diện rất mất thời gian. Khuyến nghị người dùng nên sử dụng **CÁCH 2 (đường tắt)** chạy script `04-sharedata-dich-thuat.sql` để nạp tự động an toàn trong vài giây.
+4. 💡 **Đường tắt thực tế:** Do số lượng bản dịch gồm 93 khóa $\times$ 2 ngôn ngữ = 186 bản ghi, việc nhập tay từng dòng trên giao diện rất mất thời gian. Khuyến nghị người dùng nên sử dụng **CÁCH 2 (đường tắt)** chạy script `sharedata-dich-thuat.sql` (thứ tự 3) để nạp tự động an toàn trong vài giây.
 
 ---
 
@@ -256,12 +256,12 @@ Theo chủ trương của chủ dự án, **ưu tiên thao tác trực tiếp tr
 > - **Lý do dùng gói riêng:** Gói 101 là gói chuẩn chiều GỬI (Outbound). Sử dụng gói kiểm thử riêng `E2E_INBOUND_TEST` giúp cô lập hoàn toàn môi trường kiểm thử E2E hai chiều, tránh xung đột cấu hình ánh xạ giữa luồng gửi D và luồng nhận E, đồng thời dễ dàng dọn dẹp sạch sẽ sau kiểm thử mà không đụng chạm dữ liệu sản xuất.
 > - **Bảng đích `InboundTrafficFlow` trên CSDL `[DEV_ITS10_Inbound]`**: CSDL tiếp nhận gói tin độc lập với CSDL chính, hệ thống không có màn hình tạo bảng CSDL.
 > - **Cấu hình câu ghi MERGE trong bảng `ShareDataPacketSql` trên CSDL `[DEV_ITS10]`**: Lưu câu lệnh MERGE cho gói `E2E_INBOUND_TEST` (ID `1500000000903`). Hệ thống chưa cung cấp màn hình quản trị câu lệnh ghi CSDL chiều nhận.  
-> 👉 *Cách thực hiện:* Chạy Khối 4 của script [`05-sharedata-du-lieu-gia-lap.sql`](../sql/05-sharedata-du-lieu-gia-lap.sql) hoặc chạy các câu lệnh SQL mẫu tại [Phụ lục D](05-chay-sql-tu-dau-sharedata.md#phụ-lục-d-mẫu-cấu-hình-chiều-nhận-e0-bảng-đích-câu-merge-và-targetshapejson).
+> 👉 *Cách thực hiện:* Chạy Khối 4 của script [`sharedata-du-lieu-gia-lap.sql`](../sql/sharedata-du-lieu-gia-lap.sql) hoặc chạy các câu lệnh SQL mẫu tại [Phụ lục D](05-chay-sql-tu-dau-sharedata.md#phụ-lục-d-mẫu-cấu-hình-chiều-nhận-e0-bảng-đích-câu-merge-và-targetshapejson).
 >
 > **2. Danh mục 15 bảng nguồn (`ShareDataSourceTable` trên CSDL `[DEV_ITS10]` — Bước 5):**
 > - **Lý do ngoại lệ chủ đích:** Bảng `ShareDataSourceTable` lưu đồng thời danh sách bảng nguồn của phân hệ ShareData và trạng thái con trỏ phiên bản (`LastVersion`, `LastChangeTime`, `LastIssue`) do Worker cập nhật nguyên tử theo từng chu kỳ quét, cùng 2 công tắc độc lập `IsTracked` và `IsQueryable`, nên không đặt màn hình cấu hình trên giao diện.
 > 👉 *Cách thực hiện:*
-> - **Cách thuận tiện:** Chạy Mục 3.4 của script [`03-sharedata-seed-cau-hinh.sql`](../sql/03-sharedata-seed-cau-hinh.sql) (idempotent — tự động chèn đủ 15 bảng chuẩn theo [Phụ lục B](05-chay-sql-tu-dau-sharedata.md#phụ-lục-b-danh-mục-15-bảng-nguồn-sharedata-sharedatasourcetable)).
+> - **Cách thuận tiện:** Chạy Mục 3.4 của script [`sharedata-seed-cau-hinh.sql`](../sql/sharedata-seed-cau-hinh.sql) (thứ tự 2, idempotent — tự động chèn đủ 15 bảng chuẩn theo [Phụ lục B](05-chay-sql-tu-dau-sharedata.md#phụ-lục-b-danh-mục-15-bảng-nguồn-sharedata-sharedatasourcetable)).
 > - **Cách thủ công (chèn/cập nhật từng dòng):**
 >   ```sql
 >   USE [DEV_ITS10];
@@ -363,7 +363,7 @@ Trước khi thực hiện các bài test nhóm E, cần chuẩn bị hạ tần
 > Gói `101_commonData` là gói tin chuẩn của chiều GỬI (Outbound) dữ liệu dùng chung. Việc sử dụng gói kiểm thử riêng `E2E_INBOUND_TEST` giúp cô lập hoàn toàn môi trường kiểm thử E2E hai chiều, tránh xung đột cấu hình ánh xạ và đăng ký giữa luồng gửi D và luồng nhận E, đồng thời dễ dàng dọn dẹp sạch sẽ sau kiểm thử mà không đụng chạm tới cấu hình gói tin chuẩn.
 
 1. **Bảng đích trên `DEV_ITS10_Inbound` và Cấu hình câu ghi `ShareDataPacketSql`:**
-   - Đã được nạp sẵn tự động khi chạy **Khối 4 của script `05-sharedata-du-lieu-gia-lap.sql`** (tạo gói `E2E_INBOUND_TEST` ID `1500000000900`, tạo bảng `InboundTrafficFlow` trên `DEV_ITS10_Inbound` và chèn câu MERGE vào `ShareDataPacketSql` ID `1500000000903` cho gói `E2E_INBOUND_TEST`).
+   - Đã được nạp sẵn tự động khi chạy **Khối 4 của script `sharedata-du-lieu-gia-lap.sql`** (tạo gói `E2E_INBOUND_TEST` ID `1500000000900`, tạo bảng `InboundTrafficFlow` trên `DEV_ITS10_Inbound` và chèn câu MERGE vào `ShareDataPacketSql` ID `1500000000903` cho gói `E2E_INBOUND_TEST`).
    - Nếu chưa chạy script 05, có thể thực thi câu lệnh SQL tại [Phụ lục D](05-chay-sql-tu-dau-sharedata.md#phụ-lục-d-mẫu-cấu-hình-chiều-nhận-e0-bảng-đích-câu-merge-và-targetshapejson).
 2. **Tạo đăng ký nhận (Inbound):** Vào màn hình *Đối tác & Đăng ký chia sẻ* → Tab *Đăng ký chia sẻ* → Thêm mới:
    - Chọn tab chiều: **Nhận về (Inbound)** (`Direction = 1`).
@@ -534,7 +534,7 @@ Dùng nội dung `body` đã chuẩn bị ở E0 làm dữ liệu thử nghiệm
 
 ## 🅶 G. Gói 110 (Gói 110 chạy trên nguồn có sẵn — phương án A, 16/10/2026, Master Plan R13)
 
-**Điều kiện:** Đã chạy script `05-sharedata-du-lieu-gia-lap.sql` để có mock dữ liệu `TmsWeather`, `TmsIncident`, `VmsCurrent`; Worker đang chạy.
+**Điều kiện:** Đã chạy script `sharedata-du-lieu-gia-lap.sql` (thứ tự 4) để có mock dữ liệu `TmsWeather`, `TmsIncident`, `VmsCurrent`; Worker đang chạy.
 
 | # | Bước | Kết quả mong đợi | Kết quả |
 |---|---|---|---|
@@ -606,7 +606,7 @@ Khi thực hiện nghiệm thu trên môi trường staging, người kiểm th�
 2. **S2:** Chạy câu `SELECT` ở [tài liệu 05 mục 1.2](05-chay-sql-tu-dau-sharedata.md#12-kiểm-tra-dữ-liệu-cũ-trước-khi-bật-worker), lưu lại danh sách ID; sau đó chạy câu `UPDATE` để tạm thời tắt (`State = 2`) toàn bộ các đăng ký chia sẻ chiều Outbound (`Direction = 0`). Kiểm các đăng ký trỏ https://tacorp.vn:12204 (có thể là chính WebAPI staging); quyết định giữ hay tạm dừng.
 3. **S3:** Triển khai bản build mới của WebAPI, Worker và Frontend lên môi trường staging.
 4. **S4:** Chỉ chạy CodeFirst khi truy vấn ở tài liệu 05 mục 2.3 thiếu cột/bảng (staging 19/10/2026 đã đủ).
-5. **S5:** Chạy lần lượt các script trên CSDL `DEV_ITS10` theo đúng thứ tự: **Đã làm ở tài liệu 05** ([05-chay-sql-tu-dau-sharedata.md](05-chay-sql-tu-dau-sharedata.md) mục 2.1).
+5. **S5:** Chạy lần lượt các script trên CSDL `DEV_ITS10` theo đúng thứ tự chuẩn: (1) `sharedata-seed-goi-tin.sql` $\rightarrow$ (2) `sharedata-seed-cau-hinh.sql` $\rightarrow$ (3) `sharedata-dich-thuat.sql` $\rightarrow$ *(tùy chọn)* (4) `sharedata-du-lieu-gia-lap.sql` (chi tiết xem [tài liệu 05](05-chay-sql-tu-dau-sharedata.md) mục 2.1).
 6. **S6:** Làm mới từ điển như [mục 2.2](#22-làm-mới-từ-điển-đa-ngôn-ngữ-trên-giao-diện) (avatar → Ngôn ngữ → 🔄 hoặc GET <URL_WEBAPI_STAGING>/api/system/sysconfig/loadserverterm?language=vi-VN và en-US).
 7. **S7:** Khởi động lại `ShareDataWorker` staging.
 8. **S8:** Chạy các câu SQL đối soát tại [tài liệu 05 mục 3](05-chay-sql-tu-dau-sharedata.md#3-kiểm-tra-đối-soát-sau-khi-chạy-script-sql); kiểm tra log khởi động của Worker đảm bảo không phát sinh mã cảnh báo `ESH`.
