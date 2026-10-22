@@ -19,6 +19,15 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 ---
 
+## 🟣 Đợt 22/10/2026 — Cuộc họp Kỹ thuật Toàn diện VideoWall (Anh Sơn review & Quyết định kỹ thuật)
+
+| # | Prompt | Task | Phạm vi & Trạng thái |
+|---|---|---|---|
+| 1 | [`videowall-decoupling-equipment-va-phan-quyen-multi-cluster-be-prompt.md`](videowall-decoupling-equipment-va-phan-quyen-multi-cluster-be-prompt.md) | `VW-BE-01..05` | ⏳ **Chờ thực thi.** Backend WebAPI & Worker: Decouple `VwController` khỏi thông tin kết nối IP/User/Pass (chuyển sang liên kết `EquipmentId` - SSOT với module Equipment); mở rộng phân quyền ma trận hỗ trợ gán hàng loạt theo danh sách `UserIds` hoặc Tổ chức `OrgId` trong 1 transaction; bổ sung định danh cụm màn hình `ClusterId` cho `VwScreen`, `VwWallTopology`, `VwWallPermission`; xử lý thuộc tính `Model` kích hoạt driver/adapter ISAPI tương thích; cung cấp API kiểm tra trạng thái nguồn tín hiệu đang sử dụng (`IsUsed` / `ActiveWindowCount`). |
+| 2 | [`videowall-visual-screen-layout-ux-flow-va-i18n-fe-prompt.md`](videowall-visual-screen-layout-ux-flow-va-i18n-fe-prompt.md) | `VW-FE-01..10` | ⏳ **Chờ thực thi.** Frontend WebVue 3: Tái thiết kế luồng "Chia vùng" (popup chọn mẫu 1-1, 2x2, 3x3, Custom trước khi áp dụng + lưu template); tách component trực quan dùng chung `ScreenLayoutRenderer` theo chuẩn Top-Left `H1-C1`; form phân quyền Multi-user (`el-select multiple`) và cân đối tỷ lệ cột; Dashboard 2 cột (Bộ điều khiển vs Màn hình) chống "lé mắt"; sắp xếp Tab index tự nhiên, `<el-divider>` chia nhóm; dọn sạch lỗi Solid Blue Overlay Bug; cân đối layout kịch bản, tooltip "Thứ tự lớp" (z-index), nút Lưu cố định Sticky bar, thu gọn panel (Splitter); highlight liên kết trực quan 2 chiều, rào lại nguồn tín hiệu đã sử dụng; chuẩn hóa 100% i18n với tiền tố `vw_`. |
+
+---
+
 ## Fix UI sau test nhánh fix/20261005-videowall-validation (08/10/2026)
 
 | Prompt | Nội dung | Trạng thái |

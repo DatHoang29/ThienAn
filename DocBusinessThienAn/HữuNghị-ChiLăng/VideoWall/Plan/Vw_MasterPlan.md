@@ -20,14 +20,16 @@
 | **v1.1** | 30-09-2026 | Antigravity AI / Team | Ghi nhận hoàn tất đợt refactor bộ test VideoWall: mirror thư mục `WebApi/`, `Worker/`, `Wpf/`, chuẩn hóa mock server 14 partials, dọn cleanup trong test theo `thienan_rules.md`. |
 | **v2.0** | 06-10-2026 | Antigravity AI / Team | **Nâng cấp toàn diện & Gom về 1 file SSOT duy nhất**: Đối chiếu toàn bộ commit đã merge vào `dev` (PR #63 BE & PR #86 FE - phân quyền VideoWall, worker service, Canvas rào quyền). Tích hợp đối chiếu với Đặc tả UI mới (`VideoWall-DacTa-UI_1.md`), phân tích 10 màn hình, rà soát lỗi runtime NATS trên Monitor, thiếu worker scheduler, và tổng hợp danh sách Gaps L-01 $\rightarrow$ L-16 thành Action Plan 3 giai đoạn. |
 | **v2.1** | 06-10-2026 | Antigravity AI / Team | **Hợp nhất hoàn chỉnh báo cáo Review Backend 14-09-2026 vào MasterPlan**: Tích hợp toàn bộ nội dung audit 9 hạng mục prompt, đối chiếu kiến trúc DS-C66S, log đo kiểm thực tế và giải quyết dứt điểm các file review rời rạc. Thư mục `Plan/` đạt trạng thái 100% duy nhất 1 tệp SSOT. |
+| **v2.2** | 22-10-2026 | Antigravity AI / Team | **Cập nhật đợt Review Kỹ thuật Toàn diện từ Audio Họp `videowall.m4a` (~45:10)**: Bổ sung các quyết định kỹ thuật của Anh Sơn về Decoupling cấu hình thiết bị với module Equipment (`EquipmentId`), mở rộng phân quyền Multi-user/Group và đa cụm màn hình (`ClusterId`), tái thiết kế luồng UX "Chia vùng", chuẩn hóa component bố cục ma trận `H1-C1`, sửa lỗi Solid Blue Overlay Bug và chuẩn hóa 100% i18n với tiền tố `vw_`. Bổ sung GAP-09 $\rightarrow$ GAP-13 và lập 2 prompt thực thi độc lập BE/FE. |
 
 ---
 
 ## 1. Bối Cảnh Nguồn Dữ Liệu & Căn Cứ Đối Chiếu
 
-1. **Hai bản ghi họp gốc (Tier A transcript):**
+1. **Các bản ghi họp gốc (Tier A transcript):**
    - [`09-09-2026-videowall-phan-quyen-va-layout.md`](../doc/transcript/09-09-2026-videowall-phan-quyen-va-layout.md): Phân quyền khu vực theo ma trận lưới màn hình, quy tắc ưu tiên `UserId` > `OrgId`, ghép nối NATS thay cho Mock data, tối ưu cây danh mục Zone với SqlSugar `ToTree()`.
    - [`11-09-2026-videowall-script.md`](../doc/transcript/11-09-2026-videowall-script.md): Kiến trúc phân tầng loose-coupling qua NATS Message Broker (FE ↔ BE ↔ NATS ↔ Worker Service ↔ ISAPI), lý do tách riêng Worker Service chống blocking WebAPI, 3 trụ cột (Thiết lập / Điều khiển / Giám sát), cơ chế rào quyền theo Screen ID/tọa độ ô.
+   - [`22-10-2026-videowall-toan-dien-refactor-kien-truc-ux-ui.md`](../doc/transcript/22-10-2026-videowall-toan-dien-refactor-kien-truc-ux-ui.md): Cuộc họp Kỹ thuật Toàn diện từ tệp ghi âm gốc `videowall.m4a` (~45:10) giữa Anh Sơn và Đạt: Decoupling cấu hình thiết bị với module Equipment (`EquipmentId`), mở rộng phân quyền Multi-user/Group và đa cụm màn hình (`ClusterId`), tái thiết kế luồng UX "Chia vùng", chuẩn hóa component bố cục ma trận `H1-C1`, sửa lỗi Solid Blue Overlay Bug và chuẩn hóa 100% i18n với tiền tố `vw_`.
 2. **Các commit đã build và merge vào nhánh `dev`:**
    - **Backend WebAPI (`TA-ITS015-WEBAPI-V1.0`)**: PR #63 (`feat/20260924-videowall-hoan-thien-chuc-nang`) bao gồm commit `bbd178fe` (Service Worker `ITS.VideoWall` giao tiếp ISAPI/NATS) và commit `3acc1f42` (`VwWallPermission`, `VwPermissionService`, `VwEventTriggerLog`, `VwWallTopology`, `VwDeviceSetup`).
    - **Frontend WebVue (`TA-ITS015-WEBVUE-V1.0`)**: PR #86 (`feat/20260924-videowall-hoan-thien-chuc-nang`) bao gồm commit `4ee94cc1` (màn hình Phân quyền vùng `wallPermission`, lưới chọn ô `wallMiniGrid`, tích hợp rào quyền Canvas) và commit `a7d61c8e` (Refactor & Clean code FE 10 màn hình VideoWall).
@@ -191,6 +193,11 @@ Căn cứ theo đối chiếu giữa mã nguồn `TA-ITS015-WEBVUE-V1.0/src/src/
 | **GAP-06** | **Lưu kịch bản chưa nguyên tử (L-13):** FE đang gọi tuần tự API update Scene rồi lặp qua các Window để thêm/sửa/xóa. Nếu rớt mạng giữa chừng sẽ lưu dở dang. Cần bổ sung API Batch Upsert Scene kèm Windows trong 1 Transaction. | BE WebAPI & FE | 🟡 **P2 (Kiến trúc)** |
 | **GAP-07** | **Validator hạn chế 2 bộ điều khiển `Role == "center"`:** Chưa có rule kiểm tra chặn người dùng cấu hình 2 bộ điều khiển cùng là Trung tâm trên một hệ thống tường. | BE WebAPI | 🟢 **P3 (Validation)** |
 | **GAP-08** | **Dọn reference thừa `Shared.*` trong `Module.VideoWall.Core.csproj`:** Project `.csproj` còn giữ reference tới `Shared.DTO`, `Shared.Reference`, `Shared.Utility` và HintPath DLL cũ chưa dọn dẹp. | BE WebAPI (.csproj) | 🟢 **P3 (Dọn dẹp)** |
+| **GAP-09** | **Trùng lặp cấu hình kết nối Controller với Module Equipment:** `VwController` đang duplicate `IpAddress`, `Port`, `Username`, `Password`. Cần chuyển sang liên kết khóa ngoại `EquipmentId` (SSOT với module Equipment) và nạp credential từ Equipment. | BE WebAPI & Worker | 🔴 **P1 (Kiến trúc)** |
+| **GAP-10** | **Phân quyền ma trận đơn lẻ từng người (Single-User Bottleneck):** `VwWallPermission` chỉ lưu đơn lẻ 1 `UserId`/dòng. Cần nâng cấp API BatchAssign hỗ trợ gán hàng loạt theo danh sách `UserIds` hoặc Tổ chức `OrgId` trong 1 transaction. | BE WebAPI & FE | 🔴 **P1 (Nghiệp vụ)** |
+| **GAP-11** | **Giới hạn hệ thống 1 cụm màn hình duy nhất (Single-Wall Constraint):** Chưa hỗ trợ đa cụm màn hình (Tường chính 8x4, Cụm phụ SCADA 2x2, Cụm mở rộng). Cần bổ sung `ClusterId` cho `VwScreen`, `VwWallTopology`, `VwWallPermission`. | BE & FE | 🟡 **P2 (Tính năng)** |
+| **GAP-12** | **Luồng UX "Chia vùng" màn hình bị khựng và thiếu bước chọn mẫu:** Bấm Chia vùng bắt kéo chuột tự do ngay lập tức. Cần dialog chọn trước chế độ mẫu (1-1, 2x2, 3x3, Custom) kèm chức năng lưu template tùy chỉnh. | FE WebVue | 🟡 **P2 (UX/UI)** |
+| **GAP-13** | **Lỗi giao diện & Trải nghiệm người dùng tổng thể:** Dashboard thống kê phân mảnh xa danh sách ("lé mắt"), lỗi Solid Blue Overlay Bug che mất sọc zebra bảng, trường "Thứ tự lớp" (z-index) thiếu tooltip, nút Lưu không cố định, thiếu highlight liên kết 2 chiều và chưa rào nguồn tín hiệu đang dùng. | FE WebVue | 🟡 **P2 (Giao diện)** |
 
 ---
 
@@ -222,6 +229,12 @@ Căn cứ theo đối chiếu giữa mã nguồn `TA-ITS015-WEBVUE-V1.0/src/src/
 8. **[P3] Dọn dẹp reference thừa trong `Module.VideoWall.Core.csproj` (`GAP-08`):**
    - Gỡ bỏ các dòng `<ProjectReference>` và `<Reference>` không cần thiết.
 
+### Giai đoạn 4: Đợt Refactor Toàn Diện Theo Quyết Định Cuộc Họp 22/10/2026 (P1 / P2)
+9. **[P1] Decoupling Thiết bị Equipment & Phân Quyền Multi-User (`GAP-09`, `GAP-10`, `GAP-11`):**
+   - Thực thi tệp prompt [`videowall-decoupling-equipment-va-phan-quyen-multi-cluster-be-prompt.md`](../Prompt/videowall-decoupling-equipment-va-phan-quyen-multi-cluster-be-prompt.md): Bổ sung `EquipmentId` cho Controller, `ClusterId` cho Screen/Topology, API `BatchAssignPermission` cho danh sách `UserIds`, và API trạng thái nguồn `IsUsed`.
+10. **[P2] Tối Ưu UX Luồng Chia Vùng, Component Bố Cục Trực Quan & Sửa Lỗi UI (`GAP-12`, `GAP-13`):**
+    - Thực thi tệp prompt [`videowall-visual-screen-layout-ux-flow-va-i18n-fe-prompt.md`](../Prompt/videowall-visual-screen-layout-ux-flow-va-i18n-fe-prompt.md): Triển khai dialog chọn chế độ chia vùng (1-1, 2x2, 3x3, Custom) + lưu template, component `ScreenLayoutRenderer` chuẩn Top-Left `H1-C1`, Dashboard 2 cột chống "lé mắt", sửa lỗi Solid Blue Overlay Bug, tooltip z-index, nút Lưu Sticky action bar, thu gọn panel, highlight 2 chiều và chuẩn hóa 100% i18n với tiền tố `vw_`.
+
 ---
 
 ## 9. Danh Mục Tài Liệu Liên Quan
@@ -233,6 +246,7 @@ Căn cứ theo đối chiếu giữa mã nguồn `TA-ITS015-WEBVUE-V1.0/src/src/
 - **Transcript cuộc họp:**
   - [`../doc/transcript/09-09-2026-videowall-phan-quyen-va-layout.md`](../doc/transcript/09-09-2026-videowall-phan-quyen-va-layout.md)
   - [`../doc/transcript/11-09-2026-videowall-script.md`](../doc/transcript/11-09-2026-videowall-script.md)
+  - [`../doc/transcript/22-10-2026-videowall-toan-dien-refactor-kien-truc-ux-ui.md`](../doc/transcript/22-10-2026-videowall-toan-dien-refactor-kien-truc-ux-ui.md)
 - **Bảng CSDL & Audit Write Path:**
   - [`../doc/TableSQL/Vw_Tables_Analysis_And_Design.md`](../doc/TableSQL/Vw_Tables_Analysis_And_Design.md)
   - [`../doc/TableSQL/Vw_Entities_WritePath_Audit_2026-09-14.md`](../doc/TableSQL/Vw_Entities_WritePath_Audit_2026-09-14.md)
