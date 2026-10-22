@@ -151,8 +151,8 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 	});
 
 	test('TC7 — Kiểm tra cấu hình i18n trong vi-vn.json và en-us.json', async () => {
-		const viPath = resolveWebVueSrc('i18n/lang/vi-vn.json');
-		const enPath = resolveWebVueSrc('i18n/lang/en-us.json');
+		const viPath = resolveWebVueSrc('i18n/lang/its/sharedata/vi-vn.json');
+		const enPath = resolveWebVueSrc('i18n/lang/its/sharedata/en-us.json');
 
 		const viJson = JSON.parse(fs.readFileSync(viPath, 'utf8'));
 		const enJson = JSON.parse(fs.readFileSync(enPath, 'utf8'));

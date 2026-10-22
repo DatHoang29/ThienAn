@@ -798,8 +798,8 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
         expect(mappingContent).toContain('packet-no-fields-alert');
         expect(mappingContent).toContain('packetHasNoFieldsHint');
 
-        const viPath = resolveWebVueSrc('i18n/lang/vi-vn.json');
-        const enPath = resolveWebVueSrc('i18n/lang/en-us.json');
+        const viPath = resolveWebVueSrc('i18n/lang/its/sharedata/vi-vn.json');
+        const enPath = resolveWebVueSrc('i18n/lang/its/sharedata/en-us.json');
         const viJson = JSON.parse(fs.readFileSync(viPath, 'utf-8'));
         const enJson = JSON.parse(fs.readFileSync(enPath, 'utf-8'));
         expect(viJson['lz.label.sharedataMapping.packetHasNoFieldsHint']).toBe('Gói chưa có trường để chia sẻ. Vào Nguồn dữ liệu → Danh sách trường để chọn cột cần chia sẻ.');

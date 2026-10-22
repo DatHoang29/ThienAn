@@ -170,7 +170,32 @@ src/views/<module>/<feature>/
     - Trong tệp `src/src/i18n/lang/vi-vn.json` (và giá trị fallback trong template): Dùng tiếng Việt chuẩn mực, thuần túy (ví dụ: `Trực quan`, `Mã nguồn SQL`, `Cột trích xuất:`, `Điều kiện lọc:`, `Sắp xếp:`, `Tăng dần`, `Giảm dần`).
     - Trong tệp `src/src/i18n/lang/en-us.json`: Dùng tiếng Anh chuẩn xác, tự nhiên (ví dụ: `Visual Builder`, `Raw SQL`, `Columns:`, `Filter Conditions:`, `Order By:`, `Ascending`, `Descending`).
 * **Quy chuẩn vị trí đặt key i18n mới (Rule 20.19)**:
-  - Key mới chèn vào dòng cuối cùng của `vi-vn.json` và `en-us.json`; chỉnh sửa key hiện có thì sửa in-place cùng hàng. Chi tiết xem mục 6.5.
+  - Key mới chèn vào dòng cuối cùng của `vi-vn.json` và `en-us.json` (hoặc file phân hệ `its/<phân-hệ>/{vi-vn,en-us}.json`); chỉnh sửa key hiện có thì sửa in-place cùng hàng. Chi tiết xem mục 6.5.
+
+* **Tách Tệp Locale Theo Phân Hệ & Thoát Ký Tự `@` (Vue-i18n Escape & Subsystem Locale Modularization) (Rule 20.29)**:
+  1. **Tách tệp locale riêng theo từng phân hệ (`src/src/i18n/lang/its/<phân-hệ>/{vi-vn,en-us}.json`)**:
+     - ⛔ **CẤM** tiếp tục nhồi nhét hàng nghìn khóa dịch đặc thù của phân hệ nghiệp vụ vào hai tệp global khổng lồ `src/src/i18n/lang/vi-vn.json` và `en-us.json` (gây phình to file, chậm tải và xung đột Git khi nhiều dev cùng sửa).
+     - ✅ **BẮT BUỘC**: Tách toàn bộ khóa của từng phân hệ nghiệp vụ ra tệp riêng: `src/src/i18n/lang/its/<phân-hệ>/vi-vn.json` và `en-us.json` (ví dụ `its/sharedata/`, `its/tms/`...).
+     - **Tự động nạp động (Auto-discovery) qua `import.meta.glob`**: Trong [`src/src/utils/locale.ts`](/@/utils/locale.ts), sử dụng cơ chế nạp động tự động của Vite:
+       ```ts
+       const enUSIts = import.meta.glob<Record<string, string>>('../i18n/lang/its/**/en-us.json', { eager: true, import: 'default' });
+       const viVNIts = import.meta.glob<Record<string, string>>('../i18n/lang/its/**/vi-vn.json', { eager: true, import: 'default' });
+       const mergeIts = (files: Record<string, Record<string, string>>) => Object.assign({}, ...Object.values(files));
+       ```
+       ⛔ **CẤM** import thủ công từng file phân hệ (`import enUSSharedata...`) làm `locale.ts` liên tục bị sửa và xung đột Git. Thêm phân hệ mới chỉ cần tạo thư mục `src/src/i18n/lang/its/<phân-hệ>/`, hệ thống sẽ tự động quét và nạp.
+     - **Đồng bộ song ngữ**: Số lượng và danh sách khóa giữa `vi-vn.json` và `en-us.json` trong thư mục phân hệ BẮT BUỘC bằng nhau 100% (keys diff = []).
+  2. **Thoát ký tự `@` trần trong chuỗi bản dịch (Vue-i18n Linked Format Escape `{'@'}`)**:
+     - ⛔ **TUYỆT ĐỐI CẤM** để ký tự `@` trần đi liền trước chữ cái hoặc tên biến trong chuỗi i18n (ví dụ cấm: `Tham số [@{0}]`, `@lastTime`, `@pageSize`, `TOP (@pageSize)`).
+     - *Lý do*: Vue-i18n mặc định coi `@:` hoặc `@<word>` là cú pháp liên kết chuỗi (linked message). Khi gặp `@` không hợp lệ, Vue-i18n sẽ ném lỗi runtime nghiêm trọng: `SyntaxError: Invalid linked format` hoặc làm crash trang khi render.
+     - ✅ **BẮT BUỘC**: Bọc escape bằng cú pháp chuẩn vue-i18n: `{'@'}` (ví dụ: `Tham số [{'@'}{0}]`, `{'@'}lastTime`, `{'@'}pageSize`, `TOP ({'@'}pageSize)`).
+  3. **Cơ chế nạp CSDL `SysTerminology` & Cập nhật seed SQL Idempotent an toàn**:
+     - `getTerminologyList(lang)` ưu tiên nạp từ bảng CSDL `SysTerminology` (qua IndexedDB), chỉ lấy JSON khi DB chưa có khóa đó. Do đó: nếu chỉ sửa JSON mà CSDL đã có bản ghi cũ thì giao diện sẽ **không đổi**.
+     - Khi chỉnh sửa giá trị bản dịch trong script seed SQL:
+       - ⛔ **CẤM** ghi đè làm mất các bản dịch mà quản trị viên đã tùy chỉnh trên môi trường vận hành.
+       - ✅ **BẮT BUỘC**: Viết khối `UPDATE dbo.SysTerminology SET Value = N'<mới>' WHERE Name = N'...' AND Code = N'...' AND Lang = N'...' AND Value = N'<giá trị cũ>';` trước lệnh `MERGE ... WHEN NOT MATCHED THEN INSERT`.
+       - Sau khi chạy script SQL trên CSDL, trên giao diện webapp cần bấm nút 🔄 tại avatar góc phải trên để làm mới cache ngôn ngữ.
+  4. **Kiểm thử Playwright đọc từ điển i18n tĩnh**:
+     - Trong các tệp test E2E/Static Scan, nếu kiểm tra các khóa của phân hệ, BẮT BUỘC đọc từ `i18n/lang/its/<phân-hệ>/vi-vn.json` (hoặc merge cùng `vi-vn.json` gốc), không được chỉ assert trên file gốc `vi-vn.json` vì các khóa phân hệ đã được tách ra.
 
 ---
 

@@ -5,17 +5,19 @@ GO
 -- FILE: sharedata-dich-thuat.sql
 -- DESCRIPTION: Bổ sung từ điển bản dịch đa ngôn ngữ (vi-VN, en-US) cho phân hệ ShareData (ESHARE) vào SysTerminology:
 --              1. Chuẩn hóa lại mã khóa cũ thừa tiền tố (như lz.validation...lookbackDaysRange nếu có).
---              2. Nạp toàn bộ 94 mã khóa dịch thuật chuẩn hóa (188 bản ghi đa ngôn ngữ vi-VN và en-US):
---                 - 17 khóa trường thực thể (Entity) dùng cho validation / khóa ngoại.
---                 - 31 khóa ngoại lệ nghiệp vụ (Exception: phân hệ ShareData, quyền quản trị).
---                 - 46 khóa kiểm tra hợp lệ (Validation: SQL Validator, kết nối, đăng ký, gói tin, bộ mã, ánh xạ).
+--              2. Nạp toàn bộ 112 mã khóa dịch thuật chuẩn hóa (224 bản ghi đa ngôn ngữ vi-VN và en-US):
+--                 - 23 khóa trường thực thể (Entity) dùng cho validation / khóa ngoại / tên đối tượng.
+--                 - 37 khóa ngoại lệ nghiệp vụ (Exception: phân hệ ShareData, quyền quản trị).
+--                 - 50 khóa kiểm tra hợp lệ (Validation: SQL Validator, kết nối, đăng ký, gói tin, bộ mã, ánh xạ).
+--                 - 2 khóa thông báo (Message: kết nối đối tác).
 --              3. Cơ chế Idempotent:
 --                 - MERGE chỉ INSERT các bản ghi chưa có (WHEN NOT MATCHED THEN INSERT).
+--                 - Khối UPDATE có điều kiện chỉ đồng bộ lại các bản ghi seed cũ khi giá trị trên DB chưa bị người dùng sửa tay.
 --                 - Không ghi đè (không UPDATE) lên các nội dung dịch mà quản trị viên đã chỉnh sửa trực tiếp trên DB.
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 20/10/2026
+-- CẬP NHẬT LẦN CUỐI: 22/10/2026
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -48,7 +50,7 @@ WHERE Code LIKE N'lz.validation%lookbackDaysRange'
   );
 
 -- -----------------------------------------------------------------------------------------
--- 2. DANH MỤC 93 KHÓA BẢN DỊCH SHAREDATA (186 BẢN GHI ĐA NGÔN NGỮ)
+-- 2. DANH MỤC 112 KHÓA BẢN DỊCH SHAREDATA (224 BẢN GHI ĐA NGÔN NGỮ)
 -- -----------------------------------------------------------------------------------------
 DECLARE @Translations TABLE (
     [Name] NVARCHAR(64),
@@ -83,7 +85,7 @@ VALUES
      N'{0} must be in range {1}..{2}.'),
 
     -- =========================================================================
-    -- NHÓM 2: TRƯỜNG THỰC THỂ (ENTITY) CHO VALIDATION / KHÓA NGOẠI (14 khóa)
+    -- NHÓM 2: TRƯỜNG THỰC THỂ (ENTITY) CHO VALIDATION / KHÓA NGOẠI (23 khóa)
     -- =========================================================================
     (N'lz.entity', N'sharedata.aliasFieldKey',
      N'Khóa field',
@@ -130,8 +132,8 @@ VALUES
      N'Subscription mode'),
 
     (N'lz.entity', N'sharedata.packetCode',
-     N'Gói tin',
-     N'Packet'),
+     N'Mã gói tin',
+     N'Packet code'),
 
     (N'lz.entity', N'sharedata.partnerId',
      N'Đối tác chia sẻ',
@@ -141,8 +143,44 @@ VALUES
      N'Lịch gửi',
      N'Sending schedule'),
 
+    (N'lz.entity', N'sharedata.sessionId',
+     N'Phiên kết nối',
+     N'Connection session'),
+
+    (N'lz.entity', N'sharedata.subscriptionId',
+     N'Đăng ký chia sẻ',
+     N'Sharing subscription'),
+
+    (N'lz.entity', N'sharedata.dataSourceId',
+     N'Nguồn dữ liệu',
+     N'Data source'),
+
+    (N'lz.entity', N'sharedata.mappingId',
+     N'Phễu lọc',
+     N'Data mapping'),
+
+    (N'lz.entity', N'sharedata.codeSetId',
+     N'Bộ mã quy đổi',
+     N'Code set'),
+
+    (N'lz.entity', N'sharedata.tableName',
+     N'Bảng vật lý',
+     N'Physical table'),
+
+    (N'lz.entity', N'sharedata.fieldKey',
+     N'Field của gói tin',
+     N'Packet field'),
+
+    (N'lz.entity', N'sharedata.targetRootEntity',
+     N'Thực thể gốc phía đối tác',
+     N'Partner target root entity'),
+
+    (N'lz.entity', N'sharedata.code',
+     N'Mã field',
+     N'Field code'),
+
     -- =========================================================================
-    -- NHÓM 3: NGOẠI LỆ NGHIỆP VỤ PHÂN HỆ SHAREDATA (23 khóa)
+    -- NHÓM 3: NGOẠI LỆ NGHIỆP VỤ PHÂN HỆ SHAREDATA (27 khóa)
     -- =========================================================================
     (N'lz.exception', N'sharedata.codeSetInUse',
      N'Bộ mã đang được gói tin hoặc hồ sơ ánh xạ sử dụng, không thể xóa.',
@@ -160,6 +198,10 @@ VALUES
      N'Không lấy được ngữ cảnh HTTP để đọc nội dung gói tin.',
      N'Unable to get the HTTP context to read the packet content.'),
 
+    (N'lz.exception', N'sharedata.mappingActiveDuplicated',
+     N'Đã có phễu lọc đang áp dụng cho cùng đối tác, gói tin và chiều.',
+     N'An active mapping already exists for the same partner, packet, and direction.'),
+
     (N'lz.exception', N'sharedata.mappingCodeSetNotExist',
      N'Bộ mã [{0}] không tồn tại.',
      N'Code set [{0}] does not exist.'),
@@ -167,6 +209,10 @@ VALUES
     (N'lz.exception', N'sharedata.mappingConflictInUse',
      N'Không thể bật hồ sơ ánh xạ này vì hồ sơ đang áp dụng cho cùng đối tác/gói tin/chiều đang được đăng ký bật sử dụng, vui lòng tạm dừng đăng ký đó trước.',
      N'Cannot enable this mapping profile because the active profile for the same partner/packet/direction is used by an enabled subscription. Please pause that subscription first.'),
+
+    (N'lz.exception', N'sharedata.mappingFieldKeyNotExist',
+     N'Field [{0}] không tồn tại trong gói tin.',
+     N'Field [{0}] does not exist in packet.'),
 
     (N'lz.exception', N'sharedata.mappingInUse',
      N'Hồ sơ ánh xạ đang được sử dụng trong cấu hình đăng ký, không thể sửa đổi hoặc xóa.',
@@ -179,6 +225,14 @@ VALUES
     (N'lz.exception', N'sharedata.mappingNotResolved',
      N'Chưa có ánh xạ đang áp dụng cho đối tác và gói tin này.',
      N'No active mapping exists for this partner and packet.'),
+
+    (N'lz.exception', N'sharedata.mappingPacketNotExist',
+     N'Gói tin [{0}] không tồn tại.',
+     N'Packet [{0}] does not exist.'),
+
+    (N'lz.exception', N'sharedata.mappingTargetDuplicated',
+     N'Có hai dòng cùng ánh xạ về [{0}].',
+     N'Two rows map to the same target [{0}].'),
 
     (N'lz.exception', N'sharedata.packetCodeNameLocked',
      N'Gói tin đang được hồ sơ ánh xạ sử dụng, chỉ được sửa các trường mô tả, không được đổi Mã/Tên.',
@@ -237,7 +291,7 @@ VALUES
      N'Cannot change the subscription state from [{0}] to [{1}].'),
 
     -- =========================================================================
-    -- NHÓM 4: QUẢN TRỊ VÀ CẤU HÌNH SQL TRÍCH XUẤT & METADATA (9 khóa)
+    -- NHÓM 4: QUẢN TRỊ VÀ CẤU HÌNH SQL TRÍCH XUẤT & METADATA (11 khóa)
     -- =========================================================================
     (N'lz.exception', N'sharedata.superAdminRequiredForSqlEdit',
      N'Chỉ tài khoản SuperAdmin mới có quyền chỉnh sửa câu truy vấn nguồn dữ liệu.',
@@ -250,6 +304,14 @@ VALUES
     (N'lz.exception', N'sharedata.superAdminRequiredForSqlValidate',
      N'Chỉ tài khoản SuperAdmin mới có quyền kiểm tra câu truy vấn nguồn dữ liệu.',
      N'Only SuperAdmin accounts are authorized to validate data source queries.'),
+
+    (N'lz.exception', N'sharedata.superAdminRequiredForSqlPreview',
+     N'Chỉ tài khoản SuperAdmin mới có quyền chạy thử câu truy vấn nguồn dữ liệu.',
+     N'Only SuperAdmin account has permission to preview data source query.'),
+
+    (N'lz.exception', N'sharedata.sqlSampleExecutionFailed',
+     N'Lỗi thực thi câu truy vấn mẫu: {0}',
+     N'Sample query execution failed: {0}'),
 
     (N'lz.validation', N'sharedata.packetExtractSqlMissingForField',
      N'Gói tin chưa có câu lệnh SQL trích xuất nên chưa thể thêm trường dữ liệu.',
@@ -276,11 +338,15 @@ VALUES
      N'Packet code is required.'),
 
     -- =========================================================================
-    -- NHÓM 5: KIỂM TRA HỢP LỆ NGHIỆP VỤ GÓI TIN, BỘ MÃ, ĐĂNG KÝ (7 khóa)
+    -- NHÓM 5: KIỂM TRA HỢP LỆ NGHIỆP VỤ GÓI TIN, BỘ MÃ, ĐĂNG KÝ (8 khóa)
     -- =========================================================================
     (N'lz.validation', N'sharedata.codeSetValuesRequired',
      N'Bảng quy đổi phải có ít nhất một dòng.',
      N'The conversion table must have at least one row.'),
+
+    (N'lz.validation', N'sharedata.datatypeIdOutOfRange',
+     N'Loại dữ liệu chia sẻ phải nằm trong khoảng 101–111.',
+     N'Sharing data type must be between 101 and 111.'),
 
     (N'lz.validation', N'sharedata.eventSourceRequired',
      N'Chế độ theo sự kiện bắt buộc chọn nguồn sự kiện.',
@@ -326,7 +392,7 @@ VALUES
     -- =========================================================================
     (N'lz.validation', N'sharedata.sqlScriptEmpty',
      N'Câu lệnh truy vấn không được để trống.',
-     N'Query script is required.'),
+     N'Query script cannot be empty.'),
 
     (N'lz.validation', N'sharedata.sqlScriptSyntaxError',
      N'Cú pháp SQL không hợp lệ (Dòng {0}, Cột {1}): {2}',
@@ -334,7 +400,7 @@ VALUES
 
     (N'lz.validation', N'sharedata.sqlScriptInvalid',
      N'Cú pháp SQL không hợp lệ hoặc không chứa script thực thi.',
-     N'SQL script is invalid or contains no executable statements.'),
+     N'Invalid SQL syntax or contains no executable statements.'),
 
     (N'lz.validation', N'sharedata.sqlMultipleBatchesNotAllowed',
      N'Chỉ chấp nhận duy nhất một lô lệnh (batch). Không được sử dụng lệnh phân đoạn ''GO''.',
@@ -381,16 +447,16 @@ VALUES
      N'Table {0} is not in the allowed sharing source tables.' + CHAR(10) + N'Add the table to ShareDataSourceTable (IsQueryable = 1) and try again.'),
 
     (N'lz.validation', N'sharedata.sqlUnsupportedParameter',
-     N'Tham số [@{0}] không được hỗ trợ. Chỉ hỗ trợ: @lastTime, @lastKey, @pageSize, @fromDate, @toDate.',
-     N'Parameter [@{0}] is not supported. Supported parameters: @lastTime, @lastKey, @pageSize, @fromDate, @toDate.'),
+     N'Tham số [{'@'}{0}] không được hỗ trợ. Chỉ hỗ trợ: {'@'}lastTime, {'@'}lastKey, {'@'}pageSize, {'@'}fromDate, {'@'}toDate.',
+     N'Parameter [{'@'}{0}] is not supported. Supported parameters: {'@'}lastTime, {'@'}lastKey, {'@'}pageSize, {'@'}fromDate, {'@'}toDate.'),
 
     (N'lz.validation', N'sharedata.sqlDatabaseExecutionError',
      N'Cú pháp SQL không hợp lệ trên cơ sở dữ liệu: {0}',
      N'SQL syntax error on database: {0}'),
 
     (N'lz.validation', N'sharedata.sqlIncrementalMissingTop',
-     N'Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc có mệnh đề phân trang TOP (@pageSize).',
-     N'Incremental queries must include a TOP (@pageSize) pagination clause.'),
+     N'Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc có mệnh đề phân trang TOP ({'@'}pageSize).',
+     N'Incremental queries must include a TOP ({'@'}pageSize) pagination clause.'),
 
     (N'lz.validation', N'sharedata.sqlIncrementalMissingOrderBy',
      N'Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc có mệnh đề ORDER BY ở cấp ngoài cùng.',
@@ -459,7 +525,18 @@ VALUES
 
     (N'lz.validation', N'sharedata.connectConfigFileNamePatternNoToken',
      N'Thuộc tính [FileNamePattern] bắt buộc chứa ít nhất một biến động ({serial}, {timestamp}, {packet} hoặc {partner}) để tránh ghi đè tệp.',
-     N'Attribute [FileNamePattern] must contain at least one dynamic token ({serial}, {timestamp}, {packet}, or {partner}) to prevent file overwriting.');
+     N'Attribute [FileNamePattern] must contain at least one dynamic token ({serial}, {timestamp}, {packet}, or {partner}) to prevent file overwriting.'),
+
+    -- =========================================================================
+    -- NHÓM 9: THÔNG BÁO VẬN HÀNH (MESSAGE) (2 khóa)
+    -- =========================================================================
+    (N'lz.message', N'sharedata.partnerConnected',
+     N'Đã thiết lập phiên kết nối với đối tác.',
+     N'Established connection session with partner.'),
+
+    (N'lz.message', N'sharedata.partnerDisconnected',
+     N'Đã ngắt kết nối với đối tác.',
+     N'Disconnected from partner.');
 
 -- -----------------------------------------------------------------------------------------
 -- 3. NẠP DỮ LIỆU ĐA NGÔN NGỮ (MERGE CHỈ THÊM DÒNG CHƯA CÓ, KHÔNG GHI ĐÈ)
@@ -476,10 +553,33 @@ WHERE ([Name] = N'lz.validation'
       N'sharedata.sqlIncrementalNewStyleParamsNotAllowed'
   ))
   OR ([Name] = N'lz.exception' AND [Code] IN (
-      N'sharedata.superAdminRequiredForColumnSync',
-      N'sharedata.superAdminRequiredForSqlPreview',
-      N'sharedata.sqlSampleExecutionFailed'
+      N'sharedata.superAdminRequiredForColumnSync'
   ));
+
+-- 3.0. Đồng bộ cập nhật các bản ghi seed cũ (nếu chưa bị người dùng sửa tay trên DB)
+UPDATE dbo.SysTerminology SET Value = N'Mã gói tin', UpdateTime = GETDATE()
+WHERE Name = N'lz.entity' AND Code = N'sharedata.packetCode' AND Lang = N'vi-VN' AND Value = N'Gói tin';
+
+UPDATE dbo.SysTerminology SET Value = N'Packet code', UpdateTime = GETDATE()
+WHERE Name = N'lz.entity' AND Code = N'sharedata.packetCode' AND Lang = N'en-US' AND Value = N'Packet';
+
+UPDATE dbo.SysTerminology SET Value = N'Query script cannot be empty.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlScriptEmpty' AND Lang = N'en-US' AND Value = N'Query script is required.';
+
+UPDATE dbo.SysTerminology SET Value = N'Invalid SQL syntax or contains no executable statements.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlScriptInvalid' AND Lang = N'en-US' AND Value = N'SQL script is invalid or contains no executable statements.';
+
+UPDATE dbo.SysTerminology SET Value = N'Tham số [{'@'}{0}] không được hỗ trợ. Chỉ hỗ trợ: {'@'}lastTime, {'@'}lastKey, {'@'}pageSize, {'@'}fromDate, {'@'}toDate.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlUnsupportedParameter' AND Lang = N'vi-VN' AND Value LIKE N'%Tham số [@{0}]%';
+
+UPDATE dbo.SysTerminology SET Value = N'Parameter [{'@'}{0}] is not supported. Supported parameters: {'@'}lastTime, {'@'}lastKey, {'@'}pageSize, {'@'}fromDate, {'@'}toDate.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlUnsupportedParameter' AND Lang = N'en-US' AND Value LIKE N'%Parameter [@{0}]%';
+
+UPDATE dbo.SysTerminology SET Value = N'Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc có mệnh đề phân trang TOP ({'@'}pageSize).', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalMissingTop' AND Lang = N'vi-VN' AND Value LIKE N'%TOP (@pageSize)%';
+
+UPDATE dbo.SysTerminology SET Value = N'Incremental queries must include a TOP ({'@'}pageSize) pagination clause.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalMissingTop' AND Lang = N'en-US' AND Value LIKE N'%TOP (@pageSize)%';
 
 -- 3.1. Xử lý bản dịch Tiếng Việt (vi-VN)
 MERGE INTO dbo.SysTerminology AS target

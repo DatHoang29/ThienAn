@@ -11,8 +11,8 @@ const __dirname = path.dirname(__filename);
 const editorComponentPath = resolveWebVueSrc('views/sharedata/sharing/component/connectionConfigEditor.vue');
 const formComponentPath = resolveWebVueSrc('views/sharedata/sharing/component/connectionConfigForm.vue');
 const editPartnerPath = resolveWebVueSrc('views/sharedata/sharing/component/editPartner.vue');
-const viVnPath = resolveWebVueSrc('i18n/lang/vi-vn.json');
-const enUsPath = resolveWebVueSrc('i18n/lang/en-us.json');
+const viVnPath = resolveWebVueSrc('i18n/lang/its/sharedata/vi-vn.json');
+const enUsPath = resolveWebVueSrc('i18n/lang/its/sharedata/en-us.json');
 
 /**
  * Mô phỏng logic lõi của connectionConfigEditor.vue để kiểm thử thuần túy

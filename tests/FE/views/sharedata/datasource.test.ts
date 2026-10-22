@@ -432,8 +432,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
 
     test('6. Quét tĩnh & kiểm thử VisualQueryBuilder.vue: Dải xem trước SQL Tự động sinh dùng font chữ chuẩn và i18n đầy đủ', async () => {
         const vqbFilePath = resolveWebvuePath('views/sharedata/dataSource/component/queryBuilder.vue');
-        const viPath = resolveWebvuePath('i18n/lang/vi-vn.json');
-        const enPath = resolveWebvuePath('i18n/lang/en-us.json');
+        const viPath = resolveWebvuePath('i18n/lang/its/sharedata/vi-vn.json');
+        const enPath = resolveWebvuePath('i18n/lang/its/sharedata/en-us.json');
 
         const vqbContent = fs.readFileSync(vqbFilePath, 'utf8');
         const viJson = JSON.parse(fs.readFileSync(viPath, 'utf8'));
@@ -527,8 +527,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         // 6. Kiểm tra ngắn gọn nhãn tab thành 'Cấu hình SQL' (bỏ & Dò cột) và bỏ title trùng lặp bên dưới
         expect(vueContent).not.toContain('class="sql-toolbar-left"');
         expect(vueContent).not.toContain("{{ $t('lz.label.sharedataDataSource.extractSqlConfig') }}");
-        const viPath = resolveWebvuePath('i18n/lang/vi-vn.json');
-        const enPath = resolveWebvuePath('i18n/lang/en-us.json');
+        const viPath = resolveWebvuePath('i18n/lang/its/sharedata/vi-vn.json');
+        const enPath = resolveWebvuePath('i18n/lang/its/sharedata/en-us.json');
         const viJson = JSON.parse(fs.readFileSync(viPath, 'utf8'));
         const enJson = JSON.parse(fs.readFileSync(enPath, 'utf8'));
         expect(viJson['lz.label.sharedataDataSource.tabSqlCenter']).toBe('Cấu hình SQL');
@@ -606,7 +606,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(vqbContent).not.toContain('Giảm dần (DESC)');
 
         // Kiểm tra tệp i18n vi-vn.json phải là tiếng Việt thuần túy
-        const viPath = resolveWebvuePath('i18n/lang/vi-vn.json');
+        const viPath = resolveWebvuePath('i18n/lang/its/sharedata/vi-vn.json');
         const viContent = JSON.parse(fs.readFileSync(viPath, 'utf-8'));
         expect(viContent['lz.label.sharedataDataSource.vqbVisualMode']).toBe('Trực quan');
         expect(viContent['lz.label.sharedataDataSource.vqbRawMode']).toBe('SQL');
@@ -615,7 +615,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(viContent['lz.placeholder.sharedataDataSource.vqbColAlias']).toBe('Bí danh (vd: speed)');
 
         // Kiểm tra tệp i18n en-us.json phải là tiếng Anh chuẩn
-        const enPath = resolveWebvuePath('i18n/lang/en-us.json');
+        const enPath = resolveWebvuePath('i18n/lang/its/sharedata/en-us.json');
         const enContent = JSON.parse(fs.readFileSync(enPath, 'utf-8'));
         expect(enContent['lz.label.sharedataDataSource.vqbVisualMode']).toBe('Visual Builder');
         expect(enContent['lz.label.sharedataDataSource.vqbRawMode']).toBe('SQL');
@@ -1063,8 +1063,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(vqbContent).toContain("$t(tb.descKey)");
 
         // 5. Kiểm tra tính đầy đủ và đồng bộ giữa vi-vn.json và en-us.json
-        const viPath = resolveWebvuePath('i18n/lang/vi-vn.json');
-        const enPath = resolveWebvuePath('i18n/lang/en-us.json');
+        const viPath = resolveWebvuePath('i18n/lang/its/sharedata/vi-vn.json');
+        const enPath = resolveWebvuePath('i18n/lang/its/sharedata/en-us.json');
         expect(fs.existsSync(viPath)).toBe(true);
         expect(fs.existsSync(enPath)).toBe(true);
 
@@ -1824,12 +1824,12 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(partnerContent).not.toContain('Kafka Stub');
         expect(partnerContent).not.toContain('FTP Stub');
 
-        const viPath = resolveWebvuePath('i18n/lang/vi-vn.json');
+        const viPath = resolveWebvuePath('i18n/lang/its/sharedata/vi-vn.json');
         const viContent = JSON.parse(fs.readFileSync(viPath, 'utf8'));
         expect(viContent['lz.label.sharedataPartner.typeKafkaStub']).toContain('Chưa bật');
         expect(viContent['lz.label.sharedataPartner.typeFtpStub']).toContain('Chưa bật');
 
-        const enPath = resolveWebvuePath('i18n/lang/en-us.json');
+        const enPath = resolveWebvuePath('i18n/lang/its/sharedata/en-us.json');
         const enContent = JSON.parse(fs.readFileSync(enPath, 'utf8'));
         expect(enContent['lz.label.sharedataPartner.typeKafkaStub']).toContain('Disabled');
         expect(enContent['lz.label.sharedataPartner.typeFtpStub']).toContain('Disabled');
@@ -1859,11 +1859,11 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(qbContent).toContain("viewMode.value = 'raw'");
 
         // Kiểm tra đa ngôn ngữ có định nghĩa thông báo
-        const viPath = resolveWebvuePath('i18n/lang/vi-vn.json');
+        const viPath = resolveWebvuePath('i18n/lang/its/sharedata/vi-vn.json');
         const viContent = JSON.parse(fs.readFileSync(viPath, 'utf8'));
         expect(viContent['lz.message.sharedataDataSource.vqbCannotFullyRepresent']).toBeDefined();
 
-        const enPath = resolveWebvuePath('i18n/lang/en-us.json');
+        const enPath = resolveWebvuePath('i18n/lang/its/sharedata/en-us.json');
         const enContent = JSON.parse(fs.readFileSync(enPath, 'utf8'));
         expect(enContent['lz.message.sharedataDataSource.vqbCannotFullyRepresent']).toBeDefined();
     });
@@ -2215,13 +2215,13 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(qbContent).toContain("ElMessage.warning($t('lz.message.sharedataDataSource.noAllowedTables'));");
 
         // 4. Kiểm tra file i18n vi-vn.json và en-us.json đã được cấu hình key cảnh báo
-        const viPath = resolveWebvuePath('i18n/lang/vi-vn.json');
+        const viPath = resolveWebvuePath('i18n/lang/its/sharedata/vi-vn.json');
         const viContent = JSON.parse(fs.readFileSync(viPath, 'utf8'));
         expect(viContent['lz.message.sharedataDataSource.noAllowedTables']).toBe(
             'Chưa có bảng nguồn nào được phép, liên hệ quản trị chạy script cấu hình'
         );
 
-        const enPath = resolveWebvuePath('i18n/lang/en-us.json');
+        const enPath = resolveWebvuePath('i18n/lang/its/sharedata/en-us.json');
         const enContent = JSON.parse(fs.readFileSync(enPath, 'utf8'));
         expect(enContent['lz.message.sharedataDataSource.noAllowedTables']).toBe(
             'No allowed source tables found, please contact administrator to run configuration script'
@@ -2406,8 +2406,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(qbContent).not.toContain('ele-Finished');
 
         // 2. Quét tĩnh tệp i18n: không còn khóa thừa liên quan đến nút định dạng SQL
-        const viPath = resolveWebvuePath('i18n/lang/vi-vn.json');
-        const enPath = resolveWebvuePath('i18n/lang/en-us.json');
+        const viPath = resolveWebvuePath('i18n/lang/its/sharedata/vi-vn.json');
+        const enPath = resolveWebvuePath('i18n/lang/its/sharedata/en-us.json');
         const viJson = JSON.parse(fs.readFileSync(viPath, 'utf8'));
         const enJson = JSON.parse(fs.readFileSync(enPath, 'utf8'));
 
@@ -2770,8 +2770,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
     });
 
     test('41. Màn Nguồn dữ liệu: Bổ sung bản dịch nút Dò lại và cấu hình CSS el-alert nhỏ gọn thanh thoát', async () => {
-        const viPath = resolveWebvuePath('i18n/lang/vi-vn.json');
-        const enPath = resolveWebvuePath('i18n/lang/en-us.json');
+        const viPath = resolveWebvuePath('i18n/lang/its/sharedata/vi-vn.json');
+        const enPath = resolveWebvuePath('i18n/lang/its/sharedata/en-us.json');
         const viJson = JSON.parse(fs.readFileSync(viPath, 'utf8'));
         const enJson = JSON.parse(fs.readFileSync(enPath, 'utf8'));
 
@@ -2804,8 +2804,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(qbContent).toContain('editorInstance?.layout()');
 
         // 3. Kiểm tra khóa i18n dragToResize
-        const viPath = resolveWebvuePath('i18n/lang/vi-vn.json');
-        const enPath = resolveWebvuePath('i18n/lang/en-us.json');
+        const viPath = resolveWebvuePath('i18n/lang/its/sharedata/vi-vn.json');
+        const enPath = resolveWebvuePath('i18n/lang/its/sharedata/en-us.json');
         const viJson = JSON.parse(fs.readFileSync(viPath, 'utf8'));
         const enJson = JSON.parse(fs.readFileSync(enPath, 'utf8'));
         expect(viJson['lz.label.sharedataDataSource.dragToResize']).toBe('Kéo để chỉnh độ cao');
@@ -4148,10 +4148,10 @@ LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId`;
         const syncPanelPath = resolveWebvuePath('views/sharedata/dataSource/component/syncModePanel.vue');
         const syncPanelContent = fs.readFileSync(syncPanelPath, 'utf8');
 
-        const viPath = resolveWebvuePath('i18n/lang/vi-vn.json');
+        const viPath = resolveWebvuePath('i18n/lang/its/sharedata/vi-vn.json');
         const viContent = fs.readFileSync(viPath, 'utf8');
 
-        const enPath = resolveWebvuePath('i18n/lang/en-us.json');
+        const enPath = resolveWebvuePath('i18n/lang/its/sharedata/en-us.json');
         const enContent = fs.readFileSync(enPath, 'utf8');
 
         // 1. queryParameterPanel.vue nhận syncMode, phân biệt biến chỉ dùng khi nối đuôi
@@ -4200,10 +4200,10 @@ LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId`;
         expect(indexContent).toMatch(/watch\(\s*\(\)\s*=>\s*state\.activeRightTab/);
 
         // 2. Kiểm tra bộ từ điển i18n không còn ký tự @ gây lỗi compile vue-i18n (Invalid linked format)
-        const viPath = resolveWebvuePath('i18n/lang/vi-vn.json');
+        const viPath = resolveWebvuePath('i18n/lang/its/sharedata/vi-vn.json');
         const viJson = JSON.parse(fs.readFileSync(viPath, 'utf8')) as Record<string, string>;
 
-        const enPath = resolveWebvuePath('i18n/lang/en-us.json');
+        const enPath = resolveWebvuePath('i18n/lang/its/sharedata/en-us.json');
         const enJson = JSON.parse(fs.readFileSync(enPath, 'utf8')) as Record<string, string>;
 
         const criticalKeys = [

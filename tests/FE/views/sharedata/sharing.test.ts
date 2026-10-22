@@ -27,7 +27,17 @@ const sharingIndexPath = resolveWebVueSrc('views/sharedata/sharing/index.vue');
 const dataSourceIndexPath = resolveWebVueSrc('views/sharedata/dataSource/index.vue');
 const editPartnerPath = resolveWebVueSrc('views/sharedata/sharing/component/editPartner.vue');
 const viVnPath = resolveWebVueSrc('i18n/lang/vi-vn.json');
+const viVnSharedataPath = resolveWebVueSrc('i18n/lang/its/sharedata/vi-vn.json');
 const enUsPath = resolveWebVueSrc('i18n/lang/en-us.json');
+const enUsSharedataPath = resolveWebVueSrc('i18n/lang/its/sharedata/en-us.json');
+const readMergedViVn = () => ({
+	...JSON.parse(fs.readFileSync(viVnPath, 'utf-8')),
+	...JSON.parse(fs.readFileSync(viVnSharedataPath, 'utf-8')),
+});
+const readMergedEnUs = () => ({
+	...JSON.parse(fs.readFileSync(enUsPath, 'utf-8')),
+	...JSON.parse(fs.readFileSync(enUsSharedataPath, 'utf-8')),
+});
 const modifyRecordPath = resolveWebVueSrc('components/table/modifyRecord.vue');
 const subscriptionTablePath = resolveWebVueSrc('views/sharedata/sharing/component/subscriptionTable.vue');
 const appScssPath = resolveWebVueSrc('theme/app.scss');
@@ -86,8 +96,8 @@ test.describe('ShareData — Kiểm thử 10 lỗi giao diện và logic (Sharin
 
 
 	test('Bug 5 — Nhãn gợi ý nhóm cấu hình thuần Việt và thuần Anh (Rule 20.13: Cấm song ngữ lai)', async () => {
-		const viVn = JSON.parse(fs.readFileSync(viVnPath, 'utf-8'));
-		const enUs = JSON.parse(fs.readFileSync(enUsPath, 'utf-8'));
+		const viVn = readMergedViVn();
+		const enUs = readMergedEnUs();
 
 		// vi-vn.json: Thuần Việt, không chứa "(Kênh hiện tại)" hay "(Inbound)"
 		expect(viVn['lz.label.sharedataConnectionEditor.groupOutbound']).toBe('Chiều gửi');
@@ -109,7 +119,7 @@ test.describe('ShareData — Kiểm thử 10 lỗi giao diện và logic (Sharin
 	});
 
 	test('Bug 7 — Tiêu đề "Tạo mới tên đối tác" có chữ "tên" viết thường', async () => {
-		const viVn = JSON.parse(fs.readFileSync(viVnPath, 'utf-8'));
+		const viVn = readMergedViVn();
 		expect(viVn['lz.label.sharedataPartner.name']).toBe('tên đối tác');
 
 		// Kiểm tra tiêu đề tạo mới
