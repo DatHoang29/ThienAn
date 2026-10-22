@@ -4,16 +4,13 @@ GO
 -- =========================================================================================
 -- FILE: sharedata-seed-goi-tin.sql
 -- DESCRIPTION: Nạp Template câu truy vấn SQL trích xuất chuẩn Catalog (gói 101-111),
---              chuẩn hóa chế độ gửi (SyncMode), số thứ tự (OrderNo) và trạng thái gói (Status) trong ShareDataPacket:
+--              chuẩn hóa số thứ tự (OrderNo) và trạng thái gói (Status) trong ShareDataPacket:
 --              0. Khởi tạo bản ghi cho 11 gói tin (101 - 111) nếu chưa tồn tại (idempotent,
 --                 chống trùng theo Code + IsDelete IS NULL, ID sinh động bằng LOWER(CONVERT(NVARCHAR(64), NEWID()))).
 --              0.2 Chuẩn hóa OrderNo về đúng 101 - 111 cho các gói khớp mã chuẩn.
 --              1. Nạp câu truy vấn SQL trích xuất mẫu chuẩn cho các gói tin 101 - 111:
 --                 - TemplateSql được cập nhật bằng câu truy vấn mẫu gốc chuẩn Catalog khi đang trống hoặc @GhiDeMauGoiTin = 1 (cách duy nhất làm mới TemplateSql sau khi tạo).
 --                 - ExtractSql = TemplateSql chỉ khi ExtractSql đang trống hoặc @GhiDeMauGoiTin = 1.
---              2. Chuẩn hóa SyncMode mặc định theo nghiệp vụ cho các gói còn NULL:
---                 - Snapshot (1): 101, 102, 105, 108, 110
---                 - Incremental (2): 103, 104, 106, 107, 109, 111
 --              3. Cập nhật Status = 1 (Enable) cho các gói 110* và Status = 0 (Disable) cho các gói 111*.
 --              4. Nạp câu ghi chiều nhận chuẩn Catalog (ShareDataPacketSql) cho các gói đã có câu ghi (101-109,
 --                 chống trùng theo PacketCode + TableName kèm IsDelete IS NULL, ID sinh động bằng LOWER(CONVERT(NVARCHAR(64), NEWID()))).
@@ -241,7 +238,6 @@ WHERE ([Code] = '101' OR [Code] LIKE '101[_]%')
 
 UPDATE [dbo].[ShareDataPacket]
 SET [ExtractSql] = [TemplateSql],
-    [SyncMode] = 1,
     [CursorTimeColumn] = NULL,
     [MaxLookBackDays] = NULL
 WHERE ([Code] = '101' OR [Code] LIKE '101[_]%')
@@ -270,7 +266,6 @@ WHERE ([Code] = '102' OR [Code] LIKE '102[_]%')
 
 UPDATE [dbo].[ShareDataPacket]
 SET [ExtractSql] = [TemplateSql],
-    [SyncMode] = 1,
     [CursorTimeColumn] = NULL,
     [MaxLookBackDays] = NULL
 WHERE ([Code] = '102' OR [Code] LIKE '102[_]%')
@@ -295,7 +290,7 @@ SET [TemplateSql] = N'SELECT TOP (@pageSize)
     e.KmNumber AS locationKm,
     e.MetNumber AS locationMet,
     COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) AS __lastTime,
-    td.ID AS __rowid,
+    td.ID AS __lastKey,
     td.UpdateTime AS __auditUpdate,
     td.CreateTime AS __auditCreate
 FROM TmsTrafficData td
@@ -314,7 +309,6 @@ WHERE ([Code] = '103' OR [Code] LIKE '103[_]%')
 
 UPDATE [dbo].[ShareDataPacket]
 SET [ExtractSql] = [TemplateSql],
-    [SyncMode] = 2,
     [CursorTimeColumn] = N'UpdateTime',
     [MaxLookBackDays] = 1
 WHERE ([Code] = '103' OR [Code] LIKE '103[_]%')
@@ -340,7 +334,7 @@ SET [TemplateSql] = N'SELECT TOP (@pageSize)
     w.ShortDescription AS weatherCode,
     w.TimeDetect AS detectTime,
     COALESCE(w.UpdateTime, w.CreateTime, w.TimeDetect) AS __lastTime,
-    w.ID AS __rowid,
+    w.ID AS __lastKey,
     w.UpdateTime AS __auditUpdate,
     w.CreateTime AS __auditCreate
 FROM TmsWeather w
@@ -358,7 +352,6 @@ WHERE ([Code] = '104' OR [Code] LIKE '104[_]%')
 
 UPDATE [dbo].[ShareDataPacket]
 SET [ExtractSql] = [TemplateSql],
-    [SyncMode] = 2,
     [CursorTimeColumn] = N'UpdateTime',
     [MaxLookBackDays] = 1
 WHERE ([Code] = '104' OR [Code] LIKE '104[_]%')
@@ -393,7 +386,6 @@ WHERE ([Code] = '105' OR [Code] LIKE '105[_]%')
 
 UPDATE [dbo].[ShareDataPacket]
 SET [ExtractSql] = [TemplateSql],
-    [SyncMode] = 1,
     [CursorTimeColumn] = NULL,
     [MaxLookBackDays] = NULL
 WHERE ([Code] = '105' OR [Code] LIKE '105[_]%')
@@ -414,7 +406,7 @@ SET [TemplateSql] = N'SELECT TOP (@pageSize)
     td.Width AS width,
     td.Length AS length,
     COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) AS __lastTime,
-    td.ID AS __rowid,
+    td.ID AS __lastKey,
     td.UpdateTime AS __auditUpdate,
     td.CreateTime AS __auditCreate
 FROM TmsTrafficData td
@@ -432,7 +424,6 @@ WHERE ([Code] = '106' OR [Code] LIKE '106[_]%')
 
 UPDATE [dbo].[ShareDataPacket]
 SET [ExtractSql] = [TemplateSql],
-    [SyncMode] = 2,
     [CursorTimeColumn] = N'UpdateTime',
     [MaxLookBackDays] = 1
 WHERE ([Code] = '106' OR [Code] LIKE '106[_]%')
@@ -460,7 +451,7 @@ SET [TemplateSql] = N'SELECT TOP (@pageSize)
     i.Description AS description,
     i.Source AS source,
     COALESCE(i.UpdateTime, i.CreateTime, i.StartDate) AS __lastTime,
-    i.ID AS __rowid,
+    i.ID AS __lastKey,
     i.UpdateTime AS __auditUpdate,
     i.CreateTime AS __auditCreate
 FROM TmsIncident i
@@ -479,7 +470,6 @@ WHERE ([Code] = '107' OR [Code] LIKE '107[_]%')
 
 UPDATE [dbo].[ShareDataPacket]
 SET [ExtractSql] = [TemplateSql],
-    [SyncMode] = 2,
     [CursorTimeColumn] = N'UpdateTime',
     [MaxLookBackDays] = 1
 WHERE ([Code] = '107' OR [Code] LIKE '107[_]%')
@@ -511,7 +501,6 @@ WHERE ([Code] = '108' OR [Code] LIKE '108[_]%')
 
 UPDATE [dbo].[ShareDataPacket]
 SET [ExtractSql] = [TemplateSql],
-    [SyncMode] = 1,
     [CursorTimeColumn] = NULL,
     [MaxLookBackDays] = NULL
 WHERE ([Code] = '108' OR [Code] LIKE '108[_]%')
@@ -537,7 +526,7 @@ SET [TemplateSql] = N'SELECT TOP (@pageSize)
     CAST(NULL AS DECIMAL(18, 2)) AS tollPrice,
     t.SyncTime AS syncTime,
     COALESCE(t.UpdateTime, t.CreateTime, t.TransactionDateTime) AS __lastTime,
-    t.ID AS __rowid,
+    t.ID AS __lastKey,
     t.UpdateTime AS __auditUpdate,
     t.CreateTime AS __auditCreate
 FROM TollTransactionOut t
@@ -557,7 +546,6 @@ WHERE ([Code] = '109' OR [Code] LIKE '109[_]%')
 
 UPDATE [dbo].[ShareDataPacket]
 SET [ExtractSql] = [TemplateSql],
-    [SyncMode] = 2,
     [CursorTimeColumn] = N'UpdateTime',
     [MaxLookBackDays] = 1
 WHERE ([Code] = '109' OR [Code] LIKE '109[_]%')
@@ -609,7 +597,6 @@ WHERE ([Code] = '110' OR [Code] LIKE '110[_]%')
 
 UPDATE [dbo].[ShareDataPacket]
 SET [ExtractSql] = [TemplateSql],
-    [SyncMode] = 1,
     [CursorTimeColumn] = NULL,
     [MaxLookBackDays] = NULL
 WHERE ([Code] = '110' OR [Code] LIKE '110[_]%')
@@ -633,7 +620,7 @@ SET [TemplateSql] = N'SELECT TOP (@pageSize)
     CAST(NULL AS NVARCHAR(512)) AS error,
     CAST(NULL AS NVARCHAR(64)) AS partnerId,
     COALESCE(sl.UpdateTime, sl.CreateTime) AS __lastTime,
-    sl.ID AS __rowid,
+    sl.ID AS __lastKey,
     sl.UpdateTime AS __auditUpdate,
     sl.CreateTime AS __auditCreate
 FROM TmsSignalLog sl
@@ -651,7 +638,6 @@ WHERE ([Code] = '111' OR [Code] LIKE '111[_]%')
 
 UPDATE [dbo].[ShareDataPacket]
 SET [ExtractSql] = [TemplateSql],
-    [SyncMode] = 2,
     [CursorTimeColumn] = N'UpdateTime',
     [MaxLookBackDays] = 1,
     [Status] = 0
@@ -663,36 +649,6 @@ SET @TotalUpdated = @TotalUpdated + @UpdatedRows;
 PRINT N'   - Gói 111 (InterCenter): đã cập nhật ' + CAST(@UpdatedRows AS NVARCHAR(10)) + N' bản ghi.';
 
 PRINT N'   -> Tổng số bản ghi template SQL đã cập nhật: ' + CAST(@TotalUpdated AS NVARCHAR(10)) + N' dòng.';
-
--- -----------------------------------------------------------------------------------------
--- 2. CHUẨN HÓA SyncMode MẶC ĐỊNH CHO CÁC GÓI CÒN NULL
--- -----------------------------------------------------------------------------------------
-PRINT N'-> 2. Chuẩn hóa SyncMode mặc định khi còn NULL...';
-
--- Gói Snapshot (101, 102, 105, 108, 110)
-UPDATE [dbo].[ShareDataPacket]
-SET [SyncMode] = 1
-WHERE [SyncMode] IS NULL
-  AND ([Code] IN ('101', '102', '105', '108', '110')
-       OR [Code] LIKE '101[_]%'
-       OR [Code] LIKE '102[_]%'
-       OR [Code] LIKE '105[_]%'
-       OR [Code] LIKE '108[_]%'
-       OR [Code] LIKE '110[_]%');
-PRINT N'   - Cập nhật SyncMode = 1 (Snapshot) cho các gói 101, 102, 105, 108, 110 còn NULL: ' + CAST(@@ROWCOUNT AS NVARCHAR(10)) + N' dòng.';
-
--- Gói Incremental (103, 104, 106, 107, 109, 111)
-UPDATE [dbo].[ShareDataPacket]
-SET [SyncMode] = 2
-WHERE [SyncMode] IS NULL
-  AND ([Code] IN ('103', '104', '106', '107', '109', '111')
-       OR [Code] LIKE '103[_]%'
-       OR [Code] LIKE '104[_]%'
-       OR [Code] LIKE '106[_]%'
-       OR [Code] LIKE '107[_]%'
-       OR [Code] LIKE '109[_]%'
-       OR [Code] LIKE '111[_]%');
-PRINT N'   - Cập nhật SyncMode = 2 (Incremental) cho các gói 103, 104, 106, 107, 109, 111 còn NULL: ' + CAST(@@ROWCOUNT AS NVARCHAR(10)) + N' dòng.';
 
 -- -----------------------------------------------------------------------------------------
 -- 3. CHUẨN HÓA TRẠNG THÁI GÓI (Status = 1 CHO 110*, Status = 0 CHO 111*)
@@ -1433,6 +1389,35 @@ PRINT N'   - Gói 109 (EtcData): đã nạp ' + CAST(@InsertedWriteSql AS NVARCH
 SET @TotalWriteSqlInserted = @TotalWriteSqlInserted + @InsertedWriteSql;
 
 PRINT N'   -> Tổng số câu ghi chiều nhận đã nạp mới: ' + CAST(@TotalWriteSqlInserted AS NVARCHAR(10)) + N' dòng.';
+
+-- -----------------------------------------------------------------------------------------
+-- 5. CHUYỂN ĐỔI KHÓA CON TRỎ __rowid -> __lastKey TRÊN DỮ LIỆU ĐÃ LƯU (IDEMPOTENT)
+-- -----------------------------------------------------------------------------------------
+PRINT N'-> 5. Đồng bộ chuyển đổi cột con trỏ __rowid -> __lastKey trên dữ liệu đã lưu...';
+
+DECLARE @PacketsUpdated INT = 0;
+DECLARE @MappingsUpdated INT = 0;
+
+-- Cập nhật đồng bộ cả ExtractSql và TemplateSql trên ShareDataPacket
+UPDATE [dbo].[ShareDataPacket]
+SET [ExtractSql] = REPLACE([ExtractSql], '__rowid', '__lastKey'),
+    [TemplateSql] = REPLACE([TemplateSql], '__rowid', '__lastKey')
+WHERE [IsDelete] IS NULL
+  AND ([ExtractSql] LIKE '%[_][_]rowid%' OR [TemplateSql] LIKE '%[_][_]rowid%');
+SET @PacketsUpdated = @@ROWCOUNT;
+
+-- Cập nhật đồng bộ cả ExtractSql và BaseExtractSql trên ShareDataMapping
+IF OBJECT_ID('dbo.ShareDataMapping', 'U') IS NOT NULL
+BEGIN
+    UPDATE [dbo].[ShareDataMapping]
+    SET [ExtractSql] = REPLACE([ExtractSql], '__rowid', '__lastKey'),
+        [BaseExtractSql] = REPLACE([BaseExtractSql], '__rowid', '__lastKey')
+    WHERE [IsDelete] IS NULL
+      AND ([ExtractSql] LIKE '%[_][_]rowid%' OR [BaseExtractSql] LIKE '%[_][_]rowid%');
+    SET @MappingsUpdated = @@ROWCOUNT;
+END;
+
+PRINT N'   -> Đã chuyển đổi __rowid -> __lastKey: ' + CAST(@PacketsUpdated AS NVARCHAR(10)) + N' gói tin, ' + CAST(@MappingsUpdated AS NVARCHAR(10)) + N' hồ sơ ánh xạ.';
 
 
 PRINT N'=============================================================================';

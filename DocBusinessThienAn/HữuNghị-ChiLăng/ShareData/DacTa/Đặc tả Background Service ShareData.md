@@ -364,7 +364,7 @@ Tài liệu này cung cấp bộ tiêu chí nghiệm thu toàn trình (End-to-En
 | ESH-1302 | QueryFailed | Lỗi truy vấn dữ liệu nguồn | error | Q15 ghi "lỗi mạng" |
 | ESH-1303 | LeaseLost | Mất lease, node khác nhận đăng ký | warning | Q15 ghi "đối tác trả HTTP lỗi" |
 | ESH-1304 | MappingNotFound | Không có mapping chiều gửi đang bật → hủy | error | **khớp** |
-| ESH-1305 | CursorKeyTooLong | `__rowid` dài hơn cột `LastKey` → hủy trước khi gửi | error | Q15 ghi "JSON sai cú pháp" |
+| ESH-1305 | CursorKeyTooLong | `__lastKey` dài hơn cột `LastKey` → hủy trước khi gửi | error | Q15 ghi "JSON sai cú pháp" |
 | ESH-1401 | FileWriteFailed | Lỗi ghi file kết xuất | error | không có |
 | ESH-1402 | HttpSendFailed | **Mọi lỗi gửi HTTP** (4xx/5xx/timeout/exception) | warning | Q15 ghi 1302/1303 |
 | ESH-1501…1509 | Inbound.* | 1501 chưa cấu hình URL API nhận; 1502 gọi API hộp gửi đối tác lỗi; 1503 không đọc được nội dung; 1504 không xác định khóa đối chiếu; **1505 lỗi ghi CSDL nhận**; 1506 không có cấu hình gói; 1507 đối tác không tồn tại/tắt; 1508 chưa có đăng ký nhận; 1509 chưa khai câu ghi | — | §4.3 ghi lỗi ghi là **ESH-1307** (không tồn tại) |

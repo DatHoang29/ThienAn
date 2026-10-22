@@ -467,9 +467,8 @@ namespace Tests.ShareData.Services
                 Name = $"Packet {packetCode}",
                 PacketVersion = "1.0",
                 Status = BaseEnums.StatusEnum.Enable,
-                SyncMode = BaseEnums.SyncMode.Incremental,
                 CursorTimeColumn = "UpdateTime",
-                ExtractSql = $"SELECT TOP (@pageSize) UpdateTime AS __lastTime, ID AS __rowid, Code AS code FROM ShareDataPacket WHERE ID = '{packetId}'",
+                ExtractSql = $"SELECT TOP (@pageSize) UpdateTime AS __lastTime, ID AS __lastKey, Code AS code FROM ShareDataPacket WHERE ID = '{packetId}'",
                 CreateTime = rowTime,
                 UpdateTime = rowTime
             };

@@ -2,18 +2,22 @@
 tier: A
 read: full
 source:
+  - /Users/hoangquydat/Downloads/Ghi âm 2.m4a (48:38 - toàn văn 7 chunks)
   - DocBusinessThienAn/duong_so_8.m4a (39:29)
   - DocBusinessThienAn/duong_so_8_2.m4a (19:16 - phần ShareData)
 date: 22-10-2026
 model: Gemini Multimodal Native Audio Transcribe
 status: verified
-topic: ShareData — Quản lý Gói tin Mẫu (Template Query) vs Tùy biến (Custom Query theo Đối tác), Cơ chế So sánh Đối chiếu (Diff/Compare) khi Cấu hình Gốc thay đổi, Tái cấu trúc Tab Form Cấu hình Kết nối, Scale Giao diện Ánh xạ, Mapping Dữ liệu Sự cố & Xử lý Chuỗi Lỗi Gói tin
+topic: ShareData — Quản lý Gói tin Mẫu (Template Query) vs Tùy biến (Custom Query theo Đối tác), Cơ chế So sánh Đối chiếu (Diff/Compare) khi Cấu hình Gốc thay đổi, Tái cấu trúc Tab Form Cấu hình Kết nối, Scale Giao diện Ánh xạ, Xử lý Chuỗi Lỗi Gói tin
 participants:
   - Tech Lead
   - Dev
+corrections:
+  - '22-10-2026 — [33:03] chép sai "tab thứ 3 thiết lập chạy/retry"; người tham dự xác nhận chỉ 2 tab.'
+  - '22-10-2026 — gỡ phần dữ liệu sự cố (duong_so_8_2 [03:28]–[07:46], mục 1.7, chủ đề 7): nguyên nhân là script dữ liệu giả lập, đã xử lý.'
 ---
 
-# Kịch bản & Biên bản Cuộc họp: Phân hệ ShareData — Quản lý Gói tin Mẫu, Xử lý Tùy biến Đối tác, Tái cấu trúc Form Kết nối & Xử lý Lỗi Dữ liệu Sự cố
+# Kịch bản & Biên bản Cuộc họp: Phân hệ ShareData — Quản lý Gói tin Mẫu, Xử lý Tùy biến Đối tác, Tái cấu trúc Form Kết nối & Xử lý Lỗi Gói tin
 ### (Nguồn từ tệp ghi âm: duong_so_8.m4a & duong_so_8_2.m4a)
 
 - **Ngày ghi nhận:** 22/10/2026
@@ -24,10 +28,9 @@ participants:
   2. **Cơ chế xử lý khi câu SQL mẫu hoặc cấu hình DB thay đổi (Bài toán xung đột & So sánh Diff/Compare):** Giải quyết tình huống câu truy vấn mẫu hoặc schema cơ sở dữ liệu thay đổi (đổi tên cột `toKmNumber`, đổi index, tối ưu câu lệnh). Đề xuất và chốt giải pháp so sánh trực quan hai bên (Compare / Diff tương tự Git Diff) để người dùng xem điểm khác biệt và chủ động chọn ghi đè (Replace/Merge) hoặc giữ nguyên câu Custom của đối tác, tránh việc tự động ghi đè làm mất cấu hình riêng.
   3. **Ánh xạ cột dữ liệu (Field & Alias Mapping) từ câu `SELECT`:** Chuẩn hóa việc phân tích danh sách cột trích xuất sau mệnh đề `SELECT ... AS ...`. Đối chiếu tự động với danh sách thuộc tính chuẩn của gói tin; nhận diện các trường đã ánh xạ, trường chưa có hoặc trường dư thừa; cho phép bổ sung hoặc điều chỉnh linh hoạt.
   4. **Cơ chế quét dữ liệu nối đuôi & Lưu vết tham số (@LastKey / Composite Key):** Làm rõ việc lưu giữ trạng thái quét ở chu kỳ trước (mốc thời gian, ZoneId, khóa tổng hợp) vào bảng quản lý trạng thái để chu kỳ sau truyền vào câu query tiếp tục lấy dữ liệu mới phát sinh, không gây trùng hoặc sót bản ghi.
-  5. **Tái cấu trúc giao diện Form Cấu hình Kết nối Đối tác (`connectionConfigForm`):** Tránh dồn toàn bộ trường cấu hình vào một màn hình dài gây rối mắt và dễ thao tác nhầm. Phân tách thành 3 Tab chuyên biệt: Thông tin chung (Tên, Mã, Ghi chú), Cấu hình kết nối (Giao thức API/FTP/Kafka, URL/IP/Port, Xác thực), và Lập lịch/Vận hành (Chu kỳ quét, Retry policy).
+  5. **Tái cấu trúc giao diện Form Cấu hình Kết nối Đối tác (`connectionConfigForm`):** Tránh dồn toàn bộ trường cấu hình vào một màn hình dài gây rối mắt và dễ thao tác nhầm. Phân tách thành 2 Tab: Thông tin chung (Mã, Tên, Ghi chú) và Cấu hình kết nối (Giao thức API/FTP/Kafka/File, Địa chỉ/Cổng/Endpoint, Xác thực, thời gian chờ).
   6. **Thu gọn và Tối ưu Scale Giao diện Ánh xạ Trường (`mappingForm`):** Xử lý lỗi giao diện khi mới mở lên chưa có dữ liệu bị bung tỷ lệ (scale) quá to, để lại khoảng trống dài bất hợp lý. Đặt mặc định giao diện co gọn, khi nạp dữ liệu thì tự động co giãn vừa vặn.
-  7. **Rà soát Lỗi Mapping Gói tin Chia sẻ Sự cố (Incident TMS -> ShareData):** Kiểm tra dữ liệu gói tin sự cố nhận về bị thiếu trường trạng thái, sai loại sự kiện, thiếu hướng di chuyển và bộ mã JSON bị trống trơn; rà soát lại đồng bộ dữ liệu vào đúng cơ sở dữ liệu đích.
-  8. **Xử lý Hiển thị Thông tin Lỗi Gói tin (Packet Error Handling):** Thông tin lỗi hệ thống dài (chứa exception/stack trace) ở Bước 1, Bước 2 làm vỡ giao diện; thống nhất cắt ngắn chuỗi hiển thị trên UI (vài chục đến tối đa vài trăm ký tự), bảo toàn toàn văn lỗi trong file log hệ thống.
+  7. **Xử lý Hiển thị Thông tin Lỗi Gói tin (Packet Error Handling):** Thông tin lỗi hệ thống dài (chứa exception/stack trace) ở Bước 1, Bước 2 làm vỡ giao diện; thống nhất cắt ngắn chuỗi hiển thị trên UI (vài chục đến tối đa vài trăm ký tự), bảo toàn toàn văn lỗi trong file log hệ thống.
 
 ---
 
@@ -70,10 +73,10 @@ participants:
 
 ### 1.5. Tái cấu trúc Tab trong Form Cấu hình Kết nối Đối tác (`connectionConfigForm`)
 - **Thực trạng:** Màn hình cấu hình đối tác trước đây dồn tất cả thông tin (thông tin chung, thông tin giao thức mạng, thông tin lập lịch) vào một form cuộn dọc, gây rối mắt, khó quan sát và tiềm ẩn rủi ro sửa nhầm tham số kỹ thuật mạng khi chỉ muốn cập nhật thông tin mô tả.
-- **Quyết định cấu trúc Tab chuẩn (Đồng bộ theo phong cách quản lý TMS):**
-  - **Tab 1 — Thông tin chung:** Mã đối tác, Tên đối tác, Nhóm đối tác, Trạng thái hoạt động, Ghi chú mô tả.
-  - **Tab 2 — Cấu hình kết nối (Connection Settings):** Lựa chọn giao thức gửi/nhận (API, FTP, Kafka, File Storage), URL Endpoint, Địa chỉ IP, Cổng Port, Thông tin chứng thực (Username/Password, ApiKey, Bearer Token), Đường dẫn thư mục lưu trữ.
-  - **Tab 3 — Lập lịch & Vận hành (Schedule & Execution):** Cấu hình tần suất thực thi (chu kỳ giây, phút, ngày), thời điểm kích hoạt, cấu hình chính sách thử lại khi lỗi (Retry count, Retry interval).
+- **Quyết định cấu trúc 2 Tab (Đồng bộ theo phong cách quản lý TMS):**
+  - **Tab 1 — Thông tin chung:** Mã đối tác, Tên đối tác, Ghi chú mô tả (giữ như form cũ).
+  - **Tab 2 — Cấu hình kết nối:** Loại kênh, Địa chỉ/Cổng, Endpoint (API), cấu hình theo kênh (xác thực, định dạng, thời gian chờ, thư mục…).
+- *Lịch chạy/chu kỳ gửi cấu hình theo từng Đăng ký, không đặt ở form đối tác.*
 
 ### 1.6. Thu gọn và Tối ưu Scale Giao diện Ánh xạ Trường (`mappingForm`)
 - **Vấn đề giao diện:** Màn hình bảng ánh xạ trường khi mới mở lên chưa có dữ liệu thì các ô và khung bị scale phóng to bất thường, tạo khoảng trống trải dài rất xa trên màn hình rồi lại bung thêm thanh cuộn/scale bên dưới, gây mất cân đối giao diện.
@@ -81,14 +84,7 @@ participants:
   - Thiết lập giao diện ở trạng thái mặc định nhỏ gọn, vừa vặn khung nhìn.
   - Khi người dùng nạp dữ liệu (câu query hoặc danh sách trường) thì các ô bảng mới tự động giãn nở (bung dữ liệu) tương ứng, giữ giao diện gọn gàng, chuyên nghiệp.
 
-### 1.7. Kiểm tra & Chuẩn hóa Dữ liệu Gói tin Chia sẻ Sự kiện Sự cố (TMS Incident -> ShareData)
-- **Vấn đề phát hiện khi kiểm tra dữ liệu nhận về:**
-  - Dữ liệu sự kiện sự cố (Incident) nhận từ hệ thống qua ShareData có dấu chấm than cảnh báo: thiếu trạng thái, ghi sai loại sự kiện, thiếu hướng di chuyển (`direction`).
-  - Gói tin ShareData nhận về được ghi vào CSDL khác so với DB nguồn TMS.
-  - Bảng mã JSON ánh xạ sự kiện đang bị trống trơn (`JSON rỗng`), do các đợt trước test thiếu trường hợp hoặc chưa nạp đủ bộ mã định danh.
-- **Yêu cầu xử lý:** Rà soát và hoàn thiện toàn bộ cấu hình ánh xạ bộ mã JSON và các trường dữ liệu bắt buộc (trạng thái, loại sự cố, hướng) để gói tin ghi nhận chính xác và đồng bộ sang CSDL đích.
-
-### 1.8. Cơ chế Xử lý & Rút gọn Thông tin Lỗi Gói tin (Packet Error Handling)
+### 1.7. Cơ chế Xử lý & Rút gọn Thông tin Lỗi Gói tin (Packet Error Handling)
 - **Vấn đề:** Trong lịch sử truyền nhận gói tin, ở các bước xử lý (Bước 1, Bước 2), khi xảy ra lỗi hệ thống, chuỗi thông báo lỗi kèm stack trace/chi tiết kỹ thuật rất dài. Nếu hiển thị toàn bộ lên bảng giao diện sẽ làm vỡ layout dòng và bảng.
 - **Quyết định kỹ thuật chốt:**
   - **Trên giao diện UI:** Chỉ cắt và hiển thị chuỗi thông tin lỗi rút gọn (vài chục đến tối đa vài trăm ký tự) đủ để nhận biết nguyên nhân chính.
@@ -232,6 +228,8 @@ participants:
 - **[32:37] Tech Lead:** Nhưng mà người ta bấm người ta thấy người ta mở lên người ta bấm cái gì đó rồi sao? Phải chia ra các tab thông tin để cho nó dễ quản lý. Thứ nhất là nó dễ quản lý, nó đi theo cụm rồi, theo tab rồi. Ví dụ như sửa kết nối gì đó thì vào đúng cái tab kết nối là được.
 - **[32:53] Tech Lead:** Thứ hai là đỡ rối thông tin cho người ta nhìn. Chứ mở lên đập vô mắt đóng một cục như vậy sao người ta biết đường xử lý thế nào. Đúng không?
 - **[33:03] Tech Lead:** Ví dụ như thông tin đầu cái tab đầu là thông tin về chung đi, đặt tên đặt mã, đúng không? Còn một cái tab nữa là tab liên quan đến kết nối, đúng không? Mấy thông tin thông số kết nối gì đó. Với một cái tab nữa là cái tab liên quan đến thiết lập: thời gian chạy, có khởi tạo lại có gì có chạy lại hay không, ví dụ có retry mấy lần gì đó... Chứ gom vô một đống thông tin đầu nó vừa dài nó vừa rối.
+
+> 📌 **Đính chính 22/10/2026:** Đoạn "một cái tab nữa… thời gian chạy… retry" là chép sai từ bản ghi âm tự động. Người tham dự xác nhận cuộc họp chốt **2 tab** như [32:16]; lịch chạy nằm ở Đăng ký.
 - **[33:41] Dev:** Như là cái kênh kết nối này mình sẽ tạo trong cái tab hả?
 - **[33:44] Tech Lead:** Không, tạo cái tab trong đây luôn mà!
 - **[33:46] Dev:** Tab trong đây là ở đâu? Tab pane á hả?
@@ -253,9 +251,9 @@ participants:
 
 ---
 
-## 3. Kịch bản đối thoại tệp ghi âm bổ sung: duong_so_8_2.m4a (Phần Rà soát ShareData & Lỗi Sự cố)
+## 3. Kịch bản đối thoại tệp ghi âm bổ sung: duong_so_8_2.m4a (Phần Rà soát ShareData)
 
-### [00:00 – 04:00] Rà soát Scale Giao diện Ánh xạ & Phát hiện Lỗi Gói tin Sự kiện Sự cố (Incident)
+### [00:00 – 04:00] Rà soát Scale Giao diện Ánh xạ
 - **[00:10] Tech Lead:** Được chưa?
 - **[00:15] Dev:** Cái gì? Chưa xong cái chia sẻ dữ liệu mà.
 - **[00:18] Tech Lead:** À được... chia sẻ dữ liệu...
@@ -286,43 +284,8 @@ participants:
 - **[03:04] Tech Lead:** Chứ clip chưa có đó, hiện tại người dùng chưa có test cái này. Dữ liệu này chưa test. Giờ coi lại thấy chưa có một admin nào nghĩa là chưa có test.
 - **[03:16] Dev:** Rồi ok anh.
 - **[03:17] Dev:** Này mới code cho nó có thôi chứ chưa có test, chưa có chạy gói tin nữa.
-- **[03:28] Tech Lead:** Ví dụ như chạy gói nào đó thì ít nhất phải có bộ mã vô gói đó rồi. Chứ thấy trống trơ trống rỗng cái chỗ bảng mã. Hôm qua thấy trong cái Incident có mấy dòng gì đó, thấy không khớp với gói tin nào đúng hết. Mở Incident lên coi. Sửa bị sai hết rồi.
-- **[03:52] Dev:** Incident là cái nào ta?
-- **[03:53] Tech Lead:** Sự kiện gì á. Sự kiện sự cố. TMS sự kiện.
 
-### [04:00 – 08:00] Phân tích Lệch Dữ liệu Sự kiện ShareData, Cơ sở Dữ liệu Đích & Kiểm tra Bộ Mã JSON
-- **[04:01] Tech Lead:** Sự kiện sự cố nè. Phần sự cố. Sự cố.
-- **[04:13] Tech Lead:** Giờ nó ngó qua nó hưởng mấy luồng khác đâu phải chỉ mình nó đâu. Dưới kìa, cái chỗ chung lại kìa. Sự cố qua quẹt gì xe tải nè.
-- **[04:23] Dev:** Dòng 12.
-- **[04:30] Tech Lead:** Đó! Lấy từ dữ liệu ShareData đó. Trạng thái thì không có, loại sự kiện ghi sai. Rồi cái hướng cũng không có luôn.
-- **[04:42] Dev:** Cái này mới hả?
-- **[04:45] Tech Lead:** Lấy từ ShareData này, xong rồi từ ShareData gửi qua.
-- **[04:50] Dev:** Nó lộn rồi, tại sao lại không biết vậy?
-- **[04:56] Tech Lead:** Nghĩa là mấy gói tin đó bữa giờ không có chạy, không có đúng nè. Nó hiển thị lên không đúng nè.
-- **[05:04] Dev:** Khoan khoan khoan từ từ từ từ nha. Gói tin ShareData nhận về là nó đang ghi vô DB khác mà?
-- **[05:13] Tech Lead:** Sao?
-- **[05:33] Dev:** ShareData nó nhận về gói tin là ghi vô DB khác mà?
-- **[05:36] Tech Lead:** Thì không biết. Thấy nó đang có ở đó rồi đó.
-- **[05:41] Dev:** Nhưng mà em không biết cái này ở đâu ra á. Tại vì thằng này nó đi vào một cái DB khác thì làm sao mà nó lấy được cái này ra?
-- **[05:50] Tech Lead:** Sự cố va quẹt xe...
-- **[05:53] Dev:** Mà sao biết cái này ShareData?
-- **[05:55] Tech Lead:** Kìa, ShareData kìa! Nó để cái dấu chấm than.
-- **[06:14] Tech Lead:** 24 tháng 10 là hôm qua đó. ShareData ship gì ZL.
-- **[06:28] Dev:** Nó chỉ có chỗ đó thôi đúng không?
-- **[06:31] Tech Lead:** Check lại mấy chỗ mapping, chạy cho nó đúng một cái.
-- **[06:36] Dev:** Không nhưng em không hiểu nha, từ từ nha, từ đâu sau cái này nó lại ăn vô đây được?
-- **[06:44] Tech Lead:** Hả? Check lại rồi coi lại. Vô lý! Sao nó ăn qua đây được ta?
-- **[06:57] Tech Lead:** Thì chụp lại điều tra chứ sao giờ biết đâu. Thì mấy cái bảng mã set vô cho nó đủ cái bảng mã giùm anh cái.
-- **[07:04] Dev:** Tại bây giờ cái bảng mã là tụi em cũng chưa có can thiệp gì luôn, cái bảng mã đó là chỉ làm theo cái lệnh đưa ra đó rồi gửi vô như vậy.
-- **[07:13] Tech Lead:** Thì bảng mã thì mở một cái, đẩy nó ra một cái cấu trúc gì đó mình test, chứ bữa giờ không test cái đó luôn hả?
-- **[07:20] Dev:** Không ý em đang nói là mấy cái đó tụi em không có test á.
-- **[07:23] Tech Lead:** Bảng mã có test.
-- **[07:24] Dev:** Có không? Có ghi log không?
-- **[07:26] Tech Lead:** Chưa thấy. Để có cái bảng mã partition trống trơn trống trỏng đó.
-- **[07:33] Dev:** Sao bảng mã JSON trống trơn?
-- **[07:35] Tech Lead:** Cái bộ mã á! Chắc nãy test có đúng một cái bộ mã thôi đúng không?
-- **[07:40] Dev:** Đâu biết, tùy người bỏ hay sao á. Cái bộ mã đó tụi em có test.
-- **[07:46] Tech Lead:** Mấy đợt trước vô cũng thấy có một cái bộ mã trên chiếc máy. Sự kiện sự cố ShareData...
+> 📌 *[03:28]–[07:46] (đã gỡ 22/10/2026): trao đổi về bản ghi sự cố "va quẹt xe tải" hiển thị sai trên TMS — nguyên nhân là script dữ liệu giả lập `sharedata-du-lieu-gia-lap_local.sql` (Khối 3), đã sửa.*
 
 ### [08:00 – 12:00] Rà soát Tab Chia sẻ Dữ liệu, Kiểm tra Gói Thất bại & Bộ lọc Ngày tháng
 - **[08:16] Tech Lead:** Rồi tiếp, mấy chức năng ở dưới chỗ chia sẻ dữ liệu, còn mấy cái tab ở dưới nữa kìa. Rà lại cho nó đầy đủ hết đi.

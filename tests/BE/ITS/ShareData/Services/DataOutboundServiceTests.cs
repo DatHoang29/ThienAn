@@ -2261,7 +2261,6 @@ LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId";
 
             await db.Updateable<ShareDataPacket>()
                 .SetColumns(p => p.ExtractSql == sql101)
-                .SetColumns(p => p.SyncMode == BaseEnums.SyncMode.Snapshot)
                 .Where(p => p.Code == "101" || p.Code == "101_commonData")
                 .ExecuteCommandAsync();
 
@@ -2279,7 +2278,7 @@ LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId";
     e.KmNumber AS locationKm,
     e.MetNumber AS locationMet,
     COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) AS __lastTime,
-    td.ID AS __rowid,
+    td.ID AS __lastKey,
     td.UpdateTime AS __auditUpdate,
     td.CreateTime AS __auditCreate
 FROM TmsTrafficData td
@@ -2294,7 +2293,6 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
             await db.Updateable<ShareDataPacket>()
                 .SetColumns(p => p.ExtractSql == sql103)
-                .SetColumns(p => p.SyncMode == BaseEnums.SyncMode.Incremental)
                 .SetColumns(p => p.CursorTimeColumn == "DetectTime")
                 .Where(p => p.Code == "103" || p.Code == "103_vdsData")
                 .ExecuteCommandAsync();
@@ -2581,7 +2579,6 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             PacketTemplateSeed.TryGet("110", out var tpl110);
             await db.Updateable<ShareDataPacket>()
                 .SetColumns(p => p.Status == BaseEnums.StatusEnum.Enable)
-                .SetColumns(p => p.SyncMode == BaseEnums.SyncMode.Snapshot)
                 .SetColumns(p => p.ExtractSql == (tpl110 != null ? tpl110.ExtractSql : null))
                 .Where(p => p.Code == "110" || p.Code == "110_publicMessaging")
                 .ExecuteCommandAsync();
@@ -6496,14 +6493,11 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         [Fact]
         public async Task ProcessSubscriptions_WhenPacketAndMappingSyncKindNull_DefaultsToSnapshot_Test()
         {
-            // 2.2: Gói có SyncMode = null -> Fallback mặc định Snapshot (không ghi ShareDataLastSend)
+            // 2.2: Câu SQL không có @lastTime/@lastKey -> Snapshot (không ghi ShareDataLastSend)
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
             await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
-            var packet101 = await db.Queryable<ShareDataPacket>().Where(p => p.Code == "101").FirstAsync();
-            packet101.SyncMode = null;
-            await db.Updateable(packet101).UpdateColumns(p => new { p.SyncMode }).ExecuteCommandAsync();
 
             var unique = Guid.NewGuid().ToString("N")[..8];
             await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.TrafficFlow, unique);
@@ -6531,14 +6525,14 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         [Fact]
         public async Task ProcessSubscriptions_WhenPacketDefaultAndMappingSyncKind2_RunsIncrementalAndUpdatesLastSend_Test()
         {
-            // 2.2: Gói 105 packet có SyncMode = Incremental -> Chạy Incremental, cập nhật mốc ShareDataLastSend
+            // 2.2: Gói 105 có câu SQL dùng @lastTime -> Chạy Incremental, cập nhật mốc ShareDataLastSend
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
             await PacketMetadataCatalogTest.SeedPacketToDb(db, "105");
             var packet105 = await db.Queryable<ShareDataPacket>().Where(p => p.Code == "105").FirstAsync();
-            packet105.SyncMode = BaseEnums.SyncMode.Incremental;
-            await db.Updateable(packet105).UpdateColumns(p => new { p.SyncMode }).ExecuteCommandAsync();
+            packet105.ExtractSql = LegacyPacketSql.Packet109;
+            await db.Updateable(packet105).UpdateColumns(p => new { p.ExtractSql }).ExecuteCommandAsync();
 
             var unique = Guid.NewGuid().ToString("N")[..8];
             await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.VehicleIdentification, unique);
@@ -6580,7 +6574,6 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 Code = packetCode,
                 Name = $"No SQL Packet {unique}",
                 PacketVersion = "1.0",
-                SyncMode = BaseEnums.SyncMode.Incremental,
                 Status = BaseEnums.StatusEnum.Enable,
                 ExtractSql = null
             };
@@ -6606,8 +6599,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             var lastSend = await db.Queryable<ShareDataLastSend>()
                 .Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == packetCode)
                 .FirstAsync();
-            Assert.NotNull(lastSend);
-            Assert.Null(lastSend.LastKey);
+            Assert.Null(lastSend);
 
             var subAfter = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
             Assert.Equal(0, subAfter.SerialNbr ?? 0);
@@ -7217,7 +7209,6 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = def.Packet.Code,
                         Name = def.Packet.Name,
                         PacketVersion = def.Packet.PacketVersion,
-                        SyncMode = def.Packet.SyncMode,
                         Status = def.Packet.Status,
                         ExtractSql = PacketTemplateSeed.TryGet(def.Packet.Code, out var tplNew) ? tplNew.ExtractSql : null
                     };
@@ -7226,7 +7217,6 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 else
                 {
                     existingPacket.PacketVersion = def.Packet.PacketVersion;
-                    existingPacket.SyncMode = def.Packet.SyncMode;
                     existingPacket.Status = def.Packet.Status;
                     existingPacket.ExtractSql = PacketTemplateSeed.TryGet(def.Packet.Code, out var tplOld) ? tplOld.ExtractSql : null;
                     await db.Updateable(existingPacket).ExecuteCommandAsync();
@@ -7280,7 +7270,6 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "101",
                         Name = "Thông tin chung / luồng giao thông",
                         PacketVersion = "1.0",
-                        SyncMode = BaseEnums.SyncMode.Snapshot,
                         Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
@@ -7308,7 +7297,6 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "102",
                         Name = "Dữ liệu hình ảnh giao thông (CCTV)",
                         PacketVersion = "1.0",
-                        SyncMode = BaseEnums.SyncMode.Snapshot,
                         Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
@@ -7332,7 +7320,6 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "103",
                         Name = "Dữ liệu dò xe (VDS)",
                         PacketVersion = "1.0",
-                        SyncMode = BaseEnums.SyncMode.Incremental,
                         Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
@@ -7359,7 +7346,6 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "104",
                         Name = "Dữ liệu thời tiết",
                         PacketVersion = "1.0",
-                        SyncMode = BaseEnums.SyncMode.Incremental,
                         Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
@@ -7387,7 +7373,6 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "105",
                         Name = "Dữ liệu định danh phương tiện (AVI/RFID)",
                         PacketVersion = "1.0",
-                        SyncMode = BaseEnums.SyncMode.Snapshot,
                         Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
@@ -7413,7 +7398,6 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "106",
                         Name = "Dữ liệu kiểm tra tải trọng xe (WIM)",
                         PacketVersion = "1.0",
-                        SyncMode = BaseEnums.SyncMode.Incremental,
                         Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
@@ -7436,7 +7420,6 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "107",
                         Name = "Thông tin sự kiện giao thông",
                         PacketVersion = "1.0",
-                        SyncMode = BaseEnums.SyncMode.Incremental,
                         Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
@@ -7466,7 +7449,6 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "108",
                         Name = "Thông tin biển báo điện tử (VMS)",
                         PacketVersion = "1.0",
-                        SyncMode = BaseEnums.SyncMode.Snapshot,
                         Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
@@ -7493,7 +7475,6 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "109",
                         Name = "Dữ liệu thu phí (ETC/MTC)",
                         PacketVersion = "1.0",
-                        SyncMode = BaseEnums.SyncMode.Incremental,
                         Status = BaseEnums.StatusEnum.Enable
                     },
                     Fields =
@@ -7521,7 +7502,6 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "110",
                         Name = "Trao đổi với người tham gia giao thông",
                         PacketVersion = "1.0",
-                        SyncMode = BaseEnums.SyncMode.Snapshot,
                         Status = BaseEnums.StatusEnum.Disable
                     },
                     Fields =
@@ -7546,7 +7526,6 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Code = "111",
                         Name = "Trao đổi với TT QLĐHGT tuyến",
                         PacketVersion = "1.0",
-                        SyncMode = BaseEnums.SyncMode.Incremental,
                         Status = BaseEnums.StatusEnum.Disable
                     },
                     Fields =

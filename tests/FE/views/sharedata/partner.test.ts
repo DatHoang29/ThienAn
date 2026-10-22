@@ -1659,6 +1659,9 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		const dialog = page.locator('.sharedata-edit-partner-container .el-dialog');
 		await expect(dialog).toBeVisible();
 
+		// Chuyển sang tab Kết nối để kiểm tra các trường kết nối
+		await dialog.getByRole('tab', { name: 'Kết nối' }).click();
+
 		const addressInput = dialog.locator('.el-form-item').filter({ has: page.locator('.el-form-item__label', { hasText: 'Địa chỉ (IP/host)' }) }).locator('input');
 		const portInput = dialog.locator('.el-form-item').filter({ has: page.locator('.el-form-item__label', { hasText: /^\s*Cổng\s*$/ }) }).locator('input');
 		const endpointItem = dialog.locator('.el-form-item').filter({ hasText: 'Endpoint' }).first();
@@ -1785,7 +1788,7 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		await dialog.locator('.dialog-footer button:has-text("Hủy")').click();
 		const confirmBox = page.locator('.el-message-box');
 		if (await confirmBox.isVisible({ timeout: 1000 }).catch(() => false)) {
-			await confirmBox.locator('button:has-text("Bỏ thay đổi")').click();
+			await confirmBox.locator('button:has-text("Hủy thay đổi")').click();
 		}
 		await expect(dialog).toBeHidden();
 
@@ -1793,6 +1796,7 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		const editBtn = page.locator('.ptn-item').first().getByRole('button', { name: 'Chỉnh sửa' });
 		await editBtn.click();
 		await expect(dialog).toBeVisible();
+		await dialog.getByRole('tab', { name: 'Kết nối' }).click();
 		await expect(connTypeSelect).toContainText('Máy chủ FTP');
 		const ftpsSwitch = dialog.locator('.channel-ftp .el-form-item').filter({ hasText: 'Mã hóa kết nối FTPS' }).locator('.el-switch');
 		await expect(ftpsSwitch).toHaveClass(/is-checked/);
@@ -1904,27 +1908,142 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		await expect(dialog).toBeVisible();
 		await expect(codeInput).toHaveValue('PARTNER_DIRTY_TEST');
 
-		// 5. Click outside lần nữa -> hiện hộp hỏi -> bấm "Bỏ thay đổi" -> hộp thoại đóng
+		// 5. Click outside lần nữa -> hiện hộp hỏi -> bấm "Hủy thay đổi" -> hộp thoại đóng
 		await page.mouse.click(5, 5);
 		await expect(confirmBox).toBeVisible({ timeout: 5000 });
-		const discardBtn = confirmBox.locator('button:has-text("Bỏ thay đổi")');
+		const discardBtn = confirmBox.locator('button:has-text("Hủy thay đổi")');
 		await discardBtn.click();
 		await expect(confirmBox).toBeHidden({ timeout: 3000 });
 		await expect(dialog).toBeHidden({ timeout: 5000 });
 	});
 
-	test('TC18 — Nút Xác nhận trong editPartner.vue làm mờ (disabled) khi form chưa thỏa điều kiện hợp lệ', async () => {
+	test('TC18 — Form đối tác chia 2 tab (Thông tin chung, Kết nối), tự chuyển tab khi lỗi và giữ nguyên thời gian chờ khi lưu/mở lại', async ({ context, page }) => {
 		const partnerContent = fs.readFileSync(editPartnerPath, 'utf-8');
-		// 1. Nút Xác nhận có ràng buộc disabled với !isFormValid
-		expect(partnerContent).toMatch(/:disabled="[^"]*!isFormValid[^"]*"/);
-		expect(partnerContent).toContain('const isFormValid = computed');
-		// 2. Không vi phạm Rule 20.8 (không dùng !!)
+		expect(partnerContent).toContain('class="partner-tabs"');
+		expect(partnerContent).toContain('name="general"');
+		expect(partnerContent).toContain('name="connection"');
+		expect(partnerContent).not.toContain('name="operation"');
+		expect(partnerContent).not.toContain('operationTimeoutValue');
 		expect(partnerContent).not.toContain('!!');
-		// 3. Kiểm tra logic kiểm tra hợp lệ của isFormValid (code, name, address, port)
-		expect(partnerContent).toContain('Boolean(state.ruleForm.code?.trim())');
-		expect(partnerContent).toContain('Boolean(state.ruleForm.name?.trim())');
-		expect(partnerContent).toContain('Boolean(state.ruleForm.address?.trim())');
-		expect(partnerContent).toContain('state.ruleForm.port > 0');
+
+		let savedPartner: Record<string, any> | null = null;
+		await mockAuth(context, page, {
+			language: 'vi-vn',
+			userInfo: {
+				authBtnList: ['*', 'sharedataSharing:add', 'sharedataSharing:update', 'sharedataSharing:delete'],
+				defaultMenu: '/sharedata/sharing',
+			},
+		});
+
+		await page.route('**/api/system/sysmenu/loginmenutree*', async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({
+					code: 200,
+					result: [
+						{
+							id: 'menu_sharedata',
+							pid: '0',
+							path: '/sharedata',
+							name: 'sharedata',
+							component: 'layout/routerView/parent',
+							meta: { title: 'lz.menu.sharedata', isLink: '', isHide: false, isKeepAlive: true, isAffix: false, isIframe: false, roles: ['admin'], icon: 'ele-Share' },
+							children: [
+								{
+									id: 'menu_sharedata_sharing',
+									pid: 'menu_sharedata',
+									path: '/sharedata/sharing',
+									name: 'sharedataSharing',
+									component: 'sharedata/sharing/index',
+									meta: { title: 'lz.menu.sharedataSharing', isLink: '', isHide: false, isKeepAlive: true, isAffix: false, isIframe: false, roles: ['admin'], icon: 'ele-Connection' },
+								},
+							],
+						},
+					],
+				}),
+			});
+		});
+
+		await page.route('**/api/sharedata/sharedatapartner/list*', async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: 'application/json',
+				body: JSON.stringify({
+					code: 200,
+					result: savedPartner ? [savedPartner] : [],
+				}),
+			});
+		});
+
+		await page.route('**/api/sharedata/sharedatasession/list*', async (route) => {
+			await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: [] }) });
+		});
+
+		await page.route('**/api/sharedata/sharedatasubscription/list*', async (route) => {
+			await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: [] }) });
+		});
+
+		await page.route('**/api/sharedata/sharedatapartner/add*', async (route) => {
+			const body = route.request().postDataJSON();
+			savedPartner = {
+				...body,
+				id: 'partner_saved_01',
+				status: 1,
+				sessionState: 0,
+			};
+			await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: 'partner_saved_01' }) });
+		});
+
+		await page.goto('/#/sharedata/sharing');
+		await expect(page.locator('.eshare-body__left')).toBeVisible({ timeout: 30000 });
+
+		await page.locator('.ptn-list__head button:has-text("Thêm")').click();
+		const dialog = page.locator('.sharedata-edit-partner-container .el-dialog');
+		await expect(dialog).toBeVisible();
+
+		// 1. Có đúng 2 tab: Thông tin chung, Kết nối; không còn tab Cấu hình vận hành; mặc định đứng ở tab Thông tin chung
+		const tabs = dialog.locator('.partner-tabs .el-tabs__item');
+		await expect(tabs).toHaveCount(2);
+		const tabGeneral = dialog.getByRole('tab', { name: 'Thông tin chung' });
+		const tabConnection = dialog.getByRole('tab', { name: 'Kết nối' });
+		await expect(dialog.getByRole('tab', { name: 'Cấu hình vận hành' })).toHaveCount(0);
+		await expect(dialog.locator('#pane-operation')).toHaveCount(0);
+		await expect(tabGeneral).toHaveClass(/is-active/);
+
+		// 2. Điền Mã và Tên ở tab 1, để trống Địa chỉ/Cổng ở tab Kết nối -> bấm Xác nhận tự chuyển sang tab Kết nối
+		await dialog.locator('.el-form-item').filter({ hasText: 'Mã đối tác' }).locator('input').fill('PTN_TAB_01');
+		await dialog.locator('.el-form-item').filter({ hasText: 'Tên đối tác' }).locator('input').fill('Đối tác Tab 01');
+		await dialog.locator('.dialog-footer button.el-button--primary').click();
+		await expect(tabConnection).toHaveClass(/is-active/);
+
+		// 3. Điền Địa chỉ, Cổng và Thời gian chờ = 45 giây (ô của cấu hình kênh API) ngay trong tab Kết nối
+		await dialog.locator('.el-form-item').filter({ has: page.locator('.el-form-item__label', { hasText: 'Địa chỉ (IP/host)' }) }).locator('input').fill('10.10.1.50');
+		const portInput = dialog.locator('.el-form-item').filter({ has: page.locator('.el-form-item__label', { hasText: /^\s*Cổng\s*$/ }) }).locator('input');
+		await portInput.fill('8080');
+		await portInput.blur();
+
+		const timeoutInputOf = () => dialog.locator('#pane-connection .el-form-item')
+			.filter({ has: page.locator('.el-form-item__label', { hasText: 'Thời gian chờ (giây)' }) })
+			.locator('.el-input-number input');
+		await expect(timeoutInputOf()).toBeVisible();
+		await timeoutInputOf().fill('45');
+		await timeoutInputOf().blur();
+
+		// 4. Bấm Xác nhận lưu -> mở lại đối tác vừa lưu -> dữ liệu và thời gian chờ 45 giây vẫn giữ nguyên
+		await dialog.locator('.dialog-footer button.el-button--primary').click();
+		await expect(dialog).toBeHidden({ timeout: 5000 });
+		expect(savedPartner).not.toBeNull();
+		expect(JSON.parse(savedPartner!.connectionConfig).TimeoutSeconds).toBe('45');
+
+		const editBtn = page.locator('.ptn-item').first().getByRole('button', { name: 'Chỉnh sửa' });
+		await editBtn.click();
+		await expect(dialog).toBeVisible();
+		await expect(tabGeneral).toHaveClass(/is-active/);
+		await expect(dialog.locator('.el-form-item').filter({ hasText: 'Mã đối tác' }).locator('input')).toHaveValue('PTN_TAB_01');
+
+		await tabConnection.click();
+		await expect(timeoutInputOf()).toHaveValue('45');
 	});
 
 	test('TC19 — Màn hình cấu hình chia sẻ index.vue tách biệt loading cho 3 thẻ (Partner, Session, Subscription) chống treo', async () => {

@@ -5,7 +5,7 @@ using Module.ShareData.Core.Entities;
 
 /// <summary>
 /// Description: Đọc và phân tích cú pháp tệp seed SQL 'sharedata-seed-goi-tin.sql'
-///              để trích xuất chuỗi SQL cấu hình và SyncMode của các gói tin ShareData.
+///              để trích xuất chuỗi SQL cấu hình của các gói tin ShareData.
 /// </summary>
 internal static class SeedScriptReader
 {
@@ -17,7 +17,6 @@ internal static class SeedScriptReader
     public sealed record SeedPacketInfo(
         string Code,
         string ExtractSql,
-        int SyncMode,
         string? CursorTimeColumn = null,
         int? MaxLookBackDays = null);
 
@@ -66,28 +65,6 @@ internal static class SeedScriptReader
     }
 
     /// <summary>
-    /// Description: Lấy SyncMode (1 = Snapshot, 2 = Incremental) của gói tin tương ứng.
-    ///              Ném ngoại lệ InvalidOperationException nếu không tìm thấy.
-    /// </summary>
-    public static int GetSyncMode(string packetCode)
-    {
-        if (string.IsNullOrWhiteSpace(packetCode))
-        {
-            throw new ArgumentException("Mã gói tin không được để trống.", nameof(packetCode));
-        }
-
-        var normalizedCode = packetCode.Trim();
-        var all = Cache.Value;
-        if (!all.TryGetValue(normalizedCode, out var info))
-        {
-            throw new InvalidOperationException(
-                $"Không tìm thấy SyncMode của gói tin '{normalizedCode}' trong kịch bản seed sharedata-seed-goi-tin.sql.");
-        }
-
-        return info.SyncMode;
-    }
-
-    /// <summary>
     /// Description: Đọc toàn bộ danh sách gói tin được cấu hình trong kịch bản seed.
     /// </summary>
     public static IReadOnlyDictionary<string, SeedPacketInfo> ReadAll()
@@ -131,7 +108,7 @@ internal static class SeedScriptReader
         var content = File.ReadAllText(scriptPath);
 
         var regex = new Regex(
-            @"SET \[TemplateSql\] = N'(?<sql>.*?)'\s*WHERE \(\[Code\] = '(?<code>\d{3})'.*?SET \[ExtractSql\] = \[TemplateSql\],\s*\[SyncMode\]\s*=\s*(?<sync>\d+),\s*\[CursorTimeColumn\]\s*=\s*(?<cursor>NULL|N'[^']*'),\s*\[MaxLookBackDays\]\s*=\s*(?<lookback>NULL|\d+)",
+            @"SET \[TemplateSql\] = N'(?<sql>.*?)'\s*WHERE \(\[Code\] = '(?<code>\d{3})'.*?SET \[ExtractSql\] = \[TemplateSql\],\s*\[CursorTimeColumn\]\s*=\s*(?<cursor>NULL|N'[^']*'),\s*\[MaxLookBackDays\]\s*=\s*(?<lookback>NULL|\d+)",
             RegexOptions.Singleline);
 
         var matches = regex.Matches(content);
@@ -145,13 +122,11 @@ internal static class SeedScriptReader
         foreach (Match match in matches)
         {
             var rawSql = match.Groups["sql"].Value;
-            var syncModeStr = match.Groups["sync"].Value;
             var cursorRaw = match.Groups["cursor"].Value;
             var lookbackRaw = match.Groups["lookback"].Value;
             var code = match.Groups["code"].Value;
 
             var extractSql = rawSql.Replace("''", "'");
-            var syncMode = int.Parse(syncModeStr);
 
             string? cursor = cursorRaw.Equals("NULL", StringComparison.OrdinalIgnoreCase)
                 ? null
@@ -161,7 +136,7 @@ internal static class SeedScriptReader
                 ? null
                 : int.Parse(lookbackRaw);
 
-            dict[code] = new SeedPacketInfo(code, extractSql, syncMode, cursor, lookback);
+            dict[code] = new SeedPacketInfo(code, extractSql, cursor, lookback);
         }
 
         return dict;

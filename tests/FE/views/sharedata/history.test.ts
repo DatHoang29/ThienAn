@@ -839,4 +839,151 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
         expect(oldModalIssues, `Phát hiện tệp còn dùng cấu hình Rule 20.26 cũ:\n${oldModalIssues.join('\n')}`).toEqual([]);
         expect(formBeforeCloseIssues, `Phát hiện form có :before-close nhưng thiếu :close-on-click-modal="!state.":\n${formBeforeCloseIssues.join('\n')}`).toEqual([]);
     });
+
+    test('11. Cắt gọn lỗi 200 ký tự an toàn surrogate pair kèm Xem toàn bộ / Thu gọn, và hiển thị đỏ "0 bản ghi" cho bước không chạy được khi bước trước lỗi', async ({ page }) => {
+        const mockParentId = 'PARENT_LOG_STEP1_FAIL_LONG';
+        // Tạo chuỗi lỗi 500 ký tự có surrogate pair emoji ngay vị trí cắt 199..200
+        const prefix199 = 'E'.repeat(199);
+        const emojiPair = '\uD83D\uDE00'; // 2 UTF-16 code units tại index 199 và 200
+        const tail = 'X'.repeat(500 - 199 - 2);
+        const longError500 = `${prefix199}${emojiPair}${tail}`;
+        expect(longError500.length).toBe(500);
+
+        await page.route('**/api/sharedata/sharedataactivitylog/page*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        records: [
+                            {
+                                id: mockParentId,
+                                logType: 1,
+                                transferDirection: 0, // Chiều gửi 3 bước
+                                transferType: 0,
+                                success: 0,
+                                packetId: 'PKT_01',
+                                partnerId: 'PARTNER_01',
+                                errorMessage: longError500,
+                                occurredAt: '2026-10-18T10:00:00Z',
+                            },
+                        ],
+                        total: 1,
+                    },
+                }),
+            });
+        });
+
+        // Chỉ có Bước 1 chạy và thất bại; Bước 2 và Bước 3 không có bản ghi
+        await page.route('**/api/sharedata/sharedataactivitylog/steps*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: [
+                        {
+                            id: mockParentId,
+                            children: [
+                                {
+                                    id: 'CHILD_STEP_1_FAIL',
+                                    parentId: mockParentId,
+                                    stepNo: 1,
+                                    stepNbr: 1,
+                                    success: 0,
+                                    description: 'Trích xuất dữ liệu thất bại',
+                                    errorMessage: longError500,
+                                },
+                            ],
+                        },
+                    ],
+                }),
+            });
+        });
+
+        await page.goto('/sharedata/history');
+        const detailButton = page.locator('button:has-text("Chi tiết")').first();
+        await expect(detailButton).toBeVisible({ timeout: 30000 });
+        await detailButton.click();
+
+        const dialog = page.locator('.el-dialog');
+        await expect(dialog).toBeVisible();
+
+        const steps = dialog.locator('.steps-card .el-step');
+        await expect(steps).toHaveCount(3);
+
+        // 1. Bước 1: mã lỗi gốc bị cắt gọn (<= 201 ký tự kèm dấu …), không vỡ surrogate pair
+        const rawCode1 = steps.nth(0).locator('.raw-code');
+        await expect(rawCode1).toBeVisible();
+        const truncatedText = (await rawCode1.textContent()) ?? '';
+        expect(truncatedText.endsWith('…')).toBe(true);
+        expect(truncatedText.length).toBeLessThanOrEqual(201);
+        expect(truncatedText.includes('\uFFFD')).toBe(false);
+
+        // Bấm "Xem toàn bộ" -> hiện đủ 500 ký tự; bấm "Thu gọn" -> về lại bản cắt gọn
+        const toggleBtn = steps.nth(0).locator('.raw-toggle-btn');
+        await expect(toggleBtn).toContainText('Xem toàn bộ');
+        await toggleBtn.click();
+        await expect(toggleBtn).toContainText('Thu gọn');
+        const expandedText = (await rawCode1.textContent()) ?? '';
+        expect(expandedText).toBe(longError500);
+
+        await toggleBtn.click();
+        await expect(toggleBtn).toContainText('Xem toàn bộ');
+
+        // 2. Bước 2 và Bước 3 không có bản ghi khi lượt chạy lỗi -> trạng thái is-error và phụ đề đỏ "0 bản ghi"
+        await expect(steps.nth(1).locator('.el-step__head')).toHaveClass(/is-error/);
+        await expect(steps.nth(1).locator('.step-subtitle')).toHaveClass(/is-err/);
+        await expect(steps.nth(1).locator('.step-subtitle')).toHaveText('0 bản ghi');
+
+        await expect(steps.nth(2).locator('.el-step__head')).toHaveClass(/is-error/);
+        await expect(steps.nth(2).locator('.step-subtitle')).toHaveClass(/is-err/);
+        await expect(steps.nth(2).locator('.step-subtitle')).toHaveText('0 bản ghi');
+    });
+
+    test('12. Bảng Trước / Sau hiển thị ngày giờ ISO theo DD/MM/YYYY HH:mm:ss, chuỗi khác giữ nguyên văn', async ({ page }) => {
+        await page.route('**/api/sharedata/sharedataactivitylog/page*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        records: [
+                            {
+                                id: 'LOG_DATE_DIFF',
+                                logType: 0,
+                                action: 1,
+                                targetName: 'Đăng ký gói 101',
+                                changedFields: 'NextTimeRun, Code',
+                                beforeJson: JSON.stringify({ NextTimeRun: '2026-10-22T09:15:30', Code: '20261022' }),
+                                afterJson: JSON.stringify({ NextTimeRun: '2026-10-22T10:05:00.123', Code: '20261023' }),
+                                success: 1,
+                                occurredAt: '2026-10-22T09:20:00Z',
+                            },
+                        ],
+                        total: 1,
+                    },
+                }),
+            });
+        });
+
+        await page.goto('/sharedata/history');
+
+        const detailButton = page.locator('button:has-text("Chi tiết")').first();
+        await expect(detailButton).toBeVisible({ timeout: 30000 });
+        await detailButton.click();
+
+        const dialog = page.locator('.el-dialog');
+        await expect(dialog).toBeVisible();
+
+        const timeRow = dialog.locator('.el-table__body tr', { hasText: 'NextTimeRun' });
+        await expect(timeRow.locator('td').nth(1)).toHaveText('22/10/2026 09:15:30');
+        await expect(timeRow.locator('td').nth(2)).toHaveText('22/10/2026 10:05:00');
+
+        const codeRow = dialog.locator('.el-table__body tr', { hasText: 'Code' });
+        await expect(codeRow.locator('td').nth(1)).toHaveText('20261022');
+        await expect(codeRow.locator('td').nth(2)).toHaveText('20261023');
+    });
 });

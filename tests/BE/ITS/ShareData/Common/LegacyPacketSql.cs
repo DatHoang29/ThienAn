@@ -67,7 +67,7 @@ internal static class LegacyPacketSql
             e.KmNumber AS locationKm,
             e.MetNumber AS locationMet,
             COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) AS __lastTime,
-            td.ID AS __rowid,
+            td.ID AS __lastKey,
             td.UpdateTime AS __auditUpdate,
             td.CreateTime AS __auditCreate
         FROM TmsTrafficData td
@@ -101,7 +101,7 @@ internal static class LegacyPacketSql
             w.ShortDescription AS weatherCode,
             w.TimeDetect AS detectTime,
             COALESCE(w.UpdateTime, w.CreateTime, w.TimeDetect) AS __lastTime,
-            w.ID AS __rowid,
+            w.ID AS __lastKey,
             w.UpdateTime AS __auditUpdate,
             w.CreateTime AS __auditCreate
         FROM TmsWeather w
@@ -153,7 +153,7 @@ internal static class LegacyPacketSql
             td.Width AS width,
             td.Length AS length,
             COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) AS __lastTime,
-            td.ID AS __rowid,
+            td.ID AS __lastKey,
             td.UpdateTime AS __auditUpdate,
             td.CreateTime AS __auditCreate
         FROM TmsTrafficData td
@@ -188,7 +188,7 @@ internal static class LegacyPacketSql
             i.Description AS description,
             i.Source AS source,
             COALESCE(i.UpdateTime, i.CreateTime, i.StartDate) AS __lastTime,
-            i.ID AS __rowid,
+            i.ID AS __lastKey,
             i.UpdateTime AS __auditUpdate,
             i.CreateTime AS __auditCreate
         FROM TmsIncident i
@@ -243,7 +243,7 @@ internal static class LegacyPacketSql
             CAST(NULL AS DECIMAL(18, 2)) AS tollPrice,
             t.SyncTime AS syncTime,
             COALESCE(t.UpdateTime, t.CreateTime, t.TransactionDateTime) AS __lastTime,
-            t.ID AS __rowid,
+            t.ID AS __lastKey,
             t.UpdateTime AS __auditUpdate,
             t.CreateTime AS __auditCreate
         FROM TollTransactionOut t

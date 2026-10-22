@@ -12,7 +12,6 @@ internal static class PacketTemplateSeed
     public sealed record PacketTemplateInfo(
         string Code,
         string ExtractSql,
-        BaseEnums.SyncMode SyncMode,
         string? CursorTimeColumn,
         int? MaxLookBackDays);
 
@@ -24,7 +23,6 @@ internal static class PacketTemplateSeed
         .Select(x => new PacketTemplateInfo(
             x.Code,
             x.ExtractSql,
-            (BaseEnums.SyncMode)x.SyncMode,
             x.CursorTimeColumn,
             x.MaxLookBackDays))
         .ToList();

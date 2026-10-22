@@ -150,20 +150,19 @@ Theo chủ trương của chủ dự án, **ưu tiên thao tác trực tiếp tr
    - Nhập **Tên** (`name`), **Số thứ tự** (`orderNo` = 101..111).
    - Chọn **Trạng thái** (`status`): Chọn *Bật* (Status = 1) cho các gói từ 101 đến 110; riêng gói 111 chọn *Tắt* (Status = 0).
    - Nhập **Ghi chú** nếu cần → Bấm nút **Lưu**.
-3. **Cơ chế tự động điền cấu hình mẫu chuẩn:** Khi nhập mã gói chuẩn (dạng 101..110 hoặc `101_xxx`), hệ thống tự động điền câu truy vấn SQL mẫu chuẩn, chế độ đồng bộ (`SyncMode`: Snapshot / Incremental) và số ngày quét lùi (`MaxLookBackDays`) nhờ `PacketCommandHandler` và `PacketDefaultTemplate.TryGet` mà không cần người dùng phải gõ tay hay dán SQL. *(Giao diện đã bỏ hoàn toàn khái niệm "Phạm vi" hay `partnerScope`).*
+3. **Cơ chế tự động điền cấu hình mẫu chuẩn:** Khi nhập mã gói chuẩn (dạng 101..110 hoặc `101_xxx`), hệ thống tự động điền câu truy vấn SQL mẫu chuẩn và số ngày quét lùi (`MaxLookBackDays`); chế độ gửi (toàn bộ / nối đuôi) suy từ chính câu SQL, không có ô chọn nhờ `PacketCommandHandler` và `PacketDefaultTemplate.TryGet` mà không cần người dùng phải gõ tay hay dán SQL. *(Giao diện đã bỏ hoàn toàn khái niệm "Phạm vi" hay `partnerScope`).*
 4. Cấu hình SQL trích xuất và tham số đồng bộ:
    - Nhấp chọn gói tin vừa tạo ở danh sách bên trái.
    - Ở khung bên phải, chuyển sang tab **Cấu hình SQL** (`tabSqlCenter`).
    - Khung soạn thảo SQL (Monaco Editor) đã hiển thị câu truy vấn trích xuất chuẩn. Nếu muốn khôi phục lại câu SQL chuẩn từ hệ thống, bấm nút **Khôi phục SQL mẫu** (`vqbResetToTemplateTitle`). *(Lưu ý: Bấm nút này chỉ nạp nội dung lên khung soạn thảo, chưa ghi đè xuống CSDL cho tới khi bấm nút Lưu).*
-   - **Điều kiện lấy dữ liệu (`SyncModePanel`):**
-     + Kiểm tra **Chế độ đồng bộ** (`syncMode`): Chọn *Toàn bộ* (Snapshot) cho các gói 101/102/105/108/110; hoặc *Nối đuôi* (Incremental) cho các gói 103/104/106/107/109 theo đúng [Phụ lục C](05-chay-sql-tu-dau-sharedata.md#phụ-lục-c-danh-mục-chuẩn-11-gói-tin-sharedata).
-     + Nếu là gói *Nối đuôi*: Câu lệnh SQL tự động có điều kiện con trỏ 2 khóa (`@lastTime`, `@lastKey`) và sắp xếp theo mốc thời gian tăng dần (`ASC`). Ô *Quét lùi tối đa* tạm thời được ẩn trên giao diện chờ review nghiệp vụ (Worker vẫn áp dụng nếu CSDL đã lưu giá trị).
+   - **Chế độ gửi theo câu SQL:** Giao diện không có nút hay nhãn chế độ. Câu SQL có biến `@lastTime` / `@lastKey` là *nối đuôi* (gói 103/104/106/107/109), không có là *gửi toàn bộ* (gói 101/102/105/108/110) — đối chiếu [Phụ lục C](05-chay-sql-tu-dau-sharedata.md#phụ-lục-c-danh-mục-chuẩn-11-gói-tin-sharedata).
+     + Với câu nối đuôi: khung kiểm câu nối đuôi chỉ hiện khi còn thiếu điều kiện (cột `__lastTime`/`__lastKey`, `TOP (@pageSize)`, `ORDER BY ... ASC`), kèm nút sửa tự động. Ô *Quét lùi tối đa* tạm thời được ẩn trên giao diện chờ review nghiệp vụ (Worker vẫn áp dụng nếu CSDL đã lưu giá trị).
    - **Trường trích xuất (sau AS):** Hệ thống tự động bóc tách các bí danh sau `AS` trong câu SELECT:
      + Chip màu xanh (✓): Bí danh đã được khai báo thành trường gói tin.
      + Chip viền nét đứt: Bí danh chưa khai trường.
      + Chip gạch ngang đỏ nhạt: Trường gói tin đã khai nhưng câu SQL không trả về.
      + Dòng trạng thái dưới chip: Tóm tắt số trường đã khai · chưa khai kèm nút `[Khai thêm M trường]` · số trường SQL không trả về.
-   - **Biến hệ thống trong câu truy vấn:** Hiển thị trực quan nguồn giá trị của từng biến do Worker tự điền (`@lastTime ← __lastTime = <biểu_thức>`, `@lastKey ← __rowid = <biểu_thức>`, `@pageSize ← cấu hình Worker`, `@fromDate ← hôm nay − N ngày`, `@toDate ← thời điểm chạy`). Muốn đổi nguồn mốc con trỏ chỉ cần sửa biểu thức sau `AS __lastTime` / `AS __rowid` trong câu lệnh SQL; khi chuyển đổi chế độ đồng bộ hệ thống tự gắn/gỡ phần nối đuôi mà không bật thông báo thừa.
+   - **Biến hệ thống trong câu truy vấn:** Hiển thị trực quan nguồn giá trị của từng biến do Worker tự điền (`@lastTime ← __lastTime = <biểu_thức>`, `@lastKey ← __lastKey = <biểu_thức>`, `@pageSize ← cấu hình Worker`, `@fromDate ← hôm nay − N ngày`, `@toDate ← thời điểm chạy`). Muốn đổi nguồn mốc con trỏ chỉ cần sửa biểu thức sau `AS __lastTime` / `AS __lastKey` trong câu lệnh SQL; hệ thống không tự gỡ phần nối đuôi khi nạp SQL.
    - Bấm nút **Lưu** (`save`) để lưu cấu hình SQL và các tham số đồng bộ xuống CSDL.
 5. 💡 **Khuyến nghị gói tin tối thiểu để nghiệm thu:** Để thực hiện nhanh các kịch bản kiểm thử, người dùng tối thiểu cần khởi tạo 2 gói tin:
    - Gói **`101_commonData`** (Snapshot, phục vụ kịch bản D1, D5, E0, E1).
@@ -290,7 +289,7 @@ Theo chủ trương của chủ dự án, **ưu tiên thao tác trực tiếp tr
 | Bước | Thao tác kiểm tra | Kết quả mong đợi | Kết quả |
 |:---:|---|---|---|
 | **B1** | Tạo đối tác `P-REST` (màn *Đối tác & Đăng ký chia sẻ*) | Lưu thành công; các trường `code` và `port` hiển thị vô hiệu hóa khi xem lại; bấm nút "Kết nối" chuyển sang màu xanh | ☐ Đạt ☐ Không đạt |
-| **B2** | Tạo gói tin chuẩn (101, 103... màn *Cấu hình gói tin*) | Tự động điền câu SQL, `SyncMode`, `MaxLookBackDays` từ Catalog; lưu thành công | ☐ ☐ |
+| **B2** | Tạo gói tin chuẩn (101, 103... màn *Cấu hình gói tin*) | Tự động điền câu SQL, `MaxLookBackDays` từ Catalog; lưu thành công | ☐ ☐ |
 | **B3** | Tạo Ánh xạ gửi & nhận (màn *Cấu hình ánh xạ*) | Chiều gửi đủ 4 khóa `$meta`; chiều nhận đủ mảng `data`; lưu thành công với `isActive = true` | ☐ ☐ |
 | **B4** | Tạo Đăng ký gửi & nhận (màn *Đối tác & Đăng ký chia sẻ*) | Đăng ký hiển thị ở trạng thái `Active`; chiều nhận ẩn lịch gửi; công tắc bật/tắt hoạt động đúng | ☐ ☐ |
 | **B5** | Kiểm tra 15 bảng nguồn `ShareDataSourceTable` (truy vấn SQL tại khung ngoại lệ) | Đủ 15 bảng (`IsDelete IS NULL`), 14 bảng `IsTracked = 1`, `TmsEquipment` có `IsTracked = 0`, cả 15 bảng `IsQueryable = 1` | ☐ ☐ |
@@ -435,11 +434,11 @@ Trước khi thực hiện các bài test nhóm E, cần chuẩn bị hạ tần
 
 | # | Bước | Kết quả mong đợi | Kết quả |
 |---|---|---|---|
-| A1 | Mở danh sách gói tin | Tag chế độ mỗi gói **khớp cột `SyncMode` trong DB** (tài liệu 05 mục 3.1): 101, 102, 105, 108, 110 là *gửi toàn bộ* (Snapshot); 103, 104, 106, 107, 109 là *nối đuôi* (Incremental) | ☐ Đạt ☐ Không đạt |
-| A2 | Mở gói **105** (chưa chỉnh gì) | Chế độ mặc định **Snapshot / gửi toàn bộ** (không phải nối đuôi) | ☐ ☐ |
-| A3 | Thử đổi gói 105 sang *nối đuôi* (Incremental / 2) trong khi vẫn giữ nguyên câu SQL dạng Snapshot (chưa có cấu trúc nối đuôi) → bấm Lưu (bị từ chối). Tại thẻ *Gửi nối đuôi*, chọn 2 cột (mốc thời gian `td.UpdateTime`, mã dòng `td.ID`), bấm **"Áp vào câu SQL"** → kiểm tra 4 tiêu chí checklist (Có cột mốc, Chỉ lấy dữ liệu mới, Sắp xếp theo thời gian, Giới hạn số dòng mỗi lượt) đều chuyển sang màu xanh ✓ → đặt số ngày quét lùi = 7 → bấm Lưu → tải lại trang và mở lại gói 105 | Khi câu SQL chưa đúng cấu trúc nối đuôi: **Bị từ chối lưu**, hệ thống hiển thị thông báo lỗi kiểm tra cấu trúc SQL nối đuôi (thiếu `TOP (@pageSize)`, thiếu `ORDER BY ... ASC`, hoặc thiếu `__lastTime`/`__rowid`). Sau khi bấm "Áp vào câu SQL" đạt đủ 4 mục và Lưu: **Lưu thành công**, mở lại giữ nguyên chế độ nối đuôi, cột mốc `td.UpdateTime`, quét lùi 7 ngày; tag trên danh sách đổi sang Nối đuôi | ☐ ☐ |
+| A1 | Mở danh sách gói tin, mở tab Cấu hình SQL từng gói | Không có tag/nhãn chế độ trên danh sách và thanh công cụ SQL. Câu SQL của 103, 104, 106, 107, 109 có `@lastTime`/`@lastKey` (nối đuôi); 101, 102, 105, 108, 110 không có (gửi toàn bộ) | ☐ Đạt ☐ Không đạt |
+| A2 | Mở gói **105** (chưa chỉnh gì) | Câu SQL không có `@lastTime`/`@lastKey` (gửi toàn bộ); không hiện khung kiểm câu nối đuôi | ☐ ☐ |
+| A3 | Gói 105: thêm điều kiện dùng `@lastTime` vào câu SQL nhưng chưa đủ cấu trúc nối đuôi → bấm Lưu (bị từ chối). Bấm nút sửa tự động ở khung kiểm câu nối đuôi (mốc thời gian `td.UpdateTime`, khóa `td.ID`) → khung kiểm biến mất (đủ điều kiện) → bấm Lưu → tải lại trang và mở lại gói 105 | Khi câu SQL chưa đúng cấu trúc nối đuôi: **Bị từ chối lưu**, thông báo nêu thiếu `TOP (@pageSize)`, thiếu `ORDER BY ... ASC`, hoặc thiếu `__lastTime`/`__lastKey`. Sau khi sửa đủ và Lưu: **Lưu thành công**, mở lại câu SQL giữ nguyên phần nối đuôi; không có tag/nhãn chế độ nào thay đổi trên giao diện (Worker tự gửi nối đuôi theo câu SQL) | ☐ ☐ |
 | A4 | Xóa trắng ô `MaxLookBackDays` → bấm Lưu → tải lại trang và mở lại gói 105 | Ô `MaxLookBackDays` hiển thị **rỗng** (giá trị `null` trong CSDL, không tự động quay về 7) | ☐ ☐ |
-| A5 | Đổi gói 105 về lại chế độ *gửi toàn bộ* (Snapshot), khôi phục câu SQL mẫu chuẩn qua nút "Mẫu mặc định" → bấm Lưu | **Lưu thành công**; hệ thống không kiểm tra cấu trúc nối đuôi đối với gói Snapshot | ☐ ☐ |
+| A5 | Khôi phục câu SQL mẫu chuẩn của gói 105 (không có `@lastTime`/`@lastKey`) qua nút "Mẫu mặc định" → bấm Lưu | **Lưu thành công**; câu gửi toàn bộ nên hệ thống không kiểm tra cấu trúc nối đuôi | ☐ ☐ |
 | A6 | Xem gói **111** (và 110 nếu chưa bật) | Hiện **"Đã tắt"**; không có nút chạy/gửi | ☐ ☐ |
 | A7 | Tạo gói mới: chọn "Loại gói (thứ tự)" 101–111 (mặc định 101) → Lưu gói | Gói tạo xong có ngay SQL (`TemplateSql` = `ExtractSql` sao chép từ gói nguồn cùng loại trong CSDL); khi bấm Sửa gói thì ô "Loại gói" bị khóa chỉ đọc (kèm gợi ý "Gói mới nhận SQL mẫu theo loại gói; sau khi tạo không đổi loại gói được") | ☐ ☐ |
 | A8 | Sửa câu SQL trích xuất của gói rồi bấm [Lưu] → bấm menu "Khôi phục SQL mẫu" | Câu lệnh đang chạy `ExtractSql` bị ghi đè khi Lưu; khi bấm "Khôi phục SQL mẫu" ô soạn thảo khôi phục lại câu SQL mẫu ban đầu lúc tạo gói (đọc từ `TemplateSql`, CSDL không đổi) | ☐ ☐ |
@@ -453,11 +452,11 @@ Trước khi thực hiện các bài test nhóm E, cần chuẩn bị hạ tần
 |---|---|---|---|
 | B1 | Gói 101 → *Xem trước (preview)* | Có cột và dữ liệu thật, trả trong vài giây, không treo | ☐ Đạt ☐ Không đạt |
 | B2 | SQL `SELECT … ORDER BY …` **không có TOP** → preview | Chạy được, không lỗi cột trùng tên | ☐ ☐ |
-| B3 | Gói nối đuôi (103): sửa câu SQL bỏ cột `__lastTime` hoặc `__rowid` khỏi SELECT (hoặc thẻ kiểm tra báo đỏ ✗ Có cột mốc) → Lưu | **Bị từ chối**, thông báo nêu rõ thiếu cột con trỏ bắt buộc | ☐ ☐ |
+| B3 | Gói nối đuôi (103): sửa câu SQL bỏ cột `__lastTime` hoặc `__lastKey` khỏi SELECT (hoặc thẻ kiểm tra báo đỏ ✗ Có cột mốc) → Lưu | **Bị từ chối**, thông báo nêu rõ thiếu cột con trỏ bắt buộc | ☐ ☐ |
 | B4 | Gói nối đuôi: sửa câu SQL đổi `ORDER BY … DESC` (thẻ kiểm tra báo đỏ ✗ Sắp xếp theo thời gian) → Lưu | **Bị từ chối** (sắp giảm dần không hợp lệ cho con trỏ đồng bộ) | ☐ ☐ |
 | B5 | Lưu lần lượt: `DELETE FROM TmsZone`; `SELECT 1; SELECT 2`; `EXEC sp_who`; `SELECT * FROM SysUser`; `SELECT * FROM ShareDataPartner`; `SELECT * FROM OtherDb.dbo.TmsZone` | **Mỗi câu đều bị từ chối** với thông báo bảo mật đúng ngôn ngữ đang chọn | ☐ ☐ |
 | B6 | Nút **"Mẫu mặc định"** (`vqbDefaultTemplate`) | Khôi phục lại câu truy vấn SQL mẫu chuẩn theo mã gói từ hệ thống (Catalog/Seed), chưa ghi đè xuống CSDL cho tới khi người dùng bấm nút Lưu | ☐ ☐ |
-| B7 | *Đã bỏ (SQL một tầng trên ShareDataPacket, không còn cấu hình SQL riêng theo đối tác)* | Đã chuẩn hóa kiến trúc: câu SQL đặt duy nhất tại `ShareDataPacket.ExtractSql`, không còn phân tầng SQL riêng cho đối tác | Bỏ qua (đã chuẩn hóa) |
+| B7 | Tab Cấu hình SQL → tab con của một đối tác → sửa SQL → Lưu; sau đó sửa SQL ở tab Mẫu chung → Lưu | Tab đối tác hiện thẻ *SQL riêng* (lưu ở `ShareDataMapping.ExtractSql`); sau khi lưu SQL chuẩn, đối tác có SQL riêng hiện thẻ *Lỗi thời* và hệ thống báo số đối tác cần đối chiếu; nút so sánh mở hộp 2 cột cho 3 lựa chọn | ☐ ☐ |
 | B8 | (Nếu có tài khoản không phải SuperAdmin) thử lưu SQL | **Bị chặn quyền** (chức năng lưu SQL yêu cầu quyền SuperAdmin) | ☐ ☐ |
 | B9 | Nhập câu SQL đọc bảng ngoài danh mục `ShareDataSourceTable` (ví dụ `SELECT TOP 10 * FROM dbo.BangLaNgoaiDanhMuc;`) → bấm Dò cột, Xem mẫu hoặc Lưu | **Bị từ chối ngay lập tức**, thông báo hiển thị đúng ngôn ngữ theo khóa `SqlTableNotAllowed`: *"Bảng BangLaNgoaiDanhMuc chưa có trong danh mục bảng nguồn được phép chia sẻ. Thêm bảng vào ShareDataSourceTable (IsQueryable = 1) rồi thử lại."* (Yêu cầu đã chạy script 04 và bấm 🔄 làm mới từ điển) | ☐ Đạt ☐ Không đạt |
 | B10 | Đặt `IsQueryable = 0` cho bảng `TmsWeather` trong CSDL: `UPDATE dbo.ShareDataSourceTable SET IsQueryable = 0, UpdateTime = GETDATE() WHERE TableName = 'TmsWeather' AND IsDelete IS NULL;` → mở màn hình *Cấu hình gói tin* tab *Cấu hình SQL* | Bảng `TmsWeather` **biến mất** khỏi danh sách dropdown chọn Bảng nguồn của bộ dựng Visual Query Builder; nếu dán câu SQL chứa bảng `TmsWeather` thì bị từ chối khi Lưu/Dò cột (WebAPI chặn); tuy nhiên luồng Worker gửi gói 104 đang chạy nền **vẫn gửi dữ liệu bình thường** (vì Worker chỉ kiểm tra `IsTracked = 1`, hoàn toàn không kiểm tra `IsQueryable`) | ☐ ☐ |

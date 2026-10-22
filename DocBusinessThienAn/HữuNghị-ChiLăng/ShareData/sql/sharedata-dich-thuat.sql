@@ -291,7 +291,7 @@ VALUES
      N'Cannot change the subscription state from [{0}] to [{1}].'),
 
     -- =========================================================================
-    -- NHÓM 4: QUẢN TRỊ VÀ CẤU HÌNH SQL TRÍCH XUẤT & METADATA (11 khóa)
+    -- NHÓM 4: QUẢN TRỊ VÀ CẤU HÌNH SQL TRÍCH XUẤT & METADATA (16 khóa)
     -- =========================================================================
     (N'lz.exception', N'sharedata.superAdminRequiredForSqlEdit',
      N'Chỉ tài khoản SuperAdmin mới có quyền chỉnh sửa câu truy vấn nguồn dữ liệu.',
@@ -336,6 +336,26 @@ VALUES
     (N'lz.validation', N'sharedata.packetCodeRequired',
      N'Mã gói tin không được để trống.',
      N'Packet code is required.'),
+
+    (N'lz.exception', N'sharedata.partnerMappingNotFound',
+     N'Không tìm thấy hồ sơ ánh xạ đối tác.',
+     N'Partner mapping record not found.'),
+
+    (N'lz.validation', N'sharedata.mappingIdRequired',
+     N'Mã hồ sơ ánh xạ không được để trống.',
+     N'Mapping ID cannot be empty.'),
+
+    (N'lz.validation', N'sharedata.partnerSqlDirectionInvalid',
+     N'Câu truy vấn trích xuất riêng chỉ áp dụng cho hồ sơ ánh xạ chiều gửi đi (Outbound hoặc Hai chiều).',
+     N'Custom extract SQL only applies to outbound or bidirectional mappings.'),
+
+    (N'lz.validation', N'sharedata.partnerSqlMappingNotActive',
+     N'Hồ sơ ánh xạ đối tác đang tắt, không thể cấu hình câu truy vấn trích xuất riêng.',
+     N'Partner mapping is inactive and cannot be configured with custom extract SQL.'),
+
+    (N'lz.validation', N'sharedata.partnerExtractSqlRequired',
+     N'Câu truy vấn trích xuất riêng không được để trống. Muốn dùng lại mẫu chung, hãy chọn Dùng lại mẫu chung.',
+     N'Custom extract SQL query cannot be empty. To revert to the standard template, select Reset to standard.'),
 
     -- =========================================================================
     -- NHÓM 5: KIỂM TRA HỢP LỆ NGHIỆP VỤ GÓI TIN, BỘ MÃ, ĐĂNG KÝ (8 khóa)
@@ -447,16 +467,16 @@ VALUES
      N'Table {0} is not in the allowed sharing source tables.' + CHAR(10) + N'Add the table to ShareDataSourceTable (IsQueryable = 1) and try again.'),
 
     (N'lz.validation', N'sharedata.sqlUnsupportedParameter',
-     N'Tham số [{'@'}{0}] không được hỗ trợ. Chỉ hỗ trợ: {'@'}lastTime, {'@'}lastKey, {'@'}pageSize, {'@'}fromDate, {'@'}toDate.',
-     N'Parameter [{'@'}{0}] is not supported. Supported parameters: {'@'}lastTime, {'@'}lastKey, {'@'}pageSize, {'@'}fromDate, {'@'}toDate.'),
+     N'Tham số [{''@''}{0}] không được hỗ trợ. Chỉ hỗ trợ: {''@''}lastTime, {''@''}lastKey, {''@''}pageSize, {''@''}fromDate, {''@''}toDate.',
+     N'Parameter [{''@''}{0}] is not supported. Supported parameters: {''@''}lastTime, {''@''}lastKey, {''@''}pageSize, {''@''}fromDate, {''@''}toDate.'),
 
     (N'lz.validation', N'sharedata.sqlDatabaseExecutionError',
      N'Cú pháp SQL không hợp lệ trên cơ sở dữ liệu: {0}',
      N'SQL syntax error on database: {0}'),
 
     (N'lz.validation', N'sharedata.sqlIncrementalMissingTop',
-     N'Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc có mệnh đề phân trang TOP ({'@'}pageSize).',
-     N'Incremental queries must include a TOP ({'@'}pageSize) pagination clause.'),
+     N'Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc có mệnh đề phân trang TOP ({''@''}pageSize).',
+     N'Incremental queries must include a TOP ({''@''}pageSize) pagination clause.'),
 
     (N'lz.validation', N'sharedata.sqlIncrementalMissingOrderBy',
      N'Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc có mệnh đề ORDER BY ở cấp ngoài cùng.',
@@ -470,9 +490,9 @@ VALUES
      N'Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc có cột con trỏ thời gian [__lastTime].',
      N'Incremental queries must include the time cursor column [__lastTime].'),
 
-    (N'lz.validation', N'sharedata.sqlIncrementalMissingRowid',
-     N'Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc có cột con trỏ khóa [__rowid].',
-     N'Incremental queries must include the key cursor column [__rowid].'),
+    (N'lz.validation', N'sharedata.sqlIncrementalMissingLastKey',
+     N'Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc có cột con trỏ khóa [__lastKey].',
+     N'Incremental queries must include the key cursor column [__lastKey].'),
 
 
 
@@ -569,17 +589,29 @@ WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlScriptEmpty' AND Lang = 
 UPDATE dbo.SysTerminology SET Value = N'Invalid SQL syntax or contains no executable statements.', UpdateTime = GETDATE()
 WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlScriptInvalid' AND Lang = N'en-US' AND Value = N'SQL script is invalid or contains no executable statements.';
 
-UPDATE dbo.SysTerminology SET Value = N'Tham số [{'@'}{0}] không được hỗ trợ. Chỉ hỗ trợ: {'@'}lastTime, {'@'}lastKey, {'@'}pageSize, {'@'}fromDate, {'@'}toDate.', UpdateTime = GETDATE()
+UPDATE dbo.SysTerminology SET Value = N'Tham số [{''@''}{0}] không được hỗ trợ. Chỉ hỗ trợ: {''@''}lastTime, {''@''}lastKey, {''@''}pageSize, {''@''}fromDate, {''@''}toDate.', UpdateTime = GETDATE()
 WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlUnsupportedParameter' AND Lang = N'vi-VN' AND Value LIKE N'%Tham số [@{0}]%';
 
-UPDATE dbo.SysTerminology SET Value = N'Parameter [{'@'}{0}] is not supported. Supported parameters: {'@'}lastTime, {'@'}lastKey, {'@'}pageSize, {'@'}fromDate, {'@'}toDate.', UpdateTime = GETDATE()
+UPDATE dbo.SysTerminology SET Value = N'Parameter [{''@''}{0}] is not supported. Supported parameters: {''@''}lastTime, {''@''}lastKey, {''@''}pageSize, {''@''}fromDate, {''@''}toDate.', UpdateTime = GETDATE()
 WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlUnsupportedParameter' AND Lang = N'en-US' AND Value LIKE N'%Parameter [@{0}]%';
 
-UPDATE dbo.SysTerminology SET Value = N'Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc có mệnh đề phân trang TOP ({'@'}pageSize).', UpdateTime = GETDATE()
+UPDATE dbo.SysTerminology SET Value = N'Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc có mệnh đề phân trang TOP ({''@''}pageSize).', UpdateTime = GETDATE()
 WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalMissingTop' AND Lang = N'vi-VN' AND Value LIKE N'%TOP (@pageSize)%';
 
-UPDATE dbo.SysTerminology SET Value = N'Incremental queries must include a TOP ({'@'}pageSize) pagination clause.', UpdateTime = GETDATE()
+UPDATE dbo.SysTerminology SET Value = N'Incremental queries must include a TOP ({''@''}pageSize) pagination clause.', UpdateTime = GETDATE()
 WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalMissingTop' AND Lang = N'en-US' AND Value LIKE N'%TOP (@pageSize)%';
+
+UPDATE dbo.SysTerminology
+SET Code = N'sharedata.sqlIncrementalMissingLastKey',
+    Value = N'Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc có cột con trỏ khóa [__lastKey].',
+    UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalMissingRowid' AND Lang = N'vi-VN';
+
+UPDATE dbo.SysTerminology
+SET Code = N'sharedata.sqlIncrementalMissingLastKey',
+    Value = N'Incremental queries must include the key cursor column [__lastKey].',
+    UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalMissingRowid' AND Lang = N'en-US';
 
 -- 3.1. Xử lý bản dịch Tiếng Việt (vi-VN)
 MERGE INTO dbo.SysTerminology AS target

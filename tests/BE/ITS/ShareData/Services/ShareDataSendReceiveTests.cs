@@ -452,7 +452,7 @@ namespace Tests.ShareData.Services
             };
             await _db.Insertable(new[] { weather1, weather2, weather3 }).ExecuteCommandAsync();
 
-            // 3. Seed bên gửi và nhận (SyncMode = Incremental, CursorTimeColumn = "UpdateTime")
+            // 3. Seed bên gửi và nhận (CursorTimeColumn = "UpdateTime")
             var (partner, packet, sub) = await SeedPartnerAndPacketPipelineAsync(
                 partnerCode: partnerCode,
                 packetCode: packetCode,
@@ -978,9 +978,8 @@ namespace Tests.ShareData.Services
             };
             await _db.Insertable(partner).ExecuteCommandAsync();
 
-            // Packet dùng ExtractSql & SyncMode đọc thật từ script seed 02
+            // Packet dùng ExtractSql đọc thật từ script seed 02
             var extractSql = SeedScriptReader.GetExtractSql(packetExtractCode);
-            var syncMode = SeedScriptReader.GetSyncMode(packetExtractCode);
 
             var packet = new ShareDataPacket
             {
@@ -991,8 +990,7 @@ namespace Tests.ShareData.Services
                 OrderNo = 1,
                 Status = BaseEnums.StatusEnum.Enable,
                 ExtractSql = extractSql,
-                SyncMode = (BaseEnums.SyncMode)syncMode,
-                CursorTimeColumn = syncMode == 2 ? "UpdateTime" : null
+                CursorTimeColumn = SqlValidator.IsIncrementalSql(extractSql) ? "UpdateTime" : null
             };
             await _db.Insertable(packet).ExecuteCommandAsync();
 

@@ -19,6 +19,8 @@
 > thái. Xem quy tắc **19.24**.
 >
 > 📌 **Ghi nhận triển khai quyết định bổ sung ngày 14/10/2026 & 16/10/2026 (cập nhật 17/10/2026)** — (1) **Kiến trúc Truy vấn Động Một Tầng & Template Mặc Định (R9 & R10):** Hoàn thành thống nhất SQL trích xuất động trực tiếp tại cột `ExtractSql` của `ShareDataPacket` (mỗi gói tin 1 SQL duy nhất, không còn khái niệm SQL riêng theo đối tác `ShareDataMapping.ExtractSql` hay cơ chế fallback đa tầng), khi tạo mới gói có mã chuẩn (101..110) hệ thống tự động điền câu SQL mẫu chuẩn kèm tham số đồng bộ (`SyncMode`, `CursorTimeColumn`, `MaxLookBackDays`); endpoint `GetExtractSql` (hỗ trợ `forceDefaultTemplate=true` và nút 'Mẫu mặc định' trên UI khôi phục câu SQL mẫu chuẩn không ghi đè CSDL), `UpdateExtractSql`, `ParseExtractColumns`, `ExecuteExtractSqlSample`; tích hợp bộ thẩm định an toàn cú pháp `SqlValidator` (chỉ cho phép SELECT, kiểm soát nghiêm ngặt tham số `@lastTime`, `@lastKey`, `@pageSize`, `@fromDate`, `@toDate`, cấm DDL/DML), chốt chặn SuperAdmin và ghi Audit Log đồng bộ trong transaction; worker guard từ chối chạy SQL không an toàn; kịch bản DDL/Seed [`sharedata-seed-goi-tin.sql`](../sql/sharedata-seed-goi-tin.sql). (2) **Bãi bỏ trần cứng gói Snapshot (Snapshot Full):** Xóa bỏ hoàn toàn hằng số `DefaultSnapshotTop = 100` trong `DataOutboundExtractionProcess`, toàn bộ gói snapshot (101, 102, 105, 108) gửi full dữ liệu hiện trạng đúng yêu cầu nghiệp vụ. (3) **Tầng Điều Phối Kết Nối Độc Lập theo mẫu VMS (R11 & DataOutboundTransport):** Chuẩn hóa luồng gửi thành 3 chặng rõ rệt: Chặng 1 Trích xuất (`DataOutboundExtractionProcess`) -> Chặng 2 Ánh xạ (`DataMappingProcess`) -> Chặng 3 Chuyển giao gói tin (`DataOutboundTransport` ở Worker, định dạng payload, lưu bằng chứng vô điều kiện, chuyển giao qua `DeliveryDispatcher` tới các `*DeliverySender` ở tầng kết nối dùng chung `Modules.Integration.Delivery`). Quản lý cấu hình qua `Dictionary<string, string>` (`ConnectionConfig` JSON) và `ConnectionType` trong `ShareDataPartner`, sửa projection `ExportSubscription`; dispatcher `DeliveryDispatcher` điều phối tới `HttpDeliverySender` (hỗ trợ `BypassSsl`, bóc tách lỗi chi tiết tiếng Việt `FormatDetailedHttpException`), `FileDeliverySender`, `FtpDeliverySender` và `KafkaDeliverySender` (chặn báo thành công giả khi chưa có producer); cấu hình sai hoặc gửi thất bại không tiến mốc gửi (cursor). (4) **Frontend `queryBuilder.vue` (chuẩn Rule 20.14) & Cấu hình đối tác:** Chuyển đổi tên component sang camelCase `queryBuilder.vue`, hỗ trợ Dual-View (Trực quan & Raw SQL), tự động phát hiện câu query phức tạp để khóa tab Trực quan tránh ghi đè, nút "Mẫu mặc định" nạp lại Catalog; form `editPartner.vue` cấu hình Dictionary theo kênh; 100% nhãn/tooltip/thông báo chuẩn hóa i18n (`vi-vn.json` và `en-us.json`, Rule 20.15). (5) **Kiểm thử toàn trình & Zero Regression:** 23 bài test xUnit BE `ShareDataOutboundTransportTests.cs` (nay tách sang `DeliveryDispatcherTests.cs` + `.Http/.File/.Ftp/.Kafka.cs`) (kết nối REST với Dictionary, BypassSsl, lỗi tiếng Việt, stub Kafka, File export, fallback cấu hình cũ) pass 100%; 77 bài test Playwright FE `datasource.test.ts` (100% pass, 0 skip); tự động dọn dẹp sạch artifacts `tests/FE/test-results/`. (6) **Đối xứng gửi – nhận ShareData (R17):** Tách tầng kết nối độc lập dùng chung tại `Modules.Integration.Delivery` (thuần BCL); định dạng hai chiều qua `PayloadFormatRegistry` (`JsonFormat`, `CsvFormat`, `KafkaJsonFormat` kèm 4 header); bộ mã hóa AES-256-GCM (EncryptManager) viết sẵn, chưa nối vào luồng gửi/nhận; FE `connectionConfigEditor.vue` bổ sung gợi ý nhóm Chiều nhận (`InboundEncryptor`, `DecryptionKeyRef`) và che bí mật; 7/7 test roundtrip `ShareDataSendReceiveTests` pass 100%, bộ test BE đo thật 567 pass / 3 skip / 1 fail (chạy lẻ pass 100%), 77/77 FE Playwright test pass (xem khối kiểm chứng mới). Đã bỏ `SenderProcessedAt` chiều nhận (16/10/2026) vì ngoài phạm vi transcript; phía gửi vẫn gắn header `ProcessedAt`. (7) **Lưu bằng chứng đúng định dạng gửi đi (R18, luôn lưu bằng chứng):** Chuẩn bị payload 1 lần (Format `Json`/`Csv`) trước khi lưu và gửi; lưu đúng byte thực gửi vào `{NasStorage:BasePath}/Out/{Partner}/{yyyy}/{MM}/{dd}/{Datatype}/{file}`, ghi đường dẫn vào log cha; ngày 16/10/2026 đã bỏ cờ `ArchiveEnabled` (luôn lưu bằng chứng đối soát trước khi gửi để đảm bảo tính toàn vẹn, lỗi lưu thì hủy gửi và giữ mốc); xóa bỏ `ShouldWriteFile`; key `NasStorage:EnableFileExport` vẫn còn trong Worker `appsettings.json` nhưng không còn nơi nào trong mã nguồn đọc giá trị này; kênh File hỗ trợ `DirectoryPath` và `FileNamePattern` ({packet}, {partner}, {timestamp}, {serial}), chặn path traversal; Preview SQL đọc DataReader trực tiếp không bọc derived table (hỗ trợ ORDER BY không TOP, cột trùng tên); bộ test xUnit BE 567 pass / 3 skip / 1 fail (chạy lẻ pass 100%), Playwright FE 77/77 pass 100%. (8) **Dọn dẹp mã hóa/giải mã payload (16/10/2026):** Chuẩn hóa thuật ngữ Codec -> Encrypt (`AesGcmEncrypt` hoặc giữ nguyên), gom Encrypt/Decrypt về `EncryptManager` ở tầng kết nối, dùng ngoại lệ `CryptographicException` và hằng số `EncryptNames`, bộ mã hóa AES-256-GCM (`EncryptManager`) viết sẵn ở tầng kết nối, chưa nối vào luồng gửi/nhận (quyết định 16/10/2026); đổi tên `EncryptorResolver` → `EncryptManager` (phương thức `GetEncrypt`), di chuyển thư mục/namespace `Codecs` → `Encrypt`; bộ test `EncryptManagerTests` pass 100%. (9) **Tách chặng gửi `DataOutboundTransport` (R19, 16/10/2026):** Tách riêng Chặng 3 (chuyển giao gói tin) thành lớp `DataOutboundTransport` ở Worker; gộp logic `ConnectRequestBuilder`, lưu bằng chứng vô điều kiện, chuyển giao qua `DeliveryDispatcher`; rút gọn `ExportPage` thành dàn ý ngắn gọn (~75 dòng). (10) **Thống nhất 1 SQL mỗi gói tin & Template Mặc định (16/10/2026):** Bỏ khái niệm SQL riêng đối tác, tạo lớp `PacketDefaultTemplate`, tự động điền SQL mẫu khi tạo gói 101–110, nút "Mẫu mặc định" trên giao diện khôi phục câu SQL mẫu chuẩn không ghi đè CSDL; bộ test `ShareDataPacketControllerTests` (9/9 pass 100%). (11) **Cấu hình & Tinh gọn Service ShareData (18/10/2026):** Record cấu hình `DataWorkerConfig` (18 thuộc tính, defaults từ `ShareDataConst`) và tiêm trực tiếp `DataWorkerConfigService`, quản lý cấu hình tập trung qua `SysOpConfig` nhóm `sharedata_config`. Đổi tên `PacketMetadataResolver` → `PacketHelper` (`PacketHelper.cs`), các hàm `TryGetPacketNumber`, `GetPacketPolicy`, `TryGetDatatypeEnum`. Bộ dựng truy vấn `queryBuilder.vue`: xóa hằng `PACKET_ALLOWED_TABLES` viết cứng; danh sách bảng lấy động 100% từ API CSDL (`ShareDataSourceTable`), tự động sắp xếp ưu tiên các bảng có `PacketCodes` gắn với mã gói đang mở lên đầu tiên, các bảng khác vẫn hiển thị đầy đủ và không bị ẩn. Trước đó: 13/10/2026 — (1) **Chuẩn hoá `ShareDataAlertCode` (G.1) & `ShareDataEnum` (G.2):** Đã xoá 7 mã lỗi chết không có điểm gọi trong `ShareDataAlertCode.cs`, đánh lại số thứ tự liên tục cho **19 mã chuẩn** (9 Outbound: `ESH-1201..1204`, `1301..1304`, `1401`; 6 Inbound: `ESH-1501..1506`; 4 Tracking: `ESH-1601..1604`), đồng bộ script seed SQL (script đã chạy, file đã xóa; mã ESH-1402, ESH-1403 cùng đầy đủ 25 mã ESH được chuẩn hóa tại [`sharedata-seed-cau-hinh.sql`](../sql/sharedata-seed-cau-hinh.sql)) và test `ShareDataAlertCodeTests.cs`; đồng thời dọn sạch **29 lớp enum/hằng số chết** và 30 mã test packet (`TestPacket970..999`) trong `ShareDataEnum.cs` (rút gọn từ ~700 dòng xuống **116 dòng**), 297/297 bài test xUnit ShareData pass 100%. (2) Chốt bỏ `BE-16` (không thêm cờ `IsInUse` ở BE; kiểm tra theo dòng FE đã đủ). (3) **Dọn dẹp mã mồ côi:** Đã xoá 7 file Outbox API & Model mồ côi phía FE (`share-data-outbox-api.ts` + 6 models) do BE không có controller tương ứng và không view nào dùng. (4) **Fix F3 (Gói Single gửi fail không bị Expired):** Đã sửa `DataOutboundService.cs` (`ReleaseLock` chỉ chuyển `Expired` và xóa `NextTimeRun` khi `isSingle && isCompleted`; khi gửi lỗi `!isCompleted`, giữ `Active` và tính `NextTimeRun` để worker retry ở chu kỳ sau). Đã có test xUnit `ProcessSubscriptions_WhenSingleModeHttpFails500_ShouldNotBecomeExpired_Test` pass 100%. (5) **Chuẩn hoá SV-14 (Hàm tổng hợp SUM/AVG):** Đối chiếu code thực tế xác nhận chưa có hàm tổng hợp và test `DataMappingAggregateTests`, cập nhật trạng thái về `[ ] Chưa làm` để lên kế hoạch thi công. Trước đó: 05/10/2026 — ghi nhận chủ dự án đã chạy xong toàn bộ script CSDL (cột `ReceiveLogId` trên CSDL Inbound và đồng bộ thuật ngữ "hồ sơ ánh xạ" trên `SysTerminology`), gỡ bỏ hoàn toàn các cảnh báo phụ thuộc CSDL khỏi Master Plan. Trước đó: 04/10/2026 — chuẩn hoá thiết kế log cha–con theo Option C (SV-8a, SV-8b, BE-5), loại bỏ CancellationToken không dùng ở logger, cố định `stepMapAndStore = 2` cho chiều nhận, nhánh `NoNewData` giữ 1 dòng phẳng tối ưu dung lượng nhật ký; dọn sạch các cảnh báo IDE0060 và IDE0047 tại `DataOutboundService.cs`. Trước đó: 02/10/2026 — đợt log cha–con chiều gửi (BE-5 + SV-8a) và nâng mốc dọn nhật ký hạ tầng lên 14 ngày (SV-13).
+>
+> 📌 **Cập nhật 22/10/2026:** SQL chuẩn ở `ShareDataPacket.ExtractSql`; SQL riêng theo đối tác ở `ShareDataMapping.ExtractSql` (trống = dùng SQL chuẩn) kèm `BaseExtractSql` để phát hiện lỗi thời; đối chiếu bằng hộp so sánh 2 cột (`sqlDiffDialog.vue`) (thay cho "mỗi gói tin 1 SQL duy nhất, không còn khái niệm SQL riêng theo đối tác" ở trên); chế độ Toàn bộ / Nối đuôi suy từ câu SQL (`@lastTime` / `@lastKey`, `SqlValidator.IsIncrementalSql`), chỉ dùng nội bộ Worker/BE, giao diện không hiển thị; thuộc tính `SyncMode` đã xóa khỏi entity, cột cũ trên DB để nguyên; cột khóa con trỏ đổi `__rowid` → `__lastKey`.
 > Trước đó: 28/09/2026 — đợt siết lưới kiểm thử & tinh gọn worker giám sát (3 đợt sửa mã + 1 đợt
 > đồng bộ tài liệu), và lượt rà 33 code change của nhánh `feat/20260922-sharedata-service` đối chiếu trực tiếp
 > với 4 biên bản họp trong `doc/transcript/` (21/09 ánh xạ + gửi nối đuôi · 19/09 HTTP header · 16/09 refactor
@@ -65,6 +67,7 @@
 - [PHẦN V — BẢO ĐẢM AN TOÀN & KIỂM THỬ (TESTING)](#phần-v--bảo-đảm-an-toàn--kiểm-thử-testing)
 - [PHẦN VI — Checklist cuộc họp 12/10/2026 (`R1` · `R2` · `R5` · `R7`)](#phần-vi--checklist-các-hạng-mục-từ-cuộc-họp-12102026-r1--r2--r5--r7)
 - [PHẦN VII — Cuộc họp 14/10/2026: Truy vấn động, nối đuôi & tầng kết nối (`R8` → `R18`, `DQ-*`)](#phần-vii--các-hạng-mục-từ-cuộc-họp-14102026-truy-vấn-động-nối-đuôi--tầng-kết-nối-r8--r18)
+- [PHẦN VIII — Cuộc họp 22/10/2026: Gói tin Mẫu vs Custom Query, Diff/Compare, Form Kết nối 2 Tab, Scale Ánh xạ, Lỗi Sự cố & Rút gọn Chuỗi Lỗi (`R19` → `R25`, `MD-*`)](#phần-viii--các-hạng-mục-từ-cuộc-họp-22102026-quản-lý-gói-tin-mẫu-vs-tùy-biến-đối-tác-cơ-chế-diffcompare-tái-cấu-trúc-form-kết-nối-3-tab-scale-giao-diện-ánh-xạ-dữ-liệu-sự-cố--rút-gọn-chuỗi-lỗi-gói-tin-r19--r25-md-)
 
 ---
 
@@ -262,7 +265,7 @@ else
   - `DefaultPageSize = 100`: Số bản ghi tối đa mỗi trang (chuẩn hóa nâng lên 100 ngày 25/09/2026).
   - `DefaultMaxPagesPerRun = 20`: Số trang tối đa gửi trong 1 lượt chạy lock (tối đa 2.000 bản ghi/lần chạy).
   - `DefaultLockBudgetPercent = 50`: Tối đa 50% thời lượng lock dành cho vòng lặp trang.
-- **Rào chắn cursor null (Monotonic Guard):** Nếu dữ liệu thô không rỗng nhưng trích xuất ra cursor null (không xác định được `__lastTime` hoặc `__rowid`), vòng lặp ngắt ngay lập tức (`break`), bảo toàn `currentLastKey` hiện tại, không lặp lại 20 lần gây gửi trùng dữ liệu.
+- **Rào chắn cursor null (Monotonic Guard):** Nếu dữ liệu thô không rỗng nhưng trích xuất ra cursor null (không xác định được `__lastTime` hoặc `__lastKey`), vòng lặp ngắt ngay lập tức (`break`), bảo toàn `currentLastKey` hiện tại, không lặp lại 20 lần gây gửi trùng dữ liệu.
 - 📌 **Hai tầng dùng 2 bí danh khác nhau cho cùng khái niệm mốc thời gian** (đo 27/09/2026): tầng Worker (`DataOutboundExtractionProcess`, 5 gói nối đuôi 103/104/106/107/109) dùng `AS __lastTime` và đọc lại đúng bằng `dict.TryGetValue("__lastTime")`; tầng Module (`ShareDataPacketSqlCatalogUtil`, 5 chỗ) vẫn dùng `AS __watermark`. Hiện **vô hại** vì catalog tầng Module chỉ phục vụ gói bản chụp — vốn không dùng cursor. ⚠️ Nhưng là cái bẫy: nếu sau này cho một gói **nối đuôi** lấy SQL từ catalog tầng Module, Worker sẽ không đọc được cursor (`__lastTime` không tồn tại) → cursor null → Monotonic Guard ngắt vòng lặp, dữ liệu chỉ còn chảy qua luồng quét định kỳ. ⛔ **Chủ dự án chốt 27/09/2026: KHÔNG thống nhất bí danh lúc này** — đây không phải việc còn mở, chỉ là điều kiện tiên quyết phải xử **trước** khi cho một gói nối đuôi lấy SQL từ catalog tầng Module.
 
 #### 4. Gói 106 (WIM) — Chuẩn hoá 7 trường trích xuất & phễu lọc nguồn allow-list
@@ -894,7 +897,7 @@ Giao diện cũng gọi màn đó là *"Ánh xạ dữ liệu"* ⇒ **chốt "h�
                                     ▼
 ┌─ B · BƯỚC 1: TRÍCH XUẤT (Extraction) ────────────────────────────────┐
 │  DataOutboundExtractionProcess tra query handler theo PacketCode      │
-│  Chạy SQL với cursor kép (__lastTime, __rowid) & trần trang (100)     │
+│  Chạy SQL với cursor kép (__lastTime, __lastKey) & trần trang (100)   │
 │  Lọc IsDelete IS NULL trên tất cả các nhánh                          │
 │  Dữ liệu rỗng → dừng êm, không gửi                                    │
 └───────────────────────────────────┬───────────────────────────────────┘
@@ -947,7 +950,7 @@ Toàn bộ cấu hình ánh xạ trường thuộc quyền điều khiển của
   - `ESH-1301`: Không tìm thấy cấu hình gói tin.
   - `ESH-1302`: Lỗi câu truy vấn trích xuất CSDL.
   - `ESH-1303`: Không tìm thấy cấu hình hồ sơ ánh xạ (`ShareDataMapping`).
-  - `ESH-1304`: Khoá bản ghi cuối trang (`__rowid`) vượt quá giới hạn cột `LastKey`.
+  - `ESH-1304`: Khoá bản ghi cuối trang (`__lastKey`) vượt quá giới hạn cột `LastKey`.
   - `ESH-1401`: Gửi HTTP REST tới đối tác thất bại.
 
 ---
@@ -1110,7 +1113,7 @@ bao giờ ghi lại.
 | :---: | :--- | :---: | :---: | :--- |
 | **R8** | **Bộ API Metadata Bảng & Trường dữ liệu (PacketSqlService)** | BE / FE | **Đã làm** | WebAPI cung cấp các endpoint `GET /api/sharedata/sharedatapacket/getmetadatatables` và `GET /api/sharedata/sharedatapacket/getmetadatafields?tableName=...` (hai action `GetMetadataTables` và `GetMetadataFields` nằm trong `ShareDataPacketController`, xử lý bởi `PacketExtractSqlQueryHandler`; danh mục bảng nguồn cho phép trích xuất lấy từ các dòng `ShareDataSourceTable` có `IsQueryable = 1`, `PacketSqlService.GetAllowedTables`, seed 15 bảng; danh mục cột đọc cột thật từ CSDL qua `GetColumnInfosByTableName`, mô tả lấy từ mô tả cột trên CSDL; không còn từ điển ghi cứng). Chốt chặn SuperAdmin và chống SQL injection. Phía Frontend tích hợp vào `queryBuilder.vue`: dropdown bảng nạp động từ CSDL, panel chọn cột trực quan kèm ô tìm kiếm, type badge, tag PK, nút "Chọn tất cả" / "Bỏ chọn tất cả", đồng bộ 100% đa ngôn ngữ i18n (`vi-vn.json` và `en-us.json`), tuân thủ chuẩn Clean Code (không `!important`, không `!!`). Phủ qua bộ test xUnit `ShareDataPacketControllerTests.Metadata.cs` và Playwright E2E Test 20 trong `datasource.test.ts`. Chi tiết: `DQ-BE-1`. |
 | **R9** | **Quản lý SQL trích xuất động một tầng theo gói tin kèm Template Query mẫu mặc định & Tinh gọn bảng CSDL** | BE / DB | **Đã làm** | Tinh gọn bảng CSDL (xóa bảng thừa cũ `ShareDataTable` và tích hợp trực tiếp SQL trích xuất vào `ShareDataPacket`, không phát sinh bảng riêng); mỗi gói tin có DUY NHẤT 1 câu SQL trích xuất lưu tại `ShareDataPacket.ExtractSql` (không còn khái niệm SQL riêng theo đối tác `ShareDataMapping.ExtractSql` hay fallback đa tầng); khi tạo gói mã chuẩn (101..110) tự động điền SQL mẫu; nút "Mẫu mặc định" trên UI gọi `GetExtractSql` với `forceDefaultTemplate=true` khôi phục template chuẩn vào ô soạn thảo mà không tự lưu CSDL; tích hợp bộ kiểm tra an toàn SQL `SqlValidator` (chỉ cho phép SELECT, kiểm soát nghiêm ngặt tham số `@lastTime`, `@lastKey`, `@pageSize`, `@fromDate`, `@toDate`, cấm DDL/DML), chốt chặn SuperAdmin và ghi Audit Log đồng bộ trong transaction; worker guard từ chối chạy SQL không an toàn; kịch bản Seed [`sharedata-seed-goi-tin.sql`](../sql/sharedata-seed-goi-tin.sql). Phủ qua 42 bài test xUnit `ShareDataPacketControllerTests.ExtractSql.cs` và 9 bài test `ShareDataPacketControllerTests.cs` (pass 100%). Chi tiết: `DQ-DB-1`, `DQ-BE-2`, `DQ-BE-3`, `DQ-SV-1`. |
-| **R10** | **Setting Snapshot/Incremental và cursor từ UI tới Worker** | FE / BE / Service | **Đã làm** | Gói **105 mặc định Snapshot** theo mapping `All/update`, đã chốt. UI cho chọn Snapshot/Incremental, trường mốc `CursorTimeColumn` và `MaxLookBackDays` (1–365 ngày); API lưu trên `ShareDataPacket`; Worker và UI lấy chế độ theo dữ liệu đã lưu (`SyncMode` và `status`), bỏ hoàn toàn catalog theo mã gói. Bộ test Playwright pass 100% (77/77 tests, 0 skip). Chi tiết: `DQ-BE-6`, `DQ-SV-1`, `DQ-FE-3`. |
+| **R10** | **Setting Snapshot/Incremental và cursor từ UI tới Worker** | FE / BE / Service | **Đã làm** | Gói **105 mặc định Snapshot** theo mapping `All/update`, đã chốt. UI cho chọn Snapshot/Incremental, trường mốc `CursorTimeColumn` và `MaxLookBackDays` (1–365 ngày); API lưu trên `ShareDataPacket`; Worker và UI lấy chế độ theo dữ liệu đã lưu (`SyncMode` và `status`), bỏ hoàn toàn catalog theo mã gói. Bộ test Playwright pass 100% (77/77 tests, 0 skip). Chi tiết: `DQ-BE-6`, `DQ-SV-1`, `DQ-FE-3`. *Cập nhật 22/10/2026: chế độ Toàn bộ / Nối đuôi suy từ câu SQL (`@lastTime` / `@lastKey`, `SqlValidator.IsIncrementalSql`), chỉ dùng nội bộ Worker/BE, giao diện không hiển thị; thuộc tính `SyncMode` đã xóa khỏi entity, cột cũ trên DB để nguyên; UI không còn ô chọn Snapshot/Incremental.* |
 | **R11** | **Tầng điều phối kết nối linh hoạt qua `Dictionary<string, string>` (Mẫu `IntgVmsManager.cs`)** | Service / BE / FE | **Đã làm** | Rút gọn tên Connection* → Connect* (kiểu, thành viên, namespace, thư mục). Hoàn tất đổi tên Connection→Connect (thuộc tính/biến), gom chuỗi cứng DefaultBasePath/BasePathConfigKey/ConnectKeys, bỏ Validate/FormatErrorMessage, đổi tên Cleanup (16/10/2026). Địa chỉ và cổng chỉ lấy từ cột `Address`, `Port`, `EndPointApiUrl` của `ShareDataPartner` (đúng mẫu VMS); `ConnectionConfig` (JSON Dictionary) chỉ giữ key riêng theo kênh, khai báo tập trung tại `ConnectKeys` và đọc qua `ConnectConfigReader`; loại kênh kết nối gom về `ConnectTypes` (16/10/2026); `PartnerValidator` chặn key thuộc cột, key trùng, key rỗng; cấu hình không hợp lệ trả lỗi và không tiến mốc gửi. FE `connectionConfigEditor.vue` là danh sách Key/Value động, có nút "Thêm key gợi ý" theo kênh và che giá trị bí mật; mỗi lần mở form nạp lại cấu hình riêng của đúng đối tác. Chi tiết: `DQ-SV-3`, `DQ-SV-4`, `DQ-FE-4`. |
 | **R12** | **Kịch bản Seed dữ liệu giả lập (`.sql`) cho các gói thiếu dữ liệu thật (104, 106, 110) & Test E2E Worker** | DB / Test | **Đã làm** | Cung cấp file script [`sharedata-seed-goi-tin.sql`](../sql/sharedata-seed-goi-tin.sql) (bổ sung `USE [DEV_ITS10];`, seed template 101-110) và mock data [`sharedata-du-lieu-gia-lap_local.sql`](../sql/sharedata-du-lieu-gia-lap_local.sql) (104 Thời tiết, 106 Tải trọng WIM, 110 Sự cố ATGT; đổi tên hậu tố `_local.sql` để bảo vệ Staging/Production); bổ sung bài test xUnit E2E toàn trình `OutboundE2E_DynamicQuery_ExtractMapAndDispatchViaRest_WithCleanParentChildLogs_Test` thông luồng: Dynamic SQL -> Transform JSON -> REST Dispatcher -> Parent-Child Activity Log sạch không nối lặp Description -> Tịnh tiến cursor đơn điệu. Chi tiết: `DQ-DB-3`, `DQ-DB-4`. |
 | **R13** | **Gói 110 cấu hình bình thường và nguồn mô phỏng riêng** | DB / BE / FE / Service | **Đã làm** | Người dùng đã chốt phương án A (16/10/2026): Dùng bảng có sẵn (`TmsIncident`, `TmsEquipment`, `VmsCurrent`, `TmsWeather`), không thêm entity mới. Cập nhật SQL template gói 110 với `messageId = CAST(i.ID AS NVARCHAR(64))`, `channel`/`deliveryState` = `NULL`, `weatherMessage` lấy từ `TmsWeather`; bật gói 110 với `Status = 1`; bổ sung bài test E2E `OutboundE2E_Packet110_SnapshotFromExistingTables_DispatchViaRest_Test` pass 100%. Chi tiết: `DQ-DB-6`, `DQ-SV-10`. |
@@ -1197,7 +1200,7 @@ flowchart TD
 
 Theo đặc tả [`02-mapping-goi-tin-101-111.md`](../doc/02-mapping-goi-tin-101-111.md):
 
-| Mã gói | Tên gói tin nghiệp vụ | Chế độ đồng bộ (`SyncMode`) | Bảng nguồn CSDL chính | Trường mốc nối đuôi (`@LastKey`) | Trạng thái dữ liệu thật |
+| Mã gói | Tên gói tin nghiệp vụ | Chế độ đồng bộ (suy từ SQL) | Bảng nguồn CSDL chính | Trường mốc nối đuôi (`@LastKey`) | Trạng thái dữ liệu thật |
 |:---:|:---|:---:|:---|:---|:---:|
 | **101** | Thông tin chung / Luồng giao thông | **Snapshot (Full)** | `TmsZoneStatus`, `TmsZone`, `TmsTrafficStatistic` | Không dùng (lấy full hiện trạng) | Có sẵn |
 | **102** | Dữ liệu hình ảnh giao thông (CCTV) | **Snapshot (Full)** | `CctvDevice`, `TmsEquipment` | Không dùng (lấy full hiện trạng) | Có sẵn |
@@ -1211,14 +1214,16 @@ Theo đặc tả [`02-mapping-goi-tin-101-111.md`](../doc/02-mapping-goi-tin-101
 | **111** | Trao đổi với TT QLĐHGT tuyến | **Incremental (Nối đuôi)** | `TmsSignalLog`, có câu SQL mẫu (20/10/2026) | `LogTime` | Tạm hoãn (`Status = 0`, skip) |
 
 > 📌 **Cập nhật 16/10/2026:** Chế độ gửi (Snapshot / Incremental) và trạng thái gói lấy hoàn toàn từ CSDL (`SyncMode` và `Status`), xóa bỏ hoàn toàn các catalog cứng theo mã gói trong code. Gói tắt (`Status = 0`, ví dụ gói 111; còn gói 110 đã bật `Status = 1`) được Worker bỏ qua lặng lẽ (chỉ log Information, không ghi `ShareDataAlertLog`).
+>
+> 📌 **Cập nhật 22/10/2026:** Chế độ gửi không còn lưu trong CSDL: chế độ Toàn bộ / Nối đuôi suy từ câu SQL (`@lastTime` / `@lastKey`, `SqlValidator.IsIncrementalSql`), chỉ dùng nội bộ Worker/BE, giao diện không hiển thị; thuộc tính `SyncMode` đã xóa khỏi entity, cột cũ trên DB để nguyên. Trạng thái gói vẫn theo `Status`.
 
 ## VII.5 · Kế hoạch triển khai chi tiết (WBS)
 
 ### Giai đoạn 1: Cấu trúc dữ liệu CSDL & quản lý SQL mẫu
 
 - [x] **DQ-DB-1: Tinh gọn CSDL — SQL một tầng trực tiếp ở `ShareDataPacket`:** **Đã làm**
-  - **Tích hợp trực tiếp SQL trích xuất vào bảng gói tin:** không tạo bảng trung gian riêng; thống nhất lưu trữ trực tiếp `TemplateSql`, `ExtractSql`, `SyncMode`, `CursorTimeColumn`, `MaxLookBackDays` trên `ShareDataPacket` (mỗi gói tin có DUY NHẤT 1 câu SQL trích xuất, loại bỏ hoàn toàn khái niệm SQL riêng đối tác trên `ShareDataMapping` hay fallback đa tầng); cấu trúc bảng do CodeFirst đảm nhiệm theo Rule 19.85.
-  - **Lưu trữ & Tự nạp:** Cột `ExtractSql` (`nvarchar(max)`) của `ShareDataPacket`, kèm `SyncMode` (1 = Snapshot, 2 = Incremental), `CursorTimeColumn` (`nvarchar(128)`), `MaxLookBackDays` (`int`, 1–365). Lớp `PacketDefaultTemplate` tự động điền câu SQL mẫu chuẩn khi tạo gói có mã chuẩn (101..110) và hỗ trợ nút "Mẫu mặc định" trên giao diện.
+  - **Tích hợp trực tiếp SQL trích xuất vào bảng gói tin:** không tạo bảng trung gian riêng; lưu trực tiếp `TemplateSql`, `ExtractSql`, `CursorTimeColumn`, `MaxLookBackDays` trên `ShareDataPacket` (SQL chuẩn của gói); SQL riêng theo đối tác ở `ShareDataMapping.ExtractSql` (trống = dùng SQL chuẩn) kèm `BaseExtractSql` để phát hiện lỗi thời; cấu trúc bảng do CodeFirst đảm nhiệm theo Rule 19.85.
+  - **Lưu trữ & Tự nạp:** Cột `ExtractSql` (`nvarchar(max)`) của `ShareDataPacket` (chế độ gửi suy từ câu SQL, không lưu `SyncMode`), kèm `CursorTimeColumn` (`nvarchar(128)`), `MaxLookBackDays` (`int`, 1–365). Lớp `PacketDefaultTemplate` tự động điền câu SQL mẫu chuẩn khi tạo gói có mã chuẩn (101..110) và hỗ trợ nút "Mẫu mặc định" trên giao diện.
 - [x] **DQ-DB-2: Trường `ConnectionConfig` trong `ShareDataPartner`:** **Đã làm**
   - Cột `ConnectionConfig` (`nvarchar(max)`) lưu JSON của `Dictionary<string, string>`; địa chỉ/cổng chuyển sang các cột chuẩn (`Address`, `Port`, `EndPointApiUrl`).
 - [x] **DQ-DB-3: Kịch bản seed SQL mẫu cho 10 gói 101–110:** **Đã làm**
@@ -1227,7 +1232,7 @@ Theo đặc tả [`02-mapping-goi-tin-101-111.md`](../doc/02-mapping-goi-tin-101
   - [`sharedata-du-lieu-gia-lap_local.sql`](../sql/sharedata-du-lieu-gia-lap_local.sql): dữ liệu giả lập thời tiết, giao thông/tải trọng và sự kiện/VMS phục vụ kiểm thử (chỉ dùng cho môi trường Local/Test).
 - [x] **DQ-DB-5: Xác minh triển khai schema, template và dữ liệu kiểm thử:** **Đã làm**
   - Bộ kịch bản SQL chuẩn mực gồm 4 tệp gom theo vai trò (Rule [`database-mcp_thienan.md` §2](../../../../.agents/rules/database-mcp_thienan.md)), có [`sql/README.md`](../sql/README.md) hướng dẫn thứ tự chạy `1 → 4` và môi trường cho phép (các script di sản 00, 01, 06 đã hoàn tất và được dọn sạch theo Rule 19.85; DBA/Dev kiểm tra và thực thi trên DB DEV_ITS10 theo Rule 16):
-    1. [`sharedata-seed-goi-tin.sql`](../sql/sharedata-seed-goi-tin.sql) (seed câu SQL template chuẩn cho 11 gói tin 101–111, nạp 18 câu ghi chiều nhận `ShareDataPacketSql`, chuẩn hóa SyncMode mặc định khi null, bật gói 101–110, tắt gói 111 bằng Status = 0; có cờ `@GhiDeMauGoiTin = 0` không ghi đè dữ liệu đã sửa)
+    1. [`sharedata-seed-goi-tin.sql`](../sql/sharedata-seed-goi-tin.sql) (seed câu SQL template chuẩn cho 11 gói tin 101–111, nạp 18 câu ghi chiều nhận `ShareDataPacketSql`, chuyển khóa con trỏ `__rowid` → `__lastKey` trên dữ liệu đã lưu, bật gói 101–110, tắt gói 111 bằng Status = 0; có cờ `@GhiDeMauGoiTin = 0` không ghi đè dữ liệu đã sửa)
     2. [`sharedata-seed-cau-hinh.sql`](../sql/sharedata-seed-cau-hinh.sql) (khởi tạo `SysConfigType` `sharedata_error_code`, nạp đủ 25 mã lỗi ESH-xxxx theo ESHARE §9 (gồm ESH-1403), seed 15 bảng nguồn vào `ShareDataSourceTable` (có hai công tắc `IsTracked` và `IsQueryable`, `DefaultAlias` — đã loại bỏ `Category`), và 48 tham số vận hành vào `SysOpConfig` nhóm `sharedata_config`, idempotent)
     3. [`sharedata-dich-thuat.sql`](../sql/sharedata-dich-thuat.sql) (nạp 94 mã khóa dịch thuật vi-VN/en-US (188 bản ghi song ngữ) cho MaxLookBackDays, SQL trích xuất, SQL Validator, Metadata, ConnectConfig, SqlTableNotAllowed vào `SysTerminology` qua MERGE không ghi đè)
     4. [`sharedata-du-lieu-gia-lap_local.sql`](../sql/sharedata-du-lieu-gia-lap_local.sql) (dữ liệu giả lập kiểm thử thời tiết, tải trọng WIM, sự cố/VMS, tín hiệu và Khối 4 chuẩn bị kịch bản E0 E2E_INBOUND_TEST; tích hợp khối dọn dẹp)
@@ -1261,16 +1266,16 @@ Theo đặc tả [`02-mapping-goi-tin-101-111.md`](../doc/02-mapping-goi-tin-101
   - Ghi vết cập nhật qua `ActivityLoggerService` trong transaction. Test xác nhận tác vụ và người sửa.
   - Nghiệm thu đầy đủ định danh người sửa, SQL trước/sau và IP cần assertion riêng ở `DQ-TEST-1`; không suy ra mọi trường audit đã được kiểm thử chỉ từ test sửa SQL pass.
 - [x] **DQ-BE-6: Hợp đồng cấu hình chế độ đồng bộ, cursor và chiều dữ liệu:** **Đã làm**
-  - Đồng bộ giữa API, UI và Worker cho `SyncMode` (1 = Snapshot, 2 = Incremental), `CursorTimeColumn` và `MaxLookBackDays` trên `ShareDataPacket` (template chung) và `ShareDataMapping` (riêng đối tác, `Direction IN (0, 2)`).
+  - Đồng bộ giữa API, UI và Worker cho `CursorTimeColumn` và `MaxLookBackDays` trên `ShareDataPacket`; SQL riêng đối tác ở `ShareDataMapping.ExtractSql` (`Direction IN (0, 2)`). Chế độ gửi suy từ câu SQL sẽ chạy (`SqlValidator.IsIncrementalSql`), không lưu `SyncMode`.
   - Đã chốt: gói 105 mặc định Snapshot theo mapping `All/update`, chuyển được qua setting; gói 110 chạy nguồn có sẵn theo phương án A (R13). Đã xử lý xóa `MaxLookBackDays` về null (`RV-5`).
 
 ### Giai đoạn 3: Backend Worker — tầng kết nối độc lập & dispatcher
 
 - [x] **DQ-SV-1: Trích xuất SQL động một tầng và cursor theo cấu hình:** **Đã làm**
-  - Nạp câu lệnh trích xuất trực tiếp từ `ShareDataPacket.ExtractSql` (1 gói tin = 1 SQL duy nhất).
-  - Phân giải chế độ: lấy trực tiếp từ `packet.SyncMode` (hoặc `mapping.SyncMode` nếu có) → Snapshot khi cả hai `NULL` (không cần cursor). Gói `Status = Disable` bỏ qua lặng lẽ (chỉ log Information, không ghi `ShareDataAlertLog`). Đã xóa bỏ catalog mã gói tĩnh trong code.
+  - Nạp câu lệnh trích xuất: `ShareDataMapping.ExtractSql` của đối tác nếu khác rỗng, ngược lại `ShareDataPacket.ExtractSql` (`GetExportConfig`).
+  - Phân giải chế độ: suy từ câu SQL sẽ chạy — có `@lastTime`/`@lastKey` là nối đuôi, ngược lại gửi toàn bộ (`PacketHelper` gọi `SqlValidator.IsIncrementalSql`). Gói `Status = Disable` bỏ qua lặng lẽ (chỉ log Information, không ghi `ShareDataAlertLog`). Đã xóa bỏ catalog mã gói tĩnh trong code.
   - Snapshot 101/102/105/108 đã bỏ TOP cứng; Incremental lọc theo cursor và phân trang.
-  - Worker dùng các cột `SyncMode`, `CursorTimeColumn`, `MaxLookBackDays` từ bản ghi cấu hình (mapping hoặc packet) thay vì gán tĩnh.
+  - Worker dùng `CursorTimeColumn`, `MaxLookBackDays` từ bản ghi cấu hình thay vì gán tĩnh; chế độ suy từ câu SQL.
   - Bind an toàn `@LastKey`, `@lastTime`, `@pageSize`, `@fromDate`, `@toDate`.
   - Cập nhật checkpoint vào `ShareDataLastSend` sau khi gửi thành công.
   - Nguồn: [DataOutboundExtractionProcess.Extract](../../../../TA-ITS015-WEBAPI-V1.0/src/Services/ShareData/ShareDataWorker/Infrastructure/Services/DataOutbound/Extraction/DataOutboundExtractionProcess.cs), [DataOutboundService.ExportPage](../../../../TA-ITS015-WEBAPI-V1.0/src/Services/ShareData/ShareDataWorker/Infrastructure/Services/DataOutbound/DataOutboundService.cs).
@@ -1336,6 +1341,7 @@ Theo đặc tả [`02-mapping-goi-tin-101-111.md`](../doc/02-mapping-goi-tin-101
   - Chế độ đồng bộ và trạng thái gói hiển thị theo dữ liệu DB (`syncMode` và `status`), không còn catalog cứng theo mã gói.
   - Chọn chế độ đồng bộ `SyncMode` (1 = Snapshot, 2 = Incremental), trường mốc `CursorTimeColumn` và số ngày quét lùi `MaxLookBackDays` (1–365 ngày).
   - Sửa bug hiển thị mặc định `SyncMode` nối đuôi theo catalog policy (`RV-1`); hỗ trợ xóa `MaxLookBackDays` về rỗng (`RV-5`).
+  - Cập nhật 22/10/2026: bỏ ô chọn chế độ đồng bộ trên giao diện; chế độ Toàn bộ / Nối đuôi suy từ câu SQL (`@lastTime` / `@lastKey`, `SqlValidator.IsIncrementalSql`), chỉ dùng nội bộ Worker/BE, giao diện không hiển thị; thuộc tính `SyncMode` đã xóa khỏi entity, cột cũ trên DB để nguyên.
   - Gói 105 mặc định Snapshot; cấu hình được. Đồng bộ tới API và Worker.
 - [x] **DQ-FE-4: Cấu hình Dictionary Key/Value động theo mẫu VMS:** **Đã làm**
   - Component `connectionConfigForm.vue` và `editPartner.vue` cấu hình theo từng kênh kết nối, che giá trị bí mật (`Token`, `ApiKey`, `Password`, `SaslPassword`) có nút xem; phần đầu form ô "Endpoint API" chiếm cả hàng (chỉ hiện khi kênh API), ô "Loại kết nối" nằm cuối phần đầu form kèm dòng gợi ý "Địa chỉ đầy đủ" đồng bộ quy tắc ghép URL với `HttpDeliverySender.TryBuildEndpointUri`.
@@ -1395,10 +1401,10 @@ timeline
 | Ưu tiên | Hạng mục | Trạng thái | Vì sao chưa làm · Có chặn luồng không | Điều kiện hoàn tất |
 |:---:|:---|:---|:---|:---|
 | 1 | Cách ly cấu hình đối tác và giữ Dictionary (`DQ-FE-4`, `DQ-SV-4`) | Đã làm | Địa chỉ ở cột đối tác, `ConnectionConfig` dạng Key/Value động theo mẫu VMS, không mang token giữa các đối tác, không mất key mở rộng. | Lưu–mở lại giữ mọi key, reset đúng từng đối tác. |
-| 2 | Chế độ/cursor/parameter động (`DQ-BE-3`, `DQ-BE-6`, `DQ-SV-1`, `DQ-FE-3`) | Đã làm | `SyncMode`, `CursorTimeColumn`, `MaxLookBackDays` đồng bộ UI → API → Worker; bind an toàn `@LastKey`, `@lastTime`, `@pageSize`, `@fromDate`, `@toDate`. | UI → API → DB → Worker dùng cùng contract, cursor hợp lệ và tăng dần; query thiếu cursor bị từ chối trước gửi. |
+| 2 | Chế độ/cursor/parameter động (`DQ-BE-3`, `DQ-BE-6`, `DQ-SV-1`, `DQ-FE-3`) | Đã làm | `SyncMode`, `CursorTimeColumn`, `MaxLookBackDays` đồng bộ UI → API → Worker; bind an toàn `@LastKey`, `@lastTime`, `@pageSize`, `@fromDate`, `@toDate`. | UI → API → DB → Worker dùng cùng contract, cursor hợp lệ và tăng dần; query thiếu cursor bị từ chối trước gửi. *Cập nhật 22/10/2026: bỏ `SyncMode` khỏi UI/API/entity; chế độ suy từ câu SQL.* |
 | 3 | Lưu bằng chứng đúng payload (`DQ-SV-2`) | Đã làm | Bản lưu chỉ làm bằng chứng đối soát, luôn lưu (bỏ cờ `ArchiveEnabled` ngày 16/10/2026); chu kỳ sau trích xuất lại theo mốc `ShareDataLastSend`, không gửi lại từ bản lưu. | Bản lưu giống từng byte bản gửi; lỗi lưu thì không gửi và giữ mốc. |
 | 4 | Builder bảo toàn SQL (`DQ-FE-1`) | Đã làm | Hai chế độ SQL/Builder, bảo toàn `TOP`, alias, `>=`/`<=`, `BETWEEN`/`OR`, `ORDER BY`; khóa query phức tạp; có "Mẫu mặc định". | Test bảo toàn các dạng hỗ trợ; khóa dạng không biểu diễn được. |
-| 5 | Thống nhất 1 SQL mỗi gói tin và nạp template (`DQ-FE-2`) | Đã làm | 1 gói tin = 1 SQL duy nhất trên `dataSource/index.vue`, tự nạp template chuẩn khi tạo gói 101–110, nút Mẫu mặc định khôi phục template chuẩn. | Tạo gói mới có template mẫu; mỗi gói tin chỉ 1 câu SQL duy nhất. |
+| 5 | Thống nhất 1 SQL mỗi gói tin và nạp template (`DQ-FE-2`) | Đã làm | 1 gói tin = 1 SQL duy nhất trên `dataSource/index.vue`, tự nạp template chuẩn khi tạo gói 101–110, nút Mẫu mặc định khôi phục template chuẩn. | Tạo gói mới có template mẫu; mỗi gói tin chỉ 1 câu SQL duy nhất. *Cập nhật 22/10/2026: thêm SQL riêng theo đối tác (`ShareDataMapping.ExtractSql`, tab con theo đối tác trong Cấu hình SQL); SQL chuẩn vẫn là 1 câu/gói.* |
 | 6 | File path đúng ngữ nghĩa và triển khai script (`DQ-SV-5`, `DQ-DB-5`) | Chưa làm | `DQ-SV-5` đã làm; `DQ-DB-5` bộ script gom, chạy lại được, thứ tự trong [`sql/README.md`](../sql/README.md), chưa chạy trên DB triển khai. | Schema/template/seed được kiểm tra trên DB triển khai và luồng cần thiết được nghiệm thu. |
 | 7 | Tương thích hai chiều và nghiệm thu tích hợp (`DQ-SV-7`, `DQ-TEST-1`, `DQ-TEST-2`) | Đã làm | `DQ-SV-7` và `DQ-TEST-1` đã làm (7/7 roundtrip; đã gỡ test Inbound Codec do mã hóa chưa nối luồng theo quyết định 16/10/2026). `DQ-TEST-2` chấp nhận mức giả lập Playwright (xem khối kiểm chứng mới). | Test các boundary, kết quả lưu/gửi/nhận đúng contract. |
 | 8 | Setting gói 105 và nguồn mô phỏng 110 (`DQ-FE-3`, `DQ-DB-6`, `DQ-SV-10`) | Đã làm | Gói 105 đã làm. Gói 110 chốt phương án A (nguồn có sẵn, không thêm entity mới, R13), test E2E pass 100%. | 110 thông luồng từ nguồn có sẵn; Playwright/xUnit chứng minh. |
@@ -1413,14 +1419,16 @@ timeline
 
 > 📌 Rà trực tiếp code working tree nhánh `feat/20261013-XD006.7.1_hoan-thien-chuc-nang-sharedata-1` (WEBAPI, Worker, WEBVUE) ngày 15/10/2026 và 16/10/2026, đối chiếu với các quyết định ở VII.1–VII.3.
 >
-> **Đã đối chiếu đúng:** SQL một tầng trực tiếp ở gói tin `ShareDataPacket.ExtractSql` (1 gói tin = 1 SQL duy nhất); Snapshot lấy toàn bộ 1 lượt; nối đuôi phân trang tối đa 20 trang, `MaxLookBackDays` kéo mốc cũ lên, thiếu `__lastTime`/`__rowid` thì dừng và giữ mốc; Format 1 lần, lưu bằng chứng trước khi gửi, lưu lỗi thì không gửi; mốc chỉ tiến khi gửi thành công và không lùi; REST/Kafka/FTP/File gửi đúng bộ byte đã chuẩn bị, Kafka `byte[]` + 4 header, chỉ `Persisted` mới tính thành công; địa chỉ lấy từ cột đối tác; chiều nhận kiểm tra đối tác → lưu Pending → parse ngược → MERGE; form gói không làm mất `ExtractSql`/`SyncMode`/`CursorTimeColumn`/`MaxLookBackDays`.
+> **Đã đối chiếu đúng:** SQL một tầng trực tiếp ở gói tin `ShareDataPacket.ExtractSql` (1 gói tin = 1 SQL duy nhất); Snapshot lấy toàn bộ 1 lượt; nối đuôi phân trang tối đa 20 trang, `MaxLookBackDays` kéo mốc cũ lên, thiếu `__lastTime`/`__lastKey` thì dừng và giữ mốc; Format 1 lần, lưu bằng chứng trước khi gửi, lưu lỗi thì không gửi; mốc chỉ tiến khi gửi thành công và không lùi; REST/Kafka/FTP/File gửi đúng bộ byte đã chuẩn bị, Kafka `byte[]` + 4 header, chỉ `Persisted` mới tính thành công; địa chỉ lấy từ cột đối tác; chiều nhận kiểm tra đối tác → lưu Pending → parse ngược → MERGE; form gói không làm mất `ExtractSql`/`SyncMode`/`CursorTimeColumn`/`MaxLookBackDays`.
+>
+> **Cập nhật 22/10/2026:** SQL chuẩn ở `ShareDataPacket.ExtractSql`; SQL riêng theo đối tác ở `ShareDataMapping.ExtractSql` (trống = dùng SQL chuẩn) kèm `BaseExtractSql` để phát hiện lỗi thời; đối chiếu bằng hộp so sánh 2 cột (`sqlDiffDialog.vue`); chế độ Toàn bộ / Nối đuôi suy từ câu SQL (`@lastTime` / `@lastKey`, `SqlValidator.IsIncrementalSql`), chỉ dùng nội bộ Worker/BE, giao diện không hiển thị; thuộc tính `SyncMode` đã xóa khỏi entity, cột cũ trên DB để nguyên (form gói không còn giữ `SyncMode`).
 
 | Mã | Mức | Lệch phát hiện | Vị trí | Trạng thái |
 | :---: | :---: | :--- | :--- | :---: |
-| **RV-1** | 🔴 | Form SQL đặt chế độ mặc định sai: so `resolvePacketPolicy(...).kind === 'incremental'` trong khi hàm trả `.policy = 'AlwaysIncremental'`, nên khi gói/hồ sơ chưa có `SyncMode` form luôn hiện Snapshot. Bấm Lưu gửi `syncMode = 1` → gói nối đuôi (103, 104, 106, 107, 109) chuyển thành gửi toàn bộ và bỏ qua kiểm tra cấu trúc nối đuôi. | `dataSource/index.vue:922` | **Đã làm** — Chế độ và trạng thái lấy hoàn toàn từ DB (`SyncMode` và `Status`), xóa bỏ so sánh policy cố định; Playwright test pass. |
-| **RV-2** | 🔴 | Gói tạm hoãn vẫn chạy được: `GetPacketPolicy(packet, mapping)` ưu tiên `SyncMode` trước catalog `NotReady`/`Disabled`. Khi gói 110 chốt Phương án A (16/10/2026) chạy Snapshot từ bảng có sẵn (`Status = 1`), chỉ còn gói 111 là gói tạm hoãn (`Disabled`, `Status = 0`). | `PacketHelper.cs`, [`sharedata-seed-goi-tin.sql`](../sql/sharedata-seed-goi-tin.sql) | **Đã làm** — Ép policy `Disabled` luôn ưu tiên trước `SyncMode` trong `PacketHelper.cs`; file SQL đặt `SyncMode = NULL`, `Status = 0` cho gói 111; gói 110 bật `Status = 1` chạy Snapshot bình thường theo Phương án A; test xUnit pass. |
+| **RV-1** | 🔴 | Form SQL đặt chế độ mặc định sai: so `resolvePacketPolicy(...).kind === 'incremental'` trong khi hàm trả `.policy = 'AlwaysIncremental'`, nên khi gói/hồ sơ chưa có `SyncMode` form luôn hiện Snapshot. Bấm Lưu gửi `syncMode = 1` → gói nối đuôi (103, 104, 106, 107, 109) chuyển thành gửi toàn bộ và bỏ qua kiểm tra cấu trúc nối đuôi. | `dataSource/index.vue:922` | **Đã làm** — Chế độ và trạng thái lấy hoàn toàn từ DB (`SyncMode` và `Status`), xóa bỏ so sánh policy cố định; Playwright test pass. *Cập nhật 22/10/2026: chế độ không còn lưu ở DB, suy từ câu SQL; UI không hiển thị chế độ.* |
+| **RV-2** | 🔴 | Gói tạm hoãn vẫn chạy được: `GetPacketPolicy(packet, mapping)` ưu tiên `SyncMode` trước catalog `NotReady`/`Disabled`. Khi gói 110 chốt Phương án A (16/10/2026) chạy Snapshot từ bảng có sẵn (`Status = 1`), chỉ còn gói 111 là gói tạm hoãn (`Disabled`, `Status = 0`). | `PacketHelper.cs`, [`sharedata-seed-goi-tin.sql`](../sql/sharedata-seed-goi-tin.sql) | **Đã làm** — Ép policy `Disabled` luôn ưu tiên trước `SyncMode` trong `PacketHelper.cs`; file SQL đặt `SyncMode = NULL`, `Status = 0` cho gói 111; gói 110 bật `Status = 1` chạy Snapshot bình thường theo Phương án A; test xUnit pass. *Cập nhật 22/10/2026: seed không còn gán `[SyncMode]`; `Disabled` vẫn ưu tiên theo `Status`, chế độ suy từ câu SQL.* |
 | **RV-3** | 🔴 | Kênh File ghi được ra ngoài thư mục: kiểm tra `FileNamePattern` dùng `&&` thay vì `\|\|`; pattern có `/` hoặc bắt đầu bằng `/` làm `Path.Combine` bỏ qua `DirectoryPath`; `DirectoryPath` không bị giới hạn trong gốc cho phép. | `FileDeliverySender.cs` | **Đã làm** — Sửa toán tử `\|\|`, chuẩn hóa đường dẫn chặn `..`, chỉ cho phép ghi vào thư mục hợp lệ; test xUnit pass. |
-| **RV-4** | ⚠️ | Lưu SQL chỉ kiểm cấu trúc nối đuôi khi request gửi `SyncMode = 2`, không dùng chế độ hiệu lực của gói/hồ sơ; không kiểm `ORDER BY` tăng dần (sắp giảm dần thì mốc lấy từ dòng cuối trang sai, một lượt có thể gửi lặp tới 20 trang). | `PacketExtractSqlCommandHandler.HandleAsync`, `SqlValidator.ValidateIncrementalStructure` | **Đã làm** — Kiểm tra cấu trúc nối đuôi theo `effectiveSyncMode` (tự suy ra từ catalog nếu không truyền `SyncMode`), chặn `ORDER BY ... DESC`; test xUnit pass. |
+| **RV-4** | ⚠️ | Lưu SQL chỉ kiểm cấu trúc nối đuôi khi request gửi `SyncMode = 2`, không dùng chế độ hiệu lực của gói/hồ sơ; không kiểm `ORDER BY` tăng dần (sắp giảm dần thì mốc lấy từ dòng cuối trang sai, một lượt có thể gửi lặp tới 20 trang). | `PacketExtractSqlCommandHandler.HandleAsync`, `SqlValidator.ValidateIncrementalStructure` | **Đã làm** — Kiểm tra cấu trúc nối đuôi theo `effectiveSyncMode` (tự suy ra từ catalog nếu không truyền `SyncMode`), chặn `ORDER BY ... DESC`; test xUnit pass. *Cập nhật 22/10/2026: kiểm cấu trúc nối đuôi khi câu SQL là nối đuôi (`IsIncrementalSql`), không còn tham số `SyncMode`.* |
 | **RV-5** | ⚠️ | Không xóa được `MaxLookBackDays` đã đặt: API bỏ qua giá trị rỗng, FE xóa ô rồi lưu thì tải lại vẫn thấy giá trị cũ. | `PacketExtractSqlCommandHandler.HandleAsync` | **Đã làm** — Truyền `ignoreAllNullColumns: false` vào `UpdateWithDiffLogAsync` để cho phép cập nhật `MaxLookBackDays = null` vào DB; test xUnit pass. |
 | **RV-6** | ⚠️ | Query Builder đổi nghĩa SQL khi sửa trực quan: điều kiện WHERE không đọc được (ví dụ `!=`, tham số đứng bên trái, `N'...'`) bị bỏ qua thay vì khóa Builder; hint `WITH (NOLOCK)` bị bỏ khi sinh lại. Builder sinh được `OR`/`BETWEEN`/`IN`/nhóm ngoặc nhưng mở lại thì bị khóa. | `queryBuilder.vue` `parseSqlToBuilder`, `isComplexSql`, `generateSql` | **Đã làm** — Khóa Builder khi gặp WHERE không hỗ trợ; chuẩn hóa đối chiếu ngữ nghĩa (bỏ `;` cuối dòng); bảo toàn `WITH (NOLOCK)`; Playwright test 10 & 26 pass. |
 | **RV-7** | ⚠️ | Bộ kiểm tra SQL chưa chặn tên 3–4 phần (CSDL khác, linked server); danh sách bảng nhạy cảm sai tên (`SYSORGANIZATION`, `SYSPERMISSION` không tồn tại) và thiếu bảng thật (`SysOrg`, `SysUserRole`…); không chặn `ShareDataPartner` (chứa ApiKey/Token thô) nên SQL trích xuất có thể gửi bí mật đối tác ra ngoài. | `SqlValidator` | **Đã làm** — Chặn tên 3–4 phần, cập nhật danh sách bảng nhạy cảm chuẩn theo DB, chặn `ShareDataPartner`; test xUnit pass. |
@@ -1430,13 +1438,13 @@ timeline
 | **RV-11** | ℹ️ | Lưu bằng chứng lỗi ghi mã cảnh báo `HttpSendFailed`, sai nghĩa. | `DataOutboundService.ExportPage` | **Đã làm** — Phân tách mã cảnh báo lưu file bằng chứng riêng biệt khỏi `HttpSendFailed`; test xUnit pass. |
 | **RV-12** | ℹ️ | Kênh File: alias `DISK`/`NAS` không được coi là File ở `ExportPage` (ghi tệp 2 lần); `FileNamePattern` thiếu `{serial}`/`{timestamp}` thì các trang ghi đè nhau; key cũ `OutputPath` vẫn được ưu tiên và ghi đè cùng một tệp. | `DataOutboundService.ExportPage`, `FileDeliverySender.cs`, `PartnerValidator` | **Đã làm** — Đồng nhất alias kênh File qua `ConnectTypes`; chuẩn hóa `DirectoryPath` và `FileNamePattern` có biến số chống ghi đè; test xUnit pass. |
 | **RV-13** | ℹ️ | `ConnectionConfig` không phải JSON hợp lệ thì form hiện rỗng, lưu sẽ xóa cấu hình cũ mà không cảnh báo. | `connectionConfigEditor.vue` `parseJsonToList` | **Đã làm** — Bắt lỗi parse JSON, hiển thị cảnh báo lỗi và chặn form không cho ghi đè cấu hình hỏng; Playwright test pass. |
-| **RV-14** | ℹ️ | Thống nhất 1 SQL cho mỗi gói tin: SQL Center `dataSource/index.vue` loại bỏ hoàn toàn việc chọn đối tác (`sql-scope-control`), nút 'Đồng bộ vào Gói tin' luôn sẵn sàng; mỗi gói tin chỉ có DUY NHẤT 1 câu SQL trích xuất. | `dataSource/index.vue`, `Module.ShareData` | **Đã làm** — Thống nhất 1 gói tin = 1 SQL duy nhất, tự nạp template chuẩn khi tạo gói 101–110, nút Mẫu mặc định khôi phục template chuẩn. |
+| **RV-14** | ℹ️ | Thống nhất 1 SQL cho mỗi gói tin: SQL Center `dataSource/index.vue` loại bỏ hoàn toàn việc chọn đối tác (`sql-scope-control`), nút 'Đồng bộ vào Gói tin' luôn sẵn sàng; mỗi gói tin chỉ có DUY NHẤT 1 câu SQL trích xuất. | `dataSource/index.vue`, `Module.ShareData` | **Đã làm** — Thống nhất 1 gói tin = 1 SQL duy nhất, tự nạp template chuẩn khi tạo gói 101–110, nút Mẫu mặc định khôi phục template chuẩn. *Cập nhật 22/10/2026: SQL chuẩn ở `ShareDataPacket.ExtractSql`; SQL riêng theo đối tác ở `ShareDataMapping.ExtractSql` (trống = dùng SQL chuẩn) kèm `BaseExtractSql` để phát hiện lỗi thời; đối chiếu bằng hộp so sánh 2 cột (`sqlDiffDialog.vue`).* |
 | **RV-9** | ⚠️ | Preview SQL đọc N dòng rồi đóng reader; với câu gửi toàn bộ trên bảng lớn, việc đóng reader có thể phải đọc hết phần còn lại nên preview chậm. **Cần đo trước khi sửa.** | `PacketExtractSqlQueryHandler.HandleAsync` (preview) | **Đã làm** — Đã đổi thứ tự điều kiện `readCount < safeTop && await dbReader.ReadAsync()`; đo benchmark trên DB test với 50.000 dòng `TollTransactionOut` cho thấy preview chỉ mất 13–18 ms, đóng reader < 1 ms (không cần Cancel()). Test xUnit pass. |
 | **RV-10** | ⚠️ | Thông báo cứng tiếng Việt, chưa song ngữ: `Oops.Oh("...")` trong handler SQL; `ElMessage` trong SQL Center; nhãn trong `packetPolicy.ts`. | `PacketExtractSqlCommandHandler`, `PacketExtractSqlQueryHandler`, `dataSource/index.vue`, `utils/sharedata/packetPolicy.ts` | **Đã làm** — Đã thêm 25 hằng số vào `BaseMsg` (BE) và seed vào `SysTerminology` ([`sharedata-dich-thuat.sql`](../sql/sharedata-dich-thuat.sql)), thay toàn bộ chuỗi cứng; FE dùng `vi-vn.json`/`en-us.json`; test xUnit và Playwright pass. |
 | **RV-11** | ℹ️ | Lưu bằng chứng lỗi ghi mã cảnh báo `HttpSendFailed`, sai nghĩa. | `DataOutboundService.ExportPage` | **Đã làm** — Phân tách mã cảnh báo lưu file bằng chứng riêng biệt khỏi `HttpSendFailed`; test xUnit pass. |
 | **RV-12** | ℹ️ | Kênh File: alias `DISK`/`NAS` không được coi là File ở `ExportPage` (ghi tệp 2 lần); `FileNamePattern` thiếu `{serial}`/`{timestamp}` thì các trang ghi đè nhau; key cũ `OutputPath` vẫn được ưu tiên và ghi đè cùng một tệp. | `DataOutboundService.ExportPage`, `FileDeliverySender.cs`, `PartnerValidator` | **Đã làm** — Đồng nhất alias kênh File qua `ConnectTypes`; chuẩn hóa `DirectoryPath` và `FileNamePattern` có biến số chống ghi đè; test xUnit pass. |
 | **RV-13** | ℹ️ | `ConnectionConfig` không phải JSON hợp lệ thì form hiện rỗng, lưu sẽ xóa cấu hình cũ mà không cảnh báo. | `connectionConfigEditor.vue` `parseJsonToList` | **Đã làm** — Bắt lỗi parse JSON, hiển thị cảnh báo lỗi và chặn form không cho ghi đè cấu hình hỏng; Playwright test pass. |
-| **RV-14** | ℹ️ | Thống nhất 1 SQL cho mỗi gói tin: SQL Center `dataSource/index.vue` loại bỏ hoàn toàn việc chọn đối tác (`sql-scope-control`), nút 'Đồng bộ vào Gói tin' luôn sẵn sàng; mỗi gói tin chỉ có DUY NHẤT 1 câu SQL trích xuất. | `dataSource/index.vue`, `Module.ShareData` | **Đã làm** — Thống nhất 1 gói tin = 1 SQL duy nhất, tự nạp template chuẩn khi tạo gói 101–110, nút Mẫu mặc định khôi phục template chuẩn. |
+| **RV-14** | ℹ️ | Thống nhất 1 SQL cho mỗi gói tin: SQL Center `dataSource/index.vue` loại bỏ hoàn toàn việc chọn đối tác (`sql-scope-control`), nút 'Đồng bộ vào Gói tin' luôn sẵn sàng; mỗi gói tin chỉ có DUY NHẤT 1 câu SQL trích xuất. | `dataSource/index.vue`, `Module.ShareData` | **Đã làm** — Thống nhất 1 gói tin = 1 SQL duy nhất, tự nạp template chuẩn khi tạo gói 101–110, nút Mẫu mặc định khôi phục template chuẩn. *Cập nhật 22/10/2026: SQL chuẩn ở `ShareDataPacket.ExtractSql`; SQL riêng theo đối tác ở `ShareDataMapping.ExtractSql` (trống = dùng SQL chuẩn) kèm `BaseExtractSql` để phát hiện lỗi thời; đối chiếu bằng hộp so sánh 2 cột (`sqlDiffDialog.vue`).* |
 
 **Đã chấp nhận, không xếp là lỗi:** API danh sách đối tác trả `ConnectionConfig` có ApiKey/Token thô, FE chỉ che hiển thị (quyết định lưu thô ở R17); Kafka `PossiblyPersisted` tính là lỗi nên chu kỳ sau có thể gửi trùng (chiều nhận MERGE giữ dữ liệu đúng).
 
@@ -1469,4 +1477,188 @@ timeline
   - **Skipped:** **3 tests** (`RealServer` skips có chủ đích).
   - **Failed:** **0 tests** (100% pass sạch).
 - **Phép thử đột biến B3:** Đã chứng minh đột biến tạm thời trên `RollbackQuietly` (bỏ `catch (InvalidOperationException)`) làm test B3 đỏ ngay lập tức; khi hoàn nguyên thì test xanh trở lại và `git diff` của repo con WEBAPI sạch 100%.
+
+---
+
+# PHẦN VIII — CÁC HẠNG MỤC TỪ CUỘC HỌP 22/10/2026: QUẢN LÝ GÓI TIN MẪU VS TÙY BIẾN ĐỐI TÁC, CƠ CHẾ DIFF/COMPARE, TÁI CẤU TRÚC FORM KẾT NỐI 2 TAB, SCALE GIAO DIỆN ÁNH XẠ, DỮ LIỆU SỰ CỐ & RÚT GỌN CHUỖI LỖI GÓI TIN (`R19` → `R25`, `MD-*`)
+
+> 📌 **Nguồn gốc:** Biên bản cuộc họp kỹ thuật ngày 22/10/2026 (tổng thời lượng 58m45s) giữa Tech Lead (Anh Sơn) và Developers, lưu giữ nguyên văn chuẩn Tier A tại:  
+> [`../doc/transcript/22-10-2026-sharedata-dynamic-query-template-diff-va-form-connection.md`](../doc/transcript/22-10-2026-sharedata-dynamic-query-template-diff-va-form-connection.md)  
+> (chuyển thể từ các tệp ghi âm nguồn `Ghi âm 2.m4a`, `duong_so_8.m4a` và `duong_so_8_2.m4a`).
+
+---
+
+## VIII.1 · Bối cảnh nghiệp vụ & Các nguyên tắc cốt lõi cuộc họp 22/10/2026
+
+1. **Kiến trúc Gói tin Mẫu (Template Query) vs Tùy biến Đối tác (Custom Query):**
+   - Không ép buộc tất cả đối tác dùng chung 1 câu SQL cứng. Hệ thống duy trì 11 gói chuẩn (101..111) với câu SQL template mặc định.
+   - Khi cấu hình cho đối tác mới, đối tác tự động kế thừa câu SQL template.
+   - Khi đối tác có nhu cầu lọc riêng (lọc theo trạm, đoạn tuyến, phân khu `SectionId = '...'`) hoặc bổ sung thuộc tính đặc thù, người dùng chỉnh sửa câu SQL và bấm Lưu $\rightarrow$ chuyển trạng thái thành **Custom Query** độc lập của đối tác đó.
+2. **Cơ chế So sánh Đối chiếu (Diff / Compare dạng Side-by-Side như Git Diff):**
+   - Khi câu SQL Mẫu gốc của hệ thống thay đổi (do tối ưu hiệu năng, sửa lỗi logic, thay đổi cấu trúc bảng như `Z.toKmNumber`, bổ sung điều kiện hệ thống):
+     - Đối tác đang dùng template: Tự động kế thừa câu mới.
+     - Đối tác đã có Custom Query: ⛔ CẤM tự động ghi đè mù quáng làm mất logic tùy biến của đối tác.
+     - Cung cấp tính năng / dialog **So sánh (Compare / Diff - Monaco Editor Diff)** trực quan 2 cột: Cột trái (Mẫu gốc mới nhất), Cột phải (Custom hiện tại của đối tác). Cho phép: Ghi đè theo mẫu mới (Overwrite), Trộn từng dòng (Merge), hoặc Giữ nguyên bản Custom hiện tại (Keep).
+3. **Phân loại Gửi Toàn bộ (Full/Snapshot) vs Nối đuôi (Incremental) thuần qua SQL:**
+   - Không chia tab giao diện riêng cho Full / Incremental gây rối.
+   - Viết trực tiếp điều kiện nối đuôi vào trong câu truy vấn động qua biến tham số (`@lastTime`, `@lastKey` hoặc khóa kết hợp `yyyyMMddHHmmss_ZoneId`).
+   - Worker tự động lưu vết Checkpoint/Watermark của đối tác vào bảng trạng thái (`ShareDataLastSend`) sau mỗi chu kỳ gửi thành công để làm tham số đầu vào cho chu kỳ tiếp theo.
+4. **Trích xuất Alias sau mệnh đề `SELECT ... AS ...` & Đối chiếu Trường chuẩn:**
+   - Phân tích cú pháp mệnh đề `SELECT` để bóc tách toàn bộ alias.
+   - Đối chiếu tự động với danh mục thuộc tính chuẩn của gói: nhận diện các trường đã khớp (Mapped), các trường có trong query nhưng chưa khai báo trường chuẩn (cho phép bấm thêm), và cảnh báo các trường chuẩn bị thiếu trong câu query.
+5. **Tái cấu trúc Form Cấu hình Kết nối Đối tác (`editPartner.vue`) thành 2 Tab:**
+   - Form hiện tại dồn toàn bộ trường vào một màn hình dài gây rối mắt, khó quan sát và tiềm ẩn rủi ro chỉnh nhầm tham số kỹ thuật mạng khi chỉ muốn cập nhật thông tin mô tả.
+   - Tái cấu trúc thành **2 Tab** (Element Plus `el-tabs`, như [32:16]):
+     - **Tab 1: Thông tin chung** (Mã đối tác, Tên đối tác, Ghi chú mô tả — giữ như form cũ).
+     - **Tab 2: Cấu hình kết nối**: Kênh kết nối (API, FTP, Kafka, File), Địa chỉ/Cổng, Endpoint API, cấu hình theo kênh trong `connectionConfigForm.vue` (xác thực, định dạng, thời gian chờ, thư mục, topic).
+   - Lịch chạy/chu kỳ gửi cấu hình theo từng Đăng ký, không đặt ở form đối tác. (Đính chính 22/10/2026: câu [33:03] về "tab thứ 3 thiết lập chạy/retry" là chép sai từ bản ghi âm tự động.)
+6. **Thu gọn và Tối ưu Scale Giao diện Ánh xạ (`editMapping.vue`):**
+   - Khắc phục lỗi khi mở dialog chưa có dữ liệu bị scale phóng to bất thường (`min(1400px, 95vw)`), tạo khoảng trống dài bất hợp lý phía dưới và thanh scale thừa.
+   - Thiết lập dialog mặc định vừa vặn, responsive co giãn theo nội dung dữ liệu thật (fit-content / min-width hợp lý, có data thì mới bung ra). Loại bỏ thanh scale và khoảng trống thừa dưới đáy.
+7. **Rà soát & Khắc phục Lỗi Dữ liệu Gói tin Sự cố (Incident TMS -> ShareData / `ShareData_GiaLap`):**
+   - Hiện trạng kiểm tra thực tế: Gói tin sự cố giả lập đẩy qua ShareData hiển thị trong TMS Sự cố (Incident) bị lỗi nghiêm trọng (dòng 12): thiếu trạng thái, sai loại sự cố, thiếu hướng di chuyển, xuất hiện dấu chấm than cảnh báo.
+   - Bảng mã JSON ánh xạ sự kiện đang bị rỗng do chưa nạp bộ mã mapping chuẩn.
+   - Rà soát câu lệnh MERGE và mapper, nạp đầy đủ bộ mã mapping chuẩn và dữ liệu mẫu test vào CSDL để đảm bảo dữ liệu hiển thị chuẩn chỉ, không làm ảnh hưởng dây chuyền đến phân hệ khác (TMS Sự cố, VideoWall).
+8. **Cơ chế Xử lý & Rút gọn Chuỗi Lỗi Gói tin (Packet Error Handling):**
+   - Khi Bước 2 (Xử lý / Gửi) bị lỗi hoặc thất bại:
+     - ⛔ CẤM để trạng thái treo/pending không rõ ràng.
+     - Bắt buộc hiển thị rõ **màu đỏ** (Failed / Error, số 0 màu đỏ).
+     - Chuyển thông báo lỗi xuống hiển thị ngay tại Bước 2 bị lỗi.
+   - Xử lý chuỗi lỗi dài (stack trace, exception, SQL error):
+     - Trên UI: Cắt ngắn hiển thị (vài chục đến tối đa vài trăm ký tự kèm dấu `...`), cung cấp tooltip hoặc drawer xem chi tiết khi click.
+     - Trong hệ thống: Ghi toàn văn chi tiết lỗi vào file log / bảng log của hệ thống (`ShareDataActivityLog` / `ShareDataAlertLog` / application log).
+     - Bảo mật: Cắt bỏ thông tin nội bộ nhạy cảm (câu SQL nội bộ, connection string, credentials) trước khi hiển thị lên giao diện.
+
+---
+
+## VIII.2 · Bảng quyết định kỹ thuật chốt (`R19` → `R25`)
+
+| Mã | Tên quyết định | Nội dung chi tiết | Tệp / Thành phần liên quan |
+|:---:|:---|:---|:---|
+| **R19** | **Kiến trúc Gói tin Mẫu vs Custom Query theo Đối tác** | Duy trì 11 gói mẫu Catalog (101..111). Mặc định đối tác dùng Template. Khi đối tác sửa SQL gắn với đăng ký/đối tác $\rightarrow$ lưu câu SQL độc lập ở `ShareDataMapping.ExtractSql` (trống = dùng SQL chuẩn `ShareDataPacket.ExtractSql`), kèm `BaseExtractSql` là bản SQL chuẩn tại lúc đối tác tùy biến. Không dùng cờ `IsCustomQuery`. | `ShareDataPacket.cs`, `ShareDataMapping.cs`, `PacketSqlService.cs`, `dataSource/index.vue` |
+| **R20** | **Cơ chế Diff / Compare khi SQL chuẩn của gói thay đổi** | Khi `ShareDataPacket.ExtractSql` đổi khác `BaseExtractSql` của đối tác, đối tác được gắn cờ lỗi thời (`isOutdated`), không tự ghi đè câu riêng. Hộp `sqlDiffDialog.vue` (Monaco Diff 2 cột: SQL chuẩn trái, SQL đối tác phải) cho 3 lựa chọn: Lấy toàn bộ mẫu chung / Giữ SQL đối tác / Lưu bản đã trộn. | `sqlDiffDialog.vue`, `PacketExtractSqlQueryHandler.cs`, `dataSource/index.vue` |
+| **R21** | **Bóc tách Alias Mệnh đề SELECT & Đối chiếu Trường chuẩn** | Parser phân tích cú pháp SQL bóc tách các alias sau `AS`. Đối chiếu danh mục trường chuẩn: phân định trường đã khớp, trường mới (cho phép bấm khai thêm) và trường thiếu trong query (cảnh báo gửi rỗng). | `PacketSqlService.cs`, `sqlEditor.vue`, `dataSource/index.vue` |
+| **R22** | **Quét Nối đuôi thuần SQL & Checkpoint (@LastKey)** | Không chia tab riêng Full/Incremental. Điều kiện nối đuôi tham số hóa trực tiếp vào SQL (`@lastTime`, `@lastKey` hoặc khóa kết hợp). Chế độ Toàn bộ / Nối đuôi **suy từ câu SQL sẽ chạy** (`SqlValidator.IsIncrementalSql`: có `@lastTime`/`@lastKey` là nối đuôi), chỉ dùng nội bộ BE/Worker; giao diện không hiển thị chế độ. Thuộc tính `SyncMode` đã xóa khỏi `ShareDataPacket` và `ShareDataMapping` (cột cũ trên DB để nguyên — CodeFirst). Cột khóa con trỏ đổi `__rowid` → `__lastKey`. Worker lưu Checkpoint vào `ShareDataLastSend` sau mỗi lượt gửi thành công. | `DataOutboundExtractionProcess.cs`, `DataOutboundService.cs`, `ShareDataLastSend.cs` |
+| **R23** | **Tái cấu trúc Form Cấu hình Kết nối Đối tác thành 2 Tab** | Bỏ form phẳng dài cuộn dọc. Chia thành 2 tab: Tab 1 Thông tin chung (Mã, Tên, Ghi chú); Tab 2 Cấu hình kết nối (Kênh, Địa chỉ/Cổng, Endpoint, cấu hình theo kênh gồm xác thực và thời gian chờ). Lịch chạy nằm ở Đăng ký. **Đã làm 22/10/2026.** | `editPartner.vue`, `connectionConfigForm.vue`, `partner.test.ts` |
+| **R24** | **Tối ưu Scale & Responsive Giao diện Ánh xạ** | Bỏ độ rộng cứng `min(1400px, 95vw)` khi chưa có dữ liệu; loại bỏ thanh scale và khoảng trống thừa dưới đáy dialog. Giao diện mặc định nhỏ gọn, tự động co giãn theo dữ liệu nạp vào. | `editMapping.vue`, `mapping/index.vue` |
+| **R25** | **Khắc phục Lỗi Dữ liệu Gói tin Sự cố (Incident TMS)** | Khắc phục dữ liệu sự cố từ `ShareData_GiaLap` vào `TmsIncident` bị thiếu trạng thái, sai loại sự cố, thiếu hướng di chuyển. Bổ sung bộ mã mapping JSON chuẩn và seed dữ liệu mẫu đã test thành công vào CSDL. | `sharedata-seed-goi-tin.sql`, `sharedata-du-lieu-gia-lap_local.sql`, `DataInboundService.cs` |
+| **R26** | **Rút gọn Chuỗi Lỗi trên UI & Đánh dấu Thất bại Bước 2** | Khi bước 2 lỗi, bắt buộc hiển thị màu đỏ rõ ràng (số 0 màu đỏ), chuyển text lỗi xuống bước 2. Chuỗi lỗi dài trên UI cắt ngắn (< 250 ký tự kèm `...`), toàn văn lưu bền vững trong file log / DB log. Cắt bỏ thông tin nội bộ nhạy cảm. | `history/index.vue`, `activityDetailDialog.vue`, `DataOutboundService.cs` |
+
+---
+
+## VIII.3 · Kế hoạch triển khai chi tiết WBS
+
+### Giai đoạn 1: Cơ sở dữ liệu & Cấu trúc lưu trữ
+
+- [x] **MD-DB-1: Bổ sung trường quản lý Custom Query theo Đối tác trên `ShareDataMapping`:**
+  - Bổ sung cột `ExtractSql` (`nvarchar(max)`, nullable) và `IsCustomQuery` (`bit`, default 0) trên bảng `ShareDataMapping` để lưu câu lệnh tùy biến riêng của đối tác khi có yêu cầu đặc thù.
+  - Khi `IsCustomQuery = 0` hoặc `ExtractSql IS NULL`: Worker và UI tự động fallback kế thừa `ShareDataPacket.ExtractSql` (Template chung).
+  - Cập nhật 22/10/2026 — **Đã làm** theo quyết định cuối: `ShareDataMapping.ExtractSql` + `BaseExtractSql` (không có `IsCustomQuery`, không có `SyncMode` riêng); `ExtractSql` trống = dùng SQL chuẩn.
+- [ ] **MD-DB-2: Cập nhật kịch bản Seed Gói tin Sự cố & Bảng mã Ánh xạ chuẩn:** *(Cập nhật 22/10/2026: **chưa làm** — chờ đặc tả giá trị phía đối tác; 4 bộ mã sự cố tạm gỡ khỏi `sharedata-seed-cau-hinh.sql`.)*
+  - Rà soát câu lệnh ghi `MERGE dbo.TmsIncident` trong [`sharedata-seed-goi-tin.sql`](../sql/sharedata-seed-goi-tin.sql) cho gói `107_incidentData`: đảm bảo bóc tách đầy đủ `direction`, `incidentState`, `eventTypeId`, không để giá trị rỗng/null làm TMS Sự cố báo dấu chấm than.
+  - Nạp bộ mã JSON ánh xạ chuẩn cho phân hệ Sự cố vào CSDL, đảm bảo không để bảng mã JSON trống trơn.
+- [x] **MD-DB-3: Dữ liệu giả lập kiểm thử Sự cố chuẩn (`sharedata-du-lieu-gia-lap_local.sql`):** *(Cập nhật 22/10/2026: đã sửa Khối 3 — nguồn thật của bản ghi "va quẹt xe tải".)*
+  - Cập nhật kịch bản dữ liệu giả lập cho gói 107 đầy đủ các trường nghiệp vụ hợp lệ (mã sự cố, loại sự cố, hướng di chuyển, trạng thái giải quyết) phục vụ kiểm thử luồng đồng bộ sang TMS Incident.
+
+### Giai đoạn 2: Backend WebAPI & Worker
+
+- [x] **MD-BE-1: API So sánh Đối chiếu SQL (Query Diff / Compare):** *(Cập nhật 22/10/2026: đã làm dưới dạng 4 API `GetPartnerSqlList` / `GetPartnerExtractSql` / `UpdatePartnerExtractSql` / `ResetPartnerExtractSql` trên `ShareDataPacketController`, so với `packet.ExtractSql` và trả cờ lỗi thời; không làm `compareextractsql` / `applytemplatesql` như dưới.)*
+  - Endpoint `GET /api/sharedata/sharedatapacket/compareextractsql?packetCode=...&partnerCode=...`:
+    - Trả về đối tượng `{ templateSql: string, customSql: string, isCustom: boolean, hasDifferences: boolean }`.
+  - Endpoint `POST /api/sharedata/sharedatapacket/applytemplatesql`:
+    - Cho phép quản trị viên lựa chọn: ghi đè toàn bộ (Overwrite) câu Custom bằng Template mới, hoặc lưu câu SQL đã qua chỉnh sửa/merge.
+- [x] **MD-BE-2: API Bóc tách Cột & Đối chiếu Trường chuẩn (`GetExtractColumns`):** *(đã làm 21/10/2026)*
+  - Tối ưu bộ phân tích cú pháp SQL ScriptDom trong `PacketSqlService`: trích xuất danh sách alias chính xác sau `SELECT ... AS ...`.
+  - Phân loại rõ: danh sách cột đã ánh xạ, danh sách cột chưa có trong chuẩn gói tin, và danh sách trường chuẩn bị thiếu trong câu query.
+- [x] **MD-SV-1: Worker Outbound hỗ trợ Custom Query và Checkpoint đơn điệu:** *(Cập nhật 22/10/2026: đã làm — Worker chỉ sửa `GetExportConfig`, ưu tiên `mapping.ExtractSql` khác rỗng, ngược lại `packet.ExtractSql`; chế độ suy từ câu SQL sẽ chạy, không có `IsCustomQuery`.)*
+  - `DataOutboundExtractionProcess.cs`: Khi lấy câu SQL trích xuất, kiểm tra `ShareDataMapping.IsCustomQuery == true && !string.IsNullOrWhiteSpace(mapping.ExtractSql)` thì ưu tiên chạy câu Custom; ngược lại dùng `ShareDataPacket.ExtractSql`.
+  - Khóa Checkpoint: Sau khi gửi thành công trang dữ liệu, cập nhật mốc đơn điệu vào `ShareDataLastSend` theo cặp `(PartnerCode, PacketCode)`.
+- [x] **MD-SV-2: Xử lý Chuỗi Lỗi Gói tin & An toàn Bảo mật Thông tin:** *(Cập nhật 22/10/2026: chuyển sang UI — cắt 200 ký tự ở `activityDetailDialog.vue` (`MAX_RAW_ERROR_LENGTH`); BE giữ cắt 512.)*
+  - Rút gọn chuỗi lỗi nghiệp vụ trả về giao diện người dùng (< 250 ký tự); tự động che/cắt bỏ các thông tin nội bộ nhạy cảm (chuỗi kết nối CSDL, tên bảng/cột nội bộ, token).
+  - Toàn văn exception và stack trace chi tiết được ghi đầy đủ vào `ShareDataActivityLog` (chặng con thất bại) và application log file.
+
+### Giai đoạn 3: Frontend WebVue
+
+- [x] **MD-FE-1: Tái cấu trúc Form Cấu hình Đối tác (`editPartner.vue`) thành 2 Tab:** *(đã làm 22/10/2026, `partner.test.ts` 32/32 pass)*
+  - Sử dụng Element Plus `el-tabs` với 2 Tab:
+    - **Tab 1 — Thông tin chung:** Mã đối tác (`code`), Tên đối tác (`name`), Ghi chú mô tả (`remark`).
+    - **Tab 2 — Cấu hình kết nối:** Loại kênh kết nối (`connectionType`), Địa chỉ máy chủ (`address`), Cổng (`port`), Endpoint API (`endPointApiUrl`), component nhúng `connectionConfigForm.vue` (chứa xác thực, định dạng payload, thời gian chờ).
+  - Không có tab "Thiết lập chạy & Vận hành": ô thời gian chờ đã có trong `connectionConfigForm.vue`; lịch chạy nằm ở Đăng ký.
+  - Đồng bộ 100% i18n đa ngôn ngữ cho toàn bộ nhãn tab và form.
+- [x] **MD-FE-2: Tối ưu Scale & Bố cục Dialog Ánh xạ (`editMapping.vue`):** *(đã làm 22/10/2026)*
+  - Bỏ độ rộng cứng `min(1400px, 95vw)` khi chưa có dữ liệu; loại bỏ thanh scale và khoảng trống thừa dưới đáy dialog.
+  - Thiết lập dialog mặc định vừa vặn, responsive co giãn theo nội dung dữ liệu thật (fit-content / min-width hợp lý, có data thì mới bung ra).
+- [x] **MD-FE-3: Màn hình So sánh Diff SQL (Monaco Editor Side-by-Side Diff):** *(Cập nhật 22/10/2026: đã làm — tab con Mẫu chung + từng đối tác trong Cấu hình SQL, `sqlDiffDialog.vue` 3 nút: Lấy toàn bộ mẫu chung / Giữ SQL đối tác / Lưu bản đã trộn. Test Playwright MD-FE-3 trong `datasource.test.ts` còn fail ở bước thẻ "Lỗi thời" sau khi chuyển tab — xem README Prompt.)*
+  - Tích hợp component `sqlDiffDialog.vue` sử dụng Monaco Editor Diff hiển thị trực quan 2 cột:
+    - Bên trái: Câu lệnh SQL Mẫu gốc chuẩn mới nhất của hệ thống.
+    - Bên phải: Câu lệnh Custom hiện tại của đối tác.
+    - Highlight chi tiết dòng khác biệt (thêm/sửa/xóa).
+    - Cung cấp 3 nút hành động: "Áp dụng mẫu mới" (Overwrite), "Trộn dòng chọn" (Merge), "Giữ nguyên cấu hình đối tác" (Keep).
+- [x] **MD-FE-4: Hiển thị Thất bại Bước 2 & Rút gọn Text Lỗi trên UI Lịch sử:** *(đã làm 22/10/2026 — cắt 200 ký tự, bước không chạy hiện đỏ "0 bản ghi")*
+  - Tại bảng Lịch sử (`history/index.vue`) và modal Chi tiết (`activityDetailDialog.vue`):
+    - Khi Bước 2 (Ánh xạ/Gửi) thất bại: Đánh dấu trạng thái màu đỏ rõ ràng (số 0 màu đỏ), chuyển thông báo lỗi xuống hiển thị ngay tại Bước 2 bị lỗi, không để trạng thái treo/pending.
+    - Chuỗi thông báo lỗi dài được cắt gọn hiển thị kèm dấu `...`, hover hiển thị tooltip hoặc click mở drawer xem chi tiết.
+- [x] **MD-FE-5: Chuẩn hóa Định dạng Ngày tháng & Bộ lọc Thời gian:** *(Cập nhật 22/10/2026: 2 bộ chọn ngày của phân hệ — Lịch sử `datetimerange` `DD/MM/YYYY HH:mm:ss`, Nhật ký lỗi `daterange` `DD/MM/YYYY` — đã đúng Rule 20.27; sửa bảng Trước/Sau của nhật ký thao tác in ngày giờ ISO thô sang `DD/MM/YYYY HH:mm:ss`.)*
+  - Chuẩn hóa toàn bộ `el-date-picker` sang `format="DD/MM/YYYY"` hoặc `format="DD/MM/YYYY HH:mm:ss"` theo Rule 20.27.
+  - Bộ lọc lịch sử hỗ trợ tìm kiếm khoảng thời gian rộng (từ các tháng trước đến hiện tại).
+
+### Giai đoạn 4: Kiểm thử toàn trình & Nghiệm thu
+
+- [x] **MD-TEST-1: Bộ kiểm thử Backend xUnit (`tests/BE/`):** *(Cập nhật 22/10/2026: `ShareDataPacketControllerTests.PartnerSql.cs` cho 4 API SQL đối tác; ShareData 734 pass / 0 fail / 3 skip. Phần test gói 107 chờ `MD-DB-2`.)*
+  - Viết test kiểm tra API `compareextractsql` và `applytemplatesql`.
+  - Viết test kiểm tra cơ chế ưu tiên Custom Query của đối tác so với Template chung trong `DataOutboundExtractionProcess`.
+  - Viết test kiểm tra câu ghi Inbound của gói 107 parse đúng và đủ các trường `direction`, `incidentState`, `eventTypeId` vào `TmsIncident`.
+- [ ] **MD-TEST-2: Bộ kiểm thử Frontend Playwright E2E (`tests/FE/`):** *(Cập nhật 22/10/2026: `partner.test.ts` 32/32, `history.test.ts` 12/12 pass; `mapping.test.ts` còn 1 fail cũ (EC12), `datasource.test.ts` còn 30 fail — chi tiết ở README Prompt #6.)*
+  - Cập nhật test `partner.test.ts` kiểm tra cấu trúc 2 Tab của form đối tác và lưu trữ đầy đủ các trường.
+  - Viết test kiểm tra dialog Diff SQL Monaco Editor và hành động ghi đè/giữ nguyên.
+  - Viết test kiểm tra scale và hiển thị rút gọn chuỗi lỗi trong Lịch sử chia sẻ.
+- [ ] **MD-TEST-3: Dọn dẹp Test Artifacts:**
+  - Tự động xóa sạch artifacts sau khi chạy test theo Rule 19.64.
+
+---
+
+## VIII.4 · Lộ trình triển khai
+
+```mermaid
+timeline
+    title Lộ trình triển khai phân hệ ShareData — Đợt 22/10/2026
+    Chặng 1 (DB & Schema) : Cột ExtractSql & BaseExtractSql trên ShareDataMapping : Sửa câu ghi Inbound gói 107 Incident : Nạp bộ mã JSON sự cố chuẩn : Script mock test
+    Chặng 2 (WebAPI & Worker) : API compareextractsql & applytemplatesql : Parser bóc tách Alias mệnh đề SELECT : Worker hỗ trợ Custom Query : Xử lý rút gọn chuỗi lỗi
+    Chặng 3 (Frontend WebVue) : Tái cấu trúc Form Đối tác 2 Tab : Tối ưu Scale Dialog Ánh xạ : Tích hợp Monaco Diff Editor : Hiển thị lỗi Bước 2 màu đỏ
+    Chặng 4 (Test & Nghiệm thu) : xUnit Integration BE : Playwright E2E FE : Đồng bộ i18n VI-EN : Nghiệm thu luồng dữ liệu Sự cố
+```
+
+---
+
+## VIII.5 · Ma trận việc cần hoàn thiện theo thứ tự ưu tiên
+
+| Ưu tiên | Hạng mục | Mã WBS | Phạm vi | Mô tả tóm tắt |
+|:---:|:---|:---:|:---:|:---|
+| **1** | Tái cấu trúc Form Đối tác 2 Tab | `MD-FE-1` | Frontend | Chia `editPartner.vue` thành 2 Tab: Thông tin chung, Cấu hình kết nối. **Đã làm 22/10/2026.** |
+| **2** | Tối ưu Scale Dialog Ánh xạ | `MD-FE-2` | Frontend | Bỏ độ rộng cứng `min(1400px, 95vw)` khi chưa có data, co giãn responsive theo nội dung, bỏ thanh scale thừa. |
+| **3** | Sửa Lỗi Dữ liệu Sự cố & Bộ mã JSON | `MD-DB-2`, `MD-SV-2` | DB / Worker | Khắc phục dữ liệu gói 107 vào `TmsIncident` bị thiếu trạng thái, sai loại sự cố, thiếu hướng; nạp bộ mã JSON chuẩn. |
+| **4** | Custom Query theo Đối tác & API Diff | `MD-DB-1`, `MD-BE-1` | DB / WebAPI | Hỗ trợ lưu câu SQL riêng của đối tác; cung cấp API so sánh Template vs Custom. |
+| **5** | Màn hình Monaco Side-by-Side Diff | `MD-FE-3` | Frontend | Dialog so sánh 2 cột trực quan cho phép Ghi đè, Trộn hoặc Giữ nguyên bản Custom khi Template thay đổi. |
+| **6** | Hiển thị Lỗi Bước 2 màu đỏ & Cắt text dài | `MD-FE-4`, `MD-SV-2` | Fullstack | Bước 2 lỗi hiện màu đỏ, chuyển thông báo lỗi xuống bước 2, cắt ngắn text lỗi trên UI (< 250 ký tự kèm `...`). |
+| **7** | Bộ kiểm thử tự động xUnit & Playwright | `MD-TEST-1`, `MD-TEST-2` | Testing | Bổ sung test xUnit BE và Playwright FE bảo đảm 100% không hồi quy, pass sạch mọi kịch bản. |
+
+---
+
+## VIII.6 · Tiêu chí nghiệm thu cấp hệ thống (Definition of Done)
+
+1. **Giao diện người dùng (Frontend):**
+   - Form cấu hình đối tác hiển thị đúng 2 Tab (Thông tin chung / Cấu hình kết nối), không còn dồn cục cuộn dọc, chuyển tab mượt mà, lưu và mở lại giữ nguyên 100% dữ liệu.
+   - Dialog ánh xạ mở lên vừa vặn khung nhìn, không bị scale chà bá khi chưa có dữ liệu, không có thanh scale hay khoảng trống bất hợp lý dưới đáy.
+   - Khi Template SQL gốc thay đổi, người dùng mở gói tin tùy biến của đối tác thấy nút/hộp thoại So sánh (Compare), xem được khác biệt 2 cột qua Monaco Editor Diff và thao tác ghi đè/giữ nguyên chuẩn xác.
+   - Bước 2 thất bại hiển thị màu đỏ rõ ràng (số 0 màu đỏ); chuỗi lỗi dài được cắt gọn không làm vỡ layout, click/hover xem được chi tiết.
+   - 100% nhãn/thông báo tuân thủ i18n (`vi-vn.json` và `en-us.json`), không hardcode tiếng Việt.
+2. **Backend & Worker:**
+   - Hỗ trợ lưu và thực thi câu SQL riêng của đối tác khi có tùy biến; fallback an toàn về Template chung khi chưa tùy biến.
+   - Gói tin sự cố (107) nạp đầy đủ thông tin vào `TmsIncident` (trạng thái, loại sự cố, hướng di chuyển), không còn dấu chấm than cảnh báo lỗi từ dữ liệu ShareData.
+   - Toàn văn lỗi kỹ thuật được lưu bền vững trong file log / DB log; chuỗi lỗi trả về UI được rút gọn và bảo mật an toàn.
+3. **Chất lượng kiểm thử & Quy tắc dự án:**
+   - Toàn bộ test xUnit BE ShareData pass 100% trên CSDL local.
+   - Toàn bộ test Playwright FE `views/sharedata` pass 100% trên Chromium.
+   - Tuân thủ tuyệt đối quy tắc Minimal Diff, không tự ý commit git (Rule 19.58) và tự động dọn sạch test artifacts (Rule 19.64).
+
 

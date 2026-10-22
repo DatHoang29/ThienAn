@@ -84,7 +84,7 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AddPacket_OrderNo101_AutoFillsTemplateAndSyncModeFromSource_Test()
+    public async Task AddPacket_OrderNo101_AutoFillsTemplateFromSource_Test()
     {
         // Arrange
         SetUserContext(isSuperAdmin: true);
@@ -101,7 +101,6 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             OrderNo = 101,
             Status = BaseEnums.StatusEnum.Enable,
             TemplateSql = tpl101.ExtractSql,
-            SyncMode = tpl101.SyncMode,
             CursorTimeColumn = tpl101.CursorTimeColumn,
             CreateTime = DateTime.UtcNow.AddYears(-10)
         }).ExecuteCommandAsync();
@@ -123,11 +122,10 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         Assert.NotNull(packet);
         Assert.Equal(tpl101.ExtractSql, packet.TemplateSql);
         Assert.Equal(tpl101.ExtractSql, packet.ExtractSql);
-        Assert.Equal(BaseEnums.SyncMode.Snapshot, packet.SyncMode);
     }
 
     [Fact]
-    public async Task AddPacket_CustomCodeWithOrderNo103_AutoFillsTemplateAndSyncModeFromSource_Test()
+    public async Task AddPacket_CustomCodeWithOrderNo103_AutoFillsTemplateFromSource_Test()
     {
         // Arrange
         SetUserContext(isSuperAdmin: true);
@@ -144,7 +142,6 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             OrderNo = 103,
             Status = BaseEnums.StatusEnum.Enable,
             TemplateSql = tpl103.ExtractSql,
-            SyncMode = tpl103.SyncMode,
             CursorTimeColumn = tpl103.CursorTimeColumn,
             MaxLookBackDays = tpl103.MaxLookBackDays,
             CreateTime = DateTime.UtcNow.AddYears(-10)
@@ -167,7 +164,6 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         Assert.NotNull(packet);
         Assert.Equal(tpl103.ExtractSql, packet.TemplateSql);
         Assert.Equal(tpl103.ExtractSql, packet.ExtractSql);
-        Assert.Equal(BaseEnums.SyncMode.Incremental, packet.SyncMode);
         Assert.Equal(tpl103.CursorTimeColumn, packet.CursorTimeColumn);
         Assert.Equal(tpl103.MaxLookBackDays, packet.MaxLookBackDays);
     }
@@ -190,7 +186,6 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             OrderNo = 111,
             Status = BaseEnums.StatusEnum.Enable,
             TemplateSql = tpl111.ExtractSql,
-            SyncMode = tpl111.SyncMode,
             CursorTimeColumn = tpl111.CursorTimeColumn,
             MaxLookBackDays = tpl111.MaxLookBackDays,
             CreateTime = DateTime.UtcNow.AddYears(-10)
@@ -213,7 +208,6 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         Assert.NotNull(packet);
         Assert.Equal(tpl111.ExtractSql, packet.TemplateSql);
         Assert.Equal(tpl111.ExtractSql, packet.ExtractSql);
-        Assert.Equal(BaseEnums.SyncMode.Incremental, packet.SyncMode);
         Assert.Equal(tpl111.CursorTimeColumn, packet.CursorTimeColumn);
         Assert.Equal(tpl111.MaxLookBackDays, packet.MaxLookBackDays);
     }
@@ -236,7 +230,6 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             OrderNo = 101,
             Status = BaseEnums.StatusEnum.Enable,
             TemplateSql = tpl101.ExtractSql,
-            SyncMode = tpl101.SyncMode,
             CursorTimeColumn = tpl101.CursorTimeColumn,
             CreateTime = DateTime.UtcNow.AddYears(-10)
         }).ExecuteCommandAsync();
@@ -279,7 +272,6 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             OrderNo = 101,
             Status = BaseEnums.StatusEnum.Enable,
             TemplateSql = tpl101.ExtractSql,
-            SyncMode = tpl101.SyncMode,
             CursorTimeColumn = tpl101.CursorTimeColumn,
             CreateTime = DateTime.UtcNow.AddYears(-10)
         }).ExecuteCommandAsync();
@@ -382,7 +374,6 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             Status = BaseEnums.StatusEnum.Enable,
             TemplateSql = originalTemplate,
             ExtractSql = originalExtract,
-            SyncMode = BaseEnums.SyncMode.Snapshot,
             CreateTime = DateTime.UtcNow.AddYears(-10)
         };
         await db.Insertable(packet).ExecuteCommandAsync();
@@ -431,7 +422,6 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             Status = BaseEnums.StatusEnum.Enable,
             TemplateSql = originalTemplate,
             ExtractSql = "SELECT z.ID AS zoneId FROM TmsZone z",
-            SyncMode = BaseEnums.SyncMode.Snapshot,
             CreateTime = DateTime.UtcNow.AddYears(-10)
         };
         await db.Insertable(packet).ExecuteCommandAsync();
@@ -440,8 +430,7 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var input = new UpdatePacketExtractSqlInput
         {
             PacketCode = code,
-            ExtractSql = newExtractSql,
-            SyncMode = BaseEnums.SyncMode.Snapshot
+            ExtractSql = newExtractSql
         };
 
         // Act
@@ -506,7 +495,6 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             Status = BaseEnums.StatusEnum.Enable,
             ExtractSql = savedCustomSql,
             TemplateSql = packetTemplateSql,
-            SyncMode = BaseEnums.SyncMode.Incremental,
             CursorTimeColumn = "UpdateTime",
             MaxLookBackDays = 2
         };
@@ -519,11 +507,10 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             ForceDefaultTemplate = true
         });
 
-        // Assert: Trả đúng TemplateSql của chính gói đó, giữ nguyên SyncMode/Cursor/Lookback của gói
+        // Assert: Trả đúng TemplateSql của chính gói đó, giữ nguyên Cursor/Lookback của gói
         Assert.NotNull(output);
         Assert.True(output.HasDefaultTemplate);
         Assert.Equal(packetTemplateSql, output.ExtractSql);
-        Assert.Equal(BaseEnums.SyncMode.Incremental, output.SyncMode);
         Assert.Equal("UpdateTime", output.CursorTimeColumn);
         Assert.Equal(2, output.MaxLookBackDays);
 
@@ -552,7 +539,6 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             Status = BaseEnums.StatusEnum.Enable,
             ExtractSql = savedSql,
             TemplateSql = null,
-            SyncMode = BaseEnums.SyncMode.Snapshot
         };
         await db.Insertable(packet).ExecuteCommandAsync();
 
@@ -587,7 +573,6 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             OrderNo = 101,
             Status = BaseEnums.StatusEnum.Enable,
             TemplateSql = tpl101Reg.ExtractSql,
-            SyncMode = tpl101Reg.SyncMode,
             CursorTimeColumn = tpl101Reg.CursorTimeColumn,
             CreateTime = DateTime.UtcNow.AddYears(-10)
         }).ExecuteCommandAsync();

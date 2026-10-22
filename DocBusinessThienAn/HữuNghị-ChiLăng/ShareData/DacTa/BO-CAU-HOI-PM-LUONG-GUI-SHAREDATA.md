@@ -146,7 +146,7 @@
 * **Trả lời trọng tâm:**  
   - Bảng `ShareDataLastSend` lưu giữ mốc con trỏ kép `(LastTime, LastKey)` độc lập cho từng cặp `(PartnerCode, PacketCode)`.
   - **Mốc thời gian (`LastTime`):** `Watermark = COALESCE(UpdateTime, CreateTime, [EventTime])`.
-  - **Mốc khóa (`LastKey`):** Khóa định danh `ID` (`__rowid`) của bản ghi cuối cùng trong trang (dùng để phân định rạch ròi khi nhiều bản ghi có cùng một tích tắc thời gian).
+  - **Mốc khóa (`LastKey`):** Khóa định danh `ID` (`__lastKey`) của bản ghi cuối cùng trong trang (dùng để phân định rạch ròi khi nhiều bản ghi có cùng một tích tắc thời gian).
   - **Câu lệnh SQL lọc:**
     ```sql
     WHERE @lastTime IS NULL
@@ -218,7 +218,7 @@
   | **ESH-1302** | Lỗi truy vấn dữ liệu nguồn từ CSDL | Kiểm tra câu truy vấn SQL và tình trạng kết nối CSDL `DEV_ITS10` |
   | **ESH-1303** | Mất lease phân tán, node Worker khác đang nhận đăng ký | Bình thường trong cụm multi-worker; kiểm tra tải nếu mất lease liên tục |
   | **ESH-1304** | Không có hồ sơ ánh xạ chiều gửi đang bật ("Đang dùng") → hủy | Vào màn Ánh xạ dữ liệu, chọn hồ sơ của gói tin và bấm **BẬT "Đang dùng"** |
-  | **ESH-1305** | Khóa `__rowid` dài hơn độ rộng cột `LastKey` → hủy trước khi gửi | Kiểm tra kiểu dữ liệu khóa chính và độ rộng cột `LastKey` bảng `ShareDataLastSend` |
+  | **ESH-1305** | Khóa `__lastKey` dài hơn độ rộng cột `LastKey` → hủy trước khi gửi | Kiểm tra kiểu dữ liệu khóa chính và độ rộng cột `LastKey` bảng `ShareDataLastSend` |
   | **ESH-1401** | Lỗi ghi file kết xuất JSON ra ổ đĩa server | Kiểm tra quyền ghi thư mục và dung lượng trống trên ổ đĩa server |
   | **ESH-1402** | Mọi lỗi gửi HTTP tới đối tác (4xx/5xx/timeout/exception) | Kiểm tra mạng và máy chủ đối tác; file JSON vẫn được xuất, hệ thống giữ mốc tự retry kỳ sau |
 

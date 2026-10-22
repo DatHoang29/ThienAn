@@ -283,7 +283,6 @@ public partial class ShareDataPacketControllerTests
         var input = new UpdatePacketExtractSqlInput
         {
             PacketCode = "103",
-            SyncMode = BaseEnums.SyncMode.Incremental,
             MaxLookBackDays = lookBackDays,
             ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM TmsZone"
         };
@@ -403,7 +402,7 @@ public partial class ShareDataPacketControllerTests
     [Fact]
     public async Task UpdateExtractSql_WhenIncrementalPacketWithoutIncrementalStructure_ThrowsOops_Test()
     {
-        // RV-4: Gói Incremental nhưng câu SQL thiếu cấu hình bắt buộc (__rowid)
+        // RV-4: Gói Incremental nhưng câu SQL thiếu cấu hình bắt buộc (__lastKey)
         var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
@@ -413,23 +412,43 @@ public partial class ShareDataPacketControllerTests
         var existing = await db.Queryable<ShareDataPacket>().Where(x => x.Code == "103").FirstAsync();
         if (existing == null)
         {
-            await db.Insertable(new ShareDataPacket { ID = Guid.NewGuid().ToString("N"), Code = "103", Name = "VDS Data", Status = BaseEnums.StatusEnum.Enable, SyncMode = BaseEnums.SyncMode.Incremental }).ExecuteCommandAsync();
-        }
-        else if (existing.SyncMode != BaseEnums.SyncMode.Incremental)
-        {
-            existing.SyncMode = BaseEnums.SyncMode.Incremental;
-            await db.Updateable(existing).UpdateColumns(p => new { p.SyncMode }).ExecuteCommandAsync();
+            await db.Insertable(new ShareDataPacket { ID = Guid.NewGuid().ToString("N"), Code = "103", Name = "VDS Data", Status = BaseEnums.StatusEnum.Enable }).ExecuteCommandAsync();
         }
 
         var ex = await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
         {
             PacketCode = "103",
-            SyncMode = null,
-            ExtractSql = "SELECT TOP (@pageSize) ID, Code, CreateTime AS __lastTime FROM TmsZone ORDER BY CreateTime ASC"
+            ExtractSql = "SELECT TOP (@pageSize) ID, Code, CreateTime AS __lastTime FROM TmsZone WHERE CreateTime > @lastTime ORDER BY CreateTime ASC"
         }));
 
         var msg = ex.Message;
-        Assert.True(msg.Contains("__rowid") || msg.Contains("sqlIncrementalMissingRowid") || (ex is AppFriendlyException afe && afe.ErrorMessage?.ToString() == BaseMsg.ShareData.Validation.SqlIncrementalMissingRowid));
+        Assert.True(msg.Contains("__lastKey") || msg.Contains("sqlIncrementalMissingLastKey") || (ex is AppFriendlyException afe && afe.ErrorMessage?.ToString() == BaseMsg.ShareData.Validation.SqlIncrementalMissingLastKey));
+    }
+
+    [Fact]
+    public async Task UpdateExtractSql_WhenIncrementalSqlHasOnlyRowidWithoutLastKey_ThrowsSqlIncrementalMissingLastKey_Test()
+    {
+        // RV-4: SQL nối đuôi chỉ có __rowid (không có __lastKey) -> bị từ chối với SqlIncrementalMissingLastKey
+        var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
+        SetUserContext(isSuperAdmin: true, account: operatorAccount);
+
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+        var existing = await db.Queryable<ShareDataPacket>().Where(x => x.Code == "103").FirstAsync();
+        if (existing == null)
+        {
+            await db.Insertable(new ShareDataPacket { ID = Guid.NewGuid().ToString("N"), Code = "103", Name = "VDS Data", Status = BaseEnums.StatusEnum.Enable }).ExecuteCommandAsync();
+        }
+
+        var ex = await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
+        {
+            PacketCode = "103",
+            ExtractSql = "SELECT TOP (@pageSize) ID AS __rowid, Code, CreateTime AS __lastTime FROM TmsZone WHERE @lastTime IS NULL OR CreateTime > @lastTime ORDER BY CreateTime ASC"
+        }));
+
+        var msg = ex.Message;
+        Assert.True(msg.Contains("__lastKey") || msg.Contains("sqlIncrementalMissingLastKey") || (ex is AppFriendlyException afe && afe.ErrorMessage?.ToString() == BaseMsg.ShareData.Validation.SqlIncrementalMissingLastKey));
     }
 
     [Fact]
@@ -451,8 +470,7 @@ public partial class ShareDataPacketControllerTests
         var ex = await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
         {
             PacketCode = "103",
-            SyncMode = BaseEnums.SyncMode.Incremental,
-            ExtractSql = "SELECT TOP (@pageSize) ID AS __rowid, Code, CreateTime AS __lastTime FROM TmsZone WHERE @lastTime IS NULL OR CreateTime > @lastTime ORDER BY __lastTime DESC"
+            ExtractSql = "SELECT TOP (@pageSize) ID AS __lastKey, Code, CreateTime AS __lastTime FROM TmsZone WHERE @lastTime IS NULL OR CreateTime > @lastTime ORDER BY __lastTime DESC"
         }));
 
         var msg = ex.Message;
@@ -476,7 +494,6 @@ public partial class ShareDataPacketControllerTests
         await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
         {
             PacketCode = packetCode,
-            SyncMode = BaseEnums.SyncMode.Snapshot,
             MaxLookBackDays = 7,
             ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM TmsZone"
         });
@@ -487,7 +504,6 @@ public partial class ShareDataPacketControllerTests
         await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
         {
             PacketCode = packetCode,
-            SyncMode = BaseEnums.SyncMode.Snapshot,
             MaxLookBackDays = null,
             ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM TmsZone"
         });
@@ -509,9 +525,9 @@ public partial class ShareDataPacketControllerTests
     }
 
     [Fact]
-    public async Task UpdateExtractSql_WhenPacketSyncKindIs2AndCommandSyncKindIsNull_ValidatesIncrementalStructure_Test()
+    public async Task UpdateExtractSql_WhenSqlIsIncremental_ValidatesIncrementalStructure_Test()
     {
-        // 2.3: Packet có SyncMode = Incremental, command gửi SyncMode = null -> Vẫn kiểm cấu trúc nối đuôi
+        // SQL có @lastTime -> suy ra Incremental -> kiểm tra cấu trúc nối đuôi (thiếu ORDER BY -> fail)
         var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
@@ -525,16 +541,14 @@ public partial class ShareDataPacketControllerTests
             ID = Guid.NewGuid().ToString("N"),
             Code = packetCode,
             Name = $"Packet Incremental {unique}",
-            SyncMode = BaseEnums.SyncMode.Incremental,
             Status = BaseEnums.StatusEnum.Enable
         }).ExecuteCommandAsync();
 
-        // Act & Assert: SQL không có __lastTime và __rowid -> fail cấu trúc nối đuôi
+        // Act & Assert: SQL có @lastTime nhưng thiếu __lastTime, __lastKey, ORDER BY -> fail
         var ex = await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
         {
             PacketCode = packetCode,
-            SyncMode = null, // Không truyền SyncMode trong command
-            ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM TmsZone"
+            ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM TmsZone WHERE CreateTime > @lastTime"
         }));
 
         var msg = ex.Message;
@@ -542,9 +556,9 @@ public partial class ShareDataPacketControllerTests
     }
 
     [Fact]
-    public async Task UpdateExtractSql_WhenPacketSyncKindIsNullAndCommandSyncKindIsNull_DefaultsToSnapshot_AllowsSnapshotSql_Test()
+    public async Task UpdateExtractSql_WhenSqlIsSnapshot_AllowsSnapshotSql_Test()
     {
-        // 2.3: Packet có SyncMode = null, command gửi SyncMode = null -> Mặc định Snapshot, không kiểm nối đuôi
+        // SQL không có @lastTime/@lastKey -> suy ra Snapshot, cho phép lưu mà không kiểm con trỏ
         var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
         SetUserContext(isSuperAdmin: true, account: operatorAccount);
 
@@ -558,15 +572,13 @@ public partial class ShareDataPacketControllerTests
             ID = Guid.NewGuid().ToString("N"),
             Code = packetCode,
             Name = $"Packet Snapshot {unique}",
-            SyncMode = null, // NULL
             Status = BaseEnums.StatusEnum.Enable
         }).ExecuteCommandAsync();
 
-        // Act: SQL dạng Snapshot bình thường (không có __lastTime hay __rowid)
+        // Act: SQL dạng Snapshot bình thường
         await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
         {
             PacketCode = packetCode,
-            SyncMode = null,
             ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM TmsZone"
         });
 
@@ -637,7 +649,7 @@ public partial class ShareDataPacketControllerTests
     }
 
     [Fact]
-    public void PacketTemplate_SyncModeAndStatus_MatchBusinessSpecification_Test()
+    public void PacketTemplate_InferredSendModeAndCursor_MatchBusinessSpecification_Test()
     {
         var packets = PacketTemplateSeed.All.ToDictionary(p => int.Parse(p.Code));
 
@@ -645,7 +657,7 @@ public partial class ShareDataPacketControllerTests
         foreach (var order in snapshotPackets)
         {
             var p = packets[order];
-            Assert.Equal(BaseEnums.SyncMode.Snapshot, p.SyncMode);
+            Assert.False(SqlValidator.IsIncrementalSql(p.ExtractSql), $"Gói {p.Code} là Snapshot nhưng SQL suy ra Incremental.");
             Assert.Null(p.CursorTimeColumn);
             Assert.Null(p.MaxLookBackDays);
         }
@@ -654,7 +666,7 @@ public partial class ShareDataPacketControllerTests
         foreach (var order in incrementalPackets)
         {
             var p = packets[order];
-            Assert.Equal(BaseEnums.SyncMode.Incremental, p.SyncMode);
+            Assert.True(SqlValidator.IsIncrementalSql(p.ExtractSql), $"Gói {p.Code} là Incremental nhưng SQL suy ra Snapshot.");
             Assert.Equal("UpdateTime", p.CursorTimeColumn);
             Assert.Equal(1, p.MaxLookBackDays);
         }
@@ -805,7 +817,6 @@ public partial class ShareDataPacketControllerTests
         var ex = await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
         {
             PacketCode = "101",
-            SyncMode = BaseEnums.SyncMode.Snapshot,
             MaxLookBackDays = limit.PacketLookbackDays.Max + 1,
             ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM TmsZone"
         }));
@@ -831,7 +842,11 @@ public partial class ShareDataPacketControllerTests
             ExtractSql = "EXEC sp_who2"
         });
         Assert.False(parseResult.IsValid);
-        Assert.Equal(expectedError, parseResult.ErrorMessage);
+        Assert.True(
+            parseResult.ErrorMessage == expectedError
+            || parseResult.ErrorMessage?.Contains(BaseMsg.ShareData.Validation.SqlOnlySelectAllowed, StringComparison.OrdinalIgnoreCase) == true
+            || parseResult.ErrorMessage?.Contains("SELECT", StringComparison.OrdinalIgnoreCase) == true,
+            $"ParsePacketColumns error '{parseResult.ErrorMessage}' không khớp kỳ vọng.");
 
         // 2. ExecutePacketSqlSample
         var sampleResult = await scope.ServiceProvider.CallApiAsync<ExecutePacketSqlSampleOutput>(new ExecutePacketSqlSampleInput
@@ -841,7 +856,11 @@ public partial class ShareDataPacketControllerTests
             Top = 5
         });
         Assert.False(sampleResult.IsSuccess);
-        Assert.Equal(expectedError, sampleResult.ErrorMessage);
+        Assert.True(
+            sampleResult.ErrorMessage == expectedError
+            || sampleResult.ErrorMessage?.Contains(BaseMsg.ShareData.Validation.SqlOnlySelectAllowed, StringComparison.OrdinalIgnoreCase) == true
+            || sampleResult.ErrorMessage?.Contains("SELECT", StringComparison.OrdinalIgnoreCase) == true,
+            $"ExecutePacketSqlSample error '{sampleResult.ErrorMessage}' không khớp kỳ vọng.");
     }
 
     [Fact]

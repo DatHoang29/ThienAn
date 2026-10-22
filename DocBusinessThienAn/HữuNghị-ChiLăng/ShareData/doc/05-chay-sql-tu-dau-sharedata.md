@@ -91,14 +91,14 @@ WHERE s.IsDelete IS NULL AND s.Direction = 0 AND s.State = 1
 
 #### Tầng 1: Bắt buộc chạy script SQL (1 → 3, 4 tùy chọn)
 Toàn bộ cấu trúc bảng và index do CodeFirst tạo trước (`TableSettings.EnableInitTable = true`). Các script di trú di sản (`00`, `01`, `06`) đã hoàn tất và được loại bỏ sạch sẽ theo Rule 19.85. Thứ tự thực thi gồm:
-1. `sharedata-seed-goi-tin.sql` (Thứ tự 1): Khởi tạo 11 gói tin Catalog (101–111) nếu chưa tồn tại, nạp câu truy vấn SQL mẫu Catalog 101–111, nạp 18 câu ghi chiều nhận (`ShareDataPacketSql`) cho 10 gói (101–109 và 111), gán `SyncMode` mặc định (Snapshot 101/102/105/108/110, Incremental 103/104/106/107/109/111); bật gói 101–110, tắt gói 111. Cờ `@GhiDeMauGoiTin = 0` giữ nguyên các câu SQL tùy biến đã có.
+1. `sharedata-seed-goi-tin.sql` (Thứ tự 1): Khởi tạo 11 gói tin Catalog (101–111) nếu chưa tồn tại, nạp câu truy vấn SQL mẫu Catalog 101–111, nạp 18 câu ghi chiều nhận (`ShareDataPacketSql`) cho 10 gói (101–109 và 111); bật gói 101–110, tắt gói 111. Cờ `@GhiDeMauGoiTin = 0` giữ nguyên các câu SQL tùy biến đã có.
 2. `sharedata-seed-cau-hinh.sql` (Thứ tự 2): Khởi tạo `SysConfigType` (`sharedata_error_code`), nạp **25** mã cảnh báo lỗi ESH-xxxx vào `SysConfigData`; nạp 15 bảng nguồn vào bảng danh mục riêng `ShareDataSourceTable` (14 bảng theo dõi `IsTracked = 1`, `TmsEquipment` mặc định `IsTracked = 0`, cả 15 bảng `IsQueryable = 1`); đăng ký nhóm `sharedata_config` vào `SysConfigData` (`operation_config_type`) và nạp **48** tham số vận hành vào `SysOpConfig`.
 3. `sharedata-dich-thuat.sql` (Thứ tự 3): Nạp **94** khóa bản dịch vi/en (**188** bản ghi song ngữ) vào `SysTerminology` cho các nhãn giao diện, bộ lọc, kiểm tra an toàn SQL (bao gồm khóa `SqlTableNotAllowed`), và 12 khóa lỗi kết nối đối tác (`sharedata.connectConfig*`). Sau khi chạy xong, thực hiện đồng bộ/làm mới từ điển trên giao diện ở [tài liệu 06 mục 2.2](06-khoi-dong-3-du-an-va-nghiem-thu-sharedata.md#22-làm-mới-từ-điển-đa-ngôn-ngữ-trên-giao-diện).
 4. `sharedata-du-lieu-gia-lap.sql` (Thứ tự 4, tùy chọn): **Chỉ chạy Khối 4 trên Staging** (chuẩn bị hạ tầng cho kịch bản chiều nhận E0: tạo gói kiểm thử riêng `E2E_INBOUND_TEST` ID `1500000000900`, bảng đích `InboundTrafficFlow` trên `DEV_ITS10_Inbound` và cấu hình câu ghi MERGE trong `ShareDataPacketSql` ID `1500000000903`).
 - ⛔ **Cảnh báo môi trường:** Script 4 `sharedata-du-lieu-gia-lap.sql` Khối 1–3, 5–7 (dữ liệu giả lập 104, 106, 110, 111) **chỉ chạy trên Local/Test, TUYỆT ĐỐI CẤM chạy trên Staging** vì staging đã có dữ liệu thật.
 
 #### Tầng 2: Chọn một trong hai cách nạp gói tin
-- **Cách A (Script SQL — Nạp nhanh):** Chạy `sharedata-seed-goi-tin.sql` (thứ tự 1: tạo mới các gói tin còn thiếu trong 11 gói chuẩn 101–111 với ID cố định; nạp câu truy vấn SQL mẫu, nạp câu ghi chiều nhận (`ShareDataPacketSql`) cho các gói đã có câu ghi; gán `SyncMode` mặc định; bật gói 110, tắt gói 111).
+- **Cách A (Script SQL — Nạp nhanh):** Chạy `sharedata-seed-goi-tin.sql` (thứ tự 1: tạo mới các gói tin còn thiếu trong 11 gói chuẩn 101–111 với ID cố định; nạp câu truy vấn SQL mẫu, nạp câu ghi chiều nhận (`ShareDataPacketSql`) cho các gói đã có câu ghi; bật gói 110, tắt gói 111).
   *Ghi chú CSDL cũ:* Xóa mềm gói thừa (ví dụ `101_commonData1`) trước khi chạy script 1, vì script khớp mã theo tiền tố.
 - **Cách B (Giao diện WebVue):** Khởi tạo gói tin và nạp SQL trích xuất trực tiếp trên màn hình *Cấu hình gói tin* $\rightarrow$ tab *Cấu hình SQL* $\rightarrow$ bấm *Mẫu mặc định* $\rightarrow$ bấm *Lưu* (xem chi tiết tại [tài liệu 06 mục 3.1 Bước 2](06-khoi-dong-3-du-an-va-nghiem-thu-sharedata.md#bước-2--khởi-tạo-và-cấu-hình-gói-tin-chia-sẻ-sharedatapacket)).
 - **Tham số vận hành (`SysOpConfig`):** Đã được nạp ở script 2 (`sharedata-seed-cau-hinh.sql`), nếu muốn điều chỉnh có thể sửa trực tiếp trên màn *Cấu hình hoạt động* ([tài liệu 06 mục 3.1 Bước 8](06-khoi-dong-3-du-an-va-nghiem-thu-sharedata.md#bước-8-tùy-chọn--cấu-hình-tham-số-vận-hành-sharedata-sysopconfig-nhóm-sharedata_config)).
@@ -109,7 +109,7 @@ Toàn bộ cấu trúc bảng và index do CodeFirst tạo trước (`TableSetti
 
 | Thứ Tự | Script | CSDL | Mục đích thực tế chính xác | Áp dụng cho DB mới | Áp dụng cho DB cũ |
 |:---:|---|---|---|:---:|:---:|
-| **1** | [`sharedata-seed-goi-tin.sql`](../sql/sharedata-seed-goi-tin.sql) | `DEV_ITS10` | Tạo mới các gói tin còn thiếu trong 11 gói chuẩn (101–111) với ID cố định; nạp câu truy vấn SQL mẫu Catalog 101–111 (`TemplateSql` và `ExtractSql`), nạp 18 câu ghi chiều nhận (`ShareDataPacketSql`) cho 10 gói đã có câu ghi (101–109 và 111); gán `SyncMode` mặc định (Snapshot 101/102/105/108/110, Incremental 103/104/106/107/109/111); bật gói 101–110, tắt gói 111. Cờ `@GhiDeMauGoiTin = 0` giữ nguyên các câu SQL tùy biến đã có. Gói đã xóa mềm cùng tiền tố không chặn việc tạo gói chuẩn. | **Bắt buộc** | **Bắt buộc** |
+| **1** | [`sharedata-seed-goi-tin.sql`](../sql/sharedata-seed-goi-tin.sql) | `DEV_ITS10` | Tạo mới các gói tin còn thiếu trong 11 gói chuẩn (101–111) với ID cố định; nạp câu truy vấn SQL mẫu Catalog 101–111 (`TemplateSql` và `ExtractSql`), nạp 18 câu ghi chiều nhận (`ShareDataPacketSql`) cho 10 gói đã có câu ghi (101–109 và 111); bật gói 101–110, tắt gói 111. Cờ `@GhiDeMauGoiTin = 0` giữ nguyên các câu SQL tùy biến đã có. Gói đã xóa mềm cùng tiền tố không chặn việc tạo gói chuẩn. | **Bắt buộc** | **Bắt buộc** |
 | **2** | [`sharedata-seed-cau-hinh.sql`](../sql/sharedata-seed-cau-hinh.sql) | `DEV_ITS10` | Khởi tạo `SysConfigType` (`sharedata_error_code`), nạp **25** mã cảnh báo lỗi ESH-xxxx vào `SysConfigData`; nạp 15 bảng nguồn vào bảng danh mục riêng `ShareDataSourceTable` (14 bảng theo dõi `IsTracked = 1`, `TmsEquipment` mặc định `IsTracked = 0`, cả 15 bảng `IsQueryable = 1`); đăng ký nhóm `sharedata_config` vào `SysConfigData` (`operation_config_type`) và nạp **48** tham số vận hành vào `SysOpConfig`. | **Bắt buộc** | **Bắt buộc** |
 | **3** | [`sharedata-dich-thuat.sql`](../sql/sharedata-dich-thuat.sql) | `DEV_ITS10` | Nạp **94** khóa bản dịch vi/en (**188** bản ghi song ngữ) vào `SysTerminology` cho các nhãn giao diện, bộ lọc, kiểm tra an toàn SQL (bao gồm khóa `SqlTableNotAllowed`), và 12 khóa lỗi kết nối đối tác (`sharedata.connectConfig*`). **Bắt buộc chạy trước mục C**. | **Bắt buộc** | **Bắt buộc** |
 | **4** | [`sharedata-du-lieu-gia-lap.sql`](../sql/sharedata-du-lieu-gia-lap.sql) | `DEV_ITS10`, `DEV_ITS10_Inbound` | Nạp dữ liệu giả lập cho gói 104 (Thời tiết), 106 (WIM), 110 (Sự cố & VMS), 111 (Tín hiệu) và Khối 4 chuẩn bị cho kịch bản E0 (tạo gói kiểm thử riêng `E2E_INBOUND_TEST` ID `1500000000900`, bảng đích `InboundTrafficFlow` trên `DEV_ITS10_Inbound` và cấu hình câu ghi MERGE trong `ShareDataPacketSql` ID `1500000000903`). Tích hợp sẵn cờ dọn dẹp `@XoaDuLieuGiaLap`. | *Tùy chọn* (cần cho E, G) | *Tùy chọn* (cần cho E, G) |
@@ -143,9 +143,9 @@ Toàn bộ cấu trúc bảng và index do CodeFirst tạo trước (`TableSetti
 SELECT name, system_type_id, max_length, is_nullable
 FROM sys.columns
 WHERE object_id = OBJECT_ID('dbo.ShareDataPacket')
-  AND name IN ('SyncKind','SyncMode','TimeColumn','CursorColumn','CursorTimeColumn','LookbackDays','MaxLookBackDays');
+  AND name IN ('SyncKind','TimeColumn','CursorColumn','CursorTimeColumn','LookbackDays','MaxLookBackDays');
 ```
-*Kết quả mong đợi:* Phải thấy các cột mới `SyncMode` (int), `CursorTimeColumn` (nvarchar), `MaxLookBackDays` (int).
+*Kết quả mong đợi:* Phải thấy các cột mới `CursorTimeColumn` (nvarchar), `MaxLookBackDays` (int). Chế độ gửi suy từ câu SQL (`@lastTime` / `@lastKey`), không còn thuộc tính `SyncMode` (DB cũ có thể còn cột này, để nguyên).
 
 
 ---
@@ -226,7 +226,7 @@ FROM dbo.ShareDataSubscription WHERE IsDelete IS NULL;
 ### 3.1. Truy vấn kiểm tra chỉ đọc bổ sung (chạy trên DB local)
 
 ```sql
-SELECT Code, SyncMode, Status, CursorTimeColumn, MaxLookBackDays FROM dbo.ShareDataPacket ORDER BY Code;
+SELECT Code, Status, CursorTimeColumn, MaxLookBackDays FROM dbo.ShareDataPacket ORDER BY Code;
 SELECT TOP 20 * FROM dbo.ShareDataLastSend;                                   -- mốc gửi nối đuôi
 SELECT TOP 30 * FROM dbo.ShareDataActivityLog ORDER BY CreateTime DESC;       -- nhật ký cha–con
 SELECT TOP 30 * FROM dbo.ShareDataAlertLog    ORDER BY CreateTime DESC;       -- cảnh báo ESH-xxxx
@@ -349,9 +349,9 @@ IF OBJECT_ID(N'[dbo].[InboundTrafficFlow]', N'U') IS NOT NULL
 | **ESH-1301** | Outbound | 🔴 danger | Không tìm thấy cấu hình gói tin cho DatatypeId | *(Giữ nguyên tên gốc — 48 ký tự)* | Kiểm tra danh mục gói tin ShareDataPacket. |
 | **ESH-1302** | Outbound | 🔴 danger | Lỗi truy vấn dữ liệu nguồn của gói tin | *(Giữ nguyên tên gốc — 39 ký tự)* | Kiểm tra câu lệnh SQL trích xuất và kết nối CSDL. |
 | **ESH-1303** | Outbound | 🔴 danger | Không tìm thấy phễu lọc (ShareDataMapping) chiều gửi đang bật — huỷ kết xuất *(76 ký tự)* | **Không có phễu lọc ShareDataMapping chiều gửi bật — hủy kết xuất** *(62 ký tự)* | Kiểm tra cấu hình mapping giữa đối tác và gói tin. |
-| **ESH-1304** | Outbound | 🔴 danger | Khoá bản ghi cuối trang (__rowid) dài hơn cột LastKey cho phép — huỷ kết xuất trước khi gửi *(91 ký tự)* | **Khóa cuối trang __rowid dài hơn LastKey — hủy kết xuất gửi** *(58 ký tự)* | Kiểm tra kiểu dữ liệu hoặc giá trị khóa __rowid. |
+| **ESH-1304** | Outbound | 🔴 danger | Khoá bản ghi cuối trang (__lastKey) dài hơn cột LastKey cho phép — huỷ kết xuất trước khi gửi *(91 ký tự)* | **Khóa cuối trang __lastKey dài hơn LastKey — hủy kết xuất gửi** *(58 ký tự)* | Kiểm tra kiểu dữ liệu hoặc giá trị khóa __lastKey. |
 | **ESH-1305** | Outbound | 🔴 danger | Không tìm thấy câu lệnh SQL trích xuất dữ liệu ở bất kỳ tầng nào *(67 ký tự)* | **Không tìm thấy câu lệnh SQL trích xuất dữ liệu của gói tin** *(58 ký tự)* | Kiểm tra câu truy vấn SQL trong ShareDataPacket. |
-| **ESH-1306** | Outbound | 🔴 danger | Thứ tự con trỏ dữ liệu không tăng dần hoặc thiếu khóa __rowid | *(Giữ nguyên tên gốc — 63 ký tự)* | Kiểm tra mệnh đề ORDER BY trong câu lệnh trích xuất dữ liệu. |
+| **ESH-1306** | Outbound | 🔴 danger | Thứ tự con trỏ dữ liệu không tăng dần hoặc thiếu khóa __lastKey | *(Giữ nguyên tên gốc — 63 ký tự)* | Kiểm tra mệnh đề ORDER BY trong câu lệnh trích xuất dữ liệu. |
 | **ESH-1307** | Outbound | ⚠️ warning | Mốc con trỏ gửi mới lùi lại so với mốc hiện tại trong CSDL | *(Giữ nguyên tên gốc — 60 ký tự)* | Kiểm tra mốc đồng bộ con trỏ và dữ liệu thời gian. |
 | **ESH-1401** | Outbound | ⚠️ warning | Gửi HTTP REST trực tiếp tới đối tác thất bại — file đã ghi vẫn coi là thành công *(80 ký tự)* | **Gửi HTTP REST thất bại — file đã ghi vẫn tính thành công** *(56 ký tự)* | Kiểm tra kết nối mạng và endpoint của đối tác. |
 | **ESH-1402** | Outbound | 🔴 danger | Lưu đệm payload/bằng chứng thất bại, hủy gửi và giữ nguyên mốc | *(Giữ nguyên tên gốc — 64 ký tự)* | Kiểm tra quyền ghi thư mục NasStorage:BasePath hoặc dung lượng ổ đĩa. |
@@ -398,7 +398,7 @@ IF OBJECT_ID(N'[dbo].[InboundTrafficFlow]', N'U') IS NOT NULL
 
 > 📌 *Nguồn trích xuất chuẩn:* [`sharedata-seed-goi-tin.sql`](../sql/sharedata-seed-goi-tin.sql) và `PacketDefaultTemplate` (`Module.ShareData.Infrastructure.Services.ShareDataExtraction`).
 
-| Gói | Số thứ tự (`OrderNo`) | Mã gói chuẩn (`Code`) | ID cố định | Tên gói tin (`Name`) | Chế độ (`SyncMode`) | Cột mốc (`CursorTimeColumn`) | Quét lùi (`MaxLookBackDays`) | Trạng thái (`Status`) |
+| Gói | Số thứ tự (`OrderNo`) | Mã gói chuẩn (`Code`) | ID cố định | Tên gói tin (`Name`) | Chế độ (suy từ SQL) | Cột mốc (`CursorTimeColumn`) | Quét lùi (`MaxLookBackDays`) | Trạng thái (`Status`) |
 |:---:|:---:|---|:---:|---|:---:|:---:|:---:|:---:|
 | **101** | 101 | `101_commonData` | `1500000000101` | Dữ liệu thông tin chung / luồng giao thông | Snapshot (Toàn bộ) | *NULL* | *NULL* | Bật (1) |
 | **102** | 102 | `102_cctvData` | `1500000000102` | Dữ liệu hình ảnh giao thông CCTV | Snapshot (Toàn bộ) | *NULL* | *NULL* | Bật (1) |
@@ -427,9 +427,9 @@ GO
 IF NOT EXISTS (SELECT 1 FROM dbo.ShareDataPacket WHERE Code = 'E2E_INBOUND_TEST' AND IsDelete IS NULL)
 BEGIN
     INSERT INTO dbo.ShareDataPacket (
-        [ID], [TenantId], [Code], [Name], [Status], [OrderNo], [SyncMode], [Remark], [CreateTime], [IsDelete]
+        [ID], [TenantId], [Code], [Name], [Status], [OrderNo], [Remark], [CreateTime], [IsDelete]
     ) VALUES (
-        '1500000000900', 1, 'E2E_INBOUND_TEST', N'Gói tin kiểm thử E2E chiều nhận', 1, 900, 1, N'Gói tin dùng cho kịch bản nghiệm thu chiều nhận E0', GETDATE(), NULL
+        '1500000000900', 1, 'E2E_INBOUND_TEST', N'Gói tin kiểm thử E2E chiều nhận', 1, 900, N'Gói tin dùng cho kịch bản nghiệm thu chiều nhận E0', GETDATE(), NULL
     );
 END
 GO
@@ -548,7 +548,7 @@ GO
 | 37 | `lz.validation` | `sharedata.sqlIncrementalMissingOrderBy` | Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc có mệnh đề ORDER BY ở cấp ngoài cùng. | Incremental queries must include an outer ORDER BY clause. |
 | 38 | `lz.validation` | `sharedata.sqlIncrementalOrderByDescNotAllowed` | Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc sắp xếp tăng dần (ASC); không cho phép sắp xếp giảm dần (DESC) ở mệnh đề ORDER BY ngoài cùng. | Incremental queries must sort ascending (ASC); descending (DESC) sorting is not allowed in the outer ORDER BY clause. |
 | 39 | `lz.validation` | `sharedata.sqlIncrementalMissingLastTime` | Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc có cột con trỏ thời gian [__lastTime]. | Incremental queries must include the time cursor column [__lastTime]. |
-| 40 | `lz.validation` | `sharedata.sqlIncrementalMissingRowid` | Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc có cột con trỏ khóa [__rowid]. | Incremental queries must include the key cursor column [__rowid]. |
+| 40 | `lz.validation` | `sharedata.sqlIncrementalMissingLastKey` | Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc có cột con trỏ khóa [__lastKey]. | Incremental queries must include the key cursor column [__lastKey]. |
 | 41 | `lz.validation` | `sharedata.connectConfigNotJsonObject` | Cấu hình kết nối (ConnectionConfig) phải là đối tượng JSON phẳng dạng key-value. | ConnectionConfig must be a flat key-value JSON object. |
 | 42 | `lz.validation` | `sharedata.connectConfigSyntaxError` | Cấu hình kết nối (ConnectionConfig) sai cú pháp JSON. | ConnectionConfig contains invalid JSON syntax. |
 | 43 | `lz.validation` | `sharedata.connectConfigEmptyKey` | Cấu hình kết nối (ConnectionConfig) không được chứa khóa (Key) rỗng. | ConnectionConfig cannot contain empty keys. |

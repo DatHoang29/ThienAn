@@ -13,30 +13,17 @@ using Xunit;
 /// </summary>
 public class PacketHelperTests
 {
-    [Fact]
-    public void GetPacketPolicy_Packet105_DefaultsToSnapshot_CanBeConfiguredToIncremental_Test()
+    [Theory]
+    [InlineData("SELECT TOP (@pageSize) ID AS __lastKey, Time AS __lastTime FROM T WHERE Time > @lastTime ORDER BY Time", ShareDataEnum.PacketPolicy.AlwaysIncremental)]
+    [InlineData("SELECT TOP (@pageSize) ID AS __lastKey, Time AS __lastTime FROM T WHERE Time > @lastTime AND ID > @lastKey ORDER BY Time, ID", ShareDataEnum.PacketPolicy.AlwaysIncremental)]
+    [InlineData("SELECT ID, Code, Name FROM TmsZone", ShareDataEnum.PacketPolicy.Snapshot)]
+    [InlineData("SELECT ID, Code FROM TmsZone -- @lastTime in comment", ShareDataEnum.PacketPolicy.Snapshot)]
+    [InlineData(null, ShareDataEnum.PacketPolicy.Snapshot)]
+    [InlineData("", ShareDataEnum.PacketPolicy.Snapshot)]
+    public void GetPolicyFromSql_ResolvesCorrectly(string? sql, ShareDataEnum.PacketPolicy expected)
     {
-        // Arrange
-        var packet105 = new ShareDataPacket
-        {
-            Code = "105",
-            Name = "Vehicle Event Packet",
-            SyncMode = BaseEnums.SyncMode.Incremental
-        };
-
-        // Act
-        var policy = PacketHelper.GetPacketPolicy(packet105);
-
-        // Assert
-        Assert.Equal(ShareDataEnum.PacketPolicy.AlwaysIncremental, policy);
-
-        var defaultPacket = new ShareDataPacket
-        {
-            Code = "105",
-            Name = "Vehicle Event Packet",
-            SyncMode = null
-        };
-        Assert.Equal(ShareDataEnum.PacketPolicy.Snapshot, PacketHelper.GetPacketPolicy(defaultPacket));
+        var policy = PacketHelper.GetPolicyFromSql(sql);
+        Assert.Equal(expected, policy);
     }
 
     [Theory]

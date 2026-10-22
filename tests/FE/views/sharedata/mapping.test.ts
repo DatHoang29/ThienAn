@@ -762,7 +762,7 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
         // Kịch bản A2: Bấm "Đóng" lần nữa -> Chọn "Bỏ thay đổi" -> Hộp đóng, giá trị về cũ
         await closeBtn.click();
         await expect(confirmBox).toBeVisible({ timeout: 5000 });
-        await confirmBox.locator('button:has-text("Bỏ thay đổi"), button:has-text("Discard")').click();
+        await confirmBox.locator('button:has-text("Hủy thay đổi"), button:has-text("Discard")').click();
         await expect(confirmBox).toBeHidden({ timeout: 5000 });
         await expect(leafDialog).toBeHidden({ timeout: 5000 });
 
@@ -804,6 +804,60 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
         const enJson = JSON.parse(fs.readFileSync(enPath, 'utf-8'));
         expect(viJson['lz.label.sharedataMapping.packetHasNoFieldsHint']).toBe('Gói chưa có trường để chia sẻ. Vào Nguồn dữ liệu → Danh sách trường để chọn cột cần chia sẻ.');
         expect(enJson['lz.label.sharedataMapping.packetHasNoFieldsHint']).toBe('Packet has no fields to share. Go to Data Source → Saved Fields to select columns to share.');
+    });
+
+    test('EC14 — Scale editMapping.vue vừa khung khi chưa có dữ liệu cây và mở rộng khi đã phân tích JSON', async ({ page }) => {
+        const mappingPath = resolveWebVueSrc('views/sharedata/mapping/component/editMapping.vue');
+        const mappingContent = fs.readFileSync(mappingPath, 'utf-8');
+        expect(mappingContent).not.toContain('min-height: 380px');
+        expect(mappingContent).toContain(':width="dialogWidth"');
+        expect(mappingContent).toContain('countTemplateNodes');
+
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/mapping');
+        const addBtn = page.locator('button:has(.ele-Plus), button:has-text("Thêm mới"), button:has-text("Thêm")').first();
+        await expect(addBtn).toBeVisible({ timeout: 60000 });
+        await addBtn.click();
+
+        const dialog = page.locator('.mp-dialog');
+        await expect(dialog).toBeVisible();
+
+        // 1. Khi mới mở Thêm mới (chưa chọn gói / chưa có cây): chiều rộng gọn (<= 960px), không có khoảng trống thừa
+        const emptyBox = await dialog.boundingBox();
+        expect(emptyBox).not.toBeNull();
+        expect(emptyBox!.width).toBeLessThanOrEqual(960);
+
+        const formMinHeight = await dialog.locator('.mp-form-body').evaluate((el) => window.getComputedStyle(el).minHeight);
+        expect(formMinHeight).not.toBe('380px');
+
+        // 2. Chọn Đối tác + Gói tin, sang tab Ánh xạ và phân tích JSON -> hộp thoại mở rộng (> 960px, <= 1400px), cây hiển thị đủ nút
+        const partnerSelect = dialog.locator('.el-select').first();
+        await partnerSelect.click();
+        const subResponsePromise = page.waitForResponse(
+            (resp) => resp.url().includes('/api/sharedata/sharedatasubscription/list') && resp.status() === 200
+        );
+        await page.locator('.el-popper:visible .el-select-dropdown__item', { hasText: 'DT01' }).first().click();
+        await subResponsePromise;
+        await page.waitForTimeout(300);
+
+        const packetSelect = dialog.locator('.el-select').nth(1);
+        await packetSelect.click();
+        await page.locator('.el-popper:visible .el-select-dropdown__item', { hasText: '101_commonData' }).first().click();
+        await page.waitForTimeout(200);
+
+        await dialog.getByRole('tab', { name: 'Ánh xạ' }).click();
+        await page.waitForTimeout(200);
+        await partnerJsonTextarea(dialog).fill(genBigJson(4));
+        await dialog.getByRole('button', { name: 'Phân tích' }).click();
+        await page.waitForTimeout(400);
+
+        const populatedBox = await dialog.boundingBox();
+        expect(populatedBox).not.toBeNull();
+        expect(populatedBox!.width).toBeGreaterThan(960);
+        expect(populatedBox!.width).toBeLessThanOrEqual(1400);
+
+        const treeNodes = dialog.locator('.mp-tree .el-tree-node');
+        await expect(treeNodes).toHaveCount(6); // header + body + 4 trường lá
     });
 });
 

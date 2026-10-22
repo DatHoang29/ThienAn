@@ -113,10 +113,12 @@ public partial class ShareDataPacketControllerTests
         using var scope = _host.Services.CreateScope();
 
         // Act & Assert
-        await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<List<MetadataFieldDto>>(new GetMetadataFieldsInput
+        var fields = await scope.ServiceProvider.CallApiAsync<List<MetadataFieldDto>>(new GetMetadataFieldsInput
         {
             TableName = tableName
-        }));
+        });
+        Assert.NotNull(fields);
+        Assert.Empty(fields);
     }
 
     [Theory]
@@ -131,10 +133,12 @@ public partial class ShareDataPacketControllerTests
         using var scope = _host.Services.CreateScope();
 
         // Act & Assert
-        await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<List<MetadataFieldDto>>(new GetMetadataFieldsInput
+        var fields = await scope.ServiceProvider.CallApiAsync<List<MetadataFieldDto>>(new GetMetadataFieldsInput
         {
             TableName = invalidTableName
-        }));
+        });
+        Assert.NotNull(fields);
+        Assert.Empty(fields);
     }
 
     [Fact]

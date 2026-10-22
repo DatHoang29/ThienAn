@@ -87,11 +87,11 @@ VALUES
      N'Kiểm tra câu lệnh SQL trích xuất và kết nối CSDL.'),
     (N'ESH-1303', N'Không tìm thấy phễu lọc (ShareDataMapping) chiều gửi đang bật — huỷ kết xuất', N'outbound', N'danger', 1303,
      N'Kiểm tra cấu hình mapping giữa đối tác và gói tin.'),
-    (N'ESH-1304', N'Khoá bản ghi cuối trang (__rowid) dài hơn cột LastKey cho phép — huỷ kết xuất trước khi gửi', N'outbound', N'danger', 1304,
-     N'Kiểm tra kiểu dữ liệu hoặc giá trị khóa __rowid.'),
+    (N'ESH-1304', N'Khoá bản ghi cuối trang (__lastKey) dài hơn cột LastKey cho phép — huỷ kết xuất trước khi gửi', N'outbound', N'danger', 1304,
+     N'Kiểm tra kiểu dữ liệu hoặc giá trị khóa __lastKey.'),
     (N'ESH-1305', N'Không tìm thấy câu lệnh SQL trích xuất dữ liệu ở bất kỳ tầng nào', N'outbound', N'danger', 1305,
      N'Kiểm tra câu truy vấn SQL (ExtractSql) trong cấu hình gói tin ShareDataPacket.'),
-    (N'ESH-1306', N'Thứ tự con trỏ dữ liệu không tăng dần hoặc thiếu khóa __rowid', N'outbound', N'danger', 1306,
+    (N'ESH-1306', N'Thứ tự con trỏ dữ liệu không tăng dần hoặc thiếu khóa __lastKey', N'outbound', N'danger', 1306,
      N'Kiểm tra mệnh đề ORDER BY trong câu lệnh trích xuất dữ liệu.'),
     (N'ESH-1307', N'Mốc con trỏ gửi mới lùi lại so với mốc hiện tại trong CSDL', N'outbound', N'warning', 1307,
      N'Kiểm tra mốc đồng bộ con trỏ và dữ liệu thời gian.'),
@@ -554,6 +554,17 @@ WHERE [GroupCode] = N'sharedata_config'
 DECLARE @SoftDeletedUnusedOpConfigs INT = @@ROWCOUNT;
 IF @SoftDeletedUnusedOpConfigs > 0
     PRINT N'   -> Đã xóa mềm ' + CAST(@SoftDeletedUnusedOpConfigs AS NVARCHAR(10)) + N' tham số SysOpConfig không còn sử dụng (cleanup_enabled, cleanup_retention_days).';
+
+-- -----------------------------------------------------------------------------------------
+-- 5. BỘ MÃ QUY ĐỔI SỰ CỐ GÓI 107 (ĐÃ GỠ TOÀN BỘ THEO RÀ SOÁT ĐẶC TẢ)
+-- -----------------------------------------------------------------------------------------
+-- Ghi chú: Theo rà soát kỹ thuật ngày 22/10/2026, 4 bộ mã quy đổi sự cố gói 107
+-- (incident_type, incident_state, incident_source, incident_direction) không có bất kỳ căn cứ
+-- đặc tả chính thức nào phía đối tác quy định partnerValue (các giá trị SKIPPED, REGISTERED, CL_HN...
+-- trước đây là phỏng đoán tự đặt, chưa có hồ sơ ánh xạ nào tham chiếu qua $extend.codeSet).
+-- Toàn bộ mã nạp 4 bộ mã sự cố đã được gỡ khỏi script này theo quy định mục 5 prompt.
+-- Không tự xóa dữ liệu đã nạp vào CSDL local. Người dùng kiểm tra bằng câu truy vấn:
+-- SELECT Code, Name, CreateUId, CreateTime FROM dbo.ShareDataCodeSet WHERE CreateUId = 'SHAREDATA-SEED-CAUHINH';
 
 PRINT N'=============================================================================';
 PRINT N'✅ HOÀN TẤT KỊCH BẢN SEED CẤU HÌNH SHAREDATA (sharedata-seed-cau-hinh.sql)';

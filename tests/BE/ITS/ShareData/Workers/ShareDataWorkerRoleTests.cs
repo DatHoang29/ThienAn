@@ -3,6 +3,7 @@ namespace Tests.ShareData.Workers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using global::Services.Shared.Messaging;
 using ShareDataWorker.Extensions;
 using ShareDataWorker.Infrastructure.Workers;
 using Xunit;
@@ -53,12 +54,13 @@ public class ShareDataWorkerRoleTests
         var services = BuildServicesWithRole(role);
         var workers = GetRegisteredHostedServices(services);
 
-        // Assert: Mặc định đăng ký đủ 5 workers (vừa gửi vừa nhận vừa dọn dẹp theo đúng thiết kế Production)
-        Assert.Equal(5, workers.Count);
+        // Assert: Mặc định đăng ký đủ 6 workers (5 master workers + HeartbeatPublisher)
+        Assert.Equal(6, workers.Count);
         Assert.Contains(typeof(DataOutboundWorker), workers);
         Assert.Contains(typeof(DataInboundWorker), workers);
         Assert.Contains(typeof(DataChangeTrackingWorker), workers);
         Assert.Contains(typeof(DataCleanupWorker), workers);
         Assert.Contains(typeof(DataNatsWorker), workers);
+        Assert.Contains(typeof(HeartbeatPublisher), workers);
     }
 }

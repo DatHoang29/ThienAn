@@ -118,38 +118,11 @@ END
 GO
 
 -- -----------------------------------------------------------------------------------------
--- 3. GÓI 110: TRAO ĐỔI THÔNG TIN SỰ CỐ & BIỂN BÁO VMS (TmsIncident, TmsEquipment, VmsCurrent, TmsWeather)
+-- 3. GÓI 107 & 110: TRAO ĐỔI THÔNG TIN SỰ CỐ & BIỂN BÁO VMS (TmsIncident, TmsEquipment, VmsCurrent, TmsWeather)
 -- -----------------------------------------------------------------------------------------
 SET NOCOUNT ON;
 
 DECLARE @SeedUser NVARCHAR(64) = N'SHAREDATA-SEED-GIA-LAP';
-
-IF NOT EXISTS (
-    SELECT 1 FROM [dbo].[TmsIncident]
-    WHERE ([Code] = N'SC_20261014_01' OR [ID] = N'INCIDENT_MOCK_110_01' OR ([CreateUId] = @SeedUser AND [Code] = N'SC_20261014_01'))
-      AND [IsDelete] IS NULL
-)
-BEGIN
-    PRINT N'  -> [Khối 3] Đang seed bản ghi sự cố giao thông (Gói 110)...';
-    INSERT INTO [dbo].[TmsIncident] (
-        [ID], [TenantId], [Code], [Name], [EventTypeId], [EventGroup],
-        [StartDate], [Source], [Location], [KmNumber], [MetNumber],
-        [InfluenceScope], [InjuredNumber], [VehicleNumber],
-        [State], [Description], [CreateTime], [UpdateTime], [IsDelete], [CreateUId]
-    ) VALUES (
-        LOWER(CONVERT(NVARCHAR(64), NEWID())), NULL, N'SC_20261014_01', N'Sự cố va quẹt nhẹ xe tải', NULL, N'TRAFFIC',
-        GETDATE(), N'0', N'0', 25, 400,
-        N'1', 0, 2,
-        N'PROCESSING', N'Va quẹt tại Km25+400 hướng Lạng Sơn đi Hà Nội, lưu thông chậm',
-        GETDATE(), GETDATE(), NULL, @SeedUser
-    );
-    PRINT N'  -> [Khối 3] Đã seed thành công TmsIncident (SC_20261014_01).';
-END
-ELSE
-BEGIN
-    PRINT N'  -> [Khối 3] Dữ liệu TmsIncident (SC_20261014_01) đã tồn tại, bỏ qua.';
-END
-
 DECLARE @VmsEquipmentId NVARCHAR(64);
 
 IF NOT EXISTS (
@@ -178,6 +151,103 @@ BEGIN
     WHERE ([Code] = N'VMS_KM25_HN' OR [ID] = N'EQUIP_VMS_KM25')
       AND [IsDelete] IS NULL;
     PRINT N'  -> [Khối 3] Dữ liệu TmsEquipment (VMS_KM25_HN) đã tồn tại, bỏ qua.';
+END
+
+DECLARE @IncidentEventTypeId NVARCHAR(64) = (
+    SELECT TOP 1 [ID]
+    FROM [dbo].[TmsEventType]
+    WHERE [IsDelete] IS NULL AND [Status] = 1
+    ORDER BY CASE
+        WHEN [Code] = N'collision' THEN 0
+        WHEN [Code] = N'accident' THEN 1
+        ELSE 2
+    END, [CreateTime]
+);
+
+DECLARE @IncidentSource NVARCHAR(64) = COALESCE((
+    SELECT TOP 1 d.[Code]
+    FROM [dbo].[SysConfigData] d
+    INNER JOIN [dbo].[SysConfigType] t ON d.[ConfigTypeId] = t.[ID]
+    WHERE t.[Code] = N'tms_source_detect'
+      AND d.[IsDelete] IS NULL AND t.[IsDelete] IS NULL
+      AND d.[Status] = 1
+    ORDER BY CASE WHEN d.[Code] = N'vds' THEN 0 WHEN d.[Code] = N'user' THEN 1 ELSE 2 END, d.[OrderNo]
+), N'vds');
+
+DECLARE @IncidentState NVARCHAR(64) = COALESCE((
+    SELECT TOP 1 d.[Code]
+    FROM [dbo].[SysConfigData] d
+    INNER JOIN [dbo].[SysConfigType] t ON d.[ConfigTypeId] = t.[ID]
+    WHERE t.[Code] = N'tms_incident_status'
+      AND d.[IsDelete] IS NULL AND t.[IsDelete] IS NULL
+      AND d.[Status] = 1
+    ORDER BY CASE WHEN d.[Code] = N'3' THEN 0 WHEN d.[Name] LIKE N'%Đang xử lý%' THEN 1 ELSE 2 END, d.[OrderNo]
+), N'3');
+
+DECLARE @IncidentInfluenceScope NVARCHAR(64) = COALESCE((
+    SELECT TOP 1 d.[Code]
+    FROM [dbo].[SysConfigData] d
+    INNER JOIN [dbo].[SysConfigType] t ON d.[ConfigTypeId] = t.[ID]
+    WHERE t.[Code] = N'direction_config_type'
+      AND d.[IsDelete] IS NULL AND t.[IsDelete] IS NULL
+      AND d.[Status] = 1
+    ORDER BY CASE WHEN d.[Code] = N'1' THEN 0 ELSE 1 END, d.[OrderNo]
+), N'1');
+
+DECLARE @IncidentEquipmentId NVARCHAR(64) = COALESCE((
+    SELECT TOP 1 [ID]
+    FROM [dbo].[TmsEquipment]
+    WHERE [IsDelete] IS NULL AND [Status] = 1
+    ORDER BY CASE
+        WHEN [Code] = N'FIX-01' THEN 0
+        WHEN [Code] = N'VMS_KM25_HN' THEN 1
+        ELSE 2
+    END, [CreateTime]
+), @VmsEquipmentId);
+
+IF NOT EXISTS (
+    SELECT 1 FROM [dbo].[TmsIncident]
+    WHERE ([Code] = N'SC_20261014_01' OR [ID] = N'INCIDENT_MOCK_110_01' OR ([CreateUId] = @SeedUser AND [Code] = N'SC_20261014_01'))
+      AND [IsDelete] IS NULL
+)
+BEGIN
+    PRINT N'  -> [Khối 3] Đang seed bản ghi sự cố giao thông (Gói 107 & 110)...';
+    INSERT INTO [dbo].[TmsIncident] (
+        [ID], [TenantId], [Code], [Name], [EventTypeId], [EventGroup],
+        [StartDate], [Source], [Location], [KmNumber], [MetNumber],
+        [InfluenceScope], [InjuredNumber], [VehicleNumber], [EquipmentId],
+        [State], [Description], [CreateTime], [UpdateTime], [IsDelete], [CreateUId]
+    ) VALUES (
+        LOWER(CONVERT(NVARCHAR(64), NEWID())), NULL, N'SC_20261014_01', N'Sự cố va quẹt nhẹ xe tải', @IncidentEventTypeId, N'TRAFFIC',
+        GETDATE(), @IncidentSource, N'0', 25, 400,
+        @IncidentInfluenceScope, 0, 2, @IncidentEquipmentId,
+        @IncidentState, N'Va quẹt tại Km25+400 hướng Lạng Sơn đi Hà Nội, lưu thông chậm',
+        GETDATE(), GETDATE(), NULL, @SeedUser
+    );
+    PRINT N'  -> [Khối 3] Đã seed thành công TmsIncident (SC_20261014_01).';
+END
+ELSE
+BEGIN
+    UPDATE [dbo].[TmsIncident]
+    SET [EventTypeId]    = COALESCE([EventTypeId], @IncidentEventTypeId),
+        [Source]         = CASE WHEN [Source] IS NULL OR [Source] = N'0' THEN @IncidentSource ELSE [Source] END,
+        [State]          = CASE WHEN [State] IS NULL OR [State] = N'PROCESSING' THEN @IncidentState ELSE [State] END,
+        [InfluenceScope] = COALESCE(NULLIF([InfluenceScope], N''), @IncidentInfluenceScope),
+        [EquipmentId]    = COALESCE([EquipmentId], @IncidentEquipmentId),
+        [UpdateTime]     = GETDATE()
+    WHERE ([Code] = N'SC_20261014_01' OR [ID] = N'INCIDENT_MOCK_110_01')
+      AND [IsDelete] IS NULL
+      AND (
+          [EventTypeId] IS NULL
+          OR [Source] IS NULL OR [Source] = N'0'
+          OR [State] IS NULL OR [State] = N'PROCESSING'
+          OR [EquipmentId] IS NULL
+      );
+
+    IF @@ROWCOUNT > 0
+        PRINT N'  -> [Khối 3] Đã chuẩn hóa từ điển cho bản ghi TmsIncident (SC_20261014_01) sẵn có.';
+    ELSE
+        PRINT N'  -> [Khối 3] Dữ liệu TmsIncident (SC_20261014_01) đã tồn tại và chuẩn từ điển, bỏ qua.';
 END
 
 IF NOT EXISTS (
@@ -324,7 +394,7 @@ BEGIN
     BEGIN
         INSERT INTO [dbo].[ShareDataPacket] (
             [ID], [TenantId], [Code], [Name], [PacketVersion], [Description],
-            [OrderNo], [Status], [TemplateSql], [ExtractSql], [SyncMode], [CursorTimeColumn], [MaxLookBackDays],
+            [OrderNo], [Status], [TemplateSql], [ExtractSql], [CursorTimeColumn], [MaxLookBackDays],
             [Remark], [CreateTime], [UpdateTime], [IsDelete], [CreateUId]
         ) VALUES (
             LOWER(CONVERT(NVARCHAR(64), NEWID())),
@@ -337,7 +407,6 @@ BEGIN
             1,
             @Template101,
             @Extract101,
-            1,
             NULL,
             NULL,
             N'Chỉ dùng kiểm thử chiều nhận E0 trên local/test, tách biệt với gói 101_commonData',

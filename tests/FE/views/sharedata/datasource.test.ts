@@ -973,18 +973,18 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(Math.abs(resetFilterHeight - 180)).toBeLessThanOrEqual(10);
     });
 
-    test('11. Hiển thị chính sách xuất bản gói tin theo dữ liệu CSDL (syncMode, status) nội bộ trong component và editPacket.vue', async () => {
+    test('11. Lưới gói tin không còn cột Chính sách / chế độ gửi, editPacket.vue không có trường chính sách', async () => {
         // 1. Khẳng định tệp utils packetPolicy.ts đã được xóa bỏ hoàn toàn, không còn phụ thuộc ngoài
         const packetPolicyPath = resolveWebvuePath('utils/sharedata/packetPolicy.ts');
         expect(fs.existsSync(packetPolicyPath)).toBe(false);
 
-        // 2. Quét tĩnh index.vue đảm bảo sử dụng helper nội bộ getPacketPolicy theo syncMode và status, không import packetPolicy
+        // 2. Quét tĩnh index.vue: không còn cột policy, slot row_policy, helper getPacketPolicy
         const indexVuePath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
         const indexContent = fs.readFileSync(indexVuePath, 'utf8');
         expect(indexContent).not.toContain('resolvePacketPolicy');
         expect(indexContent).not.toContain('utils/sharedata/packetPolicy');
-        expect(indexContent).toContain('getPacketPolicy');
-        expect(indexContent).toContain('getPacketPolicy(row.syncMode, row.status)');
+        expect(indexContent).not.toContain('getPacketPolicy');
+        expect(indexContent).not.toContain('row_policy');
 
         // 3. Quét tĩnh editPacket.vue xác nhận đã gỡ bỏ hoàn toàn trường chính sách xuất bản (tập trung vào index.vue & Cấu hình SQL)
         const editPacketPath = resolveWebvuePath('views/sharedata/dataSource/component/editPacket.vue');
@@ -1719,30 +1719,39 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         // Chờ tải xong dữ liệu SQL của gói tin
         await page.waitForTimeout(600);
 
-        // 1. Kiểm tra toolbar có el-radio-group cho Chế độ đồng bộ
-        const syncKindControl = page.locator('.sql-sync-mode-control');
-        await expect(syncKindControl).toBeVisible();
-        const radioButtons = syncKindControl.locator('.el-radio-button');
-        await expect(radioButtons).toHaveCount(2);
+        // 1. Toolbar không còn nhãn / nút chế độ gửi
+        await expect(page.locator('.sql-sync-mode-control')).toHaveCount(0);
+        await expect(page.locator('.sql-sync-mode-tag')).toHaveCount(0);
+        await expect(page.getByText(/Gửi toàn bộ|Gửi nối đuôi/)).toHaveCount(0);
 
-        // 2. Khi chọn "Gửi nối đuôi" (syncKind = 2)
-        const incrementalRadio = radioButtons.filter({ hasText: /Nối đuôi/i }).first();
-        await incrementalRadio.click();
-        await page.waitForTimeout(300);
-
+        // 2. Chế độ đồng bộ tự suy theo câu SQL đang mở:
         // Khối .sync-mode-panel-card.incremental-mode không còn checklist hay nút Áp cũ
         const incrementalPanel = page.locator('.sync-mode-panel-card.incremental-mode');
         await expect(incrementalPanel.locator('.sync-check-item')).toHaveCount(0);
         await expect(incrementalPanel.locator('.btn-apply-cursor')).toHaveCount(0);
 
-        // 3. Khi chọn "Toàn bộ" (syncKind = 1)
-        const snapshotRadio = radioButtons.filter({ hasText: /Toàn bộ/i }).first();
-        await snapshotRadio.click();
-        await page.waitForTimeout(300);
-
-        // Gửi toàn bộ tự điều chỉnh SQL, ẩn ô quét lùi và không hiện panel cảnh báo rỗng
+        // 3. Khi câu SQL là Toàn bộ (không có @lastTime/@lastKey): ẩn panel nối đuôi
         const snapshotPanel = page.locator('.sync-mode-panel-card.snapshot-mode');
         await expect(snapshotPanel).toBeHidden();
+    });
+
+    test('22b. Giao diện không hiển thị chế độ gửi; chế độ suy từ câu SQL chỉ dùng nội bộ (Mục 0 & 2)', async () => {
+        const cursorUtilPath = resolveWebvuePath('utils/sharedata/cursorSql.ts');
+        expect(fs.existsSync(cursorUtilPath)).toBe(true);
+        const cursorUtilContent = fs.readFileSync(cursorUtilPath, 'utf8');
+        expect(cursorUtilContent).toContain('export function isIncrementalSql');
+
+        const idxPath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
+        const idxContent = fs.readFileSync(idxPath, 'utf8');
+
+        // derivedSyncMode chỉ truyền vào prop con, không render chữ
+        expect(idxContent).toContain('const derivedSyncMode = computed(');
+        expect(idxContent).not.toContain('handleSyncModeRadioChange');
+        expect(idxContent).not.toContain('sql-sync-mode-tag');
+        expect(idxContent).not.toContain('syncModeIncrementalTag');
+        expect(idxContent).not.toContain('syncModeSnapshotTag');
+        // isIncrementalSql (hàm suy chế độ) được phép; chỉ cấm cờ isIncremental riêng
+        expect(idxContent).not.toMatch(/\bisIncremental\b/);
     });
 
     test('23. Khối khai báo tham số truy vấn QueryParameterPanel & Tham số @fromDate / @toDate (Mục 8 & 9)', async ({ page }) => {
@@ -1868,41 +1877,16 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(enContent['lz.message.sharedataDataSource.vqbCannotFullyRepresent']).toBeDefined();
     });
 
-    test('27. Hiển thị chế độ gửi và trạng thái gói theo dữ liệu DB (syncMode và status)', async () => {
-        // 1. Quét tĩnh index.vue đảm bảo getPacketPolicy giải quyết dựa theo syncMode và status của CSDL
+    test('27. Lưới gói tin chỉ hiển thị trạng thái gói, không còn chế độ gửi', async () => {
         const indexVuePath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
         const indexContent = fs.readFileSync(indexVuePath, 'utf8');
-        expect(indexContent).toContain('getPacketPolicy');
-        expect(indexContent).toContain("status === 0 || status === '0' || status === 'Disable' || status === false");
-        expect(indexContent).toContain("syncMode === SyncMode.Incremental || syncMode === '2'");
-        expect(indexContent).toContain("policy: 'Disabled'");
-        expect(indexContent).toContain("policy: 'AlwaysIncremental'");
-        expect(indexContent).toContain("policy: 'Snapshot'");
+        expect(indexContent).not.toContain('getPacketPolicy');
+        expect(indexContent).not.toContain("policy: 'AlwaysIncremental'");
+        expect(indexContent).toContain('row_status');
 
-        // 2. Kiểm thử logic giải quyết chính sách gói tin nội bộ theo CSDL
-        const resolvePolicyFromData = (syncMode?: number | string | null, status?: number | string | boolean | null) => {
-            if (status === 0 || status === '0' || status === 'Disable' || status === false) {
-                return { policy: 'Disabled', tagType: 'info', labelKey: 'lz.label.sharedataDataSource.policyDisabled' };
-            }
-            if (syncMode === 2 || syncMode === '2') {
-                return { policy: 'AlwaysIncremental', tagType: 'primary', labelKey: 'lz.label.sharedataDataSource.policyAlwaysIncremental' };
-            }
-            return { policy: 'Snapshot', tagType: 'success', labelKey: 'lz.label.sharedataDataSource.policySnapshot' };
-        };
-
-        // Gói với syncMode: 2 -> AlwaysIncremental ("Gửi nối đuôi")
-        expect(resolvePolicyFromData(2, 1).policy).toBe('AlwaysIncremental');
-        expect(resolvePolicyFromData(2, 1).labelKey).toBe('lz.label.sharedataDataSource.policyAlwaysIncremental');
-        expect(resolvePolicyFromData(2, 1).tagType).toBe('primary');
-
-        // Gói với status: 0 -> Disabled ("Đã tắt")
-        expect(resolvePolicyFromData(null, 0).policy).toBe('Disabled');
-        expect(resolvePolicyFromData(2, 0).policy).toBe('Disabled');
-        expect(resolvePolicyFromData(1, 0).tagType).toBe('info');
-
-        // Gói với syncMode: null và status: 1 -> Mặc định Snapshot ("Gửi toàn bộ")
-        expect(resolvePolicyFromData(null, 1).policy).toBe('Snapshot');
-        expect(resolvePolicyFromData(undefined, 1).labelKey).toBe('lz.label.sharedataDataSource.policySnapshot');
+        const viJson = JSON.parse(fs.readFileSync(resolveWebvuePath('i18n/lang/its/sharedata/vi-vn.json'), 'utf8'));
+        expect(viJson['lz.label.sharedataDataSource.policySnapshot']).toBeUndefined();
+        expect(viJson['lz.label.sharedataDataSource.policyAlwaysIncremental']).toBeUndefined();
     });
 
     test('28. Kiểm thử các cải tiến giao diện và logic dữ liệu tại dataSource & queryBuilder', async () => {
@@ -1936,8 +1920,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(qbContent).not.toContain('PACKET_ALLOWED_TABLES');
         expect(qbContent).toContain('packetCodes?: string[]');
 
-        // 8. Thanh tiêu đề gói tin không còn tag policy tĩnh
-        expect(indexContent).not.toMatch(/<div class="packet-header-bar">[\s\S]*?<el-tag :type="getPacketPolicy[\s\S]*?<\/el-tag>[\s\S]*?<\/div>/);
+        // 8. Thanh tiêu đề gói tin không còn tag policy
+        expect(indexContent).not.toContain('getPacketPolicy');
 
         // 10. Chiều cao cột trích xuất gọn gàng (DEFAULT_COLUMNS_HEIGHT = 72)
         expect(qbContent).toContain('const DEFAULT_COLUMNS_HEIGHT = 72;');
@@ -2484,10 +2468,10 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(packetDialog).toBeVisible();
         await expect(codeInput).toHaveValue('TEST_CODE');
 
-        // Bấm ra ngoài lần nữa -> hiện hộp hỏi -> bấm "Bỏ thay đổi" -> hộp thoại đóng
+        // Bấm ra ngoài lần nữa -> hiện hộp hỏi -> bấm "Hủy thay đổi" -> hộp thoại đóng
         await page.mouse.click(5, 5);
         await expect(confirmBox).toBeVisible({ timeout: 5000 });
-        const discardBtn = confirmBox.locator('button:has-text("Bỏ thay đổi")');
+        const discardBtn = confirmBox.locator('button:has-text("Hủy thay đổi")');
         await discardBtn.click();
         await expect(confirmBox).toBeHidden({ timeout: 3000 });
         await expect(packetDialog).toBeHidden({ timeout: 5000 });
@@ -2759,14 +2743,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
             expect(aliasBox.width).toBeLessThan(95);
         }
 
-        // Chuyển Chế độ đồng bộ sang Gửi nối đuôi qua radio button
-        const incrementalRadio = page.locator('.sql-sync-mode-control .el-radio-button').filter({ hasText: /Nối đuôi/i }).first();
-        await incrementalRadio.click();
-        await page.waitForTimeout(300);
-
-        // Khối SyncModePanel hiển thị
-        const incrementalPanel = page.locator('.sync-mode-panel-card.incremental-mode');
-        await expect(incrementalPanel).toBeVisible({ timeout: 5_000 });
+        // Không hiển thị chế độ gửi
+        await expect(page.locator('.sql-sync-mode-tag')).toHaveCount(0);
     });
 
     test('41. Màn Nguồn dữ liệu: Bổ sung bản dịch nút Dò lại và cấu hình CSS el-alert nhỏ gọn thanh thoát', async () => {
@@ -2818,8 +2796,9 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
 
         // 1. Kiểm tra cấu trúc toolbar
         expect(idxContent).toContain('class="sql-toolbar-bar"');
-        expect(idxContent).toContain('class="sql-sync-mode-control sql-sync-kind-control"');
-        expect(idxContent).toContain('el-radio-group');
+        expect(idxContent).not.toContain('sql-sync-mode-control');
+        expect(idxContent).not.toContain('sql-sync-mode-tag');
+        expect(idxContent).not.toContain('el-radio-group');
         expect(idxContent).not.toContain('class="sql-lookback-control"');
 
         // 2. Kiểm tra CSS nowrap, gap 6px và margin-left: auto
@@ -3077,15 +3056,6 @@ FROM TmsTrafficData td WITH (NOLOCK)`,
         // Sau khi sửa tự động: đủ điều kiện -> không còn dòng cảnh báo thiếu điều kiện hay nút sửa tự động
         await expect(incrementalPanel.locator('.btn-auto-fix')).toHaveCount(0);
         await expect(incrementalPanel.locator('.sync-status-line.is-incomplete')).toHaveCount(0);
-
-        // 4. Chuyển sang chế độ "Toàn bộ" (Snapshot)
-        const snapshotRadio = page.locator('.sql-sync-mode-control .el-radio-button').filter({ hasText: /Toàn bộ/i }).first();
-        await snapshotRadio.click();
-        await page.waitForTimeout(300);
-
-        // Panel snapshot mode hiển thị
-        // Khi chuyển sang Gửi toàn bộ: tự điều chỉnh SQL, không hiện cảnh báo hay nút gỡ
-        await expect(page.locator('.residual-cursor-warning')).toHaveCount(0);
     });
 
     test('44. Thẻ Gửi nối đuôi / Gửi toàn bộ thu gọn: 1 hàng chọn cột, tự áp SQL, 1 dòng trạng thái (Prompt #19)', async ({ page }) => {
@@ -3147,14 +3117,14 @@ FROM TmsTrafficData td WITH (NOLOCK)`,
                             extractSql: `SELECT TOP (@pageSize)
     td.ID,
     COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) AS __lastTime,
-    td.ID AS __rowid
+    td.ID AS __lastKey
 FROM TmsTrafficData td
 WHERE (
     @lastTime IS NULL
     OR COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) > @lastTime
     OR (COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) = @lastTime AND td.ID > @lastKey)
 )
-ORDER BY __lastTime ASC, __rowid ASC`,
+ORDER BY __lastTime ASC, __lastKey ASC`,
                             status: 1,
                             syncMode: 2,
                             maxLookBackDays: 1,
@@ -3187,14 +3157,9 @@ ORDER BY __lastTime ASC, __rowid ASC`,
 
         await expect(incPanel.locator('.sync-status-line.is-unsupported')).toBeVisible();
 
-        // 3. Kiểm tra chế độ Toàn bộ (Snapshot)
-        const snapshotRadio = page.locator('.sql-sync-mode-control .el-radio-button').filter({ hasText: /Toàn bộ/i }).first();
-        await snapshotRadio.click();
-        await page.waitForTimeout(300);
-
-        const snapPanel = page.locator('.sync-mode-panel-card.snapshot-mode');
-        // Theo yêu cầu giao diện gọn (22/10/2026): ở chế độ Snapshot, toàn bộ thẻ sync-mode-panel được ẩn
-        await expect(snapPanel).toBeHidden();
+        // 3. Không hiển thị chế độ gửi trên tab / toolbar
+        await expect(page.locator('.sql-sync-mode-tag')).toHaveCount(0);
+        await expect(page.getByText(/Gửi toàn bộ|Gửi nối đuôi/)).toHaveCount(0);
     });
 
     // ============================================================
@@ -4247,7 +4212,7 @@ LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId`;
     z.MaxSpeed AS speedLimit,
     ts.TotalVehicleNumber AS vehicleCount,
     COALESCE(zs.UpdateTime, zs.CreateTime) AS __lastTime,
-    zs.ID AS __rowid
+    zs.ID AS __lastKey
 FROM TmsZoneStatus zs
 LEFT JOIN TmsZone z ON zs.ZoneId = z.ID
 LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId
@@ -4256,7 +4221,7 @@ WHERE (
       OR COALESCE(zs.UpdateTime, zs.CreateTime) > @lastTime
       OR (COALESCE(zs.UpdateTime, zs.CreateTime) = @lastTime AND zs.ID > @lastKey)
   )
-ORDER BY __lastTime ASC, __rowid ASC`;
+ORDER BY __lastTime ASC, __lastKey ASC`;
 
         // Mock API getextractsql trả về SQL nhiều dòng (25 dòng) chế độ Toàn bộ (syncMode = 1) nhưng còn sót điều kiện @lastTime
         // để kích hoạt residualCursorWithPartsWarning và residualCursorFilterPart trong syncModePanel,
@@ -4333,6 +4298,196 @@ ORDER BY __lastTime ASC, __rowid ASC`;
         // Đảm bảo không có bất kỳ lỗi SyntaxError hoặc Invalid linked format nào ném ra
         const linkedFormatErrors = pageErrors.filter((msg: string) => msg.includes('Invalid linked format'));
         expect(linkedFormatErrors).toHaveLength(0);
+    });
+
+    test('MD-FE-3: Tab SQL đối tác, thẻ SQL riêng / Lỗi thời, Hộp so sánh Monaco 3 nút và Dùng lại mẫu chung', async ({ page }) => {
+        // 1. Quét tĩnh mã nguồn: Kiểm tra có SqlDiffDialog, partnerSqlList, activeSqlTab
+        const vueFilePath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
+        const vueContent = fs.readFileSync(vueFilePath, 'utf8');
+        expect(vueContent).toContain('SqlDiffDialog');
+        expect(vueContent).toContain('partnerSqlList');
+        expect(vueContent).toContain('activeSqlTab');
+        expect(vueContent).toContain('sql-partner-tabs');
+
+        // Kiểm tra sqlDiffDialog.vue tồn tại và có 3 nút
+        const diffDialogPath = resolveWebvuePath('views/sharedata/dataSource/component/sqlDiffDialog.vue');
+        expect(fs.existsSync(diffDialogPath)).toBeTruthy();
+        const diffContent = fs.readFileSync(diffDialogPath, 'utf8');
+        expect(diffContent).toContain('handleTakeAllStandard');
+        expect(diffContent).toContain('handleKeepPartnerSql');
+        expect(diffContent).toContain('handleSaveMerged');
+
+        // 2. Mock API cho đối tác
+        const partnerListState = [
+            {
+                mappingId: 'MAP_01',
+                partnerId: 'P_01',
+                partnerCode: 'ALPHA',
+                partnerName: 'Đối tác Alpha',
+                isCustom: false,
+                isOutdated: false,
+            },
+        ];
+
+        const partnerSqlState = {
+            mappingId: 'MAP_01',
+            packetCode: '101_commonData',
+            partnerName: 'Đối tác Alpha',
+            standardSql: 'SELECT TOP (@pageSize) td.Speed AS speed FROM TmsTrafficData td',
+            customSql: null as string | null,
+            syncMode: null as number | null,
+            packetSyncMode: 1,
+            isCustom: false,
+            isOutdated: false,
+        };
+
+        await page.route('**/api/sharedata/sharedatapacket/getpartnersqllist*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: partnerListState,
+                }),
+            });
+        });
+
+        await page.route('**/api/sharedata/sharedatapacket/getpartnerextractsql*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: partnerSqlState,
+                }),
+            });
+        });
+
+        await page.route('**/api/sharedata/sharedatapacket/updatepartnerextractsql*', async (route) => {
+            const postData = JSON.parse(route.request().postData() || '{}');
+            partnerSqlState.customSql = postData.extractSql;
+            partnerSqlState.isCustom = true;
+            partnerSqlState.isOutdated = false;
+            partnerListState[0].isCustom = true;
+            partnerListState[0].isOutdated = false;
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ code: 200, result: true, message: 'Success' }),
+            });
+        });
+
+        await page.route('**/api/sharedata/sharedatapacket/resetpartnerextractsql*', async (route) => {
+            partnerSqlState.customSql = null;
+            partnerSqlState.isCustom = false;
+            partnerSqlState.isOutdated = false;
+            partnerListState[0].isCustom = false;
+            partnerListState[0].isOutdated = false;
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ code: 200, result: true, message: 'Success' }),
+            });
+        });
+
+        // 3. Render giao diện
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+
+        const tabs = page.locator('.datasource-right-tabs');
+        await expect(tabs).toBeVisible({ timeout: 15_000 });
+
+        // Chuyển sang tab Cấu hình SQL
+        const sqlTab = tabs.getByRole('tab', { name: /Cấu hình SQL/ });
+        await sqlTab.click();
+        await expect(sqlTab).toHaveClass(/is-active/);
+
+        // Kiểm tra thanh tabs con đối tác hiển thị
+        const partnerTabs = page.locator('.sql-partner-tabs');
+        await expect(partnerTabs).toBeVisible({ timeout: 10_000 });
+
+        // Ban đầu ở tab Mẫu chung (tabStandardSql)
+        const stdTab = partnerTabs.getByRole('tab', { name: /Mẫu chung/ });
+        await expect(stdTab).toBeVisible();
+        await expect(stdTab).toHaveClass(/is-active/);
+
+        // Tab đối tác "Đối tác Alpha"
+        const alphaTab = partnerTabs.getByRole('tab', { name: /Đối tác Alpha/ });
+        await expect(alphaTab).toBeVisible();
+        // Ban đầu chưa có SQL riêng -> chưa có thẻ "SQL riêng"
+        await expect(alphaTab.locator('.el-tag')).toHaveCount(0);
+
+        // Chuyển sang tab Đối tác Alpha
+        await alphaTab.click();
+        await expect(alphaTab).toHaveClass(/is-active/);
+
+        // Hiển thị gợi ý đang dùng mẫu chung
+        const usingStdAlert = page.locator('.el-alert:has-text("Đang dùng mẫu chung")');
+        await expect(usingStdAlert).toBeVisible();
+
+        // Nút Lưu có sẵn trên toolbar
+        const btnSave = page.locator('.sql-toolbar-right .el-button').filter({ hasText: /Lưu/ });
+        await expect(btnSave).toBeVisible();
+
+        // Bấm Lưu để tạo SQL riêng cho đối tác
+        await btnSave.click();
+        await page.waitForTimeout(500);
+
+        // Sau khi lưu, thẻ "SQL riêng" hiển thị trên tab đối tác
+        const customTag = alphaTab.locator('.el-tag').filter({ hasText: /SQL riêng/ });
+        await expect(customTag).toBeVisible();
+
+        // Có thêm nút "Dùng lại mẫu chung" và "So sánh với mẫu chung"
+        const btnReset = page.locator('.sql-toolbar-right .el-button').filter({ hasText: /Dùng lại mẫu chung/ });
+        const btnCompare = page.locator('.sql-toolbar-right .el-button').filter({ hasText: /So sánh với mẫu chung/ });
+        await expect(btnReset).toBeVisible();
+        await expect(btnCompare).toBeVisible();
+
+        // 4. Giả lập trường hợp mẫu chung thay đổi -> đối tác bị "Lỗi thời"
+        partnerListState[0].isOutdated = true;
+        partnerSqlState.isOutdated = true;
+
+        // Chuyển tab để reload trạng thái
+        await stdTab.click();
+        await alphaTab.click();
+
+        // Thẻ "Lỗi thời" xuất hiện trên tab
+        const outdatedTag = alphaTab.locator('.el-tag').filter({ hasText: /Lỗi thời/ });
+        await expect(outdatedTag).toBeVisible();
+
+        // Alert cảnh báo lỗi thời xuất hiện dưới toolbar
+        const outdatedAlert = page.locator('.el-alert--warning').filter({ hasText: /Mẫu chung của gói tin đã được cập nhật/ });
+        await expect(outdatedAlert).toBeVisible();
+
+        // 5. Mở hộp so sánh Monaco Diff
+        await btnCompare.click();
+        const diffDialog = page.locator('.sql-diff-dialog');
+        await expect(diffDialog).toBeVisible();
+
+        // Kiểm tra 3 nút trong footer
+        const btnTakeAll = diffDialog.locator('.el-button').filter({ hasText: /Lấy toàn bộ mẫu chung/ });
+        const btnKeep = diffDialog.locator('.el-button').filter({ hasText: /Giữ nguyên SQL đối tác/ });
+        const btnSaveMerged = diffDialog.locator('.el-button').filter({ hasText: /Lưu bản đã trộn/ });
+        await expect(btnTakeAll).toBeVisible();
+        await expect(btnKeep).toBeVisible();
+        await expect(btnSaveMerged).toBeVisible();
+
+        // Đóng dialog
+        const btnCancel = diffDialog.locator('.el-button').filter({ hasText: /Đóng|Hủy|Huỷ/ });
+        await btnCancel.click();
+        await expect(diffDialog).toBeHidden();
+
+        // 6. Test nút "Dùng lại mẫu chung"
+        await btnReset.click();
+        // Xác nhận trong ElMessageBox
+        const confirmMsgBox = page.locator('.el-message-box');
+        await expect(confirmMsgBox).toBeVisible();
+        const confirmBtn = confirmMsgBox.locator('.el-button--primary');
+        await confirmBtn.click();
+        await page.waitForTimeout(500);
+
+        // Sau khi reset, thẻ "SQL riêng" và "Lỗi thời" biến mất khỏi tab
+        await expect(alphaTab.locator('.el-tag')).toHaveCount(0);
     });
 });
 
