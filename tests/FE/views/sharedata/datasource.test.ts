@@ -986,24 +986,19 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(indexContent).toContain('getPacketPolicy');
         expect(indexContent).toContain('getPacketPolicy(row.syncMode, row.status)');
 
-        // 3. Quét tĩnh editPacket.vue để kiểm tra hiển thị chính sách nội bộ qua computed currentPolicy
+        // 3. Quét tĩnh editPacket.vue xác nhận đã gỡ bỏ hoàn toàn trường chính sách xuất bản (tập trung vào index.vue & Cấu hình SQL)
         const editPacketPath = resolveWebvuePath('views/sharedata/dataSource/component/editPacket.vue');
         const editPacketContent = fs.readFileSync(editPacketPath, 'utf8');
         expect(editPacketContent).not.toContain('resolvePacketPolicy');
         expect(editPacketContent).not.toContain('utils/sharedata/packetPolicy');
-        expect(editPacketContent).toContain('currentPolicy');
-        expect(editPacketContent).toContain('packet-policy-display');
-        expect(editPacketContent).toContain('policy-desc');
+        expect(editPacketContent).not.toContain('currentPolicy');
+        expect(editPacketContent).not.toContain('packet-policy-display');
+        expect(editPacketContent).not.toContain('policy-desc');
         expect(editPacketContent).not.toContain('!important');
 
         // 4. Tuân thủ Rule 21 (Rule 20.15) — CẤM hardcode text trong editPacket.vue, 100% qua i18n $t
         expect(editPacketContent).not.toContain("'Mỗi chu kỳ truyền toàn bộ dữ liệu hiện hành'");
         expect(editPacketContent).not.toContain("'Chỉ gửi bản ghi mới phát sinh theo cursor'");
-        expect(editPacketContent).toContain('syncModeSnapshotDesc');
-        expect(editPacketContent).toContain('syncModeIncrementalDesc');
-        expect(editPacketContent).toContain('policyDisabled');
-        expect(editPacketContent).toContain('policyAlwaysIncremental');
-        expect(editPacketContent).toContain('policySnapshot');
     });
 
     test('12. Quy chuẩn đặt tên tệp component — BẮT BUỘC dùng camelCase (chữ cái đầu viết thường), CẤM viết hoa PascalCase (Rule 20.14)', async () => {
@@ -1735,11 +1730,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await incrementalRadio.click();
         await page.waitForTimeout(300);
 
-        // Khối .sync-mode-panel-card.incremental-mode hiển thị, có 1 hàng chọn cột và 1 dòng trạng thái
+        // Khối .sync-mode-panel-card.incremental-mode không còn checklist hay nút Áp cũ
         const incrementalPanel = page.locator('.sync-mode-panel-card.incremental-mode');
-        await expect(incrementalPanel).toBeVisible();
-        await expect(incrementalPanel.locator('.sync-time-select')).toBeVisible();
-        await expect(incrementalPanel.locator('.sync-status-line')).toBeVisible();
         await expect(incrementalPanel.locator('.sync-check-item')).toHaveCount(0);
         await expect(incrementalPanel.locator('.btn-apply-cursor')).toHaveCount(0);
 
@@ -1748,11 +1740,9 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await snapshotRadio.click();
         await page.waitForTimeout(300);
 
-        // Khối .sync-mode-panel-card.snapshot-mode hiển thị và ô số ngày quét lùi nằm trong panel này
+        // Gửi toàn bộ tự điều chỉnh SQL, ẩn ô quét lùi và không hiện panel cảnh báo rỗng
         const snapshotPanel = page.locator('.sync-mode-panel-card.snapshot-mode');
-        await expect(snapshotPanel).toBeVisible();
-        const lookbackInput = snapshotPanel.locator('.sync-lookback-input');
-        await expect(lookbackInput).toBeVisible();
+        await expect(snapshotPanel).toBeHidden();
     });
 
     test('23. Khối khai báo tham số truy vấn QueryParameterPanel & Tham số @fromDate / @toDate (Mục 8 & 9)', async ({ page }) => {
@@ -1808,7 +1798,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         // 2. Kiểm tra panel Tham số truy vấn trong Raw view xuất hiện dưới dạng tag strip (không còn bảng params-table)
         const paramPanel = page.locator('.vqb-raw-view .query-parameter-panel-card');
         await expect(paramPanel).toBeVisible();
-        await expect(paramPanel).toContainText(/Biến trong câu truy vấn/i);
+        await expect(paramPanel).toContainText(/(?:Biến hệ thống|Biến trong câu truy vấn)/i);
         await expect(paramPanel.locator('.params-table')).toHaveCount(0);
 
         // 3. Kiểm tra các tag tham số
@@ -1819,10 +1809,10 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(paramPanel).toContainText('@toDate');
         await expect(paramPanel).toContainText('@customParam');
 
-        // 4. Tham số lạ có tag danger kèm "không hỗ trợ"
+        // 4. Tham số lạ có tag danger màu đỏ cảnh báo (tooltip ghi rõ không hỗ trợ)
         const dangerTag = paramPanel.locator('.el-tag--danger');
         await expect(dangerTag).toBeVisible();
-        await expect(dangerTag).toContainText(/không hỗ trợ/i);
+        await expect(dangerTag).toContainText('@customParam');
     });
 
     test('24. Nhãn giao diện đối tác không dùng từ Stub — Kafka và FTP hiển thị "Chưa bật" (Mục 18)', async () => {
@@ -2920,11 +2910,11 @@ FROM TmsCamera tc WITH (NOLOCK)`;
         const applied103 = applyCursor(sql103, 'td.PassTime', 'td.ID');
         expect(applied103).toContain('SELECT TOP (@pageSize)');
         expect(applied103).toContain('td.PassTime AS __lastTime');
-        expect(applied103).toContain('td.ID AS __rowid');
+        expect(applied103).toContain('td.ID AS __lastKey');
         expect(applied103).toContain('@lastTime IS NULL');
         expect(applied103).toContain('td.PassTime > @lastTime');
         expect(applied103).toContain('td.PassTime = @lastTime AND td.ID > @lastKey');
-        expect(applied103).toContain('ORDER BY __lastTime ASC, __rowid ASC');
+        expect(applied103).toContain('ORDER BY __lastTime ASC, __lastKey ASC');
         const analysis103 = analyzeCursorSql(applied103);
         expect(analysis103.supported).toBe(true);
         expect(analysis103.hasTopPageSize).toBe(true);
@@ -2942,7 +2932,7 @@ WHERE a.Status = 1 OR b.Type = 2`;
         expect(appliedJoinOr).toContain('(a.Status = 1 OR b.Type = 2)');
         expect(appliedJoinOr).toContain('AND (');
         expect(appliedJoinOr).toContain('@lastTime IS NULL');
-        expect(appliedJoinOr).toContain('ORDER BY __lastTime ASC, __rowid ASC');
+        expect(appliedJoinOr).toContain('ORDER BY __lastTime ASC, __lastKey ASC');
         const analysisJoinOr = analyzeCursorSql(appliedJoinOr);
         expect(analysisJoinOr.hasCursorFilter).toBe(true);
         expect(analysisJoinOr.hasTopPageSize).toBe(true);
@@ -2967,7 +2957,7 @@ ORDER BY td.PassTime DESC, td.ID DESC`;
         const analysisDescBefore = analyzeCursorSql(sqlDesc);
         expect(analysisDescBefore.orderBy).toBe('desc');
         const appliedDesc = applyCursor(sqlDesc, 'td.PassTime', 'td.ID');
-        expect(appliedDesc).toContain('ORDER BY __lastTime ASC, __rowid ASC');
+        expect(appliedDesc).toContain('ORDER BY __lastTime ASC, __lastKey ASC');
         const analysisDescAfter = analyzeCursorSql(appliedDesc);
         expect(analysisDescAfter.hasCursorFilter).toBe(true);
         expect(analysisDescAfter.hasTopPageSize).toBe(true);
@@ -3065,10 +3055,9 @@ FROM TmsTrafficData td WITH (NOLOCK)`,
         // Chờ tải xong dữ liệu SQL của gói tin
         await page.waitForTimeout(600);
 
-        // 1. Kiểm tra panel chế độ nối đuôi hiển thị: 1 hàng chọn cột, 1 dòng trạng thái, không còn checklist hay nút Áp
+        // 1. Kiểm tra panel chế độ nối đuôi hiển thị: 1 dòng trạng thái, không còn checklist hay nút Áp
         const incrementalPanel = page.locator('.sync-mode-panel-card.incremental-mode');
         await expect(incrementalPanel).toBeVisible({ timeout: 5_000 });
-        await expect(incrementalPanel.locator('.sync-time-select')).toBeVisible();
         await expect(incrementalPanel.locator('.sync-check-item')).toHaveCount(0);
         await expect(incrementalPanel.locator('.btn-apply-cursor')).toHaveCount(0);
 
@@ -3085,8 +3074,9 @@ FROM TmsTrafficData td WITH (NOLOCK)`,
         await btnAutoFix.click();
         await page.waitForTimeout(400);
 
-        // Sau khi sửa tự động: dòng trạng thái chuyển sang sẵn sàng (is-ready) màu xanh
-        await expect(incrementalPanel.locator('.sync-status-line.is-ready')).toBeVisible();
+        // Sau khi sửa tự động: đủ điều kiện -> không còn dòng cảnh báo thiếu điều kiện hay nút sửa tự động
+        await expect(incrementalPanel.locator('.btn-auto-fix')).toHaveCount(0);
+        await expect(incrementalPanel.locator('.sync-status-line.is-incomplete')).toHaveCount(0);
 
         // 4. Chuyển sang chế độ "Toàn bộ" (Snapshot)
         const snapshotRadio = page.locator('.sql-sync-mode-control .el-radio-button').filter({ hasText: /Toàn bộ/i }).first();
@@ -3094,22 +3084,8 @@ FROM TmsTrafficData td WITH (NOLOCK)`,
         await page.waitForTimeout(300);
 
         // Panel snapshot mode hiển thị
-        const snapshotPanel = page.locator('.sync-mode-panel-card.snapshot-mode');
-        await expect(snapshotPanel).toBeVisible();
-
-        // Cảnh báo điều kiện nối đuôi thừa xuất hiện kèm nút gỡ
-        const residualWarning = snapshotPanel.locator('.residual-cursor-warning');
-        await expect(residualWarning).toBeVisible();
-
-        const btnRemove = snapshotPanel.locator('.btn-remove-cursor');
-        await expect(btnRemove).toBeVisible();
-
-        // 5. Bấm nút [Xóa điều kiện nối đuôi trong SQL]
-        await btnRemove.click();
-        await page.waitForTimeout(400);
-
-        // Cảnh báo biến mất
-        await expect(snapshotPanel.locator('.residual-cursor-warning')).toHaveCount(0);
+        // Khi chuyển sang Gửi toàn bộ: tự điều chỉnh SQL, không hiện cảnh báo hay nút gỡ
+        await expect(page.locator('.residual-cursor-warning')).toHaveCount(0);
     });
 
     test('44. Thẻ Gửi nối đuôi / Gửi toàn bộ thu gọn: 1 hàng chọn cột, tự áp SQL, 1 dòng trạng thái (Prompt #19)', async ({ page }) => {
@@ -3202,10 +3178,8 @@ ORDER BY __lastTime ASC, __rowid ASC`,
         await page.waitForTimeout(600);
 
         const incPanel = page.locator('.sync-mode-panel-card.incremental-mode');
-        await expect(incPanel).toBeVisible({ timeout: 5_000 });
-        // Kiểm tra có 1 hàng chọn cột và dòng trạng thái sẵn sàng (✓)
-        await expect(incPanel.locator('.sync-field-row')).toBeVisible();
-        await expect(incPanel.locator('.sync-status-line.is-ready')).toBeVisible();
+        // Theo yêu cầu giao diện gọn (22/10/2026): khi câu SQL đã đủ điều kiện nối đuôi thì thẻ sync-mode-panel được ẩn hoàn toàn (display: none)
+        await expect(incPanel).toBeHidden({ timeout: 5_000 });
 
         // 2. Chuyển sang gói tin PKT_02 (câu UNION): dòng trạng thái không tự sửa được + nút sao chép mẫu
         await page.locator('.vxe-table--body-wrapper tbody tr').nth(1).click();
@@ -3219,9 +3193,8 @@ ORDER BY __lastTime ASC, __rowid ASC`,
         await page.waitForTimeout(300);
 
         const snapPanel = page.locator('.sync-mode-panel-card.snapshot-mode');
-        await expect(snapPanel).toBeVisible();
-        // Ô số ngày và chọn cột thời gian nằm chung 1 hàng
-        await expect(snapPanel.locator('.sync-field-row')).toBeVisible();
+        // Theo yêu cầu giao diện gọn (22/10/2026): ở chế độ Snapshot, toàn bộ thẻ sync-mode-panel được ẩn
+        await expect(snapPanel).toBeHidden();
     });
 
     // ============================================================
@@ -3986,7 +3959,7 @@ LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId`;
         expect(addPayload.name).toBe('Tốc độ tùy chỉnh');
     });
 
-    test('56. Tab Danh sách trường — Thẻ cảnh báo trường không có trong SQL (Mục C.3)', async ({ page }) => {
+    test('56. Tab Danh sách trường — Không hiển thị nhãn [Không có trong SQL] trên cột aliasFieldKey', async ({ page }) => {
         // Mock SQL chỉ có cột 'speed', trong khi trường có 'header.status' (bắt buộc) và 'recorded_time' (không bắt buộc)
         await page.route('**/api/sharedata/sharedatapacketfield/getextractcolumns*', async (route) => {
             await route.fulfill({
@@ -4041,16 +4014,16 @@ LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId`;
         const tabs = page.locator('.datasource-right-tabs');
         await expect(tabs).toBeVisible({ timeout: 15_000 });
 
-        // Cả 2 trường đều không có trong SQL (speed)
-        // FLD_01 là isRequired = 1 -> thẻ đỏ danger
-        // FLD_02 là isRequired = 0 -> thẻ info
-        const dangerTag = page.locator('.field-sql-tag.el-tag--danger');
-        await expect(dangerTag).toBeVisible({ timeout: 10_000 });
-        await expect(dangerTag).toContainText('Không có trong SQL');
+        // Cả 2 trường đều hiển thị aliasFieldKey dạng text phẳng chuẩn
+        const headerStatusCell = page.locator('.saved-fields-pane .table-name').filter({ hasText: 'header.status' });
+        await expect(headerStatusCell).toBeVisible({ timeout: 10_000 });
 
-        const infoTag = page.locator('.field-sql-tag.el-tag--info');
-        await expect(infoTag).toBeVisible({ timeout: 10_000 });
-        await expect(infoTag).toContainText('Không có trong SQL');
+        const recordedTimeCell = page.locator('.saved-fields-pane .table-name').filter({ hasText: 'recorded_time' });
+        await expect(recordedTimeCell).toBeVisible({ timeout: 10_000 });
+
+        // Nhãn cảnh báo .field-sql-tag [Không có trong SQL] đã được gỡ bỏ hoàn toàn khỏi bảng
+        await expect(page.locator('.field-sql-tag')).toHaveCount(0);
+        await expect(page.locator('.saved-fields-pane')).not.toContainText('Không có trong SQL');
     });
 
     test('57. Commit đầu tiên (c5be7f33) — editMapping modal co giãn tự nhiên theo nội dung và khung rỗng nét đứt', async () => {
@@ -4212,6 +4185,154 @@ LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId`;
         expect(enContent).toContain('lz.label.sharedataDataSource.paramSnapshotNotUsedHint');
         expect(enContent).toContain('lz.label.sharedataDataSource.residualCursorFilterPart');
         expect(enContent).toContain('lz.message.sharedataDataSource.residualCursorWithPartsWarning');
+    });
+
+    test('63. Chuyển tab Cấu hình SQL không bị crash vue-i18n và escape chuẩn ký tự @ trong từ điển sharedata', async ({ page }) => {
+        // 1. Quét tĩnh mã nguồn index.vue đảm bảo xử lý chuyển tab và watcher nạp SQL an toàn
+        const indexPath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
+        const indexContent = fs.readFileSync(indexPath, 'utf8');
+
+        expect(indexContent).toContain('@tab-change="handleRightTabChange"');
+        expect(indexContent).toContain('@tab-click="handleRightTabClick"');
+        expect(indexContent).toContain(':style="{ display: state.activeRightTab === \'savedFields\' ? \'flex\' : \'none\' }"');
+        expect(indexContent).toContain("String(u?.accountType) === '111'");
+        expect(indexContent).toContain("u?.accountType === 'SuperAdmin'");
+        expect(indexContent).toMatch(/watch\(\s*\(\)\s*=>\s*state\.activeRightTab/);
+
+        // 2. Kiểm tra bộ từ điển i18n không còn ký tự @ gây lỗi compile vue-i18n (Invalid linked format)
+        const viPath = resolveWebvuePath('i18n/lang/vi-vn.json');
+        const viJson = JSON.parse(fs.readFileSync(viPath, 'utf8')) as Record<string, string>;
+
+        const enPath = resolveWebvuePath('i18n/lang/en-us.json');
+        const enJson = JSON.parse(fs.readFileSync(enPath, 'utf8')) as Record<string, string>;
+
+        const criticalKeys = [
+            'lz.label.sharedataDataSource.residualCursorFilterPart',
+            'lz.message.sharedataDataSource.vqbSqlHasUnsupportedTop',
+            'lz.validation.sharedata.sqlUnsupportedParameter',
+            'lz.validation.sharedata.sqlIncrementalMissingTop',
+        ];
+
+        for (const k of criticalKeys) {
+            expect(viJson[k]).toBeDefined();
+            expect(enJson[k]).toBeDefined();
+
+            // Bắt buộc escape bằng {'@'} theo quy chuẩn của vue-i18n
+            expect(viJson[k]).toContain("{\'@\'}");
+            expect(enJson[k]).toContain("{\'@\'}");
+
+            // Tuyệt đối không còn @ đứng trước tên biến/chữ cái mà không escape (nguyên nhân gây SyntaxError)
+            expect(viJson[k]).not.toMatch(/@(?![{:])\w+/);
+            expect(enJson[k]).not.toMatch(/@(?![{:])\w+/);
+        }
+
+        // 3. E2E Browser Test: Bắt lỗi Console & Lỗi JS khi mở trang và chuyển tab
+        const pageErrors: string[] = [];
+        page.on('pageerror', (err: Error) => {
+            pageErrors.push(err.message);
+        });
+
+        const multiLineSql = `SELECT TOP (@pageSize)
+    zs.ID AS zoneStatusId,
+    zs.ZoneId AS zoneId,
+    z.Name AS zoneName,
+    z.FromKmNumber AS fromLocationKm,
+    z.FromMetNumber AS fromLocationMet,
+    z.ToKmNumber AS toLocationKm,
+    z.ToMetNumber AS toLocationMet,
+    z.LaneId AS laneId,
+    CAST(zs.AverageSpeed AS DECIMAL(18, 2)) AS averageSpeed,
+    zs.Condition AS trafficCondition,
+    zs.UpdateTime AS dataTime,
+    z.MaxSpeed AS speedLimit,
+    ts.TotalVehicleNumber AS vehicleCount,
+    COALESCE(zs.UpdateTime, zs.CreateTime) AS __lastTime,
+    zs.ID AS __rowid
+FROM TmsZoneStatus zs
+LEFT JOIN TmsZone z ON zs.ZoneId = z.ID
+LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId
+WHERE (
+      @lastTime IS NULL
+      OR COALESCE(zs.UpdateTime, zs.CreateTime) > @lastTime
+      OR (COALESCE(zs.UpdateTime, zs.CreateTime) = @lastTime AND zs.ID > @lastKey)
+  )
+ORDER BY __lastTime ASC, __rowid ASC`;
+
+        // Mock API getextractsql trả về SQL nhiều dòng (25 dòng) chế độ Toàn bộ (syncMode = 1) nhưng còn sót điều kiện @lastTime
+        // để kích hoạt residualCursorWithPartsWarning và residualCursorFilterPart trong syncModePanel,
+        // đồng thời kiểm tra tự động dãn chiều cao editor
+        await page.route('**/api/sharedata/sharedatapacket/getextractsql*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        extractSql: multiLineSql,
+                        status: 1,
+                        syncMode: 1,
+                        maxLookBackDays: null,
+                    },
+                }),
+            });
+        });
+
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+
+        const tabs = page.locator('.datasource-right-tabs');
+        await expect(tabs).toBeVisible({ timeout: 15_000 });
+
+        // Tab mặc định ban đầu là Danh sách trường
+        const savedFieldsPane = page.locator('.saved-fields-pane');
+        const sqlCenterPane = page.locator('.sql-center-pane');
+        await expect(savedFieldsPane).toBeVisible();
+
+        // Chuyển sang tab Cấu hình SQL
+        const sqlTab = tabs.getByRole('tab', { name: /Cấu hình SQL/ });
+        await sqlTab.click();
+        await expect(sqlTab).toHaveClass(/is-active/);
+
+        // Panel Cấu hình SQL phải hiển thị, panel Danh sách trường phải ẩn
+        await expect(sqlCenterPane).toBeVisible({ timeout: 10_000 });
+        await expect(savedFieldsPane).toBeHidden();
+
+        // 4. Kiểm tra chiều cao editor đã tự động co giãn theo nội dung SQL (25 dòng tự tăng > 350px thay vì kẹt ở 280px)
+        const sqlEditorPath = resolveWebvuePath('views/sharedata/dataSource/component/sqlEditor.vue');
+        const sqlEditorContent = fs.readFileSync(sqlEditorPath, 'utf8');
+        expect(sqlEditorContent).toContain('adjustEditorHeightToContent');
+        expect(sqlEditorContent).toContain('computeSqlContentHeight');
+        expect(sqlEditorContent).toContain('onDidContentSizeChange');
+
+        const monacoEditor = page.locator('.sql-monaco-editor');
+        await expect(monacoEditor).toBeVisible();
+        const editorBox = await monacoEditor.boundingBox();
+        expect(editorBox).toBeTruthy();
+        if (editorBox) {
+            expect(editorBox.height).toBeGreaterThan(350);
+        }
+
+        // Cảnh báo con trỏ còn sót xuất hiện và render đúng text i18n không bị lỗi
+        const residualAlert = page.locator('.sync-mode-alert');
+        if (await residualAlert.count() > 0) {
+            await expect(residualAlert).toContainText(/@lastTime/);
+        }
+
+        // Chuyển ngược lại tab Danh sách trường
+        const fieldsTab = tabs.getByRole('tab', { name: /Trường gói tin|Danh sách trường/ });
+        await fieldsTab.click();
+        await expect(fieldsTab).toHaveClass(/is-active/);
+        await expect(savedFieldsPane).toBeVisible();
+        await expect(sqlCenterPane).toBeHidden();
+
+        // Chuyển lại tab Cấu hình SQL một lần nữa để xác nhận mượt mà không crash
+        await sqlTab.click();
+        await expect(sqlTab).toHaveClass(/is-active/);
+        await expect(sqlCenterPane).toBeVisible();
+
+        // Đảm bảo không có bất kỳ lỗi SyntaxError hoặc Invalid linked format nào ném ra
+        const linkedFormatErrors = pageErrors.filter((msg: string) => msg.includes('Invalid linked format'));
+        expect(linkedFormatErrors).toHaveLength(0);
     });
 });
 

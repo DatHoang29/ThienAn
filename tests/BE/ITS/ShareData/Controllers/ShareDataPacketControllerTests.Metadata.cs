@@ -54,7 +54,7 @@ public partial class ShareDataPacketControllerTests
     }
 
     [Fact]
-    public async Task GetMetadataFields_WhenSuperAdminAndWhitelistedTable_ReturnsColumnsWithSuggestedAliases_Test()
+    public async Task GetMetadataFields_WhenSuperAdminAndWhitelistedTable_ReturnsRealDbColumns_Test()
     {
         // Arrange
         SetUserContext(isSuperAdmin: true, account: $"superadmin_{Guid.NewGuid():N}");
@@ -69,8 +69,8 @@ public partial class ShareDataPacketControllerTests
         // Assert
         Assert.NotNull(fields);
         Assert.NotEmpty(fields);
-        Assert.Contains(fields, f => f.ColumnName == "ID" && f.SuggestedAlias == "zoneId");
-        Assert.Contains(fields, f => f.ColumnName == "Name" && f.SuggestedAlias == "zoneName");
+        Assert.Contains(fields, f => f.ColumnName == "ID" && f.IsPrimaryKey == true && !string.IsNullOrWhiteSpace(f.DataType) && f.SuggestedAlias == null);
+        Assert.Contains(fields, f => f.ColumnName == "Name" && !string.IsNullOrWhiteSpace(f.DataType) && f.SuggestedAlias == null);
     }
 
     [Fact]

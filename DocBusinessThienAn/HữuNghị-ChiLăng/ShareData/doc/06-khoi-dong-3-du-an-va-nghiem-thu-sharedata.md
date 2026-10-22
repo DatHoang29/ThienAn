@@ -157,12 +157,13 @@ Theo chủ trương của chủ dự án, **ưu tiên thao tác trực tiếp tr
    - Khung soạn thảo SQL (Monaco Editor) đã hiển thị câu truy vấn trích xuất chuẩn. Nếu muốn khôi phục lại câu SQL chuẩn từ hệ thống, bấm nút **Khôi phục SQL mẫu** (`vqbResetToTemplateTitle`). *(Lưu ý: Bấm nút này chỉ nạp nội dung lên khung soạn thảo, chưa ghi đè xuống CSDL cho tới khi bấm nút Lưu).*
    - **Điều kiện lấy dữ liệu (`SyncModePanel`):**
      + Kiểm tra **Chế độ đồng bộ** (`syncMode`): Chọn *Toàn bộ* (Snapshot) cho các gói 101/102/105/108/110; hoặc *Nối đuôi* (Incremental) cho các gói 103/104/106/107/109 theo đúng [Phụ lục C](05-chay-sql-tu-dau-sharedata.md#phụ-lục-c-danh-mục-chuẩn-11-gói-tin-sharedata).
-     + Nếu là gói *Nối đuôi*: Chọn cột thời gian con trỏ (`cursorTimeColumn`), chọn **Khóa phụ** (`selectedKeyExpr` - dùng khi nhiều dòng cùng mốc thời gian, như mã làn / mã trạm / vị trí hoặc khóa chính để tránh sót hoặc trùng dữ liệu) và nhập **Quét lùi tối đa (ngày)** (`maxLookBackDays` = 1).
+     + Nếu là gói *Nối đuôi*: Câu lệnh SQL tự động có điều kiện con trỏ 2 khóa (`@lastTime`, `@lastKey`) và sắp xếp theo mốc thời gian tăng dần (`ASC`). Ô *Quét lùi tối đa* tạm thời được ẩn trên giao diện chờ review nghiệp vụ (Worker vẫn áp dụng nếu CSDL đã lưu giá trị).
    - **Trường trích xuất (sau AS):** Hệ thống tự động bóc tách các bí danh sau `AS` trong câu SELECT:
      + Chip màu xanh (✓): Bí danh đã được khai báo thành trường gói tin.
      + Chip viền nét đứt: Bí danh chưa khai trường.
      + Chip gạch ngang đỏ nhạt: Trường gói tin đã khai nhưng câu SQL không trả về.
      + Dòng trạng thái dưới chip: Tóm tắt số trường đã khai · chưa khai kèm nút `[Khai thêm M trường]` · số trường SQL không trả về.
+   - **Biến hệ thống trong câu truy vấn:** Hiển thị trực quan nguồn giá trị của từng biến do Worker tự điền (`@lastTime ← __lastTime = <biểu_thức>`, `@lastKey ← __rowid = <biểu_thức>`, `@pageSize ← cấu hình Worker`, `@fromDate ← hôm nay − N ngày`, `@toDate ← thời điểm chạy`). Muốn đổi nguồn mốc con trỏ chỉ cần sửa biểu thức sau `AS __lastTime` / `AS __rowid` trong câu lệnh SQL; khi chuyển đổi chế độ đồng bộ hệ thống tự gắn/gỡ phần nối đuôi mà không bật thông báo thừa.
    - Bấm nút **Lưu** (`save`) để lưu cấu hình SQL và các tham số đồng bộ xuống CSDL.
 5. 💡 **Khuyến nghị gói tin tối thiểu để nghiệm thu:** Để thực hiện nhanh các kịch bản kiểm thử, người dùng tối thiểu cần khởi tạo 2 gói tin:
    - Gói **`101_commonData`** (Snapshot, phục vụ kịch bản D1, D5, E0, E1).
