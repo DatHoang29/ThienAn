@@ -43,6 +43,7 @@ Mọi AI Agent **BẮT BUỘC** tuân thủ tuyệt đối các quy tắc cốt 
 | **48** | **Giữ Nguyên Dòng Cũ Khi Nội Dung Không Đổi** (Rule 19.89) | Minimal Diff: giữ nguyên 100% dòng cũ khi logic không đổi. Format/ngắt dòng chỉ áp dụng cho dòng code mới viết hoặc sửa đổi trực tiếp. Chi tiết: [backend-dotnet_thienan.md](./backend-dotnet_thienan.md) §4.21. |
 | **58** | **Cấm Commit Tệp Cấu Hình Local & Bí Mật** (Rule 19.100) | ⛔ CẤM stage, commit, push file cấu hình local và bí mật: `.env.development`, `.env.local`, `Database.json`, `TAKey*.key`, `Shared.Core.Security.dll`. Chi tiết: [git-workflow_thienan.md](./git-workflow_thienan.md) §4.6. |
 | **61** | **Tách Locale Phân Hệ & Thoát '@' Trong i18n** (Rule 20.29) | Tách locale riêng `its/<module>/`; tự động nạp qua `import.meta.glob` (cấm import thủ công từng file); ⛔ CẤM `@` trần đi liền tên biến (bắt buộc `{'@'}`); seed SQL cập nhật có điều kiện `WHERE Value = N'<cũ>'`. Chi tiết: [frontend-vue_thienan.md](./frontend-vue_thienan.md) §5. |
+| **62** | **Thẻ Không Có Nội Dung Viết Tự Đóng** (Rule 20.30) | Thẻ HTML/component trong `<template>` `.vue` không có nội dung (không chữ, không thẻ con, không slot) viết `<div ... />`; ⛔ CẤM cặp rỗng `<div ...></div>`. Chỉ áp cho thẻ mới viết hoặc thẻ có sửa thuộc tính. Chi tiết: [frontend-vue_thienan.md](./frontend-vue_thienan.md) §6.2. |
 
 ---
 
@@ -67,6 +68,7 @@ Quy tắc kỹ thuật chi tiết lưu giữ toàn văn tại các tệp chuyên
 - **Rule 20.27** (STT 59) — Định dạng ngày tháng bộ lọc FE (`el-date-picker` bắt buộc `format="DD/MM/YYYY"`) (§10.4)
 - **Rule 20.28** (STT 60) — Gọi API 100% qua `getAPI(XxxApi)`, CẤM tạo service tùy tiện & CẤM gọi raw `axiosInstance` (`${serveConfig.basePath}`) (§1.1)
 - **Rule 20.29** (STT 61) — Tách locale riêng phân hệ (`its/<module>/`), bọc escape `{'@'}` chống lỗi vue-i18n & đồng bộ seed SQL idempotent an toàn (§5)
+- **Rule 20.30** (STT 62) — Thẻ không có nội dung viết tự đóng `<div ... />`, cấm cặp rỗng `<div ...></div>` (§6.2)
 
 ### 2. Backend .NET & Clean Architecture ([backend-dotnet_thienan.md](./backend-dotnet_thienan.md))
 - **Rule 19.67** (STT 18) — Ưu tiên sửa code trước, chỉ viết test khi có yêu cầu (Fix-First & On-Demand) (§4.25)

@@ -3963,7 +3963,7 @@ LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId`;
         expect(sqlEditorContent).toContain('PACKET_RELATED_TABLES_MAP[packetNum]');
     });
 
-    test('61. Giao diện Cấu hình SQL gọn cảnh báo và chip trường trích xuất (sau AS) theo prompt 21/10/2026', async () => {
+    test('61. Giao diện Cấu hình SQL gọn cảnh báo; cột SQL chưa khai nằm ở danh sách trường (bỏ bảng Trường trích xuất) theo prompt 21/10/2026', async () => {
         const sqlEditorPath = resolveWebvuePath('views/sharedata/dataSource/component/sqlEditor.vue');
         const sqlEditorContent = fs.readFileSync(sqlEditorPath, 'utf8');
 
@@ -3973,12 +3973,11 @@ LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId`;
         const indexPath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
         const indexContent = fs.readFileSync(indexPath, 'utf8');
 
-        // 1-2. Đối chiếu SQL với Danh sách trường là một bảng duy nhất: dòng cần xử lý xếp trước, dòng khớp xếp cuối
-        expect(sqlEditorContent).toContain('field-compare-table');
-        expect(sqlEditorContent).toContain('compareRows');
-        expect(sqlEditorContent).toContain('fieldCompareStatusNew');
-        expect(sqlEditorContent).toContain('fieldCompareStatusMissing');
-        expect(sqlEditorContent).toContain('fieldCompareStatusMatched');
+        // 1-2. Khung SQL không còn bảng đối chiếu riêng: cột SQL chưa khai hiện thành nhóm "Chưa khai" ở danh sách trường
+        expect(sqlEditorContent).not.toContain('field-compare-table');
+        expect(sqlEditorContent).not.toContain('compareRows');
+        expect(sqlEditorContent).toContain("emit('columns-change'");
+        expect(indexContent).toContain('isPendingRow');
         expect(sqlEditorContent).not.toContain('sql-extracted-status-line');
         expect(sqlEditorContent).not.toContain('sql-field-chip');
 
@@ -3990,9 +3989,9 @@ LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId`;
         expect(indexContent).not.toContain('vqb-reset-template-btn');
         expect(indexContent).toContain('handleCopySql');
 
-        // 5. sqlEditor.vue: không còn chú giải màu; chỉ dòng "chưa có trong gói" có nút Tạo trường (chọn cột trong SQL rồi mở hộp tạo trường)
+        // 5. sqlEditor.vue: không còn chú giải màu; nút Tạo trường nằm ở dòng "chưa khai" của danh sách trường (index.vue)
         expect(sqlEditorContent).not.toContain('sql-extracted-legend');
-        expect(sqlEditorContent).toContain('fieldCompareCreate');
+        expect(indexContent).toContain('fieldCompareCreate');
         expect(sqlEditorContent).toContain('handleChipClick');
         expect(sqlEditorContent).not.toContain('<el-tooltip\n\t\t\t\t\t\tv-for="col in nonSystemColumns"');
     });

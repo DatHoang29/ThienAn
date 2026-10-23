@@ -223,6 +223,22 @@ src/views/<module>/<feature>/
 2. **Ngắt Dòng Thuộc Tính Template (Rule 20.9)**:
    - Khi component có từ 3 props/events trở lên, ngắt mỗi thuộc tính thành một dòng riêng biệt, thụt đầu dòng rõ ràng để dễ review Git diff.
    - Chỉ áp cho thẻ mới viết hoặc thẻ có thêm thuộc tính; thẻ cũ không đổi nội dung thì giữ nguyên dòng và thụt lề cũ (Rule 19.89, [backend-dotnet_thienan.md](./backend-dotnet_thienan.md) §4.21).
+   - **Thẻ không có nội dung viết tự đóng (Rule 20.30)**: Thẻ HTML hoặc component không có nội dung bên trong (không chữ, không thẻ con, không slot) BẮT BUỘC viết dạng tự đóng `<div ... />`; ⛔ **CẤM** viết cặp mở – đóng rỗng `<div ...></div>`. Áp dụng cho cả thẻ HTML thường (`div`, `span`, `i`...) và component trong `<template>` của tệp `.vue`. Chỉ áp cho thẻ mới viết hoặc thẻ có sửa thuộc tính; thẻ cũ không đổi nội dung thì giữ nguyên (Rule 19.89).
+     ```vue
+     <!-- ❌ CẤM -->
+     <div
+         ref="monacoContainerRef"
+         class="sql-monaco-editor"
+         :style="{ height: `${rawEditorHeight}px` }"
+     ></div>
+
+     <!-- ✅ CHUẨN -->
+     <div
+         ref="monacoContainerRef"
+         class="sql-monaco-editor"
+         :style="{ height: `${rawEditorHeight}px` }"
+     />
+     ```
 
 3. **Type Safety Cho Tham Số Modal/Dialog Nhận DTO Backend (Rule 20.10)**:
    - **Bối cảnh & Lỗi thường gặp**: Toàn bộ các model/DTO sinh từ Swagger / C# backend (`api-services/**`) đều có các thuộc tính dạng nullable/optional (`id?: string | null; code?: string | null | undefined; name?: string | null | undefined;`).
