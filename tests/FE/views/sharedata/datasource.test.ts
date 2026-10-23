@@ -1457,9 +1457,9 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
                 body: JSON.stringify({
                     code: 200,
                     result: [
-                        { tableName: 'TmsZone', displayName: 'Đoạn đường', description: 'Danh mục đoạn đường', category: 'Core' },
-                        { tableName: 'TmsTrafficData', displayName: 'Lưu lượng', description: 'Dò xe, lưu lượng', category: 'Traffic' },
-                        { tableName: 'TmsWeather', displayName: 'Thời tiết', description: 'Dữ liệu thời tiết', category: 'Sensor' },
+                        { id: 'tbl-zone', tableName: 'TmsZone', displayName: 'Đoạn đường', description: 'Danh mục đoạn đường', category: 'Core' },
+                        { id: 'tbl-traffic', tableName: 'TmsTrafficData', displayName: 'Lưu lượng', description: 'Dò xe, lưu lượng', category: 'Traffic' },
+                        { id: 'tbl-weather', tableName: 'TmsWeather', displayName: 'Thời tiết', description: 'Dữ liệu thời tiết', category: 'Sensor' },
                     ],
                 }),
             });
@@ -2163,8 +2163,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
                 body: JSON.stringify({
                     code: 200,
                     result: [
-                        { tableName: 'TmsTrafficData', displayName: 'Dò xe', defaultAlias: 'td' },
-                        { tableName: 'TollLane', displayName: 'Làn thu phí', defaultAlias: 'tl' },
+                        { id: 'tbl-traffic', tableName: 'TmsTrafficData', displayName: 'Dò xe', defaultAlias: 'td' },
+                        { id: 'tbl-lane', tableName: 'TollLane', displayName: 'Làn thu phí', defaultAlias: 'tl' },
                     ],
                 }),
             });
@@ -2598,8 +2598,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
                 body: JSON.stringify({
                     code: 200,
                     result: [
-                        { tableName: 'TmsTrafficData', displayName: 'Dò xe', defaultAlias: 'td' },
-                        { tableName: 'TollLane', displayName: 'Làn thu phí', defaultAlias: 'tl' },
+                        { id: 'tbl-traffic', tableName: 'TmsTrafficData', displayName: 'Dò xe', defaultAlias: 'td' },
+                        { id: 'tbl-lane', tableName: 'TollLane', displayName: 'Làn thu phí', defaultAlias: 'tl' },
                     ],
                 }),
             });
@@ -3944,23 +3944,19 @@ LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId`;
         const sqlEditorPath = resolveWebvuePath('views/sharedata/dataSource/component/sqlEditor.vue');
         const sqlEditorContent = fs.readFileSync(sqlEditorPath, 'utf8');
 
-        // 1. queryBuilder.vue và sqlEditor.vue đều chứa bản đồ PACKET_RELATED_TABLES_MAP khớp tài liệu 02
-        for (const content of [qbContent, sqlEditorContent]) {
-            expect(content).toContain('PACKET_RELATED_TABLES_MAP');
-            expect(content).toContain("'101': ['TmsZoneStatus', 'TmsZone', 'TmsTrafficStatistic']");
-            expect(content).toContain("'102': ['CctvDevice', 'TmsEquipment']");
-            expect(content).toContain("'103': ['TmsTrafficData', 'TmsTrafficStatistic', 'TmsZoneStatus', 'TmsEquipment']");
-            expect(content).toContain("'104': ['TmsWeather', 'TmsZone', 'TmsEquipment']");
-            expect(content).toContain("'107': ['TmsIncident', 'TmsEventType', 'TmsEquipment']");
-            expect(content).toContain("'108': ['VmsCurrent', 'TmsSignalLog', 'VmsProcess', 'TmsEquipment']");
-            expect(content).toContain("'109': ['TollTransactionIn', 'TollTransactionOut', 'TollLane', 'TollStation', 'TollMasterData']");
-            expect(content).toContain("'110': ['TmsIncident', 'TmsEquipment', 'VmsCurrent', 'TmsWeather']");
-            expect(content).toContain("'111': ['TmsSignalLog', 'TmsEquipment']");
+        // 1. Không còn bản đồ tên bảng ghi cứng trong mã giao diện (tên bảng chỉ lấy từ danh mục bảng nguồn của máy chủ, dành cho SuperAdmin)
+        const syncPanelContent = fs.readFileSync(resolveWebvuePath('views/sharedata/dataSource/component/syncModePanel.vue'), 'utf8');
+        for (const content of [qbContent, sqlEditorContent, syncPanelContent]) {
+            expect(content).not.toContain('PACKET_RELATED_TABLES_MAP');
+            expect(content).not.toContain('KNOWN_ALLOWED_TABLES');
+            expect(content).not.toContain('TollTransactionIn');
+            expect(content).not.toContain('TmsVehicleRegistration');
+            expect(content).toContain('utils/sharedata/sourceTables');
         }
 
-        // 2. sqlEditor.vue đăng ký completion provider cho Monaco Editor dựa trên gói tin
+        // 2. sqlEditor.vue đăng ký completion provider cho Monaco Editor, bảng gợi ý theo mã gói tin của danh mục bảng nguồn
         expect(sqlEditorContent).toContain("monaco.languages.registerCompletionItemProvider('sql'");
-        expect(sqlEditorContent).toContain('PACKET_RELATED_TABLES_MAP[packetNum]');
+        expect(sqlEditorContent).toContain('matchesPacketCode(t.packetCodes, currentCode)');
     });
 
     test('61. Giao diện Cấu hình SQL gọn cảnh báo; cột SQL chưa khai nằm ở danh sách trường (bỏ bảng Trường trích xuất) theo prompt 21/10/2026', async () => {

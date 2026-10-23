@@ -60,10 +60,13 @@ public partial class ShareDataPacketControllerTests
         SetUserContext(isSuperAdmin: true, account: $"superadmin_{Guid.NewGuid():N}");
         using var scope = _host.Services.CreateScope();
 
-        // Act
+        // Act: lấy mã định danh bảng từ danh mục rồi gọi lấy cột bằng mã (không gửi tên bảng)
+        var tables = await scope.ServiceProvider.CallApiAsync<List<MetadataTableDto>>(new GetMetadataTablesInput());
+        var zone = Assert.Single(tables, t => t.TableName == "TmsZone");
+        Assert.False(string.IsNullOrWhiteSpace(zone.Id));
         var fields = await scope.ServiceProvider.CallApiAsync<List<MetadataFieldDto>>(new GetMetadataFieldsInput
         {
-            TableName = "TmsZone"
+            TableId = zone.Id
         });
 
         // Assert
@@ -96,7 +99,7 @@ public partial class ShareDataPacketControllerTests
         // Act & Assert
         var ex = await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<List<MetadataFieldDto>>(new GetMetadataFieldsInput
         {
-            TableName = "TmsZone"
+            TableId = "any-table-id"
         }));
         var msg = ex.Message;
         Assert.True(msg.Contains("superAdminRequiredForMetadata") || (ex is AppFriendlyException afe && afe.ErrorMessage?.ToString() == BaseMsg.ShareData.Exception.SuperAdminRequiredForMetadata));
@@ -105,17 +108,18 @@ public partial class ShareDataPacketControllerTests
     [Theory]
     [InlineData("SysUser")]
     [InlineData("ShareDataPartner")]
-    [InlineData("NonExistentTable")]
-    public async Task GetMetadataFields_WhenTableNotInWhitelist_ThrowsTableNotAllowedOrInvalid_Test(string tableName)
+    [InlineData("TmsZone")]
+    [InlineData("NonExistentTableId")]
+    public async Task GetMetadataFields_WhenIdNotInWhitelist_ReturnsEmpty_Test(string tableId)
     {
-        // Arrange
+        // Arrange: mã không có trong danh mục (kể cả gửi nhầm tên bảng thay vì mã) thì không trả cột
         SetUserContext(isSuperAdmin: true, account: $"superadmin_{Guid.NewGuid():N}");
         using var scope = _host.Services.CreateScope();
 
         // Act & Assert
         var fields = await scope.ServiceProvider.CallApiAsync<List<MetadataFieldDto>>(new GetMetadataFieldsInput
         {
-            TableName = tableName
+            TableId = tableId
         });
         Assert.NotNull(fields);
         Assert.Empty(fields);
@@ -126,7 +130,7 @@ public partial class ShareDataPacketControllerTests
     [InlineData("TmsZone--")]
     [InlineData("dbo.TmsZone")]
     [InlineData("sys.tables")]
-    public async Task GetMetadataFields_WhenTableHasSpecialCharsOrSystemPrefix_ThrowsTableNameInvalid_Test(string invalidTableName)
+    public async Task GetMetadataFields_WhenIdHasSpecialCharsOrSystemPrefix_ReturnsEmpty_Test(string invalidTableId)
     {
         // Arrange
         SetUserContext(isSuperAdmin: true, account: $"superadmin_{Guid.NewGuid():N}");
@@ -135,7 +139,7 @@ public partial class ShareDataPacketControllerTests
         // Act & Assert
         var fields = await scope.ServiceProvider.CallApiAsync<List<MetadataFieldDto>>(new GetMetadataFieldsInput
         {
-            TableName = invalidTableName
+            TableId = invalidTableId
         });
         Assert.NotNull(fields);
         Assert.Empty(fields);
@@ -188,7 +192,7 @@ public partial class ShareDataPacketControllerTests
             // Act
             var fields = await scope.ServiceProvider.CallApiAsync<List<MetadataFieldDto>>(new GetMetadataFieldsInput
             {
-                TableName = missingTableName
+                TableId = testId
             });
 
             // Assert

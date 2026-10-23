@@ -100,7 +100,7 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         await page.route('**/api/sharedata/sharedatamapping/page*', (r) => r.fulfill(json({ code: 200, result: { records: [], total: 0 } })));
         await page.route('**/api/sharedata/sharedatapacket/getextractsql*', (r) => r.fulfill(json({ code: 200, result: { extractSql: SQL_ONE_COLUMN, status: 1, syncMode: 1, maxLookBackDays: null } })));
         await page.route('**/api/sharedata/sharedatapacket/parseextractcolumns*', (r) => r.fulfill(json({ code: 200, result: { isValid: true, columns: ['speed'] } })));
-        await page.route('**/api/sharedata/sharedatapacket/getmetadatatables*', (r) => r.fulfill(json({ code: 200, result: [{ tableName: 'TmsTrafficData' }, { tableName: 'TmsZone' }] })));
+        await page.route('**/api/sharedata/sharedatapacket/getmetadatatables*', (r) => r.fulfill(json({ code: 200, result: [{ id: 'tbl-traffic', tableName: 'TmsTrafficData' }, { id: 'tbl-zone', tableName: 'TmsZone' }] })));
         await page.route('**/api/sharedata/sharedatapacket/getmetadatafields*', (r) =>
             r.fulfill(json({ code: 200, result: [{ columnName: 'Id', dataType: 'bigint' }, { columnName: 'Speed', dataType: 'int' }, { columnName: 'UpdateTime', dataType: 'datetime' }] }))
         );
@@ -587,6 +587,22 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
 
         await expect.poll(() => posted.slice().sort(), { timeout: 15_000 }).toEqual(['extraCol', 'isFlag']);
         expect(events[0]).toBe('save-sql');
+    });
+
+    test('27. Lấy cột của bảng nguồn gửi mã định danh bảng (tableId) trên URL, không gửi tên bảng', async ({ page }) => {
+        const urls: string[] = [];
+        await page.route('**/api/sharedata/sharedatapacket/getmetadatafields*', async (r) => {
+            urls.push(r.request().url());
+            await r.fulfill(json({ code: 200, result: [{ columnName: 'Speed', dataType: 'int' }] }));
+        });
+        await openSqlCenter(page);
+        await expect.poll(() => urls.length, { timeout: 20_000 }).toBeGreaterThan(0);
+        for (const url of urls) {
+            const query = new URL(url).searchParams;
+            expect(query.get('tableId')).toBe('tbl-traffic');
+            expect(query.has('tableName')).toBe(false);
+            expect(url).not.toContain('TmsTrafficData');
+        }
     });
 
     test('14. Chuỗi ngôn ngữ chứa "@" phải viết {\'@\'} để vue-i18n không báo Invalid linked format', async () => {
