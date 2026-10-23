@@ -44,6 +44,7 @@ Mọi AI Agent **BẮT BUỘC** tuân thủ tuyệt đối các quy tắc cốt 
 | **58** | **Cấm Commit Tệp Cấu Hình Local & Bí Mật** (Rule 19.100) | ⛔ CẤM stage, commit, push file cấu hình local và bí mật: `.env.development`, `.env.local`, `Database.json`, `TAKey*.key`, `Shared.Core.Security.dll`. Chi tiết: [git-workflow_thienan.md](./git-workflow_thienan.md) §4.6. |
 | **61** | **Tách Locale Phân Hệ & Thoát '@' Trong i18n** (Rule 20.29) | Tách locale riêng `its/<module>/`; tự động nạp qua `import.meta.glob` (cấm import thủ công từng file); ⛔ CẤM `@` trần đi liền tên biến (bắt buộc `{'@'}`); seed SQL cập nhật có điều kiện `WHERE Value = N'<cũ>'`. Chi tiết: [frontend-vue_thienan.md](./frontend-vue_thienan.md) §5. |
 | **62** | **Thẻ Không Có Nội Dung Viết Tự Đóng** (Rule 20.30) | Thẻ HTML/component trong `<template>` `.vue` không có nội dung (không chữ, không thẻ con, không slot) viết `<div ... />`; ⛔ CẤM cặp rỗng `<div ...></div>`. Chỉ áp cho thẻ mới viết hoặc thẻ có sửa thuộc tính. Chi tiết: [frontend-vue_thienan.md](./frontend-vue_thienan.md) §6.2. |
+| **63** | **Commit Message Chỉ Nêu Việc Chính** (Rule 19.102) | Gạch đầu dòng trong commit message chỉ nêu việc chính đã làm, ngắn gọn. ⛔ CẤM ghi viết/chạy test, kết quả kiểm thử, cập nhật tài liệu đi kèm, dọn mã. Chi tiết: [git-workflow_thienan.md](./git-workflow_thienan.md) §3. |
 
 ---
 

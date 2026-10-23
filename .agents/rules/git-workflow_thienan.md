@@ -60,6 +60,9 @@ description: Git branching workflow, Vietnamese commit conventions, and pre-comm
 * **Dòng 2:** Lặp lại nguyên văn Summary (⛔ TUYỆT ĐỐI KHÔNG thêm nhãn `Description:`).
 * **Dòng 3 trở đi:** Dòng trống, sau đó là các gạch đầu dòng (`- `) ngắn gọn mô tả **fix cái gì / làm cái gì** tại file nào.
 * ⛔ **CẤM tự ý chèn thẻ metadata** `Ref: ...`, `Reviewer: ...`, `CR: ...` khi không có yêu cầu.
+* ⛔ **Gạch đầu dòng chỉ nêu việc chính đã làm (Rule 19.102)**: mỗi gạch là một thay đổi chính của tính năng/lỗi, viết ngắn. CẤM ghi các việc phụ trợ: viết test, chạy test, kết quả kiểm thử (VD: `thêm test...`, `test 26/26 đạt`), cập nhật tài liệu đi kèm, dọn mã.
+  - ❌ *CẤM*: `- Thêm test kiểm tra URL gửi tableId, chạy 27/27 đạt`
+  - ✅ *ĐÚNG*: `- Lấy cột bảng nguồn bằng mã định danh thay vì tên bảng`
 
 ### Tính Toàn Vẹn Của Commit (Atomic Commit & Phụ Thuộc Hoàn Chỉnh - Rule 19.93)
 * **Gom đủ tệp liên quan vào cùng 1 commit**: Khi `git add` và commit (`commit -m`), BẮT BUỘC gom toàn bộ các tệp cấu thành và phụ thuộc trực tiếp của tính năng vào cùng một commit (Atomic Commit).
