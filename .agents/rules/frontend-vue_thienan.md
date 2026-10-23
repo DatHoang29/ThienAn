@@ -140,6 +140,15 @@ src/views/<module>/<feature>/
 
   Thông điệp kiểm tra dùng khóa chung: `$t('lz.validation.base.required', { PropertyName: $t('lz.entity.base.code') })`, `$t('lz.validation.base.maxlength', { PropertyName, MaxLength: EntityFieldLength.Length64 })`; placeholder `$t('lz.label.base.pleaseType', { input: ... })`; tiêu đề `$t('lz.label.base.titleAdd' | 'titleEdit', { name: ... })`.
 
+* **Lỗi giao diện đã gặp — kiểm lại trước khi báo xong (bổ sung 22/10/2026, từ hộp rà soát SQL riêng ShareData)**:
+  - **Tiêu đề hộp thoại bị đen / hộp lệch góc**: thanh tiêu đề dùng nền primary nên chữ BẮT BUỘC trắng. ⛔ Không dùng `:title`, không dùng `align-center` (xung đột với `.el-dialog { position: absolute }` ở `theme/element.scss`, hộp bị đẩy sát góc trái trên). Luôn theo bảng trên: slot `#header` (icon + chữ trắng, `color: #fff`) + `draggable`; hộp đang lưu thì khóa `close-on-click-modal` / `close-on-press-escape` / `show-close`. Áp cho cả hộp xác nhận, hộp rà soát và hộp xem, không chỉ form thêm/sửa.
+  - **Hộp cao thay đổi sau khi mở (Monaco, bảng, chip nạp muộn) bị lệch khỏi giữa màn hình**: `.el-dialog` toàn cục là `position: absolute` nên không tự canh giữa lại khi cao thêm. Hộp loại này thêm class riêng và đưa về luồng flex của overlay bằng khối `<style lang="scss">` (không scoped, vì hộp được teleport ra body): `.el-overlay .el-dialog.<class-riêng> { position: relative; }`. Chỉ khóa theo class riêng, không đụng `.el-dialog` chung.
+  - **Hộp mở chậm vài trăm ms**: không `await` API phụ (đếm cột, kiểm tra, thống kê) trước khi bật `visible`. Mở hộp ngay với dữ liệu đã có, phần phụ nạp xong mới điền (kiểm tra còn đúng đối tượng trước khi gán). Hộp nạp bằng `defineAsyncComponent` thì nạp sẵn chunk lúc rảnh như Monaco.
+  - **Nhãn / nút trong một hàng bị rớt dòng**: hàng thanh công cụ (nút chuyển, tab, nút hành động) dùng `flex-wrap: wrap`; phần nhãn giữ `flex: 0 0 auto` + `white-space: nowrap` (kể cả `.el-radio-button__inner`). ⛔ Không đặt `flex: 1 1 0` + `overflow: hidden` cho cột chứa nhãn, vì khi cột bên cạnh dài ra nhãn bị ép co và xuống dòng. Hàng chật thì để cả nhóm nút xuống hàng dưới.
+  - **Monaco trong hộp thoại**: thanh cuộn nhỏ (`scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10, useShadows: false }`), diff editor tắt `renderOverviewRuler`; mặc định của Monaco làm thanh cuộn to, lệch tông với các màn khác.
+  - **Monaco nạp chậm lần đầu**: `import('monaco-editor')` nặng vài MB, nếu chỉ nạp khi mở tab thì người dùng thấy ô soạn thảo trống vài trăm ms. Trang chứa trình soạn SQL phải nạp sẵn lúc rảnh (`requestIdleCallback`, có `setTimeout` dự phòng) trong `onMounted`, chỉ với người dùng có quyền dùng tab đó; các component con vẫn `import()` như cũ và nhận lại module đã nạp.
+  - **Kiểm tra khi sửa giao diện**: sau khi sửa phải đối chiếu hộp thoại / thanh công cụ vừa làm với một hộp có sẵn của phân hệ (vd `editPacket.vue`, `activityDetailDialog.vue`) về tiêu đề, vị trí, kích thước thanh cuộn, thay vì chỉ kiểm tra mã.
+
 ---
 
 ## 🌐 5. Đa Ngôn Ngữ (i18n Scope Rules)
@@ -478,6 +487,11 @@ Khi sửa lỗi hoặc điều chỉnh giao diện (UI/UX, CSS, font chữ, alig
 
 - Hook `useVxeTable` tự đọc kết quả API: phân trang lấy `data.result.records` (dòng) + `data.result.total` (tổng); không phân trang lấy `data.result` (Kiro FE).
 
+- **Tiêu đề cột bảng căn giữa (bổ sung 22/10/2026)**: mọi bảng, kể cả bảng nhỏ trong tab/hộp thoại, BẮT BUỘC căn giữa tiêu đề cột; chỉ phần thân ô mới tuỳ kiểu dữ liệu.
+  - `el-table-column`: luôn có `header-align="center"`. Cột trạng thái (thẻ `el-tag`), thời gian, số, thao tác thì thêm `align="center"` (căn cả thân ô, tiêu đề tự theo); cột tên/mô tả dài giữ thân ô căn trái.
+  - `vxe-table` / `useVxeTable`: mỗi cột khai `headerAlign: 'center'`; thân ô dùng `align: 'center'` cho trạng thái / thời gian / số / thao tác, cột văn bản dài để trái.
+  - ⛔ Không để tiêu đề lệch trái trong khi thân ô cùng cột căn giữa, và ngược lại.
+
 ### 10.2. Quản Lý Dữ Liệu Cấu Hình (Pinia `BaseConfigStore`)
 - ⛔ **CẤM** hardcode chuỗi mã loại cấu hình trực tiếp (như `'status_type'`, `'direction_type'`).
 - BẮT BUỘC sử dụng enum `BaseConfigTypeEnum` từ `/@/types/enums`:
@@ -578,6 +592,7 @@ onUnmounted(() => mittBus.off(NatsEvent.StatusFms as any, handleNatsDeviceStatus
 - Vite 5, Vue 3.5 (Composition API, `<script setup>`), TypeScript strict, Pinia 3, Vue Router 5; Element Plus 2 (chính), PrimeVue 4 (bổ sung), VxeTable 4 (xuất Excel), WangEditor 5; bản đồ/biểu đồ: Leaflet 1.9 + Leaflet-Geoman, MapLibre GL 5, OpenLayers 10, ECharts 6 (+ echarts-gl); thời gian thực: SignalR, MQTT 5, NATS WebSocket; HTTP: Axios + client sinh từ Swagger.
 - Định dạng: Prettier (tab, độ rộng 2, `printWidth` 200, nháy đơn, dấu phẩy cuối kiểu es5); ESLint với `vue-eslint-parser` + `@typescript-eslint`.
 - Lệnh (thư mục `src/`): `pnpm install`, `pnpm dev` (cổng mặc định 8888), `pnpm lint-fix`; bản production loại `console`/`debugger`. ⛔ Không tự chạy `pnpm build` (Rule 19.13, §7). Node.js 18+ khuyến nghị, dùng pnpm.
+- **Cài thêm thư viện không được đổi vị trí các dòng đang có trong `package.json`** (bổ sung 23/10/2026): `pnpm add` tự xếp lại `dependencies` theo thứ tự chữ cái nên kéo theo diff ở những thư viện không liên quan (đã gặp: `jodit`, `jodit-vue` từ cuối danh sách bị chuyển lên giữa). Sau mỗi lần `pnpm add`/`pnpm remove`, đọc `git diff src/package.json` và trả các dòng cũ về đúng chỗ, chỉ giữ dòng thư viện mới thêm hoặc gỡ. ⛔ Không chạy `pnpm dedupe`/`pnpm up` kèm khi chỉ được yêu cầu cài một thư viện.
 
 ### 11.8. Bố Cục Mã Nguồn & Route
 - `src/src/`: `api-services/<module>/` (sinh tự động), `components/` (dùng chung: `leafletMap/`, `table/`, `editor/`, `livecam/`, `scEcharts/`), `directive/`, `hooks/`, `i18n/`, `indexedDb/` (Dexie), `layout/`, `router/`, `stores/` (store riêng ITS ở `stores/its/`), `theme/`, `transporter/`, `types/`, `utils/` (`axios-utils.ts`, `storage.ts`, `locale.ts`), `views/`. Ngoài `src/src/`: `public/` (`config.js`), `api_build/` (script sinh API), `.env*` (⛔ không commit `.env.development`).

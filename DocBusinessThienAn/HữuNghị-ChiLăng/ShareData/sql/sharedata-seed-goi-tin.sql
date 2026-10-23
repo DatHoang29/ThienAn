@@ -1396,7 +1396,8 @@ PRINT N'   -> Tổng số câu ghi chiều nhận đã nạp mới: ' + CAST(@To
 PRINT N'-> 5. Đồng bộ chuyển đổi cột con trỏ __rowid -> __lastKey trên dữ liệu đã lưu...';
 
 DECLARE @PacketsUpdated INT = 0;
-DECLARE @MappingsUpdated INT = 0;
+DECLARE @PartnerSqlMigrated INT = 0;
+DECLARE @PartnerSqlRenamed INT = 0;
 
 -- Cập nhật đồng bộ cả ExtractSql và TemplateSql trên ShareDataPacket
 UPDATE [dbo].[ShareDataPacket]
@@ -1406,18 +1407,45 @@ WHERE [IsDelete] IS NULL
   AND ([ExtractSql] LIKE '%[_][_]rowid%' OR [TemplateSql] LIKE '%[_][_]rowid%');
 SET @PacketsUpdated = @@ROWCOUNT;
 
--- Cập nhật đồng bộ cả ExtractSql và BaseExtractSql trên ShareDataMapping
-IF OBJECT_ID('dbo.ShareDataMapping', 'U') IS NOT NULL
+-- Chuyển câu SQL riêng cũ (cột ExtractSql của ShareDataMapping) sang bảng ShareDataPartnerSql.
+-- CodeFirst mới không còn tạo cột cũ nên chỉ chạy khi cột còn tồn tại và dùng SQL động để không lỗi biên dịch.
+-- Mỗi cặp (đối tác × gói) lấy hồ sơ ánh xạ chiều gửi (Outbound = 0, Both = 2) mới nhất có câu riêng; không ghi đè dòng đã có.
+IF OBJECT_ID('dbo.ShareDataPartnerSql', 'U') IS NOT NULL
+   AND COL_LENGTH('dbo.ShareDataMapping', 'ExtractSql') IS NOT NULL
 BEGIN
-    UPDATE [dbo].[ShareDataMapping]
-    SET [ExtractSql] = REPLACE([ExtractSql], '__rowid', '__lastKey'),
-        [BaseExtractSql] = REPLACE([BaseExtractSql], '__rowid', '__lastKey')
-    WHERE [IsDelete] IS NULL
-      AND ([ExtractSql] LIKE '%[_][_]rowid%' OR [BaseExtractSql] LIKE '%[_][_]rowid%');
-    SET @MappingsUpdated = @@ROWCOUNT;
+    DECLARE @MigrateSql NVARCHAR(MAX) = N'
+    INSERT INTO [dbo].[ShareDataPartnerSql] ([ID], [PartnerId], [PacketId], [ExtractSql], [TenantId], [CreateTime], [CreateUId])
+    SELECT LOWER(CONVERT(NVARCHAR(64), NEWID())), x.[PartnerId], x.[PacketId], x.[ExtractSql], @TenantId, GETDATE(), ''SHAREDATA-SEED-02''
+    FROM (
+        SELECT m.[PartnerId], p.[ID] AS [PacketId], m.[ExtractSql],
+               ROW_NUMBER() OVER (PARTITION BY m.[PartnerId], p.[ID] ORDER BY ISNULL(m.[UpdateTime], m.[CreateTime]) DESC) AS rn
+        FROM [dbo].[ShareDataMapping] m
+        JOIN [dbo].[ShareDataPacket] p ON p.[IsDelete] IS NULL AND (p.[ID] = m.[DatatypeId] OR p.[Code] = m.[DatatypeId])
+        WHERE m.[IsDelete] IS NULL
+          AND m.[PartnerId] IS NOT NULL
+          AND m.[ExtractSql] IS NOT NULL AND LTRIM(RTRIM(m.[ExtractSql])) <> ''''
+          AND (m.[Direction] = 0 OR m.[Direction] = 2)
+    ) x
+    WHERE x.rn = 1
+      AND NOT EXISTS (
+          SELECT 1 FROM [dbo].[ShareDataPartnerSql] s
+          WHERE s.[PartnerId] = x.[PartnerId] AND s.[PacketId] = x.[PacketId] AND s.[IsDelete] IS NULL);';
+    EXEC sp_executesql @MigrateSql, N'@TenantId NVARCHAR(64)', @TenantId = @TenantIdPacketSql;
+    SET @PartnerSqlMigrated = @@ROWCOUNT;
 END;
 
-PRINT N'   -> Đã chuyển đổi __rowid -> __lastKey: ' + CAST(@PacketsUpdated AS NVARCHAR(10)) + N' gói tin, ' + CAST(@MappingsUpdated AS NVARCHAR(10)) + N' hồ sơ ánh xạ.';
+-- Cập nhật ExtractSql trên ShareDataPartnerSql
+IF OBJECT_ID('dbo.ShareDataPartnerSql', 'U') IS NOT NULL
+BEGIN
+    UPDATE [dbo].[ShareDataPartnerSql]
+    SET [ExtractSql] = REPLACE([ExtractSql], '__rowid', '__lastKey')
+    WHERE [IsDelete] IS NULL
+      AND [ExtractSql] LIKE '%[_][_]rowid%';
+    SET @PartnerSqlRenamed = @@ROWCOUNT;
+END;
+
+PRINT N'   -> Đã chuyển đổi __rowid -> __lastKey: ' + CAST(@PacketsUpdated AS NVARCHAR(10)) + N' gói tin, ' + CAST(@PartnerSqlRenamed AS NVARCHAR(10)) + N' câu SQL riêng.';
+PRINT N'   -> Đã chuyển câu SQL riêng cũ từ ShareDataMapping sang ShareDataPartnerSql: ' + CAST(@PartnerSqlMigrated AS NVARCHAR(10)) + N' dòng.';
 
 
 PRINT N'=============================================================================';

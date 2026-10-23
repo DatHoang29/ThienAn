@@ -114,8 +114,8 @@ test.describe('ShareData — Kiểm thử 10 lỗi giao diện và logic (Sharin
 		expect(content).toMatch(/<el-col :xs="24" :sm="24" :md="24" :lg="24" :xl="24">\s*<el-form-item :label="\$t\('lz\.entity\.sharedataPartner\.remark'\)"/);
 		// Form item có style margin-bottom: 0
 		expect(content).toContain('style="margin-bottom: 0;"');
-		// Input textarea có :rows="2" hoặc :rows="3"
-		expect(content).toMatch(/<el-input[^>]*type="textarea"[^>]*:rows="[23]"/);
+		// Input textarea có :rows="2"
+		expect(content).toMatch(/<el-input[^>]*type="textarea"[^>]*:rows="2"/);
 	});
 
 	test('Bug 7 — Tiêu đề "Tạo mới tên đối tác" có chữ "tên" viết thường', async () => {

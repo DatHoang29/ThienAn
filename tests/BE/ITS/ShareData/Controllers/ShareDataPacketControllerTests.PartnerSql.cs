@@ -1,9 +1,7 @@
-using Furion.FriendlyException;
 using Microsoft.Extensions.DependencyInjection;
 using Module.ShareData.Core.Dto.Mapping;
 using Module.ShareData.Core.Dto.Packet;
 using Module.ShareData.Core.Entities;
-using Module.ShareData.Core.Exceptions;
 using Module.ShareData.Core.Helpers;
 using ShareDataWorker.Core.Enums;
 using ShareDataWorker.Core.Helpers;
@@ -15,6 +13,32 @@ namespace Tests.ShareData.Controllers;
 
 public partial class ShareDataPacketControllerTests
 {
+    private static ShareDataPacket NewPartnerSqlPacket(string packetCode, string unique, string? extractSql) => new()
+    {
+        ID = Guid.NewGuid().ToString("N"),
+        Code = packetCode,
+        Name = $"Packet {unique}",
+        Status = BaseEnums.StatusEnum.Enable,
+        ExtractSql = extractSql
+    };
+
+    private static ShareDataPartner NewPartnerSqlPartner(string code, string unique) => new()
+    {
+        ID = Guid.NewGuid().ToString("N"),
+        Code = code,
+        Name = $"Partner {code} {unique}",
+        Status = BaseEnums.StatusEnum.Enable
+    };
+
+    private static ShareDataSubscription NewPartnerSqlSubscription(ShareDataPartner partner, ShareDataPacket packet, BaseEnums.Direction direction, BaseEnums.SubSubscriptionState state) => new()
+    {
+        ID = Guid.NewGuid().ToString("N"),
+        PartnerId = partner.ID,
+        DatatypeId = packet.ID,
+        Direction = direction,
+        State = state
+    };
+
     [Fact]
     public async Task GetPartnerSqlList_WhenNotSuperAdmin_ThrowsOopsException_Test()
     {
@@ -30,7 +54,7 @@ public partial class ShareDataPacketControllerTests
     }
 
     [Fact]
-    public async Task GetPartnerSqlList_ReturnsOnlyActiveOutboundMappings_WithAccurateCustomAndOutdatedFlags_Test()
+    public async Task GetPartnerSqlList_ListsSubscribedPartnersAndPartnersWithCustomSql_WithFlags_Test()
     {
         // Arrange
         var superAdmin = $"super_{Guid.NewGuid():N}";
@@ -42,79 +66,37 @@ public partial class ShareDataPacketControllerTests
         var unique = Guid.NewGuid().ToString("N")[..8];
         var packetCode = $"PKT_LST_{unique}";
         var stdSql = "SELECT ID, Code, Name FROM TmsZone";
+        var packet = NewPartnerSqlPacket(packetCode, unique, stdSql);
 
-        var packet = new ShareDataPacket
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            Code = packetCode,
-            Name = $"Packet {unique}",
-            Status = BaseEnums.StatusEnum.Enable,
-            ExtractSql = stdSql,
-        };
+        // A: có đăng ký gửi, dùng SQL chung, có hồ sơ ánh xạ đang bật
+        var partnerA = NewPartnerSqlPartner($"PT_A_{unique}", unique);
+        // B: có đăng ký gửi, có SQL riêng, chưa có hồ sơ ánh xạ
+        var partnerB = NewPartnerSqlPartner($"PT_B_{unique}", unique);
+        // C: có đăng ký gửi, có SQL riêng khác mẫu chung
+        var partnerC = NewPartnerSqlPartner($"PT_C_{unique}", unique);
+        // D: chỉ có đăng ký nhận -> không được liệt kê
+        var partnerD = NewPartnerSqlPartner($"PT_D_{unique}", unique);
+        // E: đăng ký gửi đã hủy -> không được liệt kê
+        var partnerE = NewPartnerSqlPartner($"PT_E_{unique}", unique);
+        // F: không có đăng ký nhưng đã có SQL riêng -> vẫn liệt kê để quản lý
+        var partnerF = NewPartnerSqlPartner($"PT_F_{unique}", unique);
+
         await db.Insertable(packet).ExecuteCommandAsync();
-
-        // 1. Partner A: Active Outbound mapping, standard (no custom SQL)
-        var partnerA = new ShareDataPartner { ID = Guid.NewGuid().ToString("N"), Code = $"PT_A_{unique}", Name = $"Partner A {unique}", Status = BaseEnums.StatusEnum.Enable };
-        var mappingA = new ShareDataMapping
+        await db.Insertable(new[] { partnerA, partnerB, partnerC, partnerD, partnerE, partnerF }).ExecuteCommandAsync();
+        await db.Insertable(new[]
         {
-            ID = Guid.NewGuid().ToString("N"),
-            PartnerId = partnerA.ID,
-            DatatypeId = packetCode,
-            Direction = BaseEnums.Direction.Outbound,
-            IsActive = true,
-            ExtractSql = null
-        };
-
-        // 2. Partner B: Active Outbound mapping, custom SQL, not outdated (BaseExtractSql == stdSql)
-        var partnerB = new ShareDataPartner { ID = Guid.NewGuid().ToString("N"), Code = $"PT_B_{unique}", Name = $"Partner B {unique}", Status = BaseEnums.StatusEnum.Enable };
-        var mappingB = new ShareDataMapping
+            NewPartnerSqlSubscription(partnerA, packet, BaseEnums.Direction.Outbound, BaseEnums.SubSubscriptionState.Active),
+            NewPartnerSqlSubscription(partnerB, packet, BaseEnums.Direction.Outbound, BaseEnums.SubSubscriptionState.Paused),
+            NewPartnerSqlSubscription(partnerC, packet, BaseEnums.Direction.Outbound, BaseEnums.SubSubscriptionState.Active),
+            NewPartnerSqlSubscription(partnerD, packet, BaseEnums.Direction.Inbound, BaseEnums.SubSubscriptionState.Active),
+            NewPartnerSqlSubscription(partnerE, packet, BaseEnums.Direction.Outbound, BaseEnums.SubSubscriptionState.Cancelled),
+        }).ExecuteCommandAsync();
+        await db.Insertable(new[]
         {
-            ID = Guid.NewGuid().ToString("N"),
-            PartnerId = partnerB.ID,
-            DatatypeId = packetCode,
-            Direction = BaseEnums.Direction.Outbound,
-            IsActive = true,
-            ExtractSql = "SELECT ID, Code FROM TmsZone",
-            BaseExtractSql = stdSql
-        };
-
-        // 3. Partner C: Active Outbound mapping, custom SQL, outdated (BaseExtractSql != stdSql)
-        var partnerC = new ShareDataPartner { ID = Guid.NewGuid().ToString("N"), Code = $"PT_C_{unique}", Name = $"Partner C {unique}", Status = BaseEnums.StatusEnum.Enable };
-        var mappingC = new ShareDataMapping
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            PartnerId = partnerC.ID,
-            DatatypeId = packetCode,
-            Direction = BaseEnums.Direction.Outbound,
-            IsActive = true,
-            ExtractSql = "SELECT ID, Name FROM TmsZone",
-            BaseExtractSql = "SELECT ID FROM TmsZone" // Old base
-        };
-
-        // 4. Partner D: Inbound-only mapping -> must NOT appear
-        var partnerD = new ShareDataPartner { ID = Guid.NewGuid().ToString("N"), Code = $"PT_D_{unique}", Name = $"Partner D {unique}", Status = BaseEnums.StatusEnum.Enable };
-        var mappingD = new ShareDataMapping
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            PartnerId = partnerD.ID,
-            DatatypeId = packetCode,
-            Direction = BaseEnums.Direction.Inbound,
-            IsActive = true
-        };
-
-        // 5. Partner E: Disabled mapping -> must NOT appear
-        var partnerE = new ShareDataPartner { ID = Guid.NewGuid().ToString("N"), Code = $"PT_E_{unique}", Name = $"Partner E {unique}", Status = BaseEnums.StatusEnum.Enable };
-        var mappingE = new ShareDataMapping
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            PartnerId = partnerE.ID,
-            DatatypeId = packetCode,
-            Direction = BaseEnums.Direction.Outbound,
-            IsActive = false
-        };
-
-        await db.Insertable(new[] { partnerA, partnerB, partnerC, partnerD, partnerE }).ExecuteCommandAsync();
-        await db.Insertable(new[] { mappingA, mappingB, mappingC, mappingD, mappingE }).ExecuteCommandAsync();
+            new ShareDataPartnerSql { ID = Guid.NewGuid().ToString("N"), PartnerId = partnerB.ID, PacketId = packet.ID, ExtractSql = "SELECT ID, Code FROM TmsZone" },
+            new ShareDataPartnerSql { ID = Guid.NewGuid().ToString("N"), PartnerId = partnerC.ID, PacketId = packet.ID, ExtractSql = "SELECT ID, Name FROM TmsZone" },
+            new ShareDataPartnerSql { ID = Guid.NewGuid().ToString("N"), PartnerId = partnerF.ID, PacketId = packet.ID, ExtractSql = "SELECT ID FROM TmsZone" },
+        }).ExecuteCommandAsync();
 
         // Act
         var result = await scope.ServiceProvider.CallApiAsync<List<PartnerSqlListItemOutput>>(new GetPartnerSqlListInput { PacketCode = packetCode });
@@ -125,26 +107,24 @@ public partial class ShareDataPacketControllerTests
         Assert.Contains(partnerA.Code, codes);
         Assert.Contains(partnerB.Code, codes);
         Assert.Contains(partnerC.Code, codes);
+        Assert.Contains(partnerF.Code, codes);
         Assert.DoesNotContain(partnerD.Code, codes);
         Assert.DoesNotContain(partnerE.Code, codes);
 
         var itemA = result.First(r => r.PartnerCode == partnerA.Code);
         Assert.False(itemA.IsCustom);
-        Assert.False(itemA.IsOutdated);
 
         var itemB = result.First(r => r.PartnerCode == partnerB.Code);
         Assert.True(itemB.IsCustom);
-        Assert.False(itemB.IsOutdated);
 
         var itemC = result.First(r => r.PartnerCode == partnerC.Code);
         Assert.True(itemC.IsCustom);
-        Assert.True(itemC.IsOutdated);
     }
 
     [Fact]
-    public async Task UpdatePartnerExtractSql_FirstTime_RecordsBaseExtractSql_AndSuperAdminRequired_Test()
+    public async Task UpdatePartnerExtractSql_FirstTime_CreatesRowWithoutMapping_AndSuperAdminRequired_Test()
     {
-        // Arrange
+        // Arrange: chưa có hồ sơ ánh xạ nào, SQL riêng vẫn soạn trước được
         var superAdmin = $"super_{Guid.NewGuid():N}";
         SetUserContext(isSuperAdmin: true, account: superAdmin);
 
@@ -154,30 +134,11 @@ public partial class ShareDataPacketControllerTests
         var unique = Guid.NewGuid().ToString("N")[..8];
         var packetCode = $"PKT_UPD_{unique}";
         var stdSql = "SELECT ID, Code, Name FROM TmsZone";
-
-        var packet = new ShareDataPacket
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            Code = packetCode,
-            Name = $"Packet {unique}",
-            Status = BaseEnums.StatusEnum.Enable,
-            ExtractSql = stdSql,
-        };
-        var partner = new ShareDataPartner { ID = Guid.NewGuid().ToString("N"), Code = $"PT_{unique}", Name = $"Partner {unique}", Status = BaseEnums.StatusEnum.Enable };
-        var mapping = new ShareDataMapping
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            PartnerId = partner.ID,
-            DatatypeId = packetCode,
-            Direction = BaseEnums.Direction.Outbound,
-            IsActive = true,
-            ExtractSql = null,
-            BaseExtractSql = null
-        };
+        var packet = NewPartnerSqlPacket(packetCode, unique, stdSql);
+        var partner = NewPartnerSqlPartner($"PT_{unique}", unique);
 
         await db.Insertable(packet).ExecuteCommandAsync();
         await db.Insertable(partner).ExecuteCommandAsync();
-        await db.Insertable(mapping).ExecuteCommandAsync();
 
         var customSql = "SELECT ID, Code FROM TmsZone";
 
@@ -185,15 +146,17 @@ public partial class ShareDataPacketControllerTests
         SetUserContext(isSuperAdmin: false, account: "normal_user");
         await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput
         {
-            MappingId = mapping.ID,
+            PartnerId = partner.ID!,
+            PacketCode = packetCode,
             ExtractSql = customSql
         }));
 
-        // Act 2: SuperAdmin first time update -> BaseExtractSql snapshot of packet.ExtractSql
+        // Act 2: SuperAdmin lưu lần đầu -> tạo dòng SQL riêng
         SetUserContext(isSuperAdmin: true, account: superAdmin);
         var output = await scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput
         {
-            MappingId = mapping.ID,
+            PartnerId = partner.ID!,
+            PacketCode = packetCode,
             ExtractSql = customSql
         });
 
@@ -201,86 +164,16 @@ public partial class ShareDataPacketControllerTests
         Assert.NotNull(output);
         Assert.True(output.IsCustom);
         Assert.Equal(customSql, output.CustomSql);
-        Assert.Equal(stdSql, output.BaseSql);
-        Assert.False(output.IsOutdated);
 
-        var inDb = await db.Queryable<ShareDataMapping>().InSingleAsync(mapping.ID);
-        Assert.Equal(customSql, inDb.ExtractSql);
-        Assert.Equal(stdSql, inDb.BaseExtractSql);
+        var rows = await db.Queryable<ShareDataPartnerSql>().Where(s => s.PartnerId == partner.ID && s.PacketId == packet.ID).ToListAsync();
+        Assert.Single(rows);
+        Assert.Equal(customSql, rows[0].ExtractSql);
     }
 
     [Fact]
-    public async Task UpdatePartnerExtractSql_WhenNormalEdit_DoesNotOverwriteBaseExtractSql_UntilReconciled_Test()
+    public async Task UpdatePartnerExtractSql_WhenIdenticalToPacketStandard_StillKeepsPartnerRow_Test()
     {
-        // Arrange
-        var superAdmin = $"super_{Guid.NewGuid():N}";
-        SetUserContext(isSuperAdmin: true, account: superAdmin);
-
-        using var scope = _host.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-
-        var unique = Guid.NewGuid().ToString("N")[..8];
-        var packetCode = $"PKT_RC_{unique}";
-        var oldStdSql = "SELECT ID FROM TmsZone";
-        var newStdSql = "SELECT ID, Code, Name FROM TmsZone";
-
-        var packet = new ShareDataPacket
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            Code = packetCode,
-            Name = $"Packet {unique}",
-            Status = BaseEnums.StatusEnum.Enable,
-            ExtractSql = oldStdSql
-        };
-        var partner = new ShareDataPartner { ID = Guid.NewGuid().ToString("N"), Code = $"PT_{unique}", Name = $"Partner {unique}", Status = BaseEnums.StatusEnum.Enable };
-        var mapping = new ShareDataMapping
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            PartnerId = partner.ID,
-            DatatypeId = packetCode,
-            Direction = BaseEnums.Direction.Outbound,
-            IsActive = true,
-            ExtractSql = "SELECT ID, Code FROM TmsZone",
-            BaseExtractSql = oldStdSql
-        };
-
-        await db.Insertable(packet).ExecuteCommandAsync();
-        await db.Insertable(partner).ExecuteCommandAsync();
-        await db.Insertable(mapping).ExecuteCommandAsync();
-
-        // Packet template is updated to newStdSql -> Mapping becomes outdated
-        packet.ExtractSql = newStdSql;
-        await db.Updateable(packet).UpdateColumns(p => new { p.ExtractSql }).ExecuteCommandAsync();
-
-        // Act 1: Sửa thường (MarkReconciled = false) -> không thay đổi BaseExtractSql cũ
-        var editedSql = "SELECT ID, Code, UpdateTime FROM TmsZone";
-        var out1 = await scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput
-        {
-            MappingId = mapping.ID,
-            ExtractSql = editedSql,
-            MarkReconciled = false
-        });
-        Assert.True(out1.IsOutdated);
-        Assert.Equal(oldStdSql, out1.BaseSql);
-
-        // Act 2: MarkReconciled = true -> BaseExtractSql được cập nhật thành newStdSql
-        var out2 = await scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput
-        {
-            MappingId = mapping.ID,
-            ExtractSql = editedSql,
-            MarkReconciled = true
-        });
-        Assert.False(out2.IsOutdated);
-        Assert.Equal(newStdSql, out2.BaseSql);
-
-        var inDb = await db.Queryable<ShareDataMapping>().InSingleAsync(mapping.ID);
-        Assert.Equal(newStdSql, inDb.BaseExtractSql);
-    }
-
-    [Fact]
-    public async Task UpdatePartnerExtractSql_WhenIdenticalToPacketStandard_AutoResetsPartnerSql_Test()
-    {
-        // Arrange: Sửa SQL đối tác trùng khớp với mẫu chuẩn của gói tin -> tự động Reset
+        // Arrange: tạo SQL riêng giống hệt mẫu chuẩn -> vẫn là SQL riêng (bản đóng băng), không tự xóa
         var superAdmin = $"super_{Guid.NewGuid():N}";
         SetUserContext(isSuperAdmin: true, account: superAdmin);
 
@@ -290,50 +183,38 @@ public partial class ShareDataPacketControllerTests
         var unique = Guid.NewGuid().ToString("N")[..8];
         var packetCode = $"PKT_EQ_{unique}";
         var stdSql = "SELECT ID, Code, Name FROM TmsZone";
-
-        var packet = new ShareDataPacket
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            Code = packetCode,
-            Name = $"Packet {unique}",
-            Status = BaseEnums.StatusEnum.Enable,
-            ExtractSql = stdSql
-        };
-        var partner = new ShareDataPartner { ID = Guid.NewGuid().ToString("N"), Code = $"PT_{unique}", Name = $"Partner {unique}", Status = BaseEnums.StatusEnum.Enable };
-        var mapping = new ShareDataMapping
+        var packet = NewPartnerSqlPacket(packetCode, unique, stdSql);
+        var partner = NewPartnerSqlPartner($"PT_{unique}", unique);
+        var partnerSql = new ShareDataPartnerSql
         {
             ID = Guid.NewGuid().ToString("N"),
             PartnerId = partner.ID,
-            DatatypeId = packetCode,
-            Direction = BaseEnums.Direction.Outbound,
-            IsActive = true,
-            ExtractSql = "SELECT ID FROM TmsZone",
-            BaseExtractSql = stdSql
+            PacketId = packet.ID,
+            ExtractSql = "SELECT ID FROM TmsZone"
         };
 
         await db.Insertable(packet).ExecuteCommandAsync();
         await db.Insertable(partner).ExecuteCommandAsync();
-        await db.Insertable(mapping).ExecuteCommandAsync();
+        await db.Insertable(partnerSql).ExecuteCommandAsync();
 
-        // Act: Update với SQL trùng khớp chuẩn (khác khoảng trắng nhẹ)
+        // Act: lưu SQL trùng chuẩn (khác khoảng trắng)
         var outEq = await scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput
         {
-            MappingId = mapping.ID,
+            PartnerId = partner.ID!,
+            PacketCode = packetCode,
             ExtractSql = "  SELECT   ID,   Code,   Name   FROM   TmsZone  "
         });
 
-        // Assert: Tự Reset
-        Assert.False(outEq.IsCustom);
-        Assert.Null(outEq.CustomSql);
-        Assert.Null(outEq.BaseSql);
+        // Assert
+        Assert.True(outEq.IsCustom);
+        Assert.False(outEq.HasDifferences);
 
-        var inDb = await db.Queryable<ShareDataMapping>().InSingleAsync(mapping.ID);
-        Assert.Null(inDb.ExtractSql);
-        Assert.Null(inDb.BaseExtractSql);
+        var remaining = await db.Queryable<ShareDataPartnerSql>().Where(s => s.PartnerId == partner.ID && s.PacketId == packet.ID).CountAsync();
+        Assert.Equal(1, remaining);
     }
 
     [Fact]
-    public async Task ResetPartnerExtractSql_ClearsAllThreeColumns_Test()
+    public async Task ResetPartnerExtractSql_DeletesPartnerRow_Test()
     {
         // Arrange
         var superAdmin = $"super_{Guid.NewGuid():N}";
@@ -344,45 +225,33 @@ public partial class ShareDataPacketControllerTests
 
         var unique = Guid.NewGuid().ToString("N")[..8];
         var packetCode = $"PKT_RST_{unique}";
-
-        var packet = new ShareDataPacket
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            Code = packetCode,
-            Name = $"Packet {unique}",
-            Status = BaseEnums.StatusEnum.Enable,
-            ExtractSql = "SELECT ID FROM TmsZone"
-        };
-        var partner = new ShareDataPartner { ID = Guid.NewGuid().ToString("N"), Code = $"PT_{unique}", Name = $"Partner {unique}", Status = BaseEnums.StatusEnum.Enable };
-        var mapping = new ShareDataMapping
+        var packet = NewPartnerSqlPacket(packetCode, unique, "SELECT ID FROM TmsZone");
+        var partner = NewPartnerSqlPartner($"PT_{unique}", unique);
+        var partnerSql = new ShareDataPartnerSql
         {
             ID = Guid.NewGuid().ToString("N"),
             PartnerId = partner.ID,
-            DatatypeId = packetCode,
-            Direction = BaseEnums.Direction.Outbound,
-            IsActive = true,
-            ExtractSql = "SELECT ID, Code FROM TmsZone",
-            BaseExtractSql = "SELECT ID FROM TmsZone"
+            PacketId = packet.ID,
+            ExtractSql = "SELECT ID, Code FROM TmsZone"
         };
 
         await db.Insertable(packet).ExecuteCommandAsync();
         await db.Insertable(partner).ExecuteCommandAsync();
-        await db.Insertable(mapping).ExecuteCommandAsync();
+        await db.Insertable(partnerSql).ExecuteCommandAsync();
 
         // Act
         var result = await scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(new ResetPartnerExtractSqlInput
         {
-            MappingId = mapping.ID
+            PartnerId = partner.ID!,
+            PacketCode = packetCode
         });
 
         // Assert
         Assert.False(result.IsCustom);
         Assert.Null(result.CustomSql);
-        Assert.Null(result.BaseSql);
 
-        var inDb = await db.Queryable<ShareDataMapping>().InSingleAsync(mapping.ID);
-        Assert.Null(inDb.ExtractSql);
-        Assert.Null(inDb.BaseExtractSql);
+        var remaining = await db.Queryable<ShareDataPartnerSql>().Where(s => s.ID == partnerSql.ID).CountAsync();
+        Assert.Equal(0, remaining);
     }
 
     [Fact]
@@ -397,33 +266,17 @@ public partial class ShareDataPacketControllerTests
 
         var unique = Guid.NewGuid().ToString("N")[..8];
         var packetCode = $"PKT_INC_ERR_{unique}";
-
-        var packet = new ShareDataPacket
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            Code = packetCode,
-            Name = $"Packet {unique}",
-            Status = BaseEnums.StatusEnum.Enable,
-            ExtractSql = "SELECT TOP (@pageSize) ID FROM TmsZone",
-        };
-        var partner = new ShareDataPartner { ID = Guid.NewGuid().ToString("N"), Code = $"PT_{unique}", Name = $"Partner {unique}", Status = BaseEnums.StatusEnum.Enable };
-        var mapping = new ShareDataMapping
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            PartnerId = partner.ID,
-            DatatypeId = packetCode,
-            Direction = BaseEnums.Direction.Outbound,
-            IsActive = true
-        };
+        var packet = NewPartnerSqlPacket(packetCode, unique, "SELECT TOP (@pageSize) ID FROM TmsZone");
+        var partner = NewPartnerSqlPartner($"PT_{unique}", unique);
 
         await db.Insertable(packet).ExecuteCommandAsync();
         await db.Insertable(partner).ExecuteCommandAsync();
-        await db.Insertable(mapping).ExecuteCommandAsync();
 
         // Act & Assert: SQL có @lastTime nhưng thiếu __lastKey, __lastTime, ORDER BY -> Throws
         var ex = await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput
         {
-            MappingId = mapping.ID,
+            PartnerId = partner.ID!,
+            PacketCode = packetCode,
             ExtractSql = "SELECT TOP (@pageSize) ID, Code FROM TmsZone WHERE CreateTime > @lastTime"
         }));
 
@@ -431,7 +284,40 @@ public partial class ShareDataPacketControllerTests
     }
 
     [Fact]
-    public async Task SqlTextHelper_SelectActiveOutboundMapping_PicksCustomSqlWhenAvailable_Test()
+    public async Task UpdatePartnerExtractSql_WhenPartnerOrPacketNotExist_Throws_Test()
+    {
+        // Arrange
+        var superAdmin = $"super_{Guid.NewGuid():N}";
+        SetUserContext(isSuperAdmin: true, account: superAdmin);
+
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var packetCode = $"PKT_NOEX_{unique}";
+        var packet = NewPartnerSqlPacket(packetCode, unique, "SELECT ID FROM TmsZone");
+        var partner = NewPartnerSqlPartner($"PT_{unique}", unique);
+
+        await db.Insertable(packet).ExecuteCommandAsync();
+        await db.Insertable(partner).ExecuteCommandAsync();
+
+        // Act & Assert
+        await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput
+        {
+            PartnerId = Guid.NewGuid().ToString("N"),
+            PacketCode = packetCode,
+            ExtractSql = "SELECT ID, Code FROM TmsZone"
+        }));
+        await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput
+        {
+            PartnerId = partner.ID!,
+            PacketCode = $"NOT_EXIST_{unique}",
+            ExtractSql = "SELECT ID, Code FROM TmsZone"
+        }));
+    }
+
+    [Fact]
+    public async Task SqlTextHelper_SelectPartnerSqlAsync_ReturnsCustomRow_OrNullWhenUsingStandard_Test()
     {
         // Arrange: Worker ưu tiên câu SQL riêng của đối tác qua SqlTextHelper
         using var scope = _host.Services.CreateScope();
@@ -441,117 +327,40 @@ public partial class ShareDataPacketControllerTests
         var packetCode = $"PKT_HLP_{unique}";
         var stdSql = "SELECT TOP (@pageSize) ID FROM TmsZone";
         var customSql = "SELECT TOP (@pageSize) ID, Code, Name FROM TmsZone";
+        var packet = NewPartnerSqlPacket(packetCode, unique, stdSql);
+        var partnerCustom = NewPartnerSqlPartner($"PT_HLP_{unique}", unique);
+        var partnerStd = NewPartnerSqlPartner($"PT_STD_{unique}", unique);
 
-        var packet = new ShareDataPacket
+        await db.Insertable(packet).ExecuteCommandAsync();
+        await db.Insertable(new[] { partnerCustom, partnerStd }).ExecuteCommandAsync();
+        await db.Insertable(new ShareDataPartnerSql
         {
             ID = Guid.NewGuid().ToString("N"),
-            Code = packetCode,
-            Name = $"Packet {unique}",
-            Status = BaseEnums.StatusEnum.Enable,
-            ExtractSql = stdSql,
-        };
-        var partner = new ShareDataPartner { ID = Guid.NewGuid().ToString("N"), Code = $"PT_HLP_{unique}", Name = $"Partner {unique}", Status = BaseEnums.StatusEnum.Enable };
-        var mapping = new ShareDataMapping
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            PartnerId = partner.ID,
-            DatatypeId = packetCode,
-            Direction = BaseEnums.Direction.Outbound,
-            IsActive = true,
+            PartnerId = partnerCustom.ID,
+            PacketId = packet.ID,
             ExtractSql = customSql
-        };
-
-        await db.Insertable(packet).ExecuteCommandAsync();
-        await db.Insertable(partner).ExecuteCommandAsync();
-        await db.Insertable(mapping).ExecuteCommandAsync();
+        }).ExecuteCommandAsync();
 
         // Act
-        var selected = await SqlTextHelper.SelectActiveOutboundMappingAsync(db, partner.ID, packet);
+        var selectedCustom = await SqlTextHelper.SelectPartnerSqlAsync(db, partnerCustom.ID, packet);
+        var selectedStd = await SqlTextHelper.SelectPartnerSqlAsync(db, partnerStd.ID, packet);
 
         // Assert
-        Assert.NotNull(selected);
-        Assert.Equal(customSql, selected.ExtractSql);
-        Assert.True(SqlTextHelper.IsCustom(selected));
+        Assert.NotNull(selectedCustom);
+        Assert.Equal(customSql, selectedCustom.ExtractSql);
+        Assert.True(SqlTextHelper.IsCustom(selectedCustom));
+
+        // Đối tác không có dòng riêng -> Worker dùng câu chuẩn của gói, chính sách suy từ câu chuẩn
+        Assert.Null(selectedStd);
+        var effectiveSql = SqlTextHelper.IsCustom(selectedStd) ? selectedStd!.ExtractSql!.Trim() : packet.ExtractSql?.Trim();
+        Assert.Equal(stdSql, effectiveSql);
+        Assert.Equal(ShareDataEnum.PacketPolicy.Snapshot, PacketHelper.GetPolicyFromSql("SELECT ID, Code FROM TmsZone"));
     }
 
     [Fact]
-    public async Task GetPartnerSqlList_WhenMultipleMappingsForSamePartner_PicksLatestMapping_Test()
+    public async Task UpdatePartnerExtractSql_WhenEmptySql_ThrowsPartnerExtractSqlRequired_Test()
     {
-        // Arrange: 2 hồ sơ cùng đối tác -> chỉ hiển thị 1 dòng đại diện lấy theo bản mới nhất
-        var superAdmin = $"super_{Guid.NewGuid():N}";
-        SetUserContext(isSuperAdmin: true, account: superAdmin);
-
-        using var scope = _host.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-
-        var unique = Guid.NewGuid().ToString("N")[..8];
-        var packetCode = $"PKT_MLT_{unique}";
-        var stdSql = "SELECT ID, Code FROM TmsZone";
-
-        var packet = new ShareDataPacket
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            Code = packetCode,
-            Name = $"Packet {unique}",
-            Status = BaseEnums.StatusEnum.Enable,
-            ExtractSql = stdSql
-        };
-        var partner = new ShareDataPartner { ID = Guid.NewGuid().ToString("N"), Code = $"PT_MLT_{unique}", Name = $"Partner {unique}", Status = BaseEnums.StatusEnum.Enable };
-
-        var olderMapping = new ShareDataMapping
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            PartnerId = partner.ID,
-            DatatypeId = packetCode,
-            Direction = BaseEnums.Direction.Outbound,
-            IsActive = true,
-            ExtractSql = null,
-            CreateTime = DateTime.UtcNow.AddMinutes(-20),
-            UpdateTime = DateTime.UtcNow.AddMinutes(-20)
-        };
-
-        var newerMapping = new ShareDataMapping
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            PartnerId = partner.ID,
-            DatatypeId = packetCode,
-            Direction = BaseEnums.Direction.Outbound,
-            IsActive = true,
-            ExtractSql = "SELECT ID, Code, Name FROM TmsZone",
-            BaseExtractSql = stdSql,
-            CreateTime = DateTime.UtcNow.AddMinutes(-10),
-            UpdateTime = DateTime.UtcNow
-        };
-
-        await db.Insertable(packet).ExecuteCommandAsync();
-        await db.Insertable(partner).ExecuteCommandAsync();
-        await db.Insertable(new[] { olderMapping, newerMapping }).ExecuteCommandAsync();
-
-        // Đảm bảo newerMapping có UpdateTime mới hơn olderMapping sau khi qua AOP Insert
-        await db.Updateable<ShareDataMapping>()
-            .SetColumns(m => m.UpdateTime == DateTime.UtcNow.AddMinutes(5))
-            .Where(m => m.ID == newerMapping.ID)
-            .ExecuteCommandAsync();
-        await db.Updateable<ShareDataMapping>()
-            .SetColumns(m => m.UpdateTime == DateTime.UtcNow.AddMinutes(-5))
-            .Where(m => m.ID == olderMapping.ID)
-            .ExecuteCommandAsync();
-
-        // Act
-        var result = await scope.ServiceProvider.CallApiAsync<List<PartnerSqlListItemOutput>>(new GetPartnerSqlListInput { PacketCode = packetCode });
-
-        // Assert
-        Assert.NotNull(result);
-        var partnerRows = result.Where(r => r.PartnerCode == partner.Code).ToList();
-        Assert.Single(partnerRows);
-        Assert.True(partnerRows[0].IsCustom);
-        Assert.Equal(newerMapping.ID, partnerRows[0].MappingId);
-    }
-
-    [Fact]
-    public async Task UpdatePartnerExtractSql_WhenEmptySqlAndNotReconciled_ThrowsPartnerExtractSqlRequired_Test()
-    {
-        // Arrange: SQL rỗng và MarkReconciled = false -> ném lỗi PartnerExtractSqlRequired
+        // Arrange: SQL rỗng -> ném lỗi PartnerExtractSqlRequired
         var superAdmin = $"super_{Guid.NewGuid():N}";
         SetUserContext(isSuperAdmin: true, account: superAdmin);
 
@@ -560,145 +369,23 @@ public partial class ShareDataPacketControllerTests
 
         var unique = Guid.NewGuid().ToString("N")[..8];
         var packetCode = $"PKT_EMP_{unique}";
-
-        var packet = new ShareDataPacket
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            Code = packetCode,
-            Name = $"Packet {unique}",
-            Status = BaseEnums.StatusEnum.Enable,
-            ExtractSql = "SELECT ID FROM TmsZone"
-        };
-        var partner = new ShareDataPartner { ID = Guid.NewGuid().ToString("N"), Code = $"PT_EMP_{unique}", Name = $"Partner {unique}", Status = BaseEnums.StatusEnum.Enable };
-        var mapping = new ShareDataMapping
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            PartnerId = partner.ID,
-            DatatypeId = packetCode,
-            Direction = BaseEnums.Direction.Outbound,
-            IsActive = true
-        };
+        var packet = NewPartnerSqlPacket(packetCode, unique, "SELECT ID FROM TmsZone");
+        var partner = NewPartnerSqlPartner($"PT_EMP_{unique}", unique);
 
         await db.Insertable(packet).ExecuteCommandAsync();
         await db.Insertable(partner).ExecuteCommandAsync();
-        await db.Insertable(mapping).ExecuteCommandAsync();
 
         // Act & Assert
         await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput
         {
-            MappingId = mapping.ID,
-            ExtractSql = "   ",
-            MarkReconciled = false
+            PartnerId = partner.ID!,
+            PacketCode = packetCode,
+            ExtractSql = "   "
         }));
     }
 
     [Fact]
-    public async Task UpdatePartnerExtractSql_WhenEmptySqlAndReconciled_WithoutExistingCustomSql_ThrowsPartnerExtractSqlRequired_Test()
-    {
-        // Arrange: SQL rỗng và MarkReconciled = true nhưng hồ sơ chưa từng có SQL riêng -> cũng ném PartnerExtractSqlRequired
-        var superAdmin = $"super_{Guid.NewGuid():N}";
-        SetUserContext(isSuperAdmin: true, account: superAdmin);
-
-        using var scope = _host.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-
-        var unique = Guid.NewGuid().ToString("N")[..8];
-        var packetCode = $"PKT_EMPRC_{unique}";
-
-        var packet = new ShareDataPacket
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            Code = packetCode,
-            Name = $"Packet {unique}",
-            Status = BaseEnums.StatusEnum.Enable,
-            ExtractSql = "SELECT ID FROM TmsZone"
-        };
-        var partner = new ShareDataPartner { ID = Guid.NewGuid().ToString("N"), Code = $"PT_EMPRC_{unique}", Name = $"Partner {unique}", Status = BaseEnums.StatusEnum.Enable };
-        var mapping = new ShareDataMapping
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            PartnerId = partner.ID,
-            DatatypeId = packetCode,
-            Direction = BaseEnums.Direction.Outbound,
-            IsActive = true,
-            ExtractSql = null
-        };
-
-        await db.Insertable(packet).ExecuteCommandAsync();
-        await db.Insertable(partner).ExecuteCommandAsync();
-        await db.Insertable(mapping).ExecuteCommandAsync();
-
-        // Act & Assert
-        await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput
-        {
-            MappingId = mapping.ID,
-            ExtractSql = string.Empty,
-            MarkReconciled = true
-        }));
-    }
-
-    [Fact]
-    public async Task UpdatePartnerExtractSql_WhenEmptySqlAndReconciled_WithExistingCustomSql_KeepsCustomSqlAndReconcilesBase_Test()
-    {
-        // Arrange: SQL rỗng và MarkReconciled = true khi đã có SQL riêng -> giữ câu riêng, chỉ cập nhật BaseExtractSql = root
-        var superAdmin = $"super_{Guid.NewGuid():N}";
-        SetUserContext(isSuperAdmin: true, account: superAdmin);
-
-        using var scope = _host.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-
-        var unique = Guid.NewGuid().ToString("N")[..8];
-        var packetCode = $"PKT_KEEPRC_{unique}";
-        var oldStdSql = "SELECT ID FROM TmsZone";
-        var newStdSql = "SELECT ID, Code FROM TmsZone";
-        var customSql = "SELECT ID, Code, Name FROM TmsZone";
-
-        var packet = new ShareDataPacket
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            Code = packetCode,
-            Name = $"Packet {unique}",
-            Status = BaseEnums.StatusEnum.Enable,
-            ExtractSql = newStdSql
-        };
-        var partner = new ShareDataPartner { ID = Guid.NewGuid().ToString("N"), Code = $"PT_KEEPRC_{unique}", Name = $"Partner {unique}", Status = BaseEnums.StatusEnum.Enable };
-        var mapping = new ShareDataMapping
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            PartnerId = partner.ID,
-            DatatypeId = packetCode,
-            Direction = BaseEnums.Direction.Outbound,
-            IsActive = true,
-            ExtractSql = customSql,
-            BaseExtractSql = oldStdSql
-        };
-
-        await db.Insertable(packet).ExecuteCommandAsync();
-        await db.Insertable(partner).ExecuteCommandAsync();
-        await db.Insertable(mapping).ExecuteCommandAsync();
-
-        // Act
-        var output = await scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput
-        {
-            MappingId = mapping.ID,
-            ExtractSql = null,
-            MarkReconciled = true
-        });
-
-        // Assert
-        Assert.NotNull(output);
-        Assert.True(output.IsCustom);
-        Assert.Equal(customSql, output.CustomSql);
-        Assert.Equal(newStdSql, output.BaseSql);
-        Assert.False(output.IsOutdated);
-
-        var inDb = await db.Queryable<ShareDataMapping>().InSingleAsync(mapping.ID);
-        Assert.Equal(customSql, inDb.ExtractSql);
-        Assert.Equal(newStdSql, inDb.BaseExtractSql);
-    }
-
-    [Fact]
-    public async Task UpdatePartnerExtractSql_WhenDifferentSql_KeepsCustomMapping_Test()
+    public async Task UpdatePartnerExtractSql_WhenDifferentIncrementalSql_KeepsCustomRow_Test()
     {
         // Arrange: SQL khác chuẩn và có @lastTime -> VẪN LƯU RIÊNG
         var superAdmin = $"super_{Guid.NewGuid():N}";
@@ -711,33 +398,17 @@ public partial class ShareDataPacketControllerTests
         var packetCode = $"PKT_DIFF_MODE_{unique}";
         var stdSql = "SELECT ID, Code, Name FROM TmsZone";
         var customSql = "SELECT TOP (@pageSize) ID AS __lastKey, CreateTime AS __lastTime, Code FROM TmsZone WHERE CreateTime >= @lastTime ORDER BY ID ASC";
-
-        var packet = new ShareDataPacket
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            Code = packetCode,
-            Name = $"Packet {unique}",
-            Status = BaseEnums.StatusEnum.Enable,
-            ExtractSql = stdSql,
-        };
-        var partner = new ShareDataPartner { ID = Guid.NewGuid().ToString("N"), Code = $"PT_DM_{unique}", Name = $"Partner {unique}", Status = BaseEnums.StatusEnum.Enable };
-        var mapping = new ShareDataMapping
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            PartnerId = partner.ID,
-            DatatypeId = packetCode,
-            Direction = BaseEnums.Direction.Outbound,
-            IsActive = true
-        };
+        var packet = NewPartnerSqlPacket(packetCode, unique, stdSql);
+        var partner = NewPartnerSqlPartner($"PT_DM_{unique}", unique);
 
         await db.Insertable(packet).ExecuteCommandAsync();
         await db.Insertable(partner).ExecuteCommandAsync();
-        await db.Insertable(mapping).ExecuteCommandAsync();
 
         // Act: Gửi câu SQL riêng nối đuôi
         var output = await scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput
         {
-            MappingId = mapping.ID,
+            PartnerId = partner.ID!,
+            PacketCode = packetCode,
             ExtractSql = customSql
         });
 
@@ -747,58 +418,15 @@ public partial class ShareDataPacketControllerTests
         Assert.True(SqlValidator.IsIncrementalSql(output.CustomSql));
         Assert.False(SqlValidator.IsIncrementalSql(output.StandardSql));
 
-        var inDb = await db.Queryable<ShareDataMapping>().InSingleAsync(mapping.ID);
-        Assert.NotNull(inDb.ExtractSql);
+        var inDb = await db.Queryable<ShareDataPartnerSql>().Where(s => s.PartnerId == partner.ID && s.PacketId == packet.ID).FirstAsync();
+        Assert.NotNull(inDb);
         Assert.Equal(customSql, inDb.ExtractSql);
     }
 
     [Fact]
-    public async Task UpdatePartnerExtractSql_WhenMappingDirectionInbound_ThrowsPartnerSqlDirectionInvalid_Test()
+    public async Task UpdateShareDataMapping_DoesNotTouchPartnerCustomSqlRow_Test()
     {
-        // Arrange: Hồ sơ có chiều nhận (Inbound) -> không được phép cấu hình SQL trích xuất
-        var superAdmin = $"super_{Guid.NewGuid():N}";
-        SetUserContext(isSuperAdmin: true, account: superAdmin);
-
-        using var scope = _host.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-
-        var unique = Guid.NewGuid().ToString("N")[..8];
-        var packetCode = $"PKT_INB_{unique}";
-
-        var packet = new ShareDataPacket
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            Code = packetCode,
-            Name = $"Packet {unique}",
-            Status = BaseEnums.StatusEnum.Enable,
-            ExtractSql = "SELECT ID FROM TmsZone"
-        };
-        var partner = new ShareDataPartner { ID = Guid.NewGuid().ToString("N"), Code = $"PT_INB_{unique}", Name = $"Partner {unique}", Status = BaseEnums.StatusEnum.Enable };
-        var mapping = new ShareDataMapping
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            PartnerId = partner.ID,
-            DatatypeId = packetCode,
-            Direction = BaseEnums.Direction.Inbound,
-            IsActive = true
-        };
-
-        await db.Insertable(packet).ExecuteCommandAsync();
-        await db.Insertable(partner).ExecuteCommandAsync();
-        await db.Insertable(mapping).ExecuteCommandAsync();
-
-        // Act & Assert
-        await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput
-        {
-            MappingId = mapping.ID,
-            ExtractSql = "SELECT ID, Code FROM TmsZone"
-        }));
-    }
-
-    [Fact]
-    public async Task UpdateShareDataMapping_PreservesPartnerCustomSqlColumns_Test()
-    {
-        // Arrange: Màn hình Ánh xạ cập nhật hồ sơ qua API cũ không được ghi đè/xóa ExtractSql, BaseExtractSql
+        // Arrange: Màn hình Ánh xạ cập nhật hồ sơ không được ghi đè hay xóa SQL riêng của đối tác
         using var scope = _host.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
@@ -806,16 +434,8 @@ public partial class ShareDataPacketControllerTests
         var packetCode = $"PKT_MAP_UPD_{unique}";
         var customSql = "SELECT ID, Code FROM TmsZone";
         var baseSql = "SELECT ID FROM TmsZone";
-
-        var packet = new ShareDataPacket
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            Code = packetCode,
-            Name = $"Packet {unique}",
-            Status = BaseEnums.StatusEnum.Enable,
-            ExtractSql = baseSql
-        };
-        var partner = new ShareDataPartner { ID = Guid.NewGuid().ToString("N"), Code = $"PT_MAP_{unique}", Name = $"Partner {unique}", Status = BaseEnums.StatusEnum.Enable };
+        var packet = NewPartnerSqlPacket(packetCode, unique, baseSql);
+        var partner = NewPartnerSqlPartner($"PT_MAP_{unique}", unique);
         var targetShape = "{\"now\":{\"$meta\":\"Now\"},\"serial\":{\"$meta\":\"Serial\"},\"packetCode\":{\"$meta\":\"PacketCode\"},\"partnerCode\":{\"$meta\":\"PartnerCode\"}}";
         var mapping = new ShareDataMapping
         {
@@ -826,14 +446,20 @@ public partial class ShareDataPacketControllerTests
             DatatypeId = packetCode,
             Direction = BaseEnums.Direction.Outbound,
             IsActive = true,
-            TargetShapeJson = targetShape,
-            ExtractSql = customSql,
-            BaseExtractSql = baseSql
+            TargetShapeJson = targetShape
+        };
+        var partnerSql = new ShareDataPartnerSql
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            PartnerId = partner.ID,
+            PacketId = packet.ID,
+            ExtractSql = customSql
         };
 
         await db.Insertable(packet).ExecuteCommandAsync();
         await db.Insertable(partner).ExecuteCommandAsync();
         await db.Insertable(mapping).ExecuteCommandAsync();
+        await db.Insertable(partnerSql).ExecuteCommandAsync();
 
         // Act: Cập nhật thông tin chung qua API Ánh xạ
         var updateInput = new ShareDataUpdateMappingInput
@@ -849,12 +475,12 @@ public partial class ShareDataPacketControllerTests
         };
         await scope.ServiceProvider.CallApiAsync<ShareDataMappingOutput>(updateInput);
 
-        // Assert: 2 cột SQL riêng vẫn giữ nguyên 100%
-        var inDb = await db.Queryable<ShareDataMapping>().InSingleAsync(mapping.ID);
-        Assert.NotNull(inDb);
-        Assert.Equal($"Mapping Updated {unique}", inDb.Name);
-        Assert.Equal(customSql, inDb.ExtractSql);
-        Assert.Equal(baseSql, inDb.BaseExtractSql);
+        // Assert: dòng SQL riêng vẫn giữ nguyên 100%
+        var mappingInDb = await db.Queryable<ShareDataMapping>().InSingleAsync(mapping.ID);
+        Assert.Equal($"Mapping Updated {unique}", mappingInDb.Name);
+        var sqlInDb = await db.Queryable<ShareDataPartnerSql>().InSingleAsync(partnerSql.ID);
+        Assert.NotNull(sqlInDb);
+        Assert.Equal(customSql, sqlInDb.ExtractSql);
     }
 
     [Fact]
@@ -871,171 +497,28 @@ public partial class ShareDataPacketControllerTests
     }
 
     [Fact]
-    public void SqlTextHelper_IsOutdated_And_HasDifferences_Behaviors_Test()
+    public void SqlTextHelper_HasDifferences_Behaviors_Test()
     {
         var packet = new ShareDataPacket { ExtractSql = "SELECT ID, Code FROM TmsZone" };
 
-        // 1. Null mapping
+        // 1. Không có dòng SQL riêng
         Assert.False(SqlTextHelper.IsCustom(null));
-        Assert.False(SqlTextHelper.IsOutdated(null, packet));
         Assert.False(SqlTextHelper.HasDifferences(null, packet));
 
-        // 2. Mapping không có ExtractSql
-        var stdMapping = new ShareDataMapping { ExtractSql = null };
-        Assert.False(SqlTextHelper.IsCustom(stdMapping));
-        Assert.False(SqlTextHelper.IsOutdated(stdMapping, packet));
-        Assert.False(SqlTextHelper.HasDifferences(stdMapping, packet));
+        // 2. Dòng không có ExtractSql
+        var stdSql = new ShareDataPartnerSql { ExtractSql = null };
+        Assert.False(SqlTextHelper.IsCustom(stdSql));
+        Assert.False(SqlTextHelper.HasDifferences(stdSql, packet));
 
-        // 3. Mapping có ExtractSql trùng chuẩn
-        var sameMapping = new ShareDataMapping { ExtractSql = "  SELECT   ID,   Code   FROM   TmsZone;  ", BaseExtractSql = packet.ExtractSql };
-        Assert.True(SqlTextHelper.IsCustom(sameMapping));
-        Assert.False(SqlTextHelper.HasDifferences(sameMapping, packet));
-        Assert.False(SqlTextHelper.IsOutdated(sameMapping, packet));
+        // 3. ExtractSql trùng chuẩn (khác khoảng trắng, dấu chấm phẩy cuối)
+        var sameSql = new ShareDataPartnerSql { ExtractSql = "  SELECT   ID,   Code   FROM   TmsZone;  " };
+        Assert.True(SqlTextHelper.IsCustom(sameSql));
+        Assert.False(SqlTextHelper.HasDifferences(sameSql, packet));
 
-        // 4. Mapping có ExtractSql khác chuẩn
-        var customMapping = new ShareDataMapping { ExtractSql = "SELECT ID FROM TmsZone", BaseExtractSql = packet.ExtractSql };
-        Assert.True(SqlTextHelper.IsCustom(customMapping));
-        Assert.True(SqlTextHelper.HasDifferences(customMapping, packet));
-        Assert.False(SqlTextHelper.IsOutdated(customMapping, packet));
-
-        // 5. Mapping có BaseExtractSql khác chuẩn -> Outdated
-        var outdatedMapping = new ShareDataMapping { ExtractSql = "SELECT ID FROM TmsZone", BaseExtractSql = "SELECT Old FROM TmsZone" };
-        Assert.True(SqlTextHelper.IsCustom(outdatedMapping));
-        Assert.True(SqlTextHelper.IsOutdated(outdatedMapping, packet));
-    }
-
-    [Fact]
-    public async Task SqlTextHelper_SelectActiveOutboundMappingsAsync_DedupesPerPartner_PicksLatest_Test()
-    {
-        // Arrange
-        using var scope = _host.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-
-        var unique = Guid.NewGuid().ToString("N")[..8];
-        var packetCode = $"PKT_DEDUP_{unique}";
-        var packet = new ShareDataPacket
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            Code = packetCode,
-            Name = $"Packet {unique}",
-            Status = BaseEnums.StatusEnum.Enable
-        };
-
-        var p1 = new ShareDataPartner { ID = Guid.NewGuid().ToString("N"), Code = $"PT1_{unique}", Name = $"P1 {unique}", Status = BaseEnums.StatusEnum.Enable };
-        var p2 = new ShareDataPartner { ID = Guid.NewGuid().ToString("N"), Code = $"PT2_{unique}", Name = $"P2 {unique}", Status = BaseEnums.StatusEnum.Enable };
-
-        var m1Old = new ShareDataMapping
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            PartnerId = p1.ID,
-            DatatypeId = packetCode,
-            Direction = BaseEnums.Direction.Outbound,
-            IsActive = true,
-            CreateTime = DateTime.UtcNow.AddMinutes(-30),
-            UpdateTime = DateTime.UtcNow.AddMinutes(-30)
-        };
-        var m1New = new ShareDataMapping
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            PartnerId = p1.ID,
-            DatatypeId = packetCode,
-            Direction = BaseEnums.Direction.Outbound,
-            IsActive = true,
-            ExtractSql = "SELECT ID FROM TmsZone",
-            CreateTime = DateTime.UtcNow.AddMinutes(-10),
-            UpdateTime = DateTime.UtcNow
-        };
-        var m2Active = new ShareDataMapping
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            PartnerId = p2.ID,
-            DatatypeId = packetCode,
-            Direction = BaseEnums.Direction.Both,
-            IsActive = true
-        };
-        var m2Disabled = new ShareDataMapping
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            PartnerId = p2.ID,
-            DatatypeId = packetCode,
-            Direction = BaseEnums.Direction.Outbound,
-            IsActive = false
-        };
-
-        await db.Insertable(packet).ExecuteCommandAsync();
-        await db.Insertable(new[] { p1, p2 }).ExecuteCommandAsync();
-        await db.Insertable(new[] { m1Old, m1New, m2Active, m2Disabled }).ExecuteCommandAsync();
-
-        // Đảm bảo m1New có UpdateTime mới hơn m1Old sau khi qua AOP Insert
-        await db.Updateable<ShareDataMapping>()
-            .SetColumns(m => m.UpdateTime == DateTime.UtcNow.AddMinutes(5))
-            .Where(m => m.ID == m1New.ID)
-            .ExecuteCommandAsync();
-        await db.Updateable<ShareDataMapping>()
-            .SetColumns(m => m.UpdateTime == DateTime.UtcNow.AddMinutes(-5))
-            .Where(m => m.ID == m1Old.ID)
-            .ExecuteCommandAsync();
-
-        // Act
-        var result = await SqlTextHelper.SelectActiveOutboundMappingsAsync(db, packet);
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.Equal(2, result.Count);
-        var mapP1 = result.First(m => m.PartnerId == p1.ID);
-        Assert.Equal(m1New.ID, mapP1.ID);
-        var mapP2 = result.First(m => m.PartnerId == p2.ID);
-        Assert.Equal(m2Active.ID, mapP2.ID);
-    }
-
-    [Fact]
-    public async Task SqlTextHelper_SelectActiveOutboundMapping_FallsBackToPacketStandard_WhenNoCustomSql_Test()
-    {
-        // Arrange
-        using var scope = _host.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-
-        var unique = Guid.NewGuid().ToString("N")[..8];
-        var packetCode = $"PKT_DEF_{unique}";
-        var stdSql = "SELECT TOP (@pageSize) ID FROM TmsZone";
-
-        var packet = new ShareDataPacket
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            Code = packetCode,
-            Name = $"Packet {unique}",
-            Status = BaseEnums.StatusEnum.Enable,
-            ExtractSql = stdSql,
-        };
-        var partner = new ShareDataPartner { ID = Guid.NewGuid().ToString("N"), Code = $"PT_DEF_{unique}", Name = $"Partner {unique}", Status = BaseEnums.StatusEnum.Enable };
-        var mapping = new ShareDataMapping
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            PartnerId = partner.ID,
-            DatatypeId = packetCode,
-            Direction = BaseEnums.Direction.Outbound,
-            IsActive = true,
-            ExtractSql = null
-        };
-
-        await db.Insertable(packet).ExecuteCommandAsync();
-        await db.Insertable(partner).ExecuteCommandAsync();
-        await db.Insertable(mapping).ExecuteCommandAsync();
-
-        // Act
-        var selected = await SqlTextHelper.SelectActiveOutboundMappingAsync(db, partner.ID, packet);
-
-        // Assert
-        Assert.NotNull(selected);
-        Assert.False(SqlTextHelper.IsCustom(selected));
-        Assert.Null(selected.ExtractSql);
-
-        // Worker phân giải chính sách theo câu SQL sẽ chạy thật:
-        var effectiveSql = SqlTextHelper.IsCustom(selected) ? selected.ExtractSql!.Trim() : packet.ExtractSql?.Trim();
-        var effectivePolicy = PacketHelper.GetPolicyFromSql(effectiveSql);
-
-        Assert.Equal(stdSql, effectiveSql);
-        Assert.Equal(ShareDataEnum.PacketPolicy.Snapshot, effectivePolicy);
+        // 4. ExtractSql khác chuẩn
+        var customSql = new ShareDataPartnerSql { ExtractSql = "SELECT ID FROM TmsZone" };
+        Assert.True(SqlTextHelper.IsCustom(customSql));
+        Assert.True(SqlTextHelper.HasDifferences(customSql, packet));
     }
 
     [Theory]

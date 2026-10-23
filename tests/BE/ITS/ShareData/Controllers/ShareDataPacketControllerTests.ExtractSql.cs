@@ -15,6 +15,39 @@ namespace Tests.ShareData.Controllers;
 
 public partial class ShareDataPacketControllerTests
 {
+    [Fact]
+    public void SqlValidator_TryLocateError_SyntaxError_UsesLineAndColumnFromParser_Test()
+    {
+        var located = SqlValidator.TryLocateError("SELECT 1\nFROM", BaseMsg.ShareData.Validation.SqlScriptSyntaxError, [2, 5, "msg"], out var line, out var column);
+
+        Assert.True(located);
+        Assert.Equal(2, line);
+        Assert.Equal(5, column);
+    }
+
+    [Fact]
+    public void SqlValidator_TryLocateError_DatabaseError_FindsQuotedNameInSql_Test()
+    {
+        const string sql = "SELECT\n    z.Name,\n    z.ToKmNumberX\nFROM TmsZone z";
+
+        var located = SqlValidator.TryLocateError(sql, BaseMsg.ShareData.Validation.SqlDatabaseExecutionError, ["Invalid column name 'ToKmNumberX'."], out var line, out var column);
+
+        Assert.True(located);
+        Assert.Equal(3, line);
+        Assert.Equal(7, column);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("Lỗi không có tên trong dấu nháy")]
+    [InlineData("Invalid object name 'KhongCoTrongSql'.")]
+    public void SqlValidator_TryLocateError_DatabaseError_ReturnsFalseWhenNotLocatable_Test(string? detail)
+    {
+        var located = SqlValidator.TryLocateError("SELECT 1", BaseMsg.ShareData.Validation.SqlDatabaseExecutionError, detail == null ? null : [detail], out _, out _);
+
+        Assert.False(located);
+    }
+
     [Theory]
     [InlineData("SELECT 1; DROP TABLE Test;")]
     [InlineData("SELECT 1; SELECT 2;")]

@@ -1290,86 +1290,6 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(monacoEditor).toContainText('UNION');
     });
 
-    test('16. Nút "Mẫu mặc định" (forceDefaultTemplate) — Nạp lại template chuẩn qua API getextractsql với forceDefaultTemplate=true', async ({ page }) => {
-        // Chuẩn bị dữ liệu mẫu chuẩn (Default Template)
-        const mockCatalogSql = 'SELECT TOP (@pageSize) td.Speed AS speed FROM TmsTrafficData td';
-
-        // Đăng ký mock API: Trả dữ liệu gói tin có hasDefaultTemplate = true
-        await page.route('**/api/sharedata/sharedatapacket/getextractsql*', async (route) => {
-            const url = new URL(route.request().url());
-            const force = url.searchParams.get('forceDefaultTemplate') === 'true';
-            await route.fulfill({
-                status: 200,
-                contentType: 'application/json',
-                body: JSON.stringify({
-                    code: 200,
-                    result: {
-                        extractSql: force ? mockCatalogSql : 'SELECT td.Speed FROM TmsTrafficData td',
-                        status: 1,
-                        hasDefaultTemplate: true,
-                        remark: 'Default Template',
-                    },
-                }),
-            });
-        });
-
-        // ============================================================
-        // BƯỚC 1 (ARRANGE): Mở màn hình nguồn dữ liệu & vào tab Cấu hình SQL
-        // ============================================================
-        await page.setViewportSize({ width: 1600, height: 900 });
-        await page.goto('/#/sharedata/dataSource');
-
-        const tabs = page.locator('.datasource-right-tabs');
-        await expect(tabs).toBeVisible({ timeout: 15_000 });
-
-        const sqlTab = tabs.getByRole('tab', { name: /Cấu hình SQL/ });
-        await sqlTab.click();
-        await expect(sqlTab).toHaveClass(/is-active/);
-
-        // ============================================================
-        // BƯỚC 2 (ACT): Nhấn nút "Khôi phục SQL mẫu" và chờ phản hồi API hoàn thành
-        // ============================================================
-        const restoreTemplateBtn = page.locator('.vqb-header-actions .vqb-reset-template-btn');
-        await expect(restoreTemplateBtn).toBeVisible();
-        await expect(restoreTemplateBtn).toContainText(/Khôi phục.*mẫu/i);
-
-        // Kích hoạt click VÀ đồng thời chờ chính xác response getextractsql trả về thành công
-        const [response] = await Promise.all([
-            page.waitForResponse((res) => {
-                const u = res.url();
-                return u.includes('/api/sharedata/sharedatapacket/getextractsql') && u.includes('forceDefaultTemplate=true') && res.status() === 200;
-            }),
-            restoreTemplateBtn.click(),
-        ]);
-
-        // ============================================================
-        // BƯỚC 3 (ASSERT): Kiểm chứng dữ liệu trả về đã được nạp đúng vào các thành phần UI
-        // ============================================================
-        // 1. Xác nhận URL của request vừa bắn đi đúng là có query param forceDefaultTemplate=true
-        expect(response.url()).toContain('forceDefaultTemplate=true');
-
-        // 2. Chuyển sang chế độ xem Mã nguồn SQL (Raw SQL) để kiểm chứng câu SQL được nạp trực tiếp vào ô soạn thảo
-        const segTabs = page.locator('.vqb-segmented-tabs');
-        await expect(segTabs).toBeVisible();
-
-        const btnRawMode = segTabs.locator('.vqb-tab-btn').nth(1);
-        await btnRawMode.click();
-
-        const monacoEditor = page.locator('.vqb-monaco-editor');
-        await expect(monacoEditor).toBeVisible();
-        await expect(monacoEditor).toContainText(/td\.Speed\s+AS\s+speed/);
-
-        // 3. Chuyển lại về chế độ Trực quan (Builder View) để kiểm chứng parser đã bóc tách đúng cột trích xuất
-        const btnBuilderMode = segTabs.locator('.vqb-tab-btn').nth(0);
-        await btnBuilderMode.click();
-
-        const colExprInput = page.locator('.vqb-col-expr input').first();
-        await expect(colExprInput).toHaveValue('td.Speed');
-
-        const colAliasInput = page.locator('.vqb-col-alias input').first();
-        await expect(colAliasInput).toHaveValue('speed');
-    });
-
     test('17. Kéo resize thanh chia table (splitpanes splitter) — Pane co giãn mượt mà, table không vỡ layout sau khi kéo', async ({ page }) => {
         await page.setViewportSize({ width: 1600, height: 900 });
         await page.goto('/#/sharedata/dataSource');
@@ -1949,7 +1869,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(indexContent).not.toContain('handleCheckSqlSafety');
     });
 
-    test('28. Không còn dropdown biến hệ thống trong queryBuilder, nút khôi phục SQL mẫu hiển thị trực tiếp', async ({ page }) => {
+    test('28. Không còn dropdown biến hệ thống trong queryBuilder, màn Cấu hình SQL không có nút khôi phục SQL mẫu', async ({ page }) => {
         const qbPath = resolveWebvuePath('views/sharedata/dataSource/component/queryBuilder.vue');
         const qbContent = fs.readFileSync(qbPath, 'utf8');
 
@@ -1980,10 +1900,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const paramDropdownBtn = page.locator('.vqb-param-dropdown-btn');
         await expect(paramDropdownBtn).toHaveCount(0);
 
-        // Nút "Khôi phục SQL mẫu" hiển thị trực tiếp trên header actions
-        const resetTemplateBtn = page.locator('.vqb-header-actions .vqb-reset-template-btn');
-        await expect(resetTemplateBtn).toBeVisible();
-        await expect(resetTemplateBtn).toContainText(/Khôi phục.*mẫu/i);
+        // Màn Cấu hình SQL không còn nút "Khôi phục SQL mẫu" (bỏ theo trao đổi 22/10/2026)
+        await expect(page.locator('.vqb-header-actions .vqb-reset-template-btn')).toHaveCount(0);
 
         // Không còn dropdown menu mẫu trên DOM
         const templateDropdown = page.locator('.vqb-template-dropdown');
@@ -2430,7 +2348,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(finishedIcon).toHaveCount(0);
     });
 
-    test('33. Rule 20.26 — Hộp thoại form đóng khi bấm ra ngoài nếu chưa sửa, hỏi xác nhận nếu có thay đổi; hộp confirm đóng khi bấm ra ngoài', async ({ page }) => {
+    test('33. Hộp thoại form đóng ngay khi bấm ra ngoài (không hỏi xác nhận kể cả đã sửa); hộp confirm đóng khi bấm ra ngoài', async ({ page }) => {
         await page.goto('/#/sharedata/dataSource');
 
         const packetGrid = page.locator('.packet-col .vxe-grid');
@@ -2448,33 +2366,17 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await page.mouse.click(5, 5);
         await expect(packetDialog).toBeHidden({ timeout: 5000 });
 
-        // 2. Mở lại, sửa một ô (nhập mã gói) -> bấm ra ngoài -> hiện hộp hỏi confirmDiscardChanges
+        // 2. Mở lại, sửa một ô (nhập mã gói) -> bấm ra ngoài -> đóng ngay, không hỏi "Có thay đổi chưa lưu"
         await addPacketBtn.click();
         await expect(packetDialog).toBeVisible({ timeout: 5000 });
 
         const codeInput = packetDialog.locator('input').first();
         await codeInput.fill('TEST_CODE');
 
-        // Bấm ra ngoài lớp phủ -> hiện hộp hỏi
         await page.mouse.click(5, 5);
         const confirmBox = page.locator('.el-message-box');
-        await expect(confirmBox).toBeVisible({ timeout: 5000 });
-        await expect(confirmBox).toContainText('Có thay đổi chưa lưu');
-
-        // Bấm "Tiếp tục sửa" -> hộp thoại vẫn mở và giữ nguyên dữ liệu
-        const keepEditingBtn = confirmBox.locator('button:has-text("Tiếp tục sửa")');
-        await keepEditingBtn.click();
-        await expect(confirmBox).toBeHidden({ timeout: 3000 });
-        await expect(packetDialog).toBeVisible();
-        await expect(codeInput).toHaveValue('TEST_CODE');
-
-        // Bấm ra ngoài lần nữa -> hiện hộp hỏi -> bấm "Hủy thay đổi" -> hộp thoại đóng
-        await page.mouse.click(5, 5);
-        await expect(confirmBox).toBeVisible({ timeout: 5000 });
-        const discardBtn = confirmBox.locator('button:has-text("Hủy thay đổi")');
-        await discardBtn.click();
-        await expect(confirmBox).toBeHidden({ timeout: 3000 });
         await expect(packetDialog).toBeHidden({ timeout: 5000 });
+        await expect(confirmBox).toHaveCount(0);
 
         // 3. Kiểm tra ElMessageBox.confirm: bấm ra ngoài lớp phủ thì hộp đóng (Hủy) mà không gọi API
         let deleteApiCalled = false;
@@ -3848,14 +3750,11 @@ LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId`;
         // Cảnh báo thiếu trường (el-alert type warning / error) không xuất hiện vì không có trường nào bị thiếu
         await expect(diffAlerts.locator('.el-alert--warning, .el-alert--error')).toHaveCount(0);
 
-        // Dòng thông tin ⓘ 12 cột chưa chia sẻ xuất hiện
-        const unsharedAlert = diffAlerts.locator('.sql-unshared-columns-alert');
-        await expect(unsharedAlert).toBeVisible();
-        await expect(unsharedAlert).toContainText('12');
-
-        // Nút [Khai thêm trường] xuất hiện
-        const btnDeclareFields = unsharedAlert.locator('.btn-declare-fields');
-        await expect(btnDeclareFields).toBeVisible();
+        // Bảng đối chiếu: dòng tóm tắt báo 12 cột chưa có trong gói tin, mỗi dòng đó có nút Tạo trường
+        const compareSummary = diffAlerts.locator('.field-compare-summary .summary-new');
+        await expect(compareSummary).toBeVisible();
+        await expect(compareSummary).toContainText('12');
+        await expect(diffAlerts.locator('.field-compare-table').getByRole('button', { name: /Tạo trường/ })).toHaveCount(12);
 
         console.log('[Test 54] Step 6: Assert save');
         // Nút Lưu SQL: Bấm Lưu không hiện MessageBox xác nhận
@@ -4074,32 +3973,27 @@ LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId`;
         const indexPath = resolveWebvuePath('views/sharedata/dataSource/index.vue');
         const indexContent = fs.readFileSync(indexPath, 'utf8');
 
-        // 1. Chip chỉ ghi tên bí danh, không còn .chip-type (string)
-        expect(sqlEditorContent).not.toContain('class="chip-type');
-        expect(sqlEditorContent).toContain('chip-declared');
-        expect(sqlEditorContent).toContain('chip-undeclared');
-        expect(sqlEditorContent).toContain('chip-missing');
-
-        // 2. Dòng trạng thái duy nhất dưới chip có class .sql-extracted-status-line và giữ .sql-unshared-columns-alert
-        expect(sqlEditorContent).toContain('sql-extracted-status-line');
-        expect(sqlEditorContent).toContain('btn-declare-fields');
-        expect(sqlEditorContent).toContain('fieldsDeclaredCount');
-        expect(sqlEditorContent).toContain('fieldsUndeclaredCount');
-        expect(sqlEditorContent).toContain('fieldsMissingCount');
+        // 1-2. Đối chiếu SQL với Danh sách trường là một bảng duy nhất: dòng cần xử lý xếp trước, dòng khớp xếp cuối
+        expect(sqlEditorContent).toContain('field-compare-table');
+        expect(sqlEditorContent).toContain('compareRows');
+        expect(sqlEditorContent).toContain('fieldCompareStatusNew');
+        expect(sqlEditorContent).toContain('fieldCompareStatusMissing');
+        expect(sqlEditorContent).toContain('fieldCompareStatusMatched');
+        expect(sqlEditorContent).not.toContain('sql-extracted-status-line');
+        expect(sqlEditorContent).not.toContain('sql-field-chip');
 
         // 3. syncModePanel: Cảnh báo phần nối đuôi thành dòng nhỏ có link [Gỡ]
         expect(syncPanelContent).toContain('residual-cursor-warning');
         expect(syncPanelContent).toContain('btn-remove-cursor');
 
-        // 4. index.vue: Thanh công cụ chứa cả Khôi phục SQL mẫu, Sao chép và Lưu
-        expect(indexContent).toContain('vqb-reset-template-btn');
+        // 4. index.vue: Thanh công cụ chứa Sao chép và Lưu; không còn nút Khôi phục SQL mẫu
+        expect(indexContent).not.toContain('vqb-reset-template-btn');
         expect(indexContent).toContain('handleCopySql');
 
-        // 5. sqlEditor.vue: Legend giải thích ý nghĩa màu sắc bên cạnh số lượng trường, bỏ tooltip dày đặc quanh chip
-        expect(sqlEditorContent).toContain('sql-extracted-legend');
-        expect(sqlEditorContent).toContain('legendDeclared');
-        expect(sqlEditorContent).toContain('legendUndeclared');
-        expect(sqlEditorContent).toContain('legendMissing');
+        // 5. sqlEditor.vue: không còn chú giải màu; chỉ dòng "chưa có trong gói" có nút Tạo trường (chọn cột trong SQL rồi mở hộp tạo trường)
+        expect(sqlEditorContent).not.toContain('sql-extracted-legend');
+        expect(sqlEditorContent).toContain('fieldCompareCreate');
+        expect(sqlEditorContent).toContain('handleChipClick');
         expect(sqlEditorContent).not.toContain('<el-tooltip\n\t\t\t\t\t\tv-for="col in nonSystemColumns"');
     });
 
@@ -4488,6 +4382,129 @@ ORDER BY __lastTime ASC, __lastKey ASC`;
 
         // Sau khi reset, thẻ "SQL riêng" và "Lỗi thời" biến mất khỏi tab
         await expect(alphaTab.locator('.el-tag')).toHaveCount(0);
+    });
+
+    test('Cấu hình SQL: gói chưa có đối tác vẫn hiện thanh tab với tab Mẫu chung', async ({ page }) => {
+        await page.route('**/api/sharedata/sharedatapacket/getpartnersqllist*', async (route) => {
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: [] }) });
+        });
+
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+        const tabs = page.locator('.datasource-right-tabs');
+        await expect(tabs).toBeVisible({ timeout: 15_000 });
+        await tabs.getByRole('tab', { name: /Cấu hình SQL/ }).click();
+
+        const partnerTabs = page.locator('.sql-partner-tabs');
+        await expect(partnerTabs).toBeVisible({ timeout: 10_000 });
+        await expect(partnerTabs.getByRole('tab')).toHaveCount(1);
+        await expect(partnerTabs.getByRole('tab', { name: /Mẫu chung/ })).toHaveClass(/is-active/);
+    });
+
+    test('Cấu hình SQL: Lưu thất bại thì hiện chi tiết lỗi và đánh dấu đỏ vị trí lỗi trên Monaco', async ({ page }) => {
+        await page.route('**/api/sharedata/sharedatapacket/updateextractsql*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ code: 200, result: null, message: "Cú pháp SQL không hợp lệ trên cơ sở dữ liệu: Invalid column name 'zzz'." }),
+            });
+        });
+        await page.route('**/api/sharedata/sharedatapacket/parseextractcolumns*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: { isValid: false, errorMessage: "Cú pháp SQL không hợp lệ trên cơ sở dữ liệu: Invalid column name 'zzz'.", errorLine: 1, errorColumn: 8, columns: [] },
+                }),
+            });
+        });
+
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+        const tabs = page.locator('.datasource-right-tabs');
+        await expect(tabs).toBeVisible({ timeout: 15_000 });
+        await tabs.getByRole('tab', { name: /Cấu hình SQL/ }).click();
+        await expect(page.locator('.sql-monaco-editor .monaco-editor').first()).toBeVisible({ timeout: 15_000 });
+
+        // Sửa nhẹ để nút Lưu hoạt động, rồi Lưu
+        await page.locator('.monaco-editor').first().click();
+        await page.keyboard.type(' ');
+        await page.locator('.sql-toolbar-right .el-button').filter({ hasText: /Lưu/ }).click();
+
+        // Thông báo lỗi có đủ chi tiết, không cụt sau dấu hai chấm
+        await expect(page.locator('.sql-center-pane .el-alert--error')).toContainText("Invalid column name 'zzz'", { timeout: 10_000 });
+        // Có gạch đỏ trên trình soạn thảo
+        await expect(page.locator('.sql-monaco-editor .squiggly-error').first()).toBeVisible({ timeout: 10_000 });
+
+        // Gõ tiếp vào trình soạn thảo thì gạch đỏ biến mất
+        await page.locator('.sql-monaco-editor .monaco-editor').first().click();
+        await page.keyboard.type('x');
+        await expect(page.locator('.sql-monaco-editor .squiggly-error')).toHaveCount(0, { timeout: 5000 });
+    });
+
+    test('Cấu hình SQL: đổi tab không sửa gì thì không hỏi bỏ thay đổi, có sửa mới hỏi', async ({ page }) => {
+        await page.route('**/api/sharedata/sharedatapacket/getpartnersqllist*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: [{ mappingId: 'MAP_01', partnerId: 'P_01', partnerCode: 'ALPHA', partnerName: 'Đối tác Alpha', isCustom: false, isOutdated: false }],
+                }),
+            });
+        });
+        await page.route('**/api/sharedata/sharedatapacket/getpartnerextractsql*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        mappingId: 'MAP_01',
+                        packetCode: '101_commonData',
+                        partnerName: 'Đối tác Alpha',
+                        standardSql: 'SELECT TOP (@pageSize) td.Speed AS speed FROM TmsTrafficData td',
+                        customSql: null,
+                        isCustom: false,
+                        isOutdated: false,
+                    },
+                }),
+            });
+        });
+
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+        const tabs = page.locator('.datasource-right-tabs');
+        await expect(tabs).toBeVisible({ timeout: 15_000 });
+        await tabs.getByRole('tab', { name: /Cấu hình SQL/ }).click();
+
+        const partnerTabs = page.locator('.sql-partner-tabs');
+        await expect(partnerTabs).toBeVisible({ timeout: 10_000 });
+        const stdTab = partnerTabs.getByRole('tab', { name: /Mẫu chung/ });
+        const alphaTab = partnerTabs.getByRole('tab', { name: /Đối tác Alpha/ });
+        const msgBox = page.locator('.el-message-box');
+
+        // Chưa sửa gì: đi và về giữa 2 tab đều không hiện hộp xác nhận
+        await alphaTab.click();
+        await expect(alphaTab).toHaveClass(/is-active/);
+        await stdTab.click();
+        await expect(stdTab).toHaveClass(/is-active/, { timeout: 5000 });
+        await expect(msgBox).toHaveCount(0);
+        await alphaTab.click();
+        await expect(alphaTab).toHaveClass(/is-active/);
+        await expect(msgBox).toHaveCount(0);
+
+        // Có sửa SQL: đổi tab phải hỏi; bấm "Bỏ qua" ở lại tab cũ
+        const editor = page.locator('.monaco-editor').first();
+        await editor.click();
+        await page.keyboard.press('End');
+        await page.keyboard.type(' -- sua');
+        await stdTab.click();
+        await expect(msgBox).toBeVisible({ timeout: 5000 });
+        await msgBox.locator('.el-message-box__btns .el-button:not(.el-button--primary)').click();
+        await expect(msgBox).toBeHidden();
+        await expect(alphaTab).toHaveClass(/is-active/);
     });
 });
 

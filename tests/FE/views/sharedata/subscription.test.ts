@@ -142,12 +142,12 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 		expect(directionTabsBlock).toContain('overflow-y: auto;');
 		expect(directionTabsBlock).not.toContain('!important');
 
-		// 8. Kiểm tra chiều cao mặc định ô Ghi chú (remark) có :rows="6" rộng rãi theo yêu cầu
-		expect(vueContent).toContain(':rows="6"');
+		// 8. Kiểm tra chiều cao mặc định ô Ghi chú (remark) có :rows="4" (đã giảm 2 dòng so với 6)
+		expect(vueContent).toContain(':rows="4"');
 
-		// 9. Rule 20.26 / STT 55: đóng khi click ngoài kết hợp before-close và chặn khi đang xử lý (!state.loading)
+		// 9. Đóng khi click ngoài, chặn khi đang xử lý (!state.loading); không còn hộp xác nhận bỏ thay đổi
 		expect(vueContent).toContain(':close-on-click-modal="!state.loading"');
-		expect(vueContent).toContain(':before-close="handleBeforeClose"');
+		expect(vueContent).not.toContain(':before-close=');
 	});
 
 	test('TC7 — Kiểm tra cấu hình i18n trong vi-vn.json và en-us.json', async () => {
@@ -405,13 +405,13 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 		await expect(modalOutboundTab).toHaveClass(/is-active/);
 		await page.waitForTimeout(200);
 
-		// Kiểm tra ô Ghi chú (remark) hiển thị mặc định với rows="6" cao rộng rãi theo đúng yêu cầu
+		// Kiểm tra ô Ghi chú (remark) hiển thị mặc định với rows="4" (đã giảm 2 dòng so với 6)
 		const remarkTextarea = dialog.locator('textarea').first();
 		await expect(remarkTextarea).toBeVisible();
 		const rowsAttr = await remarkTextarea.getAttribute('rows');
-		expect(rowsAttr).toBe('6');
+		expect(rowsAttr).toBe('4');
 		const textareaHeight = await remarkTextarea.evaluate((el) => el.getBoundingClientRect().height);
-		expect(textareaHeight).toBeGreaterThanOrEqual(100);
+		expect(textareaHeight).toBeGreaterThanOrEqual(70);
 
 		// Kiểm tra el-dialog__footer có khoảng đệm chuẩn và thoáng (padding-bottom >= 12px) để nút bấm không dính sát đáy dialog
 		const dialogFooter = dialog.locator('.el-dialog__footer');

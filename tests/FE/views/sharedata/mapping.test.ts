@@ -726,7 +726,7 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
         }
     });
 
-    test('9. Hộp luật của lá trong editMapping: Chọn "Bỏ thay đổi" hoàn nguyên cấu hình lá, "Tiếp tục sửa" giữ nguyên, bấm OK giữ thay đổi', async ({ page }) => {
+    test('9. Hộp luật của lá trong editMapping: bấm Đóng hoàn nguyên cấu hình lá ngay (không hỏi), bấm OK giữ thay đổi', async ({ page }) => {
         const dialog = await openAddDialogAndReachMappingTab(page);
 
         // Dán JSON mẫu có 1 trường để tạo 1 lá
@@ -746,24 +746,11 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
         const constInput = leafDialog.locator('.el-form-item:has-text("Giá trị gửi đi") input, .el-form-item:has-text("Value sent") input, .mp-leaf-form input').first();
         await constInput.fill('CUSTOM_VALUE');
 
-        // Bấm nút "Đóng" (handleCancelLeaf) -> Hiện MessageBox xác nhận
+        // Kịch bản A1+A2: Bấm nút "Đóng" (handleCancelLeaf) -> hộp đóng ngay, không hiện hộp xác nhận, giá trị đang sửa bị hoàn nguyên
         const closeBtn = leafDialog.locator('.mp-form-footer button').first();
-        await closeBtn.click();
-
         const confirmBox = page.locator('.el-message-box');
-        await expect(confirmBox).toBeVisible({ timeout: 5000 });
-
-        // Kịch bản A1: Chọn "Tiếp tục sửa" -> Hộp luật vẫn mở, giá trị đang sửa còn nguyên
-        await confirmBox.locator('button:has-text("Tiếp tục sửa"), button:has-text("Keep editing")').click();
-        await expect(confirmBox).toBeHidden({ timeout: 5000 });
-        await expect(leafDialog).toBeVisible();
-        await expect(constInput).toHaveValue('CUSTOM_VALUE');
-
-        // Kịch bản A2: Bấm "Đóng" lần nữa -> Chọn "Bỏ thay đổi" -> Hộp đóng, giá trị về cũ
         await closeBtn.click();
-        await expect(confirmBox).toBeVisible({ timeout: 5000 });
-        await confirmBox.locator('button:has-text("Hủy thay đổi"), button:has-text("Discard")').click();
-        await expect(confirmBox).toBeHidden({ timeout: 5000 });
+        await expect(confirmBox).toHaveCount(0);
         await expect(leafDialog).toBeHidden({ timeout: 5000 });
 
         // Mở lại lá đó: ô constValue phải về giá trị cũ (rỗng)

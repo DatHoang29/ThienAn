@@ -8,16 +8,17 @@ source:
 date: 22-10-2026
 model: Gemini Multimodal Native Audio Transcribe
 status: verified
-topic: ShareData — Quản lý Gói tin Mẫu (Template Query) vs Tùy biến (Custom Query theo Đối tác), Cơ chế So sánh Đối chiếu (Diff/Compare) khi Cấu hình Gốc thay đổi, Tái cấu trúc Tab Form Cấu hình Kết nối, Scale Giao diện Ánh xạ, Xử lý Chuỗi Lỗi Gói tin
+topic: ShareData — Quản lý Gói tin Mẫu (Template Query) vs Tùy biến (Custom Query theo Đối tác), Cơ chế So sánh Đối chiếu (Diff/Compare) khi Cấu hình Gốc thay đổi, Ánh xạ cột từ câu SELECT, Quét nối đuôi (@LastKey)
 participants:
   - Tech Lead
   - Dev
 corrections:
   - '22-10-2026 — [33:03] chép sai "tab thứ 3 thiết lập chạy/retry"; người tham dự xác nhận chỉ 2 tab.'
   - '22-10-2026 — gỡ phần dữ liệu sự cố (duong_so_8_2 [03:28]–[07:46], mục 1.7, chủ đề 7): nguyên nhân là script dữ liệu giả lập, đã xử lý.'
+  - '22-10-2026 — gỡ khỏi phần tóm tắt các mục 1.5 (tab form đối tác), 1.6 (scale dialog ánh xạ), 1.7 (rút gọn lỗi): đã làm xong; lời thoại gốc trong phần 2 và 3 giữ nguyên.'
 ---
 
-# Kịch bản & Biên bản Cuộc họp: Phân hệ ShareData — Quản lý Gói tin Mẫu, Xử lý Tùy biến Đối tác, Tái cấu trúc Form Kết nối & Xử lý Lỗi Gói tin
+# Kịch bản & Biên bản Cuộc họp: Phân hệ ShareData — Quản lý Gói tin Mẫu, Xử lý Tùy biến Đối tác
 ### (Nguồn từ tệp ghi âm: duong_so_8.m4a & duong_so_8_2.m4a)
 
 - **Ngày ghi nhận:** 22/10/2026
@@ -28,9 +29,6 @@ corrections:
   2. **Cơ chế xử lý khi câu SQL mẫu hoặc cấu hình DB thay đổi (Bài toán xung đột & So sánh Diff/Compare):** Giải quyết tình huống câu truy vấn mẫu hoặc schema cơ sở dữ liệu thay đổi (đổi tên cột `toKmNumber`, đổi index, tối ưu câu lệnh). Đề xuất và chốt giải pháp so sánh trực quan hai bên (Compare / Diff tương tự Git Diff) để người dùng xem điểm khác biệt và chủ động chọn ghi đè (Replace/Merge) hoặc giữ nguyên câu Custom của đối tác, tránh việc tự động ghi đè làm mất cấu hình riêng.
   3. **Ánh xạ cột dữ liệu (Field & Alias Mapping) từ câu `SELECT`:** Chuẩn hóa việc phân tích danh sách cột trích xuất sau mệnh đề `SELECT ... AS ...`. Đối chiếu tự động với danh sách thuộc tính chuẩn của gói tin; nhận diện các trường đã ánh xạ, trường chưa có hoặc trường dư thừa; cho phép bổ sung hoặc điều chỉnh linh hoạt.
   4. **Cơ chế quét dữ liệu nối đuôi & Lưu vết tham số (@LastKey / Composite Key):** Làm rõ việc lưu giữ trạng thái quét ở chu kỳ trước (mốc thời gian, ZoneId, khóa tổng hợp) vào bảng quản lý trạng thái để chu kỳ sau truyền vào câu query tiếp tục lấy dữ liệu mới phát sinh, không gây trùng hoặc sót bản ghi.
-  5. **Tái cấu trúc giao diện Form Cấu hình Kết nối Đối tác (`connectionConfigForm`):** Tránh dồn toàn bộ trường cấu hình vào một màn hình dài gây rối mắt và dễ thao tác nhầm. Phân tách thành 2 Tab: Thông tin chung (Mã, Tên, Ghi chú) và Cấu hình kết nối (Giao thức API/FTP/Kafka/File, Địa chỉ/Cổng/Endpoint, Xác thực, thời gian chờ).
-  6. **Thu gọn và Tối ưu Scale Giao diện Ánh xạ Trường (`mappingForm`):** Xử lý lỗi giao diện khi mới mở lên chưa có dữ liệu bị bung tỷ lệ (scale) quá to, để lại khoảng trống dài bất hợp lý. Đặt mặc định giao diện co gọn, khi nạp dữ liệu thì tự động co giãn vừa vặn.
-  7. **Xử lý Hiển thị Thông tin Lỗi Gói tin (Packet Error Handling):** Thông tin lỗi hệ thống dài (chứa exception/stack trace) ở Bước 1, Bước 2 làm vỡ giao diện; thống nhất cắt ngắn chuỗi hiển thị trên UI (vài chục đến tối đa vài trăm ký tự), bảo toàn toàn văn lỗi trong file log hệ thống.
 
 ---
 
@@ -70,25 +68,6 @@ corrections:
   - Hỗ trợ tham số thời gian (`DetectTime`, `TranTime`) và khóa tổng hợp (kết hợp mốc thời gian và `ZoneId`, mã làn, vị trí).
   - Giá trị quét thành công của chu kỳ trước được lưu trữ vào bảng quản lý trạng thái quét (dưới dạng chuỗi định dạng chuẩn, ví dụ `yyyyMMddHHmmss_ZoneId`) để làm tham số đầu vào cho lần quét kế tiếp.
   - Tránh tạo các cấu hình lọc rời rạc phức tạp trên giao diện; tập trung vào câu lệnh SQL và tham số hóa an toàn.
-
-### 1.5. Tái cấu trúc Tab trong Form Cấu hình Kết nối Đối tác (`connectionConfigForm`)
-- **Thực trạng:** Màn hình cấu hình đối tác trước đây dồn tất cả thông tin (thông tin chung, thông tin giao thức mạng, thông tin lập lịch) vào một form cuộn dọc, gây rối mắt, khó quan sát và tiềm ẩn rủi ro sửa nhầm tham số kỹ thuật mạng khi chỉ muốn cập nhật thông tin mô tả.
-- **Quyết định cấu trúc 2 Tab (Đồng bộ theo phong cách quản lý TMS):**
-  - **Tab 1 — Thông tin chung:** Mã đối tác, Tên đối tác, Ghi chú mô tả (giữ như form cũ).
-  - **Tab 2 — Cấu hình kết nối:** Loại kênh, Địa chỉ/Cổng, Endpoint (API), cấu hình theo kênh (xác thực, định dạng, thời gian chờ, thư mục…).
-- *Lịch chạy/chu kỳ gửi cấu hình theo từng Đăng ký, không đặt ở form đối tác.*
-
-### 1.6. Thu gọn và Tối ưu Scale Giao diện Ánh xạ Trường (`mappingForm`)
-- **Vấn đề giao diện:** Màn hình bảng ánh xạ trường khi mới mở lên chưa có dữ liệu thì các ô và khung bị scale phóng to bất thường, tạo khoảng trống trải dài rất xa trên màn hình rồi lại bung thêm thanh cuộn/scale bên dưới, gây mất cân đối giao diện.
-- **Quyết định giải quyết:**
-  - Thiết lập giao diện ở trạng thái mặc định nhỏ gọn, vừa vặn khung nhìn.
-  - Khi người dùng nạp dữ liệu (câu query hoặc danh sách trường) thì các ô bảng mới tự động giãn nở (bung dữ liệu) tương ứng, giữ giao diện gọn gàng, chuyên nghiệp.
-
-### 1.7. Cơ chế Xử lý & Rút gọn Thông tin Lỗi Gói tin (Packet Error Handling)
-- **Vấn đề:** Trong lịch sử truyền nhận gói tin, ở các bước xử lý (Bước 1, Bước 2), khi xảy ra lỗi hệ thống, chuỗi thông báo lỗi kèm stack trace/chi tiết kỹ thuật rất dài. Nếu hiển thị toàn bộ lên bảng giao diện sẽ làm vỡ layout dòng và bảng.
-- **Quyết định kỹ thuật chốt:**
-  - **Trên giao diện UI:** Chỉ cắt và hiển thị chuỗi thông tin lỗi rút gọn (vài chục đến tối đa vài trăm ký tự) đủ để nhận biết nguyên nhân chính.
-  - **Trong hệ thống:** Toàn văn thông tin lỗi kỹ thuật chi tiết đã được ghi đầy đủ vào file log hệ thống (Application Log), đảm bảo không làm mất mát thông tin khi cần tra cứu chuyên sâu.
 
 ---
 

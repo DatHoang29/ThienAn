@@ -523,9 +523,9 @@ test.describe('ShareData — Cấu hình kết nối đối tác theo mẫu VMS 
 		// Rule 20.8 / Rule 11: CẤM toán tử phủ định kép !!
 		expect(partnerContent.includes('!!'), 'editPartner.vue không được chứa !!').toBeFalsy();
 
-		// Rule 20.26 / STT 55: đóng khi click ngoài kết hợp before-close và chặn khi đang xử lý (!state.loading)
+		// Đóng khi click ngoài, chặn khi đang xử lý (!state.loading); không còn hộp xác nhận bỏ thay đổi
 		expect(partnerContent).toContain(':close-on-click-modal="!state.loading"');
-		expect(partnerContent).toContain(':before-close="handleBeforeClose"');
+		expect(partnerContent).not.toContain(':before-close=');
 
 		// editPartner.vue phải nhúng connectionConfigForm và bỏ các biến/methods cũ
 		expect(partnerContent).toContain('<connection-config-form');
@@ -798,7 +798,7 @@ test.describe('ShareData — Cấu hình kết nối đối tác theo mẫu VMS 
 		expect(emitAfterClear).toBeNull();
 	});
 
-	test('TC13 — Modal editPartner.vue có width 780px, ô ghi chú rows="3" và padding-bottom dialog body bằng 0', async () => {
+	test('TC13 — Modal editPartner.vue có width 780px, ô ghi chú rows="2" và padding-bottom dialog body bằng 0', async () => {
 		const partnerContent = fs.readFileSync(editPartnerPath, 'utf-8');
 
 		// Kiểm tra dialog có width 780px
@@ -810,8 +810,8 @@ test.describe('ShareData — Cấu hình kết nối đối tác theo mẫu VMS 
 		// Kiểm tra class định danh cho dialog để style không bị ảnh hưởng Teleport
 		expect(partnerContent).toContain('class="sharedata-edit-partner-dialog"');
 
-		// Kiểm tra ô remark có :rows="3"
-		expect(partnerContent).toMatch(/<el-input[^>]*v-model="state\.ruleForm\.remark"[^>]*:rows="3"/);
+		// Kiểm tra ô remark có :rows="2" (đã giảm 1 dòng, tối thiểu 2)
+		expect(partnerContent).toMatch(/<el-input[^>]*v-model="state\.ruleForm\.remark"[^>]*:rows="2"/);
 
 		// Kiểm tra padding-bottom: 0 cho body dialog
 		expect(partnerContent).toContain('padding-bottom: 0');
@@ -1784,12 +1784,8 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 			await dialog.screenshot({ path: path.join(screenshotDir, 'partner-ftp-ftps.png') });
 		}
 
-		// Đóng dialog Thêm (xác nhận bỏ thay đổi nếu form dirty)
+		// Đóng dialog Thêm (đóng ngay, không hỏi xác nhận)
 		await dialog.locator('.dialog-footer button:has-text("Hủy")').click();
-		const confirmBox = page.locator('.el-message-box');
-		if (await confirmBox.isVisible({ timeout: 1000 }).catch(() => false)) {
-			await confirmBox.locator('button:has-text("Hủy thay đổi")').click();
-		}
 		await expect(dialog).toBeHidden();
 
 		// 3. Mở sửa đối tác FTPS (connectionType = 4) -> hiển thị "Máy chủ FTP" + bật "Mã hóa kết nối FTPS", lưu gửi connectionType = 4
@@ -1807,7 +1803,7 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		expect(JSON.parse(lastUpdatedPayload!.connectionConfig).UseSsl).toBe('true');
 	});
 
-	test('TC30 — Rule 20.26: Hộp thoại tạo mới/chỉnh sửa đối tác đóng khi click ngoài nếu chưa sửa, hỏi xác nhận nếu có thay đổi; tiêu đề chuẩn "Tạo mới đối tác"', async ({ context, page }) => {
+	test('TC30 — Hộp thoại tạo mới/chỉnh sửa đối tác đóng ngay khi click ngoài (không hỏi xác nhận); tiêu đề chuẩn "Tạo mới đối tác"', async ({ context, page }) => {
 		await mockAuth(context, page, {
 			language: 'vi-vn',
 			userInfo: {
@@ -1889,7 +1885,7 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		await page.mouse.click(5, 5);
 		await expect(dialog).toBeHidden({ timeout: 5000 });
 
-		// 3. Mở lại -> sửa trường Mã đối tác -> click outside -> hiện hộp hỏi confirmDiscardChanges
+		// 3. Mở lại -> sửa trường Mã đối tác -> click outside -> đóng ngay, không hỏi "Có thay đổi chưa lưu"
 		await addBtn.click();
 		await expect(dialog).toBeVisible();
 
@@ -1897,24 +1893,8 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		await codeInput.fill('PARTNER_DIRTY_TEST');
 
 		await page.mouse.click(5, 5);
-		const confirmBox = page.locator('.el-message-box');
-		await expect(confirmBox).toBeVisible({ timeout: 5000 });
-		await expect(confirmBox).toContainText('Có thay đổi chưa lưu');
-
-		// 4. Bấm "Tiếp tục sửa" -> hộp thoại vẫn mở và giá trị giữ nguyên
-		const keepEditingBtn = confirmBox.locator('button:has-text("Tiếp tục sửa")');
-		await keepEditingBtn.click();
-		await expect(confirmBox).toBeHidden({ timeout: 3000 });
-		await expect(dialog).toBeVisible();
-		await expect(codeInput).toHaveValue('PARTNER_DIRTY_TEST');
-
-		// 5. Click outside lần nữa -> hiện hộp hỏi -> bấm "Hủy thay đổi" -> hộp thoại đóng
-		await page.mouse.click(5, 5);
-		await expect(confirmBox).toBeVisible({ timeout: 5000 });
-		const discardBtn = confirmBox.locator('button:has-text("Hủy thay đổi")');
-		await discardBtn.click();
-		await expect(confirmBox).toBeHidden({ timeout: 3000 });
 		await expect(dialog).toBeHidden({ timeout: 5000 });
+		await expect(page.locator('.el-message-box')).toHaveCount(0);
 	});
 
 	test('TC18 — Form đối tác chia 2 tab (Thông tin chung, Kết nối), tự chuyển tab khi lỗi và giữ nguyên thời gian chờ khi lưu/mở lại', async ({ context, page }) => {
