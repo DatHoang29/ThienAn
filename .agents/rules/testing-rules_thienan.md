@@ -24,6 +24,18 @@ description: Unified Testing Suite protocol, Playwright FE E2E, xUnit BE on loca
    - **Frontend Test**: BẮT BUỘC viết bằng Playwright tại `tests/FE/` (`pnpm test:e2e`).
    - **Backend Test**: BẮT BUỘC viết bằng xUnit tại `tests/BE/` (`dotnet test tests/BE/test.csproj`).
    - ⛔ **CẤM TUYỆT ĐỐI** tạo file script test ad-hoc rải rác (`test.js`, `test.ps1`, `verify.sh`...) ở ngoài thư mục quy định.
+4. **Chỉ viết test mang giá trị — chống thừa test (bổ sung Rule 19.10, 24/10/2026)**:
+   - Mỗi test đi qua **điểm vào của một luồng nghiệp vụ** và kiểm **kết quả nghiệp vụ** (dữ liệu CSDL, gói tin gửi đi, cảnh báo, mốc đã gửi, lỗi trả về người dùng):
+     - API: `CallApiAsync` / `IMessageBus.InvokeAsync(input)` như controller (§5.3).
+     - Worker: phương thức public Worker gọi cho một lượt nghiệp vụ. Mẫu chuẩn: `DataOutboundService.ProcessSubscriptions` — một lượt gửi trọn vẹn (đọc đăng ký → trích SQL → ánh xạ → gửi → ghi mốc).
+     - Tầng kết nối: API công khai của `DeliveryDispatcher` gửi/nhận thật tới máy chủ giả lập.
+   - ⛔ **CẤM test dạng unit**: gọi thẳng helper / static / reader / validator / enum / handler (`PacketHelper`, `SqlValidator`, `ConnectConfigReader`, `XxxHandler.HandleAsync`…), kiểm hằng số, kiểm "resolve được từ DI", kiểm lại đúng câu lệnh vừa viết. Hành vi của helper được kiểm gián tiếp qua luồng dùng nó.
+   - ⛔ **CẤM test không thêm giá trị**: trùng kịch bản với test khác (cùng nhánh, chỉ khác dữ liệu mà kết quả như nhau), chỉ kiểm hành vi thư viện/framework, chỉ assert "không lỗi / khác null" khi đã có test kiểm mạnh hơn cùng luồng.
+   - **Cùng một luồng, khác dữ liệu → MỘT `[Theory]` + nhiều `[InlineData]`**, không viết nhiều hàm `[Fact]` giống nhau. FE (Playwright): một mảng dữ liệu + vòng `for` sinh test.
+   - **FE**: test chạy màn hình thật (`page.route` giả lập API → `page.goto` → thao tác → kiểm điều người dùng thấy / payload gửi đi). ⛔ Không viết test chỉ đọc mã nguồn `.vue`/`.ts` rồi so chuỗi; kiểm tĩnh chỉ dùng cho thứ khó thấy khi chạy màn hình (khóa dịch đủ ở vi-vn và en-us, `@` chưa thoát trong giá trị dịch).
+   - **Câu tự hỏi trước khi viết / giữ một test**: *"Xóa test này thì lỗi nào của luồng nghiệp vụ lọt qua mà không test nào khác bắt?"* Không trả lời được → không viết.
+   - ❌ **Sai:** `PacketHelperTests.TryGetPacketNumber_ValidCodes_...` gọi thẳng hàm tách mã gói; năm hàm `[Fact]` chỉ khác câu SQL đầu vào cho cùng một lỗi validator.
+   - ✅ **Đúng:** một ca trong `DataOutboundServiceTests` gọi `ProcessSubscriptions` rồi kiểm gói tin tới máy chủ giả lập và mốc `ShareDataLastSend`; một `[Theory]` lưu SQL qua API với các `[InlineData]` câu SQL không an toàn.
 
 ---
 

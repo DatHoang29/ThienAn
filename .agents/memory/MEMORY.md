@@ -28,6 +28,7 @@
 - [Tech decisions](tech-decisions.md) — bảo trì `.agents/manifest.json` ↔ frontmatter (AG-Kit tooling, không phải app)
 
 ## Bài học kinh nghiệm & Quy chuẩn quan trọng
+- [Test theo luồng, có giá trị](feedback_test-flow-value.md) — chỉ test qua điểm vào luồng (`ProcessSubscriptions`, API bus); cấm unit test helper, FE so chuỗi; dùng `[Theory]`/`[InlineData]`.
 - **Tự động kích hoạt Subagent song song (Rule 19.70)**: Khi prompt chứa danh sách từ 2 task/công việc trở lên (đặc biệt các dạng đánh số `1.`, `2.`, `3.`... hoặc gạch đầu dòng `- `, danh sách file `@prompt-*.md`), hoặc khi các phần việc/nhiệm vụ được ngăn cách bởi dấu phân cách (như `=========`, `---`, `===`...), AI bắt buộc tự động kích hoạt subagents song song để xử lý độc lập từng phần việc mà không cần nhắc.
 - **Kiểm thử NATS thật (Phương án 3 - Rule 19.81)**: Khi viết hoặc sửa bài kiểm thử xUnit tích hợp NATS broker thật (Docker local), luôn áp dụng Phương án 3 — cách ly Subject độc lập cho từng bài test dựa trên Unique ID (`$"ta.its.event.sharedata.newdata.t_{testId}"`), inject đè cả `Nats:NewDataSubject` và `Nats:Subject` qua `ConfigurationBuilder`. Đồng thời, ở bước kiểm tra listener sẵn sàng, BẮT BUỘC dùng cơ chế **Retry Probe Loop (100ms)** phát lặp định kỳ cho tới khi listener nhận được (`received.Count > 0`) để triệt tiêu race condition đăng ký subscribe nền, và hủy đăng ký (`transport.Unsubscribe`) ở đầu/cuối test; tăng timeout assertion chờ bản tin lên 45–60 giây khi chạy batch test lớn.
 

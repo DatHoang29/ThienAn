@@ -6,10 +6,10 @@ GO
 -- BẢNG GHI: [dbo].[SysTerminology] — tệp chỉ thêm / sửa / xóa trên đúng bảng này; bảng khác chỉ đọc (Rule 19.103).
 -- DESCRIPTION: Bổ sung từ điển bản dịch đa ngôn ngữ (vi-VN, en-US) cho phân hệ ShareData (ESHARE) vào SysTerminology:
 --              1. Chuẩn hóa lại mã khóa cũ thừa tiền tố (như lz.validation...lookbackDaysRange nếu có).
---              2. Nạp toàn bộ 112 mã khóa dịch thuật chuẩn hóa (224 bản ghi đa ngôn ngữ vi-VN và en-US):
+--              2. Nạp toàn bộ 120 mã khóa dịch thuật chuẩn hóa (240 bản ghi đa ngôn ngữ vi-VN và en-US):
 --                 - 23 khóa trường thực thể (Entity) dùng cho validation / khóa ngoại / tên đối tượng.
 --                 - 37 khóa ngoại lệ nghiệp vụ (Exception: phân hệ ShareData, quyền quản trị).
---                 - 50 khóa kiểm tra hợp lệ (Validation: SQL Validator, kết nối, đăng ký, gói tin, bộ mã, ánh xạ).
+--                 - 58 khóa kiểm tra hợp lệ (Validation: SQL Validator, kết nối, đăng ký, gói tin, bộ mã, ánh xạ, tham số câu truy vấn).
 --                 - 2 khóa thông báo (Message: kết nối đối tác).
 --              3. Cơ chế Idempotent:
 --                 - MERGE chỉ INSERT các bản ghi chưa có (WHEN NOT MATCHED THEN INSERT).
@@ -292,7 +292,7 @@ VALUES
      N'Cannot change the subscription state from [{0}] to [{1}].'),
 
     -- =========================================================================
-    -- NHÓM 4: QUẢN TRỊ VÀ CẤU HÌNH SQL TRÍCH XUẤT & METADATA (16 khóa)
+    -- NHÓM 4: QUẢN TRỊ VÀ CẤU HÌNH SQL TRÍCH XUẤT & METADATA (24 khóa)
     -- =========================================================================
     (N'lz.exception', N'sharedata.superAdminRequiredForSqlEdit',
      N'Chỉ tài khoản SuperAdmin mới có quyền chỉnh sửa câu truy vấn nguồn dữ liệu.',
@@ -357,6 +357,38 @@ VALUES
     (N'lz.validation', N'sharedata.partnerExtractSqlRequired',
      N'Câu truy vấn trích xuất riêng không được để trống. Muốn dùng lại mẫu chung, hãy chọn Dùng lại mẫu chung.',
      N'Custom extract SQL query cannot be empty. To revert to the standard template, select Reset to standard.'),
+
+    (N'lz.validation', N'sharedata.sqlVariableCodeInvalid',
+     N'Tên biến [{0}] không hợp lệ: bắt đầu bằng chữ cái, chỉ gồm chữ, số và dấu gạch dưới, tối đa 64 ký tự.',
+     N'Variable name [{0}] is invalid: it must start with a letter and contain only letters, digits and underscores, up to 64 characters.'),
+
+    (N'lz.validation', N'sharedata.sqlVariableCodeDuplicate',
+     N'Tên biến [{0}] bị trùng.',
+     N'Variable name [{0}] is duplicated.'),
+
+    (N'lz.validation', N'sharedata.sqlVariableTypeInvalid',
+     N'Kiểu dữ liệu [{1}] của biến [{0}] không hợp lệ.',
+     N'Data type [{1}] of variable [{0}] is invalid.'),
+
+    (N'lz.validation', N'sharedata.sqlVariableSourceInvalid',
+     N'Nguồn giá trị [{1}] của biến [{0}] không hợp lệ.',
+     N'Value source [{1}] of variable [{0}] is invalid.'),
+
+    (N'lz.validation', N'sharedata.sqlVariableSourceTypeMismatch',
+     N'Biến [{0}] lấy từ [{1}] phải có kiểu {2}.',
+     N'Variable [{0}] taken from [{1}] must be of type {2}.'),
+
+    (N'lz.validation', N'sharedata.sqlVariableValueInvalid',
+     N'Giá trị [{1}] của biến [{0}] không đúng kiểu {2}.',
+     N'Value [{1}] of variable [{0}] does not match type {2}.'),
+
+    (N'lz.validation', N'sharedata.sqlVariableSystemCannotRemove',
+     N'Biến hệ thống [{0}] không được xóa hoặc đổi tên.',
+     N'System variable [{0}] cannot be removed or renamed.'),
+
+    (N'lz.validation', N'sharedata.sqlVariableOverrideNotAllowed',
+     N'Biến [{0}] của mẫu chung không cho đối tác ghi đè giá trị.',
+     N'Variable [{0}] of the shared template does not allow partners to override its value.'),
 
     -- =========================================================================
     -- NHÓM 5: KIỂM TRA HỢP LỆ NGHIỆP VỤ GÓI TIN, BỘ MÃ, ĐĂNG KÝ (8 khóa)

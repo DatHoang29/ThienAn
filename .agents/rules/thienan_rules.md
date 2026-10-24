@@ -64,7 +64,7 @@ Quy tắc kỹ thuật chi tiết lưu giữ toàn văn tại các tệp chuyên
 - **Rule 20.17** (STT 27) — Khai báo `defineProps` inline, cấm tạo `types.ts` lẻ (§6.4)
 - **Rule 20.20** (STT 31) — Clean TypeScript State, cấm ép kiểu rườm rà (§6.6)
 - **Rule 20.21** (STT 32) — Tương thích kiểu TS, khai báo type sự kiện `(e)` chuẩn (cấm `:any`) & Zero lỗi đỏ IDE (`ts-plugin(7006)`) (§6.7)
-- **Rule 20.22** (STT 41) — Đóng gói CSS phân hệ nội bộ, cấm viết CSS đặc thù ra global (§2.7)
+- **Rule 20.22** (STT 41) — Đóng gói CSS phân hệ nội bộ, CẤM TUYỆT ĐỐI viết/sửa CSS global (`src/theme/`) trừ khi người dùng yêu cầu trực tiếp (§2.5)
 - **Rule 20.25** (STT 54) — Quy chuẩn VxeTable (`useVxeTable`), dữ liệu cấu hình & i18n (§10)
 - **Rule 20.26** (STT 55) — Bấm ra ngoài thì đóng dialog; form có sửa chưa lưu phải hỏi trước (§4)
 - **Rule 20.27** (STT 59) — Định dạng ngày tháng bộ lọc FE (`el-date-picker` bắt buộc `format="DD/MM/YYYY"`) (§10.4)
@@ -73,6 +73,10 @@ Quy tắc kỹ thuật chi tiết lưu giữ toàn văn tại các tệp chuyên
 - **Rule 20.30** (STT 62) — Thẻ không có nội dung viết tự đóng `<div ... />`, cấm cặp rỗng `<div ...></div>` (§6.2)
 
 ### 2. Backend .NET & Clean Architecture ([backend-dotnet_thienan.md](./backend-dotnet_thienan.md))
+> ⚠️ **3 luật CQRS cốt lõi (P0, áp cho mọi mã BE mới; mã lân cận sai thì không chép theo):**
+> - Handler `Controllers/<ChứcNăng>/{Commands,Queries}` cài `IWolverineHandler` (`using Wolverine;`); ⛔ CẤM `ITransient` / `IScoped` / `ISingleton` (§2).
+> - ⛔ CẤM DataAnnotation (`[Required]`, `[Range]`, `[StringLength]`) trên DTO; kiểm tra 100% bằng FluentValidation trong `Controllers/<ChứcNăng>/Validators/` (§2).
+> - **Rule 19.44** — WebAPI: ⛔ CẤM gán tay `ID = Guid.NewGuid()` khi Insert, AOP tự sinh (§3).
 - **Rule 19.67** (STT 18) — Ưu tiên sửa code trước, chỉ viết test khi có yêu cầu (Fix-First & On-Demand) (§4.25)
 - **Rule 19.68** (STT 22) — Cấm mã obsolete trong C#, dùng `[SugarColumn(IsIgnore=true)]` (§4.10)
 - **Rule 19.69, Rule 19.26** (STT 23) — Cấm hardcode string trong `Oops.Oh`, dùng `BaseMsg` & `SysTerminology` (§4.11)
@@ -88,6 +92,10 @@ Quy tắc kỹ thuật chi tiết lưu giữ toàn văn tại các tệp chuyên
 - **Rule 19.94** (STT 53) — Ưu tiên thư viện có sẵn (Furion), hạn chế interface 1:1, phân cấp Base/Helper (§4.24)
 
 ### 3. Testing Suite Protocol ([testing-rules_thienan.md](./testing-rules_thienan.md))
+> ⚠️ **Chỉ viết test mang giá trị (Rule 19.10, bổ sung 24/10/2026, §1.4):**
+> - Test đi qua điểm vào của một luồng nghiệp vụ (API qua `IMessageBus`; Worker như `DataOutboundService.ProcessSubscriptions`) và kiểm kết quả nghiệp vụ; ⛔ CẤM unit test gọi thẳng helper / static / validator / handler, kiểm hằng, kiểm DI, test trùng kịch bản.
+> - Cùng luồng khác dữ liệu → một `[Theory]` + `[InlineData]` (FE: mảng dữ liệu + vòng `for`); ⛔ CẤM test FE chỉ đọc mã nguồn rồi so chuỗi.
+> - Tự hỏi: "Xóa test này thì lỗi nào lọt qua mà không test nào khác bắt?" — không trả lời được thì không viết.
 - **Rule 19.67** (STT 18) — Ưu tiên sửa code trước, chỉ viết test khi có yêu cầu (Fix-First & On-Demand cho cả FE & BE) (§1, §2.7, §3)
 - **Rule 19.81** (STT 39) — Kiểm thử NATS: Cách ly subject độc lập từng test & Retry Probe Loop (§2.6)
 - **Rule 19.84** (STT 43) — Tệp test bám đúng luồng nghiệp vụ chính, thêm vào tệp có sẵn (§5)

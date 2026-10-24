@@ -72,19 +72,18 @@ src/views/<module>/<feature>/
    - BẮT BUỘC dùng block comment dạng `/* comment */`.
    - ⛔ TUYỆT ĐỐI KHÔNG dùng comment một dòng `//` trong khối SCSS (gây lỗi phân tích cú pháp khi Vite build).
 4. **Không Để Thừa Chấm Phẩy (`;;`)**: Đảm bảo cú pháp CSS sạch.
-5. **Quy Chuẩn Phạm Vi CSS (Component-Scoped First — CẤM Sửa Theme Toàn Dự Án Cho Module Con) (Rule 20.11)**:
-   - Mọi tuỳ biến CSS, override giao diện bảng (VxeTable), form, dialog cho một màn hình/phân hệ nghiệp vụ cụ thể (như ShareData, TMS, VMS, VideoWall...) **BẮT BUỘC viết trong khối `<style scoped>` nội bộ của chính component/view đó** (hoặc tệp style riêng thuộc phân hệ).
-   - ⛔ **TUYỆT ĐỐI CẤM** nhồi nhét selector hoặc class của component con/nghiệp vụ cụ thể vào các tệp theme/preset dùng chung toàn dự án (như `depthBlueAmber.scss`, `theme.scss`, `app.scss`).
-   - *Lý do*: Sửa vào theme chung sẽ gây hiệu ứng lây lan (side-effects), làm thay đổi và vỡ giao diện ngoài ý muốn của các phân hệ khác trên toàn dự án.
+5. **Quy Chuẩn Phạm Vi CSS (Component-Scoped First — CẤM TUYỆT ĐỐI Viết / Sửa CSS Global) (Rule 20.22)**:
+   - **Bối cảnh & Nguy cơ**: Thư mục CSS global (`src/src/theme/`, bao gồm `app.scss`, `index.scss`, `vxeTable.scss`, `element-plus.scss`, `presets/depthBlueAmber.scss`...) là cấu hình nền tảng toàn dự án. Mọi can thiệp CSS, override component (bảng, form, dialog, màu tiêu đề...) của một phân hệ nghiệp vụ nếu đưa ra file global sẽ làm rò rỉ selector (leaking styles), phá vỡ giao diện của các phân hệ khác trên toàn dự án.
+   - **Các quy định bắt buộc (P0 Safeguards)**:
+     1. ⛔ **TOÀN BỘ THƯ MỤC `src/src/theme/` LÀ VÙNG CẤM ĐỊA (Restricted Area)**: AI CẤM TUYỆT ĐỐI tạo mới, sửa đổi bất kỳ tệp nào trong `src/src/theme/` trừ khi và chỉ khi **người dùng có yêu cầu rõ ràng bằng lời**. Nếu người dùng không yêu cầu trực tiếp, 100% style phải đóng gói trong phân hệ.
+     2. ⛔ **CẤM NGỤY BIỆN "UTILITY CLASS DÙNG CHUNG" (No Scope Creep)**: Nghiêm cấm việc tự ý biến một nhu cầu style phát sinh từ phân hệ (ví dụ: muốn `el-table` có màu header giống `vxe-table`) thành class tiện ích dùng chung đặt ở file global (như `.el-table.el-table-xgrid-header`). Bất kỳ style nào phục vụ cho màn hình nào thì thuộc sở hữu của màn hình đó.
+     3. ⛔ **CẤM GHI ĐÈ FILE PRESET SCSS**: Nghiêm cấm nhảy vào các file preset (`depthBlueAmber.scss`...) viết khối override cho component con. Khi cần ăn theo màu theme, BẮT BUỘC dùng CSS Variables hệ thống (`var(--el-color-primary)`, `var(--el-color-primary-light-8)`, `var(--el-text-color-primary)`...) kết hợp với `:deep(...)` bên trong `<style scoped>`.
+     4. ✅ **Đóng gói nội bộ phân hệ**: Mọi style của phân hệ BẮT BUỘC viết trong `<style scoped lang="scss">` của chính component/view đó hoặc đặt trong thư mục `src/src/views/<phân-hệ>/style/` (ví dụ: `src/src/views/sharedata/style/loading.scss`).
+     5. ✅ **Import tại component / view**: Tại các view / component chính cần sử dụng, import nội bộ bằng cú pháp `@import '../style/<tên-style>.scss';` hoặc `@import './style/<tên-style>.scss';` trong khối `<style lang="scss">`.
+     6. ✅ **Scope selector an toàn**: Các selector trong file style phân hệ vẫn phải được bọc prefix theo class cha định danh của phân hệ (ví dụ: `.eshare-sharing`, `.esh-datasource-container`, `[class*='sharedata-']`) để cô lập hoàn toàn phạm vi ảnh hưởng.
+     7. 🔍 **Tự kiểm tra trước khi bàn giao (Pre-handoff Diff Gate)**: Trước khi hoàn tất, AI phải kiểm tra `git status`/`git diff`. Nếu thấy xuất hiện thay đổi trong `src/src/theme/` mà người dùng không yêu cầu, BẮT BUỘC hoàn nguyên (`git checkout`) ngay lập tức và chuyển style về `<style scoped>` nội bộ.
 6. **Vị Trí Đặt Code CSS/SCSS (Rule 20.16)**:
    - Code CSS mới đặt ở cuối cùng khối `<style>`; chỉnh sửa CSS hiện có thì sửa in-place tại chỗ. Chi tiết xem mục 6.5.
-7. **Đóng Gói CSS Phân Hệ Nội Bộ — CẤM Viết CSS Đặc Thù Của Phân Hệ Ra File CSS Global (`app.scss`, `index.scss`) (Rule 20.22)**:
-   - **Bối cảnh & Mục tiêu**: File CSS global (`theme/app.scss`, `theme/index.scss`) chỉ dành riêng cho các utility classes hệ thống chung (`.w100`, `.mb5`, `.mr5`, flex utilities) và theme layout toàn cục. CSS phục vụ hiệu ứng, loading, bố cục, hoặc custom selector riêng của từng phân hệ (như ShareData, TMS, VideoWall...) nếu đưa ra file global sẽ làm phình to bundle CSS toàn cục, gây rò rỉ selector (leaking styles), khó quản lý và làm ô nhiễm style các module khác.
-   - **Các quy định bắt buộc**:
-     1. ⛔ **TUYỆT ĐỐI CẤM** viết CSS/SCSS đặc thù của một phân hệ ra file CSS global (`src/src/theme/app.scss`, `src/src/theme/index.scss`).
-     2. ✅ **Đóng gói nội bộ phân hệ**: Mọi style dùng chung giữa các màn hình trong cùng một phân hệ BẮT BUỘC đặt trong thư mục `src/src/views/<phân-hệ>/style/` (ví dụ: `src/src/views/sharedata/style/loading.scss`).
-     3. ✅ **Import tại component / view**: Tại các view / component chính cần sử dụng, import nội bộ bằng cú pháp `@import '../style/<tên-style>.scss';` hoặc `@import './style/<tên-style>.scss';` trong khối `<style lang="scss">`.
-     4. ✅ **Scope selector an toàn**: Các selector trong file style phân hệ vẫn phải được bọc prefix theo class cha định danh của phân hệ (ví dụ: `.eshare-sharing`, `.esh-datasource-container`, `[class*='sharedata-']`) để cô lập hoàn toàn phạm vi ảnh hưởng.
 8. **Định dạng nội dung menu/popper bị đưa ra `<body>` (bổ sung 20/10/2026)**:
    - `el-dropdown`, `el-select`, `el-autocomplete`, `el-popover`, `el-tooltip` mặc định đưa phần nổi (menu, gợi ý, popover) ra thẳng `<body>`. Trong `<style scoped>`, `:deep(.lớp-menu) .x` biên dịch thành `[data-v-xxx] .lớp-menu .x` — cần phần tử cha mang `data-v-xxx` — nên **không khớp** khi menu đã ở `<body>`.
    - ✅ Viết class scoped thường đặt trên phần tử nằm trong slot của chính component (`.vqb-suggest-item { … }`, `.lớp-menu .x { … }`): phần tử trong slot vẫn mang `data-v-xxx` dù đã bị đưa ra ngoài. Hoặc dùng `popper-class="<tên-riêng>"` kèm một khối `<style lang="scss">` không scoped, mọi selector bắt đầu bằng tên riêng đó (tiền lệ `views/bigScreen/trafficInfo/component/incidentNotification.vue`).
@@ -316,8 +315,8 @@ src/views/<module>/<feature>/
      4. **Tự kiểm tra trước khi bàn giao (Pre-handoff Type Audit)**:
         - Trước khi hoàn tất mọi thay đổi code TypeScript / Vue, AI phải tự rà soát kiểu dữ liệu của các biểu thức điều kiện `if (...)`, `===`, toán tử ba ngôi `? :`, cũng như khai báo kiểu cho mọi tham số sự kiện/callback để bảo đảm zero lỗi đỏ trong IDE của lập trình viên.
 
-8. **Đóng Gói CSS Phân Hệ Nội Bộ — CẤM Viết CSS Đặc Thù Của Phân Hệ Ra File CSS Global (Rule 20.22)**:
-   - Chi tiết quy định cấm viết CSS phân hệ ra `app.scss`/`index.scss` và hướng dẫn đóng gói tại `src/src/views/<phân-hệ>/style/`: xem mục 2.7.
+8. **Đóng Gói CSS Phân Hệ Nội Bộ — CẤM TUYỆT ĐỐI Viết / Sửa CSS Global (Rule 20.22)**:
+   - Chi tiết quy định cấm đụng vào thư mục `src/src/theme/`, cấm ngụy biện class dùng chung và hướng dẫn đóng gói tại `<style scoped>` / `src/src/views/<phân-hệ>/style/`: xem mục 2.5.
 
 9. **Bỏ Là Bỏ Hết Các Liên Đới (Cascading Cleanup - Rule 19.68)**:
    - Khi gỡ bỏ một nút bấm, component hoặc tính năng UI: **BẮT BUỘC gỡ bỏ triệt để toàn bộ biến state/ref, hàm xử lý (handlers), watcher, computed, component/dialog liên quan, SCSS riêng của nó**, và cập nhật bài test tương ứng.

@@ -41,7 +41,7 @@
 | **7** | [`sharedata-seed-cau-hinh-SysOpConfig.sql`](sharedata-seed-cau-hinh-SysOpConfig.sql) | `SysOpConfig` | Nạp 48 tham số nhóm `sharedata_config` (giữ giá trị còn ở nhóm cũ `sharedata_fe_config`); xóa mềm tham số không còn dùng. |
 | **8** | [`sharedata-seed-cau-hinh-xoa-nhom-cu-SysConfigData.sql`](sharedata-seed-cau-hinh-xoa-nhom-cu-SysConfigData.sql) | `SysConfigData` | Xóa mềm dữ liệu nhóm cũ `sharedata_fe_config`. **Chạy sau tệp 7** (tệp 7 đọc dữ liệu nhóm cũ). |
 | **9** | [`sharedata-seed-cau-hinh-xoa-nhom-cu-SysConfigType.sql`](sharedata-seed-cau-hinh-xoa-nhom-cu-SysConfigType.sql) | `SysConfigType` | Xóa mềm loại danh mục cũ `sharedata_fe_config`. **Chạy sau tệp 8.** |
-| **10** | [`sharedata-dich-thuat-SysTerminology.sql`](sharedata-dich-thuat-SysTerminology.sql) | `SysTerminology` | Nạp 112 khóa thuật ngữ vi-VN / en-US qua `MERGE` không ghi đè bản dịch đã sửa. Chạy xong bấm 🔄 ở avatar góc phải trên → Ngôn ngữ để làm mới cache. |
+| **10** | [`sharedata-dich-thuat-SysTerminology.sql`](sharedata-dich-thuat-SysTerminology.sql) | `SysTerminology` | Nạp 120 khóa thuật ngữ vi-VN / en-US qua `MERGE` không ghi đè bản dịch đã sửa. Chạy xong bấm 🔄 ở avatar góc phải trên → Ngôn ngữ để làm mới cache. |
 
 ### B. Dữ liệu giả lập (⛔ chỉ DB local, hậu tố `_local`, thư mục con [`local/`](local/))
 
