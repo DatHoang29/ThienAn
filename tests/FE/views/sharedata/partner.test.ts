@@ -75,7 +75,6 @@ test.describe('ShareData — Cấu hình kết nối đối tác theo mẫu VMS 
 		const emitAfterClear = rawInvalid ? rawInvalid : serializeListToJson(items);
 		expect(emitAfterClear).toBeNull();
 	});
-
 });
 
 test.describe('ShareData — Form cấu hình kết nối đối tác (connectionConfigForm) @sharedata', () => {
