@@ -8,10 +8,41 @@ GO
 --              nạp câu ghi MERGE chiều nhận cho gói E2E_INBOUND_TEST vào ShareDataPacketSql.
 -- THỨ TỰ CHẠY: G3 (xem ../README.md).
 -- PHÂN HỆ: ShareData (ESHARE)
--- MÔI TRƯỜNG: ⚠️ CHỈ CHẠY TRÊN LOCAL VÀ TEST (hậu tố _local, Rule 19.101).
+-- MÔI TRƯỜNG: ⛔ CHỈ CHẠY TRÊN DB LOCAL (hậu tố _local, Rule 19.101); khối 0 tự dừng nếu không phải DB local.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
 -- CẬP NHẬT LẦN CUỐI: 24/10/2026
 -- =========================================================================================
+
+-- -----------------------------------------------------------------------------------------
+-- 0. CHỐT DB LOCAL (Rule 19.101): tệp _local chỉ chạy trên DB local trên máy lập trình viên.
+--    Máy chủ đang kết nối không phải DB local thì báo lỗi và bỏ qua toàn bộ tệp (SET NOEXEC ON tới cuối tệp;
+--    RETURN chỉ thoát batch hiện tại nên không dùng được).
+--    Được coi là DB local khi:
+--      - kết nối cục bộ không qua mạng (shared memory / named pipe: địa chỉ NULL);
+--      - SQL Server cài thẳng trên máy (127.0.0.1 / ::1);
+--      - SQL Server chạy trong Docker trên máy (địa chỉ máy chủ thuộc dải Docker 172.16.0.0/12, vd 172.18.0.6).
+-- -----------------------------------------------------------------------------------------
+DECLARE @DiaChiMayChu NVARCHAR(48) = CAST(CONNECTIONPROPERTY('local_net_address') AS NVARCHAR(48));
+DECLARE @DiaChiMayKhach NVARCHAR(48) = CAST(CONNECTIONPROPERTY('client_net_address') AS NVARCHAR(48));
+
+PRINT N'Đang kết nối: máy chủ ' + ISNULL(@@SERVERNAME, N'?')
+    + N' | địa chỉ máy chủ ' + ISNULL(@DiaChiMayChu, N'(cục bộ)')
+    + N' | địa chỉ máy khách ' + ISNULL(@DiaChiMayKhach, N'(cục bộ)')
+    + N' | CSDL ' + DB_NAME();
+
+IF NOT (
+       @DiaChiMayChu IS NULL
+    OR @DiaChiMayChu IN (N'127.0.0.1', N'::1')
+    OR @DiaChiMayKhach IN (N'<local machine>', N'127.0.0.1', N'::1')
+    OR @DiaChiMayChu LIKE N'172.1[6-9].%'
+    OR @DiaChiMayChu LIKE N'172.2[0-9].%'
+    OR @DiaChiMayChu LIKE N'172.3[01].%'
+)
+BEGIN
+    RAISERROR(N'⛔ Tệp _local chỉ chạy trên DB local (Rule 19.101). Máy chủ đang kết nối (%s) không phải DB local — dừng, không ghi dữ liệu.', 16, 1, @DiaChiMayChu);
+    SET NOEXEC ON;
+END;
+GO
 
 SET NOCOUNT ON;
 
