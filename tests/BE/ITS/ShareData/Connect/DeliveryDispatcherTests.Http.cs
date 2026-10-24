@@ -44,21 +44,28 @@ public partial class DeliveryDispatcherTests
         Assert.Equal(Encoding.UTF8.GetByteCount(jsonPayload), result.SentByteSize);
     }
 
-    [Fact]
-    public async Task DispatchAsync_WhenPartnerConfigEmpty_FallsBackToPartnerLegacyFields_Test()
+    /// <summary>
+    /// Description: Kiểm thử Dispatcher lấy Address/Port từ cột đối tác và fallback hoặc nạp cấu hình bổ sung từ ConnectionConfig.
+    /// Created date: 17/10/2026
+    /// Modified date: 24/10/2026
+    /// </summary>
+    [Theory]
+    [InlineData(null, "/api/v1/legacy-data")]
+    [InlineData("{\"TimeoutSeconds\":\"30\",\"AuthType\":\"Bearer\",\"Token\":\"test-token\"}", "/api/v1/override-endpoint")]
+    public async Task DispatchAsync_WhenPartnerConfigProvidedOrNull_TakesAddressAndPortFromPartnerColumns_Test(string? connectionConfig, string endpointUrl)
     {
-        // Arrange: Đối tác cũ không có ConnectionConfig JSON -> tự động fallback sang Address, Port, EndPointApiUrl
+        // Arrange
         var server = _host.PartnerServer;
         server.ResetDefaults();
         var httpSender = new HttpDeliverySender();
         var dispatcher = CreateDispatcher(http: httpSender);
-        var ctx = CreateDummyContext("101", "PARTNER_LEGACY", ConnectionType.Api);
+        var ctx = CreateDummyContext("101", "PARTNER_COLS", ConnectionType.Api);
         ctx.Partner!.Address = "127.0.0.1";
         ctx.Partner!.Port = 18092;
-        ctx.Partner!.EndPointApiUrl = "/api/v1/legacy-data";
-        ctx.Partner!.ConnectionConfig = null;
+        ctx.Partner!.EndPointApiUrl = endpointUrl;
+        ctx.Partner!.ConnectionConfig = connectionConfig;
 
-        var mappingBytes = Encoding.UTF8.GetBytes("{\"legacy\": true}");
+        var mappingBytes = Encoding.UTF8.GetBytes("{\"test\": true}");
         var mapping = new DataMappingResult(true, mappingBytes, 1);
         var request = DataOutboundTransport.BuildRequest(mapping, ctx);
 
@@ -71,37 +78,7 @@ public partial class DeliveryDispatcherTests
         Assert.Equal(200, result.StatusCode);
         Assert.NotNull(server.LastRequest);
         Assert.Equal(18092, server.LastRequest!.Port);
-        Assert.Equal("/api/v1/legacy-data", server.LastRequest.Path);
-    }
-
-    [Fact]
-    public async Task DispatchAsync_TakesAddressAndPortFromPartnerColumns_AndCustomConfigFromDictionary_Test()
-    {
-        // Arrange: Địa chỉ và cổng chỉ lấy từ cột của Partner; ConnectionConfig chỉ chứa config riêng (Auth, Timeout)
-        var server = _host.PartnerServer;
-        server.ResetDefaults();
-        var httpSender = new HttpDeliverySender();
-        var dispatcher = CreateDispatcher(http: httpSender);
-        var ctx = CreateDummyContext("101", "PARTNER_COLS", "API");
-        ctx.Partner!.Address = "127.0.0.1";
-        ctx.Partner!.Port = 18092;
-        ctx.Partner!.EndPointApiUrl = "/api/v1/override-endpoint";
-        ctx.Partner!.ConnectionConfig = "{\"TimeoutSeconds\":\"30\",\"AuthType\":\"Bearer\",\"Token\":\"test-token\"}";
-
-        var mappingBytes = Encoding.UTF8.GetBytes("{\"override\": true}");
-        var mapping = new DataMappingResult(true, mappingBytes, 1);
-        var request = DataOutboundTransport.BuildRequest(mapping, ctx);
-
-        // Act
-        var result = await dispatcher.Dispatch(request, ctx, CancellationToken.None);
-
-        // Assert
-        Assert.True(result.Success);
-        Assert.Equal("API", result.Channel);
-        Assert.Equal(200, result.StatusCode);
-        Assert.NotNull(server.LastRequest);
-        Assert.Equal(18092, server.LastRequest!.Port);
-        Assert.Equal("/api/v1/override-endpoint", server.LastRequest.Path);
+        Assert.Equal(endpointUrl, server.LastRequest.Path);
     }
 
     [Theory]
@@ -131,15 +108,21 @@ public partial class DeliveryDispatcherTests
         Assert.Contains("Port", result.ErrorMessage);
     }
 
+    /// <summary>
+    /// Description: Kiểm thử HttpDeliverySender từ chối cấu hình TimeoutSeconds hoặc BypassSsl không hợp lệ.
+    /// Created date: 17/10/2026
+    /// Modified date: 24/10/2026
+    /// </summary>
     [Theory]
-    [InlineData("-5")]
-    [InlineData("0")]
-    [InlineData("not_a_number")]
-    public async Task HttpSender_WhenTimeoutInvalid_ReturnsInvalidConfigurationError_Test(string invalidTimeout)
+    [InlineData("TimeoutSeconds", "-5", "Timeout")]
+    [InlineData("TimeoutSeconds", "0", "Timeout")]
+    [InlineData("TimeoutSeconds", "not_a_number", "Timeout")]
+    [InlineData("BypassSsl", "not_a_boolean", "BypassSsl")]
+    public async Task HttpSender_WhenConfigValueInvalid_ReturnsInvalidConfigurationError_Test(string configKey, string invalidValue, string expectedErrorKeyword)
     {
         // Arrange
         var httpSender = new HttpDeliverySender();
-        var ctx = CreateDummyContext("101", "PARTNER_BAD_TIMEOUT", "API");
+        var ctx = CreateDummyContext("101", "PARTNER_BAD_CONFIG", "API");
         var request = new DeliveryRequest
         {
             JsonPayload = "{}",
@@ -148,7 +131,7 @@ public partial class DeliveryDispatcherTests
             {
                 ["Address"] = "127.0.0.1",
                 ["Port"] = "18092",
-                ["TimeoutSeconds"] = invalidTimeout
+                [configKey] = invalidValue
             }
         };
 
@@ -158,34 +141,7 @@ public partial class DeliveryDispatcherTests
         // Assert
         Assert.False(result.Success);
         Assert.Equal("InvalidConfiguration", result.ErrorCode);
-        Assert.Contains("Timeout", result.ErrorMessage);
-    }
-
-    [Fact]
-    public async Task HttpSender_WhenBypassSslInvalid_ReturnsInvalidConfigurationError_Test()
-    {
-        // Arrange
-        var httpSender = new HttpDeliverySender();
-        var ctx = CreateDummyContext("101", "PARTNER_BAD_SSL", "API");
-        var request = new DeliveryRequest
-        {
-            JsonPayload = "{}",
-            ConnectType = ConnectionType.Api,
-            ConnectConfig = new Dictionary<string, string>
-            {
-                ["Address"] = "127.0.0.1",
-                ["Port"] = "18092",
-                ["BypassSsl"] = "not_a_boolean"
-            }
-        };
-
-        // Act
-        var result = await httpSender.Send(request, ctx, CancellationToken.None);
-
-        // Assert
-        Assert.False(result.Success);
-        Assert.Equal("InvalidConfiguration", result.ErrorCode);
-        Assert.Contains("BypassSsl", result.ErrorMessage);
+        Assert.Contains(expectedErrorKeyword, result.ErrorMessage);
     }
 
     [Fact]
@@ -319,38 +275,6 @@ public partial class DeliveryDispatcherTests
     }
 
     [Fact]
-    public async Task HttpSender_WhenFurionResponseHasFailedSucceeded_ReturnsBusinessError_Test()
-    {
-        // Arrange: Đối tác trả HTTP 200 dạng Furion/UnifyResult nhưng succeeded = false
-        var server = _host.PartnerServer;
-        server.ResetDefaults();
-        server.DefaultResponseBody = "{\"succeeded\": false, \"statusCode\": 400, \"errors\": \"Dữ liệu không đúng định dạng\"}";
-
-        var httpSender = new HttpDeliverySender();
-        var ctx = CreateDummyContext("101", "PARTNER_FURION_ERR", "API");
-        var request = new DeliveryRequest
-        {
-            JsonPayload = "{\"data\":\"test\"}",
-            ConnectType = ConnectionType.Api,
-            ConnectConfig = new Dictionary<string, string>
-            {
-                ["Address"] = "127.0.0.1",
-                ["Port"] = "18092",
-                ["ResponseContract"] = "Furion"
-            }
-        };
-
-        // Act
-        var result = await httpSender.Send(request, ctx, CancellationToken.None);
-
-        // Assert
-        Assert.False(result.Success);
-        Assert.Equal("BusinessError", result.ErrorCode);
-        Assert.Equal(200, result.StatusCode);
-        Assert.Contains("Dữ liệu không đúng định dạng", result.ErrorMessage);
-    }
-
-    [Fact]
     public async Task HttpSender_WhenServerDropsConnection_ReturnsProtocolMismatchHint_Test()
     {
         // Arrange
@@ -415,25 +339,41 @@ public partial class DeliveryDispatcherTests
         Assert.Equal(expectedBytes, Encoding.UTF8.GetBytes(server.LastRequest.Body));
     }
 
+    /// <summary>
+    /// Description: Kiểm thử HttpDeliverySender phát hiện và ghi cảnh báo khi cấu hình xác thực chưa đủ trường hoặc không hỗ trợ.
+    /// Created date: 17/10/2026
+    /// Modified date: 24/10/2026
+    /// </summary>
     [Theory]
-    [InlineData("")]
-    [InlineData("None")]
-    public async Task HttpSender_WhenAuthTypeEmptyOrNoneWithCredentials_EmitsWarningAndSendsWithoutAuth_Test(string authType)
+    [InlineData("", "stray-token", null, "stray-user", null, "Cấu hình phương thức xác thực rỗng hoặc None")]
+    [InlineData("None", "stray-token", null, "stray-user", null, "Cấu hình phương thức xác thực rỗng hoặc None")]
+    [InlineData("OAuth3Custom", "token-123", null, null, null, "AuthType [OAuth3Custom] không được hỗ trợ")]
+    [InlineData("Bearer", "", null, null, null, "Bearer yêu cầu Token")]
+    [InlineData("ApiKey", null, null, null, null, "ApiKey yêu cầu ApiKey")]
+    [InlineData("Basic", null, null, "admin", null, "Basic yêu cầu Username và Password")]
+    public async Task HttpSender_WhenAuthConfigIncompleteOrUnsupported_EmitsExpectedWarning_Test(
+        string authType,
+        string? token,
+        string? apiKey,
+        string? username,
+        string? password,
+        string expectedWarningSubstring)
     {
         // Arrange
         _host.PartnerServer.ResetDefaults();
         var handler = new HttpDeliverySender();
         var ctx = CreateSendContext();
+        var config = new Dictionary<string, string> { [ConnectKeys.AuthType] = authType };
+        if (token != null) config[ConnectKeys.Token] = token;
+        if (apiKey != null) config[ConnectKeys.ApiKey] = apiKey;
+        if (username != null) config[ConnectKeys.Username] = username;
+        if (password != null) config[ConnectKeys.Password] = password;
+
         var request = new DeliveryRequest
         {
             JsonPayload = "{\"test\": 1}",
             ConnectType = ConnectionType.Api,
-            ConnectConfig = new Dictionary<string, string>
-            {
-                [ConnectKeys.AuthType] = authType,
-                [ConnectKeys.Token] = "stray-token-123",
-                [ConnectKeys.Username] = "stray-user"
-            }
+            ConnectConfig = config
         };
 
         // Act
@@ -442,240 +382,65 @@ public partial class DeliveryDispatcherTests
         // Assert
         Assert.True(result.Success);
         Assert.NotNull(result.Warnings);
-        Assert.Contains(result.Warnings, w => w.Contains("Cấu hình phương thức xác thực rỗng hoặc None nhưng tồn tại thông tin xác thực"));
-        Assert.False(_host.PartnerServer.LastRequest!.Headers.ContainsKey("Authorization"));
-    }
-
-    [Fact]
-    public async Task HttpSender_WhenUnsupportedAuthType_EmitsWarning_Test()
-    {
-        // Arrange
-        _host.PartnerServer.ResetDefaults();
-        var handler = new HttpDeliverySender();
-        var ctx = CreateSendContext();
-        var request = new DeliveryRequest
+        Assert.Contains(result.Warnings, w => w.Contains(expectedWarningSubstring));
+        if (authType == "" || authType == "None")
         {
-            JsonPayload = "{\"test\": 1}",
-            ConnectType = ConnectionType.Api,
-            ConnectConfig = new Dictionary<string, string>
-            {
-                [ConnectKeys.AuthType] = "OAuth3Custom",
-                [ConnectKeys.Token] = "token-123"
-            }
-        };
-
-        // Act
-        var result = await handler.Send(request, ctx, CancellationToken.None);
-
-        // Assert
-        Assert.True(result.Success);
-        Assert.NotNull(result.Warnings);
-        Assert.Contains(result.Warnings, w => w.Contains("AuthType [OAuth3Custom] không được hỗ trợ"));
+            Assert.False(_host.PartnerServer.LastRequest!.Headers.ContainsKey("Authorization"));
+        }
     }
 
-    [Fact]
-    public async Task HttpSender_WhenBearerAuthMissingToken_EmitsWarning_Test()
-    {
-        // Arrange
-        _host.PartnerServer.ResetDefaults();
-        var handler = new HttpDeliverySender();
-        var ctx = CreateSendContext();
-        var request = new DeliveryRequest
-        {
-            JsonPayload = "{\"test\": 1}",
-            ConnectType = ConnectionType.Api,
-            ConnectConfig = new Dictionary<string, string>
-            {
-                [ConnectKeys.AuthType] = "Bearer",
-                [ConnectKeys.Token] = ""
-            }
-        };
-
-        // Act
-        var result = await handler.Send(request, ctx, CancellationToken.None);
-
-        // Assert
-        Assert.True(result.Success);
-        Assert.NotNull(result.Warnings);
-        Assert.Contains(result.Warnings, w => w.Contains("Bearer yêu cầu Token"));
-    }
-
-    [Fact]
-    public async Task HttpSender_WhenApiKeyAuthMissingKey_EmitsWarning_Test()
-    {
-        // Arrange
-        _host.PartnerServer.ResetDefaults();
-        var handler = new HttpDeliverySender();
-        var ctx = CreateSendContext();
-        var request = new DeliveryRequest
-        {
-            JsonPayload = "{\"test\": 1}",
-            ConnectType = ConnectionType.Api,
-            ConnectConfig = new Dictionary<string, string>
-            {
-                [ConnectKeys.AuthType] = "ApiKey"
-            }
-        };
-
-        // Act
-        var result = await handler.Send(request, ctx, CancellationToken.None);
-
-        // Assert
-        Assert.True(result.Success);
-        Assert.NotNull(result.Warnings);
-        Assert.Contains(result.Warnings, w => w.Contains("ApiKey yêu cầu ApiKey"));
-    }
-
-    [Fact]
-    public async Task HttpSender_WhenBasicAuthMissingCredentials_EmitsWarning_Test()
-    {
-        // Arrange
-        _host.PartnerServer.ResetDefaults();
-        var handler = new HttpDeliverySender();
-        var ctx = CreateSendContext();
-        var request = new DeliveryRequest
-        {
-            JsonPayload = "{\"test\": 1}",
-            ConnectType = ConnectionType.Api,
-            ConnectConfig = new Dictionary<string, string>
-            {
-                [ConnectKeys.AuthType] = "Basic",
-                [ConnectKeys.Username] = "admin"
-            }
-        };
-
-        // Act
-        var result = await handler.Send(request, ctx, CancellationToken.None);
-
-        // Assert
-        Assert.True(result.Success);
-        Assert.NotNull(result.Warnings);
-        Assert.Contains(result.Warnings, w => w.Contains("Basic yêu cầu Username và Password"));
-    }
-
-    [Fact]
-    public async Task HttpSender_WhenNoResponseContractAndSucceededFalse_ReturnsBusinessError_Test()
+    /// <summary>
+    /// Description: Kiểm thử HttpDeliverySender xử lý ResponseContract (Auto, HttpOnly, Furion, Default) theo body phản hồi của đối tác.
+    /// Created date: 17/10/2026
+    /// Modified date: 24/10/2026
+    /// </summary>
+    [Theory]
+    [InlineData("HttpOnly", "{\"succeeded\":false,\"code\":400,\"message\":\"lz.exception.base.dataNotExist\"}", true, null, null)]
+    [InlineData("Auto", "{\"succeeded\":false,\"code\":400,\"message\":\"lz.exception.base.dataNotExist\"}", false, "BusinessError", "lz.exception.base.dataNotExist")]
+    [InlineData(null, "{\"succeeded\":false,\"code\":400,\"message\":\"lz.exception.base.dataNotExist\"}", false, "BusinessError", "lz.exception.base.dataNotExist")]
+    [InlineData(null, "{\"succeeded\":true}", true, null, null)]
+    [InlineData("Furion", "{\"succeeded\": false, \"statusCode\": 400, \"errors\": \"Dữ liệu không đúng định dạng\"}", false, "BusinessError", "Dữ liệu không đúng định dạng")]
+    public async Task HttpSender_WhenResponseContractConfigured_ProcessesResultAsExpected_Test(
+        string? contract,
+        string responseBody,
+        bool expectedSuccess,
+        string? expectedErrorCode,
+        string? expectedMessageSubstring)
     {
         // Arrange
         var server = _host.PartnerServer;
         server.ResetDefaults();
-        server.DefaultResponseBody = "{\"succeeded\":false,\"code\":400,\"message\":\"lz.exception.base.dataNotExist\"}";
+        server.DefaultResponseBody = responseBody;
 
         var httpSender = new HttpDeliverySender();
-        var ctx = CreateSendContext("PARTNER_DEFAULT_ERR");
+        var ctx = CreateSendContext("PARTNER_CONTRACT_TEST");
+        var config = new Dictionary<string, string>();
+        if (contract != null)
+        {
+            config[ConnectKeys.ResponseContract] = contract;
+        }
+
         var request = new DeliveryRequest
         {
             JsonPayload = "{\"data\":\"test\"}",
             ConnectType = ConnectionType.Api,
-            ConnectConfig = new Dictionary<string, string>()
+            ConnectConfig = config
         };
 
         // Act
-        var result = await httpSender.Send(
-            request,
-            ctx,
-            CancellationToken.None
-        );
+        var result = await httpSender.Send(request, ctx, CancellationToken.None);
 
         // Assert
-        Assert.False(result.Success);
-        Assert.Equal("BusinessError", result.ErrorCode);
+        Assert.Equal(expectedSuccess, result.Success);
         Assert.Equal(200, result.StatusCode);
-        Assert.Contains("[400] lz.exception.base.dataNotExist", result.ErrorMessage);
-    }
-
-    [Fact]
-    public async Task HttpSender_WhenResponseContractHttpOnlyAndSucceededFalse_ReturnsSuccess_Test()
-    {
-        // Arrange
-        var server = _host.PartnerServer;
-        server.ResetDefaults();
-        server.DefaultResponseBody = "{\"succeeded\":false,\"code\":400,\"message\":\"lz.exception.base.dataNotExist\"}";
-
-        var httpSender = new HttpDeliverySender();
-        var ctx = CreateSendContext("PARTNER_HTTP_ONLY");
-        var request = new DeliveryRequest
+        if (expectedErrorCode != null)
         {
-            JsonPayload = "{\"data\":\"test\"}",
-            ConnectType = ConnectionType.Api,
-            ConnectConfig = new Dictionary<string, string>
-            {
-                [ConnectKeys.ResponseContract] = "HttpOnly"
-            }
-        };
-
-        // Act
-        var result = await httpSender.Send(
-            request,
-            ctx,
-            CancellationToken.None
-        );
-
-        // Assert
-        Assert.True(result.Success);
-        Assert.Equal(200, result.StatusCode);
-    }
-
-    [Fact]
-    public async Task HttpSender_WhenResponseContractAutoAndSucceededFalse_ReturnsBusinessError_Test()
-    {
-        // Arrange
-        var server = _host.PartnerServer;
-        server.ResetDefaults();
-        server.DefaultResponseBody = "{\"succeeded\":false,\"code\":400,\"message\":\"lz.exception.base.dataNotExist\"}";
-
-        var httpSender = new HttpDeliverySender();
-        var ctx = CreateSendContext("PARTNER_AUTO_CONTRACT");
-        var request = new DeliveryRequest
+            Assert.Equal(expectedErrorCode, result.ErrorCode);
+        }
+        if (expectedMessageSubstring != null)
         {
-            JsonPayload = "{\"data\":\"test\"}",
-            ConnectType = ConnectionType.Api,
-            ConnectConfig = new Dictionary<string, string>
-            {
-                [ConnectKeys.ResponseContract] = "Auto"
-            }
-        };
-
-        // Act
-        var result = await httpSender.Send(
-            request,
-            ctx,
-            CancellationToken.None
-        );
-
-        // Assert
-        Assert.False(result.Success);
-        Assert.Equal("BusinessError", result.ErrorCode);
-        Assert.Equal(200, result.StatusCode);
-        Assert.Contains("[400] lz.exception.base.dataNotExist", result.ErrorMessage);
-    }
-
-    [Fact]
-    public async Task HttpSender_WhenNoResponseContractAndSucceededTrue_ReturnsSuccess_Test()
-    {
-        // Arrange
-        var server = _host.PartnerServer;
-        server.ResetDefaults();
-        server.DefaultResponseBody = "{\"succeeded\":true}";
-
-        var httpSender = new HttpDeliverySender();
-        var ctx = CreateSendContext("PARTNER_SUCCEEDED_TRUE");
-        var request = new DeliveryRequest
-        {
-            JsonPayload = "{\"data\":\"test\"}",
-            ConnectType = ConnectionType.Api,
-            ConnectConfig = new Dictionary<string, string>()
-        };
-
-        // Act
-        var result = await httpSender.Send(
-            request,
-            ctx,
-            CancellationToken.None
-        );
-
-        // Assert
-        Assert.True(result.Success);
-        Assert.Equal(200, result.StatusCode);
+            Assert.NotNull(result.ErrorMessage);
+            Assert.Contains(expectedMessageSubstring, result.ErrorMessage);
+        }
     }
 }

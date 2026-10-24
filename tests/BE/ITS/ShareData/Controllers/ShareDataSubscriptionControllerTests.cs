@@ -75,69 +75,19 @@ public class ShareDataSubscriptionControllerTests(Host host)
     }
 
     /// <summary>
-    /// Description: Kiểm chứng Priority và DebounceSec dùng giá trị dự phòng (0..10 và 0..3600)
-    /// khi CSDL không có cấu hình.
-    /// Created date: 17/10/2026
-    /// </summary>
-    [Fact]
-    public async Task AddSubscription_PriorityAndDebounceSec_ValidatesFallbackRanges_Test()
-    {
-        // Arrange
-        var sp = host.Services;
-        var db = sp.GetRequiredService<ISqlSugarClient>();
-        var unique = Guid.NewGuid().ToString("N");
-
-        var partner = new ShareDataPartner
-        {
-            ID = $"P_{unique}",
-            Code = $"P_CODE_{unique}",
-            Name = $"Partner {unique}",
-            Status = BaseEnums.StatusEnum.Enable
-        };
-        await db.Insertable(partner).ExecuteCommandAsync();
-
-        ShareDataAddSubscriptionInput CreateInput(int? priority = null, int? debounce = null, BaseEnums.SubMode mode = BaseEnums.SubMode.Periodic) =>
-            new()
-            {
-                PartnerId = partner.ID,
-                DatatypeId = $"DT_{unique}",
-                Direction = BaseEnums.Direction.Outbound,
-                Mode = mode,
-                EventSourceId = mode == BaseEnums.SubMode.Event ? $"EV_{unique}" : null,
-                IntervalSeconds = 30,
-                Priority = priority,
-                DebounceSec = debounce,
-                Schedule = new ShareDataScheduleDto
-                {
-                    Kind = "continuous",
-                    IntervalSeconds = 30,
-                    StartTime = "06:00",
-                    EndTime = "22:00"
-                }
-            };
-
-        // 1. Fallback verification (Priority: 0..10, DebounceSec: 0..3600)
-        await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput(priority: 11)));
-        await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput(debounce: 3601)));
-
-        // 2. Valid input within fallback range succeeds (Mode = Event to preserve DebounceSec)
-        await sp.CallApiAsync(CreateInput(priority: 5, debounce: 60, mode: BaseEnums.SubMode.Event));
-
-        var saved = await db.Queryable<ShareDataSubscription>()
-            .Where(s => s.PartnerId == partner.ID && s.DatatypeId == $"DT_{unique}")
-            .FirstAsync();
-        Assert.NotNull(saved);
-        Assert.Equal(5, saved.Priority);
-        Assert.Equal(60, saved.DebounceSec);
-    }
-
-    /// <summary>
     /// Description: Kiểm chứng các giá trị ngoài khoảng (dưới min hoặc trên max) của chu kỳ,
     /// ưu tiên và gom sự kiện bị từ chối kèm thông báo lỗi nêu rõ khoảng hợp lệ.
     /// Created date: 19/10/2026
+    /// Modified date: 24/10/2026
     /// </summary>
-    [Fact]
-    public async Task AddSubscription_WhenValueOutsideRange_RejectsWithRangeMessage_Test()
+    [Theory]
+    [InlineData("Interval", 4, 5, 86400)]
+    [InlineData("Interval", 86401, 5, 86400)]
+    [InlineData("Priority", -1, 0, 10)]
+    [InlineData("Priority", 11, 0, 10)]
+    [InlineData("Debounce", -1, 0, 3600)]
+    [InlineData("Debounce", 3601, 0, 3600)]
+    public async Task AddSubscription_WhenValueOutsideRange_RejectsWithRangeMessage_Test(string field, int value, int min, int max)
     {
         // Arrange
         var sp = host.Services;
@@ -153,51 +103,29 @@ public class ShareDataSubscriptionControllerTests(Host host)
         };
         await db.Insertable(partner).ExecuteCommandAsync();
 
-        ShareDataAddSubscriptionInput CreateInput(
-            int? interval = 30,
-            int? priority = 1,
-            int? debounce = null,
-            BaseEnums.SubMode mode = BaseEnums.SubMode.Periodic) =>
-            new()
+        var isEvent = field == "Debounce";
+        var input = new ShareDataAddSubscriptionInput
+        {
+            PartnerId = partner.ID,
+            DatatypeId = $"DT_{unique}",
+            Direction = BaseEnums.Direction.Outbound,
+            Mode = isEvent ? BaseEnums.SubMode.Event : BaseEnums.SubMode.Periodic,
+            EventSourceId = isEvent ? $"EV_{unique}" : null,
+            IntervalSeconds = field == "Interval" ? value : 30,
+            Priority = field == "Priority" ? value : 1,
+            DebounceSec = field == "Debounce" ? value : null,
+            Schedule = new ShareDataScheduleDto
             {
-                PartnerId = partner.ID,
-                DatatypeId = $"DT_{unique}",
-                Direction = BaseEnums.Direction.Outbound,
-                Mode = mode,
-                EventSourceId = mode == BaseEnums.SubMode.Event ? $"EV_{unique}" : null,
-                IntervalSeconds = interval,
-                Priority = priority,
-                DebounceSec = debounce,
-                Schedule = new ShareDataScheduleDto
-                {
-                    Kind = "continuous",
-                    IntervalSeconds = interval,
-                    StartTime = "06:00",
-                    EndTime = "22:00"
-                }
-            };
+                Kind = "continuous",
+                IntervalSeconds = field == "Interval" ? value : 30,
+                StartTime = "06:00",
+                EndTime = "22:00"
+            }
+        };
 
         // Act & Assert
-        // 1. Chu kỳ dưới min (4 < 5) hoặc trên max (86401 > 86400)
-        var exIntervalMin = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput(interval: 4)));
-        AssertRangeViolation(exIntervalMin, 5, 86400);
-
-        var exIntervalMax = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput(interval: 86401)));
-        AssertRangeViolation(exIntervalMax, 5, 86400);
-
-        // 2. Độ ưu tiên dưới min (-1 < 0) hoặc trên max (11 > 10)
-        var exPriorityMin = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput(priority: -1)));
-        AssertRangeViolation(exPriorityMin, 0, 10);
-
-        var exPriorityMax = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput(priority: 11)));
-        AssertRangeViolation(exPriorityMax, 0, 10);
-
-        // 3. Gom sự kiện dưới min (-1 < 0) hoặc trên max (3601 > 3600)
-        var exDebounceMin = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput(debounce: -1, mode: BaseEnums.SubMode.Event)));
-        AssertRangeViolation(exDebounceMin, 0, 3600);
-
-        var exDebounceMax = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(CreateInput(debounce: 3601, mode: BaseEnums.SubMode.Event)));
-        AssertRangeViolation(exDebounceMax, 0, 3600);
+        var ex = await Assert.ThrowsAnyAsync<Exception>(() => sp.CallApiAsync(input));
+        AssertRangeViolation(ex, min, max);
     }
 
     /// <summary>

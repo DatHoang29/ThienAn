@@ -1,3 +1,6 @@
+using System.ComponentModel.DataAnnotations;
+using System.Reflection;
+using System.Text.RegularExpressions;
 using Modules.Integration.Delivery.Base.Constants;
 using Modules.Integration.Delivery;
 using Module.ShareData.Core.Entities;
@@ -124,5 +127,115 @@ public class ShareDataArchitectureTests
         // Assert
         Assert.True(declaredInterfaces.Count == 0,
             $"6 assembly ShareData/Delivery không được khai báo interface, nhưng tìm thấy: {string.Join(", ", declaredInterfaces)}.");
+    }
+
+    /// <summary>
+    /// Description: Rule backend §2 — mọi CommandHandler / QueryHandler của WebAPI ShareData cài IWolverineHandler,
+    ///              không đăng ký vòng đời DI bằng marker Furion (ITransient / IScoped / ISingleton).
+    /// Created date: 24/10/2026
+    /// </summary>
+    [Fact]
+    [Trait("Feature", "Architecture")]
+    public void ShareDataHandlers_ImplementWolverineHandlerWithoutDiLifetimeMarker_Test()
+    {
+        // Arrange
+        var lifetimeMarkers = new[] { "ITransient", "IScoped", "ISingleton" };
+        var handlers = typeof(ShareDataPacketController).Assembly.GetTypes()
+            .Where(t => t.IsClass && !t.IsAbstract && (t.Name.EndsWith("CommandHandler") || t.Name.EndsWith("QueryHandler")))
+            .ToList();
+
+        // Act
+        var violations = handlers
+            .Select(t => (Type: t, Interfaces: t.GetInterfaces().Select(i => i.Name).ToList()))
+            .Where(x => !x.Interfaces.Contains("IWolverineHandler") || x.Interfaces.Any(lifetimeMarkers.Contains))
+            .Select(x => $"{x.Type.FullName} [{string.Join(", ", x.Interfaces)}]")
+            .ToList();
+
+        // Assert
+        Assert.NotEmpty(handlers);
+        Assert.True(violations.Count == 0,
+            $"Handler phải cài IWolverineHandler và không dùng ITransient/IScoped/ISingleton (backend-dotnet_thienan.md §2): {string.Join("; ", violations)}");
+    }
+
+    /// <summary>
+    /// Description: Rule backend §2 — DTO của ShareData không dùng DataAnnotation ([Required], [Range], [StringLength]...);
+    ///              kiểm tra dữ liệu 100% qua FluentValidation trong Controllers/&lt;ChứcNăng&gt;/Validators.
+    /// Created date: 24/10/2026
+    /// </summary>
+    [Fact]
+    [Trait("Feature", "Architecture")]
+    public void ShareDataDtos_DeclareNoDataAnnotationAttributes_Test()
+    {
+        // Arrange
+        var dtoTypes = new[] { typeof(ShareDataPacket).Assembly, typeof(ShareDataPacketController).Assembly }
+            .SelectMany(a => a.GetTypes())
+            .Where(t => t.IsClass && (t.Namespace ?? string.Empty).Contains(".Dto", StringComparison.Ordinal))
+            .ToList();
+
+        // Act
+        var violations = dtoTypes
+            .SelectMany(t => t.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                .SelectMany(p => p.GetCustomAttributes(typeof(ValidationAttribute), inherit: false)
+                    .Select(a => $"{t.Name}.{p.Name} [{a.GetType().Name}]")))
+            .ToList();
+
+        // Assert
+        Assert.NotEmpty(dtoTypes);
+        Assert.True(violations.Count == 0,
+            $"DTO không được dùng DataAnnotation, chuyển sang FluentValidation (backend-dotnet_thienan.md §2): {string.Join("; ", violations)}");
+    }
+
+    /// <summary>
+    /// Description: Rule 19.44 — ở WebAPI, ID do AOP tự sinh khi Insert; mã nguồn Module.ShareData / Module.ShareData.Core
+    ///              không gán tay ID = Guid.NewGuid() (Worker được gán, không thuộc phạm vi bài này).
+    /// Created date: 24/10/2026
+    /// </summary>
+    [Fact]
+    [Trait("Feature", "Architecture")]
+    public void ShareDataWebApiSource_DoesNotAssignIdManually_Test()
+    {
+        // Arrange
+        var moduleDir = ResolveShareDataModuleDir();
+        var assignId = new Regex(@"\bID\s*=\s*Guid\.NewGuid\(", RegexOptions.Compiled);
+        var sourceFiles = new[] { "Module.ShareData", "Module.ShareData.Core" }
+            .SelectMany(project => Directory.EnumerateFiles(Path.Combine(moduleDir, project), "*.cs", SearchOption.AllDirectories))
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")
+                && !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))
+            .ToList();
+
+        // Act
+        var violations = sourceFiles
+            .SelectMany(f => File.ReadLines(f)
+                .Select((line, index) => (Line: line, Number: index + 1))
+                .Where(x => assignId.IsMatch(x.Line))
+                .Select(x => $"{Path.GetRelativePath(moduleDir, f)}:{x.Number}"))
+            .ToList();
+
+        // Assert
+        Assert.NotEmpty(sourceFiles);
+        Assert.True(violations.Count == 0,
+            $"WebAPI không gán tay ID khi Insert, AOP tự sinh (Rule 19.44): {string.Join("; ", violations)}");
+    }
+
+    /// <summary>
+    /// Description: Thư mục mã nguồn src/Modules/ShareData của WebAPI, dò ngược từ thư mục chạy test.
+    /// Created date: 24/10/2026
+    /// </summary>
+    private static string ResolveShareDataModuleDir()
+    {
+        var currentDir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (currentDir != null)
+        {
+            var candidate = Path.Combine(currentDir.FullName, "TA-ITS015-WEBAPI-V1.0", "src", "Modules", "ShareData");
+            if (Directory.Exists(candidate))
+            {
+                return candidate;
+            }
+
+            currentDir = currentDir.Parent;
+        }
+
+        throw new DirectoryNotFoundException(
+            $"Không tìm thấy thư mục mã nguồn ShareData khi dò từ '{AppContext.BaseDirectory}'.");
     }
 }

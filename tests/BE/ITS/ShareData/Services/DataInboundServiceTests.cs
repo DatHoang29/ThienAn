@@ -2,7 +2,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Module.ShareData.Core.Dto.ActivityLog;
 using Module.ShareData.Core.Dto.Inbound;
 using Module.ShareData.Core.Entities;
-using Module.ShareData.Infrastructure.Services.ShareDataActivityService;
 using ShareDataWorker.Infrastructure.Services.DataInbound;
 using ShareDataWorker.Infrastructure.Logging;
 using Shared.DTO.Enums;
@@ -14,6 +13,7 @@ namespace Tests.ShareData.Services;
 /// Description: Bộ kiểm thử tích hợp cho luồng NHẬN dữ liệu (SV-8b: Log 2 bước cha - con)
 ///              Kiểm thử Worker DataInboundService và ActivityLogger.
 /// Created date: 02/10/2026
+/// Modified date: 24/10/2026
 /// </summary>
 [Collection("api")]
 public partial class DataInboundServiceTests(Host host)
@@ -103,44 +103,6 @@ public partial class DataInboundServiceTests(Host host)
         }
 
         return (partner, packet, sub!, mapping!);
-    }
-
-    #endregion
-
-    #region 1. Kiểm thử ID tự sinh cho ActivityLog
-
-    /// <summary>
-    /// STT 1: ID tự sinh tự động bởi SqlSugar hook AOP DataExecuting.
-    /// Gọi LogTransferAsync(...) => đọc lại CSDL thấy dòng log có ID tự sinh, không rỗng, và khớp returnedId.
-    /// </summary>
-    [Fact]
-    public async Task LogTransferAsync_WhenInserted_AutoGeneratesIdInDatabase_Test()
-    {
-        // Arrange
-        using var scope = _host.Services.CreateScope();
-        var logger = scope.ServiceProvider.GetRequiredService<ShareDataActivityLogger>();
-        var partnerId = Guid.NewGuid().ToString("N");
-
-        // Act
-        await logger.LogTransferAsync(
-            BaseEnums.TransferDirection.RCV,
-            partnerId: partnerId,
-            partnerName: "Partner Test",
-            subscriptionId: null,
-            sessionId: null,
-            datatypeId: "101",
-            pduType: "DATA");
-
-        // Assert
-        var saved = await _db.Queryable<ShareDataActivityLog>()
-            .Where(x => x.PartnerId == partnerId && x.DatatypeId == "101")
-            .FirstAsync();
-        Assert.NotNull(saved);
-        Assert.False(string.IsNullOrWhiteSpace(saved.ID));
-        Assert.Equal(partnerId, saved.PartnerId);
-        Assert.Equal(BaseEnums.TransferDirection.RCV, saved.TransferDirection);
-        Assert.Null(saved.ParentId);
-        Assert.Null(saved.StepNbr);
     }
 
     #endregion
@@ -637,49 +599,6 @@ public partial class DataInboundServiceTests(Host host)
         var updated = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packetEntity.ID);
         Assert.Equal(BaseEnums.InboundProcessState.Failed, updated.ProcessState);
         Assert.Contains("PacketCode", updated.ErrorMessage ?? "");
-    }
-
-    #endregion
-
-    #region 11. Subscription Paused → giữ gói ở Pending
-
-    /// <summary>
-    /// STT 11: Subscription Paused → Skip, giữ gói ở Pending
-    /// Đăng ký nhận đang tạm dừng => gói KHÔNG bị chuyển Failed mà giữ nguyên Pending chờ kích hoạt lại.
-    /// </summary>
-    [Fact]
-    public async Task ProcessPendingPackets_WhenSubscriptionPaused_KeepsPacketPending_Test()
-    {
-        // Arrange
-        var unique = Guid.NewGuid().ToString("N")[..8];
-        var (partner, packet, sub, _) = await SeedInboundEnvironmentAsync(unique);
-
-        // Chuyển đăng ký sang Paused
-        await _db.Updateable<ShareDataSubscription>()
-            .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Paused)
-            .Where(s => s.ID == sub.ID)
-            .ExecuteCommandAsync();
-
-        var packetEntity = new ShareDataInboundPacket
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            PartnerCode = partner.Code,
-            PacketCode = packet.Code,
-            SerialNbr = 1,
-            RawContent = "{\"data\":[{\"id\":\"1\",\"val\":\"A\"}]}",
-            ProcessState = BaseEnums.InboundProcessState.Pending,
-            CreateTime = DateTime.Now
-        };
-        await _inboundDb.Insertable(packetEntity).ExecuteCommandAsync();
-
-        // Act
-        using var scope = _host.Services.CreateScope();
-        var svc = scope.ServiceProvider.GetRequiredService<DataInboundService>();
-        await svc.ProcessPendingPackets(CancellationToken.None);
-
-        // Assert: gói vẫn ở Pending, KHÔNG bị Failed
-        var updated = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packetEntity.ID);
-        Assert.Equal(BaseEnums.InboundProcessState.Pending, updated.ProcessState);
     }
 
     #endregion

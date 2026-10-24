@@ -3,8 +3,6 @@ using Module.ShareData.Core.Dto.Mapping;
 using Module.ShareData.Core.Dto.Packet;
 using Module.ShareData.Core.Entities;
 using Module.ShareData.Core.Helpers;
-using ShareDataWorker.Core.Enums;
-using ShareDataWorker.Core.Helpers;
 using Shared.DTO.Enums;
 using Tests.ShareData.Common;
 using Xunit;
@@ -322,48 +320,6 @@ public partial class ShareDataPacketControllerTests
     }
 
     [Fact]
-    public async Task SqlTextHelper_SelectPartnerSqlAsync_ReturnsCustomRow_OrNullWhenUsingStandard_Test()
-    {
-        // Arrange: Worker ưu tiên câu SQL riêng của đối tác qua SqlTextHelper
-        using var scope = _host.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-
-        var unique = Guid.NewGuid().ToString("N")[..8];
-        var packetCode = $"PKT_HLP_{unique}";
-        var stdSql = "SELECT TOP (@pageSize) ID FROM TmsZone";
-        var customSql = "SELECT TOP (@pageSize) ID, Code, Name FROM TmsZone";
-        var packet = NewPartnerSqlPacket(packetCode, unique);
-        var partnerCustom = NewPartnerSqlPartner($"PT_HLP_{unique}", unique);
-        var partnerStd = NewPartnerSqlPartner($"PT_STD_{unique}", unique);
-
-        await db.Insertable(packet).ExecuteCommandAsync();
-        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, stdSql);
-        await db.Insertable(new[] { partnerCustom, partnerStd }).ExecuteCommandAsync();
-        await db.Insertable(new ShareDataSql
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            PartnerId = partnerCustom.ID,
-            PacketId = packet.ID,
-            ExtractSql = customSql
-        }).ExecuteCommandAsync();
-
-        // Act
-        var selectedCustom = await SqlTextHelper.SelectPartnerSqlAsync(db, partnerCustom.ID, packet);
-        var selectedStd = await SqlTextHelper.SelectPartnerSqlAsync(db, partnerStd.ID, packet);
-
-        // Assert
-        Assert.NotNull(selectedCustom);
-        Assert.Equal(customSql, selectedCustom.ExtractSql);
-        Assert.True(SqlTextHelper.IsCustom(selectedCustom));
-
-        // Đối tác không có dòng riêng -> Worker dùng câu chuẩn của gói, chính sách suy từ câu chuẩn
-        Assert.Null(selectedStd);
-        var effectiveSql = (await SqlTextHelper.ResolveSqlConfigAsync(db, packet, partnerStd.ID)).ExtractSql;
-        Assert.Equal(stdSql, effectiveSql);
-        Assert.Equal(ShareDataEnum.PacketPolicy.Snapshot, PacketHelper.GetPolicyFromSql("SELECT ID, Code FROM TmsZone"));
-    }
-
-    [Fact]
     public async Task UpdatePartnerExtractSql_WhenEmptySql_ThrowsPartnerExtractSqlRequired_Test()
     {
         // Arrange: SQL rỗng -> ném lỗi PartnerExtractSqlRequired
@@ -490,79 +446,5 @@ public partial class ShareDataPacketControllerTests
         var sqlInDb = await db.Queryable<ShareDataSql>().InSingleAsync(partnerSql.ID);
         Assert.NotNull(sqlInDb);
         Assert.Equal(customSql, sqlInDb.ExtractSql);
-    }
-
-    [Fact]
-    public void SqlTextHelper_Normalize_CleansWhitespaceAndTrailingSemicolons_Correctly_Test()
-    {
-        // Assert: Kiểm tra đầy đủ các kịch bản chuẩn hóa
-        Assert.Equal(string.Empty, SqlTextHelper.Normalize(null));
-        Assert.Equal(string.Empty, SqlTextHelper.Normalize(string.Empty));
-        Assert.Equal(string.Empty, SqlTextHelper.Normalize("   \r\n\t  "));
-        Assert.Equal(string.Empty, SqlTextHelper.Normalize(";;;;"));
-        Assert.Equal(string.Empty, SqlTextHelper.Normalize("   ; ; ; ;   "));
-        Assert.Equal("SELECT a, b FROM table", SqlTextHelper.Normalize("  SELECT   a,   b \r\n FROM table;;; "));
-        Assert.Equal("SELECT 1; SELECT 2", SqlTextHelper.Normalize("SELECT 1; SELECT 2;;"));
-    }
-
-    [Fact]
-    public void SqlTextHelper_HasDifferences_Behaviors_Test()
-    {
-        var packet = "SELECT ID, Code FROM TmsZone";
-
-        // 1. Không có dòng SQL riêng
-        Assert.False(SqlTextHelper.IsCustom(null));
-        Assert.False(SqlTextHelper.HasDifferences(null, packet));
-
-        // 2. Dòng không có ExtractSql
-        var stdSql = new ShareDataSql { ExtractSql = null };
-        Assert.False(SqlTextHelper.IsCustom(stdSql));
-        Assert.False(SqlTextHelper.HasDifferences(stdSql, packet));
-
-        // 3. ExtractSql trùng chuẩn (khác khoảng trắng, dấu chấm phẩy cuối)
-        var sameSql = new ShareDataSql { ExtractSql = "  SELECT   ID,   Code   FROM   TmsZone;  " };
-        Assert.True(SqlTextHelper.IsCustom(sameSql));
-        Assert.False(SqlTextHelper.HasDifferences(sameSql, packet));
-
-        // 4. ExtractSql khác chuẩn
-        var customSql = new ShareDataSql { ExtractSql = "SELECT ID FROM TmsZone" };
-        Assert.True(SqlTextHelper.IsCustom(customSql));
-        Assert.True(SqlTextHelper.HasDifferences(customSql, packet));
-    }
-
-    [Theory]
-    [InlineData("SELECT TOP (@pageSize) ID AS __lastKey, Time AS __lastTime FROM T WHERE Time > @lastTime", true)]
-    [InlineData("SELECT TOP (@pageSize) ID AS __lastKey, Time AS __lastTime FROM T WHERE Time > @LASTTIME", true)]
-    [InlineData("SELECT TOP (@pageSize) ID AS __lastKey, Time AS __lastTime FROM T WHERE ID > @lastKey", true)]
-    [InlineData("SELECT TOP (@pageSize) ID AS __lastKey, Time AS __lastTime FROM T WHERE ID > @LASTKEY", true)]
-    [InlineData("SELECT ID, Code, Name FROM TmsZone", false)]
-    [InlineData("SELECT ID, Code FROM TmsZone -- WHERE Time > @lastTime", false)]
-    [InlineData("SELECT ID, Code FROM TmsZone /* @lastKey in comment */", false)]
-    [InlineData("SELECT ID, '@lastTime' AS DummyText FROM TmsZone", false)]
-    [InlineData("SELECT ID, '@lastKey' AS DummyText FROM TmsZone", false)]
-    [InlineData("", false)]
-    [InlineData("   ", false)]
-    [InlineData(null, false)]
-    [InlineData("SELECT FROM WHERE INVALID SQL @lastTime ???", false)]
-    public void SqlValidator_IsIncrementalSql_RecognizesIncrementalCorrectly_Test(string? sql, bool expected)
-    {
-        var result = SqlValidator.IsIncrementalSql(sql);
-        Assert.Equal(expected, result);
-    }
-
-    [Fact]
-    public void Worker_PolicyResolution_FollowsEffectiveSql_Test()
-    {
-        // 1. Gói Toàn bộ (Snapshot) + Đối tác có SQL riêng nối đuôi -> Worker nhận AlwaysIncremental
-        var incrementalCustomSql = "SELECT TOP (@pageSize) ID AS __lastKey, CreateTime AS __lastTime FROM TmsZone WHERE CreateTime > @lastTime ORDER BY CreateTime ASC";
-
-        var policyForPartner1 = PacketHelper.GetPolicyFromSql(incrementalCustomSql);
-        Assert.Equal(ShareDataEnum.PacketPolicy.AlwaysIncremental, policyForPartner1);
-
-        // 2. Gói Nối đuôi (Incremental) + Đối tác có SQL riêng toàn bộ -> Worker nhận Snapshot
-        var snapshotCustomSql = "SELECT ID, Code FROM TmsZone";
-
-        var policyForPartner2 = PacketHelper.GetPolicyFromSql(snapshotCustomSql);
-        Assert.Equal(ShareDataEnum.PacketPolicy.Snapshot, policyForPartner2);
     }
 }

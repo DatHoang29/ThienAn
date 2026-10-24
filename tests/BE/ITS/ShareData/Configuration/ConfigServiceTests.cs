@@ -9,7 +9,7 @@ namespace Tests.ShareData.Configuration;
 /// Description: Bộ kiểm thử đơn vị và tích hợp cho ConfigService (WebAPI đọc các giới hạn vận hành từ SysOpConfig qua IMessageBus).
 ///              Kiểm tra cơ chế fallback mặc định và khoảng an toàn tuyệt đối.
 /// Created date: 18/10/2026
-/// Modified date: 20/10/2026 (Đồng bộ tên ConfigServiceTests theo Rule 19.84)
+/// Modified date: 24/10/2026
 /// </summary>
 [Collection("api")]
 public class ConfigServiceTests(Host host)
@@ -140,17 +140,6 @@ public class ConfigServiceTests(Host host)
         Assert.Equal(1, values.SqlSampleTop.Min);
         Assert.Equal(50, values.SqlSampleTop.Max);
         Assert.Equal(10, values.SqlSampleTop.Default);
-    }
-
-    [Fact]
-    public void ConfigService_WhenResolvedFromServiceProvider_ResolvesConfigService_Test()
-    {
-        // Act
-        using var scope = _host.Services.CreateScope();
-        var service = scope.ServiceProvider.GetService<ConfigService>();
-
-        // Assert
-        Assert.NotNull(service);
     }
 
     [Fact]

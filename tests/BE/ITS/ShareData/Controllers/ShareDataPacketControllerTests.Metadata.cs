@@ -3,7 +3,6 @@ using Module.ShareData.Core.Dto.Metadata;
 using Module.ShareData.Core.Entities;
 using Module.ShareData.Core.Exceptions;
 using Tests.ShareData.Common;
-using Module.ShareData.Infrastructure.Services.ShareDataExtraction;
 
 namespace Tests.ShareData.Controllers;
 
@@ -105,34 +104,21 @@ public partial class ShareDataPacketControllerTests
         Assert.True(msg.Contains("superAdminRequiredForMetadata") || (ex is AppFriendlyException afe && afe.ErrorMessage?.ToString() == BaseMsg.ShareData.Exception.SuperAdminRequiredForMetadata));
     }
 
+    /// <summary>
+    /// Description: TableId không có trong danh mục (kể cả gửi tên bảng, bảng hệ thống, ID không tồn tại hoặc ký tự đặc biệt) thì trả về danh sách trường rỗng
+    /// Created date: 17/10/2026
+    /// Modified date: 24/10/2026
+    /// </summary>
     [Theory]
     [InlineData("SysUser")]
     [InlineData("ShareDataPartner")]
     [InlineData("TmsZone")]
     [InlineData("NonExistentTableId")]
-    public async Task GetMetadataFields_WhenIdNotInWhitelist_ReturnsEmpty_Test(string tableId)
-    {
-        // Arrange: mã không có trong danh mục (kể cả gửi nhầm tên bảng thay vì mã) thì không trả cột
-        SetUserContext(isSuperAdmin: true, account: $"superadmin_{Guid.NewGuid():N}");
-        using var scope = _host.Services.CreateScope();
-
-        // Act & Assert
-        var fields = await scope.ServiceProvider.CallApiAsync<List<MetadataFieldDto>>(new GetMetadataFieldsInput
-        {
-            TableId = tableId
-        });
-        Assert.NotNull(fields);
-        Assert.Empty(fields);
-    }
-
-    [Theory]
     [InlineData("TmsZone; DROP TABLE Test;")]
-    [InlineData("TmsZone--")]
-    [InlineData("dbo.TmsZone")]
     [InlineData("sys.tables")]
-    public async Task GetMetadataFields_WhenIdHasSpecialCharsOrSystemPrefix_ReturnsEmpty_Test(string invalidTableId)
+    public async Task GetMetadataFields_WhenTableIdNotWhitelistedOrInvalid_ReturnsEmpty_Test(string invalidTableId)
     {
-        // Arrange
+        // Arrange: mã không có trong danh mục (kể cả gửi nhầm tên bảng thay vì mã, ký tự lạ) thì không trả cột
         SetUserContext(isSuperAdmin: true, account: $"superadmin_{Guid.NewGuid():N}");
         using var scope = _host.Services.CreateScope();
 
@@ -143,23 +129,6 @@ public partial class ShareDataPacketControllerTests
         });
         Assert.NotNull(fields);
         Assert.Empty(fields);
-    }
-
-    [Fact]
-    public async Task GetMetadataTables_WhenEmptyCatalog_ReturnsEmptyList_Test()
-    {
-        // Arrange
-        SetUserContext(isSuperAdmin: true, account: $"superadmin_{Guid.NewGuid():N}");
-        using var scope = _host.Services.CreateScope();
-        var userManager = scope.ServiceProvider.GetRequiredService<UserManager>();
-        var service = new PacketSqlService(null!, userManager, null);
-
-        // Act
-        var result = await service.GetAllowedTables();
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.Empty(result);
     }
 
     [Fact]

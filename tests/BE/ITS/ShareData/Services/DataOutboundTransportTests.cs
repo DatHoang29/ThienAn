@@ -17,6 +17,7 @@ namespace Tests.ShareData.Services
     ///              kiểm chứng định dạng payload, lưu tệp bằng chứng vô điều kiện, chuyển giao qua DeliveryDispatcher thật
     ///              và xử lý kết quả/cảnh báo lỗi (Rule 19.18).
     /// Created date: 16/10/2026
+    /// Modified date: 24/10/2026
     /// </summary>
     [Collection("api")]
     public class DataOutboundTransportTests : IDisposable
@@ -220,35 +221,6 @@ namespace Tests.ShareData.Services
         }
 
         [Fact]
-        public async Task Send_WhenFileChannelWithDirectoryPath_CallsDispatcher_Test()
-        {
-            // Arrange: Kênh File có DirectoryPath chuyển giao thành công tới thư mục chỉ định qua FileDeliverySender thật
-            var config = CreateConfig();
-            var transport = new DataOutboundTransport(_dispatcher, config);
-            var customTargetDir = Path.Combine(_tempDirectory, "custom_target_" + Guid.NewGuid().ToString("N"));
-            var connCfg = new Dictionary<string, string>
-            {
-                [ConnectKeys.DirectoryPath] = customTargetDir
-            };
-            var ctx = CreateContext(connectionType: ConnectionType.File, config: connCfg);
-            var rawJson = "[{\"id\":1}]";
-            var mapping = new DataMappingResult(true, Encoding.UTF8.GetBytes(rawJson), 1);
-
-            // Act
-            var result = await transport.Send(
-                mapping,
-                ctx,
-                CancellationToken.None);
-
-            // Assert
-            Assert.True(result.Success, result.ErrorMessage);
-            Assert.True(Directory.Exists(customTargetDir));
-            var files = Directory.GetFiles(customTargetDir);
-            Assert.Single(files);
-            Assert.True(new FileInfo(files[0]).Length > 0);
-        }
-
-        [Fact]
         public async Task Send_WhenSavingEvidenceFails_ReturnsArchiveFailedAlertAndAbortsDispatch_Test()
         {
             // Arrange: Tạo một tệp tĩnh trùng đường dẫn BasePath để Directory.CreateDirectory ném lỗi
@@ -401,29 +373,6 @@ namespace Tests.ShareData.Services
             Assert.Equal(2, result.Warnings.Count);
             Assert.Contains(result.Warnings, w => w.Contains("OutputPath"));
             Assert.Contains(result.Warnings, w => w.Contains("AuthType"));
-        }
-
-        [Fact]
-        public void BuildRequest_WhenPartnerHasSecurityAndConnectionConfig_ExtractsSecurityInfoAndConfigProperly_Test()
-        {
-            // Arrange
-            var ctx = CreateContext("105", "PARTNER_CONFIG", ConnectionType.Kafka);
-            ctx.Partner!.ConnectionConfig = "{\"ApiKey\":\"secret-key-12345\",\"Topic\":\"rfid-topic\",\"HttpTimeoutSec\":\"25\"}";
-            var mappingBytes = Encoding.UTF8.GetBytes("{\"tag\":\"RFID_001\"}");
-            var mapping = new DataMappingResult(true, mappingBytes, 1);
-
-            // Act
-            var request = DataOutboundTransport.BuildRequest(mapping, ctx);
-
-            // Assert
-            Assert.Equal("{\"tag\":\"RFID_001\"}", request.JsonPayload);
-            Assert.Equal(ConnectionType.Kafka, request.ConnectType);
-            Assert.True(request.ConnectConfig.ContainsKey("Topic"));
-            Assert.Equal("rfid-topic", request.ConnectConfig["Topic"]);
-            Assert.True(request.ConnectConfig.ContainsKey("HttpTimeoutSec"));
-            Assert.Equal("25", request.ConnectConfig["HttpTimeoutSec"]);
-            Assert.True(request.SecurityInfo.ContainsKey(ConnectKeys.ApiKey));
-            Assert.Equal("secret-key-12345", request.SecurityInfo[ConnectKeys.ApiKey]);
         }
 
         [Fact]

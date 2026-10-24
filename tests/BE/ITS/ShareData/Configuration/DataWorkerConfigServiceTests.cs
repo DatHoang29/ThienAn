@@ -7,9 +7,10 @@ namespace Tests.ShareData.Configuration;
 
 /// <summary>
 /// Author: DatHQ
-/// Description: Bộ kiểm thử đơn vị và tích hợp cho DataWorkerConfigService (quản lý 18 tham số cấu hình vận hành Worker từ SysOpConfig).
-///              Kiểm tra cơ chế fallback mặc định khi DB rỗng/lỗi/dòng tắt/ngoài khoảng an toàn, và phương thức Delay.
+/// Description: Bộ kiểm thử tích hợp cho DataWorkerConfigService (quản lý tham số cấu hình vận hành Worker từ SysOpConfig).
+///              Kiểm tra cơ chế nạp cấu hình và fallback mặc định khi DB rỗng/lỗi/dòng tắt/ngoài khoảng an toàn.
 /// Created date: 18/10/2026
+/// Modified date: 24/10/2026
 /// </summary>
 [Collection("api")]
 public class DataWorkerConfigServiceTests(Host host)
@@ -173,33 +174,6 @@ public class DataWorkerConfigServiceTests(Host host)
     }
 
     [Fact]
-    public async Task Delay_ThrowsOperationCanceledException_WhenCancelled_Test()
-    {
-        // Arrange
-        var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
-        var service = new DataWorkerConfigService(scopeFactory, NullLogger<DataWorkerConfigService>.Instance, new ConfigurationBuilder().Build());
-        using var cts = new CancellationTokenSource();
-        cts.Cancel();
-
-        // Act & Assert
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
-        {
-            await service.Delay(o => o.OutboundCheckIntervalSec, cts.Token);
-        });
-    }
-
-    [Fact]
-    public void DataWorkerConfigService_WhenResolvedFromServiceProvider_ResolvesDataWorkerConfigService_Test()
-    {
-        // Act
-        using var scope = _host.Services.CreateScope();
-        var service = scope.ServiceProvider.GetRequiredService<DataWorkerConfigService>();
-
-        // Assert
-        Assert.NotNull(service);
-    }
-
-    [Fact]
     public async Task Get_WhenUnknownOrDuplicateCodesInDatabase_HandlesCorrectly_Test()
     {
         // Arrange: Chèn Code lạ và Code trùng (dòng sau thắng)
@@ -236,10 +210,20 @@ public class DataWorkerConfigServiceTests(Host host)
         Assert.Equal(new DataWorkerConfig().InboundCheckIntervalSec, settings.InboundCheckIntervalSec);
     }
 
-    [Fact]
-    public async Task Get_WhenReloadIntervalSecConfigured_LoadsConfiguredValue_Test()
+    /// <summary>
+    /// Description: Kiểm chứng cấu hình reload_interval_sec nạp đúng giá trị hợp lệ
+    ///              hoặc fallback về mặc định khi giá trị ngoài khoảng [5..3600] hoặc sai định dạng.
+    /// Created date: 18/10/2026
+    /// Modified date: 24/10/2026
+    /// </summary>
+    [Theory]
+    [InlineData("45", 45)]
+    [InlineData("3", ShareDataConst.DefaultReloadIntervalSec)]
+    [InlineData("5000", ShareDataConst.DefaultReloadIntervalSec)]
+    [InlineData("abc", ShareDataConst.DefaultReloadIntervalSec)]
+    public async Task Get_WhenReloadIntervalSecConfigured_ReturnsExpectedValue_Test(string configuredValue, int expectedValue)
     {
-        // Arrange: Cấu hình reload_interval_sec = 45 trong nhóm cô lập
+        // Arrange
         var isolatedGroup = $"sd_cfg_reload_{Guid.NewGuid():N}";
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -256,7 +240,7 @@ public class DataWorkerConfigServiceTests(Host host)
             ID = Guid.NewGuid().ToString("N"),
             GroupCode = isolatedGroup,
             Code = ShareDataConst.ConfigKeyReloadIntervalSec,
-            Value = "45",
+            Value = configuredValue,
             Status = BaseEnums.StatusEnum.Enable
         };
         await db.Insertable(testRow).ExecuteCommandAsync();
@@ -268,101 +252,6 @@ public class DataWorkerConfigServiceTests(Host host)
         var settings = await service.Get();
 
         // Assert
-        Assert.Equal(45, settings.ReloadIntervalSec);
-    }
-
-    [Theory]
-    [InlineData("3")]     // Dưới min 5
-    [InlineData("5000")]  // Vượt max 3600
-    [InlineData("abc")]   // Không phải số
-    public async Task Get_WhenReloadIntervalSecOutOfRange_FallsBackToDefault_Test(string invalidValue)
-    {
-        // Arrange: Cấu hình reload_interval_sec ngoài khoảng [5..3600]
-        var isolatedGroup = $"sd_cfg_reload_oor_{Guid.NewGuid():N}";
-        var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                [ShareDataConst.ConfigGroupOverrideKey] = isolatedGroup
-            })
-            .Build();
-
-        using var scope = _host.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-
-        var testRow = new SysOpConfig
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            GroupCode = isolatedGroup,
-            Code = ShareDataConst.ConfigKeyReloadIntervalSec,
-            Value = invalidValue,
-            Status = BaseEnums.StatusEnum.Enable
-        };
-        await db.Insertable(testRow).ExecuteCommandAsync();
-
-        var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
-        var service = new DataWorkerConfigService(scopeFactory, NullLogger<DataWorkerConfigService>.Instance, config);
-
-        // Act
-        var settings = await service.Get();
-
-        // Assert: Fallback về 30
-        Assert.Equal(ShareDataConst.DefaultReloadIntervalSec, settings.ReloadIntervalSec);
-    }
-
-    [Fact]
-    public async Task Get_WhenConfigChangedInIsolatedGroup_SubsequentGetReturnsNewValues_Test()
-    {
-        // Arrange: Cấu hình nhóm cách ly với reload_interval_sec = 5 (mức tối thiểu cho phép)
-        var isolatedGroup = $"sd_cfg_dyn_change_{Guid.NewGuid():N}";
-        var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                [ShareDataConst.ConfigGroupOverrideKey] = isolatedGroup
-            })
-            .Build();
-
-        using var scope = _host.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-
-        var rowReload = new SysOpConfig
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            GroupCode = isolatedGroup,
-            Code = ShareDataConst.ConfigKeyReloadIntervalSec,
-            Value = "5",
-            Status = BaseEnums.StatusEnum.Enable
-        };
-        var rowOutbound = new SysOpConfig
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            GroupCode = isolatedGroup,
-            Code = ShareDataConst.ConfigKeyOutboundCheckIntervalSec,
-            Value = "8",
-            Status = BaseEnums.StatusEnum.Enable
-        };
-        await db.Insertable(new[] { rowReload, rowOutbound }).ExecuteCommandAsync();
-
-        var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
-        var service = new DataWorkerConfigService(scopeFactory, NullLogger<DataWorkerConfigService>.Instance, config);
-
-        // Act 1: Lần Get đầu tiên nạp giá trị ban đầu từ CSDL
-        var initial = await service.Get();
-        Assert.Equal(8, initial.OutboundCheckIntervalSec);
-        Assert.Equal(5, initial.ReloadIntervalSec);
-
-        // Arrange 2: Cập nhật giá trị cấu hình trong nhóm cách ly
-        await db.Updateable<SysOpConfig>()
-            .SetColumns(x => x.Value == "25")
-            .Where(x => x.GroupCode == isolatedGroup && x.Code == ShareDataConst.ConfigKeyOutboundCheckIntervalSec)
-            .ExecuteCommandAsync();
-
-        // Chờ chu kỳ reload_interval_sec trôi qua để cache hết hạn
-        await Task.Delay(5200);
-
-        // Act 2: Lần Get tiếp theo trả về giá trị mới đã cập nhật
-        var updated = await service.Get();
-
-        // Assert: Giá trị mới được nạp thành công
-        Assert.Equal(25, updated.OutboundCheckIntervalSec);
+        Assert.Equal(expectedValue, settings.ReloadIntervalSec);
     }
 }

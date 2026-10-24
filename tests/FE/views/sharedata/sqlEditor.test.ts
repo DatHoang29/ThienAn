@@ -106,17 +106,18 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         );
     });
 
-    test('1. Gõ SEL gợi ý từ khóa SELECT và các mẫu câu select-*', async ({ page }) => {
-        await openSqlCenter(page);
-        await retypeSql(page, 'SEL');
-        await expect.poll(() => suggestionLabels(page), { timeout: 10_000 }).toEqual(expect.arrayContaining([expect.stringContaining('SELECT, Keyword'), expect.stringContaining('select-incremental, Snippet')]));
-    });
+    const suggestCases = [
+        { name: '1. Gõ SEL gợi ý từ khóa SELECT và các mẫu câu select-*', text: 'SEL', expected: ['SELECT, Keyword', 'select-incremental, Snippet'] },
+        { name: '2. Gõ FROM Tms gợi ý tên bảng nguồn của gói tin', text: 'SELECT * FROM Tms', expected: ['TmsZone, Class'] },
+    ];
 
-    test('2. Gõ FROM Tms gợi ý tên bảng nguồn của gói tin', async ({ page }) => {
-        await openSqlCenter(page);
-        await retypeSql(page, 'SELECT * FROM Tms');
-        await expect.poll(() => suggestionLabels(page), { timeout: 10_000 }).toEqual(expect.arrayContaining([expect.stringContaining('TmsZone, Class')]));
-    });
+    for (const c of suggestCases) {
+        test(c.name, async ({ page }) => {
+            await openSqlCenter(page);
+            await retypeSql(page, c.text);
+            await expect.poll(() => suggestionLabels(page), { timeout: 10_000 }).toEqual(expect.arrayContaining(c.expected.map((label) => expect.stringContaining(label))));
+        });
+    }
 
     test('3. Khung SQL không còn bảng Trường trích xuất; danh sách trường chỉ có trường đã khai, không có nhóm Chưa khai khi SQL chỉ trả cột đã khai', async ({ page }) => {
         await openSqlCenter(page);

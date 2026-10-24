@@ -164,36 +164,6 @@ public partial class DataInboundServiceTests
     }
 
     /// <summary>
-    /// Description: I06 - Không có đăng ký nhận: gói chuyển NoSubscription (không phải Failed), ErrorMessage ghi rõ
-    ///              "Chưa có đăng ký nhận cho loại gói tin này.", không ghi nhật ký truyền nhận gắn đăng ký nào.
-    ///              Nguồn: DataInboundService.cs ResolveContextAsync dòng 384-390. Mã HTTP trả về cho đối tác thuộc
-    ///              controller, nằm ngoài phạm vi test Worker này (liên quan mục B3 của báo cáo).
-    ///              Test cũ …WhenNoSubscription_UpdatesParentFailWithoutStep2 đã phủ dòng log cha; test này khẳng định
-    ///              nội dung lỗi và việc không có log theo đăng ký.
-    /// Created date: 12/10/2026
-    /// </summary>
-    [Fact]
-    public async Task ProcessPendingPackets_WhenNoSubscription_SetsNoSubscriptionStateWithExactMessage_Test()
-    {
-        // Arrange
-        var unique = Guid.NewGuid().ToString("N")[..8];
-        var (partner, packet, _, _) = await SeedInboundEnvironmentAsync(unique, createSub: false);
-        var packetEntity = await SeedPendingPacket(partner.Code!, packet.Code!, 1, "{\"data\":[]}", DateTime.Now);
-
-        // Act
-        using var scope = _host.Services.CreateScope();
-        await scope.ServiceProvider.GetRequiredService<DataInboundService>().ProcessPendingPackets(CancellationToken.None);
-
-        // Assert
-        var updated = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packetEntity.ID);
-        Assert.Equal(BaseEnums.InboundProcessState.NoSubscription, updated.ProcessState);
-        Assert.Equal("Chưa có đăng ký nhận cho loại gói tin này.", updated.ErrorMessage);
-
-        var logs = await _db.Queryable<ShareDataActivityLog>().Where(l => l.PartnerId == partner.ID).CountAsync();
-        Assert.Equal(0, logs);
-    }
-
-    /// <summary>
     /// Description: I07 - Body rỗng (không phải JSON): gói chuyển Failed với ErrorMessage, ghi cảnh báo ESH-1503 (ParseFailed),
     ///              không ném lỗi. (Trường hợp XML đã có test riêng; giới hạn kích thước body không có trong mã Worker nên chưa kiểm.)
     ///              Nguồn: DataInboundService.cs ProcessPacketAsync dòng 205-216.

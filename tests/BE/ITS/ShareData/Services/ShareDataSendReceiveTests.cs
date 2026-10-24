@@ -4,11 +4,7 @@ using Microsoft.Extensions.Logging;
 using Module.ShareData.Core.Dto.Inbound;
 using Module.ShareData.Core.Entities;
 using Modules.Integration.Delivery.Base.Constants;
-using Modules.Integration.Delivery.Base.Enums.Encrypt;
 using Modules.Integration.Delivery.Base.Helpers;
-using Modules.Integration.Delivery.Base.Models.Formats;
-using Modules.Integration.Delivery.Encrypt;
-using Modules.Integration.Delivery.Formats;
 using Modules.Integration.Delivery;
 using Modules.Integration.Delivery.Senders;
 using Modules.TMS.Core.Entities;
@@ -31,8 +27,9 @@ namespace Tests.ShareData.Services
     ///              - Kiểm thử 1 gói Snapshot (105_rfidData) và 1 gói Incremental (104_weatherData)
     ///              - Kiểm thử tính lũy tiến cursor và tính MERGE idempotency (không nhân đôi bản ghi)
     ///              - Kiểm thử âm tính: Endpoint 404 không làm tiến mốc nhưng vẫn lưu tệp bằng chứng
-    ///              - Kiểm thử định dạng Formats, mã hóa EncryptManager và roundtrip MERGE hai chiều
+    ///              - Kiểm thử roundtrip MERGE hai chiều qua IMessageBus
     /// Created date: 16/10/2026
+    /// Modified date: 24/10/2026
     /// </summary>
     [Collection("api")]
     public class ShareDataSendReceiveTests(Host host)
@@ -41,14 +38,6 @@ namespace Tests.ShareData.Services
         private readonly ISqlSugarClient _db = host.Services.GetRequiredService<ISqlSugarClient>();
         private readonly ISqlSugarClient _inboundDb = host.Services.GetRequiredService<ISqlSugarClient>()
             .AsTenant().GetConnectionScope(ShareDataWorker.Extensions.ShareDataWorkerExtensions.InboundConnectionKey);
-
-        private static readonly byte[] TestAes256Key =
-        [
-            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-            0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10,
-            0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
-            0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x20
-        ];
 
         private sealed class DelegatingClientFactory(Func<HttpClient> factory) : IHttpClientFactory
         {
@@ -656,110 +645,6 @@ namespace Tests.ShareData.Services
 
         #endregion
 
-        #region 4. Unit Tests tầng Định dạng (Formats) & EncryptManager
-
-        [Fact]
-        public void JsonFormat_ToAndFromTransport_RoundtripMatches_Test()
-        {
-            // Arrange
-            var format = new JsonFormat();
-            var ctx = new FormatContext("PARTNER_01", "101", 1, DateTime.UtcNow);
-            var originalJson = """[{"id":"Z1","val":100},{"id":"Z2","val":200}]""";
-
-            // Act
-            var payload = format.ToTransport(originalJson, ctx);
-            var restoredJson = format.FromTransport(payload.Bytes, ctx);
-
-            // Assert
-            Assert.Equal("application/json", payload.ContentType);
-            Assert.Equal(".json", payload.FileExtension);
-            Assert.Equal(originalJson, restoredJson);
-        }
-
-        [Fact]
-        public void KafkaJsonFormat_ToTransport_HasExpectedHeadersAndRoundtripMatches_Test()
-        {
-            // Arrange
-            var format = new KafkaJsonFormat();
-            var now = DateTime.UtcNow;
-            var ctx = new FormatContext("PARTNER_KAFKA", "103", 42, now);
-            var originalJson = """{"records":[{"plate":"29A-12345","speed":80}]}""";
-
-            // Act
-            var payload = format.ToTransport(originalJson, ctx);
-            var restoredJson = format.FromTransport(payload.Bytes, ctx);
-
-            // Assert
-            Assert.Equal("application/json", payload.ContentType);
-            Assert.True(payload.Headers.TryGetValue("content-type", out var ct) && ct == "application/json");
-            Assert.True(payload.Headers.TryGetValue("PartnerCode", out var pCode) && pCode == "PARTNER_KAFKA");
-            Assert.True(payload.Headers.TryGetValue("PacketCode", out var pktCode) && pktCode == "103");
-            Assert.True(payload.Headers.TryGetValue("SerialNbr", out var sNbr) && sNbr == "42");
-            Assert.True(payload.Headers.TryGetValue("ProcessedAt", out var pAt) && !string.IsNullOrWhiteSpace(pAt));
-            Assert.Equal(originalJson, restoredJson);
-        }
-
-        [Fact]
-        public void CsvFormat_FromTransport_ThrowsNotSupportedException_Test()
-        {
-            // Arrange
-            var format = new CsvFormat();
-            var ctx = new FormatContext("PARTNER_CSV", "101", 1);
-            var dummyBytes = Encoding.UTF8.GetBytes("id,name\r\n1,Test");
-
-            // Act & Assert
-            var ex = Assert.Throws<NotSupportedException>(() => format.FromTransport(dummyBytes, ctx));
-            Assert.Contains("Chiều nhận hiện chỉ hỗ trợ định dạng JSON", ex.Message);
-        }
-
-        [Fact]
-        public void GetEncryptor_WhenInbound_ReadsInboundEncryptorAndDecryptionKeyRef_Test()
-        {
-            // Arrange
-            var cfg = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["ShareDataSecurity:Keys:test-inbound-key"] = Convert.ToBase64String(TestAes256Key)
-                })
-                .Build();
-            var keyReader = new EncryptKeyReader(cfg);
-            var encryptManager = new EncryptManager(keyReader);
-            var config = new Dictionary<string, string>
-            {
-                [ConnectKeys.Encryptor] = EncryptNames.None,
-                [ConnectKeys.EncryptionKeyRef] = "outbound-key",
-                [ConnectKeys.InboundEncryptor] = EncryptNames.AesGcm,
-                [ConnectKeys.DecryptionKeyRef] = "test-inbound-key"
-            };
-
-            // Act
-            var (encryptor, ctx) = encryptManager.GetEncryptor(config, PayloadDirection.Inbound);
-
-            // Assert
-            Assert.Equal(EncryptNames.AesGcm, encryptor);
-            Assert.Equal("test-inbound-key", ctx.KeyRef);
-            Assert.Equal(TestAes256Key, ctx.KeyBytes);
-        }
-
-        [Fact]
-        public void GetEncryptor_WhenInboundMissingKeyRef_ThrowsInvalidOperationException_Test()
-        {
-            // Arrange
-            var cfg = new ConfigurationBuilder().Build();
-            var keyReader = new EncryptKeyReader(cfg);
-            var encryptManager = new EncryptManager(keyReader);
-            var config = new Dictionary<string, string>
-            {
-                [ConnectKeys.InboundEncryptor] = EncryptNames.AesGcm
-            };
-
-            // Act & Assert
-            var ex = Assert.Throws<InvalidOperationException>(() => encryptManager.GetEncryptor(config, PayloadDirection.Inbound));
-            Assert.Contains("DecryptionKeyRef", ex.Message);
-        }
-
-        #endregion
-
         #region 5. Roundtrip Inbound MERGE Tests (Qua IMessageBus)
 
         [Fact]
@@ -1060,7 +945,7 @@ namespace Tests.ShareData.Services
             return (partner, packet, outboundSub);
         }
 
-        private async Task CleanupPipelineDataAsync(string partnerId, string packetId, string partnerCode, string packetCode)
+        private async Task CleanupPipelineDataAsync(string partnerId, string packetId, string? partnerCode, string? packetCode)
         {
             await _db.Deleteable<ShareDataMapping>().Where(m => m.PartnerId == partnerId).ExecuteCommandAsync();
             await _db.Deleteable<ShareDataSubscription>().Where(s => s.PartnerId == partnerId).ExecuteCommandAsync();

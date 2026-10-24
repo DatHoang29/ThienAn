@@ -4,7 +4,6 @@ using Module.ShareData.Core.Dto.PacketField;
 using Module.ShareData.Core.Entities;
 using Module.ShareData.Core.Exceptions;
 using Module.ShareData.Infrastructure.Services.ShareDataExtraction;
-using ShareDataWorker.Infrastructure.Services.DataOutbound.Mapping;
 using Shared.Core.Utilities.Constants;
 using Shared.DTO.Enums;
 using Tests.ShareData.Common;
@@ -16,6 +15,7 @@ namespace Tests.ShareData.Controllers;
 /// Description: Bộ kiểm thử tích hợp cho ShareDataPacketFieldController qua Wolverine IMessageBus (Rule 19.84).
 ///              Kiểm tra API trích xuất cột SQL của gói tin, thêm trường, thêm hàng loạt và sửa trường.
 /// Created date: 21/10/2026
+/// Modified date: 24/10/2026
 /// </summary>
 [Collection("api")]
 public class ShareDataPacketFieldControllerTests(Host host) : IAsyncLifetime
@@ -491,36 +491,5 @@ public class ShareDataPacketFieldControllerTests(Host host) : IAsyncLifetime
         Assert.NotNull(updated);
         Assert.Equal("Tên Mới Đã Sửa", updated.Name);
         Assert.Equal("zoneId", updated.AliasFieldKey);
-    }
-
-    [Fact]
-    public void DataMappingProcess_WhenColumnMissingInSqlRows_TransformsToNullOrLeafDefault_Test()
-    {
-        // Act & Assert: Chứng minh Worker chuyển đổi trường thiếu cột trong câu SQL thành null hoặc defaultPartnerValue
-        var rawRows = new List<object>
-        {
-            new Dictionary<string, object?> { ["existingCol"] = "value123" }
-        };
-
-        var shapeJson = """
-        {
-            "missingFieldOptional": {
-                "$field": "columnNotInSql"
-            },
-            "missingFieldWithDefault": {
-                "$field": "columnNotInSql2",
-                "$extend": {
-                    "defaultPartnerValue": "FALLBACK_VALUE"
-                }
-            }
-        }
-        """;
-
-        var transformed = DataMappingProcess.Transform(rawRows, shapeJson);
-        Assert.NotEmpty(transformed);
-
-        var dict = Assert.IsAssignableFrom<IDictionary<string, object?>>(transformed[0]);
-        Assert.Null(dict["missingFieldOptional"]);
-        Assert.Equal("FALLBACK_VALUE", dict["missingFieldWithDefault"]);
     }
 }

@@ -12,22 +12,27 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         #region 9. Mốc nối đuôi (cursor) khi gửi thất bại, retry và không có dữ liệu mới
 
         /// <summary>
-        /// Description: T01 - Gói 103 nối đuôi, đối tác trả HTTP 500: log cha Fail, cảnh báo ESH-1402,
-        ///              mốc KHÔNG tiến (ShareDataLastSend.LastTime/LastKey, Subscription.LastTimeRun/SerialNbr giữ nguyên).
-        ///              Nguồn: DataOutboundService.cs ExportPage (nhánh !isSuccess trả về trước CommitSuccess, dòng 516-535);
-        ///              mốc lưu ở ShareDataLastSend (GetLastSend dòng 339) và Subscription.LastTimeRun/SerialNbr (CommitSuccess dòng 634-640).
+        /// Description: Gói 103 nối đuôi khi gửi HTTP thất bại (đối tác trả HTTP 500 hoặc cổng đóng):
+        ///              log cha Fail, cảnh báo ESH-1402, mốc KHÔNG tiến (ShareDataLastSend.LastTime/LastKey,
+        ///              Subscription.LastTimeRun/SerialNbr giữ nguyên).
         /// Created date: 12/10/2026
+        /// Modified date: 24/10/2026
         /// </summary>
-        [Fact]
-        public async Task ProcessSubscriptions_WhenIncrementalHttpFails500_LogsEsh1402AndKeepsCursor_Test()
+        [Theory]
+        [InlineData("Http500")]
+        [InlineData("ClosedPort")]
+        public async Task ProcessSubscriptions_WhenIncrementalHttpFails_LogsEsh1402AndKeepsCursor_Test(string failureMode)
         {
             // Arrange
             using var scope = _host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             var partnerServer = _host.PartnerServer;
             partnerServer.ResetDefaults();
-            partnerServer.DefaultStatusCode = HttpStatusCode.InternalServerError;
-            partnerServer.DefaultResponseBody = "Mock 500 Internal Error";
+            if (failureMode == "Http500")
+            {
+                partnerServer.DefaultStatusCode = HttpStatusCode.InternalServerError;
+                partnerServer.DefaultResponseBody = "Mock 500 Internal Error";
+            }
 
             await PacketMetadataCatalogTest.SeedPacketToDb(db, "103");
             var unique = Guid.NewGuid().ToString("N")[..8];
@@ -40,7 +45,14 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 PartnerCode = $"P_T01_{unique}",
                 SubCode = $"SUB_T01_{unique}",
                 DatatypeId = "103",
-                ConfigureSub = s => s.LastTimeRun = baseTime
+                ConfigureSub = s => s.LastTimeRun = baseTime,
+                ConfigurePartner = p =>
+                {
+                    if (failureMode == "ClosedPort")
+                    {
+                        p.Port = ShareDataPartnerServerMock.ClosedPort;
+                    }
+                }
             });
             await SeedTrafficRows(db, eqId, $"T1{unique}-", baseTime, 5);
 
@@ -50,53 +62,6 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             // Assert
             var logs = await GetLogs(db, sub.ID);
             var parent = logs.Single(l => l.ParentId == null);
-            Assert.Equal(BaseEnums.SuccessEnums.Fail, parent.Success);
-
-            var alerts = await db.Queryable<ShareDataAlertLog>()
-                .Where(a => a.SubscriptionId == sub.ID && a.AlertCode == ShareDataAlertCode.Outbound.HttpSendFailed)
-                .ToListAsync();
-            Assert.NotEmpty(alerts);
-
-            await AssertCursorUnchanged(db, partner.Code, sub.ID, baseTime);
-        }
-
-        /// <summary>
-        /// Description: T02 - Gói 103 nối đuôi, cổng đối tác đóng (HTTP exception): không có request nào tới đối tác,
-        ///              log cha Fail, cảnh báo ESH-1402, mốc không tiến.
-        ///              Nguồn: DataOutboundService.cs ExportPage dòng 511-535; DataOutboundRestSender trả Success=false khi HttpRequestException.
-        /// Created date: 12/10/2026
-        /// </summary>
-        [Fact]
-        public async Task ProcessSubscriptions_WhenIncrementalPartnerPortClosed_LogsEsh1402AndKeepsCursor_Test()
-        {
-            // Arrange
-            using var scope = _host.Services.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-            _host.PartnerServer.ResetDefaults();
-
-            await PacketMetadataCatalogTest.SeedPacketToDb(db, "103");
-            var unique = Guid.NewGuid().ToString("N")[..8];
-            var eqId = $"EQ_T02_{unique}";
-            await db.Insertable(new TmsEquipment { ID = eqId, Code = $"VDS_T02_{unique}", KmNumber = 45, MetNumber = 100 }).ExecuteCommandAsync();
-            var dbNow = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
-            var baseTime = dbNow.AddDays(-35);
-            var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
-            {
-                PartnerCode = $"P_T02_{unique}",
-                SubCode = $"SUB_T02_{unique}",
-                DatatypeId = "103",
-                ConfigureSub = s => s.LastTimeRun = baseTime,
-                ConfigurePartner = p => p.Port = ShareDataPartnerServerMock.ClosedPort
-            });
-            await SeedTrafficRows(db, eqId, $"T2{unique}-", baseTime, 5);
-
-            // Act
-            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
-
-            // Assert
-            Assert.Equal(0, _host.PartnerServer.TotalReceivedRequests);
-
-            var parent = (await GetLogs(db, sub.ID)).Single(l => l.ParentId == null);
             Assert.Equal(BaseEnums.SuccessEnums.Fail, parent.Success);
 
             var alerts = await db.Queryable<ShareDataAlertLog>()
@@ -668,7 +633,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         ///              bằng mốc khởi tạo, LastKey rỗng, SerialNbr chưa tăng.
         /// Created date: 12/10/2026
         /// </summary>
-        private static async Task AssertCursorUnchanged(ISqlSugarClient db, string partnerCode, string subId, DateTime expectedTime)
+        private static async Task AssertCursorUnchanged(ISqlSugarClient db, string? partnerCode, string subId, DateTime expectedTime)
         {
             var sub = await db.Queryable<ShareDataSubscription>().InSingleAsync(subId);
             Assert.NotNull(sub.LastTimeRun);

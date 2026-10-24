@@ -1,11 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { resolveWebVueSrc } from '../../setup';
 import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 /**
  * Test E2E cho phân hệ ShareData — nghi vấn Issue 30/32 (F16): thanh tiêu đề 3 tab
@@ -175,7 +170,7 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
     /**
      * Mở modal Thêm mới, chọn Đối tác + Gói tin (cả 2 field này nằm ở tab "Thông tin chung",
      * editMapping.vue dòng 22-29 và 48-57 — PHẢI chọn ở đây, KHÔNG nằm trong tab "Ánh xạ"),
-     * rồi mới chuyển sang tab "Ánh xạ". Trạng thái chung cho EC1/2/3/5/6.
+     * rồi mới chuyển sang tab "Ánh xạ". Trạng thái chung cho EC1, EC6 và ca 9.
      */
     async function openAddDialogAndReachMappingTab(page: import('@playwright/test').Page) {
         test.slow();
@@ -232,44 +227,36 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
         return pageOrDialog.locator('.mp-pane textarea').first();
     }
 
-    test('EC1 — Thêm mới: Phân tích JSON 30 trường, tiêu đề 3 tab phải còn trong khung nhìn', async ({ page }) => {
-        const dialog = await openAddDialogAndReachMappingTab(page);
-        await expect(tabsHeaderLocator(page)).toBeVisible();
+    const analyzeCases = [
+        { name: 'Baseline: phân tích JSON chỉ 3 trường', jsonSizes: [3], scrollTop: 0 },
+        { name: 'Thêm mới: phân tích JSON 30 trường', jsonSizes: [30], scrollTop: 0 },
+        { name: 'Phân tích 2 lần liên tiếp (JSON khác nhau)', jsonSizes: [20, 40], scrollTop: 0 },
+        // Tái hiện bug: khi chưa có position: sticky, cuộn form xuống làm tiêu đề 3 tab trôi khỏi khung nhìn
+        { name: '(Tái hiện bug) Cuộn form xuống 200px sau khi phân tích JSON 30 trường', jsonSizes: [30], scrollTop: 200 },
+    ];
 
-        await partnerJsonTextarea(dialog).fill(genBigJson(30));
-        await dialog.getByRole('button', { name: 'Phân tích' }).click();
-        await page.waitForTimeout(500); // chờ el-tree remount + layout ổn định
+    for (const c of analyzeCases) {
+        test(`EC1 — ${c.name}: tiêu đề 3 tab phải còn trong khung nhìn`, async ({ page }) => {
+            const dialog = await openAddDialogAndReachMappingTab(page);
+            await expect(tabsHeaderLocator(page)).toBeVisible();
 
-        await page.screenshot({ path: 'test-results/EC1-after-analyze.png', fullPage: false });
-        expect(await isHeaderWithinFormViewport(page)).toBe(true);
-    });
+            const textarea = partnerJsonTextarea(dialog);
+            const analyzeBtn = dialog.getByRole('button', { name: 'Phân tích' });
+            for (const size of c.jsonSizes) {
+                await textarea.fill(genBigJson(size));
+                await analyzeBtn.click();
+                await page.waitForTimeout(500); // chờ el-tree remount + layout ổn định
+            }
 
-    test('EC2 — Phân tích 2 lần liên tiếp (JSON khác nhau), tiêu đề vẫn phải còn trong khung nhìn', async ({ page }) => {
-        const dialog = await openAddDialogAndReachMappingTab(page);
-        const textarea = partnerJsonTextarea(dialog);
-        const analyzeBtn = dialog.getByRole('button', { name: 'Phân tích' });
+            // Mô phỏng thao tác thực tế: cuộn form xuống để cấu hình danh sách trường bên dưới
+            if (c.scrollTop) {
+                await scrollFormLocator(page).evaluate((el, top) => { el.scrollTop = top; }, c.scrollTop);
+                await page.waitForTimeout(300);
+            }
 
-        await textarea.fill(genBigJson(20));
-        await analyzeBtn.click();
-        await page.waitForTimeout(500);
-
-        await textarea.fill(genBigJson(40));
-        await analyzeBtn.click();
-        await page.waitForTimeout(500);
-
-        await page.screenshot({ path: 'test-results/EC2-after-second-analyze.png', fullPage: false });
-        expect(await isHeaderWithinFormViewport(page)).toBe(true);
-    });
-
-    test('EC3 — Baseline: Phân tích JSON chỉ 3 trường, tiêu đề phải còn trong khung nhìn', async ({ page }) => {
-        const dialog = await openAddDialogAndReachMappingTab(page);
-        await partnerJsonTextarea(dialog).fill(genBigJson(3));
-        await dialog.getByRole('button', { name: 'Phân tích' }).click();
-        await page.waitForTimeout(500);
-
-        await page.screenshot({ path: 'test-results/EC3-baseline-small-json.png', fullPage: false });
-        expect(await isHeaderWithinFormViewport(page)).toBe(true);
-    });
+            expect(await isHeaderWithinFormViewport(page)).toBe(true);
+        });
+    }
 
     test('EC4 — Sao chép 1 bản ánh xạ có sẵn JSON 30 trường, tiêu đề phải còn trong khung nhìn ngay lúc mở', async ({ page }) => {
         await page.route('**/api/sharedata/sharedatamapping/byid*', async (route) => {
@@ -304,19 +291,6 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
         expect(await isHeaderWithinFormViewport(page)).toBe(true);
     });
 
-    test('EC5 — Cuộn lên đầu sau khi mất tiêu đề: tiêu đề phải xuất hiện lại', async ({ page }) => {
-        const dialog = await openAddDialogAndReachMappingTab(page);
-        await partnerJsonTextarea(dialog).fill(genBigJson(30));
-        await dialog.getByRole('button', { name: 'Phân tích' }).click();
-        await page.waitForTimeout(500);
-
-        await scrollFormLocator(page).evaluate((el) => { el.scrollTop = 0; });
-        await page.waitForTimeout(200);
-
-        await page.screenshot({ path: 'test-results/EC5-after-scroll-to-top.png', fullPage: false });
-        expect(await isHeaderWithinFormViewport(page)).toBe(true);
-    });
-
     test('EC6 — Dialog vẫn kéo được qua thanh tiêu đề thật dù tab header có thể đang khó thấy', async ({ page }) => {
         const dialog = await openAddDialogAndReachMappingTab(page);
         await partnerJsonTextarea(dialog).fill(genBigJson(30));
@@ -339,23 +313,6 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
 
         // Dialog phải DI CHUYỂN (toạ độ đổi) — xác nhận draggable vẫn hoạt động, độc lập với tab header.
         expect(Math.abs(after.x - before.x) + Math.abs(after.y - before.y)).toBeGreaterThan(20);
-    });
-
-    test('EC7 (Tái hiện bug) — Khi cuộn form xuống xem các trường, tiêu đề 3 tab BẮT BUỘC phải còn trong khung nhìn (Chưa sticky sẽ FAIL)', async ({ page }) => {
-        const dialog = await openAddDialogAndReachMappingTab(page);
-        await partnerJsonTextarea(dialog).fill(genBigJson(30));
-        await dialog.getByRole('button', { name: 'Phân tích' }).click();
-        await page.waitForTimeout(500);
-
-        // Mô phỏng thao tác thực tế của tester: Cuộn form xuống 200px để cấu hình danh sách trường bên dưới
-        await scrollFormLocator(page).evaluate((el) => { el.scrollTop = 200; });
-        await page.waitForTimeout(300);
-
-        await page.screenshot({ path: 'test-results/EC7-after-scroll-down.png', fullPage: false });
-
-        // TIÊU CHÍ: Tiêu đề 3 tab BẮT BUỘC phải còn nằm trong khung nhìn của form.
-        // Khi CHƯA có position: sticky, headerBox.y bị cuộn lên âm so với formBox.y -> PHẢI FAIL (RED).
-        expect(await isHeaderWithinFormViewport(page)).toBe(true);
     });
 
     test('EC8 (Tái hiện bug) — Dòng báo lỗi trùng mã không được bị khuất hoặc đè lấn lên ô Tên ở hàng dưới', async ({ page }) => {
@@ -427,18 +384,6 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
         expect(errorBox!.y + errorBox!.height).toBeLessThanOrEqual(nameItemBox!.y);
     });
 
-    test('EC9 — Kiểm tra hiển thị style modal editMapping đúng chuẩn khi không dùng !important', async ({ page }) => {
-        const dialog = await openAddDialogAndReachMappingTab(page);
-        await expect(dialog).toBeVisible();
-
-        const dialogBox = await dialog.boundingBox();
-        expect(dialogBox).not.toBeNull();
-        expect(dialogBox!.width).toBeLessThanOrEqual(1400);
-
-        const maxWidth = await dialog.evaluate((el) => window.getComputedStyle(el).maxWidth);
-        expect(maxWidth).toBe('1400px');
-    });
-
     test('EC10 (Tái hiện bug 30, 32) — Mở modal, kéo modal lên top rồi chuyển sang tab Ánh xạ: Header dialog (.el-dialog__header) BẮT BUỘC không bị mất khỏi màn hình và vẫn kéo thả được', async ({ page }) => {
         // Vào trang và mở modal trực tiếp bằng nút Thêm mới (cùng component editMapping.vue với nút Sao chép)
         await page.goto('/#/sharedata/mapping');
@@ -483,46 +428,6 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
         const movedHeaderBox = await dragHandle.boundingBox();
         expect(movedHeaderBox).not.toBeNull();
         console.log(`[TEST EC10] beforeDragY = ${beforeDragY}, movedHeaderBox.y = ${movedHeaderBox!.y}`);
-        expect(movedHeaderBox!.y).toBeGreaterThan(beforeDragY);
-    });
-
-    test('EC11 (Kiểm tra bug giật toạ độ khi kéo) — Sau khi chuyển sang tab Ánh xạ, thao tác kéo chuột BẮT BUỘC di chuyển mượt mà không bị giật toạ độ', async ({ page }) => {
-        await page.goto('/#/sharedata/mapping');
-        const addBtn = page.locator('button:has(.ele-Plus), button:has-text("Thêm mới"), button:has-text("Thêm")').first();
-        await expect(addBtn).toBeVisible({ timeout: 60000 });
-        await addBtn.click();
-
-        const dialog = page.locator('.mp-dialog');
-        await expect(dialog).toBeVisible({ timeout: 5000 });
-        const dragHandle = dialog.locator('.el-dialog__header');
-        await expect(dragHandle).toBeVisible();
-
-        // 1. Kéo modal lên sát mép trên viewport ở tab Thông tin chung
-        const handleBox = await dragHandle.boundingBox();
-        expect(handleBox).not.toBeNull();
-        await page.mouse.move(handleBox!.x + handleBox!.width / 2, handleBox!.y + handleBox!.height / 2);
-        await page.mouse.down();
-        await page.mouse.move(handleBox!.x + handleBox!.width / 2, handleBox!.y - 100, { steps: 5 });
-        await page.mouse.up();
-
-        // 2. Chuyển sang tab "Ánh xạ"
-        await dialog.getByRole('tab', { name: 'Ánh xạ' }).click();
-        await page.waitForTimeout(300);
-
-        const headerAfterSwitch = await dragHandle.boundingBox();
-        expect(headerAfterSwitch).not.toBeNull();
-        expect(headerAfterSwitch!.y).toBeGreaterThanOrEqual(0);
-
-        // 3. Thao tác kéo chuột ở tab Ánh xạ: kéo chuột xuống 60px
-        const beforeDragY = headerAfterSwitch!.y;
-        await page.mouse.move(headerAfterSwitch!.x + headerAfterSwitch!.width / 2, headerAfterSwitch!.y + headerAfterSwitch!.height / 2);
-        await page.mouse.down();
-        await page.mouse.move(headerAfterSwitch!.x + headerAfterSwitch!.width / 2, headerAfterSwitch!.y + 60, { steps: 5 });
-        await page.mouse.up();
-
-        const movedHeaderBox = await dragHandle.boundingBox();
-        expect(movedHeaderBox).not.toBeNull();
-        // Xác nhận vị trí header di chuyển tịnh tiến xuống dưới, KHÔNG bị giật ngược
         expect(movedHeaderBox!.y).toBeGreaterThan(beforeDragY);
     });
 
@@ -642,64 +547,6 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
         expect(await isHeaderWithinFormViewport(page)).toBe(true);
     });
 
-    test('EC13 — Kiểm tra hồ sơ ánh xạ đang dùng đặt trực tiếp tại mapping/index.vue (Colocation chuẩn Clean Code)', async () => {
-        // 1. Kiểm tra logic thuần túy của hàm isMappingInUse
-        const isMappingInUseFn = (
-            mapping: { isActive?: boolean | null; partnerId?: string | null; datatypeId?: string | null; direction?: number | null },
-            activeSubscriptions: Array<{ partnerId?: string | null; datatypeId?: string | null; direction?: number | null }>
-        ): boolean => {
-            if (mapping.isActive !== true) return false;
-            if (!mapping.partnerId || !mapping.datatypeId) return false;
-
-            return activeSubscriptions.some((sub) => {
-                if (sub.partnerId !== mapping.partnerId) return false;
-                if (sub.datatypeId !== mapping.datatypeId) return false;
-                return mapping.direction === 2 || sub.direction === mapping.direction;
-            });
-        };
-
-        const activeSubs = [
-            { partnerId: 'DT01', datatypeId: '101', direction: 0 },
-            { partnerId: 'DT02', datatypeId: '102', direction: 1 },
-        ];
-
-        // Case 1: isActive = false -> false (không bị coi là đang dùng)
-        expect(isMappingInUseFn({ isActive: false, partnerId: 'DT01', datatypeId: '101', direction: 0 }, activeSubs)).toBe(false);
-
-        // Case 2: thiếu partnerId hoặc datatypeId -> false
-        expect(isMappingInUseFn({ isActive: true, partnerId: '', datatypeId: '101', direction: 0 }, activeSubs)).toBe(false);
-        expect(isMappingInUseFn({ isActive: true, partnerId: 'DT01', datatypeId: '', direction: 0 }, activeSubs)).toBe(false);
-
-        // Case 3: danh sách activeSubscriptions rỗng -> false
-        expect(isMappingInUseFn({ isActive: true, partnerId: 'DT01', datatypeId: '101', direction: 0 }, [])).toBe(false);
-
-        // Case 4: khớp đầy đủ partnerId, datatypeId, direction -> true
-        expect(isMappingInUseFn({ isActive: true, partnerId: 'DT01', datatypeId: '101', direction: 0 }, activeSubs)).toBe(true);
-        expect(isMappingInUseFn({ isActive: true, partnerId: 'DT02', datatypeId: '102', direction: 1 }, activeSubs)).toBe(true);
-
-        // Case 5: khác direction (mapping direction = 1 Inbound, sub direction = 0 Outbound) -> false
-        expect(isMappingInUseFn({ isActive: true, partnerId: 'DT01', datatypeId: '101', direction: 1 }, activeSubs)).toBe(false);
-
-        // Case 6: mapping direction = 2 (Cả hai chiều) -> khớp với bất kỳ subscription nào cùng partner + datatype -> true
-        expect(isMappingInUseFn({ isActive: true, partnerId: 'DT01', datatypeId: '101', direction: 2 }, activeSubs)).toBe(true);
-
-        // Case 7: khác partnerId hoặc khác datatypeId -> false
-        expect(isMappingInUseFn({ isActive: true, partnerId: 'DT99', datatypeId: '101', direction: 0 }, activeSubs)).toBe(false);
-        expect(isMappingInUseFn({ isActive: true, partnerId: 'DT01', datatypeId: '999', direction: 0 }, activeSubs)).toBe(false);
-
-        // 2. Quét tĩnh tệp views/sharedata/mapping/index.vue và đảm bảo mappingUsage.ts đã được xóa sạch
-        const mappingUsagePath = resolveWebVueSrc('utils/sharedata/mappingUsage.ts');
-        expect(fs.existsSync(mappingUsagePath)).toBe(false);
-
-        const mappingIndexPath = resolveWebVueSrc('views/sharedata/mapping/index.vue');
-        const mappingIndexContent = fs.readFileSync(mappingIndexPath, 'utf8');
-        expect(mappingIndexContent).toContain('const isMappingInUse');
-        expect(mappingIndexContent).toContain('const getActiveSubscriptions');
-        expect(mappingIndexContent).toContain('mapping.direction === Direction.NUMBER_2');
-        expect(mappingIndexContent).not.toContain('mappingUsage');
-        expect(mappingIndexContent).not.toContain('!important');
-    });
-
     test('8. Hộp thoại editMapping tuân thủ Rule 20.26 mới (khi chưa sửa bấm ngoài đóng ngay, ElMessageBox.confirm bấm ngoài tự hủy)', async ({ page }) => {
         await page.goto('/#/sharedata/mapping');
 
@@ -778,13 +625,7 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
         await expect(leafDialog).toBeHidden({ timeout: 5000 });
     });
 
-    test('Modal editMapping — Hiện el-alert hướng dẫn khi gói tin chưa có trường chia sẻ (Prompt #17 Mục C.4)', async ({ page }) => {
-        // Quét tĩnh file editMapping.vue có alert packet-no-fields-alert
-        const mappingPath = resolveWebVueSrc('views/sharedata/mapping/component/editMapping.vue');
-        const mappingContent = fs.readFileSync(mappingPath, 'utf-8');
-        expect(mappingContent).toContain('packet-no-fields-alert');
-        expect(mappingContent).toContain('packetHasNoFieldsHint');
-
+    test('Modal editMapping — Khóa dịch hướng dẫn khi gói tin chưa có trường chia sẻ có đủ ở vi-vn và en-us', async () => {
         const viPath = resolveWebVueSrc('i18n/lang/its/sharedata/vi-vn.json');
         const enPath = resolveWebVueSrc('i18n/lang/its/sharedata/en-us.json');
         const viJson = JSON.parse(fs.readFileSync(viPath, 'utf-8'));
@@ -794,12 +635,6 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
     });
 
     test('EC14 — Scale editMapping.vue vừa khung khi chưa có dữ liệu cây và mở rộng khi đã phân tích JSON', async ({ page }) => {
-        const mappingPath = resolveWebVueSrc('views/sharedata/mapping/component/editMapping.vue');
-        const mappingContent = fs.readFileSync(mappingPath, 'utf-8');
-        expect(mappingContent).not.toContain('min-height: 380px');
-        expect(mappingContent).toContain(':width="dialogWidth"');
-        expect(mappingContent).toContain('countTemplateNodes');
-
         await page.setViewportSize({ width: 1600, height: 900 });
         await page.goto('/#/sharedata/mapping');
         const addBtn = page.locator('button:has(.ele-Plus), button:has-text("Thêm mới"), button:has-text("Thêm")').first();

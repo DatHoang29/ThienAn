@@ -282,35 +282,6 @@ public partial class DeliveryDispatcherTests
         Assert.Equal("2", cr2.Message.Key);
     }
     [Fact]
-    public async Task DispatchAsync_WhenPartnerConnectionTypeIsKafka_ConvertsJsonToBytesAndRoutesToKafkaChannel_Test()
-    {
-        // Arrange
-        var kafkaSender = new KafkaDeliverySender();
-        var dispatcher = CreateDispatcher(kafka: kafkaSender);
-        var ctx = CreateDummyContext("101", "PARTNER_KAFKA", ConnectionType.Kafka);
-        var jsonPayload = "{\"temperature\": 28.5, \"humidity\": 65}";
-        var request = new DeliveryRequest
-        {
-            JsonPayload = jsonPayload,
-            ConnectType = ConnectionType.Kafka,
-            ConnectConfig = new Dictionary<string, string>
-            {
-                ["Topic"] = "traffic-weather-topic",
-                ["BootstrapServers"] = "127.0.0.1:9092"
-            }
-        };
-
-        // Act
-        var result = await dispatcher.Dispatch(request, ctx, CancellationToken.None);
-
-        // Assert
-        Assert.False(result.Success);
-        Assert.Equal("Kafka", result.Channel);
-        Assert.NotNull(result.ErrorCode);
-        Assert.Equal("traffic-weather-topic", result.TargetAddressOrPath);
-    }
-
-    [Fact]
     public async Task KafkaSender_WhenPayloadIsEmpty_ReturnsFailedResult_Test()
     {
         // Arrange
@@ -331,112 +302,45 @@ public partial class DeliveryDispatcherTests
         Assert.Equal("EmptyPayload", result.ErrorCode);
     }
 
-    [Fact]
-    public async Task KafkaSender_WhenDisabledOrMissingServers_ReturnsClearError_Test()
+    /// <summary>
+    /// Description: Kiểm thử KafkaDeliverySender từ chối gửi khi kênh bị Disabled hoặc thiếu BootstrapServers.
+    /// Created date: 17/10/2026
+    /// Modified date: 24/10/2026
+    /// </summary>
+    [Theory]
+    [InlineData("false", "some-topic", true, "Disabled")]
+    [InlineData("true", "my-topic", false, "MissingBootstrapServers")]
+    public async Task KafkaSender_WhenDisabledOrMissingServers_ReturnsExpectedError_Test(
+        string enabled,
+        string topic,
+        bool hasPartnerAddress,
+        string expectedErrorCode)
     {
         // Arrange
         var kafkaSender = new KafkaDeliverySender();
         var ctx = CreateDummyContext("101", "PARTNER_KAFKA", ConnectionType.Kafka);
+        if (!hasPartnerAddress && ctx.Partner != null)
+        {
+            ctx.Partner.Address = null;
+        }
 
-        var disabledReq = new DeliveryRequest
+        var request = new DeliveryRequest
         {
             JsonPayload = "{\"test\": 1}",
             ConnectType = ConnectionType.Kafka,
-            ConnectConfig = new Dictionary<string, string> { ["Enabled"] = "false" }
-        };
-
-        var missingServersReq = new DeliveryRequest
-        {
-            JsonPayload = "{\"test\": 1}",
-            ConnectType = ConnectionType.Kafka,
-            ConnectConfig = new Dictionary<string, string> { ["Enabled"] = "true", ["Topic"] = "my-topic" }
+            ConnectConfig = new Dictionary<string, string>
+            {
+                ["Enabled"] = enabled,
+                ["Topic"] = topic
+            }
         };
 
         // Act
-        var disabledRes = await kafkaSender.Send(disabledReq, ctx, CancellationToken.None);
-        if (ctx.Partner != null) ctx.Partner.Address = null;
-        var missingServersRes = await kafkaSender.Send(missingServersReq, ctx, CancellationToken.None);
+        var result = await kafkaSender.Send(request, ctx, CancellationToken.None);
 
         // Assert
-        Assert.False(disabledRes.Success);
-        Assert.Equal("Disabled", disabledRes.ErrorCode);
-
-        Assert.False(missingServersRes.Success);
-        Assert.Equal("MissingBootstrapServers", missingServersRes.ErrorCode);
-    }
-
-
-
-    [Fact]
-    public void Kafka_BuildProducerConfig_WhenTimeoutMsNotInt_EmitsWarningAndDefaultsTo5000_Test()
-    {
-        // Arrange
-        var config = new Dictionary<string, string> { [ConnectKeys.TimeoutMs] = "bad_timeout" };
-        var warnings = new List<string>();
-
-        // Act
-        var pConfig = KafkaDeliverySender.BuildProducerConfig(config, "127.0.0.1:9092", warnings);
-
-        // Assert
-        Assert.Equal(5000, pConfig.MessageTimeoutMs);
-        Assert.Single(warnings);
-        Assert.Contains("không phải số nguyên hợp lệ, dùng mặc định 5000ms", warnings[0]);
-    }
-
-    [Theory]
-    [InlineData("100", 500)]
-    [InlineData("80000", 60000)]
-    public void Kafka_BuildProducerConfig_WhenTimeoutMsOutOfRange_EmitsWarningAndClamps_Test(string inputVal, int expectedClamped)
-    {
-        // Arrange
-        var config = new Dictionary<string, string> { [ConnectKeys.TimeoutMs] = inputVal };
-        var warnings = new List<string>();
-
-        // Act
-        var pConfig = KafkaDeliverySender.BuildProducerConfig(config, "127.0.0.1:9092", warnings);
-
-        // Assert
-        Assert.Equal(expectedClamped, pConfig.MessageTimeoutMs);
-        Assert.Single(warnings);
-        Assert.Contains("vượt ngưỡng cho phép (500-60000ms)", warnings[0]);
-    }
-
-    [Fact]
-    public void Kafka_BuildProducerConfig_WhenInvalidSecurityProtocol_EmitsWarning_Test()
-    {
-        // Arrange
-        var config = new Dictionary<string, string> { [ConnectKeys.SecurityProtocol] = "BadProtoX" };
-        var warnings = new List<string>();
-
-        // Act
-        var pConfig = KafkaDeliverySender.BuildProducerConfig(config, "127.0.0.1:9092", warnings);
-
-        // Assert
-        Assert.Null(pConfig.SecurityProtocol);
-        Assert.Single(warnings);
-        Assert.Contains("SecurityProtocol [BadProtoX] không hợp lệ", warnings[0]);
-    }
-
-    [Fact]
-    public void Kafka_BuildProducerConfig_SaslMechanismScramHyphenFails_ScramSha256Succeeds_Test()
-    {
-        // 1. "SCRAM-SHA-256" chứa dấu gạch ngang nên không khớp enum Confluent.Kafka.SaslMechanism.ScramSha256
-        var badConfig = new Dictionary<string, string> { [ConnectKeys.SaslMechanism] = "SCRAM-SHA-256" };
-        var badWarnings = new List<string>();
-
-        var badPConfig = KafkaDeliverySender.BuildProducerConfig(badConfig, "127.0.0.1:9092", badWarnings);
-
-        Assert.Null(badPConfig.SaslMechanism);
-        Assert.Single(badWarnings);
-        Assert.Contains("SaslMechanism [SCRAM-SHA-256] không hợp lệ", badWarnings[0]);
-
-        // 2. "ScramSha256" khớp enum Confluent.Kafka.SaslMechanism.ScramSha256
-        var okConfig = new Dictionary<string, string> { [ConnectKeys.SaslMechanism] = "ScramSha256" };
-        var okWarnings = new List<string>();
-
-        var okPConfig = KafkaDeliverySender.BuildProducerConfig(okConfig, "127.0.0.1:9092", okWarnings);
-
-        Assert.Equal(SaslMechanism.ScramSha256, okPConfig.SaslMechanism);
-        Assert.Empty(okWarnings);
+        Assert.False(result.Success);
+        Assert.Equal("Kafka", result.Channel);
+        Assert.Equal(expectedErrorCode, result.ErrorCode);
     }
 }

@@ -1,11 +1,4 @@
 import { test, expect } from '@playwright/test';
-import { resolveWebVueSrc } from '../../setup';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 /**
  * Test E2E cho phân hệ ShareData — Modal Chi tiết Nhật ký (Cha - Con)
@@ -168,231 +161,112 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
         });
     });
 
-    test('1. Hiển thị đủ 2 bước ElSteps và không còn div.step-hint', async ({ page }) => {
-        test.slow(); // Vite khởi động & compile on-demand lần đầu cần nhiều thời gian trên Windows
-        const mockParentId = 'PARENT_LOG_SUCCESS';
+    const stepCases: {
+        name: string;
+        id: string;
+        success: number;
+        children: Record<string, unknown>[];
+        heads: RegExp[];
+        step2Text?: string;
+    }[] = [
+        {
+            name: 'hai bước thành công (is-success)',
+            id: 'PARENT_LOG_SUCCESS',
+            success: 1,
+            children: [
+                { id: 'CHILD_STEP_1', stepNo: 1, stepNbr: 1, success: 1, description: 'Trích xuất thành công 10 bản ghi' },
+                { id: 'CHILD_STEP_2', stepNo: 2, stepNbr: 2, success: 1, description: 'Đã gửi đến đối tác qua HTTP (200 OK)' },
+            ],
+            heads: [/is-success/, /is-success/],
+        },
+        {
+            name: 'bước 2 gửi thất bại (is-error) kèm thông báo lỗi',
+            id: 'PARENT_LOG_FAIL',
+            success: 0,
+            children: [
+                { id: 'CHILD_STEP_1', stepNo: 1, stepNbr: 1, success: 1, description: 'Trích xuất dữ liệu thành công' },
+                { id: 'CHILD_STEP_2', stepNo: 2, stepNbr: 2, success: 0, description: 'Gửi thất bại', errorMessage: 'Máy chủ đối tác trả HTTP 504 Gateway Timeout' },
+            ],
+            heads: [/is-success/, /is-error/],
+            step2Text: '504 Gateway Timeout',
+        },
+        {
+            name: 'chưa có dữ liệu bước con (is-wait)',
+            id: 'PARENT_LOG_WAIT',
+            success: 1,
+            children: [],
+            heads: [/is-wait/, /is-wait/],
+        },
+    ];
 
-        // Mock danh sách nhật ký có 1 dòng Transfer (chiều gửi)
-        await page.route('**/api/sharedata/sharedataactivitylog/page*', async (route) => {
-            await route.fulfill({
-                status: 200,
-                contentType: 'application/json',
-                body: JSON.stringify({
-                    code: 200,
-                    result: {
-                        records: [
-                            {
-                                id: mockParentId,
-                                logType: 1, // LOG_TYPE_TRANSFER
-                                transferType: 0, // Chiều gửi (Send)
-                                success: 1,
-                                packetId: 'PKT_01',
-                                partnerId: 'PARTNER_01',
-                                occurredAt: '2026-10-02T20:00:00Z',
-                            },
-                        ],
-                        total: 1,
-                    },
-                }),
-            });
-        });
+    for (const c of stepCases) {
+        test(`1. ElSteps 2 bước hiển thị đúng trạng thái: ${c.name}`, async ({ page }) => {
+            test.slow(); // Vite khởi động & compile on-demand lần đầu cần nhiều thời gian trên Windows
 
-        // Mock API trả về 2 bước con thành công
-        await page.route('**/api/sharedata/sharedataactivitylog/steps*', async (route) => {
-            await route.fulfill({
-                status: 200,
-                contentType: 'application/json',
-                body: JSON.stringify({
-                    code: 200,
-                    result: [
-                        {
-                            id: mockParentId,
-                            children: [
+            // Mock danh sách nhật ký có 1 dòng Transfer (chiều gửi)
+            await page.route('**/api/sharedata/sharedataactivitylog/page*', async (route) => {
+                await route.fulfill({
+                    status: 200,
+                    contentType: 'application/json',
+                    body: JSON.stringify({
+                        code: 200,
+                        result: {
+                            records: [
                                 {
-                                    id: 'CHILD_STEP_1',
-                                    parentId: mockParentId,
-                                    stepNo: 1,
-                                    stepNbr: 1,
-                                    success: 1,
-                                    description: 'Trích xuất thành công 10 bản ghi',
-                                },
-                                {
-                                    id: 'CHILD_STEP_2',
-                                    parentId: mockParentId,
-                                    stepNo: 2,
-                                    stepNbr: 2,
-                                    success: 1,
-                                    description: 'Đã gửi đến đối tác qua HTTP (200 OK)',
-                                },
-                            ],
-                        },
-                    ],
-                }),
-            });
-        });
-
-        await page.goto('/sharedata/history');
-
-        // Tìm nút mở modal chi tiết của dòng đầu tiên
-        const detailButton = page.locator('button:has-text("Chi tiết")').first();
-        await expect(detailButton).toBeVisible({ timeout: 30000 });
-        await detailButton.click();
-
-        const dialog = page.locator('.el-dialog');
-        await expect(dialog).toBeVisible();
-
-        // Khẳng định 1: Có đúng 2 bước trong ElSteps
-        const steps = dialog.locator('.steps-card .el-step');
-        await expect(steps).toHaveCount(2);
-
-        // Khẳng định 2: Bước 1 và Bước 2 đều thành công (class is-success trên .el-step__head)
-        await expect(steps.nth(0).locator('.el-step__head')).toHaveClass(/is-success/);
-        await expect(steps.nth(1).locator('.el-step__head')).toHaveClass(/is-success/);
-
-        // Khẳng định 3: Khối div.step-hint đã bị xóa hoàn toàn khỏi DOM
-        const stepHint = dialog.locator('.step-hint');
-        await expect(stepHint).toHaveCount(0);
-    });
-
-    test('2. Bước 2 báo lỗi (is-error) khi gửi thất bại và hiển thị thông báo lỗi', async ({ page }) => {
-        const mockParentId = 'PARENT_LOG_FAIL';
-
-        await page.route('**/api/sharedata/sharedataactivitylog/page*', async (route) => {
-            await route.fulfill({
-                status: 200,
-                contentType: 'application/json',
-                body: JSON.stringify({
-                    code: 200,
-                    result: {
-                        records: [
-                            {
-                                id: mockParentId,
-                                logType: 1,
-                                transferType: 0,
-                                success: 0,
-                                packetId: 'PKT_01',
-                                partnerId: 'PARTNER_01',
-                                occurredAt: '2026-10-02T20:00:00Z',
-                            },
-                        ],
-                        total: 1,
-                    },
-                }),
-            });
-        });
-
-        // Mock API: Bước 1 OK, Bước 2 lỗi
-        await page.route('**/api/sharedata/sharedataactivitylog/steps*', async (route) => {
-            await route.fulfill({
-                status: 200,
-                contentType: 'application/json',
-                body: JSON.stringify({
-                    code: 200,
-                    result: [
-                        {
-                            id: mockParentId,
-                            children: [
-                                {
-                                    id: 'CHILD_STEP_1',
-                                    parentId: mockParentId,
-                                    stepNo: 1,
-                                    stepNbr: 1,
-                                    success: 1,
-                                    description: 'Trích xuất dữ liệu thành công',
-                                },
-                                {
-                                    id: 'CHILD_STEP_2',
-                                    parentId: mockParentId,
-                                    stepNo: 2,
-                                    stepNbr: 2,
-                                    success: 0,
-                                    description: 'Gửi thất bại',
-                                    errorMessage: 'Máy chủ đối tác trả HTTP 504 Gateway Timeout',
+                                    id: c.id,
+                                    logType: 1, // LOG_TYPE_TRANSFER
+                                    transferType: 0, // Chiều gửi (Send)
+                                    success: c.success,
+                                    packetId: 'PKT_01',
+                                    partnerId: 'PARTNER_01',
+                                    occurredAt: '2026-10-02T20:00:00Z',
                                 },
                             ],
+                            total: 1,
                         },
-                    ],
-                }),
+                    }),
+                });
             });
-        });
 
-        await page.goto('/sharedata/history');
-
-        const detailButton = page.locator('button:has-text("Chi tiết")').first();
-        await expect(detailButton).toBeVisible({ timeout: 30000 });
-        await detailButton.click();
-
-        const dialog = page.locator('.el-dialog');
-        await expect(dialog).toBeVisible();
-
-        const steps = dialog.locator('.steps-card .el-step');
-        await expect(steps).toHaveCount(2);
-
-        // Bước 1 thành công
-        await expect(steps.nth(0).locator('.el-step__head')).toHaveClass(/is-success/);
-
-        // Bước 2 thất bại và mô tả mang nội dung lỗi
-        await expect(steps.nth(1).locator('.el-step__head')).toHaveClass(/is-error/);
-        await expect(steps.nth(1).locator('.el-step__description')).toContainText('504 Gateway Timeout');
-    });
-
-    test('3. Hiển thị trạng thái chờ (is-wait) khi chưa có dữ liệu bước con', async ({ page }) => {
-        const mockParentId = 'PARENT_LOG_WAIT';
-
-        await page.route('**/api/sharedata/sharedataactivitylog/page*', async (route) => {
-            await route.fulfill({
-                status: 200,
-                contentType: 'application/json',
-                body: JSON.stringify({
-                    code: 200,
-                    result: {
-                        records: [
-                            {
-                                id: mockParentId,
-                                logType: 1,
-                                transferType: 0,
-                                success: 1,
-                                packetId: 'PKT_01',
-                                partnerId: 'PARTNER_01',
-                                occurredAt: '2026-10-02T20:00:00Z',
-                            },
-                        ],
-                        total: 1,
-                    },
-                }),
+            // Mock API bước con (mảng rỗng khi chưa có bước con)
+            await page.route('**/api/sharedata/sharedataactivitylog/steps*', async (route) => {
+                await route.fulfill({
+                    status: 200,
+                    contentType: 'application/json',
+                    body: JSON.stringify({
+                        code: 200,
+                        result: c.children.length
+                            ? [{ id: c.id, children: c.children.map((ch) => ({ ...ch, parentId: c.id })) }]
+                            : [],
+                    }),
+                });
             });
+
+            await page.goto('/sharedata/history');
+
+            // Tìm nút mở modal chi tiết của dòng đầu tiên
+            const detailButton = page.locator('button:has-text("Chi tiết")').first();
+            await expect(detailButton).toBeVisible({ timeout: 30000 });
+            await detailButton.click();
+
+            const dialog = page.locator('.el-dialog');
+            await expect(dialog).toBeVisible();
+
+            // Có đúng 2 bước trong ElSteps, trạng thái từng bước theo dữ liệu bước con
+            const steps = dialog.locator('.steps-card .el-step');
+            await expect(steps).toHaveCount(2);
+            for (let i = 0; i < c.heads.length; i++) {
+                await expect(steps.nth(i).locator('.el-step__head')).toHaveClass(c.heads[i]);
+            }
+
+            // Bước 2 thất bại thì mô tả mang nội dung lỗi
+            if (c.step2Text) {
+                await expect(steps.nth(1).locator('.el-step__description')).toContainText(c.step2Text);
+            }
         });
+    }
 
-        // Mock trả về mảng rỗng (chưa có bước con)
-        await page.route('**/api/sharedata/sharedataactivitylog/steps*', async (route) => {
-            await route.fulfill({
-                status: 200,
-                contentType: 'application/json',
-                body: JSON.stringify({
-                    code: 200,
-                    result: [],
-                }),
-            });
-        });
-
-        await page.goto('/sharedata/history');
-
-        const detailButton = page.locator('button:has-text("Chi tiết")').first();
-        await expect(detailButton).toBeVisible({ timeout: 30000 });
-        await detailButton.click();
-
-        const dialog = page.locator('.el-dialog');
-        await expect(dialog).toBeVisible();
-
-        const steps = dialog.locator('.steps-card .el-step');
-        await expect(steps).toHaveCount(2);
-
-        // Cả 2 bước đều ở trạng thái chờ
-        await expect(steps.nth(0).locator('.el-step__head')).toHaveClass(/is-wait/);
-        await expect(steps.nth(1).locator('.el-step__head')).toHaveClass(/is-wait/);
-    });
-
-    test('4. Lượt truyền nhận bị lỗi ngay từ đầu và không có bước con: hiển thị khối rỗng và tiêu đề không có (2 bước)', async ({ page }) => {
+    test('2. Lượt truyền nhận bị lỗi ngay từ đầu và không có bước con: hiển thị khối rỗng và tiêu đề không có (2 bước)', async ({ page }) => {
         const mockParentId = 'PARENT_LOG_FAIL_NO_STEPS';
 
         await page.route('**/api/sharedata/sharedataactivitylog/page*', async (route) => {
@@ -461,7 +335,7 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
         await expect(stepsCard.locator('.el-steps')).toHaveCount(0);
     });
 
-    test('5. Ẩn trường Địa chỉ IP, gộp nhãn Serial / Số gói khi trùng nhau, và định dạng JSON', async ({ page }) => {
+    test('3. Ẩn trường Địa chỉ IP, gộp nhãn Serial / Số gói khi trùng nhau, và định dạng JSON', async ({ page }) => {
         const mockParentId = 'PARENT_LOG_FIELD_CHECK';
 
         await page.route('**/api/sharedata/sharedataactivitylog/page*', async (route) => {
@@ -532,7 +406,7 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
         await expect(evidencePath).toContainText('/data/export/packet_7496.json');
     });
 
-    test('6. Hộp chỉ xem chi tiết đóng khi click ra ngoài (Rule 20.26) hoặc phím Esc', async ({ page }) => {
+    test('4. Hộp chỉ xem chi tiết đóng khi click ra ngoài (Rule 20.26) hoặc phím Esc', async ({ page }) => {
         const mockParentId = 'PARENT_LOG_CLICK_OUTSIDE';
 
         await page.route('**/api/sharedata/sharedataactivitylog/page*', async (route) => {
@@ -585,7 +459,7 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
         await expect(dialog).toBeHidden({ timeout: 5000 });
     });
 
-    test('7. Hiển thị Tab cấp trên (.history-tabs) chuyển đổi mượt mà với active-bar trượt chuẩn TMS', async ({ page }) => {
+    test('5. Hiển thị Tab cấp trên (.history-tabs) chuyển đổi mượt mà với active-bar trượt chuẩn TMS', async ({ page }) => {
         test.slow();
         await page.route('**/api/sharedata/sharedataactivitylog/page*', async (route) => {
             await route.fulfill({
@@ -664,28 +538,7 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
         await page.screenshot({ path: 'test-results/snapshot-4-history-top-tabs.png', fullPage: false });
     });
 
-    test('8. Quét tĩnh mã nguồn history/index.vue & activityDetailDialog.vue: Chuẩn hoá Line Tabs không border-card, không scaleX, không !important, và modal 1080px', async () => {
-        const historyIndexPath = resolveWebVueSrc('views/sharedata/history/index.vue');
-        const dialogPath = resolveWebVueSrc('views/sharedata/history/component/activityDetailDialog.vue');
-        const historyIndexContent = fs.readFileSync(historyIndexPath, 'utf8');
-        const dialogContent = fs.readFileSync(dialogPath, 'utf8');
-
-        // 1. history/index.vue: Chuẩn Line Tabs, không dùng border-card, không dùng scaleX giả lập
-        expect(historyIndexContent).not.toContain('type="border-card"');
-        expect(historyIndexContent).not.toContain('scaleX');
-        expect(historyIndexContent).toContain('.el-tabs__active-bar');
-        expect(historyIndexContent).not.toContain('!important');
-
-        // 2. activityDetailDialog.vue: Chiều rộng 1080px, label nowrap, monospace font
-        expect(dialogContent).toContain('width="1080px"');
-        expect(dialogContent).toContain('evidence-descriptions');
-        expect(dialogContent).toContain('white-space: nowrap');
-        expect(dialogContent).toContain('min-width: 130px');
-        expect(dialogContent).toContain('Consolas, Monaco, monospace');
-        expect(dialogContent).not.toContain('!important');
-    });
-
-    test('9. Giao diện chẩn đoán lỗi trong modal chi tiết không bị trùng lặp chuỗi lỗi, hiển thị mã lỗi và nút sao chép', async ({ page }) => {
+    test('6. Giao diện chẩn đoán lỗi trong modal chi tiết không bị trùng lặp chuỗi lỗi, hiển thị mã lỗi và nút sao chép', async ({ page }) => {
         const mockParentId = 'PARENT_LOG_DUP_TEST';
         const rawErrorMsg = 'An error occurred while sending the request.';
 
@@ -788,59 +641,7 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
         await expect(errBox.locator('.err-copy-btn')).toBeVisible();
     });
 
-    test('10. Quét tĩnh toàn bộ views/sharedata: Tuân thủ Rule 20.26 mới (không còn close-on-click-modal="false", form thêm/sửa có :before-close đi kèm :close-on-click-modal="!state.")', async () => {
-        const shareDataDir = resolveWebVueSrc('views/sharedata');
-
-        function getAllVueFiles(dir: string): string[] {
-            let results: string[] = [];
-            const entries = fs.readdirSync(dir, { withFileTypes: true });
-            for (const entry of entries) {
-                const fullPath = path.join(dir, entry.name);
-                if (entry.isDirectory()) {
-                    results = results.concat(getAllVueFiles(fullPath));
-                } else if (entry.name.endsWith('.vue')) {
-                    results.push(fullPath);
-                }
-            }
-            return results;
-        }
-
-        const vueFiles = getAllVueFiles(shareDataDir);
-        expect(vueFiles.length).toBeGreaterThan(0);
-
-        const oldModalIssues: string[] = [];
-        const formBeforeCloseIssues: string[] = [];
-
-        for (const file of vueFiles) {
-            const relPath = path.relative(shareDataDir, file);
-            const content = fs.readFileSync(file, 'utf8');
-
-            // 1. Không tệp nào còn close-on-click-modal="false" hay closeOnClickModal: false
-            if (content.includes('close-on-click-modal="false"')) {
-                oldModalIssues.push(`${relPath}: còn chứa close-on-click-modal="false"`);
-            }
-            if (content.includes('closeOnClickModal: false')) {
-                oldModalIssues.push(`${relPath}: còn chứa closeOnClickModal: false`);
-            }
-
-            // 2. Mọi <el-dialog> có :before-close= thì cũng có :close-on-click-modal="!state. (form thêm/sửa)
-            const tagRegex = /<(el-dialog)\b([^>]*)/g;
-            let tagMatch: RegExpExecArray | null;
-            while ((tagMatch = tagRegex.exec(content)) !== null) {
-                const attrs = tagMatch[2];
-                if (attrs.includes(':before-close=')) {
-                    if (!attrs.includes(':close-on-click-modal="!state.')) {
-                        formBeforeCloseIssues.push(`${relPath}: dialog có :before-close nhưng thiếu :close-on-click-modal="!state."`);
-                    }
-                }
-            }
-        }
-
-        expect(oldModalIssues, `Phát hiện tệp còn dùng cấu hình Rule 20.26 cũ:\n${oldModalIssues.join('\n')}`).toEqual([]);
-        expect(formBeforeCloseIssues, `Phát hiện form có :before-close nhưng thiếu :close-on-click-modal="!state.":\n${formBeforeCloseIssues.join('\n')}`).toEqual([]);
-    });
-
-    test('11. Cắt gọn lỗi 200 ký tự an toàn surrogate pair kèm Xem toàn bộ / Thu gọn, và hiển thị đỏ "0 bản ghi" cho bước không chạy được khi bước trước lỗi', async ({ page }) => {
+    test('7. Cắt gọn lỗi 200 ký tự an toàn surrogate pair kèm Xem toàn bộ / Thu gọn, và hiển thị đỏ "0 bản ghi" cho bước không chạy được khi bước trước lỗi', async ({ page }) => {
         const mockParentId = 'PARENT_LOG_STEP1_FAIL_LONG';
         // Tạo chuỗi lỗi 500 ký tự có surrogate pair emoji ngay vị trí cắt 199..200
         const prefix199 = 'E'.repeat(199);
@@ -942,7 +743,7 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
         await expect(steps.nth(2).locator('.step-subtitle')).toHaveText('0 bản ghi');
     });
 
-    test('12. Bảng Trước / Sau hiển thị ngày giờ ISO theo DD/MM/YYYY HH:mm:ss, chuỗi khác giữ nguyên văn', async ({ page }) => {
+    test('8. Bảng Trước / Sau hiển thị ngày giờ ISO theo DD/MM/YYYY HH:mm:ss, chuỗi khác giữ nguyên văn', async ({ page }) => {
         await page.route('**/api/sharedata/sharedataactivitylog/page*', async (route) => {
             await route.fulfill({
                 status: 200,

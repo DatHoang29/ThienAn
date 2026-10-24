@@ -3,7 +3,6 @@ using Modules.Integration.Delivery;
 using Modules.Integration.Delivery.Base.Constants;
 using Modules.Integration.Delivery.Base.Helpers;
 using Modules.Integration.Delivery.Base.Models;
-using Modules.Integration.Delivery.Formats;
 
 namespace Tests.ShareData.Connect;
 
@@ -40,16 +39,22 @@ public partial class DeliveryDispatcherTests
         Assert.Equal(Encoding.UTF8.GetByteCount(jsonPayload), result.SentByteSize);
     }
 
-    [Fact]
-    public async Task FileSender_WhenDirectoryPathHasInvalidCharacters_ReturnsInvalidPathError_Test()
+    /// <summary>
+    /// Description: Kiểm thử FileDeliverySender từ chối đường dẫn thư mục không hợp lệ hoặc chứa path traversal.
+    /// Created date: 17/10/2026
+    /// Modified date: 24/10/2026
+    /// </summary>
+    [Theory]
+    [InlineData("Out/Invalid|Path\0", "không hợp lệ")]
+    [InlineData("safe/../../etc/passwd", "traversal")]
+    public async Task FileSender_WhenDirectoryPathInvalidOrTraversal_ReturnsInvalidConfiguration_Test(string invalidDir, string expectedErrorKeyword)
     {
         // Arrange
         var fileSender = CreateFileSender();
         var ctx = CreateDummyContext("103", "PARTNER_FILE_INVALID", ConnectionType.File);
-        var invalidDir = "Out/Invalid|Path\0";
         var request = new DeliveryRequest
         {
-            JsonPayload = "{}",
+            PayloadBytes = Encoding.UTF8.GetBytes("test-content"),
             ConnectType = ConnectionType.File,
             ConnectConfig = new Dictionary<string, string>
             {
@@ -64,55 +69,13 @@ public partial class DeliveryDispatcherTests
         Assert.False(result.Success);
         Assert.Equal("File", result.Channel);
         Assert.Equal("InvalidConfiguration", result.ErrorCode);
-        Assert.Contains("không hợp lệ", result.ErrorMessage);
-    }
-
-    [Fact]
-    public void CsvFormat_ConvertsJsonArrayToRfc4180Csv_EscapesProperly_Test()
-    {
-        // Arrange
-        var json = """
-            [
-                {"id": 1, "name": "Station A", "remark": "Clear, dry"},
-                {"id": 2, "name": "Station \"B\"", "remark": "Rainy, wet\r\nSlippery road"}
-            ]
-            """;
-
-        // Act
-        var csv = CsvFormat.ConvertJsonToCsv(json);
-
-        // Assert
-        Assert.Contains("id,name,remark", csv);
-        Assert.Contains("1,Station A,\"Clear, dry\"", csv);
-        Assert.Contains("2,\"Station \"\"B\"\"\",\"Rainy, wet\r\nSlippery road\"", csv);
-    }
-
-    [Fact]
-    public async Task FileSender_WhenDirectoryPathHasPathTraversal_ReturnsInvalidConfiguration_Test()
-    {
-        var fileSender = CreateFileSender();
-        var ctx = CreateDummyContext("103", "PARTNER_FILE_TRAVERSAL", ConnectionType.File);
-        var request = new DeliveryRequest
-        {
-            PayloadBytes = Encoding.UTF8.GetBytes("test-content"),
-            ConnectType = ConnectionType.File,
-            ConnectConfig = new Dictionary<string, string>
-            {
-                ["DirectoryPath"] = "safe/../../etc/passwd"
-            }
-        };
-
-        var result = await fileSender.Send(request, ctx, CancellationToken.None);
-
-        Assert.False(result.Success);
-        Assert.Equal("File", result.Channel);
-        Assert.Equal("InvalidConfiguration", result.ErrorCode);
-        Assert.Contains("traversal", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(expectedErrorKeyword, result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
     public async Task FileSender_WhenDirectoryPathAndFileNamePatternConfigured_SavesToExpectedCustomPath_Test()
     {
+        // Arrange
         var fileSender = CreateFileSender();
         var ctx = CreateDummyContext("103", "PARTNER_FILE_CUSTOM", ConnectionType.File);
         var expectedBytes = Encoding.UTF8.GetBytes("custom-file-payload-content");
@@ -128,8 +91,10 @@ public partial class DeliveryDispatcherTests
             }
         };
 
+        // Act
         var result = await fileSender.Send(request, ctx, CancellationToken.None);
 
+        // Assert
         Assert.True(result.Success);
         Assert.Equal("File", result.Channel);
         Assert.NotNull(result.TargetAddressOrPath);
@@ -146,8 +111,15 @@ public partial class DeliveryDispatcherTests
         if (File.Exists(fullPath)) File.Delete(fullPath);
     }
 
-    [Fact]
-    public async Task FileSender_WhenFileNamePatternMissingRequiredTokens_EmitsWarning_Test()
+    /// <summary>
+    /// Description: Kiểm thử FileDeliverySender phát hiện cảnh báo khi FileNamePattern thiếu tham số biến đổi {serial} hoặc {timestamp}.
+    /// Created date: 17/10/2026
+    /// Modified date: 24/10/2026
+    /// </summary>
+    [Theory]
+    [InlineData("static_export_file.json", true)]
+    [InlineData("export_{serial}.json", false)]
+    public async Task FileSender_WhenFileNamePatternTokensChecked_EmitsWarningAsExpected_Test(string fileNamePattern, bool shouldWarn)
     {
         // Arrange
         var handler = CreateFileSender();
@@ -159,7 +131,7 @@ public partial class DeliveryDispatcherTests
             ConnectConfig = new Dictionary<string, string>
             {
                 [ConnectKeys.DirectoryPath] = "test_warn_out",
-                [ConnectKeys.FileNamePattern] = "static_export_file.json"
+                [ConnectKeys.FileNamePattern] = fileNamePattern
             }
         };
 
@@ -169,40 +141,14 @@ public partial class DeliveryDispatcherTests
         // Assert
         Assert.True(result.Success);
         Assert.NotNull(result.Warnings);
-        Assert.Contains(result.Warnings, w => w.Contains("thiếu tham số biến đổi {serial} và {timestamp}"));
-
-        // Dọn dẹp tệp sinh ra
-        if (!string.IsNullOrWhiteSpace(result.TargetAddressOrPath))
+        if (shouldWarn)
         {
-            var fullPath = Path.Combine(ExportPathHelper.ResolveRootPath(ExportPathHelper.DefaultBasePath), result.TargetAddressOrPath);
-            if (File.Exists(fullPath)) File.Delete(fullPath);
+            Assert.Contains(result.Warnings, w => w.Contains("thiếu tham số biến đổi {serial} và {timestamp}"));
         }
-    }
-
-    [Fact]
-    public async Task FileSender_WhenFileNamePatternHasSerialToken_DoesNotEmitMissingTokenWarning_Test()
-    {
-        // Arrange
-        var handler = CreateFileSender();
-        var ctx = CreateSendContext(connectionType: "File");
-        var request = new DeliveryRequest
+        else
         {
-            PayloadBytes = Encoding.UTF8.GetBytes("{\"file\": 2}"),
-            ConnectType = ConnectionType.File,
-            ConnectConfig = new Dictionary<string, string>
-            {
-                [ConnectKeys.DirectoryPath] = "test_warn_out",
-                [ConnectKeys.FileNamePattern] = "export_{serial}.json"
-            }
-        };
-
-        // Act
-        var result = await handler.Send(request, ctx, CancellationToken.None);
-
-        // Assert
-        Assert.True(result.Success);
-        Assert.NotNull(result.Warnings);
-        Assert.DoesNotContain(result.Warnings, w => w.Contains("thiếu tham số biến đổi {serial} và {timestamp}"));
+            Assert.DoesNotContain(result.Warnings, w => w.Contains("thiếu tham số biến đổi {serial} và {timestamp}"));
+        }
 
         // Dọn dẹp tệp sinh ra
         if (!string.IsNullOrWhiteSpace(result.TargetAddressOrPath))

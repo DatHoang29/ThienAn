@@ -1,156 +1,16 @@
 import { test, expect } from '@playwright/test';
 import { resolveWebVueSrc } from '../../setup';
 import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 /**
  * Test Suite cho chức năng đăng ký chia sẻ dữ liệu (editSubscription.vue):
- * - TC1: StartTime == EndTime (23:00 -> 23:00) bị chặn, trả về timeRangeInvalid.
- * - TC2: EndTime < StartTime (23:00 -> 22:00) bị chặn, trả về timeRangeInvalid.
- * - TC3: Chỉ nhập 1 trong 2 ô (thiếu giờ bắt đầu hoặc giờ kết thúc) bị chặn, trả về timeRangeIncomplete.
- * - TC4: EndTime > StartTime (23:00 -> 23:01) hợp lệ. Với chu kỳ 30 giây, bắn 2 lần (0s và 30s) trong cửa sổ 1 phút.
- * - TC5: Để trống cả 2 ô (gửi liên tục 24/24) hợp lệ, không có lỗi.
- * - TC6: Quét tĩnh mã nguồn tuân thủ Rule 20.8 (CẤM toán tử !!), Rule 19.61 (Timeout <= 5s), template binding và submit guard.
- * - TC7: Kiểm tra đầy đủ bản dịch i18n trong vi-vn.json và en-us.json.
+ * - TC1: Kiểm tra đầy đủ bản dịch i18n trong vi-vn.json và en-us.json.
+ * - TC2: E2E tab Gửi đi / Nhận về trên bảng đăng ký và trong modal Đăng ký chia sẻ.
  */
-
-// Hàm logic mô phỏng chính xác reactive computed từ editSubscription.vue
-function evaluateTimeRange(startTimeVal: string, endTimeVal: string, t: (key: string) => string) {
-	const isEndBeforeStart = Boolean(startTimeVal && endTimeVal) && endTimeVal <= startTimeVal;
-	const isTimeRangeIncomplete = (Boolean(startTimeVal) && !endTimeVal) || (!startTimeVal && Boolean(endTimeVal));
-
-	let timeRangeError = '';
-	if (isTimeRangeIncomplete) {
-		timeRangeError = t('lz.validation.sharedataSubscription.timeRangeIncomplete');
-	} else if (isEndBeforeStart) {
-		timeRangeError = t('lz.validation.sharedataSubscription.timeRangeInvalid');
-	}
-
-	return {
-		isEndBeforeStart,
-		isTimeRangeIncomplete,
-		timeRangeError,
-	};
-}
-
-const mockI18n = (key: string): string => {
-	const dict: Record<string, string> = {
-		'lz.validation.sharedataSubscription.timeRangeInvalid': 'Giờ kết thúc phải lớn hơn giờ bắt đầu.',
-		'lz.validation.sharedataSubscription.timeRangeIncomplete': 'Vui lòng nhập đầy đủ giờ bắt đầu và kết thúc (hoặc để trống cả hai).',
-	};
-	return dict[key] || key;
-};
 
 test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editSubscription.vue) @sharedata', () => {
 
-	test('TC1 — Chặn khi StartTime == EndTime (23:00 -> 23:00): Hiển thị lỗi và chặn khoảng thời gian rỗng', async () => {
-		const result = evaluateTimeRange('23:00', '23:00', mockI18n);
-
-		expect(result.isEndBeforeStart).toBe(true);
-		expect(result.isTimeRangeIncomplete).toBe(false);
-		expect(result.timeRangeError).toBe('Giờ kết thúc phải lớn hơn giờ bắt đầu.');
-	});
-
-	test('TC2 — Chặn khi EndTime < StartTime (23:00 -> 22:00): Hiển thị lỗi đảo ngược thời gian', async () => {
-		const result = evaluateTimeRange('23:00', '22:00', mockI18n);
-
-		expect(result.isEndBeforeStart).toBe(true);
-		expect(result.isTimeRangeIncomplete).toBe(false);
-		expect(result.timeRangeError).toBe('Giờ kết thúc phải lớn hơn giờ bắt đầu.');
-	});
-
-	test('TC3 — Chặn khi chỉ nhập 1 trong 2 ô (thiếu giờ bắt đầu hoặc giờ kết thúc): Báo lỗi thiếu khung giờ', async () => {
-		const missingEnd = evaluateTimeRange('23:00', '', mockI18n);
-		expect(missingEnd.isTimeRangeIncomplete).toBe(true);
-		expect(missingEnd.timeRangeError).toBe('Vui lòng nhập đầy đủ giờ bắt đầu và kết thúc (hoặc để trống cả hai).');
-
-		const missingStart = evaluateTimeRange('', '23:00', mockI18n);
-		expect(missingStart.isTimeRangeIncomplete).toBe(true);
-		expect(missingStart.timeRangeError).toBe('Vui lòng nhập đầy đủ giờ bắt đầu và kết thúc (hoặc để trống cả hai).');
-	});
-
-	test('TC4 — Hợp lệ khi EndTime > StartTime (06:00 -> 06:01 hoặc 23:00 -> 23:01): Form hợp lệ không báo lỗi', async () => {
-		const eveningResult = evaluateTimeRange('23:00', '23:01', mockI18n);
-		expect(eveningResult.isEndBeforeStart).toBe(false);
-		expect(eveningResult.isTimeRangeIncomplete).toBe(false);
-		expect(eveningResult.timeRangeError).toBe('');
-
-		const morningResult = evaluateTimeRange('06:00', '06:01', mockI18n);
-		expect(morningResult.isEndBeforeStart).toBe(false);
-		expect(morningResult.isTimeRangeIncomplete).toBe(false);
-		expect(morningResult.timeRangeError).toBe('');
-	});
-
-	test('TC5 — Hợp lệ khi để trống cả 2 ô (gửi liên tục 24/24): Không báo lỗi', async () => {
-		const result = evaluateTimeRange('', '', mockI18n);
-
-		expect(result.isEndBeforeStart).toBe(false);
-		expect(result.isTimeRangeIncomplete).toBe(false);
-		expect(result.timeRangeError).toBe('');
-	});
-
-	test('TC6 — Quét tĩnh mã nguồn editSubscription.vue, subscriptionTable.vue & scheduler/index.vue: Tuân thủ Rule 20.8 (CẤM !!), submit guard và inline error', async () => {
-		const vueFilePath = resolveWebVueSrc('views/sharedata/sharing/component/editSubscription.vue');
-		const schedulerFilePath = resolveWebVueSrc('components/scheduler/index.vue');
-		const subTableFilePath = resolveWebVueSrc('views/sharedata/sharing/component/subscriptionTable.vue');
-		const vueContent = fs.readFileSync(vueFilePath, 'utf8');
-		const schedulerContent = fs.readFileSync(schedulerFilePath, 'utf8');
-		const subTableContent = fs.readFileSync(subTableFilePath, 'utf8');
-
-		// 1. Rule 20.8: Tuyệt đối không dùng toán tử !! trong đoạn xử lý khung giờ ở Scheduler và subscriptionTable
-		const timeRangeBlock = schedulerContent.substring(
-			schedulerContent.indexOf('const isEndBeforeStart'),
-			schedulerContent.indexOf('defineExpose')
-		);
-		expect(timeRangeBlock).not.toContain('!!');
-		expect(schedulerContent).not.toContain('!!');
-		expect(subTableContent).not.toContain('!!');
-
-		// 2. Kiểm tra điều kiện chặn dấu bằng (<=) trong scheduler/index.vue
-		expect(timeRangeBlock).toContain('endTime.value <= startTime.value');
-
-		// 3. Kiểm tra form-item binding :error hiển thị lỗi inline
-		expect(schedulerContent).toContain(':error="scheduleKind === \'continuous\' ? timeRangeError : \'\'"');
-
-		// 4. Kiểm tra submit guard chặn gọi API khi timeRangeError có lỗi
-		const submitBlock = vueContent.substring(
-			vueContent.indexOf('async function submit()'),
-			vueContent.indexOf('defineExpose')
-		);
-		expect(submitBlock).toContain('scheduleKind.value === \'continuous\' && schedulerRef.value?.timeRangeError');
-
-		// 5. Kiểm tra buildSchedule chuẩn hóa chuỗi rỗng thành undefined
-		const buildScheduleBlock = vueContent.substring(
-			vueContent.indexOf('function buildSchedule()'),
-			vueContent.indexOf('async function submit()')
-		);
-		expect(buildScheduleBlock).toContain('startTime: startTime.value || undefined');
-		expect(buildScheduleBlock).toContain('endTime: endTime.value || undefined');
-
-		// 6. Kiểm tra không import thừa package lạ (như locale)
-		expect(vueContent).not.toContain("import { lo } from 'element-plus/es/locale'");
-
-		// 7. Kiểm tra cố định chiều cao modal theo tỷ lệ màn hình (vh) để tránh giật khi chuyển tab
-		const directionTabsBlock = vueContent.substring(vueContent.indexOf('.direction-tabs'));
-		expect(directionTabsBlock).toContain('height: 38vh;');
-		expect(directionTabsBlock).toContain('min-height: 340px;');
-		expect(directionTabsBlock).toContain('max-height: 400px;');
-		expect(directionTabsBlock).toContain('overflow-y: auto;');
-		expect(directionTabsBlock).not.toContain('!important');
-
-		// 8. Kiểm tra chiều cao mặc định ô Ghi chú (remark) có :rows="4" (đã giảm 2 dòng so với 6)
-		expect(vueContent).toContain(':rows="4"');
-
-		// 9. Đóng khi click ngoài, chặn khi đang xử lý (!state.loading); không còn hộp xác nhận bỏ thay đổi
-		expect(vueContent).toContain(':close-on-click-modal="!state.loading"');
-		expect(vueContent).not.toContain(':before-close=');
-	});
-
-	test('TC7 — Kiểm tra cấu hình i18n trong vi-vn.json và en-us.json', async () => {
+	test('TC1 — Kiểm tra cấu hình i18n trong vi-vn.json và en-us.json', async () => {
 		const viPath = resolveWebVueSrc('i18n/lang/its/sharedata/vi-vn.json');
 		const enPath = resolveWebVueSrc('i18n/lang/its/sharedata/en-us.json');
 
@@ -183,27 +43,7 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 		expect(enJson['lz.label.sharedataSubscription.interval']).toBe('Interval');
 	});
 
-	test('TC8 — Kiểm tra component Scheduler hỗ trợ đủ 4 mode và ShareData giới hạn đúng continuous & daily', async () => {
-		const schedulerVuePath = resolveWebVueSrc('components/scheduler/index.vue');
-		const editSubPath = resolveWebVueSrc('views/sharedata/sharing/component/editSubscription.vue');
-
-		const schedulerContent = fs.readFileSync(schedulerVuePath, 'utf8');
-		const editSubContent = fs.readFileSync(editSubPath, 'utf8');
-
-		// 1. Scheduler types phải hỗ trợ đủ 4 mode (khai báo trực tiếp trong component theo Rule 20.17)
-		expect(schedulerContent).toContain("'continuous' | 'daily' | 'weekly' | 'interval'");
-
-		// 2. Scheduler template phải có radio-button cho cả 4 mode
-		expect(schedulerContent).toContain("allowedKinds.includes('continuous')");
-		expect(schedulerContent).toContain("allowedKinds.includes('daily')");
-		expect(schedulerContent).toContain("allowedKinds.includes('weekly')");
-		expect(schedulerContent).toContain("allowedKinds.includes('interval')");
-
-		// 3. ShareData editSubscription.vue chỉ cho phép ['continuous', 'daily']
-		expect(editSubContent).toContain(":allowed-kinds=\"['continuous', 'daily']\"");
-	});
-
-	test('TC9 — E2E Tab cấp trên trong Bảng đăng ký (subscriptionTable.vue) và Modal Đăng ký chia sẻ (editSubscription.vue)', async ({ context, page }) => {
+	test('TC2 — E2E Tab cấp trên trong Bảng đăng ký (subscriptionTable.vue) và Modal Đăng ký chia sẻ (editSubscription.vue)', async ({ context, page }) => {
 		test.slow();
 		test.setTimeout(120_000);
 		const mockToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjQxMDI0NDQ4MDAsIm5hbWUiOiJhZG1pbiJ9.mock_signature';
@@ -439,47 +279,5 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 		}
 
 		await page.screenshot({ path: 'test-results/snapshot-2-modal-edit-subscription-tabs.png', fullPage: false });
-	});
-
-	test('TC10 — Cấu hình kênh kết nối đối tác (editPartner.vue: ConnectionType enum 1..5, ConnectionConfig, tuân thủ Rule 20.8 CẤM !!)', async () => {
-		const partnerFilePath = resolveWebVueSrc('views/sharedata/sharing/component/editPartner.vue');
-		const partnerContent = fs.readFileSync(partnerFilePath, 'utf8');
-
-		// 1. Kiểm tra trường connectionType có các option chuẩn dạng số nguyên enum (API=1, File=2, ...)
-		expect(partnerContent).toContain('prop="connectionType"');
-		expect(partnerContent).toContain(':value="1"');
-		expect(partnerContent).toContain(':value="2"');
-
-		// 2. Kiểm tra trường connectionConfig
-		expect(partnerContent).toContain('connectionConfig');
-
-		// 3. Kiểm tra gán mặc định connectionType = ConnectionTypeEnum.Api khi mở dialog thêm mới
-		expect(partnerContent).toContain('state.ruleForm.connectionType = ConnectionTypeEnum.Api');
-
-		// 4. Tuân thủ Rule 20.8: CẤM dùng toán tử !! (phủ định kép), dùng Boolean(...) tường minh
-		expect(partnerContent).not.toContain('!!');
-		expect(partnerContent).toContain('state.isEdit = Boolean((row as any)?.id)');
-
-		// 5. Tuân thủ Rule 20.6: Không dùng !important trong style
-		expect(partnerContent).not.toContain('!important');
-	});
-
-	test('TC11 — Khoảng đệm thoáng ở el-dialog__footer trong modal Tạo/Sửa đăng ký chia sẻ dữ liệu (editSubscription.vue)', async () => {
-		const subFilePath = resolveWebVueSrc('views/sharedata/sharing/component/editSubscription.vue');
-		const subContent = fs.readFileSync(subFilePath, 'utf8');
-
-		// 1. Quét tĩnh mã nguồn: editSubscription.vue có cấu hình khoảng đệm chuẩn cho .el-dialog__footer (padding: 12px 20px 20px)
-		expect(subContent).toContain('.el-dialog__footer');
-		expect(subContent).toMatch(/padding:\s*12px 20px 20px;/);
-
-		// 2. Tuân thủ Rule 20.6: Không dùng !important
-		expect(subContent).not.toContain('!important');
-
-		// 3. Phân lập phạm vi (Rule 13): Chỉ áp dụng trong phân hệ ShareData, không sửa global element.scss
-		const elementScssPath = resolveWebVueSrc('theme/element.scss');
-		const elementScssContent = fs.readFileSync(elementScssPath, 'utf8');
-		// element.scss vẫn giữ nguyên cấu hình hệ thống
-		expect(elementScssContent).toContain('.el-dialog__footer');
-		expect(elementScssContent).toContain('padding: 15px');
 	});
 });

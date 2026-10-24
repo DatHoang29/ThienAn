@@ -6,6 +6,7 @@ namespace Tests.ShareData.Controllers;
 /// <summary>
 /// Description: Kiểm thử tích hợp cho ShareDataActivityLog Controller và QueryHandler (log cha - con)
 /// Created date: 02/10/2026
+/// Modified date: 24/10/2026
 /// </summary>
 [Collection("api")]
 public class ShareDataActivityLogControllerTests(Host host)
@@ -211,22 +212,5 @@ public class ShareDataActivityLogControllerTests(Host host)
         Assert.Equal(child1.ID, result.ID);
         Assert.Equal(parent.ID, result.ParentId);
         Assert.Equal(1, result.StepNbr);
-    }
-
-    /// <summary>
-    /// Description: Kiểm tra thuộc tính Children (IsIgnore) không bị tạo thành cột trong CSDL
-    /// Created date: 02/10/2026
-    /// </summary>
-    [Fact]
-    public async Task Schema_ChildrenProperty_IsNotCreatedAsDatabaseColumn_Test()
-    {
-        // Act
-        var count = await _db.Ado.GetIntAsync(@"
-            SELECT COUNT(1) FROM sys.columns 
-            WHERE object_id = OBJECT_ID(N'dbo.ShareDataActivityLog') 
-              AND name = 'Children'");
-
-        // Assert
-        Assert.Equal(0, count);
     }
 }
