@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Reflection;
 using Tests.ShareData.Common;
@@ -2449,9 +2450,10 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
         private static async Task PrepareDatabase(ISqlSugarClient db, ILogger logger, string packetCode = "103")
         {
+            var num = PacketHelper.TryGetPacketNumber(packetCode, out var n) ? n : (int?)null;
             await db.Updateable<ShareDataPacket>()
                 .SetColumns(p => p.IsDelete == DateTime.Now)
-                .Where(p => p.IsDelete == null && p.Code != packetCode && p.Code!.StartsWith(packetCode + "_"))
+                .Where(p => p.IsDelete == null && p.Code != packetCode && ((p.Code != null && p.Code.StartsWith(packetCode + "_")) || (num != null && p.OrderNo == num.Value)))
                 .ExecuteCommandAsync();
 
             await DataOutboundServiceTests.PacketMetadataCatalogTest.SeedPacketToDb(db, packetCode);
@@ -2521,10 +2523,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             return (partner, sub);
         }
 
-        private static DataOutboundService CreateOutboundService(IServiceScope scope, IHttpClientFactory? httpClientFactory = null)
+        private static DataOutboundService CreateOutboundService(
+            IServiceScope scope,
+            IHttpClientFactory? httpClientFactory = null,
+            ILogger<DataOutboundService>? logger = null)
         {
             var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DataOutboundService>>();
+            logger ??= scope.ServiceProvider.GetRequiredService<ILogger<DataOutboundService>>();
             var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
 
             var clientFactory = httpClientFactory ?? scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
@@ -2888,6 +2893,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         ///              Không có broker NATS ở 127.0.0.1:4222 thì chuyển sang kiểm hợp đồng offline — xUnit
         ///              2.9.3 không có API bỏ qua động nên buộc phải rẽ nhánh ngay trong bài test.
         /// Created date: 27/09/2026
+        /// Modified date: 24/10/2026
         /// </summary>
         [Fact]
         public async Task NatsRoundTrip_WhenTrackerPublishesRealEvent_ConsumerReceivesAndRunsOutboundFlow_Test()
@@ -2897,7 +2903,12 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
             var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
             var outboundLogger = scope.ServiceProvider.GetRequiredService<ILogger<DataOutboundService>>();
-            var consumerLogger = scope.ServiceProvider.GetRequiredService<ILogger<DataNatsService>>();
+
+            // Gom log của bên phát, bên nhận và luồng gửi để in kèm khi bài lỗi — biết bản tin mất ở chặng nào
+            var trace = new ConcurrentQueue<string>();
+            var trackerTrace = new TraceLoggerTest<DataChangeTrackingService>(trace, "tracker");
+            var natsTrace = new TraceLoggerTest<DataNatsService>(trace, "nats");
+            var outboundTrace = new TraceLoggerTest<DataOutboundService>(trace, "outbound");
 
             var testId = Guid.NewGuid().ToString("N")[..8];
             const string packetCode = "103";
@@ -2966,7 +2977,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             // 1) Bên nhận đăng ký subscribe TRƯỚC và chờ xong, để bản tin phát ra không bị mất.
             transport.Unsubscribe(uniqueSubject);
-            var consumer = new DataNatsService(CreateOutboundService(scope), consumerLogger, transport, testConfig);
+            var consumer = new DataNatsService(CreateOutboundService(scope, logger: outboundTrace), natsTrace, transport, testConfig);
             await consumer.InitSubscribe(cts.Token);
             await Task.Delay(500, cts.Token);
 
@@ -2974,7 +2985,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             var publisher = CreateTrackerWorker(
                 scope,
                 transport,
-                testConfig);
+                testConfig,
+                logger: trackerTrace);
             await publisher.PollChanges(cts.Token);
 
             Assert.True(await GetStateVersion(db) >= 0,
@@ -3004,6 +3016,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
                 if ((DateTime.UtcNow - lastPollTime).TotalSeconds >= 3)
                 {
+                    trace.Enqueue($"{DateTime.Now:HH:mm:ss.fff} [test] Bù nhịp, Transport.IsConnected = {transport.IsConnected}");
                     await SeedTrafficRow();
                     await publisher.PollChanges(cts.Token);
                     lastPollTime = DateTime.UtcNow;
@@ -3017,7 +3030,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 "Bản tin NATS phát từ DataChangeTrackingService đã không tới được DataNatsService (chờ 45 giây "
                 + "không thấy ShareDataActivityLog). Rà theo thứ tự: (1) InitSubscribe có đăng ký được "
                 + "subscribe không, (2) nhánh publish của PollChanges có chạy không (Transport.IsConnected), "
-                + "(3) tên field PacketCode trong payload có đúng không.");
+                + "(3) tên field PacketCode trong payload có đúng không.\nLog gần nhất:\n"
+                + string.Join("\n", trace.TakeLast(80)));
             Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
             Assert.True(logs[0].RecordCount > 0,
                 "Có log Success nhưng RecordCount = 0 — tức bản tin NATS tới được và pipeline chạy, nhưng "
@@ -5150,14 +5164,30 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 .ToListAsync();
         }
 
+        /// <summary>
+        /// Description: Logger ghi mọi dòng log vào hàng đợi chung, để bài test NATS toàn trình in kèm khi thất bại.
+        /// Created date: 24/10/2026
+        /// </summary>
+        private sealed class TraceLoggerTest<T>(ConcurrentQueue<string> trace, string source) : ILogger<T>
+        {
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+            public bool IsEnabled(LogLevel logLevel) => true;
+
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+                => trace.Enqueue($"{DateTime.Now:HH:mm:ss.fff} [{source}] {logLevel}: {formatter(state, exception)}"
+                    + (exception == null ? string.Empty : $" | {exception.GetType().Name}: {exception.Message}"));
+        }
+
         private DataChangeTrackingService CreateTrackerWorker(
             IServiceScope? scope = null,
             TransportManager? transport = null,
             IConfiguration? config = null,
-            DataWorkerConfigService? workerConfig = null)
+            DataWorkerConfigService? workerConfig = null,
+            ILogger<DataChangeTrackingService>? logger = null)
         {
             var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
-            var logger = (scope?.ServiceProvider ?? _host.Services).GetRequiredService<ILogger<DataChangeTrackingService>>();
+            logger ??= (scope?.ServiceProvider ?? _host.Services).GetRequiredService<ILogger<DataChangeTrackingService>>();
             workerConfig ??= (scope?.ServiceProvider ?? _host.Services).GetRequiredService<DataWorkerConfigService>();
             transport ??= new TransportManager(new ConfigurationBuilder().Build());
             config ??= _host.Services.GetService<IConfiguration>();

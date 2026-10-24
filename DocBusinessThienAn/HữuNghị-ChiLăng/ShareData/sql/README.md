@@ -1,11 +1,23 @@
 # 🗄️ Danh Mục Kịch Bản SQL Phân Hệ ShareData (ESHARE)
 
-> **Căn cứ quy chuẩn:** [`.agents/rules/database-mcp_thienan.md` §2.3](../../../../.agents/rules/database-mcp_thienan.md) (Rule 19.85: Entity là SSOT, CodeFirst tạo khung trước; Rule 19.101: dữ liệu giả lập mang hậu tố `_local.sql`; Rule 19.103: **mỗi tệp chỉ ghi một bảng, tên tệp mang hậu tố tên bảng**).  
+> **Căn cứ quy chuẩn:** [`.agents/rules/database-mcp_thienan.md` §2.3](../../../../.agents/rules/database-mcp_thienan.md) (Rule 19.85: Entity là SSOT, CodeFirst tạo khung trước; Rule 19.101: tệp `_local.sql` chỉ chạy trên DB local; Rule 19.103: **mỗi tệp chỉ ghi một bảng, tên tệp mang hậu tố tên bảng**).  
 > **Cập nhật lần cuối:** 24/10/2026
 
 ---
 
-## 📌 1. Quy Ước Đặt Tên Và Tách Tệp (Rule 19.103)
+## 📌 1. Hai Loại Tệp: Chạy Ở Đâu
+
+| Loại | Vị trí / tên tệp | Chạy trên DB nào | Nội dung |
+| :--- | :--- | :--- | :--- |
+| **Dữ liệu chuẩn** | `sql/sharedata-…sql` (**không** có `_local`) | **Mọi DB**: local, dev, staging, production. DB local cũng phải chạy đủ tệp 1 → 10 | Dữ liệu hệ thống cần để chạy: gói 101–111, câu SQL mẫu, mã lỗi, bảng nguồn, cấu hình, bản dịch |
+| **Dữ liệu giả lập** | `sql/local/…_local.sql` | **Chỉ DB local** trên máy lập trình viên. ⛔ Cấm chạy trên DB ở máy chủ khác (dev chung, staging, UAT, production) | Dữ liệu giả để thử, chạy sau dữ liệu chuẩn |
+
+> Nhớ nhanh: **có `_local` = chỉ DB local**. **Không có `_local` = dữ liệu chuẩn, DB nào cũng chạy, kể cả local.**
+> Mỗi tệp `_local` có **khối 0 — Chốt DB local** ở đầu tệp: in ra máy chủ đang kết nối, và nếu địa chỉ máy chủ không phải local (`127.0.0.1` / `::1`, kết nối cục bộ, hoặc Docker trên máy dải `172.16.0.0/12`) thì báo lỗi `⛔ Tệp _local chỉ chạy trên DB local` và bỏ qua toàn bộ tệp, không ghi dữ liệu.
+
+---
+
+## 📌 2. Quy Ước Đặt Tên Và Tách Tệp (Rule 19.103)
 
 - **Mỗi tệp chỉ thêm / sửa / xóa trên đúng một bảng.** Bảng khác chỉ được đọc (`SELECT`, `JOIN`, `EXISTS`). Nhờ vậy nhìn tên tệp là biết bảng nào bị đụng, chạy nhầm hay hoàn tác cũng chỉ gói trong một bảng.
 - **Tên tệp:** `sharedata-<nhóm>-<TênBảng>.sql`; dữ liệu giả lập: `local/sharedata-du-lieu-gia-lap-<TênBảng>_local.sql` (hậu tố `_local` luôn đứng cuối).
@@ -14,9 +26,9 @@
 
 ---
 
-## 📌 2. Bảng Thứ Tự Chạy
+## 📌 3. Bảng Thứ Tự Chạy
 
-### A. Dữ liệu chuẩn (mọi môi trường)
+### A. Dữ liệu chuẩn (mọi DB, kể cả local)
 
 | Thứ tự | Tệp | Bảng ghi | Nội dung |
 | :---: | :--- | :--- | :--- |
@@ -31,7 +43,7 @@
 | **9** | [`sharedata-seed-cau-hinh-xoa-nhom-cu-SysConfigType.sql`](sharedata-seed-cau-hinh-xoa-nhom-cu-SysConfigType.sql) | `SysConfigType` | Xóa mềm loại danh mục cũ `sharedata_fe_config`. **Chạy sau tệp 8.** |
 | **10** | [`sharedata-dich-thuat-SysTerminology.sql`](sharedata-dich-thuat-SysTerminology.sql) | `SysTerminology` | Nạp 112 khóa thuật ngữ vi-VN / en-US qua `MERGE` không ghi đè bản dịch đã sửa. Chạy xong bấm 🔄 ở avatar góc phải trên → Ngôn ngữ để làm mới cache. |
 
-### B. Dữ liệu giả lập (⚠️ chỉ Local / Test, hậu tố `_local`, thư mục con [`local/`](local/))
+### B. Dữ liệu giả lập (⛔ chỉ DB local, hậu tố `_local`, thư mục con [`local/`](local/))
 
 Chỉ giả lập bảng nghiệp vụ ShareData; không ghi vào bảng của phân hệ khác (`TmsEquipment`, `TmsWeather`, `TmsTrafficData`, `TmsIncident`, `VmsCurrent`, `TmsSignalLog`) hay bảng đích chiều nhận `InboundTrafficFlow` — các bảng đó dùng dữ liệu sẵn có.
 
@@ -43,21 +55,21 @@ Chỉ giả lập bảng nghiệp vụ ShareData; không ghi vào bảng của p
 
 - **Dọn dẹp:** mỗi tệp giả lập có khối dọn dẹp riêng, đặt `@XoaDuLieuGiaLap = 1` trong tệp đó. Dọn theo thứ tự ngược: G3 → G2 → G1 (G2 trước G1 vì G2 tìm dòng theo gói `E2E_INBOUND_TEST`).
 - Mọi dòng giả lập gắn `CreateUId = N'SHAREDATA-SEED-GIA-LAP'`.
-- G1–G3 (gói `E2E_INBOUND_TEST`) được chạy trên Staging để kiểm thử chiều nhận E0, dọn theo [doc 05 mục 4](../doc/05-chay-sql-tu-dau-sharedata.md#4-khôi-phục-và-dọn-dẹp-bằng-sql).
+- G1–G3 chỉ chạy trên DB local. Cách dọn bằng tay xem [doc 05 mục 4](../doc/05-chay-sql-tu-dau-sharedata.md#4-khôi-phục-và-dọn-dẹp-bằng-sql).
 
 ---
 
-## 🚀 3. Hướng Dẫn Thực Thi
+## 🚀 4. Hướng Dẫn Thực Thi
 
-> 🔴 **Nguyên tắc cốt lõi (Rule 19.85):** Entity là SSOT cho cấu trúc bảng và index. CodeFirst tạo khung trước (`TableSettings.EnableInitTable = true`), script SQL chỉ seed dữ liệu. Tuyệt đối **KHÔNG** `CREATE TABLE`, `ALTER TABLE ... ADD`, `CREATE INDEX` cho bảng đã có entity (ngoại lệ duy nhất: `InboundTrafficFlow` trong tệp G7).
+> 🔴 **Nguyên tắc cốt lõi (Rule 19.85):** Entity là SSOT cho cấu trúc bảng và index. CodeFirst tạo khung trước (`TableSettings.EnableInitTable = true`), script SQL chỉ seed dữ liệu. Tuyệt đối **KHÔNG** `CREATE TABLE`, `ALTER TABLE ... ADD`, `CREATE INDEX` cho bảng đã có entity.
 
 ```
 CodeFirst tạo khung ➔ 1 ➔ 2 ➔ 3 ➔ 4 ➔ 5 ➔ 6 ➔ 7 ➔ 8 ➔ 9 ➔ 10 ➔ (tùy chọn) G1 … G3
 ```
 
 1. **Bước 0 — CodeFirst:** khởi động WebAPI (bật tạm `TableSettings.EnableInitTable = true` trong cấu hình debug local) để tạo đủ bảng và index, gồm `ShareDataSql` (câu SQL và thiết lập SQL, unique theo gói + đối tác), `ShareDataSqlVariable` (biến SQL như `@pageSize`, unique theo gói + đối tác + tên biến), `ShareDataSourceTable` (unique `UX_ShareDataSourceTable_TableName`).
-2. **Bước 1 — chạy tệp 1 → 10** theo bảng mục 2A.
-3. **Bước 2 (tùy chọn) — chạy G1 → G3** theo bảng mục 2B trên Local / Test.
+2. **Bước 1 — chạy tệp 1 → 10** theo bảng mục 3A (mọi DB, kể cả local).
+3. **Bước 2 (tùy chọn, chỉ DB local) — chạy G1 → G3** theo bảng mục 3B.
 
 > 📌 *Lưu ý môi trường Local:* `.vscode/launch.json` ghim các cờ CodeFirst của ConfigId 0 (`DEV_ITS10`) về `false` bằng biến môi trường để bảo vệ CSDL. Khi cần init bảng thì bật tạm thời.
 
@@ -101,7 +113,7 @@ ORDER BY p.[OrderNo];
 
 ---
 
-## ⚠️ 4. Lưu Ý Về CSDL Đích
+## ⚠️ 5. Lưu Ý Về CSDL Đích
 
 - Các tệp chạy trên CSDL chính **`[DEV_ITS10]`**. Câu ghi của G3 `MERGE` vào bảng đích `dbo.InboundTrafficFlow` trên `[DEV_ITS10_Inbound]`; thư mục không tạo bảng này (xem doc 05 nếu cần tạo tay khi kiểm thử chiều nhận).
 - **P0 Safeguards (Rule 16):** AI không tự thực thi lệnh ghi lên CSDL. Lập trình viên kiểm tra và thực thi script trên DB.
