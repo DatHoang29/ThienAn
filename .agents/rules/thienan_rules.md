@@ -45,6 +45,7 @@ Mọi AI Agent **BẮT BUỘC** tuân thủ tuyệt đối các quy tắc cốt 
 | **61** | **Tách Locale Phân Hệ & Thoát '@' Trong i18n** (Rule 20.29) | Tách locale riêng `its/<module>/`; tự động nạp qua `import.meta.glob` (cấm import thủ công từng file); ⛔ CẤM `@` trần đi liền tên biến (bắt buộc `{'@'}`); seed SQL cập nhật có điều kiện `WHERE Value = N'<cũ>'`. Chi tiết: [frontend-vue_thienan.md](./frontend-vue_thienan.md) §5. |
 | **62** | **Thẻ Không Có Nội Dung Viết Tự Đóng** (Rule 20.30) | Thẻ HTML/component trong `<template>` `.vue` không có nội dung (không chữ, không thẻ con, không slot) viết `<div ... />`; ⛔ CẤM cặp rỗng `<div ...></div>`. Chỉ áp cho thẻ mới viết hoặc thẻ có sửa thuộc tính. Chi tiết: [frontend-vue_thienan.md](./frontend-vue_thienan.md) §6.2. |
 | **63** | **Commit Message Chỉ Nêu Việc Chính** (Rule 19.102) | Gạch đầu dòng trong commit message chỉ nêu việc chính đã làm, ngắn gọn. ⛔ CẤM ghi viết/chạy test, kết quả kiểm thử, cập nhật tài liệu đi kèm, dọn mã. Chi tiết: [git-workflow_thienan.md](./git-workflow_thienan.md) §3. |
+| **64** | **Mỗi File `.sql` Chỉ Ghi Một Bảng** (Rule 19.103) | Một file `.sql` chỉ thêm / sửa / xóa trên đúng một bảng (bảng khác chỉ đọc); tên file mang hậu tố tên bảng `<phan-he>-<vai-tro>-<TênBảng>.sql`, giả lập `..._local.sql`. Đầu file ghi `BẢNG GHI`, `THỨ TỰ CHẠY`; kiểm tra bảng dùng `SET NOEXEC ON`. Chi tiết: [database-mcp_thienan.md](./database-mcp_thienan.md) §2.2. |
 
 ---
 
@@ -94,6 +95,7 @@ Quy tắc kỹ thuật chi tiết lưu giữ toàn văn tại các tệp chuyên
 
 ### 4. Database & MCP Tooling ([database-mcp_thienan.md](./database-mcp_thienan.md))
 - **Rule 19.85** (STT 44) — Bảng có entity: CodeFirst khung trước; nạp data qua UI hoặc `.sql` (§2.3)
+- **Rule 19.103** (STT 64) — Mỗi file `.sql` chỉ ghi một bảng, tên file mang hậu tố tên bảng (§2.2)
 
 ### 5. Tài Liệu, Plan & Báo Cáo ([documentation-standards_thienan.md](./documentation-standards_thienan.md))
 - **Rule 19.53, Rule 19.72** (STT 28) — Zero corruption, bảo toàn 100% công thức/format file Excel (§8)
@@ -106,3 +108,4 @@ Quy tắc kỹ thuật chi tiết lưu giữ toàn văn tại các tệp chuyên
 ### 6. Git Workflow & Commit ([git-workflow_thienan.md](./git-workflow_thienan.md))
 - **Rule 19.91** (STT 50) — Đồng bộ `dev` trước khi push; commit một phần khi thư mục có mã dở (§4.4)
 - **Rule 19.93** (STT 52) — Toàn vẹn phụ thuộc khi commit: Bắt buộc kèm `.sln`, `.csproj` (§4.5)
+- **Rule 19.102** (STT 63) — Commit message chỉ nêu việc chính, cấm ghi viết/chạy test, kết quả kiểm thử (§3)

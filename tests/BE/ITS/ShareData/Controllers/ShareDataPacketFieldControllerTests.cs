@@ -95,10 +95,10 @@ public class ShareDataPacketFieldControllerTests(Host host) : IAsyncLifetime
             ID = Guid.NewGuid().ToString("N"),
             Code = $"PKT_COL_{unique}",
             Name = $"Packet Col {unique}",
-            ExtractSql = "SELECT ID AS id, Code AS code, Name AS name, CreateTime AS __lastTime FROM TmsZone",
             Status = BaseEnums.StatusEnum.Enable
         };
         await db.Insertable(packet).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, "SELECT ID AS id, Code AS code, Name AS name, CreateTime AS __lastTime FROM TmsZone");
 
         var existingField = new ShareDataPacketField
         {
@@ -152,10 +152,10 @@ public class ShareDataPacketFieldControllerTests(Host host) : IAsyncLifetime
             ID = Guid.NewGuid().ToString("N"),
             Code = $"PKT_NOSQL_{unique}",
             Name = $"Packet NoSql {unique}",
-            ExtractSql = null,
             Status = BaseEnums.StatusEnum.Enable
         };
         await db.Insertable(packet).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, null);
 
         var input = new GetPacketExtractColumnsInput
         {
@@ -186,10 +186,10 @@ public class ShareDataPacketFieldControllerTests(Host host) : IAsyncLifetime
             ID = Guid.NewGuid().ToString("N"),
             Code = packetCode,
             Name = $"Packet Normal {unique}",
-            ExtractSql = "SELECT ID AS zoneId FROM TmsZone",
             Status = BaseEnums.StatusEnum.Enable
         };
         await db.Insertable(packet).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, "SELECT ID AS zoneId FROM TmsZone");
 
         var input = new GetPacketExtractColumnsInput
         {
@@ -220,10 +220,10 @@ public class ShareDataPacketFieldControllerTests(Host host) : IAsyncLifetime
             ID = Guid.NewGuid().ToString("N"),
             Code = $"PKT_ADD_{unique}",
             Name = $"Packet Add {unique}",
-            ExtractSql = "SELECT ID AS zoneId, Name AS zoneName FROM TmsZone",
             Status = BaseEnums.StatusEnum.Enable
         };
         await db.Insertable(packet).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, "SELECT ID AS zoneId, Name AS zoneName FROM TmsZone");
 
         var input = new ShareDataAddPacketFieldInput
         {
@@ -259,10 +259,10 @@ public class ShareDataPacketFieldControllerTests(Host host) : IAsyncLifetime
             ID = Guid.NewGuid().ToString("N"),
             Code = $"PKT_NOTIN_{unique}",
             Name = $"Packet NotIn {unique}",
-            ExtractSql = "SELECT ID AS zoneId FROM TmsZone",
             Status = BaseEnums.StatusEnum.Enable
         };
         await db.Insertable(packet).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, "SELECT ID AS zoneId FROM TmsZone");
 
         var input = new ShareDataAddPacketFieldInput
         {
@@ -292,10 +292,10 @@ public class ShareDataPacketFieldControllerTests(Host host) : IAsyncLifetime
             ID = Guid.NewGuid().ToString("N"),
             Code = $"PKT_NOSQL2_{unique}",
             Name = $"Packet NoSql2 {unique}",
-            ExtractSql = null,
             Status = BaseEnums.StatusEnum.Enable
         };
         await db.Insertable(packet).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, null);
 
         var input = new ShareDataAddPacketFieldInput
         {
@@ -325,10 +325,10 @@ public class ShareDataPacketFieldControllerTests(Host host) : IAsyncLifetime
             ID = Guid.NewGuid().ToString("N"),
             Code = $"PKT_BATCH_{unique}",
             Name = $"Packet Batch {unique}",
-            ExtractSql = "SELECT ID AS col1, Code AS col2, Name AS col3 FROM TmsZone",
             Status = BaseEnums.StatusEnum.Enable
         };
         await db.Insertable(packet).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, "SELECT ID AS col1, Code AS col2, Name AS col3 FROM TmsZone");
 
         // Đã có sẵn col1 với thuộc tính ban đầu
         var preExistingField = new ShareDataPacketField
@@ -411,10 +411,10 @@ public class ShareDataPacketFieldControllerTests(Host host) : IAsyncLifetime
             ID = Guid.NewGuid().ToString("N"),
             Code = $"PKT_LOCKKEY_{unique}",
             Name = $"Packet LockKey {unique}",
-            ExtractSql = "SELECT ID AS origKey, Name AS newKey FROM TmsZone",
             Status = BaseEnums.StatusEnum.Enable
         };
         await db.Insertable(packet).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, "SELECT ID AS origKey, Name AS newKey FROM TmsZone");
 
         var field = new ShareDataPacketField
         {
@@ -455,10 +455,10 @@ public class ShareDataPacketFieldControllerTests(Host host) : IAsyncLifetime
             ID = Guid.NewGuid().ToString("N"),
             Code = $"PKT_UPDNAME_{unique}",
             Name = $"Packet UpdName {unique}",
-            ExtractSql = "SELECT ID AS zoneId FROM TmsZone",
             Status = BaseEnums.StatusEnum.Enable
         };
         await db.Insertable(packet).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, "SELECT ID AS zoneId FROM TmsZone");
 
         var field = new ShareDataPacketField
         {

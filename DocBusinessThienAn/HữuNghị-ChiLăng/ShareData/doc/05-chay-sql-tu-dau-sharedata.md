@@ -63,17 +63,17 @@ WHERE s.IsDelete IS NULL AND s.Direction = 0 AND s.State = 1
 | Bảng | Màn hình | Cách nạp (Giao diện / Script / Hệ thống tự ghi) | Script |
 |---|---|---|---|
 | `ShareDataPartner` | `views/sharedata/sharing/index.vue` | **Giao diện** | *Không có script seed (tạo UI ở Bước 1)* |
-| `ShareDataPacket` | `views/sharedata/dataSource/index.vue` | **Giao diện** | Script `sharedata-seed-goi-tin.sql` *(thứ tự 1)* |
+| `ShareDataPacket` | `views/sharedata/dataSource/index.vue` | **Giao diện** | Script `sharedata-seed-goi-tin-*.sql` *(thứ tự 1)* |
 | `ShareDataPacketField` | `views/sharedata/dataSource/component/fieldConfig.vue` | **Giao diện** | *Sinh khi trích xuất hoặc cấu hình trên UI* |
 | `ShareDataCodeSet` | `views/sharedata/codeSet/index.vue` | **Giao diện** | *Cấu hình trên UI ở Bước 3* |
 | `ShareDataMapping` | `views/sharedata/mapping/index.vue` | **Giao diện** | *Cấu hình trên UI ở Bước 3* |
 | `ShareDataSubscription` | `views/sharedata/sharing/index.vue` | **Giao diện** | *Cấu hình trên UI ở Bước 4* |
-| `SysOpConfig` (nhóm `sharedata_config`) | `views/cfgSystem/sysOpConfig/index.vue` *(màn Cấu hình hoạt động)* | **Giao diện** | Script `sharedata-seed-cau-hinh.sql` *(thứ tự 2, sửa trên màn Cấu hình hoạt động)* |
-| `SysConfigData` (Mã lỗi ESH) | `views/cfgSystem/sysConfigType/index.vue` | **Giao diện** | Script `sharedata-seed-cau-hinh.sql` *(thứ tự 2)* |
-| `SysTerminology` | `views/cfgSystem/sysTerminology/index.vue` | **Giao diện** | Script `sharedata-dich-thuat.sql` *(thứ tự 3, sau đó bấm 🔄)* |
-| `ShareDataSourceTable` | *Không có màn hình* | **Bắt buộc script** | Script `sharedata-seed-cau-hinh.sql` *(thứ tự 2)* |
-| `ShareDataPacketSql` | *Không có màn hình* | **Bắt buộc script** | Script `sharedata-du-lieu-gia-lap.sql` *(thứ tự 4, chỉ cho gói test; gói nhận thật nạp qua script 1)* |
-| `InboundTrafficFlow` | *Không có màn hình* | **Bắt buộc script** | Script `sharedata-du-lieu-gia-lap.sql` *(thứ tự 4, chỉ local/test trên `DEV_ITS10_Inbound`)* |
+| `SysOpConfig` (nhóm `sharedata_config`) | `views/cfgSystem/sysOpConfig/index.vue` *(màn Cấu hình hoạt động)* | **Giao diện** | Script `sharedata-seed-cau-hinh-*.sql` *(thứ tự 2, sửa trên màn Cấu hình hoạt động)* |
+| `SysConfigData` (Mã lỗi ESH) | `views/cfgSystem/sysConfigType/index.vue` | **Giao diện** | Script `sharedata-seed-cau-hinh-*.sql` *(thứ tự 2)* |
+| `SysTerminology` | `views/cfgSystem/sysTerminology/index.vue` | **Giao diện** | Script `sharedata-dich-thuat-SysTerminology.sql` *(thứ tự 3, sau đó bấm 🔄)* |
+| `ShareDataSourceTable` | *Không có màn hình* | **Bắt buộc script** | Script `sharedata-seed-cau-hinh-*.sql` *(thứ tự 2)* |
+| `ShareDataPacketSql` | *Không có màn hình* | **Bắt buộc script** | Script `sharedata-du-lieu-gia-lap-*_local.sql` *(thứ tự 4, chỉ cho gói test; gói nhận thật nạp qua script 1)* |
+| `InboundTrafficFlow` | *Không có màn hình* | **Bắt buộc script** | Script `sharedata-du-lieu-gia-lap-*_local.sql` *(thứ tự 4, chỉ local/test trên `DEV_ITS10_Inbound`)* |
 | `ShareDataSession` | *Không có màn hình* | **Hệ thống tự ghi** | *Tự động ghi khi đối tác kết nối/xác thực* |
 | `ShareDataLastSend` | *Không có màn hình* | **Hệ thống tự ghi** | *Worker gửi tự động cập nhật mốc* |
 | `ShareDataInboundPacket` | Không có màn hình (tra bằng SQL trên DEV_ITS10_Inbound) | **Hệ thống tự ghi** | *Inbound Worker tiếp nhận gói tin thô* |
@@ -84,24 +84,24 @@ WHERE s.IsDelete IS NULL AND s.Direction = 0 AND s.State = 1
 ### 2.1. Thứ tự chạy 2 tầng
 
 > 📌 **Thứ tự ưu tiên chuẩn bị dữ liệu:**  
-> - **Bước 1 (Bắt buộc chạy `.sql`):** CodeFirst tạo khung bảng trước $\rightarrow$ (1) `sharedata-seed-goi-tin.sql` $\rightarrow$ (2) `sharedata-seed-cau-hinh.sql` (mã lỗi ESH, `ShareDataSourceTable`, `sharedata_config`) $\rightarrow$ (3) `sharedata-dich-thuat.sql` (thuật ngữ; làm mới từ điển ở tài liệu 06) $\rightarrow$ (4) `sharedata-du-lieu-gia-lap.sql` (tùy chọn: chỉ Khối 4 khi cần chuẩn bị E2E Inbound trên Staging: `E2E_INBOUND_TEST`, `ShareDataPacketSql`, `InboundTrafficFlow`).  
-> - **Bước 2 (Chọn một trong hai):** Gói tin = script 1 (`sharedata-seed-goi-tin.sql`) hoặc FE (*Cấu hình gói tin* $\rightarrow$ *Mẫu mặc định* $\rightarrow$ *Lưu* — xem [tài liệu 06 mục 3.1 Bước 2](06-khoi-dong-3-du-an-va-nghiem-thu-sharedata.md#bước-2--khởi-tạo-và-cấu-hình-gói-tin-chia-sẻ-sharedatapacket)); Tham số = sửa trên *Cấu hình hoạt động*.  
+> - **Bước 1 (Bắt buộc chạy `.sql`):** CodeFirst tạo khung bảng trước $\rightarrow$ (1) `sharedata-seed-goi-tin-*.sql` $\rightarrow$ (2) `sharedata-seed-cau-hinh-*.sql` (mã lỗi ESH, `ShareDataSourceTable`, `sharedata_config`) $\rightarrow$ (3) `sharedata-dich-thuat-SysTerminology.sql` (thuật ngữ; làm mới từ điển ở tài liệu 06) $\rightarrow$ (4) `sharedata-du-lieu-gia-lap-*_local.sql` (tùy chọn: chỉ Khối 4 khi cần chuẩn bị E2E Inbound trên Staging: `E2E_INBOUND_TEST`, `ShareDataPacketSql`, `InboundTrafficFlow`).  
+> - **Bước 2 (Chọn một trong hai):** Gói tin = script 1 (`sharedata-seed-goi-tin-*.sql`) hoặc FE (*Cấu hình gói tin* $\rightarrow$ *Mẫu mặc định* $\rightarrow$ *Lưu* — xem [tài liệu 06 mục 3.1 Bước 2](06-khoi-dong-3-du-an-va-nghiem-thu-sharedata.md#bước-2--khởi-tạo-và-cấu-hình-gói-tin-chia-sẻ-sharedatapacket)); Tham số = sửa trên *Cấu hình hoạt động*.  
 > - **Bước 3 (Chỉ FE):** Đối tác, Ánh xạ, Đăng ký (xem [tài liệu 06 mục 3.1 Bước 1, 3, 4](06-khoi-dong-3-du-an-va-nghiem-thu-sharedata.md#31-dựng-dữ-liệu-nền-trên-giao-diện-webvue)).  
-> - **Ghi chú CSDL cũ:** Xóa mềm gói thừa (ví dụ `101_commonData1`) trước khi chạy script 1 (`sharedata-seed-goi-tin.sql`), vì script khớp mã theo tiền tố.
+> - **Ghi chú CSDL cũ:** Xóa mềm gói thừa (ví dụ `101_commonData1`) trước khi chạy script 1 (`sharedata-seed-goi-tin-*.sql`), vì script khớp mã theo tiền tố.
 
 #### Tầng 1: Bắt buộc chạy script SQL (1 → 3, 4 tùy chọn)
 Toàn bộ cấu trúc bảng và index do CodeFirst tạo trước (`TableSettings.EnableInitTable = true`). Các script di trú di sản (`00`, `01`, `06`) đã hoàn tất và được loại bỏ sạch sẽ theo Rule 19.85. Thứ tự thực thi gồm:
-1. `sharedata-seed-goi-tin.sql` (Thứ tự 1): Khởi tạo 11 gói tin Catalog (101–111) nếu chưa tồn tại, nạp câu truy vấn SQL mẫu Catalog 101–111, nạp 18 câu ghi chiều nhận (`ShareDataPacketSql`) cho 10 gói (101–109 và 111); bật gói 101–110, tắt gói 111. Cờ `@GhiDeMauGoiTin = 0` giữ nguyên các câu SQL tùy biến đã có.
-2. `sharedata-seed-cau-hinh.sql` (Thứ tự 2): Khởi tạo `SysConfigType` (`sharedata_error_code`), nạp **25** mã cảnh báo lỗi ESH-xxxx vào `SysConfigData`; nạp 15 bảng nguồn vào bảng danh mục riêng `ShareDataSourceTable` (14 bảng theo dõi `IsTracked = 1`, `TmsEquipment` mặc định `IsTracked = 0`, cả 15 bảng `IsQueryable = 1`); đăng ký nhóm `sharedata_config` vào `SysConfigData` (`operation_config_type`) và nạp **48** tham số vận hành vào `SysOpConfig`.
-3. `sharedata-dich-thuat.sql` (Thứ tự 3): Nạp **94** khóa bản dịch vi/en (**188** bản ghi song ngữ) vào `SysTerminology` cho các nhãn giao diện, bộ lọc, kiểm tra an toàn SQL (bao gồm khóa `SqlTableNotAllowed`), và 12 khóa lỗi kết nối đối tác (`sharedata.connectConfig*`). Sau khi chạy xong, thực hiện đồng bộ/làm mới từ điển trên giao diện ở [tài liệu 06 mục 2.2](06-khoi-dong-3-du-an-va-nghiem-thu-sharedata.md#22-làm-mới-từ-điển-đa-ngôn-ngữ-trên-giao-diện).
-4. `sharedata-du-lieu-gia-lap.sql` (Thứ tự 4, tùy chọn): **Chỉ chạy Khối 4 trên Staging** (chuẩn bị hạ tầng cho kịch bản chiều nhận E0: tạo gói kiểm thử riêng `E2E_INBOUND_TEST` ID `1500000000900`, bảng đích `InboundTrafficFlow` trên `DEV_ITS10_Inbound` và cấu hình câu ghi MERGE trong `ShareDataPacketSql` ID `1500000000903`).
-- ⛔ **Cảnh báo môi trường:** Script 4 `sharedata-du-lieu-gia-lap.sql` Khối 1–3, 5–7 (dữ liệu giả lập 104, 106, 110, 111) **chỉ chạy trên Local/Test, TUYỆT ĐỐI CẤM chạy trên Staging** vì staging đã có dữ liệu thật.
+1. `sharedata-seed-goi-tin-*.sql` (Thứ tự 1): Khởi tạo 11 gói tin Catalog (101–111) nếu chưa tồn tại, nạp câu truy vấn SQL mẫu Catalog 101–111, nạp 18 câu ghi chiều nhận (`ShareDataPacketSql`) cho 10 gói (101–109 và 111); bật gói 101–110, tắt gói 111. Cờ `@GhiDeMauGoiTin = 0` giữ nguyên các câu SQL tùy biến đã có.
+2. `sharedata-seed-cau-hinh-*.sql` (Thứ tự 2): Khởi tạo `SysConfigType` (`sharedata_error_code`), nạp **25** mã cảnh báo lỗi ESH-xxxx vào `SysConfigData`; nạp 15 bảng nguồn vào bảng danh mục riêng `ShareDataSourceTable` (14 bảng theo dõi `IsTracked = 1`, `TmsEquipment` mặc định `IsTracked = 0`, cả 15 bảng `IsQueryable = 1`); đăng ký nhóm `sharedata_config` vào `SysConfigData` (`operation_config_type`) và nạp **48** tham số vận hành vào `SysOpConfig`.
+3. `sharedata-dich-thuat-SysTerminology.sql` (Thứ tự 3): Nạp **94** khóa bản dịch vi/en (**188** bản ghi song ngữ) vào `SysTerminology` cho các nhãn giao diện, bộ lọc, kiểm tra an toàn SQL (bao gồm khóa `SqlTableNotAllowed`), và 12 khóa lỗi kết nối đối tác (`sharedata.connectConfig*`). Sau khi chạy xong, thực hiện đồng bộ/làm mới từ điển trên giao diện ở [tài liệu 06 mục 2.2](06-khoi-dong-3-du-an-va-nghiem-thu-sharedata.md#22-làm-mới-từ-điển-đa-ngôn-ngữ-trên-giao-diện).
+4. `sharedata-du-lieu-gia-lap-*_local.sql` (Thứ tự 4, tùy chọn): **Chỉ chạy Khối 4 trên Staging** (chuẩn bị hạ tầng cho kịch bản chiều nhận E0: tạo gói kiểm thử riêng `E2E_INBOUND_TEST` ID `1500000000900`, bảng đích `InboundTrafficFlow` trên `DEV_ITS10_Inbound` và cấu hình câu ghi MERGE trong `ShareDataPacketSql` ID `1500000000903`).
+- ⛔ **Cảnh báo môi trường:** Script 4 `sharedata-du-lieu-gia-lap-*_local.sql` Khối 1–3, 5–7 (dữ liệu giả lập 104, 106, 110, 111) **chỉ chạy trên Local/Test, TUYỆT ĐỐI CẤM chạy trên Staging** vì staging đã có dữ liệu thật.
 
 #### Tầng 2: Chọn một trong hai cách nạp gói tin
-- **Cách A (Script SQL — Nạp nhanh):** Chạy `sharedata-seed-goi-tin.sql` (thứ tự 1: tạo mới các gói tin còn thiếu trong 11 gói chuẩn 101–111 với ID cố định; nạp câu truy vấn SQL mẫu, nạp câu ghi chiều nhận (`ShareDataPacketSql`) cho các gói đã có câu ghi; bật gói 110, tắt gói 111).
+- **Cách A (Script SQL — Nạp nhanh):** Chạy `sharedata-seed-goi-tin-*.sql` (thứ tự 1: tạo mới các gói tin còn thiếu trong 11 gói chuẩn 101–111 với ID cố định; nạp câu truy vấn SQL mẫu, nạp câu ghi chiều nhận (`ShareDataPacketSql`) cho các gói đã có câu ghi; bật gói 110, tắt gói 111).
   *Ghi chú CSDL cũ:* Xóa mềm gói thừa (ví dụ `101_commonData1`) trước khi chạy script 1, vì script khớp mã theo tiền tố.
 - **Cách B (Giao diện WebVue):** Khởi tạo gói tin và nạp SQL trích xuất trực tiếp trên màn hình *Cấu hình gói tin* $\rightarrow$ tab *Cấu hình SQL* $\rightarrow$ bấm *Mẫu mặc định* $\rightarrow$ bấm *Lưu* (xem chi tiết tại [tài liệu 06 mục 3.1 Bước 2](06-khoi-dong-3-du-an-va-nghiem-thu-sharedata.md#bước-2--khởi-tạo-và-cấu-hình-gói-tin-chia-sẻ-sharedatapacket)).
-- **Tham số vận hành (`SysOpConfig`):** Đã được nạp ở script 2 (`sharedata-seed-cau-hinh.sql`), nếu muốn điều chỉnh có thể sửa trực tiếp trên màn *Cấu hình hoạt động* ([tài liệu 06 mục 3.1 Bước 8](06-khoi-dong-3-du-an-va-nghiem-thu-sharedata.md#bước-8-tùy-chọn--cấu-hình-tham-số-vận-hành-sharedata-sysopconfig-nhóm-sharedata_config)).
+- **Tham số vận hành (`SysOpConfig`):** Đã được nạp ở script 2 (`sharedata-seed-cau-hinh-*.sql`), nếu muốn điều chỉnh có thể sửa trực tiếp trên màn *Cấu hình hoạt động* ([tài liệu 06 mục 3.1 Bước 8](06-khoi-dong-3-du-an-va-nghiem-thu-sharedata.md#bước-8-tùy-chọn--cấu-hình-tham-số-vận-hành-sharedata-sysopconfig-nhóm-sharedata_config)).
 
 ### 2.2. Danh mục chi tiết các script SQL (1–4)
 
@@ -109,10 +109,10 @@ Toàn bộ cấu trúc bảng và index do CodeFirst tạo trước (`TableSetti
 
 | Thứ Tự | Script | CSDL | Mục đích thực tế chính xác | Áp dụng cho DB mới | Áp dụng cho DB cũ |
 |:---:|---|---|---|:---:|:---:|
-| **1** | [`sharedata-seed-goi-tin.sql`](../sql/sharedata-seed-goi-tin.sql) | `DEV_ITS10` | Tạo mới các gói tin còn thiếu trong 11 gói chuẩn (101–111) với ID cố định; nạp câu truy vấn SQL mẫu Catalog 101–111 (`TemplateSql` và `ExtractSql`), nạp 18 câu ghi chiều nhận (`ShareDataPacketSql`) cho 10 gói đã có câu ghi (101–109 và 111); bật gói 101–110, tắt gói 111. Cờ `@GhiDeMauGoiTin = 0` giữ nguyên các câu SQL tùy biến đã có. Gói đã xóa mềm cùng tiền tố không chặn việc tạo gói chuẩn. | **Bắt buộc** | **Bắt buộc** |
-| **2** | [`sharedata-seed-cau-hinh.sql`](../sql/sharedata-seed-cau-hinh.sql) | `DEV_ITS10` | Khởi tạo `SysConfigType` (`sharedata_error_code`), nạp **25** mã cảnh báo lỗi ESH-xxxx vào `SysConfigData`; nạp 15 bảng nguồn vào bảng danh mục riêng `ShareDataSourceTable` (14 bảng theo dõi `IsTracked = 1`, `TmsEquipment` mặc định `IsTracked = 0`, cả 15 bảng `IsQueryable = 1`); đăng ký nhóm `sharedata_config` vào `SysConfigData` (`operation_config_type`) và nạp **48** tham số vận hành vào `SysOpConfig`. | **Bắt buộc** | **Bắt buộc** |
-| **3** | [`sharedata-dich-thuat.sql`](../sql/sharedata-dich-thuat.sql) | `DEV_ITS10` | Nạp **94** khóa bản dịch vi/en (**188** bản ghi song ngữ) vào `SysTerminology` cho các nhãn giao diện, bộ lọc, kiểm tra an toàn SQL (bao gồm khóa `SqlTableNotAllowed`), và 12 khóa lỗi kết nối đối tác (`sharedata.connectConfig*`). **Bắt buộc chạy trước mục C**. | **Bắt buộc** | **Bắt buộc** |
-| **4** | [`sharedata-du-lieu-gia-lap.sql`](../sql/sharedata-du-lieu-gia-lap.sql) | `DEV_ITS10`, `DEV_ITS10_Inbound` | Nạp dữ liệu giả lập cho gói 104 (Thời tiết), 106 (WIM), 110 (Sự cố & VMS), 111 (Tín hiệu) và Khối 4 chuẩn bị cho kịch bản E0 (tạo gói kiểm thử riêng `E2E_INBOUND_TEST` ID `1500000000900`, bảng đích `InboundTrafficFlow` trên `DEV_ITS10_Inbound` và cấu hình câu ghi MERGE trong `ShareDataPacketSql` ID `1500000000903`). Tích hợp sẵn cờ dọn dẹp `@XoaDuLieuGiaLap`. | *Tùy chọn* (cần cho E, G) | *Tùy chọn* (cần cho E, G) |
+| **1** | [`sharedata-seed-goi-tin-*.sql`](../sql/README.md) | `DEV_ITS10` | Tạo mới các gói tin còn thiếu trong 11 gói chuẩn (101–111) với ID cố định; nạp câu truy vấn SQL mẫu Catalog 101–111 (`TemplateSql` và `ExtractSql`), nạp 18 câu ghi chiều nhận (`ShareDataPacketSql`) cho 10 gói đã có câu ghi (101–109 và 111); bật gói 101–110, tắt gói 111. Cờ `@GhiDeMauGoiTin = 0` giữ nguyên các câu SQL tùy biến đã có. Gói đã xóa mềm cùng tiền tố không chặn việc tạo gói chuẩn. | **Bắt buộc** | **Bắt buộc** |
+| **2** | [`sharedata-seed-cau-hinh-*.sql`](../sql/README.md) | `DEV_ITS10` | Khởi tạo `SysConfigType` (`sharedata_error_code`), nạp **25** mã cảnh báo lỗi ESH-xxxx vào `SysConfigData`; nạp 15 bảng nguồn vào bảng danh mục riêng `ShareDataSourceTable` (14 bảng theo dõi `IsTracked = 1`, `TmsEquipment` mặc định `IsTracked = 0`, cả 15 bảng `IsQueryable = 1`); đăng ký nhóm `sharedata_config` vào `SysConfigData` (`operation_config_type`) và nạp **48** tham số vận hành vào `SysOpConfig`. | **Bắt buộc** | **Bắt buộc** |
+| **3** | [`sharedata-dich-thuat-SysTerminology.sql`](../sql/README.md) | `DEV_ITS10` | Nạp **94** khóa bản dịch vi/en (**188** bản ghi song ngữ) vào `SysTerminology` cho các nhãn giao diện, bộ lọc, kiểm tra an toàn SQL (bao gồm khóa `SqlTableNotAllowed`), và 12 khóa lỗi kết nối đối tác (`sharedata.connectConfig*`). **Bắt buộc chạy trước mục C**. | **Bắt buộc** | **Bắt buộc** |
+| **4** | [`sharedata-du-lieu-gia-lap-*_local.sql`](../sql/README.md) | `DEV_ITS10`, `DEV_ITS10_Inbound` | Nạp dữ liệu giả lập cho gói 104 (Thời tiết), 106 (WIM), 110 (Sự cố & VMS), 111 (Tín hiệu) và Khối 4 chuẩn bị cho kịch bản E0 (tạo gói kiểm thử riêng `E2E_INBOUND_TEST` ID `1500000000900`, bảng đích `InboundTrafficFlow` trên `DEV_ITS10_Inbound` và cấu hình câu ghi MERGE trong `ShareDataPacketSql` ID `1500000000903`). Tích hợp sẵn cờ dọn dẹp `@XoaDuLieuGiaLap`. | *Tùy chọn* (cần cho E, G) | *Tùy chọn* (cần cho E, G) |
 
 
 
@@ -135,7 +135,7 @@ Toàn bộ cấu trúc bảng và index do CodeFirst tạo trước (`TableSetti
 5. Bấm dừng WebAPI và xóa bỏ bản ghi cấu hình tạm trong `launch.json`. ⛔ **TUYỆT ĐỐI KHÔNG sửa trực tiếp và KHÔNG commit file `Database.json` hay `Database.Development.json`**.
 
 ##### Bước 2: Nạp dữ liệu seed chuẩn (theo thứ tự script)
-- Chạy lần lượt các script seed chuẩn: (1) `sharedata-seed-goi-tin.sql` $\rightarrow$ (2) `sharedata-seed-cau-hinh.sql` $\rightarrow$ (3) `sharedata-dich-thuat.sql` $\rightarrow$ (4) (tùy chọn) `sharedata-du-lieu-gia-lap.sql`.
+- Chạy lần lượt các script seed chuẩn: (1) `sharedata-seed-goi-tin-*.sql` $\rightarrow$ (2) `sharedata-seed-cau-hinh-*.sql` $\rightarrow$ (3) `sharedata-dich-thuat-SysTerminology.sql` $\rightarrow$ (4) (tùy chọn) `sharedata-du-lieu-gia-lap-*_local.sql`.
 - ⚠️ **Lưu ý về danh mục bảng nguồn và câu lệnh trích xuất:** Bảng `ShareDataSourceTable` lưu trữ danh mục bảng nguồn phục vụ Change Tracking và theo dõi sự kiện NATS; câu lệnh trích xuất dữ liệu của gói tin (`ExtractSql`) được cấu hình trực tiếp bằng SQL trên tab Cấu hình SQL của màn hình Nguồn dữ liệu.
 
 ##### Truy vấn kiểm tra cấu trúc cột trên `ShareDataPacket` (chỉ đọc):
@@ -244,7 +244,7 @@ Sau khi thực hiện các bài nghiệm thu (hoặc khi cần dọn dẹp CSDL 
 ### 4.1. Khôi phục tham số vận hành `SysOpConfig` (nhóm `sharedata_config`)
 
    - Đưa các tham số đã sửa thử nghiệm về giá trị mặc định: `outbound_check_interval_sec = '5'`, `packet_lookback_days_max = '365'`, `cleanup_interval_min = '1440'`; khôi phục dòng đã tắt/xóa mềm ở J4 về `Status = 1`, `IsDelete = NULL`.
-   > 💡 **Ghi chú:** Script `sharedata-seed-cau-hinh.sql` (thứ tự 2) không ghi đè các giá trị đã tồn tại trong `SysOpConfig` (`WHERE NOT EXISTS`), nên bắt buộc chạy câu lệnh `UPDATE` dưới đây để khôi phục:
+   > 💡 **Ghi chú:** Script `sharedata-seed-cau-hinh-*.sql` (thứ tự 2) không ghi đè các giá trị đã tồn tại trong `SysOpConfig` (`WHERE NOT EXISTS`), nên bắt buộc chạy câu lệnh `UPDATE` dưới đây để khôi phục:
      ```sql
      USE [DEV_ITS10];
      UPDATE dbo.SysOpConfig
@@ -337,7 +337,7 @@ IF OBJECT_ID(N'[dbo].[InboundTrafficFlow]', N'U') IS NOT NULL
 
 ### Phụ lục A: Danh mục 25 mã cảnh báo lỗi ESH-xxxx
 
-> 📌 *Nguồn trích xuất chuẩn:* [`sharedata-seed-cau-hinh.sql`](../sql/sharedata-seed-cau-hinh.sql) (`SysConfigType` = `'sharedata_error_code'`) và [`ShareDataAlertCode.cs`](../../../../TA-ITS015-WEBAPI-V1.0/src/Services/ShareData/ShareDataWorker/Infrastructure/Logging/ShareDataAlertCode.cs).  
+> 📌 *Nguồn trích xuất chuẩn:* [`sharedata-seed-cau-hinh-*.sql`](../sql/README.md) (`SysConfigType` = `'sharedata_error_code'`) và [`ShareDataAlertCode.cs`](../../../../TA-ITS015-WEBAPI-V1.0/src/Services/ShareData/ShareDataWorker/Infrastructure/Logging/ShareDataAlertCode.cs).  
 > ⚠️ **Chú ý giới hạn độ dài:** Ô *Tên* trên màn hình `sysConfigType` giới hạn tối đa 64 ký tự. Với **9 mã có tên gốc dài hơn 64 ký tự**, bảng dưới cung cấp sẵn **Tên rút gọn (≤ 64 ký tự)** để sử dụng khi nhập bằng tay trên giao diện.
 
 | Mã lỗi | Phân loại | Mức độ | Tên gốc (khi chạy Script 03) | Tên rút gọn (dùng khi nhập tay trên giao diện, ≤ 64 ký tự) | Ghi chú & Hướng xử lý |
@@ -372,7 +372,7 @@ IF OBJECT_ID(N'[dbo].[InboundTrafficFlow]', N'U') IS NOT NULL
 
 ### Phụ lục B: Danh mục 15 bảng nguồn ShareData (`ShareDataSourceTable`)
 
-> 📌 *Nguồn trích xuất chuẩn:* [`sharedata-seed-cau-hinh.sql`](../sql/sharedata-seed-cau-hinh.sql) (Mục 3.4).
+> 📌 *Nguồn trích xuất chuẩn:* [`sharedata-seed-cau-hinh-*.sql`](../sql/README.md) (Mục 3.4).
 
 | STT | ID cố định (`ID`) | Tên bảng CSDL (`TableName`) | Tên hiển thị (`Name`) | Gói tin kích hoạt (`PacketCodes`) | Thứ tự (`OrderNo`) | Theo dõi CT (`IsTracked`) | Bộ dựng SQL (`IsQueryable`) | Bí danh (`DefaultAlias`) | Ghi chú vai trò (`Remark`) |
 |:---:|:---:|---|---|---|:---:|:---:|:---:|:---:|---|
@@ -396,7 +396,7 @@ IF OBJECT_ID(N'[dbo].[InboundTrafficFlow]', N'U') IS NOT NULL
 
 ### Phụ lục C: Danh mục chuẩn 11 gói tin ShareData
 
-> 📌 *Nguồn trích xuất chuẩn:* [`sharedata-seed-goi-tin.sql`](../sql/sharedata-seed-goi-tin.sql) và `PacketDefaultTemplate` (`Module.ShareData.Infrastructure.Services.ShareDataExtraction`).
+> 📌 *Nguồn trích xuất chuẩn:* [`sharedata-seed-goi-tin-*.sql`](../sql/README.md) và `PacketDefaultTemplate` (`Module.ShareData.Infrastructure.Services.ShareDataExtraction`).
 
 | Gói | Số thứ tự (`OrderNo`) | Mã gói chuẩn (`Code`) | ID cố định | Tên gói tin (`Name`) | Chế độ (suy từ SQL) | Cột mốc (`CursorTimeColumn`) | Quét lùi (`MaxLookBackDays`) | Trạng thái (`Status`) |
 |:---:|:---:|---|:---:|---|:---:|:---:|:---:|:---:|
@@ -416,7 +416,7 @@ IF OBJECT_ID(N'[dbo].[InboundTrafficFlow]', N'U') IS NOT NULL
 
 ### Phụ lục D: Mẫu cấu hình chiều nhận E0 (Bảng đích, câu MERGE và TargetShapeJson)
 
-> 📌 *Nguồn trích xuất chuẩn:* [`ShareDataSendReceiveTests.cs`](../../../../tests/BE/ITS/ShareData/Services/ShareDataSendReceiveTests.cs) và [`sharedata-du-lieu-gia-lap.sql`](../sql/sharedata-du-lieu-gia-lap.sql) Khối 4.  
+> 📌 *Nguồn trích xuất chuẩn:* [`ShareDataSendReceiveTests.cs`](../../../../tests/BE/ITS/ShareData/Services/ShareDataSendReceiveTests.cs) và [`sharedata-du-lieu-gia-lap-*_local.sql`](../sql/README.md) Khối 4.  
 > ℹ️ **Lý do dùng gói kiểm thử riêng `E2E_INBOUND_TEST`:** Gói `101_commonData` là gói tin chuẩn của chiều GỬI (Outbound). Sử dụng gói kiểm thử riêng `E2E_INBOUND_TEST` (ID `1500000000900`) giúp cô lập hoàn toàn môi trường kiểm thử E2E hai chiều, tránh xung đột cấu hình ánh xạ giữa luồng gửi D và luồng nhận E, đồng thời dễ dàng dọn dẹp sạch sẽ sau kiểm thử mà không đụng chạm dữ liệu sản xuất.
 
 #### 1. Tạo gói kiểm thử riêng `E2E_INBOUND_TEST` trên CSDL `[DEV_ITS10]`
@@ -504,7 +504,7 @@ GO
 
 ### Phụ lục E: Danh mục thuật ngữ ShareData (SysTerminology)
 
-> 📌 *Nguồn trích xuất chuẩn:* [`sharedata-dich-thuat.sql`](../sql/sharedata-dich-thuat.sql) và lớp hằng số [`BaseMsg.cs`](../../../../TA-ITS015-WEBAPI-V1.0/src/Modules/ShareData/Module.ShareData.Core/Exceptions/BaseMsg.cs).  
+> 📌 *Nguồn trích xuất chuẩn:* [`sharedata-dich-thuat-SysTerminology.sql`](../sql/README.md) và lớp hằng số [`BaseMsg.cs`](../../../../TA-ITS015-WEBAPI-V1.0/src/Modules/ShareData/Module.ShareData.Core/Exceptions/BaseMsg.cs).  
 > ℹ️ Toàn bộ phân hệ ShareData bao gồm chính xác **93 mã khóa thuật ngữ**, tương ứng với **186 bản ghi song ngữ** (`vi-VN` và `en-US`) trong bảng `SysTerminology` (đã bổ sung khóa `sharedata.sqlTableNotAllowed` chặn truy vấn bảng ngoài danh mục `ShareDataSourceTable`). Khi nhập bằng tay trên giao diện màn hình *Hệ thống* → *Thuật ngữ*, người dùng tạo từng dòng với Tiền tố (`Name`), Mã (`Code`), và Giá trị (`Value`) cho từng ngôn ngữ.
 
 | STT | Tiền tố (`Name`) | Mã khóa (`Code`) | Bản dịch tiếng Việt (`vi-VN`) | Bản dịch tiếng Anh (`en-US`) |
@@ -567,7 +567,7 @@ GO
 
 ### Phụ lục F: Danh mục 48 tham số vận hành ShareData (SysOpConfig nhóm sharedata_config)
 
-> 📌 *Nguồn trích xuất chuẩn:* [`sharedata-seed-cau-hinh.sql`](../sql/sharedata-seed-cau-hinh.sql) (Mục 4), dịch vụ cấu hình Worker `DataWorkerConfigService.cs` (`ShareDataWorker/Infrastructure/Services/DataWorkerConfig`), dịch vụ WebAPI `ShareDataConfigService.cs` (`Module.ShareData/Infrastructure/Services/ShareDataConfig`, đọc `SysOpConfig` qua `IMessageBus`), hằng số và bảng đặc tả cấu hình `ShareDataConst.cs` (`Module.ShareData.Core/Constants`), và hằng số dự phòng giao diện `SHAREDATA_FE_CONFIG_FALLBACK` (`TA-ITS015-WEBVUE-V1.0/src/src/types/constants/sharedataFeConfig.ts`).  
+> 📌 *Nguồn trích xuất chuẩn:* [`sharedata-seed-cau-hinh-*.sql`](../sql/README.md) (Mục 4), dịch vụ cấu hình Worker `DataWorkerConfigService.cs` (`ShareDataWorker/Infrastructure/Services/DataWorkerConfig`), dịch vụ WebAPI `ShareDataConfigService.cs` (`Module.ShareData/Infrastructure/Services/ShareDataConfig`, đọc `SysOpConfig` qua `IMessageBus`), hằng số và bảng đặc tả cấu hình `ShareDataConst.cs` (`Module.ShareData.Core/Constants`), và hằng số dự phòng giao diện `SHAREDATA_FE_CONFIG_FALLBACK` (`TA-ITS015-WEBVUE-V1.0/src/src/types/constants/sharedataFeConfig.ts`).  
 > ℹ️ Toàn bộ 48 tham số được phân nhóm theo tiền tố và thành phần sử dụng: 19 tham số Worker (nhóm A), 23 tham số FE/WebAPI dùng chung (nhóm B), và 6 tham số WebAPI/SQL Center (nhóm C). Người dùng có thể tra cứu và điều chỉnh trên màn hình *Cấu hình hoạt động* (lọc theo nhóm `sharedata_config`).
 
 | STT | Mã tham số (`Code`) | Tên hiển thị (`Name`) | Mặc định (`Value`) | Thứ tự (`OrderNo`) | Khoảng hợp lệ & Đơn vị | Thành phần sử dụng | Ý nghĩa vận hành chi tiết |

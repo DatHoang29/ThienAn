@@ -989,10 +989,9 @@ namespace Tests.ShareData.Services
                 PacketVersion = "1.0",
                 OrderNo = 1,
                 Status = BaseEnums.StatusEnum.Enable,
-                ExtractSql = extractSql,
-                CursorTimeColumn = SqlValidator.IsIncrementalSql(extractSql) ? "UpdateTime" : null
             };
             await _db.Insertable(packet).ExecuteCommandAsync();
+            await ShareDataSqlSeed.SetCommonAsync(_db, packet.ID, extractSql, SqlValidator.IsIncrementalSql(extractSql) ? "UpdateTime" : null);
 
             // Outbound Subscription & Mapping
             var outboundSub = new ShareDataSubscription

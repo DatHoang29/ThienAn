@@ -42,7 +42,7 @@
 - Chi tiết xem tại [báo cáo 03, mục IV.4](03-bao-cao-tong-the-entity-csdl-sharedata.md#4-danh-mục-bảng-nguồn--bảng-sharedatasourcetable).
 
 **Điều cần biết khi dùng `SysOpConfig` cho phân hệ mới:**
-- Khai nhóm trong `SysConfigData` loại `operation_config_type` thì màn hình *Cấu hình hoạt động* mới hiện nhóm (script `sharedata-seed-cau-hinh.sql` mục 4 đã khai nhóm `sharedata_config`). Thiếu dòng này, SQL và Worker vẫn chạy, chỉ màn hình không hiện tên nhóm.
+- Khai nhóm trong `SysConfigData` loại `operation_config_type` thì màn hình *Cấu hình hoạt động* mới hiện nhóm (script `sharedata-seed-cau-hinh-*.sql` mục 4 đã khai nhóm `sharedata_config`). Thiếu dòng này, SQL và Worker vẫn chạy, chỉ màn hình không hiện tên nhóm.
 - Độ dài cột trên staging (bản chụp `.dacpac` 14/10/2026): `SysOpConfig.Code` **64**, `Value` 256, `GroupCode` 64; validator cho phép `Code` đến 128 nên mã dài hơn 64 sẽ lỗi khi ghi.
 - Staging còn cột `SysOpConfig.Lang` (16) mà entity không khai.
 
@@ -106,7 +106,7 @@
 | **Service/Worker** | Đọc trực tiếp bảng theo `GroupCode` (mẫu `CctvOptionsLoader`), **không** đi qua API | Dòng thêm/sửa bằng màn hình hay bằng script đều có hiệu lực như nhau |
 | **Script `.sql`** | Thư mục `sql/` của từng phân hệ | Nạp một lần cấu hình mặc định, chạy được trên nhiều môi trường; không phải kênh cấu hình duy nhất |
 
-> 📌 Với ShareData: Danh mục bảng nguồn và mốc Change Tracking được cấu hình trực tiếp bằng SQL trên bảng riêng `ShareDataSourceTable` (không có giao diện, Worker nạp lại định kỳ theo tham số `reload_interval_sec` trong `SysOpConfig` nhóm `sharedata_config`, mặc định 30 giây, khoảng 5–3600; không còn chế độ 0). Màn hình *Cấu hình hoạt động* dùng để quản trị 48 tham số vận hành và giới hạn thuộc nhóm `sharedata_config` (script `sharedata-seed-cau-hinh.sql` mục 4 đã seed).
+> 📌 Với ShareData: Danh mục bảng nguồn và mốc Change Tracking được cấu hình trực tiếp bằng SQL trên bảng riêng `ShareDataSourceTable` (không có giao diện, Worker nạp lại định kỳ theo tham số `reload_interval_sec` trong `SysOpConfig` nhóm `sharedata_config`, mặc định 30 giây, khoảng 5–3600; không còn chế độ 0). Màn hình *Cấu hình hoạt động* dùng để quản trị 48 tham số vận hành và giới hạn thuộc nhóm `sharedata_config` (script `sharedata-seed-cau-hinh-*.sql` mục 4 đã seed).
 
 #### `SysTerminology` — phân bố theo nhóm `Name`
 

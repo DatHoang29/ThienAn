@@ -4,7 +4,7 @@
 > 📌 **Tài liệu tham chiếu & SSOT:**  
 > - Bảng đặc tả gói tin 101–111: [`02-mapping-goi-tin-101-111.md`](02-mapping-goi-tin-101-111.md)  
 > - Báo cáo bảng `Sys*`: [`04-bao-cao-bang-sys-csdl-staging.md`](04-bao-cao-bang-sys-csdl-staging.md)  
-> - Script nạp cấu hình mã lỗi ESH, danh mục bảng nguồn và tham số vận hành: [`sharedata-seed-cau-hinh.sql`](../sql/sharedata-seed-cau-hinh.sql) (thứ tự 2, nạp 25 mã cảnh báo lỗi `ESH-xxxx` vào `SysConfigData`, 15 bảng nguồn vào `ShareDataSourceTable` và 48 tham số vận hành vào `SysOpConfig` nhóm `sharedata_config`)  
+> - Script nạp cấu hình mã lỗi ESH, danh mục bảng nguồn và tham số vận hành: [`sharedata-seed-cau-hinh-*.sql`](../sql/README.md) (thứ tự 2, nạp 25 mã cảnh báo lỗi `ESH-xxxx` vào `SysConfigData`, 15 bảng nguồn vào `ShareDataSourceTable` và 48 tham số vận hành vào `SysOpConfig` nhóm `sharedata_config`)  
 > - Kế hoạch tổng thể MasterPlan: [`Sharedata_MasterPlan.md`](../Plan/Sharedata_MasterPlan.md)  
 > - Kế hoạch Truy vấn động & Tách tầng kết nối: [PHẦN VII của `Sharedata_MasterPlan.md`](../Plan/Sharedata_MasterPlan.md#phần-vii--các-hạng-mục-từ-cuộc-họp-14102026-truy-vấn-động-nối-đuôi--tầng-kết-nối-r8--r18)  
 > - Mã nguồn C# Entity: [`TA-ITS015-WEBAPI-V1.0/src/Modules/ShareData/Module.ShareData.Core/Entities/`](../../../../TA-ITS015-WEBAPI-V1.0/src/Modules/ShareData/Module.ShareData.Core/Entities/)  
@@ -97,7 +97,7 @@ flowchart TD
 
 > 📌 **Gọn bảng CSDL (14/10/2026):** Giữ **13 bảng** (12 bảng chính + 1 bảng Inbound), không phát sinh bảng riêng cho truy vấn động mà lưu trữ trực tiếp câu truy vấn trích xuất và tham số đồng bộ tại `ShareDataPacket` (`TemplateSql`, `ExtractSql`, `SyncMode`, `CursorTimeColumn`, `MaxLookBackDays`).
 
-> 📌 **Danh mục bảng nguồn ShareDataSourceTable (17/10/2026):** Quyết định ngày 17/10/2026 hợp nhất danh sách bảng nguồn theo dõi Change Tracking từ `SysOpConfig` (nhóm `sharedata_tracker`) và bảng trạng thái `ShareDataTrackVersion` cũ về bảng danh mục nguồn tập trung `ShareDataSourceTable` của ShareData (nạp qua script [`sharedata-seed-cau-hinh.sql`](../sql/sharedata-seed-cau-hinh.sql)). Mỗi dòng đại diện cho 1 bảng nguồn có mốc `LastVersion`, `LastChangeTime`, `LastIssue` riêng, hai công tắc độc lập `IsTracked` (bật/tắt quét Change Tracking) và `IsQueryable` (cho phép dùng trên bộ dựng truy vấn Visual Query Builder), cùng `DefaultAlias`. Sửa trực tiếp bằng `.sql`, Worker tự nạp lại định kỳ. Chi tiết ở mục [IV.4](#4-danh-mục-bảng-nguồn--bảng-sharedatasourcetable).
+> 📌 **Danh mục bảng nguồn ShareDataSourceTable (17/10/2026):** Quyết định ngày 17/10/2026 hợp nhất danh sách bảng nguồn theo dõi Change Tracking từ `SysOpConfig` (nhóm `sharedata_tracker`) và bảng trạng thái `ShareDataTrackVersion` cũ về bảng danh mục nguồn tập trung `ShareDataSourceTable` của ShareData (nạp qua script [`sharedata-seed-cau-hinh-*.sql`](../sql/README.md)). Mỗi dòng đại diện cho 1 bảng nguồn có mốc `LastVersion`, `LastChangeTime`, `LastIssue` riêng, hai công tắc độc lập `IsTracked` (bật/tắt quét Change Tracking) và `IsQueryable` (cho phép dùng trên bộ dựng truy vấn Visual Query Builder), cùng `DefaultAlias`. Sửa trực tiếp bằng `.sql`, Worker tự nạp lại định kỳ. Chi tiết ở mục [IV.4](#4-danh-mục-bảng-nguồn--bảng-sharedatasourcetable).
 
 ---
 
@@ -154,7 +154,7 @@ flowchart TD
 * **Vị trí tệp:** [`TA-ITS015-WEBAPI-V1.0/src/Modules/ShareData/Module.ShareData.Core/Entities/ShareDataPacketSql.cs`](file:///Users/hoangquydat/ThienAn/TA-ITS015-WEBAPI-V1.0/src/Modules/ShareData/Module.ShareData.Core/Entities/ShareDataPacketSql.cs)
 * **Kết nối CSDL:** `Default` (`DEV_ITS10`) *(chứa cấu hình, thực thi trên Inbound)*
 * **Vai trò nghiệp vụ:**  
-  Lưu trữ câu lệnh SQL ghi chiều **NHẬN (Inbound)** cho từng gói tin. Khi Worker xử lý gói tin nhận từ đối tác, nó sẽ nạp các câu lệnh này theo `OrderNo` tăng dần và thực thi câu lệnh `MERGE` an toàn trên CSDL Inbound. Hiện tại chưa có màn hình quản trị trên giao diện người dùng; câu lệnh ghi chiều nhận bắt buộc phải nạp và quản lý bằng script SQL (ví dụ script `sharedata-du-lieu-gia-lap.sql` cho gói test `E2E_INBOUND_TEST`; các gói nhận thật phải viết câu lệnh `INSERT` riêng vào bảng này hoặc qua script 1).
+  Lưu trữ câu lệnh SQL ghi chiều **NHẬN (Inbound)** cho từng gói tin. Khi Worker xử lý gói tin nhận từ đối tác, nó sẽ nạp các câu lệnh này theo `OrderNo` tăng dần và thực thi câu lệnh `MERGE` an toàn trên CSDL Inbound. Hiện tại chưa có màn hình quản trị trên giao diện người dùng; câu lệnh ghi chiều nhận bắt buộc phải nạp và quản lý bằng script SQL (ví dụ script `sharedata-du-lieu-gia-lap-*_local.sql` cho gói test `E2E_INBOUND_TEST`; các gói nhận thật phải viết câu lệnh `INSERT` riêng vào bảng này hoặc qua script 1).
 * **Cấu trúc trường cốt lõi:**
   | Tên trường C# | Kiểu CSDL | Ràng buộc | Mô tả chức năng |
   | :--- | :--- | :---: | :--- |
@@ -298,7 +298,7 @@ flowchart TD
 
 #### 10. Entity `ShareDataSourceTable` — Bảng `ShareDataSourceTable` *(Cũ 27/09/2026 → Cải tiến 17/10/2026)*
 * **Vị trí tệp:** [`TA-ITS015-WEBAPI-V1.0/src/Modules/ShareData/Module.ShareData.Core/Entities/ShareDataSourceTable.cs`](file:///Users/hoangquydat/ThienAn/TA-ITS015-WEBAPI-V1.0/src/Modules/ShareData/Module.ShareData.Core/Entities/ShareDataSourceTable.cs)
-* **Dữ liệu khởi tạo chuẩn:** Script [`sharedata-seed-cau-hinh.sql`](../sql/sharedata-seed-cau-hinh.sql) mục 3.4 (và bộ đọc `SeedScriptReader` trong kiểm thử).
+* **Dữ liệu khởi tạo chuẩn:** Script [`sharedata-seed-cau-hinh-*.sql`](../sql/README.md) mục 3.4 (và bộ đọc `SeedScriptReader` trong kiểm thử).
 * **Kết nối CSDL:** `Default` (`DEV_ITS10`)
 * **Vai trò nghiệp vụ:**  
   Danh mục bảng nguồn tập trung của phân hệ ShareData, đảm nhận đồng thời 2 vai trò:
@@ -406,14 +406,14 @@ Bên cạnh 13 entity cốt lõi trực thuộc phân hệ, ShareData còn tươ
 > 📌 **Quy ước đặt cấu hình (chung toàn dự án, ShareData làm theo):** danh mục giá trị dùng chung (như 25 mã cảnh báo lỗi `ESH-xxxx`) nằm ở `SysConfigType`/`SysConfigData`; bản dịch giao diện và thông báo nằm ở `SysTerminology`; tham số vận hành chung của từng phân hệ nằm ở `SysOpConfig` theo `GroupCode` (ví dụ `cctv_config`, `mail_config`, `toll_config`, `vds_config`, và `sharedata_config` cho ShareData). Riêng danh mục bảng nguồn phục vụ Change Tracking và bộ dựng Visual Query Builder (ánh xạ bảng nguồn $\rightarrow$ gói tin kích hoạt, mốc `LastVersion` độc lập, công tắc `IsTracked`, `IsQueryable`) nằm ở bảng `ShareDataSourceTable` của ShareData.
 
 ### 1. Bảng Cấu Hình Danh Mục Hệ Thống (`SysConfigData` / `SysConfigType`)
-- **`sharedata_error_code` (25 mã, nạp bằng script `sharedata-seed-cau-hinh.sql`):**
+- **`sharedata_error_code` (25 mã, nạp bằng script `sharedata-seed-cau-hinh-*.sql`):**
   - **14 Mã Outbound (Chiều Gửi):** `ESH-1201` (Bộ mã CodeSet khai trong metadata không tồn tại), `ESH-1202` (Trường bắt buộc thiếu/null, hủy kết xuất), `ESH-1203` (Biểu thức không qua kiểm tra an toàn hoặc lỗi khi tính, giữ giá trị nguồn), `ESH-1204` (`TargetShapeJson` rỗng hoặc sai cú pháp), `ESH-1301` (Không tìm thấy cấu hình gói tin), `ESH-1302` (Lỗi truy vấn dữ liệu nguồn), `ESH-1303` (Không tìm thấy mapping chiều gửi đang bật), `ESH-1304` (Khóa `__rowid` dài hơn cột `LastKey`), `ESH-1305` (Không tìm thấy câu SQL trích xuất ở mọi tầng), `ESH-1306` (Thứ tự con trỏ không tăng dần hoặc thiếu `__rowid`), `ESH-1307` (Mốc con trỏ mới lùi so với mốc hiện tại), `ESH-1401` (Gửi HTTP REST tới đối tác thất bại), `ESH-1402` (Lưu đệm bằng chứng thất bại, hủy gửi và giữ mốc), `ESH-1403` (Giá trị cấu hình kết nối đối tác không hợp lệ hoặc không khớp kiểu, đã bỏ qua và dùng mặc định).
   - **7 Mã Inbound (Chiều Nhận):** `ESH-1501` (Không đọc được nội dung gói nhận về), `ESH-1502` (Lỗi ghi dữ liệu xuống CSDL nhận), `ESH-1503` (Không tìm thấy cấu hình gói tin nhận về), `ESH-1504` (Đối tác không tồn tại hoặc đang tắt), `ESH-1505` (Gói tin chưa có đăng ký nhận hợp lệ), `ESH-1506` (Gói tin chưa khai câu ghi chiều nhận), `ESH-1507` (Giải mã gói nhận về thất bại — mã dành sẵn, chưa phát sinh do mã hóa chưa nối luồng theo quyết định 16/10/2026).
   - **4 Mã Change Tracking:** `ESH-1601` (Mốc không hợp lệ, worker đã tự nhảy cóc để hồi phục), `ESH-1602` (Truy vấn `CHANGETABLE` lỗi hoặc bảng nguồn bị cô lập), `ESH-1603` (CSDL/bảng nguồn chưa bật Change Tracking, **hoặc cấu hình bảng giám sát rỗng/toàn bộ bị tắt**), `ESH-1604` (Mốc không còn tương thích CSDL, đã hạ về `-1` để khởi tạo lại).
 - **`shareData_type`:** Phân loại 11 nhóm gói tin chia sẻ dữ liệu.
 
 ### 2. Bảng Thuật Ngữ Đa Ngôn Ngữ (`SysTerminology`)
-- Chứa toàn bộ các nhãn hiển thị đa ngôn ngữ tiếng Việt (`vi-vn`) và tiếng Anh (`en-us`) phục vụ giao diện người dùng ShareData theo tiền tố `lz.validation`, `lz.exception`, `lz.entity` — 93 khóa, 186 bản ghi song ngữ (dòng vi-VN/en-US), nạp bằng script `sharedata-dich-thuat.sql` (thứ tự 3).
+- Chứa toàn bộ các nhãn hiển thị đa ngôn ngữ tiếng Việt (`vi-vn`) và tiếng Anh (`en-us`) phục vụ giao diện người dùng ShareData theo tiền tố `lz.validation`, `lz.exception`, `lz.entity` — 93 khóa, 186 bản ghi song ngữ (dòng vi-VN/en-US), nạp bằng script `sharedata-dich-thuat-SysTerminology.sql` (thứ tự 3).
 
 ### 3. Bảng CSDL Nguồn Trích Xuất Dữ Liệu (Source Tables 101–110)
 Các câu truy vấn SQL trích xuất động trong `ShareDataPacket.ExtractSql` đọc trực tiếp từ các bảng nghiệp vụ sau:
@@ -456,7 +456,7 @@ Các câu truy vấn SQL trích xuất động trong `ShareDataPacket.ExtractSql
 | `IsQueryable` | `bit` (`bool?`) | `1` = Cho phép dùng bảng trên bộ dựng truy vấn Visual Query Builder và câu lệnh SQL gói tin; `0` = Chặn (ẩn khỏi UI và `SqlValidator` báo lỗi `SqlTableNotAllowed`). |
 | `DefaultAlias` | `nvarchar(32)` | Bí danh mặc định khi sinh câu SQL trên Visual Query Builder (`zs`, `z`, `tstat`, `td`, `c`, `w`, `tin`, `tout`, `vr`, `i`, `et`, `v`, `eq`, `tl`, `ts`). |
 
-**Danh sách seed (15 bảng, script `sharedata-seed-cau-hinh.sql` mục 3.4).**
+**Danh sách seed (15 bảng, script `sharedata-seed-cau-hinh-*.sql` mục 3.4).**
 
 | Bảng nguồn (`TableName`) | Bí danh (`DefaultAlias`) | Gói kích hoạt (`PacketCodes`) | `IsTracked` | `IsQueryable` |
 | :--- | :---: | :--- | :---: | :---: |
@@ -478,7 +478,7 @@ Các câu truy vấn SQL trích xuất động trong `ShareDataPacket.ExtractSql
 
 > 📌 *Lưu ý về bảng `TmsEquipment`:* Đặt `IsTracked = 0` (tắt giám sát Change Tracking) để tránh trigger quét thừa cho 102/103/108 khi chỉ cập nhật thông tin thiết bị, nhưng đặt `IsQueryable = 1` để vẫn được phép tra cứu trong các gói tin.
 
-Script chỉ `INSERT` dòng chưa có (`WHERE NOT EXISTS`), chạy lại không ghi đè giá trị đã sửa. **Triển khai lần đầu phải chạy script `sharedata-seed-cau-hinh.sql` (thứ tự 2) trước khi chạy Worker**, vì bảng rỗng thì Worker không giám sát bảng nào.
+Script chỉ `INSERT` dòng chưa có (`WHERE NOT EXISTS`), chạy lại không ghi đè giá trị đã sửa. **Triển khai lần đầu phải chạy script `sharedata-seed-cau-hinh-*.sql` (thứ tự 2) trước khi chạy Worker**, vì bảng rỗng thì Worker không giám sát bảng nào.
 
 **Hành vi khi chạy.**
 

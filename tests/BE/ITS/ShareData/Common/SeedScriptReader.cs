@@ -4,11 +4,16 @@ using System.Text.RegularExpressions;
 using Module.ShareData.Core.Entities;
 
 /// <summary>
-/// Description: Đọc và phân tích cú pháp tệp seed SQL 'sharedata-seed-goi-tin.sql'
+/// Description: Đọc và phân tích cú pháp các tệp seed SQL của ShareData (mỗi tệp ghi một bảng, hậu tố tên bảng)
 ///              để trích xuất chuỗi SQL cấu hình của các gói tin ShareData.
 /// </summary>
 internal static class SeedScriptReader
 {
+    private const string PacketSeedFile = "sharedata-seed-goi-tin-ShareDataPacket.sql";
+    private const string SqlSeedFile = "sharedata-seed-goi-tin-ShareDataSql.sql";
+    private const string PacketSqlSeedFile = "sharedata-seed-goi-tin-ShareDataPacketSql.sql";
+    private const string SourceTableSeedFile = "sharedata-seed-cau-hinh-ShareDataSourceTable.sql";
+
     private static readonly Lazy<Dictionary<string, SeedPacketInfo>> Cache = new(LoadAllInternal);
 
     /// <summary>
@@ -58,7 +63,7 @@ internal static class SeedScriptReader
         if (!all.TryGetValue(normalizedCode, out var info))
         {
             throw new InvalidOperationException(
-                $"Không tìm thấy cấu hình trích xuất của gói tin '{normalizedCode}' trong kịch bản seed sharedata-seed-goi-tin.sql.");
+                $"Không tìm thấy cấu hình trích xuất của gói tin '{normalizedCode}' trong kịch bản seed {PacketSeedFile}.");
         }
 
         return info.ExtractSql;
@@ -77,7 +82,7 @@ internal static class SeedScriptReader
     /// </summary>
     public static IReadOnlyList<SeedInsertedPacketInfo> ReadInsertedPackets()
     {
-        var scriptPath = ResolveSeedScriptPath();
+        var scriptPath = ResolveSqlScriptPath(PacketSeedFile);
         var content = File.ReadAllText(scriptPath);
 
         var regex = new Regex(
@@ -104,37 +109,48 @@ internal static class SeedScriptReader
 
     private static Dictionary<string, SeedPacketInfo> LoadAllInternal()
     {
-        var scriptPath = ResolveSeedScriptPath();
-        var content = File.ReadAllText(scriptPath);
+        var packetScriptPath = ResolveSqlScriptPath(PacketSeedFile);
+        var sqlScriptPath = ResolveSqlScriptPath(SqlSeedFile);
+        var packetContent = File.ReadAllText(packetScriptPath);
+        var sqlContent = File.ReadAllText(sqlScriptPath);
 
-        var regex = new Regex(
-            @"SET \[TemplateSql\] = N'(?<sql>.*?)'\s*WHERE \(\[Code\] = '(?<code>\d{3})'.*?SET \[ExtractSql\] = \[TemplateSql\],\s*\[CursorTimeColumn\]\s*=\s*(?<cursor>NULL|N'[^']*'),\s*\[MaxLookBackDays\]\s*=\s*(?<lookback>NULL|\d+)",
+        // Câu mẫu gốc (TemplateSql) nằm ở tệp ShareDataPacket; cột thời gian và số ngày quét lùi nằm ở tệp ShareDataSql
+        var templateRegex = new Regex(
+            @"SET \[TemplateSql\] = N'(?<sql>.*?)'\s*WHERE \(\[Code\] = '(?<code>\d{3})'",
+            RegexOptions.Singleline);
+        var settingRegex = new Regex(
+            @"SET s\.\[ExtractSql\] = p\.\[TemplateSql\],\s*s\.\[CursorTimeColumn\]\s*=\s*(?<cursor>NULL|N'[^']*'),\s*s\.\[MaxLookBackDays\]\s*=\s*(?<lookback>NULL|\d+).*?WHERE \(p\.\[Code\] = '(?<code>\d{3})'",
             RegexOptions.Singleline);
 
-        var matches = regex.Matches(content);
-        if (matches.Count == 0)
+        var templates = templateRegex.Matches(packetContent);
+        if (templates.Count == 0)
         {
             throw new InvalidOperationException(
-                $"Không tìm thấy bất kỳ khối UPDATE gói tin nào phù hợp trong tệp seed '{scriptPath}'.");
+                $"Không tìm thấy bất kỳ khối UPDATE TemplateSql nào phù hợp trong tệp seed '{packetScriptPath}'.");
         }
 
+        var settings = settingRegex.Matches(sqlContent)
+            .ToDictionary(m => m.Groups["code"].Value, m => m, StringComparer.OrdinalIgnoreCase);
+
         var dict = new Dictionary<string, SeedPacketInfo>(StringComparer.OrdinalIgnoreCase);
-        foreach (Match match in matches)
+        foreach (Match match in templates)
         {
-            var rawSql = match.Groups["sql"].Value;
-            var cursorRaw = match.Groups["cursor"].Value;
-            var lookbackRaw = match.Groups["lookback"].Value;
             var code = match.Groups["code"].Value;
+            var extractSql = match.Groups["sql"].Value.Replace("''", "'");
 
-            var extractSql = rawSql.Replace("''", "'");
-
-            string? cursor = cursorRaw.Equals("NULL", StringComparison.OrdinalIgnoreCase)
-                ? null
-                : cursorRaw.Trim().TrimStart('N').Trim('\'');
-
-            int? lookback = lookbackRaw.Equals("NULL", StringComparison.OrdinalIgnoreCase)
-                ? null
-                : int.Parse(lookbackRaw);
+            string? cursor = null;
+            int? lookback = null;
+            if (settings.TryGetValue(code, out var setting))
+            {
+                var cursorRaw = setting.Groups["cursor"].Value;
+                var lookbackRaw = setting.Groups["lookback"].Value;
+                cursor = cursorRaw.Equals("NULL", StringComparison.OrdinalIgnoreCase)
+                    ? null
+                    : cursorRaw.Trim().TrimStart('N').Trim('\'');
+                lookback = lookbackRaw.Equals("NULL", StringComparison.OrdinalIgnoreCase)
+                    ? null
+                    : int.Parse(lookbackRaw);
+            }
 
             dict[code] = new SeedPacketInfo(code, extractSql, cursor, lookback);
         }
@@ -142,72 +158,39 @@ internal static class SeedScriptReader
         return dict;
     }
 
-    private static string ResolveSeedScriptPath()
+    /// <summary>
+    /// Dò tệp script SQL của ShareData theo tên tệp, đi ngược từ thư mục chạy test lên gốc kho mã.
+    /// </summary>
+    private static string ResolveSqlScriptPath(string fileName)
     {
         var currentDir = new DirectoryInfo(AppContext.BaseDirectory);
         while (currentDir != null)
         {
-            var targetFile = Path.Combine(
-                currentDir.FullName,
-                "DocBusinessThienAn",
-                "HữuNghị-ChiLăng",
-                "ShareData",
-                "sql",
-                "sharedata-seed-goi-tin.sql");
-
+            var targetFile = Path.Combine(currentDir.FullName, "DocBusinessThienAn", "HữuNghị-ChiLăng", "ShareData", "sql", fileName);
             if (File.Exists(targetFile))
             {
                 return targetFile;
             }
 
-            var legacyFile = Path.Combine(
-                currentDir.FullName,
-                "DocBusinessThienAn",
-                "HữuNghị-ChiLăng",
-                "ShareData",
-                "sql",
-                "02-sharedata-seed-goi-tin.sql");
-
-            if (File.Exists(legacyFile))
-            {
-                return legacyFile;
-            }
-
-            var altFile = Path.Combine(
-                currentDir.FullName,
-                "ShareData",
-                "sql",
-                "sharedata-seed-goi-tin.sql");
-
+            var altFile = Path.Combine(currentDir.FullName, "ShareData", "sql", fileName);
             if (File.Exists(altFile))
             {
                 return altFile;
-            }
-
-            var altLegacyFile = Path.Combine(
-                currentDir.FullName,
-                "ShareData",
-                "sql",
-                "02-sharedata-seed-goi-tin.sql");
-
-            if (File.Exists(altLegacyFile))
-            {
-                return altLegacyFile;
             }
 
             currentDir = currentDir.Parent;
         }
 
         throw new FileNotFoundException(
-            $"Không tìm thấy tệp seed sharedata-seed-goi-tin.sql khi dò từ thư mục gốc '{AppContext.BaseDirectory}'.");
+            $"Không tìm thấy tệp seed {fileName} khi dò từ thư mục gốc '{AppContext.BaseDirectory}'.");
     }
 
     /// <summary>
-    /// Đọc danh mục 15 bảng nguồn từ script sharedata-seed-cau-hinh.sql (mục 3.4).
+    /// Đọc danh mục 15 bảng nguồn từ script sharedata-seed-cau-hinh-ShareDataSourceTable.sql.
     /// </summary>
     public static List<ShareDataSourceTable> ReadSourceTables()
     {
-        var scriptPath = ResolveScript03Path();
+        var scriptPath = ResolveSqlScriptPath(SourceTableSeedFile);
         var content = File.ReadAllText(scriptPath);
 
         var regex = new Regex(
@@ -235,66 +218,6 @@ internal static class SeedScriptReader
         return list;
     }
 
-    private static string ResolveScript03Path()
-    {
-        var currentDir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (currentDir != null)
-        {
-            var targetFile = Path.Combine(
-                currentDir.FullName,
-                "DocBusinessThienAn",
-                "HữuNghị-ChiLăng",
-                "ShareData",
-                "sql",
-                "sharedata-seed-cau-hinh.sql");
-
-            if (File.Exists(targetFile))
-            {
-                return targetFile;
-            }
-
-            var legacyFile = Path.Combine(
-                currentDir.FullName,
-                "DocBusinessThienAn",
-                "HữuNghị-ChiLăng",
-                "ShareData",
-                "sql",
-                "03-sharedata-seed-cau-hinh.sql");
-
-            if (File.Exists(legacyFile))
-            {
-                return legacyFile;
-            }
-
-            var altFile = Path.Combine(
-                currentDir.FullName,
-                "ShareData",
-                "sql",
-                "sharedata-seed-cau-hinh.sql");
-
-            if (File.Exists(altFile))
-            {
-                return altFile;
-            }
-
-            var altLegacyFile = Path.Combine(
-                currentDir.FullName,
-                "ShareData",
-                "sql",
-                "03-sharedata-seed-cau-hinh.sql");
-
-            if (File.Exists(altLegacyFile))
-            {
-                return altLegacyFile;
-            }
-
-            currentDir = currentDir.Parent;
-        }
-
-        throw new FileNotFoundException(
-            $"Không tìm thấy tệp seed sharedata-seed-cau-hinh.sql khi dò từ thư mục gốc '{AppContext.BaseDirectory}'.");
-    }
-
     private static readonly Lazy<IReadOnlyList<SeedWriteSqlInfo>> WriteSqlStatementsCache = new(LoadWriteSqlStatementsInternal);
 
     /// <summary>
@@ -307,7 +230,7 @@ internal static class SeedScriptReader
 
     private static IReadOnlyList<SeedWriteSqlInfo> LoadWriteSqlStatementsInternal()
     {
-        var scriptPath = ResolveSeedScriptPath();
+        var scriptPath = ResolveSqlScriptPath(PacketSqlSeedFile);
         var content = File.ReadAllText(scriptPath);
 
         var regex = new Regex(

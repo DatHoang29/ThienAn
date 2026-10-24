@@ -32,19 +32,18 @@ public partial class ShareDataPacketControllerTests
 
         var unique = Guid.NewGuid().ToString("N")[..8];
         var partner = NewPartnerSqlPartner($"PT_FLT_{unique}", unique);
-        var stdSql = "SELECT ID, Code, Name FROM TmsZone";
 
         // Dùng chung: có đăng ký gửi, không có SQL riêng
-        var shared = NewPartnerSqlPacket($"PKT_SHARED_{unique}", unique, stdSql);
+        var shared = NewPartnerSqlPacket($"PKT_SHARED_{unique}", unique);
         // Riêng: có đăng ký gửi và có SQL riêng
-        var custom = NewPartnerSqlPacket($"PKT_CUSTOM_{unique}", unique, stdSql);
+        var custom = NewPartnerSqlPacket($"PKT_CUSTOM_{unique}", unique);
         // Chỉ có SQL riêng, không có đăng ký
-        var customOnly = NewPartnerSqlPacket($"PKT_ONLYSQL_{unique}", unique, stdSql);
+        var customOnly = NewPartnerSqlPacket($"PKT_ONLYSQL_{unique}", unique);
         // Đăng ký ghi theo mã gói thay vì ID
-        var byCode = NewPartnerSqlPacket($"PKT_BYCODE_{unique}", unique, stdSql);
+        var byCode = NewPartnerSqlPacket($"PKT_BYCODE_{unique}", unique);
         // Không liên quan, và gói có đăng ký đã hủy
-        var unrelated = NewPartnerSqlPacket($"PKT_NONE_{unique}", unique, stdSql);
-        var cancelled = NewPartnerSqlPacket($"PKT_CANCEL_{unique}", unique, stdSql);
+        var unrelated = NewPartnerSqlPacket($"PKT_NONE_{unique}", unique);
+        var cancelled = NewPartnerSqlPacket($"PKT_CANCEL_{unique}", unique);
 
         await db.Insertable(new[] { shared, custom, customOnly, byCode, unrelated, cancelled }).ExecuteCommandAsync();
         await db.Insertable(partner).ExecuteCommandAsync();
@@ -64,8 +63,8 @@ public partial class ShareDataPacketControllerTests
         }).ExecuteCommandAsync();
         await db.Insertable(new[]
         {
-            new ShareDataPartnerSql { ID = Guid.NewGuid().ToString("N"), PartnerId = partner.ID, PacketId = custom.ID, ExtractSql = "SELECT ID FROM TmsZone" },
-            new ShareDataPartnerSql { ID = Guid.NewGuid().ToString("N"), PartnerId = partner.ID, PacketId = customOnly.ID, ExtractSql = "SELECT Code FROM TmsZone" },
+            new ShareDataSql { ID = Guid.NewGuid().ToString("N"), PartnerId = partner.ID, PacketId = custom.ID, ExtractSql = "SELECT ID FROM TmsZone" },
+            new ShareDataSql { ID = Guid.NewGuid().ToString("N"), PartnerId = partner.ID, PacketId = customOnly.ID, ExtractSql = "SELECT Code FROM TmsZone" },
         }).ExecuteCommandAsync();
 
         // Act

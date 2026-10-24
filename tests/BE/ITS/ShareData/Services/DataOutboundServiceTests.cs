@@ -995,15 +995,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                     Code = packetCodeWithSuffix,
                     Name = "Dữ liệu giao thông chung",
                     PacketVersion = "1.0",
-                    OrderNo = 1,
-                    ExtractSql = PacketTemplateSeed.TryGet(packetCodeWithSuffix, out var tpl) ? tpl.ExtractSql : null
+                    OrderNo = 1
                 };
                 await db.Insertable(packet).ExecuteCommandAsync();
             }
-            else if (string.IsNullOrWhiteSpace(packet.ExtractSql))
+            if (string.IsNullOrWhiteSpace((await ShareDataSqlSeed.GetCommonAsync(db, packet.ID))?.ExtractSql))
             {
-                packet.ExtractSql = PacketTemplateSeed.TryGet(packetCodeWithSuffix, out var tpl) ? tpl.ExtractSql : null;
-                await db.Updateable(packet).ExecuteCommandAsync();
+                await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, PacketTemplateSeed.TryGet(packetCodeWithSuffix, out var tpl) ? tpl.ExtractSql : null);
             }
 
             var existingFields = await db.Queryable<ShareDataPacketField>().Where(f => f.DatatypeId == packetCodeWithSuffix).ToListAsync();
@@ -1304,15 +1302,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                     Code = "101_commonData",
                     Name = "Dữ liệu giao thông chung",
                     PacketVersion = "1.0",
-                    OrderNo = 1,
-                    ExtractSql = PacketTemplateSeed.TryGet("101_commonData", out var tpl) ? tpl.ExtractSql : null
+                    OrderNo = 1
                 };
                 await db.Insertable(packet).ExecuteCommandAsync();
             }
-            else if (string.IsNullOrWhiteSpace(packet.ExtractSql))
+            if (string.IsNullOrWhiteSpace((await ShareDataSqlSeed.GetCommonAsync(db, packet.ID))?.ExtractSql))
             {
-                packet.ExtractSql = PacketTemplateSeed.TryGet("101_commonData", out var tpl) ? tpl.ExtractSql : null;
-                await db.Updateable(packet).ExecuteCommandAsync();
+                await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, PacketTemplateSeed.TryGet("101_commonData", out var tpl) ? tpl.ExtractSql : null);
             }
 
 
@@ -1397,15 +1393,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                     Code = "101_commonData",
                     Name = "Dữ liệu giao thông chung",
                     PacketVersion = "1.0",
-                    OrderNo = 1,
-                    ExtractSql = PacketTemplateSeed.TryGet("101_commonData", out var tpl) ? tpl.ExtractSql : null
+                    OrderNo = 1
                 };
                 await db.Insertable(packet).ExecuteCommandAsync();
             }
-            else if (string.IsNullOrWhiteSpace(packet.ExtractSql))
+            if (string.IsNullOrWhiteSpace((await ShareDataSqlSeed.GetCommonAsync(db, packet.ID))?.ExtractSql))
             {
-                packet.ExtractSql = PacketTemplateSeed.TryGet("101_commonData", out var tpl) ? tpl.ExtractSql : null;
-                await db.Updateable(packet).ExecuteCommandAsync();
+                await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, PacketTemplateSeed.TryGet("101_commonData", out var tpl) ? tpl.ExtractSql : null);
             }
 
             // Case 1: Partner bị Disable -> Không được chọn
@@ -2259,10 +2253,10 @@ FROM TmsZoneStatus zs
 LEFT JOIN TmsZone z ON zs.ZoneId = z.ID
 LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId";
 
-            await db.Updateable<ShareDataPacket>()
-                .SetColumns(p => p.ExtractSql == sql101)
-                .Where(p => p.Code == "101" || p.Code == "101_commonData")
-                .ExecuteCommandAsync();
+            foreach (var packet101 in await db.Queryable<ShareDataPacket>().Where(p => p.Code == "101" || p.Code == "101_commonData").ToListAsync())
+            {
+                await ShareDataSqlSeed.SetCommonAsync(db, packet101.ID, sql101);
+            }
 
             // Seed Template SQL động cho gói 103 (Incremental)
             var sql103 = @"SELECT TOP (@pageSize)
@@ -2291,11 +2285,10 @@ WHERE td.IsDelete IS NULL
   )
 ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
-            await db.Updateable<ShareDataPacket>()
-                .SetColumns(p => p.ExtractSql == sql103)
-                .SetColumns(p => p.CursorTimeColumn == "DetectTime")
-                .Where(p => p.Code == "103" || p.Code == "103_vdsData")
-                .ExecuteCommandAsync();
+            foreach (var packet103 in await db.Queryable<ShareDataPacket>().Where(p => p.Code == "103" || p.Code == "103_vdsData").ToListAsync())
+            {
+                await ShareDataSqlSeed.SetCommonAsync(db, packet103.ID, sql103, "DetectTime");
+            }
 
             // Seed Dữ liệu nghiệp vụ kiểm thử
             var zoneId = $"ZONE_{unique}";
@@ -2579,9 +2572,12 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             PacketTemplateSeed.TryGet("110", out var tpl110);
             await db.Updateable<ShareDataPacket>()
                 .SetColumns(p => p.Status == BaseEnums.StatusEnum.Enable)
-                .SetColumns(p => p.ExtractSql == (tpl110 != null ? tpl110.ExtractSql : null))
                 .Where(p => p.Code == "110" || p.Code == "110_publicMessaging")
                 .ExecuteCommandAsync();
+            foreach (var packet110 in await db.Queryable<ShareDataPacket>().Where(p => p.Code == "110" || p.Code == "110_publicMessaging").ToListAsync())
+            {
+                await ShareDataSqlSeed.SetCommonAsync(db, packet110.ID, tpl110 != null ? tpl110.ExtractSql : null);
+            }
 
             // 3. Đăng ký chia sẻ (Subscription)
             var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
@@ -6531,8 +6527,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
             await PacketMetadataCatalogTest.SeedPacketToDb(db, "105");
             var packet105 = await db.Queryable<ShareDataPacket>().Where(p => p.Code == "105").FirstAsync();
-            packet105.ExtractSql = LegacyPacketSql.Packet109;
-            await db.Updateable(packet105).UpdateColumns(p => new { p.ExtractSql }).ExecuteCommandAsync();
+            await ShareDataSqlSeed.SetCommonAsync(db, packet105.ID, LegacyPacketSql.Packet109);
 
             var unique = Guid.NewGuid().ToString("N")[..8];
             await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.VehicleIdentification, unique);
@@ -6575,9 +6570,9 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 Name = $"No SQL Packet {unique}",
                 PacketVersion = "1.0",
                 Status = BaseEnums.StatusEnum.Enable,
-                ExtractSql = null
             };
             await db.Insertable(packet).ExecuteCommandAsync();
+            await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, null);
 
             var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
             {
@@ -7210,16 +7205,16 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                         Name = def.Packet.Name,
                         PacketVersion = def.Packet.PacketVersion,
                         Status = def.Packet.Status,
-                        ExtractSql = PacketTemplateSeed.TryGet(def.Packet.Code, out var tplNew) ? tplNew.ExtractSql : null
                     };
                     await db.Insertable(newPacket).ExecuteCommandAsync();
+                    await ShareDataSqlSeed.SetCommonAsync(db, newPacket.ID, PacketTemplateSeed.TryGet(def.Packet.Code, out var tplNew) ? tplNew.ExtractSql : null);
                 }
                 else
                 {
                     existingPacket.PacketVersion = def.Packet.PacketVersion;
                     existingPacket.Status = def.Packet.Status;
-                    existingPacket.ExtractSql = PacketTemplateSeed.TryGet(def.Packet.Code, out var tplOld) ? tplOld.ExtractSql : null;
                     await db.Updateable(existingPacket).ExecuteCommandAsync();
+                    await ShareDataSqlSeed.SetCommonAsync(db, existingPacket.ID, PacketTemplateSeed.TryGet(def.Packet.Code, out var tplOld) ? tplOld.ExtractSql : null);
                 }
 
                 await db.Deleteable<ShareDataPacketField>().Where(f => f.DatatypeId == def.Packet.Code).ExecuteCommandAsync();

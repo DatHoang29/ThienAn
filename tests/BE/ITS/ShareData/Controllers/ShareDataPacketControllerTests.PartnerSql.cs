@@ -13,13 +13,12 @@ namespace Tests.ShareData.Controllers;
 
 public partial class ShareDataPacketControllerTests
 {
-    private static ShareDataPacket NewPartnerSqlPacket(string packetCode, string unique, string? extractSql) => new()
+    private static ShareDataPacket NewPartnerSqlPacket(string packetCode, string unique) => new()
     {
         ID = Guid.NewGuid().ToString("N"),
         Code = packetCode,
         Name = $"Packet {unique}",
-        Status = BaseEnums.StatusEnum.Enable,
-        ExtractSql = extractSql
+        Status = BaseEnums.StatusEnum.Enable
     };
 
     private static ShareDataPartner NewPartnerSqlPartner(string code, string unique) => new()
@@ -66,7 +65,7 @@ public partial class ShareDataPacketControllerTests
         var unique = Guid.NewGuid().ToString("N")[..8];
         var packetCode = $"PKT_LST_{unique}";
         var stdSql = "SELECT ID, Code, Name FROM TmsZone";
-        var packet = NewPartnerSqlPacket(packetCode, unique, stdSql);
+        var packet = NewPartnerSqlPacket(packetCode, unique);
 
         // A: có đăng ký gửi, dùng SQL chung, có hồ sơ ánh xạ đang bật
         var partnerA = NewPartnerSqlPartner($"PT_A_{unique}", unique);
@@ -82,6 +81,7 @@ public partial class ShareDataPacketControllerTests
         var partnerF = NewPartnerSqlPartner($"PT_F_{unique}", unique);
 
         await db.Insertable(packet).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, stdSql);
         await db.Insertable(new[] { partnerA, partnerB, partnerC, partnerD, partnerE, partnerF }).ExecuteCommandAsync();
         await db.Insertable(new[]
         {
@@ -93,9 +93,9 @@ public partial class ShareDataPacketControllerTests
         }).ExecuteCommandAsync();
         await db.Insertable(new[]
         {
-            new ShareDataPartnerSql { ID = Guid.NewGuid().ToString("N"), PartnerId = partnerB.ID, PacketId = packet.ID, ExtractSql = "SELECT ID, Code FROM TmsZone" },
-            new ShareDataPartnerSql { ID = Guid.NewGuid().ToString("N"), PartnerId = partnerC.ID, PacketId = packet.ID, ExtractSql = "SELECT ID, Name FROM TmsZone" },
-            new ShareDataPartnerSql { ID = Guid.NewGuid().ToString("N"), PartnerId = partnerF.ID, PacketId = packet.ID, ExtractSql = "SELECT ID FROM TmsZone" },
+            new ShareDataSql { ID = Guid.NewGuid().ToString("N"), PartnerId = partnerB.ID, PacketId = packet.ID, ExtractSql = "SELECT ID, Code FROM TmsZone" },
+            new ShareDataSql { ID = Guid.NewGuid().ToString("N"), PartnerId = partnerC.ID, PacketId = packet.ID, ExtractSql = "SELECT ID, Name FROM TmsZone" },
+            new ShareDataSql { ID = Guid.NewGuid().ToString("N"), PartnerId = partnerF.ID, PacketId = packet.ID, ExtractSql = "SELECT ID FROM TmsZone" },
         }).ExecuteCommandAsync();
 
         // Act
@@ -134,10 +134,11 @@ public partial class ShareDataPacketControllerTests
         var unique = Guid.NewGuid().ToString("N")[..8];
         var packetCode = $"PKT_UPD_{unique}";
         var stdSql = "SELECT ID, Code, Name FROM TmsZone";
-        var packet = NewPartnerSqlPacket(packetCode, unique, stdSql);
+        var packet = NewPartnerSqlPacket(packetCode, unique);
         var partner = NewPartnerSqlPartner($"PT_{unique}", unique);
 
         await db.Insertable(packet).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, stdSql);
         await db.Insertable(partner).ExecuteCommandAsync();
 
         var customSql = "SELECT ID, Code FROM TmsZone";
@@ -165,7 +166,7 @@ public partial class ShareDataPacketControllerTests
         Assert.True(output.IsCustom);
         Assert.Equal(customSql, output.CustomSql);
 
-        var rows = await db.Queryable<ShareDataPartnerSql>().Where(s => s.PartnerId == partner.ID && s.PacketId == packet.ID).ToListAsync();
+        var rows = await db.Queryable<ShareDataSql>().Where(s => s.PartnerId == partner.ID && s.PacketId == packet.ID).ToListAsync();
         Assert.Single(rows);
         Assert.Equal(customSql, rows[0].ExtractSql);
     }
@@ -183,9 +184,9 @@ public partial class ShareDataPacketControllerTests
         var unique = Guid.NewGuid().ToString("N")[..8];
         var packetCode = $"PKT_EQ_{unique}";
         var stdSql = "SELECT ID, Code, Name FROM TmsZone";
-        var packet = NewPartnerSqlPacket(packetCode, unique, stdSql);
+        var packet = NewPartnerSqlPacket(packetCode, unique);
         var partner = NewPartnerSqlPartner($"PT_{unique}", unique);
-        var partnerSql = new ShareDataPartnerSql
+        var partnerSql = new ShareDataSql
         {
             ID = Guid.NewGuid().ToString("N"),
             PartnerId = partner.ID,
@@ -194,6 +195,7 @@ public partial class ShareDataPacketControllerTests
         };
 
         await db.Insertable(packet).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, stdSql);
         await db.Insertable(partner).ExecuteCommandAsync();
         await db.Insertable(partnerSql).ExecuteCommandAsync();
 
@@ -209,7 +211,7 @@ public partial class ShareDataPacketControllerTests
         Assert.True(outEq.IsCustom);
         Assert.False(outEq.HasDifferences);
 
-        var remaining = await db.Queryable<ShareDataPartnerSql>().Where(s => s.PartnerId == partner.ID && s.PacketId == packet.ID).CountAsync();
+        var remaining = await db.Queryable<ShareDataSql>().Where(s => s.PartnerId == partner.ID && s.PacketId == packet.ID).CountAsync();
         Assert.Equal(1, remaining);
     }
 
@@ -225,9 +227,9 @@ public partial class ShareDataPacketControllerTests
 
         var unique = Guid.NewGuid().ToString("N")[..8];
         var packetCode = $"PKT_RST_{unique}";
-        var packet = NewPartnerSqlPacket(packetCode, unique, "SELECT ID FROM TmsZone");
+        var packet = NewPartnerSqlPacket(packetCode, unique);
         var partner = NewPartnerSqlPartner($"PT_{unique}", unique);
-        var partnerSql = new ShareDataPartnerSql
+        var partnerSql = new ShareDataSql
         {
             ID = Guid.NewGuid().ToString("N"),
             PartnerId = partner.ID,
@@ -236,6 +238,7 @@ public partial class ShareDataPacketControllerTests
         };
 
         await db.Insertable(packet).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, "SELECT ID FROM TmsZone");
         await db.Insertable(partner).ExecuteCommandAsync();
         await db.Insertable(partnerSql).ExecuteCommandAsync();
 
@@ -250,7 +253,7 @@ public partial class ShareDataPacketControllerTests
         Assert.False(result.IsCustom);
         Assert.Null(result.CustomSql);
 
-        var remaining = await db.Queryable<ShareDataPartnerSql>().Where(s => s.ID == partnerSql.ID).CountAsync();
+        var remaining = await db.Queryable<ShareDataSql>().Where(s => s.ID == partnerSql.ID).CountAsync();
         Assert.Equal(0, remaining);
     }
 
@@ -266,10 +269,11 @@ public partial class ShareDataPacketControllerTests
 
         var unique = Guid.NewGuid().ToString("N")[..8];
         var packetCode = $"PKT_INC_ERR_{unique}";
-        var packet = NewPartnerSqlPacket(packetCode, unique, "SELECT TOP (@pageSize) ID FROM TmsZone");
+        var packet = NewPartnerSqlPacket(packetCode, unique);
         var partner = NewPartnerSqlPartner($"PT_{unique}", unique);
 
         await db.Insertable(packet).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, "SELECT TOP (@pageSize) ID FROM TmsZone");
         await db.Insertable(partner).ExecuteCommandAsync();
 
         // Act & Assert: SQL có @lastTime nhưng thiếu __lastKey, __lastTime, ORDER BY -> Throws
@@ -295,10 +299,11 @@ public partial class ShareDataPacketControllerTests
 
         var unique = Guid.NewGuid().ToString("N")[..8];
         var packetCode = $"PKT_NOEX_{unique}";
-        var packet = NewPartnerSqlPacket(packetCode, unique, "SELECT ID FROM TmsZone");
+        var packet = NewPartnerSqlPacket(packetCode, unique);
         var partner = NewPartnerSqlPartner($"PT_{unique}", unique);
 
         await db.Insertable(packet).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, "SELECT ID FROM TmsZone");
         await db.Insertable(partner).ExecuteCommandAsync();
 
         // Act & Assert
@@ -327,13 +332,14 @@ public partial class ShareDataPacketControllerTests
         var packetCode = $"PKT_HLP_{unique}";
         var stdSql = "SELECT TOP (@pageSize) ID FROM TmsZone";
         var customSql = "SELECT TOP (@pageSize) ID, Code, Name FROM TmsZone";
-        var packet = NewPartnerSqlPacket(packetCode, unique, stdSql);
+        var packet = NewPartnerSqlPacket(packetCode, unique);
         var partnerCustom = NewPartnerSqlPartner($"PT_HLP_{unique}", unique);
         var partnerStd = NewPartnerSqlPartner($"PT_STD_{unique}", unique);
 
         await db.Insertable(packet).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, stdSql);
         await db.Insertable(new[] { partnerCustom, partnerStd }).ExecuteCommandAsync();
-        await db.Insertable(new ShareDataPartnerSql
+        await db.Insertable(new ShareDataSql
         {
             ID = Guid.NewGuid().ToString("N"),
             PartnerId = partnerCustom.ID,
@@ -352,7 +358,7 @@ public partial class ShareDataPacketControllerTests
 
         // Đối tác không có dòng riêng -> Worker dùng câu chuẩn của gói, chính sách suy từ câu chuẩn
         Assert.Null(selectedStd);
-        var effectiveSql = SqlTextHelper.IsCustom(selectedStd) ? selectedStd!.ExtractSql!.Trim() : packet.ExtractSql?.Trim();
+        var effectiveSql = (await SqlTextHelper.ResolveSqlConfigAsync(db, packet, partnerStd.ID)).ExtractSql;
         Assert.Equal(stdSql, effectiveSql);
         Assert.Equal(ShareDataEnum.PacketPolicy.Snapshot, PacketHelper.GetPolicyFromSql("SELECT ID, Code FROM TmsZone"));
     }
@@ -369,10 +375,11 @@ public partial class ShareDataPacketControllerTests
 
         var unique = Guid.NewGuid().ToString("N")[..8];
         var packetCode = $"PKT_EMP_{unique}";
-        var packet = NewPartnerSqlPacket(packetCode, unique, "SELECT ID FROM TmsZone");
+        var packet = NewPartnerSqlPacket(packetCode, unique);
         var partner = NewPartnerSqlPartner($"PT_EMP_{unique}", unique);
 
         await db.Insertable(packet).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, "SELECT ID FROM TmsZone");
         await db.Insertable(partner).ExecuteCommandAsync();
 
         // Act & Assert
@@ -398,10 +405,11 @@ public partial class ShareDataPacketControllerTests
         var packetCode = $"PKT_DIFF_MODE_{unique}";
         var stdSql = "SELECT ID, Code, Name FROM TmsZone";
         var customSql = "SELECT TOP (@pageSize) ID AS __lastKey, CreateTime AS __lastTime, Code FROM TmsZone WHERE CreateTime >= @lastTime ORDER BY ID ASC";
-        var packet = NewPartnerSqlPacket(packetCode, unique, stdSql);
+        var packet = NewPartnerSqlPacket(packetCode, unique);
         var partner = NewPartnerSqlPartner($"PT_DM_{unique}", unique);
 
         await db.Insertable(packet).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, stdSql);
         await db.Insertable(partner).ExecuteCommandAsync();
 
         // Act: Gửi câu SQL riêng nối đuôi
@@ -418,7 +426,7 @@ public partial class ShareDataPacketControllerTests
         Assert.True(SqlValidator.IsIncrementalSql(output.CustomSql));
         Assert.False(SqlValidator.IsIncrementalSql(output.StandardSql));
 
-        var inDb = await db.Queryable<ShareDataPartnerSql>().Where(s => s.PartnerId == partner.ID && s.PacketId == packet.ID).FirstAsync();
+        var inDb = await db.Queryable<ShareDataSql>().Where(s => s.PartnerId == partner.ID && s.PacketId == packet.ID).FirstAsync();
         Assert.NotNull(inDb);
         Assert.Equal(customSql, inDb.ExtractSql);
     }
@@ -434,7 +442,7 @@ public partial class ShareDataPacketControllerTests
         var packetCode = $"PKT_MAP_UPD_{unique}";
         var customSql = "SELECT ID, Code FROM TmsZone";
         var baseSql = "SELECT ID FROM TmsZone";
-        var packet = NewPartnerSqlPacket(packetCode, unique, baseSql);
+        var packet = NewPartnerSqlPacket(packetCode, unique);
         var partner = NewPartnerSqlPartner($"PT_MAP_{unique}", unique);
         var targetShape = "{\"now\":{\"$meta\":\"Now\"},\"serial\":{\"$meta\":\"Serial\"},\"packetCode\":{\"$meta\":\"PacketCode\"},\"partnerCode\":{\"$meta\":\"PartnerCode\"}}";
         var mapping = new ShareDataMapping
@@ -448,7 +456,7 @@ public partial class ShareDataPacketControllerTests
             IsActive = true,
             TargetShapeJson = targetShape
         };
-        var partnerSql = new ShareDataPartnerSql
+        var partnerSql = new ShareDataSql
         {
             ID = Guid.NewGuid().ToString("N"),
             PartnerId = partner.ID,
@@ -457,6 +465,7 @@ public partial class ShareDataPacketControllerTests
         };
 
         await db.Insertable(packet).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, baseSql);
         await db.Insertable(partner).ExecuteCommandAsync();
         await db.Insertable(mapping).ExecuteCommandAsync();
         await db.Insertable(partnerSql).ExecuteCommandAsync();
@@ -478,7 +487,7 @@ public partial class ShareDataPacketControllerTests
         // Assert: dòng SQL riêng vẫn giữ nguyên 100%
         var mappingInDb = await db.Queryable<ShareDataMapping>().InSingleAsync(mapping.ID);
         Assert.Equal($"Mapping Updated {unique}", mappingInDb.Name);
-        var sqlInDb = await db.Queryable<ShareDataPartnerSql>().InSingleAsync(partnerSql.ID);
+        var sqlInDb = await db.Queryable<ShareDataSql>().InSingleAsync(partnerSql.ID);
         Assert.NotNull(sqlInDb);
         Assert.Equal(customSql, sqlInDb.ExtractSql);
     }
@@ -499,24 +508,24 @@ public partial class ShareDataPacketControllerTests
     [Fact]
     public void SqlTextHelper_HasDifferences_Behaviors_Test()
     {
-        var packet = new ShareDataPacket { ExtractSql = "SELECT ID, Code FROM TmsZone" };
+        var packet = "SELECT ID, Code FROM TmsZone";
 
         // 1. Không có dòng SQL riêng
         Assert.False(SqlTextHelper.IsCustom(null));
         Assert.False(SqlTextHelper.HasDifferences(null, packet));
 
         // 2. Dòng không có ExtractSql
-        var stdSql = new ShareDataPartnerSql { ExtractSql = null };
+        var stdSql = new ShareDataSql { ExtractSql = null };
         Assert.False(SqlTextHelper.IsCustom(stdSql));
         Assert.False(SqlTextHelper.HasDifferences(stdSql, packet));
 
         // 3. ExtractSql trùng chuẩn (khác khoảng trắng, dấu chấm phẩy cuối)
-        var sameSql = new ShareDataPartnerSql { ExtractSql = "  SELECT   ID,   Code   FROM   TmsZone;  " };
+        var sameSql = new ShareDataSql { ExtractSql = "  SELECT   ID,   Code   FROM   TmsZone;  " };
         Assert.True(SqlTextHelper.IsCustom(sameSql));
         Assert.False(SqlTextHelper.HasDifferences(sameSql, packet));
 
         // 4. ExtractSql khác chuẩn
-        var customSql = new ShareDataPartnerSql { ExtractSql = "SELECT ID FROM TmsZone" };
+        var customSql = new ShareDataSql { ExtractSql = "SELECT ID FROM TmsZone" };
         Assert.True(SqlTextHelper.IsCustom(customSql));
         Assert.True(SqlTextHelper.HasDifferences(customSql, packet));
     }

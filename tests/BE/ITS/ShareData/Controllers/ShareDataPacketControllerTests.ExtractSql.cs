@@ -140,9 +140,9 @@ public partial class ShareDataPacketControllerTests
             Code = packetCode,
             Name = $"Packet Test {unique}",
             Status = BaseEnums.StatusEnum.Enable,
-            ExtractSql = null
         };
         await db.Insertable(packet).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, null);
 
         var validSql = "SELECT ID, Code, Name FROM TmsZone";
         var input = new UpdatePacketExtractSqlInput
@@ -163,7 +163,7 @@ public partial class ShareDataPacketControllerTests
             .Where(x => x.Code == packetCode)
             .FirstAsync();
         Assert.NotNull(savedPacket);
-        Assert.Equal(validSql, savedPacket.ExtractSql);
+        Assert.Equal(validSql, (await ShareDataSqlSeed.GetCommonAsync(db, savedPacket.ID))?.ExtractSql);
 
         var auditLog = await db.Queryable<ShareDataActivityLog>()
             .Where(x => x.TargetId == packet.ID && x.Action == BaseEnums.ActivityAction.Update)
@@ -193,8 +193,7 @@ public partial class ShareDataPacketControllerTests
         var unsafePacket = new ShareDataPacket
         {
             ID = Guid.NewGuid().ToString("N"),
-            Code = "101",
-            ExtractSql = "SELECT 1; DROP TABLE TestTbl;"
+            Code = "101"
         };
 
         // Act & Assert
@@ -206,7 +205,8 @@ public partial class ShareDataPacketControllerTests
                 cursor: null,
                 pageSize: 10,
                 onLogWarning: (_, _) => { },
-                cancellationToken: CancellationToken.None));
+                cancellationToken: CancellationToken.None,
+                partnerSql: "SELECT 1; DROP TABLE TestTbl;"));
 
         Assert.NotNull(ex);
     }
@@ -244,9 +244,9 @@ public partial class ShareDataPacketControllerTests
             Code = packetCode,
             Name = $"Packet {unique}",
             Status = BaseEnums.StatusEnum.Enable,
-            ExtractSql = customSql
         };
         await db.Insertable(packet).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, customSql);
 
         var input = new GetPacketExtractSqlInput
         {
@@ -281,9 +281,9 @@ public partial class ShareDataPacketControllerTests
             Code = packetCode,
             Name = $"Packet {unique}",
             Status = BaseEnums.StatusEnum.Enable,
-            ExtractSql = templateSql
         };
         await db.Insertable(packet).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, templateSql);
 
         var input = new UpdatePacketExtractSqlInput
         {
@@ -299,7 +299,7 @@ public partial class ShareDataPacketControllerTests
         Assert.True(string.IsNullOrEmpty(output.ExtractSql));
 
         var inDb = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == packetCode);
-        Assert.True(string.IsNullOrEmpty(inDb.ExtractSql));
+        Assert.True(string.IsNullOrEmpty((await ShareDataSqlSeed.GetCommonAsync(db, inDb.ID))?.ExtractSql));
     }
 
     [Theory]

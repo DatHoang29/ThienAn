@@ -2271,9 +2271,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 PacketVersion = "1.0",
                 OrderNo = 5,
                 Status = BaseEnums.StatusEnum.Enable,
-                ExtractSql = PacketTemplateSeed.TryGet(packetCode, out var tpl105) ? tpl105.ExtractSql : null
             };
             await db.Insertable(packet105).ExecuteCommandAsync();
+            await ShareDataSqlSeed.SetCommonAsync(db, packet105.ID, PacketTemplateSeed.TryGet(packetCode, out var tpl105) ? tpl105.ExtractSql : null);
 
             // 2. Nạp cấu hình trường dựa trên gói 105
             var def105 = DataOutboundServiceTests.PacketMetadataCatalogTest.Get("105");
@@ -4898,7 +4898,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
         /// <summary>
         /// Description: Kiểm thử: Đối chiếu 15 dòng được đọc bởi SeedScriptReader.ReadSourceTables()
-        ///              trùng khớp 100% với 15 dòng trong script sharedata-seed-cau-hinh.sql.
+        ///              trùng khớp 100% với 15 dòng trong script sharedata-seed-cau-hinh-ShareDataSourceTable.sql.
         /// </summary>
         [Fact]
         public void SeedScriptReader_MatchesSqlScript03_Exactly16Rows_Test()
@@ -4907,11 +4907,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.Equal(16, seedRows.Count);
 
             var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
-            var sql03Path = Path.Combine(repoRoot, "DocBusinessThienAn", "HữuNghị-ChiLăng", "ShareData", "sql", "sharedata-seed-cau-hinh.sql");
-            if (!File.Exists(sql03Path))
-            {
-                sql03Path = Path.Combine(repoRoot, "DocBusinessThienAn", "HữuNghị-ChiLăng", "ShareData", "sql", "03-sharedata-seed-cau-hinh.sql");
-            }
+            var sql03Path = Path.Combine(repoRoot, "DocBusinessThienAn", "HữuNghị-ChiLăng", "ShareData", "sql", "sharedata-seed-cau-hinh-ShareDataSourceTable.sql");
             Assert.True(File.Exists(sql03Path), $"Không tìm thấy tệp SQL tại {sql03Path}");
 
             var sqlContent = File.ReadAllText(sql03Path);

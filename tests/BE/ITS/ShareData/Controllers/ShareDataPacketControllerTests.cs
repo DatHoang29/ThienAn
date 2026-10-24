@@ -93,17 +93,18 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
 
         var unique = Guid.NewGuid().ToString("N")[..8];
         Assert.True(PacketTemplateSeed.TryGet("101", out var tpl101));
+        var seededPacketId = Guid.NewGuid().ToString("N");
         await db.Insertable(new ShareDataPacket
         {
-            ID = Guid.NewGuid().ToString("N"),
+            ID = seededPacketId,
             Code = $"101_src_{unique}",
             Name = $"Source 101 {unique}",
             OrderNo = 101,
             Status = BaseEnums.StatusEnum.Enable,
             TemplateSql = tpl101.ExtractSql,
-            CursorTimeColumn = tpl101.CursorTimeColumn,
             CreateTime = DateTime.UtcNow.AddYears(-10)
         }).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, seededPacketId, null, tpl101.CursorTimeColumn);
 
         var code = $"101_commonData_{unique}";
         var input = new ShareDataAddPacketInput
@@ -121,7 +122,7 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
         Assert.NotNull(packet);
         Assert.Equal(tpl101.ExtractSql, packet.TemplateSql);
-        Assert.Equal(tpl101.ExtractSql, packet.ExtractSql);
+        Assert.Equal(tpl101.ExtractSql, (await ShareDataSqlSeed.GetCommonAsync(db, packet.ID))?.ExtractSql);
     }
 
     [Fact]
@@ -134,18 +135,18 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
 
         var unique = Guid.NewGuid().ToString("N")[..8];
         Assert.True(PacketTemplateSeed.TryGet("103", out var tpl103));
+        var seededPacketId2 = Guid.NewGuid().ToString("N");
         await db.Insertable(new ShareDataPacket
         {
-            ID = Guid.NewGuid().ToString("N"),
+            ID = seededPacketId2,
             Code = $"103_src_{unique}",
             Name = $"Source 103 {unique}",
             OrderNo = 103,
             Status = BaseEnums.StatusEnum.Enable,
             TemplateSql = tpl103.ExtractSql,
-            CursorTimeColumn = tpl103.CursorTimeColumn,
-            MaxLookBackDays = tpl103.MaxLookBackDays,
             CreateTime = DateTime.UtcNow.AddYears(-10)
         }).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, seededPacketId2, null, tpl103.CursorTimeColumn, tpl103.MaxLookBackDays);
 
         var code = $"custom_vds_{unique}";
         var input = new ShareDataAddPacketInput
@@ -163,9 +164,9 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
         Assert.NotNull(packet);
         Assert.Equal(tpl103.ExtractSql, packet.TemplateSql);
-        Assert.Equal(tpl103.ExtractSql, packet.ExtractSql);
-        Assert.Equal(tpl103.CursorTimeColumn, packet.CursorTimeColumn);
-        Assert.Equal(tpl103.MaxLookBackDays, packet.MaxLookBackDays);
+        Assert.Equal(tpl103.ExtractSql, (await ShareDataSqlSeed.GetCommonAsync(db, packet.ID))?.ExtractSql);
+        Assert.Equal(tpl103.CursorTimeColumn, (await ShareDataSqlSeed.GetCommonAsync(db, packet.ID))?.CursorTimeColumn);
+        Assert.Equal(tpl103.MaxLookBackDays, (await ShareDataSqlSeed.GetCommonAsync(db, packet.ID))?.MaxLookBackDays);
     }
 
     [Fact]
@@ -178,18 +179,18 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
 
         var unique = Guid.NewGuid().ToString("N")[..8];
         Assert.True(PacketTemplateSeed.TryGet("111", out var tpl111));
+        var seededPacketId3 = Guid.NewGuid().ToString("N");
         await db.Insertable(new ShareDataPacket
         {
-            ID = Guid.NewGuid().ToString("N"),
+            ID = seededPacketId3,
             Code = $"111_src_{unique}",
             Name = $"Source 111 {unique}",
             OrderNo = 111,
             Status = BaseEnums.StatusEnum.Enable,
             TemplateSql = tpl111.ExtractSql,
-            CursorTimeColumn = tpl111.CursorTimeColumn,
-            MaxLookBackDays = tpl111.MaxLookBackDays,
             CreateTime = DateTime.UtcNow.AddYears(-10)
         }).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, seededPacketId3, null, tpl111.CursorTimeColumn, tpl111.MaxLookBackDays);
 
         var code = $"111_intercenter_{unique}";
         var input = new ShareDataAddPacketInput
@@ -207,9 +208,9 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
         Assert.NotNull(packet);
         Assert.Equal(tpl111.ExtractSql, packet.TemplateSql);
-        Assert.Equal(tpl111.ExtractSql, packet.ExtractSql);
-        Assert.Equal(tpl111.CursorTimeColumn, packet.CursorTimeColumn);
-        Assert.Equal(tpl111.MaxLookBackDays, packet.MaxLookBackDays);
+        Assert.Equal(tpl111.ExtractSql, (await ShareDataSqlSeed.GetCommonAsync(db, packet.ID))?.ExtractSql);
+        Assert.Equal(tpl111.CursorTimeColumn, (await ShareDataSqlSeed.GetCommonAsync(db, packet.ID))?.CursorTimeColumn);
+        Assert.Equal(tpl111.MaxLookBackDays, (await ShareDataSqlSeed.GetCommonAsync(db, packet.ID))?.MaxLookBackDays);
     }
 
     [Fact]
@@ -222,17 +223,18 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
 
         var unique = Guid.NewGuid().ToString("N")[..8];
         Assert.True(PacketTemplateSeed.TryGet("101", out var tpl101));
+        var seededPacketId4 = Guid.NewGuid().ToString("N");
         await db.Insertable(new ShareDataPacket
         {
-            ID = Guid.NewGuid().ToString("N"),
+            ID = seededPacketId4,
             Code = $"101_src_{unique}",
             Name = $"Source 101 {unique}",
             OrderNo = 101,
             Status = BaseEnums.StatusEnum.Enable,
             TemplateSql = tpl101.ExtractSql,
-            CursorTimeColumn = tpl101.CursorTimeColumn,
             CreateTime = DateTime.UtcNow.AddYears(-10)
         }).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, seededPacketId4, null, tpl101.CursorTimeColumn);
 
         var code = $"101_ignore_client_tpl_{unique}";
         var input = new ShareDataAddPacketInput
@@ -252,49 +254,6 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         Assert.NotNull(packet);
         Assert.Equal(tpl101.ExtractSql, packet.TemplateSql);
         Assert.NotEqual("SELECT 'HACKED' AS val", packet.TemplateSql);
-    }
-
-    [Fact]
-    public async Task AddPacket_WithExistingExtractSql_PreservesCustomExtractSqlAndLoadsTemplateSqlFromSource_Test()
-    {
-        // Arrange
-        SetUserContext(isSuperAdmin: true);
-        using var scope = _host.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-
-        var unique = Guid.NewGuid().ToString("N")[..8];
-        Assert.True(PacketTemplateSeed.TryGet("101", out var tpl101));
-        await db.Insertable(new ShareDataPacket
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            Code = $"101_src_{unique}",
-            Name = $"Source 101 {unique}",
-            OrderNo = 101,
-            Status = BaseEnums.StatusEnum.Enable,
-            TemplateSql = tpl101.ExtractSql,
-            CursorTimeColumn = tpl101.CursorTimeColumn,
-            CreateTime = DateTime.UtcNow.AddYears(-10)
-        }).ExecuteCommandAsync();
-
-        var code = $"101_predefined_{unique}";
-        var customSql = "SELECT TOP (1) 1 AS val";
-        var input = new ShareDataAddPacketInput
-        {
-            Code = code,
-            Name = $"Custom Sql Packet {unique}",
-            PacketVersion = "1.0",
-            OrderNo = 101,
-            ExtractSql = customSql
-        };
-
-        // Act
-        await scope.ServiceProvider.CallApiAsync(input);
-
-        // Assert: ExtractSql giữ giá trị client gửi, TemplateSql nạp từ nguồn
-        var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
-        Assert.NotNull(packet);
-        Assert.Equal(customSql, packet.ExtractSql);
-        Assert.Equal(tpl101.ExtractSql, packet.TemplateSql);
     }
 
     [Fact]
@@ -322,7 +281,7 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
         Assert.NotNull(packet);
         Assert.Null(packet.TemplateSql);
-        Assert.Null(packet.ExtractSql);
+        Assert.Null((await ShareDataSqlSeed.GetCommonAsync(db, packet.ID))?.ExtractSql);
     }
 
     [Theory]
@@ -373,10 +332,10 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             OrderNo = 101,
             Status = BaseEnums.StatusEnum.Enable,
             TemplateSql = originalTemplate,
-            ExtractSql = originalExtract,
             CreateTime = DateTime.UtcNow.AddYears(-10)
         };
         await db.Insertable(packet).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, originalExtract);
 
         var updateInput = new ShareDataUpdatePacketInput
         {
@@ -384,8 +343,7 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             Code = code,
             Name = $"Packet Update Lock Modified {unique}",
             OrderNo = 108,
-            TemplateSql = "SELECT 'HACKED_TEMPLATE' AS val",
-            ExtractSql = "SELECT 'HACKED_EXTRACT' AS val"
+            TemplateSql = "SELECT 'HACKED_TEMPLATE' AS val"
         };
 
         // Act
@@ -397,7 +355,7 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         Assert.Equal($"Packet Update Lock Modified {unique}", inDb.Name);
         Assert.Equal(originalTemplate, inDb.TemplateSql);
         Assert.Equal(101, inDb.OrderNo);
-        Assert.Equal(originalExtract, inDb.ExtractSql);
+        Assert.Equal(originalExtract, (await ShareDataSqlSeed.GetCommonAsync(db, inDb.ID))?.ExtractSql);
     }
 
     [Fact]
@@ -421,10 +379,10 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             OrderNo = 101,
             Status = BaseEnums.StatusEnum.Enable,
             TemplateSql = originalTemplate,
-            ExtractSql = "SELECT z.ID AS zoneId FROM TmsZone z",
             CreateTime = DateTime.UtcNow.AddYears(-10)
         };
         await db.Insertable(packet).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, "SELECT z.ID AS zoneId FROM TmsZone z");
 
         var newExtractSql = "SELECT z.ID AS zoneId, z.Name AS zoneName FROM TmsZone z";
         var input = new UpdatePacketExtractSqlInput
@@ -439,7 +397,7 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         // Assert: ExtractSql được cập nhật, TemplateSql giữ nguyên
         var inDb = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.ID == packet.ID);
         Assert.NotNull(inDb);
-        Assert.Equal(newExtractSql, inDb.ExtractSql);
+        Assert.Equal(newExtractSql, (await ShareDataSqlSeed.GetCommonAsync(db, inDb.ID))?.ExtractSql);
         Assert.Equal(originalTemplate, inDb.TemplateSql);
     }
 
@@ -493,12 +451,10 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             Name = $"Packet 103 Test {unique}",
             OrderNo = 103,
             Status = BaseEnums.StatusEnum.Enable,
-            ExtractSql = savedCustomSql,
             TemplateSql = packetTemplateSql,
-            CursorTimeColumn = "UpdateTime",
-            MaxLookBackDays = 2
         };
         await db.Insertable(packet).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, savedCustomSql, "UpdateTime", 2);
 
         // Act
         var output = await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new GetPacketExtractSqlInput
@@ -516,7 +472,7 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
 
         // DB không bị thay đổi
         var inDb = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
-        Assert.Equal(savedCustomSql, inDb.ExtractSql);
+        Assert.Equal(savedCustomSql, (await ShareDataSqlSeed.GetCommonAsync(db, inDb.ID))?.ExtractSql);
     }
 
     [Fact]
@@ -537,10 +493,10 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             Code = code,
             Name = $"Non template packet {unique}",
             Status = BaseEnums.StatusEnum.Enable,
-            ExtractSql = savedSql,
             TemplateSql = null,
         };
         await db.Insertable(packet).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, savedSql);
 
         // Act
         var output = await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new GetPacketExtractSqlInput
@@ -565,17 +521,18 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
 
         var unique = Guid.NewGuid().ToString("N")[..8];
         Assert.True(PacketTemplateSeed.TryGet("101", out var tpl101Reg));
+        var seededPacketId6 = Guid.NewGuid().ToString("N");
         await db.Insertable(new ShareDataPacket
         {
-            ID = Guid.NewGuid().ToString("N"),
+            ID = seededPacketId6,
             Code = $"101_src_{unique}",
             Name = $"Source 101 {unique}",
             OrderNo = 101,
             Status = BaseEnums.StatusEnum.Enable,
             TemplateSql = tpl101Reg.ExtractSql,
-            CursorTimeColumn = tpl101Reg.CursorTimeColumn,
             CreateTime = DateTime.UtcNow.AddYears(-10)
         }).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, seededPacketId6, null, tpl101Reg.CursorTimeColumn);
 
         var code = $"101_reg_{unique}";
         var input = new ShareDataAddPacketInput
@@ -592,9 +549,9 @@ public partial class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         // Assert: Gói tin đã tự điền ExtractSql nên không bị thiếu câu truy vấn nguồn
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
         Assert.NotNull(packet);
-        Assert.False(string.IsNullOrWhiteSpace(packet.ExtractSql));
+        Assert.False(string.IsNullOrWhiteSpace((await ShareDataSqlSeed.GetCommonAsync(db, packet.ID))?.ExtractSql));
         Assert.True(PacketTemplateSeed.TryGet("101", out var tplExpected));
-        Assert.Equal(tplExpected.ExtractSql, packet.ExtractSql);
+        Assert.Equal(tplExpected.ExtractSql, (await ShareDataSqlSeed.GetCommonAsync(db, packet.ID))?.ExtractSql);
         Assert.Equal(tplExpected.ExtractSql, packet.TemplateSql);
     }
 

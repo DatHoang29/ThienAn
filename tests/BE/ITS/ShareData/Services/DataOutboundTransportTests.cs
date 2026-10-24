@@ -1,3 +1,4 @@
+using Tests.ShareData.Common;
 using System.Net;
 using System.Text;
 using Module.ShareData.Core.Entities;
@@ -467,12 +468,11 @@ namespace Tests.ShareData.Services
                 Name = $"Packet {packetCode}",
                 PacketVersion = "1.0",
                 Status = BaseEnums.StatusEnum.Enable,
-                CursorTimeColumn = "UpdateTime",
-                ExtractSql = $"SELECT TOP (@pageSize) UpdateTime AS __lastTime, ID AS __lastKey, Code AS code FROM ShareDataPacket WHERE ID = '{packetId}'",
                 CreateTime = rowTime,
                 UpdateTime = rowTime
             };
             await db.Insertable(packet).ExecuteCommandAsync();
+            await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, $"SELECT TOP (@pageSize) UpdateTime AS __lastTime, ID AS __lastKey, Code AS code FROM ShareDataPacket WHERE ID = '{packetId}'", "UpdateTime");
             await db.Updateable<ShareDataPacket>()
                 .SetColumns(p => p.UpdateTime == rowTime)
                 .Where(p => p.ID == packetId)

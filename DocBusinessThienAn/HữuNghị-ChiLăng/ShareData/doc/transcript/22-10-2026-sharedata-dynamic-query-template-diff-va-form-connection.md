@@ -264,7 +264,7 @@ corrections:
 - **[03:16] Dev:** Rồi ok anh.
 - **[03:17] Dev:** Này mới code cho nó có thôi chứ chưa có test, chưa có chạy gói tin nữa.
 
-> 📌 *[03:28]–[07:46] (đã gỡ 22/10/2026): trao đổi về bản ghi sự cố "va quẹt xe tải" hiển thị sai trên TMS — nguyên nhân là script dữ liệu giả lập `sharedata-du-lieu-gia-lap_local.sql` (Khối 3), đã sửa.*
+> 📌 *[03:28]–[07:46] (đã gỡ 22/10/2026): trao đổi về bản ghi sự cố "va quẹt xe tải" hiển thị sai trên TMS — nguyên nhân là script dữ liệu giả lập `sharedata-du-lieu-gia-lap-*_local.sql` (Khối 3), đã sửa.*
 
 ### [08:00 – 12:00] Rà soát Tab Chia sẻ Dữ liệu, Kiểm tra Gói Thất bại & Bộ lọc Ngày tháng
 - **[08:16] Tech Lead:** Rồi tiếp, mấy chức năng ở dưới chỗ chia sẻ dữ liệu, còn mấy cái tab ở dưới nữa kìa. Rà lại cho nó đầy đủ hết đi.

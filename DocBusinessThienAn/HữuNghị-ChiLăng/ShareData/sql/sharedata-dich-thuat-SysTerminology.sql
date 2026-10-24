@@ -2,7 +2,8 @@ USE [DEV_ITS10];
 GO
 
 -- =========================================================================================
--- FILE: sharedata-dich-thuat.sql
+-- FILE: sharedata-dich-thuat-SysTerminology.sql
+-- BẢNG GHI: [dbo].[SysTerminology] — tệp chỉ thêm / sửa / xóa trên đúng bảng này; bảng khác chỉ đọc (Rule 19.103).
 -- DESCRIPTION: Bổ sung từ điển bản dịch đa ngôn ngữ (vi-VN, en-US) cho phân hệ ShareData (ESHARE) vào SysTerminology:
 --              1. Chuẩn hóa lại mã khóa cũ thừa tiền tố (như lz.validation...lookbackDaysRange nếu có).
 --              2. Nạp toàn bộ 112 mã khóa dịch thuật chuẩn hóa (224 bản ghi đa ngôn ngữ vi-VN và en-US):
@@ -17,13 +18,13 @@ GO
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 22/10/2026
+-- CẬP NHẬT LẦN CUỐI: 24/10/2026
 -- =========================================================================================
 
 SET NOCOUNT ON;
 
 PRINT N'=============================================================================';
-PRINT N'BẮT ĐẦU KỊCH BẢN SEED BẢN DỊCH THUẬT NGỮ SHAREDATA (sharedata-dich-thuat.sql)';
+PRINT N'BẮT ĐẦU KỊCH BẢN SEED BẢN DỊCH THUẬT NGỮ SHAREDATA (sharedata-dich-thuat-SysTerminology.sql)';
 PRINT N'=============================================================================';
 
 DECLARE @TenantId NVARCHAR(64) = (SELECT TOP 1 CAST([TenantId] AS NVARCHAR(64)) FROM [dbo].[SysTerminology] WHERE [TenantId] IS NOT NULL);
@@ -639,6 +640,6 @@ DECLARE @SkippedEn INT = @TotalKeys - @InsertedEn;
 PRINT N'  -> [en-US] Đã thêm mới ' + CAST(@InsertedEn AS NVARCHAR(10)) + N' bản dịch; bỏ qua ' + CAST(@SkippedEn AS NVARCHAR(10)) + N' bản dịch đã tồn tại.';
 
 PRINT N'=============================================================================';
-PRINT N'✅ HOÀN TẤT KỊCH BẢN SEED BẢN DỊCH THUẬT NGỮ SHAREDATA (sharedata-dich-thuat.sql)';
+PRINT N'✅ HOÀN TẤT KỊCH BẢN SEED BẢN DỊCH THUẬT NGỮ SHAREDATA (sharedata-dich-thuat-SysTerminology.sql)';
 PRINT N'=============================================================================';
 GO
