@@ -194,11 +194,11 @@ WHERE Remark = N'ShareData Localization'
   AND IsDelete IS NULL;
 -- Mong đợi: TotalTerms = 186 (93 khóa song ngữ vi-VN và en-US), UniqueKeys = 93
 
--- 5. Kiểm tra 48 tham số vận hành SysOpConfig nhóm sharedata_config:
+-- 5. Kiểm tra 47 tham số vận hành SysOpConfig nhóm sharedata_config:
 SELECT COUNT(1) AS TotalConfigs
 FROM dbo.SysOpConfig
 WHERE GroupCode = 'sharedata_config' AND IsDelete IS NULL;
--- Mong đợi: TotalConfigs = 48 (19 Worker + 23 FE + 6 BE)
+-- Mong đợi: TotalConfigs = 47 (18 Worker + 23 FE + 6 BE); CSDL cũ còn dòng outbound_page_size (đã bỏ 25/10/2026) thì ra 48
 
 -- 6. Kiểm tra Đối tác, Ánh xạ và Đăng ký chia sẻ:
 SELECT COUNT(1) AS TotalPartners,
@@ -565,14 +565,14 @@ GO
 
 ---
 
-### Phụ lục F: Danh mục 48 tham số vận hành ShareData (SysOpConfig nhóm sharedata_config)
+### Phụ lục F: Danh mục 47 tham số vận hành ShareData (SysOpConfig nhóm sharedata_config)
 
 > 📌 *Nguồn trích xuất chuẩn:* [`sharedata-seed-cau-hinh-*.sql`](../sql/README.md) (Mục 4), dịch vụ cấu hình Worker `DataWorkerConfigService.cs` (`ShareDataWorker/Infrastructure/Services/DataWorkerConfig`), dịch vụ WebAPI `ShareDataConfigService.cs` (`Module.ShareData/Infrastructure/Services/ShareDataConfig`, đọc `SysOpConfig` qua `IMessageBus`), hằng số và bảng đặc tả cấu hình `ShareDataConst.cs` (`Module.ShareData.Core/Constants`), và hằng số dự phòng giao diện `SHAREDATA_FE_CONFIG_FALLBACK` (`TA-ITS015-WEBVUE-V1.0/src/src/types/constants/sharedataFeConfig.ts`).  
-> ℹ️ Toàn bộ 48 tham số được phân nhóm theo tiền tố và thành phần sử dụng: 19 tham số Worker (nhóm A), 23 tham số FE/WebAPI dùng chung (nhóm B), và 6 tham số WebAPI/SQL Center (nhóm C). Người dùng có thể tra cứu và điều chỉnh trên màn hình *Cấu hình hoạt động* (lọc theo nhóm `sharedata_config`).
+> ℹ️ Toàn bộ 47 tham số được phân nhóm theo tiền tố và thành phần sử dụng: 18 tham số Worker (nhóm A), 23 tham số FE/WebAPI dùng chung (nhóm B), và 6 tham số WebAPI/SQL Center (nhóm C). Người dùng có thể tra cứu và điều chỉnh trên màn hình *Cấu hình hoạt động* (lọc theo nhóm `sharedata_config`).
 
 | STT | Mã tham số (`Code`) | Tên hiển thị (`Name`) | Mặc định (`Value`) | Thứ tự (`OrderNo`) | Khoảng hợp lệ & Đơn vị | Thành phần sử dụng | Ý nghĩa vận hành chi tiết |
 |:---:|---|---|:---:|:---:|---|:---:|---|
-| **A. Tham số Worker (19 mã)** | | | | | | | |
+| **A. Tham số Worker (18 mã)** | | | | | | | |
 | 1 | `outbound_check_interval_sec` | Chu kỳ quét gửi gói tin (giây) | `5` | 10 | 1–300 giây | Worker | Chu kỳ vòng lặp quét gửi gói tin của Outbound Worker. |
 | 2 | `inbound_check_interval_sec` | Chu kỳ quét nhận gói tin (giây) | `5` | 11 | 1–300 giây | Worker | Chu kỳ vòng lặp quét nhận gói tin của Inbound Worker. |
 | 3 | `tracking_poll_interval_sec` | Chu kỳ quét Change Tracking (giây) | `1` | 12 | 1–60 giây | Worker | Chu kỳ vòng lặp quét SQL Server Change Tracking của Tracking Worker. |
@@ -580,47 +580,46 @@ GO
 | 5 | `outbound_lock_budget_percent` | Ngân sách thời gian giữ khóa gửi (%) | `50` | 21 | 10–90 % | Worker | Tỷ lệ ngân sách thời gian giữ khóa phân tán mỗi lượt gửi. |
 | 6 | `outbound_lock_min_sec` | Thời gian giữ khóa gửi tối thiểu (giây) | `300` | 22 | 30–3600 giây | Worker | Thời gian giữ khóa phân tán tối thiểu của đăng ký gửi. |
 | 7 | `outbound_lock_interval_multiplier` | Hệ số nhân chu kỳ gửi tính thời gian giữ khóa | `3` | 23 | 1–10 lần | Worker | Hệ số nhân với chu kỳ gửi để tính thời gian giữ khóa phân tán. |
-| 8 | `outbound_page_size` | Số dòng mỗi trang trích xuất gửi | `100` | 24 | 1–10000 dòng | Worker | Số dòng dữ liệu mặc định mỗi trang trích xuất gửi đi. |
-| 9 | `outbound_default_interval_sec` | Chu kỳ gửi mặc định của Worker (giây) | `30` | 25 | 1–86400 giây | Worker | Chu kỳ gửi mặc định khi đăng ký không khai báo IntervalSeconds. |
-| 10 | `inbound_max_packets_per_run` | Số gói tin nhận xử lý tối đa mỗi lượt | `50` | 30 | 1–1000 gói | Worker | Số gói tin Pending xử lý tối đa mỗi lượt của Inbound Worker. |
-| 11 | `inbound_stuck_timeout_min` | Ngưỡng thu hồi gói nhận bị kẹt (phút) | `10` | 31 | 1–1440 phút | Worker | Ngưỡng thời gian thu hồi gói tin Inbound bị kẹt ở trạng thái Processing. |
-| 12 | `inbound_warn_interval_min` | Chu kỳ tối thiểu ghi cảnh báo lặp Inbound (phút) | `5` | 32 | 1–1440 phút | Worker | Chu kỳ tối thiểu giữa hai lần ghi cảnh báo lặp lại ở Inbound Worker. |
-| 13 | `inbound_write_timeout_sec` | Thời gian chờ ghi SQL chiều nhận (giây) | `120` | 33 | 10–3600 giây | Worker | Thời gian chờ tối đa khi thực thi câu lệnh SQL ghi dữ liệu nhận về. |
-| 14 | `tracking_table_retry_min` | Chu kỳ thử lại bảng nguồn thiếu Change Tracking (phút) | `5` | 40 | 1–1440 phút | Worker | Chu kỳ thử khôi phục bảng nguồn bị cô lập do thiếu Change Tracking. |
-| 15 | `tracking_log_retention_days` | Số ngày lưu giữ nhật ký hạ tầng Change Tracking | `7` | 41 | 1–365 ngày | Worker | Số ngày lưu giữ nhật ký hạ tầng Change Tracking mã ESH-16xx. |
-| 16 | `tracking_log_purge_batch` | Số dòng xóa mỗi lô nhật ký Change Tracking | `1000` | 42 | 100–50000 dòng | Worker | Số dòng xóa tối đa mỗi lô khi dọn nhật ký hạ tầng Change Tracking. |
-| 17 | `tracking_change_retention_days` | Số ngày giữ lịch sử CHANGE_RETENTION khi bật CT | `2` | 43 | 1–30 ngày | Worker | Số ngày giữ lịch sử thay đổi khi tự bật Change Tracking cho CSDL. |
-| 18 | `cleanup_interval_min` | Chu kỳ chạy dọn dẹp định kỳ (phút) | `1440` | 46 | 1–43200 phút | Worker | Chu kỳ dọn dẹp nhật ký Change Tracking ESH-16xx cũ hơn số ngày retention. |
-| 19 | `reload_interval_sec` | Chu kỳ nạp lại cấu hình và danh sách bảng nguồn (giây) | `30` | 47 | 5–3600 giây | Worker | Chu kỳ nạp lại cấu hình vận hành và danh sách bảng nguồn từ CSDL (thay thế cấu hình appsettings cũ). |
+| 8 | `outbound_default_interval_sec` | Chu kỳ gửi mặc định của Worker (giây) | `30` | 25 | 1–86400 giây | Worker | Chu kỳ gửi mặc định khi đăng ký không khai báo IntervalSeconds. |
+| 9 | `inbound_max_packets_per_run` | Số gói tin nhận xử lý tối đa mỗi lượt | `50` | 30 | 1–1000 gói | Worker | Số gói tin Pending xử lý tối đa mỗi lượt của Inbound Worker. |
+| 10 | `inbound_stuck_timeout_min` | Ngưỡng thu hồi gói nhận bị kẹt (phút) | `10` | 31 | 1–1440 phút | Worker | Ngưỡng thời gian thu hồi gói tin Inbound bị kẹt ở trạng thái Processing. |
+| 11 | `inbound_warn_interval_min` | Chu kỳ tối thiểu ghi cảnh báo lặp Inbound (phút) | `5` | 32 | 1–1440 phút | Worker | Chu kỳ tối thiểu giữa hai lần ghi cảnh báo lặp lại ở Inbound Worker. |
+| 12 | `inbound_write_timeout_sec` | Thời gian chờ ghi SQL chiều nhận (giây) | `120` | 33 | 10–3600 giây | Worker | Thời gian chờ tối đa khi thực thi câu lệnh SQL ghi dữ liệu nhận về. |
+| 13 | `tracking_table_retry_min` | Chu kỳ thử lại bảng nguồn thiếu Change Tracking (phút) | `5` | 40 | 1–1440 phút | Worker | Chu kỳ thử khôi phục bảng nguồn bị cô lập do thiếu Change Tracking. |
+| 14 | `tracking_log_retention_days` | Số ngày lưu giữ nhật ký hạ tầng Change Tracking | `7` | 41 | 1–365 ngày | Worker | Số ngày lưu giữ nhật ký hạ tầng Change Tracking mã ESH-16xx. |
+| 15 | `tracking_log_purge_batch` | Số dòng xóa mỗi lô nhật ký Change Tracking | `1000` | 42 | 100–50000 dòng | Worker | Số dòng xóa tối đa mỗi lô khi dọn nhật ký hạ tầng Change Tracking. |
+| 16 | `tracking_change_retention_days` | Số ngày giữ lịch sử CHANGE_RETENTION khi bật CT | `2` | 43 | 1–30 ngày | Worker | Số ngày giữ lịch sử thay đổi khi tự bật Change Tracking cho CSDL. |
+| 17 | `cleanup_interval_min` | Chu kỳ chạy dọn dẹp định kỳ (phút) | `1440` | 46 | 1–43200 phút | Worker | Chu kỳ dọn dẹp nhật ký Change Tracking ESH-16xx cũ hơn số ngày retention. |
+| 18 | `reload_interval_sec` | Chu kỳ nạp lại cấu hình và danh sách bảng nguồn (giây) | `30` | 47 | 5–3600 giây | Worker | Chu kỳ nạp lại cấu hình vận hành và danh sách bảng nguồn từ CSDL (thay thế cấu hình appsettings cũ). |
 | **B. Tham số Giới hạn Giao diện FE & Dùng chung WebAPI (23 mã)** | | | | | | | |
-| 20 | `subscription_interval_sec_min` | Chu kỳ gửi - tối thiểu | `5` | 101 | 1–604800 giây | FE / BE | Giới hạn dưới chu kỳ gửi khi đăng ký gói tin (chặn cùng ngưỡng ở FE và BE). |
-| 21 | `subscription_interval_sec_max` | Chu kỳ gửi - tối đa | `86400` | 102 | 1–604800 giây | FE / BE | Giới hạn trên chu kỳ gửi khi đăng ký gói tin (tối đa 7 ngày). |
-| 22 | `subscription_interval_sec_default` | Chu kỳ gửi - mặc định | `30` | 103 | Giây | FE | Giá trị chu kỳ gửi mặc định hiển thị trên form Đăng ký gói tin. |
-| 23 | `subscription_debounce_sec_min` | Thời gian gom sự kiện - tối thiểu | `0` | 111 | 0–86400 giây | FE / BE | Giới hạn dưới thời gian gom sự kiện NATS khi đăng ký gói tin. |
-| 24 | `subscription_debounce_sec_max` | Thời gian gom sự kiện - tối đa | `3600` | 112 | 0–86400 giây | FE / BE | Giới hạn trên thời gian gom sự kiện NATS khi đăng ký gói tin. |
-| 25 | `subscription_debounce_sec_default` | Thời gian gom sự kiện - mặc định | `30` | 113 | Giây | FE | Giá trị thời gian gom sự kiện mặc định hiển thị trên form Đăng ký gói tin. |
-| 26 | `subscription_priority_min` | Độ ưu tiên - tối thiểu | `0` | 121 | 0–100 | FE / BE | Giới hạn dưới mức độ ưu tiên hàng đợi của đăng ký gửi. |
-| 27 | `subscription_priority_max` | Độ ưu tiên - tối đa | `10` | 122 | 0–100 | FE / BE | Giới hạn trên mức độ ưu tiên hàng đợi của đăng ký gửi. |
-| 28 | `subscription_priority_default` | Độ ưu tiên - mặc định | `5` | 123 | 0–10 | FE | Mức độ ưu tiên mặc định khi tạo mới đăng ký gửi gói tin. |
-| 29 | `partner_heartbeat_sec_min` | Heartbeat - tối thiểu | `5` | 201 | 1–300 giây | FE | Giới hạn dưới chu kỳ gửi heartbeat kiểm tra kết nối đối tác. |
-| 30 | `partner_heartbeat_sec_max` | Heartbeat - tối đa | `300` | 202 | 1–300 giây | FE | Giới hạn trên chu kỳ gửi heartbeat kiểm tra kết nối đối tác. |
-| 31 | `partner_heartbeat_sec_default` | Heartbeat - mặc định | `30` | 203 | Giây | FE | Chu kỳ gửi heartbeat mặc định khi tạo mới đối tác. |
-| 32 | `partner_response_timeout_sec_min` | Thời gian chờ phản hồi - tối thiểu | `3` | 211 | 1–60 giây | FE | Giới hạn dưới thời gian chờ đối tác phản hồi bắt tay kết nối. |
-| 33 | `partner_response_timeout_sec_max` | Thời gian chờ phản hồi - tối đa | `60` | 212 | 1–60 giây | FE | Giới hạn trên thời gian chờ đối tác phản hồi bắt tay kết nối. |
-| 34 | `partner_response_timeout_sec_default` | Thời gian chờ phản hồi - mặc định | `10` | 213 | Giây | FE | Thời gian chờ phản hồi mặc định khi tạo mới đối tác. |
-| 35 | `partner_datagram_size_min` | Kích thước datagram - tối thiểu | `512` | 221 | 512–65507 Byte | FE | Giới hạn dưới kích thước gói tin datagram của kênh UDP. |
-| 36 | `partner_datagram_size_max` | Kích thước datagram - tối đa | `65507` | 222 | 512–65507 Byte | FE | Giới hạn trên kích thước datagram (giới hạn phần cứng UDP 65507 Byte). |
-| 37 | `partner_datagram_size_default` | Kích thước datagram - mặc định | `1024` | 223 | Byte | FE | Kích thước gói tin datagram mặc định khi tạo mới đối tác UDP. |
-| 38 | `mapping_sample_top_min` | Số bản ghi mẫu - tối thiểu | `1` | 301 | 1–500 bản ghi | FE / BE | Giới hạn dưới số lượng bản ghi mẫu trích xuất khi cấu hình ánh xạ. |
-| 39 | `mapping_sample_top_max` | Số bản ghi mẫu - tối đa | `50` | 302 | 1–500 bản ghi | FE / BE | Giới hạn trên số lượng bản ghi mẫu trích xuất khi cấu hình ánh xạ. |
-| 40 | `mapping_sample_top_default` | Số bản ghi mẫu - mặc định | `5` | 303 | 1–500 bản ghi | FE / BE | Số lượng bản ghi mẫu mặc định khi bấm xem mẫu tại màn hình Ánh xạ. |
-| 41 | `history_range_default_days` | Khoảng tra cứu - mặc định | `7` | 401 | 1–31 ngày | FE | Khoảng thời gian mặc định khi mở màn hình Lịch sử chia sẻ và Nhật ký lỗi. |
-| 42 | `history_range_max_days` | Khoảng tra cứu - tối đa | `31` | 402 | 1–31 ngày | FE | Khoảng thời gian tra cứu tối đa cho phép chọn trên bộ lọc ngày. |
+| 19 | `subscription_interval_sec_min` | Chu kỳ gửi - tối thiểu | `5` | 101 | 1–604800 giây | FE / BE | Giới hạn dưới chu kỳ gửi khi đăng ký gói tin (chặn cùng ngưỡng ở FE và BE). |
+| 20 | `subscription_interval_sec_max` | Chu kỳ gửi - tối đa | `86400` | 102 | 1–604800 giây | FE / BE | Giới hạn trên chu kỳ gửi khi đăng ký gói tin (tối đa 7 ngày). |
+| 21 | `subscription_interval_sec_default` | Chu kỳ gửi - mặc định | `30` | 103 | Giây | FE | Giá trị chu kỳ gửi mặc định hiển thị trên form Đăng ký gói tin. |
+| 22 | `subscription_debounce_sec_min` | Thời gian gom sự kiện - tối thiểu | `0` | 111 | 0–86400 giây | FE / BE | Giới hạn dưới thời gian gom sự kiện NATS khi đăng ký gói tin. |
+| 23 | `subscription_debounce_sec_max` | Thời gian gom sự kiện - tối đa | `3600` | 112 | 0–86400 giây | FE / BE | Giới hạn trên thời gian gom sự kiện NATS khi đăng ký gói tin. |
+| 24 | `subscription_debounce_sec_default` | Thời gian gom sự kiện - mặc định | `30` | 113 | Giây | FE | Giá trị thời gian gom sự kiện mặc định hiển thị trên form Đăng ký gói tin. |
+| 25 | `subscription_priority_min` | Độ ưu tiên - tối thiểu | `0` | 121 | 0–100 | FE / BE | Giới hạn dưới mức độ ưu tiên hàng đợi của đăng ký gửi. |
+| 26 | `subscription_priority_max` | Độ ưu tiên - tối đa | `10` | 122 | 0–100 | FE / BE | Giới hạn trên mức độ ưu tiên hàng đợi của đăng ký gửi. |
+| 27 | `subscription_priority_default` | Độ ưu tiên - mặc định | `5` | 123 | 0–10 | FE | Mức độ ưu tiên mặc định khi tạo mới đăng ký gửi gói tin. |
+| 28 | `partner_heartbeat_sec_min` | Heartbeat - tối thiểu | `5` | 201 | 1–300 giây | FE | Giới hạn dưới chu kỳ gửi heartbeat kiểm tra kết nối đối tác. |
+| 29 | `partner_heartbeat_sec_max` | Heartbeat - tối đa | `300` | 202 | 1–300 giây | FE | Giới hạn trên chu kỳ gửi heartbeat kiểm tra kết nối đối tác. |
+| 30 | `partner_heartbeat_sec_default` | Heartbeat - mặc định | `30` | 203 | Giây | FE | Chu kỳ gửi heartbeat mặc định khi tạo mới đối tác. |
+| 31 | `partner_response_timeout_sec_min` | Thời gian chờ phản hồi - tối thiểu | `3` | 211 | 1–60 giây | FE | Giới hạn dưới thời gian chờ đối tác phản hồi bắt tay kết nối. |
+| 32 | `partner_response_timeout_sec_max` | Thời gian chờ phản hồi - tối đa | `60` | 212 | 1–60 giây | FE | Giới hạn trên thời gian chờ đối tác phản hồi bắt tay kết nối. |
+| 33 | `partner_response_timeout_sec_default` | Thời gian chờ phản hồi - mặc định | `10` | 213 | Giây | FE | Thời gian chờ phản hồi mặc định khi tạo mới đối tác. |
+| 34 | `partner_datagram_size_min` | Kích thước datagram - tối thiểu | `512` | 221 | 512–65507 Byte | FE | Giới hạn dưới kích thước gói tin datagram của kênh UDP. |
+| 35 | `partner_datagram_size_max` | Kích thước datagram - tối đa | `65507` | 222 | 512–65507 Byte | FE | Giới hạn trên kích thước datagram (giới hạn phần cứng UDP 65507 Byte). |
+| 36 | `partner_datagram_size_default` | Kích thước datagram - mặc định | `1024` | 223 | Byte | FE | Kích thước gói tin datagram mặc định khi tạo mới đối tác UDP. |
+| 37 | `mapping_sample_top_min` | Số bản ghi mẫu - tối thiểu | `1` | 301 | 1–500 bản ghi | FE / BE | Giới hạn dưới số lượng bản ghi mẫu trích xuất khi cấu hình ánh xạ. |
+| 38 | `mapping_sample_top_max` | Số bản ghi mẫu - tối đa | `50` | 302 | 1–500 bản ghi | FE / BE | Giới hạn trên số lượng bản ghi mẫu trích xuất khi cấu hình ánh xạ. |
+| 39 | `mapping_sample_top_default` | Số bản ghi mẫu - mặc định | `5` | 303 | 1–500 bản ghi | FE / BE | Số lượng bản ghi mẫu mặc định khi bấm xem mẫu tại màn hình Ánh xạ. |
+| 40 | `history_range_default_days` | Khoảng tra cứu - mặc định | `7` | 401 | 1–31 ngày | FE | Khoảng thời gian mặc định khi mở màn hình Lịch sử chia sẻ và Nhật ký lỗi. |
+| 41 | `history_range_max_days` | Khoảng tra cứu - tối đa | `31` | 402 | 1–31 ngày | FE | Khoảng thời gian tra cứu tối đa cho phép chọn trên bộ lọc ngày. |
 | **C. Tham số WebAPI Backend & SQL Center (6 mã)** | | | | | | | |
-| 43 | `packet_lookback_days_min` | Số ngày quét lùi tối đa - tối thiểu | `1` | 501 | 1–3650 ngày | BE / FE | Giới hạn dưới của MaxLookBackDays khi cấu hình SQL trích xuất gói tin. |
-| 44 | `packet_lookback_days_max` | Số ngày quét lùi tối đa - tối đa | `365` | 502 | 1–3650 ngày | BE / FE | Giới hạn trên của MaxLookBackDays (mặc định 365, tối đa 3650). |
-| 45 | `sql_sample_top_min` | Số dòng xem mẫu SQL Center - tối thiểu | `1` | 511 | 1–500 bản ghi | BE / FE | Giới hạn dưới khi chạy thử SQL trích xuất tại SQL Center. |
-| 46 | `sql_sample_top_max` | Số dòng xem mẫu SQL Center - tối đa | `50` | 512 | 1–500 bản ghi | BE / FE | Giới hạn trên khi chạy thử SQL trích xuất tại SQL Center. |
-| 47 | `sql_sample_top_default` | Số dòng xem mẫu SQL Center - mặc định | `10` | 513 | 1–500 bản ghi | BE / FE | Số dòng xem mẫu mặc định khi chạy thử câu SQL tại SQL Center. |
-| 48 | `log_list_default_top` | Số dòng nhật ký trả về mặc định | `1000` | 521 | 1–100000 bản ghi | BE | Số dòng mặc định trả về khi truy vấn danh sách ActivityLog / AlertLog. |
+| 42 | `packet_lookback_days_min` | Số ngày quét lùi tối đa - tối thiểu | `1` | 501 | 1–3650 ngày | BE / FE | Giới hạn dưới của MaxLookBackDays khi cấu hình SQL trích xuất gói tin. |
+| 43 | `packet_lookback_days_max` | Số ngày quét lùi tối đa - tối đa | `365` | 502 | 1–3650 ngày | BE / FE | Giới hạn trên của MaxLookBackDays (mặc định 365, tối đa 3650). |
+| 44 | `sql_sample_top_min` | Số dòng xem mẫu SQL Center - tối thiểu | `1` | 511 | 1–500 bản ghi | BE / FE | Giới hạn dưới khi chạy thử SQL trích xuất tại SQL Center. |
+| 45 | `sql_sample_top_max` | Số dòng xem mẫu SQL Center - tối đa | `50` | 512 | 1–500 bản ghi | BE / FE | Giới hạn trên khi chạy thử SQL trích xuất tại SQL Center. |
+| 46 | `sql_sample_top_default` | Số dòng xem mẫu SQL Center - mặc định | `10` | 513 | 1–500 bản ghi | BE / FE | Số dòng xem mẫu mặc định khi chạy thử câu SQL tại SQL Center. |
+| 47 | `log_list_default_top` | Số dòng nhật ký trả về mặc định | `1000` | 521 | 1–100000 bản ghi | BE | Số dòng mặc định trả về khi truy vấn danh sách ActivityLog / AlertLog. |
 

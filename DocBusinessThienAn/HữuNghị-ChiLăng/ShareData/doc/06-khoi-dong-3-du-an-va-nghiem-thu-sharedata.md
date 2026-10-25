@@ -155,15 +155,15 @@ Theo chủ trương của chủ dự án, **ưu tiên thao tác trực tiếp tr
    - Nhấp chọn gói tin vừa tạo ở danh sách bên trái.
    - Ở khung bên phải, chuyển sang tab **Cấu hình SQL** (`tabSqlCenter`).
    - Khung soạn thảo SQL (Monaco Editor) đã hiển thị câu truy vấn trích xuất chuẩn. Nếu muốn khôi phục lại câu SQL chuẩn từ hệ thống, bấm nút **Khôi phục SQL mẫu** (`vqbResetToTemplateTitle`). *(Lưu ý: Bấm nút này chỉ nạp nội dung lên khung soạn thảo, chưa ghi đè xuống CSDL cho tới khi bấm nút Lưu).*
-   - **Chế độ gửi theo câu SQL:** Giao diện không có nút hay nhãn chế độ. Câu SQL có biến `@lastTime` / `@lastKey` là *nối đuôi* (gói 103/104/106/107/109), không có là *gửi toàn bộ* (gói 101/102/105/108/110) — đối chiếu [Phụ lục C](05-chay-sql-tu-dau-sharedata.md#phụ-lục-c-danh-mục-chuẩn-11-gói-tin-sharedata).
-     + Với câu nối đuôi: khung kiểm câu nối đuôi chỉ hiện khi còn thiếu điều kiện (cột `__lastTime`/`__lastKey`, `TOP (@pageSize)`, `ORDER BY ... ASC`), kèm nút sửa tự động. Ô *Quét lùi tối đa* tạm thời được ẩn trên giao diện chờ review nghiệp vụ (Worker vẫn áp dụng nếu CSDL đã lưu giá trị).
+   - **Chế độ gửi theo câu SQL (cập nhật 25/10/2026):** Giao diện không có nút hay nhãn chế độ và không tự chèn gì vào câu SQL. Câu SQL dùng một biến đã khai với nguồn *Mốc thời gian lần trước* hoặc *Mốc khóa lần trước* là *nối đuôi* (gói 103/104/106/107/109), không dùng là *gửi toàn bộ* (gói 101/102/105/108/110) — đối chiếu [Phụ lục C](05-chay-sql-tu-dau-sharedata.md#phụ-lục-c-danh-mục-chuẩn-11-gói-tin-sharedata).
+     + Câu nối đuôi khi lưu bị kiểm: có `TOP`, có cột `__lastTime` và `__lastKey`, `ORDER BY` theo `__lastTime` rồi `__lastKey`, không `DESC`. Ô *Quét lùi tối đa* không có trên giao diện (chờ chốt; Worker vẫn áp dụng nếu CSDL đã lưu giá trị).
    - **Trường trích xuất (sau AS):** Hệ thống tự động bóc tách các bí danh sau `AS` trong câu SELECT:
      + Chip màu xanh (✓): Bí danh đã được khai báo thành trường gói tin.
      + Chip viền nét đứt: Bí danh chưa khai trường.
      + Chip gạch ngang đỏ nhạt: Trường gói tin đã khai nhưng câu SQL không trả về.
      + Dòng trạng thái dưới chip: Tóm tắt số trường đã khai · chưa khai kèm nút `[Khai thêm M trường]` · số trường SQL không trả về.
-   - **Biến hệ thống trong câu truy vấn:** Hiển thị trực quan nguồn giá trị của từng biến do Worker tự điền (`@lastTime ← __lastTime = <biểu_thức>`, `@lastKey ← __lastKey = <biểu_thức>`, `@pageSize ← cấu hình Worker`, `@fromDate ← hôm nay − N ngày`, `@toDate ← thời điểm chạy`). Muốn đổi nguồn mốc con trỏ chỉ cần sửa biểu thức sau `AS __lastTime` / `AS __lastKey` trong câu lệnh SQL; hệ thống không tự gỡ phần nối đuôi khi nạp SQL.
-   - Bấm nút **Lưu** (`save`) để lưu cấu hình SQL và các tham số đồng bộ xuống CSDL.
+   - **Bảng Tham số câu truy vấn (25/10/2026, không còn biến hệ thống):** mọi biến `@tên` dùng trong câu SQL phải khai ở bảng này (nút **Thêm**): Tên · Kiểu (String / Int / Decimal / Bool / Date / DateTime) · Lấy từ (Mốc khóa lần trước, Mốc thời gian lần trước, Lần chạy trước, Thời điểm chạy, Đầu năm, Hằng số) · Giá trị (khi là Hằng số) · Ghi chú. Biến chưa khai thì báo lỗi *"Biến [@x] chưa khai ở bảng Tham số câu truy vấn"* khi lưu, chạy thử, dò cột và khi Worker gửi. Mẫu chung có bộ biến riêng; SQL riêng của đối tác có bộ riêng (chép từ mẫu chung lần đầu tạo SQL riêng). Khai `@pageSize` (Hằng số) thì Worker lặp nhiều trang mỗi lượt (tối đa `outbound_max_pages_per_run`), không khai thì chạy câu SQL một lần. Gõ `@` trong khung soạn SQL chỉ gợi ý các biến đã khai.
+   - Bấm nút **Lưu** (`save`) duy nhất phía trên: chỉ gọi API của phần có thay đổi — lưu bảng biến trước, rồi câu SQL (kèm khai các cột chưa có trường).
 5. 💡 **Khuyến nghị gói tin tối thiểu để nghiệm thu:** Để thực hiện nhanh các kịch bản kiểm thử, người dùng tối thiểu cần khởi tạo 2 gói tin:
    - Gói **`101_commonData`** (Snapshot, phục vụ kịch bản D1, D5, E0, E1).
    - Gói **`103_vdsData`** (Incremental, phục vụ kịch bản D3 nối đuôi).  
@@ -434,15 +434,15 @@ Trước khi thực hiện các bài test nhóm E, cần chuẩn bị hạ tần
 
 | # | Bước | Kết quả mong đợi | Kết quả |
 |---|---|---|---|
-| A1 | Mở danh sách gói tin, mở tab Cấu hình SQL từng gói | Không có tag/nhãn chế độ trên danh sách và thanh công cụ SQL. Câu SQL của 103, 104, 106, 107, 109 có `@lastTime`/`@lastKey` (nối đuôi); 101, 102, 105, 108, 110 không có (gửi toàn bộ) | ☐ Đạt ☐ Không đạt |
-| A2 | Mở gói **105** (chưa chỉnh gì) | Câu SQL không có `@lastTime`/`@lastKey` (gửi toàn bộ); không hiện khung kiểm câu nối đuôi | ☐ ☐ |
-| A3 | Gói 105: thêm điều kiện dùng `@lastTime` vào câu SQL nhưng chưa đủ cấu trúc nối đuôi → bấm Lưu (bị từ chối). Bấm nút sửa tự động ở khung kiểm câu nối đuôi (mốc thời gian `td.UpdateTime`, khóa `td.ID`) → khung kiểm biến mất (đủ điều kiện) → bấm Lưu → tải lại trang và mở lại gói 105 | Khi câu SQL chưa đúng cấu trúc nối đuôi: **Bị từ chối lưu**, thông báo nêu thiếu `TOP (@pageSize)`, thiếu `ORDER BY ... ASC`, hoặc thiếu `__lastTime`/`__lastKey`. Sau khi sửa đủ và Lưu: **Lưu thành công**, mở lại câu SQL giữ nguyên phần nối đuôi; không có tag/nhãn chế độ nào thay đổi trên giao diện (Worker tự gửi nối đuôi theo câu SQL) | ☐ ☐ |
-| A4 | Xóa trắng ô `MaxLookBackDays` → bấm Lưu → tải lại trang và mở lại gói 105 | Ô `MaxLookBackDays` hiển thị **rỗng** (giá trị `null` trong CSDL, không tự động quay về 7) | ☐ ☐ |
-| A5 | Khôi phục câu SQL mẫu chuẩn của gói 105 (không có `@lastTime`/`@lastKey`) qua nút "Mẫu mặc định" → bấm Lưu | **Lưu thành công**; câu gửi toàn bộ nên hệ thống không kiểm tra cấu trúc nối đuôi | ☐ ☐ |
+| A1 | Mở danh sách gói tin, mở tab Cấu hình SQL từng gói | Không có tag/nhãn chế độ trên danh sách và thanh công cụ SQL; không còn dải "Biến hệ thống" hay nút sửa tự động. Bảng *Tham số câu truy vấn* liệt kê đúng các biến câu SQL của gói đang dùng | ☐ Đạt ☐ Không đạt |
+| A2 | Mở gói **105** (chưa chỉnh gì) | Câu SQL không dùng biến lấy từ mốc lần trước (gửi toàn bộ) | ☐ ☐ |
+| A3 | Gói 105: thêm vào câu SQL điều kiện dùng `@since` nhưng **chưa khai** → bấm Lưu. Khai `@since` (DateTime, Lấy từ: Mốc thời gian lần trước) nhưng câu SQL chưa đủ cấu trúc nối đuôi → bấm Lưu. Tự sửa câu SQL cho đủ (`TOP`, `__lastTime`, `__lastKey`, `ORDER BY __lastTime, __lastKey`) → bấm Lưu → tải lại trang và mở lại gói 105 | Lần 1: **Bị từ chối**, báo "Biến [@since] chưa khai ở bảng Tham số câu truy vấn". Lần 2: **Bị từ chối**, báo thiếu `TOP`, `__lastTime`/`__lastKey` hoặc `ORDER BY` sai. Lần 3: **Lưu thành công** (một nút Lưu lưu cả bảng biến và câu SQL); mở lại thấy nguyên câu SQL và dòng `@since` | ☐ ☐ |
+| A4 | *(Tạm bỏ 25/10/2026: ô `MaxLookBackDays` không còn trên giao diện, chờ chốt)* | — | — |
+| A5 | Khôi phục câu SQL mẫu chuẩn của gói 105 qua nút "Mẫu mặc định" → bấm Lưu | **Lưu thành công**; câu gửi toàn bộ nên hệ thống không kiểm tra cấu trúc nối đuôi | ☐ ☐ |
 | A6 | Xem gói **111** (và 110 nếu chưa bật) | Hiện **"Đã tắt"**; không có nút chạy/gửi | ☐ ☐ |
 | A7 | Tạo gói mới: chọn "Loại gói (thứ tự)" 101–111 (mặc định 101) → Lưu gói | Gói tạo xong có ngay SQL (`TemplateSql` = `ExtractSql` sao chép từ gói nguồn cùng loại trong CSDL); khi bấm Sửa gói thì ô "Loại gói" bị khóa chỉ đọc (kèm gợi ý "Gói mới nhận SQL mẫu theo loại gói; sau khi tạo không đổi loại gói được") | ☐ ☐ |
 | A8 | Sửa câu SQL trích xuất của gói rồi bấm [Lưu] → bấm menu "Khôi phục SQL mẫu" | Câu lệnh đang chạy `ExtractSql` bị ghi đè khi Lưu; khi bấm "Khôi phục SQL mẫu" ô soạn thảo khôi phục lại câu SQL mẫu ban đầu lúc tạo gói (đọc từ `TemplateSql`, CSDL không đổi) | ☐ ☐ |
-| A9 | Mở chế độ Trực quan (Visual Query Builder) với các gói có JOIN (101, 102, 107...) và gói 110 ("Lấy 1 dòng mới nhất" qua `OUTER APPLY (SELECT TOP 1...)`) | Cả 11 gói (101–111) đều mở được ở chế độ Trực quan; danh sách nối bảng nhận diện chính xác loại nối (`INNER JOIN`, `LEFT JOIN`, `Lấy 1 dòng mới nhất`) và điều kiện `ON` | ☐ ☐ |
+| A9 | *(Đã bỏ 25/10/2026: bộ dựng truy vấn trực quan `queryBuilder.vue` đã xóa, chỉ còn khung soạn SQL)* | — | — |
 
 ---
 

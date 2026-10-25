@@ -136,7 +136,7 @@ flowchart TD
 * **Vị trí tệp:** [`TA-ITS015-WEBAPI-V1.0/src/Modules/ShareData/Module.ShareData.Core/Entities/ShareDataPacketField.cs`](file:///Users/hoangquydat/ThienAn/TA-ITS015-WEBAPI-V1.0/src/Modules/ShareData/Module.ShareData.Core/Entities/ShareDataPacketField.cs)
 * **Kết nối CSDL:** `Default` (`DEV_ITS10`)
 * **Vai trò nghiệp vụ:**  
-  Khai báo từ điển chi tiết từng trường dữ liệu chuẩn thuộc về một gói tin. Được sử dụng để hiển thị danh sách trường nguồn trên màn hình Ánh xạ (`editMapping.vue`) và Query Builder (`queryBuilder.vue`).
+  Khai báo từ điển chi tiết từng trường dữ liệu chuẩn thuộc về một gói tin. Được sử dụng để hiển thị danh sách trường nguồn trên màn hình Ánh xạ (`editMapping.vue`) và danh sách trường của màn Nguồn dữ liệu (`dataSource/index.vue`).
 * **Cấu trúc trường cốt lõi:**
   | Tên trường C# | Kiểu CSDL | Ràng buộc | Mô tả chức năng |
   | :--- | :--- | :---: | :--- |
