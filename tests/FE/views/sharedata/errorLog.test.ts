@@ -183,41 +183,14 @@ test.describe('ShareData — Nhật ký cảnh báo lỗi (errorLog) @sharedata'
         await expect(drawer.locator('.el-descriptions')).toContainText('Kiểm tra bảng ShareDataCodeSet');
         await expect(drawer.locator('.el-descriptions')).toContainText('CodeSet CS_STATUS not found');
 
-        // Click outside vào lớp phủ (tọa độ 5, 5) để khẳng định Drawer KHÔNG đóng
+        // Rule 20.26: bấm ra ngoài lớp phủ (tọa độ 5, 5) thì Drawer đóng
         await page.mouse.click(5, 5);
-        await page.waitForTimeout(300);
-        await expect(drawer).toBeVisible();
+        await expect(drawer).toBeHidden();
 
-        // Đóng Drawer bằng nút đóng
+        // Mở lại rồi đóng bằng nút đóng
+        await detailBtn.click();
+        await expect(drawer).toBeVisible({ timeout: 5000 });
         await drawer.locator('.el-drawer__close-btn').click();
         await expect(drawer).toBeHidden();
-    });
-
-    test('2. ElMessageBox.confirm trong errorLog KHÔNG đóng khi click ra ngoài', async ({ page }) => {
-        await page.route('**/api/sharedata/sharedataalertlog/summary*', async (route) => {
-            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: { unackedCount: 1, totalCount: 1 } }) });
-        });
-        await page.route('**/api/sharedata/sharedataalertlog/page*', async (route) => {
-            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: { records: [{ id: 'ALERT_1', alertCode: 'ESH-1201', severity: 2, alertSource: 1, message: 'Test alert', occurredAt: '2026-10-14T08:00:00Z' }], total: 1 } }) });
-        });
-
-        await page.goto('/sharedata/errorLog');
-        await expect(page.locator('.full-table')).toBeVisible({ timeout: 15_000 });
-
-        const ackAllBtn = page.locator('button:has-text("Xác nhận tất cả")').first();
-        if (await ackAllBtn.isVisible()) {
-            await ackAllBtn.click();
-            const msgBox = page.locator('.el-message-box');
-            await expect(msgBox).toBeVisible({ timeout: 5000 });
-
-            // Click outside tại tọa độ (5, 5)
-            await page.mouse.click(5, 5);
-            await page.waitForTimeout(300);
-            await expect(msgBox).toBeVisible();
-
-            // Đóng bằng nút Hủy
-            await msgBox.locator('button:has-text("Hủy")').click();
-            await expect(msgBox).toBeHidden({ timeout: 5000 });
-        }
     });
 });

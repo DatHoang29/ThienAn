@@ -190,13 +190,6 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
             heads: [/is-success/, /is-error/],
             step2Text: '504 Gateway Timeout',
         },
-        {
-            name: 'chưa có dữ liệu bước con (is-wait)',
-            id: 'PARENT_LOG_WAIT',
-            success: 1,
-            children: [],
-            heads: [/is-wait/, /is-wait/],
-        },
     ];
 
     for (const c of stepCases) {

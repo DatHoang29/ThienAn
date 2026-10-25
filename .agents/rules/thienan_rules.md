@@ -77,6 +77,7 @@ Quy tắc kỹ thuật chi tiết lưu giữ toàn văn tại các tệp chuyên
 > - Handler `Controllers/<ChứcNăng>/{Commands,Queries}` cài `IWolverineHandler` (`using Wolverine;`); ⛔ CẤM `ITransient` / `IScoped` / `ISingleton` (§2).
 > - ⛔ CẤM DataAnnotation (`[Required]`, `[Range]`, `[StringLength]`) trên DTO; kiểm tra 100% bằng FluentValidation trong `Controllers/<ChứcNăng>/Validators/` (§2).
 > - **Rule 19.44** — WebAPI: ⛔ CẤM gán tay `ID = Guid.NewGuid()` khi Insert, AOP tự sinh (§3).
+> - **Rule 19.65** — Thêm `using <Namespace>;` đầu tệp; ⛔ CẤM viết tên kiểu đầy đủ kèm namespace trong mã (vd `Module.ShareData.Core.Helpers.SqlVariableSet`) (§4.8).
 - **Rule 19.67** (STT 18) — Ưu tiên sửa code trước, chỉ viết test khi có yêu cầu (Fix-First & On-Demand) (§4.25)
 - **Rule 19.68** (STT 22) — Cấm mã obsolete trong C#, dùng `[SugarColumn(IsIgnore=true)]` (§4.10)
 - **Rule 19.69, Rule 19.26** (STT 23) — Cấm hardcode string trong `Oops.Oh`, dùng `BaseMsg` & `SysTerminology` (§4.11)

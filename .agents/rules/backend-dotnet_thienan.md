@@ -179,6 +179,7 @@ namespace Module.ShareData.Controllers
    - Cấm sinh hàm mới làm hàm cũ mồ côi (dead code).
 8. **Vị Trí `using` & Quy Chuẩn `namespace` (Rule 19.65)**:
    - **Vị trí `using` luôn đứng đầu file**: Mọi chỉ thị `using` **BẮT BUỘC đặt ở đầu tệp tin**, phía trước khai báo `namespace`. ⛔ **TUYỆT ĐỐI CẤM** đặt `using` sau khai báo `namespace` (kể cả khi dùng file-scoped namespace).
+   - **Dùng `using`, cấm tên kiểu đầy đủ trong mã (bổ sung 25/10/2026)**: Cần kiểu ở namespace khác thì thêm `using <Namespace>;` đầu tệp rồi viết tên ngắn. ⛔ **CẤM** viết tên đầy đủ kèm namespace ngay trong khai báo hay thân hàm (vd ❌ `Module.ShareData.Core.Helpers.SqlVariableSet? Variables = null` → ✅ `using Module.ShareData.Core.Helpers;` + `SqlVariableSet? Variables = null`). Chỉ viết đầy đủ khi hai kiểu trùng tên thật sự xung đột; khi đó ưu tiên bí danh `using X = ...;` đầu tệp.
    - **Đồng nhất kiểu `namespace`**: Tuân thủ phong cách namespace của module / file gốc hiện hữu. Khi tạo file mới hoặc tách `partial class`, **BẮT BUỘC đồng nhất** với các file cùng class/module: nếu các file hiện tại dùng block-scoped namespace (`namespace X { ... }`) thì file mới bắt buộc dùng block-scoped namespace, ⛔ **CẤM** viết lẫn lộn file-scoped namespace (`namespace X;`) trong cùng một partial class.
 9. **Can Thiệp Tối Thiểu & Cấm Sửa Code Ngoài Phạm Vi (Minimal Diff - Rule 19.6, 19.35)**:
    - Chi tiết xem [thienan_rules.md](./thienan_rules.md) bảng P0 quy tắc #13.

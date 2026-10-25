@@ -217,12 +217,20 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 		await page.waitForTimeout(400);
 		await expect.poll(async () => getTransformX(modalActiveBar)).toBeGreaterThan(50);
 
-		// Chuyển về tab Gửi đi trong modal: thanh active bar BẮT BUỘC di chuyển (move / translateX) về 0
+		// Chuyển về tab Gửi đi trong modal: thanh active bar BẮT BUỘC trượt về nằm dưới tab Gửi đi
+		// (tab có lề trong nên translateX không về đúng 0; so theo vị trí tab thật)
 		const modalOutboundTab = modalTabs.getByRole('tab', { name: 'Gửi đi' });
 		await modalOutboundTab.click();
 		await expect(modalOutboundTab).toHaveClass(/is-active/);
 		await page.waitForTimeout(400);
-		await expect.poll(async () => getTransformX(modalActiveBar)).toBeLessThanOrEqual(1);
+		await expect
+			.poll(async () => {
+				const bar = (await modalActiveBar.boundingBox())!;
+				const tab = (await modalOutboundTab.boundingBox())!;
+				const center = bar.x + bar.width / 2;
+				return center >= tab.x && center <= tab.x + tab.width;
+			})
+			.toBe(true);
 
 		// Kiểm tra chiều cao cố định theo tỷ lệ màn hình (vh) không bị giật khi chuyển tab
 		const tabContent = dialog.locator('.direction-tabs .el-tabs__content');
@@ -245,11 +253,11 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 		await expect(modalOutboundTab).toHaveClass(/is-active/);
 		await page.waitForTimeout(200);
 
-		// Kiểm tra ô Ghi chú (remark) hiển thị mặc định với rows="4" (đã giảm 2 dòng so với 6)
+		// Kiểm tra ô Ghi chú (remark) hiển thị mặc định với rows="6" theo editSubscription.vue hiện tại
 		const remarkTextarea = dialog.locator('textarea').first();
 		await expect(remarkTextarea).toBeVisible();
 		const rowsAttr = await remarkTextarea.getAttribute('rows');
-		expect(rowsAttr).toBe('4');
+		expect(rowsAttr).toBe('6');
 		const textareaHeight = await remarkTextarea.evaluate((el) => el.getBoundingClientRect().height);
 		expect(textareaHeight).toBeGreaterThanOrEqual(70);
 

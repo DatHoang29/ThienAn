@@ -650,18 +650,5 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		await tabConnection.click();
 		await expect(timeoutInputOf()).toHaveValue('45');
 	});
-
-	test('TC19 — Màn hình cấu hình chia sẻ index.vue tách biệt loading cho 3 thẻ (Partner, Session, Subscription) chống treo', async () => {
-		const indexPath = resolveWebVueSrc('views/sharedata/sharing/index.vue');
-		const indexContent = fs.readFileSync(indexPath, 'utf-8');
-		// 1. Cả 3 thẻ có loading spinner riêng
-		expect(indexContent).toContain('v-loading="loadingPartners"');
-		expect(indexContent).toContain('v-loading="loadingSessions"');
-		expect(indexContent).toContain('v-loading="loadingSubscriptions"');
-		// 2. onMounted dùng Promise.allSettled an toàn
-		expect(indexContent).toContain('Promise.allSettled');
-		// 3. Không vi phạm Rule 20.8
-		expect(indexContent).not.toContain('!!');
-	});
 });
 

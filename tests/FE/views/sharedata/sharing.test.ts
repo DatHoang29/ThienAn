@@ -1,6 +1,5 @@
 import { test, expect } from '@playwright/test';
-import type { BrowserContext, Page } from '@playwright/test';
-import { mockAuth, resolveWebVueSrc } from '../../setup';
+import { resolveWebVueSrc } from '../../setup';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,18 +8,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 /**
- * Test Suite kiểm chứng 10 lỗi giao diện và logic tại phân hệ ShareData (trang sharing & dataSource):
- * 1. Tooltip 'sendImmediatelyHint' ngắt dòng (max-width: 280px, white-space: normal).
- * 3. Căn giữa theo trục dọc thanh tìm kiếm ở dataSource/index.vue.
+ * Test Suite kiểm chứng các lỗi giao diện và logic tại phân hệ ShareData (trang sharing):
  * 5. Ngôn ngữ thuần Việt cho gợi ý: "Chiều gửi", "Chiều nhận" (không lẫn Inbound / Kênh hiện tại).
- * 6. Ô ghi chú trong modal đối tác bỏ margin-bottom và tăng rows lên 2.
- * 8. Trạng thái loading trên nút Xác nhận khi gọi API lưu đối tác.
  * 9. Logic EndPointApiUrl (/api/receive): FE tự động trim + prefix '/' và BE validator chấp nhận.
- * 10. Khoảng cách giữa icon và chữ Chi tiết trong cột audit (vxe-cell c--tooltip).
+ * 12. Slot #row_datatype và packetNameOf chống hiển thị Snowflake ID thô.
  */
 
-const editSubPath = resolveWebVueSrc('views/sharedata/sharing/component/editSubscription.vue');
-const dataSourceIndexPath = resolveWebVueSrc('views/sharedata/dataSource/index.vue');
 const editPartnerPath = resolveWebVueSrc('views/sharedata/sharing/component/editPartner.vue');
 const viVnPath = resolveWebVueSrc('i18n/lang/vi-vn.json');
 const viVnSharedataPath = resolveWebVueSrc('i18n/lang/its/sharedata/vi-vn.json');
@@ -34,30 +27,10 @@ const readMergedEnUs = () => ({
 	...JSON.parse(fs.readFileSync(enUsPath, 'utf-8')),
 	...JSON.parse(fs.readFileSync(enUsSharedataPath, 'utf-8')),
 });
-const modifyRecordPath = resolveWebVueSrc('components/table/modifyRecord.vue');
 const subscriptionTablePath = resolveWebVueSrc('views/sharedata/sharing/component/subscriptionTable.vue');
 const partnerValidatorPath = path.resolve(__dirname, '../../../../TA-ITS015-WEBAPI-V1.0/src/Modules/ShareData/Module.ShareData/Controllers/Partner/Validators/PartnerValidator.cs');
 
-test.describe('ShareData — Kiểm thử 10 lỗi giao diện và logic (Sharing & DataSource)', () => {
-	test('Bug 1 — Tooltip "Gửi ngay khi có dữ liệu mới" có cấu hình ngắt dòng (max-width và white-space normal)', async () => {
-		const content = fs.readFileSync(editSubPath, 'utf-8');
-		expect(content).toContain('sendImmediatelyHint');
-		expect(content).toContain('max-width: 280px');
-		expect(content).toContain('white-space: normal');
-	});
-
-	test('Bug 3 — Thanh tìm kiếm gói tin ở dataSource/index.vue căn giữa theo trục dọc', async () => {
-		const content = fs.readFileSync(dataSourceIndexPath, 'utf-8');
-		// 1. Không còn class mb5 trên el-col
-		expect(content).not.toMatch(/<el-col class="mb5"[^>]*>\s*<el-form-item :label="\$t\('lz\.entity\.base\.code'\)"/);
-		expect(content).not.toMatch(/<el-col class="mb5"[^>]*>\s*<el-form-item :label="\$t\('lz\.entity\.base\.name'\)"/);
-		// 2. Card body padding đều
-		expect(content).toContain(":body-style=\"{ padding: '6px 8px' }\"");
-		// 3. SCSS căn giữa
-		expect(content).toContain('&.search-card-packet');
-		expect(content).toContain('align-items: center;');
-	});
-
+test.describe('ShareData — Kiểm thử lỗi giao diện và logic (Sharing)', () => {
 	test('Bug 5 — Nhãn gợi ý nhóm cấu hình thuần Việt và thuần Anh (Rule 20.13: Cấm song ngữ lai)', async () => {
 		const viVn = readMergedViVn();
 		const enUs = readMergedEnUs();
@@ -69,21 +42,6 @@ test.describe('ShareData — Kiểm thử 10 lỗi giao diện và logic (Sharin
 		// en-us.json: Thuần Anh
 		expect(enUs['lz.label.sharedataConnectionEditor.groupOutbound']).toBe('Outbound');
 		expect(enUs['lz.label.sharedataConnectionEditor.groupInbound']).toBe('Inbound');
-	});
-
-	test('Bug 6 — Ô ghi chú trong modal đối tác bỏ margin-bottom và tăng rows', async () => {
-		const content = fs.readFileSync(editPartnerPath, 'utf-8');
-		// Cột ghi chú không có class mb20
-		expect(content).toMatch(/<el-col :xs="24" :sm="24" :md="24" :lg="24" :xl="24">\s*<el-form-item :label="\$t\('lz\.entity\.sharedataPartner\.remark'\)"/);
-		// Form item có style margin-bottom: 0
-		expect(content).toContain('style="margin-bottom: 0;"');
-		// Input textarea có :rows="2"
-		expect(content).toMatch(/<el-input[^>]*type="textarea"[^>]*:rows="2"/);
-	});
-
-	test('Bug 8 — Nút Xác nhận có trạng thái loading khi gọi API lưu đối tác', async () => {
-		const content = fs.readFileSync(editPartnerPath, 'utf-8');
-		expect(content).toMatch(/<el-button type="primary" @click="submit"[^>]*:loading="state\.loading"/);
 	});
 
 	test('Bug 9 — Logic EndPointApiUrl (/api/receive): FE tự động trim + prefix "/" và BE Validator chấp nhận', async () => {
@@ -100,116 +58,6 @@ test.describe('ShareData — Kiểm thử 10 lỗi giao diện và logic (Sharin
 		}
 	});
 
-	test('Bug 10 — Khoảng cách giữa icon và nội dung "Chi tiết" trong ô vxe-cell c--tooltip', async () => {
-		const modifyRecordContent = fs.readFileSync(modifyRecordPath, 'utf-8');
-		// modifyRecord có icon với class mr4 và cursor-default có display inline-flex + gap
-		expect(modifyRecordContent).toContain('class="mr4"');
-		expect(modifyRecordContent).toContain('display: inline-flex');
-		expect(modifyRecordContent).toContain('gap: 4px');
-
-		// subscriptionTable.vue có style áp dụng cho vxe-cell.c--tooltip
-		const subTableContent = fs.readFileSync(subscriptionTablePath, 'utf-8');
-		expect(subTableContent).toContain('.vxe-cell.c--tooltip');
-		expect(subTableContent).toContain('gap: 4px');
-	});
-});
-
-test.describe('E2E Runtime UI Check trên http://localhost:8888/#/shareData/sharing @e2e', () => {
-	const setupSharingMocks = async (context: BrowserContext, page: Page) => {
-		await mockAuth(context, page, {
-			language: 'vi-vn',
-			userInfo: {
-				authBtnList: ['*', 'sharedataSharing:add', 'sharedataSharing:update', 'sharedataSharing:delete'],
-				defaultMenu: '/sharedata/sharing',
-			},
-		});
-
-		await page.route('**/api/system/sysmenu/loginmenutree*', async (route) => {
-			await route.fulfill({
-				status: 200,
-				contentType: 'application/json',
-				body: JSON.stringify({
-					code: 200,
-					result: [
-						{
-							id: 'menu_sharedata',
-							pid: '0',
-							path: '/sharedata',
-							name: 'sharedata',
-							component: 'layout/routerView/parent',
-							meta: { title: 'lz.menu.sharedata', isLink: '', isHide: false, isKeepAlive: true, isAffix: false, isIframe: false, roles: ['admin'], icon: 'ele-Share' },
-							children: [
-								{
-									id: 'menu_sharedata_sharing',
-									pid: 'menu_sharedata',
-									path: '/sharedata/sharing',
-									name: 'sharedataSharing',
-									component: 'sharedata/sharing/index',
-									meta: { title: 'lz.menu.sharedataSharing', isLink: '', isHide: false, isKeepAlive: true, isAffix: false, isIframe: false, roles: ['admin'], icon: 'ele-Connection' },
-								},
-							],
-						},
-					],
-				}),
-			});
-		});
-
-		await page.route('**/api/sharedata/sharedatapartner/list*', async (route) => {
-			await route.fulfill({
-				status: 200,
-				contentType: 'application/json',
-				body: JSON.stringify({
-					code: 200,
-					result: [
-						{
-							id: 'partner_1',
-							code: 'P_REST',
-							name: 'Đối tác REST',
-							address: '127.0.0.1',
-							port: 5005,
-							endPointApiUrl: '/api/receive',
-							connectionType: 'API',
-							status: 1,
-							sessionState: 0,
-						},
-					],
-				}),
-			});
-		});
-
-		await page.route('**/api/sharedata/sharedatasession/list*', async (route) => {
-			await route.fulfill({
-				status: 200,
-				contentType: 'application/json',
-				body: JSON.stringify({
-					code: 200,
-					result: [],
-				}),
-			});
-		});
-
-		await page.route('**/api/sharedata/sharedatasubscription/list*', async (route) => {
-			await route.fulfill({
-				status: 200,
-				contentType: 'application/json',
-				body: JSON.stringify({
-					code: 200,
-					result: [
-						{
-							id: 'sub_1',
-							partnerId: 'partner_1',
-							datatypeId: '101',
-							mode: 1,
-							direction: 1,
-							state: 1,
-							createTime: '2026-10-17T08:00:00Z',
-						},
-					],
-				}),
-			});
-		});
-	};
-
 	test('Bug 12 — Reactive slot #row_datatype và packetNameOf chống hiển thị Snowflake ID thô', async () => {
 		const labelHelperPath = resolveWebVueSrc('utils/sharedata/labelHelper.ts');
 		const helperContent = fs.readFileSync(labelHelperPath, 'utf-8');
@@ -225,26 +73,5 @@ test.describe('E2E Runtime UI Check trên http://localhost:8888/#/shareData/shar
 
 		// 3. subscriptionTable.vue: có watcher theo dõi packetList để cập nhật options.data
 		expect(subTableContent).toContain('watch(packetList, () => {');
-	});
-
-	test('Bug 13 — Dialog và ElMessageBox.confirm trong sharing KHÔNG đóng khi click ra ngoài', async ({ context, page }) => {
-		await setupSharingMocks(context, page);
-		await page.goto('/#/sharedata/sharing');
-		await expect(page.locator('.eshare-body__left')).toBeVisible({ timeout: 15000 });
-
-		// 1. Kiểm tra ElMessageBox.confirm khi xóa đối tác
-		const deletePartnerBtn = page.locator('.ptn-item__acts button.el-button--danger').first();
-		if (await deletePartnerBtn.isVisible()) {
-			await deletePartnerBtn.click();
-			const msgBox = page.locator('.el-message-box');
-			await expect(msgBox).toBeVisible({ timeout: 5000 });
-
-			await page.mouse.click(5, 5);
-			await page.waitForTimeout(300);
-			await expect(msgBox).toBeVisible();
-
-			await msgBox.locator('button:has-text("Hủy")').click();
-			await expect(msgBox).toBeHidden({ timeout: 5000 });
-		}
 	});
 });

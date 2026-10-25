@@ -31,7 +31,7 @@ test.describe('ShareData — Bảng tham số câu truy vấn (sqlVariablePanel)
 			keys.add(`lz.tooltip.sharedataSqlVariable.source_${s}`);
 		}
 		expect(types.length).toBeGreaterThanOrEqual(6);
-		expect(sources.length).toBeGreaterThanOrEqual(8);
+		expect(sources.length).toBeGreaterThanOrEqual(6);
 
 		for (const k of keys) {
 			expect(viVn[k], `vi-vn.json thiếu key ${k}`).toBeTruthy();

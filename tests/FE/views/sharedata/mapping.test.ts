@@ -431,7 +431,7 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
         expect(movedHeaderBox!.y).toBeGreaterThan(beforeDragY);
     });
 
-    test('EC12 — Kiểm tra phân cấp 2 tầng Tab trong editMapping.vue: Tab cấp trên (.mp-direction-tabs) trượt active-bar chuẩn TMS và Sub-tab (.mp-tabs line sticky)', async ({ page }) => {
+    test('EC12 — Tab trong editMapping.vue (.mp-tabs): kiểu line, header sticky, active-bar trượt chuẩn TMS', async ({ page }) => {
         test.slow();
         await page.goto('/#/sharedata/mapping');
         const addBtn = page.locator('button:has(.ele-Plus), button:has-text("Thêm mới"), button:has-text("Thêm")').first();
@@ -441,36 +441,7 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
         const dialog = page.locator('.mp-dialog');
         await expect(dialog).toBeVisible({ timeout: 5000 });
 
-        // 1. Kiểm tra Tầng 1: Tab cấp trên (.mp-direction-tabs) chuẩn TMS với 3 chiều và active-bar trượt
-        const topTabs = dialog.locator('.mp-direction-tabs');
-        await expect(topTabs).toBeVisible();
-        await expect(topTabs).not.toHaveClass(/el-tabs--border-card/);
-
-        const tabOutbound = topTabs.getByRole('tab', { name: 'Gửi đi' });
-        const tabInbound = topTabs.getByRole('tab', { name: 'Nhận về' });
-        const tabBoth = topTabs.getByRole('tab', { name: 'Hai chiều' });
-        await expect(tabOutbound).toHaveClass(/is-active/);
-
-        const topActiveBar = topTabs.locator('.el-tabs__active-bar');
-        await expect(topActiveBar).toBeVisible();
-        const initialTopBarBox = await topActiveBar.boundingBox();
-        expect(initialTopBarBox).not.toBeNull();
-
-        await tabInbound.click();
-        await expect(tabInbound).toHaveClass(/is-active/);
-        await page.waitForTimeout(300);
-        const movedTopBarBox = await topActiveBar.boundingBox();
-        expect(movedTopBarBox).not.toBeNull();
-        expect(movedTopBarBox!.x).toBeGreaterThan(initialTopBarBox!.x + 20);
-
-        await tabOutbound.click();
-        await expect(tabOutbound).toHaveClass(/is-active/);
-        await page.waitForTimeout(300);
-
-        await expect(tabInbound).toBeVisible();
-        await expect(tabBoth).toBeVisible();
-
-        // 2. Kiểm tra Tầng 2: Sub-tab (.mp-tabs) kiểu line (không phải border-card) và sticky header
+        // Tab (.mp-tabs) kiểu line (không phải border-card) và sticky header
         const subTabs = dialog.locator('.mp-tabs');
         await expect(subTabs).toBeVisible();
         await expect(subTabs).not.toHaveClass(/el-tabs--border-card/);
@@ -520,8 +491,8 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
         });
         expect(subTabAfter).toBe(true);
 
-        // Chuyển tiếp sang Sub-tab Dữ liệu gửi thử để kiểm tra thanh tiếp tục trượt di chuyển sang phải
-        const testSubTab = subTabs.getByRole('tab', { name: 'Dữ liệu gửi thử' });
+        // Chuyển tiếp sang Sub-tab Dữ liệu gửi đi để kiểm tra thanh tiếp tục trượt di chuyển sang phải
+        const testSubTab = subTabs.getByRole('tab', { name: 'Dữ liệu gửi đi' });
         await testSubTab.click();
         await expect(testSubTab).toHaveClass(/is-active/);
         await page.waitForTimeout(300);

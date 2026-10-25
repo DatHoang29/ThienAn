@@ -6,10 +6,10 @@ GO
 -- BẢNG GHI: [dbo].[SysTerminology] — tệp chỉ thêm / sửa / xóa trên đúng bảng này; bảng khác chỉ đọc (Rule 19.103).
 -- DESCRIPTION: Bổ sung từ điển bản dịch đa ngôn ngữ (vi-VN, en-US) cho phân hệ ShareData (ESHARE) vào SysTerminology:
 --              1. Chuẩn hóa lại mã khóa cũ thừa tiền tố (như lz.validation...lookbackDaysRange nếu có).
---              2. Nạp toàn bộ 120 mã khóa dịch thuật chuẩn hóa (240 bản ghi đa ngôn ngữ vi-VN và en-US):
+--              2. Nạp toàn bộ 119 mã khóa dịch thuật chuẩn hóa (238 bản ghi đa ngôn ngữ vi-VN và en-US):
 --                 - 23 khóa trường thực thể (Entity) dùng cho validation / khóa ngoại / tên đối tượng.
 --                 - 37 khóa ngoại lệ nghiệp vụ (Exception: phân hệ ShareData, quyền quản trị).
---                 - 58 khóa kiểm tra hợp lệ (Validation: SQL Validator, kết nối, đăng ký, gói tin, bộ mã, ánh xạ, tham số câu truy vấn).
+--                 - 57 khóa kiểm tra hợp lệ (Validation: SQL Validator, kết nối, đăng ký, gói tin, bộ mã, ánh xạ, tham số câu truy vấn).
 --                 - 2 khóa thông báo (Message: kết nối đối tác).
 --              3. Cơ chế Idempotent:
 --                 - MERGE chỉ INSERT các bản ghi chưa có (WHEN NOT MATCHED THEN INSERT).
@@ -18,7 +18,7 @@ GO
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 24/10/2026
+-- CẬP NHẬT LẦN CUỐI: 25/10/2026
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -51,7 +51,7 @@ WHERE Code LIKE N'lz.validation%lookbackDaysRange'
   );
 
 -- -----------------------------------------------------------------------------------------
--- 2. DANH MỤC 112 KHÓA BẢN DỊCH SHAREDATA (224 BẢN GHI ĐA NGÔN NGỮ)
+-- 2. DANH MỤC 119 KHÓA BẢN DỊCH SHAREDATA (238 BẢN GHI ĐA NGÔN NGỮ)
 -- -----------------------------------------------------------------------------------------
 DECLARE @Translations TABLE (
     [Name] NVARCHAR(64),
@@ -292,7 +292,7 @@ VALUES
      N'Cannot change the subscription state from [{0}] to [{1}].'),
 
     -- =========================================================================
-    -- NHÓM 4: QUẢN TRỊ VÀ CẤU HÌNH SQL TRÍCH XUẤT & METADATA (24 khóa)
+    -- NHÓM 4: QUẢN TRỊ VÀ CẤU HÌNH SQL TRÍCH XUẤT & METADATA (22 khóa)
     -- =========================================================================
     (N'lz.exception', N'sharedata.superAdminRequiredForSqlEdit',
      N'Chỉ tài khoản SuperAdmin mới có quyền chỉnh sửa câu truy vấn nguồn dữ liệu.',
@@ -382,14 +382,6 @@ VALUES
      N'Giá trị [{1}] của biến [{0}] không đúng kiểu {2}.',
      N'Value [{1}] of variable [{0}] does not match type {2}.'),
 
-    (N'lz.validation', N'sharedata.sqlVariableSystemCannotRemove',
-     N'Biến hệ thống [{0}] không được xóa hoặc đổi tên.',
-     N'System variable [{0}] cannot be removed or renamed.'),
-
-    (N'lz.validation', N'sharedata.sqlVariableOverrideNotAllowed',
-     N'Biến [{0}] của mẫu chung không cho đối tác ghi đè giá trị.',
-     N'Variable [{0}] of the shared template does not allow partners to override its value.'),
-
     -- =========================================================================
     -- NHÓM 5: KIỂM TRA HỢP LỆ NGHIỆP VỤ GÓI TIN, BỘ MÃ, ĐĂNG KÝ (8 khóa)
     -- =========================================================================
@@ -441,7 +433,7 @@ VALUES
      N'Table ''{0}'' is not in the allowed sharing catalog.'),
 
     -- =========================================================================
-    -- NHÓM 7: SQL VALIDATOR - KIỂM SOÁT CÚ PHÁP VÀ AN TOÀN TRUY VẤN (21 khóa)
+    -- NHÓM 7: SQL VALIDATOR - KIỂM SOÁT CÚ PHÁP VÀ AN TOÀN TRUY VẤN (22 khóa)
     -- =========================================================================
     (N'lz.validation', N'sharedata.sqlScriptEmpty',
      N'Câu lệnh truy vấn không được để trống.',
@@ -500,8 +492,8 @@ VALUES
      N'Table {0} is not in the allowed sharing source tables.' + CHAR(10) + N'Add the table to ShareDataSourceTable (IsQueryable = 1) and try again.'),
 
     (N'lz.validation', N'sharedata.sqlUnsupportedParameter',
-     N'Tham số [{''@''}{0}] không được hỗ trợ. Chỉ hỗ trợ: {''@''}lastTime, {''@''}lastKey, {''@''}pageSize, {''@''}fromDate, {''@''}toDate.',
-     N'Parameter [{''@''}{0}] is not supported. Supported parameters: {''@''}lastTime, {''@''}lastKey, {''@''}pageSize, {''@''}fromDate, {''@''}toDate.'),
+     N'Biến [{''@''}{0}] chưa khai ở bảng Tham số câu truy vấn. Khai biến trước, hoặc dùng biến hệ thống: {''@''}lastTime, {''@''}lastKey, {''@''}pageSize, {''@''}fromDate, {''@''}toDate.',
+     N'Variable [{''@''}{0}] is not declared in the Query parameters table. Declare it first, or use a system variable: {''@''}lastTime, {''@''}lastKey, {''@''}pageSize, {''@''}fromDate, {''@''}toDate.'),
 
     (N'lz.validation', N'sharedata.sqlDatabaseExecutionError',
      N'Cú pháp SQL không hợp lệ trên cơ sở dữ liệu: {0}',
@@ -518,6 +510,10 @@ VALUES
     (N'lz.validation', N'sharedata.sqlIncrementalOrderByDescNotAllowed',
      N'Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc sắp xếp tăng dần (ASC); không cho phép sắp xếp giảm dần (DESC) ở mệnh đề ORDER BY ngoài cùng.',
      N'Incremental queries must sort ascending (ASC); descending (DESC) sorting is not allowed in the outer ORDER BY clause.'),
+
+    (N'lz.validation', N'sharedata.sqlIncrementalOrderByMismatch',
+     N'Truy vấn đồng bộ nối đuôi phải sắp xếp ORDER BY ngoài cùng theo cột [__lastTime] rồi [__lastKey], nếu không có thể bỏ sót dòng.',
+     N'Incremental queries must sort the outer ORDER BY by [__lastTime] then [__lastKey]; otherwise rows may be skipped.'),
 
     (N'lz.validation', N'sharedata.sqlIncrementalMissingLastTime',
      N'Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc có cột con trỏ thời gian [__lastTime].',
@@ -622,11 +618,11 @@ WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlScriptEmpty' AND Lang = 
 UPDATE dbo.SysTerminology SET Value = N'Invalid SQL syntax or contains no executable statements.', UpdateTime = GETDATE()
 WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlScriptInvalid' AND Lang = N'en-US' AND Value = N'SQL script is invalid or contains no executable statements.';
 
-UPDATE dbo.SysTerminology SET Value = N'Tham số [{''@''}{0}] không được hỗ trợ. Chỉ hỗ trợ: {''@''}lastTime, {''@''}lastKey, {''@''}pageSize, {''@''}fromDate, {''@''}toDate.', UpdateTime = GETDATE()
-WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlUnsupportedParameter' AND Lang = N'vi-VN' AND Value LIKE N'%Tham số [@{0}]%';
+UPDATE dbo.SysTerminology SET Value = N'Biến [{''@''}{0}] chưa khai ở bảng Tham số câu truy vấn. Khai biến trước, hoặc dùng biến hệ thống: {''@''}lastTime, {''@''}lastKey, {''@''}pageSize, {''@''}fromDate, {''@''}toDate.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlUnsupportedParameter' AND Lang = N'vi-VN' AND (Value LIKE N'%Tham số [@{0}]%' OR Value LIKE N'Tham số [{''@''}{0}] không được hỗ trợ%');
 
-UPDATE dbo.SysTerminology SET Value = N'Parameter [{''@''}{0}] is not supported. Supported parameters: {''@''}lastTime, {''@''}lastKey, {''@''}pageSize, {''@''}fromDate, {''@''}toDate.', UpdateTime = GETDATE()
-WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlUnsupportedParameter' AND Lang = N'en-US' AND Value LIKE N'%Parameter [@{0}]%';
+UPDATE dbo.SysTerminology SET Value = N'Variable [{''@''}{0}] is not declared in the Query parameters table. Declare it first, or use a system variable: {''@''}lastTime, {''@''}lastKey, {''@''}pageSize, {''@''}fromDate, {''@''}toDate.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlUnsupportedParameter' AND Lang = N'en-US' AND (Value LIKE N'%Parameter [@{0}]%' OR Value LIKE N'Parameter [{''@''}{0}] is not supported%');
 
 UPDATE dbo.SysTerminology SET Value = N'Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc có mệnh đề phân trang TOP ({''@''}pageSize).', UpdateTime = GETDATE()
 WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalMissingTop' AND Lang = N'vi-VN' AND Value LIKE N'%TOP (@pageSize)%';

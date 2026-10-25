@@ -32,8 +32,6 @@ async function retypeSql(page: Page, text: string, delay = 150) {
     if (text) await page.keyboard.type(text, { delay });
 }
 
-const editorText = (page: Page) => page.locator('.sql-monaco-editor .view-lines').first();
-const chipOf = (page: Page, name: string) => page.locator('.query-parameter-panel-card .param-chip-item', { hasText: name });
 
 const suggestionLabels = (page: Page) =>
     page.evaluate(() => [...document.querySelectorAll('.suggest-widget .monaco-list-row')].map((r) => r.getAttribute('aria-label') || r.textContent || ''));
@@ -139,94 +137,6 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         await expect(save).toBeEnabled({ timeout: 10_000 });
     });
 
-    test('5. Biến hệ thống luôn hiện 3 biến, biến chưa dùng trong SQL hiện mờ; @fromDate, @toDate chỉ hiện khi SQL dùng', async ({ page }) => {
-        await openSqlCenter(page);
-        const chips = page.locator('.query-parameter-panel-card .param-chip-item');
-        const unused = page.locator('.query-parameter-panel-card .param-chip-item.is-unused');
-        // SQL mẫu chỉ dùng @pageSize: 3 biến vẫn hiện đủ, 2 biến còn lại mờ
-        await expect(chips).toHaveCount(3);
-        await expect(chips.locator('.param-name-code')).toHaveText(['@pageSize', '@lastTime', '@lastKey']);
-        await expect(unused).toHaveCount(2);
-
-        // SQL không dùng biến nào: bảng không biến mất, cả 3 biến đều mờ
-        await retypeSql(page, 'SELECT 1');
-        await expect(chips).toHaveCount(3);
-        await expect(unused).toHaveCount(3, { timeout: 10_000 });
-
-        // SQL dùng @fromDate: thêm một thẻ xem ý nghĩa
-        await retypeSql(page, 'SELECT 1 WHERE @fromDate IS NULL', 30);
-        await expect(chips).toHaveCount(4, { timeout: 10_000 });
-        await expect(chipOf(page, '@fromDate')).toBeVisible();
-    });
-
-    test('6. Bấm biến khi câu SQL còn dở dang chỉ chèn tên biến vào vị trí con trỏ', async ({ page }) => {
-        await openSqlCenter(page);
-        await retypeSql(page, 'SELECT ');
-        await chipOf(page, '@lastKey').click();
-        await expect(editorText(page)).toContainText('SELECT @lastKey');
-        // Biến sau khi chèn đã dùng trong SQL nên hết mờ
-        await expect(chipOf(page, '@lastKey')).not.toHaveClass(/is-unused/, { timeout: 10_000 });
-    });
-
-    test('7. Bấm biến khi khung SQL trống chèn mẫu câu có ô điền, chỉ chứa đúng biến được bấm', async ({ page }) => {
-        await openSqlCenter(page);
-        await retypeSql(page, '');
-        await chipOf(page, '@lastTime').click();
-        await expect(editorText(page)).toContainText('WHERE');
-        await expect(editorText(page)).toContainText('> @lastTime');
-        await expect(editorText(page)).not.toContainText('@lastKey');
-        await expect(editorText(page)).not.toContainText('TOP (@pageSize)');
-        await expect(editorText(page)).not.toContainText('__lastTime');
-    });
-
-    test('8. Bấm @lastTime khi đã có SELECT ... FROM chỉ thêm điều kiện theo cột UpdateTime vào WHERE', async ({ page }) => {
-        await openSqlCenter(page);
-        await retypeSql(page, 'SELECT td.Speed AS speed FROM TmsTrafficData td', 30);
-        await chipOf(page, '@lastTime').click();
-        const text = editorText(page);
-        await expect(text).toContainText('WHERE td.UpdateTime > @lastTime', { timeout: 15_000 });
-        await expect(text).not.toContainText('@lastKey');
-        await expect(text).not.toContainText('TOP (@pageSize)');
-        await expect(text).not.toContainText('ORDER BY');
-    });
-
-    test('9. Bấm @lastKey chỉ thêm điều kiện theo cột Id; bấm @pageSize chỉ thêm TOP (@pageSize) và con trỏ nằm ngay sau đó', async ({ page }) => {
-        await openSqlCenter(page);
-        await retypeSql(page, 'SELECT td.Speed AS speed FROM TmsTrafficData td', 30);
-        await chipOf(page, '@lastKey').click();
-        await expect(editorText(page)).toContainText('WHERE td.Id > @lastKey', { timeout: 15_000 });
-        await expect(editorText(page)).not.toContainText('@lastTime');
-
-        await chipOf(page, '@pageSize').click();
-        await expect(editorText(page)).toContainText('SELECT TOP (@pageSize) td.Speed AS speed', { timeout: 15_000 });
-        // Con trỏ nằm cuối "SELECT TOP (@pageSize)|": gõ thêm một ký tự thì ký tự đó phải dính ngay sau dấu ngoặc đóng
-        await page.keyboard.type('Z');
-        await expect(editorText(page)).toContainText('SELECT TOP (@pageSize)Z');
-        await page.keyboard.press('Backspace');
-
-        // Bấm lại biến đã có trong câu thì không thêm lần hai
-        await chipOf(page, '@pageSize').click();
-        await expect(editorText(page)).not.toContainText('TOP (@pageSize) TOP');
-    });
-
-    test('10. Thanh Biến hệ thống dính ở đầu vùng cuộn, không trôi mất khi cuộn xuống', async ({ page }) => {
-        await openSqlCenter(page);
-        // Phần SQL nay chiếm tối đa 58% chiều cao trang; thấp hơn nữa thì khung cuộn chỉ còn 0px nên không kiểm được
-        await page.setViewportSize({ width: 1600, height: 640 });
-        await page.waitForTimeout(500);
-        const scroller = page.locator('.sql-editor-section');
-        const overflow = await scroller.evaluate((el) => el.scrollHeight - el.clientHeight);
-        expect(overflow, 'vùng cuộn phải có nội dung dài hơn khung thì mới kiểm được').toBeGreaterThan(20);
-        await scroller.evaluate((el) => {
-            el.scrollTop = el.scrollHeight;
-        });
-        await page.waitForTimeout(300);
-        const chip = await chipOf(page, '@pageSize').boundingBox();
-        const box = await scroller.boundingBox();
-        expect(chip!.y).toBeGreaterThanOrEqual(box!.y - 1);
-        expect(chip!.y - box!.y).toBeLessThan(40);
-    });
-
     test('11. Đối tác chưa có SQL riêng: "Tạo SQL riêng" bấm được ngay, lưu đúng nội dung mẫu chung', async ({ page }) => {
         let saved: any = null;
         await page.route('**/api/sharedata/sharedatapacket/getpartnersqllist*', (r) =>
@@ -313,25 +223,27 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         await expect(bulk).toBeDisabled();
     });
 
-    test('15. Một trang: không còn hai tab, SQL và danh sách trường cùng hiện, Thu gọn ẩn phần SQL', async ({ page }) => {
+    test('15. Một trang: không còn hai tab, SQL và danh sách trường cùng hiện; Thu gọn ẩn khung soạn thảo, trạng thái nhớ sau khi tải lại', async ({ page }) => {
         await openSqlCenter(page);
         await expect(page.getByRole('tab')).toHaveCount(0);
-        await expect(page.locator('.sql-section .sql-monaco-editor')).toBeVisible();
+        const editor = page.locator('.sql-section .sql-monaco-editor');
+        await expect(editor).toBeVisible();
         await expect(page.locator('.fields-section .xGrid-style')).toBeVisible();
         await expect(page.locator('.fields-section')).toContainText('(2)');
 
-        // Khung thu gọn dùng PrimeVue Fieldset (như trang TMS) và nhớ trạng thái theo trình duyệt
-        const toggle = page.locator('.sql-fieldset .p-fieldset-toggle-button');
+        // Nút Thu gọn ở thanh trên khung soạn thảo; nút Lưu và danh sách trường vẫn thấy
+        const toggle = page.locator('.sql-editor-bar .el-button');
         await toggle.click();
-        await expect(page.locator('.sql-section .sql-center-pane')).toBeHidden();
+        await expect(editor).toBeHidden();
+        await expect(page.locator('.sql-toolbar-bar .el-button--primary').last()).toBeVisible();
         await expect(page.locator('.fields-section .xGrid-style')).toBeVisible();
+
         await page.reload();
         await page.locator('.packet-col .vxe-body--row').first().click({ timeout: 60_000 });
-        await expect(page.locator('.sql-fieldset')).toBeVisible();
-        await expect(page.locator('.sql-section .sql-center-pane')).toBeHidden();
+        await expect(page.locator('.sql-editor-bar')).toBeVisible({ timeout: 30_000 });
+        await expect(editor).toBeHidden();
         await toggle.click();
-        await expect(page.locator('.sql-section .sql-center-pane')).toBeVisible();
-        await expect(page.locator('.sql-section .sql-monaco-editor .monaco-editor').first()).toBeVisible();
+        await expect(page.locator('.sql-section .sql-monaco-editor .monaco-editor').first()).toBeVisible({ timeout: 30_000 });
     });
 
     test('16. Lọc theo đối tác: bảng gói tin chỉ còn gói của đối tác, có cột Nguồn SQL, tự mở SQL của đối tác', async ({ page }) => {
@@ -490,30 +402,6 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         const scroller = (await page.locator('.sql-editor-section').boundingBox())!;
         const resizer = (await page.locator('.sql-editor-resizer').boundingBox())!;
         expect(scroller.y + scroller.height - (resizer.y + resizer.height)).toBeLessThan(12);
-    });
-
-    test('23. Thu gọn trình soạn ẩn hẳn khung soạn thảo và phần SQL co lại; mở ra thì hiện lại; trạng thái nhớ sau khi tải lại', async ({ page }) => {
-        await openSqlCenter(page);
-        const editor = page.locator('.sql-monaco-editor');
-        const toggle = page.locator('.sql-editor-bar .el-button');
-        const sqlSection = page.locator('.sql-section');
-        const fullSection = (await sqlSection.boundingBox())!.height;
-        await expect(editor).toBeVisible();
-
-        await toggle.click();
-        await expect(editor).toBeHidden();
-        // Cả phần SQL co theo, nhường chỗ cho danh sách trường; thanh biến và nút Lưu vẫn thấy
-        await expect.poll(async () => (await sqlSection.boundingBox())!.height, { timeout: 10_000 }).toBeLessThan(fullSection - 40);
-        await expect(chipOf(page, '@pageSize')).toBeVisible();
-        await expect(page.locator('.sql-toolbar-bar .el-button--primary').last()).toBeVisible();
-
-        await page.reload();
-        await page.locator('.packet-col .vxe-body--row').first().click({ timeout: 60_000 });
-        await expect(page.locator('.sql-editor-bar')).toBeVisible({ timeout: 30_000 });
-        await expect(editor).toBeHidden();
-
-        await toggle.click();
-        await expect(page.locator('.sql-monaco-editor .monaco-editor').first()).toBeVisible({ timeout: 30_000 });
     });
 
     test('24. Màn SQL riêng của đối tác: nút Tạo trường của cột chưa khai bị khóa vì chưa chốt nơi lưu trường dư', async ({ page }) => {

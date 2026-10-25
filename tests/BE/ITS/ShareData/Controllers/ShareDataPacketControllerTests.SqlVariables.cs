@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Module.ShareData.Core.Constants;
 using Module.ShareData.Core.Dto.Packet;
 using Module.ShareData.Core.Entities;
+using Tests.ShareData.Common;
 using Xunit;
 
 namespace Tests.ShareData.Controllers;
@@ -68,56 +69,69 @@ public partial class ShareDataPacketControllerTests
     }
 
     /// <summary>
-    /// Description: Theo đối tác: đổi giá trị biến mẫu chung là ghi đè, thêm tên mới là biến riêng; trả giá trị cũ bằng mẫu chung thì bỏ ghi đè
+    /// Description: Biến đi theo câu SQL. Tạo SQL riêng thì chép bộ biến mẫu chung sang làm bộ biến của đối tác; sửa bộ biến của đối tác
+    ///              không đụng mẫu chung (và ngược lại); "Dùng lại mẫu chung" thì xóa bộ biến của đối tác.
     /// Created date: 24/10/2026
+    /// Modified date: 25/10/2026 (Biến đi theo câu SQL thay cho ghi đè)
     /// </summary>
     [Fact]
-    public async Task UpdateSqlVariables_WhenPartnerScope_SplitsOverrideAndPartnerOwnVariables_Test()
+    public async Task PartnerSqlVariables_FollowPartnerSql_CopiedOnCreateIndependentAndRemovedOnReset_Test()
     {
+        // Arrange: mẫu chung có biến @yearStart
         SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
         using var scope = _host.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
         var unique = Guid.NewGuid().ToString("N")[..8];
         var (packet, partner) = await SeedSqlVariablePacketAsync(db, unique);
-
         await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
         {
             PacketCode = packet.Code!,
-            Items = [ConstVar("pageSize", ShareDataConst.SqlVariableTypeInt, "500")]
+            Items = [BuiltinVar("yearStart", ShareDataConst.SqlVariableTypeDateTime, ShareDataConst.SqlVariableSourceStartOfYear)]
         });
 
-        var partnerView = await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
+        // Act 1: tạo SQL riêng dùng @yearStart (chép từ mẫu chung)
+        await scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput
+        {
+            PartnerId = partner.ID!,
+            PacketCode = packet.Code!,
+            ExtractSql = "SELECT ID AS zoneId FROM TmsZone WHERE CreateTime >= @yearStart"
+        });
+
+        // Assert 1: đối tác có bộ biến riêng chép từ mẫu chung
+        var partnerView = await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new GetPacketSqlVariablesInput { PacketCode = packet.Code!, PartnerId = partner.ID });
+        Assert.Equal(ShareDataConst.SqlVariableSourceStartOfYear, Assert.Single(partnerView.Items, i => i.Code == "yearStart").Value);
+        Assert.Equal(1, await db.Queryable<ShareDataSqlVariable>().Where(v => v.PacketId == packet.ID && v.PartnerId == partner.ID).CountAsync());
+
+        // Act 2: đổi bộ biến của đối tác sang hằng số
+        await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
         {
             PacketCode = packet.Code!,
             PartnerId = partner.ID,
-            Items =
-            [
-                ConstVar("pageSize", ShareDataConst.SqlVariableTypeInt, "200"),
-                ConstVar("fromDate", ShareDataConst.SqlVariableTypeDateTime, "2027-01-01")
-            ]
+            Items = [ConstVar("yearStart", ShareDataConst.SqlVariableTypeDateTime, "2027-01-01")]
         });
 
-        var pageSize = Assert.Single(partnerView.Items, i => i.Code == "pageSize");
-        Assert.Equal(ShareDataConst.SqlVariableScopeOverride, pageSize.Scope);
-        Assert.Equal("200", pageSize.Value);
-        Assert.Equal("500", pageSize.CommonValue);
-        Assert.Equal(ShareDataConst.SqlVariableScopePartner, Assert.Single(partnerView.Items, i => i.Code == "fromDate").Scope);
-
-        // Mẫu chung không bị ảnh hưởng
+        // Assert 2: mẫu chung giữ nguyên nguồn "Đầu năm"
         var common = await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new GetPacketSqlVariablesInput { PacketCode = packet.Code! });
-        Assert.Equal("500", Assert.Single(common.Items).Value);
+        Assert.Equal(ShareDataConst.SqlVariableSourceStartOfYear, Assert.Single(common.Items).Value);
 
-        // Đặt lại bằng mẫu chung thì không còn dòng ghi đè trong CSDL
-        await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
+        // Act 3: đối tác xóa hết biến rồi lưu lại SQL riêng không còn dùng biến
+        await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput { PacketCode = packet.Code!, PartnerId = partner.ID, Items = [] });
+        await scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput
         {
+            PartnerId = partner.ID!,
             PacketCode = packet.Code!,
-            PartnerId = partner.ID,
-            Items = [ConstVar("pageSize", ShareDataConst.SqlVariableTypeInt, "500")]
+            ExtractSql = "SELECT ID AS zoneId FROM TmsZone"
         });
-        var partnerRows = await db.Queryable<ShareDataSqlVariable>()
-            .Where(v => v.PacketId == packet.ID && v.PartnerId == partner.ID)
-            .CountAsync();
-        Assert.Equal(0, partnerRows);
+
+        // Assert 3: bộ biến của đối tác vẫn rỗng — không hiện lại biến mẫu chung, không chép lại khi lưu SQL riêng
+        var emptyView = await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new GetPacketSqlVariablesInput { PacketCode = packet.Code!, PartnerId = partner.ID });
+        Assert.Empty(emptyView.Items);
+
+        // Act 4: dùng lại mẫu chung
+        await scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(new ResetPartnerExtractSqlInput { PartnerId = partner.ID!, PacketCode = packet.Code! });
+
+        // Assert 4: bộ biến của đối tác bị xóa
+        Assert.Equal(0, await db.Queryable<ShareDataSqlVariable>().Where(v => v.PacketId == packet.ID && v.PartnerId == partner.ID).CountAsync());
     }
 
     /// <summary>
@@ -208,5 +222,101 @@ public partial class ShareDataPacketControllerTests
 
         await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new GetPacketSqlVariablesInput { PacketCode = packet.Code! }));
         await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput { PacketCode = packet.Code! }));
+    }
+
+    /// <summary>
+    /// Description: Lưu câu SQL (mẫu chung hoặc SQL riêng của đối tác) có dùng biến @yearStart: chỉ lưu được khi biến đã khai ở phạm vi mà câu SQL nhìn thấy.
+    ///              Mẫu chung chỉ thấy biến của mẫu chung; SQL riêng thấy biến của mẫu chung và biến riêng của đối tác đó.
+    /// Created date: 25/10/2026
+    /// </summary>
+    [Theory]
+    [InlineData("common", "common", true)]
+    [InlineData("common", "partner", false)]
+    [InlineData("common", "none", false)]
+    [InlineData("partner", "common", true)]
+    [InlineData("partner", "partner", true)]
+    [InlineData("partner", "none", false)]
+    public async Task SaveExtractSql_WhenSqlUsesVariable_AcceptsOnlyDeclaredVariables_Test(string sqlScope, string declaredAt, bool expectSaved)
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (packet, partner) = await SeedSqlVariablePacketAsync(db, unique);
+        if (declaredAt != "none")
+        {
+            await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
+            {
+                PacketCode = packet.Code!,
+                PartnerId = declaredAt == "partner" ? partner.ID : null,
+                Items = [BuiltinVar("yearStart", ShareDataConst.SqlVariableTypeDateTime, ShareDataConst.SqlVariableSourceStartOfYear)]
+            });
+        }
+        const string sql = "SELECT ID AS zoneId FROM TmsZone WHERE CreateTime >= @yearStart";
+
+        // Act
+        var error = await Record.ExceptionAsync(() => sqlScope == "common"
+            ? scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(
+                new UpdatePacketExtractSqlInput { PacketCode = packet.Code!, ExtractSql = sql })
+            : scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(
+                new UpdatePartnerExtractSqlInput { PartnerId = partner.ID!, PacketCode = packet.Code!, ExtractSql = sql }));
+
+        // Assert
+        var partnerId = partner.ID;
+        var savedSql = await db.Queryable<ShareDataSql>()
+            .Where(s => s.PacketId == packet.ID)
+            .WhereIF(sqlScope == "common", s => s.PartnerId == null)
+            .WhereIF(sqlScope != "common", s => s.PartnerId == partnerId)
+            .Select(s => s.ExtractSql)
+            .FirstAsync();
+        if (expectSaved)
+        {
+            Assert.Null(error);
+            Assert.Equal(sql, savedSql);
+        }
+        else
+        {
+            Assert.NotNull(error);
+            Assert.Null(savedSql);
+        }
+    }
+
+    /// <summary>
+    /// Description: Lưu câu SQL nối đuôi: ORDER BY ngoài cùng phải theo __lastTime rồi __lastKey (viết bằng bí danh hoặc đúng biểu thức trong SELECT);
+    ///              sắp theo cột khác thì dòng cuối trang không phải mốc lớn nhất, Worker sẽ bỏ sót dòng, nên bị từ chối.
+    /// Created date: 25/10/2026
+    /// </summary>
+    [Theory]
+    [InlineData("CreateTime, ID", true)]
+    [InlineData("__lastTime, __lastKey", true)]
+    [InlineData("ID", false)]
+    [InlineData("ID, CreateTime", false)]
+    public async Task SaveExtractSql_WhenIncrementalOrderBy_RequiresLastTimeThenLastKey_Test(string orderBy, bool expectSaved)
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (packet, _) = await SeedSqlVariablePacketAsync(db, unique);
+        var sql = "SELECT TOP (@pageSize) CreateTime AS __lastTime, ID AS __lastKey FROM TmsZone "
+            + "WHERE @lastTime IS NULL OR CreateTime > @lastTime OR (CreateTime = @lastTime AND ID > @lastKey) "
+            + $"ORDER BY {orderBy}";
+
+        // Act
+        var error = await Record.ExceptionAsync(() => scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(
+            new UpdatePacketExtractSqlInput { PacketCode = packet.Code!, ExtractSql = sql }));
+
+        // Assert
+        if (expectSaved)
+        {
+            Assert.Null(error);
+            Assert.Equal(sql, (await ShareDataSqlSeed.GetCommonAsync(db, packet.ID))?.ExtractSql);
+        }
+        else
+        {
+            Assert.NotNull(error);
+        }
     }
 }
