@@ -182,7 +182,7 @@ Khi kiểm thử tích hợp với NATS broker thật (Docker local 127.0.0.1:42
    - FE → `tests/FE/views/<module>/<màn hoặc khối chức năng>.test.ts`, theo tệp đã có của màn hình/hộp thoại lớn (ví dụ `partner.test.ts` cho hộp thoại đối tác); component con kiểm trong tệp của khối cha (ví dụ form cấu hình kết nối của hộp thoại đối tác → `partner.test.ts`).
 2. **Thêm vào tệp có sẵn, không tạo mới**:
    - Trước khi viết test, BẮT BUỘC tìm tệp test sẵn có của lớp/luồng (`search_text` tên lớp, tên controller trong `tests/`) rồi thêm case vào đó.
-   - Tệp quá dài thì tách `partial class` theo nhánh nghiệp vụ của CHÍNH lớp đó: `<Tên>Tests.<NhánhNghiệpVụ>.cs` (ví dụ `DataOutboundServiceTests.Cursor.cs`).
+   - Không tách `partial class` ra nhiều tệp: mọi case của một lớp nằm trong đúng một tệp `<Tên>Tests.cs`, chia nhóm theo nhánh nghiệp vụ bằng `#region` (sửa 25/10/2026).
    - Chỉ tạo tệp mới khi mã nguồn có lớp/luồng mới chưa có tệp test; báo cáo rõ lớp nguồn tương ứng.
    - ⛔ **CẤM** đặt tên tệp theo tính năng con, đợt sửa, mã prompt hay mã hạng mục (`PacketMetadataTests`, `PacketTemplateTests`, `...FixTests`); ⛔ **CẤM** hai tệp cùng kiểm một lớp nguồn.
 3. **Đi qua đúng điểm vào của luồng thật**:
@@ -194,7 +194,7 @@ Khi kiểm thử tích hợp với NATS broker thật (Docker local 127.0.0.1:42
    - Kết quả mong đợi so với nguồn thật (seed class, bảng cấu hình, script), ⛔ **CẤM** so với hằng hoặc danh sách tự chép vào test.
 5. **Ví dụ đối chiếu**:
    - ❌ **Sai:** tạo `PacketMetadataTests.cs` riêng, lấy `PacketExtractSqlQueryHandler` từ DI rồi gọi `HandleAsync` trực tiếp, so số bảng với `MetadataService.AllowedTables`.
-   - ✅ **Đúng:** thêm case vào `ShareDataPacketControllerTests` (hoặc partial `ShareDataPacketControllerTests.Metadata.cs`), gọi `IMessageBus.InvokeAsync<List<MetadataTableDto>>(new GetMetadataTablesInput())` như controller, so với danh mục bảng nguồn thật trên CSDL test.
+   - ✅ **Đúng:** thêm case vào `ShareDataPacketControllerTests` (vùng `#region` của nhánh Metadata), gọi `IMessageBus.InvokeAsync<List<MetadataTableDto>>(new GetMetadataTablesInput())` như controller, so với danh mục bảng nguồn thật trên CSDL test.
 6. **Lý do**: test là bằng chứng luồng nghiệp vụ chạy đúng; tệp rải theo đợt sửa làm trùng lặp, khó tìm, và test gọi tắt bỏ qua pipeline có thể xanh trong khi luồng thật vẫn lỗi.
 
 ---

@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+using Module.ShareData.Core.Constants;
 using Module.ShareData.Core.Entities;
 
 namespace Tests.ShareData.Common;
@@ -8,6 +10,54 @@ namespace Tests.ShareData.Common;
 /// </summary>
 internal static class ShareDataSqlSeed
 {
+    /// <summary>
+    /// Biến câu SQL mẫu cũ hay dùng và cách khai tương ứng ở bảng tham số câu truy vấn
+    /// (không còn biến hệ thống: câu SQL dùng biến nào thì bộ biến của câu đó phải có biến đó).
+    /// </summary>
+    private static readonly (string Code, string DataType, string ValueKind, string Value)[] StandardVariables =
+    [
+        ("lastTime", ShareDataConst.SqlVariableTypeDateTime, ShareDataConst.SqlVariableKindBuiltin, ShareDataConst.SqlVariableSourceLastTime),
+        ("lastKey", ShareDataConst.SqlVariableTypeString, ShareDataConst.SqlVariableKindBuiltin, ShareDataConst.SqlVariableSourceLastKey),
+        ("pageSize", ShareDataConst.SqlVariableTypeInt, ShareDataConst.SqlVariableKindConst, "100")
+    ];
+
+    /// <summary>
+    /// Khai các biến @lastTime / @lastKey / @pageSize mà câu SQL có dùng vào bộ biến của câu đó (partnerId trống = mẫu chung), biến đã khai thì giữ.
+    /// </summary>
+    public static async Task DeclareStandardVariablesAsync(ISqlSugarClient db, string? packetId, string? partnerId, string? extractSql)
+    {
+        if (string.IsNullOrWhiteSpace(extractSql))
+        {
+            return;
+        }
+
+        var existing = await db.Queryable<ShareDataSqlVariable>()
+            .Where(v => v.PacketId == packetId)
+            .WhereIF(partnerId == null, v => v.PartnerId == null)
+            .WhereIF(partnerId != null, v => v.PartnerId == partnerId)
+            .Select(v => v.Code)
+            .ToListAsync();
+        var rows = StandardVariables
+            .Where(s => Regex.IsMatch(extractSql, $@"@{s.Code}\b", RegexOptions.IgnoreCase)
+                && !existing.Contains(s.Code, StringComparer.OrdinalIgnoreCase))
+            .Select((s, i) => new ShareDataSqlVariable
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                PacketId = packetId,
+                PartnerId = partnerId,
+                Code = s.Code,
+                DataType = s.DataType,
+                ValueKind = s.ValueKind,
+                Value = s.Value,
+                OrderNo = i + 1
+            })
+            .ToList();
+        if (rows.Count > 0)
+        {
+            await db.Insertable(rows).ExecuteCommandAsync();
+        }
+    }
+
     /// <summary>
     /// Ghi (thêm hoặc cập nhật) câu SQL mẫu chung và thiết lập SQL của gói tin.
     /// </summary>
@@ -22,6 +72,8 @@ internal static class ShareDataSqlSeed
         {
             return;
         }
+
+        await DeclareStandardVariablesAsync(db, packetId, null, extractSql);
 
         var row = await GetCommonAsync(db, packetId);
         if (row == null)
@@ -49,6 +101,8 @@ internal static class ShareDataSqlSeed
     /// </summary>
     public static async Task<ShareDataSql> SetPartnerAsync(ISqlSugarClient db, string? packetId, string? partnerId, string? extractSql)
     {
+        await DeclareStandardVariablesAsync(db, packetId, partnerId, extractSql);
+
         var row = await db.Queryable<ShareDataSql>()
             .Where(s => s.IsDelete == null && s.PacketId == packetId && s.PartnerId == partnerId)
             .FirstAsync();

@@ -492,8 +492,8 @@ VALUES
      N'Table {0} is not in the allowed sharing source tables.' + CHAR(10) + N'Add the table to ShareDataSourceTable (IsQueryable = 1) and try again.'),
 
     (N'lz.validation', N'sharedata.sqlUnsupportedParameter',
-     N'Biến [{''@''}{0}] chưa khai ở bảng Tham số câu truy vấn. Khai biến trước, hoặc dùng biến hệ thống: {''@''}lastTime, {''@''}lastKey, {''@''}pageSize, {''@''}fromDate, {''@''}toDate.',
-     N'Variable [{''@''}{0}] is not declared in the Query parameters table. Declare it first, or use a system variable: {''@''}lastTime, {''@''}lastKey, {''@''}pageSize, {''@''}fromDate, {''@''}toDate.'),
+     N'Biến [{''@''}{0}] chưa khai ở bảng Tham số câu truy vấn. Mọi biến dùng trong câu SQL phải được khai ở bảng này.',
+     N'Variable [{''@''}{0}] is not declared in the Query parameters table. Every variable used in the SQL must be declared there.'),
 
     (N'lz.validation', N'sharedata.sqlDatabaseExecutionError',
      N'Cú pháp SQL không hợp lệ trên cơ sở dữ liệu: {0}',
@@ -618,11 +618,11 @@ WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlScriptEmpty' AND Lang = 
 UPDATE dbo.SysTerminology SET Value = N'Invalid SQL syntax or contains no executable statements.', UpdateTime = GETDATE()
 WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlScriptInvalid' AND Lang = N'en-US' AND Value = N'SQL script is invalid or contains no executable statements.';
 
-UPDATE dbo.SysTerminology SET Value = N'Biến [{''@''}{0}] chưa khai ở bảng Tham số câu truy vấn. Khai biến trước, hoặc dùng biến hệ thống: {''@''}lastTime, {''@''}lastKey, {''@''}pageSize, {''@''}fromDate, {''@''}toDate.', UpdateTime = GETDATE()
-WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlUnsupportedParameter' AND Lang = N'vi-VN' AND (Value LIKE N'%Tham số [@{0}]%' OR Value LIKE N'Tham số [{''@''}{0}] không được hỗ trợ%');
+UPDATE dbo.SysTerminology SET Value = N'Biến [{''@''}{0}] chưa khai ở bảng Tham số câu truy vấn. Mọi biến dùng trong câu SQL phải được khai ở bảng này.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlUnsupportedParameter' AND Lang = N'vi-VN' AND (Value LIKE N'%Tham số [@{0}]%' OR Value LIKE N'Tham số [{''@''}{0}] không được hỗ trợ%' OR Value LIKE N'%biến hệ thống%');
 
-UPDATE dbo.SysTerminology SET Value = N'Variable [{''@''}{0}] is not declared in the Query parameters table. Declare it first, or use a system variable: {''@''}lastTime, {''@''}lastKey, {''@''}pageSize, {''@''}fromDate, {''@''}toDate.', UpdateTime = GETDATE()
-WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlUnsupportedParameter' AND Lang = N'en-US' AND (Value LIKE N'%Parameter [@{0}]%' OR Value LIKE N'Parameter [{''@''}{0}] is not supported%');
+UPDATE dbo.SysTerminology SET Value = N'Variable [{''@''}{0}] is not declared in the Query parameters table. Every variable used in the SQL must be declared there.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlUnsupportedParameter' AND Lang = N'en-US' AND (Value LIKE N'%Parameter [@{0}]%' OR Value LIKE N'Parameter [{''@''}{0}] is not supported%' OR Value LIKE N'%system variable%');
 
 UPDATE dbo.SysTerminology SET Value = N'Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc có mệnh đề phân trang TOP ({''@''}pageSize).', UpdateTime = GETDATE()
 WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalMissingTop' AND Lang = N'vi-VN' AND Value LIKE N'%TOP (@pageSize)%';

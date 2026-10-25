@@ -117,6 +117,32 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         });
     }
 
+    /**
+     * Description: Gõ @ chỉ gợi ý biến đã khai ở bảng Tham số câu truy vấn (không còn biến hệ thống cố định):
+     *              chưa khai biến nào thì không gợi ý @ gì, khai @since thì gợi ý đúng @since.
+     * Created date: 25/10/2026
+     */
+    const variableSuggestCases = [
+        { name: '28. Chưa khai biến: gõ @ không gợi ý biến nào', items: [] as any[], expected: [] as string[] },
+        {
+            name: '29. Đã khai @since: gõ @ gợi ý đúng @since',
+            items: [{ code: 'since', dataType: 'DateTime', valueKind: 'Builtin', value: 'lastTime' }],
+            expected: ['@since'],
+        },
+    ];
+
+    for (const c of variableSuggestCases) {
+        test(c.name, async ({ page }) => {
+            await page.route('**/api/sharedata/sharedatapacket/getsqlvariables*', (r) => r.fulfill(json({ code: 200, result: { items: c.items } })));
+            await openSqlCenter(page);
+            await retypeSql(page, 'SELECT * FROM TmsZone WHERE UpdateTime > @');
+            await page.keyboard.press('Control+Space');
+            await page.waitForTimeout(1500);
+            const variables = (await suggestionLabels(page)).filter((label) => label.startsWith('@'));
+            expect(variables.map((label) => label.split(',')[0])).toEqual(c.expected);
+        });
+    }
+
     test('3. Khung SQL không còn bảng Trường trích xuất; danh sách trường chỉ có trường đã khai, không có nhóm Chưa khai khi SQL chỉ trả cột đã khai', async ({ page }) => {
         await openSqlCenter(page);
         await expect(page.locator('.field-compare-table')).toHaveCount(0);
@@ -137,7 +163,46 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         await expect(save).toBeEnabled({ timeout: 10_000 });
     });
 
-    test('11. Đối tác chưa có SQL riêng: "Tạo SQL riêng" bấm được ngay, lưu đúng nội dung mẫu chung', async ({ page }) => {
+    /**
+     * Description: Một nút Lưu cho cả câu SQL và bảng Tham số câu truy vấn: chỉ gọi API của phần có thay đổi;
+     *              đổi cả hai thì lưu bảng biến trước rồi mới lưu câu SQL (để câu SQL không bị báo biến chưa khai).
+     * Created date: 25/10/2026
+     */
+    const singleSaveCases = [
+        { name: '30. Chỉ thêm biến: nút Lưu mở, chỉ gọi API lưu biến', editSql: false, expected: ['variables'] },
+        { name: '31. Sửa SQL và thêm biến: lưu biến trước rồi lưu SQL', editSql: true, expected: ['variables', 'sql'] },
+    ];
+
+    for (const c of singleSaveCases) {
+        test(c.name, async ({ page }) => {
+            const calls: string[] = [];
+            await page.route('**/api/sharedata/sharedatapacket/getsqlvariables*', (r) => r.fulfill(json({ code: 200, result: { items: [] } })));
+            await page.route('**/api/sharedata/sharedatapacket/updatesqlvariables*', async (r) => {
+                calls.push('variables');
+                await r.fulfill(json({ code: 200, result: { items: r.request().postDataJSON().items } }));
+            });
+            await page.route('**/api/sharedata/sharedatapacket/updateextractsql*', async (r) => {
+                calls.push('sql');
+                await r.fulfill(json({ code: 200, type: 'success', result: { status: 1 } }));
+            });
+            await openSqlCenter(page);
+            const save = page.locator('.sql-toolbar-bar .el-button--primary').last();
+            await expect(save).toBeDisabled();
+
+            await page.locator('.sql-variable-panel .svp-header .el-button', { hasText: 'Thêm' }).click();
+            await page.locator('.sql-variable-panel .el-table__body input').first().fill('since');
+            if (c.editSql) {
+                await page.locator('.sql-monaco-editor .view-lines').first().click();
+                await page.keyboard.press('End');
+                await page.keyboard.type(' WHERE 1 = 1', { delay: 50 });
+            }
+            await expect(save).toBeEnabled({ timeout: 10_000 });
+            await save.click();
+            await expect.poll(() => calls, { timeout: 10_000 }).toEqual(c.expected);
+        });
+    }
+
+    test('11. Đối tác chưa có SQL riêng: nút Lưu bấm được ngay, tạo SQL riêng đúng nội dung mẫu chung', async ({ page }) => {
         let saved: any = null;
         await page.route('**/api/sharedata/sharedatapacket/getpartnersqllist*', (r) =>
             r.fulfill(json({ code: 200, result: [{ partnerId: 'P1', partnerCode: 'DT-DAT', partnerName: 'Đạt', isCustom: false }] }))
@@ -155,7 +220,7 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
 
         // Chưa sửa gì vẫn tạo được: nút không bị khóa
         const create = page.locator('.sql-toolbar-bar .el-button--primary').last();
-        await expect(create).toContainText('Tạo SQL riêng');
+        await expect(create).toHaveText('Lưu');
         await expect(create).toBeEnabled({ timeout: 15_000 });
         await create.click();
         await expect.poll(() => saved?.extractSql, { timeout: 10_000 }).toBe(SQL_ONE_COLUMN);
@@ -174,7 +239,7 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         await page.locator('.partner-sql-table .el-button[aria-label="Mở"]').first().click();
 
         const save = page.locator('.sql-toolbar-bar .el-button--primary').last();
-        await expect(save).toContainText('Lưu SQL riêng');
+        await expect(save).toHaveText('Lưu');
         await expect(save).toBeDisabled({ timeout: 15_000 });
         await page.locator('.sql-monaco-editor .view-lines').first().click();
         await page.keyboard.press('End');

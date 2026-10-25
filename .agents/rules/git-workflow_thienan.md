@@ -84,6 +84,19 @@ fix(sharedata): xử lý danh sách lỗi kiểm thử F16 phân hệ sharedata
 - Ánh xạ dữ liệu: cập nhật thông báo dữ liệu nguồn rỗng, ẩn nhóm trường ở header (Issue 20, 23, 24)
 ```
 
+### Định Dạng Trả Về Nội Dung Commit Cho AI (Rule 19.104)
+Khi lập trình viên yêu cầu: *"cho nội dung commit -m theo rule thienan"* (hoặc tương đương):
+* AI **BẮT BUỘC** xuất trực tiếp khối văn bản thuần (`text`) riêng biệt cho từng repo (Backend / Frontend) theo đúng format:
+```text
+<type>(<scope>): [nội dung công việc tiếng Việt có dấu]
+<type>(<scope>): [nội dung công việc tiếng Việt có dấu]
+- [tính năng / việc chính 1]
+- [tính năng / việc chính 2]
+- [tính năng / việc chính 3]
+```
+* ⛔ **CẤM** chèn mã Rule (như `Rule 20.7`) vào trong nội dung commit message; chỉ tập trung mô tả tính năng/việc chính đã làm.
+* ⛔ **CẤM** xuất dạng câu lệnh shell (`git commit -m "..."`) hay giải thích dài dòng trước khối text, đảm bảo người dùng có thể bấm copy và dán thẳng vào ô commit message của IDE (VS Code, Visual Studio, Git GUI).
+
 ---
 
 ## 🛑 4. Quy Định Vận Hành Git Đối Với Trợ Lý AI

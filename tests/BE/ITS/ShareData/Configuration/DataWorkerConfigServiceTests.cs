@@ -45,7 +45,6 @@ public class DataWorkerConfigServiceTests(Host host)
         Assert.Equal(50, settings.OutboundLockBudgetPercent);
         Assert.Equal(300, settings.OutboundLockMinSec);
         Assert.Equal(3, settings.OutboundLockIntervalMultiplier);
-        Assert.Equal(100, settings.OutboundPageSize);
         Assert.Equal(30, settings.OutboundDefaultIntervalSec);
         Assert.Equal(50, settings.InboundMaxPacketsPerRun);
         Assert.Equal(10, settings.InboundStuckTimeoutMin);
@@ -78,7 +77,7 @@ public class DataWorkerConfigServiceTests(Host host)
         {
             new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "outbound_check_interval_sec", Value = "12", Status = BaseEnums.StatusEnum.Enable },
             new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "inbound_check_interval_sec", Value = "15", Status = BaseEnums.StatusEnum.Enable },
-            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "outbound_page_size", Value = "250", Status = BaseEnums.StatusEnum.Enable },
+            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "outbound_max_pages_per_run", Value = "25", Status = BaseEnums.StatusEnum.Enable },
             new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "tracking_poll_interval_sec", Value = "3", Status = BaseEnums.StatusEnum.Enable },
             new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "cleanup_interval_min", Value = "720", Status = BaseEnums.StatusEnum.Enable }
         };
@@ -93,10 +92,10 @@ public class DataWorkerConfigServiceTests(Host host)
         // Assert: Các trường có trong DB nhận giá trị cấu hình, các trường khác giữ nguyên dự phòng
         Assert.Equal(12, settings.OutboundCheckIntervalSec);
         Assert.Equal(15, settings.InboundCheckIntervalSec);
-        Assert.Equal(250, settings.OutboundPageSize);
+        Assert.Equal(25, settings.OutboundMaxPagesPerRun);
         Assert.Equal(3, settings.TrackingPollIntervalSec);
         Assert.Equal(720, settings.CleanupIntervalMin);
-        Assert.Equal(20, settings.OutboundMaxPagesPerRun); // Fallback
+        Assert.Equal(30, settings.OutboundDefaultIntervalSec); // Fallback
     }
 
     [Fact]
@@ -119,7 +118,7 @@ public class DataWorkerConfigServiceTests(Host host)
             new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "outbound_check_interval_sec", Value = "NOT_A_NUMBER", Status = BaseEnums.StatusEnum.Enable },
             new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "inbound_check_interval_sec", Value = "999999", Status = BaseEnums.StatusEnum.Enable }, // Out of max 300
             new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "tracking_poll_interval_sec", Value = "-5", Status = BaseEnums.StatusEnum.Enable }, // Out of min 1
-            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "outbound_page_size", Value = "   ", Status = BaseEnums.StatusEnum.Enable }, // Whitespace
+            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "outbound_max_pages_per_run", Value = "   ", Status = BaseEnums.StatusEnum.Enable }, // Whitespace
             new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "cleanup_interval_min", Value = "0", Status = BaseEnums.StatusEnum.Enable } // Out of min 1
         };
         await db.Insertable(testRows).ExecuteCommandAsync();
@@ -134,7 +133,7 @@ public class DataWorkerConfigServiceTests(Host host)
         Assert.Equal(5, settings.OutboundCheckIntervalSec);
         Assert.Equal(5, settings.InboundCheckIntervalSec);
         Assert.Equal(1, settings.TrackingPollIntervalSec);
-        Assert.Equal(100, settings.OutboundPageSize);
+        Assert.Equal(20, settings.OutboundMaxPagesPerRun);
         Assert.Equal(1440, settings.CleanupIntervalMin);
     }
 

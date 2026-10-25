@@ -50,6 +50,10 @@ src/views/<module>/<feature>/
 * ✅ **BẮT BUỘC**: 100% các cuộc gọi API từ Frontend phải thông qua wrapper chuẩn: `getAPI(XxxApi)` từ `/@/utils/axios-utils`.
 * Khi Backend cập nhật API hoặc DTO: Chạy script generate đồng bộ (`build-api`) để cập nhật tự động các client class typed.
 * **API hoặc kiểu dữ liệu chưa kịp sinh**: Bổ sung method chuẩn Swagger vào class `XxxApi` tại `api-services/<module>/apis/` (gồm 4 khối: `AxiosParamCreator`, `Fp`, `Factory`, `Class`) để component gọi thông qua `getAPI(XxxApi)`. Tuyệt đối không lách bằng cách gọi thô `axiosInstance` hay tạo file service ngoài luồng.
+* **Hàm viết tay phải giống hệt hàm Swagger sinh (bổ sung 25/10/2026)**: ưu tiên chạy `build-api`; chỉ viết tay khi chưa sinh được, và khi đó ở **cả 4 khối** (`AxiosParamCreator`, `Fp`, `Factory`, `Class`) mỗi hàm BẮT BUỘC có:
+  - Khối chú thích ngay phía trên, đúng mẫu Swagger: `@summary <mô tả>`, một dòng `@param` cho **từng** tham số (kể cả `[body]` và `[options]`), `@throws {RequiredError}` (khối `Class` thêm `@memberof <Lớp>Api`).
+  - Kiểu thật của tham số: `body?: <TênInput>` lấy từ `api-services/<module>/models/` (chưa có model thì thêm tệp model và dòng `export` ở `models/index.ts`), ⛔ **CẤM** `body?: any`. Tham số truy vấn ghi đúng kiểu (`packetCode?: string`).
+  - Đã gặp 25/10/2026: 11 hàm SQL/biến của `ShareDataPacketApi` (`...UpdatepartnerextractsqlPost`, `...GetsqlvariablesGet`, `...UpdatesqlvariablesPost`…) viết tay không chú thích và `body?: any`, nằm lẫn với hàm Swagger có chú thích đầy đủ.
 * **Tên hàm sinh tự động**: `api<Module><ChứcNăng><Hành động><Method>` (`apiTmsTmsequipmentPagePost`, `apiTmsTmsequipmentAddPost`, `apiTmsTmsequipmentDeletePost`). Ví dụ gọi: `await getAPI(TmsEquipmentApi).apiTmsTmsequipmentPagePost({ page: 1, pageSize: 50, field: 'createTime', order: 'desc' } as PageEquipmentInput)`.
 
 ---

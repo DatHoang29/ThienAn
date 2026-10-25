@@ -50,8 +50,6 @@ VALUES
      N'Thời gian giữ khóa phân tán tối thiểu của đăng ký gửi (giây, khoảng cho phép: 30–3600).'),
     (N'outbound_lock_interval_multiplier', N'Hệ số nhân chu kỳ gửi tính thời gian giữ khóa', N'3', 23,
      N'Hệ số nhân với chu kỳ gửi để tính thời gian giữ khóa phân tán (khoảng cho phép: 1–10).'),
-    (N'outbound_page_size', N'Số dòng mỗi trang trích xuất gửi', N'100', 24,
-     N'Số dòng dữ liệu mặc định mỗi trang trích xuất gửi đi (khoảng cho phép: 1–10000).'),
     (N'outbound_default_interval_sec', N'Chu kỳ gửi mặc định của Worker (giây)', N'30', 25,
      N'Chu kỳ gửi mặc định khi đăng ký không khai báo IntervalSeconds (giây, khoảng cho phép: 1–86400).'),
     (N'inbound_max_packets_per_run', N'Số gói tin nhận xử lý tối đa mỗi lượt', N'50', 30,
