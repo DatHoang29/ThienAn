@@ -33,7 +33,7 @@
 | Thứ tự | Tệp | Bảng ghi | Nội dung |
 | :---: | :--- | :--- | :--- |
 | **1** | [`sharedata-seed-goi-tin-ShareDataPacket.sql`](sharedata-seed-goi-tin-ShareDataPacket.sql) | `ShareDataPacket` | Thêm 11 gói Catalog (101–111) nếu chưa có, chuẩn hóa `OrderNo`, nạp `TemplateSql` (câu mẫu gốc), chuẩn hóa `Status` (bật 101–110, tắt 111), đổi `__rowid` → `__lastKey` trong `TemplateSql`. |
-| **2** | [`sharedata-seed-goi-tin-ShareDataSql.sql`](sharedata-seed-goi-tin-ShareDataSql.sql) | `ShareDataSql` | Chuyển câu SQL cũ (cột `ShareDataPacket.ExtractSql/CursorTimeColumn/MaxLookBackDays`, bảng `ShareDataPartnerSql`, cột `ShareDataMapping.ExtractSql`) sang `ShareDataSql`; nạp câu mẫu chung (dòng `PartnerId` trống) theo `TemplateSql` khi đang trống; đổi `__rowid` → `__lastKey`. **Chạy sau tệp 1** vì đọc `TemplateSql`. |
+| **2** | [`sharedata-seed-goi-tin-ShareDataSql.sql`](sharedata-seed-goi-tin-ShareDataSql.sql) | `ShareDataSql` | Chuyển câu SQL cũ (cột `ShareDataPacket.ExtractSql/CursorTimeColumn`, bảng `ShareDataPartnerSql`, cột `ShareDataMapping.ExtractSql`) sang `ShareDataSql`; nạp câu mẫu chung (dòng `PartnerId` trống) theo `TemplateSql` khi đang trống; đổi `__rowid` → `__lastKey`. **Chạy sau tệp 1** vì đọc `TemplateSql`. |
 | **3** | [`sharedata-seed-goi-tin-ShareDataPacketSql.sql`](sharedata-seed-goi-tin-ShareDataPacketSql.sql) | `ShareDataPacketSql` | Nạp 18 câu ghi chiều nhận cho 10 gói (101–109 và 111). |
 | **4** | [`sharedata-seed-cau-hinh-SysConfigType.sql`](sharedata-seed-cau-hinh-SysConfigType.sql) | `SysConfigType` | Khởi tạo loại danh mục `sharedata_error_code`. |
 | **5** | [`sharedata-seed-cau-hinh-SysConfigData.sql`](sharedata-seed-cau-hinh-SysConfigData.sql) | `SysConfigData` | Nạp 25 mã cảnh báo `ESH-xxxx`; đăng ký nhóm `sharedata_config` vào loại `operation_config_type`. **Chạy sau tệp 4.** |
@@ -103,7 +103,6 @@ SELECT
     p.[Code],
     p.[Name],
     s.[CursorTimeColumn],
-    s.[MaxLookBackDays],
     p.[Status],
     CASE WHEN s.[ExtractSql] IS NOT NULL THEN LEN(s.[ExtractSql]) ELSE 0 END AS [SqlLength]
 FROM [dbo].[ShareDataPacket] p

@@ -81,7 +81,7 @@ flowchart TD
 
 | STT | Tên Entity C# | Tên Bảng SQL Server | Phân Loại | Cách Nạp Dữ Liệu | Thời Điểm | Vai Trò & Bản Chất Nâng Cấp Kỹ Thuật |
 | :---: | :--- | :--- | :---: | :---: | :--- | :--- |
-| **1** | `ShareDataPacket` | `ShareDataPacket` | **Cũ (Cải tiến)** | **Giao diện / Script** | 08/2026 $\rightarrow$ 14/10/2026 | Danh mục 11 gói tin chuẩn (101–111). Lưu **SQL Template mẫu mặc định** (`ExtractSql`), chế độ đồng bộ (`SyncMode`), cột con trỏ (`CursorTimeColumn`) và số ngày quét lùi (`MaxLookBackDays`). Màn hình `views/sharedata/dataSource/index.vue` hoặc Script `02`. |
+| **1** | `ShareDataPacket` | `ShareDataPacket` | **Cũ (Cải tiến)** | **Giao diện / Script** | 08/2026 $\rightarrow$ 14/10/2026 | Danh mục 11 gói tin chuẩn (101–111). Lưu **SQL Template mẫu mặc định** (`ExtractSql`), chế độ đồng bộ (`SyncMode`), cột con trỏ (`CursorTimeColumn`) *(26/10/2026: bỏ `MaxLookBackDays`)*. Màn hình `views/sharedata/dataSource/index.vue` hoặc Script `02`. |
 | **2** | `ShareDataPacketField` | `ShareDataPacketField` | **Cũ** | **Giao diện** | 08/2026 | Khai báo từ điển danh mục các trường dữ liệu của từng gói tin (`DatatypeId`, `AliasFieldKey`, `Type`, `GroupName`). Màn hình `views/sharedata/dataSource/component/fieldConfig.vue`. |
 | **3** | `ShareDataPacketSql` | `ShareDataPacketSql` | **Cũ** | **Script (bắt buộc)** | 15/09/2026 | Câu lệnh SQL ghi (`WriteSql`) chiều **NHẬN** của gói tin (chạy `MERGE` sử dụng `OPENJSON(@records)` trên CSDL Inbound). Chưa có màn hình quản trị; nạp qua Script `05` (gói test) hoặc script riêng. |
 | **4** | `ShareDataPartner` | `ShareDataPartner` | **Cũ (Cải tiến)** | **Giao diện** | 08/2026 $\rightarrow$ 13/10/2026 | Danh mục đối tác tích hợp. Bổ sung `ConnectionType` (lưu số nguyên theo enum `ConnectionType` tại `Modules.Integration.Delivery.Base/Enums`: 1-API, 2-File, 3-FTP, 4-FTPS, 5-Kafka) và `ConnectionConfig` dạng `Dictionary<string, string>` JSON linh hoạt. Màn hình `views/sharedata/sharing/index.vue`. |
@@ -95,7 +95,7 @@ flowchart TD
 | **12** | `ShareDataAlertLog` | `ShareDataAlertLog` | **Cũ (Cải tiến)** | **Hệ thống tự ghi** | 08/2026 $\rightarrow$ 17/10/2026 | Nhật ký cảnh báo và lỗi hệ thống. Chuẩn hóa 25 mã lỗi dạng `ESH-xxxx` (xem mục IV.1), hỗ trợ chi tiết `DetailJson` và xác nhận `Acknowledged`. Màn hình tra cứu `views/sharedata/errorLog/index.vue`. |
 | **13** | `ShareDataSession` | `ShareDataSession` | **Cũ** | **Hệ thống tự ghi** | 08/2026 | Quản lý phiên kết nối của đối tác theo máy trạng thái FSM (IDLE, CONNECTING, ACTIVE...), đếm gói tin và theo dõi Heartbeat. Tự động ghi nhận khi đối tác kết nối / xác thực. |
 
-> 📌 **Gọn bảng CSDL (14/10/2026):** Giữ **13 bảng** (12 bảng chính + 1 bảng Inbound), không phát sinh bảng riêng cho truy vấn động mà lưu trữ trực tiếp câu truy vấn trích xuất và tham số đồng bộ tại `ShareDataPacket` (`TemplateSql`, `ExtractSql`, `SyncMode`, `CursorTimeColumn`, `MaxLookBackDays`).
+> 📌 **Gọn bảng CSDL (14/10/2026):** Giữ **13 bảng** (12 bảng chính + 1 bảng Inbound), không phát sinh bảng riêng cho truy vấn động mà lưu trữ trực tiếp câu truy vấn trích xuất và tham số đồng bộ tại `ShareDataPacket` (`TemplateSql`, `ExtractSql`, `SyncMode`, `CursorTimeColumn`; `MaxLookBackDays` đã bỏ 26/10/2026).
 
 > 📌 **Danh mục bảng nguồn ShareDataSourceTable (17/10/2026):** Quyết định ngày 17/10/2026 hợp nhất danh sách bảng nguồn theo dõi Change Tracking từ `SysOpConfig` (nhóm `sharedata_tracker`) và bảng trạng thái `ShareDataTrackVersion` cũ về bảng danh mục nguồn tập trung `ShareDataSourceTable` của ShareData (nạp qua script [`sharedata-seed-cau-hinh-*.sql`](../sql/README.md)). Mỗi dòng đại diện cho 1 bảng nguồn có mốc `LastVersion`, `LastChangeTime`, `LastIssue` riêng, hai công tắc độc lập `IsTracked` (bật/tắt quét Change Tracking) và `IsQueryable` (cho phép dùng trên bộ dựng truy vấn Visual Query Builder), cùng `DefaultAlias`. Sửa trực tiếp bằng `.sql`, Worker tự nạp lại định kỳ. Chi tiết ở mục [IV.4](#4-danh-mục-bảng-nguồn--bảng-sharedatasourcetable).
 
@@ -126,7 +126,6 @@ flowchart TD
   | `ExtractSql`       | `nvarchar(max)` | Nullable | Câu truy vấn SQL trích xuất dữ liệu đang chạy (chiều Gửi - Outbound), ghi đè khi người dùng Lưu SQL. |
   | `SyncMode`         | `int` (`SyncMode?`) | Nullable | *(Mới 14/10/2026)* Chế độ đồng bộ dữ liệu (enum `SyncMode` tại `Shared.DTO.Enums.BaseEnums`): `1` = Snapshot (gửi toàn bộ), `2` = Incremental (gửi nối đuôi). |
   | `CursorTimeColumn` | `nvarchar(128)` | Nullable | *(Mới 14/10/2026)* Tên cột hoặc biểu thức cursor thời gian mẫu (ví dụ `UpdateTime`). |
-  | `MaxLookBackDays`  | `int`           | Nullable | *(Mới 14/10/2026)* Số ngày quét lùi tối đa (`1–365`, `null` = không giới hạn). |
 * **Lưu ý kỹ thuật:**  
   Chặn đứng thao tác Sửa/Xóa gói tin khi gói tin đang có đăng ký chia sẻ ở trạng thái hoạt động (`Active`).
 

@@ -41,8 +41,6 @@ public class ConfigServiceTests(Host host)
 
         // Assert
         Assert.Equal(ConfigService.Defaults, values);
-        Assert.Equal(ConfigService.Defaults.PacketLookbackDays.Min, values.PacketLookbackDays.Min);
-        Assert.Equal(ConfigService.Defaults.PacketLookbackDays.Max, values.PacketLookbackDays.Max);
         Assert.Equal(ConfigService.Defaults.SqlSampleTop, values.SqlSampleTop);
         Assert.Equal(ConfigService.Defaults.MappingSampleTop, values.MappingSampleTop);
         Assert.Equal(ConfigService.Defaults.LogListDefaultTop, values.LogListDefaultTop);
@@ -69,8 +67,6 @@ public class ConfigServiceTests(Host host)
 
         var testRows = new List<SysOpConfig>
         {
-            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "packet_lookback_days_min", Value = "3", Status = BaseEnums.StatusEnum.Enable },
-            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "packet_lookback_days_max", Value = "90", Status = BaseEnums.StatusEnum.Enable },
             new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "log_list_default_top", Value = "500", Status = BaseEnums.StatusEnum.Enable },
             new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "subscription_interval_sec_min", Value = "10", Status = BaseEnums.StatusEnum.Enable },
             new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = "subscription_interval_sec_max", Value = "3600", Status = BaseEnums.StatusEnum.Enable },
@@ -91,8 +87,6 @@ public class ConfigServiceTests(Host host)
         var values = await service.Get();
 
         // Assert
-        Assert.Equal(3, values.PacketLookbackDays.Min);
-        Assert.Equal(90, values.PacketLookbackDays.Max);
         Assert.Equal(500, values.LogListDefaultTop);
         Assert.Equal(10, values.SubscriptionInterval.Min);
         Assert.Equal(3600, values.SubscriptionInterval.Max);
@@ -162,9 +156,9 @@ public class ConfigServiceTests(Host host)
         var testRows = new List<SysOpConfig>
         {
             // Giá trị chữ -> fallback
-            new() { ID = $"{baseId}_1", GroupCode = isolatedGroup, Code = "packet_lookback_days_min", Value = "NOT_A_NUMBER", Status = BaseEnums.StatusEnum.Enable },
+            new() { ID = $"{baseId}_1", GroupCode = isolatedGroup, Code = "subscription_priority_min", Value = "NOT_A_NUMBER", Status = BaseEnums.StatusEnum.Enable },
             // Ngoài khoảng max -> fallback
-            new() { ID = $"{baseId}_2", GroupCode = isolatedGroup, Code = "packet_lookback_days_max", Value = "999999", Status = BaseEnums.StatusEnum.Enable },
+            new() { ID = $"{baseId}_2", GroupCode = isolatedGroup, Code = "subscription_priority_max", Value = "999999", Status = BaseEnums.StatusEnum.Enable },
             // Ngoài khoảng min -> fallback
             new() { ID = $"{baseId}_3", GroupCode = isolatedGroup, Code = "subscription_interval_sec_min", Value = "-10", Status = BaseEnums.StatusEnum.Enable },
             // Code lạ không có trong spec -> bị bỏ qua
@@ -185,8 +179,7 @@ public class ConfigServiceTests(Host host)
         var values = await service.Get();
 
         // Assert
-        Assert.Equal(ConfigService.Defaults.PacketLookbackDays.Min, values.PacketLookbackDays.Min);
-        Assert.Equal(ConfigService.Defaults.PacketLookbackDays.Max, values.PacketLookbackDays.Max);
+        Assert.Equal(ConfigService.Defaults.SubscriptionPriority, values.SubscriptionPriority);
         Assert.Equal(ConfigService.Defaults.SubscriptionInterval.Min, values.SubscriptionInterval.Min);
         Assert.Equal(500, values.LogListDefaultTop);
     }

@@ -12,8 +12,7 @@ internal static class PacketTemplateSeed
     public sealed record PacketTemplateInfo(
         string Code,
         string ExtractSql,
-        string? CursorTimeColumn,
-        int? MaxLookBackDays);
+        string? CursorTimeColumn);
 
     /// <summary>
     /// Danh sách mẫu chuẩn theo thứ tự mã gói.
@@ -23,8 +22,7 @@ internal static class PacketTemplateSeed
         .Select(x => new PacketTemplateInfo(
             x.Code,
             x.ExtractSql,
-            x.CursorTimeColumn,
-            x.MaxLookBackDays))
+            x.CursorTimeColumn))
         .ToList();
 
     /// <summary>

@@ -22,8 +22,7 @@ internal static class SeedScriptReader
     public sealed record SeedPacketInfo(
         string Code,
         string ExtractSql,
-        string? CursorTimeColumn = null,
-        int? MaxLookBackDays = null);
+        string? CursorTimeColumn = null);
 
     /// <summary>
     /// Thông tin bản ghi INSERT gói tin khởi tạo từ kịch bản seed SQL.
@@ -114,12 +113,12 @@ internal static class SeedScriptReader
         var packetContent = File.ReadAllText(packetScriptPath);
         var sqlContent = File.ReadAllText(sqlScriptPath);
 
-        // Câu mẫu gốc (TemplateSql) nằm ở tệp ShareDataPacket; cột thời gian và số ngày quét lùi nằm ở tệp ShareDataSql
+        // Câu mẫu gốc (TemplateSql) nằm ở tệp ShareDataPacket; cột thời gian nằm ở tệp ShareDataSql
         var templateRegex = new Regex(
             @"SET \[TemplateSql\] = N'(?<sql>.*?)'\s*WHERE \(\[Code\] = '(?<code>\d{3})'",
             RegexOptions.Singleline);
         var settingRegex = new Regex(
-            @"SET s\.\[ExtractSql\] = p\.\[TemplateSql\],\s*s\.\[CursorTimeColumn\]\s*=\s*(?<cursor>NULL|N'[^']*'),\s*s\.\[MaxLookBackDays\]\s*=\s*(?<lookback>NULL|\d+).*?WHERE \(p\.\[Code\] = '(?<code>\d{3})'",
+            @"SET s\.\[ExtractSql\] = p\.\[TemplateSql\],\s*s\.\[CursorTimeColumn\]\s*=\s*(?<cursor>NULL|N'[^']*'),.*?WHERE \(p\.\[Code\] = '(?<code>\d{3})'",
             RegexOptions.Singleline);
 
         var templates = templateRegex.Matches(packetContent);
@@ -139,20 +138,15 @@ internal static class SeedScriptReader
             var extractSql = match.Groups["sql"].Value.Replace("''", "'");
 
             string? cursor = null;
-            int? lookback = null;
             if (settings.TryGetValue(code, out var setting))
             {
                 var cursorRaw = setting.Groups["cursor"].Value;
-                var lookbackRaw = setting.Groups["lookback"].Value;
                 cursor = cursorRaw.Equals("NULL", StringComparison.OrdinalIgnoreCase)
                     ? null
                     : cursorRaw.Trim().TrimStart('N').Trim('\'');
-                lookback = lookbackRaw.Equals("NULL", StringComparison.OrdinalIgnoreCase)
-                    ? null
-                    : int.Parse(lookbackRaw);
             }
 
-            dict[code] = new SeedPacketInfo(code, extractSql, cursor, lookback);
+            dict[code] = new SeedPacketInfo(code, extractSql, cursor);
         }
 
         return dict;

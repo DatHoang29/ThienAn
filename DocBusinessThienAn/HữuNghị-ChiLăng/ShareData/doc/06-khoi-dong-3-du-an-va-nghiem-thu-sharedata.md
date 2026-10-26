@@ -150,13 +150,13 @@ Theo chủ trương của chủ dự án, **ưu tiên thao tác trực tiếp tr
    - Nhập **Tên** (`name`), **Số thứ tự** (`orderNo` = 101..111).
    - Chọn **Trạng thái** (`status`): Chọn *Bật* (Status = 1) cho các gói từ 101 đến 110; riêng gói 111 chọn *Tắt* (Status = 0).
    - Nhập **Ghi chú** nếu cần → Bấm nút **Lưu**.
-3. **Cơ chế tự động điền cấu hình mẫu chuẩn:** Khi nhập mã gói chuẩn (dạng 101..110 hoặc `101_xxx`), hệ thống tự động điền câu truy vấn SQL mẫu chuẩn và số ngày quét lùi (`MaxLookBackDays`); chế độ gửi (toàn bộ / nối đuôi) suy từ chính câu SQL, không có ô chọn nhờ `PacketCommandHandler` và `PacketDefaultTemplate.TryGet` mà không cần người dùng phải gõ tay hay dán SQL. *(Giao diện đã bỏ hoàn toàn khái niệm "Phạm vi" hay `partnerScope`).*
+3. **Cơ chế tự động điền cấu hình mẫu chuẩn:** Khi nhập mã gói chuẩn (dạng 101..110 hoặc `101_xxx`), hệ thống tự động điền câu truy vấn SQL mẫu chuẩn và cột mốc (`CursorTimeColumn`); chế độ gửi (toàn bộ / nối đuôi) suy từ chính câu SQL, không có ô chọn nhờ `PacketCommandHandler` và `PacketDefaultTemplate.TryGet` mà không cần người dùng phải gõ tay hay dán SQL. *(Giao diện đã bỏ hoàn toàn khái niệm "Phạm vi" hay `partnerScope`).*
 4. Cấu hình SQL trích xuất và tham số đồng bộ:
    - Nhấp chọn gói tin vừa tạo ở danh sách bên trái.
    - Ở khung bên phải, chuyển sang tab **Cấu hình SQL** (`tabSqlCenter`).
    - Khung soạn thảo SQL (Monaco Editor) đã hiển thị câu truy vấn trích xuất chuẩn. Nếu muốn khôi phục lại câu SQL chuẩn từ hệ thống, bấm nút **Khôi phục SQL mẫu** (`vqbResetToTemplateTitle`). *(Lưu ý: Bấm nút này chỉ nạp nội dung lên khung soạn thảo, chưa ghi đè xuống CSDL cho tới khi bấm nút Lưu).*
    - **Chế độ gửi theo câu SQL (cập nhật 25/10/2026):** Giao diện không có nút hay nhãn chế độ và không tự chèn gì vào câu SQL. Câu SQL dùng một biến đã khai với nguồn *Mốc thời gian lần trước* hoặc *Mốc khóa lần trước* là *nối đuôi* (gói 103/104/106/107/109), không dùng là *gửi toàn bộ* (gói 101/102/105/108/110) — đối chiếu [Phụ lục C](05-chay-sql-tu-dau-sharedata.md#phụ-lục-c-danh-mục-chuẩn-11-gói-tin-sharedata).
-     + Câu nối đuôi khi lưu bị kiểm: có `TOP`, có cột `__lastTime` và `__lastKey`, `ORDER BY` theo `__lastTime` rồi `__lastKey`, không `DESC`. Ô *Quét lùi tối đa* không có trên giao diện (chờ chốt; Worker vẫn áp dụng nếu CSDL đã lưu giá trị).
+     + Câu nối đuôi khi lưu bị kiểm: có cột `__lastTime` và `__lastKey`, `ORDER BY` theo `__lastTime` rồi `__lastKey`, không `DESC`; `TOP` không bắt buộc (có `TOP n` thì Worker lặp nhiều trang, không có thì lấy hết một lượt). *Quét lùi tối đa* đã bỏ hẳn 26/10/2026.
    - **Trường trích xuất (sau AS):** Hệ thống tự động bóc tách các bí danh sau `AS` trong câu SELECT:
      + Chip màu xanh (✓): Bí danh đã được khai báo thành trường gói tin.
      + Chip viền nét đứt: Bí danh chưa khai trường.
@@ -233,7 +233,7 @@ Theo chủ trương của chủ dự án, **ưu tiên thao tác trực tiếp tr
 1. Mở màn hình: **Hệ thống** → **Thuật ngữ** (`views/cfgSystem/sysTerminology/index.vue`).
 2. Bấm nút **Thêm mới** để nạp từng bản dịch theo danh sách tại [Phụ lục E: Danh mục thuật ngữ ShareData (SysTerminology)](05-chay-sql-tu-dau-sharedata.md#phụ-lục-e-danh-mục-thuật-ngữ-sharedata-systerminology):
    - **Tên tiền tố** (`name`): Ví dụ `lz.validation` hoặc `lz.exception`.
-   - **Mã** (`code`): Ví dụ `sharedata.lookbackDaysRange` hoặc `sharedata.connectConfigSyntaxError`.
+   - **Mã** (`code`): Ví dụ `sharedata.sqlTableNotAllowed` hoặc `sharedata.connectConfigSyntaxError`.
    - **Giá trị** (`value`): Nội dung chuỗi dịch tiếng Việt hoặc tiếng Anh.
    - **Ngôn ngữ** (`lang`): Chọn `vi-VN` hoặc `en-US`.
    - *Quy tắc:* Mỗi bản ghi trên giao diện đại diện cho một cặp khóa - ngôn ngữ (nhập bản dịch `vi-VN` trước, sau đó nhập bản dịch `en-US`). Giao diện không hỗ trợ nhập hàng loạt.
@@ -289,7 +289,7 @@ Theo chủ trương của chủ dự án, **ưu tiên thao tác trực tiếp tr
 | Bước | Thao tác kiểm tra | Kết quả mong đợi | Kết quả |
 |:---:|---|---|---|
 | **B1** | Tạo đối tác `P-REST` (màn *Đối tác & Đăng ký chia sẻ*) | Lưu thành công; các trường `code` và `port` hiển thị vô hiệu hóa khi xem lại; bấm nút "Kết nối" chuyển sang màu xanh | ☐ Đạt ☐ Không đạt |
-| **B2** | Tạo gói tin chuẩn (101, 103... màn *Cấu hình gói tin*) | Tự động điền câu SQL, `MaxLookBackDays` từ Catalog; lưu thành công | ☐ ☐ |
+| **B2** | Tạo gói tin chuẩn (101, 103... màn *Cấu hình gói tin*) | Tự động điền câu SQL, cột mốc từ Catalog; lưu thành công | ☐ ☐ |
 | **B3** | Tạo Ánh xạ gửi & nhận (màn *Cấu hình ánh xạ*) | Chiều gửi đủ 4 khóa `$meta`; chiều nhận đủ mảng `data`; lưu thành công với `isActive = true` | ☐ ☐ |
 | **B4** | Tạo Đăng ký gửi & nhận (màn *Đối tác & Đăng ký chia sẻ*) | Đăng ký hiển thị ở trạng thái `Active`; chiều nhận ẩn lịch gửi; công tắc bật/tắt hoạt động đúng | ☐ ☐ |
 | **B5** | Kiểm tra 15 bảng nguồn `ShareDataSourceTable` (truy vấn SQL tại khung ngoại lệ) | Đủ 15 bảng (`IsDelete IS NULL`), 14 bảng `IsTracked = 1`, `TmsEquipment` có `IsTracked = 0`, cả 15 bảng `IsQueryable = 1` | ☐ ☐ |
@@ -437,7 +437,7 @@ Trước khi thực hiện các bài test nhóm E, cần chuẩn bị hạ tần
 | A1 | Mở danh sách gói tin, mở tab Cấu hình SQL từng gói | Không có tag/nhãn chế độ trên danh sách và thanh công cụ SQL; không còn dải "Biến hệ thống" hay nút sửa tự động. Bảng *Tham số câu truy vấn* liệt kê đúng các biến câu SQL của gói đang dùng | ☐ Đạt ☐ Không đạt |
 | A2 | Mở gói **105** (chưa chỉnh gì) | Câu SQL không dùng biến lấy từ mốc lần trước (gửi toàn bộ) | ☐ ☐ |
 | A3 | Gói 105: thêm vào câu SQL điều kiện dùng `@since` nhưng **chưa khai** → bấm Lưu. Khai `@since` (DateTime, Lấy từ: Mốc thời gian lần trước) nhưng câu SQL chưa đủ cấu trúc nối đuôi → bấm Lưu. Tự sửa câu SQL cho đủ (`TOP`, `__lastTime`, `__lastKey`, `ORDER BY __lastTime, __lastKey`) → bấm Lưu → tải lại trang và mở lại gói 105 | Lần 1: **Bị từ chối**, báo "Biến [@since] chưa khai ở bảng Tham số câu truy vấn". Lần 2: **Bị từ chối**, báo thiếu `TOP`, `__lastTime`/`__lastKey` hoặc `ORDER BY` sai. Lần 3: **Lưu thành công** (một nút Lưu lưu cả bảng biến và câu SQL); mở lại thấy nguyên câu SQL và dòng `@since` | ☐ ☐ |
-| A4 | *(Tạm bỏ 25/10/2026: ô `MaxLookBackDays` không còn trên giao diện, chờ chốt)* | — | — |
+| A4 | *(Bỏ 26/10/2026: `MaxLookBackDays` đã bỏ hẳn)* | — | — |
 | A5 | Khôi phục câu SQL mẫu chuẩn của gói 105 qua nút "Mẫu mặc định" → bấm Lưu | **Lưu thành công**; câu gửi toàn bộ nên hệ thống không kiểm tra cấu trúc nối đuôi | ☐ ☐ |
 | A6 | Xem gói **111** (và 110 nếu chưa bật) | Hiện **"Đã tắt"**; không có nút chạy/gửi | ☐ ☐ |
 | A7 | Tạo gói mới: chọn "Loại gói (thứ tự)" 101–111 (mặc định 101) → Lưu gói | Gói tạo xong có ngay SQL (`TemplateSql` = `ExtractSql` sao chép từ gói nguồn cùng loại trong CSDL); khi bấm Sửa gói thì ô "Loại gói" bị khóa chỉ đọc (kèm gợi ý "Gói mới nhận SQL mẫu theo loại gói; sau khi tạo không đổi loại gói được") | ☐ ☐ |
@@ -584,7 +584,7 @@ Kịch bản chứng minh luồng toàn trình gửi → nhận hoạt động t
 | J2 | Trên màn hình *Cấu hình hoạt động*, lọc nhóm `sharedata_config`, chỉnh sửa giá trị 1 tham số của Worker (ví dụ tăng `outbound_check_interval_sec` từ `5` lên `10`) → bấm Lưu | Sau thời gian ≤ chu kỳ `reload_interval_sec` (30 giây), log console của Worker ghi nhận dòng thông báo phát hiện cấu hình thay đổi: ghi rõ giá trị cũ (`5`) → giá trị mới (`10`) và chu kỳ quét mới lập tức có hiệu lực | ☐ ☐ |
 | J3 | Sửa giá trị tham số trong `SysOpConfig` thành chuỗi sai định dạng (ví dụ đặt `outbound_check_interval_sec = 'abc'`) hoặc đặt giá trị vượt quá khoảng cho phép (ví dụ `outbound_check_interval_sec = 9999`) | Worker nhận biết giá trị không hợp lệ, **tự động giữ/quay về giá trị dự phòng mặc định (5 giây)** và ghi nhận log cảnh báo của `DataWorkerConfigService`: *"Cấu hình SysOpConfig [sharedata_config.<mã>] có giá trị '<giá trị>' không phải số nguyên; dùng giá trị dự phòng <mặc định>."* (hoặc câu *"Cấu hình SysOpConfig [sharedata_config.<mã>] có giá trị <giá trị> ngoài khoảng an toàn [min..max]; dùng giá trị dự phòng <mặc định>."*), mỗi cặp mã–giá trị đúng 1 lần, không sinh cảnh báo ESH | ☐ ☐ |
 | J4 | Tắt dòng tham số bằng cách đổi trạng thái `Status = 0` (hoặc xóa mềm `IsDelete = GETDATE()`) trong `SysOpConfig` | Hệ thống coi như tham số không tồn tại trong DB và **tự động chuyển sang sử dụng giá trị mặc định trong mã**, đảm bảo luồng vận hành không bị gián đoạn | ☐ ☐ |
-| J5 | Đặt `packet_lookback_days_max = 730` trong `SysOpConfig` → vào màn hình *Cấu hình gói tin* (SQL Center), chọn gói Incremental (103), nhập `MaxLookBackDays = 700` → Lưu | Giao diện WebVue đọc cấu hình từ API cho phép nhập đến 730 ngày (không bị chặn ở 365); WebAPI kiểm tra hợp lệ với cận trên 730 và **cho phép lưu thành công** xuống CSDL | ☐ ☐ |
+| J5 | *(Bỏ 26/10/2026: `packet_lookback_days_max` và `MaxLookBackDays` đã bỏ hẳn)* | — | — |
 | J6 | Kiểm tra tính đồng bộ ngưỡng tối thiểu chu kỳ gửi `subscription_interval_sec_min = 5`: thử nhập chu kỳ `3` giây trên form Đăng ký gói tin, hoặc gọi trực tiếp API tạo đăng ký với `IntervalSeconds = 3` | Cả giao diện Vue (`editSubscription.vue`) và backend `SubscriptionValidator` đều **đồng bộ chặn cứng** giá trị nhỏ hơn 5 giây với thông báo lỗi rõ ràng, không có sự sai lệch ngưỡng giữa FE và BE | ☐ ☐ |
 
 ---

@@ -1938,7 +1938,7 @@ LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId";
             }
 
             // Seed Template SQL động cho gói 103 (Incremental)
-            var sql103 = @"SELECT TOP (@pageSize)
+            var sql103 = @"SELECT TOP 100
     td.ID AS detectionId,
     td.DetectTime AS detectTime,
     td.Type AS vehicleType,
@@ -3508,7 +3508,8 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
             await PacketMetadataCatalogTest.SeedPacketToDb(db, "105");
             var packet105 = await db.Queryable<ShareDataPacket>().Where(p => p.Code == "105").FirstAsync();
-            await ShareDataSqlSeed.SetCommonAsync(db, packet105.ID, LegacyPacketSql.Packet109);
+            // Câu cũ dùng TOP (@pageSize); bỏ hằng số nên viết thẳng giới hạn dòng vào câu SQL
+            await ShareDataSqlSeed.SetCommonAsync(db, packet105.ID, LegacyPacketSql.Packet109.Replace("TOP (@pageSize)", "TOP 100"));
 
             var unique = Guid.NewGuid().ToString("N")[..8];
             await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.VehicleIdentification, unique);
@@ -5686,29 +5687,33 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         #region 10. Biến ở bảng tham số câu truy vấn (ShareDataSqlVariable) khi Worker gửi
 
         /// <summary>
-        /// Câu SQL dùng đủ 6 kiểu biến (String, Int, Decimal, Bool, Date, DateTime) và đủ nguồn "Lấy từ" (hằng số, thời điểm chạy, đầu năm,
-        /// lần chạy trước, mốc thời gian / mốc khóa lần trước). Không dùng @lastTime/@lastKey: chế độ nối đuôi nhận ra qua @since/@afterKey.
+        /// <summary>
+        /// Câu SQL dùng đủ 6 nguồn "Lấy từ" (mã đối tác, thời điểm chạy, đầu năm, lần chạy trước, mốc thời gian / mốc khóa lần trước).
+        /// Không dùng @lastTime/@lastKey: chế độ nối đuôi nhận ra qua @since/@afterKey. Mã gói và mã đối tác viết thẳng trong câu
+        /// nên @pc chỉ khớp khi lấy đúng từ nguồn "Mã đối tác".
         /// </summary>
-        private const string AllTypesSql =
-            "SELECT TOP (@pageSize) UpdateTime AS __lastTime, ID AS __lastKey, Code AS code FROM ShareDataPacket "
-            + "WHERE ID = @onlyId AND Status >= @minStatus AND @ratio > 1 AND @enabled = 1 "
-            + "AND UpdateTime >= @fromDay AND UpdateTime < @until AND UpdateTime <= @runAt AND @yearStart <= @runAt "
+        private static string AllSourcesSql(string packetId, string partnerCode) =>
+            "SELECT TOP 100 UpdateTime AS __lastTime, ID AS __lastKey, Code AS code FROM ShareDataPacket "
+            + $"WHERE ID = '{packetId}' AND @pc = '{partnerCode}' "
+            + "AND UpdateTime <= @runAt AND @yearStart <= @runAt "
             + "AND (@prevRun IS NULL OR @prevRun < @runAt) "
             + "AND (@since IS NULL OR UpdateTime > @since OR (UpdateTime = @since AND ID > @afterKey)) "
             + "ORDER BY UpdateTime, ID";
 
         /// <summary>
-        /// Description: Một lượt ProcessSubscriptions với câu SQL dùng nhiều biến, nhiều kiểu và nhiều nguồn giá trị:
-        ///              - common-all-types: bộ biến mẫu chung đúng hết → gửi đúng dòng, nhận là nối đuôi nên mốc ShareDataLastSend tiến tới dòng vừa gửi.
-        ///              - common-filter-out: một hằng số (@minStatus = 99) loại dòng → không gửi, mốc giữ nguyên (chứng minh giá trị biến được gắn thật).
-        ///              - partner-own-set: mẫu chung trỏ sai dòng, đối tác có SQL riêng với bộ biến riêng trỏ đúng → gửi được (Worker dùng bộ biến của SQL riêng).
+        /// Description: Một lượt ProcessSubscriptions với câu SQL dùng đủ nguồn giá trị của bảng tham số (không còn hằng số):
+        ///              - common-all-sources: bộ biến mẫu chung đúng hết → gửi đúng dòng, nhận là nối đuôi nên mốc ShareDataLastSend tiến tới dòng vừa gửi.
+        ///              - common-wrong-source: @pc lấy nhầm nguồn (mốc khóa = rỗng) → không gửi, mốc giữ nguyên (chứng minh giá trị biến gắn đúng theo nguồn).
+        ///              - partner-own-set: mẫu chung lấy nhầm nguồn, đối tác có SQL riêng với bộ biến riêng lấy đúng "Mã đối tác" → gửi được
+        ///                (Worker dùng bộ biến của SQL riêng).
         /// Created date: 25/10/2026
+        /// Modified date: 26/10/2026 (Bỏ hằng số: chỉ còn nguồn hệ thống, thêm nguồn Mã đối tác)
         /// </summary>
         [Theory]
-        [InlineData("common-all-types", true)]
-        [InlineData("common-filter-out", false)]
+        [InlineData("common-all-sources", true)]
+        [InlineData("common-wrong-source", false)]
         [InlineData("partner-own-set", true)]
-        public async Task ProcessSubscriptions_WhenSqlUsesDeclaredVariables_BindsEveryTypeAndSource_Test(string scenario, bool expectSent)
+        public async Task ProcessSubscriptions_WhenSqlUsesDeclaredVariables_BindsEverySource_Test(string scenario, bool expectSent)
         {
             // Arrange
             using var scope = _host.Services.CreateScope();
@@ -5716,8 +5721,10 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             var unique = Guid.NewGuid().ToString("N")[..8];
             var packetId = $"pkt-var-{unique}";
             var packetCode = $"PKT_VAR_{unique}";
+            var partnerCode = $"P_VAR_{unique}";
             var initialLastTime = new DateTime(2026, 10, 20, 8, 0, 0);
             var rowTime = initialLastTime.AddMinutes(5);
+            var sql = AllSourcesSql(packetId, partnerCode);
 
             await db.Insertable(new ShareDataPacket
             {
@@ -5731,24 +5738,23 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 .SetColumns(p => p.UpdateTime == rowTime)
                 .Where(p => p.ID == packetId)
                 .ExecuteCommandAsync();
-            await ShareDataSqlSeed.SetCommonAsync(db, packetId, AllTypesSql, "UpdateTime");
+            await ShareDataSqlSeed.SetCommonAsync(db, packetId, sql, "UpdateTime");
 
             var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
             {
-                PartnerCode = $"P_VAR_{unique}",
+                PartnerCode = partnerCode,
                 SubCode = $"SUB_VAR_{unique}",
                 DatatypeId = packetId,
                 MappingShape = new Dictionary<string, object> { ["code"] = new Dictionary<string, string> { ["$field"] = "code" } },
                 ConfigureSub = s => s.LastTimeRun = initialLastTime
             });
 
-            var commonOnlyId = scenario == "partner-own-set" ? "NOT_EXIST" : packetId;
-            var minStatus = scenario == "common-filter-out" ? "99" : "1";
-            await db.Insertable(BuildVariableSet(packetId, null, commonOnlyId, minStatus)).ExecuteCommandAsync();
+            var commonPcSource = scenario == "common-all-sources" ? ShareDataConst.SqlVariableSourcePartnerCode : ShareDataConst.SqlVariableSourceLastKey;
+            await db.Insertable(BuildVariableSet(packetId, null, commonPcSource)).ExecuteCommandAsync();
             if (scenario == "partner-own-set")
             {
-                await ShareDataSqlSeed.SetPartnerAsync(db, packetId, partner.ID, AllTypesSql);
-                await db.Insertable(BuildVariableSet(packetId, partner.ID, packetId, "1")).ExecuteCommandAsync();
+                await ShareDataSqlSeed.SetPartnerAsync(db, packetId, partner.ID, sql);
+                await db.Insertable(BuildVariableSet(packetId, partner.ID, ShareDataConst.SqlVariableSourcePartnerCode)).ExecuteCommandAsync();
             }
 
             await db.Insertable(new ShareDataLastSend
@@ -5784,33 +5790,23 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             }
         }
 
-        /// <summary>Bộ biến cho AllTypesSql của một câu SQL (partnerId trống = mẫu chung).</summary>
-        private static List<ShareDataSqlVariable> BuildVariableSet(string packetId, string? partnerId, string onlyId, string minStatus)
+        /// <summary>Bộ biến cho AllSourcesSql của một câu SQL (partnerId trống = mẫu chung); @pc lấy từ nguồn chỉ định.</summary>
+        private static List<ShareDataSqlVariable> BuildVariableSet(string packetId, string? partnerId, string pcSource)
         {
-            ShareDataSqlVariable Const(string code, string type, string value, int order) => new()
+            ShareDataSqlVariable Builtin(string code, string source, int order) => new()
             {
                 ID = Guid.NewGuid().ToString("N"), PacketId = packetId, PartnerId = partnerId, Code = code,
-                DataType = type, ValueKind = ShareDataConst.SqlVariableKindConst, Value = value, OrderNo = order
-            };
-            ShareDataSqlVariable Builtin(string code, string type, string source, int order) => new()
-            {
-                ID = Guid.NewGuid().ToString("N"), PacketId = packetId, PartnerId = partnerId, Code = code,
-                DataType = type, ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = source, OrderNo = order
+                DataType = ShareDataConst.SqlVariableBuiltinTypes[source], ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = source, OrderNo = order
             };
 
             return
             [
-                Const("onlyId", ShareDataConst.SqlVariableTypeString, onlyId, 1),
-                Const("minStatus", ShareDataConst.SqlVariableTypeInt, minStatus, 2),
-                Const("ratio", ShareDataConst.SqlVariableTypeDecimal, "1.5", 3),
-                Const("enabled", ShareDataConst.SqlVariableTypeBool, "true", 4),
-                Const("fromDay", ShareDataConst.SqlVariableTypeDate, "2026-01-01", 5),
-                Const("until", ShareDataConst.SqlVariableTypeDateTime, "2099-01-01 00:00:00", 6),
-                Builtin("runAt", ShareDataConst.SqlVariableTypeDateTime, ShareDataConst.SqlVariableSourceNow, 7),
-                Builtin("yearStart", ShareDataConst.SqlVariableTypeDateTime, ShareDataConst.SqlVariableSourceStartOfYear, 8),
-                Builtin("prevRun", ShareDataConst.SqlVariableTypeDateTime, ShareDataConst.SqlVariableSourceLastRunTime, 9),
-                Builtin("since", ShareDataConst.SqlVariableTypeDateTime, ShareDataConst.SqlVariableSourceLastTime, 10),
-                Builtin("afterKey", ShareDataConst.SqlVariableTypeString, ShareDataConst.SqlVariableSourceLastKey, 11)
+                Builtin("pc", pcSource, 1),
+                Builtin("runAt", ShareDataConst.SqlVariableSourceNow, 2),
+                Builtin("yearStart", ShareDataConst.SqlVariableSourceStartOfYear, 3),
+                Builtin("prevRun", ShareDataConst.SqlVariableSourceLastRunTime, 4),
+                Builtin("since", ShareDataConst.SqlVariableSourceLastTime, 5),
+                Builtin("afterKey", ShareDataConst.SqlVariableSourceLastKey, 6)
             ];
         }
 
@@ -5919,8 +5915,9 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             var cursorFilter = filter == "two-conditions"
                 ? "(@since IS NULL OR UpdateTime > @since OR (UpdateTime = @since AND ID > @afterKey))"
                 : "(@since IS NULL OR UpdateTime > @since)";
-            var sql = "SELECT TOP (@pageSize) UpdateTime AS __lastTime, ID AS __lastKey, Code AS code FROM ShareDataPacket "
-                + $"WHERE Code LIKE @rowPrefix AND {cursorFilter} ORDER BY UpdateTime, ID";
+            // Cỡ trang và tiền tố mã viết thẳng trong câu SQL (không còn hằng số); có TOP nên Worker lặp nhiều trang mỗi lượt
+            var sql = $"SELECT TOP {pageSize} UpdateTime AS __lastTime, ID AS __lastKey, Code AS code FROM ShareDataPacket "
+                + $"WHERE Code LIKE '{rowPrefix}%' AND {cursorFilter} ORDER BY UpdateTime, ID";
 
             await db.Insertable(new ShareDataPacket
             {
@@ -5931,19 +5928,15 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 Status = BaseEnums.StatusEnum.Enable
             }).ExecuteCommandAsync();
 
-            ShareDataSqlVariable Variable(string code, string type, string kind, string value, int order) => new()
+            ShareDataSqlVariable Variable(string code, string source, int order) => new()
             {
-                ID = Guid.NewGuid().ToString("N"), PacketId = packetId, Code = code, DataType = type, ValueKind = kind, Value = value, OrderNo = order
+                ID = Guid.NewGuid().ToString("N"), PacketId = packetId, Code = code, DataType = ShareDataConst.SqlVariableBuiltinTypes[source],
+                ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = source, OrderNo = order
             };
-            var variables = new List<ShareDataSqlVariable>
-            {
-                Variable("pageSize", ShareDataConst.SqlVariableTypeInt, ShareDataConst.SqlVariableKindConst, pageSize.ToString(), 1),
-                Variable("rowPrefix", ShareDataConst.SqlVariableTypeString, ShareDataConst.SqlVariableKindConst, $"{rowPrefix}%", 2),
-                Variable("since", ShareDataConst.SqlVariableTypeDateTime, ShareDataConst.SqlVariableKindBuiltin, ShareDataConst.SqlVariableSourceLastTime, 3)
-            };
+            var variables = new List<ShareDataSqlVariable> { Variable("since", ShareDataConst.SqlVariableSourceLastTime, 1) };
             if (filter == "two-conditions")
             {
-                variables.Add(Variable("afterKey", ShareDataConst.SqlVariableTypeString, ShareDataConst.SqlVariableKindBuiltin, ShareDataConst.SqlVariableSourceLastKey, 4));
+                variables.Add(Variable("afterKey", ShareDataConst.SqlVariableSourceLastKey, 2));
             }
             await db.Insertable(variables).ExecuteCommandAsync();
             await ShareDataSqlSeed.SetCommonAsync(db, packetId, sql, "UpdateTime");

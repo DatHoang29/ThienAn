@@ -13,7 +13,7 @@ import { mockAuth, resolveWebvuePath } from '../../setup';
 
 const json = (body: unknown) => ({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
 
-const SQL_ONE_COLUMN = 'SELECT TOP (@pageSize) td.Speed AS speed FROM TmsTrafficData td';
+const SQL_ONE_COLUMN = 'SELECT TOP 100 td.Speed AS speed FROM TmsTrafficData td';
 
 /** Mở màn Nguồn dữ liệu (một trang, không còn tab), chọn gói tin đầu tiên và chờ khung soạn thảo SQL sẵn sàng. */
 async function openSqlCenter(page: Page) {
@@ -96,7 +96,7 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         );
         await page.route('**/api/sharedata/sharedatapacket/isinuse*', (r) => r.fulfill(json({ code: 200, result: false })));
         await page.route('**/api/sharedata/sharedatamapping/page*', (r) => r.fulfill(json({ code: 200, result: { records: [], total: 0 } })));
-        await page.route('**/api/sharedata/sharedatapacket/getextractsql*', (r) => r.fulfill(json({ code: 200, result: { extractSql: SQL_ONE_COLUMN, status: 1, syncMode: 1, maxLookBackDays: null } })));
+        await page.route('**/api/sharedata/sharedatapacket/getextractsql*', (r) => r.fulfill(json({ code: 200, result: { extractSql: SQL_ONE_COLUMN, status: 1, syncMode: 1 } })));
         await page.route('**/api/sharedata/sharedatapacket/parseextractcolumns*', (r) => r.fulfill(json({ code: 200, result: { isValid: true, columns: ['speed'] } })));
         await page.route('**/api/sharedata/sharedatapacket/getmetadatatables*', (r) => r.fulfill(json({ code: 200, result: [{ id: 'tbl-traffic', tableName: 'TmsTrafficData' }, { id: 'tbl-zone', tableName: 'TmsZone' }] })));
         await page.route('**/api/sharedata/sharedatapacket/getmetadatafields*', (r) =>
@@ -191,6 +191,8 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
 
             await page.locator('.sql-variable-panel .svp-header .el-button', { hasText: 'Thêm' }).click();
             await page.locator('.sql-variable-panel .el-table__body input').first().fill('since');
+            await page.locator('.sql-variable-panel .el-table__body .el-select').first().click();
+            await page.locator('.svp-source-popper .el-select-dropdown__item', { hasText: 'Mốc thời gian lần trước' }).click();
             if (c.editSql) {
                 await page.locator('.sql-monaco-editor .view-lines').first().click();
                 await page.keyboard.press('End');
@@ -490,7 +492,7 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         const sqlThreeColumns = 'SELECT td.Speed AS speed, td.Extra AS extraCol, td.Flag AS isFlag FROM TmsTrafficData td';
         const posted: any[] = [];
         await page.route('**/api/sharedata/sharedatapacket/getextractsql*', (r) =>
-            r.fulfill(json({ code: 200, result: { extractSql: sqlThreeColumns, status: 1, syncMode: 1, maxLookBackDays: null } }))
+            r.fulfill(json({ code: 200, result: { extractSql: sqlThreeColumns, status: 1, syncMode: 1 } }))
         );
         await page.route('**/api/sharedata/sharedatapacketfield/add*', async (r) => {
             posted.push(r.request().postDataJSON());
@@ -518,7 +520,7 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         const events: string[] = [];
         const posted: string[] = [];
         await page.route('**/api/sharedata/sharedatapacket/getextractsql*', (r) =>
-            r.fulfill(json({ code: 200, result: { extractSql: sqlThreeColumns, status: 1, syncMode: 1, maxLookBackDays: null } }))
+            r.fulfill(json({ code: 200, result: { extractSql: sqlThreeColumns, status: 1, syncMode: 1 } }))
         );
         await page.route('**/api/sharedata/sharedatapacket/updateextractsql*', async (r) => {
             events.push('save-sql');

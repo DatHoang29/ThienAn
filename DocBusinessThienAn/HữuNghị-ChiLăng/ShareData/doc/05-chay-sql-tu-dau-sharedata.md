@@ -143,9 +143,9 @@ Toàn bộ cấu trúc bảng và index do CodeFirst tạo trước (`TableSetti
 SELECT name, system_type_id, max_length, is_nullable
 FROM sys.columns
 WHERE object_id = OBJECT_ID('dbo.ShareDataPacket')
-  AND name IN ('SyncKind','TimeColumn','CursorColumn','CursorTimeColumn','LookbackDays','MaxLookBackDays');
+  AND name IN ('SyncKind','TimeColumn','CursorColumn','CursorTimeColumn','LookbackDays');
 ```
-*Kết quả mong đợi:* Phải thấy các cột mới `CursorTimeColumn` (nvarchar), `MaxLookBackDays` (int). Chế độ gửi suy từ câu SQL (`@lastTime` / `@lastKey`), không còn thuộc tính `SyncMode` (DB cũ có thể còn cột này, để nguyên).
+*Kết quả mong đợi:* Phải thấy cột `CursorTimeColumn` (nvarchar) trên DB cũ. `MaxLookBackDays` đã bỏ 26/10/2026 (DB cũ còn cột thì để nguyên). Chế độ gửi suy từ câu SQL (`@lastTime` / `@lastKey`), không còn thuộc tính `SyncMode` (DB cũ có thể còn cột này, để nguyên).
 
 
 ---
@@ -194,11 +194,11 @@ WHERE Remark = N'ShareData Localization'
   AND IsDelete IS NULL;
 -- Mong đợi: TotalTerms = 186 (93 khóa song ngữ vi-VN và en-US), UniqueKeys = 93
 
--- 5. Kiểm tra 47 tham số vận hành SysOpConfig nhóm sharedata_config:
+-- 5. Kiểm tra 45 tham số vận hành SysOpConfig nhóm sharedata_config:
 SELECT COUNT(1) AS TotalConfigs
 FROM dbo.SysOpConfig
 WHERE GroupCode = 'sharedata_config' AND IsDelete IS NULL;
--- Mong đợi: TotalConfigs = 47 (18 Worker + 23 FE + 6 BE); CSDL cũ còn dòng outbound_page_size (đã bỏ 25/10/2026) thì ra 48
+-- Mong đợi: TotalConfigs = 45 (18 Worker + 23 FE + 4 BE); CSDL cũ còn dòng outbound_page_size (đã bỏ 25/10/2026) thì ra 46 (2 dòng packet_lookback_days_* bị seed xóa mềm 26/10/2026)
 
 -- 6. Kiểm tra Đối tác, Ánh xạ và Đăng ký chia sẻ:
 SELECT COUNT(1) AS TotalPartners,
@@ -226,7 +226,7 @@ FROM dbo.ShareDataSubscription WHERE IsDelete IS NULL;
 ### 3.1. Truy vấn kiểm tra chỉ đọc bổ sung (chạy trên DB local)
 
 ```sql
-SELECT Code, Status, CursorTimeColumn, MaxLookBackDays FROM dbo.ShareDataPacket ORDER BY Code;
+SELECT p.Code, p.Status, s.CursorTimeColumn FROM dbo.ShareDataPacket p LEFT JOIN dbo.ShareDataSql s ON s.PacketId = p.ID AND s.PartnerId IS NULL AND s.IsDelete IS NULL ORDER BY p.Code;
 SELECT TOP 20 * FROM dbo.ShareDataLastSend;                                   -- mốc gửi nối đuôi
 SELECT TOP 30 * FROM dbo.ShareDataActivityLog ORDER BY CreateTime DESC;       -- nhật ký cha–con
 SELECT TOP 30 * FROM dbo.ShareDataAlertLog    ORDER BY CreateTime DESC;       -- cảnh báo ESH-xxxx
@@ -243,14 +243,13 @@ Sau khi thực hiện các bài nghiệm thu (hoặc khi cần dọn dẹp CSDL 
 
 ### 4.1. Khôi phục tham số vận hành `SysOpConfig` (nhóm `sharedata_config`)
 
-   - Đưa các tham số đã sửa thử nghiệm về giá trị mặc định: `outbound_check_interval_sec = '5'`, `packet_lookback_days_max = '365'`, `cleanup_interval_min = '1440'`; khôi phục dòng đã tắt/xóa mềm ở J4 về `Status = 1`, `IsDelete = NULL`.
+   - Đưa các tham số đã sửa thử nghiệm về giá trị mặc định: `outbound_check_interval_sec = '5'`, `cleanup_interval_min = '1440'`; khôi phục dòng đã tắt/xóa mềm ở J4 về `Status = 1`, `IsDelete = NULL`.
    > 💡 **Ghi chú:** Script `sharedata-seed-cau-hinh-*.sql` (thứ tự 2) không ghi đè các giá trị đã tồn tại trong `SysOpConfig` (`WHERE NOT EXISTS`), nên bắt buộc chạy câu lệnh `UPDATE` dưới đây để khôi phục:
      ```sql
      USE [DEV_ITS10];
      UPDATE dbo.SysOpConfig
      SET Value = CASE Code
              WHEN 'outbound_check_interval_sec' THEN '5'
-             WHEN 'packet_lookback_days_max' THEN '365'
              WHEN 'cleanup_interval_min' THEN '1440'
              ELSE Value
          END,
@@ -258,7 +257,7 @@ Sau khi thực hiện các bài nghiệm thu (hoặc khi cần dọn dẹp CSDL 
          IsDelete = NULL,
          UpdateTime = GETDATE()
      WHERE GroupCode = 'sharedata_config'
-       AND Code IN ('outbound_check_interval_sec', 'packet_lookback_days_max', 'cleanup_interval_min');
+       AND Code IN ('outbound_check_interval_sec', 'cleanup_interval_min');
      ```
 
 
@@ -398,19 +397,19 @@ IF OBJECT_ID(N'[dbo].[InboundTrafficFlow]', N'U') IS NOT NULL
 
 > 📌 *Nguồn trích xuất chuẩn:* [`sharedata-seed-goi-tin-*.sql`](../sql/README.md) và `PacketDefaultTemplate` (`Module.ShareData.Infrastructure.Services.ShareDataExtraction`).
 
-| Gói | Số thứ tự (`OrderNo`) | Mã gói chuẩn (`Code`) | ID cố định | Tên gói tin (`Name`) | Chế độ (suy từ SQL) | Cột mốc (`CursorTimeColumn`) | Quét lùi (`MaxLookBackDays`) | Trạng thái (`Status`) |
-|:---:|:---:|---|:---:|---|:---:|:---:|:---:|:---:|
-| **101** | 101 | `101_commonData` | `1500000000101` | Dữ liệu thông tin chung / luồng giao thông | Snapshot (Toàn bộ) | *NULL* | *NULL* | Bật (1) |
-| **102** | 102 | `102_cctvData` | `1500000000102` | Dữ liệu hình ảnh giao thông CCTV | Snapshot (Toàn bộ) | *NULL* | *NULL* | Bật (1) |
-| **103** | 103 | `103_vdsData` | `1500000000103` | Dữ liệu đếm xe VDS | Incremental (Nối đuôi) | `UpdateTime` | 1 | Bật (1) |
-| **104** | 104 | `104_weatherData` | `1500000000104` | Dữ liệu khí tượng / thời tiết | Incremental (Nối đuôi) | `UpdateTime` | 1 | Bật (1) |
-| **105** | 105 | `105_rfidData` | `1500000000105` | Dữ liệu định danh phương tiện AVI / RFID | Snapshot (Toàn bộ) | *NULL* | *NULL* | Bật (1) |
-| **106** | 106 | `106_wimData` | `1500000000106` | Dữ liệu cân tải trọng xe tự động WIM | Incremental (Nối đuôi) | `UpdateTime` | 1 | Bật (1) |
-| **107** | 107 | `107_incidentData` | `1500000000107` | Dữ liệu thông tin sự cố / sự kiện giao thông | Incremental (Nối đuôi) | `UpdateTime` | 1 | Bật (1) |
-| **108** | 108 | `108_vmsInfo` | `1500000000108` | Dữ liệu thông tin biển báo điện tử VMS | Snapshot (Toàn bộ) | *NULL* | *NULL* | Bật (1) |
-| **109** | 109 | `109_etcData` | `1500000000109` | Dữ liệu giao dịch thu phí ETC | Incremental (Nối đuôi) | `UpdateTime` | 1 | Bật (1) |
-| **110** | 110 | `110_wpData` | `1500000000110` | Dữ liệu trao đổi thông tin với người tham gia giao thông | Snapshot (Toàn bộ) | *NULL* | *NULL* | Bật (1) |
-| **111** | 111 | `111` | `1500000000111` | Dữ liệu trao đổi thông tin giữa các TT QLĐHGT tuyến | *NULL* | *NULL* | *NULL* | **Tắt (0)** |
+| Gói | Số thứ tự (`OrderNo`) | Mã gói chuẩn (`Code`) | ID cố định | Tên gói tin (`Name`) | Chế độ (suy từ SQL) | Cột mốc (`CursorTimeColumn`) | Trạng thái (`Status`) |
+|:---:|:---:|---|:---:|---|:---:|:---:|:---:|
+| **101** | 101 | `101_commonData` | `1500000000101` | Dữ liệu thông tin chung / luồng giao thông | Snapshot (Toàn bộ) | *NULL* | Bật (1) |
+| **102** | 102 | `102_cctvData` | `1500000000102` | Dữ liệu hình ảnh giao thông CCTV | Snapshot (Toàn bộ) | *NULL* | Bật (1) |
+| **103** | 103 | `103_vdsData` | `1500000000103` | Dữ liệu đếm xe VDS | Incremental (Nối đuôi) | `UpdateTime` | Bật (1) |
+| **104** | 104 | `104_weatherData` | `1500000000104` | Dữ liệu khí tượng / thời tiết | Incremental (Nối đuôi) | `UpdateTime` | Bật (1) |
+| **105** | 105 | `105_rfidData` | `1500000000105` | Dữ liệu định danh phương tiện AVI / RFID | Snapshot (Toàn bộ) | *NULL* | Bật (1) |
+| **106** | 106 | `106_wimData` | `1500000000106` | Dữ liệu cân tải trọng xe tự động WIM | Incremental (Nối đuôi) | `UpdateTime` | Bật (1) |
+| **107** | 107 | `107_incidentData` | `1500000000107` | Dữ liệu thông tin sự cố / sự kiện giao thông | Incremental (Nối đuôi) | `UpdateTime` | Bật (1) |
+| **108** | 108 | `108_vmsInfo` | `1500000000108` | Dữ liệu thông tin biển báo điện tử VMS | Snapshot (Toàn bộ) | *NULL* | Bật (1) |
+| **109** | 109 | `109_etcData` | `1500000000109` | Dữ liệu giao dịch thu phí ETC | Incremental (Nối đuôi) | `UpdateTime` | Bật (1) |
+| **110** | 110 | `110_wpData` | `1500000000110` | Dữ liệu trao đổi thông tin với người tham gia giao thông | Snapshot (Toàn bộ) | *NULL* | Bật (1) |
+| **111** | 111 | `111` | `1500000000111` | Dữ liệu trao đổi thông tin giữa các TT QLĐHGT tuyến | *NULL* | *NULL* | **Tắt (0)** |
 
 ---
 
@@ -565,10 +564,10 @@ GO
 
 ---
 
-### Phụ lục F: Danh mục 47 tham số vận hành ShareData (SysOpConfig nhóm sharedata_config)
+### Phụ lục F: Danh mục 45 tham số vận hành ShareData (SysOpConfig nhóm sharedata_config)
 
 > 📌 *Nguồn trích xuất chuẩn:* [`sharedata-seed-cau-hinh-*.sql`](../sql/README.md) (Mục 4), dịch vụ cấu hình Worker `DataWorkerConfigService.cs` (`ShareDataWorker/Infrastructure/Services/DataWorkerConfig`), dịch vụ WebAPI `ShareDataConfigService.cs` (`Module.ShareData/Infrastructure/Services/ShareDataConfig`, đọc `SysOpConfig` qua `IMessageBus`), hằng số và bảng đặc tả cấu hình `ShareDataConst.cs` (`Module.ShareData.Core/Constants`), và hằng số dự phòng giao diện `SHAREDATA_FE_CONFIG_FALLBACK` (`TA-ITS015-WEBVUE-V1.0/src/src/types/constants/sharedataFeConfig.ts`).  
-> ℹ️ Toàn bộ 47 tham số được phân nhóm theo tiền tố và thành phần sử dụng: 18 tham số Worker (nhóm A), 23 tham số FE/WebAPI dùng chung (nhóm B), và 6 tham số WebAPI/SQL Center (nhóm C). Người dùng có thể tra cứu và điều chỉnh trên màn hình *Cấu hình hoạt động* (lọc theo nhóm `sharedata_config`).
+> ℹ️ Toàn bộ 45 tham số được phân nhóm theo tiền tố và thành phần sử dụng: 18 tham số Worker (nhóm A), 23 tham số FE/WebAPI dùng chung (nhóm B), và 4 tham số WebAPI/SQL Center (nhóm C; bỏ `packet_lookback_days_min/max` 26/10/2026). Người dùng có thể tra cứu và điều chỉnh trên màn hình *Cấu hình hoạt động* (lọc theo nhóm `sharedata_config`).
 
 | STT | Mã tham số (`Code`) | Tên hiển thị (`Name`) | Mặc định (`Value`) | Thứ tự (`OrderNo`) | Khoảng hợp lệ & Đơn vị | Thành phần sử dụng | Ý nghĩa vận hành chi tiết |
 |:---:|---|---|:---:|:---:|---|:---:|---|
@@ -615,11 +614,9 @@ GO
 | 39 | `mapping_sample_top_default` | Số bản ghi mẫu - mặc định | `5` | 303 | 1–500 bản ghi | FE / BE | Số lượng bản ghi mẫu mặc định khi bấm xem mẫu tại màn hình Ánh xạ. |
 | 40 | `history_range_default_days` | Khoảng tra cứu - mặc định | `7` | 401 | 1–31 ngày | FE | Khoảng thời gian mặc định khi mở màn hình Lịch sử chia sẻ và Nhật ký lỗi. |
 | 41 | `history_range_max_days` | Khoảng tra cứu - tối đa | `31` | 402 | 1–31 ngày | FE | Khoảng thời gian tra cứu tối đa cho phép chọn trên bộ lọc ngày. |
-| **C. Tham số WebAPI Backend & SQL Center (6 mã)** | | | | | | | |
-| 42 | `packet_lookback_days_min` | Số ngày quét lùi tối đa - tối thiểu | `1` | 501 | 1–3650 ngày | BE / FE | Giới hạn dưới của MaxLookBackDays khi cấu hình SQL trích xuất gói tin. |
-| 43 | `packet_lookback_days_max` | Số ngày quét lùi tối đa - tối đa | `365` | 502 | 1–3650 ngày | BE / FE | Giới hạn trên của MaxLookBackDays (mặc định 365, tối đa 3650). |
-| 44 | `sql_sample_top_min` | Số dòng xem mẫu SQL Center - tối thiểu | `1` | 511 | 1–500 bản ghi | BE / FE | Giới hạn dưới khi chạy thử SQL trích xuất tại SQL Center. |
-| 45 | `sql_sample_top_max` | Số dòng xem mẫu SQL Center - tối đa | `50` | 512 | 1–500 bản ghi | BE / FE | Giới hạn trên khi chạy thử SQL trích xuất tại SQL Center. |
-| 46 | `sql_sample_top_default` | Số dòng xem mẫu SQL Center - mặc định | `10` | 513 | 1–500 bản ghi | BE / FE | Số dòng xem mẫu mặc định khi chạy thử câu SQL tại SQL Center. |
-| 47 | `log_list_default_top` | Số dòng nhật ký trả về mặc định | `1000` | 521 | 1–100000 bản ghi | BE | Số dòng mặc định trả về khi truy vấn danh sách ActivityLog / AlertLog. |
+| **C. Tham số WebAPI Backend & SQL Center (4 mã)** | | | | | | | |
+| 42 | `sql_sample_top_min` | Số dòng xem mẫu SQL Center - tối thiểu | `1` | 511 | 1–500 bản ghi | BE / FE | Giới hạn dưới khi chạy thử SQL trích xuất tại SQL Center. |
+| 43 | `sql_sample_top_max` | Số dòng xem mẫu SQL Center - tối đa | `50` | 512 | 1–500 bản ghi | BE / FE | Giới hạn trên khi chạy thử SQL trích xuất tại SQL Center. |
+| 44 | `sql_sample_top_default` | Số dòng xem mẫu SQL Center - mặc định | `10` | 513 | 1–500 bản ghi | BE / FE | Số dòng xem mẫu mặc định khi chạy thử câu SQL tại SQL Center. |
+| 45 | `log_list_default_top` | Số dòng nhật ký trả về mặc định | `1000` | 521 | 1–100000 bản ghi | BE | Số dòng mặc định trả về khi truy vấn danh sách ActivityLog / AlertLog. |
 

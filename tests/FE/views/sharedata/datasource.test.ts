@@ -105,10 +105,9 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
                 body: JSON.stringify({
                     code: 200,
                     result: {
-                        extractSql: 'SELECT TOP (@pageSize) td.Speed AS speed FROM TmsTrafficData td',
+                        extractSql: 'SELECT TOP 100 td.Speed AS speed FROM TmsTrafficData td',
                         status: 1,
                         syncMode: 1,
-                        maxLookBackDays: null,
                     },
                 }),
             });

@@ -4,14 +4,14 @@ GO
 -- =========================================================================================
 -- FILE: sharedata-seed-cau-hinh-SysOpConfig.sql
 -- BẢNG GHI: [dbo].[SysOpConfig] — tệp chỉ thêm / sửa / xóa trên đúng bảng này; bảng khác chỉ đọc (Rule 19.103).
--- DESCRIPTION: 4.2 - 4.3 Nạp 48 tham số vận hành & giới hạn kiểm tra nhóm 'sharedata_config' (19 mã Worker, 23 mã FE, 6 mã BE);
+-- DESCRIPTION: 4.2 - 4.3 Nạp 46 tham số vận hành & giới hạn kiểm tra nhóm 'sharedata_config' (19 mã Worker, 23 mã FE, 4 mã BE);
 --                        tham số còn giá trị ở nhóm cũ 'sharedata_fe_config' (SysConfigData) thì ưu tiên giữ giá trị đó.
---              4.5 Xóa mềm các tham số không còn sử dụng (cleanup_enabled, cleanup_retention_days).
+--              4.5 Xóa mềm các tham số không còn sử dụng (cleanup_enabled, cleanup_retention_days, packet_lookback_days_min, packet_lookback_days_max).
 -- THỨ TỰ CHẠY: 7 (trước hai tệp xoa-nhom-cu, vì đọc dữ liệu nhóm cũ sharedata_fe_config) (xem README.md cùng thư mục).
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 24/10/2026
+-- CẬP NHẬT LẦN CUỐI: 26/10/2026 (bỏ packet_lookback_days_min/max)
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -24,7 +24,7 @@ DECLARE @TenantIdOp NVARCHAR(64) = (SELECT TOP 1 CAST([TenantId] AS NVARCHAR(64)
 IF @TenantIdOp IS NULL
     SET @TenantIdOp = N'Default';
 
--- 4.2 Khai báo danh sách 48 tham số nhóm sharedata_config (19 mã Worker + 23 mã FE + 6 mã BE)
+-- 4.2 Khai báo danh sách 46 tham số nhóm sharedata_config (19 mã Worker + 23 mã FE + 4 mã BE)
 DECLARE @OpConfigs TABLE (
     [Code]    NVARCHAR(128),
     [Name]    NVARCHAR(128),
@@ -121,11 +121,7 @@ VALUES
     (N'history_range_max_days', N'Khoảng tra cứu - tối đa', N'31', 402,
      N'Ngày. Nhật ký lỗi (errorLog) và lịch sử chia sẻ.'),
 
-    -- C. 6 tham số giới hạn kiểm tra Backend WebAPI & SQL Center
-    (N'packet_lookback_days_min', N'Số ngày quét lùi tối đa - tối thiểu', N'1', 501,
-     N'Ngày. Giới hạn dưới của MaxLookBackDays khi cấu hình SQL trích xuất gói tin.'),
-    (N'packet_lookback_days_max', N'Số ngày quét lùi tối đa - tối đa', N'365', 502,
-     N'Ngày. Giới hạn trên của MaxLookBackDays khi cấu hình SQL trích xuất gói tin.'),
+    -- C. 4 tham số giới hạn kiểm tra Backend WebAPI & SQL Center
     (N'sql_sample_top_min', N'Số dòng xem mẫu SQL Center - tối thiểu', N'1', 511,
      N'Bản ghi. Giới hạn dưới khi chạy thử SQL trích xuất tại SQL Center.'),
     (N'sql_sample_top_max', N'Số dòng xem mẫu SQL Center - tối đa', N'50', 512,
@@ -183,12 +179,12 @@ SET [IsDelete] = GETDATE(),
     [Status] = 0,
     [UpdateTime] = GETDATE()
 WHERE [GroupCode] = N'sharedata_config'
-  AND [Code] IN (N'cleanup_enabled', N'cleanup_retention_days')
+  AND [Code] IN (N'cleanup_enabled', N'cleanup_retention_days', N'packet_lookback_days_min', N'packet_lookback_days_max')
   AND [IsDelete] IS NULL;
 
 DECLARE @SoftDeletedUnusedOpConfigs INT = @@ROWCOUNT;
 IF @SoftDeletedUnusedOpConfigs > 0
-    PRINT N'   -> Đã xóa mềm ' + CAST(@SoftDeletedUnusedOpConfigs AS NVARCHAR(10)) + N' tham số SysOpConfig không còn sử dụng (cleanup_enabled, cleanup_retention_days).';
+    PRINT N'   -> Đã xóa mềm ' + CAST(@SoftDeletedUnusedOpConfigs AS NVARCHAR(10)) + N' tham số SysOpConfig không còn sử dụng (cleanup_enabled, cleanup_retention_days, packet_lookback_days_min, packet_lookback_days_max).';
 
 SET NOEXEC OFF;
 GO

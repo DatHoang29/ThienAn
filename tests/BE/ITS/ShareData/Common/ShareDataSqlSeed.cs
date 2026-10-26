@@ -17,12 +17,11 @@ internal static class ShareDataSqlSeed
     private static readonly (string Code, string DataType, string ValueKind, string Value)[] StandardVariables =
     [
         ("lastTime", ShareDataConst.SqlVariableTypeDateTime, ShareDataConst.SqlVariableKindBuiltin, ShareDataConst.SqlVariableSourceLastTime),
-        ("lastKey", ShareDataConst.SqlVariableTypeString, ShareDataConst.SqlVariableKindBuiltin, ShareDataConst.SqlVariableSourceLastKey),
-        ("pageSize", ShareDataConst.SqlVariableTypeInt, ShareDataConst.SqlVariableKindConst, "100")
+        ("lastKey", ShareDataConst.SqlVariableTypeString, ShareDataConst.SqlVariableKindBuiltin, ShareDataConst.SqlVariableSourceLastKey)
     ];
 
     /// <summary>
-    /// Khai các biến @lastTime / @lastKey / @pageSize mà câu SQL có dùng vào bộ biến của câu đó (partnerId trống = mẫu chung), biến đã khai thì giữ.
+    /// Khai các biến @lastTime / @lastKey mà câu SQL có dùng vào bộ biến của câu đó (partnerId trống = mẫu chung), biến đã khai thì giữ.
     /// </summary>
     public static async Task DeclareStandardVariablesAsync(ISqlSugarClient db, string? packetId, string? partnerId, string? extractSql)
     {
@@ -65,8 +64,7 @@ internal static class ShareDataSqlSeed
         ISqlSugarClient db,
         string? packetId,
         string? extractSql,
-        string? cursorTimeColumn = null,
-        int? maxLookBackDays = null)
+        string? cursorTimeColumn = null)
     {
         if (string.IsNullOrWhiteSpace(packetId))
         {
@@ -84,7 +82,6 @@ internal static class ShareDataSqlSeed
                 PacketId = packetId,
                 ExtractSql = extractSql,
                 CursorTimeColumn = cursorTimeColumn,
-                MaxLookBackDays = maxLookBackDays,
                 CreateTime = DateTime.Now
             }).ExecuteCommandAsync();
             return;
@@ -92,7 +89,6 @@ internal static class ShareDataSqlSeed
 
         row.ExtractSql = extractSql;
         row.CursorTimeColumn = cursorTimeColumn;
-        row.MaxLookBackDays = maxLookBackDays;
         await db.Updateable(row).ExecuteCommandAsync();
     }
 

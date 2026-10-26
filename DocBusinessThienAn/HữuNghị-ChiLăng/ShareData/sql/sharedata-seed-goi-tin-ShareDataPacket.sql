@@ -263,7 +263,7 @@ PRINT N'   - Gói 102 (CctvImage): đã cập nhật TemplateSql ' + CAST(@Updat
 
 -- Gói 103: VehicleDetection (Incremental)
 UPDATE [dbo].[ShareDataPacket]
-SET [TemplateSql] = N'SELECT TOP (@pageSize)
+SET [TemplateSql] = N'SELECT TOP 100
     td.ID AS detectionId,
     td.DetectTime AS detectTime,
     td.Type AS vehicleType,
@@ -298,7 +298,7 @@ PRINT N'   - Gói 103 (VehicleDetection): đã cập nhật TemplateSql ' + CAST
 
 -- Gói 104: Weather (Incremental)
 UPDATE [dbo].[ShareDataPacket]
-SET [TemplateSql] = N'SELECT TOP (@pageSize)
+SET [TemplateSql] = N'SELECT TOP 100
     w.RefId AS weatherStationId,
     w.LocationDetail AS locationDetail,
     w.Temperature AS temperature,
@@ -359,7 +359,7 @@ PRINT N'   - Gói 105 (VehicleIdentification): đã cập nhật TemplateSql ' +
 
 -- Gói 106: WeighInMotion (Incremental)
 UPDATE [dbo].[ShareDataPacket]
-SET [TemplateSql] = N'SELECT TOP (@pageSize)
+SET [TemplateSql] = N'SELECT TOP 100
     td.DetectTime AS detectTime,
     td.Lane AS lane,
     td.Location AS locationCode,
@@ -389,7 +389,7 @@ PRINT N'   - Gói 106 (WeighInMotion): đã cập nhật TemplateSql ' + CAST(@U
 
 -- Gói 107: TrafficIncident (Incremental)
 UPDATE [dbo].[ShareDataPacket]
-SET [TemplateSql] = N'SELECT TOP (@pageSize)
+SET [TemplateSql] = N'SELECT TOP 100
     i.Code AS incidentCode,
     i.Name AS incidentName,
     i.EventTypeId AS eventTypeId,
@@ -450,7 +450,7 @@ PRINT N'   - Gói 108 (VmsDisplay): đã cập nhật TemplateSql ' + CAST(@Upda
 
 -- Gói 109: TollCollection (Incremental)
 UPDATE [dbo].[ShareDataPacket]
-SET [TemplateSql] = N'SELECT TOP (@pageSize)
+SET [TemplateSql] = N'SELECT TOP 100
     t.TransactionId AS transactionId,
     t.TransactionDateTimeIn AS entryTime,
     t.TransactionDateTime AS exitTime,
@@ -530,7 +530,7 @@ PRINT N'   - Gói 110 (PublicMessaging): đã cập nhật TemplateSql ' + CAST(
 
 -- Gói 111: InterCenter (Incremental, Status = 0: Disable)
 UPDATE [dbo].[ShareDataPacket]
-SET [TemplateSql] = N'SELECT TOP (@pageSize)
+SET [TemplateSql] = N'SELECT TOP 100
     CAST(NULL AS NVARCHAR(16)) AS packetType,
     CAST(NULL AS NVARCHAR(MAX)) AS payload,
     GETDATE() AS createdTime,

@@ -515,6 +515,10 @@ VALUES
      N'Truy vấn đồng bộ nối đuôi phải sắp xếp ORDER BY ngoài cùng theo cột [__lastTime] rồi [__lastKey], nếu không có thể bỏ sót dòng.',
      N'Incremental queries must sort the outer ORDER BY by [__lastTime] then [__lastKey]; otherwise rows may be skipped.'),
 
+    (N'lz.validation', N'sharedata.sqlIncrementalOrderByKeyMismatch',
+     N'Truy vấn đồng bộ nối đuôi theo khóa phải sắp xếp ORDER BY ngoài cùng theo cột [__lastKey], nếu không có thể bỏ sót dòng.',
+     N'Key-only incremental sync query must have an outer ORDER BY on [__lastKey], otherwise rows may be skipped.'),
+
     (N'lz.validation', N'sharedata.sqlIncrementalMissingLastTime',
      N'Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc có cột con trỏ thời gian [__lastTime].',
      N'Incremental queries must include the time cursor column [__lastTime].'),

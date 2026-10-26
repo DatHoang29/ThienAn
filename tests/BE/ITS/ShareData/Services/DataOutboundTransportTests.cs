@@ -421,7 +421,7 @@ namespace Tests.ShareData.Services
                 UpdateTime = rowTime
             };
             await db.Insertable(packet).ExecuteCommandAsync();
-            await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, $"SELECT TOP (@pageSize) UpdateTime AS __lastTime, ID AS __lastKey, Code AS code FROM ShareDataPacket WHERE ID = '{packetId}'", "UpdateTime");
+            await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, $"SELECT TOP 100 UpdateTime AS __lastTime, ID AS __lastKey, Code AS code FROM ShareDataPacket WHERE ID = '{packetId}'", "UpdateTime");
             await db.Updateable<ShareDataPacket>()
                 .SetColumns(p => p.UpdateTime == rowTime)
                 .Where(p => p.ID == packetId)
