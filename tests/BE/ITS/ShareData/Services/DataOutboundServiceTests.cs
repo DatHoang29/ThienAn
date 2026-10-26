@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Module.ShareData.Core.Dto.ActivityLog;
+using Module.ShareData.Core.Dto.Packet;
 using Module.ShareData.Core.Entities;
 using Modules.CCTV.Core.Entities;
 using Modules.CfgSystem.Core.Entities;
@@ -895,21 +896,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, PacketTemplateSeed.TryGet(packetCodeWithSuffix, out var tpl) ? tpl.ExtractSql : null);
             }
 
-            var existingFields = await db.Queryable<ShareDataPacketField>().Where(f => f.DatatypeId == packetCodeWithSuffix).ToListAsync();
-            var requiredKeys = new[] { "zoneStatusId", "zoneId", "averageSpeed", "trafficCondition", "dataTime" };
-            var missingKeys = requiredKeys.Where(k => !existingFields.Any(f => f.AliasFieldKey == k)).ToList();
-            if (missingKeys.Count > 0)
-            {
-                var newFields = missingKeys.Select(k => new ShareDataPacketField
-                {
-                    ID = Guid.NewGuid().ToString("N"),
-                    DatatypeId = packetCodeWithSuffix,
-                    AliasFieldKey = k,
-                    Type = "string",
-                    IsRequired = (k == "zoneStatusId" || k == "zoneId") ? BaseEnums.IsRequired.IsRequired : BaseEnums.IsRequired.NoRequired
-                }).ToList();
-                await db.Insertable(newFields).ExecuteCommandAsync();
-            }
+            await EnsureTrafficFlowFieldsAsync(db, packet.ID);
 
             await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.TrafficFlow, unique);
 
@@ -1074,21 +1061,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
 
 
-            var existingFields = await db.Queryable<ShareDataPacketField>().Where(f => f.DatatypeId == "101_commonData").ToListAsync();
-            var requiredKeys = new[] { "zoneStatusId", "zoneId", "averageSpeed", "trafficCondition", "dataTime" };
-            var missingKeys = requiredKeys.Where(k => !existingFields.Any(f => f.AliasFieldKey == k)).ToList();
-            if (missingKeys.Count > 0)
-            {
-                var newFields = missingKeys.Select(k => new ShareDataPacketField
-                {
-                    ID = Guid.NewGuid().ToString("N"),
-                    DatatypeId = "101_commonData",
-                    AliasFieldKey = k,
-                    Type = "string",
-                    IsRequired = (k == "zoneStatusId" || k == "zoneId") ? BaseEnums.IsRequired.IsRequired : BaseEnums.IsRequired.NoRequired
-                }).ToList();
-                await db.Insertable(newFields).ExecuteCommandAsync();
-            }
+            await EnsureTrafficFlowFieldsAsync(db, packet.ID);
 
             var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed { PartnerCode = $"P101_{uniqueId}", SubCode = $"SUB101_{uniqueId}", DatatypeId = "101_commonData" });
 
@@ -2067,12 +2040,10 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             };
             await db.Insertable(sub103).ExecuteCommandAsync();
 
-            var fields103 = await db.Queryable<ShareDataPacketField>().Where(f => f.DatatypeId == "103").ToListAsync();
             var shapeDict103 = new Dictionary<string, object>();
-            foreach (var f in fields103)
+            foreach (var key in await GetCommonFieldKeysAsync(db, "103"))
             {
-                if (!string.IsNullOrEmpty(f.AliasFieldKey))
-                    shapeDict103[f.AliasFieldKey] = new Dictionary<string, string> { { "$field", f.AliasFieldKey } };
+                shapeDict103[key] = new Dictionary<string, string> { { "$field", key } };
             }
             await db.Insertable(new ShareDataMapping
             {
@@ -3690,12 +3661,10 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             }
             else
             {
-                var fields = await db.Queryable<ShareDataPacketField>().Where(f => f.DatatypeId == s.DatatypeId).ToListAsync();
                 var shapeDict = new System.Collections.Generic.Dictionary<string, object>();
-                foreach (var f in fields)
+                foreach (var key in await GetCommonFieldKeysAsync(db, s.DatatypeId))
                 {
-                    if (!string.IsNullOrEmpty(f.AliasFieldKey))
-                        shapeDict[f.AliasFieldKey] = new System.Collections.Generic.Dictionary<string, string> { { "$field", f.AliasFieldKey } };
+                    shapeDict[key] = new System.Collections.Generic.Dictionary<string, string> { { "$field", key } };
                 }
                 shapeToUse = shapeDict;
             }
@@ -3713,6 +3682,31 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             return (partner, sub);
         }
 
+        /// <summary>Bổ sung 5 trường gói 101 (luồng giao thông) còn thiếu vào FieldsJson câu mẫu chung; zoneStatusId, zoneId bắt buộc.</summary>
+        private static async Task EnsureTrafficFlowFieldsAsync(ISqlSugarClient db, string? packetId)
+        {
+            var fields = SqlFieldHelper.Read((await ShareDataSqlSeed.GetCommonAsync(db, packetId))?.FieldsJson);
+            foreach (var key in new[] { "zoneStatusId", "zoneId", "averageSpeed", "trafficCondition", "dataTime" })
+            {
+                if (!fields.Any(f => f.Key == key))
+                {
+                    fields.Add(new SqlFieldItem { Key = key, Type = SqlFieldType.String, Required = key is "zoneStatusId" or "zoneId" });
+                }
+            }
+
+            await PacketMetadataCatalogTest.SetCommonFieldsAsync(db, packetId, fields);
+        }
+
+        /// <summary>Khoá các trường (chưa mất) trong FieldsJson câu mẫu chung của gói, tìm gói theo mã hoặc ID.</summary>
+        private static async Task<List<string>> GetCommonFieldKeysAsync(ISqlSugarClient db, string? datatypeId)
+        {
+            var packetId = await db.Queryable<ShareDataPacket>()
+                .Where(p => p.IsDelete == null && (p.Code == datatypeId || p.ID == datatypeId))
+                .Select(p => p.ID)
+                .FirstAsync();
+            var common = await ShareDataSqlSeed.GetCommonAsync(db, packetId);
+            return SqlFieldHelper.Read(common?.FieldsJson).Where(f => !f.Lost && !string.IsNullOrEmpty(f.Key)).Select(f => f.Key).ToList();
+        }
 
         private static async Task SeedTestDataForPacket(ISqlSugarClient db, ShareDataEnum.DatatypeIdEnum datatypeEnum, string uniqueId)
         {
@@ -4142,6 +4136,26 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 public List<PacketFieldDto> Fields { get; set; } = [];
             }
 
+            /// <summary>
+            /// Trường của gói tin trong bộ dữ liệu test; nạp vào ShareDataSql.FieldsJson của câu mẫu chung
+            /// (thay bảng ShareDataPacketField đã bỏ 26/10/2026).
+            /// </summary>
+            public class PacketFieldDto
+            {
+                public string FieldKey { get; set; } = string.Empty;
+                public string? Column { get; set; }
+                public bool? IsKey { get; set; }
+                public string? Expression { get; set; }
+                public string? Name { get; set; }
+                public string? DataType { get; set; }
+                public string? Unit { get; set; }
+                public string? CodeSetCode { get; set; }
+                public bool Required { get; set; }
+                public bool NoSource { get; set; }
+                public int OrderNo { get; set; }
+                public bool? InternalOnly { get; set; }
+            }
+
             private static readonly Dictionary<string, PacketDefinition> Definitions = BuildDefinitions();
 
             public static IReadOnlyDictionary<string, PacketDefinition> All => Definitions;
@@ -4199,28 +4213,34 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                     await ShareDataSqlSeed.SetCommonAsync(db, existingPacket.ID, PacketTemplateSeed.TryGet(def.Packet.Code!, out var tplOld) ? tplOld.ExtractSql : null);
                 }
 
-                await db.Deleteable<ShareDataPacketField>().Where(f => f.DatatypeId == def.Packet.Code).ExecuteCommandAsync();
-                var baseTime = DateTime.Now;
-                var newFields = new List<ShareDataPacketField>();
-                int order = 0;
-                foreach (var field in def.Fields.Where(f => f.InternalOnly != true).OrderBy(f => f.OrderNo))
+                var packetId = existingPacket?.ID ?? (await db.Queryable<ShareDataPacket>()
+                    .Where(p => p.Code == def.Packet.Code && p.IsDelete == null)
+                    .Select(p => p.ID)
+                    .FirstAsync());
+                await SetCommonFieldsAsync(db, packetId, def.Fields
+                    .Where(f => f.InternalOnly != true)
+                    .OrderBy(f => f.OrderNo)
+                    .Select(f => new SqlFieldItem { Key = f.FieldKey, Type = f.DataType ?? SqlFieldType.String, Label = f.Name, Required = f.Required })
+                    .ToList());
+            }
+
+            /// <summary>Ghi danh sách trường vào FieldsJson của câu mẫu chung của gói (thêm dòng mẫu chung nếu chưa có).</summary>
+            public static async Task SetCommonFieldsAsync(ISqlSugarClient db, string? packetId, List<SqlFieldItem> fields)
+            {
+                if (string.IsNullOrWhiteSpace(packetId))
                 {
-                    newFields.Add(new ShareDataPacketField
-                    {
-                        ID = Guid.NewGuid().ToString("N"),
-                        DatatypeId = def.Packet.Code,
-                        AliasFieldKey = field.FieldKey,
-                        Type = field.DataType,
-                        Name = field.Name,
-                        IsRequired = field.Required ? BaseEnums.IsRequired.IsRequired : BaseEnums.IsRequired.NoRequired,
-                        CreateTime = baseTime.AddSeconds(order++)
-                    });
+                    return;
                 }
 
-                if (newFields.Count > 0)
+                var common = await ShareDataSqlSeed.GetCommonAsync(db, packetId);
+                if (common == null)
                 {
-                    await db.Insertable(newFields).ExecuteCommandAsync();
+                    await ShareDataSqlSeed.SetCommonAsync(db, packetId, null);
+                    common = await ShareDataSqlSeed.GetCommonAsync(db, packetId);
                 }
+
+                common!.FieldsJson = SqlFieldHelper.Write(fields);
+                await db.Updateable(common).ExecuteCommandAsync();
             }
 
             /// <summary>

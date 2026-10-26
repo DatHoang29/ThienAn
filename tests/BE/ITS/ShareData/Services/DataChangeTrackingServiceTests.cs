@@ -3,6 +3,7 @@ using System.Net;
 using System.Reflection;
 using Tests.ShareData.Common;
 using Microsoft.Extensions.Logging;
+using Module.ShareData.Core.Dto.Packet;
 using Module.ShareData.Core.Entities;
 using Module.ShareData.Infrastructure.Services.ShareDataExtraction;
 using Modules.Integration.Delivery.Base.Helpers;
@@ -1964,15 +1965,9 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             // 2. Nạp cấu hình trường dựa trên gói 105
             var def105 = DataOutboundServiceTests.PacketMetadataCatalogTest.Get("105");
-            var fields105 = def105.Fields.Select(f => new ShareDataPacketField
-            {
-                ID = Guid.NewGuid().ToString("N"),
-                DatatypeId = packetCode,
-                AliasFieldKey = f.FieldKey,
-                Type = f.DataType,
-                Name = f.Name
-            }).ToList();
-            await db.Insertable(fields105).ExecuteCommandAsync();
+            await DataOutboundServiceTests.PacketMetadataCatalogTest.SetCommonFieldsAsync(db, packet105.ID, def105.Fields
+                .Select(f => new SqlFieldItem { Key = f.FieldKey, Type = f.DataType ?? SqlFieldType.String, Label = f.Name })
+                .ToList());
 
             // 3. Seed dữ liệu thực tế cho gói xe qua trạm (105)
             var now = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
@@ -2186,14 +2181,11 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 .FirstAsync();
             var mappingDatatype = packet?.Code ?? datatypeId;
 
-            var fields = await db.Queryable<ShareDataPacketField>()
-                .Where(f => f.DatatypeId == mappingDatatype || f.DatatypeId == datatypeId)
-                .ToListAsync();
+            var fields = SqlFieldHelper.Read((await ShareDataSqlSeed.GetCommonAsync(db, packet?.ID))?.FieldsJson);
             var shapeDict = new Dictionary<string, object>();
-            foreach (var f in fields)
+            foreach (var f in fields.Where(f => !f.Lost && !string.IsNullOrEmpty(f.Key)))
             {
-                if (!string.IsNullOrEmpty(f.AliasFieldKey))
-                    shapeDict[f.AliasFieldKey] = new Dictionary<string, string> { { "$field", f.AliasFieldKey } };
+                shapeDict[f.Key] = new Dictionary<string, string> { { "$field", f.Key } };
             }
 
             await db.Insertable(new ShareDataMapping

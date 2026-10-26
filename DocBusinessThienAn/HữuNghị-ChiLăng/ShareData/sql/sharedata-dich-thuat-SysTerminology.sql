@@ -6,10 +6,10 @@ GO
 -- BẢNG GHI: [dbo].[SysTerminology] — tệp chỉ thêm / sửa / xóa trên đúng bảng này; bảng khác chỉ đọc (Rule 19.103).
 -- DESCRIPTION: Bổ sung từ điển bản dịch đa ngôn ngữ (vi-VN, en-US) cho phân hệ ShareData (ESHARE) vào SysTerminology:
 --              1. Chuẩn hóa lại mã khóa cũ thừa tiền tố (như lz.validation...lookbackDaysRange nếu có).
---              2. Nạp toàn bộ 119 mã khóa dịch thuật chuẩn hóa (238 bản ghi đa ngôn ngữ vi-VN và en-US):
+--              2. Nạp toàn bộ 144 mã khóa dịch thuật chuẩn hóa (288 bản ghi đa ngôn ngữ vi-VN và en-US):
 --                 - 23 khóa trường thực thể (Entity) dùng cho validation / khóa ngoại / tên đối tượng.
 --                 - 37 khóa ngoại lệ nghiệp vụ (Exception: phân hệ ShareData, quyền quản trị).
---                 - 57 khóa kiểm tra hợp lệ (Validation: SQL Validator, kết nối, đăng ký, gói tin, bộ mã, ánh xạ, tham số câu truy vấn).
+--                 - 81 khóa kiểm tra hợp lệ (Validation: SQL Validator, kết nối, đăng ký, gói tin, bộ mã, ánh xạ, tham số câu truy vấn, câu ghi chiều nhận).
 --                 - 2 khóa thông báo (Message: kết nối đối tác).
 --              3. Cơ chế Idempotent:
 --                 - MERGE chỉ INSERT các bản ghi chưa có (WHEN NOT MATCHED THEN INSERT).
@@ -18,7 +18,7 @@ GO
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 25/10/2026
+-- CẬP NHẬT LẦN CUỐI: 26/10/2026 (thêm khóa câu ghi chiều nhận)
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -51,7 +51,7 @@ WHERE Code LIKE N'lz.validation%lookbackDaysRange'
   );
 
 -- -----------------------------------------------------------------------------------------
--- 2. DANH MỤC 119 KHÓA BẢN DỊCH SHAREDATA (238 BẢN GHI ĐA NGÔN NGỮ)
+-- 2. DANH MỤC 144 KHÓA BẢN DỊCH SHAREDATA (288 BẢN GHI ĐA NGÔN NGỮ)
 -- -----------------------------------------------------------------------------------------
 DECLARE @Translations TABLE (
     [Name] NVARCHAR(64),
@@ -518,6 +518,82 @@ VALUES
     (N'lz.validation', N'sharedata.sqlIncrementalOrderByKeyMismatch',
      N'Truy vấn đồng bộ nối đuôi theo khóa phải sắp xếp ORDER BY ngoài cùng theo cột [__lastKey], nếu không có thể bỏ sót dòng.',
      N'Key-only incremental sync query must have an outer ORDER BY on [__lastKey], otherwise rows may be skipped.'),
+
+    (N'lz.validation', N'sharedata.writeSqlEmpty',
+     N'Câu ghi đang trống.',
+     N'Write SQL is empty.'),
+
+    (N'lz.validation', N'sharedata.writeTableRequired',
+     N'Chưa nhập bảng được phép ghi.',
+     N'Allowed write table is required.'),
+
+    (N'lz.validation', N'sharedata.writeSqlStatementInvalid',
+     N'Câu ghi phải là một câu lệnh MERGE, INSERT hoặc UPDATE.',
+     N'Write SQL must be a single MERGE, INSERT or UPDATE statement.'),
+
+    (N'lz.validation', N'sharedata.writeSqlTableNotAllowed',
+     N'Câu ghi ghi vào bảng [{0}], khác bảng được phép ghi [{1}].',
+     N'Write SQL writes to table [{0}], not the allowed table [{1}].'),
+
+    (N'lz.validation', N'sharedata.writeSqlForbidden',
+     N'Câu ghi không được dùng {0}.',
+     N'Write SQL must not use {0}.'),
+
+    (N'lz.validation', N'sharedata.writeSqlCrossDatabase',
+     N'Câu ghi không được dùng bảng ở CSDL khác: {0}.',
+     N'Write SQL must not use tables in another database: {0}.'),
+
+    (N'lz.validation', N'sharedata.writeSqlParameterInvalid',
+     N'Tham số [@{0}] không có trong danh sách tham số hệ thống: {1}.',
+     N'Parameter [@{0}] is not a system parameter: {1}.'),
+
+    (N'lz.validation', N'sharedata.writeTableNotFound',
+     N'Bảng [{0}] không có trong CSDL nhận.',
+     N'Table [{0}] does not exist in the inbound database.'),
+
+    (N'lz.validation', N'sharedata.writeSqlCompileError',
+     N'CSDL nhận báo lỗi khi biên dịch câu ghi: {0}',
+     N'The inbound database failed to compile the write SQL: {0}'),
+
+    (N'lz.validation', N'sharedata.writeDbNotConfigured',
+     N'Chưa cấu hình kết nối CSDL nhận, chưa kiểm được bảng và câu ghi trên CSDL.',
+     N'The inbound database connection is not configured; the table and SQL were not checked on the database.'),
+
+    (N'lz.validation', N'sharedata.writeSqlRecordsNotUsed',
+     N'Câu ghi không đọc OPENJSON(@records): không dùng dữ liệu đối tác gửi về.',
+     N'Write SQL does not read OPENJSON(@records), so partner data is not used.'),
+
+    (N'lz.validation', N'sharedata.writeSqlFieldNotInPacket',
+     N'Cột [{0}] trong OPENJSON … WITH không có trong danh sách trường của gói tin.',
+     N'Column [{0}] in OPENJSON … WITH is not a field of the packet.'),
+
+    (N'lz.validation', N'sharedata.writeSqlFieldCaseMismatch',
+     N'Cột [{0}] khác chữ hoa/thường với trường [{1}] của gói tin, OPENJSON sẽ đọc ra NULL.',
+     N'Column [{0}] differs in letter case from packet field [{1}]; OPENJSON will read NULL.'),
+
+    (N'lz.validation', N'sharedata.writeSqlKeyNotFound',
+     N'Không dò được khoá bản ghi từ điều kiện ON của câu MERGE.',
+     N'Could not detect the record key from the MERGE ON condition.'),
+
+    (N'lz.validation', N'sharedata.writeSqlKeyNotGrouped',
+     N'Bảng nguồn chưa GROUP BY theo khoá [{0}]: đối tác gửi trùng khoá thì cả gói lỗi.',
+     N'The source is not grouped by key [{0}]; duplicate keys from the partner will fail the whole packet.'),
+
+    (N'lz.validation', N'sharedata.writeSqlKeyNotFiltered',
+     N'Bảng nguồn chưa lọc [{0}] IS NOT NULL: bản ghi thiếu khoá sẽ lỗi khi thêm mới.',
+     N'The source does not filter [{0}] IS NOT NULL; records without a key will fail on insert.'),
+
+    (N'lz.validation', N'sharedata.writeSqlMissingOutputAction',
+     N'Câu MERGE chưa có OUTPUT $action: nhật ký không đếm được số dòng thêm/sửa.',
+     N'MERGE has no OUTPUT $action; logs cannot count inserted/updated rows.'),
+
+    (N'lz.validation', N'sharedata.writeSqlItemInvalid',
+     N'Câu ghi #{0} ({1}): {2}',
+     N'Write SQL #{0} ({1}): {2}'),
+
+    (N'lz.validation', N'sharedata.writeSqlRecordsInvalid',
+     N'Dữ liệu chạy thử phải là mảng JSON các bản ghi.',
+     N'Test data must be a JSON array of records.'),
 
     (N'lz.validation', N'sharedata.sqlIncrementalMissingLastTime',
      N'Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc có cột con trỏ thời gian [__lastTime].',

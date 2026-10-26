@@ -3,7 +3,6 @@ import { mockAuth } from '../../setup';
 
 /**
  * Test E2E cho phân hệ ShareData — Quản lý Gói tin & Trường gói tin (dataSource/index.vue):
- * - Bố cục đáp ứng của search card "Trường gói tin" (.search-card-field) theo độ rộng màn hình.
  * - Kéo dãn cột, kéo thanh chia 2 pane, cột Hành động cố định bên phải, bảng/phân trang co giãn theo chiều cao.
  * - Hộp thoại form/confirm khi bấm ra ngoài; form thêm gói.
  */
@@ -65,22 +64,6 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
             });
         });
 
-        await page.route('**/api/sharedata/sharedatapacketfield/page*', async (route) => {
-            await route.fulfill({
-                status: 200,
-                contentType: 'application/json',
-                body: JSON.stringify({
-                    code: 200,
-                    result: {
-                        records: [
-                            { id: 'FLD_01', datatypeId: 'PKT_01', aliasFieldKey: 'header.status', fieldType: 'int', status: 1, isRequired: 1 },
-                        ],
-                        total: 1,
-                    },
-                }),
-            });
-        });
-
         await page.route('**/api/sharedata/sharedatapacket/isinuse*', async (route) => {
             await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: false }) });
         });
@@ -107,7 +90,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
                     result: {
                         extractSql: 'SELECT TOP 100 td.Speed AS speed FROM TmsTrafficData td',
                         status: 1,
-                        syncMode: 1,
+                        fields: [{ key: 'speed', type: 'number', label: 'Tốc độ', required: true }],
                     },
                 }),
             });
@@ -127,134 +110,13 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
             });
         });
 
-        await page.route('**/api/sharedata/sharedatapacketfield/getextractcolumns*', async (route) => {
-            await route.fulfill({
-                status: 200,
-                contentType: 'application/json',
-                body: JSON.stringify({
-                    code: 200,
-                    result: {
-                        sqlAvailable: true,
-                        columns: [
-                            { fieldKey: 'header.status', dataType: 'int', assigned: true },
-                            { fieldKey: 'speed', dataType: 'int', assigned: false },
-                        ],
-                    },
-                }),
-            });
+        // Bảng câu ghi chiều nhận và bảng tham số của gói: mock rỗng để không gọi ra máy chủ thật
+        await page.route('**/api/sharedata/sharedatapacket/getwritesqls*', async (route) => {
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: { items: [] } }) });
         });
-
-        await page.route('**/api/sharedata/sharedatapacketfield/batchadd*', async (route) => {
-            await route.fulfill({
-                status: 200,
-                contentType: 'application/json',
-                body: JSON.stringify({
-                    code: 200,
-                    result: {
-                        addedCount: 1,
-                        skippedKeys: [],
-                    },
-                }),
-            });
+        await page.route('**/api/sharedata/sharedatapacket/getsqlvariables*', async (route) => {
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: { items: [] } }) });
         });
-
-        await page.route('**/api/sharedata/sharedatapacketfield/list*', async (route) => {
-            await route.fulfill({
-                status: 200,
-                contentType: 'application/json',
-                body: JSON.stringify({
-                    code: 200,
-                    result: [
-                        { id: 'FLD_01', datatypeId: 'PKT_01', aliasFieldKey: 'header.status', fieldType: 'int', status: 1, isRequired: 1 },
-                    ],
-                }),
-            });
-        });
-    });
-
-    test('1. Kiểm tra bố cục đáp ứng card Trường gói tin qua 3 cấp độ màn hình (>1400px, 1100px-1400px, <1100px)', async ({ page }) => {
-        // Cấp độ 1: Màn hình rộng > 1400px (1600x900) -> 1 hàng ngang duy nhất
-        await page.setViewportSize({ width: 1600, height: 900 });
-        await page.goto('/#/sharedata/dataSource');
-
-        const cardField = page.locator('.search-card-field');
-        await expect(cardField).toBeVisible({ timeout: 30_000 });
-        await page.waitForTimeout(300);
-
-        const searchForm = cardField.locator('.search-form');
-        const formCols = searchForm.locator('.el-row > .el-col');
-        await expect(formCols).toHaveCount(4);
-
-        const colAlias = cardField.locator('.field-col-alias');
-        const colType = cardField.locator('.field-col-type');
-        const colStatus = cardField.locator('.field-col-status');
-
-        const boxAlias1 = await colAlias.boundingBox();
-        const boxType1 = await colType.boundingBox();
-        const boxStatus1 = await colStatus.boundingBox();
-
-        expect(boxAlias1).not.toBeNull();
-        expect(boxType1).not.toBeNull();
-        expect(boxStatus1).not.toBeNull();
-
-        // Cả 3 cột nằm trên cùng 1 hàng ngang (chênh lệch Y <= 5px)
-        await expect.poll(async () => {
-            const bAlias = await colAlias.boundingBox();
-            const bType = await colType.boundingBox();
-            const bStatus = await colStatus.boundingBox();
-            if (!bAlias || !bType || !bStatus) return 999;
-            return Math.max(
-                Math.abs(bAlias.y - bType.y),
-                Math.abs(bType.y - bStatus.y)
-            );
-        }, { timeout: 5000 }).toBeLessThanOrEqual(5);
-
-        // Cấp độ 2: 1100px - 1400px (ví dụ 1200px) -> Nằm trên 2 hàng (2 cột hàng 1, cột status hàng 2)
-        await page.setViewportSize({ width: 1200, height: 900 });
-        await page.waitForTimeout(300);
-
-        const boxAlias2 = await colAlias.boundingBox();
-        const boxType2 = await colType.boundingBox();
-        const boxStatus2 = await colStatus.boundingBox();
-
-        // Hàng 1: Khóa field + Kiểu
-        expect(Math.abs(boxAlias2!.y - boxType2!.y)).toBeLessThanOrEqual(5);
-
-        // Hàng 2: Trạng thái nằm dưới Hàng 1
-        expect(boxStatus2!.y).toBeGreaterThan(boxAlias2!.y + 20);
-
-        // Mỗi cột chiếm ~50% hàng
-        const rowBox2 = await searchForm.locator('.el-row').first().boundingBox();
-        expect(rowBox2).not.toBeNull();
-        expect(boxAlias2!.width / rowBox2!.width).toBeGreaterThan(0.45);
-        expect(boxAlias2!.width / rowBox2!.width).toBeLessThan(0.55);
-
-        // Cấp độ 3: Dưới 1100px (ví dụ 1000px) -> Xuống hàng hết (xếp dọc 3 dòng)
-        await page.setViewportSize({ width: 1000, height: 900 });
-        await page.waitForTimeout(300);
-
-        const boxAlias3 = await colAlias.boundingBox();
-        const boxType3 = await colType.boundingBox();
-        const boxStatus3 = await colStatus.boundingBox();
-
-        // Mỗi ô xếp trên 1 hàng dọc riêng biệt
-        expect(boxType3!.y).toBeGreaterThan(boxAlias3!.y + 20);
-        expect(boxStatus3!.y).toBeGreaterThan(boxType3!.y + 20);
-
-        // Mỗi cột chiếm gần như 100% hàng
-        const rowBox3 = await searchForm.locator('.el-row').first().boundingBox();
-        expect(rowBox3).not.toBeNull();
-        expect(boxAlias3!.width / rowBox3!.width).toBeGreaterThan(0.90);
-
-        // Kiểm tra tại màn hình nhỏ hẹp 937px x 692px: input không bị tràn mép / khuất phía sau
-        await page.setViewportSize({ width: 937, height: 692 });
-        await page.waitForTimeout(300);
-
-        const cardBoxNarrow = await cardField.boundingBox();
-        const inputAliasBox = await colAlias.locator('.el-input').boundingBox();
-
-        expect(cardBoxNarrow).not.toBeNull();
-        expect(inputAliasBox).not.toBeNull();
     });
 
     test('4. Kiểm tra tính năng kéo dãn độ rộng cột (Column Resizing) trên bảng Gói tin và bảng Trường gói tin', async ({ page }) => {
@@ -504,15 +366,6 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const rightEdgeDiffAfter = Math.abs((fixedRightBoxAfter!.x + fixedRightBoxAfter!.width) - (gridBox!.x + gridBox!.width));
         expect(rightEdgeDiffAfter).toBeLessThanOrEqual(5);
 
-        // 5. Bảng Trường (fieldGrid) bên phải: cột Hành động nằm sát mép phải bảng.
-        // Bảng này đủ chỗ nên vxe-table không cuộn ngang và không dựng khối fixed-right riêng; chỉ kiểm vị trí cột.
-        const fieldGrid = page.locator('.field-col .vxe-grid');
-        await expect(fieldGrid).toBeVisible({ timeout: 10_000 });
-        const fieldActionHeader = fieldGrid.locator('.vxe-header--column:visible').filter({ hasText: 'Hành động' }).last();
-        await expect(fieldActionHeader).toBeVisible();
-        const fieldGridBox = (await fieldGrid.locator('.vxe-table--render-wrapper').boundingBox())!;
-        const fieldActionBox = (await fieldActionHeader.boundingBox())!;
-        expect(Math.abs(fieldActionBox.x + fieldActionBox.width - (fieldGridBox.x + fieldGridBox.width))).toBeLessThanOrEqual(20);
     });
 
     test('33. Hộp thoại form đóng ngay khi bấm ra ngoài (không hỏi xác nhận kể cả đã sửa); hộp confirm đóng khi bấm ra ngoài', async ({ page }) => {

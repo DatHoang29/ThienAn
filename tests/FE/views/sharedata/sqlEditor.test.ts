@@ -15,6 +15,12 @@ const json = (body: unknown) => ({ status: 200, contentType: 'application/json',
 
 const SQL_ONE_COLUMN = 'SELECT TOP 100 td.Speed AS speed FROM TmsTrafficData td';
 
+/** Danh sách trường đang lưu của gói (ShareDataSql.FieldsJson). */
+const SAVED_FIELDS = [
+    { key: 'speed', type: 'number', dbType: 'int', label: 'Tốc độ', required: false },
+    { key: 'message', type: 'string', dbType: 'nvarchar(256)', label: 'Thông tin trạng thái', required: true },
+];
+
 /** Mở màn Nguồn dữ liệu (một trang, không còn tab), chọn gói tin đầu tiên và chờ khung soạn thảo SQL sẵn sàng. */
 async function openSqlCenter(page: Page) {
     await page.setViewportSize({ width: 1600, height: 900 });
@@ -68,35 +74,13 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
             )
         );
         await page.route('**/api/sharedata/sharedatapacket/page*', (r) => r.fulfill(json({ code: 200, result: { records: [{ id: 'PKT_01', code: '101_commonData', name: 'Gói tin dùng chung 101', status: 1 }], total: 1 } })));
-        // Trường đã khai: speed có trong SQL, message thì SQL không có — bảng so khớp không được tạo dòng cho message
-        await page.route('**/api/sharedata/sharedatapacketfield/page*', (r) =>
-            r.fulfill(
-                json({
-                    code: 200,
-                    result: {
-                        records: [
-                            { id: 'F1', datatypeId: 'PKT_01', aliasFieldKey: 'speed', name: 'Tốc độ', fieldType: 'int', status: 1, isRequired: 0 },
-                            { id: 'F2', datatypeId: 'PKT_01', aliasFieldKey: 'message', name: 'Thông tin trạng thái', fieldType: 'string', status: 1, isRequired: 1 },
-                        ],
-                        total: 2,
-                    },
-                })
-            )
-        );
-        await page.route('**/api/sharedata/sharedatapacketfield/list*', (r) =>
-            r.fulfill(
-                json({
-                    code: 200,
-                    result: [
-                        { id: 'F1', datatypeId: 'PKT_01', aliasFieldKey: 'speed', name: 'Tốc độ', fieldType: 'int', status: 1, isRequired: 0 },
-                        { id: 'F2', datatypeId: 'PKT_01', aliasFieldKey: 'message', name: 'Thông tin trạng thái', fieldType: 'string', status: 1, isRequired: 1 },
-                    ],
-                })
-            )
-        );
         await page.route('**/api/sharedata/sharedatapacket/isinuse*', (r) => r.fulfill(json({ code: 200, result: false })));
         await page.route('**/api/sharedata/sharedatamapping/page*', (r) => r.fulfill(json({ code: 200, result: { records: [], total: 0 } })));
-        await page.route('**/api/sharedata/sharedatapacket/getextractsql*', (r) => r.fulfill(json({ code: 200, result: { extractSql: SQL_ONE_COLUMN, status: 1, syncMode: 1 } })));
+        // Danh sách trường lưu cùng câu SQL (FieldsJson): speed có trong SQL, message là trường đã khai từ trước
+        await page.route('**/api/sharedata/sharedatapacket/getextractsql*', (r) => r.fulfill(json({ code: 200, result: { extractSql: SQL_ONE_COLUMN, status: 1, fields: SAVED_FIELDS } })));
+        // Bảng tham số và câu ghi chiều nhận: mặc định rỗng (ca nào cần thì khai lại route, route khai sau được dùng trước)
+        await page.route('**/api/sharedata/sharedatapacket/getsqlvariables*', (r) => r.fulfill(json({ code: 200, result: { items: [] } })));
+        await page.route('**/api/sharedata/sharedatapacket/getwritesqls*', (r) => r.fulfill(json({ code: 200, result: { packetCode: '101_commonData', items: [] } })));
         await page.route('**/api/sharedata/sharedatapacket/parseextractcolumns*', (r) => r.fulfill(json({ code: 200, result: { isValid: true, columns: ['speed'] } })));
         await page.route('**/api/sharedata/sharedatapacket/getmetadatatables*', (r) => r.fulfill(json({ code: 200, result: [{ id: 'tbl-traffic', tableName: 'TmsTrafficData' }, { id: 'tbl-zone', tableName: 'TmsZone' }] })));
         await page.route('**/api/sharedata/sharedatapacket/getmetadatafields*', (r) =>
@@ -375,55 +359,6 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         await expect(page.locator('.vxe-body--row .el-button[aria-label="Xóa"]')).toHaveCount(0);
     });
 
-    test('18. SQL riêng của đối tác: bảng trường có cột So mẫu chung kèm tóm tắt khớp / thiếu; ra khỏi SQL riêng thì ẩn', async ({ page }) => {
-        await page.route('**/api/sharedata/sharedatapacket/getpartnersqllist*', (r) =>
-            r.fulfill(json({ code: 200, result: [{ partnerId: 'P1', partnerCode: 'DT-DAT', partnerName: 'Đạt', isCustom: false }] }))
-        );
-        await page.route('**/api/sharedata/sharedatapacket/getpartnerextractsql*', (r) =>
-            r.fulfill(json({ code: 200, result: { partnerId: 'P1', packetCode: '101_commonData', standardSql: SQL_ONE_COLUMN, customSql: null, isCustom: false, hasDifferences: false } }))
-        );
-        await openSqlCenter(page);
-        const summary = page.locator('.partner-compare-summary');
-        // Màn Mẫu chung không đối chiếu với chính nó
-        await expect(summary).toHaveCount(0);
-
-        await page.locator('.sql-partner-tabs-bar .el-radio-button', { hasText: 'Đối tác' }).click();
-        await page.locator('.partner-sql-table .el-button[aria-label="Tạo SQL riêng"]').first().click();
-
-        // SQL riêng trả cột speed; trường message của mẫu chung thì SQL không có
-        await expect(summary).toContainText('khớp 1/2 trường', { timeout: 20_000 });
-        await expect(summary).toContainText('Thiếu 1 trường: message');
-        const fields = page.locator('.fields-section .vxe-table--main-wrapper');
-        await expect(fields.locator('.vxe-header--column', { hasText: 'So mẫu chung' })).toBeVisible();
-        await expect(fields).toContainText('Khớp');
-        await expect(fields).toContainText('Thiếu');
-
-        // Quay lại danh sách đối tác: không còn đối chiếu
-        await page.locator('.sql-crumb .el-button').first().click();
-        await expect(summary).toHaveCount(0);
-    });
-
-    test('19. Mở rộng danh sách trường lên khung lớn, thu nhỏ bằng Esc hoặc bấm nền mờ', async ({ page }) => {
-        await openSqlCenter(page);
-        const section = page.locator('.fields-section');
-        const toggle = page.locator('.fields-maximize-btn');
-
-        await toggle.click();
-        await expect(section).toHaveClass(/is-maximized/);
-        const box = (await section.boundingBox())!;
-        const viewport = page.viewportSize()!;
-        expect(box.width).toBeGreaterThan(viewport.width - 80);
-        expect(box.height).toBeGreaterThan(viewport.height - 80);
-
-        await page.keyboard.press('Escape');
-        await expect(section).not.toHaveClass(/is-maximized/);
-
-        await toggle.click();
-        await expect(section).toHaveClass(/is-maximized/);
-        await page.locator('.fields-maximize-backdrop').click({ position: { x: 5, y: 5 } });
-        await expect(section).not.toHaveClass(/is-maximized/);
-    });
-
     test('20. Bảng gói tin không còn nút Tìm kiếm / Đặt lại, tự tìm sau 500ms kể từ lần gõ cuối, Enter tìm ngay', async ({ page }) => {
         const bodies: any[] = [];
         await page.route('**/api/sharedata/sharedatapacket/page*', (r) => {
@@ -449,100 +384,11 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         await expect.poll(() => bodies.at(-1)?.code, { timeout: 400 }).toBe('101');
     });
 
-    test('21. Cột có trong SQL mà gói tin chưa khai hiện thành nhóm Chưa khai ở danh sách trường, bấm Tạo trường mở hộp với khóa điền sẵn', async ({ page }) => {
-        await openSqlCenter(page);
-        const fields = page.locator('.fields-section .vxe-table--main-wrapper');
-        await expect(fields).not.toContainText('Chưa khai');
-
-        await retypeSql(page, 'SELECT td.Speed AS speed, td.Extra AS extraCol FROM TmsTrafficData td', 20);
-        await expect(fields).toContainText('Chưa khai (1)', { timeout: 15_000 });
-        await expect(fields).toContainText('extraCol');
-
-        await fields.getByRole('button', { name: 'Tạo trường' }).click();
-        const dialog = page.locator('.el-dialog');
-        await expect(dialog).toBeVisible();
-        await expect.poll(() => dialog.locator('input').evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value)), { timeout: 10_000 }).toContain('extraCol');
-    });
-
     test('22. Khung soạn SQL giãn hết chiều cao phần SQL: thanh kéo chiều cao nằm sát đáy, không để khoảng trống phía dưới', async ({ page }) => {
         await openSqlCenter(page);
         const scroller = (await page.locator('.sql-editor-section').boundingBox())!;
         const resizer = (await page.locator('.sql-editor-resizer').boundingBox())!;
         expect(scroller.y + scroller.height - (resizer.y + resizer.height)).toBeLessThan(12);
-    });
-
-    test('24. Màn SQL riêng của đối tác: nút Tạo trường của cột chưa khai bị khóa vì chưa chốt nơi lưu trường dư', async ({ page }) => {
-        const sqlTwoColumns = 'SELECT td.Speed AS speed, td.Extra AS extraCol FROM TmsTrafficData td';
-        await page.route('**/api/sharedata/sharedatapacket/getpartnersqllist*', (r) =>
-            r.fulfill(json({ code: 200, result: [{ partnerId: 'P1', partnerCode: 'DT-DAT', partnerName: 'Đạt', isCustom: false }] }))
-        );
-        await page.route('**/api/sharedata/sharedatapacket/getpartnerextractsql*', (r) =>
-            r.fulfill(json({ code: 200, result: { partnerId: 'P1', packetCode: '101_commonData', standardSql: sqlTwoColumns, customSql: null, isCustom: false, hasDifferences: false } }))
-        );
-        await openSqlCenter(page);
-        await page.locator('.sql-partner-tabs-bar .el-radio-button', { hasText: 'Đối tác' }).click();
-        await page.locator('.partner-sql-table .el-button[aria-label="Tạo SQL riêng"]').first().click();
-
-        const create = page.locator('.fields-section').getByRole('button', { name: 'Tạo trường' });
-        await expect(create).toBeVisible({ timeout: 20_000 });
-        await expect(create).toBeDisabled();
-    });
-
-    test('25. Khai tất cả: tạo các trường chưa khai một lượt (tên = khóa cột); SQL đang sửa chưa lưu thì nút khóa', async ({ page }) => {
-        const sqlThreeColumns = 'SELECT td.Speed AS speed, td.Extra AS extraCol, td.Flag AS isFlag FROM TmsTrafficData td';
-        const posted: any[] = [];
-        await page.route('**/api/sharedata/sharedatapacket/getextractsql*', (r) =>
-            r.fulfill(json({ code: 200, result: { extractSql: sqlThreeColumns, status: 1, syncMode: 1 } }))
-        );
-        await page.route('**/api/sharedata/sharedatapacketfield/add*', async (r) => {
-            posted.push(r.request().postDataJSON());
-            await r.fulfill(json({ code: 200, type: 'success', result: {} }));
-        });
-        await openSqlCenter(page);
-        const section = page.locator('.fields-section');
-        await expect(section.locator('.vxe-table--main-wrapper')).toContainText('Chưa khai (2)', { timeout: 20_000 });
-        const all = section.getByRole('button', { name: 'Khai tất cả' });
-        await expect(all).toBeEnabled();
-
-        await all.click();
-        await expect.poll(() => posted.map((p) => p.aliasFieldKey).sort(), { timeout: 15_000 }).toEqual(['extraCol', 'isFlag']);
-        expect(posted.every((p) => p.name === p.aliasFieldKey && p.status === 1 && p.isRequired === 0 && p.datatypeId === 'PKT_01')).toBe(true);
-
-        // Sửa câu SQL mà chưa lưu: máy chủ chỉ nhận cột của SQL đã lưu nên nút bị khóa
-        await page.locator('.sql-monaco-editor .view-lines').first().click();
-        await page.keyboard.press('Control+End');
-        await page.keyboard.type(' WHERE 1 = 1', { delay: 40 });
-        await expect(all).toBeDisabled({ timeout: 10_000 });
-    });
-
-    test('26. Lưu SQL mẫu chung: lưu xong tự khai luôn các cột chưa có trường', async ({ page }) => {
-        const sqlThreeColumns = 'SELECT td.Speed AS speed, td.Extra AS extraCol, td.Flag AS isFlag FROM TmsTrafficData td';
-        const events: string[] = [];
-        const posted: string[] = [];
-        await page.route('**/api/sharedata/sharedatapacket/getextractsql*', (r) =>
-            r.fulfill(json({ code: 200, result: { extractSql: sqlThreeColumns, status: 1, syncMode: 1 } }))
-        );
-        await page.route('**/api/sharedata/sharedatapacket/updateextractsql*', async (r) => {
-            events.push('save-sql');
-            await r.fulfill(json({ code: 200, type: 'success', result: { status: 1 } }));
-        });
-        await page.route('**/api/sharedata/sharedatapacketfield/add*', async (r) => {
-            events.push('add-field');
-            posted.push(r.request().postDataJSON().aliasFieldKey);
-            await r.fulfill(json({ code: 200, type: 'success', result: {} }));
-        });
-        await openSqlCenter(page);
-        const section = page.locator('.fields-section');
-        await expect(section.locator('.vxe-table--main-wrapper')).toContainText('Chưa khai (2)', { timeout: 20_000 });
-
-        // Sửa câu SQL rồi bấm Lưu: SQL được lưu trước, rồi các cột chưa khai được khai theo
-        await page.locator('.sql-monaco-editor .view-lines').first().click();
-        await page.keyboard.press('Control+End');
-        await page.keyboard.type(' WHERE 1 = 1', { delay: 40 });
-        await page.locator('.sql-section').getByRole('button', { name: /^Lưu/ }).first().click();
-
-        await expect.poll(() => posted.slice().sort(), { timeout: 15_000 }).toEqual(['extraCol', 'isFlag']);
-        expect(events[0]).toBe('save-sql');
     });
 
     test('27. Lấy cột của bảng nguồn gửi mã định danh bảng (tableId) trên URL, không gửi tên bảng', async ({ page }) => {
@@ -555,10 +401,154 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         await expect.poll(() => urls.length, { timeout: 20_000 }).toBeGreaterThan(0);
         for (const url of urls) {
             const query = new URL(url).searchParams;
-            expect(query.get('tableId')).toBe('tbl-traffic');
-            expect(query.has('tableName')).toBe(false);
+            // Hàm API sinh từ Swagger gửi khoá TableId; máy chủ đọc khoá truy vấn không phân biệt hoa thường
+            expect(query.get('tableId') ?? query.get('TableId')).toBe('tbl-traffic');
+            expect(query.has('tableName') || query.has('TableName')).toBe(false);
             expect(url).not.toContain('TmsTrafficData');
         }
+    });
+
+    /**
+     * Description: Danh sách trường sinh từ câu SQL: bấm Dò cột trả về thì danh sách thay theo cột câu SQL trả về (chưa ghi) và nút Lưu mở,
+     *              kể cả khi câu SQL không đổi; bấm Lưu gửi câu SQL kèm phần sửa trên từng trường (thay cho Khai tất cả / tự khai khi lưu).
+     * Created date: 26/10/2026
+     */
+    test('25. Dò cột trả về: danh sách trường thay theo câu SQL, Lưu gửi kèm danh sách trường', async ({ page }) => {
+        let saved: any = null;
+        await page.route('**/api/sharedata/sharedatapacket/describecolumns*', (r) =>
+            r.fulfill(
+                json({
+                    code: 200,
+                    result: {
+                        isValid: true,
+                        fields: [...SAVED_FIELDS, { key: 'extraCol', type: 'string', dbType: 'nvarchar(64)' }],
+                        added: ['extraCol'],
+                        lost: [],
+                        typeChanged: [],
+                        affectedMappings: [],
+                    },
+                })
+            )
+        );
+        await page.route('**/api/sharedata/sharedatapacket/updateextractsql*', async (r) => {
+            saved = r.request().postDataJSON();
+            await r.fulfill(json({ code: 200, result: { status: 1, fields: [...SAVED_FIELDS, { key: 'extraCol', type: 'string' }] } }));
+        });
+        await openSqlCenter(page);
+        const save = page.locator('.sql-toolbar-bar .el-button--primary').last();
+        await expect(save).toBeDisabled();
+
+        await page.getByRole('button', { name: 'Dò cột trả về' }).click();
+        const fields = page.locator('.fields-section .vxe-table--main-wrapper');
+        await expect(fields).toContainText('extraCol', { timeout: 15_000 });
+        await expect(page.locator('.fields-section')).toContainText('Dò được 3 cột');
+        await expect(save).toBeEnabled({ timeout: 10_000 });
+
+        await save.click();
+        await expect.poll(() => saved?.extractSql, { timeout: 10_000 }).toBe(SQL_ONE_COLUMN);
+        expect(saved.fields.map((f: any) => f.key)).toEqual(['speed', 'message', 'extraCol']);
+        expect(saved.fields.find((f: any) => f.key === 'message').required).toBe(true);
+    });
+
+    /**
+     * Description: Ghi ngược (chiều nhận): thêm câu ghi, kiểm an toàn hiện cảnh báo và khoá bản ghi dò được; nút Lưu chung mở,
+     *              bấm Lưu hỏi xác nhận vì còn cảnh báo rồi gửi cả danh sách câu ghi theo thứ tự.
+     * Created date: 26/10/2026
+     */
+    test('32. Ghi ngược: thêm câu ghi, kiểm an toàn, Lưu chung gửi danh sách câu ghi', async ({ page }) => {
+        let saved: any = null;
+        await page.route('**/api/sharedata/sharedatapacket/validatewritesql*', (r) =>
+            r.fulfill(
+                json({
+                    code: 200,
+                    result: { isValid: true, keyFields: ['speed'], checks: [{ level: 'Warning', message: 'Câu MERGE chưa có OUTPUT $action' }] },
+                })
+            )
+        );
+        await page.route('**/api/sharedata/sharedatapacket/updatewritesqls*', async (r) => {
+            saved = r.request().postDataJSON();
+            await r.fulfill(json({ code: 200, result: { packetCode: '101_commonData', items: saved.items.map((i: any, n: number) => ({ ...i, id: `W${n + 1}`, orderNo: n + 1, keyFields: ['speed'] })) } }));
+        });
+        await openSqlCenter(page);
+        const panel = page.locator('.write-sql-panel');
+        await expect(panel).toContainText('Chỉ gửi');
+        const save = page.locator('.sql-toolbar-bar .el-button--primary').last();
+
+        await panel.getByRole('button', { name: 'Thêm câu ghi' }).click();
+        await panel.locator('.wsp-table .el-table__body input').first().fill('dbo.TmsTrafficData');
+        await panel.locator('.wsp-editor textarea').fill('MERGE dbo.TmsTrafficData AS t USING (SELECT speed FROM OPENJSON(@records) WITH (speed int)) AS s ON t.Speed = s.speed WHEN MATCHED THEN UPDATE SET t.Speed = s.speed;');
+        await expect(save).toBeEnabled({ timeout: 10_000 });
+
+        await panel.getByRole('button', { name: 'Kiểm an toàn câu ghi' }).click();
+        await expect(panel.locator('.wsp-check-warning')).toContainText('OUTPUT $action');
+        await expect(panel.locator('.wsp-key-tag')).toContainText('speed');
+
+        await save.click();
+        await page.locator('.el-message-box .el-button--primary').click();
+        await expect.poll(() => saved?.items?.length, { timeout: 10_000 }).toBe(1);
+        expect(saved.packetCode).toBe('101_commonData');
+        expect(saved.items[0].tableName).toBe('dbo.TmsTrafficData');
+        await expect(panel).toContainText('1 câu ghi');
+    });
+
+    /**
+     * Description: Chạy thử câu ghi: hộp chạy thử gửi dữ liệu mẫu cùng các câu đang soạn, hiện số dòng thêm / sửa từng câu (máy chủ quay lui sau khi chạy).
+     * Created date: 26/10/2026
+     */
+    test('33. Ghi ngược: chạy thử gửi dữ liệu mẫu và hiện số dòng thêm / sửa', async ({ page }) => {
+        let tried: any = null;
+        await page.route('**/api/sharedata/sharedatapacket/getwritesqls*', (r) =>
+            r.fulfill(
+                json({
+                    code: 200,
+                    result: {
+                        packetCode: '101_commonData',
+                        items: [{ id: 'W1', orderNo: 1, tableName: 'dbo.TmsTrafficData', writeSql: 'MERGE dbo.TmsTrafficData AS t USING (SELECT 1 AS x) AS s ON 1 = 0 WHEN NOT MATCHED THEN INSERT (Speed) VALUES (1) OUTPUT $action;', status: 1, keyFields: [] }],
+                    },
+                })
+            )
+        );
+        await page.route('**/api/sharedata/sharedatapacket/trywritesql*', async (r) => {
+            tried = r.request().postDataJSON();
+            await r.fulfill(json({ code: 200, result: { isSuccess: true, recordCount: 1, results: [{ orderNo: 1, tableName: 'dbo.TmsTrafficData', inserted: 1, updated: 0 }] } }));
+        });
+        await openSqlCenter(page);
+        const panel = page.locator('.write-sql-panel');
+        await panel.getByRole('button', { name: 'Chạy thử' }).click();
+        const dialog = page.locator('.wsp-try-dialog');
+        await expect(dialog).toBeVisible();
+        await dialog.locator('textarea').fill('[{ "speed": 50 }]');
+        await dialog.locator('.dialog-footer .el-button--primary').click();
+
+        await expect.poll(() => tried?.recordsJson, { timeout: 10_000 }).toBe('[{ "speed": 50 }]');
+        expect(tried.items).toHaveLength(1);
+        await expect(dialog.locator('.wsp-try-table')).toContainText('dbo.TmsTrafficData');
+        await expect(dialog.locator('.wsp-try-table .el-table__body')).toContainText('1');
+    });
+
+    /**
+     * Description: Danh sách gói tin có cột Ghi ngược hiện số câu ghi chiều nhận của gói (0 = Chỉ gửi);
+     *              khối Ghi ngược chỉ có ở màn mẫu chung, sang SQL riêng của đối tác thì ẩn vì câu ghi đi theo gói.
+     * Created date: 26/10/2026
+     */
+    test('34. Ghi ngược: cột số câu ghi ở danh sách gói, ẩn khối câu ghi khi sửa SQL riêng của đối tác', async ({ page }) => {
+        await page.route('**/api/sharedata/sharedatapacket/page*', (r) =>
+            r.fulfill(json({ code: 200, result: { records: [{ id: 'PKT_01', code: '101_commonData', name: 'Gói tin dùng chung 101', status: 1, writeSqlCount: 3 }], total: 1 } }))
+        );
+        await page.route('**/api/sharedata/sharedatapacket/getpartnersqllist*', (r) =>
+            r.fulfill(json({ code: 200, result: [{ partnerId: 'P1', partnerCode: 'DT-DAT', partnerName: 'Đạt', isCustom: false }] }))
+        );
+        await page.route('**/api/sharedata/sharedatapacket/getpartnerextractsql*', (r) =>
+            r.fulfill(json({ code: 200, result: { partnerId: 'P1', packetCode: '101_commonData', standardSql: SQL_ONE_COLUMN, customSql: null, isCustom: false, hasDifferences: false } }))
+        );
+        await openSqlCenter(page);
+        await expect(page.locator('.packet-col .vxe-table--main-wrapper .vxe-header--column', { hasText: 'Ghi ngược' })).toBeVisible();
+        await expect(page.locator('.packet-col .vxe-table--main-wrapper .vxe-body--row').first()).toContainText('3 câu ghi');
+        await expect(page.locator('.write-sql-panel')).toBeVisible();
+
+        await page.locator('.sql-partner-tabs-bar .el-radio-button', { hasText: 'Đối tác' }).click();
+        await page.locator('.partner-sql-table .el-button[aria-label="Tạo SQL riêng"]').first().click();
+        await expect(page.locator('.write-sql-panel')).toHaveCount(0, { timeout: 15_000 });
     });
 
     test('14. Chuỗi ngôn ngữ chứa "@" phải viết {\'@\'} để vue-i18n không báo Invalid linked format', async () => {

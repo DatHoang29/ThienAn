@@ -151,7 +151,8 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
             });
         });
 
-        await page.route('**/api/sharedata/sharedatapacketfield/list*', async (route) => {
+        // Trường của gói cho màn ánh xạ lấy từ FieldsJson của câu SQL (đã bỏ bảng ShareDataPacketField)
+        await page.route('**/api/sharedata/sharedatapacket/getfields*', async (route) => {
             await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: [] }) });
         });
 
@@ -601,8 +602,9 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
         const enPath = resolveWebVueSrc('i18n/lang/its/sharedata/en-us.json');
         const viJson = JSON.parse(fs.readFileSync(viPath, 'utf-8'));
         const enJson = JSON.parse(fs.readFileSync(enPath, 'utf-8'));
-        expect(viJson['lz.label.sharedataMapping.packetHasNoFieldsHint']).toBe('Gói chưa có trường để chia sẻ. Vào Nguồn dữ liệu → Danh sách trường để chọn cột cần chia sẻ.');
-        expect(enJson['lz.label.sharedataMapping.packetHasNoFieldsHint']).toBe('Packet has no fields to share. Go to Data Source → Saved Fields to select columns to share.');
+        // Danh sách trường sinh từ câu SQL (Dò cột trả về rồi Lưu), không còn khai tay ở "Danh sách trường"
+        expect(viJson['lz.label.sharedataMapping.packetHasNoFieldsHint']).toBe('Gói chưa có trường để chia sẻ. Vào Nguồn dữ liệu, mở câu SQL của gói, bấm Dò cột trả về rồi Lưu.');
+        expect(enJson['lz.label.sharedataMapping.packetHasNoFieldsHint']).toBe('Packet has no fields to share. Go to Data Source, open the packet SQL, click Describe columns, then Save.');
     });
 
     test('EC14 — Scale editMapping.vue vừa khung khi chưa có dữ liệu cây và mở rộng khi đã phân tích JSON', async ({ page }) => {
