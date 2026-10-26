@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nguồn dữ liệu theo đối tác</title>
+<style>
+  :root{
+    --line:#c9ced6; --line-strong:#98a1ad; --ink:#2c313a; --muted:#767e8a; --bg:#f5f6f8; --panel:#fff;
+    --accent:#2f6fa8; --accent-soft:#e8f0f8; --warn:#8a5a00; --warn-soft:#fdf3e0;
+    --err:#a02020; --err-soft:#fbeaea; --ok:#1f6b3d; --ok-soft:#e9f4ec; --chip:#eef1f5;
+    --mono:"Cascadia Mono",Consolas,"Courier New",monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 "Segoe UI",system-ui,Arial,sans-serif}
+  code,pre,.mono{font-family:var(--mono);font-size:12.5px}
+  .wrap{max-width:1680px;margin:0 auto;padding:20px 16px 60px}
+  .doc-head{border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:18px}
+  .doc-head h1{margin:0 0 6px;font-size:20px}
+  .doc-head p{margin:0 0 6px;color:var(--muted);max-width:1060px}
+  .sec{margin:22px 0}
+  .sec>h2{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 8px;font-weight:700}
+  .screen{background:var(--panel);border:1px solid var(--line-strong);border-radius:6px;overflow:hidden}
+  .screen-bar{display:flex;align-items:center;gap:8px;padding:8px 12px;background:#eff1f4;border-bottom:1px solid var(--line);font-weight:600;flex-wrap:wrap}
+  .sp{margin-left:auto}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .btn{border:1px solid var(--line-strong);background:#fff;border-radius:4px;padding:3px 10px;cursor:pointer;font:inherit;font-size:13px;color:var(--ink);white-space:nowrap}
+  .btn:hover:not(:disabled){background:#f2f5f9}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.primary:hover:not(:disabled){background:#285f90}
+  .btn.danger{color:var(--err);border-color:#e0b4b4}
+  .btn.mini{padding:0 7px;font-size:12px}
+  .btn.link{border:none;background:none;color:var(--accent);padding:0 2px;text-decoration:underline}
+  .btn:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  select,input[type=text],textarea{font:inherit;font-size:13px;color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:2px 6px;background:#fff;min-width:0}
+  input[type=text].cell,select.cell{width:100%}
+  textarea{width:100%;font-family:var(--mono);font-size:12.5px;resize:vertical;line-height:1.55}
+  textarea[readonly],input[readonly]{background:#f3f4f6;color:var(--muted)}
+  table.g{width:100%;border-collapse:collapse;font-size:13px}
+  table.g th,table.g td{border:1px solid var(--line);padding:4px 6px;text-align:left;vertical-align:middle}
+  table.g th{background:#f0f2f5;font-weight:600;white-space:nowrap}
+  table.g td.mono{font-family:var(--mono);font-size:12.5px}
+  table.g td.c,table.g th.c{text-align:center}
+  table.g tr.ghost td{background:#fafafa;color:var(--muted)}
+  table.g tr.fresh td{background:#f3f8fd}
+  table.g tr.sel td{background:var(--accent-soft)}
+  table.g tbody tr.click{cursor:pointer}
+  table.g tbody tr.click:hover td{background:#f4f7fa}
+  table.g tbody tr.click.sel:hover td{background:var(--accent-soft)}
+  .tbl-wrap{overflow-x:auto}
+  .chip{display:inline-block;background:var(--chip);border:1px solid var(--line);border-radius:10px;padding:0 7px;font-size:11.5px;white-space:nowrap;line-height:18px}
+  .chip.k{background:var(--accent-soft);border-color:#bcd3e8;color:#1d4f7c}
+  .chip.w{background:var(--warn-soft);border-color:#e7d3a8;color:var(--warn)}
+  .chip.o{background:var(--ok-soft);border-color:#bfdcc8;color:var(--ok)}
+  .chip.e{background:var(--err-soft);border-color:#e6bcbc;color:var(--err)}
+  .alert{border:1px solid #e7d3a8;background:var(--warn-soft);color:var(--warn);border-radius:4px;padding:6px 10px;font-size:13px;margin:6px 0}
+  .alert.ok{border-color:#bfdcc8;background:var(--ok-soft);color:var(--ok)}
+  .alert.err{border-color:#e6bcbc;background:var(--err-soft);color:var(--err)}
+  .alert.info{border-color:#bcd3e8;background:var(--accent-soft);color:#1d4f7c}
+  .alert ul{margin:2px 0 0;padding-left:18px}
+  .note{color:var(--muted);font-size:12.5px}
+  .anno{display:inline-block;background:#fff6c8;border:1px dashed #c9a400;color:#6b5500;border-radius:3px;padding:0 5px;font-size:11px;font-weight:600;margin-left:4px;vertical-align:middle}
+
+  /* Bố cục 3 vùng: đối tác | gói tin | chi tiết */
+  .layout{display:grid;grid-template-columns:230px 10px minmax(300px,370px) minmax(0,1fr);min-height:760px}
+  /* Khi thu gọn, khung đối tác bị ẩn hẳn nên lưới chỉ còn 3 cột */
+  .layout.closed{grid-template-columns:10px minmax(300px,370px) minmax(0,1fr)}
+  .layout.closed .ppane{display:none}
+  .ppane{border-right:1px solid var(--line);background:#fbfbfc;display:flex;flex-direction:column;min-width:0}
+  .splitter{background:#eef0f3;border-right:1px solid var(--line);display:flex;align-items:flex-start;justify-content:center;padding-top:10px}
+  .splitter button{width:10px;height:42px;padding:0;border:1px solid var(--line-strong);background:#fff;border-radius:3px;cursor:pointer;font-size:10px;color:var(--muted)}
+  .kpane{border-right:1px solid var(--line);display:flex;flex-direction:column;min-width:0}
+  .dpane{min-width:0;display:flex;flex-direction:column}
+  .pane-head{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--line);background:#f7f8fa;font-weight:600;font-size:13px;flex-wrap:wrap}
+  .pane-body{padding:8px 10px}
+  .plist .item{display:flex;gap:8px;align-items:center;padding:5px 8px;border:1px solid transparent;border-radius:4px;cursor:pointer;margin-bottom:2px}
+  .plist .item:hover{background:#f0f4f8}
+  .plist .item.active{background:var(--accent-soft);border-color:#bcd3e8}
+  .plist .item .nm{flex:1;min-width:0}
+  .plist .item .nm b{display:block;font-size:12.5px;font-family:var(--mono)}
+  .plist .item .nm span{display:block;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .filter-on{display:flex;gap:6px;align-items:center;background:var(--accent-soft);border:1px solid #bcd3e8;border-radius:4px;padding:3px 8px;font-size:12.5px;color:#1d4f7c;margin-bottom:6px}
+
+  .dhead{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .dhead .t{font-weight:600;font-size:15px}
+  .tabs{display:flex;gap:2px;padding:6px 10px 0;border-bottom:1px solid var(--line);background:#f7f8fa;overflow-x:auto;overflow-y:hidden}
+  .tab{padding:5px 12px;border:1px solid transparent;border-bottom:none;border-radius:4px 4px 0 0;cursor:pointer;font-size:13px;white-space:nowrap;background:none;font-family:inherit;color:var(--ink)}
+  .tab:hover{background:#eef2f6}
+  .tab.active{background:#fff;border-color:var(--line);margin-bottom:-1px;font-weight:600}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--warn);margin-left:5px;vertical-align:middle}
+  .tab.add{color:var(--accent)}
+  .tbody{padding:10px 12px;display:flex;flex-direction:column;gap:12px}
+  .block{border:1px solid var(--line);border-radius:5px}
+  .block-head{display:flex;align-items:center;gap:8px;padding:5px 10px;border-bottom:1px solid var(--line);background:#f7f8fa;font-weight:600;font-size:13px;flex-wrap:wrap}
+  .block-body{padding:8px 10px}
+  .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:4px;overflow:hidden}
+  .seg label{padding:1px 9px;font-size:12.5px;cursor:pointer;border-right:1px solid var(--line)}
+  .seg label:last-child{border-right:none}
+  .seg input{display:none}
+  .seg input:checked+span{font-weight:600;color:var(--accent)}
+  .dirty{font-size:12px;color:var(--warn)}
+
+  /* Ký hiệu trạng thái so với mẫu */
+  .st{display:inline-flex;width:20px;height:20px;border-radius:50%;align-items:center;justify-content:center;font-weight:700;font-size:13px;border:1px solid;cursor:help}
+  .st.same{background:var(--ok-soft);color:var(--ok);border-color:#bfdcc8}
+  .st.new{background:var(--accent-soft);color:var(--accent);border-color:#bcd3e8}
+  .st.missing{background:var(--err-soft);color:var(--err);border-color:#e6bcbc}
+  .st.diff{background:var(--warn-soft);color:var(--warn);border-color:#e7d3a8}
+  .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+  .legend span{display:inline-flex;gap:4px;align-items:center}
+
+  /* Diff kiểu git */
+  table.diff{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px;table-layout:fixed}
+  table.diff td{padding:1px 6px;vertical-align:top;border-bottom:1px solid #f0f1f3}
+  table.diff td.ln{width:36px;color:#9aa1ab;text-align:right;user-select:none;background:#fafbfc;border-right:1px solid var(--line)}
+  table.diff td.code{white-space:pre-wrap;word-break:break-word}
+  table.diff td.d-tpl{background:#e3f3e7}
+  table.diff td.d-ptn{background:#fdefd6}
+  table.diff td.d-empty{background:repeating-linear-gradient(45deg,#f7f7f8,#f7f7f8 4px,#efeff1 4px,#efeff1 8px)}
+  table.diff tr.hk td{background:#eaf1f9;color:#1d4f7c;font-family:"Segoe UI",system-ui,Arial,sans-serif;font-size:12px;padding:3px 8px;border-top:1px solid #bcd3e8;border-bottom:1px solid #bcd3e8}
+  table.diff th{font-family:"Segoe UI",system-ui,Arial,sans-serif;font-size:12.5px;text-align:left;background:#f0f2f5;padding:4px 8px;border-bottom:1px solid var(--line)}
+  .diff-box{border:1px solid var(--line);border-radius:4px;overflow:auto;max-height:420px}
+
+  /* Modal */
+  .modal{position:fixed;inset:0;background:rgba(30,36,45,.45);display:flex;align-items:flex-start;justify-content:center;padding:4vh 16px;z-index:50;overflow:auto}
+  .mbox{background:#fff;border-radius:6px;border:1px solid var(--line-strong);width:100%;max-width:640px;box-shadow:0 10px 40px rgba(0,0,0,.25);display:flex;flex-direction:column;max-height:92vh}
+  .mbox.lg{max-width:1100px}
+  .mbox.xl{max-width:1320px}
+  .mhead{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);font-weight:600;background:#f7f8fa;border-radius:6px 6px 0 0;flex-wrap:wrap}
+  .mbody{padding:12px;overflow:auto;flex:1}
+  .mfoot{display:flex;gap:8px;justify-content:flex-end;padding:8px 12px;border-top:1px solid var(--line);flex-wrap:wrap}
+  .mtabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:-4px 0 10px;overflow-x:auto;overflow-y:hidden}
+  .formrow{display:grid;grid-template-columns:150px 1fr;gap:8px;align-items:center;margin-bottom:8px}
+  #toast{position:fixed;right:16px;bottom:16px;background:#2c313a;color:#fff;padding:8px 14px;border-radius:5px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:99;max-width:min(420px,calc(100vw - 32px))}
+  #toast.on{opacity:1}
+  [hidden]{display:none !important}
+  .doc{background:#fff;border:1px solid var(--line);border-radius:6px;padding:12px 16px}
+  .doc h3{font-size:14px;margin:12px 0 4px}
+  .doc h3:first-child{margin-top:0}
+  .doc ol,.doc ul{margin:4px 0;padding-left:20px}
+  .doc li{margin:2px 0}
+  .doc pre{background:#f6f7f9;border:1px solid var(--line);border-radius:4px;padding:8px 10px;overflow:auto;margin:6px 0}
+  .footnote{margin-top:24px;border-top:1px solid var(--line);padding-top:12px;color:var(--muted);font-size:12.5px}
+
+  @media (max-width:1100px){
+    .layout,.layout.closed{grid-template-columns:1fr}
+    .splitter{display:none}
+    .ppane{border-right:none;border-bottom:1px solid var(--line);max-height:260px}
+    .layout.closed .ppane{display:flex}
+    .kpane{border-right:none;border-bottom:1px solid var(--line);max-height:380px}
+  }
+  @media (max-width:600px){ .formrow{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="doc-head">
+    <h1>Wireframe · Nguồn dữ liệu gói tin: mẫu chung và cấu hình riêng theo đối tác</h1>
+    <p>
+      Đề xuất điều chỉnh màn <code>views/sharedata/dataSource</code>. Bố cục trái mượn từ màn
+      <code>views/system/userMngt/users</code> (cây tổ chức + <code>PanelSplitter</code> thu gọn được),
+      thay cây tổ chức bằng <strong>danh sách đối tác</strong> để lọc gói tin.
+    </p>
+    <p>
+      <strong>Giả định:</strong> yêu cầu 2 ghi "danh sách bên trái", nhưng câu SQL, bảng trường và tham số chỉ đặt được
+      ở vùng chi tiết gói tin, nên các tab <em>Mẫu chung / Đối tác</em> nằm ở vùng chi tiết (bên phải). Bên trái gồm
+      bộ lọc đối tác và danh sách gói tin.
+    </p>
+    <p class="note">Wireframe tương tác: bấm thử đối tác, gói tin, tab, nút Lưu (có phân tích alias và tham số <code>@</code> thật),
+      So sánh, Áp dụng đoạn, So sánh tất cả. Dữ liệu là giả lập, tải lại trang sẽ về ban đầu.</p>
+  </div>
+
+  <div class="sec">
+    <h2>Màn hình</h2>
+    <div class="screen">
+      <div class="screen-bar">
+        Chia sẻ dữ liệu › Nguồn dữ liệu
+        <span class="sp"></span>
+        <label class="note" style="font-weight:400">Xem với quyền
+          <select id="role">
+            <option value="1">Super admin (sửa SQL)</option>
+            <option value="0">Người dùng thường</option>
+          </select>
+        </label>
+      </div>
+      <div class="layout" id="layout">
+        <!-- Vùng 1: đối tác -->
+        <section class="ppane" id="ppane" aria-label="Đối tác">
+          <div class="pane-head">Đối tác <span class="anno">MỚI</span></div>
+          <div class="pane-body">
+            <input type="text" id="partnerQ" placeholder="Tìm mã / tên đối tác" style="width:100%" />
+          </div>
+          <div class="pane-body plist" id="plist" style="padding-top:0;overflow:auto;flex:1"></div>
+        </section>
+        <div class="splitter"><button id="btnSplit" title="Thu gọn / mở rộng danh sách đối tác" aria-controls="ppane">‹</button></div>
+
+        <!-- Vùng 2: gói tin -->
+        <section class="kpane" aria-label="Gói tin">
+          <div class="pane-head">Gói tin <span class="sp"></span><button class="btn mini" onclick="toast('Mở form thêm gói tin (giữ như hiện tại)')">＋ Thêm</button></div>
+          <div class="pane-body" style="padding-bottom:4px">
+            <div id="filterOn"></div>
+            <input type="text" id="packetQ" placeholder="Tìm mã / tên gói tin" style="width:100%" />
+          </div>
+          <div class="pane-body tbl-wrap" style="padding-top:2px;overflow:auto;flex:1">
+            <table class="g" id="packetTbl">
+              <thead><tr><th>Mã</th><th>Tên gói tin</th><th id="pkCol3">Đối tác</th></tr></thead>
+              <tbody></tbody>
+            </table>
+            <div id="packetEmpty" class="note" style="padding:16px 4px" hidden></div>
+          </div>
+        </section>
+
+        <!-- Vùng 3: chi tiết -->
+        <section class="dpane" id="detail" aria-label="Chi tiết gói tin"></section>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <h2>Ghi chú thiết kế</h2>
+    <div class="doc">
+      <h3>1. Lọc gói tin theo đối tác (vùng trái)</h3>
+      <ul>
+        <li>Thêm khung <strong>Đối tác</strong> bên trái danh sách gói tin, thu gọn được bằng thanh chia (giống <code>OrgTree</code> + <code>PanelSplitter</code> ở màn người dùng). Có ô tìm theo mã/tên và mục <em>Tất cả đối tác</em>.</li>
+        <li>Mỗi đối tác hiện số gói tin đang dùng. Chọn một đối tác thì danh sách gói tin chỉ còn các gói đối tác đó dùng, cột cuối đổi thành <span class="chip o">Theo mẫu</span> / <span class="chip w">Riêng</span>.</li>
+        <li>Đang lọc theo đối tác mà mở gói có cấu hình riêng thì tự mở luôn tab của đối tác đó.</li>
+        <li>Không lọc: cột cuối hiện số đối tác dùng gói. Có chấm cam khi một cấu hình riêng còn dựa trên phiên bản mẫu cũ.</li>
+      </ul>
+      <h3>2. Vùng chi tiết chia tab: Mẫu chung + mỗi đối tác có cấu hình riêng một tab</h3>
+      <ul>
+        <li>Bỏ hai tab hiện tại <em>Danh sách trường</em> và <em>Cấu hình SQL</em>. Mỗi tab mới gồm đủ 3 khối: <strong>Câu truy vấn → Trường dữ liệu → Tham số điều kiện</strong>.</li>
+        <li><strong>Câu truy vấn:</strong> có nút <em>⤢ Mở rộng</em> mở popup soạn SQL lớn; popup đếm alias và tham số ngay khi gõ. Chỉ Super admin sửa được SQL, giống điều kiện <code>isSuperAdmin</code> đang có.</li>
+        <li><strong>Lưu &amp; phân tích:</strong> tách danh sách cột của SELECT ngoài cùng, lấy tên sau <code>AS</code> làm khoá trường. Cột không có alias thì tạm lấy tên cột và cảnh báo; biểu thức không có alias bị bỏ qua và cảnh báo; <code>SELECT *</code> bị cảnh báo. Trường đã có thì giữ nguyên tên, kiểu, ghi chú; trường mới đoán kiểu theo tên và tô nền xanh.</li>
+        <li><strong>Trường dữ liệu:</strong> sửa trực tiếp tên hiển thị, kiểu, bắt buộc, ghi chú, trạng thái (tắt = không gửi trường đó).</li>
+        <li><strong>Tham số điều kiện:</strong> tự trích các <code>@ten</code> trong SQL (bỏ qua comment và chuỗi). Giá trị lấy từ lần trước dùng tên chuẩn của hệ thống <code>@lastKey</code> (khoá) hoặc <code>@lastTime</code> (mốc thời gian). Chỉ 3 nguồn giá trị:
+          <ul>
+            <li><b>Giá trị lần trước (theo key)</b>: tự lấy <em>biểu thức cần lưu</em> là vế trái của phép so sánh, vd. <code>CONVERT(varchar(23), Write_Date , 121) +&#39;_&#39; +MSLANE &gt; @lastKey</code>. <em>Key lưu trữ</em> do người dùng tự đặt (vd. <code>LAST_WRITE_LANE</code>). Sau mỗi lần gửi thành công, engine lưu giá trị lớn nhất của biểu thức vào bảng trạng thái theo key và đối tác; lần sau truyền vào <code>@lastKey</code>. Chưa có giá trị lưu thì dùng giá trị mặc định. Nút ↺ xoá giá trị đã lưu để gửi lại từ đầu.</li>
+            <li><b>Giá trị nhập</b>: hằng số người dùng nhập, vd. mã trạm, mã tỉnh.</li>
+            <li><b>Thời điểm chạy</b>: tự động, không cần nhập.</li>
+          </ul></li>
+        <li>Cột <strong>So với mẫu</strong> ở tab đối tác thay cho hai cảnh báo hiện tại (<em>trường thiếu cột SQL</em> và <em>cột SQL chưa khai báo</em>):
+          <span class="legend" style="display:inline-flex">
+            <span><span class="st same">=</span> giống</span>
+            <span><span class="st new">+</span> mới (chỉ đối tác có)</span>
+            <span><span class="st missing">−</span> thiếu (mẫu có, đối tác không)</span>
+            <span><span class="st diff">≠</span> khác tên/kiểu/bắt buộc</span>
+          </span>. Di chuột vào ký hiệu để xem chi tiết.</li>
+        <li>Tab Mẫu chung có cột <strong>Lệch ở đối tác</strong>: liệt kê đối tác thiếu hoặc khác trường đó.</li>
+      </ul>
+      <h3>3. Thiết lập riêng, so sánh và áp dụng</h3>
+      <ul>
+        <li><strong>＋ Thiết lập cho đối tác:</strong> chọn đối tác, sao chép từ mẫu hiện tại hoặc từ cấu hình riêng của đối tác khác, rồi mở tab mới. Cấu hình riêng nhớ <em>phiên bản mẫu gốc</em> (vd. dựa trên v3) để biết mẫu đã đổi sau đó.</li>
+        <li>Mỗi lần lưu mẫu mà SQL thay đổi thì mẫu tăng phiên bản. Tab đối tác có cấu hình cũ hiện chấm cam và thông báo "mẫu đã thay đổi".</li>
+        <li><strong>⇄ So sánh với mẫu</strong> (tab đối tác): diff SQL song song kiểu git, trái là mẫu, phải là đối tác, bỏ qua khác biệt khoảng trắng. Mỗi đoạn khác có nút <em>← Áp dụng đoạn này từ mẫu</em>. Bên dưới là bảng so sánh trường và tham số, có nút <em>Lấy theo mẫu</em> từng dòng. Chân popup: <em>Thay toàn bộ bằng mẫu</em> và <em>Đánh dấu đã đồng bộ</em> (giữ khác biệt nhưng ghi nhận đã xem phiên bản mới).</li>
+        <li><strong>⇄ So sánh tất cả</strong> (tab mẫu): tab <em>Tổng quan</em> là ma trận trường/tham số × đối tác dùng cùng ký hiệu, kèm phiên bản gốc và số đoạn SQL khác. Mỗi đối tác thêm một tab với đúng giao diện so sánh ở trên. Đối tác đang dùng thẳng mẫu chỉ được liệt kê, không cần so.</li>
+      </ul>
+      <h3>4. Lưu trữ đề xuất (cần thống nhất với backend)</h3>
+<pre>ShareDataPacket          (mẫu chung — đã có)
+  QuerySql, ParametersJson, FieldsJson/ShareDataPacketField, SyncMode
+  + TemplateVersion int            -- tăng khi QuerySql đổi
+
+ShareDataPacketPartner   (MỚI — cấu hình riêng, chỉ có khi đối tác "Riêng")
+  PacketId, PartnerId, QuerySql, FieldsJson, ParametersJson
+  BaseVersion int                  -- phiên bản mẫu lúc sao chép / lần đồng bộ cuối
+
+ParametersJson item (trong mẫu / cấu hình riêng):
+  { "name":"@lastKey", "source":"prev",
+    "expr":"CONVERT(varchar(23), Write_Date , 121) +'_' +MSLANE",
+    "storeKey":"LAST_WRITE_LANE", "value":"2026-01-01 00:00:00.000_" }
+
+ShareDataLastSend       (đang dùng cho @lastTime / @lastKey — cần xác nhận cấu trúc thực tế)
+  PacketId, PartnerId, StateKey, LastValue, UpdateTime
+  -- (PacketId, PartnerId, StateKey) duy nhất; engine đọc trước khi chạy, ghi sau khi gửi thành công
+  -- StateKey = "Key lưu trữ" người dùng đặt; nếu bảng chưa có cột này thì cần bổ sung</pre>
+      <p class="note">Đối tác không có bản ghi <code>ShareDataPacketPartner</code> nghĩa là dùng thẳng mẫu chung. Xoá cấu hình riêng thì đối tác quay về dùng mẫu.</p>
+    </div>
+  </div>
+
+  <div class="footnote">Dữ liệu gói 101 lấy theo <code>docs/shareData/07-vi-du-goi-101.md</code>. Tên tham số hỗ trợ sẵn tham khảo <code>queryBuilder.vue</code> (<code>@lastTime</code>, <code>@lastKey</code>, <code>@pageSize</code>, <code>@fromDate</code>, <code>@toDate</code>).</div>
+</div>
+
+<!-- Popup: soạn SQL mở rộng -->
+<div class="modal" id="mSql" hidden role="dialog" aria-modal="true" aria-labelledby="mSqlT">
+  <div class="mbox lg">
+    <div class="mhead"><span id="mSqlT">Soạn câu truy vấn</span><span class="sp"></span><button class="btn mini" data-close>✕</button></div>
+    <div class="mbody">
+      <textarea id="mSqlText" rows="24" spellcheck="false"></textarea>
+      <div class="note" id="mSqlInfo" style="margin-top:6px"></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn" data-close>Huỷ</button>
+      <button class="btn" id="mSqlApply">Áp dụng vào trình soạn</button>
+      <button class="btn primary" id="mSqlSave">Áp dụng &amp; Lưu</button>
+    </div>
+  </div>
+</div>
+
+<!-- Popup: thiết lập cho đối tác -->
+<div class="modal" id="mSetup" hidden role="dialog" aria-modal="true" aria-labelledby="mSetupT">
+  <div class="mbox">
+    <div class="mhead"><span id="mSetupT">Thiết lập cấu hình riêng cho đối tác</span><span class="sp"></span><button class="btn mini" data-close>✕</button></div>
+    <div class="mbody">
+      <div class="formrow"><label for="setupPartner">Đối tác</label><select id="setupPartner"></select></div>
+      <div class="formrow"><span>Sao chép từ</span>
+        <div>
+          <label><input type="radio" name="setupSrc" value="tpl" checked> Mẫu chung <span id="setupVer" class="chip k"></span></label><br>
+          <label><input type="radio" name="setupSrc" value="other"> Cấu hình riêng của đối tác </label>
+          <select id="setupOther"></select>
+        </div>
+      </div>
+      <div class="alert info">Đối tác sẽ có câu truy vấn, trường và tham số riêng. Hệ thống ghi nhận phiên bản mẫu gốc để báo khi mẫu thay đổi.</div>
+    </div>
+    <div class="mfoot"><button class="btn" data-close>Huỷ</button><button class="btn primary" id="setupOk">Tạo &amp; mở tab</button></div>
+  </div>
+</div>
+
+<!-- Popup: so sánh 1 đối tác -->
+<div class="modal" id="mCompare" hidden role="dialog" aria-modal="true" aria-labelledby="mCompareT">
+  <div class="mbox xl">
+    <div class="mhead"><span id="mCompareT">So sánh với mẫu</span><span class="sp"></span><button class="btn mini" data-close>✕</button></div>
+    <div class="mbody" id="mCompareBody"></div>
+    <div class="mfoot" id="mCompareFoot"></div>
+  </div>
+</div>
+
+<!-- Popup: so sánh tất cả -->
+<div class="modal" id="mAll" hidden role="dialog" aria-modal="true" aria-labelledby="mAllT">
+  <div class="mbox xl">
+    <div class="mhead"><span id="mAllT">So sánh mẫu với tất cả đối tác</span><span class="sp"></span><button class="btn mini" data-close>✕</button></div>
+    <div class="mbody">
+      <div class="mtabs" id="mAllTabs"></div>
+      <div id="mAllBody"></div>
+    </div>
+    <div class="mfoot" id="mAllFoot"></div>
+  </div>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ===================== Dữ liệu giả lập ===================== */
+const PARTNERS = [
+  { id: 'vdot', code: 'VDOT', name: 'Cục Đường bộ Việt Nam' },
+  { id: 'vec', code: 'VEC', name: 'Tổng công ty Đầu tư phát triển đường cao tốc VN' },
+  { id: 'hcm', code: 'SGTVT-HCM', name: 'Sở GTVT TP. Hồ Chí Minh' },
+  { id: 'bot', code: 'BOT-PV', name: 'BOT Pháp Vân – Cầu Giẽ' },
+  { id: 'csgt', code: 'CSGT', name: 'Cục Cảnh sát giao thông' },
+];
+const PACKETS = [
+  { code: '101', name: 'Tình trạng giao thông theo đoạn', usage: { vdot: 'custom', vec: 'template', hcm: 'custom' } },
+  { code: '102', name: 'Sự kiện / sự cố giao thông', usage: { vdot: 'template', vec: 'template', csgt: 'template' } },
+  { code: '103', name: 'Lưu lượng qua trạm thu phí', usage: { bot: 'custom', vec: 'template' } },
+  { code: '104', name: 'Nội dung biển báo VMS', usage: { hcm: 'template' } },
+  { code: '105', name: 'Danh mục camera CCTV', usage: {} },
+];
+const TYPES = ['string', 'int', 'decimal', 'datetime', 'bool'];
+const SOURCES = {
+  prev: 'Lần trước (theo key)',
+  const: 'Giá trị nhập',
+  now: 'Thời điểm chạy',
+};
+
+const SQL101_TPL = `SELECT  b.Code              AS segmentCode,
+        b.Name              AS segmentName,
+        a.TrafficCondition  AS trafficCond,
+        a.AvgSpeed          AS avgSpeed,
+        a.Occupancy         AS occupancy,
+        a.MeasuredAt        AS measuredAt
+FROM    dbo.TmsZoneStatus a
+LEFT JOIN dbo.TmsZone b ON a.ZoneId = b.ID
+WHERE   a.IsDelete IS NULL
+    AND (a.SourceType IS NULL OR a.SourceType <> 'SHARE_DATA')   -- không gửi lại dữ liệu vừa nhận
+    AND CONVERT(varchar(23), a.MeasuredAt , 121) +'_' +b.Code > @lastKey
+ORDER BY a.MeasuredAt, b.Code`;
+
+const SQL101_VDOT = `SELECT  b.Code              AS segmentCode,
+        b.Name              AS segmentName,
+        b.RoadCode          AS roadCode,
+        a.TrafficCondition  AS trafficCond,
+        CAST(a.AvgSpeed AS INT) AS avgSpeed,
+        a.MeasuredAt        AS measuredAt
+FROM    dbo.TmsZoneStatus a
+LEFT JOIN dbo.TmsZone b ON a.ZoneId = b.ID
+WHERE   a.IsDelete IS NULL
+    AND CONVERT(varchar(23), a.MeasuredAt , 121) > @lastKey
+    AND b.RoadCode IN (SELECT value FROM STRING_SPLIT(@roadCodes, ','))
+ORDER BY a.MeasuredAt`;
+
+const SQL101_HCM = SQL101_TPL.replace('ORDER BY', `    AND b.ProvinceCode = @provinceCode
+ORDER BY`);
+
+const META101 = {
+  segmentCode: { name: 'Mã đoạn', type: 'string', required: true, note: 'Khoá khi đối tác ghi nhận' },
+  segmentName: { name: 'Tên đoạn', type: 'string', required: false, note: '' },
+  trafficCond: { name: 'Tình trạng giao thông', type: 'int', required: true, note: '1 thông thoáng · 2 đông · 3 ùn tắc' },
+  avgSpeed: { name: 'Tốc độ TB (km/h)', type: 'decimal', required: false, note: '' },
+  occupancy: { name: 'Độ chiếm dụng (%)', type: 'decimal', required: false, note: 'Bổ sung ở v5' },
+  measuredAt: { name: 'Thời điểm đo', type: 'datetime', required: true, note: 'Trường thời gian (con trỏ đồng bộ)' },
+  '@lastKey': { source: 'prev', storeKey: 'LAST_MEASURED_SEGMENT', value: '2026-01-01 00:00:00.000_' },
+};
+
+const GEN = {
+  '102': { v: 2, meta: { '@lastTime': { storeKey: 'LAST_EVENT_UPDATE' } }, sql: `SELECT  e.Code         AS eventCode,
+        e.EventType    AS eventType,
+        e.Description  AS description,
+        e.Km           AS km,
+        e.UpdateTime   AS updatedAt
+FROM    dbo.TmsEvent e
+WHERE   e.IsDelete IS NULL
+    AND e.UpdateTime > @lastTime` },
+  '103': { v: 1, sql: `SELECT  STATION_CODE   AS stationCode,
+        MSLANE         AS laneNo,
+        VEHICLE_CLASS  AS vehicleClass,
+        TICKET_NO      AS ticketNo,
+        Write_Date     AS writeDate
+FROM    dbo.TOLL_TRANSACTION
+WHERE   CONVERT(varchar(23), Write_Date , 121) +'_' +MSLANE > @lastKey
+ORDER BY Write_Date, MSLANE`,
+    meta: { '@lastKey': { storeKey: 'LAST_WRITE_LANE', value: '2026-01-01 00:00:00.000_' } },
+    custom: { bot: { base: 1, last: '2026-10-23 07:59:58.120_L03', sql: `SELECT  STATION_CODE   AS stationCode,
+        MSLANE         AS laneNo,
+        VEHICLE_CLASS  AS vehicleClass,
+        TICKET_NO      AS ticketNo,
+        FEE_AMOUNT     AS feeAmount,
+        Write_Date     AS writeDate
+FROM    dbo.TOLL_TRANSACTION
+WHERE   CONVERT(varchar(23), Write_Date , 121) +'_' +MSLANE > @lastKey
+    AND STATION_CODE = @stationCode
+ORDER BY Write_Date, MSLANE`, meta: { '@stationCode': { value: 'PV01' } } } } },
+  '104': { v: 1, meta: { '@lastTime': { storeKey: 'LAST_VMS_UPDATE' } }, sql: `SELECT  v.Code         AS vmsCode,
+        m.Content      AS content,
+        m.DisplayFrom  AS displayFrom
+FROM    dbo.VmsMessage m
+JOIN    dbo.VmsDevice v ON m.DeviceId = v.ID
+WHERE   m.UpdateTime > @lastTime` },
+  '105': { v: 1, sql: `SELECT  c.Code       AS cameraCode,
+        c.Name       AS cameraName,
+        c.Lat        AS lat,
+        c.Lng        AS lng,
+        c.StreamUrl  AS streamUrl
+FROM    dbo.CctvCamera c
+WHERE   c.IsDelete IS NULL` },
+};
+
+/* ===================== Tiện ích ===================== */
+const $ = (s) => document.querySelector(s);
+const clone = (o) => JSON.parse(JSON.stringify(o));
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const eqk = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
+const yn = (b) => (b ? 'có' : 'không');
+const partnerOf = (id) => PARTNERS.find((p) => p.id === id);
+const nowStr = () => { const d = new Date(), p = (n) => String(n).padStart(2, '0'); return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`; };
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('on'), 2600); }
+
+/* ===================== Phân tích SQL ===================== */
+function stripSql(sql) {
+  return sql.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/--[^\n]*/g, ' ').replace(/'(?:''|[^'])*'/g, "''");
+}
+function parseSql(sql) {
+  const s = stripSql(sql || ''), low = s.toLowerCase(), warnings = [], aliases = [];
+  const start = low.search(/\bselect\b/);
+  if (start < 0) warnings.push('Không tìm thấy SELECT.');
+  else {
+    let depth = 0, buf = '', items = [], foundFrom = false;
+    for (let i = start + 6; i < s.length; i++) {
+      const c = s[i];
+      if (c === '(') depth++;
+      else if (c === ')') depth--;
+      if (depth === 0) {
+        if (c === ',') { items.push(buf); buf = ''; continue; }
+        if (low.startsWith('from', i) && !/\w/.test(s[i - 1]) && !/\w/.test(s[i + 4] || '')) { foundFrom = true; break; }
+      }
+      buf += c;
+    }
+    items.push(buf);
+    if (!foundFrom) warnings.push('Không tìm thấy FROM của câu SELECT ngoài cùng.');
+    items.map((x) => x.replace(/^\s*(distinct|top\s+\d+)\s+/i, '').trim()).filter(Boolean).forEach((it) => {
+      let m;
+      const short = it.replace(/\s+/g, ' ').slice(0, 48);
+      if ((m = /\bas\s+\[?([A-Za-z_]\w*)\]?$/i.exec(it))) aliases.push(m[1]);
+      else if (it === '*' || /\.\*$/.test(it)) warnings.push('Không hỗ trợ SELECT * — cần liệt kê từng cột và đặt alias.');
+      else if ((m = /^(?:\[?\w+\]?\.)*\[?([A-Za-z_]\w*)\]?$/.exec(it))) { aliases.push(m[1]); warnings.push(`Cột "${short}" chưa có alias — tạm dùng "${m[1]}".`); }
+      else warnings.push(`Biểu thức "${short}" chưa có alias AS — đã bỏ qua.`);
+    });
+  }
+  const seen = new Set(), uniq = [];
+  aliases.forEach((a) => { const k = a.toLowerCase(); if (seen.has(k)) warnings.push(`Alias "${a}" bị trùng.`); else { seen.add(k); uniq.push(a); } });
+  // Tham số @ten (ngoài comment/chuỗi), kèm biểu thức đứng trước phép so sánh
+  const noCmt = (sql || '').replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/--[^\n]*/g, ' ');
+  const params = [], exprs = {};
+  const add = (tok, idxs) => {
+    if (!params.includes(tok)) params.push(tok);
+    for (const i of idxs) { const e = exprBefore(noCmt, i); if (e) { exprs[tok] = exprs[tok] || e; break; } }
+  };
+  [...new Set([...s.matchAll(/(^|[^@\w])@([A-Za-z_]\w*)/g)].map((m) => m[2]))].forEach((n) =>
+    add('@' + n, [...noCmt.matchAll(new RegExp('(^|[^@\\w])@' + n + '\\b', 'g'))].map((m) => m.index + m[1].length)));
+  return { aliases: uniq, params, exprs, warnings };
+}
+// Lấy biểu thức nằm trước phép so sánh, vd: "CONVERT(varchar(23), Write_Date , 121) +'_' +MSLANE > @lastKey"
+function exprBefore(t, idx) {
+  let i = idx - 1;
+  while (i >= 0 && /\s/.test(t[i])) i--;
+  const m = /(>=|<=|<>|!=|[<>=])$/.exec(t.slice(Math.max(0, i - 1), i + 1));
+  if (!m) return '';
+  i -= m[1].length;
+  const end = i + 1;
+  let depth = 0, start = 0;
+  for (; i >= 0; i--) {
+    const c = t[i];
+    if (c === ')') { depth++; continue; }
+    if (c === '(') { if (depth === 0) { start = i + 1; break; } depth--; continue; }
+    if (depth === 0 && /\s/.test(c) && /\b(and|or|where|on|having|when|not)$/i.test(t.slice(0, i))) { start = i; break; }
+  }
+  return t.slice(start, end).replace(/\s+/g, ' ').trim();
+}
+function guessType(k) {
+  if (/(At|Time|Date|From|To)$/i.test(k) || /date|time/i.test(k)) return 'datetime';
+  if (/speed|occupancy|rate|percent|lat|lng|km/i.test(k)) return 'decimal';
+  if (/cond|count|status|type|level|class|no$/i.test(k)) return 'int';
+  if (/^(is|has)[A-Z]/.test(k)) return 'bool';
+  return 'string';
+}
+// tok: '@ten'. source: prev = lấy giá trị đã lưu theo key ở lần chạy trước
+function guessParam(tok, expr) {
+  const l = tok.toLowerCase().replace('@', '');
+  const base = { name: tok, source: 'const', expr: expr || '', storeKey: '', value: '', lastValue: '' };
+  if (/^(from|last)/.test(l)) return { ...base, source: 'prev' };
+  if (/^to(time|date)$/.test(l)) return { ...base, source: 'now' };
+  if (l === 'pagesize') return { ...base, value: '500' };
+  return base;
+}
+function mergeFields(old, aliases, fallback) {
+  return aliases.map((k) => {
+    const o = old.find((f) => eqk(f.key, k));
+    if (o) return { ...o, key: k, fresh: false };
+    const fb = (fallback || []).find((f) => eqk(f.key, k));
+    if (fb) return { ...clone(fb), key: k, fresh: true };
+    return { key: k, name: k, type: guessType(k), required: false, note: '', active: true, fresh: true };
+  });
+}
+function mergeParams(old, r, fallback) {
+  return r.params.map((n) => {
+    const o = old.find((p) => eqk(p.name, n));
+    if (o) return { ...o, name: n, expr: o.expr || r.exprs[n] || '' };
+    const fb = (fallback || []).find((p) => eqk(p.name, n));
+    return fb ? { ...clone(fb), name: n, lastValue: '' } : guessParam(n, r.exprs[n]);
+  });
+}
+function makeCfg(sql, meta) {
+  meta = meta || {};
+  const r = parseSql(sql);
+  const fields = r.aliases.map((k, i) => ({ key: k, name: k, type: guessType(k), required: i === 0, note: '', active: true, fresh: false, ...(meta[k] || {}) }));
+  const params = r.params.map((n) => ({ ...guessParam(n, r.exprs[n]), ...(meta[n] || {}) }));
+  return { sql, savedSql: sql, fields, params };
+}
+
+/* ===================== Cấu hình theo gói ===================== */
+const CONFIG = {};
+function buildCfg(code) {
+  const pk = PACKETS.find((p) => p.code === code);
+  if (code === '101') {
+    const tpl = { ...makeCfg(SQL101_TPL, META101), version: 5, updatedAt: '20/10/2026 09:12', updatedBy: 'admin', syncMode: 'incremental' };
+    const vd = makeCfg(SQL101_VDOT, {
+      ...META101,
+      avgSpeed: { ...META101.avgSpeed, type: 'int', note: 'VDOT nhận số nguyên' },
+      roadCode: { name: 'Mã tuyến', type: 'string', required: true, note: 'Riêng VDOT' },
+      '@roadCodes': { value: 'CT01,CT04' },
+    });
+    vd.baseVersion = 3;
+    setLast(vd, '2026-10-23 08:15:00.000');
+    const hc = makeCfg(SQL101_HCM, { ...META101, '@provinceCode': { value: '79' } });
+    hc.baseVersion = 5;
+    setLast(hc, '2026-10-23 08:10:00.000_1B');
+    return { tpl, partners: { vdot: vd, hcm: hc } };
+  }
+  const g = GEN[code];
+  const tpl = { ...makeCfg(g.sql, g.meta), version: g.v, updatedAt: '15/10/2026 14:30', updatedBy: 'admin', syncMode: 'incremental' };
+  const partners = {};
+  Object.entries(pk.usage).forEach(([pid, u]) => {
+    if (u !== 'custom') return;
+    const c = g.custom && g.custom[pid];
+    partners[pid] = c ? { ...makeCfg(c.sql, { ...(g.meta || {}), ...(c.meta || {}) }), baseVersion: c.base } : { ...clone(tpl), baseVersion: g.v };
+    if (c && c.last) setLast(partners[pid], c.last);
+  });
+  return { tpl, partners };
+}
+// Giá trị đã lưu (giả lập) của các tham số "lần trước" ở một cấu hình đối tác
+function setLast(c, v) { c.params.forEach((p) => { if (p.source === 'prev') p.lastValue = v; }); }
+const cfgOf = (code) => (CONFIG[code] = CONFIG[code] || buildCfg(code));
+
+/* ===================== So sánh ===================== */
+const ST = {
+  same: ['=', 'Giống mẫu'],
+  new: ['+', 'Mới — chỉ có ở đối tác'],
+  missing: ['−', 'Thiếu — mẫu có, đối tác không có'],
+  diff: ['≠', 'Khác — lệch thuộc tính so với mẫu'],
+};
+const stIcon = (s, extra) => `<span class="st ${s}" title="${esc(ST[s][1] + (extra && extra.length ? '\n• ' + extra.join('\n• ') : ''))}">${ST[s][0]}</span>`;
+function fStatus(pf, tf) {
+  const d = [];
+  if (pf.name !== tf.name) d.push(`Tên: "${tf.name}" → "${pf.name}"`);
+  if (pf.type !== tf.type) d.push(`Kiểu: ${tf.type} → ${pf.type}`);
+  if (!!pf.required !== !!tf.required) d.push(`Bắt buộc: ${yn(tf.required)} → ${yn(pf.required)}`);
+  return d.length ? { s: 'diff', d } : { s: 'same', d };
+}
+function pStatus(pp, tp) {
+  const d = [];
+  if (pp.source !== tp.source) d.push(`Nguồn: ${SOURCES[tp.source]} → ${SOURCES[pp.source]}`);
+  if (pp.source === 'prev' || tp.source === 'prev') {
+    if (normLine(pp.expr || '') !== normLine(tp.expr || '')) d.push(`Biểu thức: "${tp.expr || ''}" → "${pp.expr || ''}"`);
+    if ((pp.storeKey || '') !== (tp.storeKey || '')) d.push(`Key: "${tp.storeKey || ''}" → "${pp.storeKey || ''}"`);
+  }
+  if (pp.source !== 'now' && (pp.value || '') !== (tp.value || '')) d.push(`${pp.source === 'prev' ? 'Mặc định' : 'Giá trị'}: "${tp.value || ''}" → "${pp.value || ''}"`);
+  return d.length ? { s: 'diff', d } : { s: 'same', d };
+}
+function fieldDiff(t, p) {
+  const rows = [];
+  t.fields.forEach((tf) => { const pf = p.fields.find((f) => eqk(f.key, tf.key)); rows.push(pf ? { key: tf.key, tf, pf, ...fStatus(pf, tf) } : { key: tf.key, tf, pf: null, s: 'missing', d: [] }); });
+  p.fields.forEach((pf) => { if (!t.fields.some((f) => eqk(f.key, pf.key))) rows.push({ key: pf.key, tf: null, pf, s: 'new', d: [] }); });
+  return rows;
+}
+function paramDiff(t, p) {
+  const rows = [];
+  t.params.forEach((tp) => { const pp = p.params.find((x) => eqk(x.name, tp.name)); rows.push(pp ? { key: tp.name, tp, pp, ...pStatus(pp, tp) } : { key: tp.name, tp, pp: null, s: 'missing', d: [] }); });
+  p.params.forEach((pp) => { if (!t.params.some((x) => eqk(x.name, pp.name))) rows.push({ key: pp.name, tp: null, pp, s: 'new', d: [] }); });
+  return rows;
+}
+const normLine = (s) => s.trim().replace(/\s+/g, ' ');
+function diffLines(a, b) {
+  const n = a.length, m = b.length, dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) dp[i][j] = normLine(a[i]) === normLine(b[j]) ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  const ops = []; let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (normLine(a[i]) === normLine(b[j])) { ops.push({ t: 'eq', a: a[i], b: b[j] }); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) ops.push({ t: 'del', a: a[i++] });
+    else ops.push({ t: 'add', b: b[j++] });
+  }
+  while (i < n) ops.push({ t: 'del', a: a[i++] });
+  while (j < m) ops.push({ t: 'add', b: b[j++] });
+  return ops;
+}
+function sqlSegs(tSql, pSql) {
+  const segs = []; let cur = null, k = 0;
+  diffLines(tSql.split('\n'), pSql.split('\n')).forEach((o) => {
+    if (o.t === 'eq') { cur = null; segs.push({ eq: true, a: o.a, b: o.b }); return; }
+    if (!cur) { cur = { h: true, k: k++, dels: [], adds: [] }; segs.push(cur); }
+    if (o.t === 'del') cur.dels.push(o.a); else cur.adds.push(o.b);
+  });
+  return segs;
+}
+function driftInfo(code, pid) {
+  const cfg = cfgOf(code), t = cfg.tpl, p = cfg.partners[pid];
+  const fd = fieldDiff(t, p), pd = paramDiff(t, p);
+  const hunks = sqlSegs(t.savedSql, p.savedSql).filter((s) => s.h).length;
+  const fx = fd.filter((r) => r.s !== 'same').length, px = pd.filter((r) => r.s !== 'same').length;
+  return { outdated: p.baseVersion < t.version, hunks, fx, px, fd, pd, any: p.baseVersion < t.version || hunks || fx || px };
+}
+
+/* ===================== Trạng thái màn hình ===================== */
+const S = { partnerFilter: null, partnerQ: '', packetQ: '', packetCode: '101', tab: 'tpl', superAdmin: true, paneOpen: true, sqlScope: null, cmpPid: null, allTab: 'overview', onlyDiff: false };
+const curPacket = () => PACKETS.find((p) => p.code === S.packetCode);
+const getConf = (scope) => { const cfg = cfgOf(S.packetCode); return scope === 'tpl' ? cfg.tpl : cfg.partners[scope]; };
+const dis = () => (S.superAdmin ? '' : 'disabled');
+
+/* ===================== Vùng 1: đối tác ===================== */
+function renderPartners() {
+  const q = S.partnerQ.trim().toLowerCase();
+  const count = (pid) => PACKETS.filter((p) => p.usage[pid]).length;
+  const list = PARTNERS.filter((p) => !q || p.code.toLowerCase().includes(q) || p.name.toLowerCase().includes(q));
+  let h = `<div class="item ${S.partnerFilter ? '' : 'active'}" data-pid=""><div class="nm"><b>Tất cả đối tác</b><span>${PACKETS.length} gói tin</span></div></div>`;
+  h += list.map((p) => `<div class="item ${S.partnerFilter === p.id ? 'active' : ''}" data-pid="${p.id}" title="${esc(p.name)}">
+      <div class="nm"><b>${esc(p.code)}</b><span>${esc(p.name)}</span></div><span class="chip ${count(p.id) ? 'k' : ''}">${count(p.id)}</span></div>`).join('');
+  if (!list.length) h += `<div class="note" style="padding:8px">Không có đối tác khớp “${esc(S.partnerQ)}”.</div>`;
+  $('#plist').innerHTML = h;
+}
+
+/* ===================== Vùng 2: gói tin ===================== */
+function renderPackets() {
+  const q = S.packetQ.trim().toLowerCase(), pf = S.partnerFilter;
+  const list = PACKETS.filter((p) => (!pf || p.usage[pf]) && (!q || p.code.includes(q) || p.name.toLowerCase().includes(q)));
+  $('#filterOn').innerHTML = pf ? `<div class="filter-on">Đang lọc theo đối tác <b>${esc(partnerOf(pf).code)}</b><span class="sp"></span><button class="btn link" id="clearPf">Bỏ lọc ✕</button></div>` : '';
+  $('#pkCol3').textContent = pf ? 'Cấu hình' : 'Đối tác';
+  $('#packetTbl tbody').innerHTML = list.map((p) => {
+    let c3;
+    if (pf) c3 = p.usage[pf] === 'custom' ? '<span class="chip w">Riêng</span>' : '<span class="chip o">Theo mẫu</span>';
+    else {
+      const ids = Object.keys(p.usage), n = ids.length;
+      const outdated = CONFIG[p.code] && ids.some((pid) => p.usage[pid] === 'custom' && cfgOf(p.code).partners[pid] && cfgOf(p.code).partners[pid].baseVersion < cfgOf(p.code).tpl.version);
+      const title = ids.map((pid) => `${partnerOf(pid).code} (${p.usage[pid] === 'custom' ? 'riêng' : 'theo mẫu'})`).join(', ');
+      c3 = n ? `<span class="chip k" title="${esc(title)}">${n} đối tác</span>` : '<span class="note">—</span>';
+      if (outdated) c3 += ` <span class="dot" title="Có cấu hình riêng dựa trên mẫu cũ"></span>`;
+    }
+    return `<tr class="click ${p.code === S.packetCode ? 'sel' : ''}" data-code="${p.code}"><td><span class="chip">${p.code}</span></td><td>${esc(p.name)}</td><td>${c3}</td></tr>`;
+  }).join('');
+  const empty = $('#packetEmpty');
+  empty.hidden = list.length > 0;
+  empty.textContent = pf && !q ? `Đối tác ${partnerOf(pf).code} chưa dùng gói tin nào.` : 'Không có gói tin phù hợp.';
+}
+
+/* ===================== Vùng 3: chi tiết ===================== */
+function renderDetail() {
+  const pk = curPacket(), el = $('#detail');
+  if (!pk) { el.innerHTML = '<div class="note" style="padding:40px;text-align:center">Chọn một gói tin để xem chi tiết.</div>'; return; }
+  const cfg = cfgOf(pk.code);
+  if (S.tab !== 'tpl' && !cfg.partners[S.tab]) S.tab = 'tpl';
+  const pids = Object.keys(cfg.partners);
+  const tplUsers = Object.keys(pk.usage).filter((id) => pk.usage[id] === 'template');
+  let h = `<div class="dhead"><span class="t">${esc(pk.name)}</span><span class="chip">${pk.code}</span>
+    <span class="note">Đối tác dùng: ${Object.keys(pk.usage).length ? Object.keys(pk.usage).map((id) => partnerOf(id).code).join(', ') : 'chưa có'}</span></div>`;
+  h += `<div class="tabs" role="tablist">
+    <button class="tab ${S.tab === 'tpl' ? 'active' : ''}" data-tab="tpl" role="tab">★ Mẫu chung <span class="chip k">v${cfg.tpl.version}</span></button>
+    ${pids.map((pid) => { const d = driftInfo(pk.code, pid); return `<button class="tab ${S.tab === pid ? 'active' : ''}" data-tab="${pid}" role="tab" title="${d.outdated ? 'Mẫu đã thay đổi sau khi tạo cấu hình riêng' : ''}">${esc(partnerOf(pid).code)}${d.outdated ? '<span class="dot"></span>' : ''}</button>`; }).join('')}
+    <button class="tab add" data-act="setup" ${dis()} title="Tạo cấu hình riêng cho đối tác dựa trên mẫu">＋ Đối tác</button>
+  </div>`;
+  h += `<div class="tbody">${S.tab === 'tpl' ? tplBody(pk, cfg, pids, tplUsers) : partnerBody(pk, cfg, S.tab)}</div>`;
+  el.innerHTML = h;
+}
+
+function tplBody(pk, cfg, pids, tplUsers) {
+  const t = cfg.tpl;
+  return `
+  <div class="toolbar">
+    <span class="note">Cập nhật ${esc(t.updatedAt)} · ${esc(t.updatedBy)}</span>
+    <span class="note">· ${pids.length} cấu hình riêng · ${tplUsers.length} đối tác dùng thẳng mẫu${tplUsers.length ? ' (' + tplUsers.map((id) => partnerOf(id).code).join(', ') + ')' : ''}</span>
+    <span class="sp"></span>
+    <button class="btn" data-act="compareAll" ${pids.length ? '' : 'disabled title="Chưa có đối tác nào có cấu hình riêng"'}>⇄ So sánh tất cả (${pids.length})</button>
+    <button class="btn" data-act="setup" ${dis()}>＋ Thiết lập cho đối tác</button>
+    <button class="btn primary" data-act="save" data-scope="tpl" ${dis()}>Lưu &amp; phân tích</button>
+  </div>
+  ${editorBlock('tpl', t)}
+  ${fieldBlock('tpl', t, cfg)}
+  ${paramBlock('tpl', t, cfg)}`;
+}
+
+function partnerBody(pk, cfg, pid) {
+  const p = cfg.partners[pid], t = cfg.tpl, pr = partnerOf(pid), d = driftInfo(pk.code, pid);
+  return `
+  <div class="toolbar">
+    <b>${esc(pr.code)}</b><span class="note">${esc(pr.name)}</span>
+    <span class="chip ${d.outdated ? 'w' : 'o'}">Dựa trên mẫu v${p.baseVersion}${d.outdated ? ' · mẫu hiện tại v' + t.version : ' · đã đồng bộ'}</span>
+    <span class="sp"></span>
+    <button class="btn" data-act="compare" data-pid="${pid}">⇄ So sánh với mẫu${d.hunks ? ' (' + d.hunks + ' đoạn khác)' : ''}</button>
+    <button class="btn danger" data-act="removeCustom" data-pid="${pid}" ${dis()} title="Xoá cấu hình riêng, đối tác quay về dùng mẫu chung">Bỏ cấu hình riêng</button>
+    <button class="btn primary" data-act="save" data-scope="${pid}" ${dis()}>Lưu &amp; phân tích</button>
+  </div>
+  ${d.outdated ? `<div class="alert">Mẫu chung đã thay đổi sau khi tạo cấu hình này (v${p.baseVersion} → v${t.version}). Kiểm tra và áp dụng phần cần thiết. <button class="btn link" data-act="compare" data-pid="${pid}">Mở so sánh</button></div>` : ''}
+  ${editorBlock(pid, p)}
+  ${fieldBlock(pid, p, cfg)}
+  ${paramBlock(pid, p, cfg)}`;
+}
+
+function parseBanner(c, scope) {
+  const r = c.lastParse;
+  if (!r) return '';
+  if (r.err) return `<div class="alert err"><b>Không phân tích được.</b><ul>${r.warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></div>`;
+  let msg = `Đã phân tích <b>${r.nf}</b> trường, <b>${r.np}</b> tham số.`;
+  if (r.added.length) msg += ` Thêm mới: <code>${r.added.map(esc).join(', ')}</code>.`;
+  if (r.removed.length) msg += ` Bỏ (không còn trong SELECT): <code>${r.removed.map(esc).join(', ')}</code>.`;
+  if (r.ver) msg += ` Mẫu lên <b>v${r.ver}</b>; đối tác có cấu hình riêng sẽ thấy thông báo "mẫu đã thay đổi".`;
+  return `<div class="alert ok">${msg}</div>${r.warnings.length ? `<div class="alert"><b>Cảnh báo:</b><ul>${r.warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></div>` : ''}`;
+}
+
+function editorBlock(scope, c) {
+  const dirty = c.sql !== c.savedSql;
+  return `<div class="block">
+    <div class="block-head">1. Câu truy vấn ${scope === 'tpl' ? '(mẫu chung)' : 'riêng của ' + esc(partnerOf(scope).code)}
+      <span class="dirty" data-dirty="${scope}">${dirty ? '● Chưa lưu' : ''}</span>
+      <span class="sp"></span>
+      ${S.superAdmin ? '' : '<span class="chip">Chỉ xem — cần quyền Super admin</span>'}
+      <button class="btn mini" data-act="expand" data-scope="${scope}" title="Mở popup soạn SQL lớn">⤢ Mở rộng</button>
+    </div>
+    <div class="block-body">
+      <textarea rows="10" spellcheck="false" data-bind="sql" data-scope="${scope}" ${S.superAdmin ? '' : 'readonly'}>${esc(c.sql)}</textarea>
+      <div class="note">Tên trường lấy từ alias <code>AS</code> của SELECT ngoài cùng. Tham số viết dạng <code>@tenThamSo</code>, vd. <code>@lastKey</code>.</div>
+      ${parseBanner(c, scope)}
+    </div>
+  </div>`;
+}
+
+function fieldBlock(scope, c, cfg) {
+  const isTpl = scope === 'tpl';
+  const t = cfg.tpl;
+  let summary = '';
+  let missingRows = '';
+  if (!isTpl) {
+    const fd = fieldDiff(t, c), cnt = (s) => fd.filter((r) => r.s === s).length;
+    summary = `<span class="legend"><span>${stIcon('same')} ${cnt('same')} giống</span><span>${stIcon('new')} ${cnt('new')} mới</span><span>${stIcon('missing')} ${cnt('missing')} thiếu</span><span>${stIcon('diff')} ${cnt('diff')} khác</span></span>`;
+    missingRows = fd.filter((r) => r.s === 'missing').map((r) => `<tr class="ghost"><td class="c">${stIcon('missing')}</td><td class="mono">${esc(r.key)}</td><td>${esc(r.tf.name)}</td><td>${r.tf.type}</td><td class="c">${r.tf.required ? '✓' : ''}</td><td colspan="2">Có ở mẫu, câu truy vấn đối tác chưa trả về</td><td><button class="btn mini" data-act="compare" data-pid="${scope}">So sánh</button></td></tr>`).join('');
+  }
+  const rows = c.fields.map((f, i) => {
+    let first, last = '';
+    if (isTpl) {
+      const lech = Object.keys(cfg.partners).filter((pid) => { const r = fieldDiff(t, cfg.partners[pid]).find((x) => eqk(x.key, f.key)); return r && r.s !== 'same'; });
+      last = `<td id="lech-${i}">${lech.map((pid) => { const r = fieldDiff(t, cfg.partners[pid]).find((x) => eqk(x.key, f.key)); return `<span class="chip ${r.s === 'missing' ? 'e' : 'w'}" title="${esc(ST[r.s][1] + (r.d.length ? ': ' + r.d.join('; ') : ''))}">${esc(partnerOf(pid).code)} ${ST[r.s][0]}</span>`; }).join(' ') || '<span class="note">—</span>'}</td>`;
+      first = '';
+    } else {
+      const tf = t.fields.find((x) => eqk(x.key, f.key));
+      const st = tf ? fStatus(f, tf) : { s: 'new', d: [] };
+      first = `<td class="c" id="st-${scope}-${i}">${stIcon(st.s, st.d)}</td>`;
+    }
+    return `<tr class="${f.fresh ? 'fresh' : ''}">${first}
+      <td class="mono">${esc(f.key)}${f.fresh ? ' <span class="chip k">mới</span>' : ''}</td>
+      <td><input type="text" class="cell" value="${esc(f.name)}" data-bind="field" data-scope="${scope}" data-i="${i}" data-k="name" /></td>
+      <td><select class="cell" data-bind="field" data-scope="${scope}" data-i="${i}" data-k="type">${TYPES.map((x) => `<option ${x === f.type ? 'selected' : ''}>${x}</option>`).join('')}</select></td>
+      <td class="c"><input type="checkbox" ${f.required ? 'checked' : ''} data-bind="field" data-scope="${scope}" data-i="${i}" data-k="required" aria-label="Bắt buộc" /></td>
+      <td><input type="text" class="cell" value="${esc(f.note)}" data-bind="field" data-scope="${scope}" data-i="${i}" data-k="note" placeholder="Ghi chú" /></td>
+      <td><select class="cell" data-bind="field" data-scope="${scope}" data-i="${i}" data-k="active"><option value="1" ${f.active ? 'selected' : ''}>Hoạt động</option><option value="0" ${f.active ? '' : 'selected'}>Tắt</option></select></td>
+      ${isTpl ? last : ''}
+    </tr>`;
+  }).join('');
+  return `<div class="block">
+    <div class="block-head">2. Trường dữ liệu <span class="chip">${c.fields.length}</span> <span class="note" style="font-weight:400">— phân tích từ alias khi Lưu</span><span class="sp"></span>${summary}</div>
+    <div class="block-body tbl-wrap">
+      <table class="g">
+        <thead><tr>${isTpl ? '' : '<th class="c" title="So với mẫu">So với mẫu</th>'}<th>Khoá (alias)</th><th>Tên hiển thị</th><th>Kiểu</th><th class="c">Bắt buộc</th><th>Ghi chú</th><th>Trạng thái</th>${isTpl ? '<th>Lệch ở đối tác</th>' : ''}</tr></thead>
+        <tbody>${rows}${missingRows}</tbody>
+      </table>
+      ${c.fields.length ? '' : '<div class="note" style="padding:8px">Chưa có trường. Nhập SQL rồi bấm Lưu &amp; phân tích.</div>'}
+    </div>
+  </div>`;
+}
+
+function paramBlock(scope, c, cfg) {
+  const isTpl = scope === 'tpl', t = cfg.tpl;
+  const inp = (i, k, v, ph, cls) => `<input type="text" class="cell ${cls || ''}" value="${esc(v)}" placeholder="${ph}" data-bind="param" data-scope="${scope}" data-i="${i}" data-k="${k}" />`;
+  let missingRows = '';
+  if (!isTpl) missingRows = paramDiff(t, c).filter((r) => r.s === 'missing').map((r) => `<tr class="ghost"><td class="c">${stIcon('missing')}</td><td class="mono">${esc(r.key)}</td><td>${SOURCES[r.tp.source]}</td><td colspan="4">Có ở mẫu, câu truy vấn đối tác không dùng</td></tr>`).join('');
+  const rows = c.params.map((p, i) => {
+    let first = '';
+    if (!isTpl) { const tp = t.params.find((x) => eqk(x.name, p.name)); const st = tp ? pStatus(p, tp) : { s: 'new', d: [] }; first = `<td class="c">${stIcon(st.s, st.d)}</td>`; }
+    const prev = p.source === 'prev', none = '<span class="note">—</span>';
+    let saved = none;
+    if (prev) saved = isTpl ? '<span class="note">Lưu riêng theo từng đối tác</span>'
+      : p.lastValue ? `<span class="mono" style="font-size:11.5px">${esc(p.lastValue)}</span> <button class="btn mini" data-act="resetLast" data-scope="${scope}" data-i="${i}" ${dis()} title="Xoá giá trị đã lưu, lần chạy sau dùng giá trị mặc định">↺</button>`
+      : '<span class="note">Chưa có — dùng mặc định</span>';
+    return `<tr>${first}
+      <td class="mono">${esc(p.name)}</td>
+      <td style="min-width:118px"><select class="cell" data-bind="param" data-scope="${scope}" data-i="${i}" data-k="source">${Object.entries(SOURCES).map(([k, v]) => `<option value="${k}" ${k === p.source ? 'selected' : ''}>${v}</option>`).join('')}</select></td>
+      <td style="min-width:180px">${prev ? `<textarea rows="3" style="font-size:12px" spellcheck="false" data-bind="param" data-scope="${scope}" data-i="${i}" data-k="expr" placeholder="Biểu thức trong SQL">${esc(p.expr)}</textarea>` : none}</td>
+      <td style="min-width:120px">${prev ? inp(i, 'storeKey', p.storeKey, 'vd: LAST_WRITE_LANE', 'mono') + (p.storeKey ? '' : '<div><span class="chip e">Chưa đặt key</span></div>') : none}</td>
+      <td>${p.source === 'now' ? '<span class="note">tự động</span>' : inp(i, 'value', p.value, prev ? 'Dùng khi chưa có giá trị lưu' : 'Giá trị')}</td>
+      <td>${saved}</td>
+    </tr>`;
+  }).join('');
+  return `<div class="block">
+    <div class="block-head">3. Tham số điều kiện <span class="chip">${c.params.length}</span> <span class="note" style="font-weight:400">— trích <code>@ten</code> trong SQL khi Lưu</span></div>
+    <div class="block-body tbl-wrap">
+      <table class="g">
+        <thead><tr>${isTpl ? '' : '<th class="c">So với mẫu</th>'}<th>Tham số</th><th>Nguồn giá trị</th><th>Biểu thức cần lưu</th><th>Key lưu trữ</th><th>Giá trị nhập / mặc định</th><th>Giá trị đã lưu</th></tr></thead>
+        <tbody>${rows}${missingRows}</tbody>
+      </table>
+      ${c.params.length || missingRows ? '' : '<div class="note" style="padding:8px">Câu truy vấn không dùng tham số nào.</div>'}
+      <div class="note" style="margin-top:6px"><b>Giá trị lần trước:</b> sau mỗi lần gửi thành công, engine lấy giá trị lớn nhất của <em>biểu thức cần lưu</em> trên các dòng vừa gửi và ghi vào bảng trạng thái theo <em>key lưu trữ</em> (riêng từng đối tác). Lần chạy sau, giá trị đó được thay vào tham số.
+        Vd: <code>WHERE CONVERT(varchar(23), Write_Date , 121) +'_' +MSLANE &gt; @lastKey</code> → biểu thức cần lưu là <code>CONVERT(varchar(23), Write_Date , 121) +'_' +MSLANE</code> (gói 101, 103).</div>
+    </div>
+  </div>`;
+}
+
+/* ===================== Hành động ===================== */
+function doSave(scope) {
+  if (!S.superAdmin) return;
+  const cfg = cfgOf(S.packetCode), c = getConf(scope);
+  const r = parseSql(c.sql);
+  if (!r.aliases.length) { c.lastParse = { err: true, warnings: r.warnings.length ? r.warnings : ['Không tìm thấy cột nào có alias.'] }; renderDetail(); return; }
+  const changed = normLine(c.sql) !== normLine(c.savedSql);
+  const oldKeys = c.fields.map((f) => f.key);
+  c.fields = mergeFields(c.fields, r.aliases, scope === 'tpl' ? [] : cfg.tpl.fields);
+  c.params = mergeParams(c.params, r, scope === 'tpl' ? [] : cfg.tpl.params);
+  c.savedSql = c.sql;
+  let ver = null;
+  if (scope === 'tpl' && changed) { cfg.tpl.version++; cfg.tpl.updatedAt = nowStr(); ver = cfg.tpl.version; }
+  c.lastParse = { warnings: r.warnings, added: c.fields.filter((f) => f.fresh).map((f) => f.key), removed: oldKeys.filter((k) => !r.aliases.some((a) => eqk(a, k))), nf: c.fields.length, np: c.params.length, ver };
+  renderDetail(); renderPackets();
+  toast(ver ? `Đã lưu mẫu chung — v${ver}` : 'Đã lưu và phân tích');
+}
+
+function openModal(id) { $(id).hidden = false; }
+function closeModal(el) { el.hidden = true; }
+
+function openSql(scope) {
+  S.sqlScope = scope;
+  const c = getConf(scope);
+  $('#mSqlT').textContent = `Soạn câu truy vấn — ${scope === 'tpl' ? 'Mẫu chung' : partnerOf(scope).code} · gói ${S.packetCode}`;
+  const ta = $('#mSqlText');
+  ta.value = c.sql; ta.readOnly = !S.superAdmin;
+  $('#mSqlApply').disabled = $('#mSqlSave').disabled = !S.superAdmin;
+  sqlInfo();
+  openModal('#mSql'); ta.focus();
+}
+function sqlInfo() {
+  const r = parseSql($('#mSqlText').value);
+  $('#mSqlInfo').innerHTML = `Phát hiện <b>${r.aliases.length}</b> alias${r.aliases.length ? ': <code>' + r.aliases.map(esc).join(', ') + '</code>' : ''} · <b>${r.params.length}</b> tham số${r.params.length ? ': <code>' + r.params.map(esc).join(', ') + '</code>' : ''}${r.warnings.length ? ` · <span style="color:var(--warn)">${r.warnings.length} cảnh báo</span>` : ''}`;
+}
+
+function openSetup() {
+  if (!S.superAdmin) return;
+  const pk = curPacket(), cfg = cfgOf(pk.code);
+  const avail = PARTNERS.filter((p) => !cfg.partners[p.id]);
+  if (!avail.length) { toast('Tất cả đối tác đã có cấu hình riêng cho gói này'); return; }
+  $('#setupPartner').innerHTML = avail.map((p) => `<option value="${p.id}">${esc(p.code)} — ${esc(p.name)} ${pk.usage[p.id] ? '(đang dùng theo mẫu)' : '(chưa dùng gói)'}</option>`).join('');
+  if (S.partnerFilter && avail.some((p) => p.id === S.partnerFilter)) $('#setupPartner').value = S.partnerFilter;
+  $('#setupVer').textContent = 'v' + cfg.tpl.version;
+  const others = Object.keys(cfg.partners);
+  $('#setupOther').innerHTML = others.length ? others.map((pid) => `<option value="${pid}">${esc(partnerOf(pid).code)}</option>`).join('') : '<option value="">(chưa có)</option>';
+  $('#setupOther').disabled = !others.length;
+  document.querySelector('input[name=setupSrc][value=other]').disabled = !others.length;
+  document.querySelector('input[name=setupSrc][value=tpl]').checked = true;
+  openModal('#mSetup');
+}
+function doSetup() {
+  const pk = curPacket(), cfg = cfgOf(pk.code), pid = $('#setupPartner').value;
+  const src = document.querySelector('input[name=setupSrc]:checked').value;
+  let c;
+  if (src === 'other' && $('#setupOther').value) { c = clone(cfg.partners[$('#setupOther').value]); }
+  else { const t = clone(cfg.tpl); c = { sql: t.savedSql, savedSql: t.savedSql, fields: t.fields, params: t.params, baseVersion: cfg.tpl.version }; }
+  c.fields.forEach((f) => (f.fresh = false)); delete c.lastParse;
+  cfg.partners[pid] = c; pk.usage[pid] = 'custom'; S.tab = pid;
+  closeModal($('#mSetup')); renderPartners(); renderPackets(); renderDetail();
+  toast(`Đã tạo cấu hình riêng cho ${partnerOf(pid).code}`);
+}
+function removeCustom(pid) {
+  if (!confirm(`Bỏ cấu hình riêng của ${partnerOf(pid).code}? Đối tác sẽ dùng thẳng mẫu chung.`)) return;
+  const pk = curPacket(); delete cfgOf(pk.code).partners[pid]; pk.usage[pid] = 'template'; S.tab = 'tpl';
+  renderPackets(); renderDetail(); toast('Đã bỏ cấu hình riêng');
+}
+
+/* ---------- So sánh ---------- */
+function compareHtml(pid) {
+  const cfg = cfgOf(S.packetCode), t = cfg.tpl, p = cfg.partners[pid], pr = partnerOf(pid);
+  const segs = sqlSegs(t.savedSql, p.savedSql), hunks = segs.filter((s) => s.h);
+  let li = 0, lj = 0, rows = '';
+  segs.forEach((s) => {
+    if (s.eq) { li++; lj++; rows += `<tr><td class="ln">${li}</td><td class="code">${esc(s.a)}</td><td class="ln">${lj}</td><td class="code">${esc(s.b)}</td></tr>`; return; }
+    rows += `<tr class="hk"><td colspan="4">Đoạn khác #${s.k + 1} · mẫu ${s.dels.length} dòng ↔ đối tác ${s.adds.length} dòng
+      <button class="btn mini" style="margin-left:8px" data-cact="hunk" data-pid="${pid}" data-k="${s.k}" ${dis()}>← Áp dụng đoạn này từ mẫu</button></td></tr>`;
+    for (let i = 0; i < Math.max(s.dels.length, s.adds.length); i++) {
+      const L = i < s.dels.length ? `<td class="ln">${++li}</td><td class="code d-tpl">${esc(s.dels[i])}</td>` : '<td class="ln"></td><td class="code d-empty"></td>';
+      const R = i < s.adds.length ? `<td class="ln">${++lj}</td><td class="code d-ptn">${esc(s.adds[i])}</td>` : '<td class="ln"></td><td class="code d-empty"></td>';
+      rows += `<tr>${L}${R}</tr>`;
+    }
+  });
+  const fd = fieldDiff(t, p), pd = paramDiff(t, p);
+  const fRows = fd.map((r) => `<tr><td class="c">${stIcon(r.s, r.d)}</td><td class="mono">${esc(r.key)}</td>
+      <td>${r.tf ? `${esc(r.tf.name)} · ${r.tf.type}${r.tf.required ? ' · bắt buộc' : ''}` : '<span class="note">—</span>'}</td>
+      <td>${r.pf ? `${esc(r.pf.name)} · ${r.pf.type}${r.pf.required ? ' · bắt buộc' : ''}` : '<span class="note">—</span>'}</td>
+      <td>${r.s === 'diff' ? `<button class="btn mini" data-cact="fieldTpl" data-pid="${pid}" data-key="${esc(r.key)}">Lấy theo mẫu</button>` : r.s === 'missing' ? '<span class="note">Áp dụng đoạn SQL tương ứng ở trên</span>' : r.s === 'new' ? '<span class="note">Riêng đối tác</span>' : ''}</td></tr>`).join('');
+  const pRows = pd.map((r) => { const fmt = (x) => (x ? `${SOURCES[x.source]}${x.source === 'prev' ? ' · <code>' + esc(x.expr || '?') + '</code> · key <b>' + esc(x.storeKey || '(chưa đặt)') + '</b>' : ''}${x.value ? (x.source === 'prev' ? ' · mặc định ' : ' = ') + esc(x.value) : ''}` : '<span class="note">—</span>'); return `<tr><td class="c">${stIcon(r.s, r.d)}</td><td class="mono">${esc(r.key)}</td><td>${fmt(r.tp)}</td><td>${fmt(r.pp)}</td>
+      <td>${r.s === 'diff' ? `<button class="btn mini" data-cact="paramTpl" data-pid="${pid}" data-key="${esc(r.key)}">Lấy theo mẫu</button>` : r.s === 'new' ? '<span class="note">Riêng đối tác</span>' : r.s === 'missing' ? '<span class="note">Áp dụng đoạn SQL tương ứng</span>' : ''}</td></tr>`; }).join('');
+  const outdated = p.baseVersion < t.version;
+  return `
+    <div class="row" style="margin-bottom:8px">
+      <span class="chip k">Mẫu chung v${t.version}</span> ⇄ <span class="chip w">${esc(pr.code)} · dựa trên v${p.baseVersion}</span>
+      ${outdated ? '<span class="chip w">Mẫu đã đổi sau khi sao chép</span>' : ''}
+      <span class="sp"></span>
+      <span class="legend"><span><span class="chip" style="background:#e3f3e7">&nbsp;&nbsp;</span> chỉ mẫu có</span><span><span class="chip" style="background:#fdefd6">&nbsp;&nbsp;</span> chỉ đối tác có</span><span>bỏ qua khác biệt khoảng trắng</span></span>
+    </div>
+    <h4 style="margin:6px 0">Câu truy vấn ${hunks.length ? `<span class="chip w">${hunks.length} đoạn khác</span>` : '<span class="chip o">giống mẫu</span>'}</h4>
+    <div class="diff-box"><table class="diff"><colgroup><col style="width:36px"><col><col style="width:36px"><col></colgroup>
+      <thead><tr><th colspan="2">Mẫu chung (v${t.version})</th><th colspan="2">${esc(pr.code)}</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <h4 style="margin:12px 0 6px">Trường dữ liệu</h4>
+    <div class="tbl-wrap"><table class="g"><thead><tr><th class="c">Trạng thái</th><th>Khoá</th><th>Mẫu</th><th>${esc(pr.code)}</th><th></th></tr></thead><tbody>${fRows}</tbody></table></div>
+    <h4 style="margin:12px 0 6px">Tham số điều kiện</h4>
+    <div class="tbl-wrap"><table class="g"><thead><tr><th class="c">Trạng thái</th><th>Tham số</th><th>Mẫu</th><th>${esc(pr.code)}</th><th></th></tr></thead><tbody>${pRows || '<tr><td colspan="5" class="note">Không có tham số</td></tr>'}</tbody></table></div>`;
+}
+function compareFoot(pid) {
+  const cfg = cfgOf(S.packetCode), p = cfg.partners[pid];
+  return `<button class="btn danger" data-cact="replaceAll" data-pid="${pid}" ${dis()}>Thay toàn bộ bằng mẫu</button>
+    <button class="btn" data-cact="markSynced" data-pid="${pid}" ${p.baseVersion < cfg.tpl.version ? '' : 'disabled'} title="Giữ khác biệt hiện tại, ghi nhận đã xem phiên bản mẫu mới">Đánh dấu đã đồng bộ v${cfg.tpl.version}</button>
+    <span class="sp"></span>
+    <button class="btn" data-cact="gotoTab" data-pid="${pid}">Mở tab ${esc(partnerOf(pid).code)}</button>
+    <button class="btn primary" data-close>Đóng</button>`;
+}
+function openCompare(pid) {
+  S.cmpPid = pid;
+  $('#mCompareT').textContent = `So sánh mẫu chung ↔ ${partnerOf(pid).code} · gói ${S.packetCode}`;
+  refreshModals(); openModal('#mCompare');
+}
+function renderAll() {
+  const cfg = cfgOf(S.packetCode), pk = curPacket(), pids = Object.keys(cfg.partners);
+  if (S.allTab !== 'overview' && !cfg.partners[S.allTab]) S.allTab = 'overview';
+  $('#mAllT').textContent = `So sánh mẫu chung với tất cả đối tác · gói ${pk.code}`;
+  $('#mAllTabs').innerHTML = `<button class="tab ${S.allTab === 'overview' ? 'active' : ''}" data-alltab="overview">Tổng quan</button>` +
+    pids.map((pid) => { const d = driftInfo(pk.code, pid); return `<button class="tab ${S.allTab === pid ? 'active' : ''}" data-alltab="${pid}">${esc(partnerOf(pid).code)}${d.any ? '<span class="dot"></span>' : ''}</button>`; }).join('');
+  if (S.allTab !== 'overview') { $('#mAllBody').innerHTML = compareHtml(S.allTab); $('#mAllFoot').innerHTML = compareFoot(S.allTab); return; }
+  const t = cfg.tpl, infos = Object.fromEntries(pids.map((pid) => [pid, driftInfo(pk.code, pid)]));
+  const keys = [...t.fields.map((f) => f.key)];
+  pids.forEach((pid) => cfg.partners[pid].fields.forEach((f) => { if (!keys.some((k) => eqk(k, f.key))) keys.push(f.key); }));
+  const pkeys = [...t.params.map((p) => p.name)];
+  pids.forEach((pid) => cfg.partners[pid].params.forEach((p) => { if (!pkeys.some((k) => eqk(k, p.name))) pkeys.push(p.name); }));
+  const cell = (rows, key) => { const r = rows.find((x) => eqk(x.key, key)); return r ? r : null; };
+  const lineRow = (label, key, isParam) => {
+    const tf = isParam ? t.params.find((x) => eqk(x.name, key)) : t.fields.find((x) => eqk(x.key, key));
+    const cells = pids.map((pid) => { const r = cell(isParam ? infos[pid].pd : infos[pid].fd, key); return r ? { s: r.s, d: r.d } : null; });
+    if (S.onlyDiff && cells.every((c) => !c || c.s === 'same')) return '';
+    return `<tr><td class="mono">${esc(label)}</td><td>${tf ? (isParam ? `${SOURCES[tf.source]}${tf.storeKey ? ' · key ' + esc(tf.storeKey) : ''}` : `${esc(tf.name)} · ${tf.type}`) : '<span class="note">— (không có ở mẫu)</span>'}</td>
+      ${cells.map((c) => `<td class="c">${c ? stIcon(c.s, c.d) : '<span class="note">·</span>'}</td>`).join('')}</tr>`;
+  };
+  const tplUsers = Object.keys(pk.usage).filter((id) => pk.usage[id] === 'template');
+  $('#mAllBody').innerHTML = !pids.length ? '<div class="note">Chưa có đối tác nào có cấu hình riêng.</div>' : `
+    <div class="row" style="margin-bottom:8px">
+      <span class="legend"><span>${stIcon('same')} giống</span><span>${stIcon('new')} mới</span><span>${stIcon('missing')} thiếu</span><span>${stIcon('diff')} khác</span></span>
+      <span class="sp"></span>
+      <label class="note"><input type="checkbox" id="onlyDiff" ${S.onlyDiff ? 'checked' : ''}> Chỉ hiện dòng có khác biệt</label>
+    </div>
+    <div class="tbl-wrap"><table class="g">
+      <thead><tr><th>Khoá</th><th>Mẫu chung v${t.version}</th>${pids.map((pid) => `<th class="c"><button class="btn link" data-alltab="${pid}">${esc(partnerOf(pid).code)}</button></th>`).join('')}</tr></thead>
+      <tbody>
+        <tr><td colspan="2"><b>Dựa trên phiên bản mẫu</b></td>${pids.map((pid) => `<td class="c"><span class="chip ${infos[pid].outdated ? 'w' : 'o'}">v${cfg.partners[pid].baseVersion}</span></td>`).join('')}</tr>
+        <tr><td colspan="2"><b>Câu truy vấn</b> — số đoạn khác</td>${pids.map((pid) => `<td class="c">${infos[pid].hunks ? `<span class="chip w">${infos[pid].hunks}</span>` : '<span class="chip o">0</span>'}</td>`).join('')}</tr>
+        <tr><td colspan="${2 + pids.length}" style="background:#f7f8fa;font-weight:600">Trường dữ liệu</td></tr>
+        ${keys.map((k) => lineRow(k, k, false)).join('')}
+        <tr><td colspan="${2 + pids.length}" style="background:#f7f8fa;font-weight:600">Tham số điều kiện</td></tr>
+        ${pkeys.map((k) => lineRow(k, k, true)).join('')}
+        <tr><td colspan="2"></td>${pids.map((pid) => `<td class="c"><button class="btn mini" data-alltab="${pid}">Xem chi tiết</button></td>`).join('')}</tr>
+      </tbody></table></div>
+    ${tplUsers.length ? `<p class="note">Dùng thẳng mẫu chung (luôn đồng bộ, không cần so sánh): ${tplUsers.map((id) => partnerOf(id).code).join(', ')}.</p>` : ''}`;
+  $('#mAllFoot').innerHTML = '<button class="btn primary" data-close>Đóng</button>';
+}
+function refreshModals() {
+  if (!$('#mCompare').hidden || S.cmpPid) {
+    if (S.cmpPid && cfgOf(S.packetCode).partners[S.cmpPid]) { $('#mCompareBody').innerHTML = compareHtml(S.cmpPid); $('#mCompareFoot').innerHTML = compareFoot(S.cmpPid); }
+  }
+  if (!$('#mAll').hidden) renderAll();
+}
+function applyHunk(pid, k) {
+  if (!S.superAdmin) return;
+  const cfg = cfgOf(S.packetCode), t = cfg.tpl, p = cfg.partners[pid], out = [];
+  if (p.sql !== p.savedSql && !confirm(`Trình soạn của ${partnerOf(pid).code} có thay đổi chưa lưu. So sánh dựa trên bản đã lưu — áp dụng sẽ bỏ thay đổi chưa lưu. Tiếp tục?`)) return;
+  sqlSegs(t.savedSql, p.savedSql).forEach((s) => { if (s.eq) out.push(s.b); else out.push(...(s.k === k ? s.dels : s.adds)); });
+  p.sql = p.savedSql = out.join('\n');
+  const r = parseSql(p.sql);
+  p.fields = mergeFields(p.fields, r.aliases, t.fields);
+  p.params = mergeParams(p.params, r, t.params);
+  delete p.lastParse;
+  renderDetail(); refreshModals(); renderPackets();
+  toast(`Đã áp dụng đoạn #${k + 1} từ mẫu vào ${partnerOf(pid).code}`);
+}
+function onCompareAct(e) {
+  const b = e.target.closest('[data-cact]');
+  if (!b || b.disabled) return;
+  const pid = b.dataset.pid, cfg = cfgOf(S.packetCode), t = cfg.tpl, p = cfg.partners[pid];
+  switch (b.dataset.cact) {
+    case 'hunk': applyHunk(pid, +b.dataset.k); return;
+    case 'fieldTpl': { const tf = t.fields.find((f) => eqk(f.key, b.dataset.key)), pf = p.fields.find((f) => eqk(f.key, b.dataset.key)); Object.assign(pf, { name: tf.name, type: tf.type, required: tf.required, note: tf.note }); toast(`Đã lấy thuộc tính trường ${tf.key} theo mẫu`); break; }
+    case 'paramTpl': { const tp = t.params.find((x) => eqk(x.name, b.dataset.key)), pp = p.params.find((x) => eqk(x.name, b.dataset.key)); Object.assign(pp, { source: tp.source, expr: tp.expr, value: tp.value, storeKey: tp.storeKey }); toast(`Đã lấy tham số ${tp.name} theo mẫu`); break; }
+    case 'replaceAll':
+      if (!confirm(`Thay toàn bộ câu truy vấn, trường và tham số của ${partnerOf(pid).code} bằng mẫu chung v${t.version}?`)) return;
+      Object.assign(p, { sql: t.savedSql, savedSql: t.savedSql, fields: clone(t.fields).map((f) => ({ ...f, fresh: false })), params: clone(t.params), baseVersion: t.version });
+      delete p.lastParse; toast('Đã thay bằng mẫu chung'); break;
+    case 'markSynced': p.baseVersion = t.version; toast(`Đã ghi nhận ${partnerOf(pid).code} đồng bộ với v${t.version}`); break;
+    case 'gotoTab': S.tab = pid; closeModal($('#mCompare')); closeModal($('#mAll')); S.cmpPid = null; break;
+  }
+  renderDetail(); renderPackets(); refreshModals();
+}
+
+/* ===================== Gắn sự kiện ===================== */
+$('#plist').addEventListener('click', (e) => {
+  const it = e.target.closest('.item'); if (!it) return;
+  S.partnerFilter = it.dataset.pid || null;
+  const pk = curPacket();
+  if (S.partnerFilter && pk && !pk.usage[S.partnerFilter]) { const first = PACKETS.find((p) => p.usage[S.partnerFilter]); S.packetCode = first ? first.code : null; }
+  if (S.partnerFilter && curPacket() && curPacket().usage[S.partnerFilter] === 'custom') S.tab = S.partnerFilter; else S.tab = 'tpl';
+  renderPartners(); renderPackets(); renderDetail();
+});
+$('#partnerQ').addEventListener('input', (e) => { S.partnerQ = e.target.value; renderPartners(); });
+$('#packetQ').addEventListener('input', (e) => { S.packetQ = e.target.value; renderPackets(); });
+$('#filterOn').addEventListener('click', (e) => { if (e.target.id === 'clearPf') { S.partnerFilter = null; renderPartners(); renderPackets(); } });
+$('#packetTbl').addEventListener('click', (e) => {
+  const tr = e.target.closest('tr[data-code]'); if (!tr) return;
+  S.packetCode = tr.dataset.code;
+  S.tab = S.partnerFilter && curPacket().usage[S.partnerFilter] === 'custom' ? S.partnerFilter : 'tpl';
+  renderPackets(); renderDetail();
+});
+$('#btnSplit').addEventListener('click', () => {
+  S.paneOpen = !S.paneOpen;
+  $('#layout').classList.toggle('closed', !S.paneOpen);
+  $('#btnSplit').textContent = S.paneOpen ? '‹' : '›';
+});
+$('#role').addEventListener('change', (e) => { S.superAdmin = e.target.value === '1'; renderDetail(); refreshModals(); });
+
+const detail = $('#detail');
+detail.addEventListener('click', (e) => {
+  const tab = e.target.closest('[data-tab]');
+  if (tab) { S.tab = tab.dataset.tab; renderDetail(); return; }
+  const b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
+  const act = b.dataset.act;
+  if (act === 'save') doSave(b.dataset.scope);
+  else if (act === 'expand') openSql(b.dataset.scope);
+  else if (act === 'setup') openSetup();
+  else if (act === 'compare') openCompare(b.dataset.pid);
+  else if (act === 'removeCustom') removeCustom(b.dataset.pid);
+  else if (act === 'resetLast') { getConf(b.dataset.scope).params[+b.dataset.i].lastValue = ''; renderDetail(); toast('Đã xoá giá trị đã lưu — lần chạy sau dùng giá trị mặc định'); }
+  else if (act === 'compareAll') { S.allTab = 'overview'; renderAll(); openModal('#mAll'); }
+});
+detail.addEventListener('input', (e) => {
+  const el = e.target, bind = el.dataset.bind; if (!bind) return;
+  const c = getConf(el.dataset.scope);
+  if (bind === 'sql') { c.sql = el.value; const d = detail.querySelector(`[data-dirty="${el.dataset.scope}"]`); if (d) d.textContent = c.sql !== c.savedSql ? '● Chưa lưu' : ''; return; }
+  if (el.type === 'text' || el.type === 'textarea') { const list = bind === 'field' ? c.fields : c.params; list[+el.dataset.i][el.dataset.k] = el.value; }
+});
+detail.addEventListener('change', (e) => {
+  const el = e.target, bind = el.dataset.bind; if (!bind || bind === 'sql') return;
+  const c = getConf(el.dataset.scope), list = bind === 'field' ? c.fields : c.params, item = list[+el.dataset.i], k = el.dataset.k;
+  item[k] = el.type === 'checkbox' ? el.checked : k === 'active' ? el.value === '1' : el.value;
+  if (el.type === 'text' || el.type === 'textarea') {
+    // Ô chữ: chỉ cập nhật ô trạng thái để không mất focus khi Tab sang ô kế
+    const cell = detail.querySelector(`#st-${el.dataset.scope}-${el.dataset.i}`);
+    if (cell && bind === 'field') { const tf = cfgOf(S.packetCode).tpl.fields.find((x) => eqk(x.key, item.key)); const st = tf ? fStatus(item, tf) : { s: 'new', d: [] }; cell.innerHTML = stIcon(st.s, st.d); }
+    return;
+  }
+  if (bind === 'param' && k === 'source') {
+    if (item.source === 'prev' && !item.expr) item.expr = parseSql(c.savedSql).exprs[item.name] || '';
+  }
+  // Cập nhật lại để cột "So với mẫu" / "Lệch ở đối tác" phản ánh ngay; giữ vị trí cuộn
+  const y = window.scrollY; renderDetail(); window.scrollTo(0, y);
+});
+
+$('#mSqlText').addEventListener('input', sqlInfo);
+$('#mSqlApply').addEventListener('click', () => { const c = getConf(S.sqlScope); c.sql = $('#mSqlText').value; closeModal($('#mSql')); renderDetail(); });
+$('#mSqlSave').addEventListener('click', () => { const c = getConf(S.sqlScope); c.sql = $('#mSqlText').value; closeModal($('#mSql')); doSave(S.sqlScope); });
+$('#setupOk').addEventListener('click', doSetup);
+$('#mCompare').addEventListener('click', onCompareAct);
+$('#mAll').addEventListener('click', (e) => {
+  const t = e.target.closest('[data-alltab]');
+  if (t) { S.allTab = t.dataset.alltab; renderAll(); return; }
+  onCompareAct(e);
+});
+$('#mAll').addEventListener('change', (e) => { if (e.target.id === 'onlyDiff') { S.onlyDiff = e.target.checked; renderAll(); } });
+document.addEventListener('click', (e) => {
+  const c = e.target.closest('[data-close]');
+  if (c) { const m = c.closest('.modal'); closeModal(m); if (m.id === 'mCompare') S.cmpPid = null; }
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  const open = [...document.querySelectorAll('.modal')].filter((m) => !m.hidden).pop();
+  if (open) { closeModal(open); if (open.id === 'mCompare') S.cmpPid = null; }
+});
+
+// Mở nhanh trạng thái qua hash: #tab=vdot | #compare=vdot | #all | #all=vdot
+PACKETS.forEach((p) => cfgOf(p.code));
+const H = Object.fromEntries(location.hash.slice(1).split('&').filter(Boolean).map((x) => x.split('=')));
+if (H.packet && PACKETS.some((p) => p.code === H.packet)) S.packetCode = H.packet;
+if (H.tab) S.tab = H.tab;
+if ('closed' in H) $('#btnSplit').click();
+renderPartners(); renderPackets(); renderDetail();
+if (H.compare) openCompare(H.compare);
+if ('all' in H) { S.allTab = H.all || 'overview'; renderAll(); openModal('#mAll'); }
+</script>
+</body>
+</html>
