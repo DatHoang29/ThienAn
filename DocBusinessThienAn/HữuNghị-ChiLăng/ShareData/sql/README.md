@@ -32,9 +32,9 @@
 
 | Thứ tự | Tệp | Bảng ghi | Nội dung |
 | :---: | :--- | :--- | :--- |
-| **1** | [`sharedata-seed-goi-tin-ShareDataPacket.sql`](sharedata-seed-goi-tin-ShareDataPacket.sql) | `ShareDataPacket` | Thêm 11 gói Catalog (101–111) nếu chưa có, chuẩn hóa `OrderNo`, nạp `TemplateSql` (câu mẫu gốc), chuẩn hóa `Status` (bật 101–110, tắt 111), đổi `__rowid` → `__lastKey` trong `TemplateSql`. |
-| **2** | [`sharedata-seed-goi-tin-ShareDataSql.sql`](sharedata-seed-goi-tin-ShareDataSql.sql) | `ShareDataSql` | Chuyển câu SQL cũ (cột `ShareDataPacket.ExtractSql/CursorTimeColumn`, bảng `ShareDataPartnerSql`, cột `ShareDataMapping.ExtractSql`) sang `ShareDataSql`; nạp câu mẫu chung (dòng `PartnerId` trống) theo `TemplateSql` khi đang trống; đổi `__rowid` → `__lastKey`. **Chạy sau tệp 1** vì đọc `TemplateSql`. |
-| **3** | [`sharedata-seed-goi-tin-ShareDataPacketSql.sql`](sharedata-seed-goi-tin-ShareDataPacketSql.sql) | `ShareDataPacketSql` | Nạp 18 câu ghi chiều nhận cho 10 gói (101–109 và 111). |
+| **1** | [`sharedata-seed-goi-tin-ShareDataPacket.sql`](sharedata-seed-goi-tin-ShareDataPacket.sql) | `ShareDataPacket` | Thêm 11 gói Catalog (101–111) nếu chưa có, chuẩn hóa `OrderNo`, chuẩn hóa `Status` (bật 101–110, tắt 111). Không chứa câu SQL (bỏ `TemplateSql` 27/10/2026). |
+| **2** | [`sharedata-seed-goi-tin-ShareDataSql.sql`](sharedata-seed-goi-tin-ShareDataSql.sql) | `ShareDataSql` | Chuyển câu SQL cũ (cột `ShareDataPacket.ExtractSql/CursorTimeColumn`, bảng `ShareDataPartnerSql`, cột `ShareDataMapping.ExtractSql`) sang `ShareDataSql`; nạp câu mẫu chung (dòng `PartnerId` trống) khi đang trống — **nơi duy nhất chứa câu SQL mẫu chuẩn 101–111**; đổi `__rowid` → `__lastKey`. **Chạy sau tệp 1** vì cần bản ghi gói. Bộ biến câu truy vấn lưu ở cột `VariablesJson` (bỏ bảng `ShareDataSqlVariable`, tự chuyển dữ liệu cũ); câu ghi chiều nhận ở `WriteSql`, `AffectedTables` của dòng mẫu chung. |
+| ~~3~~ | ~~`sharedata-seed-goi-tin-ShareDataPacketSql.sql`~~ | — | **Đã gộp vào tệp 2 (27/10/2026):** câu ghi chiều nhận nằm ở cột `WriteSql`, `AffectedTables` của dòng mẫu chung `ShareDataSql`; tệp 2 tự chuyển dữ liệu cũ từ bảng `ShareDataPacketSql`. |
 | **4** | [`sharedata-seed-cau-hinh-SysConfigType.sql`](sharedata-seed-cau-hinh-SysConfigType.sql) | `SysConfigType` | Khởi tạo loại danh mục `sharedata_error_code`. |
 | **5** | [`sharedata-seed-cau-hinh-SysConfigData.sql`](sharedata-seed-cau-hinh-SysConfigData.sql) | `SysConfigData` | Nạp 25 mã cảnh báo `ESH-xxxx`; đăng ký nhóm `sharedata_config` vào loại `operation_config_type`. **Chạy sau tệp 4.** |
 | **6** | [`sharedata-seed-cau-hinh-ShareDataSourceTable.sql`](sharedata-seed-cau-hinh-ShareDataSourceTable.sql) | `ShareDataSourceTable` | Nạp danh mục 15 bảng nguồn (`IsTracked`, `IsQueryable`, `DefaultAlias`). |
@@ -51,7 +51,7 @@ Chỉ giả lập bảng nghiệp vụ ShareData; không ghi vào bảng của p
 | :---: | :--- | :--- | :--- |
 | **G1** | [`sharedata-du-lieu-gia-lap-ShareDataPacket_local.sql`](local/sharedata-du-lieu-gia-lap-ShareDataPacket_local.sql) | `ShareDataPacket` | Gói kiểm thử `E2E_INBOUND_TEST`. Chạy sau tệp 1. |
 | **G2** | [`sharedata-du-lieu-gia-lap-ShareDataSql_local.sql`](local/sharedata-du-lieu-gia-lap-ShareDataSql_local.sql) | `ShareDataSql` | Câu mẫu chung của `E2E_INBOUND_TEST` theo gói 101. Chạy sau G1 và tệp 2. |
-| **G3** | [`sharedata-du-lieu-gia-lap-ShareDataPacketSql_local.sql`](local/sharedata-du-lieu-gia-lap-ShareDataPacketSql_local.sql) | `ShareDataPacketSql` | Xóa mềm dòng cũ của bản script trước; nạp câu ghi MERGE của `E2E_INBOUND_TEST`. |
+| ~~G3~~ | ~~`sharedata-du-lieu-gia-lap-ShareDataPacketSql_local.sql`~~ | — | **Đã gộp vào G2 (27/10/2026):** khối câu ghi MERGE của `E2E_INBOUND_TEST` nằm ở mục 2 của `sharedata-du-lieu-gia-lap-ShareDataSql_local.sql`. |
 
 - **Dọn dẹp:** mỗi tệp giả lập có khối dọn dẹp riêng, đặt `@XoaDuLieuGiaLap = 1` trong tệp đó. Dọn theo thứ tự ngược: G3 → G2 → G1 (G2 trước G1 vì G2 tìm dòng theo gói `E2E_INBOUND_TEST`).
 - Mọi dòng giả lập gắn `CreateUId = N'SHAREDATA-SEED-GIA-LAP'`.
@@ -76,10 +76,7 @@ CodeFirst tạo khung ➔ 1 ➔ 2 ➔ 3 ➔ 4 ➔ 5 ➔ 6 ➔ 7 ➔ 8 ➔ 9 ➔ 
 ### Tính an toàn khi chạy lại (idempotent)
 
 - Mọi tệp kiểm tra dữ liệu đã có trước khi ghi (`IF NOT EXISTS`, `WHERE NOT EXISTS`, `WHEN NOT MATCHED THEN INSERT`).
-- **Cờ `@GhiDeMauGoiTin`** (mặc định `0`, không ghi đè dữ liệu quản trị đã sửa) có ở hai tệp:
-  - tệp 1 làm mới `TemplateSql`;
-  - tệp 2 làm mới câu mẫu chung trong `ShareDataSql`.
-  Muốn đưa cả hai về mẫu Catalog thì đặt `= 1` ở cả hai tệp.
+- **Cờ `@GhiDeMauGoiTin`** (mặc định `0`, không ghi đè dữ liệu quản trị đã sửa) chỉ còn ở tệp 2: đặt `= 1` để đưa câu mẫu chung trong `ShareDataSql` về mẫu Catalog.
 - **Tệp 7** chỉ thêm tham số `sharedata_config` chưa có, không ghi đè giá trị đang chạy.
 - **Tệp 10** chỉ thêm bản dịch còn thiếu, không làm mất bản dịch đã chỉnh sửa.
 

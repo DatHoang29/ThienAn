@@ -98,9 +98,9 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     }
 
     /// <summary>
-    /// Description: Khi tạo gói tin mới có OrderNo khớp mẫu có sẵn (101, 103, 111), tự động điền câu truy vấn mẫu và thông tin con trỏ từ nguồn
+    /// Description: Khi tạo gói tin mới có OrderNo khớp gói có sẵn (101, 103, 111), chép câu SQL mẫu chung và cột mốc từ ShareDataSql của gói nguồn
     /// Created date: 17/10/2026
-    /// Modified date: 24/10/2026
+    /// Modified date: 27/10/2026 (bỏ TemplateSql, nguồn duy nhất là ShareDataSql)
     /// </summary>
     [Theory]
     [InlineData(101, "101_commonData")]
@@ -123,10 +123,9 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             Name = $"Source {orderNo} {unique}",
             OrderNo = orderNo,
             Status = BaseEnums.StatusEnum.Enable,
-            TemplateSql = tpl.ExtractSql,
             CreateTime = DateTime.UtcNow.AddYears(-10)
         }).ExecuteCommandAsync();
-        await ShareDataSqlSeed.SetCommonAsync(db, seededPacketId, null, tpl.CursorTimeColumn);
+        await ShareDataSqlSeed.SetCommonAsync(db, seededPacketId, tpl.ExtractSql, tpl.CursorTimeColumn);
 
         var code = $"{codePrefix}_{unique}";
         var input = new ShareDataAddPacketInput
@@ -143,7 +142,6 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         // Assert
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
         Assert.NotNull(packet);
-        Assert.Equal(tpl.ExtractSql, packet.TemplateSql);
         var commonSql = await ShareDataSqlSeed.GetCommonAsync(db, packet.ID);
         Assert.Equal(tpl.ExtractSql, commonSql?.ExtractSql);
         if (tpl.CursorTimeColumn != null)
@@ -153,50 +151,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AddPacket_ClientSendsCustomTemplateSql_IsIgnoredAndOverwrittenBySource_Test()
-    {
-        // Arrange
-        SetUserContext(isSuperAdmin: true);
-        using var scope = _host.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-
-        var unique = Guid.NewGuid().ToString("N")[..8];
-        Assert.True(PacketTemplateSeed.TryGet("101", out var tpl101));
-        var seededPacketId4 = Guid.NewGuid().ToString("N");
-        await db.Insertable(new ShareDataPacket
-        {
-            ID = seededPacketId4,
-            Code = $"101_src_{unique}",
-            Name = $"Source 101 {unique}",
-            OrderNo = 101,
-            Status = BaseEnums.StatusEnum.Enable,
-            TemplateSql = tpl101.ExtractSql,
-            CreateTime = DateTime.UtcNow.AddYears(-10)
-        }).ExecuteCommandAsync();
-        await ShareDataSqlSeed.SetCommonAsync(db, seededPacketId4, null, tpl101.CursorTimeColumn);
-
-        var code = $"101_ignore_client_tpl_{unique}";
-        var input = new ShareDataAddPacketInput
-        {
-            Code = code,
-            Name = $"Packet Ignore Client Tpl {unique}",
-            PacketVersion = "1.0",
-            OrderNo = 101,
-            TemplateSql = "SELECT 'HACKED' AS val"
-        };
-
-        // Act
-        await scope.ServiceProvider.CallApiAsync(input);
-
-        // Assert: TemplateSql do client gửi lên bị bỏ qua, ghi đè bằng mẫu từ nguồn
-        var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
-        Assert.NotNull(packet);
-        Assert.Equal(tpl101.ExtractSql, packet.TemplateSql);
-        Assert.NotEqual("SELECT 'HACKED' AS val", packet.TemplateSql);
-    }
-
-    [Fact]
-    public async Task AddPacket_WhenNoSourcePacketExists_LeavesTemplateSqlAndExtractSqlNull_Test()
+    public async Task AddPacket_WhenNoSourcePacketExists_LeavesCommonSqlEmpty_Test()
     {
         // Arrange
         SetUserContext(isSuperAdmin: true);
@@ -216,10 +171,9 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         // Act
         await scope.ServiceProvider.CallApiAsync(input);
 
-        // Assert: Không tìm thấy nguồn -> TemplateSql và ExtractSql đều null
+        // Assert: Không có gói cùng loại có câu SQL -> gói mới chưa có câu SQL mẫu chung
         var packet = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
         Assert.NotNull(packet);
-        Assert.Null(packet.TemplateSql);
         Assert.Null((await ShareDataSqlSeed.GetCommonAsync(db, packet.ID))?.ExtractSql);
     }
 
@@ -250,7 +204,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task UpdatePacket_WhenClientSendsDifferentTemplateSqlOrOrderNo_PreservesTemplateSqlAndOrderNo_Test()
+    public async Task UpdatePacket_WhenClientSendsDifferentOrderNo_PreservesOrderNoAndCommonSql_Test()
     {
         // Arrange
         SetUserContext(isSuperAdmin: true);
@@ -259,8 +213,6 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
 
         var unique = Guid.NewGuid().ToString("N")[..8];
         var code = $"101_upd_lock_{unique}";
-        Assert.True(PacketTemplateSeed.TryGet("101", out var tpl101));
-        var originalTemplate = tpl101.ExtractSql;
         var originalExtract = "SELECT 'ORIGINAL_EXTRACT' AS val";
 
         var packet = new ShareDataPacket
@@ -270,7 +222,6 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             Name = $"Packet Update Lock {unique}",
             OrderNo = 101,
             Status = BaseEnums.StatusEnum.Enable,
-            TemplateSql = originalTemplate,
             CreateTime = DateTime.UtcNow.AddYears(-10)
         };
         await db.Insertable(packet).ExecuteCommandAsync();
@@ -281,63 +232,18 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             ID = packet.ID,
             Code = code,
             Name = $"Packet Update Lock Modified {unique}",
-            OrderNo = 108,
-            TemplateSql = "SELECT 'HACKED_TEMPLATE' AS val"
+            OrderNo = 108
         };
 
         // Act
         await scope.ServiceProvider.CallApiAsync(updateInput);
 
-        // Assert: TemplateSql và OrderNo không bị thay đổi bởi UpdatePacket
+        // Assert: OrderNo và câu SQL mẫu chung không bị thay đổi bởi UpdatePacket
         var inDb = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.ID == packet.ID);
         Assert.NotNull(inDb);
         Assert.Equal($"Packet Update Lock Modified {unique}", inDb.Name);
-        Assert.Equal(originalTemplate, inDb.TemplateSql);
         Assert.Equal(101, inDb.OrderNo);
         Assert.Equal(originalExtract, (await ShareDataSqlSeed.GetCommonAsync(db, inDb.ID))?.ExtractSql);
-    }
-
-    [Fact]
-    public async Task UpdateExtractSql_UpdatesExtractSqlOnly_PreservesTemplateSql_Test()
-    {
-        // Arrange
-        SetUserContext(isSuperAdmin: true);
-        using var scope = _host.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-
-        var unique = Guid.NewGuid().ToString("N")[..8];
-        var code = $"101_save_sql_{unique}";
-        Assert.True(PacketTemplateSeed.TryGet("101", out var tpl101));
-        var originalTemplate = tpl101.ExtractSql;
-
-        var packet = new ShareDataPacket
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            Code = code,
-            Name = $"Packet Save Sql {unique}",
-            OrderNo = 101,
-            Status = BaseEnums.StatusEnum.Enable,
-            TemplateSql = originalTemplate,
-            CreateTime = DateTime.UtcNow.AddYears(-10)
-        };
-        await db.Insertable(packet).ExecuteCommandAsync();
-        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, "SELECT z.ID AS zoneId FROM TmsZone z");
-
-        var newExtractSql = "SELECT z.ID AS zoneId, z.Name AS zoneName FROM TmsZone z";
-        var input = new UpdatePacketExtractSqlInput
-        {
-            PacketCode = code,
-            ExtractSql = newExtractSql
-        };
-
-        // Act
-        await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(input);
-
-        // Assert: ExtractSql được cập nhật, TemplateSql giữ nguyên
-        var inDb = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.ID == packet.ID);
-        Assert.NotNull(inDb);
-        Assert.Equal(newExtractSql, (await ShareDataSqlSeed.GetCommonAsync(db, inDb.ID))?.ExtractSql);
-        Assert.Equal(originalTemplate, inDb.TemplateSql);
     }
 
     [Fact]
@@ -368,85 +274,6 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
 
         // Act & Assert
         await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync(input2));
-    }
-
-    [Fact]
-    public async Task GetExtractSql_ForceDefaultTemplateTrue_ReturnsPacketTemplateSqlWithoutChangingDatabase_Test()
-    {
-        // Arrange
-        SetUserContext(isSuperAdmin: true);
-        using var scope = _host.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-
-        var unique = Guid.NewGuid().ToString("N")[..8];
-        var code = $"103_default_{unique}";
-        var savedCustomSql = "SELECT TOP (1) ID FROM TmsTrafficData";
-        var packetTemplateSql = "SELECT 'CUSTOM_PACKET_TEMPLATE' AS val";
-
-        var packet = new ShareDataPacket
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            Code = code,
-            Name = $"Packet 103 Test {unique}",
-            OrderNo = 103,
-            Status = BaseEnums.StatusEnum.Enable,
-            TemplateSql = packetTemplateSql,
-        };
-        await db.Insertable(packet).ExecuteCommandAsync();
-        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, savedCustomSql, "UpdateTime");
-
-        // Act
-        var output = await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new GetPacketExtractSqlInput
-        {
-            PacketCode = code,
-            ForceDefaultTemplate = true
-        });
-
-        // Assert: Trả đúng TemplateSql của chính gói đó, giữ nguyên cột mốc của gói
-        Assert.NotNull(output);
-        Assert.True(output.HasDefaultTemplate);
-        Assert.Equal(packetTemplateSql, output.ExtractSql);
-        Assert.Equal("UpdateTime", output.CursorTimeColumn);
-
-        // DB không bị thay đổi
-        var inDb = await db.Queryable<ShareDataPacket>().FirstAsync(x => x.Code == code);
-        Assert.Equal(savedCustomSql, (await ShareDataSqlSeed.GetCommonAsync(db, inDb.ID))?.ExtractSql);
-    }
-
-    [Fact]
-    public async Task GetExtractSql_WhenNoTemplateAvailable_ReturnsCurrentDatabaseValueWithHasDefaultFalse_Test()
-    {
-        // Arrange
-        SetUserContext(isSuperAdmin: true);
-        using var scope = _host.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-
-        var unique = Guid.NewGuid().ToString("N")[..8];
-        var code = $"999_notemplate_{unique}";
-        var savedSql = "SELECT TOP (1) ID FROM TmsTrafficData";
-
-        var packet = new ShareDataPacket
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            Code = code,
-            Name = $"Non template packet {unique}",
-            Status = BaseEnums.StatusEnum.Enable,
-            TemplateSql = null,
-        };
-        await db.Insertable(packet).ExecuteCommandAsync();
-        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, savedSql);
-
-        // Act
-        var output = await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new GetPacketExtractSqlInput
-        {
-            PacketCode = code,
-            ForceDefaultTemplate = true
-        });
-
-        // Assert
-        Assert.NotNull(output);
-        Assert.False(output.HasDefaultTemplate);
-        Assert.Equal(savedSql, output.ExtractSql);
     }
 
     [Theory]
@@ -1903,7 +1730,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         // Assert 1: đối tác có bộ biến riêng chép từ mẫu chung
         var partnerView = await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new GetPacketSqlVariablesInput { PacketCode = packet.Code!, PartnerId = partner.ID });
         Assert.Equal(ShareDataConst.SqlVariableSourceStartOfYear, Assert.Single(partnerView.Items, i => i.Code == "yearStart").Value);
-        Assert.Equal(1, await db.Queryable<ShareDataSqlVariable>().Where(v => v.PacketId == packet.ID && v.PartnerId == partner.ID).CountAsync());
+        Assert.Single(await ShareDataSqlSeed.GetVariablesAsync(db, packet.ID, partner.ID));
 
         // Act 2: đổi biến của đối tác sang nguồn khác (Thời điểm chạy)
         await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
@@ -1934,7 +1761,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         await scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(new ResetPartnerExtractSqlInput { PartnerId = partner.ID!, PacketCode = packet.Code! });
 
         // Assert 4: bộ biến của đối tác bị xóa
-        Assert.Equal(0, await db.Queryable<ShareDataSqlVariable>().Where(v => v.PacketId == packet.ID && v.PartnerId == partner.ID).CountAsync());
+        Assert.Empty(await ShareDataSqlSeed.GetVariablesAsync(db, packet.ID, partner.ID));
     }
 
     /// <summary>
@@ -1987,7 +1814,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             Items = [new PacketSqlVariableItemInput { Code = code, DataType = dataType, ValueKind = valueKind, Value = value }]
         }));
 
-        Assert.Equal(0, await db.Queryable<ShareDataSqlVariable>().Where(v => v.PacketId == packet.ID).CountAsync());
+        Assert.Empty(await ShareDataSqlSeed.GetVariablesAsync(db, packet.ID, null));
     }
 
     /// <summary>
@@ -2388,7 +2215,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
 
     #endregion
 
-    #region Câu ghi chiều nhận (ShareDataPacketSql)
+    #region Câu ghi chiều nhận (ShareDataSql.WriteSql)
 
     /// <summary>Câu MERGE hợp lệ ghi vào bảng ShareDataInboundPacket của CSDL nhận test (khoá id).</summary>
     private const string ValidWriteSql = """
@@ -2479,8 +2306,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
 
         Assert.Null(cleared.WriteSql);
         Assert.Empty(cleared.AffectedTables);
-        var activeCount = await db.Queryable<ShareDataPacketSql>().Where(w => w.PacketCode == packet.Code && w.IsDelete == null).CountAsync();
-        Assert.Equal(0, activeCount);
+        Assert.Null(await ShareDataSqlSeed.GetWriteSqlAsync(db, packet.ID));
     }
 
     /// <summary>
@@ -2579,9 +2405,8 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
 
         // Assert
         Assert.NotNull(error);
-        var rows = await db.Queryable<ShareDataPacketSql>().Where(w => w.IsDelete == null && w.PacketCode == packet.Code).ToListAsync();
-        Assert.Single(rows);
-        Assert.Equal("dbo.ShareDataInboundPacket", rows[0].TableName);
+        var common = await ShareDataSqlSeed.GetCommonAsync(db, packet.ID);
+        Assert.Equal("dbo.ShareDataInboundPacket", common?.AffectedTables);
     }
 
     /// <summary>
@@ -2627,6 +2452,275 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         Assert.Equal(2, result.Inserted);
         Assert.Equal(0, result.Updated);
         Assert.Equal(0, await inbound.Queryable<ShareDataInboundPacket>().Where(p => ids.Contains(p.ID)).CountAsync());
+    }
+
+    #endregion
+
+    #region Các hàm Handle còn thiếu ca kiểm (27/10/2026)
+
+    /// <summary>
+    /// Description: Lấy danh sách gói theo mã (ShareDataPacketInput) và lấy một gói theo ID (ShareDataIdPacketInput); ID không tồn tại thì báo lỗi
+    /// Created date: 27/10/2026
+    /// </summary>
+    [Fact]
+    public async Task GetPacket_ByCodeListAndById_ReturnsPacketAndThrowsWhenMissing_Test()
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true);
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (packet, _) = await SeedSqlVariablePacketAsync(db, unique);
+
+        // Act
+        var list = await scope.ServiceProvider.CallApiAsync<List<ShareDataPagePacketOutput>>(new ShareDataPacketInput { Code = packet.Code });
+        var one = await scope.ServiceProvider.CallApiAsync<ShareDataPacketOutput>(new ShareDataIdPacketInput { ID = packet.ID });
+
+        // Assert
+        Assert.Equal(packet.ID, Assert.Single(list).ID);
+        Assert.Equal(packet.Code, one.Code);
+        await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<ShareDataPacketOutput>(new ShareDataIdPacketInput { ID = Guid.NewGuid().ToString("N") }));
+    }
+
+    /// <summary>
+    /// Description: Xóa một gói: không ai dùng thì xóa mềm; đang có đăng ký còn hiệu lực thì báo PacketInUse và giữ nguyên gói
+    /// Created date: 27/10/2026
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DeletePacket_WhenInUseOrNot_SoftDeletesOnlyUnusedPacket_Test(bool inUse)
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true);
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (packet, partner) = await SeedSqlVariablePacketAsync(db, unique);
+        if (inUse)
+        {
+            await db.Insertable(NewPartnerSqlSubscription(partner, packet, BaseEnums.Direction.Outbound, BaseEnums.SubSubscriptionState.Active)).ExecuteCommandAsync();
+        }
+
+        // Act
+        var call = () => scope.ServiceProvider.CallApiAsync(new ShareDataDeletePacketInput { ID = packet.ID });
+
+        // Assert
+        if (inUse)
+        {
+            await Assert.ThrowsAnyAsync<Exception>(call);
+        }
+        else
+        {
+            await call();
+        }
+        var saved = await db.Queryable<ShareDataPacket>().Where(p => p.ID == packet.ID).FirstAsync();
+        Assert.Equal(inUse, saved.IsDelete == null);
+    }
+
+    /// <summary>
+    /// Description: Xóa nhiều gói: đủ ID thì xóa mềm cả lô; có ID không tồn tại thì báo lỗi và không xóa gói nào
+    /// Created date: 27/10/2026
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task BatchDeletePacket_WhenAnyIdMissing_DeletesNothing_Test(bool includeMissingId)
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true);
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var (first, _) = await SeedSqlVariablePacketAsync(db, Guid.NewGuid().ToString("N")[..8]);
+        var (second, _) = await SeedSqlVariablePacketAsync(db, Guid.NewGuid().ToString("N")[..8]);
+        var input = new List<ShareDataDeletePacketInput> { new() { ID = first.ID }, new() { ID = second.ID } };
+        if (includeMissingId) input.Add(new() { ID = Guid.NewGuid().ToString("N") });
+
+        // Act
+        var call = () => scope.ServiceProvider.CallApiAsync(input);
+
+        // Assert
+        if (includeMissingId)
+        {
+            await Assert.ThrowsAnyAsync<Exception>(call);
+        }
+        else
+        {
+            await call();
+        }
+        var activeCount = await db.Queryable<ShareDataPacket>().Where(p => (p.ID == first.ID || p.ID == second.ID) && p.IsDelete == null).CountAsync();
+        Assert.Equal(includeMissingId ? 2 : 0, activeCount);
+    }
+
+    /// <summary>
+    /// Description: Xem dữ liệu mẫu của gói (ShareDataPacketSampleDataInput): chạy câu SQL mẫu chung, giới hạn số dòng theo Top;
+    ///              gói chưa có câu SQL thì báo PacketExtractSqlMissing
+    /// Created date: 27/10/2026
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task PacketSampleData_WhenCommonSqlConfiguredOrNot_ReturnsRowsOrThrows_Test(bool hasSql)
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true);
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var (packet, _) = await SeedSqlVariablePacketAsync(db, Guid.NewGuid().ToString("N")[..8]);
+        if (hasSql)
+        {
+            await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, "SELECT TOP 3 ID AS zoneId, Name AS zoneName FROM TmsZone");
+        }
+        var input = new ShareDataPacketSampleDataInput { Code = packet.Code, Top = 2 };
+
+        // Act & Assert
+        if (!hasSql)
+        {
+            await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<ShareDataPacketSampleDataOutput>(input));
+            return;
+        }
+        var sample = await scope.ServiceProvider.CallApiAsync<ShareDataPacketSampleDataOutput>(input);
+        Assert.Equal(packet.Code, sample.PacketCode);
+        Assert.Equal(["zoneId", "zoneName"], sample.Columns);
+        Assert.Equal(sample.Rows.Count, sample.RowCount);
+    }
+
+    /// <summary>
+    /// Description: Đọc câu SQL của đối tác (GetPartnerExtractSqlInput): có SQL riêng thì IsCustom và trả câu riêng; chưa có thì dùng câu mẫu chung
+    /// Created date: 27/10/2026
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task GetPartnerExtractSql_WhenPartnerHasCustomSqlOrNot_ReturnsMatchingSource_Test(bool hasCustom)
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true);
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var (packet, partner) = await SeedSqlVariablePacketAsync(db, Guid.NewGuid().ToString("N")[..8]);
+        const string commonSql = "SELECT ID AS zoneId FROM TmsZone";
+        const string customSql = "SELECT ID AS zoneId, Name AS zoneName FROM TmsZone";
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, commonSql);
+        if (hasCustom)
+        {
+            await ShareDataSqlSeed.SetPartnerAsync(db, packet.ID, partner.ID, customSql);
+        }
+
+        // Act
+        var output = await scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(new GetPartnerExtractSqlInput { PartnerId = partner.ID!, PacketCode = packet.Code! });
+
+        // Assert
+        Assert.Equal(hasCustom, output.IsCustom);
+        Assert.Equal(commonSql, output.StandardSql);
+        Assert.Equal(hasCustom ? customSql : null, string.IsNullOrWhiteSpace(output.CustomSql) ? null : output.CustomSql);
+    }
+
+    /// <summary>
+    /// Description: Đọc khối câu ghi chiều nhận (GetPacketWriteSqlsInput) đã lưu ở dòng mẫu chung, kèm bảng bị ảnh hưởng
+    /// Created date: 27/10/2026
+    /// </summary>
+    [Fact]
+    public async Task GetWriteSqls_ReturnsSavedBlockAndAffectedTables_Test()
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true);
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var (packet, _) = await SeedSqlVariablePacketAsync(db, Guid.NewGuid().ToString("N")[..8]);
+        await ShareDataSqlSeed.SetWriteAsync(db, packet.ID, ValidWriteSql, "dbo.ShareDataInboundPacket");
+
+        // Act
+        var output = await scope.ServiceProvider.CallApiAsync<PacketWriteSqlsOutput>(new GetPacketWriteSqlsInput { PacketCode = packet.Code! });
+
+        // Assert
+        Assert.Equal(ValidWriteSql, output.WriteSql);
+        Assert.Equal(["dbo.ShareDataInboundPacket"], output.AffectedTables);
+    }
+
+    /// <summary>
+    /// Description: Đặt lại mốc đã gửi (ResetLastSendInput): SuperAdmin xóa mốc của đúng đối tác × gói; người thường bị chặn và mốc giữ nguyên
+    /// Created date: 27/10/2026
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ResetLastSend_BySuperAdminOrNot_DeletesOnlyThatPartnerCursor_Test(bool isSuperAdmin)
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true);
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (packet, partner) = await SeedSqlVariablePacketAsync(db, unique);
+        var other = NewPartnerSqlPartner($"PT_OTHER_{unique}", unique);
+        await db.Insertable(other).ExecuteCommandAsync();
+        await db.Insertable(new List<ShareDataLastSend>
+        {
+            new() { ID = Guid.NewGuid().ToString("N"), PartnerCode = partner.Code, PacketCode = packet.Code, LastKey = "k1", LastTime = DateTime.Now },
+            new() { ID = Guid.NewGuid().ToString("N"), PartnerCode = other.Code, PacketCode = packet.Code, LastKey = "k2", LastTime = DateTime.Now }
+        }).ExecuteCommandAsync();
+        SetUserContext(isSuperAdmin);
+        var input = new ResetLastSendInput { PacketCode = packet.Code!, PartnerId = partner.ID! };
+
+        // Act
+        if (isSuperAdmin)
+        {
+            await scope.ServiceProvider.CallApiAsync(input);
+        }
+        else
+        {
+            await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync(input));
+        }
+
+        // Assert
+        var left = await db.Queryable<ShareDataLastSend>().Where(ls => ls.PacketCode == packet.Code).Select(ls => ls.PartnerCode).ToListAsync();
+        Assert.Equal(isSuperAdmin ? [other.Code] : new List<string?> { partner.Code, other.Code }.OrderBy(c => c).ToList(), left.OrderBy(c => c).ToList());
+    }
+
+    /// <summary>
+    /// Description: Lưu câu SQL gửi (mẫu chung và SQL riêng) ghi lại cả dòng ShareDataSql nhưng không đè mất bộ biến (VariablesJson)
+    ///              và khối câu ghi chiều nhận đã lưu ở màn khác cùng dòng
+    /// Created date: 27/10/2026
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SaveExtractSql_KeepsVariablesAndWriteSqlOnSameRow_Test(bool partnerScope)
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var (packet, partner) = await SeedSqlVariablePacketAsync(db, Guid.NewGuid().ToString("N")[..8]);
+        const string sql = "SELECT ID AS zoneId FROM TmsZone WHERE CreateTime >= @yearStart";
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, sql);
+        await ShareDataSqlSeed.SetWriteAsync(db, packet.ID, ValidWriteSql, "dbo.ShareDataInboundPacket");
+        var partnerId = partnerScope ? partner.ID : null;
+        if (partnerScope)
+        {
+            await ShareDataSqlSeed.SetPartnerAsync(db, packet.ID, partner.ID, sql);
+        }
+        await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
+        {
+            PacketCode = packet.Code!,
+            PartnerId = partnerId,
+            Items = [BuiltinVar("yearStart", ShareDataConst.SqlVariableTypeDateTime, ShareDataConst.SqlVariableSourceStartOfYear)]
+        });
+
+        // Act
+        if (partnerScope)
+        {
+            await scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput { PartnerId = partner.ID!, PacketCode = packet.Code!, ExtractSql = sql + " AND ID IS NOT NULL" });
+        }
+        else
+        {
+            await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput { PacketCode = packet.Code!, ExtractSql = sql + " AND ID IS NOT NULL" });
+        }
+
+        // Assert
+        Assert.Equal("yearStart", Assert.Single(await ShareDataSqlSeed.GetVariablesAsync(db, packet.ID, partnerId)).Code);
+        Assert.Equal(ValidWriteSql, await ShareDataSqlSeed.GetWriteSqlAsync(db, packet.ID));
     }
 
     #endregion

@@ -42,15 +42,7 @@ public class ShareDataInboundControllerTests(Host host)
         };
         await db.Insertable(packet).ExecuteCommandAsync();
 
-        var packetSql = new ShareDataPacketSql
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            PacketCode = packet.Code,
-            OrderNo = 1,
-            Status = BaseEnums.StatusEnum.Enable,
-            WriteSql = "SELECT 'INSERT' FROM OPENJSON(@records)"
-        };
-        await db.Insertable(packetSql).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetWriteAsync(db, packet.ID, "SELECT 'INSERT' FROM OPENJSON(@records)");
 
         var sub = new ShareDataSubscription
         {

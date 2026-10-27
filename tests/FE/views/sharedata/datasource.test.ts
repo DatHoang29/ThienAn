@@ -168,7 +168,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(updatedBox).not.toBeNull();
         expect(updatedBox!.width).toBeGreaterThan(initialWidth + 20);
 
-        // 2. Bảng Trường gói tin nằm cùng trang, dưới phần SQL
+        // 2. Bảng Trường gói tin nằm cùng trang, dưới phần SQL (tải chậm: phải bấm chọn gói mới nạp chi tiết)
+        await packetGrid.locator('.vxe-table--main-wrapper .vxe-body--row').first().click();
         const fieldGrid = page.locator('.field-col .vxe-grid');
         await expect(fieldGrid).toBeVisible({ timeout: 10_000 });
 
@@ -477,5 +478,27 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(hint).toContainText(/sau khi tạo không đổi loại gói được/i);
     });
 
-});
+    /**
+     * Description: Tải chậm (biên bản 27/10): mở trang không tự chọn gói đầu tiên; khung phải hiện khung trống (el-empty), chưa gọi API chi tiết;
+     *              bấm chọn gói mới gọi API nạp câu truy vấn.
+     * Created date: 27/10/2026
+     */
+    test('50. Mở trang không tự chọn gói, khung phải trống; bấm gói mới nạp chi tiết', async ({ page }) => {
+        let detailCalls = 0;
+        await page.route('**/api/sharedata/sharedatapacket/getextractsql*', (r) => {
+            detailCalls++;
+            return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: { extractSql: 'SELECT 1 AS a', status: 1, fields: [] } }) });
+        });
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+        const firstRow = page.locator('.packet-col .vxe-table--main-wrapper .vxe-body--row').first();
+        await expect(firstRow).toBeVisible({ timeout: 30_000 });
+        await page.waitForTimeout(1500);
+        await expect(page.locator('.field-col .empty-placeholder')).toBeVisible();
+        expect(detailCalls).toBe(0);
 
+        await firstRow.click();
+        await expect(page.locator('.field-col .empty-placeholder')).toHaveCount(0, { timeout: 10_000 });
+        await expect.poll(() => detailCalls, { timeout: 10_000 }).toBeGreaterThan(0);
+    });
+});

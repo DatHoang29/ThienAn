@@ -5704,7 +5704,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
         #region SqlVariables
 
-        #region 10. Biến ở bảng tham số câu truy vấn (ShareDataSqlVariable) khi Worker gửi
+        #region 10. Biến ở bảng tham số câu truy vấn (ShareDataSql.VariablesJson) khi Worker gửi
 
         /// <summary>
         /// Câu SQL dùng đủ 6 nguồn "Lấy từ" (mã đối tác, thời điểm chạy, đầu năm, lần chạy trước, mốc thời gian / mốc khóa lần trước)
@@ -5770,11 +5770,11 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             });
 
             var commonPcSource = scenario == "common-all-sources" ? ShareDataConst.SqlVariableSourcePartnerCode : ShareDataConst.SqlVariableSourceLastKey;
-            await db.Insertable(BuildVariableSet(packetId, null, commonPcSource)).ExecuteCommandAsync();
+            await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null, BuildVariableSet(commonPcSource));
             if (scenario == "partner-own-set")
             {
                 await ShareDataSqlSeed.SetPartnerAsync(db, packetId, partner.ID, sql);
-                await db.Insertable(BuildVariableSet(packetId, partner.ID, ShareDataConst.SqlVariableSourcePartnerCode)).ExecuteCommandAsync();
+                await ShareDataSqlSeed.SetVariablesAsync(db, packetId, partner.ID, BuildVariableSet(ShareDataConst.SqlVariableSourcePartnerCode));
             }
 
             await db.Insertable(new ShareDataLastSend
@@ -5811,16 +5811,16 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         }
 
         /// <summary>Bộ biến cho AllSourcesSql của một câu SQL (partnerId trống = mẫu chung); @pc lấy từ nguồn chỉ định.</summary>
-        private static List<ShareDataSqlVariable> BuildVariableSet(string packetId, string? partnerId, string pcSource)
+        private static List<SqlVariableItem> BuildVariableSet(string pcSource)
         {
-            ShareDataSqlVariable Builtin(string code, string source, int order) => new()
+            SqlVariableItem Builtin(string code, string source, int order) => new()
             {
-                ID = Guid.NewGuid().ToString("N"), PacketId = packetId, PartnerId = partnerId, Code = code,
+                Code = code,
                 DataType = ShareDataConst.SqlVariableBuiltinTypes[source], ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = source, OrderNo = order
             };
-            ShareDataSqlVariable Const(string code, string dataType, string value, int order) => new()
+            SqlVariableItem Const(string code, string dataType, string value, int order) => new()
             {
-                ID = Guid.NewGuid().ToString("N"), PacketId = packetId, PartnerId = partnerId, Code = code,
+                Code = code,
                 DataType = dataType, ValueKind = ShareDataConst.SqlVariableKindConst, Value = value, OrderNo = order
             };
 
@@ -5956,22 +5956,22 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 Status = BaseEnums.StatusEnum.Enable
             }).ExecuteCommandAsync();
 
-            ShareDataSqlVariable Variable(string code, string source, int order) => new()
+            SqlVariableItem Variable(string code, string source, int order) => new()
             {
-                ID = Guid.NewGuid().ToString("N"), PacketId = packetId, Code = code, DataType = ShareDataConst.SqlVariableBuiltinTypes[source],
+                Code = code, DataType = ShareDataConst.SqlVariableBuiltinTypes[source],
                 ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = source, OrderNo = order
             };
-            var variables = new List<ShareDataSqlVariable>
+            var variables = new List<SqlVariableItem>
             {
                 Variable("since", ShareDataConst.SqlVariableSourceLastTime, 1),
                 new()
                 {
-                    ID = Guid.NewGuid().ToString("N"), PacketId = packetId, Code = "pageSize",
+                    Code = "pageSize",
                     DataType = ShareDataConst.SqlVariableTypeInt, ValueKind = ShareDataConst.SqlVariableKindConst, Value = pageSize.ToString(), OrderNo = 3
                 },
                 new()
                 {
-                    ID = Guid.NewGuid().ToString("N"), PacketId = packetId, Code = "prefix",
+                    Code = "prefix",
                     DataType = ShareDataConst.SqlVariableTypeString, ValueKind = ShareDataConst.SqlVariableKindConst, Value = $"{rowPrefix}%", OrderNo = 4
                 }
             };
@@ -5979,7 +5979,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             {
                 variables.Add(Variable("afterKey", ShareDataConst.SqlVariableSourceLastKey, 2));
             }
-            await db.Insertable(variables).ExecuteCommandAsync();
+            await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null, variables);
             await ShareDataSqlSeed.SetCommonAsync(db, packetId, sql, "UpdateTime");
 
             var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed

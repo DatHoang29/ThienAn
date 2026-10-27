@@ -4,12 +4,12 @@ GO
 -- =========================================================================================
 -- FILE: sharedata-du-lieu-gia-lap-ShareDataPacket_local.sql
 -- BẢNG GHI: [dbo].[ShareDataPacket] — tệp chỉ thêm / sửa / xóa trên đúng bảng này; bảng khác chỉ đọc (Rule 19.103).
--- DESCRIPTION: Chiều nhận E0: gói kiểm thử riêng E2E_INBOUND_TEST (OrderNo = 101), TemplateSql lấy theo gói 101.
+-- DESCRIPTION: Chiều nhận E0: gói kiểm thử riêng E2E_INBOUND_TEST (OrderNo = 101). Câu SQL của gói (nếu cần) nằm ở ShareDataSql.
 -- THỨ TỰ CHẠY: G1 (sau các tệp seed gói tin) (xem ../README.md).
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: ⛔ CHỈ CHẠY TRÊN DB LOCAL (hậu tố _local, Rule 19.101); khối 0 tự dừng nếu không phải DB local.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 24/10/2026
+-- CẬP NHẬT LẦN CUỐI: 27/10/2026 (bỏ TemplateSql)
 -- =========================================================================================
 
 -- -----------------------------------------------------------------------------------------
@@ -67,14 +67,6 @@ IF @DefaultTenantId IS NULL
 -- 4.2.b Khởi tạo/cập nhật gói kiểm thử chiều nhận E2E_INBOUND_TEST trong ShareDataPacket
 IF OBJECT_ID(N'[dbo].[ShareDataPacket]', N'U') IS NOT NULL
 BEGIN
-    DECLARE @Template101 NVARCHAR(MAX);
-    SELECT TOP 1
-        @Template101 = [TemplateSql]
-    FROM [dbo].[ShareDataPacket]
-    WHERE ([Code] = N'101' OR [Code] LIKE N'101[_]%')
-      AND [IsDelete] IS NULL
-    ORDER BY CASE WHEN [Code] = N'101' THEN 0 ELSE 1 END, [ID];
-
     IF NOT EXISTS (
         SELECT 1
         FROM [dbo].[ShareDataPacket]
@@ -83,7 +75,7 @@ BEGIN
     BEGIN
         INSERT INTO [dbo].[ShareDataPacket] (
             [ID], [TenantId], [Code], [Name], [PacketVersion], [Description],
-            [OrderNo], [Status], [TemplateSql],
+            [OrderNo], [Status],
             [Remark], [CreateTime], [UpdateTime], [IsDelete], [CreateUId]
         ) VALUES (
             LOWER(CONVERT(NVARCHAR(64), NEWID())),
@@ -94,7 +86,6 @@ BEGIN
             N'Gói kiểm thử chiều nhận độc lập cho kịch bản E0 trên môi trường local/test',
             101,
             1,
-            @Template101,
             N'Chỉ dùng kiểm thử chiều nhận E0 trên local/test, tách biệt với gói 101_commonData',
             GETDATE(),
             GETDATE(),
@@ -107,13 +98,12 @@ BEGIN
     BEGIN
         UPDATE [dbo].[ShareDataPacket]
         SET [OrderNo] = 101,
-            [TemplateSql] = COALESCE([TemplateSql], @Template101),
             [UpdateTime] = GETDATE()
         WHERE [Code] = N'E2E_INBOUND_TEST'
           AND [IsDelete] IS NULL
-          AND ([OrderNo] <> 101 OR [TemplateSql] IS NULL);
+          AND [OrderNo] <> 101;
 
-        PRINT N'  -> [Khối 4.2] Gói kiểm thử E2E_INBOUND_TEST đã tồn tại trong ShareDataPacket (đồng bộ OrderNo = 101 và TemplateSql).';
+        PRINT N'  -> [Khối 4.2] Gói kiểm thử E2E_INBOUND_TEST đã tồn tại trong ShareDataPacket (đồng bộ OrderNo = 101).';
     END
 
 END

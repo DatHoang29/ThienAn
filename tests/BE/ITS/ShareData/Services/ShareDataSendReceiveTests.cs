@@ -932,15 +932,7 @@ namespace Tests.ShareData.Services
             };
             await _db.Insertable(inboundMapping).ExecuteCommandAsync();
 
-            var inboundPacketSql = new ShareDataPacketSql
-            {
-                ID = Guid.NewGuid().ToString("N"),
-                PacketCode = packet.Code,
-                OrderNo = 1,
-                Status = BaseEnums.StatusEnum.Enable,
-                WriteSql = inboundWriteSql
-            };
-            await _db.Insertable(inboundPacketSql).ExecuteCommandAsync();
+            await ShareDataSqlSeed.SetWriteAsync(_db, packet.ID, inboundWriteSql);
 
             return (partner, packet, outboundSub);
         }
@@ -949,7 +941,7 @@ namespace Tests.ShareData.Services
         {
             await _db.Deleteable<ShareDataMapping>().Where(m => m.PartnerId == partnerId).ExecuteCommandAsync();
             await _db.Deleteable<ShareDataSubscription>().Where(s => s.PartnerId == partnerId).ExecuteCommandAsync();
-            await _db.Deleteable<ShareDataPacketSql>().Where(s => s.PacketCode == packetCode).ExecuteCommandAsync();
+            await ShareDataSqlSeed.DeleteForPacketAsync(_db, packetId);
             await _db.Deleteable<ShareDataPacket>().Where(p => p.ID == packetId).ExecuteCommandAsync();
             await _db.Deleteable<ShareDataPartner>().Where(p => p.ID == partnerId).ExecuteCommandAsync();
             await _db.Deleteable<ShareDataLastSend>().Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode).ExecuteCommandAsync();
@@ -1010,15 +1002,7 @@ namespace Tests.ShareData.Services
             };
             await _db.Insertable(mapping).ExecuteCommandAsync();
 
-            var packetSql = new ShareDataPacketSql
-            {
-                ID = Guid.NewGuid().ToString("N"),
-                PacketCode = packet.Code,
-                OrderNo = 1,
-                Status = BaseEnums.StatusEnum.Enable,
-                WriteSql = writeSql ?? "SELECT 'INSERT' FROM OPENJSON(@records)"
-            };
-            await _db.Insertable(packetSql).ExecuteCommandAsync();
+            await ShareDataSqlSeed.SetWriteAsync(_db, packet.ID, writeSql ?? "SELECT 'INSERT' FROM OPENJSON(@records)");
 
             return (partner, packet, sub);
         }

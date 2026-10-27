@@ -4,13 +4,14 @@ GO
 -- =========================================================================================
 -- FILE: sharedata-du-lieu-gia-lap-ShareDataSql_local.sql
 -- BẢNG GHI: [dbo].[ShareDataSql] — tệp chỉ thêm / sửa / xóa trên đúng bảng này; bảng khác chỉ đọc (Rule 19.103).
--- DESCRIPTION: Chiều nhận E0: câu SQL mẫu chung của gói E2E_INBOUND_TEST, lấy theo câu mẫu chung của gói 101.
+-- DESCRIPTION: Chiều nhận E0: câu SQL mẫu chung của gói E2E_INBOUND_TEST (lấy theo gói 101) và khối câu ghi chiều nhận
+--              MERGE vào dbo.InboundTrafficFlow (cùng dòng mẫu chung; gộp từ tệp ShareDataPacketSql_local cũ).
 -- THỨ TỰ CHẠY: G2 (sau sharedata-du-lieu-gia-lap-ShareDataPacket_local.sql) (xem ../README.md).
 -- GHI CHÚ:     Khi dọn dẹp, chạy khối dọn dẹp của tệp này trước tệp ShareDataPacket_local.
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: ⛔ CHỈ CHẠY TRÊN DB LOCAL (hậu tố _local, Rule 19.101); khối 0 tự dừng nếu không phải DB local.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 24/10/2026
+-- CẬP NHẬT LẦN CUỐI: 27/10/2026 (thêm khối câu ghi chiều nhận)
 -- =========================================================================================
 
 -- -----------------------------------------------------------------------------------------
@@ -95,6 +96,69 @@ END
 ELSE
 BEGIN
     PRINT N'⚠️ Bảng dbo.ShareDataSql chưa tồn tại trên DEV_ITS10, bỏ qua.';
+END
+GO
+
+-- -----------------------------------------------------------------------------------------
+-- 2. KHỐI CÂU GHI CHIỀU NHẬN CỦA GÓI E2E_INBOUND_TEST (WriteSql ở dòng mẫu chung; gộp từ tệp ShareDataPacketSql_local cũ)
+-- -----------------------------------------------------------------------------------------
+SET NOCOUNT ON;
+
+DECLARE @SeedUser NVARCHAR(64) = N'SHAREDATA-SEED-GIA-LAP';
+DECLARE @DefaultTenantId NVARCHAR(64) = (
+    SELECT TOP 1 [TenantId]
+    FROM [dbo].[ShareDataPacket]
+    WHERE [TenantId] IS NOT NULL
+);
+IF @DefaultTenantId IS NULL
+    SET @DefaultTenantId = N'Default';
+
+IF OBJECT_ID(N'[dbo].[ShareDataSql]', N'U') IS NOT NULL AND COL_LENGTH('dbo.ShareDataSql', 'WriteSql') IS NOT NULL
+BEGIN
+    DECLARE @WriteE2E NVARCHAR(MAX) = N'MERGE dbo.InboundTrafficFlow AS target
+USING (
+    SELECT id, code, recorded_time, val
+    FROM OPENJSON(@records)
+    WITH (
+        id NVARCHAR(64) ''$.id'',
+        code NVARCHAR(64) ''$.code'',
+        recorded_time DATETIME2 ''$.time'',
+        val INT ''$.val''
+    )
+) AS src
+ON target.id = src.id
+WHEN MATCHED THEN
+    UPDATE SET target.code = src.code, target.recorded_time = src.recorded_time, target.val = src.val
+WHEN NOT MATCHED THEN
+    INSERT (id, code, recorded_time, val) VALUES (src.id, src.code, src.recorded_time, src.val)
+OUTPUT $action;';
+
+    UPDATE s
+    SET s.[WriteSql] = @WriteE2E,
+        s.[AffectedTables] = N'dbo.InboundTrafficFlow',
+        s.[WriteRemark] = N'Chỉ dùng kiểm thử chiều nhận E0 trên local/test cho gói E2E_INBOUND_TEST',
+        s.[UpdateTime] = GETDATE()
+    FROM [dbo].[ShareDataSql] s
+    INNER JOIN [dbo].[ShareDataPacket] p ON p.[ID] = s.[PacketId]
+    WHERE p.[Code] = N'E2E_INBOUND_TEST' AND p.[IsDelete] IS NULL
+      AND s.[PartnerId] IS NULL AND s.[IsDelete] IS NULL
+      AND (s.[WriteSql] IS NULL OR LTRIM(RTRIM(s.[WriteSql])) = '');
+    DECLARE @WriteE2ERows INT = @@ROWCOUNT;
+
+    INSERT INTO [dbo].[ShareDataSql] ([ID], [TenantId], [PacketId], [PartnerId], [WriteSql], [AffectedTables], [WriteRemark], [CreateTime], [IsDelete], [CreateUId])
+    SELECT LOWER(CONVERT(NVARCHAR(64), NEWID())), @DefaultTenantId, p.[ID], NULL, @WriteE2E, N'dbo.InboundTrafficFlow',
+           N'Chỉ dùng kiểm thử chiều nhận E0 trên local/test cho gói E2E_INBOUND_TEST', GETDATE(), NULL, @SeedUser
+    FROM [dbo].[ShareDataPacket] p
+    WHERE p.[Code] = N'E2E_INBOUND_TEST' AND p.[IsDelete] IS NULL
+      AND NOT EXISTS (
+          SELECT 1 FROM [dbo].[ShareDataSql] s
+          WHERE s.[PacketId] = p.[ID] AND s.[PartnerId] IS NULL AND s.[IsDelete] IS NULL);
+    SET @WriteE2ERows = @WriteE2ERows + @@ROWCOUNT;
+    PRINT N'  -> Đã nạp khối câu ghi chiều nhận cho gói E2E_INBOUND_TEST: ' + CAST(@WriteE2ERows AS NVARCHAR(10)) + N' bản ghi.';
+END
+ELSE
+BEGIN
+    PRINT N'⚠️ Bảng dbo.ShareDataSql chưa có cột WriteSql (chưa chạy CodeFirst hoặc tệp seed gói tin), bỏ qua nạp câu ghi.';
 END
 GO
 

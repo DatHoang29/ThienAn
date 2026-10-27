@@ -57,15 +57,7 @@ public class DataInboundServiceTests(Host host)
         await _db.Insertable(packet).ExecuteCommandAsync();
 
         // Câu ghi SQL cho gói tin: giả lập câu MERGE ... OUTPUT $action trả về INSERT cho mỗi bản ghi
-        var packetSql = new ShareDataPacketSql
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            PacketCode = packetCode,
-            OrderNo = 1,
-            Status = BaseEnums.StatusEnum.Enable,
-            WriteSql = "SELECT 'INSERT' FROM OPENJSON(@records)"
-        };
-        await _db.Insertable(packetSql).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetWriteAsync(_db, packetId, "SELECT 'INSERT' FROM OPENJSON(@records)");
 
         ShareDataSubscription? sub = null;
         ShareDataMapping? mapping = null;
@@ -128,10 +120,7 @@ public class DataInboundServiceTests(Host host)
         // Arrange
         var unique = Guid.NewGuid().ToString("N")[..8];
         var (partner, packet, sub, mapping) = await SeedInboundEnvironmentAsync(unique);
-        await _db.Updateable<ShareDataPacketSql>()
-            .SetColumns(s => s.WriteSql == "SELECT 'INSERT' FROM OPENJSON(@records); SELECT 'UPDATE';")
-            .Where(s => s.PacketCode == packet.Code)
-            .ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetWriteAsync(_db, packet.ID, "SELECT 'INSERT' FROM OPENJSON(@records); SELECT 'UPDATE';");
 
         var parentLogId = Guid.NewGuid().ToString("N");
         // Giả lập dòng cha do WebAPI đã ghi (chờ xử lý)
@@ -618,7 +607,7 @@ public class DataInboundServiceTests(Host host)
     #region 12. Không có câu ghi SQL → Failed + WriteSqlMissing
 
     /// <summary>
-    /// STT 12: Không có câu ghi SQL (ShareDataPacketSql) → Failed + WriteSqlMissing
+    /// STT 12: Không có câu ghi SQL (ShareDataSql.WriteSql) → Failed + WriteSqlMissing
     /// Gói tin chưa khai câu ghi chiều nhận => Worker đánh dấu Failed.
     /// </summary>
     [Fact]
@@ -629,9 +618,7 @@ public class DataInboundServiceTests(Host host)
         var (partner, packet, sub, _) = await SeedInboundEnvironmentAsync(unique);
 
         // Xóa toàn bộ câu ghi SQL của gói tin này
-        await _db.Deleteable<ShareDataPacketSql>()
-            .Where(w => w.PacketCode == packet.Code)
-            .ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetWriteAsync(_db, packet.ID, null);
 
         var packetEntity = new ShareDataInboundPacket
         {
@@ -903,18 +890,8 @@ public class DataInboundServiceTests(Host host)
         var (partner, packet, sub, _) = await SeedInboundEnvironmentAsync(unique);
         var markerId = $"MARK_I02_{unique}";
         var markerSql = $"INSERT INTO ShareDataInboundPacket (ID, PartnerCode, PacketCode) OUTPUT 'INSERT' VALUES ('{markerId}', 'MARK', 'MARK')";
-        await _db.Updateable<ShareDataPacketSql>()
-            .SetColumns(s => s.WriteSql == markerSql)
-            .Where(s => s.PacketCode == packet.Code)
-            .ExecuteCommandAsync();
-        await _db.Insertable(new ShareDataPacketSql
-        {
-            ID = Guid.NewGuid().ToString("N"),
-            PacketCode = packet.Code,
-            OrderNo = 2,
-            Status = BaseEnums.StatusEnum.Enable,
-            WriteSql = "SELECT CAST('not-a-number' AS INT)"
-        }).ExecuteCommandAsync();
+        // Một khối hai câu: câu thứ 2 lỗi thì câu thứ 1 (đã chạy) phải bị quay lui
+        await ShareDataSqlSeed.SetWriteAsync(_db, packet.ID, markerSql + ";\nSELECT CAST('not-a-number' AS INT)");
         var packetEntity = await SeedPendingPacket(partner.Code!, packet.Code!, 1, "{\"data\":[{\"id\":\"A\",\"val\":\"1\"}]}", DateTime.Now);
 
         // Act
@@ -1011,10 +988,7 @@ public class DataInboundServiceTests(Host host)
         var (partner, packet, _, _) = await SeedInboundEnvironmentAsync(unique);
         var markerId = $"MARK_I04_{unique}";
         var markerSql = $"INSERT INTO ShareDataInboundPacket (ID, PartnerCode, PacketCode) OUTPUT 'INSERT' VALUES ('{markerId}', DB_NAME(), 'MARK')";
-        await _db.Updateable<ShareDataPacketSql>()
-            .SetColumns(s => s.WriteSql == markerSql)
-            .Where(s => s.PacketCode == packet.Code)
-            .ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetWriteAsync(_db, packet.ID, markerSql);
         await SeedPendingPacket(partner.Code!, packet.Code!, 1, "{\"data\":[{\"id\":\"A\",\"val\":\"1\"}]}", DateTime.Now);
         var inboundDbName = _inboundDb.Ado.Connection.Database;
         var mainDbName = _db.Ado.Connection.Database;
@@ -1137,7 +1111,7 @@ public class DataInboundServiceTests(Host host)
 
         var markerId = $"MARK_I05_{unique}";
         var markerSql = $"INSERT INTO ShareDataInboundPacket (ID, PartnerCode, PacketCode, RawContent) OUTPUT 'INSERT' VALUES ('{markerId}', 'MARK', 'MARK', @records)";
-        await _db.Updateable<ShareDataPacketSql>().SetColumns(x => x.WriteSql == markerSql).Where(x => x.PacketCode == packet.Code).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetWriteAsync(_db, packet.ID, markerSql);
         var packetEntity = await SeedPendingPacket(partner.Code!, packet.Code!, 1,
             "{\"data\":[{\"id\":\"R1\",\"cond\":\"UNCS_02\"},{\"id\":\"R2\",\"cond\":\"\"}]}", DateTime.Now);
 
@@ -1189,7 +1163,7 @@ public class DataInboundServiceTests(Host host)
 
         var markerId = $"MARK_I05B_{unique}";
         var markerSql = $"INSERT INTO ShareDataInboundPacket (ID, PartnerCode, PacketCode, RawContent) OUTPUT 'INSERT' VALUES ('{markerId}', 'MARK', 'MARK', @records)";
-        await _db.Updateable<ShareDataPacketSql>().SetColumns(x => x.WriteSql == markerSql).Where(x => x.PacketCode == packet.Code).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetWriteAsync(_db, packet.ID, markerSql);
         var packetEntity = await SeedPendingPacket(partner.Code!, packet.Code!, 1,
             "{\"data\":[{\"id\":\"R1\",\"cond\":\"UNCS_02\"},{\"id\":\"R2\",\"cond\":\"ZZZ_99\"}]}", DateTime.Now);
 
@@ -1283,22 +1257,9 @@ public class DataInboundServiceTests(Host host)
         var seedWrites = SeedScriptReader.ReadWriteSqlStatements().Where(s => s.PacketCode == packetCode).ToList();
         Assert.Single(seedWrites);
 
-        var existingWrites = await _db.Queryable<ShareDataPacketSql>()
-            .Where(w => w.PacketCode == packetCode && w.IsDelete == null)
-            .ToListAsync();
-        if (existingWrites.Count == 0)
+        if (string.IsNullOrWhiteSpace(await ShareDataSqlSeed.GetWriteSqlAsync(_db, packet.ID)))
         {
-            var packetSqlEntities = seedWrites.Select(sw => new ShareDataPacketSql
-            {
-                ID = Guid.NewGuid().ToString("N"),
-                PacketCode = packetCode,
-                TableName = sw.TableName,
-                AffectedTables = sw.AffectedTables,
-                OrderNo = sw.OrderNo,
-                WriteSql = sw.WriteSql,
-                Status = BaseEnums.StatusEnum.Enable
-            }).ToList();
-            await _db.Insertable(packetSqlEntities).ExecuteCommandAsync();
+            await ShareDataSqlSeed.SetWriteAsync(_db, packet.ID, seedWrites[0].WriteSql, seedWrites[0].AffectedTables);
         }
 
         var sub = new ShareDataSubscription
@@ -1373,10 +1334,7 @@ public class DataInboundServiceTests(Host host)
                 SELECT 'INSERT';
             """;
 
-        await _db.Updateable<ShareDataPacketSql>()
-            .SetColumns(s => s.WriteSql == abortSql)
-            .Where(s => s.PacketCode == packet.Code)
-            .ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetWriteAsync(_db, packet.ID, abortSql);
 
         var content1 = "{\"data\":[{\"id\":\"1\",\"isError\":true}]}";
         var content2 = "{\"data\":[{\"id\":\"2\",\"isError\":false}]}";

@@ -192,7 +192,7 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
                 await page.keyboard.press('Escape');
             } else if (c.useConst) {
                 await page.locator('.sql-variable-panel .el-table__body .svp-source-cell .el-select').first().click();
-                await page.locator('.svp-source-popper .el-select-dropdown__item', { hasText: 'Giá trị nhập' }).click();
+                await page.locator('.svp-source-popper .el-select-dropdown__item', { hasText: 'Giá trị cố định' }).click();
                 await expect(page.locator('.el-popper.svp-source-popper').first()).toBeHidden();
                 await page.locator('.sql-variable-panel .el-table__body .svp-const-input input').first().fill('500');
             } else {
@@ -243,7 +243,7 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
             await r.fulfill(json({ code: 200, type: 'success', result: true }));
         });
         await openSqlCenter(page);
-        await expect(page.locator('.add-partner-tab-btn')).toHaveText('Tạo SQL riêng +');
+        await expect(page.locator('.add-partner-tab-btn')).toHaveText('Tạo cấu hình riêng +');
         await expect(page.locator('.add-partner-tab-btn .el-icon')).toHaveCount(0);
         await page.locator('.add-partner-tab-btn').click();
 
@@ -492,7 +492,8 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         await expect(page.locator('.packet-col .vxe-table--main-wrapper .vxe-header--column', { hasText: 'Nguồn SQL' })).toBeVisible();
         await expect(rows.nth(0)).toContainText('SQL riêng');
         await expect(rows.nth(1)).toContainText('Dùng chung');
-        // Gói đầu tiên tự được chọn và mở thẳng tab SQL của đối tác đang lọc
+        // Tải chậm (27/10): không tự chọn gói; bấm gói có SQL riêng thì mở thẳng tab SQL của đối tác đang lọc
+        await rows.nth(0).click();
         await expect(page.locator('.sql-partner-tabs .el-tabs__item.is-active')).toContainText('DT-E', { timeout: 15_000 });
 
         // Xóa ô lọc đối tác: thứ tự sắp xếp mặc định (orderNo asc) được bảo toàn, không bị xáo trộn
@@ -779,7 +780,7 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
             r.fulfill(json({ code: 200, result: { records: [{ id: 'PKT_01', code: '101_commonData', name: 'Gói tin dùng chung 101', status: 1, writeSqlCount: 3 }], total: 1 } }))
         );
         await openSqlCenter(page);
-        await expect(page.locator('.packet-col .vxe-table--main-wrapper .vxe-header--column', { hasText: 'Ghi ngược' })).toBeVisible();
+        await expect(page.locator('.packet-col .vxe-table--main-wrapper .vxe-header--column', { hasText: 'Gửi / Nhận' })).toBeVisible();
         await expect(page.locator('.packet-col .vxe-table--main-wrapper .vxe-body--row').first()).toContainText('3 bảng');
         await expect(page.locator('.direction-tabs .el-tabs__item', { hasText: 'Nhận về' })).toContainText('Nhận về · ghi vào 3 bảng');
     });
@@ -875,7 +876,7 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
 
         // Bảng danh sách trường: tiêu đề cột là "Khoá (alias)" và "Tên hiển thị"
         const fieldsGrid = page.locator('.fields-section .vxe-table--main-wrapper');
-        await expect(fieldsGrid.locator('.vxe-header--column', { hasText: 'Khoá (alias)' })).toBeVisible();
+        await expect(fieldsGrid.locator('.vxe-header--column', { hasText: 'Trường dữ liệu' })).toBeVisible();
         await expect(fieldsGrid.locator('.vxe-header--column', { hasText: 'Tên hiển thị' })).toBeVisible();
 
         // Chuyển sang tab VDOT
@@ -1018,4 +1019,5 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         await expect.poll(barDuration, { timeout: 3000 }).not.toBe('0s');
         await expect(tabs).not.toHaveClass(/no-bar-anim/);
     });
+
 });

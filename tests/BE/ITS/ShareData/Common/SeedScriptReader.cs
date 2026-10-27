@@ -11,7 +11,6 @@ internal static class SeedScriptReader
 {
     private const string PacketSeedFile = "sharedata-seed-goi-tin-ShareDataPacket.sql";
     private const string SqlSeedFile = "sharedata-seed-goi-tin-ShareDataSql.sql";
-    private const string PacketSqlSeedFile = "sharedata-seed-goi-tin-ShareDataPacketSql.sql";
     private const string SourceTableSeedFile = "sharedata-seed-cau-hinh-ShareDataSourceTable.sql";
 
     private static readonly Lazy<Dictionary<string, SeedPacketInfo>> Cache = new(LoadAllInternal);
@@ -63,7 +62,7 @@ internal static class SeedScriptReader
         if (!all.TryGetValue(normalizedCode, out var info))
         {
             throw new InvalidOperationException(
-                $"Không tìm thấy cấu hình trích xuất của gói tin '{normalizedCode}' trong kịch bản seed {PacketSeedFile}.");
+                $"Không tìm thấy cấu hình trích xuất của gói tin '{normalizedCode}' trong kịch bản seed {SqlSeedFile}.");
         }
 
         return info.ExtractSql;
@@ -109,24 +108,22 @@ internal static class SeedScriptReader
 
     private static Dictionary<string, SeedPacketInfo> LoadAllInternal()
     {
-        var packetScriptPath = ResolveSqlScriptPath(PacketSeedFile);
         var sqlScriptPath = ResolveSqlScriptPath(SqlSeedFile);
-        var packetContent = File.ReadAllText(packetScriptPath);
         var sqlContent = File.ReadAllText(sqlScriptPath);
 
-        // Câu mẫu gốc (TemplateSql) nằm ở tệp ShareDataPacket; cột thời gian nằm ở tệp ShareDataSql
+        // Câu mẫu chung và cột thời gian của gói đều nằm ở tệp ShareDataSql (nguồn duy nhất, bỏ TemplateSql 27/10/2026)
         var templateRegex = new Regex(
-            @"SET \[TemplateSql\] = N'(?<sql>.*?)'\s*WHERE \(\[Code\] = '(?<code>\d{3})'",
+            @"DECLARE @Sql(?<code>\d{3}) NVARCHAR\(MAX\) = N'(?<sql>(?:''|[^'])*)';",
             RegexOptions.Singleline);
         var settingRegex = new Regex(
-            @"SET s\.\[ExtractSql\] = p\.\[TemplateSql\],\s*s\.\[CursorTimeColumn\]\s*=\s*(?<cursor>NULL|N'[^']*'),.*?WHERE \(p\.\[Code\] = '(?<code>\d{3})'",
+            @"SET s\.\[ExtractSql\] = @Sql\d{3},\s*s\.\[CursorTimeColumn\]\s*=\s*(?<cursor>NULL|N'[^']*'),.*?WHERE \(p\.\[Code\] = '(?<code>\d{3})'",
             RegexOptions.Singleline);
 
-        var templates = templateRegex.Matches(packetContent);
+        var templates = templateRegex.Matches(sqlContent);
         if (templates.Count == 0)
         {
             throw new InvalidOperationException(
-                $"Không tìm thấy bất kỳ khối UPDATE TemplateSql nào phù hợp trong tệp seed '{packetScriptPath}'.");
+                $"Không tìm thấy bất kỳ câu mẫu chung DECLARE @SqlNNN nào trong tệp seed '{sqlScriptPath}'.");
         }
 
         var settings = settingRegex.Matches(sqlContent)
@@ -225,11 +222,12 @@ internal static class SeedScriptReader
 
     private static IReadOnlyList<SeedWriteSqlInfo> LoadWriteSqlStatementsInternal()
     {
-        var scriptPath = ResolveSqlScriptPath(PacketSqlSeedFile);
+        // Khối câu ghi chiều nhận nằm ở mục 6 tệp seed ShareDataSql (gộp tệp ShareDataPacketSql cũ 27/10/2026)
+        var scriptPath = ResolveSqlScriptPath(SqlSeedFile);
         var content = File.ReadAllText(scriptPath);
 
         var regex = new Regex(
-            @"INSERT\s+INTO\s+@SeedPackets\s*\([^\)]*\)\s*VALUES\s*\(\s*'(?<packetCode>[^']+)',\s*'(?<tableName>[^']+)',\s*N?'(?<affectedTables>[^']+)',\s*N'(?<writeSql>.*?)'\);",
+            @"INSERT\s+INTO\s+@SeedWrites\s*\([^\)]*\)\s*VALUES\s*\(\s*'(?<packetCode>[^']+)',\s*N'(?<affectedTables>[^']+)',\s*N'(?<writeSql>(?:''|[^'])*)'\);",
             RegexOptions.Singleline);
 
         var matches = regex.Matches(content);
@@ -243,8 +241,8 @@ internal static class SeedScriptReader
         foreach (Match match in matches)
         {
             var packetCode = match.Groups["packetCode"].Value;
-            var tableName = match.Groups["tableName"].Value;
             var affectedTables = match.Groups["affectedTables"].Value;
+            var tableName = affectedTables.Split(',')[0].Trim();
             var writeSql = match.Groups["writeSql"].Value.Replace("''", "'");
 
             list.Add(new SeedWriteSqlInfo(packetCode, tableName, affectedTables, 1, writeSql));

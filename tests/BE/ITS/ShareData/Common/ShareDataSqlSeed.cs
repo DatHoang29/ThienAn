@@ -1,6 +1,8 @@
 using System.Text.RegularExpressions;
 using Module.ShareData.Core.Constants;
+using Module.ShareData.Core.Dto.Packet;
 using Module.ShareData.Core.Entities;
+using Module.ShareData.Core.Helpers;
 
 namespace Tests.ShareData.Common;
 
@@ -30,31 +32,64 @@ internal static class ShareDataSqlSeed
             return;
         }
 
-        var existing = await db.Queryable<ShareDataSqlVariable>()
-            .Where(v => v.PacketId == packetId)
-            .WhereIF(partnerId == null, v => v.PartnerId == null)
-            .WhereIF(partnerId != null, v => v.PartnerId == partnerId)
-            .Select(v => v.Code)
-            .ToListAsync();
+        var existing = await GetVariablesAsync(db, packetId, partnerId);
         var rows = StandardVariables
             .Where(s => Regex.IsMatch(extractSql, $@"@{s.Code}\b", RegexOptions.IgnoreCase)
-                && !existing.Contains(s.Code, StringComparer.OrdinalIgnoreCase))
-            .Select((s, i) => new ShareDataSqlVariable
+                && !existing.Any(v => string.Equals(v.Code, s.Code, StringComparison.OrdinalIgnoreCase)))
+            .Select((s, i) => new SqlVariableItem
             {
-                ID = Guid.NewGuid().ToString("N"),
-                PacketId = packetId,
-                PartnerId = partnerId,
                 Code = s.Code,
                 DataType = s.DataType,
                 ValueKind = s.ValueKind,
                 Value = s.Value,
-                OrderNo = i + 1
+                OrderNo = existing.Count + i + 1
             })
             .ToList();
         if (rows.Count > 0)
         {
-            await db.Insertable(rows).ExecuteCommandAsync();
+            await SetVariablesAsync(db, packetId, partnerId, [.. existing, .. rows]);
         }
+    }
+
+    /// <summary>
+    /// Ghi bộ biến (VariablesJson) vào dòng ShareDataSql của phạm vi (partnerId trống = mẫu chung); chưa có dòng thì tạo dòng chỉ chứa bộ biến.
+    /// </summary>
+    public static async Task SetVariablesAsync(ISqlSugarClient db, string? packetId, string? partnerId, List<SqlVariableItem> items)
+    {
+        var row = await db.Queryable<ShareDataSql>()
+            .Where(s => s.IsDelete == null && s.PacketId == packetId)
+            .WhereIF(partnerId == null, s => s.PartnerId == null)
+            .WhereIF(partnerId != null, s => s.PartnerId == partnerId)
+            .FirstAsync();
+        if (row == null)
+        {
+            await db.Insertable(new ShareDataSql
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                PacketId = packetId,
+                PartnerId = partnerId,
+                VariablesJson = SqlTextHelper.WriteVariables(items),
+                CreateTime = DateTime.Now
+            }).ExecuteCommandAsync();
+            return;
+        }
+
+        row.VariablesJson = SqlTextHelper.WriteVariables(items);
+        await db.Updateable(row).ExecuteCommandAsync();
+    }
+
+    /// <summary>
+    /// Đọc bộ biến đã lưu ở dòng ShareDataSql của phạm vi (partnerId trống = mẫu chung).
+    /// </summary>
+    public static async Task<List<SqlVariableItem>> GetVariablesAsync(ISqlSugarClient db, string? packetId, string? partnerId)
+    {
+        var json = await db.Queryable<ShareDataSql>()
+            .Where(s => s.IsDelete == null && s.PacketId == packetId)
+            .WhereIF(partnerId == null, s => s.PartnerId == null)
+            .WhereIF(partnerId != null, s => s.PartnerId == partnerId)
+            .Select(s => s.VariablesJson)
+            .FirstAsync();
+        return SqlTextHelper.ReadVariables(json);
     }
 
     /// <summary>
@@ -137,5 +172,43 @@ internal static class ShareDataSqlSeed
     public static async Task DeleteForPacketAsync(ISqlSugarClient db, string? packetId)
     {
         await db.Deleteable<ShareDataSql>().Where(s => s.PacketId == packetId).ExecuteCommandAsync();
+    }
+
+    /// <summary>
+    /// Ghi khối câu ghi chiều nhận vào dòng mẫu chung của gói (thêm dòng nếu gói chưa có); writeSql trống = gói chỉ gửi.
+    /// Giữ nguyên câu SQL gửi đang có ở cùng dòng.
+    /// </summary>
+    public static async Task SetWriteAsync(ISqlSugarClient db, string? packetId, string? writeSql, string? affectedTables = null)
+    {
+        if (string.IsNullOrWhiteSpace(packetId))
+        {
+            return;
+        }
+
+        var row = await GetCommonAsync(db, packetId);
+        if (row == null)
+        {
+            await db.Insertable(new ShareDataSql
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                PacketId = packetId,
+                WriteSql = writeSql,
+                AffectedTables = affectedTables,
+                CreateTime = DateTime.Now
+            }).ExecuteCommandAsync();
+            return;
+        }
+
+        row.WriteSql = writeSql;
+        row.AffectedTables = affectedTables;
+        await db.Updateable(row).ExecuteCommandAsync();
+    }
+
+    /// <summary>
+    /// Đọc khối câu ghi chiều nhận ở dòng mẫu chung của gói.
+    /// </summary>
+    public static async Task<string?> GetWriteSqlAsync(ISqlSugarClient db, string? packetId)
+    {
+        return (await GetCommonAsync(db, packetId))?.WriteSql;
     }
 }
