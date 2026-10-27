@@ -113,6 +113,18 @@ test('Guardrails: Rule 19.13 - Chặn npm/pnpm/yarn run build cho Frontend', () 
     assert.match(res.stderr, /rule-19.13-no-auto-build-frontend/);
   }
 
+  // Cho phép sinh client API từ Swagger (build-api không phải build Frontend) — 27/10/2026
+  for (const cmd of ['pnpm run build-api', 'cd TA-ITS015-WEBVUE-V1.0/src && pnpm build-api', 'npm run build-api']) {
+    const res = spawnSync(process.execPath, [path.join(root, '.agents/hooks/thienan-guardrails.mjs')], {
+      input: JSON.stringify({
+        tool_name: 'run_command',
+        tool_args: { CommandLine: cmd }
+      }),
+      encoding: 'utf8'
+    });
+    assert.equal(res.status, 0, `Expected '${cmd}' to be allowed: ${res.stderr}`);
+  }
+
   // Cho phép build plugin antigravity
   const allowed = spawnSync(process.execPath, [path.join(root, '.agents/hooks/thienan-guardrails.mjs')], {
     input: JSON.stringify({

@@ -80,7 +80,8 @@ export function evaluateGuardrail(payload) {
     }
 
     // 5. Guard Rule 19.13: Cấm Auto-Build Frontend sau khi sửa code
-    const isFrontendBuild = /\b(?:npm|pnpm|yarn)\s+(?:run\s+)?build\b/i.test(command) && !/antigravity-plugin/i.test(command);
+    //    Cho phép `build-api` (sinh client API từ Swagger, không phải build Frontend) — 27/10/2026
+    const isFrontendBuild = /\b(?:npm|pnpm|yarn)\s+(?:run\s+)?build(?![\w-])/i.test(command) && !/antigravity-plugin/i.test(command);
     if (isFrontendBuild) {
       return {
         allowed: false,

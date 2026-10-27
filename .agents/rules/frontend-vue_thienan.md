@@ -45,6 +45,7 @@ src/views/<module>/<feature>/
 
 ### API Services (Swagger Auto-Generated — CẤM TẠO SERVICE RIÊNG, CẤM RAW AXIOS & BẮT BUỘC DÙNG `getAPI`) (Rule 20.28)
 * Toàn bộ mã nguồn trong `src/api-services/` được sinh tự động bởi OpenAPI / Swagger Codegen (`pnpm run build-api` hoặc `pwsh api_build/build.ps1`) từ Backend WebAPI.
+* **BE thêm / sửa API, DTO hoặc enum thì BẮT BUỘC chạy `pnpm run build-api` (27/10/2026)**: chạy khi WebAPI đang chạy đúng bản BE mới (lệnh đọc Swagger của WebAPI rồi ghi đè toàn bộ `src/api-services/`), xem `git diff` và chỉ giữ thay đổi của phân hệ mình (phân hệ khác lệch thì báo người phụ trách, không commit thay). Lệnh không tự chạy khi `dev` / `build`. Viết tay (mục dưới) chỉ là tạm khi chưa chạy được; lần sinh kế tiếp thay hẳn phần viết tay. Đã gặp 27/10/2026: `models/index.ts` thiếu dòng export (`IsRequired`) làm màn Ánh xạ trắng trang; còn sót model của API đã bỏ (`packet-write-sql-item`…).
 * ⛔ **TUYỆT ĐỐI CẤM** tự ý tạo thêm tầng service riêng lẻ (như `packetSqlService.ts`, `xxxService.ts`) trong `views/` hoặc `services/` làm phân mảnh kiến trúc. BẮT BUỘC tra cứu cách các view/component khác trong cùng phân hệ gọi API để bám sát và đồng nhất 100%.
 * ⛔ **TUYỆT ĐỐI CẤM** gọi trực tiếp `axiosInstance.get/post(...)` hoặc `axios.get/post(...)` và CẤM hardcode chuỗi URL (`${serveConfig.basePath}/api/...`) trong các component/view `.vue`.
 * ✅ **BẮT BUỘC**: 100% các cuộc gọi API từ Frontend phải thông qua wrapper chuẩn: `getAPI(XxxApi)` từ `/@/utils/axios-utils`.
