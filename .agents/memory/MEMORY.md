@@ -30,6 +30,17 @@
 ## Bài học kinh nghiệm & Quy chuẩn quan trọng
 - [Test theo luồng, có giá trị](feedback_test-flow-value.md) — chỉ test qua điểm vào luồng (`ProcessSubscriptions`, API bus); cấm unit test helper, FE so chuỗi; dùng `[Theory]`/`[InlineData]`.
 - **Tự động kích hoạt Subagent song song (Rule 19.70)**: Khi prompt chứa danh sách từ 2 task/công việc trở lên (đặc biệt các dạng đánh số `1.`, `2.`, `3.`... hoặc gạch đầu dòng `- `, danh sách file `@prompt-*.md`), hoặc khi các phần việc/nhiệm vụ được ngăn cách bởi dấu phân cách (như `=========`, `---`, `===`...), AI bắt buộc tự động kích hoạt subagents song song để xử lý độc lập từng phần việc mà không cần nhắc.
+- **Quy chuẩn Giao diện Nguồn dữ liệu ShareData (Đối chiếu Wireframe W0.2 - Chốt 27/10/2026)**:
+  1. Bố cục tổng thể: Giữ nguyên 3 khối dọc phân tách rõ ràng của hệ thống (Khối 1: SQL, Khối 2: Trường dữ liệu, Khối 3: Tham số).
+  2. Tab Chiều Gửi / Chiều Nhận: Chuẩn theo kiến trúc phân hệ hiện tại.
+  3. Toolbar hành động SQL:
+     - Nút Lưu mang nhãn `Lưu & phân tích` (icon FolderChecked).
+     - Phía bên trái toolbar: ở tab đối tác hiển thị Mã đối tác in đậm, Tên đối tác, và chip phiên bản mẫu (`Dựa trên mẫu v3 · mẫu hiện tại v5` hoặc `đã đồng bộ`).
+     - So sánh code khác biệt (Diff Dialog) giữ nguyên giải pháp Monaco Diff của hệ thống.
+  4. Khối 1: Giữ nguyên nút Mở rộng của hệ thống; loại bỏ các dòng chú thích cú pháp rườm rà dưới khung soạn SQL.
+  5. Khối 2: Cột trên bảng theo chuẩn wireframe: `Khoá (alias)`, `Tên hiển thị`, `Kiểu`, `Bắt buộc`, `Ghi chú`, `Trạng thái`. Tất cả header cột được căn giữa (`header-align: 'center'`).
+  6. Khối 3: Bảng Tham số loại bỏ dòng chú thích dài `Giá trị lần trước:...`; cấu trúc cột tham số giữ nguyên để phân tích sau.
+  7. Chiều cao tabs (`.direction-tabs`, `.sql-partner-tabs`): Tối ưu gọn gàng (28px - 32px).
 - **Kiểm thử NATS thật (Phương án 3 - Rule 19.81)**: Khi viết hoặc sửa bài kiểm thử xUnit tích hợp NATS broker thật (Docker local), luôn áp dụng Phương án 3 — cách ly Subject độc lập cho từng bài test dựa trên Unique ID (`$"ta.its.event.sharedata.newdata.t_{testId}"`), inject đè cả `Nats:NewDataSubject` và `Nats:Subject` qua `ConfigurationBuilder`. Đồng thời, ở bước kiểm tra listener sẵn sàng, BẮT BUỘC dùng cơ chế **Retry Probe Loop (100ms)** phát lặp định kỳ cho tới khi listener nhận được (`received.Count > 0`) để triệt tiêu race condition đăng ký subscribe nền, và hủy đăng ký (`transport.Unsubscribe`) ở đầu/cuối test; tăng timeout assertion chờ bản tin lên 45–60 giây khi chạy batch test lớn.
 
 ---

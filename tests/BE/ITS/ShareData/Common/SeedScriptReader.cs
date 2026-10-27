@@ -43,6 +43,7 @@ internal static class SeedScriptReader
     public sealed record SeedWriteSqlInfo(
         string PacketCode,
         string TableName,
+        string AffectedTables,
         int OrderNo,
         string WriteSql);
 
@@ -228,14 +229,14 @@ internal static class SeedScriptReader
         var content = File.ReadAllText(scriptPath);
 
         var regex = new Regex(
-            @"INSERT\s+INTO\s+\[dbo\]\.\[ShareDataPacketSql\][^\)]*\)\s*VALUES\s*\(\s*LOWER\(CONVERT\(NVARCHAR\(64\),\s*NEWID\(\)\)\),\s*'(?<packetCode>[^']+)',\s*'(?<tableName>[^']+)',\s*(?<orderNo>\d+),\s*N'(?<writeSql>.*?)',\s*1,\s*@TenantIdPacketSql,\s*GETDATE\(\),\s*'SHAREDATA-SEED-02'\);",
+            @"INSERT\s+INTO\s+@SeedPackets\s*\([^\)]*\)\s*VALUES\s*\(\s*'(?<packetCode>[^']+)',\s*'(?<tableName>[^']+)',\s*N?'(?<affectedTables>[^']+)',\s*N'(?<writeSql>.*?)'\);",
             RegexOptions.Singleline);
 
         var matches = regex.Matches(content);
-        if (matches.Count != 18)
+        if (matches.Count != 9)
         {
             throw new InvalidOperationException(
-                $"Kỳ vọng 18 câu ghi chiều nhận trong kịch bản seed 02, nhưng tìm thấy {matches.Count} câu.");
+                $"Kỳ vọng 9 khối câu ghi chiều nhận trong kịch bản seed 02, nhưng tìm thấy {matches.Count} khối.");
         }
 
         var list = new List<SeedWriteSqlInfo>(matches.Count);
@@ -243,10 +244,10 @@ internal static class SeedScriptReader
         {
             var packetCode = match.Groups["packetCode"].Value;
             var tableName = match.Groups["tableName"].Value;
-            var orderNo = int.Parse(match.Groups["orderNo"].Value);
+            var affectedTables = match.Groups["affectedTables"].Value;
             var writeSql = match.Groups["writeSql"].Value.Replace("''", "'");
 
-            list.Add(new SeedWriteSqlInfo(packetCode, tableName, orderNo, writeSql));
+            list.Add(new SeedWriteSqlInfo(packetCode, tableName, affectedTables, 1, writeSql));
         }
 
         return list;

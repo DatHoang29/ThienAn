@@ -128,6 +128,10 @@ public class DataInboundServiceTests(Host host)
         // Arrange
         var unique = Guid.NewGuid().ToString("N")[..8];
         var (partner, packet, sub, mapping) = await SeedInboundEnvironmentAsync(unique);
+        await _db.Updateable<ShareDataPacketSql>()
+            .SetColumns(s => s.WriteSql == "SELECT 'INSERT' FROM OPENJSON(@records); SELECT 'UPDATE';")
+            .Where(s => s.PacketCode == packet.Code)
+            .ExecuteCommandAsync();
 
         var parentLogId = Guid.NewGuid().ToString("N");
         // Giả lập dòng cha do WebAPI đã ghi (chờ xử lý)
@@ -197,13 +201,14 @@ public class DataInboundServiceTests(Host host)
         Assert.NotNull(step2Log);
         Assert.Equal(BaseEnums.SuccessEnums.Success, step2Log.Success);
         Assert.Contains("Bước 2/2", step2Log.Description ?? "");
-        Assert.Equal(2, step2Log.RecordCount);
+        Assert.Contains("thêm 2, sửa 1", step2Log.Description ?? "");
+        Assert.Equal(3, step2Log.RecordCount);
 
         // Kiểm tra dòng cha được cập nhật
         var updatedParent = await _db.Queryable<ShareDataActivityLog>().InSingleAsync(parentLogId);
         Assert.NotNull(updatedParent);
         Assert.Equal(BaseEnums.SuccessEnums.Success, updatedParent.Success);
-        Assert.Equal(2, updatedParent.RecordCount);
+        Assert.Equal(3, updatedParent.RecordCount);
         Assert.Null(updatedParent.ErrorMessage);
         Assert.Contains(partner.Name!, updatedParent.Description ?? "");
     }
@@ -1204,7 +1209,7 @@ public class DataInboundServiceTests(Host host)
     }
 
     /// <summary>
-    /// Description: B1 - 18 câu ghi chiều nhận trong kịch bản seed 02 biên dịch thành công (0 lỗi)
+    /// Description: B1 - 9 khối câu ghi chiều nhận (gộp nhiều bảng mỗi gói) trong kịch bản seed 02 biên dịch thành công (0 lỗi)
     ///              với lược đồ CSDL Inbound hiện hành khi kiểm tra qua sys.sp_describe_first_result_set.
     /// Created date: 20/10/2026
     /// </summary>
@@ -1213,7 +1218,7 @@ public class DataInboundServiceTests(Host host)
     {
         // Arrange
         var statements = SeedScriptReader.ReadWriteSqlStatements();
-        Assert.Equal(18, statements.Count);
+        Assert.Equal(9, statements.Count);
 
         const string sqlParams = "@records nvarchar(max), @now datetime, @tenantId nvarchar(64), @operator nvarchar(64), @partnerId nvarchar(64), @partnerCode nvarchar(64), @datatypeId nvarchar(64), @serialNbr int, @packetId nvarchar(64)";
 
@@ -1276,7 +1281,7 @@ public class DataInboundServiceTests(Host host)
         }
 
         var seedWrites = SeedScriptReader.ReadWriteSqlStatements().Where(s => s.PacketCode == packetCode).ToList();
-        Assert.Equal(3, seedWrites.Count);
+        Assert.Single(seedWrites);
 
         var existingWrites = await _db.Queryable<ShareDataPacketSql>()
             .Where(w => w.PacketCode == packetCode && w.IsDelete == null)
@@ -1288,6 +1293,7 @@ public class DataInboundServiceTests(Host host)
                 ID = Guid.NewGuid().ToString("N"),
                 PacketCode = packetCode,
                 TableName = sw.TableName,
+                AffectedTables = sw.AffectedTables,
                 OrderNo = sw.OrderNo,
                 WriteSql = sw.WriteSql,
                 Status = BaseEnums.StatusEnum.Enable

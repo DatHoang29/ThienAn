@@ -466,6 +466,12 @@ defineExpose({ openDialog });
   - **Trong template Vue / `el-tooltip`**:
     - Sử dụng slot `<template #content><div style="white-space: pre-line">{{ ... }}</div></template>` hoặc cấu hình CSS `white-space: pre-line;` để trình duyệt diễn giải đúng ký tự `\n` ngắt dòng.
 
+### 4. Nội Dung Tooltip Chỉ Chứa Chữ, Không Chứa Icon (bổ sung 27/10/2026)
+* Nội dung `el-tooltip` (và `title`, `aria-label`) chỉ là chữ mô tả thao tác, ví dụ `Chỉnh sửa`, `Thu gọn`.
+  - ⛔ **CẤM** đưa ký hiệu / icon vào nội dung tooltip (`✎`, `⤢`, `⇄`, `＋`, emoji...). Icon thuộc về nút bấm, không thuộc về chữ giải thích.
+  - Khóa i18n có ký hiệu ở đầu để làm nhãn nút (vd. `"✎ Chỉnh sửa"`) thì **không dùng lại** cho tooltip; tạo khóa riêng chỉ có chữ (vd. `editFieldsTooltip: "Chỉnh sửa"`).
+  - Nút chỉ có icon (tiết kiệm bề rộng) bắt buộc kèm tooltip chữ và `aria-label` cùng nội dung.
+
 ---
 
 ## 🧪 9. Ưu Tiên Sửa Code Trước — Chỉ Viết Test Khi Có Yêu Cầu (Rule 19.67 - Fix-First & On-Demand Testing)

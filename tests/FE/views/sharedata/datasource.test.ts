@@ -112,7 +112,11 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
 
         // Bảng câu ghi chiều nhận và bảng tham số của gói: mock rỗng để không gọi ra máy chủ thật
         await page.route('**/api/sharedata/sharedatapacket/getwritesqls*', async (route) => {
-            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: { items: [] } }) });
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ code: 200, result: { packetCode: '101_commonData', writeSql: '', affectedTables: [], detectedTables: [], keyFields: [] } }),
+            });
         });
         await page.route('**/api/sharedata/sharedatapacket/getsqlvariables*', async (route) => {
             await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: { items: [] } }) });
@@ -134,7 +138,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(packetResizerCount).toBeGreaterThan(0);
 
         // Đảm bảo cột có resizer đã ổn định vị trí trên màn hình (y < 400)
-        const targetCol = packetGrid.locator('.vxe-table--header-wrapper .vxe-header--column:has(.vxe-resizable):visible').first();
+        // Kéo cột Tên gói tin (cột co giãn), không kéo cột STT
+        const targetCol = packetGrid.locator('.vxe-table--main-wrapper .vxe-table--header-wrapper .vxe-header--column:has(.vxe-resizable):visible').filter({ hasText: 'Tên gói tin' }).first();
         await expect(async () => {
             const box = await targetCol.boundingBox();
             expect(box).not.toBeNull();
@@ -312,6 +317,13 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(packetGrid).toBeVisible();
         const packetRows = packetGrid.locator('.vxe-body--row');
         await expect(packetRows.first()).toBeVisible();
+
+        // Tải lại trang: độ rộng khung trái đã kéo vẫn được giữ nguyên từ localStorage
+        await page.reload();
+        await expect(packetGrid).toBeVisible({ timeout: 30_000 });
+        const reloadedPacketBox = await packetPane.boundingBox();
+        expect(reloadedPacketBox).not.toBeNull();
+        expect(Math.abs(reloadedPacketBox!.width - newPacketBox!.width)).toBeLessThanOrEqual(5);
     });
 
     test('19. Kiểm tra cột Hành động cố định bên phải (fixed: right) và chống đứt gãy bố cục khi kéo resize cột', async ({ page }) => {
@@ -325,24 +337,36 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const packetRows = packetGrid.locator('.vxe-body--row');
         await expect(packetRows.first()).toBeVisible({ timeout: 10_000 });
 
-        // 3. Kiểm chứng cột Hành động được cố định bên phải thông qua .vxe-table--fixed-right-wrapper
-        const packetFixedRight = packetGrid.locator('.vxe-table--fixed-right-wrapper');
-        await expect(packetFixedRight).toBeVisible();
-
-        const actionHeader = packetFixedRight.locator('.vxe-header--column').filter({ hasText: 'Hành động' });
+        // 3. Lúc mở trang bảng vừa khít khung (không cuộn ngang, không thừa khoảng trắng bên phải): cột Hành động sát mép phải.
+        //    Bảng không tràn ngang thì vxe không dựng khối fixed-right, nên lấy cột Hành động ở bảng chính.
+        const actionHeader = packetGrid.locator('.vxe-table--main-wrapper .vxe-header--column').filter({ hasText: 'Hành động' }).first();
         await expect(actionHeader).toBeVisible();
-
-        // Mép phải của khối fixed right phải khớp sát mép phải của bảng (được neo cứng bên phải)
         const gridBox = await packetGrid.boundingBox();
-        const fixedRightBox = await packetFixedRight.boundingBox();
+        const actionBox = await actionHeader.boundingBox();
         expect(gridBox).not.toBeNull();
-        expect(fixedRightBox).not.toBeNull();
-        const rightEdgeDiff = Math.abs((fixedRightBox!.x + fixedRightBox!.width) - (gridBox!.x + gridBox!.width));
+        expect(actionBox).not.toBeNull();
+        const rightEdgeDiff = Math.abs((actionBox!.x + actionBox!.width) - (gridBox!.x + gridBox!.width));
         expect(rightEdgeDiff).toBeLessThanOrEqual(5);
+        const noHScroll = await packetGrid.evaluate((g) => {
+            const body = g.querySelector('.vxe-table--main-wrapper .vxe-table--body-wrapper') as HTMLElement;
+            return body.scrollWidth <= body.clientWidth + 1;
+        });
+        expect(noHScroll).toBe(true);
 
-        // Các nút thao tác (copy, edit, delete) trong cột Hành động fixed right phải hiển thị và tương tác được
-        const firstRowActionButtons = packetFixedRight.locator('.vxe-body--row').first().locator('button');
+        // Các nút thao tác (copy, edit, delete) ở dòng đầu hiển thị được
+        const firstRowActionButtons = packetGrid.locator('.vxe-table--main-wrapper .vxe-body--row').first().locator('button');
         await expect(firstRowActionButtons.first()).toBeVisible();
+        // Ô Hành động đủ rộng cho 3 nút, không bị cắt "…"
+        const actionCellFits = await packetGrid.evaluate((g) =>
+            [...g.querySelectorAll('.vxe-table--main-wrapper .vxe-body--row')].slice(0, 3).every((r) => {
+                const cell = r.querySelector('.vxe-body--column:last-child .vxe-cell') as HTMLElement;
+                return cell.scrollWidth <= cell.clientWidth + 1;
+            })
+        );
+        expect(actionCellFits).toBe(true);
+        // Dòng giữ chiều cao cố định như cũ (không co theo nội dung)
+        const rowHeights = await packetGrid.evaluate((g) => [...g.querySelectorAll('.vxe-table--main-wrapper .vxe-body--row')].map((r) => Math.round(r.getBoundingClientRect().height)));
+        expect(Math.min(...rowHeights)).toBeGreaterThanOrEqual(34);
 
         // 4. Kiểm tra thao tác kéo resize cột Tên gói tin (flex column)
         const resizer = packetGrid.locator('.vxe-table--main-wrapper .vxe-header--column:has(.vxe-resizable):visible').first().locator('.vxe-resizable');
@@ -359,12 +383,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await page.mouse.up();
         await page.waitForTimeout(300);
 
-        // Sau khi kéo resize, cột Hành động (fixed: 'right') vẫn duy trì vị trí neo sát mép phải
-        await expect(packetFixedRight).toBeVisible();
-        const fixedRightBoxAfter = await packetFixedRight.boundingBox();
-        expect(fixedRightBoxAfter).not.toBeNull();
-        const rightEdgeDiffAfter = Math.abs((fixedRightBoxAfter!.x + fixedRightBoxAfter!.width) - (gridBox!.x + gridBox!.width));
-        expect(rightEdgeDiffAfter).toBeLessThanOrEqual(5);
+        // Sau khi kéo resize, cột Hành động vẫn hiện đủ (bảng chính hoặc khối fixed-right khi tràn ngang)
+        await expect(packetGrid.locator('.vxe-header--column:visible').filter({ hasText: 'Hành động' }).first()).toBeVisible();
 
     });
 

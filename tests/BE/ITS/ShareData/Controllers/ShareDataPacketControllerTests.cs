@@ -791,9 +791,12 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     /// <summary>
     /// Description: Tên cột là khoá trường của gói tin (FieldsJson) nên câu SQL trả trùng tên cột bị từ chối khi chạy thử.
     /// Modified date: 26/10/2026 (trước đây tự thêm hậu tố _2, _3)
+    /// Modified date: 27/10/2026 (gom mọi tên trùng, mỗi tên báo một lần)
     /// </summary>
-    [Fact]
-    public async Task ExecutePacketSqlSample_WithDuplicateColumns_ReturnsDuplicateColumnError_Test()
+    [Theory]
+    [InlineData("SELECT 1 AS TestCol, 2 AS TestCol, 3 AS TestCol", new[] { "TestCol" })]
+    [InlineData("SELECT 1 AS avgSpeed, 2 AS occupancy, 3 AS avgSpeed, 4 AS occupancy, 5 AS avgSpeed, 6 AS occupancy", new[] { "avgSpeed", "occupancy" })]
+    public async Task ExecutePacketSqlSample_WithDuplicateColumns_ReturnsDuplicateColumnError_Test(string sql, string[] duplicates)
     {
         // Arrange
         var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
@@ -804,7 +807,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var input = new ExecutePacketSqlSampleInput
         {
             PacketCode = "101",
-            ExtractSql = "SELECT 1 AS TestCol, 2 AS TestCol, 3 AS TestCol",
+            ExtractSql = sql,
             Top = 5
         };
 
@@ -813,7 +816,10 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
 
         // Assert
         Assert.False(result.IsSuccess);
-        Assert.Contains("TestCol", result.ErrorMessage);
+        foreach (var name in duplicates)
+        {
+            Assert.Single(System.Text.RegularExpressions.Regex.Matches(result.ErrorMessage ?? string.Empty, $@"\b{name}\b"));
+        }
         Assert.Empty(result.Rows);
     }
 
@@ -1121,7 +1127,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         Assert.False(string.IsNullOrWhiteSpace(zone.Id));
         var fields = await scope.ServiceProvider.CallApiAsync<List<MetadataFieldDto>>(new GetMetadataFieldsInput
         {
-            TableId = zone.Id
+            Id = zone.Id
         });
 
         // Assert
@@ -1154,7 +1160,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         // Act & Assert
         var ex = await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<List<MetadataFieldDto>>(new GetMetadataFieldsInput
         {
-            TableId = "any-table-id"
+            Id = "any-table-id"
         }));
         var msg = ex.Message;
         Assert.True(msg.Contains("superAdminRequiredForMetadata") || (ex is AppFriendlyException afe && afe.ErrorMessage?.ToString() == BaseMsg.ShareData.Exception.SuperAdminRequiredForMetadata));
@@ -1181,7 +1187,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         // Act & Assert
         var fields = await scope.ServiceProvider.CallApiAsync<List<MetadataFieldDto>>(new GetMetadataFieldsInput
         {
-            TableId = invalidTableId
+            Id = invalidTableId
         });
         Assert.NotNull(fields);
         Assert.Empty(fields);
@@ -1217,7 +1223,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             // Act
             var fields = await scope.ServiceProvider.CallApiAsync<List<MetadataFieldDto>>(new GetMetadataFieldsInput
             {
-                TableId = testId
+                Id = testId
             });
 
             // Assert
@@ -1804,11 +1810,14 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     private static PacketSqlVariableItemInput BuiltinVar(string code, string dataType, string source) =>
         new() { Code = code, DataType = dataType, ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = source };
 
+    private static PacketSqlVariableItemInput ConstVar(string code, string dataType, string value) =>
+        new() { Code = code, DataType = dataType, ValueKind = ShareDataConst.SqlVariableKindConst, Value = value };
+
     /// <summary>
     /// Description: Lưu mẫu chung rồi đọc lại: đúng thứ tự, tên bỏ @, mã nguồn chuẩn hóa hoa thường, kiểu dữ liệu suy từ nguồn
-    ///              (bỏ qua kiểu gửi lên, kể cả để trống hoặc sai)
+    ///              (bỏ qua kiểu gửi lên, kể cả để trống hoặc sai), và hỗ trợ hằng số "Giá trị nhập" (String, Int, Decimal).
     /// Created date: 24/10/2026
-    /// Modified date: 26/10/2026 (Bỏ hằng số: chỉ còn nguồn hệ thống)
+    /// Modified date: 26/10/2026
     /// </summary>
     [Fact]
     public async Task UpdateSqlVariables_WhenCommonScope_SavesSourcesAndDerivesType_Test()
@@ -1827,22 +1836,39 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
                 BuiltinVar("@since", "", "LASTTIME"),
                 BuiltinVar("afterKey", ShareDataConst.SqlVariableTypeDateTime, "lastkey"),
                 BuiltinVar("yearStart", ShareDataConst.SqlVariableTypeDateTime, "startofyear"),
-                BuiltinVar("pc", "", "partnercode")
+                BuiltinVar("pc", "", "partnercode"),
+                ConstVar("@pageSize", "int", " 500 "),
+                ConstVar("minRate", "decimal", "1.25"),
+                ConstVar("tag", "string", "ACTIVE")
             ]
         });
 
-        Assert.Equal(["since", "afterKey", "yearStart", "pc"], saved.Items.Select(i => i.Code).ToArray());
+        Assert.Equal(["since", "afterKey", "yearStart", "pc", "pageSize", "minRate", "tag"], saved.Items.Select(i => i.Code).ToArray());
         Assert.All(saved.Items, i => Assert.Equal(ShareDataConst.SqlVariableScopeCommon, i.Scope));
-        Assert.All(saved.Items, i => Assert.Equal(ShareDataConst.SqlVariableKindBuiltin, i.ValueKind));
         Assert.Equal(
-            [ShareDataConst.SqlVariableSourceLastTime, ShareDataConst.SqlVariableSourceLastKey, ShareDataConst.SqlVariableSourceStartOfYear, ShareDataConst.SqlVariableSourcePartnerCode],
-            saved.Items.Select(i => i.Value).ToArray());
+            [
+                ShareDataConst.SqlVariableKindBuiltin, ShareDataConst.SqlVariableKindBuiltin,
+                ShareDataConst.SqlVariableKindBuiltin, ShareDataConst.SqlVariableKindBuiltin,
+                ShareDataConst.SqlVariableKindConst, ShareDataConst.SqlVariableKindConst, ShareDataConst.SqlVariableKindConst
+            ],
+            saved.Items.Select(i => i.ValueKind).ToArray());
         Assert.Equal(
-            [ShareDataConst.SqlVariableTypeDateTime, ShareDataConst.SqlVariableTypeString, ShareDataConst.SqlVariableTypeDateTime, ShareDataConst.SqlVariableTypeString],
+            [
+                ShareDataConst.SqlVariableSourceLastTime, ShareDataConst.SqlVariableSourceLastKey,
+                ShareDataConst.SqlVariableSourceStartOfYear, ShareDataConst.SqlVariableSourcePartnerCode,
+                "500", "1.25", "ACTIVE"
+            ],
+            saved.Items.Select(i => i.Value ?? string.Empty).ToArray());
+        Assert.Equal(
+            [
+                ShareDataConst.SqlVariableTypeDateTime, ShareDataConst.SqlVariableTypeString,
+                ShareDataConst.SqlVariableTypeDateTime, ShareDataConst.SqlVariableTypeString,
+                ShareDataConst.SqlVariableTypeInt, ShareDataConst.SqlVariableTypeDecimal, ShareDataConst.SqlVariableTypeString
+            ],
             saved.Items.Select(i => i.DataType).ToArray());
 
         var read = await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new GetPacketSqlVariablesInput { PacketCode = packet.Code! });
-        Assert.Equal(4, read.Items.Count);
+        Assert.Equal(7, read.Items.Count);
     }
 
     /// <summary>
@@ -1942,7 +1968,10 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     [InlineData("from date", "DateTime", "Builtin", "now")]
     [InlineData("yearStart", "DateTime", "Builtin", "tenant")]
     [InlineData("runAt", "DateTime", "Builtin", "")]
-    [InlineData("pageSize", "Int", "Const", "500")]
+    [InlineData("pageSize", "Int", "Const", "abc")]
+    [InlineData("rate", "Decimal", "Const", "not-a-decimal")]
+    [InlineData("tag", "String", "Const", "   ")]
+    [InlineData("dt", "DateTime", "Const", "2026-01-01")]
     [InlineData("prevRun", "DateTime", "Manual", "lastRunTime")]
     public async Task UpdateSqlVariables_WhenItemInvalid_ThrowsAndSavesNothing_Test(string code, string dataType, string valueKind, string value)
     {
@@ -2139,8 +2168,107 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     }
 
     /// <summary>
+    /// Description: Người dùng chọn kiểu cho trường ở popup sửa trường: kiểu chọn tay được giữ qua các lần lưu sau (bộ dò không ghi đè),
+    ///              chọn lại đúng kiểu dò được thì bỏ chọn tay.
+    /// Created date: 27/10/2026
+    /// </summary>
+    [Fact]
+    public async Task UpdateExtractSql_WhenFieldTypeChosen_KeepsChosenTypeUntilResetToDetected_Test()
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (packet, _) = await SeedSqlVariablePacketAsync(db, unique);
+        const string sql = "SELECT TOP 10 ID AS zoneId, Name AS zoneName, MaxSpeed AS speedLimit FROM TmsZone";
+        UpdatePacketExtractSqlInput Save(string? type) => new()
+        {
+            PacketCode = packet.Code!,
+            ExtractSql = sql,
+            Fields = [new SqlFieldEditInput { Key = "speedLimit", Type = type }]
+        };
+        async Task<SqlFieldItem> StoredSpeedLimit() =>
+            SqlFieldHelper.Read((await ShareDataSqlSeed.GetCommonAsync(db, packet.ID))?.FieldsJson).Single(f => f.Key == "speedLimit");
+
+        await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(Save(null));
+        var detected = (await StoredSpeedLimit()).Type;
+        var chosen = detected == SqlFieldType.String ? SqlFieldType.Number : SqlFieldType.String;
+
+        // Act + Assert: chọn kiểu khác
+        await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(Save(chosen));
+        Assert.Equal(chosen, (await StoredSpeedLimit()).Type);
+        Assert.Equal(chosen, (await StoredSpeedLimit()).TypeOverride);
+
+        // Lưu lại không gửi kiểu: vẫn giữ kiểu đã chọn
+        await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(Save(null));
+        Assert.Equal(chosen, (await StoredSpeedLimit()).Type);
+
+        // Chọn lại đúng kiểu dò được: bỏ chọn tay
+        await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(Save(detected));
+        Assert.Equal(detected, (await StoredSpeedLimit()).Type);
+        Assert.Null((await StoredSpeedLimit()).TypeOverride);
+    }
+
+    /// <summary>
+    /// Description: Chọn kiểu trong cấu hình sharedata_value_type (như luồng cũ) thì được nhận và giữ nguyên.
+    /// Created date: 27/10/2026
+    /// </summary>
+    [Theory]
+    [InlineData("decimal")]
+    [InlineData("long")]
+    [InlineData("guid")]
+    public async Task UpdateExtractSql_WhenFieldTypeFromConfig_KeepsType_Test(string type)
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var (packet, _) = await SeedSqlVariablePacketAsync(db, Guid.NewGuid().ToString("N")[..8]);
+
+        // Act
+        await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
+        {
+            PacketCode = packet.Code!,
+            ExtractSql = "SELECT TOP 10 ID AS zoneId, Name AS zoneName FROM TmsZone",
+            Fields = [new SqlFieldEditInput { Key = "zoneName", Type = type }]
+        });
+
+        // Assert
+        var stored = SqlFieldHelper.Read((await ShareDataSqlSeed.GetCommonAsync(db, packet.ID))?.FieldsJson).Single(f => f.Key == "zoneName");
+        Assert.Equal(type, stored.Type);
+        Assert.Equal(type, stored.TypeOverride);
+    }
+
+    /// <summary>
+    /// Description: Kiểu không thuộc kiểu bộ dò sinh hoặc cấu hình sharedata_value_type bị từ chối.
+    /// Created date: 27/10/2026
+    /// </summary>
+    [Theory]
+    [InlineData("text")]
+    [InlineData("varchar")]
+    [InlineData("money")]
+    public async Task UpdateExtractSql_WhenFieldTypeInvalid_Throws_Test(string type)
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var (packet, _) = await SeedSqlVariablePacketAsync(db, Guid.NewGuid().ToString("N")[..8]);
+
+        // Act + Assert
+        await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
+        {
+            PacketCode = packet.Code!,
+            ExtractSql = "SELECT TOP 10 ID AS zoneId, MaxSpeed AS speedLimit FROM TmsZone",
+            Fields = [new SqlFieldEditInput { Key = "speedLimit", Type = type }]
+        }));
+    }
+
+    /// <summary>
     /// Description: Câu SQL mới làm mất khoá mà hồ sơ ánh xạ chiều gửi đang dùng: lần đầu không lưu, trả RequiresConfirm kèm khoá mất;
-    ///              gửi lại với Force thì lưu và giữ trường cũ ở trạng thái Lost (không xoá phần người dùng đã khai).
+    ///              gửi lại với Force thì lưu và xoá hẳn trường mất cột (như wireframe).
+    /// Modified date: 27/10/2026
     /// Created date: 26/10/2026
     /// </summary>
     [Fact]
@@ -2177,7 +2305,9 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         Assert.Equal(oldSql, sqlAfterPending);
         Assert.False(forced.RequiresConfirm);
         Assert.Equal(newSql, (await ShareDataSqlSeed.GetCommonAsync(db, packet.ID))?.ExtractSql);
-        Assert.True(forced.Fields.Single(f => f.Key == "zoneName").Lost);
+        // Như wireframe: xác nhận xong thì trường mất cột bị xoá hẳn khỏi danh sách
+        Assert.DoesNotContain(forced.Fields, f => f.Key == "zoneName");
+        Assert.DoesNotContain(SqlFieldHelper.Read((await ShareDataSqlSeed.GetCommonAsync(db, packet.ID))?.FieldsJson), f => f.Key == "zoneName");
     }
 
     /// <summary>
@@ -2277,9 +2407,25 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         OUTPUT $action;
         """;
 
+    private const string SecondTableWriteSql = """
+        MERGE dbo.TmsZone WITH (HOLDLOCK) AS t
+        USING (
+            SELECT zoneId, MAX(zoneName) AS zoneName
+            FROM OPENJSON(@records) WITH (zoneId nvarchar(64), zoneName nvarchar(255))
+            WHERE zoneId IS NOT NULL
+            GROUP BY zoneId
+        ) AS s
+           ON t.ID = s.zoneId
+        WHEN MATCHED THEN
+            UPDATE SET t.Name = s.zoneName
+        WHEN NOT MATCHED THEN
+            INSERT (ID, Name) VALUES (s.zoneId, s.zoneName)
+        OUTPUT $action;
+        """;
+
     /// <summary>
-    /// Description: Lưu danh sách câu ghi qua API: đúng thứ tự gửi lên, dò khoá bản ghi từ ON; lưu lại bỏ một câu và đổi thứ tự thì
-    ///              câu bị bỏ xoá mềm (Worker không dùng nữa), câu còn lại đánh lại thứ tự; danh sách gói đếm đúng số câu ghi.
+    /// Description: Lưu khối câu ghi chiều nhận (nhiều câu MERGE trong một khối) qua API: tự dò bảng đích và khoá bản ghi từ ON,
+    ///              lưu danh sách bảng bị ảnh hưởng, danh sách gói đếm đúng số bảng bị ảnh hưởng; xóa trắng câu ghi thì xóa mềm dòng đang lưu.
     /// Created date: 26/10/2026
     /// </summary>
     [Fact]
@@ -2291,50 +2437,66 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
         var unique = Guid.NewGuid().ToString("N")[..8];
         var (packet, _) = await SeedSqlVariablePacketAsync(db, unique);
-        var second = ValidWriteSql.Replace("MAX(code) AS code", "MAX(code) AS code, 1 AS extra");
+        var combinedSql = ValidWriteSql + "\n\n" + SecondTableWriteSql;
 
         // Act
         var first = await scope.ServiceProvider.CallApiAsync<PacketWriteSqlsOutput>(new UpdatePacketWriteSqlsInput
         {
             PacketCode = packet.Code!,
-            Items =
-            [
-                new PacketWriteSqlItemInput { TableName = "dbo.ShareDataInboundPacket", WriteSql = ValidWriteSql, Remark = "câu 1" },
-                new PacketWriteSqlItemInput { TableName = "ShareDataInboundPacket", WriteSql = second, Remark = "câu 2" }
-            ]
+            WriteSql = combinedSql,
+            AffectedTables = ["dbo.ShareDataInboundPacket", "TmsZone"],
+            Remark = "gộp 2 bảng"
         });
+        var pageTwoTables = await scope.ServiceProvider.CallApiAsync<SqlSugarPagedList<ShareDataPagePacketOutput>>(new ShareDataPagePacketInput { Code = packet.Code, Page = 1, PageSize = 10 });
+
         var resaved = await scope.ServiceProvider.CallApiAsync<PacketWriteSqlsOutput>(new UpdatePacketWriteSqlsInput
         {
             PacketCode = packet.Code!,
-            Items = [new PacketWriteSqlItemInput { ID = first.Items[1].ID, TableName = "ShareDataInboundPacket", WriteSql = second, Remark = "câu 2" }]
+            WriteSql = ValidWriteSql,
+            AffectedTables = ["ShareDataInboundPacket"],
+            Remark = "còn 1 bảng"
         });
-        var page = await scope.ServiceProvider.CallApiAsync<SqlSugarPagedList<ShareDataPagePacketOutput>>(new ShareDataPagePacketInput { Code = packet.Code, Page = 1, PageSize = 10 });
+        var pageOneTable = await scope.ServiceProvider.CallApiAsync<SqlSugarPagedList<ShareDataPagePacketOutput>>(new ShareDataPagePacketInput { Code = packet.Code, Page = 1, PageSize = 10 });
+
+        var cleared = await scope.ServiceProvider.CallApiAsync<PacketWriteSqlsOutput>(new UpdatePacketWriteSqlsInput
+        {
+            PacketCode = packet.Code!,
+            WriteSql = string.Empty,
+            AffectedTables = []
+        });
 
         // Assert
-        Assert.Equal(["câu 1", "câu 2"], first.Items.Select(i => i.Remark));
-        Assert.Equal([1, 2], first.Items.Select(i => i.OrderNo ?? 0));
-        Assert.Equal(["id"], first.Items[0].KeyFields);
-        Assert.Single(resaved.Items);
-        Assert.Equal(first.Items[1].ID, resaved.Items[0].ID);
-        Assert.Equal(1, resaved.Items[0].OrderNo);
-        // Bỏ bộ lọc xoá mềm mặc định để thấy câu đã xoá mềm
-        var removed = await db.Queryable<ShareDataPacketSql>().ClearFilter().Where(w => w.ID == first.Items[0].ID).FirstAsync();
-        Assert.NotNull(removed);
-        Assert.NotNull(removed.IsDelete);
-        Assert.Equal(1, page.Records.Single(p => p.Code == packet.Code).WriteSqlCount);
+        Assert.Equal("gộp 2 bảng", first.Remark);
+        Assert.Equal(["dbo.ShareDataInboundPacket", "dbo.TmsZone"], first.AffectedTables);
+        Assert.Equal(["dbo.ShareDataInboundPacket", "dbo.TmsZone"], first.DetectedTables);
+        Assert.Equal(["id", "zoneId"], first.KeyFields);
+        Assert.Equal(2, pageTwoTables.Records.Single(p => p.Code == packet.Code).WriteSqlCount);
+
+        Assert.Equal("còn 1 bảng", resaved.Remark);
+        Assert.Equal(["dbo.ShareDataInboundPacket"], resaved.AffectedTables);
+        Assert.Equal(["id"], resaved.KeyFields);
+        Assert.Equal(1, pageOneTable.Records.Single(p => p.Code == packet.Code).WriteSqlCount);
+
+        Assert.Null(cleared.WriteSql);
+        Assert.Empty(cleared.AffectedTables);
+        var activeCount = await db.Queryable<ShareDataPacketSql>().Where(w => w.PacketCode == packet.Code && w.IsDelete == null).CountAsync();
+        Assert.Equal(0, activeCount);
     }
 
     /// <summary>
     /// Description: Kiểm an toàn câu ghi: các trường hợp bị chặn (lỗi) và trường hợp chỉ cảnh báo (vẫn hợp lệ).
-    ///              Bị chặn: ghi sai bảng, hai câu lệnh, câu SELECT, có DELETE, có EXEC, tham số lạ, bảng ở CSDL khác,
+    ///              Cho phép nhiều câu MERGE/INSERT/UPDATE trong một khối miễn mọi bảng đích nằm trong AffectedTables.
+    ///              Bị chặn: ghi bảng ngoài AffectedTables, câu SELECT, có DELETE, có EXEC, tham số lạ, bảng ở CSDL khác,
     ///              bảng không có trong CSDL nhận, sai tên cột (CSDL nhận biên dịch lỗi).
-    ///              Cảnh báo: thiếu GROUP BY / IS NOT NULL theo khoá, thiếu OUTPUT $action.
+    ///              Cảnh báo: bảng trong AffectedTables nhưng chưa dùng trong SQL, thiếu GROUP BY / IS NOT NULL theo khoá, thiếu OUTPUT $action.
     /// Created date: 26/10/2026
     /// </summary>
     [Theory]
     [InlineData("valid", "dbo.ShareDataInboundPacket", true, 0)]
+    [InlineData("two-merges", "dbo.ShareDataInboundPacket,dbo.TmsZone", true, 0)]
+    [InlineData("unused-table", "dbo.ShareDataInboundPacket,dbo.TmsZone", true, 1)]
     [InlineData("other-table", "dbo.ShareDataPartner", false, 0)]
-    [InlineData("two-statements", "dbo.ShareDataInboundPacket", false, 0)]
+    [InlineData("two-statements-select", "dbo.ShareDataInboundPacket", false, 0)]
     [InlineData("select", "dbo.ShareDataInboundPacket", false, 0)]
     [InlineData("delete", "dbo.ShareDataInboundPacket", false, 0)]
     [InlineData("exec", "dbo.ShareDataInboundPacket", false, 0)]
@@ -2343,7 +2505,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     [InlineData("missing-table", "dbo.NoSuchInboundTable", false, 0)]
     [InlineData("bad-column", "dbo.ShareDataInboundPacket", false, 0)]
     [InlineData("no-group-no-output", "dbo.ShareDataInboundPacket", true, 3)]
-    public async Task ValidateWriteSql_WhenSqlChecked_BlocksUnsafeAndWarnsRisky_Test(string scenario, string tableName, bool expectValid, int expectWarnings)
+    public async Task ValidateWriteSql_WhenSqlChecked_BlocksUnsafeAndWarnsRisky_Test(string scenario, string affectedTablesCsv, bool expectValid, int expectWarnings)
     {
         // Arrange
         SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
@@ -2351,9 +2513,11 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
         var unique = Guid.NewGuid().ToString("N")[..8];
         var (packet, _) = await SeedSqlVariablePacketAsync(db, unique);
+        var affectedTables = affectedTablesCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
         var sql = scenario switch
         {
-            "two-statements" => ValidWriteSql + "\nSELECT 1;",
+            "two-merges" => ValidWriteSql + "\n\n" + SecondTableWriteSql,
+            "two-statements-select" => ValidWriteSql + "\nSELECT 1;",
             "select" => "SELECT id FROM OPENJSON(@records) WITH (id nvarchar(64))",
             "delete" => ValidWriteSql.Replace("WHEN MATCHED THEN\n    UPDATE SET t.PacketCode = s.code", "WHEN MATCHED THEN DELETE"),
             "exec" => "EXEC sp_who",
@@ -2369,19 +2533,24 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         };
 
         // Act
-        var result = await scope.ServiceProvider.CallApiAsync<ValidateWriteSqlOutput>(new ValidateWriteSqlInput { PacketCode = packet.Code!, TableName = tableName, WriteSql = sql });
+        var result = await scope.ServiceProvider.CallApiAsync<ValidateWriteSqlOutput>(new ValidateWriteSqlInput
+        {
+            PacketCode = packet.Code!,
+            WriteSql = sql,
+            AffectedTables = affectedTables
+        });
 
         // Assert
         Assert.True(expectValid == result.IsValid, string.Join(" | ", result.Checks.Select(c => $"{c.Level}: {c.Message}")));
         if (expectValid)
         {
             Assert.Equal(expectWarnings, result.Checks.Count(c => c.Level == ShareDataConst.WriteSqlCheckWarning));
-            Assert.Equal(["id"], result.KeyFields);
+            Assert.Contains("id", result.KeyFields);
         }
     }
 
     /// <summary>
-    /// Description: Câu ghi không an toàn thì không lưu được: ném lỗi, danh sách đang lưu giữ nguyên.
+    /// Description: Câu ghi không an toàn thì không lưu được: ném lỗi, câu ghi đang lưu giữ nguyên.
     /// Created date: 26/10/2026
     /// </summary>
     [Fact]
@@ -2396,14 +2565,16 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         await scope.ServiceProvider.CallApiAsync<PacketWriteSqlsOutput>(new UpdatePacketWriteSqlsInput
         {
             PacketCode = packet.Code!,
-            Items = [new PacketWriteSqlItemInput { TableName = "dbo.ShareDataInboundPacket", WriteSql = ValidWriteSql }]
+            WriteSql = ValidWriteSql,
+            AffectedTables = ["dbo.ShareDataInboundPacket"]
         });
 
         // Act
         var error = await Record.ExceptionAsync(() => scope.ServiceProvider.CallApiAsync<PacketWriteSqlsOutput>(new UpdatePacketWriteSqlsInput
         {
             PacketCode = packet.Code!,
-            Items = [new PacketWriteSqlItemInput { TableName = "dbo.ShareDataPartner", WriteSql = ValidWriteSql }]
+            WriteSql = ValidWriteSql,
+            AffectedTables = ["dbo.ShareDataPartner"]
         }));
 
         // Assert
@@ -2414,7 +2585,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     }
 
     /// <summary>
-    /// Description: Chạy thử câu ghi trên CSDL nhận với dữ liệu mẫu: đếm đúng số dòng thêm, rồi quay lui nên CSDL nhận không có dòng nào;
+    /// Description: Chạy thử câu ghi trên CSDL nhận với dữ liệu mẫu: đếm đúng số dòng thêm qua mọi tập kết quả, rồi quay lui nên CSDL nhận không có dòng nào;
     ///              dữ liệu mẫu không phải mảng JSON thì báo lỗi.
     /// Created date: 26/10/2026
     /// </summary>
@@ -2440,7 +2611,8 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         {
             PacketCode = packet.Code!,
             RecordsJson = records,
-            Items = [new PacketWriteSqlItemInput { TableName = "dbo.ShareDataInboundPacket", WriteSql = ValidWriteSql }]
+            WriteSql = ValidWriteSql,
+            AffectedTables = ["dbo.ShareDataInboundPacket"]
         });
 
         // Assert
@@ -2450,9 +2622,10 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             return;
         }
         var result = await call();
-        Assert.True(result.IsSuccess, result.Results.FirstOrDefault()?.ErrorMessage);
+        Assert.True(result.IsSuccess, result.ErrorMessage);
         Assert.Equal(3, result.RecordCount);
-        Assert.Equal(2, result.Results.Single().Inserted);
+        Assert.Equal(2, result.Inserted);
+        Assert.Equal(0, result.Updated);
         Assert.Equal(0, await inbound.Queryable<ShareDataInboundPacket>().Where(p => ids.Contains(p.ID)).CountAsync());
     }
 

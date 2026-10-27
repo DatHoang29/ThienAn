@@ -4,13 +4,14 @@ GO
 -- =========================================================================================
 -- FILE: sharedata-seed-goi-tin-ShareDataPacketSql.sql
 -- BẢNG GHI: [dbo].[ShareDataPacketSql] — tệp chỉ thêm / sửa / xóa trên đúng bảng này; bảng khác chỉ đọc (Rule 19.103).
--- DESCRIPTION: Nạp 18 câu ghi chiều nhận chuẩn Catalog vào ShareDataPacketSql cho 10 gói (101 - 109 và 111),
---              chống trùng theo PacketCode + TableName kèm IsDelete IS NULL, ID sinh động, CreateUId = SHAREDATA-SEED-02.
+-- DESCRIPTION: Nạp khối câu ghi chiều nhận chuẩn Catalog vào ShareDataPacketSql cho các gói (101 - 109),
+--              mỗi gói một dòng (OrderNo = 1) kèm danh sách bảng bị ảnh hưởng (AffectedTables),
+--              chống trùng theo PacketCode kèm IsDelete IS NULL, ID sinh động, CreateUId = SHAREDATA-SEED-02.
 -- THỨ TỰ CHẠY: 3 / 3 (độc lập với hai tệp gói tin còn lại) (xem README.md cùng thư mục).
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 24/10/2026
+-- CẬP NHẬT LẦN CUỐI: 26/10/2026
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -18,39 +19,49 @@ SET NOCOUNT ON;
 PRINT N'=============================================================================';
 PRINT N'BẮT ĐẦU KỊCH BẢN sharedata-seed-goi-tin-ShareDataPacketSql.sql';
 PRINT N'=============================================================================';
-GO
-
--- -----------------------------------------------------------------------------------------
--- 4. NẠP CÂU GHI CHIỀU NHẬN (ShareDataPacketSql)
--- -----------------------------------------------------------------------------------------
-PRINT N'-> 4. Nạp câu ghi chiều nhận chuẩn Catalog vào ShareDataPacketSql...';
 
 IF OBJECT_ID('dbo.ShareDataPacketSql', 'U') IS NULL
 BEGIN
     PRINT N'⚠️ Bảng [dbo].[ShareDataPacketSql] chưa tồn tại (chưa chạy CodeFirst)! Bỏ qua nạp câu ghi chiều nhận.';
-    RETURN;
+    SET NOEXEC ON;
 END;
+GO
+
+IF COL_LENGTH('dbo.ShareDataPacketSql', 'AffectedTables') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[ShareDataPacketSql] ADD [AffectedTables] NVARCHAR(1024) NULL;
+    PRINT N'   + Đã thêm cột [AffectedTables] vào [dbo].[ShareDataPacketSql].';
+END;
+GO
+
+-- -----------------------------------------------------------------------------------------
+-- 4. NẠP KHỐI CÂU GHI CHIỀU NHẬN (ShareDataPacketSql — mỗi gói 1 dòng)
+-- -----------------------------------------------------------------------------------------
+PRINT N'-> 4. Nạp khối câu ghi chiều nhận chuẩn Catalog vào ShareDataPacketSql...';
 
 DECLARE @TenantIdPacketSql NVARCHAR(64) = (SELECT TOP 1 CAST([TenantId] AS NVARCHAR(64)) FROM [dbo].[SysOpConfig] WHERE [TenantId] IS NOT NULL);
 IF @TenantIdPacketSql IS NULL
     SET @TenantIdPacketSql = N'Default';
 
-DECLARE @TotalWriteSqlInserted INT = 0;
-DECLARE @InsertedWriteSql INT = 0;
+-- Dọn mềm các dòng seed cũ (OrderNo > 1 do bản seed trước tách nhiều dòng) chưa bị sửa tay
+UPDATE [dbo].[ShareDataPacketSql]
+SET [IsDelete] = 1,
+    [UpdateTime] = GETDATE()
+WHERE [CreateUId] = 'SHAREDATA-SEED-02'
+  AND [UpdateUId] IS NULL
+  AND [OrderNo] > 1
+  AND [IsDelete] IS NULL;
 
--- 4.1 Gói 101: CommonData (3 câu ghi)
-SET @InsertedWriteSql = 0;
+DECLARE @SeedPackets TABLE (
+    [PacketCode]     NVARCHAR(64)   NOT NULL,
+    [TableName]      NVARCHAR(128)  NOT NULL,
+    [AffectedTables] NVARCHAR(1024) NOT NULL,
+    [WriteSql]       NVARCHAR(MAX)  NOT NULL
+);
 
-IF NOT EXISTS (
-    SELECT 1 FROM [dbo].[ShareDataPacketSql]
-    WHERE [PacketCode] = '101_commonData'
-      AND [TableName] = 'dbo.TmsZone'
-      AND [IsDelete] IS NULL
-)
-BEGIN
-    INSERT INTO [dbo].[ShareDataPacketSql] ([ID], [PacketCode], [TableName], [OrderNo], [WriteSql], [Status], [TenantId], [CreateTime], [CreateUId])
-    VALUES (LOWER(CONVERT(NVARCHAR(64), NEWID())), '101_commonData', 'dbo.TmsZone', 1, N'
-MERGE dbo.TmsZone WITH (HOLDLOCK) AS t
+-- 4.1 Gói 101: CommonData (3 bảng)
+INSERT INTO @SeedPackets ([PacketCode], [TableName], [AffectedTables], [WriteSql])
+VALUES ('101_commonData', 'dbo.TmsZone', 'dbo.TmsZone, dbo.TmsTrafficStatistic, dbo.TmsZoneStatus', N'MERGE dbo.TmsZone WITH (HOLDLOCK) AS t
 USING (
     SELECT  zoneId,
             MAX(zoneName)        AS zoneName,
@@ -88,19 +99,8 @@ WHEN NOT MATCHED THEN
             TenantId, CreateTime, CreateUId)
     VALUES (s.zoneId, s.zoneName, s.fromLocationKm, s.fromLocationMet, s.toLocationKm, s.toLocationMet,
             s.laneId, s.speedLimit, @tenantId, @now, @operator)
-OUTPUT $action;', 1, @TenantIdPacketSql, GETDATE(), 'SHAREDATA-SEED-02');
-    SET @InsertedWriteSql = @InsertedWriteSql + 1;
-END;
+OUTPUT $action;
 
-IF NOT EXISTS (
-    SELECT 1 FROM [dbo].[ShareDataPacketSql]
-    WHERE [PacketCode] = '101_commonData'
-      AND [TableName] = 'dbo.TmsTrafficStatistic'
-      AND [IsDelete] IS NULL
-)
-BEGIN
-    INSERT INTO [dbo].[ShareDataPacketSql] ([ID], [PacketCode], [TableName], [OrderNo], [WriteSql], [Status], [TenantId], [CreateTime], [CreateUId])
-    VALUES (LOWER(CONVERT(NVARCHAR(64), NEWID())), '101_commonData', 'dbo.TmsTrafficStatistic', 2, N'
 MERGE dbo.TmsTrafficStatistic WITH (HOLDLOCK) AS t
 USING (
     SELECT  zoneId,
@@ -119,19 +119,8 @@ WHEN MATCHED THEN
 WHEN NOT MATCHED THEN
     INSERT (ID, ZoneId, TotalVehicleNumber, VendorEventId, TenantId, CreateTime, CreateUId)
     VALUES (CONVERT(nvarchar(64), NEWID()), s.zoneId, s.vehicleCount, 0, @tenantId, @now, @operator)
-OUTPUT $action;', 1, @TenantIdPacketSql, GETDATE(), 'SHAREDATA-SEED-02');
-    SET @InsertedWriteSql = @InsertedWriteSql + 1;
-END;
+OUTPUT $action;
 
-IF NOT EXISTS (
-    SELECT 1 FROM [dbo].[ShareDataPacketSql]
-    WHERE [PacketCode] = '101_commonData'
-      AND [TableName] = 'dbo.TmsZoneStatus'
-      AND [IsDelete] IS NULL
-)
-BEGIN
-    INSERT INTO [dbo].[ShareDataPacketSql] ([ID], [PacketCode], [TableName], [OrderNo], [WriteSql], [Status], [TenantId], [CreateTime], [CreateUId])
-    VALUES (LOWER(CONVERT(NVARCHAR(64), NEWID())), '101_commonData', 'dbo.TmsZoneStatus', 3, N'
 MERGE dbo.TmsZoneStatus WITH (HOLDLOCK) AS t
 USING (
     SELECT  zoneStatusId,
@@ -159,29 +148,14 @@ WHEN NOT MATCHED THEN
     INSERT (ID, ZoneId, AverageSpeed, Condition, UpdateTime, TenantId, CreateTime, CreateUId)
     VALUES (s.zoneStatusId, s.zoneId, CONVERT(nvarchar(16), s.averageSpeed), s.trafficCondition,
             ISNULL(s.dataTime, @now), @tenantId, @now, @operator)
-OUTPUT $action;', 1, @TenantIdPacketSql, GETDATE(), 'SHAREDATA-SEED-02');
-    SET @InsertedWriteSql = @InsertedWriteSql + 1;
-END;
+OUTPUT $action;');
 
-PRINT N'   - Gói 101 (CommonData): đã nạp ' + CAST(@InsertedWriteSql AS NVARCHAR(10)) + N' câu ghi mới.';
-SET @TotalWriteSqlInserted = @TotalWriteSqlInserted + @InsertedWriteSql;
-
--- 4.2 Gói 102: CCTV (2 câu ghi)
-SET @InsertedWriteSql = 0;
-
-IF NOT EXISTS (
-    SELECT 1 FROM [dbo].[ShareDataPacketSql]
-    WHERE [PacketCode] = '102_cctvData'
-      AND [TableName] = 'dbo.TmsEquipment'
-      AND [IsDelete] IS NULL
-)
-BEGIN
-    INSERT INTO [dbo].[ShareDataPacketSql] ([ID], [PacketCode], [TableName], [OrderNo], [WriteSql], [Status], [TenantId], [CreateTime], [CreateUId])
-    VALUES (LOWER(CONVERT(NVARCHAR(64), NEWID())), '102_cctvData', 'dbo.TmsEquipment', 1, N'
-MERGE dbo.TmsEquipment WITH (HOLDLOCK) AS t
+-- 4.2 Gói 102: CCTV (2 bảng)
+INSERT INTO @SeedPackets ([PacketCode], [TableName], [AffectedTables], [WriteSql])
+VALUES ('102_cctvData', 'dbo.TmsEquipment', 'dbo.TmsEquipment, dbo.CctvDevice', N'MERGE dbo.TmsEquipment WITH (HOLDLOCK) AS t
 USING (
     SELECT cameraCode, MAX(cameraName) AS cameraName, MAX(locationKm) AS locationKm,
-           MAX(locationMet) AS locationMet, MAX(direction) AS direction
+            MAX(locationMet) AS locationMet, MAX(direction) AS direction
     FROM OPENJSON(@records) WITH (
         cameraCode nvarchar(64), cameraName nvarchar(64),
         locationKm int, locationMet int, direction int)
@@ -199,23 +173,12 @@ WHEN NOT MATCHED THEN
     INSERT (ID, Code, Name, KmNumber, MetNumber, DirectionId, TenantId, CreateTime, CreateUId)
     VALUES (CONVERT(nvarchar(64), NEWID()), s.cameraCode, s.cameraName, s.locationKm, s.locationMet,
             s.direction, @tenantId, @now, @operator)
-OUTPUT $action;', 1, @TenantIdPacketSql, GETDATE(), 'SHAREDATA-SEED-02');
-    SET @InsertedWriteSql = @InsertedWriteSql + 1;
-END;
+OUTPUT $action;
 
-IF NOT EXISTS (
-    SELECT 1 FROM [dbo].[ShareDataPacketSql]
-    WHERE [PacketCode] = '102_cctvData'
-      AND [TableName] = 'dbo.CctvDevice'
-      AND [IsDelete] IS NULL
-)
-BEGIN
-    INSERT INTO [dbo].[ShareDataPacketSql] ([ID], [PacketCode], [TableName], [OrderNo], [WriteSql], [Status], [TenantId], [CreateTime], [CreateUId])
-    VALUES (LOWER(CONVERT(NVARCHAR(64), NEWID())), '102_cctvData', 'dbo.CctvDevice', 2, N'
 MERGE dbo.CctvDevice WITH (HOLDLOCK) AS t
 USING (
     SELECT cameraCode, MAX(cameraName) AS cameraName, MAX(snapshotTime) AS snapshotTime,
-           MAX(deviceState) AS deviceState
+            MAX(deviceState) AS deviceState
     FROM OPENJSON(@records) WITH (
         cameraCode nvarchar(64), cameraName nvarchar(64),
         snapshotTime datetime2, deviceState int)
@@ -233,26 +196,11 @@ WHEN NOT MATCHED THEN
     INSERT (ID, Code, DeviceId, Name, SnapshotTime, DeviceState, TenantId, CreateTime, CreateUId)
     VALUES (CONVERT(nvarchar(64), NEWID()), s.cameraCode, s.cameraCode, s.cameraName, s.snapshotTime,
             s.deviceState, @tenantId, @now, @operator)
-OUTPUT $action;', 1, @TenantIdPacketSql, GETDATE(), 'SHAREDATA-SEED-02');
-    SET @InsertedWriteSql = @InsertedWriteSql + 1;
-END;
+OUTPUT $action;');
 
-PRINT N'   - Gói 102 (CctvData): đã nạp ' + CAST(@InsertedWriteSql AS NVARCHAR(10)) + N' câu ghi mới.';
-SET @TotalWriteSqlInserted = @TotalWriteSqlInserted + @InsertedWriteSql;
-
--- 4.3 Gói 103: VDS (2 câu ghi)
-SET @InsertedWriteSql = 0;
-
-IF NOT EXISTS (
-    SELECT 1 FROM [dbo].[ShareDataPacketSql]
-    WHERE [PacketCode] = '103_vdsData'
-      AND [TableName] = 'dbo.TmsEquipment'
-      AND [IsDelete] IS NULL
-)
-BEGIN
-    INSERT INTO [dbo].[ShareDataPacketSql] ([ID], [PacketCode], [TableName], [OrderNo], [WriteSql], [Status], [TenantId], [CreateTime], [CreateUId])
-    VALUES (LOWER(CONVERT(NVARCHAR(64), NEWID())), '103_vdsData', 'dbo.TmsEquipment', 1, N'
-MERGE dbo.TmsEquipment WITH (HOLDLOCK) AS t
+-- 4.3 Gói 103: VDS (2 bảng)
+INSERT INTO @SeedPackets ([PacketCode], [TableName], [AffectedTables], [WriteSql])
+VALUES ('103_vdsData', 'dbo.TmsEquipment', 'dbo.TmsEquipment, dbo.TmsTrafficData', N'MERGE dbo.TmsEquipment WITH (HOLDLOCK) AS t
 USING (
     SELECT equipmentId, MAX(locationKm) AS locationKm, MAX(locationMet) AS locationMet
     FROM OPENJSON(@records) WITH (equipmentId nvarchar(64), locationKm int, locationMet int)
@@ -265,24 +213,13 @@ WHEN MATCHED THEN
                t.MetNumber  = ISNULL(s.locationMet, t.MetNumber),
                t.UpdateTime = @now,
                t.UpdateUId  = @operator
-OUTPUT $action;', 1, @TenantIdPacketSql, GETDATE(), 'SHAREDATA-SEED-02');
-    SET @InsertedWriteSql = @InsertedWriteSql + 1;
-END;
+OUTPUT $action;
 
-IF NOT EXISTS (
-    SELECT 1 FROM [dbo].[ShareDataPacketSql]
-    WHERE [PacketCode] = '103_vdsData'
-      AND [TableName] = 'dbo.TmsTrafficData'
-      AND [IsDelete] IS NULL
-)
-BEGIN
-    INSERT INTO [dbo].[ShareDataPacketSql] ([ID], [PacketCode], [TableName], [OrderNo], [WriteSql], [Status], [TenantId], [CreateTime], [CreateUId])
-    VALUES (LOWER(CONVERT(NVARCHAR(64), NEWID())), '103_vdsData', 'dbo.TmsTrafficData', 2, N'
 MERGE dbo.TmsTrafficData WITH (HOLDLOCK) AS t
 USING (
     SELECT detectionId, MAX(detectTime) AS detectTime, MAX(vehicleType) AS vehicleType,
-           MAX(licensePlate) AS licensePlate, MAX(speed) AS speed, MAX(lane) AS lane,
-           MAX(direction) AS direction, MAX(locationRoute) AS locationRoute, MAX(equipmentId) AS equipmentId
+            MAX(licensePlate) AS licensePlate, MAX(speed) AS speed, MAX(lane) AS lane,
+            MAX(direction) AS direction, MAX(locationRoute) AS locationRoute, MAX(equipmentId) AS equipmentId
     FROM OPENJSON(@records) WITH (
         detectionId nvarchar(64), detectTime datetime2, vehicleType nvarchar(32),
         licensePlate nvarchar(32), speed float, lane nvarchar(32),
@@ -307,32 +244,17 @@ WHEN NOT MATCHED THEN
             VendorEventId, TenantId, CreateTime, CreateUId)
     VALUES (s.detectionId, s.detectTime, s.vehicleType, s.licensePlate, s.speed, s.lane, s.direction,
             s.locationRoute, s.equipmentId, 0, @tenantId, @now, @operator)
-OUTPUT $action;', 1, @TenantIdPacketSql, GETDATE(), 'SHAREDATA-SEED-02');
-    SET @InsertedWriteSql = @InsertedWriteSql + 1;
-END;
+OUTPUT $action;');
 
-PRINT N'   - Gói 103 (VdsData): đã nạp ' + CAST(@InsertedWriteSql AS NVARCHAR(10)) + N' câu ghi mới.';
-SET @TotalWriteSqlInserted = @TotalWriteSqlInserted + @InsertedWriteSql;
-
--- 4.4 Gói 104: Weather (1 câu ghi)
-SET @InsertedWriteSql = 0;
-
-IF NOT EXISTS (
-    SELECT 1 FROM [dbo].[ShareDataPacketSql]
-    WHERE [PacketCode] = '104_weatherData'
-      AND [TableName] = 'dbo.TmsWeather'
-      AND [IsDelete] IS NULL
-)
-BEGIN
-    INSERT INTO [dbo].[ShareDataPacketSql] ([ID], [PacketCode], [TableName], [OrderNo], [WriteSql], [Status], [TenantId], [CreateTime], [CreateUId])
-    VALUES (LOWER(CONVERT(NVARCHAR(64), NEWID())), '104_weatherData', 'dbo.TmsWeather', 1, N'
-MERGE dbo.TmsWeather WITH (HOLDLOCK) AS t
+-- 4.4 Gói 104: Weather (1 bảng)
+INSERT INTO @SeedPackets ([PacketCode], [TableName], [AffectedTables], [WriteSql])
+VALUES ('104_weatherData', 'dbo.TmsWeather', 'dbo.TmsWeather', N'MERGE dbo.TmsWeather WITH (HOLDLOCK) AS t
 USING (
     SELECT weatherStationId, detectTime,
-           MAX(locationDetail) AS locationDetail, MAX(temperature) AS temperature, MAX(humidity) AS humidity,
-           MAX(windSpeed) AS windSpeed, MAX(windDirection) AS windDirection, MAX(rainfall) AS rainfall,
-           MAX(rainfallHour) AS rainfallHour, MAX(visibility) AS visibility,
-           MAX(weatherDescription) AS weatherDescription, MAX(weatherCode) AS weatherCode
+            MAX(locationDetail) AS locationDetail, MAX(temperature) AS temperature, MAX(humidity) AS humidity,
+            MAX(windSpeed) AS windSpeed, MAX(windDirection) AS windDirection, MAX(rainfall) AS rainfall,
+            MAX(rainfallHour) AS rainfallHour, MAX(visibility) AS visibility,
+            MAX(weatherDescription) AS weatherDescription, MAX(weatherCode) AS weatherCode
     FROM OPENJSON(@records) WITH (
         weatherStationId nvarchar(64), detectTime datetime2, locationDetail nvarchar(128),
         temperature float, humidity float, windSpeed float, windDirection nvarchar(32),
@@ -361,26 +283,11 @@ WHEN NOT MATCHED THEN
     VALUES (CONVERT(nvarchar(64), NEWID()), s.weatherStationId, s.detectTime, s.locationDetail, s.temperature,
             s.humidity, s.windSpeed, s.windDirection, s.rainfall, s.rainfallHour, s.visibility,
             s.weatherDescription, s.weatherCode, @tenantId, @now, @operator)
-OUTPUT $action;', 1, @TenantIdPacketSql, GETDATE(), 'SHAREDATA-SEED-02');
-    SET @InsertedWriteSql = @InsertedWriteSql + 1;
-END;
+OUTPUT $action;');
 
-PRINT N'   - Gói 104 (WeatherData): đã nạp ' + CAST(@InsertedWriteSql AS NVARCHAR(10)) + N' câu ghi mới.';
-SET @TotalWriteSqlInserted = @TotalWriteSqlInserted + @InsertedWriteSql;
-
--- 4.5 Gói 105: RfidData (2 câu ghi - ánh xạ chuẩn từ danh mục 105_rfidData)
-SET @InsertedWriteSql = 0;
-
-IF NOT EXISTS (
-    SELECT 1 FROM [dbo].[ShareDataPacketSql]
-    WHERE [PacketCode] = '105_rfidData'
-      AND [TableName] = 'dbo.TmsVehicleRegistration'
-      AND [IsDelete] IS NULL
-)
-BEGIN
-    INSERT INTO [dbo].[ShareDataPacketSql] ([ID], [PacketCode], [TableName], [OrderNo], [WriteSql], [Status], [TenantId], [CreateTime], [CreateUId])
-    VALUES (LOWER(CONVERT(NVARCHAR(64), NEWID())), '105_rfidData', 'dbo.TmsVehicleRegistration', 1, N'
-MERGE dbo.TmsVehicleRegistration WITH (HOLDLOCK) AS t
+-- 4.5 Gói 105: RfidData (2 bảng)
+INSERT INTO @SeedPackets ([PacketCode], [TableName], [AffectedTables], [WriteSql])
+VALUES ('105_rfidData', 'dbo.TmsVehicleRegistration', 'dbo.TmsVehicleRegistration, dbo.TollTransactionOut', N'MERGE dbo.TmsVehicleRegistration WITH (HOLDLOCK) AS t
 USING (
     SELECT licensePlate, MAX(vehicleBrand) AS vehicleBrand, MAX(vehicleOwner) AS vehicleOwner
     FROM OPENJSON(@records) WITH (licensePlate nvarchar(32), vehicleBrand nvarchar(64), vehicleOwner nvarchar(64))
@@ -393,24 +300,13 @@ WHEN MATCHED THEN
                t.Owner      = ISNULL(s.vehicleOwner, t.Owner),
                t.UpdateTime = @now,
                t.UpdateUId  = @operator
-OUTPUT $action;', 1, @TenantIdPacketSql, GETDATE(), 'SHAREDATA-SEED-02');
-    SET @InsertedWriteSql = @InsertedWriteSql + 1;
-END;
+OUTPUT $action;
 
-IF NOT EXISTS (
-    SELECT 1 FROM [dbo].[ShareDataPacketSql]
-    WHERE [PacketCode] = '105_rfidData'
-      AND [TableName] = 'dbo.TollTransactionOut'
-      AND [IsDelete] IS NULL
-)
-BEGIN
-    INSERT INTO [dbo].[ShareDataPacketSql] ([ID], [PacketCode], [TableName], [OrderNo], [WriteSql], [Status], [TenantId], [CreateTime], [CreateUId])
-    VALUES (LOWER(CONVERT(NVARCHAR(64), NEWID())), '105_rfidData', 'dbo.TollTransactionOut', 2, N'
 MERGE dbo.TollTransactionOut WITH (HOLDLOCK) AS t
 USING (
     SELECT transactionId, MAX(tagId) AS tagId, MAX(licensePlate) AS licensePlate,
-           MAX(vehicleTypeId) AS vehicleTypeId, MAX(entryTime) AS entryTime, MAX(exitTime) AS exitTime,
-           MAX(laneId) AS laneId, MAX(stationId) AS stationId
+            MAX(vehicleTypeId) AS vehicleTypeId, MAX(entryTime) AS entryTime, MAX(exitTime) AS exitTime,
+            MAX(laneId) AS laneId, MAX(stationId) AS stationId
     FROM OPENJSON(@records) WITH (
         transactionId nvarchar(128), tagId nvarchar(64), licensePlate nvarchar(32),
         vehicleTypeId nvarchar(64), entryTime datetime2, exitTime datetime2,
@@ -435,29 +331,14 @@ WHEN NOT MATCHED THEN
             TransactionDateTime, LaneId, StationId, TenantId, CreateTime, CreateUId)
     VALUES (CONVERT(nvarchar(64), NEWID()), s.transactionId, s.tagId, s.licensePlate, s.licensePlate,
             s.vehicleTypeId, s.entryTime, s.exitTime, s.laneId, s.stationId, @tenantId, @now, @operator)
-OUTPUT $action;', 1, @TenantIdPacketSql, GETDATE(), 'SHAREDATA-SEED-02');
-    SET @InsertedWriteSql = @InsertedWriteSql + 1;
-END;
+OUTPUT $action;');
 
-PRINT N'   - Gói 105 (RfidData): đã nạp ' + CAST(@InsertedWriteSql AS NVARCHAR(10)) + N' câu ghi mới.';
-SET @TotalWriteSqlInserted = @TotalWriteSqlInserted + @InsertedWriteSql;
-
--- 4.6 Gói 106: WimData (1 câu ghi)
-SET @InsertedWriteSql = 0;
-
-IF NOT EXISTS (
-    SELECT 1 FROM [dbo].[ShareDataPacketSql]
-    WHERE [PacketCode] = '106_wimData'
-      AND [TableName] = 'dbo.TmsTrafficData'
-      AND [IsDelete] IS NULL
-)
-BEGIN
-    INSERT INTO [dbo].[ShareDataPacketSql] ([ID], [PacketCode], [TableName], [OrderNo], [WriteSql], [Status], [TenantId], [CreateTime], [CreateUId])
-    VALUES (LOWER(CONVERT(NVARCHAR(64), NEWID())), '106_wimData', 'dbo.TmsTrafficData', 1, N'
-MERGE dbo.TmsTrafficData WITH (HOLDLOCK) AS t
+-- 4.6 Gói 106: WimData (1 bảng)
+INSERT INTO @SeedPackets ([PacketCode], [TableName], [AffectedTables], [WriteSql])
+VALUES ('106_wimData', 'dbo.TmsTrafficData', 'dbo.TmsTrafficData', N'MERGE dbo.TmsTrafficData WITH (HOLDLOCK) AS t
 USING (
     SELECT detectTime, lane, locationCode,
-           MAX(speed) AS speed, MAX(height) AS height, MAX(width) AS width, MAX(length) AS length
+            MAX(speed) AS speed, MAX(height) AS height, MAX(width) AS width, MAX(length) AS length
     FROM OPENJSON(@records) WITH (
         detectTime datetime2, lane nvarchar(32), locationCode nvarchar(32),
         speed float, height int, width int, length int)
@@ -479,26 +360,11 @@ WHEN NOT MATCHED THEN
             VendorEventId, TenantId, CreateTime, CreateUId)
     VALUES (CONVERT(nvarchar(64), NEWID()), s.detectTime, s.lane, s.locationCode, s.speed, s.height,
             s.width, s.length, 0, @tenantId, @now, @operator)
-OUTPUT $action;', 1, @TenantIdPacketSql, GETDATE(), 'SHAREDATA-SEED-02');
-    SET @InsertedWriteSql = @InsertedWriteSql + 1;
-END;
+OUTPUT $action;');
 
-PRINT N'   - Gói 106 (WimData): đã nạp ' + CAST(@InsertedWriteSql AS NVARCHAR(10)) + N' câu ghi mới.';
-SET @TotalWriteSqlInserted = @TotalWriteSqlInserted + @InsertedWriteSql;
-
--- 4.7 Gói 107: IncidentData (2 câu ghi)
-SET @InsertedWriteSql = 0;
-
-IF NOT EXISTS (
-    SELECT 1 FROM [dbo].[ShareDataPacketSql]
-    WHERE [PacketCode] = '107_incidentData'
-      AND [TableName] = 'dbo.TmsEventType'
-      AND [IsDelete] IS NULL
-)
-BEGIN
-    INSERT INTO [dbo].[ShareDataPacketSql] ([ID], [PacketCode], [TableName], [OrderNo], [WriteSql], [Status], [TenantId], [CreateTime], [CreateUId])
-    VALUES (LOWER(CONVERT(NVARCHAR(64), NEWID())), '107_incidentData', 'dbo.TmsEventType', 1, N'
-MERGE dbo.TmsEventType WITH (HOLDLOCK) AS t
+-- 4.7 Gói 107: IncidentData (2 bảng)
+INSERT INTO @SeedPackets ([PacketCode], [TableName], [AffectedTables], [WriteSql])
+VALUES ('107_incidentData', 'dbo.TmsEventType', 'dbo.TmsEventType, dbo.TmsIncident', N'MERGE dbo.TmsEventType WITH (HOLDLOCK) AS t
 USING (
     SELECT eventTypeId, MAX(eventTypeName) AS eventTypeName
     FROM OPENJSON(@records) WITH (eventTypeId nvarchar(64), eventTypeName nvarchar(64))
@@ -510,26 +376,15 @@ WHEN MATCHED THEN
     UPDATE SET t.Name       = s.eventTypeName,
                t.UpdateTime = @now,
                t.UpdateUId  = @operator
-OUTPUT $action;', 1, @TenantIdPacketSql, GETDATE(), 'SHAREDATA-SEED-02');
-    SET @InsertedWriteSql = @InsertedWriteSql + 1;
-END;
+OUTPUT $action;
 
-IF NOT EXISTS (
-    SELECT 1 FROM [dbo].[ShareDataPacketSql]
-    WHERE [PacketCode] = '107_incidentData'
-      AND [TableName] = 'dbo.TmsIncident'
-      AND [IsDelete] IS NULL
-)
-BEGIN
-    INSERT INTO [dbo].[ShareDataPacketSql] ([ID], [PacketCode], [TableName], [OrderNo], [WriteSql], [Status], [TenantId], [CreateTime], [CreateUId])
-    VALUES (LOWER(CONVERT(NVARCHAR(64), NEWID())), '107_incidentData', 'dbo.TmsIncident', 2, N'
 MERGE dbo.TmsIncident WITH (HOLDLOCK) AS t
 USING (
     SELECT incidentCode, MAX(incidentName) AS incidentName, MAX(eventTypeId) AS eventTypeId,
-           MAX(occurredTime) AS occurredTime, MAX(locationKm) AS locationKm, MAX(locationMet) AS locationMet,
-           MAX(locationRoute) AS locationRoute, MAX(direction) AS direction,
-           MAX(injuredCount) AS injuredCount, MAX(vehicleCount) AS vehicleCount,
-           MAX(incidentState) AS incidentState, MAX(description) AS description, MAX(source) AS source
+            MAX(occurredTime) AS occurredTime, MAX(locationKm) AS locationKm, MAX(locationMet) AS locationMet,
+            MAX(locationRoute) AS locationRoute, MAX(direction) AS direction,
+            MAX(injuredCount) AS injuredCount, MAX(vehicleCount) AS vehicleCount,
+            MAX(incidentState) AS incidentState, MAX(description) AS description, MAX(source) AS source
     FROM OPENJSON(@records) WITH (
         incidentCode nvarchar(64), incidentName nvarchar(128), eventTypeId nvarchar(64),
         occurredTime datetime2, locationKm int, locationMet int, locationRoute nvarchar(32),
@@ -560,29 +415,14 @@ WHEN NOT MATCHED THEN
     VALUES (CONVERT(nvarchar(64), NEWID()), s.incidentCode, s.incidentName, s.eventTypeId, s.occurredTime,
             s.locationKm, s.locationMet, s.locationRoute, s.direction, s.injuredCount, s.vehicleCount,
             s.incidentState, s.description, s.source, @tenantId, @now, @operator)
-OUTPUT $action;', 1, @TenantIdPacketSql, GETDATE(), 'SHAREDATA-SEED-02');
-    SET @InsertedWriteSql = @InsertedWriteSql + 1;
-END;
+OUTPUT $action;');
 
-PRINT N'   - Gói 107 (IncidentData): đã nạp ' + CAST(@InsertedWriteSql AS NVARCHAR(10)) + N' câu ghi mới.';
-SET @TotalWriteSqlInserted = @TotalWriteSqlInserted + @InsertedWriteSql;
-
--- 4.8 Gói 108: VmsInfo (2 câu ghi)
-SET @InsertedWriteSql = 0;
-
-IF NOT EXISTS (
-    SELECT 1 FROM [dbo].[ShareDataPacketSql]
-    WHERE [PacketCode] = '108_vmsInfo'
-      AND [TableName] = 'dbo.TmsEquipment'
-      AND [IsDelete] IS NULL
-)
-BEGIN
-    INSERT INTO [dbo].[ShareDataPacketSql] ([ID], [PacketCode], [TableName], [OrderNo], [WriteSql], [Status], [TenantId], [CreateTime], [CreateUId])
-    VALUES (LOWER(CONVERT(NVARCHAR(64), NEWID())), '108_vmsInfo', 'dbo.TmsEquipment', 1, N'
-MERGE dbo.TmsEquipment WITH (HOLDLOCK) AS t
+-- 4.8 Gói 108: VmsInfo (2 bảng)
+INSERT INTO @SeedPackets ([PacketCode], [TableName], [AffectedTables], [WriteSql])
+VALUES ('108_vmsInfo', 'dbo.TmsEquipment', 'dbo.TmsEquipment, dbo.VmsCurrent', N'MERGE dbo.TmsEquipment WITH (HOLDLOCK) AS t
 USING (
     SELECT equipmentCode, MAX(locationKm) AS locationKm, MAX(locationMet) AS locationMet,
-           MAX(direction) AS direction, MAX(laneId) AS laneId
+            MAX(direction) AS direction, MAX(laneId) AS laneId
     FROM OPENJSON(@records) WITH (
         equipmentCode nvarchar(64), locationKm int, locationMet int, direction int, laneId nvarchar(32))
     WHERE equipmentCode IS NOT NULL
@@ -596,24 +436,13 @@ WHEN MATCHED THEN
                t.LaneId      = ISNULL(s.laneId, t.LaneId),
                t.UpdateTime  = @now,
                t.UpdateUId   = @operator
-OUTPUT $action;', 1, @TenantIdPacketSql, GETDATE(), 'SHAREDATA-SEED-02');
-    SET @InsertedWriteSql = @InsertedWriteSql + 1;
-END;
+OUTPUT $action;
 
-IF NOT EXISTS (
-    SELECT 1 FROM [dbo].[ShareDataPacketSql]
-    WHERE [PacketCode] = '108_vmsInfo'
-      AND [TableName] = 'dbo.VmsCurrent'
-      AND [IsDelete] IS NULL
-)
-BEGIN
-    INSERT INTO [dbo].[ShareDataPacketSql] ([ID], [PacketCode], [TableName], [OrderNo], [WriteSql], [Status], [TenantId], [CreateTime], [CreateUId])
-    VALUES (LOWER(CONVERT(NVARCHAR(64), NEWID())), '108_vmsInfo', 'dbo.VmsCurrent', 2, N'
 MERGE dbo.VmsCurrent WITH (HOLDLOCK) AS t
 USING (
     SELECT e.ID AS equipmentId, MAX(r.vmsName) AS vmsName, MAX(r.displayContent) AS displayContent,
-           MAX(r.displayImageUrl) AS displayImageUrl, MAX(r.displaySize) AS displaySize,
-           MAX(r.priority) AS priority, MAX(r.executedTime) AS executedTime
+            MAX(r.displayImageUrl) AS displayImageUrl, MAX(r.displaySize) AS displaySize,
+            MAX(r.priority) AS priority, MAX(r.executedTime) AS executedTime
     FROM OPENJSON(@records) WITH (
         equipmentCode nvarchar(64), vmsName nvarchar(64), displayContent nvarchar(1024),
         displayImageUrl nvarchar(512), displaySize nvarchar(32), priority int, executedTime datetime2) AS r
@@ -634,26 +463,11 @@ WHEN NOT MATCHED THEN
     INSERT (ID, EquipmentId, Name, RowData, Url, Size, Priority, ExecutedDate, TenantId, CreateTime, CreateUId)
     VALUES (CONVERT(nvarchar(64), NEWID()), s.equipmentId, s.vmsName, s.displayContent, s.displayImageUrl,
             s.displaySize, s.priority, s.executedTime, @tenantId, @now, @operator)
-OUTPUT $action;', 1, @TenantIdPacketSql, GETDATE(), 'SHAREDATA-SEED-02');
-    SET @InsertedWriteSql = @InsertedWriteSql + 1;
-END;
+OUTPUT $action;');
 
-PRINT N'   - Gói 108 (VmsInfo): đã nạp ' + CAST(@InsertedWriteSql AS NVARCHAR(10)) + N' câu ghi mới.';
-SET @TotalWriteSqlInserted = @TotalWriteSqlInserted + @InsertedWriteSql;
-
--- 4.9 Gói 109: EtcData (3 câu ghi)
-SET @InsertedWriteSql = 0;
-
-IF NOT EXISTS (
-    SELECT 1 FROM [dbo].[ShareDataPacketSql]
-    WHERE [PacketCode] = '109_etcData'
-      AND [TableName] = 'dbo.TollStation'
-      AND [IsDelete] IS NULL
-)
-BEGIN
-    INSERT INTO [dbo].[ShareDataPacketSql] ([ID], [PacketCode], [TableName], [OrderNo], [WriteSql], [Status], [TenantId], [CreateTime], [CreateUId])
-    VALUES (LOWER(CONVERT(NVARCHAR(64), NEWID())), '109_etcData', 'dbo.TollStation', 1, N'
-MERGE dbo.TollStation WITH (HOLDLOCK) AS t
+-- 4.9 Gói 109: EtcData (3 bảng)
+INSERT INTO @SeedPackets ([PacketCode], [TableName], [AffectedTables], [WriteSql])
+VALUES ('109_etcData', 'dbo.TollStation', 'dbo.TollStation, dbo.TollLane, dbo.TollTransactionOut', N'MERGE dbo.TollStation WITH (HOLDLOCK) AS t
 USING (
     SELECT stationId, MAX(stationName) AS stationName
     FROM OPENJSON(@records) WITH (stationId nvarchar(64), stationName nvarchar(64))
@@ -663,19 +477,8 @@ USING (
    ON t.StationId = s.stationId
 WHEN MATCHED THEN
     UPDATE SET t.Name = s.stationName, t.UpdateTime = @now, t.UpdateUId = @operator
-OUTPUT $action;', 1, @TenantIdPacketSql, GETDATE(), 'SHAREDATA-SEED-02');
-    SET @InsertedWriteSql = @InsertedWriteSql + 1;
-END;
+OUTPUT $action;
 
-IF NOT EXISTS (
-    SELECT 1 FROM [dbo].[ShareDataPacketSql]
-    WHERE [PacketCode] = '109_etcData'
-      AND [TableName] = 'dbo.TollLane'
-      AND [IsDelete] IS NULL
-)
-BEGIN
-    INSERT INTO [dbo].[ShareDataPacketSql] ([ID], [PacketCode], [TableName], [OrderNo], [WriteSql], [Status], [TenantId], [CreateTime], [CreateUId])
-    VALUES (LOWER(CONVERT(NVARCHAR(64), NEWID())), '109_etcData', 'dbo.TollLane', 2, N'
 MERGE dbo.TollLane WITH (HOLDLOCK) AS t
 USING (
     SELECT laneId, MAX(laneName) AS laneName
@@ -686,25 +489,14 @@ USING (
    ON t.LaneId = s.laneId
 WHEN MATCHED THEN
     UPDATE SET t.Name = s.laneName, t.UpdateTime = @now, t.UpdateUId = @operator
-OUTPUT $action;', 1, @TenantIdPacketSql, GETDATE(), 'SHAREDATA-SEED-02');
-    SET @InsertedWriteSql = @InsertedWriteSql + 1;
-END;
+OUTPUT $action;
 
-IF NOT EXISTS (
-    SELECT 1 FROM [dbo].[ShareDataPacketSql]
-    WHERE [PacketCode] = '109_etcData'
-      AND [TableName] = 'dbo.TollTransactionOut'
-      AND [IsDelete] IS NULL
-)
-BEGIN
-    INSERT INTO [dbo].[ShareDataPacketSql] ([ID], [PacketCode], [TableName], [OrderNo], [WriteSql], [Status], [TenantId], [CreateTime], [CreateUId])
-    VALUES (LOWER(CONVERT(NVARCHAR(64), NEWID())), '109_etcData', 'dbo.TollTransactionOut', 3, N'
 MERGE dbo.TollTransactionOut WITH (HOLDLOCK) AS t
 USING (
     SELECT transactionId, MAX(entryTime) AS entryTime, MAX(exitTime) AS exitTime,
-           MAX(vehicleTypeId) AS vehicleTypeId, MAX(licensePlate) AS licensePlate, MAX(tagId) AS tagId,
-           MAX(laneId) AS laneId, MAX(stationId) AS stationId, MAX(tollPrice) AS tollPrice,
-           MAX(syncTime) AS syncTime
+            MAX(vehicleTypeId) AS vehicleTypeId, MAX(licensePlate) AS licensePlate, MAX(tagId) AS tagId,
+            MAX(laneId) AS laneId, MAX(stationId) AS stationId, MAX(tollPrice) AS tollPrice,
+            MAX(syncTime) AS syncTime
     FROM OPENJSON(@records) WITH (
         transactionId nvarchar(128), entryTime datetime2, exitTime datetime2,
         vehicleTypeId nvarchar(64), licensePlate nvarchar(32), tagId nvarchar(64),
@@ -732,14 +524,43 @@ WHEN NOT MATCHED THEN
     VALUES (CONVERT(nvarchar(64), NEWID()), s.transactionId, s.entryTime, s.exitTime, s.vehicleTypeId,
             s.licensePlate, s.licensePlate, s.tagId, s.laneId, s.stationId, s.tollPrice, s.syncTime,
             @tenantId, @now, @operator)
-OUTPUT $action;', 1, @TenantIdPacketSql, GETDATE(), 'SHAREDATA-SEED-02');
-    SET @InsertedWriteSql = @InsertedWriteSql + 1;
-END;
+OUTPUT $action;');
 
-PRINT N'   - Gói 109 (EtcData): đã nạp ' + CAST(@InsertedWriteSql AS NVARCHAR(10)) + N' câu ghi mới.';
-SET @TotalWriteSqlInserted = @TotalWriteSqlInserted + @InsertedWriteSql;
+-- Cập nhật các dòng seed OrderNo = 1 chưa có AffectedTables (nếu chưa bị sửa tay)
+UPDATE target
+SET target.[TableName]      = src.[TableName],
+    target.[AffectedTables] = src.[AffectedTables],
+    target.[WriteSql]       = src.[WriteSql],
+    target.[UpdateTime]     = GETDATE()
+FROM [dbo].[ShareDataPacketSql] target
+INNER JOIN @SeedPackets src ON src.[PacketCode] = target.[PacketCode]
+WHERE target.[IsDelete] IS NULL
+  AND target.[OrderNo] = 1
+  AND target.[CreateUId] = 'SHAREDATA-SEED-02'
+  AND target.[UpdateUId] IS NULL
+  AND (target.[AffectedTables] IS NULL OR target.[AffectedTables] <> src.[AffectedTables]);
 
-PRINT N'   -> Tổng số câu ghi chiều nhận đã nạp mới: ' + CAST(@TotalWriteSqlInserted AS NVARCHAR(10)) + N' dòng.';
+-- Thêm mới cho các gói chưa có dòng hoạt động nào
+INSERT INTO [dbo].[ShareDataPacketSql] ([ID], [PacketCode], [TableName], [AffectedTables], [OrderNo], [WriteSql], [Status], [TenantId], [CreateTime], [CreateUId])
+SELECT LOWER(CONVERT(NVARCHAR(64), NEWID())),
+       src.[PacketCode],
+       src.[TableName],
+       src.[AffectedTables],
+       1,
+       src.[WriteSql],
+       1,
+       @TenantIdPacketSql,
+       GETDATE(),
+       'SHAREDATA-SEED-02'
+FROM @SeedPackets src
+WHERE NOT EXISTS (
+    SELECT 1 FROM [dbo].[ShareDataPacketSql] existing
+    WHERE existing.[PacketCode] = src.[PacketCode]
+      AND existing.[IsDelete] IS NULL
+);
+
+DECLARE @TotalWriteSqlInserted INT = @@ROWCOUNT;
+PRINT N'   -> Đã nạp mới ' + CAST(@TotalWriteSqlInserted AS NVARCHAR(10)) + N' khối câu ghi chiều nhận.';
 
 SET NOEXEC OFF;
 GO

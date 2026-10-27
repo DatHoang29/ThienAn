@@ -5707,14 +5707,14 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         #region 10. Biến ở bảng tham số câu truy vấn (ShareDataSqlVariable) khi Worker gửi
 
         /// <summary>
-        /// <summary>
-        /// Câu SQL dùng đủ 6 nguồn "Lấy từ" (mã đối tác, thời điểm chạy, đầu năm, lần chạy trước, mốc thời gian / mốc khóa lần trước).
+        /// Câu SQL dùng đủ 6 nguồn "Lấy từ" (mã đối tác, thời điểm chạy, đầu năm, lần chạy trước, mốc thời gian / mốc khóa lần trước)
+        /// và hằng số "Giá trị nhập" (String, Int, Decimal).
         /// Không dùng @lastTime/@lastKey: chế độ nối đuôi nhận ra qua @since/@afterKey. Mã gói và mã đối tác viết thẳng trong câu
         /// nên @pc chỉ khớp khi lấy đúng từ nguồn "Mã đối tác".
         /// </summary>
         private static string AllSourcesSql(string packetId, string partnerCode) =>
-            "SELECT TOP 100 UpdateTime AS __lastTime, ID AS __lastKey, Code AS code FROM ShareDataPacket "
-            + $"WHERE ID = '{packetId}' AND @pc = '{partnerCode}' "
+            "SELECT TOP (@pageSize) UpdateTime AS __lastTime, ID AS __lastKey, Code AS code FROM ShareDataPacket "
+            + $"WHERE ID = '{packetId}' AND @pc = '{partnerCode}' AND @constTag = 'ACTIVE' AND @minRate <= 1.5 "
             + "AND UpdateTime <= @runAt AND @yearStart <= @runAt "
             + "AND (@prevRun IS NULL OR @prevRun < @runAt) "
             + "AND (@since IS NULL OR UpdateTime > @since OR (UpdateTime = @since AND ID > @afterKey)) "
@@ -5818,6 +5818,11 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 ID = Guid.NewGuid().ToString("N"), PacketId = packetId, PartnerId = partnerId, Code = code,
                 DataType = ShareDataConst.SqlVariableBuiltinTypes[source], ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = source, OrderNo = order
             };
+            ShareDataSqlVariable Const(string code, string dataType, string value, int order) => new()
+            {
+                ID = Guid.NewGuid().ToString("N"), PacketId = packetId, PartnerId = partnerId, Code = code,
+                DataType = dataType, ValueKind = ShareDataConst.SqlVariableKindConst, Value = value, OrderNo = order
+            };
 
             return
             [
@@ -5826,7 +5831,10 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 Builtin("yearStart", ShareDataConst.SqlVariableSourceStartOfYear, 3),
                 Builtin("prevRun", ShareDataConst.SqlVariableSourceLastRunTime, 4),
                 Builtin("since", ShareDataConst.SqlVariableSourceLastTime, 5),
-                Builtin("afterKey", ShareDataConst.SqlVariableSourceLastKey, 6)
+                Builtin("afterKey", ShareDataConst.SqlVariableSourceLastKey, 6),
+                Const("pageSize", ShareDataConst.SqlVariableTypeInt, "100", 7),
+                Const("constTag", ShareDataConst.SqlVariableTypeString, "ACTIVE", 8),
+                Const("minRate", ShareDataConst.SqlVariableTypeDecimal, "1.25", 9)
             ];
         }
 
@@ -5935,9 +5943,9 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             var cursorFilter = filter == "two-conditions"
                 ? "(@since IS NULL OR UpdateTime > @since OR (UpdateTime = @since AND ID > @afterKey))"
                 : "(@since IS NULL OR UpdateTime > @since)";
-            // Cỡ trang và tiền tố mã viết thẳng trong câu SQL (không còn hằng số); có TOP nên Worker lặp nhiều trang mỗi lượt
-            var sql = $"SELECT TOP {pageSize} UpdateTime AS __lastTime, ID AS __lastKey, Code AS code FROM ShareDataPacket "
-                + $"WHERE Code LIKE '{rowPrefix}%' AND {cursorFilter} ORDER BY UpdateTime, ID";
+            // Cỡ trang (@pageSize kiểu Int) và tiền tố mã (@prefix kiểu String) truyền qua biến "Giá trị nhập" (Const); có TOP nên Worker lặp nhiều trang mỗi lượt
+            var sql = $"SELECT TOP (@pageSize) UpdateTime AS __lastTime, ID AS __lastKey, Code AS code FROM ShareDataPacket "
+                + $"WHERE Code LIKE @prefix AND {cursorFilter} ORDER BY UpdateTime, ID";
 
             await db.Insertable(new ShareDataPacket
             {
@@ -5953,7 +5961,20 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 ID = Guid.NewGuid().ToString("N"), PacketId = packetId, Code = code, DataType = ShareDataConst.SqlVariableBuiltinTypes[source],
                 ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = source, OrderNo = order
             };
-            var variables = new List<ShareDataSqlVariable> { Variable("since", ShareDataConst.SqlVariableSourceLastTime, 1) };
+            var variables = new List<ShareDataSqlVariable>
+            {
+                Variable("since", ShareDataConst.SqlVariableSourceLastTime, 1),
+                new()
+                {
+                    ID = Guid.NewGuid().ToString("N"), PacketId = packetId, Code = "pageSize",
+                    DataType = ShareDataConst.SqlVariableTypeInt, ValueKind = ShareDataConst.SqlVariableKindConst, Value = pageSize.ToString(), OrderNo = 3
+                },
+                new()
+                {
+                    ID = Guid.NewGuid().ToString("N"), PacketId = packetId, Code = "prefix",
+                    DataType = ShareDataConst.SqlVariableTypeString, ValueKind = ShareDataConst.SqlVariableKindConst, Value = $"{rowPrefix}%", OrderNo = 4
+                }
+            };
             if (filter == "two-conditions")
             {
                 variables.Add(Variable("afterKey", ShareDataConst.SqlVariableSourceLastKey, 2));

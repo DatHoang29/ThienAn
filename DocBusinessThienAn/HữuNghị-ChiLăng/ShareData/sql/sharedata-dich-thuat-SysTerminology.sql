@@ -390,7 +390,7 @@ VALUES
      N'The conversion table must have at least one row.'),
 
     (N'lz.validation', N'sharedata.datatypeIdOutOfRange',
-     N'Loại dữ liệu chia sẻ phải nằm trong khoảng 101–111.',
+     N'Loại dữ liệu chia sẻ phải nằm trong khoảng 101-111.',
      N'Sharing data type must be between 101 and 111.'),
 
     (N'lz.validation', N'sharedata.eventSourceRequired',
@@ -603,6 +603,14 @@ VALUES
      N'Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc có cột con trỏ khóa [__lastKey].',
      N'Incremental queries must include the key cursor column [__lastKey].'),
 
+    (N'lz.validation', N'sharedata.sqlVariableValueInvalid',
+     N'Giá trị [{1}] của biến [{0}] không hợp lệ.',
+     N'Value [{1}] of variable [{0}] is invalid.'),
+
+    (N'lz.validation', N'sharedata.writeSqlTableUnused',
+     N'Bảng [{0}] đã khai trong Bảng bị ảnh hưởng nhưng chưa có câu ghi nào ghi vào bảng này.',
+     N'Table [{0}] is declared in Affected tables but no write statement writes to it.'),
+
 
 
     -- =========================================================================
@@ -665,7 +673,11 @@ VALUES
 
     (N'lz.message', N'sharedata.partnerDisconnected',
      N'Đã ngắt kết nối với đối tác.',
-     N'Disconnected from partner.');
+     N'Disconnected from partner.'),
+
+    (N'lz.validation', N'sharedata.sqlFieldTypeInvalid',
+     N'Trường [{0}]: kiểu [{1}] không có trong danh sách kiểu dữ liệu.',
+     N'Field [{0}]: type [{1}] is not in the data type list.');
 
 -- -----------------------------------------------------------------------------------------
 -- 3. NẠP DỮ LIỆU ĐA NGÔN NGỮ (MERGE CHỈ THÊM DÒNG CHƯA CÓ, KHÔNG GHI ĐÈ)
@@ -721,6 +733,11 @@ SET Code = N'sharedata.sqlIncrementalMissingLastKey',
     Value = N'Incremental queries must include the key cursor column [__lastKey].',
     UpdateTime = GETDATE()
 WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalMissingRowid' AND Lang = N'en-US';
+
+UPDATE dbo.SysTerminology
+SET Value = N'Loại dữ liệu chia sẻ phải nằm trong khoảng 101-111.',
+    UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.datatypeIdOutOfRange' AND Lang = N'vi-VN' AND Value = N'Loại dữ liệu chia sẻ phải nằm trong khoảng 101–111.';
 
 -- 3.1. Xử lý bản dịch Tiếng Việt (vi-VN)
 MERGE INTO dbo.SysTerminology AS target

@@ -21,17 +21,14 @@ test.describe('ShareData — Bảng tham số câu truy vấn (sqlVariablePanel)
 
 		// Khóa viết thẳng trong component
 		const keys = new Set<string>([...panel.matchAll(/'(lz\.[a-z]+\.sharedataSqlVariable\.[A-Za-z_]+)'/g)].map((m) => m[1]));
-		// Khóa ghép theo kiểu dữ liệu (const TYPE_X = 'Y') và theo nguồn "Lấy từ" (khóa của BUILTIN_TYPES; đã bỏ hằng số 26/10/2026)
-		const types = [...panel.matchAll(/const TYPE_[A-Z]+ = '(\w+)';/g)].map((m) => m[1]);
-		const builtinBlock = panel.match(/const BUILTIN_TYPES[^{]*\{([\s\S]*?)\};/)?.[1] ?? '';
-		const sources = [...builtinBlock.matchAll(/(\w+):/g)].map((m) => m[1]);
-		for (const t of types) keys.add(`lz.label.sharedataSqlVariable.type${t}`);
+		// Khóa ghép theo danh sách nguồn giá trị (const SOURCES = [...])
+		const sourcesBlock = panel.match(/const SOURCES = \[([^\]]+)\];/)?.[1] ?? '';
+		const sources = [...sourcesBlock.matchAll(/'(\w+)'/g)].map((m) => m[1]);
 		for (const s of sources) {
 			keys.add(`lz.label.sharedataSqlVariable.source_${s}`);
 			keys.add(`lz.tooltip.sharedataSqlVariable.source_${s}`);
 		}
-		expect(types.length).toBeGreaterThanOrEqual(2);
-		expect(sources.length).toBeGreaterThanOrEqual(6);
+		expect(sources).toEqual(['lastKey', 'const', 'now']);
 
 		for (const k of keys) {
 			expect(viVn[k], `vi-vn.json thiếu key ${k}`).toBeTruthy();

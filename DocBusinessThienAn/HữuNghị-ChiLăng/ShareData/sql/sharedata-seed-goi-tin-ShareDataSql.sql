@@ -13,7 +13,7 @@ GO
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 26/10/2026 (bỏ cột MaxLookBackDays)
+-- CẬP NHẬT LẦN CUỐI: 27/10/2026 (thêm DefaultValue cho ShareDataSqlVariable, nới LastKey lên NVARCHAR(256))
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -27,6 +27,22 @@ IF OBJECT_ID(N'[dbo].[ShareDataSql]', N'U') IS NULL
 BEGIN
     PRINT N'⚠️ Bảng [dbo].[ShareDataSql] chưa tồn tại (chưa chạy CodeFirst)! Bỏ qua kịch bản.';
     SET NOEXEC ON;
+END;
+GO
+
+IF OBJECT_ID('dbo.ShareDataSqlVariable', 'U') IS NOT NULL
+   AND COL_LENGTH('dbo.ShareDataSqlVariable', 'DefaultValue') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[ShareDataSqlVariable] ADD [DefaultValue] NVARCHAR(256) NULL;
+    PRINT N'   + Đã thêm cột [DefaultValue] vào [dbo].[ShareDataSqlVariable].';
+END;
+
+IF OBJECT_ID('dbo.ShareDataLastSend', 'U') IS NOT NULL
+   AND COL_LENGTH('dbo.ShareDataLastSend', 'LastKey') IS NOT NULL
+   AND COL_LENGTH('dbo.ShareDataLastSend', 'LastKey') < 512
+BEGIN
+    ALTER TABLE [dbo].[ShareDataLastSend] ALTER COLUMN [LastKey] NVARCHAR(256) NULL;
+    PRINT N'   + Đã nới độ dài cột [LastKey] của [dbo].[ShareDataLastSend] lên NVARCHAR(256).';
 END;
 GO
 
