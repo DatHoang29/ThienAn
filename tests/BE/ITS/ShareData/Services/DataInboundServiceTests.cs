@@ -1303,6 +1303,7 @@ public class DataInboundServiceTests(Host host)
     /// Description: B3 - Khi CSDL hủy transaction (SET XACT_ABORT ON), RollbackQuietly bắt êm lỗi hủy giao dịch
     ///              để không làm gián đoạn lượt quét; gói 1 đánh dấu Failed và gói 2 kế tiếp được xử lý thành Done.
     /// Created date: 20/10/2026
+    /// Modified date: 27/10/2026 (câu ghi gộp một khối: lỗi lưu là lỗi SQL gốc "Lỗi chạy câu ghi #1: …")
     /// </summary>
     [Fact]
     public async Task ProcessPendingPackets_WhenServerAbortsTransaction_KeepsSqlErrorAndProcessesNextPacket_Test()
@@ -1352,7 +1353,9 @@ public class DataInboundServiceTests(Host host)
         var updated2 = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(packet2.ID);
 
         Assert.Equal(BaseEnums.InboundProcessState.Failed, updated1.ProcessState);
-        Assert.Contains("SqlTransaction has completed", updated1.ErrorMessage);
+        // Giữ lỗi SQL gốc của câu ghi, không bị lỗi phụ "SqlTransaction has completed" lúc quay lui che mất
+        Assert.StartsWith("Lỗi chạy câu ghi #1:", updated1.ErrorMessage);
+        Assert.DoesNotContain("SqlTransaction has completed", updated1.ErrorMessage);
         Assert.Equal(BaseEnums.InboundProcessState.Done, updated2.ProcessState);
     }
 

@@ -151,10 +151,6 @@ public class VwControllerTests(Host host)
             IP = $"127.0.0.1:{VwISAPIServerHikvisionMock.DefaultPort}",
             Account = "admin",
             PassWord = "Password123!",
-            OriginCol = 0,
-            OriginRow = 0,
-            CoverCols = 4,
-            CoverRows = 2,
             Status = BaseEnums.StatusEnum.Enable
         };
 

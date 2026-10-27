@@ -780,4 +780,36 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
         await expect(codeRow.locator('td').nth(1)).toHaveText('20261022');
         await expect(codeRow.locator('td').nth(2)).toHaveText('20261023');
     });
+
+    test('Bộ lọc Thời gian hiện đủ ngày giờ DD/MM/YYYY HH:mm:ss ở cả hai ô, không bị khuất ở mọi độ rộng màn hình từ 768px tới 1920px', async ({ page }) => {
+        await page.route('**/api/sharedata/sharedataactivitylog/page*', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: { records: [], total: 0 } }) }));
+        await page.goto('/sharedata/history');
+        for (const width of [1920, 1600, 1440, 1366, 1280, 1024, 768]) {
+            await page.setViewportSize({ width, height: 900 });
+            await page.waitForTimeout(300);
+            const inputs = page.locator('.el-date-editor .el-range-input');
+            await expect(inputs).toHaveCount(2, { timeout: 30_000 });
+            for (let i = 0; i < 2; i++) {
+                const { value, scroll, client } = await inputs.nth(i).evaluate((el: HTMLInputElement) => ({ value: el.value, scroll: el.scrollWidth, client: el.clientWidth }));
+                expect(value, `ô ${i + 1} ở ${width}px`).toMatch(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}$/);
+                expect(scroll, `ô ${i + 1} ở ${width}px bị cắt chữ "${value}"`).toBeLessThanOrEqual(client);
+            }
+            // Các ô lọc khác (chọn / nhập) không bị bóp: đủ rộng và chữ gợi ý không bị cắt thành "T.."
+            const narrow = await page.locator('.el-form').first().evaluate((form) =>
+                [...form.querySelectorAll('.el-select__wrapper, .el-input__wrapper:not(.el-range-editor)')]
+                    .filter((el) => !el.closest('.el-date-editor'))
+                    .map((el) => {
+                        const ph = el.querySelector('.el-select__placeholder span, .el-select__placeholder') as HTMLElement | null;
+                        const input = el.querySelector('input.el-input__inner') as HTMLInputElement | null;
+                        const ctx = document.createElement('canvas').getContext('2d')!;
+                        if (input) { const cs = getComputedStyle(input); ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`; }
+                        const inputCut = !ph && !!input?.placeholder && ctx.measureText(input.placeholder).width > input.clientWidth - 2;
+                        return { w: Math.round(el.getBoundingClientRect().width), cut: (ph ? ph.scrollWidth > ph.clientWidth + 1 : false) || inputCut, text: ph?.textContent?.trim() ?? (el.querySelector('input') as HTMLInputElement | null)?.placeholder };
+                    })
+                    .filter((x) => x.w < 120 || x.cut)
+            );
+            expect(narrow, `ô lọc bị bóp ở ${width}px`).toEqual([]);
+        }
+    });
+
 });

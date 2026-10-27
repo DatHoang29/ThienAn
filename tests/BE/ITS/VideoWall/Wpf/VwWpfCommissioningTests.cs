@@ -69,8 +69,6 @@ public class VwWpfCommissioningTests
             OutputId = "1",
             GridCol = 0,
             GridRow = 0,
-            WidthPx = 1920,
-            HeightPx = 1080,
             Resolution = "1920x1080",
             Status = BaseEnums.StatusEnum.Enable
         };
@@ -128,8 +126,6 @@ public class VwWpfCommissioningTests
                 OutPutPort = screenA.OutPutPort?.ToString(),
                 GridCol = screenA.GridCol,
                 GridRow = screenA.GridRow,
-                WidthPx = screenA.WidthPx?.ToString(),
-                HeightPx = screenA.HeightPx?.ToString(),
                 Resolution = screenA.Resolution,
                 ControllerId = conn.DeviceKey,
             });
@@ -143,8 +139,6 @@ public class VwWpfCommissioningTests
                 OutPutPort = screenB.OutPutPort?.ToString(),
                 GridCol = screenB.GridCol,
                 GridRow = screenB.GridRow,
-                WidthPx = screenB.WidthPx?.ToString(),
-                HeightPx = screenB.HeightPx?.ToString(),
                 Resolution = screenB.Resolution,
                 ControllerId = conn.DeviceKey,
             });

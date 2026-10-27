@@ -193,4 +193,66 @@ test.describe('ShareData — Nhật ký cảnh báo lỗi (errorLog) @sharedata'
         await drawer.locator('.el-drawer__close-btn').click();
         await expect(drawer).toBeHidden();
     });
+
+    test('2. Bộ lọc Thời gian giống Lịch sử chia sẻ: chọn ngày giờ DD/MM/YYYY HH:mm:ss, mặc định từ 00:00:00 tới giờ hiện tại và gửi đúng giờ đã chọn', async ({ page }) => {
+        await page.clock.setFixedTime(new Date(2026, 9, 27, 20, 54, 48));
+        const ok = (result: unknown) => ({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result }) });
+        await page.route('**/api/cfgsystem/sysconfigtype/alldatalist*', (r) => r.fulfill(ok({})));
+        await page.route('**/api/sharedata/sharedatapartner/list*', (r) => r.fulfill(ok([])));
+        await page.route('**/api/sharedata/sharedataalertlog/summary*', (r) => r.fulfill(ok({ unackedCount: 0, totalCount: 0 })));
+        const pageBodies: any[] = [];
+        await page.route('**/api/sharedata/sharedataalertlog/page*', (r) => {
+            pageBodies.push(r.request().postDataJSON());
+            return r.fulfill(ok({ records: [], total: 0 }));
+        });
+
+        await page.goto('/sharedata/errorLog');
+
+        const inputs = page.locator('.el-date-editor input');
+        await expect(inputs).toHaveCount(2, { timeout: 30_000 });
+        const [from, to] = [await inputs.nth(0).inputValue(), await inputs.nth(1).inputValue()];
+        expect(from).toMatch(/^\d{2}\/\d{2}\/\d{4} 00:00:00$/);
+        expect(to).toBe('27/10/2026 20:54:48');
+
+        await expect.poll(() => pageBodies.length, { timeout: 15_000 }).toBeGreaterThan(0);
+        const toDate = new Date(pageBodies[0].toDate);
+        expect([toDate.getHours(), toDate.getMinutes(), toDate.getSeconds()]).toEqual([20, 54, 48]);
+    });
+
+
+    test('3. Bộ lọc Thời gian hiện đủ ngày giờ DD/MM/YYYY HH:mm:ss ở cả hai ô, không bị khuất ở mọi độ rộng màn hình từ 768px tới 1920px', async ({ page }) => {
+        const ok = (result: unknown) => ({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result }) });
+        await page.route('**/api/cfgsystem/sysconfigtype/alldatalist*', (r) => r.fulfill(ok({})));
+        await page.route('**/api/sharedata/sharedatapartner/list*', (r) => r.fulfill(ok([])));
+        await page.route('**/api/sharedata/sharedataalertlog/summary*', (r) => r.fulfill(ok({ unackedCount: 0, totalCount: 0 })));
+        await page.route('**/api/sharedata/sharedataalertlog/page*', (r) => r.fulfill(ok({ records: [], total: 0 })));
+        await page.goto('/sharedata/errorLog');
+        for (const width of [1920, 1600, 1440, 1366, 1280, 1024, 768]) {
+            await page.setViewportSize({ width, height: 900 });
+            await page.waitForTimeout(300);
+            const inputs = page.locator('.el-date-editor .el-range-input');
+            await expect(inputs).toHaveCount(2, { timeout: 30_000 });
+            for (let i = 0; i < 2; i++) {
+                const { value, scroll, client } = await inputs.nth(i).evaluate((el: HTMLInputElement) => ({ value: el.value, scroll: el.scrollWidth, client: el.clientWidth }));
+                expect(value, `ô ${i + 1} ở ${width}px`).toMatch(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}$/);
+                expect(scroll, `ô ${i + 1} ở ${width}px bị cắt chữ "${value}"`).toBeLessThanOrEqual(client);
+            }
+            // Các ô lọc khác (chọn / nhập) không bị bóp: đủ rộng và chữ gợi ý không bị cắt thành "T.."
+            const narrow = await page.locator('.el-form').first().evaluate((form) =>
+                [...form.querySelectorAll('.el-select__wrapper, .el-input__wrapper:not(.el-range-editor)')]
+                    .filter((el) => !el.closest('.el-date-editor'))
+                    .map((el) => {
+                        const ph = el.querySelector('.el-select__placeholder span, .el-select__placeholder') as HTMLElement | null;
+                        const input = el.querySelector('input.el-input__inner') as HTMLInputElement | null;
+                        const ctx = document.createElement('canvas').getContext('2d')!;
+                        if (input) { const cs = getComputedStyle(input); ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`; }
+                        const inputCut = !ph && !!input?.placeholder && ctx.measureText(input.placeholder).width > input.clientWidth - 2;
+                        return { w: Math.round(el.getBoundingClientRect().width), cut: (ph ? ph.scrollWidth > ph.clientWidth + 1 : false) || inputCut, text: ph?.textContent?.trim() ?? (el.querySelector('input') as HTMLInputElement | null)?.placeholder };
+                    })
+                    .filter((x) => x.w < 120 || x.cut)
+            );
+            expect(narrow, `ô lọc bị bóp ở ${width}px`).toEqual([]);
+        }
+    });
+
 });

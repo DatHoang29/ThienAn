@@ -26,7 +26,15 @@ namespace Tests.VideoWall.WebApi.Controllers
     /// </summary>
     public class VwWallTopologyValidatorTests
     {
-        private static VwUpsertWallTopologyValidator CreateValidator() => new(new EchoLocalizerTest());
+        private static VwSaveWallLayoutValidator CreateValidator() => new(new EchoLocalizerTest());
+
+        /// <summary>Bố cục một khối (BlockNo 0) với số hàng / cột và kích thước panel cho trước.</summary>
+        private static VwSaveWallLayoutInput Layout(int? rows, int? cols, int? screenWidth, int? screenHeight) => new()
+        {
+            ScreenWidth = screenWidth,
+            ScreenHeight = screenHeight,
+            Blocks = [new VwWallBlockInput { BlockNo = 0, Rows = rows, Cols = cols }]
+        };
 
         /// <summary>
         /// Description: Nhận cấu hình tường hợp lệ của công trình: 8 cột × 4 hàng, panel FHD.
@@ -35,13 +43,7 @@ namespace Tests.VideoWall.WebApi.Controllers
         [Fact]
         public void VwWallTopologyValidator_AcceptsValidWallConfiguration_Test()
         {
-            var result = CreateValidator().Validate(new VwUpsertWallTopologyInput
-            {
-                Rows = 4,
-                Cols = 8,
-                ScreenWidth = 1920,
-                ScreenHeight = 1080
-            });
+            var result = CreateValidator().Validate(Layout(4, 8, 1920, 1080));
 
             Assert.True(result.IsValid);
         }
@@ -63,17 +65,11 @@ namespace Tests.VideoWall.WebApi.Controllers
         [InlineData(4, 33)]
         public void VwWallTopologyValidator_RejectsGridOutOfRange_Test(int? rows, int? cols)
         {
-            var result = CreateValidator().Validate(new VwUpsertWallTopologyInput
-            {
-                Rows = rows,
-                Cols = cols,
-                ScreenWidth = 1920,
-                ScreenHeight = 1080
-            });
+            var result = CreateValidator().Validate(Layout(rows, cols, 1920, 1080));
 
             Assert.False(result.IsValid);
-            Assert.Contains(result.Errors, e => e.PropertyName == nameof(VwUpsertWallTopologyInput.Rows)
-                                             || e.PropertyName == nameof(VwUpsertWallTopologyInput.Cols));
+            Assert.Contains(result.Errors, e => e.PropertyName == $"{nameof(VwSaveWallLayoutInput.Blocks)}[0].{nameof(VwWallBlockInput.Rows)}"
+                                             || e.PropertyName == $"{nameof(VwSaveWallLayoutInput.Blocks)}[0].{nameof(VwWallBlockInput.Cols)}");
         }
 
         /// <summary>
@@ -90,17 +86,11 @@ namespace Tests.VideoWall.WebApi.Controllers
         [InlineData(1920, -1080)]
         public void VwWallTopologyValidator_RejectsNonPositivePanelSize_Test(int? screenWidth, int? screenHeight)
         {
-            var result = CreateValidator().Validate(new VwUpsertWallTopologyInput
-            {
-                Rows = 4,
-                Cols = 8,
-                ScreenWidth = screenWidth,
-                ScreenHeight = screenHeight
-            });
+            var result = CreateValidator().Validate(Layout(4, 8, screenWidth, screenHeight));
 
             Assert.False(result.IsValid);
-            Assert.Contains(result.Errors, e => e.PropertyName == nameof(VwUpsertWallTopologyInput.ScreenWidth)
-                                             || e.PropertyName == nameof(VwUpsertWallTopologyInput.ScreenHeight));
+            Assert.Contains(result.Errors, e => e.PropertyName == nameof(VwSaveWallLayoutInput.ScreenWidth)
+                                             || e.PropertyName == nameof(VwSaveWallLayoutInput.ScreenHeight));
         }
     }
 

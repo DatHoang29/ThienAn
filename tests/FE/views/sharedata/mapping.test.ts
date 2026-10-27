@@ -654,6 +654,36 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
         const treeNodes = dialog.locator('.mp-tree .el-tree-node');
         await expect(treeNodes).toHaveCount(6); // header + body + 4 trường lá
     });
+
+    test('EC15 — Bộ lọc màn Ánh xạ: chữ gợi ý trong ô nhập và ô chọn hiện đủ, không bị cắt ở mọi độ rộng từ 768px tới 1920px', async ({ page }) => {
+        await page.goto('/#/sharedata/mapping');
+        const form = page.locator('.el-form').first();
+        await expect(form.locator('.el-input__inner').first()).toBeVisible({ timeout: 60_000 });
+        for (const width of [1920, 1600, 1440, 1366, 1280, 1024, 768]) {
+            await page.setViewportSize({ width, height: 900 });
+            await page.waitForTimeout(300);
+            const cut = await form.evaluate((el) => {
+                const ctx = document.createElement('canvas').getContext('2d')!;
+                const textWidth = (input: HTMLElement, text: string) => {
+                    const cs = getComputedStyle(input);
+                    ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+                    return ctx.measureText(text).width;
+                };
+                const inputs = [...el.querySelectorAll('input.el-input__inner')]
+                    .filter((i) => !i.closest('.el-select') && !i.closest('.el-date-editor'))
+                    .map((i) => i as HTMLInputElement)
+                    .filter((i) => i.placeholder && textWidth(i, i.placeholder) > i.clientWidth - 2)
+                    .map((i) => i.placeholder);
+                const selects = [...el.querySelectorAll('.el-select__placeholder')]
+                    .map((p) => p as HTMLElement)
+                    .filter((p) => p.scrollWidth > p.clientWidth + 1 || p.querySelector('span') && (p.querySelector('span') as HTMLElement).scrollWidth > p.clientWidth + 1)
+                    .map((p) => p.textContent?.trim());
+                return [...inputs, ...selects];
+            });
+            expect(cut, `chữ gợi ý bị cắt ở ${width}px`).toEqual([]);
+        }
+    });
+
 });
 
 

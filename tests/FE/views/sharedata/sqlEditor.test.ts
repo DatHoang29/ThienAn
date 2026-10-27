@@ -1020,4 +1020,137 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         await expect(tabs).not.toHaveClass(/no-bar-anim/);
     });
 
+
+    for (const c of [
+        { name: '40. Khối 2 đã thu gọn từ trước nhưng gói chưa có trường nào: vẫn mở bảng, hiện tiêu đề cột và lời nhắc trống', fields: [] as typeof SAVED_FIELDS, expectOpen: true },
+        { name: '40b. Khối 2 đã thu gọn từ trước và gói có trường: giữ thu gọn như người dùng chọn', fields: SAVED_FIELDS, expectOpen: false },
+    ]) {
+        test(c.name, async ({ page }) => {
+            // Trạng thái "đã thu gọn Khối 2" lưu từ lần trước (Local: <tiền tố>:sharedataDataSource:fieldsCollapsed = true)
+            await page.addInitScript(() => {
+                const getItem = Storage.prototype.getItem;
+                Storage.prototype.getItem = function (key: string) {
+                    return key.endsWith('sharedataDataSource:fieldsCollapsed') ? 'true' : getItem.call(this, key);
+                };
+            });
+            await page.route('**/api/sharedata/sharedatapacket/getextractsql*', (r) =>
+                r.fulfill(json({ code: 200, result: { extractSql: SQL_ONE_COLUMN, status: 1, fields: c.fields } }))
+            );
+            await openSqlCenter(page);
+
+            const fieldsSection = page.locator('.fields-section');
+            const wrapper = fieldsSection.locator('.saved-fields-grid-wrapper');
+            const collapseBlockBtn = fieldsSection.locator('.fields-bar-actions .el-button').last();
+            if (c.expectOpen) {
+                await expect(wrapper).toBeVisible({ timeout: 5000 });
+                await expect(fieldsSection.locator('.vxe-header--column', { hasText: 'Trường dữ liệu' })).toBeVisible();
+                await expect(fieldsSection.locator('.vxe-header--column', { hasText: 'Kiểu' })).toBeVisible();
+                await expect(fieldsSection.locator('.el-empty:visible', { hasText: 'Gói tin này chưa có trường nào' })).toBeVisible();
+                await expect(collapseBlockBtn).toHaveAttribute('aria-label', 'Thu gọn');
+            } else {
+                await expect(wrapper).toBeHidden({ timeout: 5000 });
+                await expect(collapseBlockBtn).toHaveAttribute('aria-label', 'Mở rộng');
+            }
+        });
+    }
+
+
+    test('40c. Khối 2 đã thu gọn từ trước, gói chưa có trường: bấm Lưu & phân tích sinh ra trường thì bảng vẫn mở, không tự đóng', async ({ page }) => {
+        await page.addInitScript(() => {
+            const getItem = Storage.prototype.getItem;
+            Storage.prototype.getItem = function (key: string) {
+                if (key.endsWith('sharedataDataSource:fieldsCollapsed') && !sessionStorage.getItem('fc-seeded')) {
+                    sessionStorage.setItem('fc-seeded', '1');
+                    return 'true';
+                }
+                return getItem.call(this, key);
+            };
+        });
+        await page.route('**/api/sharedata/sharedatapacket/getextractsql*', (r) =>
+            r.fulfill(json({ code: 200, result: { extractSql: SQL_ONE_COLUMN, status: 1, fields: [] } }))
+        );
+        await page.route('**/api/sharedata/sharedatapacket/describecolumns*', (r) =>
+            r.fulfill(json({ code: 200, result: { isValid: true, fields: SAVED_FIELDS, added: SAVED_FIELDS.map((x) => x.key), lost: [], typeChanged: [], affectedMappings: [] } }))
+        );
+        await page.route('**/api/sharedata/sharedatapacket/updateextractsql*', (r) =>
+            r.fulfill(json({ code: 200, result: { extractSql: SQL_ONE_COLUMN, status: 1, fields: SAVED_FIELDS } }))
+        );
+        await openSqlCenter(page);
+
+        const fieldsSection = page.locator('.fields-section');
+        const wrapper = fieldsSection.locator('.saved-fields-grid-wrapper');
+        await expect(wrapper).toBeVisible({ timeout: 5000 });
+
+        // Gói có SQL nhưng chưa có trường: nút Lưu & phân tích mở sẵn
+        const save = page.locator('.sql-toolbar-bar .el-button--primary').last();
+        await expect(save).toBeEnabled({ timeout: 10_000 });
+        await save.click();
+
+        await expect(fieldsSection.locator('.fields-badge-count')).toHaveText(String(SAVED_FIELDS.length), { timeout: 10_000 });
+        await expect(wrapper).toBeVisible();
+        await expect(fieldsSection.locator('.vxe-body--row', { hasText: 'speed' })).toBeVisible();
+        await expect(fieldsSection.locator('.fields-bar-actions .el-button').last()).toHaveAttribute('aria-label', 'Thu gọn');
+    });
+
+
+    test('41. Bấm gói: câu SQL, bảng tham số và khối câu ghi mẫu chung nạp chung một lần GetSqlDetail, không gọi ba API lẻ', async ({ page }) => {
+        const calls: string[] = [];
+        page.on('request', (req) => {
+            const m = req.url().match(/\/api\/sharedata\/sharedatapacket\/(getsqldetail|getextractsql|getsqlvariables|getwritesqls)\b/);
+            if (m) calls.push(m[1]);
+        });
+        await page.route('**/api/sharedata/sharedatapacket/getsqldetail*', (r) =>
+            r.fulfill(
+                json({
+                    code: 200,
+                    result: {
+                        extract: { extractSql: SQL_ONE_COLUMN + ' WHERE td.CreateTime >= @yearStart', status: 1, fields: SAVED_FIELDS },
+                        variables: { items: [{ code: 'yearStart', valueKind: 'Builtin', value: 'startofyear', dataType: 'DateTime', scope: 'common' }] },
+                        write: { writeSql: 'MERGE dbo.TmsZone AS t USING (SELECT 1 AS id) s ON t.ID = s.id WHEN MATCHED THEN UPDATE SET t.Name = t.Name;', affectedTables: ['dbo.TmsZone'], detectedTables: ['dbo.TmsZone'], keyFields: ['id'] },
+                    },
+                })
+            )
+        );
+        await openSqlCenter(page);
+
+        await expect(page.locator('.fields-section .vxe-body--row', { hasText: 'speed' })).toBeVisible({ timeout: 15_000 });
+        await expect(page.locator('.sql-variable-section').getByText('yearStart').first()).toBeVisible({ timeout: 15_000 });
+        expect(calls.filter((c) => c === 'getsqldetail')).toHaveLength(1);
+        expect(calls.filter((c) => c !== 'getsqldetail')).toEqual([]);
+    });
+
+
+    test('42. SQL riêng của đối tác chưa phân tích (chưa có trường): bảng trường rỗng, không so với mẫu, không hiện ký hiệu và chú giải', async ({ page }) => {
+        await page.route('**/api/sharedata/sharedatapacket/getpartnersqllist*', (r) =>
+            r.fulfill(json({ code: 200, result: [{ partnerId: 'P1', partnerCode: 'DT-DAT', partnerName: 'Đạt', isCustom: true, updateTime: '2026-10-22T10:00:00' }] }))
+        );
+        await page.route('**/api/sharedata/sharedatapacket/getpartnerextractsql*', (r) =>
+            r.fulfill(
+                json({
+                    code: 200,
+                    result: {
+                        partnerId: 'P1',
+                        packetCode: '101_commonData',
+                        standardSql: SQL_ONE_COLUMN,
+                        customSql: `${SQL_ONE_COLUMN} WHERE 1 = 1`,
+                        isCustom: true,
+                        hasDifferences: true,
+                        commonFields: SAVED_FIELDS,
+                        fields: [],
+                    },
+                })
+            )
+        );
+        await openSqlCenter(page);
+        await page.locator('.sql-partner-tabs .el-tabs__item', { hasText: 'DT-DAT' }).click();
+
+        const fieldsSection = page.locator('.fields-section');
+        await expect(fieldsSection.locator('.fields-badge-count')).toHaveText('0', { timeout: 10_000 });
+        await expect(fieldsSection.locator('.vxe-header--column', { hasText: 'Trường dữ liệu' })).toBeVisible();
+        await expect(fieldsSection.locator('.el-empty:visible', { hasText: 'Gói tin này chưa có trường nào' })).toBeVisible();
+        await expect(fieldsSection.locator('.vxe-body--row')).toHaveCount(0);
+        await expect(fieldsSection.locator('.cmp-st')).toHaveCount(0);
+        await expect(fieldsSection.locator('.fields-compare-summary')).toHaveCount(0);
+    });
+
 });

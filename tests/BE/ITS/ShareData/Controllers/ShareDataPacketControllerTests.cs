@@ -2514,7 +2514,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         {
             await call();
         }
-        var saved = await db.Queryable<ShareDataPacket>().Where(p => p.ID == packet.ID).FirstAsync();
+        var saved = await db.Queryable<ShareDataPacket>().ClearFilter().Where(p => p.ID == packet.ID).FirstAsync();
         Assert.Equal(inUse, saved.IsDelete == null);
     }
 
@@ -2721,6 +2721,84 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         // Assert
         Assert.Equal("yearStart", Assert.Single(await ShareDataSqlSeed.GetVariablesAsync(db, packet.ID, partnerId)).Code);
         Assert.Equal(ValidWriteSql, await ShareDataSqlSeed.GetWriteSqlAsync(db, packet.ID));
+    }
+
+    #endregion
+
+    #region Chi tiết SQL của gói (GetPacketSqlDetail)
+
+    /// <summary>
+    /// Description: Một API trả gọn câu SQL mẫu chung (kèm trường), bộ biến mẫu chung và khối câu ghi của gói, khớp với ba API đọc riêng;
+    ///              không phải SuperAdmin thì bị chặn
+    /// Created date: 27/10/2026
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task GetPacketSqlDetail_ReturnsExtractVariablesAndWriteMatchingSeparateApis_Test(bool isSuperAdmin)
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var (packet, _) = await SeedSqlVariablePacketAsync(db, Guid.NewGuid().ToString("N")[..8]);
+        await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
+        {
+            PacketCode = packet.Code!,
+            Items = [BuiltinVar("yearStart", ShareDataConst.SqlVariableTypeDateTime, ShareDataConst.SqlVariableSourceStartOfYear)]
+        });
+        await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
+        {
+            PacketCode = packet.Code!,
+            ExtractSql = "SELECT ID AS zoneId, Name AS zoneName FROM TmsZone WHERE CreateTime >= @yearStart"
+        });
+        await ShareDataSqlSeed.SetWriteAsync(db, packet.ID, ValidWriteSql, "dbo.ShareDataInboundPacket");
+        var input = new GetPacketSqlDetailInput { PacketCode = packet.Code! };
+
+        if (!isSuperAdmin)
+        {
+            SetUserContext(isSuperAdmin: false);
+            await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PacketSqlDetailOutput>(input));
+            return;
+        }
+
+        // Act
+        var detail = await scope.ServiceProvider.CallApiAsync<PacketSqlDetailOutput>(input);
+        var extract = await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new GetPacketExtractSqlInput { PacketCode = packet.Code! });
+        var variables = await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new GetPacketSqlVariablesInput { PacketCode = packet.Code! });
+        var write = await scope.ServiceProvider.CallApiAsync<PacketWriteSqlsOutput>(new GetPacketWriteSqlsInput { PacketCode = packet.Code! });
+
+        // Assert
+        Assert.Equal(extract.ExtractSql, detail.Extract.ExtractSql);
+        Assert.Equal(["zoneId", "zoneName"], detail.Extract.Fields.Select(f => f.Key).ToArray());
+        Assert.Equal(extract.Fields.Select(f => f.Key), detail.Extract.Fields.Select(f => f.Key));
+        Assert.Equal(variables.Items.Select(i => (i.Code, i.Value, i.Scope)), detail.Variables.Items.Select(i => (i.Code, i.Value, i.Scope)));
+        Assert.Equal("yearStart", Assert.Single(detail.Variables.Items).Code);
+        Assert.Equal(write.WriteSql, detail.Write.WriteSql);
+        Assert.Equal(write.AffectedTables, detail.Write.AffectedTables);
+        Assert.Equal(write.KeyFields, detail.Write.KeyFields);
+    }
+
+    /// <summary>
+    /// Description: Gói chưa có dòng ShareDataSql nào: trả câu SQL trống, không biến, không câu ghi; mã gói không tồn tại thì báo lỗi
+    /// Created date: 27/10/2026
+    /// </summary>
+    [Fact]
+    public async Task GetPacketSqlDetail_WhenNoSqlRowOrUnknownPacket_ReturnsEmptyOrThrows_Test()
+    {
+        SetUserContext(isSuperAdmin: true);
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var (packet, _) = await SeedSqlVariablePacketAsync(db, Guid.NewGuid().ToString("N")[..8]);
+
+        var detail = await scope.ServiceProvider.CallApiAsync<PacketSqlDetailOutput>(new GetPacketSqlDetailInput { PacketCode = packet.Code! });
+
+        Assert.Equal(packet.Code, detail.Extract.PacketCode);
+        Assert.Equal(string.Empty, detail.Extract.ExtractSql);
+        Assert.Empty(detail.Extract.Fields);
+        Assert.Empty(detail.Variables.Items);
+        Assert.Null(detail.Write.WriteSql);
+        await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PacketSqlDetailOutput>(new GetPacketSqlDetailInput { PacketCode = $"NOPE_{Guid.NewGuid():N}" }));
     }
 
     #endregion

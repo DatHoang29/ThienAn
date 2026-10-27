@@ -61,8 +61,6 @@ namespace Tests.VideoWall.WebApi.Controllers
                 GridCol = 0,
                 GridRow = 0,
                 Resolution = "1920x1080",
-                WidthPx = 1920,
-                HeightPx = 1080,
                 Status = BaseEnums.StatusEnum.Enable,
                 CreateTime = DateTime.Now
             };
@@ -102,8 +100,6 @@ namespace Tests.VideoWall.WebApi.Controllers
                 GridCol = 0,
                 GridRow = 0,
                 Resolution = "1920x1080",
-                WidthPx = 1920,
-                HeightPx = 1080,
                 Status = BaseEnums.StatusEnum.Enable
             };
 
