@@ -379,8 +379,8 @@ VALUES
      N'Variable [{0}] taken from [{1}] must be of type {2}.'),
 
     (N'lz.validation', N'sharedata.sqlVariableValueInvalid',
-     N'Giá trị [{1}] của biến [{0}] không đúng kiểu {2}.',
-     N'Value [{1}] of variable [{0}] does not match type {2}.'),
+     N'Giá trị của biến [{0}] không hợp lệ hoặc vượt quá 256 ký tự (kiểu [{1}]).',
+     N'Value of variable [{0}] is invalid or exceeds 256 characters (type [{1}]).'),
 
     -- =========================================================================
     -- NHÓM 5: KIỂM TRA HỢP LỆ NGHIỆP VỤ GÓI TIN, BỘ MÃ, ĐĂNG KÝ (8 khóa)
@@ -603,15 +603,9 @@ VALUES
      N'Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc có cột con trỏ khóa [__lastKey].',
      N'Incremental queries must include the key cursor column [__lastKey].'),
 
-    (N'lz.validation', N'sharedata.sqlVariableValueInvalid',
-     N'Giá trị [{1}] của biến [{0}] không hợp lệ.',
-     N'Value [{1}] of variable [{0}] is invalid.'),
-
     (N'lz.validation', N'sharedata.writeSqlTableUnused',
      N'Bảng [{0}] đã khai trong Bảng bị ảnh hưởng nhưng chưa có câu ghi nào ghi vào bảng này.',
      N'Table [{0}] is declared in Affected tables but no write statement writes to it.'),
-
-
 
     -- =========================================================================
     -- NHÓM 8: PARTNER VALIDATOR - KIỂM TRA CẤU HÌNH KẾT NỐI ĐỐI TÁC (12 khóa)
