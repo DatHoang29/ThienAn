@@ -1153,4 +1153,170 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         await expect(fieldsSection.locator('.fields-compare-summary')).toHaveCount(0);
     });
 
+
+    test('43. Lưu SQL nối đuôi có khóa __lastKey định dạng dễ sai thứ tự: lưu thành công nhưng hiện cảnh báo theo khóa máy chủ trả về', async ({ page }) => {
+        await page.route('**/api/sharedata/sharedatapacket/describecolumns*', (r) =>
+            r.fulfill(json({ code: 200, result: { isValid: true, fields: SAVED_FIELDS, added: [], lost: [], typeChanged: [], affectedMappings: [] } }))
+        );
+        await page.route('**/api/sharedata/sharedatapacket/updateextractsql*', (r) =>
+            r.fulfill(
+                json({
+                    code: 200,
+                    result: {
+                        extractSql: SQL_ONE_COLUMN,
+                        status: 1,
+                        fields: SAVED_FIELDS,
+                        warnings: ['lz.validation.sharedata.sqlLastKeyDateFormatUnsortable', 'lz.validation.sharedata.sqlLastKeyValueNotFixedWidth'],
+                    },
+                })
+            )
+        );
+        await openSqlCenter(page);
+        const save = page.locator('.sql-toolbar-bar .el-button--primary').last();
+        await page.locator('.sql-section .sql-raw-textarea-fallback textarea').fill(`${SQL_ONE_COLUMN}\n-- sửa`);
+        await expect(save).toBeEnabled({ timeout: 10_000 });
+        await save.click();
+
+        const notice = page.locator('.el-notification').filter({ hasText: 'Khóa nối đuôi [__lastKey]' });
+        await expect(notice).toBeVisible({ timeout: 10_000 });
+        await expect(notice).toContainText('năm-tháng-ngày');
+        await expect(notice).toContainText('đệm 0');
+    });
+
+
+    for (const c of [
+        {
+            name: '44. Thiết lập khóa nối đuôi: chọn cột thời gian + mã kiểu số → chèn đủ cột __lastKey (đệm 0), điều kiện WHERE > @lastKey và ORDER BY __lastKey',
+            sql: SQL_ONE_COLUMN,
+            numeric: true,
+            op: '>',
+            expectKey: "CONVERT(varchar(23), td.UpdateTime, 121) + '_' + RIGHT('0000000000' + CAST(td.ID AS varchar(10)), 10) AS __lastKey",
+            expectWhere: "WHERE CONVERT(varchar(23), td.UpdateTime, 121) + '_' + RIGHT('0000000000' + CAST(td.ID AS varchar(10)), 10) > @lastKey",
+        },
+        {
+            name: '44b. Thiết lập khóa nối đuôi trên SQL đã có WHERE và ORDER BY khác: thêm AND vào WHERE, thay ORDER BY bằng __lastKey; mã kiểu chuỗi, toán tử >=',
+            sql: 'SELECT TOP 100 td.Speed AS speed FROM TmsTrafficData td WHERE td.Speed > 0 ORDER BY td.Speed DESC',
+            numeric: false,
+            op: '>=',
+            expectKey: "CONVERT(varchar(23), td.UpdateTime, 121) + '_' + td.ID AS __lastKey",
+            expectWhere: "WHERE td.Speed > 0 AND CONVERT(varchar(23), td.UpdateTime, 121) + '_' + td.ID >= @lastKey",
+        },
+    ]) {
+        test(c.name, async ({ page }) => {
+            await page.route('**/api/sharedata/sharedatapacket/getextractsql*', (r) =>
+                r.fulfill(json({ code: 200, result: { extractSql: c.sql, status: 1, fields: SAVED_FIELDS } }))
+            );
+            await page.route('**/api/sharedata/sharedatapacket/getsqlvariables*', (r) =>
+                r.fulfill(json({ code: 200, result: { items: [{ code: 'lastKey', valueKind: 'Builtin', value: 'lastKey', dataType: 'String', scope: 'common' }] } }))
+            );
+            await openSqlCenter(page);
+
+            await page.locator('.sql-variable-section .svp-lastkey-setup').first().click();
+            const dialog = page.locator('.lks-dialog');
+            await expect(dialog).toBeVisible();
+            await dialog.locator('.lks-time input').fill('td.UpdateTime');
+            await dialog.locator('.lks-id input').fill('td.ID');
+            if (c.numeric) await dialog.locator('.lks-numeric').click();
+            if (c.op === '>=') await dialog.locator('.lks-op .el-radio-button', { hasText: '>=' }).click();
+            await dialog.locator('.lks-apply').click();
+            await expect(dialog).toBeHidden();
+
+            const sql = await page.locator('.sql-section .sql-raw-textarea-fallback textarea').inputValue();
+            expect(sql).toContain(c.expectKey);
+            expect(sql).toContain(c.expectWhere);
+            expect(sql.trim().endsWith('ORDER BY __lastKey')).toBeTruthy();
+            expect(sql).not.toContain('DESC');
+            expect(sql).toContain('td.Speed AS speed');
+        });
+    }
+
+    /**
+     * Description: Chưa sửa gì mà đổi sang gói tin khác ở tab Nhận về thì không được hiện hộp "Gói tin hiện tại còn thay đổi chưa lưu",
+     *              kể cả khi khối câu ghi nạp chậm hoặc nạp lỗi (trước đây mốc so sánh rỗng làm khối câu ghi bị coi là đã sửa).
+     * Created date: 28/10/2026
+     */
+    for (const c of [
+        { name: '56. Đổi gói ở tab Nhận về khi chưa sửa gì: khối câu ghi nạp chậm không báo chưa lưu', writeStatus: 200 },
+        { name: '57. Đổi gói ở tab Nhận về khi chưa sửa gì: khối câu ghi nạp lỗi không báo chưa lưu', writeStatus: 500 },
+    ]) {
+        test(c.name, async ({ page }) => {
+            await page.route('**/api/sharedata/sharedatapacket/page*', (r) =>
+                r.fulfill(json({ code: 200, result: { records: [
+                    { id: 'PKT_01', code: '101_commonData', name: 'Gói 101', status: 1 },
+                    { id: 'PKT_02', code: '102_cctvData', name: 'Gói 102', status: 1 },
+                ], total: 2 } }))
+            );
+            await page.route('**/api/sharedata/sharedatapacket/getwritesqls*', async (r) => {
+                await new Promise((resolve) => setTimeout(resolve, 600));
+                if (c.writeStatus !== 200) return r.fulfill({ status: c.writeStatus, contentType: 'application/json', body: JSON.stringify({ code: c.writeStatus, message: 'error' }) });
+                return r.fulfill(json({ code: 200, result: { packetCode: '101_commonData', writeSql: '', affectedTables: [], detectedTables: [], keyFields: [] } }));
+            });
+            await openSqlCenter(page);
+            await page.locator('.direction-tabs .el-tabs__item', { hasText: 'Nhận về' }).click();
+            await page.waitForTimeout(1500);
+
+            await page.locator('.packet-col .vxe-body--row').nth(1).click();
+
+            await expect(page.locator('.el-message-box', { hasText: 'chưa lưu' })).toHaveCount(0);
+            await expect(page.locator('.packet-col .vxe-body--row.row--current')).toContainText('102_cctvData');
+        });
+    }
+
+    /**
+     * Description: Chèn mẫu MERGE với đầy đủ các kiểu dữ liệu của trường gói tin (int, long, float, double, decimal, dateTime, bool, guid, string, number):
+     *              sinh đúng kiểu SQL tương ứng trong OPENJSON(@records) WITH (...)
+     * Created date: 28/10/2026
+     */
+    test('58. Chèn mẫu MERGE với đầy đủ các kiểu dữ liệu của trường gói tin: sinh đúng kiểu SQL trong OPENJSON(@records) WITH', async ({ page }) => {
+        const typesToTest = [
+            { key: 'id', type: 'string' },
+            { key: 'colInt', type: 'int' },
+            { key: 'colLong', type: 'long' },
+            { key: 'colFloat', type: 'float' },
+            { key: 'colDouble', type: 'double' },
+            { key: 'colDecimal', type: 'decimal' },
+            { key: 'colDateTime', type: 'dateTime' },
+            { key: 'colBool', type: 'bool' },
+            { key: 'colGuid', type: 'guid' },
+            { key: 'colString', type: 'string' },
+            { key: 'colNumber', type: 'number' },
+        ];
+        await page.route('**/api/sharedata/sharedatapacket/page*', (r) =>
+            r.fulfill(json({ code: 200, result: { records: [{ id: 'PKT_01', code: '101_commonData', name: 'Gói 101', status: 1 }], total: 1 } }))
+        );
+        await page.route('**/api/sharedata/sharedatapacket/getsqldetail*', (r) =>
+            r.fulfill(json({ code: 200, result: {
+                extract: {
+                    packetCode: '101_commonData',
+                    extractSql: 'SELECT ID AS id FROM TmsZone',
+                    fields: typesToTest.map((f) => ({ key: f.key, type: f.type, label: f.key, required: false })),
+                },
+                variables: { items: [] },
+                write: { packetCode: '101_commonData', writeSql: '', affectedTables: [], detectedTables: [], keyFields: [] },
+            } }))
+        );
+        await openSqlCenter(page);
+        await page.locator('.direction-tabs .el-tabs__item', { hasText: 'Nhận về' }).click();
+
+        const panel = page.locator('.write-sql-panel');
+        await expect(panel).toBeVisible();
+
+        // Bấm Chèn mẫu MERGE
+        await panel.getByRole('button', { name: 'Chèn mẫu MERGE' }).click();
+
+        // Kiểm tra từng kiểu dữ liệu đã được sinh chuẩn xác trong câu OPENJSON WITH trên trình soạn thảo
+        const editor = panel.locator('.wsp-editor .sql-monaco-editor');
+        await expect(editor).toBeVisible();
+        await expect(editor).toContainText('colInt int', { timeout: 10_000 });
+        await expect(editor).toContainText('colLong bigint');
+        await expect(editor).toContainText('colFloat float');
+        await expect(editor).toContainText('colDouble float');
+        await expect(editor).toContainText('colDecimal decimal(18, 4)');
+        await expect(editor).toContainText('colDateTime datetime2');
+        await expect(editor).toContainText('colBool bit');
+        await expect(editor).toContainText('colGuid uniqueidentifier');
+        await expect(editor).toContainText('colString nvarchar(max)');
+        await expect(editor).toContainText('colNumber decimal(18, 4)');
+    });
+
 });

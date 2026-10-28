@@ -488,8 +488,8 @@ VALUES
      N'Querying sensitive system table [{0}] is not allowed.'),
 
     (N'lz.validation', N'sharedata.sqlTableNotAllowed',
-     N'Bảng {0} chưa có trong danh mục bảng nguồn được phép chia sẻ.' + CHAR(10) + N'Thêm bảng vào ShareDataSourceTable (IsQueryable = 1) rồi thử lại.',
-     N'Table {0} is not in the allowed sharing source tables.' + CHAR(10) + N'Add the table to ShareDataSourceTable (IsQueryable = 1) and try again.'),
+     N'Bảng {0} chưa có trong danh mục bảng nguồn được phép chia sẻ. Vui lòng liên hệ quản trị viên để bổ sung.',
+     N'Table {0} is not in the allowed sharing source tables. Please contact your administrator to add it.'),
 
     (N'lz.validation', N'sharedata.sqlUnsupportedParameter',
      N'Biến [{''@''}{0}] chưa khai ở bảng Tham số câu truy vấn. Mọi biến dùng trong câu SQL phải được khai ở bảng này.',
@@ -677,7 +677,15 @@ VALUES
 
     (N'lz.validation', N'sharedata.sqlFieldTypeInvalid',
      N'Trường [{0}]: kiểu [{1}] không có trong danh sách kiểu dữ liệu.',
-     N'Field [{0}]: type [{1}] is not in the data type list.');
+     N'Field [{0}]: type [{1}] is not in the data type list.'),
+
+    (N'lz.validation', N'sharedata.sqlLastKeyDateFormatUnsortable',
+     N'Khóa nối đuôi [__lastKey] được so như chuỗi: ngày giờ phải theo thứ tự năm-tháng-ngày, ví dụ CONVERT(varchar(23), <cột>, 121). Định dạng hiện tại sắp sai thứ tự và sẽ làm bỏ sót dữ liệu.',
+     N'The [__lastKey] cursor is compared as text: date/time must be ordered year-month-day, e.g. CONVERT(varchar(23), <column>, 121). The current format sorts incorrectly and rows will be skipped.'),
+
+    (N'lz.validation', N'sharedata.sqlLastKeyValueNotFixedWidth',
+     N'Khóa nối đuôi [__lastKey] ép giá trị sang chuỗi không cố định độ dài: số phải đệm 0, ví dụ RIGHT(''0000000000'' + CAST(<cột> AS varchar(10)), 10); nếu không thì …_9 sẽ lớn hơn …_10 và làm bỏ sót dữ liệu.',
+     N'The [__lastKey] cursor converts a value to text without a fixed width: pad numbers with zeros, e.g. RIGHT(''0000000000'' + CAST(<column> AS varchar(10)), 10); otherwise …_9 sorts after …_10 and rows will be skipped.');
 
 -- -----------------------------------------------------------------------------------------
 -- 3. NẠP DỮ LIỆU ĐA NGÔN NGỮ (MERGE CHỈ THÊM DÒNG CHƯA CÓ, KHÔNG GHI ĐÈ)
@@ -738,6 +746,12 @@ UPDATE dbo.SysTerminology
 SET Value = N'Loại dữ liệu chia sẻ phải nằm trong khoảng 101-111.',
     UpdateTime = GETDATE()
 WHERE Name = N'lz.validation' AND Code = N'sharedata.datatypeIdOutOfRange' AND Lang = N'vi-VN' AND Value = N'Loại dữ liệu chia sẻ phải nằm trong khoảng 101–111.';
+
+UPDATE dbo.SysTerminology SET Value = N'Bảng {0} chưa có trong danh mục bảng nguồn được phép chia sẻ. Vui lòng liên hệ quản trị viên để bổ sung.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlTableNotAllowed' AND Lang = N'vi-VN' AND Value LIKE N'%ShareDataSourceTable%';
+
+UPDATE dbo.SysTerminology SET Value = N'Table {0} is not in the allowed sharing source tables. Please contact your administrator to add it.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlTableNotAllowed' AND Lang = N'en-US' AND Value LIKE N'%ShareDataSourceTable%';
 
 -- 3.1. Xử lý bản dịch Tiếng Việt (vi-VN)
 MERGE INTO dbo.SysTerminology AS target

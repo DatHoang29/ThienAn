@@ -494,6 +494,9 @@ namespace Module.ShareData.Controllers
     - **Chỉ viết test khi người dùng yêu cầu (On-Demand Testing)**: CHỈ viết thêm hoặc bổ sung test xUnit khi người dùng có chỉ thị rõ ràng (ví dụ: *"viết test"*, *"bổ sung test cho API này"*, *"viết kịch bản kiểm thử"*), hoặc khi triển khai các module/flow lớn có quy định rõ trong spec.
     - **Chạy regression test sẵn có**: Được phép chạy kiểm tra các test xUnit đã có sẵn bằng filter (`dotnet test tests/BE/test.csproj --filter ...`) để đảm bảo không làm gãy logic cũ, nhưng tuyệt đối không tự ý viết thêm mã test mới khi chưa được yêu cầu.
 
+### 4.26. Thông báo lỗi không lộ thông tin nội bộ (Rule 19.105)
 
-
+* ⛔ **CẤM** đưa vào thông báo trả cho người dùng (`BaseMsg`, `SysTerminology`, i18n FE, `ElMessage`) các thông tin nhạy cảm / nội bộ: tên bảng cấu hình hệ thống (vd `ShareDataSourceTable`), tên cột cờ (`IsQueryable`), tên bảng hay cột trong CSDL, đường dẫn tệp, chuỗi kết nối, stack trace, tên service nội bộ.
+* Thông báo chỉ nêu **điều người dùng cần biết và làm được** (vd *"Bảng {0} chưa có trong danh mục bảng nguồn được phép chia sẻ. Vui lòng liên hệ quản trị viên để bổ sung."*). Tên đối tượng do chính người dùng nhập (tham số `{0}`) thì được hiện.
+* Chi tiết kỹ thuật cho dev ghi vào log phía BE, không đưa vào thông báo. Khi sửa thông báo cũ vi phạm: đồng bộ `BaseMsg`, `vi-vn.json`, `en-us.json` và seed SQL `SysTerminology` (UPDATE có điều kiện theo Rule 20.29).
 

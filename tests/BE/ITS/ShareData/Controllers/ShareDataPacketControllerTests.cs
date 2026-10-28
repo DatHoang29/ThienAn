@@ -824,6 +824,50 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         Assert.Contains("SELECT TOP 100 ID, Code FROM TmsZone", output.ExtractSql);
     }
 
+    /// <summary>
+    /// Description: Biến phân trang @pageSize mang nguồn 'now' (kiểu DateTime) bị Backend từ chối ngay khi lưu bộ biến
+    ///              vì câu lệnh TOP trong SQL Server bắt buộc nhận số nguyên cố định.
+    /// Created date: 28/10/2026
+    /// </summary>
+    [Fact]
+    public async Task UpdateSqlVariables_WhenPageSizeUsesDateTimeVariable_Throws_Test()
+    {
+        var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
+        SetUserContext(isSuperAdmin: true, account: operatorAccount);
+
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var packetCode = $"PKT_TOP_{unique}";
+        var packetId = Guid.NewGuid().ToString("N");
+
+        await db.Insertable(new ShareDataPacket
+        {
+            ID = packetId,
+            Code = packetCode,
+            Name = $"Packet Top {unique}",
+            Status = BaseEnums.StatusEnum.Enable
+        }).ExecuteCommandAsync();
+
+        // Lưu bộ biến: @pageSize có nguồn 'now' (DataType = DateTime) bị Backend từ chối ngay
+        var ex = await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
+        {
+            PacketCode = packetCode,
+            Items =
+            [
+                new PacketSqlVariableItemInput
+                {
+                    Code = "pageSize",
+                    DataType = ShareDataConst.SqlVariableTypeDateTime,
+                    ValueKind = ShareDataConst.SqlVariableKindBuiltin,
+                    Value = ShareDataConst.SqlVariableSourceNow
+                }
+            ]
+        }));
+
+        Assert.NotNull(ex);
+    }
+
     [Fact]
     public async Task UpdateExtractSql_WhenTableNotQueryable_RejectsWithSecurityError_Test()
     {
@@ -1174,6 +1218,13 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         Assert.True(rows[customOnly.Code!].IsPartnerCustomSql);
         Assert.DoesNotContain(unrelated.Code!, rows.Keys);
         Assert.DoesNotContain(cancelled.Code!, rows.Keys);
+
+        // Cột Đối tác: số đối tác và tên hiển thị phải có cho gói đăng ký theo ID, theo mã gói và gói chỉ có SQL riêng
+        foreach (var packet in new[] { shared, custom, customOnly, byCode })
+        {
+            Assert.Equal(1, rows[packet.Code!].PartnerCount);
+            Assert.Equal([partner.Code], rows[packet.Code!].PartnerNames);
+        }
     }
 
     [Fact]
@@ -1822,7 +1873,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     /// <summary>
     /// Description: Các dòng không hợp lệ đều bị từ chối: tên sai, nguồn lạ hoặc để trống, cách gán khác nguồn hệ thống (hằng số đã bỏ)
     /// Created date: 24/10/2026
-    /// Modified date: 26/10/2026 (Bỏ hằng số)
+    /// Modified date: 28/10/2026
     /// </summary>
     [Theory]
     [InlineData("1abc", "DateTime", "Builtin", "lastTime")]
@@ -1830,6 +1881,8 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     [InlineData("yearStart", "DateTime", "Builtin", "tenant")]
     [InlineData("runAt", "DateTime", "Builtin", "")]
     [InlineData("pageSize", "Int", "Const", "abc")]
+    [InlineData("pageSize", "Int", "Const", "0")]
+    [InlineData("pageSize", "DateTime", "Builtin", "now")]
     [InlineData("rate", "Decimal", "Const", "not-a-decimal")]
     [InlineData("tag", "String", "Const", "   ")]
     [InlineData("dt", "DateTime", "Const", "2026-01-01")]
@@ -2050,6 +2103,47 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             Assert.NotNull(error);
             Assert.Null(savedRow?.ExtractSql);
         }
+    }
+
+    /// <summary>
+    /// Description: Khóa nối đuôi gộp 1 cột được so như chuỗi, nên định dạng phải cố định độ dài để thứ tự chuỗi trùng thứ tự thời gian:
+    ///              lưu vẫn thành công nhưng trả cảnh báo khi ngày giờ thiếu năm/tháng/ngày hoặc dùng kiểu CONVERT không sắp được,
+    ///              và khi ép số sang chuỗi không đệm số 0 (…_9 > …_10). Định dạng chuẩn (CONVERT 121 + mã chuỗi, hoặc số có RIGHT đệm 0) không cảnh báo.
+    /// Created date: 28/10/2026
+    /// </summary>
+    [Theory]
+    [InlineData("CONVERT(varchar(23), CreateTime, 121) + '_' + ID", "")]
+    [InlineData("CONVERT(varchar(23), CreateTime, 121) + '_' + RIGHT('0000000000' + CAST(FromKmNumber AS varchar(10)), 10)", "")]
+    [InlineData("FORMAT(CreateTime, 'HHmm') + '_' + ID", "date")]
+    [InlineData("CONVERT(varchar(8), CreateTime, 108) + '_' + ID", "date")]
+    [InlineData("CONVERT(varchar(23), CreateTime, 121) + '_' + CAST(FromKmNumber AS varchar(10))", "width")]
+    public async Task SaveExtractSql_WhenCompositeLastKeyFormatUnsortable_SavesWithWarning_Test(string keyExpr, string expectedWarning)
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var (packet, _) = await SeedSqlVariablePacketAsync(db, Guid.NewGuid().ToString("N")[..8]);
+        await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
+        {
+            PacketCode = packet.Code!,
+            Items = [BuiltinVar("lastKey", ShareDataConst.SqlVariableTypeString, ShareDataConst.SqlVariableSourceLastKey)]
+        });
+        var sql = $"SELECT TOP 50 ID AS zoneId, {keyExpr} AS __lastKey FROM TmsZone WHERE ({keyExpr}) > @lastKey ORDER BY __lastKey";
+
+        // Act
+        var output = await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(
+            new UpdatePacketExtractSqlInput { PacketCode = packet.Code!, ExtractSql = sql });
+
+        // Assert
+        var expected = expectedWarning switch
+        {
+            "date" => new[] { BaseMsg.ShareData.Validation.SqlLastKeyDateFormatUnsortable },
+            "width" => new[] { BaseMsg.ShareData.Validation.SqlLastKeyValueNotFixedWidth },
+            _ => Array.Empty<string>()
+        };
+        Assert.Equal(sql, (await ShareDataSqlSeed.GetCommonAsync(db, packet.ID))?.ExtractSql);
+        Assert.Equal(expected, output.Warnings.ToArray());
     }
 
     /// <summary>
@@ -2968,6 +3062,112 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         Assert.Empty(detail.Variables.Items);
         Assert.Null(detail.Write.WriteSql);
         await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PacketSqlDetailOutput>(new GetPacketSqlDetailInput { PacketCode = $"NOPE_{Guid.NewGuid():N}" }));
+    }
+
+    /// <summary>
+    /// Description: Chỉnh sửa kiểu dữ liệu của trường gói tin (FieldsJson): hỗ trợ đầy đủ các kiểu trong AllowedFieldTypes (string, number, int, dateTime, bool, long, float, double, decimal, guid).
+    ///              Kiểu chọn tay được lưu vào Type, TypeOverride và không bị bộ dò cột ghi đè khi dò lại.
+    /// Created date: 28/10/2026
+    /// </summary>
+    [Theory]
+    [InlineData("string")]
+    [InlineData("number")]
+    [InlineData("int")]
+    [InlineData("dateTime")]
+    [InlineData("bool")]
+    [InlineData("long")]
+    [InlineData("float")]
+    [InlineData("double")]
+    [InlineData("decimal")]
+    [InlineData("guid")]
+    public async Task UpdatePacketFields_WithAllSupportedTypes_SavesAndPersistsTypeCorrectly_Test(string targetType)
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true);
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var (packet, _) = await SeedSqlVariablePacketAsync(db, Guid.NewGuid().ToString("N")[..8]);
+
+        // Tạo câu SQL mẫu có trường toLocationMet
+        var initial = await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
+        {
+            PacketCode = packet.Code!,
+            ExtractSql = "SELECT TOP 10 ID AS zoneId, 100 AS toLocationMet FROM TmsZone"
+        });
+        Assert.NotNull(initial);
+        Assert.Contains(initial.Fields, f => f.Key == "toLocationMet");
+
+        // Act: Chọn kiểu dữ liệu bất kỳ trong danh mục (int, long, float, double, decimal, dateTime, bool, guid, string, number)
+        var updated = await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
+        {
+            PacketCode = packet.Code!,
+            ExtractSql = "SELECT TOP 10 ID AS zoneId, 100 AS toLocationMet FROM TmsZone",
+            Fields =
+            [
+                new SqlFieldEditInput
+                {
+                    Key = "toLocationMet",
+                    Label = "Lý trình cuối (m)",
+                    Type = targetType
+                }
+            ]
+        });
+
+        // Assert: Trả về trường với đúng kiểu đã chọn
+        var field = Assert.Single(updated.Fields, f => f.Key == "toLocationMet");
+        Assert.Equal(targetType, field.Type, ignoreCase: true);
+
+        // Đọc lại từ CSDL qua GetPacketExtractSql
+        var reloaded = await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new GetPacketExtractSqlInput
+        {
+            PacketCode = packet.Code!
+        });
+        var reloadedField = Assert.Single(reloaded.Fields, f => f.Key == "toLocationMet");
+        Assert.Equal(targetType, reloadedField.Type, ignoreCase: true);
+
+        // Khi dò lại câu SQL (DescribeColumns), kiểu chọn tay không bị ghi đè
+        var described = await scope.ServiceProvider.CallApiAsync<DescribeColumnsOutput>(new DescribeColumnsInput
+        {
+            PacketCode = packet.Code!,
+            ExtractSql = "SELECT TOP 10 ID AS zoneId, 100 AS toLocationMet FROM TmsZone"
+        });
+        var describedField = Assert.Single(described.Fields, f => f.Key == "toLocationMet");
+        Assert.Equal(targetType, describedField.Type, ignoreCase: true);
+    }
+
+    /// <summary>
+    /// Description: Chọn kiểu không hợp lệ ngoài AllowedFieldTypes ném lỗi SqlFieldTypeInvalid.
+    /// Created date: 28/10/2026
+    /// </summary>
+    [Fact]
+    public async Task UpdatePacketFields_WithInvalidType_ThrowsSqlFieldTypeInvalidException_Test()
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true);
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var (packet, _) = await SeedSqlVariablePacketAsync(db, Guid.NewGuid().ToString("N")[..8]);
+
+        await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
+        {
+            PacketCode = packet.Code!,
+            ExtractSql = "SELECT TOP 10 ID AS zoneId, 100 AS toLocationMet FROM TmsZone"
+        });
+
+        // Act & Assert
+        await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
+        {
+            PacketCode = packet.Code!,
+            ExtractSql = "SELECT TOP 10 ID AS zoneId, 100 AS toLocationMet FROM TmsZone",
+            Fields =
+            [
+                new SqlFieldEditInput
+                {
+                    Key = "toLocationMet",
+                    Type = "unknown_type_xyz"
+                }
+            ]
+        }));
     }
 
     #endregion

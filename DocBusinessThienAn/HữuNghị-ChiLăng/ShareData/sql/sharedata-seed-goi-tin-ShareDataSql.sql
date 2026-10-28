@@ -150,8 +150,9 @@ IF @TenantIdSql IS NULL
 
 PRINT N'-> 1. Bắt đầu nạp câu mẫu chung vào bảng ShareDataSql (101 - 111)...';
 
--- Gói 101: TrafficFlow (Snapshot)
-DECLARE @Sql101 NVARCHAR(MAX) = N'SELECT
+-- Gói 101: TrafficFlow (Incremental)
+DECLARE @Sql101 NVARCHAR(MAX) = N'SELECT TOP (@pageSize)
+    CONVERT(varchar(23), zs.UpdateTime, 121) + ''_'' + CAST(zs.ID AS varchar(64)) AS __lastKey,
     zs.ID AS zoneStatusId,
     zs.ZoneId AS zoneId,
     z.Name AS zoneName,
@@ -165,13 +166,18 @@ DECLARE @Sql101 NVARCHAR(MAX) = N'SELECT
     zs.UpdateTime AS dataTime,
     z.MaxSpeed AS speedLimit,
     ts.TotalVehicleNumber AS vehicleCount
-FROM TmsZoneStatus zs
-LEFT JOIN TmsZone z ON zs.ZoneId = z.ID
-LEFT JOIN TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId';
+FROM dbo.TmsZoneStatus zs
+LEFT JOIN dbo.TmsZone z ON zs.ZoneId = z.ID
+LEFT JOIN dbo.TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId
+WHERE (CONVERT(varchar(23), zs.UpdateTime, 121) + ''_'' + CAST(zs.ID AS varchar(64))) > @lastKey
+ORDER BY __lastKey ASC';
+
+DECLARE @Vars101 NVARCHAR(MAX) = N'[{"Code":"pageSize","Name":null,"DataType":"Int","ValueKind":"Const","Value":"100","DefaultValue":null,"Remark":null,"OrderNo":1},{"Code":"lastKey","Name":null,"DataType":"String","ValueKind":"Builtin","Value":"lastKey","DefaultValue":"","Remark":null,"OrderNo":2}]';
 
 UPDATE s
 SET s.[ExtractSql] = @Sql101,
     s.[CursorTimeColumn] = NULL,
+    s.[VariablesJson] = ISNULL(s.[VariablesJson], @Vars101),
     s.[UpdateTime] = GETDATE()
 FROM [dbo].[ShareDataSql] s
 JOIN [dbo].[ShareDataPacket] p ON p.[ID] = s.[PacketId]
@@ -182,8 +188,8 @@ WHERE (p.[Code] = '101' OR p.[Code] LIKE '101[_]%')
   AND (@GhiDeMauGoiTin = 1 OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 
-INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [CursorTimeColumn], [TenantId], [CreateTime], [CreateUId])
-SELECT LOWER(CONVERT(NVARCHAR(64), NEWID())), p.[ID], NULL, @Sql101, NULL, @TenantIdSql, GETDATE(), 'SHAREDATA-SEED-02'
+INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [CursorTimeColumn], [VariablesJson], [TenantId], [CreateTime], [CreateUId])
+SELECT LOWER(CONVERT(NVARCHAR(64), NEWID())), p.[ID], NULL, @Sql101, NULL, @Vars101, @TenantIdSql, GETDATE(), 'SHAREDATA-SEED-02'
 FROM [dbo].[ShareDataPacket] p
 WHERE (p.[Code] = '101' OR p.[Code] LIKE '101[_]%')
   AND p.[IsDelete] IS NULL

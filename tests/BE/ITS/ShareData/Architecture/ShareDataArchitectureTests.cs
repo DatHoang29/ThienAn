@@ -1,6 +1,9 @@
 using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Mvc.ActionConstraints;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
 using Modules.Integration.Delivery.Base.Constants;
 using Modules.Integration.Delivery;
 using Module.ShareData.Core.Entities;
@@ -237,5 +240,60 @@ public class ShareDataArchitectureTests
 
         throw new DirectoryNotFoundException(
             $"Không tìm thấy thư mục mã nguồn ShareData khi dò từ '{AppContext.BaseDirectory}'.");
+    }
+}
+
+/// <summary>
+/// Author: DatHQ
+/// Description: Đối chiếu client sinh sẵn của FE (api-services/shareData) với route thật của WebAPI: mọi đường dẫn + phương thức HTTP
+///              FE gọi phải có hành động tương ứng ở BE. Bắt sớm lỗi 404 khi BE đổi / bỏ API mà client FE chưa sinh lại (hoặc ngược lại).
+/// Created date: 28/10/2026
+/// </summary>
+[Collection("api")]
+public class ShareDataApiContractTests(Host host)
+{
+    [Fact]
+    [Trait("Feature", "Architecture")]
+    public void FrontendShareDataClient_CallsOnlyExistingWebApiRoutes_Test()
+    {
+        // Arrange: route thật của WebAPI (template + phương thức HTTP)
+        var routes = host.Services.GetRequiredService<IActionDescriptorCollectionProvider>().ActionDescriptors.Items
+            .Where(a => a.AttributeRouteInfo?.Template != null)
+            .SelectMany(a => (a.ActionConstraints?.OfType<HttpMethodActionConstraint>().SelectMany(c => c.HttpMethods) ?? ["GET"])
+                .Select(m => $"{m.ToUpperInvariant()} /{a.AttributeRouteInfo!.Template!.TrimStart('/').ToLowerInvariant()}"))
+            .ToHashSet();
+
+        // Đường dẫn + phương thức trong client sinh của FE: mỗi hàm có "const localVarPath = `/api/...`" rồi "{ method: 'GET' ...}"
+        var clientDir = Path.Combine(ResolveRepoRoot(), "TA-ITS015-WEBVUE-V1.0", "src", "src", "api-services", "shareData", "apis");
+        var calls = Directory.EnumerateFiles(clientDir, "*.ts")
+            .SelectMany(file => Regex.Matches(File.ReadAllText(file),
+                    @"const localVarPath = `(?<path>/api/[^`]+)`;[\s\S]*?method: '(?<method>[A-Z]+)'")
+                .Select(m => $"{m.Groups["method"].Value} {m.Groups["path"].Value.ToLowerInvariant()}"))
+            .Distinct()
+            .ToList();
+
+        // Act
+        var missing = calls.Where(c => !routes.Contains(c)).OrderBy(c => c).ToList();
+
+        // Assert
+        Assert.NotEmpty(calls);
+        Assert.True(missing.Count == 0, $"FE gọi {missing.Count} API không có ở WebAPI (sẽ 404):\n{string.Join("\n", missing)}");
+    }
+
+    /// <summary>Thư mục gốc chứa cả TA-ITS015-WEBAPI-V1.0 và TA-ITS015-WEBVUE-V1.0, dò ngược từ thư mục chạy test.</summary>
+    private static string ResolveRepoRoot()
+    {
+        var currentDir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (currentDir != null)
+        {
+            if (Directory.Exists(Path.Combine(currentDir.FullName, "TA-ITS015-WEBVUE-V1.0", "src", "src", "api-services")))
+            {
+                return currentDir.FullName;
+            }
+
+            currentDir = currentDir.Parent;
+        }
+
+        throw new DirectoryNotFoundException($"Không tìm thấy thư mục TA-ITS015-WEBVUE-V1.0 khi dò từ '{AppContext.BaseDirectory}'.");
     }
 }
