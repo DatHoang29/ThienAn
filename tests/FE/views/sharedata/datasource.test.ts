@@ -582,8 +582,10 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
             });
         });
 
-        await page.route('**/api/sharedata/sharedatapacket/getpartnerextractsql*', (route) =>
-            route.fulfill({
+        await page.route('**/api/sharedata/sharedatapacket/getpartnerextractsql*', async (route) => {
+            // Giả lập độ trễ mạng thực tế 250ms như trên server
+            await new Promise((resolve) => setTimeout(resolve, 250));
+            await route.fulfill({
                 status: 200,
                 contentType: 'application/json',
                 body: JSON.stringify({
@@ -596,8 +598,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
                         commonFields: [{ key: 'zoneCode', type: 'string', label: 'Mã khu vực', required: true }],
                     },
                 }),
-            })
-        );
+            });
+        });
 
         await page.route('**/api/sharedata/sharedatapacket/resetlastsend*', (route) => {
             const body = route.request().postDataJSON() as { packetCode?: string; partnerId?: string };
@@ -620,46 +622,520 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const panel = page.locator('.sql-variable-panel');
         await expect(panel).toBeVisible({ timeout: 10_000 });
 
-        // 1. Tab Mẫu chung: bảng chính chỉ có 3 cột (không có cột Mốc đang chạy), hiện badge tự động + tag khớp __lastKey + ô Mốc bắt đầu
+        // 1. Tab Mẫu chung: bảng chính chỉ có 3 cột (không có cột Mốc đang chạy), hiện tham số @lastKey và ô nhập mốc bắt đầu
         const mainTable = panel.locator('.svp-table').first();
         await expect(mainTable.locator('thead th')).toHaveCount(3);
         await expect(mainTable.locator('.svp-param-code').first()).toHaveText('@lastKey');
-        await expect(mainTable.locator('.svp-auto-badge').first()).toBeVisible();
-        await expect(mainTable.locator('.svp-adaptive .el-tag--success')).toBeVisible();
-        await expect(mainTable.locator('.svp-init-input input')).toHaveValue('2026-10-27 09:00:00.000_');
+        await expect(mainTable.locator('.svp-key-input input')).toHaveValue('2026-10-27 09:00:00.000_');
 
-        // 2. Mở ngăn kéo xem mốc đang chạy của 2 đối tác, đặt lại mốc của CSGT (p_a)
-        const drawerBtn = panel.locator('.svp-drawer-toggle-btn');
-        await expect(drawerBtn).toBeVisible();
-        await drawerBtn.click();
+        // 2. Chuyển sang tab Đối tác riêng CSGT: bảng tham số hiện đủ 5 cột (gồm So với mẫu + Mốc đang chạy)
+        const partnerTab = page.locator('.sql-partner-tabs .el-tabs__item').filter({ hasText: 'CSGT' }).first();
+        await expect(partnerTab).toBeVisible();
+        await partnerTab.click();
 
-        const drawer = panel.locator('.svp-partner-cursor-drawer');
-        await expect(drawer).toBeVisible();
-        const drawerRows = drawer.locator('tbody tr');
-        await expect(drawerRows).toHaveCount(2);
-        await expect(drawerRows.nth(0)).toContainText('CSGT');
-        await expect(drawerRows.nth(0).locator('.svp-saved-code')).toHaveText('2026-10-27 10:05:00.000_Z02');
-        await expect(drawerRows.nth(1)).toContainText('VDOT');
-        await expect(drawerRows.nth(1).locator('.svp-reset-btn')).toBeDisabled();
+        await expect(mainTable.locator('thead th')).toHaveCount(5);
+        await expect(mainTable.locator('.svp-saved-code')).toHaveText('2026-10-27 10:05:00.000_Z02');
 
-        await drawerRows.nth(0).locator('.svp-reset-btn').click();
+        // 3. Đặt lại mốc của CSGT (p_a)
+        await mainTable.locator('.svp-reset-btn').click();
         const confirmBtn = page.locator('.el-message-box__btns .el-button--primary');
         await expect(confirmBtn).toBeVisible();
         await confirmBtn.click();
 
         await expect.poll(() => resetPayloads.length).toBe(1);
         expect(resetPayloads[0]).toEqual({ packetCode: '101_commonData', partnerId: 'p_a' });
-        await expect(drawerRows.nth(0).locator('.svp-saved-code')).toHaveCount(0);
-        await expect(drawerRows.nth(0).locator('.svp-reset-btn')).toBeDisabled();
+        await expect(mainTable.locator('.svp-saved-code')).toHaveCount(0);
+    });
 
-        // 3. Chuyển sang tab Đối tác riêng CSGT: ngăn kéo đóng tự động, bảng tham số hiện đủ 5 cột (gồm So với mẫu + Mốc đang chạy)
-        partnerACursor = '2026-10-27 11:00:00.000_Z09';
-        const partnerTab = page.locator('.sql-partner-tabs .el-tabs__item').filter({ hasText: 'CSGT' }).first();
-        await expect(partnerTab).toBeVisible();
-        await partnerTab.click();
+    /**
+     * Description: Khi bấm vào gói tin trên bảng bên trái (xGridPacket):
+     *              - Bảng chi tiết bên phải nạp thành công, không bị lỗi cú pháp i18n (SyntaxError: Invalid linked format) hay crash trắng màn hình;
+     *              - Khối tham số SQL hiển thị đầy đủ, nút Hướng dẫn thiết lập mở popover hiển thị 4 bước mà không bị lỗi.
+     * Created date: 28/10/2026
+     */
+    test('52. Bấm vào gói tin bên table trái: không bị crash trắng màn hình bên phải và popover hướng dẫn thiết lập mở bình thường', async ({ page }) => {
+        const pageErrors: string[] = [];
+        page.on('pageerror', (err) => pageErrors.push(err.message));
 
-        await expect(drawer).toHaveCount(0);
-        await expect(mainTable.locator('thead th')).toHaveCount(5);
-        await expect(mainTable.locator('.svp-saved-code')).toHaveText('2026-10-27 11:00:00.000_Z09');
+        const compositeSql =
+            "SELECT TOP (@pageSize) Code AS zoneCode, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey " +
+            "FROM TmsZone WHERE (CONVERT(varchar(23), UpdateTime, 121) + '_' + ID) > @lastKey ORDER BY __lastKey ASC";
+        const commonItems = [
+            {
+                code: 'lastKey',
+                dataType: 'String',
+                valueKind: 'Builtin',
+                value: 'lastKey',
+                defaultValue: '2026-10-27 09:00:00.000_',
+                savedValue: null,
+            },
+            {
+                code: 'pageSize',
+                dataType: 'Int',
+                valueKind: 'Const',
+                value: '100',
+                defaultValue: null,
+                savedValue: null,
+            },
+        ];
+
+        await page.route('**/api/sharedata/sharedatapacket/getsqldetail*', (route) =>
+            route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        extract: {
+                            extractSql: compositeSql,
+                            status: 1,
+                            fields: [{ key: 'zoneCode', type: 'string', label: 'Mã khu vực', required: true }],
+                        },
+                        variables: { items: commonItems },
+                        write: { packetCode: '101_commonData', writeSql: '', affectedTables: [], detectedTables: [], keyFields: [] },
+                    },
+                }),
+            })
+        );
+
+        await page.route('**/api/sharedata/sharedatapacket/getpartnersqllist*', (route) =>
+            route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: [],
+                }),
+            })
+        );
+
+        await page.route('**/api/sharedata/sharedatapacket/getsqlvariables*', (route) =>
+            route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ code: 200, result: { items: commonItems } }),
+            })
+        );
+
+        await page.setViewportSize({ width: 1600, height: 950 });
+        await page.goto('/#/sharedata/dataSource');
+
+        // Bảng gói tin bên trái xuất hiện
+        const firstRow = page.locator('.packet-col .vxe-table--main-wrapper .vxe-body--row').first();
+        await expect(firstRow).toBeVisible({ timeout: 30_000 });
+
+        // Click vào gói tin bên trái
+        await firstRow.click();
+
+        // Kiểm tra bên phải không bị trắng màn hình (không còn empty-placeholder, packet-details-wrapper hiển thị)
+        const detailsWrapper = page.locator('.packet-details-wrapper');
+        await expect(detailsWrapper).toBeVisible({ timeout: 10_000 });
+
+        // SQL variable panel hiển thị bình thường
+        const panel = page.locator('.sql-variable-panel');
+        await expect(panel).toBeVisible({ timeout: 10_000 });
+
+        // Nút Hướng dẫn thiết lập hiển thị và mở được popover mà không ném SyntaxError
+        const guideBtn = panel.locator('.svp-guide-btn');
+        await expect(guideBtn).toBeVisible();
+        await guideBtn.click();
+
+        // Popover nội dung hướng dẫn hiển thị 4 bước
+        const guideSteps = page.locator('.svp-guide-popper .svp-guide-step');
+        await expect(guideSteps).toHaveCount(4);
+        await expect(guideSteps.nth(2)).toContainText('@pageSize');
+
+        // Tuyệt đối không có bất kỳ lỗi Uncaught SyntaxError / pageerror nào
+        expect(pageErrors.filter((e) => e.includes('SyntaxError') || e.includes('Invalid linked format'))).toEqual([]);
+    });
+
+    /**
+     * Description: Điều tra hiện tượng giật width của thanh active-bar (.el-tabs__active-bar) khi chuyển tab đối tác:
+     *              - Bấm từ "Mẫu chung" sang tab đối tác "ddlt";
+     *              - Quan sát biến thiên width và transform của thanh gạch dưới (.el-tabs__active-bar);
+     *              - Phát hiện nguyên nhân giật (nhiều lần thay đổi width đột ngột hoặc animation bị đứt gãy).
+     * Created date: 28/10/2026
+     */
+    test('53. Điều tra hiện tượng giật width của thanh active-bar khi chuyển tab đối tác', async ({ page }) => {
+        const compositeSql =
+            "SELECT TOP (@pageSize) Code AS zoneCode, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey " +
+            "FROM TmsZone WHERE (CONVERT(varchar(23), UpdateTime, 121) + '_' + ID) > @lastKey ORDER BY __lastKey ASC";
+
+        await page.route('**/api/sharedata/sharedatapacket/getsqldetail*', (route) =>
+            route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        extract: {
+                            extractSql: compositeSql,
+                            status: 1,
+                            fields: [{ key: 'zoneCode', type: 'string', label: 'Mã khu vực', required: true }],
+                        },
+                        variables: { items: [] },
+                        write: { packetCode: '101_commonData', writeSql: '', affectedTables: [], detectedTables: [], keyFields: [] },
+                    },
+                }),
+            })
+        );
+
+        await page.route('**/api/sharedata/sharedatapacket/getpartnersqllist*', (route) =>
+            route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: [
+                        { partnerId: 'p_ddlt', partnerCode: 'ddlt', partnerName: 'ddlt', isCustom: true, updateTime: '2026-10-28T10:00:00Z' },
+                        { partnerId: 'p_ddtl2', partnerCode: 'DDTL-2', partnerName: 'DDTL-2', isCustom: true, updateTime: '2026-10-28T10:05:00Z' },
+                    ],
+                }),
+            })
+        );
+
+        await page.route('**/api/sharedata/sharedatapacket/getpartnerextractsql*', async (route) => {
+            // Giả lập độ trễ mạng thực tế 250ms như trên server
+            await new Promise((resolve) => setTimeout(resolve, 250));
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        isCustom: true,
+                        customSql: compositeSql,
+                        standardSql: compositeSql,
+                        fields: [{ key: 'zoneCode', type: 'string', label: 'Mã khu vực', required: true }],
+                        commonFields: [{ key: 'zoneCode', type: 'string', label: 'Mã khu vực', required: true }],
+                    },
+                }),
+            });
+        });
+
+        await page.setViewportSize({ width: 1600, height: 950 });
+        await page.goto('/#/sharedata/dataSource');
+
+        const firstRow = page.locator('.packet-col .vxe-table--main-wrapper .vxe-body--row').first();
+        await expect(firstRow).toBeVisible({ timeout: 30_000 });
+        await firstRow.click();
+
+        const partnerTabs = page.locator('.sql-partner-tabs');
+        await expect(partnerTabs).toBeVisible({ timeout: 10_000 });
+
+        const ddltTab = partnerTabs.locator('.el-tabs__item').filter({ hasText: 'ddlt' }).first();
+        await expect(ddltTab).toBeVisible({ timeout: 10_000 });
+
+        const ddtl2Tab = partnerTabs.locator('.el-tabs__item').filter({ hasText: 'DDTL-2' }).first();
+        const stdTab = partnerTabs.locator('.el-tabs__item').filter({ hasText: 'Mẫu chung' }).first();
+
+        // Cài đặt bộ theo dõi (monitor) ghi lại hình học và style của active-bar và tabs
+        const logHandle = await page.evaluateHandle(() => {
+            const records: any[] = [];
+            const styleMutations: any[] = [];
+            (window as any).__barRecords = records;
+            (window as any).__styleMutations = styleMutations;
+
+            const tabs = document.querySelector('.sql-partner-tabs');
+            const bar = tabs?.querySelector('.el-tabs__active-bar') as HTMLElement;
+            const items = () => Array.from(tabs?.querySelectorAll('.el-tabs__item') || []) as HTMLElement[];
+
+            let start = performance.now();
+            let recording = true;
+
+            // MutationObserver theo dõi mọi lần style của bar bị ghi đè
+            if (bar) {
+                const mo = new MutationObserver((mutations) => {
+                    for (const m of mutations) {
+                        if (m.type === 'attributes' && m.attributeName === 'style') {
+                            const now = performance.now() - start;
+                            styleMutations.push({
+                                t: Math.round(now),
+                                widthStyle: bar.style.width,
+                                transformStyle: bar.style.transform,
+                                rectWidth: Math.round(bar.getBoundingClientRect().width * 100) / 100,
+                                rectLeft: Math.round(bar.getBoundingClientRect().left * 100) / 100,
+                            });
+                        }
+                    }
+                });
+                mo.observe(bar, { attributes: true, attributeFilter: ['style'] });
+            }
+
+            const capture = () => {
+                if (!recording) return;
+                const now = performance.now() - start;
+                const barRect = bar ? bar.getBoundingClientRect() : null;
+                const csBar = bar ? window.getComputedStyle(bar) : null;
+                const itemSnapshots = items().map((it) => {
+                    const cs = window.getComputedStyle(it);
+                    return {
+                        id: it.id,
+                        text: it.textContent?.trim(),
+                        isActive: it.classList.contains('is-active'),
+                        clientWidth: it.clientWidth,
+                        scrollWidth: it.scrollWidth,
+                        paddingLeft: cs.paddingLeft,
+                        paddingRight: cs.paddingRight,
+                        rectWidth: Math.round(it.getBoundingClientRect().width * 100) / 100,
+                    };
+                });
+
+                records.push({
+                    t: Math.round(now),
+                    barWidthStyle: bar?.style.width,
+                    barTransformStyle: bar?.style.transform,
+                    computedWidth: csBar?.width,
+                    rectWidth: barRect ? Math.round(barRect.width * 100) / 100 : null,
+                    rectLeft: barRect ? Math.round(barRect.left * 100) / 100 : null,
+                    items: itemSnapshots,
+                });
+                requestAnimationFrame(capture);
+            };
+            requestAnimationFrame(capture);
+
+            return {
+                stop() {
+                    recording = false;
+                    return records;
+                },
+            };
+        });
+
+        console.log('--- Bấm ddlt ---');
+        await ddltTab.click();
+        await page.waitForTimeout(600);
+
+        console.log('--- Bấm DDTL-2 ---');
+        await ddtl2Tab.click();
+        await page.waitForTimeout(600);
+
+        console.log('--- Bấm Mẫu chung ---');
+        await stdTab.click();
+        await page.waitForTimeout(600);
+
+        // Lấy toàn bộ records và mutations
+        const { records, mutations } = await logHandle.evaluate((m) => {
+            const recs = m.stop();
+            return {
+                records: recs,
+                mutations: (window as any).__styleMutations || [],
+            };
+        });
+
+        console.log('=== MUTATION OBSERVER STYLE ASSIGNMENTS ===');
+        console.log('Total style mutations:', mutations.length);
+        console.log('Mutations:', mutations);
+
+        console.log('=== ITEMS COMPUTED PADDING & WIDTH ===');
+        console.log('Initial items:', JSON.stringify(records[0]?.items, null, 2));
+        console.log('Final items:', JSON.stringify(records[records.length - 1]?.items, null, 2));
+
+        console.log('=== TỔNG HỢP CÁC LẦN BAR.STYLE THAY ĐỔI ===');
+        const styleChanges: any[] = [];
+        let prevWidthStyle = '';
+        let prevTransformStyle = '';
+        for (const r of records) {
+            if (r.barWidthStyle !== prevWidthStyle || r.barTransformStyle !== prevTransformStyle) {
+                styleChanges.push({
+                    t: r.t,
+                    barWStyle: r.barWidthStyle,
+                    barTrStyle: r.barTransformStyle,
+                    rectWidth: r.rectWidth,
+                    rectLeft: r.rectLeft,
+                });
+                prevWidthStyle = r.barWidthStyle;
+                prevTransformStyle = r.barTransformStyle;
+            }
+        }
+        console.log('Style changes:', styleChanges);
+
+        console.log('=== PHÂN TÍCH ĐỘ MƯỢT CỦA WIDTH (DELTA QUA CÁC FRAME) ===');
+        const deltas: { t: number; fromW: number; toW: number; delta: number; dt: number }[] = [];
+        for (let i = 1; i < records.length; i++) {
+            const prev = records[i - 1];
+            const curr = records[i];
+            const dW = Math.abs((curr.rectWidth || 0) - (prev.rectWidth || 0));
+            const dt = curr.t - prev.t;
+            if (dW > 0.1) {
+                deltas.push({
+                    t: curr.t,
+                    fromW: prev.rectWidth,
+                    toW: curr.rectWidth,
+                    delta: Math.round(dW * 100) / 100,
+                    dt,
+                });
+            }
+        }
+        console.log('Deltas có thay đổi width:', deltas);
+        const maxDelta = deltas.reduce((m, d) => Math.max(m, d.delta), 0);
+        console.log('Max delta width trong 1 frame:', maxDelta);
+
+        // Khẳng định: không còn cú giật width đột ngột (> 10px / frame do nghẽn main thread)
+        expect(maxDelta).toBeLessThan(10);
+
+        // Khẳng định: kích thước dừng ổn định của thanh active-bar khớp chính xác với tab đang chọn
+        const lastRecord = records[records.length - 1];
+        expect(lastRecord.barWidthStyle).toBe('67px');
+    });
+
+    /**
+     * Description: Điều tra lỗi bấm gói 102 (102_cctvData) sau khi xem gói 101/103:
+     *              - Bấm gói 103, sau đó bấm gói 101, rồi bấm gói 102;
+     *              - Toàn bộ API trả về 200 OK;
+     *              - Kiểm tra lớp phủ loading (.solid-loading-mask / .el-loading-mask) phải biến mất hoàn toàn
+     *                và danh sách trường của gói 102 hiển thị đúng; không bị kẹt spinner loading.
+     * Created date: 28/10/2026
+     */
+    test('54. Điều tra lỗi bấm gói 102: API trả về 200 nhưng điều tra trạng thái loading', async ({ page }) => {
+        const pageErrors: string[] = [];
+        page.on('pageerror', (err) => pageErrors.push(err.message));
+
+        await page.route('**/api/sharedata/sharedatapacket/page*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        records: [
+                            { id: 'PKT_01', code: '101_commonData', name: 'Gói 101 - Dữ liệu dùng chung', status: 1 },
+                            { id: 'PKT_02', code: '102_cctvData', name: 'Gói 102 - Dữ liệu camera giám sát (CCTV)', status: 1 },
+                            { id: 'PKT_03', code: '103_vdsData', name: 'Gói 103 - Dữ liệu đếm xe (VDS)', status: 1 },
+                        ],
+                        total: 3,
+                    },
+                }),
+            });
+        });
+
+        await page.route('**/api/sharedata/sharedatapacket/getsqldetail*', async (route) => {
+            const url = new URL(route.request().url());
+            const packetCode = url.searchParams.get('PacketCode') || '';
+
+            if (packetCode === '102_cctvData') {
+                await route.fulfill({
+                    status: 200,
+                    contentType: 'application/json',
+                    body: JSON.stringify({
+                        code: 200,
+                        result: {
+                            extract: {
+                                id: 'EXT_102',
+                                packetCode: '102_cctvData',
+                                extractSql: 'SELECT e.Code AS cameraCode, c.Name AS cameraName FROM CctvDevice c',
+                                status: 1,
+                                fields: [
+                                    { key: 'cameraCode', type: 'string', label: 'Mã camera', required: true },
+                                    { key: 'cameraName', type: 'string', label: 'Tên camera', required: false },
+                                ],
+                            },
+                            variables: { packetCode: '102_cctvData', items: [] },
+                            write: { packetCode: '102_cctvData', writeSql: '', affectedTables: [], detectedTables: [], keyFields: [] },
+                        },
+                    }),
+                });
+            } else if (packetCode === '101_commonData') {
+                await route.fulfill({
+                    status: 200,
+                    contentType: 'application/json',
+                    body: JSON.stringify({
+                        code: 200,
+                        result: {
+                            extract: {
+                                id: 'EXT_101',
+                                packetCode: '101_commonData',
+                                extractSql: 'SELECT z.FromKmNumber AS fromLocationKm, z.FromMetNumber AS fromLocationMet FROM TmsZone z',
+                                status: 1,
+                                fields: [
+                                    { key: 'fromLocationKm', type: 'number', label: 'Lý trình đầu (km)', required: false },
+                                    { key: 'fromLocationMet', type: 'number', label: 'Lý trình đầu (m)', required: false },
+                                ],
+                            },
+                            variables: { packetCode: '101_commonData', items: [] },
+                            write: { packetCode: '101_commonData', writeSql: '', affectedTables: [], detectedTables: [], keyFields: [] },
+                        },
+                    }),
+                });
+            } else {
+                await route.fulfill({
+                    status: 200,
+                    contentType: 'application/json',
+                    body: JSON.stringify({
+                        code: 200,
+                        result: {
+                            extract: {
+                                id: 'EXT_103',
+                                packetCode: '103_vdsData',
+                                extractSql: 'SELECT td.ID AS detectionId FROM TmsTrafficData td',
+                                status: 1,
+                                fields: [
+                                    { key: 'detectionId', type: 'string', label: 'Mã phát hiện', required: true },
+                                ],
+                            },
+                            variables: { packetCode: '103_vdsData', items: [] },
+                            write: { packetCode: '103_vdsData', writeSql: '', affectedTables: [], detectedTables: [], keyFields: [] },
+                        },
+                    }),
+                });
+            }
+        });
+
+        await page.route('**/api/sharedata/sharedatapacket/getpartnersqllist*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: [],
+                }),
+            });
+        });
+
+        await page.setViewportSize({ width: 1600, height: 950 });
+        await page.goto('/#/sharedata/dataSource');
+
+        const rows = page.locator('.packet-col .vxe-table--main-wrapper .vxe-body--row');
+        await expect(rows).toHaveCount(3, { timeout: 30_000 });
+
+        // 1. Bấm gói 103
+        await rows.nth(2).click();
+        await page.waitForTimeout(500);
+
+        // 2. Bấm gói 101
+        await rows.nth(0).click();
+        // Chờ dữ liệu gói 101 hiện (fromLocationKm)
+        const fieldsGrid = page.locator('.saved-fields-pane');
+        await expect(fieldsGrid).toContainText('fromLocationKm', { timeout: 10_000 });
+
+        // Cuộn xuống tận đáy panel chi tiết gói 101
+        const detailsWrapper = page.locator('.packet-details-wrapper');
+        await detailsWrapper.evaluate((el) => {
+            el.scrollTop = 500;
+        });
+
+        // 3. Bấm gói 102
+        await rows.nth(1).click();
+
+        // Khẳng định: ngay khi bấm đổi gói, scrollTop lập tức được reset về 0 và khoá cuộn
+        const switchingScrollTop = await detailsWrapper.evaluate((el) => el.scrollTop);
+        expect(switchingScrollTop).toBe(0);
+
+        // Thử cuộn chuột xuống trong lúc đang đổi gói -> scrollTop vẫn bị khoá ở 0
+        await detailsWrapper.hover();
+        await page.mouse.wheel(0, 400);
+        const lockedScrollTop = await detailsWrapper.evaluate((el) => el.scrollTop);
+        expect(lockedScrollTop).toBe(0);
+
+        // Chờ sau khi các API đã trả về: mặt nạ loading phải biến mất hoàn toàn
+        const solidLoading = page.locator('.solid-loading-mask');
+        await expect(solidLoading).toHaveCount(0, { timeout: 5_000 });
+        await expect(detailsWrapper).not.toHaveClass(/is-switching/);
+
+        // Danh sách trường của gói 102 phải hiển thị (cameraCode), không còn là fromLocationKm
+        await expect(fieldsGrid).toContainText('cameraCode', { timeout: 5_000 });
+        await expect(fieldsGrid).not.toContainText('fromLocationKm');
+
+        expect(pageErrors).toEqual([]);
     });
 });

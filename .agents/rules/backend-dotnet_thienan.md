@@ -505,4 +505,18 @@ namespace Module.ShareData.Controllers
 * ⛔ **CẤM** tự ý thêm, sửa, xóa, format hoặc sắp xếp lại các tệp chuỗi resource của Backend (`src/TAC_WebAPI/Resources/*.json`, bao gồm `vi-VN.json`, `en-US.json`).
 * Giữ nguyên 100% nội dung resource hiện có. Không chạy các script/tool tự động sync/sort resource làm thay đổi working tree của dev ngoài yêu cầu.
 
+### 4.28. Cấm Hardcode Đường Dẫn Tuyệt Đối Của Máy Cá Nhân (Rule 19.108)
+
+* ⛔ **CẤM TUYỆT ĐỐI** hardcode đường dẫn tuyệt đối (absolute path) chứa profile/thư mục máy cá nhân (ví dụ: `/Users/hoangquydat/...`, `C:\Users\username\...`, `/home/user/...`) trong bất kỳ tệp cấu hình nào (`.json`, `.config`, `.env`, `.gemini/settings.json`, `launchSettings.json`, `.csproj`, v.v.) hay trong mã nguồn.
+* 100% đường dẫn phải dùng **đường dẫn tương đối** (relative path tính từ root repo / workspace) hoặc lấy qua biến môi trường (`$HOME`, `%USERPROFILE%`, environment variables) để đảm bảo tính di động (cross-machine portability), các máy khác và môi trường CI/CD kéo code về chạy được bình thường.
+
+### 4.29. Bắt Buộc Viết Test Cho Thành Phần / Cơ Chế Bổ Sung Mới (Rule 19.109)
+
+* Khi phát triển hoặc bổ sung bất kỳ thành phần, cơ chế hoặc logic mới nào vào Backend (như ghi nhật ký hoạt động / audit log, logging đối tượng nghiệp vụ, tra cứu mã gói tin/đối tác, event handler, background job...):
+* **BẮT BUỘC** viết bài kiểm thử tích hợp (Integration Test xUnit trong `tests/BE/`) đi qua toàn luồng thật (API hoặc Worker) xác nhận:
+  1. **Dữ liệu log/entity được ghi chuẩn xác**: Dòng log hoặc entity trong CSDL lưu đúng các trường nghiệp vụ quan trọng (`TargetName`, `DatatypeId`, `PartnerName`, mã gói tin, mô tả...).
+  2. **An toàn Constructor & DI Container**: Các constructor overload mới không làm thiếu tham số khi Wolverine runtime sinh mã handler (`CS7036`) hoặc khi giải quyết dependencies qua `IScoped`/`ITransient`.
+  3. **Không làm gãy luồng chính**: Logic chính lưu dữ liệu / xử lý sự kiện chạy thành công bình thường.
+* ⛔ **CẤM TUYỆT ĐỐI** chỉ thêm code logging hoặc cơ chế xử lý mới mà không viết bài test đi qua luồng thật để kiểm chứng dữ liệu thực tế được lưu vào CSDL.
+
 

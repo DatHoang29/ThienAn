@@ -6792,6 +6792,651 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         }
 
         #endregion
+
+        #region 13. Phương án 4 - Composite Keyset Pagination (@lastTime + @lastKey) - 6 Ca nghiệp vụ kiểm thử
+
+        /// <summary>
+        /// Description: Phương án 4 (Mốc kép @lastTime + @lastKey) - Ca 1: Trùng mốc thời gian giữa nhiều bản ghi.
+        ///              5 dòng cùng UpdateTime, phân trang pageSize = 2 (ranh giới trang rơi vào giữa nhóm trùng giờ).
+        ///              Worker gửi đủ 5 dòng qua 3 trang (2+2+1), không lặp, không sót dòng nào, và mốc ShareDataLastSend
+        ///              dừng chính xác ở dòng cuối cùng (UpdateTime = sameTime, LastKey = ID dòng cuối).
+        /// Created date: 28/10/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessSubscriptions_CompositeCursor_Case1_DuplicateTimestamp_SendsAllRowsWithoutLossOrDuplication_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var packetId = $"pkt-c1-{unique}";
+            var packetCode = $"PKT_C1_{unique}";
+            var rowPrefix = $"ROW_C1_{unique}_";
+            var initialLastTime = new DateTime(2026, 10, 28, 8, 0, 0);
+            var sameTime = initialLastTime.AddMinutes(10);
+
+            var rows = Enumerable.Range(1, 5).Select(i => new ShareDataPacket
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                Code = $"{rowPrefix}{i}",
+                Name = $"Row {i}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Disable
+            }).OrderBy(r => r.ID).ToList();
+            await db.Insertable(rows).ExecuteCommandAsync();
+            await db.Updateable<ShareDataPacket>()
+                .SetColumns(p => p.UpdateTime == sameTime)
+                .Where(p => p.Code!.StartsWith(rowPrefix))
+                .ExecuteCommandAsync();
+
+            var sql = "SELECT TOP (@pageSize) UpdateTime AS __lastTime, ID AS __lastKey, Code AS code FROM ShareDataPacket "
+                + $"WHERE Code LIKE @prefix AND (@since IS NULL OR UpdateTime > @since OR (UpdateTime = @since AND ID > @afterKey)) ORDER BY UpdateTime, ID";
+
+            await db.Insertable(new ShareDataPacket
+            {
+                ID = packetId,
+                Code = packetCode,
+                Name = $"Packet {packetCode}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Enable
+            }).ExecuteCommandAsync();
+
+            SqlVariableItem Variable(string code, string source, int order) => new()
+            {
+                Code = code, DataType = ShareDataConst.SqlVariableBuiltinTypes[source],
+                ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = source, OrderNo = order
+            };
+            await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null,
+            [
+                Variable("since", ShareDataConst.SqlVariableSourceLastTime, 1),
+                Variable("afterKey", ShareDataConst.SqlVariableSourceLastKey, 2),
+                new SqlVariableItem { Code = "pageSize", DataType = ShareDataConst.SqlVariableTypeInt, ValueKind = ShareDataConst.SqlVariableKindConst, Value = "2", OrderNo = 3 },
+                new SqlVariableItem { Code = "prefix", DataType = ShareDataConst.SqlVariableTypeString, ValueKind = ShareDataConst.SqlVariableKindConst, Value = $"{rowPrefix}%", OrderNo = 4 }
+            ]);
+            await ShareDataSqlSeed.SetCommonAsync(db, packetId, sql, "UpdateTime");
+
+            var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_C1_{unique}",
+                SubCode = $"SUB_C1_{unique}",
+                DatatypeId = packetId,
+                MappingShape = new Dictionary<string, object> { ["code"] = new Dictionary<string, string> { ["$field"] = "code" } },
+                ConfigureSub = s => s.LastTimeRun = initialLastTime
+            });
+            await db.Insertable(new ShareDataLastSend
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                PartnerCode = partner.Code,
+                PacketCode = packetCode,
+                LastTime = initialLastTime,
+                LastKey = string.Empty
+            }).ExecuteCommandAsync();
+
+            // Act
+            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
+
+            // Assert
+            var bodies = _host.PartnerServer.ReceivedRequests.Select(r => r.Body).ToList();
+            var sentPerRow = rows.ToDictionary(r => r.Code!, r => bodies.Count(b => b.Contains(r.Code!)));
+            var lastSend = await db.Queryable<ShareDataLastSend>()
+                .Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == packetCode)
+                .FirstAsync();
+
+            Assert.All(sentPerRow.Values, count => Assert.Equal(1, count));
+            Assert.Equal(sameTime, lastSend.LastTime);
+            Assert.Equal(rows.Last().ID, lastSend.LastKey);
+        }
+
+        /// <summary>
+        /// Description: Phương án 4 (Mốc kép @lastTime + @lastKey) - Ca 2: Thứ tự thời gian chuẩn nhị phân DateTime vs thứ tự chuỗi.
+        ///              Với các ngày rải qua các tháng (15/10/2026, 02/11/2026, 20/11/2026), nếu so sánh chuỗi theo định dạng ngày
+        ///              (dd/MM/yyyy) thì "15/10" &gt; "02/11" sẽ gây nhảy cóc bỏ sót ngày 02/11. Phương án 4 dùng DateTime nhị phân
+        ///              trong CSDL nên luôn bảo đảm trật tự thời gian vật lý chính xác, gửi tuần tự không nhảy cóc.
+        /// Created date: 28/10/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessSubscriptions_CompositeCursor_Case2_ChronologicalDateTimeOrdering_NeverSkipsLaterDates_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var packetId = $"pkt-c2-{unique}";
+            var packetCode = $"PKT_C2_{unique}";
+            var rowPrefix = $"ROW_C2_{unique}_";
+            var initialLastTime = new DateTime(2026, 10, 1, 0, 0, 0);
+
+            var dates = new[]
+            {
+                new DateTime(2026, 10, 15, 8, 0, 0),
+                new DateTime(2026, 11, 2, 8, 0, 0),
+                new DateTime(2026, 11, 20, 8, 0, 0)
+            };
+
+            var rows = dates.Select((dt, idx) => new ShareDataPacket
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                Code = $"{rowPrefix}{idx + 1}",
+                Name = $"Row {idx + 1}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Disable
+            }).ToList();
+            await db.Insertable(rows).ExecuteCommandAsync();
+
+            for (var i = 0; i < rows.Count; i++)
+            {
+                await db.Updateable<ShareDataPacket>()
+                    .SetColumns(p => p.UpdateTime == dates[i])
+                    .Where(p => p.ID == rows[i].ID)
+                    .ExecuteCommandAsync();
+            }
+
+            var sql = "SELECT TOP (@pageSize) UpdateTime AS __lastTime, ID AS __lastKey, Code AS code FROM ShareDataPacket "
+                + $"WHERE Code LIKE @prefix AND (@since IS NULL OR UpdateTime > @since OR (UpdateTime = @since AND ID > @afterKey)) ORDER BY UpdateTime, ID";
+
+            await db.Insertable(new ShareDataPacket
+            {
+                ID = packetId,
+                Code = packetCode,
+                Name = $"Packet {packetCode}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Enable
+            }).ExecuteCommandAsync();
+
+            SqlVariableItem Variable(string code, string source, int order) => new()
+            {
+                Code = code, DataType = ShareDataConst.SqlVariableBuiltinTypes[source],
+                ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = source, OrderNo = order
+            };
+            await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null,
+            [
+                Variable("since", ShareDataConst.SqlVariableSourceLastTime, 1),
+                Variable("afterKey", ShareDataConst.SqlVariableSourceLastKey, 2),
+                new SqlVariableItem { Code = "pageSize", DataType = ShareDataConst.SqlVariableTypeInt, ValueKind = ShareDataConst.SqlVariableKindConst, Value = "1", OrderNo = 3 },
+                new SqlVariableItem { Code = "prefix", DataType = ShareDataConst.SqlVariableTypeString, ValueKind = ShareDataConst.SqlVariableKindConst, Value = $"{rowPrefix}%", OrderNo = 4 }
+            ]);
+            await ShareDataSqlSeed.SetCommonAsync(db, packetId, sql, "UpdateTime");
+
+            var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_C2_{unique}",
+                SubCode = $"SUB_C2_{unique}",
+                DatatypeId = packetId,
+                MappingShape = new Dictionary<string, object> { ["code"] = new Dictionary<string, string> { ["$field"] = "code" } },
+                ConfigureSub = s => s.LastTimeRun = initialLastTime
+            });
+            await db.Insertable(new ShareDataLastSend
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                PartnerCode = partner.Code,
+                PacketCode = packetCode,
+                LastTime = initialLastTime,
+                LastKey = string.Empty
+            }).ExecuteCommandAsync();
+
+            // Act
+            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
+
+            // Assert: gửi đúng 3 trang theo đúng thứ tự ngày (Row 1 -> Row 2 -> Row 3)
+            var relevantBodies = _host.PartnerServer.ReceivedRequests
+                .Where(r => rows.Any(row => r.Body.Contains(row.Code!)))
+                .Select(r => r.Body)
+                .ToList();
+
+            Assert.Equal(3, relevantBodies.Count);
+            Assert.Contains(rows[0].Code!, relevantBodies[0]);
+            Assert.Contains(rows[1].Code!, relevantBodies[1]);
+            Assert.Contains(rows[2].Code!, relevantBodies[2]);
+
+            var lastSend = await db.Queryable<ShareDataLastSend>()
+                .Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == packetCode)
+                .FirstAsync();
+            Assert.Equal(dates[2], lastSend.LastTime);
+            Assert.Equal(rows[2].ID, lastSend.LastKey);
+        }
+
+        /// <summary>
+        /// Description: Phương án 4 (Mốc kép @lastTime + @lastKey) - Ca 3: Xử lý bản ghi có UpdateTime IS NULL bằng COALESCE.
+        ///              Bản ghi mới Insert có UpdateTime IS NULL. Nếu dùng nối chuỗi (UpdateTime + '_' + ID), SQL Server trả về NULL
+        ///              khiến WHERE bị FALSE và nuốt chửng bản ghi. Phương án 4 dùng COALESCE(UpdateTime, CreateTime) AS __lastTime
+        ///              đảm bảo dòng chưa update vẫn được gửi đầy đủ và tịnh tiến mốc bình thường.
+        /// Created date: 28/10/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessSubscriptions_CompositeCursor_Case3_NullUpdateTime_FallsBackToCreateTimeWithoutDataLoss_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var packetId = $"pkt-c3-{unique}";
+            var packetCode = $"PKT_C3_{unique}";
+            var rowPrefix = $"ROW_C3_{unique}_";
+            var initialLastTime = new DateTime(2026, 10, 28, 8, 0, 0);
+
+            var time1 = initialLastTime.AddMinutes(10);
+            var time2 = initialLastTime.AddMinutes(20);
+            var time3 = initialLastTime.AddMinutes(30);
+
+            var row1 = new ShareDataPacket { ID = Guid.NewGuid().ToString("N"), Code = $"{rowPrefix}1", Name = "Row 1", PacketVersion = "1.0", Status = BaseEnums.StatusEnum.Disable };
+            var row2NullUpdate = new ShareDataPacket { ID = Guid.NewGuid().ToString("N"), Code = $"{rowPrefix}2", Name = "Row 2", PacketVersion = "1.0", Status = BaseEnums.StatusEnum.Disable };
+            var row3 = new ShareDataPacket { ID = Guid.NewGuid().ToString("N"), Code = $"{rowPrefix}3", Name = "Row 3", PacketVersion = "1.0", Status = BaseEnums.StatusEnum.Disable };
+
+            await db.Insertable(new[] { row1, row2NullUpdate, row3 }).ExecuteCommandAsync();
+
+            await db.Ado.ExecuteCommandAsync(
+                "UPDATE ShareDataPacket SET CreateTime = @ct, UpdateTime = @ut WHERE ID = @id",
+                new { ct = time1, ut = time1, id = row1.ID });
+            // Row 2: CreateTime = time2 nhưng UpdateTime = NULL
+            await db.Ado.ExecuteCommandAsync(
+                "UPDATE ShareDataPacket SET CreateTime = @ct, UpdateTime = NULL WHERE ID = @id",
+                new { ct = time2, id = row2NullUpdate.ID });
+            await db.Ado.ExecuteCommandAsync(
+                "UPDATE ShareDataPacket SET CreateTime = @ct, UpdateTime = @ut WHERE ID = @id",
+                new { ct = time3, ut = time3, id = row3.ID });
+
+            var sql = "SELECT TOP (@pageSize) COALESCE(UpdateTime, CreateTime) AS __lastTime, ID AS __lastKey, Code AS code FROM ShareDataPacket "
+                + $"WHERE Code LIKE @prefix AND (@since IS NULL OR COALESCE(UpdateTime, CreateTime) > @since OR (COALESCE(UpdateTime, CreateTime) = @since AND ID > @afterKey)) "
+                + "ORDER BY COALESCE(UpdateTime, CreateTime), ID";
+
+            await db.Insertable(new ShareDataPacket
+            {
+                ID = packetId,
+                Code = packetCode,
+                Name = $"Packet {packetCode}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Enable
+            }).ExecuteCommandAsync();
+
+            SqlVariableItem Variable(string code, string source, int order) => new()
+            {
+                Code = code, DataType = ShareDataConst.SqlVariableBuiltinTypes[source],
+                ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = source, OrderNo = order
+            };
+            await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null,
+            [
+                Variable("since", ShareDataConst.SqlVariableSourceLastTime, 1),
+                Variable("afterKey", ShareDataConst.SqlVariableSourceLastKey, 2),
+                new SqlVariableItem { Code = "pageSize", DataType = ShareDataConst.SqlVariableTypeInt, ValueKind = ShareDataConst.SqlVariableKindConst, Value = "1", OrderNo = 3 },
+                new SqlVariableItem { Code = "prefix", DataType = ShareDataConst.SqlVariableTypeString, ValueKind = ShareDataConst.SqlVariableKindConst, Value = $"{rowPrefix}%", OrderNo = 4 }
+            ]);
+            await ShareDataSqlSeed.SetCommonAsync(db, packetId, sql, "UpdateTime");
+
+            var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_C3_{unique}",
+                SubCode = $"SUB_C3_{unique}",
+                DatatypeId = packetId,
+                MappingShape = new Dictionary<string, object> { ["code"] = new Dictionary<string, string> { ["$field"] = "code" } },
+                ConfigureSub = s => s.LastTimeRun = initialLastTime
+            });
+            await db.Insertable(new ShareDataLastSend
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                PartnerCode = partner.Code,
+                PacketCode = packetCode,
+                LastTime = initialLastTime,
+                LastKey = string.Empty
+            }).ExecuteCommandAsync();
+
+            // Act
+            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
+
+            // Assert
+            var relevantBodies = _host.PartnerServer.ReceivedRequests
+                .Where(r => r.Body.Contains(rowPrefix))
+                .Select(r => r.Body)
+                .ToList();
+
+            Assert.Equal(3, relevantBodies.Count);
+            Assert.Contains(row1.Code!, relevantBodies[0]);
+            Assert.Contains(row2NullUpdate.Code!, relevantBodies[1]);
+            Assert.Contains(row3.Code!, relevantBodies[2]);
+
+            var lastSend = await db.Queryable<ShareDataLastSend>()
+                .Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == packetCode)
+                .FirstAsync();
+            Assert.Equal(time3, lastSend.LastTime);
+            Assert.Equal(row3.ID, lastSend.LastKey);
+        }
+
+        /// <summary>
+        /// Description: Phương án 4 (Mốc kép @lastTime + @lastKey) - Ca 4: Streaming phân trang nhiều đợt liên tiếp không trùng không sót.
+        ///              7 bản ghi rải qua 3 mốc thời gian, pageSize = 2 -> Worker stream đủ 4 trang (2+2+2+1).
+        ///              Tất cả 7 bản ghi được gửi mỗi bản ghi đúng 1 lần, mốc cuối cập nhật dòng 7. Lượt chạy kế tiếp
+        ///              khi không có dữ liệu mới thì ghi nhận NoNewData và không gửi thêm request nào.
+        /// Created date: 28/10/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessSubscriptions_CompositeCursor_Case4_MultipleBatchStreaming_MaintainsMonotonicProgress_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var packetId = $"pkt-c4-{unique}";
+            var packetCode = $"PKT_C4_{unique}";
+            var rowPrefix = $"ROW_C4_{unique}_";
+            var initialLastTime = new DateTime(2026, 10, 28, 8, 0, 0);
+
+            var t1 = initialLastTime.AddMinutes(5);
+            var t2 = initialLastTime.AddMinutes(10);
+            var t3 = initialLastTime.AddMinutes(15);
+
+            var rows = Enumerable.Range(1, 7).Select(i => new ShareDataPacket
+            {
+                ID = $"{i:D2}_{unique}",
+                Code = $"{rowPrefix}{i}",
+                Name = $"Row {i}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Disable
+            }).ToList();
+            await db.Insertable(rows).ExecuteCommandAsync();
+
+            await db.Updateable<ShareDataPacket>().SetColumns(p => p.UpdateTime == t1).Where(p => p.ID == rows[0].ID || p.ID == rows[1].ID).ExecuteCommandAsync();
+            await db.Updateable<ShareDataPacket>().SetColumns(p => p.UpdateTime == t2).Where(p => p.ID == rows[2].ID || p.ID == rows[3].ID).ExecuteCommandAsync();
+            await db.Updateable<ShareDataPacket>().SetColumns(p => p.UpdateTime == t3).Where(p => p.ID == rows[4].ID || p.ID == rows[5].ID || p.ID == rows[6].ID).ExecuteCommandAsync();
+
+            var sql = "SELECT TOP (@pageSize) UpdateTime AS __lastTime, ID AS __lastKey, Code AS code FROM ShareDataPacket "
+                + $"WHERE Code LIKE @prefix AND (@since IS NULL OR UpdateTime > @since OR (UpdateTime = @since AND ID > @afterKey)) ORDER BY UpdateTime, ID";
+
+            await db.Insertable(new ShareDataPacket
+            {
+                ID = packetId,
+                Code = packetCode,
+                Name = $"Packet {packetCode}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Enable
+            }).ExecuteCommandAsync();
+
+            SqlVariableItem Variable(string code, string source, int order) => new()
+            {
+                Code = code, DataType = ShareDataConst.SqlVariableBuiltinTypes[source],
+                ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = source, OrderNo = order
+            };
+            await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null,
+            [
+                Variable("since", ShareDataConst.SqlVariableSourceLastTime, 1),
+                Variable("afterKey", ShareDataConst.SqlVariableSourceLastKey, 2),
+                new SqlVariableItem { Code = "pageSize", DataType = ShareDataConst.SqlVariableTypeInt, ValueKind = ShareDataConst.SqlVariableKindConst, Value = "2", OrderNo = 3 },
+                new SqlVariableItem { Code = "prefix", DataType = ShareDataConst.SqlVariableTypeString, ValueKind = ShareDataConst.SqlVariableKindConst, Value = $"{rowPrefix}%", OrderNo = 4 }
+            ]);
+            await ShareDataSqlSeed.SetCommonAsync(db, packetId, sql, "UpdateTime");
+
+            var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_C4_{unique}",
+                SubCode = $"SUB_C4_{unique}",
+                DatatypeId = packetId,
+                MappingShape = new Dictionary<string, object> { ["code"] = new Dictionary<string, string> { ["$field"] = "code" } },
+                ConfigureSub = s => s.LastTimeRun = initialLastTime
+            });
+            await db.Insertable(new ShareDataLastSend
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                PartnerCode = partner.Code,
+                PacketCode = packetCode,
+                LastTime = initialLastTime,
+                LastKey = string.Empty
+            }).ExecuteCommandAsync();
+
+            var worker = CreateWorker(scope);
+
+            // Act 1: chạy streaming đợt 1 -> gửi 7 dòng qua 4 trang (2+2+2+1)
+            await worker.ProcessSubscriptions(CancellationToken.None);
+
+            // Assert 1
+            var bodiesRun1 = _host.PartnerServer.ReceivedRequests
+                .Where(r => r.Body.Contains(rowPrefix))
+                .Select(r => r.Body)
+                .ToList();
+            Assert.Equal(4, bodiesRun1.Count);
+            foreach (var row in rows)
+            {
+                Assert.Equal(1, bodiesRun1.Count(b => b.Contains(row.Code!)));
+            }
+
+            var lastSendRun1 = await db.Queryable<ShareDataLastSend>()
+                .Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == packetCode)
+                .FirstAsync();
+            Assert.Equal(t3, lastSendRun1.LastTime);
+            Assert.Equal(rows[6].ID, lastSendRun1.LastKey);
+
+            // Act 2: kích hoạt chạy lượt tiếp theo khi không phát sinh dòng mới
+            var dueNow = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
+            await db.Updateable<ShareDataSubscription>()
+                .SetColumns(s => s.NextTimeRun == dueNow.AddSeconds(-10))
+                .Where(s => s.ID == sub.ID)
+                .ExecuteCommandAsync();
+            await worker.ProcessSubscriptions(CancellationToken.None);
+
+            // Assert 2: không gửi thêm request HTTP nào, ghi nhận NoNewData
+            var bodiesRun2 = _host.PartnerServer.ReceivedRequests
+                .Where(r => r.Body.Contains(rowPrefix))
+                .ToList();
+            Assert.Equal(4, bodiesRun2.Count);
+
+            var latestLog = (await GetLogs(db, sub.ID)).First();
+            Assert.Equal(ShareDataEnum.ExportMessage.NoNewData, latestLog.ErrorMessage);
+        }
+
+        /// <summary>
+        /// Description: Phương án 4 (Mốc kép @lastTime + @lastKey) - Ca 5: Khóa ID bất biến bảo vệ mốc con trỏ trước đột biến mã nghiệp vụ (Code).
+        ///              Ở phương án ghép chuỗi (UpdateTime + '_' + Code), nếu bản ghi bị đổi tên hoặc mã mới nhỏ hơn mã cũ theo từ điển
+        ///              thì sẽ bị sót vĩnh viễn. Phương án 4 dùng ID (khóa bất biến) làm tie-breaker:
+        ///              - Đợt 1: gửi Row 1 và Row 2. Mốc lưu LastKey = ID Row 2.
+        ///              - Giữa chừng: Row 3 và Row 4 được chèn với Code có thứ tự từ điển nhỏ hơn Row 2 (vd "AAA_...").
+        ///              - Đợt 2: Worker vẫn quét trúng Row 3 và Row 4 nhờ ID tăng dần, gửi đủ 4 dòng không sót không lặp.
+        /// Created date: 28/10/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessSubscriptions_CompositeCursor_Case5_CodeRenaming_CursorContinuesSeamlesslyUsingImmutableId_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var packetId = $"pkt-c5-{unique}";
+            var packetCode = $"PKT_C5_{unique}";
+            var initialLastTime = new DateTime(2026, 10, 28, 8, 0, 0);
+            var sameTime = initialLastTime.AddMinutes(10);
+
+            var row1 = new ShareDataPacket { ID = $"1_{unique}", Code = $"ZZZ_{unique}_1", Name = "Row 1", PacketVersion = "1.0", Status = BaseEnums.StatusEnum.Disable };
+            var row2 = new ShareDataPacket { ID = $"2_{unique}", Code = $"ZZZ_{unique}_2", Name = "Row 2", PacketVersion = "1.0", Status = BaseEnums.StatusEnum.Disable };
+            await db.Insertable(new[] { row1, row2 }).ExecuteCommandAsync();
+            await db.Updateable<ShareDataPacket>().SetColumns(p => p.UpdateTime == sameTime).Where(p => p.ID == row1.ID || p.ID == row2.ID).ExecuteCommandAsync();
+
+            var sql = "SELECT TOP (@pageSize) UpdateTime AS __lastTime, ID AS __lastKey, Code AS code FROM ShareDataPacket "
+                + $"WHERE Code LIKE @prefix AND (@since IS NULL OR UpdateTime > @since OR (UpdateTime = @since AND ID > @afterKey)) ORDER BY UpdateTime, ID";
+
+            await db.Insertable(new ShareDataPacket
+            {
+                ID = packetId,
+                Code = packetCode,
+                Name = $"Packet {packetCode}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Enable
+            }).ExecuteCommandAsync();
+
+            SqlVariableItem Variable(string code, string source, int order) => new()
+            {
+                Code = code, DataType = ShareDataConst.SqlVariableBuiltinTypes[source],
+                ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = source, OrderNo = order
+            };
+            await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null,
+            [
+                Variable("since", ShareDataConst.SqlVariableSourceLastTime, 1),
+                Variable("afterKey", ShareDataConst.SqlVariableSourceLastKey, 2),
+                new SqlVariableItem { Code = "pageSize", DataType = ShareDataConst.SqlVariableTypeInt, ValueKind = ShareDataConst.SqlVariableKindConst, Value = "10", OrderNo = 3 },
+                new SqlVariableItem { Code = "prefix", DataType = ShareDataConst.SqlVariableTypeString, ValueKind = ShareDataConst.SqlVariableKindConst, Value = $"%{unique}%", OrderNo = 4 }
+            ]);
+            await ShareDataSqlSeed.SetCommonAsync(db, packetId, sql, "UpdateTime");
+
+            var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_C5_{unique}",
+                SubCode = $"SUB_C5_{unique}",
+                DatatypeId = packetId,
+                MappingShape = new Dictionary<string, object> { ["code"] = new Dictionary<string, string> { ["$field"] = "code" } },
+                ConfigureSub = s => s.LastTimeRun = initialLastTime
+            });
+            await db.Insertable(new ShareDataLastSend
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                PartnerCode = partner.Code,
+                PacketCode = packetCode,
+                LastTime = initialLastTime,
+                LastKey = string.Empty
+            }).ExecuteCommandAsync();
+
+            var worker = CreateWorker(scope);
+
+            // Act 1: Chạy đợt 1 -> gửi Row 1 và Row 2
+            await worker.ProcessSubscriptions(CancellationToken.None);
+
+            // Assert 1: Đã nhận Row 1 và Row 2, mốc LastKey dừng ở "2_..."
+            var lastSendRun1 = await db.Queryable<ShareDataLastSend>()
+                .Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == packetCode)
+                .FirstAsync();
+            Assert.Equal(sameTime, lastSendRun1.LastTime);
+            Assert.Equal(row2.ID, lastSendRun1.LastKey);
+
+            // Act 2: Thêm Row 3 và Row 4 cùng mốc sameTime, ID lớn hơn ("3_...", "4_...") nhưng Code bắt đầu bằng "AAA_" (nhỏ hơn từ điển)
+            var row3 = new ShareDataPacket { ID = $"3_{unique}", Code = $"AAA_{unique}_3", Name = "Row 3", PacketVersion = "1.0", Status = BaseEnums.StatusEnum.Disable };
+            var row4 = new ShareDataPacket { ID = $"4_{unique}", Code = $"AAA_{unique}_4", Name = "Row 4", PacketVersion = "1.0", Status = BaseEnums.StatusEnum.Disable };
+            await db.Insertable(new[] { row3, row4 }).ExecuteCommandAsync();
+            await db.Updateable<ShareDataPacket>().SetColumns(p => p.UpdateTime == sameTime).Where(p => p.ID == row3.ID || p.ID == row4.ID).ExecuteCommandAsync();
+
+            var dueNow = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
+            await db.Updateable<ShareDataSubscription>()
+                .SetColumns(s => s.NextTimeRun == dueNow.AddSeconds(-10))
+                .Where(s => s.ID == sub.ID)
+                .ExecuteCommandAsync();
+
+            await worker.ProcessSubscriptions(CancellationToken.None);
+
+            // Assert 2: Nhận đủ Row 3 và Row 4, không gửi lặp Row 1, 2
+            var allBodies = _host.PartnerServer.ReceivedRequests
+                .Where(r => r.Body.Contains(unique))
+                .Select(r => r.Body)
+                .ToList();
+
+            Assert.Equal(2, allBodies.Count);
+            Assert.Contains(row1.Code!, allBodies[0]);
+            Assert.Contains(row2.Code!, allBodies[0]);
+            Assert.Contains(row3.Code!, allBodies[1]);
+            Assert.Contains(row4.Code!, allBodies[1]);
+
+            var lastSendRun2 = await db.Queryable<ShareDataLastSend>()
+                .Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == packetCode)
+                .FirstAsync();
+            Assert.Equal(sameTime, lastSendRun2.LastTime);
+            Assert.Equal(row4.ID, lastSendRun2.LastKey);
+        }
+
+        /// <summary>
+        /// Description: Phương án 4 (Mốc kép @lastTime + @lastKey) - Ca 6: Chế độ con trỏ đơn (Single-Key Fallback Mode).
+        ///              Với các bảng dữ liệu chỉ có ID hoặc Sequence tăng dần (không có cột thời gian UpdateTime):
+        ///              - Gói tin chỉ cấu hình biến @afterKey (Source = lastKey), không có biến lastTime.
+        ///              - Câu SQL ORDER BY ID (chỉ sắp theo khóa).
+        ///              - Worker tự động nhận diện chế độ con trỏ đơn, không ép buộc có __lastTime, tịnh tiến LastKey mượt mà,
+        ///                lọc sạch cột hệ thống __lastKey khỏi payload JSON và không gửi lặp.
+        /// Created date: 28/10/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessSubscriptions_CompositeCursor_Case6_SingleKeyFallback_RunsPureIncrementalCursor_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var packetId = $"pkt-c6-{unique}";
+            var packetCode = $"PKT_C6_{unique}";
+            var rowPrefix = $"ROW_C6_{unique}_";
+
+            var rows = Enumerable.Range(1, 4).Select(i => new ShareDataPacket
+            {
+                ID = $"K{i}_{unique}",
+                Code = $"{rowPrefix}{i}",
+                Name = $"Row {i}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Disable
+            }).ToList();
+            await db.Insertable(rows).ExecuteCommandAsync();
+
+            var sql = "SELECT TOP (@pageSize) ID AS __lastKey, Code AS code FROM ShareDataPacket "
+                + $"WHERE Code LIKE @prefix AND (@afterKey IS NULL OR ID > @afterKey) ORDER BY ID";
+
+            await db.Insertable(new ShareDataPacket
+            {
+                ID = packetId,
+                Code = packetCode,
+                Name = $"Packet {packetCode}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Enable
+            }).ExecuteCommandAsync();
+
+            await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null,
+            [
+                new SqlVariableItem
+                {
+                    Code = "afterKey",
+                    DataType = ShareDataConst.SqlVariableTypeString,
+                    ValueKind = ShareDataConst.SqlVariableKindBuiltin,
+                    Value = ShareDataConst.SqlVariableSourceLastKey,
+                    OrderNo = 1
+                },
+                new SqlVariableItem { Code = "pageSize", DataType = ShareDataConst.SqlVariableTypeInt, ValueKind = ShareDataConst.SqlVariableKindConst, Value = "2", OrderNo = 2 },
+                new SqlVariableItem { Code = "prefix", DataType = ShareDataConst.SqlVariableTypeString, ValueKind = ShareDataConst.SqlVariableKindConst, Value = $"{rowPrefix}%", OrderNo = 3 }
+            ]);
+            await ShareDataSqlSeed.SetCommonAsync(db, packetId, sql);
+
+            var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_C6_{unique}",
+                SubCode = $"SUB_C6_{unique}",
+                DatatypeId = packetId,
+                MappingShape = new Dictionary<string, object> { ["code"] = new Dictionary<string, string> { ["$field"] = "code" } }
+            });
+
+            var worker = CreateWorker(scope);
+
+            // Act 1: Chạy đợt 1 -> gửi 4 dòng qua 2 trang (2 + 2)
+            await worker.ProcessSubscriptions(CancellationToken.None);
+
+            // Assert 1
+            var relevantBodies = _host.PartnerServer.ReceivedRequests
+                .Where(r => r.Body.Contains(rowPrefix))
+                .Select(r => r.Body)
+                .ToList();
+
+            Assert.Equal(2, relevantBodies.Count);
+            Assert.All(relevantBodies, body => Assert.DoesNotContain("__lastKey", body, StringComparison.OrdinalIgnoreCase));
+            foreach (var row in rows)
+            {
+                Assert.Equal(1, relevantBodies.Count(b => b.Contains(row.Code!)));
+            }
+
+            var lastSend = await db.Queryable<ShareDataLastSend>()
+                .Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == packetCode)
+                .FirstAsync();
+            Assert.Equal(rows[3].ID, lastSend.LastKey);
+            Assert.NotNull(lastSend.LastTime);
+
+            // Act 2: Lượt kế không có dữ liệu mới -> ghi nhận NoNewData
+            var dueNow = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
+            await db.Updateable<ShareDataSubscription>()
+                .SetColumns(s => s.NextTimeRun == dueNow.AddSeconds(-10))
+                .Where(s => s.ID == sub.ID)
+                .ExecuteCommandAsync();
+            await worker.ProcessSubscriptions(CancellationToken.None);
+
+            // Assert 2
+            var latestLog = (await GetLogs(db, sub.ID)).First();
+            Assert.Equal(ShareDataEnum.ExportMessage.NoNewData, latestLog.ErrorMessage);
+        }
+
+        #endregion
     }
 
     internal static class HttpDeliverySenderTestExtensions

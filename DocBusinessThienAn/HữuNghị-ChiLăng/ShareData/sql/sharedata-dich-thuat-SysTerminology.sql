@@ -51,7 +51,7 @@ WHERE Code LIKE N'lz.validation%lookbackDaysRange'
   );
 
 -- -----------------------------------------------------------------------------------------
--- 2. DANH MỤC 144 KHÓA BẢN DỊCH SHAREDATA (288 BẢN GHI ĐA NGÔN NGỮ)
+-- 2. DANH MỤC 150 KHÓA BẢN DỊCH SHAREDATA (300 BẢN GHI ĐA NGÔN NGỮ)
 -- -----------------------------------------------------------------------------------------
 DECLARE @Translations TABLE (
     [Name] NVARCHAR(64),
@@ -274,6 +274,10 @@ VALUES
     (N'lz.exception', N'sharedata.subscriptionDuplicated',
      N'Đối tác đã có đăng ký cho gói tin này.',
      N'The partner already has a subscription for this packet.'),
+
+    (N'lz.exception', N'sharedata.inboundPacketDuplicated',
+     N'Gói tin nhận về [{0}] đã tồn tại ở đăng ký khác.',
+     N'Inbound packet [{0}] already exists in another subscription.'),
 
     (N'lz.exception', N'sharedata.subscriptionFinished',
      N'Đăng ký đã kết thúc, không thể sửa.',
@@ -669,9 +673,29 @@ VALUES
      N'Đã ngắt kết nối với đối tác.',
      N'Disconnected from partner.'),
 
+    (N'lz.validation', N'sharedata.sqlColumnUnnamed',
+     N'Cột thứ {0} của câu SQL chưa có tên. Hãy đặt tên cột bằng AS, tên cột chính là khoá trường của gói tin.',
+     N'Column #{0} of the SQL query is unnamed. Name the column using AS; the column name is the packet field key.'),
+
+    (N'lz.validation', N'sharedata.sqlColumnDuplicate',
+     N'Câu SQL trả về trùng tên cột [{0}]. Hãy đặt tên khác bằng AS.',
+     N'The SQL query returns duplicate column name [{0}]. Use AS to specify a unique name.'),
+
+    (N'lz.validation', N'sharedata.sqlFieldKeyNotFound',
+     N'Khoá trường [{0}] không có trong danh sách trường của câu SQL.',
+     N'Field key [{0}] is not in the SQL query field list.'),
+
     (N'lz.validation', N'sharedata.sqlFieldTypeInvalid',
      N'Trường [{0}]: kiểu [{1}] không có trong danh sách kiểu dữ liệu.',
      N'Field [{0}]: type [{1}] is not in the data type list.'),
+
+    (N'lz.validation', N'sharedata.sqlFieldValueTooLong',
+     N'Trường [{0}]: {1} vượt quá {2} ký tự.',
+     N'Field [{0}]: {1} exceeds {2} characters.'),
+
+    (N'lz.validation', N'sharedata.sqlFieldSkipInUse',
+     N'Không thể bỏ qua trường [{0}] vì hồ sơ ánh xạ [{1}] đang dùng. Hãy bỏ chọn trường ở hồ sơ ánh xạ trước.',
+     N'Cannot skip field [{0}] because mapping profile [{1}] is using it. Uncheck the field in the mapping profile first.'),
 
     (N'lz.validation', N'sharedata.sqlLastKeyDateFormatUnsortable',
      N'Khóa nối đuôi [__lastKey] được so như chuỗi: ngày giờ phải theo thứ tự năm-tháng-ngày, ví dụ CONVERT(varchar(23), <cột>, 121). Định dạng hiện tại sắp sai thứ tự và sẽ làm bỏ sót dữ liệu.',

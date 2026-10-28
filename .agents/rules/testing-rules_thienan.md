@@ -27,9 +27,9 @@ description: Unified Testing Suite protocol, Playwright FE E2E, xUnit BE on loca
 4. **Chỉ viết test mang giá trị — chống thừa test (bổ sung Rule 19.10, 24/10/2026)**:
    - Mỗi test đi qua **điểm vào của một luồng nghiệp vụ** và kiểm **kết quả nghiệp vụ** (dữ liệu CSDL, gói tin gửi đi, cảnh báo, mốc đã gửi, lỗi trả về người dùng):
      - API: `CallApiAsync` / `IMessageBus.InvokeAsync(input)` như controller (§5.3).
-     - Worker: phương thức public Worker gọi cho một lượt nghiệp vụ. Mẫu chuẩn: `DataOutboundService.ProcessSubscriptions` — một lượt gửi trọn vẹn (đọc đăng ký → trích SQL → ánh xạ → gửi → ghi mốc).
+     - Worker: phương thức public Worker gọi cho một lượt nghiệp vụ. Mẫu chuẩn: `DataOutboundService.ProcessSubscriptions` — một lượt gửi trọn vẹn (đọc đăng ký → trích SQL → ánh xạ → gửi / ghi file thật xuống đĩa → ghi mốc).
      - Tầng kết nối: API công khai của `DeliveryDispatcher` gửi/nhận thật tới máy chủ giả lập.
-   - ⛔ **CẤM test dạng unit**: gọi thẳng helper / static / reader / validator / enum / handler (`PacketHelper`, `SqlValidatorHelper`, `ConnectConfigReader`, `XxxHandler.HandleAsync`…), kiểm hằng số, kiểm "resolve được từ DI", kiểm lại đúng câu lệnh vừa viết. Hành vi của helper được kiểm gián tiếp qua luồng dùng nó.
+   - ⛔ **CẤM test dạng unit**: gọi thẳng helper / static / reader / validator / enum / handler (`PacketHelper`, `SqlValidatorHelper`, `ExportPathHelper.ResolveRootPath`, `ConnectConfigReader`, `XxxHandler.HandleAsync`…), mock/fake ngữ cảnh giả lập (`CreateDummyContext`), kiểm hằng số, kiểm "resolve được từ DI", kiểm lại đúng câu lệnh vừa viết. Toàn bộ hành vi vận chuyển và ghi file phải được kiểm tra qua luồng thật `DataOutboundService.ProcessSubscriptions` kiểm chứng file thật sự được tạo trên đĩa.
    - ⛔ **CẤM test không thêm giá trị**: trùng kịch bản với test khác (cùng nhánh, chỉ khác dữ liệu mà kết quả như nhau), chỉ kiểm hành vi thư viện/framework, chỉ assert "không lỗi / khác null" khi đã có test kiểm mạnh hơn cùng luồng.
    - ⛔ **CẤM viết test cho thay đổi chỉ là cấu trúc CSDL không đổi hành vi** (27/10/2026): thêm / sửa chỉ mục (`[SugarIndex]`), đổi độ dài cột, thêm ghi chú cột. Kiểm bằng build + kế hoạch truy vấn khi cần, không viết test đọc `sys.indexes` hay metadata bảng. Đừng over-test.
    - **Cùng một luồng, khác dữ liệu → MỘT `[Theory]` + nhiều `[InlineData]`**, không viết nhiều hàm `[Fact]` giống nhau. FE (Playwright): một mảng dữ liệu + vòng `for` sinh test.
@@ -37,6 +37,21 @@ description: Unified Testing Suite protocol, Playwright FE E2E, xUnit BE on loca
    - **Câu tự hỏi trước khi viết / giữ một test**: *"Xóa test này thì lỗi nào của luồng nghiệp vụ lọt qua mà không test nào khác bắt?"* Không trả lời được → không viết.
    - ❌ **Sai:** `PacketHelperTests.TryGetPacketNumber_ValidCodes_...` gọi thẳng hàm tách mã gói; năm hàm `[Fact]` chỉ khác câu SQL đầu vào cho cùng một lỗi validator.
    - ✅ **Đúng:** một ca trong `DataOutboundServiceTests` gọi `ProcessSubscriptions` rồi kiểm gói tin tới máy chủ giả lập và mốc `ShareDataLastSend`; một `[Theory]` lưu SQL qua API với các `[InlineData]` câu SQL không an toàn.
+5. **Mỗi trang / phân hệ BẮT BUỘC có Smoke Test nạp trang & Chống trắng màn hình (Rule 20.31, bổ sung 28/10/2026)**:
+   - Sau khi hoàn thành hoặc sửa đổi tính năng, component, popup hay câu từ bản dịch i18n mới:
+   - BẮT BUỘC có bài test E2E kiểm thử các điểm chạm hiển thị cơ bản nhất mà người dùng nhìn thấy (Smoke / Visual Sanity Check):
+     * Mở URL trang (`page.goto('/#/<module>/<page>')`).
+     * Kiểm tra các khối giao diện chính hiển thị và nạp dữ liệu ổn định (bảng vxe-grid/el-table, toolbar, card, tabs).
+     * Click vào dòng đầu tiên để kiểm tra khối chi tiết hoặc modal mở ra mà không bị vỡ layout / không bị đơ loading mask.
+     * BẮT BUỘC lắng nghe `page.on('pageerror')` để bắt toàn bộ các lỗi cú pháp biên dịch (đặc biệt là vue-i18n `SyntaxError: Message compilation error: Invalid linked format` do ký tự `@` trần chưa thoát thành `{'@'}`), lỗi ref undefined, unhandled promise rejection làm crash trắng toàn bộ màn hình.
+     * Quét toàn bộ tệp từ điển `vi-vn.json` và `en-us.json` của phân hệ để khẳng định không còn ký tự `@` trần nào bị sót.
+6. **Bắt Buộc Viết Test Cho Thành Phần / Cơ Chế Bổ Sung Mới (Rule 19.109, bổ sung 28/10/2026)**:
+   - Khi phát triển hoặc bổ sung bất kỳ thành phần, cơ chế hoặc logic mới nào vào hệ thống (như ghi nhật ký hoạt động / audit log, logging đối tượng nghiệp vụ, tra cứu gói tin/đối tác, xử lý liên kết bảng, background job...):
+   - **BẮT BUỘC** viết bài kiểm thử tích hợp luồng nghiệp vụ (Integration Test / End-to-End qua API hoặc Worker) xác nhận:
+     * **Dữ liệu thực tế được ghi nhận chính xác**: Kiểm tra dòng log hoặc entity tương ứng được lưu vào CSDL với đầy đủ thông tin định danh (Tên đối tượng, Mã gói tin, Tên đối tác, trường dữ liệu thay đổi...).
+     * **Tính tương thích DI & Framework**: Khẳng định các hàm khởi tạo (Constructor), DI container và Wolverine message handler runtime không bị thiếu tham số (ngăn chặn triệt để lỗi biên dịch `CS7036` hoặc lỗi giải quyết phụ thuộc lúc chạy).
+     * **An toàn luồng chính**: Đảm bảo luồng nghiệp vụ chính chạy từ đầu tới cuối trơn tru, không bị crash hay ảnh hưởng bởi các logic phụ trợ/logging mới thêm.
+   - ⛔ **CẤM TUYỆT ĐỐI** chỉ thêm code logging hoặc cơ chế xử lý mới mà không viết bài test đi qua luồng thật để kiểm chứng dữ liệu thực tế được lưu vào CSDL.
 
 ---
 

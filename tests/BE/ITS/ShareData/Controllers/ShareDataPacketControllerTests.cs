@@ -2291,6 +2291,113 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         Assert.Equal(["zoneId", "zoneName"], mappingFields.Select(f => f.Key));
     }
 
+    [Fact]
+    public async Task UpdateExtractSql_WhenSqlColumnsChangedAndOldFieldEditsProvided_IgnoresRemovedFieldEditsAndSavesSuccessfully_Test()
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (packet, _) = await SeedSqlVariablePacketAsync(db, unique);
+
+        await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
+        {
+            PacketCode = packet.Code!,
+            Items = [ConstVar("pageSize", "int", "100")]
+        });
+
+        const string newSql = "SELECT TOP (@pageSize) ID AS eventId, Name AS speed, Remark AS eventTime FROM TmsZone";
+
+        // Act: Gửi câu SQL mới kèm theo field edit của cột cũ không còn trong câu truy vấn mới
+        var saved = await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
+        {
+            PacketCode = packet.Code!,
+            ExtractSql = newSql,
+            Fields =
+            [
+                new SqlFieldEditInput { Key = "nonExistentOldColumn", Label = "Cột cũ", Required = true },
+                new SqlFieldEditInput { Key = "eventId", Label = "Mã sự kiện", Required = true }
+            ]
+        });
+
+        // Assert: Không bị ném lỗi SqlFieldKeyNotFound, trường cũ bị bỏ qua và trường mới nhận cấu hình
+        Assert.Equal(["eventId", "speed", "eventTime"], saved.Fields.Select(f => f.Key));
+        var eventId = saved.Fields.Single(f => f.Key == "eventId");
+        Assert.Equal("Mã sự kiện", eventId.Label);
+        Assert.True(eventId.Required);
+    }
+
+    [Fact]
+    public async Task ActivityLogger_WhenSqlModified_LogsAccurateTargetDetailsWithPacketAndPartner_Test()
+    {
+        // Arrange
+        var operatorAccount = $"superadmin_{Guid.NewGuid():N}";
+        SetUserContext(isSuperAdmin: true, account: operatorAccount);
+
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var packetCode = $"PKT_LOG_{unique}";
+        var packet = new ShareDataPacket
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Code = packetCode,
+            Name = $"Packet Logging Test {unique}",
+            Status = BaseEnums.StatusEnum.Enable,
+        };
+        var partner = new ShareDataPartner
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Code = $"PT_LOG_{unique}",
+            Name = $"Đối tác Logging Test {unique}",
+            Status = BaseEnums.StatusEnum.Enable,
+        };
+        await db.Insertable(packet).ExecuteCommandAsync();
+        await db.Insertable(partner).ExecuteCommandAsync();
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, "SELECT TOP 10 ID, Code, Name FROM TmsZone");
+
+        // Act 1: Cập nhật SQL mẫu chung -> Ghi log chi tiết kèm mã gói tin
+        await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
+        {
+            PacketCode = packetCode,
+            ExtractSql = "SELECT TOP 5 ID, Code, Name FROM TmsZone",
+            Remark = "Cập nhật SQL mẫu chung qua API"
+        });
+
+        // Act 2: Cập nhật SQL riêng của đối tác -> Ghi log chi tiết kèm mã gói tin và tên đối tác
+        await scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput
+        {
+            PartnerId = partner.ID!,
+            PacketCode = packetCode,
+            ExtractSql = "SELECT TOP 3 ID, Code FROM TmsZone"
+        });
+
+        // Assert 1: Kiểm tra log của SQL mẫu chung
+        var commonLog = await db.Queryable<ShareDataActivityLog>()
+            .Where(x => x.TargetId == packet.ID && x.DatatypeId == packet.ID && x.Action == BaseEnums.ActivityAction.Update)
+            .OrderBy("OccurredAt DESC")
+            .FirstAsync();
+        Assert.NotNull(commonLog);
+        Assert.Equal($"[{packetCode}] {packet.Name} (SQL mẫu chung)", commonLog.TargetName);
+        Assert.Equal(packet.ID, commonLog.DatatypeId);
+        Assert.Equal("Mẫu chung (tất cả đối tác)", commonLog.PartnerName);
+        Assert.Contains($"[{packetCode}]", commonLog.Description);
+
+        // Assert 2: Kiểm tra log của SQL riêng của đối tác
+        var customLog = await db.Queryable<ShareDataActivityLog>()
+            .Where(x => x.TargetId == partner.ID && x.DatatypeId == packet.ID)
+            .OrderBy("OccurredAt DESC")
+            .FirstAsync();
+        Assert.NotNull(customLog);
+        Assert.Equal($"[{packetCode}] {packet.Name} (SQL riêng)", customLog.TargetName);
+        Assert.Equal(partner.Name, customLog.PartnerName);
+        Assert.Equal(packet.ID, customLog.DatatypeId);
+        Assert.Contains($"[{packetCode}]", customLog.Description);
+        Assert.Contains(partner.Name, customLog.Description);
+    }
+
     /// <summary>
     /// Description: Người dùng chọn kiểu cho trường ở popup sửa trường: kiểu chọn tay được giữ qua các lần lưu sau (bộ dò không ghi đè),
     ///              chọn lại đúng kiểu dò được thì bỏ chọn tay.

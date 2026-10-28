@@ -200,16 +200,22 @@ src/views/<module>/<feature>/
        ⛔ **CẤM** import thủ công từng file phân hệ (`import enUSSharedata...`) làm `locale.ts` liên tục bị sửa và xung đột Git. Thêm phân hệ mới chỉ cần tạo thư mục `src/src/i18n/lang/its/<phân-hệ>/`, hệ thống sẽ tự động quét và nạp.
      - **Đồng bộ song ngữ**: Số lượng và danh sách khóa giữa `vi-vn.json` và `en-us.json` trong thư mục phân hệ BẮT BUỘC bằng nhau 100% (keys diff = []).
   2. **Thoát ký tự `@` trần trong chuỗi bản dịch (Vue-i18n Linked Format Escape `{'@'}`)**:
-     - ⛔ **TUYỆT ĐỐI CẤM** để ký tự `@` trần đi liền trước chữ cái hoặc tên biến trong chuỗi i18n (ví dụ cấm: `Tham số [@{0}]`, `@lastTime`, `@pageSize`, `TOP (@pageSize)`).
-     - *Lý do*: Vue-i18n mặc định coi `@:` hoặc `@<word>` là cú pháp liên kết chuỗi (linked message). Khi gặp `@` không hợp lệ, Vue-i18n sẽ ném lỗi runtime nghiêm trọng: `SyntaxError: Invalid linked format` hoặc làm crash trang khi render.
-     - ✅ **BẮT BUỘC**: Bọc escape bằng cú pháp chuẩn vue-i18n: `{'@'}` (ví dụ: `Tham số [{'@'}{0}]`, `{'@'}lastTime`, `{'@'}pageSize`, `TOP ({'@'}pageSize)`).
-  3. **Cơ chế nạp CSDL `SysTerminology` & Cập nhật seed SQL Idempotent an toàn**:
+     - ⛔ **TUYỆT ĐỐI CẤM** để ký tự `@` trần đi liền trước chữ cái hoặc tên biến trong chuỗi i18n (ví dụ cấm: `Tham số [@{0}]`, `@lastTime`, `@pageSize`, `@lastKey`, `TOP (@pageSize)`).
+     - *Lý do*: Vue-i18n mặc định coi `@:` hoặc `@<word>` là cú pháp liên kết chuỗi (linked message). Khi gặp `@` không hợp lệ, Vue-i18n sẽ ném lỗi runtime nghiêm trọng: `Uncaught (in promise) SyntaxError: Message compilation error: Invalid linked format`. Lỗi này lập tức làm vỡ vòng đời render component của Vue, khiến component con hoặc toàn bộ màn hình / khối chi tiết bị crash và trắng tinh (blank / white screen).
+     - ✅ **BẮT BUỘC**: Bọc escape bằng cú pháp chuẩn vue-i18n: `{'@'}` (ví dụ: `Tham số [{'@'}{0}]`, `{'@'}lastTime`, `{'@'}pageSize`, `{'@'}lastKey`, `TOP ({'@'}pageSize)`). Bất kỳ khi nào bổ sung text mới, câu hướng dẫn hay tooltip có nhắc đến tên biến SQL/hệ thống, BẮT BUỘC kiểm tra và bọc `{'@'}` ngay lập tức.
+  3. **Quy chuẩn Smoke Test nạp trang & Chống trắng màn hình (Rule 20.31)**:
+     - Khi hoàn tất một màn hình, khối chức năng hoặc khi thêm component/hướng dẫn mới: BẮT BUỘC phải có bài test E2E kiểm tra tính năng hiển thị trực quan cơ bản (Smoke / Visual Sanity Check):
+       1. **Nạp màn hình thành công**: Truy cập URL của trang, bảng/lưới dữ liệu chính hiển thị và tải dữ liệu ổn định (không treo skeleton, không trắng trang).
+       2. **Click xem chi tiết**: Thao tác click vào dòng/bản ghi danh sách nạp được bảng chi tiết, form hoặc drawer bên phải mà không bị treo loading mask hay vỡ layout.
+       3. **Không có lỗi console unhandled (`page.on('pageerror')`)**: Lắng nghe `page.on('pageerror')` trong test Playwright để đảm bảo không có bất kỳ lỗi `SyntaxError` (đặc biệt là vue-i18n `Invalid linked format`), lỗi component mounting hay promise rejection chưa được bắt.
+       4. **Quét tự động từ điển i18n**: Bài test kiểm tra toàn bộ file `vi-vn.json` và `en-us.json` của phân hệ để khẳng định 100% không còn ký tự `@` trần chưa thoát.
+  4. **Cơ chế nạp CSDL `SysTerminology` & Cập nhật seed SQL Idempotent an toàn**:
      - `getTerminologyList(lang)` ưu tiên nạp từ bảng CSDL `SysTerminology` (qua IndexedDB), chỉ lấy JSON khi DB chưa có khóa đó. Do đó: nếu chỉ sửa JSON mà CSDL đã có bản ghi cũ thì giao diện sẽ **không đổi**.
      - Khi chỉnh sửa giá trị bản dịch trong script seed SQL:
        - ⛔ **CẤM** ghi đè làm mất các bản dịch mà quản trị viên đã tùy chỉnh trên môi trường vận hành.
        - ✅ **BẮT BUỘC**: Viết khối `UPDATE dbo.SysTerminology SET Value = N'<mới>' WHERE Name = N'...' AND Code = N'...' AND Lang = N'...' AND Value = N'<giá trị cũ>';` trước lệnh `MERGE ... WHEN NOT MATCHED THEN INSERT`.
        - Sau khi chạy script SQL trên CSDL, trên giao diện webapp cần bấm nút 🔄 tại avatar góc phải trên để làm mới cache ngôn ngữ.
-  4. **Kiểm thử Playwright đọc từ điển i18n tĩnh**:
+  5. **Kiểm thử Playwright đọc từ điển i18n tĩnh**:
      - Trong các tệp test E2E/Static Scan, nếu kiểm tra các khóa của phân hệ, BẮT BUỘC đọc từ `i18n/lang/its/<phân-hệ>/vi-vn.json` (hoặc merge cùng `vi-vn.json` gốc), không được chỉ assert trên file gốc `vi-vn.json` vì các khóa phân hệ đã được tách ra.
 
 ---

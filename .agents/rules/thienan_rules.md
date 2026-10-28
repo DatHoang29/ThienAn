@@ -42,13 +42,15 @@ Mọi AI Agent **BẮT BUỘC** tuân thủ tuyệt đối các quy tắc cốt 
 | **38** | **Cấm Tham Chiếu Prompt & Ghi Changelog Đổi Tên Trong Mã** (Rule 19.80) | ⛔ CẤM ghi tên file prompt, định danh AI, hoặc nhật ký đổi tên/sửa code (vd `Modified date: ... (Đổi tên...)`) vào comment, docstring, commit. `Modified date` chỉ ghi ngày tháng; lịch sử do Git quản lý. Chi tiết: [backend-dotnet_thienan.md](./backend-dotnet_thienan.md) §4.16. |
 | **48** | **Giữ Nguyên Dòng Cũ Khi Nội Dung Không Đổi** (Rule 19.89) | Minimal Diff: giữ nguyên 100% dòng cũ khi logic không đổi. Format/ngắt dòng chỉ áp dụng cho dòng code mới viết hoặc sửa đổi trực tiếp. Chi tiết: [backend-dotnet_thienan.md](./backend-dotnet_thienan.md) §4.21. |
 | **58** | **Cấm Commit Tệp Cấu Hình Local & Bí Mật** (Rule 19.100) | ⛔ CẤM stage, commit, push file cấu hình local và bí mật: `.env.development`, `.env.local`, `Database.json`, `TAKey*.key`, `Shared.Core.Security.dll`. Chi tiết: [git-workflow_thienan.md](./git-workflow_thienan.md) §4.6. |
-| **61** | **Tách Locale Phân Hệ & Thoát '@' Trong i18n** (Rule 20.29) | Tách locale riêng `its/<module>/`; tự động nạp qua `import.meta.glob` (cấm import thủ công từng file); ⛔ CẤM `@` trần đi liền tên biến (bắt buộc `{'@'}`); seed SQL cập nhật có điều kiện `WHERE Value = N'<cũ>'`. Chi tiết: [frontend-vue_thienan.md](./frontend-vue_thienan.md) §5. |
+| **61** | **Tách Locale Phân Hệ & Thoát '@' Trong i18n** (Rule 20.29) | Tách locale riêng `its/<module>/`; tự động nạp qua `import.meta.glob` (cấm import thủ công từng file); ⛔ CẤM `@` trần đi liền tên biến (bắt buộc `{'@'}`) chống lỗi vue-i18n Invalid linked format làm trắng màn hình; seed SQL cập nhật có điều kiện `WHERE Value = N'<cũ>'`. Chi tiết: [frontend-vue_thienan.md](./frontend-vue_thienan.md) §5. |
 | **62** | **Thẻ Không Có Nội Dung Viết Tự Đóng** (Rule 20.30) | Thẻ HTML/component trong `<template>` `.vue` không có nội dung (không chữ, không thẻ con, không slot) viết `<div ... />`; ⛔ CẤM cặp rỗng `<div ...></div>`. Chỉ áp cho thẻ mới viết hoặc thẻ có sửa thuộc tính. Chi tiết: [frontend-vue_thienan.md](./frontend-vue_thienan.md) §6.2. |
 | **63** | **Commit Message Chỉ Nêu Việc Chính** (Rule 19.102) | Gạch đầu dòng trong commit message chỉ nêu việc chính đã làm, ngắn gọn. ⛔ CẤM ghi viết/chạy test, kết quả kiểm thử, cập nhật tài liệu đi kèm, dọn mã. Chi tiết: [git-workflow_thienan.md](./git-workflow_thienan.md) §3. |
 | **64** | **Mỗi File `.sql` Chỉ Ghi Một Bảng** (Rule 19.103) | Một file `.sql` chỉ thêm / sửa / xóa trên đúng một bảng (bảng khác chỉ đọc); tên file mang hậu tố tên bảng `<phan-he>-<vai-tro>-<TênBảng>.sql`, giả lập `..._local.sql`. Đầu file ghi `BẢNG GHI`, `THỨ TỰ CHẠY`; kiểm tra bảng dùng `SET NOEXEC ON`. Chi tiết: [database-mcp_thienan.md](./database-mcp_thienan.md) §2.2. |
 | **65** | **Định Dạng Trả Về Nội Dung Commit (Copy-Paste Ready)** (Rule 19.104) | Khi được yêu cầu nội dung commit (`commit -m`): AI xuất khối văn bản thuần (`text`) riêng từng repo (BE/FE) gồm 2 dòng Summary lặp lại và 2-3 gạch đầu dòng chỉ nêu tính năng/việc chính đã làm (⛔ CẤM thêm mã rule hay việc phụ trợ). Chi tiết: [git-workflow_thienan.md](./git-workflow_thienan.md) §3. |
 | **66** | **Thông Báo Không Lộ Thông Tin Nhạy Cảm** (Rule 19.105) | ⛔ CẤM thông báo cho người dùng chứa tên bảng cấu hình / cột cờ / bảng CSDL / đường dẫn / chuỗi kết nối nội bộ (vd `ShareDataSourceTable`, `IsQueryable`). Chỉ nêu việc người dùng cần làm (vd liên hệ quản trị viên); chi tiết kỹ thuật ghi log. Chi tiết: [backend-dotnet_thienan.md](./backend-dotnet_thienan.md) §4.26. |
 | **67** | **Cấm Tự Ý Sửa Tệp Resource Backend** (Rule 19.107) | ⛔ CẤM tự ý thêm, sửa, xóa, format hoặc sort lại các tệp chuỗi resource của Backend (`src/TAC_WebAPI/Resources/*.json`, `vi-VN.json`, `en-US.json`). Giữ nguyên 100% nội dung resource hiện có. Chi tiết: [backend-dotnet_thienan.md](./backend-dotnet_thienan.md) §4.27. |
+| **68** | **Cấm Hardcode Đường Dẫn Tuyệt Đối Của Máy Cá Nhân** (Rule 19.108) | ⛔ CẤM hardcode đường dẫn tuyệt đối (absolute path) gắn với profile/thư mục máy cá nhân (vd `/Users/...`, `C:\Users\...`). 100% dùng đường dẫn tương đối (relative path) hoặc biến môi trường để đảm bảo chuyển qua máy khác hoặc CI/CD chạy được bình thường. Chi tiết: [backend-dotnet_thienan.md](./backend-dotnet_thienan.md) §4.28. |
+| **69** | **Bắt Buộc Viết Test Cho Thành Phần / Cơ Chế Bổ Sung Mới** (Rule 19.109) | Bổ sung tính năng, cơ chế hoặc xử lý mới vào hệ thống (như ghi nhật ký hoạt động / audit log, logging đối tượng nghiệp vụ, tra cứu gói tin/đối tác...): BẮT BUỘC viết test kiểm tra tính toàn vẹn (End-to-End hoặc Integration test qua API) xác nhận dữ liệu mới ghi đúng vào CSDL, constructor/DI/Wolverine thông suốt và luồng chạy không bị lỗi. Chi tiết: [testing-rules_thienan.md](./testing-rules_thienan.md) §1.6 & [backend-dotnet_thienan.md](./backend-dotnet_thienan.md) §4.29. |
 
 ---
 
@@ -74,6 +76,7 @@ Quy tắc kỹ thuật chi tiết lưu giữ toàn văn tại các tệp chuyên
 - **Rule 20.28** (STT 60) — Gọi API 100% qua `getAPI(XxxApi)`, CẤM tạo service tùy tiện & CẤM gọi raw `axiosInstance` (`${serveConfig.basePath}`) (§1.1)
 - **Rule 20.29** (STT 61) — Tách locale riêng phân hệ (`its/<module>/`), bọc escape `{'@'}` chống lỗi vue-i18n & đồng bộ seed SQL idempotent an toàn (§5)
 - **Rule 20.30** (STT 62) — Thẻ không có nội dung viết tự đóng `<div ... />`, cấm cặp rỗng `<div ...></div>` (§6.2)
+- **Rule 20.31** — Quy chuẩn Smoke Test nạp trang & Chống trắng màn hình (kiểm tra nạp trang, click vào dòng xem chi tiết, và bắt pageerror chống lỗi trắng màn hình) (§5.3)
 
 ### 2. Backend .NET & Clean Architecture ([backend-dotnet_thienan.md](./backend-dotnet_thienan.md))
 > ⚠️ **3 luật CQRS cốt lõi (P0, áp cho mọi mã BE mới; mã lân cận sai thì không chép theo):**
@@ -97,16 +100,19 @@ Quy tắc kỹ thuật chi tiết lưu giữ toàn văn tại các tệp chuyên
 - **Rule 19.94** (STT 53) — Ưu tiên thư viện có sẵn (Furion), hạn chế interface 1:1, phân cấp Base/Helper (§4.24)
 - **Rule 19.105** (STT 66) — Thông báo cho người dùng không lộ tên bảng / cột / cấu hình nội bộ (§4.26)
 - **Rule 19.107** (STT 67) — Cấm tự ý sửa tệp resource Backend (`Resources/*.json`) (§4.27)
+- **Rule 19.108** (STT 68) — Cấm hardcode đường dẫn tuyệt đối của máy cá nhân (§4.28)
+- **Rule 19.109** (STT 69) — Bắt buộc viết test kiểm chứng cho cơ chế & nhật ký hoạt động mới (§4.29)
 
 ### 3. Testing Suite Protocol ([testing-rules_thienan.md](./testing-rules_thienan.md))
-> ⚠️ **Chỉ viết test mang giá trị (Rule 19.10, bổ sung 24/10/2026, §1.4):**
-> - Test đi qua điểm vào của một luồng nghiệp vụ (API qua `IMessageBus`; Worker như `DataOutboundService.ProcessSubscriptions`) và kiểm kết quả nghiệp vụ; ⛔ CẤM unit test gọi thẳng helper / static / validator / handler, kiểm hằng, kiểm DI, test trùng kịch bản.
+> ⚠️ **Chỉ viết test mang giá trị & Đi qua nguyên luồng nghiệp vụ (Rule 19.10, bổ sung 24/10/2026, 28/10/2026, §1.4):**
+> - Test bắt buộc đi qua toàn bộ luồng nghiệp vụ (End-to-End Business Flow) từ điểm vào chính thức (API qua `IMessageBus`; Worker như `DataOutboundService.ProcessSubscriptions` trích xuất -> ánh xạ -> ghi file thật xuống đĩa); ⛔ CẤM unit test gọi thẳng helper tĩnh (`ExportPathHelper.ResolveRootPath`), mock/fake ngữ cảnh giả lập (`CreateDummyContext`), kiểm hằng, kiểm DI, hoặc chỉ test hàm đơn lẻ không phản ánh luồng nghiệp vụ thật.
 > - Cùng luồng khác dữ liệu → một `[Theory]` + `[InlineData]` (FE: mảng dữ liệu + vòng `for`); ⛔ CẤM test FE chỉ đọc mã nguồn rồi so chuỗi.
 > - Tự hỏi: "Xóa test này thì lỗi nào lọt qua mà không test nào khác bắt?" — không trả lời được thì không viết.
 - **Rule 19.67** (STT 18) — Ưu tiên sửa code trước, chỉ viết test khi có yêu cầu (Fix-First & On-Demand cho cả FE & BE) (§1, §2.7, §3)
 - **Rule 19.81** (STT 39) — Kiểm thử NATS: Cách ly subject độc lập từng test & Retry Probe Loop (§2.6)
 - **Rule 19.84** (STT 43) — Tệp test bám đúng luồng nghiệp vụ chính, thêm vào tệp có sẵn (§5)
 - **Rule 19.92, Rule 51** (STT 51) — Chạy test theo phạm vi sửa để tiết kiệm thời gian (filter test) (§6)
+- **Rule 19.109** (STT 69) — Bắt buộc viết test cho thành phần / cơ chế bổ sung mới (§1.6)
 
 ### 4. Database & MCP Tooling ([database-mcp_thienan.md](./database-mcp_thienan.md))
 - **Rule 19.85** (STT 44) — Bảng có entity: CodeFirst khung trước; nạp data qua UI hoặc `.sql` (§2.3)

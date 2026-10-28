@@ -46,6 +46,8 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 	test('TC2 — E2E Tab cấp trên trong Bảng đăng ký (subscriptionTable.vue) và Modal Đăng ký chia sẻ (editSubscription.vue)', async ({ context, page }) => {
 		test.slow();
 		test.setTimeout(120_000);
+		const pageErrors: string[] = [];
+		page.on('pageerror', (err) => pageErrors.push(err.message));
 		const mockToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjQxMDI0NDQ4MDAsIm5hbWUiOiJhZG1pbiJ9.mock_signature';
 		await context.addCookies([{ name: 'token', value: mockToken, url: 'http://localhost:8888' }]);
 
@@ -286,6 +288,8 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 			expect(bottomDistance).toBeGreaterThanOrEqual(12);
 		}
 
+		// Khẳng định trang nạp sạch sẽ, không có bất kỳ SyntaxError hay lỗi biên dịch vue-i18n nào
+		expect(pageErrors.filter((e) => e.includes('SyntaxError') || e.includes('Invalid linked format'))).toEqual([]);
 		await page.screenshot({ path: 'test-results/snapshot-2-modal-edit-subscription-tabs.png', fullPage: false });
 	});
 });
