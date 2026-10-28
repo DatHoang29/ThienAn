@@ -131,5 +131,11 @@
         ]
       }
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "gortex",
+    "mssql_staging",
+    "mssql_dev",
+    "mssql_test"
+  ]
 }
