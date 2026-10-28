@@ -500,3 +500,9 @@ namespace Module.ShareData.Controllers
 * Thông báo chỉ nêu **điều người dùng cần biết và làm được** (vd *"Bảng {0} chưa có trong danh mục bảng nguồn được phép chia sẻ. Vui lòng liên hệ quản trị viên để bổ sung."*). Tên đối tượng do chính người dùng nhập (tham số `{0}`) thì được hiện.
 * Chi tiết kỹ thuật cho dev ghi vào log phía BE, không đưa vào thông báo. Khi sửa thông báo cũ vi phạm: đồng bộ `BaseMsg`, `vi-vn.json`, `en-us.json` và seed SQL `SysTerminology` (UPDATE có điều kiện theo Rule 20.29).
 
+### 4.27. Cấm tự ý sửa tệp resource Backend (Rule 19.107)
+
+* ⛔ **CẤM** tự ý thêm, sửa, xóa, format hoặc sắp xếp lại các tệp chuỗi resource của Backend (`src/TAC_WebAPI/Resources/*.json`, bao gồm `vi-VN.json`, `en-US.json`).
+* Giữ nguyên 100% nội dung resource hiện có. Không chạy các script/tool tự động sync/sort resource làm thay đổi working tree của dev ngoài yêu cầu.
+
+

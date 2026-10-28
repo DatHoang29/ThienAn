@@ -48,6 +48,7 @@ Mọi AI Agent **BẮT BUỘC** tuân thủ tuyệt đối các quy tắc cốt 
 | **64** | **Mỗi File `.sql` Chỉ Ghi Một Bảng** (Rule 19.103) | Một file `.sql` chỉ thêm / sửa / xóa trên đúng một bảng (bảng khác chỉ đọc); tên file mang hậu tố tên bảng `<phan-he>-<vai-tro>-<TênBảng>.sql`, giả lập `..._local.sql`. Đầu file ghi `BẢNG GHI`, `THỨ TỰ CHẠY`; kiểm tra bảng dùng `SET NOEXEC ON`. Chi tiết: [database-mcp_thienan.md](./database-mcp_thienan.md) §2.2. |
 | **65** | **Định Dạng Trả Về Nội Dung Commit (Copy-Paste Ready)** (Rule 19.104) | Khi được yêu cầu nội dung commit (`commit -m`): AI xuất khối văn bản thuần (`text`) riêng từng repo (BE/FE) gồm 2 dòng Summary lặp lại và 2-3 gạch đầu dòng chỉ nêu tính năng/việc chính đã làm (⛔ CẤM thêm mã rule hay việc phụ trợ). Chi tiết: [git-workflow_thienan.md](./git-workflow_thienan.md) §3. |
 | **66** | **Thông Báo Không Lộ Thông Tin Nhạy Cảm** (Rule 19.105) | ⛔ CẤM thông báo cho người dùng chứa tên bảng cấu hình / cột cờ / bảng CSDL / đường dẫn / chuỗi kết nối nội bộ (vd `ShareDataSourceTable`, `IsQueryable`). Chỉ nêu việc người dùng cần làm (vd liên hệ quản trị viên); chi tiết kỹ thuật ghi log. Chi tiết: [backend-dotnet_thienan.md](./backend-dotnet_thienan.md) §4.26. |
+| **67** | **Cấm Tự Ý Sửa Tệp Resource Backend** (Rule 19.107) | ⛔ CẤM tự ý thêm, sửa, xóa, format hoặc sort lại các tệp chuỗi resource của Backend (`src/TAC_WebAPI/Resources/*.json`, `vi-VN.json`, `en-US.json`). Giữ nguyên 100% nội dung resource hiện có. Chi tiết: [backend-dotnet_thienan.md](./backend-dotnet_thienan.md) §4.27. |
 
 ---
 
@@ -95,6 +96,7 @@ Quy tắc kỹ thuật chi tiết lưu giữ toàn văn tại các tệp chuyên
 - **Rule 19.90** (STT 49) — Chỗ đặt enum: Giữ enum cũ ở `BaseEnums`; phân hệ mới bọc ở Core (§4.22)
 - **Rule 19.94** (STT 53) — Ưu tiên thư viện có sẵn (Furion), hạn chế interface 1:1, phân cấp Base/Helper (§4.24)
 - **Rule 19.105** (STT 66) — Thông báo cho người dùng không lộ tên bảng / cột / cấu hình nội bộ (§4.26)
+- **Rule 19.107** (STT 67) — Cấm tự ý sửa tệp resource Backend (`Resources/*.json`) (§4.27)
 
 ### 3. Testing Suite Protocol ([testing-rules_thienan.md](./testing-rules_thienan.md))
 > ⚠️ **Chỉ viết test mang giá trị (Rule 19.10, bổ sung 24/10/2026, §1.4):**
