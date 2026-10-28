@@ -19,6 +19,14 @@ SET NOCOUNT ON;
 PRINT N'=============================================================================';
 PRINT N'BẮT ĐẦU KỊCH BẢN sharedata-seed-cau-hinh-SysOpConfig.sql';
 PRINT N'=============================================================================';
+GO
+
+IF OBJECT_ID(N'[dbo].[SysOpConfig]', N'U') IS NULL
+BEGIN
+    PRINT N'⚠️ Bảng [dbo].[SysOpConfig] chưa tồn tại (chưa chạy CodeFirst)! Bỏ qua kịch bản.';
+    SET NOEXEC ON;
+END;
+GO
 
 DECLARE @TenantIdOp NVARCHAR(64) = (SELECT TOP 1 CAST([TenantId] AS NVARCHAR(64)) FROM [dbo].[SysOpConfig] WHERE [TenantId] IS NOT NULL);
 IF @TenantIdOp IS NULL

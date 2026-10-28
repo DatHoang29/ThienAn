@@ -33,22 +33,6 @@ BEGIN
 END;
 GO
 
--- Bộ biến của câu SQL lưu ở cột VariablesJson (bỏ bảng ShareDataSqlVariable 27/10/2026)
-IF COL_LENGTH('dbo.ShareDataSql', 'VariablesJson') IS NULL
-BEGIN
-    ALTER TABLE [dbo].[ShareDataSql] ADD [VariablesJson] NVARCHAR(MAX) NULL;
-    PRINT N'   + Đã thêm cột [VariablesJson] vào [dbo].[ShareDataSql].';
-END;
-
-IF OBJECT_ID('dbo.ShareDataLastSend', 'U') IS NOT NULL
-   AND COL_LENGTH('dbo.ShareDataLastSend', 'LastKey') IS NOT NULL
-   AND COL_LENGTH('dbo.ShareDataLastSend', 'LastKey') < 512
-BEGIN
-    ALTER TABLE [dbo].[ShareDataLastSend] ALTER COLUMN [LastKey] NVARCHAR(256) NULL;
-    PRINT N'   + Đã nới độ dài cột [LastKey] của [dbo].[ShareDataLastSend] lên NVARCHAR(256).';
-END;
-GO
-
 -- -----------------------------------------------------------------------------------------
 -- 0.3 CHUYỂN CÂU SQL CŨ SANG BẢNG ShareDataSql (IDEMPOTENT)
 -- -----------------------------------------------------------------------------------------
@@ -56,12 +40,6 @@ GO
 -- câu SQL riêng của đối tác nằm ở bảng ShareDataPartnerSql. Chạy trước bước 1 để giữ câu SQL đã sửa, không bị câu mẫu ghi đè.
 -- CodeFirst mới không còn tạo các cột, bảng cũ nên chỉ chạy khi còn tồn tại và dùng SQL động để không lỗi biên dịch.
 PRINT N'-> 0.3. Chuyển câu SQL cũ (ShareDataPacket, ShareDataPartnerSql) sang bảng ShareDataSql...';
-
-IF OBJECT_ID('dbo.ShareDataSql', 'U') IS NULL
-BEGIN
-    PRINT N'⚠️ Bảng [dbo].[ShareDataSql] chưa tồn tại (chưa chạy CodeFirst)! Bỏ qua bước chuyển dữ liệu.';
-    RETURN;
-END;
 
 DECLARE @TenantIdMove NVARCHAR(64) = (SELECT TOP 1 CAST([TenantId] AS NVARCHAR(64)) FROM [dbo].[SysOpConfig] WHERE [TenantId] IS NOT NULL);
 IF @TenantIdMove IS NULL
@@ -749,39 +727,13 @@ END;
 PRINT N'   -> Đã chuyển đổi __rowid -> __lastKey: ' + CAST(@PartnerSqlRenamed AS NVARCHAR(10)) + N' câu SQL ở ShareDataSql.';
 PRINT N'   -> Đã chuyển câu SQL riêng cũ từ ShareDataMapping sang ShareDataSql: ' + CAST(@PartnerSqlMigrated AS NVARCHAR(10)) + N' dòng.';
 
-SET NOEXEC OFF;
 GO
 
 -- -----------------------------------------------------------------------------------------
 -- 6. KHỐI CÂU GHI CHIỀU NHẬN Ở DÒNG MẪU CHUNG (WriteSql, AffectedTables) — gộp từ bảng cũ ShareDataPacketSql
 -- -----------------------------------------------------------------------------------------
 -- Câu gửi (ExtractSql) và câu ghi chiều nhận (WriteSql) của gói nằm chung một dòng mẫu chung (PartnerId trống).
--- 6.1 Thêm cột khi CodeFirst chưa chạy (cột mới phải có trước batch dùng tới nên tách GO).
 PRINT N'-> 6. Gộp khối câu ghi chiều nhận vào dòng mẫu chung ShareDataSql...';
-
-IF OBJECT_ID(N'[dbo].[ShareDataSql]', N'U') IS NULL
-BEGIN
-    PRINT N'⚠️ Bảng [dbo].[ShareDataSql] chưa tồn tại (chưa chạy CodeFirst)! Bỏ qua nạp câu ghi chiều nhận.';
-    SET NOEXEC ON;
-END;
-GO
-
-IF COL_LENGTH('dbo.ShareDataSql', 'WriteSql') IS NULL
-BEGIN
-    ALTER TABLE [dbo].[ShareDataSql] ADD [WriteSql] NVARCHAR(MAX) NULL;
-    PRINT N'   + Đã thêm cột [WriteSql] vào [dbo].[ShareDataSql].';
-END;
-IF COL_LENGTH('dbo.ShareDataSql', 'AffectedTables') IS NULL
-BEGIN
-    ALTER TABLE [dbo].[ShareDataSql] ADD [AffectedTables] NVARCHAR(1024) NULL;
-    PRINT N'   + Đã thêm cột [AffectedTables] vào [dbo].[ShareDataSql].';
-END;
-IF COL_LENGTH('dbo.ShareDataSql', 'WriteRemark') IS NULL
-BEGIN
-    ALTER TABLE [dbo].[ShareDataSql] ADD [WriteRemark] NVARCHAR(256) NULL;
-    PRINT N'   + Đã thêm cột [WriteRemark] vào [dbo].[ShareDataSql].';
-END;
-GO
 
 -- 6.2 Chuyển câu ghi đang dùng ở bảng cũ ShareDataPacketSql (nếu còn) sang dòng mẫu chung; chạy trước 6.3 để giữ câu ghi đã sửa tay.
 --     Bảng cũ có thể nhiều dòng một gói (OrderNo): nối theo OrderNo thành một khối. Chỉ ghi vào dòng chưa có câu ghi.

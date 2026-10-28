@@ -41,7 +41,7 @@ description: Backend .NET standards, Wolverine bus, SqlSugar ORM, Clean Architec
   - VDS/TMS để quy tắc thuần trong Core (`Modules.VDS.Core/Topology`, `Media`, `Modules.TMS.Core/Validators`).
   - CCTV, FMS, WP dùng một project có thư mục `Core/` bên trong (mẫu cũ của `.kiro/steering`); CfgSystem có cả project `Modules.CfgSystem.Core` lẫn thư mục `Core/` trong `Modules.CfgSystem`.
   - Tên project lẫn `Module.*` / `Modules.*`; service lẫn `ITS.<X>.*` / `Services.<X>.*` / `ShareDataWorker`.
-  - ShareData để bộ tiện ích có logic dùng chung giữa WebAPI và Worker trong Core (`Module.ShareData.Core/Helpers`: `SqlValidator`, `SqlParameterBuilder`, `ConfigValueParser`) vì Worker chỉ tham chiếu Core; giữ nguyên tới khi có task tách project riêng.
+  - ShareData để bộ tiện ích có logic dùng chung giữa WebAPI và Worker trong Core (`Module.ShareData.Core/Helpers`: `SqlValidatorHelper`, `SqlParameterHelper`, `ConfigValueParser`) vì Worker chỉ tham chiếu Core; giữ nguyên tới khi có task tách project riêng.
 
 ### 1.5. Tạo Module Mới (tích hợp từ Kiro BE, 20/10/2026)
 * **Tên project & namespace**: `Modules.<TênModule>` (`Modules.TMS`, `Modules.VMS`); phần báo cáo `Modules.<TênModule>.Report`; namespace theo tên project (`namespace Modules.TMS.Controllers.Equipment`). Tên lệch đã có (`Module.CCTV`, `Module.ShareData`) giữ nguyên (§1.4).
@@ -236,7 +236,7 @@ namespace Module.ShareData.Controllers
       - Ví dụ chuẩn:
         ```csharp
         // CHUẨN:
-        var parameters = SqlParameterBuilder.BuildParameters(
+        var parameters = SqlParameterHelper.BuildParameters(
             lastTime: isSnapshot ? null : (command.FromTime ?? fromDate),
             lastKey: string.Empty,
             pageSize: safeTop,
@@ -245,7 +245,7 @@ namespace Module.ShareData.Controllers
         );
 
         // ❌ CẤM (dồn dòng sau dấu ngoặc mở):
-        var parameters = SqlParameterBuilder.BuildParameters( lastTime: isSnapshot ? null : (command.FromTime ?? fromDate),
+        var parameters = SqlParameterHelper.BuildParameters( lastTime: isSnapshot ? null : (command.FromTime ?? fromDate),
             lastKey: string.Empty, pageSize: safeTop, fromDate: fromDate, toDate: DateTime.Now );
         ```
 15. **Cấm Khai Báo Lại / Bí Danh Hằng Của Lớp Khác & Hàm Bọc Mỏng (Rule 19.78)**:
@@ -277,7 +277,7 @@ namespace Module.ShareData.Controllers
       (c) Rút gọn biểu thức dài bằng biến cục bộ trong thân hàm (không phải field/method của lớp).
     - Cách kiểm tra trước khi bàn giao: `find_usages` trên mỗi field/hằng/hàm mới thêm; thành phần chỉ chuyển tiếp sang lớp khác và không có lý do (a)-(c) thì xóa.
     - Liên quan Rule 19.68 (xóa mã không dùng) và 19.33 (không dựng lại tính năng có sẵn).
-16. **Cấm Tham Chiếu Prompt / Phiên AI Trong Comment, Tên Hàm Và Mô Tả Test (Rule 19.80)**:
+16. **Cấm Tham Chiếu Prompt / Phiên AI & Cấm Ghi Nhật Ký Thao Tác / Đổi Tên Trong Comment (Rule 19.80, bổ sung 28/10/2026)**:
     - ⛔ **TUYỆT ĐỐI CẤM** ghi vào comment (XML doc `///`, `//`, `/* */`), mô tả test (`[Fact]`, `Description:`), chú thích SQL hoặc tên hàm/biến các tham chiếu tới prompt, phiên AI hay số thứ tự yêu cầu giao cho AI.
     - Lý do: người đọc mã không có prompt đó, tham chiếu mất nghĩa và gây hiểu nhầm; mã phải tự giải thích.
       ```csharp
@@ -289,9 +289,21 @@ namespace Module.ShareData.Controllers
       // CHUẨN (nêu lý do/hành vi, cần truy nguồn thì dùng mã hạng mục):
       // Chuẩn bị payload một lần theo định dạng, rồi lưu bằng chứng và gửi đúng bộ byte đó (R18)
       ```
+    - **Cấm ghi nhật ký thao tác sửa đổi, đổi tên (Changelog / Rename Log) trong Comment/XML Doc**:
+      - `/// Modified date: DD/MM/YYYY` (CHỈ ghi ngày tháng chuẩn, ⛔ **TUYỆT ĐỐI CẤM** mở ngoặc giải thích thao tác code hay lý do đổi tên, ví dụ: `(Đổi tên thành ...)`, `(Gom ... vào ...)`, `(Sửa theo Rule ...)`).
+      - Lý do: Git version control (`git log`, `git blame`, `git diff`) là nguồn duy nhất quản lý toàn bộ lịch sử chỉnh sửa mã nguồn. Comment và XML doc chỉ giải thích mục đích nghiệp vụ, hợp đồng kỹ thuật và hành vi hiện tại của mã nguồn; không biến comment thành nơi ghi nhật ký thao tác code cá nhân làm rác mã nguồn.
+      ```csharp
+      // ❌ CẤM:
+      /// Modified date: 28/10/2026 (Đổi tên thành SqlParameterHelper)
+      /// Modified date: 28/10/2026 (Gom SqlValidationErrorHelper và đổi tên thành SqlValidatorHelper)
+      /// Modified date: 20/10/2026 (Đổi tên theo Rule 19.73 tránh lặp tiền tố)
+
+      // ✅ CHUẨN:
+      /// Modified date: 28/10/2026
+      ```
     - Cách đúng: mô tả lý do hoặc hành vi bằng lời; cần truy nguồn thì dùng mã hạng mục bền vững trong Master Plan (`R*`, `DQ-*`, `SV-*`, `BE-*`) hoặc ngày quyết định kèm link transcript; test mô tả hành vi mong đợi, không dẫn "kỳ vọng trong prompt".
     - Phạm vi: C#, Vue/TS (kể cả test Playwright), SQL và tài liệu kỹ thuật trong repo. Ngoại lệ duy nhất: thư mục `Prompt/` (nơi lưu chính các prompt).
-    - Kiểm trước khi bàn giao: tìm `(?i)prompt\s*#?\d*|theo prompt` trong các file đã sửa; trong comment và mô tả phải không còn kết quả.
+    - Kiểm trước khi bàn giao: tìm `(?i)prompt\s*#?\d*|theo prompt` và các ghi chú `(Đổi tên thành` trong các file đã sửa; trong comment và mô tả phải không còn kết quả.
     - Liên quan Rule 19.74 (chỉ báo cáo thay đổi thực tế).
 17. **Khai Báo Field & Kiểu Lồng Luôn Đặt Ở Đầu Lớp & Cấm Mở Hàm `Reset*` Chỉ Phục Vụ Test (Rule 19.47, Rule 19.83)**:
     - **Vị trí khai báo Field**: Mọi khai báo hằng và biến thành viên (`const`, `static readonly`, `readonly`, field) **BẮT BUỘC đặt ở ĐẦU thân lớp**, phía trước tất cả các phương thức (hoặc tại tệp khai báo field chung của `partial class`), kèm XML doc chuẩn dự án. ⛔ **TUYỆT ĐỐI CẤM** đặt khai báo field chen giữa các phương thức hoặc ở cuối lớp.
@@ -317,7 +329,7 @@ namespace Module.ShareData.Controllers
     - **Phụ thuộc là bắt buộc**: ⛔ **CẤM** khai phụ thuộc tùy chọn `IXxx? x = null` rồi viết nhánh `x != null ? ... : mặc định` ở nơi dùng. Giá trị mặc định/dự phòng đặt **một chỗ duy nhất** bên trong chính lớp cung cấp (ví dụ `DataWorkerConfigService`, `ShareDataConfigService` tự trả mặc định khi DB trống/sai).
     - **Mỗi lớp tự tiêm thứ nó dùng**: ⛔ **CẤM** tiêm ở lớp gọi rồi truyền giá trị cấu hình/phụ thuộc xuống làm tham số hàm chỉ để lớp dưới khỏi tiêm (ví dụ Worker đọc tham số rồi truyền `opt` xuống service). Trong một lượt xử lý, hàm điểm vào đọc cấu hình **một lần** rồi truyền cho hàm private/con của chính lớp đó.
     - **Tiêm bằng lớp cụ thể** (Rule 19.94): service, process, lớp đọc cấu hình tiêm thẳng bằng tên lớp. Chỉ tiêm bằng interface khi kiểu đó được phép có interface theo Rule 19.94 (thư viện bắt buộc hoặc plugin nạp lúc chạy); nhiều cách làm sẵn trong mã thì lớp điều phối nhận thẳng các lớp cụ thể (ví dụ `DeliveryDispatcher` nhận 4 lớp gửi). **Đăng ký DI đúng một lần** ở một chỗ (marker Furion trên chính lớp; host chưa bật Furion thì `Extensions` của phân hệ); ⛔ cấm đăng ký trùng (tạo hai bản Singleton, hai bộ đệm). Vòng đời: bộ đệm/cấu hình dùng chung → `Singleton`; truy cập CSDL theo yêu cầu → `Scoped`/`IScoped`.
-    - **Ngoại lệ không cần DI**: lớp tĩnh thuần tính toán không trạng thái, không I/O (ví dụ `SqlValidator`, hằng số, hàm định dạng), DTO/record/entity. Test lấy lớp thật từ `host.Services` (Rule 19.18), không tự `new` lớp có phụ thuộc.
+    - **Ngoại lệ không cần DI**: lớp tĩnh thuần tính toán không trạng thái, không I/O (ví dụ `SqlValidatorHelper`, hằng số, hàm định dạng), DTO/record/entity. Test lấy lớp thật từ `host.Services` (Rule 19.18), không tự `new` lớp có phụ thuộc.
 19. **Đặt Tên Bằng Từ Thông Dụng, Dễ Hiểu — Thuật Ngữ Chuyên Biệt Chỉ Dùng Khi Không Còn Cách Khác (Rule 19.87, bổ sung 18/10/2026)**:
     - Tên lớp, hàm, biến, hằng, tên test (C# và TS/Vue) **BẮT BUỘC dùng từ thông dụng nói đúng việc làm**: động từ hành động rõ (`Get`, `Update`, `Advance`, `Mark`, `Take`, `Send`, `Check`) + đối tượng nghiệp vụ (ví dụ `AdvanceTableVersions` thay vì `ClaimTrackedTables`; `markedCount` thay vì `claimed`).
     - ⛔ **CẤM** dùng thuật ngữ chuyên biệt hoặc tiếng lóng kỹ thuật khi đã có từ thông dụng thay được: `claim`, `lease`, `tombstone`, `hydrate`, `fan-out`, `seam`, `upsert`... Chỉ dùng khi đó là **tên chuẩn của C#/.NET/thư viện đang dùng** (ví dụ `Claim`, `ClaimsPrincipal`, `ClaimTypes` của ASP.NET Identity; `Lock`, `Semaphore`; `Merge` khi nói đúng câu lệnh SQL `MERGE`) hoặc thật sự không có từ nào khác diễn đạt được; khi dùng thì XML doc phải giải thích bằng tiếng Việt.
@@ -458,16 +470,16 @@ namespace Module.ShareData.Controllers
       - **`BaseHelper` chi tiết**: `FileHp.FileMimeHelper.GetByExtension/FormatUrlForStorage/FormatUrlForWeb`, `FileHp.OpenReadWithRetry/DeleteWithRetry/MoveReplaceWithRetry`; `NetworkHp.CheckConnect(ip, timeout)`; `ImageHp.ToBase64FromUrl`; `ExcelHp.ExportList/ExportByTemplate`; `RetryHp.RetryOnException(lần, khoảng, hàm)`; `EChartHp.GetListDay/GetListHour`; hàm mở rộng `dictionary.GetDictionaryValue<T>(key)`, `enumValue.GetEnumDescription()`. ⛔ Không tự viết lại các tiện ích này.
     - **Tiện ích trong phân hệ** (theo cách các phân hệ khác đang viết, khảo sát 19/10/2026):
       - Thư mục tên `Helpers/` (13 thư mục; `Helper/` số ít chỉ còn CCTV, VideoWall; `Utils/` chỉ có ở ShareData). ⛔ Không tạo `Utils/`, `Helper/`, `Common/`; ⛔ không chia thư mục con trong `Helpers/` (chưa phân hệ nào làm).
-      - Chỗ đặt theo loại project: Module → `Modules.<X>/Infrastructure/Helpers/` (`VmsStatGroupHelper`, `MediaHelper`); project Report → `Core/Helpers/` trong project Report; thư viện Integration → `.Base/Helpers/` (`IntgBarrierNetHelper`, `IntgTrafficLightNetHelper`) hoặc `Infrastructure/Helpers/` của project cài đặt (`IntgVmsStatHelper`); Service → `Helpers/` trong thư viện lõi (`ITS.VMS.Core/Integration/Helpers/VmsFileHelper`). Tiện ích mà cả WebAPI lẫn Service của cùng phân hệ dùng, khi Service chỉ tham chiếu `Modules.<X>.Core`, đặt ở `Modules.<X>.Core/Helpers/` (`Module.ShareData.Core/Helpers/SqlValidator`, `SqlParameterBuilder`, `ConfigValueParser`) — ngoại lệ duy nhất cho phép logic trong Core (§1.2).
+      - Chỗ đặt theo loại project: Module → `Modules.<X>/Infrastructure/Helpers/` (`VmsStatGroupHelper`, `MediaHelper`); project Report → `Core/Helpers/` trong project Report; thư viện Integration → `.Base/Helpers/` (`IntgBarrierNetHelper`, `IntgTrafficLightNetHelper`) hoặc `Infrastructure/Helpers/` của project cài đặt (`IntgVmsStatHelper`); Service → `Helpers/` trong thư viện lõi (`ITS.VMS.Core/Integration/Helpers/VmsFileHelper`). Tiện ích mà cả WebAPI lẫn Service của cùng phân hệ dùng, khi Service chỉ tham chiếu `Modules.<X>.Core`, đặt ở `Modules.<X>.Core/Helpers/` (`Module.ShareData.Core/Helpers/SqlValidatorHelper`, `SqlParameterHelper`, `ConfigValueParser`) — ngoại lệ duy nhất cho phép logic trong Core (§1.2).
       - Lớp: `public static class <TiềnTố><ChủĐề>Helper` (`IntgBarrierAddressHelper`, `VmsStatGroupHelper`, `VwGeometryHelper`); tiện ích chung của cả phân hệ đặt `<PhânHệ>Helper` (`MediaHelper`). ⛔ Không dùng hậu tố `Util` — `Util` chỉ dành cho `Shared.Utility.Utilities` (gọi máy chủ qua `BaseUtil`). Tên đã có không tiền tố (`PacketHelper`, `MoneyHelper`) giữ nguyên (Rule 19.89).
-      - Lớp có vai trò rõ giữ tên vai trò (`...Validator`, `...Parser`, `...Builder`, `...Reader`) và đặt cạnh chức năng dùng nó (`Modules.VDS/Infrastructure/Services/TrafficData/Sql/VolumeQueryBuilder`, `DataTransporter.Natsio/Infrastructure/Configuration/NatsConfigParser`, `Services.Vds/Features/Counting/CountChartBuilder`); chỉ đưa vào `Helpers/` khi từ 2 chức năng trở lên cùng dùng (`Delivery.Base/Helpers/ConnectConfigValidator`).
+      - **Quy chuẩn lớp trong `Helpers/` BẮT BUỘC mang hậu tố `Helper`**: Mọi lớp tiện ích khi đã nằm trong thư mục `Helpers/` **BẮT BUỘC mang hậu tố `Helper`** (ví dụ `<ChủĐề>Helper`: `SqlParameterHelper`, `SqlFieldHelper`, `SqlTextHelper`, `SqlValidatorHelper`) để đồng nhất với các lớp khác trong cùng thư mục `Helpers/`. Các lớp giữ tên vai trò chuyên biệt (`...Validator`, `...Parser`, `...Builder`, `...Reader`) chỉ đặt tên trần khi nằm trực tiếp cạnh chức năng dùng nó trong thư mục Service/Process (`Modules.VDS/Infrastructure/Services/TrafficData/Sql/VolumeQueryBuilder`, `DataTransporter.Natsio/Infrastructure/Configuration/NatsConfigParser`, `Services.Vds/Features/Counting/CountChartBuilder`); một khi đã gom vào thư mục `Helpers/` thì bắt buộc mang hậu tố `Helper`.
       - Hàm mở rộng (`this T`) viết mới cho một kiểu đặt trong lớp `<Kiểu>Extensions` (`ConnectionTypeExtensions`, `BarrierCommandTypeExtensions`, `ResultExtensions`); hàm mở rộng đã nằm trong lớp Helper thì giữ nguyên.
       - **Chỗ đặt (bổ sung 20/10/2026, khảo sát `src/Modules`)**: thư mục `Extensions/` của project chỉ chứa lớp đăng ký DI/module — `ModuleExtensions` (`Add<X>Module`), `ServiceCollectionExtensions`, `MvcBuilderExtensions` (tiền lệ: `DataTransporter.Base/Extensions/`, mọi module). Lớp `<Kiểu>Extensions` của enum/model đặt **cạnh kiểu đó**, cùng thư mục và namespace (tiền lệ: `Integration.Barrier.Base/Enums/BarrierEnums.cs` chứa `BarrierCommandTypeExtensions`). Lớp `<Kiểu>Extensions` chỉ chứa hàm mở rộng; ⛔ không đặt hằng/giá trị mặc định trong đó (hằng vào `Constants/`). Thư viện dùng chung `Shared.*` giữ bố cục riêng (`Shared.DTO/Extensions/ResultExtensions`). Mã cũ của người khác lệch (`Report.Core/Extensions/RptInfoConfigExtensions`) giữ nguyên (Rule 19.89).
       - Tiện ích chung cho nhiều phân hệ đưa vào `Shared.Utility/Helpers` + `BaseHelper`, không để trong phân hệ.
     - **Thông điệp lỗi & `BaseMsg`** — đúng là `BaseMsg : BaseLocaleManager` của module; sai là lớp exception tự tạo như `Delivery.Base/Exceptions/DecryptFailedException` (buổi trao đổi chỉ ra):
       1. **Kiểm `BaseLocaleManager` trước** (`Shared.DTO/Constants/Localization/BaseLocaleManager.cs`): đã có sẵn các nhóm dùng chung `BaseException` (`Exist`, `NotFound`, `DataNotExist`, `DataIsInUse`, `IllegalOperation`…), `BaseValidation` (`Required`, `MaxLength`, `GreaterThanOrEqual`…), `BaseEntity` (`Code`, `Name`, `Status`…), `BaseMessage`. Khóa đã có thì dùng qua `BaseMsg.BaseException.*`, `BaseMsg.BaseValidation.*`, `BaseMsg.BaseEntity.*`; ⛔ không khai lại.
       2. Chưa có thì thêm vào `BaseMsg` của module hoặc thư viện (`Exceptions/BaseMsg.cs` ở Core; lớp con theo chức năng; tiền tố `lz.{message|validation|exception|entity}.<camelCase>.`), kèm seed `SysTerminology` vi-VN + en-US (Rule 19.69).
-      3. Lỗi nghiệp vụ ở WebAPI: `throw Oops.Oh(BaseMsg..., args)`; ⛔ chuỗi viết cứng, kể cả chuỗi dự phòng `?? "..."`. Thông điệp trả về FE trong DTO (`ErrorMessage`…) cũng dịch theo khóa: `Furion.Localization.L.Text[khóa, tham số].Value`. Helper dùng chung WebAPI + Service trả **khóa + tham số**; câu dịch sẵn trong helper (như `SqlValidator.FormatVietnamese`) chỉ để Service ghi nhật ký, ⛔ WebAPI không ném hay trả câu đó.
+      3. Lỗi nghiệp vụ ở WebAPI: `throw Oops.Oh(BaseMsg..., args)`; ⛔ chuỗi viết cứng, kể cả chuỗi dự phòng `?? "..."`. Thông điệp trả về FE trong DTO (`ErrorMessage`…) cũng dịch theo khóa: `Furion.Localization.L.Text[khóa, tham số].Value`. Helper dùng chung WebAPI + Service trả **khóa + tham số**; câu dịch sẵn trong helper (như `SqlValidatorHelper.FormatVietnamese`) chỉ để Service ghi nhật ký, ⛔ WebAPI không ném hay trả câu đó.
       4. Service được có **một** ngoại lệ cấp phân hệ mang mã lỗi (ShareData: `ShareDataException` mang mã ESH ở `ShareDataWorker.Core/Exceptions`); ⛔ không tạo thêm lớp exception theo chức năng.
       5. **Thông điệp do Service ghi (thư viện chưa hỗ trợ)**: Service chưa có bộ dịch `SysTerminology`, còn giao diện hiển thị nguyên văn cột thông điệp của nhật ký (ShareData: `ShareDataAlertLog`, `ShareDataActivityLog`) → ⛔ không ghi khóa `lz.*` vào nhật ký; dùng mã lỗi cấp phân hệ hoặc ngoại lệ có sẵn của .NET (`InvalidOperationException`, `CryptographicException`…). Thư viện chỉ chạy trong Service (ví dụ phần cài đặt `Modules.Integration.Delivery`) theo cách này; thư viện được WebAPI gọi thì trả mã/enum để WebAPI quy ra `BaseMsg` (ví dụ `ConnectConfigIssue` → `PartnerValidator`).
     - **Đặt tên & dữ liệu dùng chung**: Entity bắt đầu bằng tiền tố module (`Tms...`, `Vms...`), không thêm hậu tố `Entity` ("search tiền tố là nó sẽ ra"); kiểu khác giữ hậu tố vai trò ("mấy cái này là phải có cái đuôi": `...Service`, `...Helper`, `...Handler`, `...Validator`, `...Input`/`...Output`). Entity/DTO dùng chung cho nhiều module BẮT BUỘC đặt ở `Shared/Core.Entities` hoặc `Shared.DTO`.

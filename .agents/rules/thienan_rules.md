@@ -39,7 +39,7 @@ Mọi AI Agent **BẮT BUỘC** tuân thủ tuyệt đối các quy tắc cốt 
 | **24** | **Tự Động Phân Luồng Subagents & Xử Lý Tuần Tự Task Lệ Thuộc** (Rule 19.70) | Prompt có từ 2 task hoặc nhiều message liên tiếp: tự động kích hoạt subagents. Task độc lập chạy song song; task lệ thuộc BẮT BUỘC chạy tuần tự (Sequential Chain). |
 | **30** | **Chỉ Báo Cáo Thay Đổi Thực Tế** (Rule 19.74) | Báo cáo/portal chỉ ghi kết quả thực tế đã làm hoặc thành phần đã tồn tại bị xóa. ⛔ CẤM ghi xóa thành phần chưa từng tồn tại. Chi tiết: [documentation-standards_thienan.md](./documentation-standards_thienan.md) §9. |
 | **34** | **Cấm Tự Ý Sửa Dữ Liệu, Chỉ Số Ngoài Yêu Cầu** (Rule 19.76) | ⛔ CẤM tự ý sửa, ghi đè hoặc revert dữ liệu, chỉ số, ngày công (man-days), điểm số, cấu hình ngoài phạm vi yêu cầu. Giữ nguyên 100% dữ liệu đã nhập. |
-| **38** | **Cấm Tham Chiếu Prompt / Phiên AI Trong Mã Nguồn** (Rule 19.80) | ⛔ CẤM ghi tên file prompt, mã prompt, định danh phiên AI vào comment, docstring, tên hàm, commit message, mô tả test. Chi tiết: [backend-dotnet_thienan.md](./backend-dotnet_thienan.md) §4.16. |
+| **38** | **Cấm Tham Chiếu Prompt & Ghi Changelog Đổi Tên Trong Mã** (Rule 19.80) | ⛔ CẤM ghi tên file prompt, định danh AI, hoặc nhật ký đổi tên/sửa code (vd `Modified date: ... (Đổi tên...)`) vào comment, docstring, commit. `Modified date` chỉ ghi ngày tháng; lịch sử do Git quản lý. Chi tiết: [backend-dotnet_thienan.md](./backend-dotnet_thienan.md) §4.16. |
 | **48** | **Giữ Nguyên Dòng Cũ Khi Nội Dung Không Đổi** (Rule 19.89) | Minimal Diff: giữ nguyên 100% dòng cũ khi logic không đổi. Format/ngắt dòng chỉ áp dụng cho dòng code mới viết hoặc sửa đổi trực tiếp. Chi tiết: [backend-dotnet_thienan.md](./backend-dotnet_thienan.md) §4.21. |
 | **58** | **Cấm Commit Tệp Cấu Hình Local & Bí Mật** (Rule 19.100) | ⛔ CẤM stage, commit, push file cấu hình local và bí mật: `.env.development`, `.env.local`, `Database.json`, `TAKey*.key`, `Shared.Core.Security.dll`. Chi tiết: [git-workflow_thienan.md](./git-workflow_thienan.md) §4.6. |
 | **61** | **Tách Locale Phân Hệ & Thoát '@' Trong i18n** (Rule 20.29) | Tách locale riêng `its/<module>/`; tự động nạp qua `import.meta.glob` (cấm import thủ công từng file); ⛔ CẤM `@` trần đi liền tên biến (bắt buộc `{'@'}`); seed SQL cập nhật có điều kiện `WHERE Value = N'<cũ>'`. Chi tiết: [frontend-vue_thienan.md](./frontend-vue_thienan.md) §5. |
@@ -86,6 +86,7 @@ Quy tắc kỹ thuật chi tiết lưu giữ toàn văn tại các tệp chuyên
 - **Rule 19.73, Rule 19.94** (STT 29) — Tránh lặp tiền tố phân hệ, lớp vai trò cấm hậu tố `Service` (§4.13, §4.24)
 - **Rule 19.75** (STT 33) — Quy chuẩn ngắt dòng khi gọi hàm/phương thức nhiều tham số (§4.14)
 - **Rule 19.78** (STT 36) — Cấm bí danh thừa & hàm bọc mỏng chỉ chuyển tiếp (§4.15)
+- **Rule 19.80** (STT 38) — Cấm tham chiếu prompt & cấm ghi changelog/đổi tên trong comment (§4.16)
 - **Rule 19.47, Rule 19.83** (STT 42) — Khai báo field đầu lớp; cấm tạo hàm `Reset*` chỉ phục vụ test (§4.17)
 - **Rule 19.86** (STT 45) — Ưu tiên Dependency Injection qua hàm khởi tạo (§4.18)
 - **Rule 19.87** (STT 46) — Đặt tên bằng từ thông dụng; thuật ngữ chuyên biệt chỉ dùng khi bắt buộc (§4.19)

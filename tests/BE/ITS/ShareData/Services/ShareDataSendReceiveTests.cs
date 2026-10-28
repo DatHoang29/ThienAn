@@ -876,7 +876,7 @@ namespace Tests.ShareData.Services
                 Status = BaseEnums.StatusEnum.Enable,
             };
             await _db.Insertable(packet).ExecuteCommandAsync();
-            await ShareDataSqlSeed.SetCommonAsync(_db, packet.ID, extractSql, SqlValidator.IsIncrementalSql(extractSql) ? "UpdateTime" : null);
+            await ShareDataSqlSeed.SetCommonAsync(_db, packet.ID, extractSql, SqlValidatorHelper.IsIncrementalSql(extractSql) ? "UpdateTime" : null);
 
             // Outbound Subscription & Mapping
             var outboundSub = new ShareDataSubscription

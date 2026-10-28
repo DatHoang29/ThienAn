@@ -14,6 +14,7 @@ internal static class SeedScriptReader
     private const string SourceTableSeedFile = "sharedata-seed-cau-hinh-ShareDataSourceTable.sql";
 
     private static readonly Lazy<Dictionary<string, SeedPacketInfo>> Cache = new(LoadAllInternal);
+    private static readonly Lazy<IReadOnlyList<SeedWriteSqlInfo>> WriteSqlStatementsCache = new(LoadWriteSqlStatementsInternal);
 
     /// <summary>
     /// Thông tin gói tin được trích xuất từ kịch bản seed SQL.
@@ -209,8 +210,6 @@ internal static class SeedScriptReader
 
         return list;
     }
-
-    private static readonly Lazy<IReadOnlyList<SeedWriteSqlInfo>> WriteSqlStatementsCache = new(LoadWriteSqlStatementsInternal);
 
     /// <summary>
     /// Description: Đọc danh sách 18 câu ghi chiều nhận từ kịch bản seed 02.

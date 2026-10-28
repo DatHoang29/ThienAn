@@ -21,6 +21,7 @@ using Shared.Infrastructure.Persistence.SqlSugar;
 using Xunit;
 using Module.ShareData.Core.Dto.Mapping;
 using Module.ShareData.Core.Constants;
+using Modules.TMS.Core.Entities;
 
 namespace Tests.ShareData.Controllers;
 
@@ -35,6 +36,39 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
 {
     private readonly Host _host = host;
     private readonly IHttpContextAccessor _httpContextAccessor = host.Services.GetRequiredService<IHttpContextAccessor>();
+
+    /// <summary>Câu MERGE hợp lệ ghi vào bảng ShareDataInboundPacket của CSDL nhận test (khoá id).</summary>
+    private const string ValidWriteSql = """
+        MERGE dbo.ShareDataInboundPacket WITH (HOLDLOCK) AS t
+        USING (
+            SELECT id, MAX(code) AS code
+            FROM OPENJSON(@records) WITH (id nvarchar(64), code nvarchar(64))
+            WHERE id IS NOT NULL
+            GROUP BY id
+        ) AS s
+           ON t.ID = s.id
+        WHEN MATCHED THEN
+            UPDATE SET t.PacketCode = s.code
+        WHEN NOT MATCHED THEN
+            INSERT (ID, PartnerCode, PacketCode) VALUES (s.id, 'TRY_WRITE', s.code)
+        OUTPUT $action;
+        """;
+
+    private const string SecondTableWriteSql = """
+        MERGE dbo.TmsZone WITH (HOLDLOCK) AS t
+        USING (
+            SELECT zoneId, MAX(zoneName) AS zoneName
+            FROM OPENJSON(@records) WITH (zoneId nvarchar(64), zoneName nvarchar(255))
+            WHERE zoneId IS NOT NULL
+            GROUP BY zoneId
+        ) AS s
+           ON t.ID = s.zoneId
+        WHEN MATCHED THEN
+            UPDATE SET t.Name = s.zoneName
+        WHEN NOT MATCHED THEN
+            INSERT (ID, Name) VALUES (s.zoneId, s.zoneName)
+        OUTPUT $action;
+        """;
 
     public async Task InitializeAsync()
     {
@@ -380,7 +414,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     public void ShareDataSqlValidator_Rejects_DangerousOrMultiStatementQueries(string unsafeSql)
     {
         // Act
-        var (isValid, errorMsg) = SqlValidator.Validate(unsafeSql);
+        var (isValid, errorMsg) = SqlValidatorHelper.Validate(unsafeSql);
 
         // Assert
         Assert.False(isValid);
@@ -750,7 +784,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     public void Validate_When3PartTableNameOrSysTableOrPartnerTable_FailsValidation_Test(string sql)
     {
         // RV-7: Chặn CSDL khác và bảng chứa bí mật
-        var (isValid, errorMsg) = SqlValidator.Validate(sql);
+        var (isValid, errorMsg) = SqlValidatorHelper.Validate(sql);
         Assert.False(isValid);
         Assert.NotNull(errorMsg);
     }
@@ -1552,8 +1586,8 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         Assert.NotNull(output);
         Assert.True(output.IsCustom);
         string[] cursorNames = ["lastTime", "lastKey"];
-        Assert.True(SqlValidator.IsIncrementalSql(output.CustomSql, cursorNames));
-        Assert.False(SqlValidator.IsIncrementalSql(output.StandardSql, cursorNames));
+        Assert.True(SqlValidatorHelper.IsIncrementalSql(output.CustomSql, cursorNames));
+        Assert.False(SqlValidatorHelper.IsIncrementalSql(output.StandardSql, cursorNames));
 
         var inDb = await db.Queryable<ShareDataSql>().Where(s => s.PartnerId == partner.ID && s.PacketId == packet.ID).FirstAsync();
         Assert.NotNull(inDb);
@@ -1951,6 +1985,175 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         }
     }
 
+    /// <summary>
+    /// Description: Truy vấn nối đuôi gộp 1 cột (@lastKey đơn lẻ, không khai @lastTime) ở cả mẫu chung và SQL riêng đối tác:
+    ///              chấp nhận AS __lastKey kèm ORDER BY bí danh hoặc đúng biểu thức gộp ASC và loại __lastKey khỏi Fields;
+    ///              từ chối khi thiếu AS __lastKey, thiếu ORDER BY, ORDER BY DESC hoặc ORDER BY khác biểu thức __lastKey.
+    /// Created date: 27/10/2026
+    /// </summary>
+    [Theory]
+    [InlineData("common", "alias-asc", true)]
+    [InlineData("common", "expr-asc", true)]
+    [InlineData("partner", "alias-asc", true)]
+    [InlineData("common", "missing-alias", false)]
+    [InlineData("common", "missing-orderby", false)]
+    [InlineData("common", "orderby-desc", false)]
+    [InlineData("partner", "orderby-other-col", false)]
+    public async Task SaveExtractSql_WhenCompositeLastKeyWithoutLastTime_EnforcesSingleCursorContract_Test(
+        string sqlScope,
+        string variant,
+        bool expectSaved)
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (packet, partner) = await SeedSqlVariablePacketAsync(db, unique);
+        await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
+        {
+            PacketCode = packet.Code!,
+            Items = [BuiltinVar("lastKey", ShareDataConst.SqlVariableTypeString, ShareDataConst.SqlVariableSourceLastKey)]
+        });
+
+        const string compositeExpr = "CONVERT(varchar(23), CreateTime, 121) + '_' + ID";
+        var sql = variant switch
+        {
+            "alias-asc" => $"SELECT TOP 50 ID AS zoneId, Name AS zoneName, {compositeExpr} AS __lastKey FROM TmsZone WHERE ({compositeExpr}) > @lastKey ORDER BY __lastKey ASC",
+            "expr-asc" => $"SELECT TOP 50 ID AS zoneId, Name AS zoneName, {compositeExpr} AS __lastKey FROM TmsZone WHERE ({compositeExpr}) > @lastKey ORDER BY {compositeExpr}",
+            "missing-alias" => $"SELECT TOP 50 ID AS zoneId, Name AS zoneName FROM TmsZone WHERE ({compositeExpr}) > @lastKey ORDER BY {compositeExpr}",
+            "missing-orderby" => $"SELECT TOP 50 ID AS zoneId, {compositeExpr} AS __lastKey FROM TmsZone WHERE ({compositeExpr}) > @lastKey",
+            "orderby-desc" => $"SELECT TOP 50 ID AS zoneId, {compositeExpr} AS __lastKey FROM TmsZone WHERE ({compositeExpr}) > @lastKey ORDER BY __lastKey DESC",
+            _ => $"SELECT TOP 50 ID AS zoneId, {compositeExpr} AS __lastKey FROM TmsZone WHERE ({compositeExpr}) > @lastKey ORDER BY CreateTime ASC"
+        };
+
+        // Act
+        var error = await Record.ExceptionAsync(() => sqlScope == "common"
+            ? scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(
+                new UpdatePacketExtractSqlInput { PacketCode = packet.Code!, ExtractSql = sql })
+            : scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(
+                new UpdatePartnerExtractSqlInput { PartnerId = partner.ID!, PacketCode = packet.Code!, ExtractSql = sql }));
+
+        // Assert
+        var savedRow = sqlScope == "common"
+            ? await ShareDataSqlSeed.GetCommonAsync(db, packet.ID)
+            : await SqlTextHelper.SelectPartnerSql(db, partner.ID, packet);
+        if (expectSaved)
+        {
+            Assert.Null(error);
+            Assert.Equal(sql, savedRow?.ExtractSql);
+            var fieldKeys = SqlFieldHelper.Read(savedRow?.FieldsJson).Select(f => f.Key).ToArray();
+            Assert.Equal(["zoneId", "zoneName"], fieldKeys);
+        }
+        else
+        {
+            Assert.NotNull(error);
+            Assert.Null(savedRow?.ExtractSql);
+        }
+    }
+
+    /// <summary>
+    /// Description: Biến @lastKey gộp 1 cột: lưu DefaultValue (cắt khoảng trắng, chặn vượt 256 ký tự), đọc SavedValue tách biệt giữa mẫu chung (luôn null),
+    ///              đối tác A dùng chung SQL nhưng có mốc trong ShareDataLastSend và đối tác B chưa chạy; chạy thử câu SQL (ExecutePacketSqlSampleInput)
+    ///              áp dụng DefaultValue như lượt gửi đầu tiên.
+    /// Created date: 27/10/2026
+    /// </summary>
+    [Fact]
+    public async Task SqlVariables_CompositeLastKeyDefaultAndSavedValue_IsolatesCommonAndPartnersAndSamplePreview_Test()
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (packet, partnerA) = await SeedSqlVariablePacketAsync(db, unique);
+        var partnerB = NewPartnerSqlPartner($"PT_B_{unique}", unique);
+        await db.Insertable(partnerB).ExecuteCommandAsync();
+
+        var newTime = new DateTime(2026, 10, 27, 9, 30, 0);
+        var zoneOld = new TmsZone { ID = $"z_old_{unique}", Code = $"ZO_{unique}", Name = "2026-10-27 08:30:00.000" };
+        var zoneNew = new TmsZone { ID = $"z_new_{unique}", Code = $"ZN_{unique}", Name = "2026-10-27 09:30:00.000" };
+        await db.Insertable(new List<TmsZone> { zoneOld, zoneNew }).ExecuteCommandAsync();
+
+        await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
+        {
+            PacketCode = packet.Code!,
+            Items =
+            [
+                new PacketSqlVariableItemInput
+                {
+                    Code = "lastKey",
+                    ValueKind = ShareDataConst.SqlVariableKindBuiltin,
+                    Value = ShareDataConst.SqlVariableSourceLastKey,
+                    DefaultValue = new string('X', 257)
+                }
+            ]
+        }));
+
+        const string cutoff = "2026-10-27 09:00:00.000_";
+        await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
+        {
+            PacketCode = packet.Code!,
+            Items =
+            [
+                new PacketSqlVariableItemInput
+                {
+                    Code = "lastKey",
+                    ValueKind = ShareDataConst.SqlVariableKindBuiltin,
+                    Value = ShareDataConst.SqlVariableSourceLastKey,
+                    DefaultValue = $"  {cutoff}  "
+                },
+                new PacketSqlVariableItemInput
+                {
+                    Code = "prefix",
+                    ValueKind = ShareDataConst.SqlVariableKindConst,
+                    DataType = ShareDataConst.SqlVariableTypeString,
+                    Value = $"%_{unique}"
+                }
+            ]
+        });
+
+        await db.Insertable(new ShareDataLastSend
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            PartnerCode = partnerA.Code,
+            PacketCode = packet.Code,
+            LastTime = newTime,
+            LastKey = $"2026-10-27 09:30:00.000_{zoneNew.ID}"
+        }).ExecuteCommandAsync();
+
+        const string sampleSql = "SELECT TOP 10 Code AS zoneCode, Name + '_' + ID AS __lastKey "
+            + "FROM TmsZone WHERE Code LIKE @prefix AND (Name + '_' + ID) > @lastKey ORDER BY __lastKey ASC";
+
+        // Act
+        var commonVars = await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(
+            new GetPacketSqlVariablesInput { PacketCode = packet.Code! });
+        var partnerAVars = await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(
+            new GetPacketSqlVariablesInput { PacketCode = packet.Code!, PartnerId = partnerA.ID });
+        var partnerBVars = await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(
+            new GetPacketSqlVariablesInput { PacketCode = packet.Code!, PartnerId = partnerB.ID });
+        var sample = await scope.ServiceProvider.CallApiAsync<ExecutePacketSqlSampleOutput>(
+            new ExecutePacketSqlSampleInput { PacketCode = packet.Code!, ExtractSql = sampleSql, Top = 10 });
+
+        // Assert
+        var commonLastKey = Assert.Single(commonVars.Items, i => i.Code == "lastKey");
+        Assert.Equal(cutoff, commonLastKey.DefaultValue);
+        Assert.Null(commonLastKey.SavedValue);
+
+        var partnerALastKey = Assert.Single(partnerAVars.Items, i => i.Code == "lastKey");
+        Assert.Equal(cutoff, partnerALastKey.DefaultValue);
+        Assert.Equal($"2026-10-27 09:30:00.000_{zoneNew.ID}", partnerALastKey.SavedValue);
+        Assert.Null(Assert.Single(partnerAVars.Items, i => i.Code == "prefix").SavedValue);
+
+        var partnerBLastKey = Assert.Single(partnerBVars.Items, i => i.Code == "lastKey");
+        Assert.Equal(cutoff, partnerBLastKey.DefaultValue);
+        Assert.Null(partnerBLastKey.SavedValue);
+
+        Assert.True(sample.IsSuccess, sample.ErrorMessage);
+        var previewRow = Assert.Single(sample.Rows);
+        Assert.Equal(zoneNew.Code, previewRow["zoneCode"]?.ToString());
+    }
+
     #endregion
 
     #region Trường của gói tin (FieldsJson)
@@ -2217,39 +2420,6 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
 
     #region Câu ghi chiều nhận (ShareDataSql.WriteSql)
 
-    /// <summary>Câu MERGE hợp lệ ghi vào bảng ShareDataInboundPacket của CSDL nhận test (khoá id).</summary>
-    private const string ValidWriteSql = """
-        MERGE dbo.ShareDataInboundPacket WITH (HOLDLOCK) AS t
-        USING (
-            SELECT id, MAX(code) AS code
-            FROM OPENJSON(@records) WITH (id nvarchar(64), code nvarchar(64))
-            WHERE id IS NOT NULL
-            GROUP BY id
-        ) AS s
-           ON t.ID = s.id
-        WHEN MATCHED THEN
-            UPDATE SET t.PacketCode = s.code
-        WHEN NOT MATCHED THEN
-            INSERT (ID, PartnerCode, PacketCode) VALUES (s.id, 'TRY_WRITE', s.code)
-        OUTPUT $action;
-        """;
-
-    private const string SecondTableWriteSql = """
-        MERGE dbo.TmsZone WITH (HOLDLOCK) AS t
-        USING (
-            SELECT zoneId, MAX(zoneName) AS zoneName
-            FROM OPENJSON(@records) WITH (zoneId nvarchar(64), zoneName nvarchar(255))
-            WHERE zoneId IS NOT NULL
-            GROUP BY zoneId
-        ) AS s
-           ON t.ID = s.zoneId
-        WHEN MATCHED THEN
-            UPDATE SET t.Name = s.zoneName
-        WHEN NOT MATCHED THEN
-            INSERT (ID, Name) VALUES (s.zoneId, s.zoneName)
-        OUTPUT $action;
-        """;
-
     /// <summary>
     /// Description: Lưu khối câu ghi chiều nhận (nhiều câu MERGE trong một khối) qua API: tự dò bảng đích và khoá bản ghi từ ON,
     ///              lưu danh sách bảng bị ảnh hưởng, danh sách gói đếm đúng số bảng bị ảnh hưởng; xóa trắng câu ghi thì xóa mềm dòng đang lưu.
@@ -2395,15 +2565,14 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             AffectedTables = ["dbo.ShareDataInboundPacket"]
         });
 
-        // Act
-        var error = await Record.ExceptionAsync(() => scope.ServiceProvider.CallApiAsync<PacketWriteSqlsOutput>(new UpdatePacketWriteSqlsInput
+        // Act & Assert
+        var error = await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PacketWriteSqlsOutput>(new UpdatePacketWriteSqlsInput
         {
             PacketCode = packet.Code!,
             WriteSql = ValidWriteSql,
             AffectedTables = ["dbo.ShareDataPartner"]
         }));
 
-        // Assert
         Assert.NotNull(error);
         var common = await ShareDataSqlSeed.GetCommonAsync(db, packet.ID);
         Assert.Equal("dbo.ShareDataInboundPacket", common?.AffectedTables);

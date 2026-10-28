@@ -19,6 +19,14 @@ SET NOCOUNT ON;
 PRINT N'=============================================================================';
 PRINT N'BẮT ĐẦU KỊCH BẢN sharedata-seed-cau-hinh-SysConfigData.sql';
 PRINT N'=============================================================================';
+GO
+
+IF OBJECT_ID(N'[dbo].[SysConfigData]', N'U') IS NULL
+BEGIN
+    PRINT N'⚠️ Bảng [dbo].[SysConfigData] chưa tồn tại (chưa chạy CodeFirst)! Bỏ qua kịch bản.';
+    SET NOEXEC ON;
+END;
+GO
 
 DECLARE @TenantId NVARCHAR(64) = (SELECT TOP 1 CAST([TenantId] AS NVARCHAR(64)) FROM [dbo].[SysOpConfig] WHERE [TenantId] IS NOT NULL);
 IF @TenantId IS NULL
@@ -32,7 +40,7 @@ DECLARE @ConfigTypeId NVARCHAR(64) = (
 IF @ConfigTypeId IS NULL
 BEGIN
     PRINT N'⚠️ Chưa có SysConfigType [sharedata_error_code]. Hãy chạy sharedata-seed-cau-hinh-SysConfigType.sql trước.';
-    RETURN;
+    SET NOEXEC ON;
 END;
 
 -- -----------------------------------------------------------------------------------------

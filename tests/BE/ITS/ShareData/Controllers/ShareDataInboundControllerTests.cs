@@ -117,4 +117,65 @@ public class ShareDataInboundControllerTests(Host host)
         Assert.Equal(1, step1Log.StepNbr);
         Assert.Equal(parentLog.ID, step1Log.ParentId);
     }
+
+    /// <summary>
+    /// Description: Kiểm chứng tiếp nhận trùng gói tin (cùng PartnerCode, PacketCode, SerialNbr > 0)
+    /// ném ngoại lệ InboundPacketDuplicated.
+    /// Created date: 28/10/2026
+    /// </summary>
+    [Fact]
+    public async Task ShareDataInboundController_WhenDuplicatePacketReceived_ThrowsInboundPacketDuplicated_Test()
+    {
+        // Arrange
+        var db = host.Services.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+
+        var partner = new ShareDataPartner
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Code = $"P_DUP_{unique}",
+            Name = $"Partner Dup {unique}",
+            Status = BaseEnums.StatusEnum.Enable
+        };
+        await db.Insertable(partner).ExecuteCommandAsync();
+
+        var packet = new ShareDataPacket
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Code = $"PKT_DUP_{unique}",
+            Name = $"Packet Dup {unique}",
+            Status = BaseEnums.StatusEnum.Enable
+        };
+        await db.Insertable(packet).ExecuteCommandAsync();
+
+        var sub = new ShareDataSubscription
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Code = $"SUB_DUP_{unique}",
+            PartnerId = partner.ID,
+            DatatypeId = packet.ID,
+            Direction = BaseEnums.Direction.Inbound,
+            State = BaseEnums.SubSubscriptionState.Active,
+            SerialNbr = 0,
+            CreateTime = DateTime.Now
+        };
+        await db.Insertable(sub).ExecuteCommandAsync();
+
+        var input = new ShareDataAddInboundInput
+        {
+            PartnerCode = partner.Code,
+            PacketCode = packet.Code,
+            PacketVersion = "1.0",
+            SerialNbr = 123,
+            PduType = "DATA",
+            Format = BaseEnums.PublishFormat.Data,
+            RawContent = "{\"data\":[{\"id\":\"1\"}]}"
+        };
+
+        // Act & Assert
+        await host.Services.CallApiAsync(input);
+
+        // Second call with same (PartnerCode, PacketCode, SerialNbr) must throw
+        await Assert.ThrowsAnyAsync<Exception>(() => host.Services.CallApiAsync(input));
+    }
 }

@@ -29,8 +29,9 @@ PRINT N'-> 3. Kiểm tra bảng ShareDataSourceTable và nạp danh mục 15 b�
 IF OBJECT_ID(N'[dbo].[ShareDataSourceTable]', N'U') IS NULL
 BEGIN
     PRINT N'⚠️ Chưa chạy CodeFirst tạo bảng ShareDataSourceTable. Bỏ qua nạp dữ liệu bảng nguồn.';
-    RETURN;
+    SET NOEXEC ON;
 END;
+GO
 SET NOCOUNT ON;
 
 DECLARE @TenantIdSource NVARCHAR(64) = (SELECT TOP 1 CAST([TenantId] AS NVARCHAR(64)) FROM [dbo].[SysOpConfig] WHERE [TenantId] IS NOT NULL);
