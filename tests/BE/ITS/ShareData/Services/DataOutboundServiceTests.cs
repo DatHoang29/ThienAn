@@ -101,6 +101,177 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.NotNull(updatedSub.NextTimeRun);
         }
 
+        /// <summary>
+        /// Description: Kiểm thử luồng worker Outbound hoạt động mapping ánh xạ đầy đủ 10 kiểu dữ liệu
+        ///              (string, number, int, dateTime, bool, long, float, double, decimal, guid):
+        ///              trích xuất từ CSDL, chuyển đổi kiểu dữ liệu qua DataMappingProcess,
+        ///              ghi file kết xuất trực tiếp xuống ổ đĩa và kiểm tra JSON payload trong file sinh ra đúng từng kiểu.
+        /// Created date: 28/10/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessSubscriptions_WithAllSupportedDataTypes_MapsCorrectlyAndWritesFileOnDisk_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var zoneId = $"ZONE_TYPES_{unique}";
+            var testTime = new DateTime(2026, 10, 28, 10, 0, 0);
+
+            await db.Insertable(new TmsZone
+            {
+                ID = zoneId,
+                Name = $"Tuyen Test Types {unique}",
+                FromKmNumber = 42,
+                FromMetNumber = 500,
+                ToKmNumber = 100,
+                ToMetNumber = 0,
+                LaneId = "LANE_1",
+                MaxSpeed = 80,
+                CreateTime = testTime
+            }).ExecuteCommandAsync();
+
+            var statusId = Guid.NewGuid().ToString("N");
+            await db.Insertable(new TmsZoneStatus
+            {
+                ID = statusId,
+                ZoneId = zoneId,
+                AverageSpeed = "75.5",
+                Condition = "NORMAL",
+                UpdateTime = testTime
+            }).ExecuteCommandAsync();
+
+            // Cấu hình TargetShapeJson định nghĩa ánh xạ cho tất cả 10 kiểu dữ liệu được hỗ trợ
+            var targetShape = new Dictionary<string, object?>
+            {
+                ["guidField"] = new Dictionary<string, object?>
+                {
+                    ["$field"] = "zoneStatusId",
+                    ["$extend"] = new Dictionary<string, object?> { ["targetType"] = "guid" }
+                },
+                ["stringField"] = new Dictionary<string, object?>
+                {
+                    ["$field"] = "trafficCondition",
+                    ["$extend"] = new Dictionary<string, object?> { ["targetType"] = "string" }
+                },
+                ["intField"] = new Dictionary<string, object?>
+                {
+                    ["$field"] = "fromLocationKm",
+                    ["$extend"] = new Dictionary<string, object?> { ["targetType"] = "int" }
+                },
+                ["longField"] = new Dictionary<string, object?>
+                {
+                    ["$field"] = "fromLocationMet",
+                    ["$extend"] = new Dictionary<string, object?> { ["targetType"] = "long" }
+                },
+                ["floatField"] = new Dictionary<string, object?>
+                {
+                    ["$field"] = "averageSpeed",
+                    ["$extend"] = new Dictionary<string, object?> { ["targetType"] = "float" }
+                },
+                ["doubleField"] = new Dictionary<string, object?>
+                {
+                    ["$field"] = "averageSpeed",
+                    ["$extend"] = new Dictionary<string, object?> { ["targetType"] = "double" }
+                },
+                ["decimalField"] = new Dictionary<string, object?>
+                {
+                    ["$field"] = "averageSpeed",
+                    ["$extend"] = new Dictionary<string, object?> { ["targetType"] = "decimal" }
+                },
+                ["numberField"] = new Dictionary<string, object?>
+                {
+                    ["$field"] = "averageSpeed",
+                    ["$extend"] = new Dictionary<string, object?> { ["targetType"] = "number" }
+                },
+                ["boolField"] = new Dictionary<string, object?>
+                {
+                    ["$field"] = "fromLocationKm",
+                    ["$extend"] = new Dictionary<string, object?> { ["targetType"] = "bool" }
+                },
+                ["dateTimeField"] = new Dictionary<string, object?>
+                {
+                    ["$field"] = "dataTime",
+                    ["$extend"] = new Dictionary<string, object?> { ["targetType"] = "dateTime" }
+                }
+            };
+
+            var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_TYPES_{unique}",
+                SubCode = $"SUB_TYPES_{unique}",
+                DatatypeId = "101",
+                MappingShape = targetShape
+            });
+
+            // Act: Chạy luồng worker xử lý xuất bản
+            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
+
+            // Assert: Kiểm tra log xuất bản thành công
+            var logs = await GetLogs(db, sub.ID);
+            Assert.NotEmpty(logs);
+            Assert.Equal(BaseEnums.SuccessEnums.Success, logs[0].Success);
+            Assert.False(string.IsNullOrWhiteSpace(logs[0].FilePath));
+
+            // Kiểm tra file kết xuất thực tế đã ghi xuống ổ đĩa
+            var fullPath = Path.Combine(Directory.GetCurrentDirectory(), "sharedata/send", logs[0].FilePath!);
+            Assert.True(File.Exists(fullPath), $"File kết xuất phải tồn tại trên đĩa tại: {fullPath}");
+
+            // Đọc và parse JSON payload trong file kết xuất
+            var content = await File.ReadAllTextAsync(fullPath);
+            using var doc = JsonDocument.Parse(content);
+            Assert.Equal(JsonValueKind.Array, doc.RootElement.ValueKind);
+            Assert.True(doc.RootElement.GetArrayLength() > 0);
+
+            var record = doc.RootElement.EnumerateArray().First(r => r.GetProperty("stringField").GetString() == "NORMAL");
+
+            // 1. guid
+            Assert.Equal(JsonValueKind.String, record.GetProperty("guidField").ValueKind);
+            Assert.True(Guid.TryParse(record.GetProperty("guidField").GetString(), out var parsedGuid));
+            Assert.NotEqual(Guid.Empty, parsedGuid);
+
+            // 2. string
+            Assert.Equal(JsonValueKind.String, record.GetProperty("stringField").ValueKind);
+            Assert.Equal("NORMAL", record.GetProperty("stringField").GetString());
+
+            // 3. int
+            Assert.Equal(JsonValueKind.Number, record.GetProperty("intField").ValueKind);
+            Assert.Equal(42, record.GetProperty("intField").GetInt32());
+
+            // 4. long
+            Assert.Equal(JsonValueKind.Number, record.GetProperty("longField").ValueKind);
+            Assert.Equal(500L, record.GetProperty("longField").GetInt64());
+
+            // 5. float
+            Assert.Equal(JsonValueKind.Number, record.GetProperty("floatField").ValueKind);
+            Assert.Equal(75.5f, record.GetProperty("floatField").GetSingle());
+
+            // 6. double
+            Assert.Equal(JsonValueKind.Number, record.GetProperty("doubleField").ValueKind);
+            Assert.Equal(75.5d, record.GetProperty("doubleField").GetDouble());
+
+            // 7. decimal
+            Assert.Equal(JsonValueKind.Number, record.GetProperty("decimalField").ValueKind);
+            Assert.Equal(75.5m, record.GetProperty("decimalField").GetDecimal());
+
+            // 8. number
+            Assert.Equal(JsonValueKind.Number, record.GetProperty("numberField").ValueKind);
+            Assert.Equal(75.5m, record.GetProperty("numberField").GetDecimal());
+
+            // 9. bool
+            Assert.True(record.GetProperty("boolField").ValueKind is JsonValueKind.True or JsonValueKind.False);
+            Assert.True(record.GetProperty("boolField").GetBoolean());
+
+            // 10. dateTime
+            Assert.Equal(JsonValueKind.String, record.GetProperty("dateTimeField").ValueKind);
+            Assert.True(DateTime.TryParse(record.GetProperty("dateTimeField").GetString(), out var parsedDt));
+            Assert.Equal(testTime.Year, parsedDt.Year);
+            Assert.Equal(testTime.Month, parsedDt.Month);
+            Assert.Equal(testTime.Day, parsedDt.Day);
+        }
+
 
         /// <summary>
         /// Description: Kiểm tra khi mapping có biểu thức (hợp lệ hoặc lỗi chia 0) thì bỏ qua không tính toán theo §3.4/D8, giữ nguyên giá trị nguồn vào payload và không sinh cảnh báo ESH-1203.

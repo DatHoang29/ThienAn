@@ -150,6 +150,9 @@ Khi lập trình viên yêu cầu: *"cho nội dung commit -m theo rule thienan"
      + **Frontend (`TA-ITS015-WEBVUE-V1.0`)**: ⛔ **TUYỆT ĐỐI CẤM** `git add`, commit hoặc push tệp `src/.env.development` (hoặc `.env.local`, `.env.development.local`). Tệp này chứa cấu hình URL API/NATS local riêng của máy lập trình viên.
      + **Backend (`TA-ITS015-WEBAPI-V1.0`)**: ⛔ **TUYỆT ĐỐI CẤM** commit `src/TAC_WebAPI/Configuration/Database.json`, `src/TAC_WebAPI/TAKey.key`, `src/TAC_WebAPI/TAKeyData.key`, `src/DLLs/Shared.Core.Security.dll`.
      + **Quy cách thực hiện an toàn**: Khi `git add`, AI BẮT BUỘC dùng danh sách tệp cụ thể liên quan đến tính năng (hoặc loại trừ các tệp trên), ⛔ **CẤM** dùng `git add .` hoặc `git add -A` bừa bãi làm cuốn nhầm các tệp cấu hình local vào commit.
+7. **Cấm Tự Ý Discard / Revert Thay Đổi Trên Working Tree (Rule 19.106)**:
+   - ⛔ **TUYỆT ĐỐI CẤM** tự ý chạy `git checkout -- <file>`, `git restore <file>`, `git clean`, `git reset --hard` hoặc bất kỳ thao tác nào nhằm discard/hoàn tác các thay đổi trên Working Tree của lập trình viên (bao gồm các file cấu hình, khóa bảo mật, DLL nội bộ, dữ liệu sửa dở).
+   - Khi phát hiện file cấu hình local hoặc bí mật bị sửa đổi: giữ nguyên 100% tại Working Tree; nếu gặp lỗi runtime hoặc license thì báo rõ cho người dùng chứ ⛔ **KHÔNG ĐƯỢC TỰ Ý DISCARD**.
 
 ---
 

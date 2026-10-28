@@ -18,6 +18,7 @@ internal static class ShareDataSqlSeed
     /// </summary>
     private static readonly (string Code, string DataType, string ValueKind, string Value)[] StandardVariables =
     [
+        ("pageSize", ShareDataConst.SqlVariableTypeInt, ShareDataConst.SqlVariableKindConst, "100"),
         ("lastTime", ShareDataConst.SqlVariableTypeDateTime, ShareDataConst.SqlVariableKindBuiltin, ShareDataConst.SqlVariableSourceLastTime),
         ("lastKey", ShareDataConst.SqlVariableTypeString, ShareDataConst.SqlVariableKindBuiltin, ShareDataConst.SqlVariableSourceLastKey)
     ];
