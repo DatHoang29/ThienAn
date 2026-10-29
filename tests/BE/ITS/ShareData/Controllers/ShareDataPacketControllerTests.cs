@@ -3277,5 +3277,116 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         }));
     }
 
+    /// <summary>
+    /// Description: Nguồn lastTime: nhận dạng ngày hợp lệ và chuẩn hóa yyyy-MM-dd HH:mm:ss; giá trị không hợp lệ ném lỗi SqlVariableValueInvalid.
+    /// Created date: 29/10/2026
+    /// </summary>
+    [Theory]
+    [InlineData("2026-10-28 00:00:00", true, "2026-10-28 00:00:00")]
+    [InlineData("2026-10-28T07:30:00", true, "2026-10-28 07:30:00")]
+    [InlineData("2026-10-28", true, "2026-10-28 00:00:00")]
+    [InlineData("abc", false, null)]
+    public async Task UpdateSqlVariables_WhenLastTimeDefaultValue_NormalizesOrThrows_Test(string defaultValue, bool isValid, string? expectedNormalized)
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true);
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var (packet, _) = await SeedSqlVariablePacketAsync(db, Guid.NewGuid().ToString("N")[..8]);
+
+        var input = new UpdatePacketSqlVariablesInput
+        {
+            PacketCode = packet.Code!,
+            Items =
+            [
+                new PacketSqlVariableItemInput
+                {
+                    Code = "since",
+                    DataType = ShareDataConst.SqlVariableTypeDateTime,
+                    ValueKind = ShareDataConst.SqlVariableKindBuiltin,
+                    Value = ShareDataConst.SqlVariableSourceLastTime,
+                    DefaultValue = defaultValue
+                }
+            ]
+        };
+
+        if (isValid)
+        {
+            // Act
+            await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(input);
+            var result = await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(
+                new GetPacketSqlVariablesInput { PacketCode = packet.Code! });
+
+            // Assert
+            var item = Assert.Single(result.Items, i => i.Code == "since");
+            Assert.Equal(expectedNormalized, item.DefaultValue);
+        }
+        else
+        {
+            // Act & Assert
+            await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(input));
+        }
+    }
+
+    /// <summary>
+    /// Description: Khi đối tác đã có dòng ShareDataLastSend (LastTime, LastKey): GetSqlVariables trả savedValue của dòng lastTime và dòng lastKey.
+    /// Created date: 29/10/2026
+    /// </summary>
+    [Fact]
+    public async Task GetSqlVariables_WhenPartnerHasLastSend_ReturnsSavedValueForLastTimeAndLastKey_Test()
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true);
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (packet, partner) = await SeedSqlVariablePacketAsync(db, unique);
+
+        await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
+        {
+            PacketCode = packet.Code!,
+            Items =
+            [
+                new PacketSqlVariableItemInput
+                {
+                    Code = "since",
+                    DataType = ShareDataConst.SqlVariableTypeDateTime,
+                    ValueKind = ShareDataConst.SqlVariableKindBuiltin,
+                    Value = ShareDataConst.SqlVariableSourceLastTime,
+                    DefaultValue = "2026-10-28 00:00:00"
+                },
+                new PacketSqlVariableItemInput
+                {
+                    Code = "lastKey",
+                    DataType = ShareDataConst.SqlVariableTypeString,
+                    ValueKind = ShareDataConst.SqlVariableKindBuiltin,
+                    Value = ShareDataConst.SqlVariableSourceLastKey
+                }
+            ]
+        });
+
+        var recordedTime = new DateTime(2026, 10, 29, 8, 45, 12, 123);
+        const string recordedKey = "zone_xyz_123";
+        await db.Insertable(new ShareDataLastSend
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            PartnerCode = partner.Code,
+            PacketCode = packet.Code,
+            LastTime = recordedTime,
+            LastKey = recordedKey
+        }).ExecuteCommandAsync();
+
+        // Act
+        var result = await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(
+            new GetPacketSqlVariablesInput { PacketCode = packet.Code!, PartnerId = partner.ID });
+
+        // Assert
+        var sinceVar = Assert.Single(result.Items, i => i.Code == "since");
+        var lastKeyVar = Assert.Single(result.Items, i => i.Code == "lastKey");
+        Assert.Equal("2026-10-28 00:00:00", sinceVar.DefaultValue);
+        Assert.Equal("2026-10-29 08:45:12.123", sinceVar.SavedValue);
+        Assert.Equal(recordedKey, lastKeyVar.SavedValue);
+    }
+
     #endregion
 }

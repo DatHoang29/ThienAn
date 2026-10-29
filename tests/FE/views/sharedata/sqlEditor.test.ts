@@ -619,9 +619,10 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
                 label: f.label || (f.key === 'speed' ? 'Tốc độ' : f.key === 'message' ? 'Thông tin trạng thái' : f.key),
                 type: f.key === 'speed' ? 'number' : 'string',
                 required: f.required ?? (f.key === 'message'),
+                group: f.group ?? null,
             }));
             if (!fields.some((f: any) => f.key === 'extraCol')) {
-                fields.push({ key: 'extraCol', label: 'extraCol', type: 'string', required: false });
+                fields.push({ key: 'extraCol', label: 'extraCol', type: 'string', required: false, group: null });
             }
             await r.fulfill(json({ code: 200, result: { status: 1, fields } }));
         });
@@ -649,13 +650,20 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         const editDialog = page.locator('.field-edit-dialog');
         await expect(editDialog).toBeVisible();
         await editDialog.locator('.el-form-item', { hasText: 'Tên hiển thị' }).locator('input').fill('Tốc độ xe');
+        const groupItem = editDialog.locator('.el-form-item', { hasText: 'Nhóm' });
+        await expect(groupItem).toBeVisible();
+        const groupInput = groupItem.locator('.el-select input');
+        await groupInput.fill('Dữ liệu xuất');
+        await groupInput.press('Enter');
         await editDialog.locator('.dialog-footer .el-button--primary').click();
         await expect(editDialog).toBeHidden();
 
         await expect.poll(() => saved?.extractSql, { timeout: 10_000 }).toBe(`${SQL_ONE_COLUMN}\n-- extraCol`);
         expect(saved.fields.find((f: any) => f.key === 'speed').label).toBe('Tốc độ xe');
+        expect(saved.fields.find((f: any) => f.key === 'speed').group).toBe('Dữ liệu xuất');
         expect(saved.fields.find((f: any) => f.key === 'message').required).toBe(true);
         await expect(fields).toContainText('Tốc độ xe');
+        await expect(fields).toContainText('Dữ liệu xuất');
     });
 
     /**
@@ -708,7 +716,14 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         await expect(panel.locator('.wsp-header .el-button')).toHaveCount(3);
         await expect(panel.locator('.wsp-remark-row')).toHaveCount(0);
         await expect(panel.locator('.wsp-manual-select')).toHaveCount(0);
+        await expect(panel.locator('.wsp-params')).toHaveCount(0);
         await expect(panel.locator('.wsp-editor .sql-monaco-editor')).toHaveCount(1);
+
+        // Tham số hệ thống dùng được đưa vào icon tooltip bên cạnh tiêu đề câu ghi
+        const editorHint = panel.locator('.wsp-editor .sql-editor-hint');
+        await expect(editorHint).toBeVisible();
+        await editorHint.hover();
+        await expect(page.locator('.el-popper:visible')).toContainText('@records');
         const affectedY = (await panel.locator('.wsp-affected-section').boundingBox())!.y;
         const editorY = (await panel.locator('.wsp-editor').boundingBox())!.y;
         expect(affectedY).toBeLessThan(editorY);

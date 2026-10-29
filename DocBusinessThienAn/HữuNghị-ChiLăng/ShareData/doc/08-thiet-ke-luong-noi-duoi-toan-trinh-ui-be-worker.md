@@ -261,18 +261,22 @@ sequenceDiagram
      * Các biến `@khác` → thêm dòng mới và yêu cầu người dùng chọn nguồn trước khi lưu.
    * **Thứ tự lưu hai pha chống lỗi gà-trứng:** Khi bấm *"Lưu & phân tích"*, `sqlEditor.vue` luôn gọi `variablePanelRef.saveIfDirty()` để lưu bảng biến lên CSDL **trước**, sau đó mới gọi API lưu câu SQL. Nhờ vậy BE không bao giờ báo lỗi *"Biến `@lastKey` chưa được khai báo"* khi vừa viết câu SQL mới.
 
-2. **Kiểm tra nhanh tại chỗ & Cấu hình Mốc bắt đầu (`defaultValue`):**
-   * Khi bảng biến có dòng nguồn `lastKey`, thanh tiêu đề của `sqlVariablePanel.vue` hiển thị tag kiểm tra trực tiếp (`hasValidLastKeySql`):
-     * **Tag xanh (Hợp lệ):** Câu SQL đã có `AS __lastKey` và `ORDER BY __lastKey` (không có `DESC`).
-     * **Tag cảnh báo vàng:** Nhắc ngay người cấu hình bổ sung `AS __lastKey` và `ORDER BY __lastKey ASC` trước khi lưu.
-   * Bên dưới dòng biến `lastKey` xuất hiện ô nhập phụ **Mốc bắt đầu (`defaultValue`)**: Dùng cho lần gửi đầu tiên khi đối tác chưa có bản ghi trong `ShareDataLastSend` (ví dụ chỉ muốn lấy dữ liệu từ `'20261028000000_'` trở đi thay vì quét từ đầu bảng lịch sử).
+2. **Dải kiểm nhanh tại chỗ & Cấu hình Mốc bắt đầu (`defaultValue`):**
+   * Khi bảng biến có dòng nguồn mốc (`lastTime` hoặc `lastKey`), xuất hiện dòng giải thích (`svp-hint-line`) và dải kiểm nhanh 3 mục (`svp-checks`):
+     * **Cột mốc (`checkCursorColumns`):** Chế độ 2 cột mốc kiểm tra có `AS __lastTime` và `AS __lastKey`; chế độ chỉ khóa kiểm tra có `AS __lastKey`.
+     * **Lọc theo biến (`checkCursorFilter`):** Mọi biến nguồn `lastTime` / `lastKey` có mặt trong câu SQL (`@tên`).
+     * **Sắp xếp (`checkOrderAsc`):** Có `ORDER BY` ngoài cùng và phần sau nó không chứa `DESC`.
+   * **Cấu hình giá trị mốc (`defaultValue`):**
+     * *Chế độ 2 cột mốc:* Dòng `@lastKey` không hiện ô nhập (dùng phân biệt các dòng trùng thời gian).
+     * *Chế độ chỉ khóa:* Dòng `@lastKey` hiển thị ô nhập mốc bắt đầu kèm dòng chữ nhỏ gợi ý định dạng bên dưới.
 
-3. **Phân tách rạch ròi giao diện Mẫu chung và Đối tác (theo chốt kiến trúc 27/10/2026):**
+3. **Phân tách rạch ròi giao diện Mẫu chung và Đối tác (Bảng 3 cột gọn & Dòng mốc đang chạy):**
+   * Cả hai tab đều chuẩn hóa **đúng 3 cột** (`Tham số` · `Nguồn giá trị` · `Giá trị cấu hình`), không dùng wizard hay bảng nhiều cột rườm rà.
 
    | Ngữ cảnh đang mở | Hành vi hiển thị Mốc đang chạy (`SavedValue`) | Chức năng Đối chiếu & Thao tác trên Mốc |
    | :--- | :--- | :--- |
-   | **Tab Mẫu chung** (`partnerId == null`) | **Ẩn hoàn toàn cột *"Mốc đang chạy"*** trên bảng tham số (vì mẫu chung không có mốc chạy riêng). | Cung cấp nút bấm trên thanh tiêu đề **"Xem mốc đang chạy (N đối tác)"** mở ngăn kéo (`svp-partner-cursor-drawer`). Ngăn kéo liệt kê từng đối tác đăng ký gói, nhãn nguồn đang dùng (`Mẫu chung` hay `Cấu hình riêng`), giá trị `LastKey` hiện tại của từng đối tác, và nút **`↺ Đặt lại`** độc lập cho từng dòng đối tác. |
-   | **Tab Đối tác** (`partnerId != null`) | **Hiển thị trực tiếp cột *"Mốc đang chạy"*** của đúng đối tác đang chọn (ví dụ `20261027101000_C` hoặc *Chưa có mốc*). | Hiển thị thêm cột **"So với mẫu"** (`=` giống mẫu, `+` biến mới, `-` biến thiếu so với mẫu, `≠` khác nguồn/giá trị hằng/mốc bắt đầu) và nút **`↺ Đặt lại`** ngay cạnh mốc đang chạy của đối tác đó. Nếu đối tác đang kế thừa mẫu chung, khung soạn thảo khóa chỉ đọc cho đến khi bấm **"Tạo cấu hình mới"** (kế thừa từ mẫu chung hoặc sao chép từ đối tác khác). |
+   | **Tab Mẫu chung** (`partnerId == null`) | Bảng giữ đúng 3 cột. Dưới bảng có nút chữ **"Xem mốc đang chạy của {count} đối tác"** (`svp-view-partners-btn`). | Bấm nút mở ngăn kéo (`svp-partner-cursor-drawer`). Ngăn kéo liệt kê từng đối tác đăng ký gói, nhãn nguồn (`Mẫu chung` hay `Cấu hình riêng`), mốc đang chạy (kết hợp `lastTime` và `lastKey` nối ` · `), và nút **`↺ Đặt lại`** độc lập cho từng dòng đối tác. |
+   | **Tab Đối tác** (`partnerId != null`) | Bảng giữ đúng 3 cột. Tách riêng dòng **"Mốc đang chạy"** (`svp-progress`) đặt bên dưới bảng, hiển thị các nhãn `@tên` và mã mốc `savedValue` của đối tác. | Biến khác mẫu chung hiển thị vòng ký hiệu nhỏ ngay sau `@tên` (`=` giống, `+` mới, `-` thiếu, `≠` khác nguồn/giá trị) kèm tooltip chi tiết; dòng mốc có nút **`↺ Đặt lại`** độc lập. Khung soạn thảo khóa chỉ đọc nếu đối tác đang kế thừa mẫu chung cho đến khi bấm "Tạo cấu hình mới". |
 
 ---
 
@@ -296,7 +300,7 @@ sequenceDiagram
    * Hệ quả thiết kế rất sạch: Người làm cấu hình Ánh xạ gói tin (`ShareDataMapping`) chỉ nhìn thấy các trường dữ liệu nghiệp vụ thuần túy, không bao giờ nhìn thấy hay vô tình ánh xạ nhầm cột `__lastKey` ra bản tin gửi đối tác.
 
 4. **Các API phục vụ vòng đời cấu hình và quản trị con trỏ (`ShareDataPacketController`):**
-   * `GET GetSqlVariables(packetCode, partnerId?)`: Gọi `PacketSqlService.LoadItems` — nếu truyền `partnerId`, BE tra thêm bảng `ShareDataLastSend` theo `(partner.Code, packet.Code)` để đính kèm `SavedValue = lastSend?.LastKey` vào đúng dòng biến `lastKey`.
+   * `GET GetSqlVariables(packetCode, partnerId?)`: Gọi `PacketSqlService.LoadItems` — nếu truyền `partnerId`, BE tra thêm bảng `ShareDataLastSend` theo `(partner.Code, packet.Code)` để đính kèm `SavedValue` cho cả hai nguồn con trỏ: dòng `lastKey` nhận `lastSend?.LastKey`, dòng `lastTime` nhận `lastSend?.LastTime?.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture)`. Nhờ đó UI hiển thị chính xác mốc con trỏ đang chạy của đối tác cả về thời gian lẫn mã khóa.
    * `POST ExecuteExtractSqlSample`: Chạy thử câu SQL đang soạn với giới hạn dòng an toàn `SafeTop`. BE chủ động gọi `SqlParameterHelper.ResolveCursor(hasSavedCursor: false, null)` để mô phỏng lượt chạy đầu tiên (`@lastKey = DefaultValue ?? ""`), tuyệt đối **không đọc hay ghi đè** mốc đang chạy thật của đối tác.
    * `POST ResetLastSend(packetCode, partnerId)`: Chỉ dành cho `SuperAdmin`; tìm và xóa bản ghi `ShareDataLastSend` của cặp `(partner.Code, packet.Code)` đồng thời ghi vết kiểm toán `_activityLogger.LogDeleteAsync(row)`. Lượt quét kế tiếp của Worker sẽ tự động quay về trạng thái khởi tạo từ `DefaultValue`.
 
@@ -311,10 +315,13 @@ Toàn bộ luồng gửi nền tại [`DataOutboundService.cs`](../../../../TA-I
    * `SqlTextHelper.ResolveSqlConfig` và `ResolveVariables` lấy câu SQL + bộ biến hiệu lực: nếu đối tác có cấu hình riêng (`IsCustom == true`) thì dùng bản riêng; nếu không thì dùng bản mẫu chung.
    * Ngược lại, `GetLastSend(db, partner.Code, packet.Code)` **luôn truy vấn `ShareDataLastSend` theo mã đối tác đang chạy**, giữ vững tính cô lập con trỏ.
 
-2. **Phân giải giá trị `@lastKey` lúc chạy (`SqlParameterHelper`):**
-   * `ResolveCursor(hasSavedCursor, lastSend)`:
+2. **Phân giải giá trị tham số con trỏ lúc chạy (`SqlParameterHelper`):**
+   * **Tham số `@lastKey`:**
      * `hasSavedCursor == false` (chưa từng gửi hoặc vừa bấm *Đặt lại mốc*): trả `effectiveLastKey = ""`. Khi đi vào `SqlParameterHelper.BuildParameters`, biến nguồn `lastKey` nhận giá trị `variable.DefaultValue ?? ""` (nếu người dùng có khai *Mốc bắt đầu* thì lọc từ mốc đó, không khai thì lấy chuỗi rỗng `""` để lấy từ bản ghi nhỏ nhất).
      * `hasSavedCursor == true`: nạp thẳng `lastSend.LastKey` vào tham số `@lastKey`.
+   * **Tham số `@lastTime`:**
+     * Khi đối tác chưa có bản ghi `ShareDataLastSend` (hoặc sau khi bấm *Đặt lại mốc* khiến `context.LastTime` là `null`): `SqlParameterHelper.BuildVariableParameter` tự động lấy mốc khởi tạo từ `variable.DefaultValue` (chuẩn hóa `yyyy-MM-dd HH:mm:ss`). Nếu người dùng có khai mốc bắt đầu, biến `@lastTime` nhận giá trị thời gian đó (bỏ qua toàn bộ dữ liệu lịch sử/chạy thử trước mốc); nếu không khai báo `DefaultValue`, truyền `DBNull.Value` để quét toàn bộ lịch sử.
+     * Khi đã có mốc chạy trong `ShareDataLastSend`: nạp trực tiếp giá trị `context.LastTime` vào `@lastTime`.
 
 3. **Trích xuất mốc dòng cuối (`DataOutboundExtractionProcess.Extract`):**
    * Worker truyền mảng `SugarParameter[]` vào `db.Ado.SqlQueryAsync<dynamic>(cleanSql, parameters)`.
@@ -358,12 +365,12 @@ Vì SQL Server so sánh `WHERE CompositeKey > @lastKey` theo **thứ tự từ �
 
 | STT | Tình huống thực tế | Cách hệ thống UI + BE + WORKER xử lý |
 | :---: | :--- | :--- |
-| **1** | **Đối tác mới đăng ký gói nối đuôi lần đầu tiên** | Chưa có dòng trong `ShareDataLastSend` → Worker nạp `@lastKey = DefaultValue ?? ""`. Nếu quản trị viên đã nhập `Mốc bắt đầu = '20261028000000_'`, Worker chỉ lấy dữ liệu từ đầu ngày 28/10 trở đi; nếu để trống `Mốc bắt đầu`, Worker quét tuần tự từ bản ghi cũ nhất theo từng trang `@pageSize`. |
+| **1** | **Đối tác mới đăng ký gói nối đuôi lần đầu tiên** | Chưa có dòng trong `ShareDataLastSend`:<br>• *Chế độ khóa đơn:* Worker nạp `@lastKey = DefaultValue ?? ""`. Nếu quản trị viên đã nhập `Mốc bắt đầu = '20261028000000_'`, Worker chỉ lấy dữ liệu từ đầu ngày 28/10 trở đi; nếu để trống `Mốc bắt đầu`, Worker quét tuần tự từ bản ghi cũ nhất theo từng trang `@pageSize`.<br>• *Chế độ 2 cột mốc (`@lastTime` + `@lastKey`):* Worker nạp `@lastTime = DefaultValue` (nếu có cấu hình, định dạng `yyyy-MM-dd HH:mm:ss`, ngược lại truyền `NULL` để quét toàn bộ lịch sử) và `@lastKey = ""`. Dữ liệu chạy thử trước ngày cấu hình được bỏ qua hoàn toàn. |
 | **2** | **Tại cùng 1 mili-giây có 250 bản ghi trùng thời gian, trong khi `@pageSize = 100`** | Trang 1 lấy 100 bản ghi đầu tiên của mili-giây đó, dừng ở khóa `'20261028090000123_ID100'`. Trang 2 lọc `> '20261028090000123_ID100'` lấy tiếp 100 bản ghi kế tiếp (`ID101..ID200`), Trang 3 lấy nốt 50 bản ghi còn lại (`ID201..ID250`). Không sót và không kẹt vòng lặp. |
 | **3** | **Worker gửi xong HTTP sang đối tác nhưng sập nguồn đúng tích tắc trước khi commit DB** | Mốc `ShareDataLastSend` chưa cập nhật nên khi khởi động lại, Worker gửi lại đúng trang đó (đảm bảo **At-Least-Once / Zero Data Loss**). Phía nhận xử lý lũy đẳng (Idempotent) theo khóa định danh bản ghi. |
 | **4** | **Đối tác đang chạy Mẫu chung chuyển sang bấm *"Tạo cấu hình mới"* (SQL riêng)** | UI sao chép câu SQL và bộ biến mẫu chung sang bản riêng của đối tác. Bảng `ShareDataLastSend` khóa theo `(PartnerCode, PacketCode)` nên đối tác **tiếp tục nối đuôi mượt từ mốc cũ** nếu giữ nguyên định dạng `__lastKey`; nếu đổi công thức khóa, SuperAdmin bấm **`↺ Đặt lại`** ngay trên bảng biến của đối tác. |
 | **5** | **SuperAdmin bấm `↺ Đặt lại` mốc trên UI đúng lúc Worker đang gửi dở một trang** | Nếu `ResetLastSend` xóa dòng trước khi Worker xong trang, `CommitSuccess` của Worker (vẫn giữ `ProcessingUntil` hợp lệ) sẽ ghi mốc của trang vừa gửi; nếu SuperAdmin bấm sau khi trang xong, dòng `ShareDataLastSend` bị xóa sạch và chu kỳ kế tiếp quét lại từ `DefaultValue`. |
-| **6** | **Bảng nguồn có hàng chục triệu dòng, biểu thức `CONCAT(...) > @lastKey` không dùng được Index (Non-SARGable)** | Người cấu hình khai thêm biến `@lastTime` (`Builtin:lastTime`) và chiếu thêm cột `t.EventTime AS __lastTime` để câu SQL dùng điều kiện SARGable đánh thẳng vào Index thời gian: `WHERE t.EventTime >= @lastTime AND (t.EventTime > @lastTime OR CONCAT(...) > @lastKey) ORDER BY __lastTime ASC, __lastKey ASC`. |
+| **6** | **Bảng nguồn có hàng chục triệu dòng, biểu thức `CONCAT(...) > @lastKey` không dùng được Index (Non-SARGable)** | Người cấu hình khai thêm biến `@lastTime` (`Builtin:lastTime`) và chiếu thêm cột `t.EventTime AS __lastTime` để câu SQL dùng điều kiện SARGable đánh thẳng vào Index thời gian: `WHERE t.EventTime >= ISNULL(@lastTime, '17530101') AND (@lastTime IS NULL OR t.EventTime > @lastTime OR t.ID > @lastKey) ORDER BY t.EventTime ASC, t.ID ASC`. Kết quả đo thực tế (29/10/2026 trên bảng 1.000.000 dòng có chỉ mục `(UpdateTime, ID)`): Index Seek toàn diện ở mọi mốc, số trang đọc giảm từ 11.786 xuống 421 trang/lượt; khi SQL Server dùng lại kế hoạch cũ cũng chỉ tốn 420 trang (so với 4.072.255 trang ở câu cũ). |
 | **7** | **Ranh giới với Chiều Nhận Dữ liệu (Inbound)** | **Chiều Nhận KHÔNG sử dụng `@lastKey` hay `ShareDataLastSend`**. Bên đối tác chủ động đẩy bản tin sang hệ thống; tầng Inbound kiểm tra chống trùng lặp (`Check Duplicate` / `MERGE` / `WHERE NOT EXISTS` theo khóa chính/mã bản tin) trong khối câu lệnh ghi `WriteSql`. |
 
 ---

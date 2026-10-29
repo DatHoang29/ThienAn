@@ -170,9 +170,8 @@ DECLARE @Sql101 NVARCHAR(MAX) = N'SELECT TOP (@pageSize)
 FROM dbo.TmsZoneStatus zs
 LEFT JOIN dbo.TmsZone z ON zs.ZoneId = z.ID
 LEFT JOIN dbo.TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId
-WHERE @lastTime IS NULL
-   OR zs.UpdateTime > @lastTime
-   OR (zs.UpdateTime = @lastTime AND zs.ID > @lastKey)
+WHERE zs.UpdateTime >= ISNULL(@lastTime, ''17530101'')
+  AND (@lastTime IS NULL OR zs.UpdateTime > @lastTime OR zs.ID > @lastKey)
 ORDER BY zs.UpdateTime ASC, zs.ID ASC';
 
 DECLARE @Vars101 NVARCHAR(MAX) = N'[{"Code":"pageSize","Name":null,"DataType":"Int","ValueKind":"Const","Value":"100","DefaultValue":null,"Remark":null,"OrderNo":1},{"Code":"lastTime","Name":null,"DataType":"DateTime","ValueKind":"Builtin","Value":"lastTime","DefaultValue":null,"Remark":null,"OrderNo":2},{"Code":"lastKey","Name":null,"DataType":"String","ValueKind":"Builtin","Value":"lastKey","DefaultValue":"","Remark":null,"OrderNo":3}]';

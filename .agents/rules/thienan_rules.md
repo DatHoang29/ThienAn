@@ -51,6 +51,7 @@ Mọi AI Agent **BẮT BUỘC** tuân thủ tuyệt đối các quy tắc cốt 
 | **67** | **Cấm Tự Ý Sửa Tệp Resource Backend** (Rule 19.107) | ⛔ CẤM tự ý thêm, sửa, xóa, format hoặc sort lại các tệp chuỗi resource của Backend (`src/TAC_WebAPI/Resources/*.json`, `vi-VN.json`, `en-US.json`). Giữ nguyên 100% nội dung resource hiện có. Chi tiết: [backend-dotnet_thienan.md](./backend-dotnet_thienan.md) §4.27. |
 | **68** | **Cấm Hardcode Đường Dẫn Tuyệt Đối Của Máy Cá Nhân** (Rule 19.108) | ⛔ CẤM hardcode đường dẫn tuyệt đối (absolute path) gắn với profile/thư mục máy cá nhân (vd `/Users/...`, `C:\Users\...`). 100% dùng đường dẫn tương đối (relative path) hoặc biến môi trường để đảm bảo chuyển qua máy khác hoặc CI/CD chạy được bình thường. Chi tiết: [backend-dotnet_thienan.md](./backend-dotnet_thienan.md) §4.28. |
 | **69** | **Bắt Buộc Viết Test Cho Thành Phần / Cơ Chế Bổ Sung Mới** (Rule 19.109) | Bổ sung tính năng, cơ chế hoặc xử lý mới vào hệ thống (như ghi nhật ký hoạt động / audit log, logging đối tượng nghiệp vụ, tra cứu gói tin/đối tác...): BẮT BUỘC viết test kiểm tra tính toàn vẹn (End-to-End hoặc Integration test qua API) xác nhận dữ liệu mới ghi đúng vào CSDL, constructor/DI/Wolverine thông suốt và luồng chạy không bị lỗi. Chi tiết: [testing-rules_thienan.md](./testing-rules_thienan.md) §1.6 & [backend-dotnet_thienan.md](./backend-dotnet_thienan.md) §4.29. |
+| **70** | **Dấu Gạch Dưới `_` Trong Tên Nhánh Chỉ Dùng Khi Có TaskCode/Issue** (Rule 19.110) | Dấu `_` **CHỈ ĐƯỢC PHÉP DÙNG** khi nhánh có mã TaskCode/Issue (`...-[TaskCode]_[mô-tả]`). Nhánh thông thường không có TaskCode/Issue: 100% dùng dấu gạch ngang `-` kèm tiền tố module (`...-[module]-[mô-tả]`), ⛔ CẤM dùng dấu `_`. Chi tiết: [git-workflow_thienan.md](./git-workflow_thienan.md) §2. |
 
 ---
 
@@ -131,3 +132,4 @@ Quy tắc kỹ thuật chi tiết lưu giữ toàn văn tại các tệp chuyên
 - **Rule 19.93** (STT 52) — Toàn vẹn phụ thuộc khi commit: Bắt buộc kèm `.sln`, `.csproj` (§4.5)
 - **Rule 19.102** (STT 63) — Commit message chỉ nêu việc chính, cấm ghi viết/chạy test, kết quả kiểm thử (§3)
 - **Rule 19.104** (STT 65) — Định dạng trả về nội dung commit: xuất khối văn bản thuần (`text`) kèm mã Rule để copy-paste trực tiếp (§3)
+- **Rule 19.110** (STT 70) — Quy tắc đặt tên nhánh: Dấu `_` chỉ dùng khi có TaskCode/Issue, nhánh thường 100% dùng dấu `-` kèm tiền tố module (§2)

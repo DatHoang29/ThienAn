@@ -22,10 +22,14 @@ description: Git branching workflow, Vietnamese commit conventions, and pre-comm
 ## 🏷️ 2. Quy Định Đặt Tên Nhánh (Branch Naming)
 
 ### Cú Pháp Chuẩn
-* **Có TaskCode:** `[BranchKey]/[yyyyMMdd]-[TaskCode]_[ten-cong-viec-viet-thuong-cach-nhau-boi-dau-gach-ngang]`
-  - *Ví dụ:* `feat/20260922-XD1.2.2.5_map-location-dathp`, `fix/20260922-XD1.2.2.5_map-location`
-* **Rút gọn (không TaskCode):** `[BranchKey]/[yyyyMMdd]-[module]-[ten-cong-viec-ngan-gon]`
-  - *Ví dụ:* `fix/20261007-sharedata-issue`, `fix/20261008-sharedata-khung-gio-qua-dem`
+* **Có TaskCode / Issue:** `[BranchKey]/[yyyyMMdd]-[TaskCode]_[ten-cong-viec-viet-thuong-cach-nhau-boi-dau-gach-ngang]`
+  - Dấu gạch dưới `_` **DUY NHẤT** được dùng để ngăn cách giữa mã TaskCode/Issue và tên công việc.
+  - *Ví dụ:* `feat/20260922-XD1.2.2.5_map-location-dathp`, `fix/20261021-XD006.7.1_chuan-hoa-giao-dien-sharedata`
+* **Rút gọn (không TaskCode / không Issue):** `[BranchKey]/[yyyyMMdd]-[module]-[ten-cong-viec-ngan-gon]`
+  - BẮT BUỘC dùng 100% dấu gạch ngang `-`, có tiền tố tên module ngay sau ngày tháng.
+  - ⛔ **CẤM dùng dấu gạch dưới `_`** khi nhánh không có TaskCode/Issue.
+  - *Ví dụ:* `fix/20261028-sharedata-chuan-hoa-giao-dien`, `fix/20261007-sharedata-issue`, `fix/20261008-sharedata-khung-gio-qua-dem`
+  - ❌ *Sai:* `fix/20261028_chuan-hoa-giao-dien-sharedata` (sai vì không có TaskCode mà dùng `_`, thiếu tiền tố module).
 
 ### Phân Loại Nhánh
 | Nhánh | Phụ trách | Mục đích |
@@ -48,6 +52,11 @@ description: Git branching workflow, Vietnamese commit conventions, and pre-comm
    - ❌ *CẤM*: `chuc-nang`, `code`, `issue`, `loi`, `sharedata`, `tms`.
    - ✅ *ĐÚNG*: Mô tả nghiệp vụ súc tích (`sharedata-issue`, `sharedata-khung-gio-qua-dem`).
 3. **CẤM viết tiếng Việt có dấu trong tên nhánh**: Tên nhánh viết tiếng Việt **KHÔNG DẤU** hoặc tiếng Anh, ngăn cách bằng dấu gạch ngang `-`.
+4. **CẤM dùng dấu gạch dưới `_` khi không có TaskCode / Issue (Rule 19.110)**:
+   - Dấu gạch dưới `_` **CHỈ ĐƯỢC PHÉP XUẤT HIỆN** khi nhánh có gắn mã TaskCode hoặc Issue (dùng làm ranh giới phân tách duy nhất giữa mã issue và phần mô tả: `[TaskCode]_[mo-ta]`).
+   - Mọi nhánh thông thường không có TaskCode/Issue: **100% dùng dấu gạch ngang `-`** và bắt buộc có tiền tố module: `[BranchKey]/[yyyyMMdd]-[module]-[mo-ta]`.
+   - ❌ *CẤM*: `fix/20261028_chuan-hoa-giao-dien-sharedata`, `feat/20261028_them-chuc-nang`
+   - ✅ *ĐÚNG*: `fix/20261028-sharedata-chuan-hoa-giao-dien`, `feat/20261028-sharedata-them-chuc-nang`
 
 ---
 

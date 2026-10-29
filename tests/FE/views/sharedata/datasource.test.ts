@@ -628,32 +628,53 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(mainTable.locator('.svp-param-code').first()).toHaveText('@lastKey');
         await expect(mainTable.locator('.svp-key-input input')).toHaveValue('2026-10-27 09:00:00.000_');
 
-        // 2. Chuyển sang tab Đối tác riêng CSGT: bảng tham số hiện đủ 5 cột (gồm So với mẫu + Mốc đang chạy)
+        // Bảng mốc đối tác tự động mở sẵn ở tab Mẫu chung (auto mở khi có đối tác)
+        const partnerDrawer = panel.locator('.svp-partner-cursor-drawer');
+        await expect(partnerDrawer).toBeVisible({ timeout: 10_000 });
+        const partnerCursorTable = partnerDrawer.locator('.svp-table');
+        await expect(partnerCursorTable).toBeVisible();
+        await expect(partnerCursorTable.locator('tbody tr')).toHaveCount(2);
+
+        // Nút bấm toggle chuyển sang trạng thái ẩn
+        const toggleBtn = panel.locator('.svp-view-partners-btn');
+        await expect(toggleBtn).toBeVisible();
+        await expect(toggleBtn).toContainText('Ẩn');
+
+        // Bấm nút để đóng ngăn kéo mốc
+        await toggleBtn.click();
+        await expect(partnerDrawer).toBeHidden();
+        await expect(toggleBtn).toContainText('Xem mốc đang chạy');
+
+        // Bấm lại để mở lại
+        await toggleBtn.click();
+        await expect(partnerDrawer).toBeVisible();
+
+        // 2. Chuyển sang tab Đối tác riêng CSGT: bảng tham số giữ đúng 3 cột, mốc đang chạy hiện ở dòng .svp-progress dưới bảng
         const partnerTab = page.locator('.sql-partner-tabs .el-tabs__item').filter({ hasText: 'CSGT' }).first();
         await expect(partnerTab).toBeVisible();
         await partnerTab.click();
 
-        await expect(mainTable.locator('thead th')).toHaveCount(5);
-        await expect(mainTable.locator('.svp-saved-code')).toHaveText('2026-10-27 10:05:00.000_Z02');
+        await expect(mainTable.locator('thead th')).toHaveCount(3);
+        await expect(panel.locator('.svp-saved-code')).toHaveText('2026-10-27 10:05:00.000_Z02');
 
         // 3. Đặt lại mốc của CSGT (p_a)
-        await mainTable.locator('.svp-reset-btn').click();
+        await panel.locator('.svp-reset-btn').click();
         const confirmBtn = page.locator('.el-message-box__btns .el-button--primary');
         await expect(confirmBtn).toBeVisible();
         await confirmBtn.click();
 
         await expect.poll(() => resetPayloads.length).toBe(1);
         expect(resetPayloads[0]).toEqual({ packetCode: '101_commonData', partnerId: 'p_a' });
-        await expect(mainTable.locator('.svp-saved-code')).toHaveCount(0);
+        await expect(panel.locator('.svp-saved-code')).toHaveCount(0);
     });
 
     /**
      * Description: Khi bấm vào gói tin trên bảng bên trái (xGridPacket):
      *              - Bảng chi tiết bên phải nạp thành công, không bị lỗi cú pháp i18n (SyntaxError: Invalid linked format) hay crash trắng màn hình;
-     *              - Khối tham số SQL hiển thị đầy đủ, nút Hướng dẫn thiết lập mở popover hiển thị 4 bước mà không bị lỗi.
+     *              - Khối tham số SQL hiển thị đầy đủ, dòng giải thích mốc hiển thị bình thường.
      * Created date: 28/10/2026
      */
-    test('52. Bấm vào gói tin bên table trái: không bị crash trắng màn hình bên phải và popover hướng dẫn thiết lập mở bình thường', async ({ page }) => {
+    test('52. Bấm vào gói tin bên table trái: không bị crash trắng màn hình bên phải và dòng giải thích mốc hiển thị bình thường', async ({ page }) => {
         const pageErrors: string[] = [];
         page.on('pageerror', (err) => pageErrors.push(err.message));
 
@@ -735,15 +756,9 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const panel = page.locator('.sql-variable-panel');
         await expect(panel).toBeVisible({ timeout: 10_000 });
 
-        // Nút Hướng dẫn thiết lập hiển thị và mở được popover mà không ném SyntaxError
-        const guideBtn = panel.locator('.svp-guide-btn');
-        await expect(guideBtn).toBeVisible();
-        await guideBtn.click();
-
-        // Popover nội dung hướng dẫn hiển thị 4 bước
-        const guideSteps = page.locator('.svp-guide-popper .svp-guide-step');
-        await expect(guideSteps).toHaveCount(4);
-        await expect(guideSteps.nth(2)).toContainText('@pageSize');
+        // Dải kiểm nhanh mốc hiển thị
+        const checks = panel.locator('.svp-checks');
+        await expect(checks).toBeVisible();
 
         // Tuyệt đối không có bất kỳ lỗi Uncaught SyntaxError / pageerror nào
         expect(pageErrors.filter((e) => e.includes('SyntaxError') || e.includes('Invalid linked format'))).toEqual([]);
@@ -1135,6 +1150,235 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         // Danh sách trường của gói 102 phải hiển thị (cameraCode), không còn là fromLocationKm
         await expect(fieldsGrid).toContainText('cameraCode', { timeout: 5_000 });
         await expect(fieldsGrid).not.toContainText('fromLocationKm');
+
+        expect(pageErrors).toEqual([]);
+    });
+
+    /**
+     * Description: Khung soạn thảo SqlEditor: khi nạp câu truy vấn SQL dài nhiều dòng lần đầu (hoặc khi đổi gói tin),
+     *              khung soạn thảo luôn hiển thị từ dòng 1 ở trên cùng, không bị tự cuộn xuống cuối (scrollTop = 0, dòng 1 nằm trong vùng nhìn thấy).
+     * Created date: 29/10/2026
+     */
+    test('55. Khung soạn thảo SqlEditor: nạp câu SQL dài nhiều dòng hiển thị từ dòng 1 ở trên cùng, không tự cuộn xuống đáy', async ({ page }) => {
+        const pageErrors: string[] = [];
+        page.on('pageerror', (err) => pageErrors.push(err.message));
+
+        const longMultiLineSql = [
+            'SELECT',
+            '    i.ID AS transactionId,',
+            '    i.TollStationCode AS stationCode,',
+            '    i.LaneNumber AS laneNo,',
+            '    i.PlateEdit AS plateNumber,',
+            '    i.PlateLpr AS lprPlateNumber,',
+            '    i.VehicleType AS vehicleCategory,',
+            '    i.Price AS tollFee,',
+            '    vr.Brand AS vehicleBrand,',
+            '    vr.Owner AS vehicleOwner',
+            'FROM TollTransactionIn i',
+            'LEFT JOIN TmsVehicleRegistration vr',
+            '    ON NULLIF(ISNULL(NULLIF(i.PlateEdit, \'\'), NULLIF(i.PlateLpr, \'\')), \'\') = vr.LicensePlate',
+            '    AND vr.IsDelete IS NULL',
+            'WHERE i.IsDelete IS NULL',
+            '    AND (@lastTime IS NULL OR i.TransactionDateTime > @lastTime)',
+            'ORDER BY i.TransactionDateTime ASC',
+        ].join('\n');
+
+        await page.route('**/api/sharedata/sharedatapacket/page*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        records: [
+                            { id: 'PKT_01', code: '101_commonData', name: 'Gói 101 - Dữ liệu dùng chung', status: 1 },
+                        ],
+                        total: 1,
+                    },
+                }),
+            });
+        });
+
+        await page.route('**/api/sharedata/sharedatapacket/getsqldetail*', (route) =>
+            route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        extract: {
+                            extractSql: longMultiLineSql,
+                            status: 1,
+                            fields: [{ key: 'transactionId', type: 'string', label: 'Mã giao dịch', required: true }],
+                        },
+                        variables: { items: [] },
+                        write: { packetCode: '101_commonData', writeSql: '', affectedTables: [], detectedTables: [], keyFields: [] },
+                    },
+                }),
+            })
+        );
+
+        await page.route('**/api/sharedata/sharedatapacket/getpartnersqllist*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ code: 200, result: [] }),
+            });
+        });
+
+        await page.setViewportSize({ width: 1600, height: 950 });
+        await page.goto('/#/sharedata/dataSource');
+
+        const firstRow = page.locator('.packet-col .vxe-table--main-wrapper .vxe-body--row').first();
+        await expect(firstRow).toBeVisible({ timeout: 30_000 });
+        await firstRow.click();
+
+        // Chờ Monaco editor hiển thị và nạp xong câu truy vấn
+        const editorContainer = page.locator('.sql-editor-section .sql-monaco-editor');
+        await expect(editorContainer).toBeVisible({ timeout: 15_000 });
+
+        // Chờ editor nạp xong nội dung (có dòng SELECT)
+        const firstLine = editorContainer.locator('.view-line').first();
+        await expect(firstLine).toContainText('SELECT', { timeout: 10_000 });
+
+        // Khẳng định: dòng đầu tiên trong khung nhìn là dòng 1 (SELECT), không phải dòng 10 hay dòng 17 (ORDER BY)
+        const firstGutterLine = editorContainer.locator('.margin-view-overlays .line-numbers').first();
+        await expect(firstGutterLine).toHaveText('1');
+
+        // Khẳng định: thanh cuộn dọc đang ở đỉnh (top: 0px)
+        const scrollbarSlider = editorContainer.locator('.scrollbar.vertical .slider');
+        const sliderTop = await scrollbarSlider.evaluate((el: HTMLElement) => parseInt(el.style.top || '0', 10));
+        expect(sliderTop).toBe(0);
+
+        expect(pageErrors).toEqual([]);
+    });
+
+    /**
+     * Description: Chỉnh sửa trường gói tin: Hỗ trợ chọn nhóm có sẵn (như Dữ liệu xuất, Header) hoặc tạo nhóm mới ngay trong dialog
+     * Created date: 29/10/2026
+     */
+    test('56. Chỉnh sửa trường: chọn nhóm có sẵn (Dữ liệu xuất, Header) hoặc nhập nhóm mới và lưu', async ({ page }) => {
+        const pageErrors: string[] = [];
+        page.on('pageerror', (err) => pageErrors.push(err.message));
+
+        let savedUpdate: any = null;
+
+        await page.route('**/api/sharedata/sharedatapacket/page*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        records: [
+                            { id: 'PKT_104', code: '104_weatherData', name: 'Gói 104 - Dữ liệu thời tiết', status: 1 },
+                        ],
+                        total: 1,
+                    },
+                }),
+            });
+        });
+
+        await page.route('**/api/sharedata/sharedatapacket/getsqldetail*', (route) =>
+            route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        extract: {
+                            extractSql: 'SELECT sessionid, temperature, humidity FROM TmsWeather',
+                            status: 1,
+                            fields: [
+                                { key: 'sessionid', type: 'string', label: 'Phiên làm việc', required: true, group: 'Header' },
+                                { key: 'temperature', type: 'number', label: 'Nhiệt độ mặt đường', required: false, group: 'Dữ liệu xuất' },
+                                { key: 'humidity', type: 'number', label: 'Độ ẩm không khí', required: false, group: null },
+                            ],
+                        },
+                        variables: { items: [] },
+                        write: { packetCode: '104_weatherData', writeSql: '', affectedTables: [], detectedTables: [], keyFields: [] },
+                    },
+                }),
+            })
+        );
+
+        await page.route('**/api/sharedata/sharedatapacket/getpartnersqllist*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ code: 200, result: [] }),
+            });
+        });
+
+        await page.route('**/api/sharedata/sharedatapacket/updateextractsql*', async (route) => {
+            savedUpdate = route.request().postDataJSON();
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        status: 1,
+                        fields: savedUpdate.fields || [],
+                    },
+                }),
+            });
+        });
+
+        await page.setViewportSize({ width: 1600, height: 950 });
+        await page.goto('/#/sharedata/dataSource');
+
+        const firstPacket = page.locator('.packet-col .vxe-table--main-wrapper .vxe-body--row').first();
+        await expect(firstPacket).toBeVisible({ timeout: 30_000 });
+        await firstPacket.click();
+
+        // Kiểm tra cây trường dữ liệu đã nhóm theo "Header" và "Dữ liệu xuất"
+        const fieldTree = page.locator('.fields-section .vxe-table--main-wrapper');
+        await expect(fieldTree).toContainText('Header', { timeout: 15_000 });
+        await expect(fieldTree).toContainText('Dữ liệu xuất', { timeout: 15_000 });
+
+        // Mở dialog chỉnh sửa trường humidity (chưa có nhóm)
+        const editBtns = page.locator('.field-edit-btn');
+        await expect(editBtns.first()).toBeVisible({ timeout: 10_000 });
+        await editBtns.last().click();
+
+        const editDialog = page.locator('.field-edit-dialog');
+        await expect(editDialog).toBeVisible();
+
+        // Kiểm tra trường Nhóm có sẵn các option từ gói tin 104 ('Header', 'Dữ liệu xuất')
+        const groupFormItem = editDialog.locator('.el-form-item', { hasText: 'Nhóm' });
+        await expect(groupFormItem).toBeVisible();
+
+        // Nút icon Thêm nhóm hiển thị rõ ràng
+        const addGroupBtn = groupFormItem.locator('.field-add-group-btn');
+        await expect(addGroupBtn).toBeVisible();
+
+        const groupSelect = groupFormItem.locator('.el-select');
+        await groupSelect.click();
+
+        // Dropdown hiện ra danh sách nhóm có sẵn
+        const popper = page.locator('.el-select-dropdown:visible');
+        await expect(popper).toContainText('Header');
+        await expect(popper).toContainText('Dữ liệu xuất');
+
+        // Chọn nhóm "Dữ liệu xuất"
+        await popper.locator('.el-select-dropdown__item', { hasText: 'Dữ liệu xuất' }).click();
+
+        // Bấm Lưu
+        await editDialog.locator('.dialog-footer .el-button--primary').click();
+        await expect(editDialog).toBeHidden();
+
+        // Thông báo thành công hiển thị đúng ngữ cảnh chỉnh sửa trường dữ liệu, không thông báo sai "Lưu cấu hình SQL"
+        const successToast = page.locator('.el-message--success');
+        await expect(successToast).toBeVisible();
+        await expect(successToast).toContainText('trường dữ liệu');
+        await expect(successToast).not.toContainText('cấu hình SQL');
+
+        // Xác nhận payload gửi lên BE có chứa group đã chọn
+        expect(savedUpdate).toBeTruthy();
+        const savedHumidity = savedUpdate.fields.find((f: any) => f.key === 'humidity');
+        expect(savedHumidity).toBeTruthy();
+        expect(savedHumidity.group).toBe('Dữ liệu xuất');
 
         expect(pageErrors).toEqual([]);
     });

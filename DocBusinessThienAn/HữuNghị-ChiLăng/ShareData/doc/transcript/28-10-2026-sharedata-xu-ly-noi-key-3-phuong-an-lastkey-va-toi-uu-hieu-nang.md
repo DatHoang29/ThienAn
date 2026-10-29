@@ -125,7 +125,7 @@ Ba bản vẽ tay kỹ thuật được Tech Lead phác thảo trực tiếp tro
 
 ---
 
-### 1.2. Phân Tích So Sánh Chi Tiết 3 Phương Án Trong Trao Đổi & Phương Án 4 Thực Tế Của Hệ Thống
+### 1.2. Phân Tích So Sánh Chi Tiết 3 Phương Án Trong Trao Đổi
 
 #### A. Phân tích chi tiết Phương án 1 (SQL Full Projection):
 - **Cơ chế:** Viết trực tiếp phép ghép chuỗi trong câu truy vấn chính:
@@ -148,25 +148,35 @@ Ba bản vẽ tay kỹ thuật được Tech Lead phác thảo trực tiếp tro
 - **Cơ chế:** CSDL chỉ trả về các trường gốc (`UpdateTime`, `Code/ID`). Tầng Worker dùng C# ghép chuỗi `d.UpdateTime.ToString(...) + "_" + d.Code`.
 - **Đánh giá:** Rất tối ưu cho CSDL nhưng bị phụ thuộc cứng vào mã nguồn C# (hardcoded logic), phải mở code ra tra cứu tên thuộc tính, biên dịch lại service khi có thay đổi, triệt tiêu tính tùy biến động trên giao diện UI cho SuperAdmin. Do đó cuộc họp đã thống nhất gác lại.
 
-#### D. Phương án 4: Giải pháp Thực Tế của Codebase Thiên Ân (Con Trỏ Kép Keyset Pagination)
-- **Cơ chế:** Không ép hai trường thành 1 chuỗi duy nhất, mà duy trì **con trỏ kép tự nhiên (Multi-Column Keyset)**: Mốc thời gian `@lastTime` (DateTime) kết hợp Mốc khóa chính `@lastKey` (GUID/String).
-- **Mệnh đề truy vấn chuẩn:**
-  `WHERE @lastTime IS NULL OR UpdateTime > @lastTime OR (UpdateTime = @lastTime AND ID > @lastKey)`
-  `ORDER BY UpdateTime ASC, ID ASC`
-- **Sức mạnh vượt trội:**
-  - **100% Sargable Query:** Kích hoạt trực tiếp B-Tree Index phức hợp `(UpdateTime ASC, ID ASC)`. Query Optimizer dùng Index Seek nhảy thẳng tới vị trí dữ liệu cần đọc với độ phức tạp $O(\log N)$, phản hồi $\le 2\text{ms}$ ngay cả trên bảng hàng chục triệu dòng.
-  - **Chỉ 1 round-trip duy nhất:** Vừa lấy dữ liệu vừa lấy mốc dòng cuối, không phát sinh query phụ.
-  - **Triệt tiêu duplicate timestamp:** Nhánh `(UpdateTime = @lastTime AND ID > @lastKey)` giải quyết triệt để toán học trường hợp nhiều bản ghi phát sinh trong cùng 1 thời điểm.
+| Tiêu chí | PA1: SQL Full Projection | PA2: SQL Single Row Formula | PA3: C# Worker Mapping |
+| :--- | :--- | :--- | :--- |
+| **Bản chất mốc** | Chuỗi ghép 1 biến `@lastKey` | Chuỗi ghép 1 biến `@lastKey` | Chuỗi ghép 1 biến `@lastKey` |
+| **Mệnh đề WHERE** | `WHERE CONCAT(...) > @lastKey` | `WHERE CONCAT(...) > @lastKey` | `WHERE CONCAT(...) > @lastKey` |
+| **Sử dụng Index** | ❌ Không (Non-Sargable) | ❌ Không (Non-Sargable) | ❌ Không (Non-Sargable) |
+| **Tải trên CSDL** | 🔴 Rất nặng (Table Scan + CPU) | 🔴 Rất nặng (Table Scan) + 2 query | 🟡 Vẫn Table Scan ở WHERE |
+| **Số Round-trip** | 1 round-trip | **2 round-trips** | 1 round-trip |
+| **Tính linh hoạt UI** | Cao (1 câu SQL) | Trung bình (cần thêm ô công thức) | Thấp (phụ thuộc code C#) |
+| **Đánh giá hệ thống** | Làm trước vì đơn giản; dữ liệu lớn hoặc chạy lại từ đầu thì hay nghẽn ở nối chuỗi [13:49 – 14:09] | Cân nhắc cho bảng vài triệu dòng; làm lên rồi đo hiệu năng để chọn giữa PA1 và PA2 [13:31 – 14:25] | Gác lại: khó, phụ thuộc mã C# [14:28 – 15:23] |
 
-| Tiêu chí | PA1: SQL Full Projection | PA2: SQL Single Row Formula | PA3: C# Worker Mapping | PA4: Con Trỏ Kép Keyset (Codebase Hiện Tại) |
-| :--- | :--- | :--- | :--- | :--- |
-| **Bản chất mốc** | Chuỗi ghép 1 biến `@lastKey` | Chuỗi ghép 1 biến `@lastKey` | Chuỗi ghép 1 biến `@lastKey` | **Con trỏ kép 2 biến `@lastTime` & `@lastKey`** |
-| **Mệnh đề WHERE** | `WHERE CONCAT(...) > @lastKey` | `WHERE CONCAT(...) > @lastKey` | `WHERE CONCAT(...) > @lastKey` | **`WHERE UpdateTime > @lastTime OR (...)`** |
-| **Sử dụng Index** | ❌ Không (Non-Sargable) | ❌ Không (Non-Sargable) | ❌ Không (Non-Sargable) | ✅ **Có 100% (Index Seek $O(\log N)$)** |
-| **Tải trên CSDL** | 🔴 Rất nặng (Table Scan + CPU) | 🔴 Rất nặng (Table Scan) + 2 query | 🟡 Vẫn Table Scan ở WHERE | 🟢 **Siêu nhẹ (Index Seek B-Tree)** |
-| **Số Round-trip** | 1 round-trip | **2 round-trips** | 1 round-trip | **1 round-trip duy nhất** |
-| **Tính linh hoạt UI** | Cao (1 câu SQL) | Trung bình (cần thêm ô công thức) | Thấp (phụ thuộc code C#) | **Tối ưu theo Wireframe W0.2 (3 cột gọn)** |
-| **Đánh giá hệ thống** | Tạm dùng cho bảng nhỏ | Bác bỏ vì không giải quyết WHERE | Bác bỏ vì dính chặt code C# | 🏆 **Chuẩn mực công nghiệp áp dụng chính thức** |
+> 📌 **Ghi chú bổ sung 29/10/2026 — kết quả đo, không phải lời họp.**
+> Đo bằng test `tests/BE/ITS/ShareData/Performance/CursorQueryPerformanceTests.cs` trên bảng 1.000.000 dòng có chỉ mục `(UpdateTime, ID)`, lấy trang 100 dòng khi mốc ở gần cuối bảng (trạng thái chạy định kỳ):
+>
+> | Cách | Trang đọc mỗi lượt | Ghi chú |
+> |---|---:|---|
+> | PA1 | 31.588 | Quét cả bảng rồi sắp xếp |
+> | PA2 | 11.790 | Quét chỉ mục từ đầu tới mốc, thêm 1 lượt gọi DB |
+> | PA3 | 11.786 | Quét chỉ mục từ đầu tới mốc |
+> | Câu mẫu gói 101 trước khi sửa | 11.786 | Dùng lại kế hoạch dựng lúc chưa có mốc: 4.072.255 |
+> | Câu mẫu gói 103–111 (`COALESCE`) | 31.588 | Viết lại kiểu `>=` vẫn quét vì so biểu thức |
+> | Câu 2 cột viết lại (dưới đây) | 421 | Index Seek ở mọi vị trí mốc, kể cả khi dùng lại kế hoạch |
+>
+> Mọi cách trả cùng một trang và cùng mốc kế tiếp. PA2 không giảm được chi phí vì điều kiện `WHERE` vẫn so chuỗi ghép. Câu mẫu gói 101 đã sửa theo dạng:
+>
+> ```sql
+> WHERE zs.UpdateTime >= ISNULL(@lastTime, '17530101')
+>   AND (@lastTime IS NULL OR zs.UpdateTime > @lastTime OR zs.ID > @lastKey)
+> ORDER BY zs.UpdateTime ASC, zs.ID ASC
+> ```
 
 ---
 
