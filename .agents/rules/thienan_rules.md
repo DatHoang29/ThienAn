@@ -52,6 +52,7 @@ Mọi AI Agent **BẮT BUỘC** tuân thủ tuyệt đối các quy tắc cốt 
 | **68** | **Cấm Hardcode Đường Dẫn Tuyệt Đối Của Máy Cá Nhân** (Rule 19.108) | ⛔ CẤM hardcode đường dẫn tuyệt đối (absolute path) gắn với profile/thư mục máy cá nhân (vd `/Users/...`, `C:\Users\...`). 100% dùng đường dẫn tương đối (relative path) hoặc biến môi trường để đảm bảo chuyển qua máy khác hoặc CI/CD chạy được bình thường. Chi tiết: [backend-dotnet_thienan.md](./backend-dotnet_thienan.md) §4.28. |
 | **69** | **Bắt Buộc Viết Test Cho Thành Phần / Cơ Chế Bổ Sung Mới** (Rule 19.109) | Bổ sung tính năng, cơ chế hoặc xử lý mới vào hệ thống (như ghi nhật ký hoạt động / audit log, logging đối tượng nghiệp vụ, tra cứu gói tin/đối tác...): BẮT BUỘC viết test kiểm tra tính toàn vẹn (End-to-End hoặc Integration test qua API) xác nhận dữ liệu mới ghi đúng vào CSDL, constructor/DI/Wolverine thông suốt và luồng chạy không bị lỗi. Chi tiết: [testing-rules_thienan.md](./testing-rules_thienan.md) §1.6 & [backend-dotnet_thienan.md](./backend-dotnet_thienan.md) §4.29. |
 | **70** | **Dấu Gạch Dưới `_` Trong Tên Nhánh Chỉ Dùng Khi Có TaskCode/Issue** (Rule 19.110) | Dấu `_` **CHỈ ĐƯỢC PHÉP DÙNG** khi nhánh có mã TaskCode/Issue (`...-[TaskCode]_[mô-tả]`). Nhánh thông thường không có TaskCode/Issue: 100% dùng dấu gạch ngang `-` kèm tiền tố module (`...-[module]-[mô-tả]`), ⛔ CẤM dùng dấu `_`. Chi tiết: [git-workflow_thienan.md](./git-workflow_thienan.md) §2. |
+| **71** | **Entity Thêm Cột / Bảng Mới Thì Bật Cờ Tạo Bảng Khi Chạy Test** (Rule 19.111) | Trước khi chạy test BE có entity thêm cột / bảng: bật `TableSettings.EnableInitTable = true` cho đúng ConfigId của entity (mặc định `Default`, hoặc theo `[Tenant(...)]`) trong `tests/BE/appsettings.Test.json`, giữ `EnableIncreTable = false`. ConfigId đang tắt cờ thì cột mới không được tạo, test lỗi `Invalid column name`. ⛔ Không `ALTER TABLE` tay, không sửa `Database.json`. Chi tiết: [testing-rules_thienan.md](./testing-rules_thienan.md) §2. |
 
 ---
 
@@ -114,6 +115,7 @@ Quy tắc kỹ thuật chi tiết lưu giữ toàn văn tại các tệp chuyên
 - **Rule 19.84** (STT 43) — Tệp test bám đúng luồng nghiệp vụ chính, thêm vào tệp có sẵn (§5)
 - **Rule 19.92, Rule 51** (STT 51) — Chạy test theo phạm vi sửa để tiết kiệm thời gian (filter test) (§6)
 - **Rule 19.109** (STT 69) — Bắt buộc viết test cho thành phần / cơ chế bổ sung mới (§1.6)
+- **Rule 19.111** (STT 71) — Entity thêm cột / bảng mới: bật `EnableInitTable` cho đúng ConfigId trong `tests/BE/appsettings.Test.json` trước khi chạy test (§2)
 
 ### 4. Database & MCP Tooling ([database-mcp_thienan.md](./database-mcp_thienan.md))
 - **Rule 19.85** (STT 44) — Bảng có entity: CodeFirst khung trước; nạp data qua UI hoặc `.sql` (§2.3)

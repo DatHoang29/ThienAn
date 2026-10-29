@@ -90,6 +90,10 @@ description: Unified Testing Suite protocol, Playwright FE E2E, xUnit BE on loca
 * ⛔ **CẤM tự ý xóa bảng DB trong từng test method**: Không viết `db.Deleteable<Table>().ExecuteCommand()` rải rác trong từng test.
 * Dọn dẹp tập trung tại `Host.ClearAllData()` và mỗi test method tự cô lập dữ liệu bằng **Unique ID / Mã riêng biệt** để đảm bảo test chạy song song không xung đột.
 * ⛔ **CẤM gọi `InitTables<T>()` / `EnsureTablesCreated()`**: Kích hoạt tự động tạo bảng thông qua cấu hình `TableSettings` trong `tests/appsettings.Test.json`.
+* **Entity thêm cột / bảng mới → bật cờ tạo bảng trong `tests/BE/appsettings.Test.json` trước khi chạy test (Rule 19.111, bổ sung 29/10/2026)**:
+  - Xác định ConfigId chứa entity: mặc định `Default`; entity gắn `[Tenant("...")]` thuộc ConfigId đó (vd `ShareDataInboundPacket` → `ShareDataDB`).
+  - Đặt `TableSettings.EnableInitTable = true` cho đúng ConfigId đó trong `tests/BE/appsettings.Test.json` (giữ `EnableIncreTable = false`) để CodeFirst tạo cột / bảng mới khi Host test khởi động. `Default` đang bật sẵn; `LogDefault`, `ShareDataDB`, `Inbound`, `Target`, `NotiDefault` đang tắt nên cột mới **không** được tạo và test lỗi `Invalid column name`.
+  - Sửa cờ ở `appsettings.Test.json` (cấu hình test, được commit), ⛔ không sửa `Database.json` của máy (Rule 19.100). ⛔ Không thêm cột vào CSDL test bằng `ALTER TABLE` tay (Rule 19.85: entity là chuẩn cấu trúc bảng).
 * **Ưu tiên tuyệt đối SqlSugar ORM trong bài test & helper test**: Mọi thao tác truy vấn/cập nhật trên bảng Entity CSDL bắt buộc dùng SqlSugar ORM (`Queryable<T>()`, `Insertable<T>()`, `Updateable<T>()`, `Deleteable<T>()` kèm `.ClearFilter()` khi cần đọc/xử lý bản ghi đã xóa mềm); ⛔ **CẤM** viết câu lệnh SQL thuần `db.Ado.ExecuteCommandAsync("DELETE/UPDATE FROM ...")` hoặc `db.Ado.GetIntAsync("SELECT COUNT(1) FROM ...")` trên bảng Entity (ngoại trừ lệnh DDL hệ thống như `ALTER TABLE ... CHANGE_TRACKING` hoặc truy vấn bảng/hàm hệ thống SQL Server như `sys.change_tracking_tables`, `CHANGETABLE(...)`, `SELECT GETDATE()`).
 
 ### Cô Lập Kiểm Thử Kết Nối Server Thật (`tests/BE/RealServer/` - Rule 19.66)
