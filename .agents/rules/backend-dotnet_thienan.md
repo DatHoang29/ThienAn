@@ -519,4 +519,13 @@ namespace Module.ShareData.Controllers
   3. **Không làm gãy luồng chính**: Logic chính lưu dữ liệu / xử lý sự kiện chạy thành công bình thường.
 * ⛔ **CẤM TUYỆT ĐỐI** chỉ thêm code logging hoặc cơ chế xử lý mới mà không viết bài test đi qua luồng thật để kiểm chứng dữ liệu thực tế được lưu vào CSDL.
 
+### 4.30. Cấm Nới Lỏng Bộ Kiểm Tra / An Toàn Dữ Liệu Để Làm Xanh Test (Rule 19.113)
+
+* Khi bộ kiểm tra an toàn (Validator, AST ScriptDom parser, Guard, Check constraint) từ chối đầu vào không hợp lệ hoặc làm một số test xUnit cũ bị fail do luật mới được siết chặt (ví dụ: phát hiện câu SQL lọc thiếu khóa `@lastKey` gây mất dòng khi trùng thời gian, so sánh hằng số kẹt phân trang, hoặc dùng biểu thức không ổn định):
+  1. ⛔ **CẤM TUYỆT ĐỐI nới lỏng bộ kiểm tra**: Không được thêm nhánh bỏ qua kiểm tra (bypassing), không nới lỏng điều kiện kiểm tra (vd: thêm cờ `timeOnly` để bỏ qua khóa) CHỈ ĐỂ làm cho test cũ vượt qua. Bộ kiểm tra sinh ra để bảo vệ tính toàn vẹn dữ liệu hệ thống, nới lỏng bộ kiểm tra sẽ trực tiếp tạo ra bug mất dữ liệu trên môi trường vận hành thực tế.
+  2. **Cập nhật test case theo chuẩn mới**: Các bài test cũ đưa dữ liệu mẫu sai chuẩn phải được cập nhật lại câu SQL/dữ liệu đầu vào cho đúng quy chuẩn kỹ thuật mới.
+  3. **Chuyển thành test kiểm tra từ chối (Negative Test)**: Nếu muốn kiểm chứng rằng hệ thống đã chặn thành công trường hợp lỗi đó, viết test kiểm tra kỳ vọng ném lỗi `Oops.Oh` (`AssertRejectedWith(error, BaseMsg...)`) và khẳng định không có dữ liệu sai nào được ghi vào CSDL.
+  4. **Ngoại lệ duy nhất**: Chỉ được phép nới lỏng hoặc chuyển từ trạng thái Chặn (Reject) sang Cảnh báo (Warning) khi có chỉ thị trực tiếp từ người dùng sau khi đã phân tích rõ rủi ro mất/lặp dữ liệu.
+
+
 

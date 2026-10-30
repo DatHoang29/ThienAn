@@ -108,6 +108,12 @@ Khi kiểm thử tích hợp với NATS broker thật (Docker local 127.0.0.1:42
 - **Làm sạch Subscription:** Gọi `transport.Unsubscribe(uniqueSubject)` ở đầu và cuối bài test để giải phóng handler trên singleton `TransportManager`.
 - **Tăng hạn định timeout khi chạy batch lớn:** Đặt timeout tối thiểu 45–60 giây cho các assertion chờ bản tin NATS toàn trình để tránh fail giả do tải cao của luồng CPU/threadpool.
 
+### 2.8. Không Sửa Ngọn Validator Để Cứu Test Cũ (Rule 19.113)
+* Khi bộ kiểm tra (Validator, AST parser, Guard) chặn lỗi hoặc làm một số test xUnit cũ bị fail do luật nghiệp vụ mới được siết chặt (ví dụ: siết chặt cú pháp SQL nối mốc để chống mất dữ liệu khi trùng mili-giây):
+  - ⛔ **CẤM TUYỆT ĐỐI sửa ngọn**: Không được nới lỏng logic của Validator (như thêm nhánh bypass, bỏ qua kiểm tra khóa) để làm cho test cũ xanh.
+  - **Cập nhật dữ liệu test theo chuẩn mới**: Sửa dữ liệu mẫu trong bài test cũ để tuân thủ đúng chuẩn nghiệp vụ mới.
+  - **Viết bài test từ chối (Negative Test)**: Nếu muốn kiểm chứng rằng Validator hoạt động đúng và đã chặn thành công trường hợp vi phạm, hãy dùng `AssertRejectedWith(error, BaseMsg...)`.
+
 ---
 
 ## 🎭 3. Quy Chuẩn Kiểm Thử Frontend (Playwright E2E)

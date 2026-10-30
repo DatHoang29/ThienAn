@@ -43,6 +43,12 @@ description: Documentation standards, single MasterPlan per subsystem, executabl
 * ⛔ **TUYỆT ĐỐI CẤM** gộp chung cả yêu cầu BE và FE vào một file prompt duy nhất khi cả hai phân tầng đều có phần việc.
 * **Mục đích**: Tách biệt rõ ràng phạm vi tệp thay đổi giữa 2 tầng, tránh xung đột file (zero file conflict), và tạo điều kiện kích hoạt ngay các subagents chuyên biệt (BE Specialist, FE Specialist) chạy song song cùng lúc theo Rule #24 (Rule 19.70).
 
+### Bảo Toàn Nguồn Sự Thật Duy Nhất Của Tài Liệu (Rule 19.114)
+* Khi tài liệu nghiệp vụ/kỹ thuật đã được người dùng chỉ định gom về một nguồn duy nhất (SSOT) và xóa các tệp trung gian (ví dụ: gộp `doc/08-thiet-ke-luong-noi-duoi-toan-trinh-ui-be-worker.md` vào `doc/transcript/28-10-2026-sharedata-xu-ly-noi-key-3-phuong-an-lastkey-va-toi-uu-hieu-nang.md` thành Phần C vì lý do *"tôi đọc 1 nguồn thôi"*):
+  - ⛔ **TUYỆT ĐỐI CẤM** tự ý tạo lại, khôi phục hoặc tiếp tục sửa đổi trên các tệp tài liệu cũ đã bị xóa.
+  - Mọi bổ sung thiết kế, benchmark hiệu năng, phân tích kỹ thuật mới BẮT BUỘC ghi vào đúng tệp SSOT duy nhất đang sống được người dùng chỉ định.
+  - Phải ghi nhận vào bộ nhớ dự án (`.agents/memory/` hoặc memory của AI) để các phiên làm việc tiếp theo không vi phạm.
+
 ---
 
 ## 📊 2. Quy Chuẩn Báo Cáo Rà Soát (Review Reports - Rule 19.14, 19.21)

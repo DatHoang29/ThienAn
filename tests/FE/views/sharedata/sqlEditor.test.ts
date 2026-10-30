@@ -490,7 +490,7 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         const rows = page.locator('.packet-col .vxe-table--main-wrapper .vxe-body--row');
         await expect(rows).toHaveCount(2, { timeout: 15_000 });
         await expect(page.locator('.packet-col .vxe-table--main-wrapper .vxe-header--column', { hasText: 'Nguồn SQL' })).toBeVisible();
-        await expect(rows.nth(0)).toContainText('SQL riêng');
+        await expect(rows.nth(0)).toContainText('Cấu hình riêng');
         await expect(rows.nth(1)).toContainText('Dùng chung');
         // Tải chậm (27/10): không tự chọn gói; bấm gói có SQL riêng thì mở thẳng tab SQL của đối tác đang lọc
         await rows.nth(0).click();
@@ -1198,52 +1198,53 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         await expect(notice).toContainText('đệm 0');
     });
 
-
-    for (const c of [
-        {
-            name: '44. Thiết lập khóa nối đuôi: chọn cột thời gian + mã kiểu số → chèn đủ cột __lastKey (đệm 0), điều kiện WHERE > @lastKey và ORDER BY __lastKey',
-            sql: SQL_ONE_COLUMN,
-            numeric: true,
-            op: '>',
-            expectKey: "CONVERT(varchar(23), td.UpdateTime, 121) + '_' + RIGHT('0000000000' + CAST(td.ID AS varchar(10)), 10) AS __lastKey",
-            expectWhere: "WHERE CONVERT(varchar(23), td.UpdateTime, 121) + '_' + RIGHT('0000000000' + CAST(td.ID AS varchar(10)), 10) > @lastKey",
-        },
-        {
-            name: '44b. Thiết lập khóa nối đuôi trên SQL đã có WHERE và ORDER BY khác: thêm AND vào WHERE, thay ORDER BY bằng __lastKey; mã kiểu chuỗi, toán tử >=',
-            sql: 'SELECT TOP 100 td.Speed AS speed FROM TmsTrafficData td WHERE td.Speed > 0 ORDER BY td.Speed DESC',
-            numeric: false,
-            op: '>=',
-            expectKey: "CONVERT(varchar(23), td.UpdateTime, 121) + '_' + td.ID AS __lastKey",
-            expectWhere: "WHERE td.Speed > 0 AND CONVERT(varchar(23), td.UpdateTime, 121) + '_' + td.ID >= @lastKey",
-        },
-    ]) {
-        test(c.name, async ({ page }) => {
-            await page.route('**/api/sharedata/sharedatapacket/getextractsql*', (r) =>
-                r.fulfill(json({ code: 200, result: { extractSql: c.sql, status: 1, fields: SAVED_FIELDS } }))
+    /**
+     * Description: Lưu câu SQL đổi công thức cột mốc khi đối tác đang có mốc nối đuôi: máy chủ chưa lưu, trả requiresConfirm kèm đối tác
+     *              sẽ bị đặt lại mốc; màn hình hỏi xác nhận nêu tên đối tác, đồng ý thì gửi lại với force = true.
+     * Created date: 29/10/2026
+     */
+    test('59. Lưu câu SQL đổi công thức cột mốc khi đối tác đang có mốc: hỏi xác nhận kèm tên đối tác, đồng ý thì gửi lại với force', async ({ page }) => {
+        await page.route('**/api/sharedata/sharedatapacket/describecolumns*', (r) =>
+            r.fulfill(json({ code: 200, result: { isValid: true, fields: SAVED_FIELDS, added: [], lost: [], typeChanged: [], affectedMappings: [] } }))
+        );
+        const saveBodies: any[] = [];
+        await page.route('**/api/sharedata/sharedatapacket/updateextractsql*', (r) => {
+            const body = r.request().postDataJSON();
+            saveBodies.push(body);
+            return r.fulfill(
+                json({
+                    code: 200,
+                    result: body?.force
+                        ? { extractSql: SQL_ONE_COLUMN, status: 1, fields: SAVED_FIELDS, warnings: [] }
+                        : {
+                              extractSql: SQL_ONE_COLUMN,
+                              status: 1,
+                              fields: SAVED_FIELDS,
+                              requiresConfirm: true,
+                              lost: [],
+                              affectedMappings: [],
+                              cursorResetPartners: [{ partnerId: 'P_A', partnerCode: 'DT-A', partnerName: 'Đối tác A' }],
+                          },
+                })
             );
-            await page.route('**/api/sharedata/sharedatapacket/getsqlvariables*', (r) =>
-                r.fulfill(json({ code: 200, result: { items: [{ code: 'lastKey', valueKind: 'Builtin', value: 'lastKey', dataType: 'String', scope: 'common' }] } }))
-            );
-            await openSqlCenter(page);
-
-            await page.locator('.sql-variable-section .svp-lastkey-setup').first().click();
-            const dialog = page.locator('.lks-dialog');
-            await expect(dialog).toBeVisible();
-            await dialog.locator('.lks-time input').fill('td.UpdateTime');
-            await dialog.locator('.lks-id input').fill('td.ID');
-            if (c.numeric) await dialog.locator('.lks-numeric').click();
-            if (c.op === '>=') await dialog.locator('.lks-op .el-radio-button', { hasText: '>=' }).click();
-            await dialog.locator('.lks-apply').click();
-            await expect(dialog).toBeHidden();
-
-            const sql = await page.locator('.sql-section .sql-raw-textarea-fallback textarea').inputValue();
-            expect(sql).toContain(c.expectKey);
-            expect(sql).toContain(c.expectWhere);
-            expect(sql.trim().endsWith('ORDER BY __lastKey')).toBeTruthy();
-            expect(sql).not.toContain('DESC');
-            expect(sql).toContain('td.Speed AS speed');
         });
-    }
+        await openSqlCenter(page);
+        const save = page.locator('.sql-toolbar-bar .el-button--primary').last();
+        await page.locator('.sql-section .sql-raw-textarea-fallback textarea').fill(`${SQL_ONE_COLUMN}\n-- đổi công thức mốc`);
+        await expect(save).toBeEnabled({ timeout: 10_000 });
+        await save.click();
+
+        const confirmBox = page.locator('.el-message-box');
+        await expect(confirmBox).toBeVisible({ timeout: 10_000 });
+        await expect(confirmBox.locator('.cursor-reset-confirm')).toContainText('đổi công thức cột mốc');
+        await expect(confirmBox.locator('.cursor-reset-confirm')).toContainText('Đối tác A');
+        expect(saveBodies).toHaveLength(1);
+        expect(saveBodies[0].force).toBeFalsy();
+
+        await confirmBox.locator('.el-message-box__btns .el-button--primary').click();
+        await expect.poll(() => saveBodies.length, { timeout: 10_000 }).toBe(2);
+        expect(saveBodies[1].force).toBe(true);
+    });
 
     /**
      * Description: Chưa sửa gì mà đổi sang gói tin khác ở tab Nhận về thì không được hiện hộp "Gói tin hiện tại còn thay đổi chưa lưu",

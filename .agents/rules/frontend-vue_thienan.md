@@ -633,6 +633,13 @@ onUnmounted(() => mittBus.off(NatsEvent.StatusFms as any, handleNatsDeviceStatus
 - Route lấy từ backend qua `SysMenuApi.apiSystemSysmenuLoginmenutreeGet`; đường dẫn `component` của menu ánh xạ vào `views/**`, nên đặt màn hình mới đúng thư mục khai trên menu. Route tĩnh (đăng nhập, toàn màn hình) ở `router/route.ts`; `router/backEnd.ts` đang dùng, `frontEnd.ts` không dùng.
 - Component dùng chung đặt ở `src/components/`; component riêng của chức năng đặt cạnh view (`views/<module>/<chứcNăng>/component/`).
 
+### 11.9. Toàn Vẹn Khế Ước Dữ Liệu Khi Sửa Giao Diện (Rule 20.32)
+- Khi người dùng phản hồi về giao diện (gộp icon, sửa tooltip, khoảng cách nút, rớt dòng layout, căn chỉnh flexbox):
+  - AI chỉ tập trung sửa đổi tầng hiển thị: template HTML, SCSS/CSS, thuộc tính hiển thị của component Element Plus/VxeTable.
+  - ⛔ **TUYỆT ĐỐI CẤM** làm thay đổi cấu trúc payload API (request body / query params / DTO mapping) gửi xuống Backend trừ khi người dùng yêu cầu sửa API.
+  - Mọi trường mở rộng mới trong DTO/Model FE (như `cursorKey`) bắt buộc tương thích ngược (backward-compatible), không được tự ý gửi giá trị thừa / `null` / `undefined` vào các API hiện có làm fail validation phía Backend hoặc làm rớt bộ test E2E.
+
+
 
 
 

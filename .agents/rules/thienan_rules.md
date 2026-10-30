@@ -53,6 +53,10 @@ Mọi AI Agent **BẮT BUỘC** tuân thủ tuyệt đối các quy tắc cốt 
 | **69** | **Bắt Buộc Viết Test Cho Thành Phần / Cơ Chế Bổ Sung Mới** (Rule 19.109) | Bổ sung tính năng, cơ chế hoặc xử lý mới vào hệ thống (như ghi nhật ký hoạt động / audit log, logging đối tượng nghiệp vụ, tra cứu gói tin/đối tác...): BẮT BUỘC viết test kiểm tra tính toàn vẹn (End-to-End hoặc Integration test qua API) xác nhận dữ liệu mới ghi đúng vào CSDL, constructor/DI/Wolverine thông suốt và luồng chạy không bị lỗi. Chi tiết: [testing-rules_thienan.md](./testing-rules_thienan.md) §1.6 & [backend-dotnet_thienan.md](./backend-dotnet_thienan.md) §4.29. |
 | **70** | **Dấu Gạch Dưới `_` Trong Tên Nhánh Chỉ Dùng Khi Có TaskCode/Issue** (Rule 19.110) | Dấu `_` **CHỈ ĐƯỢC PHÉP DÙNG** khi nhánh có mã TaskCode/Issue (`...-[TaskCode]_[mô-tả]`). Nhánh thông thường không có TaskCode/Issue: 100% dùng dấu gạch ngang `-` kèm tiền tố module (`...-[module]-[mô-tả]`), ⛔ CẤM dùng dấu `_`. Chi tiết: [git-workflow_thienan.md](./git-workflow_thienan.md) §2. |
 | **71** | **Entity Thêm Cột / Bảng Mới Thì Bật Cờ Tạo Bảng Khi Chạy Test** (Rule 19.111) | Trước khi chạy test BE có entity thêm cột / bảng: bật `TableSettings.EnableInitTable = true` cho đúng ConfigId của entity (mặc định `Default`, hoặc theo `[Tenant(...)]`) trong `tests/BE/appsettings.Test.json`, giữ `EnableIncreTable = false`. ConfigId đang tắt cờ thì cột mới không được tạo, test lỗi `Invalid column name`. ⛔ Không `ALTER TABLE` tay, không sửa `Database.json`. Chi tiết: [testing-rules_thienan.md](./testing-rules_thienan.md) §2. |
+| **72** | **Quy Chuẩn Kế Thừa Phiên AI & Đồng Bộ Memory** (Rule 19.112) | Khi tiếp quản từ AI khác (Claude, phiên trước): BẮT BUỘC đọc trực tiếp file memory (`.claude/projects/.../memory/`) và log phiên gần nhất (`.jsonl`) để nắm chắc quyết định kiến trúc, chỉ đạo của người dùng và tiến độ TDD dở dang. ⛔ CẤM tự ý suy đoán, cấm làm ngược lại quyết định đã chốt. Chi tiết: [core-protocol.md](./core-protocol.md) §4. |
+| **73** | **Cấm Nới Lỏng Bộ Kiểm Tra / An Toàn Dữ Liệu Để Làm Xanh Test** (Rule 19.113) | Khi Validator / AST ScriptDom / Guard chặn lỗi hoặc làm test cũ đỏ vì phát hiện nguy cơ mất/lặp dữ liệu: ⛔ CẤM nới lỏng logic kiểm tra để test pass tạm thời. Phải giữ nguyên bộ chặn an toàn, test cũ viết sai chuẩn phải cập nhật theo chuẩn mới hoặc kiểm tra từ chối lỗi (`AssertRejectedWith`). Chi tiết: [backend-dotnet_thienan.md](./backend-dotnet_thienan.md) §4.30 & [testing-rules_thienan.md](./testing-rules_thienan.md) §2.8. |
+| **74** | **Bảo Toàn Tệp Nguồn Sự Thật Duy Nhất** (Rule 19.114) | Khi tài liệu đã được người dùng chỉ định gom vào một nguồn duy nhất (SSOT) và xóa tệp trung gian (vd gộp doc 08 vào transcript 28/10): ⛔ CẤM tự ý tạo lại, khôi phục hoặc sửa đổi tệp cũ đã bị xóa. Mọi bổ sung thiết kế, benchmark, phân tích BẮT BUỘC ghi vào đúng tệp SSOT duy nhất đang sống. Chi tiết: [documentation-standards_thienan.md](./documentation-standards_thienan.md) §1.4. |
+| **75** | **Toàn Vẹn Khế Ước Dữ Liệu Khi Sửa Giao Diện** (Rule 20.32) | Sửa UI (gộp icon, sửa tooltip, khoảng cách nút, layout): chỉ sửa tầng hiển thị template/CSS; ⛔ CẤM làm thay đổi cấu trúc payload API (request body / DTO) gửi xuống Backend trừ khi có yêu cầu sửa API. Trường mở rộng mới (`cursorKey`) bắt buộc tương thích ngược, không gửi thừa/null làm gãy API. Chi tiết: [frontend-vue_thienan.md](./frontend-vue_thienan.md) §11. |
 
 ---
 
@@ -79,6 +83,7 @@ Quy tắc kỹ thuật chi tiết lưu giữ toàn văn tại các tệp chuyên
 - **Rule 20.29** (STT 61) — Tách locale riêng phân hệ (`its/<module>/`), bọc escape `{'@'}` chống lỗi vue-i18n & đồng bộ seed SQL idempotent an toàn (§5)
 - **Rule 20.30** (STT 62) — Thẻ không có nội dung viết tự đóng `<div ... />`, cấm cặp rỗng `<div ...></div>` (§6.2)
 - **Rule 20.31** — Quy chuẩn Smoke Test nạp trang & Chống trắng màn hình (kiểm tra nạp trang, click vào dòng xem chi tiết, và bắt pageerror chống lỗi trắng màn hình) (§5.3)
+- **Rule 20.32** (STT 75) — Toàn vẹn khế ước dữ liệu khi sửa giao diện: chỉ sửa hiển thị, cấm gửi thừa/null phá vỡ payload API (§11)
 
 ### 2. Backend .NET & Clean Architecture ([backend-dotnet_thienan.md](./backend-dotnet_thienan.md))
 > ⚠️ **3 luật CQRS cốt lõi (P0, áp cho mọi mã BE mới; mã lân cận sai thì không chép theo):**
@@ -104,6 +109,8 @@ Quy tắc kỹ thuật chi tiết lưu giữ toàn văn tại các tệp chuyên
 - **Rule 19.107** (STT 67) — Cấm tự ý sửa tệp resource Backend (`Resources/*.json`) (§4.27)
 - **Rule 19.108** (STT 68) — Cấm hardcode đường dẫn tuyệt đối của máy cá nhân (§4.28)
 - **Rule 19.109** (STT 69) — Bắt buộc viết test kiểm chứng cho cơ chế & nhật ký hoạt động mới (§4.29)
+- **Rule 19.112** (STT 72) — Quy chuẩn kế thừa phiên AI: Bắt buộc đọc memory & session log, cấm làm ngược quyết định đã chốt (§4.30)
+- **Rule 19.113** (STT 73) — Cấm nới lỏng bộ kiểm tra / an toàn dữ liệu để làm xanh test (§4.30)
 
 ### 3. Testing Suite Protocol ([testing-rules_thienan.md](./testing-rules_thienan.md))
 > ⚠️ **Chỉ viết test mang giá trị & Đi qua nguyên luồng nghiệp vụ (Rule 19.10, bổ sung 24/10/2026, 28/10/2026, §1.4):**
@@ -116,6 +123,7 @@ Quy tắc kỹ thuật chi tiết lưu giữ toàn văn tại các tệp chuyên
 - **Rule 19.92, Rule 51** (STT 51) — Chạy test theo phạm vi sửa để tiết kiệm thời gian (filter test) (§6)
 - **Rule 19.109** (STT 69) — Bắt buộc viết test cho thành phần / cơ chế bổ sung mới (§1.6)
 - **Rule 19.111** (STT 71) — Entity thêm cột / bảng mới: bật `EnableInitTable` cho đúng ConfigId trong `tests/BE/appsettings.Test.json` trước khi chạy test (§2)
+- **Rule 19.113** (STT 73) — Không sửa ngọn Validator để cứu test cũ: Cập nhật test theo luật mới, cấm đục thủng bộ kiểm (§2.8)
 
 ### 4. Database & MCP Tooling ([database-mcp_thienan.md](./database-mcp_thienan.md))
 - **Rule 19.85** (STT 44) — Bảng có entity: CodeFirst khung trước; nạp data qua UI hoặc `.sql` (§2.3)
@@ -128,6 +136,7 @@ Quy tắc kỹ thuật chi tiết lưu giữ toàn văn tại các tệp chuyên
 - **Rule 19.82** (STT 40) — Kịch bản nghiệm thu: Ưu tiên giao diện (UI-First) làm đường chính (§11)
 - **Rule 19.98** (STT 56) — Tách biệt file prompt Backend và Frontend riêng để chạy song song (§1)
 - **Rule 19.99** (STT 57) — Bảo toàn nguyên văn gỡ băng kỹ thuật (Audio Verbatim Fidelity) (§5.4)
+- **Rule 19.114** (STT 74) — Bảo toàn tệp nguồn sự thật duy nhất (SSOT): Cấm tự ý tạo lại/khôi phục tệp cũ đã bị xóa/gộp (§1.4)
 
 ### 6. Git Workflow & Commit ([git-workflow_thienan.md](./git-workflow_thienan.md))
 - **Rule 19.91** (STT 50) — Đồng bộ `dev` trước khi push; commit một phần khi thư mục có mã dở (§4.4)

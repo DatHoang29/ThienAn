@@ -18,7 +18,7 @@ GO
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 26/10/2026 (thêm khóa câu ghi chiều nhận)
+-- CẬP NHẬT LẦN CUỐI: 30/10/2026 (thêm khóa nhóm mốc và kiểm điều kiện WHERE nối đuôi; mọi câu ≤ 256 ký tự theo cột Value, @ viết {'@'})
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -703,7 +703,35 @@ VALUES
 
     (N'lz.validation', N'sharedata.sqlLastKeyValueNotFixedWidth',
      N'Khóa nối đuôi [__lastKey] ép giá trị sang chuỗi không cố định độ dài: số phải đệm 0, ví dụ RIGHT(''0000000000'' + CAST(<cột> AS varchar(10)), 10); nếu không thì …_9 sẽ lớn hơn …_10 và làm bỏ sót dữ liệu.',
-     N'The [__lastKey] cursor converts a value to text without a fixed width: pad numbers with zeros, e.g. RIGHT(''0000000000'' + CAST(<column> AS varchar(10)), 10); otherwise …_9 sorts after …_10 and rows will be skipped.');
+     N'The [__lastKey] cursor converts a value to text without a fixed width: pad numbers with zeros, e.g. RIGHT(''0000000000'' + CAST(<column> AS varchar(10)), 10); otherwise …_9 sorts after …_10 and rows will be skipped.'),
+
+    (N'lz.validation', N'sharedata.sqlLastKeyNotTimeOrdered',
+     N'Khóa nối đuôi [__lastKey] chỉ là một cột chuỗi (ví dụ ID GUID): giá trị không tăng theo thứ tự ghi nên dòng mới có thể nhỏ hơn mốc và bị bỏ sót. Dùng dạng 2 cột (__lastTime + __lastKey) hoặc ghép thời gian vào khóa.',
+     N'The [__lastKey] cursor is a single text column (e.g. a GUID ID): values do not increase in write order, so new rows can sort below the cursor and be skipped. Use two cursor columns (__lastTime + __lastKey) or prefix the key with the time.'),
+
+    (N'lz.validation', N'sharedata.sqlLastKeyFilterInclusive',
+     N'Điều kiện lọc so khóa bằng >= với biến mốc khóa: dòng cuối lượt trước bị gửi lại ở mọi lượt, trang 1 dòng (TOP 1) thì kẹt mãi ở dòng đó. Nên so [__lastKey] > biến mốc khóa.',
+     N'The key filter uses >= with the key cursor variable: the last row of the previous run is resent every run, and a one-row page (TOP 1) stays stuck on it. Compare [__lastKey] > the key cursor variable.'),
+
+    (N'lz.validation', N'sharedata.sqlIncrementalCursorFilterInvalid',
+     N'WHERE phải so cả cặp mốc: [{2}] > {''@''}{0} OR ([{2}] = {''@''}{0} AND [{3}] > {''@''}{1}), hoặc [{2}] >= ISNULL({''@''}{0}, ''17530101'') AND ([{2}] > {''@''}{0} OR [{3}] > {''@''}{1}). So một vế, dùng AND hay so cột khác đều bỏ sót dòng.',
+     N'WHERE must compare the cursor pair: [{2}] > {''@''}{0} OR ([{2}] = {''@''}{0} AND [{3}] > {''@''}{1}), or [{2}] >= ISNULL({''@''}{0}, ''17530101'') AND ([{2}] > {''@''}{0} OR [{3}] > {''@''}{1}). One side only, AND or another column skips rows.'),
+
+    (N'lz.validation', N'sharedata.sqlIncrementalKeyFilterInvalid',
+     N'WHERE của truy vấn nối đuôi theo khóa phải có [{1}] > {''@''}{0}, viết đúng biểu thức của cột mốc; thiếu thì bỏ sót hoặc gửi lặp dòng.',
+     N'The WHERE clause of a key-only incremental query must contain [{1}] > {''@''}{0} with the exact cursor column expression; otherwise rows are skipped or resent.'),
+
+    (N'lz.validation', N'sharedata.sqlIncrementalGroupColumnMissing',
+     N'Nhóm mốc [{0}] còn thiếu {1}. Mỗi nhóm cần cột [__lastKey_{0}] và biến {''@''}lastKey_{0}; so theo thời gian thì thêm [__lastTime_{0}] và {''@''}lastTime_{0}.',
+     N'Cursor group [{0}] is missing {1}. Each group needs column [__lastKey_{0}] and variable {''@''}lastKey_{0}; time-based groups also need [__lastTime_{0}] and {''@''}lastTime_{0}.'),
+
+    (N'lz.validation', N'sharedata.sqlIncrementalGroupSourceMismatch',
+     N'Biến {''@''}{0} của nhóm mốc [{1}] chọn sai nguồn: {''@''}lastKey_{1} lấy Nối tiếp lần trước (theo key), {''@''}lastTime_{1} lấy Nối tiếp lần trước (theo thời gian).',
+     N'Variable {''@''}{0} of cursor group [{1}] uses the wrong source: {''@''}lastKey_{1} takes Continue from last send (by key), {''@''}lastTime_{1} takes it by time.'),
+
+    (N'lz.validation', N'sharedata.sqlIncrementalGroupNotFound',
+     N'Câu truy vấn đối tác đang chạy không có nhóm mốc [{0}].',
+     N'The partner''s running query has no cursor group [{0}].');
 
 -- -----------------------------------------------------------------------------------------
 -- 3. NẠP DỮ LIỆU ĐA NGÔN NGỮ (MERGE CHỈ THÊM DÒNG CHƯA CÓ, KHÔNG GHI ĐÈ)

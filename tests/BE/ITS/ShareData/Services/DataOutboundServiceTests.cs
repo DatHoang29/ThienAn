@@ -51,14 +51,25 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
             using var scope = host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            ClearOutboundSimulationData(db);
+
             db.Updateable<ShareDataSubscription>()
                 .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Expired)
                 .SetColumns(s => s.NextTimeRun == DateTime.MaxValue)
                 .Where(s => s.State == BaseEnums.SubSubscriptionState.Active)
                 .ExecuteCommand();
+        }
 
+        /// <summary>
+        /// Description: Dọn dẹp dữ liệu của các bảng mô phỏng luồng xuất bản (TmsTrafficData, TmsIncident, TmsZoneStatus).
+        /// Created date: 29/10/2026
+        /// </summary>
+        private static void ClearOutboundSimulationData(ISqlSugarClient db)
+        {
             db.Deleteable<TmsTrafficData>().ExecuteCommand();
             db.Deleteable<TmsIncident>().ExecuteCommand();
+            // Gói 101 đọc TmsZoneStatus: đối tác mới chưa có mốc thì quét từ đầu bảng, dòng của test trước sẽ lẫn vào trang đầu
+            db.Deleteable<TmsZoneStatus>().ExecuteCommand();
         }
 
 
@@ -3620,6 +3631,9 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
             await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
+            // Câu mẫu 101 hiện là nối đuôi: gán câu 101 kiểu gửi toàn bộ cho đúng kịch bản
+            var packet101 = await db.Queryable<ShareDataPacket>().Where(p => p.Code == "101").FirstAsync();
+            await ShareDataSqlSeed.SetCommonAsync(db, packet101.ID, LegacyPacketSql.Packet101);
 
             var unique = Guid.NewGuid().ToString("N")[..8];
             await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.TrafficFlow, unique);
@@ -5048,10 +5062,11 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         }
 
         /// <summary>
-        /// Description: T08 - Snapshot gói 101 với 150 dòng TmsZoneStatus: payload chứa ĐỦ 150 (QueryPacket101 không có TOP);
+        /// Description: T08 - Snapshot gói 101 với 150 dòng TmsZoneStatus: payload chứa ĐỦ 150 (câu 101 kiểu gửi toàn bộ, không có TOP);
         ///              lượt kế tiếp dữ liệu không đổi vẫn gửi lại đủ 150 (snapshot không nối đuôi).
-        ///              Nguồn: DataOutboundExtractionProcess.cs QueryPacket101 (không giới hạn), isSnapshot bỏ qua cursor (dòng 113).
+        ///              Câu mẫu 101 hiện là nối đuôi nên test gán câu 101 cũ (LegacyPacketSql.Packet101) làm mẫu chung.
         /// Created date: 12/10/2026
+        /// Modified date: 29/10/2026 (Câu mẫu 101 chuyển sang nối đuôi: gán câu gửi toàn bộ cho đúng kịch bản snapshot)
         /// </summary>
         [Fact]
         public async Task ProcessSubscriptions_WhenSnapshot101Has150Rows_SendsAllAndResendsNextRun_Test()
@@ -5063,6 +5078,8 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             partnerServer.ResetDefaults();
 
             await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
+            var packet101 = await db.Queryable<ShareDataPacket>().Where(p => p.Code == "101").FirstAsync();
+            await ShareDataSqlSeed.SetCommonAsync(db, packet101.ID, LegacyPacketSql.Packet101);
             var unique = Guid.NewGuid().ToString("N")[..8];
             var zonePrefix = $"ZONE_T08_{unique}_";
             var dbNow = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
@@ -6079,15 +6096,17 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         /// <summary>
         /// Description: Giả lập 5 dòng cùng một mốc thời gian, mỗi trang lấy ít dòng hơn nên ranh giới trang rơi giữa nhóm trùng giờ.
         ///              - two-conditions: lọc "thời gian lớn hơn mốc, hoặc bằng mốc và khóa lớn hơn mốc khóa" → gửi đủ 5 dòng, không dòng nào lặp.
-        ///              - time-only: chỉ lọc "thời gian lớn hơn mốc" → trang đầu gửi xong thì các dòng cùng giờ còn lại bị bỏ sót
-        ///                (trang đủ lớn để lấy hết một lần thì không sót). Chứng minh cách 2 điều kiện đúng, cách chỉ so thời gian sai.
+        ///              - time-only: chỉ lọc "thời gian lớn hơn mốc", không khai biến mốc khóa → trang đầu gửi xong thì các dòng cùng giờ còn lại
+        ///                bị bỏ sót, nên Worker không chạy câu này: không gửi dòng nào và ghi cảnh báo CursorOrderInvalid, kể cả khi trang đủ lớn
+        ///                để lấy hết một lần (trước 30/10/2026 gửi 2/5 dòng với trang 2 dòng).
         /// Created date: 25/10/2026
+        /// Modified date: 30/10/2026
         /// </summary>
         [Theory]
         [InlineData("two-conditions", 2, 5)]
         [InlineData("two-conditions", 1, 5)]
-        [InlineData("time-only", 2, 2)]
-        [InlineData("time-only", 10, 5)]
+        [InlineData("time-only", 2, 0)]
+        [InlineData("time-only", 10, 0)]
         public async Task ProcessSubscriptions_WhenRowsShareSameTime_SendsEachRowOnceOnlyWithTwoConditions_Test(string filter, int pageSize, int expectedRows)
         {
             // Arrange
@@ -6183,6 +6202,13 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             Assert.True(sentPerRow.Values.All(n => n <= 1), $"Có dòng bị gửi lặp: {string.Join(", ", sentPerRow.Select(p => $"{p.Key}={p.Value}"))}");
             Assert.True(sentPerRow.Values.Count(n => n == 1) == expectedRows,
                 $"Kỳ vọng gửi {expectedRows} dòng, thực tế {sentPerRow.Values.Count(n => n == 1)}. Cảnh báo: {string.Join(" | ", alerts)}");
+            if (filter == "time-only")
+            {
+                var filterAlerts = await db.Queryable<ShareDataAlertLog>()
+                    .Where(a => a.SubscriptionId == sub.ID && a.AlertCode == ShareDataAlertCode.Outbound.CursorOrderInvalid)
+                    .CountAsync();
+                Assert.Equal(1, filterAlerts);
+            }
         }
 
         /// <summary>
@@ -6584,9 +6610,11 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         /// <summary>
         /// Description: Các chốt bảo vệ con trỏ ở chế độ @lastKey gộp 1 cột:
         ///              - key-too-long: __lastKey dài quá 256 ký tự -> huỷ trước khi gửi HTTP, ghi ESH-1304 và giữ nguyên mốc cũ.
-        ///              - key-empty: __lastKey rỗng/khoảng trắng -> huỷ trước khi gửi HTTP, ghi ESH-1302 và giữ nguyên mốc cũ.
-        ///              - non-advancing-gte: câu SQL trả về __lastKey không lớn hơn mốc đã lưu (k1 &lt; k2) kèm TOP (@pageSize) ->
-        ///                không ghi đè lùi mốc ShareDataLastSend và dừng phân trang ngay sau trang 1 (tránh lặp vô hạn maxPagesPerRun).
+        ///              - key-empty: __lastKey rỗng/khoảng trắng -> huỷ trước khi gửi HTTP, ghi ESH-1302 và giữ nguyên mốc cũ
+        ///                (chưa có mốc khóa nên @lastKey = '' và câu so >= mới lấy được dòng khóa khoảng trắng).
+        ///              - non-advancing-gte: câu so khóa bằng >= (lưu được, có cảnh báo) trả về đúng dòng có __lastKey bằng mốc đã lưu kèm
+        ///                TOP (@pageSize = 1) -> mốc không tiến nên giữ nguyên và dừng phân trang ngay sau trang 1 (tránh lặp vô hạn maxPagesPerRun).
+        ///              Cột mốc và điều kiện WHERE viết cùng một biểu thức, so với biến mốc, để qua bộ kiểm cấu trúc trước khi chạy (30/10/2026).
         ///              - clock-behind-lasttime: LastTime cũ trong bảng lớn hơn giờ máy hiện tại nhưng __lastKey mới lớn hơn ->
         ///                vẫn phải cập nhật tiến mốc LastKey.
         /// Created date: 27/10/2026
@@ -6620,15 +6648,15 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             var (sql, priorLastTime, priorLastKey) = scenario switch
             {
                 "key-too-long" => (
-                    $"SELECT TOP 10 Code AS zoneCode, REPLICATE('K', 260) AS __lastKey FROM TmsZone WHERE Code LIKE @prefix AND ID > @lastKey ORDER BY __lastKey ASC",
+                    $"SELECT TOP 10 Code AS zoneCode, ID + REPLICATE('K', 260) AS __lastKey FROM TmsZone WHERE Code LIKE @prefix AND ID + REPLICATE('K', 260) > @lastKey ORDER BY __lastKey ASC",
                     dbNow.AddMinutes(-5),
-                    "000_prior"),
+                    (string?)"000_prior"),
                 "key-empty" => (
-                    $"SELECT TOP 10 Code AS zoneCode, CAST('   ' AS varchar(16)) AS __lastKey FROM TmsZone WHERE Code LIKE @prefix AND ID > @lastKey ORDER BY __lastKey ASC",
+                    $"SELECT TOP 10 Code AS zoneCode, REPLACE(ID, ID, '   ') AS __lastKey FROM TmsZone WHERE Code LIKE @prefix AND REPLACE(ID, ID, '   ') >= @lastKey ORDER BY __lastKey ASC",
                     dbNow.AddMinutes(-5),
-                    "000_prior"),
+                    null),
                 "non-advancing-gte" => (
-                    $"SELECT TOP (@pageSize) Code AS zoneCode, {compositeExpr} AS __lastKey FROM TmsZone WHERE Code LIKE @prefix AND (@lastKey <> '' AND ({compositeExpr}) >= '{key1}') ORDER BY __lastKey ASC",
+                    $"SELECT TOP (@pageSize) Code AS zoneCode, {compositeExpr} AS __lastKey FROM TmsZone WHERE Code LIKE @prefix AND ({compositeExpr}) >= @lastKey ORDER BY __lastKey ASC",
                     dbNow.AddMinutes(-10),
                     key2),
                 _ => (
@@ -6690,7 +6718,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             {
                 Assert.Equal(0, _host.PartnerServer.TotalReceivedRequests);
                 Assert.Contains(alerts, a => a.AlertCode == ShareDataAlertCode.Outbound.RequiredFieldMissing);
-                Assert.Equal("000_prior", savedLastSend.LastKey);
+                Assert.Null(savedLastSend.LastKey);
             }
             else if (scenario == "non-advancing-gte")
             {
@@ -6721,6 +6749,9 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             partnerServer.ResetDefaults();
 
             await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
+            // Mỗi lượt phải có dữ liệu để gửi (mới kiểm cấu hình kết nối): dùng câu 101 kiểu gửi toàn bộ thay cho câu mẫu nối đuôi
+            var packet101 = await db.Queryable<ShareDataPacket>().Where(p => p.Code == "101").FirstAsync();
+            await ShareDataSqlSeed.SetCommonAsync(db, packet101.ID, LegacyPacketSql.Packet101);
             var unique = Guid.NewGuid().ToString("N")[..8];
             await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.TrafficFlow, unique);
 
@@ -7559,6 +7590,590 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             Assert.DoesNotContain($"{rowPrefix}OLD", requestsAfterReset[1]);
             Assert.Contains($"{rowPrefix}NEW1", requestsAfterReset[1]);
             Assert.Contains($"{rowPrefix}NEW2", requestsAfterReset[1]);
+        }
+
+        #endregion
+
+        #region 14. Mốc nối đuôi khi người dùng tự viết câu SQL — tái hiện lỗi (29/10/2026)
+
+        /// <summary>
+        /// Description: Đổi kiểu câu SQL nối đuôi giữa hai lượt gửi làm mốc cũ bị dùng sai nghĩa, vì bảng mốc chỉ có hai cột
+        ///              cố định LastTime / LastKey dùng chung cho mọi kiểu câu:
+        ///              - chiKhoaSang2Cot: câu chỉ dùng @lastKey vẫn ghi LastTime = giờ chạy; đổi sang câu 2 cột thì @lastTime nhận
+        ///                giờ chạy đó (mốc khởi tạo của biến bị bỏ qua) nên các dòng còn tồn chưa gửi bị bỏ sót.
+        ///              - haiCotSangChiKhoa: LastKey đang là ID gốc (bắt đầu bằng chữ như GUID) đem so với chuỗi ghép thời gian + ID
+        ///                bắt đầu bằng năm "2026-..." nên câu không trả dòng nào, mọi dòng sau đó không bao giờ được gửi.
+        ///              Kỳ vọng: không dòng nào bị bỏ sót; gửi lại dòng đã gửi thì chấp nhận được.
+        /// Created date: 29/10/2026
+        /// </summary>
+        [Theory]
+        [InlineData("chiKhoaSang2Cot")]
+        [InlineData("haiCotSangChiKhoa")]
+        public async Task ProcessSubscriptions_WhenCursorSqlSwitchesMode_SendsEveryRowWithoutLoss_Test(string direction)
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var packetId = $"pkt-mode-{unique}";
+            var packetCode = $"PKT_MODE_{unique}";
+            var rowPrefix = $"ROW_MODE_{unique}_";
+            var startsKeyOnly = direction == "chiKhoaSang2Cot";
+            var keyOnlySql = "SELECT TOP (@pageSize) Code AS rowCode, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey FROM ShareDataPacket "
+                + "WHERE Code LIKE @prefix AND CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @lastKey ORDER BY __lastKey";
+            var twoColumnSql = "SELECT TOP (@pageSize) Code AS rowCode, UpdateTime AS __lastTime, ID AS __lastKey FROM ShareDataPacket "
+                + "WHERE Code LIKE @prefix AND UpdateTime >= ISNULL(@lastTime, '17530101') AND (@lastTime IS NULL OR UpdateTime > @lastTime OR ID > @lastKey) "
+                + "ORDER BY UpdateTime ASC, ID ASC";
+
+            // Dữ liệu cũ hơn giờ chạy (hôm qua 08:00, cách 10 phút): dòng 1–4 có sẵn, dòng 5 phát sinh sau khi đổi câu
+            var dbNow = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
+            var baseTime = dbNow.Date.AddDays(-1).AddHours(8);
+            var lastTimeDefault = baseTime.Date.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+            var rows = Enumerable.Range(1, 5).Select(i => new ShareDataPacket
+            {
+                ID = $"k{i}_{unique}",
+                Code = $"{rowPrefix}{i}",
+                Name = $"Row {i}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Disable
+            }).ToList();
+            await db.Insertable(rows.Take(4).ToList()).ExecuteCommandAsync();
+            for (var i = 0; i < 4; i++)
+            {
+                var rowId = rows[i].ID;
+                var rowTime = baseTime.AddMinutes(i * 10);
+                await db.Updateable<ShareDataPacket>().SetColumns(p => p.UpdateTime == rowTime).Where(p => p.ID == rowId).ExecuteCommandAsync();
+            }
+
+            await db.Insertable(new ShareDataPacket
+            {
+                ID = packetId,
+                Code = packetCode,
+                Name = $"Packet {packetCode}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Enable
+            }).ExecuteCommandAsync();
+            await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null, CursorVariables(2, rowPrefix, withLastTime: !startsKeyOnly, lastTimeDefault));
+            await ShareDataSqlSeed.SetCommonAsync(db, packetId, startsKeyOnly ? keyOnlySql : twoColumnSql);
+
+            var (_, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_MODE_{unique}",
+                SubCode = $"SUB_MODE_{unique}",
+                DatatypeId = packetId,
+                MappingShape = new Dictionary<string, object> { ["rowCode"] = new Dictionary<string, string> { ["$field"] = "rowCode" } },
+                ConfigurePartner = p => p.EndPointApiUrl = $"/api/sharedata/partner-mode-{unique}"
+            });
+            // Mỗi lượt chỉ gửi một trang để còn dòng tồn lúc người dùng đổi câu
+            var worker = CreateWorker(scope, workerConfig: await CreateWorkerConfigWithMaxPages(scope, db, 1));
+
+            // Act 1: lượt đầu gửi trang 1 (dòng 1, 2) theo kiểu câu ban đầu
+            await worker.ProcessSubscriptions(CancellationToken.None);
+
+            // Assert 1
+            Assert.Contains(PartnerBodies($"partner-mode-{unique}"), b => b.Contains($"\"{rows[1].Code}\""));
+
+            // Act 2: người dùng đổi sang kiểu câu kia, dòng 5 phát sinh sau đó; Worker chạy thêm 3 lượt
+            await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null, CursorVariables(2, rowPrefix, withLastTime: startsKeyOnly, lastTimeDefault));
+            await ShareDataSqlSeed.SetCommonAsync(db, packetId, startsKeyOnly ? twoColumnSql : keyOnlySql);
+            await db.Insertable(rows[4]).ExecuteCommandAsync();
+            var row5Id = rows[4].ID;
+            var row5Time = baseTime.AddMinutes(40);
+            await db.Updateable<ShareDataPacket>().SetColumns(p => p.UpdateTime == row5Time).Where(p => p.ID == row5Id).ExecuteCommandAsync();
+            for (var run = 0; run < 3; run++)
+            {
+                await MakeSubscriptionDue(db, sub.ID);
+                await worker.ProcessSubscriptions(CancellationToken.None);
+            }
+
+            // Assert 2
+            var bodies = PartnerBodies($"partner-mode-{unique}");
+            var missing = rows.Select(r => r.Code!).Where(code => !bodies.Any(b => b.Contains($"\"{code}\""))).ToList();
+            Assert.True(missing.Count == 0, $"Đổi kiểu câu ({direction}) làm bỏ sót: {string.Join(", ", missing)}");
+        }
+
+        /// <summary>
+        /// Description: Một câu SQL gộp hai nguồn, mỗi nguồn một nhóm mốc — bảng (gói, đối tác, key) → value (biên bản 27/10/2026 Phần 4
+        ///              [03:06 – 03:15]: "nhiều tình huống trong cùng một câu có hai ba câu điều kiện khác nhau"): nguồn 1 là bảng gói tin
+        ///              (nhóm pkt), nguồn 2 là bảng giá thu phí (TollPriceList, nhóm toll) đồng bộ định kỳ từ hệ thống thu phí nên về trễ.
+        ///              Dòng giá 09:20 tới sau khi nguồn 1 đã gửi tới 09:30 vẫn được gửi vì nguồn 2 giữ mốc riêng; dòng đã gửi không gửi lại.
+        /// Created date: 29/10/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessSubscriptions_WhenSqlMergesTwoSourcesWithCursorGroups_SendsLateSourceRowOnce_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var packetId = $"pkt-2src-{unique}";
+            var packetCode = $"PKT_2SRC_{unique}";
+            var rowPrefix = $"ROW_2SRC_{unique}_";
+
+            var a1 = new ShareDataPacket { ID = $"a1_{unique}", Code = $"{rowPrefix}A1", Name = "A1", PacketVersion = "1.0", Status = BaseEnums.StatusEnum.Disable };
+            var a2 = new ShareDataPacket { ID = $"a2_{unique}", Code = $"{rowPrefix}A2", Name = "A2", PacketVersion = "1.0", Status = BaseEnums.StatusEnum.Disable };
+            await db.Insertable(new List<ShareDataPacket> { a1, a2 }).ExecuteCommandAsync();
+            await db.Updateable<ShareDataPacket>().SetColumns(p => p.UpdateTime == new DateTime(2026, 10, 27, 9, 0, 0)).Where(p => p.ID == a1.ID).ExecuteCommandAsync();
+            await db.Updateable<ShareDataPacket>().SetColumns(p => p.UpdateTime == new DateTime(2026, 10, 27, 9, 30, 0)).Where(p => p.ID == a2.ID).ExecuteCommandAsync();
+
+            await db.Insertable(new ShareDataPacket
+            {
+                ID = packetId,
+                Code = packetCode,
+                Name = $"Packet {packetCode}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Enable
+            }).ExecuteCommandAsync();
+            await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null, GroupCursorVariables(50, rowPrefix, "pkt", "toll"));
+            await ShareDataSqlSeed.SetCommonAsync(db, packetId, TwoSourceGroupSql);
+
+            var (_, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_2SRC_{unique}",
+                SubCode = $"SUB_2SRC_{unique}",
+                DatatypeId = packetId,
+                MappingShape = new Dictionary<string, object> { ["rowCode"] = new Dictionary<string, string> { ["$field"] = "rowCode" } },
+                ConfigurePartner = p => p.EndPointApiUrl = $"/api/sharedata/partner-2src-{unique}"
+            });
+            var worker = CreateWorker(scope);
+
+            // Act 1: nguồn 1 có dòng 09:00 và 09:30, nguồn 2 chưa đồng bộ về
+            await worker.ProcessSubscriptions(CancellationToken.None);
+
+            // Assert 1
+            Assert.Contains(PartnerBodies($"partner-2src-{unique}"), b => b.Contains($"\"{a2.Code}\""));
+
+            // Act 2: bảng giá đồng bộ về sau, dòng mang giờ 09:20 bên hệ thống thu phí
+            var priceCode = $"{rowPrefix}PRICE";
+            await db.Insertable(new TollPriceList
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                SourceId = priceCode,
+                Name = "Bảng giá về trễ",
+                SourceWriteDate = new DateTime(2026, 10, 27, 9, 20, 0)
+            }).ExecuteCommandAsync();
+            await MakeSubscriptionDue(db, sub.ID);
+            await worker.ProcessSubscriptions(CancellationToken.None);
+
+            // Assert 2: dòng nguồn về trễ được gửi, dòng nguồn 1 không gửi lại; mỗi nhóm giữ mốc riêng
+            var allBodies = string.Join(" ", PartnerBodies($"partner-2src-{unique}"));
+            Assert.True(allBodies.Contains($"\"{priceCode}\""), $"Dòng của nguồn về trễ ({priceCode}, 09:20) bị bỏ");
+            Assert.Equal(1, CountOccurrences(allBodies, $"\"{a1.Code}\""));
+            Assert.Equal(1, CountOccurrences(allBodies, $"\"{a2.Code}\""));
+            var groupCursors = await db.Queryable<ShareDataLastSendKey>().Where(k => k.PacketCode == packetCode).ToListAsync();
+            Assert.Equal(a2.ID, groupCursors.Single(k => k.CursorKey == "pkt").LastKey);
+            Assert.Equal(new DateTime(2026, 10, 27, 9, 20, 0), groupCursors.Single(k => k.CursorKey == "toll").LastTime);
+        }
+
+        /// <summary>
+        /// Description: Đặt mốc riêng cho một nhóm mốc qua API SetLastSend (CursorKey = toll): lượt gửi chỉ lấy dòng của nguồn đó sau mốc,
+        ///              nguồn còn lại gửi từ đầu. Đặt lại mốc (ResetLastSend) xóa mốc của mọi nhóm nên lượt sau gửi lại cả hai nguồn từ đầu.
+        /// Created date: 29/10/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessSubscriptions_WhenCursorGroupSetViaApi_SendsThatSourceAfterCursorUntilReset_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var packetId = $"pkt-grp-{unique}";
+            var packetCode = $"PKT_GRP_{unique}";
+            var rowPrefix = $"ROW_GRP_{unique}_";
+            var baseTime = new DateTime(2026, 10, 27, 9, 0, 0);
+
+            var packets = Enumerable.Range(1, 3).Select(i => new ShareDataPacket
+            {
+                ID = $"p{i}_{unique}",
+                Code = $"{rowPrefix}P{i}",
+                Name = $"P{i}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Disable
+            }).ToList();
+            await db.Insertable(packets).ExecuteCommandAsync();
+            for (var i = 0; i < packets.Count; i++)
+            {
+                var rowId = packets[i].ID;
+                var rowTime = baseTime.AddMinutes(i * 10);
+                await db.Updateable<ShareDataPacket>().SetColumns(p => p.UpdateTime == rowTime).Where(p => p.ID == rowId).ExecuteCommandAsync();
+            }
+            var prices = Enumerable.Range(1, 3).Select(i => new TollPriceList
+            {
+                ID = $"t{i}_{unique}",
+                SourceId = $"{rowPrefix}T{i}",
+                Name = $"T{i}",
+                SourceWriteDate = baseTime.AddMinutes((i - 1) * 10)
+            }).ToList();
+            await db.Insertable(prices).ExecuteCommandAsync();
+
+            await db.Insertable(new ShareDataPacket
+            {
+                ID = packetId,
+                Code = packetCode,
+                Name = $"Packet {packetCode}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Enable
+            }).ExecuteCommandAsync();
+            await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null, GroupCursorVariables(50, rowPrefix, "pkt", "toll"));
+            await ShareDataSqlSeed.SetCommonAsync(db, packetId, TwoSourceGroupSql);
+
+            var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_GRP_{unique}",
+                SubCode = $"SUB_GRP_{unique}",
+                DatatypeId = packetId,
+                MappingShape = new Dictionary<string, object> { ["rowCode"] = new Dictionary<string, string> { ["$field"] = "rowCode" } },
+                ConfigurePartner = p => p.EndPointApiUrl = $"/api/sharedata/partner-grp-{unique}"
+            });
+            UseSuperAdmin(unique);
+            var worker = CreateWorker(scope);
+
+            // Act 1: đặt mốc nhóm toll tại dòng T2 (09:10) rồi chạy
+            await scope.ServiceProvider.CallApiAsync(new SetLastSendInput
+            {
+                PacketCode = packetCode,
+                PartnerId = partner.ID,
+                CursorKey = "toll",
+                LastTime = baseTime.AddMinutes(10).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
+                LastKey = prices[1].ID
+            });
+            await worker.ProcessSubscriptions(CancellationToken.None);
+            var firstRun = string.Join(" ", PartnerBodies($"partner-grp-{unique}"));
+
+            // Act 2: đặt lại mốc rồi chạy tiếp
+            await scope.ServiceProvider.CallApiAsync(new ResetLastSendInput { PacketCode = packetCode, PartnerId = partner.ID! });
+            var groupRowsAfterReset = await db.Queryable<ShareDataLastSendKey>()
+                .Where(k => k.PartnerCode == partner.Code && k.PacketCode == packetCode)
+                .CountAsync();
+            await MakeSubscriptionDue(db, sub.ID);
+            await worker.ProcessSubscriptions(CancellationToken.None);
+            var allRuns = string.Join(" ", PartnerBodies($"partner-grp-{unique}"));
+
+            // Assert 1: nguồn pkt gửi đủ từ đầu, nguồn toll chỉ gửi sau mốc T2
+            Assert.All(packets, p => Assert.Contains($"\"{p.Code}\"", firstRun));
+            Assert.DoesNotContain($"\"{prices[0].SourceId}\"", firstRun);
+            Assert.DoesNotContain($"\"{prices[1].SourceId}\"", firstRun);
+            Assert.Contains($"\"{prices[2].SourceId}\"", firstRun);
+
+            // Assert 2: đặt lại xóa mốc mọi nhóm, lượt sau gửi lại cả hai nguồn từ đầu
+            Assert.Equal(0, groupRowsAfterReset);
+            Assert.Contains($"\"{prices[0].SourceId}\"", allRuns);
+            Assert.Equal(2, CountOccurrences(allRuns, $"\"{packets[0].Code}\""));
+        }
+
+        /// <summary>
+        /// Description: Câu 2 cột mốc nạp thẳng vào CSDL (không qua bộ kiểm lúc lưu) mà WHERE không so cả cặp (thời gian, khóa) như chuỗi ghép
+        ///              của PA1: so thời gian AND khóa thì bỏ dòng giờ mới hơn mà ID nhỏ hơn, chỉ so thời gian thì bỏ dòng trùng giờ với dòng cuối.
+        ///              Worker phải dừng trước khi gửi và ghi cảnh báo CursorOrderInvalid, thay vì gửi rồi bỏ sót.
+        /// Created date: 29/10/2026
+        /// </summary>
+        [Theory]
+        [InlineData("soThoiGianAndKhoa", "Code LIKE @prefix AND UpdateTime >= ISNULL(@lastTime, '17530101') AND ID > @lastKey")]
+        [InlineData("chiSoThoiGian", "Code LIKE @prefix AND (@lastTime IS NULL OR UpdateTime > @lastTime)")]
+        public async Task ProcessSubscriptions_WhenCursorFilterSkipsTimeKeyPair_StopsWithAlertInsteadOfSending_Test(string caseName, string where)
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var packetId = $"pkt-flt-{unique}";
+            var packetCode = $"PKT_FLT_{unique}";
+            var rowPrefix = $"ROW_FLT_{unique}_";
+            var sql = $"SELECT TOP (@pageSize) Code AS rowCode, UpdateTime AS __lastTime, ID AS __lastKey FROM ShareDataPacket WHERE {where} ORDER BY UpdateTime ASC, ID ASC";
+
+            await db.Insertable(Enumerable.Range(1, 3).Select(i => new ShareDataPacket
+            {
+                ID = $"f{i}_{unique}",
+                Code = $"{rowPrefix}{i}",
+                Name = $"F{i}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Disable
+            }).ToList()).ExecuteCommandAsync();
+            await db.Updateable<ShareDataPacket>()
+                .SetColumns(p => p.UpdateTime == new DateTime(2026, 10, 27, 9, 0, 0))
+                .Where(p => p.Code!.StartsWith(rowPrefix))
+                .ExecuteCommandAsync();
+            await db.Insertable(new ShareDataPacket
+            {
+                ID = packetId,
+                Code = packetCode,
+                Name = $"Packet {packetCode}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Enable
+            }).ExecuteCommandAsync();
+            await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null, CursorVariables(10, rowPrefix, withLastTime: true));
+            await ShareDataSqlSeed.SetCommonAsync(db, packetId, sql);
+
+            var (_, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_FLT_{unique}",
+                SubCode = $"SUB_FLT_{unique}",
+                DatatypeId = packetId,
+                MappingShape = new Dictionary<string, object> { ["rowCode"] = new Dictionary<string, string> { ["$field"] = "rowCode" } },
+                ConfigurePartner = p => p.EndPointApiUrl = $"/api/sharedata/partner-flt-{unique}"
+            });
+
+            // Act
+            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
+
+            // Assert
+            var sentCount = PartnerBodies($"partner-flt-{unique}").Count;
+            var alerts = await db.Queryable<ShareDataAlertLog>()
+                .Where(a => a.SubscriptionId == sub.ID && a.AlertCode == ShareDataAlertCode.Outbound.CursorOrderInvalid)
+                .CountAsync();
+            Assert.True(sentCount == 0, $"Câu lọc thiếu cặp (thời gian, khóa) ({caseName}) vẫn được gửi {sentCount} lần");
+            Assert.Equal(1, alerts);
+        }
+
+        /// <summary>
+        /// Description: Khóa nối đuôi kiểu số ở chế độ 2 cột mốc: câu SQL so OrderNo > @lastKey theo SỐ, còn chốt chặn ghi mốc
+        ///              (CommitSuccess) so ShareDataLastSend.LastKey theo CHUỖI nên '18' bị coi là nhỏ hơn '9'.
+        ///              20 dòng cùng một thời điểm (ghi hàng loạt), trang 9 dòng: trang 2 dừng ở khóa 18 nên mốc không được ghi,
+        ///              lượt nào cũng gửi lại trang 2, khóa 19–20 kẹt mãi.
+        ///              Đối chứng pa1 (chuỗi ghép thời gian + khóa đệm 0, chỉ dùng @lastKey): so chuỗi ở mọi chỗ nên chạy đúng.
+        ///              Kỳ vọng: mỗi dòng tới đối tác đúng một lần.
+        /// Created date: 29/10/2026
+        /// </summary>
+        [Theory]
+        [InlineData("haiCot")]
+        [InlineData("pa1")]
+        public async Task ProcessSubscriptions_WhenCursorKeyIsNumeric_SendsEachRowExactlyOnce_Test(string sqlStyle)
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var packetId = $"pkt-num-{unique}";
+            var packetCode = $"PKT_NUM_{unique}";
+            var rowPrefix = $"ROW_NUM_{unique}_";
+            var isTwoColumn = sqlStyle == "haiCot";
+            var twoColumnSql = "SELECT TOP (@pageSize) Code AS rowCode, UpdateTime AS __lastTime, OrderNo AS __lastKey FROM ShareDataPacket "
+                + "WHERE Code LIKE @prefix AND UpdateTime >= ISNULL(@lastTime, '17530101') AND (@lastTime IS NULL OR UpdateTime > @lastTime OR OrderNo > @lastKey) "
+                + "ORDER BY UpdateTime ASC, OrderNo ASC";
+            var keyExpr = "CONVERT(varchar(23), UpdateTime, 121) + '_' + RIGHT('0000000000' + CAST(OrderNo AS varchar(10)), 10)";
+            var pa1Sql = $"SELECT TOP (@pageSize) Code AS rowCode, {keyExpr} AS __lastKey FROM ShareDataPacket "
+                + $"WHERE Code LIKE @prefix AND {keyExpr} > @lastKey ORDER BY __lastKey";
+
+            var rows = Enumerable.Range(1, 20).Select(i => new ShareDataPacket
+            {
+                ID = $"n{i}_{unique}",
+                Code = $"{rowPrefix}N{i:D2}",
+                Name = $"Row {i}",
+                OrderNo = i,
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Disable
+            }).ToList();
+            await db.Insertable(rows).ExecuteCommandAsync();
+            var batchTime = new DateTime(2026, 10, 27, 8, 0, 0);
+            var rowIds = rows.Select(r => r.ID).ToList();
+            await db.Updateable<ShareDataPacket>().SetColumns(p => p.UpdateTime == batchTime).Where(p => rowIds.Contains(p.ID)).ExecuteCommandAsync();
+
+            await db.Insertable(new ShareDataPacket
+            {
+                ID = packetId,
+                Code = packetCode,
+                Name = $"Packet {packetCode}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Enable
+            }).ExecuteCommandAsync();
+            await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null, CursorVariables(9, rowPrefix, withLastTime: isTwoColumn));
+            await ShareDataSqlSeed.SetCommonAsync(db, packetId, isTwoColumn ? twoColumnSql : pa1Sql);
+
+            var (_, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_NUM_{unique}",
+                SubCode = $"SUB_NUM_{unique}",
+                DatatypeId = packetId,
+                MappingShape = new Dictionary<string, object> { ["rowCode"] = new Dictionary<string, string> { ["$field"] = "rowCode" } },
+                ConfigurePartner = p => p.EndPointApiUrl = $"/api/sharedata/partner-num-{unique}"
+            });
+            var worker = CreateWorker(scope, workerConfig: await CreateWorkerConfigWithMaxPages(scope, db, 3));
+
+            // Act: 3 lượt gửi liên tiếp
+            await worker.ProcessSubscriptions(CancellationToken.None);
+            for (var run = 0; run < 2; run++)
+            {
+                await MakeSubscriptionDue(db, sub.ID);
+                await worker.ProcessSubscriptions(CancellationToken.None);
+            }
+
+            // Assert
+            var bodies = PartnerBodies($"partner-num-{unique}");
+            var wrongCounts = rows
+                .Select(r => (Code: r.Code!, Count: bodies.Sum(b => CountOccurrences(b, $"\"{r.Code}\""))))
+                .Where(x => x.Count != 1)
+                .Select(x => $"{x.Code[rowPrefix.Length..]}×{x.Count}")
+                .ToList();
+            Assert.True(wrongCounts.Count == 0, $"Khóa kiểu số ({sqlStyle}) gửi sai số lần: {string.Join(", ", wrongCounts)}");
+        }
+
+        /// <summary>
+        /// Description: Đặt mốc gửi dữ liệu cho đối tác qua API SetLastSend: mốc được lưu vào ShareDataLastSend
+        ///              kèm chữ ký công thức cột mốc, LastTimeRun của đăng ký bị xóa, và lượt gửi kế tiếp của Worker
+        ///              chỉ trích xuất và gửi các dòng phát sinh sau mốc đã đặt.
+        /// Created date: 29/10/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessSubscriptions_WhenCursorIsSetViaSetLastSendApi_SendsOnlySubsequentRows_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var packetId = $"pkt-setcur-{unique}";
+            var packetCode = $"PKT_SETCUR_{unique}";
+            var rowPrefix = $"ROW_SETCUR_{unique}_";
+            var twoColumnSql = "SELECT TOP (@pageSize) Code AS rowCode, UpdateTime AS __lastTime, ID AS __lastKey FROM ShareDataPacket "
+                + "WHERE Code LIKE @prefix AND UpdateTime >= ISNULL(@lastTime, '17530101') AND (@lastTime IS NULL OR UpdateTime > @lastTime OR ID > @lastKey) "
+                + "ORDER BY UpdateTime ASC, ID ASC";
+
+            var baseTime = new DateTime(2026, 10, 28, 8, 0, 0);
+            var rows = Enumerable.Range(1, 6).Select(i => new ShareDataPacket
+            {
+                ID = $"c{i:D2}_{unique}",
+                Code = $"{rowPrefix}{i}",
+                Name = $"Row {i}",
+                OrderNo = i,
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Disable
+            }).ToList();
+            await db.Insertable(rows).ExecuteCommandAsync();
+            for (var i = 0; i < rows.Count; i++)
+            {
+                var rowId = rows[i].ID;
+                var rowTime = baseTime.AddMinutes(i * 10);
+                await db.Updateable<ShareDataPacket>().SetColumns(p => p.UpdateTime == rowTime).Where(p => p.ID == rowId).ExecuteCommandAsync();
+            }
+
+            await db.Insertable(new ShareDataPacket
+            {
+                ID = packetId,
+                Code = packetCode,
+                Name = $"Packet {packetCode}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Enable
+            }).ExecuteCommandAsync();
+            await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null, CursorVariables(10, rowPrefix, withLastTime: true));
+            await ShareDataSqlSeed.SetCommonAsync(db, packetId, twoColumnSql);
+
+            var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_SETCUR_{unique}",
+                SubCode = $"SUB_SETCUR_{unique}",
+                DatatypeId = packetId,
+                MappingShape = new Dictionary<string, object> { ["rowCode"] = new Dictionary<string, string> { ["$field"] = "rowCode" } },
+                ConfigurePartner = p => p.EndPointApiUrl = $"/api/sharedata/partner-setcur-{unique}"
+            });
+
+            // Act 1: Đặt mốc tại dòng 3 (thời điểm baseTime + 20 phút, khóa c03_unique) qua API SetLastSend
+            var httpContextAccessor = _host.Services.GetRequiredService<IHttpContextAccessor>();
+            httpContextAccessor.HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(
+                [
+                    new Claim(ClaimConst.AccountType, ((int)BaseEnums.AccountTypeEnum.SuperAdmin).ToString()),
+                    new Claim(ClaimConst.Account, $"super_{unique}"),
+                    new Claim(ClaimConst.UserId, Guid.NewGuid().ToString("N")),
+                    new Claim(ClaimTypes.Name, $"super_{unique}")
+                ], "TestAuth"))
+            };
+
+            var cursorTime = baseTime.AddMinutes(20).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+            var cursorKey = $"c03_{unique}";
+            await scope.ServiceProvider.CallApiAsync(new SetLastSendInput
+            {
+                PacketCode = packetCode,
+                PartnerId = partner.ID,
+                LastTime = cursorTime,
+                LastKey = cursorKey
+            });
+
+            // Kiểm tra mốc đã ghi đúng vào ShareDataLastSend kèm CursorSignature
+            var savedCursor = await db.Queryable<ShareDataLastSend>()
+                .Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == packetCode)
+                .FirstAsync();
+            Assert.NotNull(savedCursor);
+            Assert.Equal(cursorKey, savedCursor.LastKey);
+            Assert.NotNull(savedCursor.CursorSignature);
+
+            // Act 2: Worker chạy tiến trình gửi
+            var worker = CreateWorker(scope, workerConfig: await CreateWorkerConfigWithMaxPages(scope, db, 2));
+            await worker.ProcessSubscriptions(CancellationToken.None);
+
+            // Assert: Chỉ các dòng 4, 5, 6 (sau mốc dòng 3) được gửi tới đối tác; dòng 1, 2, 3 không được gửi
+            var bodies = PartnerBodies($"partner-setcur-{unique}");
+            var combinedBody = string.Join(" ", bodies);
+            Assert.DoesNotContain($"\"{rowPrefix}1\"", combinedBody);
+            Assert.DoesNotContain($"\"{rowPrefix}2\"", combinedBody);
+            Assert.DoesNotContain($"\"{rowPrefix}3\"", combinedBody);
+            Assert.Contains($"\"{rowPrefix}4\"", combinedBody);
+            Assert.Contains($"\"{rowPrefix}5\"", combinedBody);
+            Assert.Contains($"\"{rowPrefix}6\"", combinedBody);
+        }
+
+        /// <summary>Bộ biến của câu nối đuôi tự viết: @pageSize, @prefix, @lastKey và (chế độ 2 cột) @lastTime kèm mốc khởi tạo.</summary>
+        private static List<SqlVariableItem> CursorVariables(int pageSize, string prefix, bool withLastTime, string? lastTimeDefault = null)
+        {
+            var items = new List<SqlVariableItem>
+            {
+                new() { Code = "pageSize", DataType = ShareDataConst.SqlVariableTypeInt, ValueKind = ShareDataConst.SqlVariableKindConst, Value = pageSize.ToString(CultureInfo.InvariantCulture), OrderNo = 1 },
+                new() { Code = "prefix", DataType = ShareDataConst.SqlVariableTypeString, ValueKind = ShareDataConst.SqlVariableKindConst, Value = $"{prefix}%", OrderNo = 2 },
+                new() { Code = "lastKey", DataType = ShareDataConst.SqlVariableTypeString, ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = ShareDataConst.SqlVariableSourceLastKey, OrderNo = 3 }
+            };
+            if (withLastTime)
+            {
+                items.Add(new() { Code = "lastTime", DataType = ShareDataConst.SqlVariableTypeDateTime, ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = ShareDataConst.SqlVariableSourceLastTime, DefaultValue = lastTimeDefault, OrderNo = 4 });
+            }
+            return items;
+        }
+
+        /// <summary>Câu gộp hai nguồn, mỗi nguồn một nhóm mốc: pkt (ShareDataPacket) và toll (TollPriceList); lọc dòng theo tiền tố @prefix.</summary>
+        private const string TwoSourceGroupSql = "SELECT TOP (@pageSize) u.rowCode, u.__lastTime_pkt, u.__lastKey_pkt, u.__lastTime_toll, u.__lastKey_toll FROM ("
+            + "SELECT p.Code AS rowCode, p.UpdateTime AS sortTime, p.ID AS sortKey, p.UpdateTime AS __lastTime_pkt, p.ID AS __lastKey_pkt, "
+            + "CAST(NULL AS datetime) AS __lastTime_toll, CAST(NULL AS nvarchar(64)) AS __lastKey_toll FROM ShareDataPacket p "
+            + "WHERE p.Code LIKE @prefix AND p.UpdateTime >= ISNULL(@lastTime_pkt, '17530101') AND (@lastTime_pkt IS NULL OR p.UpdateTime > @lastTime_pkt OR p.ID > @lastKey_pkt) "
+            + "UNION ALL SELECT t.SourceId, t.SourceWriteDate, t.ID, NULL, NULL, t.SourceWriteDate, t.ID FROM TollPriceList t "
+            + "WHERE t.SourceId LIKE @prefix AND t.SourceWriteDate >= ISNULL(@lastTime_toll, '17530101') AND (@lastTime_toll IS NULL OR t.SourceWriteDate > @lastTime_toll OR t.ID > @lastKey_toll)"
+            + ") u ORDER BY u.sortTime ASC, u.sortKey ASC";
+
+        /// <summary>Bộ biến của câu gộp nhiều nguồn: @pageSize, @prefix và mỗi nhóm mốc một cặp @lastTime_&lt;nhóm&gt; / @lastKey_&lt;nhóm&gt;.</summary>
+        private static List<SqlVariableItem> GroupCursorVariables(int pageSize, string prefix, params string[] groups)
+        {
+            var items = CursorVariables(pageSize, prefix, withLastTime: false).Where(v => v.Code != "lastKey").ToList();
+            var order = items.Count;
+            foreach (var group in groups)
+            {
+                items.Add(new() { Code = $"lastTime_{group}", DataType = ShareDataConst.SqlVariableTypeDateTime, ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = ShareDataConst.SqlVariableSourceLastTime, OrderNo = ++order });
+                items.Add(new() { Code = $"lastKey_{group}", DataType = ShareDataConst.SqlVariableTypeString, ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = ShareDataConst.SqlVariableSourceLastKey, OrderNo = ++order });
+            }
+            return items;
+        }
+
+        /// <summary>Gắn người dùng SuperAdmin vào HttpContext để gọi các API chỉ SuperAdmin dùng được (đặt / đặt lại mốc).</summary>
+        private void UseSuperAdmin(string unique) =>
+            _host.Services.GetRequiredService<IHttpContextAccessor>().HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(
+                [
+                    new Claim(ClaimConst.AccountType, ((int)BaseEnums.AccountTypeEnum.SuperAdmin).ToString()),
+                    new Claim(ClaimConst.Account, $"super_{unique}"),
+                    new Claim(ClaimConst.UserId, Guid.NewGuid().ToString("N")),
+                    new Claim(ClaimTypes.Name, $"super_{unique}")
+                ], "TestAuth"))
+            };
+
+        /// <summary>Thân các yêu cầu máy chủ đối tác giả lập đã nhận ở đường dẫn chứa pathPart.</summary>
+        private List<string> PartnerBodies(string pathPart) =>
+            _host.PartnerServer.ReceivedRequests.Where(r => r.Path.Contains(pathPart)).Select(r => r.Body).ToList();
+
+        private static int CountOccurrences(string text, string token)
+        {
+            var count = 0;
+            for (var i = text.IndexOf(token, StringComparison.Ordinal); i >= 0; i = text.IndexOf(token, i + token.Length, StringComparison.Ordinal))
+            {
+                count++;
+            }
+            return count;
         }
 
         #endregion

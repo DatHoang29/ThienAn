@@ -132,6 +132,14 @@
     `afterTableIsolation: true`. Đã bổ sung bài test `TrackingLog_WhenRetryAfterTableIsolationHitsInvalidVersion_SelfHealsAndWritesEsh1601WithFlag_Test`
     (dùng SqlSugar AOP can thiệp tất định vào Lời gọi 1 bảng lỗi → Lời gọi 2 dính lỗi version `22114`),
     xác thực thành công việc tự phục hồi `LastVersion` và ghi nhật ký hạ tầng `ESH-1601` kèm cờ `afterTableIsolation: true`.
+  - ✅ **Mốc nối đuôi khi người dùng tự viết câu SQL (29–30/10/2026, đối chiếu biên bản 27–28/10)** — chi tiết ở `doc/transcript/28-10-2026-sharedata-xu-ly-noi-key-3-phuong-an-lastkey-va-toi-uu-hieu-nang.md` mục C.6 (tài liệu 08 đã gộp vào đây):
+    - `ShareDataLastSend` thêm cột `CursorSignature` (SHA-256 công thức `__lastTime|__lastKey` đã chuẩn hóa): Worker gặp mốc lưu bởi công thức khác thì bỏ mốc đó, gửi lại từ mốc khởi tạo thay vì bỏ sót hoặc đứng im.
+    - Chốt chặn ghi mốc so đúng kiểu khi khóa là số nguyên hoặc GUID (trước đây so chuỗi `'18' < '9'` nên gửi lặp một trang).
+    - Lưu câu SQL làm đổi công thức cột mốc thì hỏi xác nhận kèm các đối tác đang có mốc; đồng ý thì xóa mốc và `LastTimeRun` của các đối tác đó.
+    - API `SetLastSend` và nút "Đặt mốc" theo từng đối tác (chỉ SuperAdmin, có ghi nhật ký) thay cho việc tách cấu hình riêng chỉ để đổi mốc khởi tạo.
+    - Câu gộp nhiều nguồn: mỗi nguồn một nhóm mốc (`@lastKey_<nhóm>`, `__lastKey_<nhóm>`), mốc nhóm lưu ở bảng mới `ShareDataLastSendKey` theo `(PartnerCode, PacketCode, CursorKey)` — bảng `(Mã gói, Đối tác, Key) → Value` của biên bản (30/10/2026).
+    - Bộ kiểm điều kiện `WHERE` lúc lưu và trước khi Worker chạy: câu 2 cột phải so cả cặp (thời gian, khóa) với mốc; câu chỉ khóa là cột chuỗi trơn thì cảnh báo (30/10/2026).
+    - Chưa làm: chốt có chặn chế độ chỉ thời gian hay không; viết lại câu mẫu gói 103, 104, 106, 107, 109 bỏ `COALESCE`.
   - > 📌 **Lưu ý đồng bộ Transcript & Plan (Việc B - Event-Driven):** Trong transcript cuộc họp ngày 21/09/2026 ghi nhận việc B chưa làm trong đợt này; tuy nhiên **chỉ đạo kiến trúc và MasterPlan là PHẢI LÀM LUÔN**, và toàn bộ cơ chế Event-Driven (Change Tracking + NATS + Lock guard + Read-only Initializer) đã được hoàn tất và kiểm thử 100% PASS.
 - [x] **SV-15** Lưu bằng chứng đúng định dạng gửi đi & Luôn lưu bằng chứng (bỏ cờ `ArchiveEnabled` ngày 16/10/2026) ✅ **xong 15/10/2026, cập nhật 16/10/2026**:
   - Chuẩn bị payload một lần trước lưu và gửi (Format `Json`/`Csv` -> đưa `PayloadBytes`, `ContentType`, `FileExtension` vào request chung).
