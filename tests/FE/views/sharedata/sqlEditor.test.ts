@@ -192,7 +192,7 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
                 await page.keyboard.press('Escape');
             } else if (c.useConst) {
                 await page.locator('.sql-variable-panel .el-table__body .svp-source-cell .el-select').first().click();
-                await page.locator('.svp-source-popper .el-select-dropdown__item', { hasText: 'Giá trị cố định' }).click();
+                await page.locator('.svp-source-popper .el-select-dropdown__item', { hasText: /Giá trị (nhập|cố định)/ }).click();
                 await expect(page.locator('.el-popper.svp-source-popper').first()).toBeHidden();
                 await page.locator('.sql-variable-panel .el-table__body .svp-const-input input').first().fill('500');
             } else {

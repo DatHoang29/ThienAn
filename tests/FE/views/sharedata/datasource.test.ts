@@ -742,7 +742,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const panel = page.locator('.sql-variable-panel');
         await expect(panel).toBeVisible({ timeout: 10_000 });
 
-        // Dải kiểm nhanh mốc hiển thị với icon bóng đèn và các chip quy chuẩn mốc không rớt dòng
+        // Dải kiểm nhanh mốc hiển thị với icon bóng đèn và lead quy chuẩn mốc
         const checks = panel.locator('.svp-checks');
         await expect(checks).toBeVisible();
 
@@ -750,14 +750,18 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const bulb = checks.locator('.svp-check-bulb');
         await expect(bulb).toBeVisible();
 
-        // Các chip kiểm tra quy chuẩn hiển thị gọn gàng
-        const chips = checks.locator('.svp-check-chip');
-        expect(await chips.count()).toBeGreaterThanOrEqual(3);
+        // Dải chip bên ngoài (Hình 2) đã được bỏ đi theo yêu cầu để đưa vào popup tiết kiệm không gian
+        await expect(checks.locator('.svp-check-chips')).toHaveCount(0);
 
-        // Hover vào lead mở popover quy chuẩn
+        // Hover vào lead mở popover quy chuẩn chứa toàn bộ tiêu chuẩn
         await checks.locator('.svp-check-lead').hover();
         const popover = page.locator('.svp-popover-content');
         await expect(popover).toBeVisible({ timeout: 5_000 });
+
+        // Các mục kiểm tra quy chuẩn hiển thị trong popup, chỉ dùng xanh lá hoặc đỏ
+        const items = popover.locator('.svp-popover-item');
+        expect(await items.count()).toBeGreaterThanOrEqual(3);
+        await expect(items.first()).toHaveClass(/is-pass|is-fail/);
 
         // Tuyệt đối không có bất kỳ lỗi Uncaught SyntaxError / pageerror nào
         expect(pageErrors.filter((e) => e.includes('SyntaxError') || e.includes('Invalid linked format'))).toEqual([]);
@@ -2120,8 +2124,10 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await firstRow.click();
 
         const panel = page.locator('.sql-variable-panel');
-        const keySourceCheck = panel.locator('.svp-check-chip', { hasText: 'Nguồn key' });
-        await expect(keySourceCheck).toHaveClass(/is-warn/, { timeout: 10_000 });
+        await panel.locator('.svp-check-lead').hover();
+        const popover = page.locator('.svp-popover-content');
+        const keySourceCheck = popover.locator('.svp-popover-item', { hasText: /theo key/i });
+        await expect(keySourceCheck).toHaveClass(/is-fail/, { timeout: 10_000 });
 
         // Chọn lại nguồn "Nối tiếp lần trước (theo key)" cho @lastKey
         const lastKeyRow = panel.locator('.svp-table').first().locator('tbody tr', { hasText: '@lastKey' });
@@ -2129,6 +2135,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await lastKeyRow.locator('.svp-source-select').click();
         await page.locator('.el-popper.svp-source-popper:visible .el-select-dropdown__item', { hasText: 'Nối tiếp lần trước (theo key)' }).click();
 
+        await panel.locator('.svp-check-lead').hover();
         await expect(keySourceCheck).toHaveClass(/is-pass/);
         await expect(lastKeyRow.locator('.svp-no-input-text')).toBeVisible();
         await expect(lastKeyRow.locator('.svp-time-radio-group')).toHaveCount(0);
@@ -2209,10 +2216,12 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(firstRow).toBeVisible({ timeout: 30_000 });
         await firstRow.click();
 
-        // Dải Quy chuẩn mốc: có cột mốc của từng nhóm, mỗi nhóm có biến lấy nguồn theo key
+        // Dải Quy chuẩn mốc trong popup: có cột mốc của từng nhóm, mỗi nhóm có biến lấy nguồn theo key
         const panel = page.locator('.sql-variable-panel');
-        await expect(panel.locator('.svp-check-chip', { hasText: 'Cột mốc' })).toHaveClass(/is-pass/, { timeout: 10_000 });
-        await expect(panel.locator('.svp-check-chip', { hasText: 'Nguồn key' })).toHaveClass(/is-pass/);
+        await panel.locator('.svp-check-lead').hover();
+        const popover = page.locator('.svp-popover-content');
+        await expect(popover.locator('.svp-popover-item', { hasText: /cột mốc/i })).toHaveClass(/is-pass/, { timeout: 10_000 });
+        await expect(popover.locator('.svp-popover-item', { hasText: /theo key/i })).toHaveClass(/is-pass/);
 
         // Bảng mốc đối tác hiện mốc của từng nhóm
         const partnerRow = page.locator('.svp-partner-cursor-drawer tbody tr', { hasText: 'GRP' });

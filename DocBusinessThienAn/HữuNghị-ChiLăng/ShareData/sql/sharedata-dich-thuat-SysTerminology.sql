@@ -713,6 +713,10 @@ VALUES
      N'Điều kiện lọc so khóa bằng >= với biến mốc khóa: dòng cuối lượt trước bị gửi lại ở mọi lượt, trang 1 dòng (TOP 1) thì kẹt mãi ở dòng đó. Nên so [__lastKey] > biến mốc khóa.',
      N'The key filter uses >= with the key cursor variable: the last row of the previous run is resent every run, and a one-row page (TOP 1) stays stuck on it. Compare [__lastKey] > the key cursor variable.'),
 
+    (N'lz.validation', N'sharedata.sqlLastTimeNullable',
+     N'Cột mốc thời gian (__lastTime) cho phép NULL: những dòng có thời gian trống không thỏa điều kiện WHERE và không bao giờ được gửi. Cần đảm bảo cột luôn có giá trị hoặc dùng COALESCE/mẫu hai nhóm.',
+     N'The time cursor column (__lastTime) allows NULL: rows with empty timestamps will not match the WHERE condition and will never be sent. Ensure the column is non-null or use COALESCE/two-group cursor pattern.'),
+
     (N'lz.validation', N'sharedata.sqlIncrementalCursorFilterInvalid',
      N'WHERE phải so cả cặp mốc: [{2}] > {''@''}{0} OR ([{2}] = {''@''}{0} AND [{3}] > {''@''}{1}), hoặc [{2}] >= ISNULL({''@''}{0}, ''17530101'') AND ([{2}] > {''@''}{0} OR [{3}] > {''@''}{1}). So một vế, dùng AND hay so cột khác đều bỏ sót dòng.',
      N'WHERE must compare the cursor pair: [{2}] > {''@''}{0} OR ([{2}] = {''@''}{0} AND [{3}] > {''@''}{1}), or [{2}] >= ISNULL({''@''}{0}, ''17530101'') AND ([{2}] > {''@''}{0} OR [{3}] > {''@''}{1}). One side only, AND or another column skips rows.'),

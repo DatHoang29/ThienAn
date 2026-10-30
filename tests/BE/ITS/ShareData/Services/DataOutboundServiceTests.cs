@@ -8111,6 +8111,123 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             Assert.Contains($"\"{rowPrefix}6\"", combinedBody);
         }
 
+        /// <summary>
+        /// Description: Khi người dùng bấm Đặt lại mốc (ResetLastSend) giữa lúc Worker đang gửi một trang dữ liệu:
+        ///              Worker phát hiện mốc bị xóa (snapshot mismatch), KHÔNG ghi đè tạo lại mốc cũ ở cuối trang,
+        ///              giữ LastTimeRun = null và dừng vòng lặp phân trang để lượt chạy kế tiếp quét lại từ đầu.
+        /// Created date: 30/10/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessSubscriptions_WhenResetLastSendCalledWhilePageSending_DoesNotRecreateLastSend_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var packetId = $"pkt-midreset-{unique}";
+            var packetCode = $"PKT_MIDRESET_{unique}";
+            var rowPrefix = $"ROW_MIDRESET_{unique}_";
+            var partnerUrl = $"/api/sharedata/partner-midreset-{unique}";
+
+            var baseTime = new DateTime(2026, 10, 30, 8, 0, 0);
+            var rows = Enumerable.Range(1, 4).Select(i => new ShareDataPacket
+            {
+                ID = $"r{i:D2}_{unique}",
+                Code = $"{rowPrefix}{i}",
+                Name = $"Row {i}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Disable
+            }).ToList();
+            await db.Insertable(rows).ExecuteCommandAsync();
+            for (var i = 0; i < rows.Count; i++)
+            {
+                var time = baseTime.AddMinutes(i * 10);
+                await db.Updateable<ShareDataPacket>().SetColumns(p => p.UpdateTime == time).Where(p => p.ID == rows[i].ID).ExecuteCommandAsync();
+            }
+
+            var commonSql = "SELECT TOP (@pageSize) Code AS rowCode, UpdateTime AS __lastTime, ID AS __lastKey FROM ShareDataPacket "
+                + "WHERE Code LIKE @prefix AND UpdateTime >= ISNULL(@lastTime, '17530101') AND (@lastTime IS NULL OR UpdateTime > @lastTime OR ID > @lastKey) "
+                + "ORDER BY UpdateTime ASC, ID ASC";
+
+            await db.Insertable(new ShareDataPacket
+            {
+                ID = packetId,
+                Code = packetCode,
+                Name = $"Packet {packetCode}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Enable
+            }).ExecuteCommandAsync();
+            await ShareDataSqlSeed.SetCommonAsync(db, packetId, commonSql);
+            await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null, CursorVariables(pageSize: 2, prefix: rowPrefix, withLastTime: true));
+
+            var shape = new Dictionary<string, object> { ["rowCode"] = new Dictionary<string, string> { ["$field"] = "rowCode" } };
+            var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"PMR_{unique}",
+                SubCode = $"SUB_MR_{unique}",
+                DatatypeId = packetId,
+                MappingShape = shape,
+                ConfigurePartner = p => p.EndPointApiUrl = partnerUrl
+            });
+
+            UseSuperAdmin(unique);
+            var resetTriggered = false;
+            _host.PartnerServer.Responder = (callNumber, req) =>
+            {
+                if (req.Path.Contains(partnerUrl))
+                {
+                    resetTriggered = true;
+                    using var resetScope = _host.Services.CreateScope();
+                    var accessor = resetScope.ServiceProvider.GetRequiredService<IHttpContextAccessor>();
+                    accessor.HttpContext = new DefaultHttpContext
+                    {
+                        User = new ClaimsPrincipal(new ClaimsIdentity(
+                        [
+                            new Claim(ClaimConst.AccountType, ((int)BaseEnums.AccountTypeEnum.SuperAdmin).ToString()),
+                            new Claim(ClaimConst.Account, $"super_{unique}"),
+                            new Claim(ClaimConst.UserId, Guid.NewGuid().ToString("N")),
+                            new Claim(ClaimTypes.Name, $"super_{unique}")
+                        ], "TestAuth"))
+                    };
+                    resetScope.ServiceProvider.CallApiAsync(new ResetLastSendInput
+                    {
+                        PacketCode = packetCode,
+                        PartnerId = partner.ID!
+                    }).GetAwaiter().GetResult();
+                }
+                return new PartnerResponsePlan(HttpStatusCode.OK);
+            };
+
+            var worker = CreateWorker(scope, workerConfig: await CreateWorkerConfigWithMaxPages(scope, db, 2));
+
+            // Act: Worker chạy tiến trình gửi
+            await worker.ProcessSubscriptions(CancellationToken.None);
+            _host.PartnerServer.Responder = null;
+
+            // Assert
+            Assert.True(resetTriggered, "Responder phải được kích hoạt trong lúc Worker đang gửi HTTP.");
+
+            // Mốc ShareDataLastSend không được tạo lại bởi Worker sau khi đã bị xóa
+            var lastSend = await db.Queryable<ShareDataLastSend>()
+                .Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == packetCode)
+                .FirstAsync();
+            Assert.Null(lastSend);
+
+            // Subscription.LastTimeRun không bị ghi đè bởi thời gian cuối trang 1
+            var updatedSub = await db.Queryable<ShareDataSubscription>()
+                .Where(s => s.ID == sub.ID)
+                .FirstAsync();
+            Assert.Null(updatedSub.LastTimeRun);
+
+            // Chỉ trang 1 được gửi đi; trang 2 bị ngắt do vòng lặp phân trang dừng khi mốc bị gián đoạn
+            var bodies = PartnerBodies(partnerUrl);
+            Assert.Single(bodies);
+            Assert.Contains($"\"{rowPrefix}1\"", bodies[0]);
+            Assert.Contains($"\"{rowPrefix}2\"", bodies[0]);
+            Assert.DoesNotContain($"\"{rowPrefix}3\"", bodies[0]);
+            Assert.DoesNotContain($"\"{rowPrefix}4\"", bodies[0]);
+        }
+
         /// <summary>Bộ biến của câu nối đuôi tự viết: @pageSize, @prefix, @lastKey và (chế độ 2 cột) @lastTime kèm mốc khởi tạo.</summary>
         private static List<SqlVariableItem> CursorVariables(int pageSize, string prefix, bool withLastTime, string? lastTimeDefault = null)
         {
