@@ -6,10 +6,10 @@ GO
 -- BẢNG GHI: [dbo].[SysTerminology] — tệp chỉ thêm / sửa / xóa trên đúng bảng này; bảng khác chỉ đọc (Rule 19.103).
 -- DESCRIPTION: Bổ sung từ điển bản dịch đa ngôn ngữ (vi-VN, en-US) cho phân hệ ShareData (ESHARE) vào SysTerminology:
 --              1. Chuẩn hóa lại mã khóa cũ thừa tiền tố (như lz.validation...lookbackDaysRange nếu có).
---              2. Nạp toàn bộ 144 mã khóa dịch thuật chuẩn hóa (288 bản ghi đa ngôn ngữ vi-VN và en-US):
---                 - 23 khóa trường thực thể (Entity) dùng cho validation / khóa ngoại / tên đối tượng.
---                 - 37 khóa ngoại lệ nghiệp vụ (Exception: phân hệ ShareData, quyền quản trị).
---                 - 81 khóa kiểm tra hợp lệ (Validation: SQL Validator, kết nối, đăng ký, gói tin, bộ mã, ánh xạ, tham số câu truy vấn, câu ghi chiều nhận).
+--              2. Nạp toàn bộ 164 mã khóa dịch thuật chuẩn hóa (328 bản ghi đa ngôn ngữ vi-VN và en-US):
+--                 - 26 khóa trường thực thể (Entity) dùng cho validation / khóa ngoại / tên đối tượng.
+--                 - 38 khóa ngoại lệ nghiệp vụ (Exception: phân hệ ShareData, quyền quản trị).
+--                 - 98 khóa kiểm tra hợp lệ (Validation: SQL Validator, kết nối, đăng ký, gói tin, bộ mã, ánh xạ, tham số câu truy vấn, câu ghi chiều nhận).
 --                 - 2 khóa thông báo (Message: kết nối đối tác).
 --              3. Cơ chế Idempotent:
 --                 - MERGE chỉ INSERT các bản ghi chưa có (WHEN NOT MATCHED THEN INSERT).
@@ -18,7 +18,7 @@ GO
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 30/10/2026 (thêm khóa nhóm mốc và kiểm điều kiện WHERE nối đuôi; mọi câu ≤ 256 ký tự theo cột Value, @ viết {'@'})
+-- CẬP NHẬT LẦN CUỐI: 30/10/2026 (thêm khóa nhóm mốc, kiểm điều kiện WHERE nối đuôi, ESH-2306/2307 đăng ký đang bật; mọi câu ≤ 256 ký tự theo cột Value, @ viết {'@'})
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -242,6 +242,14 @@ VALUES
     (N'lz.exception', N'sharedata.packetExtractSqlMissing',
      N'Gói tin [{0}] chưa cấu hình câu truy vấn trích xuất (ExtractSql).',
      N'Packet [{0}] has no extract SQL configured.'),
+
+    (N'lz.exception', N'sharedata.packetSqlInUse',
+     N'Gói tin [{0}] đang có đăng ký bật sử dụng ({1}), vui lòng tắt đăng ký trước khi sửa cấu hình SQL hoặc đặt lại mốc gửi.',
+     N'Packet [{0}] is used by enabled subscriptions ({1}). Turn off the subscriptions before editing the SQL configuration or resetting the send cursor.'),
+
+    (N'lz.exception', N'sharedata.packetDisableInUse',
+     N'Gói tin [{0}] đang có đăng ký bật sử dụng ({1}), vui lòng tắt đăng ký trước khi tắt gói tin.',
+     N'Packet [{0}] is used by enabled subscriptions ({1}). Turn off the subscriptions before disabling the packet.'),
 
     (N'lz.exception', N'sharedata.packetFieldInUse',
      N'Field gói tin đang được hồ sơ ánh xạ sử dụng, không thể xóa.',
@@ -714,8 +722,8 @@ VALUES
      N'The key filter uses >= with the key cursor variable: the last row of the previous run is resent every run, and a one-row page (TOP 1) stays stuck on it. Compare [__lastKey] > the key cursor variable.'),
 
     (N'lz.validation', N'sharedata.sqlLastTimeNullable',
-     N'Cột mốc thời gian (__lastTime) cho phép NULL: những dòng có thời gian trống không thỏa điều kiện WHERE và không bao giờ được gửi. Cần đảm bảo cột luôn có giá trị hoặc dùng COALESCE/mẫu hai nhóm.',
-     N'The time cursor column (__lastTime) allows NULL: rows with empty timestamps will not match the WHERE condition and will never be sent. Ensure the column is non-null or use COALESCE/two-group cursor pattern.'),
+     N'Cột mốc thời gian (__lastTime) cho phép NULL: những dòng có thời gian trống không thỏa điều kiện WHERE và không bao giờ được gửi. Chọn cột luôn có giá trị, hoặc tách hai nhóm mốc: dòng đã có thời gian và dòng còn trống (theo CreateTime).',
+     N'The time cursor column (__lastTime) allows NULL: rows with empty timestamps will not match the WHERE condition and will never be sent. Use a column that always has a value, or split two cursor groups: rows with a time and rows still empty (by CreateTime).'),
 
     (N'lz.validation', N'sharedata.sqlIncrementalCursorFilterInvalid',
      N'WHERE phải so cả cặp mốc: [{2}] > {''@''}{0} OR ([{2}] = {''@''}{0} AND [{3}] > {''@''}{1}), hoặc [{2}] >= ISNULL({''@''}{0}, ''17530101'') AND ([{2}] > {''@''}{0} OR [{3}] > {''@''}{1}). So một vế, dùng AND hay so cột khác đều bỏ sót dòng.',

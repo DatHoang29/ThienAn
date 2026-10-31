@@ -6579,8 +6579,11 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 ], "TestAuth"))
             };
             await ShareDataSqlSeed.SetPartnerAsync(db, packetId, partnerA.ID, commonSql);
+            // Đặt lại SQL riêng chỉ được khi đăng ký không còn bật (ESH-2306): tạm dừng, đặt lại rồi bật lại
+            await db.Updateable<ShareDataSubscription>().SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Paused).Where(s => s.ID == subA.ID).ExecuteCommandAsync();
             await scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(
                 new ResetPartnerExtractSqlInput { PartnerId = partnerA.ID!, PacketCode = packetCode });
+            await db.Updateable<ShareDataSubscription>().SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Active).Where(s => s.ID == subA.ID).ExecuteCommandAsync();
 
             dueNow = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
             await db.Updateable<ShareDataSubscription>().SetColumns(s => s.NextTimeRun == dueNow.AddSeconds(-10)).Where(s => s.ID == subA.ID).ExecuteCommandAsync();
@@ -6588,7 +6591,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             Assert.Equal(2, _host.PartnerServer.ReceivedRequests.Count(r => r.Path.Contains($"partner-a-{unique}")));
 
             // Act 4: SuperAdmin đặt lại mốc chạy của riêng Partner A -> Partner A gửi lại đủ NEW1..NEW3 từ DefaultValue, Partner B đứng yên
-            await scope.ServiceProvider.CallApiAsync(new ResetLastSendInput { PacketCode = packetCode, PartnerId = partnerA.ID! });
+            await ResetCursorWhilePausedAsync(scope.ServiceProvider, db, subA.ID!, packetCode, partnerA.ID!);
             var partnerBCountBeforeResetRun = _host.PartnerServer.ReceivedRequests.Count(r => r.Path.Contains($"partner-b-{unique}"));
             dueNow = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
             await db.Updateable<ShareDataSubscription>()
@@ -7575,7 +7578,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                     new Claim(ClaimTypes.Name, $"super_{unique}")
                 ], "TestAuth"))
             };
-            await scope.ServiceProvider.CallApiAsync(new ResetLastSendInput { PacketCode = packetCode, PartnerId = partner.ID! });
+            await ResetCursorWhilePausedAsync(scope.ServiceProvider, db, sub.ID!, packetCode, partner.ID!);
 
             var dueNow = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
             await db.Updateable<ShareDataSubscription>()
@@ -7841,7 +7844,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             var firstRun = string.Join(" ", PartnerBodies($"partner-grp-{unique}"));
 
             // Act 2: đặt lại mốc rồi chạy tiếp
-            await scope.ServiceProvider.CallApiAsync(new ResetLastSendInput { PacketCode = packetCode, PartnerId = partner.ID! });
+            await ResetCursorWhilePausedAsync(scope.ServiceProvider, db, sub.ID!, packetCode, partner.ID!);
             var groupRowsAfterReset = await db.Queryable<ShareDataLastSendKey>()
                 .Where(k => k.PartnerCode == partner.Code && k.PacketCode == packetCode)
                 .CountAsync();
@@ -8189,6 +8192,11 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                             new Claim(ClaimTypes.Name, $"super_{unique}")
                         ], "TestAuth"))
                     };
+                    // Đặt lại chỉ được khi đăng ký không còn bật (ESH-2306): tạm dừng đăng ký trước
+                    resetScope.ServiceProvider.GetRequiredService<ISqlSugarClient>().Updateable<ShareDataSubscription>()
+                        .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Paused)
+                        .Where(s => s.ID == sub.ID)
+                        .ExecuteCommand();
                     resetScope.ServiceProvider.CallApiAsync(new ResetLastSendInput
                     {
                         PacketCode = packetCode,
@@ -8228,6 +8236,215 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             Assert.DoesNotContain($"\"{rowPrefix}4\"", bodies[0]);
         }
 
+        /// <summary>
+        /// Description: SuperAdmin bấm Đặt lại (sau khi tạm dừng đăng ký) / Đặt mốc đúng lúc Worker đang gửi dở trang 1 (máy chủ đối tác giả lập gọi API khi nhận trang).
+        ///              Worker không được ghi đè thao tác đó: bỏ ghi mốc của trang vừa gửi và dừng lượt. Đặt lại thì không còn dòng mốc,
+        ///              Đặt mốc thì mốc giữ đúng giá trị vừa đặt.
+        /// Created date: 30/10/2026
+        /// </summary>
+        [Theory]
+        [InlineData("datLai")]
+        [InlineData("datMoc")]
+        public async Task ProcessSubscriptions_WhenCursorChangedWhileSendingPage_KeepsUserCursorAndStops_Test(string action)
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var packetId = $"pkt-mid-{unique}";
+            var packetCode = $"PKT_MID_{unique}";
+            var rowPrefix = $"ROW_MID_{unique}_";
+            var twoColumnSql = "SELECT TOP (@pageSize) Code AS rowCode, UpdateTime AS __lastTime, ID AS __lastKey FROM ShareDataPacket "
+                + "WHERE Code LIKE @prefix AND UpdateTime >= ISNULL(@lastTime, '17530101') AND (@lastTime IS NULL OR UpdateTime > @lastTime OR ID > @lastKey) "
+                + "ORDER BY UpdateTime ASC, ID ASC";
+
+            var baseTime = new DateTime(2026, 10, 28, 8, 0, 0);
+            var rows = Enumerable.Range(1, 3).Select(i => new ShareDataPacket
+            {
+                ID = $"m{i:D2}_{unique}",
+                Code = $"{rowPrefix}{i}",
+                Name = $"Row {i}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Disable
+            }).ToList();
+            await db.Insertable(rows).ExecuteCommandAsync();
+            for (var i = 0; i < rows.Count; i++)
+            {
+                var rowId = rows[i].ID;
+                var rowTime = baseTime.AddMinutes(i * 10);
+                await db.Updateable<ShareDataPacket>().SetColumns(p => p.UpdateTime == rowTime).Where(p => p.ID == rowId).ExecuteCommandAsync();
+            }
+
+            await db.Insertable(new ShareDataPacket
+            {
+                ID = packetId,
+                Code = packetCode,
+                Name = $"Packet {packetCode}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Enable
+            }).ExecuteCommandAsync();
+            await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null, CursorVariables(1, rowPrefix, withLastTime: true));
+            await ShareDataSqlSeed.SetCommonAsync(db, packetId, twoColumnSql);
+
+            var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_MID_{unique}",
+                SubCode = $"SUB_MID_{unique}",
+                DatatypeId = packetId,
+                MappingShape = new Dictionary<string, object> { ["rowCode"] = new Dictionary<string, string> { ["$field"] = "rowCode" } },
+                ConfigurePartner = p => p.EndPointApiUrl = $"/api/sharedata/partner-mid-{unique}"
+            });
+
+            var userTime = baseTime.AddHours(-1);
+            var fired = 0;
+            _host.PartnerServer.Responder = (_, request) =>
+            {
+                if (request.Path.Contains($"partner-mid-{unique}") && Interlocked.Exchange(ref fired, 1) == 0)
+                {
+                    Task.Run(async () =>
+                    {
+                        UseSuperAdmin(unique);
+                        using var apiScope = _host.Services.CreateScope();
+                        if (action == "datLai")
+                        {
+                            // Đặt lại chỉ được khi đăng ký không còn bật (ESH-2306): người dùng tạm dừng đăng ký rồi bấm Đặt lại trong lúc Worker đang gửi
+                            var apiDb = apiScope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+                            await apiDb.Updateable<ShareDataSubscription>()
+                                .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Paused)
+                                .Where(s => s.ID == sub.ID)
+                                .ExecuteCommandAsync();
+                            await apiScope.ServiceProvider.CallApiAsync(new ResetLastSendInput { PacketCode = packetCode, PartnerId = partner.ID! });
+                        }
+                        else
+                        {
+                            await apiScope.ServiceProvider.CallApiAsync(new SetLastSendInput
+                            {
+                                PacketCode = packetCode,
+                                PartnerId = partner.ID,
+                                LastTime = userTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+                            });
+                        }
+                    }).GetAwaiter().GetResult();
+                }
+                return null;
+            };
+
+            // Act
+            try
+            {
+                var worker = CreateWorker(scope, workerConfig: await CreateWorkerConfigWithMaxPages(scope, db, 5));
+                await worker.ProcessSubscriptions(CancellationToken.None);
+            }
+            finally
+            {
+                _host.PartnerServer.Responder = null;
+            }
+
+            // Assert: dừng sau trang bị chen ngang, mốc là mốc người dùng vừa đặt (hoặc không còn mốc khi Đặt lại)
+            Assert.Single(PartnerBodies($"partner-mid-{unique}"));
+            var cursor = await db.Queryable<ShareDataLastSend>()
+                .Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == packetCode)
+                .FirstAsync();
+            if (action == "datLai")
+            {
+                Assert.Null(cursor);
+                // Worker nhả lock không được bật lại đăng ký người dùng vừa tạm dừng
+                var state = await db.Queryable<ShareDataSubscription>().Where(s => s.ID == sub.ID).Select(s => s.State).FirstAsync();
+                Assert.Equal(BaseEnums.SubSubscriptionState.Paused, state);
+            }
+            else
+            {
+                Assert.NotNull(cursor);
+                Assert.Equal(userTime, cursor.LastTime);
+            }
+        }
+
+        /// <summary>
+        /// Description: Cột thời gian mốc có dòng trống (dòng mới tạo chưa có UpdateTime): câu mẫu hai nhóm mốc trên cùng một bảng —
+        ///              nhóm upd lấy dòng đã có UpdateTime theo (UpdateTime, ID), nhóm new lấy dòng UpdateTime trống theo (CreateTime, ID).
+        ///              Lượt 1 gửi đủ cả dòng chưa có UpdateTime; lượt 2 chỉ gửi dòng mới tạo và dòng vừa được cập nhật (gửi lại như bản cập nhật).
+        /// Created date: 30/10/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessSubscriptions_WhenTimeColumnEmptyOnNewRows_TwoGroupTemplateSendsEveryRow_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var packetId = $"pkt-null-{unique}";
+            var packetCode = $"PKT_NULL_{unique}";
+            var rowPrefix = $"ROW_NULL_{unique}_";
+            var baseTime = new DateTime(2026, 10, 28, 8, 0, 0);
+
+            ShareDataPacket Row(string name) => new() { ID = $"{name}_{unique}", Code = $"{rowPrefix}{name}", Name = name, PacketVersion = "1.0", Status = BaseEnums.StatusEnum.Disable };
+            async Task SetTimes(string name, DateTime? updateTime, DateTime createTime)
+            {
+                var id = $"{name}_{unique}";
+                await db.Updateable<ShareDataPacket>()
+                    .SetColumns(p => new ShareDataPacket { UpdateTime = updateTime, CreateTime = createTime })
+                    .Where(p => p.ID == id)
+                    .ExecuteCommandAsync();
+            }
+
+            await db.Insertable(new List<ShareDataPacket> { Row("A"), Row("B"), Row("C") }).ExecuteCommandAsync();
+            await SetTimes("A", baseTime, baseTime.AddDays(-1));
+            await SetTimes("B", null, baseTime.AddMinutes(5));
+            await SetTimes("C", null, baseTime.AddMinutes(10));
+
+            await db.Insertable(new ShareDataPacket
+            {
+                ID = packetId,
+                Code = packetCode,
+                Name = $"Packet {packetCode}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Enable
+            }).ExecuteCommandAsync();
+            await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null, GroupCursorVariables(50, rowPrefix, "upd", "new"));
+            await ShareDataSqlSeed.SetCommonAsync(db, packetId, UpdNewGroupSql);
+
+            var (_, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_NULL_{unique}",
+                SubCode = $"SUB_NULL_{unique}",
+                DatatypeId = packetId,
+                MappingShape = new Dictionary<string, object> { ["rowCode"] = new Dictionary<string, string> { ["$field"] = "rowCode" } },
+                ConfigurePartner = p => p.EndPointApiUrl = $"/api/sharedata/partner-null-{unique}"
+            });
+            var worker = CreateWorker(scope);
+
+            // Act 1
+            await worker.ProcessSubscriptions(CancellationToken.None);
+            var firstRun = string.Join(" ", PartnerBodies($"partner-null-{unique}"));
+
+            // Act 2: B được cập nhật (chuyển sang nhóm upd), D mới tạo chưa có UpdateTime
+            await SetTimes("B", baseTime.AddHours(1), baseTime.AddMinutes(5));
+            await db.Insertable(Row("D")).ExecuteCommandAsync();
+            await SetTimes("D", null, baseTime.AddMinutes(20));
+            var dueNow = await db.Ado.GetDateTimeAsync("SELECT GETDATE()");
+            await db.Updateable<ShareDataSubscription>().SetColumns(s => s.NextTimeRun == dueNow.AddSeconds(-10)).Where(s => s.ID == sub.ID).ExecuteCommandAsync();
+            await worker.ProcessSubscriptions(CancellationToken.None);
+            var secondRun = string.Join(" ", PartnerBodies($"partner-null-{unique}").Skip(1));
+
+            // Assert
+            Assert.Contains($"\"{rowPrefix}A\"", firstRun);
+            Assert.Contains($"\"{rowPrefix}B\"", firstRun);
+            Assert.Contains($"\"{rowPrefix}C\"", firstRun);
+            Assert.Contains($"\"{rowPrefix}B\"", secondRun);
+            Assert.Contains($"\"{rowPrefix}D\"", secondRun);
+            Assert.DoesNotContain($"\"{rowPrefix}A\"", secondRun);
+            Assert.DoesNotContain($"\"{rowPrefix}C\"", secondRun);
+        }
+
+        /// <summary>Câu mẫu hai nhóm mốc trên cùng bảng: upd (dòng đã có UpdateTime) và new (dòng UpdateTime trống, mốc theo CreateTime).</summary>
+        private const string UpdNewGroupSql = "SELECT TOP (@pageSize) u.rowCode, u.__lastTime_upd, u.__lastKey_upd, u.__lastTime_new, u.__lastKey_new FROM ("
+            + "SELECT p.Code AS rowCode, p.UpdateTime AS sortTime, p.ID AS sortKey, p.UpdateTime AS __lastTime_upd, p.ID AS __lastKey_upd, "
+            + "CAST(NULL AS datetime) AS __lastTime_new, CAST(NULL AS nvarchar(64)) AS __lastKey_new FROM ShareDataPacket p "
+            + "WHERE p.Code LIKE @prefix AND p.UpdateTime >= ISNULL(@lastTime_upd, '17530101') AND (@lastTime_upd IS NULL OR p.UpdateTime > @lastTime_upd OR p.ID > @lastKey_upd) "
+            + "UNION ALL SELECT n.Code, n.CreateTime, n.ID, NULL, NULL, n.CreateTime, n.ID FROM ShareDataPacket n "
+            + "WHERE n.Code LIKE @prefix AND n.UpdateTime IS NULL AND n.CreateTime >= ISNULL(@lastTime_new, '17530101') AND (@lastTime_new IS NULL OR n.CreateTime > @lastTime_new OR n.ID > @lastKey_new)"
+            + ") u ORDER BY u.sortTime ASC, u.sortKey ASC";
+
         /// <summary>Bộ biến của câu nối đuôi tự viết: @pageSize, @prefix, @lastKey và (chế độ 2 cột) @lastTime kèm mốc khởi tạo.</summary>
         private static List<SqlVariableItem> CursorVariables(int pageSize, string prefix, bool withLastTime, string? lastTimeDefault = null)
         {
@@ -8264,6 +8481,14 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 items.Add(new() { Code = $"lastKey_{group}", DataType = ShareDataConst.SqlVariableTypeString, ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = ShareDataConst.SqlVariableSourceLastKey, OrderNo = ++order });
             }
             return items;
+        }
+
+        /// <summary>Đặt lại mốc như thao tác thật: Đặt lại chỉ được khi đăng ký không còn bật (ESH-2306) nên tạm dừng, đặt lại rồi bật lại.</summary>
+        private static async Task ResetCursorWhilePausedAsync(IServiceProvider services, ISqlSugarClient db, string subId, string packetCode, string partnerId)
+        {
+            await db.Updateable<ShareDataSubscription>().SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Paused).Where(s => s.ID == subId).ExecuteCommandAsync();
+            await services.CallApiAsync(new ResetLastSendInput { PacketCode = packetCode, PartnerId = partnerId });
+            await db.Updateable<ShareDataSubscription>().SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Active).Where(s => s.ID == subId).ExecuteCommandAsync();
         }
 
         /// <summary>Gắn người dùng SuperAdmin vào HttpContext để gọi các API chỉ SuperAdmin dùng được (đặt / đặt lại mốc).</summary>

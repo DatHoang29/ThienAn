@@ -7,6 +7,9 @@ import { mockAuth } from '../../setup';
  * - Hộp thoại form/confirm khi bấm ra ngoài; form thêm gói.
  */
 
+/** Lỗi của khung layout dùng chung (layout/main/defaults.vue gọi layoutMainScrollbarRef khi chưa gắn) nằm ngoài ShareData: không tính vào lỗi trang. */
+const isSharedLayoutError = (message: string) => message.includes('layoutMainScrollbarRef');
+
 test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) @sharedata', () => {
 
     test.beforeEach(async ({ context, page }) => {
@@ -662,7 +665,9 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
      */
     test('52. Bấm vào gói tin bên table trái: không bị crash trắng màn hình bên phải và dòng giải thích mốc hiển thị bình thường', async ({ page }) => {
         const pageErrors: string[] = [];
-        page.on('pageerror', (err) => pageErrors.push(err.message));
+        page.on('pageerror', (err) => {
+            if (!isSharedLayoutError(err.message)) pageErrors.push(err.message);
+        });
 
         const compositeSql =
             "SELECT TOP (@pageSize) Code AS zoneCode, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey " +
@@ -724,6 +729,36 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
             })
         );
 
+        await page.route('**/api/sharedata/sharedatapacket/updatesqlvariables*', (route) =>
+            route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        items: [
+                            {
+                                code: 'pageSize',
+                                dataType: 'Int',
+                                valueKind: 'Const',
+                                value: '200',
+                                defaultValue: null,
+                                savedValue: null,
+                            },
+                            {
+                                code: 'lastKey',
+                                dataType: 'String',
+                                valueKind: 'Builtin',
+                                value: 'lastKey',
+                                defaultValue: null,
+                                savedValue: null,
+                            },
+                        ],
+                    },
+                }),
+            })
+        );
+
         await page.setViewportSize({ width: 1600, height: 950 });
         await page.goto('/#/sharedata/dataSource');
 
@@ -765,6 +800,387 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
 
         // Tuyệt đối không có bất kỳ lỗi Uncaught SyntaxError / pageerror nào
         expect(pageErrors.filter((e) => e.includes('SyntaxError') || e.includes('Invalid linked format'))).toEqual([]);
+    });
+
+    /**
+     * Description: Quy chuẩn SQL nối mốc — bóng đèn chỉ sáng vàng khi đạt đủ mọi tiêu chí, chưa đủ thì tắt (xám);
+     *              trong popup từng tiêu chí tự mang màu riêng: đạt xanh lá, chưa đạt đỏ (không tô đỏ cả danh sách).
+     * Created date: 30/10/2026
+     */
+    const cursorCheckCases = [
+        {
+            name: 'đạt đủ 3/3',
+            orderBy: 'ORDER BY __lastKey ASC',
+            leadText: '(3/3)',
+            lit: true,
+            itemStates: ['is-pass', 'is-pass', 'is-pass'],
+        },
+        {
+            name: 'chưa đạt ORDER BY DESC 2/3',
+            orderBy: 'ORDER BY __lastKey DESC',
+            leadText: '(2/3)',
+            lit: false,
+            itemStates: ['is-pass', 'is-pass', 'is-fail'],
+        },
+    ];
+
+    for (const c of cursorCheckCases) {
+        test(`65. Quy chuẩn mốc ${c.name}: bóng đèn ${c.lit ? 'sáng vàng' : 'tắt'}, mỗi tiêu chí xanh/đỏ theo kết quả riêng`, async ({ page }) => {
+            const sql =
+                "SELECT TOP (@pageSize) Code AS zoneCode, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey " +
+                `FROM TmsZone WHERE (CONVERT(varchar(23), UpdateTime, 121) + '_' + ID) > @lastKey ${c.orderBy}`;
+            const items = [
+                { code: 'lastKey', dataType: 'String', valueKind: 'Builtin', value: 'lastKey', defaultValue: null, savedValue: null },
+                { code: 'pageSize', dataType: 'Int', valueKind: 'Const', value: '100', defaultValue: null, savedValue: null },
+            ];
+            await page.route('**/api/sharedata/sharedatapacket/getsqldetail*', (route) =>
+                route.fulfill({
+                    status: 200,
+                    contentType: 'application/json',
+                    body: JSON.stringify({
+                        code: 200,
+                        result: {
+                            extract: { extractSql: sql, status: 1, fields: [{ key: 'zoneCode', type: 'string', label: 'Mã khu vực', required: true }] },
+                            variables: { items },
+                            write: { packetCode: '101_commonData', writeSql: '', affectedTables: [], detectedTables: [], keyFields: [] },
+                        },
+                    }),
+                })
+            );
+            await page.route('**/api/sharedata/sharedatapacket/getpartnersqllist*', (route) =>
+                route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: [] }) })
+            );
+            await page.route('**/api/sharedata/sharedatapacket/getsqlvariables*', (route) =>
+                route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: { items } }) })
+            );
+
+            await page.setViewportSize({ width: 1600, height: 950 });
+            await page.goto('/#/sharedata/dataSource');
+            const firstRow = page.locator('.packet-col .vxe-table--main-wrapper .vxe-body--row').first();
+            await expect(firstRow).toBeVisible({ timeout: 30_000 });
+            await firstRow.click();
+
+            const lead = page.locator('.sql-variable-panel .svp-check-lead');
+            await expect(lead).toContainText(c.leadText, { timeout: 10_000 });
+
+            const litColor = 'rgb(245, 196, 0)';
+            const bulbColor = await lead.locator('.svp-check-bulb').evaluate((el) => getComputedStyle(el).color);
+            if (c.lit) expect(bulbColor).toBe(litColor);
+            else expect(bulbColor).not.toBe(litColor);
+
+            await lead.hover();
+            const popover = page.locator('.svp-check-popover .svp-popover-content');
+            await expect(popover).toBeVisible({ timeout: 5_000 });
+
+            const titleBulb = popover.locator('.svp-popover-title .svp-check-bulb');
+            await expect(titleBulb).toHaveClass(c.lit ? /is-lit/ : /is-unlit/);
+            const titleBulbColor = await titleBulb.evaluate((el) => getComputedStyle(el).color);
+            if (c.lit) expect(titleBulbColor).toBe(litColor);
+            else expect(titleBulbColor).not.toBe(litColor);
+
+            const rows = popover.locator('.svp-popover-item');
+            await expect(rows).toHaveCount(c.itemStates.length);
+            const [successColor, dangerColor] = await page.evaluate(() => {
+                const s = getComputedStyle(document.documentElement);
+                const probe = document.createElement('span');
+                document.body.appendChild(probe);
+                probe.style.color = s.getPropertyValue('--el-color-success').trim();
+                const success = getComputedStyle(probe).color;
+                probe.style.color = s.getPropertyValue('--el-color-danger').trim();
+                const danger = getComputedStyle(probe).color;
+                probe.remove();
+                return [success, danger];
+            });
+            for (let i = 0; i < c.itemStates.length; i++) {
+                const row = rows.nth(i);
+                await expect(row).toHaveClass(new RegExp(c.itemStates[i]));
+                const expected = c.itemStates[i] === 'is-pass' ? successColor : dangerColor;
+                expect(await row.evaluate((el) => getComputedStyle(el).color)).toBe(expected);
+                expect(await row.locator('.svp-check-icon').evaluate((el) => getComputedStyle(el).color)).toBe(expected);
+            }
+        });
+    }
+
+    /**
+     * Description: Báo lỗi SQL hiển thị rõ tên trường bị lỗi (không để trống sau dấu hai chấm),
+     *              khi có thay đổi chưa lưu bấm chuyển tab đối tác (DDLT-2) thì chặn ngay từ đầu
+     *              và hộp thoại cảnh báo (.lost-keys-confirm-box) đặt icon warning kế bên chữ 'Thông báo'.
+     * Created date: 30/10/2026
+     */
+    test('66. Chặn chuyển tab đối tác khi có thay đổi chưa lưu, báo lỗi SQL kèm tên trường và hộp thoại confirm có icon cạnh Thông báo', async ({ page }) => {
+        let returnError = true;
+        const testSql = "SELECT TOP (@pageSize) zs.ID AS zoneStatusId, zs.Name AS zoneName FROM TmsZoneStatus zs WHERE zs.ID > @lastKey ORDER BY zs.ID ASC";
+
+        const commonItems = [
+            {
+                code: 'pageSize',
+                dataType: 'Int',
+                valueKind: 'Const',
+                value: '100',
+                defaultValue: null,
+                savedValue: null,
+            },
+            {
+                code: 'lastTime',
+                dataType: 'DateTime',
+                valueKind: 'Builtin',
+                value: 'lastTime',
+                defaultValue: null,
+                savedValue: null,
+            },
+            {
+                code: 'lastKey',
+                dataType: 'String',
+                valueKind: 'Builtin',
+                value: 'lastKey',
+                defaultValue: null,
+                savedValue: null,
+            },
+        ];
+
+        await page.route('**/api/sharedata/sharedatapacket/getsqldetail*', (route) =>
+            route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        extract: {
+                            extractSql: testSql,
+                            status: 1,
+                            fields: [
+                                { key: 'zoneStatusId', type: 'string', label: 'ID trạng thái' },
+                                { key: 'zoneName', type: 'string', label: 'Tên trạng thái' },
+                            ],
+                        },
+                        variables: { items: commonItems },
+                        write: { packetCode: '101_commonData', writeSql: '', affectedTables: [], detectedTables: [], keyFields: [] },
+                    },
+                }),
+            })
+        );
+
+        await page.route('**/api/sharedata/sharedatapacket/getextractsql*', (route) =>
+            route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        extractSql: testSql,
+                        status: 1,
+                        fields: [
+                            { key: 'zoneStatusId', type: 'string', label: 'ID trạng thái' },
+                            { key: 'zoneName', type: 'string', label: 'Tên trạng thái' },
+                        ],
+                    },
+                }),
+            })
+        );
+
+        await page.route('**/api/sharedata/sharedatapacket/getpartnersqllist*', (route) =>
+            route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: [
+                        { partnerId: 'p_ddlt2', partnerCode: 'DDLT-2', partnerName: 'Đồng Đăng - Trà Lĩnh 2', isCustom: true },
+                    ],
+                }),
+            })
+        );
+
+        await page.route('**/api/sharedata/sharedatapacket/getsqlvariables*', (route) =>
+            route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ code: 200, result: { items: commonItems } }),
+            })
+        );
+
+        await page.route('**/api/sharedata/sharedatapacket/updatesqlvariables*', (route) =>
+            route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        items: [
+                            {
+                                code: 'pageSize',
+                                dataType: 'Int',
+                                valueKind: 'Const',
+                                value: '200',
+                                defaultValue: null,
+                                savedValue: null,
+                            },
+                            {
+                                code: 'lastKey',
+                                dataType: 'String',
+                                valueKind: 'Builtin',
+                                value: 'lastKey',
+                                defaultValue: null,
+                                savedValue: null,
+                            },
+                        ],
+                    },
+                }),
+            })
+        );
+
+        // Mock updateextractsql: lần đầu trả về 400 sqlDatabaseExecutionError; lần sau trả về requiresConfirm
+        await page.route('**/api/sharedata/sharedatapacket/updateextractsql*', async (route) => {
+            if (returnError) {
+                await route.fulfill({
+                    status: 400,
+                    contentType: 'application/json',
+                    body: JSON.stringify({
+                        code: 400,
+                        message: 'lz.validation.sharedata.sqlDatabaseExecutionError',
+                    }),
+                });
+                return;
+            }
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        requiresConfirm: true,
+                        lost: ['fromLocationKm'],
+                        affectedMappings: [
+                            { mappingCode: 'MAP01', mappingName: 'Hồ sơ 1', keys: ['fromLocationKm'] },
+                        ],
+                    },
+                }),
+            });
+        });
+
+        // Mock parseextractcolumns returning Invalid column name 'Name'
+        await page.route('**/api/sharedata/sharedatapacket/parseextractcolumns*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        isValid: false,
+                        errorMessage: "Cú pháp SQL không hợp lệ trên cơ sở dữ liệu: Invalid column name 'Name'.",
+                        errorLine: 1,
+                        errorColumn: 45,
+                        columns: [],
+                    },
+                }),
+            });
+        });
+
+        await page.setViewportSize({ width: 1600, height: 950 });
+        await page.goto('/#/sharedata/dataSource');
+
+        // Bấm chọn gói tin đầu tiên
+        const packetRow = page.locator('.packet-col .vxe-table--main-wrapper .vxe-body--row').first();
+        await expect(packetRow).toBeVisible({ timeout: 30_000 });
+        await packetRow.click();
+        await page.waitForTimeout(600);
+
+        // Chờ tab Mẫu chung và tab DDLT-2 hiển thị
+        const standardTab = page.locator('.sql-partner-tabs .el-tabs__item').filter({ hasText: 'Mẫu chung' }).first();
+        const ddlt2Tab = page.locator('.sql-partner-tabs .el-tabs__item').filter({ hasText: 'DDLT-2' }).first();
+        await expect(standardTab).toBeVisible({ timeout: 10_000 });
+        await expect(ddlt2Tab).toBeVisible({ timeout: 10_000 });
+        await expect(standardTab).toHaveClass(/is-active/);
+
+        // 1. Sửa tham số để tạo trạng thái chưa lưu (dirty)
+        const paramInput = page.locator('.sql-variable-panel .svp-const-input input').first();
+        await paramInput.scrollIntoViewIfNeeded();
+        await expect(paramInput).toBeVisible({ timeout: 10_000 });
+        const domInfo = await page.evaluate(() => {
+            const table = document.querySelector('.sql-variable-panel .svp-table');
+            if (!table) return 'NO_TABLE';
+            const trs = Array.from(table.querySelectorAll('tbody tr'));
+            const lastTr = trs[trs.length - 1];
+            return {
+                tableRect: table.getBoundingClientRect(),
+                lastTrRect: lastTr?.getBoundingClientRect(),
+                diff: table.getBoundingClientRect().bottom - (lastTr ? lastTr.getBoundingClientRect().bottom : 0),
+            };
+        });
+        console.log('REAL_TABLE_GAP:', JSON.stringify(domInfo, null, 2));
+        await page.locator('.sql-variable-panel').screenshot({ path: '/tmp/panel_real.png' });
+        await paramInput.fill('200');
+        await page.waitForTimeout(300);
+
+        // 2. Bấm vào tab DDLT-2 -> Phải chặn ngay từ đầu, KHÔNG đổi tab DDLT-2 thành active
+        await ddlt2Tab.click();
+        await page.waitForTimeout(300);
+
+        // Khẳng định: Tab hiện tại VẪN LÀ Mẫu chung (chưa nhảy sang DDLT-2)
+        await expect(standardTab).toHaveClass(/is-active/);
+        await expect(ddlt2Tab).not.toHaveClass(/is-active/);
+
+        // Hộp thoại confirm cảnh báo chuyển tab xuất hiện
+        const tabLeaveConfirmBox = page.locator('.lost-keys-confirm-box');
+        await expect(tabLeaveConfirmBox).toBeVisible({ timeout: 5000 });
+        await expect(tabLeaveConfirmBox).toContainText('Nội dung câu lệnh SQL đã thay đổi nhưng chưa được lưu');
+
+        // Icon warning nằm bên trong header kế bên chữ Thông báo, nằm bên trái (không bị center, không trôi ở body)
+        const tabTitle = tabLeaveConfirmBox.locator('.el-message-box__title');
+        await expect(tabTitle).toContainText('Thông báo');
+        await expect(tabTitle.locator('.el-message-box__status')).toBeVisible();
+        await expect(tabTitle).toHaveCSS('justify-content', 'flex-start');
+        await expect(tabLeaveConfirmBox.locator('.el-message-box__container > .el-message-box__status')).toHaveCount(0);
+
+        // Bấm nút Bỏ qua -> Hộp thoại đóng, tab vẫn ở Mẫu chung (không nhảy sang DDLT-2)
+        const cancelTabBtn = tabLeaveConfirmBox.locator('.el-message-box__btns button').first();
+        await cancelTabBtn.click();
+        await expect(tabLeaveConfirmBox).toBeHidden({ timeout: 3000 });
+        await expect(standardTab).toHaveClass(/is-active/);
+        await expect(ddlt2Tab).not.toHaveClass(/is-active/);
+
+        // 3. Thay đổi câu SQL và bấm Lưu & phân tích -> nhận lỗi SQL kèm tên trường 'Name' (không bị cụt dấu ':')
+        await page.locator('.monaco-editor').first().click();
+        await page.keyboard.press('End');
+        await page.keyboard.type(' -- test');
+        await page.waitForTimeout(600);
+
+        const saveBtn = page.locator('.sql-toolbar-right button').filter({ hasText: 'Lưu & phân tích' }).first();
+        await expect(saveBtn).toBeEnabled({ timeout: 5000 });
+        await saveBtn.click();
+        await page.waitForTimeout(600);
+
+        const errorAlert = page.locator('.sql-error-alert');
+        await expect(errorAlert).toBeVisible({ timeout: 5000 });
+        const errorText = await errorAlert.innerText();
+        expect(errorText).toContain('Name');
+        expect(errorText).toContain("Cột 'Name' không tồn tại trên cơ sở dữ liệu.");
+        expect(errorText).not.toMatch(/Cú pháp SQL không hợp lệ trên cơ sở dữ liệu:\s*$/);
+
+        // 4. Lần lưu thứ hai (requiresConfirm) -> hộp thoại cảnh báo mất trường xuất hiện
+        returnError = false;
+        await page.locator('.monaco-editor').first().click();
+        await page.keyboard.press('End');
+        await page.keyboard.type('2');
+        await page.waitForTimeout(600);
+
+        await expect(saveBtn).toBeEnabled({ timeout: 5000 });
+        await saveBtn.click();
+
+        const lostKeysConfirmBox = page.locator('.lost-keys-confirm-box');
+        await expect(lostKeysConfirmBox).toBeVisible({ timeout: 5000 });
+
+        // Header có icon warning kế bên tiêu đề Thông báo nằm bên trái (không bị center)
+        const lostTitle = lostKeysConfirmBox.locator('.el-message-box__title');
+        await expect(lostTitle).toContainText('Thông báo');
+        await expect(lostTitle.locator('.el-message-box__status')).toBeVisible();
+        await expect(lostTitle).toHaveCSS('justify-content', 'flex-start');
+        await expect(lostKeysConfirmBox.locator('.el-message-box__container > .el-message-box__status')).toHaveCount(0);
+
+        // Đóng hộp thoại
+        const cancelBtn = lostKeysConfirmBox.locator('.el-message-box__btns button').first();
+        await cancelBtn.click();
+        await expect(lostKeysConfirmBox).toBeHidden({ timeout: 3000 });
     });
 
     /**
@@ -1008,7 +1424,9 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
      */
     test('54. Điều tra lỗi bấm gói 102: API trả về 200 nhưng điều tra trạng thái loading', async ({ page }) => {
         const pageErrors: string[] = [];
-        page.on('pageerror', (err) => pageErrors.push(err.message));
+        page.on('pageerror', (err) => {
+            if (!isSharedLayoutError(err.message)) pageErrors.push(err.message);
+        });
 
         let release102!: () => void;
         const hold102 = new Promise<void>((resolve) => {
@@ -1172,7 +1590,9 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
      */
     test('55. Khung soạn thảo SqlEditor: nạp câu SQL dài nhiều dòng hiển thị từ dòng 1 ở trên cùng, không tự cuộn xuống đáy', async ({ page }) => {
         const pageErrors: string[] = [];
-        page.on('pageerror', (err) => pageErrors.push(err.message));
+        page.on('pageerror', (err) => {
+            if (!isSharedLayoutError(err.message)) pageErrors.push(err.message);
+        });
 
         const longMultiLineSql = [
             'SELECT',
@@ -1270,7 +1690,9 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
      */
     test('56. Chỉnh sửa trường: chọn nhóm có sẵn (Dữ liệu xuất, Header) hoặc nhập nhóm mới và lưu', async ({ page }) => {
         const pageErrors: string[] = [];
-        page.on('pageerror', (err) => pageErrors.push(err.message));
+        page.on('pageerror', (err) => {
+            if (!isSharedLayoutError(err.message)) pageErrors.push(err.message);
+        });
 
         let savedUpdate: any = null;
 
@@ -1415,7 +1837,9 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
 
     test('60. Đặt mốc gửi dữ liệu cho đối tác (SetLastSend) từ bảng mốc đối tác', async ({ page }) => {
         const pageErrors: string[] = [];
-        page.on('pageerror', (err) => pageErrors.push(err.message));
+        page.on('pageerror', (err) => {
+            if (!isSharedLayoutError(err.message)) pageErrors.push(err.message);
+        });
 
         const cursorSql =
             "SELECT TOP (@pageSize) ID AS zoneId, UpdateTime AS __lastTime, ID AS __lastKey FROM TmsZone " +
@@ -1550,7 +1974,9 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
 
     test('57. Lọc theo đối tác dùng chung (isCustom=false) thì ở tab Mẫu chung, không sinh tab tạm và không có khóa i18n thô', async ({ page }) => {
         const pageErrors: string[] = [];
-        page.on('pageerror', (err) => pageErrors.push(err.message));
+        page.on('pageerror', (err) => {
+            if (!isSharedLayoutError(err.message)) pageErrors.push(err.message);
+        });
 
         await page.route('**/api/sharedata/sharedatapartner/list*', (route) =>
             route.fulfill({
@@ -1687,7 +2113,9 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
 
     test('58. Khi đổi tab đối tác, vùng soạn thảo SQL và các khối nội dung được che hoàn toàn dưới nền trắng solid-loading-mask', async ({ page }) => {
         const pageErrors: string[] = [];
-        page.on('pageerror', (err) => pageErrors.push(err.message));
+        page.on('pageerror', (err) => {
+            if (!isSharedLayoutError(err.message)) pageErrors.push(err.message);
+        });
 
         await page.route('**/api/sharedata/sharedatapacket/getsqldetail*', (route) =>
             route.fulfill({
@@ -1775,7 +2203,9 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
 
     test('59. Khi chọn gói hoặc chuyển tab: chỉ hiển thị đúng 1 loading mask nền trắng ngoài cùng, không hiển thị loading con bên trong các bảng hoặc mục con', async ({ page }) => {
         const pageErrors: string[] = [];
-        page.on('pageerror', (err) => pageErrors.push(err.message));
+        page.on('pageerror', (err) => {
+            if (!isSharedLayoutError(err.message)) pageErrors.push(err.message);
+        });
 
         await page.route('**/api/sharedata/sharedatapacket/getsqldetail*', async (route) => {
             await new Promise((r) => setTimeout(r, 200));

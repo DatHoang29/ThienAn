@@ -153,13 +153,13 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
 
     /**
      * Description: Một nút Lưu cho cả câu SQL và bảng Tham số câu truy vấn: chỉ gọi API của phần có thay đổi;
-     *              đổi cả hai thì lưu bảng biến trước rồi mới lưu câu SQL (để câu SQL không bị báo biến chưa khai).
+     *              đổi cả hai thì bộ biến gửi kèm câu SQL trong một lần lưu (31/10: trước đây lưu bảng biến trước, câu bị từ chối vẫn để lại bộ biến mới).
      * Created date: 25/10/2026
      */
     const singleSaveCases = [
         { name: '30. Chỉ thêm biến hệ thống: nút Lưu mở, chỉ gọi API lưu biến', editSql: false, useConst: false, expected: ['variables'] },
         { name: '30b. Biến Giá trị nhập (Const): chọn kiểu Số nguyên, nhập giá trị, Lưu gửi valueKind Const', editSql: false, useConst: true, expected: ['variables'] },
-        { name: '31. Sửa SQL và thêm biến: lưu biến trước rồi lưu SQL', editSql: true, useConst: false, expected: ['variables', 'sql'] },
+        { name: '31. Sửa SQL và thêm biến: bộ biến gửi kèm câu SQL trong một lần lưu', editSql: true, useConst: false, expected: ['sql'] },
     ];
 
     for (const c of singleSaveCases) {
@@ -177,6 +177,7 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
             });
             await page.route('**/api/sharedata/sharedatapacket/updateextractsql*', async (r) => {
                 calls.push('sql');
+                savedVars = r.request().postDataJSON().variables ?? savedVars;
                 await r.fulfill(json({ code: 200, type: 'success', result: { status: 1 } }));
             });
             await openSqlCenter(page);
@@ -1244,6 +1245,48 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         await confirmBox.locator('.el-message-box__btns .el-button--primary').click();
         await expect.poll(() => saveBodies.length, { timeout: 10_000 }).toBe(2);
         expect(saveBodies[1].force).toBe(true);
+    });
+
+    /**
+     * Description: Lưu & phân tích câu SQL dùng biến mốc của nhóm (@lastTime_a / @lastKey_a): biến mới tự chọn nguồn theo tiền tố
+     *              (lastTime / lastKey) như @lastTime / @lastKey, và bộ biến gửi kèm câu SQL trong cùng một lần lưu
+     *              (không gọi API lưu bộ biến riêng trước câu SQL, câu bị từ chối thì bộ biến cũng không lưu).
+     * Created date: 31/10/2026
+     */
+    test('67. Lưu & phân tích SQL có biến mốc nhóm: biến tự chọn nguồn theo tiền tố và gửi kèm câu SQL trong một lần lưu', async ({ page }) => {
+        await page.route('**/api/sharedata/sharedatapacket/describecolumns*', (r) =>
+            r.fulfill(json({ code: 200, result: { isValid: true, fields: SAVED_FIELDS, added: [], lost: [], typeChanged: [], affectedMappings: [] } }))
+        );
+        const saveBodies: any[] = [];
+        const variableSaves: any[] = [];
+        await page.route('**/api/sharedata/sharedatapacket/updateextractsql*', (r) => {
+            saveBodies.push(r.request().postDataJSON());
+            return r.fulfill(json({ code: 200, result: { extractSql: SQL_ONE_COLUMN, status: 1, fields: SAVED_FIELDS, warnings: [] } }));
+        });
+        await page.route('**/api/sharedata/sharedatapacket/updatesqlvariables*', (r) => {
+            variableSaves.push(r.request().postDataJSON());
+            return r.fulfill(json({ code: 200, result: { items: [] } }));
+        });
+        await page.route('**/api/sharedata/sharedatapacket/getsqlvariables*', (r) =>
+            r.fulfill(json({ code: 200, result: { items: saveBodies.at(-1)?.variables ?? [] } }))
+        );
+        await openSqlCenter(page);
+        const save = page.locator('.sql-toolbar-bar .el-button--primary').last();
+        await page
+            .locator('.sql-section .sql-raw-textarea-fallback textarea')
+            .fill(
+                'SELECT TOP 100 x.ID AS zoneId, x.UpdateTime AS __lastTime_a, x.ID AS __lastKey_a FROM TmsZone x ' +
+                    'WHERE @lastTime_a IS NULL OR x.UpdateTime > @lastTime_a OR (x.UpdateTime = @lastTime_a AND x.ID > @lastKey_a)'
+            );
+        await expect(save).toBeEnabled({ timeout: 10_000 });
+        await save.click();
+
+        await expect.poll(() => saveBodies.length, { timeout: 10_000 }).toBe(1);
+        expect(saveBodies[0].variables).toEqual([
+            expect.objectContaining({ code: 'lastTime_a', valueKind: 'Builtin', value: 'lastTime' }),
+            expect.objectContaining({ code: 'lastKey_a', valueKind: 'Builtin', value: 'lastKey' }),
+        ]);
+        expect(variableSaves).toHaveLength(0);
     });
 
     /**

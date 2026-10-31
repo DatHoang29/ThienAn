@@ -1787,7 +1787,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     /// Description: Biến đi theo câu SQL. Tạo SQL riêng thì chép bộ biến mẫu chung sang làm bộ biến của đối tác; sửa bộ biến của đối tác
     ///              không đụng mẫu chung (và ngược lại); "Dùng lại mẫu chung" thì xóa bộ biến của đối tác.
     /// Created date: 24/10/2026
-    /// Modified date: 25/10/2026 (Biến đi theo câu SQL thay cho ghi đè)
+    /// Modified date: 25/10/2026 (Biến đi theo câu SQL thay cho ghi đè); 31/10/2026 (xóa hết biến gửi kèm câu SQL mới trong một lần lưu)
     /// </summary>
     [Fact]
     public async Task PartnerSqlVariables_FollowPartnerSql_CopiedOnCreateIndependentAndRemovedOnReset_Test()
@@ -1829,13 +1829,13 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         var common = await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new GetPacketSqlVariablesInput { PacketCode = packet.Code! });
         Assert.Equal(ShareDataConst.SqlVariableSourceStartOfYear, Assert.Single(common.Items).Value);
 
-        // Act 3: đối tác xóa hết biến rồi lưu lại SQL riêng không còn dùng biến
-        await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput { PacketCode = packet.Code!, PartnerId = partner.ID, Items = [] });
+        // Act 3: đối tác lưu SQL riêng không còn dùng biến, bộ biến rỗng gửi kèm câu (như Lưu & phân tích)
         await scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput
         {
             PartnerId = partner.ID!,
             PacketCode = packet.Code!,
-            ExtractSql = "SELECT ID AS zoneId FROM TmsZone"
+            ExtractSql = "SELECT ID AS zoneId FROM TmsZone",
+            Variables = []
         });
 
         // Assert 3: bộ biến của đối tác vẫn rỗng — không hiện lại biến mẫu chung, không chép lại khi lưu SQL riêng
@@ -2788,6 +2788,49 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     }
 
     /// <summary>
+    /// Description: Cột mốc thời gian cho phép trống thì dòng có thời gian trống không bao giờ được gửi: lưu được kèm cảnh báo SqlLastTimeNullable
+    ///              ở cột __lastTime của nhóm mốc mặc định. Câu gộp nhiều nguồn để trống cột __lastTime_&lt;nhóm&gt; ở nhánh của nguồn khác là chủ ý
+    ///              nên không cảnh báo; cột thời gian luôn có giá trị (ISNULL với hằng) cũng không cảnh báo.
+    /// Created date: 30/10/2026
+    /// </summary>
+    [Theory]
+    [InlineData("macDinhChoPhepTrong", true)]
+    [InlineData("macDinhLuonCoGiaTri", false)]
+    [InlineData("gopNhieuNguon", false)]
+    public async Task UpdateExtractSql_WhenCursorTimeColumnAllowsNull_WarnsOnlyForDefaultCursor_Test(string caseName, bool expectWarning)
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (packet, _) = await SeedSqlVariablePacketAsync(db, unique);
+        var isGroup = caseName == "gopNhieuNguon";
+        await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
+        {
+            PacketCode = packet.Code!,
+            Items = isGroup
+                ? [BuiltinVar("lastTime_a", "", "lastTime"), BuiltinVar("lastKey_a", "", "lastKey"), BuiltinVar("lastTime_b", "", "lastTime"), BuiltinVar("lastKey_b", "", "lastKey")]
+                : [BuiltinVar("lastTime", "", "lastTime"), BuiltinVar("lastKey", "", "lastKey")]
+        });
+        var sql = caseName switch
+        {
+            "macDinhChoPhepTrong" => CursorFilterSql("@lastTime IS NULL OR UpdateTime > @lastTime OR (UpdateTime = @lastTime AND ID > @lastKey)"),
+            "macDinhLuonCoGiaTri" => "SELECT TOP 10 ID AS zoneId, ISNULL(UpdateTime, '17530101') AS __lastTime, ID AS __lastKey FROM TmsZone "
+                + "WHERE @lastTime IS NULL OR ISNULL(UpdateTime, '17530101') > @lastTime OR (ISNULL(UpdateTime, '17530101') = @lastTime AND ID > @lastKey) "
+                + "ORDER BY __lastTime ASC, ID ASC",
+            _ => CursorGroupSql(true, CursorGroupWhereB)
+        };
+
+        // Act
+        var output = await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput { PacketCode = packet.Code!, ExtractSql = sql });
+
+        // Assert
+        Assert.Equal(sql, (await ShareDataSqlSeed.GetCommonAsync(db, packet.ID))?.ExtractSql);
+        Assert.Equal(expectWarning, output.Warnings.Contains(BaseMsg.ShareData.Validation.SqlLastTimeNullable));
+    }
+
+    /// <summary>
     /// Description: Câu gộp hai nguồn, mỗi nguồn một nhóm mốc (cột __lastTime_&lt;nhóm&gt; / __lastKey_&lt;nhóm&gt;, biến @lastTime_&lt;nhóm&gt; / @lastKey_&lt;nhóm&gt;):
     ///              câu đủ cột và lọc đúng từng nhóm thì lưu được; thiếu cột mốc của một nhóm, nhóm lọc thiếu cặp (thời gian, khóa)
     ///              hay biến của nhóm chọn sai nguồn thì bị từ chối đúng mã lỗi.
@@ -2830,6 +2873,135 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         else
         {
             AssertRejectedWith(error, errorKey);
+        }
+    }
+
+    /// <summary>
+    /// Description: Bộ biến gửi kèm câu SQL khi lưu (mẫu chung hoặc SQL riêng): BE kiểm câu theo đúng bộ biến này và ghi cả hai trong một lần.
+    ///              Câu hợp lệ thì lưu cả câu lẫn bộ biến; câu bị từ chối thì không lưu gì, bộ biến cũ còn nguyên (trước đây bộ biến
+    ///              lưu riêng trước câu SQL nên câu bị từ chối vẫn để lại bộ biến mới, lệch với câu cũ).
+    /// Created date: 31/10/2026
+    /// </summary>
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    [InlineData(true, false)]
+    public async Task UpdateExtractSql_WhenVariablesSentWithSql_SavesBothOrNeither_Test(bool partnerScope, bool validSql)
+    {
+        // Arrange: câu đang lưu dùng bộ biến @lastTime / @lastKey; câu mới gộp hai nguồn dùng bộ biến nhóm a, b
+        SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (packet, partner) = await SeedSqlVariablePacketAsync(db, unique);
+        var partnerId = partnerScope ? partner.ID : null;
+        var oldSql = CursorFilterSql("@lastTime IS NULL OR UpdateTime > @lastTime OR (UpdateTime = @lastTime AND ID > @lastKey)");
+        await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
+        {
+            PacketCode = packet.Code!,
+            PartnerId = partnerId,
+            Items = [BuiltinVar("lastTime", "", "lastTime"), BuiltinVar("lastKey", "", "lastKey")]
+        });
+        Task SaveSql(string sql, List<PacketSqlVariableItemInput>? variables) => partnerScope
+            ? scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput
+            {
+                PartnerId = partner.ID!, PacketCode = packet.Code!, ExtractSql = sql, Variables = variables, Force = true
+            })
+            : scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput
+            {
+                PacketCode = packet.Code!, ExtractSql = sql, Variables = variables, Force = true
+            });
+        await SaveSql(oldSql, null);
+        var newSql = CursorGroupSql(true, validSql ? CursorGroupWhereB : "y.UpdateTime >= ISNULL(@lastTime_b, '17530101') AND y.ID > @lastKey_b");
+        List<PacketSqlVariableItemInput> groupVariables =
+        [
+            BuiltinVar("lastTime_a", "", "lastTime"), BuiltinVar("lastKey_a", "", "lastKey"),
+            BuiltinVar("lastTime_b", "", "lastTime"), BuiltinVar("lastKey_b", "", "lastKey")
+        ];
+
+        // Act
+        var error = await Record.ExceptionAsync(() => SaveSql(newSql, groupVariables));
+
+        // Assert
+        var row = partnerScope
+            ? await db.Queryable<ShareDataSql>().Where(s => s.PacketId == packet.ID && s.PartnerId == partner.ID).FirstAsync()
+            : await ShareDataSqlSeed.GetCommonAsync(db, packet.ID);
+        var savedCodes = SqlTextHelper.ReadVariables(row?.VariablesJson).Select(v => v.Code).ToList();
+        if (validSql)
+        {
+            Assert.Null(error);
+            Assert.Equal(newSql, row?.ExtractSql);
+            Assert.Equal(["lastTime_a", "lastKey_a", "lastTime_b", "lastKey_b"], savedCodes);
+        }
+        else
+        {
+            AssertRejectedWith(error, BaseMsg.ShareData.Validation.SqlIncrementalCursorFilterInvalid);
+            Assert.Equal(oldSql, row?.ExtractSql);
+            Assert.Equal(["lastTime", "lastKey"], savedCodes);
+        }
+    }
+
+    /// <summary>
+    /// Description: Chỉ lưu bảng tham số (câu SQL không đổi): BE kiểm lại câu đang lưu của đúng phạm vi đó theo bộ biến mới.
+    ///              Đổi ghi chú / mốc khởi tạo vẫn lưu được; đổi nguồn @lastKey sang theo thời gian làm câu nối đuôi mất khóa
+    ///              nên bị từ chối, bộ biến cũ còn nguyên (trước đây lưu được, Worker mới chặn lúc chạy).
+    /// Created date: 31/10/2026
+    /// </summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task UpdateSqlVariables_WhenSavedSqlNoLongerFitsNewVariables_Rejects_Test(bool partnerScope, bool breaksSql)
+    {
+        // Arrange: phạm vi đã có câu nối đuôi theo cặp (@lastTime, @lastKey)
+        SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (packet, partner) = await SeedSqlVariablePacketAsync(db, unique);
+        var partnerId = partnerScope ? partner.ID : null;
+        var sql = CursorFilterSql("@lastTime IS NULL OR UpdateTime > @lastTime OR (UpdateTime = @lastTime AND ID > @lastKey)");
+        await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
+        {
+            PacketCode = packet.Code!,
+            PartnerId = partnerId,
+            Items = [BuiltinVar("lastTime", "", "lastTime"), BuiltinVar("lastKey", "", "lastKey")]
+        });
+        if (partnerScope)
+        {
+            await scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput { PartnerId = partner.ID!, PacketCode = packet.Code!, ExtractSql = sql, Force = true });
+        }
+        else
+        {
+            await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput { PacketCode = packet.Code!, ExtractSql = sql, Force = true });
+        }
+        var lastKey = BuiltinVar("lastKey", "", breaksSql ? "lastTime" : "lastKey");
+        lastKey.Remark = "Khóa nối đuôi";
+
+        // Act
+        var error = await Record.ExceptionAsync(() => scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
+        {
+            PacketCode = packet.Code!,
+            PartnerId = partnerId,
+            Items = [BuiltinVar("lastTime", "", "lastTime"), lastKey]
+        }));
+
+        // Assert
+        var row = partnerScope
+            ? await db.Queryable<ShareDataSql>().Where(s => s.PacketId == packet.ID && s.PartnerId == partner.ID).FirstAsync()
+            : await ShareDataSqlSeed.GetCommonAsync(db, packet.ID);
+        var saved = SqlTextHelper.ReadVariables(row?.VariablesJson).Single(v => v.Code == "lastKey");
+        if (breaksSql)
+        {
+            AssertRejectedWith(error, BaseMsg.ShareData.Validation.SqlIncrementalCursorFilterInvalid);
+            Assert.Equal(("lastKey", (string?)null), (saved.Value, saved.Remark));
+        }
+        else
+        {
+            Assert.Null(error);
+            Assert.Equal(("lastKey", (string?)"Khóa nối đuôi"), (saved.Value, saved.Remark));
         }
     }
 
