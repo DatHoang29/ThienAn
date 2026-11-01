@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/thienan-guardrails.mjs\"",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/guardrails.mjs\"",
             "timeout": 10
           }
         ]

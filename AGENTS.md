@@ -10,9 +10,8 @@
 - **Quy tắc dự án (P0):** Bắt buộc đọc và tuân thủ [`.agents/rules/thienan_rules.md`](.agents/rules/thienan_rules.md).
 - **Specialist Agents:** Khám phá vai trò từ [`.agents/agent/`](.agents/agent/).
 - **Modular Skills:** Nạp `SKILL.md` từ [`.agents/skills/`](.agents/skills/). Thông báo `📚 Using skill: @[skill-name]...` trước khi áp dụng.
-- **Workflows:** Tra cứu tại [`.agents/workflows/`](.agents/workflows/).
 - **Memory (SSOT):** Đọc [`.agents/memory/MEMORY.md`](.agents/memory/MEMORY.md).
-- **System Architecture Map:** Xem tại [`.agents/ARCHITECTURE.md`](.agents/ARCHITECTURE.md).
+- **Bản đồ `.agents/` (rule, skill, agent, hook, MCP):** Xem [`.agents/README.md`](.agents/README.md).
 
 ---
 
