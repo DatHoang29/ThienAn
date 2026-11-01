@@ -38,9 +38,7 @@ version: 1.0.0
 
 | Need | Skill |
 |------|-------|
-| API implementation | `@[skills/nodejs-best-practices]` |
 | Data structure | `@[skills/database-design]` |
-| Security details | `@[skills/vulnerability-scanner]` |
 
 ---
 

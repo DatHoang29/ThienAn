@@ -1,5 +1,4 @@
 {
-  "$schema": "hooks/hooks.schema.json",
   "enabled": true,
   "PreToolUse": [
     {
@@ -9,7 +8,7 @@
     },
     {
       "matcher": "run_command|write_file|edit_file|write_to_file|Write|Edit|Bash",
-      "command": "node .agents/hooks/thienan-guardrails.mjs",
+      "command": "node .agents/hooks/guardrails.mjs",
       "timeout": 10
     }
   ]

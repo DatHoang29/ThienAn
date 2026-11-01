@@ -6,7 +6,7 @@ trigger: always_on
 description: Phân loại yêu cầu và định tuyến quy chuẩn theo miền nghiệp vụ.
 ---
 
-# Request Routing - AG Kit
+# Request Routing - ThienAn
 
 > Always-active. Phân loại yêu cầu và định tuyến đọc tệp quy chuẩn chuyên biệt trước khi phản hồi.
 

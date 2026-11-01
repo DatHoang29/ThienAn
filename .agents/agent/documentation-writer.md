@@ -4,7 +4,7 @@ description: Expert in technical documentation. Use ONLY when user explicitly re
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: inherit
 version: 1.0.0
-skills: clean-code, documentation-templates
+skills: clean-code
 ---
 
 # Documentation Writer

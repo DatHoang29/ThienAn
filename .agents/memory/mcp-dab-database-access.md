@@ -8,8 +8,11 @@ metadata:
   modified: 2026-09-14T00:00:00.000Z
 ---
 
-`.mcp.json` (root, mirrors `.agents/.mcp.json`) defines 3 DAB MCP servers, launched with
-`dotnet tool run --allow-roll-forward dab start --mcp-stdio ... --config .agents/dab-config.<env>.json`:
+`.agents/mcp_config.json` là nguồn duy nhất (từ 01/11/2026); `.mcp.json`, `.codex/config.toml`… sinh ra bằng
+`node .agents/mcp/sync.mjs --apply`. 3 DAB MCP server chạy qua
+`node .agents/mcp/dab.mjs <dev|test|staging>`: launcher đọc `DAB_<ENV>_CONNECTION_STRING` trong
+`.agents/mcp/.env` (không commit) rồi chạy `dotnet tool run --allow-roll-forward dab start --mcp-stdio ... --config .agents/mcp/dab-config.json`.
+Chỉ còn **một** `.agents/mcp/dab-config.json` cho cả 3 DB, nên mọi entity khai trong đó phải có ở cả 3 DB:
 
 | MCP server | DB | Notes |
 |---|---|---|
@@ -18,7 +21,7 @@ metadata:
 | `mssql_staging` | **`10.10.8.30/dev_its10`** | Chỉ dùng khi người dùng yêu cầu trực tiếp (rule 16/10/2026: review/plan/prompt chỉ đối chiếu local; staging do người dùng tự kiểm). |
 
 Setup fixed 2026-08-27 (was fully broken — DAB CLI not installed):
-- Created `c:\ThienAn\dotnet-tools.json` pinning `Microsoft.DataApiBuilder` 2.0.12. Needs
+- Created `dotnet-tools.json` (gốc repo) pinning `Microsoft.DataApiBuilder` 2.0.12. Needs
   `--allow-roll-forward` because the box has ASP.NET Core **10** runtime only, not 8.
 - `.agents/dab-config.{dev,staging,test}.json`: removed schema-invalid `runtime.telemetry` block;
   regenerated `entities` to **every base table, `anonymous:read` only** (no create/update/delete
@@ -41,18 +44,18 @@ is invalid` rồi THOÁT TIẾN TRÌNH NGAY. Claude Code thấy tiến trình v�
 "Connection closed" — không phải lỗi mạng, không phải lỗi Claude.
 
 **Cách tự chẩn đoán (chạy trực tiếp, an toàn, chỉ đọc — không cần MCP)**:
+```bash
+# chạy ở gốc repo; lấy chuỗi kết nối của DB cần kiểm từ .agents/mcp/.env
+export DAB_CONNECTION_STRING='<giá trị DAB_DEV_CONNECTION_STRING trong .agents/mcp/.env>'
+dotnet tool run --allow-roll-forward dab validate --config .agents/mcp/dab-config.json
 ```
-cd C:\ThienAn
-dotnet tool run --allow-roll-forward dab validate --config .agents/dab-config.dev.json
-dotnet tool run --allow-roll-forward dab validate --config .agents/dab-config.test.json
-dotnet tool run --allow-roll-forward dab validate --config .agents/dab-config.staging.json
-```
+Hoặc chạy chính launcher: `node .agents/mcp/dab.mjs dev` — config lỗi thì `dab` in `fail:` ra stderr rồi thoát.
 Đọc các dòng `fail: Cannot obtain Schema for entity <X> ... Invalid object name '<schema>.<X>'` —
 đó chính xác là tên entity cần xoá khỏi object `entities` trong file config tương ứng.
 
 **Cách sửa nhanh (không cần `jq`, máy không có sẵn — dùng PowerShell)**:
 ```powershell
-$path = ".agents/dab-config.dev.json"
+$path = ".agents/mcp/dab-config.json"
 $json = Get-Content $path -Raw | ConvertFrom-Json
 foreach ($name in @("EntityName1", "EntityName2")) { $json.entities.PSObject.Properties.Remove($name) }
 $json | ConvertTo-Json -Depth 100 | Set-Content $path

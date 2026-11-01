@@ -1,9 +1,13 @@
 {
   "mcpServers": {
     "gortex": {
+      "command": "gortex",
       "args": [
         "mcp"
       ],
+      "env": {
+        "GORTEX_INDEX_WORKERS": "8"
+      },
       "autoApprove": [
         "analyze",
         "capabilities",
@@ -17,68 +21,28 @@
         "trace",
         "workspace"
       ],
-      "command": "gortex",
-      "disabled": false,
-      "env": {
-        "GORTEX_INDEX_WORKERS": "8"
-      }
+      "disabled": false
     },
     "mssql_dev": {
+      "command": "node",
       "args": [
-        "tool",
-        "run",
-        "--allow-roll-forward",
-        "dab",
-        "start",
-        "--mcp-stdio",
-        "role:anonymous",
-        "--LogLevel",
-        "Error",
-        "--config",
-        ".agents/dab-config.dev.json"
-      ],
-      "command": "dotnet",
-      "env": {
-        "ASPNETCORE_URLS": "http://127.0.0.1:0"
-      }
-    },
-    "mssql_staging": {
-      "args": [
-        "tool",
-        "run",
-        "--allow-roll-forward",
-        "dab",
-        "start",
-        "--mcp-stdio",
-        "role:anonymous",
-        "--LogLevel",
-        "Error",
-        "--config",
-        ".agents/dab-config.staging.json"
-      ],
-      "command": "dotnet",
-      "env": {
-        "ASPNETCORE_URLS": "http://127.0.0.1:0"
-      }
+        ".agents/mcp/dab.mjs",
+        "dev"
+      ]
     },
     "mssql_test": {
+      "command": "node",
       "args": [
-        "tool",
-        "run",
-        "--allow-roll-forward",
-        "dab",
-        "start",
-        "--mcp-stdio",
-        "role:anonymous",
-        "--LogLevel",
-        "Error",
-        "--config",
-        ".agents/dab-config.test.json"
-      ],
-      "command": "dotnet",
-      "env": {
-        "ASPNETCORE_URLS": "http://127.0.0.1:0"
-      }
+        ".agents/mcp/dab.mjs",
+        "test"
+      ]
+    },
+    "mssql_staging": {
+      "command": "node",
+      "args": [
+        ".agents/mcp/dab.mjs",
+        "staging"
+      ]
     }
   }
 }

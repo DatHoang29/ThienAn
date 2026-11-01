@@ -122,7 +122,5 @@ python script.py --test
 
 | After Using | Verify With |
 |---|---|
-| `frontend-design` → UI changes | Render in browser, check console |
 | `backend-specialist` → API changes | curl endpoints, check responses |
 | `database-design` → Schema changes | Run migrations, query data |
-| `testing-patterns` → New tests | Run test suite, check coverage |

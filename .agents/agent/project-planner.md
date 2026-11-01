@@ -4,7 +4,7 @@ description: Smart project planning agent. Breaks down user requests into tasks,
 tools: Read, Grep, Glob, Bash
 model: inherit
 version: 1.0.0
-skills: clean-code, app-builder, plan-writing, brainstorming
+skills: clean-code, plan-writing, brainstorming
 ---
 
 # Project Planner - Smart Project Planning
@@ -147,13 +147,10 @@ File:         ./dashboard-analytics.md (project root)
 |----------|-------|--------|-------------|
 | **P0** | Foundation | `database-architect` → `security-auditor` | If project needs DB |
 | **P1** | Core | `backend-specialist` | If project has backend |
-| **P2** | UI/UX | `frontend-specialist` OR `mobile-developer` | Web OR Mobile (not both!) |
-| **P3** | Polish | `test-engineer`, `performance-optimizer`, `seo-specialist` | Based on needs |
+| **P2** | UI/UX | `frontend-specialist` | If project has UI |
+| **P3** | Polish | `test-engineer`, `performance-optimizer` | Based on needs |
 
-> 🔴 **Agent Selection Rule:**
-> - Web app → `frontend-specialist` (NO `mobile-developer`)
-> - Mobile app → `mobile-developer` (NO `frontend-specialist`)
-> - API only → `backend-specialist` (NO frontend, NO mobile)
+> 🔴 **Agent Selection Rule:** UI Vue → `frontend-specialist`; API/Worker .NET → `backend-specialist`; schema/SQL → `database-architect`.
 
 ---
 
@@ -161,10 +158,10 @@ File:         ./dashboard-analytics.md (project root)
 
 | Step | Action | Command |
 |------|--------|---------|
-| 1 | Checklist | Purple check, Template check, Socratic respected? |
-| 2 | Scripts | `security_scan.py`, `ux_audit.py`, `lighthouse_audit.py` |
-| 3 | Build | `npm run build` |
-| 4 | Run & Test | `npm run dev` + manual test |
+| 1 | Checklist | Rule P0 (`.agents/rules/thienan_rules.md`) và Socratic Gate đã tuân thủ? |
+| 2 | Backend | `dotnet test tests/BE/test.csproj` (không `--no-build`, Rule 19.5) |
+| 3 | Frontend | `pnpm test:e2e` tại `tests/FE/` (⛔ không `npm run build`, Rule 19.13) |
+| 4 | Run & Test | Vite dev server (HMR) + kiểm tay theo kịch bản nghiệm thu |
 | 5 | Complete | Mark all `[ ]` → `[x]` in PLAN.md |
 
 > 🔴 **Rule:** DO NOT mark `[x]` without actually running the check!
@@ -195,26 +192,20 @@ Before assigning agents, determine project type:
 
 | Trigger | Project Type | Primary Agent | DO NOT USE |
 |---------|--------------|---------------|------------|
-| "mobile app", "iOS", "Android", "React Native", "Flutter", "Expo" | **MOBILE** | `mobile-developer` | ❌ frontend-specialist, backend-specialist |
-| "website", "web app", "Next.js", "React" (web) | **WEB** | `frontend-specialist` | ❌ mobile-developer |
+| "website", "web app", "Vue", "giao diện" | **WEB** | `frontend-specialist` | - |
 | "API", "backend", "server", "database" (standalone) | **BACKEND** | `backend-specialist | - |
-
-> 🔴 **CRITICAL:** Mobile project + frontend-specialist = WRONG. Mobile project = mobile-developer ONLY.
 
 ---
 
 **Components by Project Type:**
 
-| Component | WEB Agent | MOBILE Agent |
-|-----------|-----------|---------------|
-| Database/Schema | `database-architect` | `mobile-developer` |
-| API/Backend | `backend-specialist` | `mobile-developer` |
-| Auth | `security-auditor` | `mobile-developer` |
-| UI/Styling | `frontend-specialist` | `mobile-developer` |
-| Tests | `test-engineer` | `mobile-developer` |
-| Deploy | `devops-engineer` | `mobile-developer` |
-
-> `mobile-developer` is full-stack for mobile projects.
+| Component | Agent |
+|-----------|-------|
+| Database/Schema | `database-architect` |
+| API/Backend | `backend-specialist` |
+| Auth | `security-auditor` |
+| UI/Styling | `frontend-specialist` |
+| Tests | `test-engineer` |
 
 ---
 
@@ -298,66 +289,20 @@ Before assigning agents, determine project type:
 | **Task Breakdown** | Detailed tasks (see format below) | INPUT → OUTPUT → VERIFY |
 | **Phase X: Verification** | Mandatory checklist | Definition of done |
 
-### Phase X: Final Verification (MANDATORY SCRIPT EXECUTION)
+### Phase X: Final Verification (MANDATORY)
 
-> 🔴 **DO NOT mark project complete until ALL scripts pass.**
-> 🔴 **ENFORCEMENT: You MUST execute these Python scripts!**
-
-> 💡 **Script paths are relative to `.agents/` directory**
-
-#### 1. Run All Verifications (RECOMMENDED)
+> 🔴 **DO NOT mark project complete until ALL checks pass.** Chi tiết: `.agents/rules/testing-rules_thienan.md`.
 
 ```bash
-# SINGLE COMMAND - Runs all checks in priority order:
-python .agents/scripts/verify_all.py . --url http://localhost:3000
+# Backend (.NET) — không dùng --no-build (Rule 19.5)
+dotnet test tests/BE/test.csproj
 
-# Priority Order:
-# P0: Security Scan (vulnerabilities, secrets)
-# P1: Color Contrast (WCAG AA accessibility)
-# P1.5: UX Audit (Psychology laws, Fitts, Hick, Trust)
-# P2: Touch Target (mobile accessibility)
-# P3: Lighthouse Audit (performance, SEO)
-# P4: Playwright Tests (E2E)
+# Frontend (Vue) — Playwright E2E; ⛔ không chạy npm run build (Rule 19.13)
+cd tests/FE && pnpm test:e2e
 ```
 
-#### 2. Or Run Individually
-
-```bash
-# P0: Lint & Type Check
-npm run lint && npx tsc --noEmit
-
-# P0: Security Scan
-python .agents/skills/vulnerability-scanner/scripts/security_scan.py .
-
-# P1: UX Audit
-python .agents/skills/frontend-design/scripts/ux_audit.py .
-
-# P3: Lighthouse (requires running server)
-python .agents/skills/performance-profiling/scripts/lighthouse_audit.py http://localhost:3000
-
-# P4: Playwright E2E (requires running server)
-python .agents/skills/webapp-testing/scripts/playwright_runner.py http://localhost:3000 --screenshot
-```
-
-#### 3. Build Verification
-```bash
-# For Node.js projects:
-npm run build
-# → IF warnings/errors: Fix before continuing
-```
-
-#### 4. Runtime Verification
-```bash
-# Start dev server and test:
-npm run dev
-
-# Optional: Run Playwright tests if available
-python .agents/skills/webapp-testing/scripts/playwright_runner.py http://localhost:3000 --screenshot
-```
-
-#### 4. Rule Compliance (Manual Check)
-- [ ] No purple/violet hex codes
-- [ ] No standard template layouts
+#### Rule Compliance (Manual Check)
+- [ ] Rule P0 trong `.agents/rules/thienan_rules.md`
 - [ ] Socratic Gate was respected
 
 #### 5. Phase X Completion Marker

@@ -30,7 +30,6 @@ version: 1.0.0
 |-------|---------|
 | `@[skills/database-design]` | Database schema design |
 | `@[skills/api-patterns]` | API design patterns |
-| `@[skills/deployment-procedures]` | Deployment architecture |
 
 ---
 

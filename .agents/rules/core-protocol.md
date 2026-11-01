@@ -5,9 +5,10 @@ priority: P0
 trigger: always_on
 ---
 
-# Core Protocol - AG Kit
+# Core Protocol - ThienAn
 
-> The highest-priority workspace rules. Modular skill loading, announcement protocol, and memory initialization.
+> Quy tắc nền luôn bật cho mọi yêu cầu: nạp skill, đọc memory, kế thừa phiên, ngôn ngữ, hỏi lại, clean code.
+> 📎 Quy tắc dự án ThienAn: xem [thienan_rules.md](./thienan_rules.md) (ưu tiên cao hơn khi trùng).
 
 ---
 
@@ -36,7 +37,7 @@ Mỗi khi nạp và áp dụng skill, BẮT BUỘC thông báo trước:
 ## 3. System Map & Memory Read
 
 > 🔴 **MANDATORY:** Khi bắt đầu phiên làm việc, BẮT BUỘC đọc [`.agents/memory/MEMORY.md`](../memory/MEMORY.md) để nạp các quy ước và quyết định dự án.
-> Tra cứu toàn bộ Agent/Skill/Script tại [`.agents/ARCHITECTURE.md`](../ARCHITECTURE.md) khi thực sự cần.
+> Bản đồ thư mục `.agents/` (rule, skill, agent, hook, MCP) xem [`.agents/README.md`](../README.md).
 
 ---
 
@@ -49,3 +50,28 @@ Khi tiếp quản phiên làm việc từ AI khác (Claude Code, Antigravity, ph
    - Các công việc đang làm dở dang và các bài test đỏ trong quy trình TDD.
    - Các chỉ đạo đặc biệt của người dùng (gộp file, quy ước SSOT, chặn lỗi).
 3. **⛔ CẤM TUYỆT ĐỐI:** Tự ý phán đoán thay thế, cấm nới lỏng validation hoặc sửa ngọn chỉ để làm xanh test tạm bợ. Mọi hành động phải liền mạch và bảo toàn hướng giải quyết gốc rễ của hệ thống.
+
+---
+
+## 5. Language Handling
+
+Khi prompt của người dùng KHÔNG phải tiếng Anh:
+1. Tự động dịch hiểu nội dung.
+2. Phản hồi bằng ngôn ngữ của người dùng (tiếng Việt).
+3. Code comments / biến / hàm: giữ nguyên bằng tiếng Anh.
+
+---
+
+## 6. Socratic Gate
+
+- **Nguyên tắc:** Chỉ hỏi khi yêu cầu mơ hồ hoặc thiếu thông tin mang tính quyết định thiết kế. Khi yêu cầu đã rõ ràng, bắt tay vào thực hiện ngay, không hỏi rườm rà.
+- **Reference:** Quy trình chi tiết tại `@[skills/brainstorming]`.
+
+---
+
+## 7. Clean Code (Global Mandatory)
+
+Mọi code BẮT BUỘC tuân thủ `@[skills/clean-code]`:
+- Code ngắn gọn, trực diện, không over-engineering, tự giải thích (self-documenting).
+- Tuân thủ Minimal Diff (Rule 19.6, 19.35, 19.89) và dọn sạch mã thừa/obsolete (Rule 19.68).
+- **Bỏ là bỏ hết các liên đới (Cascading Cleanup):** Khi gỡ bỏ một tính năng, nút bấm, thành phần giao diện hoặc API: BẮT BUỘC rà soát và xóa bỏ triệt để toàn bộ thành phần liên đới (hàm xử lý, biến state/computed/props, DTO, API Controller, Handler CQRS, hằng số BaseMsg, i18n không còn dùng, và cập nhật/xóa test tương ứng). Tuyệt đối không để lại mã chết / zombie code.
