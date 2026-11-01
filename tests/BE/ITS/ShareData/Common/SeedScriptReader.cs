@@ -152,6 +152,23 @@ internal static class SeedScriptReader
     }
 
     /// <summary>
+    /// Description: Lấy nguyên một khối lệnh của tệp seed ShareDataSql từ dòng tiêu đề mục tới dòng GO kế tiếp (không gồm GO),
+    ///              để test chạy đúng câu lệnh nằm trong tệp.
+    /// </summary>
+    public static string ReadSqlSeedBatch(string heading)
+    {
+        var content = File.ReadAllText(ResolveSqlScriptPath(SqlSeedFile));
+        var start = content.IndexOf(heading, StringComparison.Ordinal);
+        if (start < 0)
+        {
+            throw new InvalidOperationException($"Không tìm thấy mục '{heading}' trong kịch bản seed {SqlSeedFile}.");
+        }
+
+        var end = Regex.Match(content[start..], @"^GO\s*$", RegexOptions.Multiline);
+        return end.Success ? content.Substring(start, end.Index) : content[start..];
+    }
+
+    /// <summary>
     /// Dò tệp script SQL của ShareData theo tên tệp, đi ngược từ thư mục chạy test lên gốc kho mã.
     /// </summary>
     private static string ResolveSqlScriptPath(string fileName)

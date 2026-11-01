@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Route } from '@playwright/test';
 import { mockAuth } from '../../setup';
 
 /**
@@ -1968,6 +1968,78 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         expect(setLastSendPayload.packetCode).toBe('101_commonData');
         expect(setLastSendPayload.partnerId).toBe('p_ddlt');
         expect(setLastSendPayload.lastKey).toBe('k_new_200');
+
+        expect(pageErrors).toEqual([]);
+    });
+
+    test('69. Đăng ký gửi đang bật: Đặt mốc khóa như Đặt lại ở bảng mốc và dải Mốc đang chạy, đối tác đã tắt vẫn đặt được', async ({ page }) => {
+        const pageErrors: string[] = [];
+        page.on('pageerror', (err) => {
+            if (!isSharedLayoutError(err.message)) pageErrors.push(err.message);
+        });
+
+        const cursorSql =
+            "SELECT TOP (@pageSize) ID AS zoneId, UpdateTime AS __lastTime, ID AS __lastKey FROM TmsZone " +
+            "WHERE UpdateTime >= ISNULL(@lastTime, '17530101') AND (@lastTime IS NULL OR UpdateTime > @lastTime OR ID > @lastKey) ORDER BY UpdateTime ASC, ID ASC";
+        const fields = [{ key: 'zoneId', type: 'string', label: 'Mã khu vực', required: true }];
+        const fulfillJson = (route: Route, result: unknown) =>
+            route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result }) });
+
+        await page.route('**/api/sharedata/sharedatasubscription/list*', (route) => fulfillJson(route, [{ partnerId: 'p_a', direction: 0 }]));
+        await page.route('**/api/sharedata/sharedatapacket/getsqldetail*', (route) =>
+            fulfillJson(route, {
+                extract: { extractSql: cursorSql, status: 1, fields },
+                variables: {
+                    items: [
+                        { code: 'lastTime', valueKind: 'Builtin', value: 'lastTime', dataType: 'DateTime', orderNo: 1 },
+                        { code: 'lastKey', valueKind: 'Builtin', value: 'lastKey', dataType: 'String', orderNo: 2 },
+                    ],
+                },
+                write: { packetCode: '101_commonData', writeSql: '', affectedTables: [], detectedTables: [], keyFields: [] },
+            })
+        );
+        await page.route('**/api/sharedata/sharedatapacket/getpartnersqllist*', (route) =>
+            fulfillJson(route, [
+                { partnerId: 'p_a', partnerCode: 'CSGT', partnerName: 'Cục CSGT', isCustom: true },
+                { partnerId: 'p_b', partnerCode: 'VDOT', partnerName: 'Sở GTVT', isCustom: false },
+            ])
+        );
+        await page.route('**/api/sharedata/sharedatapacket/getsqlvariables*', (route) =>
+            fulfillJson(route, {
+                items: [
+                    { code: 'lastTime', valueKind: 'Builtin', value: 'lastTime', dataType: 'DateTime', savedValue: '2026-10-28 08:00:00' },
+                    { code: 'lastKey', valueKind: 'Builtin', value: 'lastKey', dataType: 'String', savedValue: 'k_100' },
+                ],
+            })
+        );
+        await page.route('**/api/sharedata/sharedatapacket/getpartnerextractsql*', (route) =>
+            fulfillJson(route, { isCustom: true, customSql: cursorSql, standardSql: cursorSql, fields, commonFields: fields })
+        );
+
+        await page.setViewportSize({ width: 1600, height: 950 });
+        await page.goto('/#/sharedata/dataSource');
+        const firstRow = page.locator('.packet-col .vxe-table--main-wrapper .vxe-body--row').first();
+        await expect(firstRow).toBeVisible({ timeout: 30_000 });
+        await firstRow.click();
+
+        // Bảng mốc ở tab Mẫu chung: CSGT đang bật thì khóa cả hai nút, VDOT đã tắt thì bấm được
+        const drawer = page.locator('.svp-partner-cursor-drawer');
+        await expect(drawer).toBeVisible({ timeout: 10_000 });
+        const lockedRow = drawer.locator('tbody tr', { hasText: 'CSGT' });
+        const freeRow = drawer.locator('tbody tr', { hasText: 'VDOT' });
+        await expect(lockedRow.locator('.svp-set-cursor-btn')).toBeDisabled();
+        await expect(lockedRow.locator('.svp-reset-btn')).toBeDisabled();
+        await expect(freeRow.locator('.svp-set-cursor-btn')).toBeEnabled();
+        await expect(freeRow.locator('.svp-reset-btn')).toBeEnabled();
+
+        // Rê chuột vào nút Đặt mốc đang khóa thấy lý do
+        await lockedRow.locator('.svp-btn-wrapper').first().hover();
+        await expect(page.locator('.el-popper:visible', { hasText: 'Tắt đăng ký trước khi đặt mốc' })).toBeVisible({ timeout: 5_000 });
+
+        // Dải Mốc đang chạy ở tab đối tác đang bật: nút bút cũng khóa
+        await page.locator('.sql-partner-tabs .el-tabs__item').filter({ hasText: 'CSGT' }).first().click();
+        await expect(page.locator('.svp-progress .svp-set-cursor-btn')).toBeDisabled();
+        await expect(page.locator('.svp-progress .svp-reset-btn')).toBeDisabled();
 
         expect(pageErrors).toEqual([]);
     });

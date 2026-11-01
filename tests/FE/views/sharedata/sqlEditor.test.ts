@@ -1290,6 +1290,34 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
     });
 
     /**
+     * Description: Mẫu gợi ý select-incremental chèn câu nối đuôi dạng hai cột (__lastTime + __lastKey, lọc theo cặp mốc, sắp theo hai cột):
+     *              bấm Lưu & phân tích thì bảng tham số có biến mốc thời gian và khóa, dải Quy chuẩn mốc đạt đủ bốn mục của dạng hai cột.
+     * Created date: 31/10/2026
+     */
+    test('68. Chèn mẫu gợi ý select-incremental rồi Lưu & phân tích: dải Quy chuẩn mốc đạt đủ bốn mục của dạng hai cột', async ({ page }) => {
+        let savedVariables: any[] = [];
+        await page.route('**/api/sharedata/sharedatapacket/updateextractsql*', (r) => {
+            savedVariables = r.request().postDataJSON()?.variables ?? savedVariables;
+            return r.fulfill(json({ code: 200, result: { extractSql: SQL_ONE_COLUMN, status: 1, fields: SAVED_FIELDS, warnings: [] } }));
+        });
+        await page.route('**/api/sharedata/sharedatapacket/getsqlvariables*', (r) => r.fulfill(json({ code: 200, result: { items: savedVariables } })));
+        await openSqlCenter(page);
+        await retypeSql(page, 'SEL');
+        await page.locator('.suggest-widget .monaco-list-row', { hasText: 'select-incremental' }).click({ timeout: 10_000 });
+        await page.keyboard.press('Escape');
+        // Khung soạn đẩy nội dung lên trang sau 450ms kể từ lần gõ cuối
+        await page.waitForTimeout(600);
+        const save = page.locator('.sql-toolbar-bar .el-button--primary').last();
+        await expect(save).toBeEnabled({ timeout: 10_000 });
+        await save.click();
+
+        await page.locator('.sql-variable-panel .svp-check-lead').hover({ timeout: 10_000 });
+        const items = page.locator('.svp-popover-content .svp-popover-item');
+        await expect(items).toHaveCount(4, { timeout: 10_000 });
+        await expect(items.and(page.locator('.is-pass'))).toHaveCount(4);
+    });
+
+    /**
      * Description: Chưa sửa gì mà đổi sang gói tin khác ở tab Nhận về thì không được hiện hộp "Gói tin hiện tại còn thay đổi chưa lưu",
      *              kể cả khi khối câu ghi nạp chậm hoặc nạp lỗi (trước đây mốc so sánh rỗng làm khối câu ghi bị coi là đã sửa).
      * Created date: 28/10/2026

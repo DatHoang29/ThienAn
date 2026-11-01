@@ -6212,6 +6212,122 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         }
 
         /// <summary>
+        /// Description: Câu nối đuôi bị đổi công thức cột mốc ngoài màn hình cấu hình (nạp tệp .sql, sửa thẳng CSDL) nên chữ ký công thức
+        ///              lưu cùng mốc không khớp câu đang chạy: Worker bỏ mốc cũ, gửi lại từ mốc khởi tạo và ghi một cảnh báo ESH-1308 cho
+        ///              đăng ký đó để người vận hành thấy ở màn Cảnh báo & lỗi. Nguồn chưa có dòng mới thì mốc cũ còn lệch ở lượt sau
+        ///              nhưng không ghi thêm cảnh báo. Áp cho cả nhóm mốc mặc định và nhóm mốc có tên.
+        /// Created date: 31/10/2026
+        /// </summary>
+        [Theory]
+        [InlineData(false, true)]
+        [InlineData(false, false)]
+        [InlineData(true, true)]
+        [InlineData(true, false)]
+        public async Task ProcessSubscriptions_WhenCursorFormulaChangedOutsideScreen_ResendsFromInitialAndAlertsOnce_Test(bool groupCursor, bool hasRows)
+        {
+            // Arrange: mốc cũ nằm sau mọi dòng nguồn, ghi theo công thức khác câu đang chạy
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var packetId = $"pkt-sig-{unique}";
+            var packetCode = $"PKT_SIG_{unique}";
+            var rowPrefix = $"ROW_SIG_{unique}_";
+            var rowTime = new DateTime(2026, 10, 20, 8, 5, 0);
+
+            var rows = Enumerable.Range(1, hasRows ? 2 : 0).Select(i => new ShareDataPacket
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                Code = $"{rowPrefix}{i}",
+                Name = $"Row {i}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Disable
+            }).ToList();
+            if (rows.Count > 0)
+            {
+                await db.Insertable(rows).ExecuteCommandAsync();
+                await db.Updateable<ShareDataPacket>()
+                    .SetColumns(p => p.UpdateTime == rowTime)
+                    .Where(p => p.Code!.StartsWith(rowPrefix))
+                    .ExecuteCommandAsync();
+            }
+
+            var g = groupCursor ? "_a" : string.Empty;
+            var sql = $"SELECT UpdateTime AS __lastTime{g}, ID AS __lastKey{g}, Code AS code FROM ShareDataPacket "
+                + $"WHERE Code LIKE '{rowPrefix}%' AND UpdateTime >= ISNULL(@lastTime{g}, '17530101') "
+                + $"AND (@lastTime{g} IS NULL OR UpdateTime > @lastTime{g} OR ID > @lastKey{g}) ORDER BY UpdateTime, ID";
+            await db.Insertable(new ShareDataPacket
+            {
+                ID = packetId,
+                Code = packetCode,
+                Name = $"Packet {packetCode}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Enable
+            }).ExecuteCommandAsync();
+
+            SqlVariableItem Variable(string code, string source, int order) => new()
+            {
+                Code = code, DataType = ShareDataConst.SqlVariableBuiltinTypes[source],
+                ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = source, OrderNo = order
+            };
+            await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null,
+            [
+                Variable($"lastTime{g}", ShareDataConst.SqlVariableSourceLastTime, 1),
+                Variable($"lastKey{g}", ShareDataConst.SqlVariableSourceLastKey, 2)
+            ]);
+            await ShareDataSqlSeed.SetCommonAsync(db, packetId, sql, "UpdateTime");
+
+            var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_SIG_{unique}",
+                SubCode = $"SUB_SIG_{unique}",
+                DatatypeId = packetId,
+                MappingShape = new Dictionary<string, object> { ["code"] = new Dictionary<string, string> { ["$field"] = "code" } }
+            });
+            var staleTime = rowTime.AddMinutes(10);
+            if (groupCursor)
+            {
+                await db.Insertable(new ShareDataLastSendKey
+                {
+                    ID = Guid.NewGuid().ToString("N"),
+                    PartnerCode = partner.Code,
+                    PacketCode = packetCode,
+                    CursorKey = "a",
+                    LastTime = staleTime,
+                    LastKey = "zzz",
+                    CursorSignature = "cong-thuc-cu"
+                }).ExecuteCommandAsync();
+            }
+            else
+            {
+                await db.Insertable(new ShareDataLastSend
+                {
+                    ID = Guid.NewGuid().ToString("N"),
+                    PartnerCode = partner.Code,
+                    PacketCode = packetCode,
+                    LastTime = staleTime,
+                    LastKey = "zzz",
+                    CursorSignature = "cong-thuc-cu"
+                }).ExecuteCommandAsync();
+            }
+
+            // Act: hai lượt chạy liền nhau
+            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
+            await db.Updateable<ShareDataSubscription>()
+                .SetColumns(s => s.NextTimeRun == null)
+                .Where(s => s.ID == sub.ID)
+                .ExecuteCommandAsync();
+            await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
+
+            // Assert
+            var sentRows = rows.Count(row => _host.PartnerServer.ReceivedRequests.Any(r => r.Body.Contains(row.Code!)));
+            var formulaAlerts = await db.Queryable<ShareDataAlertLog>()
+                .Where(a => a.SubscriptionId == sub.ID && a.AlertCode == ShareDataAlertCode.Outbound.CursorFormulaChanged)
+                .CountAsync();
+            Assert.Equal(rows.Count, sentRows);
+            Assert.Equal(1, formulaAlerts);
+        }
+
+        /// <summary>
         /// Description: Câu SQL nối đuôi nạp thẳng vào CSDL (seed / sửa tay, không qua API lưu) mà sắp sai thứ tự
         ///              (không bắt đầu bằng __lastTime rồi __lastKey) thì Worker kiểm lại cấu trúc trước khi chạy: không gửi,
         ///              giữ nguyên mốc và ghi cảnh báo ESH-1306. Sắp đúng thứ tự thì gửi bình thường.
@@ -7832,7 +7948,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             var worker = CreateWorker(scope);
 
             // Act 1: đặt mốc nhóm toll tại dòng T2 (09:10) rồi chạy
-            await scope.ServiceProvider.CallApiAsync(new SetLastSendInput
+            await SetCursorWhilePausedAsync(scope.ServiceProvider, db, sub.ID!, new SetLastSendInput
             {
                 PacketCode = packetCode,
                 PartnerId = partner.ID,
@@ -8083,7 +8199,7 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
 
             var cursorTime = baseTime.AddMinutes(20).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
             var cursorKey = $"c03_{unique}";
-            await scope.ServiceProvider.CallApiAsync(new SetLastSendInput
+            await SetCursorWhilePausedAsync(scope.ServiceProvider, db, sub.ID!, new SetLastSendInput
             {
                 PacketCode = packetCode,
                 PartnerId = partner.ID,
@@ -8305,14 +8421,14 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                     {
                         UseSuperAdmin(unique);
                         using var apiScope = _host.Services.CreateScope();
+                        // Đặt lại, Đặt mốc chỉ được khi đăng ký không còn bật (ESH-2306): người dùng tạm dừng đăng ký rồi bấm nút trong lúc Worker đang gửi
+                        var apiDb = apiScope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+                        await apiDb.Updateable<ShareDataSubscription>()
+                            .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Paused)
+                            .Where(s => s.ID == sub.ID)
+                            .ExecuteCommandAsync();
                         if (action == "datLai")
                         {
-                            // Đặt lại chỉ được khi đăng ký không còn bật (ESH-2306): người dùng tạm dừng đăng ký rồi bấm Đặt lại trong lúc Worker đang gửi
-                            var apiDb = apiScope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-                            await apiDb.Updateable<ShareDataSubscription>()
-                                .SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Paused)
-                                .Where(s => s.ID == sub.ID)
-                                .ExecuteCommandAsync();
                             await apiScope.ServiceProvider.CallApiAsync(new ResetLastSendInput { PacketCode = packetCode, PartnerId = partner.ID! });
                         }
                         else
@@ -8348,15 +8464,15 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
             if (action == "datLai")
             {
                 Assert.Null(cursor);
-                // Worker nhả lock không được bật lại đăng ký người dùng vừa tạm dừng
-                var state = await db.Queryable<ShareDataSubscription>().Where(s => s.ID == sub.ID).Select(s => s.State).FirstAsync();
-                Assert.Equal(BaseEnums.SubSubscriptionState.Paused, state);
             }
             else
             {
                 Assert.NotNull(cursor);
                 Assert.Equal(userTime, cursor.LastTime);
             }
+            // Worker nhả lock không được bật lại đăng ký người dùng vừa tạm dừng
+            var state = await db.Queryable<ShareDataSubscription>().Where(s => s.ID == sub.ID).Select(s => s.State).FirstAsync();
+            Assert.Equal(BaseEnums.SubSubscriptionState.Paused, state);
         }
 
         /// <summary>
@@ -8488,6 +8604,14 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         {
             await db.Updateable<ShareDataSubscription>().SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Paused).Where(s => s.ID == subId).ExecuteCommandAsync();
             await services.CallApiAsync(new ResetLastSendInput { PacketCode = packetCode, PartnerId = partnerId });
+            await db.Updateable<ShareDataSubscription>().SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Active).Where(s => s.ID == subId).ExecuteCommandAsync();
+        }
+
+        /// <summary>Đặt mốc như thao tác thật: chỉ được khi đăng ký không còn bật (ESH-2306) nên tạm dừng, đặt mốc rồi bật lại.</summary>
+        private static async Task SetCursorWhilePausedAsync(IServiceProvider services, ISqlSugarClient db, string subId, SetLastSendInput input)
+        {
+            await db.Updateable<ShareDataSubscription>().SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Paused).Where(s => s.ID == subId).ExecuteCommandAsync();
+            await services.CallApiAsync(input);
             await db.Updateable<ShareDataSubscription>().SetColumns(s => s.State == BaseEnums.SubSubscriptionState.Active).Where(s => s.ID == subId).ExecuteCommandAsync();
         }
 

@@ -4,14 +4,14 @@ GO
 -- =========================================================================================
 -- FILE: sharedata-seed-cau-hinh-SysConfigData.sql
 -- BẢNG GHI: [dbo].[SysConfigData] — tệp chỉ thêm / sửa / xóa trên đúng bảng này; bảng khác chỉ đọc (Rule 19.103).
--- DESCRIPTION: 2. Nạp 25 mã cảnh báo lỗi ESH-xxxx (14 Outbound, 7 Inbound, 4 Tracking) vào loại 'sharedata_error_code',
+-- DESCRIPTION: 2. Nạp 26 mã cảnh báo lỗi ESH-xxxx (15 Outbound, 7 Inbound, 4 Tracking) vào loại 'sharedata_error_code',
 --                 chỉ thêm các mã chưa có.
 --              4.1 Đăng ký nhóm 'sharedata_config' vào loại 'operation_config_type'.
 -- THỨ TỰ CHẠY: 5 (sau sharedata-seed-cau-hinh-SysConfigType.sql) (xem README.md cùng thư mục).
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 24/10/2026
+-- CẬP NHẬT LẦN CUỐI: 31/10/2026 (thêm ESH-1308: công thức cột mốc đổi ngoài màn hình cấu hình)
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -44,9 +44,9 @@ BEGIN
 END;
 
 -- -----------------------------------------------------------------------------------------
--- 2. NẠP DANH SÁCH 25 MÃ CẢNH BÁO LỖI ESH-xxxx VÀO SysConfigData
+-- 2. NẠP DANH SÁCH 26 MÃ CẢNH BÁO LỖI ESH-xxxx VÀO SysConfigData
 -- -----------------------------------------------------------------------------------------
-PRINT N'-> 2. Nạp danh mục 25 mã cảnh báo lỗi ESH-xxxx vào SysConfigData...';
+PRINT N'-> 2. Nạp danh mục 26 mã cảnh báo lỗi ESH-xxxx vào SysConfigData...';
 
 DECLARE @ErrorCodes TABLE (
     [Code] NVARCHAR(64),
@@ -59,7 +59,7 @@ DECLARE @ErrorCodes TABLE (
 
 INSERT INTO @ErrorCodes ([Code], [Name], [Value], [TagType], [OrderNo], [Remark])
 VALUES
-    -- Outbound (14 mã)
+    -- Outbound (15 mã)
     (N'ESH-1201', N'Bộ mã khai trong metadata không tồn tại trong CSDL', N'outbound', N'warning', 1201,
      N'Kiểm tra lại cấu hình CodeSet trong metadata.'),
     (N'ESH-1202', N'Trường bắt buộc bị thiếu hoặc null — huỷ kết xuất', N'outbound', N'danger', 1202,
@@ -82,6 +82,8 @@ VALUES
      N'Kiểm tra mệnh đề ORDER BY trong câu lệnh trích xuất dữ liệu.'),
     (N'ESH-1307', N'Mốc con trỏ gửi mới lùi lại so với mốc hiện tại trong CSDL', N'outbound', N'warning', 1307,
      N'Kiểm tra mốc đồng bộ con trỏ và dữ liệu thời gian.'),
+    (N'ESH-1308', N'Công thức cột mốc của câu truy vấn đổi ngoài màn hình cấu hình — bỏ mốc cũ, gửi lại từ mốc khởi tạo', N'outbound', N'warning', 1308,
+     N'Câu bị sửa bằng tệp .sql hoặc sửa thẳng CSDL. Báo đối tác sắp nhận lại dữ liệu, hoặc dùng Đặt mốc để gửi tiếp từ thời điểm mong muốn.'),
     (N'ESH-1401', N'Gửi HTTP REST trực tiếp tới đối tác thất bại — file đã ghi vẫn coi là thành công', N'outbound', N'warning', 1401,
      N'Kiểm tra kết nối mạng và endpoint của đối tác.'),
     (N'ESH-1402', N'Lưu đệm payload/bằng chứng thất bại, hủy gửi và giữ nguyên mốc', N'outbound', N'danger', 1402,

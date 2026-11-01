@@ -2796,6 +2796,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     [Theory]
     [InlineData("macDinhChoPhepTrong", true)]
     [InlineData("macDinhLuonCoGiaTri", false)]
+    [InlineData("macDinhGopUpdateCreate", false)]
     [InlineData("gopNhieuNguon", false)]
     public async Task UpdateExtractSql_WhenCursorTimeColumnAllowsNull_WarnsOnlyForDefaultCursor_Test(string caseName, bool expectWarning)
     {
@@ -2818,6 +2819,10 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             "macDinhChoPhepTrong" => CursorFilterSql("@lastTime IS NULL OR UpdateTime > @lastTime OR (UpdateTime = @lastTime AND ID > @lastKey)"),
             "macDinhLuonCoGiaTri" => "SELECT TOP 10 ID AS zoneId, ISNULL(UpdateTime, '17530101') AS __lastTime, ID AS __lastKey FROM TmsZone "
                 + "WHERE @lastTime IS NULL OR ISNULL(UpdateTime, '17530101') > @lastTime OR (ISNULL(UpdateTime, '17530101') = @lastTime AND ID > @lastKey) "
+                + "ORDER BY __lastTime ASC, ID ASC",
+            "macDinhGopUpdateCreate" => "SELECT TOP 10 ID AS zoneId, ISNULL(ISNULL(UpdateTime, CreateTime), '17530101') AS __lastTime, ID AS __lastKey FROM TmsZone "
+                + "WHERE @lastTime IS NULL OR ISNULL(ISNULL(UpdateTime, CreateTime), '17530101') > @lastTime "
+                + "OR (ISNULL(ISNULL(UpdateTime, CreateTime), '17530101') = @lastTime AND ID > @lastKey) "
                 + "ORDER BY __lastTime ASC, ID ASC",
             _ => CursorGroupSql(true, CursorGroupWhereB)
         };
@@ -2943,6 +2948,123 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     }
 
     /// <summary>
+    /// Description: Bước 1b của tệp seed ShareDataSql: câu mẫu chung nối đuôi (gói 101 - 111) chưa có bộ biến thì được điền bộ biến mốc
+    ///              (@lastTime theo thời gian, @lastKey theo key), thêm @pageSize = 100 khi câu dùng TOP (@pageSize); dòng đã có bộ biến
+    ///              (kể cả rỗng) và câu gộp nhiều nhóm mốc giữ nguyên. Chạy đúng khối lệnh trong tệp, trong giao dịch rồi hoàn tác
+    ///              để không đổi dữ liệu dùng chung của CSDL test.
+    /// Created date: 31/10/2026
+    /// </summary>
+    [Theory]
+    [InlineData("SELECT TOP (@pageSize)", "", false, new[] { "pageSize", "lastTime", "lastKey" })]
+    [InlineData("SELECT TOP 100", "", false, new[] { "lastTime", "lastKey" })]
+    [InlineData("SELECT TOP 100", "", true, new string[0])]
+    [InlineData("SELECT TOP 100", "_a", false, new string[0])]
+    public async Task SeedSqlScript_WhenCommonCursorSqlHasNoVariables_FillsCursorVariables_Test(string selectTop, string group, bool hasEmptyVariables, string[] expectedCodes)
+    {
+        // Arrange
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var packetId = Guid.NewGuid().ToString("N");
+        var sql = $"{selectTop} ID AS zoneId, UpdateTime AS __lastTime{group}, ID AS __lastKey{group} FROM TmsZone "
+            + $"WHERE @lastTime{group} IS NULL OR UpdateTime > @lastTime{group} OR (UpdateTime = @lastTime{group} AND ID > @lastKey{group}) "
+            + "ORDER BY UpdateTime ASC, ID ASC";
+        var batch = SeedScriptReader.ReadSqlSeedBatch("-- 1b. ĐIỀN BỘ BIẾN CHO CÂU MẪU CHUNG NỐI ĐUÔI CÒN TRỐNG");
+
+        // Act
+        List<SqlVariableItem> saved;
+        await db.Ado.BeginTranAsync();
+        try
+        {
+            await db.Insertable(new ShareDataPacket
+            {
+                ID = packetId,
+                Code = $"103_SEED_{unique}",
+                Name = $"Seed {unique}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Enable
+            }).ExecuteCommandAsync();
+            // Ghi thẳng dòng mẫu chung như dữ liệu cũ trong CSDL (không qua helper tự khai bộ biến)
+            await db.Insertable(new ShareDataSql
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                PacketId = packetId,
+                ExtractSql = sql,
+                VariablesJson = hasEmptyVariables ? "[]" : null
+            }).ExecuteCommandAsync();
+            await db.Ado.ExecuteCommandAsync(batch);
+            saved = SqlTextHelper.ReadVariables((await ShareDataSqlSeed.GetCommonAsync(db, packetId))?.VariablesJson);
+        }
+        finally
+        {
+            await db.Ado.RollbackTranAsync();
+        }
+
+        // Assert: mã biến đúng thứ tự, @pageSize nhập 100, biến mốc lấy nguồn cùng tên
+        Assert.Equal(expectedCodes, saved.Select(v => v.Code));
+        Assert.Equal(expectedCodes.Select(c => c == "pageSize" ? "100" : c), saved.Select(v => v.Value));
+    }
+
+    /// <summary>
+    /// Description: Bước 1 của tệp seed ShareDataSql với cờ @GhiDeMaGoi = mã một gói: chỉ câu mẫu chung của gói đó bị ghi đè về câu chuẩn
+    ///              trong tệp, gói khác đã có câu giữ nguyên (dùng để nạp lại câu mẫu gói 101 vào DB dev mà không đụng các gói khác).
+    ///              Chạy đúng khối lệnh trong tệp, trong giao dịch rồi hoàn tác.
+    /// Created date: 31/10/2026
+    /// </summary>
+    [Theory]
+    [InlineData("104", "106")]
+    [InlineData("106", "104")]
+    public async Task SeedSqlScript_WhenOverwriteOnePacketCode_OverwritesOnlyThatPacket_Test(string overwriteCode, string keptCode)
+    {
+        // Arrange: hai gói đã có câu mẫu chung tự sửa
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var batch = SeedScriptReader.ReadSqlSeedBatch("-- 1. NẠP CÂU MẪU CHUNG (ShareDataSql) CHO GÓI 101 - 111")
+            .Replace("DECLARE @GhiDeMaGoi NVARCHAR(16) = NULL;", $"DECLARE @GhiDeMaGoi NVARCHAR(16) = N'{overwriteCode}';");
+        string? overwritten;
+        string? kept;
+
+        // Act
+        await db.Ado.BeginTranAsync();
+        try
+        {
+            async Task<string> SeedPacket(string code)
+            {
+                var packetId = Guid.NewGuid().ToString("N");
+                await db.Insertable(new ShareDataPacket
+                {
+                    ID = packetId,
+                    Code = $"{code}_SEED_{unique}",
+                    Name = $"Seed {code} {unique}",
+                    PacketVersion = "1.0",
+                    Status = BaseEnums.StatusEnum.Enable
+                }).ExecuteCommandAsync();
+                await db.Insertable(new ShareDataSql
+                {
+                    ID = Guid.NewGuid().ToString("N"),
+                    PacketId = packetId,
+                    ExtractSql = $"SELECT 1 AS customized{code}"
+                }).ExecuteCommandAsync();
+                return packetId;
+            }
+            var overwriteId = await SeedPacket(overwriteCode);
+            var keptId = await SeedPacket(keptCode);
+            await db.Ado.ExecuteCommandAsync(batch);
+            overwritten = (await ShareDataSqlSeed.GetCommonAsync(db, overwriteId))?.ExtractSql;
+            kept = (await ShareDataSqlSeed.GetCommonAsync(db, keptId))?.ExtractSql;
+        }
+        finally
+        {
+            await db.Ado.RollbackTranAsync();
+        }
+
+        // Assert
+        Assert.Equal(SeedScriptReader.GetExtractSql(overwriteCode), overwritten);
+        Assert.Equal($"SELECT 1 AS customized{keptCode}", kept);
+    }
+
+    /// <summary>
     /// Description: Chỉ lưu bảng tham số (câu SQL không đổi): BE kiểm lại câu đang lưu của đúng phạm vi đó theo bộ biến mới.
     ///              Đổi ghi chú / mốc khởi tạo vẫn lưu được; đổi nguồn @lastKey sang theo thời gian làm câu nối đuôi mất khóa
     ///              nên bị từ chối, bộ biến cũ còn nguyên (trước đây lưu được, Worker mới chặn lúc chạy).
@@ -3025,7 +3147,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             ID = $"sub_{unique}",
             PartnerId = partner.ID,
             DatatypeId = packet.ID,
-            State = BaseEnums.SubSubscriptionState.Active,
+            State = BaseEnums.SubSubscriptionState.Paused,
             LastTimeRun = DateTime.Now.AddHours(-1)
         };
         await db.Insertable(sub).ExecuteCommandAsync();
@@ -3063,6 +3185,84 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
 
         var updatedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
         Assert.Null(updatedSub.LastTimeRun);
+    }
+
+    /// <summary>
+    /// Description: Đặt mốc khóa như Đặt lại (ESH-2306): đăng ký gửi của đối tác còn bật thì từ chối, giữ nguyên mốc và LastTimeRun;
+    ///              đã tắt thì đặt được, đăng ký đang bật của đối tác khác không khóa đối tác này.
+    /// Created date: 01/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SetLastSend_WhenOwnSubscriptionActiveOrOff_OnlyAllowedWhenOff_Test(bool ownActive)
+    {
+        // Arrange
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (packet, partner) = await SeedSqlVariablePacketAsync(db, unique);
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, CursorTwoColumnSql);
+        var other = NewPartnerSqlPartner($"PT_OTHER_{unique}", unique);
+        await db.Insertable(other).ExecuteCommandAsync();
+
+        var lastRun = DateTime.Now.AddHours(-1);
+        var sub = new ShareDataSubscription
+        {
+            ID = $"sub_{unique}",
+            PartnerId = partner.ID,
+            DatatypeId = packet.ID,
+            Direction = BaseEnums.Direction.Outbound,
+            State = ownActive ? BaseEnums.SubSubscriptionState.Active : BaseEnums.SubSubscriptionState.Paused,
+            LastTimeRun = lastRun
+        };
+        var otherSub = new ShareDataSubscription
+        {
+            ID = $"sub_other_{unique}",
+            PartnerId = other.ID,
+            DatatypeId = packet.ID,
+            Direction = BaseEnums.Direction.Outbound,
+            State = BaseEnums.SubSubscriptionState.Active
+        };
+        await db.Insertable(new List<ShareDataSubscription> { sub, otherSub }).ExecuteCommandAsync();
+
+        var oldTime = new DateTime(2026, 10, 1, 7, 0, 0);
+        await db.Insertable(new ShareDataLastSend
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            PartnerCode = partner.Code,
+            PacketCode = packet.Code,
+            LastTime = oldTime,
+            LastKey = "k_old"
+        }).ExecuteCommandAsync();
+
+        SetUserContext(isSuperAdmin: true, account: $"super_{unique}");
+        var input = new SetLastSendInput
+        {
+            PacketCode = packet.Code!,
+            PartnerId = partner.ID,
+            LastTime = "2026-10-28 08:30:00",
+            LastKey = "k_new"
+        };
+
+        // Act
+        if (ownActive)
+        {
+            await Assert.ThrowsAnyAsync<Exception>(() => scope.ServiceProvider.CallApiAsync(input));
+        }
+        else
+        {
+            await scope.ServiceProvider.CallApiAsync(input);
+        }
+
+        // Assert
+        var cursor = await db.Queryable<ShareDataLastSend>()
+            .Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == packet.Code)
+            .FirstAsync();
+        Assert.Equal(ownActive ? oldTime : new DateTime(2026, 10, 28, 8, 30, 0), cursor.LastTime);
+        Assert.Equal(ownActive ? "k_old" : "k_new", cursor.LastKey);
+        var savedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
+        Assert.Equal(ownActive, savedSub.LastTimeRun != null);
     }
 
     /// <summary>

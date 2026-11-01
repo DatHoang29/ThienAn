@@ -7,7 +7,9 @@ GO
 -- DESCRIPTION: Nạp câu SQL trích xuất mẫu chung (dòng PartnerId trống) cho gói 101 - 111 vào ShareDataSql:
 --              0.3 Chuyển câu SQL cũ (ShareDataPacket.ExtractSql/CursorTimeColumn, bảng ShareDataPartnerSql)
 --                  sang ShareDataSql; chạy trước bước 1 để giữ câu SQL đã sửa, không bị câu mẫu ghi đè.
---              1. Câu mẫu chung (@SqlNNN viết ngay trong tệp này, nguồn duy nhất) khi đang trống hoặc @GhiDeMauGoiTin = 1.
+--              1. Câu mẫu chung (@SqlNNN viết ngay trong tệp này, nguồn duy nhất) khi đang trống, @GhiDeMauGoiTin = 1 (mọi gói)
+--                 hoặc @GhiDeMaGoi = mã gói (riêng một gói, vd N'101' để nạp lại câu mẫu gói 101).
+--              1b. Điền bộ biến (@lastTime, @lastKey, kèm @pageSize nếu câu dùng) cho câu mẫu chung nối đuôi còn trống VariablesJson.
 --              5. Chuyển câu SQL riêng cũ ở ShareDataMapping.ExtractSql sang ShareDataSql; đổi __rowid -> __lastKey.
 --              0.4 Bộ biến của câu SQL ở cột VariablesJson: chuyển từ bảng cũ ShareDataSqlVariable (bỏ bảng 27/10/2026).
 --              6. Khối câu ghi chiều nhận (WriteSql, AffectedTables) ở dòng mẫu chung: chuyển từ bảng cũ ShareDataPacketSql,
@@ -16,7 +18,7 @@ GO
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 27/10/2026 (gộp câu ghi chiều nhận vào ShareDataSql; câu SQL mẫu chung viết ngay trong tệp)
+-- CẬP NHẬT LẦN CUỐI: 31/10/2026 (thêm cờ @GhiDeMaGoi ghi đè riêng một gói; bước 1b điền bộ biến câu mẫu nối đuôi, không đổi câu mẫu)
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -141,7 +143,11 @@ GO
 -- -----------------------------------------------------------------------------------------
 -- @GhiDeMauGoiTin = 0 (Mặc định): Chỉ nạp câu mẫu chung nếu đang NULL hoặc rỗng.
 -- @GhiDeMauGoiTin = 1: Buộc ghi đè câu mẫu chung về câu chuẩn @SqlNNN khai trong tệp này.
+-- @GhiDeMaGoi = N'101': Chỉ ghi đè câu mẫu chung của đúng gói đó (gói khác giữ câu đang có). Bộ biến đang có giữ nguyên.
+--     Câu mẫu mới đổi công thức cột mốc thì Worker tự đặt lại mốc của đối tác và ghi cảnh báo ESH-1308; gói 101 ngày 31/10/2026
+--     chỉ đổi WHERE (cột mốc vẫn zs.UpdateTime, zs.ID) nên mốc giữ nguyên.
 DECLARE @GhiDeMauGoiTin BIT = 0;
+DECLARE @GhiDeMaGoi NVARCHAR(16) = NULL;
 DECLARE @UpdatedRows INT = 0;
 DECLARE @TotalUpdated INT = 0;
 DECLARE @TenantIdSql NVARCHAR(64) = (SELECT TOP 1 CAST([TenantId] AS NVARCHAR(64)) FROM [dbo].[SysOpConfig] WHERE [TenantId] IS NOT NULL);
@@ -187,7 +193,8 @@ WHERE (p.[Code] = '101' OR p.[Code] LIKE '101[_]%')
   AND p.[IsDelete] IS NULL
   AND s.[PartnerId] IS NULL
   AND s.[IsDelete] IS NULL
-  AND (@GhiDeMauGoiTin = 1 OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
+  AND (@GhiDeMauGoiTin = 1 OR p.[Code] = @GhiDeMaGoi OR p.[Code] LIKE @GhiDeMaGoi + '[_]%'
+       OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 
 INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [CursorTimeColumn], [VariablesJson], [TenantId], [CreateTime], [CreateUId])
@@ -223,7 +230,8 @@ WHERE (p.[Code] = '102' OR p.[Code] LIKE '102[_]%')
   AND p.[IsDelete] IS NULL
   AND s.[PartnerId] IS NULL
   AND s.[IsDelete] IS NULL
-  AND (@GhiDeMauGoiTin = 1 OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
+  AND (@GhiDeMauGoiTin = 1 OR p.[Code] = @GhiDeMaGoi OR p.[Code] LIKE @GhiDeMaGoi + '[_]%'
+       OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 
 INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [CursorTimeColumn], [TenantId], [CreateTime], [CreateUId])
@@ -274,7 +282,8 @@ WHERE (p.[Code] = '103' OR p.[Code] LIKE '103[_]%')
   AND p.[IsDelete] IS NULL
   AND s.[PartnerId] IS NULL
   AND s.[IsDelete] IS NULL
-  AND (@GhiDeMauGoiTin = 1 OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
+  AND (@GhiDeMauGoiTin = 1 OR p.[Code] = @GhiDeMaGoi OR p.[Code] LIKE @GhiDeMaGoi + '[_]%'
+       OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 
 INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [CursorTimeColumn], [TenantId], [CreateTime], [CreateUId])
@@ -325,7 +334,8 @@ WHERE (p.[Code] = '104' OR p.[Code] LIKE '104[_]%')
   AND p.[IsDelete] IS NULL
   AND s.[PartnerId] IS NULL
   AND s.[IsDelete] IS NULL
-  AND (@GhiDeMauGoiTin = 1 OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
+  AND (@GhiDeMauGoiTin = 1 OR p.[Code] = @GhiDeMaGoi OR p.[Code] LIKE @GhiDeMaGoi + '[_]%'
+       OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 
 INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [CursorTimeColumn], [TenantId], [CreateTime], [CreateUId])
@@ -367,7 +377,8 @@ WHERE (p.[Code] = '105' OR p.[Code] LIKE '105[_]%')
   AND p.[IsDelete] IS NULL
   AND s.[PartnerId] IS NULL
   AND s.[IsDelete] IS NULL
-  AND (@GhiDeMauGoiTin = 1 OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
+  AND (@GhiDeMauGoiTin = 1 OR p.[Code] = @GhiDeMaGoi OR p.[Code] LIKE @GhiDeMaGoi + '[_]%'
+       OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 
 INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [CursorTimeColumn], [TenantId], [CreateTime], [CreateUId])
@@ -413,7 +424,8 @@ WHERE (p.[Code] = '106' OR p.[Code] LIKE '106[_]%')
   AND p.[IsDelete] IS NULL
   AND s.[PartnerId] IS NULL
   AND s.[IsDelete] IS NULL
-  AND (@GhiDeMauGoiTin = 1 OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
+  AND (@GhiDeMauGoiTin = 1 OR p.[Code] = @GhiDeMaGoi OR p.[Code] LIKE @GhiDeMaGoi + '[_]%'
+       OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 
 INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [CursorTimeColumn], [TenantId], [CreateTime], [CreateUId])
@@ -467,7 +479,8 @@ WHERE (p.[Code] = '107' OR p.[Code] LIKE '107[_]%')
   AND p.[IsDelete] IS NULL
   AND s.[PartnerId] IS NULL
   AND s.[IsDelete] IS NULL
-  AND (@GhiDeMauGoiTin = 1 OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
+  AND (@GhiDeMauGoiTin = 1 OR p.[Code] = @GhiDeMaGoi OR p.[Code] LIKE @GhiDeMaGoi + '[_]%'
+       OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 
 INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [CursorTimeColumn], [TenantId], [CreateTime], [CreateUId])
@@ -506,7 +519,8 @@ WHERE (p.[Code] = '108' OR p.[Code] LIKE '108[_]%')
   AND p.[IsDelete] IS NULL
   AND s.[PartnerId] IS NULL
   AND s.[IsDelete] IS NULL
-  AND (@GhiDeMauGoiTin = 1 OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
+  AND (@GhiDeMauGoiTin = 1 OR p.[Code] = @GhiDeMaGoi OR p.[Code] LIKE @GhiDeMaGoi + '[_]%'
+       OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 
 INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [CursorTimeColumn], [TenantId], [CreateTime], [CreateUId])
@@ -559,7 +573,8 @@ WHERE (p.[Code] = '109' OR p.[Code] LIKE '109[_]%')
   AND p.[IsDelete] IS NULL
   AND s.[PartnerId] IS NULL
   AND s.[IsDelete] IS NULL
-  AND (@GhiDeMauGoiTin = 1 OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
+  AND (@GhiDeMauGoiTin = 1 OR p.[Code] = @GhiDeMaGoi OR p.[Code] LIKE @GhiDeMaGoi + '[_]%'
+       OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 
 INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [CursorTimeColumn], [TenantId], [CreateTime], [CreateUId])
@@ -618,7 +633,8 @@ WHERE (p.[Code] = '110' OR p.[Code] LIKE '110[_]%')
   AND p.[IsDelete] IS NULL
   AND s.[PartnerId] IS NULL
   AND s.[IsDelete] IS NULL
-  AND (@GhiDeMauGoiTin = 1 OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
+  AND (@GhiDeMauGoiTin = 1 OR p.[Code] = @GhiDeMaGoi OR p.[Code] LIKE @GhiDeMaGoi + '[_]%'
+       OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 
 INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [CursorTimeColumn], [TenantId], [CreateTime], [CreateUId])
@@ -667,7 +683,8 @@ WHERE (p.[Code] = '111' OR p.[Code] LIKE '111[_]%')
   AND p.[IsDelete] IS NULL
   AND s.[PartnerId] IS NULL
   AND s.[IsDelete] IS NULL
-  AND (@GhiDeMauGoiTin = 1 OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
+  AND (@GhiDeMauGoiTin = 1 OR p.[Code] = @GhiDeMaGoi OR p.[Code] LIKE @GhiDeMaGoi + '[_]%'
+       OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 
 INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [CursorTimeColumn], [TenantId], [CreateTime], [CreateUId])
@@ -681,6 +698,36 @@ SET @TotalUpdated = @TotalUpdated + @UpdatedRows;
 PRINT N'   - Gói 111 (InterCenter): đã nạp câu mẫu chung ' + CAST(@UpdatedRows AS NVARCHAR(10)) + N' bản ghi.';
 
 PRINT N'   -> Tổng số bản ghi câu mẫu chung đã cập nhật: ' + CAST(@TotalUpdated AS NVARCHAR(10)) + N' dòng.';
+GO
+
+-- -----------------------------------------------------------------------------------------
+-- 1b. ĐIỀN BỘ BIẾN CHO CÂU MẪU CHUNG NỐI ĐUÔI CÒN TRỐNG (IDEMPOTENT)
+-- -----------------------------------------------------------------------------------------
+-- Câu mẫu chung gói 101 - 111 dùng @lastTime / @lastKey mà chưa có bộ biến (VariablesJson trống) thì hệ thống không nhận là câu
+-- nối đuôi và báo biến chưa khai. Điền bộ biến mốc: @lastTime theo thời gian (Toàn bộ), @lastKey theo key; thêm @pageSize = 100
+-- khi câu dùng TOP (@pageSize). Không đổi câu SQL. Dòng đã có bộ biến (kể cả rỗng) giữ nguyên; câu gộp nhiều nhóm mốc
+-- (@lastKey_<nhóm>) bỏ qua vì bộ biến theo nhóm phải khai trên giao diện.
+PRINT N'-> 1b. Điền bộ biến cho câu mẫu chung nối đuôi còn trống...';
+
+DECLARE @VarsCursor NVARCHAR(MAX) = N'[{"Code":"lastTime","Name":null,"DataType":"DateTime","ValueKind":"Builtin","Value":"lastTime","DefaultValue":null,"Remark":null,"OrderNo":1},{"Code":"lastKey","Name":null,"DataType":"String","ValueKind":"Builtin","Value":"lastKey","DefaultValue":"","Remark":null,"OrderNo":2}]';
+DECLARE @VarsCursorPage NVARCHAR(MAX) = N'[{"Code":"pageSize","Name":null,"DataType":"Int","ValueKind":"Const","Value":"100","DefaultValue":null,"Remark":null,"OrderNo":1},{"Code":"lastTime","Name":null,"DataType":"DateTime","ValueKind":"Builtin","Value":"lastTime","DefaultValue":null,"Remark":null,"OrderNo":2},{"Code":"lastKey","Name":null,"DataType":"String","ValueKind":"Builtin","Value":"lastKey","DefaultValue":"","Remark":null,"OrderNo":3}]';
+DECLARE @FilledVars INT = 0;
+
+UPDATE s
+SET s.[VariablesJson] = CASE WHEN s.[ExtractSql] LIKE N'%@pageSize%' THEN @VarsCursorPage ELSE @VarsCursor END,
+    s.[UpdateTime] = GETDATE()
+FROM [dbo].[ShareDataSql] s
+JOIN [dbo].[ShareDataPacket] p ON p.[ID] = s.[PacketId]
+WHERE (p.[Code] LIKE '10[1-9]' OR p.[Code] LIKE '11[01]' OR p.[Code] LIKE '10[1-9][_]%' OR p.[Code] LIKE '11[01][_]%')
+  AND p.[IsDelete] IS NULL
+  AND s.[PartnerId] IS NULL
+  AND s.[IsDelete] IS NULL
+  AND s.[VariablesJson] IS NULL
+  AND s.[ExtractSql] LIKE N'%@lastTime%'
+  AND s.[ExtractSql] LIKE N'%@lastKey%'
+  AND s.[ExtractSql] NOT LIKE N'%@lastKey[_]%';
+SET @FilledVars = @@ROWCOUNT;
+PRINT N'   -> Đã điền bộ biến cho ' + CAST(@FilledVars AS NVARCHAR(10)) + N' câu mẫu chung.';
 GO
 
 -- -----------------------------------------------------------------------------------------

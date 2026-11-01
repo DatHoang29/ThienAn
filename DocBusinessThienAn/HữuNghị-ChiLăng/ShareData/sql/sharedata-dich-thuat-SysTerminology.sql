@@ -18,7 +18,7 @@ GO
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 30/10/2026 (thêm khóa nhóm mốc, kiểm điều kiện WHERE nối đuôi, ESH-2306/2307 đăng ký đang bật; mọi câu ≤ 256 ký tự theo cột Value, @ viết {'@'})
+-- CẬP NHẬT LẦN CUỐI: 01/11/2026 (ESH-2306 thêm đặt mốc); 30/10/2026 (thêm khóa nhóm mốc, kiểm điều kiện WHERE nối đuôi, ESH-2306/2307 đăng ký đang bật; mọi câu ≤ 256 ký tự theo cột Value, @ viết {'@'})
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -244,8 +244,8 @@ VALUES
      N'Packet [{0}] has no extract SQL configured.'),
 
     (N'lz.exception', N'sharedata.packetSqlInUse',
-     N'Gói tin [{0}] đang có đăng ký bật sử dụng ({1}), vui lòng tắt đăng ký trước khi sửa cấu hình SQL hoặc đặt lại mốc gửi.',
-     N'Packet [{0}] is used by enabled subscriptions ({1}). Turn off the subscriptions before editing the SQL configuration or resetting the send cursor.'),
+     N'Gói tin [{0}] đang có đăng ký bật sử dụng ({1}), vui lòng tắt đăng ký trước khi sửa cấu hình SQL, đặt mốc hoặc đặt lại mốc gửi.',
+     N'Packet [{0}] is used by enabled subscriptions ({1}). Turn off the subscriptions before editing the SQL configuration, or setting or resetting the send cursor.'),
 
     (N'lz.exception', N'sharedata.packetDisableInUse',
      N'Gói tin [{0}] đang có đăng ký bật sử dụng ({1}), vui lòng tắt đăng ký trước khi tắt gói tin.',
@@ -284,8 +284,8 @@ VALUES
      N'The partner already has a subscription for this packet.'),
 
     (N'lz.exception', N'sharedata.inboundPacketDuplicated',
-     N'Gói tin nhận về [{0}] đã tồn tại ở đăng ký khác.',
-     N'Inbound packet [{0}] already exists in another subscription.'),
+     N'Gói tin từ đối tác [{0}], loại [{1}], số thứ tự [{2}] đã tồn tại trong hệ thống.',
+     N'Inbound packet from partner [{0}], packet [{1}], serial number [{2}] already exists.'),
 
     (N'lz.exception', N'sharedata.subscriptionFinished',
      N'Đăng ký đã kết thúc, không thể sửa.',
@@ -810,6 +810,30 @@ WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlTableNotAllowed' AND Lan
 
 UPDATE dbo.SysTerminology SET Value = N'Table {0} is not in the allowed sharing source tables. Please contact your administrator to add it.', UpdateTime = GETDATE()
 WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlTableNotAllowed' AND Lang = N'en-US' AND Value LIKE N'%ShareDataSourceTable%';
+
+UPDATE dbo.SysTerminology
+SET Value = N'Gói tin từ đối tác [{0}], loại [{1}], số thứ tự [{2}] đã tồn tại trong hệ thống.',
+    UpdateTime = GETDATE()
+WHERE Name = N'lz.exception' AND Code = N'sharedata.inboundPacketDuplicated' AND Lang = N'vi-VN'
+  AND Value = N'Gói tin nhận về [{0}] đã tồn tại ở đăng ký khác.';
+
+UPDATE dbo.SysTerminology
+SET Value = N'Inbound packet from partner [{0}], packet [{1}], serial number [{2}] already exists.',
+    UpdateTime = GETDATE()
+WHERE Name = N'lz.exception' AND Code = N'sharedata.inboundPacketDuplicated' AND Lang = N'en-US'
+  AND Value = N'Inbound packet [{0}] already exists in another subscription.';
+
+UPDATE dbo.SysTerminology
+SET Value = N'Gói tin [{0}] đang có đăng ký bật sử dụng ({1}), vui lòng tắt đăng ký trước khi sửa cấu hình SQL, đặt mốc hoặc đặt lại mốc gửi.',
+    UpdateTime = GETDATE()
+WHERE Name = N'lz.exception' AND Code = N'sharedata.packetSqlInUse' AND Lang = N'vi-VN'
+  AND Value = N'Gói tin [{0}] đang có đăng ký bật sử dụng ({1}), vui lòng tắt đăng ký trước khi sửa cấu hình SQL hoặc đặt lại mốc gửi.';
+
+UPDATE dbo.SysTerminology
+SET Value = N'Packet [{0}] is used by enabled subscriptions ({1}). Turn off the subscriptions before editing the SQL configuration, or setting or resetting the send cursor.',
+    UpdateTime = GETDATE()
+WHERE Name = N'lz.exception' AND Code = N'sharedata.packetSqlInUse' AND Lang = N'en-US'
+  AND Value = N'Packet [{0}] is used by enabled subscriptions ({1}). Turn off the subscriptions before editing the SQL configuration or resetting the send cursor.';
 
 -- 3.1. Xử lý bản dịch Tiếng Việt (vi-VN)
 MERGE INTO dbo.SysTerminology AS target
