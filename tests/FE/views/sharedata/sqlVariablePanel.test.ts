@@ -96,12 +96,12 @@ test.describe('ShareData — Bảng tham số câu truy vấn (sqlVariablePanel)
 		expect(style).toContain('&.is-pass {\n\t\t\tcolor: var(--el-color-success);');
 		expect(style).toContain('&.is-fail,\n\t\t&.is-warn {\n\t\t\tcolor: var(--el-color-danger);');
 
-		// 5. Nằm trên cùng hàng header (3. Tham số điều kiện [count] | Quy chuẩn mốc), cách nhau bởi dấu gạch |
+		// 5. Nằm trên header mục 4 (Mốc gửi | Quy chuẩn mốc), cách nhau bởi dấu gạch |
 		expect(template).toContain('<span class="svp-header-sep">|</span>');
-		const headerLeft = template.match(/<div class="svp-header-left">([\s\S]*?)<\/div>\s*<\/div>/)?.[1] ?? '';
-		expect(headerLeft).toContain('class="svp-title"');
-		expect(headerLeft).toContain('class="svp-badge-count"');
-		expect(headerLeft).toContain('class="svp-header-sep"');
-		expect(headerLeft).toContain('class="svp-checks"');
+		const cursorHeaderLeft = template.match(/<div v-if="showCursorSection" class="svp-card svp-cursor-section">[\s\S]*?<div class="svp-header-left">([\s\S]*?)<\/div>\s*<\/div>/)?.[1] ?? '';
+		expect(cursorHeaderLeft).toContain('class="svp-title"');
+		expect(cursorHeaderLeft).toContain('class="svp-cursor-help"');
+		expect(cursorHeaderLeft).toContain('class="svp-header-sep"');
+		expect(cursorHeaderLeft).toContain('class="svp-checks"');
 	});
 });

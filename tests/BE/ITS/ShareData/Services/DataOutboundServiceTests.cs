@@ -4185,7 +4185,8 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 logger,
                 scope.ServiceProvider.GetRequiredService<DataOutboundExtractionProcess>(),
                 new DataOutboundTransport(dispatcher, config),
-                workerConfig ?? scope.ServiceProvider.GetRequiredService<DataWorkerConfigService>());
+                workerConfig ?? scope.ServiceProvider.GetRequiredService<DataWorkerConfigService>(),
+                config);
         }
 
         /// <summary>
@@ -5886,6 +5887,109 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
                 var logs = await GetLogs(db, subs[i].ID);
                 var parent = logs.Single(l => l.ParentId == null);
                 Assert.Equal(BaseEnums.SuccessEnums.Success, parent.Success);
+            }
+        }
+
+        /// <summary>
+        /// Description: SV-4 · SV-5 · Khi khai báo ShareData:SelfPartnerCode = A102 trên 4 đăng ký đến hạn (A101..A104),
+        ///              cả hai luồng ProcessSubscriptions (quét theo lịch và SendOnNewData) chỉ gửi đúng đăng ký của A102,
+        ///              3 đăng ký còn lại giữ nguyên NextTimeRun; khi không khai báo thì xử lý đủ cả 4 đối tác.
+        /// Created date: 02/11/2026
+        /// </summary>
+        [Theory]
+        [Trait("Feature", "SV-4")]
+        [Trait("Feature", "SV-5")]
+        [InlineData("A102", false, 1)]
+        [InlineData("  A102  ", true, 1)]
+        [InlineData(null, false, 4)]
+        [InlineData("", true, 4)]
+        public async Task ProcessSubscriptions_WhenSelfPartnerCodeConfigured_SendsOnlyMatchingPartnerAndPreservesOthersNextTimeRun_Test(
+            string? selfPartnerPrefix,
+            bool triggerByEvent,
+            int expectedSentCount)
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var partnerServer = _host.PartnerServer;
+            partnerServer.ResetDefaults();
+
+            await PacketMetadataCatalogTest.SeedPacketToDb(db, "101");
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            await SeedTestDataForPacket(db, ShareDataEnum.DatatypeIdEnum.TrafficFlow, unique);
+
+            var dueTime = new DateTime(2026, 1, 1, 8, 0, 0);
+            var prefixes = new[] { "A101", "A102", "A103", "A104" };
+            var subsByPrefix = new Dictionary<string, ShareDataSubscription>();
+            foreach (var prefix in prefixes)
+            {
+                var (_, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+                {
+                    PartnerCode = $"{prefix}_{unique}",
+                    SubCode = $"SUB_{prefix}_{unique}",
+                    DatatypeId = "101",
+                    ConfigureSub = s =>
+                    {
+                        s.NextTimeRun = dueTime;
+                        s.SendOnNewData = true;
+                    }
+                });
+                subsByPrefix[prefix] = sub;
+            }
+
+            var inMemory = new Dictionary<string, string?>();
+            if (selfPartnerPrefix != null)
+            {
+                var trimmed = selfPartnerPrefix.Trim();
+                inMemory["ShareData:SelfPartnerCode"] = string.IsNullOrEmpty(trimmed)
+                    ? selfPartnerPrefix
+                    : selfPartnerPrefix.Replace(trimmed, $"{trimmed}_{unique}", StringComparison.Ordinal);
+            }
+
+            var workerConfig = new ConfigurationBuilder()
+                .AddInMemoryCollection(inMemory)
+                .Build();
+            var worker = CreateWorker(scope, configuration: workerConfig);
+
+            // Act
+            if (triggerByEvent)
+            {
+                await worker.ProcessSubscriptions("101", CancellationToken.None);
+            }
+            else
+            {
+                await worker.ProcessSubscriptions(CancellationToken.None);
+            }
+
+            // Assert
+            Assert.Equal(expectedSentCount, partnerServer.TotalReceivedRequests);
+
+            if (expectedSentCount == 1)
+            {
+                var expectedCode = $"A102_{unique}";
+                Assert.Equal(expectedCode, partnerServer.LastRequest!.Headers["PartnerCode"]);
+
+                var sentSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(subsByPrefix["A102"].ID);
+                Assert.True(sentSub.NextTimeRun > dueTime, "Đăng ký của A102 sau khi gửi phải được hẹn NextTimeRun mới");
+
+                foreach (var untouchedPrefix in new[] { "A101", "A103", "A104" })
+                {
+                    var untouchedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(subsByPrefix[untouchedPrefix].ID);
+                    Assert.Equal(dueTime, untouchedSub.NextTimeRun);
+                    Assert.Empty(await GetLogs(db, untouchedSub.ID));
+                }
+            }
+            else
+            {
+                var receivedPartnerCodes = partnerServer.ReceivedRequests
+                    .Select(r => r.Headers["PartnerCode"])
+                    .ToHashSet(StringComparer.Ordinal);
+                foreach (var prefix in prefixes)
+                {
+                    Assert.Contains($"{prefix}_{unique}", receivedPartnerCodes);
+                    var reloadedSub = await db.Queryable<ShareDataSubscription>().InSingleAsync(subsByPrefix[prefix].ID);
+                    Assert.True(reloadedSub.NextTimeRun > dueTime);
+                }
             }
         }
 

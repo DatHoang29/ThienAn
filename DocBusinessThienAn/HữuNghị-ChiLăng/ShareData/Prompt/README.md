@@ -19,6 +19,12 @@ Tài liệu sống nằm ở [`../Plan/`](../Plan/), không đặt trong thư m�
 
 ## Danh sách Prompt
 
+### 🟠 Đợt 02/11/2026 — Chạy nhiều Worker để kiểm thử gửi nhận
+
+| # | Prompt | Task | Phạm vi & Trạng thái |
+|---|---|---|---|
+| 1 | [`sharedata-clone-worker-vai-tro-gui-nhan-be-prompt.md`](sharedata-clone-worker-vai-tro-gui-nhan-be-prompt.md) | `SV-4`, `SV-5`, `SV-6` | ✅ **Đã thực thi (02/11/2026).** BE Worker: `ShareDataWorkerExtensions.AddWorkerInfrastructure` đọc cờ `ShareData:Role` không phân biệt hoa thường (`Both`/rỗng/không khai đăng ký đủ 5 worker, `SendOnly` đăng ký 4 worker gửi + dọn dẹp, `ReceiveOnly` đăng ký `DataInboundWorker` + `DataCleanupWorker`, giá trị khác ném `InvalidOperationException`; `HeartbeatPublisher` đăng ký ở mọi vai trò); `DataOutboundService` nhận `IConfiguration? configuration = null` và lọc `ShareData:SelfPartnerCode` trong `SqlFunc.Subqueryable<ShareDataPartner>()` ở cả hai hàm `ProcessSubscriptions`. Bổ sung `[Theory]` tại `WorkerExtensionsTests` và `DataOutboundServiceTests` theo TDD (đỏ 9/16 → xanh 16/16; toàn bộ ShareData BE: 551 passed, 0 failed, 4 skipped). Cập nhật `Sharedata_MasterPlan.md` (`SV-4`, `SV-5` kèm hướng dẫn 5 tiến trình thật, `SV-6`, sửa `SV-13 mở rộng` thành Chưa làm). |
+
 ### 🟣 Đợt 29/10/2026 — Bảng tham số dễ hiểu & đính chính transcript 28/10
 
 | # | Prompt | Task | Phạm vi & Trạng thái |

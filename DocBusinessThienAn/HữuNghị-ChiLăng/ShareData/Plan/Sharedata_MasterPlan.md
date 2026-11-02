@@ -81,17 +81,18 @@
 
 > 📌 Cả nhóm này phụ thuộc luồng 1-1 chạy ổn trước. Đó là **lý do chưa làm**, không phải một trạng thái riêng — rule 19.15 chỉ có *đã làm* hoặc *chưa làm*.
 
-- [x] **SV-4** Bảo vệ dữ liệu khi chạy Multi-Worker & Khóa phân tán CSDL (`[Trait("Feature", "SV-4")]`) ✅ **xong 12/10/2026**
-  - Đã phủ 100% bằng bộ test tích hợp toàn trình: Test 4 worker cạnh tranh xử lý 1 subscription đồng thời (`Task.WhenAll`), cơ chế `ProcessingUntil` nguyên tử đảm bảo chỉ 1 worker xử lý, 0 duplicate sends. Khởi động worker luôn đăng ký đủ 4 hosted services vận hành 2 chiều theo thiết kế Production.
-- [x] **SV-5** Kịch bản test đa đối tác (`[Trait("Feature", "SV-5")]`) ✅ **xong 12/10/2026**
-  - Đã phủ 100% bằng bài test đặc tả `ProcessSubscriptions_FourCloneNodes_SendWithDistinctPartnerCodes_SV5_Test`: 4 node clone (A101..A104) cùng gửi về một Receiver, mỗi node gửi kèm header `PartnerCode` định danh chính mình, dữ liệu hoàn toàn độc lập, PASS 100%.
-- [ ] **SV-6** Đo tải & rủi ro nghẽn CSDL — phụ thuộc luồng 1-1 chạy ổn
+- [x] **SV-4** Bảo vệ dữ liệu khi chạy Multi-Worker, cờ vai trò `ShareData:Role` / `ShareData:SelfPartnerCode` & Khóa phân tán CSDL (`[Trait("Feature", "SV-4")]`) ✅ **xong 12/10/2026, bổ sung cờ vai trò 02/11/2026**
+  - Khởi động mặc định (không khai / rỗng / `Both`) đăng ký đủ 5 worker vận hành 2 chiều + `HeartbeatPublisher`; hỗ trợ tách vai `SendOnly` (4 worker gửi + dọn dẹp), `ReceiveOnly` (`DataInboundWorker` + `DataCleanupWorker`) và ném lỗi lúc khởi động nếu khai sai vai trò; hỗ trợ `ShareData:SelfPartnerCode` để mỗi con gửi chỉ lấy đăng ký của đúng mã đối tác trong cả hai hàm `ProcessSubscriptions`.
+  - Đã phủ bằng bộ test tích hợp: `WorkerExtensionsTests` và `DataOutboundServiceTests` (4 worker cạnh tranh xử lý 1 subscription đồng thời qua `ProcessingUntil`, chỉ 1 worker gửi, 0 duplicate sends; lọc đúng đối tác theo `ShareData:SelfPartnerCode`).
+- [x] **SV-5** Kịch bản test đa đối tác (`[Trait("Feature", "SV-5")]`) ✅ **test tự động xong 12/10/2026, bổ sung lọc `SelfPartnerCode` & hướng dẫn 5 tiến trình 02/11/2026**
+  - Các bài test tự động hiện có (`ProcessSubscriptions_FourCloneNodes_SendWithDistinctPartnerCodes_SV5_Test`, `ProcessSubscriptions_WhenSelfPartnerCodeConfigured_SendsOnlyMatchingPartnerAndPreservesOthersNextTimeRun_Test` tại `DataOutboundServiceTests.cs`) chạy trong **một tiến trình** với **máy nhận HTTP giả lập** (`ShareDataPartnerServerMock`). Hướng dẫn dựng 5 tiến trình thật (`4 SendOnly + 1 ReceiveOnly`) xem mục chi tiết SV-5 bên dưới; chưa chạy thực tế 5 Windows Service trên máy chủ staging.
+- [ ] **SV-6** Đo tải & rủi ro nghẽn CSDL — thực hiện cùng lúc khi chạy thử 5 tiến trình thật ở SV-5 trên máy `10.10.8.30` (chọn giờ ít người dùng)
 - [ ] **SV-9** Xác thực đối tác bằng key / token *(chiều nhận)* — ⏸️ *Tạm hoãn / Backlog tương lai (transcript 14/10/2026 không yêu cầu; đã gỡ bỏ mã ngày 16/10/2026 để chiều nhận chạy happy case)*
 - [x] **SV-13** Nâng mốc giữ lại nhật ký hạ tầng Change Tracking lên **14 ngày** và đổi tên `PurgeTrackingLogsAsync` → `CleanupTrackingLogs` ✅ **xong 02/10/2026**. 🧑‍💻 Đạt
   - 📌 Chốt 02/10/2026: **giữ nguyên cơ chế cũ** — chỉ xoá dòng `Remark LIKE 'ESH-16%'`, vẫn gọi 1 lần mỗi lần worker khởi động trong `TryInitChangeTracking`. ⛔ **Không** thêm worker mới.
   - Đổi tên bỏ hậu tố `Async` (rule 7 — kiểu trả về `Task` đã nói rõ) và bỏ chữ `Purge` (từ nghề, đọc tên ⛔ không ra việc). Đúng **3 chỗ**: định nghĩa · `DataChangeTrackingService.cs:302` · bài test. Giá trị mặc định `retentionDays` đổi `7` → `14`; bài test giữ `retentionDays: 7` **tường minh** vì nó kiểm bộ lọc `ESH-16%`, ⛔ không kiểm chính sách số ngày.
-  - ✅ **Dọn dòng NGHIỆP VỤ của `ShareDataActivityLog` và `ShareDataAlertLog` (SV-13 mở rộng)**: Đã chốt thi công 05/10/2026 bằng Job Hangfire trong `TAC_WebAPI` (`sharedata-log-retention-scan`, 03:30 hằng ngày), giữ tối đa 7 ngày, dọn Transfer cha–con theo lô 1000 dòng, không thêm worker mới.
-    - **Hiện trạng**: Đã hoàn thành 100% (Job Hangfire `sharedata-log-retention-scan` chạy 03:30 hằng ngày).
+  - ⚠️ **Dọn dòng NGHIỆP VỤ của `ShareDataActivityLog` và `ShareDataAlertLog` (SV-13 mở rộng)**: Từng ghi nhận phương án dùng Job Hangfire trong `TAC_WebAPI` (`sharedata-log-retention-scan`, 03:30 hằng ngày, giữ tối đa 7 ngày, dọn Transfer cha–con theo lô 1000 dòng), nhưng job này không có trong mã nguồn và lịch sử Git của `TAC_WebAPI`.
+    - **Hiện trạng**: **Chưa làm**.
 - [ ] **SV-14** **Hàm tổng hợp `SUM` · `AVG` · `COUNT` · `MIN` · `MAX` trong Ánh xạ dữ liệu** — ⏸️ *Tạm thời bỏ qua, chưa triển khai giai đoạn này (chốt 13/10/2026)*.
   - **Hiện trạng**: `DataMappingProcess.SupportedFunctions` (`DataMappingProcess.Expression.cs:20`) hiện có 11 hàm vô hướng (`CONCAT`, `ISNULL`, `COALESCE`, `NULLIF`, `UPPER`, `LOWER`, `LEN`, `LTRIM`, `RTRIM`, `ROUND`, `ABS`); chưa làm hàm tổng hợp.
 
@@ -172,19 +173,48 @@
 
 ## I.A · DÙNG CHUNG CẢ HAI CHIỀU — 🤝 Đạt + Hiếu
 
-### SV-4. Cấu hình vai trò instance & Khóa phân tán CSDL 🔑 ✅ *xong 12/10/2026*
-- Production chạy 1 service duy nhất 2 chiều (đầy đủ 4 background workers).
-- Hệ thống đã có sẵn cơ chế khoá phân tán CSDL qua `ProcessingUntil` ở Outbound và `claimedAt` ở Inbound: đảm bảo an toàn tuyệt đối khi chạy nhiều instance song song mà không cần can thiệp mã nguồn Production.
-- Đã có bộ test đặc tả khóa hành vi `[Trait("Feature", "SV-4")]`: `ShareDataWorkerRoleTests` (đăng ký đủ 4 workers) và `DataOutboundServiceTests.SelfIdentity` (chứng minh 4 worker cạnh tranh xử lý 1 subscription thì chỉ 1 worker gửi, 0 duplicate sends) — PASS 100%.
+### SV-4. Cấu hình vai trò instance & Khóa phân tán CSDL 🔑 ✅ *xong 12/10/2026, bổ sung cờ vai trò 02/11/2026*
+- Production mặc định chạy 1 service 2 chiều: khi không khai báo `ShareData:Role`, để rỗng hoặc đặt `Both` (không phân biệt hoa thường), `AddWorkerInfrastructure` (`ShareDataWorkerExtensions.cs`) đăng ký đầy đủ **5 worker** (`DataOutboundWorker`, `DataInboundWorker`, `DataChangeTrackingWorker`, `DataCleanupWorker`, `DataNatsWorker`) cùng `HeartbeatPublisher`.
+- Hỗ trợ tách vai trò khi clone nhiều tiến trình dùng chung CSDL (02/11/2026):
+  - `ShareData:Role = SendOnly`: đăng ký `DataOutboundWorker`, `DataChangeTrackingWorker`, `DataNatsWorker`, `DataCleanupWorker` và `HeartbeatPublisher` (không đăng ký `DataInboundWorker`).
+  - `ShareData:Role = ReceiveOnly`: đăng ký `DataInboundWorker`, `DataCleanupWorker` và `HeartbeatPublisher`.
+  - Giá trị khác ba giá trị trên: ném `InvalidOperationException` ngay lúc khởi động để ngăn chạy nhầm thành `Both` làm nhiều tiến trình cùng nhận gói tin.
+  - `ShareData:SelfPartnerCode`: khi khai báo mã đối tác, cả hai hàm `ProcessSubscriptions` trong `DataOutboundService` chỉ lấy đăng ký của đối tác có `Code` khớp mã này (thêm điều kiện vào `SqlFunc.Subqueryable<ShareDataPartner>()`). Khi không khai báo thì xử lý mọi đối tác như mặc định.
+- Cơ chế khóa trên CSDL: ở chiều gửi (Outbound) khóa đăng ký qua cột `ProcessingUntil`; ở chiều nhận (Inbound, `ProcessGroupAsync` trong `DataInboundService`) khóa từng gói bằng cách chuyển `ProcessState` từ `Pending` sang `Processing` (không xử lý trùng, nhưng nhiều con nhận có thể ghi gói số 2 trước gói số 1 làm lệch thứ tự `SerialNbr`, do đó kịch bản đa tiến trình chỉ bật 1 con `ReceiveOnly`).
+- Bộ test khóa hành vi `[Trait("Feature", "SV-4")]`:
+  - `WorkerExtensionsTests` (`tests/BE/ITS/ShareData/Configuration/WorkerExtensionsTests.cs`): `AddWorkerInfrastructure_WhenValidRoleConfigured_RegistersExpectedWorkers_Test`, `AddWorkerInfrastructure_WhenRoleInvalid_ThrowsInvalidOperationException_Test`.
+  - `DataOutboundServiceTests` (`tests/BE/ITS/ShareData/Services/DataOutboundServiceTests.cs`): `ProcessSubscriptions_WhenPartnerCodeIsPresent_SendsPartnerCodeHeader_Test`, `ProcessSubscriptions_MultiWorkerConcurrency_FourWorkersCompeteForSameSubscription_OnlyOneProcesses_Test`, `ProcessSubscriptions_WhenSelfPartnerCodeConfigured_SendsOnlyMatchingPartnerAndPreservesOthersNextTimeRun_Test`.
 
-### SV-5. Kịch bản test đa đối tác ✅ *xong 12/10/2026*
-- 4 trạm đối tác A101–A104 cùng gửi về một Receiver chung trên 1 CSDL.
-- Tiêu chí đạt: Bên nhận phân biệt chính xác từng đối tác qua HTTP Header `PartnerCode`, dữ liệu ghi đủ và độc lập, không lẫn lộn giữa các trạm.
-- Kịch bản được phủ 100% bởi bài test đặc tả `ProcessSubscriptions_FourCloneNodes_SendWithDistinctPartnerCodes_SV5_Test` (`[Trait("Feature", "SV-5")]`) tại `DataOutboundServiceTests.SelfIdentity.cs` (PASS 100%).
+### SV-5. Kịch bản test đa đối tác ✅ *test tự động xong 12/10/2026, bổ sung hướng dẫn 5 tiến trình 02/11/2026*
+- **Phạm vi test tự động hiện có:** Các bài test `ProcessSubscriptions_FourCloneNodes_SendWithDistinctPartnerCodes_SV5_Test` và `ProcessSubscriptions_WhenSelfPartnerCodeConfigured_SendsOnlyMatchingPartnerAndPreservesOthersNextTimeRun_Test` (`[Trait("Feature", "SV-5")]` trong `DataOutboundServiceTests.cs`) chạy **trong một tiến trình** với **máy nhận HTTP giả lập** (`ShareDataPartnerServerMock`), kiểm chứng 4 mã đối tác (`A101..A104`) gửi đúng header `PartnerCode` và con khai `SelfPartnerCode = A102` chỉ gửi đúng đăng ký của `A102` (3 đăng ký còn lại giữ nguyên `NextTimeRun`).
+- **Hướng dẫn chạy thử 5 tiến trình thật (4 con chỉ gửi + 1 con chỉ nhận dùng chung CSDL, theo cuộc họp 16/09/2026):**
+  1. Publish `ShareDataWorker` rồi chép thành 5 thư mục riêng.
+  2. Sửa `appsettings.json` từng thư mục:
+
+     | Con | `ShareData:Role` | `ShareData:SelfPartnerCode` | `Nats:ClientName` |
+     |:--|:--|:--|:--|
+     | 1 đến 4 | `SendOnly` | `A101` đến `A104` | `ITS_SHAREDATA_A101` đến `ITS_SHAREDATA_A104` |
+     | 5 | `ReceiveOnly` | Không khai | `ITS_SHAREDATA_RECEIVER` |
+
+     Cả 5 con đặt chung `ConnectionStrings` và **cùng một đường dẫn tuyệt đối** cho `NasStorage:BasePath` (nếu để đường dẫn tương đối, tệp bằng chứng sẽ nằm rải ở từng thư mục chạy).
+
+     Con nhận bắt buộc có `ConnectionStrings:InboundConnection`, thiếu thì `DataInboundWorker` chỉ ghi cảnh báo và không chạy. WebAPI và con nhận phải trỏ **cùng một CSDL nhận**: WebAPI lưu `ShareDataInboundPacket` theo kết nối tenant `ShareData`, con nhận đọc theo `InboundConnection`, lệch nhau thì con nhận không thấy gói và gói nằm mãi ở `Pending`.
+  3. Cài Windows Service tên khác nhau bằng `sc create` (ví dụ `ShareDataWorker-A101`). Lưu ý: `Program.cs` đang đặt cứng `ServiceName = "ShareDataWorker"`; theo tài liệu Windows, service chạy tiến trình riêng thì tên này được bỏ qua, nhưng **chưa thử thực tế**, nên cài thử một con trước khi cài đủ 5 con.
+  4. Trên giao diện tạo đối tác `A101` đến `A104`, trỏ địa chỉ về WebAPI, endpoint `api/sharedata/sharedatainbound/receive`. Mỗi đối tác khai đăng ký gửi các gói khác nhau (ví dụ `A101` gói 101, 102, 103; `A102` gói 101, 105, 106), đồng thời khai đăng ký nhận, ánh xạ chiều nhận và câu ghi cho các gói đó.
+     - **Kết nối cả 4 đối tác và bật các đăng ký.** Worker chỉ lấy đối tác đang bật, `SessionState = Connected` và đăng ký `Active`; thiếu một điều kiện thì không gửi và chỉ ghi log "Không có Subscription nào đến hạn".
+     - `A101` và `A102` cùng gửi gói 101 từ cùng dữ liệu nguồn, nên bảng đích và khóa của câu ghi phải có mã đối tác (dùng `@partnerCode`). Nếu không, các đối tác ghi đè nhau và không kiểm được tiêu chí "không lẫn nhau" ở bước 5.
+  5. **Tiêu chí đạt:**
+     - `ShareDataInboundPacket` có gói của đủ 4 mã đối tác, tất cả chuyển sang `Done`.
+     - Dữ liệu 4 đối tác được ghi đủ, không lẫn nhau.
+     - `ShareDataAlertLog` không phát sinh mã `ESH-15xx` mới.
+  6. Đo CPU, RAM, khóa của CSDL trong lúc chạy và ghi vào mục **SV-6** (máy `10.10.8.30` dùng chung nên chọn giờ ít người dùng).
+  - ⚠️ **Lưu ý giám sát:** Tất cả các con gửi cùng phát heartbeat lên một subject `ta.its.heartbeat.sharedata`, nên màn hình giám sát không phân biệt được riêng từng con nào còn sống.
+- **Kết quả chạy 5 tiến trình thật:** Chưa chạy thực tế trên máy chủ Windows / CSDL dùng chung `10.10.8.30` trong đợt sửa mã ngày 02/11/2026 (môi trường phát triển macOS chỉ chạy bộ kiểm thử xUnit trên SQL Server local). Sẽ bổ sung kết quả sau khi dựng 5 service theo hướng dẫn trên.
 
 ### SV-6. Đo tải & rủi ro nghẽn CSDL
-- Đo CPU / RAM / lock / contention trên `DEV_ITS10` khi nhiều instance cùng query gói 101.
+- Đo CPU / RAM / lock / contention trên `DEV_ITS10` (`10.10.8.30`, chọn khung giờ ít người dùng) trong lúc chạy kịch bản 5 tiến trình ở mục **SV-5** (4 con `SendOnly` + 1 con `ReceiveOnly`).
 - Nếu ảnh hưởng DB chính: tách CSDL phụ chuyên nhận `DEV_ITS10_Inbound` (`ShareDataWorkerExtensions.InboundConnectionKey`).
+- **Số đo thực tế:** Chưa có số đo (chờ đợt chạy thử 5 tiến trình thật của mục SV-5 trên `10.10.8.30`).
 
 ### SV-9. Xác thực đối tác bằng key / token (Chiều nhận) — ⏸️ Backlog tương lai
 - Transcript 14/10/2026 không yêu cầu xác thực chiều nhận; đã gỡ bỏ mã `InboundAuthenticator` ngày 16/10/2026 để chiều nhận chạy happy case như trước (tiếp nhận theo định danh `PartnerCode`, `PacketCode`, `SerialNbr`, không kiểm tra header xác thực, không trả HTTP 401).
