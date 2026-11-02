@@ -1038,7 +1038,7 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
 
 
     for (const c of [
-        { name: '40. Khối 2 đã thu gọn từ trước nhưng gói chưa có trường nào: vẫn mở bảng, hiện tiêu đề cột và lời nhắc trống', fields: [] as typeof SAVED_FIELDS, expectOpen: true },
+        { name: '40. Khối 2 đã thu gọn từ trước và gói chưa có trường nào: giữ thu gọn như người dùng chọn', fields: [] as typeof SAVED_FIELDS, expectOpen: false },
         { name: '40b. Khối 2 đã thu gọn từ trước và gói có trường: giữ thu gọn như người dùng chọn', fields: SAVED_FIELDS, expectOpen: false },
     ]) {
         test(c.name, async ({ page }) => {
@@ -1071,41 +1071,26 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
     }
 
 
-    test('40c. Khối 2 đã thu gọn từ trước, gói chưa có trường: bấm Lưu & phân tích sinh ra trường thì bảng vẫn mở, không tự đóng', async ({ page }) => {
-        await page.addInitScript(() => {
-            const getItem = Storage.prototype.getItem;
-            Storage.prototype.getItem = function (key: string) {
-                if (key.endsWith('sharedataDataSource:fieldsCollapsed') && !sessionStorage.getItem('fc-seeded')) {
-                    sessionStorage.setItem('fc-seeded', '1');
-                    return 'true';
-                }
-                return getItem.call(this, key);
-            };
-        });
+    test('40c. Khối 2 thu gọn: bấm nút thu gọn/mở rộng chuyển đổi trạng thái đóng mở bình thường kể cả khi chưa có trường', async ({ page }) => {
         await page.route('**/api/sharedata/sharedatapacket/getextractsql*', (r) =>
             r.fulfill(json({ code: 200, result: { extractSql: SQL_ONE_COLUMN, status: 1, fields: [] } }))
-        );
-        await page.route('**/api/sharedata/sharedatapacket/describecolumns*', (r) =>
-            r.fulfill(json({ code: 200, result: { isValid: true, fields: SAVED_FIELDS, added: SAVED_FIELDS.map((x) => x.key), lost: [], typeChanged: [], affectedMappings: [] } }))
-        );
-        await page.route('**/api/sharedata/sharedatapacket/updateextractsql*', (r) =>
-            r.fulfill(json({ code: 200, result: { extractSql: SQL_ONE_COLUMN, status: 1, fields: SAVED_FIELDS } }))
         );
         await openSqlCenter(page);
 
         const fieldsSection = page.locator('.fields-section');
         const wrapper = fieldsSection.locator('.saved-fields-grid-wrapper');
+        const collapseBlockBtn = fieldsSection.locator('.fields-bar-actions .el-button').last();
         await expect(wrapper).toBeVisible({ timeout: 5000 });
 
-        // Gói có SQL nhưng chưa có trường: nút Lưu & phân tích mở sẵn
-        const save = page.locator('.sql-toolbar-bar .el-button--primary').last();
-        await expect(save).toBeEnabled({ timeout: 10_000 });
-        await save.click();
+        // Bấm thu gọn khi chưa có trường -> phải thu gọn được
+        await collapseBlockBtn.click();
+        await expect(wrapper).toBeHidden({ timeout: 5000 });
+        await expect(collapseBlockBtn).toHaveAttribute('aria-label', 'Mở rộng');
 
-        await expect(fieldsSection.locator('.fields-badge-count')).toHaveText(String(SAVED_FIELDS.length), { timeout: 10_000 });
-        await expect(wrapper).toBeVisible();
-        await expect(fieldsSection.locator('.vxe-body--row', { hasText: 'speed' })).toBeVisible();
-        await expect(fieldsSection.locator('.fields-bar-actions .el-button').last()).toHaveAttribute('aria-label', 'Thu gọn');
+        // Bấm mở rộng lại -> mở ra
+        await collapseBlockBtn.click();
+        await expect(wrapper).toBeVisible({ timeout: 5000 });
+        await expect(collapseBlockBtn).toHaveAttribute('aria-label', 'Thu gọn');
     });
 
 
