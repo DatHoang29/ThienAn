@@ -1930,6 +1930,15 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(resetBtn1).toBeVisible();
         await expect(resetBtn1).toBeEnabled();
 
+        // Mốc là mục 4 riêng, không nằm trong thẻ tham số; rê chuột vào icon cạnh tiêu đề thấy mốc là gì; đối tác chưa có mốc hiện rõ lần gửi tới lấy từ đâu
+        const cursorSection = page.locator('.svp-cursor-section');
+        await expect(cursorSection.locator('.svp-title')).toHaveText('4. Mốc gửi của từng đối tác');
+        await cursorSection.locator('.svp-cursor-help').hover();
+        await expect(page.locator('.el-popper:visible', { hasText: 'dòng dữ liệu cuối cùng đã gửi thành công' })).toBeVisible({ timeout: 5_000 });
+        await expect(cursorSection.locator('.svp-partner-cursor-drawer')).toBeVisible();
+        await expect(page.locator('.svp-params-card .svp-partner-cursor-drawer')).toHaveCount(0);
+        await expect(drawer.locator('tbody tr', { hasText: 'Chưa có mốc —' }).first()).toContainText('lần gửi tới lấy theo bảng tham số ở trên');
+
         // Row 2 chưa có mốc: nút Đặt lại bị disabled và hover hiển thị tooltip giải thích
         const actionCell2 = drawer.locator('.svp-action-cell').nth(1);
         await expect(actionCell2).toBeVisible();
@@ -2038,8 +2047,9 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
 
         // Dải Mốc đang chạy ở tab đối tác đang bật: nút bút cũng khóa
         await page.locator('.sql-partner-tabs .el-tabs__item').filter({ hasText: 'CSGT' }).first().click();
-        await expect(page.locator('.svp-progress .svp-set-cursor-btn')).toBeDisabled();
-        await expect(page.locator('.svp-progress .svp-reset-btn')).toBeDisabled();
+        await expect(page.locator('.svp-cursor-section .svp-title')).toHaveText('4. Mốc gửi');
+        await expect(page.locator('.svp-cursor-section .svp-progress .svp-set-cursor-btn')).toBeDisabled();
+        await expect(page.locator('.svp-cursor-section .svp-progress .svp-reset-btn')).toBeDisabled();
 
         expect(pageErrors).toEqual([]);
     });
