@@ -1170,35 +1170,6 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
     });
 
 
-    test('43. Lưu SQL nối đuôi có khóa __lastKey định dạng dễ sai thứ tự: lưu thành công nhưng hiện cảnh báo theo khóa máy chủ trả về', async ({ page }) => {
-        await page.route('**/api/sharedata/sharedatapacket/describecolumns*', (r) =>
-            r.fulfill(json({ code: 200, result: { isValid: true, fields: SAVED_FIELDS, added: [], lost: [], typeChanged: [], affectedMappings: [] } }))
-        );
-        await page.route('**/api/sharedata/sharedatapacket/updateextractsql*', (r) =>
-            r.fulfill(
-                json({
-                    code: 200,
-                    result: {
-                        extractSql: SQL_ONE_COLUMN,
-                        status: 1,
-                        fields: SAVED_FIELDS,
-                        warnings: ['lz.validation.sharedata.sqlLastKeyDateFormatUnsortable', 'lz.validation.sharedata.sqlLastKeyValueNotFixedWidth'],
-                    },
-                })
-            )
-        );
-        await openSqlCenter(page);
-        const save = page.locator('.sql-toolbar-bar .el-button--primary').last();
-        await page.locator('.sql-section .sql-raw-textarea-fallback textarea').fill(`${SQL_ONE_COLUMN}\n-- sửa`);
-        await expect(save).toBeEnabled({ timeout: 10_000 });
-        await save.click();
-
-        const notice = page.locator('.el-notification').filter({ hasText: 'Khóa nối đuôi [__lastKey]' });
-        await expect(notice).toBeVisible({ timeout: 10_000 });
-        await expect(notice).toContainText('năm-tháng-ngày');
-        await expect(notice).toContainText('đệm 0');
-    });
-
     /**
      * Description: Lưu câu SQL đổi công thức cột mốc khi đối tác đang có mốc nối đuôi: máy chủ chưa lưu, trả requiresConfirm kèm đối tác
      *              sẽ bị đặt lại mốc; màn hình hỏi xác nhận nêu tên đối tác, đồng ý thì gửi lại với force = true.

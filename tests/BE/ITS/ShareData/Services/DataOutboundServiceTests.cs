@@ -8127,6 +8127,217 @@ ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC";
         }
 
         /// <summary>
+        /// Description: Giới hạn đã biết của câu một cột dùng cột thời gian đơn làm khóa (UpdateTime AS __lastKey, UpdateTime > @lastKey):
+        ///              Worker lưu mốc bằng ToString() của giá trị thời gian nên mất mili giây và phụ thuộc ngôn ngữ máy, lượt gửi không đi tiếp được sau trang đầu.
+        ///              Dữ liệu: A (08:00), B và C trùng 09:00, D (10:00), trang 2 dòng: sau hai lượt D vẫn chưa tới đối tác.
+        ///              Ca này giữ nguyên theo phạm vi đã chốt (người dùng tự viết câu); sửa cách lưu mốc thì đổi lại test này.
+        /// Created date: 01/11/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessSubscriptions_WhenSingleTimeColumnAsKey_CursorLosesMillisecondsAndStopsAfterFirstPage_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var packetId = $"pkt-tkey-{unique}";
+            var packetCode = $"PKT_TKEY_{unique}";
+            var rowPrefix = $"ROW_TKEY_{unique}_";
+            var baseTime = new DateTime(2026, 10, 27, 8, 0, 0, 120);
+            var times = new Dictionary<string, DateTime>
+            {
+                ["A"] = baseTime,
+                ["B"] = baseTime.AddHours(1),
+                ["C"] = baseTime.AddHours(1),
+                ["D"] = baseTime.AddHours(2)
+            };
+            var rows = times.Keys.Select(name => new ShareDataPacket
+            {
+                ID = $"{name}_{unique}",
+                Code = $"{rowPrefix}{name}",
+                Name = name,
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Disable
+            }).ToList();
+            await db.Insertable(rows).ExecuteCommandAsync();
+            foreach (var (name, time) in times)
+            {
+                var rowId = $"{name}_{unique}";
+                await db.Updateable<ShareDataPacket>().SetColumns(p => p.UpdateTime == time).Where(p => p.ID == rowId).ExecuteCommandAsync();
+            }
+
+            await db.Insertable(new ShareDataPacket
+            {
+                ID = packetId,
+                Code = packetCode,
+                Name = $"Packet {packetCode}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Enable
+            }).ExecuteCommandAsync();
+            await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null, CursorVariables(2, rowPrefix, withLastTime: false));
+            await ShareDataSqlSeed.SetCommonAsync(db, packetId,
+                "SELECT TOP (@pageSize) Code AS rowCode, UpdateTime AS __lastKey FROM ShareDataPacket WHERE Code LIKE @prefix AND UpdateTime > @lastKey ORDER BY __lastKey");
+
+            var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_TKEY_{unique}",
+                SubCode = $"SUB_TKEY_{unique}",
+                DatatypeId = packetId,
+                MappingShape = new Dictionary<string, object> { ["rowCode"] = new Dictionary<string, string> { ["$field"] = "rowCode" } },
+                ConfigurePartner = p => p.EndPointApiUrl = $"/api/sharedata/partner-tkey-{unique}"
+            });
+            var worker = CreateWorker(scope, workerConfig: await CreateWorkerConfigWithMaxPages(scope, db, 3));
+
+            // Act: 2 lượt gửi liên tiếp
+            await worker.ProcessSubscriptions(CancellationToken.None);
+            await MakeSubscriptionDue(db, sub.ID);
+            await worker.ProcessSubscriptions(CancellationToken.None);
+
+            // Assert
+            var bodies = PartnerBodies($"partner-tkey-{unique}");
+            Assert.Contains(bodies, b => b.Contains($"\"{rowPrefix}A\""));
+            Assert.DoesNotContain(bodies, b => b.Contains($"\"{rowPrefix}D\""));
+            var cursor = await db.Queryable<ShareDataLastSend>()
+                .Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == packetCode)
+                .FirstAsync();
+            Assert.NotNull(cursor);
+            Assert.DoesNotContain(".12", cursor.LastKey);
+        }
+
+        /// <summary>
+        /// Description: Câu nối đuôi lưu được nhưng dễ lấy sai: Worker ghi rủi ro vào nhật ký cấu hình (ShareDataActivityLog, LogType CONFIG) một lần cho mỗi (đăng ký, câu SQL),
+        ///              không lặp lại mỗi lượt, không ghi cảnh báo, không lẫn vào nhật ký truyền nhận. Câu không có rủi ro thì không ghi.
+        /// Created date: 01/11/2026
+        /// </summary>
+        [Theory]
+        [InlineData("Code AS rowCode, ID AS __lastKey", "ID > @lastKey", "ID", false, "không tăng theo thứ tự ghi")]
+        [InlineData("Code AS rowCode, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey", "CONVERT(varchar(23), UpdateTime, 121) + '_' + ID >= @lastKey", "__lastKey", false, ">=")]
+        [InlineData("Code AS rowCode, FORMAT(UpdateTime, 'HHmm') + '_' + ID AS __lastKey", "FORMAT(UpdateTime, 'HHmm') + '_' + ID > @lastKey", "__lastKey", false, "sai định dạng")]
+        [InlineData("Code AS rowCode, CONVERT(varchar(23), UpdateTime, 121) + '_' + CAST(OrderNo AS varchar(10)) AS __lastKey", "CONVERT(varchar(23), UpdateTime, 121) + '_' + CAST(OrderNo AS varchar(10)) > @lastKey", "__lastKey", false, "đệm 0")]
+        [InlineData("Code AS rowCode, UpdateTime AS __lastTime, ID AS __lastKey", "UpdateTime >= ISNULL(@lastTime, '17530101') AND (@lastTime IS NULL OR UpdateTime > @lastTime OR ID > @lastKey)", "UpdateTime ASC, ID", true, "__lastTime")]
+        [InlineData("Code AS rowCode, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey", "CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @lastKey", "__lastKey", false, null)]
+        public async Task ProcessSubscriptions_WhenCursorSqlRisky_LogsActivityOnceWithoutAlert_Test(string columns, string where, string orderBy, bool withLastTime, string? expectedRisk)
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var packetId = $"pkt-risk-{unique}";
+            var packetCode = $"PKT_RISK_{unique}";
+            var rowPrefix = $"ROW_RISK_{unique}_";
+            await db.Insertable(new ShareDataPacket
+            {
+                ID = packetId,
+                Code = packetCode,
+                Name = $"Packet {packetCode}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Enable
+            }).ExecuteCommandAsync();
+            await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null, CursorVariables(5, rowPrefix, withLastTime));
+            await ShareDataSqlSeed.SetCommonAsync(db, packetId,
+                $"SELECT TOP (@pageSize) {columns} FROM ShareDataPacket WHERE Code LIKE @prefix AND {where} ORDER BY {orderBy} ASC");
+            var (_, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_RISK_{unique}",
+                SubCode = $"SUB_RISK_{unique}",
+                DatatypeId = packetId,
+                MappingShape = new Dictionary<string, object> { ["rowCode"] = new Dictionary<string, string> { ["$field"] = "rowCode" } },
+                ConfigurePartner = p => p.EndPointApiUrl = $"/api/sharedata/partner-risk-{unique}"
+            });
+            var worker = CreateWorker(scope);
+
+            // Act: 2 lượt liên tiếp
+            await worker.ProcessSubscriptions(CancellationToken.None);
+            await MakeSubscriptionDue(db, sub.ID);
+            await worker.ProcessSubscriptions(CancellationToken.None);
+
+            // Assert
+            var riskLogs = await db.Queryable<ShareDataActivityLog>()
+                .Where(l => l.TargetId == sub.ID && l.Description == ShareDataEnum.ExportMessage.CursorSqlRisk)
+                .ToListAsync();
+            if (expectedRisk == null)
+            {
+                Assert.Empty(riskLogs);
+            }
+            else
+            {
+                var riskLog = Assert.Single(riskLogs);
+                Assert.Equal(BaseEnums.LogTypeEnum.CONFIG, riskLog.LogType);
+                Assert.Contains(expectedRisk, riskLog.ErrorMessage);
+            }
+            var alerts = await db.Queryable<ShareDataAlertLog>().Where(a => a.SubscriptionId == sub.ID).CountAsync();
+            Assert.Equal(0, alerts);
+        }
+
+        /// <summary>
+        /// Description: Câu SQL lỗi lúc chạy do dữ liệu (một dòng không đổi được kiểu): Worker phải báo ESH-1302 và giữ nguyên mốc,
+        ///              không được coi là không có dữ liệu mới rồi đứng im mà người vận hành không biết.
+        /// Created date: 01/11/2026
+        /// </summary>
+        [Fact]
+        public async Task ProcessSubscriptions_WhenSqlFailsAtRuntimeOnData_AlertsInsteadOfNoNewData_Test()
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var packetId = $"pkt-rterr-{unique}";
+            var packetCode = $"PKT_RTERR_{unique}";
+            var rowPrefix = $"ROW_RTERR_{unique}_";
+            var rowId = $"row_{unique}";
+            var rowTime = new DateTime(2026, 10, 27, 8, 0, 0);
+            await db.Insertable(new ShareDataPacket
+            {
+                ID = rowId,
+                Code = $"{rowPrefix}A",
+                Name = "khong-phai-so",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Disable
+            }).ExecuteCommandAsync();
+            await db.Updateable<ShareDataPacket>().SetColumns(p => p.UpdateTime == rowTime).Where(p => p.ID == rowId).ExecuteCommandAsync();
+
+            await db.Insertable(new ShareDataPacket
+            {
+                ID = packetId,
+                Code = packetCode,
+                Name = $"Packet {packetCode}",
+                PacketVersion = "1.0",
+                Status = BaseEnums.StatusEnum.Enable
+            }).ExecuteCommandAsync();
+            await ShareDataSqlSeed.SetVariablesAsync(db, packetId, null, CursorVariables(5, rowPrefix, withLastTime: true));
+            await ShareDataSqlSeed.SetCommonAsync(db, packetId,
+                "SELECT TOP (@pageSize) Code AS rowCode, CAST(Name AS int) AS nameNumber, UpdateTime AS __lastTime, ID AS __lastKey FROM ShareDataPacket "
+                + "WHERE Code LIKE @prefix AND UpdateTime >= ISNULL(@lastTime, '17530101') AND (@lastTime IS NULL OR UpdateTime > @lastTime OR ID > @lastKey) "
+                + "ORDER BY UpdateTime ASC, ID ASC");
+
+            var (partner, sub) = await SeedOutboundSubscription(db, new OutboundSubSeed
+            {
+                PartnerCode = $"P_RTERR_{unique}",
+                SubCode = $"SUB_RTERR_{unique}",
+                DatatypeId = packetId,
+                MappingShape = new Dictionary<string, object> { ["rowCode"] = new Dictionary<string, string> { ["$field"] = "rowCode" } },
+                ConfigurePartner = p => p.EndPointApiUrl = $"/api/sharedata/partner-rterr-{unique}"
+            });
+            var worker = CreateWorker(scope);
+
+            // Act
+            await worker.ProcessSubscriptions(CancellationToken.None);
+
+            // Assert
+            Assert.Empty(PartnerBodies($"partner-rterr-{unique}"));
+            var alerts = await db.Queryable<ShareDataAlertLog>()
+                .Where(a => a.SubscriptionId == sub.ID && a.AlertCode == ShareDataAlertCode.Outbound.QueryFailed)
+                .CountAsync();
+            Assert.Equal(1, alerts);
+            var logs = await GetLogs(db, sub.ID);
+            Assert.DoesNotContain(logs, l => l.ErrorMessage == ShareDataEnum.ExportMessage.NoNewData);
+            var cursor = await db.Queryable<ShareDataLastSend>()
+                .Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == packetCode)
+                .FirstAsync();
+            Assert.Null(cursor?.LastKey);
+        }
+
+        /// <summary>
         /// Description: Đặt mốc gửi dữ liệu cho đối tác qua API SetLastSend: mốc được lưu vào ShareDataLastSend
         ///              kèm chữ ký công thức cột mốc, LastTimeRun của đăng ký bị xóa, và lượt gửi kế tiếp của Worker
         ///              chỉ trích xuất và gửi các dòng phát sinh sau mốc đã đặt.

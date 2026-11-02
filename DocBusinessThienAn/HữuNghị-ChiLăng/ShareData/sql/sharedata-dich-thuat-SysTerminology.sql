@@ -705,26 +705,6 @@ VALUES
      N'Không thể bỏ qua trường [{0}] vì hồ sơ ánh xạ [{1}] đang dùng. Hãy bỏ chọn trường ở hồ sơ ánh xạ trước.',
      N'Cannot skip field [{0}] because mapping profile [{1}] is using it. Uncheck the field in the mapping profile first.'),
 
-    (N'lz.validation', N'sharedata.sqlLastKeyDateFormatUnsortable',
-     N'Khóa nối đuôi [__lastKey] được so như chuỗi: ngày giờ phải theo thứ tự năm-tháng-ngày, ví dụ CONVERT(varchar(23), <cột>, 121). Định dạng hiện tại sắp sai thứ tự và sẽ làm bỏ sót dữ liệu.',
-     N'The [__lastKey] cursor is compared as text: date/time must be ordered year-month-day, e.g. CONVERT(varchar(23), <column>, 121). The current format sorts incorrectly and rows will be skipped.'),
-
-    (N'lz.validation', N'sharedata.sqlLastKeyValueNotFixedWidth',
-     N'Khóa nối đuôi [__lastKey] ép giá trị sang chuỗi không cố định độ dài: số phải đệm 0, ví dụ RIGHT(''0000000000'' + CAST(<cột> AS varchar(10)), 10); nếu không thì …_9 sẽ lớn hơn …_10 và làm bỏ sót dữ liệu.',
-     N'The [__lastKey] cursor converts a value to text without a fixed width: pad numbers with zeros, e.g. RIGHT(''0000000000'' + CAST(<column> AS varchar(10)), 10); otherwise …_9 sorts after …_10 and rows will be skipped.'),
-
-    (N'lz.validation', N'sharedata.sqlLastKeyNotTimeOrdered',
-     N'Khóa nối đuôi [__lastKey] chỉ là một cột chuỗi (ví dụ ID GUID): giá trị không tăng theo thứ tự ghi nên dòng mới có thể nhỏ hơn mốc và bị bỏ sót. Dùng dạng 2 cột (__lastTime + __lastKey) hoặc ghép thời gian vào khóa.',
-     N'The [__lastKey] cursor is a single text column (e.g. a GUID ID): values do not increase in write order, so new rows can sort below the cursor and be skipped. Use two cursor columns (__lastTime + __lastKey) or prefix the key with the time.'),
-
-    (N'lz.validation', N'sharedata.sqlLastKeyFilterInclusive',
-     N'Điều kiện lọc so khóa bằng >= với biến mốc khóa: dòng cuối lượt trước bị gửi lại ở mọi lượt, trang 1 dòng (TOP 1) thì kẹt mãi ở dòng đó. Nên so [__lastKey] > biến mốc khóa.',
-     N'The key filter uses >= with the key cursor variable: the last row of the previous run is resent every run, and a one-row page (TOP 1) stays stuck on it. Compare [__lastKey] > the key cursor variable.'),
-
-    (N'lz.validation', N'sharedata.sqlLastTimeNullable',
-     N'Cột mốc thời gian (__lastTime) cho phép NULL: những dòng có thời gian trống không thỏa điều kiện WHERE và không bao giờ được gửi. Chọn cột luôn có giá trị, hoặc tách hai nhóm mốc: dòng đã có thời gian và dòng còn trống (theo CreateTime).',
-     N'The time cursor column (__lastTime) allows NULL: rows with empty timestamps will not match the WHERE condition and will never be sent. Use a column that always has a value, or split two cursor groups: rows with a time and rows still empty (by CreateTime).'),
-
     (N'lz.validation', N'sharedata.sqlIncrementalCursorFilterInvalid',
      N'WHERE phải so cả cặp mốc: [{2}] > {''@''}{0} OR ([{2}] = {''@''}{0} AND [{3}] > {''@''}{1}), hoặc [{2}] >= ISNULL({''@''}{0}, ''17530101'') AND ([{2}] > {''@''}{0} OR [{3}] > {''@''}{1}). So một vế, dùng AND hay so cột khác đều bỏ sót dòng.',
      N'WHERE must compare the cursor pair: [{2}] > {''@''}{0} OR ([{2}] = {''@''}{0} AND [{3}] > {''@''}{1}), or [{2}] >= ISNULL({''@''}{0}, ''17530101'') AND ([{2}] > {''@''}{0} OR [{3}] > {''@''}{1}). One side only, AND or another column skips rows.'),

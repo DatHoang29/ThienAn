@@ -47,7 +47,7 @@ Cấu hình cũ của Đạt để trả lại ở bước dọn:
   ORDER BY v.UpdateTime ASC, v.ID ASC
   ```
 - [ ] **0.5** `@pageSize` = **5**; `@lastTime` để **Toàn bộ** → **Lưu & phân tích**.
-  **Thấy:** lưu thành công, kèm cảnh báo vàng "Cột mốc thời gian (__lastTime) cho phép NULL…" (đúng: 45 dòng chưa có `UpdateTime`, xử lý ở bước 6).
+  **Thấy:** lưu thành công, không có cảnh báo vàng. Lưu ý: 45 dòng chưa có `UpdateTime` không được gửi và màn hình không báo; Worker ghi rủi ro vào nhật ký cấu hình khi chạy (xem bước 1.1). Mục 6 xử lý các dòng này.
 
 ---
 
@@ -59,6 +59,7 @@ Cấu hình cũ của Đạt để trả lại ở bước dọn:
   **Thấy:**
   - **Nhật ký truyền nhận**: 6 lần gửi thành công, *Số bản ghi* **5, 5, 5, 5, 5, 2** (đủ 27 dòng; lần cuối là 1 thay vì 2 nghĩa là mất dòng trùng giờ).
   - Tab Đạt, dải *Mốc đang chạy*: `21/10/2026 07:58:45 · 1175a668…`.
+  - **Lịch sử chia sẻ → Nhật ký cấu hình**: một dòng "Câu truy vấn nối đuôi có rủi ro", nêu cột `__lastTime` cho phép trống. Các lượt sau không ghi thêm.
 - [ ] **1.2** Chờ thêm một lượt. **Thấy:** không có lần gửi mới (không gửi lặp).
 
 ## 2. Khóa khi đăng ký gửi đang bật (đăng ký vẫn bật)
@@ -96,13 +97,46 @@ Mỗi dòng: sửa trong khung soạn → **Lưu & phân tích** → xem thông 
 
 **Thấy chung:** chọn lại gói thì câu và bảng tham số vẫn là bản cũ (`@lastKey` vẫn *theo key*).
 
+## 5b. Câu một cột: chuỗi ghép (PA1 trong biên bản)
+
+Gộp thời gian và khóa vào một cột `__lastKey`. Dòng chưa có `UpdateTime` ghép ra NULL nên không được gửi: đúng là **27** dòng, không phải 72.
+
+- [ ] **5b.1** Đăng ký gửi đang tắt. Tab Đạt: xóa hết khung soạn, dán câu dưới → **Lưu & phân tích**.
+  **Thấy:** hộp xác nhận "Câu truy vấn đổi công thức cột mốc nối đuôi… (Đạt)…" → **Xác nhận**. Sau đó:
+  - Lưu thành công.
+  - Bảng tham số có `@pageSize` = 5 và `@lastKey` (*theo key*); không còn `@lastTime`. Dải **Quy chuẩn mốc** 3/3 xanh.
+
+  ```sql
+  SELECT TOP (@pageSize)
+      CONVERT(varchar(23), v.UpdateTime, 121) + '_' + v.ID AS __lastKey,
+      e.Code AS equipmentCode,
+      v.Name AS vmsName,
+      e.KmNumber AS locationKm,
+      e.MetNumber AS locationMet,
+      e.DirectionId AS direction,
+      e.LaneId AS laneId,
+      v.RowData AS displayContent,
+      v.Url AS displayImageUrl,
+      v.Size AS displaySize,
+      v.Priority AS priority,
+      v.ExecutedDate AS executedTime
+  FROM VmsCurrent v
+  LEFT JOIN TmsEquipment e ON v.EquipmentId = e.ID
+  WHERE CONVERT(varchar(23), v.UpdateTime, 121) + '_' + v.ID > @lastKey
+  ORDER BY __lastKey ASC
+  ```
+- [ ] **5b.2** **Cấu hình** → bật đăng ký gửi, chờ một lượt.
+  **Thấy:** *Số bản ghi* **5, 5, 5, 5, 5, 2** (đủ 27 dòng, hai dòng trùng giờ VMS006 / VMS005 không mất). Chọn lại gói → tab Đạt: dải mốc `2026-10-21 07:58:45.487_1175a668-79af-440d-a32d-2ba040ba8bf8`.
+- [ ] **5b.3** Chờ thêm một lượt. **Thấy:** không có lần gửi mới.
+- [ ] **5b.4** **Cấu hình** → tắt đăng ký gửi, sang mục 6.
+
 ## 6. Dòng chưa có thời gian: câu hai nhóm mốc
 
 Câu hiện tại không bao giờ gửi 45 dòng chưa có `UpdateTime`. Câu hai nhóm gửi thêm các dòng đó theo `CreateTime` (cả 45 dòng đều có `CreateTime`).
 
 - [ ] **6.1** Đăng ký gửi đang tắt. Tab Đạt: xóa hết khung soạn, dán câu dưới → **Lưu & phân tích**.
   **Thấy:** hộp xác nhận "Câu truy vấn đổi công thức cột mốc nối đuôi… (Đạt)…" → **Xác nhận**. Sau đó:
-  - Lưu thành công, **không còn** cảnh báo vàng cột thời gian cho phép NULL.
+  - Lưu thành công.
   - Bảng tham số có `@lastTime_upd`, `@lastTime_new` (*theo thời gian*), `@lastKey_upd`, `@lastKey_new` (*theo key*), **đã chọn sẵn nguồn**; không còn `@lastTime`, `@lastKey`.
   - Mở **✎ Đặt mốc**: có hai khối *Nhóm mốc upd* và *Nhóm mốc new* (xem rồi đóng).
 

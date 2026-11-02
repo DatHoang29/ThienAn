@@ -231,13 +231,13 @@ mark.out { background: var(--diff-soft); color: var(--diff); }
     <a class="toc-title" href="#top">Sổ tay nối đuôi ShareData</a>
     <div class="toc-links">
       <a href="#ket-luan">Kết luận</a>
-      <a href="#van-hanh">Vận hành trên giao diện</a>
+      <a href="#doi-chieu">Đối chiếu biên bản</a>
+      <a href="#hieu-nang">Hiệu năng</a>
       <a href="#bien-va-moc">Biến và mốc</a>
+      <a href="#luong">Luồng chảy</a>
+      <a href="#van-hanh">Vận hành trên giao diện</a>
       <a href="#mau-cau">Mẫu câu</a>
       <a href="#thong-bao">Thông báo hay gặp</a>
-      <a href="#doi-chieu">Đối chiếu biên bản</a>
-      <a href="#luong">Luồng chảy</a>
-      <a href="#hieu-nang">Hiệu năng</a>
       <a href="#con-lai">Việc còn lại</a>
       <a href="#kiem-thu">Kiểm thử</a>
     </div>
@@ -247,7 +247,7 @@ mark.out { background: var(--diff-soft); color: var(--diff); }
     <h2>Kết luận</h2>
     <p class="dot-legend" aria-label="Chú thích màu">
       <span><span class="dot ok"></span>Xanh: khớp biên bản, đã xong, lưu được</span>
-      <span><span class="dot diff"></span>Vàng: khác biên bản có lý do, lưu kèm cảnh báo, cần lưu ý</span>
+      <span><span class="dot diff"></span>Vàng: khác biên bản có lý do, cần lưu ý</span>
       <span><span class="dot todo"></span>Đỏ: chưa làm, bị từ chối</span>
     </p>
     <p class="prose muted">Màu dùng chung cho chấm ở mục này và nhãn trong các bảng bên dưới.</p>
@@ -256,167 +256,141 @@ mark.out { background: var(--diff-soft); color: var(--diff); }
       <li><span class="dot diff"></span><span><strong>Khác biên bản, có số đo:</strong> không ghép chuỗi <code>__lastKey</code> (PA1) và không tính công thức trên dòng cuối (PA2). Câu viết theo hai cột gốc <code>__lastTime</code> + <code>__lastKey</code> đọc 421 trang mỗi lượt, PA1 đọc 31.588, PA2 đọc 11.790.</span></li>
       <li><span class="dot ok"></span><span><strong>Bảng mốc theo bản vẽ của sếp:</strong> <code>(Mã gói, Đối tác, Key) → Value</code>. Câu một nguồn dùng nhóm mốc mặc định; câu gộp nhiều nguồn khai mỗi nguồn một nhóm (<code>@lastKey_&lt;nhóm&gt;</code>), nên nguồn về trễ không mất dòng.</span></li>
       <li><span class="dot diff"></span><span><strong>Ngoài biên bản, chưa qua họp:</strong> mã có thêm một số cơ chế không có trong lời họp, như khóa sửa khi đăng ký đang bật, hỏi xác nhận khi đổi công thức cột mốc, Worker dừng lượt khi mốc bị đổi giữa chừng. Từng mục và nguồn gốc ở bảng <a href="#ngoai-bien-ban">Thêm ngoài biên bản</a>.</span></li>
-      <li><span class="dot diff"></span><span><strong>Phạm vi:</strong> câu SQL do người dùng tự viết nên không rào hết được các ca họ cố tình viết khác đi. Hệ thống kiểm theo các luật đã có; cảnh báo vàng chỉ để biết, câu vẫn lưu và chạy, không bắt buộc xử lý. Xem <a href="#con-lai">Việc còn lại</a>.</span></li>
+      <li><span class="dot diff"></span><span><strong>Phạm vi:</strong> câu SQL do người dùng tự viết nên không rào hết được các ca họ cố tình viết khác đi. Câu lưu được thì cứ lưu, không hiện cảnh báo; câu có rủi ro thì Worker ghi vào nhật ký cấu hình. Xem <a href="#con-lai">Việc còn lại</a>.</span></li>
     </ul>
   </section>
 
-  <section id="van-hanh">
-    <span class="eyebrow">Dành cho SuperAdmin · nhóm menu Chia sẻ dữ liệu</span>
-    <h2>Vận hành trên giao diện</h2>
-    <p class="prose">Toàn bộ làm trên màn hình, không cần chạy tệp SQL. Lần đầu cấu hình một gói đi theo thứ tự các bước dưới đây. Các việc khi đã chạy (theo dõi, đặt mốc, sửa câu) nằm ở các mục sau.</p>
-
-    <div class="note">
-      <h4>Thử trước trên một đối tác thử</h4>
-      <p>Theo gợi ý ở buổi 27/10 <span class="mono muted">[A 01:26–01:38]</span>: tạo một đối tác thử, làm cấu hình riêng của gói cho đối tác đó, đặt mốc gần cuối dữ liệu rồi xem lượt gửi đầu. Mẫu chung và các đối tác thật không bị ảnh hưởng.</p>
+  <section id="doi-chieu">
+    <h2>Đối chiếu với biên bản</h2>
+    <p class="prose muted">A là buổi 27/10, B là buổi 28/10; mốc thời gian trỏ vào lời thoại trong tệp <code>28-10-2026-sharedata-xu-ly-noi-key-3-phuong-an-lastkey-va-toi-uu-hieu-nang.md</code>.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th style="width:30%">Ý trong biên bản</th><th>Mã hiện tại</th><th style="width:150px">Kết quả</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Lấy mốc ở dòng cuối danh sách, đem đi lưu<span class="ref">B 03:07–03:32 · B 07:41–08:05</span></td>
+            <td>Worker đọc <code>__lastTime</code>, <code>__lastKey</code> của dòng cuối mỗi trang rồi ghi vào <code>ShareDataLastSend</code>.</td>
+            <td><span class="tag ok">Khớp</span></td>
+          </tr>
+          <tr>
+            <td>Lưu theo bộ <code>(Mã gói, Đối tác, Key) → Value</code><span class="ref">A 04:46–05:05 · B 08:06–09:40</span></td>
+            <td>Nhóm mặc định: một dòng cho mỗi <code>(PartnerCode, PacketCode)</code> trong <code>ShareDataLastSend</code>. Nhóm có tên: một dòng cho mỗi <code>(PartnerCode, PacketCode, CursorKey)</code> trong <code>ShareDataLastSendKey</code>.</td>
+            <td><span class="tag ok">Khớp</span></td>
+          </tr>
+          <tr>
+            <td>Không lưu mốc ở mẫu chung, hai đối tác dùng chung mẫu sẽ ghi đè nhau<span class="ref">A 02:41–03:05</span></td>
+            <td>Mốc luôn gắn đối tác. Tab Mẫu chung chỉ hiện bảng mốc của từng đối tác để xem và thao tác.</td>
+            <td><span class="tag ok">Khớp</span></td>
+          </tr>
+          <tr>
+            <td>Chỉ lưu mốc mới khi xử lý xong; sập giữa chừng thì giữ mốc cũ<span class="ref">A 05:26–05:35</span></td>
+            <td>Ghi mốc sau khi gửi thành công từng trang, trong giao dịch, có khóa <code>ProcessingUntil</code>; mốc chỉ tiến, không lùi.</td>
+            <td><span class="tag ok">Khớp</span></td>
+          </tr>
+          <tr>
+            <td>Cột mốc vừa ở <code>WHERE</code> vừa ở <code>ORDER BY</code>, sắp tăng dần<span class="ref">A 06:34–06:41 · B 06:06–06:24</span></td>
+            <td>Màn hình kiểm nhanh khi soạn; WebAPI kiểm khi lưu; Worker kiểm lại trước khi chạy. Bộ kiểm đọc cây cú pháp của <code>WHERE</code>: phải so đúng biểu thức cột mốc với đúng biến mốc.</td>
+            <td><span class="tag ok">Khớp</span></td>
+          </tr>
+          <tr>
+            <td>Mặc định so lớn hơn <code>&gt;</code><span class="ref">A 05:36–05:48</span></td>
+            <td>Câu mẫu dùng <code>&gt;</code>. Dạng hai cột dùng <code>&gt;=</code> trên thời gian kèm <code>&gt;</code> trên khóa để không sót dòng trùng giờ. So khóa bằng <code>&gt;=</code> vẫn lưu được, Worker ghi rủi ro vào nhật ký cấu hình.</td>
+            <td><span class="tag ok">Khớp</span></td>
+          </tr>
+          <tr>
+            <td>Mốc khởi tạo để bỏ dữ liệu chạy thử<span class="ref">B 06:46–07:10</span></td>
+            <td><span class="ui">Từ ngày</span> của <code>@lastTime</code>, <span class="ui">Mốc bắt đầu lần đầu</span> của <code>@lastKey</code>; thêm nút <span class="ui">Đặt mốc</span> riêng từng đối tác.</td>
+            <td><span class="tag ok">Khớp, mở rộng</span></td>
+          </tr>
+          <tr>
+            <td>Cấu trúc khóa theo gói: 101 <code>yyyyMMddHHmmssfff_Code</code>, 102 <code>yyyyMMddHHmmss_Code</code><span class="ref">B 00:31–01:30</span></td>
+            <td>Hai cột giữ nguyên kiểu gốc (thời gian, mã) nên không phải tự định dạng chuỗi. Ai vẫn ghép chuỗi thì câu vẫn lưu; sai định dạng thì Worker ghi rủi ro vào nhật ký cấu hình.</td>
+            <td><span class="tag diff">Khác</span><span class="ref">tránh lỗi định dạng</span></td>
+          </tr>
+          <tr>
+            <td>PA1: ghép chuỗi trong câu SQL chính<span class="ref">B 04:09–05:46 · B 13:49–14:09</span></td>
+            <td>Vẫn lưu và chạy được ở chế độ chỉ khóa. Sai định dạng thì Worker ghi rủi ro vào nhật ký cấu hình; không báo chậm. Không dùng cho câu mẫu vì quét cả bảng.</td>
+            <td><span class="tag diff">Hỗ trợ, không khuyên</span></td>
+          </tr>
+          <tr>
+            <td>PA2: lưu công thức, chỉ tính trên dòng cuối<span class="ref">B 11:16–12:50</span></td>
+            <td>Không làm. Đo thấy <code>WHERE</code> vẫn so chuỗi ghép nên vẫn quét, lại thêm một lượt gọi CSDL mỗi trang.</td>
+            <td><span class="tag diff">Khác</span><span class="ref">có số đo</span></td>
+          </tr>
+          <tr>
+            <td>PA3: ghép trong mã C#<span class="ref">B 12:56–13:08 · B 14:28–15:23</span></td>
+            <td>Không làm, đúng như đã chốt gác lại.</td>
+            <td><span class="tag ok">Khớp</span></td>
+          </tr>
+          <tr>
+            <td>Làm lên rồi đo hiệu năng để chọn giữa PA1 và PA2<span class="ref">B 13:31–14:25</span></td>
+            <td>Đã đo cả ba phương án và dạng hai cột trên bảng 1.000.000 dòng; chọn hai cột gốc.</td>
+            <td><span class="tag diff">Khác</span><span class="ref">chọn theo số đo</span></td>
+          </tr>
+          <tr>
+            <td>Một câu có nhiều điều kiện, mỗi điều kiện một key<span class="ref">A 03:06–03:15</span></td>
+            <td>Mỗi nguồn một nhóm mốc, ghi cùng giao dịch, chỉ tiến, chữ ký riêng từng nhóm. Đặt mốc theo nhóm; Đặt lại xóa mọi nhóm.</td>
+            <td><span class="tag ok">Khớp</span></td>
+          </tr>
+          <tr>
+            <td>Giá trị đã lưu chỉ hiện theo đối tác, không theo mẫu<span class="ref">A 00:31–00:55</span></td>
+            <td>Bảng mốc theo đối tác ở tab Mẫu chung; dải <span class="ui">Mốc đang chạy</span> ở tab đối tác.</td>
+            <td><span class="tag ok">Khớp</span></td>
+          </tr>
+          <tr>
+            <td>Tự thử với đối tác thử trước<span class="ref">A 01:26–01:38</span></td>
+            <td>Làm được hoàn toàn trên giao diện: cấu hình riêng cho đối tác thử, đặt mốc, xem lượt gửi đầu.</td>
+            <td><span class="tag ok">Khớp</span></td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
-    <div class="sub">
-      <h3>Lần đầu cấu hình một gói gửi nối đuôi</h3>
-      <ol class="steps">
-        <li><div>
-          <h4>Chuẩn bị đối tác</h4>
-          <p class="where">Menu <span class="ui">Cấu hình</span> · <span class="ui">Ánh xạ dữ liệu</span></p>
-          <ul class="tight prose">
-            <li>Màn <span class="ui">Cấu hình</span>: thêm đối tác (địa chỉ, cổng, endpoint, kiểu kết nối) → Lưu → <span class="ui">Kết nối</span>.</li>
-            <li>Màn <span class="ui">Ánh xạ dữ liệu</span>: tạo hồ sơ chiều gửi cho đối tác với gói này, bật áp dụng. Thiếu hồ sơ ánh xạ thì Worker không gửi được.</li>
-          </ul>
-        </div></li>
-
-        <li><div>
-          <h4>Mở gói và chọn nơi sửa</h4>
-          <p class="where">Menu <span class="ui">Cấu hình gói tin</span> → chọn gói ở danh sách bên trái → tab <span class="ui">Gửi đi · lấy dữ liệu gửi đối tác</span></p>
-          <ul class="tight prose">
-            <li>Tab <span class="ui">Mẫu chung</span>: câu dùng cho mọi đối tác chưa có cấu hình riêng.</li>
-            <li>Nút <span class="ui">Tạo cấu hình riêng +</span>: chọn <span class="ui">Đối tác</span>, <span class="ui">Sao chép từ</span> = <span class="ui">Mẫu chung</span> hoặc <span class="ui">Cấu hình riêng của đối tác</span> khác. Màn hình tự mở tab của đối tác đó. Đối tác này có câu, trường và bảng tham số riêng; sửa ở đây không đụng mẫu chung.</li>
-          </ul>
-        </div></li>
-
-        <li><div>
-          <h4>Viết câu trong khung soạn SQL</h4>
-          <p class="prose">Câu nối đuôi cần ba phần: hai <strong>cột mốc</strong> trong <code>SELECT</code>, điều kiện lọc theo <strong>cặp biến mốc</strong> trong <code>WHERE</code>, và <code>ORDER BY</code> tăng dần đúng theo hai cột mốc. Gõ <code>SEL</code> trong khung soạn rồi chọn mẫu gợi ý <span class="ui">select-incremental</span> để chèn sẵn khung câu này, sau đó đổi tên bảng và cột. Dạng hay dùng nhất:</p>
-          <pre><code>SELECT TOP (@pageSize)                  <span class="c">-- số dòng mỗi trang, khai ở bảng tham số</span>
-       zs.Code       AS zoneCode,
-       zs.Status     AS status,
-       zs.UpdateTime AS __lastTime,      <span class="c">-- cột mốc thời gian: cột gốc, không bọc hàm</span>
-       zs.ID         AS __lastKey        <span class="c">-- cột mốc khóa: duy nhất, phân biệt dòng trùng giờ</span>
-FROM   TmsZoneStatus zs
-WHERE  zs.UpdateTime &gt;= ISNULL(@lastTime, '17530101')
-  AND (@lastTime IS NULL OR zs.UpdateTime &gt; @lastTime OR zs.ID &gt; @lastKey)
-ORDER BY zs.UpdateTime ASC, zs.ID ASC</code></pre>
-          <p class="prose muted">Cột bắt đầu bằng <code>__</code> là cột nội bộ: hệ thống đọc để lấy mốc, không gửi cho đối tác. Bảng không có cột thời gian luôn có giá trị thì xem <a href="#mau-cau">Mẫu câu</a>.</p>
-        </div></li>
-
-        <li><div>
-          <h4>Bấm <span class="ui">Lưu &amp; phân tích</span> để trích biến</h4>
-          <p class="prose">Bảng <span class="ui">3. Tham số điều kiện</span> tự thêm một dòng cho mỗi <code>@biến</code> trong câu, theo thứ tự xuất hiện, và bỏ dòng của biến không còn trong câu. Nguồn giá trị được chọn sẵn theo tên biến:</p>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th style="width:24%">Biến trong câu</th><th style="width:32%">Nguồn giá trị tự chọn</th><th>Bạn nhập ở cột Giá trị cấu hình</th></tr></thead>
-              <tbody>
-                <tr><td><code>@pageSize</code></td><td><span class="ui">Giá trị nhập</span></td><td>Số dòng mỗi lượt, ví dụ 100. Bắt buộc.</td></tr>
-                <tr><td><code>@lastTime</code>, <code>@lastTime_&lt;nhóm&gt;</code></td><td><span class="ui">Nối tiếp lần trước (theo thời gian)</span></td><td><span class="ui">Toàn bộ</span> (lấy từ đầu dữ liệu) hoặc <span class="ui">Từ ngày</span> để bỏ dữ liệu cũ. Chỉ dùng khi đối tác chưa có mốc: lượt đầu, hoặc sau <span class="ui">Đặt lại</span>.</td></tr>
-                <tr><td><code>@lastKey</code>, <code>@lastKey_&lt;nhóm&gt;</code></td><td><span class="ui">Nối tiếp lần trước (theo key)</span></td><td>Dạng hai cột: không cần nhập. Dạng chỉ khóa: <span class="ui">Mốc bắt đầu lần đầu</span>, để trống là lấy từ đầu.</td></tr>
-                <tr><td>Biến khác, ví dụ <code>@tuNgay</code></td><td>Để trống, phải tự chọn</td><td><span class="ui">Thời điểm chạy</span>, <span class="ui">Lần chạy trước</span>, <span class="ui">Đầu năm</span>, <span class="ui">Mã đối tác</span> hoặc <span class="ui">Giá trị nhập</span>.</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <p class="prose">Câu mới có <code>@pageSize</code> thì lần bấm đầu báo "Sửa các dòng tham số đang báo lỗi trước khi lưu." vì <code>@pageSize</code> chưa có số. Nhập số, chọn nguồn cho các biến còn trống rồi bấm <span class="ui">Lưu &amp; phân tích</span> lần nữa.</p>
-        </div></li>
-
-        <li><div>
-          <h4>Xem dải <span class="ui">Quy chuẩn mốc:</span> trên bảng tham số</h4>
-          <p class="prose">Bốn mục <span class="ui">Cột mốc</span>, <span class="ui">Điều kiện lọc</span>, <span class="ui">Nguồn key</span>, <span class="ui">ORDER BY tăng dần</span> phải xanh. Rê chuột vào dải để xem giải thích từng mục. Đây là kiểm nhanh khi soạn; luật đầy đủ chạy khi lưu, nên dải xanh vẫn có thể bị từ chối.</p>
-        </div></li>
-
-        <li><div>
-          <h4>Đọc kết quả lưu</h4>
-          <ul class="tight prose">
-            <li><strong>Thông báo xanh</strong> "Lưu cấu hình SQL trích xuất thành công": câu, danh sách trường và bảng tham số được lưu cùng một lần.</li>
-            <li><strong>Thông báo vàng</strong>: vẫn lưu, nhưng câu có rủi ro, ví dụ cột thời gian cho phép trống, so khóa bằng <code>&gt;=</code>. Xem <a href="#thong-bao">Thông báo hay gặp</a>.</li>
-            <li><strong>Lỗi đỏ</strong>, khung soạn gạch chỗ sai: không lưu gì. Câu và bảng tham số giữ bản cũ; chọn lại gói là thấy bản cũ.</li>
-            <li><strong>Hộp xác nhận đổi công thức cột mốc</strong>: chỉ hiện khi câu mới đổi cách tính cột <code>__lastTime</code> / <code>__lastKey</code> và có đối tác đang có mốc. Hộp nêu tên các đối tác đó. <span class="ui">Xác nhận</span> thì mốc của họ bị xóa, lượt tới gửi lại từ giá trị khởi tạo; hủy thì câu chưa được lưu.</li>
-          </ul>
-          <p class="prose muted">Khối <span class="ui">Danh sách trường</span> lấy theo các cột của câu (bỏ cột <code>__</code>). Đây là các trường dùng ở màn Ánh xạ dữ liệu.</p>
-        </div></li>
-
-        <li><div>
-          <h4>Tạo đăng ký và bật gửi</h4>
-          <p class="where">Menu <span class="ui">Cấu hình</span> → đối tác → <span class="ui">Tạo đăng ký gửi</span></p>
-          <p class="prose">Chọn gói, lịch <span class="ui">Theo chu kỳ</span> (ví dụ 10 giây) rồi bật bằng <span class="ui">Bật/Tắt</span>. Lượt đầu chưa có mốc nên lấy từ giá trị khởi tạo của <code>@lastTime</code>. Mỗi trang gửi thành công thì mốc tiến tới dòng cuối của trang; lượt sau gửi tiếp từ đó.</p>
-        </div></li>
-      </ol>
+    <h3 id="ngoai-bien-ban">Thêm ngoài biên bản</h3>
+    <p class="prose">Các mục dưới có trong mã nhưng không có trong lời họp 27–28/10, chưa được chốt ở buổi họp nào. Mục nào cần sếp duyệt thì đưa ra họp.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:26%">Cơ chế</th><th>Làm gì</th><th style="width:27%">Nguồn</th><th style="width:60px">Từ</th></tr></thead>
+        <tbody>
+          <tr><td>Khóa sửa khi đăng ký đang bật</td><td>Không sửa được câu, bảng tham số, <span class="ui">Đặt mốc</span>, <span class="ui">Đặt lại</span>, <span class="ui">Dùng lại mẫu chung</span>, tắt gói tin khi còn đăng ký bật. Áp cả màn hình lẫn API (ESH-2306, ESH-2307).</td><td>Văn Hiếu, commit <code>6418f626</code>. DatHQ thêm câu dịch 31/10, yêu cầu khóa cả Đặt mốc 01/11.</td><td>30/10</td></tr>
+          <tr><td>Chữ ký công thức cột mốc</td><td>Câu đổi cách tính cột mốc thì mốc cũ không dùng tiếp: khi lưu thì hỏi xác nhận, khi câu đổi ngoài màn hình thì Worker tự gửi lại từ khởi tạo.</td><td>DatHQ, commit <code>c114d0d1</code>, cho ca câu do người dùng tự viết.</td><td>30/10</td></tr>
+          <tr><td>Từ chối câu làm mất dòng</td><td>Bộ kiểm đọc <code>WHERE</code>: so thiếu cặp (thời gian, khóa), chỉ so thời gian, so với hằng số, cột mốc không lấy từ cột dữ liệu thì không lưu được và Worker không chạy. Câu chỉ gửi lặp thì vẫn lưu được. Biên bản chỉ yêu cầu cột mốc có ở <code>WHERE</code> và <code>ORDER BY</code>.</td><td>DatHQ, commit <code>c114d0d1</code>, siết thêm khi rà 30/10.</td><td>30/10</td></tr>
+          <tr><td>Đặt mốc, đặt lại khi Worker đang gửi</td><td>Worker chụp mốc lúc bắt đầu lượt, so lại trước khi ghi mốc mỗi trang. Mốc bị đổi giữa chừng thì dừng lượt, không ghi đè mốc người dùng, không tự bật lại đăng ký đã tắt. Vì cả hai nút đều phải tắt đăng ký trước, ca này chỉ còn xảy ra khi tắt đăng ký lúc lượt đang chạy.</td><td>DatHQ chốt khi rà edge case.</td><td>30/10</td></tr>
+          <tr><td>Cột thời gian trống</td><td>Lưu câu có cột thời gian cho phép trống thì lưu bình thường, không báo gì; Worker ghi một dòng vào nhật ký cấu hình (chỉ nhóm mốc mặc định). Không đổi câu mẫu; gói nào cần gửi cả dòng chưa có thời gian thì sửa câu trên giao diện theo <a href="#mau-cot-gop">cột mốc gộp</a> (bảng nhỏ) hoặc <a href="#mau-hai-nhom">mẫu hai nhóm</a> (bảng lớn).</td><td>DatHQ chốt khi rà edge case; cột mốc gộp thêm 01/11; DatHQ bỏ cảnh báo trên màn hình 01/11.</td><td>30/10</td></tr>
+          <tr><td>Lưu câu và bảng tham số một lần</td><td>Câu bị từ chối thì bảng tham số cũng không lưu. Trước đây bảng tham số lưu trước, câu bị từ chối vẫn để lại bảng mới lệch với câu cũ.</td><td>Lỗi phát hiện khi rà mã, DatHQ yêu cầu sửa.</td><td>31/10</td></tr>
+          <tr><td>Kiểm lại câu khi chỉ đổi bảng tham số</td><td>Đổi nguồn biến mốc làm câu hỏng thì bị từ chối ngay, không đợi Worker chặn lúc chạy. Chỉ đổi giá trị như <code>@pageSize</code> thì bỏ qua bước kiểm.</td><td>DatHQ yêu cầu.</td><td>31/10</td></tr>
+          <tr><td>Biến nhóm tự chọn nguồn</td><td><code>@lastKey_&lt;nhóm&gt;</code>, <code>@lastTime_&lt;nhóm&gt;</code> tự có nguồn theo tiền tố tên khi bấm <span class="ui">Lưu &amp; phân tích</span>.</td><td>DatHQ yêu cầu.</td><td>31/10</td></tr>
+          <tr><td>Mẫu gợi ý hai cột</td><td>Mẫu <span class="ui">select-incremental</span> chèn sẵn dạng hai cột.</td><td>DatHQ yêu cầu.</td><td>31/10</td></tr>
+          <tr><td>Cảnh báo ESH-1308</td><td>Worker tự đặt lại mốc vì câu bị đổi công thức ngoài màn hình thì ghi cảnh báo ở <span class="ui">Cảnh báo &amp; lỗi</span>, trước đây chỉ ghi log máy chủ.</td><td>DatHQ yêu cầu.</td><td>31/10</td></tr>
+          <tr><td>Ghi rủi ro vào nhật ký cấu hình</td><td>Bỏ mọi cảnh báo khi lưu câu nối đuôi: câu lưu được thì cứ lưu. Worker ghi rủi ro (khóa sai định dạng, khóa không tăng theo thứ tự ghi, so khóa <code>&gt;=</code>, cột thời gian cho phép trống) vào <code>ShareDataActivityLog</code> nhóm cấu hình, một lần cho mỗi đăng ký và câu SQL. Câu sai chắc chắn làm mất dòng vẫn bị từ chối.</td><td>DatHQ yêu cầu.</td><td>01/11</td></tr>
+          <tr><td>Báo lỗi SQL lúc chạy</td><td>Câu lỗi do dữ liệu, như không đổi được kiểu, thì Worker ghi cảnh báo ESH-1302 và giữ nguyên mốc. Trước đây Worker nhận về 0 dòng, ghi "Không có dữ liệu mới", không ai biết đăng ký đã đứng.</td><td>Lỗi phát hiện khi viết test, DatHQ yêu cầu sửa.</td><td>01/11</td></tr>
+          <tr><td>Tệp seed điền bộ biến</td><td>Điền bộ biến cho câu mẫu nối đuôi còn trống; có cờ nạp lại câu mẫu riêng một gói.</td><td>DatHQ yêu cầu.</td><td>31/10</td></tr>
+        </tbody>
+      </table>
     </div>
+  </section>
 
-    <div class="sub">
-      <h3>Theo dõi khi đang gửi</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th style="width:30%">Xem ở đâu</th><th>Thấy gì</th></tr></thead>
-          <tbody>
-            <tr><td><span class="ui">Cấu hình gói tin</span> → tab <span class="ui">Mẫu chung</span> → bảng <span class="ui">Trạng thái mốc đang chạy theo từng đối tác</span></td><td>Mọi đối tác dùng gói, mỗi dòng có <span class="ui">Chế độ SQL</span>, <span class="ui">Mốc đang chạy</span> dạng <code>thời gian · khóa</code> (câu nhiều nhóm: <code>nhóm: thời gian · khóa</code>) và hai nút <span class="ui">Đặt mốc</span>, <span class="ui">Đặt lại</span>. "Chưa có — dùng mặc định" nghĩa là đối tác chưa gửi lượt nào.</td></tr>
-            <tr><td>Tab của đối tác có cấu hình riêng</td><td>Dải <span class="ui">Mốc đang chạy:</span> ngay dưới bảng tham số, có nút bút (<span class="ui">Đặt mốc</span>) và <span class="ui">Đặt lại</span>. Cột <span class="ui">Mốc đang chạy</span> trong bảng tham số hiện giá trị đã lưu của từng biến mốc.</td></tr>
-            <tr><td><span class="ui">Lịch sử chia sẻ</span> → <span class="ui">Nhật ký truyền nhận</span></td><td>Từng lần gửi, thành công hay lỗi, số bản ghi.</td></tr>
-            <tr><td><span class="ui">Cảnh báo &amp; lỗi</span></td><td>Không kết nối được tới đối tác, câu sai cấu trúc (ESH-1306). Khi có lỗi, mốc giữ nguyên, lượt sau gửi lại.</td></tr>
-          </tbody>
-        </table>
-      </div>
+  <section id="hieu-nang">
+    <h2>Hiệu năng</h2>
+    <p class="prose">Đo bằng <code>CursorQueryPerformanceTests</code> trên SQL Server máy dev: bảng 1.000.000 dòng có chỉ mục <code>(UpdateTime, ID)</code>, trang 100 dòng, mốc ở gần cuối bảng như lúc chạy định kỳ. Mọi cách trả cùng một trang và cùng mốc kế tiếp.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Cách viết câu</th><th class="num">Trang đọc mỗi lượt</th><th class="num">So với hai cột</th><th>Vì sao</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>PA1 · ghép chuỗi trong câu SQL</td><td class="num">31.588</td><td class="num">×75</td><td>So biểu thức nên quét cả bảng rồi sắp xếp</td></tr>
+          <tr><td>PA2 · công thức chỉ tính trên dòng cuối</td><td class="num">11.790</td><td class="num">×28</td><td><code>WHERE</code> vẫn so chuỗi ghép; thêm một lượt gọi CSDL mỗi trang</td></tr>
+          <tr><td>PA3 · ghép trong C#</td><td class="num">11.786</td><td class="num">×28</td><td>Như PA2, không thêm lượt gọi</td></tr>
+          <tr><td>Câu mẫu gói 103–111 (<code>COALESCE</code>)</td><td class="num">31.588</td><td class="num">×75</td><td>So biểu thức nên quét</td></tr>
+          <tr><td>Câu mẫu gói 101 trước khi sửa</td><td class="num">11.786</td><td class="num">×28</td><td>Lên 4.072.255 trang khi SQL Server dùng lại kế hoạch dựng lúc chưa có mốc</td></tr>
+          <tr class="best"><td>Hai cột gốc (đang dùng)</td><td class="num">421</td><td class="num">1</td><td>Tìm thẳng trên chỉ mục ở mọi vị trí mốc</td></tr>
+        </tbody>
+      </table>
     </div>
-
-    <div class="sub">
-      <h3>Đăng ký đang bật thì được làm gì</h3>
-      <p class="prose">Câu và mốc của đối tác đang nhận bị khóa để Worker không chạy câu nửa cũ nửa mới. Biểu tượng khóa trên màn hình ghi tên các đối tác còn bật.</p>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Việc</th><th style="width:22%">Đăng ký đang bật</th><th style="width:22%">Đăng ký đã tắt</th></tr></thead>
-          <tbody>
-            <tr><td>Sửa câu SQL, bảng tham số (<span class="ui">Lưu &amp; phân tích</span>, <span class="ui">Lưu</span>)</td><td class="no">Khóa</td><td class="yes">Được</td></tr>
-            <tr><td><span class="ui">✎ Đặt mốc</span></td><td class="no">Khóa</td><td class="yes">Được</td></tr>
-            <tr><td><span class="ui">↺ Đặt lại</span></td><td class="no">Khóa</td><td class="yes">Được</td></tr>
-            <tr><td><span class="ui">Dùng lại mẫu chung</span> cho đối tác</td><td class="no">Khóa</td><td class="yes">Được</td></tr>
-            <tr><td>Tắt gói tin</td><td class="no">Bị chặn</td><td class="yes">Được</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <p class="prose muted">Ở tab <span class="ui">Mẫu chung</span>, khóa áp cho mọi đối tác đang dùng mẫu chung; ở tab đối tác, chỉ đối tác đó.</p>
-    </div>
-
-    <div class="sub">
-      <h3>Đặt mốc cho một đối tác</h3>
-      <p class="prose">Dùng khi đối tác chỉ muốn nhận từ một thời điểm, cần gửi lại từ một mốc cũ, hoặc muốn bỏ qua một đoạn dữ liệu. Tắt đăng ký trước, chọn lại gói, rồi bấm <span class="ui">✎ Đặt mốc</span> ở bảng mốc (tab Mẫu chung) hoặc nút bút ở dải <span class="ui">Mốc đang chạy:</span>. Hộp <span class="ui">Đặt mốc gửi dữ liệu — tên đối tác</span> hiện ô theo câu của chính đối tác đó:</p>
-      <ul class="tight prose">
-        <li><span class="ui">Mốc thời gian (__lastTime)</span>: bắt buộc với dạng hai cột.</li>
-        <li><span class="ui">Mốc khóa (__lastKey)</span>: tùy chọn với dạng hai cột; bắt buộc với dạng chỉ khóa.</li>
-        <li>Câu nhiều nhóm: mỗi nhóm một khối (<span class="ui">Nhóm mốc upd</span>, <span class="ui">Nhóm mốc new</span>…). Đặt nhóm nào thì chỉ nguồn đó đổi.</li>
-      </ul>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th style="width:34%">Muốn</th><th style="width:30%">Nhập</th><th>Lượt tới gửi</th></tr></thead>
-          <tbody>
-            <tr><td>Đối tác chỉ nhận từ 08:00 ngày 31/10</td><td>Mốc thời gian = <code>31/10/2026 08:00:00</code>, mốc khóa để trống</td><td>Các dòng có thời gian từ 08:00 trở đi, gồm cả dòng đúng 08:00</td></tr>
-            <tr><td>Gửi tiếp sau dòng có khóa <code>Z03</code> lúc 10:05</td><td>Mốc thời gian = 10:05, mốc khóa = <code>Z03</code></td><td>Dòng cùng 10:05 có khóa lớn hơn <code>Z03</code>, rồi mọi dòng sau 10:05</td></tr>
-            <tr><td>Bỏ qua dữ liệu tồn, chỉ gửi dữ liệu mới từ giờ</td><td>Mốc thời gian = giờ hiện tại, mốc khóa để trống</td><td>Chỉ dòng có thời gian từ lúc đó trở đi</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <p class="prose">Bấm <span class="ui">Xác nhận</span>: thông báo "Đã cập nhật mốc gửi dữ liệu cho đối tác." Thao tác được ghi nhật ký hoạt động. Bật lại đăng ký thì lượt tới gửi theo mốc vừa đặt. Nếu lúc tắt đăng ký Worker còn đang gửi dở, lượt đó dừng sau trang đang gửi, giữ mốc bạn vừa đặt và đăng ký vẫn tắt.</p>
-    </div>
-
-    <div class="sub">
-      <h3>Đặt lại mốc</h3>
-      <p class="prose">Tắt đăng ký trước. Bấm <span class="ui">↺ Đặt lại</span> → xác nhận "Đặt lại mốc đã lưu của gói tin này cho đối tác?" → thông báo "Đã đặt lại mốc đã lưu." Mốc của mọi nhóm bị xóa cùng giờ chạy lần trước; lượt tới gửi lại từ giá trị khởi tạo (<span class="ui">Toàn bộ</span> hoặc <span class="ui">Từ ngày</span> của <code>@lastTime</code>). Worker đang gửi dở thì dừng lượt đó, đăng ký vẫn tắt.</p>
-    </div>
-
-    <div class="sub">
-      <h3>Sửa câu khi đối tác đang nhận</h3>
-      <ol class="run prose">
-        <li>Màn <span class="ui">Cấu hình</span>: tắt đăng ký của các đối tác dùng câu này.</li>
-        <li>Quay lại <span class="ui">Cấu hình gói tin</span>, chọn lại gói, sửa câu → <span class="ui">Lưu &amp; phân tích</span>.</li>
-        <li>Câu đổi cách tính cột mốc thì hiện hộp xác nhận, mốc của các đối tác được nêu tên sẽ bị xóa. Thêm cột khác, thêm <code>JOIN</code>, đổi bí danh bảng không tính là đổi công thức, không ai bị đặt lại mốc.</li>
-        <li>Mốc bị xóa mà không muốn gửi lại từ đầu: trước khi bật lại, dùng <span class="ui">✎ Đặt mốc</span> đặt về thời điểm mong muốn, hoặc đổi <span class="ui">Từ ngày</span> của <code>@lastTime</code> rồi <span class="ui">Lưu</span>.</li>
-        <li>Chỉ đổi bảng tham số, ví dụ <code>@pageSize</code> 100 → 500: bấm <span class="ui">Lưu</span>. Hệ thống kiểm lại câu đang lưu theo bảng tham số mới; đổi làm câu hỏng (ví dụ đổi nguồn <code>@lastKey</code> sang <span class="ui">theo thời gian</span>) thì bị từ chối và giữ bảng cũ.</li>
-        <li>Bật lại đăng ký.</li>
-      </ol>
-    </div>
+    <p class="prose muted">Các cơ chế mới đều chạy trong bộ nhớ hoặc thêm một truy vấn theo khóa: chữ ký công thức 0,26–0,60 ms mỗi lượt; so bản chụp mốc là một truy vấn đọc mốc mỗi trang; kiểm <code>WHERE</code> là phân tích cú pháp, không gọi CSDL.</p>
   </section>
 
   <section id="bien-va-moc">
@@ -496,245 +470,6 @@ ORDER BY zs.UpdateTime ASC, zs.ID ASC</code></pre>
       <li>Dải kiểm: <span class="ui">Cột mốc</span> kiểm <strong>đầu ra</strong> (<code>__lastTime</code>, <code>__lastKey</code>); <span class="ui">Điều kiện lọc</span> và <span class="ui">Nguồn key</span> kiểm <strong>đầu vào</strong> (<code>@lastTime</code>, <code>@lastKey</code>).</li>
       <li><span class="ui">Mốc đang chạy</span> là <strong>giá trị đã lưu</strong>: lấy từ cột đầu ra ở lượt trước, sẽ điền vào tham số đầu vào ở lượt sau.</li>
     </ul>
-  </section>
-
-  <section id="mau-cau">
-    <h2>Mẫu câu theo dạng dữ liệu</h2>
-    <p class="prose">Chọn mẫu theo bảng nguồn. Dán vào khung soạn, đổi tên bảng và cột, rồi bấm <span class="ui">Lưu &amp; phân tích</span>; các biến mốc tự có nguồn.</p>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th style="width:30%">Bảng nguồn có</th><th style="width:22%">Dạng câu</th><th>Ghi chú</th></tr></thead>
-        <tbody>
-          <tr><td>Cột thời gian luôn có giá trị + khóa duy nhất</td><td><span class="tag ok">Hai cột</span></td><td>Dạng mặc định, ở bước 3 phía trên. Nhanh nhất (421 trang mỗi lượt).</td></tr>
-          <tr><td>Chỉ có ID số tự tăng, không có cột thời gian tin cậy</td><td><span class="tag ok">Chỉ khóa</span></td><td>Không bắt được dòng sửa sau khi tạo.</td></tr>
-          <tr><td>Cột thời gian có lúc trống (dòng mới chưa có <code>UpdateTime</code>)</td><td><span class="tag diff">Hai nhóm</span></td><td>Lưu câu hai cột với cột này sẽ có cảnh báo cột thời gian cho phép trống.</td></tr>
-          <tr><td>Nhiều bảng gộp bằng <code>UNION</code></td><td><span class="tag diff">Nhiều nhóm</span></td><td>Mỗi nguồn một nhóm mốc, nguồn về trễ không mất dòng.</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <h3>Chỉ khóa</h3>
-    <pre><code>SELECT TOP (@pageSize)
-       t.Code AS code,
-       t.ID   AS __lastKey          <span class="c">-- ID số tự tăng</span>
-FROM   SomeTable t
-WHERE  t.ID &gt; @lastKey
-ORDER BY t.ID ASC</code></pre>
-    <p class="prose muted"><code>@lastKey</code> nguồn <span class="ui">Nối tiếp lần trước (theo key)</span>; ô <span class="ui">Mốc bắt đầu lần đầu</span> để trống là lấy từ đầu. ID dạng chuỗi trơn (GUID) thì lưu được nhưng có cảnh báo, vì GUID không tăng theo thứ tự ghi.</p>
-
-    <h3 id="mau-hai-nhom">Hai nhóm: dòng đã có thời gian và dòng còn trống</h3>
-    <p class="prose">Nhóm <code>upd</code> lấy dòng đã có <code>UpdateTime</code> theo (<code>UpdateTime</code>, <code>ID</code>); nhóm <code>new</code> lấy dòng <code>UpdateTime</code> còn trống theo (<code>CreateTime</code>, <code>ID</code>). Dòng ở nhóm <code>new</code> được cập nhật sau đó thì sang nhóm <code>upd</code> và gửi lại như một bản cập nhật. Ví dụ cho gói 101:</p>
-    <pre><code>SELECT TOP (@pageSize)
-    u.__lastTime_upd, u.__lastKey_upd, u.__lastTime_new, u.__lastKey_new,
-    u.zoneStatusId, u.zoneId, u.zoneName, u.fromLocationKm, u.fromLocationMet, u.toLocationKm, u.toLocationMet,
-    u.laneId, u.averageSpeed, u.trafficCondition, u.dataTime, u.speedLimit, u.vehicleCount
-FROM (
-    SELECT
-        zs.UpdateTime AS sortTime, zs.ID AS sortKey,
-        zs.UpdateTime AS __lastTime_upd, zs.ID AS __lastKey_upd,
-        CAST(NULL AS DATETIME) AS __lastTime_new, CAST(NULL AS NVARCHAR(64)) AS __lastKey_new,
-        zs.ID AS zoneStatusId, zs.ZoneId AS zoneId, z.Name AS zoneName,
-        z.FromKmNumber AS fromLocationKm, z.FromMetNumber AS fromLocationMet,
-        z.ToKmNumber AS toLocationKm, z.ToMetNumber AS toLocationMet, z.LaneId AS laneId,
-        CAST(zs.AverageSpeed AS DECIMAL(18, 2)) AS averageSpeed, zs.Condition AS trafficCondition,
-        zs.UpdateTime AS dataTime, z.MaxSpeed AS speedLimit, ts.TotalVehicleNumber AS vehicleCount
-    FROM dbo.TmsZoneStatus zs
-    LEFT JOIN dbo.TmsZone z ON zs.ZoneId = z.ID
-    LEFT JOIN dbo.TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId
-    WHERE zs.UpdateTime &gt;= ISNULL(@lastTime_upd, '17530101')
-      AND (@lastTime_upd IS NULL OR zs.UpdateTime &gt; @lastTime_upd OR zs.ID &gt; @lastKey_upd)
-    UNION ALL
-    SELECT
-        zs.CreateTime, zs.ID, NULL, NULL, zs.CreateTime, zs.ID,
-        zs.ID, zs.ZoneId, z.Name, z.FromKmNumber, z.FromMetNumber, z.ToKmNumber, z.ToMetNumber,
-        z.LaneId, CAST(zs.AverageSpeed AS DECIMAL(18, 2)), zs.Condition, zs.CreateTime, z.MaxSpeed, ts.TotalVehicleNumber
-    FROM dbo.TmsZoneStatus zs
-    LEFT JOIN dbo.TmsZone z ON zs.ZoneId = z.ID
-    LEFT JOIN dbo.TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId
-    WHERE zs.UpdateTime IS NULL
-      AND zs.CreateTime &gt;= ISNULL(@lastTime_new, '17530101')
-      AND (@lastTime_new IS NULL OR zs.CreateTime &gt; @lastTime_new OR zs.ID &gt; @lastKey_new)
-) u
-ORDER BY u.sortTime ASC, u.sortKey ASC</code></pre>
-    <ul class="tight prose">
-      <li>Bấm <span class="ui">Lưu &amp; phân tích</span>: bốn biến <code>@lastTime_upd</code>, <code>@lastKey_upd</code>, <code>@lastTime_new</code>, <code>@lastKey_new</code> tự có nguồn; hai dòng <code>@lastTime</code>, <code>@lastKey</code> cũ tự bỏ.</li>
-      <li>Đổi từ câu một nhóm sang câu này là đổi công thức cột mốc: có hộp xác nhận, mốc cũ của đối tác bị xóa.</li>
-      <li>Sau khi lưu: <span class="ui">Từ ngày</span> cho <code>@lastTime_upd</code> nếu muốn bỏ dữ liệu cũ, <span class="ui">Toàn bộ</span> cho <code>@lastTime_new</code>, rồi <span class="ui">Lưu</span>.</li>
-      <li>Hộp <span class="ui">Đặt mốc</span> có hai khối <span class="ui">Nhóm mốc upd</span> và <span class="ui">Nhóm mốc new</span>; dải mốc hiện <code>upd: … ; new: …</code>.</li>
-      <li>Mẫu chưa có <code>TOP</code> trong từng nhánh nên lượt đầu sắp toàn bộ dòng sau mốc; chưa đo trên bảng lớn.</li>
-    </ul>
-
-    <h3>Nhiều nhóm: gộp nhiều bảng</h3>
-    <pre><code>SELECT TOP (@pageSize) u.rowCode, u.__lastTime_pkt, u.__lastKey_pkt, u.__lastTime_toll, u.__lastKey_toll
-FROM (
-    SELECT p.Code AS rowCode, p.UpdateTime AS sortTime, p.ID AS sortKey,
-           p.UpdateTime AS __lastTime_pkt, p.ID AS __lastKey_pkt,
-           CAST(NULL AS datetime) AS __lastTime_toll, CAST(NULL AS nvarchar(64)) AS __lastKey_toll
-    FROM ShareDataPacket p
-    WHERE p.UpdateTime &gt;= ISNULL(@lastTime_pkt, '17530101')
-      AND (@lastTime_pkt IS NULL OR p.UpdateTime &gt; @lastTime_pkt OR p.ID &gt; @lastKey_pkt)
-    UNION ALL
-    SELECT t.SourceId, t.SourceWriteDate, t.ID, NULL, NULL, t.SourceWriteDate, t.ID
-    FROM TollPriceList t
-    WHERE t.SourceWriteDate &gt;= ISNULL(@lastTime_toll, '17530101')
-      AND (@lastTime_toll IS NULL OR t.SourceWriteDate &gt; @lastTime_toll OR t.ID &gt; @lastKey_toll)
-) u
-ORDER BY u.sortTime ASC, u.sortKey ASC</code></pre>
-    <ul class="tight prose">
-      <li>Tên nhóm gồm chữ, số, gạch dưới. Nhánh của nguồn nào lọc theo biến của nhóm đó; cột của nhóm khác để <code>NULL</code>.</li>
-      <li><code>ORDER BY</code> phải xếp dòng của mỗi nguồn theo đúng (thời gian, khóa) của nguồn đó. Bộ kiểm chưa dò được điều này, người viết câu tự đảm bảo.</li>
-    </ul>
-
-    <h3>Điều kiện <code>WHERE</code> nào được lưu</h3>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th style="width:42%">Viết</th><th>Khi lưu</th><th>Vì sao</th></tr></thead>
-        <tbody>
-          <tr><td><code>X &gt; @lastTime OR (X = @lastTime AND K &gt; @lastKey)</code></td><td><span class="tag ok">Lưu được</span></td><td>Dạng cặp chuẩn</td></tr>
-          <tr><td><code>X &gt;= ISNULL(@lastTime, '17530101') AND (X &gt; @lastTime OR K &gt; @lastKey)</code></td><td><span class="tag ok">Lưu được</span></td><td>Dạng cặp đọc ít trang nhất</td></tr>
-          <tr><td><code>X &gt;= … AND K &gt; @lastKey</code> (AND thay OR)</td><td><span class="tag todo">Từ chối</span></td><td>Bỏ dòng giờ mới hơn mà khóa nhỏ hơn</td></tr>
-          <tr><td>Chỉ <code>X &gt; @lastTime</code></td><td><span class="tag todo">Từ chối</span></td><td>Bỏ dòng trùng giờ ở ranh giới trang</td></tr>
-          <tr><td>So cột mốc với hằng số, ví dụ <code>ID &gt; 'a'</code></td><td><span class="tag todo">Từ chối</span></td><td>Có <code>TOP</code> thì lượt nào cũng lấy lại trang đầu</td></tr>
-          <tr><td><code>GETDATE() AS __lastTime</code>, so cột khác cột mốc</td><td><span class="tag todo">Từ chối</span></td><td>Mốc không phải giá trị của dòng</td></tr>
-          <tr><td><code>ORDER BY</code> sai thứ tự hoặc <code>DESC</code></td><td><span class="tag todo">Từ chối</span></td><td>Dòng cuối không phải mốc lớn nhất</td></tr>
-          <tr><td>Chỉ khóa với <code>K &gt;= @lastKey</code></td><td><span class="tag diff">Lưu, cảnh báo</span></td><td>Gửi lặp dòng cuối mỗi lượt</td></tr>
-          <tr><td>Cột thời gian mốc cho phép trống</td><td><span class="tag diff">Lưu, cảnh báo</span></td><td>Dòng có thời gian trống không bao giờ được gửi</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <section id="thong-bao">
-    <h2>Thông báo hay gặp và cách xử lý</h2>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th style="width:38%">Màn hình báo</th><th>Nghĩa là</th><th style="width:30%">Làm gì</th></tr></thead>
-        <tbody>
-          <tr><td>"Biến [@x] chưa khai ở bảng Tham số câu truy vấn…"</td><td>Câu có biến chưa có dòng trong bảng tham số.</td><td>Bấm <span class="ui">Lưu &amp; phân tích</span> để trích biến, rồi chọn nguồn.</td></tr>
-          <tr><td>"Sửa các dòng tham số đang báo lỗi trước khi lưu."</td><td>Có dòng chưa chọn nguồn hoặc <code>@pageSize</code> chưa có số.</td><td>Sửa dòng viền đỏ, bấm lại.</td></tr>
-          <tr><td>"WHERE phải so cả cặp mốc…"</td><td>Điều kiện lọc thiếu cặp, dùng AND, so với hằng, hoặc <code>@lastKey</code> chọn nhầm nguồn thời gian.</td><td>Viết lại theo một trong hai dạng cặp; kiểm nguồn <code>@lastKey</code>.</td></tr>
-          <tr><td>"…phải sắp xếp ORDER BY ngoài cùng theo cột [__lastTime] rồi [__lastKey]…"</td><td><code>ORDER BY</code> sai thứ tự hoặc thiếu.</td><td>Sắp theo đúng hai cột mốc, tăng dần.</td></tr>
-          <tr><td>"Nhóm mốc còn thiếu cột hoặc biến…"</td><td>Một nhóm có biến mà thiếu cột <code>__lastKey_&lt;nhóm&gt;</code>, hoặc ngược lại.</td><td>Thêm cột hoặc biến còn thiếu của nhóm.</td></tr>
-          <tr><td>"Biến của nhóm mốc chọn sai nguồn giá trị…"</td><td><code>@lastKey_&lt;nhóm&gt;</code> lấy theo thời gian, hoặc ngược lại.</td><td>Chọn lại nguồn đúng.</td></tr>
-          <tr><td>"Gói tin […] đang có đăng ký bật sử dụng (…)…"</td><td>Còn đối tác đang nhận gói này.</td><td>Tắt đăng ký ở màn <span class="ui">Cấu hình</span>.</td></tr>
-          <tr><td><span class="tag diff">Cảnh báo</span> "Cột mốc thời gian (__lastTime) cho phép NULL…"</td><td>Dòng có thời gian trống sẽ không được gửi. Câu vẫn lưu và chạy.</td><td>Không bắt buộc xử lý. Chỉ khi cần gửi cả các dòng đó thì dùng <a href="#mau-hai-nhom">mẫu hai nhóm</a>.</td></tr>
-          <tr><td><span class="tag diff">Cảnh báo</span> "Điều kiện lọc so khóa bằng &gt;=…"</td><td>Dòng cuối lượt trước bị gửi lại mỗi lượt.</td><td>Đổi thành <code>&gt;</code>.</td></tr>
-          <tr><td><span class="tag diff">Cảnh báo</span> "Khóa nối đuôi [__lastKey] chỉ là một cột chuỗi…"</td><td>ID GUID không tăng theo thứ tự ghi.</td><td>Dùng dạng hai cột.</td></tr>
-          <tr><td><span class="ui">Cảnh báo &amp; lỗi</span>: ESH-1306 "Câu truy vấn nối đuôi … sai cấu trúc…"</td><td>Câu bị sửa ngoài màn hình (nạp tệp <code>.sql</code>) sang dạng làm mất dòng. Worker không gửi, mốc giữ nguyên.</td><td>Tắt đăng ký, lưu lại câu đúng trên giao diện.</td></tr>
-          <tr><td><span class="ui">Cảnh báo &amp; lỗi</span>: ESH-1308 "Công thức cột mốc … đã đổi ngoài màn hình cấu hình…"</td><td>Câu bị sửa ngoài màn hình và đổi cách tính cột mốc. Worker bỏ mốc cũ, đối tác nhận lại dữ liệu từ giá trị khởi tạo. Mỗi đăng ký báo một lần.</td><td>Báo đối tác sắp nhận lại dữ liệu, hoặc tắt đăng ký rồi dùng <span class="ui">Đặt mốc</span> để gửi tiếp từ thời điểm mong muốn.</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <section id="doi-chieu">
-    <h2>Đối chiếu với biên bản</h2>
-    <p class="prose muted">A là buổi 27/10, B là buổi 28/10; mốc thời gian trỏ vào lời thoại trong tệp <code>28-10-2026-sharedata-xu-ly-noi-key-3-phuong-an-lastkey-va-toi-uu-hieu-nang.md</code>.</p>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr><th style="width:30%">Ý trong biên bản</th><th>Mã hiện tại</th><th style="width:150px">Kết quả</th></tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Lấy mốc ở dòng cuối danh sách, đem đi lưu<span class="ref">B 03:07–03:32 · B 07:41–08:05</span></td>
-            <td>Worker đọc <code>__lastTime</code>, <code>__lastKey</code> của dòng cuối mỗi trang rồi ghi vào <code>ShareDataLastSend</code>.</td>
-            <td><span class="tag ok">Khớp</span></td>
-          </tr>
-          <tr>
-            <td>Lưu theo bộ <code>(Mã gói, Đối tác, Key) → Value</code><span class="ref">A 04:46–05:05 · B 08:06–09:40</span></td>
-            <td>Nhóm mặc định: một dòng cho mỗi <code>(PartnerCode, PacketCode)</code> trong <code>ShareDataLastSend</code>. Nhóm có tên: một dòng cho mỗi <code>(PartnerCode, PacketCode, CursorKey)</code> trong <code>ShareDataLastSendKey</code>.</td>
-            <td><span class="tag ok">Khớp</span></td>
-          </tr>
-          <tr>
-            <td>Không lưu mốc ở mẫu chung, hai đối tác dùng chung mẫu sẽ ghi đè nhau<span class="ref">A 02:41–03:05</span></td>
-            <td>Mốc luôn gắn đối tác. Tab Mẫu chung chỉ hiện bảng mốc của từng đối tác để xem và thao tác.</td>
-            <td><span class="tag ok">Khớp</span></td>
-          </tr>
-          <tr>
-            <td>Chỉ lưu mốc mới khi xử lý xong; sập giữa chừng thì giữ mốc cũ<span class="ref">A 05:26–05:35</span></td>
-            <td>Ghi mốc sau khi gửi thành công từng trang, trong giao dịch, có khóa <code>ProcessingUntil</code>; mốc chỉ tiến, không lùi.</td>
-            <td><span class="tag ok">Khớp</span></td>
-          </tr>
-          <tr>
-            <td>Cột mốc vừa ở <code>WHERE</code> vừa ở <code>ORDER BY</code>, sắp tăng dần<span class="ref">A 06:34–06:41 · B 06:06–06:24</span></td>
-            <td>Màn hình kiểm nhanh khi soạn; WebAPI kiểm khi lưu; Worker kiểm lại trước khi chạy. Bộ kiểm đọc cây cú pháp của <code>WHERE</code>: phải so đúng biểu thức cột mốc với đúng biến mốc.</td>
-            <td><span class="tag ok">Khớp</span></td>
-          </tr>
-          <tr>
-            <td>Mặc định so lớn hơn <code>&gt;</code><span class="ref">A 05:36–05:48</span></td>
-            <td>Câu mẫu dùng <code>&gt;</code>. Dạng hai cột dùng <code>&gt;=</code> trên thời gian kèm <code>&gt;</code> trên khóa để không sót dòng trùng giờ. So khóa bằng <code>&gt;=</code> thì có cảnh báo.</td>
-            <td><span class="tag ok">Khớp</span></td>
-          </tr>
-          <tr>
-            <td>Mốc khởi tạo để bỏ dữ liệu chạy thử<span class="ref">B 06:46–07:10</span></td>
-            <td><span class="ui">Từ ngày</span> của <code>@lastTime</code>, <span class="ui">Mốc bắt đầu lần đầu</span> của <code>@lastKey</code>; thêm nút <span class="ui">Đặt mốc</span> riêng từng đối tác.</td>
-            <td><span class="tag ok">Khớp, mở rộng</span></td>
-          </tr>
-          <tr>
-            <td>Cấu trúc khóa theo gói: 101 <code>yyyyMMddHHmmssfff_Code</code>, 102 <code>yyyyMMddHHmmss_Code</code><span class="ref">B 00:31–01:30</span></td>
-            <td>Hai cột giữ nguyên kiểu gốc (thời gian, mã) nên không phải tự định dạng chuỗi. Ai vẫn ghép chuỗi thì lúc lưu được cảnh báo định dạng dễ sai thứ tự.</td>
-            <td><span class="tag diff">Khác</span><span class="ref">tránh lỗi định dạng</span></td>
-          </tr>
-          <tr>
-            <td>PA1: ghép chuỗi trong câu SQL chính<span class="ref">B 04:09–05:46 · B 13:49–14:09</span></td>
-            <td>Vẫn chạy được ở chế độ chỉ khóa, kèm cảnh báo định dạng. Không dùng cho câu mẫu vì quét cả bảng.</td>
-            <td><span class="tag diff">Hỗ trợ, không khuyên</span></td>
-          </tr>
-          <tr>
-            <td>PA2: lưu công thức, chỉ tính trên dòng cuối<span class="ref">B 11:16–12:50</span></td>
-            <td>Không làm. Đo thấy <code>WHERE</code> vẫn so chuỗi ghép nên vẫn quét, lại thêm một lượt gọi CSDL mỗi trang.</td>
-            <td><span class="tag diff">Khác</span><span class="ref">có số đo</span></td>
-          </tr>
-          <tr>
-            <td>PA3: ghép trong mã C#<span class="ref">B 12:56–13:08 · B 14:28–15:23</span></td>
-            <td>Không làm, đúng như đã chốt gác lại.</td>
-            <td><span class="tag ok">Khớp</span></td>
-          </tr>
-          <tr>
-            <td>Làm lên rồi đo hiệu năng để chọn giữa PA1 và PA2<span class="ref">B 13:31–14:25</span></td>
-            <td>Đã đo cả ba phương án và dạng hai cột trên bảng 1.000.000 dòng; chọn hai cột gốc.</td>
-            <td><span class="tag diff">Khác</span><span class="ref">chọn theo số đo</span></td>
-          </tr>
-          <tr>
-            <td>Một câu có nhiều điều kiện, mỗi điều kiện một key<span class="ref">A 03:06–03:15</span></td>
-            <td>Mỗi nguồn một nhóm mốc, ghi cùng giao dịch, chỉ tiến, chữ ký riêng từng nhóm. Đặt mốc theo nhóm; Đặt lại xóa mọi nhóm.</td>
-            <td><span class="tag ok">Khớp</span></td>
-          </tr>
-          <tr>
-            <td>Giá trị đã lưu chỉ hiện theo đối tác, không theo mẫu<span class="ref">A 00:31–00:55</span></td>
-            <td>Bảng mốc theo đối tác ở tab Mẫu chung; dải <span class="ui">Mốc đang chạy</span> ở tab đối tác.</td>
-            <td><span class="tag ok">Khớp</span></td>
-          </tr>
-          <tr>
-            <td>Tự thử với đối tác thử trước<span class="ref">A 01:26–01:38</span></td>
-            <td>Làm được hoàn toàn trên giao diện: cấu hình riêng cho đối tác thử, đặt mốc, xem lượt gửi đầu.</td>
-            <td><span class="tag ok">Khớp</span></td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <h3 id="ngoai-bien-ban">Thêm ngoài biên bản</h3>
-    <p class="prose">Các mục dưới có trong mã nhưng không có trong lời họp 27–28/10, chưa được chốt ở buổi họp nào. Mục nào cần sếp duyệt thì đưa ra họp.</p>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th style="width:26%">Cơ chế</th><th>Làm gì</th><th style="width:27%">Nguồn</th><th style="width:60px">Từ</th></tr></thead>
-        <tbody>
-          <tr><td>Khóa sửa khi đăng ký đang bật</td><td>Không sửa được câu, bảng tham số, <span class="ui">Đặt mốc</span>, <span class="ui">Đặt lại</span>, <span class="ui">Dùng lại mẫu chung</span>, tắt gói tin khi còn đăng ký bật. Áp cả màn hình lẫn API (ESH-2306, ESH-2307).</td><td>Văn Hiếu, commit <code>6418f626</code>. DatHQ thêm câu dịch 31/10, yêu cầu khóa cả Đặt mốc 01/11.</td><td>30/10</td></tr>
-          <tr><td>Chữ ký công thức cột mốc</td><td>Câu đổi cách tính cột mốc thì mốc cũ không dùng tiếp: khi lưu thì hỏi xác nhận, khi câu đổi ngoài màn hình thì Worker tự gửi lại từ khởi tạo.</td><td>DatHQ, commit <code>c114d0d1</code>, cho ca câu do người dùng tự viết.</td><td>30/10</td></tr>
-          <tr><td>Từ chối câu làm mất dòng</td><td>Bộ kiểm đọc <code>WHERE</code>: so thiếu cặp (thời gian, khóa), chỉ so thời gian, so với hằng số, cột mốc không lấy từ cột dữ liệu thì không lưu được và Worker không chạy. Câu chỉ gửi lặp thì lưu được kèm cảnh báo. Biên bản chỉ yêu cầu cột mốc có ở <code>WHERE</code> và <code>ORDER BY</code>.</td><td>DatHQ, commit <code>c114d0d1</code>, siết thêm khi rà 30/10.</td><td>30/10</td></tr>
-          <tr><td>Đặt mốc, đặt lại khi Worker đang gửi</td><td>Worker chụp mốc lúc bắt đầu lượt, so lại trước khi ghi mốc mỗi trang. Mốc bị đổi giữa chừng thì dừng lượt, không ghi đè mốc người dùng, không tự bật lại đăng ký đã tắt. Vì cả hai nút đều phải tắt đăng ký trước, ca này chỉ còn xảy ra khi tắt đăng ký lúc lượt đang chạy.</td><td>DatHQ chốt khi rà edge case.</td><td>30/10</td></tr>
-          <tr><td>Cột thời gian trống</td><td>Lưu câu có cột thời gian cho phép trống thì hiện cảnh báo (chỉ nhóm mốc mặc định). Không đổi câu mẫu; gói nào cần gửi cả dòng chưa có thời gian thì sửa câu trên giao diện theo <a href="#mau-hai-nhom">mẫu hai nhóm</a>.</td><td>DatHQ chốt khi rà edge case.</td><td>30/10</td></tr>
-          <tr><td>Lưu câu và bảng tham số một lần</td><td>Câu bị từ chối thì bảng tham số cũng không lưu. Trước đây bảng tham số lưu trước, câu bị từ chối vẫn để lại bảng mới lệch với câu cũ.</td><td>Lỗi phát hiện khi rà mã, DatHQ yêu cầu sửa.</td><td>31/10</td></tr>
-          <tr><td>Kiểm lại câu khi chỉ đổi bảng tham số</td><td>Đổi nguồn biến mốc làm câu hỏng thì bị từ chối ngay, không đợi Worker chặn lúc chạy. Chỉ đổi giá trị như <code>@pageSize</code> thì bỏ qua bước kiểm.</td><td>DatHQ yêu cầu.</td><td>31/10</td></tr>
-          <tr><td>Biến nhóm tự chọn nguồn</td><td><code>@lastKey_&lt;nhóm&gt;</code>, <code>@lastTime_&lt;nhóm&gt;</code> tự có nguồn theo tiền tố tên khi bấm <span class="ui">Lưu &amp; phân tích</span>.</td><td>DatHQ yêu cầu.</td><td>31/10</td></tr>
-          <tr><td>Mẫu gợi ý hai cột</td><td>Mẫu <span class="ui">select-incremental</span> chèn sẵn dạng hai cột.</td><td>DatHQ yêu cầu.</td><td>31/10</td></tr>
-          <tr><td>Cảnh báo ESH-1308</td><td>Worker tự đặt lại mốc vì câu bị đổi công thức ngoài màn hình thì ghi cảnh báo ở <span class="ui">Cảnh báo &amp; lỗi</span>, trước đây chỉ ghi log máy chủ.</td><td>DatHQ yêu cầu.</td><td>31/10</td></tr>
-          <tr><td>Tệp seed điền bộ biến</td><td>Điền bộ biến cho câu mẫu nối đuôi còn trống; có cờ nạp lại câu mẫu riêng một gói.</td><td>DatHQ yêu cầu.</td><td>31/10</td></tr>
-        </tbody>
-      </table>
-    </div>
   </section>
 
   <section id="luong">
@@ -828,7 +563,7 @@ ORDER BY u.sortTime ASC, u.sortKey ASC</code></pre>
 
     <h3>Một lượt chạy của Worker</h3>
     <ol class="run prose">
-      <li>Kiểm lại cấu trúc câu: cột mốc, <code>ORDER BY</code>, điều kiện <code>WHERE</code> của từng nhóm. Sai thì không gửi, giữ nguyên mốc, ghi cảnh báo.</li>
+      <li>Kiểm lại cấu trúc câu: cột mốc, <code>ORDER BY</code>, điều kiện <code>WHERE</code> của từng nhóm. Sai thì không gửi, giữ nguyên mốc, ghi cảnh báo. Đúng mà có rủi ro thì ghi nhật ký cấu hình một lần, vẫn gửi.</li>
       <li>Đọc mốc của (đối tác, gói) và mốc từng nhóm, giữ lại một bản chụp để so về sau.</li>
       <li>Tính chữ ký công thức cột mốc của câu đang chạy, riêng từng nhóm. Khác chữ ký đã lưu thì bỏ mốc cũ của nhóm đó, gửi lại từ giá trị khởi tạo và ghi cảnh báo ESH-1308.</li>
       <li>Chạy câu với <code>@lastTime</code>, <code>@lastKey</code>; mốc trống thì lấy giá trị khởi tạo của biến. Lấy một trang <code>TOP (@pageSize)</code>.</li>
@@ -837,25 +572,308 @@ ORDER BY u.sortTime ASC, u.sortKey ASC</code></pre>
     </ol>
   </section>
 
-  <section id="hieu-nang">
-    <h2>Hiệu năng</h2>
-    <p class="prose">Đo bằng <code>CursorQueryPerformanceTests</code> trên SQL Server máy dev: bảng 1.000.000 dòng có chỉ mục <code>(UpdateTime, ID)</code>, trang 100 dòng, mốc ở gần cuối bảng như lúc chạy định kỳ. Mọi cách trả cùng một trang và cùng mốc kế tiếp.</p>
+  <section id="van-hanh">
+    <span class="eyebrow">Dành cho SuperAdmin · nhóm menu Chia sẻ dữ liệu</span>
+    <h2>Vận hành trên giao diện</h2>
+    <p class="prose">Toàn bộ làm trên màn hình, không cần chạy tệp SQL. Lần đầu cấu hình một gói đi theo thứ tự các bước dưới đây. Các việc khi đã chạy (theo dõi, đặt mốc, sửa câu) nằm ở các mục sau.</p>
+
+    <div class="note">
+      <h4>Thử trước trên một đối tác thử</h4>
+      <p>Theo gợi ý ở buổi 27/10 <span class="mono muted">[A 01:26–01:38]</span>: tạo một đối tác thử, làm cấu hình riêng của gói cho đối tác đó, đặt mốc gần cuối dữ liệu rồi xem lượt gửi đầu. Mẫu chung và các đối tác thật không bị ảnh hưởng.</p>
+    </div>
+
+    <div class="sub">
+      <h3>Lần đầu cấu hình một gói gửi nối đuôi</h3>
+      <ol class="steps">
+        <li><div>
+          <h4>Chuẩn bị đối tác</h4>
+          <p class="where">Menu <span class="ui">Cấu hình</span> · <span class="ui">Ánh xạ dữ liệu</span></p>
+          <ul class="tight prose">
+            <li>Màn <span class="ui">Cấu hình</span>: thêm đối tác (địa chỉ, cổng, endpoint, kiểu kết nối) → Lưu → <span class="ui">Kết nối</span>.</li>
+            <li>Màn <span class="ui">Ánh xạ dữ liệu</span>: tạo hồ sơ chiều gửi cho đối tác với gói này, bật áp dụng. Thiếu hồ sơ ánh xạ thì Worker không gửi được.</li>
+          </ul>
+        </div></li>
+
+        <li><div>
+          <h4>Mở gói và chọn nơi sửa</h4>
+          <p class="where">Menu <span class="ui">Cấu hình gói tin</span> → chọn gói ở danh sách bên trái → tab <span class="ui">Gửi đi · lấy dữ liệu gửi đối tác</span></p>
+          <ul class="tight prose">
+            <li>Tab <span class="ui">Mẫu chung</span>: câu dùng cho mọi đối tác chưa có cấu hình riêng.</li>
+            <li>Nút <span class="ui">Tạo cấu hình riêng +</span>: chọn <span class="ui">Đối tác</span>, <span class="ui">Sao chép từ</span> = <span class="ui">Mẫu chung</span> hoặc <span class="ui">Cấu hình riêng của đối tác</span> khác. Màn hình tự mở tab của đối tác đó. Đối tác này có câu, trường và bảng tham số riêng; sửa ở đây không đụng mẫu chung.</li>
+          </ul>
+        </div></li>
+
+        <li><div>
+          <h4>Viết câu trong khung soạn SQL</h4>
+          <p class="prose">Câu nối đuôi cần ba phần: hai <strong>cột mốc</strong> trong <code>SELECT</code>, điều kiện lọc theo <strong>cặp biến mốc</strong> trong <code>WHERE</code>, và <code>ORDER BY</code> tăng dần đúng theo hai cột mốc. Gõ <code>SEL</code> trong khung soạn rồi chọn mẫu gợi ý <span class="ui">select-incremental</span> để chèn sẵn khung câu này, sau đó đổi tên bảng và cột. Dạng hay dùng nhất:</p>
+          <pre><code>SELECT TOP (@pageSize)                  <span class="c">-- số dòng mỗi trang, khai ở bảng tham số</span>
+       zs.Code       AS zoneCode,
+       zs.Status     AS status,
+       zs.UpdateTime AS __lastTime,      <span class="c">-- cột mốc thời gian: cột gốc, không bọc hàm</span>
+       zs.ID         AS __lastKey        <span class="c">-- cột mốc khóa: duy nhất, phân biệt dòng trùng giờ</span>
+FROM   TmsZoneStatus zs
+WHERE  zs.UpdateTime &gt;= ISNULL(@lastTime, '17530101')
+  AND (@lastTime IS NULL OR zs.UpdateTime &gt; @lastTime OR zs.ID &gt; @lastKey)
+ORDER BY zs.UpdateTime ASC, zs.ID ASC</code></pre>
+          <p class="prose muted">Cột bắt đầu bằng <code>__</code> là cột nội bộ: hệ thống đọc để lấy mốc, không gửi cho đối tác. Bảng không có cột thời gian luôn có giá trị thì xem <a href="#mau-cau">Mẫu câu</a>.</p>
+        </div></li>
+
+        <li><div>
+          <h4>Bấm <span class="ui">Lưu &amp; phân tích</span> để trích biến</h4>
+          <p class="prose">Bảng <span class="ui">3. Tham số điều kiện</span> tự thêm một dòng cho mỗi <code>@biến</code> trong câu, theo thứ tự xuất hiện, và bỏ dòng của biến không còn trong câu. Nguồn giá trị được chọn sẵn theo tên biến:</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th style="width:24%">Biến trong câu</th><th style="width:32%">Nguồn giá trị tự chọn</th><th>Bạn nhập ở cột Giá trị cấu hình</th></tr></thead>
+              <tbody>
+                <tr><td><code>@pageSize</code></td><td><span class="ui">Giá trị nhập</span></td><td>Số dòng mỗi lượt, ví dụ 100. Bắt buộc.</td></tr>
+                <tr><td><code>@lastTime</code>, <code>@lastTime_&lt;nhóm&gt;</code></td><td><span class="ui">Nối tiếp lần trước (theo thời gian)</span></td><td><span class="ui">Toàn bộ</span> (lấy từ đầu dữ liệu) hoặc <span class="ui">Từ ngày</span> để bỏ dữ liệu cũ. Chỉ dùng khi đối tác chưa có mốc: lượt đầu, hoặc sau <span class="ui">Đặt lại</span>.</td></tr>
+                <tr><td><code>@lastKey</code>, <code>@lastKey_&lt;nhóm&gt;</code></td><td><span class="ui">Nối tiếp lần trước (theo key)</span></td><td>Dạng hai cột: không cần nhập. Dạng chỉ khóa: <span class="ui">Mốc bắt đầu lần đầu</span>, để trống là lấy từ đầu.</td></tr>
+                <tr><td>Biến khác, ví dụ <code>@tuNgay</code></td><td>Để trống, phải tự chọn</td><td><span class="ui">Thời điểm chạy</span>, <span class="ui">Lần chạy trước</span>, <span class="ui">Đầu năm</span>, <span class="ui">Mã đối tác</span> hoặc <span class="ui">Giá trị nhập</span>.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="prose">Câu mới có <code>@pageSize</code> thì lần bấm đầu báo "Sửa các dòng tham số đang báo lỗi trước khi lưu." vì <code>@pageSize</code> chưa có số. Nhập số, chọn nguồn cho các biến còn trống rồi bấm <span class="ui">Lưu &amp; phân tích</span> lần nữa.</p>
+        </div></li>
+
+        <li><div>
+          <h4>Xem dải <span class="ui">Quy chuẩn mốc:</span> trên bảng tham số</h4>
+          <p class="prose">Bốn mục <span class="ui">Cột mốc</span>, <span class="ui">Điều kiện lọc</span>, <span class="ui">Nguồn key</span>, <span class="ui">ORDER BY tăng dần</span> phải xanh. Rê chuột vào dải để xem giải thích từng mục. Đây là kiểm nhanh khi soạn; luật đầy đủ chạy khi lưu, nên dải xanh vẫn có thể bị từ chối.</p>
+        </div></li>
+
+        <li><div>
+          <h4>Đọc kết quả lưu</h4>
+          <ul class="tight prose">
+            <li><strong>Thông báo xanh</strong> "Lưu cấu hình SQL trích xuất thành công": câu, danh sách trường và bảng tham số được lưu cùng một lần.</li>
+            <li><strong>Lỗi đỏ</strong>, khung soạn gạch chỗ sai: không lưu gì. Câu và bảng tham số giữ bản cũ; chọn lại gói là thấy bản cũ.</li>
+            <li><strong>Hộp xác nhận đổi công thức cột mốc</strong>: chỉ hiện khi câu mới đổi cách tính cột <code>__lastTime</code> / <code>__lastKey</code> và có đối tác đang có mốc. Hộp nêu tên các đối tác đó. <span class="ui">Xác nhận</span> thì mốc của họ bị xóa, lượt tới gửi lại từ giá trị khởi tạo; hủy thì câu chưa được lưu.</li>
+          </ul>
+          <p class="prose muted">Khối <span class="ui">Danh sách trường</span> lấy theo các cột của câu (bỏ cột <code>__</code>). Đây là các trường dùng ở màn Ánh xạ dữ liệu.</p>
+        </div></li>
+
+        <li><div>
+          <h4>Tạo đăng ký và bật gửi</h4>
+          <p class="where">Menu <span class="ui">Cấu hình</span> → đối tác → <span class="ui">Tạo đăng ký gửi</span></p>
+          <p class="prose">Chọn gói, lịch <span class="ui">Theo chu kỳ</span> (ví dụ 10 giây) rồi bật bằng <span class="ui">Bật/Tắt</span>. Lượt đầu chưa có mốc nên lấy từ giá trị khởi tạo của <code>@lastTime</code>. Mỗi trang gửi thành công thì mốc tiến tới dòng cuối của trang; lượt sau gửi tiếp từ đó.</p>
+        </div></li>
+      </ol>
+    </div>
+
+    <div class="sub">
+      <h3>Theo dõi khi đang gửi</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:30%">Xem ở đâu</th><th>Thấy gì</th></tr></thead>
+          <tbody>
+            <tr><td><span class="ui">Cấu hình gói tin</span> → tab <span class="ui">Mẫu chung</span> → bảng <span class="ui">Trạng thái mốc đang chạy theo từng đối tác</span></td><td>Mọi đối tác dùng gói, mỗi dòng có <span class="ui">Chế độ SQL</span>, <span class="ui">Mốc đang chạy</span> dạng <code>thời gian · khóa</code> (câu nhiều nhóm: <code>nhóm: thời gian · khóa</code>) và hai nút <span class="ui">Đặt mốc</span>, <span class="ui">Đặt lại</span>. "Chưa có — dùng mặc định" nghĩa là đối tác chưa gửi lượt nào.</td></tr>
+            <tr><td>Tab của đối tác có cấu hình riêng</td><td>Dải <span class="ui">Mốc đang chạy:</span> ngay dưới bảng tham số, có nút bút (<span class="ui">Đặt mốc</span>) và <span class="ui">Đặt lại</span>. Cột <span class="ui">Mốc đang chạy</span> trong bảng tham số hiện giá trị đã lưu của từng biến mốc.</td></tr>
+            <tr><td><span class="ui">Lịch sử chia sẻ</span> → <span class="ui">Nhật ký truyền nhận</span></td><td>Từng lần gửi, thành công hay lỗi, số bản ghi.</td></tr>
+            <tr><td><span class="ui">Cảnh báo &amp; lỗi</span></td><td>Không kết nối được tới đối tác, câu sai cấu trúc (ESH-1306). Khi có lỗi, mốc giữ nguyên, lượt sau gửi lại.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="sub">
+      <h3>Đăng ký đang bật thì được làm gì</h3>
+      <p class="prose">Câu và mốc của đối tác đang nhận bị khóa để Worker không chạy câu nửa cũ nửa mới. Biểu tượng khóa trên màn hình ghi tên các đối tác còn bật.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Việc</th><th style="width:22%">Đăng ký đang bật</th><th style="width:22%">Đăng ký đã tắt</th></tr></thead>
+          <tbody>
+            <tr><td>Sửa câu SQL, bảng tham số (<span class="ui">Lưu &amp; phân tích</span>, <span class="ui">Lưu</span>)</td><td class="no">Khóa</td><td class="yes">Được</td></tr>
+            <tr><td><span class="ui">✎ Đặt mốc</span></td><td class="no">Khóa</td><td class="yes">Được</td></tr>
+            <tr><td><span class="ui">↺ Đặt lại</span></td><td class="no">Khóa</td><td class="yes">Được</td></tr>
+            <tr><td><span class="ui">Dùng lại mẫu chung</span> cho đối tác</td><td class="no">Khóa</td><td class="yes">Được</td></tr>
+            <tr><td>Tắt gói tin</td><td class="no">Bị chặn</td><td class="yes">Được</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="prose muted">Ở tab <span class="ui">Mẫu chung</span>, khóa áp cho mọi đối tác đang dùng mẫu chung; ở tab đối tác, chỉ đối tác đó.</p>
+    </div>
+
+    <div class="sub">
+      <h3>Đặt mốc cho một đối tác</h3>
+      <p class="prose">Dùng khi đối tác chỉ muốn nhận từ một thời điểm, cần gửi lại từ một mốc cũ, hoặc muốn bỏ qua một đoạn dữ liệu. Tắt đăng ký trước, chọn lại gói, rồi bấm <span class="ui">✎ Đặt mốc</span> ở bảng mốc (tab Mẫu chung) hoặc nút bút ở dải <span class="ui">Mốc đang chạy:</span>. Hộp <span class="ui">Đặt mốc gửi dữ liệu — tên đối tác</span> hiện ô theo câu của chính đối tác đó:</p>
+      <ul class="tight prose">
+        <li><span class="ui">Mốc thời gian (__lastTime)</span>: bắt buộc với dạng hai cột.</li>
+        <li><span class="ui">Mốc khóa (__lastKey)</span>: tùy chọn với dạng hai cột; bắt buộc với dạng chỉ khóa.</li>
+        <li>Câu nhiều nhóm: mỗi nhóm một khối (<span class="ui">Nhóm mốc upd</span>, <span class="ui">Nhóm mốc new</span>…). Đặt nhóm nào thì chỉ nguồn đó đổi.</li>
+      </ul>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:34%">Muốn</th><th style="width:30%">Nhập</th><th>Lượt tới gửi</th></tr></thead>
+          <tbody>
+            <tr><td>Đối tác chỉ nhận từ 08:00 ngày 31/10</td><td>Mốc thời gian = <code>31/10/2026 08:00:00</code>, mốc khóa để trống</td><td>Các dòng có thời gian từ 08:00 trở đi, gồm cả dòng đúng 08:00</td></tr>
+            <tr><td>Gửi tiếp sau dòng có khóa <code>Z03</code> lúc 10:05</td><td>Mốc thời gian = 10:05, mốc khóa = <code>Z03</code></td><td>Dòng cùng 10:05 có khóa lớn hơn <code>Z03</code>, rồi mọi dòng sau 10:05</td></tr>
+            <tr><td>Bỏ qua dữ liệu tồn, chỉ gửi dữ liệu mới từ giờ</td><td>Mốc thời gian = giờ hiện tại, mốc khóa để trống</td><td>Chỉ dòng có thời gian từ lúc đó trở đi</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="prose">Bấm <span class="ui">Xác nhận</span>: thông báo "Đã cập nhật mốc gửi dữ liệu cho đối tác." Thao tác được ghi nhật ký hoạt động. Bật lại đăng ký thì lượt tới gửi theo mốc vừa đặt. Nếu lúc tắt đăng ký Worker còn đang gửi dở, lượt đó dừng sau trang đang gửi, giữ mốc bạn vừa đặt và đăng ký vẫn tắt.</p>
+    </div>
+
+    <div class="sub">
+      <h3>Đặt lại mốc</h3>
+      <p class="prose">Tắt đăng ký trước. Bấm <span class="ui">↺ Đặt lại</span> → xác nhận "Đặt lại mốc đã lưu của gói tin này cho đối tác?" → thông báo "Đã đặt lại mốc đã lưu." Mốc của mọi nhóm bị xóa cùng giờ chạy lần trước; lượt tới gửi lại từ giá trị khởi tạo (<span class="ui">Toàn bộ</span> hoặc <span class="ui">Từ ngày</span> của <code>@lastTime</code>). Worker đang gửi dở thì dừng lượt đó, đăng ký vẫn tắt.</p>
+    </div>
+
+    <div class="sub">
+      <h3>Sửa câu khi đối tác đang nhận</h3>
+      <ol class="run prose">
+        <li>Màn <span class="ui">Cấu hình</span>: tắt đăng ký của các đối tác dùng câu này.</li>
+        <li>Quay lại <span class="ui">Cấu hình gói tin</span>, chọn lại gói, sửa câu → <span class="ui">Lưu &amp; phân tích</span>.</li>
+        <li>Câu đổi cách tính cột mốc thì hiện hộp xác nhận, mốc của các đối tác được nêu tên sẽ bị xóa. Thêm cột khác, thêm <code>JOIN</code>, đổi bí danh bảng không tính là đổi công thức, không ai bị đặt lại mốc.</li>
+        <li>Mốc bị xóa mà không muốn gửi lại từ đầu: trước khi bật lại, dùng <span class="ui">✎ Đặt mốc</span> đặt về thời điểm mong muốn, hoặc đổi <span class="ui">Từ ngày</span> của <code>@lastTime</code> rồi <span class="ui">Lưu</span>.</li>
+        <li>Chỉ đổi bảng tham số, ví dụ <code>@pageSize</code> 100 → 500: bấm <span class="ui">Lưu</span>. Hệ thống kiểm lại câu đang lưu theo bảng tham số mới; đổi làm câu hỏng (ví dụ đổi nguồn <code>@lastKey</code> sang <span class="ui">theo thời gian</span>) thì bị từ chối và giữ bảng cũ.</li>
+        <li>Bật lại đăng ký.</li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="mau-cau">
+    <h2>Mẫu câu theo dạng dữ liệu</h2>
+    <p class="prose">Chọn mẫu theo bảng nguồn. Dán vào khung soạn, đổi tên bảng và cột, rồi bấm <span class="ui">Lưu &amp; phân tích</span>; các biến mốc tự có nguồn.</p>
     <div class="table-wrap">
       <table>
-        <thead>
-          <tr><th>Cách viết câu</th><th class="num">Trang đọc mỗi lượt</th><th class="num">So với hai cột</th><th>Vì sao</th></tr>
-        </thead>
+        <thead><tr><th style="width:30%">Bảng nguồn có</th><th style="width:22%">Dạng câu</th><th>Ghi chú</th></tr></thead>
         <tbody>
-          <tr><td>PA1 · ghép chuỗi trong câu SQL</td><td class="num">31.588</td><td class="num">×75</td><td>So biểu thức nên quét cả bảng rồi sắp xếp</td></tr>
-          <tr><td>PA2 · công thức chỉ tính trên dòng cuối</td><td class="num">11.790</td><td class="num">×28</td><td><code>WHERE</code> vẫn so chuỗi ghép; thêm một lượt gọi CSDL mỗi trang</td></tr>
-          <tr><td>PA3 · ghép trong C#</td><td class="num">11.786</td><td class="num">×28</td><td>Như PA2, không thêm lượt gọi</td></tr>
-          <tr><td>Câu mẫu gói 103–111 (<code>COALESCE</code>)</td><td class="num">31.588</td><td class="num">×75</td><td>So biểu thức nên quét</td></tr>
-          <tr><td>Câu mẫu gói 101 trước khi sửa</td><td class="num">11.786</td><td class="num">×28</td><td>Lên 4.072.255 trang khi SQL Server dùng lại kế hoạch dựng lúc chưa có mốc</td></tr>
-          <tr class="best"><td>Hai cột gốc (đang dùng)</td><td class="num">421</td><td class="num">1</td><td>Tìm thẳng trên chỉ mục ở mọi vị trí mốc</td></tr>
+          <tr><td>Cột thời gian luôn có giá trị + khóa duy nhất</td><td><span class="tag ok">Hai cột</span></td><td>Dạng mặc định, ở bước 3 phía trên. Nhanh nhất (421 trang mỗi lượt).</td></tr>
+          <tr><td>Chỉ có ID số tự tăng, không có cột thời gian tin cậy</td><td><span class="tag ok">Chỉ khóa</span></td><td>Không bắt được dòng sửa sau khi tạo.</td></tr>
+          <tr><td>Cột thời gian có lúc trống, bảng nhỏ</td><td><span class="tag ok">Cột mốc gộp</span></td><td>Gửi cả dòng chưa có thời gian, không cần hai nhóm. Mỗi lượt quét cả bảng nên chỉ hợp bảng nhỏ.</td></tr>
+          <tr><td>Cột thời gian có lúc trống, bảng lớn</td><td><span class="tag diff">Hai nhóm</span></td><td>Dùng được chỉ mục. Câu dài hơn, mỗi nhóm một mốc.</td></tr>
+          <tr><td>Nhiều bảng gộp bằng <code>UNION</code></td><td><span class="tag diff">Nhiều nhóm</span></td><td>Mỗi nguồn một nhóm mốc, nguồn về trễ không mất dòng.</td></tr>
         </tbody>
       </table>
     </div>
-    <p class="prose muted">Các cơ chế mới đều chạy trong bộ nhớ hoặc thêm một truy vấn theo khóa: chữ ký công thức 0,26–0,60 ms mỗi lượt; so bản chụp mốc là một truy vấn đọc mốc mỗi trang; kiểm <code>WHERE</code> là phân tích cú pháp, không gọi CSDL.</p>
+
+    <h3>Chỉ khóa</h3>
+    <pre><code>SELECT TOP (@pageSize)
+       t.Code AS code,
+       t.ID   AS __lastKey          <span class="c">-- ID số tự tăng</span>
+FROM   SomeTable t
+WHERE  t.ID &gt; @lastKey
+ORDER BY t.ID ASC</code></pre>
+    <p class="prose muted"><code>@lastKey</code> nguồn <span class="ui">Nối tiếp lần trước (theo key)</span>; ô <span class="ui">Mốc bắt đầu lần đầu</span> để trống là lấy từ đầu. ID dạng chuỗi trơn (GUID) vẫn lưu được nhưng GUID không tăng theo thứ tự ghi nên có thể sót dòng; Worker ghi rủi ro này vào nhật ký cấu hình.</p>
+
+    <h3 id="mau-cot-gop">Cột mốc gộp: không cần hai nhóm</h3>
+    <p class="prose">Gộp cột cập nhật với cột tạo thành một cột mốc không bao giờ trống. Dòng chưa có <code>UpdateTime</code> được gửi theo <code>CreateTime</code>; cập nhật sau đó thì gửi lại như một bản cập nhật.</p>
+    <pre><code>SELECT TOP (@pageSize)
+       t.Code AS code,
+       ISNULL(ISNULL(t.UpdateTime, t.CreateTime), '17530101') AS __lastTime,
+       t.ID AS __lastKey
+FROM   SomeTable t
+WHERE  @lastTime IS NULL
+   OR  ISNULL(ISNULL(t.UpdateTime, t.CreateTime), '17530101') &gt; @lastTime
+   OR (ISNULL(ISNULL(t.UpdateTime, t.CreateTime), '17530101') = @lastTime AND t.ID &gt; @lastKey)
+ORDER BY __lastTime ASC, t.ID ASC</code></pre>
+    <ul class="tight prose">
+      <li>Phải có hằng <code>'17530101'</code> ở cuối và dùng <code>ISNULL</code>. Viết <code>COALESCE(…)</code> hoặc bỏ hằng thì SQL Server vẫn coi cột có thể trống: câu vẫn chạy, Worker ghi rủi ro cột cho phép trống vào nhật ký cấu hình.</li>
+      <li>Biểu thức trong <code>WHERE</code> phải viết giống hệt trong <code>SELECT</code>.</li>
+      <li>Dòng mới mà cả hai cột đều trống nhận mốc năm 1753, thấp hơn mốc đã lưu nên chưa được gửi, cho tới khi có thời gian. Cột tạo luôn có giá trị thì không gặp ca này; nếu không, dùng mẫu hai nhóm.</li>
+      <li>Biểu thức bọc cột nên không dùng được chỉ mục: mỗi lượt quét cả bảng. Trên bảng 1.000.000 dòng, dạng tương tự đọc 31.588 trang so với 421 trang của hai cột gốc.</li>
+    </ul>
+
+    <h3 id="mau-hai-nhom">Hai nhóm: dòng đã có thời gian và dòng còn trống</h3>
+    <p class="prose">Nhóm <code>upd</code> lấy dòng đã có <code>UpdateTime</code> theo (<code>UpdateTime</code>, <code>ID</code>); nhóm <code>new</code> lấy dòng <code>UpdateTime</code> còn trống theo (<code>CreateTime</code>, <code>ID</code>). Dòng ở nhóm <code>new</code> được cập nhật sau đó thì sang nhóm <code>upd</code> và gửi lại như một bản cập nhật. Ví dụ cho gói 101:</p>
+    <pre><code>SELECT TOP (@pageSize)
+    u.__lastTime_upd, u.__lastKey_upd, u.__lastTime_new, u.__lastKey_new,
+    u.zoneStatusId, u.zoneId, u.zoneName, u.fromLocationKm, u.fromLocationMet, u.toLocationKm, u.toLocationMet,
+    u.laneId, u.averageSpeed, u.trafficCondition, u.dataTime, u.speedLimit, u.vehicleCount
+FROM (
+    SELECT
+        zs.UpdateTime AS sortTime, zs.ID AS sortKey,
+        zs.UpdateTime AS __lastTime_upd, zs.ID AS __lastKey_upd,
+        CAST(NULL AS DATETIME) AS __lastTime_new, CAST(NULL AS NVARCHAR(64)) AS __lastKey_new,
+        zs.ID AS zoneStatusId, zs.ZoneId AS zoneId, z.Name AS zoneName,
+        z.FromKmNumber AS fromLocationKm, z.FromMetNumber AS fromLocationMet,
+        z.ToKmNumber AS toLocationKm, z.ToMetNumber AS toLocationMet, z.LaneId AS laneId,
+        CAST(zs.AverageSpeed AS DECIMAL(18, 2)) AS averageSpeed, zs.Condition AS trafficCondition,
+        zs.UpdateTime AS dataTime, z.MaxSpeed AS speedLimit, ts.TotalVehicleNumber AS vehicleCount
+    FROM dbo.TmsZoneStatus zs
+    LEFT JOIN dbo.TmsZone z ON zs.ZoneId = z.ID
+    LEFT JOIN dbo.TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId
+    WHERE zs.UpdateTime &gt;= ISNULL(@lastTime_upd, '17530101')
+      AND (@lastTime_upd IS NULL OR zs.UpdateTime &gt; @lastTime_upd OR zs.ID &gt; @lastKey_upd)
+    UNION ALL
+    SELECT
+        zs.CreateTime, zs.ID, NULL, NULL, zs.CreateTime, zs.ID,
+        zs.ID, zs.ZoneId, z.Name, z.FromKmNumber, z.FromMetNumber, z.ToKmNumber, z.ToMetNumber,
+        z.LaneId, CAST(zs.AverageSpeed AS DECIMAL(18, 2)), zs.Condition, zs.CreateTime, z.MaxSpeed, ts.TotalVehicleNumber
+    FROM dbo.TmsZoneStatus zs
+    LEFT JOIN dbo.TmsZone z ON zs.ZoneId = z.ID
+    LEFT JOIN dbo.TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId
+    WHERE zs.UpdateTime IS NULL
+      AND zs.CreateTime &gt;= ISNULL(@lastTime_new, '17530101')
+      AND (@lastTime_new IS NULL OR zs.CreateTime &gt; @lastTime_new OR zs.ID &gt; @lastKey_new)
+) u
+ORDER BY u.sortTime ASC, u.sortKey ASC</code></pre>
+    <ul class="tight prose">
+      <li>Bấm <span class="ui">Lưu &amp; phân tích</span>: bốn biến <code>@lastTime_upd</code>, <code>@lastKey_upd</code>, <code>@lastTime_new</code>, <code>@lastKey_new</code> tự có nguồn; hai dòng <code>@lastTime</code>, <code>@lastKey</code> cũ tự bỏ.</li>
+      <li>Đổi từ câu một nhóm sang câu này là đổi công thức cột mốc: có hộp xác nhận, mốc cũ của đối tác bị xóa.</li>
+      <li>Sau khi lưu: <span class="ui">Từ ngày</span> cho <code>@lastTime_upd</code> nếu muốn bỏ dữ liệu cũ, <span class="ui">Toàn bộ</span> cho <code>@lastTime_new</code>, rồi <span class="ui">Lưu</span>.</li>
+      <li>Hộp <span class="ui">Đặt mốc</span> có hai khối <span class="ui">Nhóm mốc upd</span> và <span class="ui">Nhóm mốc new</span>; dải mốc hiện <code>upd: … ; new: …</code>.</li>
+      <li>Mẫu chưa có <code>TOP</code> trong từng nhánh nên lượt đầu sắp toàn bộ dòng sau mốc; chưa đo trên bảng lớn.</li>
+    </ul>
+
+    <h3>Nhiều nhóm: gộp nhiều bảng</h3>
+    <pre><code>SELECT TOP (@pageSize) u.rowCode, u.__lastTime_pkt, u.__lastKey_pkt, u.__lastTime_toll, u.__lastKey_toll
+FROM (
+    SELECT p.Code AS rowCode, p.UpdateTime AS sortTime, p.ID AS sortKey,
+           p.UpdateTime AS __lastTime_pkt, p.ID AS __lastKey_pkt,
+           CAST(NULL AS datetime) AS __lastTime_toll, CAST(NULL AS nvarchar(64)) AS __lastKey_toll
+    FROM ShareDataPacket p
+    WHERE p.UpdateTime &gt;= ISNULL(@lastTime_pkt, '17530101')
+      AND (@lastTime_pkt IS NULL OR p.UpdateTime &gt; @lastTime_pkt OR p.ID &gt; @lastKey_pkt)
+    UNION ALL
+    SELECT t.SourceId, t.SourceWriteDate, t.ID, NULL, NULL, t.SourceWriteDate, t.ID
+    FROM TollPriceList t
+    WHERE t.SourceWriteDate &gt;= ISNULL(@lastTime_toll, '17530101')
+      AND (@lastTime_toll IS NULL OR t.SourceWriteDate &gt; @lastTime_toll OR t.ID &gt; @lastKey_toll)
+) u
+ORDER BY u.sortTime ASC, u.sortKey ASC</code></pre>
+    <ul class="tight prose">
+      <li>Tên nhóm gồm chữ, số, gạch dưới. Nhánh của nguồn nào lọc theo biến của nhóm đó; cột của nhóm khác để <code>NULL</code>.</li>
+      <li><code>ORDER BY</code> phải xếp dòng của mỗi nguồn theo đúng (thời gian, khóa) của nguồn đó. Bộ kiểm chưa dò được điều này, người viết câu tự đảm bảo.</li>
+    </ul>
+
+    <h3>Điều kiện <code>WHERE</code> nào được lưu</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:42%">Viết</th><th>Khi lưu</th><th>Vì sao</th></tr></thead>
+        <tbody>
+          <tr><td><code>X &gt; @lastTime OR (X = @lastTime AND K &gt; @lastKey)</code></td><td><span class="tag ok">Lưu được</span></td><td>Dạng cặp chuẩn</td></tr>
+          <tr><td><code>X &gt;= ISNULL(@lastTime, '17530101') AND (X &gt; @lastTime OR K &gt; @lastKey)</code></td><td><span class="tag ok">Lưu được</span></td><td>Dạng cặp đọc ít trang nhất</td></tr>
+          <tr><td><code>X &gt;= … AND K &gt; @lastKey</code> (AND thay OR)</td><td><span class="tag todo">Từ chối</span></td><td>Bỏ dòng giờ mới hơn mà khóa nhỏ hơn</td></tr>
+          <tr><td>Chỉ <code>X &gt; @lastTime</code></td><td><span class="tag todo">Từ chối</span></td><td>Bỏ dòng trùng giờ ở ranh giới trang</td></tr>
+          <tr><td>So cột mốc với hằng số, ví dụ <code>ID &gt; 'a'</code></td><td><span class="tag todo">Từ chối</span></td><td>Có <code>TOP</code> thì lượt nào cũng lấy lại trang đầu</td></tr>
+          <tr><td><code>GETDATE() AS __lastTime</code>, so cột khác cột mốc</td><td><span class="tag todo">Từ chối</span></td><td>Mốc không phải giá trị của dòng</td></tr>
+          <tr><td><code>ORDER BY</code> sai thứ tự hoặc <code>DESC</code></td><td><span class="tag todo">Từ chối</span></td><td>Dòng cuối không phải mốc lớn nhất</td></tr>
+          <tr><td>Chỉ khóa với <code>K &gt;= @lastKey</code></td><td><span class="tag diff">Lưu, ghi nhật ký cấu hình</span></td><td>Gửi lặp dòng cuối mỗi lượt</td></tr>
+          <tr><td>Cột thời gian mốc cho phép trống</td><td><span class="tag diff">Lưu, ghi nhật ký cấu hình</span></td><td>Dòng có thời gian trống không bao giờ được gửi, màn hình không báo</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="thong-bao">
+    <h2>Thông báo hay gặp và cách xử lý</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:38%">Màn hình báo</th><th>Nghĩa là</th><th style="width:30%">Làm gì</th></tr></thead>
+        <tbody>
+          <tr><td>"Biến [@x] chưa khai ở bảng Tham số câu truy vấn…"</td><td>Câu có biến chưa có dòng trong bảng tham số.</td><td>Bấm <span class="ui">Lưu &amp; phân tích</span> để trích biến, rồi chọn nguồn.</td></tr>
+          <tr><td>"Sửa các dòng tham số đang báo lỗi trước khi lưu."</td><td>Có dòng chưa chọn nguồn hoặc <code>@pageSize</code> chưa có số.</td><td>Sửa dòng viền đỏ, bấm lại.</td></tr>
+          <tr><td>"WHERE phải so cả cặp mốc…"</td><td>Điều kiện lọc thiếu cặp, dùng AND, so với hằng, hoặc <code>@lastKey</code> chọn nhầm nguồn thời gian.</td><td>Viết lại theo một trong hai dạng cặp; kiểm nguồn <code>@lastKey</code>.</td></tr>
+          <tr><td>"…phải sắp xếp ORDER BY ngoài cùng theo cột [__lastTime] rồi [__lastKey]…"</td><td><code>ORDER BY</code> sai thứ tự hoặc thiếu.</td><td>Sắp theo đúng hai cột mốc, tăng dần.</td></tr>
+          <tr><td>"Nhóm mốc còn thiếu cột hoặc biến…"</td><td>Một nhóm có biến mà thiếu cột <code>__lastKey_&lt;nhóm&gt;</code>, hoặc ngược lại.</td><td>Thêm cột hoặc biến còn thiếu của nhóm.</td></tr>
+          <tr><td>"Biến của nhóm mốc chọn sai nguồn giá trị…"</td><td><code>@lastKey_&lt;nhóm&gt;</code> lấy theo thời gian, hoặc ngược lại.</td><td>Chọn lại nguồn đúng.</td></tr>
+          <tr><td>"Gói tin […] đang có đăng ký bật sử dụng (…)…"</td><td>Còn đối tác đang nhận gói này.</td><td>Tắt đăng ký ở màn <span class="ui">Cấu hình</span>.</td></tr>
+          <tr><td><span class="ui">Lịch sử chia sẻ → Nhật ký cấu hình</span>: "Câu truy vấn nối đuôi có rủi ro"</td><td>Câu đã lưu và vẫn chạy, nhưng có thể sót hoặc gửi lặp dòng; dòng này nêu rủi ro cụ thể. Mỗi đăng ký ghi một lần cho mỗi câu SQL.</td><td>Không bắt buộc xử lý. Muốn hết rủi ro thì viết lại theo <a href="#mau-cau">Mẫu câu</a>.</td></tr>
+          <tr><td><span class="ui">Cảnh báo &amp; lỗi</span>: ESH-1306 "Câu truy vấn nối đuôi … sai cấu trúc…"</td><td>Câu bị sửa ngoài màn hình (nạp tệp <code>.sql</code>) sang dạng làm mất dòng. Worker không gửi, mốc giữ nguyên.</td><td>Tắt đăng ký, lưu lại câu đúng trên giao diện.</td></tr>
+          <tr><td><span class="ui">Cảnh báo &amp; lỗi</span>: ESH-1308 "Công thức cột mốc … đã đổi ngoài màn hình cấu hình…"</td><td>Câu bị sửa ngoài màn hình và đổi cách tính cột mốc. Worker bỏ mốc cũ, đối tác nhận lại dữ liệu từ giá trị khởi tạo. Mỗi đăng ký báo một lần.</td><td>Báo đối tác sắp nhận lại dữ liệu, hoặc tắt đăng ký rồi dùng <span class="ui">Đặt mốc</span> để gửi tiếp từ thời điểm mong muốn.</td></tr>
+        </tbody>
+      </table>
+    </div>
   </section>
 
   <section id="con-lai">
@@ -881,7 +899,9 @@ ORDER BY u.sortTime ASC, u.sortKey ASC</code></pre>
         <thead><tr><th style="width:30%">Giới hạn</th><th>Vì sao giữ</th><th style="width:24%">Ảnh hưởng</th></tr></thead>
         <tbody>
           <tr><td>Câu do người dùng cố tình viết khác đi</td><td>Câu SQL sửa được tùy ý nên không rào hết. Hệ thống kiểm theo các luật đã có, ngoài ra người viết câu tự chịu.</td><td>Ngoài phạm vi biên bản</td></tr>
-          <tr><td>Câu mẫu gói 103, 104, 106, 107, 109 dùng <code>COALESCE</code></td><td>Chốt 30/10 không đổi câu mẫu trong tệp seed; bỏ <code>COALESCE</code> thì dòng mới tạo chưa có <code>UpdateTime</code> không được gửi. Gói nào cần nhanh thì sửa trên giao diện theo mẫu hai nhóm.</td><td>Chậm dần khi bảng lớn; dữ liệu vẫn đủ. Lưu trên giao diện có thể hiện cảnh báo cột thời gian trống (chưa chạy thử), bỏ qua được</td></tr>
+          <tr><td>Câu mẫu gói 103, 104, 106, 107, 109 dùng <code>COALESCE</code></td><td>Chốt 30/10 không đổi câu mẫu trong tệp seed; bỏ <code>COALESCE</code> thì dòng mới tạo chưa có <code>UpdateTime</code> không được gửi. Gói nào cần nhanh thì sửa trên giao diện theo mẫu hai nhóm.</td><td>Chậm dần khi bảng lớn; dữ liệu vẫn đủ</td></tr>
+          <tr><td>Cột thời gian cho phép trống, câu dạng hai cột</td><td>Đã bỏ cảnh báo trên màn hình theo chốt 01/11; Worker ghi một dòng vào nhật ký cấu hình. Người viết câu tự kiểm tra cột thời gian có dòng trống không.</td><td>Dòng có thời gian trống không được gửi và màn hình không báo. Cần gửi thì dùng <a href="#mau-cot-gop">cột mốc gộp</a> hoặc <a href="#mau-hai-nhom">mẫu hai nhóm</a>.</td></tr>
+          <tr><td>Cột thời gian đơn làm khóa (<code>UpdateTime AS __lastKey</code>)</td><td>Worker lưu mốc theo định dạng ngày giờ của máy nên mất mili giây. Câu do người dùng tự viết, giữ nguyên.</td><td>Lưu được, Worker ghi rủi ro vào nhật ký cấu hình, nhưng sau trang đầu không gửi tiếp; mốc không đổi được sang ngày giờ thì có cảnh báo ESH-1302. Dùng hai cột hoặc chuỗi ghép đủ định dạng.</td></tr>
           <tr><td>Bộ kiểm chưa dò <code>ORDER BY</code> của câu gộp nhiều nguồn</td><td>Chưa kiểm được dòng mỗi nguồn có xếp đúng (thời gian, khóa) của nguồn đó.</td><td>Người viết câu tự đảm bảo</td></tr>
         </tbody>
       </table>
@@ -898,8 +918,9 @@ ORDER BY u.sortTime ASC, u.sortKey ASC</code></pre>
   <section id="kiem-thu">
     <h2>Kiểm thử</h2>
     <ul class="tight prose">
-      <li>BE, cả bộ ShareData ngày 01/11: 533 ca, 529 đạt, 0 lỗi, 4 bỏ qua có chủ đích.</li>
-      <li>Ca mới 01/11, chạy đỏ trước khi sửa: Đặt mốc bị từ chối khi đăng ký của đối tác còn bật, đặt được khi đã tắt (BE, 2 ca); nút Đặt mốc mờ ở bảng mốc và dải Mốc đang chạy (FE ca 69).</li>
+      <li>BE, cả bộ ShareData ngày 01/11: 539 ca, 535 đạt, 0 lỗi, 4 bỏ qua có chủ đích.</li>
+      <li>Ca mới 01/11, chạy đỏ trước khi sửa: Đặt mốc bị từ chối khi đăng ký của đối tác còn bật, đặt được khi đã tắt (BE, 2 ca); nút Đặt mốc mờ ở bảng mốc và dải Mốc đang chạy (FE ca 69). Xác nhận giới hạn cột thời gian đơn làm khóa: Worker không gửi tiếp sau trang đầu (BE, 1 ca). Câu lỗi lúc chạy do dữ liệu thì báo ESH-1302, giữ nguyên mốc (BE, 1 ca, chạy đỏ trước khi sửa). Câu có rủi ro: WebAPI lưu bình thường (BE, 10 ca); Worker ghi nhật ký cấu hình một lần, không lặp mỗi lượt, không tạo cảnh báo (BE, 6 ca, chạy đỏ trước khi sửa).</li>
+      <li>Cột mốc gộp <code>ISNULL(ISNULL(…), '17530101')</code>: có ca BE kiểm lưu được. Worker gửi dòng trống theo <code>CreateTime</code> mới có test ở dạng <code>COALESCE</code> cùng ý nghĩa, chưa có test riêng cho dạng này.</li>
       <li>Ca mới 31/10, chạy đỏ trước khi sửa: lưu câu kèm bảng tham số (4 ca), chỉ đổi bảng tham số làm câu hỏng thì bị từ chối (4 ca), Worker ghi ESH-1308 một lần khi công thức cột mốc đổi ngoài màn hình (4 ca), tệp seed điền bộ biến cho câu mẫu nối đuôi còn trống (4 ca, chạy đúng khối lệnh trong tệp rồi hoàn tác), FE ca 67 biến nhóm tự chọn nguồn, FE ca 68 mẫu gợi ý <span class="ui">select-incremental</span> ra dạng hai cột.</li>
       <li>Ca cờ <code>@GhiDeMaGoi</code> của tệp seed (2 ca) viết sau khi sửa mã nên chưa chạy đỏ.</li>
       <li>Ca 30/10: đặt mốc / đặt lại giữa lượt gửi thì Worker giữ mốc người dùng và dừng; mẫu hai nhóm gửi đủ dòng chưa có thời gian; ba dạng làm mất dòng bị từ chối.</li>
