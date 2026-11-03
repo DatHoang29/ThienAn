@@ -9,7 +9,8 @@ GO
 --                  sang ShareDataSql; chạy trước bước 1 để giữ câu SQL đã sửa, không bị câu mẫu ghi đè.
 --              1. Câu mẫu chung (@SqlNNN viết ngay trong tệp này, nguồn duy nhất) khi đang trống, @GhiDeMauGoiTin = 1 (mọi gói)
 --                 hoặc @GhiDeMaGoi = mã gói (riêng một gói, vd N'101' để nạp lại câu mẫu gói 101).
---              1b. Điền bộ biến (@lastTime, @lastKey, kèm @pageSize nếu câu dùng) cho câu mẫu chung nối đuôi còn trống VariablesJson.
+--              1b. Điền bộ biến (@lastKey, kèm @pageSize nếu câu dùng) cho câu mẫu chung nối đuôi một chuỗi ghép còn trống VariablesJson.
+--              1c. Bỏ biến lastTime thừa khỏi bộ biến câu mẫu chung đã bỏ @lastTime, giữ nguyên các biến khác.
 --              5. Chuyển câu SQL riêng cũ ở ShareDataMapping.ExtractSql sang ShareDataSql; đổi __rowid -> __lastKey.
 --              0.4 Bộ biến của câu SQL ở cột VariablesJson: chuyển từ bảng cũ ShareDataSqlVariable (bỏ bảng 27/10/2026).
 --              6. Khối câu ghi chiều nhận (WriteSql, AffectedTables) ở dòng mẫu chung: chuyển từ bảng cũ ShareDataPacketSql,
@@ -18,7 +19,7 @@ GO
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 31/10/2026 (thêm cờ @GhiDeMaGoi ghi đè riêng một gói; bước 1b điền bộ biến câu mẫu nối đuôi, không đổi câu mẫu)
+-- CẬP NHẬT LẦN CUỐI: 02/11/2026 (7 câu mẫu nối đuôi đổi sang một chuỗi ghép theo chốt của sếp; bước 1b theo câu mới; thêm bước 1c)
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -144,9 +145,9 @@ GO
 -- @GhiDeMauGoiTin = 0 (Mặc định): Chỉ nạp câu mẫu chung nếu đang NULL hoặc rỗng.
 -- @GhiDeMauGoiTin = 1: Buộc ghi đè câu mẫu chung về câu chuẩn @SqlNNN khai trong tệp này.
 -- @GhiDeMaGoi = N'101': Chỉ ghi đè câu mẫu chung của đúng gói đó (gói khác giữ câu đang có). Bộ biến đang có giữ nguyên.
---     Câu mẫu mới đổi công thức cột mốc thì Worker tự đặt lại mốc của đối tác và ghi cảnh báo ESH-1308; gói 101 ngày 31/10/2026
---     chỉ đổi WHERE (cột mốc vẫn zs.UpdateTime, zs.ID) nên mốc giữ nguyên.
-DECLARE @GhiDeMauGoiTin BIT = 0;
+--     Câu mẫu mới đổi công thức cột mốc thì Worker tự đặt lại mốc của đối tác và ghi cảnh báo ESH-1308. Ngày 02/11/2026 7 câu nối đuôi
+--     đổi sang một chuỗi ghép nên phải chạy tiếp sharedata-chuyen-doi-moc-ShareDataLastSend.sql để đổi mốc cũ, không phải gửi lại từ đầu.
+DECLARE @GhiDeMauGoiTin BIT = 1;
 DECLARE @GhiDeMaGoi NVARCHAR(16) = NULL;
 DECLARE @UpdatedRows INT = 0;
 DECLARE @TotalUpdated INT = 0;
@@ -158,8 +159,7 @@ PRINT N'-> 1. Bắt đầu nạp câu mẫu chung vào bảng ShareDataSql (101 
 
 -- Gói 101: TrafficFlow (Incremental)
 DECLARE @Sql101 NVARCHAR(MAX) = N'SELECT TOP (@pageSize)
-    zs.UpdateTime AS __lastTime,
-    zs.ID AS __lastKey,
+    CONVERT(varchar(23), zs.UpdateTime, 121) + ''_'' + zs.ID AS __lastKey,
     zs.ID AS zoneStatusId,
     zs.ZoneId AS zoneId,
     z.Name AS zoneName,
@@ -176,11 +176,10 @@ DECLARE @Sql101 NVARCHAR(MAX) = N'SELECT TOP (@pageSize)
 FROM dbo.TmsZoneStatus zs
 LEFT JOIN dbo.TmsZone z ON zs.ZoneId = z.ID
 LEFT JOIN dbo.TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId
-WHERE zs.UpdateTime >= ISNULL(@lastTime, ''17530101'')
-  AND (@lastTime IS NULL OR zs.UpdateTime > @lastTime OR zs.ID > @lastKey)
-ORDER BY zs.UpdateTime ASC, zs.ID ASC';
+WHERE CONVERT(varchar(23), zs.UpdateTime, 121) + ''_'' + zs.ID > @lastKey
+ORDER BY __lastKey ASC';
 
-DECLARE @Vars101 NVARCHAR(MAX) = N'[{"Code":"pageSize","Name":null,"DataType":"Int","ValueKind":"Const","Value":"100","DefaultValue":null,"Remark":null,"OrderNo":1},{"Code":"lastTime","Name":null,"DataType":"DateTime","ValueKind":"Builtin","Value":"lastTime","DefaultValue":null,"Remark":null,"OrderNo":2},{"Code":"lastKey","Name":null,"DataType":"String","ValueKind":"Builtin","Value":"lastKey","DefaultValue":"","Remark":null,"OrderNo":3}]';
+DECLARE @Vars101 NVARCHAR(MAX) = N'[{"Code":"pageSize","Name":null,"DataType":"Int","ValueKind":"Const","Value":"100","DefaultValue":null,"Remark":null,"OrderNo":1},{"Code":"lastKey","Name":null,"DataType":"String","ValueKind":"Builtin","Value":"lastKey","DefaultValue":"","Remark":null,"OrderNo":2}]';
 
 UPDATE s
 SET s.[ExtractSql] = @Sql101,
@@ -257,20 +256,14 @@ DECLARE @Sql103 NVARCHAR(MAX) = N'SELECT TOP 100
     td.EquipmentId AS equipmentId,
     e.KmNumber AS locationKm,
     e.MetNumber AS locationMet,
-    COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) AS __lastTime,
-    td.ID AS __lastKey,
+    CONVERT(varchar(23), COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime), 121) + ''_'' + td.ID AS __lastKey,
     td.UpdateTime AS __auditUpdate,
     td.CreateTime AS __auditCreate
 FROM TmsTrafficData td
 LEFT JOIN TmsEquipment e ON td.EquipmentId = e.ID
 WHERE td.IsDelete IS NULL
-  AND (
-      @lastTime IS NULL
-      OR COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) > @lastTime
-      OR (COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) = @lastTime AND td.ID > @lastKey)
-  )
-ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC
-OPTION (RECOMPILE)';
+  AND CONVERT(varchar(23), COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime), 121) + ''_'' + td.ID > @lastKey
+ORDER BY __lastKey ASC';
 
 UPDATE s
 SET s.[ExtractSql] = @Sql103,
@@ -310,19 +303,13 @@ DECLARE @Sql104 NVARCHAR(MAX) = N'SELECT TOP 100
     w.Description AS weatherDescription,
     w.ShortDescription AS weatherCode,
     w.TimeDetect AS detectTime,
-    COALESCE(w.UpdateTime, w.CreateTime, w.TimeDetect) AS __lastTime,
-    w.ID AS __lastKey,
+    CONVERT(varchar(23), COALESCE(w.UpdateTime, w.CreateTime, w.TimeDetect), 121) + ''_'' + w.ID AS __lastKey,
     w.UpdateTime AS __auditUpdate,
     w.CreateTime AS __auditCreate
 FROM TmsWeather w
 WHERE w.IsDelete IS NULL
-  AND (
-      @lastTime IS NULL
-      OR COALESCE(w.UpdateTime, w.CreateTime, w.TimeDetect) > @lastTime
-      OR (COALESCE(w.UpdateTime, w.CreateTime, w.TimeDetect) = @lastTime AND w.ID > @lastKey)
-  )
-ORDER BY COALESCE(w.UpdateTime, w.CreateTime, w.TimeDetect) ASC, w.ID ASC
-OPTION (RECOMPILE)';
+  AND CONVERT(varchar(23), COALESCE(w.UpdateTime, w.CreateTime, w.TimeDetect), 121) + ''_'' + w.ID > @lastKey
+ORDER BY __lastKey ASC';
 
 UPDATE s
 SET s.[ExtractSql] = @Sql104,
@@ -400,19 +387,13 @@ DECLARE @Sql106 NVARCHAR(MAX) = N'SELECT TOP 100
     td.Height AS height,
     td.Width AS width,
     td.Length AS length,
-    COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) AS __lastTime,
-    td.ID AS __lastKey,
+    CONVERT(varchar(23), COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime), 121) + ''_'' + td.ID AS __lastKey,
     td.UpdateTime AS __auditUpdate,
     td.CreateTime AS __auditCreate
 FROM TmsTrafficData td
 WHERE td.IsDelete IS NULL
-  AND (
-      @lastTime IS NULL
-      OR COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) > @lastTime
-      OR (COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) = @lastTime AND td.ID > @lastKey)
-  )
-ORDER BY COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime) ASC, td.ID ASC
-OPTION (RECOMPILE)';
+  AND CONVERT(varchar(23), COALESCE(td.UpdateTime, td.CreateTime, td.DetectTime), 121) + ''_'' + td.ID > @lastKey
+ORDER BY __lastKey ASC';
 
 UPDATE s
 SET s.[ExtractSql] = @Sql106,
@@ -454,20 +435,14 @@ DECLARE @Sql107 NVARCHAR(MAX) = N'SELECT TOP 100
     i.State AS incidentState,
     i.Description AS description,
     i.Source AS source,
-    COALESCE(i.UpdateTime, i.CreateTime, i.StartDate) AS __lastTime,
-    i.ID AS __lastKey,
+    CONVERT(varchar(23), COALESCE(i.UpdateTime, i.CreateTime, i.StartDate), 121) + ''_'' + i.ID AS __lastKey,
     i.UpdateTime AS __auditUpdate,
     i.CreateTime AS __auditCreate
 FROM TmsIncident i
 LEFT JOIN TmsEventType et ON i.EventTypeId = et.ID
 WHERE i.IsDelete IS NULL
-  AND (
-      @lastTime IS NULL
-      OR COALESCE(i.UpdateTime, i.CreateTime, i.StartDate) > @lastTime
-      OR (COALESCE(i.UpdateTime, i.CreateTime, i.StartDate) = @lastTime AND i.ID > @lastKey)
-  )
-ORDER BY COALESCE(i.UpdateTime, i.CreateTime, i.StartDate) ASC, i.ID ASC
-OPTION (RECOMPILE)';
+  AND CONVERT(varchar(23), COALESCE(i.UpdateTime, i.CreateTime, i.StartDate), 121) + ''_'' + i.ID > @lastKey
+ORDER BY __lastKey ASC';
 
 UPDATE s
 SET s.[ExtractSql] = @Sql107,
@@ -547,21 +522,15 @@ DECLARE @Sql109 NVARCHAR(MAX) = N'SELECT TOP 100
     s.Name AS stationName,
     CAST(NULL AS DECIMAL(18, 2)) AS tollPrice,
     t.SyncTime AS syncTime,
-    COALESCE(t.UpdateTime, t.CreateTime, t.TransactionDateTime) AS __lastTime,
-    t.ID AS __lastKey,
+    CONVERT(varchar(23), COALESCE(t.UpdateTime, t.CreateTime, t.TransactionDateTime), 121) + ''_'' + t.ID AS __lastKey,
     t.UpdateTime AS __auditUpdate,
     t.CreateTime AS __auditCreate
 FROM TollTransactionOut t
 LEFT JOIN TollLane l ON t.LaneId = l.LaneId
 LEFT JOIN TollStation s ON t.StationId = s.StationId
 WHERE t.IsDelete IS NULL
-  AND (
-      @lastTime IS NULL
-      OR COALESCE(t.UpdateTime, t.CreateTime, t.TransactionDateTime) > @lastTime
-      OR (COALESCE(t.UpdateTime, t.CreateTime, t.TransactionDateTime) = @lastTime AND t.ID > @lastKey)
-  )
-ORDER BY COALESCE(t.UpdateTime, t.CreateTime, t.TransactionDateTime) ASC, t.ID ASC
-OPTION (RECOMPILE)';
+  AND CONVERT(varchar(23), COALESCE(t.UpdateTime, t.CreateTime, t.TransactionDateTime), 121) + ''_'' + t.ID > @lastKey
+ORDER BY __lastKey ASC';
 
 UPDATE s
 SET s.[ExtractSql] = @Sql109,
@@ -659,19 +628,13 @@ DECLARE @Sql111 NVARCHAR(MAX) = N'SELECT TOP 100
     CAST(NULL AS INT) AS retryCount,
     CAST(NULL AS NVARCHAR(512)) AS error,
     CAST(NULL AS NVARCHAR(64)) AS partnerId,
-    COALESCE(sl.UpdateTime, sl.CreateTime) AS __lastTime,
-    sl.ID AS __lastKey,
+    CONVERT(varchar(23), COALESCE(sl.UpdateTime, sl.CreateTime), 121) + ''_'' + sl.ID AS __lastKey,
     sl.UpdateTime AS __auditUpdate,
     sl.CreateTime AS __auditCreate
 FROM TmsSignalLog sl
 WHERE sl.IsDelete IS NULL
-  AND (
-      @lastTime IS NULL
-      OR COALESCE(sl.UpdateTime, sl.CreateTime) > @lastTime
-      OR (COALESCE(sl.UpdateTime, sl.CreateTime) = @lastTime AND sl.ID > @lastKey)
-  )
-ORDER BY COALESCE(sl.UpdateTime, sl.CreateTime) ASC, sl.ID ASC
-OPTION (RECOMPILE)';
+  AND CONVERT(varchar(23), COALESCE(sl.UpdateTime, sl.CreateTime), 121) + ''_'' + sl.ID > @lastKey
+ORDER BY __lastKey ASC';
 
 UPDATE s
 SET s.[ExtractSql] = @Sql111,
@@ -703,14 +666,14 @@ GO
 -- -----------------------------------------------------------------------------------------
 -- 1b. ĐIỀN BỘ BIẾN CHO CÂU MẪU CHUNG NỐI ĐUÔI CÒN TRỐNG (IDEMPOTENT)
 -- -----------------------------------------------------------------------------------------
--- Câu mẫu chung gói 101 - 111 dùng @lastTime / @lastKey mà chưa có bộ biến (VariablesJson trống) thì hệ thống không nhận là câu
--- nối đuôi và báo biến chưa khai. Điền bộ biến mốc: @lastTime theo thời gian (Toàn bộ), @lastKey theo key; thêm @pageSize = 100
+-- Câu mẫu chung gói 101 - 111 dạng một chuỗi ghép (dùng @lastKey, không dùng @lastTime) mà chưa có bộ biến (VariablesJson trống)
+-- thì hệ thống không nhận là câu nối đuôi và báo biến chưa khai. Điền bộ biến mốc: @lastKey theo key; thêm @pageSize = 100
 -- khi câu dùng TOP (@pageSize). Không đổi câu SQL. Dòng đã có bộ biến (kể cả rỗng) giữ nguyên; câu gộp nhiều nhóm mốc
 -- (@lastKey_<nhóm>) bỏ qua vì bộ biến theo nhóm phải khai trên giao diện.
 PRINT N'-> 1b. Điền bộ biến cho câu mẫu chung nối đuôi còn trống...';
 
-DECLARE @VarsCursor NVARCHAR(MAX) = N'[{"Code":"lastTime","Name":null,"DataType":"DateTime","ValueKind":"Builtin","Value":"lastTime","DefaultValue":null,"Remark":null,"OrderNo":1},{"Code":"lastKey","Name":null,"DataType":"String","ValueKind":"Builtin","Value":"lastKey","DefaultValue":"","Remark":null,"OrderNo":2}]';
-DECLARE @VarsCursorPage NVARCHAR(MAX) = N'[{"Code":"pageSize","Name":null,"DataType":"Int","ValueKind":"Const","Value":"100","DefaultValue":null,"Remark":null,"OrderNo":1},{"Code":"lastTime","Name":null,"DataType":"DateTime","ValueKind":"Builtin","Value":"lastTime","DefaultValue":null,"Remark":null,"OrderNo":2},{"Code":"lastKey","Name":null,"DataType":"String","ValueKind":"Builtin","Value":"lastKey","DefaultValue":"","Remark":null,"OrderNo":3}]';
+DECLARE @VarsCursor NVARCHAR(MAX) = N'[{"Code":"lastKey","Name":null,"DataType":"String","ValueKind":"Builtin","Value":"lastKey","DefaultValue":"","Remark":null,"OrderNo":1}]';
+DECLARE @VarsCursorPage NVARCHAR(MAX) = N'[{"Code":"pageSize","Name":null,"DataType":"Int","ValueKind":"Const","Value":"100","DefaultValue":null,"Remark":null,"OrderNo":1},{"Code":"lastKey","Name":null,"DataType":"String","ValueKind":"Builtin","Value":"lastKey","DefaultValue":"","Remark":null,"OrderNo":2}]';
 DECLARE @FilledVars INT = 0;
 
 UPDATE s
@@ -723,11 +686,54 @@ WHERE (p.[Code] LIKE '10[1-9]' OR p.[Code] LIKE '11[01]' OR p.[Code] LIKE '10[1-
   AND s.[PartnerId] IS NULL
   AND s.[IsDelete] IS NULL
   AND s.[VariablesJson] IS NULL
-  AND s.[ExtractSql] LIKE N'%@lastTime%'
   AND s.[ExtractSql] LIKE N'%@lastKey%'
+  AND s.[ExtractSql] NOT LIKE N'%@lastTime%'
   AND s.[ExtractSql] NOT LIKE N'%@lastKey[_]%';
 SET @FilledVars = @@ROWCOUNT;
 PRINT N'   -> Đã điền bộ biến cho ' + CAST(@FilledVars AS NVARCHAR(10)) + N' câu mẫu chung.';
+GO
+
+-- -----------------------------------------------------------------------------------------
+-- 1c. BỎ BIẾN lastTime THỪA KHỎI BỘ BIẾN CÂU MẪU CHUNG (IDEMPOTENT)
+-- -----------------------------------------------------------------------------------------
+-- Lệnh UPDATE ở bước 1 giữ VariablesJson đang có, nên DB đã có dữ liệu còn dòng lastTime thừa trên bảng tham số sau khi câu mẫu
+-- chuyển sang một chuỗi ghép. Câu mẫu chung gói 101 - 111 không còn @lastTime mà bộ biến còn phần tử lastTime thì xóa đúng phần tử đó.
+-- @pageSize đã sửa và các biến khác giữ nguyên (không ghi đè giá trị quản trị). Không đổi câu SQL, không đụng câu riêng của đối tác.
+PRINT N'-> 1c. Bỏ biến lastTime thừa khỏi bộ biến câu mẫu chung...';
+
+DECLARE @RemovedLastTime INT = 0;
+
+UPDATE s
+SET s.[VariablesJson] = ISNULL((
+        SELECT v.[Code], v.[Name], v.[DataType], v.[ValueKind], v.[Value], v.[DefaultValue], v.[Remark], v.[OrderNo]
+        FROM OPENJSON(s.[VariablesJson]) WITH (
+            [Code] NVARCHAR(128) '$.Code',
+            [Name] NVARCHAR(256) '$.Name',
+            [DataType] NVARCHAR(64) '$.DataType',
+            [ValueKind] NVARCHAR(64) '$.ValueKind',
+            [Value] NVARCHAR(MAX) '$.Value',
+            [DefaultValue] NVARCHAR(MAX) '$.DefaultValue',
+            [Remark] NVARCHAR(MAX) '$.Remark',
+            [OrderNo] INT '$.OrderNo'
+        ) v
+        WHERE ISNULL(v.[Code], N'') <> N'lastTime'
+        ORDER BY ISNULL(v.[OrderNo], 2147483647)
+        FOR JSON PATH, INCLUDE_NULL_VALUES
+    ), N'[]'),
+    s.[UpdateTime] = GETDATE()
+FROM [dbo].[ShareDataSql] s
+JOIN [dbo].[ShareDataPacket] p ON p.[ID] = s.[PacketId]
+WHERE (p.[Code] LIKE '10[1-9]' OR p.[Code] LIKE '11[01]' OR p.[Code] LIKE '10[1-9][_]%' OR p.[Code] LIKE '11[01][_]%')
+  AND p.[IsDelete] IS NULL
+  AND s.[PartnerId] IS NULL
+  AND s.[IsDelete] IS NULL
+  AND s.[ExtractSql] NOT LIKE N'%@lastTime%'
+  AND EXISTS (
+      SELECT 1
+      FROM OPENJSON(CASE WHEN ISJSON(s.[VariablesJson]) = 1 THEN s.[VariablesJson] END) WITH ([Code] NVARCHAR(128) '$.Code') v
+      WHERE v.[Code] = N'lastTime');
+SET @RemovedLastTime = @@ROWCOUNT;
+PRINT N'   -> Đã bỏ biến lastTime thừa ở ' + CAST(@RemovedLastTime AS NVARCHAR(10)) + N' câu mẫu chung.';
 GO
 
 -- -----------------------------------------------------------------------------------------

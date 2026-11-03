@@ -476,8 +476,7 @@ namespace Tests.ShareData.Services
                     .Where(c => c.PartnerCode == partner.Code && c.PacketCode == packet.Code)
                     .FirstAsync();
                 Assert.NotNull(cursor1);
-                Assert.NotNull(cursor1.LastTime);
-                Assert.Equal(weather3.ID, cursor1.LastKey);
+                Assert.EndsWith($"_{weather3.ID}", cursor1.LastKey);
 
                 // Act 2: Chèn thêm 1 dòng mới (weather4) và cập nhật 1 dòng cũ (weather1)
                 var newUpdateTime = baseTime.AddMinutes(20);

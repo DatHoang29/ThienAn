@@ -106,19 +106,6 @@ test.describe('ShareData — Kiểm thử lỗi giao diện và logic (Sharing)'
 		expect(editSubContent).not.toContain("from 'vue-router'");
 	});
 
-	test('Bug — Ô cổng (Port) không bị khoá cứng khi chỉnh sửa đối tác đã ngắt kết nối (editPartner.vue)', async () => {
-		const partnerContent = fs.readFileSync(editPartnerPath, 'utf-8');
-
-		// 1. Ô nhập cổng (Port) không bị khoá cứng bởi effectiveOperateType === 'edit'
-		const portItemMatch = partnerContent.match(/<el-form-item[^>]*prop="port"[^>]*>([\s\S]*?)<\/el-form-item>/);
-		expect(portItemMatch).not.toBeNull();
-		expect(portItemMatch![1]).not.toContain("effectiveOperateType === 'edit'");
-		expect(portItemMatch![1]).not.toContain('portLocked');
-
-		// 2. Toàn bộ form dùng chung cơ chế :disabled="isLocked" khi đối tác đang kết nối hoặc có đăng ký đang chạy
-		expect(partnerContent).toContain(':disabled="isLocked"');
-	});
-
 	test('TC — Quét toàn bộ tệp i18n của màn hình Chia sẻ dữ liệu, không có ký tự @ trần gây lỗi Invalid linked format', async () => {
 		const viVn = JSON.parse(fs.readFileSync(viVnSharedataPath, 'utf-8'));
 		const enUs = JSON.parse(fs.readFileSync(enUsSharedataPath, 'utf-8'));

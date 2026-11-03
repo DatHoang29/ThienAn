@@ -613,6 +613,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         ///              đã hoàn tất hoặc đang chạy, mốc checkpoint chỉ dừng ở Xe B và đợt chạy kế tiếp sẽ nhặt tiếp đúng Xe C,
         ///              đảm bảo không trùng lặp và không sót bản ghi.
         /// Created date: 25/09/2026
+        /// Modified date: 02/11/2026
         /// </summary>
         [Fact]
         public async Task ChangeTracking_WhenNewDataCommittedAfterFirstBatch_SubsequentRunPicksUpRemainingData_Test()
@@ -705,15 +706,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 await service.ProcessSubscriptions(packetCode, CancellationToken.None);
 
                 // Assert 1:
-                // Checkpoint LastTime phải dừng lại ở timeB (Xe B), không được nhảy cóc
+                // Checkpoint LastKey phải dừng lại ở timeB (Xe B), không được nhảy cóc
                 var checkpoint1 = await db.Queryable<ShareDataLastSend>()
                     .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
                     .FirstAsync();
 
                 Assert.NotNull(checkpoint1);
-                Assert.NotNull(checkpoint1.LastTime);
-                Assert.True(Math.Abs((checkpoint1.LastTime.Value - timeB).TotalSeconds) <= 1,
-                    $"Mốc checkpoint đợt 1 phải là {timeB:HH:mm:ss} nhưng thực tế là {checkpoint1.LastTime:HH:mm:ss}");
+                Assert.Equal($"{timeB:yyyy-MM-dd HH:mm:ss.fff}_{carB.ID}", checkpoint1.LastKey);
 
                 // Activity log đợt 1 ghi nhận đúng 2 bản ghi (Xe A và Xe B)
                 var logsRun1 = await db.Queryable<ShareDataActivityLog>()
@@ -755,15 +754,13 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 await service.ProcessSubscriptions(packetCode, CancellationToken.None);
 
                 // Assert 2:
-                // Checkpoint LastTime phải được nâng lên timeC (Xe C)
+                // Checkpoint LastKey phải được nâng lên timeC (Xe C)
                 var checkpoint2 = await db.Queryable<ShareDataLastSend>()
                     .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
                     .FirstAsync();
 
                 Assert.NotNull(checkpoint2);
-                Assert.NotNull(checkpoint2.LastTime);
-                Assert.True(Math.Abs((checkpoint2.LastTime.Value - timeC).TotalSeconds) <= 1,
-                    $"Mốc checkpoint đợt 2 phải nâng lên {timeC:HH:mm:ss} nhưng thực tế là {checkpoint2.LastTime:HH:mm:ss}");
+                Assert.Equal($"{timeC:yyyy-MM-dd HH:mm:ss.fff}_{carC.ID}", checkpoint2.LastKey);
 
                 // Activity log có thêm lượt chạy thứ 2, và lượt 2 CHỈ gửi đúng 1 bản ghi (Xe C), không gửi lại Xe A, B
                 var logsAll = await db.Queryable<ShareDataActivityLog>()
@@ -1087,7 +1084,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         ///              nhiều instance CÓ THỂ cùng chạy (sau bản sửa 28/09/2026: luồng sự kiện không còn loại trừ lẫn nhau qua NextTimeRun),
         ///              nhưng OCC trong CommitSuccess đảm bảo đúng 1 lần commit thắng và mốc gửi không bị hỏng.
         /// Created date: 25/09/2026
-        /// Modified date: 28/09/2026
+        /// Modified date: 02/11/2026
         /// </summary>
         [Fact]
         public async Task ChangeTracking_WhenConcurrentTriggersRaceForSameSubscription_ExactlyOneExportSucceeds_Test()
@@ -1192,7 +1189,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
                 .FirstAsync();
             Assert.NotNull(checkpoint);
-            Assert.NotNull(checkpoint.LastTime);
+            Assert.NotNull(checkpoint.LastKey);
 
             var updatedSub = await db.Queryable<ShareDataSubscription>()
                 .Where(s => s.ID == sub.ID)
@@ -1218,7 +1215,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         ///              - Sau bản sửa 28/09/2026: nhiều service CÓ THỂ cùng chạy export — chỉ CommitSuccess
         ///                (OCC theo nextRunDeadline) đảm bảo mốc gửi không bị hỏng hay lùi.
         /// Created date: 26/09/2026
-        /// Modified date: 28/09/2026
+        /// Modified date: 02/11/2026
         /// </summary>
         [Fact]
         public async Task ChangeTracking_WhenTwoServicesRunConcurrently_MaintainsDataIntegrityAndSingleExport_Test()
@@ -1303,7 +1300,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
                 .FirstAsync();
             Assert.NotNull(checkpoint);
-            Assert.NotNull(checkpoint.LastTime);
+            Assert.NotNull(checkpoint.LastKey);
 
             var updatedSub = await db.Queryable<ShareDataSubscription>()
                 .Where(s => s.ID == sub.ID)
@@ -1638,6 +1635,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         /// Description: Kiểm thử kịch bản sập hệ thống: Khi DataChangeTrackingService khởi động lại sau sự cố (mốc CT nhảy cóc tới hiện tại),
         /// luồng quét định kỳ vẫn gửi đủ 100% dữ liệu tạo trong lúc worker chết, chứng minh không thất thoát dữ liệu.
         /// Created date: 23/09/2026
+        /// Modified date: 02/11/2026
         /// </summary>
         [Fact]
         public async Task ChangeTracking_WhenWatcherRestartsAfterDowntime_PeriodicScanStillSendsDataCreatedWhileDown_Test()
@@ -1700,8 +1698,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
                 .FirstAsync();
             Assert.NotNull(cp1);
-            Assert.NotNull(cp1.LastTime);
-            var cp1Time = cp1.LastTime.Value;
+            Assert.NotNull(cp1.LastKey);
             var cp1Key = cp1.LastKey;
 
             var initialLogs = await db.Queryable<ShareDataActivityLog>()
@@ -1711,8 +1708,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
             Assert.All(initialLogs, l => Assert.Equal(BaseEnums.SuccessEnums.Success, l.Success));
 
             // 2. Mô phỏng worker giám sát đang chết (Downtime):
-            // Chèn thêm 3 bản ghi mới vào TmsTrafficData sau mốc checkpoint cp1Time mà KHÔNG chạy vòng quét Change Tracking nào
-            var downtimeBaseTime = cp1Time.AddSeconds(10);
+            // Chèn thêm 3 bản ghi mới vào TmsTrafficData sau mốc checkpoint mà KHÔNG chạy vòng quét Change Tracking nào
+            var downtimeBaseTime = (await db.Ado.GetDateTimeAsync("SELECT GETDATE()")).AddSeconds(10);
             var downtimeList = Enumerable.Range(1, 3).Select(i => new TmsTrafficData
             {
                 ID = $"TF_DWN_{testId}_{i}",
@@ -1765,8 +1762,8 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                 .Where(c => c.PartnerCode == partnerCode && c.PacketCode == packetCode)
                 .FirstAsync();
             Assert.NotNull(cp2);
-            Assert.True(cp2.LastTime > cp1Time || (cp2.LastTime == cp1Time && string.Compare(cp2.LastKey, cp1Key) > 0));
-            Assert.Equal(downtimeList.Last().ID, cp2.LastKey);
+            Assert.True(string.CompareOrdinal(cp2.LastKey, cp1Key) > 0);
+            Assert.EndsWith($"_{downtimeList.Last().ID}", cp2.LastKey);
         }
 
         /// <summary>
@@ -2336,6 +2333,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
         /// Description: Kiểm thử đồng thời N Partner KHÁC NHAU (mỗi partner có 1 Subscription riêng cho cùng 1 gói tin 103)
         ///              cùng chạy song song. Mỗi partner phải có checkpoint độc lập, không overwrite checkpoint của partner khác.
         /// Created date: 25/09/2026
+        /// Modified date: 02/11/2026
         /// </summary>
         [Fact]
         public async Task ChangeTracking_WhenMultiplePartnersSubscribeSamePacketConcurrently_EachGetsOwnCheckpoint_Test()
@@ -2423,7 +2421,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
                     .FirstAsync();
 
                 Assert.NotNull(checkpoint);
-                Assert.NotNull(checkpoint.LastTime);
+                Assert.NotNull(checkpoint.LastKey);
             }
 
             // Tổng số checkpoint phải bằng đúng số partner (không bị dedupe hay overwrite lẫn nhau)

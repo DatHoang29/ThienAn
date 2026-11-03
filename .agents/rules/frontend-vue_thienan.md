@@ -178,6 +178,11 @@ src/views/<module>/<feature>/
       ElMessage.error(err?.response?.data?.message || err?.message || $t('lz.message.sharedataDataSource.saveSqlFailed'));
       ```
     - Mọi màn hình/component mới hoặc sửa đổi đều phải có bài test Playwright quét tĩnh (Static Code Scan) bảo đảm không chứa text thô cứng nhắc.
+* **Câu báo lỗi không nhắc dạng / tính năng trước đó (Rule 19.115, bổ sung 03/11/2026)**:
+  - Phân hệ đang làm mới thì thêm, sửa, bỏ là bình thường. Câu báo lỗi, cảnh báo đỏ, tooltip, placeholder chỉ nêu việc người dùng cần làm bây giờ. Áp dụng cả thông báo BE.
+  - ⛔ **CẤM** nhắc cách làm trước đó (ví dụ cấm viết: `Câu dạng 2 cột (@lastTime) không còn dùng`, `Nguồn [x] không còn dùng, hãy chọn lại`).
+  - ✅ Dữ liệu dạng cũ còn trong CSDL: xử lý như dữ liệu chưa hợp lệ bình thường (để trống ô, báo lỗi chung khi lưu), người dùng sửa lại trên giao diện; không làm nhánh cảnh báo riêng cho dạng cũ.
+  - ✅ Thay đổi cần người sau lưu ý thì ghi vào tệp `.md` của phân hệ (MasterPlan, kịch bản test), không đưa lên giao diện.
 * **CẤM viết nhãn UI song ngữ lai tiếng Anh trong ngoặc (Rule 20.13)**:
   - ⛔ **CẤM** viết nhãn, tiêu đề tab/card, nút bấm, placeholder, option label trên HTML/Vue theo kiểu song ngữ lai tiếng Việt kèm tiếng Anh trong ngoặc (như `Trực quan (Builder)`, `Mã nguồn SQL (Raw)`, `Cột trích xuất (SELECT)`, `Điều kiện lọc (WHERE)`, `Sắp xếp (ORDER BY)`, `Tăng dần (ASC)`, `Giảm dần (DESC)`).
   - 📌 **Quy tắc chú giải tiếng Anh trong ngoặc `[Tiếng Việt] ([English])` CHỈ ÁP DỤNG cho tài liệu kỹ thuật Markdown (`.md`)** (như Spec, Architecture, MasterPlan, Q&A) nhằm hỗ trợ lập trình viên đối chiếu thuật ngữ nghiệp vụ.

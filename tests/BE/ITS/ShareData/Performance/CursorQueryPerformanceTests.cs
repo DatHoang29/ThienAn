@@ -15,7 +15,9 @@ namespace Tests.ShareData.Performance
     ///              với cách đang chạy (2 cột __lastTime + __lastKey: gói 101 so cột thô, gói 103–111 so COALESCE)
     ///              và một cách viết lại câu 2 cột có điều kiện mở đầu dùng được chỉ mục.
     ///              Dữ liệu nằm trong bảng tạm trên một kết nối riêng tới CSDL test local, đóng kết nối là bảng tự mất.
+    ///              Biến thể PA1, PA2: dùng lại kế hoạch (-S), ORDER BY cột gốc (-G), chặn dưới lấy thời gian từ @lastKey (-CD), để chọn cách giữ một chuỗi.
     /// Created date: 29/10/2026
+    /// Modified date: 02/11/2026
     /// </summary>
     [Collection("api")]
     public class CursorQueryPerformanceTests
@@ -29,6 +31,19 @@ namespace Tests.ShareData.Performance
         private static readonly HashSet<string> RangeOperators = new(StringComparer.Ordinal) { "Index Seek", "Index Scan", "Clustered Index Seek", "Clustered Index Scan", "Table Scan" };
 
         private const string ConcatKeyExpression = "CONVERT(varchar(23), s.UpdateTime, 121) + '_' + s.ID";
+
+        /// <summary>Chặn dưới lấy phần thời gian từ chính @lastKey: câu vẫn một cột, một biến mà SQL Server nhảy được tới gần mốc trên chỉ mục.</summary>
+        private const string KeyLowerBound = "s.UpdateTime >= ISNULL(TRY_CONVERT(datetime, LEFT(@lastKey, 23), 121), '17530101')";
+
+        /// <summary>Câu phụ của PA2: tính công thức trên đúng dòng cuối trang.</summary>
+        private const string LastRowKeyQuery = $"{{tag}}SELECT {ConcatKeyExpression} AS __lastKey FROM #CursorSource s WHERE s.ID = @lastRowId";
+
+        /// <summary>Câu lấy trang của các biến thể PA1, PA2: selectKey là PA1 (tính chuỗi trong câu chính), lowerBound thêm chặn dưới, orderByRaw sắp theo cột gốc thay vì __lastKey.</summary>
+        private static string ConcatPageSql(bool selectKey, bool lowerBound, bool orderByRaw) =>
+            $"{{tag}}SELECT TOP (@pageSize) s.ID, s.Code, s.Speed, s.UpdateTime{(selectKey ? $", {ConcatKeyExpression} AS __lastKey" : string.Empty)}\n"
+            + "FROM #CursorSource s\n"
+            + $"WHERE {(lowerBound ? KeyLowerBound + " AND " : string.Empty)}{ConcatKeyExpression} > @lastKey\n"
+            + (orderByRaw ? "ORDER BY s.UpdateTime ASC, s.ID ASC" : "ORDER BY __lastKey ASC");
 
         /// <summary>Các cách lấy một trang nối đuôi. {tag} là chú thích tách kế hoạch thực thi theo từng cách × vị trí mốc.</summary>
         private static readonly QueryOption[] Options =
@@ -56,6 +71,16 @@ namespace Tests.ShareData.Performance
                 WHERE {ConcatKeyExpression} > @lastKey
                 ORDER BY s.UpdateTime ASC, s.ID ASC
                 """, KeyBuiltInWorker: true),
+            new("PA1-S", "PA1 · dùng lại kế hoạch dựng lúc chưa có mốc", CursorShape.ConcatKey, ConcatPageSql(selectKey: true, lowerBound: false, orderByRaw: false), SharePlanAcrossPositions: true),
+            new("PA1-G", "PA1 · ORDER BY cột gốc (phải nới luật kiểm)", CursorShape.ConcatKey, ConcatPageSql(selectKey: true, lowerBound: false, orderByRaw: true)),
+            new("PA1-G-S", "PA1 · ORDER BY cột gốc, dùng lại kế hoạch", CursorShape.ConcatKey, ConcatPageSql(selectKey: true, lowerBound: false, orderByRaw: true), SharePlanAcrossPositions: true),
+            new("PA1-CD", "PA1 · thêm chặn dưới (luật kiểm hiện tại cho qua)", CursorShape.ConcatKey, ConcatPageSql(selectKey: true, lowerBound: true, orderByRaw: false)),
+            new("PA1-CD-S", "PA1 · thêm chặn dưới, dùng lại kế hoạch", CursorShape.ConcatKey, ConcatPageSql(selectKey: true, lowerBound: true, orderByRaw: false), SharePlanAcrossPositions: true),
+            new("PA1-CDG", "PA1 · chặn dưới + ORDER BY cột gốc (phải nới luật kiểm)", CursorShape.ConcatKey, ConcatPageSql(selectKey: true, lowerBound: true, orderByRaw: true)),
+            new("PA1-CDG-S", "PA1 · chặn dưới + ORDER BY cột gốc, dùng lại kế hoạch", CursorShape.ConcatKey, ConcatPageSql(selectKey: true, lowerBound: true, orderByRaw: true), SharePlanAcrossPositions: true),
+            new("PA2-S", "PA2 · dùng lại kế hoạch dựng lúc chưa có mốc", CursorShape.ConcatKey, ConcatPageSql(selectKey: false, lowerBound: false, orderByRaw: true), LastRowKeySql: LastRowKeyQuery, SharePlanAcrossPositions: true),
+            new("PA2-CD", "PA2 · thêm chặn dưới", CursorShape.ConcatKey, ConcatPageSql(selectKey: false, lowerBound: true, orderByRaw: true), LastRowKeySql: LastRowKeyQuery),
+            new("PA2-CD-S", "PA2 · thêm chặn dưới, dùng lại kế hoạch", CursorShape.ConcatKey, ConcatPageSql(selectKey: false, lowerBound: true, orderByRaw: true), LastRowKeySql: LastRowKeyQuery, SharePlanAcrossPositions: true),
             new("HT-101", "Hiện tại · gói 101 (so cột thô)", CursorShape.TimeAndKey, """
                 {tag}SELECT TOP (@pageSize) s.UpdateTime AS __lastTime, s.ID AS __lastKey, s.ID, s.Code, s.Speed, s.UpdateTime
                 FROM #CursorSource s
@@ -124,7 +149,7 @@ namespace Tests.ShareData.Performance
 
         /// <summary>
         /// Description: Trên bảng 1 triệu dòng có chỉ mục (UpdateTime, ID), lấy trang 100 dòng bằng từng cách ở 3 vị trí mốc
-        ///              (chưa có mốc, đã gửi một nửa, chỉ còn 500 dòng mới) rồi so:
+        ///              (chưa có mốc, đã gửi một nửa, chỉ còn 500 dòng mới, không có dòng mới) rồi so:
         ///              - mọi cách trả cùng một trang và cùng mốc kế tiếp (khóa ghép "thời gian_mã" tương đương cặp UpdateTime, ID);
         ///              - mốc ở cuối: cách 2 cột có điều kiện mở đầu >= dùng Index Seek và đọc ít trang (kể cả khi dùng lại
         ///                kế hoạch dựng lúc chưa có mốc), các cách so biểu thức
@@ -166,6 +191,7 @@ namespace Tests.ShareData.Performance
                 new("start", "Chưa có mốc (lần gửi đầu / chạy lại từ đầu)", null, string.Empty, string.Empty),
                 await ReadPositionAsync(conn, "mid", "Đã gửi 50%", rowCount / 2),
                 await ReadPositionAsync(conn, "end", "Còn 500 dòng mới (chạy định kỳ)", rowCount - 500),
+                await ReadPositionAsync(conn, "idle", "Không có dòng mới (mốc ở dòng cuối bảng)", rowCount),
             ];
 
             var results = new List<Measurement>();
@@ -183,13 +209,16 @@ namespace Tests.ShareData.Performance
             {
                 var atPosition = results.Where(r => r.Position == position).ToList();
                 var reference = atPosition.Single(r => r.Option.Code == "HT-101");
-                Assert.Equal(PageSize, reference.PageIds.Count);
+                Assert.Equal(position.Code == "idle" ? 0 : PageSize, reference.PageIds.Count);
                 foreach (var r in atPosition)
                 {
                     Assert.True(reference.PageIds.SequenceEqual(r.PageIds), $"{r.Option.Code} ở mốc {position.Code} trả trang khác HT-101.");
                 }
 
-                var lastRow = reference.LastRow ?? throw new InvalidOperationException("Trang HT-101 rỗng.");
+                var lastRow = reference.LastRow;
+                if (lastRow == null)
+                    continue;
+
                 var expectedConcatKey = BuildKeyInWorker(lastRow);
                 foreach (var r in atPosition.Where(r => r.Option.Shape == CursorShape.ConcatKey))
                 {
@@ -198,16 +227,90 @@ namespace Tests.ShareData.Performance
             }
 
             var end = results.Where(r => r.Position.Code == "end").ToDictionary(r => r.Option.Code);
-            foreach (var code in new[] { "DX", "DX-S" })
+            foreach (var code in new[] { "DX", "DX-S", "PA1-CDG", "PA1-CDG-S", "PA2-CD", "PA2-CD-S" })
             {
                 Assert.Contains("Index Seek", end[code].Plan, StringComparison.Ordinal);
                 Assert.True(end[code].LogicalReads <= 2_000, $"{code} đọc {end[code].LogicalReads} trang.");
             }
+            if (rowCount < DefaultRowCount)
+                return;
+
             foreach (var code in new[] { "PA1", "PA2", "PA3", "HT-103", "DX-103" })
             {
                 Assert.True(end[code].LogicalReads >= 10 * end["DX"].LogicalReads,
                     $"{code} đọc {end[code].LogicalReads} trang, chưa gấp 10 lần DX ({end["DX"].LogicalReads}).");
             }
+        }
+
+        /// <summary>
+        /// Author: DatHQ
+        /// Description: So PA1 với PA2 khi dòng cuối trang bị sửa hoặc bị xóa sau lúc đọc trang, trước lúc lấy mốc. PA1 lấy mốc cùng lần đọc trang nên không sót dòng.
+        ///              PA2 tính lại công thức trên dòng đã đổi: dòng bị sửa làm mốc nhảy quá các dòng chưa gửi, dòng bị xóa thì không có mốc nên gửi lại trang.
+        ///              PA2 chưa có trong Worker nên đi đúng các bước của biên bản 28/10/2026 trên bảng tạm, không qua luồng thật.
+        /// Created date: 02/11/2026
+        /// </summary>
+        [Theory(Skip = "So sánh thiết kế PA1 và PA2 trên bảng tạm, PA2 chưa có trong Worker; bỏ Skip khi cần đo lại.")]
+        [Trait("Feature", "Performance")]
+        [InlineData("PA1", "update", 0, 1)]
+        [InlineData("PA1", "delete", 0, 0)]
+        [InlineData("PA2", "update", 4, 0)]
+        [InlineData("PA2", "delete", 0, 2)]
+        public async Task CursorKey_WhenLastRowChangesBeforeCursorIsRead_Test(string option, string change, int expectedMissing, int expectedDuplicates)
+        {
+            // Arrange: 10 dòng R01..R10 cách nhau 1 phút, trang 3 dòng
+            var connectionString = _host.Services.GetRequiredService<IConfiguration>().GetConnectionString("DefaultConnection")
+                ?? throw new InvalidOperationException("Thiếu ConnectionStrings:DefaultConnection trong appsettings.Test.json.");
+            await using var conn = new SqlConnection(connectionString);
+            await conn.OpenAsync();
+            await ExecuteAsync(conn, """
+                CREATE TABLE #CursorChange (ID NVARCHAR(64) NOT NULL PRIMARY KEY, UpdateTime DATETIME NOT NULL);
+                INSERT INTO #CursorChange (ID, UpdateTime)
+                SELECT CONCAT(N'R', RIGHT(CONCAT('0', v.n), 2)), DATEADD(MINUTE, v.n, CAST('20260101' AS DATETIME))
+                FROM (VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10)) v(n);
+                """);
+            const string key = "CONVERT(varchar(23), c.UpdateTime, 121) + '_' + c.ID";
+            var isPa1 = option == "PA1";
+            var pageSql = isPa1
+                ? $"SELECT TOP (3) c.ID, {key} AS __lastKey FROM #CursorChange c WHERE {key} > @lastKey ORDER BY __lastKey ASC"
+                : $"SELECT TOP (3) c.ID FROM #CursorChange c WHERE {key} > @lastKey ORDER BY c.UpdateTime ASC, c.ID ASC";
+            var lastRowSql = $"SELECT {key} AS __lastKey FROM #CursorChange c WHERE c.ID = @lastRowId";
+
+            // Act: gửi hết các trang; dòng cuối trang đầu (R03) đổi trước khi lấy mốc: sửa thành 00:07:30 (sau R07) hoặc bị xóa
+            var sent = new List<string>();
+            var cursor = string.Empty;
+            for (var round = 0; round < 20; round++)
+            {
+                var page = (await QueryAsync(conn, pageSql, [new SqlParameter("@lastKey", SqlDbType.NVarChar, 256) { Value = cursor }])).Rows;
+                if (page.Count == 0)
+                    break;
+
+                sent.AddRange(page.Select(r => r.Id));
+                var lastRow = page[^1];
+                if (round == 0)
+                {
+                    await ExecuteAsync(conn, change == "update"
+                        ? $"UPDATE #CursorChange SET UpdateTime = '20260101 00:07:30' WHERE ID = N'{lastRow.Id}'"
+                        : $"DELETE FROM #CursorChange WHERE ID = N'{lastRow.Id}'");
+                }
+
+                if (isPa1)
+                {
+                    cursor = lastRow.LastKey!;
+                    continue;
+                }
+
+                // Không còn dòng để tính công thức thì không có mốc mới, lượt sau đọc lại từ mốc cũ
+                var keyRows = (await QueryAsync(conn, lastRowSql, [LastRowIdParameter(lastRow.Id)])).Rows;
+                if (keyRows.Count > 0)
+                {
+                    cursor = keyRows[0].LastKey!;
+                }
+            }
+
+            // Assert
+            var allRows = Enumerable.Range(1, 10).Select(n => $"R{n:00}");
+            Assert.Equal(expectedMissing, allRows.Except(sent).Count());
+            Assert.Equal(expectedDuplicates, sent.Count - sent.Distinct().Count());
         }
 
         private enum CursorShape

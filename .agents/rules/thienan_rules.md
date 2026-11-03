@@ -57,6 +57,7 @@ Mọi AI Agent **BẮT BUỘC** tuân thủ tuyệt đối các quy tắc cốt 
 | **73** | **Cấm Nới Lỏng Bộ Kiểm Tra / An Toàn Dữ Liệu Để Làm Xanh Test** (Rule 19.113) | Khi Validator / AST ScriptDom / Guard chặn lỗi hoặc làm test cũ đỏ vì phát hiện nguy cơ mất/lặp dữ liệu: ⛔ CẤM nới lỏng logic kiểm tra để test pass tạm thời. Phải giữ nguyên bộ chặn an toàn, test cũ viết sai chuẩn phải cập nhật theo chuẩn mới hoặc kiểm tra từ chối lỗi (`AssertRejectedWith`). Chi tiết: [backend-dotnet_thienan.md](./backend-dotnet_thienan.md) §4.30 & [testing-rules_thienan.md](./testing-rules_thienan.md) §2.8. |
 | **74** | **Bảo Toàn Tệp Nguồn Sự Thật Duy Nhất** (Rule 19.114) | Khi tài liệu đã được người dùng chỉ định gom vào một nguồn duy nhất (SSOT) và xóa tệp trung gian (vd gộp doc 08 vào transcript 28/10): ⛔ CẤM tự ý tạo lại, khôi phục hoặc sửa đổi tệp cũ đã bị xóa. Mọi bổ sung thiết kế, benchmark, phân tích BẮT BUỘC ghi vào đúng tệp SSOT duy nhất đang sống. Chi tiết: [documentation-standards_thienan.md](./documentation-standards_thienan.md) §1.4. |
 | **75** | **Toàn Vẹn Khế Ước Dữ Liệu Khi Sửa Giao Diện** (Rule 20.32) | Sửa UI (gộp icon, sửa tooltip, khoảng cách nút, layout): chỉ sửa tầng hiển thị template/CSS; ⛔ CẤM làm thay đổi cấu trúc payload API (request body / DTO) gửi xuống Backend trừ khi có yêu cầu sửa API. Trường mở rộng mới (`cursorKey`) bắt buộc tương thích ngược, không gửi thừa/null làm gãy API. Chi tiết: [frontend-vue_thienan.md](./frontend-vue_thienan.md) §11. |
+| **76** | **Câu Báo Lỗi Không Nhắc Dạng / Tính Năng Trước Đó** (Rule 19.115) | Phân hệ đang làm mới thì thêm, sửa, bỏ là bình thường. ⛔ CẤM câu báo lỗi, cảnh báo đỏ, tooltip, placeholder ở FE và BE nhắc cách làm trước đó (vd `Câu dạng 2 cột không còn dùng`, `Nguồn [x] không còn dùng`). Dữ liệu dạng cũ xử lý như dữ liệu chưa hợp lệ bình thường (để trống ô, báo lỗi chung khi lưu), người dùng sửa trên giao diện. Thay đổi cần lưu ý thì ghi vào tệp `.md` của phân hệ. Chi tiết: [frontend-vue_thienan.md](./frontend-vue_thienan.md) §5. |
 
 ---
 
@@ -84,6 +85,7 @@ Quy tắc kỹ thuật chi tiết lưu giữ toàn văn tại các tệp chuyên
 - **Rule 20.30** (STT 62) — Thẻ không có nội dung viết tự đóng `<div ... />`, cấm cặp rỗng `<div ...></div>` (§6.2)
 - **Rule 20.31** — Quy chuẩn Smoke Test nạp trang & Chống trắng màn hình (kiểm tra nạp trang, click vào dòng xem chi tiết, và bắt pageerror chống lỗi trắng màn hình) (§5.3)
 - **Rule 20.32** (STT 75) — Toàn vẹn khế ước dữ liệu khi sửa giao diện: chỉ sửa hiển thị, cấm gửi thừa/null phá vỡ payload API (§11)
+- **Rule 19.115** (STT 76) — Câu báo lỗi chỉ nêu việc cần làm bây giờ, cấm nhắc dạng / tính năng trước đó (§5)
 
 ### 2. Backend .NET & Clean Architecture ([backend-dotnet_thienan.md](./backend-dotnet_thienan.md))
 > ⚠️ **3 luật CQRS cốt lõi (P0, áp cho mọi mã BE mới; mã lân cận sai thì không chép theo):**

@@ -28,7 +28,7 @@ test.describe('ShareData — Bảng tham số câu truy vấn (sqlVariablePanel)
 			keys.add(`lz.label.sharedataSqlVariable.source_${s}`);
 			keys.add(`lz.tooltip.sharedataSqlVariable.source_${s}`);
 		}
-		expect(sources).toEqual(['lastTime', 'lastKey', 'const', 'now']);
+		expect(sources).toEqual(['lastKey', 'const']);
 
 		for (const k of keys) {
 			expect(viVn[k], `vi-vn.json thiếu key ${k}`).toBeTruthy();
@@ -56,10 +56,8 @@ test.describe('ShareData — Bảng tham số câu truy vấn (sqlVariablePanel)
 	test('TC3 — Thiết kế bảng tham số phẳng: Lỗi đưa vào placeholder + viền đỏ + tooltip hover, không làm phình chiều cao dòng', () => {
 		const panel = fs.readFileSync(panelPath, 'utf-8');
 
-		// 1. Cột Nguồn giá trị (el-select): dùng placeholder lỗi kết hợp el-tooltip, không có div svp-error bên dưới
-		expect(panel).toContain(':placeholder="shownSourceError(row) || $t(\'lz.label.sharedataSqlVariable.colSource\')"');
-		expect(panel).toContain(':content="shownSourceError(row)"');
-		expect(panel).not.toContain('<div v-if="shownSourceError(row)" class="svp-error">');
+		// 1. Cột Nguồn giá trị chỉ là chữ theo tên biến, không có ô chọn
+		expect(panel).not.toContain('<el-select');
 
 		// 2. Cột Giá trị cố định (el-input): dùng placeholder lỗi kết hợp el-tooltip, không có div svp-error bên dưới
 		expect(panel).toContain(':placeholder="shownValueError(row) ||');
@@ -67,7 +65,6 @@ test.describe('ShareData — Bảng tham số câu truy vấn (sqlVariablePanel)
 		expect(panel).not.toContain('<div v-if="shownValueError(row)" class="svp-error">');
 
 		// 3. Style CSS: đổi màu placeholder thành đỏ danger khi có class is-error
-		expect(panel).toContain('.is-error :deep(.el-select__placeholder)');
 		expect(panel).toContain('.is-error :deep(.el-input__inner::placeholder)');
 		expect(panel).toContain('color: var(--el-color-danger);');
 	});
@@ -80,14 +77,16 @@ test.describe('ShareData — Bảng tham số câu truy vấn (sqlVariablePanel)
 		expect(template).not.toContain('class="svp-check-chips"');
 		expect(template).not.toContain('class="svp-check-divider"');
 
-		// 2. Toàn bộ tiêu chí nằm trong popup (svp-popover-list)
+		// 2. Toàn bộ tiêu chí nằm trong popup (svp-popover-list qua cursorChecks)
 		expect(template).toContain('class="svp-popover-list"');
-		expect(template).toContain('checkCursorColumns ? \'is-pass\' : \'is-fail\'');
-		expect(template).toContain('checkCursorFilter ? \'is-pass\' : \'is-fail\'');
-		expect(template).toContain('checkOrderAsc ? \'is-pass\' : \'is-fail\'');
+		expect(template).toContain('v-for="check in cursorChecks"');
+		expect(template).toContain("check.pass ? 'is-pass' : 'is-fail'");
+		expect(panel).toContain('pass: checkCursorColumns.value');
+		expect(panel).toContain('pass: checkCursorFilter.value');
+		expect(panel).toContain('pass: checkOrderAsc.value');
 
 		// 3. Biểu tượng đạt/chưa đạt chỉ dùng CircleCheckFilled và CircleCloseFilled
-		expect(template).toContain('<ele-CircleCheckFilled v-if="checkCursorColumns" />');
+		expect(template).toContain('<ele-CircleCheckFilled v-if="check.pass" />');
 		expect(template).toContain('<ele-CircleCloseFilled v-else />');
 
 		// 4. Style lead và popup item: chỉ dùng xanh lá (is-pass) và đỏ (is-fail), không dùng màu cam #e6a23c
@@ -96,12 +95,9 @@ test.describe('ShareData — Bảng tham số câu truy vấn (sqlVariablePanel)
 		expect(style).toContain('&.is-pass {\n\t\t\tcolor: var(--el-color-success);');
 		expect(style).toContain('&.is-fail,\n\t\t&.is-warn {\n\t\t\tcolor: var(--el-color-danger);');
 
-		// 5. Nằm trên header mục 4 (Mốc gửi | Quy chuẩn mốc), cách nhau bởi dấu gạch |
-		expect(template).toContain('<span class="svp-header-sep">|</span>');
-		const cursorHeaderLeft = template.match(/<div v-if="showCursorSection" class="svp-card svp-cursor-section">[\s\S]*?<div class="svp-header-left">([\s\S]*?)<\/div>\s*<\/div>/)?.[1] ?? '';
-		expect(cursorHeaderLeft).toContain('class="svp-title"');
-		expect(cursorHeaderLeft).toContain('class="svp-cursor-help"');
-		expect(cursorHeaderLeft).toContain('class="svp-header-sep"');
-		expect(cursorHeaderLeft).toContain('class="svp-checks"');
+		// 5. Khung ghi chú rà soát bên dưới (svp-popover-note / checkHint) đã bị loại bỏ khỏi template và style
+		expect(template).not.toContain('class="svp-popover-note"');
+		expect(template).not.toContain('checkHint');
+		expect(style).not.toContain('.svp-popover-note');
 	});
 });

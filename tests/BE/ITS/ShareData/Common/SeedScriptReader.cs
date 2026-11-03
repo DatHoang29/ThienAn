@@ -12,6 +12,7 @@ internal static class SeedScriptReader
     private const string PacketSeedFile = "sharedata-seed-goi-tin-ShareDataPacket.sql";
     private const string SqlSeedFile = "sharedata-seed-goi-tin-ShareDataSql.sql";
     private const string SourceTableSeedFile = "sharedata-seed-cau-hinh-ShareDataSourceTable.sql";
+    private const string LastSendMigrationFile = "sharedata-chuyen-doi-moc-ShareDataLastSend.sql";
 
     private static readonly Lazy<Dictionary<string, SeedPacketInfo>> Cache = new(LoadAllInternal);
     private static readonly Lazy<IReadOnlyList<SeedWriteSqlInfo>> WriteSqlStatementsCache = new(LoadWriteSqlStatementsInternal);
@@ -154,14 +155,53 @@ internal static class SeedScriptReader
     /// <summary>
     /// Description: Lấy nguyên một khối lệnh của tệp seed ShareDataSql từ dòng tiêu đề mục tới dòng GO kế tiếp (không gồm GO),
     ///              để test chạy đúng câu lệnh nằm trong tệp.
+    /// Modified date: 02/11/2026
     /// </summary>
     public static string ReadSqlSeedBatch(string heading)
     {
+        return ReadScriptBatch(SqlSeedFile, heading);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Lấy nguyên một khối lệnh của tệp chuyển đổi mốc ShareDataLastSend từ dòng tiêu đề mục tới dòng GO kế tiếp (không gồm GO),
+    ///              để test chạy đúng câu lệnh nằm trong tệp.
+    /// Created date: 02/11/2026
+    /// </summary>
+    public static string ReadLastSendMigrationBatch(string heading)
+    {
+        return ReadScriptBatch(LastSendMigrationFile, heading);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Đọc bộ biến @&lt;tên&gt; (Vars101, VarsCursor, VarsCursorPage) khai trong tệp seed ShareDataSql, trả về chuỗi JSON đúng như trong tệp.
+    /// Created date: 02/11/2026
+    /// </summary>
+    public static string ReadSeedVariablesJson(string name)
+    {
         var content = File.ReadAllText(ResolveSqlScriptPath(SqlSeedFile));
+        var match = Regex.Match(content, $@"DECLARE @{Regex.Escape(name)} NVARCHAR\(MAX\) = N'(?<json>[^']*)';");
+        if (!match.Success)
+        {
+            throw new InvalidOperationException($"Không tìm thấy bộ biến @{name} trong kịch bản seed {SqlSeedFile}.");
+        }
+
+        return match.Groups["json"].Value;
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Cắt một khối lệnh của tệp script từ dòng tiêu đề mục tới dòng GO kế tiếp (không gồm GO).
+    /// Created date: 02/11/2026
+    /// </summary>
+    private static string ReadScriptBatch(string fileName, string heading)
+    {
+        var content = File.ReadAllText(ResolveSqlScriptPath(fileName));
         var start = content.IndexOf(heading, StringComparison.Ordinal);
         if (start < 0)
         {
-            throw new InvalidOperationException($"Không tìm thấy mục '{heading}' trong kịch bản seed {SqlSeedFile}.");
+            throw new InvalidOperationException($"Không tìm thấy mục '{heading}' trong kịch bản {fileName}.");
         }
 
         var end = Regex.Match(content[start..], @"^GO\s*$", RegexOptions.Multiline);

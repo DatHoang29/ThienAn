@@ -530,6 +530,72 @@ test.describe('ShareData — Form cấu hình kết nối đối tác (connectio
 		await expect(page.locator('.el-message-box')).toHaveCount(0);
 	});
 
+	const connectionLockCases = [
+		{ name: 'đang kết nối', sessionState: 1, subscriptions: [], locked: true },
+		{ name: 'đã ngắt kết nối', sessionState: 0, subscriptions: [], locked: false },
+		{ name: 'đã ngắt kết nối, có đăng ký đang chạy', sessionState: 0, subscriptions: [{ id: 'sub_01', partnerId: 'partner_01', state: 1 }], locked: false },
+	];
+	for (const { name, sessionState, subscriptions, locked } of connectionLockCases) {
+		test(`TC31 — Sửa đối tác ${name}: tham số kết nối ${locked ? 'bị khóa' : 'sửa được'}, tên đối tác luôn sửa được`, async ({ context, page }) => {
+			const fulfill = (result: unknown) => ({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result }) });
+			await mockAuth(context, page, {
+				language: 'vi-vn',
+				userInfo: { authBtnList: ['*', 'sharedataSharing:add', 'sharedataSharing:update', 'sharedataSharing:delete'], defaultMenu: '/sharedata/sharing' },
+			});
+			await page.route('**/api/system/sysmenu/loginmenutree*', (route) =>
+				route.fulfill(
+					fulfill([
+						{
+							id: 'menu_sharedata',
+							pid: '0',
+							path: '/sharedata',
+							name: 'sharedata',
+							component: 'layout/routerView/parent',
+							meta: { title: 'lz.menu.sharedata', isLink: '', isHide: false, isKeepAlive: true, isAffix: false, isIframe: false, roles: ['admin'], icon: 'ele-Share' },
+							children: [
+								{
+									id: 'menu_sharedata_sharing',
+									pid: 'menu_sharedata',
+									path: '/sharedata/sharing',
+									name: 'sharedataSharing',
+									component: 'sharedata/sharing/index',
+									meta: { title: 'lz.menu.sharedataSharing', isLink: '', isHide: false, isKeepAlive: true, isAffix: false, isIframe: false, roles: ['admin'], icon: 'ele-Connection' },
+								},
+							],
+						},
+					])
+				)
+			);
+			await page.route('**/api/sharedata/sharedatapartner/list*', (route) =>
+				route.fulfill(fulfill([{ id: 'partner_01', code: 'PTN_LOCK', name: 'Đối tác khóa', address: '10.10.1.50', port: 8080, connectionType: 1, status: 1, sessionState }]))
+			);
+			await page.route('**/api/sharedata/sharedatasession/list*', (route) => route.fulfill(fulfill([])));
+			await page.route('**/api/sharedata/sharedatasubscription/list*', (route) => route.fulfill(fulfill(subscriptions)));
+
+			await page.goto('/#/sharedata/sharing');
+			await expect(page.locator('.eshare-body__left')).toBeVisible({ timeout: 30000 });
+			await page.locator('.ptn-item').first().getByRole('button', { name: 'Chỉnh sửa' }).click();
+			const dialog = page.locator('.sharedata-edit-partner-container .el-dialog');
+			await expect(dialog).toBeVisible();
+
+			await expect(dialog.locator('.el-form-item').filter({ hasText: 'Tên đối tác' }).locator('input')).toBeEnabled();
+
+			// Hộp thoại mở dưới con trỏ làm tooltip ô Mã đối tác hiện đè lên tab: tooltip không được chặn cú bấm chuyển tab
+			const connectionTab = dialog.getByRole('tab', { name: 'Kết nối' });
+			await connectionTab.click();
+			await expect(connectionTab).toHaveClass(/is-active/);
+			const addressInput = dialog.locator('.el-form-item').filter({ has: page.locator('.el-form-item__label', { hasText: 'Địa chỉ (IP/host)' }) }).locator('input');
+			const portInput = dialog.locator('.el-form-item').filter({ has: page.locator('.el-form-item__label', { hasText: /^\s*Cổng\s*$/ }) }).locator('input');
+			if (locked) {
+				await expect(addressInput).toBeDisabled();
+				await expect(portInput).toBeDisabled();
+			} else {
+				await expect(addressInput).toBeEnabled();
+				await expect(portInput).toBeEnabled();
+			}
+		});
+	}
+
 	test('TC18 — Form đối tác chia 2 tab (Thông tin chung, Kết nối), tự chuyển tab khi lỗi và giữ nguyên thời gian chờ khi lưu/mở lại', async ({ context, page }) => {
 		let savedPartner: Record<string, any> | null = null;
 		await mockAuth(context, page, {
