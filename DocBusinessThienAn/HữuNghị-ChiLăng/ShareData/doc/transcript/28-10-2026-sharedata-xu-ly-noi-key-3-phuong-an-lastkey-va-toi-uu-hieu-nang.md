@@ -31,7 +31,7 @@ participants:
 >
 > **Đánh số phương án giữa hai buổi:** buổi 27/10 nêu 2 cách — (1) nối chuỗi dưới SQL, (2) lưu công thức để C# ghép, kèm ý "truy vấn lại theo ID dòng cuối" [A — Phần 3, 03:01 – 03:28]. Buổi 28/10 Tech Lead nhắc lại "hôm đó anh nói là có 2 cách" [B — 02:04] rồi tách thành 3: **PA1** nối chuỗi trong câu SQL chính, **PA2** lưu công thức SQL và chỉ tính trên dòng cuối, **PA3** ghép trong mã C#. Trong tệp này "PA1/PA2/PA3" luôn theo cách đánh số của buổi 28/10.
 >
-> **Đã chốt khác lời họp (03/11/2026, rà sau không báo lại):** hai ý trong lời thoại không làm đúng nguyên văn, xem mục *Quyết định đã chốt* ở đầu Phần C: mốc đang chạy sửa được nhưng chỉ ở trang **Mốc gửi**; tham số cố định như `@pageSize` lưu theo câu SQL, không lưu theo từng đối tác.
+> **Đã chốt khác lời họp (03/11/2026, rà sau không báo lại):** hai ý trong lời thoại không làm đúng nguyên văn, xem mục *Quyết định đã chốt* ở đầu Phần C: mốc đang chạy sửa được nhưng chỉ ở trang **Mốc gửi** (mới làm khung, chưa khai menu, không bàn giao); tham số cố định như `@pageSize` lưu theo câu SQL, không lưu theo từng đối tác.
 >
 > **Đã lược 29/10/2026 — chỉ giữ ý xử lý nối đuôi.** Bỏ phần giao diện và phần không liên quan: buổi 27/10 Phần 1 (rà soát chung, công cụ ghi chú), Phần 2 (tải trang, tên nút, khối so sánh, kiểu dữ liệu) và 3 câu ở Phần 4 về chỗ hiển thị mốc trên màn hình; buổi 28/10 mục 1.5 (giao diện bảng tham số).
 
@@ -523,6 +523,8 @@ Ba bản vẽ tay kỹ thuật được Tech Lead phác thảo trực tiếp tro
 
 > **Cập nhật 03/11/2026:** sếp chốt PA1 gốc ngày 02/11/2026; ngày 03/11/2026 bỏ hẳn dạng 2 cột (`__lastTime`, `@lastTime`) ở giao diện, WebAPI, Worker và tệp seed. Chỉ còn một chuỗi `__lastKey`. Cột `ShareDataLastSend.LastTime` giữ lại (không `ALTER TABLE`, Rule 19.85), chỉ là giờ ghi mốc, không dùng để lọc.
 
+> **Cập nhật 04/11/2026:** trang **Mốc gửi** mới làm khung, chưa khai menu và không thuộc phạm vi bàn giao. Các chỗ trong Phần C nhắc xem mốc đang chạy, Đặt mốc, Đặt lại ở trang này giữ để tham khảo, chưa làm được trên giao diện.
+
 ### Quyết định đã chốt (03/11/2026, người phụ trách xác nhận; rà sau không báo lại là lệch)
 
 | Việc | Lời họp | Cách làm đã chốt |
@@ -817,6 +819,8 @@ sequenceDiagram
    * **Luật 2 — Bắt buộc có `ORDER BY` ngoài cùng & Cấm `DESC`:** Truy vấn nối đuôi không có `ORDER BY` bị từ chối ngay (`SqlIncrementalMissingOrderBy`). Cột mốc sắp xếp giảm dần (`SortOrder.Descending`) bị từ chối ngay (`SqlIncrementalOrderByDescNotAllowed`) vì lấy dòng cuối của tập giảm dần sẽ làm lùi con trỏ về quá khứ.
    * **Luật 3 — Đối chiếu khớp cột chiếu & khóa sắp xếp:** Danh sách `SELECT` bắt buộc có cột mang alias `__lastKey` (`SqlIncrementalMissingLastKey`). Phần tử đầu tiên của `ORDER BY` bắt buộc là `__lastKey` hoặc lặp lại chính xác biểu thức AST tạo nên `__lastKey` (`IsOrderByColumn`, chuẩn hóa không phân biệt hoa thường/khoảng trắng/ngoặc vuông; sai thì `SqlIncrementalOrderByKeyMismatch`).
    * **Luật 4 — `WHERE` so đúng mốc (29–30/10/2026, `ValidateCursorFilter`):** phải có `K > @k`, `K` đúng biểu thức cột mốc ở `SELECT`, vế còn lại là biến mốc (không phải hằng); sai thì `SqlIncrementalKeyFilterInvalid`. Câu gộp nhiều nguồn kiểm từng nhóm mốc (`ValidateCursorGroups`). Bộ kiểm chỉ xem điều kiện mốc, không xem các điều kiện lọc nghiệp vụ khác.
+   * **Luật 5 — `ORDER BY` câu gộp nhiều nguồn (04/11/2026, `ValidateGroupOrder`):** cột sắp xếp ngoài cùng phải có cùng công thức cột mốc ở nhánh của từng nhóm; sai thì `SqlIncrementalGroupOrderInvalid`.
+   * **Luật 6 — Cột mốc theo thời gian (04/11/2026, `ValidateCursorTime`, chỉ chạy khi lưu qua API):** cột mốc chỉ là một cột ngày giờ thì `SqlIncrementalKeyTimeOnly`; công thức dùng `UpdateTime` trơn thì `SqlIncrementalUpdateTimeEmpty`, trừ câu có nhánh `UpdateTime IS NULL`. Câu đã lưu từ trước vẫn chạy, Worker ghi rủi ro vào nhật ký cấu hình.
    * **Rủi ro (lưu bình thường, không cảnh báo, từ 01/11/2026):** khóa ghép có ngày giờ sai thứ tự hoặc số không đệm 0; dạng chỉ khóa mà `__lastKey` là cột trơn không phải số; so khóa `>=`. Worker ghi các rủi ro này (`SqlValidatorHelper.FindCursorRisks`) vào `ShareDataActivityLog` nhóm `CONFIG`, một lần cho mỗi (đăng ký, câu SQL), hiện ở *Lịch sử chia sẻ → Nhật ký cấu hình*.
    * Khi phát hiện vi phạm, `SqlValidatorHelper.TryLocateError` định vị chính xác `(Line, Column)` của token lỗi để trả về cho Monaco Editor trên UI gạch chân đỏ ngay dòng sai.
 
