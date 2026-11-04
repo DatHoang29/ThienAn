@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bàn giao mã nguồn ShareData</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #fbfaf7;
+  --surface: #ffffff;
+  --surface-2: #f2f0ea;
+  --text: #1f2328;
+  --muted: #5d6470;
+  --line: #dcd8ce;
+  --accent: #0f5e6b;
+  --warn-bg: #fdf1d8;
+  --warn-text: #7a4a00;
+  --risk-bg: #fbe6e2;
+  --risk-text: #8c2a1a;
+  --ok-bg: #e2f1e6;
+  --ok-text: #1e5c34;
+  --code-bg: #eeece5;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15181c;
+    --surface: #1c2025;
+    --surface-2: #23282e;
+    --text: #e6e8eb;
+    --muted: #a0a7b2;
+    --line: #363c44;
+    --accent: #6cc4d1;
+    --warn-bg: #3b2e12;
+    --warn-text: #f0c673;
+    --risk-bg: #3d1f1a;
+    --risk-text: #f2a696;
+    --ok-bg: #1b3324;
+    --ok-text: #8fd3a6;
+    --code-bg: #2a2f36;
+  }
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.6 -apple-system, "Segoe UI", Roboto, "Noto Sans", Arial, sans-serif;
+}
+.layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 40px; max-width: 1320px; margin: 0 auto; padding: 0 28px; }
+nav.toc { position: sticky; top: 0; align-self: start; max-height: 100vh; overflow-y: auto; padding: 28px 8px 40px 0; font-size: 14px; }
+nav.toc .toc-title { font-weight: 650; margin-bottom: 8px; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; }
+nav.toc li { margin: 2px 0; }
+nav.toc ol ol { margin: 2px 0 8px 12px; padding-left: 10px; border-left: 1px solid var(--line); }
+nav.toc a { display: block; padding: 3px 6px; color: var(--muted); text-decoration: none; border-radius: 5px; }
+nav.toc a:hover { color: var(--text); background: var(--surface-2); }
+nav.toc > ol > li > a { color: var(--text); font-weight: 600; }
+main { min-width: 0; padding: 32px 0 80px; }
+header.doc { border-bottom: 2px solid var(--text); padding-bottom: 18px; margin-bottom: 28px; }
+h1 { font-size: 30px; line-height: 1.25; margin: 0 0 10px; letter-spacing: -0.01em; }
+h2 { font-size: 24px; line-height: 1.3; margin: 56px 0 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+h3 { font-size: 19px; line-height: 1.35; margin: 34px 0 10px; }
+h4 { font-size: 16px; margin: 22px 0 6px; }
+p { margin: 10px 0; }
+ul, ol { padding-left: 22px; margin: 10px 0; }
+li { margin: 5px 0; }
+a { color: var(--accent); }
+code { font-family: var(--mono); font-size: 0.875em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; overflow-wrap: break-word; }
+pre { background: var(--code-bg); padding: 12px 14px; border-radius: 8px; overflow-x: auto; font-size: 13.5px; line-height: 1.5; }
+pre code { background: none; padding: 0; overflow-wrap: normal; }
+.meta { display: grid; grid-template-columns: max-content 1fr; gap: 3px 16px; margin: 12px 0 0; font-size: 15px; }
+.meta dt { color: var(--muted); }
+.meta dd { margin: 0; }
+.table-wrap { overflow-x: auto; margin: 12px 0 20px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { width: 100%; border-collapse: collapse; font-size: 14.5px; line-height: 1.5; }
+th { text-align: left; background: var(--surface-2); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; min-width: 90px; }
+tr:last-child td { border-bottom: 0; }
+td.num, th.num { text-align: right; white-space: nowrap; min-width: 0; }
+td.step { color: var(--muted); white-space: nowrap; min-width: 0; }
+td.part { font-weight: 600; white-space: nowrap; min-width: 0; }
+td.fn { min-width: 210px; }
+td.file { min-width: 150px; color: var(--muted); }
+.tag { display: inline-block; font-size: 12px; line-height: 1.5; font-weight: 600; padding: 0 7px; border-radius: 10px; white-space: nowrap; }
+.tag.nc { background: var(--warn-bg); color: var(--warn-text); }
+.tag.ok { background: var(--ok-bg); color: var(--ok-text); }
+.tag.no { background: var(--risk-bg); color: var(--risk-text); }
+.note { border-left: 4px solid var(--line); padding: 10px 14px; margin: 14px 0; background: var(--surface); border-radius: 0 8px 8px 0; }
+.note.warn { border-color: var(--warn-text); background: var(--warn-bg); }
+.note.risk { border-color: var(--risk-text); background: var(--risk-bg); }
+.note > :first-child { margin-top: 0; }
+.note > :last-child { margin-bottom: 0; }
+figure { margin: 18px 0 22px; padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; }
+figure svg { display: block; width: 100%; min-width: 760px; height: auto; color: var(--text); }
+figcaption { margin-top: 10px; font-size: 14px; color: var(--muted); }
+.fn-list code { display: inline-block; margin: 1px 2px; }
+@media (max-width: 960px) {
+  .layout { display: block; padding: 0 16px; }
+  nav.toc { position: static; max-height: none; padding: 16px 0 0; border-bottom: 1px solid var(--line); }
+  nav.toc ol ol { display: none; }
+  main { padding-top: 20px; }
+  h1 { font-size: 25px; }
+  h2 { font-size: 21px; }
+}
+@media print {
+  nav.toc { display: none; }
+  .layout { display: block; max-width: none; padding: 0; }
+  body { background: #fff; color: #000; }
+  .table-wrap, figure { overflow: visible; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav class="toc" aria-label="Mục lục">
+  <div class="toc-title">Mục lục</div>
+  <ol>
+    <li><a href="#ban-do">1. Mã nguồn và cách chạy</a></li>
+    <li><a href="#sd-tong">2. Tổng quan</a></li>
+    <li><a href="#sd-bang">3. Bảng dữ liệu</a></li>
+    <li><a href="#sd-luong">4. Luồng xử lý</a>
+      <ol>
+        <li><a href="#sd-gui">4.1 Gửi định kỳ</a></li>
+        <li><a href="#sd-moc">4.2 Nối đuôi theo mốc</a></li>
+        <li><a href="#sd-tuc-thi">4.3 Gửi tức thì</a></li>
+        <li><a href="#sd-nhan">4.4 Nhận dữ liệu</a></li>
+        <li><a href="#sd-delivery">4.5 Thư viện Delivery</a></li>
+      </ol>
+    </li>
+    <li><a href="#sd-api">5. API quản lý</a></li>
+    <li><a href="#sd-fe">6. Màn hình FE</a></li>
+    <li><a href="#sd-cau-hinh">7. Cấu hình vận hành</a></li>
+    <li><a href="#sd-log">8. Nhật ký và mã lỗi</a></li>
+    <li><a href="#sd-chua-lam">9. Hạng mục chưa làm và lưu ý</a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="doc">
+  <h1>Bàn giao mã nguồn ShareData</h1>
+  <dl class="meta">
+    <dt>Bên giao</dt><dd>Hoàng Quý Đạt, Nhân viên Phát triển phần mềm</dd>
+    <dt>Bên nhận</dt><dd>Trần Hồng Sơn, Phó phòng Phát triển Phần mềm</dd>
+    <dt>Ngày lập</dt><dd>02/11/2026, cập nhật 04/11/2026</dd>
+    <dt>Đối chiếu với</dt><dd>Nhánh <code>fix/20261101-sharedata-ra-lai-tinh-nang</code> của <code>TA-ITS015-WEBAPI-V1.0</code> và <code>TA-ITS015-WEBVUE-V1.0</code></dd>
+  </dl>
+</header>
+
+<section id="ban-do">
+<h2 style="margin-top:0;border-top:0;padding-top:0">1. Mã nguồn và cách chạy</h2>
+<h3>Thư mục chính</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>Thư mục</th><th>Vai trò</th></tr></thead>
+  <tbody>
+    <tr><td><code>src/Modules/ShareData/Module.ShareData</code></td><td>API: <code>Controllers/</code> (Partner, Packet, Mapping, CodeSet, Subscription, Inbound, Session, ActivityLog, AlertLog) và <code>Infrastructure/Services/</code></td></tr>
+    <tr><td><code>src/Modules/ShareData/Module.ShareData.Core</code></td><td>Entity, DTO, hằng số và bộ kiểm SQL <code>Helpers/</code> dùng chung cho API và Worker</td></tr>
+    <tr><td><code>src/Services/ShareData/ShareDataWorker</code></td><td>Windows Service: <code>Infrastructure/Workers/</code> và <code>Infrastructure/Services/</code></td></tr>
+    <tr><td><code>src/Services/ShareData/ShareDataWorker.Core</code></td><td>Model, enum, ngoại lệ của Worker</td></tr>
+    <tr><td><code>src/Modules/Integration/Delivery</code></td><td>Thư viện gửi: HTTP, Kafka, FTP/FTPS, File; định dạng; mã hóa</td></tr>
+  </tbody>
+</table></div>
+
+<h3>Chạy và cấu hình Worker</h3>
+<ul>
+  <li><strong>Chạy:</strong> service <code>ShareDataWorker</code>. Khi phát triển dùng <code>dotnet run --project src/Services/ShareData/ShareDataWorker</code>.</li>
+  <li><strong>Tệp cấu hình:</strong> <code>appsettings.json</code> gồm <code>ConnectionStrings:DefaultConnection</code>, <code>ConnectionStrings:InboundConnection</code>, <code>Nats:*</code>, <code>NasStorage:BasePath</code>. Tệp xác thực NATS: <code>Configuration/nats.creds</code>.</li>
+  <li><strong>Tham số vận hành:</strong> bảng <code>SysOpConfig</code> nhóm <code>sharedata_config</code>, xem <a href="#sd-cau-hinh">mục 7</a>.</li>
+  <li><strong>Chạy nhiều Worker:</strong> <code>ShareData:Role</code> nhận <code>SendOnly</code>, <code>ReceiveOnly</code>, không khai thì chạy cả hai chiều. <code>ShareData:SelfPartnerCode</code> giới hạn Worker chỉ gửi đăng ký của đúng đối tác đó.</li>
+</ul>
+</section>
+
+<section id="sd">
+<h2 id="sd-tong">2. Tổng quan</h2>
+<p>Câu SQL trích xuất do người vận hành cấu hình trên giao diện, không viết cứng trong code. Worker chạy câu đó, dựng gói tin theo bộ khung ánh xạ rồi gửi đi, và chỉ tiến mốc sau khi gửi thành công.</p>
+<figure>
+<svg viewBox="0 0 960 300" role="img" aria-label="Luồng gửi đi qua trích xuất, ánh xạ, gửi rồi chốt mốc. Luồng nhận lưu gói thô rồi Worker ghi vào CSDL nhận.">
+  <defs><marker id="a1" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="currentColor"/></marker></defs>
+  <g fill="none" stroke="currentColor" stroke-width="1.2">
+    <rect x="10" y="26" width="150" height="44" rx="6"/>
+    <rect x="10" y="108" width="150" height="44" rx="6"/>
+    <rect x="210" y="66" width="130" height="44" rx="6"/>
+    <rect x="370" y="66" width="110" height="44" rx="6"/>
+    <rect x="510" y="66" width="110" height="44" rx="6"/>
+    <rect x="650" y="66" width="130" height="44" rx="6"/>
+    <rect x="810" y="66" width="140" height="44" rx="6"/>
+    <rect x="650" y="150" width="130" height="44" rx="6"/>
+    <rect x="10" y="232" width="150" height="44" rx="6"/>
+    <rect x="210" y="232" width="170" height="44" rx="6"/>
+    <rect x="430" y="232" width="150" height="44" rx="6"/>
+    <rect x="630" y="232" width="150" height="44" rx="6"/>
+    <path d="M160 48 H185 V88 H208" marker-end="url(#a1)"/>
+    <path d="M160 130 H185 V88 H208" marker-end="url(#a1)"/>
+    <path d="M340 88 H368" marker-end="url(#a1)"/>
+    <path d="M480 88 H508" marker-end="url(#a1)"/>
+    <path d="M620 88 H648" marker-end="url(#a1)"/>
+    <path d="M780 88 H808" marker-end="url(#a1)"/>
+    <path d="M715 110 V148" marker-end="url(#a1)"/>
+    <path d="M160 254 H208" marker-end="url(#a1)"/>
+    <path d="M380 254 H428" marker-end="url(#a1)"/>
+    <path d="M580 254 H628" marker-end="url(#a1)"/>
+  </g>
+  <g fill="currentColor" font-size="12.5" text-anchor="middle" font-family="-apple-system, Segoe UI, Arial, sans-serif">
+    <text x="85" y="45">Đến hạn định kỳ</text><text x="85" y="61" font-size="11">DataOutboundWorker</text>
+    <text x="85" y="127">Có dữ liệu mới</text><text x="85" y="143" font-size="11">Change Tracking, NATS</text>
+    <text x="275" y="85">Khóa lượt</text><text x="275" y="101" font-size="11">ExportSubscription</text>
+    <text x="425" y="85">Trích xuất</text><text x="425" y="101" font-size="11">câu SQL + mốc</text>
+    <text x="565" y="85">Ánh xạ</text><text x="565" y="101" font-size="11">bộ khung, bộ mã</text>
+    <text x="715" y="85">Gửi</text><text x="715" y="101" font-size="11">thư viện Delivery</text>
+    <text x="880" y="85">Đối tác</text><text x="880" y="101" font-size="11">HTTP, Kafka, FTP, File</text>
+    <text x="715" y="169">Chốt mốc</text><text x="715" y="185" font-size="11">ShareDataLastSend</text>
+    <text x="85" y="251">Đối tác gửi tới</text><text x="85" y="267" font-size="11">API Inbound</text>
+    <text x="295" y="251">Lưu gói thô, chờ xử lý</text><text x="295" y="267" font-size="11">ShareDataInboundPacket</text>
+    <text x="505" y="251">Bóc và quy đổi</text><text x="505" y="267" font-size="11">DataInboundWorker</text>
+    <text x="705" y="251">Ghi một giao dịch</text><text x="705" y="267" font-size="11">WriteSql, CSDL nhận</text>
+  </g>
+  <text x="10" y="16" fill="currentColor" font-size="12" font-weight="600" font-family="-apple-system, Segoe UI, Arial, sans-serif">Chiều gửi</text>
+  <text x="10" y="222" fill="currentColor" font-size="12" font-weight="600" font-family="-apple-system, Segoe UI, Arial, sans-serif">Chiều nhận</text>
+</svg>
+<figcaption>Chỉ khi gửi thành công mốc mới tiến. Gửi lỗi thì mốc giữ nguyên và lượt sau gửi lại.</figcaption>
+</figure>
+
+<h2 id="sd-bang">3. Bảng dữ liệu</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Bảng</th><th>Giữ gì</th></tr></thead>
+  <tbody>
+    <tr><td><code>ShareDataPartner</code></td><td>Đối tác và cấu hình kết nối (<code>ConnectionType</code>, <code>ConnectionConfig</code> dạng JSON)</td></tr>
+    <tr><td><code>ShareDataPacket</code></td><td>Gói tin: mã, trạng thái, ghi chú</td></tr>
+    <tr><td><code>ShareDataSql</code></td><td>Câu SQL của gói. Dòng <code>PartnerId</code> trống là mẫu chung, có <code>PartnerId</code> là riêng đối tác. Gồm <code>ExtractSql</code>, <code>VariablesJson</code>, <code>FieldsJson</code>, <code>WriteSql</code>.</td></tr>
+    <tr><td><code>ShareDataMapping</code></td><td>Hồ sơ ánh xạ, bộ khung <code>TargetShapeJson</code></td></tr>
+    <tr><td><code>ShareDataCodeSet</code></td><td>Bộ mã quy đổi giá trị nội bộ và giá trị đối tác</td></tr>
+    <tr><td><code>ShareDataSubscription</code></td><td>Đăng ký gửi hoặc nhận: <code>State</code>, <code>IntervalSeconds</code>, <code>NextTimeRun</code>, <code>LastTimeRun</code>, khóa lượt <code>ProcessingUntil</code></td></tr>
+    <tr><td><code>ShareDataLastSend</code></td><td>Mốc gửi theo gói, đối tác và nhóm mốc (<code>CursorKey</code> trống cho nhóm mặc định, có tên cho câu SQL gộp nhiều nguồn): <code>LastTime</code>, <code>LastKey</code>, chữ ký công thức cột mốc</td></tr>
+    <tr><td><code>ShareDataSourceTable</code></td><td>Danh sách bảng được phép đọc (<code>IsQueryable</code>) và trạng thái Change Tracking (<code>LastVersion</code>, <code>LastIssue</code>)</td></tr>
+    <tr><td><code>ShareDataInboundPacket</code></td><td>Gói nhận về dạng thô, chờ Worker xử lý</td></tr>
+    <tr><td><code>ShareDataSession</code></td><td>Phiên kết nối đối tác</td></tr>
+    <tr><td><code>ShareDataActivityLog</code></td><td>Nhật ký thao tác và truyền nhận</td></tr>
+    <tr><td><code>ShareDataAlertLog</code></td><td>Cảnh báo theo mã ESH</td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="sd-luong">4. Luồng xử lý</h2>
+<h3 id="sd-gui">4.1 Gửi định kỳ</h3>
+<p>Tệp chính là <code>DataOutboundService.cs</code>. Bắt đầu đọc từ <code>ExportSubscription</code>.</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Bước</th><th>Hàm</th><th>Tệp</th><th>Ghi chú</th></tr></thead>
+  <tbody>
+    <tr><td class="step">1</td><td class="fn"><code>ProcessSubscriptions()</code></td><td class="file">DataOutboundService.cs</td><td>Chọn các đăng ký đến hạn. Có khai <code>ShareData:SelfPartnerCode</code> thì chỉ lấy đăng ký của đối tác đó.</td></tr>
+    <tr><td class="step">2</td><td class="fn"><code>ExportSubscription</code></td><td class="file">DataOutboundService.cs</td><td>Chiếm khóa qua <code>ProcessingUntil</code>, luôn nhả ở <code>ReleaseLock</code>. Câu nối đuôi có giới hạn dòng thì chạy nhiều trang một lượt, tối đa <code>OutboundMaxPagesPerRun</code>.</td></tr>
+    <tr><td class="step">3</td><td class="fn"><code>GetExportConfig</code>, <code>ReadCursorSnapshot</code>, <code>GetLastSend</code>, <code>GetGroupCursors</code></td><td class="file">DataOutboundService.cs</td><td>Đọc cấu hình và mốc của lượt</td></tr>
+    <tr><td class="step">4</td><td class="fn"><code>ExportPage</code></td><td class="file">DataOutboundService.cs</td><td>Một trang: trích xuất, ánh xạ, gửi, chốt mốc</td></tr>
+    <tr><td class="step">5</td><td class="fn"><code>Extract</code>, <code>ExecuteDynamicQuery</code></td><td class="file">DataOutboundExtractionProcess.cs</td><td>Chạy câu SQL, đọc cột <code>__lastKey</code> của trang để làm mốc</td></tr>
+    <tr><td class="step">6</td><td class="fn"><code>MapPage</code>, <code>Map</code>, <code>Transform</code>, <code>RenderShapeNode</code>, <code>MapCode</code>, <code>ConvertDataType</code></td><td class="file">DataMappingProcess.cs, DataMappingProcess.Expression.cs</td><td>Bộ khung hỗ trợ <code>$field</code>, <code>$extend</code>, <code>$each</code>, <code>$meta</code></td></tr>
+    <tr><td class="step">7</td><td class="fn"><code>Send</code></td><td class="file">DataOutboundTransport.cs</td><td>Định dạng, <strong>lưu tệp bằng chứng trước</strong>, rồi mới gửi. Lưu lỗi thì hủy gửi và giữ mốc (ESH-1402). Kênh File không khai <code>DirectoryPath</code> thì tệp bằng chứng chính là đầu ra.</td></tr>
+    <tr><td class="step"></td><td class="fn"><code>BuildRequest</code>, <code>Build</code>, <code>BuildContext</code></td><td class="file">DataOutboundTransport.cs</td><td>Dựng yêu cầu và ngữ cảnh gửi từ <code>ConnectionConfig</code> của đối tác.</td></tr>
+    <tr><td class="step">8</td><td class="fn"><code>CommitPage</code>, <code>CommitSuccess</code>, <code>CommitGroupCursor</code></td><td class="file">DataOutboundService.cs</td><td>Mốc chỉ tiến, không lùi. Xem <a href="#sd-moc">luồng nối đuôi</a>.</td></tr>
+    <tr><td class="step">9</td><td class="fn"><code>TryLogConfigWarning</code>, <code>ComputeConfigHash</code></td><td class="file">DataOutboundService.cs</td><td>Ghi cảnh báo ESH-1403 về cấu hình kết nối bị bỏ qua, mỗi đối tác và mỗi nội dung cấu hình một lần.</td></tr>
+    <tr><td class="step">10</td><td class="fn"><code>ComputeNextTimeRun</code>, <code>ResolveVietnamTimeZone</code></td><td class="file">DataOutboundScheduler.cs</td><td>Tính lần chạy kế tiếp theo khung giờ</td></tr>
+  </tbody>
+</table></div>
+
+<h3 id="sd-moc">4.2 Nối đuôi theo mốc</h3>
+<p>Mỗi lượt chỉ lấy các dòng sau mốc đã gửi thành công. Câu mẫu và giao diện chỉ dùng một chuỗi ghép: <code>CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + &lt;ID&gt; AS __lastKey</code>, <code>WHERE</code> so đúng biểu thức đó với <code>@lastKey</code>, <code>ORDER BY __lastKey ASC</code>. Phải bọc <code>COALESCE</code> vì dòng mới thêm có <code>UpdateTime</code> trống; câu dùng <code>UpdateTime</code> trơn hoặc cột mốc chỉ có ngày giờ thì không lưu được. Câu gộp nhiều nguồn dùng mỗi nguồn một nhóm (<code>__lastKey_&lt;nhóm&gt;</code>, <code>@lastKey_&lt;nhóm&gt;</code>), <code>ORDER BY</code> ngoài cùng sắp theo cột có cùng công thức cột mốc ở nhánh của từng nhóm. Tham số cố định (<code>@pageSize</code>, biến Giá trị nhập) lưu ở <code>ShareDataSql.VariablesJson</code>, đi theo câu SQL (mẫu chung hoặc riêng đối tác); <code>ShareDataLastSend</code> chỉ lưu mốc, cột <code>LastTime</code> chỉ là giờ ghi mốc.</p>
+<h4>Mốc đang lưu thế nào</h4>
+<div class="table-wrap"><table>
+  <thead><tr><th>Nơi lưu</th><th>Giá trị</th><th>Ghi khi nào</th></tr></thead>
+  <tbody>
+    <tr><td><code>ShareDataLastSend.LastKey</code></td><td>Chuỗi cột <code>__lastKey</code> của dòng cuối đã gửi, ví dụ <code>2026-10-21 07:58:45.487_1175a668…</code></td><td>Sau mỗi trang gửi thành công, hoặc khi Đặt mốc</td></tr>
+    <tr><td><code>ShareDataLastSend.CursorSignature</code></td><td>Chữ ký công thức cột mốc</td><td>Cùng lúc ghi mốc. Câu đổi công thức thì chữ ký lệch, Worker bỏ mốc cũ</td></tr>
+    <tr><td><code>ShareDataLastSend.LastTime</code></td><td>Giờ Worker ghi mốc nhóm mặc định, không dùng để lọc</td><td>Khi Worker ghi mốc nhóm mặc định; nhóm có tên và Đặt mốc để trống</td></tr>
+    <tr><td><code>ShareDataSql.VariablesJson</code>, trường <code>DefaultValue</code> của <code>@lastKey</code></td><td>Mốc bắt đầu, ví dụ <code>2026-10-28 00:00:00.000_</code>; trống là lấy từ đầu</td><td>Khi lưu bảng tham số</td></tr>
+  </tbody>
+</table></div>
+<p>Mỗi dòng <code>ShareDataLastSend</code> là một bộ (<code>PartnerCode</code>, <code>PacketCode</code>, <code>CursorKey</code>), <code>CursorKey</code> trống với nhóm mặc định. Khi chạy, <code>@lastKey</code> nhận <code>LastKey</code>; chưa có mốc thì nhận <code>DefaultValue</code>; cả hai trống thì nhận chuỗi rỗng.</p>
+<p><code>CursorSignature</code> là mã băm SHA-256 của công thức cột mốc, bỏ qua khoảng trắng, chú thích, tiền tố bảng và hoa thường nên chỉ sửa cho gọn thì không đổi. Đổi công thức thì mốc cũ không còn so được (<code>2026...</code> và <code>abc</code> không cùng thứ tự): khi lưu, hệ thống hỏi xác nhận; chữ ký trên mốc lệch với câu đang chạy thì Worker bỏ mốc cũ, ghi ESH-1308 và gửi lại từ mốc khởi tạo, nên không dừng im lặng hoặc gửi sai.</p>
+<p>Trang Trường gói tin (<code>sharedata/dataSource</code>) chỉ đặt Mốc bắt đầu, không hiện và không sửa mốc đang chạy; xem và sửa mốc ở trang Mốc gửi (mới làm khung, chưa khai menu, không bàn giao). Rê chuột lên dải Quy chuẩn mốc ở tiêu đề bảng tham số thì mở popup: mỗi mục chưa đạt nêu cách sửa kèm đoạn SQL; nút <strong>Sửa câu</strong> (<code>applyFixes</code>, <code>applyCursorFix</code> ở cursorSections.ts) sửa mọi mục chưa đạt trong khung soạn, ghép đúng <code>CONVERT(varchar(23), COALESCE(&lt;cột cập nhật&gt;, &lt;cột tạo&gt;), 121) + '_' + &lt;khóa&gt;</code> ở cả <code>SELECT</code> và <code>WHERE</code>, giữ các điều kiện khác của người dùng; câu gộp nhiều nguồn chỉ có nút Sao chép. Các nút này chỉ đổi câu trong khung soạn, bấm Lưu & phân tích thì máy chủ mới kiểm và lưu.</p>
+<p>Worker so chuỗi, nên mốc phải cùng dạng với cột <code>__lastKey</code>. Giao diện vì vậy không có ô gõ tay: chọn ngày giờ thì máy ghép <code>yyyy-MM-dd HH:mm:ss.000_</code>, dấu <code>_</code> đứng sau để gửi cả dòng đúng thời điểm đó. Ô ngày chỉ có khi công thức là <code>CONVERT(varchar(23), …, 121) + '_' + …</code>. API <code>SetLastSend</code> nhận chuỗi bất kỳ, trừ chuỗi trống.</p>
+<p>Ở màn Cấu hình gói tin (<code>cursorValueInput.vue</code>): tab Mẫu chung chỉ đặt mốc bắt đầu cho đối tác dùng mẫu chung mà chưa có mốc, vì mỗi đối tác chạy tới một mốc khác nhau. Tab đối tác cũng chỉ đặt mốc bắt đầu, không hiện và không sửa mốc đang chạy; xem và sửa mốc ở trang Mốc gửi (<code>setCursorDialog.vue</code>). Cột Nguồn là ô chọn hai giá trị, tự điền theo tên biến: <code>@lastKey</code>, <code>@lastKey_&lt;nhóm&gt;</code> nối tiếp lần trước, biến khác là giá trị nhập; <code>@pageSize</code> bị khóa. Câu chưa đúng quy chuẩn thì khóa ô ngày, sửa bằng nút Sửa câu ở popup Quy chuẩn mốc. Câu có cột <code>__lastKey</code> mà lọc bằng biến tên khác thì giao diện chặn lưu, vì máy chủ nhận ra câu nối đuôi theo nguồn của biến và sẽ coi đó là câu gửi toàn bộ.</p>
+
+<h4>Khi lưu câu SQL (API)</h4>
+<div class="table-wrap"><table>
+  <thead><tr><th>Hàm</th><th>Tệp</th><th>Ghi chú</th></tr></thead>
+  <tbody>
+    <tr><td class="fn"><code>HandleAsync(UpdatePacketExtractSqlInput)</code></td><td class="file">PacketCommandHandler.cs</td><td>Lưu câu mẫu chung. Mất khóa đang được ánh xạ dùng hoặc đổi công thức cột mốc thì chưa lưu, trả <code>RequiresConfirm</code>.</td></tr>
+    <tr><td class="fn"><code>HandleAsync(UpdatePartnerExtractSqlInput)</code>, <code>HandleAsync(ResetPartnerExtractSqlInput)</code></td><td class="file">PacketCommandHandler.cs</td><td>Câu SQL riêng của đối tác và đặt lại về mẫu chung</td></tr>
+    <tr><td class="fn"><code>EnsureNoActiveSubscriptionAsync</code></td><td class="file">PacketCommandHandler.cs</td><td>Từ chối (ESH-2306) khi còn đăng ký bật</td></tr>
+    <tr><td class="fn"><code>ValidateSql</code>, <code>FindCursorResets</code>, <code>CursorFormulaChanged</code>, <code>FindMappingUsage</code></td><td class="file">PacketSqlService.cs</td><td></td></tr>
+    <tr><td class="fn"><code>ValidateAndExtractColumns</code>, <code>DescribeResultColumns</code></td><td class="file">SqlValidatorHelper.cs</td><td>Phân tích cú pháp bằng ScriptDom, chỉ cho một câu SELECT. Lấy cột bằng <code>sys.dm_exec_describe_first_result_set</code>.</td></tr>
+    <tr><td class="fn"><code>IsIncrementalSql</code>, <code>ValidateIncrementalStructure</code>, <code>ValidateDefaultCursor</code>, <code>ValidateCursorGroups</code>, <code>ValidateGroupOrder</code>, <code>ValidateCursorFilter</code>, <code>HasKeyFilter</code></td><td class="file">SqlValidatorHelper.cs</td><td>Từ chối câu chắc chắn làm mất dòng. Comment ở <code>ValidateCursorFilter</code> liệt kê đủ các dạng WHERE được chấp nhận, nên đọc trước khi sửa.</td></tr>
+    <tr><td class="fn"><code>ValidateCursorTime</code>, <code>BareUpdateTimeCursor</code></td><td class="file">SqlValidatorHelper.cs</td><td>Chỉ gọi khi lưu qua API: từ chối cột mốc dùng <code>UpdateTime</code> trơn (trừ câu có nhánh <code>UpdateTime IS NULL</code> như mẫu hai nhóm) và cột mốc chỉ có ngày giờ. Câu đã lưu từ trước vẫn chạy, Worker ghi rủi ro vào nhật ký cấu hình qua <code>FindCursorRisks</code>.</td></tr>
+    <tr><td class="fn"><code>GetCursorSignature</code></td><td class="file">SqlValidatorHelper.cs</td><td>Chữ ký công thức cột mốc, dùng để phát hiện đổi công thức</td></tr>
+    <tr><td class="fn"><code>HandleAsync(UpdatePacketSqlVariablesInput)</code></td><td class="file">PacketCommandHandler.cs</td><td>Lưu bảng tham số của câu SQL.</td></tr>
+    <tr><td class="fn"><code>HandleAsync(SetLastSendInput)</code>, <code>ClearLastTimeRun</code>, <code>ResetCursor</code></td><td class="file">PacketCommandHandler.cs</td><td>Đặt mốc thủ công và xóa mốc, gọi từ trang Mốc gửi. Mốc trống bị từ chối, bỏ mốc thì dùng Đặt lại</td></tr>
+    <tr><td class="fn"><code>HandleAsync(ResetLastSendInput)</code></td><td class="file">PacketCommandHandler.cs</td><td>Đặt lại mốc của một đối tác, gọi từ trang Mốc gửi.</td></tr>
+    <tr><td class="fn"><code>ResolveVariables</code>, <code>ReadVariables</code>, <code>CopyCommonVariablesToPartner</code>, <code>SqlVariableSet</code></td><td class="file">SqlTextHelper.cs</td><td>Bộ biến đi theo câu SQL, lưu ở <code>ShareDataSql.VariablesJson</code></td></tr>
+  </tbody>
+</table></div>
+<h4>Khi Worker chạy</h4>
+<div class="table-wrap"><table>
+  <thead><tr><th>Hàm</th><th>Tệp</th><th>Ghi chú</th></tr></thead>
+  <tbody>
+    <tr><td class="fn"><code>ValidateIncrementalSqlAsync</code></td><td class="file">DataOutboundService.cs</td><td>Kiểm lại câu đang chạy trước khi đọc mốc, vì câu có thể đã sửa ngoài màn hình. Sai thì không gửi, giữ mốc, ghi ESH-1306</td></tr>
+    <tr><td class="fn"><code>LogCursorRisks</code>, <code>FindCursorRisks</code>, <code>WriteCursorRiskAsync</code></td><td class="file">DataOutboundService.cs, SqlValidatorHelper.cs, ShareDataTransferLog.cs</td><td>Câu lưu được nhưng có rủi ro thì ghi vào Nhật ký cấu hình, mỗi đăng ký và mỗi câu SQL một lần. Màn hình lưu không cảnh báo, đây là chủ ý đã chốt 01/11/2026.</td></tr>
+    <tr><td class="fn"><code>ResolveCursor</code>, <code>BuildParameters</code></td><td class="file">SqlParameterHelper.cs</td><td>Gán biến đã khai. Nguồn hỗ trợ: <code>lastKey</code>, <code>lastRunTime</code>, <code>startOfYear</code>, <code>partnerCode</code>; giao diện chỉ cho chọn <code>lastKey</code> và giá trị nhập.</td></tr>
+    <tr><td class="fn"><code>GetLastSend</code>, <code>WarnCursorFormulaChanged</code></td><td class="file">DataOutboundService.cs</td><td>Đã có mốc (<code>LastKey</code>) mà chữ ký khác câu đang chạy thì bỏ mốc cũ, ghi ESH-1308, gửi lại từ mốc khởi tạo</td></tr>
+    <tr><td class="fn"><code>ValidateCursor</code>, <code>IsTypedKey</code>, <code>IsKeyAfter</code></td><td class="file">DataOutboundService.cs</td><td><code>ValidateCursor</code> hủy trang trước khi gửi khi mốc dài quá cột <code>LastKey</code> (ESH-1304) hoặc thiếu cột mốc (ESH-1202); <code>IsTypedKey</code>, <code>IsKeyAfter</code> so khóa số nguyên, GUID đúng kiểu khi ghi mốc</td></tr>
+    <tr><td class="fn"><code>CommitPage</code>, <code>CommitSuccess</code></td><td class="file">DataOutboundService.cs</td><td>Không ghi đè nếu trong lúc gửi có người vừa Đặt lại hoặc Đặt mốc. Không bật lại đăng ký đã tắt.</td></tr>
+  </tbody>
+</table></div>
+
+<h3 id="sd-tuc-thi">4.3 Gửi tức thì khi có dữ liệu mới</h3>
+<p>Chuỗi xử lý: SQL Server Change Tracking phát hiện bảng đổi, phát NATS subject <code>ta.its.event.sharedata.newdata</code>, Worker nhận và chạy lại luồng gửi cho đúng mã gói.</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Bước</th><th>Hàm</th><th>Tệp</th><th>Ghi chú</th></tr></thead>
+  <tbody>
+    <tr><td class="step">1</td><td class="fn"><code>PollChanges</code>, <code>QueryChangedTables</code>, <code>GetTriggeredPackets</code>, <code>AdvanceTableVersions</code></td><td class="file">DataChangeTrackingService.cs</td><td>Chu kỳ <code>TrackingPollIntervalSec</code></td></tr>
+    <tr><td class="step"></td><td class="fn"><code>BuildChangesSql</code>, <code>BuildPerTableChangesSql</code></td><td class="file">DataChangeTrackingService.Sql.cs</td><td>Chỉ tính thêm mới và cập nhật, bỏ qua xóa</td></tr>
+    <tr><td class="step">2</td><td class="fn"><code>CheckAndReloadConfig</code>, <code>LoadTrackerMap</code>, <code>ReloadConfigInternal</code>, <code>AreMapsEqual</code></td><td class="file">DataChangeTrackingService.cs</td><td>Nạp lại danh sách bảng theo chu kỳ</td></tr>
+    <tr><td class="step">3</td><td class="fn"><code>TryInitChangeTracking</code>, <code>EnsureDbTrackingEnabled</code>, <code>TryEnableTracking</code>, <code>TryEnsureTableReadyForInit</code></td><td class="file">DataChangeTrackingService.Init.cs</td><td>Tự bật Change Tracking và cắm mốc version gốc. Thiếu quyền thì không ném lỗi, chỉ ghi <code>LastIssue</code>.</td></tr>
+    <tr><td class="step"></td><td class="fn"><code>SqlEnableDbTracking</code>, <code>SqlEnableTableTracking</code></td><td class="file">DataChangeTrackingService.Sql.cs</td><td>Worker cần quyền chạy <code>ALTER DATABASE</code> và <code>ALTER TABLE</code>.</td></tr>
+    <tr><td class="step">4</td><td class="fn"><code>InitSubscribe</code>, <code>HandleMessages</code></td><td class="file">DataNatsService.cs</td><td>Khóa cấu hình subject: <code>Nats:NewDataSubject</code>, rồi <code>Nats:Subject</code></td></tr>
+    <tr><td class="step">5</td><td class="fn"><code>ProcessSubscriptions(string packetCode)</code></td><td class="file">DataOutboundService.cs</td><td>Vào lại <a href="#sd-gui">luồng gửi</a>, không xét <code>NextTimeRun</code></td></tr>
+  </tbody>
+</table></div>
+
+<h3 id="sd-nhan">4.4 Nhận dữ liệu</h3>
+<p>Văn Hiếu làm chính. API chỉ lưu gói thô, mọi xử lý nằm ở Worker. Hợp đồng header của đối tác (<code>PartnerCode</code>, <code>PacketCode</code>, <code>SerialNbr</code>) mô tả ở comment lớp <code>DataInboundService</code>.</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Bước</th><th>Hàm</th><th>Tệp</th><th>Ghi chú</th></tr></thead>
+  <tbody>
+    <tr><td class="step">1</td><td class="fn"><code>HandleAsync(ShareDataAddInboundInput)</code></td><td class="file">InboundCommandHandler.cs</td><td>Lưu <code>ShareDataInboundPacket</code> trạng thái Pending</td></tr>
+    <tr><td class="step">2</td><td class="fn"><code>ProcessPendingPackets</code>, <code>ReleaseStuckPacketsAsync</code>, <code>ProcessGroupAsync</code>, <code>ProcessPacketAsync</code>, <code>ResolveContextAsync</code></td><td class="file">DataInboundService.cs</td><td>Lấy lô chờ, gỡ gói treo, tra đối tác và hồ sơ ánh xạ</td></tr>
+    <tr><td class="step">3</td><td class="fn"><code>ParsePayloadRecords</code></td><td class="file">DataInboundService.Parse.cs</td><td>Không có bộ khung thì đoán khóa <code>payload</code> hoặc <code>data</code>, đây là đường lùi</td></tr>
+    <tr><td class="step"></td><td class="fn"><code>BuildShapeBinding</code>, <code>Walk</code>, <code>TryNavigate</code>, <code>JsonToObject</code>, <code>HasFieldBinding</code></td><td class="file">DataInboundService.Parse.cs</td><td>Đọc bộ khung chiều nhận và đi theo đường dẫn trong gói. <code>HasFieldBinding</code> phải giữ cùng ngữ nghĩa với hàm cùng tên ở <code>DataMappingProcess</code>.</td></tr>
+    <tr><td class="step"></td><td class="fn"><code>ReadRecord</code></td><td class="file">DataInboundService.Parse.cs</td><td>Gỡ ép kiểu rồi mới tra ngược bộ mã. <strong>Đừng đổi thứ tự này.</strong></td></tr>
+    <tr><td class="step">4</td><td class="fn"><code>WriteRecordsBySqlAsync</code>, <code>BuildWriteParameters</code>, <code>RollbackQuietly</code></td><td class="file">DataInboundService.WriteSql.cs</td><td>Chạy <code>ShareDataSql.WriteSql</code> trong một giao dịch. Tham số: <code>@records @now @tenantId @operator @partnerId @partnerCode @datatypeId @serialNbr @packetId</code></td></tr>
+    <tr><td class="step">5</td><td class="fn"><code>MarkPacketAsync</code>, <code>FailPacketAsync</code>, <code>LogInboundResult</code>, <code>LogAlertInbound</code></td><td class="file">DataInboundService.cs, DataInboundService.Logging.cs</td><td>Đánh trạng thái và ghi nhật ký</td></tr>
+  </tbody>
+</table></div>
+<p><code>AddWorkerInfrastructure</code> chỉ tạo kết nối CSDL nhận khi có <code>ConnectionStrings:InboundConnection</code>. Xem <a href="#sd-cau-hinh">cấu hình vận hành</a>.</p>
+
+<h3 id="sd-delivery">4.5 Thư viện Delivery</h3>
+<p>Đầu vào là <code>DeliveryRequest</code> và <code>DeliveryContext</code>, đầu ra là <code>DeliveryResult</code>. Hiện chỉ ShareData dùng thư viện này.</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Hàm</th><th>Tệp</th><th>Ghi chú</th></tr></thead>
+  <tbody>
+    <tr><td class="fn"><code>Dispatch</code></td><td class="file">DeliveryDispatcher.cs</td><td>Rẽ nhánh theo <code>ConnectionType</code></td></tr>
+    <tr><td class="fn"><code>HttpDeliverySender.Send</code>, <code>TryDetectBusinessError</code></td><td class="file">HttpDeliverySender.cs</td><td>HTTP 2xx nhưng thân phản hồi báo lỗi nghiệp vụ thì vẫn tính là lỗi</td></tr>
+    <tr><td class="fn"><code>AddIdentityHeaders</code>, <code>TryBuildEndpointUri</code>, <code>FormatDetailedHttpException</code>, <code>LogFullRequest</code></td><td class="file">HttpDeliverySender.cs</td><td>Header định danh, ghép URL, câu lỗi chi tiết, log mức Debug.</td></tr>
+    <tr><td class="fn"><code>KafkaDeliverySender.Send</code></td><td class="file">KafkaDeliverySender.cs</td><td>Chỉ <code>Persisted</code> mới tính thành công.</td></tr>
+    <tr><td class="fn"><code>FtpDeliverySender.Send</code></td><td class="file">FtpDeliverySender.cs</td><td>Dùng <code>FtpWebRequest</code>, API .NET đã lỗi thời.</td></tr>
+    <tr><td class="fn"><code>FileDeliverySender.Send</code></td><td class="file">FileDeliverySender.cs</td><td>Thư mục tùy chỉnh phải nằm trong thư mục gốc cho phép.</td></tr>
+    <tr><td class="fn"><code>ToTransport</code>, <code>FromTransport</code></td><td class="file">PayloadFormatRegistry.cs</td><td>Chọn định dạng JSON, CSV, Kafka JSON</td></tr>
+    <tr><td class="fn"><code>ConnectConfigReader</code>, <code>ExportPathHelper</code></td><td class="file">ConnectConfigReader.cs, ExportPathHelper.cs</td><td>Đọc cấu hình không phân biệt hoa thường, sinh đường dẫn tệp bằng chứng</td></tr>
+    <tr><td class="fn"><code>EncryptManager</code></td><td class="file">EncryptManager.cs</td><td>AES-256-GCM, <strong>chỉ viết sẵn, chưa nối vào luồng gửi nhận</strong> (quyết định 16/10/2026)</td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="sd-api">5. API quản lý</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Chức năng</th><th>Lớp, hàm</th><th>Ghi chú</th></tr></thead>
+  <tbody>
+    <tr><td>Đối tác</td><td><code>ShareDataPartnerController</code>, <code>PartnerCommandHandler</code>, <code>PartnerQueryHandler</code></td><td>Văn Hiếu. Có thêm kết nối, ngắt kết nối (<code>ShareDataConnectPartnerInput</code>).</td></tr>
+    <tr><td>Gói tin, câu SQL</td><td><code>ShareDataPacketController</code>, <code>PacketCommandHandler</code>, <code>PacketQueryHandler</code>, <code>PacketSqlService</code></td><td>CRUD gói do Văn Hiếu làm; phần SQL do Đạt làm. <code>HandleAsync(DescribeColumnsInput)</code> dò cột không ghi dữ liệu. <code>HandleAsync(ExecutePacketSqlSampleInput)</code> chạy thử có giới hạn dòng.</td></tr>
+    <tr><td>Bảng được phép đọc</td><td><code>GetAllowedTables</code>, <code>GetQueryableTableSet</code>, <code>LoadSourceTables</code></td><td>Bảng chưa có dữ liệu thì trả rỗng và ghi log cảnh báo</td></tr>
+    <tr><td>Câu ghi chiều nhận</td><td><code>WriteSqlService</code> (<code>Validate</code>, <code>TryRun</code>), <code>WriteSqlAnalyzer</code></td><td>Chạy thử trên CSDL nhận rồi luôn quay lui. Chỉ cho MERGE, INSERT, UPDATE.</td></tr>
+    <tr><td>Ánh xạ</td><td><code>ShareDataMappingController</code>, <code>ShareDataMappingResolver</code>, <code>ShapeReader</code></td><td>Văn Hiếu</td></tr>
+    <tr><td>Đăng ký</td><td><code>ShareDataSubscriptionController</code>, <code>SubscriptionCommandHandler</code></td><td>Văn Hiếu. Thêm, sửa, xóa, tạm dừng, bật lại, duyệt, hủy, từ chối. Mỗi đối tác, gói, chiều chỉ một đăng ký đang chạy.</td></tr>
+    <tr><td>Bộ mã, nhật ký</td><td><code>ShareDataCodeSetController</code>, <code>ShareDataActivityLogController</code>, <code>ShareDataAlertLogController</code></td><td></td></tr>
+    <tr><td>Giới hạn vận hành</td><td><code>ConfigService.Get</code>, <code>GetGroup</code></td><td>Đọc <code>sharedata_config</code>, có giá trị dự phòng và khoảng an toàn ở <code>ShareDataConst</code></td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="sd-fe">6. Màn hình FE</h2>
+<p>Màn phức tạp nhất là <strong>Cấu hình nguồn dữ liệu</strong> (<code>views/sharedata/dataSource</code>).</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Hàm</th><th>Tệp</th><th>Ghi chú</th></tr></thead>
+  <tbody>
+    <tr><td class="fn"><code>handleSaveSql</code>, <code>handleSavePartnerSql</code>, <code>handleResetPartnerSql</code>, <code>confirmSaveImpact</code></td><td class="file">dataSource/index.vue</td><td>Lưu câu mẫu chung, câu riêng đối tác và nút dùng lại mẫu chung. Máy chủ trả <code>requiresConfirm</code> thì hỏi rồi gửi lại với <code>force</code>.</td></tr>
+    <tr><td class="fn"><code>handleDescribeColumns</code>, <code>describeHasChanges</code></td><td class="file">dataSource/index.vue</td><td>Nút phân tích câu đang soạn, không ghi dữ liệu.</td></tr>
+    <tr><td class="fn"><code>collectSqlVariables</code></td><td class="file">dataSource/index.vue</td><td>Lấy bảng tham số gửi kèm câu SQL.</td></tr>
+    <tr><td class="fn"><code>checkPacketUsage</code>, <code>loadPacketActiveSubs</code>, <code>sqlScopeLocked</code></td><td class="file">dataSource/index.vue</td><td>Khóa thao tác sửa khi gói còn đăng ký bật, khớp với chặn ESH-2306 ở API.</td></tr>
+    <tr><td class="fn"><code>handleSqlTabChange</code>, <code>handleBeforeSqlTabLeave</code></td><td class="file">dataSource/index.vue</td><td>Chuyển tab mẫu chung và đối tác. Dễ phát sinh lỗi khi nạp chồng, nên giữ các biến đếm phiên bản như <code>scopeSwitchVersion</code>.</td></tr>
+    <tr><td class="fn"><code>analyzeFromSql</code>, <code>extractSqlVariables</code>, <code>buildDetectedRow</code></td><td class="file">component/sqlVariablePanel.vue</td><td>Dò biến trong câu SQL rồi đồng bộ bảng tham số.</td></tr>
+    <tr><td class="fn"><code>load</code>, <code>save</code>, <code>saveIfDirty</code>, <code>buildSaveItems</code></td><td class="file">component/sqlVariablePanel.vue</td><td>Đọc và lưu bảng tham số.</td></tr>
+    <tr><td class="fn"><code>checkCursorColumns</code>, <code>checkCursorFilter</code>, <code>checkOrderAsc</code>, <code>suggestedFormula</code>, <code>applyFixes</code></td><td class="file">component/sqlVariablePanel.vue</td><td>Dải kiểm tra quy chuẩn câu nối đuôi (chỉ để gợi ý, máy chủ mới là nơi quyết định), nằm ở tiêu đề mục tham số, hiện khi câu SQL có biến mốc. Popup nêu cách sửa từng mục và có một nút Sửa câu; công thức gợi ý bọc <code>UpdateTime</code> trơn bằng <code>COALESCE</code> với <code>CreateTime</code>.</td></tr>
+    <tr><td class="fn"><code>handleQueryApi</code>, <code>loadPartnerCursor</code>, <code>loadLockedPartnerIds</code>, <code>handleReset</code></td><td class="file">cursor/index.vue</td><td>Trang <strong>Mốc gửi</strong> (mới làm khung, không nằm trong phạm vi bàn giao, chưa khai menu): chọn gói, xem mốc đang chạy của từng đối tác và nhóm mốc. Đối tác có đăng ký gửi đang bật (chiều gửi hoặc hai chiều) bị khóa Đặt mốc và Đặt lại, khớp chặn ESH-2306 phía BE. Đây là nơi duy nhất sửa mốc đang chạy.</td></tr>
+    <tr><td class="fn"><code>openDialog</code>, <code>submit</code>, <code>beforeClose</code></td><td class="file">cursor/component/setCursorDialog.vue</td><td>Hộp thoại Đặt mốc: ô chọn ngày giờ theo từng nhóm mốc của đối tác, chỉ gửi nhóm đã đổi, mỗi nhóm gọi <code>SetLastSend</code> một lần. Câu chưa ghép cột mốc theo thời gian thì chỉ báo cần sửa câu.</td></tr>
+    <tr><td class="fn"><code>onPickTime</code>, <code>customValue</code>, <code>infoHint</code></td><td class="file">cursor/component/cursorValueInput.vue</td><td>Ô mốc dùng chung cho Mốc bắt đầu ở bảng tham số và hộp Đặt mốc: chọn ngày giờ thì ghép <code>yyyy-MM-dd HH:mm:ss.000_</code>; câu chưa đúng quy chuẩn thì khóa ô.</td></tr>
+    <tr><td class="fn"><code>buildCursorSections</code>, <code>cursorSavedText</code>, <code>applyCursorFix</code>, <code>hasTimeKeyFormula</code>, <code>hasBareUpdateTime</code>, <code>withCreateTimeFallback</code></td><td class="file">utils/sharedata/cursorSections.ts</td><td>Gom biến mốc theo nhóm, ghép chuỗi hiện mốc, tự sửa câu theo quy chuẩn mốc, nhận công thức kiểu 121, nhận và bọc <code>UpdateTime</code> trơn. Dùng chung cho trang Mốc gửi và <code>sqlVariablePanel.vue</code>.</td></tr>
+    <tr><td class="fn"><code>sqlEditor.vue</code>, <code>sqlDiffDialog.vue</code>, <code>compareAllDialog.vue</code>, <code>partnerSetupDialog.vue</code>, <code>partnerSqlTable.vue</code>, <code>fieldEditDialog.vue</code>, <code>writeSqlPanel.vue</code>, <code>editPacket.vue</code></td><td class="file">dataSource/component/</td><td>Trình soạn SQL, so khác biệt, thiết lập SQL riêng, sửa trường, câu ghi chiều nhận, sửa gói.</td></tr>
+    <tr><td class="fn"><code>sharing/</code>, <code>mapping/</code>, <code>history/</code>, <code>errorLog/</code>, <code>codeSet/</code>, <code>eventSource/</code></td><td class="file">views/sharedata/</td><td>Đối tác và đăng ký, ánh xạ, lịch sử, nhật ký lỗi, bộ mã, bảng nguồn.</td></tr>
+    <tr><td class="fn"><code>packetUsage.ts</code>, <code>packetFields.ts</code>, <code>packetSqlPreload.ts</code>, <code>fieldCompare.ts</code>, <code>historyRange.ts</code>, <code>sourceTables.ts</code>, <code>labelHelper.ts</code></td><td class="file">utils/sharedata/</td><td>Tiện ích dùng chung của các màn trên.</td></tr>
+    <tr><td class="fn"><code>useDialogCloseGuard.ts</code>, <code>useSharedataFeConfig.ts</code>, <code>components/scheduler/index.vue</code></td><td class="file">hooks/, components/</td><td>Chặn đóng hộp thoại khi chưa lưu, đọc cấu hình FE, chọn lịch chạy. Hai thành phần đầu nằm ngoài thư mục ShareData, sửa cần kiểm nơi khác dùng.</td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="sd-cau-hinh">7. Cấu hình vận hành của Worker</h2>
+<p>Lấy từ <code>SysOpConfig</code> nhóm <code>sharedata_config</code>, gồm 18 khóa, đổi không cần khởi động lại Worker. Khoảng hợp lệ và giá trị mặc định khai ở <code>ShareDataConst</code>.</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Hàm</th><th>Tệp</th><th>Ghi chú</th></tr></thead>
+  <tbody>
+    <tr><td class="fn"><code>Get</code>, <code>Delay</code>, <code>ResolveGroupCode</code>, <code>LoadValuesFromDatabase</code></td><td class="file">DataWorkerConfigService.cs</td><td>Giá trị sai thì dùng mặc định; lỗi đọc CSDL thì giữ cấu hình đang dùng.</td></tr>
+    <tr><td class="fn"><code>AddWorkerInfrastructure</code>, <code>UseCustomEnvironment</code></td><td class="file">ShareDataWorkerExtensions.cs</td><td>Đăng ký tiến trình nền theo <code>ShareData:Role</code>, giá trị sai thì báo lỗi lúc khởi động. <strong>Thiếu <code>DefaultConnection</code> thì tự dùng <code>localhost</code>, CSDL <code>dev_its10</code> chứ không báo lỗi; khi triển khai phải kiểm kỹ.</strong></td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="sd-log">8. Nhật ký và mã lỗi</h2>
+<p>Worker ghi nhật ký tại một chỗ duy nhất là <code>ShareDataTransferLog</code>, API ghi qua <code>ShareDataActivityLogger</code>. Khi có sự cố, xem màn Nhật ký lỗi rồi tra mã ở <code>ShareDataAlertCode</code>.</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Nhóm</th><th>Mã</th></tr></thead>
+  <tbody>
+    <tr><td>Gửi: dữ liệu</td><td>ESH-1201 đến 1204: thiếu bộ mã, thiếu trường bắt buộc, lỗi biểu thức, bộ khung sai</td></tr>
+    <tr><td>Gửi: truy vấn, mốc</td><td>ESH-1301 đến 1308: không thấy gói, lỗi truy vấn, thiếu ánh xạ, khóa quá dài, thiếu câu SQL, câu nối đuôi sai cấu trúc, mốc lùi (giữ mã, hiện không ghi), đổi công thức</td></tr>
+    <tr><td>Gửi: kênh truyền</td><td>ESH-1401 gửi lỗi, ESH-1402 lưu bằng chứng lỗi, ESH-1403 cấu hình bị bỏ qua</td></tr>
+    <tr><td>Nhận</td><td>ESH-1501 đến 1507: lỗi bóc gói, lỗi ghi, không thấy gói, đối tác sai, không có đăng ký, thiếu câu ghi, lỗi giải mã</td></tr>
+    <tr><td>Hạ tầng</td><td>ESH-1601 đến 1604: tự khôi phục, lỗi truy vấn, Change Tracking chưa sẵn sàng, đặt lại version</td></tr>
+    <tr><td>API</td><td>ESH-2306: đang có đăng ký bật nên không được sửa</td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="sd-chua-lam">9. Hạng mục chưa làm và lưu ý</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Hạng mục</th><th>Trạng thái</th><th>Vị trí liên quan</th><th>Hiện trạng và việc cần làm tiếp</th></tr></thead>
+  <tbody>
+    <tr><td>Chạy nhiều tiến trình Worker tách vai trò</td><td><span class="tag nc">Mới chạy ở máy phát triển</span></td><td class="file">ShareDataWorkerExtensions.cs, DataOutboundService.cs</td><td>Đã chạy 4 tiến trình <code>SendOnly</code> và 1 <code>ReceiveOnly</code> thật, dùng chung CSDL thử nghiệm, phía nhận API là bản giả lập (02/11/2026): mỗi đối tác nhận đủ dữ liệu, không trùng, cả theo chu kỳ lẫn theo tín hiệu NATS. Việc còn lại: khởi động nhiều dịch vụ trên máy chủ và kiểm vẫn chạy đúng; chưa cần đo tải.</td></tr>
+    <tr><td>Nối mã hóa vào luồng gửi nhận</td><td><span class="tag no">Chưa nối vào luồng</span></td><td class="file">EncryptManager.cs, DataOutboundTransport.cs, DataInboundService.cs</td><td>Lớp mã hóa AES-256-GCM (<code>EncryptManager</code>) đã viết sẵn trong thư viện <code>Delivery</code>, tạm chưa nối vào luồng gửi nhận (theo thống nhất 16/10/2026); chỉ nối khi đối tác yêu cầu mã hóa thân gói tin.</td></tr>
+  </tbody>
+</table></div>
+</section>
+</main>
+</div>
+</body>
+</html>

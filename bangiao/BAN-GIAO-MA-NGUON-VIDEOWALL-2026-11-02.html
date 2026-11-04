@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bàn giao mã nguồn VideoWall</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #fbfaf7;
+  --surface: #ffffff;
+  --surface-2: #f2f0ea;
+  --text: #1f2328;
+  --muted: #5d6470;
+  --line: #dcd8ce;
+  --accent: #0f5e6b;
+  --warn-bg: #fdf1d8;
+  --warn-text: #7a4a00;
+  --risk-bg: #fbe6e2;
+  --risk-text: #8c2a1a;
+  --ok-bg: #e2f1e6;
+  --ok-text: #1e5c34;
+  --code-bg: #eeece5;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15181c;
+    --surface: #1c2025;
+    --surface-2: #23282e;
+    --text: #e6e8eb;
+    --muted: #a0a7b2;
+    --line: #363c44;
+    --accent: #6cc4d1;
+    --warn-bg: #3b2e12;
+    --warn-text: #f0c673;
+    --risk-bg: #3d1f1a;
+    --risk-text: #f2a696;
+    --ok-bg: #1b3324;
+    --ok-text: #8fd3a6;
+    --code-bg: #2a2f36;
+  }
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.6 -apple-system, "Segoe UI", Roboto, "Noto Sans", Arial, sans-serif;
+}
+.layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 40px; max-width: 1320px; margin: 0 auto; padding: 0 28px; }
+nav.toc { position: sticky; top: 0; align-self: start; max-height: 100vh; overflow-y: auto; padding: 28px 8px 40px 0; font-size: 14px; }
+nav.toc .toc-title { font-weight: 650; margin-bottom: 8px; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; }
+nav.toc li { margin: 2px 0; }
+nav.toc ol ol { margin: 2px 0 8px 12px; padding-left: 10px; border-left: 1px solid var(--line); }
+nav.toc a { display: block; padding: 3px 6px; color: var(--muted); text-decoration: none; border-radius: 5px; }
+nav.toc a:hover { color: var(--text); background: var(--surface-2); }
+nav.toc > ol > li > a { color: var(--text); font-weight: 600; }
+main { min-width: 0; padding: 32px 0 80px; }
+header.doc { border-bottom: 2px solid var(--text); padding-bottom: 18px; margin-bottom: 28px; }
+h1 { font-size: 30px; line-height: 1.25; margin: 0 0 10px; letter-spacing: -0.01em; }
+h2 { font-size: 24px; line-height: 1.3; margin: 56px 0 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+h3 { font-size: 19px; line-height: 1.35; margin: 34px 0 10px; }
+h4 { font-size: 16px; margin: 22px 0 6px; }
+p { margin: 10px 0; }
+ul, ol { padding-left: 22px; margin: 10px 0; }
+li { margin: 5px 0; }
+a { color: var(--accent); }
+code { font-family: var(--mono); font-size: 0.875em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; overflow-wrap: break-word; }
+pre { background: var(--code-bg); padding: 12px 14px; border-radius: 8px; overflow-x: auto; font-size: 13.5px; line-height: 1.5; }
+pre code { background: none; padding: 0; overflow-wrap: normal; }
+.meta { display: grid; grid-template-columns: max-content 1fr; gap: 3px 16px; margin: 12px 0 0; font-size: 15px; }
+.meta dt { color: var(--muted); }
+.meta dd { margin: 0; }
+.table-wrap { overflow-x: auto; margin: 12px 0 20px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { width: 100%; border-collapse: collapse; font-size: 14.5px; line-height: 1.5; }
+th { text-align: left; background: var(--surface-2); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; min-width: 90px; }
+tr:last-child td { border-bottom: 0; }
+td.num, th.num { text-align: right; white-space: nowrap; min-width: 0; }
+td.step { color: var(--muted); white-space: nowrap; min-width: 0; }
+td.part { font-weight: 600; white-space: nowrap; min-width: 0; }
+td.fn { min-width: 210px; }
+td.file { min-width: 200px; max-width: 240px; overflow-wrap: anywhere; color: var(--muted); }
+.tag { display: inline-block; font-size: 12px; line-height: 1.5; font-weight: 600; padding: 0 7px; border-radius: 10px; white-space: nowrap; }
+.tag.nc { background: var(--warn-bg); color: var(--warn-text); }
+.tag.ok { background: var(--ok-bg); color: var(--ok-text); }
+.tag.no { background: var(--risk-bg); color: var(--risk-text); }
+.note { border-left: 4px solid var(--line); padding: 10px 14px; margin: 14px 0; background: var(--surface); border-radius: 0 8px 8px 0; }
+.note.warn { border-color: var(--warn-text); background: var(--warn-bg); }
+.note.risk { border-color: var(--risk-text); background: var(--risk-bg); }
+.note > :first-child { margin-top: 0; }
+.note > :last-child { margin-bottom: 0; }
+figure { margin: 18px 0 22px; padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; }
+figure svg { display: block; width: 100%; min-width: 760px; height: auto; color: var(--text); }
+figcaption { margin-top: 10px; font-size: 14px; color: var(--muted); }
+.fn-list code { display: inline-block; margin: 1px 2px; }
+@media (max-width: 960px) {
+  .layout { display: block; padding: 0 16px; }
+  nav.toc { position: static; max-height: none; padding: 16px 0 0; border-bottom: 1px solid var(--line); }
+  nav.toc ol ol { display: none; }
+  main { padding-top: 20px; }
+  h1 { font-size: 25px; }
+  h2 { font-size: 21px; }
+}
+@media print {
+  nav.toc { display: none; }
+  .layout { display: block; max-width: none; padding: 0; }
+  body { background: #fff; color: #000; }
+  .table-wrap, figure { overflow: visible; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav class="toc" aria-label="Mục lục">
+  <div class="toc-title">Mục lục</div>
+  <ol>
+    <li><a href="#ban-do">1. Mã nguồn và phạm vi bàn giao</a></li>
+    <li><a href="#vw-tong">2. Tổng quan kiến trúc</a></li>
+    <li><a href="#vw-wpf">3. Phần mềm công trường WPF — Trọng tâm bàn giao</a>
+      <ol>
+        <li><a href="#vw-wpf-ket-noi">3.1 Khởi động, kết nối thiết bị và khảo sát</a></li>
+        <li><a href="#vw-wpf-kich-ban">3.2 Thiết lập kịch bản, bố cục cửa sổ và kéo thả trực quan</a></li>
+        <li><a href="#vw-wpf-isapi">3.3 Bộ danh mục thử nghiệm trực tiếp 11 nhóm lệnh ISAPI</a></li>
+        <li><a href="#vw-wpf-luu-tru">3.4 Lưu trữ cục bộ và ghi nhật ký phiên đo kiểm</a></li>
+      </ol>
+    </li>
+    <li><a href="#vw-worker">4. Dịch vụ chạy nền Worker và tầng giao tiếp ISAPI</a>
+      <ol>
+        <li><a href="#vw-bang">4.1 Bảng dữ liệu liên quan</a></li>
+        <li><a href="#vw-xac-thuc">4.2 Xác thực Digest và ngắt mạch</a></li>
+        <li><a href="#vw-tuong">4.3 Chọn tường và quy đổi tọa độ</a></li>
+        <li><a href="#vw-luong">4.4 Nhận lệnh NATS, kích hoạt kịch bản và đồng bộ cửa sổ</a></li>
+        <li><a href="#vw-dau-noi">4.5 Đấu nối thiết bị và giám sát định kỳ</a></li>
+      </ol>
+    </li>
+    <li><a href="#vw-chua-lam">5. Hạng mục chưa làm và lưu ý khi tiếp nhận</a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="doc">
+  <h1>Bàn giao mã nguồn VideoWall</h1>
+  <p>Tài liệu bàn giao mã nguồn phân hệ VideoWall tập trung vào <strong>Phần mềm công trường WPF (<code>ITS.VideoWall.WPF</code>)</strong> cùng tầng giao tiếp trực tiếp bộ điều khiển Hikvision qua giao thức ISAPI và dịch vụ chạy nền (<code>ITS.VideoWall</code>, <code>ITS.VideoWall.Core</code>) do Hoàng Quý Đạt phụ trách chính. Trong các bảng tra cứu dưới đây, hàm đã có comment XML chỉ nêu tên; hàm chưa có comment được gắn nhãn và ghi rõ chức năng cùng lưu ý kỹ thuật.</p>
+  <dl class="meta">
+    <dt>Bên giao</dt><dd>Hoàng Quý Đạt, Nhân viên Phát triển phần mềm</dd>
+    <dt>Bên nhận</dt><dd>Trần Hồng Sơn, Phó phòng Phát triển Phần mềm</dd>
+    <dt>Ngày lập</dt><dd>02/11/2026</dd>
+    <dt>Đối chiếu với</dt><dd>Nhánh <code>fix/20261101-sharedata-ra-lai-tinh-nang</code> của <code>TA-ITS015-WEBAPI-V1.0</code></dd>
+  </dl>
+</header>
+
+<section id="ban-do">
+<h2 style="margin-top:0;border-top:0;padding-top:0">1. Mã nguồn và phạm vi bàn giao</h2>
+<p>Phạm vi bàn giao của Hoàng Quý Đạt tập trung chính ở <strong>Phần mềm công trường WPF (<code>src/Services/VideoWall/ITS.VideoWall.WPF</code>)</strong> — ứng dụng chạy độc lập tại hiện trường để kết nối trực tiếp bộ điều khiển Hikvision, khảo sát cổng vào/ra, dựng kịch bản kéo thả cửa sổ và đo kiểm 11 nhóm lệnh ISAPI — cùng tầng giao tiếp thiết bị ISAPI / dịch vụ chạy nền (<code>src/Services/VideoWall/ITS.VideoWall</code>, <code>ITS.VideoWall.Core</code>). Phần API quản lý cấu hình tường, bố cục, phân quyền người dùng/vùng màn hình và lập lịch trên Web (<code>Module.VideoWall</code> và giao diện Vue) do Văn Hiếu phát triển chính nên tài liệu này chỉ điểm qua các điểm nối liên quan.</p>
+
+<h3>Thư mục chính</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>Thư mục</th><th>Vai trò và phạm vi bàn giao</th></tr></thead>
+  <tbody>
+    <tr><td><code>src/Services/VideoWall/ITS.VideoWall.WPF</code></td><td><strong>Trọng tâm bàn giao:</strong> Phần mềm desktop đấu nối, khảo sát phần cứng, thiết lập bố cục kịch bản trực quan và thử nghiệm trực tiếp lệnh ISAPI tại công trường</td></tr>
+    <tr><td><code>src/Services/VideoWall/ITS.VideoWall</code></td><td>Dịch vụ chạy nền (Windows Service / Worker): nhận lệnh qua NATS, gọi bộ điều khiển Hikvision qua ISAPI Digest, giám sát trạng thái thiết bị</td></tr>
+    <tr><td><code>src/Services/VideoWall/ITS.VideoWall.Core</code></td><td>Interface, hằng số và DTO giao thức ISAPI dùng cho Worker</td></tr>
+    <tr><td><code>src/Modules/VideoWall/Module.VideoWall</code>, <code>Module.VideoWall.Core</code></td><td>API quản lý cấu hình tường, phân quyền người dùng/vùng màn hình, lập lịch trên Web (Văn Hiếu phụ trách chính), kèm nhóm endpoint đấu nối <code>VwDeviceSetupController</code> và hàm hình học <code>VwGeometryHelper</code></td></tr>
+  </tbody>
+</table></div>
+
+<h3>Chạy và cấu hình</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>Thành phần</th><th>Cách chạy</th><th>Cấu hình cần biết</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Phần mềm WPF</td>
+      <td>Ứng dụng Windows (<code>net10.0-windows</code>): chạy độc lập tại công trường (<code>dotnet run --project src/Services/VideoWall/ITS.VideoWall.WPF</code> hoặc mở tệp <code>.exe</code>), không phụ thuộc WebAPI, NATS hay CSDL.</td>
+      <td>Nhập thẳng IP, cổng, tài khoản bộ điều khiển và chọn số tường (<code>WallNo</code>) ngay trên thanh kết nối. Tệp <code>appsettings.json</code> / <code>Configuration/Api.json</code> chỉ khai <code>Api:BaseUrl</code> dùng cho nhánh lập lịch thử nghiệm qua <code>VideoWallApiClient</code>.</td>
+    </tr>
+    <tr>
+      <td>Worker</td>
+      <td>Windows Service <code>TA-ITS015-VideoWall</code> (khi phát triển chạy <code>dotnet run --project src/Services/VideoWall/ITS.VideoWall</code>).</td>
+      <td><code>appsettings.json</code>: <code>DbConnection</code>, <code>Nats:*</code>. Section <code>VideoWall:Device</code> (lớp <code>VwDeviceOptions</code>) hiện chỉ khai ở <code>appsettings.Development.json</code>; không khai thì IP và tài khoản đọc từ bảng <code>VwController</code>. Cờ <code>VideoWall:Device:IsLocal = true</code> ép ưu tiên IP và tài khoản trong tệp cấu hình khi phát triển.</td>
+    </tr>
+  </tbody>
+</table></div>
+</section>
+
+<section id="vw-kien-truc">
+<h2 id="vw-tong">2. Tổng quan kiến trúc</h2>
+<p>Hệ thống có hai đường điều khiển bộ điều khiển VideoWall Hikvision, tách riêng hai tầng mã ISAPI để phần mềm công trường hoạt động hoàn toàn độc lập:</p>
+<ul>
+  <li><strong>Đường công trường (nhánh chính bàn giao):</strong> <code>ITS.VideoWall.WPF</code> sử dụng tầng <code>Api/Direct</code> gọi thẳng HTTP Digest ISAPI tới bộ điều khiển Hikvision và lưu kịch bản, nguồn tín hiệu, màn hình vào kho JSON cục bộ (<code>Storage/</code>) theo từng thiết bị. Kỹ thuật viên mang máy tính ra công trường có thể đấu nối, khảo sát và dựng bố cục tường ngay mà không cần hạ tầng máy chủ.</li>
+  <li><strong>Đường vận hành trên Web (nhánh đối chiếu):</strong> Giao diện Vue (<code>views/videoWall</code>) gửi yêu cầu HTTP vào <code>Module.VideoWall</code>; API phát gói lệnh qua NATS (<code>ta.its.data.videowall.control</code>) xuống Worker <code>ITS.VideoWall</code> để gọi thiết bị và phát kết quả ngược về kênh <code>ta.its.data.videowall</code>.</li>
+</ul>
+<figure>
+<svg viewBox="0 0 960 264" role="img" aria-label="Đường công trường ở trên đi từ Phần mềm WPF qua Api/Direct thẳng tới bộ điều khiển Hikvision kèm kho JSON cục bộ. Đường vận hành ở dưới đi từ Giao diện Vue qua API, NATS, Worker tới bộ điều khiển.">
+  <defs><marker id="a2" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="currentColor"/></marker></defs>
+  <text x="435" y="24" fill="currentColor" font-size="11.5" font-weight="600" text-anchor="middle" font-family="-apple-system, Segoe UI, Arial, sans-serif">Đường công trường (trọng tâm): chạy độc lập, gọi thẳng HTTP Digest ISAPI tới thiết bị</text>
+  <g fill="none" stroke="currentColor" stroke-width="1.2">
+    <rect x="180" y="40" width="180" height="52" rx="6"/>
+    <rect x="470" y="40" width="210" height="52" rx="6" stroke-width="1.8"/>
+    <rect x="800" y="40" width="150" height="164" rx="6"/>
+    <rect x="10" y="152" width="125" height="52" rx="6"/>
+    <rect x="190" y="152" width="150" height="52" rx="6"/>
+    <rect x="400" y="152" width="135" height="52" rx="6"/>
+    <rect x="590" y="152" width="150" height="52" rx="6"/>
+    <path d="M360 66 H468" stroke-dasharray="3 3" marker-end="url(#a2)"/>
+    <path d="M680 66 H798" stroke-width="1.6" marker-end="url(#a2)"/>
+    <path d="M135 178 H188" marker-end="url(#a2)"/>
+    <path d="M340 178 H398" marker-end="url(#a2)"/>
+    <path d="M535 178 H588" marker-end="url(#a2)"/>
+    <path d="M740 178 H798" marker-end="url(#a2)"/>
+    <path d="M665 204 V236 H72 V206" stroke-dasharray="5 4" marker-end="url(#a2)"/>
+  </g>
+  <g fill="currentColor" font-size="12.5" text-anchor="middle" font-family="-apple-system, Segoe UI, Arial, sans-serif">
+    <text x="270" y="62">Kho JSON cục bộ</text><text x="270" y="79" font-size="11">Storage/*.json (IP + WallNo)</text>
+    <text x="575" y="62" font-weight="600">Phần mềm công trường WPF</text><text x="575" y="79" font-size="11">ITS.VideoWall.WPF (Api/Direct)</text>
+    <text x="875" y="110">Bộ điều khiển</text><text x="875" y="127" font-size="11">Hikvision (bộ trung tâm)</text><text x="875" y="143" font-size="11">ISAPI · Digest</text>
+    <text x="72" y="174">Giao diện Vue</text><text x="72" y="191" font-size="11">views/videoWall</text>
+    <text x="265" y="174">API</text><text x="265" y="191" font-size="11">Module.VideoWall</text>
+    <text x="467" y="174">NATS</text><text x="467" y="191" font-size="11">videowall.control</text>
+    <text x="665" y="174">Worker</text><text x="665" y="191" font-size="11">ITS.VideoWall</text>
+    <text x="415" y="57" font-size="11">đọc / ghi</text>
+    <text x="739" y="57" font-size="11">ISAPI trực tiếp</text>
+    <text x="162" y="169" font-size="11">HTTP</text>
+    <text x="369" y="169" font-size="11">phát</text>
+    <text x="562" y="169" font-size="11">nhận</text>
+    <text x="769" y="169" font-size="11">gọi</text>
+    <text x="368" y="252" font-size="11">Đường vận hành đối chiếu — Phản hồi trạng thái: ta.its.data.videowall</text>
+  </g>
+</svg>
+<figcaption>Đường trên là nhánh công trường WPF gọi thẳng bộ điều khiển và lưu tệp JSON cục bộ. Đường dưới là nhánh vận hành qua API, NATS và Worker. Khi sửa giao thức Digest hoặc XML ISAPI cần đối chiếu cập nhật đồng bộ cả hai nơi.</figcaption>
+</figure>
+<p>Với hệ ghép nối nhiều bộ điều khiển (cascade), cả phần mềm WPF lẫn Worker chỉ giao tiếp với <strong>bộ trung tâm</strong>; các bộ con chỉ dùng làm dữ liệu kiểm kê.</p>
+</section>
+
+<section id="vw-wpf-sec">
+<h2 id="vw-wpf">3. Phần mềm công trường WPF — Trọng tâm bàn giao</h2>
+<p>Cửa sổ chính <code>Views/MainWindow.xaml</code> được bố trí thành 3 khu vực làm việc:</p>
+<ol>
+  <li><strong>Thanh kết nối phía trên:</strong> Chọn nhanh cấu hình thiết bị thật hoặc giả lập local, nhập <code>IP</code>, <code>Port</code>, <code>Account</code>, <code>Password</code>, chọn tường <code>WallNo</code>, nút <em>Kết nối &amp; Khảo sát</em> và <em>Khảo sát lại</em>.</li>
+  <li><strong>Khung 12 tab chức năng ở giữa</strong> (mở khóa sau khi kết nối thành công): Tab 1 là màn hình chính <code>SceneSetupTabView</code> (<em>Thiết lập Kịch bản &amp; Bố cục</em>); Tab 2 đến Tab 12 là 11 nhóm lệnh ISAPI trực tiếp dùng chung <code>IsapiGroupTabView</code> kèm khung xem phản hồi XML tô màu cú pháp bên dưới.</li>
+  <li><strong>Bảng nhật ký hoạt động dưới đáy:</strong> Ghi lại từng bước gọi thiết bị trong phiên, nhấp đúp dòng bất kỳ mở <code>ActivityDetailWindow</code> để đối chiếu chi tiết XML gửi/nhận, hỗ trợ xóa và xuất log ra tệp.</li>
+</ol>
+<p>Các thuộc tính dữ liệu trên ViewModel đã có comment XML; các phương thức xử lý lệnh (<code>[RelayCommand]</code>) và điều phối nội bộ chưa có comment được gắn nhãn chi tiết theo từng tiểu mục dưới đây.</p>
+
+<h3 id="vw-wpf-ket-noi">3.1 Khởi động, kết nối thiết bị và khảo sát</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>Hàm, lớp</th><th>Tệp</th><th>Làm gì, lưu ý gì</th></tr></thead>
+  <tbody>
+    <tr><td class="fn"><code>OnStartup</code>, <code>BuildHost</code>, <code>AddVideoWallWpf</code> <span class="tag nc">chưa comment</span></td><td class="file">App.xaml.cs, Extensions/ServiceCollectionExtensions.cs</td><td>Khởi tạo Generic Host, nạp <code>appsettings.json</code> cùng <code>Configuration/*.json</code> và đăng ký DI cho toàn bộ ViewModel, cửa sổ. Lỗi khởi động ghi ra <code>startup_error.log</code>, <code>startup_catch.log</code>, <code>fatal_error.log</code> ngay cạnh tệp chạy.</td></tr>
+    <tr><td class="fn"><code>MainWindow</code>, <code>Connect</code>, <code>Probe</code>, <code>ApplyRealDevicePreset</code>, <code>ApplyLocalMockPreset</code> <span class="tag nc">chưa comment</span></td><td class="file">Views/MainWindow.xaml, ViewModels/ConnectionViewModel.cs</td><td>Xử lý thanh kết nối, điền nhanh cấu hình mẫu, kiểm tra kết nối lần đầu kèm khảo sát năng lực thiết bị và khảo sát lại; tự khóa nút thao tác qua cờ <code>IsBusy</code> khi đang gọi thiết bị.</td></tr>
+    <tr><td class="fn"><code>OnWallNoChanged</code> <span class="tag nc">chưa comment</span></td><td class="file">ViewModels/ConnectionViewModel.cs</td><td>Khi người dùng đổi số tường <code>WallNo</code>, tự đọc lại danh sách cổng ra của tường đó trong nền và cập nhật lại thông số khảo sát cho màn hình thiết lập kịch bản.</td></tr>
+    <tr><td class="fn"><code>BuildDirectClient</code>, <code>BuildDirectSetupOrchestrator</code>, <code>BuildDirectISAPIClient</code>, <code>CreateISAPIClient</code>, <code>IsLocalHost</code> <span class="tag nc">chưa comment</span></td><td class="file">ViewModels/ConnectionViewModel.cs, Api/Direct/VwDirectClientFactory.cs</td><td>Dựng bộ client gọi thẳng thiết bị từ thông số đang nhập trên thanh kết nối. Client gọi qua <code>http</code>, bỏ qua kiểm tra chứng chỉ SSL, thời gian chờ tối đa 30 giây mỗi lệnh.</td></tr>
+    <tr><td class="fn"><code>Probe</code>, <code>Ping</code>, <code>SendIsapi</code> <span class="tag nc">chưa comment</span></td><td class="file">Api/Direct/VwDirectDeviceConnectionClient.cs</td><td>Thực thi kiểm tra kết nối, khảo sát phần cứng (đăng nhập, đọc năng lực, danh sách tường, cổng ra, kênh vào, kịch bản đang chiếu) và gửi lệnh ISAPI lẻ. Bản WPF chỉ đọc trên thiết bị, không ghi CSDL (khác <code>ProbeCore</code> của Worker); mỗi bước đều phát <code>DeviceStepNotification</code> để hiển thị nhật ký.</td></tr>
+    <tr><td class="fn"><code>VwDirectDigestHandler</code> (<code>SendAsync</code>, <code>ParseChallenge</code>, <code>BuildAuthorizationHeader</code> <span class="tag nc">chưa comment</span>), <code>VwDirectISAPIClient</code>, <code>VwIsapiXmlCodec</code></td><td class="file">Api/Direct/VwDirectDigestHandler.cs, Api/Direct/VwDirectISAPIClient.cs, Api/Direct/Isapi/VwIsapiXmlCodec.cs</td><td>Tự thực thi xác thực HTTP Digest (hỗ trợ cả thuật toán băm MD5 và SHA-256 theo RFC 7616, xử lý đổi <code>nonce</code> khi <code>stale=TRUE</code>) và đóng/mở gói XML ISAPI trực tiếp với thiết bị.</td></tr>
+  </tbody>
+</table></div>
+
+<h3 id="vw-wpf-kich-ban">3.2 Thiết lập kịch bản, bố cục cửa sổ và kéo thả trực quan</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>Hàm, lớp</th><th>Tệp</th><th>Làm gì, lưu ý gì</th></tr></thead>
+  <tbody>
+    <tr><td class="fn"><code>ProbeInputsGrid_PreviewMouseLeftButtonDown</code>, <code>ProbeInputsGrid_MouseMove</code> <span class="tag nc">chưa comment</span></td><td class="file">Views/SceneSetupTabView.xaml, Views/SceneSetupTabView.xaml.cs</td><td>Bắt thao tác kéo nguồn tín hiệu từ bảng khảo sát kênh đầu vào <code>ProbeInputsGrid</code> thả trực tiếp sang mặt tường ghép để tạo hoặc đổi nguồn cho cửa sổ.</td></tr>
+    <tr><td class="fn"><code>RedrawCanvas</code>, <code>DrawPhysicalScreens</code>, <code>SyncWindowCards</code>, <code>CreateWindowCard</code>, <code>UpdateWindowCardGeometryAndStyle</code>, <code>SnapToGrid</code>, <code>SnapSize</code>, <code>CalculateCardZIndex</code> <span class="tag nc">chưa comment</span></td><td class="file">Controls/VisualWallCanvas.xaml.cs</td><td>Vẽ ma trận màn hình vật lý theo tỷ lệ khung hình 16:9, đồng bộ danh sách thẻ cửa sổ, xử lý kéo thả di chuyển / co giãn kích thước bám dính lưới tọa độ thiết bị (<code>Tile</code>, mặc định 1920), quy đổi tọa độ vẽ theo hệ số thu phóng <code>_scale</code> và tính thứ tự lớp đè <code>ZIndex</code>.</td></tr>
+    <tr><td class="fn"><code>SyncFromProbeResult</code>, <code>ReloadScenesForCurrentWall</code>, <code>PopulateSources</code> <span class="tag nc">chưa comment</span></td><td class="file">ViewModels/SceneSetupViewModel.cs</td><td>Đổ kết quả khảo sát vào màn hình thiết lập: nạp kịch bản theo tường, đánh dấu kịch bản đang chiếu, trộn kênh vào phần cứng với nguồn luồng IP cục bộ, nạp cổng ra và đồng bộ cửa sổ của kịch bản đang chạy vào tệp JSON cục bộ. <strong>Lưu ý:</strong> kịch bản đang chọn có SID (<code>OutputId</code>) bằng <code>6</code> sẽ được giữ nguyên lựa chọn thay vì chuyển sang kịch bản đang chạy (số <code>6</code> đang viết cứng trong hàm).</td></tr>
+    <tr><td class="fn"><code>StartCreateNewScene</code>, <code>CreateScene</code>, <code>UpdateScene</code>, <code>DeleteScene</code>, <code>ActivateScene</code>, <code>SyncScenesFromDevice</code>, <code>PullWindowsFromDevice</code> <span class="tag nc">chưa comment</span></td><td class="file">ViewModels/SceneSetupViewModel.cs</td><td>Quản lý vòng đời kịch bản cục bộ, kích hoạt chiếu kịch bản trên tường, đồng bộ danh sách kịch bản và kéo bố cục cửa sổ đang mở từ thiết bị về máy. Xóa kịch bản hoặc cửa sổ có hộp thoại xác nhận qua <code>IUserConfirmation</code>.</td></tr>
+    <tr><td class="fn"><code>PushToDevice</code>, <code>PushWindowsOnlyToDevice</code>, <code>BuildDirectWindows</code>, <code>BuildDirectWindowFromRow</code> <span class="tag nc">chưa comment</span></td><td class="file">ViewModels/SceneSetupViewModel.cs</td><td>Lưu JSON cục bộ trước rồi đẩy bố cục xuống thiết bị. Bắt buộc đã chọn <code>WallNo</code>, không tự đoán tường để tránh ghi nhầm; SID không ép kiểu được số nguyên thì mặc định dùng <code>1</code>. <strong>Lưu ý:</strong> ô <code>DryRun</code> trên giao diện mặc định <strong>tắt</strong> nên bấm đẩy là ghi thật xuống thiết bị và không hỏi xác nhận; <code>PushWindowsOnlyToDevice</code> bỏ qua bước <code>saveData</code> nhưng vẫn kích hoạt nếu <code>ActivateAfterPush</code> đang bật.</td></tr>
+    <tr><td class="fn"><code>Execute</code>, <code>BuildWindowRequest</code> <span class="tag nc">chưa comment</span>, <code>VwDirectPushSceneInput</code></td><td class="file">Api/Direct/VwDirectSetupSceneOrchestrator.cs</td><td>Điều phối chuỗi bước đẩy kịch bản trực tiếp xuống thiết bị theo các cờ trên <code>VwDirectPushSceneInput</code> (<code>DryRun</code>, <code>ResetWindows</code>, <code>SaveData</code>, <code>Activate</code>, <code>SkipGuardrails</code>): đăng nhập, kiểm giới hạn an toàn, xóa cửa sổ cũ, tạo từng cửa sổ, gọi giải mã luồng nếu nguồn là <code>ip_stream</code>, tra lại <code>DeviceWindowId</code> còn thiếu, lưu kịch bản và kích hoạt.</td></tr>
+    <tr><td class="fn"><code>ApplyBigCenterTemplate</code>, <code>ApplyDual2x2Template</code>, <code>ApplyFullWallTemplate</code>, <code>ApplyIndividualWindows</code>, <code>ApplyOverlappingWindows</code> <span class="tag nc">chưa comment</span></td><td class="file">ViewModels/SceneSetupViewModel.cs</td><td>Sinh nhanh bố cục cửa sổ theo mẫu dựng sẵn. Ba mẫu đầu (trung tâm lớn, hai cụm 2×2, toàn tường) chỉ thay đổi trên màn hình, chưa lưu tệp; hai hàm sau áp dụng gán từng màn hình đơn lẻ hoặc cửa sổ phủ nhiều màn hình, ghi ngay vào tệp cục bộ và cộng nối vào cửa sổ đã có.</td></tr>
+    <tr><td class="fn"><code>ScheduleLiveWindowUpdate</code>, <code>TriggerImmediateLiveWindowUpdate</code>, <code>PushLiveWindowUpdate</code> <span class="tag nc">chưa comment</span></td><td class="file">ViewModels/SceneSetupViewModel.cs</td><td>Cập nhật trực tiếp cửa sổ lên thiết bị khi thao tác: sửa tọa độ trong bảng thì trễ 350 ms mới gửi lần cuối; thả chuột sau khi kéo trên canvas hoặc đổi nguồn thì gửi ngay. Cửa sổ chưa có <code>DeviceWindowId</code> sẽ được tạo mới rồi lưu lại mã. <strong>Lưu ý:</strong> thao tác này ghi thật lên thiết bị trừ khi bật <code>DryRun</code>.</td></tr>
+    <tr><td class="fn"><code>OpenSourceManagement</code>, <code>SaveSource</code>, <code>DeleteSource</code>, <code>RefreshList</code> <span class="tag nc">chưa comment</span></td><td class="file">ViewModels/SceneSetupViewModel.cs, ViewModels/SourceManagementViewModel.cs, Views/SourceManagementDialog.xaml</td><td>Hộp thoại thêm, sửa, xóa nguồn luồng IP (<code>RTSP</code>, <code>ONVIF</code>, <code>HIK_SDK</code>, <code>HTTP_STREAM</code>, giới hạn URL 256 ký tự) theo từng thiết bị; chặn không cho xóa các kênh HDMI vật lý đọc từ phần cứng.</td></tr>
+  </tbody>
+</table></div>
+
+<h3 id="vw-wpf-isapi">3.3 Bộ danh mục thử nghiệm trực tiếp 11 nhóm lệnh ISAPI</h3>
+<p>Từ Tab 2 đến Tab 12 trên <code>Views/MainWindow.xaml</code> dùng chung điều khiển <code>IsapiGroupTabView</code> cho 11 nhóm chức năng của bộ điều khiển Hikvision (<code>Board</code>, <code>Decoding</code>, <code>OutputChannel</code>, <code>SignalSource</code>, <code>VideoWall</code>, <code>Plan</code>, <code>Scene</code>, <code>Screen</code>, <code>TextLed</code>, <code>Wallpaper</code>, <code>Window</code> — tương ứng các mảng bo mạch, giải mã, cổng ra, nguồn tín hiệu, tường hình, kế hoạch, kịch bản, màn hình, chữ LED, ảnh nền và cửa sổ).</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Hàm, lớp</th><th>Tệp</th><th>Làm gì, lưu ý gì</th></tr></thead>
+  <tbody>
+    <tr><td class="fn"><code>UpdateItemsSource</code>, <code>SyncSelectionToConnection</code> <span class="tag nc">chưa comment</span></td><td class="file">Views/IsapiGroupTabView.xaml, Views/IsapiGroupTabView.xaml.cs</td><td>Lọc danh sách mẫu lệnh theo thuộc tính <code>Group</code> của từng tab, sắp xếp theo mã mục tài liệu và phương thức HTTP (<code>GET</code>, <code>POST</code>, <code>PUT</code>, <code>DELETE</code>), đồng bộ lệnh đang chọn sang <code>ConnectionViewModel</code>.</td></tr>
+    <tr><td class="fn"><code>VwIsapiPresetList</code>, <code>VwIsapiPresetItem</code>, <code>VwIsapiSchemaCatalog</code>, <code>VwIsapiApiSchema</code>, <code>VwIsapiFieldDef</code></td><td class="file">ViewModels/VwIsapiPresetItem.cs, ViewModels/Isapi/VwIsapiSchemaCatalog.*.cs</td><td>Kho mẫu lệnh dựng sẵn và 11 tệp partial khai báo lược đồ trường tham số theo từng nhóm. Khi cần bổ sung lệnh ISAPI mới, chỉ cần thêm preset vào <code>VwIsapiPresetList</code> và khai báo trường trong <code>VwIsapiSchemaCatalog.&lt;Nhóm&gt;.cs</code> để giao diện tự sinh biểu mẫu nhập.</td></tr>
+    <tr><td class="fn"><code>Validate</code>, <code>BuildPath</code> <span class="tag nc">chưa comment</span>, <code>TryExtractPathParameters</code>, <code>UpdateIsapiPathAndBody</code> <span class="tag nc">chưa comment</span></td><td class="file">ViewModels/Isapi/VwIsapiFormViewModel.cs, ViewModels/ConnectionViewModel.cs</td><td>Kiểm tra các trường tham số bắt buộc, dựng đường dẫn từ biểu mẫu và trích xuất ngược tham số khi người dùng sửa trực tiếp chuỗi URL (đồng bộ hai chiều giữa ô tham số và đường dẫn URL / thân thông điệp).</td></tr>
+    <tr><td class="fn"><code>SendIsapi</code>, <code>ResolveContentType</code>, <code>CopyIsapiResponse</code> <span class="tag nc">chưa comment</span></td><td class="file">ViewModels/ConnectionViewModel.cs</td><td>Chặn gửi nếu đường dẫn còn sót <code>{tham_số}</code> chưa điền, tự động chọn kiểu nội dung <code>application/json</code> cho mục <code>9.7.2.10</code> / <code>9.7.2.13</code> và <code>application/xml</code> cho toàn bộ các lệnh còn lại. <strong>Lưu ý:</strong> gửi thẳng lệnh thô tới thiết bị, lệnh ghi không bật hộp thoại xác nhận.</td></tr>
+    <tr><td class="fn"><code>VwIsapiResponseSummary</code>, <code>XmlSyntaxHighlighter</code></td><td class="file">ViewModels/Isapi/VwIsapiResponseSummary.cs, Interaction/XmlSyntaxHighlighter.cs</td><td>Phân tích phản hồi trả về thành các thẻ tóm tắt trạng thái nhanh (badges) và tô màu cú pháp XML trong khung kết quả dưới tab.</td></tr>
+  </tbody>
+</table></div>
+
+<h3 id="vw-wpf-luu-tru">3.4 Lưu trữ cục bộ và ghi nhật ký phiên đo kiểm</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>Hàm, lớp</th><th>Tệp</th><th>Làm gì, lưu ý gì</th></tr></thead>
+  <tbody>
+    <tr><td class="fn"><code>LoadData</code>, <code>SaveData</code>, <code>PopulateSampleScenes</code>, <code>SeedSampleScenes</code>, <code>SyncScenesFromDevice</code>, <code>SyncWindowsFromDevice</code> <span class="tag nc">chưa comment</span></td><td class="file">Storage/VwLocalSceneStore.cs</td><td>Đọc/ghi danh sách kịch bản, cửa sổ và khởi tạo kịch bản mẫu ra tệp JSON riêng theo khóa thiết bị <code>DeviceKey</code> (<code>IP</code> + <code>WallNo</code>). <strong>Lưu ý:</strong> <code>LoadData</code> tự chuẩn hóa và ghi lại tệp khi gặp cấu trúc dữ liệu cũ; <code>SyncScenesFromDevice</code> sẽ xóa các kịch bản cục bộ không còn tồn tại trên thiết bị.</td></tr>
+    <tr><td class="fn"><code>VwLocalSourceStore</code>, <code>VwLocalScreenStore</code>, <code>VwScenarioStore</code></td><td class="file">Storage/VwLocalSourceStore.cs, Storage/VwLocalScreenStore.cs, Storage/VwScenarioStore.cs</td><td>Lưu trữ JSON cục bộ theo khóa thiết bị (<code>IP</code> + <code>WallNo</code>) cho danh sách nguồn luồng IP tự khai báo, cấu hình gán màn hình và các bộ kịch bản đo kiểm chuỗi bước.</td></tr>
+    <tr><td class="fn"><code>AppendCore</code>, <code>AppendSessionLogRecord</code>, <code>ResolveLogDirectory</code>, <code>ExportLog</code>, <code>ClearActivities</code> <span class="tag nc">chưa comment</span></td><td class="file">ViewModels/MainViewModel.cs</td><td>Giữ tối đa 500 dòng mới nhất trên bảng hoạt động dưới đáy cửa sổ, đồng thời tự động ghi nối chi tiết thông điệp request/response XML của mọi bước gọi thiết bị vào tệp <code>session_yyyyMMdd.json</code> (hàm <code>ResolveLogDirectory</code> tìm thư mục gốc không gian làm việc hoặc rơi về thư mục <code>logs</code> cạnh tệp chạy). Nút xuất log hỗ trợ lưu ra <code>.json</code> hoặc <code>.jsonl</code>.</td></tr>
+    <tr><td class="fn"><code>ActivityDetailWindow</code></td><td class="file">Views/ActivityDetailWindow.xaml, Views/ActivityDetailWindow.xaml.cs</td><td>Cửa sổ tra cứu chi tiết bước gọi HTTP/ISAPI (phương thức, đường dẫn, thời gian phản hồi, nguyên văn XML gửi đi và nhận về) khi nhấp đúp một dòng trên bảng hoạt động.</td></tr>
+  </tbody>
+</table></div>
+</section>
+
+<section id="vw-worker-sec">
+<h2 id="vw-worker">4. Dịch vụ chạy nền Worker và tầng giao tiếp ISAPI</h2>
+<p>Phần này cô đọng các luồng xử lý ở dịch vụ chạy nền <code>ITS.VideoWall</code> và tầng giao tiếp ISAPI dùng trên máy chủ do Hoàng Quý Đạt xây dựng để đối chiếu với nhánh WPF ở trên.</p>
+
+<h3 id="vw-bang">4.1 Bảng dữ liệu liên quan</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>Bảng</th><th>Vai trò dữ liệu</th></tr></thead>
+  <tbody>
+    <tr><td><code>VwController</code>, <code>VwControllerSlot</code>, <code>VwSlotPort</code></td><td>Bộ điều khiển (<code>IP</code>, <code>Port</code>, tài khoản, <code>ParentControllerId</code>, kịch bản đang chạy), khe cắm và cổng</td></tr>
+    <tr><td><code>VwScreen</code>, <code>VwSource</code></td><td>Màn hình và nguồn tín hiệu (<code>SignalNo</code> là số kênh trên thiết bị)</td></tr>
+    <tr><td><code>VwScene</code>, <code>VwWindowScene</code></td><td>Kịch bản (<code>OutputId</code> là SID trên thiết bị) và cửa sổ thuộc kịch bản. Bảng <code>VwWindowScene</code> đã bỏ cột <code>DeviceWindowId</code> nên mã cửa sổ sinh trên thiết bị không lưu vào CSDL.</td></tr>
+    <tr><td><code>VwEventTriggerLog</code></td><td>Nhật ký từng bước gọi thiết bị từ Worker/API, lưu kèm thông điệp gửi và nhận</td></tr>
+    <tr><td><code>VwSchedule</code>, <code>VwEventRule</code>, <code>VwWallTopology</code>, <code>VwWallBlock</code>, <code>VwWallPermission</code>, <code>VwWallPermissionMember</code></td><td>Lập lịch, luật sự kiện, bố cục tường và phân quyền người dùng/vùng màn hình trên WebAPI (nhóm bảng này do Văn Hiếu phụ trách, liệt kê để phân biệt phạm vi).</td></tr>
+  </tbody>
+</table></div>
+
+<h3 id="vw-xac-thuc">4.2 Xác thực Digest và ngắt mạch</h3>
+<p>Bộ điều khiển Hikvision khóa IP nếu đăng nhập sai liên tiếp nhiều lần, vì vậy tầng client của Worker kiểm soát chặt số lần thử lại và tự ngắt mạch khi gặp lỗi xác thực. Comment lớp <code>VwISAPIDigestHandler</code> giải thích chi tiết cơ chế Digest và cờ <code>stale</code>.</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Hàm</th><th>Tệp</th><th>Ghi chú</th></tr></thead>
+  <tbody>
+    <tr><td class="fn"><code>SendAsync</code>, <code>BuildAuthorizationHeader</code> <span class="tag nc">chưa comment</span>, <code>ParseChallenge</code>, <code>SelectQop</code>, <code>BufferContent</code></td><td class="file">VwISAPIDigestHandler.cs</td><td>Gửi lần đầu không kèm xác thực; nhận 401 thì tính <code>HA1</code>, <code>HA2</code>, <code>response</code> theo RFC 7616 và gửi lại. Nếu vẫn nhận 401 kèm <code>stale=TRUE</code> thì thử đúng một lần nữa, còn lại trả 401 ngay.</td></tr>
+    <tr><td class="fn"><code>Resolve</code> <span class="tag nc">chưa comment</span></td><td class="file">VwISAPICredentialResolver.cs</td><td>Mặc định đọc tài khoản từ bảng <code>VwController</code>, trống thì lấy cấu hình; khi <code>IsLocal = true</code> thì ưu tiên cấu hình trước.</td></tr>
+    <tr><td class="fn"><code>SendCoreAsync</code>, <code>ResolveDeviceUri</code> <span class="tag nc">chưa comment</span>, <code>IsMethodRetriable</code>, <code>IsTransientStatusCode</code>, <code>IsTransientException</code>, <code>CalculateBackoff</code> <span class="tag nc">chưa comment</span></td><td class="file">VwISAPIDeviceClient.cs</td><td>Khung gửi chung: chặn ngay bằng HTTP 429 khi đang ngắt mạch; dựng URI theo thứ tự cổng (<code>VwController.Port</code>, cổng trong IP, cấu hình, mặc định <code>80</code>); chỉ thử lại <code>GET</code>, <code>PUT</code>, <code>DELETE</code> khi gặp HTTP 408, 429 hoặc <code>&gt;= 500</code> (không thử lại <code>POST</code> để tránh tạo trùng).</td></tr>
+    <tr><td class="fn"><code>RecordDeviceAuthFailure</code>, <code>IsDeviceAuthFailureBlocked</code>, <code>RecordAuthSuccess</code>, <code>ResetDeviceAuthFailure</code> <span class="tag nc">chưa comment</span></td><td class="file">VwISAPIDeviceService.cs</td><td>Đếm lỗi HTTP 401/403 liên tiếp; đủ <code>MaxConsecutiveFailures</code> thì khóa <code>BlockMinutes</code> phút trong <code>BaseCacheService</code> (cache bộ nhớ của Worker nên khởi động lại sẽ xóa), đăng nhập thành công hoặc gọi lệnh reset thì mở khóa.</td></tr>
+  </tbody>
+</table></div>
+
+<h3 id="vw-tuong">4.3 Chọn tường và quy đổi tọa độ</h3>
+<div class="note warn"><p><strong>Tường 1 trên thiết bị thật là tường thử chưa gắn màn hình.</strong> Lệnh gửi vào tường 1 vẫn trả HTTP 200 nhưng màn hình thực tế không đổi, nên mã nguồn chủ đích không mặc định chọn tường 1.</p></div>
+<div class="table-wrap"><table>
+  <thead><tr><th>Hàm</th><th>Tệp</th><th>Ghi chú</th></tr></thead>
+  <tbody>
+    <tr><td class="fn"><code>ResolveWall</code>, <code>ResolveWalls</code>, <code>Refresh</code>, <code>WithWall</code>, <code>ForgetWall</code> <span class="tag nc">chưa comment</span></td><td class="file">VwISAPIDeviceService.WallResolution.cs, VwISAPIDeviceClient.cs</td><td>Xác định tường thao tác và nhớ cache trong 30 phút; <code>ForgetWall</code> dùng để xóa cache khi đổi IP hoặc cấu hình tường.</td></tr>
+    <tr><td class="fn"><code>SliceWindowForControllers</code>, <code>ToIsapiLocalRect</code>, <code>ToCenterUniformRect</code></td><td class="file">VwGeometryHelper.cs</td><td>Các hàm thuần cắt vùng cửa sổ theo từng bộ điều khiển và quy đổi hệ tọa độ ISAPI.</td></tr>
+    <tr><td class="fn"><code>SliceForControllerAsync</code>, <code>GetWallCanvasAsync</code>, <code>EnsureWindowInsideSceneRegionAsync</code> <span class="tag nc">chưa comment</span></td><td class="file">VwSceneRegionService.cs</td><td>Đọc màn hình trong CSDL để cắt cửa sổ và tính kích thước toàn tường (ưu tiên <code>VwWallTopology</code> / <code>VwWallBlock</code>, sau đó lưới <code>VwScreen</code>, kích thước panel theo <code>VideoWall:Device:Profile</code> hoặc <code>VwWallProfile</code>). Riêng <code>EnsureWindowInsideSceneRegionAsync</code> hiện đang tạm ngắt (xem mục 5).</td></tr>
+  </tbody>
+</table></div>
+
+<h3 id="vw-luong">4.4 Nhận lệnh NATS, kích hoạt kịch bản và đồng bộ cửa sổ</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>Hàm</th><th>Tệp</th><th>Ghi chú</th></tr></thead>
+  <tbody>
+    <tr><td class="fn"><code>HandleAsync</code>, <code>ApplyActiveSceneOnServerAsync</code>, <code>BroadcastSceneActivatedAsync</code></td><td class="file">VwSceneWorkflowCommandHandler.cs</td><td>Văn Hiếu phụ trách phía API: phát lệnh <code>ACTIVATE_SCENE</code>; khi <code>ApplySceneOnServer = true</code> thì API tự ghi trạng thái ngay trên máy chủ.</td></tr>
+    <tr><td class="fn"><code>PublishCommandAsync</code>, <code>PublishCommand</code> <span class="tag nc">chưa comment</span></td><td class="file">VwPublisher.cs</td><td>Gói lệnh thành <code>VwCommandEnvelope</code> phát lên kênh <code>VideoWallControl</code>; lỗi phát chỉ ghi log và trả <code>false</code>.</td></tr>
+    <tr><td class="fn"><code>ProcessCommandAsync</code>, <code>PublishTelemetry</code> <span class="tag nc">chưa comment</span></td><td class="file">VwCommandConsumer.cs</td><td>Nhận gói lệnh Control từ NATS, rẽ nhánh theo <code>VwCommandActions</code> và phát kết quả về <code>ta.its.data.videowall</code> theo <code>MessageId</code>.</td></tr>
+    <tr><td class="fn"><code>HandleActivateSceneAsync</code> <span class="tag nc">chưa comment</span>, <code>ActivateScene</code>, <code>BroadcastHardwareOutOfSync</code> <span class="tag nc">chưa comment</span></td><td class="file">VwCommandConsumer.cs, VwISAPIDeviceService.cs</td><td>Kích hoạt <code>OutputId</code> trên bộ trung tâm qua từng tường của <code>ResolveWalls</code>, thành công mới ghi CSDL trong một giao dịch (<code>ActiveSceneId</code>, <code>ActiveSceneAt</code>) và phát <code>SceneActivated</code>. <strong>Lưu ý:</strong> lệnh cũ hơn <code>ActiveSceneAt</code> hoặc <code>TargetControllerIds</code> rỗng sẽ không ghi CSDL; nếu có tường lỗi giữa chừng thì phát <code>BroadcastHardwareOutOfSync</code>, các tường đã chuyển không tự hoàn tác.</td></tr>
+    <tr><td class="fn"><code>HandleSyncSceneWindowsAsync</code>, <code>HandleSetWindowLayerAsync</code>, <code>SyncSceneWindowsToDevice</code> <span class="tag nc">chưa comment</span></td><td class="file">VwCommandConsumer.cs, VwISAPIDeviceService.cs</td><td>Đồng bộ danh sách cửa sổ hoặc đổi thứ tự lớp hiển thị. <strong>Lưu ý:</strong> mỗi lần <code>SyncSceneWindowsToDevice</code> đều xóa toàn bộ cửa sổ trên tường rồi tạo lại (gây mất hình ngắn hạn nếu tường đang chiếu), sau đó gọi <code>saveData</code> (lỗi lưu thì tạo kịch bản mới và ghi đè <code>OutputId</code>).</td></tr>
+    <tr><td class="fn"><code>ResolveMissingDeviceWindowIds</code>, <code>ResolveTargetControllers</code>, <code>TryGetCenterController</code>, <code>BuildSignalNoMap</code>, <code>ResolveSignalNo</code>, <code>MatchDeviceWindowByRect</code>, <code>AssignDeviceWindowId</code> <span class="tag nc">chưa comment</span></td><td class="file">VwISAPIDeviceService.WindowTracking.cs</td><td>Tra <code>SignalNo</code> của nguồn và ghép lại ID cửa sổ theo tọa độ khi thiết bị không trả ngay sau lệnh tạo (3 hàm đầu đã có comment; <code>AssignDeviceWindowId</code> hiện để trống, xem mục 5).</td></tr>
+  </tbody>
+</table></div>
+
+<h3 id="vw-dau-noi">4.5 Đấu nối thiết bị và giám sát định kỳ</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>Hàm, lớp</th><th>Tệp</th><th>Ghi chú</th></tr></thead>
+  <tbody>
+    <tr><td class="fn"><code>Ping</code>, <code>Probe</code>, <code>SyncSources</code>, <code>SyncActiveScene</code>, <code>SetupScene</code>, <code>Isapi</code>, <code>ResetDeviceAuthFailure</code>, <code>HandleAsync</code> <span class="tag nc">chưa comment</span></td><td class="file">VwDeviceSetupController.cs, VwDeviceSetupCommandHandler.cs</td><td>Nhóm API đấu nối từ Web trả ngay <code>{Accepted, MessageId}</code> và đẩy lệnh xuống NATS (lưu ý đối chiếu <code>MessageId</code> tại mục 5).</td></tr>
+    <tr><td class="fn"><code>TrackAndLog</code>, <code>WriteThrownFailure</code>, <code>WriteSteps</code>, <code>WriteStep</code>, <code>BuildRow</code> <span class="tag nc">chưa comment</span></td><td class="file">VwISAPIDeviceService.DeviceSetup.cs, VwEventTriggerLogService.cs</td><td>Khung bọc ghi nhật ký từng bước gọi thiết bị vào bảng <code>VwEventTriggerLog</code> (tự cắt chuỗi vừa cột và nuốt lỗi ghi log để bảo toàn lệnh chính).</td></tr>
+    <tr><td class="fn"><code>ProbeCore</code>, <code>SyncSourcesCore</code>, <code>SyncActiveSceneCore</code> <span class="tag nc">chưa comment</span></td><td class="file">VwISAPIDeviceService.DeviceSetup.cs</td><td>Khảo sát và đồng bộ từ Worker. <strong>Lưu ý:</strong> khác với WPF, <code>ProbeCore</code> của Worker <strong>có ghi CSDL</strong> (tắt <code>VwController</code> nếu đăng nhập lỗi, lưu năng lực, cập nhật khe/cổng và <code>VwSource.SignalNo</code>); <code>SyncSourcesCore</code> ghép phỏng đoán theo thứ tự cho các nguồn chưa khớp tên/mã và ghi ngay không xét cờ <code>Apply</code>.</td></tr>
+    <tr><td class="fn"><code>SetupSceneCore</code>, <code>Finish</code>, <code>ApplyWindows</code>, <code>ApplyScene</code>, <code>SendPassthroughCore</code> <span class="tag nc">chưa comment</span></td><td class="file">VwISAPIDeviceService.DeviceSetup.cs</td><td>Dựng kịch bản qua Worker (trình tự tương tự orchestrator của WPF; bật <code>DryRun</code> kèm <code>SyncSources</code> vẫn cập nhật <code>SignalNo</code> vào CSDL) và gửi lệnh ISAPI thô (<code>SendPassthroughCore</code> không tự kiểm quyền nên phải chặn quyền ở tầng API).</td></tr>
+    <tr><td class="fn"><code>VwDeviceHeartbeatService</code> (<code>PollAllControllers</code>, <code>PollOneController</code>, <code>MarkControllerScreensOffline</code>)</td><td class="file">VwDeviceHeartbeatService.cs</td><td>Đã có comment đầy đủ. Quét định kỳ theo <code>HeartbeatIntervalSeconds</code> (mặc định 20 giây); bộ điều khiển nào lỗi thì đánh dấu <code>Offline</code> các màn hình thuộc bộ đó và chỉ phát phần trạng thái thay đổi lên NATS.</td></tr>
+  </tbody>
+</table></div>
+</section>
+
+<section id="vw-chua-lam-sec">
+<h2 id="vw-chua-lam">5. Hạng mục chưa làm và lưu ý khi tiếp nhận</h2>
+
+<div class="table-wrap"><table>
+  <thead><tr><th>Hạng mục</th><th>Trạng thái</th><th>Vị trí liên quan</th><th>Hiện trạng và việc cần làm tiếp</th></tr></thead>
+  <tbody>
+    <tr><td>Tab Đo kiểm theo chuỗi kịch bản</td><td><span class="tag no">Chưa gắn giao diện</span></td><td class="file">Views/ScenarioTabView.xaml, ViewModels/ScenarioViewModel.cs</td><td>Đã viết View và logic chạy chuỗi bước ISAPI tự động (<code>RunSelectedScenario</code>, <code>ResumeScenario</code>, <code>RunScenarioCore</code>, <code>RunOverlappingSizeTest</code>, <code>RunErrorValidationSuite</code>, <code>InitializeBuiltInScenarios</code> <span class="tag nc">chưa comment</span> — dừng ở bước lỗi đầu tiên, nhớ <code>LastFailedStepIndex</code> để chạy tiếp, kèm bài kiểm hai nguồn chồng lấn và bộ kiểm mã lỗi khi bật <code>ErrorSuiteSendReal</code>), nhưng chưa gắn tab lên <code>MainWindow.xaml</code>. Lưu ý các lệnh ghi chạy thật xuống thiết bị, không hỏi xác nhận từng bước.</td></tr>
+    <tr><td>Tab Sơ đồ thiết bị</td><td><span class="tag no">Chưa gắn giao diện</span></td><td class="file">Views/DeviceTopologyTabView.xaml, Views/DeviceTopologyTabView.xaml.cs</td><td>Đã có UserControl hiển thị sơ đồ cấu trúc thiết bị nhưng chưa gắn tab lên <code>MainWindow.xaml</code>; cần kiểm tra lại binding dữ liệu khảo sát nếu muốn mở trên giao diện chính.</td></tr>
+    <tr><td>Lập lịch và tham số trên WPF</td><td><span class="tag no">Chưa gắn giao diện</span></td><td class="file">ViewModels/ScheduleViewModel.cs, ViewModels/ParametersViewModel.cs</td><td>Mới có lớp ViewModel (<code>SaveSchedule</code> gọi <code>VideoWallApiClient</code> qua cấu hình <code>Api:BaseUrl</code>, cùng <code>Refresh</code>, <code>DeleteSchedule</code>, <code>Load</code> <span class="tag nc">chưa comment</span>), chưa dựng màn hình View gắn vào <code>MainWindow.xaml</code>.</td></tr>
+    <tr><td>Kiểm tra biên vùng cửa sổ và lưu mã cửa sổ thiết bị trên Server</td><td><span class="tag nc">Đang tạm ngắt</span></td><td class="file">VwSceneRegionService.cs, VwISAPIDeviceService.WindowTracking.cs, Module.VideoWall</td><td>Ở nhánh vận hành trên Server, hàm kiểm tra giới hạn vùng kịch bản (<code>EnsureWindowInsideSceneRegionAsync</code>) đang tạm khóa trong comment (<code>TODO: Needcheck</code>) và hàm gán mã cửa sổ thiết bị (<code>AssignDeviceWindowId</code>) đang để trống do bảng <code>VwWindowScene</code> đã bỏ cột <code>DeviceWindowId</code>, chờ chốt lại quy tắc nghiệp vụ.</td></tr>
+    <tr><td>Mã đối chiếu lệnh đấu nối bất đồng bộ</td><td><span class="tag nc">Lưu ý đối chiếu</span></td><td class="file">VwDeviceSetupCommandHandler.cs</td><td><code>MessageId</code> trả về từ API (<code>{Accepted, MessageId}</code>) hiện sinh mới cục bộ trong handler, chưa truyền xuống <code>PublishCommandAsync</code> khi phát gói lệnh NATS nên chưa đối chiếu được 1:1 ở thông báo trạng thái trả về từ Worker.</td></tr>
+  </tbody>
+</table></div>
+</section>
+</main>
+</div>
+</body>
+</html>
