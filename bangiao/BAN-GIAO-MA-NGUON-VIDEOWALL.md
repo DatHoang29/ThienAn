@@ -6,7 +6,7 @@ Tài liệu bàn giao mã nguồn phân hệ VideoWall tập trung vào **Phần
 - **Bên nhận:** Trần Hồng Sơn, Phó phòng Phát triển Phần mềm
 - **Ngày lập:** 02/11/2026
 - **Đối chiếu với:** Nhánh `fix/20261101-sharedata-ra-lai-tinh-nang` của `TA-ITS015-WEBAPI-V1.0`
-- **Bản HTML:** [BAN-GIAO-MA-NGUON-VIDEOWALL-2026-11-02.html](BAN-GIAO-MA-NGUON-VIDEOWALL-2026-11-02.html)
+- **Bản HTML:** [BAN-GIAO-MA-NGUON-VIDEOWALL.html](BAN-GIAO-MA-NGUON-VIDEOWALL.html)
 
 **Mục lục**
 
