@@ -441,7 +441,7 @@ namespace Tests.ShareData.Services
             };
             await _db.Insertable(new[] { weather1, weather2, weather3 }).ExecuteCommandAsync();
 
-            // 3. Seed bên gửi và nhận (CursorTimeColumn = "UpdateTime")
+            // 3. Seed bên gửi và nhận
             var (partner, packet, sub) = await SeedPartnerAndPacketPipelineAsync(
                 partnerCode: partnerCode,
                 packetCode: packetCode,
@@ -875,7 +875,7 @@ namespace Tests.ShareData.Services
                 Status = BaseEnums.StatusEnum.Enable,
             };
             await _db.Insertable(packet).ExecuteCommandAsync();
-            await ShareDataSqlSeed.SetCommonAsync(_db, packet.ID, extractSql, SqlValidatorHelper.IsIncrementalSql(extractSql) ? "UpdateTime" : null);
+            await ShareDataSqlSeed.SetCommonAsync(_db, packet.ID, extractSql);
 
             // Outbound Subscription & Mapping
             var outboundSub = new ShareDataSubscription

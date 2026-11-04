@@ -12,7 +12,6 @@ internal static class SeedScriptReader
     private const string PacketSeedFile = "sharedata-seed-goi-tin-ShareDataPacket.sql";
     private const string SqlSeedFile = "sharedata-seed-goi-tin-ShareDataSql.sql";
     private const string SourceTableSeedFile = "sharedata-seed-cau-hinh-ShareDataSourceTable.sql";
-    private const string LastSendMigrationFile = "sharedata-chuyen-doi-moc-ShareDataLastSend.sql";
 
     private static readonly Lazy<Dictionary<string, SeedPacketInfo>> Cache = new(LoadAllInternal);
     private static readonly Lazy<IReadOnlyList<SeedWriteSqlInfo>> WriteSqlStatementsCache = new(LoadWriteSqlStatementsInternal);
@@ -22,21 +21,7 @@ internal static class SeedScriptReader
     /// </summary>
     public sealed record SeedPacketInfo(
         string Code,
-        string ExtractSql,
-        string? CursorTimeColumn = null);
-
-    /// <summary>
-    /// Thông tin bản ghi INSERT gói tin khởi tạo từ kịch bản seed SQL.
-    /// </summary>
-    public sealed record SeedInsertedPacketInfo(
-        string Id,
-        string Code,
-        string Name,
-        string PacketVersion,
-        string Description,
-        int OrderNo,
-        int Status,
-        string? Remark);
+        string ExtractSql);
 
     /// <summary>
     /// Thông tin câu ghi chiều nhận trích xuất từ kịch bản seed SQL.
@@ -78,47 +63,14 @@ internal static class SeedScriptReader
         return Cache.Value;
     }
 
-    /// <summary>
-    /// Description: Đọc danh sách 11 gói tin khởi tạo từ các câu lệnh INSERT trong tệp seed 02.
-    /// </summary>
-    public static IReadOnlyList<SeedInsertedPacketInfo> ReadInsertedPackets()
-    {
-        var scriptPath = ResolveSqlScriptPath(PacketSeedFile);
-        var content = File.ReadAllText(scriptPath);
-
-        var regex = new Regex(
-            @"VALUES\s*\(\s*(?:LOWER\(CONVERT\(NVARCHAR\(64\),\s*NEWID\(\)\)\)|N?'(?<id>[^']+)?'),\s*N'(?<code>[^']+)',\s*N'(?<name>[^']+)',\s*N'(?<version>[^']+)',\s*N'(?<desc>[^']+)',\s*(?<order>\d+),\s*(?<status>\d+),\s*N'(?<remark>[^']*)'",
-            RegexOptions.Singleline);
-
-        var matches = regex.Matches(content);
-        var list = new List<SeedInsertedPacketInfo>();
-        foreach (Match m in matches)
-        {
-            list.Add(new SeedInsertedPacketInfo(
-                m.Groups["id"].Success ? m.Groups["id"].Value : Guid.NewGuid().ToString("N"),
-                m.Groups["code"].Value,
-                m.Groups["name"].Value,
-                m.Groups["version"].Value,
-                m.Groups["desc"].Value,
-                int.Parse(m.Groups["order"].Value),
-                int.Parse(m.Groups["status"].Value),
-                m.Groups["remark"].Value));
-        }
-
-        return list;
-    }
-
     private static Dictionary<string, SeedPacketInfo> LoadAllInternal()
     {
         var sqlScriptPath = ResolveSqlScriptPath(SqlSeedFile);
         var sqlContent = File.ReadAllText(sqlScriptPath);
 
-        // Câu mẫu chung và cột thời gian của gói đều nằm ở tệp ShareDataSql (nguồn duy nhất, bỏ TemplateSql 27/10/2026)
+        // Câu mẫu chung của gói nằm ở tệp ShareDataSql (nguồn duy nhất, bỏ TemplateSql 27/10/2026)
         var templateRegex = new Regex(
             @"DECLARE @Sql(?<code>\d{3}) NVARCHAR\(MAX\) = N'(?<sql>(?:''|[^'])*)';",
-            RegexOptions.Singleline);
-        var settingRegex = new Regex(
-            @"SET s\.\[ExtractSql\] = @Sql\d{3},\s*s\.\[CursorTimeColumn\]\s*=\s*(?<cursor>NULL|N'[^']*'),.*?WHERE \(p\.\[Code\] = '(?<code>\d{3})'",
             RegexOptions.Singleline);
 
         var templates = templateRegex.Matches(sqlContent);
@@ -128,25 +80,12 @@ internal static class SeedScriptReader
                 $"Không tìm thấy bất kỳ câu mẫu chung DECLARE @SqlNNN nào trong tệp seed '{sqlScriptPath}'.");
         }
 
-        var settings = settingRegex.Matches(sqlContent)
-            .ToDictionary(m => m.Groups["code"].Value, m => m, StringComparer.OrdinalIgnoreCase);
-
         var dict = new Dictionary<string, SeedPacketInfo>(StringComparer.OrdinalIgnoreCase);
         foreach (Match match in templates)
         {
             var code = match.Groups["code"].Value;
             var extractSql = match.Groups["sql"].Value.Replace("''", "'");
-
-            string? cursor = null;
-            if (settings.TryGetValue(code, out var setting))
-            {
-                var cursorRaw = setting.Groups["cursor"].Value;
-                cursor = cursorRaw.Equals("NULL", StringComparison.OrdinalIgnoreCase)
-                    ? null
-                    : cursorRaw.Trim().TrimStart('N').Trim('\'');
-            }
-
-            dict[code] = new SeedPacketInfo(code, extractSql, cursor);
+            dict[code] = new SeedPacketInfo(code, extractSql);
         }
 
         return dict;
@@ -164,13 +103,12 @@ internal static class SeedScriptReader
 
     /// <summary>
     /// Author: DatHQ
-    /// Description: Lấy nguyên một khối lệnh của tệp chuyển đổi mốc ShareDataLastSend từ dòng tiêu đề mục tới dòng GO kế tiếp (không gồm GO),
-    ///              để test chạy đúng câu lệnh nằm trong tệp.
-    /// Created date: 02/11/2026
+    /// Description: Lấy nguyên một khối lệnh của tệp seed ShareDataPacket từ dòng tiêu đề mục tới dòng GO kế tiếp (không gồm GO).
+    /// Created date: 03/11/2026
     /// </summary>
-    public static string ReadLastSendMigrationBatch(string heading)
+    public static string ReadPacketSeedBatch(string heading)
     {
-        return ReadScriptBatch(LastSendMigrationFile, heading);
+        return ReadScriptBatch(PacketSeedFile, heading);
     }
 
     /// <summary>

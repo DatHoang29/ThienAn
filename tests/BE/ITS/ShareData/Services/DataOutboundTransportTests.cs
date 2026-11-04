@@ -393,6 +393,7 @@ namespace Tests.ShareData.Services
             var packetCode = $"PKT_BIZ_ERR_{unique}";
             var initialLastTime = new DateTime(2026, 10, 20, 8, 0, 0);
             var rowTime = initialLastTime.AddMinutes(5);
+            var initialKey = $"{initialLastTime:yyyy-MM-dd HH:mm:ss.fff}_";
             var packetId = $"pkt-id-{unique}";
 
             var partner = new ShareDataPartner
@@ -421,7 +422,8 @@ namespace Tests.ShareData.Services
                 UpdateTime = rowTime
             };
             await db.Insertable(packet).ExecuteCommandAsync();
-            await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, $"SELECT TOP 100 UpdateTime AS __lastTime, ID AS __lastKey, Code AS code FROM ShareDataPacket WHERE ID = '{packetId}'", "UpdateTime");
+            await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, "SELECT TOP 100 CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey, Code AS code FROM ShareDataPacket "
+                + $"WHERE ID = '{packetId}' AND CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @lastKey ORDER BY __lastKey ASC");
             await db.Updateable<ShareDataPacket>()
                 .SetColumns(p => p.UpdateTime == rowTime)
                 .Where(p => p.ID == packetId)
@@ -433,7 +435,7 @@ namespace Tests.ShareData.Services
                 PartnerCode = partnerCode,
                 PacketCode = packetCode,
                 LastTime = initialLastTime,
-                LastKey = "INIT_KEY",
+                LastKey = initialKey,
                 CreateTime = initialLastTime,
                 UpdateTime = initialLastTime
             };
@@ -493,7 +495,7 @@ namespace Tests.ShareData.Services
                 lastSendAfter.LastTime!.Value,
                 TimeSpan.FromSeconds(1)
             );
-            Assert.Equal("INIT_KEY", lastSendAfter.LastKey);
+            Assert.Equal(initialKey, lastSendAfter.LastKey);
 
             var alerts = await db.Queryable<ShareDataAlertLog>()
                 .Where(a => a.SubscriptionId == sub.ID && a.AlertCode == ShareDataAlertCode.Outbound.HttpSendFailed)

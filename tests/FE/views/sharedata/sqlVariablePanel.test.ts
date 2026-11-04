@@ -26,7 +26,6 @@ test.describe('ShareData — Bảng tham số câu truy vấn (sqlVariablePanel)
 		const sources = [...sourcesBlock.matchAll(/'(\w+)'/g)].map((m) => m[1]);
 		for (const s of sources) {
 			keys.add(`lz.label.sharedataSqlVariable.source_${s}`);
-			keys.add(`lz.tooltip.sharedataSqlVariable.source_${s}`);
 		}
 		expect(sources).toEqual(['lastKey', 'const']);
 
@@ -56,8 +55,10 @@ test.describe('ShareData — Bảng tham số câu truy vấn (sqlVariablePanel)
 	test('TC3 — Thiết kế bảng tham số phẳng: Lỗi đưa vào placeholder + viền đỏ + tooltip hover, không làm phình chiều cao dòng', () => {
 		const panel = fs.readFileSync(panelPath, 'utf-8');
 
-		// 1. Cột Nguồn giá trị chỉ là chữ theo tên biến, không có ô chọn
-		expect(panel).not.toContain('<el-select');
+		// 1. Cột Nguồn giá trị: el-select chọn nguồn có icon prefix và mô tả trực quan trong popper
+		expect(panel).toContain('class="svp-source-select"');
+		expect(panel).toContain('popper-class="svp-source-popper"');
+		expect(panel).toContain('class="svp-source-prefix"');
 
 		// 2. Cột Giá trị cố định (el-input): dùng placeholder lỗi kết hợp el-tooltip, không có div svp-error bên dưới
 		expect(panel).toContain(':placeholder="shownValueError(row) ||');
@@ -95,9 +96,16 @@ test.describe('ShareData — Bảng tham số câu truy vấn (sqlVariablePanel)
 		expect(style).toContain('&.is-pass {\n\t\t\tcolor: var(--el-color-success);');
 		expect(style).toContain('&.is-fail,\n\t\t&.is-warn {\n\t\t\tcolor: var(--el-color-danger);');
 
-		// 5. Khung ghi chú rà soát bên dưới (svp-popover-note / checkHint) đã bị loại bỏ khỏi template và style
+		// 5. Khung ghi chú rà soát bên dưới (svp-popover-note / checkHint) và dải inline banner trùng lặp đã bị loại bỏ khỏi template và style
 		expect(template).not.toContain('class="svp-popover-note"');
 		expect(template).not.toContain('checkHint');
 		expect(style).not.toContain('.svp-popover-note');
+		expect(template).not.toContain('class="svp-inline-banner"');
+		expect(template).not.toContain('class="svp-source-col-tag"');
+
+		// 6. Cột Nguồn giá trị: el-select giữ trên 1 dòng (white-space: nowrap) và độ rộng tối thiểu đủ hiển thị trọn vẹn nhãn
+		expect(template).toContain('min-width="230"');
+		expect(style).toContain('.svp-source-select {');
+		expect(style).toContain('white-space: nowrap;');
 	});
 });

@@ -32,7 +32,7 @@ Nguồn chính: `TmsZoneStatus` (trạng thái mới nhất), `TmsZone` (đoạn
 | Hướng/làn | `laneId` | `TmsZone.LaneId` | `N-B` | Cần chốt bảng mã hướng/làn. |
 | Tốc độ trung bình | `averageSpeed` | `TmsZoneStatus.AverageSpeed` | `62.5` | Lấy bản ghi `UpdateTime` mới nhất theo vùng. |
 | Tình trạng giao thông | `trafficCondition` | `TmsZoneStatus.Condition` | `slow` | Cần chốt bảng mã condition. |
-| Thời điểm dữ liệu | `dataTime` | `TmsZoneStatus.UpdateTime` | `2026-07-31T10:15:00+07:00` | Dùng để kiểm tra SLA 30 giây. |
+| Thời điểm dữ liệu | `dataTime` | `COALESCE(TmsZoneStatus.UpdateTime, TmsZoneStatus.CreateTime)` | `2026-07-31T10:15:00+07:00` | Dùng để kiểm tra SLA 30 giây. |
 | Tốc độ tối đa | `speedLimit` | `TmsZone.MaxSpeed` | `80` | Không phải tốc độ thực đo. |
 | Số xe | `vehicleCount` | `TmsTrafficStatistic.TotalVehicleNumber` | `45` | Phải kèm khoảng `FromTime`–`ToTime`. |
 | Tên/loại đường/chủ quản | `routeName`, `roadType`, `roadAuthority` | — Chưa có | — | `TollRoad.Name` chỉ là tuyến ETC, không đủ thay danh mục đường chung. |

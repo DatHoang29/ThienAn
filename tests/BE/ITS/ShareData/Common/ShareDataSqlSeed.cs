@@ -19,12 +19,11 @@ internal static class ShareDataSqlSeed
     private static readonly (string Code, string DataType, string ValueKind, string Value)[] StandardVariables =
     [
         ("pageSize", ShareDataConst.SqlVariableTypeInt, ShareDataConst.SqlVariableKindConst, "100"),
-        ("lastTime", ShareDataConst.SqlVariableTypeDateTime, ShareDataConst.SqlVariableKindBuiltin, ShareDataConst.SqlVariableSourceLastTime),
         ("lastKey", ShareDataConst.SqlVariableTypeString, ShareDataConst.SqlVariableKindBuiltin, ShareDataConst.SqlVariableSourceLastKey)
     ];
 
     /// <summary>
-    /// Khai các biến @lastTime / @lastKey mà câu SQL có dùng vào bộ biến của câu đó (partnerId trống = mẫu chung), biến đã khai thì giữ.
+    /// Khai các biến @pageSize / @lastKey mà câu SQL có dùng vào bộ biến của câu đó (partnerId trống = mẫu chung), biến đã khai thì giữ.
     /// </summary>
     public static async Task DeclareStandardVariablesAsync(ISqlSugarClient db, string? packetId, string? partnerId, string? extractSql)
     {
@@ -94,13 +93,12 @@ internal static class ShareDataSqlSeed
     }
 
     /// <summary>
-    /// Ghi (thêm hoặc cập nhật) câu SQL mẫu chung và thiết lập SQL của gói tin.
+    /// Ghi (thêm hoặc cập nhật) câu SQL mẫu chung của gói tin.
     /// </summary>
     public static async Task SetCommonAsync(
         ISqlSugarClient db,
         string? packetId,
-        string? extractSql,
-        string? cursorTimeColumn = null)
+        string? extractSql)
     {
         if (string.IsNullOrWhiteSpace(packetId))
         {
@@ -117,14 +115,12 @@ internal static class ShareDataSqlSeed
                 ID = Guid.NewGuid().ToString("N"),
                 PacketId = packetId,
                 ExtractSql = extractSql,
-                CursorTimeColumn = cursorTimeColumn,
                 CreateTime = DateTime.Now
             }).ExecuteCommandAsync();
             return;
         }
 
         row.ExtractSql = extractSql;
-        row.CursorTimeColumn = cursorTimeColumn;
         await db.Updateable(row).ExecuteCommandAsync();
     }
 

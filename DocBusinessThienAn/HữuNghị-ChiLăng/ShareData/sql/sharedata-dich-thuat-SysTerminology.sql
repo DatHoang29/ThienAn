@@ -6,10 +6,10 @@ GO
 -- BẢNG GHI: [dbo].[SysTerminology] — tệp chỉ thêm / sửa / xóa trên đúng bảng này; bảng khác chỉ đọc (Rule 19.103).
 -- DESCRIPTION: Bổ sung từ điển bản dịch đa ngôn ngữ (vi-VN, en-US) cho phân hệ ShareData (ESHARE) vào SysTerminology:
 --              1. Chuẩn hóa lại mã khóa cũ thừa tiền tố (như lz.validation...lookbackDaysRange nếu có).
---              2. Nạp toàn bộ 164 mã khóa dịch thuật chuẩn hóa (328 bản ghi đa ngôn ngữ vi-VN và en-US):
+--              2. Nạp toàn bộ 158 mã khóa dịch thuật chuẩn hóa (316 bản ghi đa ngôn ngữ vi-VN và en-US):
 --                 - 26 khóa trường thực thể (Entity) dùng cho validation / khóa ngoại / tên đối tượng.
 --                 - 38 khóa ngoại lệ nghiệp vụ (Exception: phân hệ ShareData, quyền quản trị).
---                 - 98 khóa kiểm tra hợp lệ (Validation: SQL Validator, kết nối, đăng ký, gói tin, bộ mã, ánh xạ, tham số câu truy vấn, câu ghi chiều nhận).
+--                 - 92 khóa kiểm tra hợp lệ (Validation: SQL Validator, kết nối, đăng ký, gói tin, bộ mã, ánh xạ, tham số câu truy vấn, câu ghi chiều nhận).
 --                 - 2 khóa thông báo (Message: kết nối đối tác).
 --              3. Cơ chế Idempotent:
 --                 - MERGE chỉ INSERT các bản ghi chưa có (WHEN NOT MATCHED THEN INSERT).
@@ -18,7 +18,7 @@ GO
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 01/11/2026 (ESH-2306 thêm đặt mốc); 30/10/2026 (thêm khóa nhóm mốc, kiểm điều kiện WHERE nối đuôi, ESH-2306/2307 đăng ký đang bật; mọi câu ≤ 256 ký tự theo cột Value, @ viết {'@'})
+-- CẬP NHẬT LẦN CUỐI: 04/11/2026 (thêm khóa ORDER BY của nhóm mốc, cột mốc chỉ có ngày giờ, cột mốc dùng UpdateTime trơn); 03/11/2026 (bỏ khóa của mốc theo thời gian); 01/11/2026 (ESH-2306 thêm đặt mốc); 30/10/2026 (thêm khóa nhóm mốc, kiểm điều kiện WHERE nối đuôi, ESH-2306/2307 đăng ký đang bật; mọi câu ≤ 256 ký tự theo cột Value, @ viết {'@'})
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -51,7 +51,7 @@ WHERE Code LIKE N'lz.validation%lookbackDaysRange'
   );
 
 -- -----------------------------------------------------------------------------------------
--- 2. DANH MỤC 150 KHÓA BẢN DỊCH SHAREDATA (300 BẢN GHI ĐA NGÔN NGỮ)
+-- 2. DANH MỤC 158 KHÓA BẢN DỊCH SHAREDATA (316 BẢN GHI ĐA NGÔN NGỮ)
 -- -----------------------------------------------------------------------------------------
 DECLARE @Translations TABLE (
     [Name] NVARCHAR(64),
@@ -523,10 +523,6 @@ VALUES
      N'Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc sắp xếp tăng dần (ASC); không cho phép sắp xếp giảm dần (DESC) ở mệnh đề ORDER BY ngoài cùng.',
      N'Incremental queries must sort ascending (ASC); descending (DESC) sorting is not allowed in the outer ORDER BY clause.'),
 
-    (N'lz.validation', N'sharedata.sqlIncrementalOrderByMismatch',
-     N'Truy vấn đồng bộ nối đuôi phải sắp xếp ORDER BY ngoài cùng theo cột [__lastTime] rồi [__lastKey], nếu không có thể bỏ sót dòng.',
-     N'Incremental queries must sort the outer ORDER BY by [__lastTime] then [__lastKey]; otherwise rows may be skipped.'),
-
     (N'lz.validation', N'sharedata.sqlIncrementalOrderByKeyMismatch',
      N'Truy vấn đồng bộ nối đuôi theo khóa phải sắp xếp ORDER BY ngoài cùng theo cột [__lastKey], nếu không có thể bỏ sót dòng.',
      N'Key-only incremental sync query must have an outer ORDER BY on [__lastKey], otherwise rows may be skipped.'),
@@ -606,10 +602,6 @@ VALUES
     (N'lz.validation', N'sharedata.writeSqlRecordsInvalid',
      N'Dữ liệu chạy thử phải là mảng JSON các bản ghi.',
      N'Test data must be a JSON array of records.'),
-
-    (N'lz.validation', N'sharedata.sqlIncrementalMissingLastTime',
-     N'Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc có cột con trỏ thời gian [__lastTime].',
-     N'Incremental queries must include the time cursor column [__lastTime].'),
 
     (N'lz.validation', N'sharedata.sqlIncrementalMissingLastKey',
      N'Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc có cột con trỏ khóa [__lastKey].',
@@ -705,25 +697,29 @@ VALUES
      N'Không thể bỏ qua trường [{0}] vì hồ sơ ánh xạ [{1}] đang dùng. Hãy bỏ chọn trường ở hồ sơ ánh xạ trước.',
      N'Cannot skip field [{0}] because mapping profile [{1}] is using it. Uncheck the field in the mapping profile first.'),
 
-    (N'lz.validation', N'sharedata.sqlIncrementalCursorFilterInvalid',
-     N'WHERE phải so cả cặp mốc: [{2}] > {''@''}{0} OR ([{2}] = {''@''}{0} AND [{3}] > {''@''}{1}), hoặc [{2}] >= ISNULL({''@''}{0}, ''17530101'') AND ([{2}] > {''@''}{0} OR [{3}] > {''@''}{1}). So một vế, dùng AND hay so cột khác đều bỏ sót dòng.',
-     N'WHERE must compare the cursor pair: [{2}] > {''@''}{0} OR ([{2}] = {''@''}{0} AND [{3}] > {''@''}{1}), or [{2}] >= ISNULL({''@''}{0}, ''17530101'') AND ([{2}] > {''@''}{0} OR [{3}] > {''@''}{1}). One side only, AND or another column skips rows.'),
-
     (N'lz.validation', N'sharedata.sqlIncrementalKeyFilterInvalid',
      N'WHERE của truy vấn nối đuôi theo khóa phải có [{1}] > {''@''}{0}, viết đúng biểu thức của cột mốc; thiếu thì bỏ sót hoặc gửi lặp dòng.',
      N'The WHERE clause of a key-only incremental query must contain [{1}] > {''@''}{0} with the exact cursor column expression; otherwise rows are skipped or resent.'),
 
     (N'lz.validation', N'sharedata.sqlIncrementalGroupColumnMissing',
-     N'Nhóm mốc [{0}] còn thiếu {1}. Mỗi nhóm cần cột [__lastKey_{0}] và biến {''@''}lastKey_{0}; so theo thời gian thì thêm [__lastTime_{0}] và {''@''}lastTime_{0}.',
-     N'Cursor group [{0}] is missing {1}. Each group needs column [__lastKey_{0}] and variable {''@''}lastKey_{0}; time-based groups also need [__lastTime_{0}] and {''@''}lastTime_{0}.'),
-
-    (N'lz.validation', N'sharedata.sqlIncrementalGroupSourceMismatch',
-     N'Biến {''@''}{0} của nhóm mốc [{1}] chọn sai nguồn: {''@''}lastKey_{1} lấy Nối tiếp lần trước (theo key), {''@''}lastTime_{1} lấy Nối tiếp lần trước (theo thời gian).',
-     N'Variable {''@''}{0} of cursor group [{1}] uses the wrong source: {''@''}lastKey_{1} takes Continue from last send (by key), {''@''}lastTime_{1} takes it by time.'),
+     N'Nhóm mốc [{0}] còn thiếu {1}. Mỗi nhóm cần cột [__lastKey_{0}] và biến {''@''}lastKey_{0}.',
+     N'Cursor group [{0}] is missing {1}. Each group needs column [__lastKey_{0}] and variable {''@''}lastKey_{0}.'),
 
     (N'lz.validation', N'sharedata.sqlIncrementalGroupNotFound',
      N'Câu truy vấn đối tác đang chạy không có nhóm mốc [{0}].',
-     N'The partner''s running query has no cursor group [{0}].');
+     N'The partner''s running query has no cursor group [{0}].'),
+
+    (N'lz.validation', N'sharedata.sqlIncrementalGroupOrderInvalid',
+     N'Nhóm mốc [{0}]: ORDER BY ngoài cùng sắp theo [{1}], ở nhánh của nhóm này cột đó khác công thức cột [__lastKey_{0}] nên dòng ra sai thứ tự mốc. Hãy sắp theo cột có cùng công thức cột mốc ở mọi nhánh.',
+     N'Cursor group [{0}]: the outer ORDER BY sorts by [{1}], which differs from the [__lastKey_{0}] formula in this group''s branch, so rows come out of cursor order. Sort by a column with the cursor formula in every branch.'),
+
+    (N'lz.validation', N'sharedata.sqlIncrementalKeyTimeOnly',
+     N'Cột mốc [{0}] chỉ có ngày giờ nên sót các dòng trùng giờ. Ghép thêm khóa: CONVERT(varchar(23), <cột thời gian>, 121) + ''_'' + ID.',
+     N'Cursor column [{0}] holds only a date/time, so rows sharing the same time are skipped. Append a key: CONVERT(varchar(23), <time column>, 121) + ''_'' + ID.'),
+
+    (N'lz.validation', N'sharedata.sqlIncrementalUpdateTimeEmpty',
+     N'Cột mốc [{0}] dùng UpdateTime trơn nên dòng mới thêm (chưa có UpdateTime) không được gửi. Dùng COALESCE(UpdateTime, CreateTime) ở cả cột mốc và WHERE.',
+     N'Cursor column [{0}] uses a bare UpdateTime, so newly inserted rows (no UpdateTime yet) are never sent. Use COALESCE(UpdateTime, CreateTime) in both the cursor column and WHERE.');
 
 -- -----------------------------------------------------------------------------------------
 -- 3. NẠP DỮ LIỆU ĐA NGÔN NGỮ (MERGE CHỈ THÊM DÒNG CHƯA CÓ, KHÔNG GHI ĐÈ)
@@ -737,13 +733,23 @@ WHERE ([Name] = N'lz.validation'
       N'sharedata.sqlIncrementalNewStyleOrderByNotAllowed',
       N'sharedata.sqlIncrementalNewStyleOptionNotAllowed',
       N'sharedata.sqlIncrementalNewStyleWithNotAllowed',
-      N'sharedata.sqlIncrementalNewStyleParamsNotAllowed'
+      N'sharedata.sqlIncrementalNewStyleParamsNotAllowed',
+      N'sharedata.sqlIncrementalOrderByMismatch',
+      N'sharedata.sqlIncrementalMissingLastTime',
+      N'sharedata.sqlIncrementalCursorFilterInvalid',
+      N'sharedata.sqlIncrementalGroupSourceMismatch'
   ))
   OR ([Name] = N'lz.exception' AND [Code] IN (
       N'sharedata.superAdminRequiredForColumnSync'
   ));
 
 -- 3.0. Đồng bộ cập nhật các bản ghi seed cũ (nếu chưa bị người dùng sửa tay trên DB)
+UPDATE dbo.SysTerminology SET Value = N'Nhóm mốc [{0}] còn thiếu {1}. Mỗi nhóm cần cột [__lastKey_{0}] và biến {''@''}lastKey_{0}.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalGroupColumnMissing' AND Lang = N'vi-VN' AND Value LIKE N'%[_][_]lastTime[_]%';
+
+UPDATE dbo.SysTerminology SET Value = N'Cursor group [{0}] is missing {1}. Each group needs column [__lastKey_{0}] and variable {''@''}lastKey_{0}.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalGroupColumnMissing' AND Lang = N'en-US' AND Value LIKE N'%[_][_]lastTime[_]%';
+
 UPDATE dbo.SysTerminology SET Value = N'Mã gói tin', UpdateTime = GETDATE()
 WHERE Name = N'lz.entity' AND Code = N'sharedata.packetCode' AND Lang = N'vi-VN' AND Value = N'Gói tin';
 

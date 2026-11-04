@@ -5,12 +5,11 @@ GO
 -- FILE: sharedata-seed-goi-tin-ShareDataSql.sql
 -- BẢNG GHI: [dbo].[ShareDataSql] — tệp chỉ thêm / sửa / xóa trên đúng bảng này; bảng khác chỉ đọc (Rule 19.103).
 -- DESCRIPTION: Nạp câu SQL trích xuất mẫu chung (dòng PartnerId trống) cho gói 101 - 111 vào ShareDataSql:
---              0.3 Chuyển câu SQL cũ (ShareDataPacket.ExtractSql/CursorTimeColumn, bảng ShareDataPartnerSql)
+--              0.3 Chuyển câu SQL cũ (ShareDataPacket.ExtractSql, bảng ShareDataPartnerSql)
 --                  sang ShareDataSql; chạy trước bước 1 để giữ câu SQL đã sửa, không bị câu mẫu ghi đè.
 --              1. Câu mẫu chung (@SqlNNN viết ngay trong tệp này, nguồn duy nhất) khi đang trống, @GhiDeMauGoiTin = 1 (mọi gói)
 --                 hoặc @GhiDeMaGoi = mã gói (riêng một gói, vd N'101' để nạp lại câu mẫu gói 101).
 --              1b. Điền bộ biến (@lastKey, kèm @pageSize nếu câu dùng) cho câu mẫu chung nối đuôi một chuỗi ghép còn trống VariablesJson.
---              1c. Bỏ biến lastTime thừa khỏi bộ biến câu mẫu chung đã bỏ @lastTime, giữ nguyên các biến khác.
 --              5. Chuyển câu SQL riêng cũ ở ShareDataMapping.ExtractSql sang ShareDataSql; đổi __rowid -> __lastKey.
 --              0.4 Bộ biến của câu SQL ở cột VariablesJson: chuyển từ bảng cũ ShareDataSqlVariable (bỏ bảng 27/10/2026).
 --              6. Khối câu ghi chiều nhận (WriteSql, AffectedTables) ở dòng mẫu chung: chuyển từ bảng cũ ShareDataPacketSql,
@@ -19,7 +18,7 @@ GO
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 02/11/2026 (7 câu mẫu nối đuôi đổi sang một chuỗi ghép theo chốt của sếp; bước 1b theo câu mới; thêm bước 1c)
+-- CẬP NHẬT LẦN CUỐI: 04/11/2026 (gói 101 lấy CreateTime khi UpdateTime trống ở cột mốc, WHERE và dataTime: COALESCE(zs.UpdateTime, zs.CreateTime), dòng mới thêm cũng được gửi); 03/11/2026 (bỏ cột CursorTimeColumn không còn dùng); 02/11/2026 (7 câu mẫu nối đuôi đổi sang một chuỗi ghép theo chốt của sếp; bước 1b theo câu mới)
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -39,7 +38,7 @@ GO
 -- -----------------------------------------------------------------------------------------
 -- 0.3 CHUYỂN CÂU SQL CŨ SANG BẢNG ShareDataSql (IDEMPOTENT)
 -- -----------------------------------------------------------------------------------------
--- Câu SQL mẫu chung và thiết lập SQL trước đây nằm ở ShareDataPacket (ExtractSql, CursorTimeColumn),
+-- Câu SQL mẫu chung trước đây nằm ở ShareDataPacket (ExtractSql),
 -- câu SQL riêng của đối tác nằm ở bảng ShareDataPartnerSql. Chạy trước bước 1 để giữ câu SQL đã sửa, không bị câu mẫu ghi đè.
 -- CodeFirst mới không còn tạo các cột, bảng cũ nên chỉ chạy khi còn tồn tại và dùng SQL động để không lỗi biên dịch.
 PRINT N'-> 0.3. Chuyển câu SQL cũ (ShareDataPacket, ShareDataPartnerSql) sang bảng ShareDataSql...';
@@ -52,14 +51,13 @@ DECLARE @MovedCommon INT = 0;
 DECLARE @MovedPartner INT = 0;
 
 IF COL_LENGTH('dbo.ShareDataPacket', 'ExtractSql') IS NOT NULL
-   AND COL_LENGTH('dbo.ShareDataPacket', 'CursorTimeColumn') IS NOT NULL
 BEGIN
     DECLARE @MoveCommonSql NVARCHAR(MAX) = N'
-    INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [CursorTimeColumn], [TenantId], [CreateTime], [CreateUId])
-    SELECT LOWER(CONVERT(NVARCHAR(64), NEWID())), p.[ID], NULL, p.[ExtractSql], p.[CursorTimeColumn], @TenantId, GETDATE(), ''SHAREDATA-SEED-02''
+    INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [TenantId], [CreateTime], [CreateUId])
+    SELECT LOWER(CONVERT(NVARCHAR(64), NEWID())), p.[ID], NULL, p.[ExtractSql], @TenantId, GETDATE(), ''SHAREDATA-SEED-02''
     FROM [dbo].[ShareDataPacket] p
     WHERE p.[IsDelete] IS NULL
-      AND ((p.[ExtractSql] IS NOT NULL AND LTRIM(RTRIM(p.[ExtractSql])) <> '''') OR p.[CursorTimeColumn] IS NOT NULL)
+      AND p.[ExtractSql] IS NOT NULL AND LTRIM(RTRIM(p.[ExtractSql])) <> ''''
       AND NOT EXISTS (
           SELECT 1 FROM [dbo].[ShareDataSql] s
           WHERE s.[PacketId] = p.[ID] AND s.[PartnerId] IS NULL AND s.[IsDelete] IS NULL);';
@@ -145,9 +143,8 @@ GO
 -- @GhiDeMauGoiTin = 0 (Mặc định): Chỉ nạp câu mẫu chung nếu đang NULL hoặc rỗng.
 -- @GhiDeMauGoiTin = 1: Buộc ghi đè câu mẫu chung về câu chuẩn @SqlNNN khai trong tệp này.
 -- @GhiDeMaGoi = N'101': Chỉ ghi đè câu mẫu chung của đúng gói đó (gói khác giữ câu đang có). Bộ biến đang có giữ nguyên.
---     Câu mẫu mới đổi công thức cột mốc thì Worker tự đặt lại mốc của đối tác và ghi cảnh báo ESH-1308. Ngày 02/11/2026 7 câu nối đuôi
---     đổi sang một chuỗi ghép nên phải chạy tiếp sharedata-chuyen-doi-moc-ShareDataLastSend.sql để đổi mốc cũ, không phải gửi lại từ đầu.
-DECLARE @GhiDeMauGoiTin BIT = 1;
+--     Câu mẫu mới đổi công thức cột mốc thì Worker tự đặt lại mốc của đối tác và ghi cảnh báo ESH-1308.
+DECLARE @GhiDeMauGoiTin BIT = 0;
 DECLARE @GhiDeMaGoi NVARCHAR(16) = NULL;
 DECLARE @UpdatedRows INT = 0;
 DECLARE @TotalUpdated INT = 0;
@@ -159,7 +156,7 @@ PRINT N'-> 1. Bắt đầu nạp câu mẫu chung vào bảng ShareDataSql (101 
 
 -- Gói 101: TrafficFlow (Incremental)
 DECLARE @Sql101 NVARCHAR(MAX) = N'SELECT TOP (@pageSize)
-    CONVERT(varchar(23), zs.UpdateTime, 121) + ''_'' + zs.ID AS __lastKey,
+    CONVERT(varchar(23), COALESCE(zs.UpdateTime, zs.CreateTime), 121) + ''_'' + zs.ID AS __lastKey,
     zs.ID AS zoneStatusId,
     zs.ZoneId AS zoneId,
     z.Name AS zoneName,
@@ -170,20 +167,19 @@ DECLARE @Sql101 NVARCHAR(MAX) = N'SELECT TOP (@pageSize)
     z.LaneId AS laneId,
     CAST(zs.AverageSpeed AS DECIMAL(18, 2)) AS averageSpeed,
     zs.Condition AS trafficCondition,
-    zs.UpdateTime AS dataTime,
+    COALESCE(zs.UpdateTime, zs.CreateTime) AS dataTime,
     z.MaxSpeed AS speedLimit,
     ts.TotalVehicleNumber AS vehicleCount
 FROM dbo.TmsZoneStatus zs
 LEFT JOIN dbo.TmsZone z ON zs.ZoneId = z.ID
 LEFT JOIN dbo.TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId
-WHERE CONVERT(varchar(23), zs.UpdateTime, 121) + ''_'' + zs.ID > @lastKey
+WHERE CONVERT(varchar(23), COALESCE(zs.UpdateTime, zs.CreateTime), 121) + ''_'' + zs.ID > @lastKey
 ORDER BY __lastKey ASC';
 
 DECLARE @Vars101 NVARCHAR(MAX) = N'[{"Code":"pageSize","Name":null,"DataType":"Int","ValueKind":"Const","Value":"100","DefaultValue":null,"Remark":null,"OrderNo":1},{"Code":"lastKey","Name":null,"DataType":"String","ValueKind":"Builtin","Value":"lastKey","DefaultValue":"","Remark":null,"OrderNo":2}]';
 
 UPDATE s
 SET s.[ExtractSql] = @Sql101,
-    s.[CursorTimeColumn] = NULL,
     s.[VariablesJson] = ISNULL(s.[VariablesJson], @Vars101),
     s.[UpdateTime] = GETDATE()
 FROM [dbo].[ShareDataSql] s
@@ -196,8 +192,8 @@ WHERE (p.[Code] = '101' OR p.[Code] LIKE '101[_]%')
        OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 
-INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [CursorTimeColumn], [VariablesJson], [TenantId], [CreateTime], [CreateUId])
-SELECT LOWER(CONVERT(NVARCHAR(64), NEWID())), p.[ID], NULL, @Sql101, NULL, @Vars101, @TenantIdSql, GETDATE(), 'SHAREDATA-SEED-02'
+INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [VariablesJson], [TenantId], [CreateTime], [CreateUId])
+SELECT LOWER(CONVERT(NVARCHAR(64), NEWID())), p.[ID], NULL, @Sql101, @Vars101, @TenantIdSql, GETDATE(), 'SHAREDATA-SEED-02'
 FROM [dbo].[ShareDataPacket] p
 WHERE (p.[Code] = '101' OR p.[Code] LIKE '101[_]%')
   AND p.[IsDelete] IS NULL
@@ -221,7 +217,6 @@ LEFT JOIN TmsEquipment e ON c.Ip = e.Ip';
 
 UPDATE s
 SET s.[ExtractSql] = @Sql102,
-    s.[CursorTimeColumn] = NULL,
     s.[UpdateTime] = GETDATE()
 FROM [dbo].[ShareDataSql] s
 JOIN [dbo].[ShareDataPacket] p ON p.[ID] = s.[PacketId]
@@ -233,8 +228,8 @@ WHERE (p.[Code] = '102' OR p.[Code] LIKE '102[_]%')
        OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 
-INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [CursorTimeColumn], [TenantId], [CreateTime], [CreateUId])
-SELECT LOWER(CONVERT(NVARCHAR(64), NEWID())), p.[ID], NULL, @Sql102, NULL, @TenantIdSql, GETDATE(), 'SHAREDATA-SEED-02'
+INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [TenantId], [CreateTime], [CreateUId])
+SELECT LOWER(CONVERT(NVARCHAR(64), NEWID())), p.[ID], NULL, @Sql102, @TenantIdSql, GETDATE(), 'SHAREDATA-SEED-02'
 FROM [dbo].[ShareDataPacket] p
 WHERE (p.[Code] = '102' OR p.[Code] LIKE '102[_]%')
   AND p.[IsDelete] IS NULL
@@ -267,7 +262,6 @@ ORDER BY __lastKey ASC';
 
 UPDATE s
 SET s.[ExtractSql] = @Sql103,
-    s.[CursorTimeColumn] = N'UpdateTime',
     s.[UpdateTime] = GETDATE()
 FROM [dbo].[ShareDataSql] s
 JOIN [dbo].[ShareDataPacket] p ON p.[ID] = s.[PacketId]
@@ -279,8 +273,8 @@ WHERE (p.[Code] = '103' OR p.[Code] LIKE '103[_]%')
        OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 
-INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [CursorTimeColumn], [TenantId], [CreateTime], [CreateUId])
-SELECT LOWER(CONVERT(NVARCHAR(64), NEWID())), p.[ID], NULL, @Sql103, N'UpdateTime', @TenantIdSql, GETDATE(), 'SHAREDATA-SEED-02'
+INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [TenantId], [CreateTime], [CreateUId])
+SELECT LOWER(CONVERT(NVARCHAR(64), NEWID())), p.[ID], NULL, @Sql103, @TenantIdSql, GETDATE(), 'SHAREDATA-SEED-02'
 FROM [dbo].[ShareDataPacket] p
 WHERE (p.[Code] = '103' OR p.[Code] LIKE '103[_]%')
   AND p.[IsDelete] IS NULL
@@ -313,7 +307,6 @@ ORDER BY __lastKey ASC';
 
 UPDATE s
 SET s.[ExtractSql] = @Sql104,
-    s.[CursorTimeColumn] = N'UpdateTime',
     s.[UpdateTime] = GETDATE()
 FROM [dbo].[ShareDataSql] s
 JOIN [dbo].[ShareDataPacket] p ON p.[ID] = s.[PacketId]
@@ -325,8 +318,8 @@ WHERE (p.[Code] = '104' OR p.[Code] LIKE '104[_]%')
        OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 
-INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [CursorTimeColumn], [TenantId], [CreateTime], [CreateUId])
-SELECT LOWER(CONVERT(NVARCHAR(64), NEWID())), p.[ID], NULL, @Sql104, N'UpdateTime', @TenantIdSql, GETDATE(), 'SHAREDATA-SEED-02'
+INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [TenantId], [CreateTime], [CreateUId])
+SELECT LOWER(CONVERT(NVARCHAR(64), NEWID())), p.[ID], NULL, @Sql104, @TenantIdSql, GETDATE(), 'SHAREDATA-SEED-02'
 FROM [dbo].[ShareDataPacket] p
 WHERE (p.[Code] = '104' OR p.[Code] LIKE '104[_]%')
   AND p.[IsDelete] IS NULL
@@ -356,7 +349,6 @@ ORDER BY i.TransactionDateTime DESC';
 
 UPDATE s
 SET s.[ExtractSql] = @Sql105,
-    s.[CursorTimeColumn] = NULL,
     s.[UpdateTime] = GETDATE()
 FROM [dbo].[ShareDataSql] s
 JOIN [dbo].[ShareDataPacket] p ON p.[ID] = s.[PacketId]
@@ -368,8 +360,8 @@ WHERE (p.[Code] = '105' OR p.[Code] LIKE '105[_]%')
        OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 
-INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [CursorTimeColumn], [TenantId], [CreateTime], [CreateUId])
-SELECT LOWER(CONVERT(NVARCHAR(64), NEWID())), p.[ID], NULL, @Sql105, NULL, @TenantIdSql, GETDATE(), 'SHAREDATA-SEED-02'
+INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [TenantId], [CreateTime], [CreateUId])
+SELECT LOWER(CONVERT(NVARCHAR(64), NEWID())), p.[ID], NULL, @Sql105, @TenantIdSql, GETDATE(), 'SHAREDATA-SEED-02'
 FROM [dbo].[ShareDataPacket] p
 WHERE (p.[Code] = '105' OR p.[Code] LIKE '105[_]%')
   AND p.[IsDelete] IS NULL
@@ -397,7 +389,6 @@ ORDER BY __lastKey ASC';
 
 UPDATE s
 SET s.[ExtractSql] = @Sql106,
-    s.[CursorTimeColumn] = N'UpdateTime',
     s.[UpdateTime] = GETDATE()
 FROM [dbo].[ShareDataSql] s
 JOIN [dbo].[ShareDataPacket] p ON p.[ID] = s.[PacketId]
@@ -409,8 +400,8 @@ WHERE (p.[Code] = '106' OR p.[Code] LIKE '106[_]%')
        OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 
-INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [CursorTimeColumn], [TenantId], [CreateTime], [CreateUId])
-SELECT LOWER(CONVERT(NVARCHAR(64), NEWID())), p.[ID], NULL, @Sql106, N'UpdateTime', @TenantIdSql, GETDATE(), 'SHAREDATA-SEED-02'
+INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [TenantId], [CreateTime], [CreateUId])
+SELECT LOWER(CONVERT(NVARCHAR(64), NEWID())), p.[ID], NULL, @Sql106, @TenantIdSql, GETDATE(), 'SHAREDATA-SEED-02'
 FROM [dbo].[ShareDataPacket] p
 WHERE (p.[Code] = '106' OR p.[Code] LIKE '106[_]%')
   AND p.[IsDelete] IS NULL
@@ -446,7 +437,6 @@ ORDER BY __lastKey ASC';
 
 UPDATE s
 SET s.[ExtractSql] = @Sql107,
-    s.[CursorTimeColumn] = N'UpdateTime',
     s.[UpdateTime] = GETDATE()
 FROM [dbo].[ShareDataSql] s
 JOIN [dbo].[ShareDataPacket] p ON p.[ID] = s.[PacketId]
@@ -458,8 +448,8 @@ WHERE (p.[Code] = '107' OR p.[Code] LIKE '107[_]%')
        OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 
-INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [CursorTimeColumn], [TenantId], [CreateTime], [CreateUId])
-SELECT LOWER(CONVERT(NVARCHAR(64), NEWID())), p.[ID], NULL, @Sql107, N'UpdateTime', @TenantIdSql, GETDATE(), 'SHAREDATA-SEED-02'
+INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [TenantId], [CreateTime], [CreateUId])
+SELECT LOWER(CONVERT(NVARCHAR(64), NEWID())), p.[ID], NULL, @Sql107, @TenantIdSql, GETDATE(), 'SHAREDATA-SEED-02'
 FROM [dbo].[ShareDataPacket] p
 WHERE (p.[Code] = '107' OR p.[Code] LIKE '107[_]%')
   AND p.[IsDelete] IS NULL
@@ -486,7 +476,6 @@ LEFT JOIN TmsEquipment e ON v.EquipmentId = e.ID';
 
 UPDATE s
 SET s.[ExtractSql] = @Sql108,
-    s.[CursorTimeColumn] = NULL,
     s.[UpdateTime] = GETDATE()
 FROM [dbo].[ShareDataSql] s
 JOIN [dbo].[ShareDataPacket] p ON p.[ID] = s.[PacketId]
@@ -498,8 +487,8 @@ WHERE (p.[Code] = '108' OR p.[Code] LIKE '108[_]%')
        OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 
-INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [CursorTimeColumn], [TenantId], [CreateTime], [CreateUId])
-SELECT LOWER(CONVERT(NVARCHAR(64), NEWID())), p.[ID], NULL, @Sql108, NULL, @TenantIdSql, GETDATE(), 'SHAREDATA-SEED-02'
+INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [TenantId], [CreateTime], [CreateUId])
+SELECT LOWER(CONVERT(NVARCHAR(64), NEWID())), p.[ID], NULL, @Sql108, @TenantIdSql, GETDATE(), 'SHAREDATA-SEED-02'
 FROM [dbo].[ShareDataPacket] p
 WHERE (p.[Code] = '108' OR p.[Code] LIKE '108[_]%')
   AND p.[IsDelete] IS NULL
@@ -534,7 +523,6 @@ ORDER BY __lastKey ASC';
 
 UPDATE s
 SET s.[ExtractSql] = @Sql109,
-    s.[CursorTimeColumn] = N'UpdateTime',
     s.[UpdateTime] = GETDATE()
 FROM [dbo].[ShareDataSql] s
 JOIN [dbo].[ShareDataPacket] p ON p.[ID] = s.[PacketId]
@@ -546,8 +534,8 @@ WHERE (p.[Code] = '109' OR p.[Code] LIKE '109[_]%')
        OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 
-INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [CursorTimeColumn], [TenantId], [CreateTime], [CreateUId])
-SELECT LOWER(CONVERT(NVARCHAR(64), NEWID())), p.[ID], NULL, @Sql109, N'UpdateTime', @TenantIdSql, GETDATE(), 'SHAREDATA-SEED-02'
+INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [TenantId], [CreateTime], [CreateUId])
+SELECT LOWER(CONVERT(NVARCHAR(64), NEWID())), p.[ID], NULL, @Sql109, @TenantIdSql, GETDATE(), 'SHAREDATA-SEED-02'
 FROM [dbo].[ShareDataPacket] p
 WHERE (p.[Code] = '109' OR p.[Code] LIKE '109[_]%')
   AND p.[IsDelete] IS NULL
@@ -594,7 +582,6 @@ WHERE (i.State IS NULL OR (
 
 UPDATE s
 SET s.[ExtractSql] = @Sql110,
-    s.[CursorTimeColumn] = NULL,
     s.[UpdateTime] = GETDATE()
 FROM [dbo].[ShareDataSql] s
 JOIN [dbo].[ShareDataPacket] p ON p.[ID] = s.[PacketId]
@@ -606,8 +593,8 @@ WHERE (p.[Code] = '110' OR p.[Code] LIKE '110[_]%')
        OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 
-INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [CursorTimeColumn], [TenantId], [CreateTime], [CreateUId])
-SELECT LOWER(CONVERT(NVARCHAR(64), NEWID())), p.[ID], NULL, @Sql110, NULL, @TenantIdSql, GETDATE(), 'SHAREDATA-SEED-02'
+INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [TenantId], [CreateTime], [CreateUId])
+SELECT LOWER(CONVERT(NVARCHAR(64), NEWID())), p.[ID], NULL, @Sql110, @TenantIdSql, GETDATE(), 'SHAREDATA-SEED-02'
 FROM [dbo].[ShareDataPacket] p
 WHERE (p.[Code] = '110' OR p.[Code] LIKE '110[_]%')
   AND p.[IsDelete] IS NULL
@@ -638,7 +625,6 @@ ORDER BY __lastKey ASC';
 
 UPDATE s
 SET s.[ExtractSql] = @Sql111,
-    s.[CursorTimeColumn] = N'UpdateTime',
     s.[UpdateTime] = GETDATE()
 FROM [dbo].[ShareDataSql] s
 JOIN [dbo].[ShareDataPacket] p ON p.[ID] = s.[PacketId]
@@ -650,8 +636,8 @@ WHERE (p.[Code] = '111' OR p.[Code] LIKE '111[_]%')
        OR s.[ExtractSql] IS NULL OR LTRIM(RTRIM(s.[ExtractSql])) = '');
 SET @UpdatedRows = @@ROWCOUNT;
 
-INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [CursorTimeColumn], [TenantId], [CreateTime], [CreateUId])
-SELECT LOWER(CONVERT(NVARCHAR(64), NEWID())), p.[ID], NULL, @Sql111, N'UpdateTime', @TenantIdSql, GETDATE(), 'SHAREDATA-SEED-02'
+INSERT INTO [dbo].[ShareDataSql] ([ID], [PacketId], [PartnerId], [ExtractSql], [TenantId], [CreateTime], [CreateUId])
+SELECT LOWER(CONVERT(NVARCHAR(64), NEWID())), p.[ID], NULL, @Sql111, @TenantIdSql, GETDATE(), 'SHAREDATA-SEED-02'
 FROM [dbo].[ShareDataPacket] p
 WHERE (p.[Code] = '111' OR p.[Code] LIKE '111[_]%')
   AND p.[IsDelete] IS NULL
@@ -666,7 +652,7 @@ GO
 -- -----------------------------------------------------------------------------------------
 -- 1b. ĐIỀN BỘ BIẾN CHO CÂU MẪU CHUNG NỐI ĐUÔI CÒN TRỐNG (IDEMPOTENT)
 -- -----------------------------------------------------------------------------------------
--- Câu mẫu chung gói 101 - 111 dạng một chuỗi ghép (dùng @lastKey, không dùng @lastTime) mà chưa có bộ biến (VariablesJson trống)
+-- Câu mẫu chung gói 101 - 111 dạng một chuỗi ghép (dùng @lastKey) mà chưa có bộ biến (VariablesJson trống)
 -- thì hệ thống không nhận là câu nối đuôi và báo biến chưa khai. Điền bộ biến mốc: @lastKey theo key; thêm @pageSize = 100
 -- khi câu dùng TOP (@pageSize). Không đổi câu SQL. Dòng đã có bộ biến (kể cả rỗng) giữ nguyên; câu gộp nhiều nhóm mốc
 -- (@lastKey_<nhóm>) bỏ qua vì bộ biến theo nhóm phải khai trên giao diện.
@@ -685,55 +671,11 @@ WHERE (p.[Code] LIKE '10[1-9]' OR p.[Code] LIKE '11[01]' OR p.[Code] LIKE '10[1-
   AND p.[IsDelete] IS NULL
   AND s.[PartnerId] IS NULL
   AND s.[IsDelete] IS NULL
-  AND s.[VariablesJson] IS NULL
+  AND (s.[VariablesJson] IS NULL OR (s.[VariablesJson] LIKE N'%"lastTime"%' AND s.[ExtractSql] NOT LIKE N'%@lastTime%'))
   AND s.[ExtractSql] LIKE N'%@lastKey%'
-  AND s.[ExtractSql] NOT LIKE N'%@lastTime%'
   AND s.[ExtractSql] NOT LIKE N'%@lastKey[_]%';
 SET @FilledVars = @@ROWCOUNT;
 PRINT N'   -> Đã điền bộ biến cho ' + CAST(@FilledVars AS NVARCHAR(10)) + N' câu mẫu chung.';
-GO
-
--- -----------------------------------------------------------------------------------------
--- 1c. BỎ BIẾN lastTime THỪA KHỎI BỘ BIẾN CÂU MẪU CHUNG (IDEMPOTENT)
--- -----------------------------------------------------------------------------------------
--- Lệnh UPDATE ở bước 1 giữ VariablesJson đang có, nên DB đã có dữ liệu còn dòng lastTime thừa trên bảng tham số sau khi câu mẫu
--- chuyển sang một chuỗi ghép. Câu mẫu chung gói 101 - 111 không còn @lastTime mà bộ biến còn phần tử lastTime thì xóa đúng phần tử đó.
--- @pageSize đã sửa và các biến khác giữ nguyên (không ghi đè giá trị quản trị). Không đổi câu SQL, không đụng câu riêng của đối tác.
-PRINT N'-> 1c. Bỏ biến lastTime thừa khỏi bộ biến câu mẫu chung...';
-
-DECLARE @RemovedLastTime INT = 0;
-
-UPDATE s
-SET s.[VariablesJson] = ISNULL((
-        SELECT v.[Code], v.[Name], v.[DataType], v.[ValueKind], v.[Value], v.[DefaultValue], v.[Remark], v.[OrderNo]
-        FROM OPENJSON(s.[VariablesJson]) WITH (
-            [Code] NVARCHAR(128) '$.Code',
-            [Name] NVARCHAR(256) '$.Name',
-            [DataType] NVARCHAR(64) '$.DataType',
-            [ValueKind] NVARCHAR(64) '$.ValueKind',
-            [Value] NVARCHAR(MAX) '$.Value',
-            [DefaultValue] NVARCHAR(MAX) '$.DefaultValue',
-            [Remark] NVARCHAR(MAX) '$.Remark',
-            [OrderNo] INT '$.OrderNo'
-        ) v
-        WHERE ISNULL(v.[Code], N'') <> N'lastTime'
-        ORDER BY ISNULL(v.[OrderNo], 2147483647)
-        FOR JSON PATH, INCLUDE_NULL_VALUES
-    ), N'[]'),
-    s.[UpdateTime] = GETDATE()
-FROM [dbo].[ShareDataSql] s
-JOIN [dbo].[ShareDataPacket] p ON p.[ID] = s.[PacketId]
-WHERE (p.[Code] LIKE '10[1-9]' OR p.[Code] LIKE '11[01]' OR p.[Code] LIKE '10[1-9][_]%' OR p.[Code] LIKE '11[01][_]%')
-  AND p.[IsDelete] IS NULL
-  AND s.[PartnerId] IS NULL
-  AND s.[IsDelete] IS NULL
-  AND s.[ExtractSql] NOT LIKE N'%@lastTime%'
-  AND EXISTS (
-      SELECT 1
-      FROM OPENJSON(CASE WHEN ISJSON(s.[VariablesJson]) = 1 THEN s.[VariablesJson] END) WITH ([Code] NVARCHAR(128) '$.Code') v
-      WHERE v.[Code] = N'lastTime');
-SET @RemovedLastTime = @@ROWCOUNT;
-PRINT N'   -> Đã bỏ biến lastTime thừa ở ' + CAST(@RemovedLastTime AS NVARCHAR(10)) + N' câu mẫu chung.';
 GO
 
 -- -----------------------------------------------------------------------------------------

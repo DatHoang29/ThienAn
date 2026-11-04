@@ -11,7 +11,7 @@ GO
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 31/10/2026 (thêm ESH-1308: công thức cột mốc đổi ngoài màn hình cấu hình)
+-- CẬP NHẬT LẦN CUỐI: 03/11/2026 (mô tả ESH-1306; DB đã có mã thì giữ mô tả cũ vì tệp chỉ thêm mã chưa có); 31/10/2026 (thêm ESH-1308)
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -78,7 +78,7 @@ VALUES
      N'Kiểm tra kiểu dữ liệu hoặc giá trị khóa __lastKey.'),
     (N'ESH-1305', N'Không tìm thấy câu lệnh SQL trích xuất dữ liệu ở bất kỳ tầng nào', N'outbound', N'danger', 1305,
      N'Kiểm tra câu truy vấn SQL (ExtractSql) trong cấu hình gói tin ShareDataPacket.'),
-    (N'ESH-1306', N'Thứ tự con trỏ dữ liệu không tăng dần hoặc thiếu khóa __lastKey', N'outbound', N'danger', 1306,
+    (N'ESH-1306', N'Câu truy vấn nối đuôi sai cấu trúc (thiếu cột __lastKey, ORDER BY hoặc WHERE so mốc sai) — bỏ qua lượt gửi, giữ mốc', N'outbound', N'danger', 1306,
      N'Kiểm tra mệnh đề ORDER BY trong câu lệnh trích xuất dữ liệu.'),
     (N'ESH-1307', N'Mốc con trỏ gửi mới lùi lại so với mốc hiện tại trong CSDL', N'outbound', N'warning', 1307,
      N'Kiểm tra mốc đồng bộ con trỏ và dữ liệu thời gian.'),

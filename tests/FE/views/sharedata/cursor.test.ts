@@ -14,7 +14,6 @@ const fulfillJson = (route: Route, result: unknown) =>
 
 const pageSizeItem = { code: 'pageSize', valueKind: 'Const', value: '100', dataType: 'Int' };
 const keyItem = (savedValue: string | null, code = 'lastKey') => ({ code, valueKind: 'Builtin', value: 'lastKey', dataType: 'String', savedValue });
-const timeItem = (savedValue: string | null, code = 'lastTime') => ({ code, valueKind: 'Builtin', value: 'lastTime', dataType: 'DateTime', savedValue });
 
 const PLAIN_KEY_SQL = 'SELECT TOP (@pageSize) ID AS __lastKey FROM TmsZone WHERE ID > @lastKey ORDER BY __lastKey ASC';
 const TIME_KEY_SQL = "SELECT TOP (@pageSize) CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey FROM TmsZone WHERE CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @lastKey ORDER BY __lastKey ASC";
@@ -192,25 +191,13 @@ test.describe('ShareData — Trang Mốc gửi (cursor) @sharedata', () => {
         });
     }
 
-    test('3. Câu một chuỗi chỉ có ô mốc khóa và bắt buộc nhập; câu chưa đúng quy chuẩn mốc thì khóa Đặt mốc, vẫn Đặt lại được', async ({ page }) => {
-        await mockPartners(page, [
-            { partnerId: 'p_old', partnerCode: 'OLD2COT', partnerName: 'Đối tác câu cũ', isCustom: true },
-            { partnerId: 'p_shared1', partnerCode: 'SHARED1', partnerName: 'Đối tác dùng mẫu chung', isCustom: false },
-        ]);
-        await mockVariables(page, (partnerId) =>
-            partnerId === 'p_old' ? [pageSizeItem, timeItem('2026-10-28 08:00:00.000'), keyItem('k_100')] : [pageSizeItem, keyItem('2026-10-28 08:00:00.000_k_1')]
-        );
+    test('3. Câu một chuỗi: hộp Đặt mốc chỉ có ô ngày, hiện mốc đang chạy, chưa đổi thì không Xác nhận được', async ({ page }) => {
+        await mockPartners(page, [{ partnerId: 'p_shared1', partnerCode: 'SHARED1', partnerName: 'Đối tác dùng mẫu chung', isCustom: false }]);
+        await mockVariables(page, () => [pageSizeItem, keyItem('2026-10-28 08:00:00.000_k_1')]);
         const setPayloads = await captureSetLastSend(page);
 
         await gotoCursorPage(page);
-        const oldRow = gridRow(page, 'OLD2COT');
-        await expect(oldRow).toContainText('k_100', { timeout: 10_000 });
-
-        // Câu còn biến @lastTime: không đặt được mốc chỉ có khóa vì sẽ làm câu gửi lại từ đầu, rê chuột thấy việc cần làm
-        await expect(oldRow.locator('.sd-cursor-set-btn')).toBeDisabled();
-        await expect(oldRow.locator('.sd-cursor-reset-btn')).toBeEnabled();
-        await oldRow.locator('.sd-cursor-btn-wrapper').first().hover();
-        await expect(page.locator('.el-popper:visible', { hasText: 'chưa đúng quy chuẩn mốc' })).toBeVisible({ timeout: 5_000 });
+        await expect(gridRow(page, 'SHARED1')).toContainText('k_1', { timeout: 10_000 });
 
         const dialog = page.locator('.sd-set-cursor-dialog');
         const confirmBtn = dialog.locator('.el-dialog__footer .el-button--primary');

@@ -4,14 +4,14 @@ GO
 -- =========================================================================================
 -- FILE: sharedata-seed-cau-hinh-SysOpConfig.sql
 -- BẢNG GHI: [dbo].[SysOpConfig] — tệp chỉ thêm / sửa / xóa trên đúng bảng này; bảng khác chỉ đọc (Rule 19.103).
--- DESCRIPTION: 4.2 - 4.3 Nạp 47 tham số vận hành & giới hạn kiểm tra nhóm 'sharedata_config' (20 mã Worker, 23 mã FE, 4 mã BE);
+-- DESCRIPTION: 4.2 - 4.3 Nạp 45 tham số vận hành & giới hạn kiểm tra nhóm 'sharedata_config' (18 mã Worker, 23 mã FE, 4 mã BE);
 --                        tham số còn giá trị ở nhóm cũ 'sharedata_fe_config' (SysConfigData) thì ưu tiên giữ giá trị đó.
---              4.5 Xóa mềm các tham số không còn sử dụng (packet_lookback_days_min, packet_lookback_days_max).
+--              4.5 Xóa mềm các tham số không còn sử dụng (cleanup_enabled, cleanup_retention_days, packet_lookback_days_min, packet_lookback_days_max).
 -- THỨ TỰ CHẠY: 7 (trước hai tệp xoa-nhom-cu, vì đọc dữ liệu nhóm cũ sharedata_fe_config) (xem README.md cùng thư mục).
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 26/10/2026 (bỏ packet_lookback_days_min/max)
+-- CẬP NHẬT LẦN CUỐI: 04/11/2026 (chưa dọn tệp bằng chứng, nhật ký nghiệp vụ: không nạp cleanup_enabled, cleanup_retention_days); 26/10/2026 (bỏ packet_lookback_days_min/max)
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -32,7 +32,7 @@ DECLARE @TenantIdOp NVARCHAR(64) = (SELECT TOP 1 CAST([TenantId] AS NVARCHAR(64)
 IF @TenantIdOp IS NULL
     SET @TenantIdOp = N'Default';
 
--- 4.2 Khai báo danh sách 47 tham số nhóm sharedata_config (20 mã Worker + 23 mã FE + 4 mã BE)
+-- 4.2 Khai báo danh sách 45 tham số nhóm sharedata_config (18 mã Worker + 23 mã FE + 4 mã BE)
 DECLARE @OpConfigs TABLE (
     [Code]    NVARCHAR(128),
     [Name]    NVARCHAR(128),
@@ -43,7 +43,7 @@ DECLARE @OpConfigs TABLE (
 
 INSERT INTO @OpConfigs ([Code], [Name], [Value], [OrderNo], [Remark])
 VALUES
-    -- A. 20 tham số vận hành của ShareDataWorker
+    -- A. 18 tham số vận hành của ShareDataWorker
     (N'outbound_check_interval_sec', N'Chu kỳ quét gửi gói tin (giây)', N'5', 10,
      N'Chu kỳ vòng lặp quét gửi gói tin của Outbound Worker (giây, khoảng cho phép: 1–300).'),
     (N'inbound_check_interval_sec', N'Chu kỳ quét nhận gói tin (giây)', N'5', 11,
@@ -78,10 +78,6 @@ VALUES
      N'Số ngày giữ lịch sử thay đổi CHANGE_RETENTION khi tự bật Change Tracking cho CSDL (ngày, khoảng cho phép: 1–30).'),
     (N'cleanup_interval_min', N'Chu kỳ chạy dọn dẹp định kỳ (phút)', N'1440', 46,
      N'Chu kỳ lặp của tác vụ dọn dẹp định kỳ (phút, khoảng cho phép: 60–10080, mặc định 1440 = 24 giờ).'),
-    (N'cleanup_enabled', N'Bật dọn tệp bằng chứng và nhật ký nghiệp vụ', N'0', 44,
-     N'1 bật, 0 tắt. Khi bật, xóa hẳn tệp bằng chứng, nhật ký nghiệp vụ, cảnh báo và gói nhận đã xong cũ hơn số ngày giữ lại. Mặc định tắt.'),
-    (N'cleanup_retention_days', N'Số ngày giữ tệp bằng chứng và nhật ký nghiệp vụ', N'30', 45,
-     N'Số ngày giữ khi đã bật dọn (ngày, khoảng cho phép: 7–3650, mặc định 30).'),
     (N'reload_interval_sec', N'Chu kỳ nạp lại cấu hình và danh sách bảng nguồn (giây)', N'30', 47,
      N'Chu kỳ nạp lại cấu hình vận hành và danh sách bảng nguồn từ CSDL (giây, khoảng cho phép: 5–3600, mặc định 30).'),
 
@@ -191,12 +187,12 @@ SET [IsDelete] = GETDATE(),
     [Status] = 0,
     [UpdateTime] = GETDATE()
 WHERE [GroupCode] = N'sharedata_config'
-  AND [Code] IN (N'packet_lookback_days_min', N'packet_lookback_days_max')
+  AND [Code] IN (N'cleanup_enabled', N'cleanup_retention_days', N'packet_lookback_days_min', N'packet_lookback_days_max')
   AND [IsDelete] IS NULL;
 
 DECLARE @SoftDeletedUnusedOpConfigs INT = @@ROWCOUNT;
 IF @SoftDeletedUnusedOpConfigs > 0
-    PRINT N'   -> Đã xóa mềm ' + CAST(@SoftDeletedUnusedOpConfigs AS NVARCHAR(10)) + N' tham số SysOpConfig không còn sử dụng (packet_lookback_days_min, packet_lookback_days_max).';
+    PRINT N'   -> Đã xóa mềm ' + CAST(@SoftDeletedUnusedOpConfigs AS NVARCHAR(10)) + N' tham số SysOpConfig không còn sử dụng (cleanup_enabled, cleanup_retention_days, packet_lookback_days_min, packet_lookback_days_max).';
 
 SET NOEXEC OFF;
 GO

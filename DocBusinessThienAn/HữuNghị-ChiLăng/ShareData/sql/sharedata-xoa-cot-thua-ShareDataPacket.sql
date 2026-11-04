@@ -1,6 +1,6 @@
 -- ==============================================================================
 -- BẢNG GHI: ShareDataPacket
--- THỨ TỰ CHẠY: 1
+-- THỨ TỰ CHẠY: D1, sau sharedata-seed-goi-tin-ShareDataSql.sql (tệp đó chuyển ExtractSql, CursorTimeColumn cũ sang ShareDataSql) (xem README.md).
 -- MÔ TẢ: Xóa các cột thừa không còn dùng trong Entity ShareDataPacket trên CSDL Staging (10.10.8.30)
 -- CÁC CỘT LOẠI BỎ: ExtractSql, TemplateSql, CursorTimeColumn, SyncMode, MaxLookBackDays
 -- THỰC HIỆN: 30/10/2026

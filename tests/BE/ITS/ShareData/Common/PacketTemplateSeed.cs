@@ -11,8 +11,7 @@ internal static class PacketTemplateSeed
     /// </summary>
     public sealed record PacketTemplateInfo(
         string Code,
-        string ExtractSql,
-        string? CursorTimeColumn);
+        string ExtractSql);
 
     /// <summary>
     /// Danh sách mẫu chuẩn theo thứ tự mã gói.
@@ -21,8 +20,7 @@ internal static class PacketTemplateSeed
         .OrderBy(x => x.Code, StringComparer.Ordinal)
         .Select(x => new PacketTemplateInfo(
             x.Code,
-            x.ExtractSql,
-            x.CursorTimeColumn))
+            x.ExtractSql))
         .ToList();
 
     /// <summary>

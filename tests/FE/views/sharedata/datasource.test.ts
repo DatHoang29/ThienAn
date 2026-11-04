@@ -175,6 +175,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await packetGrid.locator('.vxe-table--main-wrapper .vxe-body--row').first().click();
         const fieldGrid = page.locator('.field-col .vxe-grid');
         await expect(fieldGrid).toBeVisible({ timeout: 10_000 });
+        await expect(page.locator('.packet-details-wrapper.is-switching')).toHaveCount(0, { timeout: 10_000 });
 
         const fieldResizers = fieldGrid.locator('.vxe-table--header-wrapper .vxe-header--column .vxe-resizable');
         await expect(fieldResizers.first()).toBeAttached();
@@ -183,14 +184,16 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
 
         // Kéo dãn cột trên bảng Trường gói tin (chờ layout ổn định: bảng nằm dưới phần SQL nên chỉ cần vị trí không còn đổi và nằm trong màn hình)
         const targetFieldCol = fieldGrid.locator('.vxe-table--header-wrapper .vxe-header--column:has(.vxe-resizable):visible').first();
-        let lastFieldY = -1;
+        let lastFieldBox = { x: -1, y: -1, width: -1 };
         await expect(async () => {
             const box = await targetFieldCol.boundingBox();
             expect(box).not.toBeNull();
             expect(box!.y).toBeLessThan(page.viewportSize()!.height - 50);
-            const prev = lastFieldY;
-            lastFieldY = box!.y;
-            expect(Math.abs(box!.y - prev)).toBeLessThan(1);
+            const prev = lastFieldBox;
+            lastFieldBox = { x: box!.x, y: box!.y, width: box!.width };
+            expect(Math.abs(box!.x - prev.x)).toBeLessThan(1);
+            expect(Math.abs(box!.y - prev.y)).toBeLessThan(1);
+            expect(Math.abs(box!.width - prev.width)).toBeLessThan(1);
         }).toPass({ timeout: 10_000 });
 
         const targetFieldResizer = targetFieldCol.locator('.vxe-resizable');
@@ -514,8 +517,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
      */
     test('51. Tham số khóa nối đuôi @lastKey: giao diện thích ứng Mẫu chung vs Đối tác', async ({ page }) => {
         const compositeSql =
-            "SELECT TOP (@pageSize) Code AS zoneCode, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey " +
-            "FROM TmsZone WHERE (CONVERT(varchar(23), UpdateTime, 121) + '_' + ID) > @lastKey ORDER BY __lastKey ASC";
+            "SELECT TOP (@pageSize) Code AS zoneCode, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey " +
+            "FROM TmsZone WHERE (CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID) > @lastKey ORDER BY __lastKey ASC";
         const commonItems = [
             {
                 code: 'lastKey',
@@ -631,27 +634,26 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
     });
 
     /**
-     * Description: Cột giá trị của @lastKey theo mốc của đối tác: tab Mẫu chung chỉ đặt mốc bắt đầu, không có nút sửa;
-     *              tab đối tác đã có mốc thì ô ngày khóa hiện thời điểm của mốc, nút sửa mở hộp Đặt mốc điền sẵn mốc đó và chỉ cho Xác nhận khi đã đổi,
-     *              đặt xong ô ngày đổi theo; đăng ký gửi đang bật thì nút sửa khóa; chưa có mốc thì ô ngày chọn được, không có nút sửa.
+     * Description: Cột giá trị của @lastKey chỉ đặt mốc bắt đầu ở cả tab Mẫu chung lẫn tab đối tác: đối tác đã có mốc đang chạy
+     *              (kể cả khi đăng ký gửi đang bật) vẫn hiện ô ngày chọn được, không hiện mốc đang chạy, không có nút sửa, không gọi API đặt mốc;
+     *              xem và sửa mốc đang chạy ở trang Mốc gửi.
      * Created date: 03/11/2026
      */
     const cursorCellCases = [
-        { name: '72a. Đối tác đã có mốc: ô ngày khóa, nút sửa mở Đặt mốc điền sẵn, đặt xong ô ngày đổi theo', savedValue: '2026-10-27 10:05:00.000_Z02', locked: false },
-        { name: '72b. Đối tác đã có mốc và đăng ký gửi đang bật: nút sửa khóa, rê chuột thấy cần tắt đăng ký', savedValue: '2026-10-27 10:05:00.000_Z02', locked: true },
+        { name: '72a. Đối tác đã có mốc đang chạy: ô ngày vẫn là mốc bắt đầu, không hiện mốc đang chạy, không có nút sửa', savedValue: '2026-10-27 10:05:00.000_Z02', locked: false },
+        { name: '72b. Đối tác đã có mốc và đăng ký gửi đang bật: không hiện mốc đang chạy, không có nút sửa', savedValue: '2026-10-27 10:05:00.000_Z02', locked: true },
         { name: '72c. Đối tác chưa có mốc: ô ngày chọn được, không có nút sửa', savedValue: null, locked: false },
     ];
     for (const c of cursorCellCases) {
         test(c.name, async ({ page }) => {
             const sql =
-                "SELECT TOP (@pageSize) Code AS zoneCode, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey " +
-                "FROM TmsZone WHERE CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @lastKey ORDER BY __lastKey ASC";
+                "SELECT TOP (@pageSize) Code AS zoneCode, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey " +
+                "FROM TmsZone WHERE CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID > @lastKey ORDER BY __lastKey ASC";
             const items = (savedValue: string | null) => [
                 { code: 'pageSize', dataType: 'Int', valueKind: 'Const', value: '100', defaultValue: null, savedValue: null },
                 { code: 'lastKey', dataType: 'String', valueKind: 'Builtin', value: 'lastKey', defaultValue: null, savedValue },
             ];
             const fulfill = (route: any, result: unknown) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result }) });
-            let currentCursor = c.savedValue;
             const setPayloads: any[] = [];
 
             await page.route('**/api/sharedata/sharedatapacket/getsqldetail*', (route) =>
@@ -667,16 +669,14 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
             await page.route('**/api/sharedata/sharedatapacket/getsqlvariables*', (route) => {
                 const url = new URL(route.request().url());
                 const partnerId = url.searchParams.get('PartnerId') ?? url.searchParams.get('partnerId');
-                return fulfill(route, { items: items(partnerId === 'p_a' ? currentCursor : null) });
+                return fulfill(route, { items: items(partnerId === 'p_a' ? c.savedValue : null) });
             });
             await page.route('**/api/sharedata/sharedatapacket/getpartnerextractsql*', (route) =>
                 fulfill(route, { isCustom: true, customSql: sql, standardSql: sql, fields: [{ key: 'zoneCode', type: 'string', label: 'Mã khu vực', required: true }], commonFields: [] })
             );
             await page.route('**/api/sharedata/sharedatasubscription/list*', (route) => fulfill(route, c.locked ? [{ partnerId: 'p_a', direction: 0, datatypeId: 'PKT_01' }] : []));
             await page.route('**/api/sharedata/sharedatapacket/setlastsend*', (route) => {
-                const body = route.request().postDataJSON();
-                setPayloads.push(body);
-                currentCursor = body.lastKey;
+                setPayloads.push(route.request().postDataJSON());
                 return fulfill(route, null);
             });
 
@@ -702,39 +702,12 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
             await partnerTab.click();
             await expect(mainTable.locator('thead th')).toHaveCount(4);
 
-            if (!c.savedValue) {
-                await expect(picker).toBeEnabled();
-                await expect(picker).toHaveValue('');
-                await expect(editBtn).toHaveCount(0);
-                return;
-            }
-
-            await expect(picker).toHaveValue('27/10/2026 10:05:00', { timeout: 10_000 });
-            await expect(picker).toBeDisabled();
-
-            if (c.locked) {
-                await expect(editBtn).toBeDisabled();
-                await mainTable.locator('.cvi-edit-wrapper').hover();
-                await expect(page.locator('.el-popper:visible', { hasText: 'Tắt đăng ký trước khi đặt mốc' })).toBeVisible({ timeout: 5_000 });
-                return;
-            }
-
-            await editBtn.click();
-            const dialog = page.locator('.sd-set-cursor-dialog');
-            const confirmBtn = dialog.locator('.el-dialog__footer .el-button--primary');
-            await expect(dialog.locator('.sd-cursor-current')).toContainText('2026-10-27 10:05:00.000_Z02', { timeout: 10_000 });
-            await expect(dialog.locator('.cvi-picker input')).toHaveValue('27/10/2026 10:05:00');
-            await expect(confirmBtn).toBeDisabled();
-
-            await dialog.locator('.cvi-picker input').fill('28/10/2026 08:00:00');
-            await page.keyboard.press('Enter');
-            await expect(confirmBtn).toBeEnabled();
-            await confirmBtn.click();
-            await expect.poll(() => setPayloads.length).toBe(1);
-            expect(setPayloads[0]).toMatchObject({ partnerId: 'p_a', lastKey: '2026-10-28 08:00:00.000_' });
-            await expect(dialog).toBeHidden();
-            await expect(picker).toHaveValue('28/10/2026 08:00:00', { timeout: 10_000 });
-            await expect(picker).toBeDisabled();
+            await expect(picker).toHaveValue('');
+            await expect(picker).toHaveAttribute('placeholder', /Gửi toàn bộ/);
+            await expect(editBtn).toHaveCount(0);
+            await expect(mainTable).not.toContainText('Z02');
+            await expect(page.locator('.sd-set-cursor-dialog')).toHaveCount(0);
+            expect(setPayloads).toHaveLength(0);
         });
     }
 
@@ -751,8 +724,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         });
 
         const compositeSql =
-            "SELECT TOP (@pageSize) Code AS zoneCode, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey " +
-            "FROM TmsZone WHERE (CONVERT(varchar(23), UpdateTime, 121) + '_' + ID) > @lastKey ORDER BY __lastKey ASC";
+            "SELECT TOP (@pageSize) Code AS zoneCode, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey " +
+            "FROM TmsZone WHERE (CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID) > @lastKey ORDER BY __lastKey ASC";
         const commonItems = [
             {
                 code: 'lastKey',
@@ -908,8 +881,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
     for (const c of cursorCheckCases) {
         test(`65. Quy chuẩn mốc ${c.name}: bóng đèn ${c.lit ? 'sáng vàng' : 'tắt'}, mỗi tiêu chí xanh/đỏ theo kết quả riêng`, async ({ page }) => {
             const sql =
-                "SELECT TOP (@pageSize) Code AS zoneCode, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey " +
-                `FROM TmsZone WHERE (CONVERT(varchar(23), UpdateTime, 121) + '_' + ID) > @lastKey ${c.orderBy}`;
+                "SELECT TOP (@pageSize) Code AS zoneCode, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey " +
+                `FROM TmsZone WHERE (CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID) > @lastKey ${c.orderBy}`;
             const items = [
                 { code: 'lastKey', dataType: 'String', valueKind: 'Builtin', value: 'lastKey', defaultValue: null, savedValue: null },
                 { code: 'pageSize', dataType: 'Int', valueKind: 'Const', value: '100', defaultValue: null, savedValue: null },
@@ -1166,7 +1139,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(standardTab).toHaveClass(/is-active/);
 
         // 1. Sửa tham số để tạo trạng thái chưa lưu (dirty)
-        const paramInput = page.locator('.sql-variable-panel .svp-const-input input').first();
+        const paramInput = page.locator('.sql-variable-panel .el-table__body .svp-const-input input').first();
         await paramInput.scrollIntoViewIfNeeded();
         await expect(paramInput).toBeVisible({ timeout: 10_000 });
         const domInfo = await page.evaluate(() => {
@@ -1265,8 +1238,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
      */
     test('53. Điều tra hiện tượng giật width của thanh active-bar khi chuyển tab đối tác', async ({ page }) => {
         const compositeSql =
-            "SELECT TOP (@pageSize) Code AS zoneCode, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey " +
-            "FROM TmsZone WHERE (CONVERT(varchar(23), UpdateTime, 121) + '_' + ID) > @lastKey ORDER BY __lastKey ASC";
+            "SELECT TOP (@pageSize) Code AS zoneCode, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey " +
+            "FROM TmsZone WHERE (CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID) > @lastKey ORDER BY __lastKey ASC";
 
         await page.route('**/api/sharedata/sharedatapacket/getsqldetail*', (route) =>
             route.fulfill({
@@ -1347,7 +1320,9 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
             const bar = tabs?.querySelector('.el-tabs__active-bar') as HTMLElement;
             const items = () => Array.from(tabs?.querySelectorAll('.el-tabs__item') || []) as HTMLElement[];
 
-            let start = performance.now();
+            // Mốc giờ lấy theo khung hình (đối số của requestAnimationFrame) vì hiệu ứng CSS tính theo giờ khung hình;
+            // performance.now() lúc hàm chạy lệch khỏi giờ khung hình khi máy bận nên phóng đại bước nhảy
+            let start: number | null = null;
             let recording = true;
 
             // MutationObserver theo dõi mọi lần style của bar bị ghi đè
@@ -1355,7 +1330,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
                 const mo = new MutationObserver((mutations) => {
                     for (const m of mutations) {
                         if (m.type === 'attributes' && m.attributeName === 'style') {
-                            const now = performance.now() - start;
+                            const now = performance.now() - (start ?? performance.now());
                             styleMutations.push({
                                 t: Math.round(now),
                                 widthStyle: bar.style.width,
@@ -1369,9 +1344,10 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
                 mo.observe(bar, { attributes: true, attributeFilter: ['style'] });
             }
 
-            const capture = () => {
+            const capture = (frameTime: number) => {
                 if (!recording) return;
-                const now = performance.now() - start;
+                if (start === null) start = frameTime;
+                const now = frameTime - start;
                 const barRect = bar ? bar.getBoundingClientRect() : null;
                 const csBar = bar ? window.getComputedStyle(bar) : null;
                 const itemSnapshots = items().map((it) => {
@@ -1420,6 +1396,10 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         console.log('--- Bấm Mẫu chung ---');
         await stdTab.click();
         await page.waitForTimeout(600);
+        // Chờ thanh dừng hẳn ở tab Mẫu chung rồi mới chốt số liệu, không dựa vào thời gian chờ cố định
+        await expect
+            .poll(() => partnerTabs.locator('.el-tabs__active-bar').evaluate((el) => (el as HTMLElement).style.width), { timeout: 10_000 })
+            .toBe('67px');
 
         // Lấy toàn bộ records và mutations
         const { records, mutations } = await logHandle.evaluate((m) => {
@@ -2224,8 +2204,9 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
     /**
      * Description: Câu sai cấu trúc (__lastKey chưa ghép thời gian, còn @lastTime): dải Quy chuẩn mốc chưa đạt kèm cách sửa; cột Nguồn chỉ là chữ theo tên biến, ô ngày khóa,
      *              không có câu nhắc dạng trước đó; bấm Sửa câu ở dòng @lastKey thì đạt 3/3, dòng @lastTime tự bỏ, ô ngày chọn được.
+     *              Bảng chọn ngày gọn (không quá 360 x 340 px), lịch không tràn khung.
      * Created date: 29/10/2026
-     * Modified date: 03/11/2026
+     * Modified date: 04/11/2026
      */
     test('63. Câu sai cấu trúc: không có ô chọn nguồn, ô ngày khóa, bấm Sửa câu thì đạt quy chuẩn và chọn được ngày', async ({ page }) => {
         const twoColumnSql =
@@ -2271,30 +2252,63 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         const popover = page.locator('.svp-popover-content');
         await expect(popover.locator('.svp-popover-item')).toHaveCount(3);
         // Mục chưa đạt chỉ rõ cách sửa, lấy đúng cột trong câu đang soạn
-        await expect(popover.locator('.svp-fix-code').first()).toContainText("CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey");
-        await expect(popover.locator('.svp-fix-code').nth(1)).toContainText("WHERE CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @lastKey");
+        await expect(popover.locator('.svp-fix-code').first()).toContainText("CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey");
+        await expect(popover.locator('.svp-fix-code').nth(1)).toContainText("WHERE CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID > @lastKey");
         await expect(popover.locator('.svp-fix-code').nth(2)).toContainText('ORDER BY __lastKey ASC');
         await expect(popover.locator('.svp-popover-item', { hasText: 'Có cột mốc __lastKey' })).toHaveClass(/is-fail/);
         await expect(popover.locator('.svp-popover-item', { hasText: 'Chỉ lọc mốc theo @lastKey' })).toHaveClass(/is-fail/);
 
         const table = panel.locator('.svp-table').first();
+        await expect(panel.locator('.svp-inline-banner')).toHaveCount(0);
+
         const lastTimeRow = table.locator('tbody tr', { hasText: '@lastTime' });
         const lastKeyRow = table.locator('tbody tr', { hasText: '@lastKey' });
         await expect(lastTimeRow).toContainText('tự bỏ khi sửa câu');
-        await expect(lastKeyRow).toContainText('Nối tiếp lần trước');
+        await expect(lastKeyRow).toContainText('Nối tiếp lần trước theo key');
+        await expect(lastKeyRow.locator('.svp-source-col-tag')).toHaveCount(0);
+        // Kiểm tra ô chọn Nguồn giá trị (.svp-source-select) của @lastKey hiển thị trên đúng 1 dòng, không bị rớt dòng
+        const isSourceSingleLine = await lastKeyRow.locator('.svp-source-select .el-select__placeholder').evaluate((el) => {
+            const style = window.getComputedStyle(el);
+            return style.whiteSpace === 'nowrap' && el.getBoundingClientRect().height <= 28;
+        });
+        expect(isSourceSingleLine).toBe(true);
         await expect(table.locator('tbody tr', { hasText: '@pageSize' })).toContainText('Giá trị nhập');
-        await expect(table.locator('.el-select')).toHaveCount(0);
+        await expect(table.locator('.svp-source-select')).toHaveCount(3);
         await expect(lastKeyRow.locator('.cvi-picker input')).toBeDisabled();
         await expect(lastKeyRow.locator('.cvi-picker input')).toHaveAttribute('placeholder', /Cần sửa câu/);
+        await expect(lastKeyRow.locator('.cvi-fix')).toHaveCount(0);
         await expect(panel).not.toContainText('không còn dùng');
         await expect(panel).not.toContainText('Gửi toàn bộ dữ liệu');
 
-        // Sửa câu ngay tại dòng @lastKey: đạt quy chuẩn, dòng @lastTime tự bỏ, ô ngày chọn được
-        await lastKeyRow.locator('.cvi-fix').click();
+        // Trong popup chỉ có duy nhất 1 nút Sửa câu (không có Sửa tất cả + Sửa từng mục gây rối)
+        await expect(popover.locator('button')).toHaveCount(1);
+        await popover.locator('.svp-fix-all').click();
         await expect(lead).toContainText('(3/3)', { timeout: 10_000 });
         await expect(lastTimeRow).toHaveCount(0);
+        await expect(lastKeyRow.locator('.cvi-prefix-label')).toContainText('Mốc lần đầu:');
+        await expect(lastKeyRow.locator('.cvi-picker')).not.toHaveClass(/is-all-data/);
         await expect(lastKeyRow.locator('.cvi-picker input')).toBeEnabled();
         await expect(lastKeyRow.locator('.cvi-picker input')).toHaveAttribute('placeholder', /Gửi toàn bộ/);
+        const isValueSingleLine = await lastKeyRow.locator('.cvi-wrap').evaluate((el) => {
+            const style = window.getComputedStyle(el);
+            return style.flexWrap === 'nowrap' && el.getBoundingClientRect().height <= 32;
+        });
+        expect(isValueSingleLine).toBe(true);
+
+        // Mở lịch chọn ngày: các mốc chọn nhanh bên trái (Đầu ngày hôm nay, Đầu ngày hôm qua...) nằm trọn trên 1 dòng, không rớt dòng
+        await lastKeyRow.locator('.cvi-picker input').click();
+        const shortcuts = page.locator('.cvi-date-popper:visible .el-picker-panel__shortcut');
+        await expect(shortcuts.first()).toBeVisible();
+        const allShortcutsSingleLine = await shortcuts.evaluateAll((els) =>
+            els.every((el) => window.getComputedStyle(el).whiteSpace === 'nowrap' && el.getBoundingClientRect().height <= 32 && el.scrollWidth <= el.clientWidth + 1)
+        );
+        expect(allShortcutsSingleLine).toBe(true);
+        const datePanel = page.locator('.cvi-date-popper:visible .el-date-picker');
+        const datePanelBox = await datePanel.boundingBox();
+        expect(datePanelBox!.width).toBeLessThanOrEqual(360);
+        expect(datePanelBox!.height).toBeLessThanOrEqual(340);
+        const calendarFits = await datePanel.locator('.el-picker-panel__content').evaluate((el) => el.scrollWidth <= el.clientWidth + 1);
+        expect(calendarFits).toBe(true);
     });
 
     /**
@@ -2303,8 +2317,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
      */
     test('63b. Câu đúng chuẩn có thêm @lastTime riêng: là Giá trị nhập, đạt quy chuẩn', async ({ page }) => {
         const sql =
-            "SELECT TOP (@pageSize) ID AS zoneId, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey FROM TmsZone " +
-            "WHERE CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @lastKey AND UpdateTime >= @lastTime ORDER BY __lastKey ASC";
+            "SELECT TOP (@pageSize) ID AS zoneId, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey FROM TmsZone " +
+            "WHERE CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID > @lastKey AND UpdateTime >= @lastTime ORDER BY __lastKey ASC";
         const fulfill = (route: any, result: unknown) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result }) });
         await page.route('**/api/sharedata/sharedatapacket/getsqldetail*', (route) =>
             fulfill(route, {
@@ -2335,6 +2349,30 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(lastTimeRow).toContainText('Giá trị nhập');
         await expect(lastTimeRow.locator('.svp-const-input input')).toBeVisible();
         await expect(table.locator('tbody tr', { hasText: '@lastKey' }).locator('.cvi-picker input')).toBeEnabled();
+
+        // Khi câu SQL mẫu chung không còn @lastTime (chỉ có @pageSize và @lastKey) nhưng VariablesJson cũ vẫn còn lastTime: bảng tham số tự lọc bỏ @lastTime
+        const sqlWithoutLastTime =
+            "SELECT TOP (@pageSize) ID AS zoneId, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey FROM TmsZone " +
+            "WHERE CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID > @lastKey ORDER BY __lastKey ASC";
+        await page.route('**/api/sharedata/sharedatapacket/getsqldetail*', (route) =>
+            fulfill(route, {
+                extract: { extractSql: sqlWithoutLastTime, status: 1, fields: [{ key: 'zoneId', type: 'string', label: 'Mã khu vực', required: true }] },
+                variables: {
+                    items: [
+                        { code: 'pageSize', valueKind: 'Const', value: '100', dataType: 'Int', orderNo: 1 },
+                        { code: 'lastTime', valueKind: 'Builtin', value: 'lastTime', dataType: 'DateTime', orderNo: 2 },
+                        { code: 'lastKey', valueKind: 'Builtin', value: 'lastKey', dataType: 'String', orderNo: 3 },
+                    ],
+                },
+                write: { packetCode: '101_commonData', writeSql: '', affectedTables: [], detectedTables: [], keyFields: [] },
+            })
+        );
+        await page.reload();
+        await expect(firstRow).toBeVisible({ timeout: 30_000 });
+        await firstRow.click();
+        await expect(lead).toContainText('(3/3)', { timeout: 10_000 });
+        await expect(table.locator('tbody tr', { hasText: '@lastTime' })).toHaveCount(0);
+        await expect(table.locator('.svp-param-code')).toHaveText(['@pageSize', '@lastKey']);
     });
 
     /**

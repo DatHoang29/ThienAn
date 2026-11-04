@@ -2,6 +2,8 @@
 
 > **Quyết định hiện hành đã chốt 14/10/2026:** **105 mặc định Snapshot** theo [mapping 105 `All/update`](../doc/02-mapping-goi-tin-101-111.md), có setting chọn Snapshot/Incremental và Worker dùng setting đã lưu. Không có trần TOP cứng. **110 được tạo/cấu hình bình thường**, triển khai bảng/dữ liệu mô phỏng để thông luồng. Viết sẵn code Kafka producer, CSV/FTP, mã hóa, cleanup theo cấu hình; Playwright phải chạy sau sửa FE. Phần rà soát ngày 12/10 phía cuối là ảnh chụp lịch sử, không dùng mô tả trần 100 dòng/NotReady ở đó làm yêu cầu hiện tại. Yêu cầu mới chưa đồng nghĩa đã triển khai; tiến độ ở [MasterPlan](../Plan/Sharedata_MasterPlan.md).
 
+> **Mã cảnh báo đã đổi số sau khi lập tài liệu (cập nhật 04/11/2026):** các mã ESH trong tài liệu theo bản 06/10/2026. Hiện hành: chiều gửi ESH-1204 bộ khung sai (trước là 1206), ESH-1303 thiếu ánh xạ (trước là 1304), ESH-1304 khóa quá dài (trước là 1305), ESH-1401 gửi lỗi (trước là 1402), ESH-1402 lưu bằng chứng lỗi (trước là 1401); chiều nhận ESH-1501 lỗi bóc gói, ESH-1502 lỗi ghi, ESH-1503 không thấy gói, ESH-1504 đối tác sai, ESH-1505 không có đăng ký, ESH-1506 thiếu câu ghi, ESH-1507 lỗi giải mã. Danh sách đầy đủ ở `ShareDataAlertCode.cs`.
+
 > **Phiên bản:** 1.0 · **Ngày lập:** 06/10/2026  
 > **Phân hệ:** Chia sẻ Dữ liệu — Dự án Cao tốc Hữu Nghị – Chi Lăng  
 > **Dịch vụ & Ứng dụng thực thi:**  
@@ -74,7 +76,7 @@ flowchart TD
   - `ShareDataCodeSet`: Bảng mã quy đổi giá trị nội bộ ⇄ đối tác.
   - `ShareDataPacket`: Danh mục 10 loại gói tin (101–110).
   - `ShareDataPacketField`: Danh mục các trường dữ liệu của từng gói tin.
-  - `ShareDataPacketSql`: Danh mục bí danh và câu truy vấn mẫu.
+  - `ShareDataSql`: Câu truy vấn mẫu chung và câu riêng đối tác, kèm danh sách trường (`FieldsJson`), bộ biến (`VariablesJson`) và câu ghi chiều nhận (`WriteSql`).
 - **Nhóm bảng nhật ký & giám sát (Lưu trực tiếp trong `DEV_ITS10`):**
   - `ShareDataActivityLog`: Nhật ký truyền nhận (dòng cha và các bước con).
   - `ShareDataAlertLog`: Cảnh báo sự cố (mã lỗi ESH).
@@ -95,7 +97,7 @@ flowchart TD
 #### 2. CSDL `DEV_ITS10_Inbound` (Tiếp nhận dữ liệu đối tác - CSDL độc lập)
 - **Nhóm bảng điều phối tiếp nhận:**
   - `ShareDataInboundPacket`: Hàng đợi lưu trữ nguyên văn chuỗi JSON thô do đối tác gửi lên, trạng thái xử lý (`Pending`, `Done`, `Failed`), kèm `ReceiveLogId` liên kết dòng log cha.
-  - `ShareDataPacketSql` (cột `WriteSql`): Cấu hình danh sách các câu lệnh SQL `MERGE` / `OPENJSON` ghi vào bảng đích, chạy theo `OrderNo`.
+  - `ShareDataSql` (cột `WriteSql`): Khối lệnh SQL `MERGE` / `OPENJSON` ghi vào bảng đích, chạy trong một giao dịch.
 - **Nhóm bảng lưu trữ dữ liệu nhận nghiệp vụ:**
   - `TmsZone`, `TmsTrafficStatistic`, `TmsZoneStatus` (Dữ liệu giao thông nhận về)
   - `TmsEquipment`, `CctvDevice` (Dữ liệu camera nhận về)
@@ -215,7 +217,7 @@ Dành cho BA và QC kiểm tra toàn bộ vòng đời khi đối tác bên ngo�
 ### 4.1 Điều kiện tiên quyết (Prerequisites)
 1. **Đối tác (Partner):** Đã khai báo mã định danh `PartnerCode` trong hệ thống.
 2. **Hồ sơ ánh xạ (Mapping):** Nên có **1 hồ sơ chiều Nhận về (`Inbound`) hoặc Hai chiều (`Both`) đang BẬT (`Đang dùng`)** để bóc tách theo khuôn. *Không bắt buộc:* nếu thiếu, Worker vẫn xử lý bằng cách đọc mảng đối tượng phẳng trong JSON.
-3. **Cấu hình câu ghi (`ShareDataPacketSql.WriteSql`):** Bắt buộc đã khai báo ít nhất 1 câu ghi (đang bật) cho gói tin tương ứng; thiếu thì gói `Failed` với `ESH-1509`.
+3. **Cấu hình câu ghi (`ShareDataSql.WriteSql`):** Bắt buộc đã khai báo câu ghi cho gói tin tương ứng; thiếu thì gói `Failed` với `ESH-1506`.
 
 ---
 
@@ -264,7 +266,7 @@ flowchart TD
 - **Quy đổi mã ngược (CodeSet):** Chuyển đổi mã đối tác sang giá trị nội bộ (ví dụ: `"CONGESTION"` $\rightarrow$ `1`). Nếu đối tác không gửi giá trị thì điền giá trị nội bộ mặc định (`defaultSourceValue`).
 
 #### Bước 3: Thực thi ghi dữ liệu vào CSDL Inbound
-- Chạy các câu lệnh ghi tương ứng theo thứ tự `OrderNo` khai báo trong `ShareDataPacketSql` (cột `WriteSql`).
+- Chạy khối lệnh ghi khai trong `ShareDataSql` (cột `WriteSql`).
 - 🔒 **Nguyên tắc an toàn dữ liệu:** Toàn bộ dữ liệu nhận về **chỉ được ghi vào CSDL riêng biệt `DEV_ITS10_Inbound`**, tuyệt đối **không** ghi trực tiếp vào CSDL vận hành chính `DEV_ITS10`.
 - **Giao dịch toàn vẹn (Transaction):** Mọi thao tác ghi của một gói tin được bọc trong 1 Transaction duy nhất:
   - Nếu thành công: Xác nhận lưu dữ liệu vào các bảng đích, chuyển trạng thái gói tin sang `Done`.
@@ -312,7 +314,7 @@ Tài liệu này cung cấp bộ tiêu chí nghiệm thu toàn trình (End-to-En
 | Mã AC | Tên kịch bản | Điều kiện kích hoạt | Kết quả mong đợi (Pass Criteria) | Nơi kiểm tra & Bằng chứng |
 | :--- | :--- | :--- | :--- | :--- |
 | **AC-IN-01** | **Tiếp nhận gói tin qua HTTP POST (Phản hồi tức thì)** | - Đối tác gửi HTTP POST tới endpoint WebAPI (`/api/sharedata/inbound`).<br/>- Header mang đủ: `PartnerCode`, `PacketCode`, `SerialNbr`.<br/>- Body là chuỗi JSON hợp lệ. | 1. WebAPI phản hồi tức thì **`HTTP 200 OK`** (thời gian đáp ứng $\le$ 500ms).<br/>2. Gói tin được lưu nguyên văn vào bảng `ShareDataInboundPacket` (CSDL `DEV_ITS10_Inbound`) với `ProcessState = Pending`.<br/>3. Bảng `ShareDataActivityLog` ghi nhận dòng log cha ở trạng thái `Queued`. | - Công cụ test API (Postman / cURL).<br/>- Bảng `ShareDataInboundPacket` trên CSDL `DEV_ITS10_Inbound`. |
-| **AC-IN-02** | **Worker bóc tách & nạp CSDL an toàn (Happy Path)** | - Có bản ghi `Pending` trong bảng đệm `ShareDataInboundPacket`.<br/>- Đăng ký nhận đang Hoạt động.<br/>- Đã có câu lệnh ghi `WriteSql` trong bảng `ShareDataPacketSql`. | 1. Background Worker tự động quét gói tin theo thứ tự `SerialNbr ASC`.<br/>2. Bóc tách JSON theo hồ sơ ánh xạ (hoặc mảng phẳng nếu không có hồ sơ).<br/>3. Quy đổi ngược bộ mã (ví dụ `"CONGESTION"` $\rightarrow$ `1`).<br/>4. Thực thi nạp dữ liệu thành công vào đúng bảng nghiệp vụ trên CSDL `DEV_ITS10_Inbound`.<br/>5. Trạng thái bản ghi đệm chuyển sang `ProcessState = Done`.<br/>6. Log cha cập nhật `Result = 1` (Thành công) kèm log con Step 2 hoàn thành. | - Bảng dữ liệu nghiệp vụ trên `DEV_ITS10_Inbound` (ví dụ `TmsWeather`, `TmsTrafficData`...).<br/>- Bảng `ShareDataInboundPacket` (`ProcessState = Done`).<br/>- Màn hình **Nhật ký** (tab Truyền nhận). |
+| **AC-IN-02** | **Worker bóc tách & nạp CSDL an toàn (Happy Path)** | - Có bản ghi `Pending` trong bảng đệm `ShareDataInboundPacket`.<br/>- Đăng ký nhận đang Hoạt động.<br/>- Đã có câu lệnh ghi `WriteSql` trong bảng `ShareDataSql`. | 1. Background Worker tự động quét gói tin theo thứ tự `SerialNbr ASC`.<br/>2. Bóc tách JSON theo hồ sơ ánh xạ (hoặc mảng phẳng nếu không có hồ sơ).<br/>3. Quy đổi ngược bộ mã (ví dụ `"CONGESTION"` $\rightarrow$ `1`).<br/>4. Thực thi nạp dữ liệu thành công vào đúng bảng nghiệp vụ trên CSDL `DEV_ITS10_Inbound`.<br/>5. Trạng thái bản ghi đệm chuyển sang `ProcessState = Done`.<br/>6. Log cha cập nhật `Result = 1` (Thành công) kèm log con Step 2 hoàn thành. | - Bảng dữ liệu nghiệp vụ trên `DEV_ITS10_Inbound` (ví dụ `TmsWeather`, `TmsTrafficData`...).<br/>- Bảng `ShareDataInboundPacket` (`ProcessState = Done`).<br/>- Màn hình **Nhật ký** (tab Truyền nhận). |
 | **AC-IN-03** | **Từ chối gói tin chưa có Đăng ký nhận** | - Đối tác gửi gói tin hợp lệ nhưng hệ thống **chưa khai báo Đăng ký nhận** cho gói tin đó. | 1. WebAPI tiếp nhận đệm an toàn và trả 200 OK.<br/>2. Worker kiểm tra không thấy đăng ký nhận $\rightarrow$ cập nhật `ProcessState = NoSubscription`.<br/>3. Ghi cảnh báo mã **`ESH-1508`** (`SubscriptionNotFound`).<br/>4. **Không** ghi dữ liệu vào các bảng nghiệp vụ. | - Bảng `ShareDataInboundPacket` (`ProcessState = NoSubscription`).<br/>- Màn hình **Cảnh báo lỗi** (mã `ESH-1508`). |
 | **AC-IN-04** | **Xử lý gói tin hỏng định dạng (Invalid JSON)** | - Body HTTP POST không phải JSON (chuỗi rỗng, HTML hoặc ký tự lỗi). | 1. Worker phát hiện lỗi cú pháp, đánh dấu `ProcessState = Failed`.<br/>2. Ghi cảnh báo mã **`ESH-1503`** (`PayloadInvalid`).<br/>3. Tiến trình Worker không bị crash, tiếp tục xử lý các gói tin kế tiếp bình thường. | - Màn hình **Cảnh báo lỗi** (mã `ESH-1503`).<br/>- Bảng `ShareDataInboundPacket` (`ProcessState = Failed`). |
 | **AC-IN-05** | **Giao dịch toàn vẹn khi lỗi SQL (Transaction Rollback)** | - Dữ liệu trong gói tin vi phạm ràng buộc dữ liệu (sai kiểu, chuỗi vượt quá độ dài cột SQL). | 1. Câu lệnh `WriteSql` phát sinh lỗi $\rightarrow$ Transaction tự động Rollback 100%.<br/>2. **Không** có dữ liệu rác dở dang trong bảng nghiệp vụ.<br/>3. Gói tin đánh dấu `ProcessState = Failed`.<br/>4. Ghi cảnh báo lỗi mã **`ESH-1505`** (`DatabaseWriteFailed`). | - Bảng nghiệp vụ trên `DEV_ITS10_Inbound` không có dòng dở dang.<br/>- Màn hình **Cảnh báo lỗi** (mã `ESH-1505`). |
