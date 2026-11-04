@@ -8193,6 +8193,110 @@ ORDER BY __lastKey ASC";
             }
         }
 
+        /// <summary>
+        /// Author: DatHQ
+        /// Description: Câu riêng của đối tác chép từ câu mẫu gói 101 dạng 2 cột (@lastTime, __lastTime) chạy tệp sửa D2:
+        ///              câu chuyển sang một chuỗi ghép COALESCE(UpdateTime, CreateTime), bỏ biến lastTime, Worker gửi được cả dòng chưa có UpdateTime;
+        ///              câu lưu xuống dòng kiểu LF hay CRLF đều sửa được. Đối tác đã có mốc gửi thì tệp không sửa, Worker vẫn chặn câu cũ.
+        /// Created date: 04/11/2026
+        /// </summary>
+        [Theory]
+        [InlineData("\n", false)]
+        [InlineData("\r\n", false)]
+        [InlineData("\n", true)]
+        public async Task ProcessSubscriptions_AfterLegacySqlFixScript_SendsRowsWithoutUpdateTimeUnlessPartnerHasCursor_Test(string newLine, bool hasCursor)
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+            var unique = Guid.NewGuid().ToString("N")[..8];
+            var packetId = $"pkt-fix-{unique}";
+            var packetCode = $"PKT_FIX_{unique}";
+            var baseTime = new DateTime(2091, 3, 1, 8, 0, 0);
+            string RowId(string name) => $"{name}_{unique}";
+            string[] rowIds = [RowId("A"), RowId("B")];
+            async Task InsertRow(string name, DateTime? updateTime, DateTime createTime)
+            {
+                await db.Insertable(new TmsZoneStatus { ID = RowId(name), Condition = "NORMAL" }).ExecuteCommandAsync();
+                // Updateable không ghi được CreateTime nên đặt giờ bằng câu lệnh thẳng
+                await db.Ado.ExecuteCommandAsync("UPDATE TmsZoneStatus SET UpdateTime = @u, CreateTime = @c WHERE ID = @id", new { u = updateTime, c = createTime, id = RowId(name) });
+            }
+
+            try
+            {
+                await InsertRow("A", baseTime, baseTime.AddDays(-1));
+                await InsertRow("B", null, baseTime.AddMinutes(5));
+                await db.Insertable(new ShareDataPacket
+                {
+                    ID = packetId,
+                    Code = packetCode,
+                    Name = $"Packet {packetCode}",
+                    PacketVersion = "1.0",
+                    Status = BaseEnums.StatusEnum.Enable
+                }).ExecuteCommandAsync();
+                Assert.True(PacketTemplateSeed.TryGet("101", out var template));
+                await ShareDataSqlSeed.SetCommonAsync(db, packetId, template.ExtractSql);
+                var (partner, _) = await SeedOutboundSubscription(db, new OutboundSubSeed
+                {
+                    PartnerCode = $"P_FIX_{unique}",
+                    SubCode = $"SUB_FIX_{unique}",
+                    DatatypeId = packetId,
+                    MappingShape = new Dictionary<string, object>
+                    {
+                        ["zoneStatusId"] = new Dictionary<string, string> { ["$field"] = "zoneStatusId" },
+                        ["dataTime"] = new Dictionary<string, string> { ["$field"] = "dataTime" }
+                    },
+                    ConfigurePartner = p => p.EndPointApiUrl = $"/api/sharedata/partner-fix-{unique}"
+                });
+                // Câu riêng chép từ câu mẫu gói 101 trước 02/11/2026 (mốc 2 cột)
+                var legacySql = string.Join(newLine,
+                    "SELECT TOP (@pageSize)",
+                    "    zs.UpdateTime AS __lastTime,",
+                    "    zs.ID AS __lastKey,",
+                    "    zs.ID AS zoneStatusId,",
+                    "    zs.UpdateTime AS dataTime",
+                    "FROM dbo.TmsZoneStatus zs",
+                    "WHERE zs.UpdateTime >= ISNULL(@lastTime, '17530101')",
+                    "  AND (@lastTime IS NULL OR zs.UpdateTime > @lastTime OR zs.ID > @lastKey)",
+                    "ORDER BY zs.UpdateTime ASC, zs.ID ASC");
+                await ShareDataSqlSeed.SetVariablesAsync(db, packetId, partner.ID,
+                [
+                    new SqlVariableItem { Code = "pageSize", DataType = ShareDataConst.SqlVariableTypeInt, ValueKind = ShareDataConst.SqlVariableKindConst, Value = "50", OrderNo = 1 },
+                    new SqlVariableItem { Code = "lastTime", DataType = ShareDataConst.SqlVariableTypeDateTime, ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = "lastTime", OrderNo = 2 },
+                    new SqlVariableItem { Code = "lastKey", DataType = ShareDataConst.SqlVariableTypeString, ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = ShareDataConst.SqlVariableSourceLastKey, DefaultValue = "2091-03-01 00:00:00.000_", OrderNo = 3 }
+                ]);
+                await ShareDataSqlSeed.SetPartnerAsync(db, packetId, partner.ID, legacySql);
+                if (hasCursor)
+                {
+                    await db.Insertable(new ShareDataLastSend
+                    {
+                        ID = Guid.NewGuid().ToString("N"),
+                        PartnerCode = partner.Code,
+                        PacketCode = packetCode,
+                        LastKey = "2091-03-01 00:00:00.000_"
+                    }).ExecuteCommandAsync();
+                }
+
+                // Act
+                await db.Ado.ExecuteCommandAsync(SeedScriptReader.ReadLegacySqlFixBatch("-- 1. SỬA CÂU RIÊNG CÒN MỐC 2 CỘT"));
+                await CreateWorker(scope).ProcessSubscriptions(CancellationToken.None);
+
+                // Assert
+                var savedSql = await db.Queryable<ShareDataSql>().Where(s => s.PacketId == packetId && s.PartnerId == partner.ID).FirstAsync();
+                var variableCodes = (await ShareDataSqlSeed.GetVariablesAsync(db, packetId, partner.ID)).Select(v => v.Code);
+                var sent = SentDataTimes(PartnerBodies($"partner-fix-{unique}"));
+                string[] expectedCodes = hasCursor ? ["pageSize", "lastTime", "lastKey"] : ["pageSize", "lastKey"];
+                string[] expectedRows = hasCursor ? [] : [RowId("A"), RowId("B")];
+                Assert.Equal(!hasCursor, savedSql.ExtractSql!.Contains("COALESCE(zs.UpdateTime, zs.CreateTime), 121) + '_' + zs.ID > @lastKey"));
+                Assert.Equal(expectedCodes, variableCodes);
+                Assert.Equal(expectedRows, sent.Keys.Order());
+            }
+            finally
+            {
+                await db.Deleteable<TmsZoneStatus>().Where(z => rowIds.Contains(z.ID)).ExecuteCommandAsync();
+            }
+        }
+
         /// <summary>Trường dataTime của các dòng đã gửi theo zoneStatusId; dòng gửi dataTime trống thì giá trị null.</summary>
         private static Dictionary<string, DateTime?> SentDataTimes(IEnumerable<string> bodies)
         {

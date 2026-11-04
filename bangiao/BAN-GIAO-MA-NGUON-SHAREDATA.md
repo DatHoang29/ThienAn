@@ -139,7 +139,36 @@ Trang Trường gói tin (`sharedata/dataSource`) chỉ đặt Mốc bắt đầ
 
 Worker so chuỗi, nên mốc phải cùng dạng với cột `__lastKey`. Giao diện vì vậy không có ô gõ tay: chọn ngày giờ thì máy ghép `yyyy-MM-dd HH:mm:ss.000_`, dấu `_` đứng sau để gửi cả dòng đúng thời điểm đó. Ô ngày chỉ có khi công thức là `CONVERT(varchar(23), …, 121) + '_' + …`. API `SetLastSend` nhận chuỗi bất kỳ, trừ chuỗi trống.
 
-Ở màn Cấu hình gói tin (`cursorValueInput.vue`): tab Mẫu chung chỉ đặt mốc bắt đầu cho đối tác dùng mẫu chung mà chưa có mốc, vì mỗi đối tác chạy tới một mốc khác nhau. Tab đối tác cũng chỉ đặt mốc bắt đầu, không hiện và không sửa mốc đang chạy; xem và sửa mốc ở trang Mốc gửi (`setCursorDialog.vue`). Cột Nguồn là ô chọn hai giá trị, tự điền theo tên biến: `@lastKey`, `@lastKey_<nhóm>` nối tiếp lần trước, biến khác là giá trị nhập; `@pageSize` bị khóa. Câu chưa đúng quy chuẩn thì khóa ô ngày, sửa bằng nút Sửa câu ở popup Quy chuẩn mốc. Câu có cột `__lastKey` mà lọc bằng biến tên khác thì giao diện chặn lưu, vì máy chủ nhận ra câu nối đuôi theo nguồn của biến và sẽ coi đó là câu gửi toàn bộ.
+Ở màn Cấu hình gói tin (`cursorValueInput.vue`): tab Mẫu chung chỉ đặt mốc bắt đầu cho đối tác dùng mẫu chung mà chưa có mốc, vì mỗi đối tác chạy tới một mốc khác nhau. Tab đối tác cũng chỉ đặt mốc bắt đầu, không hiện và không sửa mốc đang chạy; đối tác đã có mốc thì khóa ô, ghi "Đã có mốc, gửi tiếp", vì Mốc lần đầu chỉ dùng khi chưa có mốc; Mốc lần đầu đã chọn có chữ "Từ" đứng trước, ô không có nhãn riêng (`hasCursor` của `cursorValueInput.vue`, `sqlVariablePanel.vue` lấy từ `savedValue` của API, không giữ giá trị mốc). Xem và sửa mốc ở trang Mốc gửi (`setCursorDialog.vue`). Cột Nguồn là ô chọn hai giá trị, tự điền theo tên biến: `@lastKey`, `@lastKey_<nhóm>` nối tiếp lần trước, biến khác là giá trị nhập; `@pageSize` bị khóa. Câu chưa đúng quy chuẩn thì khóa ô ngày, sửa bằng nút Sửa câu ở popup Quy chuẩn mốc. Câu có cột `__lastKey` mà lọc bằng biến tên khác thì giao diện chặn lưu, vì máy chủ nhận ra câu nối đuôi theo nguồn của biến và sẽ coi đó là câu gửi toàn bộ.
+
+#### Mốc ở mẫu chung và cấu hình riêng
+
+Mẫu chung không có mốc đang chạy. Dòng `ShareDataSql` của mẫu chung chỉ giữ câu SQL, bộ tham số và Mốc lần đầu; mốc đang chạy lưu ở `ShareDataLastSend` theo từng đối tác. Các đối tác dùng chung câu SQL và Mốc lần đầu nhưng tiến độ riêng, nên không đè mốc của nhau. Ví dụ gói 108, mẫu chung đặt Mốc lần đầu là 01/10/2026, đối tác A và B đều dùng mẫu chung:
+
+| Lượt | A | B |
+| --- | --- | --- |
+| A gửi lần đầu | Chưa có mốc nên lấy từ 01/10, gửi xong lưu mốc của A | Chưa đăng ký |
+| A gửi tiếp | Đi tiếp từ mốc của A | Chưa đăng ký |
+| B đăng ký, gửi lần đầu | Không ảnh hưởng | Chưa có mốc nên cũng lấy từ 01/10, rồi lưu mốc của B |
+
+Khi sửa ở tab Mẫu chung (phải tắt mọi đăng ký gửi của gói thì mới lưu được):
+
+| Thao tác | Đối tác dùng mẫu chung, chưa có mốc | Đối tác dùng mẫu chung, đã có mốc | Đối tác có cấu hình riêng |
+| --- | --- | --- | --- |
+| Đổi Mốc lần đầu | Lần gửi đầu dùng ngày mới | Không tác dụng, vẫn đi tiếp từ mốc | Không ảnh hưởng |
+| Đổi `@pageSize` hoặc câu SQL, giữ công thức cột mốc | Dùng bản mới | Dùng bản mới, mốc giữ nguyên | Không ảnh hưởng |
+| Đổi công thức cột mốc | Dùng bản mới | Hỏi xác nhận; đồng ý thì xóa mốc, gửi lại từ Mốc lần đầu | Không ảnh hưởng |
+
+Khi đổi giữa mẫu chung và cấu hình riêng (phải tắt đăng ký gửi của đối tác): mốc gắn với đối tác và gói, không gắn với câu SQL, nên tạo cấu hình riêng thì mốc cũ vẫn đi theo. Chỉ khi công thức cột mốc khác với câu đối tác đang chạy thì mốc mới bị xóa (`FindCursorResets`, `ResetCursor`).
+
+| Thao tác | Công thức cột mốc giống | Công thức cột mốc khác |
+| --- | --- | --- |
+| Tạo cấu hình riêng, chép từ mẫu chung | Mốc đi theo, gửi tiếp từ mốc cũ | Không xảy ra, vì chép nguyên câu mẫu chung |
+| Tạo cấu hình riêng, chép từ đối tác khác | Mốc đi theo, gửi tiếp từ mốc cũ | Xóa mốc ngay, **không hỏi** (`handleConfirmPartnerSetup` gửi `force`), gửi lại từ Mốc lần đầu |
+| Lưu & phân tích ở tab đối tác | Mốc giữ nguyên | Hỏi xác nhận; đồng ý thì xóa mốc, gửi lại từ Mốc lần đầu |
+| Dùng lại mẫu chung | Mốc đi theo, gửi tiếp từ mốc cũ | Hỏi xác nhận; đồng ý thì xóa mốc, gửi lại từ Mốc lần đầu của mẫu chung |
+
+Cấu hình riêng giữ bản chép bộ tham số lúc tạo, gồm cả Mốc lần đầu (`CopyCommonVariablesToPartner`), nên sau đó sửa mẫu chung không còn ảnh hưởng. Mẫu chung là câu gửi toàn bộ thì Dùng lại mẫu chung không xóa mốc: mốc còn trong CSDL nhưng câu không dùng tới.
 
 #### Khi lưu câu SQL (API)
 
@@ -254,7 +283,7 @@ Màn phức tạp nhất là **Cấu hình nguồn dữ liệu** (`views/shareda
 | `checkCursorColumns`, `checkCursorFilter`, `checkOrderAsc`, `suggestedFormula`, `applyFixes` | component/sqlVariablePanel.vue | Dải kiểm tra quy chuẩn câu nối đuôi (chỉ để gợi ý, máy chủ mới là nơi quyết định), nằm ở tiêu đề mục tham số, hiện khi câu SQL có biến mốc. Popup nêu cách sửa từng mục và có một nút Sửa câu; công thức gợi ý bọc `UpdateTime` trơn bằng `COALESCE` với `CreateTime`. |
 | `handleQueryApi`, `loadPartnerCursor`, `loadLockedPartnerIds`, `handleReset` | cursor/index.vue | Trang **Mốc gửi** (mới làm khung, không nằm trong phạm vi bàn giao, chưa khai menu): chọn gói, xem mốc đang chạy của từng đối tác và nhóm mốc. Đối tác có đăng ký gửi đang bật (chiều gửi hoặc hai chiều) bị khóa Đặt mốc và Đặt lại, khớp chặn ESH-2306 phía BE. Đây là nơi duy nhất sửa mốc đang chạy. |
 | `openDialog`, `submit`, `beforeClose` | cursor/component/setCursorDialog.vue | Hộp thoại Đặt mốc: ô chọn ngày giờ theo từng nhóm mốc của đối tác, chỉ gửi nhóm đã đổi, mỗi nhóm gọi `SetLastSend` một lần. Câu chưa ghép cột mốc theo thời gian thì chỉ báo cần sửa câu. |
-| `onPickTime`, `customValue`, `infoHint` | cursor/component/cursorValueInput.vue | Ô mốc dùng chung cho Mốc bắt đầu ở bảng tham số và hộp Đặt mốc: chọn ngày giờ thì ghép `yyyy-MM-dd HH:mm:ss.000_`; câu chưa đúng quy chuẩn thì khóa ô. |
+| `onPickTime`, `pickedTime`, `customValue` | cursor/component/cursorValueInput.vue | Ô mốc dùng chung cho Mốc bắt đầu ở bảng tham số và hộp Đặt mốc: chọn ngày giờ thì ghép `yyyy-MM-dd HH:mm:ss.000_`; câu chưa đúng quy chuẩn hoặc đối tác đã có mốc thì khóa ô. |
 | `buildCursorSections`, `cursorSavedText`, `applyCursorFix`, `hasTimeKeyFormula`, `hasBareUpdateTime`, `withCreateTimeFallback` | utils/sharedata/cursorSections.ts | Gom biến mốc theo nhóm, ghép chuỗi hiện mốc, tự sửa câu theo quy chuẩn mốc, nhận công thức kiểu 121, nhận và bọc `UpdateTime` trơn. Dùng chung cho trang Mốc gửi và `sqlVariablePanel.vue`. |
 | `sqlEditor.vue`, `sqlDiffDialog.vue`, `compareAllDialog.vue`, `partnerSetupDialog.vue`, `partnerSqlTable.vue`, `fieldEditDialog.vue`, `writeSqlPanel.vue`, `editPacket.vue` | dataSource/component/ | Trình soạn SQL, so khác biệt, thiết lập SQL riêng, sửa trường, câu ghi chiều nhận, sửa gói. |
 | `sharing/`, `mapping/`, `history/`, `errorLog/`, `codeSet/`, `eventSource/` | views/sharedata/ | Đối tác và đăng ký, ánh xạ, lịch sử, nhật ký lỗi, bộ mã, bảng nguồn. |

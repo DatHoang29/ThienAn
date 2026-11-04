@@ -549,15 +549,15 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         await expect.poll(() => bodies.at(-1)?.code, { timeout: 400 }).toBe('101');
     });
 
-    test('22. Khung soạn SQL giới hạn chiều cao tự động tối đa 250px với câu SQL dài và thanh kéo nằm sát đáy', async ({ page }) => {
+    test('22. Khung soạn SQL giới hạn chiều cao tự động tối đa 200px với câu SQL dài và thanh kéo nằm sát đáy', async ({ page }) => {
         const longSql = Array.from({ length: 28 }, (_, i) => (i === 0 ? 'SELECT TOP (@pageSize)' : i < 27 ? `    i.Col${i} AS col${i},` : '    i.ID AS id FROM TmsIncident i')).join('\n');
         await page.route('**/api/sharedata/sharedatapacket/getextractsql*', (r) =>
             r.fulfill(json({ code: 200, result: { extractSql: longSql, status: 1, fields: SAVED_FIELDS } }))
         );
         await openSqlCenter(page);
         const editorBox = (await page.locator('.sql-section .sql-monaco-editor').boundingBox())!;
-        expect(editorBox.height).toBeGreaterThan(200);
-        expect(editorBox.height).toBeLessThanOrEqual(250);
+        expect(editorBox.height).toBeGreaterThan(150);
+        expect(editorBox.height).toBeLessThanOrEqual(200);
         const scroller = (await page.locator('.sql-editor-section').boundingBox())!;
         const resizer = (await page.locator('.sql-section .sql-editor-resizer').boundingBox())!;
         // Thanh kéo dính ngay dưới khung soạn và nằm sát đáy vùng cuộn (không còn dòng chú thích dư thừa)
@@ -1569,6 +1569,9 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         await panel.locator('.cvi-clear').click();
         await expect(panel.locator('.cvi-preview')).toHaveCount(0);
         await expect(panel.locator('.cvi-start-text')).toContainText('Gửi toàn bộ');
+        // Không có biểu tượng thông tin: chữ trong ô nói luôn vì sao không chọn được ngày
+        await expect(panel.locator('.cvi-start-text')).toContainText('mốc không có giờ');
+        await expect(panel.locator('.cvi-info')).toHaveCount(0);
     });
 
     /**
@@ -1620,8 +1623,9 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
     /**
      * Description: Mẫu gợi ý select-incremental chèn câu nối đuôi dạng một chuỗi ghép (thời gian + '_' + khóa AS __lastKey, lọc theo @lastKey, sắp theo __lastKey):
      *              bấm Lưu & phân tích thì bảng tham số có @pageSize và @lastKey, không có @lastTime; @pageSize tự điền 100 nên lưu thành công,
-     *              rê chuột biểu tượng thông tin ở dòng @lastKey thấy mốc bắt đầu chỉ áp dụng cho lần gửi đầu tiên.
+     *              ô ngày ở dòng @lastKey ghi rõ để trống là gửi toàn bộ dữ liệu, không cần biểu tượng thông tin.
      * Created date: 31/10/2026
+     * Modified date: 04/11/2026
      */
     test('68. Chèn mẫu gợi ý select-incremental rồi Lưu & phân tích: lưu thành công, bảng tham số có @pageSize và @lastKey, không có @lastTime', async ({ page }) => {
         let savedVariables: any[] = [];
@@ -1660,10 +1664,9 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         ]);
 
         await expect(paramCodes).toHaveText(['@pageSize', '@lastKey']);
-        await page.locator('.sql-variable-panel .svp-params-card .cvi-info').first().hover();
-        const startTooltip = page.locator('.el-popper:visible', { hasText: 'lần gửi đầu tiên' });
-        await expect(startTooltip).toBeVisible({ timeout: 5_000 });
-        await expect(startTooltip).toContainText('Để trống: gửi toàn bộ dữ liệu hiện có');
+        const lastKeyRow = page.locator('.sql-variable-panel .svp-params-card tbody tr', { hasText: '@lastKey' });
+        await expect(lastKeyRow.locator('.cvi-picker input')).toHaveAttribute('placeholder', 'Gửi toàn bộ dữ liệu');
+        await expect(lastKeyRow.locator('.cvi-info')).toHaveCount(0);
     });
 
     /**

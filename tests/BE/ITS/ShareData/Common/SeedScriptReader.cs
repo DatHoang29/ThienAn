@@ -12,6 +12,8 @@ internal static class SeedScriptReader
     private const string PacketSeedFile = "sharedata-seed-goi-tin-ShareDataPacket.sql";
     private const string SqlSeedFile = "sharedata-seed-goi-tin-ShareDataSql.sql";
     private const string SourceTableSeedFile = "sharedata-seed-cau-hinh-ShareDataSourceTable.sql";
+    private const string TerminologySeedFile = "sharedata-dich-thuat-SysTerminology.sql";
+    private const string LegacySqlFixFile = "sharedata-sua-cau-rieng-moc-hai-cot-ShareDataSql.sql";
 
     private static readonly Lazy<Dictionary<string, SeedPacketInfo>> Cache = new(LoadAllInternal);
     private static readonly Lazy<IReadOnlyList<SeedWriteSqlInfo>> WriteSqlStatementsCache = new(LoadWriteSqlStatementsInternal);
@@ -109,6 +111,36 @@ internal static class SeedScriptReader
     public static string ReadPacketSeedBatch(string heading)
     {
         return ReadScriptBatch(PacketSeedFile, heading);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Lấy nguyên một khối lệnh của tệp sửa câu riêng còn mốc 2 cột (D2) từ dòng tiêu đề mục tới dòng GO kế tiếp (không gồm GO).
+    /// Created date: 04/11/2026
+    /// </summary>
+    public static string ReadLegacySqlFixBatch(string heading)
+    {
+        return ReadScriptBatch(LegacySqlFixFile, heading);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Đọc câu dịch tiếng Việt và tiếng Anh của một mã thông báo (vd lz.validation.sharedata.xxx) trong tệp seed SysTerminology.
+    /// Created date: 04/11/2026
+    /// </summary>
+    public static (string Vi, string En) ReadTerminology(string key)
+    {
+        var parts = key.Split('.', 3);
+        var content = File.ReadAllText(ResolveSqlScriptPath(TerminologySeedFile));
+        var match = Regex.Match(
+            content,
+            $@"\(N'{Regex.Escape($"{parts[0]}.{parts[1]}")}',\s*N'{Regex.Escape(parts[2])}',\s*N'(?<vi>(?:''|[^'])*)',\s*N'(?<en>(?:''|[^'])*)'\)");
+        if (!match.Success)
+        {
+            throw new InvalidOperationException($"Không tìm thấy câu dịch của mã {key} trong kịch bản seed {TerminologySeedFile}.");
+        }
+
+        return (match.Groups["vi"].Value, match.Groups["en"].Value);
     }
 
     /// <summary>

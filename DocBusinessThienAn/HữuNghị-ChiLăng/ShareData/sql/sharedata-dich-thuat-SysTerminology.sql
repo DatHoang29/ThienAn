@@ -504,8 +504,8 @@ VALUES
      N'Table {0} is not in the allowed sharing source tables. Please contact your administrator to add it.'),
 
     (N'lz.validation', N'sharedata.sqlUnsupportedParameter',
-     N'Biến [{''@''}{0}] chưa khai ở bảng Tham số câu truy vấn. Mọi biến dùng trong câu SQL phải được khai ở bảng này.',
-     N'Variable [{''@''}{0}] is not declared in the Query parameters table. Every variable used in the SQL must be declared there.'),
+     N'Biến [{0}] chưa khai ở bảng Tham số câu truy vấn. Mọi biến dùng trong câu SQL phải được khai ở bảng này.',
+     N'Variable [{0}] is not declared in the Query parameters table. Every variable used in the SQL must be declared there.'),
 
     (N'lz.validation', N'sharedata.sqlDatabaseExecutionError',
      N'Cú pháp SQL không hợp lệ trên cơ sở dữ liệu: {0}',
@@ -682,44 +682,44 @@ VALUES
      N'The SQL query returns duplicate column name [{0}]. Use AS to specify a unique name.'),
 
     (N'lz.validation', N'sharedata.sqlFieldKeyNotFound',
-     N'Khoá trường [{0}] không có trong danh sách trường của câu SQL.',
-     N'Field key [{0}] is not in the SQL query field list.'),
+     N'Khoá trường không có trong danh sách trường của câu SQL.',
+     N'Field key was not found in the SQL query field list.'),
 
     (N'lz.validation', N'sharedata.sqlFieldTypeInvalid',
-     N'Trường [{0}]: kiểu [{1}] không có trong danh sách kiểu dữ liệu.',
-     N'Field [{0}]: type [{1}] is not in the data type list.'),
+     N'Kiểu dữ liệu của trường không hợp lệ hoặc không có trong danh mục.',
+     N'Field data type is invalid or not in the supported list.'),
 
     (N'lz.validation', N'sharedata.sqlFieldValueTooLong',
-     N'Trường [{0}]: {1} vượt quá {2} ký tự.',
-     N'Field [{0}]: {1} exceeds {2} characters.'),
+     N'Giá trị trường vượt quá số ký tự cho phép.',
+     N'Field value exceeds allowed maximum length.'),
 
     (N'lz.validation', N'sharedata.sqlFieldSkipInUse',
-     N'Không thể bỏ qua trường [{0}] vì hồ sơ ánh xạ [{1}] đang dùng. Hãy bỏ chọn trường ở hồ sơ ánh xạ trước.',
-     N'Cannot skip field [{0}] because mapping profile [{1}] is using it. Uncheck the field in the mapping profile first.'),
+     N'Không thể bỏ qua trường vì hồ sơ ánh xạ đang dùng. Hãy bỏ chọn trường ở hồ sơ ánh xạ trước.',
+     N'Cannot skip field because a mapping profile is using it. Uncheck the field in the mapping profile first.'),
 
     (N'lz.validation', N'sharedata.sqlIncrementalKeyFilterInvalid',
-     N'WHERE của truy vấn nối đuôi theo khóa phải có [{1}] > {''@''}{0}, viết đúng biểu thức của cột mốc; thiếu thì bỏ sót hoặc gửi lặp dòng.',
-     N'The WHERE clause of a key-only incremental query must contain [{1}] > {''@''}{0} with the exact cursor column expression; otherwise rows are skipped or resent.'),
+     N'Biểu thức so với biến lastKey trong WHERE phải viết giống hệt biểu thức của cột [__lastKey] ở SELECT; viết khác thì bỏ sót hoặc gửi lặp dòng.',
+     N'The expression compared with the lastKey variable in WHERE must be identical to the [__lastKey] expression in SELECT; otherwise rows are skipped or resent.'),
 
     (N'lz.validation', N'sharedata.sqlIncrementalGroupColumnMissing',
-     N'Nhóm mốc [{0}] còn thiếu {1}. Mỗi nhóm cần cột [__lastKey_{0}] và biến {''@''}lastKey_{0}.',
-     N'Cursor group [{0}] is missing {1}. Each group needs column [__lastKey_{0}] and variable {''@''}lastKey_{0}.'),
+     N'Nhóm mốc còn thiếu cột hoặc biến. Mỗi nhóm cần cột [__lastKey_<tên_nhóm>] và biến lastKey_<tên_nhóm>.',
+     N'Cursor group is missing a column or variable. Each group requires column [__lastKey_<group>] and variable lastKey_<group>.'),
 
     (N'lz.validation', N'sharedata.sqlIncrementalGroupNotFound',
-     N'Câu truy vấn đối tác đang chạy không có nhóm mốc [{0}].',
-     N'The partner''s running query has no cursor group [{0}].'),
+     N'Câu truy vấn đối tác đang chạy không có nhóm mốc tương ứng.',
+     N'The running partner query does not contain the corresponding cursor group.'),
 
     (N'lz.validation', N'sharedata.sqlIncrementalGroupOrderInvalid',
-     N'Nhóm mốc [{0}]: ORDER BY ngoài cùng sắp theo [{1}], ở nhánh của nhóm này cột đó khác công thức cột [__lastKey_{0}] nên dòng ra sai thứ tự mốc. Hãy sắp theo cột có cùng công thức cột mốc ở mọi nhánh.',
-     N'Cursor group [{0}]: the outer ORDER BY sorts by [{1}], which differs from the [__lastKey_{0}] formula in this group''s branch, so rows come out of cursor order. Sort by a column with the cursor formula in every branch.'),
+     N'ORDER BY ngoài cùng sắp theo cột khác công thức cột mốc của một nhóm nên dòng ra sai thứ tự mốc. Hãy sắp theo cột có cùng công thức cột [__lastKey_<tên_nhóm>] ở mọi nhánh.',
+     N'The outer ORDER BY sorts by a column that differs from a group''s cursor formula, so rows come out of cursor order. Sort by a column with the [__lastKey_<group>] formula in every branch.'),
 
     (N'lz.validation', N'sharedata.sqlIncrementalKeyTimeOnly',
-     N'Cột mốc [{0}] chỉ có ngày giờ nên sót các dòng trùng giờ. Ghép thêm khóa: CONVERT(varchar(23), <cột thời gian>, 121) + ''_'' + ID.',
-     N'Cursor column [{0}] holds only a date/time, so rows sharing the same time are skipped. Append a key: CONVERT(varchar(23), <time column>, 121) + ''_'' + ID.'),
+     N'Cột mốc chỉ có ngày giờ nên sót các dòng trùng giờ. Ghép thêm khóa: CONVERT(varchar(23), <cột thời gian>, 121) + ''_'' + ID.',
+     N'The cursor column holds only a date/time, so rows sharing the same time are skipped. Append a key: CONVERT(varchar(23), <time column>, 121) + ''_'' + ID.'),
 
     (N'lz.validation', N'sharedata.sqlIncrementalUpdateTimeEmpty',
-     N'Cột mốc [{0}] dùng UpdateTime trơn nên dòng mới thêm (chưa có UpdateTime) không được gửi. Dùng COALESCE(UpdateTime, CreateTime) ở cả cột mốc và WHERE.',
-     N'Cursor column [{0}] uses a bare UpdateTime, so newly inserted rows (no UpdateTime yet) are never sent. Use COALESCE(UpdateTime, CreateTime) in both the cursor column and WHERE.');
+     N'Cột mốc dùng UpdateTime trơn nên dòng mới thêm (chưa có UpdateTime) không được gửi. Dùng COALESCE(UpdateTime, CreateTime) ở cả cột mốc và WHERE.',
+     N'The cursor column uses a bare UpdateTime, so newly inserted rows (no UpdateTime yet) are never sent. Use COALESCE(UpdateTime, CreateTime) in both the cursor column and WHERE.');
 
 -- -----------------------------------------------------------------------------------------
 -- 3. NẠP DỮ LIỆU ĐA NGÔN NGỮ (MERGE CHỈ THÊM DÒNG CHƯA CÓ, KHÔNG GHI ĐÈ)
@@ -744,10 +744,78 @@ WHERE ([Name] = N'lz.validation'
   ));
 
 -- 3.0. Đồng bộ cập nhật các bản ghi seed cũ (nếu chưa bị người dùng sửa tay trên DB)
-UPDATE dbo.SysTerminology SET Value = N'Nhóm mốc [{0}] còn thiếu {1}. Mỗi nhóm cần cột [__lastKey_{0}] và biến {''@''}lastKey_{0}.', UpdateTime = GETDATE()
+-- Câu dịch lỗi hiện theo hai đường (04/11/2026): máy chủ đã nạp câu dịch (bấm làm mới Ngôn ngữ) thì gọi string.Format(câu dịch, giá trị), nên không được có {@} (lỗi "Failure to parse near offset");
+-- máy chủ chưa nạp thì trả mã lỗi, màn hình tự dịch không có giá trị, nên {0} hiện trống như "[] > @". Vì vậy các câu dưới không dùng chỗ điền và không dùng {@}.
+UPDATE dbo.SysTerminology SET Value = N'Biến [{0}] chưa khai ở bảng Tham số câu truy vấn. Mọi biến dùng trong câu SQL phải được khai ở bảng này.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlUnsupportedParameter' AND Lang = N'vi-VN' AND Value LIKE N'%{''@''}%';
+
+UPDATE dbo.SysTerminology SET Value = N'Variable [{0}] is not declared in the Query parameters table. Every variable used in the SQL must be declared there.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlUnsupportedParameter' AND Lang = N'en-US' AND Value LIKE N'%{''@''}%';
+
+UPDATE dbo.SysTerminology SET Value = N'Biểu thức so với biến lastKey trong WHERE phải viết giống hệt biểu thức của cột [__lastKey] ở SELECT; viết khác thì bỏ sót hoặc gửi lặp dòng.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalKeyFilterInvalid' AND Lang = N'vi-VN' AND (Value LIKE N'%{[0-9]}%' OR Value LIKE N'%{''@''}%');
+
+UPDATE dbo.SysTerminology SET Value = N'The expression compared with the lastKey variable in WHERE must be identical to the [__lastKey] expression in SELECT; otherwise rows are skipped or resent.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalKeyFilterInvalid' AND Lang = N'en-US' AND (Value LIKE N'%{[0-9]}%' OR Value LIKE N'%{''@''}%');
+
+UPDATE dbo.SysTerminology SET Value = N'Nhóm mốc còn thiếu cột hoặc biến. Mỗi nhóm cần cột [__lastKey_<tên_nhóm>] và biến lastKey_<tên_nhóm>.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalGroupColumnMissing' AND Lang = N'vi-VN' AND (Value LIKE N'%{[0-9]}%' OR Value LIKE N'%{''@''}%');
+
+UPDATE dbo.SysTerminology SET Value = N'Cursor group is missing a column or variable. Each group requires column [__lastKey_<group>] and variable lastKey_<group>.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalGroupColumnMissing' AND Lang = N'en-US' AND (Value LIKE N'%{[0-9]}%' OR Value LIKE N'%{''@''}%');
+
+UPDATE dbo.SysTerminology SET Value = N'Câu truy vấn đối tác đang chạy không có nhóm mốc tương ứng.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalGroupNotFound' AND Lang = N'vi-VN' AND Value LIKE N'%{[0-9]}%';
+
+UPDATE dbo.SysTerminology SET Value = N'The running partner query does not contain the corresponding cursor group.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalGroupNotFound' AND Lang = N'en-US' AND Value LIKE N'%{[0-9]}%';
+
+UPDATE dbo.SysTerminology SET Value = N'ORDER BY ngoài cùng sắp theo cột khác công thức cột mốc của một nhóm nên dòng ra sai thứ tự mốc. Hãy sắp theo cột có cùng công thức cột [__lastKey_<tên_nhóm>] ở mọi nhánh.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalGroupOrderInvalid' AND Lang = N'vi-VN' AND Value LIKE N'%{[0-9]}%';
+
+UPDATE dbo.SysTerminology SET Value = N'The outer ORDER BY sorts by a column that differs from a group''s cursor formula, so rows come out of cursor order. Sort by a column with the [__lastKey_<group>] formula in every branch.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalGroupOrderInvalid' AND Lang = N'en-US' AND Value LIKE N'%{[0-9]}%';
+
+UPDATE dbo.SysTerminology SET Value = N'Cột mốc chỉ có ngày giờ nên sót các dòng trùng giờ. Ghép thêm khóa: CONVERT(varchar(23), <cột thời gian>, 121) + ''_'' + ID.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalKeyTimeOnly' AND Lang = N'vi-VN' AND Value LIKE N'%{[0-9]}%';
+
+UPDATE dbo.SysTerminology SET Value = N'The cursor column holds only a date/time, so rows sharing the same time are skipped. Append a key: CONVERT(varchar(23), <time column>, 121) + ''_'' + ID.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalKeyTimeOnly' AND Lang = N'en-US' AND Value LIKE N'%{[0-9]}%';
+
+UPDATE dbo.SysTerminology SET Value = N'Cột mốc dùng UpdateTime trơn nên dòng mới thêm (chưa có UpdateTime) không được gửi. Dùng COALESCE(UpdateTime, CreateTime) ở cả cột mốc và WHERE.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalUpdateTimeEmpty' AND Lang = N'vi-VN' AND Value LIKE N'%{[0-9]}%';
+
+UPDATE dbo.SysTerminology SET Value = N'The cursor column uses a bare UpdateTime, so newly inserted rows (no UpdateTime yet) are never sent. Use COALESCE(UpdateTime, CreateTime) in both the cursor column and WHERE.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalUpdateTimeEmpty' AND Lang = N'en-US' AND Value LIKE N'%{[0-9]}%';
+
+UPDATE dbo.SysTerminology SET Value = N'Khoá trường không có trong danh sách trường của câu SQL.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlFieldKeyNotFound' AND Lang = N'vi-VN' AND Value LIKE N'%{[0-9]}%';
+
+UPDATE dbo.SysTerminology SET Value = N'Field key was not found in the SQL query field list.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlFieldKeyNotFound' AND Lang = N'en-US' AND Value LIKE N'%{[0-9]}%';
+
+UPDATE dbo.SysTerminology SET Value = N'Kiểu dữ liệu của trường không hợp lệ hoặc không có trong danh mục.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlFieldTypeInvalid' AND Lang = N'vi-VN' AND Value LIKE N'%{[0-9]}%';
+
+UPDATE dbo.SysTerminology SET Value = N'Field data type is invalid or not in the supported list.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlFieldTypeInvalid' AND Lang = N'en-US' AND Value LIKE N'%{[0-9]}%';
+
+UPDATE dbo.SysTerminology SET Value = N'Giá trị trường vượt quá số ký tự cho phép.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlFieldValueTooLong' AND Lang = N'vi-VN' AND Value LIKE N'%{[0-9]}%';
+
+UPDATE dbo.SysTerminology SET Value = N'Field value exceeds allowed maximum length.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlFieldValueTooLong' AND Lang = N'en-US' AND Value LIKE N'%{[0-9]}%';
+
+UPDATE dbo.SysTerminology SET Value = N'Không thể bỏ qua trường vì hồ sơ ánh xạ đang dùng. Hãy bỏ chọn trường ở hồ sơ ánh xạ trước.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlFieldSkipInUse' AND Lang = N'vi-VN' AND Value LIKE N'%{[0-9]}%';
+
+UPDATE dbo.SysTerminology SET Value = N'Cannot skip field because a mapping profile is using it. Uncheck the field in the mapping profile first.', UpdateTime = GETDATE()
+WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlFieldSkipInUse' AND Lang = N'en-US' AND Value LIKE N'%{[0-9]}%';
+
+UPDATE dbo.SysTerminology SET Value = N'Nhóm mốc còn thiếu cột hoặc biến. Mỗi nhóm cần cột [__lastKey_<tên_nhóm>] và biến lastKey_<tên_nhóm>.', UpdateTime = GETDATE()
 WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalGroupColumnMissing' AND Lang = N'vi-VN' AND Value LIKE N'%[_][_]lastTime[_]%';
 
-UPDATE dbo.SysTerminology SET Value = N'Cursor group [{0}] is missing {1}. Each group needs column [__lastKey_{0}] and variable {''@''}lastKey_{0}.', UpdateTime = GETDATE()
+UPDATE dbo.SysTerminology SET Value = N'Cursor group is missing a column or variable. Each group requires column [__lastKey_<group>] and variable lastKey_<group>.', UpdateTime = GETDATE()
 WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlIncrementalGroupColumnMissing' AND Lang = N'en-US' AND Value LIKE N'%[_][_]lastTime[_]%';
 
 UPDATE dbo.SysTerminology SET Value = N'Mã gói tin', UpdateTime = GETDATE()
@@ -762,10 +830,10 @@ WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlScriptEmpty' AND Lang = 
 UPDATE dbo.SysTerminology SET Value = N'Invalid SQL syntax or contains no executable statements.', UpdateTime = GETDATE()
 WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlScriptInvalid' AND Lang = N'en-US' AND Value = N'SQL script is invalid or contains no executable statements.';
 
-UPDATE dbo.SysTerminology SET Value = N'Biến [{''@''}{0}] chưa khai ở bảng Tham số câu truy vấn. Mọi biến dùng trong câu SQL phải được khai ở bảng này.', UpdateTime = GETDATE()
+UPDATE dbo.SysTerminology SET Value = N'Biến [{0}] chưa khai ở bảng Tham số câu truy vấn. Mọi biến dùng trong câu SQL phải được khai ở bảng này.', UpdateTime = GETDATE()
 WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlUnsupportedParameter' AND Lang = N'vi-VN' AND (Value LIKE N'%Tham số [@{0}]%' OR Value LIKE N'Tham số [{''@''}{0}] không được hỗ trợ%' OR Value LIKE N'%biến hệ thống%');
 
-UPDATE dbo.SysTerminology SET Value = N'Variable [{''@''}{0}] is not declared in the Query parameters table. Every variable used in the SQL must be declared there.', UpdateTime = GETDATE()
+UPDATE dbo.SysTerminology SET Value = N'Variable [{0}] is not declared in the Query parameters table. Every variable used in the SQL must be declared there.', UpdateTime = GETDATE()
 WHERE Name = N'lz.validation' AND Code = N'sharedata.sqlUnsupportedParameter' AND Lang = N'en-US' AND (Value LIKE N'%Parameter [@{0}]%' OR Value LIKE N'Parameter [{''@''}{0}] is not supported%' OR Value LIKE N'%system variable%');
 
 UPDATE dbo.SysTerminology SET Value = N'Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc có mệnh đề phân trang TOP ({''@''}pageSize).', UpdateTime = GETDATE()

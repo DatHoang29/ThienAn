@@ -793,7 +793,7 @@ sequenceDiagram
      * **Lọc theo biến (`checkCursorFilter`):** Mọi biến nguồn `lastKey` có mặt trong câu SQL (`@tên`).
      * **Sắp xếp (`checkOrderAsc`):** Có `ORDER BY` ngoài cùng và phần sau nó không chứa `DESC`.
    * **Giới hạn của dải kiểm nhanh:** chỉ dò có cột mốc, có biến mốc trong câu, không `DESC`. Luật đầy đủ (biểu thức so trong `WHERE`, thứ tự `ORDER BY`, hằng số thay biến) chỉ chạy khi bấm *Lưu & phân tích*, nên dải xanh vẫn có thể bị từ chối khi lưu. Bóng đèn đầu dải sáng vàng khi đạt đủ, xám khi còn thiếu (30/10/2026).
-   * **Cấu hình giá trị mốc (`defaultValue`):** dòng `@lastKey` chỉ có ô ngày giờ **Mốc lần đầu** để chọn mốc bắt đầu, ở cả tab Mẫu chung và tab đối tác. Không hiện mốc đang chạy, không có nút sửa (03/11/2026). Câu chưa đúng quy chuẩn thì ô ngày khóa, sửa bằng nút **Sửa câu** ở popup Quy chuẩn mốc.
+   * **Cấu hình giá trị mốc (`defaultValue`):** dòng `@lastKey` chỉ có ô ngày giờ **Mốc lần đầu** để chọn mốc bắt đầu, ở cả tab Mẫu chung và tab đối tác; ô không có nhãn riêng, để trống ghi "Gửi toàn bộ dữ liệu", đã chọn thì có chữ "Từ" đứng trước ngày giờ (04/11/2026). Không hiện mốc đang chạy, không có nút sửa (03/11/2026). Ở tab đối tác đã có mốc, ô bị khóa, có biểu tượng khóa và chữ "Đã có mốc, gửi tiếp" (04/11/2026), vì Mốc lần đầu chỉ dùng khi chưa có mốc; ô không nêu mốc đang chạy và Mốc lần đầu đã đặt. Mốc bị xóa (đổi công thức cột mốc rồi Xác nhận) thì ô chọn lại được. Câu chưa đúng quy chuẩn thì ô ngày khóa, sửa bằng nút **Sửa câu** ở popup Quy chuẩn mốc.
 
 3. **Phân tách rạch ròi giao diện Mẫu chung và Đối tác (Bảng 3 cột gọn):**
    * Tab Mẫu chung chuẩn hóa **3 cột** (`Tham số` · `Nguồn giá trị` · `Giá trị cấu hình`); tab đối tác thêm cột đầu **`So mẫu chung`**. Không dùng wizard hay bảng nhiều cột rườm rà.
@@ -1061,7 +1061,7 @@ ORDER BY u.sortKey ASC
 
 **Đã làm 03/11/2026:**
 - Bỏ hẳn dạng 2 cột ở WebAPI, Worker và tệp seed: không còn nguồn `lastTime`, cột `__lastTime`, mã lỗi `SqlIncrementalMissingLastTime`, `SqlIncrementalOrderByMismatch`, `SqlIncrementalCursorFilterInvalid`, `SqlIncrementalGroupSourceMismatch`. Tệp `sharedata-chuyen-doi-moc-ShareDataLastSend.sql` chỉ còn gỡ unique index cũ và chép nhóm mốc từ `ShareDataLastSendKey`; tệp seed `ShareDataSql` bỏ bước 1c.
-- Câu SQL riêng còn `@lastTime` là dữ liệu chưa hợp lệ: Worker dừng gói đó với ESH-1306, giữ nguyên mốc. Người cấu hình mở tab đối tác, bấm **Sửa câu** (giao diện giữ chức năng này để đổi sang một chuỗi ghép) rồi lưu.
+- Câu SQL riêng còn `@lastTime` là dữ liệu chưa hợp lệ: Worker dừng gói đó với ESH-1306, giữ nguyên mốc. Người cấu hình mở tab đối tác, bấm **Sửa câu** (giao diện giữ chức năng này để đổi sang một chuỗi ghép) rồi lưu. Câu chép từ câu mẫu gói 101 cũ sửa hàng loạt bằng tệp D2 `sharedata-sua-cau-rieng-moc-hai-cot-ShareDataSql.sql` (04/11/2026; đối tác đã có mốc thì tệp bỏ qua).
 - Trang Trường gói tin không còn hiện và sửa mốc đang chạy; xem mục *Quyết định đã chốt* đầu Phần C.
 
 **Giới hạn giữ nguyên:** 7 câu mẫu ghép chuỗi nên quét cả bảng mỗi lượt, gói 101 tăng từ 421 lên khoảng 31.588 trang (chốt 02/11/2026, tối ưu tính sau, xem C.4.3).

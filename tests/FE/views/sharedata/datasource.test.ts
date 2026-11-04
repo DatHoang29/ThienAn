@@ -513,7 +513,9 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
      *              - Tab Mẫu chung chỉ hiện 3 cột tham số (ẩn Mốc đang chạy), hiển thị badge tự động tịnh tiến + tag khớp __lastKey + ô Mốc bắt đầu;
      *              - Mở ngăn kéo xem mốc đang chạy của các đối tác, đặt lại mốc riêng cho 1 đối tác qua API resetlastsend;
      *              - Chuyển sang tab Đối tác riêng: đóng ngăn kéo, hiện cột Mốc đang chạy trực tiếp trên bảng tham số.
+     *              Ô Mốc lần đầu đã đặt có chữ "Từ" đứng trước ngày giờ, không cần nhãn riêng.
      * Created date: 27/10/2026
+     * Modified date: 04/11/2026
      */
     test('51. Tham số khóa nối đuôi @lastKey: giao diện thích ứng Mẫu chung vs Đối tác', async ({ page }) => {
         const compositeSql =
@@ -619,6 +621,8 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(mainTable.locator('thead th')).toHaveCount(3);
         await expect(mainTable.locator('.svp-param-code').first()).toHaveText('@lastKey');
         await expect(mainTable.locator('.cvi-picker input')).toHaveValue('27/10/2026 09:00:00');
+        await expect(mainTable.locator('.cvi-from')).toHaveText('Từ');
+        await expect(mainTable.locator('.cvi-prefix-label')).toHaveCount(0);
 
         // 2. Chuyển sang tab Đối tác riêng CSGT: bảng tham số thêm cột So mẫu chung (4 cột)
         const partnerTab = page.locator('.sql-partner-tabs .el-tabs__item').filter({ hasText: 'CSGT' }).first();
@@ -636,22 +640,25 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
     /**
      * Description: Cột giá trị của @lastKey chỉ đặt mốc bắt đầu ở cả tab Mẫu chung lẫn tab đối tác: đối tác đã có mốc đang chạy
      *              (kể cả khi đăng ký gửi đang bật) vẫn hiện ô ngày chọn được, không hiện mốc đang chạy, không có nút sửa, không gọi API đặt mốc;
-     *              xem và sửa mốc đang chạy ở trang Mốc gửi.
+     *              tab đối tác đã có mốc thì khóa ô Mốc lần đầu, ô ghi đã có mốc, rê chuột vào biểu tượng i xem giải thích và Mốc lần đầu đang lưu (không nêu mốc đang chạy);
+     *              tab Mẫu chung và đối tác chưa có mốc thì ô chọn được. Ô không có nhãn riêng, không có biểu tượng i: chữ trong ô tự nói nghĩa;
+     *              tiêu đề cột So mẫu chung nằm trên một dòng.
      * Created date: 03/11/2026
+     * Modified date: 04/11/2026
      */
     const cursorCellCases = [
-        { name: '72a. Đối tác đã có mốc đang chạy: ô ngày vẫn là mốc bắt đầu, không hiện mốc đang chạy, không có nút sửa', savedValue: '2026-10-27 10:05:00.000_Z02', locked: false },
-        { name: '72b. Đối tác đã có mốc và đăng ký gửi đang bật: không hiện mốc đang chạy, không có nút sửa', savedValue: '2026-10-27 10:05:00.000_Z02', locked: true },
-        { name: '72c. Đối tác chưa có mốc: ô ngày chọn được, không có nút sửa', savedValue: null, locked: false },
+        { name: '72a. Đối tác đã có mốc đang chạy: ô Mốc lần đầu khóa, ghi đã có mốc, không hiện Mốc lần đầu đã đặt và mốc đang chạy', savedValue: '2026-10-27 10:05:00.000_Z02', startValue: '2026-10-28 00:00:00.000_', locked: false },
+        { name: '72b. Đối tác đã có mốc và đăng ký gửi đang bật: ô Mốc lần đầu khóa, không hiện mốc đang chạy, không có nút sửa', savedValue: '2026-10-27 10:05:00.000_Z02', startValue: null, locked: true },
+        { name: '72c. Đối tác chưa có mốc: ô Mốc lần đầu chọn được, không có nút sửa', savedValue: null, startValue: null, locked: false },
     ];
     for (const c of cursorCellCases) {
         test(c.name, async ({ page }) => {
             const sql =
                 "SELECT TOP (@pageSize) Code AS zoneCode, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey " +
                 "FROM TmsZone WHERE CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID > @lastKey ORDER BY __lastKey ASC";
-            const items = (savedValue: string | null) => [
+            const items = (savedValue: string | null, defaultValue: string | null = null) => [
                 { code: 'pageSize', dataType: 'Int', valueKind: 'Const', value: '100', defaultValue: null, savedValue: null },
-                { code: 'lastKey', dataType: 'String', valueKind: 'Builtin', value: 'lastKey', defaultValue: null, savedValue },
+                { code: 'lastKey', dataType: 'String', valueKind: 'Builtin', value: 'lastKey', defaultValue, savedValue },
             ];
             const fulfill = (route: any, result: unknown) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result }) });
             const setPayloads: any[] = [];
@@ -669,7 +676,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
             await page.route('**/api/sharedata/sharedatapacket/getsqlvariables*', (route) => {
                 const url = new URL(route.request().url());
                 const partnerId = url.searchParams.get('PartnerId') ?? url.searchParams.get('partnerId');
-                return fulfill(route, { items: items(partnerId === 'p_a' ? c.savedValue : null) });
+                return fulfill(route, { items: partnerId === 'p_a' ? items(c.savedValue, c.startValue) : items(null) });
             });
             await page.route('**/api/sharedata/sharedatapacket/getpartnerextractsql*', (route) =>
                 fulfill(route, { isCustom: true, customSql: sql, standardSql: sql, fields: [{ key: 'zoneCode', type: 'string', label: 'Mã khu vực', required: true }], commonFields: [] })
@@ -697,19 +704,123 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
             await expect(picker).toHaveAttribute('placeholder', /Gửi toàn bộ/);
             await expect(editBtn).toHaveCount(0);
             await expect(mainTable.locator('.cvi-modes')).toHaveCount(0);
+            await expect(mainTable.locator('.cvi-info')).toHaveCount(0);
 
             const partnerTab = page.locator('.sql-partner-tabs .el-tabs__item').filter({ hasText: 'CSGT' }).first();
             await partnerTab.click();
             await expect(mainTable.locator('thead th')).toHaveCount(4);
 
+            // Tiêu đề So mẫu chung nằm trên một dòng như cột Tham số, không bị cắt chữ
+            const headCells = mainTable.locator('thead th .cell');
+            const compareHead = await headCells.nth(0).boundingBox();
+            const nameHead = await headCells.nth(1).boundingBox();
+            expect(compareHead!.height).toBe(nameHead!.height);
+            expect(await headCells.nth(0).evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+
+            // Ô không có nhãn riêng, không có biểu tượng i; Mốc lần đầu đã đặt không hiện trong ô khóa để khỏi nhầm là mốc đang chạy
             await expect(picker).toHaveValue('');
-            await expect(picker).toHaveAttribute('placeholder', /Gửi toàn bộ/);
+            await expect(mainTable.locator('.cvi-prefix-label')).toHaveCount(0);
+            await expect(mainTable.locator('.cvi-info')).toHaveCount(0);
+            await expect(mainTable.locator('.cvi-from')).toHaveCount(0);
+            if (c.savedValue) {
+                // Đã có mốc: Mốc lần đầu không còn tác dụng nên khóa ô, chữ trong ô nói rõ trạng thái
+                await expect(picker).toBeDisabled();
+                await expect(picker).toHaveAttribute('placeholder', 'Đã có mốc, gửi tiếp');
+            } else {
+                await expect(picker).toBeEnabled();
+                await expect(picker).toHaveAttribute('placeholder', /Gửi toàn bộ/);
+            }
             await expect(editBtn).toHaveCount(0);
             await expect(mainTable).not.toContainText('Z02');
             await expect(page.locator('.sd-set-cursor-dialog')).toHaveCount(0);
             expect(setPayloads).toHaveLength(0);
         });
     }
+
+    /**
+     * Description: Chuyển từ tab đối tác đã có mốc sang tab đối tác chưa có mốc (như lúc vừa tạo cấu hình riêng cho đối tác mới):
+     *              bảng tham số nạp đúng bộ biến của đối tác đang mở, ô Mốc lần đầu chọn được, không mang trạng thái đã có mốc của tab trước.
+     *              Chuyển ngược lại thì hiện đủ bộ biến của đối tác đó, kể cả khi bộ biến về trước câu SQL của tab.
+     * Created date: 04/11/2026
+     */
+    test('72d. Chuyển qua lại giữa đối tác có mốc và đối tác chưa có mốc: bảng tham số đúng bộ biến của tab đang mở', async ({ page }) => {
+        const key = "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID";
+        const sql = `SELECT TOP (@pageSize) Code AS zoneCode, ${key} AS __lastKey FROM TmsZone WHERE ${key} > @lastKey ORDER BY __lastKey ASC`;
+        const noPageSql = `SELECT Code AS zoneCode, ${key} AS __lastKey FROM TmsZone WHERE ${key} > @lastKey ORDER BY __lastKey ASC`;
+        const lastKeyItem = (savedValue: string | null) => ({ code: 'lastKey', dataType: 'String', valueKind: 'Builtin', value: 'lastKey', defaultValue: null, savedValue });
+        const items = (partnerId: string | null) =>
+            partnerId === 'p_a'
+                ? [{ code: 'pageSize', dataType: 'Int', valueKind: 'Const', value: '5', defaultValue: null, savedValue: null }, lastKeyItem('2026-10-27 10:05:00.000_Z02')]
+                : [lastKeyItem(null)];
+        const fulfill = (route: any, result: unknown) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result }) });
+        const variablePartners: string[] = [];
+
+        await page.route('**/api/sharedata/sharedatapacket/getsqldetail*', (route) =>
+            fulfill(route, {
+                extract: { extractSql: noPageSql, status: 1, fields: [{ key: 'zoneCode', type: 'string', label: 'Mã khu vực', required: true }] },
+                variables: { items: items(null) },
+                write: { packetCode: '101_commonData', writeSql: '', affectedTables: [], detectedTables: [], keyFields: [] },
+            })
+        );
+        await page.route('**/api/sharedata/sharedatapacket/getpartnersqllist*', (route) =>
+            fulfill(route, [
+                { partnerId: 'p_a', partnerCode: 'CSGT', partnerName: 'Cục CSGT', isCustom: true, updateTime: '2026-10-27T10:00:00Z' },
+                { partnerId: 'p_b', partnerCode: 'VETC', partnerName: 'Đối tác VETC', isCustom: true, updateTime: '2026-10-27T10:00:00Z' },
+            ])
+        );
+        await page.route('**/api/sharedata/sharedatapacket/getsqlvariables*', (route) => {
+            const url = new URL(route.request().url());
+            const partnerId = url.searchParams.get('PartnerId') ?? url.searchParams.get('partnerId');
+            // Bộ biến mẫu chung (không có đối tác) nạp thêm để so nên không tính
+            if (partnerId) variablePartners.push(partnerId);
+            return fulfill(route, { items: items(partnerId) });
+        });
+        // Câu SQL về sau bộ biến: bộ biến của tab mới không được lọc theo câu SQL của tab cũ
+        await page.route('**/api/sharedata/sharedatapacket/getpartnerextractsql*', async (route) => {
+            await new Promise((resolve) => setTimeout(resolve, 300));
+            const url = new URL(route.request().url());
+            const partnerId = url.searchParams.get('PartnerId') ?? url.searchParams.get('partnerId');
+            return fulfill(route, {
+                isCustom: true,
+                customSql: partnerId === 'p_a' ? sql : noPageSql,
+                standardSql: noPageSql,
+                fields: [{ key: 'zoneCode', type: 'string', label: 'Mã khu vực', required: true }],
+                commonFields: [],
+            });
+        });
+        await page.route('**/api/sharedata/sharedatasubscription/list*', (route) => fulfill(route, []));
+
+        await page.setViewportSize({ width: 1600, height: 950 });
+        await page.goto('/#/sharedata/dataSource');
+        const firstRow = page.locator('.packet-col .vxe-table--main-wrapper .vxe-body--row').first();
+        await expect(firstRow).toBeVisible({ timeout: 30_000 });
+        await firstRow.click();
+
+        const table = page.locator('.sql-variable-panel .svp-table').first();
+        const picker = table.locator('.cvi-picker input');
+        const paramCodes = table.locator('.svp-param-code');
+        const partnerTab = (code: string) => page.locator('.sql-partner-tabs .el-tabs__item').filter({ hasText: code }).first();
+        const expectHasCursorTab = async () => {
+            await expect(paramCodes).toHaveText(['@pageSize', '@lastKey'], { timeout: 10_000 });
+            await expect(table.locator('.el-input-number input')).toHaveValue('5');
+            await expect(picker).toBeDisabled();
+            await expect(picker).toHaveAttribute('placeholder', 'Đã có mốc, gửi tiếp');
+            expect(variablePartners.at(-1)).toBe('p_a');
+        };
+        const expectNoCursorTab = async () => {
+            await expect(paramCodes).toHaveText(['@lastKey'], { timeout: 10_000 });
+            await expect(picker).toBeEnabled();
+            await expect(picker).toHaveAttribute('placeholder', /Gửi toàn bộ/);
+            expect(variablePartners.at(-1)).toBe('p_b');
+        };
+
+        await partnerTab('CSGT').click();
+        await expectHasCursorTab();
+        await partnerTab('VETC').click();
+        await expectNoCursorTab();
+        await partnerTab('CSGT').click();
+        await expectHasCursorTab();
+    });
 
     /**
      * Description: Khi bấm vào gói tin trên bảng bên trái (xGridPacket):
@@ -2285,7 +2396,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await popover.locator('.svp-fix-all').click();
         await expect(lead).toContainText('(3/3)', { timeout: 10_000 });
         await expect(lastTimeRow).toHaveCount(0);
-        await expect(lastKeyRow.locator('.cvi-prefix-label')).toContainText('Mốc lần đầu:');
+        await expect(lastKeyRow.locator('.cvi-prefix-label')).toHaveCount(0);
         await expect(lastKeyRow.locator('.cvi-picker')).not.toHaveClass(/is-all-data/);
         await expect(lastKeyRow.locator('.cvi-picker input')).toBeEnabled();
         await expect(lastKeyRow.locator('.cvi-picker input')).toHaveAttribute('placeholder', /Gửi toàn bộ/);

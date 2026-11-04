@@ -4,7 +4,7 @@ Làm từ trên xuống, đánh dấu từng ô. Mỗi bước: **Làm** → **T
 
 - Đối tác **Đạt** (mã `Đ`), gói **`108_vmsInfo`**. Dùng sẵn hồ sơ ánh xạ `D_108VMSINFO_OUT` và đăng ký **gửi** gói 108 chu kỳ **30 giây** của Đạt. Đăng ký gửi chu kỳ 1 ngày và đăng ký nhận của Đạt để nguyên, tắt.
 - Câu mẫu gói 108 là câu chụp toàn bộ. Kịch bản tạo cấu hình riêng cho Đạt và viết câu nối đuôi trên đó; mẫu chung không đổi.
-- Sếp chốt 02/11/2026 dùng **PA1: một chuỗi ghép** `thời gian_khóa` ở cột `__lastKey`. Mục 0 đến 5 kiểm theo dạng này, cũng là dạng câu mẫu của 7 gói nối đuôi (101, 103, 104, 106, 107, 109, 111). Dạng 2 cột đã bỏ ngày 03/11/2026; mục 5b kiểm câu riêng còn `@lastTime` trong CSDL được sửa bằng nút **Sửa câu**.
+- Sếp chốt 02/11/2026 dùng **PA1: một chuỗi ghép** `thời gian_khóa` ở cột `__lastKey`. Mục 0 đến 5 kiểm theo dạng này, cũng là dạng câu mẫu của 7 gói nối đuôi (101, 103, 104, 106, 107, 109, 111). Dạng 2 cột đã bỏ ngày 03/11/2026; câu riêng còn `@lastTime` trong CSDL sửa hết bằng tệp D2 ở bước 0.1.
 - Trong lúc test, Đạt chuyển sang **kênh File**: mỗi lần gửi được lưu thành một tệp bằng chứng, không cần máy nhận. Bước dọn trả lại như cũ.
 - Dữ liệu nguồn `VmsCurrent` trên DB dev (đếm ngày 01/11): **72** dòng; **27** dòng có `UpdateTime`, mới nhất `21/10/2026 07:58:45` khóa `1175a668-79af-440d-a32d-2ba040ba8bf8`; **45** dòng chưa có `UpdateTime` (đều có `CreateTime` ngày 19/08/2026). Cột mốc lấy `CreateTime` khi `UpdateTime` trống nên gửi đủ cả 72 dòng. Hai dòng VMS006 và VMS005 **trùng giờ** `12/08/2026 08:46:07.230`, đứng thứ 5 và 6.
 - Xem kết quả ở **Lịch sử chia sẻ → Nhật ký truyền nhận** (cột *Số bản ghi*). Trang **Mốc gửi** mới làm khung, chưa khai menu và không bàn giao nên kịch bản không dùng; mốc kiểm qua số bản ghi: lượt sau không gửi lặp nghĩa là mốc đã tiến.
@@ -20,10 +20,10 @@ Cấu hình cũ của Đạt để trả lại ở bước dọn:
 
 ## 0. Chuẩn bị
 
-- [ ] **0.1** Đã chạy các tệp seed theo `sql/README.md`. Chạy WebAPI, Worker và web bản mới nhất. Mở web, tải lại hẳn trang (Cmd+Shift+R).
+- [ ] **0.1** Đã chạy các tệp seed theo `sql/README.md`, gồm tệp **D2** `sharedata-sua-cau-rieng-moc-hai-cot-ShareDataSql.sql` (sửa câu riêng còn `@lastTime`, xem dòng `[ĐÃ SỬA]` in ra). Chạy WebAPI, Worker và web bản mới nhất. Mở web, tải lại hẳn trang (Cmd+Shift+R).
 - [ ] **0.2** **Cấu hình** → sửa đối tác **Đạt**: kênh kết nối **File**, để trống *Thư mục*, định dạng JSON → Lưu → **Kết nối**. Mọi đăng ký của Đạt để **tắt**.
 - [ ] **0.3** **Cấu hình gói tin** → gói `108_vmsInfo` → **Tạo cấu hình riêng +** → Đối tác **Đạt**, Sao chép từ **Mẫu chung** → xác nhận. Đạt đã có cấu hình riêng thì mở thẳng tab Đạt.
-  **Thấy:** tự mở tab Đạt, khung soạn có câu `SELECT e.Code AS equipmentCode, … FROM VmsCurrent v …`. DB dev (đọc ngày 04/11) Đạt đã có cấu hình riêng dạng cũ: khung soạn là câu có `__lastTime`, dải **Quy chuẩn mốc** đỏ; làm tiếp 0.4 là hết.
+  **Thấy:** tự mở tab Đạt, khung soạn có câu `SELECT e.Code AS equipmentCode, … FROM VmsCurrent v …`.
 - [ ] **0.4** Xóa hết khung soạn (Cmd+A, Delete), dán câu dưới → **Lưu & phân tích**.
   **Thấy:** lưu thành công; bảng **3. Tham số điều kiện** có `@pageSize` (ô số, điền sẵn 100) và `@lastKey` (*theo key*, ô ngày hiện *Gửi toàn bộ dữ liệu*); không có `@lastTime`.
   ```sql
@@ -46,7 +46,7 @@ Cấu hình cũ của Đạt để trả lại ở bước dọn:
   ORDER BY __lastKey ASC
   ```
 - [ ] **0.5** `@pageSize` = **5**; `@lastKey` để trống ô ngày → **Lưu & phân tích**.
-  **Thấy:** lưu thành công. Ô giá trị của `@lastKey` là ô chọn ngày giờ, không có ô gõ tay. Trang này chỉ đặt Mốc bắt đầu: kể cả khi đã có mốc, tab Đạt vẫn không hiện mốc đang chạy và không có nút sửa. Rê chuột vào **Quy chuẩn mốc** của câu sai thì mục chưa đạt có đoạn SQL gợi ý, popup có một nút **Sửa câu**. Trên tiêu đề mục 3, dải **Quy chuẩn mốc** 3/3 xanh; màn này không còn bảng mốc. Cột **Nguồn giá trị** là ô chọn, tự điền theo tên biến: `@lastKey` là **Nối tiếp lần trước theo key**, biến khác là **Giá trị nhập**; riêng `@pageSize` bị khóa. Bấm thanh tiêu đề mục 3 để thu gọn bảng, dải **Quy chuẩn mốc** vẫn hiện. Cả 45 dòng chưa có `UpdateTime` đều được gửi theo `CreateTime`.
+  **Thấy:** lưu thành công. Ô giá trị của `@lastKey` là ô chọn ngày giờ, không có ô gõ tay. Trang này chỉ đặt Mốc bắt đầu: kể cả khi đã có mốc, tab Đạt vẫn không hiện mốc đang chạy và không có nút sửa; đã có mốc thì ô bị khóa (xem 2.1). Rê chuột vào **Quy chuẩn mốc** của câu sai thì mục chưa đạt có đoạn SQL gợi ý, popup có một nút **Sửa câu**. Trên tiêu đề mục 3, dải **Quy chuẩn mốc** 3/3 xanh; màn này không còn bảng mốc. Cột **Nguồn giá trị** là ô chọn, tự điền theo tên biến: `@lastKey` là **Nối tiếp lần trước theo key**, biến khác là **Giá trị nhập**; riêng `@pageSize` bị khóa. Bấm thanh tiêu đề mục 3 để thu gọn bảng, dải **Quy chuẩn mốc** vẫn hiện. Cả 45 dòng chưa có `UpdateTime` đều được gửi theo `CreateTime`.
 
 ---
 
@@ -63,41 +63,146 @@ Cấu hình cũ của Đạt để trả lại ở bước dọn:
 ## 2. Khóa khi đăng ký gửi đang bật (đăng ký vẫn bật)
 
 - [ ] **2.1** Chọn lại gói `108_vmsInfo` → tab Đạt.
-  **Thấy:** **Lưu & phân tích** mờ, có biểu tượng khóa ghi "Đang có đăng ký gửi bật sử dụng (Đạt)…".
+  **Thấy:** **Lưu & phân tích** mờ, có biểu tượng khóa ghi "Đang có đăng ký gửi bật sử dụng (Đạt)…". Ô giá trị của `@lastKey` bị khóa, có biểu tượng khóa và chữ "Đã có mốc, gửi tiếp", không hiện giá trị mốc. Tiêu đề cột **So mẫu chung** nằm trên một dòng.
 
 ## 5. Câu sai bị chặn khi lưu
 
 - [ ] **5.0** Tắt đăng ký gửi. Chọn lại gói → tab Đạt.
 
-Mỗi dòng: sửa trong khung soạn → **Lưu & phân tích** → xem thông báo → chọn lại gói, hộp hỏi bỏ thay đổi → **Xác nhận**.
+Mỗi ca: xóa hết khung soạn (Cmd+A, Delete), dán câu của ca → **Lưu & phân tích** → xem thông báo → chọn lại gói, hộp hỏi bỏ thay đổi → **Xác nhận**. Câu mỗi ca chỉ khác câu ở bước 0.4 đúng dòng có chú thích `-- sai`. Đạt đã có mốc từ mục 1 nhưng câu sai bị từ chối trước, nên không hiện hộp xác nhận đổi công thức.
 
-| | Sửa | Thấy |
-|:--|:--|:--|
-| ☐ **5.1** | Thay `WHERE …` bằng `WHERE v.ID > @lastKey` | Lỗi "WHERE của truy vấn nối đuôi theo khóa phải có […] > @lastKey, viết đúng biểu thức của cột mốc…" |
-| ☐ **5.2** | Trong `WHERE`, đổi `COALESCE(v.UpdateTime, v.CreateTime)` thành `v.CreateTime` (cột mốc giữ nguyên) | Lỗi như 5.1 |
-| ☐ **5.3** | `ORDER BY v.ID ASC` | Lỗi "…theo khóa phải sắp xếp ORDER BY ngoài cùng theo cột [__lastKey]…" |
-| ☐ **5.4** | `ORDER BY __lastKey DESC` | Lỗi "…không cho phép sắp xếp giảm dần (DESC)…" |
-| ☐ **5.5** | Đổi `COALESCE(v.UpdateTime, v.CreateTime)` thành `v.UpdateTime` ở cả cột mốc và `WHERE` | Lỗi "Cột mốc … dùng UpdateTime trơn nên dòng mới thêm (chưa có UpdateTime) không được gửi…". Rê chuột vào **Quy chuẩn mốc**: mục *Có cột mốc* đỏ, ghi "Dòng mới thêm chưa có UpdateTime nên không được gửi"; bấm **Sửa câu** thì câu về `COALESCE`, 3/3 xanh |
-| ☐ **5.6** | Đổi cột mốc thành `v.UpdateTime AS __lastKey`, `WHERE v.UpdateTime > @lastKey` | Lỗi "Cột mốc … chỉ có ngày giờ nên sót các dòng trùng giờ…". **Sửa câu** ghép lại đủ `COALESCE(v.UpdateTime, v.CreateTime)` và `'_' + v.ID`, 3/3 xanh |
+- [ ] **5.1** `WHERE` chỉ so `ID`, không so đúng cột mốc.
+  **Thấy:** "Biểu thức so với biến lastKey trong WHERE phải viết giống hệt biểu thức của cột [__lastKey] ở SELECT; viết khác thì bỏ sót hoặc gửi lặp dòng."
+  ```sql
+  SELECT TOP (@pageSize)
+      CONVERT(varchar(23), COALESCE(v.UpdateTime, v.CreateTime), 121) + '_' + v.ID AS __lastKey,
+      e.Code AS equipmentCode,
+      v.Name AS vmsName,
+      e.KmNumber AS locationKm,
+      e.MetNumber AS locationMet,
+      e.DirectionId AS direction,
+      e.LaneId AS laneId,
+      v.RowData AS displayContent,
+      v.Url AS displayImageUrl,
+      v.Size AS displaySize,
+      v.Priority AS priority,
+      v.ExecutedDate AS executedTime
+  FROM VmsCurrent v
+  LEFT JOIN TmsEquipment e ON v.EquipmentId = e.ID
+  WHERE v.ID > @lastKey  -- sai: chỉ so ID
+  ORDER BY __lastKey ASC
+  ```
+- [ ] **5.2** `WHERE` dùng `v.CreateTime`, khác biểu thức cột mốc ở `SELECT`.
+  **Thấy:** Lỗi như 5.1.
+  ```sql
+  SELECT TOP (@pageSize)
+      CONVERT(varchar(23), COALESCE(v.UpdateTime, v.CreateTime), 121) + '_' + v.ID AS __lastKey,
+      e.Code AS equipmentCode,
+      v.Name AS vmsName,
+      e.KmNumber AS locationKm,
+      e.MetNumber AS locationMet,
+      e.DirectionId AS direction,
+      e.LaneId AS laneId,
+      v.RowData AS displayContent,
+      v.Url AS displayImageUrl,
+      v.Size AS displaySize,
+      v.Priority AS priority,
+      v.ExecutedDate AS executedTime
+  FROM VmsCurrent v
+  LEFT JOIN TmsEquipment e ON v.EquipmentId = e.ID
+  WHERE CONVERT(varchar(23), v.CreateTime, 121) + '_' + v.ID > @lastKey  -- sai: khác biểu thức cột mốc
+  ORDER BY __lastKey ASC
+  ```
+- [ ] **5.3** `ORDER BY` không theo cột mốc.
+  **Thấy:** "Truy vấn đồng bộ nối đuôi theo khóa phải sắp xếp ORDER BY ngoài cùng theo cột [__lastKey], nếu không có thể bỏ sót dòng."
+  ```sql
+  SELECT TOP (@pageSize)
+      CONVERT(varchar(23), COALESCE(v.UpdateTime, v.CreateTime), 121) + '_' + v.ID AS __lastKey,
+      e.Code AS equipmentCode,
+      v.Name AS vmsName,
+      e.KmNumber AS locationKm,
+      e.MetNumber AS locationMet,
+      e.DirectionId AS direction,
+      e.LaneId AS laneId,
+      v.RowData AS displayContent,
+      v.Url AS displayImageUrl,
+      v.Size AS displaySize,
+      v.Priority AS priority,
+      v.ExecutedDate AS executedTime
+  FROM VmsCurrent v
+  LEFT JOIN TmsEquipment e ON v.EquipmentId = e.ID
+  WHERE CONVERT(varchar(23), COALESCE(v.UpdateTime, v.CreateTime), 121) + '_' + v.ID > @lastKey
+  ORDER BY v.ID ASC  -- sai: không sắp theo cột mốc
+  ```
+- [ ] **5.4** Sắp giảm dần.
+  **Thấy:** "Truy vấn đồng bộ nối đuôi (Incremental) bắt buộc sắp xếp tăng dần (ASC); không cho phép sắp xếp giảm dần (DESC)…"
+  ```sql
+  SELECT TOP (@pageSize)
+      CONVERT(varchar(23), COALESCE(v.UpdateTime, v.CreateTime), 121) + '_' + v.ID AS __lastKey,
+      e.Code AS equipmentCode,
+      v.Name AS vmsName,
+      e.KmNumber AS locationKm,
+      e.MetNumber AS locationMet,
+      e.DirectionId AS direction,
+      e.LaneId AS laneId,
+      v.RowData AS displayContent,
+      v.Url AS displayImageUrl,
+      v.Size AS displaySize,
+      v.Priority AS priority,
+      v.ExecutedDate AS executedTime
+  FROM VmsCurrent v
+  LEFT JOIN TmsEquipment e ON v.EquipmentId = e.ID
+  WHERE CONVERT(varchar(23), COALESCE(v.UpdateTime, v.CreateTime), 121) + '_' + v.ID > @lastKey
+  ORDER BY __lastKey DESC  -- sai: giảm dần
+  ```
+- [ ] **5.5** Cột mốc dùng `v.UpdateTime` trơn, không có `COALESCE`.
+  **Thấy:** "Cột mốc dùng UpdateTime trơn nên dòng mới thêm (chưa có UpdateTime) không được gửi. Dùng COALESCE(UpdateTime, CreateTime) ở cả cột mốc và WHERE." Rê chuột vào **Quy chuẩn mốc**: mục *Có cột mốc* đỏ, ghi "Dòng mới thêm chưa có UpdateTime nên không được gửi"; bấm **Sửa câu** thì câu về `COALESCE`, 3/3 xanh.
+  ```sql
+  SELECT TOP (@pageSize)
+      CONVERT(varchar(23), v.UpdateTime, 121) + '_' + v.ID AS __lastKey,  -- sai: UpdateTime trơn
+      e.Code AS equipmentCode,
+      v.Name AS vmsName,
+      e.KmNumber AS locationKm,
+      e.MetNumber AS locationMet,
+      e.DirectionId AS direction,
+      e.LaneId AS laneId,
+      v.RowData AS displayContent,
+      v.Url AS displayImageUrl,
+      v.Size AS displaySize,
+      v.Priority AS priority,
+      v.ExecutedDate AS executedTime
+  FROM VmsCurrent v
+  LEFT JOIN TmsEquipment e ON v.EquipmentId = e.ID
+  WHERE CONVERT(varchar(23), v.UpdateTime, 121) + '_' + v.ID > @lastKey  -- sai: UpdateTime trơn
+  ORDER BY __lastKey ASC
+  ```
+- [ ] **5.6** Cột mốc chỉ có ngày giờ, không ghép khóa.
+  **Thấy:** "Cột mốc chỉ có ngày giờ nên sót các dòng trùng giờ. Ghép thêm khóa…". **Sửa câu** ghép lại đủ `COALESCE(v.UpdateTime, v.CreateTime)` và `'_' + v.ID`, 3/3 xanh.
+  ```sql
+  SELECT TOP (@pageSize)
+      v.UpdateTime AS __lastKey,  -- sai: chỉ có ngày giờ
+      e.Code AS equipmentCode,
+      v.Name AS vmsName,
+      e.KmNumber AS locationKm,
+      e.MetNumber AS locationMet,
+      e.DirectionId AS direction,
+      e.LaneId AS laneId,
+      v.RowData AS displayContent,
+      v.Url AS displayImageUrl,
+      v.Size AS displaySize,
+      v.Priority AS priority,
+      v.ExecutedDate AS executedTime
+  FROM VmsCurrent v
+  LEFT JOIN TmsEquipment e ON v.EquipmentId = e.ID
+  WHERE v.UpdateTime > @lastKey  -- sai: chỉ có ngày giờ
+  ORDER BY __lastKey ASC
+  ```
 
 **Thấy chung:** chọn lại gói thì câu và bảng tham số vẫn là bản cũ.
 
-## 5b. Câu riêng còn `@lastTime` trong CSDL
+## 6. Cách viết khác cho dòng chưa có thời gian: câu hai nhóm mốc *(tùy chọn)*
 
-Dạng 2 cột đã bỏ: câu này là dữ liệu chưa hợp lệ, Worker dừng gói đó (ESH-1306) và giữ nguyên mốc cho tới khi sửa câu. DB dev (đọc ngày 03/11) còn 3 cấu hình riêng: `Đ` gói `108_vmsInfo`, `TTCSDL` và `Kiên` gói `101_commonData`. Làm trên `TTCSDL`, đăng ký gửi của đối tác này phải tắt.
-
-- [ ] **5b.1** **Cấu hình gói tin** → gói `101_commonData` → tab TTCSDL.
-  **Thấy:** dòng `@lastTime` ghi "Dòng này tự bỏ khi sửa câu"; ô ngày của `@lastKey` khóa, hiện *Cần sửa câu trước*; dải **Quy chuẩn mốc** đỏ (0/3).
-- [ ] **5b.2** Không sửa gì → **Lưu & phân tích**.
-  **Thấy:** "Câu chưa đúng quy chuẩn mốc, rê chuột vào Quy chuẩn mốc để sửa rồi lưu lại.", không lưu. Chọn lại gói, hộp hỏi bỏ thay đổi → **Xác nhận**.
-- [ ] **5b.3** Tab TTCSDL: rê chuột vào **Quy chuẩn mốc** → **Sửa câu**, khung soạn tự đổi câu sang `COALESCE(zs.UpdateTime, zs.CreateTime)`, ô ngày chọn được → **Lưu & phân tích**.
-  **Thấy:** có mốc thì hiện hộp xác nhận đổi công thức → **Xác nhận**. Dòng `@lastTime` tự bỏ, dải **Quy chuẩn mốc** 3/3 xanh, lưu thành công.
-- [ ] **5b.4** Tab TTCSDL: đổi `> @lastKey` trong câu thành `> @since` → **Lưu & phân tích**.
-  **Thấy:** cùng thông báo trên, không lưu; dải **Quy chuẩn mốc** 2/3, mục *Chỉ lọc mốc theo @lastKey* đỏ. Chọn nguồn **Nối tiếp lần trước theo key** cho `@since` thì dải 3/3. Chọn lại **Giá trị nhập**, rê chuột → **Sửa câu**: câu về `@lastKey`, dải 3/3, dòng `@since` tự bỏ.
-
-## 6. Cách viết khác cho dòng chưa có thời gian: câu hai nhóm mốc
-
-Câu ở các mục trên đã gửi đủ 72 dòng nhờ `COALESCE`. Câu hai nhóm tách riêng hai mốc: nhóm `upd` theo `UpdateTime`, nhóm `new` là các dòng `UpdateTime` còn trống theo `CreateTime` (cả 45 dòng đều có `CreateTime`).
+Câu ở các mục trên đã gửi đủ 72 dòng nhờ `COALESCE` nên không cần cách này; mục này chỉ để kiểm tính năng nhóm mốc (một câu nhiều mốc, mỗi mốc một tên). Câu hai nhóm tách riêng hai mốc: nhóm `upd` theo `UpdateTime`, nhóm `new` là các dòng `UpdateTime` còn trống theo `CreateTime` (cả 45 dòng đều có `CreateTime`).
 
 - [ ] **6.1** Đăng ký gửi đang tắt. Tab Đạt: xóa hết khung soạn, dán câu dưới → **Lưu & phân tích**.
   **Thấy:** hộp xác nhận "Câu truy vấn đổi công thức cột mốc nối đuôi… (Đạt)…" → **Xác nhận**. Sau đó:
@@ -136,7 +241,9 @@ Câu ở các mục trên đã gửi đủ 72 dòng nhờ `COALESCE`. Câu hai n
   **Thấy:** gửi **72** bản ghi (27 + 45), *Số bản ghi* **20, 20, 20, 12**.
 - [ ] **6.3** Chờ thêm một lượt. **Thấy:** không gửi lặp.
 
-## 7. Gửi lỗi thì giữ mốc *(tùy chọn)*
+## 7. Gửi lỗi thì giữ mốc *(tùy chọn, làm sau mục 6)*
+
+Bước 7.2 xóa mốc của Đạt bằng cách đổi công thức từ câu hai nhóm (mục 6) về câu ở bước 0.4, vì màn hình không có nút Đặt lại. Bỏ qua mục 6 thì bỏ qua cả mục này.
 
 Cấu hình cũ của Đạt (API `localhost:9999`) không có gì nghe trên máy, nên dùng luôn để thử gửi lỗi.
 
@@ -180,6 +287,7 @@ Mục tiêu: khởi động nhiều dịch vụ trên máy chủ mà vẫn chạ
 | Tình huống | Vì sao không làm tay được |
 |:--|:--|
 | Xem mốc đang chạy, Đặt mốc, Đặt lại | Làm ở trang **Mốc gửi**, chưa khai menu và không bàn giao |
+| Câu riêng còn `@lastTime` sửa bằng nút **Sửa câu** | Sau tệp D2, DB dev không còn câu dạng này để thử |
 | Dữ liệu nguồn mới hoặc vừa sửa thì được gửi tiếp | `VmsCurrent` chỉ đổi khi gửi nội dung xuống biển VMS thật; không làm trong lúc test |
 | Tắt đăng ký rồi bấm Đặt mốc / Đặt lại đúng lúc Worker đang gửi dở | Kênh File gửi xong ngay, không kịp bấm |
 | Câu bị sửa thẳng trong CSDL (cảnh báo ESH-1306, ESH-1308) | Phải sửa ngoài màn hình |

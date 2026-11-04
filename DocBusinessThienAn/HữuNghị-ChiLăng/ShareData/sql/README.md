@@ -41,7 +41,7 @@
 | **7** | [`sharedata-seed-cau-hinh-SysOpConfig.sql`](sharedata-seed-cau-hinh-SysOpConfig.sql) | `SysOpConfig` | Nạp 45 tham số nhóm `sharedata_config` (giữ giá trị còn ở nhóm cũ `sharedata_fe_config`); xóa mềm tham số không còn dùng. |
 | ~~8~~ | ~~`sharedata-seed-cau-hinh-xoa-nhom-cu-SysConfigData.sql`~~ | — | **Đã xóa tệp 28/10/2026:** việc dọn nhóm cũ `sharedata_fe_config` chạy một lần, DB mới không có nhóm này. |
 | ~~9~~ | ~~`sharedata-seed-cau-hinh-xoa-nhom-cu-SysConfigType.sql`~~ | — | **Đã xóa tệp 28/10/2026:** như tệp 8. |
-| **10** | [`sharedata-dich-thuat-SysTerminology.sql`](sharedata-dich-thuat-SysTerminology.sql) | `SysTerminology` | Nạp 158 khóa thuật ngữ (316 dòng vi-VN / en-US) qua `MERGE` không ghi đè bản dịch đã sửa. Chạy xong bấm 🔄 ở avatar góc phải trên → Ngôn ngữ để làm mới cache. |
+| **10** | [`sharedata-dich-thuat-SysTerminology.sql`](sharedata-dich-thuat-SysTerminology.sql) | `SysTerminology` | Nạp 158 khóa thuật ngữ (316 dòng vi-VN / en-US) qua `MERGE` không ghi đè bản dịch đã sửa. Có sửa lại 11 câu lỗi đã nạp từ trước: câu dịch lỗi dùng cho cả máy chủ (`string.Format`) lẫn màn hình, nên không được có `{'@'}`, và lỗi nối đuôi không dùng chỗ điền `{0}` (04/11/2026). Chạy xong bấm 🔄 ở avatar góc phải trên → Ngôn ngữ để làm mới cache. |
 | **11** | [`sharedata-chuyen-doi-moc-ShareDataLastSend.sql`](sharedata-chuyen-doi-moc-ShareDataLastSend.sql) | `ShareDataLastSend` | Gỡ unique index 2 cột cũ `index_ShareDataLastSend_Partner_Packet`; chép không trùng các dòng nhóm mốc có tên từ bảng cũ `ShareDataLastSendKey` (chỉ đọc) sang `ShareDataLastSend`. **Phải chạy sau CodeFirst; tắt Worker trước khi chạy.** |
 | **12** | [`sharedata-xoa-bang-cu-ShareDataLastSendKey.sql`](sharedata-xoa-bang-cu-ShareDataLastSendKey.sql) | `ShareDataLastSendKey` | Xóa bảng cũ `ShareDataLastSendKey` sau khi đã gộp cột `CursorKey` vào `ShareDataLastSend` (chặn bằng `SET NOEXEC ON` nếu cột `CursorKey` chưa có hoặc còn dòng chưa chuyển). **Chạy sau tệp 11.** |
 | ~~13~~ | ~~`sharedata-seed-menu-SysMenu.sql`~~ | — | **Đã bỏ (04/11/2026):** menu Mốc gửi không thuộc phạm vi bàn giao. |
@@ -51,6 +51,7 @@
 | Thứ tự | Tệp | Bảng ghi | Nội dung |
 | :---: | :--- | :--- | :--- |
 | **D1** | [`sharedata-xoa-cot-thua-ShareDataPacket.sql`](sharedata-xoa-cot-thua-ShareDataPacket.sql) | `ShareDataPacket` | Xóa 5 cột entity đã bỏ (`ExtractSql`, `TemplateSql`, `CursorTimeColumn`, `SyncMode`, `MaxLookBackDays`) trên DB tạo trước 27/10/2026. **Chạy sau tệp 2**, vì tệp 2 chuyển `ExtractSql`, `CursorTimeColumn` cũ sang `ShareDataSql`; DB mới tạo bằng CodeFirst không có các cột này nên bỏ qua. |
+| **D2** | [`sharedata-sua-cau-rieng-moc-hai-cot-ShareDataSql.sql`](sharedata-sua-cau-rieng-moc-hai-cot-ShareDataSql.sql) | `ShareDataSql` | Sửa câu SQL riêng của đối tác còn mốc 2 cột (`__lastTime`, `@lastTime`) chép từ câu mẫu gói 101 cũ sang một chuỗi ghép `COALESCE(zs.UpdateTime, zs.CreateTime)`, giống nút **Sửa câu**; bỏ biến `lastTime`. Câu khác khuôn hoặc đối tác đã có mốc thì chỉ in tên, sửa bằng nút **Sửa câu** trên giao diện. Chạy lại không sao. **DB dev (đọc 04/11/2026):** sửa được câu riêng gói 101 của TTCSDL và Kiên. |
 
 ### B. Dữ liệu giả lập (⛔ chỉ DB local, hậu tố `_local`, thư mục con [`local/`](local/))
 

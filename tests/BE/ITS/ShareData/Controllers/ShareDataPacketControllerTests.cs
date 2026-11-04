@@ -2638,6 +2638,18 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         Assert.True(
             ex.ToString().Contains(errorKey) || (ex is AppFriendlyException afe && afe.ErrorMessage?.ToString() == errorKey),
             $"Kỳ vọng từ chối với mã {errorKey}, nhận được: {ex}");
+
+        // Máy chủ đã nạp câu dịch (bấm làm mới Ngôn ngữ) thì Oops.Oh gọi string.Format(câu dịch, giá trị): {'@'} làm lỗi định dạng
+        var (vi, en) = SeedScriptReader.ReadTerminology(errorKey);
+        _ = string.Format(vi, "a", "b", "c");
+        _ = string.Format(en, "a", "b", "c");
+
+        // Máy chủ chưa nạp thì trả mã lỗi, màn hình tự dịch không có giá trị: {0} của lỗi nối đuôi hiện trống như "[] > @"
+        if (errorKey.Contains("sqlIncremental", StringComparison.Ordinal))
+        {
+            Assert.DoesNotMatch(@"\{\d\}", vi);
+            Assert.DoesNotMatch(@"\{\d\}", en);
+        }
     }
 
     /// <summary>

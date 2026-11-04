@@ -601,7 +601,7 @@ ORDER BY __lastKey ASC</code></pre>
               <thead><tr><th style="width:24%">Biến trong câu</th><th style="width:32%">Nguồn giá trị</th><th>Bạn nhập ở cột Giá trị cấu hình</th></tr></thead>
               <tbody>
                 <tr><td><code>@pageSize</code></td><td><span class="ui">Giá trị nhập</span></td><td>Số dòng mỗi lượt, điền sẵn 100.</td></tr>
-                <tr><td><code>@lastKey</code>, <code>@lastKey_&lt;nhóm&gt;</code></td><td><span class="ui">Nối tiếp lần trước theo key</span></td><td>Chọn ngày giờ bắt đầu, để trống là gửi toàn bộ dữ liệu hiện có. Mốc đang chạy xem và sửa ở trang <span class="ui">Mốc gửi</span>.</td></tr>
+                <tr><td><code>@lastKey</code>, <code>@lastKey_&lt;nhóm&gt;</code></td><td><span class="ui">Nối tiếp lần trước theo key</span></td><td>Chọn ngày giờ bắt đầu, để trống là gửi toàn bộ dữ liệu hiện có. Đối tác đã có mốc thì ô bị khóa, ghi <span class="ui">Đã có mốc, gửi tiếp</span>: Mốc lần đầu chỉ dùng khi mốc bị xóa.</td></tr>
                 <tr><td><code>@lastTime</code> ở câu riêng còn dạng cũ</td><td><span class="ui">Giá trị nhập</span></td><td>Bấm <span class="ui">Sửa câu</span>, dòng tự bỏ. Câu đã đúng chuẩn mà vẫn dùng tên này thì là <span class="ui">Giá trị nhập</span>, nhập giá trị.</td></tr>
                 <tr><td>Biến khác, ví dụ <code>@tuNgay</code></td><td><span class="ui">Giá trị nhập</span></td><td>Nhập giá trị. Cần giờ hiện tại thì viết thẳng <code>GETDATE()</code> trong câu, không cần biến. Ví dụ chỉ lấy dữ liệu 7 ngày gần nhất: <code>AND COALESCE(t.UpdateTime, t.CreateTime) &gt;= DATEADD(DAY, -7, GETDATE())</code>. Câu nối đuôi muốn lùi mốc thì dùng <span class="ui">Đặt mốc</span>.</td></tr>
               </tbody>
