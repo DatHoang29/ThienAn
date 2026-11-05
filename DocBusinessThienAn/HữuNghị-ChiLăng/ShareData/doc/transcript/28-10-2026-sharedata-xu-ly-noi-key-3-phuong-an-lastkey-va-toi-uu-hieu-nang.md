@@ -51,7 +51,7 @@ participants:
 - **Chủ đề chính:**
   1. **Giải Mã Bản Vẽ Kỹ Thuật b7af82ba478cc7d29e9d.jpg — Cơ Chế Khóa Nối Đuôi Composite Key (@LastKey / DetectKey):**
      - Đánh giá 2 phương án sinh khóa nối đuôi ghép chuỗi: Phương án 1 (SQL CONCAT / Select nối chuỗi) vs Phương án 2 (C# Worker xử lý ghép chuỗi `dl.Time.ToString("HHmm") + "_" + Code`).
-     - Xác định mệnh đề truy vấn: Trường khóa nối đuôi bắt buộc phải xuất hiện đồng thời trong cả mệnh đề `WHERE` (`WHERE DetectKey > @LastKey`) và mệnh đề sắp xếp (`ORDER BY DetectKey ASC`).
+     - Xác định mệnh đề truy vấn: Công thức khóa nối đuôi bắt buộc phải xuất hiện trong cả mệnh đề `WHERE` (`WHERE <công thức của DetectKey> > @LastKey`, vì SQL Server không cho dùng tên cột `DetectKey` trong `WHERE`) và mệnh đề sắp xếp (`ORDER BY DetectKey ASC`).
   2. **Kiến Trúc Bảng Lưu Trữ Trạng Thái Offset ("Tên khóa lưu trữ"):**
      - Bắt buộc cấu trúc khóa trạng thái phải bao gồm cả `Mã gói` và `Đối tác` (`PartnerId`). Tuyệt đối không lưu mốc chạy thật ở cấp mẫu dùng chung vì sẽ gây xung đột dữ liệu (race condition / data collision) giữa các đối tác dùng chung mẫu.
      - Cơ chế xử lý khi Worker bị Crash hoặc dừng đột ngột giữa chừng: Giữ nguyên mốc `LastKey` cũ, chỉ commit mốc mới khi toàn bộ batch dữ liệu đã được xử lý trọn vẹn.
@@ -140,7 +140,7 @@ Hai bản vẽ tay tại [50d2fc5f676ae734be7b.jpg](file:///Users/hoangquydat/Th
 #### Phân tích 2 phương án sinh khóa nối đuôi:
 1. **Phương án 1 — Xử lý tại Database bằng câu lệnh SQL (SQL CONCAT):**
    - Trong câu truy vấn động, người cấu hình bổ sung cột ghép chuỗi: `CONCAT(FORMAT(Time, 'HHmm'), '_', Code) AS DetectKey`.
-   - Câu truy vấn sử dụng: `WHERE DetectKey > @LastKey ORDER BY DetectKey ASC`.
+   - Câu truy vấn sử dụng: `WHERE CONCAT(FORMAT(Time, 'HHmm'), '_', Code) > @LastKey ORDER BY DetectKey ASC`. `WHERE` phải viết lại đúng công thức vì SQL Server không cho dùng tên cột `DetectKey` trong `WHERE`; `ORDER BY` thì dùng được tên cột.
    - **Ưu điểm:** Tầng Worker C# hoàn toàn trong suốt (agnostic), chỉ việc đọc giá trị cột `DetectKey` của bản ghi cuối cùng trong danh sách kết quả rồi lưu lại.
    - **Nhược điểm:** Phép toán ghép chuỗi và convert dữ liệu trên tập dữ liệu lớn sẽ tiêu tốn tài nguyên Database IO, không tận dụng được index có sẵn của trường `Time` và `Code`, khó debug khi có sai lệch định dạng.
 2. **Phương án 2 — Xử lý tại tầng ứng dụng Worker (C# Application Processing):**
@@ -413,7 +413,7 @@ Ba bản vẽ tay kỹ thuật được Tech Lead phác thảo trực tiếp tro
     - Bản ghi mới nhất luôn nằm ở vị trí cuối cùng của danh sách (`last item of list`).
 - **Cơ chế ghi nhận mốc:**
   - Worker xử lý xong mẻ dữ liệu, đọc giá trị của cột `__lastKey` tại dòng cuối cùng, rồi commit giá trị này vào bảng offset với `Key = '__lastKey'`.
-  - Ở chu kỳ quét tiếp theo, Worker đọc giá trị đã lưu truyền vào tham số `@lastKey` để tiếp tục trích xuất các bản ghi kế tiếp (`WHERE __lastKey > @lastKey`).
+  - Ở chu kỳ quét tiếp theo, Worker đọc giá trị đã lưu truyền vào tham số `@lastKey` để tiếp tục trích xuất các bản ghi kế tiếp (`WHERE <biểu thức của cột __lastKey> > @lastKey`).
 
 ---
 
@@ -532,6 +532,50 @@ Ba bản vẽ tay kỹ thuật được Tech Lead phác thảo trực tiếp tro
 | **Sửa mốc đang chạy** | Dev hỏi "Cái value này là người dùng tự set vô hả anh?", Tech Lead trả lời "Không! Value này là hệ thống detect chứ!" [A 05:49–06:15]. Về hiện mốc: "chắc thực ra không cần hiện đâu", nếu hiện thì phải theo đối tác [A-4 00:31–00:55]. | Mốc do hệ thống tự ghi, **vẫn sửa được nhưng chỉ ở trang Mốc gửi** (`views/sharedata/cursor`): xem mốc theo từng đối tác, Đặt mốc, Đặt lại. |
 | **Phạm vi trang Trường gói tin** (`sharedata/dataSource`) | | Câu SQL (mẫu chung hoặc riêng đối tác), trường, tham số, Mốc bắt đầu (`DefaultValue`), Quy chuẩn mốc. **Không hiện và không sửa mốc đang chạy**, kể cả tab đối tác đã có mốc. |
 | **Chỗ lưu tham số cố định** (`@pageSize` và biến Giá trị nhập) | Bảng lưu trên bản vẽ có cả hai dòng cho đối tác A gói 101: "`PageSize`, `DetectKey` cho đối tác A gói 101… chỉ update thằng này (`DetectKey`), thằng này là fixed rồi (`PageSize`)" [A-4 03:16–03:35, bản vẽ `b7af82ba`]. | Lưu ở **`ShareDataSql.VariablesJson`, đi theo câu SQL** (mẫu chung hoặc riêng đối tác). `ShareDataLastSend` chỉ lưu mốc. Ý của lời họp vẫn giữ: giá trị cố định không đổi lúc chạy, chỉ mốc được cập nhật. Hệ quả: đối tác dùng mẫu chung dùng chung `@pageSize` của mẫu chung, muốn khác thì tạo cấu hình riêng. |
+
+### Mẫu câu PA1 sếp gửi (ghi vào biên bản 05/11/2026, người phụ trách cung cấp)
+
+Nội dung sếp gửi riêng, không thuộc ghi âm buổi 27–28/10. Nguyên văn:
+
+```text
+"SELECT * FROM ( 
+ SELECT TOP ({1}) 
+ TID AS IDReference ,s.MSLANE AS Lane
+ ,Cast(ProcessDate as Date) as ProcessDate
+ 
+ , Ca , cast(s.GIAVE as int) AS Total,NGAYSOAT AS Date 
+ , N'Tiền mặt' AS PaymentMethod ,s.MSLoaive ,RIGHT(s.MSLoaive,1) AS VehicleID ,'' as [Checker] ,SoXe_ND AS SoXe ,CONVERT(varchar(23), Write_Date , 121) +'_' +MSLANE AS TAC_Key ,'TAC_Key' AS TAC_PrimaryKey, '1' AS OPTION1,s.[Login] as SellerName 
+ FROM SoatVeVangLai s
+ WHERE CONVERT(varchar(23), Write_Date , 121) +'_' +MSLANE > '{0}' 
+ AND GIAVE > 0
+ AND NGAYSOAT >= '2025-05-10 00:00:00' AND NGAYSOAT < '2026-01-01 00:00:00.000' 
+ ORDER BY NGAYSOAT 
+ ) T ORDER BY TAC_Key ASC, Lane ASC"
+WHERE CONVERT(varchar(23), Write_Date , 121) +'_' +MSLANE > '{0}'
+đó
+kiểu kiểu v
+r ví dụ trạm A, cần thêm là lấy DL t ừ năm 2027 thôi
+thì thêm AND  NGAYSOAT >= '2027-01-01 00:00:00'
+thì này là dk riêng r
+hoặc lấy tự động chỉ từ đầu năm thôi
+thì NGAYSOAT >= @now.year
+hay kiểu gì gì đó
+tùy theo thiết lập thôi
+mà @.... nên là 1 tên có nghĩa
+@ --->>> gán nó là cái gì
+```
+
+**Căn cứ rút ra:** PA1 viết công thức `CONVERT(varchar(23), <thời gian>, 121) + '_' + <khóa>` ở cả `SELECT` và `WHERE`. Những chỗ trong biên bản viết gọn `WHERE __lastKey > …`, `WHERE CompositeKey > …` (bản vẽ, C.1, C.4.1) chỉ là cách viết tắt. Câu thật phải lặp biểu thức vì SQL Server không cho dùng tên cột trong `WHERE`; lưu câu `WHERE __lastKey > @lastKey` bị từ chối với lỗi CSDL (thử qua API trên DB test).
+
+| Trong mẫu | Cách làm hiện tại |
+| :--- | :--- |
+| `{0}`, `{1}`; "@.... nên là 1 tên có nghĩa", "gán nó là cái gì" | `@lastKey`, `@pageSize`; bảng tham số gán nguồn theo từng biến. |
+| `AND GIAVE > 0`, `AND NGAYSOAT >= '2027-01-01 00:00:00'` là điều kiện riêng | Viết thêm bằng `AND`, lưu được; bộ kiểm chỉ xem điều kiện mốc. |
+| `NGAYSOAT >= @now.year`, tự động từ đầu năm | Bảng tham số không có nguồn đầu năm; viết thẳng `DATEFROMPARTS(YEAR(GETDATE()), 1, 1)` trong câu, lưu được. |
+| `TAC_Key`, kèm `'TAC_Key' AS TAC_PrimaryKey` để khai cột khóa | Tên cột cố định `__lastKey`, không cần khai; đặt tên khác bị từ chối (`sqlIncrementalMissingLastKey`). |
+| `TOP` và `ORDER BY NGAYSOAT` trong câu con, ngoài `ORDER BY TAC_Key, Lane` | Câu mẫu để `TOP` và `ORDER BY __lastKey` cùng cấp. |
+
+**Lưu ý dạng lồng trong mẫu:** dạng này vẫn lưu được, nhưng `TOP` chọn dòng theo `NGAYSOAT` còn mốc tính theo `Write_Date`, nên hai cột lệch thứ tự thì sót dòng. Ví dụ `TOP 1` với dòng X (`NGAYSOAT` 01/01, `Write_Date` 05/01) và dòng Y (02/01, 02/01): lượt đầu lấy X nên mốc thành 05/01, lượt sau lọc `> 05/01` nên Y không bao giờ được gửi. Suy từ logic, chưa có test luồng gửi cho dạng này. Hệ thống không chặn dạng này khi lưu; câu mẫu không gặp lỗi này vì `TOP` và sắp xếp cùng theo mốc.
 
 > **Không phải lời họp.** Phần A, B là biên bản; phần này là thiết kế viết sau họp và đối chiếu với mã working tree.
 > Gộp nguyên tài liệu `doc/08-thiet-ke-luong-noi-duoi-toan-trinh-ui-be-worker.md` (đã xóa); mục `x.y` cũ nay là `C.x.y`.
