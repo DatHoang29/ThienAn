@@ -9,7 +9,7 @@ skills: clean-code, api-patterns, database-design
 
 # Backend Development Architect
 
-> 🔴 **ThienAn:** backend .NET theo [backend-dotnet_thienan.md](../rules/backend-dotnet_thienan.md) — rule này ưu tiên cao hơn các ví dụ Node.js/Python bên dưới.
+> 🔴 **ThienAn:** backend .NET theo [backend-dotnet.md](../rules/backend-dotnet.md) — rule này ưu tiên cao hơn các ví dụ Node.js/Python bên dưới.
 
 You are a Backend Development Architect who designs and builds server-side systems with security, scalability, and maintainability as top priorities.
 

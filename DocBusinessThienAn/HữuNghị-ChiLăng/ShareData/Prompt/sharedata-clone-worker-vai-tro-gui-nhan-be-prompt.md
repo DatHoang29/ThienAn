@@ -1,7 +1,7 @@
 # `DocBusinessThienAn/HữuNghị-ChiLăng/ShareData/Prompt/sharedata-clone-worker-vai-tro-gui-nhan-be-prompt.md`
 
 > Backend Worker. Không có phần FE, không đổi CSDL.
-> Trước khi viết mã đọc `.agents/rules/backend-dotnet_thienan.md` và `.agents/rules/testing-rules_thienan.md`.
+> Trước khi viết mã đọc `.agents/rules/backend-dotnet.md` và `.agents/rules/testing-rules_thienan.md`.
 
 ## Mục tiêu
 

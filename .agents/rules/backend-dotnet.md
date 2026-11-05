@@ -527,5 +527,20 @@ namespace Module.ShareData.Controllers
   3. **Chuyển thành test kiểm tra từ chối (Negative Test)**: Nếu muốn kiểm chứng rằng hệ thống đã chặn thành công trường hợp lỗi đó, viết test kiểm tra kỳ vọng ném lỗi `Oops.Oh` (`AssertRejectedWith(error, BaseMsg...)`) và khẳng định không có dữ liệu sai nào được ghi vào CSDL.
   4. **Ngoại lệ duy nhất**: Chỉ được phép nới lỏng hoặc chuyển từ trạng thái Chặn (Reject) sang Cảnh báo (Warning) khi có chỉ thị trực tiếp từ người dùng sau khi đã phân tích rõ rủi ro mất/lặp dữ liệu.
 
+### 4.31. Không Dồn Nhiều Lời Gọi Lồng Nhau Trên Một Dòng (Rule 19.116)
 
+* Lời gọi hàm nằm trong tham số của lời gọi khác thì tách mỗi bước thành một biến `var`, đặt tên theo ý nghĩa, để đọc từng bước và đặt breakpoint được. Dòng `return` chỉ trả kết quả của bước cuối.
 
+```csharp
+// ⛔ Sai: nhiều bước dồn trên một dòng
+return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"|{NormalizeCursorExpression(keyExpr)}")));
+
+// ✅ Đúng: mỗi bước một biến
+var normalizedExpr = NormalizeCursorExpression(keyExpr);
+var inputBytes = Encoding.UTF8.GetBytes($"|{normalizedExpr}");
+var hashBytes = SHA256.HashData(inputBytes);
+return Convert.ToHexString(hashBytes);
+```
+
+* Không áp dụng cho chuỗi gọi nối tiếp đã xuống dòng theo từng bước (LINQ, SqlSugar `.Where().Select()`), vì mỗi bước đã nằm trên một dòng riêng.
+* Áp dụng cho mã mới và đoạn đang sửa. Mã cũ ngoài phạm vi công việc thì không tự dọn.

@@ -16,7 +16,7 @@ description: Phân loại yêu cầu và định tuyến quy chuẩn theo miền
 
 | Loại Việc / Miền | Từ Khóa Nhận Diện | Tệp Quy Chuẩn Bắt Buộc |
 | :--- | :--- | :--- |
-| **Backend .NET** | C#, WebAPI, Worker, Wolverine, SqlSugar, Entity, DTO | [backend-dotnet_thienan.md](./backend-dotnet_thienan.md) |
+| **Backend .NET** | C#, WebAPI, Worker, Wolverine, SqlSugar, Entity, DTO | [backend-dotnet.md](./backend-dotnet.md) |
 | **Frontend Vue** | Vue 3, SFC, Element Plus, VxeTable, SCSS, i18n, TS | [frontend-vue_thienan.md](./frontend-vue_thienan.md) |
 | **Kiểm Thử** | xUnit BE local DB, Playwright FE E2E, dọn artifacts | [testing-rules_thienan.md](./testing-rules_thienan.md) |
 | **Database** | Gortex MCP, DAB MCP local, quy chuẩn script `.sql` | [database-mcp_thienan.md](./database-mcp_thienan.md) |

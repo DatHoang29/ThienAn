@@ -157,7 +157,7 @@ public class ShareDataArchitectureTests
         // Assert
         Assert.NotEmpty(handlers);
         Assert.True(violations.Count == 0,
-            $"Handler phải cài IWolverineHandler và không dùng ITransient/IScoped/ISingleton (backend-dotnet_thienan.md §2): {string.Join("; ", violations)}");
+            $"Handler phải cài IWolverineHandler và không dùng ITransient/IScoped/ISingleton (backend-dotnet.md §2): {string.Join("; ", violations)}");
     }
 
     /// <summary>
@@ -185,7 +185,7 @@ public class ShareDataArchitectureTests
         // Assert
         Assert.NotEmpty(dtoTypes);
         Assert.True(violations.Count == 0,
-            $"DTO không được dùng DataAnnotation, chuyển sang FluentValidation (backend-dotnet_thienan.md §2): {string.Join("; ", violations)}");
+            $"DTO không được dùng DataAnnotation, chuyển sang FluentValidation (backend-dotnet.md §2): {string.Join("; ", violations)}");
     }
 
     /// <summary>
