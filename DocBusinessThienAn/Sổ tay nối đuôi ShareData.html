@@ -712,8 +712,8 @@ ORDER BY __lastKey ASC</code></pre>
           <tr><td>Cột thời gian + khóa duy nhất</td><td><span class="tag ok">Chuỗi ghép</span></td><td>Dạng câu mẫu, ở bước 3 phía trên.</td></tr>
           <tr><td>Chỉ có ID số tự tăng, không có cột thời gian tin cậy</td><td><span class="tag ok">Chỉ khóa</span></td><td>Không bắt được dòng sửa sau khi tạo.</td></tr>
           <tr><td>Cột thời gian có lúc trống</td><td><span class="tag ok">Cột mốc gộp</span></td><td>Gửi cả dòng chưa có thời gian, không cần hai nhóm. Bắt buộc với <code>UpdateTime</code>.</td></tr>
-          <tr><td>Cần mốc riêng cho dòng đã cập nhật và dòng mới tạo</td><td><span class="tag diff">Hai nhóm</span></td><td>Câu dài hơn, mỗi nhóm một mốc.</td></tr>
-          <tr><td>Nhiều bảng gộp bằng <code>UNION</code></td><td><span class="tag diff">Nhiều nhóm</span></td><td>Mỗi nguồn một nhóm mốc, nguồn về trễ không mất dòng.</td></tr>
+          <tr><td>Cần mốc riêng cho dòng đã cập nhật và dòng mới tạo</td><td><span class="tag ok">Hai nhóm</span></td><td>Câu dài hơn, mỗi nhóm một mốc.</td></tr>
+          <tr><td>Nhiều bảng gộp bằng <code>UNION</code></td><td><span class="tag ok">Nhiều nhóm</span></td><td>Mỗi nguồn một nhóm mốc, nguồn về trễ không mất dòng.</td></tr>
         </tbody>
       </table>
     </div>
@@ -802,20 +802,23 @@ ORDER BY u.sortKey ASC</code></pre>
       <li><code>ORDER BY</code> ngoài cùng sắp theo cột có cùng công thức cột mốc ở nhánh của từng nhóm (cột <code>sortKey</code> ở trên). Sắp theo cột khác, kể cả cột mốc của riêng một nhóm như <code>u.__lastKey_pkt</code>, thì không lưu được.</li>
     </ul>
 
-    <h3>Điều kiện <code>WHERE</code> nào được lưu</h3>
+    <h3>Câu nào lưu được</h3>
     <div class="table-wrap">
       <table>
         <thead><tr><th style="width:42%">Viết</th><th>Khi lưu</th><th>Vì sao</th></tr></thead>
         <tbody>
-          <tr><td><code>&lt;chuỗi ghép&gt; &gt; @lastKey</code>, <code>ORDER BY __lastKey ASC</code></td><td><span class="tag ok">Lưu được</span></td><td>Dạng câu mẫu</td></tr>
-          <tr><td><code>WHERE</code> so khác biểu thức cột mốc, ví dụ chỉ <code>ID &gt; @lastKey</code></td><td><span class="tag todo">Từ chối</span></td><td>Bỏ sót hoặc gửi lặp dòng</td></tr>
-          <tr><td>So cột mốc với hằng số, ví dụ <code>ID &gt; 'a'</code></td><td><span class="tag todo">Từ chối</span></td><td>Có <code>TOP</code> thì lượt nào cũng lấy lại trang đầu</td></tr>
-          <tr><td><code>ORDER BY</code> không theo <code>__lastKey</code> hoặc <code>DESC</code></td><td><span class="tag todo">Từ chối</span></td><td>Dòng cuối không phải mốc lớn nhất</td></tr>
-          <tr><td><code>K &gt;= @lastKey</code></td><td><span class="tag diff">Lưu, ghi nhật ký cấu hình</span></td><td>Gửi lặp dòng cuối mỗi lượt</td></tr>
+          <tr><td><code>&lt;chuỗi ghép&gt; AS __lastKey</code>, <code>WHERE &lt;chuỗi ghép&gt; &gt; @lastKey</code>, <code>ORDER BY __lastKey ASC</code></td><td><span class="tag ok">Lưu được</span></td><td>Dạng câu mẫu</td></tr>
+          <tr><td><code>WHERE &lt;chuỗi ghép&gt; &gt;= @lastKey</code></td><td><span class="tag diff">Lưu, ghi nhật ký cấu hình</span></td><td>Gửi lặp dòng cuối mỗi lượt</td></tr>
           <tr><td>Ghép ngày giờ sai định dạng, ép số sang chuỗi không đệm 0</td><td><span class="tag diff">Lưu, ghi nhật ký cấu hình</span></td><td>Sắp sai thứ tự, có thể bỏ sót dòng</td></tr>
-          <tr><td>Cột mốc dùng <code>UpdateTime</code> trơn, không bọc <code>COALESCE</code></td><td><span class="tag todo">Từ chối</span></td><td>Dòng mới thêm ghép ra <code>NULL</code> nên không được gửi. Dùng <a href="#mau-cot-gop">cột mốc gộp</a>; câu có nhánh <code>UpdateTime IS NULL</code> như <a href="#mau-hai-nhom">hai nhóm</a> thì được</td></tr>
+          <tr><td>Cột mốc là một cột không phải số, ví dụ <code>ID AS __lastKey</code> với ID dạng GUID</td><td><span class="tag diff">Lưu, ghi nhật ký cấu hình</span></td><td>Khóa không tăng theo thứ tự ghi, dòng mới có thể bị bỏ sót</td></tr>
+          <tr><td>Cột thời gian khác trong chuỗi ghép có dòng trống</td><td><span class="tag diff">Lưu, không báo gì</span></td><td>Dòng đó ghép ra <code>NULL</code> nên không được gửi. Cần gửi thì dùng <a href="#mau-cot-gop">cột mốc gộp</a></td></tr>
+          <tr><td>Đặt tên cột mốc khác <code>__lastKey</code></td><td><span class="tag todo">Từ chối</span></td><td>Worker không lấy được mốc</td></tr>
           <tr><td>Cột mốc chỉ có ngày giờ, ví dụ <code>UpdateTime AS __lastKey</code></td><td><span class="tag todo">Từ chối</span></td><td>Sót các dòng trùng giờ. Ghép thêm <code>'_' + ID</code></td></tr>
-          <tr><td>Cột thời gian khác trong chuỗi ghép có dòng trống</td><td><span class="tag diff">Lưu được</span></td><td>Dòng đó ghép ra <code>NULL</code> nên không được gửi, màn hình không báo. Cần gửi thì dùng <a href="#mau-cot-gop">cột mốc gộp</a></td></tr>
+          <tr><td>Cột mốc dùng <code>UpdateTime</code> trơn, không bọc <code>COALESCE</code></td><td><span class="tag todo">Từ chối</span></td><td>Dòng mới thêm ghép ra <code>NULL</code> nên không được gửi. Dùng <a href="#mau-cot-gop">cột mốc gộp</a>; câu có nhánh <code>UpdateTime IS NULL</code> như <a href="#mau-hai-nhom">hai nhóm</a> thì được</td></tr>
+          <tr><td><code>WHERE</code> so khác biểu thức cột mốc, ví dụ chỉ <code>ID &gt; @lastKey</code></td><td><span class="tag todo">Từ chối</span></td><td>Bỏ sót hoặc gửi lặp dòng</td></tr>
+          <tr><td><code>WHERE</code> dùng tên cột, ví dụ <code>__lastKey &gt; @lastKey</code></td><td><span class="tag todo">Từ chối</span></td><td>SQL Server không cho dùng tên cột trong <code>WHERE</code>, phải viết lại công thức</td></tr>
+          <tr><td>So cột mốc với hằng số, ví dụ <code>ID &gt; 'a'</code></td><td><span class="tag todo">Từ chối</span></td><td>Có <code>TOP</code> thì lượt nào cũng lấy lại trang đầu</td></tr>
+          <tr><td><code>ORDER BY</code> thiếu, không theo <code>__lastKey</code> hoặc <code>DESC</code></td><td><span class="tag todo">Từ chối</span></td><td>Dòng cuối không phải mốc lớn nhất</td></tr>
         </tbody>
       </table>
     </div>
