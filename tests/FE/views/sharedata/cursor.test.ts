@@ -47,7 +47,7 @@ const pickTime = async (page: Page, scope: Locator, text: string) => {
 const gridRow = (page: Page, text: string) => page.locator('.sharedata-cursor-container .vxe-table--main-wrapper .vxe-body--row', { hasText: text });
 const gotoCursorPage = async (page: Page) => {
     await page.setViewportSize({ width: 1600, height: 950 });
-    await page.goto('/#/sharedata/cursor');
+    await page.goto('/#/shareData/cursor');
     await expect(page.locator('.sharedata-cursor-container')).toBeVisible({ timeout: 30_000 });
 };
 
@@ -60,7 +60,7 @@ test.describe('ShareData — Trang Mốc gửi (cursor) @sharedata', () => {
             if (!isSharedLayoutError(err.message)) pageErrors.push(err.message);
         });
 
-        await mockAuth(context, page, { userInfo: { defaultMenu: '/sharedata/cursor' } });
+        await mockAuth(context, page, { userInfo: { defaultMenu: '/shareData/cursor' } });
 
         await page.route('**/api/system/sysmenu/loginmenutree*', (route) =>
             fulfillJson(route, [
@@ -75,9 +75,10 @@ test.describe('ShareData — Trang Mốc gửi (cursor) @sharedata', () => {
                         {
                             id: 'menu_sharedata_cursor',
                             pid: 'menu_sharedata',
-                            path: '/sharedata/cursor',
+                            // Đúng giá trị của tệp seed menu sharedata-seed-menu-SysMenu.sql
+                            path: '/shareData/cursor',
                             name: 'shareDataCursor',
-                            component: 'sharedata/cursor/index',
+                            component: '/sharedata/cursor/index',
                             meta: { title: 'Mốc gửi', isLink: '', isHide: false, isKeepAlive: true, isAffix: false, isIframe: false, roles: ['admin'], icon: 'ele-Flag' },
                         },
                     ],
@@ -145,14 +146,16 @@ test.describe('ShareData — Trang Mốc gửi (cursor) @sharedata', () => {
         await pickTime(page, dialog, '02/11/2026 08:00:00');
         await dialog.locator('.el-dialog__footer .el-button--primary').click();
         await expect(dialog).toBeHidden();
-        await expect(page.locator('.el-message--success')).toBeVisible();
+        await expect(page.locator('.el-message--success')).toContainText('Đã cập nhật mốc gửi dữ liệu cho đối tác.');
         await expect(rowB).toContainText('2026-11-02 08:00:00.000_');
 
         // Đặt lại mốc của CSGT: có xác nhận, gửi đúng đối tác, bảng về trạng thái chưa có mốc
         await rowA.locator('.sd-cursor-reset-btn').click();
+        await expect(page.locator('.el-message-box')).toContainText('Đặt lại mốc đã lưu của gói tin này cho đối tác?');
         await page.locator('.el-message-box__btns .el-button--primary').click();
         await expect.poll(() => resetPayloads.length).toBe(1);
         expect(resetPayloads[0]).toEqual({ packetCode: '101', partnerId: 'p_a' });
+        await expect(page.locator('.el-message--success').last()).toContainText('Đã đặt lại mốc đã lưu.');
         await expect(rowA).toContainText('lần gửi tới lấy theo tham số của gói tin');
     });
 

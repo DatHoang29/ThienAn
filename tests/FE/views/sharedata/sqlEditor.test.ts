@@ -309,6 +309,8 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
 
         await expect.poll(() => saved?.extractSql, { timeout: 10_000 }).toBe(VDOT_SQL);
         expect(saved.partnerId).toBe('P1');
+        // Tạo cấu hình riêng không có bước hỏi: công thức cột mốc khác thì máy chủ xóa mốc ngay
+        expect(saved.force).toBe(true);
         await expect(page.locator('.sql-partner-tabs .el-tabs__item.is-active')).toContainText('DT-DAT');
         await expect(page.locator('.sql-partner-tabs .el-tabs__item').last()).toContainText('DT-DAT');
     });
@@ -421,6 +423,123 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         await page.locator('.el-message-box .el-button--primary').click();
         await expect.poll(() => resetIds, { timeout: 10_000 }).toEqual(['P1']);
     });
+
+    /**
+     * Author: DatHQ
+     * Description: Dùng lại mẫu chung khi mẫu chung khác công thức cột mốc: máy chủ trả requiresConfirm, màn hình hỏi kèm tên đối tác bị xóa mốc;
+     *              hủy thì không gửi lại, đồng ý thì gửi lại với force.
+     * Created date: 05/11/2026
+     */
+    test('13b. Dùng lại mẫu chung khác công thức cột mốc: hỏi xác nhận kèm tên đối tác, hủy thì thôi, đồng ý thì gửi lại với force', async ({ page }) => {
+        const resetBodies: any[] = [];
+        await page.route('**/api/sharedata/sharedatapacket/getpartnersqllist*', (r) =>
+            r.fulfill(json({ code: 200, result: [{ partnerId: 'P1', partnerCode: 'DT-A', partnerName: 'Đối tác A', isCustom: !resetBodies.some((b) => b.force) }] }))
+        );
+        await page.route('**/api/sharedata/sharedatapacket/getpartnerextractsql*', (r) =>
+            r.fulfill(json({ code: 200, result: { partnerId: 'P1', packetCode: '101_commonData', standardSql: SQL_ONE_COLUMN, customSql: `${SQL_ONE_COLUMN} WHERE 1 = 1`, isCustom: true, hasDifferences: true, commonFields: SAVED_FIELDS, fields: SAVED_FIELDS } }))
+        );
+        await page.route('**/api/sharedata/sharedatapacket/resetpartnerextractsql*', (r) => {
+            const body = r.request().postDataJSON();
+            resetBodies.push(body);
+            return r.fulfill(
+                json({
+                    code: 200,
+                    result: body.force
+                        ? { partnerId: 'P1', isCustom: false }
+                        : { partnerId: 'P1', isCustom: true, requiresConfirm: true, lost: [], affectedMappings: [], cursorResetPartners: [{ partnerId: 'P1', partnerCode: 'DT-A', partnerName: 'Đối tác A' }] },
+                })
+            );
+        });
+        await openSqlCenter(page);
+        await page.locator('.sql-partner-tabs .el-tabs__item', { hasText: 'DT-A' }).click();
+        const resetButton = page.locator('.sql-toolbar-bar .el-button', { hasText: 'Dùng lại mẫu chung' });
+        const firstBox = page.locator('.el-message-box', { hasText: 'Dùng lại' }).or(page.locator('.lost-keys-confirm-box')).first();
+        const cursorBox = page.locator('.el-message-box', { has: page.locator('.cursor-reset-confirm') });
+
+        // Hủy ở hộp xác nhận xóa mốc: không gửi lại, vẫn ở tab đối tác
+        await resetButton.click();
+        await firstBox.locator('.el-button--primary').click();
+        await expect(cursorBox).toContainText('Đối tác A', { timeout: 10_000 });
+        expect(resetBodies).toHaveLength(1);
+        expect(resetBodies[0].force).toBeFalsy();
+        await cursorBox.locator('.el-message-box__btns .el-button').first().click();
+        await expect(cursorBox).toBeHidden();
+        expect(resetBodies).toHaveLength(1);
+        await expect(page.locator('.sql-partner-tabs .el-tabs__item.is-active')).toContainText('DT-A');
+
+        // Đồng ý: gửi lại với force
+        await resetButton.click();
+        await firstBox.locator('.el-button--primary').click();
+        await expect(cursorBox).toContainText('Đối tác A', { timeout: 10_000 });
+        await cursorBox.locator('.el-message-box__btns .el-button--primary').click();
+        await expect.poll(() => resetBodies.length, { timeout: 10_000 }).toBe(3);
+        expect(resetBodies[2].force).toBe(true);
+    });
+
+    /**
+     * Author: DatHQ
+     * Description: Đăng ký đang bật khóa phần chiều gửi đúng phạm vi, khớp chặn ESH-2306 của máy chủ: tab Mẫu chung khóa khi còn bất kỳ đăng ký gửi nào của gói đang bật (kể cả hai chiều),
+     *              đăng ký chiều nhận không khóa; tab đối tác chỉ khóa theo đúng đối tác đó. Khi khóa: có dòng cảnh báo nêu tên đối tác, nút Lưu & phân tích và Dùng lại mẫu chung tắt, ô Nguồn giá trị tắt.
+     * Created date: 05/11/2026
+     */
+    const lockCases = [
+        { name: '76a. Tab Mẫu chung, đăng ký gửi của đối tác có cấu hình riêng đang bật: khóa, nêu tên đối tác', tab: null, direction: 0, locked: true },
+        { name: '76b. Tab Mẫu chung, đăng ký hai chiều đang bật: khóa', tab: null, direction: 2, locked: true },
+        { name: '76c. Tab Mẫu chung, chỉ có đăng ký chiều nhận đang bật: không khóa', tab: null, direction: 1, locked: false },
+        { name: '76d. Tab đối tác có đăng ký gửi đang bật: khóa', tab: 'DT-B', direction: 0, locked: true },
+        { name: '76e. Tab đối tác khác đối tác có đăng ký đang bật: không khóa', tab: 'DT-A', direction: 0, locked: false },
+    ];
+    for (const c of lockCases) {
+        test(c.name, async ({ page }) => {
+            const LOCK_SQL = 'SELECT TOP 100 td.Speed AS speed FROM TmsTrafficData td WHERE td.Lane = @lane';
+            await page.route('**/api/sharedata/sharedatasubscription/list*', (r) =>
+                r.fulfill(json({ code: 200, result: [{ id: 'S1', partnerId: 'P2', partnerName: 'Đối tác B', partnerCode: 'DT-B', direction: c.direction, state: 1 }] }))
+            );
+            await page.route('**/api/sharedata/sharedatapacket/getextractsql*', (r) => r.fulfill(json({ code: 200, result: { extractSql: LOCK_SQL, status: 1, fields: SAVED_FIELDS } })));
+            await page.route('**/api/sharedata/sharedatapacket/getpartnersqllist*', (r) =>
+                r.fulfill(
+                    json({
+                        code: 200,
+                        result: [
+                            { partnerId: 'P1', partnerCode: 'DT-A', partnerName: 'Đối tác A', isCustom: true },
+                            { partnerId: 'P2', partnerCode: 'DT-B', partnerName: 'Đối tác B', isCustom: true },
+                        ],
+                    })
+                )
+            );
+            await page.route('**/api/sharedata/sharedatapacket/getpartnerextractsql*', (r) =>
+                r.fulfill(json({ code: 200, result: { packetCode: '101_commonData', standardSql: LOCK_SQL, customSql: `${LOCK_SQL} AND 1 = 1`, isCustom: true, hasDifferences: true, commonFields: SAVED_FIELDS, fields: SAVED_FIELDS } }))
+            );
+            await page.route('**/api/sharedata/sharedatapacket/getsqlvariables*', (r) =>
+                r.fulfill(json({ code: 200, result: { items: [{ code: 'lane', valueKind: 'Const', dataType: 'String', value: 'L1' }] } }))
+            );
+            await openSqlCenter(page);
+            if (c.tab) await page.locator('.sql-partner-tabs .el-tabs__item', { hasText: c.tab }).click();
+            await page.waitForTimeout(800);
+
+            const alert = page.locator('.send-regions-wrapper .el-alert--warning');
+            const save = page.locator('.sql-toolbar-bar .el-button--primary').last();
+            const sourceSelect = page.locator('.sql-variable-panel .svp-source-select .el-select__wrapper').first();
+            await page.locator('.sql-section .sql-raw-textarea-fallback textarea').fill(`${LOCK_SQL} AND 2 = 2`);
+            // Khung soạn đẩy nội dung lên trang sau 450ms kể từ lần gõ cuối
+            await page.waitForTimeout(600);
+
+            if (c.locked) {
+                await expect(alert).toContainText('Đối tác B');
+                await expect(save).toBeDisabled();
+                await expect(sourceSelect).toHaveClass(/is-disabled/);
+            } else {
+                await expect(alert).toHaveCount(0);
+                await expect(save).toBeEnabled();
+                await expect(sourceSelect).not.toHaveClass(/is-disabled/);
+            }
+            if (c.tab) {
+                const resetButton = page.locator('.sql-toolbar-bar .el-button', { hasText: 'Dùng lại mẫu chung' });
+                if (c.locked) await expect(resetButton).toBeDisabled();
+                else await expect(resetButton).toBeEnabled();
+            }
+        });
+    }
 
     test('15. Hai tab Chiều gửi / Chiều nhận; ở Chiều gửi, SQL và danh sách trường cùng hiện; Thu gọn ẩn khung soạn thảo', async ({ page }) => {
         await openSqlCenter(page);
@@ -735,6 +854,44 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         expect(saved.affectedTables).toEqual(['dbo.TmsTrafficData']);
         expect(saved.writeSql).toContain('MERGE dbo.TmsTrafficData');
     });
+
+    /**
+     * Author: DatHQ
+     * Description: Câu ghi chiều nhận khóa theo đăng ký nhận, khớp chặn ESH-2306 của máy chủ: còn đăng ký nhận hoặc hai chiều đang bật thì có dòng cảnh báo nêu tên đối tác và nút Lưu tắt;
+     *              chỉ có đăng ký gửi đang bật thì không khóa phần này.
+     * Created date: 05/11/2026
+     */
+    const writeLockCases = [
+        { name: '78a. Chiều nhận, còn đăng ký nhận đang bật: khóa nút Lưu, nêu tên đối tác', direction: 1, locked: true },
+        { name: '78b. Chiều nhận, còn đăng ký hai chiều đang bật: khóa nút Lưu', direction: 2, locked: true },
+        { name: '78c. Chiều nhận, chỉ có đăng ký gửi đang bật: không khóa', direction: 0, locked: false },
+    ];
+    for (const c of writeLockCases) {
+        test(c.name, async ({ page }) => {
+            await page.route('**/api/sharedata/sharedatapacket/validatewritesql*', (r) =>
+                r.fulfill(json({ code: 200, result: { isValid: true, detectedTables: ['dbo.TmsTrafficData'], keyFields: ['speed'], checks: [] } }))
+            );
+            await page.route('**/api/sharedata/sharedatasubscription/list*', (r) =>
+                r.fulfill(json({ code: 200, result: [{ id: 'S1', partnerId: 'P2', partnerName: 'Đối tác B', partnerCode: 'DT-B', direction: c.direction, state: 1 }] }))
+            );
+            await openSqlCenter(page);
+            await page.locator('.direction-tabs .el-tabs__item', { hasText: 'Nhận về' }).click();
+            const panel = page.locator('.write-sql-panel');
+            await expect(panel).toBeVisible();
+            await panel.getByRole('button', { name: 'Chèn mẫu MERGE' }).click();
+            await expect(panel.locator('.wsp-detected-tag')).toContainText('dbo.TmsTrafficData', { timeout: 10_000 });
+
+            const save = panel.locator('.wsp-save-btn');
+            const alert = panel.locator('.el-alert--warning');
+            if (c.locked) {
+                await expect(alert).toContainText('Đối tác B');
+                await expect(save).toBeDisabled();
+            } else {
+                await expect(alert).toHaveCount(0);
+                await expect(save).toBeEnabled({ timeout: 10_000 });
+            }
+        });
+    }
 
     /**
      * Description: Chạy thử câu ghi ở tab Chiều nhận: hộp chạy thử gửi dữ liệu mẫu cùng khối câu ghi đang soạn, hiện tổng số dòng thêm / sửa (máy chủ quay lui sau khi chạy).
@@ -1195,6 +1352,60 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
     });
 
     /**
+     * Author: DatHQ
+     * Description: Lưu câu riêng ở tab đối tác đổi công thức cột mốc: hỏi xác nhận kèm tên đối tác; hủy thì không gửi lại, đồng ý thì gửi lại với force.
+     * Created date: 05/11/2026
+     */
+    test('59b. Tab đối tác lưu câu đổi công thức cột mốc: hỏi xác nhận, hủy thì thôi, đồng ý thì gửi lại với force', async ({ page }) => {
+        await page.route('**/api/sharedata/sharedatapacket/describecolumns*', (r) =>
+            r.fulfill(json({ code: 200, result: { isValid: true, fields: SAVED_FIELDS, added: [], lost: [], typeChanged: [], affectedMappings: [] } }))
+        );
+        await page.route('**/api/sharedata/sharedatapacket/getpartnersqllist*', (r) =>
+            r.fulfill(json({ code: 200, result: [{ partnerId: 'P_A', partnerCode: 'DT-A', partnerName: 'Đối tác A', isCustom: true }] }))
+        );
+        await page.route('**/api/sharedata/sharedatapacket/getpartnerextractsql*', (r) =>
+            r.fulfill(json({ code: 200, result: { partnerId: 'P_A', packetCode: '101_commonData', standardSql: SQL_ONE_COLUMN, customSql: `${SQL_ONE_COLUMN} WHERE 1 = 1`, isCustom: true, hasDifferences: true, commonFields: SAVED_FIELDS, fields: SAVED_FIELDS } }))
+        );
+        const saveBodies: any[] = [];
+        await page.route('**/api/sharedata/sharedatapacket/updatepartnerextractsql*', (r) => {
+            const body = r.request().postDataJSON();
+            saveBodies.push(body);
+            return r.fulfill(
+                json({
+                    code: 200,
+                    result: body.force
+                        ? { partnerId: 'P_A', isCustom: true, customSql: body.extractSql, standardSql: SQL_ONE_COLUMN, fields: SAVED_FIELDS, commonFields: SAVED_FIELDS }
+                        : { partnerId: 'P_A', isCustom: true, requiresConfirm: true, lost: [], affectedMappings: [], cursorResetPartners: [{ partnerId: 'P_A', partnerCode: 'DT-A', partnerName: 'Đối tác A' }] },
+                })
+            );
+        });
+        await openSqlCenter(page);
+        await page.locator('.sql-partner-tabs .el-tabs__item', { hasText: 'DT-A' }).click();
+        const save = page.locator('.sql-toolbar-bar .el-button--primary').last();
+        await expect(save).toBeDisabled({ timeout: 15_000 });
+        await page.locator('.sql-section .sql-raw-textarea-fallback textarea').fill(`${SQL_ONE_COLUMN} WHERE 2 = 2`);
+        await page.waitForTimeout(600);
+        await expect(save).toBeEnabled({ timeout: 10_000 });
+        const confirmBox = page.locator('.el-message-box', { has: page.locator('.cursor-reset-confirm') });
+
+        // Hủy: không gửi lại, câu đang soạn giữ nguyên để sửa tiếp
+        await save.click();
+        await expect(confirmBox).toContainText('Đối tác A', { timeout: 10_000 });
+        await confirmBox.locator('.el-message-box__btns .el-button').first().click();
+        await expect(confirmBox).toBeHidden();
+        expect(saveBodies).toHaveLength(1);
+        expect(saveBodies[0].force).toBeFalsy();
+
+        // Đồng ý: gửi lại với force
+        await save.click();
+        await expect(confirmBox).toContainText('Đối tác A', { timeout: 10_000 });
+        await confirmBox.locator('.el-message-box__btns .el-button--primary').click();
+        await expect.poll(() => saveBodies.length, { timeout: 10_000 }).toBe(3);
+        expect(saveBodies[2].force).toBe(true);
+        expect(saveBodies[2].partnerId).toBe('P_A');
+    });
+
+    /**
      * Description: Lưu & phân tích câu SQL dùng biến mốc của nhóm (@lastKey_a, @lastKey_b): biến mới tự chọn nguồn theo tiền tố
      *              như @lastKey, và bộ biến gửi kèm câu SQL trong cùng một lần lưu
      *              (không gọi API lưu bộ biến riêng trước câu SQL, câu bị từ chối thì bộ biến cũng không lưu).
@@ -1235,6 +1446,92 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
             expect.objectContaining({ code: 'lastKey_b', valueKind: 'Builtin', value: 'lastKey' }),
         ]);
         expect(variableSaves).toHaveLength(0);
+    });
+
+    /**
+     * Author: DatHQ
+     * Description: Đổi từ câu một nhóm sang câu hai nhóm mốc ở mục Mẫu câu: Lưu & phân tích thì hai biến @lastKey_upd, @lastKey_new tự có nguồn, dòng @lastKey cũ tự bỏ, không gửi lên máy chủ.
+     * Created date: 05/11/2026
+     */
+    test('67b. Đổi sang câu hai nhóm mốc: hai biến tự có nguồn, dòng @lastKey cũ tự bỏ', async ({ page }) => {
+        await page.route('**/api/sharedata/sharedatapacket/describecolumns*', (r) =>
+            r.fulfill(json({ code: 200, result: { isValid: true, fields: SAVED_FIELDS, added: [], lost: [], typeChanged: [], affectedMappings: [] } }))
+        );
+        const saveBodies: any[] = [];
+        await page.route('**/api/sharedata/sharedatapacket/updateextractsql*', (r) => {
+            const body = r.request().postDataJSON();
+            saveBodies.push(body);
+            return r.fulfill(json({ code: 200, result: { extractSql: body.extractSql, status: 1, fields: SAVED_FIELDS, warnings: [] } }));
+        });
+        const oneKeyFormula = "CONVERT(varchar(23), COALESCE(x.UpdateTime, x.CreateTime), 121) + '_' + x.ID";
+        const oneKeySql = `SELECT TOP 100 x.ID AS zoneId, ${oneKeyFormula} AS __lastKey FROM TmsZone x WHERE ${oneKeyFormula} > @lastKey ORDER BY __lastKey ASC`;
+        await page.route('**/api/sharedata/sharedatapacket/getextractsql*', (r) => r.fulfill(json({ code: 200, result: { extractSql: oneKeySql, status: 1, fields: SAVED_FIELDS } })));
+        await page.route('**/api/sharedata/sharedatapacket/getsqlvariables*', (r) =>
+            r.fulfill(json({ code: 200, result: { items: saveBodies.at(-1)?.variables ?? [{ code: 'lastKey', valueKind: 'Builtin', value: 'lastKey', dataType: 'String' }] } }))
+        );
+        await openSqlCenter(page);
+        const panel = page.locator('.sql-variable-panel');
+        const table = panel.locator('.svp-table').first();
+        await expect(table.locator('tbody tr', { hasText: '@lastKey' })).toHaveCount(1, { timeout: 10_000 });
+        const save = page.locator('.sql-toolbar-bar .el-button--primary').last();
+
+        await page.locator('.sql-section .sql-raw-textarea-fallback textarea').fill(
+            'SELECT TOP 100 u.zoneId, u.__lastKey_upd, u.__lastKey_new FROM (' +
+                "SELECT x.ID AS zoneId, CONVERT(varchar(23), x.UpdateTime, 121) + '_' + x.ID AS sortKey, CONVERT(varchar(23), x.UpdateTime, 121) + '_' + x.ID AS __lastKey_upd, CAST(NULL AS nvarchar(100)) AS __lastKey_new FROM TmsZone x " +
+                "WHERE CONVERT(varchar(23), x.UpdateTime, 121) + '_' + x.ID > @lastKey_upd " +
+                "UNION ALL SELECT y.ID, CONVERT(varchar(23), y.CreateTime, 121) + '_' + y.ID, NULL, CONVERT(varchar(23), y.CreateTime, 121) + '_' + y.ID FROM TmsZone y " +
+                "WHERE y.UpdateTime IS NULL AND CONVERT(varchar(23), y.CreateTime, 121) + '_' + y.ID > @lastKey_new" +
+                ') u ORDER BY u.sortKey ASC'
+        );
+        await page.waitForTimeout(600);
+        await expect(save).toBeEnabled({ timeout: 10_000 });
+        await save.click();
+
+        await expect.poll(() => saveBodies.length, { timeout: 10_000 }).toBe(1);
+        expect(saveBodies[0].variables).toEqual([
+            expect.objectContaining({ code: 'lastKey_upd', valueKind: 'Builtin', value: 'lastKey' }),
+            expect.objectContaining({ code: 'lastKey_new', valueKind: 'Builtin', value: 'lastKey' }),
+        ]);
+        await expect(table.locator('tbody tr', { hasText: '@lastKey_upd' })).toBeVisible();
+        await expect(table.locator('tbody tr', { hasText: /@lastKey(?!_)/ })).toHaveCount(0);
+    });
+
+    /**
+     * Author: DatHQ
+     * Description: Đọc kết quả lưu: máy chủ từ chối thì báo đỏ ngay trên khung soạn bằng câu đã dịch, không lộ mã lỗi, khung soạn giữ câu đang soạn;
+     *              sửa lại lưu được thì báo xanh và hết báo đỏ.
+     * Created date: 05/11/2026
+     */
+    test('77. Lưu & phân tích: bị từ chối thì báo đỏ câu đã dịch và giữ câu đang soạn; sửa lại lưu được thì báo xanh, hết báo đỏ', async ({ page }) => {
+        await page.route('**/api/sharedata/sharedatapacket/describecolumns*', (r) =>
+            r.fulfill(json({ code: 200, result: { isValid: true, fields: SAVED_FIELDS, added: [], lost: [], typeChanged: [], affectedMappings: [] } }))
+        );
+        let reject = true;
+        await page.route('**/api/sharedata/sharedatapacket/updateextractsql*', (r) => {
+            if (reject) {
+                return r.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ code: 400, message: 'lz.validation.sharedata.sqlIncrementalKeyFilterInclusive' }) });
+            }
+            return r.fulfill(json({ code: 200, result: { extractSql: r.request().postDataJSON().extractSql, status: 1, fields: SAVED_FIELDS, warnings: [] } }));
+        });
+        await openSqlCenter(page);
+        const editor = page.locator('.sql-section .sql-raw-textarea-fallback textarea');
+        const save = page.locator('.sql-toolbar-bar .el-button--primary').last();
+        const errorAlert = page.locator('.sql-error-alert');
+
+        const rejectedSql = `${SQL_ONE_COLUMN} WHERE td.Speed > 0`;
+        await editor.fill(rejectedSql);
+        await page.waitForTimeout(600);
+        await save.click();
+        await expect(errorAlert).toContainText('So cột mốc với biến mốc phải dùng dấu >', { timeout: 10_000 });
+        await expect(errorAlert).not.toContainText('lz.validation');
+        await expect(editor).toHaveValue(rejectedSql);
+
+        reject = false;
+        await editor.fill(`${SQL_ONE_COLUMN} WHERE td.Speed > 1`);
+        await page.waitForTimeout(600);
+        await save.click();
+        await expect(page.locator('.el-message--success').last()).toContainText('Lưu cấu hình SQL trích xuất thành công', { timeout: 10_000 });
+        await expect(errorAlert).toHaveCount(0);
     });
 
     /**
@@ -1321,6 +1618,9 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         await save.click();
         const maTramRow = table.locator('tbody tr', { hasText: '@maTram' });
         await expect(maTramRow).toContainText('Giá trị nhập', { timeout: 10_000 });
+        // Biến lạ chưa có giá trị: lần bấm đầu chỉ trích biến và báo nhập giá trị, chưa lưu
+        await expect(page.locator('.el-message--warning').last()).toContainText('Sửa các dòng tham số đang báo lỗi trước khi lưu.');
+        expect(saveBodies).toHaveLength(0);
         await expect(maTramRow.locator('.svp-source-select')).toBeVisible();
         await expect(panel.locator('.svp-check-lead')).toHaveCount(0);
         await maTramRow.locator('.svp-const-input input').fill('TRAM01');
@@ -1463,16 +1763,22 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
     });
 
     /**
-     * Description: Cột mốc theo UpdateTime trơn, ghép chuỗi hoặc chỉ có ngày giờ: dòng mới thêm chưa có UpdateTime nên không được gửi, Quy chuẩn mốc chưa đạt và nói rõ lý do;
-     *              bấm Sửa câu thì cả cột mốc lẫn WHERE ghép đủ COALESCE(UpdateTime, CreateTime) và khóa, đạt 3/3 và chọn được ngày.
+     * Description: Cột mốc khác công thức PA1: UpdateTime trơn (dòng mới thêm chưa có UpdateTime nên không được gửi), cột chuỗi trơn, ép số sang chuỗi, cột thời gian khác không có CreateTime, phần khóa không phải cột ID:
+     *              Quy chuẩn mốc chưa đạt, khóa ô ngày; bấm Sửa câu thì cả cột mốc lẫn WHERE về đúng công thức, phần khóa là cột ID, đạt 3/3 và chọn được ngày.
      * Created date: 04/11/2026
+     * Modified date: 05/11/2026
      */
-    const bareUpdateTimeCases = [
-        { name: '71b. Quy chuẩn mốc: cột mốc ghép từ UpdateTime trơn chưa đạt, Sửa câu đổi sang COALESCE(UpdateTime, CreateTime)', keyExpr: "CONVERT(varchar(23), x.UpdateTime, 121) + '_' + x.ID" },
-        { name: '71c. Quy chuẩn mốc: cột mốc chỉ có UpdateTime chưa đạt, Sửa câu ghép thêm COALESCE(UpdateTime, CreateTime) và khóa', keyExpr: 'x.UpdateTime' },
+    const standardFormula = "CONVERT(varchar(23), COALESCE(x.UpdateTime, x.CreateTime), 121) + '_' + x.ID";
+    const cursorFormulaCases = [
+        { name: '71b. Quy chuẩn mốc: cột mốc ghép từ UpdateTime trơn chưa đạt, Sửa câu đổi sang COALESCE(UpdateTime, CreateTime)', keyExpr: "CONVERT(varchar(23), x.UpdateTime, 121) + '_' + x.ID", reason: 'chưa có UpdateTime', fixed: standardFormula },
+        { name: '71c. Quy chuẩn mốc: cột mốc chỉ có UpdateTime chưa đạt, Sửa câu ghép thêm COALESCE(UpdateTime, CreateTime) và khóa', keyExpr: 'x.UpdateTime', reason: 'chưa có UpdateTime', fixed: standardFormula },
+        { name: '71d. Quy chuẩn mốc: cột mốc là cột chuỗi trơn chưa đạt, Sửa câu ghép thời gian trước cột đó', keyExpr: 'x.ID', reason: 'Thay cột mốc bằng', fixed: standardFormula },
+        { name: '71e. Quy chuẩn mốc: cột mốc ép số sang chuỗi chưa đạt, Sửa câu đổi về công thức có cột ID', keyExpr: 'CAST(x.FromKmNumber AS varchar(10))', reason: 'Thay cột mốc bằng', fixed: standardFormula },
+        { name: '71f. Quy chuẩn mốc: phần thời gian không có CreateTime chưa đạt, Sửa câu bọc thêm CreateTime', keyExpr: "CONVERT(varchar(23), x.DetectTime, 121) + '_' + x.ID", reason: 'Thay cột mốc bằng', fixed: "CONVERT(varchar(23), COALESCE(x.DetectTime, x.CreateTime), 121) + '_' + x.ID" },
+        { name: '71g. Quy chuẩn mốc: phần khóa là cột có thể trống chưa đạt, Sửa câu đổi phần khóa thành cột ID, giữ phần thời gian', keyExpr: "CONVERT(varchar(23), COALESCE(x.UpdateTime, x.CreateTime), 121) + '_' + x.Name", reason: 'Thay cột mốc bằng', fixed: standardFormula },
     ];
 
-    for (const c of bareUpdateTimeCases) {
+    for (const c of cursorFormulaCases) {
         test(c.name, async ({ page }) => {
             await page.route('**/api/sharedata/sharedatapacket/describecolumns*', (r) =>
                 r.fulfill(json({ code: 200, result: { isValid: true, fields: SAVED_FIELDS, added: [], lost: [], typeChanged: [], affectedMappings: [] } }))
@@ -1501,12 +1807,11 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
             await lead.hover();
             const columnsItem = page.locator('.svp-popover-content .svp-popover-item', { hasText: 'Có cột mốc __lastKey' });
             await expect(columnsItem).toHaveClass(/is-fail/);
-            await expect(columnsItem).toContainText('chưa có UpdateTime');
-            await expect(columnsItem.locator('.svp-fix-code')).toContainText('COALESCE(x.UpdateTime, x.CreateTime)');
+            await expect(columnsItem).toContainText(c.reason);
+            await expect(columnsItem.locator('.svp-fix-code')).toContainText(c.fixed);
             await page.locator('.svp-popover-content .svp-fix-all').click();
 
-            const formula = "CONVERT(varchar(23), COALESCE(x.UpdateTime, x.CreateTime), 121) + '_' + x.ID";
-            await expect(editor).toHaveValue(`SELECT TOP (@pageSize) x.ID AS zoneId, ${formula} AS __lastKey FROM TmsZone x WHERE ${formula} > @lastKey\nORDER BY __lastKey ASC`);
+            await expect(editor).toHaveValue(`SELECT TOP (@pageSize) x.ID AS zoneId, ${c.fixed} AS __lastKey FROM TmsZone x WHERE ${c.fixed} > @lastKey\nORDER BY __lastKey ASC`);
             await expect(lead).toContainText('(3/3)');
             await expect(panel.locator('.cvi-picker input')).toBeEnabled();
         });
@@ -1564,13 +1869,9 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
         expect(variableSaves[0].items[1]).toMatchObject({ code: 'lastKey', defaultValue: '2026-10-28 00:00:00.000_' });
 
         await editor.fill('SELECT TOP (@pageSize) x.ID AS zoneId, x.ID AS __lastKey FROM TmsZone x WHERE x.ID > @lastKey ORDER BY __lastKey ASC');
-        await expect(panel.locator('.cvi-preview')).toContainText('2026-10-28 00:00:00.000_', { timeout: 10_000 });
-        await expect(panel.locator('.svp-key-input input[type="text"]')).toHaveCount(0);
-        await panel.locator('.cvi-clear').click();
-        await expect(panel.locator('.cvi-preview')).toHaveCount(0);
-        await expect(panel.locator('.cvi-start-text')).toContainText('Gửi toàn bộ');
-        // Không có biểu tượng thông tin: chữ trong ô nói luôn vì sao không chọn được ngày
-        await expect(panel.locator('.cvi-start-text')).toContainText('mốc không có giờ');
+        // Cột mốc khác công thức: khóa ô ngày cho tới khi sửa câu, không có ô gõ tay và biểu tượng thông tin
+        await expect(picker).toBeDisabled({ timeout: 10_000 });
+        await expect(panel.locator('.svp-key-input input[type="text"]:not([disabled])')).toHaveCount(0);
         await expect(panel.locator('.cvi-info')).toHaveCount(0);
     });
 

@@ -1,7 +1,10 @@
 using FluentValidation;
+using Module.ShareData.Core.Constants;
 using Module.ShareData.Core.Dto.Partner;
+using Module.ShareData.Core.Dto.Session;
 using Module.ShareData.Core.Entities;
 using Module.ShareData.Core.Exceptions;
+using Tests.ShareData.Common;
 
 namespace Tests.ShareData.Controllers
 {
@@ -15,6 +18,271 @@ namespace Tests.ShareData.Controllers
     [Collection("api")]
     public class ShareDataPartnerControllerTests(Host host)
     {
+        #region Kết nối và trạng thái đối tác
+
+        /// <summary>
+        /// Author: DatHQ
+        /// Description: Tạo một đối tác kênh API chưa kết nối, trạng thái theo tham số.
+        /// Created date: 05/11/2026
+        /// </summary>
+        private static async Task<ShareDataPartner> SeedPartnerAsync(ISqlSugarClient db, BaseEnums.StatusEnum status = BaseEnums.StatusEnum.Enable)
+        {
+            var unique = Guid.NewGuid().ToString("N")[..20];
+            var partner = new ShareDataPartner
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                Code = $"P_CN_{unique}",
+                Name = $"Partner {unique}",
+                Address = "127.0.0.1",
+                Port = 8080,
+                ConnectionType = ConnectionType.Api,
+                Status = status,
+                SessionState = BaseEnums.SessionState.Disconnected
+            };
+            await db.Insertable(partner).ExecuteCommandAsync();
+            return partner;
+        }
+
+        /// <summary>
+        /// Author: DatHQ
+        /// Description: Tạo một đăng ký chiều gửi đang chạy của đối tác.
+        /// Created date: 05/11/2026
+        /// </summary>
+        private static async Task<ShareDataSubscription> SeedActiveSubscriptionAsync(ISqlSugarClient db, ShareDataPartner partner)
+        {
+            var subscription = new ShareDataSubscription
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                PartnerId = partner.ID,
+                DatatypeId = $"DT_{Guid.NewGuid():N}",
+                Direction = BaseEnums.Direction.Outbound,
+                State = BaseEnums.SubSubscriptionState.Active
+            };
+            await db.Insertable(subscription).ExecuteCommandAsync();
+            return subscription;
+        }
+
+        /// <summary>
+        /// Author: DatHQ
+        /// Description: Dữ liệu sửa đối tác giữ nguyên các giá trị đang có, ca test chỉ đổi trường cần kiểm.
+        /// Created date: 05/11/2026
+        /// </summary>
+        private static ShareDataUpdatePartnerInput UpdateInput(ShareDataPartner partner) => new()
+        {
+            ID = partner.ID,
+            Code = partner.Code,
+            Name = partner.Name,
+            Address = partner.Address,
+            Port = partner.Port,
+            ConnectionType = partner.ConnectionType,
+            Status = partner.Status
+        };
+
+        /// <summary>
+        /// Author: DatHQ
+        /// Description: Kết nối mở một phiên và đánh dấu đối tác đã kết nối, kết nối lại không mở thêm phiên; ngắt kết nối đóng phiên kèm lý do, đánh dấu đối tác đã ngắt và tạm dừng đăng ký đang chạy.
+        /// Created date: 05/11/2026
+        /// </summary>
+        [Fact]
+        public async Task ConnectPartner_WhenConnectedTwiceThenDisconnected_KeepsOneSessionAndPausesSubscriptions_Test()
+        {
+            // Arrange
+            var sp = host.Services;
+            var db = sp.GetRequiredService<ISqlSugarClient>();
+            var partner = await SeedPartnerAsync(db);
+            var subscription = await SeedActiveSubscriptionAsync(db, partner);
+
+            // Act
+            var first = await sp.CallApiAsync<ShareDataSessionOutput>(new ShareDataConnectPartnerInput { ID = partner.ID });
+            var second = await sp.CallApiAsync<ShareDataSessionOutput>(new ShareDataConnectPartnerInput { ID = partner.ID });
+            var whileConnected = await db.Queryable<ShareDataPartner>().InSingleAsync(partner.ID);
+            await sp.CallApiAsync(new ShareDataDisconnectPartnerInput { ID = partner.ID });
+
+            // Assert
+            var sessions = await db.Queryable<ShareDataSession>().Where(s => s.PartnerId == partner.ID).ToListAsync();
+            var session = Assert.Single(sessions);
+            var afterDisconnect = await db.Queryable<ShareDataPartner>().InSingleAsync(partner.ID);
+            var savedSubscription = await db.Queryable<ShareDataSubscription>().InSingleAsync(subscription.ID);
+            Assert.Equal(first.ID, second.ID);
+            Assert.Equal(BaseEnums.SessionState.Connected, whileConnected.SessionState);
+            Assert.Equal(BaseEnums.SessionFsmState.Closed, session.State);
+            Assert.Equal(ShareDataConst.Reason.ClientRequested, session.EndReason);
+            Assert.Equal(BaseEnums.SessionState.Disconnected, afterDisconnect.SessionState);
+            Assert.Equal(BaseEnums.SubSubscriptionState.Paused, savedSubscription.State);
+        }
+
+        /// <summary>
+        /// Author: DatHQ
+        /// Description: Đối tác đã tắt thì không kết nối được và không mở phiên.
+        /// Created date: 05/11/2026
+        /// </summary>
+        [Fact]
+        public async Task ConnectPartner_WhenPartnerDisabled_RejectsAndOpensNoSession_Test()
+        {
+            // Arrange
+            var sp = host.Services;
+            var db = sp.GetRequiredService<ISqlSugarClient>();
+            var partner = await SeedPartnerAsync(db, BaseEnums.StatusEnum.Disable);
+
+            // Act
+            var error = await Record.ExceptionAsync(() => sp.CallApiAsync<ShareDataSessionOutput>(new ShareDataConnectPartnerInput { ID = partner.ID }));
+
+            // Assert
+            var hasSession = await db.Queryable<ShareDataSession>().Where(s => s.PartnerId == partner.ID).AnyAsync();
+            RejectionAssert.Rejected(error, BaseMsg.ShareData.Exception.PartnerDisabled);
+            Assert.False(hasSession);
+        }
+
+        /// <summary>
+        /// Author: DatHQ
+        /// Description: Sửa đối tác khi còn phiên kết nối: đổi tham số kết nối thì từ chối, chỉ đổi tên thì lưu được.
+        /// Created date: 05/11/2026
+        /// </summary>
+        [Theory]
+        [InlineData("doiDiaChi", true)]
+        [InlineData("doiCong", true)]
+        [InlineData("doiTen", false)]
+        public async Task UpdatePartner_WhenSessionActive_LocksOnlyConnectionParams_Test(string change, bool rejected)
+        {
+            // Arrange
+            var sp = host.Services;
+            var db = sp.GetRequiredService<ISqlSugarClient>();
+            var partner = await SeedPartnerAsync(db);
+            await sp.CallApiAsync<ShareDataSessionOutput>(new ShareDataConnectPartnerInput { ID = partner.ID });
+            var input = UpdateInput(partner);
+            switch (change)
+            {
+                case "doiDiaChi": input.Address = "10.0.0.9"; break;
+                case "doiCong": input.Port = 9090; break;
+                default: input.Name = $"{partner.Name} moi"; break;
+            }
+
+            // Act
+            var error = await Record.ExceptionAsync(() => sp.CallApiAsync(input));
+
+            // Assert
+            var saved = await db.Queryable<ShareDataPartner>().InSingleAsync(partner.ID);
+            if (rejected)
+            {
+                RejectionAssert.Rejected(error, BaseMsg.ShareData.Exception.PartnerSessionActive);
+                Assert.Equal(partner.Address, saved.Address);
+                Assert.Equal(partner.Port, saved.Port);
+            }
+            else
+            {
+                Assert.Null(error);
+                Assert.Equal(input.Name, saved.Name);
+            }
+        }
+
+        /// <summary>
+        /// Author: DatHQ
+        /// Description: Mốc gửi và gói tin nhận gắn theo mã đối tác nên API không cho đổi mã, kể cả khi gọi thẳng không qua màn hình; giữ nguyên mã (có khoảng trắng thừa) thì lưu được.
+        /// Created date: 05/11/2026
+        /// </summary>
+        [Theory]
+        [InlineData("_M", true)]
+        [InlineData("", false)]
+        public async Task UpdatePartner_WhenCodeChanged_RejectsAndKeepsCode_Test(string suffix, bool rejected)
+        {
+            // Arrange
+            var sp = host.Services;
+            var db = sp.GetRequiredService<ISqlSugarClient>();
+            var partner = await SeedPartnerAsync(db);
+            var input = UpdateInput(partner);
+            input.Code = $"  {partner.Code}{suffix}  ";
+            input.Name = $"{partner.Name} moi";
+
+            // Act
+            var error = await Record.ExceptionAsync(() => sp.CallApiAsync(input));
+
+            // Assert
+            var saved = await db.Queryable<ShareDataPartner>().InSingleAsync(partner.ID);
+            Assert.Equal(partner.Code, saved.Code);
+            if (rejected)
+            {
+                RejectionAssert.Rejected(error, BaseMsg.ShareData.Exception.PartnerCodeLocked);
+                Assert.Equal(partner.Name, saved.Name);
+            }
+            else
+            {
+                Assert.Null(error);
+                Assert.Equal(input.Name, saved.Name);
+            }
+        }
+
+        /// <summary>
+        /// Author: DatHQ
+        /// Description: Tắt đối tác thì đăng ký đang chạy của đối tác đó tự tạm dừng, Worker không còn gửi theo đăng ký bị bỏ quên.
+        /// Created date: 05/11/2026
+        /// </summary>
+        [Fact]
+        public async Task UpdatePartner_WhenDisabled_PausesActiveSubscriptions_Test()
+        {
+            // Arrange
+            var sp = host.Services;
+            var db = sp.GetRequiredService<ISqlSugarClient>();
+            var partner = await SeedPartnerAsync(db);
+            var subscription = await SeedActiveSubscriptionAsync(db, partner);
+            var input = UpdateInput(partner);
+            input.Status = BaseEnums.StatusEnum.Disable;
+
+            // Act
+            await sp.CallApiAsync(input);
+
+            // Assert
+            var savedPartner = await db.Queryable<ShareDataPartner>().InSingleAsync(partner.ID);
+            var savedSubscription = await db.Queryable<ShareDataSubscription>().InSingleAsync(subscription.ID);
+            Assert.Equal(BaseEnums.StatusEnum.Disable, savedPartner.Status);
+            Assert.Equal(BaseEnums.SubSubscriptionState.Paused, savedSubscription.State);
+        }
+
+        /// <summary>
+        /// Author: DatHQ
+        /// Description: Xóa đối tác còn đăng ký đang chạy thì từ chối và giữ nguyên (một bản ghi và cả lô); không còn đăng ký thì xóa mềm và đóng phiên đang mở.
+        /// Created date: 05/11/2026
+        /// </summary>
+        [Theory]
+        [InlineData(true, false)]
+        [InlineData(true, true)]
+        [InlineData(false, false)]
+        [InlineData(false, true)]
+        public async Task DeletePartner_WhenSubscriptionAliveOrNot_OnlyFreePartnerIsDeleted_Test(bool hasActiveSubscription, bool batch)
+        {
+            // Arrange
+            var sp = host.Services;
+            var db = sp.GetRequiredService<ISqlSugarClient>();
+            var partner = await SeedPartnerAsync(db);
+            await sp.CallApiAsync<ShareDataSessionOutput>(new ShareDataConnectPartnerInput { ID = partner.ID });
+            if (hasActiveSubscription)
+            {
+                await SeedActiveSubscriptionAsync(db, partner);
+            }
+
+            // Act
+            var error = await Record.ExceptionAsync(() => batch
+                ? sp.CallApiAsync(new List<ShareDataDeletePartnerInput> { new() { ID = partner.ID } })
+                : sp.CallApiAsync(new ShareDataDeletePartnerInput { ID = partner.ID }));
+
+            // Assert
+            var saved = await db.Queryable<ShareDataPartner>().ClearFilter().Where(p => p.ID == partner.ID).FirstAsync();
+            var session = await db.Queryable<ShareDataSession>().Where(s => s.PartnerId == partner.ID).FirstAsync();
+            if (hasActiveSubscription)
+            {
+                RejectionAssert.Rejected(error, BaseMsg.ShareData.Exception.PartnerHasActiveSubscription);
+                Assert.Null(saved.IsDelete);
+                Assert.Equal(BaseEnums.SessionFsmState.Active, session.State);
+            }
+            else
+            {
+                Assert.Null(error);
+                Assert.NotNull(saved.IsDelete);
+                Assert.Equal(BaseEnums.SessionFsmState.Closed, session.State);
+            }
+        }
+
+        #endregion
+
         #region 1. Validation qua AddPartnerValidator & Lưu qua IMessageBus
 
         /// <summary>

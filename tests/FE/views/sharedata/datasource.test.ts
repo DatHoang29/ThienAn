@@ -485,6 +485,89 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
     });
 
     /**
+     * Author: DatHQ
+     * Description: Tắt gói khi còn đăng ký bật (khớp chặn ở máy chủ): mở hộp sửa gói thì ô Tắt khóa; đăng ký bật sau lúc mở hộp thì lúc lưu báo còn đăng ký, trả về trạng thái cũ và không gọi API sửa gói.
+     * Created date: 05/11/2026
+     */
+    for (const c of [
+        { name: '49b. Mở hộp sửa gói khi còn đăng ký bật: ô Tắt bị khóa', activeOnOpen: true },
+        { name: '49c. Đăng ký bật sau lúc mở hộp: chọn Tắt rồi lưu thì báo còn đăng ký, không gọi API sửa gói', activeOnOpen: false },
+    ]) {
+        test(c.name, async ({ page }) => {
+            let activeSubs: unknown[] = c.activeOnOpen ? [{ id: 'S1', partnerId: 'P1', direction: 0, state: 1 }] : [];
+            const updateCalls: unknown[] = [];
+            const fulfill = (route: Route, result: unknown) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result }) });
+            await page.route('**/api/cfgsystem/sysconfigtype/alldatalist*', (route) =>
+                fulfill(route, { status_type: [{ code: '1', name: 'Bật' }, { code: '0', name: 'Tắt' }] })
+            );
+            await page.route('**/api/sharedata/sharedatasubscription/list*', (route) => fulfill(route, activeSubs));
+            await page.route('**/api/sharedata/sharedatapacket/page*', (route) =>
+                fulfill(route, { records: [{ id: 'PKT_01', code: '101_commonData', name: 'Gói tin dùng chung 101', packetVersion: '1.0', orderNo: 101, status: 1 }], total: 1 })
+            );
+            await page.route('**/api/sharedata/sharedatapacket/update', (route) => {
+                updateCalls.push(route.request().postDataJSON());
+                return fulfill(route, true);
+            });
+
+            await page.setViewportSize({ width: 1600, height: 900 });
+            await page.goto('/#/sharedata/dataSource');
+            const row = page.locator('.packet-col .vxe-body--row').first();
+            await expect(row).toBeVisible({ timeout: 30_000 });
+            const editButton = row.locator('.el-button--primary').first();
+            await expect(editButton).toBeEnabled({ timeout: 15_000 });
+            await editButton.click();
+
+            const dialog = page.locator('.edit-packet-container .el-dialog');
+            await expect(dialog).toBeVisible();
+            const offRadio = dialog.locator('.el-radio', { hasText: 'Tắt' });
+            if (c.activeOnOpen) {
+                await expect(offRadio).toHaveClass(/is-disabled/, { timeout: 10_000 });
+                return;
+            }
+
+            await expect(offRadio).not.toHaveClass(/is-disabled/);
+            await offRadio.click();
+            activeSubs = [{ id: 'S1', partnerId: 'P1', direction: 1, state: 1 }];
+            await dialog.locator('.el-dialog__footer .el-button--primary').click();
+            await expect(page.locator('.el-message--warning').last()).toContainText('Vui lòng tắt đăng ký trước khi tắt gói tin', { timeout: 10_000 });
+            await expect(dialog.locator('.el-radio', { hasText: 'Bật' })).toHaveClass(/is-checked/);
+            expect(updateCalls).toHaveLength(0);
+        });
+    }
+
+    /**
+     * Author: DatHQ
+     * Description: Mở hộp sửa hoặc sao chép gói ngay sau khi vào trang: ô Loại gói giữ đúng loại của gói nguồn, không bị đặt về 101.
+     * Created date: 05/11/2026
+     */
+    for (const c of [
+        { name: '49d. Sửa gói loại 105 ngay sau khi vào trang: ô Loại gói hiện đúng 105', button: '.el-button--primary' },
+        { name: '49e. Sao chép gói loại 105 ngay sau khi vào trang: ô Loại gói giữ đúng 105', button: '.el-button--warning' },
+    ]) {
+        test(c.name, async ({ page }) => {
+            await page.route('**/api/sharedata/sharedatapacket/page*', (route) =>
+                route.fulfill({
+                    status: 200,
+                    contentType: 'application/json',
+                    body: JSON.stringify({ code: 200, result: { records: [{ id: 'PKT_05', code: '105_rfid', name: 'Gói 105', packetVersion: '1.0', orderNo: 105, status: 1 }], total: 1 } }),
+                })
+            );
+
+            await page.setViewportSize({ width: 1600, height: 900 });
+            await page.goto('/#/sharedata/dataSource');
+            const row = page.locator('.packet-col .vxe-body--row').first();
+            await expect(row).toBeVisible({ timeout: 30_000 });
+            const button = row.locator(c.button).first();
+            await expect(button).toBeEnabled({ timeout: 15_000 });
+            await button.click();
+
+            const dialog = page.locator('.edit-packet-container .el-dialog');
+            await expect(dialog).toBeVisible();
+            await expect(dialog.locator('.el-form-item', { hasText: 'Loại gói' }).locator('.el-select')).toContainText('105');
+        });
+    }
+
+    /**
      * Description: Tải chậm (biên bản 27/10): mở trang không tự chọn gói đầu tiên; khung phải hiện khung trống (el-empty), chưa gọi API chi tiết;
      *              bấm chọn gói mới gọi API nạp câu truy vấn.
      * Created date: 27/10/2026

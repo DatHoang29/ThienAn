@@ -1,11 +1,12 @@
-import { test, expect } from '@playwright/test';
-import { resolveWebVueSrc } from '../../setup';
+import { test, expect, type Route } from '@playwright/test';
+import { mockAuth, resolveWebVueSrc } from '../../setup';
 import fs from 'node:fs';
 
 /**
  * Test Suite cho chức năng đăng ký chia sẻ dữ liệu (editSubscription.vue):
  * - TC1: Kiểm tra đầy đủ bản dịch i18n trong vi-vn.json và en-us.json.
  * - TC2: E2E tab Gửi đi / Nhận về trên bảng đăng ký và trong modal Đăng ký chia sẻ.
+ * - TC3: E2E kết nối đối tác, bật tắt đăng ký và ngắt kết nối.
  */
 
 test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editSubscription.vue) @sharedata', () => {
@@ -41,6 +42,105 @@ test.describe('ShareData — Khung giờ đăng ký chia sẻ dữ liệu (editS
 		expect(enJson['lz.label.sharedataSubscription.daily']).toBe('Daily');
 		expect(enJson['lz.label.sharedataSubscription.weekly']).toBe('Weekly');
 		expect(enJson['lz.label.sharedataSubscription.interval']).toBe('Interval');
+	});
+
+	/**
+	 * Author: DatHQ
+	 * Description: Vận hành một đối tác trên màn Cấu hình: chưa kết nối thì công tắc đăng ký khóa; Kết nối xong thì bật được; bật rồi tắt gọi đúng API và công tắc đổi theo;
+	 *              Ngắt kết nối có hỏi xác nhận, máy chủ tạm dừng đăng ký nên công tắc về tắt và khóa lại, nút quay về Kết nối.
+	 * Created date: 05/11/2026
+	 */
+	test('TC3 — Kết nối đối tác, bật rồi tắt đăng ký, ngắt kết nối: gọi đúng API, công tắc đổi đúng trạng thái', async ({ context, page }) => {
+		const fulfillJson = (route: Route, result: unknown) =>
+			route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result }) });
+		const ACTIVE = 1;
+		const PAUSED = 2;
+		let connected = false;
+		let subState = PAUSED;
+		const calls: { name: string; body: any }[] = [];
+
+		await mockAuth(context, page, { userInfo: { defaultMenu: '/sharedata/sharing', authBtnList: ['*', 'sharedataSharing:add', 'sharedataSharing:update', 'sharedataSharing:delete'] } as any });
+		await page.route('**/api/system/sysmenu/loginmenutree*', (route) =>
+			fulfillJson(route, [
+				{
+					id: 'menu_sharedata',
+					pid: '0',
+					path: '/sharedata',
+					name: 'sharedata',
+					component: 'layout/routerView/parent',
+					meta: { title: 'lz.menu.sharedata', isLink: '', isHide: false, isKeepAlive: true, isAffix: false, isIframe: false, roles: ['admin'], icon: 'ele-Share' },
+					children: [
+						{
+							id: 'menu_sharedata_sharing',
+							pid: 'menu_sharedata',
+							path: '/sharedata/sharing',
+							name: 'sharedataSharing',
+							component: 'sharedata/sharing/index',
+							meta: { title: 'lz.menu.sharedataSharing', isLink: '', isHide: false, isKeepAlive: true, isAffix: false, isIframe: false, roles: ['admin'], icon: 'ele-Share' },
+						},
+					],
+				},
+			])
+		);
+		await page.route('**/api/sharedata/sharedatapartner/list*', (route) =>
+			fulfillJson(route, [{ id: 'PARTNER_01', code: 'CSGT01', name: 'Cục CSGT Đường bộ', address: '10.10.1.25', port: 8443, status: 1, sessionState: connected ? 1 : 0 }])
+		);
+		await page.route('**/api/sharedata/sharedatapacket/list*', (route) => fulfillJson(route, [{ id: 'PKT_101', code: '101_commonData', name: 'Dữ liệu giao thông 101' }]));
+		await page.route('**/api/sharedata/sharedatasubscription/list*', (route) =>
+			fulfillJson(route, [{ id: 'SUB_OUT_1', partnerId: 'PARTNER_01', datatypeId: 'PKT_101', direction: 0, mode: 1, state: subState, mappingState: 1, mappingName: 'Ánh xạ Gửi 101', schedule: { kind: 'continuous', intervalSeconds: 60 } }])
+		);
+		const onCall = (name: string, apply: () => void) => (route: Route) => {
+			calls.push({ name, body: route.request().postDataJSON() });
+			apply();
+			return fulfillJson(route, true);
+		};
+		await page.route('**/api/sharedata/sharedatapartner/connect', onCall('connect', () => { connected = true; }));
+		await page.route('**/api/sharedata/sharedatapartner/disconnect', onCall('disconnect', () => { connected = false; subState = PAUSED; }));
+		await page.route('**/api/sharedata/sharedatasubscription/resume', onCall('resume', () => { subState = ACTIVE; }));
+		await page.route('**/api/sharedata/sharedatasubscription/pause', onCall('pause', () => { subState = PAUSED; }));
+
+		await page.setViewportSize({ width: 1600, height: 900 });
+		await page.goto('/#/sharedata/sharing');
+
+		const toggle = page.locator('.vxe-body--row .el-switch').first();
+		await expect(toggle).toBeVisible({ timeout: 60_000 });
+		const connectButton = page.locator('.detail-actions .el-button', { hasText: /^Kết nối$/ });
+		const disconnectButton = page.locator('.detail-actions .el-button', { hasText: 'Ngắt kết nối' });
+
+		// Chưa kết nối: công tắc khóa, chỉ có nút Kết nối
+		await expect(toggle).toHaveClass(/is-disabled/);
+		await expect(disconnectButton).toHaveCount(0);
+
+		// Kết nối: gọi đúng đối tác, công tắc mở khóa
+		await connectButton.click();
+		await expect(page.locator('.el-message--success').last()).toContainText('Đang thiết lập phiên kết nối');
+		await expect(toggle).not.toHaveClass(/is-disabled/);
+		await expect(disconnectButton).toBeVisible();
+
+		// Bật rồi tắt đăng ký: gọi đúng API, công tắc đổi theo
+		await toggle.click();
+		await expect(page.locator('.el-message--success', { hasText: 'Đã bật' })).toBeVisible();
+		await expect(toggle).toHaveClass(/is-checked/);
+		await toggle.click();
+		await expect(page.locator('.el-message--success', { hasText: 'Đã tắt' })).toBeVisible();
+		await expect(toggle).not.toHaveClass(/is-checked/);
+
+		// Bật lại rồi ngắt kết nối: có hỏi xác nhận, đăng ký về tạm dừng, công tắc khóa lại
+		await toggle.click();
+		await expect(toggle).toHaveClass(/is-checked/);
+		await disconnectButton.click();
+		await expect(page.locator('.el-message-box')).toContainText('Cục CSGT Đường bộ');
+		expect(calls.map((c) => c.name)).toEqual(['connect', 'resume', 'pause', 'resume']);
+		await page.locator('.el-message-box__btns .el-button--primary').click();
+		await expect(connectButton).toBeVisible();
+		await expect(toggle).not.toHaveClass(/is-checked/);
+		await expect(toggle).toHaveClass(/is-disabled/);
+
+		expect(calls.map((c) => c.name)).toEqual(['connect', 'resume', 'pause', 'resume', 'disconnect']);
+		expect(calls[0].body).toMatchObject({ id: 'PARTNER_01' });
+		expect(calls[1].body).toMatchObject({ id: 'SUB_OUT_1' });
+		expect(calls[2].body).toMatchObject({ id: 'SUB_OUT_1' });
+		expect(calls[4].body).toMatchObject({ id: 'PARTNER_01', reason: 'clientRequested' });
 	});
 
 	test('TC2 — E2E Tab cấp trên trong Bảng đăng ký (subscriptionTable.vue) và Modal Đăng ký chia sẻ (editSubscription.vue)', async ({ context, page }) => {

@@ -6,6 +6,7 @@ using Module.ShareData.Core.Entities;
 using Module.ShareData.Core.Exceptions;
 using Modules.CfgSystem.Core.Entities;
 using Newtonsoft.Json;
+using Tests.ShareData.Common;
 
 namespace Tests.ShareData.Controllers;
 
@@ -16,6 +17,391 @@ namespace Tests.ShareData.Controllers;
 [Collection("api")]
 public class ShareDataSubscriptionControllerTests(Host host)
 {
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Đối tác và mã gói cho luồng đăng ký, kèm hồ sơ ánh xạ chiều gửi đang bật khi có yêu cầu.
+    /// Created date: 05/11/2026
+    /// </summary>
+    private static async Task<(ShareDataPartner Partner, string DatatypeId)> SeedLifecycleAsync(ISqlSugarClient db, bool connected = true, bool hasMapping = true)
+    {
+        var unique = Guid.NewGuid().ToString("N");
+        var partner = new ShareDataPartner
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Code = $"P_LC_{unique}",
+            Name = $"Partner {unique}",
+            Status = BaseEnums.StatusEnum.Enable,
+            SessionState = connected ? BaseEnums.SessionState.Connected : BaseEnums.SessionState.Disconnected
+        };
+        await db.Insertable(partner).ExecuteCommandAsync();
+
+        var datatypeId = $"DT_{unique}";
+        if (hasMapping)
+        {
+            await db.Insertable(new ShareDataMapping
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                PartnerId = partner.ID,
+                DatatypeId = datatypeId,
+                Direction = BaseEnums.Direction.Outbound,
+                IsActive = true,
+                TargetShapeJson = "{}"
+            }).ExecuteCommandAsync();
+        }
+
+        return (partner, datatypeId);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Tạo sẵn một đăng ký chiều gửi ở trạng thái cho trước, chu kỳ 30 giây, đã có lịch chạy kế tiếp.
+    /// Created date: 05/11/2026
+    /// </summary>
+    private static async Task<ShareDataSubscription> SeedSubscriptionAsync(ISqlSugarClient db, ShareDataPartner partner, string datatypeId, BaseEnums.SubSubscriptionState state)
+    {
+        var subscription = new ShareDataSubscription
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            PartnerId = partner.ID,
+            DatatypeId = datatypeId,
+            Direction = BaseEnums.Direction.Outbound,
+            Mode = BaseEnums.SubMode.Periodic,
+            State = state,
+            IntervalSeconds = 30,
+            NextTimeRun = DateTime.Now.AddHours(1)
+        };
+        await db.Insertable(subscription).ExecuteCommandAsync();
+        return subscription;
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Điền đối tác, gói, chiều gửi và lịch hợp lệ chu kỳ 60 giây vào dữ liệu thêm hoặc sửa đăng ký.
+    /// Created date: 05/11/2026
+    /// </summary>
+    private static T WithValidSchedule<T>(T input, ShareDataPartner partner, string datatypeId) where T : ShareDataAddSubscriptionInput
+    {
+        input.PartnerId = partner.ID;
+        input.DatatypeId = datatypeId;
+        input.Direction = BaseEnums.Direction.Outbound;
+        input.Mode = BaseEnums.SubMode.Periodic;
+        input.IntervalSeconds = 60;
+        input.Schedule = new ShareDataScheduleDto { Kind = "continuous", IntervalSeconds = 60, StartTime = "06:00", EndTime = "22:00" };
+        return input;
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Đọc đăng ký kể cả dòng đã xóa mềm.
+    /// Created date: 05/11/2026
+    /// </summary>
+    private static Task<ShareDataSubscription> ReadAsync(ISqlSugarClient db, string subscriptionId) =>
+        db.Queryable<ShareDataSubscription>().ClearFilter().Where(s => s.ID == subscriptionId).FirstAsync();
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Đăng ký mới nhận trạng thái theo điều kiện chạy: chưa có hồ sơ ánh xạ đang bật thì Tạm dừng, có hồ sơ mà đối tác chưa kết nối thì Chờ, đủ cả hai thì Hoạt động.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData(false, true, BaseEnums.SubSubscriptionState.Paused)]
+    [InlineData(true, false, BaseEnums.SubSubscriptionState.Pending)]
+    [InlineData(true, true, BaseEnums.SubSubscriptionState.Active)]
+    public async Task AddSubscription_WhenMappingAndConnectionVary_SetsMatchingState_Test(bool hasMapping, bool connected, BaseEnums.SubSubscriptionState expected)
+    {
+        // Arrange
+        var sp = host.Services;
+        var db = sp.GetRequiredService<ISqlSugarClient>();
+        var (partner, datatypeId) = await SeedLifecycleAsync(db, connected, hasMapping);
+        var input = WithValidSchedule(new ShareDataAddSubscriptionInput(), partner, datatypeId);
+
+        // Act
+        await sp.CallApiAsync(input);
+
+        // Assert
+        var saved = await db.Queryable<ShareDataSubscription>().Where(s => s.PartnerId == partner.ID && s.DatatypeId == datatypeId).FirstAsync();
+        Assert.Equal(expected, saved.State);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Đăng ký có gửi đi bắt buộc có lịch, chiều nhận thì không cần vì thời điểm nhận do đối tác quyết định; chế độ theo sự kiện bắt buộc chọn nguồn sự kiện.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData(BaseEnums.Direction.Outbound, BaseEnums.SubMode.Periodic, false, false, nameof(ShareDataAddSubscriptionInput.Schedule))]
+    [InlineData(BaseEnums.Direction.Both, BaseEnums.SubMode.Periodic, false, false, nameof(ShareDataAddSubscriptionInput.Schedule))]
+    [InlineData(BaseEnums.Direction.Outbound, BaseEnums.SubMode.Event, true, false, nameof(ShareDataAddSubscriptionInput.EventSourceId))]
+    [InlineData(BaseEnums.Direction.Inbound, BaseEnums.SubMode.Periodic, false, false, null)]
+    [InlineData(BaseEnums.Direction.Outbound, BaseEnums.SubMode.Event, true, true, null)]
+    public async Task AddSubscription_WhenScheduleOrEventSourceMissing_RejectsOnlyRequiredCases_Test(BaseEnums.Direction direction, BaseEnums.SubMode mode, bool hasSchedule, bool hasEventSource, string? invalidProperty)
+    {
+        // Arrange
+        var sp = host.Services;
+        var db = sp.GetRequiredService<ISqlSugarClient>();
+        var (partner, datatypeId) = await SeedLifecycleAsync(db);
+        var input = new ShareDataAddSubscriptionInput
+        {
+            PartnerId = partner.ID,
+            DatatypeId = datatypeId,
+            Direction = direction,
+            Mode = mode,
+            IntervalSeconds = hasSchedule ? 60 : null,
+            EventSourceId = hasEventSource ? $"ES_{Guid.NewGuid():N}" : null,
+            Schedule = hasSchedule ? new ShareDataScheduleDto { Kind = "continuous", IntervalSeconds = 60, StartTime = "06:00", EndTime = "22:00" } : null
+        };
+
+        // Act
+        var error = await Record.ExceptionAsync(() => sp.CallApiAsync(input));
+
+        // Assert
+        var saved = await db.Queryable<ShareDataSubscription>().Where(s => s.PartnerId == partner.ID && s.DatatypeId == datatypeId).AnyAsync();
+        if (invalidProperty == null)
+        {
+            Assert.Null(error);
+            Assert.True(saved);
+        }
+        else
+        {
+            var validation = Assert.IsType<ValidationException>(error);
+            Assert.Contains(validation.Errors, e => e.PropertyName == invalidProperty);
+            Assert.False(saved);
+        }
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Mỗi đối tác, gói, chiều chỉ một đăng ký đang chạy: trùng đăng ký đang chạy thì từ chối, đăng ký cùng bộ ba đã tạm dừng không chặn;
+    ///              đối tác đã tắt thì không tạo được đăng ký.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData("trungDangChay", BaseMsg.ShareData.Exception.SubscriptionDuplicated)]
+    [InlineData("doiTacTat", BaseMsg.ShareData.Exception.PartnerDisabled)]
+    [InlineData("trungDaTamDung", null)]
+    public async Task AddSubscription_WhenTripleOrPartnerBlocked_RejectsDuplicate_Test(string caseName, string? errorKey)
+    {
+        // Arrange
+        var sp = host.Services;
+        var db = sp.GetRequiredService<ISqlSugarClient>();
+        var (partner, datatypeId) = await SeedLifecycleAsync(db);
+        if (caseName == "doiTacTat")
+        {
+            await db.Updateable<ShareDataPartner>().SetColumns(p => p.Status == BaseEnums.StatusEnum.Disable).Where(p => p.ID == partner.ID).ExecuteCommandAsync();
+        }
+        else
+        {
+            await SeedSubscriptionAsync(db, partner, datatypeId, caseName == "trungDangChay" ? BaseEnums.SubSubscriptionState.Active : BaseEnums.SubSubscriptionState.Paused);
+        }
+        var countBefore = await db.Queryable<ShareDataSubscription>().Where(s => s.PartnerId == partner.ID).CountAsync();
+        var input = WithValidSchedule(new ShareDataAddSubscriptionInput(), partner, datatypeId);
+
+        // Act
+        var error = await Record.ExceptionAsync(() => sp.CallApiAsync(input));
+
+        // Assert
+        var countAfter = await db.Queryable<ShareDataSubscription>().Where(s => s.PartnerId == partner.ID).CountAsync();
+        if (errorKey == null)
+        {
+            Assert.Null(error);
+            Assert.Equal(countBefore + 1, countAfter);
+        }
+        else
+        {
+            RejectionAssert.Rejected(error, errorKey);
+            Assert.Equal(countBefore, countAfter);
+        }
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Tạm dừng, bật lại, duyệt, hủy, từ chối chỉ chuyển từ đúng trạng thái nguồn; sai nguồn thì từ chối và giữ nguyên.
+    ///              Vào Hoạt động thì xóa lịch chạy kế tiếp để chạy ngay nhịp đầu.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData("pause", BaseEnums.SubSubscriptionState.Active, BaseEnums.SubSubscriptionState.Paused, false)]
+    [InlineData("pause", BaseEnums.SubSubscriptionState.Pending, BaseEnums.SubSubscriptionState.Paused, false)]
+    [InlineData("pause", BaseEnums.SubSubscriptionState.Paused, BaseEnums.SubSubscriptionState.Paused, true)]
+    [InlineData("resume", BaseEnums.SubSubscriptionState.Paused, BaseEnums.SubSubscriptionState.Active, false)]
+    [InlineData("resume", BaseEnums.SubSubscriptionState.Pending, BaseEnums.SubSubscriptionState.Active, false)]
+    [InlineData("resume", BaseEnums.SubSubscriptionState.Cancelled, BaseEnums.SubSubscriptionState.Cancelled, true)]
+    [InlineData("approve", BaseEnums.SubSubscriptionState.Pending, BaseEnums.SubSubscriptionState.Active, false)]
+    [InlineData("approve", BaseEnums.SubSubscriptionState.Paused, BaseEnums.SubSubscriptionState.Paused, true)]
+    [InlineData("cancel", BaseEnums.SubSubscriptionState.Active, BaseEnums.SubSubscriptionState.Cancelled, false)]
+    [InlineData("cancel", BaseEnums.SubSubscriptionState.Rejected, BaseEnums.SubSubscriptionState.Rejected, true)]
+    [InlineData("reject", BaseEnums.SubSubscriptionState.Pending, BaseEnums.SubSubscriptionState.Rejected, false)]
+    [InlineData("reject", BaseEnums.SubSubscriptionState.Active, BaseEnums.SubSubscriptionState.Active, true)]
+    public async Task ChangeSubscriptionState_WhenSourceStateVaries_OnlyAllowedTransitionsApply_Test(string action, BaseEnums.SubSubscriptionState from, BaseEnums.SubSubscriptionState expected, bool rejected)
+    {
+        // Arrange
+        var sp = host.Services;
+        var db = sp.GetRequiredService<ISqlSugarClient>();
+        var (partner, datatypeId) = await SeedLifecycleAsync(db);
+        var subscription = await SeedSubscriptionAsync(db, partner, datatypeId, from);
+        Task Act() => action switch
+        {
+            "pause" => sp.CallApiAsync(new ShareDataPauseSubscriptionInput { ID = subscription.ID }),
+            "resume" => sp.CallApiAsync(new ShareDataResumeSubscriptionInput { ID = subscription.ID }),
+            "approve" => sp.CallApiAsync(new ShareDataApproveSubscriptionInput { ID = subscription.ID }),
+            "cancel" => sp.CallApiAsync(new ShareDataCancelSubscriptionInput { ID = subscription.ID }),
+            _ => sp.CallApiAsync(new ShareDataRejectSubscriptionInput { ID = subscription.ID })
+        };
+
+        // Act
+        var error = await Record.ExceptionAsync(Act);
+
+        // Assert
+        var saved = await ReadAsync(db, subscription.ID);
+        Assert.Equal(expected, saved.State);
+        if (rejected)
+        {
+            RejectionAssert.Rejected(error, BaseMsg.ShareData.Exception.SubscriptionStateInvalid);
+        }
+        else
+        {
+            Assert.Null(error);
+        }
+        if (!rejected && expected == BaseEnums.SubSubscriptionState.Active)
+        {
+            Assert.Null(saved.NextTimeRun);
+        }
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Cổng chặn bật lại đăng ký: đối tác chưa kết nối, hồ sơ ánh xạ không còn bật, hoặc đã có đăng ký cùng bộ ba đang chạy thì từ chối và đăng ký vẫn tạm dừng.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData("chuaKetNoi", BaseMsg.ShareData.Exception.PartnerNotConnected)]
+    [InlineData("khongCoHoSo", BaseMsg.ShareData.Exception.MappingNotResolved)]
+    [InlineData("trungDangChay", BaseMsg.ShareData.Exception.SubscriptionDuplicated)]
+    public async Task ResumeSubscription_WhenConditionMissing_RejectsAndStaysPaused_Test(string caseName, string errorKey)
+    {
+        // Arrange
+        var sp = host.Services;
+        var db = sp.GetRequiredService<ISqlSugarClient>();
+        var (partner, datatypeId) = await SeedLifecycleAsync(db, connected: caseName != "chuaKetNoi", hasMapping: caseName != "khongCoHoSo");
+        var subscription = await SeedSubscriptionAsync(db, partner, datatypeId, BaseEnums.SubSubscriptionState.Paused);
+        if (caseName == "trungDangChay")
+        {
+            await SeedSubscriptionAsync(db, partner, datatypeId, BaseEnums.SubSubscriptionState.Active);
+        }
+
+        // Act
+        var error = await Record.ExceptionAsync(() => sp.CallApiAsync(new ShareDataResumeSubscriptionInput { ID = subscription.ID }));
+
+        // Assert
+        var saved = await ReadAsync(db, subscription.ID);
+        RejectionAssert.Rejected(error, errorKey);
+        Assert.Equal(BaseEnums.SubSubscriptionState.Paused, saved.State);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Sửa đăng ký: đang chạy thì phải tạm dừng trước, đã kết thúc thì không sửa được. Tạm dừng thì sửa được, giữ nguyên đối tác và gói kể cả khi gửi lên giá trị khác,
+    ///              và xóa lịch chạy kế tiếp để Worker tính lại theo lịch mới.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData(BaseEnums.SubSubscriptionState.Active, BaseMsg.ShareData.Exception.SubscriptionMustPauseBeforeUpdate)]
+    [InlineData(BaseEnums.SubSubscriptionState.Cancelled, BaseMsg.ShareData.Exception.SubscriptionFinished)]
+    [InlineData(BaseEnums.SubSubscriptionState.Paused, null)]
+    public async Task UpdateSubscription_WhenStateVaries_OnlyEditableStatesChange_Test(BaseEnums.SubSubscriptionState state, string? errorKey)
+    {
+        // Arrange
+        var sp = host.Services;
+        var db = sp.GetRequiredService<ISqlSugarClient>();
+        var (partner, datatypeId) = await SeedLifecycleAsync(db);
+        var (otherPartner, otherDatatype) = await SeedLifecycleAsync(db);
+        var subscription = await SeedSubscriptionAsync(db, partner, datatypeId, state);
+        var input = WithValidSchedule(new ShareDataUpdateSubscriptionInput { ID = subscription.ID }, otherPartner, otherDatatype);
+
+        // Act
+        var error = await Record.ExceptionAsync(() => sp.CallApiAsync(input));
+
+        // Assert
+        var saved = await ReadAsync(db, subscription.ID);
+        Assert.Equal(partner.ID, saved.PartnerId);
+        Assert.Equal(datatypeId, saved.DatatypeId);
+        if (errorKey == null)
+        {
+            Assert.Null(error);
+            Assert.Equal(60, saved.IntervalSeconds);
+            Assert.Null(saved.NextTimeRun);
+        }
+        else
+        {
+            RejectionAssert.Rejected(error, errorKey);
+            Assert.Equal(30, saved.IntervalSeconds);
+            Assert.NotNull(saved.NextTimeRun);
+        }
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Màn Cấu hình gói tin dựa vào danh sách này để khóa theo đăng ký đang bật: lọc đúng trạng thái và gói, không trả đăng ký đã tạm dừng, đăng ký gói khác hay đăng ký đã xóa.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Fact]
+    public async Task ListSubscriptions_WhenFilteredByActiveStateAndPacket_ReturnsOnlyMatchingRows_Test()
+    {
+        // Arrange
+        var sp = host.Services;
+        var db = sp.GetRequiredService<ISqlSugarClient>();
+        var (partner, datatypeId) = await SeedLifecycleAsync(db);
+        var (otherPartner, otherDatatype) = await SeedLifecycleAsync(db);
+        var active = await SeedSubscriptionAsync(db, partner, datatypeId, BaseEnums.SubSubscriptionState.Active);
+        await SeedSubscriptionAsync(db, otherPartner, datatypeId, BaseEnums.SubSubscriptionState.Paused);
+        await SeedSubscriptionAsync(db, otherPartner, otherDatatype, BaseEnums.SubSubscriptionState.Active);
+        var deleted = await SeedSubscriptionAsync(db, otherPartner, datatypeId, BaseEnums.SubSubscriptionState.Paused);
+        await sp.CallApiAsync(new ShareDataDeleteSubscriptionInput { ID = deleted.ID });
+
+        // Act
+        var result = await sp.CallApiAsync<List<ShareDataSubscriptionOutput>>(new ShareDataSubscriptionInput { State = BaseEnums.SubSubscriptionState.Active, DatatypeId = datatypeId });
+
+        // Assert
+        var row = Assert.Single(result);
+        Assert.Equal(active.ID, row.ID);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Xóa đăng ký: đang chạy thì phải tạm dừng trước (một bản ghi và cả lô), tạm dừng thì xóa mềm.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData(BaseEnums.SubSubscriptionState.Active, false, true)]
+    [InlineData(BaseEnums.SubSubscriptionState.Active, true, true)]
+    [InlineData(BaseEnums.SubSubscriptionState.Paused, false, false)]
+    [InlineData(BaseEnums.SubSubscriptionState.Paused, true, false)]
+    public async Task DeleteSubscription_WhenActiveOrPaused_OnlyPausedIsDeleted_Test(BaseEnums.SubSubscriptionState state, bool batch, bool rejected)
+    {
+        // Arrange
+        var sp = host.Services;
+        var db = sp.GetRequiredService<ISqlSugarClient>();
+        var (partner, datatypeId) = await SeedLifecycleAsync(db);
+        var subscription = await SeedSubscriptionAsync(db, partner, datatypeId, state);
+
+        // Act
+        var error = await Record.ExceptionAsync(() => batch
+            ? sp.CallApiAsync(new List<ShareDataDeleteSubscriptionInput> { new() { ID = subscription.ID } })
+            : sp.CallApiAsync(new ShareDataDeleteSubscriptionInput { ID = subscription.ID }));
+
+        // Assert
+        var saved = await ReadAsync(db, subscription.ID);
+        Assert.Equal(rejected, saved.IsDelete == null);
+        if (rejected)
+        {
+            RejectionAssert.Rejected(error, BaseMsg.ShareData.Exception.SubscriptionMustPauseBeforeDelete);
+        }
+        else
+        {
+            Assert.Null(error);
+        }
+    }
+
     /// <summary>
     /// Description: Kiểm chứng EndTime nhỏ hơn StartTime bị validator chặn; EndTime hợp lệ thì
     /// lưu thành công qua CallApiAsync và ScheduleJson lưu đúng StartTime/EndTime đã nhập.

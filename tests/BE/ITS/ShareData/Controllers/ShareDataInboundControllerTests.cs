@@ -1,3 +1,4 @@
+using FluentValidation;
 using Module.ShareData.Core.Dto.Inbound;
 using Module.ShareData.Core.Entities;
 using ShareDataWorker.Extensions;
@@ -12,6 +13,42 @@ namespace Tests.ShareData.Controllers;
 [Collection("api")]
 public class ShareDataInboundControllerTests(Host host)
 {
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Hợp đồng header của đối tác: thiếu PartnerCode, PacketCode hoặc thân gói thì từ chối, không lưu gói thô để Worker xử lý.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData(null, "PKT", "{\"data\":[]}", nameof(ShareDataAddInboundInput.PartnerCode))]
+    [InlineData("PT", null, "{\"data\":[]}", nameof(ShareDataAddInboundInput.PacketCode))]
+    [InlineData("PT", "PKT", "", nameof(ShareDataAddInboundInput.RawContent))]
+    public async Task ShareDataInboundController_WhenHeaderOrBodyMissing_RejectsWithoutSaving_Test(string? partnerPrefix, string? packetPrefix, string rawContent, string invalidProperty)
+    {
+        // Arrange
+        var db = host.Services.GetRequiredService<ISqlSugarClient>();
+        var inboundDb = db.AsTenant().GetConnectionScope(ShareDataWorkerExtensions.InboundConnectionKey);
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var partnerCode = partnerPrefix == null ? null : $"{partnerPrefix}_{unique}";
+        var packetCode = packetPrefix == null ? null : $"{packetPrefix}_{unique}";
+
+        // Act
+        var error = await Assert.ThrowsAsync<ValidationException>(() => host.Services.CallApiAsync(new ShareDataAddInboundInput
+        {
+            PartnerCode = partnerCode,
+            PacketCode = packetCode,
+            PacketVersion = "1.0",
+            SerialNbr = 1,
+            PduType = "DATA",
+            Format = BaseEnums.PublishFormat.Data,
+            RawContent = rawContent
+        }));
+
+        // Assert
+        var saved = await inboundDb.Queryable<ShareDataInboundPacket>().Where(p => p.PartnerCode == partnerCode && p.PacketCode == packetCode).AnyAsync();
+        Assert.Contains(error.Errors, e => e.PropertyName == invalidProperty);
+        Assert.False(saved);
+    }
+
     /// <summary>
     /// Description: Kiểm chứng tiếp nhận gói tin hợp lệ qua CallApiAsync: lưu gói tin thô
     /// vào ShareDataInboundPacket (trạng thái Pending) và ghi ActivityLog đầy đủ dòng cha và dòng con Bước 1.

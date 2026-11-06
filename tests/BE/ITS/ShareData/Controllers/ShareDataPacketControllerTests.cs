@@ -233,6 +233,60 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         Assert.Contains(ex.Errors, e => e.PropertyName == nameof(ShareDataAddPacketInput.OrderNo));
     }
 
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Gói đã có hồ sơ ánh xạ hoặc đăng ký đang chạy thì khóa đổi Mã, Tên, các thông tin mô tả vẫn sửa được; gói chưa ai dùng thì đổi được.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData("anhXa", "doiTen", true)]
+    [InlineData("dangKy", "doiMa", true)]
+    [InlineData("anhXa", "doiGhiChu", false)]
+    [InlineData("khong", "doiTen", false)]
+    public async Task UpdatePacket_WhenPacketInUse_LocksCodeAndNameOnly_Test(string usedBy, string change, bool rejected)
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true);
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (packet, partner) = await SeedSqlVariablePacketAsync(db, unique);
+        if (usedBy == "anhXa")
+        {
+            await db.Insertable(new ShareDataMapping { ID = Guid.NewGuid().ToString("N"), PartnerId = partner.ID, DatatypeId = packet.ID, Direction = BaseEnums.Direction.Outbound, IsActive = false }).ExecuteCommandAsync();
+        }
+        else if (usedBy == "dangKy")
+        {
+            var subscription = NewPartnerSqlSubscription(partner, packet, BaseEnums.Direction.Outbound, BaseEnums.SubSubscriptionState.Active);
+            await db.Insertable(subscription).ExecuteCommandAsync();
+        }
+        var input = new ShareDataUpdatePacketInput { ID = packet.ID, Code = packet.Code, Name = packet.Name, OrderNo = 101, Status = packet.Status };
+        switch (change)
+        {
+            case "doiTen": input.Name = $"{packet.Name} moi"; break;
+            case "doiMa": input.Code = $"{packet.Code}_M"; break;
+            default: input.Remark = "ghi chú mới"; break;
+        }
+
+        // Act
+        var error = await Record.ExceptionAsync(() => scope.ServiceProvider.CallApiAsync(input));
+
+        // Assert
+        var saved = await db.Queryable<ShareDataPacket>().InSingleAsync(packet.ID);
+        if (rejected)
+        {
+            AssertRejectedWith(error, BaseMsg.ShareData.Exception.PacketCodeNameLocked);
+            Assert.Equal(packet.Code, saved.Code);
+            Assert.Equal(packet.Name, saved.Name);
+        }
+        else
+        {
+            Assert.Null(error);
+            Assert.Equal(input.Name, saved.Name);
+            Assert.Equal(input.Remark, saved.Remark);
+        }
+    }
+
     [Fact]
     public async Task UpdatePacket_WhenClientSendsDifferentOrderNo_PreservesOrderNoAndCommonSql_Test()
     {
@@ -2474,6 +2528,9 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         + "WHERE CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID > @lastKey ORDER BY __lastKey";
 
     /// <summary>Câu một chuỗi ghép từ UpdateTime trơn: dòng mới thêm chưa có UpdateTime nên không được gửi.</summary>
+    private const string InclusiveKeySql = "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey FROM TmsZone "
+        + "WHERE CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID >= @lastKey ORDER BY __lastKey ASC";
+
     private const string BareUpdateTimeSql = "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey FROM TmsZone "
         + "WHERE CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @lastKey ORDER BY __lastKey";
 
@@ -2613,6 +2670,503 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         Assert.True(await HasCursorAsync(db, otherPartner, packet));
     }
 
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Đổi công thức ở mẫu chung chỉ ảnh hưởng đối tác dùng mẫu chung và đang có mốc: hộp xác nhận nêu đúng đối tác đó, đồng ý thì xóa mốc của đối tác đó;
+    ///              đối tác dùng mẫu chung chưa có mốc không bị hỏi, đối tác có cấu hình riêng giữ mốc và câu riêng.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Fact]
+    public async Task UpdateExtractSql_WhenCommonFormulaChanges_OnlyPartnersOnCommonWithCursorAreReset_Test()
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var db = services.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (packet, onCommon) = await SeedSqlVariablePacketAsync(db, unique);
+        var noCursor = NewPartnerSqlPartner($"PT_NOCUR_{unique}", unique);
+        var custom = NewPartnerSqlPartner($"PT_CUSTOM_{unique}", unique);
+        await db.Insertable(new List<ShareDataPartner> { noCursor, custom }).ExecuteCommandAsync();
+        await services.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput { PacketCode = packet.Code!, Items = [BuiltinVar("lastKey", "", "lastKey")] });
+        await services.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput { PacketCode = packet.Code!, ExtractSql = CursorCreateTimeSql });
+        await services.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput { PartnerId = custom.ID!, PacketCode = packet.Code!, ExtractSql = CursorCreateTimeSql });
+        await SeedCursorAsync(db, onCommon, packet, unique);
+        await SeedCursorAsync(db, custom, packet, unique);
+
+        // Act
+        var pending = await services.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput { PacketCode = packet.Code!, ExtractSql = CursorKeyOnlySql });
+        await services.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput { PacketCode = packet.Code!, ExtractSql = CursorKeyOnlySql, Force = true });
+
+        // Assert
+        var resetPartner = Assert.Single(pending.CursorResetPartners);
+        var onCommonHasCursor = await HasCursorAsync(db, onCommon, packet);
+        var customHasCursor = await HasCursorAsync(db, custom, packet);
+        var customRow = await db.Queryable<ShareDataSql>().Where(s => s.PacketId == packet.ID && s.PartnerId == custom.ID).FirstAsync();
+        Assert.True(pending.RequiresConfirm);
+        Assert.Equal(onCommon.ID, resetPartner.PartnerId);
+        Assert.False(onCommonHasCursor);
+        Assert.True(customHasCursor);
+        Assert.Equal(CursorCreateTimeSql, customRow.ExtractSql);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Sửa câu mẫu chung mà công thức cột mốc giữ nguyên thì không hỏi, không ai bị đặt lại mốc: thêm cột, thêm JOIN, đổi bí danh bảng,
+    ///              đổi khoảng trắng, chú thích, hoa thường. Đổi từ câu một nhóm sang câu hai nhóm là đổi công thức nên hỏi xác nhận, đồng ý thì mốc cũ bị xóa.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData("themCot", false)]
+    [InlineData("themJoin", false)]
+    [InlineData("doiBiDanh", false)]
+    [InlineData("doiKhoangTrangChuThichHoaThuong", false)]
+    [InlineData("sangHaiNhom", true)]
+    public async Task UpdateExtractSql_WhenSqlEditedOrSplitIntoGroups_ConfirmsOnlyFormulaChange_Test(string edit, bool expectConfirm)
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var db = services.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (packet, partner) = await SeedSqlVariablePacketAsync(db, unique);
+        await services.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput { PacketCode = packet.Code!, Items = [BuiltinVar("lastKey", "", "lastKey")] });
+        await services.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput { PacketCode = packet.Code!, ExtractSql = CursorCreateTimeSql });
+        await SeedCursorAsync(db, partner, packet, unique);
+        const string key = "CONVERT(varchar(23), CreateTime, 121) + '_' + ID";
+        const string aliasKey = "CONVERT(varchar(23), z.CreateTime, 121) + '_' + z.ID";
+        var renamedKey = aliasKey.Replace("z.", "k.");
+        var sql = edit switch
+        {
+            "themCot" => $"SELECT TOP 10 ID AS zoneId, Code AS zoneCode, {key} AS __lastKey FROM TmsZone WHERE {key} > @lastKey ORDER BY __lastKey ASC",
+            "themJoin" => $"SELECT TOP 10 z.ID AS zoneId, s.Condition AS trafficCondition, {aliasKey} AS __lastKey FROM TmsZone z LEFT JOIN TmsZoneStatus s ON s.ZoneId = z.ID WHERE {aliasKey} > @lastKey ORDER BY __lastKey ASC",
+            "doiBiDanh" => $"SELECT TOP 10 k.ID AS zoneId, {renamedKey} AS __lastKey FROM TmsZone k WHERE {renamedKey} > @lastKey ORDER BY __lastKey ASC",
+            "doiKhoangTrangChuThichHoaThuong" => "SELECT TOP 10 ID AS zoneId, convert( varchar(23),  CreateTime , 121 ) /* mốc */ + '_' + id AS __lastKey FROM TmsZone "
+                + "WHERE convert( varchar(23), CreateTime, 121 ) + '_' + id > @lastKey ORDER BY __lastKey ASC",
+            _ => "SELECT TOP 10 u.zoneId, u.__lastKey_upd, u.__lastKey_new FROM ("
+                + "SELECT ID AS zoneId, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS sortKey, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey_upd, CAST(NULL AS nvarchar(100)) AS __lastKey_new FROM TmsZone "
+                + "WHERE CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @lastKey_upd "
+                + "UNION ALL SELECT ID, CONVERT(varchar(23), CreateTime, 121) + '_' + ID, NULL, CONVERT(varchar(23), CreateTime, 121) + '_' + ID FROM TmsZone "
+                + "WHERE UpdateTime IS NULL AND CONVERT(varchar(23), CreateTime, 121) + '_' + ID > @lastKey_new"
+                + ") u ORDER BY u.sortKey ASC"
+        };
+        List<PacketSqlVariableItemInput>? variables = edit == "sangHaiNhom"
+            ? [BuiltinVar("lastKey_upd", "", "lastKey"), BuiltinVar("lastKey_new", "", "lastKey")]
+            : null;
+
+        // Act
+        var first = await services.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput { PacketCode = packet.Code!, ExtractSql = sql, Variables = variables });
+        var cursorAfterFirst = await HasCursorAsync(db, partner, packet);
+        if (expectConfirm)
+        {
+            await services.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput { PacketCode = packet.Code!, ExtractSql = sql, Variables = variables, Force = true });
+        }
+
+        // Assert
+        var common = await ShareDataSqlSeed.GetCommonAsync(db, packet.ID);
+        var hasCursor = await HasCursorAsync(db, partner, packet);
+        Assert.Equal(expectConfirm, first.RequiresConfirm);
+        Assert.True(cursorAfterFirst);
+        Assert.Equal(sql, common?.ExtractSql);
+        Assert.Equal(!expectConfirm, hasCursor);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Dùng lại mẫu chung: cùng công thức cột mốc thì không hỏi, mốc đi theo; khác công thức thì hỏi xác nhận, chưa đồng ý thì giữ câu riêng và mốc,
+    ///              đồng ý thì xóa mốc và giờ chạy lần trước để gửi lại từ Mốc lần đầu của mẫu chung. Mẫu chung là câu gửi toàn bộ thì không hỏi, mốc còn trong CSDL nhưng câu không dùng tới.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData(CursorSameFormulaSql, false, true)]
+    [InlineData(CursorKeyOnlySql, true, false)]
+    [InlineData("SELECT ID AS zoneId FROM TmsZone", false, true)]
+    public async Task ResetPartnerExtractSql_WhenCommonFormulaVaries_ConfirmsOnlyFormulaChange_Test(string commonSql, bool expectConfirm, bool cursorKept)
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var db = services.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (packet, partner) = await SeedSqlVariablePacketAsync(db, unique);
+        await ShareDataSqlSeed.SetCommonAsync(db, packet.ID, commonSql);
+        await services.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput
+        {
+            PartnerId = partner.ID!,
+            PacketCode = packet.Code!,
+            ExtractSql = CursorCreateTimeSql,
+            Variables = [BuiltinVar("lastKey", "", "lastKey")]
+        });
+        await SeedCursorAsync(db, partner, packet, unique);
+        var subscription = NewPartnerSqlSubscription(partner, packet, BaseEnums.Direction.Outbound, BaseEnums.SubSubscriptionState.Paused);
+        subscription.LastTimeRun = DateTime.Now.AddHours(-1);
+        await db.Insertable(subscription).ExecuteCommandAsync();
+        var reset = new ResetPartnerExtractSqlInput { PartnerId = partner.ID!, PacketCode = packet.Code! };
+        Task<bool> HasPartnerRow() => db.Queryable<ShareDataSql>().Where(s => s.PacketId == packet.ID && s.PartnerId == partner.ID).AnyAsync();
+
+        // Act
+        var first = await services.CallApiAsync<PartnerExtractSqlOutput>(reset);
+        var rowAfterFirst = await HasPartnerRow();
+        var cursorAfterFirst = await HasCursorAsync(db, partner, packet);
+        if (expectConfirm)
+        {
+            await services.CallApiAsync<PartnerExtractSqlOutput>(new ResetPartnerExtractSqlInput { PartnerId = partner.ID!, PacketCode = packet.Code!, Force = true });
+        }
+
+        // Assert
+        var rowAtEnd = await HasPartnerRow();
+        var hasCursor = await HasCursorAsync(db, partner, packet);
+        var savedSubscription = await db.Queryable<ShareDataSubscription>().InSingleAsync(subscription.ID);
+        Assert.Equal(expectConfirm, first.RequiresConfirm);
+        Assert.Equal(expectConfirm, rowAfterFirst);
+        Assert.True(cursorAfterFirst || !expectConfirm);
+        Assert.False(rowAtEnd);
+        Assert.Equal(cursorKept, hasCursor);
+        Assert.Equal(cursorKept, savedSubscription.LastTimeRun != null);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Đăng ký đang bật khóa câu SQL, bảng tham số và mốc đúng phạm vi (ESH-2306), tắt đăng ký thì làm được:
+    ///              tab Mẫu chung khóa khi còn bất kỳ đăng ký gửi nào của gói đang bật, kể cả đăng ký hai chiều và đối tác có cấu hình riêng; đăng ký chiều nhận không khóa.
+    ///              Tab đối tác chỉ khóa theo đăng ký gửi của đúng đối tác đó. Tắt gói thì còn đăng ký bật ở bất kỳ chiều nào cũng bị chặn. Bị từ chối thì dữ liệu giữ nguyên.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData("commonSql", true, BaseEnums.Direction.Outbound, BaseEnums.SubSubscriptionState.Active, BaseMsg.ShareData.Exception.PacketSqlInUse)]
+    [InlineData("commonSql", false, BaseEnums.Direction.Outbound, BaseEnums.SubSubscriptionState.Active, BaseMsg.ShareData.Exception.PacketSqlInUse)]
+    [InlineData("commonSql", true, BaseEnums.Direction.Both, BaseEnums.SubSubscriptionState.Active, BaseMsg.ShareData.Exception.PacketSqlInUse)]
+    [InlineData("commonSql", true, BaseEnums.Direction.Inbound, BaseEnums.SubSubscriptionState.Active, null)]
+    [InlineData("commonSql", true, BaseEnums.Direction.Outbound, BaseEnums.SubSubscriptionState.Paused, null)]
+    [InlineData("commonVariables", true, BaseEnums.Direction.Outbound, BaseEnums.SubSubscriptionState.Active, BaseMsg.ShareData.Exception.PacketSqlInUse)]
+    [InlineData("commonVariables", true, BaseEnums.Direction.Outbound, BaseEnums.SubSubscriptionState.Paused, null)]
+    [InlineData("partnerSql", true, BaseEnums.Direction.Outbound, BaseEnums.SubSubscriptionState.Active, BaseMsg.ShareData.Exception.PacketSqlInUse)]
+    [InlineData("partnerSql", false, BaseEnums.Direction.Outbound, BaseEnums.SubSubscriptionState.Active, null)]
+    [InlineData("partnerVariables", true, BaseEnums.Direction.Outbound, BaseEnums.SubSubscriptionState.Active, BaseMsg.ShareData.Exception.PacketSqlInUse)]
+    [InlineData("partnerVariables", false, BaseEnums.Direction.Outbound, BaseEnums.SubSubscriptionState.Active, null)]
+    [InlineData("resetPartnerSql", true, BaseEnums.Direction.Outbound, BaseEnums.SubSubscriptionState.Active, BaseMsg.ShareData.Exception.PacketSqlInUse)]
+    [InlineData("resetPartnerSql", false, BaseEnums.Direction.Outbound, BaseEnums.SubSubscriptionState.Active, null)]
+    [InlineData("resetCursor", true, BaseEnums.Direction.Outbound, BaseEnums.SubSubscriptionState.Active, BaseMsg.ShareData.Exception.PacketSqlInUse)]
+    [InlineData("resetCursor", false, BaseEnums.Direction.Outbound, BaseEnums.SubSubscriptionState.Active, null)]
+    [InlineData("disablePacket", true, BaseEnums.Direction.Outbound, BaseEnums.SubSubscriptionState.Active, BaseMsg.ShareData.Exception.PacketDisableInUse)]
+    [InlineData("disablePacket", true, BaseEnums.Direction.Inbound, BaseEnums.SubSubscriptionState.Active, BaseMsg.ShareData.Exception.PacketDisableInUse)]
+    [InlineData("disablePacket", true, BaseEnums.Direction.Outbound, BaseEnums.SubSubscriptionState.Paused, null)]
+    public async Task SqlConfig_WhenSubscriptionActive_LocksOnlyItsScope_Test(string operation, bool ownSubscription, BaseEnums.Direction direction, BaseEnums.SubSubscriptionState state, string? errorKey)
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var db = services.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (packet, partner) = await SeedSqlVariablePacketAsync(db, unique);
+        var other = NewPartnerSqlPartner($"PT_OTHER_{unique}", unique);
+        await db.Insertable(other).ExecuteCommandAsync();
+        await services.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput { PacketCode = packet.Code!, Items = [BuiltinVar("lastKey", "", "lastKey")] });
+        await services.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput { PacketCode = packet.Code!, ExtractSql = CursorCreateTimeSql });
+        await services.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput { PartnerId = partner.ID!, PacketCode = packet.Code!, ExtractSql = CursorCreateTimeSql });
+        await SeedCursorAsync(db, partner, packet, unique);
+        var subscription = NewPartnerSqlSubscription(ownSubscription ? partner : other, packet, direction, state);
+        await db.Insertable(subscription).ExecuteCommandAsync();
+
+        const string newStart = "2026-11-05 08:00:00.000_";
+        var variableItems = new List<PacketSqlVariableItemInput>
+        {
+            new() { Code = "lastKey", ValueKind = ShareDataConst.SqlVariableKindBuiltin, Value = ShareDataConst.SqlVariableSourceLastKey, DefaultValue = newStart }
+        };
+        Task Act() => operation switch
+        {
+            "commonSql" => services.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput { PacketCode = packet.Code!, ExtractSql = CursorSameFormulaSql }),
+            "commonVariables" => services.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput { PacketCode = packet.Code!, Items = variableItems }),
+            "partnerSql" => services.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput { PartnerId = partner.ID!, PacketCode = packet.Code!, ExtractSql = CursorSameFormulaSql }),
+            "partnerVariables" => services.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput { PacketCode = packet.Code!, PartnerId = partner.ID, Items = variableItems }),
+            "resetPartnerSql" => services.CallApiAsync<PartnerExtractSqlOutput>(new ResetPartnerExtractSqlInput { PartnerId = partner.ID!, PacketCode = packet.Code! }),
+            "resetCursor" => services.CallApiAsync(new ResetLastSendInput { PacketCode = packet.Code!, PartnerId = partner.ID! }),
+            _ => services.CallApiAsync(new ShareDataUpdatePacketInput { ID = packet.ID, Code = packet.Code, Name = packet.Name, OrderNo = 101, Status = BaseEnums.StatusEnum.Disable })
+        };
+        Task<ShareDataSql> PartnerRow() => db.Queryable<ShareDataSql>().Where(s => s.PacketId == packet.ID && s.PartnerId == partner.ID).FirstAsync();
+
+        // Act
+        var error = await Record.ExceptionAsync(Act);
+
+        // Assert
+        var changed = operation switch
+        {
+            "commonSql" => (await ShareDataSqlSeed.GetCommonAsync(db, packet.ID))?.ExtractSql == CursorSameFormulaSql,
+            "commonVariables" => (await ShareDataSqlSeed.GetVariablesAsync(db, packet.ID, null)).Any(v => v.DefaultValue == newStart),
+            "partnerSql" => (await PartnerRow()).ExtractSql == CursorSameFormulaSql,
+            "partnerVariables" => (await ShareDataSqlSeed.GetVariablesAsync(db, packet.ID, partner.ID)).Any(v => v.DefaultValue == newStart),
+            "resetPartnerSql" => await PartnerRow() == null,
+            "resetCursor" => !await HasCursorAsync(db, partner, packet),
+            _ => (await db.Queryable<ShareDataPacket>().InSingleAsync(packet.ID)).Status == BaseEnums.StatusEnum.Disable
+        };
+        if (errorKey == null)
+        {
+            Assert.Null(error);
+            Assert.True(changed);
+        }
+        else
+        {
+            AssertRejectedWith(error, errorKey);
+            Assert.False(changed);
+        }
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Đúng các lời gọi của trang Mốc gửi: nạp gói với cỡ trang 500, liệt kê đối tác kèm nhãn mẫu chung hoặc cấu hình riêng, đọc mốc từng đối tác;
+    ///              đặt mốc và đặt lại chỉ đổi mốc của đúng đối tác đó.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Fact]
+    public async Task CursorPage_WhenLoadedThenSetAndReset_ShowsEachPartnerOwnCursor_Test()
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var db = services.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (packet, onCommon) = await SeedSqlVariablePacketAsync(db, unique);
+        var custom = NewPartnerSqlPartner($"P_CUS_{unique}", unique);
+        await db.Insertable(custom).ExecuteCommandAsync();
+        await db.Insertable(NewPartnerSqlSubscription(onCommon, packet, BaseEnums.Direction.Outbound, BaseEnums.SubSubscriptionState.Paused)).ExecuteCommandAsync();
+        await services.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput { PacketCode = packet.Code!, Items = [BuiltinVar("lastKey", "", "lastKey")] });
+        await services.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput { PacketCode = packet.Code!, ExtractSql = CursorKeyOnlySql });
+        await services.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput
+        {
+            PartnerId = custom.ID!,
+            PacketCode = packet.Code!,
+            ExtractSql = CursorCreateTimeSql,
+            Variables = [BuiltinVar("lastKey", "", "lastKey")]
+        });
+        async Task<string?> SavedValue(ShareDataPartner partner)
+        {
+            var variables = await services.CallApiAsync<PacketSqlVariablesOutput>(new GetPacketSqlVariablesInput { PacketCode = packet.Code!, PartnerId = partner.ID });
+            return variables.Items.Single(i => i.Code == "lastKey").SavedValue;
+        }
+
+        // Act
+        var packetPage = await services.CallApiAsync<SqlSugarPagedList<ShareDataPagePacketOutput>>(
+            new ShareDataPagePacketInput { Page = 1, PageSize = 500, Field = "orderNo", Order = "asc", DescStr = "desc", Code = packet.Code });
+        var partners = await services.CallApiAsync<List<PartnerSqlListItemOutput>>(new GetPartnerSqlListInput { PacketCode = packet.Code! });
+        var key = "2026-11-05 08:00:00.000_";
+        await services.CallApiAsync(new SetLastSendInput { PacketCode = packet.Code!, PartnerId = onCommon.ID, LastKey = key });
+        var commonAfterSet = await SavedValue(onCommon);
+        var customAfterSet = await SavedValue(custom);
+        await services.CallApiAsync(new ResetLastSendInput { PacketCode = packet.Code!, PartnerId = onCommon.ID! });
+        var commonAfterReset = await SavedValue(onCommon);
+
+        // Assert
+        var pagedPacket = Assert.Single(packetPage.Records);
+        var commonRow = partners.Single(p => p.PartnerId == onCommon.ID);
+        var customRow = partners.Single(p => p.PartnerId == custom.ID);
+        Assert.Equal(packet.ID, pagedPacket.ID);
+        Assert.False(commonRow.IsCustom);
+        Assert.True(customRow.IsCustom);
+        Assert.Equal(key, commonAfterSet);
+        Assert.Null(customAfterSet);
+        Assert.Null(commonAfterReset);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Đặt mốc theo nhóm: nhóm câu đang chạy không có thì từ chối, không ghi gì; Đặt lại xóa mốc của mọi nhóm cùng giờ chạy lần trước.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Fact]
+    public async Task SetAndResetLastSend_WhenCursorGroups_RejectsUnknownGroupAndClearsEveryGroup_Test()
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var db = services.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (packet, partner) = await SeedSqlVariablePacketAsync(db, unique);
+        await services.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
+        {
+            PacketCode = packet.Code!,
+            Items = [BuiltinVar("lastKey_a", "", "lastKey"), BuiltinVar("lastKey_b", "", "lastKey")]
+        });
+        await services.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput { PacketCode = packet.Code!, ExtractSql = CursorGroupSql(true, CursorGroupWhereB) });
+        var subscription = NewPartnerSqlSubscription(partner, packet, BaseEnums.Direction.Outbound, BaseEnums.SubSubscriptionState.Paused);
+        subscription.LastTimeRun = DateTime.Now.AddHours(-1);
+        await db.Insertable(subscription).ExecuteCommandAsync();
+        Task SetGroup(string group, string key) => services.CallApiAsync(new SetLastSendInput { PacketCode = packet.Code!, PartnerId = partner.ID, CursorKey = group, LastKey = key });
+        Task<List<ShareDataLastSend>> Cursors() => db.Queryable<ShareDataLastSend>().Where(ls => ls.PartnerCode == partner.Code && ls.PacketCode == packet.Code).ToListAsync();
+
+        // Act
+        await SetGroup("a", "k_a");
+        await SetGroup("b", "k_b");
+        var unknown = await Record.ExceptionAsync(() => SetGroup("khongCo", "k_x"));
+        var cursorsAfterSet = await Cursors();
+        await db.Updateable<ShareDataSubscription>().SetColumns(s => s.LastTimeRun == DateTime.Now).Where(s => s.ID == subscription.ID).ExecuteCommandAsync();
+        await services.CallApiAsync(new ResetLastSendInput { PacketCode = packet.Code!, PartnerId = partner.ID! });
+
+        // Assert
+        var groups = cursorsAfterSet.Select(c => c.CursorKey).OrderBy(c => c).ToArray();
+        var groupA = cursorsAfterSet.Single(c => c.CursorKey == "a");
+        var cursorsAfterReset = await Cursors();
+        var savedSubscription = await db.Queryable<ShareDataSubscription>().InSingleAsync(subscription.ID);
+        AssertRejectedWith(unknown, BaseMsg.ShareData.Validation.SqlIncrementalGroupNotFound);
+        Assert.Equal(["a", "b"], groups);
+        Assert.Equal("k_a", groupA.LastKey);
+        Assert.Empty(cursorsAfterReset);
+        Assert.Null(savedSubscription.LastTimeRun);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Danh mục bảng nguồn chưa có dữ liệu: màn hình nhận danh sách rỗng, và mọi câu SQL bị từ chối vì bảng không nằm trong danh sách được phép đọc, không có chuyện đọc được mọi bảng.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Fact]
+    public async Task SourceCatalog_WhenEmpty_ReturnsNoTablesAndRejectsSql_Test()
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var db = services.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (packet, _) = await SeedSqlVariablePacketAsync(db, unique);
+        var catalogIds = await db.Queryable<ShareDataSourceTable>().Where(t => t.IsDelete == null).Select(t => t.ID).ToListAsync();
+        var deletedAt = DateTime.Now;
+        await db.Updateable<ShareDataSourceTable>().SetColumns(t => t.IsDelete == deletedAt).Where(t => catalogIds.Contains(t.ID)).ExecuteCommandAsync();
+
+        // Act
+        var tables = await services.CallApiAsync<List<MetadataTableDto>>(new GetMetadataTablesInput());
+        var error = await Record.ExceptionAsync(() => services.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput { PacketCode = packet.Code!, ExtractSql = "SELECT ID AS zoneId FROM TmsZone" }));
+        await db.Updateable<ShareDataSourceTable>().SetColumns(t => t.IsDelete == null).Where(t => catalogIds.Contains(t.ID)).ExecuteCommandAsync();
+
+        // Assert
+        Assert.Empty(tables);
+        AssertRejectedWith(error, BaseMsg.ShareData.Validation.SqlTableNotAllowed);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Các mẫu câu ở mục Mẫu câu của Sổ tay, đổi bảng giữ chỗ sang bảng được phép đọc, dán vào là lưu được:
+    ///              câu mẫu, cột mốc gộp, lọc 7 ngày gần nhất bằng GETDATE(), hai nhóm gói 101, nhiều nhóm gộp hai bảng.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData("cauMau")]
+    [InlineData("cotMocGop")]
+    [InlineData("bayNgay")]
+    [InlineData("haiNhom101")]
+    [InlineData("nhieuNhom")]
+    public async Task SaveExtractSql_WhenHandbookSample_SavesWithDetectedVariables_Test(string sample)
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var db = services.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (packet, _) = await SeedSqlVariablePacketAsync(db, unique);
+        var pageSize = ConstVar("pageSize", ShareDataConst.SqlVariableTypeInt, "100");
+        var (sql, variables) = sample switch
+        {
+            "cauMau" => ("""
+                SELECT TOP (@pageSize)                  -- số dòng mỗi trang, khai ở bảng tham số
+                       zs.ZoneId    AS zoneId,
+                       zs.Condition AS trafficCondition,
+                       CONVERT(varchar(23), COALESCE(zs.UpdateTime, zs.CreateTime), 121) + '_' + zs.ID AS __lastKey   -- thời gian + khóa duy nhất
+                FROM   TmsZoneStatus zs
+                WHERE  CONVERT(varchar(23), COALESCE(zs.UpdateTime, zs.CreateTime), 121) + '_' + zs.ID > @lastKey
+                ORDER BY __lastKey ASC
+                """, new List<PacketSqlVariableItemInput> { pageSize, BuiltinVar("lastKey", "", "lastKey") }),
+            "cotMocGop" => ("""
+                SELECT TOP (@pageSize)
+                       t.Code AS code,
+                       CONVERT(varchar(23), COALESCE(t.UpdateTime, t.CreateTime), 121) + '_' + t.ID AS __lastKey
+                FROM   TmsZone t
+                WHERE  CONVERT(varchar(23), COALESCE(t.UpdateTime, t.CreateTime), 121) + '_' + t.ID > @lastKey
+                ORDER BY __lastKey ASC
+                """, [pageSize, BuiltinVar("lastKey", "", "lastKey")]),
+            "bayNgay" => ("""
+                SELECT TOP (@pageSize)
+                       t.Code AS code,
+                       CONVERT(varchar(23), COALESCE(t.UpdateTime, t.CreateTime), 121) + '_' + t.ID AS __lastKey
+                FROM   TmsZone t
+                WHERE  CONVERT(varchar(23), COALESCE(t.UpdateTime, t.CreateTime), 121) + '_' + t.ID > @lastKey
+                  AND COALESCE(t.UpdateTime, t.CreateTime) >= DATEADD(DAY, -7, GETDATE())
+                ORDER BY __lastKey ASC
+                """, [pageSize, BuiltinVar("lastKey", "", "lastKey")]),
+            "haiNhom101" => ("""
+                SELECT TOP (@pageSize)
+                    u.__lastKey_upd, u.__lastKey_new,
+                    u.zoneStatusId, u.zoneId, u.zoneName, u.fromLocationKm, u.fromLocationMet, u.toLocationKm, u.toLocationMet,
+                    u.laneId, u.averageSpeed, u.trafficCondition, u.dataTime, u.speedLimit, u.vehicleCount
+                FROM (
+                    SELECT
+                        CONVERT(varchar(23), zs.UpdateTime, 121) + '_' + zs.ID AS sortKey,
+                        CONVERT(varchar(23), zs.UpdateTime, 121) + '_' + zs.ID AS __lastKey_upd,
+                        CAST(NULL AS NVARCHAR(100)) AS __lastKey_new,
+                        zs.ID AS zoneStatusId, zs.ZoneId AS zoneId, z.Name AS zoneName,
+                        z.FromKmNumber AS fromLocationKm, z.FromMetNumber AS fromLocationMet,
+                        z.ToKmNumber AS toLocationKm, z.ToMetNumber AS toLocationMet, z.LaneId AS laneId,
+                        CAST(zs.AverageSpeed AS DECIMAL(18, 2)) AS averageSpeed, zs.Condition AS trafficCondition,
+                        zs.UpdateTime AS dataTime, z.MaxSpeed AS speedLimit, ts.TotalVehicleNumber AS vehicleCount
+                    FROM dbo.TmsZoneStatus zs
+                    LEFT JOIN dbo.TmsZone z ON zs.ZoneId = z.ID
+                    LEFT JOIN dbo.TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId
+                    WHERE CONVERT(varchar(23), zs.UpdateTime, 121) + '_' + zs.ID > @lastKey_upd
+                    UNION ALL
+                    SELECT
+                        CONVERT(varchar(23), zs.CreateTime, 121) + '_' + zs.ID, NULL, CONVERT(varchar(23), zs.CreateTime, 121) + '_' + zs.ID,
+                        zs.ID, zs.ZoneId, z.Name, z.FromKmNumber, z.FromMetNumber, z.ToKmNumber, z.ToMetNumber,
+                        z.LaneId, CAST(zs.AverageSpeed AS DECIMAL(18, 2)), zs.Condition, zs.CreateTime, z.MaxSpeed, ts.TotalVehicleNumber
+                    FROM dbo.TmsZoneStatus zs
+                    LEFT JOIN dbo.TmsZone z ON zs.ZoneId = z.ID
+                    LEFT JOIN dbo.TmsTrafficStatistic ts ON zs.ZoneId = ts.ZoneId
+                    WHERE zs.UpdateTime IS NULL
+                      AND CONVERT(varchar(23), zs.CreateTime, 121) + '_' + zs.ID > @lastKey_new
+                ) u
+                ORDER BY u.sortKey ASC
+                """, [pageSize, BuiltinVar("lastKey_upd", "", "lastKey"), BuiltinVar("lastKey_new", "", "lastKey")]),
+            _ => ("""
+                SELECT TOP (@pageSize) u.rowCode, u.__lastKey_inc, u.__lastKey_wea
+                FROM (
+                    SELECT i.Code AS rowCode,
+                           CONVERT(varchar(23), COALESCE(i.UpdateTime, i.CreateTime), 121) + '_' + i.ID AS sortKey,
+                           CONVERT(varchar(23), COALESCE(i.UpdateTime, i.CreateTime), 121) + '_' + i.ID AS __lastKey_inc,
+                           CAST(NULL AS nvarchar(100)) AS __lastKey_wea
+                    FROM TmsIncident i
+                    WHERE CONVERT(varchar(23), COALESCE(i.UpdateTime, i.CreateTime), 121) + '_' + i.ID > @lastKey_inc
+                    UNION ALL
+                    SELECT w.RefId,
+                           CONVERT(varchar(23), COALESCE(w.UpdateTime, w.CreateTime), 121) + '_' + w.ID,
+                           NULL,
+                           CONVERT(varchar(23), COALESCE(w.UpdateTime, w.CreateTime), 121) + '_' + w.ID
+                    FROM TmsWeather w
+                    WHERE CONVERT(varchar(23), COALESCE(w.UpdateTime, w.CreateTime), 121) + '_' + w.ID > @lastKey_wea
+                ) u
+                ORDER BY u.sortKey ASC
+                """, [pageSize, BuiltinVar("lastKey_inc", "", "lastKey"), BuiltinVar("lastKey_wea", "", "lastKey")])
+        };
+
+        // Act
+        var saved = await services.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput { PacketCode = packet.Code!, ExtractSql = sql, Variables = variables });
+
+        // Assert
+        var row = await ShareDataSqlSeed.GetCommonAsync(db, packet.ID);
+        var savedVariables = await ShareDataSqlSeed.GetVariablesAsync(db, packet.ID, null);
+        var expectedSql = sql.Trim();
+        var expectedCodes = variables.Select(v => v.Code).ToArray();
+        var savedCodes = savedVariables.Select(v => v.Code).ToArray();
+        var fields = SqlFieldHelper.Read(row?.FieldsJson);
+        Assert.False(saved.RequiresConfirm);
+        Assert.Equal(expectedSql, row?.ExtractSql);
+        Assert.Equal(expectedCodes, savedCodes);
+        Assert.DoesNotContain(fields, f => f.Key.StartsWith("__", StringComparison.Ordinal));
+    }
+
     /// <summary>Câu nối đuôi một chuỗi ghép COALESCE(UpdateTime, CreateTime) + ID trên TmsZone với điều kiện WHERE tùy ca.</summary>
     private static string CursorFilterSql(string where) => "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey FROM TmsZone "
         + $"WHERE {where} ORDER BY __lastKey ASC";
@@ -2632,25 +3186,13 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
 
     private const string CursorGroupWhereB = "CONVERT(varchar(23), COALESCE(y.UpdateTime, y.CreateTime), 121) + '_' + y.ID > @lastKey_b";
 
-    private static void AssertRejectedWith(Exception? ex, string errorKey)
-    {
-        Assert.NotNull(ex);
-        Assert.True(
-            ex.ToString().Contains(errorKey) || (ex is AppFriendlyException afe && afe.ErrorMessage?.ToString() == errorKey),
-            $"Kỳ vọng từ chối với mã {errorKey}, nhận được: {ex}");
-
-        // Máy chủ đã nạp câu dịch (bấm làm mới Ngôn ngữ) thì Oops.Oh gọi string.Format(câu dịch, giá trị): {'@'} làm lỗi định dạng
-        var (vi, en) = SeedScriptReader.ReadTerminology(errorKey);
-        _ = string.Format(vi, "a", "b", "c");
-        _ = string.Format(en, "a", "b", "c");
-
-        // Máy chủ chưa nạp thì trả mã lỗi, màn hình tự dịch không có giá trị: {0} của lỗi nối đuôi hiện trống như "[] > @"
-        if (errorKey.Contains("sqlIncremental", StringComparison.Ordinal))
-        {
-            Assert.DoesNotMatch(@"\{\d\}", vi);
-            Assert.DoesNotMatch(@"\{\d\}", en);
-        }
-    }
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Thao tác bị từ chối đúng mã lỗi và câu dịch của mã đó hiện được ở cả hai đường.
+    /// Created date: 30/10/2026
+    /// Modified date: 05/11/2026
+    /// </summary>
+    private static void AssertRejectedWith(Exception? ex, string errorKey) => RejectionAssert.Rejected(ex, errorKey);
 
     /// <summary>
     /// Description: Các dạng câu nối đuôi làm mất dòng nên lưu bị từ chối:
@@ -2667,6 +3209,8 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     [InlineData("lastKey", "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey FROM TmsZone WHERE CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @lastKey ORDER BY ID ASC", BaseMsg.ShareData.Validation.SqlIncrementalOrderByKeyMismatch)]
     [InlineData("lastKey", "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey FROM TmsZone WHERE CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @lastKey ORDER BY __lastKey DESC", BaseMsg.ShareData.Validation.SqlIncrementalOrderByDescNotAllowed)]
     [InlineData("lastKey", "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastK FROM TmsZone WHERE CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @lastKey ORDER BY __lastK ASC", BaseMsg.ShareData.Validation.SqlIncrementalMissingLastKey)]
+    [InlineData("lastKey", "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey FROM TmsZone WHERE CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID > @lastKey", BaseMsg.ShareData.Validation.SqlIncrementalMissingOrderBy)]
+    [InlineData("lastKey", "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey FROM TmsZone WHERE __lastKey > @lastKey ORDER BY __lastKey ASC", BaseMsg.ShareData.Validation.SqlDatabaseExecutionError)]
     public async Task UpdateExtractSql_WhenCursorFilterLosesRowsAcrossPages_RejectsSql_Test(string cursorVariables, string sql, string errorKey)
     {
         // Arrange
@@ -2695,13 +3239,22 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     /// Description: Cột mốc làm sót dòng bị từ chối khi lưu, ở cả mẫu chung lẫn SQL riêng của đối tác:
     ///              cột mốc chỉ có ngày giờ (UpdateTime AS __lastKey) sót các dòng trùng giờ; chuỗi mốc ghép từ UpdateTime trơn bỏ sót
     ///              dòng mới thêm vì UpdateTime trống khi thêm mới. Bọc COALESCE(UpdateTime, CreateTime) thì lưu được.
+    ///              So đúng biểu thức cột mốc bằng >= cũng bị từ chối vì dòng cuối bị gửi lặp mỗi lượt.
+    ///              Ghép ngày giờ không sắp đúng thứ tự thời gian bị từ chối.
     /// Created date: 04/11/2026
+    /// Modified date: 05/11/2026
     /// </summary>
     [Theory]
     [InlineData(false, "SELECT TOP 10 ID AS zoneId, UpdateTime AS __lastKey FROM TmsZone WHERE UpdateTime > @lastKey ORDER BY __lastKey", BaseMsg.ShareData.Validation.SqlIncrementalKeyTimeOnly)]
     [InlineData(false, BareUpdateTimeSql, BaseMsg.ShareData.Validation.SqlIncrementalUpdateTimeEmpty)]
     [InlineData(true, BareUpdateTimeSql, BaseMsg.ShareData.Validation.SqlIncrementalUpdateTimeEmpty)]
+    [InlineData(false, InclusiveKeySql, BaseMsg.ShareData.Validation.SqlIncrementalKeyFilterInclusive)]
+    [InlineData(true, InclusiveKeySql, BaseMsg.ShareData.Validation.SqlIncrementalKeyFilterInclusive)]
     [InlineData(true, CursorKeyOnlySql, null)]
+    [InlineData(false, "SELECT TOP 10 ID AS zoneId, FORMAT(CreateTime, 'HHmm') + '_' + ID AS __lastKey FROM TmsZone WHERE FORMAT(CreateTime, 'HHmm') + '_' + ID > @lastKey ORDER BY __lastKey", BaseMsg.ShareData.Validation.SqlIncrementalKeyDateUnsortable)]
+    [InlineData(true, "SELECT TOP 10 ID AS zoneId, FORMAT(CreateTime, 'dd/MM/yyyy') + '_' + ID AS __lastKey FROM TmsZone WHERE FORMAT(CreateTime, 'dd/MM/yyyy') + '_' + ID > @lastKey ORDER BY __lastKey", BaseMsg.ShareData.Validation.SqlIncrementalKeyDateUnsortable)]
+    [InlineData(false, "SELECT TOP 10 ID AS zoneId, FORMAT(CreateTime, 'yyyy-MMM-dd') + '_' + ID AS __lastKey FROM TmsZone WHERE FORMAT(CreateTime, 'yyyy-MMM-dd') + '_' + ID > @lastKey ORDER BY __lastKey", BaseMsg.ShareData.Validation.SqlIncrementalKeyDateUnsortable)]
+    [InlineData(false, "SELECT TOP 10 ID AS zoneId, CONVERT(varchar(10), CreateTime, 103) + '_' + ID AS __lastKey FROM TmsZone WHERE CONVERT(varchar(10), CreateTime, 103) + '_' + ID > @lastKey ORDER BY __lastKey", BaseMsg.ShareData.Validation.SqlIncrementalKeyDateUnsortable)]
     public async Task SaveExtractSql_WhenCursorTimeMissesRows_RejectsSql_Test(bool partnerScope, string sql, string? errorKey)
     {
         // Arrange
@@ -2740,24 +3293,17 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     }
 
     /// <summary>
-    /// Description: Câu nối đuôi dạng chỉ khóa hợp lệ nhưng dễ lấy sai vẫn lưu bình thường, không chặn và không báo gì (rủi ro do Worker ghi vào nhật ký):
-    ///              khóa là một cột trơn, so khóa bằng >=, ghép ngày giờ sai định dạng, ép số sang chuỗi không đệm 0.
-    ///              Cột mốc chỉ có ngày giờ (UpdateTime AS __lastKey) nay bị từ chối, xem SaveExtractSql_WhenCursorTimeMissesRows_RejectsSql_Test.
+    /// Description: Câu đúng công thức PA1 lưu bình thường, không báo gì, kể cả có chặn dưới theo cột thời gian gốc dùng >=.
+    ///              Cột mốc sai công thức bị từ chối, xem SaveExtractSql_WhenCursorColumnVaries_OnlyFormulaIsSaved_Test.
     /// Created date: 29/10/2026
-    /// Modified date: 04/11/2026
+    /// Modified date: 05/11/2026
     /// </summary>
     [Theory]
-    [InlineData("SELECT TOP 10 ID AS zoneId, ID AS __lastKey FROM TmsZone WHERE ID > @lastKey ORDER BY ID ASC")]
     [InlineData(CursorKeyOnlySql)]
-    [InlineData("SELECT TOP 10 ID AS zoneId, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey FROM TmsZone "
-        + "WHERE CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID >= @lastKey ORDER BY __lastKey")]
-    [InlineData("SELECT TOP 10 ID AS zoneId, FORMAT(CreateTime, 'HHmm') + '_' + ID AS __lastKey FROM TmsZone WHERE (FORMAT(CreateTime, 'HHmm') + '_' + ID) > @lastKey ORDER BY __lastKey")]
-    [InlineData("SELECT TOP 10 ID AS zoneId, CONVERT(varchar(23), CreateTime, 121) + '_' + CAST(FromKmNumber AS varchar(10)) AS __lastKey FROM TmsZone "
-        + "WHERE (CONVERT(varchar(23), CreateTime, 121) + '_' + CAST(FromKmNumber AS varchar(10))) > @lastKey ORDER BY __lastKey")]
     [InlineData("SELECT TOP 10 ID AS zoneId, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey FROM TmsZone "
         + "WHERE COALESCE(UpdateTime, CreateTime) >= ISNULL(TRY_CONVERT(datetime, LEFT(@lastKey, 23), 121), '17530101') "
         + "AND CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID > @lastKey ORDER BY __lastKey")]
-    public async Task UpdateExtractSql_WhenKeyOnlyCursorRisky_SavesNormally_Test(string sql)
+    public async Task UpdateExtractSql_WhenCursorFollowsFormula_SavesNormally_Test(string sql)
     {
         // Arrange
         SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
@@ -2864,6 +3410,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     [InlineData(true, CursorGroupWhereB, "u.sortKey", null)]
     [InlineData(false, CursorGroupWhereB, "u.sortKey", BaseMsg.ShareData.Validation.SqlIncrementalGroupColumnMissing)]
     [InlineData(true, "y.ID > @lastKey_b", "u.sortKey", BaseMsg.ShareData.Validation.SqlIncrementalKeyFilterInvalid)]
+    [InlineData(true, "CONVERT(varchar(23), COALESCE(y.UpdateTime, y.CreateTime), 121) + '_' + y.ID >= @lastKey_b", "u.sortKey", BaseMsg.ShareData.Validation.SqlIncrementalKeyFilterInclusive)]
     [InlineData(true, CursorGroupWhereB, "u.zoneId", BaseMsg.ShareData.Validation.SqlIncrementalGroupOrderInvalid)]
     [InlineData(true, CursorGroupWhereB, "u.__lastKey_a", BaseMsg.ShareData.Validation.SqlIncrementalGroupOrderInvalid)]
     public async Task UpdateExtractSql_WhenSqlMergesSourcesWithCursorGroups_ValidatesEachGroup_Test(bool withKeyB, string whereB, string orderBy, string? errorKey)
@@ -2894,6 +3441,313 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         else
         {
             AssertRejectedWith(error, errorKey);
+        }
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Nhóm mốc có tên sai công thức ở nhánh của mình cũng bị từ chối khi lưu: ghép ngày giờ sai định dạng, cột chuỗi trơn, phần thời gian không có CreateTime.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData("CONVERT(varchar(10), COALESCE(y.UpdateTime, y.CreateTime), 103) + '_' + y.ID", BaseMsg.ShareData.Validation.SqlIncrementalKeyDateUnsortable)]
+    [InlineData("y.ID", BaseMsg.ShareData.Validation.SqlIncrementalKeyFormulaInvalid)]
+    [InlineData("CONVERT(varchar(23), y.IsDelete, 121) + '_' + y.ID", BaseMsg.ShareData.Validation.SqlIncrementalKeyFormulaInvalid)]
+    public async Task UpdateExtractSql_WhenCursorGroupBreaksFormula_RejectsSql_Test(string keyB, string errorKey)
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (packet, _) = await SeedSqlVariablePacketAsync(db, unique);
+        await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
+        {
+            PacketCode = packet.Code!,
+            Items = [BuiltinVar("lastKey_a", "", "lastKey"), BuiltinVar("lastKey_b", "", "lastKey")]
+        });
+        var groupSql = CursorGroupSql(true, CursorGroupWhereB);
+        var sql = groupSql.Replace("CONVERT(varchar(23), COALESCE(y.UpdateTime, y.CreateTime), 121) + '_' + y.ID", keyB);
+
+        // Act
+        var error = await Record.ExceptionAsync(() => scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(
+            new UpdatePacketExtractSqlInput { PacketCode = packet.Code!, ExtractSql = sql }));
+
+        // Assert
+        var common = await ShareDataSqlSeed.GetCommonAsync(db, packet.ID);
+        AssertRejectedWith(error, errorKey);
+        Assert.NotEqual(sql, common?.ExtractSql);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Khai biến mốc rồi lưu câu SQL ở mẫu chung hoặc cấu hình riêng của đối tác, trả về lỗi nếu bị từ chối và dòng SQL đang lưu sau khi gọi.
+    /// Created date: 05/11/2026
+    /// </summary>
+    private async Task<(Exception? Error, ShareDataSql? Row)> SaveSqlWithLastKeyAsync(bool partnerScope, string sql)
+    {
+        SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var db = services.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (packet, partner) = await SeedSqlVariablePacketAsync(db, unique);
+        await services.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
+        {
+            PacketCode = packet.Code!,
+            PartnerId = partnerScope ? partner.ID : null,
+            Items = [BuiltinVar("lastKey", "", "lastKey")]
+        });
+        Task SaveSql() => partnerScope
+            ? services.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput { PartnerId = partner.ID!, PacketCode = packet.Code!, ExtractSql = sql })
+            : services.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput { PacketCode = packet.Code!, ExtractSql = sql });
+        var error = await Record.ExceptionAsync(SaveSql);
+        var row = partnerScope
+            ? await db.Queryable<ShareDataSql>().Where(s => s.PacketId == packet.ID && s.PartnerId == partner.ID).FirstAsync()
+            : await ShareDataSqlSeed.GetCommonAsync(db, packet.ID);
+        return (error, row);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Cột mốc phải đúng công thức PA1 CONVERT(varchar(23), &lt;thời gian&gt;, 121) + '_' + ID, phần thời gian có CreateTime, ở cả mẫu chung lẫn SQL riêng:
+    ///              cột chuỗi trơn, ép số sang chuỗi, chỉ có cột thời gian khác, sai kiểu CONVERT, thiếu '_' hay thiếu khóa đều bị từ chối.
+    ///              Phần khóa bắt đầu bằng cột ID vì cột khác có thể trống, cả chuỗi mốc thành NULL và dòng không bao giờ được gửi;
+    ///              ghép thêm sau ID thì phần ghép phải là cột ID khác hoặc có giá trị thay thế (ISNULL, COALESCE).
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData(false, "ID", true)]
+    [InlineData(true, "ID", true)]
+    [InlineData(false, "Code", true)]
+    [InlineData(false, "CAST(FromKmNumber AS varchar(10))", true)]
+    [InlineData(false, "CAST(FromKmNumber AS varchar(10)) + '_' + ID", true)]
+    [InlineData(false, "Code + '_' + ID", true)]
+    [InlineData(false, "CONVERT(varchar(23), IsDelete, 121) + '_' + ID", true)]
+    [InlineData(true, "CONVERT(varchar(23), IsDelete, 121) + '_' + ID", true)]
+    [InlineData(false, "CONVERT(varchar(23), COALESCE(UpdateTime, IsDelete), 121) + '_' + ID", true)]
+    [InlineData(false, "FORMAT(CreateTime, 'yyyyMMddHHmmssfff') + '_' + ID", true)]
+    [InlineData(false, "FORMAT(FromKmNumber, 'd10') + '_' + ID", true)]
+    [InlineData(false, "CONVERT(varchar(10), CreateTime, 111) + '_' + ID", true)]
+    [InlineData(false, "CONVERT(varchar(23), CreateTime, 120) + '_' + ID", true)]
+    [InlineData(false, "CONVERT(varchar(23), CreateTime, 121)", true)]
+    [InlineData(false, "CONVERT(varchar(23), CreateTime, 121) + ID", true)]
+    [InlineData(false, "CONVERT(varchar(23), CreateTime, 121) + '_' + 'a'", true)]
+    [InlineData(false, "CONCAT(CONVERT(varchar(23), CreateTime, 121), '_', ID)", true)]
+    [InlineData(false, "CONVERT(varchar(23), CreateTime, 121) + '_' + ID", false)]
+    [InlineData(false, "CONVERT(varchar(23), COALESCE(IsDelete, CreateTime), 121) + '_' + ID", false)]
+    [InlineData(false, "CONVERT(nvarchar(23), ISNULL(UpdateTime, CreateTime), 121) + N'_' + ID", false)]
+    [InlineData(true, "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + CAST(FromKmNumber AS varchar(10))", true)]
+    [InlineData(false, "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + Code + '_' + ID", true)]
+    [InlineData(false, "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + Name", true)]
+    [InlineData(true, "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + Code", true)]
+    [InlineData(false, "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ISNULL(Code, '')", true)]
+    [InlineData(false, "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID + '_' + Code", true)]
+    [InlineData(false, "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID + '_' + ISNULL(Code, '')", false)]
+    [InlineData(true, "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + N'_' + [ID]", false)]
+    public async Task SaveExtractSql_WhenCursorColumnVaries_OnlyFormulaIsSaved_Test(bool partnerScope, string keyExpr, bool rejected)
+    {
+        // Arrange
+        var sql = $"SELECT TOP 10 ID AS zoneId, {keyExpr} AS __lastKey FROM TmsZone WHERE {keyExpr} > @lastKey ORDER BY __lastKey ASC";
+
+        // Act
+        var (error, row) = await SaveSqlWithLastKeyAsync(partnerScope, sql);
+
+        // Assert
+        if (rejected)
+        {
+            AssertRejectedWith(error, BaseMsg.ShareData.Validation.SqlIncrementalKeyFormulaInvalid);
+            Assert.NotEqual(sql, row?.ExtractSql);
+        }
+        else
+        {
+            Assert.Null(error);
+            Assert.Equal(sql, row?.ExtractSql);
+        }
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Cột ID ở phần khóa phải luôn có giá trị: ID của bảng phía tùy chọn trong LEFT, RIGHT, FULL JOIN có thể trống nên cả chuỗi mốc thành NULL và dòng không bao giờ được gửi.
+    ///              ID của bảng chính hoặc bảng INNER JOIN thì lưu được; xét cả khi cột mốc nằm trong bảng dẫn xuất. Bọc ISNULL ở phần ghép thêm sau ID thì lưu được.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData("TmsZoneStatus zs LEFT JOIN TmsZone z ON zs.ZoneId = z.ID", "z.ID", true)]
+    [InlineData("TmsZone z RIGHT JOIN TmsZoneStatus zs ON zs.ZoneId = z.ID", "z.ID", true)]
+    [InlineData("TmsZoneStatus zs FULL JOIN TmsZone z ON zs.ZoneId = z.ID", "zs.ID", true)]
+    [InlineData("TmsZoneStatus zs LEFT JOIN TmsZone z ON zs.ZoneId = z.ID", "zs.ID + '_' + z.ID", true)]
+    [InlineData("TmsZoneStatus zs LEFT JOIN TmsZone z ON zs.ZoneId = z.ID", "zs.ID", false)]
+    [InlineData("TmsZone z RIGHT JOIN TmsZoneStatus zs ON zs.ZoneId = z.ID", "zs.ID", false)]
+    [InlineData("TmsZoneStatus zs INNER JOIN TmsZone z ON zs.ZoneId = z.ID", "z.ID", false)]
+    [InlineData("TmsZoneStatus zs LEFT JOIN TmsZone z ON zs.ZoneId = z.ID", "zs.ID + '_' + ISNULL(z.ID, '')", false)]
+    public async Task SaveExtractSql_WhenCursorIdComesFromOptionalJoin_RejectsSql_Test(string from, string key, bool rejected)
+    {
+        // Arrange
+        var keyExpr = $"CONVERT(varchar(23), COALESCE(zs.UpdateTime, zs.CreateTime), 121) + '_' + {key}";
+        var sql = $"SELECT TOP 10 zs.ZoneId AS zoneId, {keyExpr} AS __lastKey FROM {from} WHERE {keyExpr} > @lastKey ORDER BY __lastKey ASC";
+        var derivedSql = $"SELECT TOP 10 x.zoneId, x.__lastKey FROM (SELECT zs.ZoneId AS zoneId, {keyExpr} AS __lastKey FROM {from}) x WHERE x.__lastKey > @lastKey ORDER BY x.__lastKey ASC";
+
+        // Act
+        var (error, row) = await SaveSqlWithLastKeyAsync(false, sql);
+        var (derivedError, derivedRow) = await SaveSqlWithLastKeyAsync(false, derivedSql);
+
+        // Assert
+        if (rejected)
+        {
+            AssertRejectedWith(error, BaseMsg.ShareData.Validation.SqlIncrementalKeyFormulaInvalid);
+            AssertRejectedWith(derivedError, BaseMsg.ShareData.Validation.SqlIncrementalKeyFormulaInvalid);
+            Assert.NotEqual(sql, row?.ExtractSql);
+            Assert.NotEqual(derivedSql, derivedRow?.ExtractSql);
+        }
+        else
+        {
+            Assert.Null(error);
+            Assert.Null(derivedError);
+            Assert.Equal(sql, row?.ExtractSql);
+            Assert.Equal(derivedSql, derivedRow?.ExtractSql);
+        }
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: OFFSET bỏ qua dòng đầu mỗi trang nên các dòng đó không bao giờ được gửi: từ chối khi lưu, ở cả mẫu chung, câu riêng lẫn câu con. OFFSET 0 không bỏ dòng nào thì lưu được.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData(false, "SELECT ID AS zoneId, {K} AS __lastKey FROM TmsZone WHERE {K} > @lastKey ORDER BY __lastKey ASC OFFSET 1 ROWS", true)]
+    [InlineData(true, "SELECT ID AS zoneId, {K} AS __lastKey FROM TmsZone WHERE {K} > @lastKey ORDER BY __lastKey ASC OFFSET 1 ROWS", true)]
+    [InlineData(false, "SELECT ID AS zoneId, {K} AS __lastKey FROM TmsZone WHERE {K} > @lastKey ORDER BY __lastKey ASC OFFSET 5 ROWS FETCH NEXT 10 ROWS ONLY", true)]
+    [InlineData(false, "SELECT TOP 10 x.zoneId, x.__lastKey FROM (SELECT ID AS zoneId, {K} AS __lastKey FROM TmsZone ORDER BY __lastKey ASC OFFSET 1 ROWS) x WHERE x.__lastKey > @lastKey ORDER BY x.__lastKey ASC", true)]
+    [InlineData(false, "SELECT ID AS zoneId, {K} AS __lastKey FROM TmsZone WHERE {K} > @lastKey ORDER BY __lastKey ASC OFFSET 0 ROWS FETCH NEXT 10 ROWS ONLY", false)]
+    public async Task SaveExtractSql_WhenCursorSqlSkipsRowsByOffset_RejectsSql_Test(bool partnerScope, string template, bool rejected)
+    {
+        // Arrange
+        var sql = template.Replace("{K}", "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID");
+
+        // Act
+        var (error, row) = await SaveSqlWithLastKeyAsync(partnerScope, sql);
+
+        // Assert
+        if (rejected)
+        {
+            AssertRejectedWith(error, BaseMsg.ShareData.Validation.SqlIncrementalOffsetNotAllowed);
+            Assert.NotEqual(sql, row?.ExtractSql);
+        }
+        else
+        {
+            Assert.Null(error);
+            Assert.Equal(sql, row?.ExtractSql);
+        }
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Gộp nhiều nguồn bằng UNION mà dùng chung một mốc thì nguồn về trễ có giá trị nhỏ hơn mốc sẽ mất dòng: từ chối khi lưu, dù so mốc ở từng nhánh, ở câu ngoài hay qua CTE.
+    ///              Câu con UNION chỉ dùng để lọc (IN) không gộp nguồn nên lưu được; mỗi nguồn một nhóm mốc đã có test riêng.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData(false, "SELECT TOP 10 u.zoneId, u.__lastKey FROM (SELECT ID AS zoneId, {K} AS __lastKey FROM TmsZone WHERE {K} > @lastKey UNION ALL SELECT ID, {K} FROM TmsWeather WHERE {K} > @lastKey) u ORDER BY u.__lastKey ASC", true)]
+    [InlineData(true, "SELECT TOP 10 u.zoneId, u.__lastKey FROM (SELECT ID AS zoneId, {K} AS __lastKey FROM TmsZone WHERE {K} > @lastKey UNION ALL SELECT ID, {K} FROM TmsWeather WHERE {K} > @lastKey) u ORDER BY u.__lastKey ASC", true)]
+    [InlineData(false, "SELECT TOP 10 u.zoneId, u.__lastKey FROM (SELECT ID AS zoneId, {K} AS __lastKey FROM TmsZone UNION ALL SELECT ID, {K} FROM TmsWeather) u WHERE u.__lastKey > @lastKey ORDER BY u.__lastKey ASC", true)]
+    [InlineData(false, "WITH u AS (SELECT ID AS zoneId, {K} AS __lastKey FROM TmsZone UNION ALL SELECT ID, {K} FROM TmsWeather) SELECT TOP 10 u.zoneId, u.__lastKey FROM u WHERE u.__lastKey > @lastKey ORDER BY u.__lastKey ASC", true)]
+    [InlineData(false, "SELECT TOP 10 ID AS zoneId, {K} AS __lastKey FROM TmsZone WHERE {K} > @lastKey AND ID IN (SELECT ZoneId FROM TmsZoneStatus UNION SELECT ZoneId FROM TmsTrafficStatistic) ORDER BY __lastKey ASC", false)]
+    public async Task SaveExtractSql_WhenSourcesShareOneCursor_RejectsSql_Test(bool partnerScope, string template, bool rejected)
+    {
+        // Arrange
+        var sql = template.Replace("{K}", "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID");
+
+        // Act
+        var (error, row) = await SaveSqlWithLastKeyAsync(partnerScope, sql);
+
+        // Assert
+        if (rejected)
+        {
+            AssertRejectedWith(error, BaseMsg.ShareData.Validation.SqlIncrementalUnionOneCursor);
+            Assert.NotEqual(sql, row?.ExtractSql);
+        }
+        else
+        {
+            Assert.Null(error);
+            Assert.Equal(sql, row?.ExtractSql);
+        }
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Cột mốc lấy từ bảng dẫn xuất, WHERE ngoài cùng so theo tên cột: công thức xét ở SELECT bên trong, không từ chối nhầm câu đúng.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData("ID", true)]
+    [InlineData("CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID", false)]
+    public async Task SaveExtractSql_WhenCursorColumnComesFromDerivedTable_ChecksInnerFormula_Test(string keyExpr, bool rejected)
+    {
+        // Arrange
+        var sql = "SELECT TOP 10 x.zoneId, x.__lastKey "
+            + $"FROM (SELECT ID AS zoneId, {keyExpr} AS __lastKey FROM TmsZone) x "
+            + "WHERE x.__lastKey > @lastKey ORDER BY x.__lastKey ASC";
+
+        // Act
+        var (error, row) = await SaveSqlWithLastKeyAsync(false, sql);
+
+        // Assert
+        if (rejected)
+        {
+            AssertRejectedWith(error, BaseMsg.ShareData.Validation.SqlIncrementalKeyFormulaInvalid);
+            Assert.NotEqual(sql, row?.ExtractSql);
+        }
+        else
+        {
+            Assert.Null(error);
+            Assert.Equal(sql, row?.ExtractSql);
+        }
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Câu có cột mốc mà không dùng biến mốc thì không phải câu nối đuôi, lượt nào cũng gửi lại cùng dữ liệu nên bị từ chối khi lưu, ở cả mẫu chung lẫn câu riêng:
+    ///              câu không có biến nào, cột mốc của nhóm có tên, và @lastKey khai nguồn giá trị cố định. Câu gửi toàn bộ không có cột mốc thì lưu được.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData(false, "SELECT TOP 10 ID AS zoneId, ID AS __lastKey FROM TmsZone WHERE ID > 'a' ORDER BY ID ASC", false, true)]
+    [InlineData(true, "SELECT TOP 10 ID AS zoneId, ID AS __lastKey FROM TmsZone WHERE ID > 'a' ORDER BY ID ASC", false, true)]
+    [InlineData(false, "SELECT TOP 10 ID AS zoneId, ID AS __lastKey_a FROM TmsZone WHERE ID > 'a' ORDER BY ID ASC", false, true)]
+    [InlineData(false, "SELECT TOP 10 ID AS zoneId, ID AS __lastKey FROM TmsZone WHERE ID > @lastKey ORDER BY ID ASC", true, true)]
+    [InlineData(false, "SELECT TOP 10 ID AS zoneId FROM TmsZone WHERE ID > 'a' ORDER BY ID ASC", false, false)]
+    public async Task SaveExtractSql_WhenCursorColumnHasNoCursorVariable_RejectsSql_Test(bool partnerScope, string sql, bool constantVariable, bool rejected)
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (packet, partner) = await SeedSqlVariablePacketAsync(db, unique);
+        List<PacketSqlVariableItemInput>? variables = constantVariable
+            ? [ConstVar("lastKey", ShareDataConst.SqlVariableTypeString, "a")]
+            : null;
+        Task SaveSql() => partnerScope
+            ? scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput { PartnerId = partner.ID!, PacketCode = packet.Code!, ExtractSql = sql, Variables = variables })
+            : scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput { PacketCode = packet.Code!, ExtractSql = sql, Variables = variables });
+
+        // Act
+        var error = await Record.ExceptionAsync(SaveSql);
+
+        // Assert
+        var row = partnerScope
+            ? await db.Queryable<ShareDataSql>().Where(s => s.PacketId == packet.ID && s.PartnerId == partner.ID).FirstAsync()
+            : await ShareDataSqlSeed.GetCommonAsync(db, packet.ID);
+        if (rejected)
+        {
+            AssertRejectedWith(error, BaseMsg.ShareData.Validation.SqlIncrementalCursorVariableMissing);
+            Assert.NotEqual(sql, row?.ExtractSql);
+        }
+        else
+        {
+            Assert.Null(error);
+            Assert.Equal(sql, row?.ExtractSql);
         }
     }
 
@@ -3179,6 +4033,57 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         Assert.All(afterFirst.Where(p => p.OrderNo == 111), p => Assert.Equal(BaseEnums.StatusEnum.Disable, p.Status));
         Assert.All(seeded.Where(p => p.OrderNo != 111), p => Assert.Equal(BaseEnums.StatusEnum.Enable, p.Status));
         Assert.Equal(seeded.Count, seededAfterSecond);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Chỉ lưu bảng tham số, đổi biến mốc sang giá trị cố định trong khi câu đang lưu còn cột mốc: câu thành gửi toàn bộ nên bị từ chối, bộ biến cũ còn nguyên.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UpdateSqlVariables_WhenCursorVariableBecomesConstant_Rejects_Test(bool partnerScope)
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (packet, partner) = await SeedSqlVariablePacketAsync(db, unique);
+        var partnerId = partnerScope ? partner.ID : null;
+        var sql = CursorFilterSql(CursorFilterWhere);
+        await scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
+        {
+            PacketCode = packet.Code!,
+            PartnerId = partnerId,
+            Items = [BuiltinVar("lastKey", "", "lastKey")]
+        });
+        if (partnerScope)
+        {
+            await scope.ServiceProvider.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput { PartnerId = partner.ID!, PacketCode = packet.Code!, ExtractSql = sql, Force = true });
+        }
+        else
+        {
+            await scope.ServiceProvider.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput { PacketCode = packet.Code!, ExtractSql = sql, Force = true });
+        }
+
+        // Act
+        var error = await Record.ExceptionAsync(() => scope.ServiceProvider.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput
+        {
+            PacketCode = packet.Code!,
+            PartnerId = partnerId,
+            Items = [ConstVar("lastKey", ShareDataConst.SqlVariableTypeString, "a")]
+        }));
+
+        // Assert
+        var row = partnerScope
+            ? await db.Queryable<ShareDataSql>().Where(s => s.PacketId == packet.ID && s.PartnerId == partner.ID).FirstAsync()
+            : await ShareDataSqlSeed.GetCommonAsync(db, packet.ID);
+        var savedVariables = SqlTextHelper.ReadVariables(row?.VariablesJson);
+        var saved = savedVariables.Single(v => v.Code == "lastKey");
+        AssertRejectedWith(error, BaseMsg.ShareData.Validation.SqlIncrementalCursorVariableMissing);
+        Assert.Equal(ShareDataConst.SqlVariableSourceLastKey, saved.Value);
     }
 
     /// <summary>
@@ -3592,6 +4497,78 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         {
             Assert.Equal(expectWarnings, result.Checks.Count(c => c.Level == ShareDataConst.WriteSqlCheckWarning));
             Assert.Contains("id", result.KeyFields);
+        }
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Câu ghi chiều nhận khóa theo đăng ký nhận (ESH-2306): câu riêng chỉ khóa khi đăng ký nhận của đúng đối tác đó đang bật, câu mẫu chung khóa khi còn bất kỳ đăng ký nhận nào của gói đang bật;
+    ///              đăng ký gửi không khóa. Câu riêng để trống thì từ chối, muốn bỏ thì Dùng lại mẫu chung: xóa câu riêng, giữ câu mẫu chung.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData("partnerSave", true, BaseEnums.Direction.Inbound, BaseEnums.SubSubscriptionState.Active, BaseMsg.ShareData.Exception.PacketSqlInUse)]
+    [InlineData("partnerSave", true, BaseEnums.Direction.Outbound, BaseEnums.SubSubscriptionState.Active, null)]
+    [InlineData("partnerSave", false, BaseEnums.Direction.Inbound, BaseEnums.SubSubscriptionState.Active, null)]
+    [InlineData("partnerEmpty", true, BaseEnums.Direction.Inbound, BaseEnums.SubSubscriptionState.Paused, BaseMsg.ShareData.Validation.PartnerWriteSqlRequired)]
+    [InlineData("partnerReset", true, BaseEnums.Direction.Inbound, BaseEnums.SubSubscriptionState.Active, BaseMsg.ShareData.Exception.PacketSqlInUse)]
+    [InlineData("partnerReset", true, BaseEnums.Direction.Inbound, BaseEnums.SubSubscriptionState.Paused, null)]
+    [InlineData("commonSave", false, BaseEnums.Direction.Inbound, BaseEnums.SubSubscriptionState.Active, BaseMsg.ShareData.Exception.PacketSqlInUse)]
+    [InlineData("commonSave", false, BaseEnums.Direction.Outbound, BaseEnums.SubSubscriptionState.Active, null)]
+    public async Task WriteSql_WhenSubscriptionOrInputVaries_LocksScopeAndKeepsCommonOnReset_Test(string operation, bool ownSubscription, BaseEnums.Direction direction, BaseEnums.SubSubscriptionState state, string? errorKey)
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var db = services.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (packet, partner) = await SeedSqlVariablePacketAsync(db, unique);
+        var other = NewPartnerSqlPartner($"PT_OTHER_{unique}", unique);
+        await db.Insertable(other).ExecuteCommandAsync();
+        await services.CallApiAsync<PacketWriteSqlsOutput>(new UpdatePacketWriteSqlsInput { PacketCode = packet.Code!, WriteSql = ValidWriteSql, AffectedTables = ["dbo.ShareDataInboundPacket"] });
+        await services.CallApiAsync<PartnerWriteSqlOutput>(new UpdatePartnerWriteSqlInput { PartnerId = partner.ID!, PacketCode = packet.Code!, WriteSql = ValidWriteSql, AffectedTables = ["dbo.ShareDataInboundPacket"] });
+        var subscription = NewPartnerSqlSubscription(ownSubscription ? partner : other, packet, direction, state);
+        await db.Insertable(subscription).ExecuteCommandAsync();
+        var firstWrite = ValidWriteSql.Trim();
+        var secondWrite = SecondTableWriteSql.Trim();
+        Task Act() => operation switch
+        {
+            "partnerSave" => services.CallApiAsync<PartnerWriteSqlOutput>(new UpdatePartnerWriteSqlInput { PartnerId = partner.ID!, PacketCode = packet.Code!, WriteSql = SecondTableWriteSql, AffectedTables = ["TmsZone"] }),
+            "partnerEmpty" => services.CallApiAsync<PartnerWriteSqlOutput>(new UpdatePartnerWriteSqlInput { PartnerId = partner.ID!, PacketCode = packet.Code!, WriteSql = "   " }),
+            "partnerReset" => services.CallApiAsync<PartnerWriteSqlOutput>(new ResetPartnerWriteSqlInput { PartnerId = partner.ID!, PacketCode = packet.Code! }),
+            _ => services.CallApiAsync<PacketWriteSqlsOutput>(new UpdatePacketWriteSqlsInput { PacketCode = packet.Code!, WriteSql = SecondTableWriteSql, AffectedTables = ["TmsZone"] })
+        };
+
+        // Act
+        var error = await Record.ExceptionAsync(Act);
+
+        // Assert
+        var commonWrite = (await ShareDataSqlSeed.GetCommonAsync(db, packet.ID))?.WriteSql;
+        var partnerWrite = (await db.Queryable<ShareDataSql>().Where(s => s.PacketId == packet.ID && s.PartnerId == partner.ID).FirstAsync())?.WriteSql;
+        if (errorKey != null)
+        {
+            AssertRejectedWith(error, errorKey);
+            Assert.Equal(firstWrite, partnerWrite);
+            Assert.Equal(firstWrite, commonWrite);
+            return;
+        }
+
+        Assert.Null(error);
+        switch (operation)
+        {
+            case "partnerSave":
+                Assert.Equal(secondWrite, partnerWrite);
+                Assert.Equal(firstWrite, commonWrite);
+                break;
+            case "partnerReset":
+                Assert.True(string.IsNullOrEmpty(partnerWrite));
+                Assert.Equal(firstWrite, commonWrite);
+                break;
+            default:
+                Assert.Equal(secondWrite, commonWrite);
+                Assert.Equal(firstWrite, partnerWrite);
+                break;
         }
     }
 

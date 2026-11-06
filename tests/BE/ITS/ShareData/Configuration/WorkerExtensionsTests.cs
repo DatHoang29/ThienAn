@@ -57,6 +57,8 @@ public class WorkerExtensionsTests
     [InlineData("sendonly", true, false)]
     [InlineData("ReceiveOnly", false, true)]
     [InlineData("receiveonly", false, true)]
+    [InlineData("  SendOnly  ", true, false)]
+    [InlineData(" receiveonly ", false, true)]
     public void AddWorkerInfrastructure_WhenValidRoleConfigured_RegistersExpectedWorkers_Test(
         string? role,
         bool expectSendWorkers,

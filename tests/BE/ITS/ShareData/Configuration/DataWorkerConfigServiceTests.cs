@@ -17,6 +17,113 @@ public class DataWorkerConfigServiceTests(Host host)
 {
     private readonly Host _host = host;
 
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Nguồn phạm vi đổi được sang kết nối CSDL hỏng giữa chừng, để giả lập CSDL mất kết nối giữa hai lần nạp cấu hình.
+    /// Created date: 05/11/2026
+    /// </summary>
+    private sealed class SwitchableScopeFactory(IServiceScopeFactory healthy, IServiceScopeFactory broken) : IServiceScopeFactory
+    {
+        /// <summary>Bật để các lần tạo phạm vi sau đó đi qua kết nối hỏng.</summary>
+        public bool UseBroken { get; set; }
+
+        /// <summary>
+        /// Author: DatHQ
+        /// Description: Tạo phạm vi từ nguồn đang được chọn.
+        /// Created date: 05/11/2026
+        /// </summary>
+        public IServiceScope CreateScope() => (UseBroken ? broken : healthy).CreateScope();
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Lỗi đọc CSDL khi nạp lại cấu hình: không ném lỗi, giữ cấu hình đang dùng thay vì quay về giá trị mặc định.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Fact]
+    public async Task Get_WhenDatabaseReadFailsOnReload_KeepsCurrentConfig_Test()
+    {
+        // Arrange
+        var isolatedGroup = $"sd_cfg_broken_{Guid.NewGuid():N}";
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        foreach (var (code, value) in new[] { (ShareDataConst.ConfigKeyOutboundMaxPagesPerRun, "7"), (ShareDataConst.ConfigKeyReloadIntervalSec, "5") })
+        {
+            await db.Insertable(new SysOpConfig
+            {
+                ID = Guid.NewGuid().ToString("N"),
+                GroupCode = isolatedGroup,
+                Code = code,
+                Value = value,
+                Status = BaseEnums.StatusEnum.Enable
+            }).ExecuteCommandAsync();
+        }
+
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { [ShareDataConst.ConfigGroupOverrideKey] = isolatedGroup })
+            .Build();
+        await using var brokenProvider = new ServiceCollection()
+            .AddScoped<ISqlSugarClient>(_ => new SqlSugarClient(new ConnectionConfig
+            {
+                DbType = DbType.SqlServer,
+                ConnectionString = "Server=127.0.0.1,1;Database=test;Connect Timeout=1;Encrypt=False;TrustServerCertificate=true;Pooling=False;",
+                IsAutoCloseConnection = true
+            }))
+            .BuildServiceProvider();
+        var scopeFactory = new SwitchableScopeFactory(
+            _host.Services.GetRequiredService<IServiceScopeFactory>(),
+            brokenProvider.GetRequiredService<IServiceScopeFactory>());
+        var service = new DataWorkerConfigService(scopeFactory, NullLogger<DataWorkerConfigService>.Instance, config);
+
+        // Act
+        var loaded = await service.Get();
+        scopeFactory.UseBroken = true;
+        await Task.Delay(TimeSpan.FromSeconds(5.2));
+        var afterFailure = await service.Get();
+
+        // Assert
+        Assert.Equal(7, loaded.OutboundMaxPagesPerRun);
+        Assert.Equal(7, afterFailure.OutboundMaxPagesPerRun);
+        Assert.Equal(5, afterFailure.ReloadIntervalSec);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Đổi tham số trong SysOpConfig không cần khởi động lại Worker: trong chu kỳ nạp lại vẫn dùng giá trị đang nhớ, hết chu kỳ thì dùng giá trị mới.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Fact]
+    public async Task Get_WhenValueChangedInDatabase_AppliesAfterReloadInterval_Test()
+    {
+        // Arrange
+        var isolatedGroup = $"sd_cfg_reload_{Guid.NewGuid():N}";
+        using var scope = _host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        var pagesRowId = Guid.NewGuid().ToString("N");
+        await db.Insertable(new List<SysOpConfig>
+        {
+            new() { ID = pagesRowId, GroupCode = isolatedGroup, Code = ShareDataConst.ConfigKeyOutboundMaxPagesPerRun, Value = "7", Status = BaseEnums.StatusEnum.Enable },
+            new() { ID = Guid.NewGuid().ToString("N"), GroupCode = isolatedGroup, Code = ShareDataConst.ConfigKeyReloadIntervalSec, Value = "5", Status = BaseEnums.StatusEnum.Enable }
+        }).ExecuteCommandAsync();
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { [ShareDataConst.ConfigGroupOverrideKey] = isolatedGroup })
+            .Build();
+        var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
+        var service = new DataWorkerConfigService(scopeFactory, NullLogger<DataWorkerConfigService>.Instance, config);
+
+        // Act
+        var first = await service.Get();
+        await db.Updateable<SysOpConfig>().SetColumns(c => c.Value == "9").Where(c => c.ID == pagesRowId).ExecuteCommandAsync();
+        var withinInterval = await service.Get();
+        await Task.Delay(TimeSpan.FromSeconds(5.2));
+        var afterInterval = await service.Get();
+
+        // Assert
+        Assert.Equal(7, first.OutboundMaxPagesPerRun);
+        Assert.Equal(7, withinInterval.OutboundMaxPagesPerRun);
+        Assert.Equal(9, afterInterval.OutboundMaxPagesPerRun);
+    }
+
     [Fact]
     public async Task Get_WhenNoConfigGroupExists_ReturnsExactFallbackDefaults_Test()
     {
@@ -35,7 +142,7 @@ public class DataWorkerConfigServiceTests(Host host)
         // Act
         var settings = await service.Get();
 
-        // Assert: 19 tham số đều khớp 100% với giá trị dự phòng chuẩn
+        // Assert: 18 tham số đều khớp 100% với giá trị dự phòng chuẩn
         Assert.NotNull(settings);
         Assert.Equivalent(new DataWorkerConfig(), settings);
         Assert.Equal(5, settings.OutboundCheckIntervalSec);

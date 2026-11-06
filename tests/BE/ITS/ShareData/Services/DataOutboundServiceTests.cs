@@ -40,7 +40,7 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
     /// Created date: 31/07/2026
     /// </summary>
     [Collection("api")]
-    public class DataOutboundServiceTests
+    public partial class DataOutboundServiceTests
     {
         private readonly Host _host;
 
@@ -4228,28 +4228,10 @@ ORDER BY __lastKey ASC";
         /// Description: Tạo DataWorkerConfigService đọc nhóm cấu hình cô lập với trần số trang mỗi lượt do test đặt,
         ///              không ảnh hưởng cấu hình dùng chung của các bài test khác.
         /// Created date: 20/10/2026
+        /// Modified date: 05/11/2026
         /// </summary>
-        private static async Task<DataWorkerConfigService> CreateWorkerConfigWithMaxPages(IServiceScope scope, ISqlSugarClient db, int maxPagesPerRun)
-        {
-            var isolatedGroup = $"sd_outbound_pages_{Guid.NewGuid():N}";
-            await db.Insertable(new SysOpConfig
-            {
-                ID = Guid.NewGuid().ToString("N"),
-                GroupCode = isolatedGroup,
-                Code = ShareDataConst.ConfigKeyOutboundMaxPagesPerRun,
-                Value = maxPagesPerRun.ToString(CultureInfo.InvariantCulture),
-                Status = BaseEnums.StatusEnum.Enable
-            }).ExecuteCommandAsync();
-
-            var config = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?> { [ShareDataConst.ConfigGroupOverrideKey] = isolatedGroup })
-                .Build();
-
-            return new DataWorkerConfigService(
-                scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>(),
-                Microsoft.Extensions.Logging.Abstractions.NullLogger<DataWorkerConfigService>.Instance,
-                config);
-        }
+        private static Task<DataWorkerConfigService> CreateWorkerConfigWithMaxPages(IServiceScope scope, ISqlSugarClient db, int maxPagesPerRun) =>
+            CreateWorkerConfigAsync(scope, db, (ShareDataConst.ConfigKeyOutboundMaxPagesPerRun, maxPagesPerRun));
 
         /// <summary>
         /// Description: Seed N bản ghi TmsTrafficData mốc thời gian tăng dần cho gói 103. Biển số mang tiền tố
@@ -6902,7 +6884,7 @@ ORDER BY __lastKey ASC";
         ///              - key-too-long: __lastKey dài quá 256 ký tự -> huỷ trước khi gửi HTTP, ghi ESH-1304 và giữ nguyên mốc cũ.
         ///              - key-empty: __lastKey rỗng/khoảng trắng -> huỷ trước khi gửi HTTP, ghi ESH-1302 và giữ nguyên mốc cũ
         ///                (chưa có mốc khóa nên @lastKey = '' và câu so >= mới lấy được dòng khóa khoảng trắng).
-        ///              - non-advancing-gte: câu so khóa bằng >= (lưu được, có cảnh báo) trả về đúng dòng có __lastKey bằng mốc đã lưu kèm
+        ///              - non-advancing-gte: câu so khóa bằng >= lưu từ trước khi chặn (05/11/2026) trả về đúng dòng có __lastKey bằng mốc đã lưu kèm
         ///                TOP (@pageSize = 1) -> mốc không tiến nên giữ nguyên và dừng phân trang ngay sau trang 1 (tránh lặp vô hạn maxPagesPerRun).
         ///              Cột mốc và điều kiện WHERE viết cùng một biểu thức, so với biến mốc, để qua bộ kiểm cấu trúc trước khi chạy (30/10/2026).
         ///              - write-time-ahead: giờ ghi mốc cũ (LastTime) lớn hơn giờ máy hiện tại nhưng __lastKey mới lớn hơn ->
@@ -7467,10 +7449,10 @@ ORDER BY __lastKey ASC";
         /// <summary>
         /// Description: Giới hạn đã biết của câu một cột dùng cột thời gian đơn làm khóa (UpdateTime AS __lastKey, UpdateTime > @lastKey):
         ///              Worker lưu mốc bằng ToString() của giá trị thời gian nên mất mili giây và phụ thuộc ngôn ngữ máy, lượt gửi không đi tiếp được sau trang đầu.
-        ///              Dữ liệu: A (08:00), B và C trùng 09:00, D (10:00), trang 2 dòng: sau hai lượt D vẫn chưa tới đối tác.
+        ///              Dữ liệu: A (08:00), B và C cùng giây 09:00 khác mili giây, D (10:00), trang 2 dòng: sau hai lượt D vẫn chưa tới đối tác. B và C khác mili giây nên không bị báo trùng cột mốc.
         ///              Câu dạng này nay bị từ chối khi lưu qua API (ValidateCursorTime); test giữ hành vi của câu đã lưu từ trước, Worker vẫn chạy và ghi rủi ro.
         /// Created date: 01/11/2026
-        /// Modified date: 04/11/2026
+        /// Modified date: 05/11/2026
         /// </summary>
         [Fact]
         public async Task ProcessSubscriptions_WhenSingleTimeColumnAsKey_CursorLosesMillisecondsAndStopsAfterFirstPage_Test()
@@ -7487,7 +7469,7 @@ ORDER BY __lastKey ASC";
             {
                 ["A"] = baseTime,
                 ["B"] = baseTime.AddHours(1),
-                ["C"] = baseTime.AddHours(1),
+                ["C"] = baseTime.AddHours(1).AddMilliseconds(300),
                 ["D"] = baseTime.AddHours(2)
             };
             var rows = times.Keys.Select(name => new ShareDataPacket
@@ -7547,16 +7529,22 @@ ORDER BY __lastKey ASC";
         /// Description: Câu nối đuôi lưu được nhưng dễ lấy sai: Worker ghi rủi ro vào nhật ký cấu hình (ShareDataActivityLog, LogType CONFIG) một lần cho mỗi (đăng ký, câu SQL),
         ///              không lặp lại mỗi lượt, không ghi cảnh báo, không lẫn vào nhật ký truyền nhận. Câu không có rủi ro thì không ghi.
         ///              Câu lưu từ trước khi chặn UpdateTime trơn vẫn chạy, Worker ghi rủi ro dòng mới thêm không được gửi.
+        ///              Chặn dưới theo cột thời gian gốc dùng >= chỉ giới hạn vùng đọc, không gửi lặp dòng nên không tính là rủi ro.
         /// Created date: 01/11/2026
-        /// Modified date: 04/11/2026
+        /// Modified date: 05/11/2026
         /// </summary>
         [Theory]
         [InlineData("Code AS rowCode, ID AS __lastKey", "ID > @lastKey", "ID", "không tăng theo thứ tự ghi")]
         [InlineData("Code AS rowCode, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey", "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID >= @lastKey", "__lastKey", ">=")]
         [InlineData("Code AS rowCode, FORMAT(COALESCE(UpdateTime, CreateTime), 'HHmm') + '_' + ID AS __lastKey", "FORMAT(COALESCE(UpdateTime, CreateTime), 'HHmm') + '_' + ID > @lastKey", "__lastKey", "sai định dạng")]
-        [InlineData("Code AS rowCode, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + CAST(OrderNo AS varchar(10)) AS __lastKey", "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + CAST(OrderNo AS varchar(10)) > @lastKey", "__lastKey", "đệm 0")]
+        [InlineData("Code AS rowCode, FORMAT(COALESCE(UpdateTime, CreateTime), 'dd/MM/yyyy') + '_' + ID AS __lastKey", "FORMAT(COALESCE(UpdateTime, CreateTime), 'dd/MM/yyyy') + '_' + ID > @lastKey", "__lastKey", "sai định dạng")]
+        [InlineData("Code AS rowCode, CAST(OrderNo AS varchar(10)) + '_' + ID AS __lastKey", "CAST(OrderNo AS varchar(10)) + '_' + ID > @lastKey", "__lastKey", "đệm 0")]
+        [InlineData("Code AS rowCode, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + CAST(OrderNo AS varchar(10)) AS __lastKey", "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + CAST(OrderNo AS varchar(10)) > @lastKey", "__lastKey", "cột ID")]
+        [InlineData("Code AS rowCode, CONVERT(varchar(23), IsDelete, 121) + '_' + ID AS __lastKey", "CONVERT(varchar(23), IsDelete, 121) + '_' + ID > @lastKey", "__lastKey", "không có CreateTime")]
         [InlineData("Code AS rowCode, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey", "CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @lastKey", "__lastKey", "UpdateTime trơn")]
         [InlineData("Code AS rowCode, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey", "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID > @lastKey", "__lastKey", null)]
+        [InlineData("Code AS rowCode, CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID AS __lastKey",
+            "COALESCE(UpdateTime, CreateTime) >= ISNULL(TRY_CONVERT(datetime, LEFT(@lastKey, 23), 121), '17530101') AND CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID > @lastKey", "__lastKey", null)]
         public async Task ProcessSubscriptions_WhenCursorSqlRisky_LogsActivityOnceWithoutAlert_Test(string columns, string where, string orderBy, string? expectedRisk)
         {
             // Arrange

@@ -1008,6 +1008,78 @@ public class DataInboundServiceTests(Host host)
     }
 
     /// <summary>
+    /// Author: DatHQ
+    /// Description: Đối tác có câu ghi riêng thì Worker chạy câu riêng, không chạy câu mẫu chung; đối tác khác vẫn chạy câu mẫu chung.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ProcessPendingPackets_WhenPartnerHasOwnWriteSql_UsesItInsteadOfCommon_Test(bool hasOwnWriteSql)
+    {
+        // Arrange
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (partner, packet, _, _) = await SeedInboundEnvironmentAsync(unique);
+        var commonMarker = $"MARK_COMMON_{unique}";
+        var partnerMarker = $"MARK_PARTNER_{unique}";
+        static string MarkerSql(string marker) => $"INSERT INTO ShareDataInboundPacket (ID, PartnerCode, PacketCode) OUTPUT 'INSERT' VALUES ('{marker}', 'MARK', 'MARK')";
+        var commonSql = MarkerSql(commonMarker);
+        var partnerSql = MarkerSql(partnerMarker);
+        await ShareDataSqlSeed.SetWriteAsync(_db, packet.ID, commonSql);
+        if (hasOwnWriteSql)
+        {
+            await _db.Insertable(new ShareDataSql { ID = Guid.NewGuid().ToString("N"), PacketId = packet.ID, PartnerId = partner.ID, WriteSql = partnerSql }).ExecuteCommandAsync();
+        }
+        await SeedPendingPacket(partner.Code!, packet.Code!, 1, "{\"data\":[{\"id\":\"A\",\"val\":\"1\"}]}", DateTime.Now);
+
+        // Act
+        using var scope = _host.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<DataInboundService>().ProcessPendingPackets(CancellationToken.None);
+
+        // Assert
+        var ranPartnerSql = await _inboundDb.Queryable<ShareDataInboundPacket>().Where(p => p.ID == partnerMarker).AnyAsync();
+        var ranCommonSql = await _inboundDb.Queryable<ShareDataInboundPacket>().Where(p => p.ID == commonMarker).AnyAsync();
+        Assert.Equal(hasOwnWriteSql, ranPartnerSql);
+        Assert.Equal(!hasOwnWriteSql, ranCommonSql);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Câu ghi nhận đủ tham số ngữ cảnh của gói: @records, @now, @tenantId, @operator, @partnerId, @partnerCode, @datatypeId, @serialNbr, @packetId.
+    ///              Câu ghi chép giá trị các tham số vào một dòng đánh dấu, đọc lại đúng từng giá trị.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Fact]
+    public async Task ProcessPendingPackets_WhenWriteSqlUsesContextParameters_BindsEachValue_Test()
+    {
+        // Arrange
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (partner, packet, _, _) = await SeedInboundEnvironmentAsync(unique);
+        var markerId = $"MARK_PARAM_{unique}";
+        var markerSql = $"""
+            INSERT INTO ShareDataInboundPacket (ID, PartnerCode, PacketCode, ErrorMessage)
+            OUTPUT 'INSERT'
+            SELECT '{markerId}', @partnerCode, @datatypeId,
+                CONCAT_WS('|', @partnerId, @tenantId, @operator, @serialNbr, @packetId, (SELECT COUNT(*) FROM OPENJSON(@records)), CONVERT(varchar(10), @now, 120))
+            """;
+        await ShareDataSqlSeed.SetWriteAsync(_db, packet.ID, markerSql);
+        var pending = await SeedPendingPacket(partner.Code!, packet.Code!, 7, "{\"data\":[{\"id\":\"A\",\"val\":\"1\"},{\"id\":\"B\",\"val\":\"2\"}]}", DateTime.Now);
+
+        // Act
+        using var scope = _host.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<DataInboundService>().ProcessPendingPackets(CancellationToken.None);
+
+        // Assert
+        var marker = await _inboundDb.Queryable<ShareDataInboundPacket>().Where(p => p.ID == markerId).FirstAsync();
+        var today = DateTime.Now.ToString("yyyy-MM-dd");
+        var expectedValues = string.Join('|', partner.ID, "Default", "SHAREDATA_INBOUND", 7, pending.ID, 2, today);
+        Assert.NotNull(marker);
+        Assert.Equal(partner.Code, marker.PartnerCode);
+        Assert.Equal(packet.Code, marker.PacketCode);
+        Assert.Equal(expectedValues, marker.ErrorMessage);
+    }
+
+    /// <summary>
     /// Description: I07 - Body rỗng (không phải JSON): gói chuyển Failed với ErrorMessage, ghi cảnh báo ESH-1503 (ParseFailed),
     ///              không ném lỗi. (Trường hợp XML đã có test riêng; giới hạn kích thước body không có trong mã Worker nên chưa kiểm.)
     ///              Nguồn: DataInboundService.cs ProcessPacketAsync dòng 205-216.
@@ -1128,6 +1200,54 @@ public class DataInboundServiceTests(Host host)
         var conds = doc.RootElement.EnumerateArray().ToDictionary(r => r.GetProperty("id").GetString()!, r => r.GetProperty("val").GetString());
         Assert.Equal("CONGESTED", conds["R1"]);
         Assert.Equal("NORMAL", conds["R2"]);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Lá có bộ mã không bị ép kiểu trước khi tra ngược: mã đối tác "05" vẫn tra ra giá trị nội bộ, không thành 5 rồi lệch mã.
+    ///              Lá không có bộ mã thì gỡ ép kiểu theo targetType của bộ khung.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Fact]
+    public async Task ProcessPendingPackets_WhenCodeSetLeafHasTargetType_KeepsPartnerCodeForReverseLookup_Test()
+    {
+        // Arrange
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (partner, packet, _, mapping) = await SeedInboundEnvironmentAsync(unique);
+        var codeSetCode = $"CS_TYPE_{unique}";
+        await _db.Insertable(new ShareDataCodeSet
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            Code = codeSetCode,
+            Name = "Bộ mã có số 0 đầu",
+            Status = BaseEnums.StatusEnum.Enable,
+            ValuesJson = """[ { "sourceValue": "NORMAL", "partnerValue": "05" }, { "sourceValue": "CONGESTED", "partnerValue": "5" } ]"""
+        }).ExecuteCommandAsync();
+        var shape = $$"""
+            { "data": [ {
+                "cond": { "$field": "val", "$extend": { "codeSet": "{{codeSetCode}}", "targetType": "int" } },
+                "count": { "$field": "num", "$extend": { "targetType": "int" } }
+            } ] }
+            """;
+        await _db.Updateable<ShareDataMapping>().SetColumns(m => m.TargetShapeJson == shape).Where(m => m.ID == mapping.ID).ExecuteCommandAsync();
+        var markerId = $"MARK_TYPE_{unique}";
+        await ShareDataSqlSeed.SetWriteAsync(_db, packet.ID, $"INSERT INTO ShareDataInboundPacket (ID, PartnerCode, PacketCode, RawContent) OUTPUT 'INSERT' VALUES ('{markerId}', 'MARK', 'MARK', @records)");
+        await SeedPendingPacket(partner.Code!, packet.Code!, 1, "{\"data\":[{\"cond\":\"05\",\"count\":\"12\"}]}", DateTime.Now);
+
+        // Act
+        using var scope = _host.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<DataInboundService>().ProcessPendingPackets(CancellationToken.None);
+
+        // Assert
+        var marker = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(markerId);
+        Assert.NotNull(marker);
+        using var doc = System.Text.Json.JsonDocument.Parse(marker.RawContent!);
+        var records = doc.RootElement.EnumerateArray();
+        var record = Assert.Single(records);
+        var internalCode = record.GetProperty("val").GetString();
+        var vehicleCount = record.GetProperty("num").GetInt32();
+        Assert.Equal("NORMAL", internalCode);
+        Assert.Equal(12, vehicleCount);
     }
 
     /// <summary>
@@ -1484,6 +1604,108 @@ public class DataInboundServiceTests(Host host)
         await _inboundDb.Insertable(entity).ExecuteCommandAsync();
         await Task.Delay(30);
         return entity;
+    }
+
+    #endregion
+
+    #region Nhiều bản clone chiều nhận
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Hai bản clone chiều nhận chạy cùng lúc, có cả gói kẹt do bản trước chết giữa chừng: mỗi gói chỉ được xử lý một lần,
+    ///              tất cả về Done và số thứ tự đã nhận của đăng ký tới gói lớn nhất.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Fact]
+    public async Task ProcessPendingPackets_WhenTwoReceiversRunTogether_ProcessesEachPacketOnce_Test()
+    {
+        // Arrange
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (partner, packet, sub, _) = await SeedInboundEnvironmentAsync(unique);
+        const int pendingCount = 10;
+        const string rawContent = "{\"data\":[{\"id\":\"A\",\"val\":\"1\"}]}";
+        var packetIds = new List<string>();
+        for (var serial = 1; serial <= pendingCount; serial++)
+        {
+            var pending = await SeedPendingPacket(partner.Code!, packet.Code!, serial, rawContent, DateTime.Now);
+            packetIds.Add(pending.ID);
+        }
+
+        var stuckSerial = pendingCount + 1;
+        var stuckPacket = new ShareDataInboundPacket
+        {
+            ID = Guid.NewGuid().ToString("N"),
+            PartnerCode = partner.Code,
+            PacketCode = packet.Code,
+            SerialNbr = stuckSerial,
+            RawContent = rawContent,
+            ProcessState = BaseEnums.InboundProcessState.Processing,
+            ProcessedAt = DateTime.Now.AddDays(-1),
+            CreateTime = DateTime.Now.AddDays(-1)
+        };
+        await _inboundDb.Insertable(stuckPacket).ExecuteCommandAsync();
+        packetIds.Add(stuckPacket.ID);
+
+        var scopeFactory = _host.Services.GetRequiredService<IServiceScopeFactory>();
+        var workerConfig = _host.Services.GetRequiredService<DataWorkerConfigService>();
+        var firstReceiver = new DataInboundService(scopeFactory, NullLogger<DataInboundService>.Instance, workerConfig);
+        var secondReceiver = new DataInboundService(scopeFactory, NullLogger<DataInboundService>.Instance, workerConfig);
+
+        // Act
+        await Task.WhenAll(
+            firstReceiver.ProcessPendingPackets(CancellationToken.None),
+            secondReceiver.ProcessPendingPackets(CancellationToken.None));
+
+        // Assert
+        var saved = await _inboundDb.Queryable<ShareDataInboundPacket>().Where(p => packetIds.Contains(p.ID)).ToListAsync();
+        var logs = await _db.Queryable<ShareDataActivityLog>()
+            .Where(l => l.SubscriptionId == sub.ID && l.TransferDirection == BaseEnums.TransferDirection.RCV)
+            .ToListAsync();
+        var savedSub = await _db.Queryable<ShareDataSubscription>().InSingleAsync(sub.ID);
+
+        Assert.Equal(packetIds.Count, saved.Count);
+        Assert.All(saved, p => Assert.Equal(BaseEnums.InboundProcessState.Done, p.ProcessState));
+        Assert.Equal(packetIds.Count, logs.Count);
+        Assert.Equal(stuckSerial, savedSub.SerialNbr);
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Bản clone chiều nhận quên khai ConnectionStrings:InboundConnection: bỏ qua cả lượt, không báo lỗi làm dừng dịch vụ, gói vẫn chờ cho tới khi khai đúng.
+    /// Created date: 05/11/2026
+    /// </summary>
+    [Fact]
+    public async Task ProcessPendingPackets_WhenInboundConnectionMissing_SkipsRunAndKeepsPackets_Test()
+    {
+        // Arrange
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (partner, packet, sub, _) = await SeedInboundEnvironmentAsync(unique);
+        var pending = await SeedPendingPacket(partner.Code!, packet.Code!, 1, "{\"data\":[{\"id\":\"A\",\"val\":\"1\"}]}", DateTime.Now);
+
+        var mainConnection = _db.CurrentConnectionConfig.ConnectionString;
+        var services = new ServiceCollection();
+        services.AddScoped<ISqlSugarClient>(_ => new SqlSugarScope(new ConnectionConfig
+        {
+            ConnectionString = mainConnection,
+            DbType = SqlSugar.DbType.SqlServer,
+            IsAutoCloseConnection = true,
+            ConfigId = "Default"
+        }));
+        await using var provider = services.BuildServiceProvider();
+        var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
+        var emptyConfig = new ConfigurationBuilder().Build();
+        var workerConfig = new DataWorkerConfigService(scopeFactory, NullLogger<DataWorkerConfigService>.Instance, emptyConfig);
+        var receiver = new DataInboundService(scopeFactory, NullLogger<DataInboundService>.Instance, workerConfig);
+
+        // Act
+        var error = await Record.ExceptionAsync(() => receiver.ProcessPendingPackets(CancellationToken.None));
+
+        // Assert
+        var kept = await _inboundDb.Queryable<ShareDataInboundPacket>().InSingleAsync(pending.ID);
+        var logs = await _db.Queryable<ShareDataActivityLog>().Where(l => l.SubscriptionId == sub.ID).ToListAsync();
+        Assert.Null(error);
+        Assert.Equal(BaseEnums.InboundProcessState.Pending, kept.ProcessState);
+        Assert.Empty(logs);
     }
 
     #endregion
