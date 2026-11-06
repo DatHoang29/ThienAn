@@ -9,7 +9,7 @@
 
 | Loại | Vị trí / tên tệp | Chạy trên DB nào | Nội dung |
 | :--- | :--- | :--- | :--- |
-| **Dữ liệu chuẩn** | `sql/sharedata-…sql` (**không** có `_local`) | **Mọi DB**: local, dev, staging, production. DB local cũng phải chạy đủ tệp 1 → 12 | Dữ liệu hệ thống cần để chạy: gói 101–111, câu SQL mẫu, mã lỗi, bảng nguồn, cấu hình, bản dịch, chuyển đổi mốc |
+| **Dữ liệu chuẩn** | `sql/sharedata-…sql` (**không** có `_local`) | **Mọi DB**: local, dev, staging, production. DB local cũng phải chạy đủ tệp 1 → 13 | Dữ liệu hệ thống cần để chạy: gói 101–111, câu SQL mẫu, mã lỗi, bảng nguồn, cấu hình, bản dịch, chuyển đổi mốc |
 | **Dữ liệu giả lập** | `sql/local/…_local.sql` | **Chỉ DB local** trên máy lập trình viên. ⛔ Cấm chạy trên DB ở máy chủ khác (dev chung, staging, UAT, production) | Dữ liệu giả để thử, chạy sau dữ liệu chuẩn |
 
 > Nhớ nhanh: **có `_local` = chỉ DB local**. **Không có `_local` = dữ liệu chuẩn, DB nào cũng chạy, kể cả local.**
@@ -41,10 +41,10 @@
 | **7** | [`sharedata-seed-cau-hinh-SysOpConfig.sql`](sharedata-seed-cau-hinh-SysOpConfig.sql) | `SysOpConfig` | Nạp 45 tham số nhóm `sharedata_config` (giữ giá trị còn ở nhóm cũ `sharedata_fe_config`); xóa mềm tham số không còn dùng. |
 | ~~8~~ | ~~`sharedata-seed-cau-hinh-xoa-nhom-cu-SysConfigData.sql`~~ | — | **Đã xóa tệp 28/10/2026:** việc dọn nhóm cũ `sharedata_fe_config` chạy một lần, DB mới không có nhóm này. |
 | ~~9~~ | ~~`sharedata-seed-cau-hinh-xoa-nhom-cu-SysConfigType.sql`~~ | — | **Đã xóa tệp 28/10/2026:** như tệp 8. |
-| **10** | [`sharedata-dich-thuat-SysTerminology.sql`](sharedata-dich-thuat-SysTerminology.sql) | `SysTerminology` | Nạp 158 khóa thuật ngữ (316 dòng vi-VN / en-US) qua `MERGE` không ghi đè bản dịch đã sửa. Có sửa lại 11 câu lỗi đã nạp từ trước: câu dịch lỗi dùng cho cả máy chủ (`string.Format`) lẫn màn hình, nên không được có `{'@'}`, và lỗi nối đuôi không dùng chỗ điền `{0}` (04/11/2026). Chạy xong bấm 🔄 ở avatar góc phải trên → Ngôn ngữ để làm mới cache. |
+| **10** | [`sharedata-dich-thuat-SysTerminology.sql`](sharedata-dich-thuat-SysTerminology.sql) | `SysTerminology` | Nạp 167 khóa thuật ngữ (334 dòng vi-VN / en-US) qua `MERGE` không ghi đè bản dịch đã sửa. Có sửa lại 11 câu lỗi đã nạp từ trước: câu dịch lỗi dùng cho cả máy chủ (`string.Format`) lẫn màn hình, nên không được có `{'@'}`, và lỗi nối đuôi không dùng chỗ điền `{0}` (04/11/2026). Chạy xong bấm 🔄 ở avatar góc phải trên → Ngôn ngữ để làm mới cache. |
 | **11** | [`sharedata-chuyen-doi-moc-ShareDataLastSend.sql`](sharedata-chuyen-doi-moc-ShareDataLastSend.sql) | `ShareDataLastSend` | Gỡ unique index 2 cột cũ `index_ShareDataLastSend_Partner_Packet`; chép không trùng các dòng nhóm mốc có tên từ bảng cũ `ShareDataLastSendKey` (chỉ đọc) sang `ShareDataLastSend`. **Phải chạy sau CodeFirst; tắt Worker trước khi chạy.** |
 | **12** | [`sharedata-xoa-bang-cu-ShareDataLastSendKey.sql`](sharedata-xoa-bang-cu-ShareDataLastSendKey.sql) | `ShareDataLastSendKey` | Xóa bảng cũ `ShareDataLastSendKey` sau khi đã gộp cột `CursorKey` vào `ShareDataLastSend` (chặn bằng `SET NOEXEC ON` nếu cột `CursorKey` chưa có hoặc còn dòng chưa chuyển). **Chạy sau tệp 11.** |
-| ~~13~~ | ~~`sharedata-seed-menu-SysMenu.sql`~~ | — | **Đã bỏ (04/11/2026):** menu Mốc gửi không thuộc phạm vi bàn giao. |
+| **13** | [`sharedata-seed-menu-SysMenu.sql`](sharedata-seed-menu-SysMenu.sql) | `SysMenu` | Thêm menu **Mốc gửi** (`views/sharedata/cursor`) dưới nhóm ShareData nếu chưa có. Không gán vai trò vì API của trang chỉ nhận SuperAdmin. Chạy lại an toàn. |
 
 ### C. Dọn một lần trên DB cũ
 
@@ -78,7 +78,7 @@ CodeFirst tạo khung ➔ 1 ➔ 2 ➔ 4 ➔ 5 ➔ 6 ➔ 7 ➔ 10 ➔ 11 ➔ 12 �
 ```
 
 1. **Bước 0 — CodeFirst:** khởi động WebAPI (bật tạm `TableSettings.EnableInitTable = true` trong cấu hình debug local) để tạo đủ bảng và index, gồm `ShareDataSql` (câu SQL, bộ biến `VariablesJson`, danh sách trường `FieldsJson` và câu ghi `WriteSql`, unique theo gói + đối tác), `ShareDataLastSend` (mốc nối đuôi nhóm mặc định và nhóm có tên theo `CursorKey`, unique `index_ShareDataLastSend_Partner_Packet_Key` trên `(PartnerCode, PacketCode, CursorKey)`), `ShareDataSourceTable` (unique `UX_ShareDataSourceTable_TableName`).
-2. **Bước 1 — chạy tệp 1 → 12** theo bảng mục 3A, bỏ các dòng gạch ngang (mọi DB, kể cả local). DB cũ còn cột thừa ở `ShareDataPacket` thì chạy thêm tệp D1 ở mục 3C.
+2. **Bước 1 — chạy tệp 1 → 13** theo bảng mục 3A, bỏ các dòng gạch ngang (mọi DB, kể cả local). DB cũ còn cột thừa ở `ShareDataPacket` thì chạy thêm tệp D1 ở mục 3C.
 3. **Bước 2 (tùy chọn, chỉ DB local) — chạy G1 → G2** theo bảng mục 3B.
 
 > 📌 *Lưu ý môi trường Local:* `.vscode/launch.json` ghim các cờ CodeFirst của ConfigId 0 (`DEV_ITS10`) về `false` bằng biến môi trường để bảo vệ CSDL. Khi cần init bảng thì bật tạm thời.
