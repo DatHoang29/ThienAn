@@ -684,6 +684,53 @@ test.describe('ShareData — Mất tiêu đề 3 tab trong editMapping.vue @shar
         }
     });
 
+    test('EC16 — Bảng có dữ liệu thì KHÔNG được hiện khung rỗng (empty placeholder) đè lên các dòng, khi không có dữ liệu thì hiện trọn vẹn', async ({ page }) => {
+        // 1. Trường hợp có dữ liệu: default route trong beforeEach trả về 1 record
+        await page.goto('/#/sharedata/mapping');
+        const grid = page.locator('.xGrid-style');
+        await expect(grid).toBeVisible({ timeout: 60_000 });
+
+        // Đợi dòng dữ liệu xuất hiện
+        const tableBody = grid.locator('.vxe-table--body-wrapper .vxe-body--row');
+        await expect(tableBody.first()).toBeVisible({ timeout: 15_000 });
+
+        // Kiểm tra empty placeholder BẮT BUỘC bị ẩn (display: none), không được đè lên dữ liệu
+        const emptyPlaceholder = grid.locator('.vxe-table--empty-placeholder');
+        await expect(emptyPlaceholder).toBeHidden();
+
+        const isHiddenComputed = await emptyPlaceholder.evaluate((el) => {
+            return window.getComputedStyle(el).display === 'none';
+        });
+        expect(isHiddenComputed, 'vxe-table--empty-placeholder phải có display: none khi có dữ liệu').toBe(true);
+
+        // 2. Trường hợp không có dữ liệu: mock danh sách rỗng
+        await page.route('**/api/sharedata/sharedatamapping/page*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ code: 200, result: { records: [], total: 0 } }),
+            });
+        });
+
+        // Bấm nút tìm kiếm để nạp lại
+        const searchBtn = page.locator('#sharedata-mapping-search').getByRole('button', { name: /tìm kiếm|search/i });
+        if (await searchBtn.isVisible()) {
+            await searchBtn.click();
+        } else {
+            await page.reload();
+        }
+
+        // Khi rỗng, vxe-table có class is--empty và empty-placeholder hiển thị
+        const emptyTable = page.locator('.vxe-table.is--empty');
+        await expect(emptyTable).toBeVisible({ timeout: 15_000 });
+        await expect(emptyPlaceholder).toBeVisible();
+
+        const placeholderDisplay = await emptyPlaceholder.evaluate((el) => {
+            return window.getComputedStyle(el).display;
+        });
+        expect(placeholderDisplay, 'vxe-table--empty-placeholder phải có display: flex khi bảng rỗng').toBe('flex');
+    });
+
 });
 
 
