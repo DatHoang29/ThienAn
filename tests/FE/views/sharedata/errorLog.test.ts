@@ -252,7 +252,82 @@ test.describe('ShareData — Nhật ký cảnh báo lỗi (errorLog) @sharedata'
                     .filter((x) => x.w < 120 || x.cut)
             );
             expect(narrow, `ô lọc bị bóp ở ${width}px`).toEqual([]);
+
+            // Nhãn bộ lọc hiển thị đầy đủ, không bị co rút cắt chữ ("Thời gian", "Mức độ", "Nguồn", "Trạng thái xử lý", "Đối tác", "Mã cảnh báo", "Nội dung")
+            const truncatedLabels = await page.locator('.sd-filter-form .el-form-item__label').evaluateAll((labels) =>
+                labels.map((lbl) => ({
+                    text: lbl.textContent?.trim() || '',
+                    cut: lbl.scrollWidth > lbl.clientWidth + 1,
+                    width: Math.round(lbl.getBoundingClientRect().width),
+                })).filter((x) => x.cut || x.width < 25)
+            );
+            expect(truncatedLabels, `nhãn bộ lọc bị cắt chữ ở ${width}px`).toEqual([]);
         }
+    });
+
+    test('4. Bảng Nhật ký cảnh báo lỗi luôn full height lấp đầy thẻ card, không có khoảng trắng chết trước thanh phân trang', async ({ page }) => {
+        const ok = (result: unknown) => ({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result }) });
+        await page.route('**/api/cfgsystem/sysconfigtype/alldatalist*', (r) => r.fulfill(ok({})));
+        await page.route('**/api/sharedata/sharedatapartner/list*', (r) => r.fulfill(ok([])));
+        await page.route('**/api/sharedata/sharedataalertlog/summary*', (r) => r.fulfill(ok({ unackedCount: 0 })));
+        await page.route('**/api/sharedata/sharedataalertlog/page*', (r) => r.fulfill(ok({ records: [], total: 0 })));
+
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await page.goto('/sharedata/errorLog');
+        await expect(page.locator('.xGrid-style')).toBeVisible({ timeout: 15_000 });
+
+        const heights = await page.evaluate(() => {
+            const card = document.querySelector('.full-table');
+            const vxeTable = document.querySelector('.vxe-table');
+            const renderWrapper = document.querySelector('.vxe-table--render-wrapper');
+            const bodyWrapper = document.querySelector('.vxe-table--body-wrapper');
+            const pager = document.querySelector('.vxe-grid--pager-wrapper');
+            return {
+                cardH: card ? card.getBoundingClientRect().height : 0,
+                tableH: vxeTable ? vxeTable.getBoundingClientRect().height : 0,
+                renderH: renderWrapper ? renderWrapper.getBoundingClientRect().height : 0,
+                bodyH: bodyWrapper ? bodyWrapper.getBoundingClientRect().height : 0,
+                pagerH: pager ? pager.getBoundingClientRect().height : 0,
+            };
+        });
+
+        // Thẻ bảng chiếm trọn chiều cao màn hình (>= 550px)
+        expect(heights.cardH).toBeGreaterThanOrEqual(550);
+        // Render wrapper và vxe-table khít nhau 100%, không hở khoảng trắng ở giữa
+        expect(Math.abs(heights.tableH - heights.renderH)).toBeLessThanOrEqual(2);
+        // Table body chiếm trọn vẹn vùng hiển thị của bảng
+        expect(heights.bodyH).toBeGreaterThanOrEqual(450);
+        // Thanh pager nằm ở đáy thẻ card
+        expect(heights.pagerH).toBeGreaterThanOrEqual(30);
+    });
+
+    test('5. Hai nút Xác nhận đã chọn và Xác nhận tất cả có màu chữ đậm, độ tương phản cao', async ({ page }) => {
+        const ok = (result: unknown) => ({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result }) });
+        await page.route('**/api/cfgsystem/sysconfigtype/alldatalist*', (r) => r.fulfill(ok({})));
+        await page.route('**/api/sharedata/sharedatapartner/list*', (r) => r.fulfill(ok([])));
+        await page.route('**/api/sharedata/sharedataalertlog/summary*', (r) => r.fulfill(ok({ unackedCount: 0 })));
+        await page.route('**/api/sharedata/sharedataalertlog/page*', (r) => r.fulfill(ok({ records: [], total: 0 })));
+
+        await page.goto('/sharedata/errorLog');
+
+        const ackAllBtn = page.locator('button:has-text("Xác nhận tất cả")');
+        await expect(ackAllBtn).toBeVisible({ timeout: 15_000 });
+
+        const ackAllStyle = await ackAllBtn.evaluate((el) => {
+            const cs = window.getComputedStyle(el);
+            return { color: cs.color, fontWeight: cs.fontWeight };
+        });
+        // Màu cam đậm #b45309 = rgb(180, 83, 9), chữ đậm 600
+        expect(ackAllStyle.color).toBe('rgb(180, 83, 9)');
+        expect(ackAllStyle.fontWeight).toBe('600');
+
+        const ackSelectedBtn = page.locator('button:has-text("Xác nhận đã chọn")');
+        await expect(ackSelectedBtn).toBeVisible();
+        const ackSelectedStyle = await ackSelectedBtn.evaluate((el) => {
+            const cs = window.getComputedStyle(el);
+            return { fontWeight: cs.fontWeight };
+        });
+        expect(ackSelectedStyle.fontWeight).toBe('600');
     });
 
 });

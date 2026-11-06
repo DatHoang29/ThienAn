@@ -1,6 +1,3 @@
-USE [DEV_ITS10];
-GO
-
 -- =========================================================================================
 -- FILE: sharedata-seed-goi-tin-ShareDataSql.sql
 -- BẢNG GHI: [dbo].[ShareDataSql] — tệp chỉ thêm / sửa / xóa trên đúng bảng này; bảng khác chỉ đọc (Rule 19.103).

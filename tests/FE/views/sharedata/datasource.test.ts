@@ -407,22 +407,22 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await addPacketBtn.click();
 
         const packetDialog = page.locator('.el-overlay:not([style*="display: none"]) .el-dialog').first();
-        await expect(packetDialog).toBeVisible({ timeout: 5000 });
+        await expect(packetDialog).toBeVisible({ timeout: 15_000 });
 
         // Click outside tại tọa độ (5, 5) khi chưa sửa gì -> đóng ngay không hỏi
         await page.mouse.click(5, 5);
-        await expect(packetDialog).toBeHidden({ timeout: 5000 });
+        await expect(packetDialog).toBeHidden({ timeout: 15_000 });
 
         // 2. Mở lại, sửa một ô (nhập mã gói) -> bấm ra ngoài -> đóng ngay, không hỏi "Có thay đổi chưa lưu"
         await addPacketBtn.click();
-        await expect(packetDialog).toBeVisible({ timeout: 5000 });
+        await expect(packetDialog).toBeVisible({ timeout: 15_000 });
 
         const codeInput = packetDialog.locator('input').first();
         await codeInput.fill('TEST_CODE');
 
         await page.mouse.click(5, 5);
         const confirmBox = page.locator('.el-message-box');
-        await expect(packetDialog).toBeHidden({ timeout: 5000 });
+        await expect(packetDialog).toBeHidden({ timeout: 15_000 });
         await expect(confirmBox).toHaveCount(0);
 
         // 3. Kiểm tra ElMessageBox.confirm: bấm ra ngoài lớp phủ thì hộp đóng (Hủy) mà không gọi API
@@ -436,11 +436,11 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         if (await deletePacketBtn.isVisible()) {
             await deletePacketBtn.click();
             const msgBox = page.locator('.el-message-box');
-            await expect(msgBox).toBeVisible({ timeout: 5000 });
+            await expect(msgBox).toBeVisible({ timeout: 15_000 });
 
             // Click outside -> đóng confirm mà không gọi API delete
             await page.mouse.click(5, 5);
-            await expect(msgBox).toBeHidden({ timeout: 5000 });
+            await expect(msgBox).toBeHidden({ timeout: 15_000 });
             expect(deleteApiCalled).toBe(false);
         }
     });

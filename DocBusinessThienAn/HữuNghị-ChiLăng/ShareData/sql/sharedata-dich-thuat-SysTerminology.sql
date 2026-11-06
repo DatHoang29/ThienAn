@@ -1,6 +1,3 @@
-USE [DEV_ITS10];
-GO
-
 -- =========================================================================================
 -- FILE: sharedata-dich-thuat-SysTerminology.sql
 -- BẢNG GHI: [dbo].[SysTerminology] — tệp chỉ thêm / sửa / xóa trên đúng bảng này; bảng khác chỉ đọc (Rule 19.103).
@@ -18,7 +15,7 @@ GO
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 06/11/2026 (thêm khóa câu con có TOP sắp sai cột mốc); 05/11/2026 (thêm khóa câu nối đuôi dùng OFFSET, câu gộp nhiều nguồn dùng chung mốc, đổi mã đối tác, so cột mốc bằng >=, ngày giờ sai định dạng, cột mốc không dùng biến mốc, cột mốc khác công thức, bộ mã đang dùng, câu ghi riêng để trống); 04/11/2026 (thêm khóa ORDER BY của nhóm mốc, cột mốc chỉ có ngày giờ, cột mốc dùng UpdateTime trơn); 03/11/2026 (bỏ khóa của mốc theo thời gian); 01/11/2026 (ESH-2306 thêm đặt mốc); 30/10/2026 (thêm khóa nhóm mốc, kiểm điều kiện WHERE nối đuôi, ESH-2306/2307 đăng ký đang bật; mọi câu ≤ 256 ký tự theo cột Value, @ viết {'@'})
+-- CẬP NHẬT LẦN CUỐI: 06/11/2026 (thêm khóa câu con có TOP sắp sai cột mốc; xóa khóa sharedata.packetSourceQueryNotSupported không còn dùng); 05/11/2026 (thêm khóa câu nối đuôi dùng OFFSET, câu gộp nhiều nguồn dùng chung mốc, đổi mã đối tác, so cột mốc bằng >=, ngày giờ sai định dạng, cột mốc không dùng biến mốc, cột mốc khác công thức, bộ mã đang dùng, câu ghi riêng để trống); 04/11/2026 (thêm khóa ORDER BY của nhóm mốc, cột mốc chỉ có ngày giờ, cột mốc dùng UpdateTime trơn); 03/11/2026 (bỏ khóa của mốc theo thời gian); 01/11/2026 (ESH-2306 thêm đặt mốc); 30/10/2026 (thêm khóa nhóm mốc, kiểm điều kiện WHERE nối đuôi, ESH-2306/2307 đăng ký đang bật; mọi câu ≤ 256 ký tự theo cột Value, @ viết {'@'})
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -780,7 +777,8 @@ WHERE ([Name] = N'lz.validation'
       N'sharedata.sqlIncrementalGroupSourceMismatch'
   ))
   OR ([Name] = N'lz.exception' AND [Code] IN (
-      N'sharedata.superAdminRequiredForColumnSync'
+      N'sharedata.superAdminRequiredForColumnSync',
+      N'sharedata.packetSourceQueryNotSupported'
   ));
 
 -- 3.0. Đồng bộ cập nhật các bản ghi seed cũ (nếu chưa bị người dùng sửa tay trên DB)

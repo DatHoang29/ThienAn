@@ -809,6 +809,59 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
                     .filter((x) => x.w < 120 || x.cut)
             );
             expect(narrow, `ô lọc bị bóp ở ${width}px`).toEqual([]);
+
+            // Nhãn bộ lọc hiển thị đầy đủ, không bị co rút cắt chữ ("Hành động", "Đối tác", "Kết quả")
+            const truncatedLabels = await page.locator('.sd-filter-form .el-form-item__label').evaluateAll((labels) =>
+                labels.map((lbl) => ({
+                    text: lbl.textContent?.trim() || '',
+                    cut: lbl.scrollWidth > lbl.clientWidth + 1,
+                    width: Math.round(lbl.getBoundingClientRect().width),
+                })).filter((x) => x.cut || x.width < 30)
+            );
+            expect(truncatedLabels, `nhãn bộ lọc bị cắt chữ ở ${width}px`).toEqual([]);
+        }
+    });
+
+    test('Bảng Lịch sử chia sẻ luôn full height lấp đầy thẻ card, không có khoảng trắng chết trước thanh phân trang ở cả 2 tab', async ({ page }) => {
+        await page.route('**/api/sharedata/sharedataactivitylog/page*', (r) =>
+            r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: { records: [], total: 0 } }) })
+        );
+        await page.route('**/api/sharedata/sharedataactivitylog/summary*', (r) =>
+            r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: { total: 0 } }) })
+        );
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await page.goto('/sharedata/history');
+        await expect(page.locator('.xGrid-style')).toBeVisible({ timeout: 15_000 });
+
+        // Tab 1: Nhật ký cấu hình
+        for (const tabIndex of [0, 1]) {
+            if (tabIndex === 1) {
+                await page.locator('.history-tabs .el-tabs__item').nth(1).click();
+                await page.waitForTimeout(500);
+            }
+            const heights = await page.evaluate(() => {
+                const card = document.querySelector('.full-table');
+                const vxeTable = document.querySelector('.vxe-table');
+                const renderWrapper = document.querySelector('.vxe-table--render-wrapper');
+                const bodyWrapper = document.querySelector('.vxe-table--body-wrapper');
+                const pager = document.querySelector('.vxe-grid--pager-wrapper');
+                return {
+                    cardH: card ? card.getBoundingClientRect().height : 0,
+                    tableH: vxeTable ? vxeTable.getBoundingClientRect().height : 0,
+                    renderH: renderWrapper ? renderWrapper.getBoundingClientRect().height : 0,
+                    bodyH: bodyWrapper ? bodyWrapper.getBoundingClientRect().height : 0,
+                    pagerH: pager ? pager.getBoundingClientRect().height : 0,
+                };
+            });
+
+            // Thẻ bảng chiếm không gian lớn trong view (>= 450px)
+            expect(heights.cardH).toBeGreaterThanOrEqual(450);
+            // Render wrapper và vxe-table chiếm trọn vẹn chiều cao, không hở khoảng trắng
+            expect(Math.abs(heights.tableH - heights.renderH)).toBeLessThanOrEqual(2);
+            // Body wrapper co giãn lấp đầy không gian bảng
+            expect(heights.bodyH).toBeGreaterThanOrEqual(350);
+            // Thanh pager nằm ở đáy thẻ card
+            expect(heights.pagerH).toBeGreaterThanOrEqual(30);
         }
     });
 
