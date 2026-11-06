@@ -125,12 +125,17 @@ test.describe('ShareData — Trang Mốc gửi (cursor) @sharedata', () => {
 
         await gotoCursorPage(page);
 
-        // Bảng: đối tác có mốc hiện mốc, đối tác chưa có mốc nói rõ lần gửi tới lấy từ đâu; chế độ SQL theo cấu hình đối tác
+        // Bảng: đối tác có mốc hiện ngày giờ dễ đọc kèm khóa dòng cuối, lượt tới lấy sau mốc;
+        // đối tác chưa có mốc ghi chưa có, lượt tới lấy theo Mốc bắt đầu của câu SQL (để trống là toàn bộ dữ liệu)
         const rowA = gridRow(page, 'CSGT');
         const rowB = gridRow(page, 'VDOT');
-        await expect(rowA).toContainText('2026-10-27 10:05:00.000_Z02', { timeout: 10_000 });
+        await expect(rowA).toContainText('27/10/2026 10:05:00.000', { timeout: 10_000 });
+        await expect(rowA).toContainText('Z02');
         await expect(rowA).toContainText('Cục CSGT');
-        await expect(rowB).toContainText('lần gửi tới lấy theo tham số của gói tin');
+        await expect(rowA).toContainText('Các dòng sau mốc đang chạy');
+        await expect(rowB).toContainText('Chưa có mốc');
+        await expect(rowB).toContainText('Toàn bộ dữ liệu');
+        await expect(rowB).toContainText('theo Mốc bắt đầu');
 
         // Chưa có mốc thì không đặt lại được, rê chuột thấy lý do
         await expect(rowB.locator('.sd-cursor-reset-btn')).toBeDisabled();
@@ -147,7 +152,10 @@ test.describe('ShareData — Trang Mốc gửi (cursor) @sharedata', () => {
         await dialog.locator('.el-dialog__footer .el-button--primary').click();
         await expect(dialog).toBeHidden();
         await expect(page.locator('.el-message--success')).toContainText('Đã cập nhật mốc gửi dữ liệu cho đối tác.');
-        await expect(rowB).toContainText('2026-11-02 08:00:00.000_');
+        // Mốc đặt theo ngày giờ chưa ứng với dòng dữ liệu nào nên ghi là đặt tay
+        await expect(rowB).toContainText('02/11/2026 08:00:00.000');
+        await expect(rowB).toContainText('đặt tay');
+        await expect(rowB).toContainText('Các dòng sau mốc đang chạy');
 
         // Đặt lại mốc của CSGT: có xác nhận, gửi đúng đối tác, bảng về trạng thái chưa có mốc
         await rowA.locator('.sd-cursor-reset-btn').click();
@@ -156,7 +164,8 @@ test.describe('ShareData — Trang Mốc gửi (cursor) @sharedata', () => {
         await expect.poll(() => resetPayloads.length).toBe(1);
         expect(resetPayloads[0]).toEqual({ packetCode: '101', partnerId: 'p_a' });
         await expect(page.locator('.el-message--success').last()).toContainText('Đã đặt lại mốc đã lưu.');
-        await expect(rowA).toContainText('lần gửi tới lấy theo tham số của gói tin');
+        await expect(rowA).toContainText('Chưa có mốc');
+        await expect(rowA).toContainText('Toàn bộ dữ liệu');
     });
 
     const directionCases = [
@@ -209,7 +218,8 @@ test.describe('ShareData — Trang Mốc gửi (cursor) @sharedata', () => {
         await gridRow(page, 'SHARED1').locator('.sd-cursor-set-btn').click();
         await expect(dialog).toBeVisible();
         await expect(dialog.locator('input[type="text"]:not(.el-date-editor input)')).toHaveCount(0);
-        await expect(dialog.locator('.sd-cursor-current')).toContainText('2026-10-28 08:00:00.000_k_1');
+        await expect(dialog.locator('.sd-cursor-current')).toContainText('28/10/2026 08:00:00.000 · k_1');
+        await expect(dialog.locator('.sd-cursor-start')).toContainText('để trống, gửi toàn bộ dữ liệu');
         await expect(dialog.locator('.cvi-picker input')).toHaveValue('28/10/2026 08:00:00');
         await expect(confirmBtn).toBeDisabled();
         await pickTime(page, dialog, '29/10/2026 08:00:00');
@@ -252,8 +262,12 @@ test.describe('ShareData — Trang Mốc gửi (cursor) @sharedata', () => {
 
         await gotoCursorPage(page);
         const row = gridRow(page, 'GRP');
-        await expect(row).toContainText('pkt: 2026-10-27 09:30:00.000_a2', { timeout: 10_000 });
-        await expect(row).toContainText('toll: 2026-10-27 09:20:00.000_t9');
+        const pktLine = row.locator('.sd-cursor-saved .sd-cursor-line', { hasText: 'pkt:' });
+        const tollLine = row.locator('.sd-cursor-saved .sd-cursor-line', { hasText: 'toll:' });
+        await expect(pktLine).toContainText('27/10/2026 09:30:00.000', { timeout: 10_000 });
+        await expect(pktLine).toContainText('a2');
+        await expect(tollLine).toContainText('27/10/2026 09:20:00.000');
+        await expect(tollLine).toContainText('t9');
 
         await row.locator('.sd-cursor-set-btn').click();
         const dialog = page.locator('.sd-set-cursor-dialog');
@@ -309,5 +323,36 @@ test.describe('ShareData — Trang Mốc gửi (cursor) @sharedata', () => {
         await dialog.locator('.el-dialog__footer .el-button--primary').click();
         await expect.poll(() => setPayloads.length).toBe(1);
         expect(setPayloads[0]).toEqual({ packetCode: '102', partnerId: 'p_b', lastKey: '2026-10-29 09:00:00.000_' });
+    });
+
+    test('8. Hiệu ứng loading VXE-Grid chuẩn hóa: 8-dots spinner bự vừa vặn (50px) với màu primary và chữ Đang tải...', async ({ page }) => {
+        // Trì hoãn API để quan sát trạng thái loading
+        await page.route('**/api/sharedata/sharedatapacket/getpartnersqllist*', async (route) => {
+            await new Promise((resolve) => setTimeout(resolve, 1500));
+            return fulfillJson(route, [{ partnerId: 'p_a', partnerCode: 'CSGT', partnerName: 'Cục CSGT', isCustom: false }]);
+        });
+        await mockVariables(page, () => [keyItem('k_100')]);
+
+        await page.setViewportSize({ width: 1600, height: 950 });
+        await page.goto('/#/shareData/cursor');
+
+        // VXE-Grid loading hiển thị spinner 8-dots kích thước chuẩn 50px
+        const loadingIcon = page.locator('.sharedata-cursor-container .vxe-table--loading .vxe-loading--default-icon');
+        await expect(loadingIcon).toBeVisible({ timeout: 10_000 });
+        const { width, height } = await loadingIcon.evaluate((el) => {
+            const cs = getComputedStyle(el);
+            return { width: parseFloat(cs.width), height: parseFloat(cs.height) };
+        });
+        expect(width).toBe(50);
+        expect(height).toBe(50);
+
+        // Chữ phụ đề loading ("Đang tải..." hoặc "Loading...")
+        const loadingText = page.locator('.sharedata-cursor-container .vxe-table--loading .vxe-loading--text');
+        await expect(loadingText).toBeVisible();
+        await expect(loadingText).toHaveText(/Đang tải|Loading/i);
+
+        // Sau khi API trả về, loading tắt và dữ liệu hiện ra bình thường
+        await expect(loadingIcon).toBeHidden({ timeout: 10_000 });
+        await expect(gridRow(page, 'CSGT')).toBeVisible();
     });
 });

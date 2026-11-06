@@ -644,6 +644,17 @@ onUnmounted(() => mittBus.off(NatsEvent.StatusFms as any, handleNatsDeviceStatus
   - ⛔ **TUYỆT ĐỐI CẤM** làm thay đổi cấu trúc payload API (request body / query params / DTO mapping) gửi xuống Backend trừ khi người dùng yêu cầu sửa API.
   - Mọi trường mở rộng mới trong DTO/Model FE (như `cursorKey`) bắt buộc tương thích ngược (backward-compatible), không được tự ý gửi giá trị thừa / `null` / `undefined` vào các API hiện có làm fail validation phía Backend hoặc làm rớt bộ test E2E.
 
+---
+
+## 12. Chuẩn Hóa Hiệu Ứng Loading Spinner (8-dots 50px SVG) Đồng Bộ Trên Mọi Bảng & Lưới Dữ Liệu (Rule 20.33)
+
+- Mọi bảng dữ liệu dùng `vxe-grid` hoặc `el-table` (`v-loading`) trong toàn bộ phân hệ BẮT BUỘC phải dùng chung hiệu ứng loading spinner chuẩn hóa:
+  - **Spinner 8-dots SVG chuẩn hóa**: Kích thước bự vừa vặn $50\text{px} \times 50\text{px}$ (`width: 50px; height: 50px;`), màu chủ đạo hệ thống (`var(--el-color-primary, #409eff)`), xoay mượt mà qua keyframe `0.9s linear infinite`.
+  - **Phụ đề trạng thái**: Chữ "Đang tải..." / `$t('lz.label.base.loading')` định dạng màu primary (`font-size: 14px; font-weight: 500; letter-spacing: 0.3px;`).
+  - ⛔ **CẤM TUYỆT ĐỐI** để spinner mặc định của thư viện bé tí hon (20px - 24px) hoặc thiếu đồng bộ kích thước giữa các tab trong cùng một phân hệ.
+  - **Bắt buộc viết test E2E (Rule 19.109)**: Kiểm chứng sự hiện diện và kích thước chuẩn ($50\text{px}$) của loading spinner khi bảng tải dữ liệu.
+
+
 
 
 

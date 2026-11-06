@@ -59,6 +59,7 @@ Mọi AI Agent **BẮT BUỘC** tuân thủ tuyệt đối các quy tắc cốt 
 | **75** | **Toàn Vẹn Khế Ước Dữ Liệu Khi Sửa Giao Diện** (Rule 20.32) | Sửa UI (gộp icon, sửa tooltip, khoảng cách nút, layout): chỉ sửa tầng hiển thị template/CSS; ⛔ CẤM làm thay đổi cấu trúc payload API (request body / DTO) gửi xuống Backend trừ khi có yêu cầu sửa API. Trường mở rộng mới (`cursorKey`) bắt buộc tương thích ngược, không gửi thừa/null làm gãy API. Chi tiết: [frontend-vue_thienan.md](./frontend-vue_thienan.md) §11. |
 | **76** | **Câu Báo Lỗi Không Nhắc Dạng / Tính Năng Trước Đó** (Rule 19.115) | Phân hệ đang làm mới thì thêm, sửa, bỏ là bình thường. ⛔ CẤM câu báo lỗi, cảnh báo đỏ, tooltip, placeholder ở FE và BE nhắc cách làm trước đó (vd `Câu dạng 2 cột không còn dùng`, `Nguồn [x] không còn dùng`). Dữ liệu dạng cũ xử lý như dữ liệu chưa hợp lệ bình thường (để trống ô, báo lỗi chung khi lưu), người dùng sửa trên giao diện. Thay đổi cần lưu ý thì ghi vào tệp `.md` của phân hệ. Chi tiết: [frontend-vue_thienan.md](./frontend-vue_thienan.md) §5. |
 | **77** | **Không Dồn Nhiều Lời Gọi Lồng Nhau Trên Một Dòng** (Rule 19.116) | C#: lời gọi hàm nằm trong tham số của lời gọi khác thì tách mỗi bước thành một biến `var` đặt tên theo ý nghĩa. ⛔ CẤM kiểu `return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(...)));`. Chuỗi gọi xuống dòng theo từng bước (LINQ, SqlSugar) không tính. Áp dụng cho mã mới và đoạn đang sửa. Chi tiết: [backend-dotnet.md](./backend-dotnet.md) §4.31. |
+| **78** | **Chuẩn Hóa Loading Spinner 8-dots 50px SVG** (Rule 20.33) | Mọi bảng `vxe-grid` / `el-table` trong toàn bộ phân hệ bắt buộc dùng chung hiệu ứng loading chuẩn hóa: spinner 8-dots SVG $50\text{px} \times 50\text{px}$, màu primary, animation xoay tròn, chữ "Đang tải...". ⛔ CẤM để spinner mặc định bé tí hon (20px - 24px) hoặc thiếu đồng bộ giữa các tab. Bắt buộc có test E2E kiểm tra spinner. Chi tiết: [frontend-vue_thienan.md](./frontend-vue_thienan.md) §12. |
 
 ---
 
@@ -87,6 +88,7 @@ Quy tắc kỹ thuật chi tiết lưu giữ toàn văn tại các tệp chuyên
 - **Rule 20.31** — Quy chuẩn Smoke Test nạp trang & Chống trắng màn hình (kiểm tra nạp trang, click vào dòng xem chi tiết, và bắt pageerror chống lỗi trắng màn hình) (§5.3)
 - **Rule 20.32** (STT 75) — Toàn vẹn khế ước dữ liệu khi sửa giao diện: chỉ sửa hiển thị, cấm gửi thừa/null phá vỡ payload API (§11)
 - **Rule 19.115** (STT 76) — Câu báo lỗi chỉ nêu việc cần làm bây giờ, cấm nhắc dạng / tính năng trước đó (§5)
+- **Rule 20.33** (STT 78) — Chuẩn hóa loading spinner 8-dots 50px SVG đồng bộ trên mọi bảng & lưới dữ liệu (§12)
 
 ### 2. Backend .NET & Clean Architecture ([backend-dotnet.md](./backend-dotnet.md))
 > ⚠️ **3 luật CQRS cốt lõi (P0, áp cho mọi mã BE mới; mã lân cận sai thì không chép theo):**

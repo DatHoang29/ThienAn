@@ -781,10 +781,10 @@ test.describe('ShareData — Modal Chi tiết Tiến trình ElSteps @sharedata',
         await expect(codeRow.locator('td').nth(2)).toHaveText('20261023');
     });
 
-    test('Bộ lọc Thời gian hiện đủ ngày giờ DD/MM/YYYY HH:mm:ss ở cả hai ô, không bị khuất ở mọi độ rộng màn hình từ 768px tới 1920px', async ({ page }) => {
+    test('Bộ lọc Thời gian hiện đủ ngày giờ DD/MM/YYYY HH:mm:ss ở cả hai ô, không bị khuất ở mọi độ rộng màn hình từ 768px tới 1920px (bao gồm breakpoint 1235px)', async ({ page }) => {
         await page.route('**/api/sharedata/sharedataactivitylog/page*', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: { records: [], total: 0 } }) }));
         await page.goto('/sharedata/history');
-        for (const width of [1920, 1600, 1440, 1366, 1280, 1024, 768]) {
+        for (const width of [1920, 1600, 1440, 1366, 1280, 1235, 1024, 768]) {
             await page.setViewportSize({ width, height: 900 });
             await page.waitForTimeout(300);
             const inputs = page.locator('.el-date-editor .el-range-input');
