@@ -2624,4 +2624,144 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
 
         await expect(page.locator('.sql-variable-panel .svp-check-lead')).toContainText('(3/3)', { timeout: 10_000 });
     });
+
+    /**
+     * Description: Bấm Lưu & phân tích ở gói tin này rồi chuyển sang gói tin khác: API lưu của gói cũ hoàn thành không ghi đè dữ liệu và không làm vô hiệu hóa nút Lưu của gói mới.
+     * Created date: 06/11/2026
+     */
+    test('65. Chuyển gói tin trong khi đang lưu SQL: API gói cũ không ghi đè và không khóa nút Lưu gói mới', async ({ page }) => {
+        await page.route('**/api/sharedata/sharedatapacket/page*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        records: [
+                            { id: 'PKT_01', code: '101_commonData', name: 'Gói 101 - Dữ liệu dùng chung', status: 1 },
+                            { id: 'PKT_02', code: '102_trafficData', name: 'Gói 102 - Dữ liệu giao thông', status: 1 },
+                        ],
+                        total: 2,
+                    },
+                }),
+            });
+        });
+
+        await page.route('**/api/sharedata/sharedatapacket/getsqldetail*', async (route) => {
+            const url = new URL(route.request().url());
+            const packetCode = url.searchParams.get('PacketCode') || '';
+
+            if (packetCode === '101_commonData') {
+                await route.fulfill({
+                    status: 200,
+                    contentType: 'application/json',
+                    body: JSON.stringify({
+                        code: 200,
+                        result: {
+                            extract: {
+                                id: 'EXT_101',
+                                packetCode: '101_commonData',
+                                extractSql: 'SELECT TOP 100 s.Speed AS speed FROM TmsSpeed s',
+                                status: 1,
+                                fields: [{ key: 'speed', type: 'number', label: 'Tốc độ', required: true }],
+                            },
+                            variables: { packetCode: '101_commonData', items: [] },
+                            write: { packetCode: '101_commonData', writeSql: '', affectedTables: [], detectedTables: [], keyFields: [] },
+                        },
+                    }),
+                });
+            } else {
+                await route.fulfill({
+                    status: 200,
+                    contentType: 'application/json',
+                    body: JSON.stringify({
+                        code: 200,
+                        result: {
+                            extract: {
+                                id: 'EXT_102',
+                                packetCode: '102_trafficData',
+                                extractSql: 'SELECT TOP 50 v.PlateNumber AS plateNumber FROM TmsVehicle v',
+                                status: 1,
+                                fields: [],
+                            },
+                            variables: { packetCode: '102_trafficData', items: [] },
+                            write: { packetCode: '102_trafficData', writeSql: '', affectedTables: [], detectedTables: [], keyFields: [] },
+                        },
+                    }),
+                });
+            }
+        });
+
+        await page.route('**/api/sharedata/sharedatapacket/getpartnersqllist*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ code: 200, result: [] }),
+            });
+        });
+
+        let resolveSave: (() => void) | null = null;
+        const saveHold = new Promise<void>((resolve) => {
+            resolveSave = resolve;
+        });
+
+        await page.route('**/api/sharedata/sharedatapacket/updateextractsql*', async (route) => {
+            await saveHold;
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: {
+                        status: 1,
+                        fields: [{ key: 'speed', type: 'number', label: 'Tốc độ', required: true }],
+                    },
+                }),
+            });
+        });
+
+        await page.setViewportSize({ width: 1600, height: 950 });
+        await page.goto('/#/sharedata/dataSource');
+
+        const rows = page.locator('.packet-col .vxe-table--main-wrapper .vxe-body--row');
+        await expect(rows).toHaveCount(2, { timeout: 30_000 });
+
+        // 1. Chọn gói 101
+        await rows.nth(0).click();
+        const saveBtn = page.locator('.sql-toolbar-right button').filter({ hasText: 'Lưu & phân tích' }).first();
+
+        // 2. Thay đổi câu SQL của gói 101 để kích hoạt trạng thái sửa (isDirty)
+        await page.locator('.monaco-editor').first().click();
+        await page.keyboard.press('End');
+        await page.keyboard.type(' -- edit 101');
+        await page.waitForTimeout(500);
+
+        await expect(saveBtn).toBeEnabled({ timeout: 5000 });
+
+        // 3. Bấm Lưu & phân tích cho gói 101 (API updateextractsql đang bị giữ bởi saveHold)
+        await saveBtn.click();
+
+        // 4. Lập tức click sang gói 102
+        await rows.nth(1).click();
+        const confirmBox = page.locator('.lost-keys-confirm-box');
+        if (await confirmBox.isVisible({ timeout: 2000 }).catch(() => false)) {
+            await confirmBox.locator('.el-button--primary').click();
+        }
+
+        // Chờ gói 102 nạp xong: gói 102 có câu SQL nhưng chưa có trường nào (fields: []) nên nút Lưu & phân tích phải ENABLED
+        await expect(saveBtn).toBeEnabled({ timeout: 10_000 });
+
+        // 5. Cho API lưu của gói 101 hoàn tất phản hồi
+        resolveSave?.();
+        await page.waitForTimeout(600);
+
+        // 6. Kiểm tra:
+        // - Nút Lưu & phân tích ở gói 102 VẪN PHẢI ENABLED (không bị disable bởi response gói 101)
+        await expect(saveBtn).toBeEnabled({ timeout: 5000 });
+        await expect(saveBtn).not.toHaveClass(/is-loading/);
+
+        // - Danh sách trường của gói 102 không bị ghi đè trường 'speed' từ gói 101
+        const speedInPane = page.locator('.saved-fields-pane').filter({ hasText: 'speed' });
+        await expect(speedInPane).toHaveCount(0);
+    });
 });
