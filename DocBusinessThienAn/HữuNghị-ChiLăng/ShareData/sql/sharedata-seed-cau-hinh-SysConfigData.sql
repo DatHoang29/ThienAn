@@ -11,7 +11,7 @@ GO
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 03/11/2026 (mô tả ESH-1306; DB đã có mã thì giữ mô tả cũ vì tệp chỉ thêm mã chưa có); 31/10/2026 (thêm ESH-1308)
+-- CẬP NHẬT LẦN CUỐI: 05/11/2026 (thêm ESH-1309); 03/11/2026 (mô tả ESH-1306; DB đã có mã thì giữ mô tả cũ vì tệp chỉ thêm mã chưa có); 31/10/2026 (thêm ESH-1308)
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -84,6 +84,8 @@ VALUES
      N'Kiểm tra mốc đồng bộ con trỏ và dữ liệu thời gian.'),
     (N'ESH-1308', N'Công thức cột mốc của câu truy vấn đổi ngoài màn hình cấu hình — bỏ mốc cũ, gửi lại từ mốc khởi tạo', N'outbound', N'warning', 1308,
      N'Câu bị sửa bằng tệp .sql hoặc sửa thẳng CSDL. Báo đối tác sắp nhận lại dữ liệu, hoặc dùng Đặt mốc để gửi tiếp từ thời điểm mong muốn.'),
+    (N'ESH-1309', N'Nhiều dòng cùng một giá trị cột mốc (JOIN nhân dòng) — không gửi trang này, giữ mốc', N'outbound', N'danger', 1309,
+     N'Thêm khóa của bảng con vào công thức cột mốc, ví dụ + ''_'' + p.ID + ''_'' + ISNULL(c.ID, ''''), để mỗi dòng có một giá trị riêng.'),
     (N'ESH-1401', N'Gửi HTTP REST trực tiếp tới đối tác thất bại — file đã ghi vẫn coi là thành công', N'outbound', N'warning', 1401,
      N'Kiểm tra kết nối mạng và endpoint của đối tác.'),
     (N'ESH-1402', N'Lưu đệm payload/bằng chứng thất bại, hủy gửi và giữ nguyên mốc', N'outbound', N'danger', 1402,

@@ -3050,7 +3050,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
 
     /// <summary>
     /// Author: DatHQ
-    /// Description: Các mẫu câu ở mục Mẫu câu của Sổ tay, đổi bảng giữ chỗ sang bảng được phép đọc, dán vào là lưu được:
+    /// Description: Các mẫu câu ở mục 10.7 Mẫu câu của tài liệu bàn giao, đổi bảng giữ chỗ sang bảng được phép đọc, dán vào là lưu được:
     ///              câu mẫu, cột mốc gộp, lọc 7 ngày gần nhất bằng GETDATE(), hai nhóm gói 101, nhiều nhóm gộp hai bảng.
     /// Created date: 05/11/2026
     /// </summary>
@@ -3632,6 +3632,46 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         if (rejected)
         {
             AssertRejectedWith(error, BaseMsg.ShareData.Validation.SqlIncrementalOffsetNotAllowed);
+            Assert.NotEqual(sql, row?.ExtractSql);
+        }
+        else
+        {
+            Assert.Null(error);
+            Assert.Equal(sql, row?.ExtractSql);
+        }
+    }
+
+    /// <summary>
+    /// Author: DatHQ
+    /// Description: Câu con có TOP chọn dòng theo cột khác cột mốc (dạng mẫu của sếp: TOP trong câu con sắp theo NGAYSOAT, mốc theo Write_Date) thì dòng có mốc nhỏ hơn bị bỏ sót:
+    ///              từ chối khi lưu, cả khi câu con không có ORDER BY, sắp giảm dần hay nằm trong CTE. Câu con sắp tăng dần theo cột mốc thì lưu được;
+    ///              TOP 1 trong câu con ở cột SELECT hoặc OUTER APPLY chỉ lấy giá trị phụ cho từng dòng, không bỏ dòng nào, nên cũng lưu được.
+    /// Created date: 06/11/2026
+    /// </summary>
+    [Theory]
+    [InlineData(false, "SELECT * FROM (SELECT TOP 10 ID AS zoneId, {K} AS __lastKey FROM TmsZone WHERE {K} > @lastKey ORDER BY Code) T ORDER BY __lastKey ASC", true)]
+    [InlineData(true, "SELECT * FROM (SELECT TOP 10 ID AS zoneId, {K} AS __lastKey FROM TmsZone WHERE {K} > @lastKey ORDER BY Code) T ORDER BY __lastKey ASC", true)]
+    [InlineData(false, "SELECT * FROM (SELECT TOP 10 ID AS zoneId, {K} AS __lastKey FROM TmsZone WHERE {K} > @lastKey) T ORDER BY __lastKey ASC", true)]
+    [InlineData(false, "SELECT * FROM (SELECT TOP 10 ID AS zoneId, {K} AS __lastKey FROM TmsZone WHERE {K} > @lastKey ORDER BY __lastKey DESC) T ORDER BY __lastKey ASC", true)]
+    [InlineData(false, "WITH T AS (SELECT TOP 10 ID AS zoneId, {K} AS __lastKey FROM TmsZone WHERE {K} > @lastKey ORDER BY Code) SELECT * FROM T ORDER BY __lastKey ASC", true)]
+    [InlineData(false, "SELECT * FROM (SELECT TOP 10 ID AS zoneId, {K} AS __lastKey FROM TmsZone WHERE {K} > @lastKey ORDER BY __lastKey ASC) T ORDER BY __lastKey ASC", false)]
+    [InlineData(false, "SELECT * FROM (SELECT TOP 10 ID AS zoneId, {K} AS __lastKey FROM TmsZone WHERE {K} > @lastKey ORDER BY {K}) T ORDER BY __lastKey ASC", false)]
+    [InlineData(false, "SELECT TOP 10 z.ID AS zoneId, (SELECT TOP 1 s.Condition FROM TmsZoneStatus s WHERE s.ZoneId = z.ID ORDER BY s.CreateTime DESC) AS lastCondition, {Z} AS __lastKey FROM TmsZone z WHERE {Z} > @lastKey ORDER BY __lastKey ASC", false)]
+    [InlineData(false, "SELECT TOP 10 z.ID AS zoneId, s.Condition AS lastCondition, {Z} AS __lastKey FROM TmsZone z OUTER APPLY (SELECT TOP 1 x.Condition FROM TmsZoneStatus x WHERE x.ZoneId = z.ID ORDER BY x.CreateTime DESC) s WHERE {Z} > @lastKey ORDER BY __lastKey ASC", false)]
+    public async Task SaveExtractSql_WhenInnerTopSortsByOtherColumn_RejectsSql_Test(bool partnerScope, string template, bool rejected)
+    {
+        // Arrange
+        var sql = template
+            .Replace("{K}", "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID")
+            .Replace("{Z}", "CONVERT(varchar(23), COALESCE(z.UpdateTime, z.CreateTime), 121) + '_' + z.ID");
+
+        // Act
+        var (error, row) = await SaveSqlWithLastKeyAsync(partnerScope, sql);
+
+        // Assert
+        if (rejected)
+        {
+            AssertRejectedWith(error, BaseMsg.ShareData.Validation.SqlIncrementalInnerTopOrderInvalid);
             Assert.NotEqual(sql, row?.ExtractSql);
         }
         else

@@ -286,10 +286,57 @@ namespace Tests.ShareData.Infrastructure.Services.DataOutbound
 
         /// <summary>
         /// Author: DatHQ
-        /// Description: Câu lưu từ trước khi có luật, dùng OFFSET hoặc gộp hai nguồn một mốc: Worker vẫn chạy và gửi, ghi rủi ro một lần vào nhật ký cấu hình, không ghi cảnh báo.
-        /// Created date: 05/11/2026
+        /// Description: Viết công thức cột mốc một lần trong câu con (bảng dẫn xuất hoặc CTE), câu ngoài lọc và sắp theo tên cột x.__lastKey:
+        ///              lưu qua API được; Worker gửi đủ mọi dòng đúng một lần qua nhiều trang, theo chu kỳ lẫn theo tín hiệu, mốc tới dòng cuối;
+        ///              lượt sau chỉ gửi dòng mới thêm.
+        /// Created date: 06/11/2026
         /// </summary>
         [Theory]
+        [InlineData("SELECT TOP (@pageSize) x.rowCode, x.__lastKey FROM (SELECT z.Code AS rowCode, {K} AS __lastKey FROM TmsZone z WHERE z.Code LIKE @prefix) x WHERE x.__lastKey > @lastKey ORDER BY x.__lastKey ASC", false)]
+        [InlineData("SELECT TOP (@pageSize) x.rowCode, x.__lastKey FROM (SELECT z.Code AS rowCode, {K} AS __lastKey FROM TmsZone z WHERE z.Code LIKE @prefix) x WHERE x.__lastKey > @lastKey ORDER BY x.__lastKey ASC", true)]
+        [InlineData("WITH x AS (SELECT z.Code AS rowCode, {K} AS __lastKey FROM TmsZone z WHERE z.Code LIKE @prefix) SELECT TOP (@pageSize) x.rowCode, x.__lastKey FROM x WHERE x.__lastKey > @lastKey ORDER BY x.__lastKey ASC", false)]
+        public async Task ProcessSubscriptions_WhenCursorFormulaWrittenOnceInSubquery_SendsEveryRowOnce_Test(string template, bool byEvent)
+        {
+            // Arrange
+            using var scope = _host.Services.CreateScope();
+            var services = scope.ServiceProvider;
+            var db = services.GetRequiredService<ISqlSugarClient>();
+            var packet = await SeedClonePacketAsync(db, rowCount: 5, pageSize: 2);
+            UseSuperAdmin(packet.Unique);
+            var sql = template.Replace("{K}", "CONVERT(varchar(23), COALESCE(z.UpdateTime, z.CreateTime), 121) + '_' + z.ID");
+            await SaveCommonSqlAsync(services, db, packet.PacketCode, sql);
+            var (_, sub) = await SeedClonePartnerAsync(db, packet, "A101");
+            var newRowCode = $"{packet.RowPrefix}R06";
+            var newRowTime = new DateTime(2026, 10, 27, 10, 0, 0);
+
+            // Act
+            await RunCloneAsync(CreateClone(scope, null), packet, byEvent);
+            var rowsFirstRun = ReceivedRows(packet, "A101");
+            await SeedZoneRowAsync(db, packet.RowPrefix, packet.Unique, "R06", newRowTime);
+            await MakeSubscriptionDue(db, sub.ID);
+            await RunCloneAsync(CreateClone(scope, null), packet, byEvent);
+
+            // Assert
+            var savedSql = await ShareDataSqlSeed.GetCommonAsync(db, packet.PacketId);
+            var cursor = await GetCloneCursorAsync(db, packet, "A101");
+            var alerts = await db.Queryable<ShareDataAlertLog>().Where(a => a.SubscriptionId == sub.ID).ToListAsync();
+            List<string> allRows = [.. packet.RowCodes, newRowCode];
+            Assert.Equal(sql, savedSql?.ExtractSql);
+            Assert.Equal(packet.RowCodes, rowsFirstRun);
+            Assert.Equal(allRows, ReceivedRows(packet, "A101"));
+            Assert.EndsWith(CursorEnd(packet, 6), cursor.LastKey);
+            Assert.Empty(alerts);
+        }
+
+        /// <summary>
+        /// Author: DatHQ
+        /// Description: Câu lưu từ trước khi có luật, dùng OFFSET, gộp hai nguồn một mốc hoặc câu con có TOP sắp theo cột khác cột mốc: Worker vẫn chạy và gửi,
+        ///              ghi rủi ro một lần vào nhật ký cấu hình, không ghi cảnh báo.
+        /// Created date: 05/11/2026
+        /// Modified date: 06/11/2026
+        /// </summary>
+        [Theory]
+        [InlineData("SELECT T.rowCode, T.__lastKey FROM (SELECT TOP (@pageSize) z.Code AS rowCode, {K} AS __lastKey FROM TmsZone z WHERE z.Code LIKE @prefix AND {K} > @lastKey ORDER BY z.Name DESC) T ORDER BY T.__lastKey ASC", "Câu con có TOP")]
         [InlineData("SELECT z.Code AS rowCode, {K} AS __lastKey FROM TmsZone z WHERE z.Code LIKE @prefix AND {K} > @lastKey ORDER BY __lastKey ASC OFFSET 1 ROWS FETCH NEXT @pageSize ROWS ONLY", "OFFSET")]
         [InlineData("SELECT TOP (@pageSize) u.rowCode, u.__lastKey FROM (SELECT z.Code AS rowCode, {K} AS __lastKey FROM TmsZone z WHERE z.Code LIKE @prefix AND {K} > @lastKey UNION ALL SELECT z.Name, {K} FROM TmsZone z WHERE z.Name LIKE @prefix AND {K} > @lastKey) u ORDER BY u.__lastKey ASC", "một mốc")]
         public async Task ProcessSubscriptions_WhenSavedSqlSkipsRowsOrSharesCursor_LogsRiskAndKeepsRunning_Test(string template, string expectedRisk)

@@ -532,6 +532,9 @@ Ba bản vẽ tay kỹ thuật được Tech Lead phác thảo trực tiếp tro
 | **Sửa mốc đang chạy** | Dev hỏi "Cái value này là người dùng tự set vô hả anh?", Tech Lead trả lời "Không! Value này là hệ thống detect chứ!" [A 05:49–06:15]. Về hiện mốc: "chắc thực ra không cần hiện đâu", nếu hiện thì phải theo đối tác [A-4 00:31–00:55]. | Mốc do hệ thống tự ghi, **vẫn sửa được nhưng chỉ ở trang Mốc gửi** (`views/sharedata/cursor`): xem mốc theo từng đối tác, Đặt mốc, Đặt lại. |
 | **Phạm vi trang Trường gói tin** (`sharedata/dataSource`) | | Câu SQL (mẫu chung hoặc riêng đối tác), trường, tham số, Mốc bắt đầu (`DefaultValue`), Quy chuẩn mốc. **Không hiện và không sửa mốc đang chạy**, kể cả tab đối tác đã có mốc. |
 | **Chỗ lưu tham số cố định** (`@pageSize` và biến Giá trị nhập) | Bảng lưu trên bản vẽ có cả hai dòng cho đối tác A gói 101: "`PageSize`, `DetectKey` cho đối tác A gói 101… chỉ update thằng này (`DetectKey`), thằng này là fixed rồi (`PageSize`)" [A-4 03:16–03:35, bản vẽ `b7af82ba`]. | Lưu ở **`ShareDataSql.VariablesJson`, đi theo câu SQL** (mẫu chung hoặc riêng đối tác). `ShareDataLastSend` chỉ lưu mốc. Ý của lời họp vẫn giữ: giá trị cố định không đổi lúc chạy, chỉ mốc được cập nhật. Hệ quả: đối tác dùng mẫu chung dùng chung `@pageSize` của mẫu chung, muốn khác thì tạo cấu hình riêng. |
+| **So cột mốc bằng `>=`** (05/11/2026) | "Cái key này có thể là lớn hơn (`>`), hoặc là lớn hơn hoặc bằng (`>=`). Mặc định là lớn hơn. Lớn hơn hay lớn hơn bằng... thì cũng xem xét." [A-3 05:36–05:48] | Chỉ cho `>`: lưu câu so đúng biểu thức cột mốc bằng `>=` bị từ chối vì dòng cuối bị gửi lặp mỗi lượt, `@pageSize` = 1 thì kẹt. Câu đã lưu từ trước vẫn chạy. |
+| **Ghép ngày giờ sai định dạng; cột mốc không dùng biến mốc** (05/11/2026) | Phần phân tích PA1 lấy ví dụ `FORMAT(Time, 'HHmm')` và ghi nhược điểm "khó debug khi có sai lệch định dạng". | Từ chối khi lưu: phần ngày giờ không đi từ năm đến giây thì `sqlIncrementalKeyDateUnsortable` (`'HHmm'` qua ngày sắp sai, `'dd/MM/yyyy'` sắp theo ngày trước tháng); có cột `__lastKey` mà không dùng biến mốc thì `sqlIncrementalCursorVariableMissing` vì lượt nào cũng gửi lại cùng dữ liệu. Câu đã lưu từ trước vẫn chạy. |
+| **Cột mốc chỉ theo công thức PA1** (05/11/2026) | Mẫu của sếp: `CONVERT(varchar(23), Write_Date , 121) +'_' +MSLANE`. | Lưu câu có cột mốc khác `CONVERT(varchar(23), <thời gian>, 121) + '_' + <khóa>` bị từ chối (`sqlIncrementalKeyFormulaInvalid`): cột chuỗi trơn, số ép sang chuỗi đứng đầu khóa. Phần thời gian phải có `CreateTime` vì dữ liệu ITS luôn có cột này; phần khóa bắt đầu bằng cột `ID`. `Write_Date`, `MSLANE` của mẫu là cột của bảng ngoài danh sách được phép. 16 bảng nguồn đều có `CreateTime`, `UpdateTime` và `ID` kiểu chuỗi nên không cần dạng chỉ khóa. Câu đã lưu từ trước vẫn chạy. |
 
 ### Mẫu câu PA1 sếp gửi (ghi vào biên bản 05/11/2026, người phụ trách cung cấp)
 
@@ -575,7 +578,7 @@ mà @.... nên là 1 tên có nghĩa
 | `TAC_Key`, kèm `'TAC_Key' AS TAC_PrimaryKey` để khai cột khóa | Tên cột cố định `__lastKey`, không cần khai; đặt tên khác bị từ chối (`sqlIncrementalMissingLastKey`). |
 | `TOP` và `ORDER BY NGAYSOAT` trong câu con, ngoài `ORDER BY TAC_Key, Lane` | Câu mẫu để `TOP` và `ORDER BY __lastKey` cùng cấp. |
 
-**Lưu ý dạng lồng trong mẫu:** dạng này vẫn lưu được, nhưng `TOP` chọn dòng theo `NGAYSOAT` còn mốc tính theo `Write_Date`, nên hai cột lệch thứ tự thì sót dòng. Ví dụ `TOP 1` với dòng X (`NGAYSOAT` 01/01, `Write_Date` 05/01) và dòng Y (02/01, 02/01): lượt đầu lấy X nên mốc thành 05/01, lượt sau lọc `> 05/01` nên Y không bao giờ được gửi. Suy từ logic, chưa có test luồng gửi cho dạng này. Hệ thống không chặn dạng này khi lưu; câu mẫu không gặp lỗi này vì `TOP` và sắp xếp cùng theo mốc.
+**Lưu ý dạng lồng trong mẫu:** dạng này vẫn lưu được, nhưng `TOP` chọn dòng theo `NGAYSOAT` còn mốc tính theo `Write_Date`, nên hai cột lệch thứ tự thì sót dòng. Ví dụ `TOP 1` với dòng X (`NGAYSOAT` 01/01, `Write_Date` 05/01) và dòng Y (02/01, 02/01): lượt đầu lấy X nên mốc thành 05/01, lượt sau lọc `> 05/01` nên Y không bao giờ được gửi. Từ 06/11/2026 (người dùng chốt) dạng này bị từ chối khi lưu (`sqlIncrementalInnerTopOrderInvalid`): câu con có `TOP` phải sắp tăng dần theo cột mốc; câu đã lưu từ trước vẫn chạy, Worker ghi rủi ro. Dán nguyên mẫu này còn bị từ chối sớm hơn vì phần thời gian không có `CreateTime`. Câu mẫu không gặp lỗi này vì `TOP` và sắp xếp cùng theo mốc.
 
 > **Không phải lời họp.** Phần A, B là biên bản; phần này là thiết kế viết sau họp và đối chiếu với mã working tree.
 > Gộp nguyên tài liệu `doc/08-thiet-ke-luong-noi-duoi-toan-trinh-ui-be-worker.md` (đã xóa); mục `x.y` cũ nay là `C.x.y`.
@@ -864,8 +867,9 @@ sequenceDiagram
    * **Luật 3 — Đối chiếu khớp cột chiếu & khóa sắp xếp:** Danh sách `SELECT` bắt buộc có cột mang alias `__lastKey` (`SqlIncrementalMissingLastKey`). Phần tử đầu tiên của `ORDER BY` bắt buộc là `__lastKey` hoặc lặp lại chính xác biểu thức AST tạo nên `__lastKey` (`IsOrderByColumn`, chuẩn hóa không phân biệt hoa thường/khoảng trắng/ngoặc vuông; sai thì `SqlIncrementalOrderByKeyMismatch`).
    * **Luật 4 — `WHERE` so đúng mốc (29–30/10/2026, `ValidateCursorFilter`):** phải có `K > @k`, `K` đúng biểu thức cột mốc ở `SELECT`, vế còn lại là biến mốc (không phải hằng); sai thì `SqlIncrementalKeyFilterInvalid`. Câu gộp nhiều nguồn kiểm từng nhóm mốc (`ValidateCursorGroups`). Bộ kiểm chỉ xem điều kiện mốc, không xem các điều kiện lọc nghiệp vụ khác.
    * **Luật 5 — `ORDER BY` câu gộp nhiều nguồn (04/11/2026, `ValidateGroupOrder`):** cột sắp xếp ngoài cùng phải có cùng công thức cột mốc ở nhánh của từng nhóm; sai thì `SqlIncrementalGroupOrderInvalid`.
-   * **Luật 6 — Cột mốc theo thời gian (04/11/2026, `ValidateCursorTime`, chỉ chạy khi lưu qua API):** cột mốc chỉ là một cột ngày giờ thì `SqlIncrementalKeyTimeOnly`; công thức dùng `UpdateTime` trơn thì `SqlIncrementalUpdateTimeEmpty`, trừ câu có nhánh `UpdateTime IS NULL`. Câu đã lưu từ trước vẫn chạy, Worker ghi rủi ro vào nhật ký cấu hình.
-   * **Rủi ro (lưu bình thường, không cảnh báo, từ 01/11/2026):** khóa ghép có ngày giờ sai thứ tự hoặc số không đệm 0; dạng chỉ khóa mà `__lastKey` là cột trơn không phải số; so khóa `>=`. Worker ghi các rủi ro này (`SqlValidatorHelper.FindCursorRisks`) vào `ShareDataActivityLog` nhóm `CONFIG`, một lần cho mỗi (đăng ký, câu SQL), hiện ở *Lịch sử chia sẻ → Nhật ký cấu hình*.
+   * **Luật 6 — Cột mốc theo thời gian (04/11/2026, `ValidateCursorTime`, chỉ chạy khi lưu qua API):** cột mốc chỉ là một cột ngày giờ thì `SqlIncrementalKeyTimeOnly`; công thức dùng `UpdateTime` trơn thì `SqlIncrementalUpdateTimeEmpty`, trừ câu có nhánh `UpdateTime IS NULL`; so đúng biểu thức cột mốc bằng `>=` thì `SqlIncrementalKeyFilterInclusive` (05/11/2026), chặn dưới theo cột thời gian gốc không tính; phần ngày giờ không đi từ năm đến giây thì `SqlIncrementalKeyDateUnsortable` (05/11/2026); cột mốc khác công thức PA1, phần thời gian không có `CreateTime` hoặc phần khóa không phải cột `ID` luôn có giá trị thì `SqlIncrementalKeyFormulaInvalid` (05/11/2026); có `OFFSET` khác 0 thì `SqlIncrementalOffsetNotAllowed`; gộp `UNION` nhiều nguồn dùng chung một mốc thì `SqlIncrementalUnionOneCursor` (05/11/2026); câu con có `TOP` không sắp tăng dần theo cột mốc thì `SqlIncrementalInnerTopOrderInvalid` (06/11/2026). Câu đã lưu từ trước vẫn chạy, Worker ghi rủi ro vào nhật ký cấu hình.
+   * **Luật 7 — Cột mốc phải đi cùng biến mốc (05/11/2026, `ValidateCursorColumnUsed`, khi lưu câu và khi đổi nguồn biến):** câu có cột `__lastKey` hoặc `__lastKey_<nhóm>` mà không dùng biến mốc nào thì `SqlIncrementalCursorVariableMissing`. Câu đã lưu từ trước vẫn gửi như câu gửi toàn bộ, không ghi mốc.
+   * **Rủi ro (từ 05/11/2026 chỉ còn gặp ở câu lưu trước ngày đó):** số ép sang chuỗi không đệm 0 đứng đầu khóa; `__lastKey` là cột trơn không phải số; `>=`; ghép ngày giờ sai định dạng; phần thời gian không có `CreateTime`; phần khóa không phải cột `ID`; `OFFSET`; gộp nhiều nguồn một mốc; câu con có `TOP` sắp theo cột khác cột mốc. Worker ghi các rủi ro này (`SqlValidatorHelper.FindCursorRisks`) vào `ShareDataActivityLog` nhóm `CONFIG`, một lần cho mỗi (đăng ký, câu SQL), hiện ở *Lịch sử chia sẻ → Nhật ký cấu hình*.
    * Khi phát hiện vi phạm, `SqlValidatorHelper.TryLocateError` định vị chính xác `(Line, Column)` của token lỗi để trả về cho Monaco Editor trên UI gạch chân đỏ ngay dòng sai.
 
 3. **Tự động ẩn cột kỹ thuật `__lastKey` khỏi danh sách trường nghiệp vụ (`SqlFieldHelper`):**
@@ -1046,8 +1050,20 @@ Giả định **Đối tác A (`CSGT_LS`)** và **Đối tác B (`VEC_ETC`)** c�
 | Khóa kiểu số nguyên / GUID | Chốt chặn ghi mốc so chuỗi (`'18' < '9'`) → gửi lặp mãi một trang | So đúng kiểu |
 | Một câu gộp hai nguồn, một nguồn về trễ | Một cặp mốc chung → dòng nguồn trễ bị bỏ | Mỗi nguồn một **nhóm mốc** (30/10/2026, gộp về một bảng 02/11/2026, quy ước ngay dưới bảng): mốc nhóm lưu riêng theo dòng trong `ShareDataLastSend` với khóa duy nhất `(PartnerCode, PacketCode, CursorKey)` (`CursorKey = null` cho nhóm mặc định) — đúng bảng `(Mã gói, Đối tác, Key) → Value` của sếp; nguồn về trễ giữ mốc riêng nên không mất dòng |
 | So cột mốc với hằng số thay cho biến mốc (`@lastKey IS NOT NULL AND ID > 'a'`) | Lưu được: có `TOP` thì lượt nào cũng lấy lại trang đầu | Lưu bị từ chối (`SqlIncrementalKeyFilterInvalid`); câu nạp thẳng bằng tệp `.sql` thì Worker dừng với cảnh báo `CursorOrderInvalid`, giữ nguyên mốc |
-| Câu chỉ khóa so `K >= @lastKey` | Lưu được, không báo | Lưu được, Worker ghi rủi ro vào nhật ký cấu hình (từ 01/11/2026): dòng cuối lượt trước gửi lại ở mọi lượt, trang 1 dòng (`TOP 1`) thì kẹt ở dòng đó |
-| Câu chỉ khóa mà `__lastKey` là một cột chuỗi trơn (ID GUID) | Lưu được; ID không tăng theo thứ tự ghi nên dòng mới nhỏ hơn mốc bị bỏ | Lưu được, Worker ghi rủi ro vào nhật ký cấu hình (từ 01/11/2026; cột số tự tăng thì không ghi) |
+| Câu chỉ khóa so `K >= @lastKey` | Lưu được, không báo | Lưu bị từ chối (`sqlIncrementalKeyFilterInclusive`, 05/11/2026): dòng cuối lượt trước gửi lại ở mọi lượt, trang 1 dòng (`TOP 1`) thì kẹt ở dòng đó. Câu đã lưu từ trước vẫn chạy, Worker ghi rủi ro vào nhật ký cấu hình |
+| Cột mốc ghép ngày giờ sai định dạng (`CONVERT(varchar(10), t, 103)`, `FORMAT(t, 'dd/MM/yyyy')`) | Lưu được; riêng `'dd/MM/yyyy'` không ghi rủi ro vì chỉ kiểm có đủ năm, tháng, ngày | Lưu bị từ chối (`sqlIncrementalKeyDateUnsortable`, 05/11/2026); câu đã lưu từ trước vẫn chạy, Worker ghi rủi ro vào nhật ký cấu hình |
+| Có cột `__lastKey` nhưng không dùng biến mốc (`WHERE ID > 'a'`) | Lưu được: gửi như câu gửi toàn bộ, không ghi mốc, lượt nào cũng gửi lại | Lưu bị từ chối (`sqlIncrementalCursorVariableMissing`, 05/11/2026), kể cả khi chỉ đổi nguồn biến `@lastKey` sang giá trị cố định; câu đã lưu từ trước vẫn gửi như cũ |
+| Câu chỉ khóa mà `__lastKey` là một cột chuỗi trơn (ID GUID) | Lưu được; ID không tăng theo thứ tự ghi nên dòng mới nhỏ hơn mốc bị bỏ | Lưu bị từ chối (`sqlIncrementalKeyFormulaInvalid`, 05/11/2026); câu đã lưu từ trước vẫn chạy, Worker ghi rủi ro vào nhật ký cấu hình |
+| Số ép sang chuỗi đứng đầu khóa (`CAST(ID AS varchar(10)) AS __lastKey`) | Lưu được; `'10'` nhỏ hơn `'9'` nên ID 10–89 không được gửi sau mốc `'9'` | Lưu bị từ chối (`sqlIncrementalKeyFormulaInvalid`, 05/11/2026) |
+| Phần khóa có thể trống (`+ '_' + Name`, `ID` của bảng `LEFT JOIN`) | Lưu được; khóa trống làm cả chuỗi mốc thành `NULL`, dòng không bao giờ được gửi | Lưu bị từ chối (`sqlIncrementalKeyFormulaInvalid`, 05/11/2026): phần khóa bắt đầu bằng cột `ID` luôn có giá trị, ghép thêm thì dùng `ID` khác hoặc bọc `ISNULL`, `COALESCE`; câu đã lưu từ trước vẫn chạy, Worker ghi rủi ro vào nhật ký cấu hình |
+| `JOIN` nhân dòng làm nhiều dòng cùng giá trị cột mốc | Dòng bị cắt ở ranh giới trang không được gửi: 1 cha 3 con, trang 2 dòng thì mất dòng thứ 3 | Worker không gửi trang đó, giữ mốc, báo ESH-1309 (05/11/2026). Câu đặt số dòng bằng `TOP (@biến)` thì Worker lấy dư một dòng để phát hiện cả trường hợp dòng đầu của nhóm rơi vào cuối trang; `TOP` số cố định chỉ phát hiện khi trùng trong trang. Sửa: thêm khóa bảng con vào công thức |
+| `OFFSET` khác 0 trong câu nối đuôi | Lưu được; dòng bị bỏ qua không bao giờ được gửi vì mốc vẫn tiến qua chúng | Lưu bị từ chối (`sqlIncrementalOffsetNotAllowed`, 05/11/2026); câu đã lưu từ trước vẫn chạy, Worker ghi rủi ro vào nhật ký cấu hình |
+| Gộp nhiều nguồn bằng `UNION` mà dùng chung một mốc | Lưu được; nguồn về trễ có giá trị nhỏ hơn mốc bị mất dòng | Lưu bị từ chối (`sqlIncrementalUnionOneCursor`, 05/11/2026), dùng nhóm mốc; câu đã lưu từ trước vẫn chạy, Worker ghi rủi ro vào nhật ký cấu hình |
+| Xóa rồi tạo lại đối tác, gói tin cùng mã | Mốc gắn theo mã nên còn nguyên: đối tác mới đi tiếp từ mốc cũ, mất dữ liệu trước mốc đó | Xóa đối tác, gói tin thì xóa luôn mốc; tạo mới cũng xóa mốc còn sót từ trước (05/11/2026) |
+| Đổi mã đối tác qua API | Giao diện đã khóa nhưng API vẫn nhận: mốc theo mã cũ nên đối tác bị gửi lại từ đầu | API từ chối (`partnerCodeLocked`, 05/11/2026) |
+| Câu con có `TOP` sắp theo cột khác cột mốc (dạng mẫu của sếp) | Lưu được; câu con chọn dòng theo thứ tự khác nên dòng có mốc nhỏ hơn bị bỏ sót | Lưu bị từ chối (`sqlIncrementalInnerTopOrderInvalid`, 06/11/2026), kể cả câu con không có `ORDER BY` hoặc sắp `DESC`; `TOP 1` ở cột `SELECT`, `OUTER APPLY` lấy giá trị phụ thì lưu được; câu đã lưu từ trước vẫn chạy, Worker ghi rủi ro vào nhật ký cấu hình |
+| Dòng được ghi vào bảng nguồn với thời gian cũ hơn mốc (ví dụ mốc 10:00, lúc 10:05 ghi dòng có `UpdateTime` 09:30) | Không được gửi, vì câu chỉ lấy dòng lớn hơn mốc | Giữ nguyên (người dùng chốt 06/11/2026). Muốn gửi lại thì tắt đăng ký, vào trang **Mốc gửi** đặt mốc về trước thời gian của dòng đó; đối tác nhận lại từ đó trở đi. Câu ghi gói 101 chiều nhận ghi vào CSDL nhận riêng nên không gây ra ca này |
+| Phần thời gian không có `CreateTime` (`CONVERT(varchar(23), DetectTime, 121) + '_' + ID`) | Lưu được; dòng có cột đó trống ghép ra `NULL`, không được gửi | Lưu bị từ chối (`sqlIncrementalKeyFormulaInvalid`, 05/11/2026), viết `COALESCE(DetectTime, CreateTime)`; câu đã lưu từ trước vẫn chạy, Worker ghi rủi ro vào nhật ký cấu hình |
 | Cột mốc ghép từ `UpdateTime` trơn | Lưu được; dòng mới thêm có `UpdateTime` trống nên chuỗi mốc `NULL`, không được gửi | Lưu bị từ chối (`sqlIncrementalUpdateTimeEmpty`, 04/11/2026), trừ câu có nhánh `UpdateTime IS NULL`; câu đã lưu từ trước vẫn chạy, Worker ghi rủi ro vào nhật ký cấu hình |
 | Cột mốc chỉ có ngày giờ (`UpdateTime AS __lastKey`) | Lưu được; Worker lưu mốc bằng `ToString()` nên mất mili giây, sau trang đầu không gửi tiếp; dòng trùng giờ ở ranh giới trang bị sót | Lưu bị từ chối (`sqlIncrementalKeyTimeOnly`, 04/11/2026); câu đã lưu từ trước giữ hành vi cũ, Worker ghi rủi ro vào nhật ký cấu hình |
 | Cột thời gian `datetime2` bị làm tròn | — | Không tái hiện: dữ liệu do ITS ghi qua SqlSugar đã làm tròn về `datetime` lúc ghi |
@@ -1061,21 +1077,21 @@ Giả định **Đối tác A (`CSGT_LS`)** và **Đối tác B (`VEC_ETC`)** c�
 * Worker lấy mốc mỗi nhóm ở dòng cuối có `__lastKey_<nhóm>` trong trang, ghi trong cùng giao dịch với chốt chặn chỉ tiến và chữ ký công thức riêng từng nhóm. Đặt mốc (`SetLastSend` kèm `CursorKey`) ghi mốc một nhóm; Đặt lại xóa mốc mọi nhóm. Trang **Mốc gửi** hiện mốc và ô Đặt mốc theo từng nhóm.
 
 ```sql
-SELECT TOP (@pageSize) u.rowCode, u.__lastKey_pkt, u.__lastKey_toll
+SELECT TOP (@pageSize) u.rowCode, u.__lastKey_inc, u.__lastKey_wea
 FROM (
-    SELECT p.Code AS rowCode,
-           CONVERT(varchar(23), COALESCE(p.UpdateTime, p.CreateTime), 121) + '_' + p.ID AS sortKey,
-           CONVERT(varchar(23), COALESCE(p.UpdateTime, p.CreateTime), 121) + '_' + p.ID AS __lastKey_pkt,
-           CAST(NULL AS nvarchar(100)) AS __lastKey_toll
-    FROM ShareDataPacket p
-    WHERE CONVERT(varchar(23), COALESCE(p.UpdateTime, p.CreateTime), 121) + '_' + p.ID > @lastKey_pkt
+    SELECT i.Code AS rowCode,
+           CONVERT(varchar(23), COALESCE(i.UpdateTime, i.CreateTime), 121) + '_' + i.ID AS sortKey,
+           CONVERT(varchar(23), COALESCE(i.UpdateTime, i.CreateTime), 121) + '_' + i.ID AS __lastKey_inc,
+           CAST(NULL AS nvarchar(100)) AS __lastKey_wea
+    FROM TmsIncident i
+    WHERE CONVERT(varchar(23), COALESCE(i.UpdateTime, i.CreateTime), 121) + '_' + i.ID > @lastKey_inc
     UNION ALL
-    SELECT t.SourceId,
-           CONVERT(varchar(23), t.SourceWriteDate, 121) + '_' + t.ID,
+    SELECT w.RefId,
+           CONVERT(varchar(23), COALESCE(w.UpdateTime, w.CreateTime), 121) + '_' + w.ID,
            NULL,
-           CONVERT(varchar(23), t.SourceWriteDate, 121) + '_' + t.ID
-    FROM TollPriceList t
-    WHERE CONVERT(varchar(23), t.SourceWriteDate, 121) + '_' + t.ID > @lastKey_toll
+           CONVERT(varchar(23), COALESCE(w.UpdateTime, w.CreateTime), 121) + '_' + w.ID
+    FROM TmsWeather w
+    WHERE CONVERT(varchar(23), COALESCE(w.UpdateTime, w.CreateTime), 121) + '_' + w.ID > @lastKey_wea
 ) u
 ORDER BY u.sortKey ASC
 ```
@@ -1203,6 +1219,9 @@ ORDER BY u.sortKey ASC
 | :--- | :--- |
 | So cột khác: thay điều kiện bằng `WHERE zs.ID > @lastKey` | Từ chối |
 | So khóa với hằng: `<biểu thức ghép> > 'a'`, thêm `@lastKey IS NOT NULL AND` đầu `WHERE` | Từ chối |
+| Bỏ điều kiện so với `@lastKey` khỏi `WHERE`, giữ cột `AS __lastKey` | Từ chối |
+| Cột mốc chỉ còn `zs.ID` ở cả `SELECT` và `WHERE` | Từ chối: dải *Quy chuẩn mốc* báo chưa đạt, bấm *Sửa câu* thì câu về đúng công thức |
+| Đổi định dạng ngày giờ: `CONVERT(varchar(10), <thời gian>, 103)` ở cả `SELECT` và `WHERE` | Từ chối |
 | Bỏ cột `AS __lastKey` khỏi `SELECT` | Từ chối |
 | Sai cột sắp: `ORDER BY zs.UpdateTime ASC` | Từ chối (`ORDER BY`) |
 | `ORDER BY __lastKey DESC` | Từ chối |

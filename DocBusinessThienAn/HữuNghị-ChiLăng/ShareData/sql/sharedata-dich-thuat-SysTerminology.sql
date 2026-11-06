@@ -6,10 +6,10 @@ GO
 -- BẢNG GHI: [dbo].[SysTerminology] — tệp chỉ thêm / sửa / xóa trên đúng bảng này; bảng khác chỉ đọc (Rule 19.103).
 -- DESCRIPTION: Bổ sung từ điển bản dịch đa ngôn ngữ (vi-VN, en-US) cho phân hệ ShareData (ESHARE) vào SysTerminology:
 --              1. Chuẩn hóa lại mã khóa cũ thừa tiền tố (như lz.validation...lookbackDaysRange nếu có).
---              2. Nạp toàn bộ 158 mã khóa dịch thuật chuẩn hóa (316 bản ghi đa ngôn ngữ vi-VN và en-US):
+--              2. Nạp toàn bộ 168 mã khóa dịch thuật chuẩn hóa (336 bản ghi đa ngôn ngữ vi-VN và en-US):
 --                 - 26 khóa trường thực thể (Entity) dùng cho validation / khóa ngoại / tên đối tượng.
---                 - 38 khóa ngoại lệ nghiệp vụ (Exception: phân hệ ShareData, quyền quản trị).
---                 - 92 khóa kiểm tra hợp lệ (Validation: SQL Validator, kết nối, đăng ký, gói tin, bộ mã, ánh xạ, tham số câu truy vấn, câu ghi chiều nhận).
+--                 - 40 khóa ngoại lệ nghiệp vụ (Exception: phân hệ ShareData, quyền quản trị).
+--                 - 100 khóa kiểm tra hợp lệ (Validation: SQL Validator, kết nối, đăng ký, gói tin, bộ mã, ánh xạ, tham số câu truy vấn, câu ghi chiều nhận).
 --                 - 2 khóa thông báo (Message: kết nối đối tác).
 --              3. Cơ chế Idempotent:
 --                 - MERGE chỉ INSERT các bản ghi chưa có (WHEN NOT MATCHED THEN INSERT).
@@ -18,7 +18,7 @@ GO
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 04/11/2026 (thêm khóa ORDER BY của nhóm mốc, cột mốc chỉ có ngày giờ, cột mốc dùng UpdateTime trơn); 03/11/2026 (bỏ khóa của mốc theo thời gian); 01/11/2026 (ESH-2306 thêm đặt mốc); 30/10/2026 (thêm khóa nhóm mốc, kiểm điều kiện WHERE nối đuôi, ESH-2306/2307 đăng ký đang bật; mọi câu ≤ 256 ký tự theo cột Value, @ viết {'@'})
+-- CẬP NHẬT LẦN CUỐI: 06/11/2026 (thêm khóa câu con có TOP sắp sai cột mốc); 05/11/2026 (thêm khóa câu nối đuôi dùng OFFSET, câu gộp nhiều nguồn dùng chung mốc, đổi mã đối tác, so cột mốc bằng >=, ngày giờ sai định dạng, cột mốc không dùng biến mốc, cột mốc khác công thức, bộ mã đang dùng, câu ghi riêng để trống); 04/11/2026 (thêm khóa ORDER BY của nhóm mốc, cột mốc chỉ có ngày giờ, cột mốc dùng UpdateTime trơn); 03/11/2026 (bỏ khóa của mốc theo thời gian); 01/11/2026 (ESH-2306 thêm đặt mốc); 30/10/2026 (thêm khóa nhóm mốc, kiểm điều kiện WHERE nối đuôi, ESH-2306/2307 đăng ký đang bật; mọi câu ≤ 256 ký tự theo cột Value, @ viết {'@'})
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -51,7 +51,7 @@ WHERE Code LIKE N'lz.validation%lookbackDaysRange'
   );
 
 -- -----------------------------------------------------------------------------------------
--- 2. DANH MỤC 158 KHÓA BẢN DỊCH SHAREDATA (316 BẢN GHI ĐA NGÔN NGỮ)
+-- 2. DANH MỤC 159 KHÓA BẢN DỊCH SHAREDATA (318 BẢN GHI ĐA NGÔN NGỮ)
 -- -----------------------------------------------------------------------------------------
 DECLARE @Translations TABLE (
     [Name] NVARCHAR(64),
@@ -181,11 +181,15 @@ VALUES
      N'Field code'),
 
     -- =========================================================================
-    -- NHÓM 3: NGOẠI LỆ NGHIỆP VỤ PHÂN HỆ SHAREDATA (27 khóa)
+    -- NHÓM 3: NGOẠI LỆ NGHIỆP VỤ PHÂN HỆ SHAREDATA (28 khóa)
     -- =========================================================================
     (N'lz.exception', N'sharedata.codeSetInUse',
      N'Bộ mã đang được gói tin hoặc hồ sơ ánh xạ sử dụng, không thể xóa.',
      N'The code set is used by a packet or mapping profile and cannot be deleted.'),
+
+    (N'lz.exception', N'sharedata.codeSetValuesInUse',
+     N'Bộ mã [{0}] đang được hồ sơ ánh xạ dùng khi đăng ký đang chạy ({1}), vui lòng tạm dừng đăng ký trước khi sửa bảng quy đổi.',
+     N'Code set [{0}] is used by mapping profiles with running subscriptions ({1}). Pause the subscriptions before changing its values.'),
 
     (N'lz.exception', N'sharedata.codeSetPartnerValueDuplicated',
      N'Giá trị đối tác [{0}] bị trùng trong cùng bộ mã.',
@@ -278,6 +282,10 @@ VALUES
     (N'lz.exception', N'sharedata.partnerSessionActive',
      N'Đối tác đang có phiên kết nối, vui lòng ngắt kết nối trước.',
      N'The partner has an active session. Please disconnect first.'),
+
+    (N'lz.exception', N'sharedata.partnerCodeLocked',
+     N'Không đổi được mã đối tác vì mốc gửi và gói tin nhận gắn theo mã. Muốn đổi mã, hãy tạo đối tác mới.',
+     N'The partner code cannot be changed because send cursors and received packets are tied to it. Create a new partner to use another code.'),
 
     (N'lz.exception', N'sharedata.subscriptionDuplicated',
      N'Đối tác đã có đăng ký cho gói tin này.',
@@ -527,6 +535,10 @@ VALUES
      N'Truy vấn đồng bộ nối đuôi theo khóa phải sắp xếp ORDER BY ngoài cùng theo cột [__lastKey], nếu không có thể bỏ sót dòng.',
      N'Key-only incremental sync query must have an outer ORDER BY on [__lastKey], otherwise rows may be skipped.'),
 
+    (N'lz.validation', N'sharedata.partnerWriteSqlRequired',
+     N'Câu ghi riêng của đối tác không được để trống. Muốn bỏ thì dùng lại mẫu chung.',
+     N'The partner write SQL must not be empty. To remove it, switch back to the common template.'),
+
     (N'lz.validation', N'sharedata.writeSqlEmpty',
      N'Câu ghi đang trống.',
      N'Write SQL is empty.'),
@@ -719,7 +731,35 @@ VALUES
 
     (N'lz.validation', N'sharedata.sqlIncrementalUpdateTimeEmpty',
      N'Cột mốc dùng UpdateTime trơn nên dòng mới thêm (chưa có UpdateTime) không được gửi. Dùng COALESCE(UpdateTime, CreateTime) ở cả cột mốc và WHERE.',
-     N'The cursor column uses a bare UpdateTime, so newly inserted rows (no UpdateTime yet) are never sent. Use COALESCE(UpdateTime, CreateTime) in both the cursor column and WHERE.');
+     N'The cursor column uses a bare UpdateTime, so newly inserted rows (no UpdateTime yet) are never sent. Use COALESCE(UpdateTime, CreateTime) in both the cursor column and WHERE.'),
+
+    (N'lz.validation', N'sharedata.sqlIncrementalKeyFilterInclusive',
+     N'So cột mốc với biến mốc phải dùng dấu >; dùng >= thì dòng cuối bị gửi lặp mỗi lượt.',
+     N'Compare the cursor with the cursor variable using >; with >= the last row is resent on every run.'),
+
+    (N'lz.validation', N'sharedata.sqlIncrementalKeyDateUnsortable',
+     N'Cột mốc ghép ngày giờ sai định dạng nên sắp sai thứ tự, có thể bỏ sót dòng. Dùng CONVERT(varchar(23), <cột thời gian>, 121).',
+     N'The cursor column formats its date/time in an unsortable way, so rows can be skipped. Use CONVERT(varchar(23), <time column>, 121).'),
+
+    (N'lz.validation', N'sharedata.sqlIncrementalCursorVariableMissing',
+     N'Câu có cột mốc nhưng không dùng biến mốc (nguồn Nối tiếp lần trước theo key) nên lượt nào cũng gửi lại cùng dữ liệu. So cột mốc với biến lastKey trong WHERE, hoặc bỏ cột mốc nếu muốn gửi toàn bộ.',
+     N'The query has a cursor column but uses no cursor variable (source: continue from last key), so every run resends the same data. Compare the cursor column with the lastKey variable in WHERE, or remove the cursor column to send everything.'),
+
+    (N'lz.validation', N'sharedata.sqlIncrementalKeyFormulaInvalid',
+     N'Cột mốc phải viết đúng công thức CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + ''_'' + ID, phần thời gian phải có CreateTime; viết khác thì có thể bỏ sót dòng.',
+     N'The cursor column must follow CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + ''_'' + ID, and its time part must include CreateTime; otherwise rows can be skipped.'),
+
+    (N'lz.validation', N'sharedata.sqlIncrementalOffsetNotAllowed',
+     N'Câu nối đuôi không được dùng OFFSET: các dòng bị bỏ qua sẽ không bao giờ được gửi. Giới hạn số dòng bằng TOP.',
+     N'An incremental query must not use OFFSET: skipped rows are never sent. Limit rows with TOP.'),
+
+    (N'lz.validation', N'sharedata.sqlIncrementalUnionOneCursor',
+     N'Câu gộp nhiều nguồn không dùng chung một mốc: nguồn về trễ sẽ mất dòng. Mỗi nguồn cần cột __lastKey_nhóm và biến lastKey_nhóm riêng.',
+     N'A query merging several sources must not share one cursor: a late source loses rows. Give each source its own __lastKey_group column and lastKey_group variable.'),
+
+    (N'lz.validation', N'sharedata.sqlIncrementalInnerTopOrderInvalid',
+     N'Câu con có TOP phải sắp tăng dần theo cột mốc: sắp theo cột khác thì dòng có mốc nhỏ hơn bị bỏ sót. Đổi ORDER BY trong câu con thành cột mốc.',
+     N'A subquery with TOP must sort ascending by the cursor column: sorting by another column skips rows with a smaller cursor. Change the subquery ORDER BY to the cursor column.');
 
 -- -----------------------------------------------------------------------------------------
 -- 3. NẠP DỮ LIỆU ĐA NGÔN NGỮ (MERGE CHỈ THÊM DÒNG CHƯA CÓ, KHÔNG GHI ĐÈ)
