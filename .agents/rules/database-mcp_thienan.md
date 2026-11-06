@@ -19,7 +19,7 @@ description: Database MCP tooling (Gortex and DAB MCP), staging DB read-only saf
    - Tận dụng đồ thị AST để đo blast radius, tìm callers, usages và phân tích ngữ cảnh trước khi sửa code.
 2. **DAB MCP Local cho Cơ Sở Dữ Liệu (cập nhật 16/10/2026)**:
    - Mọi kiểm tra schema, danh sách bảng, cột và dữ liệu đọc từ DB **local** qua DAB MCP: `mssql_dev` (Docker `localhost:14333/DEV_ITS10`) và `mssql_test` (Docker `localhost:14333/test`), bằng các tool `describe_entities`, `read_records`, `aggregate_records`.
-   - `mssql_staging` (`10.10.8.30/DEV_ITS10`) chỉ dùng khi người dùng yêu cầu trực tiếp.
+   - `mssql_staging` (`10.10.12.80/DEV_ITS015`, đổi máy chủ ngày 06/11/2026; trước là `10.10.8.30/DEV_ITS10`) chỉ dùng khi người dùng yêu cầu trực tiếp.
    - Cấu hình MCP của mọi công cụ AI sinh từ `.agents/mcp_config.json` bằng `node .agents/mcp/sync.mjs --apply` (⛔ không sửa tay `.mcp.json`, `.codex/config.toml`…); chuỗi kết nối đặt ở `.agents/mcp/.env` (mẫu `.agents/mcp/.env.example`, ⛔ không commit).
    - ⛔ Tuyệt đối không phỏng đoán cột/bảng từ Entity code cũ hoặc tài liệu không cập nhật.
 3. **Phạm vi đối chiếu khi review / viết plan / viết prompt: chỉ local**:

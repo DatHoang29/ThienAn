@@ -3050,7 +3050,7 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
 
     /// <summary>
     /// Author: DatHQ
-    /// Description: Các mẫu câu ở mục 10.7 Mẫu câu của tài liệu bàn giao, đổi bảng giữ chỗ sang bảng được phép đọc, dán vào là lưu được:
+    /// Description: Các mẫu câu ở mục 5.8 Mẫu câu của tài liệu bàn giao, đổi bảng giữ chỗ sang bảng được phép đọc, dán vào là lưu được:
     ///              câu mẫu, cột mốc gộp, lọc 7 ngày gần nhất bằng GETDATE(), hai nhóm gói 101, nhiều nhóm gộp hai bảng.
     /// Created date: 05/11/2026
     /// </summary>

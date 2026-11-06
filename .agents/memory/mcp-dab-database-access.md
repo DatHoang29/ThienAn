@@ -18,7 +18,7 @@ Chỉ còn **một** `.agents/mcp/dab-config.json` cho cả 3 DB, nên mọi ent
 |---|---|---|
 | `mssql_dev` | local Docker `localhost:14333/DEV_ITS10` (container `tac_webapi_sqlserver`) | **Nguồn DB chuẩn khi review/plan/prompt** (rule 16/10/2026). Người dùng đã import bản export staging vào đây ngày 14/10/2026 (mới có schema). |
 | `mssql_test` | local Docker `localhost:14333/test` | |
-| `mssql_staging` | **`10.10.8.30/dev_its10`** | Chỉ dùng khi người dùng yêu cầu trực tiếp (rule 16/10/2026: review/plan/prompt chỉ đối chiếu local; staging do người dùng tự kiểm). |
+| `mssql_staging` | **`10.10.12.80/DEV_ITS015`** (từ 06/11/2026; trước là `10.10.8.30/dev_its10`). Máy mới còn `DEV_ITS016` là bản cũ hơn | Chỉ dùng khi người dùng yêu cầu trực tiếp (rule 16/10/2026: review/plan/prompt chỉ đối chiếu local; staging do người dùng tự kiểm). |
 
 Setup fixed 2026-08-27 (was fully broken — DAB CLI not installed):
 - Created `dotnet-tools.json` (gốc repo) pinning `Microsoft.DataApiBuilder` 2.0.12. Needs
