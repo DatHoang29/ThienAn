@@ -7,7 +7,7 @@ Làm từ trên xuống, đánh dấu từng ô. Mỗi bước: **Làm** → **T
 - Sếp chốt 02/11/2026 dùng **PA1: một chuỗi ghép** `thời gian_khóa` ở cột `__lastKey`. Mục 0 đến 5 kiểm theo dạng này, cũng là dạng câu mẫu của 7 gói nối đuôi (101, 103, 104, 106, 107, 109, 111). Dạng 2 cột đã bỏ ngày 03/11/2026; câu riêng còn `@lastTime` trong CSDL sửa hết bằng tệp D2 ở bước 0.1.
 - Trong lúc test, Đạt chuyển sang **kênh File**: mỗi lần gửi được lưu thành một tệp bằng chứng, không cần máy nhận. Bước dọn trả lại như cũ.
 - Dữ liệu nguồn `VmsCurrent` trên DB dev (đếm ngày 01/11): **72** dòng; **27** dòng có `UpdateTime`, mới nhất `21/10/2026 07:58:45` khóa `1175a668-79af-440d-a32d-2ba040ba8bf8`; **45** dòng chưa có `UpdateTime` (đều có `CreateTime` ngày 19/08/2026). Cột mốc lấy `CreateTime` khi `UpdateTime` trống nên gửi đủ cả 72 dòng. Hai dòng VMS006 và VMS005 **trùng giờ** `12/08/2026 08:46:07.230`, đứng thứ 5 và 6.
-- Xem kết quả ở **Lịch sử chia sẻ → Nhật ký truyền nhận** (cột *Số bản ghi*). Trang **Mốc gửi** mới làm khung, chưa khai menu và không bàn giao nên kịch bản không dùng; mốc kiểm qua số bản ghi: lượt sau không gửi lặp nghĩa là mốc đã tiến.
+- Xem kết quả ở **Lịch sử chia sẻ → Nhật ký truyền nhận** (cột *Số bản ghi*). Mốc kiểm qua số bản ghi: lượt sau không gửi lặp nghĩa là mốc đã tiến. Xem mốc trực tiếp ở trang **Mốc gửi**, kiểm ở mục 12.
 - Đăng ký chạy 30 giây một lượt: "chờ một lượt" là chờ khoảng 1 phút.
 
 Cấu hình cũ của Đạt để trả lại ở bước dọn:
@@ -197,6 +197,202 @@ Mỗi ca: xóa hết khung soạn (Cmd+A, Delete), dán câu của ca → **Lưu
   WHERE v.UpdateTime > @lastKey  -- sai: chỉ có ngày giờ
   ORDER BY __lastKey ASC
   ```
+- [ ] **5.7** So cột mốc bằng `>=`.
+  **Thấy:** "So cột mốc với biến mốc phải dùng dấu >; dùng >= thì dòng cuối bị gửi lặp mỗi lượt." Dải **Quy chuẩn mốc** vẫn 3/3, vì lỗi này chỉ máy chủ báo khi lưu.
+  ```sql
+  SELECT TOP (@pageSize)
+      CONVERT(varchar(23), COALESCE(v.UpdateTime, v.CreateTime), 121) + '_' + v.ID AS __lastKey,
+      e.Code AS equipmentCode,
+      v.Name AS vmsName,
+      e.KmNumber AS locationKm,
+      e.MetNumber AS locationMet,
+      e.DirectionId AS direction,
+      e.LaneId AS laneId,
+      v.RowData AS displayContent,
+      v.Url AS displayImageUrl,
+      v.Size AS displaySize,
+      v.Priority AS priority,
+      v.ExecutedDate AS executedTime
+  FROM VmsCurrent v
+  LEFT JOIN TmsEquipment e ON v.EquipmentId = e.ID
+  WHERE CONVERT(varchar(23), COALESCE(v.UpdateTime, v.CreateTime), 121) + '_' + v.ID >= @lastKey  -- sai: dùng >=
+  ORDER BY __lastKey ASC
+  ```
+- [ ] **5.8** Ghép ngày giờ sai định dạng.
+  **Thấy:** "Cột mốc ghép ngày giờ sai định dạng nên sắp sai thứ tự, có thể bỏ sót dòng. Dùng CONVERT(varchar(23), <cột thời gian>, 121)."
+  ```sql
+  SELECT TOP (@pageSize)
+      CONVERT(varchar(10), COALESCE(v.UpdateTime, v.CreateTime), 103) + '_' + v.ID AS __lastKey,  -- sai: ngày trước tháng
+      e.Code AS equipmentCode,
+      v.Name AS vmsName,
+      e.KmNumber AS locationKm,
+      e.MetNumber AS locationMet,
+      e.DirectionId AS direction,
+      e.LaneId AS laneId,
+      v.RowData AS displayContent,
+      v.Url AS displayImageUrl,
+      v.Size AS displaySize,
+      v.Priority AS priority,
+      v.ExecutedDate AS executedTime
+  FROM VmsCurrent v
+  LEFT JOIN TmsEquipment e ON v.EquipmentId = e.ID
+  WHERE CONVERT(varchar(10), COALESCE(v.UpdateTime, v.CreateTime), 103) + '_' + v.ID > @lastKey  -- sai: ngày trước tháng
+  ORDER BY __lastKey ASC
+  ```
+- [ ] **5.9** Có cột mốc nhưng không dùng biến mốc.
+  **Thấy:** "Câu có cột mốc nhưng không dùng biến mốc (nguồn Nối tiếp lần trước theo key) nên lượt nào cũng gửi lại cùng dữ liệu…"
+  ```sql
+  SELECT TOP (@pageSize)
+      CONVERT(varchar(23), COALESCE(v.UpdateTime, v.CreateTime), 121) + '_' + v.ID AS __lastKey,
+      e.Code AS equipmentCode,
+      v.Name AS vmsName,
+      e.KmNumber AS locationKm,
+      e.MetNumber AS locationMet,
+      e.DirectionId AS direction,
+      e.LaneId AS laneId,
+      v.RowData AS displayContent,
+      v.Url AS displayImageUrl,
+      v.Size AS displaySize,
+      v.Priority AS priority,
+      v.ExecutedDate AS executedTime
+  FROM VmsCurrent v
+  LEFT JOIN TmsEquipment e ON v.EquipmentId = e.ID
+  ORDER BY __lastKey ASC  -- sai: đã bỏ WHERE so với @lastKey
+  ```
+- [ ] **5.10** Cột mốc là cột chuỗi trơn.
+  **Thấy:** "Cột mốc phải viết đúng công thức CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID, phần thời gian phải có CreateTime; viết khác thì có thể bỏ sót dòng." Rê chuột vào **Quy chuẩn mốc**: mục *Có cột mốc* đỏ; bấm **Sửa câu** thì câu về đúng công thức, 3/3 xanh.
+  ```sql
+  SELECT TOP (@pageSize)
+      v.ID AS __lastKey,  -- sai: cột chuỗi trơn
+      e.Code AS equipmentCode,
+      v.Name AS vmsName,
+      e.KmNumber AS locationKm,
+      e.MetNumber AS locationMet,
+      e.DirectionId AS direction,
+      e.LaneId AS laneId,
+      v.RowData AS displayContent,
+      v.Url AS displayImageUrl,
+      v.Size AS displaySize,
+      v.Priority AS priority,
+      v.ExecutedDate AS executedTime
+  FROM VmsCurrent v
+  LEFT JOIN TmsEquipment e ON v.EquipmentId = e.ID
+  WHERE v.ID > @lastKey  -- sai: cột chuỗi trơn
+  ORDER BY __lastKey ASC
+  ```
+- [ ] **5.11** Ép số sang chuỗi làm cột mốc.
+  **Thấy:** Lỗi như 5.10. **Sửa câu** ghép thời gian trước và giữ phần ép kiểu.
+  ```sql
+  SELECT TOP (@pageSize)
+      CAST(v.Priority AS varchar(10)) AS __lastKey,  -- sai: ép số sang chuỗi
+      e.Code AS equipmentCode,
+      v.Name AS vmsName,
+      e.KmNumber AS locationKm,
+      e.MetNumber AS locationMet,
+      e.DirectionId AS direction,
+      e.LaneId AS laneId,
+      v.RowData AS displayContent,
+      v.Url AS displayImageUrl,
+      v.Size AS displaySize,
+      v.Priority AS priority,
+      v.ExecutedDate AS executedTime
+  FROM VmsCurrent v
+  LEFT JOIN TmsEquipment e ON v.EquipmentId = e.ID
+  WHERE CAST(v.Priority AS varchar(10)) > @lastKey  -- sai: ép số sang chuỗi
+  ORDER BY __lastKey ASC
+  ```
+- [ ] **5.12** Phần thời gian không có `CreateTime`.
+  **Thấy:** Lỗi như 5.10. **Sửa câu** đổi thành `COALESCE(v.ExecutedDate, v.CreateTime)`.
+  ```sql
+  SELECT TOP (@pageSize)
+      CONVERT(varchar(23), v.ExecutedDate, 121) + '_' + v.ID AS __lastKey,  -- sai: không có CreateTime
+      e.Code AS equipmentCode,
+      v.Name AS vmsName,
+      e.KmNumber AS locationKm,
+      e.MetNumber AS locationMet,
+      e.DirectionId AS direction,
+      e.LaneId AS laneId,
+      v.RowData AS displayContent,
+      v.Url AS displayImageUrl,
+      v.Size AS displaySize,
+      v.Priority AS priority,
+      v.ExecutedDate AS executedTime
+  FROM VmsCurrent v
+  LEFT JOIN TmsEquipment e ON v.EquipmentId = e.ID
+  WHERE CONVERT(varchar(23), v.ExecutedDate, 121) + '_' + v.ID > @lastKey  -- sai: không có CreateTime
+  ORDER BY __lastKey ASC
+  ```
+
+- [ ] **5.13** Phần khóa là cột có thể trống.
+  **Thấy:** Lỗi như 5.10. **Sửa câu** đổi phần khóa thành `v.ID`.
+  ```sql
+  SELECT TOP (@pageSize)
+      CONVERT(varchar(23), COALESCE(v.UpdateTime, v.CreateTime), 121) + '_' + v.Name AS __lastKey,  -- sai: Name có thể trống
+      e.Code AS equipmentCode,
+      v.Name AS vmsName,
+      e.KmNumber AS locationKm,
+      e.MetNumber AS locationMet,
+      e.DirectionId AS direction,
+      e.LaneId AS laneId,
+      v.RowData AS displayContent,
+      v.Url AS displayImageUrl,
+      v.Size AS displaySize,
+      v.Priority AS priority,
+      v.ExecutedDate AS executedTime
+  FROM VmsCurrent v
+  LEFT JOIN TmsEquipment e ON v.EquipmentId = e.ID
+  WHERE CONVERT(varchar(23), COALESCE(v.UpdateTime, v.CreateTime), 121) + '_' + v.Name > @lastKey  -- sai: Name có thể trống
+  ORDER BY __lastKey ASC
+  ```
+- [ ] **5.14** Câu dùng `OFFSET`.
+  **Thấy:** "Câu nối đuôi không được dùng OFFSET…", câu không được lưu.
+  ```sql
+  SELECT
+      CONVERT(varchar(23), COALESCE(v.UpdateTime, v.CreateTime), 121) + '_' + v.ID AS __lastKey,
+      e.Code AS equipmentCode,
+      v.Name AS vmsName,
+      e.KmNumber AS locationKm,
+      e.MetNumber AS locationMet,
+      e.DirectionId AS direction,
+      e.LaneId AS laneId,
+      v.RowData AS displayContent,
+      v.Url AS displayImageUrl,
+      v.Size AS displaySize,
+      v.Priority AS priority,
+      v.ExecutedDate AS executedTime
+  FROM VmsCurrent v
+  LEFT JOIN TmsEquipment e ON v.EquipmentId = e.ID
+  WHERE CONVERT(varchar(23), COALESCE(v.UpdateTime, v.CreateTime), 121) + '_' + v.ID > @lastKey
+  ORDER BY __lastKey ASC
+  OFFSET 1 ROWS FETCH NEXT @pageSize ROWS ONLY  -- sai: dòng bị bỏ qua không bao giờ được gửi
+  ```
+- [ ] **5.15** Gộp hai nguồn bằng `UNION` dùng chung `@lastKey`.
+  **Thấy:** "Câu gộp nhiều nguồn không dùng chung một mốc…", câu không được lưu.
+  ```sql
+  SELECT TOP (@pageSize) u.__lastKey, u.vmsName
+  FROM (
+      SELECT CONVERT(varchar(23), COALESCE(v.UpdateTime, v.CreateTime), 121) + '_' + v.ID AS __lastKey, v.Name AS vmsName
+      FROM VmsCurrent v
+      WHERE CONVERT(varchar(23), COALESCE(v.UpdateTime, v.CreateTime), 121) + '_' + v.ID > @lastKey
+      UNION ALL  -- sai: hai nguồn dùng chung một mốc
+      SELECT CONVERT(varchar(23), COALESCE(e.UpdateTime, e.CreateTime), 121) + '_' + e.ID, e.Code
+      FROM TmsEquipment e
+      WHERE CONVERT(varchar(23), COALESCE(e.UpdateTime, e.CreateTime), 121) + '_' + e.ID > @lastKey
+  ) u
+  ORDER BY u.__lastKey ASC
+  ```
+- [ ] **5.16** Câu con có `TOP` sắp theo cột khác cột mốc (dạng mẫu của sếp).
+  **Thấy:** "Câu con có TOP phải sắp tăng dần theo cột mốc…", câu không được lưu.
+  ```sql
+  SELECT T.__lastKey, T.vmsName
+  FROM (
+      SELECT TOP (@pageSize) CONVERT(varchar(23), COALESCE(v.UpdateTime, v.CreateTime), 121) + '_' + v.ID AS __lastKey, v.Name AS vmsName
+      FROM VmsCurrent v
+      WHERE CONVERT(varchar(23), COALESCE(v.UpdateTime, v.CreateTime), 121) + '_' + v.ID > @lastKey
+      ORDER BY v.ExecutedDate  -- sai: câu con chọn dòng theo cột khác cột mốc
+  ) T
+  ORDER BY T.__lastKey ASC
+  ```
 
 **Thấy chung:** chọn lại gói thì câu và bảng tham số vẫn là bản cũ.
 
@@ -272,13 +468,26 @@ Cấu hình cũ của Đạt (API `localhost:9999`) không có gì nghe trên m�
 
 ## 11. Nhiều Worker trên máy chủ *(làm khi triển khai)*
 
-Mục tiêu: khởi động nhiều dịch vụ trên máy chủ mà vẫn chạy đúng, chưa cần đo tải. Cách cài xem MasterPlan mục SV-5.
+Mục tiêu: khởi động nhiều dịch vụ trên máy chủ mà vẫn chạy đúng, chưa cần đo tải. Các bước clone ở `bangiao/HUONG-DAN-CLONE-WORKER.md`.
 
-- [ ] **11.1** Cài 4 dịch vụ `SendOnly` (`A101` đến `A104`) và 1 dịch vụ `ReceiveOnly`, cùng CSDL. Khởi động cả 5.
+- [ ] **11.0** Tạo và khởi động thử một dịch vụ `ShareDataWorker-A101`.
+  **Thấy:** `sc.exe query ShareDataWorker-A101` báo `RUNNING`, sau 1 phút vẫn `RUNNING`. Nếu không chạy được thì dừng, chưa tạo các dịch vụ còn lại.
+
+- [ ] **11.1** Tạo và khởi động đủ 4 dịch vụ `SendOnly` (`A101` đến `A104`) và 1 dịch vụ `ReceiveOnly`, cùng CSDL.
   **Thấy:** cả 5 dịch vụ chạy, không tự dừng; log không có lỗi kết nối hay lỗi vai trò.
 - [ ] **11.2** Bật đăng ký gửi của 4 đối tác, chờ vài lượt.
-  **Thấy:** `ShareDataInboundPacket` có gói của đủ 4 đối tác, tất cả `Done`; dữ liệu mỗi đối tác đủ, không trùng, không lẫn nhau; **Cảnh báo & lỗi** không có `ESH-15xx` mới.
+  **Thấy:** **Lịch sử chia sẻ → Nhật ký truyền nhận** có lượt gửi thành công của đủ 4 đối tác; **Cảnh báo & lỗi** không có cảnh báo mới; dữ liệu mỗi đối tác đủ, không lẫn nhau.
 - [ ] **11.3** Dừng rồi khởi động lại một dịch vụ gửi. **Thấy:** gửi tiếp từ mốc, không gửi lại từ đầu.
+
+## 12. Trang Mốc gửi *(làm trước mục 10, khi Đạt còn cấu hình riêng gói 108)*
+
+- [ ] **12.1** Chạy tệp seed số 13 `sharedata-seed-menu-SysMenu.sql` trên DB dev, rồi tải lại trang. **Thấy:** menu **Chia sẻ dữ liệu → Mốc gửi**.
+- [ ] **12.2** Mở **Mốc gửi**, chọn gói 108 khi đăng ký gửi của Đạt đang bật.
+  **Thấy:** dòng Đạt có nhãn **Cấu hình riêng**, hiện mốc đang chạy; **✎ Đặt mốc** và **↺ Đặt lại** mờ, rê chuột báo phải tắt đăng ký trước.
+- [ ] **12.3** Tắt đăng ký, bấm làm mới, **✎ Đặt mốc**, chọn một ngày giờ → **Xác nhận**.
+  **Thấy:** "Đã cập nhật mốc gửi dữ liệu cho đối tác."; cột mốc thành `<giờ đã chọn>.000_`.
+- [ ] **12.4** **↺ Đặt lại** → xác nhận. **Thấy:** "Đã đặt lại mốc đã lưu."; dòng Đạt ghi "Chưa có mốc".
+- [ ] **12.5** Bật lại đăng ký, chờ một lượt. **Thấy:** gửi lại từ **Mốc lần đầu**, bấm làm mới thì mốc đã tiến.
 
 ---
 
@@ -286,8 +495,10 @@ Mục tiêu: khởi động nhiều dịch vụ trên máy chủ mà vẫn chạ
 
 | Tình huống | Vì sao không làm tay được |
 |:--|:--|
-| Xem mốc đang chạy, Đặt mốc, Đặt lại | Làm ở trang **Mốc gửi**, chưa khai menu và không bàn giao |
 | Câu riêng còn `@lastTime` sửa bằng nút **Sửa câu** | Sau tệp D2, DB dev không còn câu dạng này để thử |
 | Dữ liệu nguồn mới hoặc vừa sửa thì được gửi tiếp | `VmsCurrent` chỉ đổi khi gửi nội dung xuống biển VMS thật; không làm trong lúc test |
 | Tắt đăng ký rồi bấm Đặt mốc / Đặt lại đúng lúc Worker đang gửi dở | Kênh File gửi xong ngay, không kịp bấm |
 | Câu bị sửa thẳng trong CSDL (cảnh báo ESH-1306, ESH-1308) | Phải sửa ngoài màn hình |
+| `JOIN` nhân dòng làm trùng giá trị cột mốc (cảnh báo ESH-1309) | Cần dữ liệu một cha nhiều con; bảng trong kịch bản không có |
+| Xóa rồi tạo lại đối tác, gói tin cùng mã thì gửi lại từ đầu | Làm được nhưng phải xóa cấu hình đang dùng để test |
+| API từ chối đổi mã đối tác | Giao diện đã khóa ô mã |
