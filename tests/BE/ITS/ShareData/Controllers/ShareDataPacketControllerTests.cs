@@ -2672,6 +2672,44 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
 
     /// <summary>
     /// Author: DatHQ
+    /// Description: Tách cấu hình riêng mà câu riêng đọc bảng nguồn khác, giữ nguyên công thức cột mốc: mốc đang chạy của đối tác tính theo bảng cũ
+    ///              nên lần đầu không tạo câu riêng, trả RequiresConfirm kèm đối tác đó; gửi lại với Force thì tạo câu riêng và xóa mốc của đối tác.
+    /// Created date: 06/11/2026
+    /// </summary>
+    [Fact]
+    public async Task UpdatePartnerExtractSql_WhenSplitReadsOtherSourceTable_RequiresConfirmThenResetsCursorWithForce_Test()
+    {
+        // Arrange
+        SetUserContext(isSuperAdmin: true, account: $"super_{Guid.NewGuid():N}");
+        using var scope = _host.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var db = services.GetRequiredService<ISqlSugarClient>();
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var (packet, partner) = await SeedSqlVariablePacketAsync(db, unique);
+        await services.CallApiAsync<PacketSqlVariablesOutput>(new UpdatePacketSqlVariablesInput { PacketCode = packet.Code!, Items = [BuiltinVar("lastKey", "", "lastKey")] });
+        await services.CallApiAsync<PacketExtractSqlOutput>(new UpdatePacketExtractSqlInput { PacketCode = packet.Code!, ExtractSql = CursorCreateTimeSql });
+        await SeedCursorAsync(db, partner, packet, unique);
+        const string key = "CONVERT(varchar(23), CreateTime, 121) + '_' + ID";
+        const string otherTableSql = $"SELECT TOP 10 ID AS statusId, {key} AS __lastKey FROM TmsZoneStatus WHERE {key} > @lastKey ORDER BY __lastKey ASC";
+
+        // Act
+        var pending = await services.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput { PartnerId = partner.ID, PacketCode = packet.Code!, ExtractSql = otherTableSql });
+        var customAfterPending = await db.Queryable<ShareDataSql>().Where(s => s.PacketId == packet.ID && s.PartnerId == partner.ID).AnyAsync();
+        var cursorAfterPending = await HasCursorAsync(db, partner, packet);
+        var forced = await services.CallApiAsync<PartnerExtractSqlOutput>(new UpdatePartnerExtractSqlInput { PartnerId = partner.ID, PacketCode = packet.Code!, ExtractSql = otherTableSql, Force = true });
+
+        // Assert
+        Assert.True(pending.RequiresConfirm);
+        Assert.Single(pending.CursorResetPartners, p => p.PartnerId == partner.ID);
+        Assert.False(customAfterPending);
+        Assert.True(cursorAfterPending);
+        Assert.False(forced.RequiresConfirm);
+        Assert.Equal(otherTableSql, forced.CustomSql);
+        Assert.False(await HasCursorAsync(db, partner, packet));
+    }
+
+    /// <summary>
+    /// Author: DatHQ
     /// Description: Đổi công thức ở mẫu chung chỉ ảnh hưởng đối tác dùng mẫu chung và đang có mốc: hộp xác nhận nêu đúng đối tác đó, đồng ý thì xóa mốc của đối tác đó;
     ///              đối tác dùng mẫu chung chưa có mốc không bị hỏi, đối tác có cấu hình riêng giữ mốc và câu riêng.
     /// Created date: 05/11/2026
@@ -2714,15 +2752,21 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
     /// <summary>
     /// Author: DatHQ
     /// Description: Sửa câu mẫu chung mà công thức cột mốc giữ nguyên thì không hỏi, không ai bị đặt lại mốc: thêm cột, thêm JOIN, đổi bí danh bảng,
-    ///              đổi khoảng trắng, chú thích, hoa thường. Đổi từ câu một nhóm sang câu hai nhóm là đổi công thức nên hỏi xác nhận, đồng ý thì mốc cũ bị xóa.
+    ///              đổi khoảng trắng, chú thích, hoa thường, viết lại công thức một lần trong câu con. Đổi từ câu một nhóm sang câu hai nhóm, đổi công thức
+    ///              viết trong câu con, đổi bảng nguồn mà giữ công thức, hoặc lấy cột mốc từ bảng JOIN khác là đổi cột mốc nên hỏi xác nhận, đồng ý thì mốc cũ bị xóa.
     /// Created date: 05/11/2026
+    /// Modified date: 06/11/2026
     /// </summary>
     [Theory]
     [InlineData("themCot", false)]
     [InlineData("themJoin", false)]
     [InlineData("doiBiDanh", false)]
     [InlineData("doiKhoangTrangChuThichHoaThuong", false)]
+    [InlineData("vietLaiCauCon", false)]
     [InlineData("sangHaiNhom", true)]
+    [InlineData("doiCongThucTrongCauCon", true)]
+    [InlineData("doiBangNguon", true)]
+    [InlineData("cotMocTuBangJoin", true)]
     public async Task UpdateExtractSql_WhenSqlEditedOrSplitIntoGroups_ConfirmsOnlyFormulaChange_Test(string edit, bool expectConfirm)
     {
         // Arrange
@@ -2737,7 +2781,9 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
         await SeedCursorAsync(db, partner, packet, unique);
         const string key = "CONVERT(varchar(23), CreateTime, 121) + '_' + ID";
         const string aliasKey = "CONVERT(varchar(23), z.CreateTime, 121) + '_' + z.ID";
+        const string updateKey = "CONVERT(varchar(23), COALESCE(UpdateTime, CreateTime), 121) + '_' + ID";
         var renamedKey = aliasKey.Replace("z.", "k.");
+        var joinedKey = aliasKey.Replace("z.", "s.");
         var sql = edit switch
         {
             "themCot" => $"SELECT TOP 10 ID AS zoneId, Code AS zoneCode, {key} AS __lastKey FROM TmsZone WHERE {key} > @lastKey ORDER BY __lastKey ASC",
@@ -2745,6 +2791,10 @@ public class ShareDataPacketControllerTests(Host host) : IAsyncLifetime
             "doiBiDanh" => $"SELECT TOP 10 k.ID AS zoneId, {renamedKey} AS __lastKey FROM TmsZone k WHERE {renamedKey} > @lastKey ORDER BY __lastKey ASC",
             "doiKhoangTrangChuThichHoaThuong" => "SELECT TOP 10 ID AS zoneId, convert( varchar(23),  CreateTime , 121 ) /* mốc */ + '_' + id AS __lastKey FROM TmsZone "
                 + "WHERE convert( varchar(23), CreateTime, 121 ) + '_' + id > @lastKey ORDER BY __lastKey ASC",
+            "vietLaiCauCon" => $"SELECT TOP 10 x.zoneId, x.__lastKey FROM (SELECT ID AS zoneId, {key} AS __lastKey FROM TmsZone) x WHERE x.__lastKey > @lastKey ORDER BY x.__lastKey ASC",
+            "doiCongThucTrongCauCon" => $"SELECT TOP 10 x.zoneId, x.__lastKey FROM (SELECT ID AS zoneId, {updateKey} AS __lastKey FROM TmsZone) x WHERE x.__lastKey > @lastKey ORDER BY x.__lastKey ASC",
+            "doiBangNguon" => $"SELECT TOP 10 ID AS statusId, {key} AS __lastKey FROM TmsZoneStatus WHERE {key} > @lastKey ORDER BY __lastKey ASC",
+            "cotMocTuBangJoin" => $"SELECT TOP 10 z.ID AS zoneId, {joinedKey} AS __lastKey FROM TmsZone z JOIN TmsZoneStatus s ON s.ZoneId = z.ID WHERE {joinedKey} > @lastKey ORDER BY __lastKey ASC",
             _ => "SELECT TOP 10 u.zoneId, u.__lastKey_upd, u.__lastKey_new FROM ("
                 + "SELECT ID AS zoneId, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS sortKey, CONVERT(varchar(23), UpdateTime, 121) + '_' + ID AS __lastKey_upd, CAST(NULL AS nvarchar(100)) AS __lastKey_new FROM TmsZone "
                 + "WHERE CONVERT(varchar(23), UpdateTime, 121) + '_' + ID > @lastKey_upd "

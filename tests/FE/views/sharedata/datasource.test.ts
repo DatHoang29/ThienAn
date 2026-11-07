@@ -591,6 +591,70 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect.poll(() => detailCalls, { timeout: 10_000 }).toBeGreaterThan(0);
     });
 
+    test('50b. Đổi từ tab khác về Cấu hình gói tin (không có liên kết gói): khung phải ở trạng thái trống, không hiện sẵn câu truy vấn cũ', async ({ page }) => {
+        await page.route('**/api/system/sysmenu/loginmenutree*', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    code: 200,
+                    result: [
+                        {
+                            id: 'menu_sharedata',
+                            pid: '0',
+                            path: '/sharedata',
+                            name: 'sharedata',
+                            component: 'layout/routerView/parent',
+                            meta: { title: 'lz.menu.sharedata', isLink: '', isHide: false, isKeepAlive: true, isAffix: false, isIframe: false, roles: ['admin'], icon: 'ele-Share' },
+                            children: [
+                                {
+                                    id: 'menu_sharedata_datasource',
+                                    pid: 'menu_sharedata',
+                                    path: '/sharedata/dataSource',
+                                    name: 'sharedataDataSource',
+                                    component: 'sharedata/dataSource/index',
+                                    meta: { title: 'lz.menu.sharedataDataSource', isLink: '', isHide: false, isKeepAlive: true, isAffix: false, isIframe: false, roles: ['admin'], icon: 'ele-Coin' },
+                                },
+                                {
+                                    id: 'menu_sharedata_cursor',
+                                    pid: 'menu_sharedata',
+                                    path: '/shareData/cursor',
+                                    name: 'sharedataCursor',
+                                    component: 'sharedata/cursor/index',
+                                    meta: { title: 'lz.menu.sharedataCursor', isLink: '', isHide: false, isKeepAlive: true, isAffix: false, isIframe: false, roles: ['admin'], icon: 'ele-Aim' },
+                                },
+                            ],
+                        },
+                    ],
+                }),
+            });
+        });
+        await page.route('**/api/sharedata/sharedatapacket/getpartnersqllist*', (r) =>
+            r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: [] }) })
+        );
+        await page.route('**/api/sharedata/sharedataconfig/pagelist*', (r) =>
+            r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: { rows: [], total: 0 } }) })
+        );
+
+        await page.setViewportSize({ width: 1600, height: 900 });
+        await page.goto('/#/sharedata/dataSource');
+        const firstRow = page.locator('.packet-col .vxe-table--main-wrapper .vxe-body--row').first();
+        await expect(firstRow).toBeVisible({ timeout: 30_000 });
+
+        // Chọn 1 gói: khung phải nạp chi tiết
+        await firstRow.click();
+        await expect(page.locator('.field-col .packet-details-wrapper')).toBeVisible({ timeout: 10_000 });
+
+        // Chuyển sang tab Mốc gửi rồi quay lại Cấu hình gói tin
+        await page.goto('/#/shareData/cursor');
+        await expect(page.locator('#sharedata-cursor-search')).toBeVisible({ timeout: 15_000 });
+        await page.goto('/#/sharedata/dataSource');
+
+        // Khung phải quay về trạng thái trống chờ chọn gói, không hiện sẵn truy vấn cũ
+        await expect(page.locator('.field-col .empty-placeholder')).toBeVisible({ timeout: 10_000 });
+        await expect(page.locator('.field-col .packet-details-wrapper')).toHaveCount(0);
+    });
+
     /**
      * Description: Luồng khóa nối đuôi @lastKey (Adaptive UI):
      *              - Tab Mẫu chung chỉ hiện 3 cột tham số (ẩn Mốc đang chạy), hiển thị badge tự động tịnh tiến + tag khớp __lastKey + ô Mốc bắt đầu;
@@ -2567,6 +2631,78 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect(lead).toContainText('(3/3)', { timeout: 10_000 });
         await expect(table.locator('tbody tr', { hasText: '@lastTime' })).toHaveCount(0);
         await expect(table.locator('.svp-param-code')).toHaveText(['@pageSize', '@lastKey']);
+    });
+
+    /**
+     * Description: Tab cấu hình riêng của đối tác, đổi nguồn @lastKey sang Giá trị nhập thì Quy chuẩn mốc còn 2/3;
+     *              bấm Sửa câu trong popup thì @lastKey trở lại Nối tiếp lần trước theo key và đạt đủ 3/3.
+     * Created date: 06/11/2026
+     */
+    test('63c. Cấu hình riêng: đổi @lastKey sang Giá trị nhập rồi bấm Sửa câu thì @lastKey trở lại nối tiếp theo key, đạt 3/3', async ({ page }) => {
+        const key = "CONVERT(varchar(23), COALESCE(zs.UpdateTime, zs.CreateTime), 121) + '_' + zs.ID";
+        const sql = `SELECT TOP (@pageSize) ${key} AS __lastKey, zs.ID AS zoneStatusId FROM TmsZoneStatus zs WHERE ${key} > @lastKey ORDER BY __lastKey ASC`;
+        const items = [
+            { code: 'pageSize', dataType: 'Int', valueKind: 'Const', value: '100', defaultValue: null, savedValue: null },
+            { code: 'lastKey', dataType: 'String', valueKind: 'Builtin', value: 'lastKey', defaultValue: null, savedValue: null },
+        ];
+        const fields = [{ key: 'zoneStatusId', type: 'string', label: 'Mã trạng thái', required: true }];
+        const fulfill = (route: any, result: unknown) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result }) });
+        const pageErrors: string[] = [];
+        page.on('pageerror', (err) => pageErrors.push(err.message));
+
+        await page.route('**/api/sharedata/sharedatapacket/getsqldetail*', (route) =>
+            fulfill(route, {
+                extract: { extractSql: sql, status: 1, fields },
+                variables: { items },
+                write: { packetCode: '101_commonData', writeSql: '', affectedTables: [], detectedTables: [], keyFields: [] },
+            })
+        );
+        await page.route('**/api/sharedata/sharedatapacket/getpartnersqllist*', (route) =>
+            fulfill(route, [{ partnerId: 'p_pc08', partnerCode: 'PC08', partnerName: 'Phòng Cảnh sát giao thông', isCustom: true, updateTime: '2026-11-06T07:00:00Z' }])
+        );
+        await page.route('**/api/sharedata/sharedatapacket/getsqlvariables*', (route) => fulfill(route, { items }));
+        await page.route('**/api/sharedata/sharedatapacket/getpartnerextractsql*', (route) =>
+            fulfill(route, { isCustom: true, customSql: sql, standardSql: sql, fields, commonFields: fields })
+        );
+        await page.route('**/api/sharedata/sharedatasubscription/list*', (route) => fulfill(route, []));
+
+        await page.setViewportSize({ width: 1600, height: 950 });
+        await page.goto('/#/sharedata/dataSource');
+        const firstRow = page.locator('.packet-col .vxe-table--main-wrapper .vxe-body--row').first();
+        await expect(firstRow).toBeVisible({ timeout: 30_000 });
+        await firstRow.click();
+        await page.locator('.sql-partner-tabs .el-tabs__item').filter({ hasText: 'PC08' }).first().click();
+
+        const panel = page.locator('.sql-variable-panel');
+        const lead = panel.locator('.svp-check-lead');
+        const lastKeyRow = panel.locator('.svp-table').first().locator('tbody tr', { hasText: '@lastKey' });
+        await expect(lead).toContainText('(3/3)', { timeout: 10_000 });
+
+        // Màu icon trong danh sách chọn trùng với icon ở ô đã chọn (key cam, giá trị nhập xanh)
+        const colorOf = (el: Element) => getComputedStyle(el).color;
+        const selectedKeyColor = await lastKeyRow.locator('.svp-source-prefix').evaluate(colorOf);
+        const pageSizeConstColor = await panel.locator('.svp-table').first().locator('tbody tr', { hasText: '@pageSize' }).locator('.svp-source-prefix').evaluate(colorOf);
+        expect(selectedKeyColor).not.toBe(pageSizeConstColor);
+        await lastKeyRow.locator('.svp-source-select').click();
+        const optionIcons = page.locator('.svp-source-popper:visible .svp-source-opt-icon');
+        await expect(optionIcons).toHaveCount(2);
+        expect(await optionIcons.locator('xpath=self::*[contains(@class,"is-key")]').evaluate(colorOf)).toBe(selectedKeyColor);
+        expect(await optionIcons.locator('xpath=self::*[contains(@class,"is-const")]').evaluate(colorOf)).toBe(pageSizeConstColor);
+
+        // Đổi nguồn @lastKey sang Giá trị nhập như thao tác của người dùng
+        await page.locator('.el-select-dropdown__item:visible', { hasText: 'Giá trị nhập' }).click();
+        await expect(lastKeyRow).toContainText('Giá trị nhập');
+        await expect(lead).toContainText('(2/3)');
+
+        // Bấm Sửa câu trong popup Quy chuẩn mốc
+        await lead.hover();
+        const popover = page.locator('.svp-popover-content');
+        await expect(popover.locator('.svp-popover-item', { hasText: 'Chỉ lọc mốc theo @lastKey' })).toHaveClass(/is-fail/);
+        await popover.locator('.svp-fix-all').click();
+
+        await expect(lead).toContainText('(3/3)', { timeout: 10_000 });
+        await expect(lastKeyRow).toContainText('Nối tiếp lần trước theo key');
+        expect(pageErrors).toEqual([]);
     });
 
     /**

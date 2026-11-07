@@ -9,7 +9,7 @@
 
 | Loại | Vị trí / tên tệp | Chạy trên DB nào | Nội dung |
 | :--- | :--- | :--- | :--- |
-| **Dữ liệu chuẩn** | `sql/sharedata-…sql` (**không** có `_local`) | **Mọi DB**: local, dev, staging, production. DB local cũng phải chạy đủ tệp 1 → 15 | Dữ liệu hệ thống cần để chạy: gói 101–111, câu SQL mẫu, mã lỗi, bảng nguồn, cấu hình, bản dịch, chuyển đổi mốc, đối tác, hồ sơ ánh xạ |
+| **Dữ liệu chuẩn** | `sql/sharedata-…sql` (**không** có `_local`) | **Mọi DB**: local, dev, staging, production. DB local cũng phải chạy đủ tệp 1 → 16 | Dữ liệu hệ thống cần để chạy: gói 101–111, câu SQL mẫu, mã lỗi, bảng nguồn, cấu hình, bản dịch, chuyển đổi mốc, đối tác, bộ mã chuẩn hóa, hồ sơ ánh xạ |
 | **Dữ liệu giả lập** | `sql/local/…_local.sql` | **Chỉ DB local** trên máy lập trình viên. ⛔ Cấm chạy trên DB ở máy chủ khác (dev chung, staging, UAT, production) | Dữ liệu giả để thử, chạy sau dữ liệu chuẩn |
 
 > Nhớ nhanh: **có `_local` = chỉ DB local**. **Không có `_local` = dữ liệu chuẩn, DB nào cũng chạy, kể cả local.**
@@ -46,7 +46,8 @@
 | **12** | [`sharedata-xoa-bang-cu-ShareDataLastSendKey.sql`](sharedata-xoa-bang-cu-ShareDataLastSendKey.sql) | `ShareDataLastSendKey` | Xóa bảng cũ `ShareDataLastSendKey` sau khi đã gộp cột `CursorKey` vào `ShareDataLastSend` (chặn bằng `SET NOEXEC ON` nếu cột `CursorKey` chưa có hoặc còn dòng chưa chuyển). **Chạy sau tệp 11.** |
 | **13** | [`sharedata-seed-menu-SysMenu.sql`](sharedata-seed-menu-SysMenu.sql) | `SysMenu` | Cấu hình menu phân hệ ShareData dạng tab (`tabPage/index`) gồm 2 nhóm: **Cấu hình chia sẻ** (Cấu hình, Cấu hình gói tin, Ánh xạ dữ liệu, Bộ mã Chuẩn hóa, Mốc gửi, Nguồn sự kiện) và **Theo dõi chia sẻ** (Lịch sử chia sẻ, Cảnh báo & lỗi); chuyển các menu chức năng thành tab con (giữ nguyên ID), thêm menu Mốc gửi nếu chưa có. Chạy lại an toàn. |
 | **14** | [`sharedata-seed-doi-tac-ShareDataPartner.sql`](sharedata-seed-doi-tac-ShareDataPartner.sql) | `ShareDataPartner` | Tạo 2 đối tác `PC08` (Phòng Cảnh sát giao thông) và `TTDHT` (Trung tâm điều hành tuyến) nếu chưa có đối tác đang sống cùng mã. Chưa có địa chỉ kết nối nên để trống `Address`, `Port`, `EndPointApiUrl`; đối tác để bật vì màn hình Cấu hình chia sẻ ẩn đối tác tắt (chưa có đăng ký nên Worker chưa gửi gì). Nhập địa chỉ bằng nút sửa đối tác. Chạy lại an toàn; dòng do bản trước của tệp tạo ở trạng thái tắt, chưa ai sửa, sẽ được bật lên. |
-| **15** | [`sharedata-seed-anh-xa-ShareDataMapping.sql`](sharedata-seed-anh-xa-ShareDataMapping.sql) | `ShareDataMapping` | Tạo hồ sơ ánh xạ đang bật cho `PC08`, `TTDHT` × gói 101–110 × 2 chiều tách riêng (`..._OUT`, `..._IN`), tối đa 40 hồ sơ; gói đã xóa thì bỏ qua và in tên. Chưa có mẫu JSON của đối tác nên bộ khung dạng `header` (4 giá trị hệ thống `Now`, `Serial`, `PacketCode`, `PartnerCode`) + mảng `data` giữ nguyên tên trường của câu SQL mẫu chuẩn tệp 2. Có hồ sơ cùng mã hoặc cùng đối tác × gói × chiều đang bật thì không ghi đè. **Chạy sau tệp 1 và 14.** |
+| **15** | [`sharedata-seed-bo-ma-ShareDataCodeSet.sql`](sharedata-seed-bo-ma-ShareDataCodeSet.sql) | `ShareDataCodeSet` | Nạp 9 bộ mã chuẩn hóa (`traffic_condition`, `lane_code`, `device_state`, `vds_vehicle_class`, `toll_vehicle_type`, `incident_direction`, `incident_state`, `incident_source`, và `incident_type` đọc từ `TmsEventType`); dọn mềm dòng thử nghiệm cũ `condition` nếu không có hồ sơ ánh xạ đang sống tham chiếu. Không ghi đè bộ mã quản trị đã sửa khi `@GhiDeBoMaMau = 0`. **Chạy trước tệp 16.** |
+| **16** | [`sharedata-seed-anh-xa-ShareDataMapping.sql`](sharedata-seed-anh-xa-ShareDataMapping.sql) | `ShareDataMapping` | Xóa mềm hồ sơ ánh xạ thừa của `PC08`, `TTDHT`; tạo/cập nhật 3 hồ sơ gói `101_commonData` đang bật (`PC08_101COMMONDATA_OUT`, `PC08_101COMMONDATA_IN`, `TTDHT_101COMMONDATA_IN`) áp dụng bộ mã chuẩn hóa `lane_code` (cho `laneId`) và `traffic_condition` (cho `trafficCondition`). Hồ sơ quản trị đã sửa tay trên giao diện được giữ nguyên khi `@GhiDeAnhXaMau = 0`. **Chạy sau tệp 2, 14 và 15.** |
 
 ### C. Dọn một lần trên DB cũ
 
@@ -84,11 +85,11 @@ Chỉ giả lập bảng nghiệp vụ ShareData; không ghi vào bảng của p
 > 🔴 **Nguyên tắc cốt lõi (Rule 19.85):** Entity là SSOT cho cấu trúc bảng và index. CodeFirst tạo khung trước (`TableSettings.EnableInitTable = true`), script SQL chỉ seed dữ liệu. Tuyệt đối **KHÔNG** `CREATE TABLE`, `ALTER TABLE ... ADD`, `CREATE INDEX` cho bảng đã có entity.
 
 ```
-CodeFirst tạo khung ➔ 1 ➔ 2 ➔ 4 ➔ 5 ➔ 6 ➔ 7 ➔ 10 ➔ 11 ➔ 12 ➔ 13 ➔ 14 ➔ 15 ➔ (tùy chọn) G1 ➔ G2
+CodeFirst tạo khung ➔ 1 ➔ 2 ➔ 4 ➔ 5 ➔ 6 ➔ 7 ➔ 10 ➔ 11 ➔ 12 ➔ 13 ➔ 14 ➔ 15 ➔ 16 ➔ (tùy chọn) G1 ➔ G2
 ```
 
 1. **Bước 0 — CodeFirst:** khởi động WebAPI (bật tạm `TableSettings.EnableInitTable = true` trong cấu hình debug local) để tạo đủ bảng và index, gồm `ShareDataSql` (câu SQL, bộ biến `VariablesJson`, danh sách trường `FieldsJson` và câu ghi `WriteSql`, unique theo gói + đối tác), `ShareDataLastSend` (mốc nối đuôi nhóm mặc định và nhóm có tên theo `CursorKey`, unique `index_ShareDataLastSend_Partner_Packet_Key` trên `(PartnerCode, PacketCode, CursorKey)`), `ShareDataSourceTable` (unique `UX_ShareDataSourceTable_TableName`).
-2. **Bước 1 — chạy tệp 1 → 15** theo bảng mục 3A, bỏ các dòng gạch ngang (mọi DB, kể cả local). DB cũ còn cột thừa ở `ShareDataPacket` thì chạy thêm tệp D1 ở mục 3C.
+2. **Bước 1 — chạy tệp 1 → 16** theo bảng mục 3A, bỏ các dòng gạch ngang (mọi DB, kể cả local). DB cũ còn cột thừa ở `ShareDataPacket` thì chạy thêm tệp D1 ở mục 3C.
 3. **Bước 2 (tùy chọn, chỉ DB local) — chạy G1 → G2** theo bảng mục 3B.
 
 > 📌 *Lưu ý môi trường Local:* `.vscode/launch.json` ghim các cờ CodeFirst của ConfigId 0 (`DEV_ITS10`) về `false` bằng biến môi trường để bảo vệ CSDL. Khi cần init bảng thì bật tạm thời.

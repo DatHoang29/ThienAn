@@ -309,10 +309,107 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
 
         await expect.poll(() => saved?.extractSql, { timeout: 10_000 }).toBe(VDOT_SQL);
         expect(saved.partnerId).toBe('P1');
-        // Tạo cấu hình riêng không có bước hỏi: công thức cột mốc khác thì máy chủ xóa mốc ngay
-        expect(saved.force).toBe(true);
+        // Lần gửi đầu không kèm force: máy chủ cần bỏ mốc đang chạy thì trả về để hỏi trước (ca 11c)
+        expect(saved.force).toBeFalsy();
         await expect(page.locator('.sql-partner-tabs .el-tabs__item.is-active')).toContainText('DT-DAT');
         await expect(page.locator('.sql-partner-tabs .el-tabs__item').last()).toContainText('DT-DAT');
+    });
+
+    /**
+     * Author: DatHQ
+     * Description: Tạo cấu hình riêng chép từ câu của đối tác khác có công thức cột mốc khác câu đối tác đang chạy: máy chủ báo
+     *              mốc đang chạy sẽ bị bỏ thì hỏi xác nhận kèm tên đối tác. Hủy thì không ghi gì (không lưu bộ biến riêng, không gửi force,
+     *              không mở tab); đồng ý thì gửi lại với force, bộ biến của đối tác nguồn đi kèm câu SQL trong cùng một lần lưu.
+     * Created date: 06/11/2026
+     */
+    test('11c. Sao chép cấu hình riêng khác công thức cột mốc: hỏi xác nhận bỏ mốc, hủy thì không ghi gì, đồng ý thì gửi lại với force', async ({ page }) => {
+        const VDOT_SQL = `${SQL_ONE_COLUMN} WHERE td.Speed > 0`;
+        const VDOT_VARS = [
+            { code: 'lastKey', dataType: 'String', valueKind: 'Builtin', value: 'lastKey', defaultValue: '2026-11-01 00:00:00.000_' },
+            { code: 'pageSize', dataType: 'Int', valueKind: 'Const', value: '50' },
+        ];
+        let created = false;
+        const partnerIdOf = (url: string) => {
+            const query = new URL(url).searchParams;
+            return query.get('partnerId') ?? query.get('PartnerId');
+        };
+        await page.route('**/api/sharedata/sharedatapacket/getpartnersqllist*', (r) =>
+            r.fulfill(
+                json({
+                    code: 200,
+                    result: [
+                        { partnerId: 'P1', partnerCode: 'DT-DAT', partnerName: 'Đạt', isCustom: created },
+                        { partnerId: 'P2', partnerCode: 'VDOT', partnerName: 'VDOT', isCustom: true },
+                    ],
+                })
+            )
+        );
+        await page.route('**/api/sharedata/sharedatapacket/getpartnerextractsql*', (r) => {
+            const partnerId = partnerIdOf(r.request().url());
+            const customSql = partnerId === 'P2' || created ? VDOT_SQL : null;
+            return r.fulfill(
+                json({
+                    code: 200,
+                    result: { partnerId, packetCode: '101_commonData', standardSql: SQL_ONE_COLUMN, customSql, isCustom: Boolean(customSql), hasDifferences: Boolean(customSql), fields: SAVED_FIELDS },
+                })
+            );
+        });
+        await page.route('**/api/sharedata/sharedatapacket/getsqlvariables*', (r) =>
+            r.fulfill(json({ code: 200, result: { items: partnerIdOf(r.request().url()) === 'P2' ? VDOT_VARS : [] } }))
+        );
+        const variableWrites: any[] = [];
+        await page.route('**/api/sharedata/sharedatapacket/updatesqlvariables*', async (r) => {
+            variableWrites.push(r.request().postDataJSON());
+            await r.fulfill(json({ code: 200, result: { items: [] } }));
+        });
+        const saveBodies: any[] = [];
+        await page.route('**/api/sharedata/sharedatapacket/updatepartnerextractsql*', (r) => {
+            const body = r.request().postDataJSON();
+            saveBodies.push(body);
+            if (body.force) created = true;
+            return r.fulfill(
+                json({
+                    code: 200,
+                    result: body.force
+                        ? { partnerId: 'P1', isCustom: true, customSql: body.extractSql, standardSql: SQL_ONE_COLUMN, fields: SAVED_FIELDS }
+                        : { partnerId: 'P1', isCustom: false, requiresConfirm: true, lost: [], affectedMappings: [], cursorResetPartners: [{ partnerId: 'P1', partnerCode: 'DT-DAT', partnerName: 'Đạt' }] },
+                })
+            );
+        });
+        await openSqlCenter(page);
+        const dialog = page.locator('.partner-setup-dialog');
+        const confirmBox = page.locator('.el-message-box', { has: page.locator('.cursor-reset-confirm') });
+        const createFromVdot = async () => {
+            await page.locator('.add-partner-tab-btn').click();
+            await expect(dialog).toBeVisible();
+            await dialog.locator('.el-radio', { hasText: 'Cấu hình riêng của đối tác' }).click();
+            await expect(dialog.locator('.setup-other-select')).toContainText('VDOT');
+            await dialog.locator('.dialog-footer .el-button--primary').click();
+            await expect(dialog).toBeHidden();
+        };
+
+        // Hủy: không gửi lại với force, không lưu bộ biến riêng, không mở tab đối tác
+        await createFromVdot();
+        await expect(confirmBox).toContainText('Đạt', { timeout: 10_000 });
+        await confirmBox.locator('.el-message-box__btns .el-button').first().click();
+        await expect(confirmBox).toBeHidden();
+        expect(saveBodies).toHaveLength(1);
+        expect(saveBodies[0].force).toBeFalsy();
+        expect(variableWrites).toHaveLength(0);
+        await expect(page.locator('.sql-partner-tabs .el-tabs__item', { hasText: 'DT-DAT' })).toHaveCount(0);
+
+        // Đồng ý: gửi lại với force, bộ biến của VDOT đi kèm câu SQL trong cùng lần lưu
+        await createFromVdot();
+        await expect(confirmBox).toContainText('Đạt', { timeout: 10_000 });
+        await confirmBox.locator('.el-message-box__btns .el-button--primary').click();
+        await expect.poll(() => saveBodies.length, { timeout: 10_000 }).toBe(3);
+        expect(saveBodies[2]).toMatchObject({ partnerId: 'P1', extractSql: VDOT_SQL, force: true });
+        expect(saveBodies[2].variables).toEqual([
+            expect.objectContaining({ code: 'lastKey', valueKind: 'Builtin', defaultValue: '2026-11-01 00:00:00.000_' }),
+            expect.objectContaining({ code: 'pageSize', valueKind: 'Const', value: '50' }),
+        ]);
+        expect(variableWrites).toHaveLength(0);
+        await expect(page.locator('.sql-partner-tabs .el-tabs__item.is-active')).toContainText('DT-DAT');
     });
 
     test('12. Đối tác đã có SQL riêng: hiện tab đối tác, nút Lưu khóa cho tới khi sửa, bảng trường hiện cột So mẫu chung', async ({ page }) => {
@@ -1341,7 +1438,9 @@ test.describe('ShareData — Khung soạn SQL (sqlEditor) @sharedata', () => {
 
         const confirmBox = page.locator('.el-message-box');
         await expect(confirmBox).toBeVisible({ timeout: 10_000 });
-        await expect(confirmBox.locator('.cursor-reset-confirm')).toContainText('đổi công thức cột mốc');
+        await expect(confirmBox.locator('.cursor-reset-confirm')).toContainText('đổi công thức hoặc bảng nguồn của cột mốc');
+        await expect(confirmBox.locator('.cursor-reset-confirm')).toContainText('Mốc đang chạy');
+        await expect(confirmBox.locator('.cursor-reset-confirm')).toContainText('Mốc bắt đầu');
         await expect(confirmBox.locator('.cursor-reset-confirm')).toContainText('Đối tác A');
         expect(saveBodies).toHaveLength(1);
         expect(saveBodies[0].force).toBeFalsy();

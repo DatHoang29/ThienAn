@@ -4,22 +4,21 @@ GO
 -- =========================================================================================
 -- FILE: sharedata-seed-anh-xa-ShareDataMapping.sql
 -- BẢNG GHI: [dbo].[ShareDataMapping] — tệp chỉ thêm / sửa / xóa trên đúng bảng này; bảng khác chỉ đọc (Rule 19.103).
--- DESCRIPTION: Hồ sơ ánh xạ gói 101 cho 2 đối tác (chốt 06/11/2026):
+-- DESCRIPTION: Hồ sơ ánh xạ gói 101 cho 2 đối tác hiện tại (chốt 06/11/2026):
 --                PC08  gửi đi  (Direction = 0) : PC08_101COMMONDATA_OUT
 --                PC08  nhận về (Direction = 1) : PC08_101COMMONDATA_IN
 --                TTDHT nhận về (Direction = 1) : TTDHT_101COMMONDATA_IN
 --              1. Xóa mềm mọi hồ sơ đang sống khác của PC08, TTDHT (giống nút Xóa: ghi IsDelete).
 --              2. Thêm 3 hồ sơ trên nếu chưa có (đang bật). Mã hồ sơ theo cách màn hình tự sinh: ĐỐI TÁC_GÓI TIN_CHIỀU.
---              Chưa có mẫu JSON của đối tác nên bộ khung dạng header + data:
---                header: dataTime ($meta Now), partnerCode ($meta PartnerCode), packetCode ($meta PacketCode), serial ($meta Serial);
---                data  : mảng bản ghi, khoá giữ nguyên tên trường của câu SQL mẫu chuẩn gói 101 (tệp 2), không luật quy đổi:
---                        zoneStatusId, zoneId, zoneName, fromLocationKm, fromLocationMet, toLocationKm, toLocationMet, laneId, averageSpeed, trafficCondition, dataTime, speedLimit, vehicleCount.
---              Có mẫu JSON thật của đối tác thì mở hồ sơ trên màn hình Ánh xạ dữ liệu, dán mẫu và ánh xạ lại.
--- THỨ TỰ CHẠY: 15 (sau tệp 2 và tệp 14 đối tác) (xem README.md cùng thư mục).
+--              3. Áp dụng Bộ mã Chuẩn hóa (tệp 15 sharedata-seed-bo-ma-ShareDataCodeSet.sql) cho cả 2 chiều Gửi đi / Nhận về:
+--                   - laneId           -> bộ mã lane_code          (0..3 <-> ALL_LANES, LANE_1..LANE_3)
+--                   - trafficCondition -> bộ mã traffic_condition  (GOOD/NORMAL/SLOW/CONGES <-> FREE_FLOW/NORMAL/SLOW/CONGESTED)
+--                 Cập nhật tự động cho 3 hồ sơ mẫu đã tạo trước đó nếu quản trị viên chưa chỉnh sửa tay trên màn hình.
+-- THỨ TỰ CHẠY: 16 (sau tệp 2 câu SQL mẫu, tệp 14 đối tác và tệp 15 bộ mã chuẩn hóa ShareDataCodeSet) (xem README.md cùng thư mục).
 -- PHÂN HỆ: ShareData (ESHARE)
--- MÔI TRƯỜNG: Mọi môi trường.
+-- MÔI TRƯỜNG: Mọi môi trường (đổi tên CSDL ở dòng USE đầu tệp nếu chạy trên DEV_ITS10 local).
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent).
--- CẬP NHẬT LẦN CUỐI: 06/11/2026 (thu gọn còn 3 hồ sơ gói 101: PC08 gửi và nhận, TTDHT chỉ nhận)
+-- CẬP NHẬT LẦN CUỐI: 06/11/2026 (áp dụng bộ mã chuẩn hóa lane_code và traffic_condition cho 3 hồ sơ của PC08, TTDHT)
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -36,9 +35,25 @@ BEGIN
 END;
 GO
 
+IF OBJECT_ID(N'[dbo].[ShareDataCodeSet]', N'U') IS NULL
+   OR (SELECT COUNT(DISTINCT [Code])
+       FROM [dbo].[ShareDataCodeSet]
+       WHERE [IsDelete] IS NULL
+         AND [Status] = 1
+         AND [Code] IN (N'lane_code', N'traffic_condition')) < 2
+BEGIN
+    PRINT N'⚠️ Chưa có đủ bộ mã chuẩn hóa đang bật (lane_code, traffic_condition) trong [dbo].[ShareDataCodeSet]!';
+    PRINT N'   Vui lòng chạy tệp 15 sharedata-seed-bo-ma-ShareDataCodeSet.sql trước rồi chạy lại tệp này.';
+    SET NOEXEC ON;
+END;
+GO
+
+DECLARE @GhiDeAnhXaMau BIT = 0; -- Đặt = 1 nếu muốn ghi đè cả hồ sơ quản trị viên đã sửa tay trên giao diện
 DECLARE @TenantIdMapping NVARCHAR(64) = (SELECT TOP 1 CAST([TenantId] AS NVARCHAR(64)) FROM [dbo].[SysOpConfig] WHERE [TenantId] IS NOT NULL);
 IF @TenantIdMapping IS NULL
     SET @TenantIdMapping = N'Default';
+
+DECLARE @RemarkMapping NVARCHAR(256) = N'Áp dụng bộ mã chuẩn hóa lane_code (làn đường) và traffic_condition (tình trạng giao thông); ánh xạ lại khi có mẫu JSON riêng của đối tác.';
 
 DECLARE @SchemaJson NVARCHAR(MAX) = N'{
   "header": {
@@ -52,19 +67,20 @@ DECLARE @SchemaJson NVARCHAR(MAX) = N'{
       "zoneStatusId": "<zoneStatusId>",
       "zoneId": "<zoneId>",
       "zoneName": "<zoneName>",
-      "fromLocationKm": "<fromLocationKm>",
-      "fromLocationMet": "<fromLocationMet>",
-      "toLocationKm": "<toLocationKm>",
-      "toLocationMet": "<toLocationMet>",
-      "laneId": "<laneId>",
-      "averageSpeed": "<averageSpeed>",
-      "trafficCondition": "<trafficCondition>",
-      "dataTime": "<dataTime>",
-      "speedLimit": "<speedLimit>",
-      "vehicleCount": "<vehicleCount>"
+      "fromLocationKm": 0,
+      "fromLocationMet": 0,
+      "toLocationKm": 0,
+      "toLocationMet": 0,
+      "laneId": "LANE_1",
+      "averageSpeed": 80.5,
+      "trafficCondition": "NORMAL",
+      "dataTime": "2026-11-06T08:00:00+07:00",
+      "speedLimit": 80,
+      "vehicleCount": 120
     }
   ]
 }';
+
 DECLARE @ShapeJson NVARCHAR(MAX) = N'{
   "header": {
     "dataTime": {
@@ -106,13 +122,21 @@ DECLARE @ShapeJson NVARCHAR(MAX) = N'{
         "$field": "toLocationMet"
       },
       "laneId": {
-        "$field": "laneId"
+        "$field": "laneId",
+        "$extend": {
+          "targetType": "string",
+          "codeSet": "lane_code"
+        }
       },
       "averageSpeed": {
         "$field": "averageSpeed"
       },
       "trafficCondition": {
-        "$field": "trafficCondition"
+        "$field": "trafficCondition",
+        "$extend": {
+          "targetType": "string",
+          "codeSet": "traffic_condition"
+        }
       },
       "dataTime": {
         "$field": "dataTime"
@@ -158,7 +182,7 @@ IF (SELECT COUNT(DISTINCT [PartnerCode]) FROM @Targets) < 2
 UPDATE m
 SET m.[IsDelete] = GETDATE(),
     m.[UpdateTime] = GETDATE(),
-    m.[UpdateUId] = N'SHAREDATA-SEED-15'
+    m.[UpdateUId] = N'SHAREDATA-SEED-16'
 FROM [dbo].[ShareDataMapping] m
 JOIN [dbo].[ShareDataPartner] pt ON pt.[ID] = m.[PartnerId] AND pt.[Code] IN (N'PC08', N'TTDHT')
 WHERE m.[IsDelete] IS NULL
@@ -170,7 +194,7 @@ WHERE m.[IsDelete] IS NULL
 PRINT N'-> 1. Đã xóa mềm ' + CAST(@@ROWCOUNT AS NVARCHAR(10)) + N' hồ sơ ánh xạ thừa của PC08, TTDHT.';
 
 -- -----------------------------------------------------------------------------------------
--- 2. THÊM 3 HỒ SƠ GÓI 101 CÒN THIẾU
+-- 2. THÊM 3 HỒ SƠ GÓI 101 CÒN THIẾU (CÓ GẮN BỘ MÃ CHUẨN HÓA)
 -- -----------------------------------------------------------------------------------------
 -- IsDelete để trống: cột là thời điểm xóa mềm, ghi 0 sẽ thành 1900-01-01 và hồ sơ bị coi là đã xóa.
 INSERT INTO [dbo].[ShareDataMapping]
@@ -187,10 +211,10 @@ SELECT
     REPLACE(REPLACE(@SchemaJson, N'{{PARTNER_CODE}}', t.[PartnerCode]), N'{{PACKET_CODE}}', @PacketCode),
     REPLACE(REPLACE(@ShapeJson, N'{{PARTNER_CODE}}', t.[PartnerCode]), N'{{PACKET_CODE}}', @PacketCode),
     1,
-    N'Giữ nguyên tên trường của câu SQL mẫu chuẩn; ánh xạ lại khi có mẫu JSON của đối tác.',
+    @RemarkMapping,
     @TenantIdMapping,
     GETDATE(),
-    N'SHAREDATA-SEED-15'
+    N'SHAREDATA-SEED-16'
 FROM @Targets t
 WHERE @PacketId IS NOT NULL
   AND NOT EXISTS (
@@ -204,7 +228,37 @@ WHERE @PacketId IS NOT NULL
           AND (m.[DatatypeId] = @PacketId OR m.[DatatypeId] = @PacketCode)
           AND (m.[Direction] = t.[Direction] OR m.[Direction] = 2)
     );
-PRINT N'-> 2. Đã thêm ' + CAST(@@ROWCOUNT AS NVARCHAR(10)) + N' hồ sơ ánh xạ gói 101 (tối đa 3).';
+PRINT N'-> 2. Đã thêm ' + CAST(@@ROWCOUNT AS NVARCHAR(10)) + N' hồ sơ ánh xạ gói 101 còn thiếu (tối đa 3).';
+
+-- -----------------------------------------------------------------------------------------
+-- 3. CẬP NHẬT ÁP DỤNG BỘ MÃ CHUẨN HÓA CHO 3 HỒ SƠ MẪU ĐÃ TẠO TRƯỚC ĐÓ
+-- -----------------------------------------------------------------------------------------
+UPDATE m
+SET m.[PartnerSchemaJson] = REPLACE(REPLACE(@SchemaJson, N'{{PARTNER_CODE}}', t.[PartnerCode]), N'{{PACKET_CODE}}', @PacketCode),
+    m.[TargetShapeJson]   = REPLACE(REPLACE(@ShapeJson, N'{{PARTNER_CODE}}', t.[PartnerCode]), N'{{PACKET_CODE}}', @PacketCode),
+    m.[Remark]            = @RemarkMapping,
+    m.[UpdateTime]        = GETDATE(),
+    m.[UpdateUId]         = N'SHAREDATA-SEED-16'
+FROM [dbo].[ShareDataMapping] m
+JOIN @Targets t
+  ON t.[PartnerId] = m.[PartnerId]
+ AND t.[Direction] = m.[Direction]
+WHERE @PacketId IS NOT NULL
+  AND m.[IsDelete] IS NULL
+  AND (m.[DatatypeId] = @PacketId OR m.[DatatypeId] = @PacketCode)
+  AND (
+        @GhiDeAnhXaMau = 1
+        OR (
+            m.[CreateUId] IN (N'SHAREDATA-SEED-15', N'SHAREDATA-SEED-16')
+            AND (m.[UpdateUId] IS NULL OR m.[UpdateUId] IN (N'SHAREDATA-SEED-15', N'SHAREDATA-SEED-16'))
+            AND (
+                m.[TargetShapeJson] IS NULL
+                OR m.[TargetShapeJson] NOT LIKE N'%"traffic_condition"%'
+                OR m.[TargetShapeJson] NOT LIKE N'%"lane_code"%'
+            )
+        )
+      );
+PRINT N'-> 3. Đã cập nhật áp dụng bộ mã chuẩn hóa (lane_code, traffic_condition) cho ' + CAST(@@ROWCOUNT AS NVARCHAR(10)) + N' hồ sơ ánh xạ của PC08, TTDHT.';
 GO
 
 SET NOEXEC OFF;
