@@ -591,7 +591,7 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await expect.poll(() => detailCalls, { timeout: 10_000 }).toBeGreaterThan(0);
     });
 
-    test('50b. Đổi từ tab khác về Cấu hình gói tin (không có liên kết gói): khung phải ở trạng thái trống, không hiện sẵn câu truy vấn cũ', async ({ page }) => {
+    test('50b. Đổi từ tab khác về Cấu hình gói tin: khung phải ở trạng thái trống, không hiện sẵn câu truy vấn cũ', async ({ page }) => {
         await page.route('**/api/system/sysmenu/loginmenutree*', async (route) => {
             await route.fulfill({
                 status: 200,
@@ -616,12 +616,12 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
                                     meta: { title: 'lz.menu.sharedataDataSource', isLink: '', isHide: false, isKeepAlive: true, isAffix: false, isIframe: false, roles: ['admin'], icon: 'ele-Coin' },
                                 },
                                 {
-                                    id: 'menu_sharedata_cursor',
+                                    id: 'menu_sharedata_mapping',
                                     pid: 'menu_sharedata',
-                                    path: '/shareData/cursor',
-                                    name: 'sharedataCursor',
-                                    component: 'sharedata/cursor/index',
-                                    meta: { title: 'lz.menu.sharedataCursor', isLink: '', isHide: false, isKeepAlive: true, isAffix: false, isIframe: false, roles: ['admin'], icon: 'ele-Aim' },
+                                    path: '/shareData/mapping',
+                                    name: 'sharedataMapping',
+                                    component: 'sharedata/mapping/index',
+                                    meta: { title: 'lz.menu.sharedataMapping', isLink: '', isHide: false, isKeepAlive: true, isAffix: false, isIframe: false, roles: ['admin'], icon: 'ele-Connection' },
                                 },
                             ],
                         },
@@ -645,9 +645,13 @@ test.describe('ShareData — Layout tìm kiếm Trường gói tin (dataSource) 
         await firstRow.click();
         await expect(page.locator('.field-col .packet-details-wrapper')).toBeVisible({ timeout: 10_000 });
 
-        // Chuyển sang tab Mốc gửi rồi quay lại Cấu hình gói tin
-        await page.goto('/#/shareData/cursor');
-        await expect(page.locator('#sharedata-cursor-search')).toBeVisible({ timeout: 15_000 });
+        // Chuyển sang tab Ánh xạ dữ liệu (nạp danh sách đối tác, gói tin, đăng ký khi mở) rồi quay lại Cấu hình gói tin
+        const emptyList = (r: any) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, result: [] }) });
+        await page.route('**/api/sharedata/sharedatapartner/list*', emptyList);
+        await page.route('**/api/sharedata/sharedatapacket/list*', emptyList);
+        await page.route('**/api/sharedata/sharedatasubscription/list*', emptyList);
+        await page.goto('/#/shareData/mapping');
+        await expect(page.locator('#sharedata-mapping-search')).toBeVisible({ timeout: 15_000 });
         await page.goto('/#/sharedata/dataSource');
 
         // Khung phải quay về trạng thái trống chờ chọn gói, không hiện sẵn truy vấn cũ

@@ -7,16 +7,16 @@
 --                 - Cấu hình gói tin (shareDataSource)
 --                 - Ánh xạ dữ liệu (shareDataMapping)
 --                 - Bộ mã Chuẩn hóa (shareDataCodeSet)
---                 - Mốc gửi (shareDataCursor)
 --                 - Nguồn sự kiện (shareEventSource - status ẩn/tắt)
 --              2. "Theo dõi chia sẻ" (shareDataMonitorGroup, tabPage/index):
 --                 - Lịch sử chia sẻ (shareDataHistory)
 --                 - Cảnh báo & lỗi (shareDataErrorLog)
+--              Gỡ menu Mốc gửi (shareDataCursor, xóa mềm): mốc đang chạy của từng đối tác xem và sửa ở khối 4 của tab Cấu hình gói tin.
 -- THỨ TỰ CHẠY: 13 (xem README.md cùng thư mục).
 -- PHÂN HỆ: ShareData (ESHARE)
 -- MÔI TRƯỜNG: Mọi môi trường. Không gán vai trò: API của trang chỉ nhận SuperAdmin, như các menu ShareData khác.
 -- ĐẶC TÍNH: Chạy lại nhiều lần an toàn (idempotent); giữ nguyên ID của các menu hiện có.
--- CẬP NHẬT LẦN CUỐI: 06/11/2026
+-- CẬP NHẬT LẦN CUỐI: 07/11/2026 (gỡ menu Mốc gửi)
 -- =========================================================================================
 
 SET NOCOUNT ON;
@@ -57,29 +57,15 @@ BEGIN
 END;
 GO
 
--- 2. Đảm bảo menu "Mốc gửi" (shareDataCursor) tồn tại trước khi chuyển tab
-DECLARE @RootDirId NVARCHAR(64) = (
-    SELECT TOP 1 [ID]
-    FROM [dbo].[SysMenu]
-    WHERE ([Name] = N'sharedata' OR [Path] = N'/sharedata')
-      AND [IsDelete] IS NULL
-);
-IF @RootDirId IS NULL
-BEGIN
-    SELECT TOP 1 @RootDirId = [Pid]
-    FROM [dbo].[SysMenu]
-    WHERE [Name] IN (N'shareDataSharing', N'shareDataSource', N'shareDataHistory', N'shareDataErrorLog')
-      AND [IsDelete] IS NULL;
-END;
-
-IF NOT EXISTS (SELECT 1 FROM [dbo].[SysMenu] WHERE [Name] = N'shareDataCursor' AND [IsDelete] IS NULL)
-BEGIN
-    INSERT INTO [dbo].[SysMenu]
-        ([ID], [Pid], [Type], [Name], [Path], [Component], [Title], [Icon], [IsIframe], [IsHide], [IsKeepAlive], [IsAffix], [IsFullscreen], [OrderNo], [Status], [CreateTime], [CreateUId])
-    VALUES
-        (LOWER(CONVERT(NVARCHAR(36), NEWID())), @RootDirId, N'menu', N'shareDataCursor', N'/shareData/cursor', N'/sharedata/cursor/index', N'Mốc gửi', N'ele-Flag', 0, 0, 1, 0, 0, 7, 1, GETDATE(), N'superadmin');
-    PRINT N'✅ Đã thêm menu shareDataCursor.';
-END;
+-- 2. Gỡ menu "Mốc gửi" (shareDataCursor), giống thao tác Xóa trên màn hình (ghi IsDelete):
+--    mốc đang chạy của từng đối tác nay xem và sửa ở khối 4 của tab Cấu hình gói tin
+UPDATE [dbo].[SysMenu]
+SET [IsDelete] = GETDATE(),
+    [UpdateTime] = GETDATE(),
+    [UpdateUId] = N'superadmin'
+WHERE [Name] = N'shareDataCursor' AND [IsDelete] IS NULL;
+IF @@ROWCOUNT > 0
+    PRINT N'✅ Đã gỡ menu shareDataCursor (Mốc gửi).';
 GO
 
 -- 3. Tạo/cập nhật 2 menu nhóm tab (Component = /tabPage/index)
@@ -176,14 +162,10 @@ SET [Pid] = @ConfigGroupId, [Type] = N'tab', [OrderNo] = 40
 WHERE [Name] = N'shareDataCodeSet' AND [IsDelete] IS NULL;
 
 UPDATE [dbo].[SysMenu]
-SET [Pid] = @ConfigGroupId, [Type] = N'tab', [OrderNo] = 50
-WHERE [Name] = N'shareDataCursor' AND [IsDelete] IS NULL;
-
-UPDATE [dbo].[SysMenu]
 SET [Pid] = @ConfigGroupId, [Type] = N'tab', [OrderNo] = 60
 WHERE [Name] = N'shareEventSource' AND [IsDelete] IS NULL;
 
-PRINT N'✅ Đã chuyển 6 menu cấu hình thành tab con của "Cấu hình chia sẻ".';
+PRINT N'✅ Đã chuyển 5 menu cấu hình thành tab con của "Cấu hình chia sẻ".';
 
 -- 4.2. Nhóm "Theo dõi chia sẻ"
 UPDATE [dbo].[SysMenu]

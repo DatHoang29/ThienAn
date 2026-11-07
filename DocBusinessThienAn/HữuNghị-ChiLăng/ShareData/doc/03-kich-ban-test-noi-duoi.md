@@ -3,10 +3,11 @@
 Làm từ trên xuống, đánh dấu từng ô. Mỗi bước: **Làm** → **Thấy**. Thấy khác thì dừng, chụp màn hình gửi lại.
 
 - CSDL máy chủ mới `10.10.12.80/DEV_ITS015` (cập nhật 06/11/2026). Chạy WebAPI, Worker bản mới nhất trỏ vào CSDL này (Worker: `DefaultConnection` = `DEV_ITS015`, `InboundConnection` = `DEV_ITS015_Inbound`).
-- Đối tác **Phòng Cảnh sát giao thông (PC08)** (mã `PC08`), gói **`101_commonData`**. Dùng sẵn hồ sơ ánh xạ `PC08_101COMMONDATA_OUT`. PC08 chưa có đăng ký nào: bước 0.3 tạo đăng ký **gửi** gói 101 chu kỳ **30 giây**.
+- Đối tác **Phòng Cảnh sát giao thông (PC08)** (mã `PC08`), gói **`101_commonData`**. Dùng sẵn hồ sơ ánh xạ `PC08_101COMMONDATA_OUT` (đã gắn bộ mã chuẩn `lane_code` cho `laneId` và `traffic_condition` cho `trafficCondition`). Trên `DEV_ITS015` PC08 đã có sẵn đăng ký **gửi** gói 101 chu kỳ **30 giây** đang tắt: bước 0.3 giữ đăng ký này (chưa có mới tạo).
 - Câu mẫu gói 101 là câu nối đuôi một chuỗi ghép (PA1, sếp chốt 02/11/2026) `thời gian_khóa` ở cột `__lastKey`. Kịch bản tạo cấu hình riêng cho PC08 và viết câu trên đó; mẫu chung không đổi.
 - PC08 chưa có địa chỉ nhận nên trong lúc test dùng **kênh File**: mỗi lần gửi được lưu thành một tệp bằng chứng, không cần máy nhận.
 - Dữ liệu nguồn `TmsZoneStatus` trên `DEV_ITS015` (đếm ngày 06/11/2026): **299** dòng; **264** dòng có `UpdateTime`, mới nhất `22/10/2026 17:11:28.537`; **35** dòng chưa có `UpdateTime` (đều có `CreateTime`). Cột mốc lấy `CreateTime` khi `UpdateTime` trống nên gửi đủ cả 299 dòng. Câu JOIN không nhân dòng (299 giá trị cột mốc khác nhau).
+- Giá trị nguồn đi qua **Bộ mã Chuẩn hóa** trên `DEV_ITS015`: `TmsZone.LaneId` có `0, 1, 2` (quy đổi ra `ALL_LANES, LANE_1, LANE_2`) cùng các dòng trống hoặc `L1` (rơi về mặc định `LANE_1`); `TmsZoneStatus.Condition` có `GOOD, NORMAL, SLOW, conges` (quy đổi không phân biệt hoa thường ra `FREE_FLOW, NORMAL, SLOW, CONGESTED`) cùng các dòng trống hoặc dữ liệu thử cũ `OLD, NEW` (rơi về mặc định `NORMAL`, vẫn gửi đủ 299 dòng và không sinh cảnh báo lỗi).
 - Dòng **trùng giờ**: 139 dòng đầu cùng giờ `03/06/2026 11:16:10.730`; ba cặp trùng giờ đứng thứ **231–232** (`19/08/2026 14:57:16.920`), 255–256, 291–292.
 - Xem kết quả ở **Theo dõi chia sẻ → Lịch sử chia sẻ → Nhật ký truyền nhận** (cột *Số bản ghi*). Lượt sau không gửi lặp nghĩa là mốc đã tiến. Xem mốc trực tiếp ở tab **Mốc gửi**, kiểm ở mục 12.
 - Màn hình dạng tab: **Chia sẻ dữ liệu → Cấu hình chia sẻ** gồm các tab *Cấu hình, Cấu hình gói tin, Ánh xạ dữ liệu, Bộ mã Chuẩn hóa, Mốc gửi, Nguồn sự kiện*; **Theo dõi chia sẻ** gồm *Lịch sử chia sẻ, Cảnh báo & lỗi*.
@@ -16,10 +17,12 @@ Làm từ trên xuống, đánh dấu từng ô. Mỗi bước: **Làm** → **T
 
 ## 0. Chuẩn bị
 
-- [ ] **0.1** Trên `DEV_ITS015` đã chạy các tệp seed theo `sql/README.md` (gói tin, câu mẫu, đối tác 14, ánh xạ 15). Gói 101 đã **Dò cột trả về** → **Lưu** ở tab Mẫu chung (danh sách trường không trống). Mở web, tải lại hẳn trang (Cmd+Shift+R).
+- [ ] **0.1** Trên `DEV_ITS015` đã chạy các tệp seed theo `sql/README.md` (gói tin, câu mẫu, đối tác 14, bộ mã chuẩn hóa 15, ánh xạ 16); gói 101 ở tab **Mẫu chung** đã lưu sẵn danh sách **13** trường dữ liệu. Mở web, tải lại hẳn trang (Cmd+Shift+R); mở tab **Bộ mã Chuẩn hóa** thấy **Tổng cộng: 9** bộ mã chuẩn (có `lane_code`, `traffic_condition`; không còn dòng `condition` cũ).
 - [ ] **0.2** Tab **Cấu hình** → sửa đối tác **PC08**: kênh kết nối **File**, để trống *Thư mục*, định dạng JSON → Lưu → **Kết nối**.
-- [ ] **0.3** Tab **Cấu hình** → PC08 → **Gửi đi** → **Tạo đăng ký gửi**: gói `101_commonData`, chế độ **Định kỳ** 30 giây → Lưu. Để **tắt**.
+- [ ] **0.3** Tab **Cấu hình** → PC08 → **Gửi đi**: nếu đã có dòng `101_commonData` (Định kỳ 30 giây) thì giữ ở trạng thái **tắt**; chưa có mới bấm **Tạo đăng ký gửi**: gói `101_commonData`, chế độ **Định kỳ** 30 giây → Lưu, để **tắt**.
   **Thấy:** cột *Hồ sơ ánh xạ* hiện `PC08_101COMMONDATA_OUT`.
+- [ ] **0.3b** Tab **Mốc gửi** → chọn gói `101_commonData`: nếu dòng **PC08** đang có mốc (trên `DEV_ITS015` đang có mốc đặt tay `22/10/2026 00:00:00.000`), bấm **↺ Đặt lại** → xác nhận.
+  **Thấy:** dòng PC08 ghi "Chưa có mốc" (bắt buộc đặt lại để bước 0.5–0.6 mở ô Mốc bắt đầu và mục 1 gửi đủ 299 dòng từ đầu).
 - [ ] **0.4** Tab **Cấu hình gói tin** → gói `101_commonData` → **Tạo cấu hình riêng +** → Đối tác **PC08**, Sao chép từ **Mẫu chung** → xác nhận. PC08 đã có cấu hình riêng thì mở thẳng tab PC08.
   **Thấy:** tự mở tab PC08, khung soạn có câu `SELECT TOP (@pageSize) CONVERT(varchar(23), COALESCE(zs.UpdateTime, zs.CreateTime), 121) + '_' + zs.ID AS __lastKey, … FROM dbo.TmsZoneStatus zs …`.
 - [ ] **0.5** Xóa hết khung soạn (Cmd+A, Delete), dán câu dưới (giống câu mẫu) → **Lưu & phân tích**.
@@ -59,13 +62,16 @@ Làm từ trên xuống, đánh dấu từng ô. Mỗi bước: **Làm** → **T
   **Thấy:**
   - **Nhật ký truyền nhận**: 15 lần gửi thành công, *Số bản ghi* **21** (14 lần) rồi **5** (đủ 299 dòng; tổng thiếu dòng nào nghĩa là mất dòng trùng giờ).
   - **Lịch sử chia sẻ → Nhật ký cấu hình**: không có dòng "Câu truy vấn nối đuôi có rủi ro".
-  - Thư mục bằng chứng có 15 tệp JSON dạng `header` + `data` của hồ sơ `PC08_101COMMONDATA_OUT`.
+  - Thư mục bằng chứng có 15 tệp JSON dạng `header` + `data` của hồ sơ `PC08_101COMMONDATA_OUT`. Mở kiểm tra 1 tệp JSON thấy trong mảng `data`: `laneId` đã chuẩn hóa thành `ALL_LANES`, `LANE_1`, `LANE_2` (không còn `"0"`, `"1"`, `"2"`, `"L1"` hay `null`); `trafficCondition` đã chuẩn hóa thành `FREE_FLOW`, `NORMAL`, `SLOW`, `CONGESTED` (dòng nguồn trống hoặc `OLD`, `NEW` ra mặc định `NORMAL`).
+  - **Cảnh báo & lỗi**: không có cảnh báo hay lỗi mới.
 - [ ] **1.2** Chờ thêm một lượt. **Thấy:** không có lần gửi mới (không gửi lặp).
 
 ## 2. Khóa khi đăng ký gửi đang bật (đăng ký vẫn bật)
 
 - [ ] **2.1** Tab **Cấu hình gói tin** → chọn lại gói `101_commonData` → tab PC08.
   **Thấy:** **Lưu & phân tích** mờ, có biểu tượng khóa ghi "Đang có đăng ký gửi bật sử dụng (PC08)…". Ô giá trị của `@lastKey` bị khóa, có chữ "Đã có mốc, gửi tiếp", không hiện giá trị mốc.
+- [ ] **2.2** Tab **Bộ mã Chuẩn hóa** → bấm nút **Sửa** (`✎`) ở dòng `lane_code` (hoặc `traffic_condition`).
+  **Thấy:** hiện thông báo vàng "Bộ mã đang được hồ sơ ánh xạ có đăng ký bật sử dụng (PC08_101COMMONDATA_OUT). Bảng quy đổi và giá trị mặc định bị khóa; tạm dừng đăng ký trước khi sửa.", bảng quy đổi và giá trị mặc định bị khóa mờ. Đóng hộp thoại.
 
 ## 5. Câu sai bị chặn khi lưu
 
@@ -445,7 +451,7 @@ Mỗi ca: xóa hết khung soạn (Cmd+A, Delete), dán câu của ca → **Lưu
 Câu ở các mục trên đã gửi đủ 299 dòng nhờ `COALESCE` nên không cần cách này; mục này chỉ để kiểm tính năng nhóm mốc (một câu nhiều mốc, mỗi mốc một tên). Câu hai nhóm tách riêng hai mốc: nhóm `upd` theo `UpdateTime`, nhóm `new` là các dòng `UpdateTime` còn trống theo `CreateTime` (cả 35 dòng đều có `CreateTime`).
 
 - [ ] **6.1** Đăng ký gửi đang tắt. Tab PC08: xóa hết khung soạn, dán câu dưới → **Lưu & phân tích**.
-  **Thấy:** hộp xác nhận "Câu truy vấn đổi công thức cột mốc nối đuôi… (PC08)…" → **Xác nhận**. Sau đó:
+  **Thấy:** một hộp xác nhận gộp cả cảnh báo thiếu 7 trường đang dùng trong `PC08_101COMMONDATA_OUT` (`fromLocationKm`, `fromLocationMet`, `toLocationKm`, `toLocationMet`, `laneId`, `speedLimit`, `vehicleCount`) và khung vàng "Câu truy vấn đổi công thức hoặc bảng nguồn của cột mốc: bỏ Mốc đang chạy của 1 đối tác (…), lượt chạy tới gửi lại dữ liệu từ Mốc bắt đầu." → **Xác nhận**. Sau đó:
   - Lưu thành công.
   - Bảng tham số có `@lastKey_upd`, `@lastKey_new` (*theo key*), **đã chọn sẵn nguồn**; không còn `@lastKey`.
 
@@ -478,14 +484,15 @@ Câu ở các mục trên đã gửi đủ 299 dòng nhờ `COALESCE` nên khôn
   **Thấy:** gửi **299** bản ghi (264 + 35), *Số bản ghi* **20** (14 lần) rồi **19**.
 - [ ] **6.3** Chờ thêm một lượt. **Thấy:** không gửi lặp.
 
-## 7. Gửi lỗi thì giữ mốc *(tùy chọn, làm sau mục 6)*
-
-Bước 7.2 xóa mốc của PC08 bằng cách đổi công thức từ câu hai nhóm (mục 6) về câu ở bước 0.5, vì màn hình không có nút Đặt lại. Bỏ qua mục 6 thì bỏ qua cả mục này.
+## 7. Gửi lỗi thì giữ mốc *(tùy chọn)*
 
 Kênh API `localhost:9999` không có gì nghe trên máy, nên dùng để thử gửi lỗi.
 
 - [ ] **7.1** Tắt đăng ký gửi. Tab **Cấu hình** → sửa PC08 sang kênh **API**, địa chỉ `localhost`, cổng `9999`, endpoint để trống → Lưu → **Kết nối**.
-- [ ] **7.2** Tab PC08: xóa hết khung soạn, dán lại câu ở bước 0.5 → **Lưu & phân tích** → hộp xác nhận đổi công thức → **Xác nhận** (mốc của PC08 bị xóa). Bật đăng ký gửi, chờ một lượt.
+- [ ] **7.2** Xóa mốc đang chạy của PC08 trước khi thử:
+  - Nếu vừa làm mục 6: ở tab PC08 xóa hết khung soạn, dán lại câu ở bước 0.5 → `@pageSize` = **21** → **Lưu & phân tích** → hộp xác nhận đổi công thức hoặc bảng nguồn của cột mốc → **Xác nhận** (mốc của PC08 tự bị xóa).
+  - Nếu bỏ qua mục 6: mở tab **Mốc gửi** → chọn gói `101_commonData` → bấm **↺ Đặt lại** ở dòng PC08 → xác nhận.
+  Sau đó bật đăng ký gửi, chờ một lượt.
   **Thấy:** **Cảnh báo & lỗi** có lỗi không kết nối được tới `localhost:9999`; *Nhật ký truyền nhận* có lần gửi lỗi.
 - [ ] **7.3** Tắt đăng ký gửi. Sửa PC08 về kênh **File** như bước 0.2 → Lưu → **Kết nối**. Bật đăng ký gửi, chờ một lượt.
   **Thấy:** gửi đủ 299 bản ghi: lần gửi lỗi không làm mốc tiến.
@@ -528,7 +535,7 @@ Mục tiêu: khởi động nhiều dịch vụ trên máy chủ mà vẫn chạ
 - [ ] **12.3** Tắt đăng ký, bấm làm mới, **✎ Đặt mốc**, chọn một ngày giờ → **Xác nhận**.
   **Thấy:** "Đã cập nhật mốc gửi dữ liệu cho đối tác."; cột mốc thành `<giờ đã chọn>.000_`.
 - [ ] **12.4** **↺ Đặt lại** → xác nhận. **Thấy:** "Đã đặt lại mốc đã lưu."; dòng PC08 ghi "Chưa có mốc".
-- [ ] **12.5** Bật lại đăng ký, chờ một lượt. **Thấy:** gửi lại từ **Mốc lần đầu**, bấm làm mới thì mốc đã tiến.
+- [ ] **12.5** Bật lại đăng ký, chờ một lượt. **Thấy:** gửi lại từ **Mốc bắt đầu**, bấm làm mới thì mốc đã tiến.
 
 ---
 
